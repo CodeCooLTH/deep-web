@@ -1183,6 +1183,19 @@ function ExceptionSheet({
             )}
             {useAd && (
               <div className="mt-2.5">
+                {/* บอกที่มาของรายการ (user 2026-08-02) — ร้านที่ยิงโฆษณาใหม่แล้วหาไม่เจอ
+                    จะนึกว่าระบบพัง ทั้งที่เป็นข้อจำกัดของสิทธิ์ที่ Meta ยังไม่ได้ให้:
+                    เราอ่านได้เฉพาะโฆษณาที่มีคนทักเข้ามาจริง (จาก webhook) ยังดึงรายชื่อ
+                    จาก Marketing API ไม่ได้จนกว่า App Review จะอนุมัติ ads_read */}
+                {ads !== null && (
+                  <p className="text-default-500 mb-2 flex items-start gap-1.5 text-xs">
+                    <Icon icon="info-circle" className="mt-0.5 size-3.5 flex-none" aria-hidden="true" />
+                    <span>
+                      รายการนี้คือโฆษณาที่เคยมีลูกค้าทักเข้ามาแล้วเท่านั้น
+                      โฆษณาที่เพิ่งยิงและยังไม่มีใครทัก จะขึ้นให้เลือกหลังมีคนทักครั้งแรก
+                    </span>
+                  </p>
+                )}
                 {ads !== null && ads.length > 5 && (
                   <div className="input-icon-group mb-2">
                     <Icon icon="search" className="input-icon" />
@@ -1199,7 +1212,9 @@ function ExceptionSheet({
                 {ads === null ? (
                   <p className="text-default-500 text-xs">กำลังโหลด…</p>
                 ) : ads.length === 0 ? (
-                  <p className="text-default-500 text-xs">ยังไม่มีลูกค้าทักเข้ามาจากโฆษณาใด</p>
+                  <p className="text-default-500 text-xs">
+                    ยังไม่มีลูกค้าทักเข้ามาจากโฆษณาใด — พอมีคนทักจากโฆษณาครั้งแรก โฆษณานั้นจะขึ้นที่นี่เอง
+                  </p>
                 ) : visibleAds && visibleAds.length === 0 ? (
                   <p className="text-default-500 text-xs">ไม่พบโฆษณาที่ตรงกับคำค้นหา</p>
                 ) : (
