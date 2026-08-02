@@ -48,6 +48,8 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 // Sales Chart (feature Quick Create + Sales Chart) — ยอดขายรายวันเดือนปัจจุบัน สำหรับการ์ด mini + full sheet
 // alias กัน shadow ชื่อกับ SalesSeriesPoint/salesSeries (desktop SalesReport) ที่มีอยู่แล้วในไฟล์นี้
 import { getSalesSeries } from '@/services/dashboard.service'
+// ค่าใช้จ่าย/กำไรสุทธิบนการ์ดยอดขาย (feature 00016) มี gate สิทธิ์ของตัวเอง — ต้องเช็คก่อนขอข้อมูล
+import { resolveExpenseAccess } from '@/services/expense-access.service'
 import type { SalesSeries as SalesChartSeries } from '@/services/dashboard.service'
 // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — RSC layout ไม่ส่ง prop ให้ page ได้ ต้อง fetch ซ้ำ
 // (query เล็ก ยอมรับได้ — ห้าม refactor เป็น context/global ตาม Controller decision)
@@ -190,6 +192,15 @@ export default async function SellerDashboardPage() {
         const currentYear = thaiNow.getUTCFullYear()
         const currentMonth = thaiNow.getUTCMonth() + 1
 
+        // ต้องรู้ผลก่อนยิง getSalesSeries เพราะมันตัดสินว่าจะ query ค่าใช้จ่าย/ต้นทุนด้วยไหม
+        // (fail-closed ตั้งแต่ชั้น query — ไม่ใช่ query มาแล้วค่อยซ่อนตอน render)
+        const expenseGranted =
+          (
+            await resolveExpenseAccess(
+              session as unknown as { user: { id: string; activeShopId?: string | null } },
+            )
+          ).kind === 'GRANTED'
+
         // perf: 6 query นี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(6 query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
         const [statusRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes] =
@@ -204,7 +215,7 @@ export default async function SellerDashboardPage() {
             // สินค้าขายดี (top 8) สำหรับ strip บน command center
             getBestSellerProducts(shop.id, 8),
             // Sales Chart mini card — ยอดขายรายวันเดือนปัจจุบัน
-            getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }),
+            getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, expenseGranted),
           ])
 
         // orderStatusCounts: fallback 0 ทุก bucket ถ้าล้ม — CommandCenter แสดง 0 แทน crash

@@ -90,6 +90,12 @@ export type SalesSeries = {
   prevTotal: number
   /** index ตั้งแต่นี้ไป = อนาคต (เกินวันนี้/เดือนนี้) → UI ทำแท่งจาง */
   futureFromIndex: number
+  /* ค่าใช้จ่าย (feature 00016) — undefined = ร้านนี้ไม่ผ่าน gate สิทธิ์ค่าใช้จ่าย
+     UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "ไม่มีค่าใช้จ่าย" */
+  expenseValues?: number[]
+  netProfitValues?: number[]
+  totalExpense?: number
+  netProfit?: number
 }
 
 // ─── ShortcutTile ────────────────────────────────────────────────────────────

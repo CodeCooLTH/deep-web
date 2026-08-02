@@ -24,7 +24,8 @@ export default function SalesChartCard({ initialSeries }: Props) {
 
   if (!initialSeries) return null
 
-  const { values, confirmedValues, unconfirmedValues, total, prevTotal, futureFromIndex } = initialSeries
+  const { values, confirmedValues, unconfirmedValues, total, prevTotal, futureFromIndex, totalExpense, netProfit } =
+    initialSeries
   // prevTotal===0 → คำนวณ % ไม่ได้ (หาร 0) → ซ่อน chg indicator
   const chg = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null
 
@@ -90,6 +91,29 @@ export default function SalesChartCard({ initialSeries }: Props) {
               )
             })}
           </div>
+
+          {/* ค่าใช้จ่าย/กำไรสุทธิ (feature 00016) — โผล่เฉพาะร้านที่ผ่าน gate สิทธิ์ค่าใช้จ่าย
+              ยอดใหญ่ด้านบนคือยอดขายรวม "ทั้งที่ยืนยันแล้วและยังไม่ยืนยัน" แต่กำไรคิดจากยอดที่
+              ยืนยันแล้วเท่านั้น — ต้องเขียนกำกับไว้ ไม่งั้นผู้ใช้ลบเลขเองแล้วได้ไม่ตรง */}
+          {totalExpense != null && (
+            <div className="border-default-200 mt-3 border-t border-dashed pt-3">
+              <div className="flex">
+                <div className="border-default-200 flex-1 border-e border-dashed text-center">
+                  <p className="text-default-400 text-2xs">ค่าใช้จ่าย</p>
+                  <p className="text-danger-ink font-bold">฿{totalExpense.toLocaleString('th-TH')}</p>
+                </div>
+                <div className="flex-1 text-center">
+                  <p className="text-default-400 text-2xs">กำไรสุทธิ</p>
+                  <p className={`font-bold ${(netProfit ?? 0) >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>
+                    ฿{(netProfit ?? 0).toLocaleString('th-TH')}
+                  </p>
+                </div>
+              </div>
+              <p className="text-default-400 mt-1.5 text-center text-2xs">
+                กำไรคิดจากยอดที่ยืนยันแล้วเท่านั้น
+              </p>
+            </div>
+          )}
         </div>
       </button>
 

@@ -38,21 +38,31 @@ const THAI_MONTHS_SHORT = [
  * ยืนยันแล้ว (buyer confirm) = น้ำเงิน (chart-primary), ยังไม่ยืนยัน (PENDING/SHIPPED) = เหลือง (warning)
  */
 export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOptions => {
-  const { labels, confirmedValues, unconfirmedValues } = series
+  const { labels, confirmedValues, unconfirmedValues, expenseValues } = series
   const isDaily = mode === 'daily'
+  // undefined = ไม่มีสิทธิ์ดูข้อมูลการเงิน (feature 00016) → ไม่มีแท่งค่าใช้จ่ายเลย
+  const showExpense = expenseValues != null
 
   return {
+    /**
+     * ยอดขาย (ยืนยันแล้ว+ยังไม่ยืนยัน) stack กันได้เพราะเป็นเงินก้อนเดียวกันคนละสถานะ
+     * แต่ค่าใช้จ่ายอยู่คนละ `group` — ApexCharts จะวางเป็นแท่งแยกข้างกัน ไม่ต่อยอดขึ้นไป
+     * ถ้า stack รวมกัน ความสูงรวมจะถูกอ่านว่า "ยอดขาย" ทั้งที่ครึ่งหนึ่งเป็นเงินที่จ่ายออก
+     */
     series: [
-      { name: 'ยืนยันแล้ว', data: confirmedValues },
-      { name: 'ยังไม่ยืนยัน', data: unconfirmedValues },
+      { name: 'ยืนยันแล้ว', group: 'sales', data: confirmedValues },
+      { name: 'ยังไม่ยืนยัน', group: 'sales', data: unconfirmedValues },
+      ...(showExpense ? [{ name: 'ค่าใช้จ่าย', group: 'expense', data: expenseValues }] : []),
     ],
     chart: { type: 'bar', height: 220, stacked: true, toolbar: { show: false } },
     plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
     legend: { show: true, position: 'top', fontSize: '11px' },
     dataLabels: { enabled: false },
-    // น้ำเงิน = ยืนยันแล้ว, เหลือง = ยังไม่ยืนยัน — token ทั้งหมด (ห้าม hardcode hex)
+    // น้ำเงิน = ยืนยันแล้ว, เหลือง = ยังไม่ยืนยัน, แดง = ค่าใช้จ่าย — token ทั้งหมด (ห้าม hardcode hex)
     // หมายเหตุ: ไม่มี token 'chart-warning' โดยเฉพาะ ใช้ 'warning' (--color-warning เหลือง/amber) แทน
-    colors: [getColor('chart-primary'), getColor('warning')],
+    colors: showExpense
+      ? [getColor('chart-primary'), getColor('warning'), getColor('chart-beta')]
+      : [getColor('chart-primary'), getColor('warning')],
     xaxis: {
       categories: labels,
       axisBorder: { show: false },
@@ -193,6 +203,8 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   }
 
   const chg = series.prevTotal > 0 ? Math.round(((series.total - series.prevTotal) / series.prevTotal) * 100) : null
+  // ยอดที่ buyer ยืนยันแล้ว = ฐานของ "กำไรสุทธิ" — ต้องโชว์คู่กันไม่งั้นสามตัวเลขดูบวกลบไม่ลงตัว
+  const confirmedTotal = series.confirmedValues.reduce((s, v) => s + v, 0)
 
   const periodLabel =
     mode === 'daily'
@@ -214,6 +226,9 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   const detailRows = series.labels.map((label, i) => ({
     label: mode === 'daily' ? `${label} ${monthAbbr}` : label,
     value: series.values[i] ?? 0,
+    // undefined = ไม่มีสิทธิ์ดูข้อมูลการเงิน → ไม่ render บรรทัดย่อยเลย
+    expense: series.expenseValues?.[i],
+    netProfit: series.netProfitValues?.[i],
   }))
 
   return (
@@ -299,6 +314,28 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             <p className="mt-1 text-sm text-default-400">{subtitle}</p>
           </div>
 
+          {/* ยืนยันแล้ว / ค่าใช้จ่าย / กำไรสุทธิ (feature 00016) — เฉพาะร้านที่ผ่าน gate สิทธิ์
+              ยอดใหญ่ด้านบนรวมออเดอร์ที่ยังไม่ยืนยันด้วย ส่วนกำไรคิดจากยอดที่ยืนยันแล้วเท่านั้น
+              จึงต้องโชว์ "ยืนยันแล้ว" คู่กันไป ไม่งั้นตัวเลขสามตัวนี้ดูเหมือนบวกลบกันไม่ลงตัว */}
+          {series.totalExpense != null && (
+            <div className="mb-4 flex border-y border-dashed border-default-300">
+              <div className="flex-1 border-e border-dashed border-default-300 px-1 py-2.5 text-center">
+                <p className="text-2xs text-default-400">ยืนยันแล้ว</p>
+                <p className="font-bold text-default-800">฿{confirmedTotal.toLocaleString('th-TH')}</p>
+              </div>
+              <div className="flex-1 border-e border-dashed border-default-300 px-1 py-2.5 text-center">
+                <p className="text-2xs text-default-400">ค่าใช้จ่าย</p>
+                <p className="font-bold text-danger-ink">฿{series.totalExpense.toLocaleString('th-TH')}</p>
+              </div>
+              <div className="flex-1 px-1 py-2.5 text-center">
+                <p className="text-2xs text-default-400">กำไรสุทธิ</p>
+                <p className={`font-bold ${(series.netProfit ?? 0) >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>
+                  ฿{(series.netProfit ?? 0).toLocaleString('th-TH')}
+                </p>
+              </div>
+            </div>
+          )}
+
           {error ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <p className="text-sm text-default-500">โหลดข้อมูลไม่สำเร็จ</p>
@@ -325,17 +362,37 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             <div className="mt-5">
               <p className="mb-1 text-xs font-semibold text-default-400">ยอดขายแต่ละ{periodWord}</p>
               <div className="divide-y divide-default-100">
-                {detailRows.map((r) => (
-                  <div key={r.label} className="flex items-center justify-between py-2.5">
-                    {/* วันที่ยอด 0 = จางลง (text-default-400) ให้วันที่มียอดเด่นกว่า */}
-                    <span className={`text-sm ${r.value > 0 ? 'text-default-700' : 'text-default-400'}`}>
-                      {r.label}
-                    </span>
-                    <span className={`text-sm font-semibold ${r.value > 0 ? 'text-dark' : 'text-default-400'}`}>
-                      ฿{r.value.toLocaleString('th-TH')}
-                    </span>
-                  </div>
-                ))}
+                {detailRows.map((r) => {
+                  // บรรทัดย่อยโผล่เฉพาะวันที่มีค่าใช้จ่ายจริง — ทุกวันจะรกและอ่านไม่ออกว่าวันไหนสำคัญ
+                  const showSub = r.expense != null && r.expense > 0
+                  return (
+                    <div key={r.label} className="flex items-center justify-between py-2.5">
+                      {/* วันที่ยอด 0 = จางลง (text-default-400) ให้วันที่มียอดเด่นกว่า */}
+                      <div>
+                        <span className={`text-sm ${r.value > 0 ? 'text-default-700' : 'text-default-400'}`}>
+                          {r.label}
+                        </span>
+                        {showSub && (
+                          <span className="block text-2xs text-danger-ink">
+                            ค่าใช้จ่าย ฿{(r.expense ?? 0).toLocaleString('th-TH')}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-end">
+                        <span className={`text-sm font-semibold ${r.value > 0 ? 'text-dark' : 'text-default-400'}`}>
+                          ฿{r.value.toLocaleString('th-TH')}
+                        </span>
+                        {showSub && (
+                          <span
+                            className={`block text-2xs ${(r.netProfit ?? 0) >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}
+                          >
+                            สุทธิ ฿{(r.netProfit ?? 0).toLocaleString('th-TH')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
