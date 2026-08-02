@@ -50,6 +50,8 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 import { getSalesSeries } from '@/services/dashboard.service'
 // ค่าใช้จ่าย/กำไรสุทธิบนการ์ดยอดขาย (feature 00016) มี gate สิทธิ์ของตัวเอง — ต้องเช็คก่อนขอข้อมูล
 import { resolveExpenseAccess } from '@/services/expense-access.service'
+import { resolveShortcutState } from '@/services/shortcut.service'
+import type { ShortcutCatalogItemDto } from './_constants/command-center'
 import type { SalesSeries as SalesChartSeries } from '@/services/dashboard.service'
 // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero) — RSC layout ไม่ส่ง prop ให้ page ได้ ต้อง fetch ซ้ำ
 // (query เล็ก ยอมรับได้ — ห้าม refactor เป็น context/global ตาม Controller decision)
@@ -126,6 +128,8 @@ export default async function SellerDashboardPage() {
   let packageTier: BusinessPackageTier | null = null
   // canManage: เฉพาะ OWNER ที่กดไปหน้าจัดการแพ็กเกจได้ — คนอื่นเห็นข้อมูลเหมือนกันแต่ไม่มีลิงก์
   let packageCanManage = false
+  // เมนูลัด (feature 00027) — undefined = ยังไม่ได้ resolve/ไม่ผ่าน gate ร้าน → การ์ดซ่อนตัวเอง
+  let shortcutTiles: ShortcutCatalogItemDto[] | undefined
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -201,9 +205,9 @@ export default async function SellerDashboardPage() {
             )
           ).kind === 'GRANTED'
 
-        // perf: 6 query นี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
-        // wall time = max(6 query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes] =
+        // perf: query เหล่านี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
+        // wall time = max(query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
+        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
             getBalance(shop.id),
@@ -216,6 +220,8 @@ export default async function SellerDashboardPage() {
             getBestSellerProducts(shop.id, 8),
             // Sales Chart mini card — ยอดขายรายวันเดือนปัจจุบัน
             getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, expenseGranted),
+            // เมนูลัดที่ผู้ใช้เลือกไว้ (feature 00027) — เรียก service ตรง ไม่ผ่าน HTTP เพราะอยู่ฝั่ง server แล้ว
+            resolveShortcutState(session as unknown as { user: { id: string; activeShopId?: string | null } }),
           ])
 
         // orderStatusCounts: fallback 0 ทุก bucket ถ้าล้ม — CommandCenter แสดง 0 แทน crash
@@ -235,6 +241,13 @@ export default async function SellerDashboardPage() {
         // D#13: liveAuctionCount — fallback 0 ถ้าล้ม (honest-zero pattern เดียวกับ field อื่น)
         if (liveAuctionRes.status === 'fulfilled') liveAuctionCount = liveAuctionRes.value
         else console.error('[dashboard] auction.count(live) failed', liveAuctionRes.reason)
+
+        // เมนูลัด — ล้ม/ไม่มีร้าน = undefined → การ์ดซ่อนตัวเอง (honest-hide) ไม่ใช่โชว์การ์ดเปล่า
+        if (shortcutRes.status === 'fulfilled' && shortcutRes.value.kind === 'OK') {
+          shortcutTiles = shortcutRes.value.tiles
+        } else if (shortcutRes.status === 'rejected') {
+          console.error('[dashboard] resolveShortcutState failed', shortcutRes.reason)
+        }
 
         // recentActivity feed — fallback [] (service ครอบ error เองแต่กัน allSettled reject ด้วย)
         recentActivity = activityRes.status === 'fulfilled' ? activityRes.value : []
@@ -379,6 +392,8 @@ export default async function SellerDashboardPage() {
             packageStatus,
             packageTier,
             packageCanManage,
+            // เมนูลัดที่ผู้ใช้คนนี้เลือกไว้ (feature 00027)
+            shortcutTiles,
           }}
         />
       </div>
