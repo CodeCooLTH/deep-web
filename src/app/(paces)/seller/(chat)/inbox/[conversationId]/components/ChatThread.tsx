@@ -405,6 +405,8 @@ type Props = {
   botHandoffReason?: string | null
   /** ห้องนี้ถูกเลือกไว้ทดสอบ DeepAI (ChatBot อยู่โหมดทดสอบ) */
   isChatbotTestThread?: boolean
+  /** มีบอทตัวไหนจะตอบห้องนี้ไหม — false = ไม่ต้องบอกว่า "พัก" เพราะไม่มีอะไรถูกพัก */
+  botCouldReply?: boolean
   /** feature 00018 — 'DEEP' | 'MESSENGER' | 'INSTAGRAM' (resolve/fallback ทำที่ server แล้ว) */
   channel: string
   /** ชื่อเพจ (ShopChannel.name) ที่เธรดนี้ผูกอยู่ — แสดงบน badge แทนคำว่า "Messenger"/"Instagram"
@@ -610,6 +612,7 @@ export default function ChatThread({
   botHandoffAt = null,
   botHandoffReason = null,
   isChatbotTestThread = false,
+  botCouldReply = false,
   channel,
   channelName,
   channelAvatarUrl,
@@ -1034,7 +1037,7 @@ export default function ChatThread({
       {/* feature 00023 — บอทถูกพัก/ส่งต่อคนแล้ว
           อยู่เหนือแบนเนอร์ 24 ชม. เพราะตอบคำถามคนละข้อกัน: อันนั้นบอกว่า "ส่งได้ไหม"
           อันนี้บอกว่า "ทำไมบอทเงียบ" ซึ่งเป็นสิ่งที่ร้านสงสัยก่อนเสมอเมื่อเห็นห้องไม่ขยับ */}
-      {(botPausedUntil || botHandoffAt) && (
+      {botCouldReply && (botPausedUntil || botHandoffAt) && (
         <div className="px-4 pt-4">
           <BotPausedBanner
             conversationId={conversationId}

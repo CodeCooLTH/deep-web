@@ -98,6 +98,29 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
     }),
   ])
   const isChatbotTestThread = chatbotCfg?.aiChatbotStatus === 'TEST' && Boolean(testThread)
+
+  /**
+   * ห้องนี้มีบอทตัวไหน "จะตอบ" ไหม ถ้าไม่มีการพัก (feature 00023)
+   *
+   * WARNING (user report 2026-08-02): แบนเนอร์ "บอทพักตอบห้องนี้อยู่" เคยขึ้นทุกห้องที่มี
+   * คนของร้านพิมพ์ตอบ ทั้งที่ห้องนั้นไม่มีบอทตัวไหนทำงานอยู่เลย — ร้านที่ตั้งทุกอย่างเป็น
+   * โหมดทดสอบและเลือกไว้แค่ไม่กี่ห้อง จึงเห็นแบนเนอร์ในห้องที่ไม่เกี่ยวข้องเต็มไปหมด
+   * การบอกว่า "พัก" สิ่งที่ไม่ได้ทำงานอยู่แล้วคือข้อมูลที่ผิด ไม่ใช่แค่รก
+   *
+   * เงื่อนไขตรงกับที่ processJob ใช้จริง: LIVE = ทุกห้อง · TEST = เฉพาะห้องในรายการของตัวเอง
+   */
+  const [liveKeywordCount, keywordTestThread] = await Promise.all([
+    prisma.autoReplyKeyword.count({ where: { shopId: activeCtx.shopId, status: 'LIVE' } }),
+    prisma.autoReplyKeywordTestThread.findFirst({
+      where: { conversationId, keyword: { shopId: activeCtx.shopId, status: 'TEST' } },
+      select: { id: true },
+    }),
+  ])
+  const botCouldReply =
+    chatbotCfg?.aiChatbotStatus === 'LIVE' ||
+    isChatbotTestThread ||
+    liveKeywordCount > 0 ||
+    Boolean(keywordTestThread)
   if (!shopRow) {
     return (
       <SellerErrorState
@@ -326,6 +349,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         botHandoffAt={conversation.handoffAt ? conversation.handoffAt.toISOString() : null}
         botHandoffReason={conversation.handoffReason}
         isChatbotTestThread={isChatbotTestThread}
+        botCouldReply={botCouldReply}
         channel={conversation.channel}
         channelName={channelName}
         channelAvatarUrl={channelAvatarUrl}
