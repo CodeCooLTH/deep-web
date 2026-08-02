@@ -770,6 +770,7 @@ export default function ChatThread({
     setReplyingTo,
     retryMessage,
     resendMessage,
+    cancelMessage,
     externalReadAt: externalReadAtLive,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
@@ -1110,15 +1111,17 @@ export default function ChatThread({
       {/* feature 00023 — บอทถูกพัก/ส่งต่อคนแล้ว
           อยู่เหนือแบนเนอร์ 24 ชม. เพราะตอบคำถามคนละข้อกัน: อันนั้นบอกว่า "ส่งได้ไหม"
           อันนี้บอกว่า "ทำไมบอทเงียบ" ซึ่งเป็นสิ่งที่ร้านสงสัยก่อนเสมอเมื่อเห็นห้องไม่ขยับ */}
-      {botCouldReply && (botPausedUntil || botHandoffAt) && (
-        <div className="px-4 pt-4">
-          <BotPausedBanner
-            conversationId={conversationId}
-            pausedUntil={botPausedUntil}
-            handoffAt={botHandoffAt}
-            handoffReason={botHandoffReason}
-          />
-        </div>
+      {/* botCouldReply = คำถามที่คอมโพเนนต์ไม่มีทางรู้ ("ห้องนี้บอทตอบได้ไหมตั้งแต่แรก") จึงคงไว้
+          ที่ caller — ส่วน "พักอยู่จริงไหม" กับระยะห่างรอบแบนเนอร์ อยู่ในตัว BotPausedBanner ทั้งคู่
+          ห้ามห่อ div ที่มี padding ไว้ตรงนี้อีก (user report 2026-08-02: เงื่อนไขข้างนอกไม่ตรงกับ
+          ข้างใน — pausedUntil ที่หมดเวลาแล้วยังไม่ใช่ null — ทำให้เหลือ div ว่างสูง 16px คั่นอยู่) */}
+      {botCouldReply && (
+        <BotPausedBanner
+          conversationId={conversationId}
+          pausedUntil={botPausedUntil}
+          handoffAt={botHandoffAt}
+          handoffReason={botHandoffReason}
+        />
       )}
 
       {/* feature 00018 T4 — แบนเนอร์ "ส่งไม่ได้แล้ว" / token invalid (เฉพาะ channel != DEEP)
@@ -1327,6 +1330,54 @@ export default function ChatThread({
                 // feature 00018 T4 (ภาคผนวก A-3): deliveryStatus/failureReason มีจริงตอน runtime
                 // (getMessages ไม่ select เลย คืนทุกคอลัมน์ของ ChatMessage — ดู comment หัวไฟล์)
                 const mExt = m as ChatMessageWithDelivery
+                // ── ส่งไม่สำเร็จ (user สั่ง 2026-08-02) ─────────────────────────────────
+                // รวม 2 เส้นทางให้เป็นสถานะเดียวกันในสายตาผู้ขาย เพราะสำหรับเขามันคือเรื่อง
+                // เดียวกัน ("ข้อความนี้ไม่ถึงลูกค้า") ต่างกันแค่ว่าพลาดตรงไหน:
+                //   - deliveryStatus='FAILED' = บันทึกลง DB แล้ว แต่ Meta ปฏิเสธ (มีเหตุผลให้ดู)
+                //   - _status='failed'        = บับเบิล optimistic ที่ยังไม่เคยถึง server ของเรา
+                const failedPersisted = mExt.deliveryStatus === 'FAILED'
+                const failed = mine && (failedPersisted || m._status === 'failed')
+                // เหตุผลมีเฉพาะแถวที่ถึง server แล้ว — ฝั่ง optimistic เห็น toast ไปตอนกดส่งแล้ว
+                const failDetail = failedPersisted ? describeSendFailure(mExt.failureReason) : null
+                const failReason = failDetail
+                  ? failDetail.known && failDetail.metaCode !== null
+                    ? `${failDetail.text} (Meta #${failDetail.metaCode})`
+                    : failDetail.text
+                  : null
+                // ส่งซ้ำได้เฉพาะชนิดที่ประกอบ payload กลับได้ครบจากแถวที่เก็บไว้: TEXT ใช้ body,
+                // IMAGE ใช้ imageUrl (=fileId ที่ยังอยู่ใน storage). ORDER เก็บแต่ orderRefToken
+                // ส่วนข้อความลิงก์ที่ยิงจริงประกอบขึ้นตอนส่งและไม่ได้เก็บไว้ → ต้องส่งการ์ดใหม่จากออเดอร์
+                const canRetryFailed = failedPersisted
+                  ? (m.type === 'TEXT' && !!m.body?.trim()) || (m.type === 'IMAGE' && !!m.imageUrl)
+                  : !!m._retry
+                const retryFailed = () => {
+                  if (failedPersisted) {
+                    resendMessage({
+                      type: m.type === 'IMAGE' ? 'IMAGE' : 'TEXT',
+                      body: m.body,
+                      ...(m.type === 'IMAGE' ? { imageUrl: m.imageUrl! } : {}),
+                    })
+                  } else if (m._retry) {
+                    retryMessage(m.id, m._retry)
+                  }
+                }
+                // ถามยืนยันก่อน: เนื้อความหายถาวร กู้ไม่ได้ (undo ทำไม่ได้เพราะแถวถูกลบจริง)
+                const cancelFailed = async () => {
+                  const r = await Swal.fire({
+                    buttonsStyling: false,
+                    icon: 'warning',
+                    title: 'ยกเลิกการส่งข้อความนี้?',
+                    text: 'ข้อความจะหายไปจากห้องแชทและกู้คืนไม่ได้ — ลูกค้าไม่เคยได้รับข้อความนี้อยู่แล้ว',
+                    showCancelButton: true,
+                    confirmButtonText: 'ยกเลิกการส่ง',
+                    cancelButtonText: 'เก็บไว้ก่อน',
+                    customClass: {
+                      confirmButton: 'btn bg-danger text-white hover:bg-danger-hover mt-2 me-2',
+                      cancelButton: 'btn bg-light hover:text-default-800 mt-2',
+                    },
+                  })
+                  if (r.isConfirmed) await cancelMessage(m.id)
+                }
                 // ปุ่มคัดลอกข้อความ — โผล่ตอน hover เฉพาะ desktop (lg:group-hover) และเฉพาะข้อความที่มี text
                 // (user request 2026-07-24) วางข้างบับเบิล: ฝั่งเรา=ซ้าย, ฝั่งลูกค้า=ขวา
                 const copyBtn = m.body ? <CopyMessageButton text={m.body} /> : null
@@ -1528,51 +1579,6 @@ export default function ChatThread({
                           </span>
                         </div>
                       )}
-                      {/* feature 00018 T4 — badge "ส่งไม่สำเร็จ" ใต้ bubble (deliveryStatus='FAILED';
-                          null สำหรับข้อความแชทในแอปเดิมทั้งหมด — เงื่อนไขนี้จึงไม่ trigger กับ DEEP) */}
-                      {mExt.deliveryStatus === 'FAILED' &&
-                        (() => {
-                          // Meta ตอบ error เป็นภาษาอังกฤษเสมอแม้เพจตั้งภาษาไทย — เดิมโชว์ดิบ
-                          // ("(#551) This person isn't available right now.") ร้านอ่านไม่ออกว่า
-                          // ต้องทำอะไรต่อ (user report 2026-08-02) แปลตอนแสดงผล ส่วน DB ยังเก็บดิบไว้
-                          const fail = describeSendFailure(mExt.failureReason)
-                          // ส่งซ้ำได้เฉพาะชนิดที่ประกอบ payload กลับได้ครบจากแถวที่เก็บไว้ (user 2026-08-02):
-                          // TEXT ใช้ body, IMAGE ใช้ imageUrl (=fileId ที่ยังอยู่ใน storage). ORDER เก็บแต่
-                          // orderRefToken ส่วนข้อความลิงก์ที่ยิงจริงประกอบขึ้นตอนส่งและไม่ได้เก็บไว้ →
-                          // ส่งซ้ำจากตรงนี้ไม่ได้ ต้องส่งการ์ดใหม่จากออเดอร์
-                          const canResend =
-                            (m.type === 'TEXT' && !!m.body?.trim()) || (m.type === 'IMAGE' && !!m.imageUrl)
-                          return (
-                            <div className="bg-danger/15 text-danger mt-1.5 flex items-start gap-1 rounded px-2 py-1 text-2xs">
-                              <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" />
-                              <span>
-                                {fail.message}
-                                {/* คงเลข error ไว้ให้ร้านแจ้งซัพพอร์ตอ้างอิงได้ (เฉพาะกรณีที่แปลแล้ว —
-                                    กรณีไม่รู้จักเลขอยู่ในข้อความดิบอยู่แล้ว จะซ้ำ) */}
-                                {fail.known && fail.metaCode !== null && (
-                                  <span className="opacity-70"> (Meta #{fail.metaCode})</span>
-                                )}
-                                {canResend && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      resendMessage({
-                                        type: m.type === 'IMAGE' ? 'IMAGE' : 'TEXT',
-                                        body: m.body,
-                                        ...(m.type === 'IMAGE' ? { imageUrl: m.imageUrl! } : {}),
-                                      })
-                                    }
-                                    // -my-1 กันไม่ให้ padding ที่ใส่เพื่อขยายพื้นที่กดดันแถบสูงขึ้น
-                                    className="ms-1 -my-1 inline-flex items-center gap-0.5 px-1 py-1 font-medium hover:underline"
-                                  >
-                                    <Icon icon="refresh" />
-                                    ลองใหม่
-                                  </button>
-                                )}
-                              </span>
-                            </div>
-                          )
-                        })()}
                       {/* meta row (user request 2026-07-23): เวลาเป็นกลุ่ม (ท้าย burst, ไม่ทุกข้อความ) +
                           avatar เพจ/ร้าน ย้ายมาอยู่ใต้ข้อความ ขนาดเล็ก (size-5) + สถานะส่ง/อ่าน.
                           กำลังส่ง = ไม่มีเวลา; ข้อความล่าสุดซ่อนเวลาหลังส่งเกิน 1 นาที */}
@@ -1580,10 +1586,58 @@ export default function ChatThread({
                         (mine &&
                           (atBurstEnd ||
                             m._status === 'sending' ||
-                            (m._status === 'failed' && m._retry) ||
+                            failed ||
                             m.id === lastShopMsgId ||
                             m._status === 'sent'))) && (
-                        <div className={`text-default-400 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                        <div className={`text-default-400 mt-1 flex flex-wrap items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                          {/* ส่งไม่สำเร็จ — อยู่ "หน้าเวลา" (user สั่ง 2026-08-02) แทนกล่องแดงเต็มบรรทัด
+                              ใต้บับเบิลแบบเดิม ซึ่งกินพื้นที่เท่าข้อความอีกอันทั้งที่เป็นสถานะของ
+                              ข้อความที่อยู่ข้างบนมันเอง. รูปแบบ: [ส่งใหม่] ส่งไม่สำเร็จ (i) | ยกเลิก
+                              เหตุผลเต็มย้ายไปอยู่ใน (i) — hover เห็น, แตะได้บนมือถือที่ไม่มี hover */}
+                          {failed && (
+                            <span className="text-danger flex items-center gap-1">
+                              {canRetryFailed && (
+                                <button
+                                  type="button"
+                                  onClick={retryFailed}
+                                  title="ส่งข้อความนี้ใหม่"
+                                  aria-label="ส่งข้อความนี้ใหม่"
+                                  className="hover:bg-danger/10 -m-1 flex items-center rounded p-1"
+                                >
+                                  <Icon icon="refresh" className="text-sm" />
+                                </button>
+                              )}
+                              <span>ส่งไม่สำเร็จ</span>
+                              {failReason && (
+                                <button
+                                  type="button"
+                                  title={failReason}
+                                  aria-label={`สาเหตุ: ${failReason}`}
+                                  onClick={() =>
+                                    Swal.fire({
+                                      buttonsStyling: false,
+                                      icon: 'info',
+                                      title: 'ส่งข้อความไม่สำเร็จ',
+                                      text: failReason,
+                                      confirmButtonText: 'เข้าใจแล้ว',
+                                      customClass: {
+                                        confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2',
+                                      },
+                                    })
+                                  }
+                                  className="hover:bg-danger/10 -m-1 flex items-center rounded p-1"
+                                >
+                                  <Icon icon="info-circle" className="text-sm" />
+                                </button>
+                              )}
+                              <span className="text-default-300" aria-hidden="true">
+                                |
+                              </span>
+                              <button type="button" onClick={cancelFailed} className="hover:underline">
+                                ยกเลิกการส่งข้อความ
+                              </button>
+                            </span>
+                          )}
                           {showTime && (
                             <span className="flex items-center gap-1" title={formatTime(m.createdAt)}>
                               <Icon icon="clock" />
@@ -1596,17 +1650,9 @@ export default function ChatThread({
                               กำลังส่ง
                             </span>
                           )}
-                          {mine && m._status === 'failed' && m._retry && (
-                            <button
-                              type="button"
-                              onClick={() => retryMessage(m.id, m._retry!)}
-                              className="text-danger flex items-center gap-1 font-medium hover:underline"
-                            >
-                              <Icon icon="refresh" />
-                              ลองใหม่
-                            </button>
-                          )}
-                          {mine && m._status !== 'sending' && m._status !== 'failed' && m.id === lastShopMsgId ? (
+                          {/* !failed: บับเบิลที่ยิงไม่ออกเคยขึ้น "ส่งแล้ว" ควบคู่กับแถบแดง เพราะเงื่อนไข
+                              เดิมดูแค่ _status (undefined สำหรับแถวที่บันทึกแล้ว) ไม่ได้ดู deliveryStatus */}
+                          {mine && m._status !== 'sending' && !failed && m.id === lastShopMsgId ? (
                             readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
                               <span className="text-success flex items-center gap-0.5">
                                 <Icon icon="checks" /> อ่านแล้ว

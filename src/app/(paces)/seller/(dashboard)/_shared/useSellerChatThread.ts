@@ -727,6 +727,41 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     [conversationId, postMessage, scrollToBottom],
   )
 
+  /**
+   * ยกเลิกข้อความที่ส่งไม่สำเร็จ — เอาบับเบิลออกจากเธรด (user สั่ง 2026-08-02)
+   *
+   * 2 เส้นทางตาม "แถวนี้ถูกบันทึกลง DB แล้วหรือยัง":
+   *   - บับเบิล optimistic (id ขึ้นต้น local-) ยังไม่เคยถึง server → ลบจาก state พอ ไม่ต้องยิง API
+   *   - แถวจริง → DELETE ที่ server ก่อน แล้วค่อยเอาออกจาก state **เมื่อสำเร็จเท่านั้น**
+   *     ถ้าเอาออกก่อนแล้ว API ล้ม บับเบิลจะโผล่กลับมาตอนรีเฟรช = ผู้ขายเข้าใจว่ายกเลิกแล้วทั้งที่ยัง
+   *
+   * คืน true เมื่อบับเบิลหายจริง — ให้ caller ตัดสินใจเรื่อง feedback เอง
+   */
+  const cancelMessage = useCallback(
+    async (messageId: string): Promise<boolean> => {
+      if (messageId.startsWith('local-')) {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        return true
+      }
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages/${messageId}`, {
+          method: 'DELETE',
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'ยกเลิกข้อความไม่สำเร็จ')
+          return false
+        }
+        setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        return true
+      } catch {
+        pacesToast.error('ยกเลิกข้อความไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        return false
+      }
+    },
+    [conversationId],
+  )
+
   return {
     messages,
     oldestCursor,
@@ -759,6 +794,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     retryMessage,
     // ส่งซ้ำแถวที่บันทึกแล้วแต่ deliveryStatus='FAILED' (ปุ่ม "ลองใหม่" ใต้บับเบิลแดง)
     resendMessage,
+    // ยกเลิกข้อความที่ส่งไม่สำเร็จ — เอาบับเบิลออกจากเธรด (รองรับทั้ง optimistic และแถวจริง)
+    cancelMessage,
     /** read receipt (feature 00018) — สดจาก GET ล่าสุด; caller ควรใช้ค่านี้แทน server prop ตอนเปิดหน้า
      *  เพราะ read event มาทีหลังทาง webhook โดยไม่ทริกเกอร์ realtime (ดู comment ที่ route GET) */
     externalReadAt,
