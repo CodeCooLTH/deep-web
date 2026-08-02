@@ -262,6 +262,8 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                   step="0.01"
                   min="0.01"
                   inputMode="decimal"
+                  // ล้อเมาส์ทับช่อง type=number แล้วค่าจะเปลี่ยนโดยผู้ใช้ไม่รู้ตัว — ถอด focus ทิ้งก่อน
+                  onWheel={(e) => e.currentTarget.blur()}
                   placeholder="0.00"
                   className="form-input text-2xl font-bold"
                   aria-invalid={!!errors.amount}

@@ -24,13 +24,21 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { listExpenses, serializeExpense, hasAnyExpense } from '@/services/expense.service'
 import { getPnlReport } from '@/services/pnl.service'
-import { resolveDateRange } from '@/lib/date-range'
+import { resolveDateRange, type DateRangePreset } from '@/lib/date-range'
 import ExpenseLockedCard from './components/ExpenseLockedCard'
 import ExpenseWorkspace from './components/ExpenseWorkspace'
 
 export const metadata: Metadata = { title: 'ค่าใช้จ่าย' }
 
-export default async function ExpensesPage() {
+/** preset ที่ยอมรับจาก ?range= — ค่าที่ไม่รู้จักตกกลับ '30d' (ไม่ throw ให้หน้าพัง) */
+const RANGE_PRESETS = ['today', '7d', '30d', 'month', 'custom'] as const
+
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; start?: string; end?: string }>
+}) {
+  const sp = await searchParams
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
@@ -49,7 +57,7 @@ export default async function ExpensesPage() {
         <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
           <Icon icon="building-store" width={64} height={64} className="text-warning mx-auto mb-4" aria-hidden="true" />
           <h2 className="text-dark mb-2 text-xl font-bold">ยังไม่มีร้านค้า</h2>
-          <p className="text-default-400 mb-6">เปิดร้านก่อนนะคะ ถึงจะบันทึกค่าใช้จ่ายได้</p>
+          <p className="text-default-700 mb-6">เปิดร้านก่อนนะคะ ถึงจะบันทึกค่าใช้จ่ายได้</p>
           <Link
             href="/shop"
             className="btn bg-primary hover:bg-primary-hover inline-flex items-center gap-2 px-6 py-3 font-semibold text-white"
@@ -71,13 +79,23 @@ export default async function ExpensesPage() {
     )
   }
 
-  // GRANTED — ผ่าน gate แล้วเท่านั้นถึง query ข้อมูลจริง (default range 'today' ตาม spec)
-  // listExpenses ผูกช่วงเดียวกับรายงานเสมอ — ถ้าดึงทั้งหมดเหมือนเดิม การ์ดแยกหมวด/สรุปเร็ว
+  // GRANTED — ผ่าน gate แล้วเท่านั้นถึง query ข้อมูลจริง
+  // listExpenses ผูกช่วงเดียวกับรายงานเสมอ — ถ้าดึงทั้งหมดเหมือนเดิม การ์ดแยกหมวด
   // จะคิดจากคนละฐานกับตัวเลข "ค่าใช้จ่าย" บนการ์ด P&L แล้วขัดกันเองให้ผู้ใช้เห็น
-  // '30d' ไม่ใช่ 'today' — ร้านทั่วไปบันทึกค่าใช้จ่ายสัปดาห์ละครั้ง เปิดหน้ามาวันธรรมดาด้วยช่วง
-  // "วันนี้" จะเจอรายการว่างแล้วเข้าใจว่าข้อมูลหาย และวันที่บันทึกค่าเช่าจะเห็น "ขาดทุน" เต็มจอ
-  // ทั้งที่ร้านไม่ได้ขาดทุน (ตรงกับม็อกอัพที่ผ่าน review แล้วซึ่งตั้ง 30 วันเป็นค่าเริ่มต้น)
-  const range = resolveDateRange('30d')
+  /**
+   * ช่วงเวลาอยู่ใน URL — กด back / refresh / แชร์ลิงก์แล้วยังเห็นช่วงเดิม (เดิม state อยู่ใน
+   * client component อย่างเดียว ทุกครั้งที่รีเฟรชจึงเด้งกลับค่าเริ่มต้นเสมอ)
+   *
+   * default '30d' ไม่ใช่ 'today' — ร้านทั่วไปบันทึกค่าใช้จ่ายสัปดาห์ละครั้ง เปิดหน้ามาวันธรรมดาด้วยช่วง
+   * "วันนี้" จะเจอรายการว่างแล้วเข้าใจว่าข้อมูลหาย และวันที่บันทึกค่าเช่าจะเห็น "ขาดทุน" เต็มจอ
+   * ทั้งที่ร้านไม่ได้ขาดทุน (ตรงกับม็อกอัพที่ผ่าน review แล้ว)
+   */
+  const preset = (RANGE_PRESETS as readonly string[]).includes(sp.range ?? '')
+    ? (sp.range as DateRangePreset)
+    : '30d'
+  // custom ที่ไม่มีวันครบคู่ resolveDateRange จะ throw — ตกกลับ 30d แทนให้หน้าไม่พังจาก URL ที่พิมพ์มั่ว
+  const usable = preset === 'custom' && (!sp.start || !sp.end) ? '30d' : preset
+  const range = resolveDateRange(usable, sp.start, sp.end)
   const [report, expenses, everRecorded] = await Promise.all([
     getPnlReport(decision.shop.id, range),
     listExpenses(decision.shop.id, { range: range.expenseRange }),
@@ -88,6 +106,8 @@ export default async function ExpensesPage() {
     <>
       <PageBreadcrumb title="ค่าใช้จ่าย" trail={[{ label: 'ธุรกิจ' }]} />
       <ExpenseWorkspace
+        initialRange={usable}
+        initialCustom={usable === 'custom' && sp.start && sp.end ? [sp.start, sp.end] : null}
         initialReport={report}
         initialExpenses={expenses.map(serializeExpense)}
         hasAnyExpenseEver={everRecorded}

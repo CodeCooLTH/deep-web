@@ -30,10 +30,14 @@ const MOBILE_PREVIEW_ROWS = 3
 
 type Props = {
   expenses: SerializedExpense[]
+  /** รายได้ในช่วงเดียวกัน — ใช้คิด "สัดส่วนต่อรายได้" ที่ท้ายการ์ด */
+  revenue: number
+  /** จำนวนวันในช่วงที่เลือก — ใช้คิดค่าเฉลี่ยต่อวัน */
+  days: number
   loading?: boolean
 }
 
-export default function ExpenseBreakdownCard({ expenses, loading = false }: Props) {
+export default function ExpenseBreakdownCard({ expenses, revenue, days, loading = false }: Props) {
   const [expanded, setExpanded] = useState(false)
 
   const { rows, total } = useMemo(() => {
@@ -59,6 +63,8 @@ export default function ExpenseBreakdownCard({ expenses, loading = false }: Prop
   if (rows.length === 0) return null
 
   const hiddenCount = rows.length - MOBILE_PREVIEW_ROWS
+  const perDay = days > 0 ? total / days : 0
+  const shareOfRevenue = revenue > 0 ? (total / revenue) * 100 : null
 
   return (
     <div className="card">
@@ -121,6 +127,23 @@ export default function ExpenseBreakdownCard({ expenses, loading = false }: Prop
             ดูทั้ง {rows.length} หมวด
           </button>
         )}
+
+        {/* เดิมเป็นการ์ด "สรุปเร็ว" แยกต่างหาก — ยุบมาต่อท้ายการ์ดนี้เพราะ 2 ใน 4 บรรทัดของมัน
+            (จำนวนรายการ / หมวดที่จ่ายมากสุด) ซ้ำกับ badge บนหัวรายการและแถวแรกของ legend ที่อยู่
+            ในสายตาเดียวกันอยู่แล้ว เหลือเฉพาะสองค่าที่หาจากที่อื่นบนหน้านี้ไม่ได้ */}
+        <dl className="border-default-300 mt-4 flex border-t border-dashed pt-3 text-xs">
+          <div className="flex-1">
+            <dt className="text-default-700">เฉลี่ยต่อวัน</dt>
+            <dd className="text-default-900 font-semibold">{formatBaht(perDay)}</dd>
+          </div>
+          <div className="flex-1 text-end">
+            <dt className="text-default-700">สัดส่วนต่อรายได้</dt>
+            {/* รายได้ 0 คิดสัดส่วนไม่ได้ (ไม่ใช่ 0%) — ขีดแทน ไม่งั้นอ่านว่า "ค่าใช้จ่ายไม่กินรายได้เลย" */}
+            <dd className="text-default-900 font-semibold">
+              {shareOfRevenue == null ? '—' : `${shareOfRevenue.toFixed(1)}%`}
+            </dd>
+          </div>
+        </dl>
       </div>
     </div>
   )

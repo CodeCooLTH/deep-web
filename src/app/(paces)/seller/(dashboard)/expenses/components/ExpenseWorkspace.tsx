@@ -6,14 +6,14 @@
  * หัวใจของการ redesign รอบนี้: ช่วงเวลาและข้อมูลอยู่ที่เดียว
  * เดิม PnlReportCard fetch รายงานเอง (ผูกช่วง) ส่วนรายการมาจาก RSC (ไม่ผูกช่วง) — คนละฐานกัน
  * ตอนนี้ `/api/expenses/report` คืนทั้งรายงานและรายการที่ scope ด้วยช่วงเดียวกัน แล้วแจกให้
- * ทั้ง 4 ส่วน (P&L / แยกหมวด / สรุปเร็ว / รายการ) ตัวเลขจึงขัดกันเองไม่ได้ตามนิยาม
+ * ทั้ง 3 ส่วน (P&L / แยกหมวด / รายการ) ตัวเลขจึงขัดกันเองไม่ได้ตามนิยาม
  *
  * ไม่มี 1:1 theme equivalent (domain composition) — ประกอบจาก component ที่ source มาจาก theme แล้ว
  *
  * Design Spec: docs/superpowers/specs/2026-08-02-expenses-redesign-design-spec.md §4.1–4.5
  */
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import type { PnlReport } from '@/services/pnl.service'
@@ -22,7 +22,6 @@ import type { DateRangePreset } from '@/lib/date-range'
 import ExpenseToolbar from './ExpenseToolbar'
 import PnlReportCard from './PnlReportCard'
 import ExpenseBreakdownCard from './ExpenseBreakdownCard'
-import ExpenseQuickStatsCard from './ExpenseQuickStatsCard'
 import ExpenseList from './ExpenseList'
 import ExpenseFormModal from './ExpenseFormModal'
 
@@ -47,23 +46,36 @@ function daysInRange(label: { start: string; end: string }): number {
 type ModalState = { mode: 'create' } | { mode: 'edit'; editing: SerializedExpense }
 
 type Props = {
+  /** ช่วงเวลาที่ RSC resolve มาแล้วจาก ?range= — เป็นค่าเดียวกับที่ initialReport ถูกคำนวณด้วย */
+  initialRange: DateRangePreset
+  initialCustom: [string, string] | null
   initialReport: PnlReport
   initialExpenses: SerializedExpense[]
   hasAnyExpenseEver: boolean
 }
 
-export default function ExpenseWorkspace({ initialReport, initialExpenses, hasAnyExpenseEver }: Props) {
+export default function ExpenseWorkspace({
+  initialRange,
+  initialCustom,
+  initialReport,
+  initialExpenses,
+  hasAnyExpenseEver,
+}: Props) {
   const router = useRouter()
-  // ต้องตรงกับ resolveDateRange() ใน page.tsx เสมอ — ไม่งั้นข้อมูลที่ SSR ส่งมากับป้ายช่วงเวลาที่โชว์ไม่ตรงกัน
-  const [range, setRange] = useState<DateRangePreset>('30d')
-  const [customDates, setCustomDates] = useState<[string, string] | null>(null)
+  const pathname = usePathname()
+  // seed จาก URL ที่ RSC อ่านมาแล้ว — ไม่ hardcode ค่าเริ่มต้นซ้ำที่นี่ ไม่งั้นสองที่หลุดจากกันได้
+  const [range, setRange] = useState<DateRangePreset>(initialRange)
+  const [customDates, setCustomDates] = useState<[string, string] | null>(initialCustom)
   const [report, setReport] = useState<PnlReport>(initialReport)
   const [expenses, setExpenses] = useState<SerializedExpense[]>(initialExpenses)
   const [loading, setLoading] = useState(false)
   const [modal, setModal] = useState<ModalState | null>(null)
   // นับขึ้นทุกครั้งที่ mutate สำเร็จ — ใช้เป็น trigger ให้ effect ด้านล่าง refetch ช่วงเดิม
   const [mutationCount, setMutationCount] = useState(0)
-  // SSR ส่งข้อมูลของ range='today' มาให้แล้ว (ตรงกับ default) — ไม่ต้องยิงซ้ำตอน mount
+  // โหลดล้ม = ค้างข้อมูลเก่าไว้ + โชว์แถบลองใหม่ (toast อย่างเดียวหายไปเองแล้วผู้ใช้ไม่รู้ว่าเลขเก่า)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  // SSR ส่งข้อมูลของช่วงที่อยู่ใน URL มาให้แล้ว (ตรงกับ initialRange) — ไม่ต้องยิงซ้ำตอน mount
   const isFirstRun = useRef(true)
 
   useEffect(() => {
@@ -87,9 +99,13 @@ export default function ExpenseWorkspace({ initialReport, initialExpenses, hasAn
         const data: PnlReport & { expenses: SerializedExpense[] } = await res.json()
         setReport(data)
         setExpenses(data.expenses ?? [])
+        setLoadFailed(false)
       } catch (e) {
         if ((e as Error).name !== 'AbortError') {
           // ค้างข้อมูลเดิมไว้ ไม่ล้างตัวเลข — ล้างแล้วผู้ใช้จะเข้าใจว่าข้อมูลหาย
+          // แต่ต้องมีร่องรอยค้างไว้ด้วย (แถบลองใหม่) ไม่ใช่มีแค่ toast ที่หายไปเองใน 3 วินาที
+          // แล้วเหลือตัวเลขเก่าบนจอโดยผู้ใช้ไม่รู้ว่ามันเก่า
+          setLoadFailed(true)
           pacesToast.error('โหลดรายงานไม่สำเร็จ กรุณาลองใหม่')
         }
       } finally {
@@ -98,7 +114,7 @@ export default function ExpenseWorkspace({ initialReport, initialExpenses, hasAn
     }
     run()
     return () => controller.abort()
-  }, [range, customDates, mutationCount])
+  }, [range, customDates, mutationCount, retryCount])
 
   const handleMutated = () => {
     setMutationCount((v) => v + 1)
@@ -106,12 +122,29 @@ export default function ExpenseWorkspace({ initialReport, initialExpenses, hasAn
     router.refresh()
   }
 
+  /** เขียนช่วงเวลาลง URL ด้วย replace — กด back ควรออกจากหน้านี้ ไม่ใช่ไล่ย้อนทุกช่วงที่เคยกด */
+  const syncUrl = (next: DateRangePreset, dates: [string, string] | null) => {
+    const params = new URLSearchParams({ range: next })
+    if (next === 'custom' && dates) {
+      params.set('start', dates[0])
+      params.set('end', dates[1])
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
+  const handleRangeChange = (next: DateRangePreset) => {
+    setRange(next)
+    syncUrl(next, customDates)
+  }
+
   const handleCustomChange = (selectedDates: Date[]) => {
     if (selectedDates.length === 2) {
-      setCustomDates([
+      const next: [string, string] = [
         selectedDates[0].toISOString().slice(0, 10),
         selectedDates[1].toISOString().slice(0, 10),
-      ])
+      ]
+      setCustomDates(next)
+      syncUrl('custom', next)
     }
   }
 
@@ -121,25 +154,37 @@ export default function ExpenseWorkspace({ initialReport, initialExpenses, hasAn
     <div className="flex flex-col gap-5">
       <ExpenseToolbar
         range={range}
-        onRangeChange={setRange}
+        onRangeChange={handleRangeChange}
         onCustomChange={handleCustomChange}
         onAdd={openCreate}
       />
 
+      {loadFailed && (
+        <div
+          role="alert"
+          className="border-danger/20 bg-danger/10 text-danger-ink flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm font-medium"
+        >
+          <span>ตัวเลขที่เห็นอาจไม่ใช่ล่าสุด — โหลดข้อมูลรอบล่าสุดไม่สำเร็จ</span>
+          <button
+            type="button"
+            onClick={() => setRetryCount((v) => v + 1)}
+            disabled={loading}
+            className="btn btn-sm bg-card text-default-800 border-default-300 min-h-11 border disabled:opacity-60"
+          >
+            ลองใหม่
+          </button>
+        </div>
+      )}
+
       <PnlReportCard report={report} loading={loading} rangeLabel={RANGE_LABEL[range]} />
 
       {expenses.length > 0 && (
-        <div className="grid gap-5 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <ExpenseBreakdownCard expenses={expenses} loading={loading} />
-          </div>
-          <ExpenseQuickStatsCard
-            expenses={expenses}
-            revenue={report.revenue}
-            days={daysInRange(report.range)}
-            loading={loading}
-          />
-        </div>
+        <ExpenseBreakdownCard
+          expenses={expenses}
+          revenue={report.revenue}
+          days={daysInRange(report.range)}
+          loading={loading}
+        />
       )}
 
       <ExpenseList
