@@ -101,6 +101,33 @@ export const SetPasswordSchema = v.object({
   password: PasswordSchema,
 });
 
+// UpdateProfileSchema — allow-list ของ PATCH /api/users/me
+//
+// สำคัญ — เหตุผลที่ต้องเป็น allow-list ไม่ใช่แค่ type: เดิม route ส่ง body ดิบเข้า
+// prisma.user.update({ data }) ตรง ๆ โดยไม่ parse — TS type บน updateProfile() กรองอะไรไม่ได้ตอน
+// runtime → user ที่ล็อกอินคนไหนก็ได้ยิง {"isAdmin":true} แล้วยกระดับตัวเองเป็นแอดมินระบบ
+// (รวมถึงเซ็ต trustScore/passwordHash/phone ทับกฎ phone-immutable). ห้ามเปลี่ยนกลับไปรับ body ดิบ
+// และห้ามเพิ่ม field ที่ user ไม่ควรตั้งเองเข้ามาใน schema นี้
+//
+// ทุก field เป็น optional = partial update (caller ส่งมาเฉพาะที่แก้) — ดูรูปแบบที่ caller ใช้จริงที่
+// (marketing)/m/settings/profile/AvatarEditable.tsx (avatar) และ .../settings/profile/ProfileForm.tsx (displayName)
+export const UpdateProfileSchema = v.object({
+  displayName: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
+  // regex เดียวกับ /api/account/shop-info (SSOT ของรูปแบบ username ทั้งระบบ)
+  username: v.optional(v.pipe(v.string(), v.trim(), v.toLowerCase(), v.regex(/^[a-z0-9_]{3,30}$/))),
+  // avatar: path ของไฟล์ที่อัปโหลดเอง (/api/files/{fileId}) หรือ https URL (รูปจาก FB/LINE ที่
+  // auth.ts เซ็ตไว้). null = ลบรูป. จำกัดไว้แค่ 2 รูปแบบนี้เพื่อกัน javascript:/data: หลุดเข้า src
+  avatar: v.optional(
+    v.nullable(
+      v.pipe(
+        v.string(),
+        v.maxLength(2048),
+        v.regex(/^(\/api\/files\/|https:\/\/)/, "รูปแบบรูปโปรไฟล์ไม่ถูกต้อง"),
+      ),
+    ),
+  ),
+});
+
 export const CreateShopSchema = v.object({
   shopName: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
   description: v.optional(v.pipe(v.string(), v.maxLength(500))),

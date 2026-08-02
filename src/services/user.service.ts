@@ -35,8 +35,36 @@ export async function findByUsername(username: string) {
   return { ...rest, shop: shops[0] ?? null };
 }
 
-export async function updateProfile(userId: string, data: { displayName?: string; username?: string; avatar?: string }) {
-  return prisma.user.update({ where: { id: userId }, data });
+// updateProfile — แก้ได้เฉพาะ 3 field ที่เจ้าของบัญชีตั้งเองได้
+//
+// pick ทีละ field แทนการส่ง `data` ต่อทั้งก้อน = ชั้นกันที่สอง (ชั้นแรกคือ UpdateProfileSchema ที่
+// route parse): ถ้าวันหลังมี caller ใหม่ลืม parse ก่อนเรียก field แปลกปลอม (isAdmin/trustScore/
+// passwordHash) ก็ยังตกที่นี่อยู่ดี — TS type อย่างเดียวกันไม่ได้ เพราะ object ที่มาจาก
+// request.json() เป็น any ตอน runtime
+//
+// undefined = ไม่แตะ field นั้น (Prisma ข้ามให้เอง) ต่างจาก null ของ avatar ที่แปลว่า "ลบรูป"
+export async function updateProfile(
+  userId: string,
+  data: { displayName?: string; username?: string; avatar?: string | null },
+) {
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      displayName: data.displayName,
+      username: data.username,
+      avatar: data.avatar,
+    },
+    select: {
+      id: true,
+      displayName: true,
+      username: true,
+      avatar: true,
+      phone: true,
+      email: true,
+      trustScore: true,
+      isShop: true,
+    },
+  });
 }
 
 export async function linkBuyerHistory(userId: string, phone?: string, email?: string) {
