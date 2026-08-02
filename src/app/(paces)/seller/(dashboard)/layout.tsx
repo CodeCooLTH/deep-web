@@ -6,15 +6,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
 import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
-import {
-  sellerMenuItems,
-  applyInventoryGate,
-  applyChatBadge,
-  applyStaffMenu,
-  applyExpenseMenu,
-  applyVerticalMenu,
-  applyAppointmentMenu,
-} from './_seller-menu'
+import { sellerMenuItems, applyChatBadge, resolveVisibleSellerMenu } from '@/lib/seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
@@ -136,29 +128,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
     console.error('[layout] getSubscriptionStatus failed, fallback NOT_SUBSCRIBED', e)
   }
 
-  // feature 00012 (Task 4.3) — applyStaffMenu ซ่อนเมนู "พนักงาน" ให้เห็นเฉพาะ owner ของ Business shop
-  // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
-  // feature 00016 — applyExpenseMenu ซ่อน/ติด badge เมนู "ค่าใช้จ่าย" ตามสิทธิ์+แพ็กเกจ
-  // feature 00017 — applyVerticalMenu กรองเมนูตามประเภทกิจการ (ห้องพัก vs สินค้า/สต็อก/ประมูล)
+  // feature 00027 TFR-001 — การ compose ตัวกรอง 5 ตัว (inventory/staff/expense/appointment/vertical)
+  // ย้ายไปอยู่ใน resolveVisibleSellerMenu ที่ src/lib/seller-menu.ts พร้อมเหตุผลของลำดับทั้งหมด
+  // เพื่อให้ shortcut.service.ts เรียกชุดเดียวกันได้ (service import จาก src/app/** ไม่ได้)
   //
-  // ลำดับสำคัญ: applyVerticalMenu อยู่ "ชั้นนอกสุด" โดยตั้งใจ — กรองหลัง gate อื่นทุกตัว
-  // เพื่อไม่ให้ badge/disable ที่ gate ชั้นในติดไว้ ไปโผล่บนเมนูที่ควรถูกซ่อนไปแล้ว
-  // (เช่น badge "เลือกแพ็กเกจ" ของสต็อก ต้องไม่โผล่ในร้านบ้านพักที่ไม่มีเมนูสต็อกเลย)
-  // feature 00024 — applyAppointmentMenu ซ่อนเมนู "ทรัพยากรบริการ" จากร้านที่ไม่เข้าเงื่อนไข
-  //   ต้องใช้ทั้ง kind และ vertical (BR-RSV-01) จึงส่ง active.kind เข้าไปด้วย
-  //   วางไว้ชั้นในกว่า applyVerticalMenu เพราะเป็น filter ล้วนเหมือนกัน ลำดับไม่มีผลต่อผลลัพธ์
-  const menuItems = applyVerticalMenu(
-    applyAppointmentMenu(
-      applyExpenseMenu(
-        applyStaffMenu(
-          applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
-          { kind: active.kind, role: active.role },
-        ),
-        expenseAccessDecision,
-      ),
-      { kind: active.kind, vertical: shop.vertical },
-    ),
-    shop.vertical,
+  // สำคัญ: applyChatBadge ย้ายจาก "ชั้นในสุดอันดับสอง" มาเป็น "ชั้นนอกสุด" — ผลลัพธ์เท่าเดิม
+  // เพราะมันแตะแค่ `seller:inbox` ซึ่งไม่มีตัวกรองไหนกรองออกเลยสักตัว badge จึงไปเกาะรายการเดิม
+  // ไม่ว่าจะแปะก่อนหรือหลังกรอง — ถ้าวันหน้ามีตัวกรองที่ซ่อนเมนู "ข้อความ" ได้ ข้อสรุปนี้ตายทันที
+  // ให้ย้าย applyChatBadge กลับเข้าไปก่อนตัวกรองนั้น
+  // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
+  const menuItems = applyChatBadge(
+    resolveVisibleSellerMenu(sellerMenuItems, {
+      entitlement: entitlementInfo,
+      staff: { kind: active.kind, role: active.role },
+      expense: expenseAccessDecision,
+      shop: { kind: active.kind, vertical: shop.vertical },
+    }),
+    unreadChatCount,
   )
 
   return (
