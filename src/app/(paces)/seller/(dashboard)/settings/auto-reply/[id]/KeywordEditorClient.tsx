@@ -456,17 +456,54 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
    * (user report 2026-08-02: สร้าง 2 เพจ x 1 โฆษณา แล้วเห็นสองแถวเหมือนกันจนนึกว่าระบบเบิ้ล)
    * ต่อท้ายด้วยชื่อช่องทางเฉพาะตอนที่ชื่อซ้ำ — ไม่รกในเคสปกติที่ชื่อไม่ซ้ำ
    */
-  const condLabel = (r: Rule) => {
-    const parts: string[] = []
-    if (r.shopChannelId) {
-      const ch = channels.find((c) => c.id === r.shopChannelId)
-      const dup = ch ? channels.filter((c) => c.name === ch.name).length > 1 : false
-      const via = dup && ch ? ` · ${getChannelDisplay(ch.provider).label}` : ''
-      parts.push(`เพจ ${ch?.name ?? '—'}${via}`)
-    }
-    if (r.adId) parts.push(`โฆษณา ${r.adLabel ?? r.adId}`)
-    if (r.productId) parts.push(`สินค้า ${products.find((p) => p.id === r.productId)?.name ?? '—'}`)
-    return parts
+  /**
+   * ชิปเงื่อนไข — เพจแสดงโลโก้จริง + ไอคอนช่องทาง (user 2026-08-02 "ให้ดูง่ายขึ้น")
+   *
+   * ชื่อเพจซ้ำกันได้จริง: เพจ Facebook กับบัญชี Instagram ที่ผูกกันมักตั้งชื่อเดียวกันเป๊ะ
+   * (user report: สร้าง 2 เพจ x 1 โฆษณา แล้วเห็นสองแถวเหมือนกันจนนึกว่าระบบเบิ้ล)
+   * โลโก้+ไอคอนแยกออกได้ตั้งแต่แรกเห็น ไม่ต้องอ่านตัวหนังสือเทียบทีละตัว
+   */
+  function CondChips({ r }: { r: Rule }) {
+    const ch = r.shopChannelId ? channels.find((c) => c.id === r.shopChannelId) : null
+    const chip = 'bg-primary/10 text-primary flex max-w-full items-center gap-1 rounded px-2 py-0.5 text-xs font-medium'
+    const display = ch ? getChannelDisplay(ch.provider) : null
+    return (
+      <>
+        {r.shopChannelId && (
+          <span className={chip}>
+            {ch?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={ch.avatarUrl} alt="" className="size-4 flex-none rounded-full object-cover" />
+            ) : (
+              <Icon icon="building-store" className="size-3.5 flex-none" aria-hidden="true" />
+            )}
+            <span className="truncate">{ch?.name ?? '—'}</span>
+            {display && (
+              <Icon
+                icon={display.icon}
+                width={13}
+                height={13}
+                className={`flex-none ${display.iconClassName ?? ''}`}
+                style={display.iconStyle}
+                aria-label={display.label}
+              />
+            )}
+          </span>
+        )}
+        {r.adId && (
+          <span className={chip}>
+            <Icon icon="speakerphone" className="size-3.5 flex-none" aria-hidden="true" />
+            <span className="truncate">{r.adLabel ?? r.adId}</span>
+          </span>
+        )}
+        {r.productId && (
+          <span className={chip}>
+            <Icon icon="package" className="size-3.5 flex-none" aria-hidden="true" />
+            <span className="truncate">{products.find((p) => p.id === r.productId)?.name ?? '—'}</span>
+          </span>
+        )}
+      </>
+    )
   }
 
   return (
@@ -766,9 +803,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-default-700 text-xs">เมื่อมาจาก</span>
-                          {condLabel(r).map((c) => (
-                            <span key={c} className="bg-primary/10 text-primary max-w-full truncate rounded px-2 py-0.5 text-xs font-medium">{c}</span>
-                          ))}
+                          <CondChips r={r} />
                         </div>
                         {/* ข้อความล้วน ไม่ใส่กล่องซ้อนกล่องในบันได (anti-slop) */}
                         <p className="text-default-800 mt-1 line-clamp-3 text-sm">{r.replyText}</p>
@@ -778,17 +813,21 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                       <div className="flex gap-1.5 max-sm:w-full">
                         {/* เปิด sheet โหมดแก้ = ส่ง rule ทั้งแถวไป prefill (ไม่ใช่แค่ id)
                             sheet จึงอ่าน adLabel เดิมได้แม้รายการโฆษณายังโหลดไม่เสร็จ (CL-8) */}
+                        {/* ไอคอนล้วนบนจอใหญ่ (แถวสูงไม่เท่ากันเพราะคำตอบยาวไม่เท่ากัน
+                            ปุ่มกล่องเทาใหญ่จึงดูลอยไม่เกาะแถว) · มือถือคงข้อความไว้ให้กดง่าย */}
                         <button type="button"
                           className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
                           aria-label={`แก้ไขเงื่อนไขข้อ ${i + 1}`}
                           onClick={() => { setEditingRule(r); setSheetOpen(true) }}>
-                          <Icon icon="pencil" className="size-3" aria-hidden="true" />แก้ไข
+                          <Icon icon="pencil" className="size-3.5" aria-hidden="true" />
+                          <span className="sm:hidden">แก้ไข</span>
                         </button>
                         <button type="button" disabled={busy}
                           className="btn btn-sm text-danger hover:bg-danger min-h-11 flex-1 justify-center hover:text-white sm:min-h-0 sm:flex-none"
                           aria-label={`ลบเงื่อนไขข้อ ${i + 1}`}
                           onClick={() => deleteException(r.id)}>
-                          <Icon icon="trash" className="size-3" aria-hidden="true" />ลบ
+                          <Icon icon="trash" className="size-3.5" aria-hidden="true" />
+                          <span className="sm:hidden">ลบ</span>
                         </button>
                       </div>
                     )}
