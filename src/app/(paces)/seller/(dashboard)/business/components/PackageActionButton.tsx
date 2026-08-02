@@ -29,8 +29,8 @@ export interface PackageActionButtonProps {
 
 // map HTTP status + error code → ข้อความ validation message (API.md §5)
 function actionErrorMessage(status: number, code: string | undefined, mode: 'subscribe' | 'upgrade'): string {
-  if (status === 402) return 'เครดิตไม่พอ — <a href="/wallet" class="underline">เติมเครดิตก่อน</a>'
-  if (status === 412) return 'ยังไม่พบร้านค้าส่วนตัวสำหรับหักเครดิต'
+  if (status === 402) return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงินก่อน</a>'
+  if (status === 412) return 'ยังไม่พบร้านค้าส่วนตัวสำหรับหักเงิน'
   if (status === 409 && code === 'SUBSCRIPTION_ALREADY_EXISTS') return 'สมัครแพ็กเกจอยู่แล้ว'
   if (status === 409 && code === 'SUBSCRIPTION_NOT_ACTIVE') return 'สถานะแพ็กเกจไม่พร้อมอัพเกรด'
   if (status === 409 && code === 'NOT_AN_UPGRADE') return 'เลือก tier ที่สูงกว่าปัจจุบันเท่านั้น'
@@ -52,8 +52,8 @@ export default function PackageActionButton({ tier, tierLabel, price, mode }: Pa
       title: `${actionLabel}แพ็กเกจ ${tierLabel}?`,
       text:
         mode === 'subscribe'
-          ? `ระบบจะหักเครดิต ${priceLabel} จากกระเป๋าเงินของคุณทันที และเริ่มรอบใช้งาน 30 วัน`
-          : `ระบบจะหักเครดิตเต็มราคา ${priceLabel} ทันทีและเริ่มรอบใหม่ (ไม่คิดเศษวันจากรอบเดิม)`,
+          ? `ระบบจะหักเงิน ${priceLabel} จากกระเป๋าเงินของคุณทันที และเริ่มรอบใช้งาน 30 วัน`
+          : `ระบบจะหักเงินเต็มราคา ${priceLabel} ทันทีและเริ่มรอบใหม่ (ไม่คิดเศษวันจากรอบเดิม)`,
       showCancelButton: true,
       confirmButtonText: `${actionLabel} ${priceLabel}`,
       cancelButtonText: 'ยกเลิก',

@@ -24,7 +24,7 @@ import { getPendingTopUps } from '@/services/topup.service'
 import TopUpQueueTable from './components/TopUpQueueTable'
 import type { TopUpRow } from './components/TopUpQueueTable'
 
-export const metadata: Metadata = { title: 'คำขอเติมเครดิต SMS' }
+export const metadata: Metadata = { title: 'คำขอเติมเงิน' }
 
 export default async function AdminTopUpsPage() {
   // Admin gate — pattern เดียวกับ requireAdmin() ใน route + [id]/page.tsx
@@ -61,9 +61,9 @@ export default async function AdminTopUpsPage() {
 
   return (
     <>
-      {/* Breadcrumb: Business → "เติมเครดิต SMS" — ตาม Design Spec */}
+      {/* Breadcrumb: Business → "เติมเงิน" — ตาม Design Spec */}
       <PageBreadcrumb
-        title="คำขอเติมเครดิต SMS"
+        title="คำขอเติมเงิน"
         trail={[{ label: 'ธุรกิจ' }]}
       />
 

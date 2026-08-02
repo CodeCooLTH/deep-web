@@ -12,7 +12,7 @@ import { ReactivateInventorySchema } from "@/lib/validations";
  *
  * ทำไม shop derive จาก session เท่านั้น (ไม่รับ shopId จาก body):
  * DAL ownership (S-C7 pattern — ดู src/app/api/wallet/topup/route.ts) — ถ้ารับ
- * shopId จาก client, seller A อาจส่ง shopId ของ seller B เพื่อ reactivate/หักเครดิตแทนคนอื่น.
+ * shopId จาก client, seller A อาจส่ง shopId ของ seller B เพื่อ reactivate/หักเงินแทนคนอื่น.
  * session.user.id เป็น single source of truth สำหรับ identity — ดู API.md §2.
  *
  * Request body: { package: 'BASIC' | 'PRO' } — API.md §4.3 (BREAKING feature 00009 — เดิม {})
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
     if (e instanceof Error && e.message === "INSUFFICIENT_CREDIT") {
       return NextResponse.json(
-        { error: "เครดิตไม่พอ กรุณาเติมเครดิตก่อนเปิดใช้อีกครั้ง" },
+        { error: "ยอดเงินไม่พอ กรุณาเติมเงินก่อนเปิดใช้อีกครั้ง" },
         { status: 402 },
       );
     }

@@ -30,7 +30,7 @@ export async function POST(
   });
 
   if (!topUpRequest) {
-    return NextResponse.json({ error: "ไม่พบคำขอเติมเครดิต" }, { status: 404 });
+    return NextResponse.json({ error: "ไม่พบคำขอเติมเงิน" }, { status: 404 });
   }
 
   // RC-7: admin ที่เป็นเจ้าของร้านห้าม approve top-up ตัวเอง
@@ -50,13 +50,13 @@ export async function POST(
     const msg = err instanceof Error ? err.message : "";
 
     if (msg === "NOT_FOUND") {
-      return NextResponse.json({ error: "ไม่พบคำขอเติมเครดิต" }, { status: 404 });
+      return NextResponse.json({ error: "ไม่พบคำขอเติมเงิน" }, { status: 404 });
     }
     if (msg === "ALREADY_PROCESSED") {
       return NextResponse.json({ error: "คำขอนี้ถูกดำเนินการไปแล้ว" }, { status: 409 });
     }
     if (msg === "INVALID_AMOUNT") {
-      return NextResponse.json({ error: "จำนวนเครดิตไม่ถูกต้อง" }, { status: 400 });
+      return NextResponse.json({ error: "จำนวนเงินไม่ถูกต้อง" }, { status: 400 });
     }
 
     // RC-8: ไม่ log PII/amount/slip — เฉพาะ generic error ลงใน server log

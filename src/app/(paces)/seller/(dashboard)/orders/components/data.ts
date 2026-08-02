@@ -11,7 +11,7 @@ export const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'เงินสด',
   TRANSFER: 'โอนเงิน',
   PROMPTPAY: 'พร้อมเพย์',
-  CARD: 'บัตรเครดิต/เดบิต',
+  CARD: 'บัตรยอดเงิน/เดบิต',
   COD: 'เก็บปลายทาง',
   OTHER: 'อื่นๆ',
 }

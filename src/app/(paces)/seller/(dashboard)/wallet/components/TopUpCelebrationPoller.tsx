@@ -205,9 +205,9 @@ export default function TopUpCelebrationPoller() {
               ยินดีด้วย!
             </h2>
 
-            {/* จำนวนเครดิตที่ได้รับ */}
+            {/* จำนวนเงินที่ได้รับ */}
             <p className="text-2xl font-bold text-success">
-              เครดิต SMS +{totalAmount.toLocaleString()}
+              เติมเงิน +{totalAmount.toLocaleString()}
             </p>
 
             {/* ถ้าหลายรายการ — แสดงจำนวน */}
@@ -227,7 +227,7 @@ export default function TopUpCelebrationPoller() {
 
             {/* Deep brand copy */}
             <p className="text-xs text-default-400">
-              Deep เติมเครดิตให้คุณแล้ว พร้อมส่ง SMS ให้ลูกค้า
+              Deep เติมเงินให้คุณแล้ว พร้อมส่ง SMS ให้ลูกค้า
             </p>
 
             {/* ack fail fallback — แจ้ง UX แต่ไม่บล็อก */}

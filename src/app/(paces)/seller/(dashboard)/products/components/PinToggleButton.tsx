@@ -44,7 +44,7 @@ interface PinToggleButtonProps {
 function buySlotErrorMessage(status: number): string {
   switch (status) {
     case 402:
-      return 'เครดิตไม่พอ — <a href="/wallet" class="underline">เติมเครดิตก่อนซื้อสล็อต</a>'
+      return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงินก่อนซื้อสล็อต</a>'
     case 403:
       return 'ร้านถูกล็อก ไม่สามารถทำรายการนี้ได้'
     case 400:

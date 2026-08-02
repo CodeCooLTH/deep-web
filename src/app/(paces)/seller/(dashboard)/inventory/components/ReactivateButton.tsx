@@ -20,7 +20,7 @@ import { pacesToast } from '@/lib/paces-toast'
 function reactivateErrorMessage(status: number): string {
   switch (status) {
     case 402:
-      return 'เครดิตไม่พอ — <a href="/wallet" class="underline">เติมเครดิตก่อนเปิดใช้อีกครั้ง</a>'
+      return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงินก่อนเปิดใช้อีกครั้ง</a>'
     case 409:
       return 'บัญชีนี้ไม่ได้ถูกล็อก'
     default:
@@ -37,7 +37,7 @@ export default function ReactivateButton() {
       buttonsStyling: false,
       icon: 'question',
       title: 'เปิดใช้งานอีกครั้ง?',
-      text: 'ระบบจะหักเครดิต ฿199 และเปิดใช้งานทันที ข้อมูลสต็อกเดิมของคุณยังอยู่ครบ',
+      text: 'ระบบจะหักเงิน ฿199 และเปิดใช้งานทันที ข้อมูลสต็อกเดิมของคุณยังอยู่ครบ',
       showCancelButton: true,
       confirmButtonText: 'เปิดใช้งาน ฿199',
       cancelButtonText: 'ยกเลิก',

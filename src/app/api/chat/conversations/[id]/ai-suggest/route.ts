@@ -108,9 +108,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // ── feature 00019 ext (2026-07-29) — โควตาฟรีรายวัน + credit path + unlimited path ────────────
   // BR-AIQ-12 ลำดับบังคับ: rate-limit (บนสุด, เดิม) → ownership เธรด (บนสุด, เดิม) → เช็ค paid-plan
-  // ก่อนเสมอ → paid=true ข้ามไปเรียก Gemini ทันที (unlimited path, ไม่แตะ counter/เครดิตเลย) →
+  // ก่อนเสมอ → paid=true ข้ามไปเรียก Gemini ทันที (unlimited path, ไม่แตะ counter/ยอดเงินเลย) →
   // paid=false ค่อยเข้า free/credit path — ต้องเช็คก่อนงานหนักอื่น (context/media) กันเปลืองถ้าจะบล็อก
-  // body ผ่าน Valibot ตาม convention backend — body ว่าง/ไม่ใช่ JSON ถือว่าไม่ยืนยันหักเครดิต
+  // body ผ่าน Valibot ตาม convention backend — body ว่าง/ไม่ใช่ JSON ถือว่าไม่ยืนยันหักเงิน
   // (endpoint นี้เดิมไม่มี body เลย client เก่าที่ไม่ส่งอะไรมาต้องยังทำงานได้ ไม่ 400)
   const rawBody = await request.json().catch(() => ({}));
   const parsedBody = v.safeParse(AiSuggestRequestSchema, rawBody ?? {});
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         freeRemaining = 0;
       }
     } else if (!confirmUseCredit) {
-      // ครบโควตาฟรีแล้วและยังไม่ได้ confirm ใช้เครดิต (FR-AIQ-03/04) — บล็อกก่อนเรียก Gemini
+      // ครบโควตาฟรีแล้วและยังไม่ได้ confirm ใช้เงินในกระเป๋า (FR-AIQ-03/04) — บล็อกก่อนเรียก Gemini
       const balance = await getBalance(shopId).catch(() => 0);
       return NextResponse.json(
         {
@@ -165,13 +165,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         { status: 402 },
       );
     } else {
-      // credit path — ผู้ใช้กด "ยืนยัน" มาแล้ว (FR-AIQ-04) หักเครดิต ฿1 ก่อนเรียก Gemini
+      // credit path — ผู้ใช้กด "ยืนยัน" มาแล้ว (FR-AIQ-04) หักเงิน ฿1 ก่อนเรียก Gemini
       try {
         await deductCredit(
           shopId,
           AI_SUGGEST_EXTRA_USE_PRICE_BAHT,
           conversationId,
-          "ใช้เครดิตขอร่างคำตอบ AI เพิ่มหลังครบโควตาฟรีวันนี้",
+          "ใช้เงินในกระเป๋าขอร่างคำตอบ AI เพิ่มหลังครบโควตาฟรีวันนี้",
           WALLET_REASON_AI_SUGGEST.AI_SUGGEST_EXTRA_USE,
         );
       } catch (e) {
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           shopId,
           AI_SUGGEST_EXTRA_USE_PRICE_BAHT,
           conversationId,
-          "คืนเครดิตขอร่างคำตอบ AI (Gemini ไม่สำเร็จ)",
+          "คืนเงินขอร่างคำตอบ AI (Gemini ไม่สำเร็จ)",
           WALLET_REASON_AI_SUGGEST.AI_SUGGEST_EXTRA_USE,
         );
       }
@@ -386,7 +386,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           });
           const cost = usage ? computeUsageCost(usage) : null;
           console.warn("[ai-suggest] ถอยไปโหมดข้อความล้วน (ไฟล์แนบใช้ไม่ได้)");
-          // BR-AIQ-08: mediaSkipped:true = "สำเร็จ" เสมอ — ห้ามคืนโควตา/เครดิต แม้ไม่ได้ใช้ไฟล์แนบจริง
+          // BR-AIQ-08: mediaSkipped:true = "สำเร็จ" เสมอ — ห้ามคืนโควตา/ยอดเงิน แม้ไม่ได้ใช้ไฟล์แนบจริง
           await logUsageEvent({
             shopId: activeCtx.shopId,
             conversationId: conversation.id,

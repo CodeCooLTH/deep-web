@@ -64,7 +64,7 @@ export async function getTransactions(
 }
 
 /**
- * deductCredit — RC-3 CRITICAL: หักเครดิต atomic, ไม่มีทางติดลบ
+ * deductCredit — RC-3 CRITICAL: หักเงิน atomic, ไม่มีทางติดลบ
  *
  * ทำไม conditional updateMany ไม่ใช่ read-then-decrement:
  * ถ้า read balance ก่อน แล้ว decrement ทีหลัง (2 query) — concurrent request 2 ตัว
@@ -157,7 +157,7 @@ export async function deductCredit(
 }
 
 /**
- * creditWallet — เพิ่มเครดิต (topup/compensate) atomic; reuse ได้จาก topup.service หรือ route ใดก็ตาม
+ * creditWallet — เพิ่มเงิน (topup/compensate) atomic; reuse ได้จาก topup.service หรือ route ใดก็ตาม
  * T5 (topup.service) ควรเรียก creditWallet นี้แทนทำเอง — single source of truth สำหรับ topup ledger
  *
  * @param shopId      - shop เจ้าของ wallet

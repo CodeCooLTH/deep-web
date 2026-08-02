@@ -12,10 +12,10 @@
  *   แต่คงรูปแบบ card-header consistent กับ WalletTransactionTable
  * - page size: 10/25 (ลดจาก 10/25/50 เพราะ list สั้นกว่า ledger)
  * - status badge: PENDING (warning) / APPROVED (success) / REJECTED (danger)
- * - หมายเหตุ column: REJECTED → rejectedReason, APPROVED → "เพิ่มเครดิตแล้ว", PENDING → "กำลังรอ Deep ตรวจสอบสลิป"
- * - table caption "คำขอเติมเครดิต SMS" เพื่อ a11y
+ * - หมายเหตุ column: REJECTED → rejectedReason, APPROVED → "เพิ่มเงินแล้ว", PENDING → "กำลังรอ Deep ตรวจสอบสลิป"
+ * - table caption "คำขอเติมเงิน" เพื่อ a11y
  * - badge aria-label สำหรับแต่ละสถานะ
- * - empty state: "ยังไม่มีคำขอเติมเครดิต"
+ * - empty state: "ยังไม่มีคำขอเติมเงิน"
  * - RC-8: ไม่ log; ไม่แสดง slipFileId เป็นลิงก์ (seller เห็นสถานะเท่านั้น — MVP);
  *   TopUpRequest ไม่มี buyer PII อยู่แล้ว
  */
@@ -57,7 +57,7 @@ const STATUS_META = {
 // ─── note text ตาม status ─────────────────────────────────────────────────────
 function getNoteText(row: TopUpRequestRow): string {
   if (row.status === 'REJECTED') return row.rejectedReason ?? '—'
-  if (row.status === 'APPROVED') return 'เพิ่มเครดิตแล้ว'
+  if (row.status === 'APPROVED') return 'เพิ่มเงินแล้ว'
   return 'กำลังรอ Deep ตรวจสอบสลิป'
 }
 
@@ -167,7 +167,7 @@ const TopUpRequestTable = ({ topups }: Props) => {
   const emptyMessage = (
     <div className="flex flex-col items-center gap-2 py-8 text-center">
       <Icon icon="clock-off" className="size-10 text-default-300" aria-hidden="true" />
-      <p className="text-sm text-default-400">ยังไม่มีคำขอเติมเครดิต</p>
+      <p className="text-sm text-default-400">ยังไม่มีคำขอเติมเงิน</p>
     </div>
   )
 
@@ -175,7 +175,7 @@ const TopUpRequestTable = ({ topups }: Props) => {
     <div className="card">
       {/* card-header คงรูปแบบ consistent กับ WalletTransactionTable — แม้ไม่มี filter */}
       <div className="card-header">
-        <h5 className="text-base font-semibold">คำขอเติมเครดิต</h5>
+        <h5 className="text-base font-semibold">คำขอเติมเงิน</h5>
         {/* page size selector: 10/25 — ลิสต์สั้นกว่า ledger */}
         <div>
           <select
@@ -194,7 +194,7 @@ const TopUpRequestTable = ({ topups }: Props) => {
       </div>
 
       {/* DataTable พร้อม aria-label region สำหรับ a11y — ตาม pattern WalletTransactionTable */}
-      <div role="region" aria-label="คำขอเติมเครดิต SMS">
+      <div role="region" aria-label="คำขอเติมเงิน">
         <DataTable<TopUpRequestRow>
           table={table}
           emptyMessage={emptyMessage}

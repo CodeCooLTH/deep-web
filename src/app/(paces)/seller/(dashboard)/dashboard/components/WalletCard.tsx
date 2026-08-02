@@ -1,4 +1,4 @@
-// WalletCard — เครดิตคงเหลือ (premium money treatment: balance เป็น hero number)
+// WalletCard — ยอดเงินคงเหลือ (premium money treatment: balance เป็น hero number)
 // Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx
 // CC-v8.1: ยกตัวเลขเงินเป็น hero (text-2xl bold) ตาม modern fintech app (Revolut/Wise)
 import Link from 'next/link'
@@ -19,7 +19,7 @@ const WalletCard = ({ balance }: WalletCardProps) => {
               <Icon icon="wallet" className="text-2xl" />
             </span>
             <div className="min-w-0">
-              <p className="text-default-500 text-xs font-medium">เครดิตคงเหลือ</p>
+              <p className="text-default-500 text-xs font-medium">ยอดเงินคงเหลือ</p>
               {/* hero number — text-2xl bold tabular-nums (เน้น value ตาม peak-end rule) */}
               <p className="text-default-900 text-2xl font-bold tabular-nums leading-tight">
                 ฿{balance.toLocaleString('th-TH')}

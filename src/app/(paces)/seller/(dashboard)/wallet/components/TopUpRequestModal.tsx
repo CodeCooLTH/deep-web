@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * TopUpRequestModal — modal ให้ seller เติมเครดิต SMS
+ * TopUpRequestModal — modal ให้ seller เติมเงิน
  *
  * Base shell: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/AddCategoryModal.tsx
  * (Preline hs-overlay modal — card → card-header → card-body → card-footer)
@@ -168,7 +168,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
         throw new Error(data?.error ?? 'ส่งคำขอไม่สำเร็จ')
       }
       // success: toast → onSuccess callback → ปิด modal
-      pacesToast.success('ส่งคำขอซื้อเครดิตแล้ว Deep จะตรวจสอบและเพิ่มเครดิตให้ภายใน 24 ชั่วโมง')
+      pacesToast.success('ส่งคำขอเติมเงินแล้ว Deep จะตรวจสอบและเพิ่มเงินให้ภายใน 24 ชั่วโมง')
       onSuccess?.()
       handleClose()
     } catch (err: unknown) {
@@ -217,7 +217,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
           {/* ─── Header ───────────────────────────────────────────────────── */}
           <div className="card-header p-5">
             <h3 id="topUpModalLabel" className="font-medium text-sm">
-              เติมเครดิต SMS
+              เติมเงิน
             </h3>
             <button
               type="button"
@@ -246,7 +246,7 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
 
             {/* ─── Preset packages ────────────────────────────────────────── */}
             <div>
-              <p className="form-label mb-2">เลือกจำนวนเครดิต</p>
+              <p className="form-label mb-2">เลือกจำนวนเงิน</p>
               <div className="flex flex-wrap gap-2">
                 {PRESETS.map((preset) => (
                   <button

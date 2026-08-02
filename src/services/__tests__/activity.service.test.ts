@@ -182,7 +182,7 @@ describe('getRecentActivity', () => {
   })
 
   // --- TOPUP mapper ---
-  it('transaction TOPUP amount 200 → label "เติมเครดิต SMS ฿200"', async () => {
+  it('transaction TOPUP amount 200 → label "เติมเงิน ฿200"', async () => {
     setupMocks({
       transactions: [{
         id: 'tx-1', type: 'TOPUP', amount: 200, balanceAfter: 200,
@@ -192,7 +192,7 @@ describe('getRecentActivity', () => {
     const result = await getRecentActivity('shop-1')
     const item = result.find((i) => i.type === 'TOPUP')
     expect(item).toBeDefined()
-    expect(item!.label).toBe('เติมเครดิต SMS ฿200')
+    expect(item!.label).toBe('เติมเงิน ฿200')
   })
 
   it('transaction DEDUCT → ไม่ถูก include ใน activity', async () => {

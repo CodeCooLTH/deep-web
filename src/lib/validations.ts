@@ -1019,7 +1019,7 @@ export const SetHousekeepingStatusSchema = v.object({
 //      จะถูกเขียนทับเป็นเปิด ทั้งที่ร้านอาจตั้งใจปิดไว้ (ไฟล์ลูกค้าเข้า AI ทั้งไฟล์) — fallback
 //      ไปค่า stored ปลอดภัยกว่าและยังไม่ 400 กับ client เก่าเหมือนเดิม
 // feature 00019 ext (2026-07-29) — body ของ POST /api/chat/conversations/{id}/ai-suggest
-// confirmUseCredit: ผู้ใช้ยืนยันแล้วว่ายอมให้หักเครดิต ฿1 เมื่อโควตาฟรีหมด (FR-AIQ-04)
+// confirmUseCredit: ผู้ใช้ยืนยันแล้วว่ายอมให้หักเงิน ฿1 เมื่อโควตาฟรีหมด (FR-AIQ-04)
 // input ตัวนี้ทำให้ "เงินจริงถูกหัก" จึงต้องเป็น boolean แท้เท่านั้น — ค่าอื่น (string "true",
 // object, array) ต้องตกเป็น false ไม่ใช่ตีความเป็น truthy
 export const AiSuggestRequestSchema = v.object({

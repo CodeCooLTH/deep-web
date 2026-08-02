@@ -72,7 +72,7 @@ export const sellerMenuItems: MenuItemType[] = [
   /**
    * ผู้ช่วยอัตโนมัติ — รวมทุกอย่างที่ "ระบบคุยกับลูกค้าแทนร้าน" ไว้กลุ่มเดียว (user สั่ง 2026-08-01)
    *
-   * ทำไมต้องรวม: ของสามชิ้นนี้เคยกระจายอยู่ใน STORE ปนกับตั้งค่าร้าน/สต็อก/เครดิต ทั้งที่
+   * ทำไมต้องรวม: ของสามชิ้นนี้เคยกระจายอยู่ใน STORE ปนกับตั้งค่าร้าน/สต็อก/ยอดเงิน ทั้งที่
    * ผู้ใช้คิดถึงมันเป็นเรื่องเดียวกัน ("ใครตอบลูกค้าแทนฉัน") และต้องสลับไปมาระหว่างสามหน้านี้
    * ตลอดตอนตั้งค่า — วางไว้ต่อจากกลุ่ม CUSTOMERS เพราะเป็นเรื่องของแชทเหมือนกัน
    *
@@ -144,7 +144,7 @@ export const sellerMenuItems: MenuItemType[] = [
       // icon 'boxes' ไม่มีใน tabler icon set (verify: api.iconify.design/tabler.json?icons=boxes → not_found)
       // ใช้ 'archive' แทน (verified มีจริง) — ห้ามใช้ 'box'/'package' เพราะชนกับเมนู Products
       { url: '/inventory', slug: 'seller:inventory', label: 'จัดการสต็อก', icon: 'archive' },
-      { url: '/wallet', slug: 'seller:wallet', label: 'เครดิต SMS', icon: 'wallet' },
+      { url: '/wallet', slug: 'seller:wallet', label: 'กระเป๋าเงิน', icon: 'wallet' },
       // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyExpenseMenu ด้านล่าง
       // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
       { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },

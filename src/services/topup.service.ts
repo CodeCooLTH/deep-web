@@ -45,7 +45,7 @@ export async function createTopUpRequest(
  * ทำไม $transaction:
  * ถ้า status update สำเร็จแต่ creditWallet throw (crash / DB error) — โดยไม่มี
  * $transaction → TopUpRequest.status = "APPROVED" แต่ balance ไม่เพิ่ม = seller
- * เสียเงินโอน แต่ได้ 0 เครดิต (data inconsistency ที่แก้ยากมากใน production).
+ * เสียเงินโอน แต่ได้ 0 ยอดเงิน (data inconsistency ที่แก้ยากมากใน production).
  * การ wrap ใน $transaction ทำให้ทั้ง status-change + creditWallet + WalletTransaction
  * อยู่ใน PostgreSQL transaction เดียว: commit พร้อมกันทั้งหมด หรือ rollback ทั้งหมด.
  *
@@ -103,7 +103,7 @@ export async function approveTopUp(
       req.shopId,
       req.amount,
       requestId,
-      "เติมเครดิต SMS (อนุมัติโดย admin)",
+      "เติมเงิน (อนุมัติโดย admin)",
       undefined, // reason — topup ปกติไม่มี reason แยกประเภท (มิเรอร์พฤติกรรมเดิมก่อน extension นี้)
       tx,
     );
