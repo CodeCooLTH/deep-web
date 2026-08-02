@@ -68,6 +68,7 @@ API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint �
 | `GET` | `/api/channels/facebook/pages` | รายการ Page + สถานะ (ว่าง/เชื่อมร้านนี้/ติดร้านอื่น) ให้หน้าเลือกเพจ | seller session + user-token cookie | ใหม่ 2026-07-24 |
 | `POST` | `/api/channels/facebook/confirm` | เชื่อมเฉพาะ Page ที่ user ติ๊กเลือก + ย้ายรายเพจ | seller session + user-token cookie | ใหม่ 2026-07-24 |
 | `POST` | `/api/chat/conversations/[id]/messages` | ส่งข้อความ — dispatch ไป Send API เมื่อ `channel != "DEEP"` | participant session | แก้ไข (feature 00011) |
+| `DELETE` | `/api/chat/conversations/[id]/messages/[messageId]` | ยกเลิกข้อความที่ยิงออกไม่สำเร็จ (เฉพาะ `deliveryStatus='FAILED'` + `senderRole='SHOP'`) | seller session + `canAccessShop` ของเธรด | ใหม่ (2026-08-02) |
 | `GET` | `/api/chat/quick-messages` | list ข้อความสำเร็จรูปของร้านที่ active | seller session | ใหม่ (2026-07-23) |
 | `POST` | `/api/chat/quick-messages` | สร้างข้อความสำเร็จรูป | seller session | ใหม่ (2026-07-23) |
 | `PATCH` | `/api/chat/quick-messages/[id]` | แก้ข้อความสำเร็จรูป (scope `{id, shopId}`) | seller session | ใหม่ (2026-07-23) |
@@ -325,9 +326,56 @@ Contract เดิม (`type`, `body`, `imageUrl`, `productRefId`, response shap
 | 400 | service throw `NOT_EXTERNAL_CHANNEL` (defense — ไม่ควรเกิดถ้า route query ถูกต้อง) | `{ "error": "ช่องทางของบทสนทนานี้ไม่ถูกต้อง" }` |
 | 409 | service throw `WINDOW_CLOSED` (เกิน 24 ชม. นับจากข้อความล่าสุดของลูกค้า) | `{ "error": "เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความไม่ได้จนกว่าลูกค้าจะทักมาใหม่" }` |
 | 409 | service throw `CHANNEL_NOT_ACTIVE` (token ตาย/ถอดการเชื่อมต่อ) | `{ "error": "การเชื่อมต่อกับช่องทางนี้หมดอายุ กรุณาเชื่อม Facebook Page ใหม่อีกครั้ง" }` |
-| 502 | service throw `SEND_FAILED:*` (Graph API ปฏิเสธ — token ตาย, ลูกค้าบล็อกร้าน, เหตุอื่น) | `{ "error": "ส่งข้อความไปยังช่องทางภายนอกไม่สำเร็จ กรุณาลองใหม่" }` |
+| 502 | service throw `SEND_FAILED:*` (Graph API ปฏิเสธ — token ตาย, ลูกค้าบล็อกร้าน, เหตุอื่น) | `{ "error": "ส่งไม่สำเร็จ — <เหตุผลภาษาไทย>" }` — ดูหมายเหตุด้านล่าง |
+
+> 🔄 **แก้ไข 2026-08-02 — body ของ 502 ไม่ใช่ข้อความคงที่อีกแล้ว:** เดิมตอบ
+> `"ส่งข้อความไปยังช่องทางภายนอกไม่สำเร็จ กรุณาลองใหม่"` **ทุกกรณี** ซึ่งเป็นคำแนะนำที่ผิด
+> กับ error `#551` (ลูกค้าปิดรับข้อความ — กดกี่ครั้งก็ไม่ผ่าน) ตอนนี้ route แกะข้อความดิบ
+> ของ Meta ออกจาก `SEND_FAILED: <raw>` แล้วส่งผ่าน `describeSendFailure()`
+> (`src/lib/chat-send-failure.ts`) → ได้ประโยคไทยที่บอกทั้งสาเหตุและสิ่งที่ต้องทำต่อ
+> error ที่ยังไม่รู้จักจะคงข้อความดิบของ Meta ไว้ทั้งดุ้น (ไม่เดา ไม่กลืนหาย)
+> ตารางการแปลทั้งหมดอยู่ที่ [[EXTENSIONS-2026-08-02]] §E10.3
 
 Error 401/403/404/429/500 เดิมของ endpoint นี้ (unauthorized, forbidden, conversation not found, rate-limit, generic) **ยังใช้ mapping เดิมทุกประการ** — ไม่มีการเปลี่ยนแปลง
+
+---
+
+### 4.5a `DELETE /api/chat/conversations/[id]/messages/[messageId]` (ใหม่ 2026-08-02)
+
+ยกเลิกข้อความที่ยิงออกช่องทางนอกไม่สำเร็จ — ลบแถวทิ้งจริง ไม่ใช่ mark `isDeleted`
+Trace: [[EXTENSIONS-2026-08-02]] E11 (FR-CANCEL-01…05)
+
+**Request:** ไม่มี body — ทั้ง `id` (เธรด) และ `messageId` มาจาก path
+
+**ขอบเขตที่ลบได้ (แคบโดยตั้งใจ — ห้ามผ่อนโดยไม่คิดเรื่อง unsend ให้จบก่อน):**
+`deliveryStatus === 'FAILED'` **และ** `senderRole === 'SHOP'` เท่านั้น — ข้อความที่ส่งถึง
+ลูกค้าแล้วต้องใช้ unsend ของ Meta ซึ่งเป็นคนละกลไก (มี unit test ตรึงทั้งสองเงื่อนไข)
+
+**ลำดับการตรวจใน service (`cancelFailedOutboundMessage`):**
+1. หาแถวด้วย `{id: messageId, conversationId}` — ผูกเธรดเสมอ ไม่ใช่ `findUnique(id)` เดี่ยว ๆ
+2. โหลดเธรด → `canAccessShop(shopId, actorUserId)` — **เช็คสิทธิ์ก่อนเช็คสถานะข้อความ**
+   ไม่งั้นสถานะของข้อความในเธรดที่ไม่มีสิทธิ์จะรั่วออกไปทาง error code
+3. ตรวจ `deliveryStatus`/`senderRole`
+4. ทรานแซกชันเดียว: `delete` แถว → หาแถวล่าสุดที่เหลือ (`createdAt desc, seq desc`) →
+   เขียน `Conversation.lastMessageAt/lastMessagePreview/lastSenderRole` ใหม่
+   (เธรดว่างเปล่า = ล้าง preview เป็น `null` ไม่ปล่อยค้างชี้ข้อความที่ถูกลบ)
+
+**Response — Success (200):** `{ "ok": true }`
+
+**Response — Error:**
+
+| Status | เงื่อนไข | body |
+|--------|----------|------|
+| 401 | ไม่มี session | `{ "error": "unauthorized" }` |
+| 403 | `canAccessShop` = false | `{ "error": "ไม่มีสิทธิ์เข้าถึงบทสนทนานี้" }` |
+| 404 | ไม่พบเธรด | `{ "error": "ไม่พบบทสนทนา" }` |
+| 404 | ไม่พบข้อความในเธรดนี้ | `{ "error": "ไม่พบข้อความนี้" }` |
+| 409 | ข้อความไม่ใช่ `FAILED` ของฝั่งร้าน | `{ "error": "ยกเลิกได้เฉพาะข้อความที่ส่งไม่สำเร็จเท่านั้น" }` |
+| 500 | อื่น ๆ | `{ "error": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }` |
+
+**หมายเหตุฝั่ง client:** บับเบิล optimistic (id ขึ้นต้น `local-`) ยังไม่เคยถึง server
+จึงลบจาก state ตรง ๆ **ไม่ยิง endpoint นี้**; ส่วนแถวจริงต้องรอ 200 ก่อนค่อยเอาออกจาก state
+ไม่งั้นบับเบิลจะโผล่กลับมาตอนรีเฟรชทั้งที่ผู้ใช้เห็นว่ายกเลิกไปแล้ว
 
 ---
 
