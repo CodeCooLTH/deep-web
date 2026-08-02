@@ -180,7 +180,7 @@ function SummaryCard({
           <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', iconClass)}>
             <Icon icon={icon} className="text-2xl" />
           </div>
-          <span className={cn('text-xl font-semibold', valueClass)}>{text}</span>
+          <h3 className={cn('text-xl font-semibold', valueClass)}>{text}</h3>
         </div>
       </div>
     </div>

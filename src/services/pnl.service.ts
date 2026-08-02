@@ -19,6 +19,14 @@ export interface PnlReport {
    *  (ห้ามแสดง "+100%" จากฐาน 0 — โกหก). UI ต้องซ่อนเมื่อ `prevNetProfit <= 0` ด้วย เพราะ
    *  %เปลี่ยนแปลงจากฐานติดลบอ่านกลับหัว (ขาดทุนน้อยลง จะออกมาเป็นลบ) */
   prevNetProfit: number | null
+  /* ค่าช่วงก่อนหน้าของแต่ละตัว — คำนวณจาก query ชุดเดิมที่ยิงอยู่แล้ว ไม่เพิ่ม query
+     ใช้ทำ badge %เปลี่ยนแปลงบนการ์ดสถิติ (โครง 3 แถวของธีม Paces บังคับให้มี badge)
+     `null` = ช่วงก่อนหน้าไม่มีออเดอร์เลย → ไม่มีฐานให้เทียบ UI ต้องซ่อน badge ทั้งก้อน
+     ยกเว้น prevExpense ที่ aggregate คืน 0 จริงเมื่อไม่มีแถว (เป็นค่าจริง ไม่ใช่ "ไม่มีข้อมูล") */
+  prevRevenue: number | null
+  prevCogs: number | null
+  prevGrossProfit: number | null
+  prevExpense: number
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100 // เหมือน order.service.ts::round2
@@ -81,9 +89,14 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
       ? null
       : round2(round2(prevSums.revenue - prevSums.cogs) - prevExpense)
 
+  const noPrevOrders = prevOrders.length === 0
   return {
     range: range.label, revenue: round2(revenue), cogs: round2(cogs),
     grossProfit, totalExpense, netProfit, orderCount: orders.length, hasMissingCost,
     prevNetProfit,
+    prevRevenue: noPrevOrders ? null : round2(prevSums.revenue),
+    prevCogs: noPrevOrders ? null : round2(prevSums.cogs),
+    prevGrossProfit: noPrevOrders ? null : round2(prevSums.revenue - prevSums.cogs),
+    prevExpense,
   }
 }

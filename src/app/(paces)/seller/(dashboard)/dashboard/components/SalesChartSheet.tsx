@@ -392,6 +392,8 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
 
 /**
  * ช่องหนึ่งของแถบ legend+ยอดรวม — จุดสีต้องตรงกับสีซีรีส์ในกราฟเสมอ
+ * primitive ที่ใกล้ที่สุดในธีม: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/
+ *   components/RevenueByLocation.tsx (จุดสี + ชื่อ + ค่าชิดขวา) — ที่นี่จัดเป็นคอลัมน์แทนแถว
  *
  * ป้าย "ลูกค้ายืนยันแล้ว"/"รอลูกค้ายืนยัน" ระบุตัวผู้กระทำโดยตั้งใจ — คำสั้น ๆ ว่า "รอยืนยัน"
  * ไปชนกับหน้าจองที่ *ร้าน* เป็นคนกดยืนยัน ร้านที่ใช้ทั้งสองเมนูจะนึกว่าตัวเองต้องไปกด

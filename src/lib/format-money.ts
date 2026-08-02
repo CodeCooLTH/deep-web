@@ -47,3 +47,11 @@ export const profitDisplay = (n: number) => {
     toneClass: positive ? 'text-success-ink' : 'text-danger-ink',
   }
 }
+
+/**
+ * %เปลี่ยนแปลงเทียบช่วงก่อนหน้า — helper กลาง กันสูตรหลุดกันตามจุดที่ใช้ (ตอนนี้ 5 จุด)
+ * คืน null เมื่อ "เทียบแล้วอ่านไม่รู้เรื่อง": ไม่มีฐาน (null) หรือฐาน ≤ 0 ซึ่งเปอร์เซ็นต์อ่านกลับหัว
+ * UI ต้องซ่อน badge ทั้งก้อนเมื่อได้ null — ห้ามแสดง 0% หรือ +100% จากฐานศูนย์
+ */
+export const pctChangeVsPrev = (current: number, prev: number | null): number | null =>
+  prev != null && prev > 0 ? Math.round(((current - prev) / prev) * 1000) / 10 : null

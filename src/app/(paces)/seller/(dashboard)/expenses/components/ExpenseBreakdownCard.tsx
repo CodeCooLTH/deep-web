@@ -8,8 +8,11 @@
  *
  * Base:
  *   - card + card-header/card-body: docs/system/ui-guideline/paces-component-reference.md §1
- *   - แถบสัดส่วน + legend: src/app/(paces)/seller/(dashboard)/dashboard/components/SalesReport.tsx
- *     (แถวสรุปพร้อมจุดสี + ตัวเลขชิดขวา) — เปลี่ยนจากแท่งแยกเป็นแถบเดียวต่อกัน
+ *   - แถว legend (จุดสี + ชื่อ + ค่าชิดขวา): theme/paces/Admin/TS/src/app/(admin)/dashboard/
+ *     ecommerce/components/RevenueByLocation.tsx — citation เดิมชี้ SalesReport.tsx ซึ่งไม่ตรง
+ *     (safepay-ux ตรวจพบ 2026-08-02); markup ที่ใช้อยู่ตรงกับ RevenueByLocation อยู่แล้ว
+ *   - แถบสัดส่วนแบบเดียวต่อกัน (part-to-whole): ไม่มี 1:1 ในธีม ประกอบจาก primitive
+ *     (flex + bg token + rounded-full) — ประกาศไว้ตรง ๆ ไม่อ้างว่า copy มา
  *
  * Design Spec: docs/superpowers/specs/2026-08-02-expenses-redesign-design-spec.md §1A, §9
  */

@@ -12,16 +12,15 @@
  * จอจะแสดงจำนวนเงินที่ไม่เคยมีอยู่จริงบนหน้าที่เดิมพันกับความแม่นของตัวเลข
  *
  * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductStats.tsx
- *   (card > card-body > card-title text-sm + แถว icon chip กลม size-9 + ตัวเลข text-xl)
- *   ตัด badge %change กับแถวล่างของ ProductStats ออกจากการ์ดลูก — P&L ไม่มีข้อมูลสองชั้นแบบ
- *   การ์ดสินค้า การเว้นช่องไว้เฉย ๆ จะกลายเป็น hero-metric template ที่ DESIGN.md ห้าม
+ *   (card > card-body > card-title text-sm + แถว icon chip กลม size-9 + <h3 text-xl> + badge ms-auto)
+ *   เหตุผลที่ตัดแถว 3 ของ ProductStats ออก อยู่ใน comment เหนือ StatCard ด้านล่าง
  * missing-cost banner: src/app/(paces)/seller/(dashboard)/inventory/components/PackageSelector.tsx
  */
 import { useState } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
-import { formatBaht, profitDisplay, NET_PROFIT_FORMULA } from '@/lib/format-money'
+import { formatBaht, profitDisplay, NET_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
 import type { PnlReport } from '@/services/pnl.service'
 
 const CALC_NOTE = `คิดจากออเดอร์ที่ลูกค้ายืนยันรับของแล้วเท่านั้น · ${NET_PROFIT_FORMULA}`
@@ -42,9 +41,7 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
    *   - prevNetProfit == null → ช่วงก่อนหน้าไม่มีข้อมูลเลย ไม่มีฐานให้เทียบ
    *   - prevNetProfit <= 0 → ฐานติดลบ/ศูนย์ เปอร์เซ็นต์อ่านกลับหัว (ขาดทุนน้อยลงกลายเป็นติดลบ)
    */
-  const prev = report.prevNetProfit
-  const changePercent =
-    prev != null && prev > 0 ? Math.round(((report.netProfit - prev) / prev) * 1000) / 10 : null
+  const changePercent = pctChangeVsPrev(report.netProfit, report.prevNetProfit)
 
   return (
     <div className={cn('grid gap-1.25 transition-opacity md:grid-cols-2 lg:grid-cols-4', loading && 'opacity-50')}>
@@ -119,6 +116,7 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
         title="ยอดขายที่ยืนยันแล้ว"
         value={report.revenue}
         valueClass="text-success-ink"
+        changePercent={pctChangeVsPrev(report.revenue, report.prevRevenue)}
       />
       <StatCard
         icon="package"
@@ -126,6 +124,7 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
         title="ต้นทุนสินค้า"
         value={report.cogs}
         valueClass="text-default-800"
+        changePercent={pctChangeVsPrev(report.cogs, report.prevCogs)}
       />
       <StatCard
         icon="calculator"
@@ -133,6 +132,7 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
         title="กำไรก่อนหักค่าใช้จ่าย"
         value={report.grossProfit}
         valueClass={report.grossProfit >= 0 ? 'text-success-ink' : 'text-danger-ink'}
+        changePercent={pctChangeVsPrev(report.grossProfit, report.prevGrossProfit)}
       />
       <StatCard
         icon="receipt"
@@ -140,23 +140,36 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
         title="ค่าใช้จ่าย"
         value={report.totalExpense}
         valueClass="text-danger-ink"
+        changePercent={pctChangeVsPrev(report.totalExpense, report.prevExpense)}
       />
     </div>
   )
 }
 
+/**
+ * StatCard — Base: products/components/ProductStats.tsx (แถว 2: chip + <h3 text-xl> + badge ms-auto)
+ *
+ * แถว 1 (ไอคอน external-link) และแถว 3 (จุดสี+metric+ค่า) ของ ProductStats ถูกตัดทั้ง 4 ใบเท่ากัน
+ * ตาม precedent ของ ProductStats ในแอปเองที่ตัดแถว 1 ทิ้งด้วยเหตุผลเดียวกัน ("ไม่มี destination
+ * ที่ชัดเจน") — เหตุผลที่ตัดแถว 3: ไม่มี metric รองที่ไม่ซ้ำข้อมูลอื่นบนหน้าเดียวกันครบทั้ง 4 ใบ
+ * (เช่นการ์ด "ค่าใช้จ่าย" → เฉลี่ยต่อวัน/สัดส่วนต่อรายได้ ซ้ำกับท้าย ExpenseBreakdownCard ที่อยู่
+ * ในสายตาเดียวกัน) ตัดทั้งกลุ่มเท่ากันดีกว่ามีบางใบ — การ์ดในกลุ่มเดียวกันต้องหน้าตาเหมือนกัน
+ */
 function StatCard({
   icon,
   iconClass,
   title,
   value,
   valueClass,
+  changePercent,
 }: {
   icon: string
   iconClass: string
   title: string
   value: number
   valueClass: string
+  /** null = ไม่มีฐานให้เทียบ → ซ่อน badge ทั้งก้อน ไม่โชว์ 0% หลอกตา */
+  changePercent: number | null
 }) {
   return (
     <div className="card">
@@ -168,7 +181,18 @@ function StatCard({
           <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', iconClass)}>
             <Icon icon={icon} className="text-2xl" />
           </div>
-          <span className={cn('text-xl font-semibold', valueClass)}>{formatBaht(value)}</span>
+          <h3 className={cn('text-xl font-semibold', valueClass)}>{formatBaht(value)}</h3>
+          {changePercent != null && (
+            <span
+              className={cn(
+                'badge ms-auto py-0 text-xs font-medium',
+                changePercent >= 0 ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink',
+              )}
+            >
+              {changePercent >= 0 ? '+' : ''}
+              {changePercent}%
+            </span>
+          )}
         </div>
       </div>
     </div>
