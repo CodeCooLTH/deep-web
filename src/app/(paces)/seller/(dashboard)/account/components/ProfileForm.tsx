@@ -209,17 +209,23 @@ export default function ProfileForm({ user }: Props) {
     if (!phoneRes.isConfirmed || !phoneRes.value) return
     const phone = phoneRes.value as string
 
+    // deny button = "ส่งรหัสใหม่" — SMS ในไทยดีเลย์ 30-60 วิเป็นเรื่องปกติ ถ้าไม่มีปุ่มนี้ทางออก
+    // เดียวของคนที่รอไม่เห็นรหัสคือกดยกเลิกแล้วเริ่มใหม่ทั้งชุด ซึ่งคนส่วนมากตีความว่าระบบพัง
     const otpRes = await Swal.fire({
       title: 'ใส่รหัส OTP',
-      text: `เราส่งรหัส 6 หลักไปที่ ${phone} แล้ว`,
+      html: `เราส่งรหัส 6 หลักไปที่ <b>${phone}</b> แล้ว<br/><span class="text-default-500 text-xs">ยืนยันแล้วจะเปลี่ยนเบอร์ไม่ได้อีก</span>`,
+      icon: 'question',
       input: 'text',
       inputAttributes: { inputmode: 'numeric', maxlength: '6', autocomplete: 'one-time-code' },
       buttonsStyling: false,
       showCancelButton: true,
+      showDenyButton: true,
       confirmButtonText: 'ยืนยัน',
+      denyButtonText: 'ส่งรหัสใหม่',
       cancelButtonText: 'ยกเลิก',
       customClass: {
         confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2 me-2',
+        denyButton: 'btn bg-light hover:text-default-800 mt-2 me-2',
         cancelButton: 'btn bg-light hover:text-default-800 mt-2',
       },
       preConfirm: async (value: string) => {
@@ -241,6 +247,17 @@ export default function ProfileForm({ user }: Props) {
         return true
       },
     })
+    // กด "ส่งรหัสใหม่" → ยิง OTP ซ้ำแล้ววนกลับมาที่จอเดิม (เบอร์เดิม ไม่ต้องพิมพ์ใหม่)
+    if (otpRes.isDenied) {
+      const res = await fetch('/api/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact: phone, type: 'PHONE' }),
+      })
+      if (res.ok) pacesToast.success('ส่งรหัสใหม่แล้ว')
+      else pacesToast.error('ส่งรหัสไม่สำเร็จ กรุณาลองใหม่')
+      return
+    }
     if (!otpRes.isConfirmed) return
 
     pacesToast.success('เพิ่มเบอร์โทรแล้ว')
@@ -251,13 +268,13 @@ export default function ProfileForm({ user }: Props) {
   const saveBlocked = saving || !dirty || uStatus === 'checking' || uStatus === 'taken' || uStatus === 'invalid'
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium w-full justify-center">
-          ข้อมูลส่วนตัว
-        </h5>
-      </div>
-
+    <form
+      className="card"
+      onSubmit={(e) => {
+        e.preventDefault()
+        save()
+      }}
+    >
       <div className="card-body">
         {/* avatar + ชื่อ + badge — badge ใช้สไตล์เดียวกับ "ส่วนตัว" ใน account switcher
             เพื่อให้จับ visual grammar เดียวกันข้ามหน้า ไม่ใช่ศัพท์ภาพใหม่ */}
@@ -291,10 +308,14 @@ export default function ProfileForm({ user }: Props) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="truncate font-semibold">{user.displayName}</span>
-              <span className="badge bg-default-100 text-default-500 shrink-0">ใช้ร่วมกันทุกร้าน</span>
+              <span className="badge bg-primary/15 text-primary-ink shrink-0">ไม่ผูกกับร้านไหน</span>
             </div>
             <div className="mt-1 flex items-center gap-3 text-sm">
-              <label htmlFor="account-avatar" className="text-primary cursor-pointer">
+              {/* min-h-11 + -my-2.5 — tap target 44px โดยที่กล่องข้อความไม่ดันบรรทัดให้ห่างขึ้น */}
+              <label
+                htmlFor="account-avatar"
+                className="text-primary -my-2.5 inline-flex min-h-11 cursor-pointer items-center hover:underline"
+              >
                 เปลี่ยนรูป
               </label>
               {avatar && (
@@ -302,7 +323,7 @@ export default function ProfileForm({ user }: Props) {
                   type="button"
                   onClick={removeAvatar}
                   disabled={avatarBusy}
-                  className="text-default-500 hover:text-danger disabled:opacity-50"
+                  className="text-default-500 hover:text-danger -my-2.5 inline-flex min-h-11 items-center disabled:opacity-50"
                 >
                   ลบรูป
                 </button>
@@ -346,13 +367,17 @@ export default function ProfileForm({ user }: Props) {
               {uStatus === 'taken' && <span className="text-danger">ชื่อผู้ใช้นี้มีคนใช้แล้ว</span>}
               {uStatus === 'checking' && <span className="text-default-400">กำลังตรวจสอบ...</span>}
               {uStatus === 'ok' && (
-                // บอกผลลัพธ์ที่จะเกิดจริง ไม่ใช่แค่คำว่า "ระวัง"
-                <span className="text-warning">
-                  เปลี่ยนแล้วลิงก์เดิม /u/{user.username} จะใช้ไม่ได้อีก ต้องแชร์ลิงก์ใหม่แทน
-                </span>
+                // 2 ท่อน: ยืนยันก่อนว่า "ใช้ได้" (เขียว) แล้วค่อยบอกผลที่ตามมา — เดิมมีแต่ท่อนเตือน
+                // สีเหลืองซึ่งผู้ใช้อ่านเป็น "กรอกผิด" ทั้งที่ระบบกำลังบอกว่าชื่อนี้ว่าง
+                <>
+                  <span className="text-success-ink">ชื่อนี้ว่างอยู่ ใช้ได้</span>
+                  <span className="text-default-700 block">
+                    เปลี่ยนแล้วลิงก์เดิม /u/{user.username} จะใช้ไม่ได้อีก ต้องแชร์ลิงก์ใหม่แทน
+                  </span>
+                </>
               )}
               {uStatus === 'idle' && (
-                <span className="text-default-400">ลิงก์โปรไฟล์ของคุณคือ /u/{user.username}</span>
+                <span className="text-default-500">ลิงก์โปรไฟล์ของคุณคือ /u/{user.username}</span>
               )}
             </p>
           </div>
@@ -372,7 +397,7 @@ export default function ProfileForm({ user }: Props) {
             {/* ยังแก้ไม่ได้จริง — UpdateProfileSchema ฝั่ง server ยังไม่รับ email (ต้องคิดเรื่อง
                 ยืนยันอีเมลก่อน ไม่งั้นเป็นช่องอ้างสิทธิ์อีเมลคนอื่น) จึง disabled แทนที่จะให้พิมพ์
                 แล้วเงียบ ๆ ไม่บันทึก */}
-            <p className="text-default-400 mt-1.5 text-xs">แก้ไขอีเมลได้เร็ว ๆ นี้</p>
+            <p className="text-default-500 mt-1.5 text-xs">แก้ไขอีเมลได้เร็ว ๆ นี้</p>
           </div>
 
           {/* เบอร์โทร — read-only เสมอ (immutable rule: ตั้งครั้งเดียว มีผลต่อ Trust Score) */}
@@ -382,7 +407,7 @@ export default function ProfileForm({ user }: Props) {
               <div className="border-default-200 flex items-center gap-2 rounded-lg border px-3 py-2.5">
                 <Icon icon="phone" className="text-default-400 shrink-0" aria-hidden="true" />
                 <span className="flex-1 truncate">{user.phone}</span>
-                <span className="badge bg-success/15 text-success inline-flex shrink-0 items-center gap-1">
+                <span className="badge bg-success/15 text-success-ink inline-flex shrink-0 items-center gap-1">
                   <Icon icon="circle-check" className="size-3" aria-hidden="true" />
                   ยืนยันแล้ว
                 </span>
@@ -394,13 +419,13 @@ export default function ProfileForm({ user }: Props) {
                 <button
                   type="button"
                   onClick={addPhone}
-                  className="btn btn-sm bg-primary/15 text-primary shrink-0"
+                  className="btn btn-sm bg-primary/15 text-primary min-h-11 shrink-0"
                 >
                   เพิ่มเบอร์โทร
                 </button>
               </div>
             )}
-            <p className="text-default-400 mt-1.5 text-xs">
+            <p className="text-default-700 mt-1.5 text-xs">
               {user.phone
                 ? 'เปลี่ยนไม่ได้หลังตั้งค่าแล้ว เพื่อความปลอดภัยของบัญชีคุณ'
                 : 'ใช้ยืนยันตัวตนและกู้คืนบัญชี ตั้งได้ครั้งเดียวเปลี่ยนไม่ได้'}
@@ -410,8 +435,7 @@ export default function ProfileForm({ user }: Props) {
 
         <div className="mt-5">
           <button
-            type="button"
-            onClick={save}
+            type="submit"
             disabled={saveBlocked}
             className="btn bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
           >
@@ -419,6 +443,6 @@ export default function ProfileForm({ user }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </form>
   )
 }

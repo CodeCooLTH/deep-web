@@ -81,7 +81,7 @@ export default function BackToBusinessButton() {
 
   return (
     <>
-      <div className="mt-5 text-center">
+      <div className="mb-4">
         <button
           type="button"
           onClick={() => {
@@ -96,14 +96,14 @@ export default function BackToBusinessButton() {
             })
           }}
           disabled={switching}
-          className="text-default-500 hover:text-default-800 inline-flex items-center gap-1.5 py-1 text-sm disabled:opacity-50"
+          className="text-default-500 hover:text-default-800 -my-2.5 inline-flex min-h-11 items-center gap-1.5 text-sm disabled:opacity-50"
         >
           <Icon icon="arrow-left" className="size-4" aria-hidden="true" />
           กลับไปที่ร้าน {destination.shopName}
         </button>
         {/* พูดเฉพาะสิ่งที่จริง: wizard บันทึกทีละขั้นตอนที่กดผ่านแล้ว (category/slug/address ยิง API
             ทันทีที่กดถัดไป) — ค่าที่ยังพิมพ์ค้างในช่องของขั้นปัจจุบันไม่ได้ถูกบันทึก */}
-        <p className="text-default-400 mt-1 text-xs">ขั้นที่ทำผ่านแล้วถูกบันทึกไว้ กลับมาตั้งต่อเมื่อไหร่ก็ได้</p>
+        <p className="text-default-500 mt-2 text-xs">ขั้นที่ทำผ่านแล้วถูกบันทึกไว้ กลับมาตั้งต่อเมื่อไหร่ก็ได้</p>
       </div>
 
       <ShopSwitchOverlay

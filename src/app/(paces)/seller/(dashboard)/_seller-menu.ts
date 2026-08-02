@@ -5,6 +5,26 @@ import type { ExpenseAccessDecision } from '@/services/expense-access.service'
 import { canUseAppointments } from '@/lib/appointments'
 
 export const sellerMenuItems: MenuItemType[] = [
+  /**
+   * บัญชีของฉัน — กลุ่มของ "ตัวคน" ไม่ใช่ของร้าน (feature 00026)
+   *
+   * ทำไมต้องเป็นกลุ่มแยกบนสุด ไม่ใช่รายการหนึ่งในกลุ่ม STORE: รอบแรกวางไว้ในกลุ่ม STORE
+   * ลำดับที่ 8 จาก 9 ซึ่งกลายเป็นการบอกผู้ใช้ว่าตัวเขาเป็นทรัพย์สินชิ้นหนึ่งของร้าน — และเป็น
+   * อาการเดียวกับบั๊กต้นเรื่องเป๊ะ ๆ (user หา "การตั้งค่าของตัวเอง" ไม่เจอเพราะถูกวางปนกับของร้าน)
+   * กลุ่มเมนูคือคำตอบว่า "อะไรเป็นของใคร" จึงต้องแยกให้ขาดตั้งแต่ระดับกลุ่ม
+   *
+   * ยังไม่ย้าย /verification กับ /badges เข้ามาที่นี่ ทั้งที่ทั้งคู่ผูกกับ User เหมือนกัน —
+   * เป็นการจัดเมนูใหม่ที่กระทบคนที่ใช้อยู่แล้ว ควรตัดสินแยกต่างหาก ไม่ใช่พ่วงมากับฟีเจอร์นี้
+   */
+  {
+    icon: 'user-circle',
+    slug: 'seller-me',
+    label: 'บัญชีของฉัน',
+    isTitle: true,
+    children: [
+      { url: '/account', slug: 'seller:account', label: 'ข้อมูลส่วนตัว', icon: 'user-circle' },
+    ],
+  },
   {
     icon: 'chart-bar',
     slug: 'seller-analytics',
@@ -149,9 +169,6 @@ export const sellerMenuItems: MenuItemType[] = [
       // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyExpenseMenu ด้านล่าง
       // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
       { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
-      // feature 00026 — "ข้อมูลส่วนตัว" ผูกกับ *ตัวคน* ไม่ผูกกับร้านที่ active อยู่
-      // วางก่อน "ตั้งค่าร้าน" เพราะ identity มาก่อน shop settings ตามลำดับความคิดของผู้ใช้
-      { url: '/account', slug: 'seller:account', label: 'ข้อมูลส่วนตัว', icon: 'user-circle' },
       // เดิม label "บัญชีที่เชื่อมต่อ" ครอบ 2 เรื่องที่คนละเจ้าของ (การจัดส่งของร้าน + วิธี login
       // ของ user) ทำให้ผู้ใช้หาการตั้งค่าของตัวเองไม่เจอ — วิธี login ย้ายไป /account แล้ว
       // (feature 00026, user เคาะ 2026-08-02) เหลือเฉพาะการจัดส่ง จึงเปลี่ยนชื่อให้ตรงเนื้อใน

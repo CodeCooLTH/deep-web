@@ -10,7 +10,7 @@
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/offcanvas/page.tsx (offcanvasBottom block — id/data-hs-overlay/translate-y/close btn)
  * Logic reused from: src/layouts/components/TopBar/components/UserDropdownDetailed.tsx
- *   (fetch /api/business/context guard by hasBusinessMembership) — สลับร้านจริงใช้ useShopSwitcher
+ *   (fetch /api/business/context) — สลับร้านจริงใช้ useShopSwitcher
  *   ร่วมกัน (POST switch-context → session.update({activeShopId}) → hard-navigate /dashboard,
  *   overlay z-[1070] ผ่าน ShopSwitchOverlay)
  */
@@ -45,7 +45,6 @@ type SessionUser = {
   displayName?: string
   username?: string
   avatar?: string | null
-  hasBusinessMembership?: boolean
   activeShopId?: string | null
   activeShopRole?: 'OWNER' | 'ADMIN'
   activeShopKind?: 'PERSONAL' | 'BUSINESS'
@@ -57,7 +56,6 @@ export default function AccountSwitcherSheet() {
   const { data: session } = useSession()
   const user = session?.user as SessionUser | undefined
 
-  const hasBusinessMembership = user?.hasBusinessMembership === true
   const activeShopId = user?.activeShopId
   const displayName = user?.displayName ?? user?.username ?? 'ผู้ใช้'
 
@@ -77,8 +75,9 @@ export default function AccountSwitcherSheet() {
   useEffect(() => setMounted(true), [])
 
   useEffect(() => {
-    // guard: fetch เฉพาะเมื่อมี business membership จริง (เหมือน UserDropdownDetailed)
-    if (!hasBusinessMembership) return
+    // feature 00026: เดิม fetch เฉพาะเมื่อมี business membership — ตอนนี้ sheet เป็นทางเข้า
+    // "ข้อมูลส่วนตัว" ของมือถือด้วย และต้องรู้ว่ามีร้านส่วนตัวหรือยังเพื่อโชว์แถวสร้างร้าน
+    // จึง fetch เสมอ (endpoint scope ด้วย session อยู่แล้ว คืน personal + businesses ของ user เอง)
     let cancelled = false
     // no-store + cache-buster query: กัน cache ทุกชั้น (browser/CDN/carrier 5G ที่ ignore no-store)
     // serve response เก่า businesses=[] — URL unique ทุกครั้ง = cache miss เสมอ
@@ -96,7 +95,7 @@ export default function AccountSwitcherSheet() {
     return () => {
       cancelled = true
     }
-  }, [hasBusinessMembership])
+  }, [])
 
   // แถวแต่ละแถวมี 3 พฤติกรรม: active=ไม่ clickable, locked=toast อย่างเดียว (ไม่ยิง API,
   // ไม่ปิด sheet), อื่น ๆ = สลับ (useShopSwitcher) + ปิด sheet ทันที — overlay เต็มจอจะคลุม sheet
@@ -116,7 +115,7 @@ export default function AccountSwitcherSheet() {
     window.HSOverlay?.close('#account-switcher-sheet')
   }
 
-  const loading = hasBusinessMembership && context === null && !fetchFailed
+  const loading = context === null && !fetchFailed
 
   return (
     <>
@@ -138,7 +137,7 @@ export default function AccountSwitcherSheet() {
         {/* header */}
         <div className="border-default-200 flex shrink-0 items-center justify-between border-b px-5 py-3">
           <h3 id="account-switcher-sheet-label" className="text-base font-semibold">
-            สลับบัญชี
+            บัญชีของฉัน
           </h3>
           <button
             type="button"
