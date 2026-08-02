@@ -22,6 +22,21 @@ export interface ResolvedDateRange {
   expenseRange: { gte: Date; lt: Date }
   /** สำหรับ echo กลับ response/label UI — "YYYY-MM-DD" */
   label: { start: string; end: string }
+  /** ช่วงก่อนหน้า "ยาวเท่ากัน ต่อเนื่องกันทันทีก่อน start" — ใช้คำนวณ %เปลี่ยนแปลงของกำไรสุทธิ
+   *  (เช่น 30 วันนี้ เทียบ 30 วันก่อนหน้า). ยาวเท่ากันเสมอแม้ preset 'month' ที่จำนวนวันไม่คงที่
+   *  — ไม่ใช่ "เดือนก่อนหน้าเป๊ะ" (Design Spec §13 ข้อ 4) */
+  prevRange: {
+    orderRange: { gte: Date; lt: Date }
+    expenseRange: { gte: Date; lt: Date }
+  }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** เลื่อนช่วงถอยหลังไปหนึ่งช่วงเต็ม (ยาวเท่าเดิม, จบพอดีที่ gte เดิม) */
+function shiftBack(r: { gte: Date; lt: Date }): { gte: Date; lt: Date } {
+  const span = r.lt.getTime() - r.gte.getTime()
+  return { gte: new Date(r.gte.getTime() - span), lt: new Date(r.gte.getTime()) }
 }
 
 function thaiMidnightUtc(y: number, m0: number, d: number): Date {
@@ -63,9 +78,13 @@ export function resolveDateRange(
     ;[sy, sm0, sd] = [s[0], s[1] - 1, s[2]]; [ey, em0, ed] = [e[0], e[1] - 1, e[2]]
   }
 
+  const orderRange = { gte: thaiMidnightUtc(sy, sm0, sd), lt: thaiMidnightUtc(ey, em0, ed + 1) }
+  const expenseRange = { gte: dateOnlyUtc(sy, sm0, sd), lt: dateOnlyUtc(ey, em0, ed + 1) }
+
   return {
-    orderRange: { gte: thaiMidnightUtc(sy, sm0, sd), lt: thaiMidnightUtc(ey, em0, ed + 1) },
-    expenseRange: { gte: dateOnlyUtc(sy, sm0, sd), lt: dateOnlyUtc(ey, em0, ed + 1) },
+    orderRange,
+    expenseRange,
     label: { start: isoOf(sy, sm0, sd), end: isoOf(ey, em0, ed) },
+    prevRange: { orderRange: shiftBack(orderRange), expenseRange: shiftBack(expenseRange) },
   }
 }

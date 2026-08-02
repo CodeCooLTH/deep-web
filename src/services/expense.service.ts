@@ -106,6 +106,17 @@ export interface ListExpensesOptions {
   range?: { gte: Date; lt: Date }
 }
 
+/**
+ * hasAnyExpense — ร้านนี้เคยบันทึกค่าใช้จ่ายไหม (ไม่จำกัดช่วงเวลา)
+ *
+ * ใช้แยกข้อความ empty state 2 แบบ: "ยังไม่เคยบันทึกเลย" (ชวนเริ่มต้น) กับ "ช่วงนี้ไม่มีรายการ"
+ * (ชวนเปลี่ยนช่วงเวลา) — สองอันนี้ต้องพูดคนละอย่าง ไม่งั้นข้อความโกหกกรณีใดกรณีหนึ่งเสมอ
+ */
+export async function hasAnyExpense(shopId: string): Promise<boolean> {
+  const first = await prisma.expense.findFirst({ where: { shopId }, select: { id: true } })
+  return first !== null
+}
+
 /** listExpenses — เรียงจาก expenseDate ล่าสุดก่อน (API.md §4.2) */
 export async function listExpenses(shopId: string, opts?: ListExpensesOptions): Promise<Expense[]> {
   return prisma.expense.findMany({
