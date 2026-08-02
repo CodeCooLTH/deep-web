@@ -10,6 +10,8 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDate } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
+import { listExpenses } from '@/services/expense.service'
+import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
@@ -72,7 +74,28 @@ export default async function SalesPage({
   const to = parseDate(toStr, defTo)
   to.setHours(23, 59, 59, 999)
 
-  const allOrders = await getOrdersByShop(shop.id)
+  /**
+   * ค่าใช้จ่าย (feature 00016) มี gate สิทธิ์ของตัวเอง — หน้านี้ไม่มี. ไม่ผ่าน gate = ไม่ query
+   * และไม่ส่งฟิลด์ใด ๆ ลงไป (คอลัมน์/การ์ดหายทั้งอัน) ไม่ใช่ส่ง 0 ลงไปแล้วให้ดูเหมือนไม่มีค่าใช้จ่าย
+   */
+  const expenseAccess = await resolveExpenseAccess(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  )
+  const canSeeFinance = expenseAccess.kind === 'GRANTED'
+
+  const [allOrders, expensesInRange] = await Promise.all([
+    getOrdersByShop(shop.id),
+    canSeeFinance
+      ? // expenseDate เก็บเป็น UTC-midnight ของวันตามปฏิทิน (ไม่ shift TZ) — boundary จึงต่างจาก
+        // order.createdAt ที่เป็น timestamptz. ดู "Dual Boundary Design" ใน src/lib/date-range.ts
+        listExpenses(shop.id, {
+          range: {
+            gte: new Date(Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())),
+            lt: new Date(Date.UTC(to.getFullYear(), to.getMonth(), to.getDate() + 1)),
+          },
+        })
+      : Promise.resolve([]),
+  ])
 
   // ใช้ type จริงจาก return value ของ getOrdersByShop — ป้องกัน silent break ถ้า schema เปลี่ยน
   type OrderItem = Awaited<ReturnType<typeof getOrdersByShop>>[number]
@@ -87,13 +110,28 @@ export default async function SalesPage({
   const completedPerDay: Record<string, number> = {}
   const revenuePerDay: Record<string, number> = {}
 
+  // COGS ต่อวัน — ต้องคิดด้วยถึงจะได้ "กำไรสุทธิ" สูตรเดียวกับการ์ด P&L ใน /expenses
+  // (revenue − COGS − expense) ถ้าใช้แค่ revenue − expense ตัวเลขสองหน้าจะไม่ตรงกัน
+  const cogsPerDay: Record<string, number> = {}
+
   for (const o of inRange) {
     const day = new Date(o.createdAt).toISOString().slice(0, 10)
     ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
     if (o.status === 'CONFIRMED') {
       completedPerDay[day] = (completedPerDay[day] ?? 0) + 1
       revenuePerDay[day] = (revenuePerDay[day] ?? 0) + Number(o.totalAmount ?? 0)
+      for (const item of o.items) {
+        // cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ "ต้นทุน 0" — ข้ามไป (การ์ด P&L เตือนเรื่องนี้อยู่แล้ว)
+        if (item.cost == null) continue
+        cogsPerDay[day] = (cogsPerDay[day] ?? 0) + Number(item.cost) * item.qty
+      }
     }
+  }
+
+  const expensePerDay: Record<string, number> = {}
+  for (const e of expensesInRange) {
+    const day = new Date(e.expenseDate).toISOString().slice(0, 10)
+    expensePerDay[day] = (expensePerDay[day] ?? 0) + Number(e.amount)
   }
 
   // Zero-fill every day in range
@@ -104,7 +142,13 @@ export default async function SalesPage({
     const revenue = revenuePerDay[date] ?? 0
     const avgOrder = completed > 0 ? revenue / completed : 0
     const label = formatDate(date)
-    return { date, label, orders, completed, revenue, avgOrder }
+    if (!canSeeFinance) return { date, label, orders, completed, revenue, avgOrder }
+    const expense = expensePerDay[date] ?? 0
+    return {
+      date, label, orders, completed, revenue, avgOrder,
+      expense,
+      netProfit: revenue - (cogsPerDay[date] ?? 0) - expense,
+    }
   })
 
   const totalOrders = daily.reduce((s, d) => s + d.orders, 0)
@@ -112,7 +156,16 @@ export default async function SalesPage({
   const totalRevenue = daily.reduce((s, d) => s + d.revenue, 0)
   const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0
 
-  const summary: SummaryData = { totalOrders, totalCompleted, totalRevenue, avgOrderValue }
+  const summary: SummaryData = {
+    totalOrders,
+    totalCompleted,
+    totalRevenue,
+    avgOrderValue,
+    ...(canSeeFinance && {
+      totalExpense: daily.reduce((s, d) => s + (d.expense ?? 0), 0),
+      netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
+    }),
+  }
 
   return (
     <>
@@ -133,7 +186,7 @@ export default async function SalesPage({
         </div>
 
         {/* SalesTable render เป็น header+DataTable+card-footer ภายใน card เดียวกัน */}
-        <SalesTable rows={daily} />
+        <SalesTable rows={daily} showFinance={canSeeFinance} />
       </div>
     </>
   )

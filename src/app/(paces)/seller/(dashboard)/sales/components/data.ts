@@ -12,6 +12,11 @@ export type DailyRow = {
   completed: number // count of COMPLETED
   revenue: number   // sum of completed order totals
   avgOrder: number  // revenue / completed (or 0)
+  /** ค่าใช้จ่ายที่บันทึกในวันนั้น (feature 00016) — undefined = ร้านนี้ไม่มีสิทธิ์ดูข้อมูลการเงิน
+   *  ทั้งคอลัมน์จะไม่ถูก render เลย ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "วันนี้ไม่มีค่าใช้จ่าย" */
+  expense?: number
+  /** กำไรสุทธิของวันนั้น = revenue − COGS − expense (สูตรเดียวกับการ์ด P&L ใน /expenses) */
+  netProfit?: number
 }
 
 export type SummaryData = {
@@ -19,4 +24,7 @@ export type SummaryData = {
   totalCompleted: number
   totalRevenue: number
   avgOrderValue: number
+  /** undefined = ไม่มีสิทธิ์ดูข้อมูลการเงิน (ดู DailyRow.expense) */
+  totalExpense?: number
+  netProfit?: number
 }
