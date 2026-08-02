@@ -6,11 +6,15 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx
  *   (.card/.card-body shell + chg indicator: arrow-up/arrow-down + text-success/text-danger)
  *
- * Sparkline = div bars ธรรมดา (ไม่ใช่ ApexChart) — เป็น mini indicator ระดับไอคอน ไม่ใช่กราฟที่ต้อง build
- * chart options จริง จึงไม่เข้าเงื่อนไข HR10 (แค่ flex + bg utility, ไม่มี charting library ใด ๆ)
+ * Sparkline ใช้ ApexChart wrapper แล้ว (v2 2026-08-02) — ของเดิมเป็น div bars ที่ประกอบเอง
+ * โดยอ้างว่า "ไม่ใช่กราฟจริงเลยไม่เข้า HR10" แต่ safepay-ux ชี้ว่าธีมมี sparkline pattern อยู่จริง
+ * (charts/apex/sparklines/) จึงต้องใช้ของธีม ไม่ใช่ประกอบเอง
  */
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import ApexChart from '@/components/wrappers/ApexChart'
+import { getColor } from '@/utils/helpers'
+import type { ApexOptions } from 'apexcharts'
 import { formatBaht, profitDisplay } from '@/lib/format-money'
 import type { SalesSeries } from '../_constants/command-center'
 import SalesChartSheet from './SalesChartSheet'
@@ -26,7 +30,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
   if (!initialSeries) return null
 
   const {
-    values, confirmedValues, unconfirmedValues, expenseValues,
+    confirmedValues, unconfirmedValues, expenseValues,
     total, prevTotal, futureFromIndex, totalExpense, netProfit,
   } = initialSeries
   // prevTotal===0 → คำนวณ % ไม่ได้ (หาร 0) → ซ่อน chg indicator
@@ -34,22 +38,29 @@ export default function SalesChartCard({ initialSeries }: Props) {
   // ไม่ผ่าน gate สิทธิ์ค่าใช้จ่าย → ไม่มีกำไรให้แสดง: hero กลับไปเป็นยอดขายเหมือนเดิม
   const profit = totalExpense != null ? profitDisplay(netProfit ?? 0) : null
 
-  // sparkline = ทั้งเดือน (ทุกวัน) — ไม่ slice ท้าย ไม่งั้นต้นเดือน (วันนี้ยังน้อย) จะโดนตัดออกจนเห็นแต่แท่งอนาคตว่าง
-  const sparkValues = values
-  const sparkFutureFrom = futureFromIndex
-
-  /**
-   * สเกลร่วมสองทิศ — 1px เหนือเส้นฐานกับ 1px ใต้เส้นฐาน มีค่าเท่ากันเป็นบาท
-   * แบ่งความสูงตามอัตราส่วน max(ยอดขาย):max(ค่าใช้จ่าย) ของช่วงนั้นเอง แทน 50/50 ตายตัว
-   *   → เดือนที่ค่าใช้จ่ายน้อย แถบล่างบางเอง ไม่กินที่
-   *   → เดือนที่ค่าใช้จ่ายท่วมยอดขาย แถบล่างสูงกว่าแถบบนทันที = สัญญาณที่ต้องเห็นให้ได้ใน 56px
-   * expenseValues === undefined = ไม่ผ่าน gate → คงสไปรค์ไลน์ทิศเดียวเหมือนเดิมทุกประการ
-   */
+  /** ไม่ผ่าน gate สิทธิ์ = ไม่มีแท่งค่าใช้จ่าย สไปรค์ไลน์เหลือทิศเดียวเหมือนเดิมทุกประการ */
   const expValues = expenseValues ?? null
-  const maxSale = Math.max(0, ...sparkValues)
-  const maxExp = expValues ? Math.max(0, ...expValues) : 0
-  const upShare = maxSale / Math.max(1, maxSale + maxExp)
-  const max = Math.max(1, maxSale)
+
+  /** ตัดวันในอนาคตออกจากทุก series พร้อมกัน — ให้ความยาวเท่ากันเสมอ ไม่งั้น ApexCharts จัดแกนเพี้ยน */
+  const upTo = <T,>(arr: T[]) => arr.slice(0, futureFromIndex)
+  const sparkSeries = [
+    { name: 'ลูกค้ายืนยันแล้ว', data: upTo(confirmedValues) },
+    { name: 'รอลูกค้ายืนยัน', data: upTo(unconfirmedValues) },
+    // ติดลบ = ApexCharts วางใต้เส้นศูนย์ให้เอง (สเกลร่วมกับด้านบนอัตโนมัติ)
+    ...(expValues ? [{ name: 'ค่าใช้จ่าย', data: upTo(expValues).map((v) => -v) }] : []),
+  ]
+
+  const getSparkOptions = (): ApexOptions => ({
+    chart: { type: 'bar', height: 56, stacked: true, sparkline: { enabled: true } },
+    plotOptions: { bar: { columnWidth: '70%' } },
+    // สีตรงกับซีรีส์ในชีตยอดขายเป๊ะ — token เท่านั้น ห้าม hardcode hex (Hard Rule 10)
+    colors: expValues
+      ? [getColor('chart-primary'), getColor('warning'), getColor('chart-beta')]
+      : [getColor('chart-primary'), getColor('warning')],
+    dataLabels: { enabled: false },
+    legend: { show: false },
+    tooltip: { enabled: false },
+  })
 
   return (
     <>
@@ -94,45 +105,19 @@ export default function SalesChartCard({ initialSeries }: Props) {
             </p>
           )}
 
-          {/* สไปรค์ไลน์สองทิศ — เหนือเส้นฐาน = ยอดขาย (น้ำเงิน=ยืนยันแล้ว / เหลือง=รอยืนยัน / เทา=อนาคต),
-              ใต้เส้นฐาน = ค่าใช้จ่าย (แดง) สเกลร่วมกัน 1px = จำนวนบาทเท่ากันทั้งบนและล่าง
-              สีตรงกับซีรีส์ในชีตเป๊ะ: bg-primary=chart-primary · bg-warning=warning · bg-danger=chart-beta
-              ยังเป็น div bars ธรรมดา ไม่ใช่ charting library → ไม่เข้าเงื่อนไข HR10 (ดู comment บนไฟล์) */}
-          <div className={expValues ? 'flex h-14 flex-col' : 'h-12'}>
-            <div
-              className="flex items-end gap-0.5"
-              style={expValues ? { height: `${upShare * 100}%` } : { height: '100%' }}
-            >
-              {sparkValues.map((v, i) => {
-                const pct = Math.max(4, Math.round((v / max) * 100))
-                const isFuture = i >= sparkFutureFrom
-                if (isFuture || v <= 0) {
-                  return <div key={i} className="flex-1 rounded-t-sm bg-default-200" style={{ height: `${pct}%` }} />
-                }
-                const uPct = Math.round(((unconfirmedValues[i] ?? 0) / v) * 100)
-                return (
-                  <div key={i} className="flex flex-1 flex-col overflow-hidden rounded-t-sm" style={{ height: `${pct}%` }}>
-                    <div className="bg-warning" style={{ height: `${uPct}%` }} />
-                    <div className="flex-1 bg-primary" />
-                  </div>
-                )
-              })}
-            </div>
-            {expValues && (
-              <>
-                <div className="bg-default-300 h-px" aria-hidden="true" />
-                <div className="flex flex-1 items-start gap-0.5">
-                  {expValues.map((e, i) => (
-                    <div
-                      key={i}
-                      className="bg-danger flex-1 rounded-b-sm"
-                      style={{ height: e > 0 ? `${Math.max(4, Math.round((e / Math.max(1, maxExp)) * 100))}%` : 0 }}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          {/* สไปรค์ไลน์ — ApexChart สองทิศ: ยอดขาย stack ขึ้น (ยืนยันแล้ว/รอยืนยัน), ค่าใช้จ่ายลงล่าง
+              Base: theme/paces/Admin/TS/src/app/(admin)/charts/apex/sparklines/components/data.ts
+                    (`chart: { sparkline: { enabled: true } }` ผ่าน ApexChart wrapper)
+              ของเดิมเป็น div bars ที่ประกอบเอง — safepay-ux ชี้ว่าธีมมี pattern จริงรออยู่ (2026-08-02)
+
+              ค่าใช้จ่ายส่งเป็น "ค่าติดลบ" ให้ ApexCharts วางใต้เส้นศูนย์เอง ไม่ต้องประกอบสองบล็อก
+              และได้สเกลร่วมอัตโนมัติ (1px บน = 1px ล่าง = จำนวนบาทเท่ากัน) ตรงตามเจตนาเดิม
+
+              แท่งเทาของ "วันในอนาคต" ถูกตัดทิ้ง — มันเป็น placeholder ยุค div ที่ไม่ใช่ข้อมูล
+              กราฟที่ไม่มีแท่งในวันที่ยังไม่ถึงคือการบอกความจริงตรง ๆ อยู่แล้ว
+
+              tooltip ปิด — การ์ดทั้งใบเป็นปุ่มเปิดชีต การมี tooltip แย่งการแตะบนมือถือ */}
+          <ApexChart getOptions={getSparkOptions} series={sparkSeries} type="bar" height={56} />
         </div>
       </button>
 
