@@ -179,6 +179,15 @@ theme/
   - **แก้ Verified-Means-Green ที่ละเมิดจริง** — `AddressSearchPanel` ขึ้นเช็กถูกสีเขียวกับที่อยู่ที่ยังไม่ครบ (คอมเมนต์เขียนอ้างกฎนั้นอยู่บนโค้ดที่ละเมิดเอง) → primary เมื่อครบ / danger เมื่อขาด
   - **carry:** browser QA (ยังไม่เคยกดจริง), เช็กถูกสีเขียวในรายการผลค้นหาที่อยู่ทั้ง 2 picker, `react-toastify` ตกค้างใน `(paces)` 3 ไฟล์ (ผิด HR9 อยู่ก่อนแล้ว)
 
+- **2026-08-02 (feature 00026): หน้า `/account` "ข้อมูลส่วนตัว" + สร้างร้านส่วนตัวจาก account switcher — merged main + prod** (retro `docs/retro/2026-08-02-feature-00026-personal-account-retrospective.md`, docs `docs/20 - Features/00026 - Personal Account & Connections/`)
+  - **`src/lib/onboarding-gate.ts` = SSOT ใหม่ของ `needsRegistration`/`needsOnboarding`** — ทั้ง `jwt` และ `session` callback ใน `lib/auth.ts` เรียกตัวเดียวกัน และต้องเรียก **หลัง** block ที่ resolve `activeShopId` เสมอ. กฎ: บังคับ setup เฉพาะตอน `activeShopId === personal shop id` ไม่งั้นผู้ถูกเชิญที่กดสร้างร้านส่วนตัวจะถูก proxy ขังใน `/onboarding` ทุก route ออกไม่ได้
+  - **หน้า `/account` ผูกกับ `session.user.id` ล้วน — ห้ามเรียก `requireActiveShop`/อ่าน `activeShopId` ในหน้านี้** (นั่นคือเหตุผลที่หน้านี้มีอยู่: แยก "ตั้งค่าตัวคน" ออกจาก "ตั้งค่าร้าน" ที่ `/shop`)
+  - `ConnectedAccountsClient` ย้ายจาก `settings/` → `account/components/` + เพิ่มแถวตั้ง/เปลี่ยนรหัสผ่าน; `/settings` เหลือเฉพาะการจัดส่ง (เมนูเปลี่ยนชื่อเป็น "การจัดส่ง"), กลุ่มเมนูใหม่ "บัญชีของฉัน" อยู่ล่างสุด
+  - **security fix ที่ไปกับรอบนี้ (`eb32a937`)**: `PATCH /api/users/me` เคยส่ง body ดิบเข้า `prisma.user.update` → ยิง `{"isAdmin":true}` เป็นแอดมินได้; ปิดด้วย `UpdateProfileSchema` (Valibot allow-list) + pick field ใน service + `GET` เลิกคืน `passwordHash`
+  - API ใหม่: `check-username`, `otp-for-password`, `set-password-otp` — 2 ตัวหลัง resolve เบอร์จาก session ไม่รับจาก client (คืนแค่ `phoneMasked`)
+  - **ข้อมูลจริง prod 2026-08-02:** User 10 คน ไม่มีเบอร์ 6 · ไม่มีทั้งเบอร์และรหัสผ่าน 5 (กู้บัญชีไม่ได้ถ้าหลุดจาก FB/LINE) → ขึ้นแถบเตือนใน `/account` ไม่บังคับเพิ่มเบอร์
+  - **carry:** browser QA 15 เคสยังไม่เคยกดจริงสักครั้ง (`TestCase.md` §3.1) · E2E ข้ามตามที่ user ตัดสิน · `AccountAvatar` ใส่ `rounded-full` ให้ทั้ง business/personal จึงไม่มี convention "วงกลม=คน สี่เหลี่ยม=ร้าน"
+
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 
 @AGENTS.md

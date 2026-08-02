@@ -17,6 +17,13 @@ SendMessage isn't available in this tool context, so I'm delivering the full Des
 
 ---
 
+> **แก้ไข 2026-08-02 (หลัง implement):** ข้ออ้างในเอกสารนี้ที่ว่า "รูปทรง avatar วงกลม=คน
+> สี่เหลี่ยมมน=ร้าน เป็นสัญญาณภาพที่มีอยู่แล้วในแอป (ตาม `AccountAvatar.tsx` kind convention)"
+> **ไม่จริง** — `AccountAvatar.tsx:39,45` ใส่ `rounded-full` ให้ทั้ง `kind='business'` และ
+> `'personal'` ต่างกันแค่ icon fallback ตอนไม่มีรูป สัญญาณนี้จึงไม่เคยมีอยู่ ตัดสินใจ 2026-08-02
+> ว่า**ไม่แก้ที่ `AccountAvatar`** เพราะกระทบ switcher ทุกจุดทั้งแอป — ให้ badge "ไม่ผูกกับร้านไหน"
+> กับ subtitle แบกหน้าที่แยกหน้าแทน
+
 ## ส่วน A1 — แถว "สร้างร้านส่วนตัวของฉัน" ใน 2 switcher
 
 ### Layout (ASCII) — Desktop dropdown (`UserDropdownDetailed`, ≥1024px)

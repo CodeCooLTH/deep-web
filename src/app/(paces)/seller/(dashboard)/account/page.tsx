@@ -56,6 +56,39 @@ export default async function AccountPage() {
         ข้อมูลนี้เป็นของคุณโดยตรง ไม่ใช่ของร้าน — เหมือนกันไม่ว่าจะสลับไปร้านไหน
       </p>
 
+      {/* บัญชีที่ login ได้ทางเดียวคือ OAuth และไม่มีทางกู้เลย — ณ 2026-08-02 คือ 5 จาก 10 บัญชีบน prod
+          (นับจาก User ที่ phone IS NULL AND passwordHash IS NULL) ถ้าเข้า Facebook/LINE ไม่ได้
+          (โดนแบน/ลืมรหัส/เปลี่ยนเบอร์ที่ผูกไว้) = เสีย trust score กับประวัติออเดอร์ทั้งหมดถาวร
+          เลือกเตือน ไม่บังคับ (user ตัดสิน 2026-08-02): การบังคับเพิ่มเบอร์ตอน login OAuth ครั้งแรก
+          จะไปเพิ่มแรงเสียดทานให้ผู้ถูกเชิญ ซึ่งเป็นกลุ่มเดียวกับที่ feature นี้เพิ่งลดให้
+          Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx:60 (soft alert bg-{semantic}/15) */}
+      {!dbUser.phone && dbUser.passwordHash == null && (
+        <div className="bg-warning/15 text-warning-ink mb-4 flex max-w-2xl items-start gap-2.5 rounded px-4 py-3" role="alert">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width={18}
+            height={18}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mt-0.5 shrink-0"
+            aria-hidden="true"
+          >
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M12 9v4" />
+            <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" />
+            <path d="M12 16h.01" />
+          </svg>
+          <span className="text-sm">
+            ตอนนี้คุณเข้าบัญชีนี้ได้ทางเดียว — ถ้าเข้า Facebook หรือ LINE ไม่ได้ จะกู้บัญชีไม่ได้เลย
+            และจะเสียคะแนนความน่าเชื่อถือกับประวัติคำสั่งซื้อทั้งหมด เพิ่มเบอร์โทรไว้เป็นทางสำรองได้ที่ด้านล่าง
+          </span>
+        </div>
+      )}
+
       {/* max-w-2xl ตามสเปกต้นฉบับ — ฟอร์มนี้เป็นคอลัมน์เดียว (4 ฟิลด์ ไม่ใช่ 20 แบบ theme ต้นฉบับ)
           ถ้าปล่อยการ์ดกว้างเต็ม main content จะเหลือคอลัมน์ว่างมหาศาลทางขวาที่จอ 1440px */}
       <div className="max-w-2xl">
