@@ -91,10 +91,14 @@ import { useSession } from 'next-auth/react'
 import {
   useSellerChatThread,
   groupByDate,
+  pendingKind,
   type ChatProductCard,
   type ChatOrderCard,
   type ChatMessageView,
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
+import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
+import { useLongPress } from '@/hooks/useLongPress'
+import MessageActionBubble, { type MessageAction } from './MessageActionBubble'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
@@ -224,7 +228,25 @@ async function shareToDevice(url: string, filename: string): Promise<boolean> {
   }
 }
 
-function MediaDownloadLink({ storageKey, label = 'บันทึกไฟล์' }: { storageKey: string; label?: string }) {
+/** ไอคอน+สีประจำชนิดไฟล์แนบ (2026-08-02) — ใช้ทั้งชิปในคิวและบับเบิลในเธรด ให้ร้านจำสีได้
+ *  ทุกตัวเป็น tabler icon จริง ไม่ใช่ emoji (Hard Rule 12) */
+const ATTACHMENT_ICON: Record<string, { icon: string; cls: string }> = {
+  IMAGE: { icon: 'photo', cls: 'bg-info/15 text-info' },
+  VIDEO: { icon: 'video', cls: 'bg-primary/15 text-primary' },
+  AUDIO: { icon: 'volume', cls: 'bg-success/15 text-success' },
+  FILE: { icon: 'file-text', cls: 'bg-warning/15 text-warning' },
+}
+
+function MediaDownloadLink({
+  storageKey,
+  label = 'บันทึกไฟล์',
+  attachmentName,
+}: {
+  storageKey: string
+  label?: string
+  /** ชื่อไฟล์เดิมที่ผู้ส่งเลือก (2026-08-02) — ไม่มี = ข้อความเก่า/ไฟล์ mirror จาก Meta */
+  attachmentName?: string | null
+}) {
   const [busy, setBusy] = useState(false)
   // เช็คใน effect ไม่ใช่ตอน render — ฝั่ง SSR ไม่มี window ถ้าอ่านตอน render จะ hydration mismatch
   const [canSaveAs, setCanSaveAs] = useState(false)
@@ -232,8 +254,8 @@ function MediaDownloadLink({ storageKey, label = 'บันทึกไฟล์
     setCanSaveAs('showSaveFilePicker' in window)
   }, [])
   const url = `/api/files/${storageKey}`
-  // ชื่อไฟล์ = ส่วนท้ายของ storage key (กันเคสไม่มี '/' ด้วย fallback)
-  const filename = storageKey.split('/').filter(Boolean).pop() || 'attachment'
+  // ชื่อตอนบันทึก = ชื่อเดิมที่ผู้ส่งเลือก; ไม่มีก็ fallback "ไฟล์แนบ.<ext>" แทน uuid ที่อ่านไม่รู้เรื่อง
+  const filename = attachmentDisplayName(storageKey, attachmentName)
 
   const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
     const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
@@ -730,6 +752,7 @@ export default function ChatThread({
     loadingOlder,
     sending,
     uploading,
+    uploadProgress,
     errorState,
     text,
     setText,
@@ -740,6 +763,7 @@ export default function ChatThread({
     topSentinelRef,
     handleFileChange,
     handlePaste,
+    handleDropFiles,
     handleRemoveImage,
     handleSend,
     replyingTo,
@@ -749,6 +773,55 @@ export default function ChatThread({
     externalReadAt: externalReadAtLive,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
+
+  // ── กดค้างบนข้อความ → เมนูลอย (user สั่ง 2026-08-02) ────────────────
+  //
+  // ทำไมต้องมี: ปุ่มตอบกลับ/คัดลอกข้างบับเบิลเป็น `lg:group-hover:flex` = ผูกกับ hover ซึ่งมือถือ
+  // ไม่มี — ปุ่มจึงไม่เคยโผล่บนมือถือเลยสักครั้ง ไม่ใช่แค่ "กดยาก"
+  //
+  // hook เรียกในลูปไม่ได้ จึงมี useLongPress ตัวเดียวที่ container แล้ว resolve ย้อนกลับว่านิ้ว
+  // อยู่บนข้อความไหนผ่าน data-message-id — วิธีนี้ยังทำให้ทุกชนิดบับเบิล (รูป/ไฟล์/การ์ด) ใช้ได้หมด
+  // โดยไม่ต้องไปแตะ render ของแต่ละชนิด
+  const [actionTarget, setActionTarget] = useState<{ message: ChatMessageView; x: number; y: number } | null>(null)
+  const messagesRef = useRef<ChatMessageView[]>([])
+  messagesRef.current = messages
+  const longPress = useLongPress((point) => {
+    const el = document.elementFromPoint(point.x, point.y)?.closest('[data-message-id]')
+    const id = el?.getAttribute('data-message-id')
+    const message = id ? messagesRef.current.find((x) => x.id === id) : undefined
+    if (message) setActionTarget({ message, x: point.x, y: point.y })
+  })
+
+  const actionTargetActions: MessageAction[] = (() => {
+    const m = actionTarget?.message
+    if (!m) return []
+    const list: MessageAction[] = []
+    // เงื่อนไขเดียวกับปุ่ม hover ฝั่ง desktop (ดู canReply ตอน render) — ตอบทับข้อความ optimistic
+    // ไม่ได้เพราะ route ต้องการ uuid จริง
+    if (!m.isDeleted && !m._status && !m.id.startsWith('local-')) {
+      list.push({ key: 'reply', icon: 'arrow-back-up', label: 'ตอบกลับ', onSelect: () => setReplyingTo(m) })
+    }
+    if (m.body) {
+      list.push({
+        key: 'copy',
+        icon: 'copy',
+        label: 'คัดลอก',
+        onSelect: () => {
+          navigator.clipboard.writeText(m.body!).catch(() => {})
+          // เมนูปิดทันทีที่เลือก จึงไม่มีปุ่มให้เปลี่ยนไอคอนเป็นเช็คถูกแบบฝั่ง desktop — ใช้ toast แทน
+          pacesToast.success('คัดลอกข้อความแล้ว')
+        },
+      })
+    }
+    return list
+  })()
+
+  // ── ลากไฟล์มาวางในเธรด (user สั่ง 2026-08-02) ──────────────────────
+  //
+  // ครอบเฉพาะการ์ดเธรด ไม่ใช่ทั้งหน้า — ครอบทั้งหน้าจะชนกับ SwipeableRow (ปัดแถวในกล่องขาเข้า)
+  // และแผงร่างพัสดุที่อยู่คนละคอลัมน์
+  const [dragOver, setDragOver] = useState(false)
+  const dragDepth = useRef(0) // dragenter/leave ยิงซ้ำตอนลากผ่าน element ลูก — นับชั้นแทนการ toggle
 
   // ความสูงช่องพิมพ์: ลากปรับเอง + จำค่าล่าสุด + ขยายตามเนื้อหาเอง (user request 2026-07-30)
   // ส่ง text เข้าไปเป็น trigger ให้วัดใหม่ทุกครั้งที่เนื้อหาเปลี่ยน รวมถึงตอนถูกเติมจาก
@@ -1118,7 +1191,43 @@ export default function ChatThread({
       {/* relative: ให้แผงข้อความสำเร็จรูปวางทับ "พื้นที่ข้อความ" ได้พอดี (user สั่ง 2026-07-31
           "อยากปรับให้ panel นี้เต็มช่องแชทไปเลย") — วางทับแทนที่จะดันเลย์เอาต์ เพราะลิสต์ข้อความ
           ยัง mount อยู่ ตำแหน่ง scroll จึงไม่รีเซ็ตตอนปิดแผง */}
-      <div className="relative flex min-h-0 grow flex-col">
+      <div
+        className="relative flex min-h-0 grow flex-col"
+        onDragEnter={(e) => {
+          // เฉพาะการลาก "ไฟล์" — ลากข้อความ/ลิงก์ในหน้าไม่ควรเด้ง overlay
+          if (!e.dataTransfer.types.includes('Files')) return
+          dragDepth.current += 1
+          setDragOver(true)
+        }}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('Files')) return
+          e.preventDefault() // ไม่ preventDefault = เบราว์เซอร์เปิดไฟล์แทนที่จะให้เรารับ
+          e.dataTransfer.dropEffect = 'copy'
+        }}
+        onDragLeave={() => {
+          dragDepth.current = Math.max(0, dragDepth.current - 1)
+          if (dragDepth.current === 0) setDragOver(false)
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer.types.includes('Files')) return
+          e.preventDefault()
+          dragDepth.current = 0
+          setDragOver(false)
+          if (attachDisabled || composerDisabled) return
+          void handleDropFiles(e.dataTransfer.files)
+        }}
+      >
+      {/* overlay ตอนลากไฟล์ผ่าน — inset-2 ให้เห็นขอบการ์ดเดิมด้วย จะได้รู้ว่า "วางได้ตรงนี้"
+          ไม่ใช่ทั้งหน้า; pointer-events-none เพื่อไม่ให้ overlay เองไปกิน dragleave/drop */}
+      {dragOver && !attachDisabled && !composerDisabled && (
+        <div className="bg-primary/5 pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+          <div className="border-primary bg-card rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
+            <Icon icon="upload" className="text-primary text-3xl" />
+            <p className="text-default-800 mb-0 mt-2 text-sm font-semibold">วางไฟล์ที่นี่เพื่อแนบ</p>
+            <p className="text-default-500 mb-0 text-xs">แนบได้หลายไฟล์พร้อมกัน · สูงสุด 25MB ต่อไฟล์</p>
+          </div>
+        </div>
+      )}
       {quickOpen && (
         <QuickMessageBar
           onPick={handleQuickPick}
@@ -1128,6 +1237,7 @@ export default function ChatThread({
       )}
       <div
         ref={scrollRef}
+        {...longPress.handlers}
         className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-1"
       >
         {oldestCursor && (
@@ -1261,7 +1371,13 @@ export default function ChatThread({
                 }
                 return (
                   // Base ChatPage.tsx:64/79 — `my-5 flex items-start gap-2.5` (+ justify-end ฝั่งตัวเอง)
-                  <div key={m.id} className={`group my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
+                  // data-message-id: ให้ตัวจับ "กดค้าง" ที่ระดับ container หาได้ว่านิ้วอยู่บนข้อความไหน
+                  // (hook เรียกในลูปไม่ได้ จึงมี useLongPress ตัวเดียวแล้ว resolve ย้อนกลับจาก DOM)
+                  <div
+                    key={m.id}
+                    data-message-id={m.id}
+                    className={`group my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}
+                  >
                     {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} />}
                     {mine && actionCluster}
                     {/* feature 00018 T4 (ภาคผนวก A-3): เดิม Base ไม่ใส่ max-w บนคอลัมน์นี้เลย ทำให้
@@ -1333,27 +1449,47 @@ export default function ChatThread({
                             {m.type === 'VIDEO' && m.imageUrl && (
                               <>
                                 <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
-                                <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกวิดีโอ" />
+                                <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกวิดีโอ" attachmentName={m.attachmentName} />
                               </>
                             )}
                             {m.type === 'AUDIO' && m.imageUrl && (
                               <>
                                 <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
-                                <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกไฟล์เสียง" />
+                                <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกไฟล์เสียง" attachmentName={m.attachmentName} />
                               </>
                             )}
+                            {/* บับเบิลไฟล์ — เดิมเป็นลิงก์ "เปิดไฟล์แนบ" ตายตัว ซึ่งบอกไม่ได้เลยว่าเป็นไฟล์อะไร
+                                ตอนที่ไฟล์แนบมีแต่ของที่ mirror มาจาก Meta (ไม่มีชื่อ) ยังพอรับได้ แต่พอร้าน
+                                ส่งเอกสารเองได้แล้ว "ใบเสนอราคา-สมชาย.pdf · 1.2 MB" คือข้อมูลที่ต้องเห็น */}
                             {m.type === 'FILE' && m.imageUrl && (
                               <a
                                 href={`/api/files/${m.imageUrl}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-primary flex items-center gap-2 text-sm font-medium hover:underline"
+                                className={`flex max-w-60 items-center gap-2.5 rounded-lg border p-2.5 ${
+                                  mine ? 'border-white/30 bg-white/10' : 'border-default-300 bg-default-50'
+                                }`}
                               >
-                                <Icon icon="file-download" className="text-lg" />
-                                เปิดไฟล์แนบ
+                                <span
+                                  className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
+                                    mine ? 'bg-white/20 text-white' : ATTACHMENT_ICON.FILE.cls
+                                  }`}
+                                >
+                                  <Icon icon={ATTACHMENT_ICON.FILE.icon} className="text-lg" />
+                                </span>
+                                <span className="min-w-0">
+                                  <span className={`block truncate text-sm font-medium ${mine ? 'text-white' : 'text-default-800'}`}>
+                                    {attachmentDisplayName(m.imageUrl, m.attachmentName)}
+                                  </span>
+                                  <span className={`mt-0.5 block text-xs ${mine ? 'text-white/75' : 'text-default-400'}`}>
+                                    {[formatAttachmentSize(m.attachmentSize), 'เปิดไฟล์'].filter(Boolean).join(' · ')}
+                                  </span>
+                                </span>
                               </a>
                             )}
-                            {m.type === 'FILE' && m.imageUrl && <MediaDownloadLink storageKey={m.imageUrl} />}
+                            {m.type === 'FILE' && m.imageUrl && (
+                              <MediaDownloadLink storageKey={m.imageUrl} attachmentName={m.attachmentName} />
+                            )}
                             {m.body && (
                               // whitespace-pre-wrap: คงการเว้นบรรทัด (\n) ที่ลูกค้า/เพจพิมพ์มา — ไม่งั้น
                               // เบราว์เซอร์ยุบเป็นช่องว่างเดียว เลข list/ย่อหน้าติดกันเป็นพรืดอ่านยาก
@@ -1574,21 +1710,32 @@ export default function ChatThread({
             <Icon icon="package" className="text-lg" />
           </button>
 
-          {/* feature 00018 T4 — disabled ถาวรเมื่อ channel != DEEP (backend คืน 400 ถ้าส่งรูปช่องทาง
-              นอก — กันที่ UI ก่อนถึง error นั้น) หรือ composer ปิดทั้งชุด (window/token) */}
+          {/* แนบไฟล์ — multiple + ทุกชนิด (user สั่ง 2026-08-02) เดิมทีละ 1 ไฟล์ เฉพาะ jpg/png/webp
+              ไม่ใส่ accept เลยโดยตั้งใจ (ไม่ใช่ accept แบบ wildcard) — Safari บางเวอร์ชันตีความ
+              wildcard แล้วซ่อนไฟล์บางชนิดในกล่องเลือก. กฎว่าอะไรส่งได้อยู่ที่ lib/chat-attachment.ts
+              ซึ่งบังคับทั้งฝั่ง client (ก่อนอัปโหลด) และ /api/chat/upload (ตัวจริง) */}
           <label
             className={`btn btn-icon text-default-600 hover:bg-default-100 shrink-0 ${attachDisabled || composerDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
-            aria-label={attachDisabled ? 'ยังไม่รองรับการส่งรูปในช่องทางนี้' : 'แนบรูปภาพ'}
+            aria-label={attachDisabled ? 'ยังไม่รองรับการแนบไฟล์ในช่องทางนี้' : 'แนบไฟล์'}
+            title="แนบไฟล์ (เลือกหลายไฟล์พร้อมกันได้)"
           >
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              multiple
               className="hidden"
               onChange={handleFileChange}
               disabled={attachDisabled || composerDisabled || uploading || sending}
             />
             <Icon icon={uploading ? 'loader-2' : 'paperclip'} className={`text-lg ${uploading ? 'animate-spin' : ''}`} />
           </label>
+
+          {/* ความคืบหน้าตอนแนบหลายไฟล์ — spinner เปล่าบอกได้แค่ "กำลังทำอะไรอยู่" ซึ่งไม่พอเมื่อคิว
+              มี 8 ไฟล์และแต่ละไฟล์ใช้เวลาไม่เท่ากัน (ร้านจะไม่รู้ว่าค้างหรือกำลังไป) */}
+          {uploadProgress && uploadProgress.total > 1 && (
+            <span className="text-default-500 shrink-0 text-xs" aria-live="polite">
+              กำลังอัปโหลด {uploadProgress.done + 1}/{uploadProgress.total}
+            </span>
+          )}
 
           {/* composer improvement #1 — ปุ่ม emoji + popover (emoji เป็น Unicode text ธรรมดา ส่งได้ทุก
               ช่องทางรวม Messenger/IG); disabled เฉพาะเมื่อส่งไม่ได้ (window ปิด/token ตาย) */}
@@ -1702,24 +1849,50 @@ export default function ChatThread({
                 />
               </div>
             )}
-            {/* คิวรูปที่รอส่ง — หลายรูปได้ (ข้อความสำเร็จรูปที่มีหลายรูป, user สั่ง 2026-07-23)
-                เลื่อนแนวนอนเมื่อเกินความกว้าง; ลบได้ทีละใบ */}
+            {/* คิวไฟล์ที่รอส่ง — หลายไฟล์ได้ (ข้อความสำเร็จรูปที่มีหลายรูป user 2026-07-23;
+                ขยายเป็นทุกชนิดไฟล์ 2026-08-02) เลื่อนแนวนอนเมื่อเกินความกว้าง; ลบได้ทีละใบ
+                แยก 2 หน้าตาตามชนิด: สื่อที่พรีวิวได้ = thumbnail, ไฟล์อื่น = ชิปชื่อ+ขนาด
+                (เอกสารไม่มีอะไรให้ดู การโชว์กรอบเปล่าจึงบอกอะไรไม่ได้เลยว่าแนบอะไรไป) */}
             {pendingImages.length > 0 && (
               <div className="flex gap-2 overflow-x-auto p-2 pb-0">
-                {pendingImages.map((img, i) => (
-                  <div key={img.fileId} className="relative shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.previewUrl} alt={`รูปที่จะส่ง ${i + 1}`} className="max-h-28 rounded-lg object-contain" />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveImage(img.fileId)}
-                      aria-label={`ลบรูปที่ ${i + 1}`}
-                      className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
-                    >
-                      <Icon icon="x" className="text-sm" />
-                    </button>
-                  </div>
-                ))}
+                {pendingImages.map((att, i) => {
+                  const kind = pendingKind(att)
+                  const label = att.name ?? `ไฟล์ที่ ${i + 1}`
+                  return (
+                    <div key={att.fileId} className="relative shrink-0">
+                      {kind === 'IMAGE' && att.previewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={att.previewUrl} alt={label} className="max-h-28 rounded-lg object-contain" />
+                      ) : kind === 'VIDEO' && att.previewUrl ? (
+                        <video src={att.previewUrl} className="max-h-28 rounded-lg" muted playsInline />
+                      ) : (
+                        <div className="border-default-300 bg-default-50 flex h-28 w-52 items-center gap-2.5 rounded-lg border p-2.5 pe-8">
+                          <span
+                            className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${ATTACHMENT_ICON[kind].cls}`}
+                          >
+                            <Icon icon={ATTACHMENT_ICON[kind].icon} className="text-lg" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="text-default-800 block truncate text-xs font-medium">{label}</span>
+                            {formatAttachmentSize(att.size) && (
+                              <span className="text-default-400 mt-0.5 block text-xs">
+                                {formatAttachmentSize(att.size)}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(att.fileId)}
+                        aria-label={`เอา ${label} ออก`}
+                        className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+                      >
+                        <Icon icon="x" className="text-sm" />
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             )}
             <textarea
@@ -1728,7 +1901,7 @@ export default function ChatThread({
               // ไม่งั้นช่องไม่หดกลับตอนลบข้อความ) — จึงไม่มี style prop / ไม่มี min-h ที่นี่
               ref={composerRef}
               className="block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-0"
-              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImages.length > 0 ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ...'}
+              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImages.length > 0 ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ หรือวางไฟล์ที่นี่...'}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onPaste={handlePaste} // วางรูปจากคลิปบอร์ด (screenshot/Line/Ctrl+C) → แนบเลย (user 2026-07-25)
@@ -1753,6 +1926,17 @@ export default function ChatThread({
         </div>
       </div>
     </div>
+
+    {/* เมนูลอยจากการกดค้างบนข้อความ (มือถือ) — ทางเข้าเดียวของตอบกลับ/คัดลอกบนจอสัมผัส
+        เพราะปุ่มข้างบับเบิลเป็น lg:group-hover (desktop-only) */}
+    {actionTarget && actionTargetActions.length > 0 && (
+      <MessageActionBubble
+        x={actionTarget.x}
+        y={actionTarget.y}
+        actions={actionTargetActions}
+        onClose={() => setActionTarget(null)}
+      />
+    )}
 
     {/* feature 00018 T5 — sheet มือถือ/tablet (<1024px); ปุ่มเปิดอยู่ใน composer ด้านบน */}
     {sheetOpen && (

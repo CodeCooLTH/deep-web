@@ -3,10 +3,19 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
+
+/** ChatMessage.type ของไฟล์แนบ → `message.attachment.type` ที่ Meta Send API รับ (2026-08-02)
+ *  ขาเข้ามี MEDIA_TYPE ทำหน้าที่ตรงข้ามอยู่แล้ว (Meta → ของเรา) นี่คือขาออก */
+const GRAPH_ATTACHMENT_TYPE: Record<'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE', GraphAttachmentType> = {
+  IMAGE: 'image',
+  VIDEO: 'video',
+  AUDIO: 'audio',
+  FILE: 'file',
+}
 import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
@@ -993,9 +1002,18 @@ export async function sendOutboundMessage(params: {
   systemShopId?: string
   // ป้ายกำกับว่าข้อความนี้ระบบเป็นผู้ส่ง — null = คนส่ง (ค่าเดิม)
   autoReplyKind?: 'AUTO' | 'AUTO_TEST'
-  // text = ข้อความ (หรือ caption ของรูป); imageFileId = ส่งรูป (storage fileId) — อย่างน้อยต้องมีอย่างหนึ่ง
+  // text = ข้อความ (หรือ caption ของไฟล์แนบ) — อย่างน้อยต้องมี text หรือไฟล์แนบอย่างใดอย่างหนึ่ง
   text?: string
+  /** deprecated (2026-08-02) — ใช้ `attachment` แทน. คงไว้เพราะ auto-reply-send.service.ts
+   *  ยังส่งรูปทีละใบด้วยพารามิเตอร์นี้อยู่ (ภายในแปลงเป็น attachment kind='IMAGE' ให้เอง) */
   imageFileId?: string
+  /** ไฟล์แนบทุกชนิด (2026-08-02 multi-attachment) — kind ตัดสิน `attachment.type` ที่ยิงให้ Meta */
+  attachment?: {
+    fileId: string
+    kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
+    name?: string | null
+    size?: number | null
+  }
   // orderRefToken (user 2026-07-25): การ์ดคำสั่งซื้อบนช่องทางนอก — ส่ง "ลิงก์ (text)" ให้ลูกค้าผ่าน Meta
   // แต่เก็บข้อความฝั่งเราเป็น type=ORDER เพื่อให้ "ร้าน" เห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด)
   orderRefToken?: string
@@ -1049,7 +1067,9 @@ export async function sendOutboundMessage(params: {
 
   const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
   const recipientId = conversation.externalContact.externalUserId
-  const isImage = !!params.imageFileId
+  // รวม 2 ทางเข้าเป็นตัวแปรเดียว — imageFileId (auto-reply เดิม) กับ attachment (composer ใหม่)
+  // ต้องไม่แตกเป็น 2 เส้นทาง ไม่งั้น retry path ด้านล่างจะพลาดเส้นใดเส้นหนึ่งเสมอ
+  const attachment = params.attachment ?? (params.imageFileId ? { fileId: params.imageFileId, kind: 'IMAGE' as const, name: null, size: null } : null)
   const bodyText = params.text ?? ''
 
   let mid: string | null = null
@@ -1058,10 +1078,17 @@ export async function sendOutboundMessage(params: {
     // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
     // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
     // sendText/sendImage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจ/IG account ให้เองแล้ว
-    if (isImage) {
-      // presigned URL อายุ 1 ชม. — Meta ดึงรูปไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
-      const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
-      mid = await sendImageMessage(pageToken, recipientId, imageUrl, params.replyToMid, messageTag)
+    if (attachment) {
+      // presigned URL อายุ 1 ชม. — Meta ดึงไฟล์ไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
+      const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
+      mid = await sendAttachmentMessage(
+        pageToken,
+        recipientId,
+        GRAPH_ATTACHMENT_TYPE[attachment.kind],
+        fileUrl,
+        params.replyToMid,
+        messageTag,
+      )
       // caption (ถ้ามี) — Meta attachment ไม่มี text ในตัว ส่งเป็นข้อความตามหลังแยก (best-effort);
       // echo ของ caption จะถูก ingestInboundMessage เก็บเป็นบับเบิลข้อความ SHOP แยกเอง (ไม่เขียนซ้ำที่นี่)
       if (bodyText.trim()) {
@@ -1075,9 +1102,18 @@ export async function sendOutboundMessage(params: {
     // ลองใหม่แบบไม่มี reply_to เพื่อให้ข้อความยังส่งออกได้ (quote ฝั่งเราแสดงอยู่ดี)
     if (params.replyToMid && !mid) {
       try {
-        if (isImage) {
-          const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
-          mid = await sendImageMessage(pageToken, recipientId, imageUrl, null, messageTag)
+        if (attachment) {
+          const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
+          // ต้องส่ง kind เดิม ห้ามถอยกลับเป็น 'image' — ไม่งั้นวิดีโอ/ไฟล์จะถูกส่งผิดชนิดเงียบ ๆ
+          // เฉพาะรอบ retry (บั๊กแบบที่เห็นเฉพาะตอน Meta ปฏิเสธ reply_to จึงหาเจอยากมาก)
+          mid = await sendAttachmentMessage(
+            pageToken,
+            recipientId,
+            GRAPH_ATTACHMENT_TYPE[attachment.kind],
+            fileUrl,
+            null,
+            messageTag,
+          )
           if (bodyText.trim()) await sendTextMessage(pageToken, recipientId, bodyText).catch(() => {})
         } else {
           mid = await sendTextMessage(pageToken, recipientId, bodyText)
@@ -1098,7 +1134,17 @@ export async function sendOutboundMessage(params: {
   // การ์ดคำสั่งซื้อ (user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" (bodyText ที่ยิงไป Meta) แต่
   // ฝั่งเราเก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด. echo ของลิงก์ (mid เดิม) จะ dedupe กับแถวนี้เอง
   const isOrder = !!params.orderRefToken
-  const preview = isOrder ? '[คำสั่งซื้อ]' : isImage ? '[รูปภาพ]' : bodyText.slice(0, 100)
+  const preview = isOrder
+    ? '[คำสั่งซื้อ]'
+    : attachment
+      ? attachment.kind === 'IMAGE'
+        ? '[รูปภาพ]'
+        : attachment.kind === 'VIDEO'
+          ? '[วิดีโอ]'
+          : attachment.kind === 'AUDIO'
+            ? '[ข้อความเสียง]'
+            : `[ไฟล์] ${attachment.name ?? ''}`.trim()
+      : bodyText.slice(0, 100)
 
   let message
   try {
@@ -1110,10 +1156,12 @@ export async function sendOutboundMessage(params: {
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: isOrder ? 'ORDER' : isImage ? 'IMAGE' : 'TEXT',
-          // ORDER: เก็บ orderRefToken (การ์ด live-join); รูป: body=null, imageUrl=fileId; ข้อความ: body=text
-          body: isOrder || isImage ? null : bodyText,
-          imageUrl: isImage ? params.imageFileId! : null,
+          type: isOrder ? 'ORDER' : (attachment?.kind ?? 'TEXT'),
+          // ORDER: เก็บ orderRefToken (การ์ด live-join); ไฟล์แนบ: body=null, imageUrl=fileId; ข้อความ: body=text
+          body: isOrder || attachment ? null : bodyText,
+          imageUrl: attachment?.fileId ?? null,
+          attachmentName: attachment?.name ?? null,
+          attachmentSize: attachment?.size ?? null,
           orderRefToken: isOrder ? params.orderRefToken! : null,
           replyToMid: params.replyToMid ?? null,
           externalMessageId: mid || null,

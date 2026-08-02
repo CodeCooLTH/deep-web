@@ -1419,9 +1419,15 @@ model ChatMessage {
   // senderRole: derive จาก conversation ตอนส่งเสมอ — snapshot กัน role drift ถ้าอนาคต user เปลี่ยนบทบาท (FR-CHAT-04-AC-03)
   senderRole       String // "BUYER" | "SHOP"
   // type/body/imageUrl: String ไม่ใช่ enum (เดินตาม convention เดิมของ Order.status/Product.type — ค่า user-facing ที่ validate ที่ Valibot)
-  type             String   @default("TEXT") // "TEXT" | "IMAGE" | "PRODUCT"
+  type             String   @default("TEXT") // "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "PRODUCT" | "ORDER"
   body             String? // TEXT: เนื้อหาข้อความ (cap ความยาวที่ app layer, BR-CHAT-06); IMAGE: caption (optional)
-  imageUrl         String? // เฉพาะ type=IMAGE — reuse lib/storage upload route เดิม
+  imageUrl         String? // fileId ของ storage — ใช้ร่วมกันทุกชนิดไฟล์แนบ (IMAGE/VIDEO/AUDIO/FILE) ไม่ใช่แค่รูป
+  // ไฟล์แนบหลายชนิด (2026-08-02, multi-attachment) — ชื่อไฟล์เดิมที่ผู้ส่งเลือก + ขนาด ณ ตอนส่ง
+  // ต้องเก็บเพราะ storage ตั้งชื่อจริงเป็น YYYY/MM/DD/uuid.ext ชื่อเดิมจึงหายไปทั้งหมด
+  // null = ข้อความก่อนฟีเจอร์นี้ หรือไฟล์ที่ mirror มาจาก Messenger/IG (Meta ไม่ส่งชื่อไฟล์มากับ webhook)
+  // → UI fallback เป็น "ไฟล์แนบ.<ext>" ผ่าน attachmentDisplayName() ไม่โชว์ uuid
+  attachmentName   String?
+  attachmentSize   Int?
   // productRefId: extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type=PRODUCT
   // nullable FK, onDelete SetNull — สินค้าถูกลบไม่ลบข้อความในเธรด (BR-CTX-04 ไม่ snapshot, live-join)
   productRefId     String?
@@ -1471,6 +1477,9 @@ model ChatMessage {
 
   @@index([conversationId, createdAt]) // thread pagination cursor-based เรียงเก่า→ใหม่ (FR-CHAT-08-AC-01/FR-CHAT-10-AC-01)
   @@index([conversationId, autoReplyKind, createdAt]) // หา "ข้อความคนล่าสุด" ของเธรด (feature 00023)
+  // lookup ย้อนกลับ fileId → ข้อความ สำหรับ auth gate ของเอกสารแนบใน /api/files (2026-08-02)
+  // ไม่มี index นี้ = full scan ของตารางที่ใหญ่ที่สุดในระบบ ทุกครั้งที่มีคนเปิดไฟล์
+  @@index([imageUrl])
 }
 
 // QuickMessage — ข้อความสำเร็จรูป (canned reply) ระดับร้าน (feature 00018 composer improvement #2)
