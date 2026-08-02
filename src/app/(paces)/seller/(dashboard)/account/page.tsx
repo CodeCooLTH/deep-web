@@ -19,7 +19,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import type { Metadata } from 'next'
-import { ConnectedAccountsClient } from '../settings/ConnectedAccountsClient'
+import { ConnectedAccountsClient } from './components/ConnectedAccountsClient'
 import ProfileForm from './components/ProfileForm'
 
 export const metadata: Metadata = { title: 'ข้อมูลส่วนตัว' }
@@ -83,6 +83,7 @@ export default async function AccountPage() {
             lineLinked={linkedProviders.has('LINE')}
             instagramLinked={linkedProviders.has('INSTAGRAM')}
             hasPassword={dbUser.passwordHash != null}
+            hasPhone={dbUser.phone != null}
           />
         </div>
       </div>
