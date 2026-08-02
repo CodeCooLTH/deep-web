@@ -16,6 +16,7 @@ import PasteParseSheet from './PasteParseSheet'
 import CustomerSearchSheet, { type CustomerResult } from './CustomerSearchSheet'
 import type { FormValues } from './OrderCreateForm'
 import type { ParsedOrderMessage } from '@/lib/parse-order-message'
+import { getLocalityStatus } from '@/lib/shipping-address-status'
 
 interface Props {
   control: Control<FormValues>
@@ -53,17 +54,35 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
   const channel = useWatch({ control, name: 'salesChannel' })
   const showAddress = channel !== 'STOREFRONT'
   const addr = useWatch({ control, name: 'shippingAddress' }) as FormValues['shippingAddress']
-  // ที่อยู่ครบขั้นต่ำสำหรับจัดส่ง = line1 + จังหวัด + รหัสไปรษณีย์ (ตรงกับ validation ตอน submit / server FR-6.5)
-  const addrIncomplete = !addr?.line1?.trim() || !addr?.province?.trim() || !addr?.postcode?.trim()
-  const locality: SelectedLocality | null =
-    addr?.subdistrict || addr?.province
-      ? {
-          subdistrict: addr?.subdistrict ?? '',
-          district: addr?.district ?? '',
-          province: addr?.province ?? '',
-          postcode: addr?.postcode ?? '',
-        }
-      : null
+
+  // ── สถานะที่อยู่ (bug user report 2026-08-02) ────────────────────────────────
+  // เดิมปุ่มที่อยู่ขึ้นสถานะ "เลือกแล้ว" ทันทีที่มีตำบล *หรือ* จังหวัดอย่างใดอย่างหนึ่ง
+  // ร้านที่วางข้อความแล้ว parser จับจังหวัด/รหัสไปรษณีย์ไม่ได้ จึงเห็นปุ่มเหมือนเลือกสำเร็จ
+  // แล้วไปเจอ error ตอนกดบันทึกโดยไม่มีอะไรชี้ว่าขาดช่องไหน — ปุ่มต้องบอกความจริงตั้งแต่ตอนเติมค่า
+  // (กฎ "ครบพอบันทึกไหม" อยู่ที่ lib/shipping-address-status.ts ที่เดียว ห้ามเขียนซ้ำที่นี่)
+
+  // error ที่ OrderCreateForm setError ไว้ตอน submit — ก่อนหน้านี้ set แล้วไม่มีใคร render
+  const line1Error = errors.shippingAddress?.line1?.message
+  const localitySubmitError = !!(errors.shippingAddress?.province || errors.shippingAddress?.postcode)
+  const localityStatus = getLocalityStatus(addr, localitySubmitError)
+
+  const locality: SelectedLocality | null = localityStatus.hasAnyData
+    ? {
+        subdistrict: addr?.subdistrict?.trim() ?? '',
+        district: addr?.district?.trim() ?? '',
+        province: addr?.province?.trim() ?? '',
+        postcode: addr?.postcode?.trim() ?? '',
+      }
+    : null
+
+  // banner ภาพรวมมีไว้ตอน "ยังไม่แตะที่อยู่เลย" เท่านั้น — พอมีสัญญาณรายช่องแล้วต้องหลบ
+  // ไม่งั้นข้อความเตือนซ้ำ 2 ที่พร้อมกันแล้วแย่ง attention จากจุดที่ต้องแก้จริง
+  const showAddressBanner =
+    needsShipping &&
+    !addr?.line1?.trim() &&
+    !localityStatus.hasAnyData &&
+    !line1Error &&
+    !localitySubmitError
 
   const selectCustomer = (c: CustomerResult) => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
@@ -200,12 +219,12 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
       {/* ที่อยู่ (ไม่ใช่ STOREFRONT) */}
       {showAddress && (
         <>
-          {/* เตือนเชิงรุก: parse ที่อยู่ไม่ได้ครบ + ออเดอร์ต้องจัดส่ง → ให้ seller ตั้งที่อยู่เองก่อน save */}
-          {needsShipping && addrIncomplete && (
+          {/* เตือนเชิงรุก: ยังไม่แตะที่อยู่เลย + ออเดอร์ต้องจัดส่ง → บอกภาพรวมก่อนที่จะมีอะไรให้ชี้เฉพาะจุด */}
+          {showAddressBanner && (
             <div className="mb-2.5 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-warning">
               <Icon icon="alert-triangle" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <p className="text-xs font-medium">
-                ออเดอร์นี้ต้องจัดส่ง — กรุณาตั้งค่าที่อยู่ปลายทางให้ครบ (ที่อยู่ / จังหวัด / รหัสไปรษณีย์) ก่อนบันทึก
+                ออเดอร์นี้ต้องจัดส่ง — กรอกที่อยู่ปลายทางให้ครบก่อนบันทึก (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)
               </p>
             </div>
           )}
@@ -215,11 +234,15 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
               id="cq-addr-line1"
               type="text"
               placeholder="เช่น 91 ม.7 ถ.พหลโยธิน"
-              className="form-input"
+              className={`form-input${line1Error ? ' is-invalid' : ''}`}
+              aria-describedby={line1Error ? 'cq-addr-line1-err' : undefined}
               value={line1Field.value ?? ''}
               onChange={line1Field.onChange}
               onBlur={line1Field.onBlur}
             />
+            {line1Error && (
+              <p id="cq-addr-line1-err" className="mt-1 text-xs text-danger">{String(line1Error)}</p>
+            )}
           </div>
           <div>
             {/* control เป็น <button> ไม่ใช่ input — <label htmlFor> ผูกกับปุ่มไม่ได้ตามสเปก HTML
@@ -228,17 +251,29 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
             <button
               type="button"
               aria-labelledby="cq-locality-label"
+              aria-describedby={localityStatus.state === 'incomplete' ? 'cq-locality-err' : undefined}
               onClick={() => setAddrOpen(true)}
-              className="flex w-full items-center gap-2 rounded-lg border border-default-300 px-3 py-2.5 text-left"
+              className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left ${
+                localityStatus.state === 'incomplete' ? 'border-danger/60 bg-danger/5' : 'border-default-300'
+              }`}
             >
-              <Icon icon="map-pin" className={`size-4 shrink-0 ${locality ? 'text-primary' : 'text-default-400'}`} />
+              <Icon
+                icon="map-pin"
+                className={`size-4 shrink-0 ${
+                  localityStatus.state === 'incomplete'
+                    ? 'text-danger'
+                    : localityStatus.state === 'complete'
+                      ? 'text-primary'
+                      : 'text-default-400'
+                }`}
+              />
               {locality ? (
                 <span className="min-w-0 flex-1 text-sm">
                   <span className="font-semibold text-dark">
-                    ต.{locality.subdistrict} · อ.{locality.district}
+                    ต.{locality.subdistrict || '—'} · อ.{locality.district || '—'}
                   </span>
                   <span className="block text-xs text-default-500">
-                    {locality.province} · {locality.postcode}
+                    {locality.province || '—'} · {locality.postcode || '—'}
                   </span>
                 </span>
               ) : (
@@ -246,6 +281,17 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
               )}
               <Icon icon="search" className="size-4 shrink-0 text-default-400" />
             </button>
+            {/* ยังไม่ได้เลือกอะไรเลย (กดบันทึกบนฟอร์มว่าง) ต้องพูดคนละแบบกับ "เลือกมาแล้วแต่ขาดบางช่อง" */}
+            {localityStatus.state === 'incomplete' && (
+              <p id="cq-locality-err" className="mt-1 text-xs text-danger">
+                {localityStatus.hasAnyData
+                  ? `ยังขาด${localityStatus.missingRequired.join('และ')} — แตะเพื่อเลือกให้ครบก่อนบันทึก`
+                  : 'ยังไม่ได้เลือกที่อยู่ — แตะเพื่อเลือกก่อนบันทึก'}
+              </p>
+            )}
+            {localityStatus.recommendedGap && (
+              <p className="mt-1 text-xs text-warning">ยังไม่มีตำบล/อำเภอ — บันทึกออเดอร์ได้ แต่ต้องเติมก่อนเปิดพัสดุ</p>
+            )}
           </div>
         </>
       )}

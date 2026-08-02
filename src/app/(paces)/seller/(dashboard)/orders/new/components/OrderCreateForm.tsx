@@ -539,11 +539,11 @@ export default function OrderCreateForm({
     if (needsShipping) {
       const a = values.shippingAddress
       let missing = false
-      if (!a?.line1?.trim()) { setError('shippingAddress.line1', { message: 'กรุณากรอกที่อยู่' }); missing = true }
+      if (!a?.line1?.trim()) { setError('shippingAddress.line1', { message: 'กรอกบ้านเลขที่ / ถนน ก่อนบันทึก' }); missing = true }
       if (!a?.province?.trim()) { setError('shippingAddress.province', { message: 'กรุณากรอกจังหวัด' }); missing = true }
       if (!a?.postcode?.trim()) { setError('shippingAddress.postcode', { message: 'กรุณากรอกรหัสไปรษณีย์' }); missing = true }
       if (missing) {
-        pacesToast.error('ออเดอร์ที่ต้องจัดส่งต้องระบุที่อยู่จัดส่ง (ที่อยู่ / จังหวัด / รหัสไปรษณีย์)')
+        pacesToast.error('บันทึกไม่ได้ — ที่อยู่จัดส่งยังไม่ครบ')
         return
       }
     }

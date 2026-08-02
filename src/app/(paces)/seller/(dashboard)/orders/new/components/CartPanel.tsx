@@ -175,8 +175,16 @@ export default function CartPanel({
   ).length
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const shippingHasError = !!(errors?.shippingAddress as any)
+  const shippingErrors = errors?.shippingAddress as any
+  const shippingHasError = !!shippingErrors
   const shippingOpen = openKey === 'shipping' || shippingHasError
+  /** ข้อความ error รายช่องที่อยู่ (OrderCreateForm setError ตอน submit) — ก่อนหน้านี้ไม่มีใคร render */
+  const addrErr = (field: 'line1' | 'province' | 'postcode'): string | undefined => {
+    const m = shippingErrors?.[field]?.message
+    return m ? String(m) : undefined
+  }
+  /** กดบันทึกทั้งที่ยังไม่ได้เลือกที่อยู่เลย — สรุปใน AddressSearchPanel ไม่ render จึงต้องบอกตรงนี้ */
+  const localityUnset = !!(shippingErrors?.province || shippingErrors?.postcode) && !locality
 
   /**
    * feature 00024 — accordion วันเข้าใช้บริการต้อง "กางเอง" เมื่อมีวันที่ส่งมาจากปฏิทิน
@@ -348,18 +356,32 @@ export default function CartPanel({
           <button type="button" onClick={() => toggle('shipping')} className={accBtn}>
             <Icon icon="truck-delivery" className="size-4 text-default-400" /> ที่อยู่จัดส่ง
             <span className="badge bg-info/15 text-info">จำเป็น</span>
+            {shippingHasError && errorBadge}
             {chevron(shippingOpen)}
           </button>
           {shippingOpen && (
             <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label htmlFor="cp-addr-line1" className="form-label">ที่อยู่ / บ้านเลขที่ + ถนน<span className="ms-0.5 text-danger">*</span></label>
-                <input id="cp-addr-line1" type="text" className="form-input" placeholder="123/4 ถ.สุขุมวิท" {...register('shippingAddress.line1')} />
+                <input
+                  id="cp-addr-line1"
+                  type="text"
+                  className={`form-input${addrErr('line1') ? ' is-invalid' : ''}`}
+                  aria-describedby={addrErr('line1') ? 'cp-addr-line1-err' : undefined}
+                  placeholder="123/4 ถ.สุขุมวิท"
+                  {...register('shippingAddress.line1')}
+                />
+                {addrErr('line1') && (
+                  <p id="cp-addr-line1-err" className="mt-1 text-xs text-danger">{addrErr('line1')}</p>
+                )}
               </div>
 
               {/* S-2: search-driven picker แทนช่อง ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ เดิม */}
               <div className="sm:col-span-2">
                 <AddressSearchPanel current={locality} onSelect={applyLocality} />
+                {localityUnset && (
+                  <p className="mt-1 text-xs text-danger">ยังไม่ได้เลือกที่อยู่ — ค้นหาแล้วเลือกก่อนบันทึก</p>
+                )}
               </div>
 
               <div className="sm:col-span-2">
@@ -386,11 +408,32 @@ export default function CartPanel({
                   </div>
                   <div>
                     <label htmlFor="cp-addr-province" className="form-label">จังหวัด<span className="ms-0.5 text-danger">*</span></label>
-                    <input id="cp-addr-province" type="text" className="form-input" placeholder="กรุงเทพมหานคร" {...register('shippingAddress.province')} />
+                    <input
+                      id="cp-addr-province"
+                      type="text"
+                      className={`form-input${addrErr('province') ? ' is-invalid' : ''}`}
+                      aria-describedby={addrErr('province') ? 'cp-addr-province-err' : undefined}
+                      placeholder="กรุงเทพมหานคร"
+                      {...register('shippingAddress.province')}
+                    />
+                    {addrErr('province') && (
+                      <p id="cp-addr-province-err" className="mt-1 text-xs text-danger">{addrErr('province')}</p>
+                    )}
                   </div>
                   <div>
                     <label htmlFor="cp-addr-postcode" className="form-label">รหัสไปรษณีย์<span className="ms-0.5 text-danger">*</span></label>
-                    <input id="cp-addr-postcode" type="text" inputMode="numeric" className="form-input" placeholder="10110" {...register('shippingAddress.postcode')} />
+                    <input
+                      id="cp-addr-postcode"
+                      type="text"
+                      inputMode="numeric"
+                      className={`form-input${addrErr('postcode') ? ' is-invalid' : ''}`}
+                      aria-describedby={addrErr('postcode') ? 'cp-addr-postcode-err' : undefined}
+                      placeholder="10110"
+                      {...register('shippingAddress.postcode')}
+                    />
+                    {addrErr('postcode') && (
+                      <p id="cp-addr-postcode-err" className="mt-1 text-xs text-danger">{addrErr('postcode')}</p>
+                    )}
                   </div>
                 </>
               )}

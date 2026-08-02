@@ -22,6 +22,7 @@ import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
 import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown'
+import { getLocalityStatus } from '@/lib/shipping-address-status'
 
 interface AddrRecord {
   district: string // ตำบล
@@ -104,7 +105,9 @@ export default function AddressSearchPanel({ current, onSelect }: Props) {
     setOpen(false)
   }
 
-  const hasSelection = !!(current && (current.subdistrict || current.district || current.province || current.postcode))
+  // มีข้อมูลบางส่วน ≠ ครบ — สรุปด้านล่างต้องบอกความจริงข้อนี้ ไม่ใช่ขึ้นเครื่องหมายถูกทุกกรณี
+  // (กฎ "ครบพอบันทึกไหม" อยู่ที่ lib/shipping-address-status.ts ที่เดียว ห้ามเขียนซ้ำที่นี่)
+  const { hasAnyData: hasSelection, missingRequired } = getLocalityStatus(current)
 
   return (
     <div>
@@ -180,13 +183,25 @@ export default function AddressSearchPanel({ current, onSelect }: Props) {
           )}
       </div>
 
-      {/* สรุปที่เลือกแล้ว (Verified-Means-Green) */}
+      {/* สรุปที่เลือกแล้ว — เขียวสงวนไว้กับ "ยืนยันแล้ว/สำเร็จ" ของระบบเท่านั้น (Verified-Means-Green)
+          "กรอกที่อยู่ครบ" ไม่ใช่เหตุการณ์นั้น จึงใช้ primary; ขาดช่องบังคับ = danger พร้อมบอกว่าขาดอะไร */}
       {hasSelection && (
-        <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-success">
-          <Icon icon="check" className="size-3.5 shrink-0" />
-          ต.{current?.subdistrict || '—'} · อ.{current?.district || '—'} · {current?.province || '—'} ·{' '}
-          {current?.postcode || '—'}
-        </p>
+        <>
+          <p
+            className={`mt-1.5 flex items-center gap-1 text-xs font-medium ${
+              missingRequired.length > 0 ? 'text-danger' : 'text-primary'
+            }`}
+          >
+            <Icon icon={missingRequired.length > 0 ? 'alert-triangle' : 'map-pin'} className="size-3.5 shrink-0" />
+            ต.{current?.subdistrict || '—'} · อ.{current?.district || '—'} · {current?.province || '—'} ·{' '}
+            {current?.postcode || '—'}
+          </p>
+          {missingRequired.length > 0 && (
+            <p className="mt-1 text-xs text-danger">
+              ยังขาด{missingRequired.join('และ')} — ค้นหาที่อยู่อีกครั้งเพื่อเติมให้ครบ
+            </p>
+          )}
+        </>
       )}
     </div>
   )
