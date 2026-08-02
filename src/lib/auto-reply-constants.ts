@@ -63,6 +63,8 @@ export const RESOLUTION_LEVELS = [
   // WARNING: ห้ามใช้ 'KEYWORD_DEFAULT' แทน แม้จะ "ใกล้เคียง": ค่านั้นแปลว่า "กฎกลางของกลุ่มคำถูกเลือก"
   // ซึ่งจะทำให้ตอนบอทตอบแปลก คนไล่ปัญหาไปเปิดหา AutoReplyRule ที่ไม่มีอยู่จริง
   // เป็นค่าที่ **ไม่มีทางออกจาก getResolutionLevel()** — ผู้เรียกเซ็ตตรง ๆ ที่ processJob (TFR-032)
+  // 🛑 เลิกใช้ 2026-08-02 (ตัดเส้นทางจับคู่ตรงตัวรายกลุ่มคำออก — DeepBot รับไปแล้ว)
+  //    ห้ามลบออกจากรายการ: แถว AutoReplyLog เก่ามีค่านี้อยู่ ถอดออกแล้วอ่านของเดิมไม่ผ่าน validate
   'QNA',
 ] as const
 export type ResolutionLevel = (typeof RESOLUTION_LEVELS)[number]

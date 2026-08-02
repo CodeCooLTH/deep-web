@@ -338,16 +338,6 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
               aria-label="ค้นหากลุ่มคำ"
             />
           </div>
-          {/* คิวคำถามที่ตอบไม่ได้ (S-15) — บนมือถือเหลือแค่ไอคอนเพราะแถวนี้แคบ
-              มีข้อความเต็มใน aria-label/title แล้ว · min-h-11 = tap-target เท่าปุ่มข้าง ๆ */}
-          <Link
-            href="/settings/auto-reply/unanswered"
-            className="btn btn-icon btn-sm bg-light text-default-700 min-h-11 shrink-0 rounded-full"
-            aria-label="คำถามที่ตอบไม่ได้"
-            title="คำถามที่ตอบไม่ได้"
-          >
-            <Icon icon="inbox" className="size-4" aria-hidden="true" />
-          </Link>
           {canEdit && (
             <Link
               href="/settings/auto-reply/new"
@@ -423,13 +413,6 @@ export default function AutoReplyListing({ keywords, canEdit }: Props) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {/* คิวคำถามที่ตอบไม่ได้ (phase 00023-qna, S-15) — เป็นปุ่มรอง (bg-light)
-              ไม่ใช่ primary เพราะงานหลักของหน้านี้ยังเป็นการจัดการกลุ่มคำ
-              ส่วนคิวคือ "งานที่ระบบเก็บมาให้" ซึ่งเข้าถึงเมื่อพร้อมจะนั่งกรอก */}
-          <Link href="/settings/auto-reply/unanswered" className="btn bg-light text-default-700">
-            <Icon icon="inbox" aria-hidden="true" />
-            คำถามที่ตอบไม่ได้
-          </Link>
           {canEdit && (
             <Link href="/settings/auto-reply/new" className="btn bg-primary hover:bg-primary-hover text-white">
               <Icon icon="plus" aria-hidden="true" />

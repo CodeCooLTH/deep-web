@@ -31,7 +31,6 @@ export type ChatbotConfig = {
   aiChatbotTone: string | null
   aiChatbotStartTime: string | null
   aiChatbotEndTime: string | null
-  aiEnhanceEnabled: boolean
   aiDailyCapBaht: number
   aiChatbotShopOnly: boolean
   aiChatbotOutOfScopeText: string | null
@@ -372,36 +371,6 @@ export default function ChatbotClient({
               </button>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* ── option: ขัดเกลาคำตอบของ Auto Reply ── */}
-      <div className="card">
-        <div className="card-header items-start">
-          <div className="min-w-0">
-            <h5 className="text-default-900 text-base font-semibold">ขัดเกลาคำตอบของ Auto Reply</h5>
-            <p className="text-default-700 mt-1 text-xs">
-              คำตอบที่คุณตั้งไว้ใน Auto Reply จะถูก AI ปรับถ้อยคำให้อ่านลื่นขึ้นก่อนส่ง
-              <br />
-              <strong>ราคา วันส่ง เงื่อนไข ต้องตรงกับที่คุณเขียนไว้เป๊ะ</strong> · เกิน 8 วินาทีส่งของเดิมแทน · คิดค่าใช้จ่ายต่อครั้ง
-            </p>
-          </div>
-          <label className="flex flex-none items-center gap-2">
-            <span className="text-default-700 text-sm">{cfg.aiEnhanceEnabled ? 'เปิดอยู่' : 'ปิดอยู่'}</span>
-            <input
-              type="checkbox"
-              className="form-switch"
-              checked={cfg.aiEnhanceEnabled}
-              disabled={!canEdit || busy}
-              onChange={() =>
-                patch(
-                  { aiEnhanceEnabled: !cfg.aiEnhanceEnabled },
-                  !cfg.aiEnhanceEnabled ? 'เปิดการขัดเกลาคำตอบแล้ว' : 'ปิดการขัดเกลาคำตอบแล้ว',
-                )
-              }
-              aria-label="เปิดใช้การขัดเกลาคำตอบของ Auto Reply"
-            />
-          </label>
         </div>
       </div>
 

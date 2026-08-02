@@ -1,5 +1,12 @@
 # Scope Baseline — `00023-ai-enhance` · ให้ AI เรียบเรียงคำตอบของ DeepBot
 
+> 🛑 **ยกเลิกทั้ง phase 2026-08-02** — user สั่ง "ตัด qna, ai enhance เนื่องจากมี DeepBot รับไปจบแล้ว"
+> สิ่งที่ถอดออกจริง: เส้นทางจับคู่ตรงตัวรายกลุ่มคำ (`matchQna`), หน้า `[id]/qna`, คิวคำถามที่ตอบไม่ได้,
+> AI Enhance ทั้งหมด (สวิตช์ระดับกลุ่มคำ + ระดับร้าน + `enhanceReply`)
+> สิ่งที่ **เก็บไว้**: ตาราง `AutoReplyQna` (= คลังความรู้ที่ DeepBot อ่าน) และหน้าคลังความรู้ในเมนู ChatBot
+> ค่า `'QNA'` ใน `RESOLUTION_LEVELS`/`MATCHED_VIA` ยังอยู่ ห้ามลบ — แถว log เก่ามีค่านี้
+
+
 สถานะ: **ACTIVE** — user สั่งเริ่ม 2026-08-01 หลังปิด phase `00023-qna`
 Phase ID: `00023-ai-enhance` · Branch: `feature/auto-reply` · Baseline สร้างจาก HEAD `01839eca` (== `origin/main`)
 วันที่: 2026-08-01
@@ -67,12 +74,12 @@ Phase ID: `00023-ai-enhance` · Branch: `feature/auto-reply` · Baseline สร�
 | A-09 | บันทึกเหตุผลลง `AutoReplyLog` — แยก 5 reason code ให้ debug ได้ว่าทำไมไม่เรียบเรียง | P0 | A-08 | TODO |
 | **A-10** | **`safepay-ux` Design Spec** ของ 3 จุด UI (Hard Rule 8 — gate ก่อนแตะ frontend) | P0 | — | TODO |
 | A-11 | UI สวิตช์ AI Enhance + Guardrails รายกลุ่มคำ (`KeywordEditorClient.tsx` — **ไฟล์ 1,441 บรรทัด ความเสี่ยงสูง ดู §ความเสี่ยง**) | P0 | A-10, A-05 | TODO |
-| A-12 | UI ตั้งเพดานต่อวัน + สวิตช์ SMS opt-in (ระดับร้าน) | P0 | A-10, A-07 | TODO |
-| A-13 | Banner แจ้งเตือน 80% (Base: `AdvanceWarningBanner.tsx`) + ส่ง SMS เมื่อ opt-in | P1 | A-10, A-07 | TODO |
-| A-14 | ป้าย **DeepAI** — เปลี่ยน `lastMessageIsAiEnhanced` จาก hardcode `false` เป็นค่าจริง (`InboxList.tsx` + `AutoReplyTag.tsx`) | P1 | A-08 | TODO |
-| A-15 | API: Guardrails CRUD + toggle + ตั้งเพดาน + Valibot + ERROR_MAP | P0 | A-05, A-07 | TODO |
-| A-16 | เทส: unit (denylist, การปัดเศษ/สะสม, gate เพดาน) + integration (ลำดับ 3 ชั้น, fail-closed, timeout) | P0 | A-08 | TODO |
-| A-17 | doc sync + `phase-retro` | P1 | A-16 | TODO |
+| A-12 | UI ตั้งเพดานต่อวัน + สวิตช์ SMS opt-in (ระดับร้าน) | P0 | A-10, A-07 | **ยกเลิก 2026-08-02** |
+| A-13 | Banner แจ้งเตือน 80% (Base: `AdvanceWarningBanner.tsx`) + ส่ง SMS เมื่อ opt-in | P1 | A-10, A-07 | **ยกเลิก 2026-08-02** |
+| A-14 | ป้าย **DeepAI** — เปลี่ยน `lastMessageIsAiEnhanced` จาก hardcode `false` เป็นค่าจริง (`InboxList.tsx` + `AutoReplyTag.tsx`) | P1 | A-08 | **ยกเลิก 2026-08-02** |
+| A-15 | API: Guardrails CRUD + toggle + ตั้งเพดาน + Valibot + ERROR_MAP | P0 | A-05, A-07 | **ยกเลิก 2026-08-02** |
+| A-16 | เทส: unit (denylist, การปัดเศษ/สะสม, gate เพดาน) + integration (ลำดับ 3 ชั้น, fail-closed, timeout) | P0 | A-08 | **ยกเลิก 2026-08-02** |
+| A-17 | doc sync + `phase-retro` | P1 | A-16 | **ยกเลิก 2026-08-02** |
 
 ---
 

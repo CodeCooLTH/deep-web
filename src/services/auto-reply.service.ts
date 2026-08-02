@@ -14,10 +14,7 @@ import {
 import { writeLog } from '@/services/auto-reply-log.service'
 import { sendAutoReply } from '@/services/auto-reply-send.service'
 // phase 00023-qna — คลังคำถาม-คำตอบ (วิธีจับคู่ทางที่สอง) + คิวคำถามที่ตอบไม่ได้
-import { matchQna } from '@/lib/auto-reply-qna-match'
-import { markQnaUsed } from '@/services/auto-reply-qna.service'
-import { recordUnanswered } from '@/services/auto-reply-unanswered.service'
-import { enhanceReply, answerFromKnowledge, isChatbotWithinWindow } from '@/services/ai-enhance.service'
+import { answerFromKnowledge, isChatbotWithinWindow } from '@/services/ai-enhance.service'
 import { redactPii } from '@/lib/pii-redact'
 import { checkCapBeforeCall, recordUsageAndBill } from '@/services/ai-enhance-billing.service'
 
@@ -336,9 +333,9 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
      * กลุ่มคำตรงแต่ไม่มีกฎ = ร้านตั้งค่าค้างไว้ครึ่งทาง ซึ่งร้านต้องเห็นว่าค้าง
      * ถ้าปล่อยให้คลังมาตอบแทน อาการ "ตั้งกฎไว้แล้วไม่เคยถูกใช้" จะถูกกลบและไล่ไม่เจอ
      */
-    const qnaMatch = matched.winner
-      ? null
-      : matchQna(normalizedText, ruleSet.qnas ?? [], ruleSet.keywords, { mode: 'EXACT' })
+    // ตัดเส้นทาง "จับคู่ตรงตัวจากคลังรายกลุ่มคำ" ออก 2026-08-02 (user สั่ง) —
+    // DeepBot อ่านคลังความรู้ระดับร้านแล้วตอบเองครอบคลุมกว่า การมีสองทางที่อ่านตารางเดียวกัน
+    // แต่ตัดสินคนละแบบ ทำให้ไล่ไม่ออกว่าคำตอบมาจากไหน
 
     /**
      * กลุ่มคำที่ "เป็นเจ้าของ" คำตอบครั้งนี้ — มาจากคำตรงตัว หรือจากกลุ่มที่ QnA ยืมมา
@@ -349,8 +346,8 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
      * ข้ามตารางเวลา และข้าม cooldown ได้ทั้งหมด = กับดัก "สวิตช์คนละที่" ตัวเดียวกับที่
      * ถูกรื้อทิ้งเมื่อ 2026-07-30 และเป็นเหตุผลที่ user เลือกให้คลังอยู่ในกลุ่มตั้งแต่แรก
      */
-    const effectiveKeywordId = matched.winner?.keywordId ?? qnaMatch?.keywordId ?? null
-    const matchedVia: 'KEYWORD' | 'QNA' | null = matched.winner ? 'KEYWORD' : qnaMatch ? 'QNA' : null
+    const effectiveKeywordId = matched.winner?.keywordId ?? null
+    const matchedVia: 'KEYWORD' | null = matched.winner ? 'KEYWORD' : null
 
     // gate 6.5 — สถานะของ "กลุ่มคำที่ชนะ" (feature 00023, user 2026-07-29)
     //
@@ -369,7 +366,6 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         normalizedText,
         keywordId: effectiveKeywordId,
         matchedVia,
-        qnaId: qnaMatch?.qna.id ?? null,
       }, startedAt)
     }
 
@@ -388,7 +384,6 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         normalizedText,
         keywordId: effectiveKeywordId,
         matchedVia,
-        qnaId: qnaMatch?.qna.id ?? null,
       }, startedAt)
     }
 
@@ -422,7 +417,6 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           normalizedText,
           keywordId: effectiveKeywordId,
           matchedVia,
-          qnaId: qnaMatch?.qna.id ?? null,
         }, startedAt)
       }
     }
@@ -432,12 +426,11 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
      * ข้าม resolveRule ไปเลยเมื่อชนะด้วย QnA เพื่อไม่ให้กฎกลางของร้าน (ระดับ PAGE_DEFAULT/
      * SHOP_DEFAULT) มาแย่งคำตอบที่ร้านกรอกไว้เจาะจงกับคำถามนั้น
      */
-    const resolved = qnaMatch ? null : resolveRule(effectiveKeywordId, ctx, ruleSet)
+    const resolved = resolveRule(effectiveKeywordId, ctx, ruleSet)
 
     const trace = {
       match: matched.matchTrace,
       fallbackFrom: resolved?.fallbackFrom ?? [],
-      ...(qnaMatch ? { qna: { id: qnaMatch.qna.id, question: qnaMatch.qna.question, method: qnaMatch.method } } : {}),
     }
     const common = {
       ...base,
@@ -452,10 +445,9 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       adId: ctx.adId,
       productId: ctx.productId,
       // 'QNA' ไม่มีทางออกจาก getResolutionLevel() — เซ็ตตรงนี้จุดเดียว (TFR-032 ข้อ 3)
-      resolutionLevel: qnaMatch ? 'QNA' : (resolved?.resolutionLevel ?? 'NONE'),
+      resolutionLevel: resolved?.resolutionLevel ?? 'NONE',
       ruleId: resolved?.rule?.id ?? null,
       matchedVia,
-      qnaId: qnaMatch?.qna.id ?? null,
       isTest: isTestReply,
     }
 
@@ -464,13 +456,13 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     // WARNING: "มีคำตอบ" = มีข้อความ **หรือมีรูป** (TFR-036 ข้อ 6) — คำตอบที่เป็นรูปล้วน
     // (ซึ่งอนุญาต มิเรอร์ QuickMessage.body ที่ว่างได้ถ้ามีรูป) ต้องไม่ถูกตัดทิ้งเป็น
     // EMPTY_REPLY แล้วล็อกห้องด้วย handoffAt
-    const replyText = (qnaMatch ? qnaMatch.qna.answer : resolved?.rule?.replyText)?.trim() ?? ''
-    const replyImages = qnaMatch ? qnaMatch.qna.imageFileIds : []
+    const replyText = resolved?.rule?.replyText?.trim() ?? ''
+    const replyImages: string[] = []
     if (!replyText && replyImages.length === 0) {
       let chatbotReason: string | null = null
       const reason: SkipReason = !effectiveKeywordId
         ? 'NO_KEYWORD_MATCH'
-        : qnaMatch || resolved?.rule
+        : resolved?.rule
           ? 'EMPTY_REPLY'
           : 'NO_RULE_MATCH'
 
@@ -529,17 +521,6 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         }
 
         /**
-         * บันทึกเข้าคิว "คำถามที่ตอบไม่ได้" (phase 00023-qna, TFR-033)
-         *
-         * WARNING: อยู่ในสาขา `NO_KEYWORD_MATCH` เท่านั้น และ **อยู่ใน `else` ของ handoffAt**
-         * ให้เห็นชัดว่าเส้นทางนี้ไม่แตะ `handoffAt` — จุดนี้คือจุดเดียวกับบั๊กที่ล็อกห้องถาวร
-         * 240 ห้องบน prod เมื่อ 2026-07-31
-         *
-         * `recordUnanswered` ไม่ throw เองอยู่แล้ว (ห่อ try/catch ในตัว) แต่ `await` ไว้เพื่อให้
-         * ลำดับการเขียนแน่นอนตอนเทส — คิวพังไม่ทำให้งานค้างสถานะเพราะ finish() ทำงานต่อเสมอ
-         */
-        await recordUnanswered({ shopId: job.shopId, rawText, normalizedText })
-        /**
          * เหตุผลที่บอทไม่ตอบ — บันทึกเฉพาะกรณีที่ ChatBot **ลองทำงานแล้วไม่สำเร็จ**
          *
          * WARNING (บั๊กจริง user เจอ 2026-08-01): เดิมบันทึกทุกเหตุผลรวมทั้ง OFFLINE/
@@ -563,66 +544,11 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     }
 
     /**
-     * AI Enhance — ให้ AI เรียบเรียงคำตอบก่อนส่ง (phase `00023-ai-enhance`, BR-AR-31/32/33)
-     *
-     * WARNING: อยู่ **หลัง** ได้คำตอบดิบแล้วเท่านั้น และทำงานเฉพาะกลุ่มที่เปิดสวิตช์
-     * กลุ่มที่ปิด (ค่าเริ่มต้นของทุกกลุ่ม) ต้องไม่มี query เพิ่ม ไม่มี latency เพิ่ม
-     * ไม่มีการเรียก AI — early return ตั้งแต่เงื่อนไขแรก
-     *
-     * `enhanceReply` ไม่ throw เด็ดขาด (สัญญาของไฟล์นั้น) — ทุกความล้มเหลวคืนคำตอบดิบกลับมา
+     * AI Enhance ถูกตัดออก 2026-08-02 (user สั่ง) — DeepBot รับหน้าที่ตอบด้วย AI ไปทั้งหมดแล้ว
+     * การมีสองเส้นทางที่เรียก AI คนละที่ ตั้งค่าคนละหน้า และคิดเงินคนละก้อน
+     * ทำให้อธิบายบิลกับร้านไม่ได้ และเป็นต้นเหตุที่คำตอบสำเร็จรูปเพี้ยนโดยไม่มีใครสั่ง
      */
-    let finalText = replyText
-    let aiReason: string | null = null
-    const enhanceKeyword = ruleSet.keywords.find((k) => k.id === effectiveKeywordId)
-    if (enhanceKeyword?.aiEnhanceEnabled && replyText.trim()) {
-      // เพดานต่อวัน + เครดิต (BR-AR-35/36) — ตรวจ **ก่อน** เรียก AI เสมอ
-      // ไม่ผ่าน = ส่งคำตอบดิบตามปกติ ลูกค้าไม่รู้ว่าเกิดอะไรขึ้น (ไม่ใช่เงียบ)
-      const cap = await checkCapBeforeCall(job.shopId)
-      if (!cap.allowed) {
-        aiReason = cap.reason
-      } else {
-        const guardrails = await prisma.autoReplyGuardrail.findMany({
-          where: { keywordId: enhanceKeyword.id, shopId: job.shopId, isActive: true },
-          select: { rule: true, denyPhrases: true },
-        })
-        const enhanced = await enhanceReply({
-          rawAnswer: replyText,
-          customerText: rawText,
-          guardrails,
-          tone: enhanceKeyword.aiTone ?? null,
-        })
-        aiReason = enhanced.reason
-
-        // บันทึกการใช้ + สะสมเศษ + หักเมื่อครบ 1 บาท — ไม่ throw เอง
-        // บันทึกทุกครั้งที่เรียก AI จริง (มี usage) ไม่ว่าผลจะถูกใช้หรือถูกทิ้ง
-        // เพราะ Google คิดเงินตั้งแต่ตอนเรียก ไม่ใช่ตอนเราตัดสินใจใช้
-        if (enhanced.usage) {
-          await recordUsageAndBill({
-            shopId: job.shopId,
-            conversationId: conversation.id,
-            usage: enhanced.usage,
-            status: enhanced.enhanced ? 'SUCCESS' : 'FAILED',
-          })
-        }
-
-      // ชนกฎจริง = ไม่ส่งอะไรเลยและส่งต่อคน (BR-AR-33 — ต่างจากตัวตรวจล่มที่ถอยคำตอบดิบ)
-      if (enhanced.blocked) {
-        await prisma.conversation.update({
-          where: { id: conversation.id },
-          data: { handoffAt: new Date(), handoffReason: 'GUARDRAILS_BLOCKED' },
-        })
-        return finish(job, 'SKIPPED', {
-          ...common,
-          decision: 'HANDOFF',
-          skipReason: 'GUARDRAILS_BLOCKED',
-          keywordId: effectiveKeywordId,
-          matchedVia,
-          qnaId: qnaMatch?.qna.id ?? null,
-        }, startedAt)
-      }
-        finalText = enhanced.text
-      }
-    }
+    const finalText = replyText
 
     // --- ส่งจริง ---
     const result = await sendAutoReply({
@@ -665,30 +591,18 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       return
     }
 
-    // WARNING: +1 ต่อ "ชุด" ไม่ใช่ต่อชิ้นที่ส่ง (DATABASE §3.11) — คำตอบที่มี 5 รูปนับเป็น 1
-    // ถ้านับเป็น 6 ร้านที่ตั้งเพดานไว้ 10 จะโดนตัดจบหลังตอบไปแค่ชุดเดียวครึ่ง ซึ่งไม่ใช่
-    // สิ่งที่ "จำนวนคำตอบ" หมายถึงในสายตาร้าน
     await prisma.conversation.update({
       where: { id: conversation.id },
       data: { autoReplyCount: { increment: 1 }, lastAutoReplyAt: new Date() },
     })
 
-    // นับการใช้งานของข้อในคลัง (TFR-032 ข้อ 5) — นับเฉพาะตอนส่งสำเร็จ ไม่ throw เอง
-    if (qnaMatch) await markQnaUsed(qnaMatch.qna.id)
-
     return finish(job, 'DONE', {
       ...common,
       decision: 'REPLIED',
-      // ต้องเป็นข้อความที่ **ส่งจริง** ไม่ใช่คำตอบดิบ — ไม่งั้นบันทึกจะโกหกว่าไม่มีอะไรเปลี่ยน
-      // ทั้งที่ AI เรียบเรียงไปแล้ว (บั๊กที่เจอตอน user ทดสอบ 2026-08-01)
       replyText: finalText,
       outboundMessageId: result.messageId,
       // ความล้มเหลวบางส่วน (รูปบางใบส่งไม่ผ่าน) ต้องถูกบันทึก ไม่ใช่กลืน (TFR-036 ข้อ 4)
-      // + เหตุผลที่ AI Enhance ไม่ได้ทำงาน (A-09) — ถ้าไม่บันทึกจะไม่มีทางรู้เลยว่าทำไม
-      // ข้อความออกมาเหมือนเดิม ซึ่งเป็นสิ่งที่เกิดขึ้นจริงตอน user ทดสอบครั้งแรก
-      errorMessage: [result.partialError, aiReason ? `AI_ENHANCE:${aiReason}` : null]
-        .filter(Boolean)
-        .join(' | ') || null,
+      errorMessage: result.partialError ?? null,
     }, startedAt)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
