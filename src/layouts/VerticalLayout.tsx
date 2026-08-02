@@ -17,7 +17,6 @@
  *   ส่งต่อเข้า <Sidenav headerSlot> render เหนือหัวข้อกลุ่มเมนูแรก; admin ไม่ส่ง → ไม่กระทบ
  */
 'use client'
-import Footer from '@/layouts/components/Footer'
 import Sidenav from '@/layouts/components/Sidenav'
 import TopBar from '@/layouts/components/TopBar'
 import type { MenuItemType } from '@/types'
@@ -60,7 +59,6 @@ const VerticalLayout = ({
         <main>
           <div className="container-fluid">{children}</div>
         </main>
-        <Footer />
       </div>
       {/* bottomNavSlot: ครอบ lg:hidden เพื่อให้โผล่เฉพาะ <lg; ≥lg ซ่อน → ไม่ regress desktop */}
       {bottomNavSlot && <div className="lg:hidden">{bottomNavSlot}</div>}
