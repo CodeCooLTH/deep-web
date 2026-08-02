@@ -14,11 +14,14 @@ export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]
 
 export const EXPENSE_CATEGORY_LABEL_TH: Record<ExpenseCategory, string> = {
   RENT: 'ค่าเช่า',
-  PACKAGING: 'ค่าแพ็คเกจ/บรรจุภัณฑ์',
+  // 'แพ็กเกจ' ถูกจองไว้ให้แพ็กเกจสมาชิก (Business Package) แล้ว — หมวดนี้จึงเรียกบรรจุภัณฑ์อย่างเดียว
+  PACKAGING: 'ค่าบรรจุภัณฑ์',
   ADVERTISING: 'ค่าโฆษณา',
   SHIPPING: 'ค่าขนส่ง',
-  SALARY: 'เงินเดือน',
-  UTILITIES: 'สาธารณูปโภค',
+  // ครอบทั้งจ้างรายเดือนและรายวัน — ร้านที่จ้างพาร์ตไทม์ไม่เรียกว่า 'เงินเดือน'
+  SALARY: 'ค่าจ้างพนักงาน',
+  // 'สาธารณูปโภค' เป็นศัพท์ราชการ ไม่ตรงกลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้
+  UTILITIES: 'ค่าน้ำ-ค่าไฟ',
   OTHER: 'อื่นๆ',
 }
 

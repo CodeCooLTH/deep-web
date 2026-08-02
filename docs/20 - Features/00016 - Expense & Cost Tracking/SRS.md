@@ -151,8 +151,8 @@ flowchart LR
   ] as const
   export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]
   export const EXPENSE_CATEGORY_LABEL_TH: Record<ExpenseCategory, string> = {
-    RENT: 'ค่าเช่า', PACKAGING: 'ค่าแพ็คเกจ/บรรจุภัณฑ์', ADVERTISING: 'ค่าโฆษณา',
-    SHIPPING: 'ค่าขนส่ง', SALARY: 'เงินเดือน', UTILITIES: 'สาธารณูปโภค', OTHER: 'อื่นๆ',
+    RENT: 'ค่าเช่า', PACKAGING: 'ค่าบรรจุภัณฑ์', ADVERTISING: 'ค่าโฆษณา',
+    SHIPPING: 'ค่าขนส่ง', SALARY: 'เงินเดือน', UTILITIES: 'ค่าน้ำ-ค่าไฟ', OTHER: 'อื่นๆ',
   }
   ```
   `Expense.category` เป็น `String` (ไม่ใช่ Prisma `enum`) ตาม convention `Order.status`/`Shop.kind` — validate ด้วย `v.picklist(EXPENSE_CATEGORIES)` ที่ backend และ Yup `oneOf(EXPENSE_CATEGORIES)` ที่ frontend เท่านั้น ไม่มี DB CHECK constraint (เพิ่ม/แก้หมวดในอนาคต = แก้ constant array ไม่ต้อง migration)

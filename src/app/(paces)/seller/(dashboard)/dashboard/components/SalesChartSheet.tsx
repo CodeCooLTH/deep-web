@@ -51,8 +51,8 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
      * ถ้า stack รวมกัน ความสูงรวมจะถูกอ่านว่า "ยอดขาย" ทั้งที่ครึ่งหนึ่งเป็นเงินที่จ่ายออก
      */
     series: [
-      { name: 'ยืนยันแล้ว', group: 'sales', data: confirmedValues },
-      { name: 'รอยืนยัน', group: 'sales', data: unconfirmedValues },
+      { name: 'ลูกค้ายืนยันแล้ว', group: 'sales', data: confirmedValues },
+      { name: 'รอลูกค้ายืนยัน', group: 'sales', data: unconfirmedValues },
       ...(showExpense ? [{ name: 'ค่าใช้จ่าย', group: 'expense', data: expenseValues }] : []),
     ],
     chart: { type: 'bar', height: 220, stacked: true, toolbar: { show: false } },
@@ -61,7 +61,7 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
     // 3 label ไทยตัดเป็น 2 บรรทัดบนจอ 390 และบอกได้แค่ "สีนี้ชื่ออะไร" ทั้งที่แถบบอกตัวเลขด้วย
     legend: { show: false },
     dataLabels: { enabled: false },
-    // น้ำเงิน = ยืนยันแล้ว, เหลือง = รอยืนยัน, แดง = ค่าใช้จ่าย — token ทั้งหมด (ห้าม hardcode hex)
+    // น้ำเงิน = ลูกค้ายืนยันแล้ว, เหลือง = รอลูกค้ายืนยัน, แดง = ค่าใช้จ่าย — token ทั้งหมด (ห้าม hardcode hex)
     // หมายเหตุ: ไม่มี token 'chart-warning' โดยเฉพาะ ใช้ 'warning' (--color-warning เหลือง/amber) แทน
     colors: showExpense
       ? [getColor('chart-primary'), getColor('warning'), getColor('chart-beta')]
@@ -92,8 +92,8 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
         return (
           `<div style="padding:6px 10px;font-size:12px;line-height:1.6">` +
           `<div style="font-weight:600;margin-bottom:2px">${label}</div>` +
-          `<div>${dot(getColor('chart-primary'))}ยืนยันแล้ว ${formatBaht(conf)}</div>` +
-          `<div>${dot(getColor('warning'))}รอยืนยัน ${formatBaht(unconf)}</div>` +
+          `<div>${dot(getColor('chart-primary'))}ลูกค้ายืนยันแล้ว ${formatBaht(conf)}</div>` +
+          `<div>${dot(getColor('warning'))}รอลูกค้ายืนยัน ${formatBaht(unconf)}</div>` +
           (exp != null ? `<div>${dot(getColor('chart-beta'))}ค่าใช้จ่าย ${formatBaht(exp)}</div>` : '') +
           `<div style="font-weight:600;margin-top:4px">ยอดขายทั้งหมด ${formatBaht(conf + unconf)}</div>` +
           `</div>`
@@ -332,8 +332,8 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
           {hasFinance && <p className="mb-3 text-center text-xs text-default-700">{NET_PROFIT_FORMULA}</p>}
 
           <div className="mb-4 flex border-y border-dashed border-default-300">
-            <LegendCell color="bg-primary" label="ยืนยันแล้ว" value={confirmedTotal} />
-            <LegendCell color="bg-warning" label="รอยืนยัน" value={unconfirmedTotal} />
+            <LegendCell color="bg-primary" label="ลูกค้ายืนยันแล้ว" value={confirmedTotal} />
+            <LegendCell color="bg-warning" label="รอลูกค้ายืนยัน" value={unconfirmedTotal} />
             {hasFinance && <LegendCell color="bg-danger" label="ค่าใช้จ่าย" value={series.totalExpense ?? 0} />}
           </div>
 
@@ -390,15 +390,22 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   )
 }
 
-/** ช่องหนึ่งของแถบ legend+ยอดรวม — จุดสีต้องตรงกับสีซีรีส์ในกราฟเสมอ */
+/**
+ * ช่องหนึ่งของแถบ legend+ยอดรวม — จุดสีต้องตรงกับสีซีรีส์ในกราฟเสมอ
+ *
+ * ป้าย "ลูกค้ายืนยันแล้ว"/"รอลูกค้ายืนยัน" ระบุตัวผู้กระทำโดยตั้งใจ — คำสั้น ๆ ว่า "รอยืนยัน"
+ * ไปชนกับหน้าจองที่ *ร้าน* เป็นคนกดยืนยัน ร้านที่ใช้ทั้งสองเมนูจะนึกว่าตัวเองต้องไปกด
+ * แลกกับป้ายที่ยาวขึ้น จึงยอมให้ตัดเป็น 2 บรรทัดด้วย leading-tight แทนที่จะบีบตัวอักษรให้เล็กลง
+ * (ลดขนาดตัวอักษรผิดกับกลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้)
+ */
 function LegendCell({ color, label, value }: { color: string; label: string; value: number }) {
   return (
     <div className="flex-1 border-e border-dashed border-default-300 px-1 py-2.5 text-center last:border-e-0">
-      <p className="flex items-center justify-center gap-1 text-xs text-default-700">
-        <span className={`size-2 shrink-0 rounded-full ${color}`} aria-hidden="true" />
-        {label}
+      <p className="flex items-start justify-center gap-1 text-xs leading-tight text-default-700">
+        <span className={`mt-1 size-2 shrink-0 rounded-full ${color}`} aria-hidden="true" />
+        <span className="text-balance">{label}</span>
       </p>
-      <p className="font-bold text-default-800">{formatBaht(value)}</p>
+      <p className="mt-0.5 font-bold text-default-800">{formatBaht(value)}</p>
     </div>
   )
 }

@@ -22,7 +22,7 @@ related: ["[[BRD]]", "[[Feature-Docs-Ownership]]"]
 
 ## Executive Summary
 
-วันนี้ Seller บน Deep เห็นแค่ "ยอดขาย" (Revenue) จาก order ที่ CONFIRMED — ไม่มีทางรู้ว่าขายแล้ว **กำไรจริง** เท่าไร เพราะระบบไม่มีที่เก็บต้นทุนสินค้า (COGS) และไม่มีที่บันทึกค่าใช้จ่ายดำเนินธุรกิจ (ค่าเช่า/ค่าแพ็คเกจ/ค่าโฆษณา ฯลฯ) ฟีเจอร์นี้เติมช่องว่างนั้นด้วย 2 กลไกที่ทำงานร่วมกัน: (1) **ตั้งต้นทุนสินค้า** (`Product.cost`, optional) ที่ถูก **snapshot ลง `OrderItem.cost`** ตอนสร้าง order ทุกครั้ง (pattern เดียวกับ `OrderItem.price` เดิม) เพื่อให้ต้นทุนของออเดอร์เก่าไม่เปลี่ยนแปลงแม้ seller จะแก้ราคาทุนสินค้าทีหลัง และ (2) **บันทึกค่าใช้จ่าย** (Expense) แยกหมวดหมู่คงที่ (fixed list) ที่ผูกกับร้าน ทั้งสองกลไกไหลเข้าหน้าใหม่ `/expenses` (Paces, `(paces)/seller/**`) ที่แสดง **รายงานกำไรขาดทุนเต็มรูป (full P&L)** ตามช่วงเวลา: `Revenue − COGS = Gross Profit` และ `Gross Profit − Total Expense = Net Profit` โดยนับเฉพาะออเดอร์สถานะ `CONFIRMED` (สอดคล้อง pattern การนับ revenue ที่ dashboard เดิมใช้อยู่แล้ว)
+วันนี้ Seller บน Deep เห็นแค่ "ยอดขาย" (Revenue) จาก order ที่ CONFIRMED — ไม่มีทางรู้ว่าขายแล้ว **กำไรจริง** เท่าไร เพราะระบบไม่มีที่เก็บต้นทุนสินค้า (COGS) และไม่มีที่บันทึกค่าใช้จ่ายดำเนินธุรกิจ (ค่าเช่า/ค่าบรรจุภัณฑ์/ค่าโฆษณา ฯลฯ) ฟีเจอร์นี้เติมช่องว่างนั้นด้วย 2 กลไกที่ทำงานร่วมกัน: (1) **ตั้งต้นทุนสินค้า** (`Product.cost`, optional) ที่ถูก **snapshot ลง `OrderItem.cost`** ตอนสร้าง order ทุกครั้ง (pattern เดียวกับ `OrderItem.price` เดิม) เพื่อให้ต้นทุนของออเดอร์เก่าไม่เปลี่ยนแปลงแม้ seller จะแก้ราคาทุนสินค้าทีหลัง และ (2) **บันทึกค่าใช้จ่าย** (Expense) แยกหมวดหมู่คงที่ (fixed list) ที่ผูกกับร้าน ทั้งสองกลไกไหลเข้าหน้าใหม่ `/expenses` (Paces, `(paces)/seller/**`) ที่แสดง **รายงานกำไรขาดทุนเต็มรูป (full P&L)** ตามช่วงเวลา: `Revenue − COGS = Gross Profit` และ `Gross Profit − Total Expense = Net Profit` โดยนับเฉพาะออเดอร์สถานะ `CONFIRMED` (สอดคล้อง pattern การนับ revenue ที่ dashboard เดิมใช้อยู่แล้ว)
 
 ฟีเจอร์นี้เป็น **paid add-on ที่ไม่คิดเงินแยก** — ผูกเข้าเป็นสิทธิ์ของ **Business Package** (feature 00008) ที่มีอยู่แล้วในระบบ (ทุก tier ที่จ่ายเงิน: Growth/Pro/Business) reuse gating mechanism เดิม (`getSubscriptionStatus(ownerId)`) แทนการสร้าง billing ใหม่ ส่วนสิทธิ์เห็นข้อมูลการเงินภายในร้าน ผูกกับ owner เสมอ + owner เปิด/ปิดสิทธิ์ให้ `ShopMember(role=ADMIN)` (feature 00008/00012, live แล้ว) เห็นได้เองผ่าน toggle ระดับร้าน
 
@@ -154,11 +154,11 @@ related: ["[[BRD]]", "[[Feature-Docs-Ownership]]"]
 | ค่าที่เก็บใน DB | ป้ายภาษาไทย |
 |---|---|
 | `RENT` | ค่าเช่า |
-| `PACKAGING` | ค่าแพ็คเกจ/บรรจุภัณฑ์ |
+| `PACKAGING` | ค่าบรรจุภัณฑ์ |
 | `ADVERTISING` | ค่าโฆษณา |
 | `SHIPPING` | ค่าขนส่ง |
 | `SALARY` | เงินเดือน |
-| `UTILITIES` | สาธารณูปโภค |
+| `UTILITIES` | ค่าน้ำ-ค่าไฟ |
 | `OTHER` | อื่นๆ |
 
 - เก็บเป็น `String` enum-style (ตาม convention `Order.status`/`Shop.categories` เดิม — ไม่ใช้ Prisma `enum` จริง เพื่อเลี่ยง `ALTER TYPE` ทุกครั้งที่ปรับหมวด)
