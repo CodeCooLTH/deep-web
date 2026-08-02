@@ -209,8 +209,37 @@ export async function GET(
       repliedMap.set(r.id, entry);
     }
 
+    // ผู้ส่งฝั่งร้าน (user 2026-08-02) — avatar ท้ายบับเบิลต้องบอกว่า "ใครในทีมเป็นคนตอบ"
+    // ไม่ใช่โลโก้เพจเหมือนกันหมด. ร้านที่มีพนักงานหลายคนย้อนดูไม่ได้เลยว่าใครตอบข้อความไหน
+    //
+    // senderUserId = null คือข้อความที่มาทาง webhook (echo ของสิ่งที่ส่งจาก Messenger/Business
+    // Suite โดยตรง หรือบอทตอบ) — ไม่มี "คน" ให้แสดง จึงตกไปใช้รูปเพจตามเดิม
+    //
+    // batch fetch กัน N+1; ไม่ select อะไรเกินชื่อ+รูป (ผู้ดูเป็นสมาชิกร้านเดียวกันอยู่แล้ว
+    // แต่ไม่มีเหตุผลให้ email/เบอร์ของเพื่อนร่วมทีมหลุดลง flight payload)
+    const senderIds = Array.from(
+      new Set(
+        result.items
+          .filter((m) => m.senderRole === "SHOP" && m.senderUserId)
+          .map((m) => m.senderUserId as string),
+      ),
+    );
+    const senderRows =
+      senderIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: senderIds } },
+            select: { id: true, displayName: true, avatar: true },
+          })
+        : [];
+    const senderMap = new Map(
+      senderRows.map((u) => [u.id, { name: u.displayName, avatar: u.avatar }]),
+    );
+
     const items = result.items.map((m) => ({
       ...m,
+      // null = ไม่มีคนส่ง (webhook/บอท) → UI แสดงรูปเพจ; มีค่า = แสดงรูปคนนั้น + ชื่อตอน hover
+      sender:
+        m.senderRole === "SHOP" && m.senderUserId ? senderMap.get(m.senderUserId) ?? null : null,
       replyTo: (() => {
         const rmid = (m as { replyToMid?: string | null }).replyToMid;
         return rmid ? repliedMap.get(rmid) ?? null : null;
@@ -253,6 +282,21 @@ export async function GET(
  * route รู้ context ของตัวเองอยู่แล้ว (seller.* = SHOP, main = BUYER) — SDS §3.3.
  * service ยัง verify ซ้ำอีกชั้น (กัน client ปลอม แม้ derive ถูกที่ route แล้ว)
  */
+/**
+ * แนบผู้ส่ง (คนในทีมร้าน) ให้ข้อความที่เพิ่งสร้าง — ให้ shape ตรงกับ GET ซึ่ง enrich `sender` มาแล้ว
+ * (user 2026-08-02: avatar ท้ายบับเบิลต้องบอกว่าใครเป็นคนตอบ)
+ *
+ * ถ้าไม่แนบ บับเบิลที่เพิ่งส่งจะแสดงรูปเพจอยู่พักหนึ่งแล้วเปลี่ยนเป็นรูปคนตอน refetch รอบถัดไป
+ * ซึ่งอ่านเหมือนระบบสลับตัวตนของผู้ส่งเอง. PK lookup ครั้งเดียวต่อการส่ง 1 ข้อความ
+ */
+async function withSender<T extends { senderUserId: string | null }>(message: T, userId: string) {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { displayName: true, avatar: true },
+  });
+  return { ...message, sender: u ? { name: u.displayName, avatar: u.avatar } : null };
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -392,7 +436,7 @@ export async function POST(
           text: linkText, // ลูกค้าได้ลิงก์นี้
           orderRefToken: orderRefToken!, // ฝั่งเราเก็บเป็นการ์ด
         });
-        return NextResponse.json(sent);
+        return NextResponse.json(await withSender(sent, userId));
       }
       const sent = await sendOutboundMessage({
         conversationId: id,
@@ -403,7 +447,7 @@ export async function POST(
           : undefined,
         replyToMid, // reply/quote — ส่ง reply_to:{mid} ให้ Meta (best-effort) + เก็บ quote ฝั่งเรา
       });
-      return NextResponse.json(sent);
+      return NextResponse.json(await withSender(sent, userId));
     }
 
     const message = await sendMessage({
@@ -436,7 +480,7 @@ export async function POST(
         .catch(() => {});
     }
 
-    return NextResponse.json(message);
+    return NextResponse.json(await withSender(message, userId));
   } catch (e: unknown) {
     return mapChatServiceError(e, "POST /api/chat/conversations/[id]/messages");
   }

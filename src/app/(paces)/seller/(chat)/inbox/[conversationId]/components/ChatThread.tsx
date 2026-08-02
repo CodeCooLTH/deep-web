@@ -103,7 +103,7 @@ import MessageActionBubble, { type MessageAction } from './MessageActionBubble'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
-import { ChannelBadge, ChannelBadgeOverlay } from '../../components/ChannelBadge'
+import { ChannelBadge } from '../../components/ChannelBadge'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
@@ -1096,20 +1096,20 @@ export default function ChatThread({
           >
             <Icon icon="arrow-left" className="text-lg" />
           </Link>
-          {/* avatar + ตราช่องทางมุมล่างขวา — ให้เหมือนแถวในรายการแชท (user สั่ง 2026-08-02)
-              เดิมหัวเธรดบอกช่องทางด้วยชิปใต้ชื่ออย่างเดียว ซึ่งเป็นคนละภาษากับรายการที่ผู้ใช้
-              เพิ่งคลิกมา — ตราบนรูปคือสิ่งที่เขาจำได้แล้วจากหน้าก่อน
-              relative: ChannelBadgeOverlay วาง absolute เทียบกับปลอกนี้ */}
-          <span className="relative shrink-0">
-            <ChatAvatar avatar={buyerAvatar} name={buyerName} />
-            <ChannelBadgeOverlay channel={channel} imageUrl={channelAvatarUrl} />
-          </span>
+          <ChatAvatar avatar={buyerAvatar} name={buyerName} />
           {/* justify-center: ชื่อ+ชิปอยู่กึ่งกลางแนวตั้งเทียบกับ avatar (user สั่ง 2026-08-02)
               — เดิมกล่องนี้สูงไม่เท่า avatar เลยดูลอยสูงกว่ากลางรูป */}
           <div className="flex min-w-0 flex-col justify-center">
             <h5 className="text-base mb-1.25">{buyerName}</h5>
             <div className="flex flex-wrap items-center gap-1.5">
-              <ChannelBadge channel={channel} label={channelName} imageUrl={channelAvatarUrl} />
+              {/* ไม่ส่ง imageUrl → ชิปใช้ "โลโก้แบรนด์ของช่องทาง" (f สีน้ำเงิน / IG) ให้ตรงกับ
+                  แผงลูกค้าฝั่งขวาที่เป็นแบบนี้อยู่แล้ว (user สั่ง 2026-08-02)
+                  เดิมส่ง avatar ของเพจเข้าไป ทำให้ชิปโชว์รูปเพจ ซึ่งซ้ำกับสิ่งที่ผู้ใช้เพิ่งเห็น
+                  และไม่ได้บอกว่าเป็นช่องทางไหน — ข้อมูลที่ชิปนี้มีหน้าที่บอกจริง ๆ
+                  ห้ามเติมตราช่องทางซ้อนบน avatar ที่นี่ด้วย: ลองแล้ว 2026-08-02 กลายเป็นไอคอน
+                  เพจโผล่ 2 ที่ติดกัน (user report "ทำไม icon เพจมันซ้อนกัน") — หัวเธรดบอกช่องทาง
+                  ที่ชิปที่เดียวพอ ต่างจากรายการแชทที่ไม่มีชิปจึงต้องใช้ตราบนรูป */}
+              <ChannelBadge channel={channel} label={channelName} />
             </div>
           </div>
         </div>
@@ -1717,18 +1717,38 @@ export default function ChatThread({
                               อยู่ด้านซ้าย และ icon page อยู่ชิดขวาเสมอ") — แถวนี้ justify-end อยู่แล้ว
                               พอ avatar เป็น child สุดท้ายจึงชิดขอบขวาของคอลัมน์ข้อความ ส่วนเวลา/สถานะ
                               ไหลไปทางซ้ายของมัน (เดิม avatar เป็น child ตัวแรก = ไปอยู่ซ้ายสุดของกลุ่ม) */}
-                          {mine && atBurstEnd && (
-                            <ChatAvatar
-                              avatar={shopAvatar}
-                              name={buyerName}
-                              size="size-5"
-                              fallback={
-                                <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
-                                  <Icon icon="building-store" className="size-3" />
-                                </span>
-                              }
-                            />
-                          )}
+                          {/* ใครเป็นคนตอบ (user สั่ง 2026-08-02) — ร้านที่มีพนักงานหลายคนย้อนดู
+                              ไม่ได้เลยว่าใครตอบข้อความไหน เพราะทุกบับเบิลใช้โลโก้เพจเหมือนกันหมด
+                                m.sender มีค่า  → รูปคนนั้น (ไม่มีรูป = ไอคอนคน placeholder) + ชื่อตอน hover
+                                m.sender = null → ข้อความมาทาง webhook/บอท ไม่มี "คน" ให้แสดง → รูปเพจตามเดิม */}
+                          {mine &&
+                            atBurstEnd &&
+                            (m.sender ? (
+                              <span title={m.sender.name}>
+                                <ChatAvatar
+                                  avatar={m.sender.avatar}
+                                  name={m.sender.name}
+                                  size="size-5"
+                                  fallback={
+                                    <span className="bg-default-200 text-default-600 flex size-5 shrink-0 items-center justify-center rounded-full">
+                                      <Icon icon="user" className="size-3" />
+                                    </span>
+                                  }
+                                />
+                                <span className="sr-only">ส่งโดย {m.sender.name}</span>
+                              </span>
+                            ) : (
+                              <ChatAvatar
+                                avatar={shopAvatar}
+                                name={buyerName}
+                                size="size-5"
+                                fallback={
+                                  <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
+                                    <Icon icon="building-store" className="size-3" />
+                                  </span>
+                                }
+                              />
+                            ))}
                         </div>
                       )}
                     </div>
