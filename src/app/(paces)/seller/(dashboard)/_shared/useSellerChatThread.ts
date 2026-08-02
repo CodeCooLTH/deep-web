@@ -476,7 +476,14 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           body: JSON.stringify(payload),
         })
         if (!res.ok) {
-          if (res.status === 429) pacesToast.error('ส่งข้อความถี่เกินไป กรุณารอสักครู่')
+          if (res.status === 429) {
+            pacesToast.error('ส่งข้อความถี่เกินไป กรุณารอสักครู่')
+          } else {
+            // บอกสาเหตุทันทีตอนกดส่ง/กดลองใหม่ (user 2026-08-02) — เดิมเงียบ เห็นแค่บับเบิลแดง
+            // แล้วต้องรอ GET รอบถัดไปถึงจะรู้ว่าทำไม. route ตอบเป็นไทยแล้ว (chat-send-failure.ts)
+            const body = await res.json().catch(() => null)
+            pacesToast.error(body?.error ?? 'ส่งข้อความไม่สำเร็จ')
+          }
           setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const } : m)))
           return
         }
@@ -588,6 +595,40 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     [postMessage],
   )
 
+  /**
+   * ส่งซ้ำข้อความที่ "บันทึกลง DB แล้วแต่ยิงออกช่องทางนอกไม่สำเร็จ" (deliveryStatus='FAILED')
+   * — คนละเคสกับ retryMessage ข้างบนซึ่งเป็นบับเบิล optimistic ที่ยังไม่เคยถึง server (user 2026-08-02)
+   *
+   * ทำไมถึงเป็น "ข้อความใหม่" ไม่ใช่แก้แถวเดิมให้กลายเป็นสำเร็จ: ChatMessage ประกาศตัวเองว่า
+   * append-only (schema.prisma:1411 "ไม่มี updatedAt/edit/delete") — บับเบิลที่ยิงไม่ออกคือเหตุการณ์
+   * ที่เกิดขึ้นจริงและร้านควรเห็นว่าเกิด ส่วนครั้งที่ส่งใหม่ก็เป็นอีกเหตุการณ์หนึ่ง. ผลพลอยได้คือ
+   * ภาพก่อน/หลังรีเฟรชตรงกันเสมอ (ถ้าลบบับเบิลเก่าทิ้งฝั่ง client มันจะโผล่กลับมาตอนโหลดใหม่)
+   */
+  const resendMessage = useCallback(
+    (payload: OutgoingRetry) => {
+      const localId = `local-${localIdRef.current++}-${Date.now()}`
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: localId,
+          conversationId,
+          senderUserId: '',
+          senderRole: 'SHOP',
+          type: payload.type,
+          body: payload.body,
+          imageUrl: payload.imageUrl ?? null,
+          createdAt: new Date().toISOString(),
+          replyTo: null,
+          _status: 'sending',
+          _retry: payload,
+        } as ChatMessageView,
+      ])
+      scrollToBottom()
+      void postMessage(localId, payload)
+    },
+    [conversationId, postMessage, scrollToBottom],
+  )
+
   return {
     messages,
     oldestCursor,
@@ -615,6 +656,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     setReplyingTo,
     // optimistic send — resend เมื่อบับเบิล _status='failed'
     retryMessage,
+    // ส่งซ้ำแถวที่บันทึกแล้วแต่ deliveryStatus='FAILED' (ปุ่ม "ลองใหม่" ใต้บับเบิลแดง)
+    resendMessage,
     /** read receipt (feature 00018) — สดจาก GET ล่าสุด; caller ควรใช้ค่านี้แทน server prop ตอนเปิดหน้า
      *  เพราะ read event มาทีหลังทาง webhook โดยไม่ทริกเกอร์ realtime (ดู comment ที่ route GET) */
     externalReadAt,
