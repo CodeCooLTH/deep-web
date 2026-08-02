@@ -2503,6 +2503,13 @@ model AutoReplyUnansweredQuestion {
 ///
 /// ไม่มีแถว = ยังไม่เคยตั้งค่า -> คำนวณค่าเริ่มต้นสด ไม่เขียน DB (compute-on-read)
 /// slugs ว่าง = ตั้งใจไม่เอาเมนูลัดเลย ซึ่งต่างจาก "ไม่มีแถว" คนละความหมาย ห้ามยุบรวมกัน
+///
+/// CHECK constraint `SellerShortcutPreference_slugs_count` มีอยู่จริงในฐานข้อมูล
+/// (migration 20260802190000) แต่ Prisma DSL ประกาศไม่ได้ = unmanaged SQL:
+///   CHECK (COALESCE(array_length("slugs", 1), 0) BETWEEN 0 AND 8)
+/// ห้าม `prisma db pull` / `migrate dev` เด็ดขาด — introspection มองไม่เห็น constraint นี้
+/// แล้วจะ generate DROP ทิ้งให้เอง (พฤติกรรมเดียวกับ GIN index ของ Shop.categories
+/// และ EXCLUDE constraint ของ feature 00017/00024 ที่เตือนไว้ในไฟล์นี้เหมือนกัน)
 model SellerShortcutPreference {
   id     String @id @default(uuid())
   userId String
