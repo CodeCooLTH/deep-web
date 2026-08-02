@@ -14,6 +14,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import type { PnlReport } from '@/services/pnl.service'
@@ -176,7 +177,26 @@ export default function ExpenseWorkspace({
         </div>
       )}
 
-      <PnlReportCard report={report} loading={loading} rangeLabel={RANGE_LABEL[range]} />
+      {/* แถบเตือนต้นทุนขาด — ย้ายออกจากในการ์ดมาเป็นแถบเต็มความกว้างเหนือกริด เพราะการ์ด 5 ใบ
+          ต้องสูงเท่ากัน ใส่แถบไว้ในใบเดียวจะดันความสูงทั้งแถว
+          โครงเดียวกับแถบ "โหลดข้อมูลไม่สำเร็จ" ด้านบน ต่างแค่ tone */}
+      {report.hasMissingCost && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="border-warning/20 bg-warning/10 text-warning-ink flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm font-medium"
+        >
+          <span className="flex items-start gap-2">
+            <Icon icon="alert-triangle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+            กำไรที่แสดงสูงกว่าความจริง — มีสินค้าที่ยังไม่ได้ใส่ต้นทุนในช่วงนี้
+          </span>
+          <Link href="/products" className="font-semibold underline">
+            ใส่ต้นทุนตอนนี้ →
+          </Link>
+        </div>
+      )}
+
+      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={RANGE_LABEL[range]} />
 
       {expenses.length > 0 && (
         <ExpenseBreakdownCard

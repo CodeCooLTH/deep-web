@@ -31,7 +31,7 @@ import {
   type ExpenseCategory,
 } from '@/lib/expense'
 import { todayThaiIsoDate, shiftIsoDate } from '@/lib/date-range'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTH } from '@/lib/format-date'
 import type { SerializedExpense } from '@/services/expense.service'
 
 const schema = Yup.object({
@@ -341,7 +341,7 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
               />
               {/* ช่อง date ของเบราว์เซอร์แสดง ค.ศ. เสมอ — เขียน พ.ศ. กำกับไว้ให้ตรงกับที่เห็นในรายการ */}
               {expenseDate && !errors.expenseDate && (
-                <p className="text-default-700 mt-1 text-2xs">{formatDate(expenseDate)}</p>
+                <p className="text-default-700 mt-1 text-2xs">{formatDateTH(expenseDate)}</p>
               )}
               {errors.expenseDate && <p className="text-danger-ink mt-1 text-sm">{errors.expenseDate.message}</p>}
             </div>

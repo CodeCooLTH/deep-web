@@ -28,7 +28,7 @@ import {
   EXPENSE_CATEGORY_AVATAR,
   type ExpenseCategory,
 } from '@/lib/expense'
-import { formatDate } from '@/lib/format-date'
+import { formatDateTH } from '@/lib/format-date'
 import { todayThaiIsoDate, shiftIsoDate } from '@/lib/date-range'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import ExpenseCategoryFilterSheet from './ExpenseCategoryFilterSheet'
@@ -40,9 +40,9 @@ const PAGE = 10
 /** หัวกลุ่ม: "วันนี้ · 2 ส.ค. 2569" — พูดภาษาคนสำหรับ 2 วันล่าสุด ที่เหลือใช้วันที่ตรง ๆ */
 function dayHeading(iso: string): string {
   const today = todayThaiIsoDate()
-  if (iso === today) return `วันนี้ · ${formatDate(iso)}`
-  if (iso === shiftIsoDate(today, -1)) return `เมื่อวาน · ${formatDate(iso)}`
-  return formatDate(iso)
+  if (iso === today) return `วันนี้ · ${formatDateTH(iso)}`
+  if (iso === shiftIsoDate(today, -1)) return `เมื่อวาน · ${formatDateTH(iso)}`
+  return formatDateTH(iso)
 }
 
 type Props = {

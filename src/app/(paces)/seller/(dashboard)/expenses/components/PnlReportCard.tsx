@@ -3,189 +3,175 @@
 /**
  * PnlReportCard — รายงานกำไรขาดทุน (P&L) — feature 00016
  *
- * v3 (2026-08-02): แตกจาก "การ์ดเดียวคั่นเส้นประ" เป็น **การ์ดแยกใบ** แบบหน้าสินค้า
- * และย้ายคำอธิบายสูตรจากบล็อกข้อความท้ายการ์ด → ไอคอน (i) ข้างหัวข้อ (hover บนเดสก์ท็อป /
- * แตะกางบนมือถือ) เหตุผล: บล็อกข้อความกินพื้นที่ถาวรทั้งที่ผู้ใช้อ่านครั้งเดียวก็พอ
+ * v4 (2026-08-02, re-source ตาม safepay-ux): การ์ด 5 ใบ **ขนาดเท่ากันทั้งหมด**
+ * Base: src/app/(paces)/seller/(dashboard)/products/page.tsx:181 (in-app precedent ที่ใช้ grid
+ *   เดียวกับธีมเป๊ะ: `grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5`)
+ * โครงการ์ด: src/app/(paces)/seller/(dashboard)/products/components/ProductStats.tsx
+ *   แถว 1 หัวข้อ · แถว 2 chip + <h3 text-xl> + badge %change ชิดขวา · แถว 3 จุดสี + metric + ค่า
  *
- * ไม่ fetch เอง ไม่ถือ state ช่วงเวลาเอง — รับ report/loading มาจาก ExpenseWorkspace
- * ไม่ใช้ CountUp — DESIGN.md §Motion ห้าม choreography ตอนโหลดฝั่ง product และระหว่างไล่เลข
- * จอจะแสดงจำนวนเงินที่ไม่เคยมีอยู่จริงบนหน้าที่เดิมพันกับความแม่นของตัวเลข
+ * v3 เคยทำการ์ด "พระเอก" ที่ใหญ่กว่าใบอื่น (`md:col-span-2 lg:row-span-2`) — **เป็นของที่ประดิษฐ์เอง
+ * ไม่มีใน theme ที่ไหนเลย** และผลจริงคือเหลือพื้นที่ว่างครึ่งการ์ดกับกริดที่ไม่สมมาตร
+ * ตอนนี้ "พระเอก" มาจาก **ลำดับการอ่าน** (กำไรสุทธิเป็นการ์ดแรก) ไม่ใช่ขนาดกล่อง
  *
- * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductStats.tsx
- *   (card > card-body > card-title text-sm + แถว icon chip กลม size-9 + <h3 text-xl> + badge ms-auto)
- *   เหตุผลที่ตัดแถว 3 ของ ProductStats ออก อยู่ใน comment เหนือ StatCard ด้านล่าง
- * missing-cost banner: src/app/(paces)/seller/(dashboard)/inventory/components/PackageSelector.tsx
+ * ไม่ fetch เอง ไม่ถือ state ช่วงเวลาเอง — รับ report/expenses มาจาก ExpenseWorkspace
+ * ไม่ใช้ CountUp — DESIGN.md §Motion ห้าม choreography ตอนโหลดฝั่ง product
  */
-import { useState } from 'react'
-import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { formatBaht, profitDisplay, NET_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
+import { EXPENSE_CATEGORY_LABEL_TH, groupExpensesByCategory } from '@/lib/expense'
+import type { SerializedExpense } from '@/services/expense.service'
 import type { PnlReport } from '@/services/pnl.service'
 
 const CALC_NOTE = `คิดจากออเดอร์ที่ลูกค้ายืนยันรับของแล้วเท่านั้น · ${NET_PROFIT_FORMULA}`
 
 type Props = {
   report: PnlReport
+  /** รายการในช่วงเดียวกัน — ใช้หา "หมวดที่จ่ายมากสุด" ของการ์ดค่าใช้จ่าย */
+  expenses: SerializedExpense[]
   loading?: boolean
-  /** ข้อความช่วงเวลาสั้น ๆ ต่อท้ายหัวข้อ เช่น "30 วันล่าสุด" */
+  /** ข้อความช่วงเวลาสั้น ๆ ต่อท้ายหัวข้อการ์ดแรก เช่น "30 วันล่าสุด" */
   rangeLabel: string
 }
 
-export default function PnlReportCard({ report, loading = false, rangeLabel }: Props) {
+export default function PnlReportCard({ report, expenses, loading = false, rangeLabel }: Props) {
   const profit = profitDisplay(report.netProfit)
-  const [noteOpen, setNoteOpen] = useState(false)
-
-  /**
-   * %เปลี่ยนแปลงเทียบช่วงก่อนหน้า — แสดงเมื่อ "เทียบแล้วอ่านรู้เรื่อง" เท่านั้น:
-   *   - prevNetProfit == null → ช่วงก่อนหน้าไม่มีข้อมูลเลย ไม่มีฐานให้เทียบ
-   *   - prevNetProfit <= 0 → ฐานติดลบ/ศูนย์ เปอร์เซ็นต์อ่านกลับหัว (ขาดทุนน้อยลงกลายเป็นติดลบ)
-   */
-  const changePercent = pctChangeVsPrev(report.netProfit, report.prevNetProfit)
+  const topCategory = groupExpensesByCategory(expenses)[0]
+  const pct = (v: number) => `${v.toFixed(1)}%`
 
   return (
-    <div className={cn('grid gap-1.25 transition-opacity md:grid-cols-2 lg:grid-cols-4', loading && 'opacity-50')}>
-      {/* การ์ดพระเอก — กินสองช่องบนจอกว้าง ให้ตัวเลขคำตอบเด่นกว่าที่มาของมัน */}
-      <div className="card md:col-span-2 lg:row-span-2">
-        <div className="card-body">
-          <div className="mb-2 flex items-center gap-1.5">
-            <h5 className="card-title text-sm">
-              {profit.label} · {rangeLabel}
-            </h5>
-            {/* (i) — เดสก์ท็อป hover อ่านจาก title; มือถือแตะเพื่อกาง (จอสัมผัส hover ไม่ได้) */}
-            <button
-              type="button"
-              onClick={() => setNoteOpen((v) => !v)}
-              title={CALC_NOTE}
-              aria-expanded={noteOpen}
-              aria-label="วิธีคำนวณกำไรสุทธิ"
-              className="text-default-700 hover:text-primary inline-flex"
-            >
-              <Icon icon="info-circle" className="text-base" />
-            </button>
-          </div>
-
-          <div className="my-5 flex items-center gap-2.5">
-            <div
-              className={cn(
-                'flex size-9 shrink-0 items-center justify-center rounded-full',
-                profit.positive ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink',
-              )}
-            >
-              <Icon icon={profit.positive ? 'trending-up' : 'trending-down'} className="text-2xl" />
-            </div>
-            <h3 className={cn('text-2xl font-bold', profit.toneClass)}>{profit.text}</h3>
-            {changePercent != null && (
-              <span
-                className={cn(
-                  'badge ms-auto py-0 text-xs font-medium',
-                  changePercent >= 0 ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink',
-                )}
-              >
-                {changePercent >= 0 ? '+' : ''}
-                {changePercent}%
-              </span>
-            )}
-          </div>
-
-          {noteOpen && (
-            <p className="text-default-700 border-default-300 border-t border-dashed pt-2.5 text-xs">{CALC_NOTE}</p>
-          )}
-
-          {report.hasMissingCost && (
-            <div
-              role="alert"
-              aria-live="polite"
-              className="border-warning/20 bg-warning/10 text-warning-ink mt-3 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-start text-xs font-medium"
-            >
-              <Icon icon="alert-triangle" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <span>
-                กำไรที่แสดงสูงกว่าความจริง — มีสินค้าที่ยังไม่ได้ใส่ต้นทุนในช่วงนี้{' '}
-                <Link href="/products" className="font-semibold underline">
-                  ใส่ต้นทุนตอนนี้ →
-                </Link>
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
+    <div
+      className={cn(
+        'grid grid-cols-1 gap-1.25 transition-opacity md:grid-cols-2 lg:grid-cols-5',
+        loading && 'opacity-50',
+      )}
+    >
+      {/* การ์ดแรก = คำตอบของหน้า — เด่นด้วยลำดับการอ่าน ไม่ใช่ขนาด */}
+      <StatCard
+        icon={profit.positive ? 'trending-up' : 'trending-down'}
+        iconClass={profit.positive ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink'}
+        title={`${profit.label} · ${rangeLabel}`}
+        note={CALC_NOTE}
+        text={profit.text}
+        valueClass={profit.toneClass}
+        changePercent={pctChangeVsPrev(report.netProfit, report.prevNetProfit)}
+        bulletClass={profit.positive ? 'text-success' : 'text-danger'}
+        metric="อัตรากำไรสุทธิ"
+        metricValue={report.revenue > 0 ? pct((report.netProfit / report.revenue) * 100) : 'ยังไม่มียอดขาย'}
+      />
       <StatCard
         icon="cash"
         iconClass="bg-success/15 text-success-ink"
         title="ยอดขายที่ยืนยันแล้ว"
-        value={report.revenue}
+        text={formatBaht(report.revenue)}
         valueClass="text-success-ink"
         changePercent={pctChangeVsPrev(report.revenue, report.prevRevenue)}
+        bulletClass="text-success"
+        metric="จากออเดอร์สำเร็จ"
+        metricValue={`${report.orderCount.toLocaleString('th-TH')} ออเดอร์`}
       />
       <StatCard
         icon="package"
         iconClass="bg-default-200 text-default-700"
         title="ต้นทุนสินค้า"
-        value={report.cogs}
+        text={formatBaht(report.cogs)}
         valueClass="text-default-800"
-        changePercent={pctChangeVsPrev(report.cogs, report.prevCogs)}
+        // ต้นทุนเพิ่มขึ้นไม่ใช่ข่าวดี — invert ทิศทางสีก่อนส่งเข้า badge
+        changePercent={pctChangeVsPrev(report.cogs, report.prevCogs, true)}
+        changeHint="เทียบช่วงก่อนหน้า — ต้นทุนลดลงคือดีขึ้น"
+        bulletClass="text-default-700"
+        metric="เฉลี่ยต่อออเดอร์"
+        metricValue={report.orderCount > 0 ? formatBaht(report.cogs / report.orderCount) : 'ยังไม่มีออเดอร์'}
       />
       <StatCard
         icon="calculator"
         iconClass="bg-info/15 text-info-ink"
         title="กำไรก่อนหักค่าใช้จ่าย"
-        value={report.grossProfit}
+        text={formatBaht(report.grossProfit)}
         valueClass={report.grossProfit >= 0 ? 'text-success-ink' : 'text-danger-ink'}
         changePercent={pctChangeVsPrev(report.grossProfit, report.prevGrossProfit)}
+        bulletClass="text-info"
+        metric="อัตรากำไรขั้นต้น"
+        metricValue={report.revenue > 0 ? pct((report.grossProfit / report.revenue) * 100) : 'ยังไม่มียอดขาย'}
       />
       <StatCard
         icon="receipt"
         iconClass="bg-danger/15 text-danger-ink"
         title="ค่าใช้จ่าย"
-        value={report.totalExpense}
+        text={formatBaht(report.totalExpense)}
         valueClass="text-danger-ink"
-        changePercent={pctChangeVsPrev(report.totalExpense, report.prevExpense)}
+        // ค่าใช้จ่ายเพิ่มขึ้นไม่ใช่ข่าวดีเช่นกัน
+        changePercent={pctChangeVsPrev(report.totalExpense, report.prevExpense, true)}
+        changeHint="เทียบช่วงก่อนหน้า — ค่าใช้จ่ายลดลงคือดีขึ้น"
+        bulletClass="text-danger"
+        metric="หมวดที่จ่ายมากสุด"
+        metricValue={topCategory ? EXPENSE_CATEGORY_LABEL_TH[topCategory.category] : 'ยังไม่มีรายการ'}
       />
     </div>
   )
 }
 
 /**
- * StatCard — Base: products/components/ProductStats.tsx (แถว 2: chip + <h3 text-xl> + badge ms-auto)
+ * StatCard — โครง 3 แถวของ ProductStats.tsx ครบทุกแถว
  *
- * แถว 1 (ไอคอน external-link) และแถว 3 (จุดสี+metric+ค่า) ของ ProductStats ถูกตัดทั้ง 4 ใบเท่ากัน
- * ตาม precedent ของ ProductStats ในแอปเองที่ตัดแถว 1 ทิ้งด้วยเหตุผลเดียวกัน ("ไม่มี destination
- * ที่ชัดเจน") — เหตุผลที่ตัดแถว 3: ไม่มี metric รองที่ไม่ซ้ำข้อมูลอื่นบนหน้าเดียวกันครบทั้ง 4 ใบ
- * (เช่นการ์ด "ค่าใช้จ่าย" → เฉลี่ยต่อวัน/สัดส่วนต่อรายได้ ซ้ำกับท้าย ExpenseBreakdownCard ที่อยู่
- * ในสายตาเดียวกัน) ตัดทั้งกลุ่มเท่ากันดีกว่ามีบางใบ — การ์ดในกลุ่มเดียวกันต้องหน้าตาเหมือนกัน
+ * สี chip/จุดสี **ไม่ทำตามธีมตรง ๆ** — ธีม demo ไล่สี primary/secondary/success/info/warning
+ * เพื่อแยกการ์ดด้วยตาเฉย ๆ ไม่มีความหมายผูกกับตัวเลข แต่ของเรามีความหมายจริง
+ * (เขียว = เงินเข้า, แดง = เงินออก, เทา = เป็นกลาง, ฟ้า = ค่าที่คำนวณมา)
+ * ทาสีตามลำดับของธีมเมื่อไหร่ = สีสื่อความหมายผิดทันที — Impeccable ชนะธีมในเรื่องสี
  */
 function StatCard({
   icon,
   iconClass,
   title,
-  value,
+  note,
+  text,
   valueClass,
   changePercent,
+  changeHint,
+  bulletClass,
+  metric,
+  metricValue,
 }: {
   icon: string
   iconClass: string
   title: string
-  value: number
+  /** คำอธิบายเพิ่ม — โผล่เป็นไอคอน (i) ข้างหัวข้อ อ่านตอน hover/แตะค้าง
+   *  ไม่ใช้ toggle กางข้อความแล้ว เพราะการ์ดต้องสูงเท่ากันทั้งแถว กางเมื่อไหร่จะดันทั้งแถว */
+  note?: string
+  text: string
   valueClass: string
   /** null = ไม่มีฐานให้เทียบ → ซ่อน badge ทั้งก้อน ไม่โชว์ 0% หลอกตา */
   changePercent: number | null
+  /** อธิบายทิศทาง badge เมื่อใบนั้น invert — กัน "-5%" ที่แปลได้สองทาง */
+  changeHint?: string
+  bulletClass: string
+  metric: string
+  metricValue: string
 }) {
   return (
     <div className="card">
       <div className="card-body">
-        <h5 className="card-title text-sm" title={title}>
-          {title}
-        </h5>
-        <div className="mt-4 flex items-center gap-2.5">
+        <div className="mb-2 flex items-center gap-1.5">
+          <h5 className="card-title text-sm" title={title}>
+            {title}
+          </h5>
+          {note && (
+            <span className="text-default-700 shrink-0" title={note} aria-label={note}>
+              <Icon icon="info-circle" className="text-base" />
+            </span>
+          )}
+        </div>
+
+        <div className="my-5 flex items-center gap-2.5">
           <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', iconClass)}>
             <Icon icon={icon} className="text-2xl" />
           </div>
-          <h3 className={cn('text-xl font-semibold', valueClass)}>{formatBaht(value)}</h3>
+          <h3 className={cn('text-xl font-semibold', valueClass)}>{text}</h3>
           {changePercent != null && (
             <span
+              title={changeHint ?? 'เทียบช่วงก่อนหน้า'}
               className={cn(
-                'badge ms-auto py-0 text-xs font-medium',
+                'badge ms-auto shrink-0 py-0 text-xs font-medium',
                 changePercent >= 0 ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink',
               )}
             >
@@ -193,6 +179,16 @@ function StatCard({
               {changePercent}%
             </span>
           )}
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1">
+            <span className={cn('flex items-center', bulletClass)}>
+              <Icon icon="circle-filled" className="align-middle" />
+            </span>
+            <span className="text-default-700 truncate text-sm">{metric}</span>
+          </span>
+          <span className="shrink-0 font-semibold">{metricValue}</span>
         </div>
       </div>
     </div>

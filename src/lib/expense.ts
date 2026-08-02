@@ -66,3 +66,28 @@ export const EXPENSE_CATEGORY_ICON: Record<ExpenseCategory, string> = {
   UTILITIES: 'bolt',
   OTHER: 'dots',
 }
+
+/**
+ * groupExpensesByCategory — รวมยอดตามหมวด เรียงจากมากไปน้อย
+ * ใช้ร่วมกันระหว่าง ExpenseBreakdownCard (แถบสัดส่วน+legend) กับ PnlReportCard
+ * (แถวล่างของการ์ด "ค่าใช้จ่าย" = หมวดที่จ่ายมากสุด) — เขียนแยกกันเมื่อไหร่สูตรจะหลุดจากกัน
+ */
+export function groupExpensesByCategory(
+  expenses: { category: string; amount: number }[],
+): { category: ExpenseCategory; amount: number; percent: number }[] {
+  const sums = new Map<ExpenseCategory, number>()
+  let total = 0
+  for (const e of expenses) {
+    const c = e.category as ExpenseCategory
+    sums.set(c, (sums.get(c) ?? 0) + e.amount)
+    total += e.amount
+  }
+  return [...sums.entries()]
+    .map(([category, amount]) => ({
+      category,
+      amount,
+      // total=0 เกิดไม่ได้ถ้ามีแถว (amount ต้อง >0 ตาม validation) แต่กันหารศูนย์ไว้
+      percent: total > 0 ? (amount / total) * 100 : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount)
+}

@@ -49,9 +49,16 @@ export const profitDisplay = (n: number) => {
 }
 
 /**
- * %เปลี่ยนแปลงเทียบช่วงก่อนหน้า — helper กลาง กันสูตรหลุดกันตามจุดที่ใช้ (ตอนนี้ 5 จุด)
+ * %เปลี่ยนแปลงเทียบช่วงก่อนหน้า — helper กลาง กันสูตรหลุดกันตามจุดที่ใช้
  * คืน null เมื่อ "เทียบแล้วอ่านไม่รู้เรื่อง": ไม่มีฐาน (null) หรือฐาน ≤ 0 ซึ่งเปอร์เซ็นต์อ่านกลับหัว
  * UI ต้องซ่อน badge ทั้งก้อนเมื่อได้ null — ห้ามแสดง 0% หรือ +100% จากฐานศูนย์
+ *
+ * `invert` — ธีมใช้กฎเดียว "ค่าขึ้น = เขียว" กับทุกการ์ด แต่กฎนั้นใช้กับ "ต้นทุน"/"ค่าใช้จ่าย"
+ * ไม่ได้ เพราะค่าใช้จ่ายเพิ่มขึ้นไม่ใช่ข่าวดี ทาเขียวเมื่อไหร่คือสีสื่อความหมายผิด
+ * กลับเครื่องหมายที่นี่ที่เดียว badge component จึงไม่ต้องรู้เรื่อง invert เลย
  */
-export const pctChangeVsPrev = (current: number, prev: number | null): number | null =>
-  prev != null && prev > 0 ? Math.round(((current - prev) / prev) * 1000) / 10 : null
+export const pctChangeVsPrev = (current: number, prev: number | null, invert = false): number | null => {
+  if (prev == null || prev <= 0) return null
+  const pct = Math.round(((current - prev) / prev) * 1000) / 10
+  return invert ? -pct : pct
+}

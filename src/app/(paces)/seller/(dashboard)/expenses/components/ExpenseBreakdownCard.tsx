@@ -24,7 +24,7 @@ import {
   EXPENSE_CATEGORY_LABEL_TH,
   EXPENSE_CATEGORY_ICON,
   EXPENSE_BAR_STEPS,
-  type ExpenseCategory,
+  groupExpensesByCategory,
 } from '@/lib/expense'
 import type { SerializedExpense } from '@/services/expense.service'
 
@@ -43,24 +43,14 @@ type Props = {
 export default function ExpenseBreakdownCard({ expenses, revenue, days, loading = false }: Props) {
   const [expanded, setExpanded] = useState(false)
 
-  const { rows, total } = useMemo(() => {
-    const sums = new Map<ExpenseCategory, number>()
-    let sum = 0
-    for (const e of expenses) {
-      const c = e.category as ExpenseCategory
-      sums.set(c, (sums.get(c) ?? 0) + e.amount)
-      sum += e.amount
-    }
-    const list = [...sums.entries()]
-      .map(([category, amount]) => ({
-        category,
-        amount,
-        // total=0 เกิดไม่ได้ถ้ามีแถว (amount ต้อง >0 ตาม validation) แต่กันหารศูนย์ไว้
-        percent: sum > 0 ? (amount / sum) * 100 : 0,
-      }))
-      .sort((a, b) => b.amount - a.amount)
-    return { rows: list, total: sum }
-  }, [expenses])
+  const { rows, total } = useMemo(
+    () => ({
+      // ใช้ util กลางร่วมกับ PnlReportCard — เขียนสูตร group-by แยกกันเมื่อไหร่จะหลุดจากกัน
+      rows: groupExpensesByCategory(expenses),
+      total: expenses.reduce((s, e) => s + e.amount, 0),
+    }),
+    [expenses],
+  )
 
   // ไม่มีรายการในช่วงนี้ = ไม่มีอะไรให้แบ่งสัดส่วน — ซ่อนทั้งการ์ดดีกว่าโชว์การ์ดว่างที่ไม่บอกอะไร
   if (rows.length === 0) return null
@@ -79,6 +69,8 @@ export default function ExpenseBreakdownCard({ expenses, revenue, days, loading 
       <div className={cn('card-body transition-opacity', loading && 'opacity-50')}>
         {/* แถบเรียงจากมากไปน้อย ความเข้มจึงไล่ลงตามอันดับ — ไม่มีข้อมูลไหนพึ่งสีอย่างเดียว
             (legend ข้างล่างมีไอคอน ชื่อ % และจำนวนเงินกำกับครบทุกแถว) */}
+        {/* หมวดเดียว = แถบสีเดียวยาว 100% ซึ่งไม่ได้บอกอะไร — ซ่อนไปเลย legend บรรทัดเดียวพอ */}
+        {rows.length > 1 && (
         <div className="bg-default-200 flex h-2.5 overflow-hidden rounded-full" aria-hidden="true">
           {rows.map((r, idx) => (
             <span
@@ -88,8 +80,9 @@ export default function ExpenseBreakdownCard({ expenses, revenue, days, loading 
             />
           ))}
         </div>
+        )}
 
-        <ul className="mt-4 grid gap-2.5">
+        <ul className={cn('grid gap-2.5', rows.length > 1 && 'mt-4')}>
           {/* จอ ≥sm โชว์ครบทุกหมวดเสมอ (พื้นที่พอ) — จอแคบตัดเหลือ 3 แถวแล้วให้กดกาง */}
           {rows.map((r, idx) => {
             const beyondPreview = idx >= MOBILE_PREVIEW_ROWS
@@ -142,8 +135,9 @@ export default function ExpenseBreakdownCard({ expenses, revenue, days, loading 
           <div className="flex-1 text-end">
             <dt className="text-default-700">สัดส่วนต่อรายได้</dt>
             {/* รายได้ 0 คิดสัดส่วนไม่ได้ (ไม่ใช่ 0%) — ขีดแทน ไม่งั้นอ่านว่า "ค่าใช้จ่ายไม่กินรายได้เลย" */}
-            <dd className="text-default-900 font-semibold">
-              {shareOfRevenue == null ? '—' : `${shareOfRevenue.toFixed(1)}%`}
+            {/* ขีดลอย ๆ ถูกอ่านเป็น bug — บอกเหตุผลตรง ๆ ด้วยข้อความจาง (ใช้ถ้อยคำเดียวกับการ์ด P&L) */}
+            <dd className={shareOfRevenue == null ? 'text-default-700 text-xs font-normal' : 'text-default-900 font-semibold'}>
+              {shareOfRevenue == null ? 'ยังไม่มียอดขาย' : `${shareOfRevenue.toFixed(1)}%`}
             </dd>
           </div>
         </dl>
