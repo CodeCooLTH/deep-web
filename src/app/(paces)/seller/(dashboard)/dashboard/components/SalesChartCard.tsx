@@ -41,13 +41,20 @@ export default function SalesChartCard({ initialSeries }: Props) {
   /** ไม่ผ่าน gate สิทธิ์ = ไม่มีแท่งค่าใช้จ่าย สไปรค์ไลน์เหลือทิศเดียวเหมือนเดิมทุกประการ */
   const expValues = expenseValues ?? null
 
-  /** ตัดวันในอนาคตออกจากทุก series พร้อมกัน — ให้ความยาวเท่ากันเสมอ ไม่งั้น ApexCharts จัดแกนเพี้ยน */
-  const upTo = <T,>(arr: T[]) => arr.slice(0, futureFromIndex)
+  /**
+   * วันในอนาคตส่งเป็น `null` **ไม่ใช่ตัดทิ้ง** — ApexCharts ไม่วาดอะไรให้ null อยู่แล้ว
+   * แต่ยังนับเป็น category ทำให้แกน x ยาวเท่าจำนวนวันของเดือนเสมอ
+   *
+   * เคย `.slice(0, futureFromIndex)` ตัดทิ้งจริง ๆ (v2) ซึ่งพังตอนต้นเดือน: วันที่ 2 ส.ค.
+   * เหลือ 2 แท่งยืดเต็มความกว้างการ์ด อ่านไม่ออกว่าเป็นกราฟทั้งเดือน (ผู้ใช้แจ้ง 2026-08-02)
+   * การไม่วาดแท่งของวันที่ยังไม่ถึงคือความจริง แต่ "เดือนนี้ยาวแค่ 2 วัน" ไม่ใช่
+   */
+  const maskFuture = (arr: number[]) => arr.map((v, i) => (i < futureFromIndex ? v : null))
   const sparkSeries = [
-    { name: 'ลูกค้ายืนยันแล้ว', data: upTo(confirmedValues) },
-    { name: 'รอลูกค้ายืนยัน', data: upTo(unconfirmedValues) },
+    { name: 'ลูกค้ายืนยันแล้ว', data: maskFuture(confirmedValues) },
+    { name: 'รอลูกค้ายืนยัน', data: maskFuture(unconfirmedValues) },
     // ติดลบ = ApexCharts วางใต้เส้นศูนย์ให้เอง (สเกลร่วมกับด้านบนอัตโนมัติ)
-    ...(expValues ? [{ name: 'ค่าใช้จ่าย', data: upTo(expValues).map((v) => -v) }] : []),
+    ...(expValues ? [{ name: 'ค่าใช้จ่าย', data: maskFuture(expValues).map((v) => (v == null ? null : -v)) }] : []),
   ]
 
   const getSparkOptions = (): ApexOptions => ({
