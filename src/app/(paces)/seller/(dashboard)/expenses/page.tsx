@@ -22,7 +22,7 @@ import { authOptions } from '@/lib/auth'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
-import { listExpenses, serializeExpense } from '@/services/expense.service'
+import { listExpenses, serializeExpense, hasAnyExpense } from '@/services/expense.service'
 import { getPnlReport } from '@/services/pnl.service'
 import { resolveDateRange } from '@/lib/date-range'
 import ExpenseLockedCard from './components/ExpenseLockedCard'
@@ -72,15 +72,23 @@ export default async function ExpensesPage() {
   }
 
   // GRANTED — ผ่าน gate แล้วเท่านั้นถึง query ข้อมูลจริง (default range 'today' ตาม spec)
-  const [report, expenses] = await Promise.all([
-    getPnlReport(decision.shop.id, resolveDateRange('today')),
-    listExpenses(decision.shop.id),
+  // listExpenses ผูกช่วงเดียวกับรายงานเสมอ — ถ้าดึงทั้งหมดเหมือนเดิม การ์ดแยกหมวด/สรุปเร็ว
+  // จะคิดจากคนละฐานกับตัวเลข "ค่าใช้จ่าย" บนการ์ด P&L แล้วขัดกันเองให้ผู้ใช้เห็น
+  const range = resolveDateRange('today')
+  const [report, expenses, everRecorded] = await Promise.all([
+    getPnlReport(decision.shop.id, range),
+    listExpenses(decision.shop.id, { range: range.expenseRange }),
+    hasAnyExpense(decision.shop.id),
   ])
 
   return (
     <>
       <PageBreadcrumb title="ค่าใช้จ่าย" trail={[{ label: 'ธุรกิจ' }]} />
-      <ExpenseWorkspace initialReport={report} initialExpenses={expenses.map(serializeExpense)} />
+      <ExpenseWorkspace
+        initialReport={report}
+        initialExpenses={expenses.map(serializeExpense)}
+        hasAnyExpenseEver={everRecorded}
+      />
     </>
   )
 }

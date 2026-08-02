@@ -1,148 +1,104 @@
 'use client'
 
 /**
- * PnlReportCard — รายงานกำไรขาดทุน (P&L): segmented date-range switcher + stat row 5 ตัวเลข
- * (feature 00016 Expense & Cost Tracking, Unit 5A)
+ * PnlReportCard — รายงานกำไรขาดทุน (P&L) — feature 00016 (redesign)
+ *
+ * เปลี่ยนจากเดิม 2 อย่าง:
+ *   1. ไม่ fetch เอง ไม่ถือ state ช่วงเวลาเอง — รับ report/loading มาจาก ExpenseWorkspace
+ *      (ช่วงเวลาคุมทั้งหน้าแล้ว ไม่ใช่ของการ์ดนี้คนเดียว)
+ *   2. "กำไรสุทธิ" ถูกยกขึ้นเป็นตัวเลขเดี่ยวขนาดใหญ่ทางซ้าย แทนที่จะเป็น 1 ใน 5 ช่องเท่า ๆ กัน —
+ *      มันคือคำตอบของหน้านี้ ส่วนอีก 4 ตัวคือที่มาของคำตอบ
  *
  * Base:
- *   - stat row grid: src/app/(paces)/seller/(dashboard)/dashboard/components/SalesReport.tsx:161-194
- *     (bg-light/25 border-dashed grid grid-cols-N text-center + CountUp wrapper) — ขยาย 3→5 คอลัมน์
- *   - segmented date-range switcher: docs/system/ui-guideline/paces-component-reference.md §2 Button Group
- *     (inline-flex + .btn + rounded-*-none) — ไม่ใช้ hs-dropdown เพราะ component นี้ re-render ทุกครั้งที่
- *     เปลี่ยนช่วง (ดู "Preline hs-dropdown พังใน list/toolbar ที่ re-render" component reference §3)
- *   - custom range picker: src/app/(paces)/seller/(dashboard)/sales/components/SalesDateRange.tsx
- *     (Flatpickr wrapper mode="range") — ต่างจาก sales: local state ในนี้เอง ไม่ผ่าน URL searchParams
+ *   - stat row + เส้นประคั่น: src/app/(paces)/seller/(dashboard)/dashboard/components/SalesReport.tsx:161-194
  *   - missing-cost warning banner: src/app/(paces)/seller/(dashboard)/inventory/components/PackageSelector.tsx
- *     (role="alert" border-{semantic}/20 bg-{semantic}/10 block) — สลับ danger→warning (เตือน ไม่ใช่ error)
+ *     (role="alert" border-{semantic}/20 bg-{semantic}/10)
  *
- * Design decision: ไม่ auto-refetch เอง — parent (ExpenseWorkspace) ส่ง `refreshSignal` เพิ่มค่าทุกครั้งที่
- * expense ถูก mutate → useEffect ด้านล่าง watch ทั้ง range/customDates/refreshSignal (คง range ที่เลือกไว้)
+ * Design Spec: docs/superpowers/specs/2026-08-02-expenses-redesign-design-spec.md §1A, §1C
  */
-import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import Flatpickr from '@/components/wrappers/Flatpickr'
 import Icon from '@/components/wrappers/Icon'
 import { CountUp } from '@/components/wrappers/CountUp'
-import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
 import type { PnlReport } from '@/services/pnl.service'
-import type { DateRangePreset } from '@/lib/date-range'
 
 type Props = {
-  initialReport: PnlReport
-  refreshSignal: number
+  report: PnlReport
+  loading?: boolean
+  /** ข้อความช่วงเวลาสั้น ๆ ต่อท้ายหัวข้อ เช่น "30 วันล่าสุด" */
+  rangeLabel: string
 }
 
-const RANGE_OPTIONS: { value: DateRangePreset; label: string }[] = [
-  { value: 'today', label: 'วันนี้' },
-  { value: '7d', label: '7 วัน' },
-  { value: '30d', label: '30 วัน' },
-  { value: 'month', label: 'เดือนนี้' },
-  { value: 'custom', label: 'กำหนดเอง' },
-]
-
-export default function PnlReportCard({ initialReport, refreshSignal }: Props) {
-  const [range, setRange] = useState<DateRangePreset>('today')
-  const [customDates, setCustomDates] = useState<[string, string] | null>(null)
-  const [report, setReport] = useState<PnlReport>(initialReport)
-  const [loading, setLoading] = useState(false)
-  // กัน fetch ซ้ำตอน mount ครั้งแรก — SSR ส่ง initialReport ของ range='today' มาให้แล้ว (ตรงกับ default state)
-  const isFirstRun = useRef(true)
-
-  useEffect(() => {
-    if (isFirstRun.current) {
-      isFirstRun.current = false
-      if (refreshSignal === 0) return
-    }
-    if (range === 'custom' && !customDates) return // ยังไม่เลือกช่วง "กำหนดเอง" — รอผู้ใช้เลือกก่อน
-
-    const controller = new AbortController()
-    const run = async () => {
-      setLoading(true)
-      try {
-        const params = new URLSearchParams({ range })
-        if (range === 'custom' && customDates) {
-          params.set('start', customDates[0])
-          params.set('end', customDates[1])
-        }
-        const res = await fetch(`/api/expenses/report?${params.toString()}`, { signal: controller.signal })
-        if (!res.ok) throw new Error('fetch failed')
-        const data: PnlReport = await res.json()
-        setReport(data)
-      } catch (e) {
-        if ((e as Error).name !== 'AbortError') {
-          // ค้าง state เก่าไว้ (ไม่ล้างตัวเลข) ตาม UX-Design-Spec.md §Edge states "Error"
-          pacesToast.error('โหลดรายงานไม่สำเร็จ กรุณาลองใหม่')
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-    run()
-    return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, customDates, refreshSignal])
-
-  const handleCustomChange = (selectedDates: Date[]) => {
-    if (selectedDates.length === 2) {
-      const f = selectedDates[0].toISOString().slice(0, 10)
-      const t = selectedDates[1].toISOString().slice(0, 10)
-      setCustomDates([f, t])
-    }
-  }
-
-  const grossPositive = report.grossProfit >= 0
+export default function PnlReportCard({ report, loading = false, rangeLabel }: Props) {
   const netPositive = report.netProfit >= 0
+
+  /**
+   * %เปลี่ยนแปลงเทียบช่วงก่อนหน้า — แสดงเมื่อ "เทียบแล้วอ่านรู้เรื่อง" เท่านั้น:
+   *   - prevNetProfit == null → ช่วงก่อนหน้าไม่มีข้อมูลเลย ไม่มีฐานให้เทียบ
+   *   - prevNetProfit <= 0 → ฐานติดลบ/ศูนย์ เปอร์เซ็นต์อ่านกลับหัว (ขาดทุนน้อยลงกลายเป็นติดลบ)
+   * ทั้งสองกรณีซ่อนตัวชี้วัดไปเลย ดีกว่าโชว์ตัวเลขที่ตีความผิดได้
+   */
+  const prev = report.prevNetProfit
+  const changePercent =
+    prev != null && prev > 0 ? Math.round(((report.netProfit - prev) / prev) * 1000) / 10 : null
 
   return (
     <div className="card">
-      <div className="card-header flex flex-wrap items-center justify-between gap-3">
-        <h4 className="card-title">รายงานกำไรขาดทุน</h4>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {/* segmented date-range switcher — Button Group (§2), ไม่ใช่ .btn-group (ไม่มีใน Paces) */}
-          <div className="inline-flex" role="group" aria-label="ช่วงเวลารายงาน">
-            {RANGE_OPTIONS.map((opt, idx) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setRange(opt.value)}
-                aria-pressed={range === opt.value}
-                className={cn(
-                  'btn btn-sm',
-                  idx === 0 && 'rounded-e-none',
-                  idx > 0 && idx < RANGE_OPTIONS.length - 1 && 'rounded-none',
-                  idx === RANGE_OPTIONS.length - 1 && 'rounded-s-none',
-                  range === opt.value ? 'bg-primary/15 text-primary' : 'bg-light text-dark',
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {range === 'custom' && (
-            <div className="input-icon-group">
-              <Icon icon="calendar" className="input-icon" aria-hidden="true" />
-              <Flatpickr
-                className="form-input"
-                style={{ minWidth: 220 }}
-                options={{ dateFormat: 'd M, Y', mode: 'range' }}
-                onChange={handleCustomChange}
-              />
-            </div>
+      {/* lg: 1 ส่วนให้ตัวเลขพระเอก, 2 ส่วนให้ที่มาของมัน — ใช้ grid-cols-3 + col-span (primitive)
+          แทน grid-cols-[minmax()] ที่เป็น arbitrary value ตาม Hard Rule 7 */}
+      <div className="grid lg:grid-cols-3">
+        <div
+          className={cn(
+            'border-default-300 border-b border-dashed p-5 transition-opacity lg:border-b-0 lg:border-e',
+            loading && 'opacity-50',
           )}
+        >
+          <p className="text-default-600 mb-0.5 text-xs">กำไรสุทธิ · {rangeLabel}</p>
+          <h3
+            className={cn(
+              'text-3xl font-bold',
+              netPositive ? 'text-success-ink' : 'text-danger-ink',
+            )}
+          >
+            <CountUp start={0} end={report.netProfit} prefix="฿" duration={1} decimals={2} />
+          </h3>
+          {changePercent != null && (
+            <span
+              className={cn(
+                'badge mt-2 inline-flex items-center gap-1',
+                changePercent >= 0 ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink',
+              )}
+            >
+              <Icon icon={changePercent >= 0 ? 'trending-up' : 'trending-down'} className="size-3.5" aria-hidden="true" />
+              {changePercent >= 0 ? '+' : ''}
+              {changePercent}% จากช่วงก่อนหน้า
+            </span>
+          )}
+        </div>
+
+        <div className={cn('transition-opacity lg:col-span-2', loading && 'opacity-50')}>
+          <div className="grid grid-cols-2 md:grid-cols-4">
+            <StatCell icon="cash" label="รายได้" value={report.revenue} colorClass="text-success-ink" />
+            <StatCell icon="package" label="ต้นทุนสินค้า" value={report.cogs} colorClass="text-default-800" />
+            <StatCell
+              icon="calculator"
+              label="กำไรขั้นต้น"
+              value={report.grossProfit}
+              colorClass={report.grossProfit >= 0 ? 'text-success-ink' : 'text-danger-ink'}
+            />
+            <StatCell icon="receipt" label="ค่าใช้จ่าย" value={report.totalExpense} colorClass="text-danger-ink" last />
+          </div>
         </div>
       </div>
 
-      <div className="card-body">
-        {report.hasMissingCost && (
+      {report.hasMissingCost && (
+        <div className="px-5 pb-5">
           <div
             role="alert"
             aria-live="polite"
-            className="border-warning/20 bg-warning/10 text-warning mb-4 flex items-start gap-2 rounded-lg border px-4 py-3 text-start text-sm font-medium"
+            className="border-warning/20 bg-warning/10 text-warning-ink flex items-start gap-2 rounded-lg border px-4 py-3 text-start text-sm font-medium"
           >
-            <Icon icon="alert-triangle" className="size-5 shrink-0 mt-0.5" aria-hidden="true" />
+            <Icon icon="alert-triangle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
             <span>
               กำไรอาจไม่สมบูรณ์ — มีสินค้าที่ยังไม่ตั้งต้นทุนในช่วงนี้{' '}
               <Link href="/products" className="font-semibold underline">
@@ -150,55 +106,40 @@ export default function PnlReportCard({ initialReport, refreshSignal }: Props) {
               </Link>
             </span>
           </div>
-        )}
-
-        <div className="relative">
-          <div className={cn('bg-light/25 rounded-lg transition-opacity', loading && 'opacity-50')}>
-            <div className="grid grid-cols-2 gap-y-4 py-5 text-center md:grid-cols-5 md:gap-y-0">
-              <StatCell label="รายได้" value={report.revenue} colorClass="text-success" />
-              <StatCell label="ต้นทุนสินค้า (COGS)" value={report.cogs} colorClass="text-default-700" />
-              <StatCell
-                label="กำไรขั้นต้น"
-                value={report.grossProfit}
-                colorClass={grossPositive ? 'text-success' : 'text-danger'}
-              />
-              <StatCell label="ค่าใช้จ่าย" value={report.totalExpense} colorClass="text-danger" />
-              <StatCell
-                label="กำไรสุทธิ"
-                value={report.netProfit}
-                colorClass={netPositive ? 'text-success' : 'text-danger'}
-                big
-              />
-            </div>
-          </div>
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center" aria-live="polite" aria-busy="true">
-              <Icon icon="refresh" className="animate-spin text-primary text-2xl" aria-hidden="true" />
-            </div>
-          )}
         </div>
-      </div>
+      )}
+
     </div>
   )
 }
 
 function StatCell({
+  icon,
   label,
   value,
   colorClass,
-  big = false,
+  last = false,
 }: {
+  icon: string
   label: string
   value: number
   colorClass: string
-  big?: boolean
+  last?: boolean
 }) {
   return (
-    <div>
-      <p className="text-default-400 mb-1.25">{label}</p>
-      <h4 className={cn('flex items-center justify-center font-semibold', big ? 'text-xl' : 'text-lg', colorClass)}>
+    <div
+      className={cn(
+        'border-default-300 border-b border-dashed p-4 text-center md:border-b-0',
+        !last && 'md:border-e',
+      )}
+    >
+      <p className="text-default-600 mb-1 flex items-center justify-center gap-1.5 text-xs">
+        <Icon icon={icon} className="hidden text-base lg:inline" aria-hidden="true" />
+        {label}
+      </p>
+      <p className={cn('font-semibold', colorClass)}>
         <CountUp start={0} end={value} prefix="฿" duration={1} decimals={2} />
-      </h4>
+      </p>
     </div>
   )
 }

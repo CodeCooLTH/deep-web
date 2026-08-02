@@ -53,6 +53,12 @@ export function parseIsoDateToUtcMidnight(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number)
   return dateOnlyUtc(y, m - 1, d)
 }
+/** เลื่อนวันที่รูปแบบ "YYYY-MM-DD" ไป N วัน (บวก/ลบ) — คืนรูปแบบเดิม */
+export function shiftIsoDate(iso: string, days: number): string {
+  const base = parseIsoDateToUtcMidnight(iso)
+  return new Date(base.getTime() + days * DAY_MS).toISOString().slice(0, 10)
+}
+
 export function todayThaiIsoDate(): string {
   const t = new Date(Date.now() + TZ_OFFSET_MS)
   return isoOf(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate())
