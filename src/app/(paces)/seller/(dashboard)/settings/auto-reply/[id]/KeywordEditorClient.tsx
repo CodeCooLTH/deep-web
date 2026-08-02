@@ -332,8 +332,12 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
   async function movePriority(dir: 'up' | 'down') {
     if (dir === 'up' ? !canMoveUp : !canMoveDown) return
     const next = dir === 'up' ? upTarget : downTarget
-    // ชื่อกลุ่มที่อยู่ติดกัน "ก่อนย้าย" คือสิ่งที่ผู้ใช้เห็นบนจอตอนกด จึงเป็นตัวที่ควรพูดถึงใน toast
-    const neighbor = ranking[dir === 'up' ? myRank - 1 : myRank + 1]?.name ?? ''
+    /**
+     * toast ต้องบอกผลจริง ไม่ใช่ผลกับเพื่อนบ้าน — สูตร A-1 กระโดดสุดปลาย ไม่ได้ขยับทีละขั้น
+     * ของเดิมพูดถึงกลุ่มที่อยู่ติดกันกลุ่มเดียว ("จะถูกเลือกก่อน X แล้ว") ซึ่งจริงแต่บอกไม่หมด:
+     * ตอนมี 3 กลุ่มขึ้นไป กดครั้งเดียวแล้วแซงทุกกลุ่ม ผู้ใช้ที่อ่าน toast จะนึกว่าต้องกดอีกหลายที
+     */
+    const otherCount = overlaps.length
     setBusy(true)
     try {
       await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
@@ -344,8 +348,8 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
       setPriority(next)
       pacesToast.success(
         dir === 'up'
-          ? `กลุ่มนี้จะถูกเลือกก่อน "${neighbor}" แล้ว`
-          : `"${neighbor}" จะถูกเลือกก่อนกลุ่มนี้แล้ว`,
+          ? `กลุ่มนี้จะถูกเลือกก่อนอีก ${otherCount} กลุ่มที่ใช้คำซ้ำกันแล้ว`
+          : `อีก ${otherCount} กลุ่มที่ใช้คำซ้ำกันจะถูกเลือกก่อนกลุ่มนี้แล้ว`,
       )
       router.refresh()
     } catch (e) {
@@ -706,14 +710,20 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                       ))}
                     </ul>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {/* btn-outline ของ mockup ไม่มีนิยามใน Paces (CL-4) → ใช้ light/neutral variant จริง */}
+                      {/* btn-outline ของ mockup ไม่มีนิยามใน Paces (CL-4) → ใช้ light/neutral variant จริง
+
+                          ป้ายต้องบอกสิ่งที่โค้ดทำจริง (critique 2026-07-31 [P1] "เลื่อนขึ้น/ลง
+                          ป้ายบอกอย่าง โค้ดทำอีกอย่าง"): สูตร A-1 คือ
+                          upTarget = max(priority ของกลุ่มอื่นทั้งหมด) + 1 → **กระโดดขึ้นบนสุดทีเดียว**
+                          ไม่ใช่ขยับทีละขั้น (downTarget ก็ลงล่างสุดแบบเดียวกัน)
+                          "เลื่อนขึ้น" ที่กดแล้วแซงทุกกลุ่มรวดเดียว = ป้ายโกหกในหน้าที่มี 3 กลุ่มขึ้นไป */}
                       <button type="button" disabled={!canMoveUp} onClick={() => movePriority('up')}
                         className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0">
-                        <Icon icon="arrow-up" className="size-3" aria-hidden="true" />เลื่อนขึ้น
+                        <Icon icon="arrow-up" className="size-3" aria-hidden="true" />ให้กลุ่มนี้มาก่อนทุกกลุ่ม
                       </button>
                       <button type="button" disabled={!canMoveDown} onClick={() => movePriority('down')}
                         className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0">
-                        <Icon icon="arrow-down" className="size-3" aria-hidden="true" />เลื่อนลง
+                        <Icon icon="arrow-down" className="size-3" aria-hidden="true" />ให้กลุ่มอื่นมาก่อน
                       </button>
                       {/* ต้องเห็นเสมอแม้ปุ่มเลื่อนจะ disabled ทั้งคู่ — ไม่งั้นเคส "กลุ่มอื่นอยู่ที่ 1000 แล้ว" จะตัน (A-1b) */}
                       <button type="button" className="text-primary ms-1.5 text-xs font-medium underline underline-offset-4"
@@ -725,9 +735,12 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                 ) : (
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-default-700 text-xs">ยังไม่มีกลุ่มอื่นใช้คำซ้ำกับกลุ่มนี้</span>
+                    {/* ชื่อเดียวกับสาขา overlaps > 0 — ปุ่มตัวเดียวกันเปิดช่องเดียวกัน แต่เดิม
+                        เรียก "ตั้งลำดับเอง" ที่นี่ และ "ตั้งตัวเลขเอง" ข้างบน (clarify: ของชิ้น
+                        เดียวกันต้องใช้คำเดียวกันทั้ง product) */}
                     <button type="button" className="text-primary text-xs font-medium underline underline-offset-4"
                       onClick={() => setShowPriorityInput((v) => !v)}>
-                      ตั้งลำดับเอง
+                      ตั้งตัวเลขเอง
                     </button>
                   </div>
                 )}
@@ -778,9 +791,34 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                     ระบบไล่จากบนลงล่าง เจอข้อแรกที่ตรงก็ตอบข้อนั้นแล้วหยุด
                   </p>
                 )}
+                {/**
+                 * ทำไมต้องบอกว่า "สลับเองไม่ได้" (user ตัดสิน 2026-08-02 ตัด drag drop ออก)
+                 *
+                 * แถวมีเลข 1. 2. 3. ซึ่งเป็น affordance ที่อ่านว่า "ลากสลับได้" — critique
+                 * 2026-07-31 ให้ข้อ User Control 2/4 ด้วยเหตุนี้ ("บันไดมีเลขลำดับแต่เรียงใหม่
+                 * ไม่ได้ ขณะที่บล็อกคำซ้ำที่ไม่มีเลขกลับเลื่อนได้ = affordance กลับหัว")
+                 * ทางแก้ที่ user เลือกคือ **ไม่เพิ่ม drag** แล้วปิดช่องว่างด้วยคำอธิบายแทน
+                 *
+                 * เหตุผลที่เขียนต้องเป็นเหตุผล *จริง* ไม่ใช่ "ระบบจัดการให้": ลำดับมาจาก
+                 * computeSpecificity() = เพจ 4 + โฆษณา 2 + สินค้า 1 (auto-reply-constants.ts:151)
+                 * เรียง desc — ถ้าปล่อยให้ร้านยกข้อที่กว้างกว่าขึ้นไปไว้บน ข้อที่เจาะจงกว่าจะถูก
+                 * ข้อกว้างดักไว้ก่อนทุกครั้ง = ตั้งไปก็ไม่มีวันทำงาน ซึ่งเป็นของที่ผู้ใช้เดาเองไม่ได้
+                 *
+                 * โผล่ที่ >=2 เพราะมี 1 ข้อยังไม่มีลำดับให้เถียง (บรรทัดบนอธิบายพอแล้ว)
+                 */}
+                {exceptions.length >= 2 && (
+                  <p className="text-default-700 mt-1 text-xs">
+                    ข้อที่ระบุเงื่อนไขมากกว่าอยู่บนเสมอ — ระบบเรียงให้เอง สลับเองไม่ได้
+                    เพราะถ้าเอาข้อที่กว้างกว่าขึ้นไปไว้บน ข้อที่เจาะจงกว่าจะไม่มีวันถูกใช้
+                  </p>
+                )}
               </div>
-              {/* NOTE: ปุ่ม "คลังคำถาม" เคยอยู่ตรงนี้ — กลายเป็น Tab "คลังคำตอบ" ของหน้านี้แล้ว
-                  (user สั่ง 2026-08-01) ไม่ต้องมีปุ่มซ้ำในการ์ด */}
+              {/* NOTE: ปุ่ม "คลังคำถาม" เคยอยู่ตรงนี้ ตอนนี้ไม่มีแล้วและไม่ควรกลับมา —
+                  คลังคำถามรายกลุ่มคำถูกถอดออกทั้งชุดเมื่อ 2026-08-02 (`68c37cd3`) พร้อมกับ
+                  คิวคำถามที่ตอบไม่ได้และ AI Enhance · ของที่มาแทนคือ **คลังความรู้ระดับร้าน**
+                  ซึ่งอยู่คนละเมนู (`/settings/chatbot/knowledge`) ไม่ใช่แท็บของหน้านี้
+                  (คอมเมนต์เดิมเขียนว่ากลายเป็น Tab "คลังคำตอบ" ของหน้านี้ — KeywordTabs.tsx
+                   ถูกลบไปแล้ว แท็บนั้นไม่มีอยู่จริง) */}
               {canEdit && (
                 // CL-4: btn-primary ไม่มีนิยามใน (paces) เหมือน btn-soft-* → ใช้ variant จริงตาม
                 // paces-component-reference.md §1 (ไม่งั้นปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ)
@@ -1410,6 +1448,7 @@ type SimTurn =
 
 function SimulatePanel({
   channels,
+  keywordId,
   previewReply,
   onEnable,
   canEdit,
@@ -1475,17 +1514,50 @@ function SimulatePanel({
       })
 
       if (data.willHandoff) {
-        setTurns((t) => [...t, { who: 'none', text: 'ไม่เข้าเงื่อนไขข้อใด — ระบบจะเงียบและส่งต่อให้พนักงาน' }])
+        /**
+         * WARNING: ข้อความเดิมคือ "ไม่เข้าเงื่อนไขข้อใด — ระบบจะเงียบและส่งต่อให้พนักงาน"
+         * ซึ่ง **ผิดทั้งสองท่อน** หลังแก้บั๊ก 2026-07-31:
+         *
+         * 1) ไม่มีการส่งต่อ — `NO_KEYWORD_MATCH` เลิกเขียน `handoffAt` แล้ว
+         *    (auto-reply.service.ts:485) เพราะ handoffAt เป็นสวิตช์ถาวรที่ไม่มีที่ไหนเคลียร์
+         *    เคยล็อกห้องจริงบน prod 240 ห้องตั้งแต่ข้อความแรก
+         * 2) ไม่ได้เงียบเสมอไป — ตรงจุดที่เมื่อก่อนเงียบ ตอนนี้ DeepBot ลองตอบจากคลังความรู้ก่อน
+         *    (`tryChatbotAnswer` ใน else ของ NO_KEYWORD_MATCH)
+         *
+         * หน้าพรีวิวยืนยันแทน ChatBot ไม่ได้ เพราะ /simulate ไม่ได้เรียก AI (เป็น matcher ล้วน)
+         * จึงต้องพูดเท่าที่รู้จริง: "กลุ่มคำไม่มีข้อไหนตรง" แล้วบอกว่าใครรับช่วงต่อ — ห้าม
+         * ยืนยันว่าลูกค้าจะไม่ได้คำตอบ ร้านที่อ่านแล้วเชื่อจะไปไล่เพิ่มคำทั้งที่บอทตอบได้อยู่แล้ว
+         */
+        setTurns((t) => [
+          ...t,
+          {
+            who: 'none',
+            text: 'ไม่มีเงื่อนไขข้อไหนตรง — กลุ่มคำนี้จะไม่ตอบข้อความนี้ ถ้าเปิด DeepBot ไว้ ระบบจะให้ DeepBot ลองตอบจากคลังความรู้ต่อ (หน้านี้ยังลองส่วนนั้นให้ไม่ได้)',
+          },
+        ])
       } else {
-        // บอกสถานะเป็นหมายเหตุใต้บับเบิล ไม่บังคำตอบ (user: "อยากให้ลองตอบเลยว่าจะตอบว่าอะไร")
+        /**
+         * พรีวิวค้นทั้งร้าน ไม่ใช่เฉพาะกลุ่มนี้ (simulate/route.ts: findMany ทุก keyword ของ shop)
+         * ผู้ชนะจึงอาจเป็น "กลุ่มอื่น" — เดิมเขียนว่า "ชุดนี้ยังไม่ใช้งาน" ซึ่งชี้กลุ่มผิดได้
+         * critique 2026-07-31 [P0] "พรีวิวคิวรีทั้งร้าน แต่ไม่บอกว่ากลุ่มไหนตอบ ทั้งที่ API
+         * คืน winnerState.keywordName มาแล้ว" — เรียกชื่อกลุ่มตรง ๆ จบทั้งสองปัญหา
+         */
         const notes: string[] = []
-        if (data.winnerState?.status === 'OFFLINE') notes.push('ชุดนี้ยังไม่ใช้งาน')
-        if (data.winnerState?.status === 'TEST') notes.push('อยู่โหมดทดสอบ')
+        const winnerName = data.winnerState?.keywordName
+        const isThisGroup = data.winnerState?.keywordId === keywordId
+        if (winnerName && !isThisGroup) notes.push(`ตอบโดยกลุ่ม “${winnerName}”`)
+        if (data.winnerState?.status === 'OFFLINE') {
+          notes.push(isThisGroup ? 'กลุ่มนี้ยังไม่ใช้งาน' : `กลุ่ม “${winnerName}” ยังไม่ใช้งาน`)
+        }
+        if (data.winnerState?.status === 'TEST') {
+          notes.push(isThisGroup ? 'กลุ่มนี้อยู่โหมดทดสอบ' : `กลุ่ม “${winnerName}” อยู่โหมดทดสอบ`)
+        }
         setTurns((t) => [
           ...t,
           { who: 'page', text: data.replyText ?? '', note: notes.length ? notes.join(' · ') : undefined },
         ])
-        setNeedsEnable(data.winnerState?.status === 'OFFLINE')
+        // ปุ่มเปิดโหมดทดสอบสั่งได้เฉพาะ *กลุ่มนี้* — ถ้าผู้ชนะเป็นกลุ่มอื่น กดไปก็ไม่แก้สิ่งที่เห็น
+        setNeedsEnable(data.winnerState?.status === 'OFFLINE' && isThisGroup)
       }
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'ดูตัวอย่างไม่สำเร็จ')
@@ -1501,20 +1573,34 @@ function SimulatePanel({
           ต่างกันตรงตัวตนบนหัว: ห้องแชทจริงโชว์ "ลูกค้าคนไหน" แต่หน้านี้ลูกค้าเป็นตัวสมมติ
           สิ่งที่ต้องรู้คือ "กำลังดูการตอบของเพจไหน" หัวจึงเป็นตัวเลือกเพจไปในตัว
           (แก้ตัวเลือกซ้อน 2 จุดที่ user ทัก — ดู PagePicker.tsx) */}
-      <div className="card-header flex items-center gap-2">
-        {channels.length > 0 ? (
-          <PagePicker options={channels} value={channelId} onChange={setChannelId} />
-        ) : (
-          <p className="text-default-500 flex-1 text-sm">ยังไม่ได้เชื่อมเพจใด</p>
-        )}
-        {turns.length > 0 && (
-          <button
-            className="btn btn-sm btn-soft-default flex-none"
-            onClick={() => { setTurns([]); setNeedsEnable(false) }}
-          >
-            ล้าง
-          </button>
-        )}
+      {/* แผงนี้เคยไม่มีชื่อเลย — หัวการ์ดมีแต่ตัวเลือกเพจกับปุ่มล้าง คนที่กวาดตามาเจอคอลัมน์ขวา
+          จึงไม่รู้ว่ามันคืออะไรจนกว่าจะลองพิมพ์ (critique heuristic 10 Help/Documentation)
+          ชื่อ + บรรทัดเดียวบอกขอบเขต ("ไม่ส่งออกจริง") ปิดช่องว่างนั้นโดยไม่กินที่ */}
+      <div className="card-header flex flex-col items-stretch gap-2">
+        <h6 className="text-default-800 mb-0 flex items-center gap-2 text-sm font-semibold">
+          <Icon icon="player-play" className="text-primary size-4 flex-none" aria-hidden="true" />
+          ลองพิมพ์ดูว่าจะตอบว่าอะไร
+        </h6>
+        <div className="flex items-center gap-2">
+          {channels.length > 0 ? (
+            <PagePicker options={channels} value={channelId} onChange={setChannelId} />
+          ) : (
+            <p className="text-default-500 flex-1 text-sm">ยังไม่ได้เชื่อมเพจใด</p>
+          )}
+          {turns.length > 0 && (
+            /* CL-4 (ซ้ำรอบสาม): `btn-soft-default` ไม่มีนิยามใน Paces และ `.btn` เองไม่มีพื้นหลัง
+               → ปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ · ยืนยันด้วย
+               `rg '\.btn-[a-z-]+' src/assets/css/` = มีแค่ btn-icon|btn-lg|btn-light|
+               btn-on-hover-icon|btn-sm|btn-theme-setting · ครึ่งซ้ายของหน้าเลี่ยงไปใช้ utility
+               จริงตั้งแต่แรก แต่แผงขวาถูกข้าม ทั้งที่ critique 2026-07-31 แจ้งเป็น [P0] แล้ว */
+            <button
+              className="btn btn-sm bg-light text-dark hover:bg-light-hover flex-none"
+              onClick={() => { setTurns([]); setNeedsEnable(false) }}
+            >
+              ล้าง
+            </button>
+          )}
+        </div>
       </div>
 
       {/* "ลูกค้าคนนี้มาจากโฆษณาไหน" — ตัวแปรสำคัญที่สุดของการตอบอัตโนมัติรองจากเพจ เพราะกฎ
@@ -1621,8 +1707,13 @@ function SimulatePanel({
 
       {needsEnable && canEdit && (
         <div className="border-default-200 border-t px-4 pt-3">
-          <button className="btn btn-soft-primary btn-sm w-full" onClick={onEnable}>
-            เริ่มทดสอบชุดนี้
+          {/* ปุ่มนี้โผล่เฉพาะตอนผู้ชนะ = กลุ่มนี้เอง (เช็ค isThisGroup ใน send()) จึงพูดว่า
+              "กลุ่มนี้" ได้จริง · btn-soft-primary ไม่มีนิยาม → พื้นม่วงโปร่งด้วย token ตรง ๆ */}
+          <button
+            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/15 w-full"
+            onClick={onEnable}
+          >
+            เปิดโหมดทดสอบให้กลุ่มนี้
           </button>
         </div>
       )}
@@ -1642,7 +1733,7 @@ function SimulatePanel({
             type="button"
             onClick={send}
             disabled={busy || !draft.trim()}
-            className="btn btn-primary flex-none"
+            className="btn bg-primary hover:bg-primary-hover flex-none text-white"
             aria-label="ส่ง"
           >
             <Icon icon="send" className="text-base" aria-hidden="true" />
