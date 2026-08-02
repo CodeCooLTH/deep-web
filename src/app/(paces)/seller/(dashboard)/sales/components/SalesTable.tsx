@@ -22,6 +22,7 @@ import {
 } from '@tanstack/react-table'
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { formatBaht } from '@/lib/format-money'
 import type { DailyRow } from './data'
 
 type Props = {
@@ -33,7 +34,7 @@ type Props = {
 const columnHelper = createColumnHelper<DailyRow>()
 
 // formatter ฿ สกุลบาท — client-side เท่านั้น (Date→ISO ทำที่ RSC boundary แล้ว)
-const thb = new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 })
+// รูปแบบเงินใช้ SSOT กลาง (src/lib/format-money.ts)
 
 const baseColumns = [
   columnHelper.accessor('label', {
@@ -51,12 +52,12 @@ const baseColumns = [
   columnHelper.accessor('revenue', {
     header: 'ยอดขาย',
     enableColumnFilter: false,
-    cell: ({ getValue }) => thb.format(getValue()),
+    cell: ({ getValue }) => formatBaht(getValue()),
   }),
   columnHelper.accessor('avgOrder', {
     header: 'เฉลี่ย/ออเดอร์',
     enableColumnFilter: false,
-    cell: ({ getValue }) => thb.format(getValue()),
+    cell: ({ getValue }) => formatBaht(getValue()),
   }),
 ]
 
@@ -65,14 +66,14 @@ const financeColumns = [
   columnHelper.accessor('expense', {
     header: 'ค่าใช้จ่าย',
     enableColumnFilter: false,
-    cell: ({ getValue }) => <span className="text-danger-ink">{thb.format(getValue() ?? 0)}</span>,
+    cell: ({ getValue }) => <span className="text-danger-ink">{formatBaht(getValue() ?? 0)}</span>,
   }),
   columnHelper.accessor('netProfit', {
     header: 'กำไรสุทธิ',
     enableColumnFilter: false,
     cell: ({ getValue }) => {
       const v = getValue() ?? 0
-      return <span className={`font-semibold ${v >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>{thb.format(v)}</span>
+      return <span className={`font-semibold ${v >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>{formatBaht(v)}</span>
     },
   }),
 ]

@@ -16,6 +16,7 @@ import Icon from '@/components/wrappers/Icon'
 import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
 import { formatMonthYearTH } from '@/lib/format-date'
+import { formatBaht, profitDisplay } from '@/lib/format-money'
 import type { ApexOptions } from 'apexcharts'
 import type { SalesSeries } from '../_constants/command-center'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
@@ -51,14 +52,16 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
      */
     series: [
       { name: 'ยืนยันแล้ว', group: 'sales', data: confirmedValues },
-      { name: 'ยังไม่ยืนยัน', group: 'sales', data: unconfirmedValues },
+      { name: 'รอยืนยัน', group: 'sales', data: unconfirmedValues },
       ...(showExpense ? [{ name: 'ค่าใช้จ่าย', group: 'expense', data: expenseValues }] : []),
     ],
     chart: { type: 'bar', height: 220, stacked: true, toolbar: { show: false } },
     plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
-    legend: { show: true, position: 'top', fontSize: '11px' },
+    // legend ของ Apex ถูกแทนด้วยแถบสรุปเหนือกราฟ (จุดสี = ซีรีส์ 1:1 พร้อมยอดรวม) — ของเดิม
+    // 3 label ไทยตัดเป็น 2 บรรทัดบนจอ 390 และบอกได้แค่ "สีนี้ชื่ออะไร" ทั้งที่แถบบอกตัวเลขด้วย
+    legend: { show: false },
     dataLabels: { enabled: false },
-    // น้ำเงิน = ยืนยันแล้ว, เหลือง = ยังไม่ยืนยัน, แดง = ค่าใช้จ่าย — token ทั้งหมด (ห้าม hardcode hex)
+    // น้ำเงิน = ยืนยันแล้ว, เหลือง = รอยืนยัน, แดง = ค่าใช้จ่าย — token ทั้งหมด (ห้าม hardcode hex)
     // หมายเหตุ: ไม่มี token 'chart-warning' โดยเฉพาะ ใช้ 'warning' (--color-warning เหลือง/amber) แทน
     colors: showExpense
       ? [getColor('chart-primary'), getColor('warning'), getColor('chart-beta')]
@@ -74,23 +77,25 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
     },
     yaxis: { show: false },
     grid: { show: false },
-    // custom tooltip: โชว์ ยืนยันแล้ว / ยังไม่ยืนยัน แยกกัน + รวม (พร้อมจุดสี token — ไม่ hardcode hex)
+    // custom tooltip: แยก ยืนยันแล้ว / รอยืนยัน / ค่าใช้จ่าย + รวม (จุดสีจาก token — ไม่ hardcode hex)
+    // ค่าใช้จ่ายต้องอยู่ในนี้ เพราะบรรทัดย่อยรายวันใต้กราฟถูกตัดออกแล้ว tooltip จึงรับหน้าที่แทน
     tooltip: {
       shared: true,
       intersect: false,
       custom: ({ series, dataPointIndex, w }: { series: number[][]; dataPointIndex: number; w: { globals: { labels: string[] } } }) => {
         const conf = Number(series?.[0]?.[dataPointIndex] ?? 0)
         const unconf = Number(series?.[1]?.[dataPointIndex] ?? 0)
-        const fmt = (n: number) => '฿' + n.toLocaleString('th-TH')
+        const exp = showExpense ? Number(series?.[2]?.[dataPointIndex] ?? 0) : null
         const label = w?.globals?.labels?.[dataPointIndex] ?? ''
         const dot = (c: string) =>
           `<span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${c};margin-right:6px"></span>`
         return (
           `<div style="padding:6px 10px;font-size:12px;line-height:1.6">` +
           `<div style="font-weight:600;margin-bottom:2px">${label}</div>` +
-          `<div>${dot(getColor('chart-primary'))}ยืนยันแล้ว ${fmt(conf)}</div>` +
-          `<div>${dot(getColor('warning'))}ยังไม่ยืนยัน ${fmt(unconf)}</div>` +
-          `<div style="font-weight:600;margin-top:4px">รวม ${fmt(conf + unconf)}</div>` +
+          `<div>${dot(getColor('chart-primary'))}ยืนยันแล้ว ${formatBaht(conf)}</div>` +
+          `<div>${dot(getColor('warning'))}รอยืนยัน ${formatBaht(unconf)}</div>` +
+          (exp != null ? `<div>${dot(getColor('chart-beta'))}ค่าใช้จ่าย ${formatBaht(exp)}</div>` : '') +
+          `<div style="font-weight:600;margin-top:4px">ขายได้รวม ${formatBaht(conf + unconf)}</div>` +
           `</div>`
         )
       },
@@ -203,42 +208,40 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   }
 
   const chg = series.prevTotal > 0 ? Math.round(((series.total - series.prevTotal) / series.prevTotal) * 100) : null
-  // ยอดที่ buyer ยืนยันแล้ว = ฐานของ "กำไรสุทธิ" — ต้องโชว์คู่กันไม่งั้นสามตัวเลขดูบวกลบไม่ลงตัว
   const confirmedTotal = series.confirmedValues.reduce((s, v) => s + v, 0)
+  const unconfirmedTotal = series.total - confirmedTotal
+  // ไม่ผ่าน gate สิทธิ์ → ไม่มีค่าใช้จ่าย/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ ฿0
+  const hasFinance = series.totalExpense != null
+  const profit = hasFinance ? profitDisplay(series.netProfit ?? 0) : null
 
   const periodLabel =
     mode === 'daily'
       ? formatMonthYearTH(new Date(Date.UTC(year, month - 1, 15)))
       : `ปี ${year + 543}`
-  const subLabel = mode === 'daily' ? `1 – ${series.labels.length} ${THAI_MONTHS_SHORT[month - 1]}` : 'ม.ค. – ธ.ค.'
 
   const periodWord = mode === 'daily' ? 'เดือน' : 'ปี'
   const compareWord = mode === 'daily' ? 'เดือนก่อน' : 'ปีก่อน'
-  const subtitle =
-    chg != null
-      ? `รวมทั้ง${periodWord} · เทียบ${compareWord} ${chg > 0 ? '+' : ''}${chg}% · order ที่ไม่ยกเลิก`
-      : `รวมทั้ง${periodWord} · order ที่ไม่ยกเลิก`
 
   const isEmpty = !loading && !error && series.total === 0
 
-  // รายการยอดขายแต่ละ bar — โชว์ทุกวัน/เดือน (รวมที่ยอด 0 → แสดง ฿0) ใต้กราฟ, ใช้พื้นที่ว่างมือถือแนวตั้ง
+  // แสดงเฉพาะ bucket ที่มีความเคลื่อนไหวจริง — เดือนที่ขายจริง 3 วันไม่ควรต้องเลื่อนผ่าน "฿0" อีก 28 แถว
   const monthAbbr = THAI_MONTHS_SHORT[month - 1]
-  const detailRows = series.labels.map((label, i) => ({
-    label: mode === 'daily' ? `${label} ${monthAbbr}` : label,
-    value: series.values[i] ?? 0,
-    // undefined = ไม่มีสิทธิ์ดูข้อมูลการเงิน → ไม่ render บรรทัดย่อยเลย
-    expense: series.expenseValues?.[i],
-    netProfit: series.netProfitValues?.[i],
-  }))
+  const detailRows = series.labels
+    .map((label, i) => ({
+      label: mode === 'daily' ? `${label} ${monthAbbr}` : label,
+      value: series.values[i] ?? 0,
+      expense: series.expenseValues?.[i] ?? 0,
+    }))
+    .filter((r) => r.value > 0 || r.expense > 0)
 
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — pattern เดียวกับ AddressSearchSheet
-    <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label="รายงานยอดขาย">
+    <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label="รายงานยอดขายและกำไร">
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
-        <button type="button" onClick={onClose} aria-label="ปิด" className="shrink-0 text-default-500">
+        <button type="button" onClick={onClose} aria-label="ปิด" className="shrink-0 text-default-700">
           <Icon icon="chevron-left" className="size-6" />
         </button>
-        <h3 className="flex-1 text-base font-semibold text-dark">ยอดขาย</h3>
+        <h3 className="flex-1 text-base font-semibold text-dark">ยอดขายและกำไร</h3>
 
         {/* segmented [รายวัน|รายเดือน] — ไม่มี named component ใน theme (Preline) — utility ล้วน ไม่ arbitrary */}
         <div className="flex items-center gap-0.5 rounded-lg bg-default-100 p-0.5">
@@ -246,7 +249,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             type="button"
             onClick={() => switchMode('daily')}
             className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              mode === 'daily' ? 'bg-card text-primary shadow' : 'text-default-500'
+              mode === 'daily' ? 'bg-card text-primary shadow' : 'text-default-700'
             }`}
           >
             รายวัน
@@ -255,7 +258,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             type="button"
             onClick={() => switchMode('monthly')}
             className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              mode === 'monthly' ? 'bg-card text-primary shadow' : 'text-default-500'
+              mode === 'monthly' ? 'bg-card text-primary shadow' : 'text-default-700'
             }`}
           >
             รายเดือน
@@ -275,9 +278,9 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             >
               <Icon icon="chevron-left" className="size-5" />
             </button>
+            {/* ตัด "1 – 31 ส.ค." ออก — ซ้ำกับชื่อเดือนที่อยู่บรรทัดเดียวกัน และแกน x ก็บอกช่วงวันอยู่แล้ว */}
             <div className="text-center">
               <p className="text-lg font-bold text-dark">{periodLabel}</p>
-              <p className="text-xs text-default-400">{subLabel}</p>
             </div>
             <button
               type="button"
@@ -292,53 +295,47 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             </button>
           </div>
 
-          <div className="mb-4 text-center">
-            <div className="flex items-baseline justify-center gap-1">
-              <span className="text-lg text-default-400">฿</span>
-              <span className="text-3xl font-bold text-dark">{series.total.toLocaleString('th-TH')}</span>
-              {chg != null && (
-                <span
-                  className={`ms-1 flex items-center gap-0.5 text-sm font-semibold ${
-                    chg > 0 ? 'text-success' : chg < 0 ? 'text-danger' : 'text-default-400'
-                  }`}
-                >
-                  {chg > 0 ? (
-                    <Icon icon="arrow-up" className="size-4" />
-                  ) : chg < 0 ? (
-                    <Icon icon="arrow-down" className="size-4" />
-                  ) : null}
-                  {Math.abs(chg)}%
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-default-400">{subtitle}</p>
+          {/* HERO = คำตอบของหน้านี้ (กำไร/ขาดทุน) ส่วนยอดขายลดชั้นเป็น "ที่มา" ไม่ใช่ "คำตอบ"
+              เดิม hero เป็นยอดขายรวม ซึ่งไม่หักค่าใช้จ่าย ผู้ใช้จึงไม่รู้กำไรจริง (feedback prod 2026-08-02)
+              %เทียบช่วงก่อนย้ายมาติดยอดขาย เพราะ prevTotal คือ *ยอดขาย* ช่วงก่อน ไม่ใช่กำไรช่วงก่อน
+              (SalesSeries ไม่มี prevNetProfit) — ปล่อยไว้ข้างตัวเลขกำไรเมื่อไหร่ = ตัวเลขโกหกทันที */}
+          <div className="mb-3 text-center">
+            <p className="text-xs text-default-700">{profit ? profit.label : 'ยอดขาย'} · ทั้ง{periodWord}</p>
+            <p className={`text-3xl font-bold ${profit ? profit.toneClass : 'text-dark'}`}>
+              {profit ? profit.text : formatBaht(series.total)}
+            </p>
+            {(profit || chg != null) && (
+              <p className="mt-0.5 flex items-center justify-center gap-2 text-sm text-default-700">
+                {profit && <span>ขายได้ {formatBaht(series.total)}</span>}
+                {chg != null && (
+                  <span
+                    className={`inline-flex items-center gap-0.5 font-semibold ${
+                      chg > 0 ? 'text-success-ink' : chg < 0 ? 'text-danger-ink' : 'text-default-700'
+                    }`}
+                  >
+                    {chg !== 0 && (
+                      <Icon icon={chg > 0 ? 'arrow-up' : 'arrow-down'} className="size-4" aria-hidden="true" />
+                    )}
+                    {Math.abs(chg)}% จาก{compareWord}
+                  </span>
+                )}
+              </p>
+            )}
           </div>
 
-          {/* ยืนยันแล้ว / ค่าใช้จ่าย / กำไรสุทธิ (feature 00016) — เฉพาะร้านที่ผ่าน gate สิทธิ์
-              ยอดใหญ่ด้านบนรวมออเดอร์ที่ยังไม่ยืนยันด้วย ส่วนกำไรคิดจากยอดที่ยืนยันแล้วเท่านั้น
-              จึงต้องโชว์ "ยืนยันแล้ว" คู่กันไป ไม่งั้นตัวเลขสามตัวนี้ดูเหมือนบวกลบกันไม่ลงตัว */}
-          {series.totalExpense != null && (
-            <div className="mb-4 flex border-y border-dashed border-default-300">
-              <div className="flex-1 border-e border-dashed border-default-300 px-1 py-2.5 text-center">
-                <p className="text-2xs text-default-400">ยืนยันแล้ว</p>
-                <p className="font-bold text-default-800">฿{confirmedTotal.toLocaleString('th-TH')}</p>
-              </div>
-              <div className="flex-1 border-e border-dashed border-default-300 px-1 py-2.5 text-center">
-                <p className="text-2xs text-default-400">ค่าใช้จ่าย</p>
-                <p className="font-bold text-danger-ink">฿{series.totalExpense.toLocaleString('th-TH')}</p>
-              </div>
-              <div className="flex-1 px-1 py-2.5 text-center">
-                <p className="text-2xs text-default-400">กำไรสุทธิ</p>
-                <p className={`font-bold ${(series.netProfit ?? 0) >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>
-                  ฿{(series.netProfit ?? 0).toLocaleString('th-TH')}
-                </p>
-              </div>
-            </div>
-          )}
+          {/* แถบนี้ทำสองหน้าที่: legend ของกราฟ (จุดสี = ซีรีส์ 1:1) + ยอดรวมของแต่ละซีรีส์
+              เดิมแยกเป็นสองก้อนที่โชว์คนละสามตัว (legend = ยังไม่ยืนยัน/ยืนยันแล้ว/ค่าใช้จ่าย,
+              แถบ = ยืนยันแล้ว/ค่าใช้จ่าย/กำไรสุทธิ) ผู้ใช้จึงจับคู่สีกับตัวเลขไม่ได้เลย
+              สีตรง token กราฟเป๊ะ: bg-primary=chart-primary, bg-warning=warning, bg-danger=chart-beta */}
+          <div className="mb-4 flex border-y border-dashed border-default-300">
+            <LegendCell color="bg-primary" label="ยืนยันแล้ว" value={confirmedTotal} />
+            <LegendCell color="bg-warning" label="รอยืนยัน" value={unconfirmedTotal} />
+            {hasFinance && <LegendCell color="bg-danger" label="ค่าใช้จ่าย" value={series.totalExpense ?? 0} />}
+          </div>
 
           {error ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-              <p className="text-sm text-default-500">โหลดข้อมูลไม่สำเร็จ</p>
+              <p className="text-sm text-default-700">โหลดข้อมูลไม่สำเร็จ</p>
               <button type="button" onClick={retry} className="btn btn-sm border-default-300">
                 ลองใหม่
               </button>
@@ -357,47 +354,47 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             />
           )}
 
-          {/* รายการยอดขายแต่ละวัน/เดือน — ใต้กราฟ (ใช้พื้นที่ว่างมือถือแนวตั้ง) */}
+          {/* หัวคอลัมน์ครั้งเดียว แทนการพิมพ์คำว่า "ค่าใช้จ่าย"/"สุทธิ" ซ้ำในทุกแถว (เดือนละสูงสุด 62 คำ)
+              "สุทธิรายวัน" ถูกตัด — อนุมานได้จากสองคอลัมน์ที่อยู่ข้างกัน และยอดรวมอยู่ที่ hero แล้ว */}
           {!loading && !error && !isEmpty && detailRows.length > 0 && (
             <div className="mt-5">
-              <p className="mb-1 text-xs font-semibold text-default-400">ยอดขายแต่ละ{periodWord}</p>
+              <div className="flex items-center gap-3 border-b border-default-200 py-2 text-xs text-default-700">
+                <span className="flex-1">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
+                <span className="w-24 text-end">ขายได้</span>
+                {hasFinance && <span className="w-24 text-end">ค่าใช้จ่าย</span>}
+              </div>
               <div className="divide-y divide-default-100">
-                {detailRows.map((r) => {
-                  // บรรทัดย่อยโผล่เฉพาะวันที่มีค่าใช้จ่ายจริง — ทุกวันจะรกและอ่านไม่ออกว่าวันไหนสำคัญ
-                  const showSub = r.expense != null && r.expense > 0
-                  return (
-                    <div key={r.label} className="flex items-center justify-between py-2.5">
-                      {/* วันที่ยอด 0 = จางลง (text-default-400) ให้วันที่มียอดเด่นกว่า */}
-                      <div>
-                        <span className={`text-sm ${r.value > 0 ? 'text-default-700' : 'text-default-400'}`}>
-                          {r.label}
-                        </span>
-                        {showSub && (
-                          <span className="block text-2xs text-danger-ink">
-                            ค่าใช้จ่าย ฿{(r.expense ?? 0).toLocaleString('th-TH')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-end">
-                        <span className={`text-sm font-semibold ${r.value > 0 ? 'text-dark' : 'text-default-400'}`}>
-                          ฿{r.value.toLocaleString('th-TH')}
-                        </span>
-                        {showSub && (
-                          <span
-                            className={`block text-2xs ${(r.netProfit ?? 0) >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}
-                          >
-                            สุทธิ ฿{(r.netProfit ?? 0).toLocaleString('th-TH')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+                {detailRows.map((r) => (
+                  <div key={r.label} className="flex items-center gap-3 py-2.5 text-sm">
+                    <span className="flex-1 text-default-800">{r.label}</span>
+                    <span className="w-24 text-end font-semibold text-dark">{formatBaht(r.value)}</span>
+                    {hasFinance && (
+                      <span
+                        className={`w-24 text-end font-semibold ${r.expense > 0 ? 'text-danger-ink' : 'text-default-700'}`}
+                      >
+                        {r.expense > 0 ? formatBaht(r.expense) : '—'}
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/** ช่องหนึ่งของแถบ legend+ยอดรวม — จุดสีต้องตรงกับสีซีรีส์ในกราฟเสมอ */
+function LegendCell({ color, label, value }: { color: string; label: string; value: number }) {
+  return (
+    <div className="flex-1 border-e border-dashed border-default-300 px-1 py-2.5 text-center last:border-e-0">
+      <p className="flex items-center justify-center gap-1 text-xs text-default-700">
+        <span className={`size-2 shrink-0 rounded-full ${color}`} aria-hidden="true" />
+        {label}
+      </p>
+      <p className="font-bold text-default-800">{formatBaht(value)}</p>
     </div>
   )
 }

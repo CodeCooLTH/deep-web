@@ -14,11 +14,10 @@
 import { useMemo } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
+import { formatBaht } from '@/lib/format-money'
 import { EXPENSE_CATEGORY_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
 import type { SerializedExpense } from '@/services/expense.service'
 
-const formatThb = (n: number) =>
-  '฿' + new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 
 type Props = {
   expenses: SerializedExpense[]
@@ -57,7 +56,7 @@ export default function ExpenseQuickStatsCard({ expenses, revenue, days, loading
       <div className={cn('card-body py-1 transition-opacity', loading && 'opacity-50')}>
         <dl className="grid">
           <Row icon="receipt" label="จำนวนรายการ" value={`${stats.count} รายการ`} />
-          <Row icon="calendar" label="เฉลี่ยต่อวัน" value={formatThb(stats.perDay)} />
+          <Row icon="calendar" label="เฉลี่ยต่อวัน" value={formatBaht(stats.perDay)} />
           <Row icon="chart-pie" label="หมวดที่จ่ายมากสุด" value={stats.topCategory ?? '—'} />
           <Row
             icon="percentage"

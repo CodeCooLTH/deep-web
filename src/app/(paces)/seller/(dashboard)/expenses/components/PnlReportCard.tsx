@@ -19,6 +19,7 @@
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
+import { formatBaht, profitDisplay } from '@/lib/format-money'
 import type { PnlReport } from '@/services/pnl.service'
 
 /**
@@ -26,8 +27,6 @@ import type { PnlReport } from '@/services/pnl.service'
  * และที่สำคัญกว่า: ระหว่างที่มันไล่เลข 1 วินาที จอแสดง "จำนวนเงินที่ไม่เคยมีอยู่จริง" บนหน้าที่
  * ทั้งฟีเจอร์เดิมพันกับความแม่นของตัวเลข (ตอนขาดทุนยิ่งแย่ — เห็นเลขไหลลงเป็นแอนิเมชัน)
  */
-const formatThb = (n: number) =>
-  '฿' + new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 
 type Props = {
   report: PnlReport
@@ -37,7 +36,7 @@ type Props = {
 }
 
 export default function PnlReportCard({ report, loading = false, rangeLabel }: Props) {
-  const netPositive = report.netProfit >= 0
+  const profit = profitDisplay(report.netProfit)
 
   /**
    * %เปลี่ยนแปลงเทียบช่วงก่อนหน้า — แสดงเมื่อ "เทียบแล้วอ่านรู้เรื่อง" เท่านั้น:
@@ -60,13 +59,10 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
             loading && 'opacity-50',
           )}
         >
-          <p className="text-default-700 mb-0.5 text-xs">{netPositive ? 'กำไรสุทธิ' : 'ผลประกอบการ'} · {rangeLabel}</p>
-          {/* ติดลบ = พูดว่า "ขาดทุน" ตรง ๆ แล้วโชว์เลขบวก — "กำไรสุทธิ −฿1,450" บังคับให้ผู้ใช้
-              ตีความเครื่องหมายลบเองก่อนถึงจะเข้าใจ ซึ่งเป็นภาระที่ไม่จำเป็นกับตัวเลขสำคัญที่สุดของหน้า */}
-          <h3 className={cn('text-3xl font-bold', netPositive ? 'text-success-ink' : 'text-danger-ink')}>
-            {netPositive ? '' : 'ขาดทุน '}
-            {formatThb(Math.abs(report.netProfit))}
-          </h3>
+          {/* ป้าย/ข้อความ/สี มาจาก profitDisplay() ตัวเดียวกับที่ชีตและการ์ดหน้าหลักใช้ —
+              ติดลบพูดว่า "ขาดทุน N" ไม่ใช่ "กำไรสุทธิ −N" ที่บังคับให้ผู้ใช้ตีความเครื่องหมายลบเอง */}
+          <p className="text-default-700 mb-0.5 text-xs">{profit.label} · {rangeLabel}</p>
+          <h3 className={cn('text-3xl font-bold', profit.toneClass)}>{profit.text}</h3>
           {changePercent != null && (
             <span
               className={cn(
@@ -150,7 +146,7 @@ function StatCell({
         {label}
       </p>
       <p className={cn('font-semibold', colorClass)}>
-        {formatThb(value)}
+        {formatBaht(value)}
       </p>
     </div>
   )

@@ -20,6 +20,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
+import { formatBaht } from '@/lib/format-money'
 import {
   EXPENSE_CATEGORIES,
   EXPENSE_CATEGORY_LABEL_TH,
@@ -35,8 +36,6 @@ import type { SerializedExpense } from '@/services/expense.service'
 
 const PAGE = 10
 
-const formatThb = (n: number) =>
-  '฿' + new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 
 /** หัวกลุ่ม: "วันนี้ · 2 ส.ค. 2569" — พูดภาษาคนสำหรับ 2 วันล่าสุด ที่เหลือใช้วันที่ตรง ๆ */
 function dayHeading(iso: string): string {
@@ -234,7 +233,7 @@ export default function ExpenseList({
               <div className="bg-default-100 border-default-300 flex items-center justify-between border-y px-5 py-2">
                 <span className="text-default-800 text-xs font-semibold">{dayHeading(g.date)}</span>
                 <span className="text-default-700 text-xs">
-                  รวม <b className="text-default-900">{formatThb(g.total)}</b>
+                  รวม <b className="text-default-900">{formatBaht(g.total)}</b>
                 </span>
               </div>
 
@@ -250,7 +249,7 @@ export default function ExpenseList({
                       type="button"
                       onClick={() => onEdit(expense)}
                       className="flex min-w-0 flex-1 items-center gap-3 text-start sm:pointer-events-none"
-                      aria-label={`แก้ไข ${EXPENSE_CATEGORY_LABEL_TH[category]} ${formatThb(expense.amount)}`}
+                      aria-label={`แก้ไข ${EXPENSE_CATEGORY_LABEL_TH[category]} ${formatBaht(expense.amount)}`}
                     >
                       <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', EXPENSE_CATEGORY_AVATAR)}>
                         <Icon icon={EXPENSE_CATEGORY_ICON[category]} className="text-lg" aria-hidden="true" />
@@ -263,7 +262,7 @@ export default function ExpenseList({
                           <span className="text-default-700 block truncate text-xs">{expense.note}</span>
                         )}
                       </span>
-                      <span className="text-default-900 shrink-0 font-bold">{formatThb(expense.amount)}</span>
+                      <span className="text-default-900 shrink-0 font-bold">{formatBaht(expense.amount)}</span>
                     </button>
 
                     <div className="hidden shrink-0 gap-1.5 sm:flex">

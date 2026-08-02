@@ -16,6 +16,7 @@
 import { useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
+import { formatBaht } from '@/lib/format-money'
 import {
   EXPENSE_CATEGORY_LABEL_TH,
   EXPENSE_CATEGORY_ICON,
@@ -26,8 +27,6 @@ import type { SerializedExpense } from '@/services/expense.service'
 
 const MOBILE_PREVIEW_ROWS = 3
 
-const formatThb = (n: number) =>
-  '฿' + new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 
 type Props = {
   expenses: SerializedExpense[]
@@ -65,7 +64,7 @@ export default function ExpenseBreakdownCard({ expenses, loading = false }: Prop
     <div className="card">
       <div className="card-header">
         <h4 className="card-title">ค่าใช้จ่ายแยกหมวด</h4>
-        <span className="text-default-700 text-xs">รวม {formatThb(total)}</span>
+        <span className="text-default-700 text-xs">รวม {formatBaht(total)}</span>
       </div>
 
       <div className={cn('card-body transition-opacity', loading && 'opacity-50')}>
@@ -107,7 +106,7 @@ export default function ExpenseBreakdownCard({ expenses, loading = false }: Prop
                   {EXPENSE_CATEGORY_LABEL_TH[r.category]}
                 </span>
                 <span className="text-default-700 w-12 text-end">{r.percent.toFixed(1)}%</span>
-                <span className="text-default-900 w-24 text-end font-semibold">{formatThb(r.amount)}</span>
+                <span className="text-default-900 w-24 text-end font-semibold">{formatBaht(r.amount)}</span>
               </li>
             )
           })}
