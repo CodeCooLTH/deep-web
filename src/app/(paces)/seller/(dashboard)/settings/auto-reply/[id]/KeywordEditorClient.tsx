@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import { getChannelDisplay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 // import type ล้วน — ถูกลบทิ้งตอน compile จึงไม่ลาก service (prisma) เข้า bundle ฝั่ง client
 import type { PhraseOverlap } from '@/services/auto-reply-rule.service'
 import { pacesToast } from '@/lib/paces-toast'
@@ -450,9 +451,19 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
     setAddingPhrase(false)
   }
 
+  /**
+   * ชื่อเพจซ้ำกันได้จริง — เพจ Facebook กับบัญชี Instagram ที่ผูกกันมักตั้งชื่อเดียวกันเป๊ะ
+   * (user report 2026-08-02: สร้าง 2 เพจ x 1 โฆษณา แล้วเห็นสองแถวเหมือนกันจนนึกว่าระบบเบิ้ล)
+   * ต่อท้ายด้วยชื่อช่องทางเฉพาะตอนที่ชื่อซ้ำ — ไม่รกในเคสปกติที่ชื่อไม่ซ้ำ
+   */
   const condLabel = (r: Rule) => {
     const parts: string[] = []
-    if (r.shopChannelId) parts.push(`เพจ ${channels.find((c) => c.id === r.shopChannelId)?.name ?? '—'}`)
+    if (r.shopChannelId) {
+      const ch = channels.find((c) => c.id === r.shopChannelId)
+      const dup = ch ? channels.filter((c) => c.name === ch.name).length > 1 : false
+      const via = dup && ch ? ` · ${getChannelDisplay(ch.provider).label}` : ''
+      parts.push(`เพจ ${ch?.name ?? '—'}${via}`)
+    }
     if (r.adId) parts.push(`โฆษณา ${r.adLabel ?? r.adId}`)
     if (r.productId) parts.push(`สินค้า ${products.find((p) => p.id === r.productId)?.name ?? '—'}`)
     return parts
@@ -1222,11 +1233,11 @@ function ExceptionSheet({
                     const on = adIds.includes(a.adId)
                     return (
                       <label key={a.adId}
-                        className={`mb-1.5 flex w-full cursor-pointer items-center gap-2.5 rounded border p-2.5 ${on ? 'border-primary bg-primary/5' : 'border-default-200'}`}>
+                        className={`mb-1.5 flex w-full cursor-pointer items-start gap-3 rounded border p-3 ${on ? 'border-primary bg-primary/5' : 'border-default-200'}`}>
                         <input
                           type={isEdit ? 'radio' : 'checkbox'}
                           name={isEdit ? 'ex-ad' : undefined}
-                          className={isEdit ? 'form-radio rounded-full! flex-none' : 'form-checkbox flex-none'}
+                          className={isEdit ? 'form-radio rounded-full! mt-1 flex-none' : 'form-checkbox mt-1 flex-none'}
                           checked={on}
                           onChange={(e) =>
                             setAdIds((prev) =>
@@ -1246,17 +1257,19 @@ function ExceptionSheet({
                             src={`/api/files/${a.photoFileId}`}
                             alt=""
                             loading="lazy"
-                            className="size-10 shrink-0 rounded-md object-cover"
+                            className="size-16 shrink-0 rounded-md object-cover"
                           />
                         ) : (
-                          <span className="bg-default-100 text-default-400 flex size-10 shrink-0 items-center justify-center rounded-md">
-                            <Icon icon="speakerphone" className="text-lg" aria-hidden="true" />
+                          <span className="bg-default-100 text-default-400 flex size-16 shrink-0 items-center justify-center rounded-md">
+                            <Icon icon="speakerphone" className="text-2xl" aria-hidden="true" />
                           </span>
                         )}
                         <span className="min-w-0 flex-1">
                           <span className="text-default-800 block truncate text-sm font-medium">{a.adTitle ?? a.adId}</span>
+                          {/* ข้อความเต็ม ไม่ truncate (user 2026-08-02) — โฆษณาชุดเดียวกัน
+                              มักต่างกันแค่ท้ายข้อความ ตัดทิ้งแล้วแยกไม่ออกว่าอันไหนคืออันไหน */}
                           {a.adBody && (
-                            <span className="text-default-600 block truncate text-xs">{a.adBody}</span>
+                            <span className="text-default-600 mt-0.5 block text-xs whitespace-pre-wrap">{a.adBody}</span>
                           )}
                           {/* แสดง ID ด้วย (user request) — ชื่อโฆษณาซ้ำกันได้ ID คือตัวที่แยกออกจริง
                               และร้านเอาไปเทียบกับ Ads Manager ได้ */}
