@@ -11,6 +11,7 @@ import { formatDate } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
 import { listExpenses } from '@/services/expense.service'
+import { groupExpensesByCategory } from '@/lib/expense'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getServerSession } from 'next-auth'
@@ -83,14 +84,23 @@ export default async function SalesPage({
   )
   const canSeeFinance = expenseAccess.kind === 'GRANTED'
 
+  /**
+   * ช่วงก่อนหน้า — ยาวเท่ากัน ต่อเนื่องกันทันทีก่อน `from` (นิยามเดียวกับ pnl.service)
+   * getOrdersByShop ดึงออเดอร์ทั้งหมดอยู่แล้วแล้วค่อยกรองในหน่วยความจำ → คิดช่วงก่อนหน้าได้ฟรี
+   * ไม่มี query เพิ่ม ส่วนค่าใช้จ่ายแค่ขยายช่วงของ query เดิมให้คลุมทั้งสองช่วง
+   */
+  const spanMs = to.getTime() - from.getTime()
+  const prevFrom = new Date(from.getTime() - spanMs)
+
   const [allOrders, expensesInRange] = await Promise.all([
     getOrdersByShop(shop.id),
     canSeeFinance
       ? // expenseDate เก็บเป็น UTC-midnight ของวันตามปฏิทิน (ไม่ shift TZ) — boundary จึงต่างจาก
         // order.createdAt ที่เป็น timestamptz. ดู "Dual Boundary Design" ใน src/lib/date-range.ts
+        // ดึงคลุมช่วงก่อนหน้าด้วย (ยาวเท่ากัน ต่อเนื่องกัน) เพื่อคิด %เปลี่ยนแปลง — ยังเป็น query เดียว
         listExpenses(shop.id, {
           range: {
-            gte: new Date(Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())),
+            gte: new Date(Date.UTC(from.getFullYear(), from.getMonth(), from.getDate()) - spanMs),
             lt: new Date(Date.UTC(to.getFullYear(), to.getMonth(), to.getDate() + 1)),
           },
         })
@@ -104,6 +114,22 @@ export default async function SalesPage({
     const t = new Date(o.createdAt).getTime()
     return t >= from.getTime() && t <= to.getTime()
   })
+  const inPrevRange = allOrders.filter((o: OrderItem) => {
+    const t = new Date(o.createdAt).getTime()
+    return t >= prevFrom.getTime() && t < from.getTime()
+  })
+
+  /** รวมยอดของช่วงหนึ่ง — ใช้กับทั้งช่วงปัจจุบันและช่วงก่อนหน้า กันสูตรสองชุดหลุดจากกัน */
+  const sumWindow = (rows: OrderItem[]) => {
+    let revenue = 0, unconfirmed = 0, completed = 0, cancelled = 0
+    for (const o of rows) {
+      if (o.status === 'CONFIRMED') { revenue += Number(o.totalAmount ?? 0); completed++ }
+      else if (o.status === 'CANCELLED') cancelled++
+      else { unconfirmed += Number(o.totalAmount ?? 0) }
+    }
+    return { revenue, unconfirmed, completed, cancelled, orders: rows.length }
+  }
+  const prevWindow = sumWindow(inPrevRange)
 
   // Build bucket maps
   const ordersPerDay: Record<string, number> = {}
@@ -135,7 +161,12 @@ export default async function SalesPage({
   }
 
   const expensePerDay: Record<string, number> = {}
+  let prevExpenseTotal = 0
+  const currentExpenses: typeof expensesInRange = []
   for (const e of expensesInRange) {
+    const t = new Date(e.expenseDate).getTime()
+    if (t < from.getTime()) { prevExpenseTotal += Number(e.amount); continue }  // ช่วงก่อนหน้า
+    currentExpenses.push(e)
     const day = new Date(e.expenseDate).toISOString().slice(0, 10)
     expensePerDay[day] = (expensePerDay[day] ?? 0) + Number(e.amount)
   }
@@ -164,15 +195,30 @@ export default async function SalesPage({
   const totalUnconfirmed = daily.reduce((s, d) => s + d.unconfirmedRevenue, 0)
   const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0
 
+  const cancelledCount = inRange.filter((o: OrderItem) => o.status === 'CANCELLED').length
+  const unconfirmedCount = totalOrders - totalCompleted - cancelledCount
+  const prevAvgOrder = prevWindow.completed > 0 ? prevWindow.revenue / prevWindow.completed : 0
+
   const summary: SummaryData = {
     totalOrders,
     totalCompleted,
     totalRevenue,
     totalUnconfirmed,
     avgOrderValue,
+    unconfirmedCount,
+    cancelledCount,
+    days: days.length,
+    prevRevenue: prevWindow.orders === 0 ? null : prevWindow.revenue,
+    prevUnconfirmed: prevWindow.orders === 0 ? null : prevWindow.unconfirmed,
+    prevOrders: prevWindow.orders === 0 ? null : prevWindow.orders,
+    prevAvgOrder: prevWindow.completed === 0 ? null : prevAvgOrder,
     ...(canSeeFinance && {
       totalExpense: daily.reduce((s, d) => s + (d.expense ?? 0), 0),
       netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
+      prevExpense: prevExpenseTotal,
+      topExpenseCategory: groupExpensesByCategory(
+        currentExpenses.map((e) => ({ category: e.category, amount: Number(e.amount) })),
+      )[0]?.category,
     }),
   }
 

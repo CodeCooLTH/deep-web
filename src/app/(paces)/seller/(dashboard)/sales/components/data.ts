@@ -28,7 +28,20 @@ export type SummaryData = {
   /** รวมยอดที่รอลูกค้ายืนยันทั้งช่วง */
   totalUnconfirmed: number
   avgOrderValue: number
+  /* นับออเดอร์แยกสถานะ + จำนวนวันในช่วง — ใช้เป็นแถวล่าง (metric) ของการ์ดสถิติตามโครงธีม */
+  unconfirmedCount: number
+  cancelledCount: number
+  days: number
+  /* ค่าช่วงก่อนหน้า (ยาวเท่ากัน ต่อเนื่องกัน) — ใช้ทำ badge %เปลี่ยนแปลง
+     null = ช่วงก่อนหน้าไม่มีออเดอร์เลย → ไม่มีฐานให้เทียบ UI ต้องซ่อน badge */
+  prevRevenue: number | null
+  prevUnconfirmed: number | null
+  prevOrders: number | null
+  prevAvgOrder: number | null
   /** undefined = ไม่มีสิทธิ์ดูข้อมูลการเงิน (ดู DailyRow.expense) */
   totalExpense?: number
   netProfit?: number
+  prevExpense?: number
+  /** หมวดที่จ่ายมากสุดในช่วง — undefined = ไม่มีสิทธิ์ดู หรือไม่มีรายการ */
+  topExpenseCategory?: string
 }

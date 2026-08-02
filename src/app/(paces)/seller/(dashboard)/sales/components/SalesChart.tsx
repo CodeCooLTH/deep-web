@@ -17,9 +17,10 @@
 'use client'
 
 import ApexChart from '@/components/wrappers/ApexChart'
-import Icon from '@/components/wrappers/Icon'
-import { getColor, cn } from '@/utils/helpers'
-import { formatBaht, profitDisplay, NET_PROFIT_FORMULA } from '@/lib/format-money'
+import { getColor } from '@/utils/helpers'
+import { formatBaht, profitDisplay, NET_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
+import { EXPENSE_CATEGORY_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
+import PacesStatCard from '../../_shared/PacesStatCard'
 import { useCallback } from 'react'
 import type { DailyRow, SummaryData } from './data'
 
@@ -78,61 +79,87 @@ const SalesChart = ({ daily, summary }: Props) => {
 
   return (
     <div>
-      {/* การ์ดสรุป — โครงเดียวกับหน้าสินค้า */}
-      <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <SummaryCard
+      {/* การ์ดสรุป — โครง 3 แถวของธีม ผ่าน PacesStatCard ที่ใช้ร่วมกับ /expenses
+          เดิมเป็น SummaryCard ที่เขียนซ้ำในไฟล์นี้เองและมีแค่ 2 แถว (ไม่มี badge ไม่มีแถวล่าง) */}
+      <div className={`mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 ${showFinance ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-4'}`}>
+        <PacesStatCard
           icon="cash"
           iconClass="bg-success/15 text-success-ink"
           title="ยอดขายที่ยืนยันแล้ว"
           text={formatBaht(summary.totalRevenue)}
           valueClass="text-success-ink"
+          changePercent={pctChangeVsPrev(summary.totalRevenue, summary.prevRevenue)}
+          bulletClass="text-success"
+          metric="เฉลี่ยต่อวัน"
+          metricValue={summary.days > 0 ? formatBaht(summary.totalRevenue / summary.days) : '—'}
         />
-        <SummaryCard
+        <PacesStatCard
           icon="clock"
           iconClass="bg-warning/15 text-warning-ink"
           title="รอลูกค้ายืนยัน"
           text={formatBaht(summary.totalUnconfirmed)}
           valueClass="text-warning-ink"
+          changePercent={pctChangeVsPrev(summary.totalUnconfirmed, summary.prevUnconfirmed)}
+          bulletClass="text-warning"
+          metric="รอยืนยัน"
+          metricValue={`${summary.unconfirmedCount.toLocaleString('th-TH')} ออเดอร์`}
         />
-        <SummaryCard
+        <PacesStatCard
           icon="receipt-2"
           iconClass="bg-primary/15 text-primary"
           title="ออเดอร์ทั้งหมด"
           text={summary.totalOrders.toLocaleString('th-TH')}
           valueClass="text-default-800"
+          changePercent={pctChangeVsPrev(summary.totalOrders, summary.prevOrders)}
+          bulletClass="text-primary"
+          metric="ยกเลิก"
+          metricValue={`${summary.cancelledCount.toLocaleString('th-TH')} ออเดอร์`}
         />
-        <SummaryCard
-          icon="circle-check"
-          iconClass="bg-success/15 text-success-ink"
-          title="สำเร็จ"
-          text={summary.totalCompleted.toLocaleString('th-TH')}
-          valueClass="text-success-ink"
-        />
-        <SummaryCard
+        <PacesStatCard
           icon="calculator"
           iconClass="bg-info/15 text-info-ink"
           title="เฉลี่ย/ออเดอร์"
           text={formatBaht(summary.avgOrderValue)}
           valueClass="text-default-800"
+          changePercent={pctChangeVsPrev(summary.avgOrderValue, summary.prevAvgOrder)}
+          bulletClass="text-info"
+          metric="จากออเดอร์สำเร็จ"
+          metricValue={`${summary.totalCompleted.toLocaleString('th-TH')} ออเดอร์`}
         />
         {showFinance && (
           <>
-            <SummaryCard
+            <PacesStatCard
               icon="report-money"
               iconClass="bg-danger/15 text-danger-ink"
               title="ค่าใช้จ่าย"
               text={formatBaht(summary.totalExpense ?? 0)}
               valueClass="text-danger-ink"
+              // ค่าใช้จ่ายเพิ่มขึ้นไม่ใช่ข่าวดี — invert ทิศทางสี
+              changePercent={pctChangeVsPrev(summary.totalExpense ?? 0, summary.prevExpense ?? null, true)}
+              changeHint="เทียบช่วงก่อนหน้า — ค่าใช้จ่ายลดลงคือดีขึ้น"
+              bulletClass="text-danger"
+              metric="หมวดที่จ่ายมากสุด"
+              metricValue={
+                summary.topExpenseCategory
+                  ? EXPENSE_CATEGORY_LABEL_TH[summary.topExpenseCategory as ExpenseCategory]
+                  : 'ยังไม่มีรายการ'
+              }
             />
-            {/* สี chip/ตัวเลขตามทิศทางของค่า — เดิมการ์ดนี้พื้นเขียวเสมอ ทำให้ "ขาดทุน" ถูกทาเขียว
-                ซึ่งขัด Verified-Means-Green ตรง ๆ */}
-            <SummaryCard
+            <PacesStatCard
               icon={profit.positive ? 'trending-up' : 'trending-down'}
               iconClass={profit.positive ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink'}
               title={profit.label}
+              note={NET_PROFIT_FORMULA}
               text={profit.text}
               valueClass={profit.toneClass}
-              note={NET_PROFIT_FORMULA}
+              changePercent={null}
+              bulletClass={profit.positive ? 'text-success' : 'text-danger'}
+              metric="อัตรากำไรสุทธิ"
+              metricValue={
+                summary.totalRevenue > 0
+                  ? `${(((summary.netProfit ?? 0) / summary.totalRevenue) * 100).toFixed(1)}%`
+                  : 'ยังไม่มียอดขาย'
+              }
             />
           </>
         )}
@@ -141,46 +168,6 @@ const SalesChart = ({ daily, summary }: Props) => {
       <div className="card">
         <div className="card-body">
           <ApexChart getOptions={getOptions} series={series} type="bar" height={320} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SummaryCard({
-  icon,
-  iconClass,
-  title,
-  text,
-  valueClass,
-  note,
-}: {
-  icon: string
-  iconClass: string
-  title: string
-  text: string
-  valueClass: string
-  note?: string
-}) {
-  return (
-    <div className="card">
-      <div className="card-body">
-        <div className="flex items-center gap-1.5">
-          <h5 className="card-title text-sm" title={title}>
-            {title}
-          </h5>
-          {/* วิธีคำนวณอ่านตอน hover — ไม่กินพื้นที่ถาวรบนการ์ด */}
-          {note && (
-            <span className="text-default-700" title={note} aria-label={note}>
-              <Icon icon="info-circle" className="text-base" />
-            </span>
-          )}
-        </div>
-        <div className="mt-4 flex items-center gap-2.5">
-          <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', iconClass)}>
-            <Icon icon={icon} className="text-2xl" />
-          </div>
-          <h3 className={cn('text-xl font-semibold', valueClass)}>{text}</h3>
         </div>
       </div>
     </div>
