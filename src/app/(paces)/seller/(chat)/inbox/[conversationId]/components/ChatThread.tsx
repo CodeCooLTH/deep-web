@@ -83,6 +83,7 @@ import { generateInitials } from '@/utils/helpers'
 import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
+import { describeSendFailure } from '@/lib/chat-send-failure'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -741,6 +742,7 @@ export default function ChatThread({
     replyingTo,
     setReplyingTo,
     retryMessage,
+    resendMessage,
     externalReadAt: externalReadAtLive,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
@@ -1379,12 +1381,49 @@ export default function ChatThread({
                       )}
                       {/* feature 00018 T4 — badge "ส่งไม่สำเร็จ" ใต้ bubble (deliveryStatus='FAILED';
                           null สำหรับข้อความแชทในแอปเดิมทั้งหมด — เงื่อนไขนี้จึงไม่ trigger กับ DEEP) */}
-                      {mExt.deliveryStatus === 'FAILED' && (
-                        <div className="bg-danger/15 text-danger mt-1.5 flex items-start gap-1 rounded px-2 py-1 text-2xs">
-                          <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" />
-                          <span>ส่งไม่สำเร็จ — {mExt.failureReason ?? 'ไม่ทราบสาเหตุ'}</span>
-                        </div>
-                      )}
+                      {mExt.deliveryStatus === 'FAILED' &&
+                        (() => {
+                          // Meta ตอบ error เป็นภาษาอังกฤษเสมอแม้เพจตั้งภาษาไทย — เดิมโชว์ดิบ
+                          // ("(#551) This person isn't available right now.") ร้านอ่านไม่ออกว่า
+                          // ต้องทำอะไรต่อ (user report 2026-08-02) แปลตอนแสดงผล ส่วน DB ยังเก็บดิบไว้
+                          const fail = describeSendFailure(mExt.failureReason)
+                          // ส่งซ้ำได้เฉพาะชนิดที่ประกอบ payload กลับได้ครบจากแถวที่เก็บไว้ (user 2026-08-02):
+                          // TEXT ใช้ body, IMAGE ใช้ imageUrl (=fileId ที่ยังอยู่ใน storage). ORDER เก็บแต่
+                          // orderRefToken ส่วนข้อความลิงก์ที่ยิงจริงประกอบขึ้นตอนส่งและไม่ได้เก็บไว้ →
+                          // ส่งซ้ำจากตรงนี้ไม่ได้ ต้องส่งการ์ดใหม่จากออเดอร์
+                          const canResend =
+                            (m.type === 'TEXT' && !!m.body?.trim()) || (m.type === 'IMAGE' && !!m.imageUrl)
+                          return (
+                            <div className="bg-danger/15 text-danger mt-1.5 flex items-start gap-1 rounded px-2 py-1 text-2xs">
+                              <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" />
+                              <span>
+                                {fail.message}
+                                {/* คงเลข error ไว้ให้ร้านแจ้งซัพพอร์ตอ้างอิงได้ (เฉพาะกรณีที่แปลแล้ว —
+                                    กรณีไม่รู้จักเลขอยู่ในข้อความดิบอยู่แล้ว จะซ้ำ) */}
+                                {fail.known && fail.metaCode !== null && (
+                                  <span className="opacity-70"> (Meta #{fail.metaCode})</span>
+                                )}
+                                {canResend && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      resendMessage({
+                                        type: m.type === 'IMAGE' ? 'IMAGE' : 'TEXT',
+                                        body: m.body,
+                                        ...(m.type === 'IMAGE' ? { imageUrl: m.imageUrl! } : {}),
+                                      })
+                                    }
+                                    // -my-1 กันไม่ให้ padding ที่ใส่เพื่อขยายพื้นที่กดดันแถบสูงขึ้น
+                                    className="ms-1 -my-1 inline-flex items-center gap-0.5 px-1 py-1 font-medium hover:underline"
+                                  >
+                                    <Icon icon="refresh" />
+                                    ลองใหม่
+                                  </button>
+                                )}
+                              </span>
+                            </div>
+                          )
+                        })()}
                       {/* meta row (user request 2026-07-23): เวลาเป็นกลุ่ม (ท้าย burst, ไม่ทุกข้อความ) +
                           avatar เพจ/ร้าน ย้ายมาอยู่ใต้ข้อความ ขนาดเล็ก (size-5) + สถานะส่ง/อ่าน.
                           กำลังส่ง = ไม่มีเวลา; ข้อความล่าสุดซ่อนเวลาหลังส่งเกิน 1 นาที */}

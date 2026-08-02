@@ -12,6 +12,7 @@ import { getProductsByIds } from "@/services/product.service";
 import { pushNewChatMessage } from "@/services/seller-push.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
 import { CHAT_RATE_LIMIT_MAX, CHAT_RATE_LIMIT_WINDOW_MS } from "@/lib/chat-constants";
+import { describeSendFailure } from "@/lib/chat-send-failure";
 
 // นามสกุลไฟล์ที่ยอมรับสำหรับ chat IMAGE — subset แคบกว่า lib/storage ALLOWED_TYPES กลาง
 // (ตัด application/pdf ออก ดู SRS TFR-CHAT-05); เทียบกับ CHAT_IMAGE_ALLOWED_TYPES ใน chat-constants.ts
@@ -53,10 +54,11 @@ function mapChatServiceError(e: unknown, context: string) {
     );
   }
   if (e instanceof Error && e.message.startsWith("SEND_FAILED")) {
-    return NextResponse.json(
-      { error: "ส่งข้อความไปยังช่องทางภายนอกไม่สำเร็จ กรุณาลองใหม่" },
-      { status: 502 },
-    );
+    // service โยนเป็น "SEND_FAILED: <ข้อความดิบของ Meta>" — แปลเป็นไทยก่อนส่งให้ร้าน
+    // (user report 2026-08-02) เดิมตอบ "กรุณาลองใหม่" ทุกกรณี ซึ่งเป็นคำแนะนำที่ผิดกับ #551
+    // (ลูกค้าปิดรับข้อความ — กดกี่ครั้งก็ไม่ผ่าน) ร้านจะกดซ้ำเปล่า ๆ แล้วโทษระบบ
+    const { message } = describeSendFailure(e.message.replace(/^SEND_FAILED:\s*/, ""));
+    return NextResponse.json({ error: message }, { status: 502 });
   }
   console.error(`[${context}]`, e instanceof Error ? e.message : e);
   return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
