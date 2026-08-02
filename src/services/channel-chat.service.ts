@@ -825,10 +825,11 @@ export async function ingestReadEvent(params: {
 /**
  * ingestAdReferral — บันทึก "ที่มา" ของเธรด: ลูกค้าทักมาจากโฆษณา/ลิงก์ m.me อันไหน (E5 2026-07-26)
  *
- * เขียน 2 ที่:
+ * เขียน 3 ที่:
  *  1. ตารางประวัติ ConversationAdReferral — แถวใหม่ทุกครั้ง ไม่ทับของเดิม เพราะ Meta ไม่มี Graph API
  *     ให้อ่าน referral ย้อนหลัง ถ้าทับทิ้งคือหายถาวร (ข้อมูลดิบของรายงาน "ads ตัวไหนพาลูกค้ามา")
  *  2. Conversation.referral* — ค่า "ล่าสุด" ที่แบนเนอร์บนหัวเธรดอ่าน (ไม่ต้อง join ทุกครั้งที่เปิดเธรด)
+ *  3. Conversation.lastInboundAt — หน้าต่าง 24 ชม. (ดู customerActionAt)
  *
  * ต้องเรียก **หลัง** ingest ข้อความเสร็จเสมอ — เธรดต้องมีอยู่แล้ว และ mirror รูป (network call)
  * ห้ามอยู่ในทรานแซกชันเดียวกับการเขียนข้อความ
@@ -841,8 +842,23 @@ export async function ingestAdReferral(params: {
   pageExternalId: string
   contactExternalId: string
   referral: Referral
+  /**
+   * เวลาที่ **ลูกค้า** ทำ action ที่พา referral นี้มา (ms) — ใส่ = เปิดหน้าต่าง 24 ชม. ใหม่
+   * ไม่ใส่ = ไม่แตะหน้าต่างเลย (ใช้เมื่อ referral ไม่ได้มาจาก action ของลูกค้า เช่นติดมากับ echo
+   * ของข้อความฝั่งเพจ) — เจตนาคือให้ caller ประกาศออกมาตรง ๆ ไม่ใช่ให้ service เดาจาก timestamp
+   * ที่มีค่าเสมอ ไม่งั้นเผลอเปิดหน้าต่างจาก action ของเพจเอง
+   *
+   * ทำไมต้องมี (user report 2026-08-02): เอกสาร Messaging Policy ของ Meta ระบุ action ที่เปิด
+   * หน้าต่าง 24 ชม. ไว้หลายอย่าง ไม่ใช่แค่ "ส่งข้อความ" — คลิกโฆษณา Click-to-Messenger, กดปุ่ม
+   * CTA, และคลิกลิงก์ m.me ที่มี ref ล้วนเปิดหน้าต่างทั้งหมด ซึ่งทั้งสามอย่างมาถึงเราเป็น referral
+   * event. เดิมเราขยับ lastInboundAt เฉพาะตอนมีข้อความ/reaction → ลูกค้าเก่าที่กดโฆษณาตัวใหม่
+   * แล้วยังไม่พิมพ์อะไร ระบบขึ้นว่า "หมดเวลา" และบล็อกไม่ให้ร้านตอบ ทั้งที่ Meta อนุญาตแล้ว
+   */
+  customerActionAt?: number
 }): Promise<void> {
   const { referral } = params
+  // null = caller บอกว่านี่ไม่ใช่ action ของลูกค้า → ไม่แตะหน้าต่าง 24 ชม.
+  const customerActionAt = params.customerActionAt ? new Date(params.customerActionAt) : null
   const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
   if (!channel) return
   const contact = await prisma.externalContact.findUnique({
@@ -903,6 +919,23 @@ export async function ingestAdReferral(params: {
         referralPhotoFileId: photoFileId,
       },
     }),
+    // หน้าต่าง 24 ชม. (ดู customerActionAt) — แยกเป็น updateMany ต่างหาก ไม่รวมกับ update ข้างบน
+    // เพราะเงื่อนไขต่างกัน: ข้อมูล referral เขียนทับได้เสมอ (เป็นค่า "ล่าสุด") ส่วนเวลาต้องเขียน
+    // เฉพาะเมื่อใหม่กว่าของเดิม กัน event ที่มาสลับลำดับดันหน้าต่างถอยหลัง (ตรรกะเดียวกับ react)
+    //
+    // ไม่ขยับ lastMessageAt ด้วย: ไม่มีข้อความใหม่จริง การดันเธรดขึ้นหัวรายการจากการคลิกโฆษณา
+    // เป็นการเปลี่ยนความหมายของลำดับกล่องข้อความ ซึ่งเป็นคนละเรื่องกับสิทธิ์ในการส่ง
+    ...(customerActionAt
+      ? [
+          prisma.conversation.updateMany({
+            where: {
+              id: conversation.id,
+              OR: [{ lastInboundAt: null }, { lastInboundAt: { lt: customerActionAt } }],
+            },
+            data: { lastInboundAt: customerActionAt },
+          }),
+        ]
+      : []),
   ])
 }
 
