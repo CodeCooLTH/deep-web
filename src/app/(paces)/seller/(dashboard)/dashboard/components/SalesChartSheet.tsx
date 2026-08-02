@@ -16,7 +16,7 @@ import Icon from '@/components/wrappers/Icon'
 import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
 import { formatMonthYearTH } from '@/lib/format-date'
-import { formatBaht, profitDisplay } from '@/lib/format-money'
+import { formatBaht, profitDisplay, NET_PROFIT_FORMULA } from '@/lib/format-money'
 import type { ApexOptions } from 'apexcharts'
 import type { SalesSeries } from '../_constants/command-center'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
@@ -95,7 +95,7 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
           `<div>${dot(getColor('chart-primary'))}ยืนยันแล้ว ${formatBaht(conf)}</div>` +
           `<div>${dot(getColor('warning'))}รอยืนยัน ${formatBaht(unconf)}</div>` +
           (exp != null ? `<div>${dot(getColor('chart-beta'))}ค่าใช้จ่าย ${formatBaht(exp)}</div>` : '') +
-          `<div style="font-weight:600;margin-top:4px">ขายได้รวม ${formatBaht(conf + unconf)}</div>` +
+          `<div style="font-weight:600;margin-top:4px">ยอดขายทั้งหมด ${formatBaht(conf + unconf)}</div>` +
           `</div>`
         )
       },
@@ -306,7 +306,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             </p>
             {(profit || chg != null) && (
               <p className="mt-0.5 flex items-center justify-center gap-2 text-sm text-default-700">
-                {profit && <span>ขายได้ {formatBaht(series.total)}</span>}
+                {profit && <span>ยอดขายทั้งหมด {formatBaht(series.total)}</span>}
                 {chg != null && (
                   <span
                     className={`inline-flex items-center gap-0.5 font-semibold ${
@@ -327,6 +327,10 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
               เดิมแยกเป็นสองก้อนที่โชว์คนละสามตัว (legend = ยังไม่ยืนยัน/ยืนยันแล้ว/ค่าใช้จ่าย,
               แถบ = ยืนยันแล้ว/ค่าใช้จ่าย/กำไรสุทธิ) ผู้ใช้จึงจับคู่สีกับตัวเลขไม่ได้เลย
               สีตรง token กราฟเป๊ะ: bg-primary=chart-primary, bg-warning=warning, bg-danger=chart-beta */}
+          {/* ชีตเป็น surface เดียวที่ hero (กำไร คิดจากยอดยืนยันแล้ว) กับบรรทัดรอง (ยอดขายทั้งหมด)
+              ใช้ฐานคนละตัว — ถ้าไม่เขียนนิยามไว้ ผู้ใช้ลบเลขสองบรรทัดนี้เองแล้วจะได้ไม่ตรง */}
+          {hasFinance && <p className="mb-3 text-center text-xs text-default-700">{NET_PROFIT_FORMULA}</p>}
+
           <div className="mb-4 flex border-y border-dashed border-default-300">
             <LegendCell color="bg-primary" label="ยืนยันแล้ว" value={confirmedTotal} />
             <LegendCell color="bg-warning" label="รอยืนยัน" value={unconfirmedTotal} />
@@ -360,7 +364,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             <div className="mt-5">
               <div className="flex items-center gap-3 border-b border-default-200 py-2 text-xs text-default-700">
                 <span className="flex-1">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
-                <span className="w-24 text-end">ขายได้</span>
+                <span className="w-24 text-end">ยอดขาย</span>
                 {hasFinance && <span className="w-24 text-end">ค่าใช้จ่าย</span>}
               </div>
               <div className="divide-y divide-default-100">

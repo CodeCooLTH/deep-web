@@ -72,12 +72,15 @@ export default function SalesChartCard({ initialSeries }: Props) {
           {/* ตัวเลขพระเอก = กำไรสุทธิ (ร้านที่มีสิทธิ์ดู) ส่วนยอดขายลงมาเป็นบรรทัดรอง
               เดิม hero เป็นยอดขายซึ่งไม่หักค่าใช้จ่าย ผู้ใช้จึงไม่รู้กำไรจริง (feedback prod 2026-08-02)
               %เทียบเดือนก่อนต้องอยู่ข้าง "ขายได้" เพราะ prevTotal คือยอดขายเดือนก่อน ไม่ใช่กำไรเดือนก่อน */}
+          {/* ต้อง render label เสมอ — `profit.text` ไม่มีคำนำหน้าแล้ว ทิศทางสื่อผ่าน label + สี
+              ถ้าไม่มี label ตัวเลขจะลอยจนอ่านไม่ออกว่าเป็นกำไรหรือยอดขาย */}
+          <p className="text-default-700 text-xs">{profit ? profit.label : 'ยอดขาย'}</p>
           <p className={`text-xl font-bold ${profit ? profit.toneClass : 'text-dark'}`}>
             {profit ? profit.text : formatBaht(total)}
           </p>
           {(profit || chg != null) && (
             <p className="mb-3 flex items-center gap-2 text-sm text-default-700">
-              {profit && <span>ขายได้ {formatBaht(total)}</span>}
+              {profit && <span>ยอดขายทั้งหมด {formatBaht(total)}</span>}
               {chg != null && (
                 <span
                   className={`inline-flex items-center gap-0.5 font-semibold ${

@@ -10,7 +10,7 @@
 
 import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
-import { formatBaht, profitDisplay } from '@/lib/format-money'
+import { formatBaht, profitDisplay, NET_PROFIT_FORMULA } from '@/lib/format-money'
 import { useCallback } from 'react'
 import type { DailyRow, SummaryData } from './data'
 
@@ -131,7 +131,7 @@ const SalesChart = ({ daily, summary }: Props) => {
         {/* ไม่ใช้ CountUp — DESIGN.md ห้าม choreography ตอนโหลดฝั่ง product และระหว่างไล่เลข 1 วินาที
             จอแสดงจำนวนเงินที่ไม่เคยมีอยู่จริงบนหน้าที่เดิมพันกับความแม่นของตัวเลข */}
         <div className="rounded-lg bg-light/50 p-4 text-center">
-          <p className="text-xs text-default-700 mb-1">ยอดขายรวม</p>
+          <p className="text-xs text-default-700 mb-1">ยอดขายที่ยืนยันแล้ว</p>
           <p className="text-lg font-bold text-dark">{formatBaht(summary.totalRevenue)}</p>
         </div>
         <div className="rounded-lg bg-light/50 p-4 text-center">
@@ -165,7 +165,7 @@ const SalesChart = ({ daily, summary }: Props) => {
         // ยอดขายนับเฉพาะออเดอร์ที่ยืนยันแล้ว ส่วนค่าใช้จ่ายนับทุกรายการที่บันทึกในวันนั้น —
         // เขียนกำกับไว้ ไม่งั้นผู้ใช้บวกลบเองแล้วได้ไม่ตรงกับตัวเลขที่เราแสดง
         <p className="text-xs text-default-700 mb-4 text-center">
-          กำไรสุทธิ = ยอดขายที่ยืนยันแล้ว − ต้นทุนสินค้า − ค่าใช้จ่ายที่บันทึกไว้
+          {NET_PROFIT_FORMULA}
         </p>
       )}
 

@@ -19,7 +19,7 @@
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
-import { formatBaht, profitDisplay } from '@/lib/format-money'
+import { formatBaht, profitDisplay, NET_PROFIT_FORMULA } from '@/lib/format-money'
 import type { PnlReport } from '@/services/pnl.service'
 
 /**
@@ -79,11 +79,11 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
 
         <div className={cn('transition-opacity lg:col-span-2', loading && 'opacity-50')}>
           <div className="grid grid-cols-2 md:grid-cols-4">
-            <StatCell icon="cash" label="รายได้" value={report.revenue} colorClass="text-success-ink" />
+            <StatCell icon="cash" label="ยอดขายที่ยืนยันแล้ว" value={report.revenue} colorClass="text-success-ink" />
             <StatCell icon="package" label="ต้นทุนสินค้า" value={report.cogs} colorClass="text-default-800" />
             <StatCell
               icon="calculator"
-              label="กำไรขั้นต้น"
+              label="กำไรก่อนหักค่าใช้จ่าย"
               value={report.grossProfit}
               colorClass={report.grossProfit >= 0 ? 'text-success-ink' : 'text-danger-ink'}
             />
@@ -96,7 +96,9 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
           ต้องเขียนไว้ ไม่งั้นร้านที่ขายวันนี้ 10 ออเดอร์แต่ลูกค้ายืนยัน 2 จะเห็นรายได้ต่ำกว่าที่รู้สึก
           แล้วสรุปว่าตัวเลขในแอปเชื่อไม่ได้ (Design Spec §0.2 — surface อื่นมีบรรทัดนี้แล้ว) */}
       <p className="text-default-700 border-default-300 border-t border-dashed px-5 py-2.5 text-xs">
-        คิดจากออเดอร์ที่ลูกค้ายืนยันรับของแล้วเท่านั้น · กำไรสุทธิ = รายได้ − ต้นทุนสินค้า − ค่าใช้จ่าย
+        คิดจากออเดอร์ที่ลูกค้ายืนยันรับของแล้วเท่านั้น
+        <br />
+        {NET_PROFIT_FORMULA}
       </p>
 
       {report.hasMissingCost && (
@@ -108,7 +110,7 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
           >
             <Icon icon="alert-triangle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
             <span>
-              กำไรอาจไม่สมบูรณ์ — มีสินค้าที่ยังไม่ตั้งต้นทุนในช่วงนี้{' '}
+              กำไรที่แสดงสูงกว่าความจริง — มีสินค้าที่ยังไม่ได้ใส่ต้นทุนในช่วงนี้{' '}
               <Link href="/products" className="font-semibold underline">
                 ตั้งต้นทุนตอนนี้ →
               </Link>

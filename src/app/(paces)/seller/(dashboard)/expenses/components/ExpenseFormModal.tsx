@@ -41,7 +41,7 @@ const schema = Yup.object({
   amount: Yup.number()
     .typeError('กรุณากรอกจำนวนเงิน')
     .required('กรุณากรอกจำนวนเงิน')
-    .min(0.01, 'จำนวนเงินต้องมากกว่า 0'),
+    .min(0.01, 'ใส่จำนวนเงินมากกว่า 0 บาท'),
   expenseDate: Yup.string().required('กรุณาเลือกวันที่'),
   // .default('') กัน TS mismatch ระหว่าง Yup.InferType (optional key) กับ resolver ของ react-hook-form
   note: Yup.string().max(500, 'หมายเหตุยาวเกินไป (ไม่เกิน 500 ตัวอักษร)').default(''),
