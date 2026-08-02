@@ -49,14 +49,14 @@ const SalesChart = ({ daily, summary }: Props) => {
       dataLabels: { enabled: false },
       // น้ำเงิน = ยอดขาย, แดง = ค่าใช้จ่าย — token เท่านั้น (Hard Rule 10 ห้าม hardcode hex)
       colors: showFinance ? [getColor('chart-primary'), getColor('chart-beta')] : [getColor('chart-primary')],
-      legend: { show: true, position: 'top' as const, horizontalAlign: 'right' as const, fontSize: '12px' },
+      legend: { show: true, position: 'top' as const, horizontalAlign: 'right' as const, fontSize: '13px' },
       xaxis: {
         categories,
         axisBorder: { show: false },
         axisTicks: { show: false },
         // 30 วันชนกันแน่บนจอแคบ — ให้ Apex thin label เอง + ซ่อนตัวที่ทับ
         tickAmount: 10,
-        labels: { hideOverlappingLabels: true, rotate: 0, style: { fontSize: '12px' } },
+        labels: { hideOverlappingLabels: true, rotate: 0, style: { fontSize: '13px' } },
       },
       yaxis: { labels: { formatter: (val: number) => formatBaht(val) } },
       grid: { strokeDashArray: 4 },
