@@ -109,6 +109,9 @@ export default async function SalesPage({
   const ordersPerDay: Record<string, number> = {}
   const completedPerDay: Record<string, number> = {}
   const revenuePerDay: Record<string, number> = {}
+  // ยอดที่ลูกค้ายังไม่กดยืนยัน (ไม่นับที่ยกเลิก) — ชีตยอดขายบนมือถือแยกสองยอดนี้มาตั้งแต่แรก
+  // แต่หน้าเว็บเก็บแค่ยอดที่ยืนยันแล้ว ทำให้สอง surface เล่าเรื่องคนละแบบจากข้อมูลชุดเดียวกัน
+  const unconfirmedPerDay: Record<string, number> = {}
 
   // COGS ต่อวัน — ต้องคิดด้วยถึงจะได้ "กำไรสุทธิ" สูตรเดียวกับการ์ด P&L ใน /expenses
   // (revenue − COGS − expense) ถ้าใช้แค่ revenue − expense ตัวเลขสองหน้าจะไม่ตรงกัน
@@ -125,6 +128,9 @@ export default async function SalesPage({
         if (item.cost == null) continue
         cogsPerDay[day] = (cogsPerDay[day] ?? 0) + Number(item.cost) * item.qty
       }
+    } else if (o.status !== 'CANCELLED') {
+      // PENDING/SHIPPED = ขายได้แล้วแต่ยังไม่ถูกนับเป็นรายได้ (ตรงนิยามเดียวกับ getSalesSeries)
+      unconfirmedPerDay[day] = (unconfirmedPerDay[day] ?? 0) + Number(o.totalAmount ?? 0)
     }
   }
 
@@ -142,10 +148,11 @@ export default async function SalesPage({
     const revenue = revenuePerDay[date] ?? 0
     const avgOrder = completed > 0 ? revenue / completed : 0
     const label = formatDate(date)
-    if (!canSeeFinance) return { date, label, orders, completed, revenue, avgOrder }
+    const unconfirmedRevenue = unconfirmedPerDay[date] ?? 0
+    if (!canSeeFinance) return { date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder }
     const expense = expensePerDay[date] ?? 0
     return {
-      date, label, orders, completed, revenue, avgOrder,
+      date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder,
       expense,
       netProfit: revenue - (cogsPerDay[date] ?? 0) - expense,
     }
@@ -154,12 +161,14 @@ export default async function SalesPage({
   const totalOrders = daily.reduce((s, d) => s + d.orders, 0)
   const totalCompleted = daily.reduce((s, d) => s + d.completed, 0)
   const totalRevenue = daily.reduce((s, d) => s + d.revenue, 0)
+  const totalUnconfirmed = daily.reduce((s, d) => s + d.unconfirmedRevenue, 0)
   const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0
 
   const summary: SummaryData = {
     totalOrders,
     totalCompleted,
     totalRevenue,
+    totalUnconfirmed,
     avgOrderValue,
     ...(canSeeFinance && {
       totalExpense: daily.reduce((s, d) => s + (d.expense ?? 0), 0),

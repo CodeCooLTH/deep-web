@@ -31,13 +31,20 @@ type Props = {
 const SalesChart = ({ daily, summary }: Props) => {
   const categories = daily.map((d) => d.label)
   const revenueSeries = daily.map((d) => d.revenue)
+  const unconfirmedSeries = daily.map((d) => d.unconfirmedRevenue)
   // ค่าใช้จ่าย (feature 00016) — undefined ทั้งชุด = ไม่มีสิทธิ์ดูข้อมูลการเงิน ซ่อนทั้ง series และการ์ด
   const showFinance = summary.totalExpense != null
   const expenseSeries = daily.map((d) => d.expense ?? 0)
   const profit = profitDisplay(summary.netProfit ?? 0)
 
+  /**
+   * ยืนยันแล้ว + รอยืนยัน stack กันใน group 'sales' (เงินก้อนเดียวกันคนละสถานะ)
+   * ค่าใช้จ่ายอยู่ group 'expense' จึงวางเป็นแท่งแยกข้างกัน ไม่ต่อยอดทับ
+   * — โครงเดียวกับชีตยอดขายบนมือถือเป๊ะ เพื่อให้สอง surface เล่าเรื่องเดียวกัน
+   */
   const series = [
-    { name: 'ยอดขายที่ยืนยันแล้ว', group: 'sales', data: revenueSeries },
+    { name: 'ลูกค้ายืนยันแล้ว', group: 'sales', data: revenueSeries },
+    { name: 'รอลูกค้ายืนยัน', group: 'sales', data: unconfirmedSeries },
     ...(showFinance ? [{ name: 'ค่าใช้จ่าย', group: 'expense', data: expenseSeries }] : []),
   ]
 
@@ -48,7 +55,10 @@ const SalesChart = ({ daily, summary }: Props) => {
       plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
       dataLabels: { enabled: false },
       // น้ำเงิน = ยอดขาย, แดง = ค่าใช้จ่าย — token เท่านั้น (Hard Rule 10 ห้าม hardcode hex)
-      colors: showFinance ? [getColor('chart-primary'), getColor('chart-beta')] : [getColor('chart-primary')],
+      // น้ำเงิน = ยืนยันแล้ว, เหลือง = รอยืนยัน, แดง = ค่าใช้จ่าย — ชุดสีเดียวกับชีตมือถือ
+      colors: showFinance
+        ? [getColor('chart-primary'), getColor('warning'), getColor('chart-beta')]
+        : [getColor('chart-primary'), getColor('warning')],
       legend: { show: true, position: 'top' as const, horizontalAlign: 'right' as const, fontSize: '13px' },
       xaxis: {
         categories,
@@ -76,6 +86,13 @@ const SalesChart = ({ daily, summary }: Props) => {
           title="ยอดขายที่ยืนยันแล้ว"
           text={formatBaht(summary.totalRevenue)}
           valueClass="text-success-ink"
+        />
+        <SummaryCard
+          icon="clock"
+          iconClass="bg-warning/15 text-warning-ink"
+          title="รอลูกค้ายืนยัน"
+          text={formatBaht(summary.totalUnconfirmed)}
+          valueClass="text-warning-ink"
         />
         <SummaryCard
           icon="receipt-2"
