@@ -941,6 +941,7 @@ function ExceptionSheet({
   const [useProduct, setUseProduct] = useState(() => rule?.productId != null)
   const [channelIds, setChannelIds] = useState<string[]>(() => (rule?.shopChannelId ? [rule.shopChannelId] : []))
   const [adIds, setAdIds] = useState<string[]>(() => (rule?.adId ? [rule.adId] : []))
+  const [adQuery, setAdQuery] = useState('')
   const [productId, setProductId] = useState(() => rule?.productId ?? '')
   const [productQuery, setProductQuery] = useState('')
   const [reply, setReply] = useState(() => rule?.replyText ?? '')
@@ -966,6 +967,23 @@ function ExceptionSheet({
     if (rule?.adId) loadAds()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /**
+   * ค้นได้ทั้งชื่อ ข้อความโฆษณา และ ID — ร้านที่จำชื่อไม่ได้มักถือ ID มาจาก Ads Manager
+   * ตัวที่เลือกไว้แล้วต้องไม่หายตอนพิมพ์ค้นหา ไม่งั้นจะดูเหมือนติ๊กหลุด
+   */
+  const visibleAds = useMemo(() => {
+    if (!ads) return null
+    const q = adQuery.trim().toLowerCase()
+    if (!q) return ads
+    return ads.filter(
+      (a) =>
+        adIds.includes(a.adId) ||
+        a.adId.toLowerCase().includes(q) ||
+        (a.adTitle ?? '').toLowerCase().includes(q) ||
+        (a.adBody ?? '').toLowerCase().includes(q),
+    )
+  }, [ads, adQuery, adIds])
 
   const visibleProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase()
@@ -1165,12 +1183,27 @@ function ExceptionSheet({
             )}
             {useAd && (
               <div className="mt-2.5">
+                {ads !== null && ads.length > 5 && (
+                  <div className="input-icon-group mb-2">
+                    <Icon icon="search" className="input-icon" />
+                    <input
+                      type="search"
+                      className="form-input form-input-sm"
+                      placeholder="ค้นหาชื่อ ข้อความ หรือ ID โฆษณา"
+                      value={adQuery}
+                      onChange={(e) => setAdQuery(e.target.value)}
+                      aria-label="ค้นหาโฆษณา"
+                    />
+                  </div>
+                )}
                 {ads === null ? (
                   <p className="text-default-500 text-xs">กำลังโหลด…</p>
                 ) : ads.length === 0 ? (
                   <p className="text-default-500 text-xs">ยังไม่มีลูกค้าทักเข้ามาจากโฆษณาใด</p>
+                ) : visibleAds && visibleAds.length === 0 ? (
+                  <p className="text-default-500 text-xs">ไม่พบโฆษณาที่ตรงกับคำค้นหา</p>
                 ) : (
-                  ads.map((a) => {
+                  (visibleAds ?? []).map((a) => {
                     const on = adIds.includes(a.adId)
                     return (
                       <label key={a.adId}
