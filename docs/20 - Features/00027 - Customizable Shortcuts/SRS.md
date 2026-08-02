@@ -202,9 +202,13 @@ flowchart TD
   - ถ้า slug ถูกปักอยู่แล้ว → idempotent (คืนสถานะปัจจุบัน ไม่ error) — FR-SC-03-AC-02
   - ถ้ายังไม่ถูกปัก และ `current.length >= 8` → throw `ShortcutCapExceededError` — **ห้าม auto-ถอดตัวเก่าสุด** (FR-SC-05-AC-02)
 - `unpinShortcut(session, slug)`:
-  - ถ้า `current.length <= 1` → throw `ShortcutMinRequiredError` (ไม่ยอมให้เหลือ 0)
+  - **MIN_REQUIRED นับเฉพาะ slug ที่ยังใช้ได้จริง** (อยู่ใน catalog สด) — slug ที่ปักไว้แต่ `unavailable` แล้วไม่นับ
+    - ถอด slug ที่ `unavailable` → **อนุญาตเสมอ** แม้เป็นรายการสุดท้าย
+    - ถอด slug ที่ใช้ได้ ขณะที่เหลือ slug ที่ใช้ได้ตัวเดียว → throw `ShortcutMinRequiredError`
+    - เหตุผล: กฎ min-1 มีไว้กัน "การ์ดว่าง" ซึ่ง slug ที่ render ไม่ได้ก็ทำให้ว่างอยู่แล้ว การบล็อกจึงไม่ได้ป้องกันอะไร แถมขังผู้ใช้ไว้กับช่องที่มองไม่เห็นและถอดไม่ออก (**คำตัดสิน user 2026-08-02** — แทน Q5 ใน [[BRD]] §3.6 ที่ระบุว่านับรวม)
+    - ผลต่อ DB: `slugs` เป็น array ว่างได้ → CHECK ใน [[DATABASE]] คือ `BETWEEN 0 AND 8` ไม่ใช่ `1 AND 8`
+    - ผลต่อ UI: ตกลงที่ empty-state ของการ์ด ([[SDS]] §3.6 `tiles.length === 0`) ซึ่งต้องมีอยู่แล้วเพื่อรองรับ drift
   - idempotent เมื่อ slug ไม่ได้ถูกปักอยู่แล้ว (คืนสถานะปัจจุบัน ไม่ error) — มิเรอร์ `unpinProduct` (feature Pin Products) ที่ unpin "ฟรีเสมอ"
-  - ⚠️ **กรณีที่ยังไม่เคาะ:** ถ้ารายการสุดท้าย (`length === 1`) เป็นรายการ `unavailable` (drift) — MIN_REQUIRED ยัง reject ตามตัวหนังสือ BRD (Q ด้านล่างในเอกสารสรุป) ทั้งที่การ์ดว่างอยู่แล้วในสถานการณ์นี้ (ดู "ต้องให้ user เคาะ" ท้ายเอกสาร)
 
 ### TFR-007 — Reset
 
@@ -306,7 +310,7 @@ RSC เริ่มต้น (`dashboard/page.tsx`) **ไม่เรียก A
 | `slug` (path param ของ pin/unpin) | ต้องเป็น non-empty string ที่ตรงกับ pattern `^seller:[a-z-]+$` (รูปแบบ slug จริงทุกตัวใน `sellerMenuItems`) | `400 VALIDATION_ERROR` |
 | `slug` (business rule) | ต้องอยู่ใน catalog **สด** ของ (userId, shopId) นั้น ณ เวลาเรียก — ไม่ validate จาก static enum เพราะ catalog dynamic ต่อ role/vertical | `403 SLUG_NOT_IN_CATALOG` |
 | จำนวนที่ปักหมุดหลัง pin | ≤ 8 เสมอ | `409 CAP_EXCEEDED` |
-| จำนวนที่ปักหมุดหลัง unpin | ≥ 1 เสมอ | `409 MIN_REQUIRED` |
+| จำนวนที่ปักหมุดหลัง unpin | slug **ที่ยังใช้ได้** ≥ 1 เสมอ — slug ที่ `unavailable` ไม่นับ และถอดได้เสมอ (แม้เหลือตัวเดียว → `slugs` ว่างได้) | `409 MIN_REQUIRED` |
 | `userId`/`shopId` | **ไม่รับจาก client เลย** — derive จาก session/`requireActiveShop` เท่านั้น | ไม่มีช่องทางส่งผิด (ไม่มี field ให้กรอก) |
 
 ---
@@ -331,7 +335,7 @@ RSC เริ่มต้น (`dashboard/page.tsx`) **ไม่เรียก A
 | ข้อจำกัด | ผลต่อการ implement |
 |---------|-------------------|
 | Service layer ห้าม import จาก `src/app/**` | บังคับย้าย `_seller-menu.ts` logic ไป `src/lib/seller-menu.ts` ก่อน (TFR-001) |
-| `array_length()` ของ Postgres คืน `NULL` สำหรับ array ว่าง | CHECK ต้องห่อด้วย `COALESCE(...,0)` ไม่งั้น min-1 ไม่ถูกบังคับจริง |
+| `array_length()` ของ Postgres คืน `NULL` สำหรับ array ว่าง | CHECK ห่อด้วย `COALESCE(...,0)` ให้ขอบล่างอ่านตรงเจตนา — และถ้าวันหน้ายกขอบล่างกลับเป็น 1 ห้ามถอด COALESCE ออก |
 | `db pull`/`migrate dev` ทำลาย unmanaged constraint ของฟีเจอร์อื่น (00008/00017/00024) | ห้ามใช้เด็ดขาด — เขียน migration มือ + `migrate deploy` |
 | ไม่มี column เก็บลำดับ | ทุกจุดที่ render preference ต้อง sort ผ่าน catalog index เสมอ (TFR-003) |
 
@@ -353,9 +357,9 @@ RSC เริ่มต้น (`dashboard/page.tsx`) **ไม่เรียก A
 |-----------|---------|----------|
 | **ลืม refactor `_seller-menu.ts` แล้วเขียนตัวกรองเมนูลัดแยกต่างหาก** | permission-drift — เมนูลัดเห็น/เลือกสิ่งที่ sidebar ไม่เห็น | TFR-001 บังคับ reuse + reviewer grep หา `applyStaffMenu`/`applyVerticalMenu` ว่าถูกเรียกจากที่เดียว (`resolveVisibleSellerMenu`) ไม่ใช่ implement ซ้ำ |
 | **สร้าง preference record ตอน SSR ทุกครั้งที่เปิด dashboard** | เขียน DB โดยไม่จำเป็น ทุก page view | TFR-004 บังคับ compute-on-read; reviewer ตรวจว่า SSR path ไม่มีการเรียก `upsert` |
-| **CAP/MIN enforce แค่ client-side** | เรียก API ตรงเกิน 8 หรือถอดจนเหลือ 0 ได้ | TFR-006 บังคับ server-side validation ทุก endpoint + test เรียก API ตรง |
+| **CAP/MIN enforce แค่ client-side** | เรียก API ตรงเกิน 8 หรือถอดจนไม่เหลือช่องที่ใช้ได้เลย | TFR-006 บังคับ server-side validation ทุก endpoint + test เรียก API ตรง |
 | **error type ใหม่ตกหล่นจาก route catch (บทเรียน 00003 P2)** | 500 แทน 400/403/409 ที่ควรเป็น | TFR-010 + ตาราง cross-file mapping บังคับ enumerate ใน [[API]] §5 — Gate 1 ต้อง negative-check ว่าทุก route มี branch ครบ |
-| **`array_length` NULL-trap บน CHECK constraint** | min-1 ไม่ถูกบังคับจริงที่ DB (ผ่านได้ทั้งที่ array ว่าง) | ระบุ `COALESCE` ชัดเจนใน [[DATABASE]] §4 |
+| **min-1 บังคับที่ DB ไม่ได้** | ขอบล่างขึ้นกับ catalog สดที่ DB ไม่รู้จัก — CHECK จึงคุมแค่ ≤ 8 | TFR-006 บังคับที่ service layer + test ที่ unpin ช่องสุดท้ายที่ใช้ได้ ต้องได้ 409 |
 | **หน้าโหมดแก้ไขไม่แสดง unavailable slug ที่ไม่มีอยู่ใน SSOT อีกแล้ว (feature ถูกถอดทิ้ง)** | label หาไม่เจอ → UI พัง/ว่าง | TFR-005 กำหนด fallback label = slug ดิบ |
 
 ---
@@ -384,4 +388,4 @@ RSC เริ่มต้น (`dashboard/page.tsx`) **ไม่เรียก A
 - จุดเทคนิคที่สำคัญที่สุดคือ **TFR-001** (ย้าย logic ตัวกรองไป `src/lib`) เพราะเป็นเงื่อนไขที่ทำให้ TFR อื่นทั้งหมด reuse ได้โดยไม่ต้องเขียนกฎสิทธิ์ซ้ำ — ทำผิดจุดนี้ = เปิดช่อง permission-drift ทันที
 - ของใหม่ทางข้อมูลมีตารางเดียว (`SellerShortcutPreference`) เก็บแค่ "เซ็ต slug" ไม่เก็บลำดับ/badge/label — ทุกอย่างอื่น derive สดจาก SSOT ทุกครั้ง
 - จุดที่ reviewer ต้องจับ: เขียนตัวกรองสิทธิ์คู่ขนาน, persist preference โดยไม่มี intent, cap/min ที่ enforce แค่ client, error type ใหม่ที่ไม่มี route catch ครอบ (ดูตาราง [[API]] §5 บังคับ)
-- ค้างให้ user เคาะ 1 จุด: MIN_REQUIRED ควรนับ unavailable slug ที่เป็นรายการสุดท้ายด้วยหรือไม่ (ดูท้าย SDS/สรุปรวม)
+- MIN_REQUIRED เคาะแล้ว (user 2026-08-02): นับเฉพาะช่องที่ยังใช้ได้ — ช่องที่สิทธิ์หลุดแล้วถอดได้เสมอแม้เป็นช่องสุดท้าย → `slugs` ว่างได้ CHECK ที่ DB จึงเป็น 0..8

@@ -90,10 +90,11 @@ model SellerShortcutPreference {
   userId String
   shopId String
 
-  // slugs: เซ็ตของ MenuItemType.slug ที่ปักหมุดไว้ (เช่น "seller:sales") — 1-8 รายการเสมอ
+  // slugs: เซ็ตของ MenuItemType.slug ที่ปักหมุดไว้ (เช่น "seller:sales") — ไม่เกิน 8 รายการ (ว่างได้)
   // 🛑 ไม่ใช่ "ลำดับที่ผู้ใช้กด" — render เรียงตามตำแหน่งใน sellerMenuItems (SSOT) ทุกครั้ง (ไม่มี manual reorder ใน MVP)
   // อาจมี slug ที่ไม่อยู่ใน catalog ปัจจุบันแล้ว (entitlement drift) — คงไว้โดยตั้งใจ ไม่ลบอัตโนมัติ (BR-SC §3.6)
-  // CHECK(1 <= array_length(slugs,1) <= 8) enforce ด้วยมือใน migration SQL (ตารางใหม่ ไม่มีข้อมูลเดิม — validate ได้ทันที ไม่ต้อง NOT VALID)
+  // CHECK(array_length(slugs,1) <= 8) enforce ด้วยมือใน migration SQL (ตารางใหม่ ไม่มีข้อมูลเดิม — validate ได้ทันที ไม่ต้อง NOT VALID)
+  // ว่างได้โดยตั้งใจ: ถอดช่องที่ใช้ไม่ได้แล้วตัวสุดท้ายออกได้เสมอ (คำตัดสิน user 2026-08-02 — SRS TFR-006)
   slugs String[] @default([])
 
   createdAt DateTime @default(now())
@@ -111,7 +112,7 @@ model SellerShortcutPreference {
 | `id` | uuid | ไม่ | PK |
 | `userId` | text | ไม่ | FK → `User`, ON DELETE CASCADE |
 | `shopId` | text | ไม่ | FK → `Shop`, ON DELETE CASCADE |
-| `slugs` | text[] | ไม่ (default `{}`) | เซ็ต slug ที่ปักหมุด — CHECK 1-8 รายการ |
+| `slugs` | text[] | ไม่ (default `{}`) | เซ็ต slug ที่ปักหมุด — CHECK ไม่เกิน 8 (ว่างได้) |
 | `createdAt` | timestamptz | ไม่ | |
 | `updatedAt` | timestamptz | ไม่ | อัปเดตทุกครั้งที่ pin/unpin/reset |
 
@@ -145,15 +146,18 @@ model Shop {
 
 ไม่มี query pattern อื่นที่ต้องการ index เพิ่ม (ไม่มี "list preference ทั้งหมดของร้าน" หรือ "ทั้งหมดของ user" ใน FR ใด ๆ)
 
-### 4.2 CHECK constraint — บังคับ cap 8 / min 1 ที่ฐานข้อมูล (defense-in-depth)
+### 4.2 CHECK constraint — บังคับ cap 8 ที่ฐานข้อมูล (defense-in-depth)
 
 Service layer enforce cap/min อยู่แล้ว (SRS TFR-006) แต่ตาม pattern ของฟีเจอร์อื่นในโปรเจกต์ (00016 `CHECK(balance >= 0)`, 00024 `CHECK(capacity >= 1)`) **ความถูกต้องของ invariant ควรบังคับซ้ำที่ DB** เป็นชั้นสุดท้าย
 
+🛑 **DB บังคับแค่ขอบบน (≤ 8) เท่านั้น** — ขอบล่างไม่มี เพราะ min-1 ไม่ใช่ invariant ของข้อมูลอีกต่อไป: `slugs` ว่างเป็นสถานะที่ถูกต้อง (ถอดช่องที่ใช้ไม่ได้แล้วตัวสุดท้ายออก) ส่วนกฎ "ต้องเหลือช่องที่ใช้ได้ ≥ 1" ตัดสินจาก catalog สด ซึ่ง DB ไม่รู้จัก — จึงบังคับได้ที่ service layer เท่านั้น (SRS TFR-006)
+
 ```sql
--- 🛑 array_length() ของ Postgres คืน NULL สำหรับ array ว่าง (ไม่ใช่ 0) — ถ้าไม่ห่อ COALESCE
--- CHECK จะ "ผ่าน" ให้ array ว่างเสมอ (NULL ไม่ถือเป็น FALSE ใน CHECK constraint) ทำให้ min-1 ไม่ถูกบังคับจริง
+-- array_length() ของ Postgres คืน NULL สำหรับ array ว่าง (ไม่ใช่ 0) — COALESCE ทำให้ขอบล่างอ่านตรงกับ
+-- ที่ตั้งใจ (0 = ว่าง ผ่าน) แทนที่จะผ่านเพราะ NULL ไม่ถือเป็น FALSE ใน CHECK ซึ่งเป็นคนละเหตุผลกัน
+-- 🛑 ถ้าวันหน้ามีใครยกขอบล่างกลับเป็น 1 ห้ามถอด COALESCE ออก ไม่งั้น min-1 จะไม่ถูกบังคับจริง
 ALTER TABLE "SellerShortcutPreference" ADD CONSTRAINT "SellerShortcutPreference_slugs_count"
-  CHECK (COALESCE(array_length("slugs", 1), 0) BETWEEN 1 AND 8);
+  CHECK (COALESCE(array_length("slugs", 1), 0) BETWEEN 0 AND 8);
 ```
 
 - ตารางนี้เป็นตารางใหม่ล้วน (ไม่มีข้อมูลเดิม) → เพิ่มแบบ **VALIDATE ทันที** ได้เลย ไม่ต้องแยก `NOT VALID` + `VALIDATE` (ต่างจาก CHECK ของตารางเก่าที่มีข้อมูลจริงอยู่แล้วอย่าง `Shop.pinSlots`/`Product.stockQty`)
@@ -179,7 +183,7 @@ ALTER TABLE "SellerShortcutPreference" ADD CONSTRAINT "SellerShortcutPreference_
 | 2 | `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE` | หลังลำดับ 1 |
 | 3 | `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ("shopId") REFERENCES "Shop"("id") ON DELETE CASCADE` | หลังลำดับ 1 |
 | 4 | `CREATE UNIQUE INDEX "SellerShortcutPreference_userId_shopId_key" ON "SellerShortcutPreference"("userId","shopId")` | หลังลำดับ 1 |
-| 5 | `ALTER TABLE "SellerShortcutPreference" ADD CONSTRAINT "SellerShortcutPreference_slugs_count" CHECK (COALESCE(array_length("slugs",1),0) BETWEEN 1 AND 8)` | หลังลำดับ 1 — validate ทันที (ตารางว่าง) |
+| 5 | `ALTER TABLE "SellerShortcutPreference" ADD CONSTRAINT "SellerShortcutPreference_slugs_count" CHECK (COALESCE(array_length("slugs",1),0) BETWEEN 0 AND 8)` | หลังลำดับ 1 — validate ทันที (ตารางว่าง) |
 
 ```sql
 CREATE TABLE "SellerShortcutPreference" (
@@ -203,7 +207,7 @@ ALTER TABLE "SellerShortcutPreference" ADD CONSTRAINT "SellerShortcutPreference_
   FOREIGN KEY ("shopId") REFERENCES "Shop"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "SellerShortcutPreference" ADD CONSTRAINT "SellerShortcutPreference_slugs_count"
-  CHECK (COALESCE(array_length("slugs", 1), 0) BETWEEN 1 AND 8);
+  CHECK (COALESCE(array_length("slugs", 1), 0) BETWEEN 0 AND 8);
 ```
 
 ### 5.2 Rollback

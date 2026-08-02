@@ -313,13 +313,20 @@ export async function unpinShortcut(session: Parameters<typeof resolveShortcutSt
     // idempotent — มิเรอร์ unpinProduct (unpin ฟรีเสมอ)
     if (!pref) return resolveShortcutState(session)
   } else {
-    if (current.length <= MIN_SHORTCUTS) throw new ShortcutMinRequiredError()
+    // MIN_REQUIRED นับเฉพาะช่องที่ "ยังใช้ได้จริง" — ช่องที่สิทธิ์หลุดไปแล้วไม่นับ
+    // กฎนี้มีไว้กันการ์ดว่าง แต่ช่องที่ render ไม่ได้ก็ทำให้ว่างอยู่แล้ว การบล็อกจึงไม่กัน
+    // อะไร แค่ขังผู้ใช้ไว้กับช่องที่มองไม่เห็นและถอดไม่ออก (คำตัดสิน user 2026-08-02)
+    const usable = current.filter((s) => catalog.some((c) => c.slug === s))
+    if (usable.includes(slug) && usable.length <= MIN_SHORTCUTS) throw new ShortcutMinRequiredError()
   }
 
   const next = current.filter((s) => s !== slug)
+  // เขียน next ตรง ๆ รวมถึงกรณีว่าง — ห้าม fallback เป็น current เพราะจะทำให้การถอดช่อง
+  // unavailable ตัวสุดท้าย "สำเร็จแบบเงียบ ๆ แต่ไม่เกิดอะไรขึ้น" (DB ยังเก็บ slug เดิมไว้)
+  // CHECK ที่ DB จึงเป็น BETWEEN 0 AND 8 — ดู DATABASE.md §4
   await prisma.sellerShortcutPreference.upsert({
     where: { userId_shopId: { userId, shopId: active.shop.id } },
-    create: { userId, shopId: active.shop.id, slugs: next.length ? next : current },
+    create: { userId, shopId: active.shop.id, slugs: next },
     update: { slugs: next },
   })
   return resolveShortcutState(session)
@@ -477,4 +484,4 @@ sequenceDiagram
 - จุดที่ต้อง implement ให้ถูกที่สุดคือ **D-01/TFR-001** — ถ้าไม่ย้าย logic ไป `src/lib` ก่อน จะเกิดแรงจูงใจให้ copy-paste ตัวกรองสิทธิ์ซ้ำในเลเยอร์ service ซึ่งเป็นความเสี่ยง permission-drift ที่ PRD เตือนไว้เป็นอันดับ 1
 - ของใหม่ทั้งหมด additive: 1 model DB, 1 service ใหม่, 4 endpoint ใหม่, ปรับ 1 บรรทัดใน `layout.tsx`, ลบ 1 dead-code component, simplify 1 component (`CarouselGrid`)
 - ข้อห้ามที่ reviewer ต้องจับ: service import จาก `src/app/**`, สร้าง DB row ตอน SSR โดยไม่มี intent, enforce cap/min แค่ client, ตัวกรองสิทธิ์เขียนซ้ำ, error type ใหม่ที่ไม่มี route catch ครอบ (ดู [[API]] §5)
-- ค้าง user เคาะ: MIN_REQUIRED ควรนับ unavailable slug ตัวสุดท้ายด้วยหรือไม่ (ดูสรุปท้ายชุดเอกสาร)
+- MIN_REQUIRED เคาะแล้ว (user 2026-08-02): นับเฉพาะช่องที่ยังใช้ได้ — ถอดช่องที่สิทธิ์หลุดแล้วได้เสมอ ตกลงที่ empty-state ของการ์ด (§3.6) ซึ่งต้องมีอยู่แล้วเพื่อรองรับ drift
