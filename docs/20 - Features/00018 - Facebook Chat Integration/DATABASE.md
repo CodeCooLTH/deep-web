@@ -74,6 +74,7 @@ Facebook Chat Integration (M00018) ต่อยอด `Conversation`/`ChatMessag
 | `ChatMessage` (รอบสาม 2026-07-25) | เพิ่ม `reactionEmoji` migration `20260725100000_chat_reaction_referral` (ดู [[EXTENSIONS-2026-07-25]] E7) | Additive |
 | `ChatMessage` (รอบสี่ 2026-07-25) | เพิ่ม `replyToMid`, `isDeleted` (default false) migration `20260725110000_chat_reply_unsend` (ดู [[EXTENSIONS-2026-07-25]] E9) | Additive |
 | `ChatMessage` (รอบห้า 2026-07-25) | เพิ่ม `orderRefToken` (การ์ดออเดอร์ในแชท) migration `20260725000000_chat_order_card` (ดู [[EXTENSIONS-2026-07-25]] E1) | Additive |
+| `ChatMessage` (รอบหก 2026-08-02) | เพิ่ม `attachmentName`, `attachmentSize` (nullable ทั้งคู่) + index `(imageUrl)` migration `20260802160000_chat_attachment_meta` (ดู [[EXTENSIONS-2026-08-02]] E1/E3) — **apply แล้วทั้ง dev และ prod ยืนยันด้วย `prisma migrate status` = "Database schema is up to date!"** | Additive |
 | `Conversation.isSpam` | คอลัมน์มีจริงใน `prisma/schema.prisma` (comment: "user สั่ง 2026-07-24") และใช้งานจริงใน `updateConversationState`/`listConversationsForShop` — **ไม่พบชื่อไฟล์ migration ที่เพิ่มคอลัมน์นี้ชัดเจนในรอบตรวจของเอกสารนี้** (ไม่อยู่ใน `20260722000000_facebook_chat`/`20260723000*`/`20260723130000_chat_group` ที่ตรวจแล้ว) — ต้องยืนยันเพิ่มก่อนเชื่อว่า apply ครบ | Additive (ยืนยันคอลัมน์แล้ว, migration ต้นทางยังไม่ยืนยัน) |
 | `Conversation.externalReadAt` | เช่นเดียวกับ `isSpam` — คอลัมน์มีจริงและใช้งานจริงใน `ingestReadEvent` (`channel-chat.service.ts`, ดู [[EXTENSIONS-2026-07-25]] E6) แต่**ไม่พบชื่อไฟล์ migration ต้นทางในรอบตรวจนี้** | Additive (ยืนยันคอลัมน์แล้ว, migration ต้นทางยังไม่ยืนยัน) |
 
@@ -176,6 +177,8 @@ erDiagram
         string replyToMid "nullable — externalMessageId ของข้อความที่ตอบทับ (E9)"
         boolean isDeleted "default false — ผู้ส่ง unsend (E9), body/imageUrl/reactionEmoji ถูกล้าง"
         string orderRefToken "nullable — Order.publicToken เฉพาะ type=ORDER (E1)"
+        string attachmentName "nullable — ชื่อไฟล์เดิมที่ผู้ส่งเลือก (2026-08-02 E1); null = ข้อความเก่า หรือไฟล์ที่ mirror จาก Meta"
+        int attachmentSize "nullable — ขนาดไฟล์ ณ ตอนส่ง (byte)"
     }
 ```
 
@@ -257,8 +260,16 @@ Page/IG หนึ่งช่องทางที่ร้านเชื่อ
 | `replyToMid` (ใหม่ 2026-07-25) | เพิ่มคอลัมน์ | YES | NULL | — | `externalMessageId` ของข้อความที่ "ตอบทับ" (`message.reply_to.mid`, E9) — ไม่มี FK จริง (ข้อความต้นทางอาจถูกลบ/ยังไม่ถึง) UI ต้อง lookup เอง — migration `20260725110000_chat_reply_unsend` |
 | `isDeleted` (ใหม่ 2026-07-25) | เพิ่มคอลัมน์ | NO | `false` | — | ผู้ส่ง unsend ข้อความ (`message.is_deleted`, E9) — soft delete: `body`/`imageUrl`/`reactionEmoji` ถูกล้างเป็น `null` แต่แถวยังอยู่ (รักษาลำดับ/จำนวนข้อความ) — migration เดียวกันกับ `replyToMid` |
 | `orderRefToken` (ใหม่ 2026-07-25) | เพิ่มคอลัมน์ | YES | NULL | — | การ์ดออเดอร์ในแชท (เฉพาะ `type='ORDER'`, DEEP เท่านั้น) — เก็บ `Order.publicToken`, live-join enrich ตอน GET ไม่ FK จริง (ดู [[EXTENSIONS-2026-07-25]] E1 สำหรับรายละเอียดเต็ม) — migration `20260725000000_chat_order_card` |
+| `attachmentName` (ใหม่ 2026-08-02) | เพิ่มคอลัมน์ | YES | NULL | — | ชื่อไฟล์เดิมที่ผู้ส่งเลือก (sanitize + cap 200 ตัว) — จำเป็นเพราะ storage ตั้งชื่อจริงเป็น `YYYY/MM/DD/uuid.ext` ชื่อเดิมจึงหายทั้งหมด. `NULL` = ข้อความก่อนฟีเจอร์นี้ **หรือ** ไฟล์ที่ mirror มาจาก Meta (webhook ไม่ส่งชื่อไฟล์เดิมมา) → UI fallback เป็น `"ไฟล์แนบ.<ext>"` ผ่าน `attachmentDisplayName()` — migration `20260802160000_chat_attachment_meta` ([[EXTENSIONS-2026-08-02]] E1) |
+| `attachmentSize` (ใหม่ 2026-08-02) | เพิ่มคอลัมน์ | YES | NULL | — | ขนาดไฟล์ (byte) ณ ตอนส่ง ใช้แสดงบนบับเบิล/ชิป. **ไม่ใช่ security control** — ค่าที่ส่งมากับ payload ตอนส่งข้อความมาจาก client จึงปลอมได้; เพดานขนาดตัวจริงบังคับที่ `POST /api/chat/upload` ซึ่งเห็นไฟล์จริง — migration เดียวกัน |
 
-**ค่าที่ `type` รับจริง (อัปเดต 2026-07-25):** คอลัมน์ `type` เป็น `String` ไม่ใช่ enum (convention เดิมของโปรเจกต์ — validate ที่ Valibot) comment ใน `prisma/schema.prisma` ยังเขียนไว้ตั้งแต่ feature 00011 ว่า `"TEXT" | "IMAGE" | "PRODUCT"` แต่ค่าใช้จริงตอนนี้เพิ่ม **`"VIDEO"` / `"AUDIO"` / `"FILE"`** จากไฟล์แนบขาเข้าของ Messenger/IG (FR-FBC-17, SRS TFR-FBC-14) และ **`"ORDER"`** จากการ์ดออเดอร์ในแชท DEEP (`SendChatMessageSchema` ใน `src/lib/validations.ts`, ดู [[EXTENSIONS-2026-07-25]] E1) — `ChatMessageType` เต็มชุดตาม `chat.service.ts`: `'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'` — ไม่ต้อง migrate เพราะเป็น `String` แต่ **comment ใน schema ยังไม่ตรงกับความจริง = doc-debt ที่ควรตามเก็บ**
+**ค่าที่ `type` รับจริง (อัปเดต 2026-08-02):** คอลัมน์ `type` เป็น `String` ไม่ใช่ enum (convention เดิมของโปรเจกต์ — validate ที่ Valibot) ชุดเต็มตาม `ChatMessageType` ใน `chat.service.ts` คือ `'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'` — ไม่ต้อง migrate เพราะเป็น `String`
+
+- `VIDEO` / `AUDIO` / `FILE` เดิม (2026-07-25) เกิดได้ทาง **ขาเข้าอย่างเดียว** — mirror ไฟล์แนบจาก Messenger/IG (FR-FBC-17, SRS TFR-FBC-14) เขียน DB ตรงโดยไม่ผ่าน `SendChatMessageSchema`
+- ตั้งแต่ **2026-08-02** ทั้งสามชนิดอยู่ใน `SendChatMessageSchema` แล้ว = ร้านส่งออกเองได้ ([[EXTENSIONS-2026-08-02]] E1)
+- `ORDER` มาจากการ์ดออเดอร์ในแชท ([[EXTENSIONS-2026-07-25]] E1)
+
+> doc-debt ที่เคยบันทึกไว้ว่า "comment ใน `prisma/schema.prisma` ยังเขียนแค่ `TEXT | IMAGE | PRODUCT`" — **แก้แล้ว 2026-08-02** comment ตอนนี้ระบุครบทั้ง 7 ค่า
 
 **ทำไม `externalMessageId` เป็น `String? @unique` ไม่ใช่ `String @unique`:** ข้อความของเธรด `channel="DEEP"` (feature 00011 เดิม) ไม่มีแนวคิดเรื่อง `mid` เลย — ถ้าบังคับ `NOT NULL` จะต้องมีค่า placeholder ปลอมสำหรับทุกแถวเดิม (data pollution) `NULL` + unique (Postgres อนุญาตหลาย `NULL` ใน unique column) จึงตรงกับความจริงว่า "field นี้มีความหมายเฉพาะข้อความช่องทางนอกเท่านั้น"
 
@@ -323,6 +334,7 @@ FR-FBC-14 (แท็ก/โน้ตภายใน) — migration `202607230002
 | `Conversation` | `(shopId, isHidden, isPinned, lastMessageAt DESC)` | BTREE composite | ครอบ query หลักของ `listConversationsForShop` (`/inbox`) — filter "ยังเปิดอยู่ + ไม่ซ่อน" เรียงหมุดขึ้นก่อน **ใช้งานจริงแล้ว** (S-7 logic implement ครบตั้งแต่ 2026-07-23 — แก้จาก v1.1 ที่ยังบันทึกว่า "logic ยังไม่ implement") |
 | `Conversation` | `(chatGroupId)` | BTREE | กรองแท็บกลุ่ม (`listConversationsForShop({chatGroupId})`, E5) — migration `20260723130000_chat_group` |
 | `ChatMessage` | `(externalMessageId)` | UNIQUE | BR-FBC-13 — idempotency (ดู §3.4) |
+| `ChatMessage` | `(imageUrl)` | BTREE | lookup ย้อนกลับ fileId → ข้อความ ให้ auth gate ของเอกสารแนบใน `/api/files/[...fileId]` ([[EXTENSIONS-2026-08-02]] E3) — ไม่มี index นี้ = seq scan ตารางที่ใหญ่ที่สุดในระบบ **ทุกครั้งที่มีคนเปิดไฟล์** |
 | `QuickMessage` | `(shopId, category, createdAt)` | BTREE composite | `listQuickMessages(shopId)`: filter ด้วย `shopId` แล้วเรียง `category asc, createdAt desc` — index เดียวครอบทั้ง filter และ sort ของ query เดียวที่ table นี้มี |
 | `ChatGroup` | `(shopId, name)` | UNIQUE composite | ชื่อกลุ่มห้ามซ้ำในร้านเดียวกัน |
 | `ChatGroup` | `(shopId, sortOrder)` | BTREE composite | `listChatGroups(shopId)`: filter + sort ในการเรียกเดียว |
@@ -366,6 +378,7 @@ FR-FBC-14 (แท็ก/โน้ตภายใน) — migration `202607230002
 | 20 | `20260725000000_chat_order_card` | `ALTER TABLE "ChatMessage" ADD COLUMN "orderRefToken"` (nullable) — รายละเอียดเต็มที่ [[EXTENSIONS-2026-07-25]] E1 | ต่ำ — คอลัมน์ nullable |
 | 21 | `20260725100000_chat_reaction_referral` | `ALTER TABLE "ChatMessage" ADD COLUMN "reactionEmoji"` + `ALTER TABLE "Conversation" ADD COLUMN "referralSource"`/`"referralAdTitle"` (ทั้งหมด nullable) | ต่ำ — คอลัมน์ nullable ล้วน |
 | 22 | `20260725110000_chat_reply_unsend` | `ALTER TABLE "ChatMessage" ADD COLUMN "replyToMid"` (nullable) + `"isDeleted"` (`BOOLEAN NOT NULL DEFAULT false`) | ต่ำ — metadata-only บน Postgres ≥11 |
+| 23 | `20260802160000_chat_attachment_meta` | `ALTER TABLE "ChatMessage" ADD COLUMN "attachmentName" TEXT` + `"attachmentSize" INTEGER` (nullable ทั้งคู่, `IF NOT EXISTS`) + `CREATE INDEX "ChatMessage_imageUrl_idx"` | ต่ำ–กลาง — คอลัมน์เป็น metadata-only แต่ `CREATE INDEX` **ไม่ใช่** `CONCURRENTLY` (ทำใน transaction ของ `migrate deploy` ไม่ได้) จึงล็อกเขียนช่วงสั้น ๆ — รับได้ที่ขนาดตารางปัจจุบัน ถ้าโตถึงหลักล้านแถวควรแยกไปสร้างมือ |
 
 > ไฟล์ 15-17, 19-22 เขียน SQL เองด้วยมือ (hand-written) ตามกฎ DB ที่ dev=prod แชร์กัน — **ห้าม `prisma migrate dev`**
 > (จะ reset ฐานจริง) ใช้ `migrate deploy -e .env.local` หลังขอ user ยืนยันเท่านั้น ดู §0 และ

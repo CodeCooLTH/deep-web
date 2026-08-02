@@ -44,7 +44,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[API]]", "[[DATABASE]]", "[[SDS]]"]
 - จัดการ/ถอด Page จากหน้าจอ (FR-FBC-11 ฝั่ง UI — service function `disconnectChannel`/`listChannels` มีแล้วแต่ไม่มี route/UI เรียก)
 - ปักหมุด/ซ่อน/ปิดงานเธรด (FR-FBC-13, BR-FBC-14..16 — คอลัมน์ DB มีแล้ว ไม่มี logic/API)
 - แท็ก/โน้ตภายใน/tab ออเดอร์ในแผงขวา (FR-FBC-14, BR-FBC-17..19 — ไม่มี model เลย)
-- ส่งรูปภาพออกจาก Deep ไป Messenger/IG (FR-FBC-04 ฝั่งรูป — เธรดช่องทางนอกส่งได้เฉพาะ `type=TEXT`)
+- ~~ส่งรูปภาพออกจาก Deep ไป Messenger/IG~~ — **ไม่ใช่ช่องว่างแล้ว**: รูปส่งออกได้ตั้งแต่ 2026-07-23 และ วิดีโอ/เสียง/ไฟล์ ตั้งแต่ 2026-08-02 ([[EXTENSIONS-2026-08-02]] E1). **แต่เทสของฟีเจอร์ไฟล์แนบยังไม่ครบ** — มีแค่ unit ของ `src/lib/chat-attachment.ts` (43 เคส); ยังขาด: เทส route (`POST .../messages` รับ `FILE`, ปฏิเสธ `.exe`, ปฏิเสธ non-PDF บนเธรด IG, เพดาน rate limit 120 ฝั่งร้าน vs 30 ฝั่งผู้ซื้อ), E2E Playwright, และ browser QA
 
 ---
 

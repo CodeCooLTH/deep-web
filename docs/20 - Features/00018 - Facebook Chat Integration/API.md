@@ -68,6 +68,7 @@ API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint �
 | `GET` | `/api/channels/facebook/pages` | รายการ Page + สถานะ (ว่าง/เชื่อมร้านนี้/ติดร้านอื่น) ให้หน้าเลือกเพจ | seller session + user-token cookie | ใหม่ 2026-07-24 |
 | `POST` | `/api/channels/facebook/confirm` | เชื่อมเฉพาะ Page ที่ user ติ๊กเลือก + ย้ายรายเพจ | seller session + user-token cookie | ใหม่ 2026-07-24 |
 | `POST` | `/api/chat/conversations/[id]/messages` | ส่งข้อความ — dispatch ไป Send API เมื่อ `channel != "DEEP"` | participant session | แก้ไข (feature 00011) |
+| `POST` | `/api/chat/upload` | อัปโหลดไฟล์แนบของแชท (ทุกชนิด ≤25MB) — แยกจาก `/api/upload` เดิม | participant session | ใหม่ 2026-08-02 |
 | `GET` | `/api/chat/quick-messages` | list ข้อความสำเร็จรูปของร้านที่ active | seller session | ใหม่ (2026-07-23) |
 | `POST` | `/api/chat/quick-messages` | สร้างข้อความสำเร็จรูป | seller session | ใหม่ (2026-07-23) |
 | `PATCH` | `/api/chat/quick-messages/[id]` | แก้ข้อความสำเร็จรูป (scope `{id, shopId}`) | seller session | ใหม่ (2026-07-23) |
@@ -89,7 +90,14 @@ API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint �
 | ~~`DELETE`/`PATCH` disconnect~~ | ~~—~~ | FR-FBC-11 | **มีแล้ว (2026-07-23):** `/api/channels/[id]` + `disconnectChannel()` (soft — ตั้ง `status='DISCONNECTED'`) |
 | ~~สร้างออเดอร์จาก prefill เธรด FB~~ | ~~—~~ | FR-FBC-07 | **มีแล้ว (2026-07-24):** สร้างออเดอร์จากโมดัลในแชท reuse POS/`CreateOrderSchema` (`conversationId` optional field) |
 | ~~ผูก `ExternalContact.customerId`~~ | ~~—~~ | FR-FBC-08 | **มีแล้ว (2026-07-24):** `createOrder({conversationId})` ผูก atomically ในทรานแซกชันเดียวกับสร้างออเดอร์ ([[EXTENSIONS-2026-07-25]] E3) |
-| — | ส่ง วิดีโอ/เสียง/ไฟล์/ตอบทับ/react ออกไป Messenger/IG | FR-FBC-17, E7, E9 | ขาเข้ารองรับครบแล้ว; **TEXT/IMAGE ส่งออกได้แล้ว** (`sendOutboundMessage` รองรับ `imageFileId`) แต่ `POST .../messages` ยังปฏิเสธ `type=PRODUCT` บนเธรดช่องทางนอก และ `sendOutboundMessage` ไม่มี parameter ให้ส่ง VIDEO/AUDIO/FILE/reply/reaction ออก (inbound-only เฉพาะกลุ่มนี้) |
+| — | ส่ง react ออกไป Messenger/IG | E7 | ขาเข้ารองรับแล้ว แต่ยังไม่มี parameter ให้ส่ง reaction ออก (inbound-only) |
+
+> 🔄 **แก้ไข 2026-08-02:** แถวเดิมของตารางนี้เขียนว่า "`sendOutboundMessage` ไม่มี parameter ให้ส่ง
+> VIDEO/AUDIO/FILE/reply ออก" — **ไม่ตรงกับโค้ดแล้ว**
+> - **reply/ตอบทับ**: ปิดไปตั้งแต่ [[EXTENSIONS-2026-07-25]] E10 (`replyToMid`)
+> - **VIDEO/AUDIO/FILE**: ปิดแล้ว 2026-08-02 — `sendOutboundMessage` รับ `attachment { fileId, kind, name, size }`
+>   แล้วเรียก `sendAttachmentMessage` (`attachment.type` = `image|video|audio|file`) ดู [[EXTENSIONS-2026-08-02]] E1
+> - ที่ยังเหลือจริง: `type=PRODUCT` บนเธรดช่องทางนอก (การ์ดสินค้ายังไม่มี representation ฝั่ง Meta) และ reaction ขาออก
 
 ---
 
@@ -306,13 +314,24 @@ Contract เดิม (`type`, `body`, `imageUrl`, `productRefId`, response shap
 
 **Request:** เหมือนเดิมทุกประการ (`{type: "TEXT"|"IMAGE"|"PRODUCT"|"ORDER", body?, imageUrl?, productRefId?, orderRefToken?}`)
 
-> 🔄 **แก้ไข 2026-07-25 — พฤติกรรมจริงกว้างกว่าที่ v1.1 เคยบันทึกไว้:** v1.1 เขียนว่าเธรดช่องทางนอก "รองรับเฉพาะ `type=TEXT`" — **ไม่ตรงกับโค้ดจริง** ตอนนี้ `sendOutboundMessage` (`channel-chat.service.ts`) รับ `imageFileId` และเรียก `sendImageMessage` (Graph API) ได้แล้ว route จึงส่ง **TEXT และ IMAGE** ออกช่องทางนอกได้ทั้งคู่ เหลือแค่ `PRODUCT` ที่ยังบล็อก (การ์ดสินค้ายังไม่มี representation ฝั่ง Meta) ส่วน `ORDER` มี branch พิเศษ (ดูด้านล่าง)
+> 🔄 **แก้ไข 2026-08-02 — พฤติกรรมจริงกว้างกว่าที่เคยบันทึกไว้ (รอบสอง):**
+> - v1.1 เขียนว่าเธรดช่องทางนอก "รองรับเฉพาะ `type=TEXT`" → 2026-07-25 แก้เป็น "TEXT และ IMAGE"
+> - **2026-08-02 กว้างขึ้นอีก:** `sendOutboundMessage` รับ `attachment { fileId, kind, name, size }`
+>   แล้วเรียก `sendAttachmentMessage` ซึ่งยิง `message.attachment.type` เป็น `image|video|audio|file`
+>   → route ส่ง **TEXT · IMAGE · VIDEO · AUDIO · FILE** ออกช่องทางนอกได้ทั้งหมด
+>   (`sendImageMessage` เดิมยังอยู่เป็น wrapper เพราะ `auto-reply-send.service.ts` เรียกอยู่)
+> - เหลือแค่ `PRODUCT` ที่ยังบล็อก (การ์ดสินค้ายังไม่มี representation ฝั่ง Meta) ส่วน `ORDER` มี branch พิเศษ (ดูด้านล่าง)
+> - ⚠️ ชนิดที่ส่งได้จริง **ขึ้นกับช่องทาง** — IG รับไฟล์เฉพาะ PDF และรูปไม่เกิน 8MB
+>   ตัวตัดสินคือ `checkChannelSupport()` ใน `src/lib/chat-attachment.ts` ดู [[EXTENSIONS-2026-08-02]] E1.4
 
 **Behavior เพิ่มเติม (เฉพาะเธรดช่องทางนอก, `conversation.channel != "DEEP"`):**
-1. Route query `conversation.channel`/`shopId` ก่อนตัดสินใจ branch
+1. Route query `conversation.channel`/`shopId` **ก่อน** บล็อก conditional-required (ย้ายขึ้นมา 2026-08-02 — กฎของไฟล์แนบขึ้นกับช่องทางปลายทาง จึงตัดสินไม่ได้ถ้ายังไม่รู้ channel) แล้วค่อยตัดสินใจ branch
 2. `type === "PRODUCT"` → คืน `400` ทันที (`"ช่องทางนี้ยังไม่รองรับการ์ดสินค้า"` — การ์ดสินค้ายังไม่มี representation ที่ส่งออกไป Meta ได้)
 3. `type === "ORDER"` → verify `Order.publicToken` เป็นของร้านนี้จริง (`prisma.order.findFirst({publicToken, shopId})`, ไม่พบ → `400`) แล้วประกอบข้อความลิงก์ (`คำสั่งซื้อ: {ชื่อสินค้ารายการแรก}\nยอดสุทธิ ฿{totalAmount}\n{buyerBaseUrl}/o/{token}`) → เรียก `sendOutboundMessage({text: linkText, orderRefToken})` — **ลูกค้าได้ข้อความลิงก์ (Meta ไม่ render การ์ด)** แต่ฝั่งเราเก็บเป็น `type=ORDER` ให้ seller เห็นเป็นการ์ดในเธรดของตัวเอง (ดู [[EXTENSIONS-2026-07-25]] E1 BR-ORD-01)
-4. `type === "TEXT"` หรือ `"IMAGE"` → เรียก `sendOutboundMessage({text, imageFileId})` แทน `sendMessage()` เดิม (IMAGE: `imageFileId = imageUrl` ที่ผ่าน validate นามสกุลแล้วจากขั้นตอนก่อนหน้า; caption ส่งเป็นข้อความ echo แยกตามหลัง — ไม่ได้อยู่ใน response เดียวกัน)
+4. `type === "TEXT"` หรือไฟล์แนบ (`IMAGE`/`VIDEO`/`AUDIO`/`FILE`) → เรียก `sendOutboundMessage({ text, attachment })` แทน `sendMessage()` เดิม (อัปเดต 2026-08-02 — เดิมเป็น `{text, imageFileId}` รับเฉพาะรูป)
+   - `attachment = { fileId: imageUrl, kind: type, name: attachmentName, size: attachmentSize }` โดย `imageUrl` ผ่าน `checkChannelSupport()` มาแล้วจากขั้นตอนก่อนหน้า
+   - caption ส่งเป็นข้อความ echo แยกตามหลัง — ไม่ได้อยู่ใน response เดียวกัน (Meta attachment ไม่มี text ในตัว)
+   - `imageFileId` ตัวเดิมยังรับอยู่ (deprecated) เพราะ `auto-reply-send.service.ts` ยังเรียก — ภายในแปลงเป็น `attachment` kind `IMAGE` ให้เอง
 
 **Response — Success (200):** เหมือนเดิม (`ChatMessage` object)
 
@@ -515,6 +534,33 @@ CRUD กลุ่ม/แท็บจัดหมวดแชทระดับ�
 | `spam` | `"true"` (query string) | `true` = ดูเฉพาะถังสแปม (มุมมองปกติตัด `isSpam=true` ออกอัตโนมัติ) |
 
 **Response item เพิ่ม field** (buyer surface ไม่มี): `contactTags: string[]`, `contactSalesStatus: string` (จาก `ExternalContact`, สำหรับแสดง badge ใน inbox list)
+
+### 4.15 `POST /api/chat/upload` (ใหม่ 2026-08-02)
+
+อัปโหลดไฟล์แนบของแชท — ดูเหตุผลที่ต้องแยกจาก `/api/upload` เดิมที่ [[EXTENSIONS-2026-08-02]] §E1.3
+
+**Request:** `multipart/form-data` — field `file` (1 ไฟล์ต่อครั้ง; client ยิงเรียงกันเมื่อแนบหลายไฟล์
+เพื่อให้ลำดับในคิวตรงกับลำดับข้อความที่ลูกค้าเห็น)
+
+**Query:** `conversationId` (uuid, optional) — ส่งมา = route resolve `channel` ของเธรดแล้วตรวจกฎ
+เฉพาะช่องทางให้ด้วย (client ส่งเสมอ); ไม่ส่ง = ตรวจแค่ deny-list + เพดานขนาด
+
+**Response `201`:**
+```json
+{ "fileId": "2026/08/02/uuid.pdf", "name": "ใบเสนอราคา-สมชาย.pdf",
+  "size": 1258291, "mime": "application/pdf", "kind": "FILE" }
+```
+`name` = ชื่อที่ sanitize แล้ว (path separator → `_`, ตัด control char/quote, cap 200) —
+client ส่งค่านี้ต่อเป็น `attachmentName` ตอน `POST .../messages`
+
+| Status | เมื่อ |
+|---|---|
+| `400` | ไม่มีไฟล์ / ไม่ผ่าน `checkChannelSupport` — `error` เป็นเหตุผลภาษาไทยที่โชว์ได้ตรง ๆ |
+| `401` | ไม่มี session |
+| `403` | มี session แต่ไม่ใช่คู่สนทนาของเธรดนี้ (เช็ค **ก่อน** resolve channel — ไม่งั้นใครที่ล็อกอินก็ probe ได้ว่า `conversationId` ไหนมีจริง) |
+| `404` | ไม่พบห้องแชท |
+| `413` | ไฟล์ใหญ่เกิน 25MB |
+| `500` | `saveFile` ล้ม — log เฉพาะ `kind`/`ext`/`size` ไม่ log ชื่อไฟล์/fileId (RC-8: ชื่อไฟล์ของลูกค้าอาจมี PII) |
 
 ---
 

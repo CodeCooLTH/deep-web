@@ -170,8 +170,11 @@ flowchart LR
 ### TFR-CHAT-06: Rate-limit การส่งข้อความ
 
 - **Trace:** FR-CHAT-06, BR-CHAT-07
-- **ค่าที่ lock (DATABASE.md Open Question #2 resolved ที่นี่):** **30 ข้อความ/นาที ต่อ user** (ไม่ใช่ต่อ IP)
-- **Implementation:** เรียก `checkApiRateLimit(`chat-send:${senderUserId}`, 30, 60_000)` ใน `POST /api/chat/conversations/[id]/messages` route **ก่อน** เรียก `sendMessage()` — key แยก namespace ต่างหากจาก global per-IP mutation limit ของ `src/proxy.ts` (auth 30/min **ต่อ IP รวมทุก mutation**) ซึ่งยัง apply อยู่ด้วย (2 ชั้น: per-IP ทั่วระบบ + per-user เฉพาะ chat-send) — ไม่ต้องแก้ `proxy.ts`
+- **ค่าที่ lock (DATABASE.md Open Question #2 resolved ที่นี่):** ต่อ user (ไม่ใช่ต่อ IP) — **แยกเพดานตามบทบาทตั้งแต่ 2026-08-02:**
+  - `senderRole = 'BUYER'` → **30 ข้อความ/นาที** (ค่าเดิม, `CHAT_RATE_LIMIT_MAX`)
+  - `senderRole = 'SHOP'` → **120 ข้อความ/นาที** (`CHAT_RATE_LIMIT_MAX_SHOP`)
+  - **ทำไมแยก:** feature 00018 ext (multi-attachment) ทำให้ **1 ไฟล์แนบ = 1 ข้อความ** ร้านที่แนบ 40 ไฟล์รวดเดียวจึงชนเพดานที่ตั้งไว้กันลูกค้าสแปม เจตนาเดิมของ BR-CHAT-07 คือกัน *buyer* สแปมร้าน (ดู PRD §Risks) การผ่อนเฉพาะฝั่งร้านจึงไม่ได้ลดการป้องกันที่ตั้งใจไว้แต่แรก — ดู `docs/20 - Features/00018 - Facebook Chat Integration/EXTENSIONS-2026-08-02.md` §E1.3
+- **Implementation:** derive `senderRole` จาก subdomain **ก่อน** แล้วเรียก `checkApiRateLimit(`chat-send:${senderUserId}`, max, 60_000)` ใน `POST /api/chat/conversations/[id]/messages` route **ก่อน** เรียก `sendMessage()` — key แยก namespace ต่างหากจาก global per-IP mutation limit ของ `src/proxy.ts` (auth 30/min **ต่อ IP รวมทุก mutation**) ซึ่งยัง apply อยู่ด้วย (2 ชั้น: per-IP ทั่วระบบ + per-user เฉพาะ chat-send) — ไม่ต้องแก้ `proxy.ts`
 - เกิน quota → 429 `{error: "Rate limit exceeded"}` (message เดียวกับ pattern เดิม)
 
 ### TFR-CHAT-07: Buyer Inbox (`listConversationsForBuyer`)
@@ -318,7 +321,7 @@ CREATE TRIGGER chat_message_realtime_broadcast_trigger
 
 ### 7.2 Rate-limit
 
-- Global per-IP (proxy.ts, มีอยู่แล้ว, apply อัตโนมัติ) + per-user chat-send เฉพาะ (30/min, TFR-CHAT-06) — 2 ชั้น ไม่ทดแทนกัน
+- Global per-IP (proxy.ts, มีอยู่แล้ว, apply อัตโนมัติ) + per-user chat-send เฉพาะ (buyer 30/min · shop 120/min, TFR-CHAT-06) — 2 ชั้น ไม่ทดแทนกัน
 - Known-gap เดียวกับระบบเดิม: in-memory per-instance (Vercel serverless) — Redis = Phase 2 (ไม่ใช่ scope ของ feature นี้)
 
 ### 7.3 PII Neutralize-at-source
@@ -349,9 +352,10 @@ CREATE TRIGGER chat_message_realtime_broadcast_trigger
 | `ChatMessage.type` | `"TEXT"` \| `"IMAGE"` | String column, default `"TEXT"` |
 | `Notification.kind` (ค่าใหม่) | `"chat_message"` | reuse `Notification` model เดิม |
 | `CHAT_BODY_MAX_LENGTH` | `2000` | new constant, `src/lib/chat-constants.ts` |
-| `CHAT_RATE_LIMIT_MAX` | `30` | new constant |
+| `CHAT_RATE_LIMIT_MAX` | `30` | เพดานฝั่ง **buyer** |
+| `CHAT_RATE_LIMIT_MAX_SHOP` | `120` | เพดานฝั่ง **ร้าน** (เพิ่ม 2026-08-02 — multi-attachment, ดู TFR-CHAT-06) |
 | `CHAT_RATE_LIMIT_WINDOW_MS` | `60_000` | new constant |
-| `CHAT_IMAGE_ALLOWED_TYPES` | `['image/jpeg','image/png','image/webp']` | new constant — subset ของ `src/lib/storage/types.ts` `ALLOWED_TYPES` |
+| `CHAT_IMAGE_ALLOWED_TYPES` | `['image/jpeg','image/png','image/webp']` | subset ของ `src/lib/storage/types.ts` `ALLOWED_TYPES` — ⚠️ **ไม่มีผู้ใช้แล้วตั้งแต่ 2026-08-02** (dead export): กฎของ composer ฝั่ง seller ย้ายไป `src/lib/chat-attachment.ts` ที่รู้ทั้งชนิดไฟล์และช่องทางปลายทาง ส่วน composer ฝั่ง buyer ใช้ `IMAGE_ACCEPT` ของตัวเอง — เก็บไว้ก่อนเพื่อไม่ปนกับ scope งานไฟล์แนบ ควรลบในรอบเก็บกวาด |
 | `CHAT_IMAGE_MAX_SIZE` | `5 * 1024 * 1024` (= `src/lib/storage/types.ts` `MAX_SIZE`) | reuse ตรง — ไม่ redefine ค่าใหม่ |
 | Notification title (chat, seller เป็นผู้รับ) | `` `ข้อความใหม่จาก ${buyer.displayName}` `` | app-layer constant/template |
 | Notification title (chat, buyer เป็นผู้รับ) | `` `ข้อความใหม่จาก ${shop.shopName}` `` | app-layer constant/template |
@@ -417,6 +421,6 @@ export const MarkChatReadSchema = v.object({}) // empty body — conversationId 
 | Notification | FR-CHAT-11, BR-CHAT-08 | §4 | TFR-CHAT-11 |
 | Chat button `/u/[username]` | FR-CHAT-12 | §4 | TFR-CHAT-12 |
 
-**Open items ที่ SRS นี้ resolve แล้ว (เดิมเป็น Open Question ใน DATABASE.md §8):** body cap=2000, rate-limit=30/min/user, IMAGE constraint=reuse `MAX_SIZE` + subset `ALLOWED_TYPES` (ตัด PDF). **OD-CHAT-A (block/report):** ยัง defer Phase 2 ตาม BRD §10 — ไม่ implement field ใด ๆ ในรอบนี้
+**Open items ที่ SRS นี้ resolve แล้ว (เดิมเป็น Open Question ใน DATABASE.md §8):** body cap=2000, rate-limit=30/min/user (⚠️ **แก้ 2026-08-02** เป็น buyer 30 / shop 120 — ดู TFR-CHAT-06), IMAGE constraint=reuse `MAX_SIZE` + subset `ALLOWED_TYPES` (ตัด PDF) (⚠️ **แก้ 2026-08-02** สำหรับ composer ฝั่ง seller เป็น 25MB + deny-list ผ่าน `src/lib/chat-attachment.ts` — ฝั่ง buyer ยังตามข้อกำหนดเดิม). **OD-CHAT-A (block/report):** ยัง defer Phase 2 ตาม BRD §10 — ไม่ implement field ใด ๆ ในรอบนี้
 
 **Open items ที่ SRS นี้พบใหม่และ flag ให้ Controller (ไม่ใช่ resolve ฝ่ายเดียว):** ดู SDS §9 "FLAGS FOR CONTROLLER"

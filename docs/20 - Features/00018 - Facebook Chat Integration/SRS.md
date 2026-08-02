@@ -58,7 +58,7 @@ S-7 ปักหมุด/ซ่อน/ปิดงาน/สแปม (logic+AP
 อยู่ด้านล่างนี้:
 
 **นอกขอบเขตของเอกสารนี้ (ยังไม่ implement — ดู PRD/BRD สำหรับแผนเต็ม):**
-- **ส่งวิดีโอ/เสียง/ไฟล์ออกจาก Deep ไป Messenger/IG** — `sendOutboundMessage` รองรับแค่ `text`/`imageFileId`; ไม่มี parameter สำหรับ VIDEO/AUDIO/FILE. **TEXT และ IMAGE ส่งออกได้แล้ว** (แก้จาก v1.1 ที่เขียนผิดว่า "รองรับเฉพาะ TEXT") — ยังบล็อกเฉพาะ `type=PRODUCT` บนเธรดช่องทางนอก (ดู [[API]] §4.5)
+- ~~**ส่งวิดีโอ/เสียง/ไฟล์ออกจาก Deep ไป Messenger/IG**~~ — **ปิดแล้ว 2026-08-02**: `sendOutboundMessage` รับ `attachment { fileId, kind, name, size }` แล้วเรียก `sendAttachmentMessage` (`attachment.type` = `image|video|audio|file`) → ส่งออกได้ทั้ง TEXT · IMAGE · VIDEO · AUDIO · FILE (ดู [[EXTENSIONS-2026-08-02]] E1). ที่ยังบล็อกจริงเหลือ `type=PRODUCT` บนเธรดช่องทางนอก และ reaction ขาออก (ดู [[API]] §4.5)
 - **Reply/Unsend/Reaction ขาออก** — ร้านตอบทับ/ลบ/react ข้อความของตัวเองจาก Deep ยังไม่มี code path (inbound-only ทั้งชุด E7/E9 — ดู [[EXTENSIONS-2026-07-25]] Carry)
 - **`messaging_referrals` มีใน subscribe field แล้ว** — แต่ Meta ล็อกชุด field ไว้ตอนเชื่อมเพจครั้งแรก เพจที่เชื่อมก่อน 2026-07-25 ต้อง re-sync (`POST /api/channels`) ถึงจะได้ pure-referral event (ดู [[EXTENSIONS-2026-07-26]] E5.6)
 - **S-8 tab ใบเสนอราคา** — แก้ปัญหาด้วยการ์ดออเดอร์ในแชท (E1, `type=ORDER`) แทน ไม่ใช่ tab แยกตามที่ BRD เดิมคิดไว้ — เป็น design decision ที่ implement แล้วในรูปแบบต่าง
@@ -223,7 +223,8 @@ flowchart LR
   1. โหลด `Conversation` พร้อม `include: {shopChannel, externalContact}` — ไม่พบ → `CONVERSATION_NOT_FOUND`; `channel==='DEEP'` หรือไม่มี `shopChannel`/`externalContact` → `NOT_EXTERNAL_CHANNEL`
   2. ownership: `shop.userId !== actorUserId` → `FORBIDDEN`
   3. **window check ก่อนยิง Graph API เสมอ:** `!getWindowState(conversation.lastInboundAt).open` → throw `WINDOW_CLOSED` (กันเปลือง quota + กัน error ที่คาดเดาได้อยู่แล้ว) — **ไม่มีการยิง Graph API เลยถ้า window ปิด**
-  4. `decryptToken(shopChannel.accessTokenEnc)` → **`params.imageFileId` มีค่า** → `getFileUrl(imageFileId, {signed, expiresIn:3600})` แล้ว `sendImageMessage(token, PSID, imageUrl)` (+ caption แยกเป็น `sendTextMessage` ถ้ามี `text`, best-effort ไม่ throw ถ้าพลาด) — **ไม่มี** `imageFileId` → `sendTextMessage(pageId, token, PSID, text)` → ได้ `mid` ทั้งสองกรณี (แก้จาก v1.1 ที่เขียนว่ารองรับแค่ TEXT)
+  4. `decryptToken(shopChannel.accessTokenEnc)` → **มีไฟล์แนบ** (`params.attachment` หรือ `params.imageFileId` เดิมที่ถูกแปลงเป็น kind `IMAGE` ให้) → `getFileUrl(fileId, {signed, expiresIn:3600})` แล้ว `sendAttachmentMessage(token, PSID, GRAPH_ATTACHMENT_TYPE[kind], url)` (+ caption แยกเป็น `sendTextMessage` ถ้ามี `text`, best-effort ไม่ throw ถ้าพลาด) — **ไม่มีไฟล์แนบ** → `sendTextMessage(token, PSID, text)` → ได้ `mid` ทั้งสองกรณี
+     - อัปเดต 2026-08-02: เดิมเป็น `sendImageMessage` ที่ยิง `attachment.type = 'image'` ตายตัว — ตอนนี้ generalize ตาม kind. **สองทางเข้า (`attachment`/`imageFileId`) ถูกรวมเป็นตัวแปรเดียวก่อนใช้** เพื่อไม่ให้ retry path (ตอน Meta ปฏิเสธ `reply_to`) ส่งผิดชนิดเงียบ ๆ
   5. **ลำดับสำคัญ:** ส่งออกก่อน (`try/catch`) แล้วค่อย `chatMessage.create` เสมอ — ถ้า Graph ตอบ error, `mid = null`, `failureReason = e.message`, ถ้า `GraphApiError.code === 190` (token ตาย) → `markChannelTokenInvalid(shopChannel.id)`
   6. `chatMessage.create({senderRole:'SHOP', externalMessageId: mid || null, deliveryStatus: failureReason ? 'FAILED' : 'SENT', failureReason})` แล้วอัปเดต `Conversation` snapshot **แม้ส่งไม่สำเร็จ** (seller ต้องเห็นในเธรดว่าพยายามส่งแล้วพลาด)
 - **Postcondition:** สำเร็จ → คืน `ChatMessage` ที่สร้าง; ล้มเหลว → **throw `SEND_FAILED: <reason>`** (แม้จะ insert ChatMessage ไปแล้วก็ตาม — caller/route ต้อง map เป็น error response ที่เหมาะสม ไม่ใช่ 200)
@@ -235,7 +236,7 @@ flowchart LR
 - **คำอธิบาย:** `POST /api/chat/conversations/[id]/messages` เดิม (feature 00011) แก้เพิ่ม: ก่อนเรียก `sendMessage()` เดิม ให้ query `conversation.channel` ก่อน — ถ้า `channel !== 'DEEP'`:
   - `type === 'PRODUCT'` → คืน `400` ทันที (ยังไม่รองรับการ์ดสินค้าออกช่องทางนอก)
   - `type === 'ORDER'` → verify `orderRefToken` เป็นของร้านนี้จริงก่อน แล้วประกอบข้อความลิงก์ `/o/{token}` เรียก `sendOutboundMessage({text: linkText, orderRefToken})` — ลูกค้าได้ลิงก์ (ไม่ใช่การ์ด) แต่ฝั่งเราเก็บเป็นการ์ด (E1)
-  - `type === 'TEXT'` หรือ `'IMAGE'` → เรียก `sendOutboundMessage({text, imageFileId})` แทน `sendMessage` — **แก้จาก v1.1 ที่เขียนผิดว่ารองรับแค่ TEXT** (`sendOutboundMessage` มี branch `isImage` เรียก `sendImageMessage` จริง)
+  - `type === 'TEXT'` หรือไฟล์แนบ (`IMAGE`/`VIDEO`/`AUDIO`/`FILE`) → เรียก `sendOutboundMessage({ text, attachment })` แทน `sendMessage` — อัปเดต 2026-08-02 (เดิมเป็น `{text, imageFileId}` รับเฉพาะรูป). ก่อนถึงจุดนี้ route ต้องผ่าน `checkChannelSupport(conv.channel, …)` แล้ว ซึ่งเป็นเหตุผลที่ต้อง query `conversation` **ก่อน** บล็อก conditional-required
   - `channel === 'DEEP'` (หรือ conversation ไม่พบ — ปล่อยให้ `sendMessage` เดิม throw `CONVERSATION_NOT_FOUND`) → เดินทาง `sendMessage` เดิมเหมือนก่อนมี feature นี้ (**zero-regression**)
 - **Error mapping ใหม่ที่ route:** `WINDOW_CLOSED` → `409`, `CHANNEL_NOT_ACTIVE` → `409`, `NOT_EXTERNAL_CHANNEL` → `400`, `SEND_FAILED:*` (prefix match) → `502` — ดู [[API]] §5
 
@@ -273,8 +274,8 @@ flowchart LR
 - **Trace:** FR-FBC-17
 - **คำอธิบาย:** `channel-chat.service.ts` map `attachment.type` ของ Meta เป็น `ChatMessage.type` ผ่านตาราง `{ image: 'IMAGE', video: 'VIDEO', audio: 'AUDIO', file: 'FILE' }` แล้ว mirror ไฟล์เข้า storage ของ Deep เอง (URL ของ Meta หมดอายุ — เหตุผลเดียวกับ TFR-FBC-04)
 - **การแสดงผล:** เธรดเลือก element ตามชนิด — `<video controls>` / `<audio controls>` / ลิงก์ดาวน์โหลด โดยทุกชนิด serve ผ่าน `/api/files/{fileId}`
-- **ขาออกยังไม่รองรับ:** ร้านส่งได้เฉพาะ TEXT/IMAGE (ดู TFR-FBC-10) — ชนิดอื่นเป็น inbound-only
-- **หมายเหตุ contract:** comment ของ `ChatMessage.type` ใน `prisma/schema.prisma` เขียนไว้ตั้งแต่ feature 00011 ว่า `"TEXT" | "IMAGE" | "PRODUCT"` — ค่าใช้จริงตอนนี้มี `VIDEO`/`AUDIO`/`FILE` เพิ่ม (คอลัมน์เป็น `String` ไม่ใช่ enum จึงไม่ต้อง migrate) ดู [[DATABASE]] §3.4
+- **ขาออก (อัปเดต 2026-08-02):** ร้านส่งได้ทั้ง TEXT · IMAGE · VIDEO · AUDIO · FILE แล้ว — ไม่ใช่ inbound-only อีกต่อไป (ดู [[EXTENSIONS-2026-08-02]] E1) ชนิดที่ส่งได้จริงขึ้นกับช่องทางปลายทางตาม `checkChannelSupport()`
+- **หมายเหตุ contract:** comment ของ `ChatMessage.type` ใน `prisma/schema.prisma` เคยเขียนไว้ตั้งแต่ feature 00011 ว่า `"TEXT" | "IMAGE" | "PRODUCT"` — **แก้แล้ว 2026-08-02** ให้ระบุครบทั้ง 7 ค่า (คอลัมน์เป็น `String` ไม่ใช่ enum จึงไม่ต้อง migrate) ดู [[DATABASE]] §3.4
 
 ---
 
