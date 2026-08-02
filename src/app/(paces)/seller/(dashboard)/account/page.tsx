@@ -56,7 +56,10 @@ export default async function AccountPage() {
         ข้อมูลนี้เป็นของคุณโดยตรง ไม่ใช่ของร้าน — เหมือนกันไม่ว่าจะสลับไปร้านไหน
       </p>
 
-      <ProfileForm
+      {/* max-w-2xl ตามสเปกต้นฉบับ — ฟอร์มนี้เป็นคอลัมน์เดียว (4 ฟิลด์ ไม่ใช่ 20 แบบ theme ต้นฉบับ)
+          ถ้าปล่อยการ์ดกว้างเต็ม main content จะเหลือคอลัมน์ว่างมหาศาลทางขวาที่จอ 1440px */}
+      <div className="max-w-2xl">
+        <ProfileForm
         user={{
           displayName: dbUser.displayName,
           username: dbUser.username,
@@ -64,23 +67,24 @@ export default async function AccountPage() {
           email: dbUser.email,
           phone: dbUser.phone,
         }}
-      />
-
-      <div className="card mt-4">
-        <div className="card-header">
-          <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium w-full justify-center">
-            วิธีเข้าสู่ระบบ
-          </h5>
-        </div>
-
-        {/* ย้ายมาจาก /settings ทั้งก้อน (user เคาะ Path A 2026-08-02) — เนื้อในผูกกับ user ไม่ผูกร้าน
-            อยู่ในกลุ่มเมนู "ร้านค้า" มาตลอดจึงไม่มีใครหาเจอ. component เดิมไม่แก้ ใช้ตามที่มี */}
-        <ConnectedAccountsClient
-          facebookLinked={linkedProviders.has('FACEBOOK')}
-          lineLinked={linkedProviders.has('LINE')}
-          instagramLinked={linkedProviders.has('INSTAGRAM')}
-          hasPassword={dbUser.passwordHash != null}
         />
+
+        <div className="card mt-4">
+          <div className="card-header">
+            <h5 className="bg-light/15 border-default-300 flex w-full items-center justify-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium">
+              วิธีเข้าสู่ระบบ
+            </h5>
+          </div>
+
+          {/* ย้ายมาจาก /settings ทั้งก้อน (user เคาะ Path A 2026-08-02) — เนื้อในผูกกับ user ไม่ผูกร้าน
+              อยู่ในกลุ่มเมนู "ร้านค้า" มาตลอดจึงไม่มีใครหาเจอ. component เดิมไม่แก้ ใช้ตามที่มี */}
+          <ConnectedAccountsClient
+            facebookLinked={linkedProviders.has('FACEBOOK')}
+            lineLinked={linkedProviders.has('LINE')}
+            instagramLinked={linkedProviders.has('INSTAGRAM')}
+            hasPassword={dbUser.passwordHash != null}
+          />
+        </div>
       </div>
     </>
   )

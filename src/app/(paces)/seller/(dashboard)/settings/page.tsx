@@ -12,6 +12,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import SellerEmptyState from '../_shared/SellerEmptyState'
 import type { Metadata } from 'next'
 import ShippingSettingsRow from './ShippingSettingsRow'
 import { resolveActiveShopContext } from '@/lib/shop-context'
@@ -92,23 +93,12 @@ export default async function SettingsPage() {
           หน้านี้จึงเหลือเฉพาะเรื่องของร้าน = การจัดส่ง */}
       {!showShipping && (
         <div className="card">
-          <div className="card-body text-center">
-            <div className="mb-3 flex justify-center">
-              <div className="bg-primary/15 text-primary flex size-14 items-center justify-center rounded-full">
-                {/* inline SVG (tabler truck-delivery) — server component ใช้ Icon wrapper
-                    ที่ห่อ @iconify/react ไม่ได้ ตามคอมเมนต์เดิมของไฟล์นี้ */}
-                <svg xmlns="http://www.w3.org/2000/svg" width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                  <path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
-                  <path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
-                  <path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5" />
-                </svg>
-              </div>
-            </div>
-            <h5 className="mb-1 text-base font-semibold">ร้านนี้ยังไม่มีการตั้งค่าการจัดส่ง</h5>
-            <p className="text-default-400 text-sm">
-              การเชื่อมต่อขนส่งใช้ได้กับร้านที่ขายสินค้าจัดส่งเท่านั้น
-            </p>
+          <div className="card-body">
+            <SellerEmptyState
+              icon="truck-delivery"
+              title="ร้านนี้ยังไม่มีการตั้งค่าการจัดส่ง"
+              description="การเชื่อมต่อขนส่งใช้ได้กับร้านที่ขายสินค้าจัดส่งเท่านั้น"
+            />
           </div>
         </div>
       )}

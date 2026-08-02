@@ -275,6 +275,18 @@ export default function ProfileForm({ user }: Props) {
         save()
       }}
     >
+      {/* section header เส้นประ = ลายเซ็น Paces (theme account-settings/page.tsx:32-35) ตัด
+          uppercase ออกตาม Sentence-Case Rule เพราะข้อความไทย
+          เคยตัด header นี้ทิ้งรอบแก้ Impeccable ด้วยเหตุผลว่า "ซ้ำกับ /shop จนแยกไม่ออก" ซึ่ง
+          ตรวจแล้วไม่จริง — ShopForm ไม่ได้ใช้ h5 เส้นประเลย (ใช้ไอคอนวงกลม + stepper คนละแบบ)
+          และการมี header แค่การ์ดเดียวในหน้าที่มี 2 การ์ด อ่านเหมือนบั๊กมากกว่างานออกแบบ */}
+      <div className="card-header">
+        <h5 className="bg-light/15 border-default-300 flex w-full items-center justify-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium">
+          <Icon icon="user-circle" className="text-base" aria-hidden="true" />
+          ข้อมูลส่วนตัว
+        </h5>
+      </div>
+
       <div className="card-body">
         {/* avatar + ชื่อ + badge — badge ใช้สไตล์เดียวกับ "ส่วนตัว" ใน account switcher
             เพื่อให้จับ visual grammar เดียวกันข้ามหน้า ไม่ใช่ศัพท์ภาพใหม่ */}
