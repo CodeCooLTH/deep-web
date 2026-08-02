@@ -171,21 +171,15 @@ export default async function SalesPage({
     <>
       <PageBreadcrumb title="ภาพรวมยอดขาย" trail={[{ label: 'ภาพรวม' }]} />
 
-      {/* โครงสร้าง single-card ตาม Paces theme: header → card-body (chart) → table+pagination */}
-      <div className="card">
-        <div className="card-header flex items-center justify-between flex-wrap gap-3">
-          <h5 className="card-title">รายงานยอดขาย</h5>
-          <SalesDateRange
-            from={from.toISOString().slice(0, 10)}
-            to={to.toISOString().slice(0, 10)}
-          />
-        </div>
+      {/* เลิกใช้ single-card ครอบทั้งหน้า — SalesChart render การ์ดสรุปแยกใบเองแล้ว (แบบหน้าสินค้า)
+          ถ้ายังครอบอยู่จะกลายเป็นการ์ดซ้อนการ์ด ซึ่ง DESIGN.md §anti-slop ห้าม */}
+      <div className="mb-1.25 flex flex-wrap items-center justify-end gap-3">
+        <SalesDateRange from={from.toISOString().slice(0, 10)} to={to.toISOString().slice(0, 10)} />
+      </div>
 
-        <div className="card-body">
-          <SalesChart daily={daily} summary={summary} />
-        </div>
+      <SalesChart daily={daily} summary={summary} />
 
-        {/* SalesTable render เป็น header+DataTable+card-footer ภายใน card เดียวกัน */}
+      <div className="card mt-1.25">
         <SalesTable rows={daily} showFinance={canSeeFinance} />
       </div>
     </>

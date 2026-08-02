@@ -1,15 +1,24 @@
 /**
- * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(reports)/sales/components/SalesChart.tsx
+ * SalesChart — สรุปยอดขาย/กำไร + กราฟแท่งรายวัน (feature 00016)
  *
- * Re-sourced S15 (Phase B): ใช้ ApexChart wrapper (src/components/wrappers/ApexChart.tsx) เหมือน theme.
- * series ทั้งหมดมาจาก real DailyRow[] ที่ RSC คำนวณ — ไม่มี demo [320,402,...] จาก theme data.ts.
- * Currency: ฿ THB. Date label: th-TH (format ที่ RSC boundary ก่อนส่งมา).
- * PDPA: ข้อมูลเป็น aggregate ตามวัน ไม่มี buyer PII ใด ๆ.
+ * v3 (2026-08-02):
+ *   1. แถบสรุปเปลี่ยนจาก div พื้นเทา → **การ์ดแยกใบ** ให้ตรงกับหน้าสินค้า
+ *      Base: src/app/(paces)/seller/(dashboard)/products/components/ProductStats.tsx
+ *      (card > card-body > card-title text-sm + icon chip กลม size-9 + ตัวเลข text-xl)
+ *   2. กราฟเปลี่ยนจาก area+line 2 แกน → **แท่งรายวันแบบชีตยอดขายบนมือถือ**
+ *      Base: dashboard/components/SalesChartSheet.tsx::buildSalesChartOptions
+ *      (bar + stacked group; ค่าใช้จ่ายอยู่คนละ group จึงวางข้างกันไม่ต่อยอดทับ)
+ *      ตัด series "ออเดอร์" ทิ้ง — มันบังคับให้มีแกนขวาคนละหน่วยจนเทียบความสูงแท่งไม่ได้
+ *      และจำนวนออเดอร์อ่านได้จากการ์ดสรุปกับตารางด้านล่างอยู่แล้ว
+ *
+ * series ทั้งหมดมาจาก real DailyRow[] ที่ RSC คำนวณ — ไม่มี demo data จาก theme
+ * PDPA: ข้อมูลเป็น aggregate ตามวัน ไม่มี buyer PII ใด ๆ
  */
 'use client'
 
 import ApexChart from '@/components/wrappers/ApexChart'
-import { getColor } from '@/utils/helpers'
+import Icon from '@/components/wrappers/Icon'
+import { getColor, cn } from '@/utils/helpers'
 import { formatBaht, profitDisplay, NET_PROFIT_FORMULA } from '@/lib/format-money'
 import { useCallback } from 'react'
 import type { DailyRow, SummaryData } from './data'
@@ -19,158 +28,144 @@ type Props = {
   summary: SummaryData
 }
 
-// รูปแบบเงินใช้ SSOT กลาง (src/lib/format-money.ts) — เดิมหน้านี้ปัดทศนิยมทิ้งขณะที่ /expenses ไม่ปัด
-
 const SalesChart = ({ daily, summary }: Props) => {
   const categories = daily.map((d) => d.label)
   const revenueSeries = daily.map((d) => d.revenue)
-  const ordersSeries = daily.map((d) => d.orders)
   // ค่าใช้จ่าย (feature 00016) — undefined ทั้งชุด = ไม่มีสิทธิ์ดูข้อมูลการเงิน ซ่อนทั้ง series และการ์ด
   const showFinance = summary.totalExpense != null
   const expenseSeries = daily.map((d) => d.expense ?? 0)
   const profit = profitDisplay(summary.netProfit ?? 0)
 
-  /** ยอดขาย (พื้นที่) + ค่าใช้จ่าย (แท่ง, ถ้ามีสิทธิ์ดู) + จำนวนออเดอร์ (เส้น, แกนขวา) */
-  const buildSeries = () => [
-    { name: 'ยอดขาย (฿)', type: 'area', data: revenueSeries },
-    ...(showFinance ? [{ name: 'ค่าใช้จ่าย (฿)', type: 'column', data: expenseSeries }] : []),
-    { name: 'ออเดอร์', type: 'line', data: ordersSeries },
+  const series = [
+    { name: 'ยอดขายที่ยืนยันแล้ว', group: 'sales', data: revenueSeries },
+    ...(showFinance ? [{ name: 'ค่าใช้จ่าย', group: 'expense', data: expenseSeries }] : []),
   ]
 
   const getOptions = useCallback(
     () => ({
-      chart: {
-        height: 380,
-        type: 'line' as const,
-        stacked: false,
-        toolbar: { show: false },
-        zoom: { enabled: false },
-      },
-      // เส้นหนาเฉพาะ series "ออเดอร์" (ตัวสุดท้าย) — area/column ไม่ต้องมีเส้นขอบ
-      stroke: {
-        width: showFinance ? [0, 0, 2] : [0, 2],
-        curve: 'smooth' as const,
-      },
-      plotOptions: {
-        bar: { columnWidth: '55%' },
-      },
-      // ค่าใช้จ่ายเป็นแท่งแยกต่างหาก ไม่ stack ทับยอดขาย — คนละความหมาย (เงินเข้า vs เงินออก)
-      // ซ้อนกันเมื่อไหร่ผู้ใช้จะอ่านความสูงรวมเป็น "ยอดขาย" ทันที
-      colors: showFinance
-        ? [getColor('chart-primary'), getColor('chart-beta'), getColor('chart-secondary')]
-        : [getColor('chart-primary'), getColor('chart-secondary')],
-      series: buildSeries(),
-      fill: {
-        type: ['gradient', 'solid'],
-        gradient: {
-          shadeIntensity: 1,
-          opacityFrom: 0.45,
-          opacityTo: 0.05,
-        },
-      },
+      series,
+      chart: { type: 'bar' as const, height: 320, stacked: true, toolbar: { show: false } },
+      plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
+      dataLabels: { enabled: false },
+      // น้ำเงิน = ยอดขาย, แดง = ค่าใช้จ่าย — token เท่านั้น (Hard Rule 10 ห้าม hardcode hex)
+      colors: showFinance ? [getColor('chart-primary'), getColor('chart-beta')] : [getColor('chart-primary')],
+      legend: { show: true, position: 'top' as const, horizontalAlign: 'right' as const, fontSize: '12px' },
       xaxis: {
         categories,
-        labels: {
-          rotate: -45,
-          rotateAlways: categories.length > 14,
-          style: { fontSize: '11px' },
-        },
+        axisBorder: { show: false },
+        axisTicks: { show: false },
+        // 30 วันชนกันแน่บนจอแคบ — ให้ Apex thin label เอง + ซ่อนตัวที่ทับ
+        tickAmount: 10,
+        labels: { hideOverlappingLabels: true, rotate: 0, style: { fontSize: '12px' } },
       },
-      yaxis: [
-        {
-          title: {
-            text: 'ยอดขาย (฿)',
-            style: { fontSize: '11px', fontWeight: 600 },
-          },
-          labels: {
-            formatter: (val: number) => formatBaht(val),
-          },
-        },
-        // ค่าใช้จ่ายใช้แกนซ้ายร่วมกับยอดขาย (หน่วยบาทเหมือนกัน) — แกนที่ 3 จะทำให้เทียบความสูงกันไม่ได้
-        ...(showFinance
-          ? [{ show: false, seriesName: 'ยอดขาย (฿)', labels: { formatter: (val: number) => formatBaht(val) } }]
-          : []),
-        {
-          opposite: true,
-          title: {
-            text: 'จำนวนออเดอร์',
-            style: { fontSize: '11px', fontWeight: 600 },
-          },
-          labels: {
-            formatter: (val: number) => Math.round(val).toString(),
-          },
-        },
-      ],
-      tooltip: {
-        shared: true,
-        intersect: false,
-        y: [
-          { formatter: (val: number) => formatBaht(val) },
-          ...(showFinance ? [{ formatter: (val: number) => formatBaht(val) }] : []),
-          { formatter: (val: number) => `${Math.round(val)} ออเดอร์` },
-        ],
-      },
-      legend: {
-        show: true,
-        position: 'top' as const,
-        horizontalAlign: 'right' as const,
-      },
+      yaxis: { labels: { formatter: (val: number) => formatBaht(val) } },
       grid: { strokeDashArray: 4 },
-      dataLabels: { enabled: false },
+      tooltip: { shared: true, intersect: false, y: { formatter: (val: number) => formatBaht(val) } },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [daily],
+    [daily, showFinance],
   )
-
-  const series = buildSeries()
 
   return (
     <div>
-      {/* Summary strip — 6 ใบเมื่อมีสิทธิ์ดูข้อมูลการเงิน (เพิ่มค่าใช้จ่าย/กำไรสุทธิ) */}
-      <div className={`grid grid-cols-2 gap-4 mb-5 ${showFinance ? 'sm:grid-cols-3 lg:grid-cols-6' : 'sm:grid-cols-4'}`}>
-        {/* ไม่ใช้ CountUp — DESIGN.md ห้าม choreography ตอนโหลดฝั่ง product และระหว่างไล่เลข 1 วินาที
-            จอแสดงจำนวนเงินที่ไม่เคยมีอยู่จริงบนหน้าที่เดิมพันกับความแม่นของตัวเลข */}
-        <div className="rounded-lg bg-light/50 p-4 text-center">
-          <p className="text-xs text-default-700 mb-1">ยอดขายที่ยืนยันแล้ว</p>
-          <p className="text-lg font-bold text-dark">{formatBaht(summary.totalRevenue)}</p>
-        </div>
-        <div className="rounded-lg bg-light/50 p-4 text-center">
-          <p className="text-xs text-default-700 mb-1">ออเดอร์ทั้งหมด</p>
-          <p className="text-lg font-bold text-dark">{summary.totalOrders.toLocaleString('th-TH')}</p>
-        </div>
-        <div className="rounded-lg bg-light/50 p-4 text-center">
-          <p className="text-xs text-default-700 mb-1">สำเร็จ</p>
-          <p className="text-lg font-bold text-success-ink">{summary.totalCompleted.toLocaleString('th-TH')}</p>
-        </div>
-        <div className="rounded-lg bg-light/50 p-4 text-center">
-          <p className="text-xs text-default-700 mb-1">เฉลี่ย/ออเดอร์</p>
-          <p className="text-lg font-bold text-dark">{formatBaht(summary.avgOrderValue)}</p>
-        </div>
-
+      {/* การ์ดสรุป — โครงเดียวกับหน้าสินค้า */}
+      <div className="mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <SummaryCard
+          icon="cash"
+          iconClass="bg-success/15 text-success-ink"
+          title="ยอดขายที่ยืนยันแล้ว"
+          text={formatBaht(summary.totalRevenue)}
+          valueClass="text-success-ink"
+        />
+        <SummaryCard
+          icon="receipt-2"
+          iconClass="bg-primary/15 text-primary"
+          title="ออเดอร์ทั้งหมด"
+          text={summary.totalOrders.toLocaleString('th-TH')}
+          valueClass="text-default-800"
+        />
+        <SummaryCard
+          icon="circle-check"
+          iconClass="bg-success/15 text-success-ink"
+          title="สำเร็จ"
+          text={summary.totalCompleted.toLocaleString('th-TH')}
+          valueClass="text-success-ink"
+        />
+        <SummaryCard
+          icon="calculator"
+          iconClass="bg-info/15 text-info-ink"
+          title="เฉลี่ย/ออเดอร์"
+          text={formatBaht(summary.avgOrderValue)}
+          valueClass="text-default-800"
+        />
         {showFinance && (
           <>
-            <div className="rounded-lg bg-danger/10 border border-danger/20 p-4 text-center">
-              <p className="text-xs text-default-700 mb-1">ค่าใช้จ่าย</p>
-              <p className="text-lg font-bold text-danger-ink">{formatBaht(summary.totalExpense ?? 0)}</p>
-            </div>
-            <div className="rounded-lg bg-success/10 border border-success/20 p-4 text-center">
-              <p className="text-xs text-default-700 mb-1">{profit.label}</p>
-              <p className={`text-lg font-bold ${profit.toneClass}`}>{profit.text}</p>
-            </div>
+            <SummaryCard
+              icon="report-money"
+              iconClass="bg-danger/15 text-danger-ink"
+              title="ค่าใช้จ่าย"
+              text={formatBaht(summary.totalExpense ?? 0)}
+              valueClass="text-danger-ink"
+            />
+            {/* สี chip/ตัวเลขตามทิศทางของค่า — เดิมการ์ดนี้พื้นเขียวเสมอ ทำให้ "ขาดทุน" ถูกทาเขียว
+                ซึ่งขัด Verified-Means-Green ตรง ๆ */}
+            <SummaryCard
+              icon={profit.positive ? 'trending-up' : 'trending-down'}
+              iconClass={profit.positive ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink'}
+              title={profit.label}
+              text={profit.text}
+              valueClass={profit.toneClass}
+              note={NET_PROFIT_FORMULA}
+            />
           </>
         )}
       </div>
 
-      {showFinance && (
-        // ยอดขายนับเฉพาะออเดอร์ที่ยืนยันแล้ว ส่วนค่าใช้จ่ายนับทุกรายการที่บันทึกในวันนั้น —
-        // เขียนกำกับไว้ ไม่งั้นผู้ใช้บวกลบเองแล้วได้ไม่ตรงกับตัวเลขที่เราแสดง
-        <p className="text-xs text-default-700 mb-4 text-center">
-          {NET_PROFIT_FORMULA}
-        </p>
-      )}
+      <div className="card">
+        <div className="card-body">
+          <ApexChart getOptions={getOptions} series={series} type="bar" height={320} />
+        </div>
+      </div>
+    </div>
+  )
+}
 
-      {/* Chart */}
-      <ApexChart getOptions={getOptions} series={series} type="line" height={380} />
+function SummaryCard({
+  icon,
+  iconClass,
+  title,
+  text,
+  valueClass,
+  note,
+}: {
+  icon: string
+  iconClass: string
+  title: string
+  text: string
+  valueClass: string
+  note?: string
+}) {
+  return (
+    <div className="card">
+      <div className="card-body">
+        <div className="flex items-center gap-1.5">
+          <h5 className="card-title text-sm" title={title}>
+            {title}
+          </h5>
+          {/* วิธีคำนวณอ่านตอน hover — ไม่กินพื้นที่ถาวรบนการ์ด */}
+          {note && (
+            <span className="text-default-700" title={note} aria-label={note}>
+              <Icon icon="info-circle" className="text-base" />
+            </span>
+          )}
+        </div>
+        <div className="mt-4 flex items-center gap-2.5">
+          <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', iconClass)}>
+            <Icon icon={icon} className="text-2xl" />
+          </div>
+          <span className={cn('text-xl font-semibold', valueClass)}>{text}</span>
+        </div>
+      </div>
     </div>
   )
 }
