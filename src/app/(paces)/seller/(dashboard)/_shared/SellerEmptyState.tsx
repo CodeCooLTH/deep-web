@@ -43,7 +43,7 @@ const SellerEmptyState = ({
       }`}
     >
       {/* ไอคอนขนาดใหญ่ ~56px, opacity-40 — บอกประเภทของ empty state */}
-      <Icon icon={icon} className="text-[56px] mb-4 opacity-40" />
+      <Icon icon={icon} className="size-14 mb-4 opacity-40" />
 
       <p className="font-semibold text-default-700 text-base mb-1">{title}</p>
 
