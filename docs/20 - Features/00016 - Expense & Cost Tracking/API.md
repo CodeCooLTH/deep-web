@@ -1,339 +1,389 @@
----
-title: "API — Expense & Cost Tracking"
-owner: shinobu22
-status: draft
-module: M00016-ExpenseCostTracking
-version: "1.0"
-created: 2026-07-08
-tags: [feature, expense, cost, profit, pnl, seller, api]
-related: ["[[SDS]]", "[[SRS]]", "[[Feature-Docs-Ownership]]"]
----
-
-> **โมดูล:** M00016-ExpenseCostTracking
-> **ประเภทเอกสาร:** API Contract
-> **เวอร์ชัน:** 1.0
-> **วันที่จัดทำ:** 2026-07-08
-> **สถานะ:** Draft
-> **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
-
-# API Contract: Expense & Cost Tracking
-
----
-
-## 1. Overview
-
-API ชุดนี้รองรับการออกแบบใน [[SDS]] §3-6 — เพิ่ม 4 endpoint ใหม่ (CRUD expense + report + toggle) และแก้ 2 endpoint เดิม (product create/update — เพิ่ม field `cost` + gate) provider คือ Next.js 16 Route Handler (nodejs runtime) ทั้งหมด, ผู้บริโภคคือ seller browser (`(paces)/seller/**`)
-
-- **เอกสารออกแบบต้นทาง:** [[SDS]] ของโมดูลนี้
-- **Base URL:** `https://seller.deepthailand.app` (prod), `https://seller.deepth.local` (dev)
-- **Content-Type:** `application/json` (ทุก endpoint ของโมดูลนี้)
-- **Convention:** response envelope ตรง (ไม่มี wrapper `{data, meta}`) — ตรง convention เดิมของ `src/app/api/**` ทั้งหมด
-
----
-
-## 2. Authentication
-
-| รายการ | ค่า |
-|--------|-----|
-| **วิธี (Auth Method)** | NextAuth v4 session cookie (JWT strategy) |
-| **Header** | cookie อัตโนมัติจาก browser |
-| **Token/Scope** | Session ผูกกับ `User.id` — ทุก endpoint ต้องการ "login แล้ว" + ผ่าน `resolveExpenseAccess()` (ยกเว้น finance-visibility toggle ที่เช็ค owner ตรง ไม่ผ่าน `resolveExpenseAccess`) |
-| **กรณีไม่ผ่าน** | `401 { "error": "unauthorized" }` |
-| **CSRF/Rate-limit** | ทุก mutation route (`POST`/`PATCH`/`DELETE`) ผ่าน `guardApi()` ใน `src/proxy.ts` อัตโนมัติ (Origin-check + rate-limit ต่อ IP, auth 30/min) — ไม่ต้องแก้ `proxy.ts` |
-
----
-
-## 3. Endpoint List
-
-| Method | Path | คำอธิบาย | สถานะ |
-|--------|------|----------|-------|
-| `POST` | `/api/expenses` | สร้าง Expense | **ใหม่** |
-| `GET` | `/api/expenses` | รายการ Expense | **ใหม่** |
-| `PATCH` | `/api/expenses/{id}` | แก้ไข Expense | **ใหม่** |
-| `DELETE` | `/api/expenses/{id}` | ลบ Expense | **ใหม่** |
-| `GET` | `/api/expenses/report` | รายงาน P&L | **ใหม่** |
-| `PATCH` | `/api/business/shops/{shopId}/finance-visibility` | Toggle `staffCanViewFinance` | **ใหม่** |
-| `POST` | `/api/products` | สร้างสินค้า | แก้ไข (เพิ่ม field `cost`) |
-| `PATCH` | `/api/products/{id}` | แก้สินค้า | แก้ไข (เพิ่ม field `cost`) |
-
----
-
-## 4. Endpoint Detail
-
-### 4.1 `POST /api/expenses`
-
-**Auth:** Session required + `resolveExpenseAccess()` ต้อง `GRANTED`
-
-**Request**
-
-| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
-|------|-------|------|--------|----------|
-| Body | `category` | `string` (1 ใน 7 ค่า) | yes | `RENT`/`PACKAGING`/`ADVERTISING`/`SHIPPING`/`SALARY`/`UTILITIES`/`OTHER` |
-| Body | `amount` | `number` | yes | `> 0` |
-| Body | `expenseDate` | `string` ("YYYY-MM-DD") | no | ไม่ส่ง = default วันนี้ (Thai calendar date) |
-| Body | `note` | `string` (≤500 chars) | no | — |
-
-Valibot schema (`src/lib/validations.ts`):
-```ts
-export const CreateExpenseSchema = v.object({
-  category: v.picklist(EXPENSE_CATEGORIES),
-  amount: v.pipe(v.number(), v.minValue(0.01)),
-  expenseDate: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
-  note: v.optional(v.pipe(v.string(), v.maxLength(500))),
-});
-```
-
-**Response — Success (201)**
-
-```json
-{
-  "id": "...",
-  "shopId": "...",
-  "category": "ADVERTISING",
-  "amount": 1500,
-  "expenseDate": "2026-07-08",
-  "note": "ค่า boost โพสต์ FB",
-  "createdByUserId": "...",
-  "createdAt": "...",
-  "updatedAt": "..."
-}
-```
-
-**Error contract:**
-
-| Status | เงื่อนไข |
-|--------|----------|
-| 400 | body invalid (Valibot parse fail) |
-| 401 | ไม่มี session |
-| 403 | `resolveExpenseAccess` = `PACKAGE_LOCKED`/`STAFF_NOT_ALLOWED` |
-| 404 | `resolveExpenseAccess` = `NO_SHOP` |
-
----
-
-### 4.2 `GET /api/expenses`
-
-**Auth:** Session required + `resolveExpenseAccess()` ต้อง `GRANTED`
-
-**Request**
-
-| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
-|------|-------|------|--------|----------|
-| Query | `start` | `string` ("YYYY-MM-DD") | no | ช่วง `expenseDate` เริ่ม — ไม่ส่ง = ไม่กรอง |
-| Query | `end` | `string` ("YYYY-MM-DD") | no | ช่วง `expenseDate` สิ้นสุด (inclusive) — ต้องมาคู่กับ `start` |
-
-**Response — Success (200)**
-
-```json
-[
-  { "id": "...", "shopId": "...", "category": "RENT", "amount": 8000, "expenseDate": "2026-07-01", "note": null, "createdByUserId": "...", "createdAt": "...", "updatedAt": "..." }
-]
-```
-
-เรียงจาก `expenseDate` ล่าสุดก่อน (`orderBy: { expenseDate: 'desc' }`)
-
-**Error contract:** เหมือน §4.1 (401/403/404) — ไม่มี 400 เพราะ query param เป็น optional ทั้งคู่ (ถ้าส่งมาแค่ตัวเดียว → ignore ทั้งคู่ ปฏิบัติเหมือนไม่กรอง — defensive, ไม่ error)
-
----
-
-### 4.3 `PATCH /api/expenses/{id}`
-
-**Auth:** Session required + `resolveExpenseAccess()` ต้อง `GRANTED` + record ต้องเป็นของ active shop เดียวกัน
-
-**Request**
-
-| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
-|------|-------|------|--------|----------|
-| Path Param | `id` | `string` (uuid) | yes | `Expense.id` |
-| Body | `category`/`amount`/`expenseDate`/`note` | ตาม §4.1 | no (ทั้งหมด optional — partial update) | omit = ไม่แตะ field นั้น |
-
-**Response — Success (200):** shape เดียวกับ §4.1
-
-**Error contract:**
-
-| Status | เงื่อนไข |
-|--------|----------|
-| 400 | body invalid |
-| 401 | ไม่มี session |
-| 403 | `PACKAGE_LOCKED`/`STAFF_NOT_ALLOWED` |
-| 404 | `NO_SHOP`, หรือ `id` ไม่พบ, หรือ `expense.shopId !== active.shop.id` (**คืน 404 เดียวกัน — ไม่ leak** ตาม BRD FR-EXP-04-AC-03) |
-
----
-
-### 4.4 `DELETE /api/expenses/{id}`
-
-**Auth:** เหมือน §4.3
-
-**Request**
-
-| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
-|------|-------|------|--------|----------|
-| Path Param | `id` | `string` (uuid) | yes | — |
-
-**Response — Success (200)**
-
-```json
-{ "deleted": true }
-```
-
-**Error contract:** เหมือน §4.3 (ไม่มี 400 เพราะไม่มี body)
-
----
-
-### 4.5 `GET /api/expenses/report`
-
-**Auth:** Session required + `resolveExpenseAccess()` ต้อง `GRANTED`
-
-**Request**
-
-| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
-|------|-------|------|--------|----------|
-| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `today` |
-| Query | `start` | `string` ("YYYY-MM-DD") | เมื่อ `range=custom` | — |
-| Query | `end` | `string` ("YYYY-MM-DD") | เมื่อ `range=custom` | — |
-
-Valibot schema (manual parse — query params ไม่ใช่ JSON body):
-```ts
-export const PnlReportQuerySchema = v.object({
-  range: v.optional(v.picklist(['today', '7d', '30d', 'month', 'custom']), 'today'),
-  start: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
-  end: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
-});
-```
-
-**Response — Success (200)**
-
-```json
-{
-  "range": { "start": "2026-07-01", "end": "2026-07-08" },
-  "revenue": 50000,
-  "cogs": 28000,
-  "grossProfit": 22000,
-  "totalExpense": 5000,
-  "netProfit": 17000,
-  "orderCount": 20,
-  "hasMissingCost": true
-}
-```
-
-**Error contract:**
-
-| Status | เงื่อนไข |
-|--------|----------|
-| 400 | `range=custom` แต่ไม่ส่ง `start`/`end` (หรือ format ผิด) |
-| 401 | ไม่มี session |
-| 403 | `PACKAGE_LOCKED`/`STAFF_NOT_ALLOWED` |
-| 404 | `NO_SHOP` |
-
----
-
-### 4.6 `PATCH /api/business/shops/{shopId}/finance-visibility`
-
-Owner-only — **ไม่ผ่าน `resolveExpenseAccess()`** (มิเรอร์ guard ของ `api/business/shops/[shopId]/onboarding/route.ts` — สงวนสิทธิ์เจ้าของเท่านั้น ไม่ใช่ admin member)
-
-**Auth:** Session required + `shop.userId === session.user.id`
-
-**Request**
-
-| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
-|------|-------|------|--------|----------|
-| Path Param | `shopId` | `string` (uuid) | yes | ต้องเป็น `kind=BUSINESS` |
-| Body | `staffCanViewFinance` | `boolean` | yes | — |
-
-**Response — Success (200)**
-
-```json
-{ "ok": true, "staffCanViewFinance": true }
-```
-
-**Error contract:**
-
-| Status | เงื่อนไข |
-|--------|----------|
-| 400 | body invalid |
-| 401 | ไม่มี session |
-| 403 | `NOT_OWNER` (`shop.userId !== session.user.id`) |
-| 404 | ไม่พบ shop, หรือ `kind !== 'BUSINESS'` |
-
----
-
-### 4.7 `POST /api/products` (แก้ไข — เพิ่ม field `cost`)
-
-ไม่เปลี่ยน method/path/auth เดิม — เปลี่ยนเฉพาะ validation + logic เพิ่ม
-
-**Request (เฉพาะ field ที่เพิ่ม)**
-
-| ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
-|-------|------|--------|----------|
-| `cost` | `number` (≥0) | no | ราคาทุน — omit = ไม่ตั้ง (`null`) |
-
-Valibot schema เพิ่ม (`CreateProductSchema`):
-```ts
-cost: v.optional(v.nullable(v.pipe(v.number(), v.minValue(0)))),
-```
-
-**Logic เพิ่ม:** ถ้า `parsed.output.cost !== undefined` → เรียก `isCostEditAllowed(shop)` (`expense-access.service.ts`) ก่อน — ไม่ผ่าน → `403`
-
-**Error contract เพิ่ม:**
-
-| Status | เงื่อนไข |
-|--------|----------|
-| 403 | `COST_REQUIRES_BUSINESS_PACKAGE` — ส่ง `cost` มาโดยที่ owner ของร้านไม่มี Business Package ACTIVE |
-
-**ไม่กระทบ:** สินค้าที่สร้างโดยไม่ส่ง `cost` เลย — behavior เหมือนเดิม 100%
-
----
-
-### 4.8 `PATCH /api/products/{id}` (แก้ไข — เพิ่ม field `cost`)
-
-เหมือน §4.7 — เพิ่ม guard เดียวกัน (`isCostEditAllowed(product.shop)`) ต่อจาก guard `stockQty`/`lowStockThreshold` เดิมในไฟล์เดียวกัน
-
-**Request/Response/Error:** เหมือน §4.7 (partial — `cost` omit = ไม่แตะ, `null` = ล้างค่า, ตัวเลข = ตั้งค่าใหม่)
-
----
-
-## 5. Error Code Table
-
-| Error Code | HTTP Status | ความหมาย/เงื่อนไข |
-|------------|-------------|----------------------|
-| `COST_REQUIRES_BUSINESS_PACKAGE` | `403` | (ใหม่) พยายามตั้ง/แก้ `Product.cost` โดยไม่มี Business Package ACTIVE |
-| `NOT_OWNER` | `403` | (finance-visibility เท่านั้น) ผู้เรียกไม่ใช่ `Shop.userId` |
-| *(generic, ไม่มี code field)* `unauthorized` | `401` | ไม่มี session |
-| *(generic)* — | `403` | `resolveExpenseAccess` = `PACKAGE_LOCKED`/`STAFF_NOT_ALLOWED` (ทุก endpoint ของ Expense/report) |
-| *(generic)* `Invalid input` | `400` | Valibot parse fail (ทุก endpoint ที่มี body/query schema) |
-| *(generic)* — | `404` | `resolveExpenseAccess` = `NO_SHOP`, หรือ Expense record ไม่พบ/ไม่ตรง shop, หรือ shop ไม่พบ/ไม่ใช่ BUSINESS (finance-visibility) |
-
-**โครง error response มาตรฐาน (คงเดิมจากทั้งระบบ):**
-
-```json
-{ "error": "ข้อความ/error code สำหรับ debug" }
-```
-
----
-
-## 6. Sequence (flow ซับซ้อน)
-
-ดู [[SDS]] §4.1-4.6 สำหรับ sequence diagram เต็มของทุก flow (access resolve, สร้าง expense, ดูรายงาน, cost snapshot, toggle) — ไม่ duplicate ที่นี่เพื่อไม่ให้ diagram สอง version drift กัน
-
----
-
-## 7. Traceability
-
-| Endpoint | SDS Component/Decision | BRD FR |
-|----------|--------------------------|--------|
-| `POST /api/expenses` | §4.3 Flow, TD-004 | FR-EXP-03 |
-| `GET /api/expenses` | `expense.service.ts::listExpenses` | FR-EXP-03/09/10/11 |
-| `PATCH /api/expenses/{id}` | TD-004 | FR-EXP-04 |
-| `DELETE /api/expenses/{id}` | TD-004 | FR-EXP-04 |
-| `GET /api/expenses/report` | §4.2, §4.4 Flow | FR-EXP-06, FR-EXP-07, FR-EXP-08 |
-| `PATCH /api/business/shops/{shopId}/finance-visibility` | §4.6 Flow | FR-EXP-10 |
-| `POST /api/products` | §4.1 (`isCostEditAllowed`) | FR-EXP-01 |
-| `PATCH /api/products/{id}` | §4.1 (`isCostEditAllowed`) | FR-EXP-01 |
-
----
-
-## 8. สรุป (Summary)
-
-API Contract นี้ครอบคลุมทุก endpoint ของ Expense & Cost Tracking: 6 endpoint ใหม่ (CRUD expense × 4, report, toggle) และ 2 endpoint แก้ไข (product create/update เพิ่ม field `cost` + gate ด้วย `isCostEditAllowed`) — ทุก endpoint reuse CSRF/rate-limit เดิมของ `proxy.ts` โดยไม่ต้องแก้ proxy, gate สิทธิ์ทั้งหมดผ่านจุดเดียว (`resolveExpenseAccess()`) ยกเว้น finance-visibility toggle ที่สงวนสิทธิ์ owner ตรง
-
-**Open Questions:**
-- UI ของ date-range switcher/ExpenseForm/PnlReportCard/locked-upsell state — ต้องผ่าน `safepay-ux` ก่อน (endpoint ที่ต้องเรียกชัดเจนแล้วทั้งหมดในเอกสารนี้)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |title: "API — Expense & Cost Tracking"
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |owner: shinobu22
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |status: draft
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |module: M00016-ExpenseCostTracking
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |version: "1.0"
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |created: 2026-07-08
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |tags: [feature, expense, cost, profit, pnl, seller, api]
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |related: ["[[SDS]]", "[[SRS]]", "[[Feature-Docs-Ownership]]"]
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |> **โมดูล:** M00016-ExpenseCostTracking
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |> **ประเภทเอกสาร:** API Contract
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |> **เวอร์ชัน:** 1.0
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |> **วันที่จัดทำ:** 2026-07-08
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |> **สถานะ:** Draft
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |> **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |# API Contract: Expense & Cost Tracking
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |## 1. Overview
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |API ชุดนี้รองรับการออกแบบใน [[SDS]] §3-6 — เพิ่ม 4 endpoint ใหม่ (CRUD expense + report + toggle) และแก้ 2 endpoint เดิม (product create/update — เพิ่ม field `cost` + gate) provider คือ Next.js 16 Route Handler (nodejs runtime) ทั้งหมด, ผู้บริโภคคือ seller browser (`(paces)/seller/**`)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |- **เอกสารออกแบบต้นทาง:** [[SDS]] ของโมดูลนี้
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |- **Base URL:** `https://seller.deepthailand.app` (prod), `https://seller.deepth.local` (dev)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |- **Content-Type:** `application/json` (ทุก endpoint ของโมดูลนี้)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |- **Convention:** response envelope ตรง (ไม่มี wrapper `{data, meta}`) — ตรง convention เดิมของ `src/app/api/**` ทั้งหมด
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |## 2. Authentication
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || รายการ | ค่า |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||--------|-----|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || **วิธี (Auth Method)** | NextAuth v4 session cookie (JWT strategy) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || **Header** | cookie อัตโนมัติจาก browser |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || **Token/Scope** | Session ผูกกับ `User.id` — ทุก endpoint ต้องการ "login แล้ว" + ผ่าน `resolveExpenseAccess()` (ยกเว้น finance-visibility toggle ที่เช็ค owner ตรง ไม่ผ่าน `resolveExpenseAccess`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || **กรณีไม่ผ่าน** | `401 { "error": "unauthorized" }` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || **CSRF/Rate-limit** | ทุก mutation route (`POST`/`PATCH`/`DELETE`) ผ่าน `guardApi()` ใน `src/proxy.ts` อัตโนมัติ (Origin-check + rate-limit ต่อ IP, auth 30/min) — ไม่ต้องแก้ `proxy.ts` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |## 3. Endpoint List
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Method | Path | คำอธิบาย | สถานะ |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||--------|------|----------|-------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `POST` | `/api/expenses` | สร้าง Expense | **ใหม่** |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `GET` | `/api/expenses` | รายการ Expense | **ใหม่** |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `PATCH` | `/api/expenses/{id}` | แก้ไข Expense | **ใหม่** |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `DELETE` | `/api/expenses/{id}` | ลบ Expense | **ใหม่** |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `GET` | `/api/expenses/report` | รายงาน P&L | **แก้ไข 2026-08-02** — เพิ่ม field `expenses[]`/`prevNetProfit` (§4.5) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `GET` | `/api/seller/sales-series` | ยอดขายรายวัน/เดือน (cross-feature) | **แก้ไข 2026-08-02** — เพิ่ม field การเงิน gated (§4.5b) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `PATCH` | `/api/business/shops/{shopId}/finance-visibility` | Toggle `staffCanViewFinance` | **ใหม่** |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `POST` | `/api/products` | สร้างสินค้า | แก้ไข (เพิ่ม field `cost`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `PATCH` | `/api/products/{id}` | แก้สินค้า | แก้ไข (เพิ่ม field `cost`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |## 4. Endpoint Detail
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |### 4.1 `POST /api/expenses`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Auth:** Session required + `resolveExpenseAccess()` ต้อง `GRANTED`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Request**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||------|-------|------|--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Body | `category` | `string` (1 ใน 7 ค่า) | yes | `RENT`/`PACKAGING`/`ADVERTISING`/`SHIPPING`/`SALARY`/`UTILITIES`/`OTHER` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Body | `amount` | `number` | yes | `> 0` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Body | `expenseDate` | `string` ("YYYY-MM-DD") | no | ไม่ส่ง = default วันนี้ (Thai calendar date) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Body | `note` | `string` (≤500 chars) | no | — |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |Valibot schema (`src/lib/validations.ts`):
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```ts
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |export const CreateExpenseSchema = v.object({
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  category: v.picklist(EXPENSE_CATEGORIES),
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  amount: v.pipe(v.number(), v.minValue(0.01)),
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  expenseDate: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  note: v.optional(v.pipe(v.string(), v.maxLength(500))),
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |});
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Response — Success (201)**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```json
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |{
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "id": "...",
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "shopId": "...",
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "category": "ADVERTISING",
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "amount": 1500,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "expenseDate": "2026-07-08",
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "note": "ค่า boost โพสต์ FB",
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "createdByUserId": "...",
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "createdAt": "...",
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "updatedAt": "..."
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |}
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Error contract:**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Status | เงื่อนไข |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 400 | body invalid (Valibot parse fail) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 401 | ไม่มี session |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 403 | `resolveExpenseAccess` = `PACKAGE_LOCKED`/`STAFF_NOT_ALLOWED` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 404 | `resolveExpenseAccess` = `NO_SHOP` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |### 4.2 `GET /api/expenses`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Auth:** Session required + `resolveExpenseAccess()` ต้อง `GRANTED`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Request**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||------|-------|------|--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Query | `start` | `string` ("YYYY-MM-DD") | no | ช่วง `expenseDate` เริ่ม — ไม่ส่ง = ไม่กรอง |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Query | `end` | `string` ("YYYY-MM-DD") | no | ช่วง `expenseDate` สิ้นสุด (inclusive) — ต้องมาคู่กับ `start` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Response — Success (200)**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```json
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |[
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  { "id": "...", "shopId": "...", "category": "RENT", "amount": 8000, "expenseDate": "2026-07-01", "note": null, "createdByUserId": "...", "createdAt": "...", "updatedAt": "..." }
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |]
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |เรียงจาก `expenseDate` ล่าสุดก่อน (`orderBy: { expenseDate: 'desc' }`)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Error contract:** เหมือน §4.1 (401/403/404) — ไม่มี 400 เพราะ query param เป็น optional ทั้งคู่ (ถ้าส่งมาแค่ตัวเดียว → ignore ทั้งคู่ ปฏิบัติเหมือนไม่กรอง — defensive, ไม่ error)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |### 4.3 `PATCH /api/expenses/{id}`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Auth:** Session required + `resolveExpenseAccess()` ต้อง `GRANTED` + record ต้องเป็นของ active shop เดียวกัน
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Request**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||------|-------|------|--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Path Param | `id` | `string` (uuid) | yes | `Expense.id` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Body | `category`/`amount`/`expenseDate`/`note` | ตาม §4.1 | no (ทั้งหมด optional — partial update) | omit = ไม่แตะ field นั้น |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Response — Success (200):** shape เดียวกับ §4.1
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Error contract:**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Status | เงื่อนไข |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 400 | body invalid |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 401 | ไม่มี session |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 403 | `PACKAGE_LOCKED`/`STAFF_NOT_ALLOWED` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 404 | `NO_SHOP`, หรือ `id` ไม่พบ, หรือ `expense.shopId !== active.shop.id` (**คืน 404 เดียวกัน — ไม่ leak** ตาม BRD FR-EXP-04-AC-03) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |### 4.4 `DELETE /api/expenses/{id}`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Auth:** เหมือน §4.3
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Request**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||------|-------|------|--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Path Param | `id` | `string` (uuid) | yes | — |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Response — Success (200)**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```json
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |{ "deleted": true }
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Error contract:** เหมือน §4.3 (ไม่มี 400 เพราะไม่มี body)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |### 4.5 `GET /api/expenses/report`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Auth:** Session required + `resolveExpenseAccess()` ต้อง `GRANTED`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Request**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||------|-------|------|--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `today` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Query | `start` | `string` ("YYYY-MM-DD") | เมื่อ `range=custom` | — |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Query | `end` | `string` ("YYYY-MM-DD") | เมื่อ `range=custom` | — |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |Valibot schema (manual parse — query params ไม่ใช่ JSON body):
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```ts
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |export const PnlReportQuerySchema = v.object({
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  range: v.optional(v.picklist(['today', '7d', '30d', 'month', 'custom']), 'today'),
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  start: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  end: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |});
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Response — Success (200)** — 🛑 **breaking change 2026-08-02 (redesign):** เดิม endpoint นี้คืนแค่ `PnlReport` เฉย ๆ ตอนนี้คืน `PnlReport` **+ `expenses[]`** (`SerializedExpense[]`, ดู §4.2) ที่ scope ด้วย **ช่วงเวลาเดียวกับรายงาน** (`range.expenseRange`) ในก้อนเดียว — หน้า `/expenses` (`ExpenseWorkspace`) ใช้ response นี้ก้อนเดียวขับทั้งการ์ด P&L, การ์ดแยกหมวด และรายการ เพื่อไม่ให้ตัวเลขสามจุดคิดจากคนละฐานแล้วขัดกันเอง (เดิม list ดึงทั้งหมดไม่ผูกช่วง ส่วน P&L ผูกช่วง — คนละฐานกัน, ดู `src/app/api/expenses/report/route.ts`)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```json
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |{
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "range": { "start": "2026-07-01", "end": "2026-07-08" },
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "revenue": 50000,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "cogs": 28000,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "grossProfit": 22000,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "totalExpense": 5000,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "netProfit": 17000,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "orderCount": 20,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "hasMissingCost": true,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "prevNetProfit": 12500,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "expenses": [
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |    { "id": "...", "shopId": "...", "category": "ADVERTISING", "amount": 1500, "expenseDate": "2026-07-08", "note": "ค่า boost โพสต์ FB", "createdByUserId": "...", "createdAt": "...", "updatedAt": "..." }
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  ]
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |}
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Field เพิ่มใหม่ (redesign 2026-08-02):**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Field | ชนิด | คำอธิบาย |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||-------|------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `prevNetProfit` | `number \| null` | กำไรสุทธิของ **ช่วงก่อนหน้า** (ยาวเท่ากัน ต่อเนื่องก่อน `range.start` — เช่นเลือก "30 วันล่าสุด" ก็เทียบกับ 30 วันก่อนหน้านั้น ไม่ใช่ "เดือนที่แล้ว" เป๊ะ) ใช้คำนวณ %เปลี่ยนแปลงบนการ์ด P&L. `null` = ช่วงก่อนหน้าไม่มีทั้งออเดอร์และค่าใช้จ่ายเลย (ไม่มีฐานให้เทียบ — UI ต้องซ่อนตัวชี้วัด %เปลี่ยนแปลง ห้ามคำนวณจากฐาน 0 เพราะจะได้ "+100%" ที่โกหก) คำนวณโดย `pnl.service.ts::getPnlReport` (`src/lib/date-range.ts::ResolvedDateRange.prevRange`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `expenses` | `SerializedExpense[]` | รายการค่าใช้จ่ายที่ scope ด้วย `range.expenseRange` เดียวกับตัวรายงาน (ไม่ใช่ทั้งหมดของร้านอีกต่อไป) — เรียก `listExpenses(shop.id, { range: range.expenseRange })` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Error contract:**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Status | เงื่อนไข |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 400 | `range=custom` แต่ไม่ส่ง `start`/`end` (หรือ format ผิด) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 401 | ไม่มี session |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 403 | `PACKAGE_LOCKED`/`STAFF_NOT_ALLOWED` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 404 | `NO_SHOP` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |### 4.5b `GET /api/seller/sales-series` (cross-feature — gated โดย `resolveExpenseAccess` เพิ่มในรอบ redesign 2026-08-02)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |> Endpoint นี้ **ไม่ใช่ของ feature 00016** โดยกำเนิด — เป็นของ "Quick Create + Sales Chart" (`docs/superpowers/specs/2026-07-06-sales-chart-design.md`, ไม่มี feature-folder เลขของตัวเอง) route จริงอยู่ที่ `src/app/api/seller/sales-series/route.ts` บันทึกไว้ที่นี่เพราะ redesign รอบนี้ต่อ field การเงินเข้าไปโดยผ่าน gate ของโมดูลนี้ตรง ๆ
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Auth:** Session required + `requireActiveShop` (ไม่ gate ทั้ง endpoint ด้วย `resolveExpenseAccess` — แค่ field การเงินใน response เท่านั้นที่ gate)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Request**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||------|-------|------|--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Query | `mode` | `'daily' \| 'monthly'` | yes | — |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Query | `year` | `number` | yes | 2000-2100 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Query | `month` | `number` | เมื่อ `mode=daily` | 1-12 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Response — Success (200)** = `SalesSeries` (`src/services/dashboard.service.ts`) — `expenseValues`/`netProfitValues`/`totalExpense`/`netProfit` เป็น **optional**: มีก็ต่อเมื่อ `resolveExpenseAccess(session).kind === 'GRANTED'` เท่านั้น (ไม่ผ่าน gate = **ไม่มี field เหล่านี้ใน response เลย** ไม่ใช่ `0` — client ใช้ `expenseValues == null` ตัดสินใจซ่อนบล็อกการเงินทั้งก้อน)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```json
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |{
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "labels": ["1", "2", "3"],
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "values": [1200, 0, 3400],
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "confirmedValues": [1000, 0, 3000],
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "unconfirmedValues": [200, 0, 400],
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "total": 4600,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "prevTotal": 3900,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "futureFromIndex": 3,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "expenseValues": [300, 0, 150],
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "netProfitValues": [500, 0, 2100],
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "totalExpense": 450,
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |  "netProfit": 2600
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |}
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Error contract:** `401` ไม่มี session, `404` ไม่มี active shop, `400` query invalid, `500` generic — cache-control `private, no-store` (auth per-user, memory `feedback_auth_api_cache_control`)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |### 4.6 `PATCH /api/business/shops/{shopId}/finance-visibility`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |Owner-only — **ไม่ผ่าน `resolveExpenseAccess()`** (มิเรอร์ guard ของ `api/business/shops/[shopId]/onboarding/route.ts` — สงวนสิทธิ์เจ้าของเท่านั้น ไม่ใช่ admin member)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Auth:** Session required + `shop.userId === session.user.id`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Request**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||------|-------|------|--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Path Param | `shopId` | `string` (uuid) | yes | ต้องเป็น `kind=BUSINESS` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Body | `staffCanViewFinance` | `boolean` | yes | — |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Response — Success (200)**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```json
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |{ "ok": true, "staffCanViewFinance": true }
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Error contract:**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Status | เงื่อนไข |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 400 | body invalid |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 401 | ไม่มี session |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 403 | `NOT_OWNER` (`shop.userId !== session.user.id`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 404 | ไม่พบ shop, หรือ `kind !== 'BUSINESS'` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |### 4.7 `POST /api/products` (แก้ไข — เพิ่ม field `cost`)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |ไม่เปลี่ยน method/path/auth เดิม — เปลี่ยนเฉพาะ validation + logic เพิ่ม
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Request (เฉพาะ field ที่เพิ่ม)**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||-------|------|--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `cost` | `number` (≥0) | no | ราคาทุน — omit = ไม่ตั้ง (`null`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |Valibot schema เพิ่ม (`CreateProductSchema`):
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```ts
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |cost: v.optional(v.nullable(v.pipe(v.number(), v.minValue(0)))),
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Logic เพิ่ม:** ถ้า `parsed.output.cost !== undefined` → เรียก `isCostEditAllowed(shop)` (`expense-access.service.ts`) ก่อน — ไม่ผ่าน → `403`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Error contract เพิ่ม:**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Status | เงื่อนไข |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||--------|----------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || 403 | `COST_REQUIRES_BUSINESS_PACKAGE` — ส่ง `cost` มาโดยที่ owner ของร้านไม่มี Business Package ACTIVE |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**ไม่กระทบ:** สินค้าที่สร้างโดยไม่ส่ง `cost` เลย — behavior เหมือนเดิม 100%
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |### 4.8 `PATCH /api/products/{id}` (แก้ไข — เพิ่ม field `cost`)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |เหมือน §4.7 — เพิ่ม guard เดียวกัน (`isCostEditAllowed(product.shop)`) ต่อจาก guard `stockQty`/`lowStockThreshold` เดิมในไฟล์เดียวกัน
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Request/Response/Error:** เหมือน §4.7 (partial — `cost` omit = ไม่แตะ, `null` = ล้างค่า, ตัวเลข = ตั้งค่าใหม่)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |## 5. Error Code Table
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Error Code | HTTP Status | ความหมาย/เงื่อนไข |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||------------|-------------|----------------------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `COST_REQUIRES_BUSINESS_PACKAGE` | `403` | (ใหม่) พยายามตั้ง/แก้ `Product.cost` โดยไม่มี Business Package ACTIVE |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `NOT_OWNER` | `403` | (finance-visibility เท่านั้น) ผู้เรียกไม่ใช่ `Shop.userId` |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || *(generic, ไม่มี code field)* `unauthorized` | `401` | ไม่มี session |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || *(generic)* — | `403` | `resolveExpenseAccess` = `PACKAGE_LOCKED`/`STAFF_NOT_ALLOWED` (ทุก endpoint ของ Expense/report) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || *(generic)* `Invalid input` | `400` | Valibot parse fail (ทุก endpoint ที่มี body/query schema) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || *(generic)* — | `404` | `resolveExpenseAccess` = `NO_SHOP`, หรือ Expense record ไม่พบ/ไม่ตรง shop, หรือ shop ไม่พบ/ไม่ใช่ BUSINESS (finance-visibility) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**โครง error response มาตรฐาน (คงเดิมจากทั้งระบบ):**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```json
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |{ "error": "ข้อความ/error code สำหรับ debug" }
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |```
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |## 6. Sequence (flow ซับซ้อน)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |ดู [[SDS]] §4.1-4.6 สำหรับ sequence diagram เต็มของทุก flow (access resolve, สร้าง expense, ดูรายงาน, cost snapshot, toggle) — ไม่ duplicate ที่นี่เพื่อไม่ให้ diagram สอง version drift กัน
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |## 7. Traceability
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || Endpoint | SDS Component/Decision | BRD FR |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) ||----------|--------------------------|--------|
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `POST /api/expenses` | §4.3 Flow, TD-004 | FR-EXP-03 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `GET /api/expenses` | `expense.service.ts::listExpenses` | FR-EXP-03/09/10/11 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `PATCH /api/expenses/{id}` | TD-004 | FR-EXP-04 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `DELETE /api/expenses/{id}` | TD-004 | FR-EXP-04 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `GET /api/expenses/report` | §4.2, §4.4 Flow | FR-EXP-06, FR-EXP-07, FR-EXP-08 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `PATCH /api/business/shops/{shopId}/finance-visibility` | §4.6 Flow | FR-EXP-10 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `POST /api/products` | §4.1 (`isCostEditAllowed`) | FR-EXP-01 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) || `PATCH /api/products/{id}` | §4.1 (`isCostEditAllowed`) | FR-EXP-01 |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |---
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |## 8. สรุป (Summary)
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |API Contract นี้ครอบคลุมทุก endpoint ของ Expense & Cost Tracking: 6 endpoint ใหม่ (CRUD expense × 4, report, toggle) และ 2 endpoint แก้ไข (product create/update เพิ่ม field `cost` + gate ด้วย `isCostEditAllowed`) — ทุก endpoint reuse CSRF/rate-limit เดิมของ `proxy.ts` โดยไม่ต้องแก้ proxy, gate สิทธิ์ทั้งหมดผ่านจุดเดียว (`resolveExpenseAccess()`) ยกเว้น finance-visibility toggle ที่สงวนสิทธิ์ owner ตรง
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**อัปเดต 2026-08-02 (redesign — deployed):** `GET /api/expenses/report` เปลี่ยน response shape (เพิ่ม `expenses[]`/`prevNetProfit`, §4.5 — breaking change ของ contract เดิม) + `GET /api/seller/sales-series` (cross-feature endpoint, §4.5b) ต่อ field การเงินเข้าไปโดยผ่าน `resolveExpenseAccess` ของโมดูลนี้ — commits `69b235f4`/`3148bb42`/`a20d99ac`/`69a224ad`
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |**Open Questions:**
+| Query | `range` | `string` (`today`/`7d`/`30d`/`month`/`custom`) | no | default `30d` (เปลี่ยนจาก `today` 2026-08-02 ให้ตรงกับค่าเริ่มต้นของหน้า `/expenses`) |- UI ของ date-range switcher/ExpenseForm/PnlReportCard/locked-upsell state — ต้องผ่าน `safepay-ux` ก่อน (endpoint ที่ต้องเรียกชัดเจนแล้วทั้งหมดในเอกสารนี้) — **ปิดแล้ว**: ดู `docs/superpowers/specs/2026-08-02-expenses-redesign-design-spec.md` (SSOT ของ UI หลัง redesign แทน UX-Design-Spec.md เดิมบางส่วน — ดูหัวข้อ Design decisions ที่แก้ในเอกสารนั้น)

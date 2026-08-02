@@ -886,7 +886,9 @@ export const UpdateExpenseSchema = v.object({
 
 // PnlReportQuerySchema — manual parse (query params ไม่ใช่ JSON body) ตาม API.md §4.5
 export const PnlReportQuerySchema = v.object({
-  range: v.optional(v.picklist(["today", "7d", "30d", "month", "custom"]), "today"),
+  // default ต้องตรงกับหน้า /expenses (30d) — เดิม API เป็น "today" ส่วนหน้าเป็น "30d"
+  // ใครเรียก endpoint นี้โดยไม่ส่ง range จะได้คนละช่วงกับที่เห็นบนจอ
+  range: v.optional(v.picklist(["today", "7d", "30d", "month", "custom"]), "30d"),
   start: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
   end: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
 });
