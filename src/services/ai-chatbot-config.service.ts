@@ -24,7 +24,6 @@ export interface ChatbotConfig {
   aiChatbotMaxPerHour: number
   aiChatbotStartTime: string | null
   aiChatbotEndTime: string | null
-  aiEnhanceEnabled: boolean
   aiDailyCapBaht: number
   aiCapAlertSmsOptIn: boolean
 }
@@ -45,7 +44,6 @@ const DEFAULTS: ChatbotConfig = {
   aiChatbotMaxPerHour: 10,
   aiChatbotStartTime: null,
   aiChatbotEndTime: null,
-  aiEnhanceEnabled: false,
   aiDailyCapBaht: DEFAULT_AI_DAILY_CAP_BAHT,
   aiCapAlertSmsOptIn: false,
 }
@@ -69,7 +67,6 @@ export async function getChatbotConfig(shopId: string): Promise<ChatbotConfig> {
       aiChatbotMaxPerHour: true,
       aiChatbotStartTime: true,
       aiChatbotEndTime: true,
-      aiEnhanceEnabled: true,
       aiDailyCapBaht: true,
       aiCapAlertSmsOptIn: true,
     },
@@ -102,7 +99,6 @@ export async function updateChatbotConfig(
     ...(input.aiChatbotMaxPerHour !== undefined ? { aiChatbotMaxPerHour: input.aiChatbotMaxPerHour } : {}),
     ...(input.aiChatbotStartTime !== undefined ? { aiChatbotStartTime: input.aiChatbotStartTime || null } : {}),
     ...(input.aiChatbotEndTime !== undefined ? { aiChatbotEndTime: input.aiChatbotEndTime || null } : {}),
-    ...(input.aiEnhanceEnabled !== undefined ? { aiEnhanceEnabled: input.aiEnhanceEnabled } : {}),
     ...(input.aiDailyCapBaht !== undefined ? { aiDailyCapBaht: input.aiDailyCapBaht } : {}),
     ...(input.aiCapAlertSmsOptIn !== undefined ? { aiCapAlertSmsOptIn: input.aiCapAlertSmsOptIn } : {}),
   }
@@ -128,7 +124,6 @@ export async function updateChatbotConfig(
       aiChatbotMaxPerHour: true,
       aiChatbotStartTime: true,
       aiChatbotEndTime: true,
-      aiEnhanceEnabled: true,
       aiDailyCapBaht: true,
       aiCapAlertSmsOptIn: true,
     },

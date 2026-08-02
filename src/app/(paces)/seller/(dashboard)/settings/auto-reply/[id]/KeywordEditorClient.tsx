@@ -44,7 +44,15 @@ type Rule = {
 }
 type Channel = { id: string; name: string; provider: string; avatarUrl?: string | null }
 type Product = { id: string; name: string; price: string; image: string | null }
-type Ad = { adId: string; adTitle: string | null; hitCount: number }
+type Ad = {
+  adId: string
+  adTitle: string | null
+  /** ข้อความโฆษณา — ช่วยแยกตัวที่ตั้งชื่อคล้ายกัน */
+  adBody?: string | null
+  /** รูปโฆษณาที่ mirror เข้า storage แล้ว (feature 00018) — null = Meta ไม่ส่งรูปมาครั้งนั้น */
+  photoFileId?: string | null
+  hitCount: number
+}
 
 type Props = {
   canEdit: boolean
@@ -1182,11 +1190,29 @@ function ExceptionSheet({
                             )
                           }
                         />
+                        {/* รูปโฆษณา — ตัวแยกที่ใช้ได้จริงเมื่อชื่อซ้ำกันหรือ Meta ไม่ส่งชื่อมา
+                            mirror เข้า storage แล้วตอนรับ webhook ไม่ hotlink CDN Meta ที่หมดอายุ */}
+                        {a.photoFileId ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={`/api/files/${a.photoFileId}`}
+                            alt=""
+                            loading="lazy"
+                            className="size-10 shrink-0 rounded-md object-cover"
+                          />
+                        ) : (
+                          <span className="bg-default-100 text-default-400 flex size-10 shrink-0 items-center justify-center rounded-md">
+                            <Icon icon="speakerphone" className="text-lg" aria-hidden="true" />
+                          </span>
+                        )}
                         <span className="min-w-0 flex-1">
                           <span className="text-default-800 block truncate text-sm font-medium">{a.adTitle ?? a.adId}</span>
+                          {a.adBody && (
+                            <span className="text-default-600 block truncate text-xs">{a.adBody}</span>
+                          )}
                           {/* แสดง ID ด้วย (user request) — ชื่อโฆษณาซ้ำกันได้ ID คือตัวที่แยกออกจริง
                               และร้านเอาไปเทียบกับ Ads Manager ได้ */}
-                          <span className="text-default-500 block truncate text-xs">
+                          <span className="text-default-400 block truncate text-xs">
                             ID {a.adId} · ทัก {a.hitCount} ครั้ง
                           </span>
                         </span>

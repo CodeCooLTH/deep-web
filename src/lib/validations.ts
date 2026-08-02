@@ -1229,9 +1229,7 @@ export const AutoReplyKeywordUpdateSchema = v.object({
   matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
   priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
   // AI Enhance รายกลุ่มคำ (phase `00023-ai-enhance`) — ให้ AI เรียบเรียงคำตอบก่อนส่ง
-  aiEnhanceEnabled: v.optional(v.boolean()),
   // น้ำเสียงของ AI Enhance — ว่างได้ (= กลับไปใช้ค่ากลาง)
-  aiTone: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(300, 'น้ำเสียงยาวเกิน 300 ตัวอักษร'))),
   // OFFLINE ไม่ตอบใครเลย · TEST ตอบเฉพาะเธรดที่ผูกไว้กับกลุ่มนี้ · LIVE ตอบทุกเธรด
   status: v.optional(v.picklist(['OFFLINE', 'TEST', 'LIVE'])),
 })
@@ -1317,7 +1315,6 @@ export const AiChatbotConfigPatchSchema = v.object({
   aiChatbotMaxPerHour: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(200, 'เพดานได้ไม่เกิน 200 ครั้งต่อชั่วโมง'))),
   aiChatbotStartTime: v.optional(v.union([TimeHHmm, v.literal('')])),
   aiChatbotEndTime: v.optional(v.union([TimeHHmm, v.literal('')])),
-  aiEnhanceEnabled: v.optional(v.boolean()),
   // ต้อง > 0 ตรงกับ CHECK ในฐาน — 0 แปลว่าปิดฟีเจอร์ ซึ่งมีสวิตช์ของตัวเองอยู่แล้ว
   aiDailyCapBaht: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1, 'เพดานต้องมากกว่า 0'), v.maxValue(100000))),
   aiCapAlertSmsOptIn: v.optional(v.boolean()),
