@@ -709,13 +709,20 @@ export const SwitchActiveShopSchema = v.object({
 
 export const SendChatMessageSchema = v.object({
   // ORDER = การ์ดออเดอร์/ใบเสนอราคาในแชท DEEP (user 2026-07-24) — อ้าง Order.publicToken
-  type: v.picklist(["TEXT", "IMAGE", "PRODUCT", "ORDER"]),
+  // VIDEO/AUDIO/FILE (2026-08-02 multi-attachment): ร้านแนบไฟล์ทุกชนิดได้ ไม่ใช่แค่รูป
+  // เดิม 3 ชนิดนี้เกิดได้ทางเดียวคือ mirror ขาเข้าจาก Messenger/IG (เขียน DB ตรง ไม่ผ่าน schema นี้)
+  type: v.picklist(["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "PRODUCT", "ORDER"]),
   // nullish ไม่ใช่ optional — client ส่ง `body: null` มาจริงเมื่อแนบรูปโดยไม่ใส่ caption
   // (useSellerChatThread.handleSend + payload ที่เก็บไว้สำหรับปุ่ม "ลองใหม่") ซึ่ง v.optional รับแค่
   // undefined → เด้ง "Invalid type: Expected string but received null" = **ส่งรูปอย่างเดียวไม่ได้เลย**
   // (bug prod 2026-07-23) route เช็ค conditional-required ต่ออยู่แล้ว null จึงปลอดภัย
   body: v.nullish(v.pipe(v.string(), v.maxLength(2000))),
-  imageUrl: v.nullish(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/upload
+  imageUrl: v.nullish(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/chat/upload — ใช้กับ IMAGE/VIDEO/AUDIO/FILE
+  // ชื่อไฟล์เดิม + ขนาด (2026-08-02) — snapshot ตอนส่ง เพราะ storage ตั้งชื่อเป็น uuid.ext
+  // WARNING: attachmentSize มาจาก client จึงเชื่อไม่ได้ — ใช้ให้ error สวยเท่านั้น ไม่ใช่ security control
+  // เพดานขนาดตัวจริงบังคับที่ POST /api/chat/upload ซึ่งเป็นจุดเดียวที่เห็นไฟล์จริง
+  attachmentName: v.nullish(v.pipe(v.string(), v.maxLength(200))),
+  attachmentSize: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(0))),
   productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
   orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์ในแชท — เฉพาะ type=ORDER (Order.publicToken)
   replyToMessageId: v.optional(v.pipe(v.string(), v.uuid())), // reply/quote (user 2026-07-25) — id ของข้อความที่ตอบทับ (route resolve → replyToMid/Meta reply_to)
@@ -1222,9 +1229,7 @@ export const AutoReplyKeywordUpdateSchema = v.object({
   matchType: v.optional(v.picklist(['EXACT', 'CONTAINS', 'STARTS_WITH'])),
   priority: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1000))),
   // AI Enhance รายกลุ่มคำ (phase `00023-ai-enhance`) — ให้ AI เรียบเรียงคำตอบก่อนส่ง
-  aiEnhanceEnabled: v.optional(v.boolean()),
   // น้ำเสียงของ AI Enhance — ว่างได้ (= กลับไปใช้ค่ากลาง)
-  aiTone: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(300, 'น้ำเสียงยาวเกิน 300 ตัวอักษร'))),
   // OFFLINE ไม่ตอบใครเลย · TEST ตอบเฉพาะเธรดที่ผูกไว้กับกลุ่มนี้ · LIVE ตอบทุกเธรด
   status: v.optional(v.picklist(['OFFLINE', 'TEST', 'LIVE'])),
 })
@@ -1296,9 +1301,20 @@ export const AiChatbotConfigPatchSchema = v.object({
   aiChatbotStatus: v.optional(v.picklist(['OFFLINE', 'TEST', 'LIVE'])),
   aiChatbotEnabled: v.optional(v.boolean()),
   aiChatbotTone: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(300, 'น้ำเสียงยาวเกิน 300 ตัวอักษร'))),
+  aiChatbotShopOnly: v.optional(v.boolean()),
+  aiChatbotOutOfScopeText: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(300, 'ข้อความยาวเกิน 300 ตัวอักษร'))),
+  aiChatbotExtraPrompt: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(2000, 'คำสั่งเพิ่มเติมยาวเกิน 2000 ตัวอักษร'))),
+  aiChatbotFallbackMode: v.optional(v.picklist(['SILENT', 'MESSAGE', 'AI_FREE'])),
+  aiChatbotFallbackText: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500, 'ข้อความสำรองยาวเกิน 500 ตัวอักษร'))),
+  aiChatbotUseShopData: v.optional(v.boolean()),
+  aiChatbotUseChatHistory: v.optional(v.boolean()),
+  aiChatbotUseWebSearch: v.optional(v.boolean()),
+  // 0 = ไม่เว้นระยะ / ไม่จำกัด — ต่างจากเพดานเงินที่ 0 ไม่มีความหมาย เพราะการ "ไม่จำกัด"
+  // ที่นี่เป็นทางเลือกที่ร้านต้องการจริง (ร้านที่คุยกับลูกค้าถี่ ๆ)
+  aiChatbotCooldownSec: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(3600, 'เว้นระยะได้ไม่เกิน 1 ชั่วโมง'))),
+  aiChatbotMaxPerHour: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(200, 'เพดานได้ไม่เกิน 200 ครั้งต่อชั่วโมง'))),
   aiChatbotStartTime: v.optional(v.union([TimeHHmm, v.literal('')])),
   aiChatbotEndTime: v.optional(v.union([TimeHHmm, v.literal('')])),
-  aiEnhanceEnabled: v.optional(v.boolean()),
   // ต้อง > 0 ตรงกับ CHECK ในฐาน — 0 แปลว่าปิดฟีเจอร์ ซึ่งมีสวิตช์ของตัวเองอยู่แล้ว
   aiDailyCapBaht: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1, 'เพดานต้องมากกว่า 0'), v.maxValue(100000))),
   aiCapAlertSmsOptIn: v.optional(v.boolean()),
@@ -1317,11 +1333,14 @@ const GuardrailPhrasesField = v.pipe(v.array(v.pipe(v.string(), v.trim())), v.ma
 export const AutoReplyGuardrailCreateSchema = v.object({
   rule: GuardrailRuleField,
   denyPhrases: v.optional(GuardrailPhrasesField),
+  /** BLOCK = ชนแล้วเงียบ · AVOID = ยังตอบ แต่ห้ามพูดแบบนั้น */
+  mode: v.optional(v.picklist(['BLOCK', 'AVOID'])),
 })
 
 export const AutoReplyGuardrailUpdateSchema = v.object({
   rule: v.optional(GuardrailRuleField),
   denyPhrases: v.optional(GuardrailPhrasesField),
+  mode: v.optional(v.picklist(['BLOCK', 'AVOID'])),
   isActive: v.optional(v.boolean()),
 })
 

@@ -264,6 +264,27 @@ export default function InboxList({
   const [actioningId, setActioningId] = useState<string | null>(null) // แถวที่มี PATCH ค้าง (กันดับเบิล)
   // feature 00018 CRM — เมนูคลิกขวา (ตั้งสถานะ/แท็กเร็ว) เฉพาะเธรดช่องทางนอก
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: string } | null>(null)
+  // เมนู ⋯ ของชุดปุ่ม hover (user สั่ง 2026-08-02) — เก็บเป็น "id ของแถวที่เปิดอยู่" ที่ระดับ list
+  // ไม่ใช่ state ในแต่ละแถว เพราะชุดปุ่มต้องรู้ด้วยว่าเมนูเปิดอยู่ไหม (ต้องค้างไว้แม้เมาส์ออกนอกแถว)
+  // และเปิดได้ทีละแถวเดียวอยู่แล้ว ref จึงใช้ตัวเดียวร่วมกันได้
+  const [rowMenuId, setRowMenuId] = useState<string | null>(null)
+  const rowMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!rowMenuId) return
+    function onPointerDown(e: MouseEvent) {
+      if (rowMenuRef.current && !rowMenuRef.current.contains(e.target as Node)) setRowMenuId(null)
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setRowMenuId(null)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [rowMenuId])
 
   // ── ช่องค้นหา ──
   // railMode=true: query มาจาก ChatSearchContext (topbar เขียน, ที่นี่แค่อ่าน debouncedQuery —
@@ -1315,7 +1336,12 @@ export default function InboxList({
                   <span className="flex shrink-0 flex-col items-end justify-between self-stretch py-0.5">
                     <span className="flex flex-col items-end gap-1.25">
                       {/* timestamp — สีตามสถานะอ่าน (main); indicator ปักหมุดอยู่หน้าชื่อแล้ว */}
-                      <span className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}>
+                      {/* lg:group-hover:invisible — ชุดปุ่ม hover มาแทนที่ตรงนี้พอดี (user 2026-08-02)
+                          ใช้ invisible ไม่ใช่ hidden: ต้องกันที่ไว้เท่าเดิม ไม่งั้นความกว้างคอลัมน์ขวา
+                          ยุบตอน hover แล้วชื่อ/ข้อความกระตุกทุกครั้งที่เมาส์ผ่าน */}
+                      <span
+                        className={`text-2xs lg:group-hover:invisible ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}
+                      >
                         {formatChatListTime(c.lastMessageAt)}
                       </span>
                       {/* จำนวนที่ยังไม่อ่าน — คอลัมน์ขวา ใต้เวลา เหนือชิปกลุ่ม (user สั่ง 2026-07-31
@@ -1345,7 +1371,17 @@ export default function InboxList({
                     เฉพาะตอน hover ไม่เบียดความกว้างของเนื้อหาแถวเลย
                     ปักหมุดย้ายเข้าชุดนี้ด้วย (2026-07-23) หลังจากดาวหน้าสุดถูกเปลี่ยนเป็น indicator
                     inline หน้าชื่อ — action ต้องยังกดได้ที่เดียวกับ ปิดงาน/ซ่อน ไม่ใช่หายไป */}
-                <div className="absolute end-2 top-1/2 hidden -translate-y-1/2 items-center gap-1 rounded-lg border border-default-200 bg-card p-1 shadow lg:group-hover:flex">
+                {/* top-2 (เดิม top-1/2): ย้ายจากกลางแถวมาอยู่บรรทัดเดียวกับเวลา แล้วซ่อนเวลาตอน hover
+                    — ของเดิมลอยกลางแถวพอดี จึงทับ "ข้อความล่าสุด + แท็ก" ซึ่งเป็นบรรทัดที่ต้องอ่าน
+                    จริง ๆ ทำให้ต้องขยับเมาส์หนีเพื่ออ่านว่าห้องไหนเป็นห้องไหน (user report 2026-08-02)
+                    เหลือ 2 action ที่ใช้บ่อยสุด (ปักหมุด/ปิดงาน) ส่วน ซ่อน+สแปม เข้าเมนู ⋯ */}
+                <div
+                  className={`absolute end-2 top-2 items-center gap-0.5 rounded-lg border border-default-200 bg-card p-0.5 shadow ${
+                    // เมนูเปิดอยู่ = ต้องค้างไว้แม้เมาส์ออกนอกแถว ไม่งั้นเมนูที่ล้นออกนอกขอบแถว
+                    // จะทำให้ hover หลุด → ชุดปุ่มหาย → เมนูหายตามระหว่างที่ผู้ใช้กำลังจะกดมัน
+                    rowMenuId === c.id ? 'flex' : 'hidden lg:group-hover:flex'
+                  }`}
+                >
                   <button
                     type="button"
                     onClick={() => handleRowAction(c.id, c.isPinned ? 'unpin' : 'pin')}
@@ -1369,28 +1405,71 @@ export default function InboxList({
                   >
                     <Icon icon={isResolved ? 'arrow-back-up' : 'circle-check'} width={16} height={16} />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRowAction(c.id, filter.hidden ? 'unhide' : 'hide')}
-                    disabled={actioningId === c.id}
-                    aria-label={filter.hidden ? 'เลิกซ่อนบทสนทนานี้' : 'ซ่อนบทสนทนานี้'}
-                    title={filter.hidden ? 'เลิกซ่อน' : 'ซ่อน'}
-                    className="btn btn-icon btn-sm text-default-600 hover:bg-default-100 disabled:opacity-50"
-                  >
-                    <Icon icon={filter.hidden ? 'eye' : 'eye-off'} width={16} height={16} />
-                  </button>
-                  {/* สแปม (user สั่ง 2026-07-24) — accent แดง (danger) แยกจาก action อื่นเพราะเป็น
-                      การ "ตีตราสแปม" ไม่ใช่แค่จัดระเบียบ; ในถังสแปมกลายเป็น "ไม่ใช่สแปม" */}
-                  <button
-                    type="button"
-                    onClick={() => handleRowAction(c.id, c.isSpam ? 'unspam' : 'spam')}
-                    disabled={actioningId === c.id}
-                    aria-label={c.isSpam ? 'เอาออกจากสแปม' : 'ย้ายเข้าสแปม'}
-                    title={c.isSpam ? 'ไม่ใช่สแปม' : 'สแปม'}
-                    className={`btn btn-icon btn-sm hover:bg-danger/10 disabled:opacity-50 ${c.isSpam ? 'text-default-600' : 'text-danger'}`}
-                  >
-                    <Icon icon={c.isSpam ? 'inbox' : 'alert-octagon'} width={16} height={16} />
-                  </button>
+                  {/* เมนู ⋯ — custom React (useState + click-outside) ไม่ใช่ Preline hs-dropdown
+                      ด้วยเหตุผลเดียวกับ OrderCardMenu: รายการนี้ lazy-load + filter + realtime →
+                      re-render ตลอด ทำให้ inline-state ของ Preline หายแล้ว menu ค้าง opacity 0
+                      Base (style): theme/paces/Admin/TS/src/assets/css/custom/_dropdown.css (.dropdown-item) */}
+                  <div className="relative" ref={rowMenuId === c.id ? rowMenuRef : undefined}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setRowMenuId((prev) => (prev === c.id ? null : c.id))
+                      }}
+                      aria-haspopup="menu"
+                      aria-expanded={rowMenuId === c.id}
+                      aria-label="การจัดการอื่น ๆ"
+                      title="เพิ่มเติม"
+                      className="btn btn-icon btn-sm text-default-600 hover:bg-default-100"
+                    >
+                      <Icon icon="dots" width={16} height={16} />
+                    </button>
+                    {rowMenuId === c.id && (
+                      <div
+                        className="border-default-300 bg-card absolute end-0 top-full z-30 mt-1 min-w-40 overflow-hidden rounded border shadow-lg"
+                        role="menu"
+                        aria-orientation="vertical"
+                      >
+                        <div className="space-y-0.5 p-1">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            disabled={actioningId === c.id}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setRowMenuId(null)
+                              handleRowAction(c.id, filter.hidden ? 'unhide' : 'hide')
+                            }}
+                            className="dropdown-item text-sm disabled:opacity-50"
+                          >
+                            <Icon icon={filter.hidden ? 'eye' : 'eye-off'} className="size-4" />
+                            {filter.hidden ? 'เลิกซ่อน' : 'ซ่อน'}
+                          </button>
+                          {/* สแปม (user สั่ง 2026-07-24) — accent แดง (danger) แยกจาก action อื่น
+                              เพราะเป็นการ "ตีตราสแปม" ไม่ใช่แค่จัดระเบียบ; ในถังสแปมกลายเป็น "ไม่ใช่สแปม" */}
+                          <button
+                            type="button"
+                            role="menuitem"
+                            disabled={actioningId === c.id}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setRowMenuId(null)
+                              handleRowAction(c.id, c.isSpam ? 'unspam' : 'spam')
+                            }}
+                            className={`dropdown-item text-sm disabled:opacity-50 ${
+                              c.isSpam ? '' : 'text-danger hover:bg-danger/10'
+                            }`}
+                          >
+                            <Icon icon={c.isSpam ? 'inbox' : 'alert-octagon'} className="size-4" />
+                            {c.isSpam ? 'ไม่ใช่สแปม' : 'ย้ายเข้าสแปม'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               </SwipeableRow>

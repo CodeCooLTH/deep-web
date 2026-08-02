@@ -12,9 +12,18 @@ export interface ChatbotConfig {
   aiChatbotStatus: string
   aiChatbotEnabled: boolean
   aiChatbotTone: string | null
+  aiChatbotShopOnly: boolean
+  aiChatbotOutOfScopeText: string | null
+  aiChatbotExtraPrompt: string | null
+  aiChatbotFallbackMode: string
+  aiChatbotFallbackText: string | null
+  aiChatbotUseShopData: boolean
+  aiChatbotUseChatHistory: boolean
+  aiChatbotUseWebSearch: boolean
+  aiChatbotCooldownSec: number
+  aiChatbotMaxPerHour: number
   aiChatbotStartTime: string | null
   aiChatbotEndTime: string | null
-  aiEnhanceEnabled: boolean
   aiDailyCapBaht: number
   aiCapAlertSmsOptIn: boolean
 }
@@ -23,9 +32,18 @@ const DEFAULTS: ChatbotConfig = {
   aiChatbotStatus: 'OFFLINE',
   aiChatbotEnabled: false,
   aiChatbotTone: null,
+  aiChatbotShopOnly: false,
+  aiChatbotOutOfScopeText: null,
+  aiChatbotExtraPrompt: null,
+  aiChatbotFallbackMode: 'MESSAGE',
+  aiChatbotFallbackText: null,
+  aiChatbotUseShopData: true,
+  aiChatbotUseChatHistory: true,
+  aiChatbotUseWebSearch: false,
+  aiChatbotCooldownSec: 30,
+  aiChatbotMaxPerHour: 10,
   aiChatbotStartTime: null,
   aiChatbotEndTime: null,
-  aiEnhanceEnabled: false,
   aiDailyCapBaht: DEFAULT_AI_DAILY_CAP_BAHT,
   aiCapAlertSmsOptIn: false,
 }
@@ -37,9 +55,18 @@ export async function getChatbotConfig(shopId: string): Promise<ChatbotConfig> {
       aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
+      aiChatbotShopOnly: true,
+      aiChatbotOutOfScopeText: true,
+      aiChatbotExtraPrompt: true,
+      aiChatbotFallbackMode: true,
+      aiChatbotFallbackText: true,
+      aiChatbotUseShopData: true,
+      aiChatbotUseChatHistory: true,
+      aiChatbotUseWebSearch: true,
+      aiChatbotCooldownSec: true,
+      aiChatbotMaxPerHour: true,
       aiChatbotStartTime: true,
       aiChatbotEndTime: true,
-      aiEnhanceEnabled: true,
       aiDailyCapBaht: true,
       aiCapAlertSmsOptIn: true,
     },
@@ -60,9 +87,18 @@ export async function updateChatbotConfig(
       : {}),
     ...(input.aiChatbotEnabled !== undefined ? { aiChatbotEnabled: input.aiChatbotEnabled } : {}),
     ...(input.aiChatbotTone !== undefined ? { aiChatbotTone: input.aiChatbotTone?.trim() || null } : {}),
+    ...(input.aiChatbotShopOnly !== undefined ? { aiChatbotShopOnly: input.aiChatbotShopOnly } : {}),
+    ...(input.aiChatbotOutOfScopeText !== undefined ? { aiChatbotOutOfScopeText: input.aiChatbotOutOfScopeText?.trim() || null } : {}),
+    ...(input.aiChatbotExtraPrompt !== undefined ? { aiChatbotExtraPrompt: input.aiChatbotExtraPrompt?.trim() || null } : {}),
+    ...(input.aiChatbotFallbackMode !== undefined ? { aiChatbotFallbackMode: input.aiChatbotFallbackMode } : {}),
+    ...(input.aiChatbotFallbackText !== undefined ? { aiChatbotFallbackText: input.aiChatbotFallbackText ?.trim() || null } : {}),
+    ...(input.aiChatbotUseShopData !== undefined ? { aiChatbotUseShopData: input.aiChatbotUseShopData } : {}),
+    ...(input.aiChatbotUseChatHistory !== undefined ? { aiChatbotUseChatHistory: input.aiChatbotUseChatHistory } : {}),
+    ...(input.aiChatbotUseWebSearch !== undefined ? { aiChatbotUseWebSearch: input.aiChatbotUseWebSearch } : {}),
+    ...(input.aiChatbotCooldownSec !== undefined ? { aiChatbotCooldownSec: input.aiChatbotCooldownSec } : {}),
+    ...(input.aiChatbotMaxPerHour !== undefined ? { aiChatbotMaxPerHour: input.aiChatbotMaxPerHour } : {}),
     ...(input.aiChatbotStartTime !== undefined ? { aiChatbotStartTime: input.aiChatbotStartTime || null } : {}),
     ...(input.aiChatbotEndTime !== undefined ? { aiChatbotEndTime: input.aiChatbotEndTime || null } : {}),
-    ...(input.aiEnhanceEnabled !== undefined ? { aiEnhanceEnabled: input.aiEnhanceEnabled } : {}),
     ...(input.aiDailyCapBaht !== undefined ? { aiDailyCapBaht: input.aiDailyCapBaht } : {}),
     ...(input.aiCapAlertSmsOptIn !== undefined ? { aiCapAlertSmsOptIn: input.aiCapAlertSmsOptIn } : {}),
   }
@@ -76,9 +112,18 @@ export async function updateChatbotConfig(
       aiChatbotStatus: true,
       aiChatbotEnabled: true,
       aiChatbotTone: true,
+      aiChatbotShopOnly: true,
+      aiChatbotOutOfScopeText: true,
+      aiChatbotExtraPrompt: true,
+      aiChatbotFallbackMode: true,
+      aiChatbotFallbackText: true,
+      aiChatbotUseShopData: true,
+      aiChatbotUseChatHistory: true,
+      aiChatbotUseWebSearch: true,
+      aiChatbotCooldownSec: true,
+      aiChatbotMaxPerHour: true,
       aiChatbotStartTime: true,
       aiChatbotEndTime: true,
-      aiEnhanceEnabled: true,
       aiDailyCapBaht: true,
       aiCapAlertSmsOptIn: true,
     },

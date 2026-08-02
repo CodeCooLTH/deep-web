@@ -3,10 +3,19 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendImageMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, GraphApiError } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
+
+/** ChatMessage.type ของไฟล์แนบ → `message.attachment.type` ที่ Meta Send API รับ (2026-08-02)
+ *  ขาเข้ามี MEDIA_TYPE ทำหน้าที่ตรงข้ามอยู่แล้ว (Meta → ของเรา) นี่คือขาออก */
+const GRAPH_ATTACHMENT_TYPE: Record<'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE', GraphAttachmentType> = {
+  IMAGE: 'image',
+  VIDEO: 'video',
+  AUDIO: 'audio',
+  FILE: 'file',
+}
 import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
@@ -825,10 +834,11 @@ export async function ingestReadEvent(params: {
 /**
  * ingestAdReferral — บันทึก "ที่มา" ของเธรด: ลูกค้าทักมาจากโฆษณา/ลิงก์ m.me อันไหน (E5 2026-07-26)
  *
- * เขียน 2 ที่:
+ * เขียน 3 ที่:
  *  1. ตารางประวัติ ConversationAdReferral — แถวใหม่ทุกครั้ง ไม่ทับของเดิม เพราะ Meta ไม่มี Graph API
  *     ให้อ่าน referral ย้อนหลัง ถ้าทับทิ้งคือหายถาวร (ข้อมูลดิบของรายงาน "ads ตัวไหนพาลูกค้ามา")
  *  2. Conversation.referral* — ค่า "ล่าสุด" ที่แบนเนอร์บนหัวเธรดอ่าน (ไม่ต้อง join ทุกครั้งที่เปิดเธรด)
+ *  3. Conversation.lastInboundAt — หน้าต่าง 24 ชม. (ดู customerActionAt)
  *
  * ต้องเรียก **หลัง** ingest ข้อความเสร็จเสมอ — เธรดต้องมีอยู่แล้ว และ mirror รูป (network call)
  * ห้ามอยู่ในทรานแซกชันเดียวกับการเขียนข้อความ
@@ -841,8 +851,23 @@ export async function ingestAdReferral(params: {
   pageExternalId: string
   contactExternalId: string
   referral: Referral
+  /**
+   * เวลาที่ **ลูกค้า** ทำ action ที่พา referral นี้มา (ms) — ใส่ = เปิดหน้าต่าง 24 ชม. ใหม่
+   * ไม่ใส่ = ไม่แตะหน้าต่างเลย (ใช้เมื่อ referral ไม่ได้มาจาก action ของลูกค้า เช่นติดมากับ echo
+   * ของข้อความฝั่งเพจ) — เจตนาคือให้ caller ประกาศออกมาตรง ๆ ไม่ใช่ให้ service เดาจาก timestamp
+   * ที่มีค่าเสมอ ไม่งั้นเผลอเปิดหน้าต่างจาก action ของเพจเอง
+   *
+   * ทำไมต้องมี (user report 2026-08-02): เอกสาร Messaging Policy ของ Meta ระบุ action ที่เปิด
+   * หน้าต่าง 24 ชม. ไว้หลายอย่าง ไม่ใช่แค่ "ส่งข้อความ" — คลิกโฆษณา Click-to-Messenger, กดปุ่ม
+   * CTA, และคลิกลิงก์ m.me ที่มี ref ล้วนเปิดหน้าต่างทั้งหมด ซึ่งทั้งสามอย่างมาถึงเราเป็น referral
+   * event. เดิมเราขยับ lastInboundAt เฉพาะตอนมีข้อความ/reaction → ลูกค้าเก่าที่กดโฆษณาตัวใหม่
+   * แล้วยังไม่พิมพ์อะไร ระบบขึ้นว่า "หมดเวลา" และบล็อกไม่ให้ร้านตอบ ทั้งที่ Meta อนุญาตแล้ว
+   */
+  customerActionAt?: number
 }): Promise<void> {
   const { referral } = params
+  // null = caller บอกว่านี่ไม่ใช่ action ของลูกค้า → ไม่แตะหน้าต่าง 24 ชม.
+  const customerActionAt = params.customerActionAt ? new Date(params.customerActionAt) : null
   const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
   if (!channel) return
   const contact = await prisma.externalContact.findUnique({
@@ -903,6 +928,23 @@ export async function ingestAdReferral(params: {
         referralPhotoFileId: photoFileId,
       },
     }),
+    // หน้าต่าง 24 ชม. (ดู customerActionAt) — แยกเป็น updateMany ต่างหาก ไม่รวมกับ update ข้างบน
+    // เพราะเงื่อนไขต่างกัน: ข้อมูล referral เขียนทับได้เสมอ (เป็นค่า "ล่าสุด") ส่วนเวลาต้องเขียน
+    // เฉพาะเมื่อใหม่กว่าของเดิม กัน event ที่มาสลับลำดับดันหน้าต่างถอยหลัง (ตรรกะเดียวกับ react)
+    //
+    // ไม่ขยับ lastMessageAt ด้วย: ไม่มีข้อความใหม่จริง การดันเธรดขึ้นหัวรายการจากการคลิกโฆษณา
+    // เป็นการเปลี่ยนความหมายของลำดับกล่องข้อความ ซึ่งเป็นคนละเรื่องกับสิทธิ์ในการส่ง
+    ...(customerActionAt
+      ? [
+          prisma.conversation.updateMany({
+            where: {
+              id: conversation.id,
+              OR: [{ lastInboundAt: null }, { lastInboundAt: { lt: customerActionAt } }],
+            },
+            data: { lastInboundAt: customerActionAt },
+          }),
+        ]
+      : []),
   ])
 }
 
@@ -960,9 +1002,18 @@ export async function sendOutboundMessage(params: {
   systemShopId?: string
   // ป้ายกำกับว่าข้อความนี้ระบบเป็นผู้ส่ง — null = คนส่ง (ค่าเดิม)
   autoReplyKind?: 'AUTO' | 'AUTO_TEST'
-  // text = ข้อความ (หรือ caption ของรูป); imageFileId = ส่งรูป (storage fileId) — อย่างน้อยต้องมีอย่างหนึ่ง
+  // text = ข้อความ (หรือ caption ของไฟล์แนบ) — อย่างน้อยต้องมี text หรือไฟล์แนบอย่างใดอย่างหนึ่ง
   text?: string
+  /** deprecated (2026-08-02) — ใช้ `attachment` แทน. คงไว้เพราะ auto-reply-send.service.ts
+   *  ยังส่งรูปทีละใบด้วยพารามิเตอร์นี้อยู่ (ภายในแปลงเป็น attachment kind='IMAGE' ให้เอง) */
   imageFileId?: string
+  /** ไฟล์แนบทุกชนิด (2026-08-02 multi-attachment) — kind ตัดสิน `attachment.type` ที่ยิงให้ Meta */
+  attachment?: {
+    fileId: string
+    kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
+    name?: string | null
+    size?: number | null
+  }
   // orderRefToken (user 2026-07-25): การ์ดคำสั่งซื้อบนช่องทางนอก — ส่ง "ลิงก์ (text)" ให้ลูกค้าผ่าน Meta
   // แต่เก็บข้อความฝั่งเราเป็น type=ORDER เพื่อให้ "ร้าน" เห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด)
   orderRefToken?: string
@@ -1016,7 +1067,9 @@ export async function sendOutboundMessage(params: {
 
   const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
   const recipientId = conversation.externalContact.externalUserId
-  const isImage = !!params.imageFileId
+  // รวม 2 ทางเข้าเป็นตัวแปรเดียว — imageFileId (auto-reply เดิม) กับ attachment (composer ใหม่)
+  // ต้องไม่แตกเป็น 2 เส้นทาง ไม่งั้น retry path ด้านล่างจะพลาดเส้นใดเส้นหนึ่งเสมอ
+  const attachment = params.attachment ?? (params.imageFileId ? { fileId: params.imageFileId, kind: 'IMAGE' as const, name: null, size: null } : null)
   const bodyText = params.text ?? ''
 
   let mid: string | null = null
@@ -1025,10 +1078,17 @@ export async function sendOutboundMessage(params: {
     // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
     // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
     // sendText/sendImage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจ/IG account ให้เองแล้ว
-    if (isImage) {
-      // presigned URL อายุ 1 ชม. — Meta ดึงรูปไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
-      const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
-      mid = await sendImageMessage(pageToken, recipientId, imageUrl, params.replyToMid, messageTag)
+    if (attachment) {
+      // presigned URL อายุ 1 ชม. — Meta ดึงไฟล์ไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
+      const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
+      mid = await sendAttachmentMessage(
+        pageToken,
+        recipientId,
+        GRAPH_ATTACHMENT_TYPE[attachment.kind],
+        fileUrl,
+        params.replyToMid,
+        messageTag,
+      )
       // caption (ถ้ามี) — Meta attachment ไม่มี text ในตัว ส่งเป็นข้อความตามหลังแยก (best-effort);
       // echo ของ caption จะถูก ingestInboundMessage เก็บเป็นบับเบิลข้อความ SHOP แยกเอง (ไม่เขียนซ้ำที่นี่)
       if (bodyText.trim()) {
@@ -1042,9 +1102,18 @@ export async function sendOutboundMessage(params: {
     // ลองใหม่แบบไม่มี reply_to เพื่อให้ข้อความยังส่งออกได้ (quote ฝั่งเราแสดงอยู่ดี)
     if (params.replyToMid && !mid) {
       try {
-        if (isImage) {
-          const imageUrl = await getFileUrl(params.imageFileId!, { signed: true, expiresIn: 3600 })
-          mid = await sendImageMessage(pageToken, recipientId, imageUrl, null, messageTag)
+        if (attachment) {
+          const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
+          // ต้องส่ง kind เดิม ห้ามถอยกลับเป็น 'image' — ไม่งั้นวิดีโอ/ไฟล์จะถูกส่งผิดชนิดเงียบ ๆ
+          // เฉพาะรอบ retry (บั๊กแบบที่เห็นเฉพาะตอน Meta ปฏิเสธ reply_to จึงหาเจอยากมาก)
+          mid = await sendAttachmentMessage(
+            pageToken,
+            recipientId,
+            GRAPH_ATTACHMENT_TYPE[attachment.kind],
+            fileUrl,
+            null,
+            messageTag,
+          )
           if (bodyText.trim()) await sendTextMessage(pageToken, recipientId, bodyText).catch(() => {})
         } else {
           mid = await sendTextMessage(pageToken, recipientId, bodyText)
@@ -1065,7 +1134,17 @@ export async function sendOutboundMessage(params: {
   // การ์ดคำสั่งซื้อ (user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" (bodyText ที่ยิงไป Meta) แต่
   // ฝั่งเราเก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด. echo ของลิงก์ (mid เดิม) จะ dedupe กับแถวนี้เอง
   const isOrder = !!params.orderRefToken
-  const preview = isOrder ? '[คำสั่งซื้อ]' : isImage ? '[รูปภาพ]' : bodyText.slice(0, 100)
+  const preview = isOrder
+    ? '[คำสั่งซื้อ]'
+    : attachment
+      ? attachment.kind === 'IMAGE'
+        ? '[รูปภาพ]'
+        : attachment.kind === 'VIDEO'
+          ? '[วิดีโอ]'
+          : attachment.kind === 'AUDIO'
+            ? '[ข้อความเสียง]'
+            : `[ไฟล์] ${attachment.name ?? ''}`.trim()
+      : bodyText.slice(0, 100)
 
   let message
   try {
@@ -1077,10 +1156,12 @@ export async function sendOutboundMessage(params: {
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: isOrder ? 'ORDER' : isImage ? 'IMAGE' : 'TEXT',
-          // ORDER: เก็บ orderRefToken (การ์ด live-join); รูป: body=null, imageUrl=fileId; ข้อความ: body=text
-          body: isOrder || isImage ? null : bodyText,
-          imageUrl: isImage ? params.imageFileId! : null,
+          type: isOrder ? 'ORDER' : (attachment?.kind ?? 'TEXT'),
+          // ORDER: เก็บ orderRefToken (การ์ด live-join); ไฟล์แนบ: body=null, imageUrl=fileId; ข้อความ: body=text
+          body: isOrder || attachment ? null : bodyText,
+          imageUrl: attachment?.fileId ?? null,
+          attachmentName: attachment?.name ?? null,
+          attachmentSize: attachment?.size ?? null,
           orderRefToken: isOrder ? params.orderRefToken! : null,
           replyToMid: params.replyToMid ?? null,
           externalMessageId: mid || null,
@@ -1145,4 +1226,78 @@ export async function sendOutboundMessage(params: {
     await pauseForHumanTakeover(params.conversationId, conversation.shopId)
   }
   return message
+}
+
+/** preview สำหรับ Conversation.lastMessagePreview เมื่อคำนวณจากแถวที่ "มีอยู่แล้ว" (ใช้ตอนสร้าง
+ *  snapshot ใหม่หลังยกเลิกข้อความ) — ต้องให้ผลตรงกับที่เขียนตอน insert ไม่งั้นข้อความในกล่องขาเข้า
+ *  จะไม่ตรงกับบับเบิลล่างสุดของเธรด. ชื่อไฟล์แนบไม่ได้ต่อท้ายเหมือนตอน insert เพราะ preview ใน
+ *  list ต้องสั้น (user report 2026-07-25) และแถวเก่าก่อน 2026-08-02 ไม่มี attachmentName */
+const CANCEL_SNAPSHOT_PREVIEW: Record<string, string> = {
+  IMAGE: '[รูปภาพ]',
+  VIDEO: '[วิดีโอ]',
+  AUDIO: '[ข้อความเสียง]',
+  FILE: '[ไฟล์แนบ]',
+  ORDER: '[คำสั่งซื้อ]',
+  PRODUCT: '[สินค้า]',
+}
+
+/**
+ * cancelFailedOutboundMessage — ร้านกด "ยกเลิกการส่งข้อความ" บนบับเบิลที่ยิงออกไม่สำเร็จ
+ * (user สั่ง 2026-08-02)
+ *
+ * ลบแถวทิ้งจริง ไม่ใช่ mark isDeleted: `isDeleted` มีไว้สำหรับ "unsend" ของข้อความที่ **ส่งถึง
+ * ลูกค้าไปแล้ว** จึงต้องเหลือหลักฐานว่าเคยมีข้อความอยู่ตรงนั้น (บับเบิล "ข้อความถูกลบ") — ส่วน
+ * แถวที่ deliveryStatus='FAILED' ลูกค้าไม่เคยเห็นอะไรเลย การทิ้ง tombstone ไว้จึงเป็นการโกหก
+ * ผู้ขายว่า "มีข้อความถูกลบ" ทั้งที่ไม่เคยมีข้อความไปถึง
+ *
+ * ข้อจำกัดที่ทำให้ปลอดภัยต่อ invariant append-only ของ ChatMessage (schema.prisma:1411):
+ * ลบได้เฉพาะแถว FAILED ของฝั่งร้านเท่านั้น — แถวที่ส่งสำเร็จ/ของลูกค้า ลบจากที่นี่ไม่ได้เด็ดขาด
+ * (นี่คือเหตุผลที่ "ส่งซ้ำ" ยังเป็นการสร้างข้อความใหม่ ไม่ใช่แก้แถวเดิม: ส่งซ้ำเป็นเหตุการณ์ใหม่
+ * ส่วนยกเลิกคือผู้ใช้สั่งทิ้งความพยายามนั้นทิ้งอย่างตั้งใจ)
+ */
+export async function cancelFailedOutboundMessage(params: {
+  conversationId: string
+  messageId: string
+  actorUserId: string
+}): Promise<void> {
+  const message = await prisma.chatMessage.findFirst({
+    where: { id: params.messageId, conversationId: params.conversationId },
+    select: { id: true, deliveryStatus: true, senderRole: true },
+  })
+  if (!message) throw new Error('MESSAGE_NOT_FOUND')
+  // เช็คก่อน authz ไม่ได้ — ต้องรู้ก่อนว่า user แตะเธรดนี้ได้ไหม ไม่งั้นสถานะของข้อความรั่วออกไป
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: params.conversationId },
+    select: { id: true, shopId: true },
+  })
+  if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
+  if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  // สองเงื่อนไขนี้คือขอบเขตทั้งหมดของสิ่งที่ลบได้ — อย่าผ่อนโดยไม่คิดให้จบ
+  if (message.deliveryStatus !== 'FAILED' || message.senderRole !== 'SHOP') {
+    throw new Error('MESSAGE_NOT_CANCELLABLE')
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.chatMessage.delete({ where: { id: message.id } })
+
+    // snapshot ของเธรดอาจชี้ข้อความที่เพิ่งลบไป — คำนวณใหม่จากแถวที่เหลือ ไม่งั้นกล่องขาเข้า
+    // จะโชว์ข้อความที่ไม่มีอยู่แล้ว. เรียงด้วย seq ร่วมด้วยตามที่ schema กำหนด (ตัวตัดสินเมื่อ
+    // createdAt เท่ากัน) เขียนใน transaction เดียวกับการลบเสมอ (invariant M-2)
+    const newest = await tx.chatMessage.findFirst({
+      where: { conversationId: params.conversationId },
+      orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
+      select: { createdAt: true, body: true, type: true, senderRole: true },
+    })
+    await tx.conversation.update({
+      where: { id: params.conversationId },
+      data: newest
+        ? {
+            lastMessageAt: newest.createdAt,
+            lastMessagePreview: CANCEL_SNAPSHOT_PREVIEW[newest.type] ?? (newest.body ?? '').slice(0, 100),
+            lastSenderRole: newest.senderRole,
+          }
+        : // เธรดว่างเปล่า (ข้อความเดียวที่มีคือตัวที่เพิ่งยกเลิก) — ล้าง preview ไม่ใช่ปล่อยค้าง
+          { lastMessagePreview: null, lastSenderRole: null },
+    })
+  })
 }

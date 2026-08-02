@@ -20,6 +20,7 @@ export type GuardrailRow = {
   id: string
   rule: string
   denyPhrases: string[]
+  mode: string
   isFromDefaultSet: boolean
   isActive: boolean
 }
@@ -30,8 +31,17 @@ export type ChatbotConfig = {
   aiChatbotTone: string | null
   aiChatbotStartTime: string | null
   aiChatbotEndTime: string | null
-  aiEnhanceEnabled: boolean
   aiDailyCapBaht: number
+  aiChatbotShopOnly: boolean
+  aiChatbotOutOfScopeText: string | null
+  aiChatbotExtraPrompt: string | null
+  aiChatbotFallbackMode: string
+  aiChatbotFallbackText: string | null
+  aiChatbotUseShopData: boolean
+  aiChatbotUseChatHistory: boolean
+  aiChatbotUseWebSearch: boolean
+  aiChatbotCooldownSec: number
+  aiChatbotMaxPerHour: number
   aiCapAlertSmsOptIn: boolean
 }
 
@@ -57,6 +67,22 @@ const TONE_PRESETS = [
   'เป็นทางการ น่าเชื่อถือ',
   'อบอุ่น ใส่ใจ เหมือนคุยกับเพื่อน',
 ]
+
+const DEFAULT_OUT_OF_SCOPE_PLACEHOLDER = 'ขออภัยค่ะ ทางร้านตอบได้เฉพาะเรื่องสินค้าและการสั่งซื้อนะคะ'
+
+const DEFAULT_FALLBACK_PLACEHOLDER = 'ขอเช็คข้อมูลให้สักครู่นะคะ เดี๋ยวแอดมินมาตอบค่ะ'
+
+const FALLBACK_MODES = [
+  { key: 'MESSAGE', label: 'ตอบข้อความสำรอง', hint: 'ลูกค้าไม่ถูกปล่อยเงียบ และไม่มีความเสี่ยงว่า AI จะแต่งเรื่อง' },
+  { key: 'AI_FREE', label: 'ให้ AI ตอบเองอย่างอิสระ', hint: 'ตอบได้ทุกคำถาม แต่ยังห้ามแต่งราคา/เงื่อนไขของร้าน — เสี่ยงพูดเกินที่ร้านตั้งไว้' },
+  { key: 'SILENT', label: 'เงียบ ไม่ตอบอะไรเลย', hint: 'พฤติกรรมเดิม — คำถามจะไปเข้าคิวให้ร้านมาตอบเอง' },
+] as const
+
+const DATA_SOURCES = [
+  { key: 'aiChatbotUseShopData' as const, label: 'สินค้าและราคาในระบบ', hint: 'ตอบราคาได้ตรงกับระบบเสมอ ไม่ต้องพิมพ์ซ้ำเข้าคลัง' },
+  { key: 'aiChatbotUseChatHistory' as const, label: 'บทสนทนาก่อนหน้าในห้องนั้น', hint: 'ตอบคำถามต่อเนื่องได้ เช่น "แล้วสีแดงล่ะ"' },
+  { key: 'aiChatbotUseWebSearch' as const, label: 'ค้นเว็บประกอบ', hint: 'ตอบเรื่องนอกร้านได้ เช่น สเปกรุ่นรถ — ค่าใช้จ่ายสูงขึ้น และข้อมูลนี้ร้านไม่ได้รับรอง' },
+] as const
 
 export default function ChatbotClient({
   canEdit,
@@ -100,6 +126,24 @@ export default function ChatbotClient({
       pacesToast.error(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ')
     } finally {
       setBusy(false)
+    }
+  }
+
+  /** สลับ BLOCK <-> AVOID — optimistic เพราะเป็นการกดที่ผู้ใช้คาดหวังผลทันที */
+  async function toggleMode(r: { id: string; mode: string }) {
+    if (!canEdit || busy) return
+    const next = r.mode === 'AVOID' ? 'BLOCK' : 'AVOID'
+    setRules((p) => p.map((x) => (x.id === r.id ? { ...x, mode: next } : x)))
+    try {
+      const res = await fetch(`/api/shops/auto-reply/chatbot/guardrails/${r.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: next }),
+      })
+      if (!res.ok) throw new Error(await readError(res, 'เปลี่ยนชนิดกฎไม่สำเร็จ'))
+    } catch (e) {
+      setRules((p) => p.map((x) => (x.id === r.id ? { ...x, mode: r.mode } : x)))
+      pacesToast.error(e instanceof Error ? e.message : 'เปลี่ยนชนิดกฎไม่สำเร็จ')
     }
   }
 
@@ -330,36 +374,6 @@ export default function ChatbotClient({
         </div>
       </div>
 
-      {/* ── option: ขัดเกลาคำตอบของ Auto Reply ── */}
-      <div className="card">
-        <div className="card-header items-start">
-          <div className="min-w-0">
-            <h5 className="text-default-900 text-base font-semibold">ขัดเกลาคำตอบของ Auto Reply</h5>
-            <p className="text-default-700 mt-1 text-xs">
-              คำตอบที่คุณตั้งไว้ใน Auto Reply จะถูก AI ปรับถ้อยคำให้อ่านลื่นขึ้นก่อนส่ง
-              <br />
-              <strong>ราคา วันส่ง เงื่อนไข ต้องตรงกับที่คุณเขียนไว้เป๊ะ</strong> · เกิน 8 วินาทีส่งของเดิมแทน · คิดค่าใช้จ่ายต่อครั้ง
-            </p>
-          </div>
-          <label className="flex flex-none items-center gap-2">
-            <span className="text-default-700 text-sm">{cfg.aiEnhanceEnabled ? 'เปิดอยู่' : 'ปิดอยู่'}</span>
-            <input
-              type="checkbox"
-              className="form-switch"
-              checked={cfg.aiEnhanceEnabled}
-              disabled={!canEdit || busy}
-              onChange={() =>
-                patch(
-                  { aiEnhanceEnabled: !cfg.aiEnhanceEnabled },
-                  !cfg.aiEnhanceEnabled ? 'เปิดการขัดเกลาคำตอบแล้ว' : 'ปิดการขัดเกลาคำตอบแล้ว',
-                )
-              }
-              aria-label="เปิดใช้การขัดเกลาคำตอบของ Auto Reply"
-            />
-          </label>
-        </div>
-      </div>
-
       {/* ── เพดานค่าใช้จ่าย ── */}
       <div className="card">
         <div className="card-header items-start">
@@ -390,6 +404,48 @@ export default function ChatbotClient({
             </div>
             <p className="text-default-500 pb-2.5 text-xs">เครดิตคงเหลือ {walletBalance.toLocaleString('th-TH')} บาท</p>
           </div>
+
+          {/* เพดานต่อห้อง — คนละเรื่องกับเพดานเงินต่อวัน: อันนั้นคุมค่าใช้จ่ายรวมทั้งร้าน
+              อันนี้กันห้องเดียวยิงรัว ๆ จนกินโควตาของทุกห้องไปคนเดียว */}
+          <div className="border-default-200 flex flex-wrap items-end gap-3 border-t pt-3">
+            <div>
+              <label htmlFor="cb-cooldown" className="form-label">เว้นระยะระหว่างคำตอบ (วินาที)</label>
+              <input
+                id="cb-cooldown"
+                type="number"
+                min={0}
+                max={3600}
+                className="form-input"
+                value={cfg.aiChatbotCooldownSec}
+                disabled={!canEdit}
+                onChange={(e) => setCfg({ ...cfg, aiChatbotCooldownSec: Number(e.target.value) })}
+                onBlur={(e) => {
+                  const n = Number(e.target.value)
+                  if (n >= 0 && n <= 3600) patch({ aiChatbotCooldownSec: n }, 'บันทึกการเว้นระยะแล้ว')
+                }}
+              />
+            </div>
+            <div>
+              <label htmlFor="cb-perhour" className="form-label">ตอบได้สูงสุดต่อห้องต่อชั่วโมง</label>
+              <input
+                id="cb-perhour"
+                type="number"
+                min={0}
+                max={200}
+                className="form-input"
+                value={cfg.aiChatbotMaxPerHour}
+                disabled={!canEdit}
+                onChange={(e) => setCfg({ ...cfg, aiChatbotMaxPerHour: Number(e.target.value) })}
+                onBlur={(e) => {
+                  const n = Number(e.target.value)
+                  if (n >= 0 && n <= 200) patch({ aiChatbotMaxPerHour: n }, 'บันทึกเพดานต่อห้องแล้ว')
+                }}
+              />
+            </div>
+            <p className="text-default-500 pb-2.5 text-xs">
+              0 = ไม่จำกัด · โหมดทดสอบไม่ติดสองข้อนี้ จะได้ยิงซ้ำดูผลได้
+            </p>
+          </div>
           <label className="flex items-center justify-between">
             <span className="text-default-700 text-sm">
               เตือนทาง SMS เมื่อใช้ถึง 80% ของเพดาน
@@ -411,9 +467,11 @@ export default function ChatbotClient({
       <div className="card">
         <div className="card-header items-start">
           <div className="min-w-0">
-            <h5 className="text-default-900 text-base font-semibold">กฎห้ามตอบ</h5>
+            <h5 className="text-default-900 text-base font-semibold">กฎการตอบ</h5>
             <p className="text-default-700 mt-1 text-xs">
-              สิ่งที่ AI ห้ามพูดถึง — ชนกฎแล้วระบบจะไม่ส่งอะไรเลยและส่งต่อให้คนดูแทน
+              กดที่ป้ายหน้าแต่ละข้อเพื่อสลับชนิด — <span className="text-warning font-medium">หยุดไม่ตอบ</span>{' '}
+              คือชนแล้วไม่ส่งอะไรเลยและส่งต่อให้คนดู ส่วน{' '}
+              <span className="text-info font-medium">เลี่ยงคำพูดนี้</span> คือยังตอบอยู่ แต่สั่ง AI ว่าห้ามพูดแบบนั้น
             </p>
           </div>
           <span className="badge bg-light text-default-700 shrink-0">{rules.length} ข้อ</span>
@@ -431,9 +489,22 @@ export default function ChatbotClient({
                   <p className={`text-sm ${r.isActive ? 'text-default-800' : 'text-default-400 line-through'}`}>
                     {r.rule}
                   </p>
-                  {r.denyPhrases.length > 0 && (
-                    <p className="text-default-400 mt-0.5 text-xs">ดักคำ: {r.denyPhrases.join(' · ')}</p>
-                  )}
+                  <p className="text-default-400 mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
+                    {/* ชนิดกฎอ่านจากป้ายได้ทันที — สองชนิดนี้ให้ผลตรงข้ามกัน (เงียบ vs ยังตอบ)
+                        ถ้าแยกไม่ออกตั้งแต่แรกเห็น ร้านจะตั้งผิดชนิดแล้วงงว่าทำไมบอทเงียบ */}
+                    <button
+                      type="button"
+                      disabled={!canEdit || busy}
+                      onClick={() => toggleMode(r)}
+                      className={`badge shrink-0 text-2xs ${
+                        r.mode === 'AVOID' ? 'bg-info/15 text-info' : 'bg-warning/15 text-warning'
+                      }`}
+                      title="กดเพื่อสลับชนิดกฎ"
+                    >
+                      {r.mode === 'AVOID' ? 'เลี่ยงคำพูดนี้' : 'หยุดไม่ตอบ'}
+                    </button>
+                    {r.denyPhrases.length > 0 && <span>ดักคำ: {r.denyPhrases.join(' · ')}</span>}
+                  </p>
                 </div>
                 {r.isFromDefaultSet && (
                   <span className="badge bg-light text-default-500 shrink-0 text-2xs">ชุดเริ่มต้น</span>
@@ -486,6 +557,150 @@ export default function ChatbotClient({
             </button>
           </div>
         )}
+      </div>
+
+      {/* ── ขอบเขตการตอบ + คำสั่งเพิ่มเติม ───────────────────────────────
+          user 2026-08-01: "มีแบบเขียนเป็น Prompt ไว้ไหม ว่าถ้าไม่ได้ถามเกี่ยวกับ
+          ข้อมูลร้านค้า จะไม่ตอบ เช่น แอดมินไม่สามารถตอบคำถามนอกเหนือจากข้อมูลสินค้าได้ค่ะ" */}
+      <div className="card">
+        <div className="card-header">
+          <div className="min-w-0">
+            <h5 className="text-default-900 text-base font-semibold">ขอบเขตการตอบ</h5>
+            <p className="text-default-700 mt-1 text-xs">
+              คุมว่าบอทคุยนอกเรื่องร้านได้แค่ไหน และเขียนคำสั่งของคุณเองให้บอททำตามได้
+            </p>
+          </div>
+        </div>
+        <div className="card-body space-y-3">
+          <label className="flex items-center justify-between gap-3">
+            <span className="min-w-0">
+              <span className="text-default-700 block text-sm">ตอบเฉพาะเรื่องของร้าน</span>
+              <span className="text-default-400 block text-xs">
+                คำถามที่ไม่เกี่ยวกับสินค้า รวมถึงคุยเล่น จะได้ข้อความปฏิเสธด้านล่างแล้วจบ
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className="form-switch shrink-0"
+              disabled={!canEdit || busy}
+              checked={cfg.aiChatbotShopOnly}
+              onChange={(e) => patch({ aiChatbotShopOnly: e.target.checked }, 'บันทึกแล้ว')}
+            />
+          </label>
+
+          {cfg.aiChatbotShopOnly && (
+            <div>
+              <label htmlFor="cb-oos" className="form-label">ข้อความเมื่อถามนอกเรื่อง</label>
+              <input
+                id="cb-oos"
+                className="form-input"
+                maxLength={300}
+                disabled={!canEdit}
+                placeholder={DEFAULT_OUT_OF_SCOPE_PLACEHOLDER}
+                value={cfg.aiChatbotOutOfScopeText ?? ''}
+                onChange={(e) => setCfg({ ...cfg, aiChatbotOutOfScopeText: e.target.value })}
+                onBlur={(e) => patch({ aiChatbotOutOfScopeText: e.target.value }, 'บันทึกข้อความแล้ว')}
+              />
+              <p className="text-default-400 mt-1 text-xs">เว้นว่าง = ใช้ข้อความกลาง</p>
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="cb-extra" className="form-label">คำสั่งเพิ่มเติม (เขียนเอง)</label>
+            <textarea
+              id="cb-extra"
+              className="form-textarea"
+              rows={3}
+              maxLength={2000}
+              disabled={!canEdit}
+              placeholder={'เช่น\nห้ามเรียกลูกค้าว่า "คุณลูกค้า" ให้เรียก "พี่"\nทุกครั้งที่ปิดการขาย ให้ขอเบอร์โทรและที่อยู่'}
+              value={cfg.aiChatbotExtraPrompt ?? ''}
+              onChange={(e) => setCfg({ ...cfg, aiChatbotExtraPrompt: e.target.value })}
+              onBlur={(e) => patch({ aiChatbotExtraPrompt: e.target.value }, 'บันทึกคำสั่งแล้ว')}
+            />
+            <p className="text-default-400 mt-1 text-xs">
+              ถือเป็นข้อบังคับ ไม่ใช่แค่น้ำเสียง — แต่ยังแทนที่กฎห้ามแต่งราคา/เงื่อนไขของร้านไม่ได้
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── เมื่อคลังไม่มีคำตอบ ─────────────────────────────────────────────
+          user 2026-08-01: "อยากให้แชทบอทตอบทุกคำถาม ... แต่ถ้าไม่มีคลังความรู้
+          ก็ให้ตอบข้อมูล โดยลูกค้าต้องตั้งค่าได้" */}
+      <div className="card">
+        <div className="card-header">
+          <div className="min-w-0">
+            <h5 className="text-default-900 text-base font-semibold">เมื่อคลังไม่มีคำตอบ</h5>
+            <p className="text-default-700 mt-1 text-xs">
+              บอทตอบจากคลังความรู้เป็นหลักเสมอ ตรงนี้คือสิ่งที่ทำเมื่อคลังตอบคำถามนั้นไม่ได้
+            </p>
+          </div>
+        </div>
+        <div className="card-body space-y-2.5">
+          {FALLBACK_MODES.map((m) => (
+            <label key={m.key} className="flex cursor-pointer items-start gap-2.5">
+              <input
+                type="radio"
+                name="fallback-mode"
+                className="form-radio mt-1 shrink-0"
+                checked={cfg.aiChatbotFallbackMode === m.key}
+                disabled={!canEdit || busy}
+                onChange={() => patch({ aiChatbotFallbackMode: m.key }, `เปลี่ยนเป็น "${m.label}" แล้ว`)}
+              />
+              <span className="min-w-0">
+                <span className="text-default-800 block text-sm font-medium">{m.label}</span>
+                <span className="text-default-500 block text-xs">{m.hint}</span>
+              </span>
+            </label>
+          ))}
+          {cfg.aiChatbotFallbackMode === 'MESSAGE' && (
+            <div className="ps-6">
+              <label htmlFor="cb-fallback" className="form-label">ข้อความสำรอง</label>
+              <textarea
+                id="cb-fallback"
+                className="form-textarea"
+                rows={2}
+                maxLength={500}
+                disabled={!canEdit}
+                placeholder={DEFAULT_FALLBACK_PLACEHOLDER}
+                value={cfg.aiChatbotFallbackText ?? ''}
+                onChange={(e) => setCfg({ ...cfg, aiChatbotFallbackText: e.target.value })}
+                onBlur={(e) => patch({ aiChatbotFallbackText: e.target.value }, 'บันทึกข้อความสำรองแล้ว')}
+              />
+              <p className="text-default-400 mt-1 text-xs">เว้นว่างไว้ = ใช้ข้อความกลาง · ไม่มีค่า AI เพราะเป็นข้อความคงที่</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── แหล่งข้อมูลประกอบ ─────────────────────────────────────────────── */}
+      <div className="card">
+        <div className="card-header">
+          <div className="min-w-0">
+            <h5 className="text-default-900 text-base font-semibold">ข้อมูลที่บอทใช้ประกอบการตอบ</h5>
+            <p className="text-default-700 mt-1 text-xs">
+              เปิดมากขึ้น = ตอบได้ครอบคลุมขึ้น แต่ prompt ยาวขึ้นและค่าใช้จ่ายต่อครั้งสูงขึ้น
+            </p>
+          </div>
+        </div>
+        <div className="card-body space-y-3">
+          {DATA_SOURCES.map((d) => (
+            <label key={d.key} className="flex items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="text-default-700 block text-sm">{d.label}</span>
+                <span className="text-default-400 block text-xs">{d.hint}</span>
+              </span>
+              <input
+                type="checkbox"
+                className="form-switch shrink-0"
+                disabled={!canEdit || busy}
+                checked={Boolean(cfg[d.key])}
+                onChange={(e) => patch({ [d.key]: e.target.checked }, 'บันทึกแล้ว')}
+              />
+            </label>
+          ))}
+        </div>
       </div>
 
       {/* แชทสำหรับทดสอบ — การ์ดตัวเดียวกับของกลุ่มคำ ต่างแค่ scope เป็นระดับร้าน

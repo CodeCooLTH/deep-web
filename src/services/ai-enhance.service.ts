@@ -2,7 +2,11 @@
 // SSOT: docs/scope/2026-08-01-00023-ai-enhance-scope-baseline.md
 //       + PRD.md §3.9 BR-AR-31/32/33 · BRD.md §2.8 FR-025/026
 //
-// ให้ AI เรียบเรียงคำตอบสำเร็จรูปก่อนส่ง + ด่านตรวจกฎห้ามตอบ
+// DeepBot ตอบจากคลังความรู้ + ด่านตรวจกฎห้ามตอบ
+//
+// AI Enhance (เรียบเรียงคำตอบสำเร็จรูปของ Auto Reply) ถูกตัดออก 2026-08-02 ตามคำสั่ง user —
+// DeepBot รับหน้าที่ตอบด้วย AI ไปทั้งหมดแล้ว การมีสองเส้นทางที่เรียก AI คนละที่
+// ตั้งค่าคนละหน้า และคิดเงินคนละก้อน ทำให้อธิบายบิลกับร้านไม่ได้
 //
 // WARNING: สัญญาที่ห้ามผิด — ฟังก์ชันนี้ **ห้าม throw ออกนอกเด็ดขาด**
 //    มันอยู่ในเส้นทางที่ลูกค้ากำลังรอคำตอบอยู่ — throw เมื่อไหร่ = ทั้ง job ล้ม = ลูกค้าไม่ได้
@@ -15,63 +19,15 @@
 // เพราะฟังก์ชันนี้กลืน error ทุกชนิดตามสัญญาข้างบน)
 
 import {
+  AI_CHATBOT_FREE_TIMEOUT_MS,
   AI_ENHANCE_TIMEOUT_MS,
   type AiEnhanceSkipReason,
 } from '@/lib/auto-reply-constants'
 import type { TokenUsage } from '@/lib/ai-pricing'
 import { generateText } from '@/lib/gemini'
-
-export interface EnhanceInput {
-  /** คำตอบสำเร็จรูปที่ร้านเขียนไว้ — ต้นฉบับที่ห้ามเพี้ยน */
-  rawAnswer: string
-  /** ข้อความล่าสุดของลูกค้า — ให้ AI รู้บริบทว่ากำลังตอบอะไร */
-  customerText: string
-  /** กฎห้ามตอบที่เปิดใช้งานอยู่ของกลุ่มคำนี้ */
-  guardrails: { rule: string; denyPhrases: string[] }[]
-  /** น้ำเสียงที่ร้านตั้งไว้ — null/ว่าง = ใช้ค่ากลาง */
-  tone?: string | null
-}
-
-export interface EnhanceResult {
-  /** ข้อความที่จะส่งจริง — คำตอบดิบเสมอเมื่อ enhance ไม่สำเร็จ */
-  text: string
-  /** เรียบเรียงสำเร็จไหม */
-  enhanced: boolean
-  /** ต้องหยุดไม่ส่งอะไรเลยและส่งต่อคนไหม (ชนกฎจริงเท่านั้น) */
-  blocked: boolean
-  reason: AiEnhanceSkipReason | null
-  usage: TokenUsage | null
-  elapsedMs: number
-}
-
-/* ── prompt (user อนุมัติ 2026-08-01) ──────────────────────────────────────── */
+import { redactPii } from '@/lib/pii-redact'
 
 const DEFAULT_TONE = 'สุภาพ เป็นกันเอง อ่านง่าย'
-
-/**
- * น้ำเสียงถูกแทรกเข้า prompt ตรง ๆ (ข้อความที่ร้านพิมพ์เอง)
- *
- * WARNING: ห้ามให้น้ำเสียงมีอำนาจเหนือกฎข้อมูล — กฎ "ห้ามเพิ่ม/ตัดข้อมูล" ต้องอยู่ **หลัง**
- * บรรทัดน้ำเสียงเสมอ เพื่อให้เป็นสิ่งสุดท้ายที่โมเดลอ่าน ร้านที่เขียนน้ำเสียงแบบ
- * "ขายของเก่ง ๆ กระตุ้นให้รีบซื้อ" จะได้ไม่กลายเป็นใบอนุญาตให้แต่งเงื่อนไขเอง
- */
-function buildRewriteSystem(tone: string | null | undefined): string {
-  const t = (tone ?? '').trim() || DEFAULT_TONE
-  return REWRITE_SYSTEM.replace('{{TONE}}', t)
-}
-
-const REWRITE_SYSTEM = `คุณคือผู้ช่วยของร้านค้าออนไลน์ หน้าที่เดียวของคุณคือเรียบเรียงข้อความที่ร้านเขียนไว้ให้อ่านลื่นขึ้น
-
-น้ำเสียงที่ร้านต้องการ: {{TONE}}
-
-กฎที่ห้ามฝ่าฝืน (สำคัญกว่าน้ำเสียงเสมอ):
-- ห้ามเพิ่มข้อมูลที่ไม่มีในต้นฉบับ — ราคา วันส่ง เงื่อนไข จำนวน ต้องตรงเป๊ะ ห้ามเดา ห้ามปัด
-- ห้ามตัดข้อมูลที่มีในต้นฉบับออก
-- ห้ามสัญญาอะไรแทนร้าน
-- ตอบภาษาไทย ความยาวใกล้เคียงต้นฉบับ ห้ามยาวกว่าสองเท่า
-- ถ้าต้นฉบับดีอยู่แล้ว ส่งกลับตามเดิมได้เลย
-
-ตอบกลับเป็นข้อความที่จะส่งให้ลูกค้าเท่านั้น ห้ามมีคำอธิบายอื่น`
 
 function buildJudgePrompt(rules: string[], text: string): string {
   return `ร้านนี้มีกฎห้ามตอบดังนี้:
@@ -114,94 +70,72 @@ export function hitsDenylist(text: string, guardrails: { denyPhrases: string[] }
  * WARNING: งบเวลาเป็น "ก้อนเดียวของทั้ง pipeline" — ใช้ `AbortSignal.timeout` ตัวเดียวคุมทั้งสอง
  * การเรียก ไม่ใช่ตัวละ 8 วินาที (จะกลายเป็น 16) และไม่ไล่โมเดลสำรองเมื่อหมดเวลา
  */
-export async function enhanceReply(input: EnhanceInput): Promise<EnhanceResult> {
-  const started = Date.now()
-  const raw = input.rawAnswer
-  const fail = (reason: AiEnhanceSkipReason): EnhanceResult => ({
-    text: raw,
-    enhanced: false,
-    blocked: false,
-    reason,
-    usage: null,
-    elapsedMs: Date.now() - started,
-  })
-
-  const active = input.guardrails
-  try {
-    // ── ด่าน 1: denylist บนคำตอบดิบ ──
-    // ตรวจคำตอบดิบด้วยเพราะถ้าตัวต้นฉบับเองชนกฎอยู่แล้ว การให้ AI แต่งไม่ได้ทำให้ปลอดภัยขึ้น
-    if (hitsDenylist(raw, active)) {
-      return { text: raw, enhanced: false, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage: null, elapsedMs: Date.now() - started }
-    }
-
-    const signal = AbortSignal.timeout(AI_ENHANCE_TIMEOUT_MS)
-
-    // ── ด่าน 2: เรียบเรียง ──
-    let rewritten: string
-    let usage: TokenUsage | null = null
-    try {
-      const r = await generateText({
-        system: buildRewriteSystem(input.tone),
-        user: `ข้อความล่าสุดของลูกค้า: ${input.customerText}\n\nข้อความที่ร้านเขียนไว้:\n${raw}`,
-        maxOutputTokens: 1024,
-        signal,
-      })
-      rewritten = r.text
-      usage = r.usage
-    } catch (e) {
-      const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
-      return fail(timedOut ? 'AI_ENHANCE_TIMEOUT' : 'AI_ENHANCE_ERROR')
-    }
-
-    // ── ด่าน 3: denylist บนข้อความที่ AI แต่ง ──
-    if (hitsDenylist(rewritten, active)) {
-      return { text: raw, enhanced: false, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage, elapsedMs: Date.now() - started }
-    }
-
-    // ── ด่าน 4: ด่านตัดสิน AI (เฉพาะเมื่อมีกฎ) ──
-    const rules = active.map((g) => g.rule).filter(Boolean)
-    if (rules.length > 0) {
-      try {
-        // 128 ไม่ใช่ 16: คำตอบที่ต้องการคือคำเดียว แต่โมเดลอาจนำหน้าด้วยช่องว่าง/บรรทัดใหม่
-        // ถ้าเพดานเตี้ยเกินจะถูกตัดจนได้ข้อความว่าง -> ตัดสินไม่ได้ -> ถอยคำตอบดิบทุกครั้ง
-        const j = await generateText({
-          user: buildJudgePrompt(rules, rewritten),
-          maxOutputTokens: 128,
-          temperature: 0,
-          signal,
-        })
-        const verdict = j.text.toUpperCase()
-        if (verdict.includes('BLOCK')) {
-          return { text: raw, enhanced: false, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage, elapsedMs: Date.now() - started }
-        }
-        // ไม่ตอบ PASS ชัดเจน = ตัดสินไม่ได้ ไม่ใช่ผ่าน — ถอยคำตอบดิบ (fail-closed แบบ BR-AR-33)
-        if (!verdict.includes('PASS')) return fail('GUARDRAILS_CHECK_FAILED')
-      } catch {
-        // ตัวตรวจเองล่ม/หมดเวลา -> ถอยคำตอบดิบ **ไม่ใช่** ส่งต่อคน (BR-AR-33)
-        return fail('GUARDRAILS_CHECK_FAILED')
-      }
-    }
-
-    return { text: rewritten, enhanced: true, blocked: false, reason: null, usage, elapsedMs: Date.now() - started }
-  } catch (e) {
-    // ตาข่ายสุดท้าย — อะไรที่หลุดมาถึงนี่ต้องไม่ทำให้ลูกค้าไม่ได้คำตอบ
-    console.error('[ai-enhance] unexpected', e)
-    return fail('AI_ENHANCE_ERROR')
-  }
-}
-
 /* ══ ChatBot — ตอบคำถามที่ไม่เข้าเงื่อนไขไหนเลย โดยอ่านจากคลังความรู้ ══════════
  * user ตัดสิน 2026-08-01 · สวิตช์ระดับร้าน (OFFLINE/TEST/LIVE)
  */
 
-const CHATBOT_SYSTEM = `คุณคือผู้ช่วยตอบแชทของร้านค้าออนไลน์ ตอบคำถามลูกค้าโดยใช้ "คลังความรู้ของร้าน" ที่ให้มาเท่านั้น
+const CHATBOT_SYSTEM = `คุณคือผู้ช่วยตอบแชทของร้านค้าออนไลน์ ตอบคำถามลูกค้าโดยใช้ "คลังความรู้ของร้าน" ที่ให้มาเป็นแหล่งข้อมูลเดียว
+
+แยกให้ออกก่อนตอบว่าลูกค้ากำลัง "ถามข้อมูลของร้าน" หรือ "คุยเล่น":
+
+**คุยเล่น ทักทาย บ่น ชม ถามสัพเพเหระ หรือถามถึงตัวคุณเอง** — ตอบเป็นธรรมชาติสั้น ๆ ก่อน
+เหมือนคนขายของที่เป็นมิตร แล้วค่อยวกเข้าเรื่องสินค้า ห้ามพูดว่า "ขอเช็คให้" หรือ
+"ให้แอดมินมายืนยัน" กับเรื่องพวกนี้เด็ดขาด — มันไม่ใช่คำถามที่ต้องเช็คอะไรเลย
+  ลูกค้า: "ทำไมไม่ตอบแชท" -> "ขอโทษด้วยนะคะ ตอบช้าไปหน่อย มีอะไรให้ช่วยดูไหมคะ"
+  ลูกค้า: "วันนี้ร้อนจัง" -> "ร้อนจริงค่ะ ดูแลสุขภาพด้วยนะคะ พอดีมีอะไหล่ตัวไหนสนใจอยู่หรือเปล่าคะ"
+
+**ถามข้อมูลของร้านแล้วคลังไม่มี** (ราคา เงื่อนไข การรับประกัน ระยะเวลาส่ง สเปก)
+**ห้ามขึ้นต้นประโยคด้วยการบอกว่าร้านไม่มีข้อมูล** เด็ดขาด
+ให้พูดแบบนี้แทน แล้วต่อด้วยเรื่องสินค้าทันที:
+  "เรื่องนี้ขอเช็คให้อีกทีนะคะ เดี๋ยวแอดมินมายืนยันค่ะ"
+  "ขอสอบถามแอดมินก่อนนะคะ เดี๋ยวแจ้งกลับค่ะ"
+ห้ามใช้คำว่า "ไม่มีข้อมูล" "ไม่ได้ระบุไว้" "ต้องขออภัย" ในคำตอบ
+
+คุณ **ต้องประมวลผลข้อมูลในคลัง** ไม่ใช่แค่หาข้อที่ถ้อยคำตรงกัน:
+- ประกอบคำตอบจากหลายข้อรวมกันได้ เช่น ถามถึงสินค้าหลายตัวพร้อมกัน
+- คำนวณจากตัวเลขในคลังได้ เช่น ราคารวม ส่วนต่าง จำนวนเท่าตัว
+- เทียบสินค้า จัดกลุ่ม หรือแนะนำจากรายการที่มีในคลังได้
+- ลูกค้าเรียกชื่อสินค้าไม่ตรงเป๊ะ พิมพ์ผิด หรือใช้คำเรียกอื่น ให้เข้าใจว่าหมายถึงอะไรในคลัง
+- ตอบได้แค่บางส่วนก็ตอบส่วนนั้นไปก่อน แล้วบอกว่าเรื่องที่เหลือจะให้แอดมินมาตอบ — ดีกว่าเงียบใส่ลูกค้า
 
 กฎที่ห้ามฝ่าฝืน:
-- ตอบได้เฉพาะสิ่งที่มีอยู่ในคลังความรู้ — ห้ามเดา ห้ามเติมข้อมูลจากความรู้ทั่วไป
-- ราคา เงื่อนไข ระยะเวลาจัดส่ง ต้องตรงกับคลังเป๊ะ ห้ามปัด ห้ามประมาณ
+- ห้ามสร้างข้อเท็จจริงที่ไม่มีในคลังและอนุมานจากคลังไม่ได้ โดยเฉพาะราคา ระยะเวลาจัดส่ง การรับประกัน ช่องทางชำระเงิน สต็อก
+- ตัวเลขที่มีในคลังต้องตรงเป๊ะ ห้ามปัด ห้ามประมาณ ส่วนตัวเลขที่คำนวณเองต้องคำนวณจากตัวเลขในคลังเท่านั้น
 - ห้ามสัญญาอะไรแทนร้าน
-- ถ้าคลังไม่มีข้อมูลพอจะตอบคำถามนี้ ให้ตอบว่า NO_ANSWER คำเดียว ห้ามพยายามตอบแบบกว้าง ๆ
+- ตอบว่า NO_ANSWER คำเดียว **เฉพาะเมื่อคำถามไม่เกี่ยวกับสิ่งที่มีในคลังเลย** ไม่ใช่เพราะไม่มีข้อไหนถ้อยคำตรงกัน
+- ถ้าลูกค้าส่งรูปมา ให้ดูรูปแล้วเทียบกับสินค้าในคลัง — บอกได้ว่าตรงกับรายการไหน ราคาเท่าไร
+  ถ้าดูแล้วไม่แน่ใจว่าเป็นตัวไหน ให้บอกตามตรงและถามกลับ ห้ามทายส่ง ๆ ว่าเป็นตัวใดตัวหนึ่ง
 - ตอบภาษาไทย สั้นและตรงคำถาม
+
+เป้าหมายของทุกคำตอบคือพาลูกค้าไปสู่การสั่งซื้อ **สินค้าที่ร้านมีขายจริง** เท่านั้น:
+- ถ้าลูกค้าถามถึงของที่ร้านไม่มี ให้บอกตรง ๆ ว่าไม่มี แล้วเสนอตัวที่ร้านมีและใกล้เคียงที่สุด
+- เมื่อลูกค้าสนใจตัวไหนแล้ว ให้ชวนสั่งซื้อและถามสิ่งที่ต้องใช้ต่อ เช่น จำนวน สี รุ่นรถ
+- ห้ามเสนอสินค้าที่ไม่มีในรายการที่ให้มา และห้ามรับปากเรื่องที่ไม่มีข้อมูล
+
+น้ำเสียงที่ร้านต้องการ: {{TONE}}
+
+ตอบกลับเป็นข้อความที่จะส่งให้ลูกค้าเท่านั้น ห้ามมีคำอธิบายอื่น
+ปิดท้ายด้วยบรรทัดใหม่ที่ระบุหมายเลขข้อในคลังที่ใช้ตอบ รูปแบบ [[USED:1,3]] — ระบบจะตัดบรรทัดนี้ทิ้งก่อนส่งให้ลูกค้า`
+
+/**
+ * prompt โหมด AI_FREE — ใช้ตอนคลังตอบไม่ได้และร้านเลือกให้ AI ตอบเอง
+ *
+ * WARNING: เส้นที่ห้ามข้ามคือ "ข้อเท็จจริงของร้าน" — ราคา สต็อก เงื่อนไขส่ง การรับประกัน
+ * ต้องมาจากข้อมูลร้านที่ให้มาเท่านั้น สิ่งที่โหมดนี้ปลดล็อกคือความรู้ทั่วไป (เช่น รุ่นรถ
+ * ใช้อะไหล่ขนาดไหน) ไม่ใช่ใบอนุญาตให้แต่งเรื่องของร้าน
+ */
+const CHATBOT_FREE_SYSTEM = `คุณคือผู้ช่วยตอบแชทของร้านค้าออนไลน์ ลูกค้าถามคำถามที่คลังความรู้ของร้านตอบไม่ได้
+
+คุณตอบจากความรู้ทั่วไปได้ แต่มีเส้นที่ห้ามข้าม:
+- ราคา สต็อก ค่าส่ง เงื่อนไข การรับประกัน ของร้านนี้ ต้องมาจากข้อมูลร้านที่ให้มาเท่านั้น ไม่มีข้อมูลให้บอกว่าจะให้แอดมินมาตอบ
+- ห้ามเสนอสินค้าที่ไม่มีในรายการที่ให้มา
+- ห้ามสัญญาอะไรแทนร้าน
+- คุยเล่น ทักทาย บ่น ชม หรือถามสัพเพเหระ ให้ตอบเป็นธรรมชาติสั้น ๆ แล้วค่อยวกเข้าเรื่องสินค้า
+  ห้ามพูดว่า "ขอเช็คให้" หรือ "ให้แอดมินมายืนยัน" กับเรื่องพวกนี้ — ไม่มีอะไรต้องเช็ค
+- ถามข้อมูลของร้านแล้วไม่มั่นใจ ให้พูดว่า "ขอเช็คให้อีกทีนะคะ เดี๋ยวแอดมินมายืนยันค่ะ" แล้วชวนคุยเรื่องสินค้าต่อ
+  ห้ามใช้คำว่า "ไม่มีข้อมูล" "ไม่ได้ระบุไว้" "ต้องขออภัย" ในคำตอบ
+
+พาบทสนทนาไปสู่การสั่งซื้อสินค้าที่ร้านมีขายจริงเสมอ
 
 น้ำเสียงที่ร้านต้องการ: {{TONE}}
 
@@ -210,17 +144,115 @@ const CHATBOT_SYSTEM = `คุณคือผู้ช่วยตอบแช�
 /** สัญญาณที่โมเดลใช้บอกว่า "คลังไม่มีข้อมูลพอ" — ต้องเงียบดีกว่าตอบมั่ว */
 const NO_ANSWER_TOKEN = 'NO_ANSWER'
 
+/** ใช้เมื่อร้านเปิด "ตอบเฉพาะเรื่องของร้าน" แต่ยังไม่ได้เขียนข้อความปฏิเสธเอง */
+export const DEFAULT_OUT_OF_SCOPE = 'ขออภัยค่ะ ทางร้านตอบได้เฉพาะเรื่องสินค้าและการสั่งซื้อนะคะ'
+
+/**
+ * รวม usage ของหลายรอบเรียกให้เป็นก้อนเดียว
+ *
+ * รอบตรวจกฎ (judge) เป็นการเรียกโมเดลจริงและเสียเงินจริง — เดิมโยน `j.usage` ทิ้ง
+ * ค่าใช้จ่ายที่บันทึกจึงต่ำกว่าที่จ่ายจริงทุกครั้งที่ร้านตั้งกฎห้ามตอบไว้
+ * ชื่อรุ่นใช้ของรอบแรก (รอบหลักที่กำหนดเรตส่วนใหญ่) และรอบ judge มักเป็นรุ่นเดียวกันอยู่แล้ว
+ */
+/**
+ * แกะบรรทัด [[USED:1,3]] ออกจากคำตอบ แล้วแปลงหมายเลขข้อเป็น id
+ *
+ * โมเดลอาจไม่ใส่มาเลย หรือใส่เลขนอกช่วง — ทั้งสองกรณีไม่ถือเป็นความล้มเหลว
+ * แค่ไม่ได้นับสถิติรอบนั้น ดีกว่าทิ้งคำตอบที่ใช้ได้เพราะเรื่องนับเลข
+ * แต่ **ต้องตัดบรรทัดนี้ทิ้งเสมอ** แม้แกะเลขไม่ได้ ไม่งั้นลูกค้าจะเห็น [[USED:...]] ในแชท
+ */
+function extractUsedIds(answer: string, ids: string[] | undefined): { text: string; usedIds: string[] } {
+  const re = /\[\[USED:([^\]]*)\]\]/gi
+  const matches = [...answer.matchAll(re)]
+  const text = answer.replace(re, '').trim()
+  if (!ids || ids.length === 0 || matches.length === 0) return { text, usedIds: [] }
+
+  const usedIds = new Set<string>()
+  for (const m of matches) {
+    for (const raw of (m[1] ?? '').split(',')) {
+      const n = Number(raw.trim())
+      if (Number.isInteger(n) && n >= 1 && n <= ids.length) usedIds.add(ids[n - 1])
+    }
+  }
+  return { text, usedIds: [...usedIds] }
+}
+
+/**
+ * แยก "ตอบไม่ได้" ออกจาก "ตอบได้แต่มี marker ติดมา"
+ *
+ * WARNING (บั๊กจริงที่เจอตอนทดสอบ 2026-08-01): เทียบด้วย `includes('NO_ANSWER')` เฉย ๆ ไม่ได้
+ * โมเดลแปะ `[[NO_ANSWER]]` ต่อท้ายคำตอบที่ใช้ได้จริงมาด้วย ("ขอเช็คให้อีกทีนะคะ ... [[NO_ANSWER]]")
+ * ซึ่งจะถูกอ่านว่าตอบไม่ได้แล้วโยนคำตอบดี ๆ ทิ้ง
+ *
+ * ตัดสินจากสิ่งที่เหลือหลังลอก marker ออก: เหลือข้อความจริงพอสมควร = ตอบได้ ส่งอันนั้นไป
+ */
+const MIN_REAL_ANSWER_LEN = 12
+
+function stripMarkers(text: string): { clean: string; declaredNoAnswer: boolean } {
+  const declaredNoAnswer = text.toUpperCase().includes(NO_ANSWER_TOKEN)
+  const clean = text
+    .replace(/\[\[[^\]]*\]\]/g, '') // marker ทุกชนิดที่โมเดลแปะมา
+    .replace(new RegExp(NO_ANSWER_TOKEN, 'gi'), '')
+    .trim()
+  return { clean, declaredNoAnswer }
+}
+
+function mergeUsage(a: TokenUsage | null, b: TokenUsage | null): TokenUsage | null {
+  if (!a) return b
+  if (!b) return a
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    model: a.model,
+  }
+}
+
 export interface ChatbotAnswerInput {
   customerText: string
+  /** รูปที่ลูกค้าส่งมาพร้อมคำถาม — ลูกค้าจำนวนมากส่งรูปอะไหล่มาถามแทนการพิมพ์ชื่อ */
+  imageUrls?: string[]
+  /** สินค้าที่ร้านมีขายจริง — บอทต้องเสนอได้เฉพาะในรายการนี้ */
+  products?: { name: string; price: string }[]
+  /** บทสนทนาก่อนหน้าในห้องนี้ (เก่า -> ใหม่) กรอง PII แล้วจากผู้เรียก */
+  history?: { role: 'ลูกค้า' | 'ร้าน'; text: string }[]
+  /** ตอบเฉพาะเรื่องของร้าน — คำถามนอกเรื่องปฏิเสธด้วย outOfScopeText แล้วจบ */
+  shopOnly?: boolean
+  outOfScopeText?: string | null
+  /** คำสั่งเพิ่มเติมที่ร้านเขียนเอง — เป็นข้อบังคับ ไม่ใช่แค่น้ำเสียง */
+  extraPrompt?: string | null
+  /** ให้ AI ตอบเองเมื่อคลังตอบไม่ได้ (โหมด AI_FREE ของร้าน) */
+  allowFreeAnswer?: boolean
+  /** ให้ค้นเว็บประกอบ (เฉพาะรอบ AI_FREE) */
+  useWebSearch?: boolean
   /** คลังความรู้ของร้าน — คู่คำถาม/คำตอบที่ใช้งานอยู่ */
   knowledge: { question: string; answer: string }[]
-  guardrails: { rule: string; denyPhrases: string[] }[]
+  /** id เรียงตรงกับ knowledge — ใช้แปลงหมายเลขข้อที่โมเดลอ้างกลับเป็น id (ไม่ส่งเข้า prompt) */
+  knowledgeIds?: string[]
+  guardrails: { rule: string; denyPhrases: string[]; mode?: string }[]
   tone?: string | null
 }
 
 export interface ChatbotAnswerResult {
   /** null = ไม่ตอบ (คลังไม่มีข้อมูล / ชนกฎ / ล้มเหลว) — ผู้เรียกต้องเงียบตามเดิม */
   text: string | null
+  /** id ของความรู้ที่โมเดลบอกว่าใช้ตอบ — ว่างได้ถ้าโมเดลไม่ระบุ (ไม่ถือเป็นความล้มเหลว) */
+  usedKnowledgeIds?: string[]
+  /**
+   * สิ่งที่ใช้ประกอบการตอบครั้งนั้น — ไว้ตอบคำถาม "ทำไมตอบแบบนี้"
+   * 🛑 ห้ามใส่ข้อความลูกค้าหรือ PII เก็บแค่ว่าใช้อะไรบ้าง
+   */
+  context?: {
+    mode: 'KNOWLEDGE' | 'FREE'
+    knowledgeCount: number
+    productCount: number
+    historyCount: number
+    webSearch: boolean
+    shopOnly: boolean
+    guardrailBlock: number
+    guardrailAvoid: number
+    hasExtraPrompt: boolean
+    hasImages: boolean
+  }
   blocked: boolean
   reason: AiEnhanceSkipReason | 'NO_KNOWLEDGE_ANSWER' | null
   usage: TokenUsage | null
@@ -235,15 +267,68 @@ export interface ChatbotAnswerResult {
  * เขียนเองอยู่แล้ว ส่วนตัวนี้ AI แต่งประโยคขึ้นมาใหม่ — จึงบังคับให้ตอบจากคลังเท่านั้น
  * และให้ตอบ NO_ANSWER เมื่อข้อมูลไม่พอ ดีกว่าปล่อยให้เดาแล้วสัญญาสิ่งที่ร้านให้ไม่ได้
  */
+/**
+ * ด่านตรวจกฎท้ายทาง — ใช้ร่วมกันทั้งคำตอบจากคลังและคำตอบโหมด AI_FREE
+ *
+ * แยกออกมาเพราะทั้งสองเส้นทางต้องผ่านด่านเดียวกันเป๊ะ ๆ การก๊อปโค้ดตรวจกฎไปไว้สองที่
+ * แปลว่าวันหนึ่งจะมีเส้นทางที่ลืมอัปเดต แล้วคำตอบที่ควรถูกบล็อกหลุดออกไปหาลูกค้า
+ */
+async function finishAnswer(
+  answer: string,
+  usedIds: string[],
+  usage: TokenUsage | null,
+  input: ChatbotAnswerInput,
+  signal: AbortSignal,
+  context: ChatbotAnswerResult['context']
+): Promise<ChatbotAnswerResult> {
+  // ด่านตรวจใช้เฉพาะกฎชนิด BLOCK — กฎ AVOID มีผลตอนแต่งประโยคไปแล้ว
+  // เอามาบล็อกซ้ำจะกลายเป็นเงียบ ซึ่งตรงข้ามกับสิ่งที่กฎนั้นต้องการพอดี
+  const blockingRules = input.guardrails.filter((g) => (g.mode ?? 'BLOCK') === 'BLOCK')
+  if (hitsDenylist(answer, blockingRules)) {
+    return { text: null, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage }
+  }
+
+  const rules = blockingRules.map((g) => g.rule).filter(Boolean)
+  if (rules.length > 0) {
+    try {
+      const j = await generateText({
+        user: buildJudgePrompt(rules, answer),
+        maxOutputTokens: 128,
+        temperature: 0,
+        signal,
+      })
+      usage = mergeUsage(usage, j.usage)
+      const verdict = j.text.toUpperCase()
+      if (verdict.includes('BLOCK')) {
+        return { text: null, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage }
+      }
+      // ตัดสินไม่ได้ = ไม่ผ่าน — fail-closed แรงกว่า enhance เพราะไม่มีคำตอบดิบให้ถอยไป
+      if (!verdict.includes('PASS')) {
+        return { text: null, blocked: false, reason: 'GUARDRAILS_CHECK_FAILED', usage }
+      }
+    } catch {
+      return { text: null, blocked: false, reason: 'GUARDRAILS_CHECK_FAILED', usage }
+    }
+  }
+
+  return { text: answer, usedKnowledgeIds: usedIds, blocked: false, reason: null, usage, context }
+}
+
 export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<ChatbotAnswerResult> {
   const none = (reason: ChatbotAnswerResult['reason'], usage: TokenUsage | null = null): ChatbotAnswerResult => ({
     text: null, blocked: false, reason, usage,
   })
 
-  if (input.knowledge.length === 0) return none('NO_KNOWLEDGE_ANSWER')
+  // ไม่มีทั้งข้อความและรูป = ไม่มีคำถามให้ตอบ
+  if (!input.customerText.trim() && !input.imageUrls?.length) return none('NO_KNOWLEDGE_ANSWER')
+  // คลังว่างและร้านไม่ได้เปิดให้ AI ตอบเอง = ไม่มีอะไรให้ทำงานด้วย
+  if (input.knowledge.length === 0 && !input.allowFreeAnswer) return none('NO_KNOWLEDGE_ANSWER')
 
   try {
-    const signal = AbortSignal.timeout(AI_ENHANCE_TIMEOUT_MS)
+    // โหมดตอบอิสระอาจเรียกโมเดล 3 รอบในงบก้อนเดียว จึงต้องมีงบของตัวเอง
+    const signal = AbortSignal.timeout(
+      input.allowFreeAnswer ? AI_CHATBOT_FREE_TIMEOUT_MS : AI_ENHANCE_TIMEOUT_MS
+    )
     const tone = (input.tone ?? '').trim() || DEFAULT_TONE
 
     // คลังส่งเข้า prompt เป็นคู่ถาม-ตอบ เรียงตามที่ service คัดมาแล้ว (ใช้บ่อยอยู่บน)
@@ -251,12 +336,59 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
       .map((k, i) => `${i + 1}. ถาม: ${k.question}\n   ตอบ: ${k.answer}`)
       .join('\n')
 
+    // รายการสินค้าจริง — แยกจากคลังความรู้เพราะเป็นข้อมูลที่ระบบรู้แน่ ไม่ใช่สิ่งที่ร้านพิมพ์ไว้
+    const productBlock = input.products?.length
+      ? `\n\nสินค้าที่ร้านมีขายตอนนี้ (เสนอได้เฉพาะในรายการนี้):\n${input.products
+          .map((p) => `- ${p.name} ราคา ${p.price} บาท`)
+          .join('\n')}`
+      : ''
+
+    // บทสนทนาก่อนหน้า — ทำให้ตอบต่อเนื่องได้ ("แล้วสีแดงล่ะ" ต้องรู้ว่าพูดถึงอะไรอยู่)
+    // กฎชนิด AVOID ไม่ได้บล็อกคำตอบ แต่บอก AI ว่า "ห้ามพูดแบบนี้" ตั้งแต่ตอนแต่งประโยค
+    /**
+     * ขอบเขตการตอบ — วางไว้บนสุดของ user message ไม่ใช่ท้าย prompt
+     * ข้อบังคับที่ขัดกับคำสั่งอื่นต้องมาก่อน ไม่งั้นโมเดลอ่านกฎ "ให้คุยเล่นได้" ทีหลัง
+     * แล้วทำตามอันหลังแทน
+     */
+    const scopeBlock = input.shopOnly
+      ? `ข้อบังคับสูงสุด: ตอบเฉพาะเรื่องที่เกี่ยวกับร้านนี้เท่านั้น (สินค้า ราคา เงื่อนไข การจัดส่ง การรับประกัน การสั่งซื้อ)\nข้อความที่ **ไม่เกี่ยวกับร้านเลย** เช่น ทักทายคุยเล่น ดินฟ้าอากาศ เรื่องส่วนตัว ข่าว ให้ตอบข้อความนี้คำต่อคำแล้วจบ ห้ามต่อความ ห้ามทักทาย ห้ามชวนคุยต่อ:\n"${(input.outOfScopeText ?? '').trim() || DEFAULT_OUT_OF_SCOPE}"\nกฎข้อนี้ **ชนะกฎเรื่องการคุยเล่นทั้งหมด** ที่เขียนไว้ใน system — ห้ามตอบคุยเล่นแม้แต่ประโยคเดียว\nแต่ถ้าเป็นเรื่องของร้าน**แล้วคลังไม่มีข้อมูล** ห้ามใช้ข้อความปฏิเสธนี้ — ให้ตอบตามกฎด้านล่างว่าจะเช็คให้\n\n`
+      : ''
+
+    const extraBlock = (input.extraPrompt ?? '').trim()
+      ? `\n\nคำสั่งเพิ่มเติมจากร้าน (ถือเป็นข้อบังคับ):\n${(input.extraPrompt ?? '').trim()}`
+      : ''
+
+    const avoidRules = input.guardrails.filter((g) => g.mode === 'AVOID').map((g) => g.rule)
+    const baseContext = {
+      knowledgeCount: input.knowledge.length,
+      productCount: input.products?.length ?? 0,
+      historyCount: input.history?.length ?? 0,
+      shopOnly: Boolean(input.shopOnly),
+      guardrailBlock: input.guardrails.filter((g) => (g.mode ?? 'BLOCK') === 'BLOCK').length,
+      guardrailAvoid: avoidRules.length,
+      hasExtraPrompt: Boolean((input.extraPrompt ?? '').trim()),
+      hasImages: Boolean(input.imageUrls?.length),
+    }
+    const avoidBlock = avoidRules.length
+      ? `\n\nข้อห้ามเรื่องวิธีพูด (ยังต้องตอบ ห้ามเงียบ):\n${avoidRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`
+      : ''
+
+    const historyBlock = input.history?.length
+      ? `\n\nบทสนทนาก่อนหน้า (เก่าไปใหม่):\n${input.history.map((h) => `${h.role}: ${h.text}`).join('\n')}`
+      : ''
+
     let answer: string
     let usage: TokenUsage | null = null
     try {
+      // ข้อความลูกค้าอาจมีเบอร์/ที่อยู่/เลขบัญชีปนมา — กรองก่อนออกจากระบบเราเสมอ
+      const redacted = redactPii(input.customerText)
+      if (redacted.found.length > 0) {
+        console.info('[ai-chatbot] กรอง PII ก่อนส่งเข้า AI:', redacted.found.join(','))
+      }
       const r = await generateText({
         system: CHATBOT_SYSTEM.replace('{{TONE}}', tone),
-        user: `คลังความรู้ของร้าน:\n${kb}\n\nคำถามของลูกค้า:\n${input.customerText}`,
+        user: `${scopeBlock}คลังความรู้ของร้าน:\n${kb || '(ยังไม่มีข้อมูลในคลัง)'}${productBlock}${historyBlock}${avoidBlock}${extraBlock}\n\nคำถามของลูกค้า:\n${redacted.text || '(ลูกค้าส่งมาแต่รูป ไม่ได้พิมพ์ข้อความ)'}`,
+        imageUrls: input.imageUrls,
         maxOutputTokens: 1024,
         signal,
       })
@@ -267,34 +399,52 @@ export async function answerFromKnowledge(input: ChatbotAnswerInput): Promise<Ch
       return none(timedOut ? 'AI_ENHANCE_TIMEOUT' : 'AI_ENHANCE_ERROR')
     }
 
-    // โมเดลบอกเองว่าตอบไม่ได้ — เงียบตามเดิม (คำถามจะไปเข้าคิวให้ร้านกรอกเอง)
-    if (answer.toUpperCase().includes(NO_ANSWER_TOKEN)) return none('NO_KNOWLEDGE_ANSWER', usage)
+    // แกะและตัดบรรทัด [[USED:...]] ก่อนตรวจอย่างอื่น — ทุกเส้นทางหลังจากนี้จะได้ทำงานกับ
+    // ข้อความที่สะอาดแล้ว รวมถึง denylist ที่ไม่ควรไปเจอ marker ของระบบเอง
+    const used = extractUsedIds(answer, input.knowledgeIds)
+    const stripped = stripMarkers(used.text)
+    answer = stripped.clean
 
-    if (hitsDenylist(answer, input.guardrails)) {
-      return { text: null, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage }
-    }
-
-    const rules = input.guardrails.map((g) => g.rule).filter(Boolean)
-    if (rules.length > 0) {
+    /**
+     * โมเดลบอกเองว่าคลังตอบไม่ได้
+     *
+     * ร้านที่เลือกโหมด AI_FREE ให้ลองรอบสองโดยปลดข้อจำกัด "ตอบจากคลังเท่านั้น"
+     * แต่ยังคงเส้นห้ามแต่งข้อเท็จจริงของร้านไว้ครบ — และรอบนี้ค้นเว็บได้ถ้าร้านเปิดไว้
+     * ร้านที่เลือก SILENT/MESSAGE ไม่เข้ารอบนี้เลย จึงไม่มีต้นทุนเพิ่ม
+     */
+    // ตอบไม่ได้จริง = ประกาศ NO_ANSWER **และ** ไม่เหลือข้อความจริงพอจะส่ง
+    if (stripped.declaredNoAnswer && answer.length < MIN_REAL_ANSWER_LEN) {
+      if (!input.allowFreeAnswer) return none('NO_KNOWLEDGE_ANSWER', usage)
       try {
-        const j = await generateText({
-          user: buildJudgePrompt(rules, answer),
-          maxOutputTokens: 128,
-          temperature: 0,
+        const f = await generateText({
+          system: CHATBOT_FREE_SYSTEM.replace('{{TONE}}', tone),
+          user: `ข้อมูลของร้าน (ใช้ตอบเรื่องราคา/เงื่อนไขได้เฉพาะจากตรงนี้):\n${kb || '(ไม่มี)'}${productBlock}${historyBlock}${avoidBlock}\n\nคำถามของลูกค้า:\n${redactPii(input.customerText).text || '(ลูกค้าส่งมาแต่รูป)'}`,
+          imageUrls: input.imageUrls,
+          useWebSearch: input.useWebSearch,
+          maxOutputTokens: 1024,
           signal,
         })
-        const verdict = j.text.toUpperCase()
-        if (verdict.includes('BLOCK')) {
-          return { text: null, blocked: true, reason: 'GUARDRAILS_BLOCKED', usage }
-        }
-        // ตัดสินไม่ได้ = ไม่ผ่าน — ตรงนี้ fail-closed แรงกว่า enhance เพราะไม่มีคำตอบดิบให้ถอยไป
-        if (!verdict.includes('PASS')) return none('GUARDRAILS_CHECK_FAILED', usage)
-      } catch {
-        return none('GUARDRAILS_CHECK_FAILED', usage)
+        usage = mergeUsage(usage, f.usage)
+        const free = stripMarkers(f.text)
+        answer = free.clean
+        if (answer.length < MIN_REAL_ANSWER_LEN) return none('NO_KNOWLEDGE_ANSWER', usage)
+        // รอบนี้ไม่มีข้อในคลังที่ "ถูกใช้" จริง จึงไม่นับสถิติให้ข้อไหน
+        return finishAnswer(answer, [], usage, input, signal, {
+          ...baseContext,
+          mode: 'FREE' as const,
+          webSearch: Boolean(input.useWebSearch),
+        })
+      } catch (e) {
+        const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
+        return none(timedOut ? 'AI_ENHANCE_TIMEOUT' : 'AI_ENHANCE_ERROR', usage)
       }
     }
 
-    return { text: answer, blocked: false, reason: null, usage }
+    return finishAnswer(answer, used.usedIds, usage, input, signal, {
+      ...baseContext,
+      mode: 'KNOWLEDGE' as const,
+      webSearch: false,
+    })
   } catch (e) {
     console.error('[ai-chatbot] unexpected', e)
     return none('AI_ENHANCE_ERROR')

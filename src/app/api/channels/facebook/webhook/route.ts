@@ -6,6 +6,7 @@ import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
 import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
+import { pushNewChatMessage } from '@/services/seller-push.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -109,11 +110,32 @@ export async function POST(request: NextRequest) {
               // echo = ข้อความฝั่งเพจ ผู้ติดต่อคือ "อีกฝั่ง" (ตรรกะเดียวกับ ingestInboundMessage)
               contactExternalId: event.message?.is_echo ? event.recipient.id : event.sender.id,
               referral,
+              // referral ที่ไม่ใช่ echo = ลูกค้าเป็นคนคลิกโฆษณา/ปุ่ม CTA/ลิงก์ m.me เอง ซึ่งเปิด
+              // หน้าต่าง 24 ชม. ตามนโยบาย Meta เท่ากับการส่งข้อความ (user report 2026-08-02:
+              // ลูกค้าเก่ากดโฆษณาตัวใหม่แล้วไม่พิมพ์ ระบบขึ้นว่าหมดเวลาทั้งที่ Meta ให้ตอบได้)
+              // echo = เพจเป็นฝ่ายส่ง ไม่ใช่ action ของลูกค้า → ไม่ส่งเวลาไป = ไม่แตะหน้าต่าง
+              // fallback Date.now(): timestamp เป็น optional ใน schema แต่ถ้าเป็น action ของลูกค้า
+              // จริง หน้าต่างต้องเปิด การปล่อยให้ตกเพราะฟิลด์หายคือกลับไปเป็นบั๊กเดิม
+              customerActionAt: event.message?.is_echo ? undefined : (event.timestamp ?? Date.now()),
             })
           } catch (e) {
             // referral เป็นข้อมูลเสริม — พังแล้วต้องไม่ทำให้ Meta retry ทั้ง batch จนข้อความค้าง
             console.error('[fb-webhook] บันทึก ad referral ล้มเหลว', e instanceof Error ? e.message : e)
           }
+        }
+
+        // Push notification เข้าแอปผู้ขาย — เฉพาะข้อความที่ "ลูกค้า" ส่งเข้ามาจริง
+        //
+        // senderRole !== 'BUYER' ถูกตัดออกด้วยเหตุผลตรง ๆ: echo ของข้อความที่เพจส่งเอง (รวมถึงที่
+        // DeepBot ตอบอัตโนมัติ) ก็วิ่งผ่าน webhook เส้นเดียวกันนี้ ถ้าไม่กรอง ผู้ขายจะได้ noti
+        // จากข้อความของตัวเอง — น่ารำคาญจนต้องปิด noti ทิ้ง
+        //
+        // after(): ยิงหลังตอบ 200 ให้ Meta แล้ว — Meta วัด latency ของ webhook และ retry ทั้ง batch
+        // ถ้าช้า/พัง; งาน push ไม่ควรมีสิทธิ์ทำให้ข้อความลูกค้าค้าง (เหตุผลเดียวกับที่ไฟล์นี้ห่อ
+        // ingestAdReferral ด้วย try/catch ของตัวเอง). ตัว service เองก็กลืน error อีกชั้นหนึ่ง
+        if (ingested.status === 'STORED' && ingested.shopId && ingested.conversationId && ingested.senderRole === 'BUYER') {
+          const { shopId, conversationId } = ingested
+          after(() => pushNewChatMessage({ shopId, conversationId }))
         }
 
         // ตอบอัตโนมัติ (feature 00023) — ต้องอยู่ "หลัง" ingestAdReferral เสมอ

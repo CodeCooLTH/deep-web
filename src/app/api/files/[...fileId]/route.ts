@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { getFile } from "@/lib/storage";
 import { prisma } from "@/lib/prisma";
 import { EXT_TO_MIME, isInlineExt } from "@/lib/attachment-mime";
+import { canAccessShop } from "@/lib/shop-context";
 
 // feature 00018 (user request 2026-07-24 "รองรับทุกอย่าง"): ตาราง ext→content-type ย้ายไป
 // src/lib/attachment-mime.ts (SSOT ร่วมกับ mirror ฝั่ง channel-chat.service). ไฟล์ที่ browser
@@ -225,12 +226,49 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
+  // ตรวจ chat-document gate (2026-08-02, multi-attachment): "เอกสาร" ที่แนบในแชท (type=FILE)
+  // อนุญาตเฉพาะคู่สนทนา — ร้าน (เจ้าของ/สมาชิก) หรือผู้ซื้อของเธรดนั้น
+  //
+  // ทำไมต้องมี: ไฟล์ที่ไม่เข้าเงื่อนไข gate ใดเลยถูก serve เป็น `public, max-age=86400` ให้ใครก็ได้
+  // ที่รู้ fileId. ตอนที่แชทแนบได้แต่รูป ความเสี่ยงต่ำ — แต่พอเปิดให้แนบใบเสนอราคา ใบแจ้งหนี้
+  // ไฟล์รายชื่อลูกค้า เอกสารพวกนั้นจะกลายเป็น URL สาธารณะทันที (uuid เดายาก แต่หลุดครั้งเดียว
+  // = เปิดได้ถาวร)
+  //
+  // ทำไมเฉพาะ type=FILE ไม่ครอบรูป/วิดีโอ (ผลตัดสิน user 2026-08-02 ทางเลือก ข): ปิดความเสี่ยง
+  // ที่ฟีเจอร์นี้สร้างขึ้นใหม่ โดยไม่เปลี่ยนพฤติกรรมของรูปแชทที่ใช้งานกันอยู่เดิม
+  //
+  // ไม่กระทบ Meta: Graph ดึงไฟล์ผ่าน presigned S3 URL ไม่ใช่ /api/files (ดู sendOutboundMessage)
+  let isChatDocument = false;
+  if (!sensitiveRecord && !isSlipFile && !isScamEvidence) {
+    // index ChatMessage_imageUrl_idx รองรับ lookup นี้ (migration 20260802160000)
+    const chatDoc = await prisma.chatMessage.findFirst({
+      where: { imageUrl: fileId, type: "FILE" },
+      select: { conversation: { select: { shopId: true, buyerUserId: true } } },
+    });
+
+    if (chatDoc?.conversation) {
+      isChatDocument = true;
+      const session = await getServerSession(authOptions);
+      const user = session?.user as { id?: string; isAdmin?: boolean } | undefined;
+
+      if (!user?.id) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const isBuyer = chatDoc.conversation.buyerUserId === user.id;
+      const allowed =
+        user.isAdmin === true || isBuyer || (await canAccessShop(chatDoc.conversation.shopId, user.id));
+      if (!allowed) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+  }
+
   // ไฟล์ public หรือผ่าน auth check แล้ว — serve เหมือนเดิม
   const result = await getFile(fileId);
   if (!result) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // isSensitive ครอบ KYC + slip + หลักฐานมิจฉาชีพ — ทั้งหมดไม่ควร cache ที่ browser/CDN
-  const isSensitive = !!sensitiveRecord || isSlipFile || isScamEvidence;
+  // isSensitive ครอบ KYC + slip + หลักฐานมิจฉาชีพ + เอกสารแนบในแชท — ไม่ควร cache ที่ browser/CDN
+  const isSensitive = !!sensitiveRecord || isSlipFile || isScamEvidence || isChatDocument;
 
   const ext = result.ext.toLowerCase();
   const contentType = EXT_TO_MIME[ext] || "application/octet-stream";

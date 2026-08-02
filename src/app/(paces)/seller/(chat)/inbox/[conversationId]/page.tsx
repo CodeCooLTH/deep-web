@@ -86,6 +86,41 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   // feature 00018 T5: vertical ยังต้อง query แยก (resolveActiveShopContext คืนแค่ shopId/kind/role/
   // locked ไม่มี vertical) — defensive: ไม่ควรเป็น null จริง (context เพิ่ง verify แถวนี้แล้ว)
   const shopRow = await prisma.shop.findUnique({ where: { id: activeCtx.shopId }, select: { vertical: true, logo: true } })
+  // feature 00023 — ห้องนี้ถูกเลือกไว้ทดสอบ DeepAI อยู่ไหม (ป้ายบนหัวเธรด)
+  const [chatbotCfg, testThread] = await Promise.all([
+    prisma.autoReplyConfig.findUnique({
+      where: { shopId: activeCtx.shopId },
+      select: { aiChatbotStatus: true },
+    }),
+    prisma.aiChatbotTestThread.findUnique({
+      where: { shopId_conversationId: { shopId: activeCtx.shopId, conversationId } },
+      select: { id: true },
+    }),
+  ])
+  const isChatbotTestThread = chatbotCfg?.aiChatbotStatus === 'TEST' && Boolean(testThread)
+
+  /**
+   * ห้องนี้มีบอทตัวไหน "จะตอบ" ไหม ถ้าไม่มีการพัก (feature 00023)
+   *
+   * WARNING (user report 2026-08-02): แบนเนอร์ "บอทพักตอบห้องนี้อยู่" เคยขึ้นทุกห้องที่มี
+   * คนของร้านพิมพ์ตอบ ทั้งที่ห้องนั้นไม่มีบอทตัวไหนทำงานอยู่เลย — ร้านที่ตั้งทุกอย่างเป็น
+   * โหมดทดสอบและเลือกไว้แค่ไม่กี่ห้อง จึงเห็นแบนเนอร์ในห้องที่ไม่เกี่ยวข้องเต็มไปหมด
+   * การบอกว่า "พัก" สิ่งที่ไม่ได้ทำงานอยู่แล้วคือข้อมูลที่ผิด ไม่ใช่แค่รก
+   *
+   * เงื่อนไขตรงกับที่ processJob ใช้จริง: LIVE = ทุกห้อง · TEST = เฉพาะห้องในรายการของตัวเอง
+   */
+  const [liveKeywordCount, keywordTestThread] = await Promise.all([
+    prisma.autoReplyKeyword.count({ where: { shopId: activeCtx.shopId, status: 'LIVE' } }),
+    prisma.autoReplyKeywordTestThread.findFirst({
+      where: { conversationId, keyword: { shopId: activeCtx.shopId, status: 'TEST' } },
+      select: { id: true },
+    }),
+  ])
+  const botCouldReply =
+    chatbotCfg?.aiChatbotStatus === 'LIVE' ||
+    isChatbotTestThread ||
+    liveKeywordCount > 0 ||
+    Boolean(keywordTestThread)
   if (!shopRow) {
     return (
       <SellerErrorState
@@ -108,6 +143,10 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
       channel: true,
       lastInboundAt: true,
       externalReadAt: true, // feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้
+      // feature 00023 — สถานะบอทของเธรดนี้ (พักเพราะคนเข้ามาตอบ / ส่งต่อคนแล้ว)
+      autoReplyPausedUntil: true,
+      handoffAt: true,
+      handoffReason: true,
       // feature 00018 E5 — ลูกค้าทักจากโฆษณา (แบนเนอร์บนหัวเธรด: รูป + ชื่อโฆษณา)
       // ค่าเหล่านี้เป็น "ครั้งล่าสุด" ที่ลูกค้ากดโฆษณาเข้ามา (ประวัติเต็มอยู่ที่ ConversationAdReferral)
       referralSource: true,
@@ -306,6 +345,11 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
         buyerAvatar={buyerAvatar}
         shopAvatar={shopAvatar}
         externalReadAt={conversation.externalReadAt ? conversation.externalReadAt.toISOString() : null}
+        botPausedUntil={conversation.autoReplyPausedUntil ? conversation.autoReplyPausedUntil.toISOString() : null}
+        botHandoffAt={conversation.handoffAt ? conversation.handoffAt.toISOString() : null}
+        botHandoffReason={conversation.handoffReason}
+        isChatbotTestThread={isChatbotTestThread}
+        botCouldReply={botCouldReply}
         channel={conversation.channel}
         channelName={channelName}
         channelAvatarUrl={channelAvatarUrl}

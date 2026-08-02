@@ -19,7 +19,23 @@ import Icon from '@/components/wrappers/Icon'
  * พังในโปรเจกต์นี้มาแล้ว (docs/system/ui-guideline/paces-component-reference.md §3)
  */
 
+export type AiAnswerContext = {
+  mode?: 'KNOWLEDGE' | 'FREE'
+  knowledgeCount?: number
+  productCount?: number
+  historyCount?: number
+  webSearch?: boolean
+  shopOnly?: boolean
+  guardrailBlock?: number
+  guardrailAvoid?: number
+  hasExtraPrompt?: boolean
+  hasImages?: boolean
+  usedKnowledgeIds?: string[]
+}
+
 export type AutoReplyTrace = {
+  matchedVia: string | null
+  aiContext?: AiAnswerContext | null
   keywordName: string | null
   matchedPhrase: string | null
   matchType: string | null
@@ -35,7 +51,24 @@ const MATCH_TYPE_LABEL: Record<string, string> = {
   STARTS_WITH: 'ขึ้นต้นด้วยคำนี้',
 }
 
-function Row({ label, value }: { label: string; value: string | null }) {
+/**
+ * แถวที่ไม่มีค่า
+ *
+ * `hideWhenEmpty` ใช้กับบล็อก "ข้อมูลที่ใช้ประกอบการตอบ" ซึ่งมี 9 แถวและส่วนใหญ่ว่าง —
+ * การโชว์ "ไม่เจาะจง" ทั้งแถวทำให้กล่องสูงเกินจนโดนกรอบ scroll ตัดหัว (user เจอ 2026-08-01)
+ * ส่วนบล็อก "เงื่อนไขของเธรด" ยังโชว์แถวว่างตามเดิม เพราะที่นั่น "ไม่เจาะจง" คือคำตอบ
+ * ที่มีความหมาย (บอกว่ากฎถูกเลือกโดยไม่ผูกเพจ/โฆษณา)
+ */
+function Row({
+  label,
+  value,
+  hideWhenEmpty,
+}: {
+  label: string
+  value: string | null
+  hideWhenEmpty?: boolean
+}) {
+  if (hideWhenEmpty && !value) return null
   return (
     <div className="border-default-100 flex gap-2.5 border-b py-1 last:border-b-0">
       <dt className="text-default-600 w-16 shrink-0">{label}</dt>
@@ -49,6 +82,27 @@ function Row({ label, value }: { label: string; value: string | null }) {
 export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace: AutoReplyTrace | null }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  /**
+   * ตำแหน่งกล่องคำนวณจากปุ่มแล้ววางแบบ fixed
+   *
+   * WARNING: วางแบบ absolute ไม่ได้ — บล็อกข้อความอยู่ใน scroll container ที่มี overflow
+   * กล่องที่สูงกว่าพื้นที่เหนือปุ่มจะถูกตัดหัวทิ้ง (user เจอ 2026-08-01 หลังกล่องยาวขึ้น)
+   * fixed หลุดจากกรอบนั้น แล้วพลิกไปอยู่ใต้ปุ่มเองถ้าที่ด้านบนไม่พอ
+   */
+  const [pos, setPos] = useState<{ top: number; right: number; below: boolean } | null>(null)
+
+  const place = () => {
+    const r = btnRef.current?.getBoundingClientRect()
+    if (!r) return
+    const spaceAbove = r.top
+    const below = spaceAbove < 320 // กล่องสูงได้ถึง ~300px — ที่ไม่พอก็พลิกลงล่าง
+    setPos({
+      top: below ? r.bottom + 8 : r.top - 8,
+      right: Math.max(8, window.innerWidth - r.right),
+      below,
+    })
+  }
 
   // ปิดเมื่อแตะที่อื่น/กด Escape — จำเป็นเฉพาะตอนเปิดด้วยการแตะ (hover ปิดตัวเองอยู่แล้ว)
   useEffect(() => {
@@ -71,7 +125,12 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
 
   // ชื่อแบรนด์ของตัวช่วยตอบ (user 2026-07-31) — สั้นกว่าคำอธิบายเชิงระบบ และทำให้ร้าน
   // พูดถึงมันเป็น "ตัวตน" ที่สั่งงานได้ ไม่ใช่ฟีเจอร์นิรนาม; UI ใช้ชื่อการค้า Deep เสมอ
-  const label = isTest ? 'DeepBot · ทดสอบ' : 'DeepBot'
+  //
+  // แยกสองชื่อตามที่มาจริง (user 2026-08-01): คำตอบสำเร็จรูปที่ร้านเขียนเอง = DeepBot
+  // ส่วนข้อความที่ AI แต่งขึ้นจากคลังความรู้ = DeepAI — ร้านต้องแยกออกตั้งแต่แรกเห็นว่า
+  // อันไหนคือคำพูดของตัวเองและอันไหนที่ควรอ่านตรวจก่อนปล่อยผ่าน
+  const brand = trace?.matchedVia === 'CHATBOT' ? 'DeepAI' : 'DeepBot'
+  const label = isTest ? `${brand} · ทดสอบ` : brand
 
   // ป้ายชิดขวา (user 2026-07-31): ข้อความฝั่งร้านจัดชิดขวาอยู่แล้ว ป้ายที่เกาะซ้ายสุดของบับเบิล
   // กว้าง ๆ จะดูหลุดออกจากกลุ่มของตัวเอง — กล่องรายละเอียดจึงต้องกางไปทางซ้าย (end-0) ด้วย
@@ -81,16 +140,91 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
     <div
       ref={wrapRef}
       className="absolute top-0 end-2.5 z-20 -translate-y-1/2"
-      onMouseEnter={() => setOpen(true)}
+      onMouseEnter={() => {
+        place()
+        setOpen(true)
+      }}
       onMouseLeave={() => setOpen(false)}
     >
       {open && (
-        <div className="border-default-300 bg-card absolute bottom-full end-0 z-30 mb-2 w-64 rounded-md border text-start shadow-lg">
+        <div
+          className="border-default-300 bg-card fixed z-50 max-h-[60dvh] w-64 overflow-y-auto rounded-md border text-start shadow-lg"
+          /* HR7 carve-out: ตำแหน่งต้องคำนวณจาก viewport จริง (หนีกรอบ overflow) และ
+             ความสูงไม่มี token viewport-height ใน Paces — precedent CustomerPanelSheet.tsx */
+          style={
+            pos
+              ? { top: pos.below ? pos.top : undefined, bottom: pos.below ? undefined : window.innerHeight - pos.top, right: pos.right }
+              : undefined
+          }
+        >
           <div className="bg-default-100 border-default-300 text-default-800 border-b px-3 py-2 text-xs font-semibold">
-            ตอบโดย DeepBot{isTest ? ' (โหมดทดสอบ)' : ''}
+            ตอบโดย {brand}{isTest ? ' (โหมดทดสอบ)' : ''}
           </div>
           <div className="text-default-600 px-3 py-2 text-xs">
-            {trace ? (
+            {trace?.matchedVia === 'CHATBOT' ? (
+              // คำตอบจาก AI ไม่ได้เกิดจากการจับคู่คำ จึงไม่มี "กลุ่มคำ"/"คำที่ตรง" ให้แสดง
+              // ยัดแถวว่างไว้จะโกหกว่ามีเงื่อนไขอยู่แต่หาไม่เจอ
+              <>
+                <p className="mb-2">
+                  {trace.aiContext?.mode === 'FREE'
+                    ? 'คลังความรู้ตอบคำถามนี้ไม่ได้ AI จึงตอบเองตามที่ร้านอนุญาต'
+                    : 'AI แต่งคำตอบนี้จากคลังความรู้ของร้าน เพราะข้อความนี้ไม่ตรงกลุ่มคำไหนเลย'}
+                </p>
+                {/* บอกว่า "ใช้อะไรตอบ" ไม่ใช่แค่ "ตอบด้วย AI" — ร้านที่เจอคำตอบแปลก
+                    ต้องไล่ได้ว่าข้อมูลชุดไหนเข้าไปอยู่ใน prompt บ้าง (user สั่ง 2026-08-01) */}
+                {trace.aiContext && (
+                  <>
+                    <p className="text-default-600 mb-0 pt-1 pb-0.5 text-2xs font-semibold">
+                      ข้อมูลที่ใช้ประกอบการตอบ
+                    </p>
+                    <dl className="mb-0">
+                      <Row
+                        hideWhenEmpty
+                        label="คลังความรู้"
+                        value={
+                          trace.aiContext.knowledgeCount
+                            ? `${trace.aiContext.knowledgeCount} ข้อ${
+                                trace.aiContext.usedKnowledgeIds?.length
+                                  ? ` · ใช้ตอบ ${trace.aiContext.usedKnowledgeIds.length} ข้อ`
+                                  : ''
+                              }`
+                            : null
+                        }
+                      />
+                      <Row
+                        hideWhenEmpty
+                        label="สินค้า"
+                        value={trace.aiContext.productCount ? `${trace.aiContext.productCount} รายการในระบบ` : null}
+                      />
+                      <Row
+                        hideWhenEmpty
+                        label="ประวัติแชท"
+                        value={trace.aiContext.historyCount ? `${trace.aiContext.historyCount} ข้อความก่อนหน้า` : null}
+                      />
+                      <Row hideWhenEmpty label="ค้นเว็บ" value={trace.aiContext.webSearch ? 'เปิด' : null} />
+                      <Row hideWhenEmpty label="รูปจากลูกค้า" value={trace.aiContext.hasImages ? 'ใช้ประกอบด้วย' : null} />
+                      <Row
+                        hideWhenEmpty
+                        label="กฎที่บังคับ"
+                        value={
+                          (trace.aiContext.guardrailBlock ?? 0) + (trace.aiContext.guardrailAvoid ?? 0) > 0
+                            ? `หยุดไม่ตอบ ${trace.aiContext.guardrailBlock ?? 0} · เลี่ยงคำพูด ${trace.aiContext.guardrailAvoid ?? 0}`
+                            : null
+                        }
+                      />
+                      <Row hideWhenEmpty label="ขอบเขต" value={trace.aiContext.shopOnly ? 'ตอบเฉพาะเรื่องของร้าน' : null} />
+                      <Row hideWhenEmpty label="คำสั่งเพิ่มเติม" value={trace.aiContext.hasExtraPrompt ? 'มี' : null} />
+                    </dl>
+                  </>
+                )}
+                <p className="text-default-600 mb-0 pt-2 pb-0.5 text-2xs font-semibold">เงื่อนไขของเธรด</p>
+                <dl className="mb-0">
+                  <Row label="เพจ" value={trace.channelName} />
+                  <Row label="โฆษณา" value={trace.adLabel} />
+                  <Row label="สินค้า" value={trace.productName} />
+                </dl>
+              </>
+            ) : trace ? (
               <>
                 <dl className="mb-0">
                   <Row label="กลุ่มคำ" value={trace.keywordName} />
@@ -121,8 +255,12 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
         </div>
       )}
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          place()
+          setOpen((v) => !v)
+        }}
         aria-expanded={open}
         aria-label={`${label} ตอบข้อความนี้ — เปิดดูเงื่อนไขที่ใช้ตอบ`}
         className="border-primary text-primary bg-card inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap shadow"

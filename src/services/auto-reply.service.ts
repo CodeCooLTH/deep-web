@@ -14,10 +14,8 @@ import {
 import { writeLog } from '@/services/auto-reply-log.service'
 import { sendAutoReply } from '@/services/auto-reply-send.service'
 // phase 00023-qna — คลังคำถาม-คำตอบ (วิธีจับคู่ทางที่สอง) + คิวคำถามที่ตอบไม่ได้
-import { matchQna } from '@/lib/auto-reply-qna-match'
-import { markQnaUsed } from '@/services/auto-reply-qna.service'
-import { recordUnanswered } from '@/services/auto-reply-unanswered.service'
-import { enhanceReply, answerFromKnowledge, isChatbotWithinWindow } from '@/services/ai-enhance.service'
+import { answerFromKnowledge, isChatbotWithinWindow } from '@/services/ai-enhance.service'
+import { redactPii } from '@/lib/pii-redact'
 import { checkCapBeforeCall, recordUsageAndBill } from '@/services/ai-enhance-billing.service'
 
 /**
@@ -205,14 +203,25 @@ type JobRow = {
 }
 
 /** ปิดงานพร้อมเขียนบันทึก — บันทึกพังต้องไม่ทำให้สถานะงานค้าง (TD-013) */
+/**
+ * ปิดงาน + เขียนบันทึก
+ *
+ * `startedAt` เป็นพารามิเตอร์บังคับเพื่อให้ `durationMs` ถูกคำนวณ **ตอนเขียนจริง** เสมอ
+ *
+ * WARNING: เดิมค่านี้อยู่ใน object `common` ซึ่งถูกสร้างครั้งเดียวก่อนถึงด่าน AI แล้วทุก
+ * สาขาเอาค่าค้างนั้นไปใช้ — บันทึกจึงรายงาน 42-95ms ทั้งที่เรียก Gemini ไปหลายวินาที
+ * (เจอตอน user ไล่ดูว่าทำไมบอทไม่ตอบ 2026-08-01) คำนวณที่นี่จุดเดียวแปลว่าสาขาใหม่
+ * ที่ใครเพิ่มทีหลังได้ค่าถูกอัตโนมัติ ไม่มีอะไรให้ลืม
+ */
 async function finish(
   job: JobRow,
   status: 'DONE' | 'SKIPPED' | 'FAILED',
   log: Parameters<typeof writeLog>[0],
+  startedAt: number,
 ) {
   await prisma.autoReplyJob.update({ where: { id: job.id }, data: { status } })
   try {
-    await writeLog(log)
+    await writeLog({ ...log, durationMs: Date.now() - startedAt })
   } catch (e) {
     console.error('[auto-reply] เขียนบันทึกล้มเหลว', e instanceof Error ? e.message : e)
   }
@@ -241,12 +250,12 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
   try {
     const message = await prisma.chatMessage.findUnique({
       where: { id: job.chatMessageId },
-      select: { body: true, senderRole: true, autoReplyKind: true },
+      select: { body: true, senderRole: true, autoReplyKind: true, type: true, imageUrl: true, createdAt: true },
     })
 
     // gate 0 — ข้อความฝั่งร้าน (รวมคำตอบของบอทเอง) ห้ามนำมาตรวจจับเด็ดขาด (BR-AR-22)
     if (!message || message.senderRole !== 'BUYER') {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'OUTBOUND_MESSAGE' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'OUTBOUND_MESSAGE' }, startedAt)
     }
 
     const conversation = await prisma.conversation.findFirst({
@@ -264,7 +273,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       },
     })
     if (!conversation) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' }, startedAt)
     }
 
     const config = await getConfig(job.shopId)
@@ -276,7 +285,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     // ความปลอดภัยเดิม (ระบบต้องไม่ทำงานจนกว่าร้านจะสั่ง) ยังอยู่ครบ เพราะกลุ่มคำที่สร้างใหม่
     // เป็น OFFLINE เสมอ — ไม่มีทางตอบใครจนกว่าร้านจะเปลี่ยนสถานะเอง
     if (conversation.autoReplyEnabled === false) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'CONVERSATION_DISABLED' }, startedAt)
     }
 
     // WARNING: gate 2 เดิม (โหมดทดสอบระดับร้าน) ถูกลบ 2026-07-29 — โหมดทดสอบผูกกับกลุ่มคำแล้ว
@@ -284,13 +293,13 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
 
     // gate 3-5 — สถานะเธรด
     if (conversation.isSpam) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'SPAM' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'SPAM' }, startedAt)
     }
     if (conversation.handoffAt) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'HANDED_OFF' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'HANDED_OFF' }, startedAt)
     }
     if (conversation.autoReplyPausedUntil && conversation.autoReplyPausedUntil > new Date()) {
-      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'PAUSED_HUMAN_TAKEOVER' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'SKIPPED', skipReason: 'PAUSED_HUMAN_TAKEOVER' }, startedAt)
     }
 
     // gate 6 — เพดานจำนวนคำตอบต่อเธรด (AC-018-02) ครบแล้วส่งต่อพนักงาน
@@ -299,7 +308,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         where: { id: conversation.id },
         data: { handoffAt: new Date(), handoffReason: 'MAX_REPLIES_REACHED' },
       })
-      return finish(job, 'SKIPPED', { ...base, decision: 'HANDOFF', skipReason: 'MAX_REPLIES_REACHED' })
+      return finish(job, 'SKIPPED', { ...base, decision: 'HANDOFF', skipReason: 'MAX_REPLIES_REACHED' }, startedAt)
     }
 
     // --- ถึงตรงนี้ค่อยเริ่มงานที่มีต้นทุน ---
@@ -324,9 +333,9 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
      * กลุ่มคำตรงแต่ไม่มีกฎ = ร้านตั้งค่าค้างไว้ครึ่งทาง ซึ่งร้านต้องเห็นว่าค้าง
      * ถ้าปล่อยให้คลังมาตอบแทน อาการ "ตั้งกฎไว้แล้วไม่เคยถูกใช้" จะถูกกลบและไล่ไม่เจอ
      */
-    const qnaMatch = matched.winner
-      ? null
-      : matchQna(normalizedText, ruleSet.qnas ?? [], ruleSet.keywords, { mode: 'EXACT' })
+    // ตัดเส้นทาง "จับคู่ตรงตัวจากคลังรายกลุ่มคำ" ออก 2026-08-02 (user สั่ง) —
+    // DeepBot อ่านคลังความรู้ระดับร้านแล้วตอบเองครอบคลุมกว่า การมีสองทางที่อ่านตารางเดียวกัน
+    // แต่ตัดสินคนละแบบ ทำให้ไล่ไม่ออกว่าคำตอบมาจากไหน
 
     /**
      * กลุ่มคำที่ "เป็นเจ้าของ" คำตอบครั้งนี้ — มาจากคำตรงตัว หรือจากกลุ่มที่ QnA ยืมมา
@@ -337,8 +346,8 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
      * ข้ามตารางเวลา และข้าม cooldown ได้ทั้งหมด = กับดัก "สวิตช์คนละที่" ตัวเดียวกับที่
      * ถูกรื้อทิ้งเมื่อ 2026-07-30 และเป็นเหตุผลที่ user เลือกให้คลังอยู่ในกลุ่มตั้งแต่แรก
      */
-    const effectiveKeywordId = matched.winner?.keywordId ?? qnaMatch?.keywordId ?? null
-    const matchedVia: 'KEYWORD' | 'QNA' | null = matched.winner ? 'KEYWORD' : qnaMatch ? 'QNA' : null
+    const effectiveKeywordId = matched.winner?.keywordId ?? null
+    const matchedVia: 'KEYWORD' | null = matched.winner ? 'KEYWORD' : null
 
     // gate 6.5 — สถานะของ "กลุ่มคำที่ชนะ" (feature 00023, user 2026-07-29)
     //
@@ -357,8 +366,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         normalizedText,
         keywordId: effectiveKeywordId,
         matchedVia,
-        qnaId: qnaMatch?.qna.id ?? null,
-      })
+      }, startedAt)
     }
 
     // gate 6.6 — เวลาทำงานของร้าน (user 2026-07-31: "ทำงานช่วง 18.00-9.00 แทน admin ตอนหลับ")
@@ -376,8 +384,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
         normalizedText,
         keywordId: effectiveKeywordId,
         matchedVia,
-        qnaId: qnaMatch?.qna.id ?? null,
-      })
+      }, startedAt)
     }
 
     // gate 7 — cooldown ของกลุ่มคำเดิมในเธรดเดิม (AC-018-01)
@@ -410,8 +417,7 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           normalizedText,
           keywordId: effectiveKeywordId,
           matchedVia,
-          qnaId: qnaMatch?.qna.id ?? null,
-        })
+        }, startedAt)
       }
     }
 
@@ -420,12 +426,11 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
      * ข้าม resolveRule ไปเลยเมื่อชนะด้วย QnA เพื่อไม่ให้กฎกลางของร้าน (ระดับ PAGE_DEFAULT/
      * SHOP_DEFAULT) มาแย่งคำตอบที่ร้านกรอกไว้เจาะจงกับคำถามนั้น
      */
-    const resolved = qnaMatch ? null : resolveRule(effectiveKeywordId, ctx, ruleSet)
+    const resolved = resolveRule(effectiveKeywordId, ctx, ruleSet)
 
     const trace = {
       match: matched.matchTrace,
       fallbackFrom: resolved?.fallbackFrom ?? [],
-      ...(qnaMatch ? { qna: { id: qnaMatch.qna.id, question: qnaMatch.qna.question, method: qnaMatch.method } } : {}),
     }
     const common = {
       ...base,
@@ -440,12 +445,10 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       adId: ctx.adId,
       productId: ctx.productId,
       // 'QNA' ไม่มีทางออกจาก getResolutionLevel() — เซ็ตตรงนี้จุดเดียว (TFR-032 ข้อ 3)
-      resolutionLevel: qnaMatch ? 'QNA' : (resolved?.resolutionLevel ?? 'NONE'),
+      resolutionLevel: resolved?.resolutionLevel ?? 'NONE',
       ruleId: resolved?.rule?.id ?? null,
       matchedVia,
-      qnaId: qnaMatch?.qna.id ?? null,
       isTest: isTestReply,
-      durationMs: Date.now() - startedAt,
     }
 
     // gate 8-9 — ไม่มีกลุ่มคำตรง หรือถอยจนไม่เหลือกฎ = เงียบแล้วส่งต่อคน ห้ามเดา (BR-AR-08)
@@ -453,12 +456,13 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
     // WARNING: "มีคำตอบ" = มีข้อความ **หรือมีรูป** (TFR-036 ข้อ 6) — คำตอบที่เป็นรูปล้วน
     // (ซึ่งอนุญาต มิเรอร์ QuickMessage.body ที่ว่างได้ถ้ามีรูป) ต้องไม่ถูกตัดทิ้งเป็น
     // EMPTY_REPLY แล้วล็อกห้องด้วย handoffAt
-    const replyText = (qnaMatch ? qnaMatch.qna.answer : resolved?.rule?.replyText)?.trim() ?? ''
-    const replyImages = qnaMatch ? qnaMatch.qna.imageFileIds : []
+    const replyText = resolved?.rule?.replyText?.trim() ?? ''
+    const replyImages: string[] = []
     if (!replyText && replyImages.length === 0) {
+      let chatbotReason: string | null = null
       const reason: SkipReason = !effectiveKeywordId
         ? 'NO_KEYWORD_MATCH'
-        : qnaMatch || resolved?.rule
+        : resolved?.rule
           ? 'EMPTY_REPLY'
           : 'NO_RULE_MATCH'
 
@@ -495,8 +499,11 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
           shopId: job.shopId,
           conversationId: conversation.id,
           customerText: rawText,
+          // รูปที่ลูกค้าส่งมา — ส่งให้ AI ดูด้วย ไม่งั้นข้อความรูปล้วนจะไม่มีอะไรให้ตอบเลย
+          imageUrls: message.imageUrl ? [message.imageUrl] : [],
+          messageAt: message.createdAt,
         })
-        if (chatbot?.sent) {
+        if (chatbot.sent) {
           await prisma.conversation.update({
             where: { id: conversation.id },
             data: { autoReplyCount: { increment: 1 }, lastAutoReplyAt: new Date() },
@@ -508,86 +515,40 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
             outboundMessageId: chatbot.messageId,
             resolutionLevel: 'CHATBOT',
             matchedVia: 'CHATBOT',
+            aiContext: chatbot.aiContext ?? undefined,
             errorMessage: null,
-          })
+          }, startedAt)
         }
 
         /**
-         * บันทึกเข้าคิว "คำถามที่ตอบไม่ได้" (phase 00023-qna, TFR-033)
+         * เหตุผลที่บอทไม่ตอบ — บันทึกเฉพาะกรณีที่ ChatBot **ลองทำงานแล้วไม่สำเร็จ**
          *
-         * WARNING: อยู่ในสาขา `NO_KEYWORD_MATCH` เท่านั้น และ **อยู่ใน `else` ของ handoffAt**
-         * ให้เห็นชัดว่าเส้นทางนี้ไม่แตะ `handoffAt` — จุดนี้คือจุดเดียวกับบั๊กที่ล็อกห้องถาวร
-         * 240 ห้องบน prod เมื่อ 2026-07-31
-         *
-         * `recordUnanswered` ไม่ throw เองอยู่แล้ว (ห่อ try/catch ในตัว) แต่ `await` ไว้เพื่อให้
-         * ลำดับการเขียนแน่นอนตอนเทส — คิวพังไม่ทำให้งานค้างสถานะเพราะ finish() ทำงานต่อเสมอ
+         * WARNING (บั๊กจริง user เจอ 2026-08-01): เดิมบันทึกทุกเหตุผลรวมทั้ง OFFLINE/
+         * NOT_TEST_THREAD ซึ่งเกิดกับ *ทุกห้องของทุกร้าน* ที่ไม่เข้ากลุ่มคำ — หน้าประวัติ
+         * จึงเต็มไปด้วยแถว "ChatBot ปิดอยู่" ของร้านที่ไม่เคยเปิดใช้บอทเลย
+         * เหตุผลกลุ่มนี้ไม่ใช่ "ผลการทำงานของบอท" แต่คือ "บอทไม่ได้ถูกเรียกใช้"
          */
-        await recordUnanswered({ shopId: job.shopId, rawText, normalizedText })
+        if (!SILENT_CHATBOT_REASONS.has(chatbot.reason)) chatbotReason = chatbot.reason
       }
-      return finish(job, 'SKIPPED', { ...common, decision: 'HANDOFF', skipReason: reason })
+      return finish(
+        job,
+        'SKIPPED',
+        {
+          ...common,
+          decision: 'HANDOFF',
+          skipReason: reason,
+          errorMessage: chatbotReason ? `CHATBOT:${chatbotReason}` : null,
+        },
+        startedAt
+      )
     }
 
     /**
-     * AI Enhance — ให้ AI เรียบเรียงคำตอบก่อนส่ง (phase `00023-ai-enhance`, BR-AR-31/32/33)
-     *
-     * WARNING: อยู่ **หลัง** ได้คำตอบดิบแล้วเท่านั้น และทำงานเฉพาะกลุ่มที่เปิดสวิตช์
-     * กลุ่มที่ปิด (ค่าเริ่มต้นของทุกกลุ่ม) ต้องไม่มี query เพิ่ม ไม่มี latency เพิ่ม
-     * ไม่มีการเรียก AI — early return ตั้งแต่เงื่อนไขแรก
-     *
-     * `enhanceReply` ไม่ throw เด็ดขาด (สัญญาของไฟล์นั้น) — ทุกความล้มเหลวคืนคำตอบดิบกลับมา
+     * AI Enhance ถูกตัดออก 2026-08-02 (user สั่ง) — DeepBot รับหน้าที่ตอบด้วย AI ไปทั้งหมดแล้ว
+     * การมีสองเส้นทางที่เรียก AI คนละที่ ตั้งค่าคนละหน้า และคิดเงินคนละก้อน
+     * ทำให้อธิบายบิลกับร้านไม่ได้ และเป็นต้นเหตุที่คำตอบสำเร็จรูปเพี้ยนโดยไม่มีใครสั่ง
      */
-    let finalText = replyText
-    let aiReason: string | null = null
-    const enhanceKeyword = ruleSet.keywords.find((k) => k.id === effectiveKeywordId)
-    if (enhanceKeyword?.aiEnhanceEnabled && replyText.trim()) {
-      // เพดานต่อวัน + เครดิต (BR-AR-35/36) — ตรวจ **ก่อน** เรียก AI เสมอ
-      // ไม่ผ่าน = ส่งคำตอบดิบตามปกติ ลูกค้าไม่รู้ว่าเกิดอะไรขึ้น (ไม่ใช่เงียบ)
-      const cap = await checkCapBeforeCall(job.shopId)
-      if (!cap.allowed) {
-        aiReason = cap.reason
-      } else {
-        const guardrails = await prisma.autoReplyGuardrail.findMany({
-          where: { keywordId: enhanceKeyword.id, shopId: job.shopId, isActive: true },
-          select: { rule: true, denyPhrases: true },
-        })
-        const enhanced = await enhanceReply({
-          rawAnswer: replyText,
-          customerText: rawText,
-          guardrails,
-          tone: enhanceKeyword.aiTone ?? null,
-        })
-        aiReason = enhanced.reason
-
-        // บันทึกการใช้ + สะสมเศษ + หักเมื่อครบ 1 บาท — ไม่ throw เอง
-        // บันทึกทุกครั้งที่เรียก AI จริง (มี usage) ไม่ว่าผลจะถูกใช้หรือถูกทิ้ง
-        // เพราะ Google คิดเงินตั้งแต่ตอนเรียก ไม่ใช่ตอนเราตัดสินใจใช้
-        if (enhanced.usage) {
-          await recordUsageAndBill({
-            shopId: job.shopId,
-            conversationId: conversation.id,
-            usage: enhanced.usage,
-            status: enhanced.enhanced ? 'SUCCESS' : 'FAILED',
-          })
-        }
-
-      // ชนกฎจริง = ไม่ส่งอะไรเลยและส่งต่อคน (BR-AR-33 — ต่างจากตัวตรวจล่มที่ถอยคำตอบดิบ)
-      if (enhanced.blocked) {
-        await prisma.conversation.update({
-          where: { id: conversation.id },
-          data: { handoffAt: new Date(), handoffReason: 'GUARDRAILS_BLOCKED' },
-        })
-        return finish(job, 'SKIPPED', {
-          ...common,
-          decision: 'HANDOFF',
-          skipReason: 'GUARDRAILS_BLOCKED',
-          keywordId: effectiveKeywordId,
-          matchedVia,
-          qnaId: qnaMatch?.qna.id ?? null,
-        })
-      }
-        finalText = enhanced.text
-      }
-    }
+    const finalText = replyText
 
     // --- ส่งจริง ---
     const result = await sendAutoReply({
@@ -630,32 +591,19 @@ export async function processJob(jobId: string, lockedBy = 'after'): Promise<voi
       return
     }
 
-    // WARNING: +1 ต่อ "ชุด" ไม่ใช่ต่อชิ้นที่ส่ง (DATABASE §3.11) — คำตอบที่มี 5 รูปนับเป็น 1
-    // ถ้านับเป็น 6 ร้านที่ตั้งเพดานไว้ 10 จะโดนตัดจบหลังตอบไปแค่ชุดเดียวครึ่ง ซึ่งไม่ใช่
-    // สิ่งที่ "จำนวนคำตอบ" หมายถึงในสายตาร้าน
     await prisma.conversation.update({
       where: { id: conversation.id },
       data: { autoReplyCount: { increment: 1 }, lastAutoReplyAt: new Date() },
     })
 
-    // นับการใช้งานของข้อในคลัง (TFR-032 ข้อ 5) — นับเฉพาะตอนส่งสำเร็จ ไม่ throw เอง
-    if (qnaMatch) await markQnaUsed(qnaMatch.qna.id)
-
     return finish(job, 'DONE', {
       ...common,
       decision: 'REPLIED',
-      // ต้องเป็นข้อความที่ **ส่งจริง** ไม่ใช่คำตอบดิบ — ไม่งั้นบันทึกจะโกหกว่าไม่มีอะไรเปลี่ยน
-      // ทั้งที่ AI เรียบเรียงไปแล้ว (บั๊กที่เจอตอน user ทดสอบ 2026-08-01)
       replyText: finalText,
       outboundMessageId: result.messageId,
       // ความล้มเหลวบางส่วน (รูปบางใบส่งไม่ผ่าน) ต้องถูกบันทึก ไม่ใช่กลืน (TFR-036 ข้อ 4)
-      // + เหตุผลที่ AI Enhance ไม่ได้ทำงาน (A-09) — ถ้าไม่บันทึกจะไม่มีทางรู้เลยว่าทำไม
-      // ข้อความออกมาเหมือนเดิม ซึ่งเป็นสิ่งที่เกิดขึ้นจริงตอน user ทดสอบครั้งแรก
-      errorMessage: [result.partialError, aiReason ? `AI_ENHANCE:${aiReason}` : null]
-        .filter(Boolean)
-        .join(' | ') || null,
-      durationMs: Date.now() - startedAt,
-    })
+      errorMessage: result.partialError ?? null,
+    }, startedAt)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[auto-reply] processJob ล้มเหลว', jobId, msg)
@@ -792,11 +740,114 @@ export async function enrichWithAutoReplyBadge<T extends { id: string }>(
  *
  * WARNING: ห้าม throw — อยู่ในเส้นทางเดียวกับการตอบลูกค้า ทุกความล้มเหลวคืน null
  */
+/** ค่ากลางเมื่อร้านเลือกโหมดข้อความสำรองแต่ยังไม่ได้เขียนข้อความเอง */
+const DEFAULT_FALLBACK_TEXT = 'ขอเช็คข้อมูลให้สักครู่นะคะ เดี๋ยวแอดมินมาตอบค่ะ'
+
+/**
+ * ข้อความสำรองเมื่อ AI ตอบคำถามนั้นไม่ได้ (user สั่ง 2026-08-01 "อยากให้ตอบทุกคำถาม")
+ *
+ * เดิมเส้นทางนี้คือเงียบ ซึ่งแปลว่าลูกค้าถูกปล่อยทิ้งโดยไม่รู้ว่ามีใครเห็นข้อความไหม
+ * ค่าเริ่มต้นจึงเป็น MESSAGE ไม่ใช่ SILENT — และไม่เสียค่า AI เพราะเป็นข้อความคงที่
+ *
+ * WARNING: ต้องผ่าน cooldown/เพดานเหมือนคำตอบจาก AI ทุกประการ ไม่งั้นห้องที่โดนหน่วง
+ * จะได้ข้อความสำรองรัว ๆ แทน ซึ่งน่ารำคาญกว่าเงียบ (ผู้เรียกเช็คให้แล้วก่อนมาถึงนี่)
+ */
+async function sendFallback(
+  params: { shopId: string; conversationId: string },
+  cfg: { aiChatbotFallbackMode?: string | null; aiChatbotFallbackText?: string | null } | null,
+  status: string
+): Promise<{ sent: true; text: string; messageId: string | null } | null> {
+  if ((cfg?.aiChatbotFallbackMode ?? 'MESSAGE') !== 'MESSAGE') return null
+  const text = (cfg?.aiChatbotFallbackText ?? '').trim() || DEFAULT_FALLBACK_TEXT
+  const sent = await sendAutoReply({
+    conversationId: params.conversationId,
+    shopId: params.shopId,
+    text,
+    imageFileIds: [],
+    isTest: status === 'TEST',
+  })
+  if (!sent.sent) return null
+  return { sent: true, text, messageId: sent.messageId ?? null }
+}
+
+/**
+ * เหตุผลที่แปลว่า "ChatBot ไม่ได้ทำงานกับห้องนี้ตั้งแต่แรก" — ไม่บันทึกลงประวัติ
+ * เพราะเกิดกับทุกห้องที่ไม่เข้ากลุ่มคำ ไม่ได้บอกอะไรที่ร้านเอาไปแก้ได้
+ */
+const SILENT_CHATBOT_REASONS = new Set(['OFFLINE', 'NOT_TEST_THREAD', 'OUTSIDE_SCHEDULE'])
+
+type ChatbotOutcome =
+  | { sent: true; text: string; messageId: string | null; aiContext?: unknown; usedKnowledge?: string[] }
+  | { sent: false; reason: string }
+
+/**
+ * WARNING: ทุกทางที่ "ไม่ได้ตอบ" ต้องคืนเหตุผลเสมอ ห้ามคืน null เปล่า
+ *
+ * เดิมคืน null ทุกกรณี บันทึกจึงไม่มีอะไรบอกว่าทำไมบอทเงียบ — ต้องไล่ query ฐาน prod
+ * เทียบกับตาราง usage ทีละครั้งถึงจะรู้ (เกิดขึ้น 4 รอบในวันเดียว 2026-08-01)
+ */
+/**
+ * มีข้อความใหม่ของลูกค้าเข้ามาหลังข้อความที่กำลังตอบไหม
+ *
+ * user 2026-08-01 ปฏิเสธการหน่วง 10 วินาที ("ไม่อยากให้หน่วง") — จึงใช้วิธีตรงข้าม:
+ * ตอบทันทีเหมือนเดิม แต่ถ้าระหว่างที่คิดคำตอบอยู่ลูกค้าพิมพ์ต่อ ให้ทิ้งคำตอบนี้
+ * แล้วปล่อยให้งานของข้อความล่าสุดตอบรวมทีเดียว
+ *
+ * ผลคือเคสปกติ (พิมพ์มาข้อความเดียว) ไม่ช้าลงแม้แต่มิลลิวินาทีเดียว ส่วนเคสพิมพ์รัว
+ * ได้คำตอบเดียวที่เข้าใจบริบทครบ แทนที่จะได้สามคำตอบที่ต่างคนต่างตอบคนละท่อน
+ */
+async function hasNewerBuyerMessage(conversationId: string, after: Date): Promise<boolean> {
+  const newer = await prisma.chatMessage.findFirst({
+    where: { conversationId, senderRole: 'BUYER', createdAt: { gt: after } },
+    select: { id: true },
+  })
+  return Boolean(newer)
+}
+
+/**
+ * รวมข้อความลูกค้าที่ยังไม่ได้ตอบให้เป็นคำถามเดียว
+ *
+ * ขอบเขต = ตั้งแต่ข้อความล่าสุดของฝั่งร้านเป็นต้นมา — ทุกอย่างก่อนหน้านั้นถือว่าตอบไปแล้ว
+ * จำกัด 5 ข้อความกัน prompt บวมจากลูกค้าที่พิมพ์รัวสิบกว่าบรรทัด
+ */
+async function collectPendingCustomerText(
+  conversationId: string,
+  upTo: Date,
+  fallback: string
+): Promise<string> {
+  const lastShop = await prisma.chatMessage.findFirst({
+    where: { conversationId, senderRole: 'SHOP', createdAt: { lte: upTo } },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  })
+  const rows = await prisma.chatMessage.findMany({
+    where: {
+      conversationId,
+      senderRole: 'BUYER',
+      type: 'TEXT',
+      body: { not: null },
+      createdAt: { lte: upTo, ...(lastShop ? { gt: lastShop.createdAt } : {}) },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+    select: { body: true },
+  })
+  const merged = rows
+    .reverse()
+    .map((r) => (r.body ?? '').trim())
+    .filter(Boolean)
+    .join('\n')
+  return merged || fallback
+}
+
 async function tryChatbotAnswer(params: {
   shopId: string
   conversationId: string
   customerText: string
-}): Promise<{ sent: true; text: string; messageId: string | null } | null> {
+  imageUrls?: string[]
+  /** เวลาของข้อความที่กำลังตอบ — ใช้ตรวจว่ามีข้อความใหม่แทรกไหม */
+  messageAt?: Date
+}): Promise<ChatbotOutcome> {
   try {
     const cfg = await prisma.autoReplyConfig.findUnique({
       where: { shopId: params.shopId },
@@ -805,10 +856,20 @@ async function tryChatbotAnswer(params: {
         aiChatbotTone: true,
         aiChatbotStartTime: true,
         aiChatbotEndTime: true,
+        aiChatbotCooldownSec: true,
+        aiChatbotMaxPerHour: true,
+        aiChatbotFallbackMode: true,
+        aiChatbotFallbackText: true,
+        aiChatbotUseShopData: true,
+        aiChatbotUseChatHistory: true,
+        aiChatbotUseWebSearch: true,
+        aiChatbotShopOnly: true,
+        aiChatbotOutOfScopeText: true,
+        aiChatbotExtraPrompt: true,
       },
     })
     const status = cfg?.aiChatbotStatus ?? 'OFFLINE'
-    if (status === 'OFFLINE') return null
+    if (status === 'OFFLINE') return { sent: false, reason: 'OFFLINE' }
 
     // TEST = ตอบเฉพาะแชทที่ร้านเลือกไว้ (โครงเดียวกับกลุ่มคำสถานะ TEST)
     if (status === 'TEST') {
@@ -816,32 +877,123 @@ async function tryChatbotAnswer(params: {
         where: { shopId_conversationId: { shopId: params.shopId, conversationId: params.conversationId } },
         select: { id: true },
       })
-      if (!allowed) return null
+      if (!allowed) return { sent: false, reason: 'NOT_TEST_THREAD' }
     }
 
-    if (!isChatbotWithinWindow(cfg?.aiChatbotStartTime, cfg?.aiChatbotEndTime, new Date())) return null
+    if (!isChatbotWithinWindow(cfg?.aiChatbotStartTime, cfg?.aiChatbotEndTime, new Date())) return { sent: false, reason: 'OUTSIDE_SCHEDULE' }
+
+    /**
+     * เพดานการตอบต่อห้อง — ChatBot ไม่มี cooldown ของกลุ่มคำมาคุมเหมือน Auto Reply
+     * เพราะมันทำงานตอน "ไม่เข้ากลุ่มไหนเลย" ถ้าไม่คุมตรงนี้ คนที่พิมพ์คำถามต่างกันรัว ๆ
+     * ในห้องเดียวจะเรียก AI ได้ทุกครั้งจนกว่าจะชนเพดานเงินต่อวันของทั้งร้าน
+     *
+     * โหมดทดสอบข้ามด่านนี้ ด้วยเหตุผลเดียวกับ cooldown ของกลุ่มคำ: คนที่กำลังทดสอบ
+     * ตั้งใจยิงซ้ำ ๆ เพื่อดูว่าตั้งค่าถูกไหม โดนหน่วงแล้วจะนึกว่าระบบพัง
+     */
+    if (status !== 'TEST') {
+      const cooldownSec = cfg?.aiChatbotCooldownSec ?? 30
+      const maxPerHour = cfg?.aiChatbotMaxPerHour ?? 10
+      const now = Date.now()
+
+      if (cooldownSec > 0) {
+        const last = await prisma.autoReplyLog.findFirst({
+          where: { conversationId: params.conversationId, matchedVia: 'CHATBOT', decision: 'REPLIED' },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        })
+        if (last && now - last.createdAt.getTime() < cooldownSec * 1000) return { sent: false, reason: 'COOLDOWN' }
+      }
+
+      if (maxPerHour > 0) {
+        const usedThisHour = await prisma.autoReplyLog.count({
+          where: {
+            conversationId: params.conversationId,
+            matchedVia: 'CHATBOT',
+            decision: 'REPLIED',
+            createdAt: { gte: new Date(now - 60 * 60 * 1000) },
+          },
+        })
+        if (usedThisHour >= maxPerHour) return { sent: false, reason: 'HOURLY_CAP' }
+      }
+    }
+
+    /**
+     * ด่านที่ 1 ของการทิ้งคำตอบซ้ำซ้อน — เช็คก่อนเรียก AI เพราะตรงนี้ยังไม่เสียเงิน
+     * (ด่านที่ 2 อยู่ก่อนส่ง ดักกรณีลูกค้าพิมพ์ต่อระหว่างที่ AI กำลังคิด)
+     */
+    if (params.messageAt && (await hasNewerBuyerMessage(params.conversationId, params.messageAt))) {
+      return { sent: false, reason: 'SUPERSEDED' }
+    }
 
     const cap = await checkCapBeforeCall(params.shopId)
-    if (!cap.allowed) return null
+    if (!cap.allowed) return { sent: false, reason: 'DAILY_CAP_OR_NO_CREDIT' }
 
     // คลังความรู้ทั้งร้าน — ที่ถูกใช้บ่อยอยู่บน แล้วตัดที่ 200 ข้อกัน prompt บวม
     // (200 ข้อ ~ หลักหมื่น token ซึ่งยังอยู่ในงบของ flash-lite และคุมต้นทุนต่อครั้งได้)
     const knowledge = await prisma.autoReplyQna.findMany({
       where: { shopId: params.shopId, isActive: true },
-      select: { question: true, answer: true },
+      select: { id: true, question: true, answer: true },
       orderBy: { useCount: 'desc' },
       take: 200,
     })
-    if (knowledge.length === 0) return null
+    const fallbackMode = cfg?.aiChatbotFallbackMode ?? 'MESSAGE'
+    // คลังว่าง + ร้านไม่ได้เปิดให้ AI ตอบเอง = ไม่มีอะไรให้ทำงานด้วย ตกไปเส้นทางข้อความสำรอง
+    if (knowledge.length === 0 && fallbackMode !== 'AI_FREE') {
+      const fb = await sendFallback(params, cfg, status)
+      return fb ?? { sent: false, reason: 'NO_KNOWLEDGE' }
+    }
 
     const guardrails = await prisma.autoReplyGuardrail.findMany({
       where: { shopId: params.shopId, keywordId: null, isActive: true },
-      select: { rule: true, denyPhrases: true },
+      select: { rule: true, denyPhrases: true, mode: true },
     })
 
+    // สินค้าที่มีขายจริง — บอทเสนอได้เฉพาะในรายการนี้ และราคามาจากระบบ ไม่ใช่จากที่ร้านพิมพ์ไว้
+    const products = cfg?.aiChatbotUseShopData
+      ? await prisma.product.findMany({
+          where: { shopId: params.shopId, isActive: true },
+          select: { name: true, price: true },
+          orderBy: { name: 'asc' },
+          take: 100,
+        })
+      : []
+
+    // บทสนทนาก่อนหน้า — ทำให้ตอบต่อเนื่องได้ ("แล้วสีแดงล่ะ" ต้องรู้ว่ากำลังพูดถึงอะไร)
+    // เอาเฉพาะข้อความตัวอักษร และกรอง PII ก่อนส่งออกเหมือนคำถามหลัก
+    const history = cfg?.aiChatbotUseChatHistory
+      ? (
+          await prisma.chatMessage.findMany({
+            where: { conversationId: params.conversationId, type: 'TEXT', body: { not: null } },
+            orderBy: { createdAt: 'desc' },
+            take: 11, // 10 ข้อความก่อนหน้า + ข้อความปัจจุบันที่ต้องตัดออก
+            select: { senderRole: true, body: true, createdAt: true },
+          })
+        )
+          .slice(1)
+          .reverse()
+          .map((m) => ({
+            role: (m.senderRole === 'BUYER' ? 'ลูกค้า' : 'ร้าน') as 'ลูกค้า' | 'ร้าน',
+            text: redactPii(m.body ?? '').text.slice(0, 300),
+          }))
+      : []
+
+    // รวมข้อความที่ลูกค้าพิมพ์รัวมาเป็นคำถามเดียว ("สนใจโช๊ค" + "สามล้อ" + "เท่าไร")
+    const customerText = params.messageAt
+      ? await collectPendingCustomerText(params.conversationId, params.messageAt, params.customerText)
+      : params.customerText
+
     const result = await answerFromKnowledge({
-      customerText: params.customerText,
-      knowledge,
+      customerText,
+      imageUrls: params.imageUrls,
+      products: products.map((p) => ({ name: p.name, price: p.price.toString() })),
+      history,
+      shopOnly: cfg?.aiChatbotShopOnly ?? false,
+      outOfScopeText: cfg?.aiChatbotOutOfScopeText ?? null,
+      extraPrompt: cfg?.aiChatbotExtraPrompt ?? null,
+      allowFreeAnswer: fallbackMode === 'AI_FREE',
+      useWebSearch: cfg?.aiChatbotUseWebSearch ?? false,
+      knowledge: knowledge.map((k) => ({ question: k.question, answer: k.answer })),
+      knowledgeIds: knowledge.map((k) => k.id),
       guardrails,
       tone: cfg?.aiChatbotTone ?? null,
     })
@@ -854,7 +1006,17 @@ async function tryChatbotAnswer(params: {
         status: result.text ? 'SUCCESS' : 'FAILED',
       })
     }
-    if (!result.text) return null
+    if (!result.text) {
+      // AI ตอบไม่ได้ (คลังไม่มีข้อมูล/ชนกฎ/ล้มเหลว) — ร้านเลือกได้ว่าจะเงียบหรือส่งข้อความสำรอง
+      const fb = await sendFallback(params, cfg, status)
+      return fb ?? { sent: false, reason: result.reason ?? 'AI_NO_ANSWER' }
+    }
+
+    // ด่านที่ 2 — ลูกค้าพิมพ์ต่อระหว่างที่ AI คิดอยู่ ทิ้งคำตอบนี้ ให้งานของข้อความ
+    // ล่าสุดตอบรวมแทน (โทเคนที่ใช้ไปแล้วยังถูกบันทึกด้านบน ไม่กลืนต้นทุนจริง)
+    if (params.messageAt && (await hasNewerBuyerMessage(params.conversationId, params.messageAt))) {
+      return { sent: false, reason: 'SUPERSEDED' }
+    }
 
     const sent = await sendAutoReply({
       conversationId: params.conversationId,
@@ -863,11 +1025,31 @@ async function tryChatbotAnswer(params: {
       imageFileIds: [],
       isTest: status === 'TEST',
     })
-    if (!sent.sent) return null
+    if (!sent.sent) return { sent: false, reason: 'SEND_FAILED' }
 
-    return { sent: true, text: result.text, messageId: sent.messageId ?? null }
+    /**
+     * นับสถิติ "ถูกใช้ตอบ" ให้ความรู้ที่โมเดลอ้างว่าใช้ — นับหลังส่งสำเร็จเท่านั้น
+     * ไม่ให้ล้มทั้งงานถ้าเขียนสถิติไม่ผ่าน: ลูกค้าได้คำตอบไปแล้ว ตัวเลขนับพลาดหนึ่งครั้ง
+     * เสียหายน้อยกว่าการโยน error กลับเข้าเส้นทางของ webhook
+     */
+    if (result.usedKnowledgeIds?.length) {
+      await prisma.autoReplyQna
+        .updateMany({
+          where: { id: { in: result.usedKnowledgeIds }, shopId: params.shopId },
+          data: { useCount: { increment: 1 } },
+        })
+        .catch((e) => console.error('[chatbot] นับ useCount ไม่สำเร็จ', e))
+    }
+
+    return {
+      sent: true,
+      text: result.text,
+      messageId: sent.messageId ?? null,
+      // เก็บ "ใช้อะไรตอบ" ไว้ให้กล่องรายละเอียดในห้องแชทอธิบายได้ (ไม่มี PII ในนี้)
+      aiContext: result.context ? { ...result.context, usedKnowledgeIds: result.usedKnowledgeIds ?? [] } : null,
+    }
   } catch (e) {
     console.error('[chatbot] tryChatbotAnswer ล้มเหลว', e)
-    return null
+    return { sent: false, reason: 'UNEXPECTED_ERROR' }
   }
 }

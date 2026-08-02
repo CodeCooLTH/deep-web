@@ -15,6 +15,8 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import ShopForm from './components/ShopForm'
+import SignOutCard from './components/SignOutCard'
+import ShopQuickLinks from './components/ShopQuickLinks'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
 
@@ -47,9 +49,18 @@ export default async function ShopSettingsPage() {
   // active shop (Personal หรือ Business ตาม session.user.activeShopId, verify membership ภายใน)
   // settings ไม่ gate ด้วย locked — package lock ล็อกเฉพาะ transaction ไม่ใช่การแก้ข้อมูลร้าน
   let shop: any = null
+  // kind/role ของ active shop — ใช้ตัดสินว่ารายการ "จัดการร้าน" จะมีเมนูพนักงานไหม
+  // (เงื่อนไขเดียวกับ applyStaffMenu ใน _seller-menu.ts: BUSINESS + OWNER เท่านั้น)
+  // default PERSONAL/OWNER = ปลอดภัยสุด (ไม่โชว์เมนูพนักงาน) เมื่อ resolve ไม่ได้
+  let shopKind: 'PERSONAL' | 'BUSINESS' = 'PERSONAL'
+  let shopRole: 'OWNER' | 'ADMIN' = 'OWNER'
   try {
     const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
     shop = active?.shop ?? null
+    if (active) {
+      shopKind = active.kind
+      shopRole = active.role
+    }
   } catch {
     shop = null
   }
@@ -61,17 +72,39 @@ export default async function ShopSettingsPage() {
 
   return (
     <>
-      <PageBreadcrumb
-        title="ตั้งค่าร้าน"
-        trail={[{ label: 'ร้านค้า', href: '/shop' }]}
-      />
-      {/* ส่วนหัวหน้า — แสดง mode (สร้างใหม่ หรือ แก้ไข) และอายุร้าน */}
-      <div className="mb-5">
-        <p className="text-default-400 text-sm mt-0.5">{pageSubtext}</p>
+      {/* หัวหน้า + breadcrumb — เดสก์ท็อปเท่านั้น
+          บนมือถือ SellerMobileHeader (layout) แสดงชื่อหน้า "ตั้งค่าร้านค้า" ให้อยู่แล้ว
+          ถ้าปล่อยไว้จะได้หัวข้อซ้ำกันสามชั้นติดกัน: topbar "ตั้งค่าร้านค้า" / breadcrumb
+          "ตั้งค่าร้าน" / บรรทัดวันที่ยาว — กินจอไปเกือบ 1 ใน 3 ก่อนเห็นเนื้อหาจริง
+          อายุร้านย้ายไปอยู่ในการ์ดหัวร้านของมือถือแทน (สั้นลงเหลือ "เปิดร้านวันนี้") */}
+      <div className="hidden lg:block">
+        <PageBreadcrumb title="ตั้งค่าร้าน" trail={[{ label: 'ร้านค้า', href: '/shop' }]} />
+        <div className="mb-5">
+          <p className="text-default-400 text-sm mt-0.5">{pageSubtext}</p>
+        </div>
       </div>
 
       {/* ShopForm รับ shop จริงของ seller — null = ยังไม่มีร้าน */}
-      <ShopForm shop={shop} isExisting={isExisting} />
+      <ShopForm
+        shop={shop}
+        isExisting={isExisting}
+        ageText={isExisting ? formatShopAge(shop.createdAt) : null}
+      />
+
+      {/* รายการ "จัดการร้าน" + ออกจากระบบ — เฉพาะ <1024px
+          `.seller-mobile-shell` ซ่อน TopBar + Sidenav บนจอเล็ก ซึ่งเป็นที่อยู่ของทั้งเมนูร้าน
+          และปุ่มออกจากระบบ ทำให้มือถือเข้าไม่ถึงเลยทั้งสองอย่าง (ดู comment หัวไฟล์ทั้งสองตัว)
+          ≥1024px ไม่ render — sidebar + UserDropdownDetailed ทำหน้าที่นี้อยู่แล้ว */}
+      <div className="lg:hidden">
+        <ShopQuickLinks shopKind={shopKind} shopRole={shopRole} />
+        <SignOutCard />
+      </div>
+
+      {/* เว้นที่ให้แถบ "บันทึก" ที่เป็น fixed ใน ShopForm — ต้องอยู่ "ท้ายสุดของหน้า" ไม่ใช่ท้ายฟอร์ม
+          เดิมวางไว้ในฟอร์ม แล้วแถบไปบังการ์ดออกจากระบบซึ่ง render ต่อจากฟอร์ม (เลื่อนสุดแล้ว
+          ปุ่มออกจากระบบโดนทับจนกดไม่ได้) — ตัวเว้นต้องเป็นสิ่งสุดท้ายที่หน้าเลื่อนถึง
+          h-16 ≈ ความสูงแถบ (py-3 + ปุ่ม py-3); เดสก์ท็อปไม่มีแถบนี้จึงไม่ต้องเว้น */}
+      <div className="h-16 lg:hidden" aria-hidden="true" />
     </>
   )
 }

@@ -23,6 +23,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
+import ShopMobileHero from './ShopMobileHero'
 
 // Yup schema ตรง Shop model — ไม่มี field ที่ไม่มีใน schema
 // category ใช้ SHOP_CATEGORY_KEYS เป็น key (SSOT) — label ไทยแสดงจาก SHOP_CATEGORY_LABELS
@@ -45,6 +46,8 @@ const schema = Yup.object({
 type FormValues = Yup.InferType<typeof schema>
 
 interface ShopFormProps {
+  /** อายุร้านแบบสั้น (เช่น "เปิดร้านวันนี้") — ใช้เฉพาะการ์ดหัวร้านของมือถือ */
+  ageText?: string | null
   shop?: {
     id: string
     shopName: string
@@ -64,7 +67,7 @@ const stepData = [
   { icon: 'photo', title: 'โลโก้ร้าน', subtitle: 'อัปโหลดภาพ' },
 ]
 
-export default function ShopForm({ shop, isExisting }: ShopFormProps) {
+export default function ShopForm({ shop, isExisting, ageText = null }: ShopFormProps) {
   const router = useRouter()
 
   // React state แทน data-hs-stepper (Preline plugin) — ป้องกัน hydration mismatch ใน Next.js 16
@@ -181,13 +184,33 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate>
-      <div className="card">
+      {/* การ์ดอัตลักษณ์ร้าน — มือถือเท่านั้น (จัดการรูปปก/โลโก้ทั้งหมดในนี้)
+          เดสก์ท็อปยังใช้ step 2 เหมือนเดิม ไม่ถูกแตะ */}
+      <ShopMobileHero
+        shopName={shop?.shopName ?? 'ร้านของคุณ'}
+        categoryLabel={shop?.category ? (SHOP_CATEGORY_LABELS[shop.category as keyof typeof SHOP_CATEGORY_LABELS] ?? null) : null}
+        ageText={ageText}
+        logoFileId={logoFileId}
+        coverFileId={coverFileId}
+        logoUploading={logoUploading}
+        coverUploading={coverUploading}
+        onLogoChange={handleLogoUpload}
+        onCoverChange={handleCoverUpload}
+      />
+
+      {/* -mx-4 lg:mx-0 — edge-to-edge เฉพาะมือถือ (หักล้าง gutter 16px ของ shell) ให้หน้านี้
+          กว้างเท่ากับ /dashboard; เดสก์ท็อปรีเซ็ตกลับเป็น 0 จึงไม่เปลี่ยนจากเดิม
+          คงมุมโค้งเดิมของ .card ไว้ — ตรงกับการ์ดอื่นใน CommandCenter (CarouselGrid /
+          OrderStatusBand) ที่อยู่ใน wrapper full-bleed แต่ยังมีมุมมนปกติ */}
+      <div className="card -mx-4 lg:mx-0">
         <div className="card-body">
           {/* Layout: sidebar nav (step list) + content area — จาก Paces settings page */}
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-base">
 
-            {/* Sidebar: step navigation */}
-            <div>
+            {/* Sidebar: step navigation — เดสก์ท็อปเท่านั้น
+                มือถือไม่มี step (เลื่อนเดียวจบ) ถ้าปล่อยไว้ grid-cols-1 จะทำให้รายการ step
+                ไปกองบนสุด ต้องเลื่อนผ่าน 2 แถวก่อนเจอช่องกรอกช่องแรก */}
+            <div className="hidden lg:block">
               <ul className="relative flex flex-col gap-1.5">
                 {stepData.map((step, idx) => (
                   <li className="group" key={idx}>
@@ -241,11 +264,25 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
 
             {/* Content area */}
             <div className="md:col-span-2 lg:col-span-3">
-              <div className="md:p-7.5 p-4.5 border border-default-300 border-dashed">
+              {/* กรอบเส้นประ + padding เฉพาะเดสก์ท็อป — บนมือถือ card-body มี padding อยู่แล้ว
+                  กรอบอีกชั้นทำให้เป็นกล่องซ้อน 3 ชั้น (page > card > กรอบ) บีบความกว้างที่ใช้กรอกจริง */}
+              <div className="lg:p-7.5 lg:border lg:border-default-300 lg:border-dashed">
 
-                {/* Step 1: ข้อมูลร้านค้า (General Info) — shopName, description, category, address, businessType */}
-                {activeStep === 0 && (
-                  <div>
+                {/* Step 1: ข้อมูลร้านค้า (General Info) — shopName, description, category, address, businessType
+                    เดสก์ท็อป: โชว์เฉพาะตอนเป็น step ที่เลือก (lg:hidden เมื่อไม่ active)
+                    มือถือ: โชว์เสมอ = เลื่อนเดียวจบ
+                    ทำได้เพราะทั้งหน้าอยู่ใน <form> เดียวและ submit ส่งทุกฟิลด์พร้อมกันอยู่แล้ว
+                    stepper เป็นแค่ตัวสลับการแสดงผล ไม่ได้แบ่ง state หรือ endpoint */}
+                <div className={activeStep === 0 ? undefined : 'lg:hidden'}>
+                  {/* หัวข้อกลุ่ม — มือถือเท่านั้น (เดสก์ท็อปมีชื่อ step ในแถบซ้ายแล้ว)
+                      Base: theme/paces/.../apps/users/profile/components/ProfileCard.tsx:43-51
+                      (แถว flex items-center gap-3 + วงกลม size-8 bg-light ครอบไอคอน) */}
+                  <div className="mb-4 flex items-center gap-3 lg:hidden">
+                    <div className="bg-light flex size-8 items-center justify-center rounded-full">
+                      <Icon icon="building-store" className="text-lg" />
+                    </div>
+                    <p className="font-semibold">ข้อมูลร้าน</p>
+                  </div>
                     <div className="col-span-1 mb-5 grid lg:grid-cols-2 gap-base">
                       {/* ชื่อร้าน */}
                       <div>
@@ -356,12 +393,12 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
                         )}
                       </div>
                     </div>
-                  </div>
-                )}
+                </div>
 
-                {/* Step 2: โลโก้ร้าน — logo field (Shop.logo: String?) */}
-                {activeStep === 1 && (
-                  <div>
+                {/* Step 2: โลโก้ร้าน + ภาพหน้าปก — เดสก์ท็อปเท่านั้น
+                    มือถือย้ายไปอยู่ใน ShopMobileHero ด้านบนแล้ว (แตะที่รูปเพื่อเปลี่ยน) จึงซ่อนที่นี่
+                    ไม่งั้นจะมีช่องอัปโหลดรูปเดียวกันสองที่ในหน้าเดียว */}
+                <div className={activeStep === 1 ? 'hidden lg:block' : 'hidden'}>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-base mb-base">
                       <div>
                         <label className="form-label">โลโก้ร้านค้า</label>
@@ -436,11 +473,11 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
                         )}
                       </div>
                     </div>
-                  </div>
-                )}
+                </div>
 
-                {/* Navigation: Back / Next / บันทึก */}
-                <div className="mt-10 flex flex-wrap items-center justify-between gap-3">
+                {/* Navigation: Back / Next / บันทึก — เดสก์ท็อปเท่านั้น
+                    มือถือไม่มี step ให้เดินหน้า-ถอยหลัง ใช้ปุ่มบันทึกติดล่างแทน (ด้านล่าง) */}
+                <div className="mt-10 hidden flex-wrap items-center justify-between gap-3 lg:flex">
                   <button
                     type="button"
                     className="btn bg-secondary text-white hover:bg-secondary-hover disabled:opacity-50"
@@ -480,11 +517,50 @@ export default function ShopForm({ shop, isExisting }: ShopFormProps) {
                     </button>
                   )}
                 </div>
+
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/*
+        แถบบันทึกติดล่างจอ — มือถือเท่านั้น
+
+        🛑 ต้องเป็น fixed และอยู่ "นอกการ์ด" — รอบแรกทำเป็น sticky ไว้ในการ์ดแล้วพัง: มันไปลอย
+        ทับช่องกรอกที่เหลือกลางฟอร์ม ดูเหมือนปุ่มหลงมาอยู่ผิดที่ (เห็นในสกรีนช็อตจริง 2026-08-01)
+        เพราะ sticky ยังนับเป็นลูกของการ์ด จึงเลื่อนทับพี่น้องตัวเองในการ์ดเดียวกัน
+
+        HR7 arbitrary (carve-out safe-area): bottom = calc(4rem + env(safe-area-inset-bottom))
+        ยกตัวเองพ้น SellerBottomNav ซึ่ง fixed สูง 64px + safe-area
+        (ดู .seller-mobile-shell ใน src/assets/css/safepay-overrides.css)
+        ไม่มี token ของ Paces แทนได้ เพราะอิงความสูง component ของเราเอง + ค่าจากตัวเครื่อง
+
+        z-20: ต่ำกว่า SellerBottomNav (z-30) จึงไม่มีทางบังเมนูล่าง แต่สูงกว่าเนื้อหาปกติ
+      */}
+      <div
+        className="bg-card border-default-200 fixed inset-x-0 z-20 border-t px-4 py-3 lg:hidden"
+        style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
+      >
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="btn bg-primary hover:bg-primary-hover inline-flex w-full items-center justify-center gap-2 py-3 text-white disabled:opacity-60"
+        >
+          {isSubmitting ? (
+            <>
+              <Icon icon="loader-2" className="animate-spin" />
+              กำลังบันทึก...
+            </>
+          ) : (
+            <>
+              <Icon icon="device-floppy" />
+              {isExisting ? 'บันทึกการเปลี่ยนแปลง' : 'สร้างร้านค้า'}
+            </>
+          )}
+        </button>
+      </div>
+
     </form>
   )
 }

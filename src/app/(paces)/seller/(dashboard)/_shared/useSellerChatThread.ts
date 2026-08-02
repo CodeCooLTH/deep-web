@@ -15,12 +15,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatDate } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { CHAT_IMAGE_ALLOWED_TYPES } from '@/lib/chat-constants'
 import { playChatBeep } from '@/lib/chat-sound'
+import {
+  ATTACHMENT_MAX_SIZE,
+  BLOCKED_EXT,
+  attachmentKind,
+  extFromName,
+  type AttachmentKind,
+} from '@/lib/chat-attachment'
 
-// duplicate literal ของ lib/storage MAX_SIZE — ไม่ import '@/lib/storage' ฝั่ง client เพราะ barrel
-// นั้นดึง driver local/s3 (fs/server-only) เข้า client bundle ด้วย (เหตุผลเดียวกับไฟล์เดิมก่อน extract)
-const CHAT_IMAGE_MAX_SIZE = 5 * 1024 * 1024
+// chat-attachment.ts เป็น pure module จึง import ฝั่ง client ได้ (ต่างจาก '@/lib/storage' ที่ barrel
+// ดึง driver local/s3 (fs/server-only) เข้า client bundle) — เพดาน/deny-list จึงไม่ต้อง duplicate อีก
 
 // extension #1 Chat Product Context Card (S-18/S-21) — enrich payload ต่อข้อความ type='PRODUCT'
 // จาก GET .../messages (route.ts ทำ batch fetch productMap แล้วแนบเข้าแต่ละ item); null = ลบสินค้าจริง
@@ -46,7 +51,15 @@ export type ChatOrderCard = {
 // optimistic send (composer UX): payload ที่ใช้ resend เมื่อกด "ลองใหม่"
 // imageUrl optional (ไม่ใส่เลยสำหรับ TEXT) — SendChatMessageSchema.imageUrl ไม่รับ null รับแค่ string/undefined
 // replyToMessageId (user 2026-07-25): ตอบทับข้อความ id นี้ — route resolve → reply_to:{mid} ให้ Meta
-export type OutgoingRetry = { type: 'TEXT' | 'IMAGE'; body: string | null; imageUrl?: string; replyToMessageId?: string }
+export type OutgoingRetry = {
+  // VIDEO/AUDIO/FILE (2026-08-02 multi-attachment) — ร้านแนบไฟล์ทุกชนิดได้ ไม่ใช่แค่รูป
+  type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
+  body: string | null
+  imageUrl?: string
+  attachmentName?: string | null
+  attachmentSize?: number | null
+  replyToMessageId?: string
+}
 
 export type ChatMessageView = {
   /** ลำดับที่แถวถูกบันทึกจริง — ตัวตัดสินเมื่อ createdAt เท่ากัน (ดู schema.prisma ChatMessage.seq)
@@ -61,6 +74,10 @@ export type ChatMessageView = {
   type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'
   body: string | null
   imageUrl: string | null
+  // ไฟล์แนบ (2026-08-02) — ชื่อเดิม/ขนาดที่ผู้ส่งเลือก; null = ข้อความเก่าหรือไฟล์ที่ mirror มาจาก
+  // Messenger/IG (Meta ไม่ส่งชื่อมา) → UI fallback ด้วย attachmentDisplayName()
+  attachmentName?: string | null
+  attachmentSize?: number | null
   createdAt: string
   productCard?: ChatProductCard | null
   orderCard?: ChatOrderCard | null
@@ -75,6 +92,9 @@ export type ChatMessageView = {
   // feature 00023 — เหตุผลเบื้องหลังคำตอบครั้งนั้น (snapshot จาก AutoReplyLog ตอนตัดสินใจ)
   // แสดงตอนชี้/แตะที่ป้าย "ระบบตอบ"; ทุกฟิลด์ null ได้ = ตอนนั้นไม่ได้ใช้เงื่อนไขนั้น
   autoReply?: {
+    // "CHATBOT" = AI แต่งจากคลังความรู้ (ป้าย DeepAI) · อื่น ๆ/null = คำตอบสำเร็จรูป (DeepBot)
+    matchedVia: string | null
+    aiContext?: Record<string, unknown> | null
     keywordName: string | null
     matchedPhrase: string | null
     matchType: string | null
@@ -99,7 +119,40 @@ type MessagesApiResponse = {
   externalReadAt?: string | null
 }
 
-export type PendingImage = { fileId: string; previewUrl: string }
+/**
+ * ไฟล์ที่แนบไว้รอส่ง (2026-08-02 multi-attachment)
+ *
+ * ฟิลด์ที่เพิ่มเป็น optional ทั้งหมดโดยตั้งใจ — caller เดิม (ChatWidgetThreadPanel, การเลือกสินค้า,
+ * ข้อความสำเร็จรูป) สร้าง object นี้จาก fileId ตรง ๆ ไม่มี metadata ให้ใส่ ค่าที่ขาดจึง derive
+ * จากนามสกุลของ fileId แทน
+ */
+export type PendingAttachment = {
+  fileId: string
+  /** objectURL สำหรับรูป/วิดีโอ; ไฟล์ชนิดอื่นเป็น '' (ไม่มีอะไรให้พรีวิว) */
+  previewUrl: string
+  name?: string
+  size?: number
+  mime?: string
+  kind?: AttachmentKind
+}
+/** ชื่อเดิม — ChatWidgetThreadPanel และ caller อื่นยังอ้างชื่อนี้อยู่ */
+export type PendingImage = PendingAttachment
+
+/** kind ของไฟล์ที่แนบไว้ — ไม่มี metadata (caller เดิม) ก็เดาจากนามสกุลของ fileId ได้ */
+export function pendingKind(a: PendingAttachment): AttachmentKind {
+  return a.kind ?? attachmentKind(a.mime ?? '', extFromName(a.fileId))
+}
+
+/** ป้ายแทนเนื้อหาใน quote เมื่อข้อความที่ตอบทับไม่มี body (สื่อ/การ์ด) — TEXT ไม่มีในนี้โดยตั้งใจ
+ *  เพราะ TEXT มี body เสมอจึงไม่เคยตกมาถึง fallback */
+const QUOTE_LABEL: Record<string, string> = {
+  IMAGE: '[รูปภาพ]',
+  VIDEO: '[วิดีโอ]',
+  AUDIO: '[ข้อความเสียง]',
+  FILE: '[ไฟล์แนบ]',
+  ORDER: '[คำสั่งซื้อ]',
+  PRODUCT: '[สินค้า]',
+}
 
 /** จัดกลุ่มข้อความตามวัน — formatDate (sanctioned lib, ห้าม Intl ตรง ตาม date-format.md) */
 export function groupByDate(messages: ChatMessageView[]) {
@@ -128,6 +181,9 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   const [externalReadAt, setExternalReadAt] = useState<string | null>(null)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [uploading, setUploading] = useState(false)
+  // ความคืบหน้าเมื่อแนบหลายไฟล์ (2026-08-02) — boolean เดิมบอกได้แค่ "กำลังทำอะไรอยู่"
+  // ซึ่งไม่พอเมื่อคิวมี 8 ไฟล์และแต่ละไฟล์ใช้เวลาไม่เท่ากัน. null = ไม่ได้อัปโหลดอยู่
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
   // optimistic send: composer ไม่ block ระหว่างส่งอีกต่อไป (แต่ละบับเบิลมี _status ของตัวเอง) —
   // คง prop `sending` ไว้ให้ ChatWidgetThreadPanel เดิม (bubble widget) ที่ยังอ้างถึง = false เสมอ
   const sending = false
@@ -403,58 +459,102 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadOlder ผูก closure ของ oldestCursor/loadingOlder ปัจจุบันอยู่แล้ว
   }, [oldestCursor, messages.length])
 
-  // ── แนบรูป (auto-upload ทันที — pattern ProductImagesCardV2.tsx) ────
-  // upload รูป 1 ไฟล์ → คิว pendingImages (แชร์ทั้งปุ่มแนบไฟล์และวางรูป paste)
+  // ── แนบไฟล์ (auto-upload ทันที — pattern ProductImagesCardV2.tsx) ────
+  //
+  // 2026-08-02: เดิมรับแต่รูป jpg/png/webp ≤5MB — ตอนนี้รับทุกชนิดที่ไม่ติด deny-list ≤25MB
+  //
+  // แบ่งการตรวจ 2 ชั้นโดยตั้งใจ:
+  //   ที่นี่ = กฎที่ตัดสินได้โดยไม่ต้องรู้ช่องทาง (นามสกุลอันตราย/ขนาด) → บอกได้ทันทีไม่ต้องอัปโหลด
+  //   ที่ /api/chat/upload = กฎเฉพาะช่องทาง (IG รับแต่ PDF ฯลฯ) ซึ่ง route resolve channel เองได้
+  // จึงไม่ต้อง duplicate ความรู้เรื่องช่องทางมาไว้ฝั่ง client แล้วเสี่ยงให้สองที่ไม่ตรงกัน
   const uploadFile = async (file: File) => {
-    if (!(CHAT_IMAGE_ALLOWED_TYPES as readonly string[]).includes(file.type)) {
-      pacesToast.error('รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp)')
+    const ext = extFromName(file.name)
+    if (BLOCKED_EXT.includes(ext)) {
+      pacesToast.error(`ไฟล์ชนิด .${ext} ส่งไม่ได้ด้วยเหตุผลด้านความปลอดภัย`)
       return
     }
-    if (file.size > CHAT_IMAGE_MAX_SIZE) {
-      pacesToast.error('รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp) ขนาดไม่เกิน 5MB')
+    if (file.size > ATTACHMENT_MAX_SIZE) {
+      pacesToast.error(`"${file.name}" ใหญ่เกิน 25MB`)
       return
     }
-    const previewUrl = URL.createObjectURL(file)
+    const kind = attachmentKind(file.type, ext)
+    // objectURL เฉพาะชนิดที่พรีวิวได้จริง — ไฟล์เอกสารสร้างไปก็ไม่มีใครใช้ แถมต้องคอย revoke
+    const previewUrl = kind === 'IMAGE' || kind === 'VIDEO' ? URL.createObjectURL(file) : ''
     setUploading(true)
+    setUploadProgress((p) => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + 1 }))
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error('upload failed')
-      const data: { fileId: string } = await res.json()
-      setPendingImages((prev) => [...prev, { fileId: data.fileId, previewUrl }])
-    } catch {
-      pacesToast.error('อัปโหลดรูปไม่สำเร็จ ลองใหม่อีกครั้ง')
-      URL.revokeObjectURL(previewUrl)
+      const res = await fetch(`/api/chat/upload?conversationId=${encodeURIComponent(conversationId)}`, {
+        method: 'POST',
+        body: fd,
+      })
+      if (!res.ok) {
+        // route คืนเหตุผลไทยที่พร้อมโชว์ (checkChannelSupport) — ใช้ของจริงดีกว่าข้อความกลาง ๆ
+        const data = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(data?.error || 'อัปโหลดไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง')
+      }
+      const data: { fileId: string; name: string; size: number; mime: string; kind: AttachmentKind } =
+        await res.json()
+      setPendingImages((prev) => [
+        ...prev,
+        { fileId: data.fileId, previewUrl, name: data.name, size: data.size, mime: data.mime, kind: data.kind },
+      ])
+    } catch (err) {
+      pacesToast.error(err instanceof Error ? err.message : 'อัปโหลดไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง')
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    } finally {
+      setUploadProgress((p) => {
+        const done = (p?.done ?? 0) + 1
+        const total = p?.total ?? done
+        // ครบชุดแล้ว → ล้างตัวนับ (ชุดถัดไปเริ่มนับใหม่ ไม่สะสมข้ามการแนบ)
+        return done >= total ? null : { done, total }
+      })
+    }
+  }
+
+  /** อัปโหลดหลายไฟล์ — เรียงทีละไฟล์ ไม่ Promise.all: ลำดับในคิวต้องตรงกับลำดับที่ผู้ใช้เลือก
+   *  เพราะคิวนี้กลายเป็นลำดับข้อความที่ลูกค้าเห็น (pattern เดียวกับ QuickMessageManager) */
+  const uploadFiles = async (files: File[]) => {
+    if (files.length === 0) return
+    setUploadProgress({ done: 0, total: 0 })
+    try {
+      for (const f of files) await uploadFile(f)
     } finally {
       setUploading(false)
+      setUploadProgress(null)
     }
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+    const files = Array.from(e.target.files ?? [])
     e.target.value = '' // reset — เลือกไฟล์เดิมซ้ำได้
-    if (!file) return
-    await uploadFile(file)
+    await uploadFiles(files)
   }
 
-  // วางรูปจากคลิปบอร์ด (user request 2026-07-25: paste จาก screenshot/Line/Ctrl+C ลงช่องพิมพ์ได้เลย)
-  // แนบทุกรูปในคลิปบอร์ด (บางเคสมีหลายรูป); ถ้ามีรูป → preventDefault กันวางเป็น path/ข้อความในช่อง
+  // วางไฟล์จากคลิปบอร์ด (user request 2026-07-25: paste จาก screenshot/Line/Ctrl+C ลงช่องพิมพ์ได้เลย)
+  // 2026-08-02: เดิมกรองเฉพาะ image/* — ตอนนี้รับทุกชนิด (คัดลอกไฟล์จาก Finder/Explorer มาวางได้)
   const handlePaste = async (e: React.ClipboardEvent) => {
     const files = Array.from(e.clipboardData?.items ?? [])
-      .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+      .filter((it) => it.kind === 'file')
       .map((it) => it.getAsFile())
       .filter((f): f is File => f !== null)
-    if (files.length === 0) return // ไม่มีรูป → ปล่อยวางข้อความปกติ
+    if (files.length === 0) return // ไม่มีไฟล์ → ปล่อยวางข้อความปกติ
     e.preventDefault()
-    for (const f of files) await uploadFile(f)
+    await uploadFiles(files)
+  }
+
+  /** ลากไฟล์มาวางในเธรด (user สั่ง 2026-08-02) — ใช้เส้นทางอัปโหลดเดียวกับปุ่มแนบ/paste */
+  const handleDropFiles = async (files: FileList | null) => {
+    await uploadFiles(Array.from(files ?? []))
   }
 
   /** ไม่ระบุ fileId = ล้างทั้งคิว (ปุ่มเดิมของ ChatWidgetThreadPanel ที่มีรูปได้ทีละใบ) */
   const handleRemoveImage = (fileId?: string) => {
     setPendingImages((prev) => {
       const removed = fileId ? prev.filter((p) => p.fileId === fileId) : prev
-      for (const img of removed) URL.revokeObjectURL(img.previewUrl)
+      // previewUrl ว่างได้ตั้งแต่ 2026-08-02 (ไฟล์เอกสารไม่มีอะไรให้พรีวิว) — ไม่มี objectURL ให้คืน
+      for (const img of removed) if (img.previewUrl) URL.revokeObjectURL(img.previewUrl)
       return fileId ? prev.filter((p) => p.fileId !== fileId) : []
     })
   }
@@ -473,7 +573,14 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           body: JSON.stringify(payload),
         })
         if (!res.ok) {
-          if (res.status === 429) pacesToast.error('ส่งข้อความถี่เกินไป กรุณารอสักครู่')
+          if (res.status === 429) {
+            pacesToast.error('ส่งข้อความถี่เกินไป กรุณารอสักครู่')
+          } else {
+            // บอกสาเหตุทันทีตอนกดส่ง/กดลองใหม่ (user 2026-08-02) — เดิมเงียบ เห็นแค่บับเบิลแดง
+            // แล้วต้องรอ GET รอบถัดไปถึงจะรู้ว่าทำไม. route ตอบเป็นไทยแล้ว (chat-send-failure.ts)
+            const body = await res.json().catch(() => null)
+            pacesToast.error(body?.error ?? 'ส่งข้อความไม่สำเร็จ')
+          }
           setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const } : m)))
           return
         }
@@ -505,12 +612,16 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     //
     // ผลข้างเคียงที่ตั้งใจ: เธรดในแอป (DEEP) เดิมรูป+caption อยู่บับเบิลเดียวกัน ตอนนี้แยกเป็น
     // บับเบิลรูปกับบับเบิลข้อความ — ยอมแลกเพื่อให้ลำดับ/หน้าตาตรงกันทุกช่องทาง
+    //
+    // 2026-08-02: type ของแต่ละใบมาจากชนิดไฟล์จริง ไม่ใช่ 'IMAGE' ตายตัวเหมือนเดิม
     const payloads: OutgoingRetry[] =
       pendingImages.length > 0
         ? [
-            ...pendingImages.map((img) => ({
-              type: 'IMAGE' as const,
-              imageUrl: img.fileId,
+            ...pendingImages.map((a) => ({
+              type: pendingKind(a),
+              imageUrl: a.fileId,
+              attachmentName: a.name ?? null,
+              attachmentSize: a.size ?? null,
               body: null,
             })),
             ...(trimmed ? [{ type: 'TEXT' as const, body: trimmed }] : []),
@@ -523,13 +634,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
       ? {
           body:
             replyingTo.body ??
-            (replyingTo.type === 'IMAGE'
-              ? '[รูปภาพ]'
-              : replyingTo.type === 'ORDER'
-                ? '[คำสั่งซื้อ]'
-                : replyingTo.type === 'PRODUCT'
-                  ? '[สินค้า]'
-                  : '[สื่อ/ไฟล์แนบ]'),
+            (QUOTE_LABEL[replyingTo.type] ?? '[สื่อ/ไฟล์แนบ]'),
           senderRole: replyingTo.senderRole,
         }
       : null
@@ -546,6 +651,9 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         type: payload.type,
         body: payload.body,
         imageUrl: payload.imageUrl ?? null,
+        // ต้องพกไปด้วย ไม่งั้นชิปไฟล์บนบับเบิล optimistic ขึ้นชื่อว่างจนกว่า POST จะกลับ
+        attachmentName: payload.attachmentName ?? null,
+        attachmentSize: payload.attachmentSize ?? null,
         createdAt: new Date().toISOString(),
         // quote แสดงทันทีบนบับเบิลใบแรก (i===0) ก่อน GET enrich รอบถัดไป
         replyTo: i === 0 ? replyQuote : null,
@@ -558,7 +666,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     setMessages((prev) => [...prev, ...queued.map((q) => q.optimistic)])
     setText('')
     // บับเบิล optimistic render รูปจาก /api/files/{fileId} (อัปโหลดแล้วตอนแนบ) — revoke preview ได้เลย
-    for (const img of pendingImages) URL.revokeObjectURL(img.previewUrl)
+    for (const img of pendingImages) if (img.previewUrl) URL.revokeObjectURL(img.previewUrl)
     setPendingImages([])
     scrollToBottom()
     // ส่งเรียงทีละใบ (ไม่ Promise.all) — ให้ลำดับข้อความฝั่งลูกค้าตรงกับลำดับรูปที่แนบ และไม่ยิง
@@ -585,6 +693,75 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     [postMessage],
   )
 
+  /**
+   * ส่งซ้ำข้อความที่ "บันทึกลง DB แล้วแต่ยิงออกช่องทางนอกไม่สำเร็จ" (deliveryStatus='FAILED')
+   * — คนละเคสกับ retryMessage ข้างบนซึ่งเป็นบับเบิล optimistic ที่ยังไม่เคยถึง server (user 2026-08-02)
+   *
+   * ทำไมถึงเป็น "ข้อความใหม่" ไม่ใช่แก้แถวเดิมให้กลายเป็นสำเร็จ: ChatMessage ประกาศตัวเองว่า
+   * append-only (schema.prisma:1411 "ไม่มี updatedAt/edit/delete") — บับเบิลที่ยิงไม่ออกคือเหตุการณ์
+   * ที่เกิดขึ้นจริงและร้านควรเห็นว่าเกิด ส่วนครั้งที่ส่งใหม่ก็เป็นอีกเหตุการณ์หนึ่ง. ผลพลอยได้คือ
+   * ภาพก่อน/หลังรีเฟรชตรงกันเสมอ (ถ้าลบบับเบิลเก่าทิ้งฝั่ง client มันจะโผล่กลับมาตอนโหลดใหม่)
+   */
+  const resendMessage = useCallback(
+    (payload: OutgoingRetry) => {
+      const localId = `local-${localIdRef.current++}-${Date.now()}`
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: localId,
+          conversationId,
+          senderUserId: '',
+          senderRole: 'SHOP',
+          type: payload.type,
+          body: payload.body,
+          imageUrl: payload.imageUrl ?? null,
+          createdAt: new Date().toISOString(),
+          replyTo: null,
+          _status: 'sending',
+          _retry: payload,
+        } as ChatMessageView,
+      ])
+      scrollToBottom()
+      void postMessage(localId, payload)
+    },
+    [conversationId, postMessage, scrollToBottom],
+  )
+
+  /**
+   * ยกเลิกข้อความที่ส่งไม่สำเร็จ — เอาบับเบิลออกจากเธรด (user สั่ง 2026-08-02)
+   *
+   * 2 เส้นทางตาม "แถวนี้ถูกบันทึกลง DB แล้วหรือยัง":
+   *   - บับเบิล optimistic (id ขึ้นต้น local-) ยังไม่เคยถึง server → ลบจาก state พอ ไม่ต้องยิง API
+   *   - แถวจริง → DELETE ที่ server ก่อน แล้วค่อยเอาออกจาก state **เมื่อสำเร็จเท่านั้น**
+   *     ถ้าเอาออกก่อนแล้ว API ล้ม บับเบิลจะโผล่กลับมาตอนรีเฟรช = ผู้ขายเข้าใจว่ายกเลิกแล้วทั้งที่ยัง
+   *
+   * คืน true เมื่อบับเบิลหายจริง — ให้ caller ตัดสินใจเรื่อง feedback เอง
+   */
+  const cancelMessage = useCallback(
+    async (messageId: string): Promise<boolean> => {
+      if (messageId.startsWith('local-')) {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        return true
+      }
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages/${messageId}`, {
+          method: 'DELETE',
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'ยกเลิกข้อความไม่สำเร็จ')
+          return false
+        }
+        setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        return true
+      } catch {
+        pacesToast.error('ยกเลิกข้อความไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        return false
+      }
+    },
+    [conversationId],
+  )
+
   return {
     messages,
     oldestCursor,
@@ -592,6 +769,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     loadingOlder,
     sending,
     uploading,
+    /** {done,total} ระหว่างแนบหลายไฟล์ — null เมื่อไม่ได้อัปโหลด (2026-08-02) */
+    uploadProgress,
     errorState,
     text,
     setText,
@@ -604,7 +783,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     scrollRef,
     topSentinelRef,
     handleFileChange,
-    handlePaste, // วางรูปจากคลิปบอร์ดลงช่องพิมพ์ (user 2026-07-25)
+    handlePaste, // วางไฟล์จากคลิปบอร์ดลงช่องพิมพ์ (user 2026-07-25; ขยายเป็นทุกชนิด 2026-08-02)
+    handleDropFiles, // ลากไฟล์มาวางในเธรด (user 2026-08-02)
     handleRemoveImage,
     handleSend,
     // reply/quote (user 2026-07-25) — ข้อความที่กำลังตอบทับ + setter (composer preview + ปุ่ม reply บนบับเบิล)
@@ -612,6 +792,10 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     setReplyingTo,
     // optimistic send — resend เมื่อบับเบิล _status='failed'
     retryMessage,
+    // ส่งซ้ำแถวที่บันทึกแล้วแต่ deliveryStatus='FAILED' (ปุ่ม "ลองใหม่" ใต้บับเบิลแดง)
+    resendMessage,
+    // ยกเลิกข้อความที่ส่งไม่สำเร็จ — เอาบับเบิลออกจากเธรด (รองรับทั้ง optimistic และแถวจริง)
+    cancelMessage,
     /** read receipt (feature 00018) — สดจาก GET ล่าสุด; caller ควรใช้ค่านี้แทน server prop ตอนเปิดหน้า
      *  เพราะ read event มาทีหลังทาง webhook โดยไม่ทริกเกอร์ realtime (ดู comment ที่ route GET) */
     externalReadAt,

@@ -1419,9 +1419,15 @@ model ChatMessage {
   // senderRole: derive จาก conversation ตอนส่งเสมอ — snapshot กัน role drift ถ้าอนาคต user เปลี่ยนบทบาท (FR-CHAT-04-AC-03)
   senderRole       String // "BUYER" | "SHOP"
   // type/body/imageUrl: String ไม่ใช่ enum (เดินตาม convention เดิมของ Order.status/Product.type — ค่า user-facing ที่ validate ที่ Valibot)
-  type             String   @default("TEXT") // "TEXT" | "IMAGE" | "PRODUCT"
+  type             String   @default("TEXT") // "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "PRODUCT" | "ORDER"
   body             String? // TEXT: เนื้อหาข้อความ (cap ความยาวที่ app layer, BR-CHAT-06); IMAGE: caption (optional)
-  imageUrl         String? // เฉพาะ type=IMAGE — reuse lib/storage upload route เดิม
+  imageUrl         String? // fileId ของ storage — ใช้ร่วมกันทุกชนิดไฟล์แนบ (IMAGE/VIDEO/AUDIO/FILE) ไม่ใช่แค่รูป
+  // ไฟล์แนบหลายชนิด (2026-08-02, multi-attachment) — ชื่อไฟล์เดิมที่ผู้ส่งเลือก + ขนาด ณ ตอนส่ง
+  // ต้องเก็บเพราะ storage ตั้งชื่อจริงเป็น YYYY/MM/DD/uuid.ext ชื่อเดิมจึงหายไปทั้งหมด
+  // null = ข้อความก่อนฟีเจอร์นี้ หรือไฟล์ที่ mirror มาจาก Messenger/IG (Meta ไม่ส่งชื่อไฟล์มากับ webhook)
+  // → UI fallback เป็น "ไฟล์แนบ.<ext>" ผ่าน attachmentDisplayName() ไม่โชว์ uuid
+  attachmentName   String?
+  attachmentSize   Int?
   // productRefId: extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type=PRODUCT
   // nullable FK, onDelete SetNull — สินค้าถูกลบไม่ลบข้อความในเธรด (BR-CTX-04 ไม่ snapshot, live-join)
   productRefId     String?
@@ -1471,6 +1477,9 @@ model ChatMessage {
 
   @@index([conversationId, createdAt]) // thread pagination cursor-based เรียงเก่า→ใหม่ (FR-CHAT-08-AC-01/FR-CHAT-10-AC-01)
   @@index([conversationId, autoReplyKind, createdAt]) // หา "ข้อความคนล่าสุด" ของเธรด (feature 00023)
+  // lookup ย้อนกลับ fileId → ข้อความ สำหรับ auth gate ของเอกสารแนบใน /api/files (2026-08-02)
+  // ไม่มี index นี้ = full scan ของตารางที่ใหญ่ที่สุดในระบบ ทุกครั้งที่มีคนเปิดไฟล์
+  @@index([imageUrl])
 }
 
 // QuickMessage — ข้อความสำเร็จรูป (canned reply) ระดับร้าน (feature 00018 composer improvement #2)
@@ -1961,6 +1970,27 @@ model AutoReplyConfig {
 
   /// ช่วงเวลาที่ให้ ChatBot ทำงาน — null = ตลอดเวลา (รูปแบบเดียวกับ activeSchedule ของบอท)
   /// เก็บเป็น HH:mm เวลาไทย · ข้ามเที่ยงคืนได้ (18:00-09:00 = ทำงานตอนร้านหลับ)
+  /// true = ตอบเฉพาะเรื่องของร้าน คำถามนอกเรื่องตอบด้วย aiChatbotOutOfScopeText แล้วจบ
+  aiChatbotShopOnly       Boolean @default(false)
+  aiChatbotOutOfScopeText String? @db.Text
+  /// คำสั่งเพิ่มเติมที่ร้านเขียนเอง — ฉีดเข้า prompt เป็นข้อบังคับ ไม่ใช่แค่น้ำเสียง
+  /// (ต่างจาก aiChatbotTone ที่ prompt จัดให้อยู่ใต้กฎข้อมูลเสมอ)
+  aiChatbotExtraPrompt    String? @db.Text
+  /// สิ่งที่ทำเมื่อคลังความรู้ตอบคำถามนั้นไม่ได้ (user สั่ง 2026-08-01 "อยากให้ตอบทุกคำถาม")
+  /// SILENT  = เงียบตามเดิม
+  /// MESSAGE = ส่งข้อความสำรองที่ร้านเขียนไว้ (ค่าเริ่มต้น — ลูกค้าไม่ถูกปล่อยทิ้ง และไม่เสี่ยงแต่งเรื่อง)
+  /// AI_FREE = ให้ AI ตอบเองจากความรู้ทั่วไป (ยังห้ามแต่งราคา/เงื่อนไขของร้าน)
+  aiChatbotFallbackMode String  @default("MESSAGE")
+  aiChatbotFallbackText String? @db.Text
+  /// แหล่งข้อมูลประกอบการตอบ — ของร้านเองเปิดไว้, ค้นเว็บต้องกดเปิดเอง (มีค่าใช้จ่าย + ข้อมูลนอกร้าน)
+  aiChatbotUseShopData    Boolean @default(true)
+  aiChatbotUseChatHistory Boolean @default(true)
+  aiChatbotUseWebSearch   Boolean @default(false)
+  /// เว้นระยะขั้นต่ำระหว่างคำตอบของ ChatBot ในห้องเดียวกัน (วินาที) — 0 = ไม่เว้น
+  /// คนละตัวกับ cooldown ของกลุ่มคำ เพราะ ChatBot ทำงานตอนไม่เข้ากลุ่มไหนเลย
+  aiChatbotCooldownSec Int @default(30)
+  /// เพดานจำนวนครั้งที่ ChatBot ตอบได้ต่อห้องต่อชั่วโมง — 0 = ไม่จำกัด
+  aiChatbotMaxPerHour  Int @default(10)
   aiChatbotStartTime String?
   aiChatbotEndTime   String?
 
@@ -2111,6 +2141,13 @@ model AutoReplyGuardrail {
   denyPhrases String[] @default([])
 
   /// มาจากชุดเริ่มต้น 6 ข้อของ SafePay หรือร้านพิมพ์เอง — copy-by-value ตอนเปิดสวิตช์ครั้งแรก
+  /// BLOCK = ชนแล้วไม่ส่งอะไรเลย ส่งต่อคน · AVOID = ยังตอบ แต่สั่ง AI ว่าห้ามพูดแบบนี้
+  ///
+  /// สองอย่างนี้แก้ปัญหาคนละแบบ: BLOCK ใช้กับเรื่องที่ร้านผูกพันตามกฎหมาย (คืนเงิน เคลม)
+  /// AVOID ใช้กับ "พูดแบบนั้นแล้วเสียลูกค้า" เช่นตอบว่าไม่มีข้อมูลแล้วจบบทสนทนา
+  /// ซึ่งการบล็อกจนเงียบยิ่งแย่กว่าเดิม
+  mode String @default("BLOCK")
+
   isFromDefaultSet Boolean @default(false)
 
   isActive Boolean @default(true)
@@ -2311,6 +2348,9 @@ model AutoReplyLog {
   // การ backfill จะทำให้แยกไม่ออกระหว่างแถวที่ "รู้จริง" กับแถวที่ "เดาให้" ซึ่งเป็นสิ่งเดียวที่
   // ตารางบันทึกมีไว้ทำ (ป้าย DeepBot ในห้องแชทอ่านคอลัมน์นี้ตรง ๆ เพื่อบอกที่มาของคำตอบ)
   matchedVia String?
+  /// ข้อมูลที่ AI ใช้ประกอบการตอบครั้งนั้น (feature 00023) — ใช้ตอบคำถาม "ทำไมตอบแบบนี้"
+  /// 🛑 ห้ามเก็บข้อความลูกค้า/PII ลงคอลัมน์นี้ เก็บเฉพาะ "ใช้อะไรบ้าง"
+  aiContext  Json?
   // ข้อในคลังที่ถูกใช้ตอบครั้งนั้น — SetNull เพราะลบข้อในคลังไม่ควรลบบันทึกว่าเคยตอบด้วยข้อนั้น
   qnaId      String?
 

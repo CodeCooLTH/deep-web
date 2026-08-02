@@ -20,6 +20,8 @@ export const GUARDRAIL_MAX_PER_KEYWORD = 30
 export interface GuardrailItem {
   id: string
   rule: string
+  /** 'BLOCK' = ชนแล้วเงียบ · 'AVOID' = ยังตอบ แต่ห้ามพูดแบบนั้น */
+  mode: string
   denyPhrases: string[]
   isFromDefaultSet: boolean
   isActive: boolean
@@ -41,7 +43,7 @@ async function assertKeywordOwned(keywordId: string, shopId: string): Promise<vo
 export async function listShopGuardrails(shopId: string): Promise<GuardrailItem[]> {
   return prisma.autoReplyGuardrail.findMany({
     where: { shopId, keywordId: null },
-    select: { id: true, rule: true, denyPhrases: true, isFromDefaultSet: true, isActive: true },
+    select: { id: true, rule: true, mode: true, denyPhrases: true, isFromDefaultSet: true, isActive: true },
     orderBy: [{ isFromDefaultSet: 'desc' }, { createdAt: 'asc' }],
   })
 }
@@ -59,6 +61,7 @@ export async function ensureShopDefaultGuardrails(
         shopId,
         keywordId: null,
         rule: g.rule,
+        mode: g.mode ?? 'BLOCK',
         denyPhrases: g.denyPhrases,
         isFromDefaultSet: true,
         createdByUserId: actorUserId,
@@ -75,7 +78,7 @@ export async function listGuardrails(keywordId: string, shopId: string): Promise
   await assertKeywordOwned(keywordId, shopId)
   const rows = await prisma.autoReplyGuardrail.findMany({
     where: { keywordId, shopId },
-    select: { id: true, rule: true, denyPhrases: true, isFromDefaultSet: true, isActive: true },
+    select: { id: true, rule: true, mode: true, denyPhrases: true, isFromDefaultSet: true, isActive: true },
     // ชุดเริ่มต้นอยู่บน แล้วเรียงตามเวลาที่เพิ่ม — ร้านที่เพิ่มเองจะเห็นของตัวเองต่อท้ายเสมอ
     orderBy: [{ isFromDefaultSet: 'desc' }, { createdAt: 'asc' }],
   })
@@ -118,7 +121,7 @@ export async function createGuardrail(
 /** เพิ่มกฎระดับร้าน (keywordId = null) — ใช้กับ ChatBot */
 export async function createShopGuardrail(
   shopId: string,
-  input: { rule: string; denyPhrases?: string[] },
+  input: { rule: string; denyPhrases?: string[]; mode?: string },
   actorUserId: string
 ): Promise<{ id: string }> {
   const rule = validateRule(input.rule)
@@ -129,6 +132,7 @@ export async function createShopGuardrail(
       shopId,
       keywordId: null,
       rule,
+      mode: input.mode === 'AVOID' ? 'AVOID' : 'BLOCK',
       denyPhrases: (input.denyPhrases ?? []).map((p) => p.trim()).filter(Boolean),
       isFromDefaultSet: false,
       createdByUserId: actorUserId,
@@ -140,9 +144,10 @@ export async function createShopGuardrail(
 export async function updateGuardrail(
   guardrailId: string,
   shopId: string,
-  input: { rule?: string; denyPhrases?: string[]; isActive?: boolean }
+  input: { rule?: string; denyPhrases?: string[]; isActive?: boolean; mode?: string }
 ): Promise<void> {
-  const data: { rule?: string; denyPhrases?: string[]; isActive?: boolean } = {}
+  const data: { rule?: string; denyPhrases?: string[]; isActive?: boolean; mode?: string } = {}
+  if (input.mode !== undefined) data.mode = input.mode === 'AVOID' ? 'AVOID' : 'BLOCK'
   if (input.rule !== undefined) data.rule = validateRule(input.rule)
   if (input.denyPhrases !== undefined) {
     data.denyPhrases = input.denyPhrases.map((p) => p.trim()).filter(Boolean)
