@@ -83,6 +83,7 @@ import { generateInitials } from '@/utils/helpers'
 import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
+import { describeSendFailure } from '@/lib/chat-send-failure'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -459,15 +460,15 @@ function formatCountdown(ms: number): string {
   return h > 0 ? `${h} ชั่วโมง ${m} นาที ${s} วินาที` : `${m} นาที ${s} วินาที`
 }
 
-/** สี/ไอคอน banner 24h ของ tier "ใกล้หมด" (≤ 4 ชม.) + ข้อความ countdown สด — tier "เหลือเยอะ"
- *  ไม่แสดง banner เลย (user สั่ง 2026-07-26: ลดความเข้มข้นของการเตือน 24 ชม. ให้เหลือเฉพาะตอน
- *  ต่ำกว่า 4 ชม.), tier "หมดแล้ว"/TOKEN_INVALID ตัดสินที่ caller เพราะข้อความคงที่ ไม่ต้องคำนวณเวลา */
-function formatWindowBanner(msRemaining: number): { cls: string; icon: string; text: string } {
-  return {
-    cls: 'bg-warning/15 text-warning',
-    icon: 'alert-triangle',
-    text: `ใกล้หมดเวลาตอบ — เหลือ ${formatCountdown(msRemaining)}`,
-  }
+/** ถอยหลังแบบสั้น "H:MM:SS"/"MM:SS" — ใช้บนจอแคบที่หัวเธรดมีที่ไม่พอสำหรับรูปแบบเต็ม
+ *  (ตัวเต็มยังอยู่ใน title ของ element เสมอ ไม่ได้หายไปไหน) */
+function formatCountdownShort(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / SECOND_MS))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
 }
 
 /** avatar เล็ก — รูปจริง (http URL หรือ storage fileId) + fallback (default = initials; ส่ง fallback
@@ -741,6 +742,7 @@ export default function ChatThread({
     replyingTo,
     setReplyingTo,
     retryMessage,
+    resendMessage,
     externalReadAt: externalReadAtLive,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
@@ -885,7 +887,8 @@ export default function ChatThread({
           route group ไม่มี bottom nav/back header ของ (dashboard) แล้ว ต้องมีทางออกจากหน้าเธรด
           กลับไป /inbox ของตัวเอง (คนละปุ่มกับ "กลับหน้าหลัก" ที่ ChatHeader.tsx ซึ่งไป /dashboard) */}
       <div className="card-header">
-        <div className="flex items-center gap-3">
+        {/* min-w-0: ให้กลุ่มชื่อยุบได้เมื่อจอแคบ ไม่งั้นชื่อลูกค้ายาว ๆ จะดันตัวนับถอยหลังชิดขวาตกขอบ */}
+        <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/inbox"
             title="กลับรายการ"
@@ -902,6 +905,24 @@ export default function ChatThread({
             </div>
           </div>
         </div>
+
+        {/* นับถอยหลังหน้าต่าง 24 ชม. — อยู่ในแถบเดียวกับชื่อลูกค้า ชิดขวา (user สั่ง 2026-08-02)
+            เดิมเป็นแถบเหลืองเต็มความกว้างใต้หัวเธรด ซึ่งกินความสูงของพื้นที่อ่านข้อความตลอด 4 ชม.
+            สุดท้ายทั้งที่เป็นข้อมูล "เฝ้าดู" ไม่ใช่สิ่งที่ต้องอ่านเป็นย่อหน้า
+            เฉพาะ tier นี้เท่านั้นที่ย้ายขึ้นมา — tier "ส่งไม่ได้แล้ว"/token เสีย ยังเป็นแถบเต็ม
+            ด้านล่างเหมือนเดิม เพราะข้อความยาวและมีลิงก์ให้กด ย่อลงมาบรรทัดเดียวไม่ได้
+            ms-auto ตัวแรกกินที่ว่างทั้งหมด → ปุ่มถัดไปที่มี ms-auto อยู่แล้วไม่ขยับตำแหน่ง */}
+        {isExternal && !tokenInvalid && liveWindowOpen && liveRemaining <= FOUR_HOURS_MS && (
+          <span
+            className="text-warning ms-auto flex shrink-0 items-center gap-1.5 text-sm"
+            title={`ใกล้หมดเวลาตอบ — เหลือ ${formatCountdown(liveRemaining)}`}
+          >
+            <Icon icon="alert-triangle" className="shrink-0 text-base" />
+            {/* จอแคบเหลือ "เหลือ M:SS" — ยังเป็นคำ ไม่ใช่ไอคอนลอย ๆ ให้เดาความหมาย */}
+            <span className="lg:hidden">เหลือ {formatCountdownShort(liveRemaining)}</span>
+            <span className="hidden lg:inline">ใกล้หมดเวลาตอบ — เหลือ {formatCountdown(liveRemaining)}</span>
+          </span>
+        )}
 
         {/* ข้อมูลลูกค้า — ปุ่มมีป้ายกำกับที่หัวเธรด สำหรับช่วงที่คอลัมน์ขวายังไม่โผล่ (<1280px)
             user report 2026-08-01 (iPad Pro): "เปิดข้อมูลลูกค้าไม่ได้" ทั้งที่ปุ่มมีอยู่แล้ว —
@@ -1024,11 +1045,12 @@ export default function ChatThread({
         </div>
       )}
 
-      {/* feature 00018 T4 — แบนเนอร์ 24h window / token invalid (เฉพาะ channel != DEEP)
+      {/* feature 00018 T4 — แบนเนอร์ "ส่งไม่ได้แล้ว" / token invalid (เฉพาะ channel != DEEP)
           user สั่ง 2026-07-26 ให้ลดความเข้มข้นของการเตือน: window เปิดและเหลือ > 4 ชม. = ไม่แสดงอะไรเลย
           (เดิม BRD §6.5 ให้แสดงแถบฟ้าตลอดเวลา — รบกวนสายตาโดยไม่จำเป็นเพราะเคสปกติเหลือเวลาเยอะอยู่แล้ว)
-          เตือนเฉพาะตอนที่ผู้ขายต้องรีบจริง: ≤ 4 ชม. (warning) / หมดแล้ว (danger) / token เสีย (danger) */}
-      {isExternal && (tokenInvalid || !liveWindowOpen || liveRemaining <= FOUR_HOURS_MS) && (
+          user สั่ง 2026-08-02: tier "≤ 4 ชม." (นับถอยหลัง) ย้ายไปเป็นข้อความชิดขวาบนหัวเธรดแล้ว
+          เหลือที่นี่เฉพาะสถานะที่ "ส่งไม่ได้จริง" ซึ่งต้องอธิบายยาวและมีทางแก้ให้กด */}
+      {isExternal && (tokenInvalid || !liveWindowOpen) && (
         <div className="px-4 pt-4">
           {tokenInvalid ? (
             <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
@@ -1040,7 +1062,7 @@ export default function ChatThread({
                 </Link>
               </span>
             </div>
-          ) : !liveWindowOpen ? (
+          ) : (
             // แยก 3 เคส (user report 2026-07-24 / 2026-07-31):
             //   1. เธรดที่เกิดจากการตอบคอมเมนต์ — Meta ให้ตอบได้ 1 ข้อความ (private reply) แล้วต้อง
             //      รอลูกค้าตอบกลับ. ร้านเพิ่งส่งสำเร็จไปหยก ๆ การขึ้นแถบแดงจึงอ่านเหมือนระบบพัง
@@ -1076,16 +1098,6 @@ export default function ChatThread({
                 )}
               </span>
             </div>
-          ) : (
-            (() => {
-              const banner = formatWindowBanner(liveRemaining)
-              return (
-                <div className={`${banner.cls} flex items-start gap-2 rounded-lg px-3 py-2 text-sm`}>
-                  <Icon icon={banner.icon} className="mt-0.5 shrink-0 text-lg" />
-                  <span>{banner.text}</span>
-                </div>
-              )
-            })()
           )}
         </div>
       )}
@@ -1379,12 +1391,49 @@ export default function ChatThread({
                       )}
                       {/* feature 00018 T4 — badge "ส่งไม่สำเร็จ" ใต้ bubble (deliveryStatus='FAILED';
                           null สำหรับข้อความแชทในแอปเดิมทั้งหมด — เงื่อนไขนี้จึงไม่ trigger กับ DEEP) */}
-                      {mExt.deliveryStatus === 'FAILED' && (
-                        <div className="bg-danger/15 text-danger mt-1.5 flex items-start gap-1 rounded px-2 py-1 text-2xs">
-                          <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" />
-                          <span>ส่งไม่สำเร็จ — {mExt.failureReason ?? 'ไม่ทราบสาเหตุ'}</span>
-                        </div>
-                      )}
+                      {mExt.deliveryStatus === 'FAILED' &&
+                        (() => {
+                          // Meta ตอบ error เป็นภาษาอังกฤษเสมอแม้เพจตั้งภาษาไทย — เดิมโชว์ดิบ
+                          // ("(#551) This person isn't available right now.") ร้านอ่านไม่ออกว่า
+                          // ต้องทำอะไรต่อ (user report 2026-08-02) แปลตอนแสดงผล ส่วน DB ยังเก็บดิบไว้
+                          const fail = describeSendFailure(mExt.failureReason)
+                          // ส่งซ้ำได้เฉพาะชนิดที่ประกอบ payload กลับได้ครบจากแถวที่เก็บไว้ (user 2026-08-02):
+                          // TEXT ใช้ body, IMAGE ใช้ imageUrl (=fileId ที่ยังอยู่ใน storage). ORDER เก็บแต่
+                          // orderRefToken ส่วนข้อความลิงก์ที่ยิงจริงประกอบขึ้นตอนส่งและไม่ได้เก็บไว้ →
+                          // ส่งซ้ำจากตรงนี้ไม่ได้ ต้องส่งการ์ดใหม่จากออเดอร์
+                          const canResend =
+                            (m.type === 'TEXT' && !!m.body?.trim()) || (m.type === 'IMAGE' && !!m.imageUrl)
+                          return (
+                            <div className="bg-danger/15 text-danger mt-1.5 flex items-start gap-1 rounded px-2 py-1 text-2xs">
+                              <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" />
+                              <span>
+                                {fail.message}
+                                {/* คงเลข error ไว้ให้ร้านแจ้งซัพพอร์ตอ้างอิงได้ (เฉพาะกรณีที่แปลแล้ว —
+                                    กรณีไม่รู้จักเลขอยู่ในข้อความดิบอยู่แล้ว จะซ้ำ) */}
+                                {fail.known && fail.metaCode !== null && (
+                                  <span className="opacity-70"> (Meta #{fail.metaCode})</span>
+                                )}
+                                {canResend && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      resendMessage({
+                                        type: m.type === 'IMAGE' ? 'IMAGE' : 'TEXT',
+                                        body: m.body,
+                                        ...(m.type === 'IMAGE' ? { imageUrl: m.imageUrl! } : {}),
+                                      })
+                                    }
+                                    // -my-1 กันไม่ให้ padding ที่ใส่เพื่อขยายพื้นที่กดดันแถบสูงขึ้น
+                                    className="ms-1 -my-1 inline-flex items-center gap-0.5 px-1 py-1 font-medium hover:underline"
+                                  >
+                                    <Icon icon="refresh" />
+                                    ลองใหม่
+                                  </button>
+                                )}
+                              </span>
+                            </div>
+                          )
+                        })()}
                       {/* meta row (user request 2026-07-23): เวลาเป็นกลุ่ม (ท้าย burst, ไม่ทุกข้อความ) +
                           avatar เพจ/ร้าน ย้ายมาอยู่ใต้ข้อความ ขนาดเล็ก (size-5) + สถานะส่ง/อ่าน.
                           กำลังส่ง = ไม่มีเวลา; ข้อความล่าสุดซ่อนเวลาหลังส่งเกิน 1 นาที */}
