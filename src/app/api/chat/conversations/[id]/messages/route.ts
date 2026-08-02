@@ -11,12 +11,27 @@ import { sendOutboundMessage, syncMissingMessagesFromMeta } from "@/services/cha
 import { getProductsByIds } from "@/services/product.service";
 import { pushNewChatMessage } from "@/services/seller-push.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
-import { CHAT_RATE_LIMIT_MAX, CHAT_RATE_LIMIT_WINDOW_MS } from "@/lib/chat-constants";
+import {
+  CHAT_RATE_LIMIT_MAX,
+  CHAT_RATE_LIMIT_MAX_SHOP,
+  CHAT_RATE_LIMIT_WINDOW_MS,
+} from "@/lib/chat-constants";
 import { describeSendFailure } from "@/lib/chat-send-failure";
+import { EXT_TO_MIME } from "@/lib/attachment-mime";
+import {
+  attachmentKind,
+  checkChannelSupport,
+  sanitizeAttachmentName,
+  type AttachmentKind,
+} from "@/lib/chat-attachment";
 
-// นามสกุลไฟล์ที่ยอมรับสำหรับ chat IMAGE — subset แคบกว่า lib/storage ALLOWED_TYPES กลาง
-// (ตัด application/pdf ออก ดู SRS TFR-CHAT-05); เทียบกับ CHAT_IMAGE_ALLOWED_TYPES ใน chat-constants.ts
-const CHAT_IMAGE_ALLOWED_EXT = ["jpg", "jpeg", "png", "webp"];
+// ชนิดข้อความที่ "มีไฟล์แนบ" — ตรวจกฎชุดเดียวกันหมด (2026-08-02 multi-attachment)
+// เดิมมีแต่ IMAGE ที่ตรวจด้วย allow-list นามสกุลรูปตายตัว (CHAT_IMAGE_ALLOWED_EXT) — ถอดออกแล้ว
+// เพราะกฎย้ายไปอยู่ที่ checkChannelSupport ซึ่งรู้ทั้งชนิดไฟล์และช่องทางปลายทาง
+const ATTACHMENT_TYPES = ["IMAGE", "VIDEO", "AUDIO", "FILE"] as const;
+function isAttachmentType(t: string): t is AttachmentKind {
+  return (ATTACHMENT_TYPES as readonly string[]).includes(t);
+}
 
 function mapChatServiceError(e: unknown, context: string) {
   if (e instanceof Error && e.message === "CONVERSATION_NOT_FOUND") {
@@ -181,7 +196,14 @@ export async function GET(
       // ข้อความสื่อ/การ์ด (body=null) → แสดง label แทนช่องว่างใน quote
       const label =
         r.body ??
-        (r.type === "IMAGE" ? "[รูปภาพ]" : r.type === "ORDER" ? "[คำสั่งซื้อ]" : r.type === "PRODUCT" ? "[สินค้า]" : null);
+        ({
+          IMAGE: "[รูปภาพ]",
+          VIDEO: "[วิดีโอ]",
+          AUDIO: "[ข้อความเสียง]",
+          FILE: "[ไฟล์แนบ]",
+          ORDER: "[คำสั่งซื้อ]",
+          PRODUCT: "[สินค้า]",
+        }[r.type] ?? null);
       const entry = { body: label, senderRole: r.senderRole as "BUYER" | "SHOP" };
       if (r.externalMessageId) repliedMap.set(r.externalMessageId, entry);
       repliedMap.set(r.id, entry);
@@ -242,8 +264,19 @@ export async function POST(
   const userId = (session.user as any).id as string;
   const { id } = await params;
 
+  // derive senderRole จาก subdomain — ห้ามรับจาก client (SRS §10)
+  // ต้อง derive ก่อน rate-limit เพราะเพดานแยกตามบทบาท (ดูบล็อกถัดไป)
+  const host = request.headers.get("host") || "";
+  const senderRole: SenderRole = getSubdomain(host) === "seller" ? "SHOP" : "BUYER";
+
   // per-user chat-send rate-limit — ชั้นที่ 2 แยกจาก global per-IP ของ proxy.ts (API.md §6)
-  if (!checkApiRateLimit(`chat-send:${userId}`, CHAT_RATE_LIMIT_MAX, CHAT_RATE_LIMIT_WINDOW_MS)) {
+  //
+  // เพดานแยกตามบทบาท (2026-08-02): เจตนาเดิมของ BR-CHAT-07 คือกัน "buyer สแปมร้าน"
+  // (PRD 00011 ตาราง Risks) แต่พอ multi-attachment ทำให้ 1 ไฟล์ = 1 ข้อความ ร้านที่แนบไฟล์
+  // รวดเดียวหลายสิบไฟล์จะโดนกฎที่ตั้งมากันลูกค้า เล่นงานตัวเอง — ผ่อนเฉพาะฝั่งร้านจึงไม่ได้
+  // ลดการป้องกันที่ตั้งใจไว้แต่แรกเลย. key ยังเป็น per-user เหมือนเดิม
+  const rateMax = senderRole === "SHOP" ? CHAT_RATE_LIMIT_MAX_SHOP : CHAT_RATE_LIMIT_MAX;
+  if (!checkApiRateLimit(`chat-send:${userId}`, rateMax, CHAT_RATE_LIMIT_WINDOW_MS)) {
     return NextResponse.json(
       { error: "Rate limit exceeded" },
       { status: 429, headers: { "Retry-After": "60" } },
@@ -259,44 +292,66 @@ export async function POST(
     const firstIssue = parsed.issues[0]?.message ?? "Invalid input";
     return NextResponse.json({ error: firstIssue }, { status: 400 });
   }
-  const { type, body: text, imageUrl, productRefId, orderRefToken, replyToMessageId } = parsed.output;
-
-  // conditional-required — Valibot schema เดียวไม่ครอบทุกกรณี (SendChatMessageSchema comment)
-  if (type === "TEXT") {
-    if (!text || text.trim().length === 0) {
-      return NextResponse.json({ error: "กรุณากรอกข้อความ" }, { status: 400 });
-    }
-  } else if (type === "IMAGE") {
-    if (!imageUrl) {
-      return NextResponse.json({ error: "กรุณาแนบรูปภาพ" }, { status: 400 });
-    }
-    // server-side re-check ประเภทไฟล์ — กัน client หลุดผ่านมาด้วย fileId ของไฟล์ที่ไม่ใช่รูป (เช่น .pdf จาก L3 KYC)
-    const ext = fileIdExt(imageUrl).toLowerCase();
-    if (!CHAT_IMAGE_ALLOWED_EXT.includes(ext)) {
-      return NextResponse.json({ error: "รองรับเฉพาะไฟล์รูปภาพ (jpg, png, webp)" }, { status: 400 });
-    }
-  } else if (type === "PRODUCT") {
-    // extension #1 Chat Product Context Card (S-18)
-    if (!productRefId) {
-      return NextResponse.json({ error: "กรุณาระบุสินค้า" }, { status: 400 });
-    }
-  } else {
-    // type === "ORDER" — การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24)
-    if (!orderRefToken) {
-      return NextResponse.json({ error: "กรุณาระบุออเดอร์" }, { status: 400 });
-    }
-  }
-
-  // derive senderRole จาก subdomain — ห้ามรับจาก client (SRS §10)
-  const host = request.headers.get("host") || "";
-  const senderRole: SenderRole = getSubdomain(host) === "seller" ? "SHOP" : "BUYER";
+  const {
+    type,
+    body: text,
+    imageUrl,
+    attachmentName: rawAttachmentName,
+    attachmentSize,
+    productRefId,
+    orderRefToken,
+    replyToMessageId,
+  } = parsed.output;
 
   try {
     // feature 00018: เธรดช่องทางนอกต้องส่งออกผ่าน Graph API ไม่ใช่เขียน DB ตรง ๆ
+    //
+    // ต้อง fetch ก่อน validate (2026-08-02): กฎของไฟล์แนบขึ้นกับช่องทางปลายทาง —
+    // .docx ส่ง Messenger ได้แต่ส่ง IG ไม่ได้ จึงตัดสินไม่ได้เลยถ้ายังไม่รู้ว่าเธรดนี้ช่องทางไหน
     const conv = await prisma.conversation.findUnique({
       where: { id },
       select: { channel: true, shopId: true },
     });
+
+    // conditional-required — Valibot schema เดียวไม่ครอบทุกกรณี (SendChatMessageSchema comment)
+    if (type === "TEXT") {
+      if (!text || text.trim().length === 0) {
+        return NextResponse.json({ error: "กรุณากรอกข้อความ" }, { status: 400 });
+      }
+    } else if (isAttachmentType(type)) {
+      if (!imageUrl) {
+        return NextResponse.json({ error: "กรุณาแนบไฟล์" }, { status: 400 });
+      }
+      // server-side re-check — กัน client ยิง fileId ของไฟล์ที่ไม่ควรส่ง (เช่น .pdf จาก L3 KYC
+      // หรือไฟล์รันได้) เข้ามาตรง ๆ โดยไม่ผ่าน /api/chat/upload
+      //
+      // WARNING: size ที่ใช้ตรงนี้มาจาก client จึงเป็นแค่ตัวกรองเชิงประสบการณ์ (ให้ error สวย)
+      // เพดานขนาดตัวจริงบังคับที่ /api/chat/upload ซึ่งเห็นไฟล์จริง + bucket cap 25MB อีกชั้น
+      const ext = fileIdExt(imageUrl).toLowerCase();
+      const mime = EXT_TO_MIME[ext] ?? "";
+      const check = checkChannelSupport(conv?.channel ?? "DEEP", {
+        kind: attachmentKind(mime, ext),
+        mime,
+        ext,
+        size: attachmentSize ?? 0,
+      });
+      if (!check.ok) {
+        return NextResponse.json({ error: check.reason }, { status: 400 });
+      }
+    } else if (type === "PRODUCT") {
+      // extension #1 Chat Product Context Card (S-18)
+      if (!productRefId) {
+        return NextResponse.json({ error: "กรุณาระบุสินค้า" }, { status: 400 });
+      }
+    } else {
+      // type === "ORDER" — การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24)
+      if (!orderRefToken) {
+        return NextResponse.json({ error: "กรุณาระบุออเดอร์" }, { status: 400 });
+      }
+    }
+
+    // sanitize ซ้ำที่ server — ชื่อนี้ไปโผล่ใน Content-Disposition ตอนดาวน์โหลด (header injection)
+    const attachmentName = rawAttachmentName ? sanitizeAttachmentName(rawAttachmentName) : null;
 
     // reply/quote (user 2026-07-25): resolve ข้อความที่ตอบทับ → replyToMid ที่จะเก็บ/ส่ง.
     // ช่องทางนอก = externalMessageId (Meta mid, ต้องมีจึง reply_to ได้); DEEP = id ภายใน (ไม่มี mid).
@@ -342,8 +397,10 @@ export async function POST(
       const sent = await sendOutboundMessage({
         conversationId: id,
         actorUserId: userId,
-        text: text ?? undefined, // TEXT = ข้อความ, IMAGE = caption (optional)
-        imageFileId: type === "IMAGE" ? imageUrl! : undefined,
+        text: text ?? undefined, // TEXT = ข้อความ, ไฟล์แนบ = caption (optional)
+        attachment: isAttachmentType(type)
+          ? { fileId: imageUrl!, kind: type, name: attachmentName, size: attachmentSize ?? null }
+          : undefined,
         replyToMid, // reply/quote — ส่ง reply_to:{mid} ให้ Meta (best-effort) + เก็บ quote ฝั่งเรา
       });
       return NextResponse.json(sent);
@@ -354,8 +411,10 @@ export async function POST(
       senderUserId: userId,
       senderRole,
       type,
-      body: type === "PRODUCT" || type === "ORDER" ? null : text ?? null, // TEXT = ข้อความหลัก, IMAGE = caption, PRODUCT/ORDER = null
-      imageUrl: type === "IMAGE" ? imageUrl ?? null : null,
+      body: type === "PRODUCT" || type === "ORDER" ? null : text ?? null, // TEXT = ข้อความหลัก, ไฟล์แนบ = caption, PRODUCT/ORDER = null
+      imageUrl: isAttachmentType(type) ? imageUrl ?? null : null,
+      attachmentName: isAttachmentType(type) ? attachmentName : null,
+      attachmentSize: isAttachmentType(type) ? attachmentSize ?? null : null,
       productRefId: type === "PRODUCT" ? productRefId ?? null : null,
       orderRefToken: type === "ORDER" ? orderRefToken ?? null : null,
       replyToMid, // reply/quote (DEEP) — id ของข้อความที่ตอบทับ

@@ -709,13 +709,20 @@ export const SwitchActiveShopSchema = v.object({
 
 export const SendChatMessageSchema = v.object({
   // ORDER = การ์ดออเดอร์/ใบเสนอราคาในแชท DEEP (user 2026-07-24) — อ้าง Order.publicToken
-  type: v.picklist(["TEXT", "IMAGE", "PRODUCT", "ORDER"]),
+  // VIDEO/AUDIO/FILE (2026-08-02 multi-attachment): ร้านแนบไฟล์ทุกชนิดได้ ไม่ใช่แค่รูป
+  // เดิม 3 ชนิดนี้เกิดได้ทางเดียวคือ mirror ขาเข้าจาก Messenger/IG (เขียน DB ตรง ไม่ผ่าน schema นี้)
+  type: v.picklist(["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "PRODUCT", "ORDER"]),
   // nullish ไม่ใช่ optional — client ส่ง `body: null` มาจริงเมื่อแนบรูปโดยไม่ใส่ caption
   // (useSellerChatThread.handleSend + payload ที่เก็บไว้สำหรับปุ่ม "ลองใหม่") ซึ่ง v.optional รับแค่
   // undefined → เด้ง "Invalid type: Expected string but received null" = **ส่งรูปอย่างเดียวไม่ได้เลย**
   // (bug prod 2026-07-23) route เช็ค conditional-required ต่ออยู่แล้ว null จึงปลอดภัย
   body: v.nullish(v.pipe(v.string(), v.maxLength(2000))),
-  imageUrl: v.nullish(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/upload
+  imageUrl: v.nullish(v.pipe(v.string(), v.minLength(1))), // fileId จาก POST /api/chat/upload — ใช้กับ IMAGE/VIDEO/AUDIO/FILE
+  // ชื่อไฟล์เดิม + ขนาด (2026-08-02) — snapshot ตอนส่ง เพราะ storage ตั้งชื่อเป็น uuid.ext
+  // WARNING: attachmentSize มาจาก client จึงเชื่อไม่ได้ — ใช้ให้ error สวยเท่านั้น ไม่ใช่ security control
+  // เพดานขนาดตัวจริงบังคับที่ POST /api/chat/upload ซึ่งเป็นจุดเดียวที่เห็นไฟล์จริง
+  attachmentName: v.nullish(v.pipe(v.string(), v.maxLength(200))),
+  attachmentSize: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(0))),
   productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
   orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์ในแชท — เฉพาะ type=ORDER (Order.publicToken)
   replyToMessageId: v.optional(v.pipe(v.string(), v.uuid())), // reply/quote (user 2026-07-25) — id ของข้อความที่ตอบทับ (route resolve → replyToMid/Meta reply_to)

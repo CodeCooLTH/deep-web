@@ -448,18 +448,25 @@ export async function sendTextMessage(
   return (json.message_id as string | undefined) ?? ''
 }
 
+/** ชนิด attachment ที่ Meta Send API รับ — ตรงกับค่าใน `message.attachment.type` */
+export type GraphAttachmentType = 'image' | 'video' | 'audio' | 'file'
+
 /**
- * ส่งรูปภาพไปยัง Messenger/Instagram — feature 00018 (composer แนบรูปช่องทางนอก)
+ * ส่งไฟล์แนบไปยัง Messenger/Instagram — feature 00018 (composer แนบไฟล์ช่องทางนอก)
  *
- * imageUrl ต้องเป็น URL สาธารณะที่ Meta ดึงได้ (เราส่ง presigned URL ของ S3 อายุ 1 ชม. — /api/files
+ * เดิมชื่อ sendImageMessage รองรับแต่ `type: 'image'` — generalize 2026-08-02 ตอนเปิดให้ร้าน
+ * แนบวิดีโอ/เสียง/เอกสารได้ ตัว payload ต่างกันแค่ค่า `attachment.type` เท่านั้น
+ *
+ * url ต้องเป็น URL สาธารณะที่ Meta ดึงได้ (เราส่ง presigned URL ของ S3 อายุ 1 ชม. — /api/files
  * ของเรา auth-gated Meta ดึงไม่ได้). Send API รับ attachment ทีละชนิด ไม่มี text ในตัว — caption
  * ส่งเป็นข้อความตามหลังแยก (ดู sendOutboundMessage). ใช้ /me/messages เหมือน text (pageToken
  * resolve เพจ/IG account ให้เอง — ห้ามใส่ page-id path เพราะ IG เก็บ IG account id ไม่ใช่ Page id)
  */
-export async function sendImageMessage(
+export async function sendAttachmentMessage(
   pageToken: string,
   recipientId: string,
-  imageUrl: string,
+  type: GraphAttachmentType,
+  url: string,
   replyToMid?: string | null,
   // tag = ส่งนอกหน้าต่าง 24 ชม. (HUMAN_AGENT) — ดู comment ที่ sendTextMessage
   tag?: string,
@@ -469,9 +476,20 @@ export async function sendImageMessage(
     body: {
       recipient: { id: recipientId },
       ...(tag ? { messaging_type: 'MESSAGE_TAG', tag } : { messaging_type: 'RESPONSE' }),
-      message: { attachment: { type: 'image', payload: { url: imageUrl } } },
+      message: { attachment: { type, payload: { url } } },
       ...(replyToMid ? { reply_to: { mid: replyToMid } } : {}),
     },
   })
   return (json.message_id as string | undefined) ?? ''
+}
+
+/** wrapper ของเดิม — auto-reply-send.service.ts และเทสเก่ายังเรียกชื่อนี้อยู่ */
+export async function sendImageMessage(
+  pageToken: string,
+  recipientId: string,
+  imageUrl: string,
+  replyToMid?: string | null,
+  tag?: string,
+): Promise<string> {
+  return sendAttachmentMessage(pageToken, recipientId, 'image', imageUrl, replyToMid, tag)
 }

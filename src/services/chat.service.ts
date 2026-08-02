@@ -87,6 +87,11 @@ export interface ChatMessageView {
   type: ChatMessageType
   body: string | null
   imageUrl: string | null
+  // ไฟล์แนบ (2026-08-02 multi-attachment) — ชื่อเดิม/ขนาด ณ ตอนส่ง; null = ข้อความเก่าหรือไฟล์ที่
+  // mirror มาจาก Messenger/IG (Meta ไม่ส่งชื่อมา) → UI fallback ผ่าน attachmentDisplayName()
+  // findMany ไม่มี select จึงคืนคอลัมน์นี้มาอยู่แล้ว — ประกาศ type เพิ่มเท่านั้น
+  attachmentName?: string | null
+  attachmentSize?: number | null
   productRefId: string | null // extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type='PRODUCT'
   orderRefToken: string | null // การ์ดออเดอร์ในแชท (user 2026-07-24) — เฉพาะ type='ORDER' (Order.publicToken)
   flaggedScam: boolean // extension #3 Scam-link Detection (FR-SCAM-03) — WARN banner เท่านั้น ไม่ block
@@ -597,6 +602,9 @@ export async function sendMessage(params: {
   type: ChatMessageType
   body?: string | null
   imageUrl?: string | null
+  // ไฟล์แนบ (2026-08-02) — route ตรวจ/sanitize มาแล้ว service เก็บตรง ๆ
+  attachmentName?: string | null
+  attachmentSize?: number | null
   productRefId?: string | null // เฉพาะ type='PRODUCT' (extension #1 S-17)
   orderRefToken?: string | null // เฉพาะ type='ORDER' (การ์ดออเดอร์ในแชท, user 2026-07-24)
   replyToMid?: string | null // reply/quote (user 2026-07-25) — DEEP เก็บ id ของข้อความที่ตอบทับ; enrich match id/externalMessageId
@@ -647,14 +655,22 @@ export async function sendMessage(params: {
       if (!order || order.shopId !== conversation.shopId) throw new Error('ORDER_NOT_IN_SHOP')
     }
 
+    // preview ที่โชว์ในกล่องขาเข้า — ไฟล์แนบบอกชนิดให้ตรง ไม่เหมารวมเป็น "[รูปภาพ]" ทั้งหมด
+    // (2026-08-02: VIDEO/AUDIO/FILE ส่งออกจากฝั่งเราได้แล้ว ไม่ได้มีแต่ mirror ขาเข้าเหมือนเดิม)
     const preview =
       params.type === 'IMAGE'
         ? '[รูปภาพ]'
-        : params.type === 'PRODUCT'
-          ? `[สินค้า] ${productName}`
-          : params.type === 'ORDER'
-            ? '[ใบเสนอราคา]'
-            : (params.body ?? '').slice(0, 100)
+        : params.type === 'VIDEO'
+          ? '[วิดีโอ]'
+          : params.type === 'AUDIO'
+            ? '[ข้อความเสียง]'
+            : params.type === 'FILE'
+              ? `[ไฟล์] ${params.attachmentName ?? ''}`.trim()
+              : params.type === 'PRODUCT'
+                ? `[สินค้า] ${productName}`
+                : params.type === 'ORDER'
+                  ? '[ใบเสนอราคา]'
+                  : (params.body ?? '').slice(0, 100)
 
     // extension #3 Scam-link Detection (FR-SCAM-03/BR-SCAM-04) — scan เฉพาะ type='TEXT' เท่านั้น
     // (ไม่ IMAGE/PRODUCT — url แปะไว้ที่ caption/body ของ type อื่นไม่ scan ตาม req doc)
@@ -669,6 +685,9 @@ export async function sendMessage(params: {
         type: params.type,
         body: params.type === 'PRODUCT' || params.type === 'ORDER' ? null : (params.body ?? null),
         imageUrl: params.type === 'PRODUCT' || params.type === 'ORDER' ? null : (params.imageUrl ?? null),
+        // เก็บเฉพาะเมื่อมีไฟล์แนบจริง — ข้อความ TEXT ที่ client เผลอส่งชื่อไฟล์ติดมาต้องไม่ค้างใน DB
+        attachmentName: params.imageUrl ? (params.attachmentName ?? null) : null,
+        attachmentSize: params.imageUrl ? (params.attachmentSize ?? null) : null,
         productRefId: params.type === 'PRODUCT' ? (params.productRefId ?? null) : null,
         orderRefToken: params.type === 'ORDER' ? (params.orderRefToken ?? null) : null,
         replyToMid: params.replyToMid ?? null,
