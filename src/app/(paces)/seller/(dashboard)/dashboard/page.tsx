@@ -21,6 +21,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
+import { toFileUrl } from '@/lib/file-url'
 import { getTrustLevel } from '@/services/trust-score.service'
 import { getOrdersByShop, getOrderStatusCounts } from '@/services/order.service'
 import { getBestSellerProducts } from '@/services/product.service'
@@ -163,7 +164,14 @@ export default async function SellerDashboardPage() {
         : null
       // avatarUrl: ใช้ logo ร้านก่อน → fallback owner.avatar (รูปเดียวกับที่ public profile /u/[username] แสดง)
       // กัน header ขึ้นอักษรย่อทั้งที่มีรูป — ร้านที่ยังไม่ตั้ง logo จะใช้รูปโปรไฟล์ owner แทน; ไม่ใช่ PII sensitive
-      avatarUrl = shop?.logo ?? owner?.avatar ?? null
+      //
+      // 🛑 ต้องผ่าน toFileUrl() — bug 2026-08-01: เดิมส่งค่าดิบจาก DB เข้า <img src> ตรง ๆ
+      // แต่ Shop.logo เก็บเป็น "storage key" (เช่น "2026/07/31/uuid.jpg") ไม่ใช่ URL
+      // เบราว์เซอร์จึงตีความเป็น path สัมพัทธ์ -> /dashboard/2026/07/31/uuid.jpg -> 404
+      // ผลคือร้านที่ตั้งโลโก้แล้วยังเห็นเป็นอักษรย่อบน dashboard ทั้งที่หน้า /shop แสดงรูปได้
+      // (owner.avatar เป็น URL เต็มจาก OAuth จึงบังเอิญไม่พัง — เลยไม่มีใครสังเกต)
+      // helper จัดการทั้งสองรูปแบบให้แล้ว ดูคอมเมนต์หัว src/lib/file-url.ts
+      avatarUrl = toFileUrl(shop?.logo ?? owner?.avatar ?? null)
       // shopSlug (ชื่อเดิม) ตอนนี้เก็บ "path เต็ม" ของหน้าร้าน active shop สำหรับ ShopLinkButtons:
       // BUSINESS → /b/{slug} (findShopBySlug กรอง kind=BUSINESS); PERSONAL → /u/{owner username}
       // (owner = shop.userId — personal คือ seller เอง; business admin = username เจ้าของร้านจริง)

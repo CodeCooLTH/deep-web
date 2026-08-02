@@ -36,17 +36,55 @@ export default function SignOutCard() {
   const user = session?.user as { displayName?: string; username?: string } | undefined
   const name = user?.displayName ?? user?.username ?? 'ผู้ขาย'
 
+  /**
+   * ถอน push token ของเครื่องนี้ก่อนออกจากระบบ
+   *
+   * ทำไมต้องมี: แอปผู้ขาย (deep-seller-app) ลงทะเบียน Expo push token ผูกกับบัญชีที่ล็อกอินอยู่
+   * ถ้าออกจากระบบแล้วไม่ถอน เครื่องนั้นจะยังได้แจ้งเตือนข้อความลูกค้าของบัญชีเดิมต่อไปเรื่อย ๆ
+   * — คนถัดไปที่หยิบเครื่อง (หรือพนักงานที่ลาออก) จะเห็นแชทลูกค้าที่ไม่ใช่ของตัวเองบนจอล็อก
+   *
+   * 🛑 ต้องยิง "ก่อน" signOut() เสมอ — endpoint auth ด้วย session cookie ถ้าเรียกหลัง cookie
+   * ถูกล้างจะได้ 401 แล้ว token ค้างอยู่ในฐานตลอดไป
+   *
+   * token มาจาก window.__DEEP_PUSH_TOKEN__ ที่ฝั่ง native ฝากไว้ตอนลงทะเบียน (ดู
+   * SellerWebView.tsx buildPushRegisterScript) — เปิดบนเบราว์เซอร์ปกติจะไม่มีค่านี้ ก็ข้ามไป
+   *
+   * timeout 2 วิ + กลืน error: เน็ตช้าหรือ API ล่ม ต้องไม่ทำให้ "ออกจากระบบ" ค้าง — ผู้ใช้กด
+   * ออกแล้วต้องได้ออกเสมอ ยอมให้ token ค้างดีกว่าปล่อยให้ติดอยู่ในระบบที่ตั้งใจจะออก
+   */
+  const revokePushToken = async () => {
+    const token = (window as unknown as { __DEEP_PUSH_TOKEN__?: string }).__DEEP_PUSH_TOKEN__
+    if (!token) return
+    try {
+      await Promise.race([
+        fetch('/api/seller/push-token', {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        }),
+        new Promise((resolve) => setTimeout(resolve, 2000)),
+      ])
+    } catch {
+      // เงียบ — ดูเหตุผลใน comment ด้านบน
+    }
+  }
+
   const handleSignOut = async () => {
     const confirmed = await pacesConfirm.danger(
       'ออกจากระบบ?',
       `คุณจะออกจากบัญชี ${name} และกลับไปหน้าเข้าสู่ระบบ`,
       { confirmButtonText: 'ออกจากระบบ', cancelButtonText: 'ยกเลิก' },
     )
-    if (confirmed) signOut({ callbackUrl: '/auth/sign-in' })
+    if (!confirmed) return
+    await revokePushToken()
+    signOut({ callbackUrl: '/auth/sign-in' })
   }
 
   return (
-    <div className="card mt-4">
+    /* -mx-4: edge-to-edge เท่ากับการ์ดอื่นในหน้านี้ (หักล้าง gutter 16px ของ shell)
+       ไม่ต้อง lg:mx-0 เพราะ call-site ครอบ lg:hidden ไว้แล้ว — การ์ดนี้ไม่มีบนเดสก์ท็อป */
+    <div className="card mt-4 -mx-4">
       <div className="card-header">
         <h5 className="bg-light/15 border-default-300 flex w-full items-center justify-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium">
           บัญชีผู้ใช้
