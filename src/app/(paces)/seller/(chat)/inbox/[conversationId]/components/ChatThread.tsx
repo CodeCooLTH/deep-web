@@ -103,7 +103,7 @@ import MessageActionBubble, { type MessageAction } from './MessageActionBubble'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
-import { ChannelBadge } from '../../components/ChannelBadge'
+import { ChannelBadge, ChannelBadgeOverlay } from '../../components/ChannelBadge'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
@@ -1096,8 +1096,17 @@ export default function ChatThread({
           >
             <Icon icon="arrow-left" className="text-lg" />
           </Link>
-          <ChatAvatar avatar={buyerAvatar} name={buyerName} />
-          <div className="min-w-0">
+          {/* avatar + ตราช่องทางมุมล่างขวา — ให้เหมือนแถวในรายการแชท (user สั่ง 2026-08-02)
+              เดิมหัวเธรดบอกช่องทางด้วยชิปใต้ชื่ออย่างเดียว ซึ่งเป็นคนละภาษากับรายการที่ผู้ใช้
+              เพิ่งคลิกมา — ตราบนรูปคือสิ่งที่เขาจำได้แล้วจากหน้าก่อน
+              relative: ChannelBadgeOverlay วาง absolute เทียบกับปลอกนี้ */}
+          <span className="relative shrink-0">
+            <ChatAvatar avatar={buyerAvatar} name={buyerName} />
+            <ChannelBadgeOverlay channel={channel} imageUrl={channelAvatarUrl} />
+          </span>
+          {/* justify-center: ชื่อ+ชิปอยู่กึ่งกลางแนวตั้งเทียบกับ avatar (user สั่ง 2026-08-02)
+              — เดิมกล่องนี้สูงไม่เท่า avatar เลยดูลอยสูงกว่ากลางรูป */}
+          <div className="flex min-w-0 flex-col justify-center">
             <h5 className="text-base mb-1.25">{buyerName}</h5>
             <div className="flex flex-wrap items-center gap-1.5">
               <ChannelBadge channel={channel} label={channelName} imageUrl={channelAvatarUrl} />
@@ -1223,11 +1232,13 @@ export default function ChatThread({
           ทำให้ด้านบนขยับตลอด"): เมื่อเลื่อนถึงหัว/ท้ายรายการข้อความ เบราว์เซอร์จะส่ง scroll ต่อไปให้
           ancestor ที่เลื่อนได้ (scroll chaining) → คอลัมน์กลางของ (chat)/layout.tsx และหน้าเว็บ
           ขยับตาม หัวแชทเลื่อนหนีทั้งที่ควรค้าง. overscroll-contain ตัด chain ที่ container นี้ */}
-      {/* pb-0 + last:mb-1 (user สั่ง 2026-07-23: "ข้อความสุดท้ายห่างจากช่องพิมพ์มากเกินไป เปลืองพื้นที่"):
-          ระยะห่างเดิมเป็นผลรวม 3 ชั้น — `my-5` ของแถวสุดท้าย (20px) + `py-4` ของกล่อง scroll (16px)
-          + `py-3.75` ของ composer (15px) ≈ 51px. ตัดชั้นกลางทิ้ง (pb-0) และหุบ margin ล่างของ
-          "แถวสุดท้ายเท่านั้น" เหลือ 4px → ~19px โดยจังหวะห่างระหว่าง bubble (my-5 ตาม Base
-          ChatPage.tsx) ไม่เปลี่ยนแม้แต่นิดเดียว */}
+      {/* ระยะห่าง "ข้อความสุดท้าย ↔ เส้นประเหนือช่องพิมพ์" — ปรับมาแล้ว 2 รอบ บันทึกไว้กันปรับวน:
+          เดิมเป็นผลรวม 3 ชั้น (my-5 ของแถวสุดท้าย 20px + py-4 ของกล่อง scroll 16px +
+          py-3.75 ของ composer 15px ≈ 51px) → 2026-07-23 user ว่า "ห่างเกินไป เปลืองพื้นที่"
+          จึงตัดชั้นกลาง (pb-0) + หุบ margin แถวสุดท้ายเหลือ 4px = ~19px
+          → 2026-08-02 user ว่ากลับกัน "ชิดเส้นประเกินไป" (เห็นชัดสุดกับสติกเกอร์/รูปที่ขอบล่าง
+          เป็นเนื้อภาพเต็ม ไม่มี padding ในตัวแบบบับเบิลข้อความ) จึงขยับเป็น mb-3 (12px) = ~27px
+          ครึ่งทางของสองรอบ — ไม่แตะ my-5 ระหว่างบับเบิล จังหวะการอ่านในเธรดจึงไม่เปลี่ยน */}
       {/* relative: ให้แผงข้อความสำเร็จรูปวางทับ "พื้นที่ข้อความ" ได้พอดี (user สั่ง 2026-07-31
           "อยากปรับให้ panel นี้เต็มช่องแชทไปเลย") — วางทับแทนที่จะดันเลย์เอาต์ เพราะลิสต์ข้อความ
           ยัง mount อยู่ ตำแหน่ง scroll จึงไม่รีเซ็ตตอนปิดแผง */}
@@ -1278,7 +1289,7 @@ export default function ChatThread({
       <div
         ref={scrollRef}
         {...longPress.handlers}
-        className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-1"
+        className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-3"
       >
         {oldestCursor && (
           <div ref={topSentinelRef} className="flex justify-center py-2">

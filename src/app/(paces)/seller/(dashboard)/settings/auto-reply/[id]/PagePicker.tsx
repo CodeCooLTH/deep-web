@@ -24,12 +24,25 @@ import { getChannelDisplay } from '@/app/(paces)/seller/(chat)/inbox/components/
 
 export type PageOption = { id: string; name: string; provider: string; avatarUrl?: string | null }
 
-/** โลโก้เพจ — รูปจริง + fallback ตัวอักษรแรกเมื่อไม่มีรูป/โหลดพัง (Base: PageFilterDropdown.PageAvatar) */
-function PageAvatar({ avatarUrl, name }: { avatarUrl?: string | null; name: string }) {
+/** โลโก้เพจ — รูปจริง + fallback ตัวอักษรแรกเมื่อไม่มีรูป/โหลดพัง (Base: PageFilterDropdown.PageAvatar)
+ *
+ *  export ออกไปให้โมดัล "แก้เงื่อนไขเฉพาะ" ใช้ซ้ำ (user 2026-08-02: ตัวเลือกเพจในโมดัลเป็น
+ *  ข้อความล้วน ไม่มีรูป ทั้งที่เพจเดียวกันมีรูปทุกที่ในระบบ) — คนละเพจที่ชื่อคล้ายกันแยกด้วย
+ *  รูปได้เร็วกว่าอ่านชื่อ. ห้าม copy โครงนี้ไปเขียนใหม่ที่อื่น ไม่งั้น fallback จะเพี้ยนกันเอง */
+export function PageAvatar({
+  avatarUrl,
+  name,
+  size = 'size-9',
+}: {
+  avatarUrl?: string | null
+  name: string
+  /** class ขนาด (Tailwind) — รายการที่แถวเตี้ยกว่าใช้ size-7/size-8 ได้ */
+  size?: string
+}) {
   const [failed, setFailed] = useState(false)
   if (!avatarUrl || failed) {
     return (
-      <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+      <span className={`bg-primary/10 text-primary flex ${size} shrink-0 items-center justify-center rounded-full text-xs font-semibold`}>
         {generateInitials(name) || '?'}
       </span>
     )
@@ -41,7 +54,7 @@ function PageAvatar({ avatarUrl, name }: { avatarUrl?: string | null; name: stri
       alt=""
       loading="lazy"
       onError={() => setFailed(true)}
-      className="bg-default-100 size-9 shrink-0 rounded-full object-cover"
+      className={`bg-default-100 ${size} shrink-0 rounded-full object-cover`}
     />
   )
 }
