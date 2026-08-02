@@ -1,10 +1,11 @@
 ---
-title: "API — Chat Auto-Reply (ตอบแชทอัตโนมัติจาก Keyword)"
+title: "API — Deep Chat-Bot Assistant (ตอบแชทอัตโนมัติจาก Keyword + ChatBot)"
 owner: shinobu22
-status: draft
+status: shipped-partially-superseded
 module: M00023-ChatAutoReply
-version: "1.0"
+version: "1.1"
 created: 2026-07-29
+updated: 2026-08-02
 tags: [feature, api, contract, auto-reply, chat, keyword, seller]
 related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SRS]]", "[[SDS]]"]
 ---
@@ -17,6 +18,53 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SRS]]", "[[SDS]]"]
 > **เจ้าของเอกสาร:** safepay-planner (ดู [[Feature-Docs-Ownership]])
 
 # API Contract: ตอบแชทอัตโนมัติจาก Keyword
+
+---
+
+## 📌 สถานะ ณ 2026-08-02 — ตาราง endpoint ที่ต่างจากโค้ดจริง
+
+ตรวจโดยเทียบรายการ endpoint ในเอกสารนี้กับ `find src/app/api -name route.ts` เมื่อ 2026-08-02
+(ไม่ได้เทียบจากความจำ — บทเรียน `feedback_write_docs_from_code_not_memory`)
+
+### ก) เอกสารมี แต่โค้ด **ถูกลบไปแล้ว** (`68c37cd3`) — เรียกแล้วได้ 404
+
+| Endpoint ในเอกสาร | หมายเหตุ |
+|---|---|
+| `GET/POST /api/shops/auto-reply/keywords/{id}/qna` | คลังคำถามรายกลุ่มคำ — ถูกถอด |
+| `PATCH/DELETE /api/shops/auto-reply/keywords/{id}/qna/{qnaId}` | ↑ |
+| `POST /api/shops/auto-reply/keywords/{id}/qna/bulk` | ↑ |
+| `POST /api/shops/auto-reply/keywords/{id}/qna/import` · `GET …/qna/export` | CSV นำเข้า/ส่งออก (S-16) — ไม่เคยได้ implement แล้วถูกถอดไปพร้อมกัน |
+| `GET /api/shops/auto-reply/unanswered` | คิวคำถามที่ตอบไม่ได้ — ถูกถอด |
+| `POST /api/shops/auto-reply/unanswered/{id}/convert` · `/dismiss` · `/restore` | ↑ |
+
+### ข) เอกสารมี แต่ **ไม่เคยมีในโค้ดเลย** (เขียนล่วงหน้าแล้วไม่ได้สร้าง หรือเปลี่ยนชื่อไปแล้ว)
+
+| Endpoint ในเอกสาร | ของจริง |
+|---|---|
+| `PUT /api/shops/auto-reply/test-mode` · `GET/POST/DELETE …/test-mode/threads[/{id}]` | เปลี่ยนรูปเป็น **รายกลุ่มคำ**: `GET/POST /api/shops/auto-reply/keywords/{id}/test-threads` + `DELETE …/test-threads/{conversationId}` |
+| `POST /api/shops/auto-reply/keywords/bulk` | ไม่มี |
+| `PUT /api/chat/conversations/{id}/auto-reply/context-product` | ไม่มี |
+| `POST /api/chat/conversations/{id}/qna-from-message` | ไม่มี |
+
+### ค) โค้ดมี แต่ **เอกสารยังไม่เคยบันทึก** (ของ ChatBot + คลังความรู้ ที่ขึ้น 2026-08-01/02)
+
+| Endpoint จริง | ทำอะไร |
+|---|---|
+| `GET/PATCH /api/shops/auto-reply/chatbot` | ตั้งค่า ChatBot ระดับร้าน (สถานะ 3 ค่า, ขอบเขต, cooldown, ช่วงเวลา, น้ำเสียง) |
+| `GET/POST /api/shops/auto-reply/chatbot/guardrails` · `PATCH/DELETE …/{guardrailId}` | กฎห้ามตอบของ ChatBot (ระดับร้าน) |
+| `GET/POST /api/shops/auto-reply/chatbot/test-threads` · `DELETE …/{conversationId}` | allowlist แชทสำหรับโหมดทดสอบของ ChatBot |
+| `GET/POST /api/shops/auto-reply/knowledge` · `PATCH/DELETE …/{qnaId}` | **คลังความรู้ระดับร้าน** (มาแทนคลังคำถามรายกลุ่มคำในข้อ ก) |
+| `GET/POST /api/shops/auto-reply/keywords/{id}/guardrails` · `PATCH/DELETE …/{guardrailId}` | กฎห้ามตอบรายกลุ่มคำ |
+| `GET/POST /api/shops/auto-reply/keywords/{id}/test-threads` · `DELETE …/{conversationId}` | แชททดสอบรายกลุ่มคำ |
+| `POST /api/shops/auto-reply/keywords/{id}/duplicate` | คัดลอกกลุ่มคำ |
+| `DELETE /api/shops/auto-reply/keywords/{id}/phrases/{phraseId}` | ลบคำตรวจจับรายคำ |
+
+> ⚠️ **`POST /api/shops/auto-reply/simulate` มีจริงและยังใช้อยู่ แต่พฤติกรรมกว้างกว่าที่เอกสารสื่อ** —
+> มัน match **ทุกกลุ่มคำของร้าน** ไม่ใช่เฉพาะกลุ่มที่กำลังเปิดดู และ **ไม่เรียก ChatBot/AI เลย**
+> (เป็น matcher ล้วน) ดังนั้นผลลัพธ์ `willHandoff: true` **ไม่ได้แปลว่าลูกค้าจะไม่ได้คำตอบ** —
+> ในเส้นทางจริง ChatBot จะรับช่วงต่อตรงนั้น
+
+---
 
 ---
 
