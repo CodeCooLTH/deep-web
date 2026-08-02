@@ -24,7 +24,7 @@ import {
   EXPENSE_CATEGORIES,
   EXPENSE_CATEGORY_LABEL_TH,
   EXPENSE_CATEGORY_ICON,
-  EXPENSE_CATEGORY_COLOR,
+  EXPENSE_CATEGORY_AVATAR,
   type ExpenseCategory,
 } from '@/lib/expense'
 import { formatDate } from '@/lib/format-date'
@@ -233,14 +233,13 @@ export default function ExpenseList({
             <div key={g.date}>
               <div className="bg-default-100 border-default-300 flex items-center justify-between border-y px-5 py-2">
                 <span className="text-default-800 text-xs font-semibold">{dayHeading(g.date)}</span>
-                <span className="text-default-600 text-xs">
+                <span className="text-default-700 text-xs">
                   รวม <b className="text-default-900">{formatThb(g.total)}</b>
                 </span>
               </div>
 
               {g.rows.map((expense) => {
                 const category = expense.category as ExpenseCategory
-                const color = EXPENSE_CATEGORY_COLOR[category]
                 return (
                   <div
                     key={expense.id}
@@ -253,7 +252,7 @@ export default function ExpenseList({
                       className="flex min-w-0 flex-1 items-center gap-3 text-start sm:pointer-events-none"
                       aria-label={`แก้ไข ${EXPENSE_CATEGORY_LABEL_TH[category]} ${formatThb(expense.amount)}`}
                     >
-                      <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', color.wash)}>
+                      <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', EXPENSE_CATEGORY_AVATAR)}>
                         <Icon icon={EXPENSE_CATEGORY_ICON[category]} className="text-lg" aria-hidden="true" />
                       </span>
                       <span className="min-w-0 flex-1">
@@ -261,7 +260,7 @@ export default function ExpenseList({
                           {EXPENSE_CATEGORY_LABEL_TH[category]}
                         </span>
                         {expense.note && (
-                          <span className="text-default-600 block truncate text-xs">{expense.note}</span>
+                          <span className="text-default-700 block truncate text-xs">{expense.note}</span>
                         )}
                       </span>
                       <span className="text-default-900 shrink-0 font-bold">{formatThb(expense.amount)}</span>
@@ -293,14 +292,14 @@ export default function ExpenseList({
           ))}
 
           <div className="border-default-300 flex items-center justify-between border-t border-dashed px-5 py-3">
-            <span className="text-default-600 text-xs">
+            <span className="text-default-700 text-xs">
               แสดง {visible.length} จาก {filtered.length} รายการ
             </span>
             {visible.length < filtered.length && (
               <button
                 type="button"
                 onClick={() => setVisibleCount((v) => v + PAGE)}
-                className="btn btn-sm bg-light text-dark inline-flex items-center gap-1"
+                className="btn btn-sm bg-light text-dark min-h-11 inline-flex items-center gap-1"
               >
                 <Icon icon="chevron-down" aria-hidden="true" />
                 โหลดเพิ่ม
@@ -346,7 +345,7 @@ function FilterChip({
       aria-pressed={active}
       className={cn(
         'btn btn-sm inline-flex items-center gap-1.5 rounded-full',
-        active ? 'bg-primary/15 text-primary font-semibold' : 'bg-light text-dark',
+        active ? 'bg-primary/15 text-primary-ink font-semibold' : 'bg-light text-dark',
       )}
     >
       {icon && <Icon icon={icon} className="text-base" aria-hidden="true" />}

@@ -105,13 +105,20 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
     onClose()
   }
 
+  // busy ต้องอ่านผ่าน ref ใน handler — ถ้าใส่เป็น dep ของ useEffect ตัวนี้ cleanup จะยิงทุกครั้งที่
+  // เริ่ม/จบการบันทึก แล้ว previouslyFocused.focus() ก็จะดีดโฟกัสออกไปหลังโมดัลทั้งที่โมดัลยังเปิดอยู่
+  const busyRef = useRef(busy)
+  busyRef.current = busy
+
   useEffect(() => {
     previouslyFocused.current = document.activeElement as HTMLElement | null
     dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)[0]?.focus()
 
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        dismiss()
+        // ระหว่างกำลังบันทึก/ลบ ห้ามปิด — และตอน Swal ยืนยันลบเปิดทับอยู่ ปล่อยให้ Swal จัดการ Escape เอง
+        if (busyRef.current || document.querySelector('.swal2-container')) return
+        onClose()
         return
       }
       if (e.key !== 'Tab') return
@@ -133,8 +140,9 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
       document.removeEventListener('keydown', onKey)
       previouslyFocused.current?.focus()
     }
+    // ผูกครั้งเดียวตอน mount เท่านั้น — dep ว่างคือสิ่งที่ทำให้ cleanup ยิงตอนปิดโมดัลจริงเท่านั้น
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busy])
+  }, [])
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -234,7 +242,7 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
               aria-label="ปิด"
               onClick={dismiss}
               disabled={busy}
-              className="btn btn-icon text-default-600 min-h-11 min-w-11 disabled:opacity-50"
+              className="btn btn-icon text-default-700 min-h-11 min-w-11 disabled:opacity-50"
             >
               <Icon icon="x" className="align-middle text-2xl" />
             </button>
@@ -244,7 +252,7 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
             {/* จำนวนเงิน — มาก่อนเพราะเป็นข้อมูลที่ผู้ใช้ถืออยู่ในมือตอนเปิดโมดัล */}
             <div>
               <label htmlFor="expenseAmount" className="form-label">
-                จำนวนเงิน <span className="text-danger">*</span>
+                จำนวนเงิน <span className="text-danger-ink">*</span>
               </label>
               <div className="input-group">
                 <span className="input-group-text text-lg">฿</span>
@@ -260,14 +268,14 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                   {...register('amount', { valueAsNumber: true })}
                 />
               </div>
-              {errors.amount && <p className="text-danger mt-1 text-sm">{errors.amount.message}</p>}
+              {errors.amount && <p className="text-danger-ink mt-1 text-sm">{errors.amount.message}</p>}
             </div>
 
             {/* หมวดหมู่ — ชิป 7 อันเห็นครบในคราวเดียว (เร็วกว่ากางลิสต์บนมือถือ)
                 role="group" + aria-pressed ตาม pattern เดียวกับ segmented ที่ใช้อยู่ทั้งโปรเจกต์ */}
             <div>
               <span className="form-label">
-                หมวดหมู่ <span className="text-danger">*</span>
+                หมวดหมู่ <span className="text-danger-ink">*</span>
               </span>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="group" aria-label="หมวดหมู่ค่าใช้จ่าย">
                 {EXPENSE_CATEGORIES.map((c: ExpenseCategory) => {
@@ -287,7 +295,7 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                     >
                       <Icon
                         icon={EXPENSE_CATEGORY_ICON[c]}
-                        className={cn('text-lg', selected ? 'text-primary' : 'text-default-600')}
+                        className={cn('text-lg', selected ? 'text-primary' : 'text-default-700')}
                         aria-hidden="true"
                       />
                       {EXPENSE_CATEGORY_LABEL_TH[c]}
@@ -295,13 +303,13 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                   )
                 })}
               </div>
-              {errors.category && <p className="text-danger mt-1 text-sm">{errors.category.message}</p>}
+              {errors.category && <p className="text-danger-ink mt-1 text-sm">{errors.category.message}</p>}
             </div>
 
             {/* วันที่ — ชิปด่วนครอบ 2 เคสที่ใช้จริงเกือบทั้งหมด แล้วค่อยเปิดปฏิทินถ้าย้อนไกลกว่านั้น */}
             <div>
               <label htmlFor="expenseDate" className="form-label">
-                วันที่เกิดค่าใช้จ่าย <span className="text-danger">*</span>
+                วันที่เกิดค่าใช้จ่าย <span className="text-danger-ink">*</span>
               </label>
               <div className="mb-2 flex gap-2">
                 {[
@@ -314,8 +322,8 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                     aria-pressed={expenseDate === q.iso}
                     onClick={() => setValue('expenseDate', q.iso, { shouldValidate: true })}
                     className={cn(
-                      'btn btn-sm rounded-full',
-                      expenseDate === q.iso ? 'bg-primary/15 text-primary font-semibold' : 'bg-light text-dark',
+                      'btn btn-sm min-h-11 rounded-full',
+                      expenseDate === q.iso ? 'bg-primary/15 text-primary-ink font-semibold' : 'bg-light text-dark',
                     )}
                   >
                     {q.label}
@@ -331,14 +339,14 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
               />
               {/* ช่อง date ของเบราว์เซอร์แสดง ค.ศ. เสมอ — เขียน พ.ศ. กำกับไว้ให้ตรงกับที่เห็นในรายการ */}
               {expenseDate && !errors.expenseDate && (
-                <p className="text-default-500 mt-1 text-2xs">{formatDate(expenseDate)}</p>
+                <p className="text-default-700 mt-1 text-2xs">{formatDate(expenseDate)}</p>
               )}
-              {errors.expenseDate && <p className="text-danger mt-1 text-sm">{errors.expenseDate.message}</p>}
+              {errors.expenseDate && <p className="text-danger-ink mt-1 text-sm">{errors.expenseDate.message}</p>}
             </div>
 
             <div>
               <label htmlFor="expenseNote" className="form-label">
-                หมายเหตุ <span className="text-default-500 font-normal">(ไม่บังคับ)</span>
+                หมายเหตุ <span className="text-default-700 font-normal">(ไม่บังคับ)</span>
               </label>
               <textarea
                 id="expenseNote"
@@ -348,8 +356,8 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                 className="form-textarea"
                 {...register('note')}
               />
-              <p className="text-default-500 mt-1 text-end text-2xs">{note.length} / 500</p>
-              {errors.note && <p className="text-danger mt-1 text-sm">{errors.note.message}</p>}
+              <p className="text-default-700 mt-1 text-end text-2xs">{note.length} / 500</p>
+              {errors.note && <p className="text-danger-ink mt-1 text-sm">{errors.note.message}</p>}
             </div>
           </div>
 
@@ -367,7 +375,7 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                 type="button"
                 onClick={handleDelete}
                 disabled={busy}
-                className="btn bg-danger/15 text-danger-ink inline-flex items-center gap-1.5 disabled:opacity-60"
+                className="btn bg-danger/15 text-danger-ink min-h-11 inline-flex items-center gap-1.5 disabled:opacity-60"
               >
                 <Icon icon="trash" aria-hidden="true" />
                 ลบรายการ
@@ -378,14 +386,14 @@ export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: 
                 type="button"
                 onClick={dismiss}
                 disabled={busy}
-                className="btn bg-light text-dark hover:bg-light-hover disabled:opacity-60"
+                className="btn bg-light text-dark hover:bg-light-hover min-h-11 disabled:opacity-60"
               >
                 ยกเลิก
               </button>
               <button
                 type="submit"
                 disabled={busy}
-                className="btn bg-primary hover:bg-primary-hover inline-flex items-center gap-1.5 text-white disabled:opacity-60"
+                className="btn bg-primary hover:bg-primary-hover min-h-11 inline-flex items-center gap-1.5 text-white disabled:opacity-60"
               >
                 {isSubmitting ? (
                   <>

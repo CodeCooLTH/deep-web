@@ -65,7 +65,7 @@ export default function ExpenseCategoryFilterSheet({
             type="button"
             aria-label="ปิด"
             onClick={onClose}
-            className="btn btn-icon text-default-600 min-h-11 min-w-11"
+            className="btn btn-icon text-default-700 min-h-11 min-w-11"
           >
             <Icon icon="x" className="align-middle text-2xl" />
           </button>
@@ -122,7 +122,7 @@ function FilterRow({
       aria-pressed={active}
       className={cn(
         'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-start',
-        active ? 'bg-primary/15 text-primary font-semibold' : 'text-default-800',
+        active ? 'bg-primary/15 text-primary-ink font-semibold' : 'text-default-800',
       )}
     >
       {icon ? (
@@ -131,7 +131,7 @@ function FilterRow({
         <Icon icon="list" className="text-lg" aria-hidden="true" />
       )}
       <span className="flex-1">{label}</span>
-      <span className="text-default-600 text-xs">{count}</span>
+      <span className="text-default-700 text-xs">{count}</span>
       {active && <Icon icon="check" className="text-primary text-base" aria-hidden="true" />}
     </button>
   )

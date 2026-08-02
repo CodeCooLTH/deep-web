@@ -26,24 +26,33 @@ export const EXPENSE_CATEGORY_LABEL_TH: Record<ExpenseCategory, string> = {
 // ที่ใช้ทั่ว (paces)/** (เช่น ProductsListing.tsx: icon="package"/"pencil"/"trash") — wrapper เติม
 // "tabler:" ให้เองถ้ายังไม่มี ":" (safepay-ux ยืนยัน mapping นี้แล้ว)
 /**
- * สีประจำหมวด — token + opacity modifier เท่านั้น (Hard Rule 7 ห้าม arbitrary value/hex)
+ * สีของหมวดค่าใช้จ่าย — token + opacity modifier เท่านั้น (Hard Rule 7 ห้าม arbitrary value/hex)
  *
- * เลือกจาก ramp น้ำเงิน (primary/info) + เทา โดยตั้งใจเลี่ยง:
- *   - `secondary` (#7b70ef) เพราะใกล้ม่วง #7367F0 ของ Vuexy ฝั่ง buyer เกินไป
- *   - `success`/`danger` เพราะถูกจองความหมายไว้แล้วทั้งฟีเจอร์ ("กำไร" / "เงินไหลออก")
- *     ถ้าเอามาใช้เป็นสีหมวด ผู้ใช้จะอ่านว่าหมวดนั้นดี/แย่ ทั้งที่มันเป็นแค่ป้ายชื่อ
- * `wash` = พื้นอ่อน+ตัวหนังสือของ avatar/badge (ใช้ -ink เมื่อ semantic เองจางจนตกคอนทราสต์ AA)
- * `solid` = จุด legend และแถบสัดส่วนในการ์ดแยกหมวด
+ * avatar ของทุกหมวดใช้ "พื้นกลางสีเดียวกันหมด" โดยตั้งใจ — ตัวแยกหมวดคือ **ไอคอน + ชื่อเต็ม**
+ * ที่อยู่ข้างกันในแถวเดียว ไม่ใช่สี. เหตุผล (จาก Impeccable critique 2026-08-02):
+ *   1. พาเลตต์ Paces มีสี semantic ไม่พอให้ 7 หมวดต่างกันจริง — รอบแรกลองแล้วได้พื้นซ้ำกัน
+ *      2 คู่ (RENT=PACKAGING, ADVERTISING=SHIPPING) ซึ่งแย่กว่าไม่ใส่สีเลย เพราะดูเหมือนตั้งใจ
+ *      จัดกลุ่มทั้งที่ไม่ได้จัด
+ *   2. รอบแรกใช้ `bg-primary/15` เป็นสีหมวด ซึ่งเป็นสีเดียวกับ "ชิปที่ถูกเลือกอยู่" พอดี →
+ *      avatar แถวค่าโฆษณาอ่านเหมือนตัวกรองที่เปิดค้างอยู่ (One Voice Rule: primary สงวนไว้
+ *      สำหรับ action + selection เท่านั้น ห้ามใช้เป็น identity ของข้อมูล)
+ *
+ * `bar` = แถบสัดส่วนในการ์ดแยกหมวด — ใช้ ramp น้ำหนักเดียว (info ไล่ opacity) ซึ่งเป็นการเข้ารหัส
+ * ที่ถูกต้องของ part-to-whole ที่เรียงจากมากไปน้อยอยู่แล้ว. ไม่มีข้อมูลไหนพึ่งสีอย่างเดียว —
+ * legend มีทั้งไอคอน ชื่อ % และจำนวนเงินกำกับทุกแถว
  */
-export const EXPENSE_CATEGORY_COLOR: Record<ExpenseCategory, { wash: string; solid: string }> = {
-  RENT:        { wash: 'bg-info/15 text-info-ink',           solid: 'bg-info' },
-  PACKAGING:   { wash: 'bg-info/15 text-info-ink',           solid: 'bg-info/60' },
-  ADVERTISING: { wash: 'bg-primary/15 text-primary',         solid: 'bg-primary' },
-  SHIPPING:    { wash: 'bg-primary/15 text-primary',         solid: 'bg-primary/60' },
-  SALARY:      { wash: 'bg-default-200 text-default-700',    solid: 'bg-default-600' },
-  UTILITIES:   { wash: 'bg-warning/15 text-warning-ink',     solid: 'bg-warning' },
-  OTHER:       { wash: 'bg-default-100 text-default-600',    solid: 'bg-default-400' },
-}
+export const EXPENSE_CATEGORY_AVATAR = 'bg-default-200 text-default-700'
+
+/** ระดับความเข้มของแถบสัดส่วน เรียงตามอันดับ (มากสุด → น้อยสุด) */
+export const EXPENSE_BAR_STEPS = [
+  'bg-info',
+  'bg-info/80',
+  'bg-info/60',
+  'bg-info/45',
+  'bg-info/35',
+  'bg-info/25',
+  'bg-info/20',
+] as const
 
 export const EXPENSE_CATEGORY_ICON: Record<ExpenseCategory, string> = {
   RENT: 'building-store',

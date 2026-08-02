@@ -73,7 +73,7 @@ export default function ExpenseQuickStatsCard({ expenses, revenue, days, loading
 function Row({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <div className="border-default-300 flex items-center justify-between gap-3 border-b border-dashed py-2.5 last:border-b-0">
-      <dt className="text-default-600 flex items-center gap-1.5 text-xs">
+      <dt className="text-default-700 flex items-center gap-1.5 text-xs">
         <Icon icon={icon} className="text-base" aria-hidden="true" />
         {label}
       </dt>

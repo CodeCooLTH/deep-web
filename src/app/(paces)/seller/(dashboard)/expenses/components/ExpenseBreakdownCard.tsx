@@ -19,7 +19,7 @@ import { cn } from '@/utils/helpers'
 import {
   EXPENSE_CATEGORY_LABEL_TH,
   EXPENSE_CATEGORY_ICON,
-  EXPENSE_CATEGORY_COLOR,
+  EXPENSE_BAR_STEPS,
   type ExpenseCategory,
 } from '@/lib/expense'
 import type { SerializedExpense } from '@/services/expense.service'
@@ -65,15 +65,17 @@ export default function ExpenseBreakdownCard({ expenses, loading = false }: Prop
     <div className="card">
       <div className="card-header">
         <h4 className="card-title">ค่าใช้จ่ายแยกหมวด</h4>
-        <span className="text-default-600 text-xs">รวม {formatThb(total)}</span>
+        <span className="text-default-700 text-xs">รวม {formatThb(total)}</span>
       </div>
 
       <div className={cn('card-body transition-opacity', loading && 'opacity-50')}>
+        {/* แถบเรียงจากมากไปน้อย ความเข้มจึงไล่ลงตามอันดับ — ไม่มีข้อมูลไหนพึ่งสีอย่างเดียว
+            (legend ข้างล่างมีไอคอน ชื่อ % และจำนวนเงินกำกับครบทุกแถว) */}
         <div className="bg-default-200 flex h-2.5 overflow-hidden rounded-full" aria-hidden="true">
-          {rows.map((r) => (
+          {rows.map((r, idx) => (
             <span
               key={r.category}
-              className={cn('block h-full', EXPENSE_CATEGORY_COLOR[r.category].solid)}
+              className={cn('block h-full', EXPENSE_BAR_STEPS[Math.min(idx, EXPENSE_BAR_STEPS.length - 1)])}
               style={{ width: `${r.percent}%` }}
             />
           ))}
@@ -90,18 +92,21 @@ export default function ExpenseBreakdownCard({ expenses, loading = false }: Prop
                 className={cn('flex items-center gap-2.5 text-xs', hiddenOnMobile && 'hidden sm:flex')}
               >
                 <span
-                  className={cn('size-2.5 shrink-0 rounded-sm', EXPENSE_CATEGORY_COLOR[r.category].solid)}
+                  className={cn(
+                    'size-2.5 shrink-0 rounded-sm',
+                    EXPENSE_BAR_STEPS[Math.min(idx, EXPENSE_BAR_STEPS.length - 1)],
+                  )}
                   aria-hidden="true"
                 />
                 <Icon
                   icon={EXPENSE_CATEGORY_ICON[r.category]}
-                  className="text-default-600 shrink-0 text-base"
+                  className="text-default-700 shrink-0 text-base"
                   aria-hidden="true"
                 />
                 <span className="text-default-800 min-w-0 flex-1 truncate">
                   {EXPENSE_CATEGORY_LABEL_TH[r.category]}
                 </span>
-                <span className="text-default-600 w-12 text-end">{r.percent.toFixed(1)}%</span>
+                <span className="text-default-700 w-12 text-end">{r.percent.toFixed(1)}%</span>
                 <span className="text-default-900 w-24 text-end font-semibold">{formatThb(r.amount)}</span>
               </li>
             )

@@ -74,7 +74,10 @@ export default async function ExpensesPage() {
   // GRANTED — ผ่าน gate แล้วเท่านั้นถึง query ข้อมูลจริง (default range 'today' ตาม spec)
   // listExpenses ผูกช่วงเดียวกับรายงานเสมอ — ถ้าดึงทั้งหมดเหมือนเดิม การ์ดแยกหมวด/สรุปเร็ว
   // จะคิดจากคนละฐานกับตัวเลข "ค่าใช้จ่าย" บนการ์ด P&L แล้วขัดกันเองให้ผู้ใช้เห็น
-  const range = resolveDateRange('today')
+  // '30d' ไม่ใช่ 'today' — ร้านทั่วไปบันทึกค่าใช้จ่ายสัปดาห์ละครั้ง เปิดหน้ามาวันธรรมดาด้วยช่วง
+  // "วันนี้" จะเจอรายการว่างแล้วเข้าใจว่าข้อมูลหาย และวันที่บันทึกค่าเช่าจะเห็น "ขาดทุน" เต็มจอ
+  // ทั้งที่ร้านไม่ได้ขาดทุน (ตรงกับม็อกอัพที่ผ่าน review แล้วซึ่งตั้ง 30 วันเป็นค่าเริ่มต้น)
+  const range = resolveDateRange('30d')
   const [report, expenses, everRecorded] = await Promise.all([
     getPnlReport(decision.shop.id, range),
     listExpenses(decision.shop.id, { range: range.expenseRange }),

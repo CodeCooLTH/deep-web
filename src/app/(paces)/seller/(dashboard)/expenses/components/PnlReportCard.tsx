@@ -18,9 +18,16 @@
  */
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
-import { CountUp } from '@/components/wrappers/CountUp'
 import { cn } from '@/utils/helpers'
 import type { PnlReport } from '@/services/pnl.service'
+
+/**
+ * ไม่ใช้ CountUp กับตัวเลขในหน้านี้ — DESIGN.md §Motion ห้าม choreography ตอนโหลดในฝั่ง product
+ * และที่สำคัญกว่า: ระหว่างที่มันไล่เลข 1 วินาที จอแสดง "จำนวนเงินที่ไม่เคยมีอยู่จริง" บนหน้าที่
+ * ทั้งฟีเจอร์เดิมพันกับความแม่นของตัวเลข (ตอนขาดทุนยิ่งแย่ — เห็นเลขไหลลงเป็นแอนิเมชัน)
+ */
+const formatThb = (n: number) =>
+  '฿' + new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 
 type Props = {
   report: PnlReport
@@ -53,14 +60,12 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
             loading && 'opacity-50',
           )}
         >
-          <p className="text-default-600 mb-0.5 text-xs">กำไรสุทธิ · {rangeLabel}</p>
-          <h3
-            className={cn(
-              'text-3xl font-bold',
-              netPositive ? 'text-success-ink' : 'text-danger-ink',
-            )}
-          >
-            <CountUp start={0} end={report.netProfit} prefix="฿" duration={1} decimals={2} />
+          <p className="text-default-700 mb-0.5 text-xs">{netPositive ? 'กำไรสุทธิ' : 'ผลประกอบการ'} · {rangeLabel}</p>
+          {/* ติดลบ = พูดว่า "ขาดทุน" ตรง ๆ แล้วโชว์เลขบวก — "กำไรสุทธิ −฿1,450" บังคับให้ผู้ใช้
+              ตีความเครื่องหมายลบเองก่อนถึงจะเข้าใจ ซึ่งเป็นภาระที่ไม่จำเป็นกับตัวเลขสำคัญที่สุดของหน้า */}
+          <h3 className={cn('text-3xl font-bold', netPositive ? 'text-success-ink' : 'text-danger-ink')}>
+            {netPositive ? '' : 'ขาดทุน '}
+            {formatThb(Math.abs(report.netProfit))}
           </h3>
           {changePercent != null && (
             <span
@@ -90,6 +95,13 @@ export default function PnlReportCard({ report, loading = false, rangeLabel }: P
           </div>
         </div>
       </div>
+
+      {/* นิยามของ "รายได้" ที่นี่ = ออเดอร์ที่ลูกค้ากดยืนยันรับของแล้วเท่านั้น ไม่ใช่ทุกออเดอร์ที่ขายได้
+          ต้องเขียนไว้ ไม่งั้นร้านที่ขายวันนี้ 10 ออเดอร์แต่ลูกค้ายืนยัน 2 จะเห็นรายได้ต่ำกว่าที่รู้สึก
+          แล้วสรุปว่าตัวเลขในแอปเชื่อไม่ได้ (Design Spec §0.2 — surface อื่นมีบรรทัดนี้แล้ว) */}
+      <p className="text-default-700 border-default-300 border-t border-dashed px-5 py-2.5 text-xs">
+        คิดจากออเดอร์ที่ลูกค้ายืนยันรับของแล้วเท่านั้น · กำไรสุทธิ = รายได้ − ต้นทุนสินค้า − ค่าใช้จ่าย
+      </p>
 
       {report.hasMissingCost && (
         <div className="px-5 pb-5">
@@ -133,12 +145,12 @@ function StatCell({
         !last && 'md:border-e',
       )}
     >
-      <p className="text-default-600 mb-1 flex items-center justify-center gap-1.5 text-xs">
+      <p className="text-default-700 mb-1 flex items-center justify-center gap-1.5 text-xs">
         <Icon icon={icon} className="hidden text-base lg:inline" aria-hidden="true" />
         {label}
       </p>
       <p className={cn('font-semibold', colorClass)}>
-        <CountUp start={0} end={value} prefix="฿" duration={1} decimals={2} />
+        {formatThb(value)}
       </p>
     </div>
   )

@@ -47,8 +47,8 @@ export default function ExpenseToolbar({ range, onRangeChange, onCustomChange, o
             onClick={() => onRangeChange(opt.value)}
             aria-pressed={range === opt.value}
             className={cn(
-              'btn btn-sm shrink-0 rounded-full',
-              range === opt.value ? 'bg-primary/15 text-primary font-semibold' : 'bg-light text-dark',
+              'btn btn-sm min-h-11 shrink-0 rounded-full',
+              range === opt.value ? 'bg-primary/15 text-primary-ink font-semibold' : 'bg-light text-dark',
             )}
           >
             {opt.label}
@@ -69,7 +69,7 @@ export default function ExpenseToolbar({ range, onRangeChange, onCustomChange, o
               idx === 0 && 'rounded-e-none',
               idx > 0 && idx < RANGE_OPTIONS.length - 1 && 'rounded-none',
               idx === RANGE_OPTIONS.length - 1 && 'rounded-s-none',
-              range === opt.value ? 'bg-primary/15 text-primary' : 'bg-light text-dark',
+              range === opt.value ? 'bg-primary/15 text-primary-ink' : 'bg-light text-dark',
             )}
           >
             {opt.label}

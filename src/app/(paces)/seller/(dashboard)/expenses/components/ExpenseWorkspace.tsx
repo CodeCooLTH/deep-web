@@ -54,7 +54,8 @@ type Props = {
 
 export default function ExpenseWorkspace({ initialReport, initialExpenses, hasAnyExpenseEver }: Props) {
   const router = useRouter()
-  const [range, setRange] = useState<DateRangePreset>('today')
+  // ต้องตรงกับ resolveDateRange() ใน page.tsx เสมอ — ไม่งั้นข้อมูลที่ SSR ส่งมากับป้ายช่วงเวลาที่โชว์ไม่ตรงกัน
+  const [range, setRange] = useState<DateRangePreset>('30d')
   const [customDates, setCustomDates] = useState<[string, string] | null>(null)
   const [report, setReport] = useState<PnlReport>(initialReport)
   const [expenses, setExpenses] = useState<SerializedExpense[]>(initialExpenses)
