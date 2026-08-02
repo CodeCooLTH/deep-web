@@ -705,8 +705,20 @@ export async function sweepStuckJobs(opts: { shopId?: string; limit?: number } =
  * เธรด = N+1 · index `[conversationId, autoReplyKind, createdAt]` มีอยู่แล้วใน schema ตั้งแต่
  * base feature โดยใส่ไว้เพื่องานนี้โดยเฉพาะ
  *
- * NOTE: `lastMessageIsAiEnhanced` เป็น `false` ตายตัวในเฟสนี้ — ยังไม่มี flag `aiEnhanceEnabled`
- * จริงในระบบ (DeepAI อยู่ในเอกสารล่วงหน้า PRD §3.9 เท่านั้น) จึงไม่ query อะไรเพิ่มเพื่อหาค่านี้
+ * `lastMessageIsAiEnhanced` = ข้อความล่าสุดมาจาก **ChatBot (DeepAI)** ไม่ใช่คำตอบสำเร็จรูป (DeepBot)
+ *
+ * ชื่อฟิลด์เป็นมรดกจากยุค AI Enhance ที่ถูกถอดออกไปแล้ว (`68c37cd3`) — ความหมายตอนนี้คือ
+ * "ตอบโดย AI" ซึ่งของจริงคือ ChatBot ที่ตอบจากคลังความรู้ · คงชื่อเดิมไว้เพราะ `InboxList.tsx`
+ * ผูกกับชื่อนี้อยู่ และการเปลี่ยนชื่อฟิลด์ไม่ได้ทำให้ผู้ใช้ได้อะไรเพิ่ม
+ *
+ * WARNING: เดิมค่านี้ **hardcode `false`** ทำให้ป้าย DeepAI ไม่เคยขึ้นเลยแม้แต่ครั้งเดียว —
+ * รายการแชทเขียนว่า "DeepBot" ทุกแถวรวมถึงแถวที่ AI เป็นคนตอบ ซึ่งกลบสิ่งที่ป้ายนี้มีไว้บอก
+ * ตั้งแต่แรก (ร้านต้องแยกออกว่าอันไหนคำพูดของตัวเอง อันไหนที่ AI แต่งและควรอ่านตรวจ)
+ *
+ * ทำไมอ่านจาก `AutoReplyLog` แทนที่จะ join `outboundMessageId`: คอลัมน์นั้น **ไม่มี index**
+ * (บทเรียนเดียวกับตอนทำป้าย DeepBot) จึง `DISTINCT ON (conversationId)` บน log ที่ตอบสำเร็จ
+ * โดยใช้ index `[conversationId, createdAt]` ที่มีอยู่แล้ว — log ที่ REPLIED ล่าสุดของเธรด
+ * ย่อมเป็นตัวเดียวกับข้อความ auto-reply ล่าสุด เพราะ log ถูกเขียนในจังหวะเดียวกับการส่ง
  */
 export async function enrichWithAutoReplyBadge<T extends { id: string }>(
   items: T[],
@@ -723,12 +735,28 @@ export async function enrichWithAutoReplyBadge<T extends { id: string }>(
     ORDER BY m."conversationId", m."createdAt" DESC, m."seq" DESC
   `
 
+  const viaRows = await prisma.$queryRaw<{ conversationId: string; matchedVia: string | null }[]>`
+    SELECT DISTINCT ON (l."conversationId")
+      l."conversationId" AS "conversationId",
+      l."matchedVia"     AS "matchedVia"
+    FROM "AutoReplyLog" l
+    WHERE l."conversationId" IN (${Prisma.join(ids)})
+      AND l."decision" = 'REPLIED'
+    ORDER BY l."conversationId", l."createdAt" DESC
+  `
+
   const byConversation = new Map(rows.map((r) => [r.conversationId, r.autoReplyKind]))
-  return items.map((i) => ({
-    ...i,
-    lastMessageAutoReplyKind: byConversation.get(i.id) ?? null,
-    lastMessageIsAiEnhanced: false,
-  }))
+  const viaByConversation = new Map(viaRows.map((r) => [r.conversationId, r.matchedVia]))
+  return items.map((i) => {
+    const kind = byConversation.get(i.id) ?? null
+    return {
+      ...i,
+      lastMessageAutoReplyKind: kind,
+      // ต้องเช็ค kind ด้วย ไม่ใช่ดูแต่ matchedVia — เธรดที่ ChatBot เคยตอบเมื่อวาน แล้ววันนี้
+      // พนักงานพิมพ์เอง ข้อความล่าสุดไม่ใช่ของบอทแล้ว ป้ายจึงต้องไม่ขึ้น
+      lastMessageIsAiEnhanced: kind !== null && viaByConversation.get(i.id) === 'CHATBOT',
+    }
+  })
 }
 
 

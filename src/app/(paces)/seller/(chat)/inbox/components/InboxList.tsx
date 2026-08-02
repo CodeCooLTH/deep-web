@@ -133,7 +133,13 @@ export type ConversationListItem = {
   // enrich ด้วย enrichWithAutoReplyBadge ทั้งฝั่ง RSC (inbox/page.tsx) และ route
   // optional เผื่อ payload เก่าที่ยังไม่มี field นี้ -> fallback เป็นพฤติกรรมเดิม ("คุณ: ")
   lastMessageAutoReplyKind?: string | null
-  /** สงวนไว้สำหรับ DeepAI (AI Enhance) — ยังเป็น false เสมอในเฟสนี้ */
+  /**
+   * true = ข้อความล่าสุดมาจาก **ChatBot (DeepAI)** ตอบจากคลังความรู้ · false = คำตอบสำเร็จรูป (DeepBot)
+   *
+   * ชื่อฟิลด์เป็นมรดกจากยุค AI Enhance ที่ถูกถอดออกไปแล้ว (`68c37cd3`) — คงชื่อไว้เพราะทั้ง RSC
+   * และ route ส่งชื่อนี้อยู่ · เดิมค่านี้ hardcode `false` ทั้งสองทาง ป้าย DeepAI จึงไม่เคยขึ้นเลย
+   * (แก้แล้ว 2026-08-02 — อ่านจาก `AutoReplyLog.matchedVia = 'CHATBOT'`)
+   */
   lastMessageIsAiEnhanced?: boolean
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
