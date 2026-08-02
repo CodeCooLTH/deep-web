@@ -13,6 +13,7 @@
  */
 
 import AuthLogo from '@/components/AuthLogo'
+import BackToBusinessButton from './components/BackToBusinessButton'
 import Icon from '@/components/wrappers/Icon'
 import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 import ThaiAddressSearch from '@/components/safepay/ThaiAddressSearch'
@@ -225,6 +226,10 @@ export default function OnboardingPage() {
           </div>
         </>
       )}
+
+      {/* ทางออกสำหรับผู้ถูกเชิญที่เพิ่งสร้างร้านส่วนตัวระหว่างทำงานในร้านคนอื่น (feature 00026 A3)
+          component ตัดสินใจเองว่าจะโผล่ไหม — ไม่โผล่เลยถ้าไม่มี business membership */}
+      <BackToBusinessButton />
     </Shell>
   )
 }

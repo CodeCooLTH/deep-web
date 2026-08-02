@@ -5,7 +5,7 @@
  * mobile sheet, subscriptions "สลับมาร้านนี้") — dumb presentational component รับ props ล้วน ไม่มี
  * logic สลับร้านเอง (ดู useShopSwitcher hook)
  *
- * ⚠️ ต้อง render ผ่าน Portal ไป document.body: mobile sheet (AccountSwitcherSheet) และ dropdown
+ * สำคัญ: ต้อง render ผ่าน Portal ไป document.body — mobile sheet (AccountSwitcherSheet) และ dropdown
  * มี parent ที่ใช้ `transform` (translate-y เปิด/ปิด sheet) ซึ่งสร้าง containing block ให้
  * position:fixed → ถ้า render overlay ไว้ข้างในจะไม่เต็ม viewport + โดน backdrop ของ sheet บัง.
  * Portal ไป body ทำให้ fixed inset-0 z-[1070] เต็มจอจริง อยู่บนสุดทับทั้ง sheet + backdrop เสมอ.
@@ -24,9 +24,13 @@ interface Props {
   targetName?: string
   targetLogo?: string | null
   targetKind?: 'personal' | 'business'
+  /** override ข้อความหลัก — ใช้ตอนที่ไม่ใช่การ "สลับ" ร้าน (feature 00026: เปิดร้านส่วนตัวครั้งแรก
+   *  ยังไม่มีร้านให้เอ่ยชื่อ ข้อความ default "กำลังสลับบัญชี…" จึงบรรยายผิดเหตุการณ์) */
+  label?: string
+  subLabel?: string
 }
 
-export default function ShopSwitchOverlay({ show, targetName, targetLogo, targetKind }: Props) {
+export default function ShopSwitchOverlay({ show, targetName, targetLogo, targetKind, label, subLabel }: Props) {
   // mounted guard — createPortal ต้องมี document (client เท่านั้น) กัน SSR/hydration mismatch
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
@@ -35,7 +39,8 @@ export default function ShopSwitchOverlay({ show, targetName, targetLogo, target
 
   if (!show || !mounted) return null
 
-  const primaryText = targetName ? `กำลังสลับไปที่ร้าน "${targetName}"` : 'กำลังสลับบัญชี…'
+  const primaryText = label ?? (targetName ? `กำลังสลับไปที่ร้าน "${targetName}"` : 'กำลังสลับบัญชี…')
+  const secondaryText = subLabel ?? 'กรุณารอสักครู่ ระบบกำลังโหลดข้อมูลใหม่'
 
   // z-[1070] จำเป็น: สูงกว่า sheet/dropdown/backdrop z-80, ต่ำกว่า toast z-[1080] — HR7 exception
   // (precedent: overlay เดิมใน UserDropdownDetailed.tsx / AccountSwitcherSheet.tsx)
@@ -59,7 +64,7 @@ export default function ShopSwitchOverlay({ show, targetName, targetLogo, target
         <div className="border-primary size-8 animate-spin rounded-full border-2 border-t-transparent" />
       )}
       <p className="text-default-800 text-sm font-semibold">{primaryText}</p>
-      <p className="text-default-500 text-xs">กรุณารอสักครู่ ระบบกำลังโหลดข้อมูลใหม่</p>
+      <p className="text-default-500 text-xs">{secondaryText}</p>
     </div>
   )
 
