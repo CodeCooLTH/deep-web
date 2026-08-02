@@ -289,11 +289,20 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
 
       {/* dock — chip ของ draft ที่ย่อไว้ (แสดงเมื่อไม่มีตัวไหนขยายอยู่ เพราะโมดัลขยายกินเกือบเต็มจอ) */}
       {!expanded && minimized.length > 0 && (
-        <div className="fixed bottom-4 start-4 z-80 flex flex-col-reverse items-start gap-2">
+        // มุมขวาล่าง + เรียงแนวนอน (user สั่ง 2026-08-02) — เดิมอยู่ซ้ายล่างและเรียงแนวตั้ง
+        // ซึ่งพอมีหลายร่างจะไต่ขึ้นไปบังรายการแชทเป็นแถบยาว
+        //   flex-row-reverse: ร่างล่าสุดอยู่ "ใกล้มุมขวา" ที่สุด (ความหมายเดียวกับ flex-col-reverse
+        //     เดิมที่ให้ตัวล่าสุดใกล้ขอบล่างสุด) ตัวเก่าไหลไปทางซ้าย — พฤติกรรมเดียวกับ dock ร่าง
+        //     ของ Gmail/Messenger ที่คนคุ้นอยู่แล้ว
+        //   inset-x-4 + wrap-reverse: ต้องกางเต็มความกว้างถึงจะรู้ว่าเมื่อไหร่ควรขึ้นบรรทัดใหม่
+        //     (ไม่งั้นแถวยาวเกินจอแล้วชิปตัวเก่าหลุดขอบซ้ายไปเลย) บรรทัดใหม่ซ้อน "ขึ้นบน" ตาม wrap-reverse
+        //   pointer-events-none ที่ปลอก + auto ที่ชิป: ปลอกกินความกว้างทั้งจอ ถ้าไม่ปิดรับคลิก
+        //     มันจะบังแถบพิมพ์ข้อความที่อยู่ใต้มัน
+        <div className="pointer-events-none fixed inset-x-4 bottom-4 z-80 flex flex-row-reverse flex-wrap-reverse justify-start gap-2">
           {minimized.map((d) => (
             <div
               key={d.id}
-              className="border-default-300 bg-card flex items-center gap-2 rounded-full border py-2 ps-3 pe-2 shadow-lg"
+              className="border-default-300 bg-card pointer-events-auto flex items-center gap-2 rounded-full border py-2 ps-3 pe-2 shadow-lg"
             >
               <button type="button" onClick={() => expand(d.id)} className="flex min-w-0 items-center gap-2">
                 <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />

@@ -1111,15 +1111,17 @@ export default function ChatThread({
       {/* feature 00023 — บอทถูกพัก/ส่งต่อคนแล้ว
           อยู่เหนือแบนเนอร์ 24 ชม. เพราะตอบคำถามคนละข้อกัน: อันนั้นบอกว่า "ส่งได้ไหม"
           อันนี้บอกว่า "ทำไมบอทเงียบ" ซึ่งเป็นสิ่งที่ร้านสงสัยก่อนเสมอเมื่อเห็นห้องไม่ขยับ */}
-      {botCouldReply && (botPausedUntil || botHandoffAt) && (
-        <div className="px-4 pt-4">
-          <BotPausedBanner
-            conversationId={conversationId}
-            pausedUntil={botPausedUntil}
-            handoffAt={botHandoffAt}
-            handoffReason={botHandoffReason}
-          />
-        </div>
+      {/* botCouldReply = คำถามที่คอมโพเนนต์ไม่มีทางรู้ ("ห้องนี้บอทตอบได้ไหมตั้งแต่แรก") จึงคงไว้
+          ที่ caller — ส่วน "พักอยู่จริงไหม" กับระยะห่างรอบแบนเนอร์ อยู่ในตัว BotPausedBanner ทั้งคู่
+          ห้ามห่อ div ที่มี padding ไว้ตรงนี้อีก (user report 2026-08-02: เงื่อนไขข้างนอกไม่ตรงกับ
+          ข้างใน — pausedUntil ที่หมดเวลาแล้วยังไม่ใช่ null — ทำให้เหลือ div ว่างสูง 16px คั่นอยู่) */}
+      {botCouldReply && (
+        <BotPausedBanner
+          conversationId={conversationId}
+          pausedUntil={botPausedUntil}
+          handoffAt={botHandoffAt}
+          handoffReason={botHandoffReason}
+        />
       )}
 
       {/* feature 00018 T4 — แบนเนอร์ "ส่งไม่ได้แล้ว" / token invalid (เฉพาะ channel != DEEP)
