@@ -70,7 +70,8 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import AutoReplyTag from './AutoReplyTag'
-import BotPausedBanner from './BotPausedBanner'
+import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
+import ThreadStatusBar, { type ThreadStatusItem } from './ThreadStatusBar'
 import { pacesToast } from '@/lib/paces-toast'
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 import Link from 'next/link'
@@ -954,6 +955,127 @@ export default function ChatThread({
     }
   }
 
+  // ── สถานะห้อง (user report 2026-08-02: alert box ซ้อนกันรกจอ) ───────────────────────
+  // ประกอบเป็นรายการเดียวเรียงตามความสำคัญ แล้วให้ ThreadStatusBar ตัดสินใจเรื่องการแสดงผล
+  // (ยุบ/กาง) ที่เดียว — ก่อนหน้านี้แต่ละสถานะเป็น JSX แยกกันในหน้า จึงไม่มีใครรู้ว่ารวมแล้ว
+  // มีกี่อัน และไม่มีทางจัดลำดับความสำคัญได้เลย
+  const threadStatuses: ThreadStatusItem[] = []
+  if (isExternal && tokenInvalid) {
+    threadStatuses.push({
+      key: 'token',
+      tone: 'danger',
+      icon: 'alert-circle',
+      short: 'การเชื่อมต่อกับเพจนี้มีปัญหา — ต้องเชื่อมต่อใหม่',
+      action: (
+        <Link href="/settings/channels" className="shrink-0 text-xs font-semibold underline">
+          ตั้งค่าช่องทาง
+        </Link>
+      ),
+      detail: (
+        <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-lg" />
+          <span>
+            การเชื่อมต่อกับเพจนี้มีปัญหา — ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่{' '}
+            <Link href="/settings/channels" className="font-semibold underline">
+              ตั้งค่าช่องทาง
+            </Link>
+          </span>
+        </div>
+      ),
+    })
+  }
+  if (isExternal && !tokenInvalid && !liveWindowOpen) {
+    // แยก 3 เคส (user report 2026-07-24 / 2026-07-31):
+    //   1. เธรดที่เกิดจากการตอบคอมเมนต์ — Meta ให้ตอบได้ 1 ข้อความ (private reply) แล้วต้อง
+    //      รอลูกค้าตอบกลับ. ร้านเพิ่งส่งสำเร็จไปหยก ๆ การขึ้นแถบแดงจึงอ่านเหมือนระบบพัง
+    //      ทั้งที่เป็นสถานะปกติตามนโยบาย → ใช้โทน info ไม่ใช่ danger
+    //   2. ลูกค้ายังไม่เคยทักเลย (เธรดมาจากทางอื่น)
+    //   3. ทักแล้วแต่เกิน 24 ชม. — อันนี้เป็นการเสียโอกาสจริง คงโทนแดงไว้
+    const soft = neverInbound || humanAgentOpen
+    threadStatuses.push({
+      key: 'window',
+      tone: soft ? 'info' : 'danger',
+      icon: soft ? 'info-circle' : 'message-circle-off',
+      short: neverInbound
+        ? isCommentReplyThread
+          ? 'ตอบคอมเมนต์ได้ 1 ข้อความ — รอลูกค้าตอบกลับ'
+          : 'ลูกค้ายังไม่เคยทักเข้ามา — ส่งข้อความไม่ได้'
+        : humanAgentOpen
+          ? 'เกิน 24 ชั่วโมงแล้ว — ตอบเองได้ ห้ามส่งโปรโมชัน'
+          : 'เกิน 7 วัน — ส่งข้อความใหม่ไม่ได้',
+      detail: (
+        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info' : 'bg-danger/15 text-danger'}`}>
+          <Icon icon={soft ? 'info-circle' : 'message-circle-off'} className="mt-0.5 shrink-0 text-lg" />
+          <span>
+            {neverInbound ? (
+              isCommentReplyThread ? (
+                'เธรดนี้เริ่มจากการตอบกลับความคิดเห็นบนโพสต์ — Meta ให้ตอบได้ 1 ข้อความเท่านั้น ส่งเพิ่มได้เมื่อลูกค้าตอบกลับเข้ามา'
+              ) : (
+                'ลูกค้ายังไม่เคยทักเข้ามาในระบบ — ส่งข้อความจากที่นี่ไม่ได้จนกว่าลูกค้าจะทักมา (นโยบาย Messenger/Instagram)'
+              )
+            ) : humanAgentOpen ? (
+              // ระดับกลาง: เกิน 24 ชม. แต่ยังตอบได้ด้วย HUMAN_AGENT — ต้องบอกข้อจำกัดให้ครบ
+              // เพราะผู้ขายอาจเผลอส่งโปรโมชันซึ่งผิดนโยบายและทำให้แอปโดนระงับได้
+              <>
+                เกิน 24 ชั่วโมงแล้ว แต่ยังตอบเองได้ถึง{' '}
+                <span className="font-semibold">{humanAgentExpiresAt ? formatDateTime(humanAgentExpiresAt) : '7 วันนับจากข้อความล่าสุดของลูกค้า'}</span>{' '}
+                — ต้องเป็นข้อความที่พิมพ์เอง ห้ามส่งโปรโมชัน (นโยบาย Meta)
+              </>
+            ) : (
+              'เกิน 7 วันนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่'
+            )}
+          </span>
+        </div>
+      ),
+    })
+  }
+  // botCouldReply = คำถามที่ BotPausedBanner ไม่มีทางรู้ ("ห้องนี้บอทตอบได้ไหมตั้งแต่แรก")
+  // ส่วน "พักอยู่จริงไหม" ตัดสินที่ getBotPausedSummary ที่เดียว ทั้งแถบยุบและตัวแบนเนอร์เต็ม
+  const botPaused = getBotPausedSummary(botPausedUntil, botHandoffAt)
+  if (botCouldReply && botPaused.show) {
+    threadStatuses.push({
+      key: 'bot',
+      tone: 'warning',
+      icon: 'robot-off',
+      short: botPaused.short,
+      detail: (
+        <BotPausedBanner
+          conversationId={conversationId}
+          pausedUntil={botPausedUntil}
+          handoffAt={botHandoffAt}
+          handoffReason={botHandoffReason}
+        />
+      ),
+    })
+  }
+  if (isChatbotTestThread) {
+    // feature 00023 (user สั่ง 2026-08-01) — ต้องเห็นตั้งแต่เปิดห้อง เพราะข้อความที่บอทส่ง
+    // ในโหมดนี้ถึงลูกค้าจริง ไม่ใช่การจำลอง คนที่ไม่รู้จะนึกว่าปลอดภัยแล้วลองพิมพ์เล่น
+    threadStatuses.push({
+      key: 'chatbot-test',
+      tone: 'info',
+      icon: 'flask',
+      short: 'ห้องนี้กำลังใช้ทดสอบ DeepAI — บอทตอบถึงลูกค้าจริง',
+      action: (
+        <Link href="/settings/chatbot" className="shrink-0 text-xs font-semibold underline">
+          ตั้งค่า
+        </Link>
+      ),
+      detail: (
+        <div className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <Icon icon="flask" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            ห้องนี้กำลังใช้ทดสอบ DeepAI
+            <span className="block text-xs">ข้อความที่บอทตอบถูกส่งถึงลูกค้าจริง ไม่ใช่การจำลอง</span>
+          </span>
+          <Link href="/settings/chatbot" className="shrink-0 text-xs font-semibold underline">
+            ตั้งค่า
+          </Link>
+        </div>
+      ),
+    })
+  }
+
   return (
     <>
     <div className="card min-w-0 h-full flex-1 flex flex-col"> {/* h-full: parent คุมความสูงที่เหลือให้แล้ว (ดู comment หัวไฟล์) */}
@@ -1090,96 +1212,11 @@ export default function ChatThread({
         </div>
       )}
 
-      {/* feature 00023 — ห้องนี้กำลังใช้ทดสอบ DeepAI (user สั่ง 2026-08-01)
-          ต้องเห็นตั้งแต่เปิดห้อง เพราะข้อความที่บอทส่งในโหมดนี้ถึงลูกค้าจริง
-          ไม่ใช่การจำลอง — คนที่ไม่รู้จะนึกว่าปลอดภัยแล้วลองพิมพ์เล่น */}
-      {isChatbotTestThread && (
-        <div className="px-4 pt-4">
-          <div className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
-            <Icon icon="flask" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
-            <span className="min-w-0 flex-1">
-              ห้องนี้กำลังใช้ทดสอบ DeepAI
-              <span className="block text-xs">ข้อความที่บอทตอบถูกส่งถึงลูกค้าจริง ไม่ใช่การจำลอง</span>
-            </span>
-            <Link href="/settings/chatbot" className="shrink-0 text-xs font-semibold underline">
-              ตั้งค่า
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* feature 00023 — บอทถูกพัก/ส่งต่อคนแล้ว
-          อยู่เหนือแบนเนอร์ 24 ชม. เพราะตอบคำถามคนละข้อกัน: อันนั้นบอกว่า "ส่งได้ไหม"
-          อันนี้บอกว่า "ทำไมบอทเงียบ" ซึ่งเป็นสิ่งที่ร้านสงสัยก่อนเสมอเมื่อเห็นห้องไม่ขยับ */}
-      {/* botCouldReply = คำถามที่คอมโพเนนต์ไม่มีทางรู้ ("ห้องนี้บอทตอบได้ไหมตั้งแต่แรก") จึงคงไว้
-          ที่ caller — ส่วน "พักอยู่จริงไหม" กับระยะห่างรอบแบนเนอร์ อยู่ในตัว BotPausedBanner ทั้งคู่
-          ห้ามห่อ div ที่มี padding ไว้ตรงนี้อีก (user report 2026-08-02: เงื่อนไขข้างนอกไม่ตรงกับ
-          ข้างใน — pausedUntil ที่หมดเวลาแล้วยังไม่ใช่ null — ทำให้เหลือ div ว่างสูง 16px คั่นอยู่) */}
-      {botCouldReply && (
-        <BotPausedBanner
-          conversationId={conversationId}
-          pausedUntil={botPausedUntil}
-          handoffAt={botHandoffAt}
-          handoffReason={botHandoffReason}
-        />
-      )}
-
-      {/* feature 00018 T4 — แบนเนอร์ "ส่งไม่ได้แล้ว" / token invalid (เฉพาะ channel != DEEP)
-          user สั่ง 2026-07-26 ให้ลดความเข้มข้นของการเตือน: window เปิดและเหลือ > 4 ชม. = ไม่แสดงอะไรเลย
-          (เดิม BRD §6.5 ให้แสดงแถบฟ้าตลอดเวลา — รบกวนสายตาโดยไม่จำเป็นเพราะเคสปกติเหลือเวลาเยอะอยู่แล้ว)
-          user สั่ง 2026-08-02: tier "≤ 4 ชม." (นับถอยหลัง) ย้ายไปเป็นข้อความชิดขวาบนหัวเธรดแล้ว
-          เหลือที่นี่เฉพาะสถานะที่ "ส่งไม่ได้จริง" ซึ่งต้องอธิบายยาวและมีทางแก้ให้กด */}
-      {isExternal && (tokenInvalid || !liveWindowOpen) && (
-        <div className="px-4 pt-4">
-          {tokenInvalid ? (
-            <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
-              <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-lg" />
-              <span>
-                การเชื่อมต่อกับเพจนี้มีปัญหา — ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่{' '}
-                <Link href="/settings/channels" className="font-semibold underline">
-                  ตั้งค่าช่องทาง
-                </Link>
-              </span>
-            </div>
-          ) : (
-            // แยก 3 เคส (user report 2026-07-24 / 2026-07-31):
-            //   1. เธรดที่เกิดจากการตอบคอมเมนต์ — Meta ให้ตอบได้ 1 ข้อความ (private reply) แล้วต้อง
-            //      รอลูกค้าตอบกลับ. ร้านเพิ่งส่งสำเร็จไปหยก ๆ การขึ้นแถบแดงจึงอ่านเหมือนระบบพัง
-            //      ทั้งที่เป็นสถานะปกติตามนโยบาย → ใช้โทน info ไม่ใช่ danger
-            //   2. ลูกค้ายังไม่เคยทักเลย (เธรดมาจากทางอื่น)
-            //   3. ทักแล้วแต่เกิน 24 ชม. — อันนี้เป็นการเสียโอกาสจริง คงโทนแดงไว้
-            <div
-              className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
-                neverInbound || humanAgentOpen ? 'bg-info/15 text-info' : 'bg-danger/15 text-danger'
-              }`}
-            >
-              <Icon
-                icon={neverInbound || humanAgentOpen ? 'info-circle' : 'message-circle-off'}
-                className="mt-0.5 shrink-0 text-lg"
-              />
-              <span>
-                {neverInbound ? (
-                  isCommentReplyThread ? (
-                    'เธรดนี้เริ่มจากการตอบกลับความคิดเห็นบนโพสต์ — Meta ให้ตอบได้ 1 ข้อความเท่านั้น ส่งเพิ่มได้เมื่อลูกค้าตอบกลับเข้ามา'
-                  ) : (
-                    'ลูกค้ายังไม่เคยทักเข้ามาในระบบ — ส่งข้อความจากที่นี่ไม่ได้จนกว่าลูกค้าจะทักมา (นโยบาย Messenger/Instagram)'
-                  )
-                ) : humanAgentOpen ? (
-                  // ระดับกลาง: เกิน 24 ชม. แต่ยังตอบได้ด้วย HUMAN_AGENT — ต้องบอกข้อจำกัดให้ครบ
-                  // เพราะผู้ขายอาจเผลอส่งโปรโมชันซึ่งผิดนโยบายและทำให้แอปโดนระงับได้
-                  <>
-                    เกิน 24 ชั่วโมงแล้ว แต่ยังตอบเองได้ถึง{' '}
-                    <span className="font-semibold">{humanAgentExpiresAt ? formatDateTime(humanAgentExpiresAt) : '7 วันนับจากข้อความล่าสุดของลูกค้า'}</span>{' '}
-                    — ต้องเป็นข้อความที่พิมพ์เอง ห้ามส่งโปรโมชัน (นโยบาย Meta)
-                  </>
-                ) : (
-                  'เกิน 7 วันนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่'
-                )}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
+      {/* แถบสถานะห้อง — ยุบเป็นบรรทัดเดียว กดกางดูรายละเอียด (user report 2026-08-02:
+          "alert box เยอะ ๆ ไม่ work มันรกหน้าจอมาก") ลำดับใน array = ลำดับความสำคัญ:
+          ส่งไม่ได้เลย > ส่งได้แบบมีเงื่อนไข > บอทเงียบ > โหมดทดสอบ
+          ตัวแรกคือตัวที่โชว์ตอนยุบ ที่เหลือนับเป็น +N */}
+      <ThreadStatusBar items={threadStatuses} />
 
       {/* scroll body — plain div + ref (ไม่ SimpleBar ตาม spec, ต้อง programmatic scroll) */}
       {/* overscroll-contain (user report prod 2026-07-23: "เวลา scroll มันไปถึง fixed ด้านบนเลย
