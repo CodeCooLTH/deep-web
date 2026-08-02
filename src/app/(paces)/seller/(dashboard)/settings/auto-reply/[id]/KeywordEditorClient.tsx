@@ -27,7 +27,7 @@ import { getChannelDisplay } from '@/app/(paces)/seller/(chat)/inbox/components/
 import type { PhraseOverlap } from '@/services/auto-reply-rule.service'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
-import PagePicker from './PagePicker'
+import PagePicker, { PageAvatar } from './PagePicker'
 import TestThreadsCard from './TestThreadsCard'
 
 const REPLY_MAX = 1000
@@ -1207,8 +1207,11 @@ function ExceptionSheet({
                         )
                       }
                     />
-                    <span className="text-default-700">{c.name}</span>
-                    <span className="text-default-400 text-xs">{c.provider === 'INSTAGRAM' ? 'Instagram' : 'Messenger'}</span>
+                    {/* รูปเพจ (user 2026-08-02) — ร้านที่มีหลายเพจชื่อคล้ายกันแยกด้วยรูปได้เร็ว
+                        กว่าอ่านชื่อจนจบ; ใช้ PageAvatar ตัวเดียวกับ PagePicker ไม่เขียนใหม่ */}
+                    <PageAvatar avatarUrl={c.avatarUrl} name={c.name} size="size-7" />
+                    <span className="text-default-700 min-w-0 truncate">{c.name}</span>
+                    <span className="text-default-400 shrink-0 text-xs">{c.provider === 'INSTAGRAM' ? 'Instagram' : 'Messenger'}</span>
                   </label>
                 ))}
               </div>
@@ -1424,6 +1427,32 @@ function SimulatePanel({
   const [channelId, setChannelId] = useState(channels[0]?.id ?? '')
   const [busy, setBusy] = useState(false)
   const [needsEnable, setNeedsEnable] = useState(false)
+  /**
+   * "ลูกค้าคนนี้มาจากโฆษณาไหน" (user report 2026-08-02: "ทดสอบด้านขวาไม่สามารถเลือก option
+   * ads ได้ เลยทดสอบว่ามาจาก ads ไหนตอบอะไรไม่ได้")
+   *
+   * เดิม simulate ส่ง adId: null ตายตัว — เงื่อนไขเฉพาะที่ผูกกับโฆษณาจึงไม่มีทางถูกเลือกใน
+   * การทดสอบเลย ร้านตั้งกฎ "โฆษณาตัวนี้ตอบราคานี้" แล้วลองไม่ได้ ต้องรอลูกค้าจริงทักเข้ามา
+   * ถึงจะรู้ว่าถูกหรือผิด ซึ่งสายไปแล้ว (ตอบราคาผิดรุ่นคือความเสียหายอันดับ 1 ใน PRD §6.1)
+   */
+  const [ads, setAds] = useState<Ad[] | null>(null)
+  const [adId, setAdId] = useState('')
+
+  // โหลดครั้งเดียวตอน mount — รายการโฆษณาของร้านมักไม่เกินหลักสิบ และแผงนี้เปิดค้างทั้งหน้า
+  // ถ้าโหลดตอนกดเลือกจะเห็น select ว่างแวบหนึ่งทุกครั้ง
+  useEffect(() => {
+    let alive = true
+    callApi('/api/shops/auto-reply/ads', { method: 'GET' })
+      .then((data) => {
+        if (alive) setAds(data.items ?? [])
+      })
+      .catch(() => {
+        if (alive) setAds([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const page = channels.find((c) => c.id === channelId)
 
@@ -1437,7 +1466,12 @@ function SimulatePanel({
       const data = await callApi('/api/shops/auto-reply/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, shopChannelId: channelId || null, adId: null, productId: null }),
+        body: JSON.stringify({
+          message: text,
+          shopChannelId: channelId || null,
+          adId: adId || null,
+          productId: null,
+        }),
       })
 
       if (data.willHandoff) {
@@ -1482,6 +1516,33 @@ function SimulatePanel({
           </button>
         )}
       </div>
+
+      {/* "ลูกค้าคนนี้มาจากโฆษณาไหน" — ตัวแปรสำคัญที่สุดของการตอบอัตโนมัติรองจากเพจ เพราะกฎ
+          ระดับโฆษณาชนะกฎระดับเพจเสมอ (user report 2026-08-02: เลือกไม่ได้เลย เลยทดสอบกฎที่
+          ผูกโฆษณาไม่ได้). ใช้ form-select ไม่ใช่ dropdown เพราะเป็น "ค่าของฟิลด์" ไม่ใช่เมนู action
+          ซ่อนทั้งแถวเมื่อร้านยังไม่เคยมีลูกค้ามาจากโฆษณา — ไม่มีอะไรให้เลือกก็ไม่ต้องมีช่อง */}
+      {ads !== null && ads.length > 0 && (
+        <div className="border-default-200 flex items-center gap-2 border-b px-4 py-2">
+          <label htmlFor="sim-ad" className="text-default-500 shrink-0 text-xs">
+            มาจากโฆษณา
+          </label>
+          <select
+            id="sim-ad"
+            className="form-select form-select-sm min-w-0 flex-1 text-sm"
+            value={adId}
+            onChange={(e) => setAdId(e.target.value)}
+          >
+            <option value="">ไม่ได้มาจากโฆษณา</option>
+            {ads.map((a) => (
+              // ชื่อโฆษณาว่างได้ (Meta ไม่ส่ง ad_title มาทุกครั้ง) — fallback เป็น id ดิบดีกว่า
+              // ตัวเลือกว่างเปล่าที่เลือกแล้วไม่รู้ว่าเลือกอะไรไป
+              <option key={a.adId} value={a.adId}>
+                {a.adTitle ?? `รหัสโฆษณา ${a.adId}`}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* บทสนทนา — Base ChatThread.tsx:887-980 (`my-5 flex items-start gap-2.5` + justify-end
           ฝั่งเรา, บับเบิล `rounded px-6 py-3`, ลูกค้า `bg-light` / เพจ `bg-primary text-white`)
