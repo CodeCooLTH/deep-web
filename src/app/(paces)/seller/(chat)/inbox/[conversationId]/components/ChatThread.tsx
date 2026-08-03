@@ -1671,18 +1671,24 @@ export default function ChatThread({
                               เหตุผลเต็มย้ายไปอยู่ใน (i) — hover เห็น, แตะได้บนมือถือที่ไม่มี hover */}
                           {failed && (
                             <span className="text-danger flex items-center gap-1">
-                              {canRetryFailed && (
+                              {/* user สั่ง 2026-08-03: ป้าย "ส่งไม่สำเร็จ" → "ลองใหม่" ให้เป็นคำสั่งที่กดได้
+                                  รวมเข้ากับปุ่ม ↻ เป็นชิ้นเดียว (เดิมไอคอนกับคำแยกกัน กดได้แค่ไอคอนเล็ก ๆ)
+                                  ยังคง "ส่งไม่สำเร็จ" ไว้เมื่อส่งซ้ำไม่ได้ — เขียน "ลองใหม่" ทั้งที่กดไม่ได้
+                                  คือ UI โกหก (เช่น การ์ดออเดอร์ที่ประกอบ payload กลับไม่ได้) */}
+                              {canRetryFailed ? (
                                 <button
                                   type="button"
                                   onClick={retryFailed}
                                   title="ส่งข้อความนี้ใหม่"
                                   aria-label="ส่งข้อความนี้ใหม่"
-                                  className="hover:bg-danger/10 -m-1 flex items-center rounded p-1"
+                                  className="hover:bg-danger/10 -m-1 flex items-center gap-1 rounded p-1"
                                 >
                                   <Icon icon="refresh" className="text-sm" />
+                                  ลองใหม่
                                 </button>
+                              ) : (
+                                <span>ส่งไม่สำเร็จ</span>
                               )}
-                              <span>ส่งไม่สำเร็จ</span>
                               {failReason && (
                                 <button
                                   type="button"
@@ -1708,8 +1714,15 @@ export default function ChatThread({
                               <span className="text-default-300" aria-hidden="true">
                                 |
                               </span>
-                              <button type="button" onClick={cancelFailed} className="hover:underline">
-                                ยกเลิกการส่งข้อความ
+                              <button
+                                type="button"
+                                onClick={cancelFailed}
+                                // คำสั้น (user สั่ง 2026-08-03) — บริบทอยู่ครบแล้วจากบับเบิลที่มันเกาะอยู่
+                                // ส่วนคำเต็มยังอยู่ใน aria-label + หัวข้อ Swal ตอนยืนยัน
+                                aria-label="ยกเลิกการส่งข้อความนี้"
+                                className="hover:underline"
+                              >
+                                ยกเลิก
                               </button>
                             </span>
                           )}

@@ -7,7 +7,7 @@ import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { fileIdExt } from "@/lib/storage";
 import { prisma } from "@/lib/prisma";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
-import { sendOutboundMessage, syncMissingMessagesFromMeta } from "@/services/channel-chat.service";
+import { sendOutboundMessage, syncMissingMessagesFromMeta, type SendFailedError } from "@/services/channel-chat.service";
 import { getProductsByIds } from "@/services/product.service";
 import { pushNewChatMessage } from "@/services/seller-push.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
@@ -73,7 +73,10 @@ function mapChatServiceError(e: unknown, context: string) {
     // (user report 2026-08-02) เดิมตอบ "กรุณาลองใหม่" ทุกกรณี ซึ่งเป็นคำแนะนำที่ผิดกับ #551
     // (ลูกค้าปิดรับข้อความ — กดกี่ครั้งก็ไม่ผ่าน) ร้านจะกดซ้ำเปล่า ๆ แล้วโทษระบบ
     const { message } = describeSendFailure(e.message.replace(/^SEND_FAILED:\s*/, ""));
-    return NextResponse.json({ error: message }, { status: 502 });
+    // แนบแถวที่บันทึกไว้แล้วกลับไปด้วย (2026-08-03) — ส่งไม่ผ่าน ≠ ไม่ได้บันทึก
+    // client ต้องเอาไปแทนบับเบิล optimistic ของตัวเอง ไม่งั้นข้อความเดียวขึ้นสองอันจนกว่าจะ refresh
+    const saved = (e as SendFailedError).savedMessage;
+    return NextResponse.json({ error: message, savedMessage: saved ?? null }, { status: 502 });
   }
   console.error(`[${context}]`, e instanceof Error ? e.message : e);
   return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });

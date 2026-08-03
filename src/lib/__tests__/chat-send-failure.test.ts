@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { describeSendFailure, withSendFailurePrefix } from '../chat-send-failure'
+import { describeSendFailure, stripSendFailurePrefix } from '../chat-send-failure'
 
 describe('describeSendFailure', () => {
   it('แปลง #551 (ผู้รับไม่พร้อมรับข้อความ) เป็นไทย พร้อมบอกว่าต้องทำอะไรต่อ', () => {
@@ -28,16 +28,17 @@ describe('describeSendFailure', () => {
     expect(out.known).toBe(true)
   })
 
-  it('withSendFailurePrefix — เติมคำนำหน้าให้ข้อความจากที่อื่น โดยไม่ซ้อนสองครั้ง', () => {
-    // ข้อความจาก route ที่ยังไม่มีคำนำหน้า (WINDOW_CLOSED/CHANNEL_NOT_ACTIVE)
-    expect(withSendFailurePrefix('การเชื่อมต่อหมดอายุ')).toBe('ส่งไม่สำเร็จ — การเชื่อมต่อหมดอายุ')
-    // ข้อความจาก route ที่เติมมาแล้ว (SEND_FAILED ผ่าน describeSendFailure) — ต้องไม่ได้คำนำหน้าซ้ำ
-    expect(withSendFailurePrefix('ส่งไม่สำเร็จ — ลูกค้าไม่พร้อมรับข้อความ')).toBe(
-      'ส่งไม่สำเร็จ — ลูกค้าไม่พร้อมรับข้อความ',
+  it('stripSendFailurePrefix — เหลือแต่เหตุผล เพราะ UI มีป้าย "ส่งไม่สำเร็จ" ของตัวเองแล้ว', () => {
+    // ข้อความจาก route ที่เติมคำนำหน้ามาแล้ว (SEND_FAILED ผ่าน describeSendFailure)
+    expect(stripSendFailurePrefix('ส่งไม่สำเร็จ — ลูกค้าไม่พร้อมรับข้อความ')).toBe(
+      'ลูกค้าไม่พร้อมรับข้อความ',
     )
-    // ไม่มีข้อมูลเลย — ยังต้องอ่านออกเป็นประโยค ไม่ใช่คำนำหน้าลอย ๆ
-    expect(withSendFailurePrefix(null)).toBe('ส่งไม่สำเร็จ — ไม่ทราบสาเหตุ')
-    expect(withSendFailurePrefix('   ')).toBe('ส่งไม่สำเร็จ — ไม่ทราบสาเหตุ')
+    // ข้อความจาก route ที่ไม่มีคำนำหน้า (WINDOW_CLOSED/CHANNEL_NOT_ACTIVE/429) — ปล่อยผ่านทั้งดุ้น
+    expect(stripSendFailurePrefix('การเชื่อมต่อหมดอายุ')).toBe('การเชื่อมต่อหมดอายุ')
+    // ไม่มีข้อมูล → null เพื่อให้ UI ซ่อนปุ่ม (i) ไปเลย ไม่ใช่เปิดมาแล้วว่างเปล่า
+    expect(stripSendFailurePrefix(null)).toBeNull()
+    expect(stripSendFailurePrefix('   ')).toBeNull()
+    expect(stripSendFailurePrefix('ส่งไม่สำเร็จ')).toBeNull()
   })
 
   it('message = ประโยคเต็ม ขึ้นต้นเหมือนกันทุกกรณี (badge กับ toast ต้องพูดตรงกัน)', () => {

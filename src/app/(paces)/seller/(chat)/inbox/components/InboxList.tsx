@@ -1342,11 +1342,11 @@ export default function InboxList({
                   <span className="flex shrink-0 flex-col items-end justify-between self-stretch py-0.5">
                     <span className="flex flex-col items-end gap-1.25">
                       {/* timestamp — สีตามสถานะอ่าน (main); indicator ปักหมุดอยู่หน้าชื่อแล้ว */}
-                      {/* lg:group-hover:invisible — ชุดปุ่ม hover มาแทนที่ตรงนี้พอดี (user 2026-08-02)
-                          ใช้ invisible ไม่ใช่ hidden: ต้องกันที่ไว้เท่าเดิม ไม่งั้นความกว้างคอลัมน์ขวา
-                          ยุบตอน hover แล้วชื่อ/ข้อความกระตุกทุกครั้งที่เมาส์ผ่าน */}
+                      {/* เดิมซ่อนเวลาตอน hover (`lg:group-hover:invisible`, 2026-08-02) เพราะชุดปุ่ม
+                          มาทับที่ตรงนี้พอดี — พอ user สั่งย้ายชุดปุ่มไปกลางการ์ด (2026-08-03) มันไม่ทับ
+                          แล้ว การซ่อนเวลาจึงกลายเป็นการทิ้งข้อมูลฟรี ๆ ทุกครั้งที่เมาส์ผ่าน → เอาออก */}
                       <span
-                        className={`text-2xs lg:group-hover:invisible ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}
+                        className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}
                       >
                         {formatChatListTime(c.lastMessageAt)}
                       </span>
@@ -1377,12 +1377,15 @@ export default function InboxList({
                     เฉพาะตอน hover ไม่เบียดความกว้างของเนื้อหาแถวเลย
                     ปักหมุดย้ายเข้าชุดนี้ด้วย (2026-07-23) หลังจากดาวหน้าสุดถูกเปลี่ยนเป็น indicator
                     inline หน้าชื่อ — action ต้องยังกดได้ที่เดียวกับ ปิดงาน/ซ่อน ไม่ใช่หายไป */}
-                {/* top-2 (เดิม top-1/2): ย้ายจากกลางแถวมาอยู่บรรทัดเดียวกับเวลา แล้วซ่อนเวลาตอน hover
-                    — ของเดิมลอยกลางแถวพอดี จึงทับ "ข้อความล่าสุด + แท็ก" ซึ่งเป็นบรรทัดที่ต้องอ่าน
-                    จริง ๆ ทำให้ต้องขยับเมาส์หนีเพื่ออ่านว่าห้องไหนเป็นห้องไหน (user report 2026-08-02)
+                {/* ตำแหน่งแนวตั้ง — โดนสั่งกลับไปกลับมา บันทึกไว้กันแก้วน:
+                    2026-08-02 ย้าย top-1/2 → top-2 เพราะลอยกลางแถวแล้วทับ "ข้อความล่าสุด + แท็ก"
+                      ซึ่งเป็นบรรทัดที่ต้องอ่านจริง ๆ (ต้องขยับเมาส์หนีเพื่ออ่านว่าห้องไหนเป็นห้องไหน)
+                    2026-08-03 user สั่งกลับมากลางการ์ด ("มันไม่อยู่ตรงกลาง card ของ chat lists")
+                      → กลับไป top-1/2 + -translate-y-1/2. ข้อแลกเปลี่ยนเดิมยังอยู่: ตอน hover
+                      ชุดปุ่มจะบังปลายบรรทัดข้อความล่าสุด/แท็กด้านขวา (ชุดปุ่มทึบ มีขอบ+เงา)
                     เหลือ 2 action ที่ใช้บ่อยสุด (ปักหมุด/ปิดงาน) ส่วน ซ่อน+สแปม เข้าเมนู ⋯ */}
                 <div
-                  className={`absolute end-2 top-2 items-center gap-0.5 rounded-lg border border-default-200 bg-card p-0.5 shadow ${
+                  className={`absolute end-2 top-1/2 -translate-y-1/2 items-center gap-0.5 rounded-lg border border-default-200 bg-card p-0.5 shadow ${
                     // เมนูเปิดอยู่ = ต้องค้างไว้แม้เมาส์ออกนอกแถว ไม่งั้นเมนูที่ล้นออกนอกขอบแถว
                     // จะทำให้ hover หลุด → ชุดปุ่มหาย → เมนูหายตามระหว่างที่ผู้ใช้กำลังจะกดมัน
                     rowMenuId === c.id ? 'flex' : 'hidden lg:group-hover:flex'

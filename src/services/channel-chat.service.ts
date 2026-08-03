@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+import { Prisma, type ChatMessage } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
@@ -38,6 +38,15 @@ export const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
  * ต้องได้ permission `human_agent` จาก App Review ก่อนถึงจะยิงจริงได้ — ถ้ายังไม่ได้แล้วส่ง tag ไป
  * Meta จะปฏิเสธทั้งข้อความ ซึ่งแย่กว่าการบล็อกไว้ตั้งแต่ต้น จึงเปิดด้วย env หลังได้อนุมัติแล้วเท่านั้น
  */
+/**
+ * error ของ `sendOutboundMessage` เมื่อ "บันทึกแถวแล้วแต่ Meta ปฏิเสธ"
+ *
+ * ยังคงรูป `message = "SEND_FAILED: <เหตุผลดิบ>"` ไว้เหมือนเดิม เพราะ route จับด้วย
+ * `startsWith("SEND_FAILED")` — ที่เพิ่มมาคือแถวที่บันทึกไว้แล้ว ให้ route ส่งกลับไปให้ client
+ * เอาไปแทนบับเบิล optimistic ของตัวเอง (ไม่งั้นข้อความเดียวขึ้นสองอัน)
+ */
+export type SendFailedError = Error & { savedMessage?: ChatMessage }
+
 export function isHumanAgentEnabled(): boolean {
   return process.env.META_HUMAN_AGENT_ENABLED === 'true'
 }
@@ -1227,7 +1236,18 @@ export async function sendOutboundMessage(params: {
     }
   }
 
-  if (failureReason) throw new Error(`SEND_FAILED: ${failureReason}`)
+  if (failureReason) {
+    // แนบแถวที่ "บันทึกสำเร็จแล้ว" ไปกับ error ด้วย (2026-08-03)
+    //
+    // ทำไม: ส่งไม่ผ่าน ≠ ไม่ได้บันทึก — เราเขียนแถว deliveryStatus=FAILED ลง DB ไปแล้วข้างบน
+    // ถ้าโยน error เปล่า ๆ ฝั่ง client จะไม่มีอะไรไปแทนบับเบิล optimistic ของมัน → ค้างไว้คู่กับ
+    // แถวจริงที่ตามมาทาง realtime/GET = ผู้ใช้เห็นข้อความเดียวกันสองอัน แล้วหายไปเองตอน refresh
+    // (บั๊กจริง user report 2026-08-03 หลังเลิกบล็อกหน้าต่าง 24 ชม. — ก่อนหน้านั้น WINDOW_CLOSED
+    // ถูกโยนก่อนสร้างแถว จึงไม่เคยมีแถวจริงมาชนกับบับเบิล optimistic)
+    const err = new Error(`SEND_FAILED: ${failureReason}`) as SendFailedError
+    err.savedMessage = message
+    throw err
+  }
 
   // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (BR-AR-22 / humanTakeoverPauseMode)
   //

@@ -57,7 +57,12 @@ export default function SwipeableRow({ actions, actionsWidth = 156, children }: 
   const isOpen = offset !== 0
 
   return (
-    <div className="bg-card relative overflow-hidden">
+    // overflow-hidden จำเป็นเฉพาะจอที่ปัดได้ — ตอนลากนิ้ว content เลื่อนซ้ายและจะล้นออกนอกขอบแถว
+    //
+    // แต่ที่ ≥1024px มันไปตัดเมนู ⋯ ของชุดปุ่ม hover ทิ้ง (เมนูเป็น absolute top-full ซึ่งอยู่ "ใต้"
+    // ขอบล่างของแถวเสมอ) ผู้ใช้จึงเห็นเมนูโผล่มาแค่เสี้ยวเดียว (user report 2026-08-03)
+    // ที่ ≥1024px ไม่มี touch → offset เป็น 0 ตลอด ไม่มีอะไรล้นให้ต้องตัด จึงเปิด overflow ได้ปลอดภัย
+    <div className="bg-card relative overflow-hidden lg:overflow-visible">
       {/* action layer หลัง content — เผยเมื่อ content เลื่อนซ้าย */}
       <div className="absolute inset-y-0 end-0 flex" style={{ width: actionsWidth }} aria-hidden={!isOpen}>
         {actions}

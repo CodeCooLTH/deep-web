@@ -595,19 +595,31 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         })
         if (!res.ok) {
           let reason: string
+          const body = await res.json().catch(() => null)
           if (res.status === 429) {
             reason = 'ส่งข้อความถี่เกินไป กรุณารอสักครู่'
           } else {
             // บอกสาเหตุทันทีตอนกดส่ง/กดลองใหม่ (user 2026-08-02) — เดิมเงียบ เห็นแค่บับเบิลแดง
             // แล้วต้องรอ GET รอบถัดไปถึงจะรู้ว่าทำไม. route ตอบเป็นไทยแล้ว (chat-send-failure.ts)
-            const body = await res.json().catch(() => null)
             reason = body?.error ?? 'ส่งข้อความไม่สำเร็จ'
           }
           pacesToast.error(reason)
-          // เก็บเหตุผลไว้บนข้อความด้วย — toast หายเองแต่บับเบิลอยู่ต่อ ร้านต้องย้อนดูได้ว่าทำไมไม่ผ่าน
-          setMessages((prev) =>
-            prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const, _failReason: reason } : m)),
-          )
+          // ส่งไม่ผ่าน ≠ ไม่ได้บันทึก — ถ้า Meta ปฏิเสธ server จะบันทึกแถว deliveryStatus=FAILED
+          // ไว้แล้วและส่งกลับมาใน `savedMessage` ต้องเอามาแทนบับเบิล optimistic เหมือน path ที่สำเร็จ
+          // ไม่งั้นบับเบิลชั่วคราวจะค้างคู่กับแถวจริงที่ตามมาทาง realtime/GET = ข้อความเดียวขึ้นสองอัน
+          // แล้วหายไปเองตอน refresh (user report 2026-08-03)
+          const saved: ChatMessageView | null = body?.savedMessage ?? null
+          setMessages((prev) => {
+            if (saved?.id) {
+              const deduped = prev.filter((m) => m.id !== saved.id)
+              return deduped.map((m) => (m.id === localId ? { ...saved, _status: undefined } : m))
+            }
+            // ไม่มีแถวจริง (ยังไม่ถึง Meta เลย เช่น 429/สิทธิ์/validation) — คงบับเบิลชั่วคราวไว้
+            // พร้อมเหตุผล — toast หายเองแต่บับเบิลอยู่ต่อ ร้านต้องย้อนดูได้ว่าทำไมไม่ผ่าน
+            return prev.map((m) =>
+              m.id === localId ? { ...m, _status: 'failed' as const, _failReason: reason } : m,
+            )
+          })
           return
         }
         const real: ChatMessageView = await res.json()
