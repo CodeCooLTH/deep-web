@@ -184,17 +184,17 @@ export default function PageFilterDropdown({ value, options, onChange, open, onO
               ) : (
                 <span className="size-4 shrink-0" aria-hidden="true" />
               )}
-              <span className="bg-default-100 text-default-500 flex size-8 shrink-0 items-center justify-center rounded-full">
+              <span className="bg-default-100 text-default-700 flex size-8 shrink-0 items-center justify-center rounded-full">
                 <Icon icon="message-circle" width={16} height={16} />
               </span>
               <span className="min-w-0 flex-1 text-start">
                 <span className="text-default-900 block truncate text-sm font-medium">ทุกเพจ</span>
-                <span className="text-default-400 block truncate text-xs">รวมทุกช่องทางที่เชื่อมไว้</span>
+                <span className="text-default-700 block truncate text-xs">รวมทุกช่องทางที่เชื่อมไว้</span>
               </span>
             </button>
 
             {filtered.length === 0 ? (
-              <p className="text-default-400 px-3 py-4 text-center text-xs">ไม่พบเพจที่ค้นหา</p>
+              <p className="text-default-700 px-3 py-4 text-center text-xs">ไม่พบเพจที่ค้นหา</p>
             ) : (
               filtered.map((c) => {
                 const display = getChannelDisplay(c.provider)
@@ -219,7 +219,7 @@ export default function PageFilterDropdown({ value, options, onChange, open, onO
                     <PageAvatar avatarUrl={c.avatarUrl} name={c.name} />
                     <span className="min-w-0 flex-1 text-start">
                       <span className="text-default-900 block truncate text-sm font-medium">{c.name}</span>
-                      <span className="text-default-400 flex items-center gap-1 truncate text-xs">
+                      <span className="text-default-700 flex items-center gap-1 truncate text-xs">
                         <Icon
                           icon={display.icon}
                           width={12}

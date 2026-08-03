@@ -19,8 +19,8 @@ import TagInput from './TagInput'
 import type { RowAction } from './ConversationRowMenu'
 
 const STATUS_OPTIONS: { value: string; label: string; cls: string }[] = [
-  { value: 'UNSPECIFIED', label: 'ยังไม่ระบุ', cls: 'text-default-500' },
-  { value: 'INTERESTED', label: 'สนใจ', cls: 'text-success' },
+  { value: 'UNSPECIFIED', label: 'ยังไม่ระบุ', cls: 'text-default-700' },
+  { value: 'INTERESTED', label: 'สนใจ', cls: 'text-success-ink' },
   { value: 'NOT_INTERESTED', label: 'ไม่สนใจ', cls: 'text-default-600' },
 ]
 
@@ -158,7 +158,7 @@ export default function ChatContextMenu({
 
       {external && (
         <>
-      <p className="text-default-400 px-3 pt-2 pb-1 text-2xs font-medium">สถานะการขาย</p>
+      <p className="text-default-700 px-3 pt-2 pb-1 text-2xs font-medium">สถานะการขาย</p>
       {STATUS_OPTIONS.map((o) => (
         <button
           key={o.value}
@@ -189,16 +189,16 @@ export default function ChatContextMenu({
         <span>{threadMuted ? 'เปิดเสียงแชทนี้' : 'ปิดเสียงแชทนี้'}</span>
       </button>
       {appMuted && (
-        <p className="text-default-500 px-3 pb-1.5 text-2xs">ตอนนี้ปิดเสียงทั้งแอปอยู่ — ตั้งค่านี้จะยังไม่มีผล</p>
+        <p className="text-default-700 px-3 pb-1.5 text-2xs">ตอนนี้ปิดเสียงทั้งแอปอยู่ — ตั้งค่านี้จะยังไม่มีผล</p>
       )}
 
       {external && (
         <>
       <hr className="dropdown-divider" />
 
-      <p className="text-default-400 px-3 pt-1 pb-1 text-2xs font-medium">ย้ายไปกลุ่ม</p>
+      <p className="text-default-700 px-3 pt-1 pb-1 text-2xs font-medium">ย้ายไปกลุ่ม</p>
       {groups.length === 0 ? (
-        <p className="text-default-400 px-3 pb-1.5 text-2xs">ยังไม่มีกลุ่ม — กด “+” ที่แถบกลุ่มด้านบนเพื่อสร้าง</p>
+        <p className="text-default-700 px-3 pb-1.5 text-2xs">ยังไม่มีกลุ่ม — กด “+” ที่แถบกลุ่มด้านบนเพื่อสร้าง</p>
       ) : (
         <>
           {groups.map((g) => (
@@ -209,7 +209,7 @@ export default function ChatContextMenu({
               onClick={() => onMoveToGroup(g.id)}
               className="dropdown-item text-sm"
             >
-              <Icon icon="folder" className="text-default-500 size-4" />
+              <Icon icon="folder" className="text-default-700 size-4" />
               <span>{g.name}</span>
             </button>
           ))}
@@ -217,7 +217,7 @@ export default function ChatContextMenu({
             type="button"
             role="menuitem"
             onClick={() => onMoveToGroup(null)}
-            className="dropdown-item text-default-500 text-sm"
+            className="dropdown-item text-default-700 text-sm"
           >
             <Icon icon="folder-off" className="size-4" />
             <span>เอาออกจากกลุ่ม</span>
@@ -227,7 +227,7 @@ export default function ChatContextMenu({
 
       <hr className="dropdown-divider" />
 
-      <p className="text-default-400 px-3 pt-1 pb-1 text-2xs font-medium">แท็ก</p>
+      <p className="text-default-700 px-3 pt-1 pb-1 text-2xs font-medium">แท็ก</p>
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1 px-3 pb-1.5">
           {tags.map((t) => (

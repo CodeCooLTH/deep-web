@@ -72,7 +72,7 @@ function Row({
   return (
     <div className="border-default-100 flex gap-2.5 border-b py-1 last:border-b-0">
       <dt className="text-default-600 w-16 shrink-0">{label}</dt>
-      <dd className={`mb-0 min-w-0 flex-1 break-words ${value ? 'text-default-800' : 'text-default-400'}`}>
+      <dd className={`mb-0 min-w-0 flex-1 break-words ${value ? 'text-default-800' : 'text-default-700'}`}>
         {value ?? 'ไม่เจาะจง'}
       </dd>
     </div>

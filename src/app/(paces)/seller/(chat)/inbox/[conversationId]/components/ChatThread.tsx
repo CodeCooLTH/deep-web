@@ -145,7 +145,7 @@ function CopyMessageButton({ text }: { text: string }) {
       aria-label={copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}
       title={copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}
       className={`mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex ${
-        copied ? 'text-success' : 'text-default-400 hover:bg-default-100 hover:text-default-700'
+        copied ? 'text-success-ink' : 'text-default-700 hover:bg-default-100 hover:text-default-700'
       }`}
     >
       {/* icon สลับ copy → check พร้อม pop (scale) — key เปลี่ยนเพื่อ retrigger transition ทุกครั้งที่คัดลอก */}
@@ -173,7 +173,7 @@ function MetaOrderCardBubble({ amount }: { amount: string }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="text-default-900 block text-base font-bold">{amount}</span>
-        <span className="text-default-500 block text-xs">คำขอชำระเงินผ่าน Messenger</span>
+        <span className="text-default-700 block text-xs">คำขอชำระเงินผ่าน Messenger</span>
       </span>
     </div>
   )
@@ -232,10 +232,10 @@ async function shareToDevice(url: string, filename: string): Promise<boolean> {
 /** ไอคอน+สีประจำชนิดไฟล์แนบ (2026-08-02) — ใช้ทั้งชิปในคิวและบับเบิลในเธรด ให้ร้านจำสีได้
  *  ทุกตัวเป็น tabler icon จริง ไม่ใช่ emoji (Hard Rule 12) */
 const ATTACHMENT_ICON: Record<string, { icon: string; cls: string }> = {
-  IMAGE: { icon: 'photo', cls: 'bg-info/15 text-info' },
+  IMAGE: { icon: 'photo', cls: 'bg-info/15 text-info-ink' },
   VIDEO: { icon: 'video', cls: 'bg-primary/15 text-primary' },
-  AUDIO: { icon: 'volume', cls: 'bg-success/15 text-success' },
-  FILE: { icon: 'file-text', cls: 'bg-warning/15 text-warning' },
+  AUDIO: { icon: 'volume', cls: 'bg-success/15 text-success-ink' },
+  FILE: { icon: 'file-text', cls: 'bg-warning/15 text-warning-ink' },
 }
 
 function MediaDownloadLink({
@@ -311,7 +311,7 @@ function MediaDownloadLink({
         download={filename}
         onClick={handleClick}
         aria-busy={busy}
-        className="text-default-500 hover:text-primary inline-flex items-center gap-1 text-2xs font-medium"
+        className="text-default-700 hover:text-primary inline-flex items-center gap-1 text-2xs font-medium"
       >
         <Icon icon={busy ? 'loader-2' : 'download'} width={13} height={13} className={`shrink-0 ${busy ? 'animate-spin' : ''}`} />
         {label}
@@ -319,7 +319,7 @@ function MediaDownloadLink({
       {canSaveAs && (
         <>
           <span className="bg-default-300 h-3 w-px" aria-hidden="true" />
-          <button type="button" onClick={handleSaveAs} className="text-default-500 hover:text-primary text-2xs font-medium">
+          <button type="button" onClick={handleSaveAs} className="text-default-700 hover:text-primary text-2xs font-medium">
             บันทึกเป็น…
           </button>
         </>
@@ -367,7 +367,7 @@ function ReplyMessageButton({ onReply }: { onReply: () => void }) {
       onClick={onReply}
       aria-label="ตอบกลับข้อความนี้"
       title="ตอบกลับ"
-      className="text-default-400 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
+      className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
     >
       <Icon icon="arrow-back-up" className="size-4" />
     </button>
@@ -545,7 +545,7 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
   if (!card) {
     // FR-CTX-08 — สินค้าถูกลบจริง (ไม่พบใน productMap) แทนทั้งการ์ดด้วย empty state ไม่มีลิงก์/รูป
     return (
-      <div className="text-default-400 flex items-center gap-2">
+      <div className="text-default-700 flex items-center gap-2">
         <Icon icon="package-off" className="text-xl" />
         <span className="text-sm">ไม่พบสินค้านี้แล้ว</span>
       </div>
@@ -562,14 +562,14 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
           // eslint-disable-next-line @next/next/no-img-element
           <img src={`/api/files/${card.imageFileId}`} alt={card.name} className="size-full object-cover" />
         ) : (
-          <Icon icon="photo" className="text-default-400 text-xl" />
+          <Icon icon="photo" className="text-default-700 text-xl" />
         )}
       </span>
       <div className="min-w-0">
         <p className="text-default-800 mb-0 line-clamp-1 text-sm font-semibold">{card.name}</p>
         <p className="text-default-600 mb-0 text-sm">{priceLabel}</p>
         {!card.isActive && (
-          <span className="text-default-400 mt-0.5 flex items-center gap-1 text-2xs">
+          <span className="text-default-700 mt-0.5 flex items-center gap-1 text-2xs">
             <Icon icon="ban" />
             หยุดขายแล้ว
           </span>
@@ -600,7 +600,7 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
 function OrderCardBubble({ card, onEdit }: { card: ChatOrderCard | null; onEdit: (token: string) => void }) {
   if (!card) {
     return (
-      <div className="text-default-400 flex items-center gap-2">
+      <div className="text-default-700 flex items-center gap-2">
         <Icon icon="receipt-off" className="text-xl" />
         <span className="text-sm">ไม่พบคำสั่งซื้อนี้แล้ว</span>
       </div>
@@ -748,8 +748,11 @@ export default function ChatThread({
   // ส่งข้อความที่ Meta จะรับจริง. ปล่อยให้ส่งแล้วโชว์เหตุผลบนบับเบิลถ้าไม่ผ่าน ตรงความจริงกว่า
   // (ฝั่ง service เลิกบล็อกล่วงหน้าให้ข้อความที่คนพิมพ์เองแล้ว — channel-chat.service.ts)
   const composerDisabled = isExternal && tokenInvalid
-  // แถบเตือน "อาจส่งไม่สำเร็จ" — ไม่บล็อกอะไร แค่บอกความเสี่ยงตอนกำลังจะกดส่ง
-  const sendAtRisk = isExternal && !tokenInvalid && !liveWindowOpen
+  //
+  // เคยมี `sendAtRisk` ตรงนี้สำหรับบรรทัดเตือน "อาจส่งไม่สำเร็จ" เหนือช่องพิมพ์ — ตัวบรรทัดถูกตัด
+  // ตอน merge (ไม่อยากทับงานยุบแถบสถานะเหลือบรรทัดเดียวของอีก session) แต่ตัวแปรตกค้างไว้
+  // จน impeccable critique จับได้ว่าประกาศแล้วไม่ถูกใช้ที่ไหนเลย — ลบทิ้ง 2026-08-03
+  // คำเตือนความเสี่ยงตอนนี้อยู่ที่แถบสถานะหัวแชท (`threadStatuses` key 'window') ที่เดียว
   // feature 00018: ช่องทางนอก (Messenger/IG) ส่งรูปได้แล้ว (ผ่าน presigned URL) — แนบรูปปิดเฉพาะ
   // ตอนส่งไม่ได้ (window ปิด/token ตาย) เท่านั้น ไม่ปิดเพราะเป็นช่องทางนอกอีกต่อไป
   const attachDisabled = false
@@ -979,7 +982,7 @@ export default function ChatThread({
         </Link>
       ),
       detail: (
-        <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+        <div className="bg-danger/15 text-danger-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-lg" />
           <span>
             การเชื่อมต่อกับเพจนี้มีปัญหา — ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่{' '}
@@ -1013,7 +1016,7 @@ export default function ChatThread({
           ? 'เกิน 24 ชั่วโมงแล้ว — ตอบเองได้ ห้ามส่งโปรโมชัน'
           : 'เกินเวลาที่ Meta ให้ตอบ — อาจส่งไม่สำเร็จ',
       detail: (
-        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info' : 'bg-warning/15 text-warning'}`}>
+        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info-ink' : 'bg-warning/15 text-warning-ink'}`}>
           <Icon icon={soft ? 'info-circle' : 'alert-triangle'} className="mt-0.5 shrink-0 text-lg" />
           <span>
             {neverInbound ? (
@@ -1078,7 +1081,7 @@ export default function ChatThread({
         </Link>
       ),
       detail: (
-        <div className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+        <div className="bg-info/15 text-info-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="flask" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
           <span className="min-w-0 flex-1">
             ห้องนี้กำลังใช้ทดสอบ DeepAI
@@ -1138,7 +1141,7 @@ export default function ChatThread({
             ms-auto ตัวแรกกินที่ว่างทั้งหมด → ปุ่มถัดไปที่มี ms-auto อยู่แล้วไม่ขยับตำแหน่ง */}
         {isExternal && !tokenInvalid && liveWindowOpen && liveRemaining <= FOUR_HOURS_MS && (
           <span
-            className="text-warning ms-auto flex shrink-0 items-center gap-1.5 text-sm"
+            className="text-warning-ink ms-auto flex shrink-0 items-center gap-1.5 text-sm"
             title={`ใกล้หมดเวลาตอบ — เหลือ ${formatCountdown(liveRemaining)}`}
           >
             <Icon icon="alert-triangle" className="shrink-0 text-base" />
@@ -1173,7 +1176,7 @@ export default function ChatThread({
             aria-pressed={threadMuted}
             title={threadMuted ? 'เปิดเสียงเฉพาะแชทนี้' : 'ปิดเสียงเฉพาะแชทนี้'}
             aria-label={threadMuted ? 'เปิดเสียงเฉพาะแชทนี้' : 'ปิดเสียงเฉพาะแชทนี้'}
-            className={`btn btn-icon hover:bg-default-100 shrink-0 ${threadMuted ? 'text-default-500' : 'text-default-700'}`}
+            className={`btn btn-icon hover:bg-default-100 shrink-0 ${threadMuted ? 'text-default-700' : 'text-default-700'}`}
           >
             <Icon icon={threadMuted ? 'bell-off' : 'bell'} className="text-lg" />
           </button>
@@ -1198,7 +1201,7 @@ export default function ChatThread({
               className="size-10 shrink-0 rounded-md object-cover"
             />
           ) : (
-            <span className="bg-default-100 text-default-500 flex size-10 shrink-0 items-center justify-center rounded-md">
+            <span className="bg-default-100 text-default-700 flex size-10 shrink-0 items-center justify-center rounded-md">
               <Icon icon="speakerphone" className="text-lg" />
             </span>
           )}
@@ -1208,7 +1211,7 @@ export default function ChatThread({
               {/* ลำดับ: ข้อความโฆษณาจริง > ชื่อ ad ใน Ads Manager > รหัสโฆษณา
                   (adBody คือตัวที่ผู้ขายอ่านแล้วรู้ทันทีว่าโฆษณาชิ้นไหน — ad_title เป็นชื่อภายใน) */}
               <span
-                className="text-default-500 truncate text-sm"
+                className="text-default-700 truncate text-sm"
                 title={adReferral.adBody ?? adReferral.adTitle ?? undefined}
               >
                 {adReferral.adBody ?? adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`}
@@ -1230,7 +1233,7 @@ export default function ChatThread({
             onClick={dismissAdBanner}
             title="ปิดป้ายที่มาของโฆษณา"
             aria-label="ปิดป้ายที่มาของโฆษณา"
-            className="btn btn-icon text-default-500 hover:bg-default-100 shrink-0"
+            className="btn btn-icon text-default-700 hover:bg-default-100 shrink-0"
           >
             <Icon icon="x" className="text-lg" />
           </button>
@@ -1291,7 +1294,7 @@ export default function ChatThread({
           <div className="border-primary bg-card rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
             <Icon icon="upload" className="text-primary text-3xl" />
             <p className="text-default-800 mb-0 mt-2 text-sm font-semibold">วางไฟล์ที่นี่เพื่อแนบ</p>
-            <p className="text-default-500 mb-0 text-xs">แนบได้หลายไฟล์พร้อมกัน · สูงสุด 25MB ต่อไฟล์</p>
+            <p className="text-default-700 mb-0 text-xs">แนบได้หลายไฟล์พร้อมกัน · สูงสุด 25MB ต่อไฟล์</p>
           </div>
         </div>
       )}
@@ -1331,7 +1334,7 @@ export default function ChatThread({
             <div key={g.key}>
               {/* date divider — badge chip กึ่งกลาง */}
               <div className="my-4 flex justify-center">
-                <span className="badge bg-default-100 text-default-500 text-2xs">{g.label}</span>
+                <span className="badge bg-default-100 text-default-700 text-2xs">{g.label}</span>
               </div>
 
               {buildAlbumRows(g.items).map((row) => {
@@ -1349,7 +1352,7 @@ export default function ChatThread({
                       <div className="min-w-0">
                         <PhotoAlbum ms={ms} onOpen={(id) => setLightboxIndex(slideIndexByMessageId.get(id) ?? -1)} />
                         {(showTime || (mine && (atBurstEnd || last.id === lastShopMsgId))) && (
-                          <div className={`text-default-400 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                          <div className={`text-default-700 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                             {showTime && (
                               <span className="flex items-center gap-1" title={formatTime(last.createdAt)}>
                                 <Icon icon="clock" />
@@ -1358,7 +1361,7 @@ export default function ChatThread({
                             )}
                             {mine && last.id === lastShopMsgId ? (
                               readAtMs > 0 && new Date(last.createdAt).getTime() <= readAtMs ? (
-                                <span className="text-success flex items-center gap-0.5">
+                                <span className="text-success-ink flex items-center gap-0.5">
                                   <Icon icon="checks" /> อ่านแล้ว
                                 </span>
                               ) : (
@@ -1522,10 +1525,10 @@ export default function ChatThread({
                       {m.replyTo && (
                         <div className={`mb-1 flex ${mine ? 'justify-end' : 'justify-start'}`}>
                           <div className="border-default-300 bg-default-100/70 max-w-full rounded-lg border-s-2 px-2.5 py-1">
-                            <p className="text-default-500 mb-0 text-2xs font-medium">
+                            <p className="text-default-700 mb-0 text-2xs font-medium">
                               ตอบกลับ{m.replyTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
                             </p>
-                            <p className="text-default-500 mb-0 line-clamp-2 text-xs opacity-90">
+                            <p className="text-default-700 mb-0 line-clamp-2 text-xs opacity-90">
                               {m.replyTo.body ?? '[สื่อ/ไฟล์แนบ]'}
                             </p>
                           </div>
@@ -1540,7 +1543,7 @@ export default function ChatThread({
                         if (m.isDeleted) {
                           return (
                             <div className={`rounded px-6 py-3 ${mine ? 'bg-primary/15' : 'bg-light'}`}>
-                              <p className="text-default-400 mb-0 flex items-center gap-1 text-sm italic">
+                              <p className="text-default-700 mb-0 flex items-center gap-1 text-sm italic">
                                 <Icon icon="ban" className="text-sm" />
                                 ข้อความถูกลบ
                               </p>
@@ -1607,7 +1610,7 @@ export default function ChatThread({
                                   <span className={`block truncate text-sm font-medium ${mine ? 'text-white' : 'text-default-800'}`}>
                                     {attachmentDisplayName(m.imageUrl, m.attachmentName)}
                                   </span>
-                                  <span className={`mt-0.5 block text-xs ${mine ? 'text-white/75' : 'text-default-400'}`}>
+                                  <span className={`mt-0.5 block text-xs ${mine ? 'text-white/75' : 'text-default-700'}`}>
                                     {[formatAttachmentSize(m.attachmentSize), 'เปิดไฟล์'].filter(Boolean).join(' · ')}
                                   </span>
                                 </span>
@@ -1627,13 +1630,13 @@ export default function ChatThread({
                             {/* กันบับเบิลว่าง (ข้อมูลเก่า/ข้อความไม่รองรับที่ body ว่าง) — แสดง placeholder จาง ๆ
                                 (อยู่ใน branch non-PRODUCT แล้ว จึงเช็คแค่ body/imageUrl ว่าง) */}
                             {!m.body && !m.imageUrl && (
-                              <p className="text-default-400 mb-0 text-sm italic">ข้อความไม่รองรับ — เปิดดูใน Messenger</p>
+                              <p className="text-default-700 mb-0 text-sm italic">ข้อความไม่รองรับ — เปิดดูใน Messenger</p>
                             )}
                             {/* extension #3 Scam-link Detection (FR-SCAM-04/06) — warning banner เฉพาะ
                                 TEXT ที่ flaggedScam=true (BR-SCAM-04 scan เฉพาะ TEXT); WARN เท่านั้น
-                                ไม่ block ส่ง (FR-SCAM-05); token bg-warning/15 text-warning (HR7 ไม่ arbitrary) */}
+                                ไม่ block ส่ง (FR-SCAM-05); token bg-warning/15 text-warning-ink (HR7 ไม่ arbitrary) */}
                             {m.type === 'TEXT' && m.flaggedScam && (
-                              <div className="bg-warning/15 text-warning mt-2 flex items-start gap-1.5 rounded px-2 py-1 text-2xs">
+                              <div className="bg-warning/15 text-warning-ink mt-2 flex items-start gap-1.5 rounded px-2 py-1 text-2xs">
                                 <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-sm" />
                                 <span>ข้อความนี้มีลิงก์ที่ควรระวัง — อย่าโอนเงินหรือให้รหัส OTP กับคนที่ไม่รู้จัก</span>
                               </div>
@@ -1664,13 +1667,13 @@ export default function ChatThread({
                             failed ||
                             m.id === lastShopMsgId ||
                             m._status === 'sent'))) && (
-                        <div className={`text-default-400 mt-1 flex flex-wrap items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                        <div className={`text-default-700 mt-1 flex flex-wrap items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                           {/* ส่งไม่สำเร็จ — อยู่ "หน้าเวลา" (user สั่ง 2026-08-02) แทนกล่องแดงเต็มบรรทัด
                               ใต้บับเบิลแบบเดิม ซึ่งกินพื้นที่เท่าข้อความอีกอันทั้งที่เป็นสถานะของ
                               ข้อความที่อยู่ข้างบนมันเอง. รูปแบบ: [ส่งใหม่] ส่งไม่สำเร็จ (i) | ยกเลิก
                               เหตุผลเต็มย้ายไปอยู่ใน (i) — hover เห็น, แตะได้บนมือถือที่ไม่มี hover */}
                           {failed && (
-                            <span className="text-danger flex items-center gap-1">
+                            <span className="text-danger-ink flex items-center gap-1">
                               {/* user สั่ง 2026-08-03: ป้าย "ส่งไม่สำเร็จ" → "ลองใหม่" ให้เป็นคำสั่งที่กดได้
                                   รวมเข้ากับปุ่ม ↻ เป็นชิ้นเดียว (เดิมไอคอนกับคำแยกกัน กดได้แค่ไอคอนเล็ก ๆ)
                                   ยังคง "ส่งไม่สำเร็จ" ไว้เมื่อส่งซ้ำไม่ได้ — เขียน "ลองใหม่" ทั้งที่กดไม่ได้
@@ -1742,7 +1745,7 @@ export default function ChatThread({
                               เดิมดูแค่ _status (undefined สำหรับแถวที่บันทึกแล้ว) ไม่ได้ดู deliveryStatus */}
                           {mine && m._status !== 'sending' && !failed && m.id === lastShopMsgId ? (
                             readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
-                              <span className="text-success flex items-center gap-0.5">
+                              <span className="text-success-ink flex items-center gap-0.5">
                                 <Icon icon="checks" /> อ่านแล้ว
                               </span>
                             ) : (
@@ -1751,7 +1754,7 @@ export default function ChatThread({
                               </span>
                             )
                           ) : (
-                            mine && m._status === 'sent' && <Icon icon="check" className="text-success" />
+                            mine && m._status === 'sent' && <Icon icon="check" className="text-success-ink" />
                           )}
                           {/* avatar เพจ/ร้าน = ตัวสุดท้ายของแถวเสมอ (user สั่ง 2026-07-23: "เวลาต้อง
                               อยู่ด้านซ้าย และ icon page อยู่ชิดขวาเสมอ") — แถวนี้ justify-end อยู่แล้ว
@@ -1859,7 +1862,7 @@ export default function ChatThread({
             aria-label="เลือกสินค้า"
             aria-expanded={productOpen}
             title="เลือกสินค้า"
-            className={`btn btn-icon hover:bg-info/10 shrink-0 ${productOpen ? 'bg-info/10 text-info' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            className={`btn btn-icon hover:bg-info/10 shrink-0 ${productOpen ? 'bg-info/10 text-info-ink' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="package" className="text-lg" />
           </button>
@@ -1886,7 +1889,7 @@ export default function ChatThread({
           {/* ความคืบหน้าตอนแนบหลายไฟล์ — spinner เปล่าบอกได้แค่ "กำลังทำอะไรอยู่" ซึ่งไม่พอเมื่อคิว
               มี 8 ไฟล์และแต่ละไฟล์ใช้เวลาไม่เท่ากัน (ร้านจะไม่รู้ว่าค้างหรือกำลังไป) */}
           {uploadProgress && uploadProgress.total > 1 && (
-            <span className="text-default-500 shrink-0 text-xs" aria-live="polite">
+            <span className="text-default-700 shrink-0 text-xs" aria-live="polite">
               กำลังอัปโหลด {uploadProgress.done + 1}/{uploadProgress.total}
             </span>
           )}
@@ -1917,7 +1920,7 @@ export default function ChatThread({
             aria-label="AI ช่วยร่างคำตอบ"
             aria-expanded={aiOpen}
             title="AI ช่วยร่างคำตอบ"
-            className={`btn btn-icon hover:bg-success/10 shrink-0 ${aiOpen ? 'bg-success/10 text-success' : 'text-success'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            className={`btn btn-icon hover:bg-success/10 shrink-0 ${aiOpen ? 'bg-success/10 text-success-ink' : 'text-success-ink'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="sparkles" className="text-lg" />
           </button>
@@ -1970,7 +1973,7 @@ export default function ChatThread({
               type="button"
               onClick={() => setReplyingTo(null)}
               aria-label="ยกเลิกการตอบกลับ"
-              className="text-default-400 hover:bg-default-100 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
+              className="text-default-700 hover:bg-default-100 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
             >
               <Icon icon="x" className="text-sm" />
             </button>
@@ -2029,7 +2032,7 @@ export default function ChatThread({
                           <span className="min-w-0">
                             <span className="text-default-800 block truncate text-xs font-medium">{label}</span>
                             {formatAttachmentSize(att.size) && (
-                              <span className="text-default-400 mt-0.5 block text-xs">
+                              <span className="text-default-700 mt-0.5 block text-xs">
                                 {formatAttachmentSize(att.size)}
                               </span>
                             )}

@@ -307,7 +307,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               <button type="button" onClick={() => expand(d.id)} className="flex min-w-0 items-center gap-2">
                 <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
                 <span className="flex min-w-0 flex-col text-start">
-                  <span className="text-default-500 text-2xs">{draftTitle(d)}</span>
+                  <span className="text-default-700 text-2xs">{draftTitle(d)}</span>
                   <span className="text-default-800 truncate text-sm font-medium">{d.customerName}</span>
                 </span>
               </button>
@@ -315,7 +315,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
                 type="button"
                 onClick={() => requestClose(d.id)}
                 aria-label="ปิดร่างคำสั่งซื้อ"
-                className="text-default-400 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
+                className="text-default-700 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
               >
                 <Icon icon="x" className="size-4" />
               </button>

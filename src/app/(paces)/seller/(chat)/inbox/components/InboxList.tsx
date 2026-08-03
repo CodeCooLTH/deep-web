@@ -43,7 +43,7 @@
  * ใช้ typography เดียวกันเป๊ะจนแยกไม่ออกตอนกวาดตา. เพิ่ม "น้ำหนัก/สีตัวอักษรตามสถานะอ่าน"
  * (convention แอปแชททั่วไป): ยังไม่อ่าน = ชื่อ text-default-900 font-bold + ข้อความย่อ
  * text-default-800 font-semibold + เวลา text-default-700; อ่านแล้ว = เทาลงทั้งแถว
- * (text-default-600 / text-default-400 เหมือนเดิม) — token Paces ล้วน ไม่มี arbitrary value (HR7)
+ * (text-default-600 / text-default-700 เหมือนเดิม) — token Paces ล้วน ไม่มี arbitrary value (HR7)
  *
  * Realtime (bug fix เดียวกัน): เดิมรายการนี้ fetch ครั้งเดียวตอน mount แล้วนิ่งตลอด — ข้อความที่
  * webhook (Messenger/Instagram) หรือผู้ซื้อ Deep ส่งเข้ามาไม่โผล่จนกว่าจะรีเฟรชหน้าเอง ทั้งที่ DB
@@ -159,7 +159,7 @@ const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM']
 
 // feature 00018 CRM — badge สถานะการขายในแถว (UNSPECIFIED ไม่โชว์). ต้องตรงกับ CustomerCrmSection
 const SALES_STATUS_META: Record<string, { label: string; cls: string }> = {
-  INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success' },
+  INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success-ink' },
   NOT_INTERESTED: { label: 'ไม่สนใจ', cls: 'bg-default-200 text-default-600' },
 }
 
@@ -850,7 +850,7 @@ export default function InboxList({
               className={`badge text-2xs inline-flex items-center gap-1 py-2 ${
                 filter.shipment === 'problem'
                   ? 'bg-danger text-white'
-                  : 'bg-danger/15 text-danger'
+                  : 'bg-danger/15 text-danger-ink'
               }`}
             >
               <Icon icon="alert-triangle" width={12} height={12} />
@@ -907,8 +907,8 @@ export default function InboxList({
                   className={`-mb-px flex shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
                     t.danger
                       ? on
-                        ? 'border-danger text-danger font-semibold'
-                        : 'border-transparent text-danger font-medium'
+                        ? 'border-danger text-danger-ink font-semibold'
+                        : 'border-transparent text-danger-ink font-medium'
                       : on
                         ? 'border-primary text-primary font-semibold'
                         : 'border-transparent text-default-600 font-medium'
@@ -950,7 +950,7 @@ export default function InboxList({
                 ) : (
                   <>
                     กลุ่ม
-                    {groups.length > 0 && <span className="text-default-500">{groups.length}</span>}
+                    {groups.length > 0 && <span className="text-default-700">{groups.length}</span>}
                   </>
                 )}
                 <Icon icon={openPanel === 'group' ? 'chevron-up' : 'chevron-down'} width={12} height={12} />
@@ -1003,7 +1003,7 @@ export default function InboxList({
                         onClick={() => handleDeleteGroup(g)}
                         aria-label={`ลบกลุ่ม ${g.name}`}
                         title="ลบกลุ่ม"
-                        className="text-default-400 hover:text-danger flex size-8 shrink-0 items-center justify-center"
+                        className="text-default-700 hover:text-danger-ink flex size-8 shrink-0 items-center justify-center"
                       >
                         <Icon icon="trash" width={14} height={14} />
                       </button>
@@ -1206,7 +1206,7 @@ export default function InboxList({
                             icon="star-filled"
                             width={14}
                             height={14}
-                            className="text-warning shrink-0"
+                            className="text-warning-ink shrink-0"
                             aria-label="ปักหมุดไว้"
                           />
                         )}
@@ -1218,7 +1218,7 @@ export default function InboxList({
                             icon="circle-check"
                             width={14}
                             height={14}
-                            className="text-success shrink-0"
+                            className="text-success-ink shrink-0"
                             aria-label="ปิดงานแล้ว"
                           />
                         )}
@@ -1227,7 +1227,7 @@ export default function InboxList({
                             icon="alert-octagon"
                             width={14}
                             height={14}
-                            className="text-danger shrink-0"
+                            className="text-danger-ink shrink-0"
                             aria-label="สแปม"
                           />
                         )}
@@ -1239,12 +1239,12 @@ export default function InboxList({
                           senderRole='SHOP' ครอบทั้งที่ตอบจาก Deep และ echo จากแอป Messenger ของร้าน
                           — ทั้งคู่คือ "เรา" ในสายตาผู้ใช้ */}
                       {/* preview: text-xs ตามเดิม (เคยขยับเป็น text-sm แล้วถอยกลับพร้อม padding แถว
-                          2026-07-31 — แถวสูงเกินไป). คงสี text-default-500 ที่ปรับจาก 400 ไว้
+                          2026-07-31 — แถวสูงเกินไป). คงสี text-default-700 ที่ปรับจาก 400 ไว้
                           เพราะเป็นเรื่องคอนทราสต์ให้อ่านออก ไม่ใช่เรื่องขนาด และตอนนี้บรรทัดนี้
                           เป็นตัวหลักที่บอกสถานะอ่าน (ชื่อเข้มเสมอแล้ว) */}
                       <span
                         className={`block max-w-52 truncate text-2xs ${
-                          unread ? 'text-default-800 font-semibold' : 'text-default-500'
+                          unread ? 'text-default-800 font-semibold' : 'text-default-700'
                         }`}
                       >
                         {/* user request 2026-08-01: ป้าย DeepBot/DeepAI เคยแทนที่คำว่า "คุณ: " ตรงนี้
@@ -1253,7 +1253,7 @@ export default function InboxList({
                             "คุณ: " ให้ทุกข้อความที่ฝั่งร้านส่ง ไม่ว่าคนหรือบอทเป็นคนส่ง — ในสายตา
                             ลูกค้าทั้งคู่คือ "ร้าน" เหมือนกันอยู่แล้ว */}
                         {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
-                          <span className="text-default-500 font-normal">คุณ: </span>
+                          <span className="text-default-700 font-normal">คุณ: </span>
                         )}
                         {preview}
                       </span>
@@ -1293,7 +1293,7 @@ export default function InboxList({
                             <span key={t} className="badge bg-primary/15 text-primary text-2xs">{t}</span>
                           ))}
                           {contactTags.length > 2 && (
-                            <span className="badge bg-default-100 text-default-500 text-2xs">+{contactTags.length - 2}</span>
+                            <span className="badge bg-default-100 text-default-700 text-2xs">+{contactTags.length - 2}</span>
                           )}
                         </span>
                       )}
@@ -1346,7 +1346,7 @@ export default function InboxList({
                           มาทับที่ตรงนี้พอดี — พอ user สั่งย้ายชุดปุ่มไปกลางการ์ด (2026-08-03) มันไม่ทับ
                           แล้ว การซ่อนเวลาจึงกลายเป็นการทิ้งข้อมูลฟรี ๆ ทุกครั้งที่เมาส์ผ่าน → เอาออก */}
                       <span
-                        className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}
+                        className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-700'}`}
                       >
                         {formatChatListTime(c.lastMessageAt)}
                       </span>
@@ -1399,7 +1399,7 @@ export default function InboxList({
                     aria-label={c.isPinned ? 'เลิกปักหมุดบทสนทนานี้' : 'ปักหมุดบทสนทนานี้'}
                     title={c.isPinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
                     className={`btn btn-icon btn-sm hover:bg-default-100 disabled:opacity-50 ${
-                      c.isPinned ? 'text-warning' : 'text-default-600'
+                      c.isPinned ? 'text-warning-ink' : 'text-default-600'
                     }`}
                   >
                     <Icon icon={c.isPinned ? 'star-filled' : 'star'} width={16} height={16} />
@@ -1469,7 +1469,7 @@ export default function InboxList({
                               handleRowAction(c.id, c.isSpam ? 'unspam' : 'spam')
                             }}
                             className={`dropdown-item text-sm disabled:opacity-50 ${
-                              c.isSpam ? '' : 'text-danger hover:bg-danger/10'
+                              c.isSpam ? '' : 'text-danger-ink hover:bg-danger/10'
                             }`}
                           >
                             <Icon icon={c.isSpam ? 'inbox' : 'alert-octagon'} className="size-4" />
@@ -1493,7 +1493,7 @@ export default function InboxList({
                 role="status"
                 aria-label="กำลังโหลด"
               />
-              <span className="text-default-500 text-sm font-medium">กำลังโหลด...</span>
+              <span className="text-default-700 text-sm font-medium">กำลังโหลด...</span>
             </div>
           )}
         </div>

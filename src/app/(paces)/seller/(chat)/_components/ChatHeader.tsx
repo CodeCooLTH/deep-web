@@ -99,7 +99,7 @@ export default function ChatHeader() {
           title={muted ? 'เปิดเสียงแจ้งเตือนข้อความใหม่' : 'ปิดเสียงแจ้งเตือนข้อความใหม่'}
           aria-label={muted ? 'เปิดเสียงแจ้งเตือนข้อความใหม่' : 'ปิดเสียงแจ้งเตือนข้อความใหม่'}
           className={`btn btn-icon inline-flex size-11 items-center justify-center ${
-            muted ? 'text-default-500' : 'text-dark'
+            muted ? 'text-default-700' : 'text-dark'
           }`}
         >
           <Icon icon={muted ? 'volume-off' : 'volume'} className="text-lg" />

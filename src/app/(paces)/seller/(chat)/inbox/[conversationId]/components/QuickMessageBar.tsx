@@ -282,7 +282,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
                 type="button"
                 onClick={() => setSortMode((s) => !s)}
                 className={`flex size-9 items-center justify-center rounded ${
-                  sortMode ? 'bg-primary text-white' : 'text-default-500 hover:text-primary'
+                  sortMode ? 'bg-primary text-white' : 'text-default-700 hover:text-primary'
                 }`}
                 aria-pressed={sortMode}
                 aria-label={sortMode ? 'เสร็จสิ้นการจัดลำดับ' : 'จัดลำดับข้อความสำเร็จรูป'}
@@ -294,7 +294,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
             <button
               type="button"
               onClick={() => setManagerOpen(true)}
-              className="text-default-500 hover:text-primary flex size-9 items-center justify-center rounded"
+              className="text-default-700 hover:text-primary flex size-9 items-center justify-center rounded"
               aria-label="จัดการข้อความสำเร็จรูป"
               title="จัดการข้อความสำเร็จรูป"
             >
@@ -303,7 +303,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="text-default-500 hover:text-default-800 flex size-9 items-center justify-center rounded"
+              className="text-default-700 hover:text-default-800 flex size-9 items-center justify-center rounded"
               aria-label="ปิด"
             >
               <Icon icon="x" className="text-base" />
@@ -360,7 +360,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
           ) : loadError ? (
             /* โหลดพัง ≠ ไม่มีข้อมูล — ต้องแยกให้ชัด ไม่งั้นผู้ใช้ที่มี 30+ รายการนึกว่าข้อความหายหมด */
             <div className="text-default-700 flex flex-col items-center gap-2 py-12 text-center text-sm">
-              <Icon icon="alert-triangle" className="text-warning text-2xl" />
+              <Icon icon="alert-triangle" className="text-warning-ink text-2xl" />
               <span>โหลดข้อความสำเร็จรูปไม่สำเร็จ</span>
               <button type="button" onClick={load} className="btn border-default-300 min-h-11">
                 <Icon icon="refresh" className="me-1" /> ลองใหม่
@@ -368,7 +368,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
             </div>
           ) : items.length === 0 ? (
             <div className="text-default-700 flex flex-col items-center gap-2 py-12 text-center text-sm">
-              <Icon icon="message-plus" className="text-default-500 text-2xl" />
+              <Icon icon="message-plus" className="text-default-700 text-2xl" />
               <span>ยังไม่มีข้อความสำเร็จรูป</span>
               <button type="button" onClick={() => setManagerOpen(true)} className="btn border-default-300 min-h-11">
                 <Icon icon="plus" className="me-1" /> เพิ่มข้อความ
@@ -388,9 +388,9 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
           ) : (
             groups.map((g) => (
               <section key={g.key} className="mb-4 last:mb-0">
-                <p className="text-default-500 mb-2 text-2xs font-semibold">
+                <p className="text-default-700 mb-2 text-2xs font-semibold">
                   {g.label}
-                  <span className="text-default-400 ms-1.5 font-normal">({g.items.length})</span>
+                  <span className="text-default-700 ms-1.5 font-normal">({g.items.length})</span>
                 </p>
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {g.items.map((qm) => renderCard(qm, items.indexOf(qm)))}

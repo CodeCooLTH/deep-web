@@ -96,7 +96,7 @@ export default function EmojiPicker({ onSelect, onClose }: Props) {
       <div className="max-h-64 overflow-y-auto p-3">
         {CATEGORIES.map((cat) => (
           <div key={cat.key} className="mb-3 last:mb-0">
-            <p className="text-default-400 mb-1.5 text-2xs font-semibold">{cat.label}</p>
+            <p className="text-default-700 mb-1.5 text-2xs font-semibold">{cat.label}</p>
             <div className="grid grid-cols-8 gap-0.5">
               {cat.codepoints.map((cp) => {
                 const glyph = String.fromCodePoint(cp)

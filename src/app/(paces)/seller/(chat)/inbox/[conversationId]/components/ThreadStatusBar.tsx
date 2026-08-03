@@ -38,9 +38,9 @@ export interface ThreadStatusItem {
 
 /** class ของกล่อง/ข้อความตามโทน — เขียนเต็มคำ ไม่ประกอบสตริง เพราะ Tailwind สแกนแบบ static */
 const TONE_CLS: Record<ThreadStatusTone, string> = {
-  danger: 'bg-danger/15 text-danger',
-  warning: 'bg-warning/15 text-warning',
-  info: 'bg-info/15 text-info',
+  danger: 'bg-danger/15 text-danger-ink',
+  warning: 'bg-warning/15 text-warning-ink',
+  info: 'bg-info/15 text-info-ink',
 }
 
 export default function ThreadStatusBar({ items }: { items: ThreadStatusItem[] }) {
@@ -59,7 +59,7 @@ export default function ThreadStatusBar({ items }: { items: ThreadStatusItem[] }
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="text-default-500 hover:text-default-700 flex items-center gap-1 text-xs font-medium"
+            className="text-default-700 hover:text-default-700 flex items-center gap-1 text-xs font-medium"
           >
             <Icon icon="chevron-up" className="text-sm" />
             ย่อสถานะห้อง

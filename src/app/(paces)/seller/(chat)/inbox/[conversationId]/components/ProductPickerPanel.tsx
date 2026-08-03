@@ -126,14 +126,14 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
   return (
     <div className="border-default-300 bg-info/5 -mx-4 -mt-3 mb-3 border-b border-dashed px-4 py-2 sm:-mx-6 sm:-mt-3.75 sm:px-6">
       <div className="flex items-center justify-between pb-1.5">
-        <span className="text-info flex items-center gap-2 text-sm font-semibold">
+        <span className="text-info-ink flex items-center gap-2 text-sm font-semibold">
           {selected ? (
             <>
               <button
                 type="button"
                 onClick={() => setSelected(null)}
                 aria-label="กลับไปเลือกสินค้า"
-                className="text-default-500 hover:text-info flex size-7 items-center justify-center rounded"
+                className="text-default-700 hover:text-info-ink flex size-7 items-center justify-center rounded"
               >
                 <Icon icon="arrow-left" className="text-base" />
               </button>
@@ -150,7 +150,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
           type="button"
           onClick={onClose}
           aria-label="ปิด"
-          className="text-default-500 hover:text-default-800 flex size-7 items-center justify-center rounded"
+          className="text-default-700 hover:text-default-800 flex size-7 items-center justify-center rounded"
         >
           <Icon icon="x" className="text-base" />
         </button>
@@ -311,7 +311,7 @@ function ModeButton({
         disabled ? 'pointer-events-none opacity-50' : ''
       }`}
     >
-      <Icon icon={icon} className="text-info shrink-0 text-lg" />
+      <Icon icon={icon} className="text-info-ink shrink-0 text-lg" />
       <span className="min-w-0 flex-1">
         <span className="block font-medium">{label}</span>
         {hint && <span className="text-default-700 block text-xs">{hint}</span>}

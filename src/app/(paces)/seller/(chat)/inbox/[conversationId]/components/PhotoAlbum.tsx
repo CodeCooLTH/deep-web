@@ -36,7 +36,7 @@ function AlbumCell({
       className={`relative block cursor-zoom-in overflow-hidden rounded bg-default-100 ${className}`}
     >
       {failed ? (
-        <span className="text-default-400 flex size-full items-center justify-center">
+        <span className="text-default-700 flex size-full items-center justify-center">
           <Icon icon="photo-off" className="text-xl" />
         </span>
       ) : (
@@ -103,7 +103,7 @@ export default function PhotoAlbum({ ms, onOpen }: { ms: AlbumMsg[]; onOpen: (id
         ))}
       </div>
       <div className="mt-1.5">
-        <span className="badge bg-default-100 text-default-500 text-2xs inline-flex items-center gap-1">
+        <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
           <Icon icon="stack-2" />
           {count} รูป
         </span>

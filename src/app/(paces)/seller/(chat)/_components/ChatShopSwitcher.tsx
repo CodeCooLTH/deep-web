@@ -128,7 +128,7 @@ export default function ChatShopSwitcher() {
             <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
             <div className="min-w-0">
               <p className="text-body-color truncate text-sm font-semibold">{activeName}</p>
-              <p className="text-default-400 truncate text-xs">{activeRoleLabel}</p>
+              <p className="text-default-700 truncate text-xs">{activeRoleLabel}</p>
             </div>
           </div>
 
@@ -136,7 +136,7 @@ export default function ChatShopSwitcher() {
           {hasBusinessMembership && (
             <>
               <div className="px-2 pt-3 pb-1">
-                <span className="text-default-400 text-xs">สลับบัญชี</span>
+                <span className="text-default-700 text-xs">สลับบัญชี</span>
               </div>
 
               {/* Personal (ซ่อนถ้า personal = active) */}
@@ -156,7 +156,7 @@ export default function ChatShopSwitcher() {
                 >
                   <AccountAvatar src={user?.avatar} kind="personal" className="size-7" />
                   <span className="flex-1 truncate">{displayName}</span>
-                  <span className="badge bg-default-100 text-default-500 shrink-0">ส่วนตัว</span>
+                  <span className="badge bg-default-100 text-default-700 shrink-0">ส่วนตัว</span>
                 </button>
               )}
 
@@ -176,13 +176,13 @@ export default function ChatShopSwitcher() {
                     <span className="flex-1 truncate">{b.shopName}</span>
                     <span
                       className={`badge shrink-0 ${
-                        b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'
+                        b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info-ink'
                       }`}
                     >
                       {b.role === 'OWNER' ? 'เจ้าของ' : 'ผู้ดูแล'}
                     </span>
                     {b.locked && (
-                      <span className="badge bg-danger/15 text-danger inline-flex shrink-0 items-center">
+                      <span className="badge bg-danger/15 text-danger-ink inline-flex shrink-0 items-center">
                         <Icon icon="lock" className="size-3" aria-hidden="true" />
                       </span>
                     )}

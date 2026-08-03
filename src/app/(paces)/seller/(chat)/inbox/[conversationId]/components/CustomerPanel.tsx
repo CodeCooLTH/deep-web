@@ -325,7 +325,7 @@ function OrdersList({
       {cursor && (
         <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
           <span className="border-primary size-4 animate-spin rounded-full border-2 border-t-transparent" />
-          <span className="text-default-400 text-xs">กำลังโหลด...</span>
+          <span className="text-default-700 text-xs">กำลังโหลด...</span>
         </div>
       )}
     </div>
@@ -550,7 +550,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
                 className="text-default-800 mb-0 flex items-center gap-1.5 text-sm"
                 title={`รหัสลูกค้า ${data.customer.id}`}
               >
-                <Icon icon="link" className="text-success text-base" />
+                <Icon icon="link" className="text-success-ink text-base" />
                 เชื่อมแล้ว · {data.customer.phoneMasked}
               </p>
             ) : (

@@ -68,7 +68,7 @@ export default function CustomerPanelSheet({ data, onClose }: Props) {
             type="button"
             onClick={onClose}
             aria-label="ปิด"
-            className="btn btn-icon text-default-500 hover:bg-default-100"
+            className="btn btn-icon text-default-700 hover:bg-default-100"
           >
             <Icon icon="x" className="text-lg" />
           </button>

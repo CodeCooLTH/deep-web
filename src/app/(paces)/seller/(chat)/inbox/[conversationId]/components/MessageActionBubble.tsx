@@ -111,7 +111,7 @@ export default function MessageActionBubble({ x, y, actions, onClose }: Props) {
           }}
           // ปุ่มสูง 44px เต็ม tap target ตามที่หน้าอื่นในโปรเจกต์ยึดอยู่ — เมนูนี้เกิดบนมือถือล้วน
           className={`hover:bg-default-100 flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg px-3 text-xs ${
-            a.danger ? 'text-danger' : 'text-default-700'
+            a.danger ? 'text-danger-ink' : 'text-default-700'
           }`}
         >
           <Icon icon={a.icon} className="text-lg" />

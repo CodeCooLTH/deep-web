@@ -382,7 +382,7 @@ export default function QuickMessageManager({
             <button
               type="button"
               onClick={backToList}
-              className="text-default-500 hover:text-primary flex size-9 shrink-0 items-center justify-center rounded"
+              className="text-default-700 hover:text-primary flex size-9 shrink-0 items-center justify-center rounded"
               aria-label="ย้อนกลับไปรายการ"
             >
               <Icon icon="arrow-left" className="text-lg" />
@@ -472,11 +472,11 @@ export default function QuickMessageManager({
               ) : error ? (
                 /* แยกจาก empty state ให้ชัด — เดิมโหลดพังแล้วขึ้น "ยังไม่มีข้อความ" ผู้ใช้นึกว่าข้อมูลหาย */
                 <div className="flex flex-col items-center gap-2 py-12 text-center">
-                  <span className="bg-warning/15 text-warning flex size-12 items-center justify-center rounded-lg">
+                  <span className="bg-warning/15 text-warning-ink flex size-12 items-center justify-center rounded-lg">
                     <Icon icon="alert-triangle" className="text-2xl" />
                   </span>
                   <span className="text-default-800 text-sm font-semibold">โหลดข้อความสำเร็จรูปไม่สำเร็จ</span>
-                  <span className="text-default-500 text-xs">
+                  <span className="text-default-700 text-xs">
                     ข้อความของคุณยังอยู่ครบ แค่ดึงข้อมูลไม่ได้ตอนนี้ ลองใหม่อีกครั้งได้เลย
                   </span>
                   {onRetry && (
@@ -491,7 +491,7 @@ export default function QuickMessageManager({
                     <Icon icon="message-plus" className="text-2xl" />
                   </span>
                   <span className="text-default-800 text-sm font-semibold">ยังไม่มีข้อความสำเร็จรูป</span>
-                  <span className="text-default-500 max-w-xs text-xs">
+                  <span className="text-default-700 max-w-xs text-xs">
                     เพิ่มข้อความที่ใช้บ่อย เช่น ทักทายลูกค้าใหม่ หรือแจ้งเลขพัสดุ จะได้พิมพ์ครั้งเดียวใช้ได้ทุกแชท
                   </span>
                   <button
@@ -504,7 +504,7 @@ export default function QuickMessageManager({
                 </div>
               ) : visibleItems.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-12 text-center">
-                  <span className="bg-default-100 text-default-500 flex size-12 items-center justify-center rounded-lg">
+                  <span className="bg-default-100 text-default-700 flex size-12 items-center justify-center rounded-lg">
                     <Icon icon="search" className="text-2xl" />
                   </span>
                   {/* ข้อความต้องตรงกับตัวกรองที่ใช้จริง — กรองด้วยหมวดอย่างเดียวแล้วบอกว่า "ไม่พบคำค้น"
@@ -512,7 +512,7 @@ export default function QuickMessageManager({
                   <span className="text-default-800 text-sm font-semibold">
                     {q.trim() ? `ไม่พบข้อความที่ตรงกับ "${q.trim()}"` : `ไม่มีข้อความในหมวด "${categoryFilter}"`}
                   </span>
-                  <span className="text-default-500 text-xs">
+                  <span className="text-default-700 text-xs">
                     {q.trim() ? 'ลองใช้คำอื่น หรือ' : ''}ล้างตัวกรองเพื่อดูทั้ง {localItems.length} รายการ
                   </span>
                   <button type="button" onClick={clearFilters} className="btn border-default-300 mt-1 min-h-11">
@@ -572,7 +572,7 @@ export default function QuickMessageManager({
                                 dragOver === index ? 'bg-primary/5' : ''
                               }`}
                             >
-                              <td className="text-default-400 text-2xs font-semibold">{index + 1}</td>
+                              <td className="text-default-700 text-2xs font-semibold">{index + 1}</td>
                               <td className="text-default-800 font-medium">{qm.title}</td>
                               <td className="text-end">
                                 <span className="flex items-center justify-end gap-1 lg:hidden">
@@ -595,7 +595,7 @@ export default function QuickMessageManager({
                                     <Icon icon="chevron-down" />
                                   </button>
                                 </span>
-                                <Icon icon="grip-vertical" className="text-default-400 hidden text-base lg:inline" />
+                                <Icon icon="grip-vertical" className="text-default-700 hidden text-base lg:inline" />
                               </td>
                             </tr>
                           )
@@ -630,18 +630,18 @@ export default function QuickMessageManager({
                                 <span className="text-default-800 block truncate font-medium">{qm.title}</span>
                                 {/* จอเล็กไม่มีคอลัมน์ข้อความ — ยกตัวอย่างเนื้อหามาไว้ใต้หัวข้อแทน ไม่งั้นแยกไม่ออก
                                     ว่าอันไหนคืออันไหน (line-clamp ตั้ง display เอง ห้ามใส่ block ทับ) */}
-                                <span className="text-default-500 line-clamp-1 text-2xs lg:hidden">{qm.body}</span>
+                                <span className="text-default-700 line-clamp-1 text-2xs lg:hidden">{qm.body}</span>
                               </span>
                             </td>
                             <td className="hidden sm:table-cell">
                               {qm.category ? (
-                                <span className="badge bg-default-100 text-default-500 text-2xs">{qm.category}</span>
+                                <span className="badge bg-default-100 text-default-700 text-2xs">{qm.category}</span>
                               ) : (
                                 <span className="text-default-300">—</span>
                               )}
                             </td>
                             <td className="hidden max-w-xs lg:table-cell">
-                              <span className="text-default-500 line-clamp-2 text-xs">{qm.body}</span>
+                              <span className="text-default-700 line-clamp-2 text-xs">{qm.body}</span>
                             </td>
                             {/* ปุ่มแบบ ghost — เดิมมีกรอบทุกใบ ทำให้ทั้งคอลัมน์เป็นตารางกล่องเล็ก ๆ
                                 รกและดูเก่า (user ติ 2026-07-31) เหลือพื้นตอน hover ก็พอ
@@ -654,7 +654,7 @@ export default function QuickMessageManager({
                                     e.stopPropagation()
                                     startEdit(qm)
                                   }}
-                                  className="text-default-500 hover:bg-light hover:text-primary flex size-11 items-center justify-center rounded-lg"
+                                  className="text-default-700 hover:bg-light hover:text-primary flex size-11 items-center justify-center rounded-lg"
                                   aria-label={`แก้ไข ${qm.title}`}
                                 >
                                   <Icon icon="pencil" className="text-base" />
@@ -665,7 +665,7 @@ export default function QuickMessageManager({
                                     e.stopPropagation()
                                     handleDelete(qm)
                                   }}
-                                  className="text-default-400 hover:bg-danger/10 hover:text-danger flex size-11 items-center justify-center rounded-lg"
+                                  className="text-default-700 hover:bg-danger/10 hover:text-danger-ink flex size-11 items-center justify-center rounded-lg"
                                   aria-label={`ลบ ${qm.title}`}
                                 >
                                   <Icon icon="trash" className="text-base" />
@@ -682,7 +682,7 @@ export default function QuickMessageManager({
             </div>
 
             {hasFilter && !sortMode && !loading && !error && localItems.length > 0 && (
-              <p className="text-default-400 border-default-200 mb-0 border-t px-4 py-2 text-2xs">
+              <p className="text-default-700 border-default-200 mb-0 border-t px-4 py-2 text-2xs">
                 แสดง {visibleItems.length} จาก {localItems.length} รายการ
               </p>
             )}
@@ -736,7 +736,7 @@ export default function QuickMessageManager({
                 />
                 <p
                   className={`mb-0 mt-1 text-end text-2xs ${
-                    bodyLen > BODY_WARN ? 'text-warning' : 'text-default-400'
+                    bodyLen > BODY_WARN ? 'text-warning-ink' : 'text-default-700'
                   }`}
                 >
                   {bodyLen} / {BODY_MAX}
@@ -795,7 +795,7 @@ export default function QuickMessageManager({
                     const target = localItems.find((i) => i.id === editingId)
                     if (target) handleDelete(target)
                   }}
-                  className="text-danger flex min-h-11 items-center gap-2 text-sm font-semibold"
+                  className="text-danger-ink flex min-h-11 items-center gap-2 text-sm font-semibold"
                 >
                   <Icon icon="trash" />
                   <span className="hidden sm:inline">ลบข้อความนี้</span>

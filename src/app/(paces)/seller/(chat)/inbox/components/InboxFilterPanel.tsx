@@ -102,7 +102,7 @@ function Chip({
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="mb-4 last:mb-0">
-      <p className="text-default-500 mb-2 text-xs font-medium">
+      <p className="text-default-700 mb-2 text-xs font-medium">
         {title}
         {hint && <span className="font-normal"> — {hint}</span>}
       </p>
@@ -208,7 +208,7 @@ export default function InboxFilterPanel({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="text-default-500 hover:text-default-800 flex size-6 items-center justify-center rounded"
+              className="text-default-700 hover:text-default-800 flex size-6 items-center justify-center rounded"
               aria-label="ปิด"
             >
               <Icon icon="x" className="size-4" />
