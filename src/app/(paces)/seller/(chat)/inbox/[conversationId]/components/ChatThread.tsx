@@ -84,6 +84,7 @@ import { generateInitials } from '@/utils/helpers'
 import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
+import { withEmojiPresentation } from '@/lib/emoji-presentation'
 import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef } from 'react'
@@ -1686,11 +1687,16 @@ export default function ChatThread({
                         )
                       })()}
                       {/* reaction (feature 00018 Phase 2, message_reactions) — emoji ที่ react บนข้อความนี้
-                          ชิปเล็ก ๆ เกยขอบล่างบับเบิล (FB-style); ฝั่งเรา justify-end, ฝั่งลูกค้า justify-start */}
+                          ชิปเล็ก ๆ เกยขอบล่างบับเบิล (FB-style); ฝั่งเรา justify-end, ฝั่งลูกค้า justify-start
+
+                          withEmojiPresentation: Meta ส่งหัวใจมาเป็น U+2764 เปล่า ๆ ซึ่ง default เป็น
+                          "ตัวหนังสือ" เบราว์เซอร์เลยวาดเป็นหัวใจดำเล็ก ๆ ไม่ใช่หัวใจแดงแบบใน Facebook
+                          (user report 2026-08-03) — ต้องต่อ VS-16 ให้ก่อน ดู lib/emoji-presentation
+                          text-sm + leading-none: ขนาดใกล้ชิปรีแอ็กชันของ Messenger จริง (12px เล็กไป) */}
                       {m.reactionEmoji && (
                         <div className={`-mt-1.5 flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                          <span className="bg-card border-default-200 rounded-full border px-1.5 py-0.5 text-xs shadow-sm">
-                            {m.reactionEmoji}
+                          <span className="bg-card border-default-200 rounded-full border px-1.5 py-1 text-sm leading-none shadow-sm">
+                            {withEmojiPresentation(m.reactionEmoji)}
                           </span>
                         </div>
                       )}
