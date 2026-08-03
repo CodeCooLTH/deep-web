@@ -67,8 +67,12 @@ API mirror `react-toastify` (`.success/.error/.warning` + เพิ่ม `.info
 ## Reviewer grep gate (ต้องผ่านก่อน merge ทุก PR ที่แตะ `(paces)/**`)
 
 ```bash
-# ต้องคืน 0 — ถ้าพบ react-toastify ใน (paces) = block merge
-rg "react-toastify" "src/app/(paces)/"
+# ต้องคืน 0 — ถ้าพบ import react-toastify ใน (paces) = block merge
+# 🛑 ต้อง match `from 'react-toastify'` ไม่ใช่คำว่า react-toastify เปล่า ๆ
+#    ไฟล์ที่ทำถูกกฎมักเขียนคอมเมนต์อ้างชื่อกฎไว้บนหัวไฟล์ ("Toast: pacesToast — ห้าม react-toastify")
+#    gate แบบ match คำเปล่าจึงแดงตลอดกาลและถูกบันทึกเป็น "หนี้" ทั้งที่ไม่มีการละเมิด
+#    (เข้าใจผิดจริงมาแล้ว: carry note 2026-08-02 อ้างว่าตกค้าง 3 ไฟล์ — ตรวจซ้ำ 2026-08-03 ไม่จริงสักไฟล์)
+rg "from ['\"]react-toastify" "src/app/(paces)/"
 
 # ต้องคืน 0 — ห้าม bare toast.* / native alert|confirm|prompt ใน (paces)
 # (Sweet Alerts `Swal` = อนุญาต สำหรับ modal dialog ตาม safepay-ux Hard Rule 8)
