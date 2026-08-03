@@ -50,11 +50,6 @@ export default async function AccountPage() {
         <PageBreadcrumb title="ข้อมูลส่วนตัว" trail={[{ label: 'บัญชีของฉัน' }]} />
       </div>
 
-      {/* ประโยคที่แบกทั้งฟีเจอร์ — ต้องอ่านออกจริง ไม่ใช่ caption จาง (เดิม text-default-500 บนพื้น
-          อ่อน ได้ ~2.3:1 ตกเกณฑ์ AA และตกใส่กลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้เองว่าเป็นเป้าหมาย) */}
-      <p className="text-default-800 -mt-2 mb-4 text-sm lg:mt-0">
-        ข้อมูลนี้เป็นของคุณโดยตรง ไม่ใช่ของร้าน — เหมือนกันไม่ว่าจะสลับไปร้านไหน
-      </p>
 
       {/* บัญชีที่ login ได้ทางเดียวคือ OAuth และไม่มีทางกู้เลย — ณ 2026-08-02 คือ 5 จาก 10 บัญชีบน prod
           (นับจาก User ที่ phone IS NULL AND passwordHash IS NULL) ถ้าเข้า Facebook/LINE ไม่ได้
