@@ -38,7 +38,7 @@ import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
-import ChatRail from './_components/ChatRail'
+import ChatRailColumn from './_components/ChatRailColumn'
 import { prisma } from '@/lib/prisma'
 import DraftOrderProvider from './_components/DraftOrderProvider'
 import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
@@ -107,9 +107,10 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               lg:w-80 (320px) สำหรับช่วงแท็บเล็ต 1024-1279: ที่ความกว้างนั้นคอลัมน์ขวายังไม่โผล่
               (xl:block) แต่ rail 384px ยังกินพื้นที่มากเกินจำเป็นจนคอลัมน์แชทอึดอัด
               — bug fix 2026-08-01 จาก user report iPad Pro */}
-          <div className="hidden shrink-0 flex-col border-e border-default-200 lg:flex lg:w-80 xl:w-96">
-            <ChatRail shopId={activeCtx?.shopId ?? null} hasShipping={hasShipping} />
-          </div>
+          {/* คอลัมน์ rail ย้ายไปอยู่ใน ChatRailColumn (client) — ต้องหายทั้งคอลัมน์เมื่ออยู่แท็บ
+              "ความคิดเห็น" ไม่ใช่แค่เนื้อข้างใน (bug fix 2026-08-03 user report: แท็บซ้อน 2 ชั้น)
+              layout นี้เป็น server component จึงอ่าน pathname เองไม่ได้ */}
+          <ChatRailColumn shopId={activeCtx?.shopId ?? null} hasShipping={hasShipping} />
 
           {/* children: /inbox (empty-state 2 คอลัมน์ desktop / list เต็มจอมือถือ) หรือ
               /inbox/[conversationId] (thread + customer panel) — overflow-y-auto กันเนื้อหา
