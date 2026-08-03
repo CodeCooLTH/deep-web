@@ -76,9 +76,29 @@ export function useComposerHeight(content: string) {
   useLayoutEffect(() => {
     const el = textareaRef.current
     if (!el) return
+    /**
+     * bug fix 2026-08-03 (user report: "พิมพ์ใน mobile chat แล้วมันเด้งไปเด้งมา"):
+     *
+     * การ "ยุบเป็น auto ก่อนวัด" ทำให้ช่องพิมพ์เตี้ยลงชั่วขณะเท่ากับ (ความสูงจริง − 1 บรรทัด)
+     * แล้วอ่าน `scrollHeight` = บังคับให้เบราว์เซอร์คำนวณ layout ใหม่ *ทันที* ตรงนั้น ระหว่างนั้น
+     * รายการข้อความ (พี่น้องใน flex column เดียวกัน) สูงขึ้นชั่วขณะเท่ากัน — WebKit (Safari/iOS)
+     * หนีบ (clamp) `scrollTop` ของกล่องที่ปักอยู่ล่างสุดลงตามทันทีที่คำนวณ layout รอบนั้น
+     * พอคืนความสูงช่องพิมพ์ ค่า scrollTop ที่ถูกหนีบไปแล้วไม่ถูกคืน → เธรดลอยขึ้นจากล่างสุด
+     * ~1 ความสูงช่องพิมพ์ ทุกตัวอักษรที่พิมพ์ แล้วเด้งกลับลงล่างสุดเมื่อ scrollToBottom ตัวถัดไป
+     * ทำงาน (poll/realtime) = อาการ "เด้งไปเด้งมา". Chrome ไม่หนีบตรงนั้นจึงไม่เห็นบนเดสก์ท็อป
+     * (วัดจริงด้วยหน้าจำลอง: Safari 18.3 เพี้ยน 130px ต่อการพิมพ์ 1 ตัว, ล็อกกล่องแล้วเหลือ 0px)
+     *
+     * แก้ด้วยการล็อกความสูงของ "กล่องนอก" ไว้เท่าเดิมตลอดช่วงวัด → ความสูงที่ลิสต์ได้รับไม่เปลี่ยน
+     * เลยแม้ชั่วขณะ จึงไม่มีการหนีบ. ทั้งหมดอยู่ใน layout effect เดียว (ก่อน paint) ผู้ใช้ไม่เห็น
+     * ทั้งการล็อกและการปลด — และช่องพิมพ์ยังขยาย/หดตามเนื้อหาได้เหมือนเดิม
+     */
+    const box = el.parentElement
+    const prevBoxHeight = box?.style.height ?? ''
+    if (box) box.style.height = `${box.offsetHeight}px`
     el.style.height = 'auto'
     const fitsContent = el.scrollHeight
     el.style.height = `${clamp(Math.max(userHeight ?? COMPOSER_MIN_H, fitsContent))}px`
+    if (box) box.style.height = prevBoxHeight
   }, [content, userHeight])
 
   // ค่าตั้งต้นตอนเริ่มลาก — ref ไม่ใช่ state เพราะ handler ต้องอ่านค่าสด ๆ ระหว่างลาก
