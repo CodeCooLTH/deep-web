@@ -45,6 +45,7 @@ SafePay เป็นระบบสร้างความน่าเชื่
   - `docs/conventions/date-format.md` — 🛑 วันที่/เวลาทั้งระบบใช้ `formatDate`/`formatDateTime` จาก `src/lib/format-date.ts` เท่านั้น (พ.ศ. `2569-06-07 10:06:13`, tz ไทย) — ห้าม `toLocaleDateString`/`Intl.DateTimeFormat` เอง
   - `docs/conventions/no-emoji-use-icons.md` — 🛑 ห้าม emoji ใน UI ทุกจุด (ทุก surface/subdomain/theme) ใช้ icon จริงเท่านั้น (`@iconify/react`/wrapper); จุดที่ควรมี icon แต่ mockup/spec ไม่ได้ระบุตัว → **ต้องถาม user ก่อน implement เสมอ** (ห้ามเดาเอง)
   - `docs/conventions/impeccable-design.md` — 🛑 งาน UI **ทุกชิ้น** ยึด **Impeccable design system** เป็นหลัก (`.impeccable/design.json` + `DESIGN.md`): north star "The Trusted Counter", One Voice (ม่วง ≤10%), Verified-Means-Green (#28C76F), Ink Plum ไม่ใช่ดำสนิท, tokens เงา/motion, anti-slop. **อ่าน design.json ก่อนทำ UI เสมอ** — ควบคู่ theme-copy (Hard Rule 1/8)
+  - `docs/conventions/contrast-fix-keeps-hue.md` — 🛑 แก้คอนทราสต์ปรับได้แค่ **ความเข้ม** ของสีเดิม **ห้ามสลับเฉด** (เหตุการณ์ 2026-08-03: `text-{tone}` → `-ink` 55 จุด ทำให้ดาวปักหมุดกลายเป็นน้ำตาล ปุ่ม danger กลายเป็นเลือดหมู ต้องย้อนทั้งหมด). `-ink` **ไม่ใช่ token ของธีม** (grep `theme/paces` = 0) — ก่อนใช้ token สีให้ grep `theme/` ก่อนเสมอ. ไอคอนที่ "สี = ตัวตน" (ดาว/โลโก้ช่องทาง) ไม่อยู่ใต้กฎคอนทราสต์ข้อความ. HR8 "Impeccable ชนะเรื่องสี" = ลำดับชั้น/น้ำเสียง/ความหมาย **ไม่ใช่ใบอนุญาตเปลี่ยนเฉดสีแบรนด์**
 - **Retros:** `docs/retro/` (post-mortems of phase mistakes — read the latest one before starting a new phase)
 - **Plans / specs:** `docs/superpowers/plans/`, `docs/superpowers/specs/`
 
