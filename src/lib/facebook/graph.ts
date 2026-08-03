@@ -630,10 +630,19 @@ export async function createCommentReply(
   commentId: string,
   pageToken: string,
   message: string,
+  /**
+   * URL รูปสาธารณะที่ Meta ดึงเองได้ → คอมเมนต์เป็นรูป (เอกสาร Object comments edge: `attachment_url`)
+   * เอกสารระบุว่าต้องมีอย่างน้อยหนึ่งใน message/attachment_url/attachment_id/attachment_share_url/source
+   * — ส่งได้ทั้งคู่ (รูป + คำบรรยาย) ในคอมเมนต์เดียว ต่างจาก Send API ของแชทที่ต้องแยกข้อความออกมา
+   */
+  attachmentUrl?: string | null,
 ): Promise<string> {
   const json = await graphFetch(`/${encodeURIComponent(commentId)}/comments`, pageToken, {
     method: 'POST',
-    body: { message },
+    body: {
+      ...(message ? { message } : {}),
+      ...(attachmentUrl ? { attachment_url: attachmentUrl } : {}),
+    },
   })
   return typeof json.id === 'string' ? json.id : ''
 }

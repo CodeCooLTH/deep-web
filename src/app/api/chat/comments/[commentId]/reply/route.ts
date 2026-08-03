@@ -24,21 +24,24 @@ export async function POST(
   const { commentId } = await params;
 
   let message = "";
+  let fileId: string | null = null;
   try {
-    const body = (await request.json()) as { message?: unknown };
-    if (typeof body.message !== "string" || body.message.trim().length === 0) {
-      return NextResponse.json({ error: "กรุณาพิมพ์ข้อความก่อนส่ง" }, { status: 400 });
+    const body = (await request.json()) as { message?: unknown; fileId?: unknown };
+    if (typeof body.fileId === "string" && body.fileId.length > 0) fileId = body.fileId;
+    if (typeof body.message === "string") message = body.message.trim();
+    // เอกสาร Meta: ต้องมีอย่างน้อยหนึ่งใน message/attachment_url/... — รูปอย่างเดียวก็ส่งได้
+    if (!message && !fileId) {
+      return NextResponse.json({ error: "กรุณาพิมพ์ข้อความหรือแนบรูปก่อนส่ง" }, { status: 400 });
     }
-    if (body.message.length > MAX_LEN) {
+    if (message.length > MAX_LEN) {
       return NextResponse.json({ error: "ข้อความยาวเกินไป" }, { status: 400 });
     }
-    message = body.message;
   } catch {
     return NextResponse.json({ error: "รูปแบบคำขอไม่ถูกต้อง" }, { status: 400 });
   }
 
   try {
-    const result = await replyToComment({ commentId, message, actorUserId: userId });
+    const result = await replyToComment({ commentId, message, actorUserId: userId, fileId });
     return NextResponse.json({ ok: true, id: result.id });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";

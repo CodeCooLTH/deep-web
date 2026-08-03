@@ -14,11 +14,12 @@
  * ซึ่งไม่ได้อยู่ใน remotePatterns ของ next.config.ts — เพิ่ม host เข้าไปเป็นการเปิดช่องให้
  * โหลดรูปจากโดเมนภายนอกทั้งชุด จึงเลี่ยงไปก่อนใน v1
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatTimeHM, formatDateTimeTH } from '@/lib/format-date'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
+import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 
 export type CommentPostItem = {
   id: string
@@ -60,6 +61,12 @@ export default function CommentsClient({ initialPosts }: { initialPosts: Comment
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null)
   const [replyText, setReplyText] = useState('')
   const [sending, setSending] = useState(false)
+  // แนบรูปในคำตอบ (user สั่ง 2026-08-03) — เอกสาร Meta: comment รับ `attachment_url` ได้
+  // ใช้ท่าเดียวกับแชท: อัปขึ้น storage ของเราก่อน แล้ว server ค่อยทำ presigned URL ให้ Meta ดึง
+  const [pendingFile, setPendingFile] = useState<{ fileId: string; previewUrl: string } | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [emojiOpen, setEmojiOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ค้นหา (BRD Q-3) — ยิงที่ server เพราะต้องค้นในคอมเมนต์ ไม่ใช่แค่โพสต์ที่โหลดมาแล้ว
   useEffect(() => {
@@ -113,14 +120,37 @@ export default function CommentsClient({ initialPosts }: { initialPosts: Comment
       .map((c) => ({ comment: c, replies: children.get(c.externalCommentId) ?? [] }))
   }, [thread])
 
+  async function pickFile(file: File | null) {
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/chat/upload', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        pacesToast.error(body?.error ?? 'อัปโหลดรูปไม่สำเร็จ')
+        return
+      }
+      const data = (await res.json()) as { fileId: string }
+      setPendingFile({ fileId: data.fileId, previewUrl: URL.createObjectURL(file) })
+    } catch {
+      pacesToast.error('อัปโหลดรูปไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   async function submitReply() {
-    if (!replyTo || !replyText.trim() || sending) return
+    // เอกสาร Meta: ต้องมีอย่างน้อย message หรือ attachment — รูปอย่างเดียวส่งได้
+    if (!replyTo || (!replyText.trim() && !pendingFile) || sending) return
     setSending(true)
     try {
       const res = await fetch(`/api/chat/comments/${replyTo.id}/reply`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: replyText.trim() }),
+        body: JSON.stringify({ message: replyText.trim(), fileId: pendingFile?.fileId ?? null }),
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null
@@ -128,6 +158,7 @@ export default function CommentsClient({ initialPosts }: { initialPosts: Comment
         return
       }
       setReplyText('')
+      setPendingFile(null)
       setReplyTo(null)
       pacesToast.success('ตอบความคิดเห็นแล้ว')
       if (selectedId) await loadThread(selectedId)
@@ -305,7 +336,51 @@ export default function CommentsClient({ initialPosts }: { initialPosts: Comment
                     <Icon icon="alert-triangle" className="shrink-0" />
                     ทุกคนที่เห็นโพสต์นี้จะเห็นข้อความที่คุณตอบ — อย่าพิมพ์ที่อยู่หรือเบอร์ของลูกค้า
                   </p>
-                  <div className="flex items-end gap-2">
+                  {pendingFile && (
+                    <div className="relative mb-2 inline-block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={pendingFile.previewUrl} alt="" className="max-h-28 rounded-lg" />
+                      <button
+                        type="button"
+                        onClick={() => setPendingFile(null)}
+                        aria-label="เอารูปออก"
+                        className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white"
+                      >
+                        <Icon icon="x" className="text-sm" />
+                      </button>
+                    </div>
+                  )}
+                  <div className="relative flex items-end gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => void pickFile(e.target.files?.[0] ?? null)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading || sending}
+                      aria-label="แนบรูปในคำตอบ"
+                      className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg disabled:opacity-60"
+                    >
+                      <Icon icon={uploading ? 'loader-2' : 'photo'} className="text-xl" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEmojiOpen((v) => !v)}
+                      aria-label="เลือกอิโมจิ"
+                      className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg"
+                    >
+                      <Icon icon="mood-smile" className="text-xl" />
+                    </button>
+                    {emojiOpen && (
+                      <EmojiPicker
+                        onSelect={(emoji) => setReplyText((prev) => prev + emoji)}
+                        onClose={() => setEmojiOpen(false)}
+                      />
+                    )}
                     <textarea
                       rows={2}
                       className="form-textarea grow"
@@ -317,7 +392,7 @@ export default function CommentsClient({ initialPosts }: { initialPosts: Comment
                     <button
                       type="button"
                       onClick={submitReply}
-                      disabled={sending || !replyText.trim()}
+                      disabled={sending || (!replyText.trim() && !pendingFile)}
                       className="btn bg-primary hover:bg-primary-hover shrink-0 text-white disabled:opacity-60"
                     >
                       ตอบ <Icon icon="send-2" className="ms-1 text-xl" />

@@ -3,6 +3,7 @@ import { canAccessShop } from '@/lib/shop-context'
 import { decryptToken } from '@/lib/token-crypto'
 import { getChannelByExternalId } from '@/services/shop-channel.service'
 import { createCommentReply, fetchPostComments, fetchPostMeta } from '@/lib/facebook/graph'
+import { getFileUrl } from '@/lib/storage'
 import type { FeedChange } from '@/lib/facebook/webhook-types'
 
 /**
@@ -349,6 +350,8 @@ export async function replyToComment(params: {
   commentId: string
   message: string
   actorUserId: string
+  /** รูปที่แนบไปกับคำตอบ (user สั่ง 2026-08-03) — fileId จาก /api/chat/upload ตัวเดียวกับแชท */
+  fileId?: string | null
 }): Promise<{ id: string }> {
   const target = await prisma.pageComment.findUnique({
     where: { id: params.commentId },
@@ -361,7 +364,18 @@ export async function replyToComment(params: {
   const auth = await resolveChannelToken(target.shopChannelId)
   if (!auth) throw new Error('CHANNEL_INACTIVE')
 
-  const replyId = await createCommentReply(target.externalCommentId, auth.token, params.message)
+  // presigned URL อายุ 1 ชม. — Meta ต้องดึงรูปเองจาก URL สาธารณะ (/api/files ของเรา auth-gated
+  // ใช้ไม่ได้) เหตุผลเดียวกับตอนส่งรูปเข้า Messenger ดู channel-chat.service
+  const attachmentUrl = params.fileId
+    ? await getFileUrl(params.fileId, { signed: true, expiresIn: 3600 })
+    : null
+
+  const replyId = await createCommentReply(
+    target.externalCommentId,
+    auth.token,
+    params.message,
+    attachmentUrl,
+  )
 
   const created = await prisma.pageComment.upsert({
     where: { externalCommentId: replyId || `local-${target.externalCommentId}-${Date.now()}` },
@@ -373,11 +387,13 @@ export async function replyToComment(params: {
       fromExternalId: auth.pageId,
       fromName: null,
       isFromPage: true,
-      message: params.message,
+      message: params.message || null,
+      // เก็บ fileId ของเราเอง ไม่ใช่ presigned URL ที่หมดอายุใน 1 ชม. — UI เปิดผ่าน /api/files
+      attachmentUrl: params.fileId ? `/api/files/${params.fileId}` : null,
       createdTime: new Date(),
       repliedByUserId: params.actorUserId,
     },
-    update: { message: params.message, repliedByUserId: params.actorUserId },
+    update: { message: params.message || null, repliedByUserId: params.actorUserId },
   })
 
   await prisma.facebookPost.update({
