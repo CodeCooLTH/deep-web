@@ -323,6 +323,7 @@ export async function getPostComments(params: {
     reactionCount: number | null
     fbCommentCount: number | null
     shareCount: number | null
+    createdTime: Date | null
   }
   /** เพจเจ้าของโพสต์ — UI ใช้แสดงชื่อ/รูปจริงแทนคำว่า "เพจ" ลอย ๆ (user report 2026-08-03) */
   channel: { name: string; avatarUrl: string | null; provider: string }
@@ -355,6 +356,7 @@ export async function getPostComments(params: {
       reactionCount: post.reactionCount,
       fbCommentCount: post.fbCommentCount,
       shareCount: post.shareCount,
+      createdTime: post.createdTime,
     },
     channel: {
       name: post.channel.name,

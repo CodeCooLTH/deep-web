@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { formatTimeHM, formatDateTimeTH, formatChatListTime } from '@/lib/format-date'
+import { formatTimeHM, formatDateTimeTH, formatChatListTime, formatDateTH } from '@/lib/format-date'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
@@ -67,6 +67,7 @@ type ThreadData = {
     reactionCount: number | null
     fbCommentCount: number | null
     shareCount: number | null
+    createdTime: string | null
   }
   channel: { name: string; avatarUrl: string | null; provider: string }
   comments: CommentItem[]
@@ -491,33 +492,58 @@ export default function CommentsClient({
                 ทำให้โพสต์+วิดีโอกินจอจนคอมเมนต์ตกไปใต้ fold มองไม่เห็นเลย
                 มือถือ (<lg) ยังเรียงบนล่างเหมือนเดิม เพราะแบ่งครึ่งบนจอ 390px ได้ 2 คอลัมน์ที่แคบ
                 จนอ่านไม่ออกทั้งคู่ — วิดีโอจึงถูกจำกัดความสูงบนมือถือแทน (max-h-72) */}
+            {/* แถบหัวเต็มความกว้าง (user สั่ง 2026-08-03 พร้อมภาพ Business Suite):
+                [รูปย่อ] ชื่อโพสต์ตัวหนาบรรทัดเดียว / ยอด · จำนวนคอมเมนต์ · วันที่โพสต์   [ปุ่ม]
+                ปุ่มฝั่งขวาใส่เฉพาะที่เราทำได้จริง — Boost/รายงาน/ติดดาว ของ Business Suite เป็น
+                เครื่องมือฝั่ง Meta ที่เราไม่มี API ทำ ใส่ไปก็เป็นปุ่มหลอก */}
+            <div className="border-default-200 flex shrink-0 items-center gap-3 border-b px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setSelectedId(null)}
+                aria-label="กลับไปรายการโพสต์"
+                className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg lg:hidden"
+              >
+                <Icon icon="arrow-left" className="text-lg" />
+              </button>
+              {selectedPost.thumbnailUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={selectedPost.thumbnailUrl} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-default-800 mb-0 truncate text-sm font-semibold">
+                  {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
+                </p>
+                <p className="text-default-700 mb-0 truncate text-xs">
+                  {selectedPost.reactionCount ?? '–'} รีแอ็กชัน ·{' '}
+                  {thread?.post.fbCommentCount ?? selectedPost.commentCount} ความคิดเห็น
+                  {selectedPost.shareCount != null && ` · แชร์ ${selectedPost.shareCount}`}
+                  {thread?.post.createdTime && ` · ${formatDateTH(thread.post.createdTime)}`}
+                </p>
+              </div>
+              {selectedPost.unansweredCount > 0 && (
+                <span className="bg-danger/15 text-danger-ink text-2xs shrink-0 rounded-full px-2 py-0.5 font-semibold">
+                  ยังไม่ตอบ {selectedPost.unansweredCount}
+                </span>
+              )}
+              {selectedPost.permalink && (
+                <a
+                  href={selectedPost.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11 shrink-0"
+                >
+                  <Icon icon="brand-facebook" className="me-1 text-base" />
+                  เปิดบน Facebook
+                </a>
+              )}
+            </div>
+
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
             <div className="border-default-200 min-h-0 shrink-0 overflow-y-auto border-b lg:h-full lg:w-1/2 lg:shrink lg:border-e lg:border-b-0">
-              <div className="flex w-full items-start gap-3 p-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(null)}
-                  aria-label="กลับไปรายการโพสต์"
-                  className="hover:bg-default-100 text-default-700 flex size-9 shrink-0 items-center justify-center rounded-lg lg:hidden"
-                >
-                  <Icon icon="arrow-left" className="text-lg" />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
-                    {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
-                  </p>
-                </div>
-                {selectedPost.permalink && (
-                  <a
-                    href={selectedPost.permalink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:bg-default-100 flex size-9 shrink-0 items-center justify-center rounded-lg"
-                    aria-label="เปิดโพสต์บน Facebook"
-                  >
-                    <Icon icon="external-link" className="text-lg" />
-                  </a>
-                )}
+              <div className="w-full p-3">
+                <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
+                  {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
+                </p>
               </div>
 
               {selectedPost.thumbnailUrl && (
@@ -542,23 +568,6 @@ export default function CommentsClient({
                 </a>
               )}
 
-              <div className="text-default-700 flex w-full flex-wrap items-center gap-4 px-3 py-2 text-xs">
-                <span className="flex items-center gap-1">
-                  <Icon icon="thumb-up" className="text-sm" />
-                  {selectedPost.reactionCount ?? '–'}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Icon icon="message-circle-2" className="text-sm" />
-                  {selectedPost.fbCommentCount ?? selectedPost.commentCount}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Icon icon="share-3" className="text-sm" />
-                  {selectedPost.shareCount ?? '–'}
-                </span>
-                {selectedPost.unansweredCount > 0 && (
-                  <span className="text-danger font-medium">ยังไม่ตอบ {selectedPost.unansweredCount}</span>
-                )}
-              </div>
             </div>
 
             {/* ฝั่งขวา: คอมเมนต์เลื่อนเองได้ + ช่องพิมพ์ปักอยู่ล่างคอลัมน์นี้ ไม่เลื่อนหนีไปกับโพสต์ */}
