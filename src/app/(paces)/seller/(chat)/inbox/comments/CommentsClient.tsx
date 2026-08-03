@@ -36,6 +36,10 @@ export type CommentPostItem = {
   commentCount: number
   unansweredCount: number
   lastCommenterName: string | null
+  mediaType: string | null
+  reactionCount: number | null
+  fbCommentCount: number | null
+  shareCount: number | null
 }
 
 type CommentItem = {
@@ -53,9 +57,23 @@ type CommentItem = {
 }
 
 type ThreadData = {
-  post: { id: string; message: string | null; permalink: string | null; thumbnailUrl: string | null }
+  post: {
+    id: string
+    message: string | null
+    permalink: string | null
+    thumbnailUrl: string | null
+    mediaType: string | null
+    reactionCount: number | null
+    fbCommentCount: number | null
+    shareCount: number | null
+  }
   channel: { name: string; avatarUrl: string | null; provider: string }
   comments: CommentItem[]
+}
+
+/** โพสต์วิดีโอหรือเปล่า — Graph ส่ง media_type เป็น 'video' ส่วน status_type เก่าใช้ 'added_video' */
+function isVideoPost(mediaType: string | null | undefined): boolean {
+  return !!mediaType && (mediaType === 'video' || mediaType.includes('video'))
 }
 
 export default function CommentsClient({
@@ -240,9 +258,10 @@ export default function CommentsClient({
           selectedId ? 'hidden' : 'flex flex-1'
         }`}
       >
-        {channels.length > 1 && (
-          // ตัวกรองเพจ (user 2026-08-03) — โผล่เฉพาะเมื่อเชื่อมมากกว่า 1 เพจ ไม่งั้นเป็นปุ่มที่กดแล้ว
-          // ไม่มีอะไรเปลี่ยน. โครงเดียวกับแถวช่องทางของแท็บข้อความ
+        {channels.length > 0 && (
+          // ตัวกรองเพจ (user 2026-08-03) — เดิมซ่อนเมื่อมีเพจเดียวเพราะคิดว่าเป็นปุ่มที่กดแล้วไม่มีอะไร
+          // เปลี่ยน แต่ user รายงานว่า "ตัวกรองยังไม่มี" (ร้านที่ทดสอบมีเพจเดียว) — แถวนี้ทำหน้าที่
+          // บอกด้วยว่า "คอมเมนต์พวกนี้มาจากเพจไหน" ซึ่งมีค่าแม้มีเพจเดียว จึงแสดงเสมอเหมือนแท็บข้อความ
           <div className="border-default-200 flex gap-1 overflow-x-auto border-b p-2">
             <button
               type="button"
@@ -320,6 +339,14 @@ export default function CommentsClient({
                         Facebook เป็นไฟล์ asset อยู่แล้ว (/images/logos/facebook.svg) ไม่ต้อง
                         hardcode สีแบรนด์ซ้ำที่นี่ และหน้าตาตรงกันทั้งสองแท็บโดยอัตโนมัติ */}
                     <ChannelBadgeOverlay channel={p.channel.provider} imageUrl={p.channel.avatarUrl ?? undefined} />
+                    {isVideoPost(p.mediaType) && (
+                      // โพสต์วิดีโอ — บอกตั้งแต่รายการ ไม่ต้องเปิดเข้าไปถึงจะรู้
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <span className="flex size-6 items-center justify-center rounded-full bg-black/50 text-white">
+                          <Icon icon="player-play-filled" className="text-xs" />
+                        </span>
+                      </span>
+                    )}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="text-default-800 line-clamp-2 text-sm font-medium">
@@ -360,39 +387,75 @@ export default function CommentsClient({
           </div>
         ) : (
           <>
-            <div className="border-default-200 flex items-start gap-3 border-b p-3">
-              <button
-                type="button"
-                onClick={() => setSelectedId(null)}
-                aria-label="กลับไปรายการโพสต์"
-                className="hover:bg-default-100 text-default-700 flex size-9 shrink-0 items-center justify-center rounded-lg lg:hidden"
-              >
-                <Icon icon="arrow-left" className="text-lg" />
-              </button>
-              {selectedPost.thumbnailUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={selectedPost.thumbnailUrl} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-default-800 mb-0 line-clamp-2 text-sm font-medium">
-                  {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
-                </p>
-                <p className="text-default-700 mb-0 text-xs">
-                  {selectedPost.commentCount} ความคิดเห็น
-                  {selectedPost.unansweredCount > 0 && ` · ยังไม่ตอบ ${selectedPost.unansweredCount}`}
-                </p>
+            {/* หัวโพสต์ — โครงตามหน้าโพสต์จริงของ Facebook ที่ user ส่งมา 2026-08-03:
+                รูป/วิดีโอปก → ข้อความโพสต์ → แถวยอด ไลก์ · ความคิดเห็น · แชร์
+                วิดีโอเล่นในหน้าเราไม่ได้ (URL วิดีโอของ Meta เป็น signed URL อายุสั้น + ไม่มีสิทธิ์
+                อ่านไฟล์) จึงเป็นรูปปก + ปุ่มเล่นที่พาไปเปิดของจริงบน Facebook */}
+            <div className="border-default-200 border-b">
+              <div className="flex items-start gap-3 p-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(null)}
+                  aria-label="กลับไปรายการโพสต์"
+                  className="hover:bg-default-100 text-default-700 flex size-9 shrink-0 items-center justify-center rounded-lg lg:hidden"
+                >
+                  <Icon icon="arrow-left" className="text-lg" />
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
+                    {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
+                  </p>
+                </div>
+                {selectedPost.permalink && (
+                  <a
+                    href={selectedPost.permalink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:bg-default-100 flex size-9 shrink-0 items-center justify-center rounded-lg"
+                    aria-label="เปิดโพสต์บน Facebook"
+                  >
+                    <Icon icon="external-link" className="text-lg" />
+                  </a>
+                )}
               </div>
-              {selectedPost.permalink && (
+
+              {selectedPost.thumbnailUrl && (
                 <a
-                  href={selectedPost.permalink}
+                  href={selectedPost.permalink ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:bg-default-100 flex size-9 shrink-0 items-center justify-center rounded-lg"
-                  aria-label="เปิดโพสต์บน Facebook"
+                  className="bg-default-100 relative block"
+                  aria-label={isVideoPost(selectedPost.mediaType) ? 'เล่นวิดีโอบน Facebook' : 'เปิดโพสต์บน Facebook'}
                 >
-                  <Icon icon="external-link" className="text-lg" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={selectedPost.thumbnailUrl} alt="" className="max-h-72 w-full object-contain" />
+                  {isVideoPost(selectedPost.mediaType) && (
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <span className="flex size-14 items-center justify-center rounded-full bg-black/55 text-white">
+                        <Icon icon="player-play-filled" className="text-2xl" />
+                      </span>
+                    </span>
+                  )}
                 </a>
               )}
+
+              <div className="text-default-700 flex flex-wrap items-center gap-4 px-3 py-2 text-xs">
+                <span className="flex items-center gap-1">
+                  <Icon icon="thumb-up" className="text-sm" />
+                  {selectedPost.reactionCount ?? '–'}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Icon icon="message-circle-2" className="text-sm" />
+                  {selectedPost.fbCommentCount ?? selectedPost.commentCount}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Icon icon="share-3" className="text-sm" />
+                  {selectedPost.shareCount ?? '–'}
+                </span>
+                {selectedPost.unansweredCount > 0 && (
+                  <span className="text-danger font-medium">ยังไม่ตอบ {selectedPost.unansweredCount}</span>
+                )}
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">

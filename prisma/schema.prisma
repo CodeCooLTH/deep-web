@@ -2573,6 +2573,14 @@ model FacebookPost {
   createdTime   DateTime?
   /// เวลาคอมเมนต์ล่าสุดของโพสต์นี้ — คอลัมน์ที่รายการซ้ายใช้เรียง (ไม่ใช่วันที่โพสต์)
   lastCommentAt DateTime?
+  /// ชนิดสื่อของโพสต์ (video/photo/album/link/status) — วิดีโอต้องมีปุ่มเล่นบนรูปปก
+  mediaType      String?
+  /// ยอด engagement ฝั่ง Facebook (user สั่ง 2026-08-03 "มียอด like, comment, share เหมือนกัน")
+  /// NULL = ยังไม่เคยดึง ต่างจาก 0 ที่แปลว่าดึงแล้วไม่มีจริง
+  reactionCount  Int?
+  fbCommentCount Int?
+  shareCount     Int?
+  statsSyncedAt  DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

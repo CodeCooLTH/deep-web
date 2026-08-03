@@ -544,6 +544,12 @@ export interface GraphPostMeta {
   /** รูปประกอบโพสต์ — ใช้เป็น thumbnail ในรายการซ้าย */
   picture: string | null
   createdTime: Date | null
+  /** 'video' | 'photo' | 'album' | 'link' | 'status' — วิดีโอต้องมีปุ่มเล่นทับรูปปก */
+  mediaType: string | null
+  /** ยอด engagement (user สั่ง 2026-08-03 ให้มีเหมือนหน้าโพสต์จริง) — null = ดึงไม่ได้ */
+  reactionCount: number | null
+  commentCount: number | null
+  shareCount: number | null
 }
 
 /**
@@ -552,15 +558,29 @@ export interface GraphPostMeta {
  */
 export async function fetchPostMeta(postId: string, pageToken: string): Promise<GraphPostMeta | null> {
   try {
+    // summary(true) = ขอ "จำนวนรวม" ไม่ใช่รายชื่อคนกด (เร็วกว่าและไม่ดึง PII ของคนที่ไม่เกี่ยว)
     const json = await graphFetch(`/${encodeURIComponent(postId)}`, pageToken, {
-      query: { fields: 'id,message,permalink_url,full_picture,created_time' },
+      query: {
+        fields:
+          'id,message,permalink_url,full_picture,created_time,status_type,' +
+          'attachments{media_type},shares,' +
+          'reactions.summary(true).limit(0),comments.summary(true).limit(0)',
+      },
     })
+    const atts = (json.attachments as { data?: Array<{ media_type?: string }> } | undefined)?.data ?? []
+    const reactions = json.reactions as { summary?: { total_count?: number } } | undefined
+    const comments = json.comments as { summary?: { total_count?: number } } | undefined
+    const shares = json.shares as { count?: number } | undefined
     return {
       id: String(json.id ?? postId),
       message: typeof json.message === 'string' ? json.message : null,
       permalink: typeof json.permalink_url === 'string' ? json.permalink_url : null,
       picture: typeof json.full_picture === 'string' ? json.full_picture : null,
       createdTime: typeof json.created_time === 'string' ? new Date(json.created_time) : null,
+      mediaType: atts[0]?.media_type ?? (typeof json.status_type === 'string' ? json.status_type : null),
+      reactionCount: reactions?.summary?.total_count ?? null,
+      commentCount: comments?.summary?.total_count ?? null,
+      shareCount: shares?.count ?? null,
     }
   } catch {
     // โพสต์ที่เข้าไม่ถึง (dark post/ถูกลบ/สิทธิ์ไม่พอ) — คืน null ให้ caller เก็บเท่าที่มี

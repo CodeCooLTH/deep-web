@@ -132,6 +132,11 @@ async function ensurePost(shopChannelId: string, externalPostId: string) {
         permalink: meta?.permalink ?? null,
         thumbnailUrl: meta?.picture ?? null,
         createdTime: meta?.createdTime ?? null,
+        mediaType: meta?.mediaType ?? null,
+        reactionCount: meta?.reactionCount ?? null,
+        fbCommentCount: meta?.commentCount ?? null,
+        shareCount: meta?.shareCount ?? null,
+        statsSyncedAt: meta ? new Date() : null,
       },
     })
   } catch {
@@ -152,6 +157,10 @@ export interface CommentPostRow {
   commentCount: number
   unansweredCount: number
   lastCommenterName: string | null
+  mediaType: string | null
+  reactionCount: number | null
+  fbCommentCount: number | null
+  shareCount: number | null
 }
 
 /**
@@ -236,10 +245,45 @@ export async function listCommentPosts(params: {
       permalink: p.permalink,
       lastCommentAt: p.lastCommentAt,
       commentCount: p.comments.filter((c) => !c.isDeleted).length,
+      mediaType: p.mediaType,
+      reactionCount: p.reactionCount,
+      fbCommentCount: p.fbCommentCount,
+      shareCount: p.shareCount,
       unansweredCount: customerComments.filter((c) => !answered.has(c.externalCommentId)).length,
       lastCommenterName: last?.fromName ?? null,
     }
   })
+}
+
+/** ยอด engagement เก่าได้ — รีเฟรชตอนเปิดโพสต์ ไม่เกินทุก 5 นาทีต่อโพสต์ (เหมือน backfill) */
+const STATS_TTL_MS = 5 * 60 * 1000
+
+/** ดึงยอด like/comment/share + ชนิดสื่อใหม่จาก Graph — เงียบเสมอ ล้มเหลวก็ใช้ค่าเดิม */
+export async function refreshPostStats(postId: string): Promise<void> {
+  try {
+    const post = await prisma.facebookPost.findUnique({ where: { id: postId } })
+    if (!post) return
+    if (post.statsSyncedAt && Date.now() - post.statsSyncedAt.getTime() < STATS_TTL_MS) return
+    const auth = await resolveChannelToken(post.shopChannelId)
+    if (!auth) return
+    const meta = await fetchPostMeta(post.externalPostId, auth.token)
+    if (!meta) return
+    await prisma.facebookPost.update({
+      where: { id: postId },
+      data: {
+        message: meta.message ?? post.message,
+        permalink: meta.permalink ?? post.permalink,
+        thumbnailUrl: meta.picture ?? post.thumbnailUrl,
+        mediaType: meta.mediaType,
+        reactionCount: meta.reactionCount,
+        fbCommentCount: meta.commentCount,
+        shareCount: meta.shareCount,
+        statsSyncedAt: new Date(),
+      },
+    })
+  } catch {
+    // ยอด engagement เป็นข้อมูลประกอบ — ล้มเหลวต้องไม่ทำให้เปิดโพสต์ไม่ได้
+  }
 }
 
 export interface CommentRow {
@@ -262,7 +306,16 @@ export async function getPostComments(params: {
   actorUserId: string
   skipBackfill?: boolean
 }): Promise<{
-  post: { id: string; message: string | null; permalink: string | null; thumbnailUrl: string | null }
+  post: {
+    id: string
+    message: string | null
+    permalink: string | null
+    thumbnailUrl: string | null
+    mediaType: string | null
+    reactionCount: number | null
+    fbCommentCount: number | null
+    shareCount: number | null
+  }
   /** เพจเจ้าของโพสต์ — UI ใช้แสดงชื่อ/รูปจริงแทนคำว่า "เพจ" ลอย ๆ (user report 2026-08-03) */
   channel: { name: string; avatarUrl: string | null; provider: string }
   comments: CommentRow[]
@@ -274,7 +327,10 @@ export async function getPostComments(params: {
   if (!post) throw new Error('POST_NOT_FOUND')
   if (!(await canAccessShop(post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
 
-  if (!params.skipBackfill) await backfillPostComments(post.id)
+  if (!params.skipBackfill) {
+    await backfillPostComments(post.id)
+    await refreshPostStats(post.id)
+  }
 
   const comments = await prisma.pageComment.findMany({
     where: { postId: post.id },
@@ -282,7 +338,16 @@ export async function getPostComments(params: {
   })
 
   return {
-    post: { id: post.id, message: post.message, permalink: post.permalink, thumbnailUrl: post.thumbnailUrl },
+    post: {
+      id: post.id,
+      message: post.message,
+      permalink: post.permalink,
+      thumbnailUrl: post.thumbnailUrl,
+      mediaType: post.mediaType,
+      reactionCount: post.reactionCount,
+      fbCommentCount: post.fbCommentCount,
+      shareCount: post.shareCount,
+    },
     channel: {
       name: post.channel.name,
       avatarUrl: post.channel.avatarUrl,
