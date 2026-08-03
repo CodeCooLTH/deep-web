@@ -12,7 +12,7 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { listCommentPosts } from '@/services/page-comment.service'
+import { listCommentPosts, countUnansweredForShop } from '@/services/page-comment.service'
 import { listChannels } from '@/services/shop-channel.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
@@ -50,7 +50,11 @@ export default async function CommentsPage() {
     failed = true
   }
 
-  const unanswered = posts.reduce((sum, p) => sum + p.unansweredCount, 0)
+  // นับจากฐานทั้งร้าน ไม่ใช่บวกจากโพสต์ที่โหลดมา 25 อันแรก (ไม่งั้นร้านโพสต์เยอะได้เลขต่ำกว่าจริง)
+  const unanswered = await countUnansweredForShop({
+    shopId: activeCtx.shopId,
+    actorUserId: user.id,
+  }).catch(() => posts.reduce((sum, p) => sum + p.unansweredCount, 0))
 
   return (
     <div className="card m-0 flex h-full min-w-0 flex-1 flex-col rounded-none border-0 shadow-none">

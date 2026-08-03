@@ -29,11 +29,14 @@ export async function GET(request: NextRequest) {
   try {
     const q = request.nextUrl.searchParams.get("q") ?? undefined;
     const shopChannelId = request.nextUrl.searchParams.get("channelId") ?? undefined;
+    const skipRaw = Number(request.nextUrl.searchParams.get("skip") ?? 0);
+    const skip = Number.isFinite(skipRaw) && skipRaw > 0 ? Math.min(skipRaw, 500) : 0;
     const items = await listCommentPosts({
       shopId: activeCtx.shopId,
       actorUserId: userId,
       q,
       shopChannelId,
+      skip,
     });
     return NextResponse.json({ items }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {

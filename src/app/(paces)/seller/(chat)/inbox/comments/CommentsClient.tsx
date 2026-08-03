@@ -104,6 +104,11 @@ export default function CommentsClient({
   // ใช้ท่าเดียวกับแชท: อัปขึ้น storage ของเราก่อน แล้ว server ค่อยทำ presigned URL ให้ Meta ดึง
   const [pendingFile, setPendingFile] = useState<{ fileId: string; previewUrl: string } | null>(null)
   const [uploading, setUploading] = useState(false)
+  // โหลดเพิ่ม: รายการตันที่ 25 โพสต์เงียบ ๆ มาก่อน (critique P1) — ตอนนี้มีปุ่มและรู้ว่ายังมีอีก
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(initialPosts.length >= 25)
+  // ในเธรด: ดูเฉพาะคอมเมนต์ที่ยังไม่มีคำตอบของเพจ
+  const [unansweredOnly, setUnansweredOnly] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -117,6 +122,7 @@ export default function CommentsClient({
       if (!res.ok) return
       const data = (await res.json()) as { items: CommentPostItem[] }
       setPosts(data.items)
+      setHasMore(data.items.length >= 25)
     } catch {
       // โหลดไม่สำเร็จ = คงรายการเดิมไว้ ไม่ต้องรบกวนผู้ใช้
     }
@@ -127,6 +133,27 @@ export default function CommentsClient({
     const t = setTimeout(() => void refreshPosts(q, channelId), 350)
     return () => clearTimeout(t)
   }, [q, channelId, refreshPosts])
+
+  async function loadMorePosts() {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    try {
+      const params = new URLSearchParams({ skip: String(posts.length) })
+      if (q.trim()) params.set('q', q.trim())
+      if (channelId) params.set('channelId', channelId)
+      const res = await fetch(`/api/chat/comments/posts?${params.toString()}`)
+      if (!res.ok) return
+      const data = (await res.json()) as { items: CommentPostItem[] }
+      // กันซ้ำด้วย id — poll/realtime อาจแทรกโพสต์ใหม่เข้ามาระหว่างที่กำลังโหลดหน้าถัดไป
+      setPosts((prev) => {
+        const seen = new Set(prev.map((p) => p.id))
+        return [...prev, ...data.items.filter((p) => !seen.has(p.id))]
+      })
+      setHasMore(data.items.length >= 25)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const loadThread = useCallback(async (postId: string, opts?: { silent?: boolean }) => {
     // silent = รอบ poll: ห้ามโชว์ spinner, ห้ามล้างคอมเมนต์ที่กำลังจะตอบ, ห้าม toast รบกวน
@@ -207,8 +234,18 @@ export default function CommentsClient({
     }
     return list
       .filter((c) => !c.parentExternalId)
-      .map((c) => ({ comment: c, replies: children.get(c.externalCommentId) ?? [] }))
+      .map((c) => {
+        const replies = children.get(c.externalCommentId) ?? []
+        // "ตอบแล้ว" = มีคอมเมนต์ลูกที่เป็นของเพจอยู่ข้างใต้ (นิยามเดียวกับตัวนับในรายการ)
+        const answered = c.isFromPage || replies.some((r) => r.isFromPage)
+        return { comment: c, replies, answered }
+      })
   }, [thread])
+
+  const visibleTree = useMemo(
+    () => (unansweredOnly ? tree.filter((t) => !t.answered) : tree),
+    [tree, unansweredOnly],
+  )
 
   async function pickFile(file: File | null) {
     if (!file) return
@@ -416,6 +453,18 @@ export default function CommentsClient({
                   </span>
                 </button>
               ))}
+              {hasMore && (
+                <div className="p-3">
+                  <button
+                    type="button"
+                    onClick={() => void loadMorePosts()}
+                    disabled={loadingMore}
+                    className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11 w-full disabled:opacity-60"
+                  >
+                    {loadingMore ? 'กำลังโหลด...' : 'โหลดโพสต์เก่ากว่านี้'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -512,14 +561,42 @@ export default function CommentsClient({
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="mx-auto w-full max-w-2xl p-3">
+                {/* ดูเฉพาะที่ยังไม่ตอบ — โพสต์ไวรัลมีคอมเมนต์เป็นร้อย ไล่หาเองไม่ไหว (critique P1) */}
+                {tree.length > 0 && (
+                  <div className="mb-3 flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setUnansweredOnly(false)}
+                      className={`min-h-9 rounded-lg px-3 text-sm ${
+                        unansweredOnly ? 'text-default-700 hover:bg-default-100' : 'bg-primary text-white'
+                      }`}
+                    >
+                      ทั้งหมด {tree.length}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUnansweredOnly(true)}
+                      className={`min-h-9 rounded-lg px-3 text-sm ${
+                        unansweredOnly ? 'bg-primary text-white' : 'text-default-700 hover:bg-default-100'
+                      }`}
+                    >
+                      ยังไม่ตอบ {tree.filter((t) => !t.answered).length}
+                    </button>
+                  </div>
+                )}
               {loadingThread && !thread ? (
                 <p className="text-default-700 text-center text-sm">กำลังโหลด...</p>
-              ) : tree.length === 0 ? (
+              ) : visibleTree.length === 0 ? (
                 <SellerEmptyState compact icon="message-circle" title="ยังไม่มีความคิดเห็นในโพสต์นี้" />
               ) : (
-                tree.map(({ comment, replies }) => (
+                visibleTree.map(({ comment, replies, answered }) => (
                   <div key={comment.id} className="mb-5">
-                    <CommentBubble c={comment} channel={thread?.channel} onReply={() => setReplyTo(comment)} />
+                    <CommentBubble
+                      c={comment}
+                      channel={thread?.channel}
+                      answered={answered}
+                      onReply={() => setReplyTo(comment)}
+                    />
                     {replies.length > 0 && (
                       // ย่อหน้าเฉย ๆ แบบ Facebook — เส้นตั้งของเดิมทำให้อ่านเป็น "บล็อกโค้ด" มากกว่าบทสนทนา
                       <div className="ms-10 mt-2 space-y-3">
@@ -643,11 +720,14 @@ function CommentBubble({
   channel,
   onReply,
   isReply = false,
+  answered = false,
 }: {
   c: CommentItem
   channel?: { name: string; avatarUrl: string | null; provider: string }
   onReply: () => void
   isReply?: boolean
+  /** มีคำตอบของเพจอยู่ข้างใต้แล้ว — ไม่งั้นผู้ขายต้องจำเองว่าตอบอันไหนไปแล้ว (critique P1) */
+  answered?: boolean
 }) {
   /**
    * โครงตามภาพ Facebook จริงที่ user ส่งมา 2026-08-03 ("ต้องดูรู้เรื่องกว่านี้ ตอนนี้มันดูยาก แยกยาก"):
@@ -719,6 +799,12 @@ function CommentBubble({
         <div className="text-default-700 mt-0.5 flex items-center gap-3 ps-3 text-xs">
           <span title={formatDateTimeTH(c.createdTime)}>{formatTimeHM(c.createdTime)}</span>
           {c.editedAt && <span>แก้ไขแล้ว</span>}
+          {answered && !c.isFromPage && (
+            <span className="text-success-ink inline-flex items-center gap-0.5">
+              <Icon icon="circle-check" className="text-sm" />
+              ตอบแล้ว
+            </span>
+          )}
           {!c.isDeleted && (
             <button type="button" onClick={onReply} className="font-medium hover:underline">
               ตอบ

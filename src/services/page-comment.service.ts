@@ -177,6 +177,8 @@ export async function listCommentPosts(params: {
   actorUserId: string
   q?: string
   take?: number
+  /** ข้ามกี่โพสต์ (โหลดเพิ่ม) — offset พอสำหรับสเกลนี้ ไม่ต้อง keyset เหมือนรายการแชท */
+  skip?: number
   /** กรองเฉพาะเพจเดียว (ตัวกรองเหมือนแท็บข้อความ) — ไม่ส่ง = ทุกเพจของร้าน */
   shopChannelId?: string
 }): Promise<CommentPostRow[]> {
@@ -210,6 +212,7 @@ export async function listCommentPosts(params: {
     },
     orderBy: { lastCommentAt: 'desc' },
     take: params.take ?? 25,
+    skip: params.skip ?? 0,
     include: {
       channel: { select: { id: true, name: true, provider: true, avatarUrl: true } },
       comments: {
@@ -546,4 +549,35 @@ export async function commentOnPost(params: {
 
   await prisma.facebookPost.update({ where: { id: post.id }, data: { lastCommentAt: new Date() } })
   return { id: created.id }
+}
+
+/**
+ * จำนวนคอมเมนต์ลูกค้าที่ยังไม่มีคำตอบของเพจ — **ทั้งร้าน ไม่ใช่เฉพาะโพสต์ที่โหลดมา**
+ *
+ * ป้ายบนแท็บเดิมบวกจาก 25 โพสต์แรกที่หน้าเว็บโหลด ซึ่งแปลว่าร้านที่มีโพสต์เยอะ (คนที่ต้องการ
+ * ตัวเลขนี้มากที่สุด) ได้ตัวเลขต่ำกว่าจริงเสมอ — ต้องนับที่ฐาน ไม่ใช่ที่หน้าจอ
+ *
+ * ใช้ $queryRaw เพราะเงื่อนไข "ไม่มีคอมเมนต์ลูกของเพจอยู่ข้างใต้" เป็น NOT EXISTS ซึ่ง Prisma
+ * client API เขียนตรง ๆ ไม่ได้ (ต้องดึงทั้งหมดมานับใน JS = สิ่งที่เรากำลังหนี)
+ */
+export async function countUnansweredForShop(params: {
+  shopId: string
+  actorUserId: string
+}): Promise<number> {
+  if (!(await canAccessShop(params.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  const rows = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    SELECT count(*)::bigint AS count
+    FROM "PageComment" c
+    JOIN "ShopChannel" sc ON sc.id = c."shopChannelId"
+    WHERE sc."shopId" = ${params.shopId}
+      AND sc.provider = 'MESSENGER'
+      AND c."isFromPage" = false
+      AND c."isDeleted" = false
+      AND NOT EXISTS (
+        SELECT 1 FROM "PageComment" r
+        WHERE r."parentExternalId" = c."externalCommentId"
+          AND r."isFromPage" = true
+      )
+  `
+  return Number(rows[0]?.count ?? 0)
 }
