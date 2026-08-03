@@ -367,7 +367,7 @@ export function ConnectedAccountsClient({
             type="button"
             disabled={isLoading}
             onClick={() => handleDisconnect(provider)}
-            className="btn btn-sm bg-danger/15 text-danger hover:bg-danger/25 shrink-0 disabled:opacity-50"
+            className="btn btn-sm bg-danger/15 text-danger hover:bg-danger/25 min-h-11 shrink-0 disabled:opacity-50"
           >
             {isLoading ? (
               <span className="size-4 border-2 border-danger border-t-transparent rounded-full animate-spin inline-block" />
@@ -380,7 +380,7 @@ export function ConnectedAccountsClient({
             type="button"
             disabled={isLoading}
             onClick={() => handleConnect(provider)}
-            className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 shrink-0 disabled:opacity-50"
+            className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 min-h-11 shrink-0 disabled:opacity-50"
           >
             {isLoading ? (
               <span className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block" />
