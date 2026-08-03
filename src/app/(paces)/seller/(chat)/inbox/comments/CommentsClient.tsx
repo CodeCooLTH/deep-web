@@ -54,6 +54,7 @@ type CommentItem = {
 
 type ThreadData = {
   post: { id: string; message: string | null; permalink: string | null; thumbnailUrl: string | null }
+  channel: { name: string; avatarUrl: string | null; provider: string }
   comments: CommentItem[]
 }
 
@@ -401,12 +402,13 @@ export default function CommentsClient({
                 <SellerEmptyState compact icon="message-circle" title="ยังไม่มีความคิดเห็นในโพสต์นี้" />
               ) : (
                 tree.map(({ comment, replies }) => (
-                  <div key={comment.id} className="mb-4">
-                    <CommentBubble c={comment} onReply={() => setReplyTo(comment)} />
+                  <div key={comment.id} className="mb-5">
+                    <CommentBubble c={comment} channel={thread?.channel} onReply={() => setReplyTo(comment)} />
                     {replies.length > 0 && (
-                      <div className="border-default-200 ms-6 mt-2 space-y-2 border-s ps-3">
+                      // ย่อหน้าเฉย ๆ แบบ Facebook — เส้นตั้งของเดิมทำให้อ่านเป็น "บล็อกโค้ด" มากกว่าบทสนทนา
+                      <div className="ms-10 mt-2 space-y-3">
                         {replies.map((r) => (
-                          <CommentBubble key={r.id} c={r} onReply={() => setReplyTo(r)} />
+                          <CommentBubble key={r.id} c={r} channel={thread?.channel} isReply onReply={() => setReplyTo(r)} />
                         ))}
                       </div>
                     )}
@@ -509,20 +511,73 @@ export default function CommentsClient({
   )
 }
 
-function CommentBubble({ c, onReply }: { c: CommentItem; onReply: () => void }) {
+function CommentBubble({
+  c,
+  channel,
+  onReply,
+  isReply = false,
+}: {
+  c: CommentItem
+  channel?: { name: string; avatarUrl: string | null; provider: string }
+  onReply: () => void
+  isReply?: boolean
+}) {
+  /**
+   * โครงตามภาพ Facebook จริงที่ user ส่งมา 2026-08-03 ("ต้องดูรู้เรื่องกว่านี้ ตอนนี้มันดูยาก แยกยาก"):
+   *   [รูป]  ┌ ชื่อ (หนา) · ป้ายผู้ดูแลเพจ ┐
+   *          │ ข้อความ                    │  ← บับเบิลหุ้มเฉพาะเนื้อหา ไม่ยืดเต็มแถว
+   *          └───────────────────────────┘
+   *          เวลา · ตอบ                      ← อยู่นอกบับเบิล ตัวเล็ก สีจาง
+   *
+   * ของเดิมยืดบับเบิลเต็มความกว้างทุกอัน ทำให้คอมเมนต์สั้น ๆ กลายเป็นแถบยาวเท่ากันหมด แยกไม่ออกว่า
+   * ใครพูด/อันไหนจบตรงไหน — Facebook หุ้มเฉพาะข้อความจึงอ่านเป็น "บทสนทนา" ได้ทันที
+   *
+   * แยกฝั่งด้วย 2 อย่างพร้อมกัน ไม่พึ่งสีอย่างเดียว (user: "สีสันดูยากมาก"):
+   *   1. ป้าย "ผู้ดูแลเพจ" ข้างชื่อ (เทียบเท่า Author ของ Facebook)
+   *   2. สีพื้นบับเบิล — ลูกค้า = bg-default-100 (เทา), เพจ = bg-primary/10 (ฟ้าจาง)
+   * ทั้งคู่เป็น token ของ Paces ตัวอักษรยังเป็น text-default-800 คอนทราสต์เท่าเดิม
+   */
+  const displayName = c.isFromPage
+    ? (c.fromName ?? channel?.name ?? 'เพจ')
+    : (c.fromName ?? 'ผู้ใช้ Facebook')
+  const avatarSize = isReply ? 'size-7' : 'size-8'
+
   return (
     <div className="flex items-start gap-2">
-      <span
-        className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-          c.isFromPage ? 'bg-primary text-white' : 'bg-default-100 text-default-700'
-        }`}
-      >
-        {c.isFromPage ? <Icon icon="building-store" className="text-base" /> : (c.fromName ?? '?').slice(0, 1)}
-      </span>
+      {c.isFromPage && channel?.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={channel.avatarUrl} alt="" className={`${avatarSize} shrink-0 rounded-full object-cover`} />
+      ) : (
+        <span
+          className={`flex ${avatarSize} shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+            c.isFromPage ? 'bg-primary text-white' : 'bg-default-200 text-default-700'
+          }`}
+        >
+          {c.isFromPage ? (
+            <Icon icon="building-store" className="text-sm" />
+          ) : c.fromName ? (
+            c.fromName.slice(0, 1)
+          ) : (
+            <Icon icon="user" className="text-sm" />
+          )}
+        </span>
+      )}
+
       <div className="min-w-0 flex-1">
-        <div className="bg-default-50 rounded-lg px-3 py-2">
-          <p className="text-default-800 mb-0 text-xs font-semibold">
-            {c.isFromPage ? 'เพจ' : (c.fromName ?? 'ไม่ทราบชื่อ')}
+        {/* บับเบิลหุ้มเนื้อหา: inline-block + max-w กันคอมเมนต์ยาวลากเต็มจอบนจอกว้าง */}
+        <div
+          className={`inline-block max-w-2xl rounded-2xl px-3 py-2 ${
+            c.isFromPage ? 'bg-primary/10' : 'bg-default-100'
+          }`}
+        >
+          <p className="mb-0 flex flex-wrap items-center gap-1.5">
+            <span className="text-default-800 text-sm font-semibold">{displayName}</span>
+            {c.isFromPage && (
+              <span className="text-primary inline-flex items-center gap-0.5 text-2xs font-medium">
+                <Icon icon="pencil" className="text-2xs" />
+                ผู้ดูแลเพจ
+              </span>
+            )}
           </p>
           <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
             {c.isDeleted ? 'ความคิดเห็นถูกลบ' : (c.message ?? '(ไม่มีข้อความ)')}
@@ -532,11 +587,13 @@ function CommentBubble({ c, onReply }: { c: CommentItem; onReply: () => void }) 
             <img src={c.attachmentUrl} alt="" className="mt-2 max-h-40 rounded-lg" />
           )}
         </div>
-        <div className="text-default-700 mt-1 flex items-center gap-2 text-xs">
+
+        {/* เวลา + ปุ่มตอบ อยู่นอกบับเบิล ตัวเล็กสีจาง — จังหวะเดียวกับ Facebook */}
+        <div className="text-default-700 mt-0.5 flex items-center gap-3 ps-3 text-xs">
           <span title={formatDateTimeTH(c.createdTime)}>{formatTimeHM(c.createdTime)}</span>
           {c.editedAt && <span>แก้ไขแล้ว</span>}
           {!c.isDeleted && (
-            <button type="button" onClick={onReply} className="hover:underline">
+            <button type="button" onClick={onReply} className="font-medium hover:underline">
               ตอบ
             </button>
           )}

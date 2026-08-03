@@ -261,10 +261,15 @@ export async function getPostComments(params: {
   postId: string
   actorUserId: string
   skipBackfill?: boolean
-}): Promise<{ post: { id: string; message: string | null; permalink: string | null; thumbnailUrl: string | null }; comments: CommentRow[] }> {
+}): Promise<{
+  post: { id: string; message: string | null; permalink: string | null; thumbnailUrl: string | null }
+  /** เพจเจ้าของโพสต์ — UI ใช้แสดงชื่อ/รูปจริงแทนคำว่า "เพจ" ลอย ๆ (user report 2026-08-03) */
+  channel: { name: string; avatarUrl: string | null; provider: string }
+  comments: CommentRow[]
+}> {
   const post = await prisma.facebookPost.findUnique({
     where: { id: params.postId },
-    include: { channel: { select: { id: true, shopId: true } } },
+    include: { channel: { select: { id: true, shopId: true, name: true, avatarUrl: true, provider: true } } },
   })
   if (!post) throw new Error('POST_NOT_FOUND')
   if (!(await canAccessShop(post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
@@ -278,6 +283,11 @@ export async function getPostComments(params: {
 
   return {
     post: { id: post.id, message: post.message, permalink: post.permalink, thumbnailUrl: post.thumbnailUrl },
+    channel: {
+      name: post.channel.name,
+      avatarUrl: post.channel.avatarUrl,
+      provider: post.channel.provider,
+    },
     comments: comments.map((c) => ({
       id: c.id,
       externalCommentId: c.externalCommentId,
