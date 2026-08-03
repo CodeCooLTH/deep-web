@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
-import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent } from '@/services/channel-chat.service'
+import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent, ingestMessageEdit } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
 
@@ -82,6 +82,17 @@ export async function POST(request: NextRequest) {
           pageExternalId: pageId,
           contactExternalId: event.sender.id,
           watermark: event.read.watermark,
+        })
+      } else if (event.message_edit) {
+        // ลูกค้าแก้ข้อความที่ส่งไปแล้ว (message_edits) — ต้องอัปเดตเนื้อความฝั่งเราตาม
+        // ไม่งั้นร้านอ่าน "เวอร์ชันก่อนแก้" ไปทำงานต่อ ทั้งที่ลูกค้าเห็นของใหม่แล้ว
+        await ingestMessageEdit({
+          provider,
+          pageExternalId: pageId,
+          mid: event.message_edit.mid,
+          text: event.message_edit.text,
+          numEdit: event.message_edit.num_edit,
+          timestamp: event.timestamp,
         })
       } else if (event.reaction) {
         // reaction (message_reactions) — react/unreact บนข้อความ (feature 00018 Phase 2)

@@ -100,7 +100,7 @@ import {
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
 import { useLongPress } from '@/hooks/useLongPress'
-import MessageActionBubble, { type MessageAction } from './MessageActionBubble'
+import MessageActionBubble, { type MessageAction, type MessageReactionOption } from './MessageActionBubble'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
@@ -120,6 +120,33 @@ import {
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
+
+/**
+ * แถวรีแอ็กชันลัด 6 ตัว — ชุดเดียวกับแถวที่ Messenger โชว์ตอนกดค้าง (user ส่งภาพจริงมาเทียบ
+ * 2026-08-03: หัวใจ/ฮา/ว้าว/เศร้า/โกรธ/ถูกใจ แล้วปิดท้ายด้วยปุ่ม + เปิดแผงอิโมจิทั้งชุด)
+ *
+ * เอกสาร message_reactions ระบุค่า `reaction` ที่ Meta รู้จัก: "smile, angry, sad, wow, love,
+ * like, dislike" (+ `other` เมื่ออิโมจิไม่ตรง 7 ตัวนี้) ส่วน Send API ฝั่งส่งรับ "any emoji" —
+ * แถวลัดจึงเป็น 6 ตัวที่คนกดบ่อยจริง ส่วนที่เหลือ (รวม dislike) อยู่ในแผงเต็มหลังปุ่ม +
+ *
+ * `raw` = สิ่งที่ยิงให้ Meta และเก็บลงฐาน — ตรงกับรูปแบบที่ Meta ส่งมาให้เราตอนลูกค้ากด
+ * (ตรวจของจริงบน prod: หัวใจมาเป็น U+2764 เปล่า ไม่มี variation selector)
+ * `emoji` = ตัวที่เอาไปแสดงผล ต่อ VS-16 แล้วให้เป็นอิโมจิสี ไม่ใช่สัญลักษณ์ขาวดำ
+ *
+ * ประกอบด้วย String.fromCodePoint ไม่ใช่อักขระตรง ๆ — HR12 ห้าม emoji ในซอร์ส UI และค่าพวกนี้
+ * คือ "ข้อมูลรีแอ็กชัน" ที่ต้องตรงกับของ Meta ไม่ใช่ไอคอนตกแต่งที่แทนด้วย tabler icon ได้
+ */
+const REACTION_CHOICES: { raw: string; emoji: string; label: string }[] = [
+  { cp: 0x2764, label: 'หัวใจ' },
+  { cp: 0x1f606, label: 'ฮา' },
+  { cp: 0x1f62e, label: 'ว้าว' },
+  { cp: 0x1f622, label: 'เศร้า' },
+  { cp: 0x1f620, label: 'โกรธ' },
+  { cp: 0x1f44d, label: 'ถูกใจ' },
+].map(({ cp, label }) => {
+  const raw = String.fromCodePoint(cp)
+  return { raw, emoji: withEmojiPresentation(raw), label }
+})
 /**
  * CopyMessageButton — ปุ่มคัดลอกข้อความข้างบับเบิล (feature 00018)
  * user request 2026-07-24: ไม่ต้องขึ้น toast — เปลี่ยน icon copy เป็นเช็คถูก (พร้อม animation) ตรงปุ่มเลย
@@ -361,6 +388,27 @@ function ChatImageMessage({ storageKey, onOpen }: { storageKey: string; onOpen: 
  * ปุ่ม "ตอบกลับ" (reply/quote, user 2026-07-25) — โผล่ตอน hover เฉพาะ desktop (lg:group-hover)
  * เหมือน CopyMessageButton; ใช้กับข้อความทุกชนิด (text/รูป/การ์ด — ตอบทับได้หมด)
  */
+/**
+ * ReactMessageButton — ปุ่มหน้ายิ้มข้างบับเบิลตอน hover (เดสก์ท็อป, user สั่ง 2026-08-03
+ * "ใน web เวลา hover จะเป็น icon emoji ข้างๆ reply, copy กดแล้วขึ้น panel emoji")
+ *
+ * มือถือไม่มี hover จึงใช้ "กดค้าง" เปิดเมนูเดียวกันแทน (ดู useLongPress) — เหมือนที่ Messenger ทำ
+ * ส่งตำแหน่งปุ่มกลับไปให้ ChatThread วาง popover ให้เกาะปุ่ม ไม่ใช่เกาะกลางจอ
+ */
+function ReactMessageButton({ onOpen }: { onOpen: (rect: DOMRect) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
+      aria-label="กดรีแอ็กชันข้อความนี้"
+      title="รีแอ็กชัน"
+      className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
+    >
+      <Icon icon="mood-smile" className="size-4" />
+    </button>
+  )
+}
+
 function ReplyMessageButton({ onReply }: { onReply: () => void }) {
   return (
     <button
@@ -783,6 +831,7 @@ export default function ChatThread({
     retryMessage,
     resendMessage,
     cancelMessage,
+    reactToMessage,
     externalReadAt: externalReadAtLive,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
@@ -795,19 +844,23 @@ export default function ChatThread({
   // hook เรียกในลูปไม่ได้ จึงมี useLongPress ตัวเดียวที่ container แล้ว resolve ย้อนกลับว่านิ้ว
   // อยู่บนข้อความไหนผ่าน data-message-id — วิธีนี้ยังทำให้ทุกชนิดบับเบิล (รูป/ไฟล์/การ์ด) ใช้ได้หมด
   // โดยไม่ต้องไปแตะ render ของแต่ละชนิด
-  const [actionTarget, setActionTarget] = useState<{ message: ChatMessageView; x: number; y: number } | null>(null)
+  // mode: 'menu' = กดค้างบนมือถือ (แถวรีแอ็กชัน + ตอบกลับ/คัดลอก)
+  //       'reactions' = กดปุ่มหน้ายิ้มตอน hover บนเดสก์ท็อป (มีปุ่มตอบกลับ/คัดลอกข้างบับเบิลอยู่แล้ว)
+  const [actionTarget, setActionTarget] = useState<
+    { message: ChatMessageView; x: number; y: number; mode: 'menu' | 'reactions' } | null
+  >(null)
   const messagesRef = useRef<ChatMessageView[]>([])
   messagesRef.current = messages
   const longPress = useLongPress((point) => {
     const el = document.elementFromPoint(point.x, point.y)?.closest('[data-message-id]')
     const id = el?.getAttribute('data-message-id')
     const message = id ? messagesRef.current.find((x) => x.id === id) : undefined
-    if (message) setActionTarget({ message, x: point.x, y: point.y })
+    if (message) setActionTarget({ message, x: point.x, y: point.y, mode: 'menu' })
   })
 
   const actionTargetActions: MessageAction[] = (() => {
     const m = actionTarget?.message
-    if (!m) return []
+    if (!m || actionTarget?.mode === 'reactions') return []
     const list: MessageAction[] = []
     // เงื่อนไขเดียวกับปุ่ม hover ฝั่ง desktop (ดู canReply ตอน render) — ตอบทับข้อความ optimistic
     // ไม่ได้เพราะ route ต้องการ uuid จริง
@@ -827,6 +880,28 @@ export default function ChatThread({
       })
     }
     return list
+  })()
+
+  /**
+   * รีแอ็กชันที่ร้านกดใส่ข้อความได้ (user สั่ง 2026-08-03 "reaction ข้อความด้วย")
+   *
+   * ชุดเดียวกับ 6 ตัวมาตรฐานของ Messenger เพื่อให้สิ่งที่ลูกค้าเห็นฝั่งโน้นตรงกับที่ร้านกดฝั่งนี้
+   * ประกอบจาก code point (ไม่มีอักขระอิโมจิในซอร์ส — HR12 grep gate) แล้วผ่าน
+   * withEmojiPresentation ให้ออกมาเป็นอิโมจิสีเหมือนกับที่ใช้ในชิปใต้บับเบิล
+   *
+   * เงื่อนไขที่กดไม่ได้: ข้อความถูกลบ, ข้อความ optimistic/ยังส่งไม่สำเร็จ (ยังไม่มี mid ให้ Meta ผูก)
+   */
+  const actionTargetReactions: MessageReactionOption[] = (() => {
+    const m = actionTarget?.message
+    if (!m || m.isDeleted || m._status || m.id.startsWith('local-')) return []
+    return REACTION_CHOICES.map((c) => ({
+      emoji: c.emoji,
+      label: c.label,
+      active: m.reactionEmoji === c.raw || m.reactionEmoji === c.emoji,
+      // ส่งค่าดิบ (ไม่มี variation selector) ให้ Meta — ตรงกับที่ Meta ส่งมาให้เราเวลาลูกค้ากด
+      // จึงเทียบ active ได้ตรงและไม่มีสองรูปแบบปนกันในฐาน
+      onSelect: () => void reactToMessage(m.id, c.raw),
+    }))
   })()
 
   // ── ลากไฟล์มาวางในเธรด (user สั่ง 2026-08-02) ──────────────────────
@@ -1506,6 +1581,20 @@ export default function ChatThread({
                     <div className="flex items-start gap-0.5">
                       {canReply && <ReplyMessageButton onReply={() => setReplyingTo(m)} />}
                       {copyBtn}
+                      {/* รีแอ็กชัน (user 2026-08-03) — เงื่อนไขเดียวกับ canReply: ต้องเป็นข้อความจริง
+                          ที่ถึง Meta แล้ว ไม่งั้นไม่มี mid ให้ผูก. y = ขอบบนของปุ่ม ให้แผงเด้งเหนือปุ่ม */}
+                      {canReply && (
+                        <ReactMessageButton
+                          onOpen={(rect) =>
+                            setActionTarget({
+                              message: m,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top,
+                              mode: 'reactions',
+                            })
+                          }
+                        />
+                      )}
                     </div>
                   ) : null
                 // ข้อความ "ระบบ" ที่ Facebook แทรกเองในเธรด (user report 2026-07-30) — เช่น
@@ -1704,6 +1793,7 @@ export default function ChatThread({
                           avatar เพจ/ร้าน ย้ายมาอยู่ใต้ข้อความ ขนาดเล็ก (size-5) + สถานะส่ง/อ่าน.
                           กำลังส่ง = ไม่มีเวลา; ข้อความล่าสุดซ่อนเวลาหลังส่งเกิน 1 นาที */}
                       {(showTime ||
+                        m.edited || // ป้าย "แก้ไขแล้ว" ต้องโผล่แม้ข้อความนั้นไม่ได้อยู่ท้าย burst (ไม่มีแถวเวลา)
                         (mine &&
                           (atBurstEnd ||
                             m._status === 'sending' ||
@@ -1772,6 +1862,10 @@ export default function ChatThread({
                               </button>
                             </span>
                           )}
+                          {/* ลูกค้าแก้ข้อความนี้ทีหลัง (message_edits, 2026-08-03) — ต้องบอกให้รู้
+                              เพราะร้านอาจอ่าน/คุยกับเวอร์ชันก่อนแก้ไปแล้ว (ที่อยู่/จำนวน/เบอร์
+                              เปลี่ยนได้ทั้งนั้น) เนื้อความที่แสดงคือของใหม่เสมอ */}
+                          {m.edited && <span className="text-default-600">แก้ไขแล้ว</span>}
                           {showTime && (
                             <span className="flex items-center gap-1" title={formatTime(m.createdAt)}>
                               <Icon icon="clock" />
@@ -2129,11 +2223,18 @@ export default function ChatThread({
 
     {/* เมนูลอยจากการกดค้างบนข้อความ (มือถือ) — ทางเข้าเดียวของตอบกลับ/คัดลอกบนจอสัมผัส
         เพราะปุ่มข้างบับเบิลเป็น lg:group-hover (desktop-only) */}
-    {actionTarget && actionTargetActions.length > 0 && (
+    {actionTarget && (actionTargetActions.length > 0 || actionTargetReactions.length > 0) && (
       <MessageActionBubble
         x={actionTarget.x}
         y={actionTarget.y}
         actions={actionTargetActions}
+        reactions={actionTargetReactions}
+        // ปุ่ม + → แผงอิโมจิทั้งชุด (user สั่ง 2026-08-03) — ส่งเฉพาะเมื่อข้อความนั้นกดรีแอ็กชันได้จริง
+        onPickCustomEmoji={
+          actionTargetReactions.length > 0 && actionTarget.message
+            ? (emoji) => void reactToMessage(actionTarget.message.id, emoji)
+            : undefined
+        }
         onClose={() => setActionTarget(null)}
       />
     )}

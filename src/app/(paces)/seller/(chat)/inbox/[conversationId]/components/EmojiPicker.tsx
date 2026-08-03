@@ -16,7 +16,9 @@
 import { useEffect, useRef } from 'react'
 
 // codepoint (ไม่ใช่ตัว emoji) — จัดกลุ่มให้เหมาะกับแชทร้านค้า (ทักทาย/ขอบคุณ/นิ้วโป้ง/หัวใจ/เงิน/ช้อป)
-const CATEGORIES: { key: string; label: string; codepoints: number[] }[] = [
+// export เพื่อให้แผงรีแอ็กชันบนข้อความ (MessageActionBubble) ใช้ชุดเดียวกัน — user สั่ง 2026-08-03
+// "กดแล้วขึ้น panel emoji ที่รองรับทั้งหมด" ชุด emoji ต้องเป็นชุดเดียวกับที่ composer ใช้ ไม่ใช่คนละชุด
+export const EMOJI_CATEGORIES: { key: string; label: string; codepoints: number[] }[] = [
   {
     key: 'smileys',
     label: 'หน้ายิ้ม',
@@ -94,7 +96,7 @@ export default function EmojiPicker({ onSelect, onClose }: Props) {
       className="card bg-card border-default-200 absolute bottom-full left-0 z-20 mb-2 w-72 border p-0 shadow-lg"
     >
       <div className="max-h-64 overflow-y-auto p-3">
-        {CATEGORIES.map((cat) => (
+        {EMOJI_CATEGORIES.map((cat) => (
           <div key={cat.key} className="mb-3 last:mb-0">
             <p className="text-default-700 mb-1.5 text-2xs font-semibold">{cat.label}</p>
             <div className="grid grid-cols-8 gap-0.5">

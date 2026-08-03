@@ -489,6 +489,38 @@ export async function sendAttachmentMessage(
   return (json.message_id as string | undefined) ?? ''
 }
 
+/**
+ * ร้าน "กดรีแอ็กชัน" ใส่ข้อความของลูกค้า (feature 00018 — user สั่ง 2026-08-03 "reaction ข้อความด้วย")
+ *
+ * เอกสาร Send API → Sender Actions (ล็อกโครงจากเอกสารก่อนเขียน ไม่เดา):
+ *   POST /me/messages
+ *   { recipient: { id }, sender_action: "react", payload: { message_id, reaction } }
+ *   ถอนรีแอ็กชัน = sender_action "unreact" และ **ไม่ส่ง** field reaction
+ * ใช้ได้ทั้ง Messenger และ Instagram (โครงเดียวกัน) — pageToken resolve เพจ/IG account ให้เอง
+ * เหมือน sendTextMessage จึงใช้ /me/messages ไม่ใช่ path ที่มี id
+ *
+ * ไม่มี messaging_type/tag: sender action ไม่ใช่ "ข้อความ" เอกสารระบุให้ส่งเฉพาะ sender_action
+ * + recipient (+ payload) เท่านั้น — ใส่ field เกินไปเสี่ยงโดนปฏิเสธทั้งคำขอ
+ *
+ * emoji ต้องเป็น UTF-8 จริง (เช่นหัวใจ) ไม่ใช่ชื่อเชิงความหมายอย่าง "love"
+ */
+export async function sendMessageReaction(
+  pageToken: string,
+  recipientId: string,
+  mid: string,
+  /** null = ถอนรีแอ็กชันออก */
+  emoji: string | null,
+): Promise<void> {
+  await graphFetch('/me/messages', pageToken, {
+    method: 'POST',
+    body: {
+      recipient: { id: recipientId },
+      sender_action: emoji ? 'react' : 'unreact',
+      payload: { message_id: mid, ...(emoji ? { reaction: emoji } : {}) },
+    },
+  })
+}
+
 /** wrapper ของเดิม — auto-reply-send.service.ts และเทสเก่ายังเรียกชื่อนี้อยู่ */
 export async function sendImageMessage(
   pageToken: string,

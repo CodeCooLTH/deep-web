@@ -104,6 +104,17 @@ const MessagingEventSchema = v.object({
   // reaction (message_reactions) + referral (messaging_referrals) — feature 00018 Phase 2
   reaction: v.optional(ReactionSchema),
   referral: v.optional(ReferralSchema),
+  // message_edits (เปิด field ที่ระดับแอป 2026-08-03) — ลูกค้าแก้ข้อความที่ส่งไปแล้ว
+  // โครงตามเอกสาร Meta: { mid, text, num_edit } โดย num_edit เอกสารเขียนเป็น <INT> แต่ payload
+  // จริงของ Meta ส่งตัวเลขมาเป็น string ได้ (เจอ pattern นี้กับ field อื่นมาก่อน) จึงรับทั้งสองแบบ
+  // ไม่งั้น Valibot ตีตกทั้ง event แล้วข้อความจะค้างเป็นเวอร์ชันก่อนแก้ตลอดไป
+  message_edit: v.optional(
+    v.object({
+      mid: v.string(),
+      text: v.optional(v.string()),
+      num_edit: v.optional(v.union([v.number(), v.string()])),
+    }),
+  ),
 })
 
 const EntrySchema = v.object({

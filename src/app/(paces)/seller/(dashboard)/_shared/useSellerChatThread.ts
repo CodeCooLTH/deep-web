@@ -114,6 +114,8 @@ export type ChatMessageView = {
   sender?: { name: string; avatar: string | null } | null
   // feature 00018 Phase 3 — reply/unsend
   isDeleted?: boolean // ผู้ส่ง unsend → แสดง "ข้อความถูกลบ"
+  /** ลูกค้าแก้ข้อความนี้ทีหลัง (message_edits, 2026-08-03) — เนื้อความที่เห็นคือเวอร์ชันล่าสุดแล้ว */
+  edited?: boolean
   replyTo?: { body: string | null; senderRole: 'BUYER' | 'SHOP' } | null // quote ข้อความที่ตอบทับ (enrich ที่ API)
   // optimistic send (client-only, ไม่มาจาก server): 'sending'=spinner, 'sent'=check, 'failed'=refresh แดง
   _status?: 'sending' | 'sent' | 'failed'
@@ -814,12 +816,53 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     [conversationId],
   )
 
+  /**
+   * ร้านกดรีแอ็กชันใส่ข้อความ (user สั่ง 2026-08-03) — optimistic แล้วค่อยยิง API
+   *
+   * optimistic เพราะการกดรีแอ็กชันต้องรู้สึก "ติดทันที" เหมือนในแอปแชททุกตัว และค่ามัน
+   * ย้อนกลับง่าย (คืนค่าเดิมถ้า API ปฏิเสธ) ต่างจากการส่งข้อความที่ต้องมีบับเบิลค้างให้กดซ้ำ
+   * กดอันเดิมซ้ำ = ถอนออก (emoji=null) ตามพฤติกรรม Messenger
+   */
+  const reactToMessage = useCallback(
+    async (messageId: string, emoji: string): Promise<void> => {
+      // ข้อความ optimistic ยังไม่มีแถวจริงใน DB ให้ผูกรีแอ็กชัน
+      if (messageId.startsWith('local-')) return
+      let previous: string | null = null
+      let next: string | null = null
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m
+          previous = m.reactionEmoji ?? null
+          next = m.reactionEmoji === emoji ? null : emoji
+          return { ...m, reactionEmoji: next }
+        }),
+      )
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages/${messageId}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ emoji: next }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'กดรีแอ็กชันไม่สำเร็จ')
+          setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactionEmoji: previous } : m)))
+        }
+      } catch {
+        pacesToast.error('กดรีแอ็กชันไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactionEmoji: previous } : m)))
+      }
+    },
+    [conversationId],
+  )
+
   return {
     messages,
     oldestCursor,
     loadingInitial,
     loadingOlder,
     sending,
+    reactToMessage,
     uploading,
     /** {done,total} ระหว่างแนบหลายไฟล์ — null เมื่อไม่ได้อัปโหลด (2026-08-02) */
     uploadProgress,

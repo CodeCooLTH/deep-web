@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -1055,6 +1055,114 @@ export async function ingestReactionEvent(params: {
     where: { id: target.conversationId, OR: [{ lastInboundAt: null }, { lastInboundAt: { lt: at } }] },
     data: { lastInboundAt: at },
   })
+}
+
+/**
+ * ร้านกดรีแอ็กชันใส่ข้อความในเธรด (feature 00018 — user สั่ง 2026-08-03 "reaction ข้อความด้วย")
+ *
+ * เส้นทางกลับด้านของ ingestReactionEvent: ตัวนั้นรับของจาก Meta ตัวนี้ส่งของออกไป
+ * `ChatMessage.reactionEmoji` ยังเป็นคอลัมน์เดียวเหมือนเดิม = "รีแอ็กชันล่าสุดบนข้อความนี้"
+ * ไม่แยกว่าใครกด — ตรงกับพฤติกรรมที่มีอยู่ก่อนแล้ว (ร้านกดจากแอป Messenger เองก็เขียนช่องนี้
+ * ผ่าน echo อยู่ดี). ผลที่ตามมาคือถ้าทั้งสองฝั่งกด จะเห็นอันล่าสุดอันเดียว ไม่ซ้อนกันแบบ Messenger
+ * — ยอมรับไว้ก่อน การแยกต้องเพิ่มคอลัมน์ + migration บนฐาน prod ที่แชร์กัน
+ *
+ * เขียนฐานเองด้วยหลังยิงสำเร็จ ไม่รอ echo: Meta ยิง message_reactions กลับมาให้ก็จริง แต่ช้ากว่า
+ * การกดของผู้ใช้มาก และรอบก่อนหน้านี้พิสูจน์แล้วว่า echo ของ action ที่ระบบเราเป็นคนทำ ไม่ใช่สิ่งที่
+ * รับประกันได้ (ข้อความอัตโนมัติของ Meta เองยังไม่ echo) — ถ้า echo มาทีหลังก็เขียนค่าเดิมทับ ไม่เสียหาย
+ */
+export async function sendOutboundReaction(params: {
+  conversationId: string
+  messageId: string
+  /** null = ถอนรีแอ็กชัน */
+  emoji: string | null
+  actorUserId: string
+}): Promise<{ emoji: string | null }> {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: params.conversationId },
+    include: { shopChannel: true, externalContact: true },
+  })
+  if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
+  // authz ก่อนแตะข้อมูลข้อความ — เหมือน cancelFailedOutboundMessage
+  if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+
+  const message = await prisma.chatMessage.findFirst({
+    where: { id: params.messageId, conversationId: params.conversationId },
+    select: { id: true, externalMessageId: true, isDeleted: true },
+  })
+  if (!message) throw new Error('MESSAGE_NOT_FOUND')
+  if (message.isDeleted) throw new Error('MESSAGE_DELETED')
+
+  // แชทในแอป (DEEP) ไม่มีปลายทางให้ยิง — เก็บฝั่งเราอย่างเดียวก็ครบความหมายแล้ว
+  const isExternal = conversation.channel !== 'DEEP' && !!conversation.shopChannel && !!conversation.externalContact
+  if (isExternal) {
+    if (conversation.shopChannel!.status !== 'ACTIVE') throw new Error('CHANNEL_INACTIVE')
+    // ข้อความที่ยังไม่มี mid = ยังไม่ถึง Meta (ส่งไม่สำเร็จ/optimistic) — รีแอ็กชันไม่มีเป้าให้ผูก
+    if (!message.externalMessageId) throw new Error('MESSAGE_NOT_ON_CHANNEL')
+    const pageToken = decryptToken(conversation.shopChannel!.accessTokenEnc)
+    await sendMessageReaction(
+      pageToken,
+      conversation.externalContact!.externalUserId,
+      message.externalMessageId,
+      params.emoji,
+    )
+  }
+
+  await prisma.chatMessage.update({
+    where: { id: message.id },
+    data: { reactionEmoji: params.emoji },
+  })
+  return { emoji: params.emoji }
+}
+
+/**
+ * ลูกค้าแก้ข้อความที่ส่งไปแล้ว (message_edits — เปิด field 2026-08-03)
+ *
+ * ถ้าไม่รับ event นี้ เธรดฝั่งเราจะค้างอยู่ที่ข้อความ **ก่อนแก้** ตลอดไป ซึ่งอันตรายกว่าการไม่มีฟีเจอร์
+ * เพราะร้านอ่านที่อยู่/จำนวน/เบอร์เวอร์ชันเก่าไปทำงานต่อโดยไม่รู้ตัว (Messenger ฝั่งลูกค้าเห็นของใหม่)
+ *
+ * ไม่เพิ่มคอลัมน์: บันทึกร่องรอยการแก้ไว้ใน `rawMessage.edit` (json ที่มีอยู่แล้ว) — พอสำหรับให้ UI
+ * ขึ้นป้าย "แก้ไขแล้ว" และไม่ต้องแตะ schema ของฐานที่ใช้ร่วมกับ prod
+ * num_edit: Meta จำกัดให้แก้ได้ไม่เกิน 5 ครั้ง (ข้อจำกัดฝั่ง client ตามเอกสาร) เก็บไว้เป็นหลักฐาน
+ */
+export async function ingestMessageEdit(params: {
+  provider: string
+  pageExternalId: string
+  mid: string
+  text?: string
+  numEdit?: number | string
+  timestamp?: number
+}): Promise<void> {
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  if (!channel) return
+  const target = await prisma.chatMessage.findFirst({
+    where: { externalMessageId: params.mid, conversation: { shopChannelId: channel.id } },
+    select: { id: true, conversationId: true, rawMessage: true },
+  })
+  if (!target) return
+
+  const raw = (target.rawMessage ?? {}) as Prisma.JsonObject
+  const editedAt = new Date(params.timestamp ?? Date.now()).toISOString()
+  await prisma.chatMessage.update({
+    where: { id: target.id },
+    data: {
+      body: params.text ?? null,
+      rawMessage: { ...raw, edit: { at: editedAt, numEdit: params.numEdit ?? null } },
+    },
+  })
+
+  // snapshot ของเธรดชี้ข้อความนี้อยู่หรือเปล่า — ถ้าใช่ต้องอัปเดตด้วย ไม่งั้นกล่องขาเข้าโชว์ข้อความ
+  // เวอร์ชันเก่าที่ไม่มีอยู่จริงแล้ว (invariant เดียวกับที่ cancelFailedOutboundMessage รักษาไว้)
+  const newest = await prisma.chatMessage.findFirst({
+    where: { conversationId: target.conversationId },
+    orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
+    select: { id: true },
+  })
+  if (newest?.id === target.id && params.text) {
+    await prisma.conversation.update({
+      where: { id: target.conversationId },
+      data: { lastMessagePreview: params.text.slice(0, 100) },
+    })
+  }
 }
 
 export async function sendOutboundMessage(params: {
