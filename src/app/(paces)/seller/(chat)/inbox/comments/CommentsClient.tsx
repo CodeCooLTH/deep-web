@@ -486,12 +486,14 @@ export default function CommentsClient({
                 รูป/วิดีโอปก → ข้อความโพสต์ → แถวยอด ไลก์ · ความคิดเห็น · แชร์
                 วิดีโอเล่นในหน้าเราไม่ได้ (URL วิดีโอของ Meta เป็น signed URL อายุสั้น + ไม่มีสิทธิ์
                 อ่านไฟล์) จึงเป็นรูปปก + ปุ่มเล่นที่พาไปเปิดของจริงบน Facebook */}
-            {/* คอลัมน์กลางความกว้างจำกัด (user report 2026-08-03 พร้อมภาพเทียบ Business Suite:
-                "ขนาดของ video เล็กเกินไป และคอมเม้นชิดซ้ายไม่อยู่ตรงกลาง ทำให้ไปคนละทิศทาง")
-                — ของเดิมยืดเต็มจอ: ข้อความชิดซ้าย รูปลอยกลาง คอมเมนต์ชิดซ้าย = 3 แกนคนละที่
-                Business Suite วางทุกอย่างในคอลัมน์เดียวกลางจอ โพสต์กับคอมเมนต์จึงอ่านต่อเนื่องกัน */}
-            <div className="border-default-200 border-b">
-              <div className="mx-auto flex w-full max-w-2xl items-start gap-3 p-3">
+            {/* 2 คอลัมน์ 50/50 (user สั่ง 2026-08-03: "ทำเป็น 2 ฝั่ง ซ้ายขวา 50% ซ้ายแสดงวิดีโอ
+                posts ฝั่งขวาเป็น comment scroll ได้") — รอบก่อนวางเรียงบนล่างในคอลัมน์กลาง
+                ทำให้โพสต์+วิดีโอกินจอจนคอมเมนต์ตกไปใต้ fold มองไม่เห็นเลย
+                มือถือ (<lg) ยังเรียงบนล่างเหมือนเดิม เพราะแบ่งครึ่งบนจอ 390px ได้ 2 คอลัมน์ที่แคบ
+                จนอ่านไม่ออกทั้งคู่ — วิดีโอจึงถูกจำกัดความสูงบนมือถือแทน (max-h-72) */}
+            <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+            <div className="border-default-200 min-h-0 shrink-0 overflow-y-auto border-b lg:h-full lg:w-1/2 lg:shrink lg:border-e lg:border-b-0">
+              <div className="flex w-full items-start gap-3 p-3">
                 <button
                   type="button"
                   onClick={() => setSelectedId(null)}
@@ -523,13 +525,13 @@ export default function CommentsClient({
                   href={selectedPost.permalink ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-default-100 relative mx-auto block w-full max-w-2xl"
+                  className="bg-default-100 relative block w-full"
                   aria-label={isVideoPost(selectedPost.mediaType) ? 'เล่นวิดีโอบน Facebook' : 'เปิดโพสต์บน Facebook'}
                 >
-                  {/* สูงได้ถึง max-h-125 (500px) และกว้างเต็มคอลัมน์ — ของเดิม max-h-72 บนพื้นกว้าง
-                      ทำให้วิดีโอแนวตั้งเหลือรูปจิ๋วกลางแถบว่าง */}
+                  {/* มือถือจำกัด 288px (ไม่ให้กินจอจนคอมเมนต์หาย) เดสก์ท็อปปล่อยได้ถึง 500px
+                      เพราะอยู่คนละคอลัมน์กับคอมเมนต์แล้ว ไม่แย่งพื้นที่กัน */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={selectedPost.thumbnailUrl} alt="" className="max-h-125 w-full object-contain" />
+                  <img src={selectedPost.thumbnailUrl} alt="" className="max-h-72 w-full object-contain lg:max-h-125" />
                   {isVideoPost(selectedPost.mediaType) && (
                     <span className="absolute inset-0 flex items-center justify-center">
                       <span className="flex size-14 items-center justify-center rounded-full bg-black/55 text-white">
@@ -540,7 +542,7 @@ export default function CommentsClient({
                 </a>
               )}
 
-              <div className="text-default-700 mx-auto flex w-full max-w-2xl flex-wrap items-center gap-4 px-3 py-2 text-xs">
+              <div className="text-default-700 flex w-full flex-wrap items-center gap-4 px-3 py-2 text-xs">
                 <span className="flex items-center gap-1">
                   <Icon icon="thumb-up" className="text-sm" />
                   {selectedPost.reactionCount ?? '–'}
@@ -559,8 +561,10 @@ export default function CommentsClient({
               </div>
             </div>
 
+            {/* ฝั่งขวา: คอมเมนต์เลื่อนเองได้ + ช่องพิมพ์ปักอยู่ล่างคอลัมน์นี้ ไม่เลื่อนหนีไปกับโพสต์ */}
+            <div className="flex min-h-0 flex-1 flex-col lg:h-full lg:w-1/2">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <div className="mx-auto w-full max-w-2xl p-3">
+              <div className="w-full p-3">
                 {/* ดูเฉพาะที่ยังไม่ตอบ — โพสต์ไวรัลมีคอมเมนต์เป็นร้อย ไล่หาเองไม่ไหว (critique P1) */}
                 {tree.length > 0 && (
                   <div className="mb-3 flex gap-1">
@@ -613,7 +617,7 @@ export default function CommentsClient({
 
             {/* ── ช่องตอบ ─────────────────────────────────────── */}
             <div className="border-default-200 border-t">
-              <div className="mx-auto w-full max-w-2xl p-3">
+              <div className="w-full p-3">
               {replyTo && (
                   <div className="text-default-700 mb-2 flex items-center gap-2 text-xs">
                     <Icon icon="corner-down-right" />
@@ -707,6 +711,8 @@ export default function CommentsClient({
                     </button>
                   </div>
               </div>
+            </div>
+            </div>
             </div>
           </>
         )}
