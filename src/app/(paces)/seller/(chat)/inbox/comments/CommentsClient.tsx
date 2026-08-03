@@ -19,6 +19,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatTimeHM, formatDateTimeTH, formatChatListTime, formatDateTH } from '@/lib/format-date'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
+import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { ChannelBadgeOverlay } from '../components/ChannelBadge'
@@ -110,7 +111,13 @@ export default function CommentsClient({
   const [hasMore, setHasMore] = useState(initialPosts.length >= 25)
   // ในเธรด: ดูเฉพาะคอมเมนต์ที่ยังไม่มีคำตอบของเพจ
   const [unansweredOnly, setUnansweredOnly] = useState(false)
+  // แท็บสถานะของรายการโพสต์ (ให้เหมือนแท็บข้อความ: ทั้งหมด / ยังไม่ตอบ / ตอบครบแล้ว)
+  const [postTab, setPostTab] = useState<'ALL' | 'UNANSWERED' | 'DONE'>('ALL')
   const [emojiOpen, setEmojiOpen] = useState(false)
+  // เล่นวิดีโอในหน้าเรา (user สั่ง 2026-08-03 "ไม่อยากให้กดออกไปใน facebook") — โหลด iframe ของ
+  // Facebook video plugin เมื่อ "กดเล่น" เท่านั้น ไม่โหลดล่วงหน้าทุกโพสต์ (iframe ของ Meta หนัก
+  // และตามผู้ใช้ด้วย cookie — โหลดเมื่อผู้ใช้สั่งเท่านั้นคือพฤติกรรมที่ถูกต้อง)
+  const [playing, setPlaying] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refreshPosts = useCallback(async (keyword: string, ch: string | null) => {
@@ -161,6 +168,9 @@ export default function CommentsClient({
     if (!opts?.silent) {
       setLoadingThread(true)
       setReplyTo(null)
+      // ล้างของโพสต์ก่อนหน้าทิ้ง (user สั่ง 2026-08-03 "ตอนกดเปลี่ยน comment ให้ขึ้น skeleton")
+      // ไม่ล้าง = ค้างคอมเมนต์ของโพสต์เดิมค้างจอจนโหลดเสร็จ ซึ่งอ่านเหมือนโพสต์ใหม่มีคอมเมนต์นั้นจริง
+      setThread(null)
     }
     try {
       const res = await fetch(`/api/chat/comments/posts/${postId}`)
@@ -180,6 +190,7 @@ export default function CommentsClient({
   }, [])
 
   useEffect(() => {
+    setPlaying(false) // เปลี่ยนโพสต์ = เลิกเล่นของเดิม
     if (selectedId) void loadThread(selectedId)
   }, [selectedId, loadThread])
 
@@ -237,9 +248,16 @@ export default function CommentsClient({
       .filter((c) => !c.parentExternalId)
       .map((c) => {
         const replies = children.get(c.externalCommentId) ?? []
-        // "ตอบแล้ว" = มีคอมเมนต์ลูกที่เป็นของเพจอยู่ข้างใต้ (นิยามเดียวกับตัวนับในรายการ)
-        const answered = c.isFromPage || replies.some((r) => r.isFromPage)
-        return { comment: c, replies, answered }
+        const answeredSelf = c.isFromPage || replies.some((r) => r.isFromPage)
+        // ลูกค้าที่มาตอบใต้คอมเมนต์อื่นก็ยังเป็น "คำถามที่รอคำตอบ" — ฝั่งรายการนับรวมมาตลอด
+        // ถ้าตรงนี้นับเฉพาะคอมเมนต์ระดับบน ตัวเลข 2 ที่จะไม่ตรงกัน (user report 2026-08-03:
+        // "ซ้ายบอก 8 แต่ใน panel บอก 7") — ใช้นิยามเดียวกันทั้งคู่: คอมเมนต์ของลูกค้าที่ยังไม่มี
+        // คำตอบของเพจอยู่ข้างใต้ ไม่ว่าอยู่ชั้นไหน
+        const unansweredReplies = replies.filter(
+          (r) => !r.isFromPage && !r.isDeleted && !list.some((x) => x.isFromPage && x.parentExternalId === r.externalCommentId),
+        ).length
+        const unansweredHere = (!c.isFromPage && !c.isDeleted && !answeredSelf ? 1 : 0) + unansweredReplies
+        return { comment: c, replies, answered: unansweredHere === 0, unansweredHere }
       })
   }, [thread])
 
@@ -302,6 +320,12 @@ export default function CommentsClient({
     }
   }
 
+  const visiblePosts = useMemo(() => {
+    if (postTab === 'UNANSWERED') return posts.filter((p) => p.unansweredCount > 0)
+    if (postTab === 'DONE') return posts.filter((p) => p.unansweredCount === 0)
+    return posts
+  }, [posts, postTab])
+
   const selectedPost = posts.find((p) => p.id === selectedId) ?? null
 
   return (
@@ -312,34 +336,41 @@ export default function CommentsClient({
           selectedId ? 'hidden' : 'flex flex-1'
         }`}
       >
+        {/* ตัวกรองเพจ — pill group ชุดเดียวกับ "ตัวกรองช่องทาง" ของแท็บข้อความ
+            (Base: InboxList.tsx:778 — bg-light + rounded-lg p-1, ตัวที่เลือก bg-card shadow-sm)
+            user สั่ง 2026-08-03: "ตรงตัวกรองและสถานะทำไมไม่ทำเหมือนตรงข้อความ" */}
         {channels.length > 0 && (
-          // ตัวกรองเพจ (user 2026-08-03) — เดิมซ่อนเมื่อมีเพจเดียวเพราะคิดว่าเป็นปุ่มที่กดแล้วไม่มีอะไร
-          // เปลี่ยน แต่ user รายงานว่า "ตัวกรองยังไม่มี" (ร้านที่ทดสอบมีเพจเดียว) — แถวนี้ทำหน้าที่
-          // บอกด้วยว่า "คอมเมนต์พวกนี้มาจากเพจไหน" ซึ่งมีค่าแม้มีเพจเดียว จึงแสดงเสมอเหมือนแท็บข้อความ
-          <div className="border-default-200 flex gap-1 overflow-x-auto border-b p-2">
-            <button
-              type="button"
-              onClick={() => setChannelId(null)}
-              className={`min-h-9 shrink-0 rounded-lg px-3 text-sm ${
-                channelId === null ? 'bg-primary text-white' : 'text-default-700 hover:bg-default-100'
-              }`}
-            >
-              ทั้งหมด
-            </button>
-            {channels.map((c) => (
+          <div className="border-default-200 border-b p-2">
+            <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="tablist" aria-label="ตัวกรองเพจ">
               <button
-                key={c.id}
                 type="button"
-                onClick={() => setChannelId(c.id)}
-                title={c.name}
-                className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm ${
-                  channelId === c.id ? 'bg-primary text-white' : 'text-default-700 hover:bg-default-100'
+                role="tab"
+                aria-selected={channelId === null}
+                onClick={() => setChannelId(null)}
+                className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
+                  channelId === null ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
                 }`}
               >
-                <Icon icon="brand-facebook" className="text-base" />
-                <span className="max-w-32 truncate">{c.name}</span>
+                ทั้งหมด
               </button>
-            ))}
+              {channels.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={channelId === c.id}
+                  title={c.name}
+                  aria-label={`กรองเฉพาะเพจ ${c.name}`}
+                  onClick={() => setChannelId(c.id)}
+                  className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
+                    channelId === c.id ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
+                  }`}
+                >
+                  <Icon icon="brand-facebook" width={16} height={16} />
+                  <span className="max-w-24 truncate">{c.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         <div className="border-default-200 border-b p-3">
@@ -358,8 +389,40 @@ export default function CommentsClient({
           </div>
         </div>
 
+        {/* แท็บสถานะ — โครงเดียวกับแถว "ทั้งหมด · ปิดงาน · สแปม" ของแท็บข้อความ
+            (Base: InboxList.tsx:907 — -mb-px border-b-2 px-0 py-1.5) */}
+        <div className="border-default-200 flex items-center gap-4 border-b px-3" role="tablist" aria-label="สถานะการตอบ">
+          {([
+            { key: 'ALL', label: 'ทั้งหมด', icon: null },
+            { key: 'UNANSWERED', label: 'ยังไม่ตอบ', icon: 'alert-circle' },
+            { key: 'DONE', label: 'ตอบครบแล้ว', icon: 'circle-check' },
+          ] as const).map((t) => {
+            const on = postTab === t.key
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setPostTab(t.key)}
+                className={`-mb-px flex shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
+                  on ? 'border-primary text-primary font-semibold' : 'text-default-600 border-transparent font-medium'
+                }`}
+              >
+                {t.icon && <Icon icon={t.icon} width={14} height={14} className="shrink-0" />}
+                {t.label}
+                {t.key === 'UNANSWERED' && posts.some((p) => p.unansweredCount > 0) && (
+                  <span className="bg-danger text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold text-white">
+                    {posts.reduce((n, p) => n + (p.unansweredCount > 0 ? 1 : 0), 0)}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {posts.length === 0 ? (
+          {visiblePosts.length === 0 ? (
             <div className="p-4">
               {/* แยกกรณี "ค้นหาไม่เจอ" ออกจาก "ยังไม่มีเลย" — ของเดิมบอกว่าไม่มีความคิดเห็น
                   ทั้งที่กรองอยู่ ทำให้เข้าใจผิดว่าระบบพัง (critique P1) */}
@@ -395,7 +458,7 @@ export default function CommentsClient({
             </div>
           ) : (
             <div className="divide-default-200 divide-y">
-              {posts.map((p) => (
+              {visiblePosts.map((p) => (
                 <button
                   key={p.id}
                   type="button"
@@ -539,25 +602,52 @@ export default function CommentsClient({
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <div className="border-default-200 min-h-0 shrink-0 overflow-y-auto border-b lg:h-full lg:w-1/2 lg:shrink lg:border-e lg:border-b-0">
-              <div className="w-full p-3">
+            {/* คอลัมน์ซ้าย = โพสต์เต็มความสูง (user สั่ง 2026-08-03 "อยากให้เต็มจอเลย")
+                ข้อความอยู่บน สื่อกินพื้นที่ที่เหลือทั้งหมด แถวยอดชิดล่างสุดของคอลัมน์ */}
+            <div className="border-default-200 flex min-h-0 shrink-0 flex-col border-b lg:h-full lg:w-1/2 lg:shrink lg:border-e lg:border-b-0">
+              <div className="w-full shrink-0 overflow-y-auto p-3 lg:max-h-40">
                 <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
                   {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
                 </p>
               </div>
 
-              {selectedPost.thumbnailUrl && (
+              {/* วิดีโอเล่นในหน้าเราผ่าน Facebook video plugin (iframe สาธารณะ ไม่ต้องใช้ token
+                  และไม่ต้องมีสิทธิ์อ่านไฟล์วิดีโอ ซึ่งเป็นเหตุผลที่ก่อนหน้านี้ทำได้แค่ลิงก์ออก) */}
+              {playing && isVideoPost(selectedPost.mediaType) && selectedPost.permalink ? (
+                <div className="bg-default-100 min-h-0 w-full flex-1">
+                  <iframe
+                    src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
+                      selectedPost.permalink,
+                    )}&show_text=false&autoplay=true&width=560`}
+                    title="วิดีโอของโพสต์"
+                    className="h-full min-h-72 w-full border-0"
+                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
+              ) : selectedPost.thumbnailUrl ? (
                 <a
                   href={selectedPost.permalink ?? '#'}
-                  target="_blank"
+                  target={isVideoPost(selectedPost.mediaType) && selectedPost.permalink ? undefined : '_blank'}
                   rel="noopener noreferrer"
-                  className="bg-default-100 relative block w-full"
-                  aria-label={isVideoPost(selectedPost.mediaType) ? 'เล่นวิดีโอบน Facebook' : 'เปิดโพสต์บน Facebook'}
+                  onClick={(e) => {
+                    // เป็นวิดีโอและมีลิงก์ = เล่นในหน้าเรา ไม่พาออกไป
+                    if (isVideoPost(selectedPost.mediaType) && selectedPost.permalink) {
+                      e.preventDefault()
+                      setPlaying(true)
+                    }
+                  }}
+                  className="bg-default-100 relative block min-h-0 w-full flex-1"
+                  aria-label={isVideoPost(selectedPost.mediaType) ? 'เล่นวิดีโอ' : 'เปิดโพสต์บน Facebook'}
                 >
-                  {/* มือถือจำกัด 288px (ไม่ให้กินจอจนคอมเมนต์หาย) เดสก์ท็อปปล่อยได้ถึง 500px
-                      เพราะอยู่คนละคอลัมน์กับคอมเมนต์แล้ว ไม่แย่งพื้นที่กัน */}
+                  {/* เดสก์ท็อป: สูงเท่าที่เหลือในคอลัมน์ (h-full) — ของเดิม max-h คงที่ทำให้เหลือ
+                      ที่ว่างใต้รูปเปล่า ๆ; มือถือคุมที่ 288px ไม่ให้กินจอจนคอมเมนต์หาย */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={selectedPost.thumbnailUrl} alt="" className="max-h-72 w-full object-contain lg:max-h-125" />
+                  <img
+                    src={selectedPost.thumbnailUrl}
+                    alt=""
+                    className="max-h-72 w-full object-contain lg:h-full lg:max-h-none"
+                  />
                   {isVideoPost(selectedPost.mediaType) && (
                     <span className="absolute inset-0 flex items-center justify-center">
                       <span className="flex size-14 items-center justify-center rounded-full bg-black/55 text-white">
@@ -566,8 +656,28 @@ export default function CommentsClient({
                     </span>
                   )}
                 </a>
-              )}
+              ) : null}
 
+              {/* แถวยอด ไลก์ · คอมเมนต์ · แชร์ ชิดล่างคอลัมน์ (user สั่ง 2026-08-03
+                  "ตรง panel like, comment share ก็ให้มันชิดล่างไปเลย") — mt-auto ดันลงล่างสุด
+                  เสมอไม่ว่ารูป/วิดีโอจะสูงแค่ไหน */}
+              <div className="text-default-700 border-default-200 mt-auto flex shrink-0 flex-wrap items-center gap-4 border-t px-3 py-2 text-sm">
+                <span className="flex items-center gap-1.5">
+                  <Icon icon="thumb-up" className="text-base" />
+                  {selectedPost.reactionCount ?? '–'}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Icon icon="message-circle-2" className="text-base" />
+                  {thread?.post.fbCommentCount ?? selectedPost.commentCount}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Icon icon="share-3" className="text-base" />
+                  {selectedPost.shareCount ?? '–'}
+                </span>
+                {selectedPost.unansweredCount > 0 && (
+                  <span className="text-danger-ink font-medium">ยังไม่ตอบ {selectedPost.unansweredCount}</span>
+                )}
+              </div>
             </div>
 
             {/* ฝั่งขวา: คอมเมนต์เลื่อนเองได้ + ช่องพิมพ์ปักอยู่ล่างคอลัมน์นี้ ไม่เลื่อนหนีไปกับโพสต์ */}
@@ -593,12 +703,12 @@ export default function CommentsClient({
                         unansweredOnly ? 'bg-primary text-white' : 'text-default-700 hover:bg-default-100'
                       }`}
                     >
-                      ยังไม่ตอบ {tree.filter((t) => !t.answered).length}
+                      ยังไม่ตอบ {tree.reduce((n, t) => n + t.unansweredHere, 0)}
                     </button>
                   </div>
                 )}
               {loadingThread && !thread ? (
-                <p className="text-default-700 text-center text-sm">กำลังโหลด...</p>
+                <SellerThreadSkeleton />
               ) : visibleTree.length === 0 ? (
                 <SellerEmptyState compact icon="message-circle" title="ยังไม่มีความคิดเห็นในโพสต์นี้" />
               ) : (
