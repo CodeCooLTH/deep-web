@@ -346,6 +346,31 @@ export async function getPostComments(params: {
     orderBy: { createdTime: 'asc' },
   })
 
+  /**
+   * เติมชื่อคนคอมเมนต์ที่หายไป จากคอมเมนต์อื่นของ "คนเดียวกัน" ที่เรารู้ชื่อแล้ว
+   *
+   * ทำไมมีคอมเมนต์ที่ไม่มีชื่อ (user ถาม 2026-08-03 "ทำไมมันใช้คำว่า ผู้ใช้ Facebook"):
+   * Meta ให้ตัวตนผู้คอมเมนต์มาทาง **webhook** เท่านั้น — คอมเมนต์เก่าที่เราไปดึงย้อนหลังผ่าน
+   * Graph ไม่มี field `from` ติดมาเลย (ทดสอบยิงถามทีละคอมเมนต์ตรง ๆ แล้วก็ไม่มี)
+   * แต่ถ้าคนคนนั้นเคยคอมเมนต์อีกครั้งหลังจากเราเชื่อมระบบ (มาทาง webhook) เราจะมีชื่อเขาแล้ว
+   * → จับคู่ด้วย fromExternalId แล้วเติมให้แถวเก่า ดีกว่าปล่อยเป็น "ผู้ใช้ Facebook" ทั้งที่รู้ชื่อ
+   */
+  const nameByExternalId = new Map<string, string>()
+  for (const c of comments) {
+    if (c.fromExternalId && c.fromName) nameByExternalId.set(c.fromExternalId, c.fromName)
+  }
+  if (comments.some((c) => !c.fromName && c.fromExternalId)) {
+    const missingIds = [...new Set(comments.filter((c) => !c.fromName && c.fromExternalId).map((c) => c.fromExternalId!))]
+    const known = await prisma.pageComment.findMany({
+      where: { fromExternalId: { in: missingIds }, fromName: { not: null } },
+      select: { fromExternalId: true, fromName: true },
+      distinct: ['fromExternalId'],
+    })
+    for (const k of known) {
+      if (k.fromExternalId && k.fromName) nameByExternalId.set(k.fromExternalId, k.fromName)
+    }
+  }
+
   return {
     post: {
       id: post.id,
@@ -367,7 +392,7 @@ export async function getPostComments(params: {
       id: c.id,
       externalCommentId: c.externalCommentId,
       parentExternalId: c.parentExternalId,
-      fromName: c.fromName,
+      fromName: c.fromName ?? (c.fromExternalId ? (nameByExternalId.get(c.fromExternalId) ?? null) : null),
       isFromPage: c.isFromPage,
       message: c.message,
       attachmentUrl: c.attachmentUrl,

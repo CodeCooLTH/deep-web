@@ -118,6 +118,16 @@ export default function CommentsClient({
   // Facebook video plugin เมื่อ "กดเล่น" เท่านั้น ไม่โหลดล่วงหน้าทุกโพสต์ (iframe ของ Meta หนัก
   // และตามผู้ใช้ด้วย cookie — โหลดเมื่อผู้ใช้สั่งเท่านั้นคือพฤติกรรมที่ถูกต้อง)
   const [playing, setPlaying] = useState(false)
+  /**
+   * ปลั๊กอินวิดีโอของ Facebook เรนเดอร์ player ตาม **ค่า width ที่ส่งไปใน URL** ไม่ใช่ตามขนาด
+   * iframe — ส่ง width คงที่แล้ววาง iframe กว้างกว่า/แคบกว่า จะได้ภาพล้นกรอบ (user report
+   * 2026-08-03 "ตอนเล่น video มันแสดงล้นเกิน iframe")
+   * จึงต้องวัดความกว้างจริงของกล่องแล้วส่งตัวเลขนั้นเข้า URL + ล็อกสัดส่วนกล่องด้วยอัตราส่วนของ
+   * รูปปก (โพสต์วิดีโอแนวตั้ง 9:16 กับแนวนอน 16:9 ต้องได้กรอบคนละทรง)
+   */
+  const playerBoxRef = useRef<HTMLDivElement>(null)
+  const [playerWidth, setPlayerWidth] = useState(0)
+  const [posterRatio, setPosterRatio] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refreshPosts = useCallback(async (keyword: string, ch: string | null) => {
@@ -189,8 +199,20 @@ export default function CommentsClient({
     }
   }, [])
 
+  // วัดความกว้างกล่องวิดีโอทุกครั้งที่ layout เปลี่ยน แล้วส่งเข้า URL ของปลั๊กอิน
+  useEffect(() => {
+    const el = playerBoxRef.current
+    if (!el || !playing) return
+    const measure = () => setPlayerWidth(Math.round(el.getBoundingClientRect().width))
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [playing])
+
   useEffect(() => {
     setPlaying(false) // เปลี่ยนโพสต์ = เลิกเล่นของเดิม
+    setPosterRatio(null)
     if (selectedId) void loadThread(selectedId)
   }, [selectedId, loadThread])
 
@@ -614,16 +636,27 @@ export default function CommentsClient({
               {/* วิดีโอเล่นในหน้าเราผ่าน Facebook video plugin (iframe สาธารณะ ไม่ต้องใช้ token
                   และไม่ต้องมีสิทธิ์อ่านไฟล์วิดีโอ ซึ่งเป็นเหตุผลที่ก่อนหน้านี้ทำได้แค่ลิงก์ออก) */}
               {playing && isVideoPost(selectedPost.mediaType) && selectedPost.permalink ? (
-                <div className="bg-default-100 min-h-0 w-full flex-1">
-                  <iframe
-                    src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
-                      selectedPost.permalink,
-                    )}&show_text=false&autoplay=true&width=560`}
-                    title="วิดีโอของโพสต์"
-                    className="h-full min-h-72 w-full border-0"
-                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
+                <div className="bg-default-100 flex min-h-0 w-full flex-1 items-center justify-center">
+                  {/* กล่องล็อกสัดส่วนตามรูปปก แล้วย่อให้พอดีกับพื้นที่ที่เหลือ (max-h-full/max-w-full)
+                      — iframe จึงไม่มีวันสูง/กว้างเกินคอลัมน์ ส่วน width ที่ส่งให้ปลั๊กอินมาจากการวัด
+                      กล่องจริง จึงไม่มีภาพล้นกรอบอีก */}
+                  <div
+                    ref={playerBoxRef}
+                    style={{ aspectRatio: String(posterRatio ?? 16 / 9) }}
+                    className="max-h-full w-full max-w-full"
+                  >
+                    {playerWidth > 0 && (
+                      <iframe
+                        src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
+                          selectedPost.permalink,
+                        )}&show_text=false&autoplay=true&width=${playerWidth}`}
+                        title="วิดีโอของโพสต์"
+                        className="size-full border-0"
+                        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    )}
+                  </div>
                 </div>
               ) : selectedPost.thumbnailUrl ? (
                 <a
@@ -646,6 +679,12 @@ export default function CommentsClient({
                   <img
                     src={selectedPost.thumbnailUrl}
                     alt=""
+                    onLoad={(e) => {
+                      const img = e.currentTarget
+                      if (img.naturalWidth && img.naturalHeight) {
+                        setPosterRatio(img.naturalWidth / img.naturalHeight)
+                      }
+                    }}
                     className="max-h-72 w-full object-contain lg:h-full lg:max-h-none"
                   />
                   {isVideoPost(selectedPost.mediaType) && (
