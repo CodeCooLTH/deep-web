@@ -20,6 +20,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { formatTimeHM, formatDateTimeTH } from '@/lib/format-date'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
+import { subscribeShopComments } from '@/lib/comment-realtime'
 
 export type CommentPostItem = {
   id: string
@@ -52,7 +53,14 @@ type ThreadData = {
   comments: CommentItem[]
 }
 
-export default function CommentsClient({ initialPosts }: { initialPosts: CommentPostItem[] }) {
+export default function CommentsClient({
+  initialPosts,
+  shopId,
+}: {
+  initialPosts: CommentPostItem[]
+  /** ใช้ subscribe `comments:shop:{shopId}` — null = ไม่ subscribe (ไม่มีร้าน active) */
+  shopId: string | null
+}) {
   const [posts, setPosts] = useState(initialPosts)
   const [q, setQ] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(initialPosts[0]?.id ?? null)
@@ -124,15 +132,27 @@ export default function CommentsClient({ initialPosts }: { initialPosts: Comment
    *
    * หยุดเมื่อแท็บไม่ได้อยู่หน้าจอ — ไม่มีใครดูอยู่ก็ไม่ต้องยิง
    */
-  useEffect(() => {
-    const tick = () => {
-      if (document.hidden) return
-      void refreshPosts(q)
-      if (selectedId) void loadThread(selectedId, { silent: true })
-    }
-    const timer = setInterval(tick, 15_000)
-    return () => clearInterval(timer)
+  const refreshAll = useCallback(() => {
+    void refreshPosts(q)
+    if (selectedId) void loadThread(selectedId, { silent: true })
   }, [q, selectedId, refreshPosts, loadThread])
+
+  // realtime จริง (user สั่ง 2026-08-03 "ทำ trigger ให้เป็น realtime จริงเลย") — DB trigger บน
+  // PageComment ยิง broadcast `comments:shop:{shopId}` แบบ signal-only แล้ว client refetch เอง
+  // ดู migration 20260803180000_page_comment_realtime_broadcast
+  useEffect(() => {
+    if (!shopId) return
+    return subscribeShopComments(shopId, refreshAll)
+  }, [shopId, refreshAll])
+
+  // fallback: realtime หลุด/socket ตาย → ยังตามของใหม่ได้ทุก 60 วิ (ถี่กว่านี้ไม่จำเป็นแล้ว
+  // เพราะทางหลักคือ broadcast) — หยุดเมื่อแท็บไม่ได้อยู่หน้าจอ
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!document.hidden) refreshAll()
+    }, 60_000)
+    return () => clearInterval(timer)
+  }, [refreshAll])
 
   /** คอมเมนต์ระดับบน + ลูกของแต่ละอัน (BR-13) */
   const tree = useMemo(() => {

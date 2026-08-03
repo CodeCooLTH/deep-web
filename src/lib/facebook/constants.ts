@@ -37,6 +37,12 @@ export const CONNECT_SCOPES = [
   'pages_messaging',
   'pages_manage_metadata',
   'pages_read_engagement',
+  // feature 00029 (คอมเมนต์บนโพสต์) — เพิ่ม 2026-08-03 หลังเพิ่ม use case "Manage everything on
+  // your Page" ใน App Dashboard. **token ที่ออกไปก่อนหน้านี้ไม่มีสิทธิ์ 2 ตัวนี้** (scope ติดตัว
+  // token ตอนกดอนุญาต ไม่ใช่ตอนแอปประกาศ) → ร้านที่เชื่อมไว้แล้วต้องกดเชื่อมเพจใหม่ครั้งเดียว
+  // ไม่งั้นตอบคอมเมนต์จะได้ (#200) Permissions error และ backfill คอมเมนต์เก่าก็ดึงไม่ได้
+  'pages_read_user_content',  // อ่านคอมเมนต์ที่ผู้ใช้เขียนบนเพจ + ดึงคอมเมนต์ย้อนหลัง
+  'pages_manage_engagement',  // ตอบ/จัดการคอมเมนต์ในนามเพจ
   'business_management',
   'instagram_basic',
   'instagram_manage_messages',

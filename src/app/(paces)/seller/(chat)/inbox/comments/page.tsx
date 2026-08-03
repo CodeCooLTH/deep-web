@@ -59,7 +59,7 @@ export default async function CommentsPage() {
           />
         </div>
       ) : (
-        <CommentsClient initialPosts={posts} />
+        <CommentsClient initialPosts={posts} shopId={activeCtx.shopId} />
       )}
     </div>
   )
