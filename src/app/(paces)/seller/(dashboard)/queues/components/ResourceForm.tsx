@@ -146,7 +146,9 @@ export default function ResourceForm({ resource, granularity }: Props) {
 
         const map: Record<string, string> = {
           VALIDATION_ERROR: 'มีบางช่องที่กรอกยังไม่ครบหรือไม่ถูกรูปแบบ',
-          FEATURE_NOT_AVAILABLE: 'ระบบนัดหมายใช้ได้เฉพาะบัญชีธุรกิจประเภทสินค้าและบริการ',
+          // feature 00028 BR-SBT-11 — ตัด "บัญชีธุรกิจ" ออก: เงื่อนไขเหลือ vertical เดียว
+          // (บัญชีบุคคลที่เป็นร้านสินค้าและบริการใช้คิวงานได้แล้ว) ข้อความเดิมจึงบอกผิด
+          FEATURE_NOT_AVAILABLE: 'ระบบนัดหมายใช้ได้เฉพาะร้านประเภทสินค้าและบริการ',
           RESOURCE_NOT_FOUND: 'ไม่พบคิวงานนี้ในร้าน',
           FORBIDDEN: 'บัญชีนี้ไม่ได้อยู่ในทีมของร้าน จึงจัดการรายการนี้ไม่ได้',
         }

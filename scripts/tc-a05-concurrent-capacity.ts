@@ -52,7 +52,11 @@ async function main() {
     data: {
       userId: user.id,
       kind: 'BUSINESS',
-      vertical: 'GENERAL',
+      // feature 00028 (BR-SBT-11): createOrder() → resolveResourceForOrder() →
+      // assertShopCanUseAppointments() เช็ค vertical==='SERVICE_QUEUE' เงื่อนไขเดียว (เดิม
+      // GENERAL ครอบทั้งร้านขายของและร้านรับคิว) ต้องเป็นค่านี้ไม่งั้นทุก request จะโดน
+      // AppointmentFeatureUnavailableError แทนที่จะทดสอบ concurrent capacity จริง
+      vertical: 'SERVICE_QUEUE',
       shopName: 'TC-A05 ร้านทดสอบ',
       businessType: 'COMPANY',
     },

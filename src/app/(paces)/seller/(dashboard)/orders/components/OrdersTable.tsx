@@ -94,7 +94,7 @@ const columnHelper = createColumnHelper<OrderRow>()
 
 type Props = {
   orders: OrderRow[]
-  /** ร้านเชื่อมต่อ iShip + เป็นร้านสินค้าและบริการ (feature 00022) */
+  /** ร้านเชื่อมต่อ iShip + เป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028) */
   ishipEnabled?: boolean
 }
 

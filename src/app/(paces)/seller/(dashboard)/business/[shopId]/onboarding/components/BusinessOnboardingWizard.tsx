@@ -1,24 +1,37 @@
 'use client'
 
 /**
- * BusinessOnboardingWizard — 3-step wizard (ข้อมูลร้าน → URL → สินค้าแรก) ตั้งค่า Business shop ครั้งแรก
+ * BusinessOnboardingWizard — wizard ตั้งค่า Business shop ครั้งแรก
+ *   ONLINE_SALES/SERVICE_QUEUE: ข้อมูลร้าน → URL → สินค้าแรก/คิวงานแรก (3 step)
+ *   LODGING: ข้อมูลร้าน → URL (2 step, ไม่มี step สุดท้าย — จบที่ slug แล้วไปสร้างห้องพักแรก)
  *
  * Base (step-flow state machine — dots progress + icon circle focal point, ตัด phone/OTP + step
  *   'address' ที่ CreateBusinessShopSchema ไม่มี field ให้ต่อ): src/app/(paces)/seller/onboarding/page.tsx
  * Base (field markup step ข้อมูลร้าน — input-text/select/file-upload): ../../../shop/components/ShopForm.tsx
  *   (ชื่อร้าน + หมวดหมู่ HR6 native form-select + โลโก้ upload POST /api/upload)
  *
+ * feature 00028 (A2b, mirror A1) — step สุดท้ายแตกตาม vertical (props ส่งมาจาก page.tsx):
+ *   ONLINE_SALES → เหมือนเดิม (สินค้าแรก, endpoint onboarding เดิม)
+ *   SERVICE_QUEUE → ฟอร์ม "ชื่อคิวงาน" เรียก /api/shops/current/service-resources (ไม่ใช่ endpoint
+ *     onboarding เดิม — endpoint นั้นออกแบบมาสำหรับ product เท่านั้น) — endpoint นี้ resolve shop
+ *     จาก session.activeShopId (requireShopMember) ซึ่ง "ยังไม่ถูกสลับมาที่ business นี้" ระหว่าง
+ *     onboard (เหตุผลเดียวกับที่ endpoint onboarding เดิม comment ไว้) จึงต้อง switchContext() ก่อน
+ *     ยิง endpoint นี้เสมอ ไม่งั้นคิวงานจะถูกสร้างขึ้นที่ shop เดิมที่ active อยู่ ไม่ใช่ shop ใหม่นี้
+ *   LODGING → ไม่มี step 'product' เลย ปุ่มที่ step 'slug' เปลี่ยนเป็น "เสร็จสิ้น ไปสร้างห้องพักแรก →"
+ *     แล้ว switchContext() + redirect ไป /rooms/new แทน /dashboard (หน้านั้น gate ด้วย requireActiveShop)
+ *
  * API: POST /api/business/shops/{shopId}/onboarding เรียกทีละ step (partial body) — ดู route.ts
  * slug check: reuse GET /api/shops/check-slug (global, ไม่แยก PERSONAL/BUSINESS — Shop.slug @unique เดียว)
  *
- * finish: สลับ active shop context มาที่ business นี้ (POST /api/business/switch-context + session.update)
- *   mirror src/layouts/components/Sidenav/components/AccountSwitcher.tsx handleSwitch — เพราะ onboard เสร็จ
- *   = ร้านนี้พร้อมใช้งานจริงแล้ว ควรกลายเป็น workspace ปัจจุบันของ owner ทันที
+ * switchContext: สลับ active shop context มาที่ business นี้ (POST /api/business/switch-context +
+ *   session.update) — mirror src/layouts/components/Sidenav/components/AccountSwitcher.tsx handleSwitch
+ *   เรียกทั้งตอนจบ wizard ปกติ (finish/finishToRooms) และก่อนสร้างคิวงาน (createQueue) เพราะ endpoint
+ *   นั้น session-scoped
  */
 
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import * as Yup from 'yup'
@@ -26,10 +39,10 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
 import { isValidSlugFormat, isReservedSlug, normalizeSlug } from '@/lib/shop-slug'
+import type { ShopVertical } from '@/lib/lodging'
 
 type Step = 'info' | 'slug' | 'product'
 type SlugCheck = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
-const STEP_DOTS: Step[] = ['info', 'slug', 'product']
 const STEP_META: Record<Step, { icon: string; heading: string; subtitle: string }> = {
   info: { icon: 'building-store', heading: 'ข้อมูลร้านธุรกิจ', subtitle: 'ตั้งชื่อ หมวดหมู่ และโลโก้ของร้าน' },
   slug: { icon: 'link', heading: 'ตั้ง URL ร้านของคุณ', subtitle: 'ลูกค้าจะค้นหาร้านคุณผ่านลิงก์นี้' },
@@ -50,6 +63,8 @@ interface BusinessOnboardingWizardProps {
   initialShopName: string
   initialCategory: string
   initialLogo: string
+  /** feature 00028 (A2b) — กำหนดว่า step สุดท้ายจะเป็นสินค้า/คิวงาน/ไม่มีเลย (LODGING) */
+  vertical: ShopVertical
 }
 
 export default function BusinessOnboardingWizard({
@@ -57,6 +72,7 @@ export default function BusinessOnboardingWizard({
   initialShopName,
   initialCategory,
   initialLogo,
+  vertical,
 }: BusinessOnboardingWizardProps) {
   const router = useRouter()
   const { update } = useSession()
@@ -82,11 +98,19 @@ export default function BusinessOnboardingWizard({
   const [slugLoading, setSlugLoading] = useState(false)
   const slugDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // step สินค้าแรก
+  // step สินค้าแรก (ONLINE_SALES)
   const [pName, setPName] = useState('')
   const [pPrice, setPPrice] = useState('')
   const [pLoading, setPLoading] = useState(false)
   const [finishing, setFinishing] = useState(false)
+
+  // step คิวงานแรก (SERVICE_QUEUE)
+  const [qName, setQName] = useState('')
+  const [qCapacity, setQCapacity] = useState('1')
+  const [qLoading, setQLoading] = useState(false)
+
+  // LODGING ไม่มี step 'product' — dots เหลือ 2 (info/slug)
+  const stepDots = useMemo<Step[]>(() => (vertical === 'LODGING' ? ['info', 'slug'] : ['info', 'slug', 'product']), [vertical])
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -153,6 +177,43 @@ export default function BusinessOnboardingWizard({
     }, 400)
   }
 
+  // สลับ active shop context มาที่ business นี้ ต้องเรียกก่อนยิง endpoint session-scoped ใด ๆ เสมอ
+  //
+  // IMPORTANT: คืน true/false — ผู้เรียกต้องเลือกเองว่าจะ best-effort หรือ block:
+  //   - navigation อย่างเดียว (finish/finishToRooms) → best-effort พอ worst case คือลงหน้าปลายทาง
+  //     ด้วย context ผิด ซึ่งผู้ใช้เห็นทันทีและสลับร้านเองได้
+  //   - write action (createQueue) → **ต้องเช็คผลก่อนยิงต่อ** เพราะ endpoint session-scoped
+  //     resolve ร้านจาก session เท่านั้น ถ้า switch ไม่สำเร็จแล้วยิงต่อ ข้อมูลจะถูกเขียนลง "ร้านที่
+  //     active ค้างอยู่" แทนร้านที่ตั้งใจ โดย backend คืน 200 → UI ขึ้นว่าสำเร็จ = ผิดแบบเงียบสนิท
+  const switchContext = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/business/switch-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopId }),
+      })
+      if (!res.ok) return false
+      await update({ activeShopId: shopId })
+      return true
+    } catch {
+      return false
+    }
+  }, [update, shopId])
+
+  const finish = useCallback(async () => {
+    setFinishing(true)
+    await switchContext()
+    router.replace('/dashboard')
+  }, [switchContext, router])
+
+  // LODGING — จบที่ step slug แล้วไปสร้างห้องพักแรกทันที (หน้านั้น gate ด้วย requireActiveShop
+  // จึงต้อง switchContext ก่อน ไม่งั้นเจอ notFound เพราะ active shop ยังเป็นอันเดิม)
+  const finishToRooms = useCallback(async () => {
+    setFinishing(true)
+    await switchContext()
+    router.replace('/rooms/new')
+  }, [switchContext, router])
+
   const submitSlug = async () => {
     if (slugStatus !== 'ok') return
     setSlugLoading(true)
@@ -162,8 +223,10 @@ export default function BusinessOnboardingWizard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug: normalizeSlug(slug) }),
       })
-      if (res.ok) setStep('product')
-      else if (res.status === 409) {
+      if (res.ok) {
+        if (vertical === 'LODGING') await finishToRooms()
+        else setStep('product')
+      } else if (res.status === 409) {
         setSlugStatus('taken')
         pacesToast.error('URL นี้มีคนใช้แล้ว')
       } else pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -173,22 +236,6 @@ export default function BusinessOnboardingWizard({
       setSlugLoading(false)
     }
   }
-
-  // finish — สลับ active shop context มาที่ business นี้ (best-effort, ไม่ block การจบ onboarding)
-  const finish = useCallback(async () => {
-    setFinishing(true)
-    try {
-      await fetch('/api/business/switch-context', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId }),
-      })
-      await update({ activeShopId: shopId })
-    } catch {
-      /* best-effort — onboard สำเร็จแล้ว (มี slug) ไม่ต้อง block ด้วย switch-context ล้มเหลว */
-    }
-    router.replace('/dashboard')
-  }, [update, router, shopId])
 
   const createProduct = async () => {
     if (!pName.trim()) return pacesToast.error('กรุณากรอกชื่อสินค้า')
@@ -215,16 +262,50 @@ export default function BusinessOnboardingWizard({
     }
   }
 
-  const dotIdx = STEP_DOTS.indexOf(step)
-  const meta = STEP_META[step]
+  // SERVICE_QUEUE — สร้างคิวงานแรกแทนสินค้า ผ่าน endpoint session-scoped จึงต้อง switchContext ก่อนเสมอ
+  const createQueue = async () => {
+    if (!qName.trim()) return pacesToast.error('กรุณากรอกชื่อคิวงาน')
+    const capacity = Number(qCapacity) || 1
+    setQLoading(true)
+    try {
+      // ต้องสลับ context ให้สำเร็จก่อนเสมอ — ยิงต่อทั้งที่สลับไม่ผ่าน = คิวงานไปโผล่ร้านอื่น
+      // ที่ active ค้างอยู่ แล้ว backend คืน 200 (UI จะขึ้นว่าสำเร็จทั้งที่ผิดร้าน)
+      if (!(await switchContext())) {
+        pacesToast.error('สลับไปยังร้านนี้ไม่สำเร็จ กรุณาลองใหม่')
+        return
+      }
+      const res = await fetch('/api/shops/current/service-resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: qName.trim(), capacity }),
+      })
+      if (res.ok) {
+        pacesToast.success('เพิ่มคิวงานแล้ว')
+        await finish()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        pacesToast.error(d?.error === 'VALIDATION_ERROR' ? 'มีบางช่องที่กรอกยังไม่ถูกต้อง' : 'เพิ่มคิวงานไม่สำเร็จ')
+      }
+    } catch {
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+    } finally {
+      setQLoading(false)
+    }
+  }
+
+  const dotIdx = stepDots.indexOf(step)
+  const meta =
+    step === 'product' && vertical === 'SERVICE_QUEUE'
+      ? { icon: 'armchair', heading: 'สร้างคิวงานแรกของคุณ', subtitle: 'เพิ่มคิวงานที่รับได้ เพื่อเริ่มนัดลูกค้า' }
+      : STEP_META[step]
 
   return (
     <div className="card mx-auto max-w-2xl">
       <div className="card-body p-6 sm:p-8">
-        {/* progress: dots + ขั้นที่ x/3 */}
+        {/* progress: dots + ขั้นที่ x/N (N ผัน 2/3 ตาม vertical) */}
         <div className="mb-5 flex items-center justify-center gap-3">
           <div className="flex gap-1.5">
-            {STEP_DOTS.map((_, i) => (
+            {stepDots.map((_, i) => (
               <div
                 key={i}
                 className={`size-2 rounded-full transition-colors ${
@@ -233,7 +314,7 @@ export default function BusinessOnboardingWizard({
               />
             ))}
           </div>
-          <span className="text-default-500 text-xs">ขั้นที่ {dotIdx + 1}/3</span>
+          <span className="text-default-500 text-xs">ขั้นที่ {dotIdx + 1}/{stepDots.length}</span>
         </div>
 
         {/* icon วงกลมต่อ step (focal point) — mirror personal onboarding */}
@@ -338,15 +419,71 @@ export default function BusinessOnboardingWizard({
             <button
               type="button"
               onClick={submitSlug}
-              disabled={slugLoading || slugStatus !== 'ok'}
+              disabled={slugLoading || slugStatus !== 'ok' || finishing}
               className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50"
             >
-              {slugLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}
+              {slugLoading || finishing
+                ? 'กำลังบันทึก...'
+                : vertical === 'LODGING'
+                  ? 'เสร็จสิ้น ไปสร้างห้องพักแรก →'
+                  : 'ถัดไป →'}
             </button>
           </>
         )}
 
-        {step === 'product' && (
+        {step === 'product' && vertical === 'SERVICE_QUEUE' && (
+          <>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="form-label">ชื่อคิวงาน</label>
+                <div className="input-icon-group">
+                  <Icon icon="armchair" className="input-icon" aria-hidden="true" />
+                  <input
+                    className="form-input"
+                    placeholder="เช่น หมอนวด A"
+                    value={qName}
+                    onChange={(e) => setQName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="form-label">จำนวนคิวที่รับพร้อมกัน</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="form-input"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    placeholder="1"
+                    value={qCapacity}
+                    onChange={(e) => setQCapacity(e.target.value)}
+                  />
+                  <span className="text-default-500 shrink-0">คิว</span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={createQueue}
+                disabled={qLoading || finishing}
+                className="btn bg-primary text-white hover:bg-primary-hover w-full disabled:opacity-50"
+              >
+                {qLoading ? 'กำลังสร้าง...' : 'เพิ่มคิวงานเลย'}
+              </button>
+              <button
+                type="button"
+                onClick={finish}
+                disabled={qLoading || finishing}
+                className="text-default-500 w-full py-1 text-center text-sm disabled:opacity-50"
+              >
+                ข้ามไปก่อน เพิ่มทีหลังได้
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === 'product' && vertical !== 'SERVICE_QUEUE' && (
           <>
             <div className="flex flex-col gap-4">
               <div>

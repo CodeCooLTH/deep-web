@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { subscribeInventoryEntitlement } from "@/services/inventory-entitlement.service";
 import { requireActiveShop } from "@/lib/shop-context";
 import { SubscribeInventorySchema } from "@/lib/validations";
+import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
 /**
  * POST /api/inventory/subscribe — seller สมัคร Inventory Add-on ครั้งแรก (เลือก package BASIC/PRO — ฿ หัก atomic)
@@ -32,6 +33,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
   }
   const shop = active.shop;
+
+  // 2.4 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
+  const verticalGate = requireOnlineSalesVertical(shop.vertical);
+  if (verticalGate) return verticalGate;
 
   // 2.5 parse body — ต้องระบุ package (BASIC/PRO) ตาม API.md §4.1
   const body = await request.json().catch(() => null);

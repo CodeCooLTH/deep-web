@@ -118,3 +118,26 @@ export async function requireGeneralShop(opts?: {
 
   return { shopId: active.shop.id, userId, role: active.role };
 }
+
+/**
+ * เช็ค vertical ของร้านที่ resolve แล้ว (จาก getShopByUserId หรือ requireActiveShop) ว่าเป็น
+ * ONLINE_SALES หรือไม่ — ใช้กับ Inventory Add-on (feature 00028 BR-SBT-10, BRD §8.1 matrix:
+ * สต็อกสินค้าเปิดเฉพาะ ONLINE_SALES) 7 endpoint ใต้ /api/inventory/**
+ *
+ * ทำไมไม่ทำเป็น requireXxxShop() เต็มรูปแบบเหมือน requireGeneralShop/requireLodgingShop:
+ * 7 endpoint resolve shop ด้วย 2 pattern ต่างกันอยู่แล้ว (getShopByUserId 5 ไฟล์, requireActiveShop
+ * 2 ไฟล์) — ฟังก์ชันนี้เป็น choke point ของ "ตรรกะ+ข้อความ error" เท่านั้น ไม่ผูกกับวิธี resolve shop
+ * เพื่อไม่ต้อง refactor shop-resolution pattern เดิมที่ไม่เกี่ยวกับงานนี้
+ *
+ * IMPORTANT: การซ่อนเมนูไม่ใช่การควบคุมสิทธิ์ (BR-SBT-10) — ครอบทุก method รวม GET (บทเรียนจาก
+ * auction ที่เคยลืม GET) คืน NextResponse (403) ถ้าไม่ผ่าน, null ถ้าผ่าน
+ *
+ * shape: flat `{ error: "CODE" }` ให้ตรงกับ error code เดิมในโดเมนเดียวกัน
+ * (INVENTORY_NOT_ACTIVE/INVENTORY_NOT_PRO) ไม่ใช่ nested {code,message} แบบ requireGeneralShop
+ */
+export function requireOnlineSalesVertical(vertical: string): NextResponse | null {
+  if (vertical !== "ONLINE_SALES") {
+    return jsonNoStore({ error: "INVENTORY_NOT_ELIGIBLE" }, { status: 403 });
+  }
+  return null;
+}

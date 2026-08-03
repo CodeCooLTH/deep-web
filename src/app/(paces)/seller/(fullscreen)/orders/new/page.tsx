@@ -84,7 +84,8 @@ export default async function NewOrderPage() {
           .catch(() => 'OFF' as const)
       : ('OFF' as const)
 
-  // feature 00024 — ระบบนัดหมายเปิดให้เฉพาะบัญชีธุรกิจประเภทสินค้าและบริการ (BR-RSV-01)
+  // feature 00024/00028 — ระบบนัดหมายเปิดให้เฉพาะร้าน vertical=SERVICE_QUEUE (BR-RSV-01,
+  // BR-SBT-11 ตัดเงื่อนไข kind=BUSINESS ออกแล้ว — บัญชีบุคคลใช้ได้ด้วย)
   // ร้านที่ไม่เข้าเงื่อนไขจะไม่ได้รับทรัพยากรเลย → ฟอร์มไม่ render บล็อกวันนัด DOM เหมือนเดิมทุกจุด
   // ดึงด้วย service function ตรง (มิเรอร์ listRooms ใน bookings/new/page.tsx) ไม่ fetch API ตัวเอง
   const serviceResourcesEnabled = canUseAppointments({

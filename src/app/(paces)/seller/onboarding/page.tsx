@@ -5,11 +5,19 @@
  * เด้งจาก proxy เมื่อ token.needsOnboarding (ไม่มี slug).
  *
  * Layout: หน้า seller เปล่า (Paces card centered) — ไม่ใช้ AuthCardShell ของ auth/sign-up
- * polish (safepay-ux): icon วงกลมต่อ step (focal point) + "ขั้นที่ x/4" + spacing กระชับ
+ * polish (safepay-ux): icon วงกลมต่อ step (focal point) + "ขั้นที่ x/N" + spacing กระชับ
  *   Base icon circle: theme/paces/Admin/TS/src/app/(admin)/pages/contact-us/page.tsx (size rounded-full bg-{c}/15)
  * field component จริง: ChoiceSelect / input-icon-group + Icon / form-textarea / input-group / invalid-msg
- * Flow: 1.หมวดหมู่ → 2.URL (slug) → 3.ที่อยู่ (address) → 4.สินค้าแรก → /dashboard
+ * Flow: 1.ประเภทร้านค้า(ใหม่ feature 00028) → 2.หมวดหมู่ → 3.URL (slug) → 4.ที่อยู่ (address)
+ *   → 5.สินค้าแรก/คิวงานแรก(ONLINE_SALES/SERVICE_QUEUE) หรือจบที่ที่อยู่แล้วไป /rooms/new (LODGING)
+ *   → /dashboard
  * spec: docs/superpowers/specs/2026-06-17-fb-onboarding-flow-diagram.html
+ *   + docs/20 - Features/00028 - Shop Business Type/UX-Design-Spec.md §A1
+ *
+ * feature 00028 (U10) — step ใหม่ 'vertical' แทรกก่อนสุด (ตัดสินใจกลับไม่ได้ที่สุดในทั้ง flow —
+ * ต้องมาก่อน category เพราะ step ท้าย ๆ ต้องรู้ vertical ก่อนถึงจะตัดสินใจได้ว่าจะแสดง field ชุดไหน)
+ * จำนวน step ไม่เท่ากันตาม vertical: ONLINE_SALES/SERVICE_QUEUE = 5 step, LODGING = 4 step
+ * (ไม่มี step 'product' — ปุ่มที่ step 'address' นำทางออกไป /rooms/new แทน)
  */
 
 import AuthLogo from '@/components/AuthLogo'
@@ -20,19 +28,26 @@ import ThaiAddressSearch from '@/components/safepay/ThaiAddressSearch'
 import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
 import { isValidSlugFormat, isReservedSlug, normalizeSlug } from '@/lib/shop-slug'
+import { SHOP_VERTICALS, SHOP_VERTICAL_HINTS, SHOP_VERTICAL_KEYS, DEFAULT_SHOP_VERTICAL, type ShopVertical } from '@/lib/lodging'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-type Step = 'category' | 'slug' | 'address' | 'product'
+type Step = 'vertical' | 'category' | 'slug' | 'address' | 'product'
 type Check = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
 const CATEGORY_OPTIONS = SHOP_CATEGORY_KEYS.map((k) => ({ value: k, label: SHOP_CATEGORY_LABELS[k] }))
-const STEP_DOTS: Step[] = ['category', 'slug', 'address', 'product']
-const STEP_META: Record<Step, { icon: string; heading: string; subtitle: string }> = {
+
+// subtitle ของ address ไม่คงที่ — เปลี่ยนตาม vertical ที่เลือกไว้ (Content outline UX spec §A1)
+const ADDRESS_SUBTITLE: Record<ShopVertical, string> = {
+  ONLINE_SALES: 'ที่อยู่สำหรับจัดส่งสินค้า',
+  SERVICE_QUEUE: 'ที่อยู่ร้าน ให้ลูกค้ารู้ว่าต้องมาหาที่ไหน',
+  LODGING: 'ที่อยู่ที่พัก ให้ผู้เข้าพักหาเจอ',
+}
+
+const STEP_META: Record<Exclude<Step, 'address' | 'product'>, { icon: string; heading: string; subtitle: string }> = {
+  vertical: { icon: 'building-store', heading: 'ร้านของคุณเป็นแบบไหน', subtitle: 'เลือกครั้งเดียว จะใช้กำหนดเมนูและสิ่งที่ร้านทำได้ตลอดไป' },
   category: { icon: 'category', heading: 'เลือกหมวดหมู่ร้านของคุณ', subtitle: 'เลือกหมวดที่ตรงกับสินค้าของคุณมากที่สุด' },
   slug: { icon: 'link', heading: 'ตั้ง URL ร้านของคุณ', subtitle: 'ลูกค้าจะค้นหาร้านคุณผ่านลิงก์นี้' },
-  address: { icon: 'map-pin', heading: 'ตั้งที่อยู่ร้าน', subtitle: 'ที่อยู่สำหรับจัดส่ง/ติดต่อร้าน' },
-  product: { icon: 'package', heading: 'สร้างสินค้าแรกของคุณ', subtitle: 'เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้าน' },
 }
 
 /** หน้า seller เปล่า — Paces card centered (ไม่ใช่ auth split-card) */
@@ -51,8 +66,12 @@ export default function OnboardingPage() {
   const router = useRouter()
   const user = (session?.user ?? {}) as { needsOnboarding?: boolean }
 
-  const [step, setStep] = useState<Step>('category')
+  const [step, setStep] = useState<Step>('vertical')
   const [ready, setReady] = useState(false)
+
+  // feature 00028 (U10) — ค่าเริ่มต้น ONLINE_SALES ตาม BR-SBT-07, เปลี่ยนได้จนกว่าจะกด "ถัดไป"
+  const [vertical, setVertical] = useState<ShopVertical>(DEFAULT_SHOP_VERTICAL)
+  const [vLoading, setVLoading] = useState(false)
 
   const [category, setCategory] = useState('')
   const [catLoading, setCatLoading] = useState(false)
@@ -69,12 +88,32 @@ export default function OnboardingPage() {
   const [pPrice, setPPrice] = useState('')
   const [pLoading, setPLoading] = useState(false)
 
+  // SERVICE_QUEUE — step สุดท้ายกลายเป็น "สร้างคิวงานแรก" แทนสินค้า
+  const [qName, setQName] = useState('')
+  const [qCapacity, setQCapacity] = useState('1')
+  const [qLoading, setQLoading] = useState(false)
+
   useEffect(() => {
     if (status === 'loading') return
     if (status === 'unauthenticated') { router.replace('/auth/sign-in'); return }
     if (!user.needsOnboarding) { router.replace('/dashboard'); return }
     if (!ready) setReady(true)
   }, [status, user, ready, router])
+
+  // dot progress dynamic ตาม vertical — LODGING ไม่มี step 'product' (4 step แทน 5)
+  const stepDots = useMemo<Step[]>(
+    () => (vertical === 'LODGING' ? ['vertical', 'category', 'slug', 'address'] : ['vertical', 'category', 'slug', 'address', 'product']),
+    [vertical],
+  )
+
+  const submitVertical = async () => {
+    setVLoading(true)
+    try {
+      const res = await fetch('/api/shops/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vertical }) })
+      if (res.ok) setStep('category')
+      else pacesToast.error('บันทึกไม่สำเร็จ กรุณาลองใหม่')
+    } catch { pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่') } finally { setVLoading(false) }
+  }
 
   const submitCategory = async () => {
     if (!category) return pacesToast.error('กรุณาเลือกหมวดหมู่ร้านค้า')
@@ -110,17 +149,22 @@ export default function OnboardingPage() {
     } catch { pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่') } finally { setSlugLoading(false) }
   }
 
+  const finish = useCallback(async () => { await update(); router.replace('/dashboard') }, [update, router])
+  // LODGING — ไม่มี step สินค้า/คิวงาน จบที่ step ที่อยู่แล้วไปสร้างห้องพักแรกทันที (UX spec §A1)
+  const finishToRooms = useCallback(async () => { await update(); router.replace('/rooms/new') }, [update, router])
+
   const submitAddress = async () => {
     if (!address.trim()) return pacesToast.error('กรุณากรอกที่อยู่ร้าน')
     setAddrLoading(true)
     try {
       const res = await fetch('/api/shops/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address: address.trim() }) })
-      if (res.ok) setStep('product')
-      else pacesToast.error('บันทึกไม่สำเร็จ กรุณาลองใหม่')
+      if (res.ok) {
+        if (vertical === 'LODGING') await finishToRooms()
+        else setStep('product')
+      } else pacesToast.error('บันทึกไม่สำเร็จ กรุณาลองใหม่')
     } catch { pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่') } finally { setAddrLoading(false) }
   }
 
-  const finish = useCallback(async () => { await update(); router.replace('/dashboard') }, [update, router])
   const createProduct = async () => {
     if (!pName.trim()) return pacesToast.error('กรุณากรอกชื่อสินค้า')
     const price = Number(pPrice)
@@ -133,6 +177,18 @@ export default function OnboardingPage() {
     } catch { pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่') } finally { setPLoading(false) }
   }
 
+  // SERVICE_QUEUE — สร้างคิวงานแรกแทนสินค้า (endpoint มีอยู่แล้ว ใช้อยู่ใน ResourceForm.tsx)
+  const createQueue = async () => {
+    if (!qName.trim()) return pacesToast.error('กรุณากรอกชื่อคิวงาน')
+    const capacity = Number(qCapacity) || 1
+    setQLoading(true)
+    try {
+      const res = await fetch('/api/shops/current/service-resources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: qName.trim(), capacity }) })
+      if (res.ok) { pacesToast.success('เพิ่มคิวงานแล้ว'); await finish() }
+      else { const d = await res.json().catch(() => ({})); pacesToast.error(d?.error === 'VALIDATION_ERROR' ? 'มีบางช่องที่กรอกยังไม่ถูกต้อง' : 'เพิ่มคิวงานไม่สำเร็จ') }
+    } catch { pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่') } finally { setQLoading(false) }
+  }
+
   if (!ready) {
     return (
       <Shell>
@@ -143,8 +199,16 @@ export default function OnboardingPage() {
     )
   }
 
-  const dotIdx = STEP_DOTS.indexOf(step)
-  const meta = STEP_META[step]
+  const dotIdx = stepDots.indexOf(step)
+  // meta ของ address/product ขึ้นกับ vertical ที่เลือกไว้ ที่เหลือคงที่ (STEP_META)
+  const meta =
+    step === 'address'
+      ? { icon: 'map-pin', heading: 'ตั้งที่อยู่ร้าน', subtitle: ADDRESS_SUBTITLE[vertical] }
+      : step === 'product' && vertical === 'SERVICE_QUEUE'
+        ? { icon: 'armchair', heading: 'สร้างคิวงานแรกของคุณ', subtitle: 'เพิ่มคิวงานที่รับได้ เพื่อเริ่มนัดลูกค้า' }
+        : step === 'product'
+          ? { icon: 'package', heading: 'สร้างสินค้าแรกของคุณ', subtitle: 'เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้าน' }
+          : STEP_META[step]
 
   return (
     <Shell>
@@ -156,14 +220,14 @@ export default function OnboardingPage() {
 
       <div className="mb-6 flex justify-center"><AuthLogo /></div>
 
-      {/* progress: dots + ขั้นที่ x/4 */}
+      {/* progress: dots + ขั้นที่ x/N (N ผัน 4/5 ตาม vertical) */}
       <div className="mb-5 flex items-center justify-center gap-3">
         <div className="flex gap-1.5">
-          {STEP_DOTS.map((_, i) => (
+          {stepDots.map((_, i) => (
             <div key={i} className={`size-2 rounded-full transition-colors ${i === dotIdx ? 'bg-primary' : i < dotIdx ? 'bg-primary/50' : 'bg-default-300'}`} />
           ))}
         </div>
-        <span className="text-xs text-default-500">ขั้นที่ {dotIdx + 1}/4</span>
+        <span className="text-xs text-default-500">ขั้นที่ {dotIdx + 1}/{stepDots.length}</span>
       </div>
 
       {/* icon วงกลมต่อ step (focal point) */}
@@ -175,6 +239,45 @@ export default function OnboardingPage() {
 
       <h4 className="mb-1 text-center text-base font-bold text-default-900">{meta.heading}</h4>
       <p className="text-default-400 mb-5 text-center text-sm">{meta.subtitle}</p>
+
+      {step === 'vertical' && (
+        <>
+          {/* Base: src/app/(paces)/seller/(dashboard)/business/create/components/CreateBusinessForm.tsx:139-174
+              (radio-card ของ Business creation — ไล่ต่อไปถึงธีมได้จาก Base: หัวไฟล์นั้น)
+              ต่างกันแค่ grid-cols-1 เพราะ shell ของ onboarding แคบกว่า (max-w-md) */}
+          <div className="grid grid-cols-1 gap-2">
+            {SHOP_VERTICAL_KEYS.map((key) => {
+              const selected = vertical === key
+              return (
+                <label
+                  key={key}
+                  className={`flex cursor-pointer items-start gap-2 rounded-lg border-2 p-3 ${selected ? 'border-primary bg-primary/5' : 'border-default-200'}`}
+                >
+                  <input
+                    type="radio"
+                    name="vertical"
+                    value={key}
+                    checked={selected}
+                    onChange={() => setVertical(key)}
+                    className="mt-0.5 shrink-0"
+                  />
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-dark text-sm font-medium">{SHOP_VERTICALS[key]}</span>
+                      {/* ข้อมูลข้อเท็จจริง ไม่ใช่สถานะยืนยัน — สีกลาง ไม่ใช้เขียว/แดง (Verified-Means-Green rule) */}
+                      <span className="badge bg-default-100 text-default-600">
+                        {key === 'ONLINE_SALES' ? 'มีจัดส่งสินค้า' : 'ไม่มีจัดส่งสินค้า'}
+                      </span>
+                    </div>
+                    <p className="text-default-400 mt-0.5 text-xs">{SHOP_VERTICAL_HINTS[key]}</p>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+          <button type="button" onClick={submitVertical} disabled={vLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">{vLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
+        </>
+      )}
 
       {step === 'category' && (
         <>
@@ -204,11 +307,38 @@ export default function OnboardingPage() {
         <>
           <label className="form-label">ค้นหาที่อยู่ของคุณ<span className="text-danger">*</span></label>
           <ThaiAddressSearch onChange={setAddress} disabled={addrLoading} />
-          <button type="button" onClick={submitAddress} disabled={addrLoading || !address.trim()} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">{addrLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
+          <button type="button" onClick={submitAddress} disabled={addrLoading || !address.trim()} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">
+            {addrLoading ? 'กำลังบันทึก...' : vertical === 'LODGING' ? 'เสร็จสิ้น ไปสร้างห้องพักแรก →' : 'ถัดไป →'}
+          </button>
         </>
       )}
 
-      {step === 'product' && (
+      {step === 'product' && vertical === 'SERVICE_QUEUE' && (
+        <>
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="form-label">ชื่อคิวงาน</label>
+              <div className="input-icon-group">
+                <Icon icon="armchair" className="input-icon" />
+                <input className="form-input" placeholder="เช่น หมอนวด A" value={qName} onChange={(e) => setQName(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="form-label">จำนวนคิวที่รับพร้อมกัน</label>
+              <div className="flex items-center gap-2">
+                <input className="form-input" type="number" inputMode="numeric" min={1} placeholder="1" value={qCapacity} onChange={(e) => setQCapacity(e.target.value)} />
+                <span className="text-default-500 shrink-0">คิว</span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-col gap-2">
+            <button type="button" onClick={createQueue} disabled={qLoading} className="btn bg-primary text-white hover:bg-primary-hover w-full disabled:opacity-50">{qLoading ? 'กำลังสร้าง...' : 'เพิ่มคิวงานเลย'}</button>
+            <button type="button" onClick={finish} disabled={qLoading} className="w-full py-1 text-center text-sm text-default-500 disabled:opacity-50">ข้ามไปก่อน เพิ่มทีหลังได้</button>
+          </div>
+        </>
+      )}
+
+      {step === 'product' && vertical !== 'SERVICE_QUEUE' && (
         <>
           <div className="flex flex-col gap-4">
             <div>
