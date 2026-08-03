@@ -563,8 +563,24 @@ export async function ingestInboundMessage(params: {
     if (fid) extraMedia.push({ fileId: fid, type: MEDIA_TYPE[t] })
   }
 
-  const type =
-    mirroredFileId && attType && MEDIA_TYPE[attType]
+  // เหตุการณ์การโทร (2026-08-03) — Meta ส่งมาทาง webhook `messages` ปกติ ไม่ใช่ field `calls`
+  // เป็น attachment template ชนิด `icon-template`:
+  //   { template_type: "icon-template",
+  //     elements: [{ title: "Missed call", subtitle: "Call again", image_url: "…" }] }
+  // (payload จริงจาก prod 2026-08-03 — เก็บได้เพราะเพิ่ง เปิด ChatMessage.rawMessage)
+  //
+  // ติดป้ายเป็น type='CALL' ตั้งแต่ตอน ingest แทนการให้ฝั่ง render ไปเดาจาก body — body เป็น
+  // ภาษาอังกฤษของ Meta ซึ่งเปลี่ยนเมื่อไรก็ได้ ถ้าผูก UI กับสตริงนั้นจะพังเงียบ ๆ วันที่ Meta แก้คำ
+  const callTitle = attType === 'template' && firstAttachment?.payload?.template_type === 'icon-template'
+    ? firstAttachment.payload.elements?.[0]?.title?.trim()
+    : undefined
+  // รู้จักเฉพาะ 2 ค่าที่ยืนยันจากข้อมูลจริงบน prod — ค่าอื่น (เช่น "Video call" ในอนาคต) ตกกลับไป
+  // เป็นข้อความธรรมดาเหมือนเดิม ไม่เดาแล้ววาดการ์ดผิดชนิด
+  const isCallEvent = callTitle === 'Missed call' || callTitle === 'Audio call'
+
+  const type = isCallEvent
+    ? 'CALL'
+    : mirroredFileId && attType && MEDIA_TYPE[attType]
       ? MEDIA_TYPE[attType]
       : isImageLike
         ? 'IMAGE' // รูป/สติกเกอร์ที่ mirror ไม่ผ่าน → คง IMAGE (imageUrl null + placeholder)
@@ -671,7 +687,13 @@ export async function ingestInboundMessage(params: {
     ig_post: '[ลิงก์ที่แชร์]',
     template: '[ข้อความจากระบบ]',
   }
-  const singlePreview = mirroredFileId
+  const singlePreview = isCallEvent
+    ? // preview ในรายการแชทต้องเป็นไทยเหมือนการ์ดในเธรด — ถ้าปล่อยตกไปสาขา hasDisplayText
+      // มันจะเอา title ของ Meta ("Missed call") มาแสดงดิบ ๆ คนละภาษากับที่เห็นตอนเปิดห้อง
+      callTitle === 'Missed call'
+      ? '[สายที่ไม่ได้รับ]'
+      : '[มีการโทรด้วยเสียง]'
+    : mirroredFileId
     ? (previewByType[type] ?? '[ไฟล์แนบ]')
     : hasDisplayText
       ? displayText!.slice(0, 100)

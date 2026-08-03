@@ -7,7 +7,8 @@ import { detectScamLink } from '@/lib/scam-link-detector'
 import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-reply-takeover.service'
 
 export type SenderRole = 'BUYER' | 'SHOP'
-export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'
+// CALL = เหตุการณ์การโทรที่ Meta แจ้งมา (icon-template) — ไม่ใช่ข้อความที่ใครพิมพ์ ไม่มีใครส่งได้เอง
+export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
 
 export interface ConversationSummary {
   id: string

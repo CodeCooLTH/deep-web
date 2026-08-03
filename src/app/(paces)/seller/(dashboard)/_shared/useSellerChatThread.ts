@@ -72,7 +72,8 @@ export type ChatMessageView = {
   senderRole: 'BUYER' | 'SHOP'
   // VIDEO/AUDIO/FILE = ไฟล์แนบช่องทางนอก (feature 00018) — fileId เก็บใน imageUrl เหมือน IMAGE
   // ORDER = การ์ดออเดอร์/ใบเสนอราคา (user 2026-07-24) — enrich orderCard จาก GET
-  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'
+  // CALL = เหตุการณ์การโทร (Meta icon-template) — render เป็นการ์ดกลางจอ ไม่ใช่บับเบิล
+  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
   body: string | null
   imageUrl: string | null
   // ไฟล์แนบ (2026-08-02) — ชื่อเดิม/ขนาดที่ผู้ส่งเลือก; null = ข้อความเก่าหรือไฟล์ที่ mirror มาจาก

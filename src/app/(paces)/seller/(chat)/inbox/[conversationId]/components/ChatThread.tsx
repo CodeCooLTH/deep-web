@@ -1389,6 +1389,33 @@ export default function ChatThread({
                   )
                 }
                 const m = row.m
+                // เหตุการณ์การโทร — การ์ดกลางจอ ไม่ใช่บับเบิล (2026-08-03)
+                //
+                // ทำไมไม่ทำเป็นบับเบิล: ข้อมูลจริงจาก Meta คือ senderRole='SHOP' เสมอ **แม้เป็นสายที่
+                // ลูกค้าโทรเข้ามา** ถ้า render ชิดขวาเป็นบับเบิลสีร้าน = โกหกว่าร้านพิมพ์ข้อความนี้เอง
+                // ใช้ pattern เดียวกับ date divider ด้านบน (กึ่งกลาง ไม่มี avatar) เพราะมันคือ log
+                // ของระบบ ไม่ใช่บทสนทนา — และไม่มีปุ่ม "โทรกลับ" เพราะเรายังโทรกลับไม่ได้จริง
+                // (Calling API ต้อง subscribe webhook `calls` + รัน WebRTC เอง) ปุ่มที่กดไม่ได้ = UI โกหก
+                if (m.type === 'CALL') {
+                  const missed = m.body === 'Missed call'
+                  return (
+                    <div key={m.id} className="my-4 flex justify-center">
+                      <div className="bg-default-100 flex max-w-xs items-center gap-2.5 rounded-lg px-3.5 py-2.5">
+                        <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-full">
+                          <Icon icon="phone-off" className="text-lg" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="text-default-900 block text-sm font-semibold">
+                            {missed ? 'สายที่ไม่ได้รับ' : 'มีการโทรด้วยเสียง'}
+                          </span>
+                          <span className="text-default-700 block text-xs">
+                            {missed ? 'ไม่มีใครรับสายนี้' : 'การโทรผ่านแชทนี้'} · {formatTimeHM(m.createdAt)}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )
+                }
                 const mine = m.senderRole === 'SHOP'
                 // จัดเวลาเป็นกลุ่ม — แสดงเวลาเฉพาะท้าย burst, ไม่ขณะกำลังส่ง, และข้อความล่าสุดซ่อนหลัง 1 นาที
                 const atBurstEnd = burstEndIds.has(m.id)
