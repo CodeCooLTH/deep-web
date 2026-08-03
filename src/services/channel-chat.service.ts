@@ -1044,21 +1044,33 @@ export async function sendOutboundMessage(params: {
     if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
   }
 
-  // เช็คหน้าต่างก่อนยิง — กันเปลือง quota และกัน error ที่คาดเดาได้อยู่แล้ว (1545041)
+  // หน้าต่างการส่งของ Meta — เลิก "ตัดสินแทน Meta" สำหรับข้อความที่คนพิมพ์เอง
+  // (user request 2026-08-03: "การไป lock ui มันทำให้เกิดปัญหา")
   //
-  // 3 ระดับ: ในหน้าต่าง 24 ชม. = ส่งได้ปกติ | เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน = ส่งได้เฉพาะ
-  // "คนพิมพ์เอง" ผ่าน HUMAN_AGENT tag | เกิน 7 วัน = ส่งไม่ได้จริง ต้องรอลูกค้าทัก
+  // เดิม: ถ้า getWindowState บอกว่าปิด เราจะ throw WINDOW_CLOSED ทิ้งตั้งแต่ตรงนี้ — ก่อนที่จะ
+  // สร้างแถว ChatMessage ด้วยซ้ำ ผลคือร้านไม่เห็นบับเบิลอะไรเลย เห็นแค่ช่องพิมพ์ที่ถูกล็อกไว้
   //
-  // เงื่อนไข "คนพิมพ์เอง" = มี actorUserId (เส้นทางระบบ/auto-reply ส่ง systemShopId มาแทน
-  // และ actorUserId เป็น null เสมอ — ดู WARNING ที่ params) นี่คือ gate ของนโยบาย ห้ามผ่อน
+  // ทำไมถึงเปลี่ยน: `lastInboundAt` ที่เราเก็บไม่ใช่ความจริงเสมอไป (นั่นคือเหตุผลที่ต้องมี
+  // syncInboundWindowFromMeta มาตั้งแต่แรก) และหลักฐานฝั่งตรงข้ามก็มีแล้ว — subcode 1545041
+  // ที่เคยเชื่อว่าผูกกับหน้าต่าง พิสูจน์แล้วว่าเด้งตอนหน้าต่างยังเปิดอยู่ด้วย (ดู lib/chat-send-failure.ts)
+  // แปลว่าโมเดลหน้าต่างของเราคลาดทั้งสองทาง การล็อก UI จากค่าที่ไม่แม่น = ห้ามร้านส่งข้อความ
+  // ที่ Meta ยอมรับ ซึ่งเสียหายกว่าปล่อยให้ยิงแล้วโดนปฏิเสธ
+  //
+  // ตอนนี้: คนพิมพ์เอง = ยิงไปให้ Meta ตัดสิน ถ้าโดนปฏิเสธจะถูกบันทึกเป็น deliveryStatus
+  // FAILED + failureReason (ดูด้านล่าง) แล้วขึ้นเป็นบับเบิล "ส่งไม่สำเร็จ — <เหตุผล>" พร้อมปุ่ม
+  // ลองใหม่ ซึ่งบอกความจริงกับร้านได้ตรงกว่าช่องพิมพ์ที่กดไม่ได้โดยไม่บอกเหตุผล
+  //
+  // ที่ยัง gate ไว้เหมือนเดิม (ห้ามผ่อน): เส้นทางระบบ/auto-reply/AI (actorUserId เป็น null) — ห้ามยิง
+  // นอกหน้าต่างเด็ดขาด เพราะนั่นคือข้อความอัตโนมัติที่ผิดนโยบาย Meta จริง ๆ (เสี่ยงโดนระงับแอป)
+  // ไม่ใช่แค่ error ที่คาดเดาได้ นี่คือ gate ของนโยบาย ห้ามผ่อน
   const windowState = getWindowState(conversation.lastInboundAt)
   const sentByHuman = params.actorUserId !== null && !params.autoReplyKind
   let messageTag: 'HUMAN_AGENT' | undefined
   if (!windowState.open) {
-    if (!(isHumanAgentEnabled() && windowState.humanAgentOpen && sentByHuman)) {
-      throw new Error('WINDOW_CLOSED')
-    }
-    messageTag = 'HUMAN_AGENT'
+    if (!sentByHuman) throw new Error('WINDOW_CLOSED')
+    // ติด HUMAN_AGENT ให้เมื่อทำได้ — เป็น tag ที่ถูกต้องสำหรับ "คนตอบเองหลังพ้น 24 ชม."
+    // (ต้องได้ permission จาก App Review ก่อน ไม่งั้น Meta ปฏิเสธทั้งข้อความ จึงยังคุมด้วย env)
+    if (isHumanAgentEnabled() && windowState.humanAgentOpen) messageTag = 'HUMAN_AGENT'
   }
 
   // เช็คสถานะ channel ก่อนยิง Send API — token ตายแล้ว (ถูก markChannelTokenInvalid ไว้) หรือ

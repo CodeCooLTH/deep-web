@@ -109,6 +109,11 @@ export type ChatMessageView = {
   _status?: 'sending' | 'sent' | 'failed'
   // payload สำหรับ resend เมื่อ _status='failed' (เก็บเฉพาะข้อความ optimistic ที่ยังไม่สำเร็จ)
   _retry?: OutgoingRetry
+  /** เหตุผลที่ส่งไม่สำเร็จของข้อความ optimistic (2026-08-03) — เดิมเหตุผลไปอยู่ใน toast อย่างเดียว
+   *  ซึ่งหายไปเองใน 2-3 วินาที เหลือบับเบิลแดงที่มีแต่ปุ่ม "ลองใหม่" ไม่บอกว่าทำไมพัง. หลังเลิกล็อก
+   *  ช่องพิมพ์ตามหน้าต่าง 24 ชม. บับเบิลล้มเหลวจะเกิดถี่ขึ้นมาก เหตุผลจึงต้องอยู่ติดข้อความถาวร
+   *  เหมือนเส้นทาง deliveryStatus='FAILED' (แถวที่บันทึกลง DB แล้ว) ไม่ใช่คนละมาตรฐาน */
+  _failReason?: string
 }
 
 type MessagesApiResponse = {
@@ -573,15 +578,20 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           body: JSON.stringify(payload),
         })
         if (!res.ok) {
+          let reason: string
           if (res.status === 429) {
-            pacesToast.error('ส่งข้อความถี่เกินไป กรุณารอสักครู่')
+            reason = 'ส่งข้อความถี่เกินไป กรุณารอสักครู่'
           } else {
             // บอกสาเหตุทันทีตอนกดส่ง/กดลองใหม่ (user 2026-08-02) — เดิมเงียบ เห็นแค่บับเบิลแดง
             // แล้วต้องรอ GET รอบถัดไปถึงจะรู้ว่าทำไม. route ตอบเป็นไทยแล้ว (chat-send-failure.ts)
             const body = await res.json().catch(() => null)
-            pacesToast.error(body?.error ?? 'ส่งข้อความไม่สำเร็จ')
+            reason = body?.error ?? 'ส่งข้อความไม่สำเร็จ'
           }
-          setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const } : m)))
+          pacesToast.error(reason)
+          // เก็บเหตุผลไว้บนข้อความด้วย — toast หายเองแต่บับเบิลอยู่ต่อ ร้านต้องย้อนดูได้ว่าทำไมไม่ผ่าน
+          setMessages((prev) =>
+            prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const, _failReason: reason } : m)),
+          )
           return
         }
         const real: ChatMessageView = await res.json()
@@ -591,7 +601,14 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           return deduped.map((m) => (m.id === localId ? { ...real, _status: 'sent' as const } : m))
         })
       } catch {
-        setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const } : m)))
+        // ไปไม่ถึง server เลย (เน็ตหลุด/หมดเวลา) — แยกถ้อยคำจากกรณีที่ Meta ปฏิเสธ เพราะทางแก้คนละอย่าง
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === localId
+              ? { ...m, _status: 'failed' as const, _failReason: 'เชื่อมต่อไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่' }
+              : m,
+          ),
+        )
       }
     },
     [conversationId],

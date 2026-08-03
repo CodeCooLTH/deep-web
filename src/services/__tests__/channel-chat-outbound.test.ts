@@ -70,16 +70,37 @@ describe('sendOutboundMessage', () => {
     expect(data.deliveryStatus).toBe('SENT')
   })
 
-  it('window ปิด → โยน WINDOW_CLOSED และไม่ยิง Graph API เลย', async () => {
+  // 2026-08-03: เดิมเทสนี้ยืนยันว่า "window ปิด → โยน WINDOW_CLOSED ไม่ยิง Graph" ทั้งคนและระบบ
+  // ตอนนี้แยกทาง — คนพิมพ์เองต้องได้ยิงจริงเสมอ (ให้ Meta ตัดสิน แล้วโชว์เหตุผลที่ล้มเหลว
+  // บนบับเบิลแทนการล็อกช่องพิมพ์) ส่วนเส้นทางระบบยังถูกกันไว้เหมือนเดิมเพราะเป็น gate นโยบาย
+  const closedWindowConversation = () => {
     db.conversation.findUnique.mockResolvedValue({
       id: 'conv1', shopId: 'shop1', channel: 'MESSENGER', buyerUserId: null,
       lastInboundAt: new Date(now - MESSAGING_WINDOW_MS - 5000),
       shopChannel: { id: 'ch1', externalId: 'PAGE1', accessTokenEnc: 'enc', status: 'ACTIVE' },
       externalContact: { id: 'ec1', externalUserId: 'PSID_1', name: 'ลูกค้า' },
     })
+  }
+
+  it('window ปิด + คนพิมพ์เอง → ยิง Graph จริง ไม่บล็อกล่วงหน้า (ให้ Meta ตัดสิน)', async () => {
+    closedWindowConversation()
+
+    await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'สาย' })
+
+    expect(sendTextMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('window ปิด + เส้นทางระบบ (auto-reply) → ยังโยน WINDOW_CLOSED และไม่ยิง Graph เลย', async () => {
+    closedWindowConversation()
 
     await expect(
-      sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'สาย' }),
+      sendOutboundMessage({
+        conversationId: 'conv1',
+        actorUserId: null,
+        systemShopId: 'shop1',
+        autoReplyKind: 'AUTO',
+        text: 'ตอบอัตโนมัติ',
+      }),
     ).rejects.toThrow('WINDOW_CLOSED')
     expect(sendTextMessage).not.toHaveBeenCalled()
   })
