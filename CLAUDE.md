@@ -189,6 +189,18 @@ theme/
   - **ข้อมูลจริง prod 2026-08-02:** User 10 คน ไม่มีเบอร์ 6 · ไม่มีทั้งเบอร์และรหัสผ่าน 5 (กู้บัญชีไม่ได้ถ้าหลุดจาก FB/LINE) → ขึ้นแถบเตือนใน `/account` ไม่บังคับเพิ่มเบอร์
   - **carry:** browser QA 15 เคสยังไม่เคยกดจริงสักครั้ง (`TestCase.md` §3.1) · E2E ข้ามตามที่ user ตัดสิน · `AccountAvatar` ใส่ `rounded-full` ให้ทั้ง business/personal จึงไม่มี convention "วงกลม=คน สี่เหลี่ยม=ร้าน"
 
+- **2026-08-03 (feature 00028): ประเภทร้านค้า 2 → 3 แบบ — DEPLOYED PROD** (`68348a49`, migration `20260803140000_shop_business_type` apply แล้ว; docs 7/7 ที่ `docs/20 - Features/00028 - Shop Business Type/`)
+  - 🛑 **`Shop.vertical` = `ONLINE_SALES` (ขายออนไลน์) | `SERVICE_QUEUE` (สินค้าและบริการ) | `LODGING` (บ้านพัก) — ค่า `GENERAL` ถูกลบถาวร** มี CHECK constraint `Shop_vertical_check` กันที่ระดับ DB (unmanaged SQL — **ห้าม `prisma db pull`**) · label `LODGING` เปลี่ยนจาก "บ้านพักตากอากาศ" → "บ้านพัก" · SSOT อยู่ที่ `src/lib/lodging.ts`
+  - **เงื่อนไขเปิดคิวงานเหลือ `vertical==='SERVICE_QUEUE'` เงื่อนไขเดียว** — ตัด `kind==='BUSINESS'` ออกจาก `canUseAppointments` (`src/lib/appointments.ts`) → **บัญชีบุคคลใช้ระบบคิวงานได้แล้ว** และ `applyAppointmentMenu` ถูกยุบเข้า `applyVerticalMenu` (ไม่ต้องมีฟังก์ชันแยกอีก)
+  - **`seller-menu.ts` เปลี่ยนจาก deny-list เป็น allow-list ต่อ vertical + fail-closed** (`VERTICAL_VISIBLE_SLUGS`) — ค่าที่ไม่รู้จักตกไป `ONLINE_SALES` แทนที่จะหลุดเมนูของประเภทอื่น
+  - **`vertical` immutable ยกเว้นทางเดียว:** `POST /api/shops/update` ตั้งได้ตอน `Shop.slug === null` (onboarding ยังไม่จบ) มี slug แล้ว → **409 `VERTICAL_LOCKED`** (ห้าม ignore เงียบ)
+  - สินค้าที่สร้างในร้าน `SERVICE_QUEUE` ได้ `fulfillmentMode = NO_SHIPPING` เป็นค่าตั้งต้น (DB default คือ `SHIPPED`) — ส่งผ่าน parameter `shopVertical` เข้า `createProduct` ไม่ query ใน service
+  - **ปิดช่องโหว่ที่มีอยู่ก่อนแล้ว 2 จุด:** ระบบประมูล (`api/seller/auctions/_shared.ts::requireSellerShop`) และ Inventory Add-on (`requireOnlineSalesVertical()` × 7 route) **ไม่เคยมี server-side vertical guard เลย** กันด้วยการซ่อนเมนูอย่างเดียวมาตลอด — ทั้งคู่ครอบ GET ด้วย ไม่ใช่แค่ mutate
+  - 🛑 **public profile มี 2 เส้น ไม่ใช่เส้นเดียว** — `/u/[username]` (ทุกร้าน) + **`/b/[slug]` (เฉพาะ BUSINESS)** ใช้ `ShopProfile.tsx` ตัวเดียวกัน แก้เส้นเดียวไม่พอเสมอ · label แท็บสินค้าเปลี่ยนเป็น **"สินค้า"** (เดิม "สินค้าและบริการ" ซึ่งชนกับชื่อ vertical ใหม่ตรงตัว) · เพิ่มแท็บ "บริการ" + `PublicServiceList.tsx` (Base: `PublicRoomList.tsx`)
+  - **onboarding ทั้ง 2 ที่แตกตาม vertical** (`seller/onboarding/page.tsx` + `BusinessOnboardingWizard.tsx`): step เลือกประเภทเป็นจอแรก · step สุดท้าย = ฟอร์มสินค้า (ONLINE_SALES) / ฟอร์มคิวงาน (SERVICE_QUEUE) / **ไม่มี step แล้วไป `/rooms/new`** (LODGING) · dot progress 5 หรือ 4 จุดตามที่เลือก
+  - **บทเรียนสำคัญ:** ตรรกะ `vertical === 'LODGING' ? A : B` **ไม่พังแบบเห็นชัด**เมื่อเพิ่มค่าที่ 3 แต่เงียบ ๆ ปล่อยค่าใหม่ตกเข้า branch ผิด และ `rg "'GENERAL'"` จับไม่ได้ทั้งกรณี object key (`Record<ShopVertical,...>`) และกรณี binary — วิธีที่ได้ผลคือขยาย type union ให้ TypeScript บังคับ key ครบ แล้ว grep `vertical`/`isLodging` ควบคู่ไปด้วย
+  - **carry:** browser QA (user รับไปกดเองบน prod 2026-08-03) · P3 Public Profile เต็มรูปตาม `UX-Design-Spec.md` §B (ตอนนี้เป็น ready-state) · retro · `docs/scope/` baseline ยังไม่มีสำหรับ 00028
+
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 
 @AGENTS.md
