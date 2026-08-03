@@ -84,7 +84,7 @@ pill ช่องทางอยู่ที่เดิมครบ ยุบ�
 ## 4. หมายเหตุ
 
 - **A รวมกับ B หรือ C ได้** — A เป็นกฎการ "ซ่อนเมื่อไม่มีผล" ไม่ใช่การจัดวาง จึงไม่ขัดกัน
-- ทุกทางเลือกใช้ Paces token เท่านั้น (`--color-primary: #236dc9`) — **ห้ามม่วง Vuexy `#7367F0`** ในหน้า `(paces)/**` ตาม DESIGN.md §104 และ Hard Rule 7
+- ทุกทางเลือกใช้ Paces token เท่านั้น (`--color-primary: #236dc9`) — **ห้ามม่วง Vuexy `#7367F0`** ในหน้า `(paces)/**` ตาม DESIGN.md §1 "Overview" (Dual-skin reality) และ Hard Rule 7
 - ไม่มี emoji ใน mockup — ไอคอนเป็น SVG ทั้งหมด (Hard Rule 12)
 - ทุกทางเลือกต้องเพิ่ม `max-h` + `overflow-y-auto` ให้ popover ตัวกรอง (บั๊กที่เจอจริง: เนื้อหายาวทะลุจอแล้วเลื่อนไม่ได้)
 

@@ -873,7 +873,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                 ))}
 
                 {/* แถวสุดท้าย = คำตอบพื้นฐานตัวจริง · เส้น accent ซ้ายอยู่ที่ "แถว" ไม่ใช่ขอบการ์ด
-                    accent จึงชี้ของจริงและไม่ซ้อน 2 ชั้น (accepted exception ตาม DESIGN.md §6 / spec §7) */}
+                    accent จึงชี้ของจริงและไม่ซ้อน 2 ชั้น (accepted exception ตาม DESIGN.md §8 "Do's and Don'ts" / spec §7) */}
                 <li className="border-s-primary border-s-3 px-4.75 py-3">
                   {/* ชื่อ "คำตอบปกติ" ไม่ใช่ "ทุกกรณีที่เหลือ" และไม่มี badge กำกับ (user +
                       /impeccable clarify 2026-07-31): ของเดิมนิยามด้วยการปฏิเสธ 2 ชั้นซ้อนกัน

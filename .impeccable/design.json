@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-06-08T02:07:58Z",
+  "generatedAt": "2026-08-03T07:05:03Z",
   "title": "Design System: Deep (SafePay)",
   "extensions": {
     "colorMeta": {
@@ -8,235 +8,180 @@
         "role": "primary",
         "displayName": "Confident Violet",
         "canonical": "#7367F0",
-        "tonalRamp": [
-          "#1c1750",
-          "#2c2480",
-          "#4339b5",
-          "#5a4ee0",
-          "#7367F0",
-          "#9389f4",
-          "#b3acf8",
-          "#d9d4fb"
-        ]
+        "tonalRamp": ["#1c1750", "#2c2480", "#4339b5", "#5a4ee0", "#7367F0", "#9389f4", "#b3acf8", "#d9d4fb"]
       },
       "verified-green": {
         "role": "secondary",
         "displayName": "Verified Green",
         "canonical": "#28C76F",
-        "tonalRamp": [
-          "#0a3a20",
-          "#11592f",
-          "#177a40",
-          "#1ea055",
-          "#28C76F",
-          "#5fd994",
-          "#92e6b8",
-          "#c8f3db"
-        ]
+        "tonalRamp": ["#0a3a20", "#11592f", "#177a40", "#1ea055", "#28C76F", "#5fd994", "#92e6b8", "#c8f3db"]
+      },
+      "verified-green-ink": {
+        "role": "secondary (text-on-white pair)",
+        "displayName": "Verified Ink",
+        "canonical": "#18804A",
+        "note": "คู่ 'หมึก' ของ Verified Green — ใช้เมื่อเขียวเป็นตัวหนังสือบนพื้นขาว. #28C76F บนขาว = 2.21:1 (ตก AA แม้ตัวใหญ่); #18804A = 4.97:1 และอยู่ hue 149° เทียบ 147° จึงยังอ่านเป็นเขียวตัวเดิม. เป็นจุดหนึ่งบน tonalRamp ของ verified-green ไม่ใช่สีใหม่.",
+        "tonalRamp": ["#0a3a20", "#11592f", "#18804A", "#1ea055", "#28C76F", "#5fd994", "#92e6b8", "#c8f3db"]
       },
       "signal-cyan": {
         "role": "secondary",
         "displayName": "Signal Cyan",
         "canonical": "#00BAD1",
-        "tonalRamp": [
-          "#003a41",
-          "#005a66",
-          "#007e8e",
-          "#009eb2",
-          "#00BAD1",
-          "#4dd2e1",
-          "#8ee5ee",
-          "#c8f3f8"
-        ]
+        "tonalRamp": ["#003a41", "#005a66", "#007e8e", "#009eb2", "#00BAD1", "#4dd2e1", "#8ee5ee", "#c8f3f8"]
       },
       "warning-amber": {
         "role": "tertiary",
         "displayName": "Warning Amber",
         "canonical": "#FF9F43",
-        "tonalRamp": [
-          "#5c3300",
-          "#874c00",
-          "#b36700",
-          "#e08400",
-          "#FF9F43",
-          "#ffb873",
-          "#ffd1a3",
-          "#ffe8d1"
-        ]
+        "tonalRamp": ["#5c3300", "#874c00", "#b36700", "#e08400", "#FF9F43", "#ffb873", "#ffd1a3", "#ffe8d1"]
       },
       "error-coral": {
         "role": "tertiary",
         "displayName": "Error Coral",
         "canonical": "#FF4C51",
-        "tonalRamp": [
-          "#5c0e10",
-          "#871619",
-          "#b31e22",
-          "#e0282d",
-          "#FF4C51",
-          "#ff7d80",
-          "#ffaaac",
-          "#ffd6d7"
-        ]
+        "tonalRamp": ["#5c0e10", "#871619", "#b31e22", "#e0282d", "#FF4C51", "#ff7d80", "#ffaaac", "#ffd6d7"]
       },
       "ink": {
         "role": "neutral",
         "displayName": "Ink Plum",
         "canonical": "#2F2B3D",
-        "tonalRamp": [
-          "#2F2B3D",
-          "#454155",
-          "#5c5870",
-          "#7a7689",
-          "#9b98a8",
-          "#bdbbc7",
-          "#dedce4",
-          "#f1f0f4"
-        ]
+        "note": "หมึกหลัก ใช้เป็นชั้น opacity: text หลัก 0.9 / รอง 0.7 / disabled 0.4 / divider 0.12. ห้ามใช้ #000.",
+        "tonalRamp": ["#2F2B3D", "#454155", "#5c5870", "#7a7689", "#9b98a8", "#bdbbc7", "#dedce4", "#f1f0f4"]
+      },
+      "slate": {
+        "role": "neutral",
+        "displayName": "Slate",
+        "canonical": "#808390",
+        "note": "secondary action, ไอคอนเฉย ๆ, placeholder — ยังต้องผ่าน contrast 4.5:1.",
+        "tonalRamp": ["#2b2d34", "#404350", "#5a5d6b", "#6d7080", "#808390", "#a3a5af", "#c6c7ce", "#e8e9ec"]
       },
       "surface-mist": {
         "role": "neutral",
         "displayName": "Cool Mist",
         "canonical": "#F8F7FA",
-        "tonalRamp": [
-          "#2F2B3D",
-          "#454155",
-          "#6d6a7d",
-          "#9b98a8",
-          "#c6c4cf",
-          "#e4e3e9",
-          "#F8F7FA",
-          "#FFFFFF"
-        ]
+        "note": "พื้นหลัง default ฝั่ง buyer — off-white เย็นมีกลิ่นม่วงจาง ๆ ไม่ใช่ cream อุ่น.",
+        "tonalRamp": ["#2F2B3D", "#454155", "#6d6a7d", "#9b98a8", "#c6c4cf", "#e4e3e9", "#F8F7FA", "#FFFFFF"]
       },
       "paces-primary": {
         "role": "primary (Paces skin)",
-        "displayName": "Paces Blue",
+        "displayName": "Counter Blue",
         "canonical": "#236dc9",
-        "tonalRamp": [
-          "#0d2a4e",
-          "#123a6d",
-          "#1a5299",
-          "#1e5dab",
-          "#236dc9",
-          "#5a92d9",
-          "#94b8e8",
-          "#d3e2f5"
-        ]
+        "note": "primary ของ seller/admin. บทบาทเดียวกับ Confident Violet แต่คนละสกิน — เข้าถึงผ่าน token bg-primary/text-primary เท่านั้น ห้าม hardcode.",
+        "tonalRamp": ["#0d2a4e", "#123a6d", "#1a5299", "#1e5dab", "#236dc9", "#5a92d9", "#94b8e8", "#d3e2f5"]
+      },
+      "paces-success": {
+        "role": "success (Paces skin)",
+        "displayName": "Paces Teal",
+        "canonical": "#02bc9c",
+        "tonalRamp": ["#013a30", "#015a4b", "#017a65", "#019e82", "#02bc9c", "#4dd3bd", "#8ee5d7", "#c8f3ec"]
+      },
+      "paces-info": {
+        "role": "info (Paces skin)",
+        "displayName": "Paces Sky",
+        "canonical": "#5bc3e1",
+        "tonalRamp": ["#123a47", "#1b5568", "#25738c", "#3d9cbb", "#5bc3e1", "#8ad6ec", "#b5e6f3", "#dcf3f9"]
+      },
+      "paces-warning": {
+        "role": "warning (Paces skin)",
+        "displayName": "Paces Sand",
+        "canonical": "#f9bf59",
+        "tonalRamp": ["#4d3708", "#73520e", "#9c6f14", "#c9911f", "#f9bf59", "#fbd087", "#fce1b3", "#fef1dc"]
       },
       "paces-danger": {
         "role": "danger (Paces skin)",
         "displayName": "Paces Rose",
         "canonical": "#f7577e",
-        "tonalRamp": [
-          "#5c1428",
-          "#87203c",
-          "#b52d53",
-          "#d24a6b",
-          "#f7577e",
-          "#fa8ba6",
-          "#fcb9c9",
-          "#fde4ea"
-        ]
+        "tonalRamp": ["#5c1428", "#87203c", "#b52d53", "#d24a6b", "#f7577e", "#fa8ba6", "#fcb9c9", "#fde4ea"]
       },
       "paces-surface": {
         "role": "surface/neutral (Paces skin)",
-        "displayName": "Paces Slate",
-        "canonical": "#eef2f7",
-        "tonalRamp": [
-          "#313a46",
-          "#495057",
-          "#8a969c",
-          "#9ba6b7",
-          "#a1a9b1",
-          "#e7e9eb",
-          "#eef2f7",
-          "#f6f7fb"
-        ]
+        "displayName": "Paces Mist",
+        "canonical": "#f6f7fb",
+        "note": "พื้นหลัง default ฝั่ง seller/admin (--color-body-bg) — เทากลางไม่มีกลิ่นม่วง ต่างจาก Cool Mist โดยตั้งใจ.",
+        "tonalRamp": ["#313a46", "#495057", "#8a969c", "#9ba6b7", "#a1a9b1", "#e7e9eb", "#eef2f7", "#f6f7fb"]
+      },
+      "paces-body-ink": {
+        "role": "neutral (Paces skin)",
+        "displayName": "Paces Body Ink",
+        "canonical": "#4c4c5c",
+        "note": "หมึกข้อความ default ฝั่ง seller/admin (--color-body-color)."
+      },
+      "paces-primary-ink": {
+        "role": "text-on-tint pair (Paces skin)",
+        "displayName": "Primary Ink",
+        "canonical": "#1e3a8a",
+        "note": "ตัวหนังสือบนพื้น bg-primary/15 → 8.44:1. token ในธีม ไม่ใช่ arbitrary value."
+      },
+      "paces-success-ink": {
+        "role": "text-on-tint pair (Paces skin)",
+        "displayName": "Success Ink",
+        "canonical": "#065f46",
+        "note": "ตัวหนังสือบนพื้น bg-success/15 → 6.70:1."
+      },
+      "paces-info-ink": {
+        "role": "text-on-tint pair (Paces skin)",
+        "displayName": "Info Ink",
+        "canonical": "#1e40af",
+        "note": "ตัวหนังสือบนพื้น bg-info/15 → 7.86:1."
+      },
+      "paces-warning-ink": {
+        "role": "text-on-tint pair (Paces skin)",
+        "displayName": "Warning Ink",
+        "canonical": "#92400e",
+        "note": "ตัวหนังสือบนพื้น bg-warning/15 → 6.57:1."
+      },
+      "paces-danger-ink": {
+        "role": "text-on-tint pair (Paces skin)",
+        "displayName": "Danger Ink",
+        "canonical": "#7f1d1d",
+        "note": "ตัวหนังสือบนพื้น bg-danger/15 → 8.47:1."
       }
     },
     "typographyMeta": {
-      "display": {
-        "displayName": "Display / h1",
-        "purpose": "หัวเรื่องหน้า/hero. 46px, text-wrap: balance."
-      },
-      "headline": {
-        "displayName": "Headline / h3",
-        "purpose": "หัวข้อ section. 28px."
-      },
-      "title": {
-        "displayName": "Title / h5",
-        "purpose": "หัวข้อย่อย, ชื่อร้าน. 18px."
-      },
-      "body": {
-        "displayName": "Body",
-        "purpose": "เนื้อหาหลัก ~15px, prose 65–75ch."
-      },
-      "label": {
-        "displayName": "Label / Caption",
-        "purpose": "chip, caption, meta. 13px, ls 0.4px, sentence case."
-      }
+      "display": { "displayName": "Display / h1", "purpose": "หัวเรื่องหน้า/hero. 46px, text-wrap: balance." },
+      "headline": { "displayName": "Headline / h3", "purpose": "หัวข้อ section. 28px." },
+      "title": { "displayName": "Title / h5", "purpose": "หัวข้อย่อย, ชื่อร้าน. 18px." },
+      "body": { "displayName": "Body", "purpose": "เนื้อหาหลัก ~15px, prose 65–75ch. ฝั่ง Paces เล็กลงหนึ่งขั้นเป็น 14px (--text-body) เพราะเป็น surface หนาแน่น." },
+      "label": { "displayName": "Label / Caption", "purpose": "chip, caption, meta. 13px, ls 0.4px, sentence case." },
+      "metric": { "displayName": "Metric", "purpose": "ตัวเลขที่ทำหน้าที่เป็นภาพ ไม่ใช่ข้อความ — อัตราความสำเร็จ, แถวสถิติร้าน. 800 weight, 32/22/20px, tabular-nums. อยู่นอก ramp ข้อความโดยตั้งใจ: ramp ข้อความ (46/38/28) ใหญ่เกินสัดส่วนบนมือถือมาก." },
+      "dense-overlay": { "displayName": "Dense overlay", "purpose": "ข้อความบนรูปภาพในกริดที่ชิดกัน — ชื่อบัญชี/ยอดวิวบนไทล์คลิป. 600 weight, 11px, ต้องมีไล่เงารองเสมอ. ใช้ได้เฉพาะบนพื้นภาพ ห้ามใช้บนพื้นสีเรียบ." }
     },
     "shadows": [
-      {
-        "name": "sm",
-        "value": "0 2px 8px rgb(47 43 61 / 0.12)",
-        "purpose": "การ์ด/dropdown ตอนพัก."
-      },
-      {
-        "name": "md",
-        "value": "0 3px 12px rgb(47 43 61 / 0.14)",
-        "purpose": "การ์ด hover, แผงลอย."
-      },
-      {
-        "name": "lg",
-        "value": "0 4px 18px rgb(47 43 61 / 0.16)",
-        "purpose": "modal, popover, แผงสำคัญ."
-      },
-      {
-        "name": "primary-sm",
-        "value": "0 2px 6px rgb(115 103 240 / 0.30)",
-        "purpose": "ปุ่ม primary contained — เงาม่วงจาง."
-      }
+      { "name": "sm", "value": "0 2px 8px rgb(47 43 61 / 0.12)", "purpose": "การ์ด/dropdown ตอนพัก (buyer/Vuexy)." },
+      { "name": "md", "value": "0 3px 12px rgb(47 43 61 / 0.14)", "purpose": "การ์ด hover, แผงลอย (buyer/Vuexy)." },
+      { "name": "lg", "value": "0 4px 18px rgb(47 43 61 / 0.16)", "purpose": "modal, popover, แผงสำคัญ (buyer/Vuexy)." },
+      { "name": "primary-sm", "value": "0 2px 6px rgb(115 103 240 / 0.30)", "purpose": "ปุ่ม primary contained (buyer/Vuexy)." },
+      { "name": "paces-default", "value": "0 1px 4px rgba(130, 143, 163, 0.15)", "purpose": "ค่า --shadow ของ .card ฝั่ง seller/admin — บางกว่าฝั่ง buyer มาก." },
+      { "name": "paces-sm", "value": "0 1px 2px rgba(76, 76, 92, 0.15)", "purpose": "ยกตัวน้อยสุดฝั่ง Paces." },
+      { "name": "paces-lg", "value": "0 4px 16px rgba(76, 76, 92, 0.2)", "purpose": "modal/overlay ฝั่ง Paces." },
+      { "name": "paces-inset", "value": "inset 0 1px 2px rgba(76, 76, 92, 0.075)", "purpose": "ฟิลด์กด/พื้นยุบฝั่ง Paces." }
     ],
     "motion": [
-      {
-        "name": "ease-out-quart",
-        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
-        "purpose": "easing หลักของ state transition (ออกแบบเอ็กซ์โพเนนเชียล ไม่เด้ง)."
-      },
-      {
-        "name": "duration-fast",
-        "value": "150ms",
-        "purpose": "hover/focus, feedback ทันที."
-      },
-      {
-        "name": "duration-base",
-        "value": "200ms",
-        "purpose": "transition ทั่วไปในฝั่ง product."
-      }
+      { "name": "ease-out-quart", "value": "cubic-bezier(0.25, 1, 0.5, 1)", "purpose": "easing มาตรฐานของ state transition ทุกตัว — ออกเร็ว จบนุ่ม." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "hover/focus บนของเล็ก (ปุ่ม, chip, ลิงก์)." },
+      { "name": "duration-base", "value": "200ms", "purpose": "การ์ด, แผง, การเปลี่ยนเงา." },
+      { "name": "reduced-motion", "value": "@media (prefers-reduced-motion: reduce)", "purpose": "ต้องรองรับเสมอ (WCAG AA + กลุ่มผู้ใช้สูงวัย). ฝั่ง product (seller/admin) ไม่มี page-load choreography อยู่แล้ว." }
     ],
     "breakpoints": [
-      {
-        "name": "sm",
-        "value": "600px"
-      },
-      {
-        "name": "md",
-        "value": "900px"
-      },
-      {
-        "name": "lg",
-        "value": "1200px"
-      },
-      {
-        "name": "seller-mobile",
-        "value": "1024px"
-      },
-      {
-        "name": "xl",
-        "value": "1536px"
-      }
+      { "name": "buyer-sm", "value": "600px", "purpose": "(marketing)/** — Vuexy remap Tailwind ให้ตรงสเกล MUI." },
+      { "name": "buyer-md", "value": "900px", "purpose": "(marketing)/** — md: ฝั่งนี้ = 900px ไม่ใช่ 768px." },
+      { "name": "buyer-lg", "value": "1200px", "purpose": "(marketing)/** — จุดที่คอนเทนต์ 2 คอลัมน์ภายในหน้าแตก." },
+      { "name": "buyer-xl", "value": "1536px", "purpose": "(marketing)/**." },
+      { "name": "buyer-2xl", "value": "1920px", "purpose": "(marketing)/**." },
+      { "name": "buyer-tablet-escape", "value": "min-[768px]:", "purpose": "arbitrary variant ที่ต้องใช้เพื่อจับแท็บเล็ต 768px จริง เพราะ md: ถูก remap ไป 900 — เมนูซ้าย buyer โผล่ที่จุดนี้." },
+      { "name": "paces-sm", "value": "640px", "purpose": "(paces)/** — สเกล Tailwind มาตรฐาน ไม่ remap." },
+      { "name": "paces-md", "value": "768px", "purpose": "(paces)/** — md: ฝั่งนี้ = 768px." },
+      { "name": "paces-lg", "value": "1024px", "purpose": "(paces)/** — และเป็น breakpoint เส้นเดียวของ seller mobile shell (ต่ำกว่านี้ซ่อน sidebar+topbar)." },
+      { "name": "paces-xl", "value": "1280px", "purpose": "(paces)/**." },
+      { "name": "paces-2xl", "value": "1536px", "purpose": "(paces)/**." }
+    ],
+    "chrome": [
+      { "name": "topbar-height", "value": "65px", "purpose": "ความสูง topbar ฝั่ง Paces (--topbar-height)." },
+      { "name": "sidenav-width", "value": "245px", "purpose": "sidebar ฝั่ง Paces; condensed 200px, icon-only 75px." },
+      { "name": "spacing-base", "value": "20px", "purpose": "หน่วยฐาน gutter/padding ของ chrome ฝั่ง Paces — เหตุผลที่ padding การ์ดฝั่งนั้นเป็น 20 ไม่ใช่ 24." },
+      { "name": "mobile-gutter", "value": "16px", "purpose": "padding-inline บังคับของ .seller-mobile-shell ต่ำกว่า 1024px." },
+      { "name": "bottom-nav-clearance", "value": "calc(5rem + env(safe-area-inset-bottom))", "purpose": "พื้นที่ล่างที่ต้องเว้นให้ SellerBottomNav (fixed 64px) + safe-area iPhone." },
+      { "name": "profile-column", "value": "640px", "purpose": "max-width ของการ์ดโปรไฟล์สาธารณะคอลัมน์เดียว." }
     ]
   },
   "components": [
@@ -244,7 +189,7 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Action หลัก — ม่วงทึบ เงาม่วงจาง sentence case.",
+      "description": "Action หลักฝั่ง buyer — ม่วงทึบ เงาม่วงจาง sentence case.",
       "html": "<button class=\"ds-btn-primary\">ยืนยันรับของ</button>",
       "css": ".ds-btn-primary { background: #7367F0; color: #fff; font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.9375rem; font-weight: 500; padding: 8px 20px; border: none; border-radius: 6px; box-shadow: 0 2px 6px rgb(115 103 240 / 0.30); cursor: pointer; transition: background 150ms cubic-bezier(0.25,1,0.5,1), transform 150ms cubic-bezier(0.25,1,0.5,1); } .ds-btn-primary:hover { background: #675DD8; transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: 2px solid #7367F0; outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(0); }"
     },
@@ -265,6 +210,14 @@
       "css": ".ds-chip-verified { display: inline-flex; align-items: center; gap: 4px; background: rgb(40 199 111 / 0.16); color: #28C76F; font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.8125rem; font-weight: 500; padding: 3px 10px; border-radius: 9999px; }"
     },
     {
+      "name": "Verified Metric",
+      "kind": "custom",
+      "refersTo": "metric",
+      "description": "ตัวเลขความเชื่อใจที่ทำหน้าที่เป็นภาพ — ใช้ Verified Ink #18804A ไม่ใช่ #28C76F เพราะเป็นตัวหนังสือบนพื้นขาว.",
+      "html": "<div class=\"ds-metric\"><div class=\"ds-metric-value\">98%</div><div class=\"ds-metric-label\">อัตราความสำเร็จ</div></div>",
+      "css": ".ds-metric { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; } .ds-metric-value { font-size: 32px; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: #18804A; } .ds-metric-label { font-size: 0.8125rem; font-weight: 400; color: rgb(47 43 61 / 0.7); margin-top: 2px; }"
+    },
+    {
       "name": "Text Input",
       "kind": "input",
       "refersTo": "input",
@@ -279,27 +232,66 @@
       "description": "การ์ด Paper บนพื้น Cool Mist — เงาฟุ้งผสมหมึก ไม่มีขอบหนัก.",
       "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">ร้านน่าเชื่อถือ</div><div class=\"ds-card-body\">ยืนยันตัวตน L2 · 142 ออเดอร์สำเร็จ · ตรงเวลา 98%</div></div>",
       "css": ".ds-card { background: #fff; border-radius: 8px; padding: 24px; box-shadow: 0 2px 8px rgb(47 43 61 / 0.12); transition: box-shadow 200ms cubic-bezier(0.25,1,0.5,1); } .ds-card:hover { box-shadow: 0 3px 12px rgb(47 43 61 / 0.14); } .ds-card-title { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 1.125rem; font-weight: 500; color: #2F2B3D; margin-bottom: 6px; } .ds-card-body { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.8125rem; color: rgb(47 43 61 / 0.7); line-height: 1.54; }"
+    },
+    {
+      "name": "Paces Primary Button",
+      "kind": "button",
+      "refersTo": "paces-button-primary",
+      "description": "Action หลักฝั่ง seller/admin — น้ำเงิน Counter Blue radius 4px. โครงเดียวกับฝั่ง buyer คนละสกิน.",
+      "html": "<button class=\"ds-paces-btn-primary\">บันทึกออเดอร์</button>",
+      "css": ".ds-paces-btn-primary { background: var(--color-primary, #236dc9); color: #fff; font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; line-height: 1.5; padding: 8px 16px; border: none; border-radius: 4px; box-shadow: 0 1px 2px rgba(76,76,92,0.15); cursor: pointer; transition: background 150ms cubic-bezier(0.25,1,0.5,1); } .ds-paces-btn-primary:hover { background: var(--color-primary-hover, #1e5dab); } .ds-paces-btn-primary:focus-visible { outline: 2px solid var(--color-primary, #236dc9); outline-offset: 2px; }"
+    },
+    {
+      "name": "Paces Card",
+      "kind": "card",
+      "refersTo": "paces-card",
+      "description": "การ์ดหลังบ้าน — radius 4px, เงาบางกว่าฝั่ง buyer, และหัวการ์ดคั่นด้วย 'เส้นประ' ซึ่งเป็น signature ของ Paces (อย่าแก้เป็นเส้นทึบ).",
+      "html": "<div class=\"ds-paces-card\"><div class=\"ds-paces-card-header\"><span class=\"ds-paces-card-title\">ออเดอร์วันนี้</span><span class=\"ds-paces-status ds-paces-status--warning\">รอจัดส่ง 3</span></div><div class=\"ds-paces-card-body\">ยอดขาย ฿12,480 · 18 รายการ</div></div>",
+      "css": ".ds-paces-card { background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgba(130,143,163,0.15); overflow: hidden; } .ds-paces-card-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 20px; border-bottom: 1px dashed #e7e9eb; } .ds-paces-card-title { font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 15px; font-weight: 500; line-height: 1.5; color: #4c4c5c; } .ds-paces-card-body { padding: 20px; font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.875rem; line-height: 1.5; color: #4c4c5c; }"
+    },
+    {
+      "name": "Paces Status Chip",
+      "kind": "chip",
+      "refersTo": "paces-warning-ink",
+      "description": "สถานะฝั่งหลังบ้าน — พื้น bg-{semantic}/15 + ตัวหนังสือ text-{semantic}-ink. คู่หมึกคือสิ่งที่ทำให้ผ่าน AA บนพื้นจาง.",
+      "html": "<span class=\"ds-paces-status ds-paces-status--warning\">รอชำระ</span><span class=\"ds-paces-status ds-paces-status--success\">สำเร็จ</span><span class=\"ds-paces-status ds-paces-status--danger\">ยกเลิก</span>",
+      "css": ".ds-paces-status { display: inline-flex; align-items: center; font-family: Anuphan, 'Noto Sans Thai', system-ui, sans-serif; font-size: 0.8125rem; font-weight: 500; line-height: 1.5; padding: 2px 10px; border-radius: 9999px; margin-right: 6px; } .ds-paces-status--warning { background: rgb(249 191 89 / 0.15); color: #92400e; } .ds-paces-status--success { background: rgb(2 188 156 / 0.15); color: #065f46; } .ds-paces-status--danger { background: rgb(247 87 126 / 0.15); color: #7f1d1d; }"
     }
   ],
   "narrative": {
     "northStar": "The Trusted Counter",
-    "overview": "Deep รู้สึกเหมือนเคาน์เตอร์ร้านที่ไฟสว่าง สะอาด และเป็นมิตร ที่ทุกอย่างถูกตรวจสอบกันอย่างเปิดเผยตรงหน้า ก่อนเงินจะเปลี่ยนมือ. ความน่าเชื่อถือไม่ได้มาจากการป่าวประกาศ แต่มาจากสัญญาณจริงที่ยืนยันได้ — verified chip, ประวัติออเดอร์, completion rate, รีวิวจริง. โทนคือ fintech ที่เข้าถึงง่าย: มั่นใจแต่ไม่ข่มขู่, โมเดิร์นแต่ไม่เย็นชา. ระบบวางอยู่บนพื้นเย็นนวล (Cool Mist #F8F7FA) กับการ์ดสีขาว ขอบโค้งนุ่ม และเงาฟุ้งบางที่ผสมหมึกพลัม. ม่วงมั่นใจเป็นเสียงหลักของ action ส่วนเขียว Verified คือสีที่มีความหมายเชิงแบรนด์มากที่สุด.",
+    "overview": "Deep รู้สึกเหมือนเคาน์เตอร์ร้านที่ไฟสว่าง สะอาด และเป็นมิตร ที่ทุกอย่างถูกตรวจสอบกันอย่างเปิดเผยตรงหน้า ก่อนเงินจะเปลี่ยนมือ. ความน่าเชื่อถือไม่ได้มาจากการป่าวประกาศ แต่มาจากสัญญาณจริงที่ยืนยันได้ — verified chip, ประวัติออเดอร์, completion rate, รีวิวจริง. โทนคือ fintech ที่เข้าถึงง่าย: มั่นใจแต่ไม่ข่มขู่, โมเดิร์นแต่ไม่เย็นชา.\n\nระบบวางอยู่บนพื้นเย็นนวล (Cool Mist #F8F7FA) กับการ์ดสีขาว ขอบโค้งนุ่ม (6–8px) และเงาฟุ้งบางๆ ที่ผสมหมึกสีพลัม. ม่วงมั่นใจ (#7367F0) เป็นเสียงหลักของปุ่ม/ลิงก์/โฟกัส ส่วนเขียว Verified (#28C76F) เป็นสีที่มีความหมายเชิงแบรนด์มากที่สุด — มันคือสีของ 'เชื่อได้'. ตัวอักษร Anuphan ตัวเดียวแบกทุกบทบาทตั้งแต่ heading ถึง label โดยเล่นน้ำหนัก 400/500 เป็นหลัก.\n\nระบบนี้ปฏิเสธ: ความแข็งทื่อแบบฟอร์มธนาคาร, เทมเพลต AI-SaaS โหลๆ (ไล่สีม่วง, การ์ดตัวเลขใหญ่, กริดไอคอนเหมือนกันเป๊ะ, eyebrow ตัวพิมพ์ใหญ่จิ๋ว, gradient text), และความจัดจ้านแบบ crypto/web3 (นีออนบนดำ, อนิเมชั่นเร่งเร้า). ม่วงคือ 'accent ทึบ' ไม่ใช่ 'gradient ตกแต่ง'.\n\nDual-skin reality: buyer/landing/public ((marketing)/**, Vuexy) primary = ม่วง #7367F0; seller/admin ((paces)/**, Preline, data-skin=\"default\") primary = น้ำเงิน #236dc9. ทั้งสองใช้ Anuphan เหมือนกัน แต่คนละ palette คนละ breakpoint คนละ radius — และนั่นคือแหล่งบั๊กที่พบบ่อยที่สุดของโปรเจกต์นี้.",
     "keyCharacteristics": [
       "น่าเชื่อถือแบบอบอุ่น — credible โดยไม่เย็นชา",
       "Trust แสดงด้วยสัญญาณจริง ไม่ใช่ badge ตกแต่ง",
-      "Mobile-first, ภาษาไทยเรียบง่าย, tap target ≥44px",
+      "Mobile-first, ภาษาไทยเรียบง่าย, tap target ใหญ่ (≥44px)",
       "ม่วงเป็น accent ทึบ ≤ ~10% ของจอ; เขียว Verified สื่อความเชื่อใจ",
       "ขอบโค้งนุ่ม, เงาฟุ้งบาง, ฟอนต์เดียว Anuphan ทุก surface"
     ],
     "rules": [
       {
         "name": "The One Voice Rule",
-        "body": "Confident Violet ปรากฏ ≤ ~10% ของพื้นที่จอใดๆ — มันคือ accent ของ action ไม่ใช่ของตกแต่ง.",
+        "body": "Confident Violet ปรากฏ ≤ ~10% ของพื้นที่จอใดๆ — มันคือ accent ของ action ไม่ใช่ของตกแต่ง. ความหายากคือพลังของมัน.",
         "section": "colors"
       },
       {
         "name": "The Verified-Means-Green Rule",
-        "body": "เขียว #28C76F สงวนไว้สำหรับความเชื่อใจที่ยืนยันแล้วเท่านั้น (verified/สำเร็จ/ผ่าน). ห้ามใช้กับสถานะที่ยังไม่ยืนยัน.",
+        "body": "เขียว #28C76F สงวนไว้สำหรับความเชื่อใจที่ยืนยันแล้วเท่านั้น (verified/สำเร็จ/ผ่าน). ห้ามใช้กับสถานะที่ยังไม่ยืนยัน มิฉะนั้นสัญญาณความเชื่อใจจะเฟ้อและไร้ความหมาย.",
+        "section": "colors"
+      },
+      {
+        "name": "สองโทน: สีเป็นพื้น vs สีเป็นหมึก",
+        "body": "#28C76F เป็นสีพื้น (chip, badge, แถบสถานะ); ตัวหนังสือสีเขียวบนพื้นขาวต้องใช้ Verified Ink #18804A เสมอ (2.21:1 → 4.97:1). หลักเดียวกันขยายเป็นตระกูล --color-{semantic}-ink ฝั่ง Paces สำหรับตัวหนังสือบนพื้น {semantic}/15.",
+        "section": "colors"
+      },
+      {
+        "name": "The Hue-Preserving Contrast Rule",
+        "body": "แก้คอนทราสต์ปรับได้แค่ความเข้มของสีเดิม ห้ามสลับเฉด. ไอคอนที่ 'สี = ตัวตน' (ดาวปักหมุด, โลโก้ช่องทาง) ไม่อยู่ใต้กฎคอนทราสต์ของข้อความ. ก่อนใช้ token สีใหม่ให้ grep theme/ ก่อนเสมอว่ามันมีอยู่จริง.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two-Skin Palette Rule",
+        "body": "buyer/landing = Vuexy (primary ม่วง #7367F0); seller/admin (paces)/** = Paces (primary น้ำเงิน #236dc9, danger #f7577e). ห้าม hardcode ม่วง Vuexy ในหน้า (paces)/** — ใช้ token bg-primary/text-primary. palette paces-* อยู่ใน sidecar เพราะเดิมรู้จักแต่ Vuexy ทำให้ทุกไฟล์หลังบ้านถูกแจ้งว่าสีหลุด design system ทั้งที่ใช้ token ถูกต้องตาม Hard Rule 7.",
         "section": "colors"
       },
       {
@@ -313,33 +305,64 @@
         "section": "typography"
       },
       {
+        "name": "The No-Mono-On-Thai Rule",
+        "body": "font-mono ฆ่า Anuphan — glyph ไทยตกไป fallback ที่ไม่มีในตระกูล. ใช้ monospace เฉพาะ code block จริง. อยากได้ตัวเลขเรียงคอลัมน์ให้ใช้ tabular-nums ไม่ใช่เปลี่ยน family.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two-Breakpoint-Systems Rule",
+        "body": "md: = 900px บน buyer และ 768px บน seller/admin. ห้ามยกคลาส responsive ข้ามเส้น (marketing) ↔ (paces) โดยไม่คิดเลขใหม่ — มัน compile ผ่าน ดูถูกในเครื่อง และพังเฉพาะบางความกว้าง. จะจับ 768px จริงบน buyer ต้องใช้ min-[768px]:.",
+        "section": "layout"
+      },
+      {
+        "name": "The Symmetric Gutter Rule",
+        "body": "padding-inline ของหน้าต้องสมมาตรเสมอ. อาการ 'ดูชิดขอบ' เกือบทุกครั้งมาจาก asymmetry ไม่ใช่ค่าน้อยไป — วิธีแก้คือลบตัวที่ผิด ไม่ใช่เติม gutter ใหม่ทับ.",
+        "section": "layout"
+      },
+      {
         "name": "The Ink-Tinted Shadow Rule",
-        "body": "เงาทุกตัวผสมหมึกพลัม rgb(47 43 61) ไม่ใช่ดำสนิท.",
+        "body": "เงาทุกตัวผสมหมึกพลัม rgb(47 43 61) ไม่ใช่ดำสนิท. ถ้าเงาดูเทา-ดำตัดกับพื้น = ผิด.",
         "section": "elevation"
       },
       {
         "name": "The Flat-At-Rest Rule",
-        "body": "พื้นผิวแบนตอนพัก เงาเพิ่มเป็นการตอบสนองต่อ state.",
+        "body": "พื้นผิวแบนตอนพัก เงาเพิ่มเป็นการตอบสนองต่อ state (hover/focus/elevation) ไม่ใช่ของตกแต่งถาวร.",
         "section": "elevation"
       },
-      "โปรเจกต์นี้มี 2 skin: buyer/landing = Vuexy (primary ม่วง #7367F0), seller/admin `(paces)/**` = Paces (primary น้ำเงิน #236dc9, danger #f7577e). palette `paces-*` ถูกเพิ่มเข้ามา 2026-07-31 เพราะเดิม sidecar รู้จักแต่ Vuexy ทำให้ทุกไฟล์หลังบ้านถูกแจ้งว่าสีหลุด design system ทั้งที่ใช้ token ถูกต้องตาม Hard Rule 7"
+      {
+        "name": "The Dashed Card-Header Rule",
+        "body": "หัวการ์ดใน (paces)/** คั่นด้วยเส้นประ 1px border-default-300 เสมอ — ไม่ใช่เส้นทึบ. มันคือสิ่งที่ทำให้หลังบ้านอ่านว่าเป็น Paces แท้ อย่าไปแก้เป็นทึบ.",
+        "section": "shapes"
+      },
+      {
+        "name": "The One-Pixel Border Rule",
+        "body": "ขอบทุกเส้น 1px. ขอบข้างที่หนากว่านั้นมีทางเดียวคือ border-s-3 border-{semantic} ซึ่งเป็นข้อยกเว้นที่ขึ้นทะเบียนแล้วและใช้ได้เฉพาะ (paces)/**.",
+        "section": "shapes"
+      }
     ],
     "dos": [
       "Do ใช้ Confident Violet #7367F0 เป็นสีทึบสำหรับ action/ลิงก์/โฟกัส ≤ ~10% ของจอ.",
-      "Do สงวน Verified Green #28C76F ไว้กับความเชื่อใจที่ยืนยันแล้วเท่านั้น.",
-      "Do ใช้ Anuphan ทุก element; ลำดับชั้นด้วย scale + น้ำหนัก 400/500.",
+      "Do สงวน Verified Green #28C76F ไว้กับความเชื่อใจที่ยืนยันแล้วเท่านั้น (verified/สำเร็จ/ผ่าน).",
+      "Do ใช้ Anuphan ทุก element ทุก surface; ลำดับชั้นด้วย scale + น้ำหนัก 400/500.",
       "Do ใช้ขอบมน 6–8px, เงาฟุ้งผสมหมึกพลัม, พื้น Cool Mist + การ์ด Paper.",
-      "Do ใช้ sentence case และ label แบบ กริยา+กรรม.",
-      "Do ผ่าน WCAG 2.1 AA: contrast ≥4.5:1, focus ชัด, tap target ≥44px, รองรับ prefers-reduced-motion."
+      "Do ใช้ sentence case กับปุ่ม/label; เขียน label เป็น กริยา+กรรม (เช่น \"ยืนยันรับของ\" ไม่ใช่ \"ตกลง\").",
+      "Do ผ่าน WCAG 2.1 AA: body contrast ≥4.5:1, focus state ชัด, tap target ≥44px, รองรับ prefers-reduced-motion, ค่า default ขนาด/spacing ใหญ่หน่อยเพื่อกลุ่ม digital-literacy ต่ำ/ผู้สูงวัย.",
+      "Do เช็กว่าอยู่สกินไหนก่อนเขียน responsive class — md: คนละเลขสองฝั่ง.",
+      "Do ใช้ icon จริงจาก @iconify/react (ชื่อ tabler) ทุกจุดที่อยากได้สัญลักษณ์."
     ],
     "donts": [
-      "Don't ทำแบบเทมเพลต AI-SaaS โหลๆ: ไล่สีม่วง gradient ตกแต่ง, hero-metric template, กริดไอคอนเหมือนกันเป๊ะ, eyebrow ตัวพิมพ์ใหญ่จิ๋ว, gradient text.",
-      "Don't ทำให้ดูองค์กร/ธนาคารเย็นชา: ดำสนิท, ฟอร์มแข็งทื่อ, ไร้ความอบอุ่น.",
-      "Don't ทำแบบ crypto/web3 จัดจ้าน: นีออนบนดำ, ไล่สีรุนแรง, copy ไฮป์.",
-      "Don't ใช้ border-left/right >1px เป็นแถบสีตกแต่ง.",
-      "Don't ใช้เขียวกับสถานะที่ยังไม่ยืนยัน.",
+      "Don't ทำหน้าตาแบบเทมเพลต AI-SaaS โหลๆ: ไล่สีม่วง gradient ตกแต่ง, การ์ดตัวเลขใหญ่ (hero-metric template), กริดไอคอน+หัว+ข้อความเหมือนกันเป๊ะซ้ำๆ, eyebrow ตัวพิมพ์ใหญ่จิ๋วเหนือทุก section, gradient text.",
+      "Don't ทำให้ดูองค์กร/ธนาคารเย็นชา: ดำสนิท, ฟอร์มแข็งทื่อเหมือนเอกสารราชการ, ไร้ความอบอุ่น.",
+      "Don't ทำแบบ crypto/web3 จัดจ้าน: นีออนบนดำ, ไล่สีรุนแรง, copy ไฮป์, อนิเมชั่นเร่งเร้า.",
+      "Don't ใช้ border-left/border-right >1px เป็นแถบสีตกแต่งบนการ์ด/alert/list. ข้อยกเว้นที่ยอมรับ: border-s-3 border-{semantic} ยกเว้นให้เฉพาะ (paces)/** (seller/admin) — ไม่ถือเป็น finding (Impeccable audit 2026-07-22, user decision). buyer/Vuexy (marketing)/** ยังห้ามตามเดิม.",
+      "Don't ใช้เขียวกับสถานะที่ยังไม่ยืนยัน — สัญญาณ trust จะเฟ้อ.",
       "Don't ซ้อนการ์ดในการ์ด, ใช้ดำ #000, หรือ hardcode ฟอนต์อื่นนอกจาก Anuphan.",
-      "Don't ใช้ ALL CAPS กับข้อความไทย หรือ placeholder ที่ตก contrast."
+      "Don't ใช้ ALL CAPS กับข้อความไทย หรือ placeholder เทาจางที่ตก contrast.",
+      "Don't ใส่ choreography page-load ในฝั่ง product (seller/admin) — โหลดเข้างานทันที.",
+      "Don't ใช้ emoji เป็น icon ที่ไหนก็ตามใน UI — รวมตัวที่ 'ดูเหมือน icon'. จุดที่ควรมี icon แต่สเปกไม่ระบุตัว ให้ถามก่อน ห้ามเดา.",
+      "Don't hardcode ม่วง #7367F0 หรือ rgba(115,103,240,*) ในหน้า (paces)/** — ใช้ token bg-primary/text-primary.",
+      "Don't ใช้ arbitrary value ใน (paces)/** (text-[NNpx], bg-[rgba()], shadow-[], rounded-[Npx], hex ดิบ) — ประกอบจาก primitive. ถ้าจำเป็นจริงให้เขียน comment กำกับ.",
+      "Don't สลับเฉดสีตอนแก้คอนทราสต์ — ปรับได้แค่ความเข้ม."
     ]
   }
 }

@@ -162,7 +162,7 @@ export default function ShipForm({
 
       {(alwaysOpen || showShipForm) && (
         // ไม่ใส่ bg-card/border/rounded — ฟอร์มนี้อยู่ใน card-body ของ StatusHero/ShipmentEntryModal อยู่แล้ว
-        // การ์ดซ้อนการ์ดผิด DESIGN.md §6; ผู้เรียกห่อ border-t/card-body ให้ด้านนอกแล้ว
+        // การ์ดซ้อนการ์ดผิด DESIGN.md §8 "Do's and Don'ts"; ผู้เรียกห่อ border-t/card-body ให้ด้านนอกแล้ว
         <form onSubmit={handleSubmit(handleShip)} className={alwaysOpen ? 'flex flex-col gap-3' : 'flex flex-col gap-3 pt-3'}>
           {!alwaysOpen && <p className="text-sm font-semibold text-default-800 mb-0">ข้อมูลการจัดส่ง</p>}
 

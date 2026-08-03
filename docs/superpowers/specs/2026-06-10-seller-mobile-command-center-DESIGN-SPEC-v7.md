@@ -208,4 +208,4 @@
 - **D5** 5-way color ทุกสีอยู่ใน DESIGN.md palette (ห้ามสีนอกระบบ)
 - **D6** empty state guided ลด onboarding friction
 - **D7** stacked stat node อ่านเลขง่ายขึ้น
-- **D8** ไม่เพิ่ม page-load animation (DESIGN.md §6: product side ไม่ใส่ choreography)
+- **D8** ไม่เพิ่ม page-load animation (DESIGN.md §8 "Do's and Don'ts": product side ไม่ใส่ choreography)
