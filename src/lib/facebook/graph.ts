@@ -10,6 +10,11 @@ export class GraphApiError extends Error {
     readonly code: number | null,
     readonly subcode: number | null,
     readonly httpStatus: number,
+    /** error object ดิบทั้งก้อนที่ Meta ตอบมา (2026-08-03) — เก็บลง ChatMessage.rawMessage ตอนส่งไม่ผ่าน
+     *  code/subcode ที่แกะไว้ข้างบนไม่พอตอนสืบจริง: ของที่ต้องใช้บ่อยคือ `fbtrace_id` (ใช้แจ้ง Meta),
+     *  `error_user_title`/`error_user_msg` (ข้อความที่ Meta ตั้งใจให้แสดงผู้ใช้) และ `type`
+     *  ไม่มี token ปนอยู่ในนี้ — เป็น error body ฝั่งตอบกลับล้วน */
+    readonly raw?: unknown,
   ) {
     super(message)
     this.name = 'GraphApiError'
@@ -41,6 +46,7 @@ async function graphFetch(
       err.code ?? null,
       err.error_subcode ?? null,
       res.status,
+      json.error ?? json,
     )
   }
   return json

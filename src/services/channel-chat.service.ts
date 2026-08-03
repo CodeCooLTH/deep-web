@@ -60,7 +60,12 @@ export type SendFailedError = Error & { savedMessage?: Omit<ChatMessage, 'rawMes
  *
  * ไม่ throw เด็ดขาด: การเก็บ log ห้ามทำให้ข้อความของลูกค้าหายไปทั้งข้อความ
  */
-function toRawMessage(provider: string, payload: unknown, source: 'webhook' | 'graph-backfill' = 'webhook'): Prisma.InputJsonValue | undefined {
+function toRawMessage(
+  provider: string,
+  payload: unknown,
+  // 'outbound-response' = ขาออก ไม่มี payload ที่ได้รับ เก็บสิ่งที่ Meta ตอบกลับตอนเรายิงไปแทน
+  source: 'webhook' | 'graph-backfill' | 'outbound-response' = 'webhook',
+): Prisma.InputJsonValue | undefined {
   try {
     // ผ่าน JSON round-trip ก่อน — ตัด undefined/ฟังก์ชัน/ค่าที่ Prisma รับไม่ได้ออกให้หมด
     // และเป็นการยืนยันว่า serialize ได้จริงก่อนส่งเข้า DB
@@ -1129,6 +1134,8 @@ export async function sendOutboundMessage(params: {
 
   let mid: string | null = null
   let failureReason: string | null = null
+  /** สิ่งที่ Meta ตอบกลับตอนเรายิงไป — ลง ChatMessage.rawMessage (source: 'outbound-response') */
+  let outboundResponse: unknown = null
   try {
     // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
     // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
@@ -1179,10 +1186,28 @@ export async function sendOutboundMessage(params: {
     }
     if (!mid) {
       failureReason = e instanceof Error ? e.message : 'ส่งข้อความไม่สำเร็จ'
+      // เก็บ error ดิบของ Meta ไว้สืบ (2026-08-03, user สั่ง) — `failureReason` เป็นสตริงเดียว
+      // ซึ่งไม่พอตอนเจอ error แปลก ๆ อย่าง #551: ที่ต้องใช้จริงคือ fbtrace_id (ไว้แจ้ง Meta),
+      // error_subcode และ error_user_msg ที่อยู่ใน body เต็มเท่านั้น
+      if (e instanceof GraphApiError) {
+        outboundResponse = { ok: false, httpStatus: e.httpStatus, code: e.code, subcode: e.subcode, error: e.raw }
+      } else {
+        outboundResponse = { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
       // code 190 = token ใช้ไม่ได้แล้ว (เจ้าของถอนสิทธิ์/เปลี่ยนรหัส) — ต้องให้ร้านเชื่อมใหม่
       if (e instanceof GraphApiError && e.code === 190) {
         await markChannelTokenInvalid(conversation.shopChannel.id)
       }
+    }
+  }
+  // ขาออกไม่มี "payload ที่ได้รับ" แบบขาเข้า — สิ่งที่มีค่าเทียบเท่าคือสิ่งที่ Meta ตอบกลับตอนเรายิงไป
+  if (mid) {
+    outboundResponse = {
+      ok: true,
+      mid,
+      messageTag: messageTag ?? null,
+      attachmentKind: attachment?.kind ?? null,
+      replyToMid: params.replyToMid ?? null,
     }
   }
 
@@ -1224,6 +1249,9 @@ export async function sendOutboundMessage(params: {
           failureReason,
           // feature 00023 — null = คนส่ง (พฤติกรรมเดิมทุก caller ที่ไม่ส่งค่านี้มา)
           autoReplyKind: params.autoReplyKind ?? null,
+          // ขาออก: เก็บ "สิ่งที่ Meta ตอบกลับ" แทน "payload ที่ได้รับ" (2026-08-03)
+          // อ่านไม่ได้จาก query ปกติ — global omit ที่ lib/prisma.ts
+          rawMessage: toRawMessage(conversation.channel, outboundResponse, 'outbound-response'),
         },
       })
 
