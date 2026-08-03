@@ -68,42 +68,71 @@ export default function CommentsClient({ initialPosts }: { initialPosts: Comment
   const [emojiOpen, setEmojiOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const refreshPosts = useCallback(async (keyword: string) => {
+    try {
+      const res = await fetch(
+        `/api/chat/comments/posts${keyword.trim() ? `?q=${encodeURIComponent(keyword.trim())}` : ''}`,
+      )
+      if (!res.ok) return
+      const data = (await res.json()) as { items: CommentPostItem[] }
+      setPosts(data.items)
+    } catch {
+      // โหลดไม่สำเร็จ = คงรายการเดิมไว้ ไม่ต้องรบกวนผู้ใช้
+    }
+  }, [])
+
   // ค้นหา (BRD Q-3) — ยิงที่ server เพราะต้องค้นในคอมเมนต์ ไม่ใช่แค่โพสต์ที่โหลดมาแล้ว
   useEffect(() => {
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/chat/comments/posts${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`)
-        if (!res.ok) return
-        const data = (await res.json()) as { items: CommentPostItem[] }
-        setPosts(data.items)
-      } catch {
-        // ค้นหาไม่สำเร็จ = คงรายการเดิมไว้ ไม่ต้องรบกวนผู้ใช้
-      }
-    }, 350)
+    const t = setTimeout(() => void refreshPosts(q), 350)
     return () => clearTimeout(t)
-  }, [q])
+  }, [q, refreshPosts])
 
-  const loadThread = useCallback(async (postId: string) => {
-    setLoadingThread(true)
-    setReplyTo(null)
+  const loadThread = useCallback(async (postId: string, opts?: { silent?: boolean }) => {
+    // silent = รอบ poll: ห้ามโชว์ spinner, ห้ามล้างคอมเมนต์ที่กำลังจะตอบ, ห้าม toast รบกวน
+    if (!opts?.silent) {
+      setLoadingThread(true)
+      setReplyTo(null)
+    }
     try {
       const res = await fetch(`/api/chat/comments/posts/${postId}`)
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null
-        pacesToast.error(body?.error ?? 'โหลดความคิดเห็นไม่สำเร็จ')
+        if (!opts?.silent) {
+          const body = (await res.json().catch(() => null)) as { error?: string } | null
+          pacesToast.error(body?.error ?? 'โหลดความคิดเห็นไม่สำเร็จ')
+        }
         return
       }
       setThread((await res.json()) as ThreadData)
     } catch {
-      pacesToast.error('โหลดความคิดเห็นไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+      if (!opts?.silent) pacesToast.error('โหลดความคิดเห็นไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
     } finally {
-      setLoadingThread(false)
+      if (!opts?.silent) setLoadingThread(false)
     }
   }, [])
 
   useEffect(() => {
     if (selectedId) void loadThread(selectedId)
   }, [selectedId, loadThread])
+
+  /**
+   * ของใหม่เข้ามาเองทุก 15 วินาที (user report 2026-08-03 "ลองทักแล้วมันไม่ขึ้นใน tab ความคิดเห็น")
+   *
+   * ทำไม poll ไม่ใช่ realtime แบบแชท: ฝั่งแชทได้ broadcast มาจาก DB trigger บนตาราง ChatMessage
+   * (migration 20260703000400) ซึ่งตาราง PageComment ยังไม่มี — จะทำให้เหมือนกันต้องเพิ่ม trigger
+   * = migration บนฐานที่แชร์กับ prod. คอมเมนต์ไม่ได้ถี่เท่าแชทและไม่ต้องตอบภายในวินาที
+   * 15 วินาทีจึงพอสำหรับ v1 แล้วค่อยยกไป realtime จริงพร้อมกับตอนทำ trigger
+   *
+   * หยุดเมื่อแท็บไม่ได้อยู่หน้าจอ — ไม่มีใครดูอยู่ก็ไม่ต้องยิง
+   */
+  useEffect(() => {
+    const tick = () => {
+      if (document.hidden) return
+      void refreshPosts(q)
+      if (selectedId) void loadThread(selectedId, { silent: true })
+    }
+    const timer = setInterval(tick, 15_000)
+    return () => clearInterval(timer)
+  }, [q, selectedId, refreshPosts, loadThread])
 
   /** คอมเมนต์ระดับบน + ลูกของแต่ละอัน (BR-13) */
   const tree = useMemo(() => {
