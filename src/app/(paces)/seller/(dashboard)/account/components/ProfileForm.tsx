@@ -454,7 +454,7 @@ export default function ProfileForm({ user }: Props) {
           <button
             type="submit"
             disabled={saveBlocked}
-            className="btn bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
+            className="btn bg-primary text-white hover:bg-primary-hover min-h-11 disabled:opacity-50"
           >
             {saving ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
           </button>

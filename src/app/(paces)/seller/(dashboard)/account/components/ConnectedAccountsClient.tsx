@@ -399,7 +399,7 @@ export function ConnectedAccountsClient({
       <p className="text-default-500 text-sm mb-4">
         ตั้งรหัสผ่านหรือเชื่อมบัญชี Social เพื่อให้เข้าสู่ระบบได้หลายวิธี
         {!hasPassword && (
-          <span className="text-warning mt-1 block text-xs">
+          <span className="text-warning-ink mt-1 block text-xs">
             บัญชีนี้ยังไม่มีรหัสผ่าน — ต้องเหลือวิธีเข้าสู่ระบบอย่างน้อย 1 ทางเสมอ
           </span>
         )}
