@@ -493,3 +493,52 @@ export async function replyToComment(params: {
 
   return { id: created.id }
 }
+
+/**
+ * เขียนคอมเมนต์ระดับบนบนโพสต์ในนามเพจ (user สั่ง 2026-08-03: แถบล่างของหน้าควรเป็นช่องคอมเมนต์
+ * ของโพสต์ ไม่ใช่ข้อความบอกวิธีใช้ — เหมือนแถบ "Comment as <เพจ>" ของ Business Suite)
+ *
+ * ใช้ endpoint เดียวกับการตอบคอมเมนต์ (`POST /{object-id}/comments`) ต่างกันแค่ object-id เป็น
+ * post id แทน comment id — Graph รับทั้งสองแบบที่ edge เดียวกัน
+ */
+export async function commentOnPost(params: {
+  postId: string
+  message: string
+  actorUserId: string
+  fileId?: string | null
+}): Promise<{ id: string }> {
+  const post = await prisma.facebookPost.findUnique({
+    where: { id: params.postId },
+    include: { channel: { select: { shopId: true } } },
+  })
+  if (!post) throw new Error('POST_NOT_FOUND')
+  if (!(await canAccessShop(post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+
+  const auth = await resolveChannelToken(post.shopChannelId)
+  if (!auth) throw new Error('CHANNEL_INACTIVE')
+
+  const attachmentUrl = params.fileId
+    ? await getFileUrl(params.fileId, { signed: true, expiresIn: 3600 })
+    : null
+  const newId = await createCommentReply(post.externalPostId, auth.token, params.message, attachmentUrl)
+
+  const created = await prisma.pageComment.upsert({
+    where: { externalCommentId: newId || `local-${post.externalPostId}-${Date.now()}` },
+    create: {
+      postId: post.id,
+      shopChannelId: post.shopChannelId,
+      externalCommentId: newId,
+      parentExternalId: null, // คอมเมนต์ระดับบน ไม่ใช่คำตอบของใคร
+      fromExternalId: auth.pageId,
+      isFromPage: true,
+      message: params.message || null,
+      attachmentUrl: params.fileId ? `/api/files/${params.fileId}` : null,
+      createdTime: new Date(),
+      repliedByUserId: params.actorUserId,
+    },
+    update: { message: params.message || null, repliedByUserId: params.actorUserId },
+  })
+
+  await prisma.facebookPost.update({ where: { id: post.id }, data: { lastCommentAt: new Date() } })
+  return { id: created.id }
+}

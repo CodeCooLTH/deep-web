@@ -223,23 +223,28 @@ export default function CommentsClient({
 
   async function submitReply() {
     // เอกสาร Meta: ต้องมีอย่างน้อย message หรือ attachment — รูปอย่างเดียวส่งได้
-    if (!replyTo || (!replyText.trim() && !pendingFile) || sending) return
+    if ((!replyText.trim() && !pendingFile) || sending || !selectedId) return
     setSending(true)
     try {
-      const res = await fetch(`/api/chat/comments/${replyTo.id}/reply`, {
+      // ไม่ได้เลือกคอมเมนต์ = คอมเมนต์ "โพสต์" (แถบล่างแบบ Comment as <เพจ> ของ Business Suite)
+      // เลือกไว้ = ตอบคอมเมนต์นั้น — คนละ endpoint คนละความหมาย
+      const url = replyTo
+        ? `/api/chat/comments/${replyTo.id}/reply`
+        : `/api/chat/comments/posts/${selectedId}/comment`
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ message: replyText.trim(), fileId: pendingFile?.fileId ?? null }),
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null
-        pacesToast.error(body?.error ?? 'ตอบความคิดเห็นไม่สำเร็จ')
+        pacesToast.error(body?.error ?? (replyTo ? 'ตอบความคิดเห็นไม่สำเร็จ' : 'คอมเมนต์ไม่สำเร็จ'))
         return
       }
       setReplyText('')
       setPendingFile(null)
+      pacesToast.success(replyTo ? 'ตอบความคิดเห็นแล้ว' : 'คอมเมนต์แล้ว')
       setReplyTo(null)
-      pacesToast.success('ตอบความคิดเห็นแล้ว')
       if (selectedId) await loadThread(selectedId)
     } catch {
       pacesToast.error('ตอบความคิดเห็นไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
@@ -391,8 +396,12 @@ export default function CommentsClient({
                 รูป/วิดีโอปก → ข้อความโพสต์ → แถวยอด ไลก์ · ความคิดเห็น · แชร์
                 วิดีโอเล่นในหน้าเราไม่ได้ (URL วิดีโอของ Meta เป็น signed URL อายุสั้น + ไม่มีสิทธิ์
                 อ่านไฟล์) จึงเป็นรูปปก + ปุ่มเล่นที่พาไปเปิดของจริงบน Facebook */}
+            {/* คอลัมน์กลางความกว้างจำกัด (user report 2026-08-03 พร้อมภาพเทียบ Business Suite:
+                "ขนาดของ video เล็กเกินไป และคอมเม้นชิดซ้ายไม่อยู่ตรงกลาง ทำให้ไปคนละทิศทาง")
+                — ของเดิมยืดเต็มจอ: ข้อความชิดซ้าย รูปลอยกลาง คอมเมนต์ชิดซ้าย = 3 แกนคนละที่
+                Business Suite วางทุกอย่างในคอลัมน์เดียวกลางจอ โพสต์กับคอมเมนต์จึงอ่านต่อเนื่องกัน */}
             <div className="border-default-200 border-b">
-              <div className="flex items-start gap-3 p-3">
+              <div className="mx-auto flex w-full max-w-2xl items-start gap-3 p-3">
                 <button
                   type="button"
                   onClick={() => setSelectedId(null)}
@@ -424,11 +433,13 @@ export default function CommentsClient({
                   href={selectedPost.permalink ?? '#'}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-default-100 relative block"
+                  className="bg-default-100 relative mx-auto block w-full max-w-2xl"
                   aria-label={isVideoPost(selectedPost.mediaType) ? 'เล่นวิดีโอบน Facebook' : 'เปิดโพสต์บน Facebook'}
                 >
+                  {/* สูงได้ถึง max-h-125 (500px) และกว้างเต็มคอลัมน์ — ของเดิม max-h-72 บนพื้นกว้าง
+                      ทำให้วิดีโอแนวตั้งเหลือรูปจิ๋วกลางแถบว่าง */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={selectedPost.thumbnailUrl} alt="" className="max-h-72 w-full object-contain" />
+                  <img src={selectedPost.thumbnailUrl} alt="" className="max-h-125 w-full object-contain" />
                   {isVideoPost(selectedPost.mediaType) && (
                     <span className="absolute inset-0 flex items-center justify-center">
                       <span className="flex size-14 items-center justify-center rounded-full bg-black/55 text-white">
@@ -439,7 +450,7 @@ export default function CommentsClient({
                 </a>
               )}
 
-              <div className="text-default-700 flex flex-wrap items-center gap-4 px-3 py-2 text-xs">
+              <div className="text-default-700 mx-auto flex w-full max-w-2xl flex-wrap items-center gap-4 px-3 py-2 text-xs">
                 <span className="flex items-center gap-1">
                   <Icon icon="thumb-up" className="text-sm" />
                   {selectedPost.reactionCount ?? '–'}
@@ -458,7 +469,8 @@ export default function CommentsClient({
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <div className="mx-auto w-full max-w-2xl p-3">
               {loadingThread && !thread ? (
                 <p className="text-default-700 text-center text-sm">กำลังโหลด...</p>
               ) : tree.length === 0 ? (
@@ -478,21 +490,28 @@ export default function CommentsClient({
                   </div>
                 ))
               )}
+              </div>
             </div>
 
             {/* ── ช่องตอบ ─────────────────────────────────────── */}
-            <div className="border-default-200 border-t p-3">
-              {replyTo ? (
-                <>
+            <div className="border-default-200 border-t">
+              <div className="mx-auto w-full max-w-2xl p-3">
+              {replyTo && (
                   <div className="text-default-700 mb-2 flex items-center gap-2 text-xs">
                     <Icon icon="corner-down-right" />
                     <span className="min-w-0 flex-1 truncate">
                       ตอบ {replyTo.fromName ?? 'ความคิดเห็น'}: {replyTo.message ?? '(ไม่มีข้อความ)'}
                     </span>
-                    <button type="button" onClick={() => setReplyTo(null)} aria-label="ยกเลิกการตอบ">
+                    <button
+                      type="button"
+                      onClick={() => setReplyTo(null)}
+                      aria-label="ยกเลิกการตอบ"
+                      className="hover:bg-default-100 flex size-11 shrink-0 items-center justify-center rounded-lg"
+                    >
                       <Icon icon="x" />
                     </button>
                   </div>
+              )}
                   {/* BR-23: เตือนถาวร ไม่ใช่ toast ที่หายไป — คอมเมนต์เป็นข้อความสาธารณะ */}
                   <p className="text-warning mb-2 flex items-center gap-1.5 text-xs">
                     <Icon icon="alert-triangle" className="shrink-0" />
@@ -546,7 +565,11 @@ export default function CommentsClient({
                     <textarea
                       rows={2}
                       className="form-textarea grow"
-                      placeholder="พิมพ์คำตอบสาธารณะ..."
+                      placeholder={
+                        replyTo
+                          ? 'พิมพ์คำตอบสาธารณะ...'
+                          : `แสดงความคิดเห็นในนาม ${thread?.channel.name ?? 'เพจ'}...`
+                      }
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                       disabled={sending}
@@ -555,17 +578,12 @@ export default function CommentsClient({
                       type="button"
                       onClick={submitReply}
                       disabled={sending || (!replyText.trim() && !pendingFile)}
-                      className="btn bg-primary hover:bg-primary-hover shrink-0 text-white disabled:opacity-60"
+                      className="btn bg-primary hover:bg-primary-hover min-h-11 shrink-0 text-white disabled:opacity-60"
                     >
-                      ตอบ <Icon icon="send-2" className="ms-1 text-xl" />
+                      {replyTo ? 'ตอบ' : 'คอมเมนต์'} <Icon icon="send-2" className="ms-1 text-xl" />
                     </button>
                   </div>
-                </>
-              ) : (
-                <p className="text-default-700 mb-0 text-center text-xs">
-                  เลือก &quot;ตอบ&quot; ที่ความคิดเห็นเพื่อพิมพ์คำตอบ
-                </p>
-              )}
+              </div>
             </div>
           </>
         )}
