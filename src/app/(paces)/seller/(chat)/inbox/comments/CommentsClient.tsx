@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { formatTimeHM, formatDateTimeTH } from '@/lib/format-date'
+import { formatTimeHM, formatDateTimeTH, formatChatListTime } from '@/lib/format-date'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
@@ -36,6 +36,7 @@ export type CommentPostItem = {
   commentCount: number
   unansweredCount: number
   lastCommenterName: string | null
+  lastCommentText: string | null
   mediaType: string | null
   reactionCount: number | null
   fbCommentCount: number | null
@@ -91,7 +92,9 @@ export default function CommentsClient({
   const [q, setQ] = useState('')
   // null = ทุกเพจ; ตัวกรองอยู่ที่ server เหมือนแท็บข้อความ ไม่ใช่กรองเฉพาะที่โหลดมาแล้ว
   const [channelId, setChannelId] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(initialPosts[0]?.id ?? null)
+  // เริ่มที่ null เสมอ — มือถือต้องเห็น "รายการ" ก่อน ไม่ใช่ถูกโยนเข้าโพสต์ใดโพสต์หนึ่ง
+  // (critique P0) เดสก์ท็อปมี 2 คอลัมน์อยู่แล้ว จึง auto-select ให้เฉพาะ ≥1024px
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [thread, setThread] = useState<ThreadData | null>(null)
   const [loadingThread, setLoadingThread] = useState(false)
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null)
@@ -151,6 +154,14 @@ export default function CommentsClient({
   useEffect(() => {
     if (selectedId) void loadThread(selectedId)
   }, [selectedId, loadThread])
+
+  // เดสก์ท็อปเลือกโพสต์แรกให้ (คอลัมน์ขวาว่างเปล่าดูเหมือนหน้าพัง) — มือถือปล่อยให้เห็นรายการ
+  useEffect(() => {
+    if (selectedId || posts.length === 0) return
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+      setSelectedId(posts[0].id)
+    }
+  }, [posts, selectedId])
 
   /**
    * ของใหม่เข้ามาเองทุก 15 วินาที (user report 2026-08-03 "ลองทักแล้วมันไม่ขึ้นใน tab ความคิดเห็น")
@@ -301,6 +312,7 @@ export default function CommentsClient({
             <input
               type="search"
               className="form-input"
+              aria-label="ค้นหาความคิดเห็นหรือชื่อผู้คอมเมนต์"
               placeholder="ค้นหาความคิดเห็นหรือชื่อผู้คอมเมนต์"
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -311,12 +323,37 @@ export default function CommentsClient({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {posts.length === 0 ? (
             <div className="p-4">
-              <SellerEmptyState
-                compact
-                icon="message-circle"
-                title="ยังไม่มีความคิดเห็น"
-                description="เมื่อมีคนคอมเมนต์ใต้โพสต์ของเพจ จะแสดงที่นี่"
-              />
+              {/* แยกกรณี "ค้นหาไม่เจอ" ออกจาก "ยังไม่มีเลย" — ของเดิมบอกว่าไม่มีความคิดเห็น
+                  ทั้งที่กรองอยู่ ทำให้เข้าใจผิดว่าระบบพัง (critique P1) */}
+              {q.trim() || channelId ? (
+                <SellerEmptyState
+                  compact
+                  icon="search-off"
+                  title="ไม่พบความคิดเห็นตามที่ค้นหา"
+                  description="ลองคำอื่น หรือล้างตัวกรองเพื่อดูทั้งหมด"
+                />
+              ) : (
+                <SellerEmptyState
+                  compact
+                  icon="message-circle"
+                  title="ยังไม่มีความคิดเห็น"
+                  description="เมื่อมีคนคอมเมนต์ใต้โพสต์ของเพจ จะแสดงที่นี่"
+                />
+              )}
+              {(q.trim() || channelId) && (
+                <div className="mt-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQ('')
+                      setChannelId(null)
+                    }}
+                    className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11"
+                  >
+                    ล้างการค้นหา
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="divide-default-200 divide-y">
@@ -357,19 +394,23 @@ export default function CommentsClient({
                     <span className="text-default-800 line-clamp-2 text-sm font-medium">
                       {p.message?.trim() || 'โพสต์ไม่มีข้อความ'}
                     </span>
-                    <span className="text-default-700 mt-0.5 flex items-center gap-1.5 text-xs">
-                      <span className="truncate">{p.lastCommenterName ?? 'ไม่ทราบชื่อ'}</span>
-                      <span>·</span>
-                      <span className="shrink-0">{p.commentCount} ความคิดเห็น</span>
+                    {/* บรรทัดที่ 2 = "ลูกค้าถามอะไร" ไม่ใช่ตัวเลขที่ตัดสินใจอะไรไม่ได้ (critique P1)
+                        แบบเดียวกับ preview ข้อความล่าสุดในแท็บข้อความ */}
+                    <span className="text-default-700 mt-0.5 block truncate text-xs">
+                      {p.lastCommentText
+                        ? `${p.lastCommenterName ?? 'ผู้ใช้ Facebook'}: ${p.lastCommentText}`
+                        : `${p.commentCount} ความคิดเห็น`}
                     </span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
+                    {/* เวลาแบบสัมพัทธ์ (เมื่อกี้ / 3 ชม. / 2 วัน) — HH:MM เดิมทำให้เมื่อวานกับ
+                        เมื่อครู่หน้าตาเหมือนกัน (critique P1) ตัวเดียวกับที่แท็บข้อความใช้ */}
                     <span className="text-default-700 text-xs">
-                      {p.lastCommentAt ? formatTimeHM(p.lastCommentAt) : ''}
+                      {p.lastCommentAt ? formatChatListTime(p.lastCommentAt) : ''}
                     </span>
                     {p.unansweredCount > 0 && (
-                      <span className="bg-danger flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs text-white">
-                        {p.unansweredCount}
+                      <span className="bg-danger/15 text-danger-ink rounded-full px-2 py-0.5 text-2xs font-semibold">
+                        ยังไม่ตอบ {p.unansweredCount}
                       </span>
                     )}
                   </span>
@@ -513,9 +554,13 @@ export default function CommentsClient({
                   </div>
               )}
                   {/* BR-23: เตือนถาวร ไม่ใช่ toast ที่หายไป — คอมเมนต์เป็นข้อความสาธารณะ */}
-                  <p className="text-warning mb-2 flex items-center gap-1.5 text-xs">
-                    <Icon icon="alert-triangle" className="shrink-0" />
-                    ทุกคนที่เห็นโพสต์นี้จะเห็นข้อความที่คุณตอบ — อย่าพิมพ์ที่อยู่หรือเบอร์ของลูกค้า
+                  {/* critique P0: ของเดิม text-warning บนขาว = 1.66:1 อ่านไม่ออกจริงบนมือถือกลางแดด
+                      ทั้งที่นี่คือกลไกเดียวที่กัน PII หลุดสู่สาธารณะ — ใช้ token *-ink บนพื้น /15
+                      (6.57:1) ตามกติกา contrast-fix-keeps-hue: เปลี่ยนความเข้ม ไม่เปลี่ยนเฉด */
+                  }
+                  <p className="bg-warning/15 text-warning-ink mb-2 flex items-start gap-1.5 rounded-lg px-3 py-2 text-sm">
+                    <Icon icon="alert-triangle" className="mt-0.5 shrink-0" />
+                    ทุกคนที่เห็นโพสต์นี้จะเห็นข้อความที่คุณเขียน — อย่าพิมพ์ที่อยู่หรือเบอร์ของลูกค้า
                   </p>
                   {pendingFile && (
                     <div className="relative mb-2 inline-block">
@@ -546,7 +591,7 @@ export default function CommentsClient({
                       aria-label="แนบรูปในคำตอบ"
                       className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg disabled:opacity-60"
                     >
-                      <Icon icon={uploading ? 'loader-2' : 'photo'} className="text-xl" />
+                      <Icon icon={uploading ? 'loader-2' : 'photo'} className={`text-xl ${uploading ? 'animate-spin' : ''}`} />
                     </button>
                     <button
                       type="button"
@@ -564,6 +609,7 @@ export default function CommentsClient({
                     )}
                     <textarea
                       rows={2}
+                      aria-label={replyTo ? 'พิมพ์คำตอบสาธารณะ' : 'เขียนความคิดเห็นในนามเพจ'}
                       className="form-textarea grow"
                       placeholder={
                         replyTo
@@ -665,7 +711,7 @@ function CommentBubble({
           </p>
           {c.attachmentUrl && !c.isDeleted && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.attachmentUrl} alt="" className="mt-2 max-h-40 rounded-lg" />
+            <img src={c.attachmentUrl} alt={`รูปแนบจาก ${displayName}`} className="mt-2 max-h-40 rounded-lg" />
           )}
         </div>
 

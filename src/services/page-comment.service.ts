@@ -157,6 +157,8 @@ export interface CommentPostRow {
   commentCount: number
   unansweredCount: number
   lastCommenterName: string | null
+  /** ข้อความคอมเมนต์ล่าสุด — แถวรายการต้องบอกว่า "ลูกค้าถามอะไร" ไม่ใช่แค่จำนวน (critique P1) */
+  lastCommentText: string | null
   mediaType: string | null
   reactionCount: number | null
   fbCommentCount: number | null
@@ -217,6 +219,8 @@ export async function listCommentPosts(params: {
           isFromPage: true,
           isDeleted: true,
           fromName: true,
+          message: true,
+          attachmentUrl: true,
           createdTime: true,
         },
       },
@@ -251,6 +255,7 @@ export async function listCommentPosts(params: {
       shareCount: p.shareCount,
       unansweredCount: customerComments.filter((c) => !answered.has(c.externalCommentId)).length,
       lastCommenterName: last?.fromName ?? null,
+      lastCommentText: last ? (last.message ?? (last.attachmentUrl ? '[รูปภาพ]' : null)) : null,
     }
   })
 }
