@@ -22,9 +22,12 @@ import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmp
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 
+export type ChannelOption = { id: string; name: string; provider: string; avatarUrl: string | null }
+
 export type CommentPostItem = {
   id: string
   externalPostId: string
+  channel: ChannelOption
   message: string | null
   thumbnailUrl: string | null
   permalink: string | null
@@ -56,13 +59,18 @@ type ThreadData = {
 export default function CommentsClient({
   initialPosts,
   shopId,
+  channels,
 }: {
   initialPosts: CommentPostItem[]
   /** ใช้ subscribe `comments:shop:{shopId}` — null = ไม่ subscribe (ไม่มีร้าน active) */
   shopId: string | null
+  /** เพจที่ร้านเชื่อมไว้ — ใช้ทำตัวกรอง (user 2026-08-03: 'มีสิทธิ์ได้มาจากหลาย page ที่เชื่อม') */
+  channels: ChannelOption[]
 }) {
   const [posts, setPosts] = useState(initialPosts)
   const [q, setQ] = useState('')
+  // null = ทุกเพจ; ตัวกรองอยู่ที่ server เหมือนแท็บข้อความ ไม่ใช่กรองเฉพาะที่โหลดมาแล้ว
+  const [channelId, setChannelId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(initialPosts[0]?.id ?? null)
   const [thread, setThread] = useState<ThreadData | null>(null)
   const [loadingThread, setLoadingThread] = useState(false)
@@ -76,11 +84,13 @@ export default function CommentsClient({
   const [emojiOpen, setEmojiOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const refreshPosts = useCallback(async (keyword: string) => {
+  const refreshPosts = useCallback(async (keyword: string, ch: string | null) => {
     try {
-      const res = await fetch(
-        `/api/chat/comments/posts${keyword.trim() ? `?q=${encodeURIComponent(keyword.trim())}` : ''}`,
-      )
+      const params = new URLSearchParams()
+      if (keyword.trim()) params.set('q', keyword.trim())
+      if (ch) params.set('channelId', ch)
+      const qs = params.toString()
+      const res = await fetch(`/api/chat/comments/posts${qs ? `?${qs}` : ''}`)
       if (!res.ok) return
       const data = (await res.json()) as { items: CommentPostItem[] }
       setPosts(data.items)
@@ -91,9 +101,9 @@ export default function CommentsClient({
 
   // ค้นหา (BRD Q-3) — ยิงที่ server เพราะต้องค้นในคอมเมนต์ ไม่ใช่แค่โพสต์ที่โหลดมาแล้ว
   useEffect(() => {
-    const t = setTimeout(() => void refreshPosts(q), 350)
+    const t = setTimeout(() => void refreshPosts(q, channelId), 350)
     return () => clearTimeout(t)
-  }, [q, refreshPosts])
+  }, [q, channelId, refreshPosts])
 
   const loadThread = useCallback(async (postId: string, opts?: { silent?: boolean }) => {
     // silent = รอบ poll: ห้ามโชว์ spinner, ห้ามล้างคอมเมนต์ที่กำลังจะตอบ, ห้าม toast รบกวน
@@ -133,9 +143,9 @@ export default function CommentsClient({
    * หยุดเมื่อแท็บไม่ได้อยู่หน้าจอ — ไม่มีใครดูอยู่ก็ไม่ต้องยิง
    */
   const refreshAll = useCallback(() => {
-    void refreshPosts(q)
+    void refreshPosts(q, channelId)
     if (selectedId) void loadThread(selectedId, { silent: true })
-  }, [q, selectedId, refreshPosts, loadThread])
+  }, [q, channelId, selectedId, refreshPosts, loadThread])
 
   // realtime จริง (user สั่ง 2026-08-03 "ทำ trigger ให้เป็น realtime จริงเลย") — DB trigger บน
   // PageComment ยิง broadcast `comments:shop:{shopId}` แบบ signal-only แล้ว client refetch เอง
@@ -228,6 +238,35 @@ export default function CommentsClient({
           selectedId ? 'hidden' : 'flex flex-1'
         }`}
       >
+        {channels.length > 1 && (
+          // ตัวกรองเพจ (user 2026-08-03) — โผล่เฉพาะเมื่อเชื่อมมากกว่า 1 เพจ ไม่งั้นเป็นปุ่มที่กดแล้ว
+          // ไม่มีอะไรเปลี่ยน. โครงเดียวกับแถวช่องทางของแท็บข้อความ
+          <div className="border-default-200 flex gap-1 overflow-x-auto border-b p-2">
+            <button
+              type="button"
+              onClick={() => setChannelId(null)}
+              className={`min-h-9 shrink-0 rounded-lg px-3 text-sm ${
+                channelId === null ? 'bg-primary text-white' : 'text-default-700 hover:bg-default-100'
+              }`}
+            >
+              ทั้งหมด
+            </button>
+            {channels.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setChannelId(c.id)}
+                title={c.name}
+                className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm ${
+                  channelId === c.id ? 'bg-primary text-white' : 'text-default-700 hover:bg-default-100'
+                }`}
+              >
+                <Icon icon="brand-facebook" className="text-base" />
+                <span className="max-w-32 truncate">{c.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="border-default-200 border-b p-3">
           <div className="input-group">
             <span className="input-group-text">
@@ -264,14 +303,30 @@ export default function CommentsClient({
                     p.id === selectedId ? 'bg-primary/5' : 'hover:bg-default-100'
                   }`}
                 >
-                  {p.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.thumbnailUrl} alt="" className="size-12 shrink-0 rounded-lg object-cover" />
-                  ) : (
-                    <span className="bg-default-100 text-default-700 flex size-12 shrink-0 items-center justify-center rounded-lg">
-                      <Icon icon="photo" className="text-xl" />
+                  {/* รูปโพสต์ + ป้ายเพจมุมล่างขวา (user 2026-08-03 'ต้องมี icon page ติดไว้ด้วย
+                      ว่าเป็นของเพจไหน') — pattern overlay เดียวกับ ChannelBadge บน avatar ในแท็บข้อความ */}
+                  <span className="relative shrink-0">
+                    {p.thumbnailUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.thumbnailUrl} alt="" className="size-12 rounded-lg object-cover" />
+                    ) : (
+                      <span className="bg-default-100 text-default-700 flex size-12 items-center justify-center rounded-lg">
+                        <Icon icon="photo" className="text-xl" />
+                      </span>
+                    )}
+                    <span
+                      title={p.channel.name}
+                      className="ring-card bg-card absolute -end-1 -bottom-1 flex size-5 items-center justify-center rounded-full ring-2"
+                    >
+                      {p.channel.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.channel.avatarUrl} alt="" className="size-5 rounded-full object-cover" />
+                      ) : (
+                        // สี brand Facebook — ข้อยกเว้น Hard Rule 6/7 เดียวกับ ChannelBadge (asset ของแบรนด์)
+                        <Icon icon="brand-facebook" className="text-sm" style={{ color: '#0866FF' }} />
+                      )}
                     </span>
-                  )}
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="text-default-800 line-clamp-2 text-sm font-medium">
                       {p.message?.trim() || 'โพสต์ไม่มีข้อความ'}

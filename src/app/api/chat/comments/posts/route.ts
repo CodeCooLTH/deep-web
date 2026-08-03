@@ -7,6 +7,7 @@ import { listCommentPosts } from "@/services/page-comment.service";
 /**
  * GET /api/chat/comments/posts — รายการโพสต์ที่มีคอมเมนต์ ของร้านที่ active (feature 00029)
  * query: `q` = ค้นหา (ข้อความคอมเมนต์ / ชื่อผู้คอมเมนต์ / ข้อความโพสต์)
+ *        `channelId` = กรองเฉพาะเพจเดียว (ร้านเชื่อมได้หลายเพจ)
  *
  * per-user authenticated data — ห้าม shared cache (เหตุผลเดียวกับ chat/groups)
  */
@@ -27,7 +28,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const q = request.nextUrl.searchParams.get("q") ?? undefined;
-    const items = await listCommentPosts({ shopId: activeCtx.shopId, actorUserId: userId, q });
+    const shopChannelId = request.nextUrl.searchParams.get("channelId") ?? undefined;
+    const items = await listCommentPosts({
+      shopId: activeCtx.shopId,
+      actorUserId: userId,
+      q,
+      shopChannelId,
+    });
     return NextResponse.json({ items }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";

@@ -13,6 +13,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { listCommentPosts } from '@/services/page-comment.service'
+import { listChannels } from '@/services/shop-channel.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxTabs from '../../_components/InboxTabs'
@@ -35,6 +36,10 @@ export default async function CommentsPage() {
 
   let posts: CommentPostItem[] = []
   let failed = false
+  // เพจที่เชื่อมไว้ — ใช้ทำตัวกรอง (ร้านเชื่อมได้หลายเพจ); v1 ครอบเฉพาะ Facebook
+  const channels = (await listChannels(activeCtx.shopId).catch(() => []))
+    .filter((c) => c.provider === 'MESSENGER')
+    .map((c) => ({ id: c.id, name: c.name, provider: c.provider, avatarUrl: c.avatarUrl }))
   try {
     const rows = await listCommentPosts({ shopId: activeCtx.shopId, actorUserId: user.id })
     posts = rows.map((p) => ({
@@ -59,7 +64,7 @@ export default async function CommentsPage() {
           />
         </div>
       ) : (
-        <CommentsClient initialPosts={posts} shopId={activeCtx.shopId} />
+        <CommentsClient initialPosts={posts} shopId={activeCtx.shopId} channels={channels} />
       )}
     </div>
   )

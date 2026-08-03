@@ -143,6 +143,8 @@ async function ensurePost(shopChannelId: string, externalPostId: string) {
 export interface CommentPostRow {
   id: string
   externalPostId: string
+  /** เพจที่โพสต์นี้อยู่ — ร้านเชื่อมได้หลายเพจ ต้องบอกให้รู้ว่าคอมเมนต์มาจากเพจไหน (user 2026-08-03) */
+  channel: { id: string; name: string; provider: string; avatarUrl: string | null }
   message: string | null
   thumbnailUrl: string | null
   permalink: string | null
@@ -164,11 +166,17 @@ export async function listCommentPosts(params: {
   actorUserId: string
   q?: string
   take?: number
+  /** กรองเฉพาะเพจเดียว (ตัวกรองเหมือนแท็บข้อความ) — ไม่ส่ง = ทุกเพจของร้าน */
+  shopChannelId?: string
 }): Promise<CommentPostRow[]> {
   if (!(await canAccessShop(params.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
 
   const channels = await prisma.shopChannel.findMany({
-    where: { shopId: params.shopId, provider: 'MESSENGER' },
+    where: {
+      shopId: params.shopId,
+      provider: 'MESSENGER',
+      ...(params.shopChannelId ? { id: params.shopChannelId } : {}),
+    },
     select: { id: true },
   })
   if (channels.length === 0) return []
@@ -192,6 +200,7 @@ export async function listCommentPosts(params: {
     orderBy: { lastCommentAt: 'desc' },
     take: params.take ?? 25,
     include: {
+      channel: { select: { id: true, name: true, provider: true, avatarUrl: true } },
       comments: {
         select: {
           externalCommentId: true,
@@ -216,6 +225,12 @@ export async function listCommentPosts(params: {
     return {
       id: p.id,
       externalPostId: p.externalPostId,
+      channel: {
+        id: p.channel.id,
+        name: p.channel.name,
+        provider: p.channel.provider,
+        avatarUrl: p.channel.avatarUrl,
+      },
       message: p.message,
       thumbnailUrl: p.thumbnailUrl,
       permalink: p.permalink,
