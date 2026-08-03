@@ -61,6 +61,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 })
   }
 
+  // ชั่วคราว (2026-08-03) — สืบว่า Meta ส่ง message_edits มาในรูปแบบไหนกันแน่
+  //
+  // ทำไมต้อง log "ก่อน" parse: Valibot ตัด field ที่เราไม่ได้ประกาศทิ้งทั้งหมด และ rawMessage
+  // ที่เราเก็บลงฐานก็คือ payload **หลัง** parse แล้ว — field แปลกหน้าที่ Meta ส่งมาจึงมองไม่เห็น
+  // จากทั้ง log และฐาน (พบ 2026-08-03 ตอนไล่ว่าทำไมแก้ข้อความแล้วเธรดไม่ขยับ)
+  //
+  // log เฉพาะ "ชื่อ field" ไม่แตะเนื้อหา — พอบอกได้ว่า event ที่เข้ามามีอะไรบ้างจริง ๆ
+  // ถอดออกเมื่อได้คำตอบแล้ว
+  try {
+    const probe = JSON.parse(rawBody || '{}') as {
+      entry?: Array<{ messaging?: Array<Record<string, unknown>>; changes?: Array<{ field?: string }> }>
+    }
+    for (const e of probe.entry ?? []) {
+      for (const ev of e.messaging ?? []) {
+        const msg = (ev.message ?? {}) as Record<string, unknown>
+        console.log('[fb-raw-evt]', JSON.stringify({ evt: Object.keys(ev), msg: Object.keys(msg) }))
+      }
+      for (const c of e.changes ?? []) console.log('[fb-raw-chg]', c.field)
+    }
+  } catch {
+    // probe เท่านั้น — พังก็ปล่อยผ่าน ห้ามทำให้ webhook ล้ม
+  }
+
   const parsed = v.safeParse(WebhookBodySchema, JSON.parse(rawBody || '{}'))
   if (!parsed.success) {
     // shape ที่เราไม่รู้จัก — ตอบ 200 เพื่อไม่ให้ retry แต่ log ไว้ดู
