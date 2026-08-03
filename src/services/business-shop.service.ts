@@ -7,9 +7,11 @@ import {
 
 export async function createBusinessShop(ownerId: string, data: {
   shopName: string; businessType: string; category?: string; description?: string;
-  // feature 00017 — ประเภทกิจการ: GENERAL (สินค้าและบริการ) | LODGING (บ้านพักตากอากาศ)
-  // optional เพื่อ backward-compat (ผู้เรียกเดิมไม่ส่ง = GENERAL ตาม default ของ DB)
-  // IMPORTANT: เขียนได้ที่นี่ที่เดียวเท่านั้น — เป็น immutable หลังสร้าง (BR-LODG-30)
+  // feature 00017 → ขยายเป็น 3 ค่าที่ feature 00028 — ประเภทร้านค้า:
+  //   ONLINE_SALES (ขายออนไลน์) | SERVICE_QUEUE (สินค้าและบริการ) | LODGING (บ้านพัก)
+  // optional เพื่อ backward-compat (ผู้เรียกเดิมไม่ส่ง = ONLINE_SALES ตาม default ของ DB)
+  // IMPORTANT: เขียนได้ที่นี่ที่เดียวเท่านั้น — เป็น immutable หลังสร้าง (BR-LODG-30/BR-SBT-08)
+  // ยกเว้นทางเดียว: POST /api/shops/update ตั้งค่าได้ระหว่าง onboarding ที่ยังไม่มี slug (BR-SBT-09)
   // service ที่แก้ข้อมูลร้าน (updateShop ฯลฯ) ต้องไม่รับ field นี้เข้ามาเลย
   vertical?: string
 }) {

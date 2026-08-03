@@ -184,6 +184,10 @@ export interface CreateProductInput {
   lowStockThreshold?: number | null;
   // cost — Expense & Cost Tracking (feature 00016): undefined=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า (gate ที่ route ด้วย isCostEditAllowed)
   cost?: number | null;
+  // shopVertical — feature 00028 (BR-SBT-22, SDS TD-004): caller ส่ง shop.vertical ที่มีอยู่แล้ว
+  // ในมือหลัง guard มาให้ override default ของ fulfillmentMode — ห้าม service query Shop เอง
+  // (N+1 ที่ไม่จำเป็น, caller ทั้ง 2 จุดมี shop object พร้อมอยู่แล้ว)
+  shopVertical?: string;
 }
 
 /**
@@ -226,12 +230,19 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
       // capability flags — derive fulfillmentMode จาก type ถ้า caller ไม่ส่งมา
       // ไม่พึ่ง client หรือ DB default: SERVICE/DIGITAL ที่ไม่ส่ง fulfillmentMode จะได้
       // SHIPPED จาก schema default → post-OMS createOrder จะ require shipping ผิด
+      //
+      // priority (feature 00028 BR-SBT-22, SDS TD-004):
+      //   1) data.fulfillmentMode ที่ caller ส่งมาเอง ชนะเสมอ
+      //   2) ร้าน SERVICE_QUEUE (ไม่มีจัดส่ง) → default NO_SHIPPING แม้ type จะ derive เป็น SHIPPED
+      //   3) เดิม — derive จาก type (PHYSICAL → SHIPPED, SERVICE/DIGITAL/... → ตาม registry)
       fulfillmentMode:
         data.fulfillmentMode !== undefined
           ? data.fulfillmentMode
-          : (data.type in PRODUCT_TYPES
-              ? deriveCapabilityDefaults(data.type as ProductTypeId).fulfillmentMode
-              : undefined),
+          : data.shopVertical === "SERVICE_QUEUE"
+            ? "NO_SHIPPING"
+            : (data.type in PRODUCT_TYPES
+                ? deriveCapabilityDefaults(data.type as ProductTypeId).fulfillmentMode
+                : undefined),
       ...(data.billingMode !== undefined && { billingMode: data.billingMode }),
       ...(data.billingPeriod !== undefined && { billingPeriod: data.billingPeriod }),
       ...(data.billingPeriodDays !== undefined && { billingPeriodDays: data.billingPeriodDays }),

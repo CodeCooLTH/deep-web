@@ -55,7 +55,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sho
 
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
-    select: { id: true, userId: true, kind: true, deletedAt: true },
+    // vertical — feature 00028 (BR-SBT-22): ต้องมีไว้ส่งเข้า createProduct ตอนสร้างสินค้าแรก
+    select: { id: true, userId: true, kind: true, deletedAt: true, vertical: true },
   });
   // ไม่มี/ไม่ใช่ BUSINESS/ถูกลบ → 404 (context isolation — ไม่บอก caller ว่า shop มีอยู่จริงไหม)
   if (!shop || shop.kind !== "BUSINESS" || shop.deletedAt) {
@@ -84,7 +85,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sho
 
     let productId: string | undefined;
     if (product) {
-      const created = await createProduct(shop.id, { name: product.name, price: product.price, type: "PHYSICAL" });
+      // shopVertical — feature 00028 (BR-SBT-22): ให้ SERVICE_QUEUE ได้ default NO_SHIPPING
+      const created = await createProduct(shop.id, {
+        name: product.name,
+        price: product.price,
+        type: "PHYSICAL",
+        shopVertical: shop.vertical,
+      });
       productId = created.id;
     }
 

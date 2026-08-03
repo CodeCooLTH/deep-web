@@ -17,8 +17,9 @@ import {
  * สิทธิ์: สมาชิกของร้าน (OWNER หรือ ADMIN) — เท่ากับสิทธิ์จัดการออเดอร์ ไม่สร้างระดับใหม่
  * (BR-RSV-25) มิเรอร์ rooms ของ feature 00017
  *
- * IMPORTANT: service เรียก assertShopCanUseAppointments() เสมอ — ร้านที่ไม่ใช่บัญชีธุรกิจ
- * หรือไม่ใช่ vertical GENERAL เรียกได้ 403 ไม่ใช่แค่ไม่เห็นเมนู (BR-RSV-02, TC-B04)
+ * IMPORTANT: service เรียก assertShopCanUseAppointments() เสมอ — ร้านที่ vertical ไม่ใช่
+ * SERVICE_QUEUE เรียกได้ 403 ไม่ใช่แค่ไม่เห็นเมนู (BR-RSV-02, TC-B04)
+ * feature 00028 BR-SBT-11 ตัดเงื่อนไข kind=BUSINESS ออกแล้ว — บัญชีบุคคลใช้คิวงานได้
  */
 
 // per-user data — กัน shared/carrier cache ส่งข้อมูลข้ามผู้ใช้ (feedback_auth_api_cache_control)

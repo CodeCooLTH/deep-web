@@ -12,8 +12,8 @@
  * ดู docs/superpowers/specs/2026-07-22-facebook-chat-ui-design.md ตาราง "Theme Source Mapping"
  * แถว "Customer Panel shell (desktop)"
  *
- * A-1: CTA + tab ที่ 2 เปลี่ยนตาม Shop.vertical — GENERAL→"สร้างออเดอร์"/"ออเดอร์",
- * LODGING→"เปิดการจอง"/"การจอง". `vertical` ถูก resolve (fallback GENERAL เมื่อค่าไม่รู้จัก)
+ * A-1: CTA + tab ที่ 2 เปลี่ยนตาม Shop.vertical — ONLINE_SALES/SERVICE_QUEUE→"สร้างออเดอร์"/"คำสั่งซื้อ",
+ * LODGING→"เปิดการจอง"/"การจอง" (feature 00028 ขยายจาก 2→3 ทาง). `vertical` ถูก resolve (fallback ONLINE_SALES เมื่อค่าไม่รู้จัก)
  * ที่ page.tsx (server, อ่านจาก Conversation.shopId → Shop.vertical) ก่อนส่งลงมาเป็น prop —
  * component นี้ไม่เดาเองจาก path/session (ข้อกำหนดของ Controller)
  *
@@ -111,12 +111,23 @@ function PanelAvatar({ avatar, name }: { avatar: string | null; name: string }) 
 
 type VerticalCta = { label: string; href: string; icon: string; tabLabel: string; emptyLabel: string }
 
+// feature 00028 — GENERAL เดิมแยกเป็น ONLINE_SALES/SERVICE_QUEUE; ทั้งคู่ใช้ CTA "สร้างออเดอร์"
+// เหมือนกัน (POS ใช้ได้ทั้ง 2 ประเภทตาม BRD §8.1 matrix — SERVICE_QUEUE ไม่มี booking แยกต่างหาก
+// การจองคิวเป็นคนละหน้าจอ /queues ไม่ใช่ CTA ของแผงลูกค้าในแชทนี้)
+// gap ที่ SDS ไม่ครอบ: object key (ไม่ใช่ string literal ในเครื่องหมายคำพูด) grep `'GENERAL'` มองไม่เห็น
 const VERTICAL_CTA: Record<ShopVertical, VerticalCta> = {
-  GENERAL: {
+  ONLINE_SALES: {
     label: 'สร้างออเดอร์',
     href: '/orders/new',
     icon: 'shopping-cart-plus',
     tabLabel: 'คำสั่งซื้อ', // user สั่ง 2026-07-23 (เดิม "ออเดอร์")
+    emptyLabel: 'ยังไม่มีประวัติออเดอร์',
+  },
+  SERVICE_QUEUE: {
+    label: 'สร้างออเดอร์',
+    href: '/orders/new',
+    icon: 'shopping-cart-plus',
+    tabLabel: 'คำสั่งซื้อ',
     emptyLabel: 'ยังไม่มีประวัติออเดอร์',
   },
   LODGING: {

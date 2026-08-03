@@ -29,7 +29,8 @@ export function appointmentErrorResponse(e: unknown): Response | null {
     return jsonNoStore(
       {
         error: "FEATURE_NOT_AVAILABLE",
-        message: "ระบบนัดหมายใช้ได้เฉพาะบัญชีธุรกิจประเภทสินค้าและบริการ",
+        // feature 00028 (BR-SBT-11) — "บัญชีธุรกิจ" เป็นเท็จแล้วหลังงานนี้ (บัญชีบุคคลใช้ได้ด้วย)
+        message: "ระบบนัดหมายใช้ได้เฉพาะร้านประเภทสินค้าและบริการ",
       },
       { status: 403 },
     );

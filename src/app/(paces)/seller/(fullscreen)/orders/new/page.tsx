@@ -78,7 +78,7 @@ export default async function NewOrderPage() {
   // feature 00022 — โหมดสร้างพัสดุของร้าน ส่งลง form ตอน render (ไม่ต้องยิงถามฝั่ง client)
   // ร้านบ้านพักและร้านที่ยังไม่เชื่อมต่อจะได้ 'OFF' → ไม่มีอะไรเกิดขึ้นตอนสร้างออเดอร์
   const ishipCreateMode =
-    shop.vertical === 'GENERAL'
+    shop.vertical === 'ONLINE_SALES'
       ? await getConnection(shop.id)
           .then((c) => (c.connected && c.status === 'ACTIVE' ? c.createMode : 'OFF'))
           .catch(() => 'OFF' as const)

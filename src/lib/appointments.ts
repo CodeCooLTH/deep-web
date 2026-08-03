@@ -36,8 +36,10 @@ export function isTerminalAppointmentStatus(
 /**
  * ตัวกั้นฟีเจอร์ (BR-RSV-01)
  *
- * IMPORTANT: ต้องเข้าเงื่อนไข "ทั้งสองอย่าง" — ห้ามเช็ค vertical อย่างเดียว
- *    ร้านบุคคลธรรมดาที่เป็น GENERAL ต้องถูกปฏิเสธ (BR-RSV-02)
+ * feature 00028 (BR-SBT-11) — เดิมต้องเข้าเงื่อนไข "ทั้งสองอย่าง" (kind is BUSINESS และ
+ * vertical เป็นค่าเก่าที่ครอบทั้งร้านขายของและร้านรับคิวไว้ด้วยกัน — vertical มีแค่ 2 ค่าตอนนั้น)
+ * ตอนนี้ vertical แยกเป็น 3 ทางแล้ว เหลือเช็คแค่ vertical==='SERVICE_QUEUE'
+ * เงื่อนไขเดียวพอ — บัญชีบุคคลธรรมดาที่เลือก SERVICE_QUEUE ใช้คิวงานได้แล้วด้วย (matrix §8.1)
  *
  * IMPORTANT: ต้องเรียกครบ 3 ชั้น: เมนู/หน้า, การ render, และ API ทุกเส้น
  *    การซ่อนแค่เมนูไม่ถือว่ากั้น (TC-B04)
@@ -45,7 +47,7 @@ export function isTerminalAppointmentStatus(
 export function canUseAppointments(
   shop: { kind: string; vertical: string } | null | undefined,
 ): boolean {
-  return shop?.kind === "BUSINESS" && shop?.vertical === "GENERAL";
+  return shop?.vertical === "SERVICE_QUEUE";
 }
 
 /**

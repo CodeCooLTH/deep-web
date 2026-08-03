@@ -12,8 +12,6 @@
 import { type MenuItemType } from '@/types'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import type { ExpenseAccessDecision } from '@/services/expense-access.service'
-// feature 00024 — ใช้ตัวกั้นเดียวกับ API/หน้า เพื่อไม่ให้กติกาแตกเป็นสองชุด
-import { canUseAppointments } from '@/lib/appointments'
 
 export const sellerMenuItems: MenuItemType[] = [
   {
@@ -43,8 +41,8 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/products', slug: 'seller:products', label: 'สินค้า', icon: 'package' },
-      // feature 00024 — เห็นเฉพาะร้าน kind=BUSINESS และ vertical=GENERAL พร้อมกัน
-      // (กรองด้วย applyAppointmentMenu ด้านล่าง — applyVerticalMenu ดูแค่ vertical จึงไม่พอ)
+      // feature 00024/00028 — เห็นเฉพาะร้าน vertical=SERVICE_QUEUE (กรองด้วย applyVerticalMenu
+      // ด้านล่าง — เดิมต้องเช็ค kind คู่กันด้วย ตอนนี้เหลือเงื่อนไข vertical เดียวพอ)
       // icon 'armchair' user เลือกเอง 2026-07-31 (verified มีจริง — ใช้อยู่แล้วในโปรเจกต์)
       // ป้าย "คิวงาน" มาจาก user โดยตรง — คำเดิม "ทรัพยากร" อ่านแล้วไม่เข้าใจ
       // ลูกค้ากลุ่มแรกคือร้านตกแต่งไฟหน้ารถ ซึ่งเรียกหน่วยที่รับงานพร้อมกันว่า "คิวงาน" 
@@ -316,28 +314,51 @@ export function applyExpenseMenu(
 }
 
 /**
- * applyVerticalMenu — runtime transform ตามประเภทกิจการของร้าน (feature 00017 Phase 1, FR-LODG-02)
+ * applyVerticalMenu — runtime transform ตามประเภทกิจการของร้าน (feature 00017 Phase 1, FR-LODG-02;
+ * ขยาย 2→3 ทางที่ feature 00028 BR-SBT-15/16 — ยุบ applyAppointmentMenu เดิมเข้ามารวมที่นี่
+ * เพราะเงื่อนไขเปิดคิวงานเหลือเช็คแค่ vertical เงื่อนไขเดียวแล้ว (canUseAppointments เปลี่ยนไปตาม
+ * BR-SBT-11) ไม่ต้องเช็ค kind คู่กันอีกต่อไป จึงไม่จำเป็นต้องมีฟังก์ชันแยก)
  *
- * ทำไมต้องกรองสองทาง ไม่ใช่แค่ซ่อนเมนูห้องพักจากร้าน GENERAL:
- *   - ร้าน LODGING ไม่ได้ขายสินค้า → เมนูสินค้า/สต็อก/ประมูล ไม่มีความหมายและทำให้กรอกข้อมูลผิดวิธี
- *   - ร้าน GENERAL ไม่มีห้องพัก → เมนูห้องพักไม่มีความหมาย
- * (BR-LODG-02: 1 ธุรกิจ = 1 ประเภท ต้องไม่เห็นเมนูของอีกฝั่งเลย)
+ * ทำไมต้องกรองเป็นกลุ่ม ไม่ใช่แค่ซ่อนเมนูของประเภทอื่นทีละคู่ (BRD §8.1 matrix คือ SSOT):
+ *   - ONLINE_SALES: เห็นสินค้า + สต็อก + ประมูล — ไม่เห็นคิวงาน/ห้องพัก
+ *   - SERVICE_QUEUE: เห็นสินค้า + คิวงาน — ไม่เห็นสต็อก/ประมูล/ห้องพัก (ไม่มีจัดส่ง)
+ *   - LODGING: เห็นห้องพัก/ปฏิทิน/การจอง/แม่บ้าน — ไม่เห็นสินค้า/สต็อก/ประมูล/คิวงานเลย
+ * (BR-LODG-02/BR-SBT-06: 1 ธุรกิจ = 1 ประเภท ต้องไม่เห็นเมนูของประเภทอื่นเลย)
  *
- * IMPORTANT: การซ่อนเมนู "ไม่ใช่" การควบคุมสิทธิ์ (BR-LODG-03) — ทุก route ของโดเมนบ้านพักต้องมี
- * assertLodgingShop() ที่ทั้ง API route และ page-level server component ด้วยเสมอ
+ * IMPORTANT: การซ่อนเมนู "ไม่ใช่" การควบคุมสิทธิ์ (BR-LODG-03/BR-RSV-02/BR-SBT-10) — ทุก route
+ * ของแต่ละโดเมนต้องมี server-side guard ของตัวเอง (requireLodgingShop/requireGeneralShop/
+ * canUseAppointments/requireSellerShop) ที่ทั้ง API route และ page-level server component ด้วยเสมอ
  * ฟังก์ชันนี้ทำหน้าที่แค่ "ไม่รกตา" ไม่ได้ทำหน้าที่ป้องกัน
  *
  * pattern เดียวกับ applyStaffMenu (กรอง child ออกจาก group) — ไม่ disable แต่ซ่อน
- * เพราะไม่มี use-case ให้ประเภทหนึ่งเห็นเมนูของอีกประเภท
  */
 const LODGING_ONLY_SLUGS = ['seller:rooms', 'seller:calendar', 'seller:bookings', 'seller:housekeepers']
-const GENERAL_ONLY_SLUGS = ['seller:products', 'seller:inventory', 'seller:auctions']
+const ONLINE_SALES_ONLY_SLUGS = ['seller:inventory', 'seller:auctions']
+const SERVICE_QUEUE_ONLY_SLUGS = ['seller:queues']
+// seller:products ใช้ร่วมกันของ ONLINE_SALES และ SERVICE_QUEUE (matrix §8.1 แถว "สินค้า")
+const SHARED_PRODUCT_SLUGS = ['seller:products']
+
+const VERTICAL_VISIBLE_SLUGS: Record<string, string[]> = {
+  ONLINE_SALES: [...SHARED_PRODUCT_SLUGS, ...ONLINE_SALES_ONLY_SLUGS],
+  SERVICE_QUEUE: [...SHARED_PRODUCT_SLUGS, ...SERVICE_QUEUE_ONLY_SLUGS],
+  LODGING: LODGING_ONLY_SLUGS,
+}
+
+// slug ทั้งหมดที่ผูกกับ vertical ใด vertical หนึ่งโดยเฉพาะ — ใช้คำนวณว่าต้องซ่อนอะไรบ้าง
+const ALL_VERTICAL_SCOPED_SLUGS = [
+  ...LODGING_ONLY_SLUGS,
+  ...ONLINE_SALES_ONLY_SLUGS,
+  ...SERVICE_QUEUE_ONLY_SLUGS,
+  ...SHARED_PRODUCT_SLUGS,
+]
 
 export function applyVerticalMenu(
   items: MenuItemType[],
   vertical: string,
 ): MenuItemType[] {
-  const hidden = vertical === 'LODGING' ? GENERAL_ONLY_SLUGS : LODGING_ONLY_SLUGS
+  // vertical ที่ไม่รู้จัก (ข้อมูลเพี้ยน) → fail-closed ตาม default เดิม (ONLINE_SALES)
+  const visible = VERTICAL_VISIBLE_SLUGS[vertical] ?? VERTICAL_VISIBLE_SLUGS.ONLINE_SALES
+  const hidden = ALL_VERTICAL_SCOPED_SLUGS.filter((slug) => !visible.includes(slug))
   return items.map((group) => !group.children ? group : {
     ...group,
     children: group.children.filter((child) => !hidden.includes(child.slug ?? '')),
@@ -345,43 +366,15 @@ export function applyVerticalMenu(
 }
 
 /**
- * applyAppointmentMenu — ซ่อนเมนูของระบบนัดหมาย (feature 00024, BR-RSV-01/02)
- *
- * ทำไมต้องมีตัวนี้แยกจาก applyVerticalMenu: ระบบนัดหมายต้องเข้าเงื่อนไข **สองอย่าง
- * พร้อมกัน** (`kind = BUSINESS` และ `vertical = GENERAL`) ส่วน applyVerticalMenu รับมาแต่
- * vertical จึงกรองร้านบุคคลธรรมดาที่เป็น GENERAL ออกไม่ได้ — ซึ่งเป็นเคสที่ BR-RSV-02
- * ระบุชัดว่าต้องไม่เห็นเมนู
- *
- * IMPORTANT: การซ่อนเมนู "ไม่ใช่" การควบคุมสิทธิ์ (BR-RSV-02 เหมือน BR-LODG-03) — ทุก
- * route ของโดเมนนี้ต้องเรียก canUseAppointments() ที่ทั้ง API route และ page-level server
- * component ด้วยเสมอ ฟังก์ชันนี้ทำหน้าที่แค่ "ไม่รกตา"
- *
- * pattern เดียวกับ applyStaffMenu/applyVerticalMenu (กรอง child ออกจาก group)
- */
-const APPOINTMENT_ONLY_SLUGS = ['seller:queues']
-
-export function applyAppointmentMenu(
-  items: MenuItemType[],
-  shop: { kind: string; vertical: string },
-): MenuItemType[] {
-  if (canUseAppointments(shop)) return items
-  return items.map((group) => !group.children ? group : {
-    ...group,
-    children: group.children.filter(
-      (child) => !APPOINTMENT_ONLY_SLUGS.includes(child.slug ?? ''),
-    ),
-  })
-}
-
-/**
- * resolveVisibleSellerMenu — compose ตัวกรอง "ที่กรองจริง" ทั้ง 5 ตัวไว้ที่เดียว (feature 00027 TFR-001)
+ * resolveVisibleSellerMenu — compose ตัวกรอง "ที่กรองจริง" ทั้ง 4 ตัวไว้ที่เดียว (feature 00027 TFR-001;
+ * เดิม 5 ตัว — applyAppointmentMenu ถูกยุบเข้า applyVerticalMenu แล้วที่ feature 00028 BR-SBT-16)
  *
  * ลำดับเดียวกับที่ layout.tsx compose อยู่เดิมเป๊ะ ๆ:
- *   applyInventoryGate → applyStaffMenu → applyExpenseMenu → applyAppointmentMenu → applyVerticalMenu
+ *   applyInventoryGate → applyStaffMenu → applyExpenseMenu → applyVerticalMenu
  * (applyVerticalMenu อยู่ชั้นนอกสุดโดยตั้งใจ — กรองหลัง gate อื่นทุกตัว เพื่อไม่ให้ badge/disable
  *  ที่ gate ชั้นในติดไว้ ไปโผล่บนเมนูที่ควรถูกซ่อนไปแล้ว)
  *
- * 🛑 **ไม่รวม applyChatBadge โดยตั้งใจ** — ตัวนั้นไม่กรองอะไรเลย มีแค่แปะจำนวนข้อความยังไม่อ่าน
+ * IMPORTANT: ไม่รวม applyChatBadge โดยตั้งใจ — ตัวนั้นไม่กรองอะไรเลย มีแค่แปะจำนวนข้อความยังไม่อ่าน
  * บนเมนู "ข้อความ" ซึ่งเป็นเรื่องของ sidebar อย่างเดียว การเอามาไว้ในนี้จะบังคับให้ทุกคนที่อยาก
  * รู้ว่า "เมนูไหนมองเห็นได้บ้าง" ต้องไปนับข้อความยังไม่อ่านมาก่อน ทั้งที่ไม่เกี่ยวกัน
  */
@@ -395,12 +388,9 @@ export function resolveVisibleSellerMenu(
   },
 ): MenuItemType[] {
   return applyVerticalMenu(
-    applyAppointmentMenu(
-      applyExpenseMenu(
-        applyStaffMenu(applyInventoryGate(items, ctx.entitlement), ctx.staff),
-        ctx.expense,
-      ),
-      { kind: ctx.shop.kind, vertical: ctx.shop.vertical },
+    applyExpenseMenu(
+      applyStaffMenu(applyInventoryGate(items, ctx.entitlement), ctx.staff),
+      ctx.expense,
     ),
     ctx.shop.vertical,
   )
