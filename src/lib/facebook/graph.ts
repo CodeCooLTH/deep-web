@@ -531,3 +531,109 @@ export async function sendImageMessage(
 ): Promise<string> {
   return sendAttachmentMessage(pageToken, recipientId, 'image', imageUrl, replyToMid, tag)
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// feature 00029 — คอมเมนต์บนโพสต์ของเพจ
+// ต้องมี pages_read_user_content (อ่าน) / pages_manage_engagement (ตอบ)
+// ───────────────────────────────────────────────────────────────────────────
+
+export interface GraphPostMeta {
+  id: string
+  message: string | null
+  permalink: string | null
+  /** รูปประกอบโพสต์ — ใช้เป็น thumbnail ในรายการซ้าย */
+  picture: string | null
+  createdTime: Date | null
+}
+
+/**
+ * ข้อมูลโพสต์ที่ webhook ไม่ได้ส่งมา — `feed` ให้แค่ `post_id` (ยืนยันจาก payload จริง 2026-08-03)
+ * เรียกครั้งเดียวต่อโพสต์แล้ว cache ลง FacebookPost ไม่เรียกซ้ำทุกคอมเมนต์
+ */
+export async function fetchPostMeta(postId: string, pageToken: string): Promise<GraphPostMeta | null> {
+  try {
+    const json = await graphFetch(`/${encodeURIComponent(postId)}`, pageToken, {
+      query: { fields: 'id,message,permalink_url,full_picture,created_time' },
+    })
+    return {
+      id: String(json.id ?? postId),
+      message: typeof json.message === 'string' ? json.message : null,
+      permalink: typeof json.permalink_url === 'string' ? json.permalink_url : null,
+      picture: typeof json.full_picture === 'string' ? json.full_picture : null,
+      createdTime: typeof json.created_time === 'string' ? new Date(json.created_time) : null,
+    }
+  } catch {
+    // โพสต์ที่เข้าไม่ถึง (dark post/ถูกลบ/สิทธิ์ไม่พอ) — คืน null ให้ caller เก็บเท่าที่มี
+    // ดีกว่าทำให้ทั้ง ingest ล้มเพราะข้อมูลประกอบชิ้นเดียว
+    return null
+  }
+}
+
+export interface GraphComment {
+  id: string
+  message: string | null
+  createdTime: Date
+  fromId: string | null
+  fromName: string | null
+  parentId: string | null
+  attachmentUrl: string | null
+}
+
+/**
+ * คอมเมนต์ย้อนหลังของโพสต์ (backfill ตอนเปิดโพสต์ — BRD Q-2: ครั้งละ 30 อัน)
+ *
+ * `order=chronological` เพื่อให้ลำดับตรงกับที่แสดงบนจอ (เก่า→ใหม่) และ cursor เดินหน้าได้ตรง
+ * `filter=stream` = เอาคอมเมนต์ลูกมาด้วย ไม่ใช่เฉพาะ top-level (เราต้องใช้ลูกตัดสินว่า "ตอบแล้ว")
+ */
+export async function fetchPostComments(
+  postId: string,
+  pageToken: string,
+  limit = 30,
+  after?: string | null,
+): Promise<{ items: GraphComment[]; nextCursor: string | null }> {
+  const json = await graphFetch(`/${encodeURIComponent(postId)}/comments`, pageToken, {
+    query: {
+      fields: 'id,message,created_time,from{id,name},parent{id},attachment{url,media}',
+      order: 'chronological',
+      filter: 'stream',
+      limit: String(limit),
+      ...(after ? { after } : {}),
+    },
+  })
+  const rows = (json.data ?? []) as Array<Record<string, unknown>>
+  const paging = (json.paging ?? {}) as { cursors?: { after?: string }; next?: string }
+  return {
+    items: rows.map((r) => {
+      const from = r.from as { id?: string; name?: string } | undefined
+      const parent = r.parent as { id?: string } | undefined
+      const att = r.attachment as { url?: string; media?: { image?: { src?: string } } } | undefined
+      return {
+        id: String(r.id),
+        message: typeof r.message === 'string' && r.message.length > 0 ? r.message : null,
+        createdTime: new Date(String(r.created_time)),
+        fromId: from?.id ?? null,
+        fromName: from?.name ?? null,
+        parentId: parent?.id ?? null,
+        attachmentUrl: att?.media?.image?.src ?? att?.url ?? null,
+      }
+    }),
+    // มี next เท่านั้นถึงจะมีหน้าถัดไปจริง — cursors.after มาแม้หมดแล้ว
+    nextCursor: paging.next ? (paging.cursors?.after ?? null) : null,
+  }
+}
+
+/**
+ * ตอบคอมเมนต์แบบสาธารณะในนามเพจ — คืน comment id ของคำตอบ
+ * เอกสาร Pages API: `POST /{object-id}/comments` (pages_manage_engagement)
+ */
+export async function createCommentReply(
+  commentId: string,
+  pageToken: string,
+  message: string,
+): Promise<string> {
+  const json = await graphFetch(`/${encodeURIComponent(commentId)}/comments`, pageToken, {
+    method: 'POST',
+    body: { message },
+  })
+  return typeof json.id === 'string' ? json.id : ''
+}

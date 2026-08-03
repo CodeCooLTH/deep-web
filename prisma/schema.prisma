@@ -1242,6 +1242,7 @@ model ShopChannel {
 
   shop           Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   contacts       ExternalContact[]
+  posts          FacebookPost[]
   // back-relation ของ Conversation.shopChannel — Prisma บังคับต้องประกาศทั้งสองฝั่งของ relation
   conversations  Conversation[]
   // back-relation ของ AutoReplyRule.shopChannelId (feature 00023, additive) — เงื่อนไขเพจของกฎคำตอบ
@@ -2553,4 +2554,69 @@ model SellerShortcutPreference {
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@unique([userId, shopId], map: "SellerShortcutPreference_userId_shopId_key")
+}
+
+/// โพสต์บนเพจ Facebook ที่มีคอมเมนต์เข้ามา (feature 00029) — cache ฝั่งเรา ไม่ใช่แหล่งความจริง
+///
+/// ทำไมต้องมีตารางโพสต์แยก ไม่ผูกคอมเมนต์ตรงกับ ShopChannel: หน้าจอที่ user เลือก (แบบ Business
+/// Suite) จัดกลุ่ม "ตามโพสต์" — ถ้าไม่มีตารางนี้ต้อง group by post_id ทุกครั้งที่เปิดหน้า และ
+/// ไม่มีที่เก็บรูป/ข้อความโพสต์ที่ webhook ไม่ได้ส่งมา (feed ให้แค่ post_id ต้อง GET เพิ่ม)
+model FacebookPost {
+  id            String @id @default(uuid())
+  shopChannelId String
+  /// id ฝั่ง Meta รูปแบบ "{pageId}_{postNum}" — กุญแจกันซ้ำ (ยืนยันจาก payload จริง 2026-08-03)
+  externalPostId String @unique
+  message       String?
+  permalink     String?
+  /// รูปประกอบโพสต์ (full_picture ของ Graph) — เก็บ URL ของ Meta ตรง ๆ ไม่ mirror ใน v1
+  thumbnailUrl  String?
+  createdTime   DateTime?
+  /// เวลาคอมเมนต์ล่าสุดของโพสต์นี้ — คอลัมน์ที่รายการซ้ายใช้เรียง (ไม่ใช่วันที่โพสต์)
+  lastCommentAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  channel  ShopChannel   @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  comments PageComment[]
+
+  @@index([shopChannelId, lastCommentAt])
+}
+
+/// คอมเมนต์ใต้โพสต์ของเพจ (feature 00029)
+///
+/// รวมทั้งคอมเมนต์ของลูกค้าและของเพจเอง (isFromPage) — คำตอบของเพจคือคอมเมนต์ลูกที่มี
+/// parentExternalId ชี้มาที่คอมเมนต์แม่ ซึ่งเป็นตัวตัดสินว่า "ตอบแล้ว" (BRD BR-14)
+model PageComment {
+  id            String @id @default(uuid())
+  postId        String
+  shopChannelId String
+  /// id ฝั่ง Meta รูปแบบ "{postNum}_{commentNum}" — กันซ้ำแบบเดียวกับ ChatMessage.externalMessageId
+  externalCommentId String @unique
+  /// คอมเมนต์แม่ (null = คอมเมนต์ระดับบน). เก็บเป็น id ของ Meta ไม่ใช่ id ภายใน เพราะ webhook
+  /// ส่งคอมเมนต์ลูกมาก่อนตัวแม่ได้ (backfill ยังไม่ถึง) — ผูกด้วย id ภายในจะพลาดตอนนั้น
+  parentExternalId String?
+  fromExternalId String?
+  /// ชื่อผู้คอมเมนต์ — payload จริงส่ง from.name มาให้ (ยืนยัน 2026-08-03) ไม่ต้อง GET เพิ่ม
+  fromName      String?
+  isFromPage    Boolean @default(false)
+  message       String?
+  /// รูป/วิดีโอที่แนบมากับคอมเมนต์ (URL ของ Meta)
+  attachmentUrl String?
+  createdTime   DateTime
+  editedAt      DateTime?
+  /// ลูกค้าลบคอมเมนต์บน Facebook — เก็บแถวไว้เป็นหลักฐาน ไม่ลบจริง (BR-CMT-04)
+  isDeleted     Boolean @default(false)
+  /// คนในทีมร้านที่กดตอบผ่าน Deep — Meta มองว่าทุกคำตอบเป็นของ "เพจ" ถ้าไม่เก็บเองจะไม่มีวันรู้
+  /// (plain String ไม่ผูก FK — pattern เดียวกับ ShopChannel.connectedByUserId)
+  repliedByUserId String?
+  /// payload ดิบจาก webhook/Graph — เหตุผลเดียวกับ ChatMessage.rawMessage (บทเรียน 2026-08-03)
+  rawPayload    Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  post    FacebookPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdTime])
+  @@index([shopChannelId, createdTime])
+  @@index([parentExternalId])
 }

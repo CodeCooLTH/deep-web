@@ -57,6 +57,7 @@ import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
+import InboxTabs from '../_components/InboxTabs'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -258,6 +259,8 @@ export default async function SellerInboxPage() {
           → InboxList ต้องอ่านจาก context ไม่ render ช่องของตัวเอง ไม่งั้นมือถือเห็นช่องค้นหาซ้ำ 2 อัน
           (user เจอจริงบน prod) — prop ชื่อ railMode คงเดิม แต่ความหมายตอนนี้ = "ค้นหาอยู่ที่ header" */}
       <div className="lg:hidden">
+        {/* แท็บ ข้อความ | ความคิดเห็น (feature 00029) — มือถือไม่มี rail จึงต้องมีที่นี่ด้วย */}
+        <InboxTabs />
         <InboxList
           initialItems={items}
           initialNextCursor={nextCursor}

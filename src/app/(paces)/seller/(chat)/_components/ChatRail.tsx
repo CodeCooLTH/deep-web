@@ -35,6 +35,7 @@
  */
 import { useEffect, useState } from 'react'
 import { SimpleBar } from '@/components/wrappers/SimpleBar'
+import InboxTabs from './InboxTabs'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import { SellerInboxSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import InboxList, { type ConversationListItem, type ChannelFilterOption, type ChatGroupTab } from '../inbox/components/InboxList'
@@ -136,6 +137,8 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
     // → ต้องยัด overscroll-contain ลงโหนดนั้นโดยตรง ไม่งั้นเลื่อนรายการแชทจนสุดแล้ว scroll จะไหลต่อ
     // ไปหาหน้าเว็บ/หัวแชท (bug เดียวกับที่แก้ในเธรด — user report prod 2026-07-23)
     <SimpleBar className="size-full" scrollableNodeProps={{ className: 'overscroll-contain' }}>
+      {/* แท็บ ข้อความ | ความคิดเห็น (feature 00029) — อยู่เหนือรายการเหมือน Business Suite */}
+      <InboxTabs />
       {loading ? (
         <div className="px-4 pt-4 pb-4">
           <SellerInboxSkeleton />

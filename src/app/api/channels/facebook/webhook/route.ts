@@ -7,6 +7,7 @@ import { WebhookBodySchema, extractMessagingEventsWithRaw, extractFeedChanges } 
 import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent, ingestMessageEdit } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
+import { ingestFeedComment } from '@/services/page-comment.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -113,6 +114,12 @@ export async function POST(request: NextRequest) {
   // เต็ม ๆ — เท่านี้พอตอบคำถามที่ต้องรู้ (ภาษาไทยมาครบไหม, Meta ให้ชื่อคนคอมเมนต์หรือเปล่า)
   for (const { pageId, change } of extractFeedChanges(parsed.output)) {
     const val = change.value ?? {}
+    // เก็บคอมเมนต์ลงฐานจริง (feature 00029) — ไม่ throw: webhook ต้องตอบ 200 เสมอ
+    if (val.item === 'comment') {
+      await ingestFeedComment({ pageExternalId: pageId, change, rawChange: change }).catch((e) =>
+        console.error('[fb-feed] เก็บคอมเมนต์ไม่สำเร็จ', e instanceof Error ? e.message : e),
+      )
+    }
     console.log(
       '[fb-feed]',
       JSON.stringify({
