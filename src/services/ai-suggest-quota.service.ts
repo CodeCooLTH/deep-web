@@ -50,10 +50,10 @@ async function getUsedTodayCount(shopId: string): Promise<number> {
 }
 
 /**
- * getAiSuggestQuotaStatus — สถานะโควตา/เครดิตล่วงหน้า (GET /api/chat/ai-quota, FR-AIQ-05)
+ * getAiSuggestQuotaStatus — สถานะโควตา/ยอดเงินล่วงหน้า (GET /api/chat/ai-quota, FR-AIQ-05)
  * อ่านอย่างเดียว: เรียก isOwnerPaidPlan ก่อนเสมอ — ถ้า paid คืนทันทีโดย**ไม่ query AiSuggestDailyUsage เลย**
  * (NFR-AIQ-Perf) balance ยังคง query เสมอทั้ง 2 กรณีเพราะ response contract ("balance" field) กำหนดให้ส่งกลับ
- * เสมอแม้ isPaidPlan:true (ไว้ให้ UI แสดงยอดกระเป๋าเงินเฉย ๆ ไม่ใช้ตัดสินสิทธิ์) — ดู decision note ใน commit
+ * เสมอแม้ isPaidPlan:true (ไว้ให้ UI แสดงยอดเงินในกระเป๋าเฉย ๆ ไม่ใช้ตัดสินสิทธิ์) — ดู decision note ใน commit
  */
 export async function getAiSuggestQuotaStatus(shopId: string): Promise<AiQuotaStatus> {
   const isPaidPlan = await isOwnerPaidPlan(shopId)

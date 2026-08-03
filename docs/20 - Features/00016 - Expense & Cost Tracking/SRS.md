@@ -37,6 +37,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
 - API routes ใหม่: `src/app/api/expenses/route.ts`, `src/app/api/expenses/[id]/route.ts`, `src/app/api/expenses/report/route.ts`, `src/app/api/business/shops/[shopId]/finance-visibility/route.ts`
 - API routes ที่แก้ไข: `src/app/api/products/route.ts`, `src/app/api/products/[id]/route.ts` (gate field `cost`)
 - Route ใหม่ `src/app/(paces)/seller/(dashboard)/expenses/page.tsx` (**contract เท่านั้น** — pixel-level UI เป็นของ `safepay-ux`, Hard Rule 8)
+- **(เพิ่ม 2026-08-02, ดู §10 Extension)** `src/lib/format-money.ts` (ใหม่ — SSOT รูปแบบเงินฝั่ง seller), `src/services/dashboard.service.ts::getSalesSeries` (แก้ — เพิ่ม `includeFinance`), `src/app/(paces)/seller/(dashboard)/sales/page.tsx` + `dashboard/page.tsx` (แก้ — gate ด้วย `resolveExpenseAccess`), `src/app/api/seller/sales-series/route.ts` (แก้ — cross-feature, ดู API.md §4.5b)
 
 นอกขอบเขตเชิงระบบ (อ้างอิง PRD §5 / BRD §7):
 - Billing/paywall แยกของ feature นี้เอง — ไม่มี
@@ -150,8 +151,8 @@ flowchart LR
   ] as const
   export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]
   export const EXPENSE_CATEGORY_LABEL_TH: Record<ExpenseCategory, string> = {
-    RENT: 'ค่าเช่า', PACKAGING: 'ค่าแพ็คเกจ/บรรจุภัณฑ์', ADVERTISING: 'ค่าโฆษณา',
-    SHIPPING: 'ค่าขนส่ง', SALARY: 'เงินเดือน', UTILITIES: 'สาธารณูปโภค', OTHER: 'อื่นๆ',
+    RENT: 'ค่าเช่า', PACKAGING: 'ค่าบรรจุภัณฑ์', ADVERTISING: 'ค่าโฆษณา',
+    SHIPPING: 'ค่าขนส่ง', SALARY: 'เงินเดือน', UTILITIES: 'ค่าน้ำ-ค่าไฟ', OTHER: 'อื่นๆ',
   }
   ```
   `Expense.category` เป็น `String` (ไม่ใช่ Prisma `enum`) ตาม convention `Order.status`/`Shop.kind` — validate ด้วย `v.picklist(EXPENSE_CATEGORIES)` ที่ backend และ Yup `oneOf(EXPENSE_CATEGORIES)` ที่ frontend เท่านั้น ไม่มี DB CHECK constraint (เพิ่ม/แก้หมวดในอนาคต = แก้ constant array ไม่ต้อง migration)
@@ -396,11 +397,62 @@ erDiagram
 
 ---
 
-## 10. สรุป (Summary)
+## 10. Extension — Redesign 2026-08-02 (รายจ่ายไหลเข้าหน้ายอดขาย + prevNetProfit + list filter)
+
+รอบนี้ **ไม่มี schema/migration ใหม่** (DATABASE.md ไม่เปลี่ยน — ดู DATABASE.md หัวข้อ Redesign note) เป็นการต่อยอด service/API/UI ที่มีอยู่แล้วล้วน ๆ. เอกสารต้นทาง UI: `docs/superpowers/specs/2026-08-02-expenses-redesign-design-spec.md` (ผ่าน `safepay-ux` + Impeccable critique/distill). Commits: `69b235f4` (ชั้นข้อมูล), `3148bb42` (`/expenses`), `a20d99ac` (`/sales`), `69a224ad` (การ์ด+ชีตยอดขาย dashboard), `e0ec4926`/`56dcc657` (แก้ตาม critique/distill)
+
+### TFR-012: `ResolvedDateRange.prevRange` + `shiftIsoDate()`
+- **Trace to:** UX decision ใน design spec §0.1 (ต้องมีฐานเทียบ %เปลี่ยนแปลงของกำไรสุทธิ ที่ P&L report เดิม (TFR-006/008) ไม่มี)
+- **คำอธิบายเชิงเทคนิค:** `src/lib/date-range.ts::resolveDateRange()` เพิ่ม field `prevRange: { orderRange, expenseRange }` — ช่วง "ยาวเท่ากัน ต่อเนื่องกันทันทีก่อน `start`" คำนวณผ่าน `shiftBack()` (`span = lt - gte`; `prevRange.lt = range.gte`, `prevRange.gte = range.gte - span`) ยาวเท่าเดิมเสมอแม้ preset `'month'` ที่จำนวนวันไม่คงที่ — **ไม่ใช่** "เดือนก่อนหน้าเป๊ะ" (ตั้งใจ, เขียนกำกับไว้ใน comment ของไฟล์). เพิ่มฟังก์ชัน `shiftIsoDate(iso, days)` (เลื่อนวันที่รูปแบบ `YYYY-MM-DD` ไป N วัน คืนรูปแบบเดิม) — ใช้ที่ `ExpenseList.tsx::dayHeading()` เทียบ "เมื่อวาน" กับ `todayThaiIsoDate()`
+- **Precondition/Postcondition:** `prevRange` คำนวณจาก `range` เดิมเสมอ (pure function, ไม่ query) — ไม่มี edge case เพิ่มเหนือ `resolveDateRange` เดิม
+- **Error/Edge cases:** preset `'month'` วันที่ 1 → `prevRange` ยาว 1 วันเท่ากับช่วงปัจจุบัน (ไม่ใช่ทั้งเดือนก่อน) — ตาม design ไม่ใช่บั๊ก
+
+### TFR-013: `PnlReport.prevNetProfit` — กำไรสุทธิช่วงก่อนหน้า
+- **Trace to:** design spec §0.1/§4.1 (การ์ด P&L ต้องมี %เปลี่ยนแปลง)
+- **คำอธิบายเชิงเทคนิค:** `pnl.service.ts::getPnlReport()` เพิ่ม query คู่ขนาน (`Promise.all` เดิมขยายจาก 2 เป็น 4 query) ดึง `prevOrders`/`prevExpenseAgg` ด้วย `range.prevRange.orderRange`/`range.prevRange.expenseRange` แล้วรวมด้วย `sumOrders()` reducer เดียวกับช่วงปัจจุบัน (แยกฟังก์ชันออกมาจาก inline loop เดิมเพื่อ reuse). `prevNetProfit = prevOrders.length === 0 && prevExpense === 0 ? null : round2(...)` — `null` หมายถึง "ไม่มีฐานให้เทียบ" (ไม่ใช่กำไร 0)
+- **Precondition:** —
+- **Postcondition:** `prevNetProfit` เป็นส่วนหนึ่งของ `PnlReport` เสมอทุก response ที่สำเร็จ (คู่กับ 6 field เดิม — TFR-008 เดิมมี 5 ตอนนี้เป็น 6)
+- **Error/Edge cases:** ช่วงก่อนหน้ามี expense แต่ไม่มี order (หรือกลับกัน) → ยังคำนวณได้ปกติ (ไม่ null เพราะมีอย่างน้อย 1 ด้าน); ห้าม UI แสดง %เปลี่ยนแปลงเมื่อ `prevNetProfit <= 0` ด้วย (ทิศทางอ่านกลับหัวจากฐานติดลบ — เป็น UI concern ไม่ใช่ service)
+
+### TFR-014: `hasAnyExpense(shopId)` — แยก empty-state 2 แบบ
+- **Trace to:** design spec (empty state ต้องพูดคนละอย่างระหว่าง "ไม่เคยบันทึกเลย" กับ "ช่วงนี้ไม่มีรายการ")
+- **คำอธิบายเชิงเทคนิค:** `expense.service.ts::hasAnyExpense(shopId)` — `findFirst({ where: { shopId } })` ไม่จำกัดช่วงเวลา คืน `boolean`. `expenses/page.tsx` query คู่กับ `getPnlReport`/`listExpenses` (`Promise.all` 3 ตัว) ส่งเป็น prop `hasAnyExpenseEver` เข้า `ExpenseWorkspace` → `ExpenseList` เลือกข้อความ empty-state: `true` = "ช่วงเวลานี้ยังไม่มีรายการ" (ชวนเปลี่ยนช่วง), `false` = "ยังไม่มีรายการค่าใช้จ่าย" (ชวนเริ่มบันทึก)
+- **Precondition/Postcondition:** query เบา (`findFirst` + `select: { id: true }`, ไม่ count เต็ม)
+
+### TFR-015: `GET /api/expenses/report` response ขยาย — `expenses[]` ผูกช่วงเดียวกับรายงาน
+- **Trace to:** design spec §0.1 (bug เดิม: การ์ดแยกหมวด/รายการ คิดจากคนละฐานกับ P&L)
+- **คำอธิบายเชิงเทคนิค:** route (`api/expenses/report/route.ts`) เปลี่ยนจากคืน `PnlReport` เฉย ๆ เป็น `{ ...report, expenses: expenses.map(serializeExpense) }` — `expenses` มาจาก `listExpenses(shop.id, { range: range.expenseRange })` เรียกขนานกับ `getPnlReport` **breaking change ของ response shape เดิม** (API.md §4.5 คือ SSOT ของ contract). `ExpenseWorkspace.tsx` (client) เก็บ `report`/`expenses` เป็น state เดียวกัน sync กันทุกครั้งที่ fetch ใหม่ (เปลี่ยนช่วง หรือหลัง mutate)
+- **Precondition/Postcondition:** ทุก consumer เดิมของ endpoint นี้ (ถ้ามีนอกเหนือจาก `/expenses`) ต้อง tolerate field `expenses` เพิ่มมาใน response (additive field เพิ่ม ไม่ลบของเดิม — ปลอดภัยสำหรับ consumer ที่ ignore field ที่ไม่รู้จัก)
+
+### TFR-016: `getSalesSeries()` ขยาย — `includeFinance` param + gate 3 surface ของหน้ายอดขาย
+- **Trace to:** design spec §0.2/§0.3 (ขอบเขตใหม่ที่ไม่เคยอยู่ใน PRD/SRS เดิม — ดู PRD §3.8/BRD FR-EXP-12)
+- **คำอธิบายเชิงเทคนิค:** `dashboard.service.ts::getSalesSeries(shopId, mode, period, includeFinance = false)` เพิ่มพารามิเตอร์ที่ 4 — `false` (default) = query/return เหมือนเดิมทุกประการ (zero-regression ของทุก caller เดิม). `true` = query เพิ่ม `items.select({ cost, qty })` ของ order (COGS) + `prisma.expense.findMany` ของช่วงเดียวกัน (boundary UTC ไม่ shift TZ ตรงกับ `Expense.expenseDate`, pattern เดียวกับ TFR-008/`date-range.ts`) แล้วคำนวณ `expenseValues[]`/`netProfitValues[]`/`totalExpense`/`netProfit` เพิ่มเข้า `SalesSeries` เป็น **optional field** — `undefined` ทั้งชุดเมื่อ `includeFinance=false` (fail-closed ตั้งแต่ชั้น query ไม่ใช่กรองทีหลังตอน render)
+  **3 caller ที่ผูก gate แล้ว (resolveExpenseAccess → includeFinance):**
+  1. `GET /api/seller/sales-series` (route) — เรียก `resolveExpenseAccess(session)` ก่อนแล้วส่ง `decision.kind === 'GRANTED'` เข้า `getSalesSeries` (ใช้โดย `SalesChartSheet.tsx` ชีตเต็มจอมือถือ)
+  2. `dashboard/page.tsx` (RSC, command-center mobile) — resolve gate ก่อน `getSalesSeries(shop.id, 'daily', {...}, expenseGranted)` แล้วส่งผลเข้า `SalesChartCard.tsx` (การ์ด "ยอดขายและกำไร")
+  3. `sales/page.tsx` (RSC, `/sales` desktop/full report) — **ไม่ได้เรียก `getSalesSeries`** (คำนวณ COGS/expense เองจาก `getOrdersByShop` + `listExpenses` แยก เพราะมีอยู่แล้ว) แต่ resolve gate เดียวกัน (`canSeeFinance = resolveExpenseAccess(...).kind === 'GRANTED'`) แล้ว conditional เหมือนกัน: `SummaryData.totalExpense/netProfit` เป็น `undefined` เมื่อไม่ผ่าน gate → `SalesChart.tsx`/`SalesTable.tsx` ไม่ render series/คอลัมน์การเงินเลย
+- **Precondition:** caller ต้อง resolve `resolveExpenseAccess` เอง **ก่อน** เรียก (service ไม่ self-gate — เหมือน pattern `getPnlReport`/`listExpenses` เดิมที่ route/page เป็นผู้ตัดสินสิทธิ์)
+- **Postcondition:** ไม่ผ่าน gate = response/props **ไม่มี field การเงินเลย** (ไม่ใช่ `0`) — ทุก UI consumer (`SalesChartCard`/`SalesChartSheet`/`SalesChart`/`SalesTable`) เช็ค `field != null` เพื่อตัดสินใจ render ไม่ใช่เช็ค falsy (กัน `0` ที่เป็นค่าจริงถูกซ่อนผิด)
+- **Error/Edge cases:** shop ที่ไม่มี order/expense เลยในช่วง → field การเงินเป็น `0` ปกติ (ต่างจาก `undefined` ที่แปลว่า "ไม่มีสิทธิ์ดู" — สอง state นี้ต้องแยกกันชัดใน type, `number | undefined`)
+
+### Traceability เพิ่ม (ส่วนขยาย)
+
+| Requirement (ดู PRD §3.8/BRD FR-EXP-12) | SRS TFR-ID | Component | สถานะ |
+|---|---|---|---|
+| %เปลี่ยนแปลงกำไรสุทธิบนการ์ด P&L | TFR-012, TFR-013 | `date-range.ts`, `pnl.service.ts` | Implemented |
+| Empty state 2 แบบของรายการค่าใช้จ่าย | TFR-014 | `expense.service.ts::hasAnyExpense` | Implemented |
+| Response เดียวขับทั้งหน้า `/expenses` | TFR-015 | `api/expenses/report/route.ts` | Implemented |
+| กำไรสุทธิไหลเข้า `/sales` + command-center + ชีตมือถือ | TFR-016 | `dashboard.service.ts::getSalesSeries`, `api/seller/sales-series`, `sales/page.tsx`, `dashboard/page.tsx` | Implemented |
+
+---
+
+## 11. สรุป (Summary)
 
 เอกสาร SRS นี้กำหนดข้อกำหนดเชิงเทคนิคของ **Expense & Cost Tracking** ครอบคลุม data model เพิ่มเติมแบบ additive ล้วน (`Product.cost`/`OrderItem.cost`/`Expense`/`Shop.staffCanViewFinance`), cost-snapshot logic ที่ `createOrder`, P&L calculation (`pnl.service.ts`) ด้วย dual date-boundary strategy, และที่สำคัญที่สุดคือ **ปิด open item เรื่อง ownerId resolution ของ BUSINESS shop** ด้วยหลักฐานโค้ดจริง (`Shop.userId` ใช้ได้ตรงทั้ง 2 kind ไม่ต้องผ่าน `ShopMember(role=OWNER)`)
 
 **ขอบเขตที่ครอบคลุม:** 3 service ใหม่ + 2 lib ใหม่, 2 service เดิมที่แก้ (product/order), 4 API route ใหม่ + 2 route เดิมที่แก้, schema เพิ่ม 4 จุด (additive)
+
+**อัปเดต 2026-08-02 (§10 Extension, deployed):** ไม่มี schema เพิ่ม — ต่อยอด service เดิมด้วย `prevRange`/`prevNetProfit` (%เปลี่ยนแปลงกำไร), `hasAnyExpense` (empty-state 2 แบบ), response `/api/expenses/report` ผูก `expenses[]` เข้าช่วงเดียวกับรายงาน, และ `getSalesSeries(includeFinance)` ที่ทำให้กำไรสุทธิไหลเข้า 3 surface ของหน้ายอดขาย (TFR-012..016)
 
 **ประเด็นที่ต้องตัดสินใจเพิ่ม (Open Questions):**
 - Index `Order(shopId, status, createdAt)` — เสนอให้เพิ่มพร้อมกันตอน migration ของฟีเจอร์นี้ (ยืนยันกับ `safepay-database`)

@@ -10,7 +10,7 @@
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/offcanvas/page.tsx (offcanvasBottom block — id/data-hs-overlay/translate-y/close btn)
  * Logic reused from: src/layouts/components/TopBar/components/UserDropdownDetailed.tsx
- *   (fetch /api/business/context guard by hasBusinessMembership) — สลับร้านจริงใช้ useShopSwitcher
+ *   (fetch /api/business/context) — สลับร้านจริงใช้ useShopSwitcher
  *   ร่วมกัน (POST switch-context → session.update({activeShopId}) → hard-navigate /dashboard,
  *   overlay z-[1070] ผ่าน ShopSwitchOverlay)
  */
@@ -20,6 +20,8 @@ import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
+import { useCreatePersonalShop } from '@/hooks/useCreatePersonalShop'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -43,7 +45,6 @@ type SessionUser = {
   displayName?: string
   username?: string
   avatar?: string | null
-  hasBusinessMembership?: boolean
   activeShopId?: string | null
   activeShopRole?: 'OWNER' | 'ADMIN'
   activeShopKind?: 'PERSONAL' | 'BUSINESS'
@@ -55,7 +56,6 @@ export default function AccountSwitcherSheet() {
   const { data: session } = useSession()
   const user = session?.user as SessionUser | undefined
 
-  const hasBusinessMembership = user?.hasBusinessMembership === true
   const activeShopId = user?.activeShopId
   const displayName = user?.displayName ?? user?.username ?? 'ผู้ใช้'
 
@@ -68,13 +68,16 @@ export default function AccountSwitcherSheet() {
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
   const { switching, target, switchShop } = useShopSwitcher()
+  // feature 00026 — ผู้ถูกเชิญที่ยังไม่มีร้านส่วนตัว (context.personal === null) กดสร้างได้จากที่นี่
+  const { creating, createPersonalShop } = useCreatePersonalShop()
   // mounted guard — portal ต้องมี document (client); Preline (MutationObserver บน body) re-init sheet ให้เอง
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
   useEffect(() => {
-    // guard: fetch เฉพาะเมื่อมี business membership จริง (เหมือน UserDropdownDetailed)
-    if (!hasBusinessMembership) return
+    // feature 00026: เดิม fetch เฉพาะเมื่อมี business membership — ตอนนี้ sheet เป็นทางเข้า
+    // "ข้อมูลส่วนตัว" ของมือถือด้วย และต้องรู้ว่ามีร้านส่วนตัวหรือยังเพื่อโชว์แถวสร้างร้าน
+    // จึง fetch เสมอ (endpoint scope ด้วย session อยู่แล้ว คืน personal + businesses ของ user เอง)
     let cancelled = false
     // no-store + cache-buster query: กัน cache ทุกชั้น (browser/CDN/carrier 5G ที่ ignore no-store)
     // serve response เก่า businesses=[] — URL unique ทุกครั้ง = cache miss เสมอ
@@ -92,7 +95,7 @@ export default function AccountSwitcherSheet() {
     return () => {
       cancelled = true
     }
-  }, [hasBusinessMembership])
+  }, [])
 
   // แถวแต่ละแถวมี 3 พฤติกรรม: active=ไม่ clickable, locked=toast อย่างเดียว (ไม่ยิง API,
   // ไม่ปิด sheet), อื่น ๆ = สลับ (useShopSwitcher) + ปิด sheet ทันที — overlay เต็มจอจะคลุม sheet
@@ -112,14 +115,10 @@ export default function AccountSwitcherSheet() {
     window.HSOverlay?.close('#account-switcher-sheet')
   }
 
-  const loading = hasBusinessMembership && context === null && !fetchFailed
+  const loading = context === null && !fetchFailed
 
   return (
     <>
-      {/*
-        HR7 arbitrary: max-h-[80vh] — Paces ไม่มี viewport-relative max-height token
-        สำหรับ bottom sheet body scroll (จำเป็นจริง กันเนื้อหายาวล้นจอมือถือ)
-      */}
       {/* Full-screen panel (mobile + tablet) — สลับบัญชี ทับ bottom nav (z-30) + เนื้อหาทั้งหมด, อยู่บนสุด
           - text-default-800: sheet render ใต้ CompactHero (text-white) → ต้องกำหนดสีเอง ไม่งั้นทั้ง modal ขาวมองไม่เห็น
           - inset-0 + h-full/w-full: เต็มจอ (ไม่ใช่ bottom sheet); slide-up ด้วย translate-y-full → open:translate-y-0
@@ -138,7 +137,7 @@ export default function AccountSwitcherSheet() {
         {/* header */}
         <div className="border-default-200 flex shrink-0 items-center justify-between border-b px-5 py-3">
           <h3 id="account-switcher-sheet-label" className="text-base font-semibold">
-            สลับบัญชี
+            บัญชีของฉัน
           </h3>
           <button
             type="button"
@@ -193,6 +192,28 @@ export default function AccountSwitcherSheet() {
                 </button>
               )}
 
+              {/* ยังไม่มีร้านส่วนตัว (ผู้ถูกเชิญ feature 00012) → เสนอให้สร้าง แทนตำแหน่งแถว personal
+                  เส้นประ + primary = grammar เดียวกับ "เปิดร้านของฉันเอง" ที่ ChooseShopClient ใช้อยู่ */}
+              {context && context.personal === null && (
+                <button
+                  type="button"
+                  onClick={createPersonalShop}
+                  disabled={creating}
+                  className="border-primary/40 bg-primary/5 text-primary active:bg-primary/10 mb-2 flex w-full items-center gap-3 rounded-lg border border-dashed px-3 py-3 text-start disabled:opacity-50"
+                >
+                  <Icon
+                    icon={creating ? 'loader-2' : 'plus'}
+                    className={`size-5 shrink-0${creating ? ' animate-spin' : ''}`}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">สร้างร้านส่วนตัวของฉัน</span>
+                    <span className="text-default-500 block text-xs">ขายของในนามตัวเอง — สร้างได้ครั้งเดียว</span>
+                  </span>
+                  <Icon icon="chevron-right" className="text-default-400 shrink-0" aria-hidden="true" />
+                </button>
+              )}
+
               {/* Business rows — แสดงทุกร้าน รวมแถว active (ติ๊ก) และแถว locked (lock icon) */}
               {context?.businesses.map((b) => {
                 const isActive = b.shopId === activeShopId
@@ -226,12 +247,33 @@ export default function AccountSwitcherSheet() {
               })}
             </div>
           )}
+
+          {/* footer — ทางเข้า "ข้อมูลส่วนตัว" บนมือถือ. sheet นี้เป็นที่เดียวที่มือถือเข้าถึง UI
+              ระดับ identity ได้จากทุกหน้า (bottom nav ไม่มีช่อง, dropdown เป็นของ desktop)
+              ปิด sheet ก่อนด้วย data-hs-overlay ไม่งั้น panel ค้างทับหน้าปลายทาง */}
+          <div className="border-default-200 mt-1 border-t pt-2">
+            <Link
+              href="/account"
+              data-hs-overlay="#account-switcher-sheet"
+              className="hover:bg-default-100 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-start"
+            >
+              <Icon icon="user-circle" className="text-default-500 size-5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1 font-medium">ข้อมูลส่วนตัว</span>
+              <Icon icon="chevron-right" className="text-default-400 shrink-0" aria-hidden="true" />
+            </Link>
+          </div>
         </div>
           </div>,
           document.body,
         )}
 
       <ShopSwitchOverlay show={switching} targetName={target?.name} targetKind={target?.kind} targetLogo={target?.logo} />
+      {/* ยังไม่มีร้านให้เอ่ยชื่อตอนสร้าง — override ข้อความ ไม่งั้นขึ้น "กำลังสลับบัญชี" ซึ่งผิดเหตุการณ์ */}
+      <ShopSwitchOverlay
+        show={creating}
+        label="กำลังเปิดร้านส่วนตัวให้คุณ…"
+        subLabel="อีกสักครู่จะพาไปตั้งค่าร้านต่อ"
+      />
     </>
   )
 }

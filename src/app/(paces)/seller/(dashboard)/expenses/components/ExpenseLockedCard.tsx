@@ -27,7 +27,7 @@ const COPY: Record<Variant, { icon: string; iconClass: string; title: string; bo
   },
   STAFF_NOT_ALLOWED: {
     icon: 'lock',
-    iconClass: 'text-default-400',
+    iconClass: 'text-default-700',
     title: 'ยังไม่ได้รับสิทธิ์เข้าถึงข้อมูลนี้',
     body: 'เจ้าของร้านยังไม่เปิดให้พนักงานเห็นข้อมูลการเงิน ติดต่อเจ้าของร้านหากต้องการเข้าถึง',
   },
@@ -40,7 +40,7 @@ export default function ExpenseLockedCard({ variant }: Props) {
     <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
       <Icon icon={copy.icon} width={64} height={64} className={`mx-auto mb-4 ${copy.iconClass}`} aria-hidden="true" />
       <h2 className="text-dark mb-2 text-xl font-bold">{copy.title}</h2>
-      <p className="text-default-400 mb-6">{copy.body}</p>
+      <p className="text-default-700 mb-6">{copy.body}</p>
       {/* STAFF_NOT_ALLOWED: ไม่มีปุ่ม action — ไม่มีอะไรให้ admin ทำเอง (ตาม spec) */}
       {variant === 'PACKAGE_LOCKED' && (
         <Link

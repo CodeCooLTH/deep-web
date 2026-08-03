@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getSalesSeries } from '@/services/dashboard.service'
+import { resolveExpenseAccess } from '@/services/expense-access.service'
 
 // auth per-user + query-driven — ห้าม cache ข้าม user/ช่วง (feedback_auth_api_cache_control)
 export const dynamic = 'force-dynamic'
@@ -45,7 +46,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const series = await getSalesSeries(active.shop.id, mode, { year, month })
+    // ค่าใช้จ่าย/กำไรสุทธิมี gate สิทธิ์ของตัวเอง (แพ็กเกจ + สิทธิ์พนักงาน) — ไม่ผ่าน = ไม่ query
+    // และ response ไม่มีฟิลด์เหล่านั้นเลย ชีตยอดขายจะซ่อนบล็อกนั้นเอง
+    const expenseAccess = await resolveExpenseAccess(
+      session as unknown as { user: { id: string; activeShopId?: string | null } },
+    )
+    const series = await getSalesSeries(
+      active.shop.id,
+      mode,
+      { year, month },
+      expenseAccess.kind === 'GRANTED',
+    )
     return NextResponse.json(series, { headers: { 'cache-control': 'private, no-store' } })
   } catch (e) {
     console.error('[GET /api/seller/sales-series]', e)

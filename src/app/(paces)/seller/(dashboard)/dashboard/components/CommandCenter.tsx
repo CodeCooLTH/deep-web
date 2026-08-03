@@ -14,7 +14,6 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/page.tsx
  */
 import type { CommandCenterData } from '../_constants/command-center'
-import { SHORTCUT_TILES } from '../_constants/command-center'
 import CompactHero from './CompactHero'
 import OrderStatusBand from './OrderStatusBand'
 import BestSellerStrip from './BestSellerStrip'
@@ -27,12 +26,6 @@ type Props = {
 }
 
 export default function CommandCenter({ data }: Props) {
-  // D#13: map data.liveAuctionCount → badgeCount ของ tile ประมูล (href='/auctions')
-  // ทำที่นี่แทนใน _constants เพราะ SHORTCUT_TILES เป็น static const — data มาจาก server ต่อ request
-  const tiles = SHORTCUT_TILES.map((tile) =>
-    tile.href === '/auctions' ? { ...tile, badgeCount: data.liveAuctionCount ?? 0 } : tile,
-  )
-
   // -mx-4: edge-to-edge ทั้ง CC — หักล้าง gutter `.seller-mobile-shell main { padding-inline:1rem }` (16px)
   // ให้ทุก section (hero+cards) ชนขอบจอ ไม่มี padding ซ้าย/ขวา ตาม mockup v10 (HR7 arbitrary: ไม่มี full-bleed token)
   // pb อยู่ที่ main แล้ว (safepay-overrides.css) — wrapper ไม่ใส่ซ้ำ
@@ -62,8 +55,11 @@ export default function CommandCenter({ data }: Props) {
       {/* สินค้าขายดี — จิ้ม→สร้างออเดอร์พร้อมสินค้านั้น (feature Quick Create); ว่าง→ไม่ render */}
       <BestSellerStrip products={data.bestSellers ?? []} />
 
-      {/* เมนูลัด — carousel 4×2/หน้า + dots (D#13: tiles ผ่าน map เติม badgeCount ประมูล) */}
-      <CarouselGrid tiles={tiles} />
+      {/* เมนูลัด — รายการมาจากสิทธิ์จริงของผู้ใช้ + ที่เขาเลือกเอง (feature 00027)
+          shortcut ว่าง = ไม่ผ่าน gate ร้าน (เช่น session หลุด) → ซ่อนการ์ดไปเลย ไม่โชว์การ์ดเปล่า */}
+      {data.shortcutTiles && (
+        <CarouselGrid initialTiles={data.shortcutTiles} liveAuctionCount={data.liveAuctionCount ?? 0} />
+      )}
 
       {/* กิจกรรมล่าสุด — timeline real data */}
       <ActivityTimeline items={data.recentActivity} />

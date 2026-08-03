@@ -64,6 +64,9 @@ model User {
   createdExpenses  Expense[]       @relation("ExpenseCreatedBy") // NEW — back-relation ของ Expense.createdByUserId (Prisma-managed, ไม่มีคอลัมน์จริงฝั่งนี้)
   aiSettingUpdates ShopAiSetting[] // NEW (feature 00019) — การตั้งค่า AI ที่ผู้ใช้นี้แก้ล่าสุด
 
+  // --- Customizable Shortcuts (feature 00027, additive) ---
+  shortcutPreferences SellerShortcutPreference[] // เมนูลัดที่ผู้ใช้นี้ตั้งไว้ แยกตามร้าน
+
   // --- feature 00023 Chat Auto-Reply (additive) ---
   // back-relation ของ AutoReplyConfig.updatedByUserId เท่านั้น — createdByUserId/updatedByUserId
   // ของ AutoReplyKeyword/AutoReplyRule และ testModeEnabledByUserId ของ AutoReplyConfig เป็น
@@ -237,16 +240,19 @@ model Shop {
   shipmentPickups      ShipmentPickup[] // NEW (feature 00022) — คำขอเรียกรถเข้ารับ (ระดับร้าน ไม่ใช่ระดับออเดอร์)
 
   // --- feature 00023 Chat Auto-Reply (additive) ---
-  autoReplyConfig   AutoReplyConfig? // การตั้งค่าระดับร้าน (1:1)
-  autoReplyKeywords AutoReplyKeyword[] // กลุ่มคำของร้านนี้
-  autoReplyRules    AutoReplyRule[] // กฎคำตอบของร้านนี้ (ทุกระดับ)
-  autoReplyJobs     AutoReplyJob[] // คิวงานตอบอัตโนมัติ scope ร้านนี้
-  autoReplyLogs     AutoReplyLog[] // บันทึกการตัดสินใจ scope ร้านนี้
+  autoReplyConfig              AutoReplyConfig? // การตั้งค่าระดับร้าน (1:1)
+  autoReplyKeywords            AutoReplyKeyword[] // กลุ่มคำของร้านนี้
+  autoReplyRules               AutoReplyRule[] // กฎคำตอบของร้านนี้ (ทุกระดับ)
+  autoReplyJobs                AutoReplyJob[] // คิวงานตอบอัตโนมัติ scope ร้านนี้
+  autoReplyLogs                AutoReplyLog[] // บันทึกการตัดสินใจ scope ร้านนี้
   // feature 00023 phase 00023-qna (2026-07-31)
-  autoReplyQnas               AutoReplyQna[] // คลังคำถาม-คำตอบ (ผูกกลุ่มคำ; shopId ไว้ query เร็ว)
+  autoReplyQnas                AutoReplyQna[] // คลังคำถาม-คำตอบ (ผูกกลุ่มคำ; shopId ไว้ query เร็ว)
   autoReplyUnansweredQuestions AutoReplyUnansweredQuestion[] // คิวคำถามที่บอทตอบไม่ได้
-  autoReplyGuardrails         AutoReplyGuardrail[] // กฎห้ามตอบของ AI Enhance (ผูกกลุ่มคำ; shopId ไว้ query เร็ว)
-  aiChatbotTestThreads        AiChatbotTestThread[] // แชทที่ใช้ทดสอบ ChatBot (มีผลตอน status=TEST)
+  autoReplyGuardrails          AutoReplyGuardrail[] // กฎห้ามตอบของ AI Enhance (ผูกกลุ่มคำ; shopId ไว้ query เร็ว)
+  aiChatbotTestThreads         AiChatbotTestThread[] // แชทที่ใช้ทดสอบ ChatBot (มีผลตอน status=TEST)
+
+  // --- Customizable Shortcuts (feature 00027, additive) ---
+  shortcutPreferences SellerShortcutPreference[] // เมนูลัดที่สมาชิกแต่ละคนตั้งไว้สำหรับร้านนี้
 
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
@@ -799,10 +805,10 @@ model TrustScoreHistory {
 // --- Wallet + SMS (Phase 4: Paid SMS Order Link + Seller Wallet/Credit) ---
 
 model SellerWallet {
-  id        String   @id @default(uuid())
-  shopId    String   @unique
+  id      String @id @default(uuid())
+  shopId  String @unique
   // balance เป็น integer หน่วย ฿; RC-3: CHECK(balance >= 0) enforce ใน migration SQL ด้วยมือ
-  balance   Int      @default(0)
+  balance Int    @default(0)
 
   /// เศษค่า AI Enhance ที่ยังไม่ถึงเกณฑ์หัก — phase `00023-ai-enhance` (BR-AR-36)
   ///
@@ -1348,6 +1354,7 @@ model Conversation {
   autoReplyLogs        AutoReplyLog[]
   autoReplyTestThreads AutoReplyKeywordTestThread[]
   contextProduct       Product?                     @relation("ConversationContextProduct", fields: [contextProductId], references: [id], onDelete: SetNull)
+  aiChatbotTestThreads AiChatbotTestThread[] // แชทที่ถูกเลือกไว้ทดสอบ ChatBot
 
   @@unique([buyerUserId, shopId]) // BR-CHAT-02: 1 conversation ต่อคู่ (buyer, shop) เท่านั้น — กัน race ที่ getOrCreateConversation
   @@unique([shopChannelId, externalContactId]) // 1 เธรดต่อ (Page, PSID) — กัน race แบบเดียวกับ BR-CHAT-02
@@ -1361,8 +1368,6 @@ model Conversation {
   // ถ้าไม่มี index เหตุผลนั้นไม่มีของจริงรองรับ. เพิ่มตอนนี้ฟรีเพราะยังไม่ migrate; เพิ่มทีหลัง
   // ต้อง ALTER ตารางใหญ่บน DB ที่ dev/prod แชร์กัน
   @@index([shopId, lastInboundAt])
-  aiChatbotTestThreads AiChatbotTestThread[] // แชทที่ถูกเลือกไว้ทดสอบ ChatBot
-
 }
 
 // ChatGroup — กลุ่ม/แท็บจัดหมวดแชทที่ร้านตั้งเอง (feature 00018, user request 2026-07-23)
@@ -1467,7 +1472,7 @@ model ChatMessage {
   // พิสูจน์แล้วกับเธรดจริง: ลำดับของเราสลับกับที่ Graph API คืนมา (user report 2026-07-31)
   // เป็น SERIAL ไม่ใช่ BIGSERIAL ตั้งใจ — BigInt ของ Prisma กลายเป็น JS BigInt ที่ JSON.stringify
   // โยน error ทันทีเมื่อถูกส่งออกทาง API; Int รองรับ 2.1 พันล้านแถว เกินพอ
-  seq           Int      @unique @default(autoincrement())
+  seq Int @unique @default(autoincrement())
 
   conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User?         @relation("SentChatMessages", fields: [senderUserId], references: [id], onDelete: Cascade)
@@ -1606,7 +1611,7 @@ model AiSuggestDailyUsage {
 // 🛑 ไม่ผูก logic gate ใด ๆ ของ feature นี้เลย — เขียนแบบ best-effort หลัง gate ตัดสินใจแล้วเท่านั้น
 // (ถ้า insert แถว event ล้มเหลว ต้องไม่ทำให้ request หลักที่ผู้ใช้รอ suggestions อยู่พังตาม)
 model AiSuggestUsageEvent {
-  id             String   @id @default(uuid())
+  id             String @id @default(uuid())
   shopId         String
   // conversationId: เก็บไว้เพื่อ trace เท่านั้น — ตั้งใจไม่ใส่ FK/relation ไปยัง Conversation (มิเรอร์
   // WalletTransaction.refId) เพื่อให้ audit log คงอยู่อิสระจากวงจรชีวิตของเธรดแชท (ลบ/archive
@@ -1616,10 +1621,10 @@ model AiSuggestUsageEvent {
   // FREE = free path (non-paid, ในโควตา 10), CREDIT = credit path (non-paid, หักเครดิต ฿1),
   // UNLIMITED_PLAN = unlimited path (paid plan, bypass ทั้งหมด — BR-AIQ-02)
   kind           String
-  amountBaht     Int      @default(0) // 0 = FREE/UNLIMITED_PLAN, 1 = CREDIT (BR-AIQ-01)
+  amountBaht     Int    @default(0) // 0 = FREE/UNLIMITED_PLAN, 1 = CREDIT (BR-AIQ-01)
   // status: "SUCCESS" | "REFUNDED" — เปลี่ยนจาก SUCCESS เป็น REFUNDED เมื่อสิทธิ์ที่ใช้ไปถูกคืน (BR-AIQ-07)
   // มีผลเฉพาะ kind FREE/CREDIT เท่านั้น — unlimited path ไม่มีอะไรให้คืน จึงไม่มีทาง REFUNDED (BR-AIQ-07/E4)
-  status         String   @default("SUCCESS")
+  status         String @default("SUCCESS")
   // businessDay: denormalize "YYYY-MM-DD" เวลาไทยของ createdAt จาก todayThaiIsoDate() ตัวเดียวกับ
   // AiSuggestDailyUsage.date (ไม่ใช่ FK/ผูก logic ใด ๆ — แค่สำเนาไว้กันคำนวณ timezone ซ้ำตอน query
   // รายงาน) เพื่อ group by วันปฏิทินไทยแบบ exact-match ได้ตรงกับตัวนับโควตา สำหรับ admin cost
@@ -1640,7 +1645,7 @@ model AiSuggestUsageEvent {
   // Decimal ไม่ใช่ Float: ค่าอยู่ระดับเศษสตางค์ ($0.0042) และจะถูกเอาไป sum เพื่อตั้งราคาขาย
   costUsd      Decimal? @db.Decimal(12, 8)
 
-  createdAt      DateTime @default(now())
+  createdAt DateTime @default(now())
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
@@ -1980,19 +1985,19 @@ model AutoReplyConfig {
   /// SILENT  = เงียบตามเดิม
   /// MESSAGE = ส่งข้อความสำรองที่ร้านเขียนไว้ (ค่าเริ่มต้น — ลูกค้าไม่ถูกปล่อยทิ้ง และไม่เสี่ยงแต่งเรื่อง)
   /// AI_FREE = ให้ AI ตอบเองจากความรู้ทั่วไป (ยังห้ามแต่งราคา/เงื่อนไขของร้าน)
-  aiChatbotFallbackMode String  @default("MESSAGE")
-  aiChatbotFallbackText String? @db.Text
+  aiChatbotFallbackMode   String  @default("MESSAGE")
+  aiChatbotFallbackText   String? @db.Text
   /// แหล่งข้อมูลประกอบการตอบ — ของร้านเองเปิดไว้, ค้นเว็บต้องกดเปิดเอง (มีค่าใช้จ่าย + ข้อมูลนอกร้าน)
   aiChatbotUseShopData    Boolean @default(true)
   aiChatbotUseChatHistory Boolean @default(true)
   aiChatbotUseWebSearch   Boolean @default(false)
   /// เว้นระยะขั้นต่ำระหว่างคำตอบของ ChatBot ในห้องเดียวกัน (วินาที) — 0 = ไม่เว้น
   /// คนละตัวกับ cooldown ของกลุ่มคำ เพราะ ChatBot ทำงานตอนไม่เข้ากลุ่มไหนเลย
-  aiChatbotCooldownSec Int @default(30)
+  aiChatbotCooldownSec    Int     @default(30)
   /// เพดานจำนวนครั้งที่ ChatBot ตอบได้ต่อห้องต่อชั่วโมง — 0 = ไม่จำกัด
-  aiChatbotMaxPerHour  Int @default(10)
-  aiChatbotStartTime String?
-  aiChatbotEndTime   String?
+  aiChatbotMaxPerHour     Int     @default(10)
+  aiChatbotStartTime      String?
+  aiChatbotEndTime        String?
 
   /// น้ำเสียงของ AI ChatBot (null = ใช้ค่ากลาง) — แยกจาก aiTone รายกลุ่มคำ
   aiChatbotTone String? @db.Text
@@ -2129,7 +2134,7 @@ model AiChatbotTestThread {
 /// มาจากชุดเริ่มต้นของ SafePay (`isFromDefaultSet`) เพื่อบังคับกฎ "ข้อที่ร้านลบแล้วห้ามเติมกลับ"
 /// ตอน SafePay อัปเดตชุดเริ่มต้นในอนาคต (AC-027-04)
 model AutoReplyGuardrail {
-  id        String @id @default(uuid())
+  id        String  @id @default(uuid())
   shopId    String // ซ้ำกับ keyword.shopId โดยเจตนา — ทุก query ต้อง scope shopId ได้โดยไม่ join
   /// null = กฎระดับร้าน ใช้กับ AI ChatBot (ข้อความที่ไม่เข้ากลุ่มไหนเลย จึงไม่มีกลุ่มให้ผูก)
   keywordId String?
@@ -2156,7 +2161,7 @@ model AutoReplyGuardrail {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  shop    Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shop    Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   keyword AutoReplyKeyword? @relation(fields: [keywordId], references: [id], onDelete: Cascade)
 
   @@index([keywordId, isActive]) // query หลัก: โหลดกฎที่ใช้งานอยู่ของกลุ่มที่กำลังจะตอบ
@@ -2385,7 +2390,7 @@ model AutoReplyLog {
 /// เฟสหน้า + สถานะ LIVE/TEST/OFFLINE + ตารางเวลา + cooldown) ทั้งหมดอยู่ที่กลุ่ม ถ้าคลังอยู่นอกกลุ่ม
 /// มันจะกลายเป็นช่องทางที่ตอบลูกค้าได้โดยไม่มีอะไรคุมเลย
 model AutoReplyQna {
-  id String @id @default(uuid())
+  id        String  @id @default(uuid())
   // ซ้ำกับ keyword.shopId ตั้งใจ — ทุก query ของหน้าจัดการและของ matcher กรองด้วย shopId ตรง ๆ
   // ไม่ต้อง join กลับไปที่ AutoReplyKeyword ทุกครั้ง (แนวเดียวกับ AutoReplyRule.shopId)
   shopId    String
@@ -2425,10 +2430,10 @@ model AutoReplyQna {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  shop        Shop                          @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  keyword     AutoReplyKeyword?             @relation(fields: [keywordId], references: [id], onDelete: Cascade)
-  logs        AutoReplyLog[]
-  fromQueue   AutoReplyUnansweredQuestion[]
+  shop      Shop                          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  keyword   AutoReplyKeyword?             @relation(fields: [keywordId], references: [id], onDelete: Cascade)
+  logs      AutoReplyLog[]
+  fromQueue AutoReplyUnansweredQuestion[]
 
   // คำถามซ้ำในกลุ่มเดียวกันต้องถูกปฏิเสธ — บังคับที่ DB ไม่พึ่งวินัยโค้ด (หลักเดียวกับ AutoReplyPhrase)
   // 🛑 unique ที่ระดับ "กลุ่ม" ไม่ใช่ "ร้าน" ตั้งใจ: คำถามเดียวกันอยู่ได้หลายกลุ่ม เพราะแต่ละกลุ่ม
@@ -2488,4 +2493,39 @@ model AutoReplyUnansweredQuestion {
   @@unique([shopId, normalizedQuestion])
   // หน้าคิว: ของร้านนี้ ที่ยังรอกรอก เรียงตามที่ถูกถามบ่อย
   @@index([shopId, status, hitCount])
+}
+
+/// SellerShortcutPreference — เมนูลัดที่ผู้ใช้ตั้งเอง ต่อ (ผู้ใช้ × ร้าน) — feature 00027
+///
+/// เก็บเฉพาะ "เซ็ตของ slug" เท่านั้น — label/icon/url/badge/ลำดับ derive สดจาก sellerMenuItems
+/// (SSOT) ทุกครั้งที่ render การเก็บ derived data ซ้ำที่นี่จะสร้างปัญหา staleness แบบเดียวกับ
+/// SHORTCUT_TILES เดิม ซึ่งเป็นเหตุผลที่ต้องมีฟีเจอร์นี้ตั้งแต่แรก
+///
+/// ไม่มีแถว = ยังไม่เคยตั้งค่า -> คำนวณค่าเริ่มต้นสด ไม่เขียน DB (compute-on-read)
+/// slugs ว่าง = ตั้งใจไม่เอาเมนูลัดเลย ซึ่งต่างจาก "ไม่มีแถว" คนละความหมาย ห้ามยุบรวมกัน
+///
+/// CHECK constraint `SellerShortcutPreference_slugs_count` มีอยู่จริงในฐานข้อมูล
+/// (migration 20260802190000) แต่ Prisma DSL ประกาศไม่ได้ = unmanaged SQL:
+///   CHECK (COALESCE(array_length("slugs", 1), 0) BETWEEN 0 AND 8)
+/// ห้าม `prisma db pull` / `migrate dev` เด็ดขาด — introspection มองไม่เห็น constraint นี้
+/// แล้วจะ generate DROP ทิ้งให้เอง (พฤติกรรมเดียวกับ GIN index ของ Shop.categories
+/// และ EXCLUDE constraint ของ feature 00017/00024 ที่เตือนไว้ในไฟล์นี้เหมือนกัน)
+model SellerShortcutPreference {
+  id     String @id @default(uuid())
+  userId String
+  shopId String
+
+  /// เซ็ตของ MenuItemType.slug ที่ปักหมุดไว้ (เช่น "seller:sales") — ไม่เกิน 8 (CHECK ที่ DB)
+  /// ไม่ใช่ลำดับที่ผู้ใช้กด — แสดงผลเรียงตามตำแหน่งใน sellerMenuItems เสมอ (ไม่มี reorder ใน MVP)
+  /// อาจมี slug ที่ไม่อยู่ใน catalog แล้ว (สิทธิ์เปลี่ยนภายหลัง) — คงไว้โดยตั้งใจ ไม่ลบอัตโนมัติ
+  /// เพราะถ้าได้สิทธิ์คืน ผู้ใช้ควรได้เมนูลัดเดิมกลับมาโดยไม่ต้องตั้งใหม่
+  slugs String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shopId], map: "SellerShortcutPreference_userId_shopId_key")
 }

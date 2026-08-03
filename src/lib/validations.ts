@@ -101,6 +101,33 @@ export const SetPasswordSchema = v.object({
   password: PasswordSchema,
 });
 
+// UpdateProfileSchema — allow-list ของ PATCH /api/users/me
+//
+// สำคัญ — เหตุผลที่ต้องเป็น allow-list ไม่ใช่แค่ type: เดิม route ส่ง body ดิบเข้า
+// prisma.user.update({ data }) ตรง ๆ โดยไม่ parse — TS type บน updateProfile() กรองอะไรไม่ได้ตอน
+// runtime → user ที่ล็อกอินคนไหนก็ได้ยิง {"isAdmin":true} แล้วยกระดับตัวเองเป็นแอดมินระบบ
+// (รวมถึงเซ็ต trustScore/passwordHash/phone ทับกฎ phone-immutable). ห้ามเปลี่ยนกลับไปรับ body ดิบ
+// และห้ามเพิ่ม field ที่ user ไม่ควรตั้งเองเข้ามาใน schema นี้
+//
+// ทุก field เป็น optional = partial update (caller ส่งมาเฉพาะที่แก้) — ดูรูปแบบที่ caller ใช้จริงที่
+// (marketing)/m/settings/profile/AvatarEditable.tsx (avatar) และ .../settings/profile/ProfileForm.tsx (displayName)
+export const UpdateProfileSchema = v.object({
+  displayName: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
+  // regex เดียวกับ /api/account/shop-info (SSOT ของรูปแบบ username ทั้งระบบ)
+  username: v.optional(v.pipe(v.string(), v.trim(), v.toLowerCase(), v.regex(/^[a-z0-9_]{3,30}$/))),
+  // avatar: path ของไฟล์ที่อัปโหลดเอง (/api/files/{fileId}) หรือ https URL (รูปจาก FB/LINE ที่
+  // auth.ts เซ็ตไว้). null = ลบรูป. จำกัดไว้แค่ 2 รูปแบบนี้เพื่อกัน javascript:/data: หลุดเข้า src
+  avatar: v.optional(
+    v.nullable(
+      v.pipe(
+        v.string(),
+        v.maxLength(2048),
+        v.regex(/^(\/api\/files\/|https:\/\/)/, "รูปแบบรูปโปรไฟล์ไม่ถูกต้อง"),
+      ),
+    ),
+  ),
+});
+
 export const CreateShopSchema = v.object({
   shopName: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
   description: v.optional(v.pipe(v.string(), v.maxLength(500))),
@@ -859,7 +886,9 @@ export const UpdateExpenseSchema = v.object({
 
 // PnlReportQuerySchema — manual parse (query params ไม่ใช่ JSON body) ตาม API.md §4.5
 export const PnlReportQuerySchema = v.object({
-  range: v.optional(v.picklist(["today", "7d", "30d", "month", "custom"]), "today"),
+  // default ต้องตรงกับหน้า /expenses (30d) — เดิม API เป็น "today" ส่วนหน้าเป็น "30d"
+  // ใครเรียก endpoint นี้โดยไม่ส่ง range จะได้คนละช่วงกับที่เห็นบนจอ
+  range: v.optional(v.picklist(["today", "7d", "30d", "month", "custom"]), "30d"),
   start: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
   end: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
 });
@@ -990,7 +1019,7 @@ export const SetHousekeepingStatusSchema = v.object({
 //      จะถูกเขียนทับเป็นเปิด ทั้งที่ร้านอาจตั้งใจปิดไว้ (ไฟล์ลูกค้าเข้า AI ทั้งไฟล์) — fallback
 //      ไปค่า stored ปลอดภัยกว่าและยังไม่ 400 กับ client เก่าเหมือนเดิม
 // feature 00019 ext (2026-07-29) — body ของ POST /api/chat/conversations/{id}/ai-suggest
-// confirmUseCredit: ผู้ใช้ยืนยันแล้วว่ายอมให้หักเครดิต ฿1 เมื่อโควตาฟรีหมด (FR-AIQ-04)
+// confirmUseCredit: ผู้ใช้ยืนยันแล้วว่ายอมให้หักเงิน ฿1 เมื่อโควตาฟรีหมด (FR-AIQ-04)
 // input ตัวนี้ทำให้ "เงินจริงถูกหัก" จึงต้องเป็น boolean แท้เท่านั้น — ค่าอื่น (string "true",
 // object, array) ต้องตกเป็น false ไม่ใช่ตีความเป็น truthy
 export const AiSuggestRequestSchema = v.object({

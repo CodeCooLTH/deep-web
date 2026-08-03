@@ -9,7 +9,7 @@ import { upgradeToProEntitlement } from "@/services/inventory-entitlement.servic
  *
  * ทำไม shop derive จาก session เท่านั้น (ไม่รับ shopId จาก body):
  * DAL ownership (S-C7 pattern — ดู src/app/api/wallet/topup/route.ts) — ถ้ารับ
- * shopId จาก client, seller A อาจส่ง shopId ของ seller B เพื่ออัพเกรด/หักเครดิตแทนคนอื่น.
+ * shopId จาก client, seller A อาจส่ง shopId ของ seller B เพื่ออัพเกรด/หักเงินแทนคนอื่น.
  * session.user.id เป็น single source of truth สำหรับ identity — ดู API.md §2.
  *
  * Request body: ไม่มี ({}) — API.md §4.2
@@ -49,7 +49,7 @@ export async function POST() {
     }
     if (e instanceof Error && e.message === "INSUFFICIENT_CREDIT") {
       return NextResponse.json(
-        { error: "เครดิตไม่พอ กรุณาเติมเครดิตก่อนอัพเกรด" },
+        { error: "ยอดเงินไม่พอ กรุณาเติมเงินก่อนอัพเกรด" },
         { status: 402 },
       );
     }

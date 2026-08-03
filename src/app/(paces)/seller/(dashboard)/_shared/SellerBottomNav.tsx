@@ -269,8 +269,8 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount }: Selle
             ].join(' ')}
           >
             {/* icon toggle: plus (ปิด) → x (เปิด)
-                arbitrary fontSize 26px: FAB hero icon ใหญ่กว่า nav (text-2xl=24) — ไม่มี token 26px แทน */}
-            <Icon icon={open ? 'x' : 'plus'} style={{ fontSize: '26px' }} />
+                size-6.5 = 26px: FAB hero icon ใหญ่กว่าไอคอนใน nav เล็กน้อย (text-2xl=24) */}
+            <Icon icon={open ? 'x' : 'plus'} className="size-6.5" />
           </button>
           {/* label ใต้ปุ่ม — arbitrary marginTop 34px ชดเชย absolute FAB ที่ยกขึ้น (top-[-26px]+h-54) — ไม่มี token แทน */}
           <span

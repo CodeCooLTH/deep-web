@@ -13,6 +13,7 @@
  */
 
 import AuthLogo from '@/components/AuthLogo'
+import BackToBusinessButton from './components/BackToBusinessButton'
 import Icon from '@/components/wrappers/Icon'
 import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 import ThaiAddressSearch from '@/components/safepay/ThaiAddressSearch'
@@ -147,6 +148,12 @@ export default function OnboardingPage() {
 
   return (
     <Shell>
+      {/* ทางออกสำหรับผู้ถูกเชิญที่เพิ่งสร้างร้านส่วนตัวระหว่างทำงานในร้านคนอื่น (feature 00026 A3)
+          วางบนสุด ไม่ใช่ท้ายหน้า: ท้ายหน้ามันไปนั่งติดกับ "ข้ามไปก่อน" กลายเป็นลิงก์เทาหน้าตา
+          เหมือนกัน 2 อันในโซนนิ้วโป้งที่พาไปคนละที่ และต้องเลื่อนจนสุดถึงจะรู้ว่ามีทางออก
+          component ตัดสินใจเองว่าจะโผล่ไหม — ไม่โผล่เลยถ้าไม่มี business membership */}
+      <BackToBusinessButton />
+
       <div className="mb-6 flex justify-center"><AuthLogo /></div>
 
       {/* progress: dots + ขั้นที่ x/4 */}
@@ -225,6 +232,7 @@ export default function OnboardingPage() {
           </div>
         </>
       )}
+
     </Shell>
   )
 }

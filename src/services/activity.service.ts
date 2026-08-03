@@ -127,7 +127,7 @@ export async function getRecentActivity(shopId: string, take = 10): Promise<Acti
       .filter((t) => t.type === 'TOPUP')
       .map((t) => ({
         type: 'TOPUP',
-        label: `เติมเครดิต SMS ฿${t.amount}`,
+        label: `เติมเงิน ฿${t.amount}`,
         at: t.createdAt,
       }))
 

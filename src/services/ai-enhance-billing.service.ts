@@ -2,7 +2,7 @@
 // SSOT: docs/scope/2026-08-01-00023-ai-enhance-scope-baseline.md
 //       + PRD.md §3.9 BR-AR-35/36 · BRD.md §2.8 FR-028
 //
-// เพดานค่าใช้จ่ายต่อวัน + การหักเครดิตตามต้นทุน token จริง
+// เพดานค่าใช้จ่ายต่อวัน + การหักเงินตามต้นทุน token จริง
 //
 // WARNING: ทุกฟังก์ชันในไฟล์นี้อยู่ในเส้นทางที่ลูกค้ารอคำตอบอยู่ — **ห้าม throw**
 // ความล้มเหลวของการคิดเงินต้องไม่ทำให้ลูกค้าไม่ได้คำตอบ (บันทึกพลาดเสียหายน้อยกว่าตอบไม่ได้)
@@ -54,7 +54,7 @@ export async function checkCapBeforeCall(shopId: string): Promise<CapDecision> {
     const capBaht = config?.aiDailyCapBaht ?? DEFAULT_AI_DAILY_CAP_BAHT
     if (usedBaht >= capBaht) return { allowed: false, reason: 'DAILY_CAP_REACHED' }
 
-    // ไม่มีกระเป๋าเลย = ยังไม่เคยเติมเงิน ถือว่าเครดิตไม่พอ (ไม่ใช่ error)
+    // ไม่มีกระเป๋าเลย = ยังไม่เคยเติมเงิน ถือว่ายอดเงินไม่พอ (ไม่ใช่ error)
     if (!wallet || wallet.balance <= 0) return { allowed: false, reason: 'INSUFFICIENT_CREDIT' }
 
     return { allowed: true, unlimited: false, usedBaht, capBaht }
@@ -85,7 +85,7 @@ export interface RecordUsageParams {
 }
 
 /**
- * บันทึกการใช้ + สะสมเศษ + หักเครดิตเมื่อครบ 1 บาท (BR-AR-36)
+ * บันทึกการใช้ + สะสมเศษ + หักเงินเมื่อครบ 1 บาท (BR-AR-36)
  *
  * ทำไมสะสมแทนหักทันที: `SellerWallet.balance` เป็นจำนวนเต็มบาท และ `deductCredit` โยน
  * INVALID_AMOUNT ถ้า amount ไม่ใช่ integer บวก — แต่ต้นทุนต่อครั้งของ flash-lite เป็น
@@ -119,7 +119,7 @@ export async function recordUsageAndBill(params: RecordUsageParams): Promise<voi
     })
 
     if (status !== 'SUCCESS' || costBaht <= 0) return
-    if (await isOwnerPaidPlan(shopId)) return // Subscription ไม่หักเครดิต
+    if (await isOwnerPaidPlan(shopId)) return // Subscription ไม่หักเงิน
 
     await prisma.$transaction(async (tx) => {
       const wallet = await tx.sellerWallet.findUnique({
@@ -155,7 +155,7 @@ export async function recordUsageAndBill(params: RecordUsageParams): Promise<voi
     })
   } catch (e) {
     // บันทึก/หักพลาด ต้องไม่ทำให้ลูกค้าไม่ได้คำตอบ — ข้อความส่งไปแล้วตอนถึงจุดนี้
-    console.error('[ai-enhance-billing] บันทึก/หักเครดิตล้มเหลว', e)
+    console.error('[ai-enhance-billing] บันทึก/หักเงินล้มเหลว', e)
   }
 }
 

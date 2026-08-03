@@ -1,5 +1,5 @@
 /**
- * AdvanceWarningBanner — เตือนล่วงหน้าว่าเครดิต Personal wallet อาจไม่พอสำหรับรอบต่ออายุ Business Package
+ * AdvanceWarningBanner — เตือนล่วงหน้าว่ายอดเงิน Personal wallet อาจไม่พอสำหรับรอบต่ออายุ Business Package
  *
  * Base: src/app/(paces)/seller/(dashboard)/inventory/components/AdvanceWarningBanner.tsx (ทั้งไฟล์ —
  *   copy ตรง 1:1 เพราะข้อความเดิมเป็น generic อยู่แล้ว ไม่มีคำว่า "Inventory" ผูกอยู่; ไม่ import ข้าม
@@ -14,7 +14,7 @@ import Link from 'next/link'
 export interface AdvanceWarningBannerProps {
   /** วันที่รอบต่ออายุถัดไป — parent format มาแล้ว (formatDate) */
   nextRenewalAt: string
-  /** จำนวนเครดิตที่ขาด (บาท) — parent คำนวณมาแล้ว */
+  /** จำนวนเงินที่ขาด (บาท) — parent คำนวณมาแล้ว */
   shortfall: number
 }
 
@@ -28,12 +28,12 @@ export default function AdvanceWarningBanner({ nextRenewalAt, shortfall }: Advan
       <div className="flex items-center gap-2">
         <Icon icon="alert-triangle" className="size-5 shrink-0" aria-hidden="true" />
         <span>
-          เครดิตอาจไม่พอสำหรับรอบต่ออายุแพ็กเกจวันที่ {nextRenewalAt} (ขาดอีก ฿{shortfall.toLocaleString('th-TH')})
+          ยอดเงินอาจไม่พอสำหรับรอบต่ออายุแพ็กเกจวันที่ {nextRenewalAt} (ขาดอีก ฿{shortfall.toLocaleString('th-TH')})
         </span>
       </div>
 
       <Link href="/wallet" className="shrink-0 font-bold underline hover:no-underline">
-        เติมเครดิต →
+        เติมเงิน →
       </Link>
     </div>
   )

@@ -12,6 +12,7 @@
  * ต่างจาก widget panel ที่ h-full ไม่มี .card ซ้ำ)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
@@ -102,6 +103,14 @@ export type ChatMessageView = {
     adLabel: string | null
     productName: string | null
   } | null
+  /**
+   * คนในทีมร้านที่กดส่งข้อความนี้ (user 2026-08-02) — enrich จาก API ทั้ง GET และ POST
+   *
+   * `null` = ไม่มีคนส่ง: ข้อความมาทาง webhook (echo ของสิ่งที่ส่งจาก Messenger/Business Suite
+   * โดยตรง) หรือบอทตอบ → UI แสดงรูปเพจตามเดิม
+   * มีค่าแต่ `avatar = null` = คนนั้นยังไม่ได้ตั้งรูปโปรไฟล์ → UI แสดงไอคอนคน placeholder
+   */
+  sender?: { name: string; avatar: string | null } | null
   // feature 00018 Phase 3 — reply/unsend
   isDeleted?: boolean // ผู้ส่ง unsend → แสดง "ข้อความถูกลบ"
   replyTo?: { body: string | null; senderRole: 'BUYER' | 'SHOP' } | null // quote ข้อความที่ตอบทับ (enrich ที่ API)
@@ -181,6 +190,13 @@ export function groupByDate(messages: ChatMessageView[]) {
 // dashboard ไม่มี list → คงเปิด beep (default true)
 export function useSellerChatThread(conversationId: string, shopId?: string | null, beepEnabled = true) {
   const [messages, setMessages] = useState<ChatMessageView[]>([])
+  // ผู้ส่ง = ตัวเราเองเสมอสำหรับบับเบิล optimistic (user 2026-08-02) — ถ้าไม่ใส่ไป บับเบิลที่เพิ่ง
+  // กดส่งจะขึ้นรูปเพจอยู่ครู่หนึ่งแล้วเปลี่ยนเป็นรูปเราตอน API ตอบกลับ ซึ่งอ่านเหมือนระบบสลับ
+  // ตัวตนผู้ส่งเอง (session มี displayName/avatar อยู่แล้ว ไม่ต้องยิง API เพิ่ม)
+  const { data: _session } = useSession()
+  const me = _session?.user as { displayName?: string; avatar?: string | null } | undefined
+  const optimisticSender = me?.displayName ? { name: me.displayName, avatar: me.avatar ?? null } : null
+
   const [oldestCursor, setOldestCursor] = useState<string | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [externalReadAt, setExternalReadAt] = useState<string | null>(null)
@@ -664,6 +680,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         id: localId,
         conversationId,
         senderUserId: '',
+        sender: optimisticSender,
         senderRole: 'SHOP',
         type: payload.type,
         body: payload.body,
@@ -728,6 +745,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           id: localId,
           conversationId,
           senderUserId: '',
+          sender: optimisticSender,
           senderRole: 'SHOP',
           type: payload.type,
           body: payload.body,
@@ -742,6 +760,41 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
       void postMessage(localId, payload)
     },
     [conversationId, postMessage, scrollToBottom],
+  )
+
+  /**
+   * ยกเลิกข้อความที่ส่งไม่สำเร็จ — เอาบับเบิลออกจากเธรด (user สั่ง 2026-08-02)
+   *
+   * 2 เส้นทางตาม "แถวนี้ถูกบันทึกลง DB แล้วหรือยัง":
+   *   - บับเบิล optimistic (id ขึ้นต้น local-) ยังไม่เคยถึง server → ลบจาก state พอ ไม่ต้องยิง API
+   *   - แถวจริง → DELETE ที่ server ก่อน แล้วค่อยเอาออกจาก state **เมื่อสำเร็จเท่านั้น**
+   *     ถ้าเอาออกก่อนแล้ว API ล้ม บับเบิลจะโผล่กลับมาตอนรีเฟรช = ผู้ขายเข้าใจว่ายกเลิกแล้วทั้งที่ยัง
+   *
+   * คืน true เมื่อบับเบิลหายจริง — ให้ caller ตัดสินใจเรื่อง feedback เอง
+   */
+  const cancelMessage = useCallback(
+    async (messageId: string): Promise<boolean> => {
+      if (messageId.startsWith('local-')) {
+        setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        return true
+      }
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages/${messageId}`, {
+          method: 'DELETE',
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'ยกเลิกข้อความไม่สำเร็จ')
+          return false
+        }
+        setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        return true
+      } catch {
+        pacesToast.error('ยกเลิกข้อความไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        return false
+      }
+    },
+    [conversationId],
   )
 
   return {
@@ -776,6 +829,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     retryMessage,
     // ส่งซ้ำแถวที่บันทึกแล้วแต่ deliveryStatus='FAILED' (ปุ่ม "ลองใหม่" ใต้บับเบิลแดง)
     resendMessage,
+    // ยกเลิกข้อความที่ส่งไม่สำเร็จ — เอาบับเบิลออกจากเธรด (รองรับทั้ง optimistic และแถวจริง)
+    cancelMessage,
     /** read receipt (feature 00018) — สดจาก GET ล่าสุด; caller ควรใช้ค่านี้แทน server prop ตอนเปิดหน้า
      *  เพราะ read event มาทีหลังทาง webhook โดยไม่ทริกเกอร์ realtime (ดู comment ที่ route GET) */
     externalReadAt,

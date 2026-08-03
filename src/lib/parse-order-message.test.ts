@@ -70,4 +70,55 @@ describe('parseOrderMessage — heuristic แยกข้อมูลจาก�
     expect(parseOrderMessage('')).toEqual({})
     expect(parseOrderMessage('สวัสดีครับ')).toEqual({ name: 'สวัสดีครับ' })
   })
+
+  // ── bug user report 2026-08-02 (สร้างคำสั่งซื้อจากแชท) ──────────────────────
+  // อาการ: กด "กระจายที่อยู่" แล้วปุ่มที่อยู่ขึ้นเหมือนเลือกสำเร็จ แต่กดบันทึกไม่ผ่าน
+  // เพราะ 3 ช่องที่ระบบบังคับ (ที่อยู่ / จังหวัด / รหัสไปรษณีย์) มีช่องที่ยังว่างอยู่
+  // โดยที่บรรทัดเด่นบนปุ่ม (ต./อ.) เต็มแล้วจึงดูเหมือนครบ
+
+  it('ที่อยู่ กทม. (แขวง/เขต ไม่มี "จ.") → ต้องได้จังหวัด "กรุงเทพ"', () => {
+    const r = parseOrderMessage(
+      'ชื่อ: สมชาย ใจดี\nที่อยู่: 99/9 ซอยสุขุมวิท 24 แขวงคลองตัน เขตคลองเตย กรุงเทพ 10110\nโทร: 0812345678',
+    )
+    expect(r.subdistrict).toBe('คลองตัน')
+    expect(r.district).toBe('คลองเตย')
+    // ต้องสะกดตรงกับชุดข้อมูลของ iShip (public/data/iship-address.json)
+    expect(r.province).toBe('กรุงเทพ')
+    expect(r.postcode).toBe('10110')
+    expect(r.addressLine).toBe('99/9 ซอยสุขุมวิท 24')
+  })
+
+  it('เขียน "กรุงเทพมหานคร"/"กทม." → normalize เป็น "กรุงเทพ" ให้ตรงชุดข้อมูล', () => {
+    expect(
+      parseOrderMessage('45 ถนนพระราม 4 แขวงสีลม เขตบางรัก กรุงเทพมหานคร 10500').province,
+    ).toBe('กรุงเทพ')
+    expect(parseOrderMessage('แขวงสีลม เขตบางรัก กทม. 10500').province).toBe('กรุงเทพ')
+  })
+
+  it('จังหวัดต่างจังหวัดที่ไม่มี "จ." นำหน้า → จับได้จากรายชื่อจังหวัด', () => {
+    const r = parseOrderMessage('88 ม.2 ต.บ้านสวน อ.เมือง ชลบุรี 20000')
+    expect(r.province).toBe('ชลบุรี')
+    expect(r.postcode).toBe('20000')
+  })
+
+  it('ข้อความบรรทัดเดียว (ชื่อ+ที่อยู่+เบอร์ ติดกัน) → ได้ทั้งชื่อและที่อยู่', () => {
+    const r = parseOrderMessage('สมชาย ใจดี 99/9 ม.5 ต.บางรัก อ.เมือง จ.ชลบุรี 20000 โทร 0812345678')
+    expect(r.name).toBe('สมชาย ใจดี')
+    expect(r.phone).toBe('0812345678')
+    expect(r.addressLine).toBe('99/9 ม.5')
+    expect(r.subdistrict).toBe('บางรัก')
+    expect(r.district).toBe('เมือง')
+    expect(r.province).toBe('ชลบุรี')
+    expect(r.postcode).toBe('20000')
+  })
+
+  it('บรรทัดที่มีแต่เบอร์โทร ต้องไม่ถูกหยิบมาเป็นที่อยู่', () => {
+    const r = parseOrderMessage(
+      'สมหญิง รักดี\nคอนโดลุมพินี ทาวเวอร์ ห้อง 1203\nแขวงทุ่งมหาเมฆ เขตสาทร\nกรุงเทพ 10120\n0891234567',
+    )
+    expect(r.phone).toBe('0891234567')
+    expect(r.addressLine).not.toBe('0891234567')
+    expect(r.addressLine).toBe('คอนโดลุมพินี ทาวเวอร์ ห้อง 1203')
+    expect(r.province).toBe('กรุงเทพ')
+  })
 })

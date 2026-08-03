@@ -78,7 +78,7 @@ export default function DowngradeButton({ tier, tierLabel, maxBusinesses, ownedB
         buttonsStyling: false,
         icon: 'question',
         title: `ดาวน์เกรดเป็น ${tierLabel}?`,
-        text: 'ธุรกิจปัจจุบันของคุณทั้งหมดยังใช้งานได้ตามปกติ (ไม่มีเครดิตหักตอนนี้ — เริ่มมีผลรอบถัดไป)',
+        text: 'ธุรกิจปัจจุบันของคุณทั้งหมดยังใช้งานได้ตามปกติ (ไม่มีการหักเงินตอนนี้ — เริ่มมีผลรอบถัดไป)',
         showCancelButton: true,
         confirmButtonText: 'ยืนยันดาวน์เกรด',
         cancelButtonText: 'ยกเลิก',

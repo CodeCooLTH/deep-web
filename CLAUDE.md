@@ -172,6 +172,21 @@ theme/
   - **Header/nav:** `solidHeader` prop → header ทึบ+เงาทันทีบน buyer (ไม่ต้อง scroll); landing คงโปร่งที่ท็อป. `ScrollToTop` (`(buyer-app)/_components/`) เด้งบนสุดทุกครั้งเปลี่ยน route
   - **Responsive (desktop+tablet; mobile <768 รอจัดแยก):** เมนูซ้าย buyer โผล่ตั้งแต่ **768px** ใช้ `min-[768px]:` (Vuexy remap Tailwind `md`=900/`lg`=1200 → ต้องใช้ arbitrary variant ให้ตรง 768). content 2-col ภายใน (banner/stat) split ที่ `lg`(1200) เพราะ tablet main แคบลง 240px จาก sidebar. width container (navbar+footer/layoutSpacing+buyer) ลบ cap tier 900 → ช่วง 900–1199 fluid (iPad Pro 1024 ขอบเหลือ 24px). **Sticky footer** ที่ FrontLayout (`flex flex-col min-bs-[100dvh]` + children `flex-1`) → footer ติดล่างสุดเสมอ ไม่มีขาวใต้ footer. Footer Grid `lg`→`md`+sm 4/4/4 → iPad Pro 4-col, iPad Air/Mini brand เต็มแถว+3 คอลัมน์เท่า
   - **local-only (ห้าม commit):** `lib/otp.ts` (test accounts เดิม), `lib/csrf-origin.ts` (localhost dev — commit แล้วปลอดภัยเพราะ `!isProd` gate; ตอนนี้ commit แล้ว)
+- **2026-08-02: "กระจายที่อยู่" แล้วบันทึกออเดอร์ไม่ผ่าน — merged main `ba8e464b` + prod** (retro `docs/retro/2026-08-02-order-address-paste-bugfix.md`)
+  - **parser** (`lib/parse-order-message.ts`): เพิ่มรายชื่อ 77 จังหวัดสะกดตามชุดข้อมูล iShip ไว้จับกรณีไม่มี marker `จ.` (ที่อยู่ กทม. เขียนแบบนี้เป็นปกติ) + normalize `กรุงเทพมหานคร`/`กทม.` → `กรุงเทพ`; ตัดเบอร์ออกจากบรรทัดแทนการข้ามทั้งบรรทัด (ข้อความบรรทัดเดียวเคยได้ทั้งชื่อและที่อยู่ว่าง); บรรทัดที่มีแต่เบอร์ไม่ถูกหยิบมาเป็นที่อยู่
+  - **`lib/shipping-address-status.ts` (ใหม่) = SSOT ฝั่งหน้าจอของ "ที่อยู่ครบพอบันทึกไหม"** — กฎเดิมเขียนซ้ำ 3 ที่แล้วนิยามไม่ตรงกับ `createOrder` (บังคับ `line1 + province + postcode`) ทำให้ปุ่มขึ้น "เลือกแล้ว" ทั้งที่ยังขาด. ปุ่มที่อยู่มี 3 สถานะจริง; ตำบล/อำเภอ ไม่บล็อกการบันทึกแต่เตือนว่าต้องเติมก่อนเปิดพัสดุ iShip
+  - **`setError` ที่ไม่มีใคร render = error เงียบ** — `shippingAddress.line1/.province/.postcode` ถูก set ตอน submit มาตลอดแต่ไม่เคยแสดงทั้ง quick form และ POS; แก้แล้วทั้ง 2 surface (`is-invalid` + ข้อความใต้ช่อง + `aria-describedby`)
+  - **แก้ Verified-Means-Green ที่ละเมิดจริง** — `AddressSearchPanel` ขึ้นเช็กถูกสีเขียวกับที่อยู่ที่ยังไม่ครบ (คอมเมนต์เขียนอ้างกฎนั้นอยู่บนโค้ดที่ละเมิดเอง) → primary เมื่อครบ / danger เมื่อขาด
+  - **carry:** browser QA (ยังไม่เคยกดจริง), เช็กถูกสีเขียวในรายการผลค้นหาที่อยู่ทั้ง 2 picker, `react-toastify` ตกค้างใน `(paces)` 3 ไฟล์ (ผิด HR9 อยู่ก่อนแล้ว)
+
+- **2026-08-02 (feature 00026): หน้า `/account` "ข้อมูลส่วนตัว" + สร้างร้านส่วนตัวจาก account switcher — merged main + prod** (retro `docs/retro/2026-08-02-feature-00026-personal-account-retrospective.md`, docs `docs/20 - Features/00026 - Personal Account & Connections/`)
+  - **`src/lib/onboarding-gate.ts` = SSOT ใหม่ของ `needsRegistration`/`needsOnboarding`** — ทั้ง `jwt` และ `session` callback ใน `lib/auth.ts` เรียกตัวเดียวกัน และต้องเรียก **หลัง** block ที่ resolve `activeShopId` เสมอ. กฎ: บังคับ setup เฉพาะตอน `activeShopId === personal shop id` ไม่งั้นผู้ถูกเชิญที่กดสร้างร้านส่วนตัวจะถูก proxy ขังใน `/onboarding` ทุก route ออกไม่ได้
+  - **หน้า `/account` ผูกกับ `session.user.id` ล้วน — ห้ามเรียก `requireActiveShop`/อ่าน `activeShopId` ในหน้านี้** (นั่นคือเหตุผลที่หน้านี้มีอยู่: แยก "ตั้งค่าตัวคน" ออกจาก "ตั้งค่าร้าน" ที่ `/shop`)
+  - `ConnectedAccountsClient` ย้ายจาก `settings/` → `account/components/` + เพิ่มแถวตั้ง/เปลี่ยนรหัสผ่าน; `/settings` เหลือเฉพาะการจัดส่ง (เมนูเปลี่ยนชื่อเป็น "การจัดส่ง"), กลุ่มเมนูใหม่ "บัญชีของฉัน" อยู่ล่างสุด
+  - **security fix ที่ไปกับรอบนี้ (`eb32a937`)**: `PATCH /api/users/me` เคยส่ง body ดิบเข้า `prisma.user.update` → ยิง `{"isAdmin":true}` เป็นแอดมินได้; ปิดด้วย `UpdateProfileSchema` (Valibot allow-list) + pick field ใน service + `GET` เลิกคืน `passwordHash`
+  - API ใหม่: `check-username`, `otp-for-password`, `set-password-otp` — 2 ตัวหลัง resolve เบอร์จาก session ไม่รับจาก client (คืนแค่ `phoneMasked`)
+  - **ข้อมูลจริง prod 2026-08-02:** User 10 คน ไม่มีเบอร์ 6 · ไม่มีทั้งเบอร์และรหัสผ่าน 5 (กู้บัญชีไม่ได้ถ้าหลุดจาก FB/LINE) → ขึ้นแถบเตือนใน `/account` ไม่บังคับเพิ่มเบอร์
+  - **carry:** browser QA 15 เคสยังไม่เคยกดจริงสักครั้ง (`TestCase.md` §3.1) · E2E ข้ามตามที่ user ตัดสิน · `AccountAvatar` ใส่ `rounded-full` ให้ทั้ง business/personal จึงไม่มี convention "วงกลม=คน สี่เหลี่ยม=ร้าน"
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 

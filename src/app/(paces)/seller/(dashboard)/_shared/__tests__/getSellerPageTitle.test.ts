@@ -14,8 +14,8 @@ describe('getSellerPageTitle', () => {
     expect(getSellerPageTitle('/products')).toBe('สินค้า')
   })
 
-  it('exact match: /wallet → เครดิต SMS', () => {
-    expect(getSellerPageTitle('/wallet')).toBe('เครดิต SMS')
+  it('exact match: /wallet → กระเป๋าเงิน', () => {
+    expect(getSellerPageTitle('/wallet')).toBe('กระเป๋าเงิน')
   })
 
   it('detail route prefix: /orders/abc123 → คำสั่งซื้อ', () => {

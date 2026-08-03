@@ -69,6 +69,9 @@ export type CommandCenterData = {
   packageTier?: BusinessPackageTier | null
   // canManage: เฉพาะ OWNER ที่กดไปหน้าจัดการแพ็กเกจได้ (คนอื่นเห็นข้อมูลแต่ไม่มีลิงก์)
   packageCanManage?: boolean
+  // เมนูลัด (feature 00027) — ช่องที่ผู้ใช้คนนี้เลือกไว้จริง เรียงตามลำดับเมนู sidebar
+  // undefined = ไม่ผ่าน gate ร้าน (ไม่มีร้าน/session หลุด) → CommandCenter ซ่อนการ์ดทั้งใบ
+  shortcutTiles?: ShortcutCatalogItemDto[]
 }
 
 // ─── SalesSeries (Sales Chart) ───────────────────────────────────────────────
@@ -90,40 +93,36 @@ export type SalesSeries = {
   prevTotal: number
   /** index ตั้งแต่นี้ไป = อนาคต (เกินวันนี้/เดือนนี้) → UI ทำแท่งจาง */
   futureFromIndex: number
+  /* ค่าใช้จ่าย (feature 00016) — undefined = ร้านนี้ไม่ผ่าน gate สิทธิ์ค่าใช้จ่าย
+     UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "ไม่มีค่าใช้จ่าย" */
+  expenseValues?: number[]
+  netProfitValues?: number[]
+  totalExpense?: number
+  netProfit?: number
 }
 
-// ─── ShortcutTile ────────────────────────────────────────────────────────────
-export type ShortcutTile = {
+// ─── Shortcut (feature 00027 — เมนูลัดที่ผู้ใช้ตั้งเอง) ──────────────────────
+// mirror ของ type ใน src/services/shortcut.service.ts — ประกาศซ้ำที่นี่แทน import
+// เพราะ CommandCenter/CarouselGrid/ShortcutEditSheet เป็น 'use client' การ import จาก service
+// จะลาก prisma เข้า client bundle (pattern เดียวกับ SalesSeries ด้านบน)
+// shape ต้องตรงกับฝั่ง service เสมอ — SSOT อยู่ที่ service ที่นี่แค่มิเรอร์
+
+export type ShortcutCatalogItemDto = {
+  slug: string
   label: string
-  href: string | null
   icon: string
-  color: string
-  disabled?: boolean
-  showBadge?: boolean
-  // D#13: จำนวนที่แสดงบน badge (เช่น live auction count) — undefined/0 = ไม่แสดง badge
-  badgeCount?: number
+  url: string
+  pinned: boolean
 }
 
-/**
- * SHORTCUT_TILES — v10 carousel (4×2/หน้า = สูงสุด 8/หน้า; เกินขึ้นหน้าใหม่ + dots)
- * icon: **Solar Duotone name (ไม่มี prefix `solar:`)** — CarouselGrid เติม `solar:` เอง
- *   → render: <Icon icon={`solar:${tile.icon}`} /> from '@iconify/react'
- * D#13: tile ประมูลใช้ icon เต็ม prefix (`tabler:gavel`) — CarouselGrid เช็ค `.includes(':')`
- *   ก่อนเติม `solar:` (backward-compat กับ 7 tile เดิมที่ไม่มี prefix)
- * semantic color ตาม Paces token: warning/success/info/primary/default
- * ไม่มี /seller prefix (short path). คูปอง = route ยังไม่มี → disabled "เร็ว ๆ นี้" (honest, OOS coupons)
- */
-export const SHORTCUT_TILES: ShortcutTile[] = [
-  { label: 'รายงาน',     href: '/sales',     icon: 'chart-2-bold-duotone',               color: 'primary' },
-  { label: 'รีวิว',       href: '/reviews',   icon: 'star-bold-duotone',                  color: 'warning' },
-  { label: 'ความสำเร็จ',  href: '/badges',    icon: 'cup-star-bold-duotone',              color: 'success' },
-  { label: 'สินค้า',      href: '/products',  icon: 'box-bold-duotone',                   color: 'info'    },
-  { label: 'ลูกค้า',      href: '/customers', icon: 'users-group-rounded-bold-duotone',   color: 'primary' },
-  { label: 'คูปอง',       href: null,         icon: 'ticket-bold-duotone',                color: 'default', disabled: true },
-  { label: 'ตั้งค่า',     href: '/settings',  icon: 'settings-bold-duotone',              color: 'default' },
-  // D#13: ประมูล — icon เต็ม prefix tabler (ไม่ใช่ solar) + badge จำนวน live auction
-  { label: 'ประมูล',     href: '/auctions',  icon: 'tabler:gavel',                       color: 'warning', showBadge: true },
-]
+export type ShortcutStateDto = {
+  catalog: ShortcutCatalogItemDto[]
+  pinnedSlugs: string[]
+  unavailable: { slug: string; label: string }[]
+  tiles: ShortcutCatalogItemDto[]
+  isDefault: boolean
+  max: number
+}
 
 /**
  * PROMO_BANNER — default null (ซ่อน banner จนกว่า Phase 2 มี Promo model)

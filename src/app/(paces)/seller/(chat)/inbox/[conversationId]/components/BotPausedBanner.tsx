@@ -30,17 +30,39 @@ const HANDOFF_LABEL: Record<string, string> = {
   MAX_REPLIES_REACHED: 'บอทตอบครบจำนวนสูงสุดต่อห้องแล้ว',
 }
 
+/**
+ * สรุปสถานะบอทของห้องนี้ — ใช้ร่วมกันระหว่างตัวแบนเนอร์เองกับ ThreadStatusBar ที่ต้องรู้ล่วงหน้า
+ * ว่า "จะมีแถบนี้ไหม" และ "ข้อความสั้นตอนยุบคืออะไร" (user 2026-08-02)
+ *
+ * ต้องเป็นฟังก์ชันเดียวที่ตัดสิน ไม่ใช่ให้ caller คำนวณเอง — เคยพลาดมาแล้วตอน ChatThread
+ * ใช้เงื่อนไข (pausedUntil || handoffAt) ซึ่งไม่ตรงกับของจริง (pausedUntil ที่หมดเวลาแล้ว
+ * ยังไม่ใช่ null) จนเหลือกล่องว่างค้างบนจอ
+ */
+export function getBotPausedSummary(pausedUntil: string | null, handoffAt: string | null) {
+  const pausedMs = pausedUntil ? new Date(pausedUntil).getTime() - Date.now() : 0
+  const isPaused = pausedMs > 0
+  const isHandedOff = Boolean(handoffAt)
+  // ปัดขึ้นด้วยเหตุผลเดียวกับตัวแบนเนอร์ — "อีก 0 นาที" อ่านแล้วเหมือนพร้อมแล้วทั้งที่ยังไม่ถึงเวลา
+  const minsLeft = Math.ceil(pausedMs / 60_000)
+  return {
+    show: isPaused || isHandedOff,
+    isPaused,
+    isHandedOff,
+    minsLeft,
+    short: isHandedOff
+      ? 'บอทหยุดตอบห้องนี้แล้ว — รอคุณสั่งให้กลับมา'
+      : `บอทพักตอบห้องนี้อยู่ (อีก ${minsLeft.toLocaleString('th-TH')} นาที)`,
+  }
+}
+
 export default function BotPausedBanner({ conversationId, pausedUntil, handoffAt, handoffReason }: Props) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
 
-  const pausedMs = pausedUntil ? new Date(pausedUntil).getTime() - Date.now() : 0
-  const isPaused = pausedMs > 0
-  const isHandedOff = Boolean(handoffAt)
-  if (!isPaused && !isHandedOff) return null
+  // เงื่อนไขแสดง + จำนวนนาทีที่เหลือ คำนวณที่ getBotPausedSummary ที่เดียว (ThreadStatusBar ใช้ร่วม)
+  const { show, isHandedOff, minsLeft } = getBotPausedSummary(pausedUntil, handoffAt)
+  if (!show) return null
 
-  // เหลือกี่นาที — ปัดขึ้นเพราะ "อีก 0 นาที" อ่านแล้วเหมือนพร้อมแล้วทั้งที่ยังไม่ถึงเวลา
-  const minsLeft = Math.ceil(pausedMs / 60_000)
   const until = pausedUntil
     ? new Intl.DateTimeFormat('th-TH', {
         timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false,
@@ -71,6 +93,9 @@ export default function BotPausedBanner({ conversationId, pausedUntil, handoffAt
     }
   }
 
+  // ไม่มี padding รอบนอกในตัวเอง — ตอนนี้ถูกใช้เป็น "รายละเอียดตอนกาง" ของ ThreadStatusBar
+  // ซึ่งเป็นเจ้าของระยะห่างของทั้งกลุ่มสถานะ (ก่อนหน้านี้ ChatThread ห่อ px-4 pt-4 ไว้ข้างนอกด้วย
+  // เงื่อนไขที่ไม่ตรงกับข้างใน จนเหลือ div ว่างค้างบนจอ — ดู getBotPausedSummary)
   return (
     <div className="bg-warning/15 text-warning flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
       <Icon icon="robot-off" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />

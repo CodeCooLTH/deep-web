@@ -43,7 +43,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 // lock reason → label ไทย (Design Spec §Constants — mirror SRS §10)
 const LOCK_REASON_LABEL: Record<string, string> = {
-  RENEWAL_FAILED: 'ต่ออายุไม่สำเร็จ (เครดิตไม่พอ)',
+  RENEWAL_FAILED: 'ต่ออายุไม่สำเร็จ (ยอดเงินไม่พอ)',
   OWNER_CANCELLED_PACKAGE: 'เจ้าของยกเลิกแพ็กเกจ',
   QUOTA_EXCEEDED_BUSINESS_COUNT: 'เกินโควตาจำนวนธุรกิจ',
   QUOTA_EXCEEDED_ADMIN_COUNT: 'เกินโควตาผู้ดูแลต่อธุรกิจ',
@@ -57,7 +57,7 @@ const GRACE_ELIGIBLE_REASONS = new Set(['RENEWAL_FAILED', 'OWNER_CANCELLED_PACKA
 function reactivateErrorMessage(status: number): string {
   switch (status) {
     case 402:
-      return 'เครดิตไม่พอ — <a href="/wallet" class="underline">เติมเครดิตก่อนเปิดใช้อีกครั้ง</a>'
+      return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงินก่อนเปิดใช้อีกครั้ง</a>'
     case 409:
       return 'บัญชีนี้ไม่ได้ถูกล็อก'
     case 412:
@@ -98,7 +98,7 @@ export default function LockedStateBanner({
       buttonsStyling: false,
       icon: 'question',
       title: 'เปิดใช้งานแพ็กเกจอีกครั้ง?',
-      text: `ระบบจะหักเครดิต ${priceLabel} และเปิดใช้งานทันที ธุรกิจที่ถูกล็อกทั้งหมดจะกลับมาใช้งานได้`,
+      text: `ระบบจะหักเงิน ${priceLabel} และเปิดใช้งานทันที ธุรกิจที่ถูกล็อกทั้งหมดจะกลับมาใช้งานได้`,
       showCancelButton: true,
       confirmButtonText: 'เปิดใช้งาน',
       cancelButtonText: 'ยกเลิก',

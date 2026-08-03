@@ -77,16 +77,21 @@ const RULES: Rule[] = [
 ]
 
 /**
- * ประกอบประโยค "ส่งไม่สำเร็จ — …" ให้ข้อความที่มาจากที่อื่น (เช่น error ของ API ที่ route แปลมาแล้ว)
+ * ตัดคำนำหน้า "ส่งไม่สำเร็จ — " ออก เหลือแต่ตัวเหตุผล
  *
- * ทำไมต้องมี: บับเบิลที่ล้มเหลวมี 2 เส้นทาง — แถวที่บันทึกลง DB แล้ว (ใช้ describeSendFailure) กับ
- * ข้อความ optimistic ที่ยังไปไม่ถึง server (ได้ข้อความจาก body.error ซึ่งบางเส้นทางเติมคำนำหน้ามาแล้ว
- * บางเส้นทางยังไม่เติม) ทั้งสองต้องอ่านออกมาเป็นประโยคเดียวกัน และต้องไม่ขึ้น "ส่งไม่สำเร็จ" ซ้อนสองครั้ง
+ * ทำไมต้องมี: บับเบิลที่ล้มเหลวมี 2 เส้นทาง — แถวที่บันทึกลง DB แล้ว (ใช้ `describeSendFailure().text`
+ * ซึ่งเป็นเหตุผลล้วน) กับข้อความ optimistic ที่ยังไปไม่ถึง server (ได้ข้อความจาก `body.error` ซึ่ง
+ * บางเส้นทางเติมคำนำหน้ามาแล้ว บางเส้นทางยังไม่เติม) UI วาง "ส่งไม่สำเร็จ" เป็นป้ายของตัวเองแล้ว
+ * ทั้งสองเส้นทางจึงต้องส่งเข้ามาเป็นเหตุผลล้วนเหมือนกัน ไม่งั้นจะอ่านได้ว่า
+ * "ส่งไม่สำเร็จ (i) ส่งไม่สำเร็จ — เกินเวลา…"
  */
-export function withSendFailurePrefix(text: string | null | undefined): string {
+export function stripSendFailurePrefix(text: string | null | undefined): string | null {
   const trimmed = (text ?? '').trim()
-  if (!trimmed) return `${PREFIX} — ไม่ทราบสาเหตุ`
-  return trimmed.startsWith(PREFIX) ? trimmed : `${PREFIX} — ${trimmed}`
+  if (!trimmed) return null
+  if (!trimmed.startsWith(PREFIX)) return trimmed
+  // ตัดทั้งคำนำหน้าและตัวคั่น (em dash พร้อมช่องว่างรอบข้าง) ถ้ามี
+  const rest = trimmed.slice(PREFIX.length).replace(/^\s*—\s*/, '').trim()
+  return rest || null
 }
 
 export function describeSendFailure(reason: string | null | undefined): SendFailureDescription {

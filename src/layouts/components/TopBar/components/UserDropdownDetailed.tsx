@@ -9,6 +9,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { pacesToast } from '@/lib/paces-toast'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
+import { useCreatePersonalShop } from '@/hooks/useCreatePersonalShop'
 
 type UserProfileMenuType = {
   label: string
@@ -75,6 +76,8 @@ const UserDropdown = () => {
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
   const { switching, target, switchShop } = useShopSwitcher()
+  // feature 00026 — ผู้ถูกเชิญที่ยังไม่มีร้านส่วนตัว (context.personal === null) กดสร้างได้จากที่นี่
+  const { creating, createPersonalShop } = useCreatePersonalShop()
 
   useEffect(() => {
     // guard: fetch เฉพาะเมื่อมี business membership จริง (กันยิง request เปล่าให้ทุก seller)
@@ -165,6 +168,29 @@ const UserDropdown = () => {
               </button>
             )}
 
+            {/* ยังไม่มีร้านส่วนตัว (ผู้ถูกเชิญ feature 00012) → เสนอให้สร้าง แทนตำแหน่งที่แถว personal
+                จะอยู่. เส้นประ + primary = grammar เดียวกับปุ่ม "เปิดร้านของฉันเอง" ที่ ChooseShopClient
+                ใช้อยู่แล้ว (ผู้ใช้จำ affordance "เส้นประ = สร้างของใหม่" ข้ามหน้าได้) */}
+            {context && context.personal === null && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={createPersonalShop}
+                disabled={creating}
+                className="dropdown-item border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 mb-1 flex w-full items-start gap-2.5 rounded-lg border border-dashed text-start disabled:opacity-50"
+              >
+                <Icon
+                  icon={creating ? 'loader-2' : 'plus'}
+                  className={`mt-0.5 shrink-0${creating ? ' animate-spin' : ''}`}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0">
+                  <span className="block font-medium">สร้างร้านส่วนตัวของฉัน</span>
+                  <span className="text-default-500 block text-xs">ขายของในนามตัวเอง</span>
+                </span>
+              </button>
+            )}
+
             {/* Business list (ซ่อนตัวที่ = active) */}
             {context?.businesses
               .filter((b) => b.shopId !== activeShopId)
@@ -201,6 +227,13 @@ const UserDropdown = () => {
         <Link href="/business" className="dropdown-item">
           <Icon icon="rocket" className="me-1 fs-lg align-middle" />
           <span className="align-middle">แพ็กเกจธุรกิจ</span>
+        </Link>
+
+        {/* feature 00026 — ข้อมูลของ "ตัวคน" ผูกกับ session.user ไม่ผูกร้านที่ active อยู่
+            วางเหนือ "ตั้งค่าร้าน" เพราะ identity มาก่อน shop settings ตามลำดับความคิดของผู้ใช้ */}
+        <Link href="/account" className="dropdown-item">
+          <Icon icon="user-circle" className="me-1 fs-lg align-middle" />
+          <span className="align-middle">ข้อมูลส่วนตัว</span>
         </Link>
 
         <Link href="/shop" className="dropdown-item">
@@ -245,6 +278,13 @@ const UserDropdown = () => {
     </div>
 
     <ShopSwitchOverlay show={switching} targetName={target?.name} targetKind={target?.kind} targetLogo={target?.logo} />
+    {/* overlay ตอนสร้างร้าน — ยังไม่มีร้านให้เอ่ยชื่อ จึง override ข้อความ ไม่งั้นจะขึ้น "กำลังสลับบัญชี"
+        ซึ่งบรรยายผิดเหตุการณ์ */}
+    <ShopSwitchOverlay
+      show={creating}
+      label="กำลังเปิดร้านส่วนตัวให้คุณ…"
+      subLabel="อีกสักครู่จะพาไปตั้งค่าร้านต่อ"
+    />
     </>
   )
 }

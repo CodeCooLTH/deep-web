@@ -10,7 +10,7 @@ import { subscribeBusinessPackage } from "@/services/business-package.service";
  *
  * ทำไม ownerId derive จาก session เท่านั้น (ไม่รับจาก client body):
  * owner-only endpoint — session.user.id เป็น single source of truth สำหรับ identity
- * (ดู API.md §2) กัน owner A สมัคร/หักเครดิตแทนคนอื่น
+ * (ดู API.md §2) กัน owner A สมัคร/หักเงินแทนคนอื่น
  *
  * API.md §4.2
  */

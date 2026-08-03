@@ -79,6 +79,12 @@ function Row({
   )
 }
 
+// กล่องรายละเอียดที่กางออกมา — แยกคลาสออกมาเป็น const เพราะความสูงสูงสุดเป็น carve-out ของ HR7
+// ที่ต้องมี comment กำกับ *บนบรรทัดเดียวกัน* (theme-guard ตัดเฉพาะบรรทัดที่มีเครื่องหมาย comment
+// ออกจากผลสแกน) ซึ่งเขียนไม่ได้ถ้า className ฝังอยู่ใน JSX opening tag
+const POPUP_CLASS =
+  'border-default-300 bg-card fixed z-50 max-h-[60dvh] w-64 overflow-y-auto rounded-md border text-start shadow-lg' // HR7 carve-out: Paces ไม่มี token viewport-height + กล่องนี้ fixed หนีกรอบ overflow — precedent CustomerPanelSheet.tsx
+
 export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace: AutoReplyTrace | null }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -130,7 +136,16 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
   // ส่วนข้อความที่ AI แต่งขึ้นจากคลังความรู้ = DeepAI — ร้านต้องแยกออกตั้งแต่แรกเห็นว่า
   // อันไหนคือคำพูดของตัวเองและอันไหนที่ควรอ่านตรวจก่อนปล่อยผ่าน
   const brand = trace?.matchedVia === 'CHATBOT' ? 'DeepAI' : 'DeepBot'
-  const label = isTest ? `${brand} · ทดสอบ` : brand
+  /**
+   * S-20a: ชิปแสดง**ชื่อเท่านั้น** ไม่ต่อท้าย "· ทดสอบ" อีกแล้ว (user สั่ง 2026-07-31)
+   *
+   * ชิปเกยขอบบนบับเบิลและกว้างตามตัวอักษร — ต่อท้ายอีก 8 ตัวทำให้มันกินพื้นที่ข้อความจริง
+   * บนมือถือ ทั้งที่ "โหมดทดสอบ" เป็นข้อมูลที่ดูตอนสงสัย ไม่ใช่ข้อมูลที่ต้องเห็นทุกบับเบิล
+   *
+   * ข้อมูลไม่ได้หายไปไหน — หัวกล่องรายละเอียด (ชี้/แตะแล้วกาง) ยังเขียน "(โหมดทดสอบ)" อยู่
+   * และ aria-label ด้านล่างยังบอกด้วย เพื่อให้ screen reader ไม่เสียข้อมูลที่ตาเห็นจากตำแหน่งอื่น
+   */
+  const label = brand
 
   // ป้ายชิดขวา (user 2026-07-31): ข้อความฝั่งร้านจัดชิดขวาอยู่แล้ว ป้ายที่เกาะซ้ายสุดของบับเบิล
   // กว้าง ๆ จะดูหลุดออกจากกลุ่มของตัวเอง — กล่องรายละเอียดจึงต้องกางไปทางซ้าย (end-0) ด้วย
@@ -148,9 +163,7 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
     >
       {open && (
         <div
-          className="border-default-300 bg-card fixed z-50 max-h-[60dvh] w-64 overflow-y-auto rounded-md border text-start shadow-lg"
-          /* HR7 carve-out: ตำแหน่งต้องคำนวณจาก viewport จริง (หนีกรอบ overflow) และ
-             ความสูงไม่มี token viewport-height ใน Paces — precedent CustomerPanelSheet.tsx */
+          className={POPUP_CLASS}
           style={
             pos
               ? { top: pos.below ? pos.top : undefined, bottom: pos.below ? undefined : window.innerHeight - pos.top, right: pos.right }
@@ -262,7 +275,9 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
           setOpen((v) => !v)
         }}
         aria-expanded={open}
-        aria-label={`${label} ตอบข้อความนี้ — เปิดดูเงื่อนไขที่ใช้ตอบ`}
+        /* aria-label ต้องพูดถึงโหมดทดสอบด้วย แม้ชิปจะไม่โชว์แล้ว — คนที่ใช้ screen reader
+           เปิดกล่องรายละเอียดมาอ่านได้ยากกว่า ถ้าตัดออกทั้งสองที่จะเสียข้อมูลจริง ไม่ใช่แค่ย้ายที่ */
+        aria-label={`${label}${isTest ? ' (โหมดทดสอบ)' : ''} ตอบข้อความนี้ — เปิดดูเงื่อนไขที่ใช้ตอบ`}
         className="border-primary text-primary bg-card inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium whitespace-nowrap shadow"
       >
         <Icon icon="robot" className="text-xs" />

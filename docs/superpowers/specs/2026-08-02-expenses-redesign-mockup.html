@@ -1,0 +1,1230 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — /expenses redesign (feature 00016)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Token — คัดจาก src/assets/css/config/_root.css (Paces skin "default") ตรง ๆ
+   ห้ามแก้ค่าในนี้โดยไม่แก้ _root.css (mockup ต้องสะท้อนของจริง)
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --font-body:"Anuphan","Noto Sans Thai",system-ui,sans-serif;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-info:#5bc3e1;    --color-info-ink:#1e40af;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-light:#eef2f7; --color-dark:#313a46;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#9ba6b7; --color-default-500:#a1a9b1; --color-default-600:#8a969c;
+  --color-default-700:#6c757d; --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px; --text-xs:.8125rem; --text-body:.875rem; --text-md:15px;
+  --radius:.5rem;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-body);background:#e9ecf3;color:var(--color-body-color);
+     font-size:var(--text-body);line-height:1.6;padding:32px 20px 80px}
+
+/* ── เปลือกหน้ารีวิว (ไม่ใช่ส่วนของ UI จริง) ───────────────── */
+.review-head{max-width:1180px;margin:0 auto 28px}
+.review-head h1{font-size:26px;font-weight:700;color:var(--color-dark);margin-bottom:6px}
+.review-head p{color:var(--color-default-700);max-width:70ch}
+.note{max-width:1180px;margin:0 auto 28px;background:#fff;border:1px solid var(--color-default-300);
+      border-radius:12px;padding:18px 20px}
+.note h3{font-size:14px;font-weight:700;color:var(--color-dark);margin-bottom:8px}
+.note ul{margin:0 0 4px 18px}
+.note li{font-size:13px;margin-bottom:4px}
+.note code{background:var(--color-default-200);padding:1px 5px;border-radius:4px;font-size:12px;
+           font-family:ui-monospace,monospace}
+.sec{max-width:1180px;margin:0 auto 12px;display:flex;align-items:baseline;gap:12px;
+     padding-top:26px;border-top:2px solid #d5dae4;margin-top:44px}
+.sec h2{font-size:19px;font-weight:700;color:var(--color-dark)}
+.sec span{font-size:13px;color:var(--color-default-600)}
+.rail{max-width:1180px;margin:0 auto 8px;overflow-x:auto;padding-bottom:14px}
+.rail-inner{display:flex;gap:24px;align-items:flex-start;min-width:min-content}
+.frame{background:#fff;border-radius:14px;box-shadow:0 8px 28px rgba(49,58,70,.14);overflow:hidden;flex:none}
+.frame-label{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:8px;
+             display:flex;align-items:center;gap:7px}
+.frame-label b{color:var(--color-dark)}
+.dev{flex:none}
+.screen{background:var(--color-body-bg);height:100%;overflow:hidden;position:relative}
+
+/* ── Paces primitive (mirror ของ class จริง) ─────────────────── */
+.card{background:var(--color-card);border:1px solid var(--color-default-300);border-radius:var(--radius);}
+.card-header{padding:1rem 1.25rem;border-bottom:1px solid var(--color-default-300);
+             display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.card-title{font-size:var(--text-md);font-weight:600;color:var(--color-dark)}
+.card-body{padding:1.25rem}
+.card-footer{padding:.875rem 1.25rem;border-top:1px solid var(--color-default-300)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;border:0;cursor:pointer;
+     font-family:inherit;font-size:var(--text-body);font-weight:500;padding:.5rem .9rem;
+     border-radius:var(--radius);line-height:1.4;white-space:nowrap}
+.btn-sm{padding:.35rem .7rem;font-size:var(--text-xs)}
+.btn-lg{padding:.65rem 1.15rem}
+.btn-primary{background:var(--color-primary);color:#fff}
+.btn-light{background:var(--color-light);color:var(--color-dark)}
+.btn-outline{background:#fff;color:var(--color-default-800);border:1px solid var(--color-default-300)}
+.btn-icon{padding:.35rem;width:32px;height:32px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:var(--text-2xs);font-weight:600;
+       padding:.15rem .5rem;border-radius:999px;line-height:1.6}
+.form-label{display:block;font-size:var(--text-xs);font-weight:600;color:var(--color-default-800);
+            margin-bottom:.35rem}
+.form-input,.form-select,.form-textarea{width:100%;font-family:inherit;font-size:var(--text-body);
+  color:var(--color-default-900);background:#fff;border:1px solid var(--color-default-300);
+  border-radius:var(--radius);padding:.5rem .75rem;outline:0}
+.form-textarea{resize:none}
+.input-group{display:flex;align-items:stretch}
+.input-group-text{display:flex;align-items:center;padding:0 .8rem;background:var(--color-default-200);
+  border:1px solid var(--color-default-300);border-right:0;border-radius:var(--radius) 0 0 var(--radius);
+  color:var(--color-default-700);font-weight:600}
+.input-group .form-input{border-radius:0 var(--radius) var(--radius) 0}
+.txt-danger{color:var(--color-danger)}
+.muted{color:var(--color-default-600)}
+.dashed{border-top:1px dashed var(--color-default-300)}
+
+svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.8;
+      stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ── ส่วนเฉพาะหน้า /expenses ─────────────────────────────────── */
+.crumb{font-size:var(--text-xs);color:var(--color-default-600);margin-bottom:2px}
+.page-title{font-size:1.125rem;font-weight:700;color:var(--color-dark)}
+
+.seg{display:inline-flex;border-radius:var(--radius);overflow:hidden}
+.seg button{border:0;background:var(--color-light);color:var(--color-dark);font-family:inherit;
+  font-size:var(--text-xs);font-weight:500;padding:.35rem .7rem;cursor:pointer;border-radius:0}
+.seg button[aria-pressed="true"]{background:rgba(35,109,201,.15);color:var(--color-primary);font-weight:600}
+
+/* hero P&L */
+.pnl{display:grid;grid-template-columns:minmax(210px,.9fr) 2fr;gap:0}
+.pnl-hero{padding:1.25rem 1.5rem;border-right:1px dashed var(--color-default-300)}
+.pnl-hero .lbl{font-size:var(--text-xs);color:var(--color-default-600);margin-bottom:2px}
+.pnl-hero .val{font-size:2rem;font-weight:700;color:var(--color-success-ink);letter-spacing:-.5px;line-height:1.25}
+.pnl-hero .val.neg{color:var(--color-danger-ink)}
+.pnl-grid{display:grid;grid-template-columns:repeat(4,1fr);align-items:center}
+.pnl-cell{padding:1.25rem 1rem;text-align:center;border-right:1px dashed var(--color-default-300)}
+.pnl-cell:last-child{border-right:0}
+.pnl-cell .lbl{font-size:var(--text-xs);color:var(--color-default-600);margin-bottom:3px;
+               display:flex;align-items:center;justify-content:center;gap:5px}
+.pnl-cell .val{font-size:var(--text-md);font-weight:700;color:var(--color-default-800)}
+.pnl-cell .val.good{color:var(--color-success-ink)} .pnl-cell .val.bad{color:var(--color-danger-ink)}
+.alertbar{display:flex;gap:8px;align-items:flex-start;border:1px solid rgba(249,191,89,.35);
+  background:rgba(249,191,89,.12);color:var(--color-warning-ink);border-radius:var(--radius);
+  padding:.6rem .85rem;font-size:var(--text-xs);font-weight:500}
+.alertbar a{color:var(--color-warning-ink);font-weight:700}
+
+/* breakdown */
+.bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--color-default-200)}
+.bar i{display:block;height:100%}
+.legend{display:grid;gap:.55rem;margin-top:.9rem}
+.legend-row{display:flex;align-items:center;gap:.6rem;font-size:var(--text-xs)}
+.legend-row .dot{width:9px;height:9px;border-radius:3px;flex:none}
+.legend-row .nm{flex:1;color:var(--color-default-800)}
+.legend-row .pc{color:var(--color-default-600);width:44px;text-align:right}
+.legend-row .am{font-weight:600;color:var(--color-default-900);width:82px;text-align:right}
+.quick{display:grid;gap:0}
+.quick-row{display:flex;align-items:center;justify-content:space-between;padding:.65rem 0;
+           border-bottom:1px dashed var(--color-default-300)}
+.quick-row:last-child{border-bottom:0}
+.quick-row .k{font-size:var(--text-xs);color:var(--color-default-600);display:flex;align-items:center;gap:6px}
+.quick-row .v{font-weight:600;color:var(--color-default-900)}
+
+/* filter chips */
+.chips{display:flex;gap:.4rem;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:var(--text-xs);font-weight:500;
+  padding:.3rem .65rem;border-radius:999px;background:var(--color-light);color:var(--color-default-800);
+  border:1px solid transparent;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:rgba(35,109,201,.15);color:var(--color-primary);
+  border-color:rgba(35,109,201,.3);font-weight:600}
+.chip .n{font-size:var(--text-2xs);opacity:.75}
+
+.searchbox{position:relative;display:flex;align-items:center}
+.searchbox svg{position:absolute;left:.65rem;color:var(--color-default-400);font-size:15px}
+.searchbox input{padding-left:2rem;min-width:190px}
+
+/* list */
+.daygroup{display:flex;align-items:center;justify-content:space-between;
+  padding:.55rem 1.25rem;background:var(--color-default-100);
+  border-top:1px solid var(--color-default-300);border-bottom:1px solid var(--color-default-300)}
+.daygroup .d{font-size:var(--text-xs);font-weight:600;color:var(--color-default-800)}
+.daygroup .t{font-size:var(--text-xs);color:var(--color-default-600)}
+.daygroup .t b{color:var(--color-default-900)}
+.erow{display:flex;align-items:center;gap:.85rem;padding:.75rem 1.25rem;
+      border-bottom:1px solid var(--color-default-200)}
+.erow:last-child{border-bottom:0}
+.ava{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+     font-size:18px;flex:none}
+.erow .mid{flex:1;min-width:0}
+.erow .cat{font-weight:600;color:var(--color-default-900);font-size:var(--text-body)}
+.erow .nt{font-size:var(--text-xs);color:var(--color-default-600);white-space:nowrap;
+          overflow:hidden;text-overflow:ellipsis}
+.erow .amt{font-weight:700;color:var(--color-default-900);font-size:var(--text-md);
+           text-align:right;white-space:nowrap}
+.erow .act{display:flex;gap:.3rem}
+.listfoot{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.25rem}
+
+/* modal */
+.overlay{position:absolute;inset:0;background:rgba(49,58,70,.4);display:flex;
+         align-items:center;justify-content:center;padding:12px}
+.overlay.sheet{align-items:flex-end;padding:0}
+.dialog{background:#fff;border-radius:12px;width:100%;max-width:520px;overflow:hidden;
+        box-shadow:0 18px 50px rgba(49,58,70,.28);display:flex;flex-direction:column;max-height:100%}
+.dialog.sheetbody{border-radius:16px 16px 0 0;max-width:none}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+          padding:1rem 1.25rem;border-bottom:1px solid var(--color-default-300)}
+.dlg-head h3{font-size:var(--text-md);font-weight:600;color:var(--color-dark);
+             display:flex;align-items:center;gap:.45rem}
+.dlg-body{padding:1.25rem;display:grid;gap:1.05rem;overflow:auto}
+.dlg-foot{padding:.85rem 1.25rem;border-top:1px solid var(--color-default-300);
+          display:flex;gap:.5rem;justify-content:flex-end;align-items:center}
+.handle{width:38px;height:4px;border-radius:999px;background:var(--color-default-300);margin:.6rem auto 0}
+.amount-field .form-input{font-size:1.5rem;font-weight:700;color:var(--color-default-900);padding:.55rem .75rem}
+.amount-field .input-group-text{font-size:1.15rem}
+.catgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.catbtn{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.65rem .35rem;
+  border:1px solid var(--color-default-300);border-radius:var(--radius);background:#fff;cursor:pointer;
+  font-family:inherit;font-size:var(--text-2xs);font-weight:500;color:var(--color-default-800);line-height:1.35}
+.catbtn svg{font-size:19px;color:var(--color-default-600)}
+.catbtn[aria-pressed="true"]{background:rgba(35,109,201,.12);border-color:var(--color-primary);
+  color:var(--color-primary-ink);font-weight:600}
+.catbtn[aria-pressed="true"] svg{color:var(--color-primary)}
+.datequick{display:flex;gap:.4rem;margin-bottom:.45rem}
+.counter{font-size:var(--text-2xs);color:var(--color-default-500);text-align:right;margin-top:.25rem}
+
+/* mobile bits */
+.mtop{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--color-default-300);
+      padding:.7rem .9rem .6rem;z-index:5}
+.mscroll{padding:.9rem .9rem 96px;display:grid;gap:.85rem}
+.segscroll{display:flex;gap:.35rem;overflow-x:auto;margin-top:.6rem;padding-bottom:2px}
+.mbottom{position:absolute;left:0;right:0;bottom:0;padding:.7rem .9rem 1.4rem;background:#fff;
+         border-top:1px solid var(--color-default-300)}
+.pnl-m{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.pnl-m .c{padding:.7rem .4rem;text-align:center;border-top:1px dashed var(--color-default-300)}
+.pnl-m .c:nth-child(odd){border-right:1px dashed var(--color-default-300)}
+.pnl-m .c .lbl{font-size:var(--text-2xs);color:var(--color-default-600)}
+.pnl-m .c .val{font-weight:700;font-size:var(--text-body);color:var(--color-default-800)}
+.pnl-m .c .val.good{color:var(--color-success-ink)} .pnl-m .c .val.bad{color:var(--color-danger-ink)}
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="pencil" viewBox="0 0 24 24"><path d="M4 20h4L18.5 9.5a2.828 2.828 0 1 0-4-4L4 16v4zM13.5 6.5l4 4"/></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></symbol>
+<symbol id="calendar" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM16 3v4M8 3v4M4 11h16"/></symbol>
+<symbol id="search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></symbol>
+<symbol id="building-store" viewBox="0 0 24 24"><path d="M3 21h18M3 10h18M5 6h14l2 4H3zM5 10v11M19 10v11M9 21v-6h6v6"/></symbol>
+<symbol id="package" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></symbol>
+<symbol id="speakerphone" viewBox="0 0 24 24"><path d="M18 8a3 3 0 0 1 0 6M10 8v9a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-3M18 5v12l-6-3H5a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h7z"/></symbol>
+<symbol id="truck" viewBox="0 0 24 24"><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M5 17H3V6a1 1 0 0 1 1-1h9v12M9 17h6M19 17h2v-6h-8M14 6h5l3 5"/></symbol>
+<symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0-3-3.85"/></symbol>
+<symbol id="bolt" viewBox="0 0 24 24"><path d="M13 3l-9 11h7l-1 7 9-11h-7z"/></symbol>
+<symbol id="dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="receipt" viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16l-3-2-2 2-2-2-2 2-2-2zM9 7h6M9 11h6"/></symbol>
+<symbol id="alert" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.24 3.96 2.51 17.5A2 2 0 0 0 4.24 20.5h15.52a2 2 0 0 0 1.73-3L13.76 3.96a2 2 0 0 0-3.52 0z"/></symbol>
+<symbol id="trend-up" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M14 7h7v7"/></symbol>
+<symbol id="trend-down" viewBox="0 0 24 24"><path d="M3 7l6 6 4-4 8 8M14 17h7v-7"/></symbol>
+<symbol id="cash" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></symbol>
+<symbol id="chart-pie" viewBox="0 0 24 24"><path d="M12 3v9h9a9 9 0 1 0-9-9z"/><path d="M21 15a9 9 0 0 1-9 6"/></symbol>
+<symbol id="filter" viewBox="0 0 24 24"><path d="M4 4h16v2.17a2 2 0 0 1-.59 1.42L15 12v7l-6-2v-5L4.59 7.59A2 2 0 0 1 4 6.17z"/></symbol>
+<symbol id="chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="save" viewBox="0 0 24 24"><path d="M6 4h9l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM9 4v5h6M8 21v-6h8v6"/></symbol>
+<symbol id="calc" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/></symbol>
+</svg>
+
+<div class="review-head">
+  <h1>Mockup — ปรับปรุงหน้า /expenses (feature 00016)</h1>
+  <p>โครงใหม่: หน้าเป็น <b>“หน้ารายการ”</b> เต็มตัว — ฟอร์มที่เคยแปะค้างกลางหน้าถูกย้ายเข้า modal ที่เปิดจากปุ่ม
+     “เพิ่มค่าใช้จ่าย” (pattern เดียวกับโมดัลในหน้า orders) และเพิ่มการ์ดสรุปสองใบระหว่าง P&amp;L กับรายการ
+     ทุกอย่างประกอบจาก Paces primitive + token จาก <code>_root.css</code> ตัวจริง (primary #236dc9 ไม่ใช่ม่วง)</p>
+</div>
+
+<div class="note">
+  <h3>สิ่งที่เปลี่ยนจากของเดิม</h3>
+  <ul>
+    <li><b>ฟอร์ม → modal</b> — <code>ExpenseForm</code> ไม่แปะกลางหน้าแล้ว ทั้ง “เพิ่ม” และ “แก้ไข” ใช้ modal ตัวเดียวกัน
+        (จบเรื่อง scroll กระโดดขึ้นไปที่ฟอร์มตอนกดแก้ไข)</li>
+    <li><b>P&amp;L card</b> — จาก 5 ช่องเท่ากันหมด → hero “กำไรสุทธิ” ตัวใหญ่ + 4 ตัวเลขสนับสนุน (ลำดับชั้นชัดขึ้น)</li>
+    <li><b>การ์ดใหม่ 2 ใบ</b> — “ค่าใช้จ่ายแยกหมวด” (แถบสัดส่วน + legend) และ “สรุปเร็ว” — คำนวณจากรายการในช่วงที่เลือก ไม่ต้องแตะ schema</li>
+    <li><b>รายการ</b> — จากตารางแบน → จัดกลุ่มตามวันพร้อมยอดรวมรายวัน + แถวมี icon หมวด; มือถือได้แถวการ์ดแทนตารางที่ล้นจอ</li>
+    <li><b>filter chip ตามหมวด + ค้นหา</b> — ของเดิมตั้งใจไม่ทำเพราะ “list เล็ก” แต่พอสะสมข้ามเดือนแล้วหาไม่เจอ (ข้อนี้รอคุณเคาะว่าเอาไหม)</li>
+  </ul>
+  <h3 style="margin-top:14px">ยังไม่ตัดสินใจ — รอคุณเคาะ</h3>
+  <ul>
+    <li>หมวดหมู่ใน modal: ตอนนี้วาดเป็น <b>ปุ่มชิป 7 อัน (icon + ชื่อ)</b> เพราะกดบนมือถือเร็วกว่า — ถ้าอยากยึด
+        <code>&lt;select class="form-select"&gt;</code> เดิมก็เปลี่ยนได้ (radio group ยัง bind RHF ได้ปกติ ไม่ใช่ hs-dropdown ที่ห้ามใช้)</li>
+    <li>มือถือ: ปุ่มเพิ่มเป็น <b>แถบล่างเต็มความกว้าง</b> (ที่วาดไว้) หรือ FAB กลม</li>
+    <li>“แยกหมวด + สรุปเร็ว” เอาทั้ง 2 ใบ หรือเอาแค่ใบเดียว</li>
+  </ul>
+</div>
+
+<!-- ══════════════ SECTION 1 — หน้ารายการ ══════════════ -->
+<div class="sec"><h2>1 · หน้ารายการ</h2><span>Desktop 1280 · Tablet 834 · Mobile 390</span></div>
+
+<div class="rail"><div class="rail-inner">
+
+  <!-- DESKTOP -->
+  <div class="dev">
+    <div class="frame-label"><b>Desktop</b> 1280 × 900 <span class="muted">(พื้นที่เนื้อหา 1020 หลังหักเมนูซ้าย)</span></div>
+    <div class="frame" style="width:1020px"><div class="screen" style="height:900px;overflow:auto">
+      <div style="padding:1.1rem 1.5rem;display:grid;gap:1.1rem">
+
+        <!-- page header -->
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <div class="crumb">ธุรกิจ · ค่าใช้จ่าย</div>
+            <div class="page-title">ค่าใช้จ่าย</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.6rem">
+            <div class="seg" role="group" aria-label="ช่วงเวลารายงาน">
+              <button type="button">วันนี้</button>
+              <button type="button">7 วัน</button>
+              <button type="button" aria-pressed="true">30 วัน</button>
+              <button type="button">เดือนนี้</button>
+              <button type="button">กำหนดเอง</button>
+            </div>
+            <button class="btn btn-primary" type="button"><svg class="i"><use href="#plus"/></svg>เพิ่มค่าใช้จ่าย</button>
+          </div>
+        </div>
+
+        <!-- P&L -->
+        <div class="card">
+          <div class="pnl">
+            <div class="pnl-hero">
+              <div class="lbl">กำไรสุทธิ · 30 วันล่าสุด</div>
+              <div class="val">฿17,680.00</div>
+              <div style="margin-top:.45rem"><span class="badge" style="background:rgba(2,188,156,.15);color:var(--color-success-ink)">
+                <svg class="i"><use href="#trend-up"/></svg>+12.4% จากช่วงก่อนหน้า</span></div>
+            </div>
+            <div class="pnl-grid">
+              <div class="pnl-cell"><div class="lbl"><svg class="i"><use href="#cash"/></svg>รายได้</div><div class="val good">฿48,900.00</div></div>
+              <div class="pnl-cell"><div class="lbl"><svg class="i"><use href="#package"/></svg>ต้นทุนสินค้า</div><div class="val">฿21,350.00</div></div>
+              <div class="pnl-cell"><div class="lbl"><svg class="i"><use href="#calc"/></svg>กำไรขั้นต้น</div><div class="val good">฿27,550.00</div></div>
+              <div class="pnl-cell"><div class="lbl"><svg class="i"><use href="#receipt"/></svg>ค่าใช้จ่าย</div><div class="val bad">฿9,870.00</div></div>
+            </div>
+          </div>
+          <div style="padding:0 1.25rem 1.1rem">
+            <div class="alertbar"><svg class="i" style="font-size:16px;margin-top:1px"><use href="#alert"/></svg>
+              <span>กำไรอาจไม่สมบูรณ์ — มีสินค้าที่ยังไม่ตั้งต้นทุนในช่วงนี้ <a href="#">ตั้งต้นทุนตอนนี้ →</a></span></div>
+          </div>
+        </div>
+
+        <!-- 2 cards -->
+        <div style="display:grid;grid-template-columns:1.75fr 1fr;gap:1.1rem">
+          <div class="card">
+            <div class="card-header"><h4 class="card-title">ค่าใช้จ่ายแยกหมวด</h4>
+              <span class="muted" style="font-size:var(--text-xs)">รวม ฿9,870.00</span></div>
+            <div class="card-body">
+              <div class="bar">
+                <i style="width:36.5%;background:var(--color-primary)"></i>
+                <i style="width:25.3%;background:#5b8fd9"></i>
+                <i style="width:18.0%;background:var(--color-info)"></i>
+                <i style="width:12.1%;background:#9dc9dd"></i>
+                <i style="width:8.1%;background:var(--color-default-400)"></i>
+              </div>
+              <div class="legend">
+                <div class="legend-row"><span class="dot" style="background:var(--color-primary)"></span>
+                  <svg class="i muted"><use href="#speakerphone"/></svg><span class="nm">ค่าโฆษณา</span><span class="pc">36.5%</span><span class="am">฿3,600.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:#5b8fd9"></span>
+                  <svg class="i muted"><use href="#building-store"/></svg><span class="nm">ค่าเช่า</span><span class="pc">25.3%</span><span class="am">฿2,500.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:var(--color-info)"></span>
+                  <svg class="i muted"><use href="#truck"/></svg><span class="nm">ค่าขนส่ง</span><span class="pc">18.0%</span><span class="am">฿1,780.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:#9dc9dd"></span>
+                  <svg class="i muted"><use href="#package"/></svg><span class="nm">ค่าแพ็คเกจ/บรรจุภัณฑ์</span><span class="pc">12.1%</span><span class="am">฿1,190.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:var(--color-default-400)"></span>
+                  <svg class="i muted"><use href="#dots"/></svg><span class="nm">อื่นๆ</span><span class="pc">8.1%</span><span class="am">฿800.00</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h4 class="card-title">สรุปเร็ว</h4></div>
+            <div class="card-body" style="padding-top:.35rem;padding-bottom:.35rem">
+              <div class="quick">
+                <div class="quick-row"><span class="k"><svg class="i"><use href="#receipt"/></svg>จำนวนรายการ</span><span class="v">24 รายการ</span></div>
+                <div class="quick-row"><span class="k"><svg class="i"><use href="#calendar"/></svg>เฉลี่ยต่อวัน</span><span class="v">฿329.00</span></div>
+                <div class="quick-row"><span class="k"><svg class="i"><use href="#chart-pie"/></svg>หมวดที่จ่ายมากสุด</span><span class="v">ค่าโฆษณา</span></div>
+                <div class="quick-row"><span class="k"><svg class="i"><use href="#trend-down"/></svg>สัดส่วนต่อรายได้</span><span class="v">20.2%</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- list -->
+        <div class="card">
+          <div class="card-header">
+            <h4 class="card-title">รายการค่าใช้จ่าย <span class="badge" style="background:var(--color-light);color:var(--color-default-700)">24</span></h4>
+            <div class="searchbox"><svg class="i"><use href="#search"/></svg>
+              <input class="form-input" placeholder="ค้นหาหมายเหตุ..."></div>
+          </div>
+          <div style="padding:.75rem 1.25rem;border-bottom:1px solid var(--color-default-300)">
+            <div class="chips">
+              <button class="chip" aria-pressed="true" type="button">ทั้งหมด <span class="n">24</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#speakerphone"/></svg>ค่าโฆษณา <span class="n">6</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#building-store"/></svg>ค่าเช่า <span class="n">2</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#truck"/></svg>ค่าขนส่ง <span class="n">7</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#package"/></svg>ค่าแพ็คเกจ <span class="n">5</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#bolt"/></svg>สาธารณูปโภค <span class="n">3</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#dots"/></svg>อื่นๆ <span class="n">1</span></button>
+            </div>
+          </div>
+
+          <div class="daygroup"><span class="d">วันนี้ · 2 ส.ค. 2569</span><span class="t">รวม <b>฿1,450.00</b></span></div>
+          <div class="erow">
+            <span class="ava" style="background:rgba(35,109,201,.12);color:var(--color-primary)"><svg class="i"><use href="#speakerphone"/></svg></span>
+            <div class="mid"><div class="cat">ค่าโฆษณา</div><div class="nt">บูสต์โพสต์ TikTok — แคมเปญเปิดร้าน</div></div>
+            <div class="amt">฿1,200.00</div>
+            <div class="act">
+              <button class="btn btn-icon btn-outline" type="button" aria-label="แก้ไข"><svg class="i"><use href="#pencil"/></svg></button>
+              <button class="btn btn-icon btn-outline" type="button" aria-label="ลบ"><svg class="i"><use href="#trash"/></svg></button>
+            </div>
+          </div>
+          <div class="erow">
+            <span class="ava" style="background:rgba(91,195,225,.16);color:var(--color-info-ink)"><svg class="i"><use href="#truck"/></svg></span>
+            <div class="mid"><div class="cat">ค่าขนส่ง</div><div class="nt">ค่าส่งของรอบเช้า</div></div>
+            <div class="amt">฿250.00</div>
+            <div class="act">
+              <button class="btn btn-icon btn-outline" type="button" aria-label="แก้ไข"><svg class="i"><use href="#pencil"/></svg></button>
+              <button class="btn btn-icon btn-outline" type="button" aria-label="ลบ"><svg class="i"><use href="#trash"/></svg></button>
+            </div>
+          </div>
+
+          <div class="daygroup"><span class="d">เมื่อวาน · 1 ส.ค. 2569</span><span class="t">รวม <b>฿2,690.00</b></span></div>
+          <div class="erow">
+            <span class="ava" style="background:rgba(35,109,201,.12);color:var(--color-primary)"><svg class="i"><use href="#building-store"/></svg></span>
+            <div class="mid"><div class="cat">ค่าเช่า</div><div class="nt">ค่าเช่าหน้าร้าน เดือน ส.ค.</div></div>
+            <div class="amt">฿2,500.00</div>
+            <div class="act">
+              <button class="btn btn-icon btn-outline" type="button" aria-label="แก้ไข"><svg class="i"><use href="#pencil"/></svg></button>
+              <button class="btn btn-icon btn-outline" type="button" aria-label="ลบ"><svg class="i"><use href="#trash"/></svg></button>
+            </div>
+          </div>
+          <div class="erow">
+            <span class="ava" style="background:rgba(155,166,183,.18);color:var(--color-default-700)"><svg class="i"><use href="#package"/></svg></span>
+            <div class="mid"><div class="cat">ค่าแพ็คเกจ/บรรจุภัณฑ์</div><div class="nt">กล่องไซซ์ C 100 ใบ</div></div>
+            <div class="amt">฿190.00</div>
+            <div class="act">
+              <button class="btn btn-icon btn-outline" type="button" aria-label="แก้ไข"><svg class="i"><use href="#pencil"/></svg></button>
+              <button class="btn btn-icon btn-outline" type="button" aria-label="ลบ"><svg class="i"><use href="#trash"/></svg></button>
+            </div>
+          </div>
+
+          <div class="daygroup"><span class="d">31 ก.ค. 2569</span><span class="t">รวม <b>฿1,830.00</b></span></div>
+          <div class="erow">
+            <span class="ava" style="background:rgba(35,109,201,.12);color:var(--color-primary)"><svg class="i"><use href="#speakerphone"/></svg></span>
+            <div class="mid"><div class="cat">ค่าโฆษณา</div><div class="nt">Facebook Ads — ชุดโฆษณาสินค้าใหม่</div></div>
+            <div class="amt">฿1,400.00</div>
+            <div class="act">
+              <button class="btn btn-icon btn-outline" type="button" aria-label="แก้ไข"><svg class="i"><use href="#pencil"/></svg></button>
+              <button class="btn btn-icon btn-outline" type="button" aria-label="ลบ"><svg class="i"><use href="#trash"/></svg></button>
+            </div>
+          </div>
+          <div class="erow">
+            <span class="ava" style="background:rgba(249,191,89,.2);color:var(--color-warning-ink)"><svg class="i"><use href="#bolt"/></svg></span>
+            <div class="mid"><div class="cat">สาธารณูปโภค</div><div class="nt">ค่าไฟ เดือน ก.ค.</div></div>
+            <div class="amt">฿430.00</div>
+            <div class="act">
+              <button class="btn btn-icon btn-outline" type="button" aria-label="แก้ไข"><svg class="i"><use href="#pencil"/></svg></button>
+              <button class="btn btn-icon btn-outline" type="button" aria-label="ลบ"><svg class="i"><use href="#trash"/></svg></button>
+            </div>
+          </div>
+
+          <div class="listfoot dashed">
+            <span class="muted" style="font-size:var(--text-xs)">แสดง 6 จาก 24 รายการ</span>
+            <button class="btn btn-light btn-sm" type="button"><svg class="i"><use href="#chevron-down"/></svg>โหลดเพิ่ม</button>
+          </div>
+        </div>
+
+      </div>
+    </div></div>
+  </div>
+
+  <!-- TABLET -->
+  <div class="dev">
+    <div class="frame-label"><b>Tablet</b> 834 × 900</div>
+    <div class="frame" style="width:834px"><div class="screen" style="height:900px;overflow:auto">
+      <div style="padding:1rem 1.15rem;display:grid;gap:.95rem">
+
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">
+          <div><div class="crumb">ธุรกิจ · ค่าใช้จ่าย</div><div class="page-title">ค่าใช้จ่าย</div></div>
+          <button class="btn btn-primary" type="button"><svg class="i"><use href="#plus"/></svg>เพิ่มค่าใช้จ่าย</button>
+        </div>
+        <div class="seg" role="group" aria-label="ช่วงเวลารายงาน" style="align-self:flex-start">
+          <button type="button">วันนี้</button><button type="button">7 วัน</button>
+          <button type="button" aria-pressed="true">30 วัน</button><button type="button">เดือนนี้</button>
+          <button type="button">กำหนดเอง</button>
+        </div>
+
+        <div class="card">
+          <div class="pnl" style="grid-template-columns:1fr">
+            <div class="pnl-hero" style="border-right:0;border-bottom:1px dashed var(--color-default-300);
+                 display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
+              <div><div class="lbl">กำไรสุทธิ · 30 วันล่าสุด</div><div class="val">฿17,680.00</div></div>
+              <span class="badge" style="background:rgba(2,188,156,.15);color:var(--color-success-ink)">
+                <svg class="i"><use href="#trend-up"/></svg>+12.4% จากช่วงก่อนหน้า</span>
+            </div>
+            <div class="pnl-grid">
+              <div class="pnl-cell"><div class="lbl">รายได้</div><div class="val good">฿48,900.00</div></div>
+              <div class="pnl-cell"><div class="lbl">ต้นทุนสินค้า</div><div class="val">฿21,350.00</div></div>
+              <div class="pnl-cell"><div class="lbl">กำไรขั้นต้น</div><div class="val good">฿27,550.00</div></div>
+              <div class="pnl-cell"><div class="lbl">ค่าใช้จ่าย</div><div class="val bad">฿9,870.00</div></div>
+            </div>
+          </div>
+          <div style="padding:1rem 1.25rem 1.1rem">
+            <div class="alertbar"><svg class="i" style="font-size:16px;margin-top:1px"><use href="#alert"/></svg>
+              <span>กำไรอาจไม่สมบูรณ์ — มีสินค้าที่ยังไม่ตั้งต้นทุนในช่วงนี้ <a href="#">ตั้งต้นทุนตอนนี้ →</a></span></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:.95rem">
+          <div class="card">
+            <div class="card-header"><h4 class="card-title">ค่าใช้จ่ายแยกหมวด</h4>
+              <span class="muted" style="font-size:var(--text-xs)">฿9,870.00</span></div>
+            <div class="card-body">
+              <div class="bar">
+                <i style="width:36.5%;background:var(--color-primary)"></i><i style="width:25.3%;background:#5b8fd9"></i>
+                <i style="width:18%;background:var(--color-info)"></i><i style="width:12.1%;background:#9dc9dd"></i>
+                <i style="width:8.1%;background:var(--color-default-400)"></i>
+              </div>
+              <div class="legend">
+                <div class="legend-row"><span class="dot" style="background:var(--color-primary)"></span><span class="nm">ค่าโฆษณา</span><span class="pc">36.5%</span><span class="am">฿3,600.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:#5b8fd9"></span><span class="nm">ค่าเช่า</span><span class="pc">25.3%</span><span class="am">฿2,500.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:var(--color-info)"></span><span class="nm">ค่าขนส่ง</span><span class="pc">18.0%</span><span class="am">฿1,780.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:#9dc9dd"></span><span class="nm">ค่าแพ็คเกจ</span><span class="pc">12.1%</span><span class="am">฿1,190.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:var(--color-default-400)"></span><span class="nm">อื่นๆ</span><span class="pc">8.1%</span><span class="am">฿800.00</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h4 class="card-title">สรุปเร็ว</h4></div>
+            <div class="card-body" style="padding-top:.35rem;padding-bottom:.35rem">
+              <div class="quick">
+                <div class="quick-row"><span class="k">จำนวนรายการ</span><span class="v">24</span></div>
+                <div class="quick-row"><span class="k">เฉลี่ยต่อวัน</span><span class="v">฿329.00</span></div>
+                <div class="quick-row"><span class="k">หมวดที่จ่ายมากสุด</span><span class="v">ค่าโฆษณา</span></div>
+                <div class="quick-row"><span class="k">สัดส่วนต่อรายได้</span><span class="v">20.2%</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h4 class="card-title">รายการค่าใช้จ่าย <span class="badge" style="background:var(--color-light);color:var(--color-default-700)">24</span></h4>
+            <div class="searchbox"><svg class="i"><use href="#search"/></svg><input class="form-input" placeholder="ค้นหา..."></div>
+          </div>
+          <div style="padding:.7rem 1.25rem;border-bottom:1px solid var(--color-default-300);overflow:hidden">
+            <div class="chips" style="flex-wrap:nowrap;overflow-x:auto">
+              <button class="chip" aria-pressed="true" type="button">ทั้งหมด <span class="n">24</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#speakerphone"/></svg>ค่าโฆษณา <span class="n">6</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#building-store"/></svg>ค่าเช่า <span class="n">2</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#truck"/></svg>ค่าขนส่ง <span class="n">7</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#package"/></svg>ค่าแพ็คเกจ <span class="n">5</span></button>
+              <button class="chip" type="button"><svg class="i"><use href="#bolt"/></svg>สาธารณูปโภค <span class="n">3</span></button>
+            </div>
+          </div>
+          <div class="daygroup"><span class="d">วันนี้ · 2 ส.ค. 2569</span><span class="t">รวม <b>฿1,450.00</b></span></div>
+          <div class="erow">
+            <span class="ava" style="background:rgba(35,109,201,.12);color:var(--color-primary)"><svg class="i"><use href="#speakerphone"/></svg></span>
+            <div class="mid"><div class="cat">ค่าโฆษณา</div><div class="nt">บูสต์โพสต์ TikTok — แคมเปญเปิดร้าน</div></div>
+            <div class="amt">฿1,200.00</div>
+            <div class="act"><button class="btn btn-icon btn-outline" type="button" aria-label="แก้ไข"><svg class="i"><use href="#pencil"/></svg></button>
+              <button class="btn btn-icon btn-outline" type="button" aria-label="ลบ"><svg class="i"><use href="#trash"/></svg></button></div>
+          </div>
+          <div class="erow">
+            <span class="ava" style="background:rgba(91,195,225,.16);color:var(--color-info-ink)"><svg class="i"><use href="#truck"/></svg></span>
+            <div class="mid"><div class="cat">ค่าขนส่ง</div><div class="nt">ค่าส่งของรอบเช้า</div></div>
+            <div class="amt">฿250.00</div>
+            <div class="act"><button class="btn btn-icon btn-outline" type="button" aria-label="แก้ไข"><svg class="i"><use href="#pencil"/></svg></button>
+              <button class="btn btn-icon btn-outline" type="button" aria-label="ลบ"><svg class="i"><use href="#trash"/></svg></button></div>
+          </div>
+          <div class="daygroup"><span class="d">เมื่อวาน · 1 ส.ค. 2569</span><span class="t">รวม <b>฿2,690.00</b></span></div>
+          <div class="erow">
+            <span class="ava" style="background:rgba(35,109,201,.12);color:var(--color-primary)"><svg class="i"><use href="#building-store"/></svg></span>
+            <div class="mid"><div class="cat">ค่าเช่า</div><div class="nt">ค่าเช่าหน้าร้าน เดือน ส.ค.</div></div>
+            <div class="amt">฿2,500.00</div>
+            <div class="act"><button class="btn btn-icon btn-outline" type="button" aria-label="แก้ไข"><svg class="i"><use href="#pencil"/></svg></button>
+              <button class="btn btn-icon btn-outline" type="button" aria-label="ลบ"><svg class="i"><use href="#trash"/></svg></button></div>
+          </div>
+          <div class="listfoot dashed">
+            <span class="muted" style="font-size:var(--text-xs)">แสดง 3 จาก 24 รายการ</span>
+            <button class="btn btn-light btn-sm" type="button">โหลดเพิ่ม</button>
+          </div>
+        </div>
+
+      </div>
+    </div></div>
+  </div>
+
+  <!-- MOBILE -->
+  <div class="dev">
+    <div class="frame-label"><b>Mobile</b> 390 × 844</div>
+    <div class="frame" style="width:390px"><div class="screen" style="height:844px">
+      <div style="height:100%;overflow:auto">
+        <div class="mtop">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div><div class="crumb">ธุรกิจ</div><div class="page-title">ค่าใช้จ่าย</div></div>
+            <button class="btn btn-icon btn-outline" type="button" aria-label="ค้นหา"><svg class="i"><use href="#search"/></svg></button>
+          </div>
+          <div class="segscroll">
+            <button class="chip" type="button">วันนี้</button>
+            <button class="chip" type="button">7 วัน</button>
+            <button class="chip" aria-pressed="true" type="button">30 วัน</button>
+            <button class="chip" type="button">เดือนนี้</button>
+            <button class="chip" type="button">กำหนดเอง</button>
+          </div>
+        </div>
+
+        <div class="mscroll">
+          <div class="card">
+            <div style="padding:1rem 1.15rem .8rem">
+              <div class="lbl" style="font-size:var(--text-xs);color:var(--color-default-600)">กำไรสุทธิ · 30 วันล่าสุด</div>
+              <div style="display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap">
+                <div style="font-size:1.75rem;font-weight:700;color:var(--color-success-ink);letter-spacing:-.5px">฿17,680.00</div>
+                <span class="badge" style="background:rgba(2,188,156,.15);color:var(--color-success-ink)">
+                  <svg class="i"><use href="#trend-up"/></svg>+12.4%</span>
+              </div>
+            </div>
+            <div class="pnl-m">
+              <div class="c"><div class="lbl">รายได้</div><div class="val good">฿48,900.00</div></div>
+              <div class="c"><div class="lbl">ต้นทุนสินค้า</div><div class="val">฿21,350.00</div></div>
+              <div class="c"><div class="lbl">กำไรขั้นต้น</div><div class="val good">฿27,550.00</div></div>
+              <div class="c"><div class="lbl">ค่าใช้จ่าย</div><div class="val bad">฿9,870.00</div></div>
+            </div>
+            <div style="padding:.85rem 1.15rem 1.1rem">
+              <div class="alertbar"><svg class="i" style="font-size:16px;margin-top:1px"><use href="#alert"/></svg>
+                <span>มีสินค้าที่ยังไม่ตั้งต้นทุน <a href="#">ตั้งตอนนี้ →</a></span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header" style="padding:.85rem 1.15rem"><h4 class="card-title">ค่าใช้จ่ายแยกหมวด</h4>
+              <span class="muted" style="font-size:var(--text-xs)">฿9,870.00</span></div>
+            <div class="card-body" style="padding:1rem 1.15rem">
+              <div class="bar">
+                <i style="width:36.5%;background:var(--color-primary)"></i><i style="width:25.3%;background:#5b8fd9"></i>
+                <i style="width:18%;background:var(--color-info)"></i><i style="width:12.1%;background:#9dc9dd"></i>
+                <i style="width:8.1%;background:var(--color-default-400)"></i>
+              </div>
+              <div class="legend">
+                <div class="legend-row"><span class="dot" style="background:var(--color-primary)"></span><span class="nm">ค่าโฆษณา</span><span class="am">฿3,600.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:#5b8fd9"></span><span class="nm">ค่าเช่า</span><span class="am">฿2,500.00</span></div>
+                <div class="legend-row"><span class="dot" style="background:var(--color-info)"></span><span class="nm">ค่าขนส่ง</span><span class="am">฿1,780.00</span></div>
+              </div>
+              <button class="btn btn-light btn-sm" type="button" style="width:100%;margin-top:.8rem">ดูทั้ง 5 หมวด</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header" style="padding:.85rem 1.15rem">
+              <h4 class="card-title">รายการ <span class="badge" style="background:var(--color-light);color:var(--color-default-700)">24</span></h4>
+              <button class="btn btn-outline btn-sm" type="button"><svg class="i"><use href="#filter"/></svg>ตัวกรอง</button>
+            </div>
+            <div class="daygroup" style="padding-left:1.15rem;padding-right:1.15rem">
+              <span class="d">วันนี้ · 2 ส.ค. 69</span><span class="t">รวม <b>฿1,450.00</b></span></div>
+            <div class="erow" style="padding:.7rem 1.15rem">
+              <span class="ava" style="background:rgba(35,109,201,.12);color:var(--color-primary)"><svg class="i"><use href="#speakerphone"/></svg></span>
+              <div class="mid"><div class="cat">ค่าโฆษณา</div><div class="nt">บูสต์โพสต์ TikTok</div></div>
+              <div class="amt">฿1,200.00</div>
+            </div>
+            <div class="erow" style="padding:.7rem 1.15rem">
+              <span class="ava" style="background:rgba(91,195,225,.16);color:var(--color-info-ink)"><svg class="i"><use href="#truck"/></svg></span>
+              <div class="mid"><div class="cat">ค่าขนส่ง</div><div class="nt">ค่าส่งของรอบเช้า</div></div>
+              <div class="amt">฿250.00</div>
+            </div>
+            <div class="daygroup" style="padding-left:1.15rem;padding-right:1.15rem">
+              <span class="d">เมื่อวาน · 1 ส.ค. 69</span><span class="t">รวม <b>฿2,690.00</b></span></div>
+            <div class="erow" style="padding:.7rem 1.15rem">
+              <span class="ava" style="background:rgba(35,109,201,.12);color:var(--color-primary)"><svg class="i"><use href="#building-store"/></svg></span>
+              <div class="mid"><div class="cat">ค่าเช่า</div><div class="nt">ค่าเช่าหน้าร้าน เดือน ส.ค.</div></div>
+              <div class="amt">฿2,500.00</div>
+            </div>
+            <div class="erow" style="padding:.7rem 1.15rem">
+              <span class="ava" style="background:rgba(155,166,183,.18);color:var(--color-default-700)"><svg class="i"><use href="#package"/></svg></span>
+              <div class="mid"><div class="cat">ค่าแพ็คเกจ</div><div class="nt">กล่องไซซ์ C 100 ใบ</div></div>
+              <div class="amt">฿190.00</div>
+            </div>
+            <div class="listfoot dashed" style="padding:.7rem 1.15rem">
+              <span class="muted" style="font-size:var(--text-xs)">แสดง 4 จาก 24</span>
+              <button class="btn btn-light btn-sm" type="button">โหลดเพิ่ม</button>
+            </div>
+          </div>
+          <p class="muted" style="font-size:var(--text-2xs);text-align:center">แตะที่แถวเพื่อแก้ไข · ลบได้จากในโมดัลแก้ไข</p>
+        </div>
+      </div>
+
+      <div class="mbottom">
+        <button class="btn btn-primary btn-lg" type="button" style="width:100%">
+          <svg class="i"><use href="#plus"/></svg>เพิ่มค่าใช้จ่าย</button>
+      </div>
+    </div></div>
+  </div>
+
+</div></div>
+
+<!-- ══════════════ SECTION 2 — Modal ══════════════ -->
+<div class="sec"><h2>2 · Modal “เพิ่มค่าใช้จ่าย”</h2><span>Desktop/Tablet = กล่องกลางจอ · Mobile = bottom sheet</span></div>
+
+<div class="rail"><div class="rail-inner">
+
+  <!-- desktop modal -->
+  <div class="dev">
+    <div class="frame-label"><b>Desktop</b> 1020 × 760 <span class="muted">— กล่อง 520px กลางจอ + backdrop ทับหน้ารายการ</span></div>
+    <div class="frame" style="width:1020px"><div class="screen" style="height:760px">
+      <div style="padding:1.1rem 1.5rem;display:grid;gap:1.1rem;filter:blur(1.5px);opacity:.65">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between">
+          <div><div class="crumb">ธุรกิจ · ค่าใช้จ่าย</div><div class="page-title">ค่าใช้จ่าย</div></div>
+          <button class="btn btn-primary" type="button"><svg class="i"><use href="#plus"/></svg>เพิ่มค่าใช้จ่าย</button>
+        </div>
+        <div class="card" style="height:130px"></div>
+        <div class="card" style="height:230px"></div>
+      </div>
+
+      <div class="overlay">
+        <div class="dialog">
+          <div class="dlg-head">
+            <h3><svg class="i"><use href="#receipt"/></svg>เพิ่มค่าใช้จ่าย</h3>
+            <button class="btn btn-icon" type="button" aria-label="ปิด" style="background:transparent;color:var(--color-default-600)">
+              <svg class="i" style="font-size:20px"><use href="#x"/></svg></button>
+          </div>
+          <div class="dlg-body">
+            <div class="amount-field">
+              <label class="form-label">จำนวนเงิน <span class="txt-danger">*</span></label>
+              <div class="input-group"><span class="input-group-text">฿</span>
+                <input class="form-input" inputmode="decimal" value="1,200.00"></div>
+            </div>
+
+            <div>
+              <label class="form-label">หมวดหมู่ <span class="txt-danger">*</span></label>
+              <div class="catgrid">
+                <button class="catbtn" type="button"><svg class="i"><use href="#building-store"/></svg>ค่าเช่า</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#package"/></svg>ค่าแพ็คเกจ</button>
+                <button class="catbtn" type="button" aria-pressed="true"><svg class="i"><use href="#speakerphone"/></svg>ค่าโฆษณา</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#truck"/></svg>ค่าขนส่ง</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#users"/></svg>เงินเดือน</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#bolt"/></svg>สาธารณูปโภค</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#dots"/></svg>อื่นๆ</button>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">วันที่เกิดค่าใช้จ่าย <span class="txt-danger">*</span></label>
+              <div class="datequick">
+                <button class="chip" aria-pressed="true" type="button">วันนี้</button>
+                <button class="chip" type="button">เมื่อวาน</button>
+              </div>
+              <div class="searchbox"><svg class="i"><use href="#calendar"/></svg>
+                <input class="form-input" value="2 ส.ค. 2569"></div>
+            </div>
+
+            <div>
+              <label class="form-label">หมายเหตุ <span class="muted" style="font-weight:400">(ไม่บังคับ)</span></label>
+              <textarea class="form-textarea" rows="2" placeholder="เช่น บูสต์โพสต์ TikTok — แคมเปญเปิดร้าน"></textarea>
+              <div class="counter">0 / 500</div>
+            </div>
+          </div>
+          <div class="dlg-foot">
+            <button class="btn btn-light" type="button">ยกเลิก</button>
+            <button class="btn btn-primary" type="button"><svg class="i"><use href="#plus"/></svg>บันทึกค่าใช้จ่าย</button>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- tablet modal + error state -->
+  <div class="dev">
+    <div class="frame-label"><b>Tablet</b> 834 × 760 <span class="muted">— สถานะ error (validation)</span></div>
+    <div class="frame" style="width:834px"><div class="screen" style="height:760px">
+      <div style="padding:1rem 1.15rem;display:grid;gap:.95rem;filter:blur(1.5px);opacity:.65">
+        <div><div class="crumb">ธุรกิจ · ค่าใช้จ่าย</div><div class="page-title">ค่าใช้จ่าย</div></div>
+        <div class="card" style="height:150px"></div><div class="card" style="height:200px"></div>
+      </div>
+      <div class="overlay">
+        <div class="dialog">
+          <div class="dlg-head">
+            <h3><svg class="i"><use href="#receipt"/></svg>เพิ่มค่าใช้จ่าย</h3>
+            <button class="btn btn-icon" type="button" aria-label="ปิด" style="background:transparent;color:var(--color-default-600)">
+              <svg class="i" style="font-size:20px"><use href="#x"/></svg></button>
+          </div>
+          <div class="dlg-body">
+            <div class="amount-field">
+              <label class="form-label">จำนวนเงิน <span class="txt-danger">*</span></label>
+              <div class="input-group"><span class="input-group-text" style="border-color:var(--color-danger)">฿</span>
+                <input class="form-input" style="border-color:var(--color-danger)" placeholder="0.00"></div>
+              <p class="txt-danger" style="font-size:var(--text-xs);margin-top:.3rem">กรุณากรอกจำนวนเงิน</p>
+            </div>
+            <div>
+              <label class="form-label">หมวดหมู่ <span class="txt-danger">*</span></label>
+              <div class="catgrid">
+                <button class="catbtn" type="button"><svg class="i"><use href="#building-store"/></svg>ค่าเช่า</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#package"/></svg>ค่าแพ็คเกจ</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#speakerphone"/></svg>ค่าโฆษณา</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#truck"/></svg>ค่าขนส่ง</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#users"/></svg>เงินเดือน</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#bolt"/></svg>สาธารณูปโภค</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#dots"/></svg>อื่นๆ</button>
+              </div>
+              <p class="txt-danger" style="font-size:var(--text-xs);margin-top:.35rem">กรุณาเลือกหมวดหมู่</p>
+            </div>
+            <div>
+              <label class="form-label">วันที่เกิดค่าใช้จ่าย <span class="txt-danger">*</span></label>
+              <div class="datequick">
+                <button class="chip" aria-pressed="true" type="button">วันนี้</button>
+                <button class="chip" type="button">เมื่อวาน</button>
+              </div>
+              <div class="searchbox"><svg class="i"><use href="#calendar"/></svg><input class="form-input" value="2 ส.ค. 2569"></div>
+            </div>
+          </div>
+          <div class="dlg-foot">
+            <button class="btn btn-light" type="button">ยกเลิก</button>
+            <button class="btn btn-primary" type="button"><svg class="i"><use href="#plus"/></svg>บันทึกค่าใช้จ่าย</button>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- mobile sheet -->
+  <div class="dev">
+    <div class="frame-label"><b>Mobile</b> 390 × 844 <span class="muted">— bottom sheet</span></div>
+    <div class="frame" style="width:390px"><div class="screen" style="height:844px">
+      <div style="padding:.9rem;display:grid;gap:.85rem;filter:blur(1.5px);opacity:.6">
+        <div class="page-title">ค่าใช้จ่าย</div>
+        <div class="card" style="height:200px"></div><div class="card" style="height:180px"></div>
+      </div>
+      <div class="overlay sheet">
+        <div class="dialog sheetbody" style="max-height:88%">
+          <div class="handle"></div>
+          <div class="dlg-head" style="padding:.75rem 1.15rem">
+            <h3><svg class="i"><use href="#receipt"/></svg>เพิ่มค่าใช้จ่าย</h3>
+            <button class="btn btn-icon" type="button" aria-label="ปิด" style="background:transparent;color:var(--color-default-600)">
+              <svg class="i" style="font-size:20px"><use href="#x"/></svg></button>
+          </div>
+          <div class="dlg-body" style="padding:1.05rem 1.15rem;gap:.95rem">
+            <div class="amount-field">
+              <label class="form-label">จำนวนเงิน <span class="txt-danger">*</span></label>
+              <div class="input-group"><span class="input-group-text">฿</span>
+                <input class="form-input" inputmode="decimal" value="1,200.00"></div>
+            </div>
+            <div>
+              <label class="form-label">หมวดหมู่ <span class="txt-danger">*</span></label>
+              <div class="catgrid" style="grid-template-columns:repeat(2,1fr)">
+                <button class="catbtn" type="button"><svg class="i"><use href="#building-store"/></svg>ค่าเช่า</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#package"/></svg>ค่าแพ็คเกจ</button>
+                <button class="catbtn" type="button" aria-pressed="true"><svg class="i"><use href="#speakerphone"/></svg>ค่าโฆษณา</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#truck"/></svg>ค่าขนส่ง</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#users"/></svg>เงินเดือน</button>
+                <button class="catbtn" type="button"><svg class="i"><use href="#bolt"/></svg>สาธารณูปโภค</button>
+                <button class="catbtn" type="button" style="grid-column:span 2"><svg class="i"><use href="#dots"/></svg>อื่นๆ</button>
+              </div>
+            </div>
+            <div>
+              <label class="form-label">วันที่ <span class="txt-danger">*</span></label>
+              <div class="datequick">
+                <button class="chip" aria-pressed="true" type="button">วันนี้</button>
+                <button class="chip" type="button">เมื่อวาน</button>
+              </div>
+              <div class="searchbox"><svg class="i"><use href="#calendar"/></svg><input class="form-input" value="2 ส.ค. 2569"></div>
+            </div>
+            <div>
+              <label class="form-label">หมายเหตุ <span class="muted" style="font-weight:400">(ไม่บังคับ)</span></label>
+              <textarea class="form-textarea" rows="2" placeholder="เช่น บูสต์โพสต์ TikTok"></textarea>
+            </div>
+          </div>
+          <div class="dlg-foot" style="padding:.8rem 1.15rem 1.3rem;gap:.55rem">
+            <button class="btn btn-light" type="button" style="flex:1">ยกเลิก</button>
+            <button class="btn btn-primary" type="button" style="flex:2">
+              <svg class="i"><use href="#plus"/></svg>บันทึก</button>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+</div></div>
+
+<!-- ══════════════ SECTION 3 — โหมดแก้ไข + สถานะว่าง ══════════════ -->
+<div class="sec"><h2>3 · โหมดแก้ไข &amp; สถานะว่าง</h2><span>modal ตัวเดียวกัน สลับหัวข้อ/ปุ่ม · empty state</span></div>
+
+<div class="rail"><div class="rail-inner">
+
+  <div class="dev">
+    <div class="frame-label"><b>Desktop</b> — modal โหมดแก้ไข <span class="muted">(เพิ่มปุ่มลบซ้ายล่าง)</span></div>
+    <div class="frame" style="width:560px"><div class="screen" style="height:560px;background:rgba(49,58,70,.4);display:flex;align-items:center;justify-content:center;padding:16px">
+      <div class="dialog">
+        <div class="dlg-head">
+          <h3><svg class="i"><use href="#pencil"/></svg>แก้ไขค่าใช้จ่าย</h3>
+          <button class="btn btn-icon" type="button" aria-label="ปิด" style="background:transparent;color:var(--color-default-600)">
+            <svg class="i" style="font-size:20px"><use href="#x"/></svg></button>
+        </div>
+        <div class="dlg-body">
+          <div class="amount-field">
+            <label class="form-label">จำนวนเงิน <span class="txt-danger">*</span></label>
+            <div class="input-group"><span class="input-group-text">฿</span><input class="form-input" value="2,500.00"></div>
+          </div>
+          <div>
+            <label class="form-label">หมวดหมู่ <span class="txt-danger">*</span></label>
+            <div class="catgrid">
+              <button class="catbtn" type="button" aria-pressed="true"><svg class="i"><use href="#building-store"/></svg>ค่าเช่า</button>
+              <button class="catbtn" type="button"><svg class="i"><use href="#package"/></svg>ค่าแพ็คเกจ</button>
+              <button class="catbtn" type="button"><svg class="i"><use href="#speakerphone"/></svg>ค่าโฆษณา</button>
+            </div>
+          </div>
+          <div>
+            <label class="form-label">หมายเหตุ</label>
+            <textarea class="form-textarea" rows="2">ค่าเช่าหน้าร้าน เดือน ส.ค.</textarea>
+          </div>
+        </div>
+        <div class="dlg-foot" style="justify-content:space-between">
+          <button class="btn" type="button" style="background:rgba(247,87,126,.12);color:var(--color-danger-ink)">
+            <svg class="i"><use href="#trash"/></svg>ลบรายการ</button>
+          <div style="display:flex;gap:.5rem">
+            <button class="btn btn-light" type="button">ยกเลิก</button>
+            <button class="btn btn-primary" type="button"><svg class="i"><use href="#save"/></svg>บันทึกการแก้ไข</button>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="dev">
+    <div class="frame-label"><b>Desktop</b> — ยังไม่มีรายการ</div>
+    <div class="frame" style="width:560px"><div class="screen" style="height:560px;padding:1.25rem">
+      <div class="card">
+        <div class="card-header">
+          <h4 class="card-title">รายการค่าใช้จ่าย</h4>
+          <button class="btn btn-primary btn-sm" type="button"><svg class="i"><use href="#plus"/></svg>เพิ่มค่าใช้จ่าย</button>
+        </div>
+        <div class="card-body" style="text-align:center;padding:3rem 1.25rem">
+          <svg class="i" style="font-size:52px;color:var(--color-default-400)"><use href="#receipt"/></svg>
+          <h5 style="font-size:var(--text-md);font-weight:600;color:var(--color-dark);margin:.8rem 0 .3rem">ยังไม่มีรายการค่าใช้จ่าย</h5>
+          <p class="muted" style="font-size:var(--text-xs);max-width:34ch;margin:0 auto 1.2rem">
+            บันทึกค่าเช่า ค่าโฆษณา ค่าขนส่ง แล้วระบบจะคำนวณกำไรสุทธิให้อัตโนมัติ</p>
+          <button class="btn btn-primary" type="button"><svg class="i"><use href="#plus"/></svg>บันทึกรายการแรก</button>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+</div></div>
+
+<!-- ══════════════ SECTION 4 — รายจ่ายไหลเข้าหน้ายอดขาย ══════════════ -->
+<div class="sec"><h2>4 · รายจ่ายไหลเข้าหน้ายอดขาย</h2><span>3 จุดที่ต้องเห็นตัวเลขเดียวกัน</span></div>
+
+<div class="note" style="margin-bottom:18px">
+  <h3>ข้อควรระวังใหญ่ที่สุดของข้อนี้ — “ยอดขาย” สองหน้านิยามไม่ตรงกัน</h3>
+  <ul>
+    <li><code>/sales</code> และ P&amp;L ใน <code>/expenses</code> นับ <b>เฉพาะออเดอร์ CONFIRMED</b> เหมือนกัน — สองหน้านี้กระทบยอดกันได้ไม่มีปัญหา</li>
+    <li>แต่การ์ด “ยอดขาย · เดือนนี้” บนหน้าหลักและชีตเต็มจอ นับ <b>ยืนยันแล้ว + ยังไม่ยืนยันรวมกัน</b>
+        (แท่งเหลืองในภาพที่คุณส่ง — ฿3,680 นั้นคือยอดที่ยังไม่ยืนยัน)</li>
+    <li>ถ้าเอา “กำไรสุทธิ” ไปแปะข้าง ฿3,680 ตรง ๆ ผู้ใช้จะลบเองแล้วได้ไม่ตรงกับที่เราแสดง →
+        ที่วาดไว้ข้างล่างจึงคิดกำไรจาก <b>ยอดที่ยืนยันแล้วเท่านั้น</b> และเขียนกำกับไว้ใต้ตัวเลข</li>
+  </ul>
+</div>
+
+<div class="rail"><div class="rail-inner">
+
+  <!-- A. command center card before/after -->
+  <div class="dev">
+    <div class="frame-label"><b>Mobile</b> — การ์ด “ยอดขาย” บนหน้าหลัก <span class="muted">ก่อน → หลัง</span></div>
+    <div class="frame" style="width:390px"><div class="screen" style="height:560px;padding:1rem .9rem;display:grid;gap:1.1rem;align-content:start">
+
+      <div>
+        <p class="muted" style="font-size:var(--text-2xs);margin-bottom:.4rem">ตอนนี้</p>
+        <div class="card"><div class="card-body" style="padding:1rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+            <div style="display:flex;align-items:center;gap:.4rem">
+              <svg class="i" style="color:var(--color-primary);font-size:16px"><use href="#trend-up"/></svg>
+              <b style="color:var(--color-dark)">ยอดขาย</b><span class="muted">· เดือนนี้</span>
+            </div>
+            <svg class="i muted"><use href="#chevron-down"/></svg>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:.35rem;margin-bottom:.75rem">
+            <span class="muted">฿</span><span style="font-size:1.25rem;font-weight:700;color:var(--color-dark)">3,680</span>
+            <span style="color:var(--color-success);font-size:var(--text-xs)">↑ 524%</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:2px;height:44px">
+            <i style="width:7px;height:100%;background:var(--color-warning);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+          </div>
+        </div></div>
+      </div>
+
+      <div>
+        <p style="font-size:var(--text-2xs);margin-bottom:.4rem;color:var(--color-primary);font-weight:600">เสนอใหม่ — เพิ่มแถวล่าง 2 ตัวเลข</p>
+        <div class="card"><div class="card-body" style="padding:1rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+            <div style="display:flex;align-items:center;gap:.4rem">
+              <svg class="i" style="color:var(--color-primary);font-size:16px"><use href="#trend-up"/></svg>
+              <b style="color:var(--color-dark)">ยอดขาย</b><span class="muted">· เดือนนี้</span>
+            </div>
+            <svg class="i muted"><use href="#chevron-down"/></svg>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:.35rem;margin-bottom:.75rem">
+            <span class="muted">฿</span><span style="font-size:1.25rem;font-weight:700;color:var(--color-dark)">3,680</span>
+            <span style="color:var(--color-success);font-size:var(--text-xs)">↑ 524%</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:2px;height:44px">
+            <i style="width:7px;height:100%;background:var(--color-warning);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+            <i style="width:7px;height:6%;background:var(--color-default-200);border-radius:2px"></i>
+          </div>
+          <div style="display:flex;margin-top:.9rem;padding-top:.75rem;border-top:1px dashed var(--color-default-300)">
+            <div style="flex:1;text-align:center;border-right:1px dashed var(--color-default-300)">
+              <div style="font-size:var(--text-2xs);color:var(--color-default-600)">ค่าใช้จ่าย</div>
+              <div style="font-weight:700;color:var(--color-danger-ink)">฿1,450</div>
+            </div>
+            <div style="flex:1;text-align:center">
+              <div style="font-size:var(--text-2xs);color:var(--color-default-600)">กำไรสุทธิ</div>
+              <div style="font-weight:700;color:var(--color-success-ink)">฿0</div>
+            </div>
+          </div>
+          <p class="muted" style="font-size:var(--text-2xs);text-align:center;margin-top:.5rem">
+            กำไรคิดจากยอดที่ยืนยันแล้วเท่านั้น</p>
+        </div></div>
+        <p class="muted" style="font-size:var(--text-2xs);margin-top:.5rem">
+          เคสในภาพจริง: ฿3,680 ยังไม่ยืนยันทั้งก้อน → รายได้ที่นับได้ = ฿0 กำไรสุทธิจึงติดลบ/ศูนย์
+          บรรทัดกำกับใต้ตัวเลขจึงจำเป็น ไม่งั้นดูเหมือนระบบคำนวณพลาด</p>
+      </div>
+
+    </div></div>
+  </div>
+
+  <!-- B. sales sheet mobile -->
+  <div class="dev">
+    <div class="frame-label"><b>Mobile</b> — หน้า “ยอดขาย” เต็มจอ <span class="muted">(SalesChartSheet)</span></div>
+    <div class="frame" style="width:390px"><div class="screen" style="height:844px;background:#fff;overflow:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.85rem .9rem;border-bottom:1px solid var(--color-default-300)">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <svg class="i" style="font-size:20px;color:var(--color-default-700);transform:rotate(90deg)"><use href="#chevron-down"/></svg>
+          <b style="font-size:1.05rem;color:var(--color-dark)">ยอดขาย</b>
+        </div>
+        <div class="seg"><button type="button" aria-pressed="true">รายวัน</button><button type="button">รายเดือน</button></div>
+      </div>
+
+      <div style="padding:1rem .9rem;text-align:center">
+        <div style="display:flex;align-items:center;justify-content:center;gap:1rem;margin-bottom:.6rem">
+          <button class="btn btn-icon btn-outline" type="button" aria-label="เดือนก่อน">
+            <svg class="i" style="transform:rotate(90deg)"><use href="#chevron-down"/></svg></button>
+          <div><div style="font-weight:700;color:var(--color-dark)">ส.ค. 2569</div>
+            <div class="muted" style="font-size:var(--text-xs)">1 – 31 ส.ค.</div></div>
+          <button class="btn btn-icon btn-outline" type="button" aria-label="เดือนถัดไป">
+            <svg class="i" style="transform:rotate(-90deg)"><use href="#chevron-down"/></svg></button>
+        </div>
+        <div style="font-size:2rem;font-weight:700;color:var(--color-dark);letter-spacing:-.5px">฿3,680
+          <span style="font-size:1rem;color:var(--color-success);font-weight:600">↑ 524%</span></div>
+        <p class="muted" style="font-size:var(--text-xs)">รวมทั้งเดือน · order ที่ไม่ยกเลิก</p>
+
+        <!-- แถวใหม่ -->
+        <div style="display:flex;margin-top:.9rem;border-top:1px dashed var(--color-default-300);
+                    border-bottom:1px dashed var(--color-default-300)">
+          <div style="flex:1;padding:.7rem .3rem;border-right:1px dashed var(--color-default-300)">
+            <div style="font-size:var(--text-2xs);color:var(--color-default-600)">ยืนยันแล้ว</div>
+            <div style="font-weight:700;color:var(--color-default-800)">฿0</div>
+          </div>
+          <div style="flex:1;padding:.7rem .3rem;border-right:1px dashed var(--color-default-300)">
+            <div style="font-size:var(--text-2xs);color:var(--color-default-600)">ค่าใช้จ่าย</div>
+            <div style="font-weight:700;color:var(--color-danger-ink)">฿1,450</div>
+          </div>
+          <div style="flex:1;padding:.7rem .3rem">
+            <div style="font-size:var(--text-2xs);color:var(--color-default-600)">กำไรสุทธิ</div>
+            <div style="font-weight:700;color:var(--color-danger-ink)">−฿1,450</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:0 .9rem">
+        <div style="display:flex;justify-content:center;gap:.9rem;font-size:var(--text-2xs);margin-bottom:.7rem;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:2px;background:var(--color-primary);display:block"></i>ยืนยันแล้ว</span>
+          <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:2px;background:var(--color-warning);display:block"></i>ยังไม่ยืนยัน</span>
+          <span style="display:flex;align-items:center;gap:5px"><i style="width:9px;height:9px;border-radius:2px;background:var(--color-danger);display:block"></i>ค่าใช้จ่าย</span>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:170px;border-bottom:1px solid var(--color-default-300);padding-bottom:2px">
+          <div style="display:flex;align-items:flex-end;gap:2px;height:100%">
+            <i style="width:9px;height:88%;background:var(--color-warning);border-radius:2px 2px 0 0;display:block"></i>
+            <i style="width:9px;height:35%;background:var(--color-danger);border-radius:2px 2px 0 0;display:block"></i>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:2px;height:100%">
+            <i style="width:9px;height:2%;background:var(--color-default-200);border-radius:2px;display:block"></i>
+            <i style="width:9px;height:14%;background:var(--color-danger);border-radius:2px 2px 0 0;display:block"></i>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:2px;height:100%">
+            <i style="width:9px;height:2%;background:var(--color-default-200);border-radius:2px;display:block"></i>
+            <i style="width:9px;height:2%;background:var(--color-default-200);border-radius:2px;display:block"></i>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:var(--text-2xs);color:var(--color-default-500);margin-top:.35rem">
+          <span>1</span><span>5</span><span>9</span><span>13</span><span>17</span><span>21</span><span>25</span><span>29</span>
+        </div>
+      </div>
+
+      <div style="padding:1.1rem .9rem 2rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem">
+          <b style="color:var(--color-default-700);font-size:var(--text-xs)">รายวัน</b>
+          <button class="chip" aria-pressed="true" type="button">แสดงค่าใช้จ่าย</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid var(--color-default-200)">
+          <div><div style="font-weight:600;color:var(--color-dark)">1 ส.ค.</div>
+            <div style="font-size:var(--text-2xs);color:var(--color-danger-ink)">ค่าใช้จ่าย ฿1,450</div></div>
+          <div style="text-align:right"><div style="font-weight:700;color:var(--color-dark)">฿3,680</div>
+            <div style="font-size:var(--text-2xs);color:var(--color-danger-ink)">สุทธิ −฿1,450</div></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid var(--color-default-200)">
+          <div><div style="font-weight:600;color:var(--color-default-500)">2 ส.ค.</div>
+            <div style="font-size:var(--text-2xs);color:var(--color-default-500)">ไม่มีค่าใช้จ่าย</div></div>
+          <div style="text-align:right"><div style="font-weight:600;color:var(--color-default-500)">฿0</div></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid var(--color-default-200)">
+          <div><div style="font-weight:600;color:var(--color-default-500)">3 ส.ค.</div></div>
+          <div style="text-align:right"><div style="font-weight:600;color:var(--color-default-500)">฿0</div></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+</div></div>
+
+<div class="rail"><div class="rail-inner">
+  <!-- C. desktop /sales -->
+  <div class="dev">
+    <div class="frame-label"><b>Desktop</b> — /sales ภาพรวมยอดขาย <span class="muted">การ์ดสรุป 4 → 6 + คอลัมน์ใหม่ในตาราง</span></div>
+    <div class="frame" style="width:1020px"><div class="screen" style="height:720px;overflow:auto;padding:1.1rem 1.5rem">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:1rem">
+        <div><div class="crumb">ภาพรวม · ภาพรวมยอดขาย</div><div class="page-title">ภาพรวมยอดขาย</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h5 class="card-title">รายงานยอดขาย</h5>
+          <div class="searchbox"><svg class="i"><use href="#calendar"/></svg><input class="form-input" value="1 – 31 ส.ค. 2569"></div>
+        </div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem">
+            <div style="background:var(--color-default-100);border-radius:var(--radius);padding:.9rem .5rem;text-align:center">
+              <div style="font-size:var(--text-xs);color:var(--color-default-600)">ยอดขายรวม</div>
+              <div style="font-weight:700;font-size:var(--text-md);color:var(--color-default-900)">฿48,900</div></div>
+            <div style="background:var(--color-default-100);border-radius:var(--radius);padding:.9rem .5rem;text-align:center">
+              <div style="font-size:var(--text-xs);color:var(--color-default-600)">ออเดอร์ทั้งหมด</div>
+              <div style="font-weight:700;font-size:var(--text-md);color:var(--color-default-900)">32</div></div>
+            <div style="background:var(--color-default-100);border-radius:var(--radius);padding:.9rem .5rem;text-align:center">
+              <div style="font-size:var(--text-xs);color:var(--color-default-600)">สำเร็จ</div>
+              <div style="font-weight:700;font-size:var(--text-md);color:var(--color-success-ink)">27</div></div>
+            <div style="background:var(--color-default-100);border-radius:var(--radius);padding:.9rem .5rem;text-align:center">
+              <div style="font-size:var(--text-xs);color:var(--color-default-600)">เฉลี่ย/ออเดอร์</div>
+              <div style="font-weight:700;font-size:var(--text-md);color:var(--color-default-900)">฿1,811</div></div>
+            <div style="background:rgba(247,87,126,.08);border-radius:var(--radius);padding:.9rem .5rem;text-align:center;
+                        border:1px solid rgba(247,87,126,.2)">
+              <div style="font-size:var(--text-xs);color:var(--color-default-600)">ค่าใช้จ่าย</div>
+              <div style="font-weight:700;font-size:var(--text-md);color:var(--color-danger-ink)">฿9,870</div></div>
+            <div style="background:rgba(2,188,156,.09);border-radius:var(--radius);padding:.9rem .5rem;text-align:center;
+                        border:1px solid rgba(2,188,156,.22)">
+              <div style="font-size:var(--text-xs);color:var(--color-default-600)">กำไรสุทธิ</div>
+              <div style="font-weight:700;font-size:var(--text-md);color:var(--color-success-ink)">฿17,680</div></div>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;gap:1rem;font-size:var(--text-xs);margin:1.2rem 0 .6rem">
+            <span style="display:flex;align-items:center;gap:6px"><i style="width:9px;height:9px;border-radius:99px;background:var(--color-primary);display:block"></i>ยอดขาย (฿)</span>
+            <span style="display:flex;align-items:center;gap:6px"><i style="width:9px;height:9px;border-radius:99px;background:var(--color-danger);display:block"></i>ค่าใช้จ่าย (฿)</span>
+            <span style="display:flex;align-items:center;gap:6px"><i style="width:9px;height:9px;border-radius:99px;background:#9b8cf7;display:block"></i>ออเดอร์</span>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:10px;height:190px;border-bottom:1px solid var(--color-default-300);padding:0 .5rem">
+            <div style="display:flex;align-items:flex-end;gap:3px;height:100%"><i style="width:12px;height:70%;background:var(--color-primary);border-radius:3px 3px 0 0;display:block"></i><i style="width:12px;height:22%;background:var(--color-danger);border-radius:3px 3px 0 0;display:block"></i></div>
+            <div style="display:flex;align-items:flex-end;gap:3px;height:100%"><i style="width:12px;height:45%;background:var(--color-primary);border-radius:3px 3px 0 0;display:block"></i><i style="width:12px;height:12%;background:var(--color-danger);border-radius:3px 3px 0 0;display:block"></i></div>
+            <div style="display:flex;align-items:flex-end;gap:3px;height:100%"><i style="width:12px;height:88%;background:var(--color-primary);border-radius:3px 3px 0 0;display:block"></i><i style="width:12px;height:40%;background:var(--color-danger);border-radius:3px 3px 0 0;display:block"></i></div>
+            <div style="display:flex;align-items:flex-end;gap:3px;height:100%"><i style="width:12px;height:30%;background:var(--color-primary);border-radius:3px 3px 0 0;display:block"></i><i style="width:12px;height:8%;background:var(--color-danger);border-radius:3px 3px 0 0;display:block"></i></div>
+            <div style="display:flex;align-items:flex-end;gap:3px;height:100%"><i style="width:12px;height:62%;background:var(--color-primary);border-radius:3px 3px 0 0;display:block"></i><i style="width:12px;height:18%;background:var(--color-danger);border-radius:3px 3px 0 0;display:block"></i></div>
+            <div style="display:flex;align-items:flex-end;gap:3px;height:100%"><i style="width:12px;height:52%;background:var(--color-primary);border-radius:3px 3px 0 0;display:block"></i><i style="width:12px;height:30%;background:var(--color-danger);border-radius:3px 3px 0 0;display:block"></i></div>
+            <div style="display:flex;align-items:flex-end;gap:3px;height:100%"><i style="width:12px;height:75%;background:var(--color-primary);border-radius:3px 3px 0 0;display:block"></i><i style="width:12px;height:15%;background:var(--color-danger);border-radius:3px 3px 0 0;display:block"></i></div>
+          </div>
+        </div>
+
+        <div class="card-header" style="border-top:1px solid var(--color-default-300)">
+          <h5 class="card-title">รายละเอียดรายวัน</h5>
+          <div class="searchbox"><svg class="i"><use href="#search"/></svg><input class="form-input" placeholder="ค้นหา..."></div>
+        </div>
+        <div style="padding:0 0 .5rem">
+          <table style="width:100%;border-collapse:collapse;font-size:var(--text-body)">
+            <thead><tr style="background:var(--color-default-100)">
+              <th style="text-align:left;padding:.6rem 1.25rem;font-size:var(--text-xs);color:var(--color-default-700);font-weight:600">วันที่</th>
+              <th style="text-align:right;padding:.6rem;font-size:var(--text-xs);color:var(--color-default-700);font-weight:600">ออเดอร์</th>
+              <th style="text-align:right;padding:.6rem;font-size:var(--text-xs);color:var(--color-default-700);font-weight:600">สำเร็จ</th>
+              <th style="text-align:right;padding:.6rem;font-size:var(--text-xs);color:var(--color-default-700);font-weight:600">ยอดขาย</th>
+              <th style="text-align:right;padding:.6rem;font-size:var(--text-xs);color:var(--color-danger-ink);font-weight:600">ค่าใช้จ่าย</th>
+              <th style="text-align:right;padding:.6rem 1.25rem;font-size:var(--text-xs);color:var(--color-success-ink);font-weight:600">กำไรสุทธิ</th>
+            </tr></thead>
+            <tbody>
+              <tr style="border-bottom:1px solid var(--color-default-200)">
+                <td style="padding:.65rem 1.25rem">1 ส.ค. 2569</td><td style="text-align:right;padding:.65rem">3</td>
+                <td style="text-align:right;padding:.65rem">3</td><td style="text-align:right;padding:.65rem">฿5,400</td>
+                <td style="text-align:right;padding:.65rem;color:var(--color-danger-ink)">฿2,690</td>
+                <td style="text-align:right;padding:.65rem 1.25rem;font-weight:600;color:var(--color-success-ink)">฿1,210</td></tr>
+              <tr style="border-bottom:1px solid var(--color-default-200)">
+                <td style="padding:.65rem 1.25rem">2 ส.ค. 2569</td><td style="text-align:right;padding:.65rem">1</td>
+                <td style="text-align:right;padding:.65rem">1</td><td style="text-align:right;padding:.65rem">฿1,800</td>
+                <td style="text-align:right;padding:.65rem;color:var(--color-danger-ink)">฿1,450</td>
+                <td style="text-align:right;padding:.65rem 1.25rem;font-weight:600;color:var(--color-success-ink)">฿120</td></tr>
+              <tr style="border-bottom:1px solid var(--color-default-200)">
+                <td style="padding:.65rem 1.25rem;color:var(--color-default-500)">3 ส.ค. 2569</td>
+                <td style="text-align:right;padding:.65rem;color:var(--color-default-500)">0</td>
+                <td style="text-align:right;padding:.65rem;color:var(--color-default-500)">0</td>
+                <td style="text-align:right;padding:.65rem;color:var(--color-default-500)">฿0</td>
+                <td style="text-align:right;padding:.65rem;color:var(--color-danger-ink)">฿430</td>
+                <td style="text-align:right;padding:.65rem 1.25rem;font-weight:600;color:var(--color-danger-ink)">−฿430</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div></div>
+
+<div class="note" style="margin-top:44px">
+  <h3>ผลกระทบของข้อ 4 (รายจ่าย → หน้ายอดขาย)</h3>
+  <ul>
+    <li><code>/sales</code> ตอนนี้ query แค่ <code>getOrdersByShop()</code> — ต้องเพิ่ม query ค่าใช้จ่ายรายวันในช่วงเดียวกัน
+        แล้วเติมลง <code>DailyRow</code> (เพิ่มฟิลด์ <code>expense</code> + <code>netProfit</code>) และ <code>SummaryData</code></li>
+    <li>กราฟ <code>SalesChart</code> / <code>SalesChartSheet</code> ต้องเพิ่ม series ค่าใช้จ่าย —
+        <b>วางเป็นแท่งแยกข้างกัน ไม่ใช่ stack ทับยอดขาย</b> (คนละหน่วยความหมาย stack แล้วอ่านผิดทันที)
+        และต้องผ่าน <code>ApexChart</code> wrapper + <code>getColor()</code> ตาม Hard Rule 10</li>
+    <li>ค่าใช้จ่ายผูกกับ <code>expenseDate</code> (วันที่ผู้ใช้เลือกเอง) ส่วนยอดขายผูกกับ <code>order.createdAt</code> —
+        ย้อนหลังบันทึกค่าใช้จ่ายของเมื่อวานได้ ตัวเลขวันเก่าจะขยับ ต้องไม่ cache ค้าง</li>
+    <li>สิทธิ์: <code>/expenses</code> มี gate แพ็กเกจ/สิทธิ์พนักงาน (<code>resolveExpenseAccess</code>) แต่ <code>/sales</code> ไม่มี —
+        <b>ร้านที่ยังไม่ปลดล็อกฟีเจอร์ต้องไม่เห็นคอลัมน์ค่าใช้จ่าย/กำไรสุทธิ</b> (ไม่ใช่เห็นเป็น ฿0 ซึ่งโกหก)</li>
+  </ul>
+</div>
+
+<div class="note" style="margin-top:18px">
+  <h3>Theme source ที่จะใช้ตอน implement (Base: line)</h3>
+  <ul>
+    <li>เปลือกโมดัล (backdrop / Escape / focus trap / คืน focus) → <code>orders/[token]/components/ShipmentEntryModal.tsx</code>
+        (ตัวเดียวกับที่ <code>IShipImportModal</code> ใช้เป็น Base)</li>
+    <li>แถวรายการ + ปุ่ม icon ท้ายแถว → <code>products/components/ProductsListing.tsx</code></li>
+    <li>stat row / เส้นประคั่น → <code>dashboard/components/SalesReport.tsx</code> (ของเดิมที่ PnlReportCard ใช้อยู่)</li>
+    <li>segmented ช่วงเวลา → <code>docs/system/ui-guideline/paces-component-reference.md §2 Button Group</code> (คงของเดิม)</li>
+    <li>empty state → <code>seller/(dashboard)/_shared/SellerEmptyState.tsx</code></li>
+    <li>ยืนยันลบ → <code>src/lib/paces-swal.ts</code> (<code>pacesConfirm.danger</code>) · toast → <code>pacesToast</code> (Hard Rule 9)</li>
+  </ul>
+  <h3 style="margin-top:14px">ข้อควรระวังที่เห็นตั้งแต่ตอนวาด</h3>
+  <ul>
+    <li>“+12.4% จากช่วงก่อนหน้า” ในการ์ด P&amp;L <b>เป็นข้อมูลใหม่</b> — <code>getPnlReport</code> ตอนนี้ไม่คืนค่าเปรียบเทียบ ต้องเพิ่ม query ช่วงก่อนหน้า (ถ้าไม่เอา ตัดทิ้งได้ ไม่กระทบอย่างอื่น)</li>
+    <li>“แยกหมวด/สรุปเร็ว” คำนวณจาก list ที่โหลดมาแล้วได้ <b>ถ้า</b> list ที่ดึงมาถูกจำกัดด้วยช่วงเวลาเดียวกับ P&amp;L —
+        ตอนนี้ <code>listExpenses(shopId)</code> ดึงทั้งหมดไม่ผูกช่วง ต้องแก้จุดนี้ให้ตรงกันก่อน ไม่งั้นตัวเลขสองการ์ดจะขัดกันเอง</li>
+    <li>ปุ่มล่างจอมือถือทับ safe-area — ต้องมี <code>env(safe-area-inset-bottom)</code> พร้อม comment กำกับ (carve-out Hard Rule 7)</li>
+  </ul>
+</div>
+
+</body>
+</html>

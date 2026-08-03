@@ -264,8 +264,8 @@ export default function ChatbotClient({
           <div className="card-body flex items-start gap-3">
             <Icon icon="alert-triangle" className="text-warning mt-0.5 size-5 flex-none" aria-hidden="true" />
             <div className="text-sm">
-              <p className="text-default-800 font-semibold">เครดิตในกระเป๋าหมด — AI ยังไม่ทำงาน</p>
-              <p className="text-default-700 mt-1">เติมเครดิตก่อน (กระเป๋าเดียวกับที่ใช้ส่ง SMS)</p>
+              <p className="text-default-800 font-semibold">เงินในกระเป๋าหมด — AI ยังไม่ทำงาน</p>
+              <p className="text-default-700 mt-1">เติมเงินก่อน (กระเป๋าเดียวกับที่ใช้ส่ง SMS)</p>
             </div>
           </div>
         </div>
@@ -402,7 +402,7 @@ export default function ChatbotClient({
                 }}
               />
             </div>
-            <p className="text-default-500 pb-2.5 text-xs">เครดิตคงเหลือ {walletBalance.toLocaleString('th-TH')} บาท</p>
+            <p className="text-default-500 pb-2.5 text-xs">ยอดเงินคงเหลือ {walletBalance.toLocaleString('th-TH')} บาท</p>
           </div>
 
           {/* เพดานต่อห้อง — คนละเรื่องกับเพดานเงินต่อวัน: อันนั้นคุมค่าใช้จ่ายรวมทั้งร้าน

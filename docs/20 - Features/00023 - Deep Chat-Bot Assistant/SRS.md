@@ -1,10 +1,11 @@
 ---
 title: "SRS — Chat Auto-Reply (ตอบแชทอัตโนมัติจาก Keyword)"
 owner: shinobu22
-status: draft
+status: shipped-partially-superseded
 module: M00023-ChatAutoReply
-version: "1.0"
+version: "1.1"
 created: 2026-07-29
+updated: 2026-08-02
 tags: [feature, chat, auto-reply, keyword, messenger, srs, technical]
 related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SDS]]", "[[API]]", "[[../../SRS]]"]
 ---
@@ -17,6 +18,31 @@ related: ["[[PRD]]", "[[BRD]]", "[[DATABASE]]", "[[SDS]]", "[[API]]", "[[../../S
 > **เจ้าของเอกสาร:** SA (ดู [[Feature-Docs-Ownership]])
 
 # SRS: ตอบแชทอัตโนมัติจาก Keyword (Software Requirements Specification — Technical)
+
+---
+
+## 📌 สถานะ ณ 2026-08-02 — อ่านก่อนใช้เอกสารนี้
+
+เอกสารชุด 00023 เขียน 2026-07-29/31 ตอนยังไม่ implement · ตั้งแต่นั้นฟีเจอร์ **ขึ้น prod แล้ว**
+และ `68c37cd3` (2026-08-02) **ถอดฟีเจอร์ออกไป 3 ชุด** ทำให้เนื้อหาบางส่วนบรรยายของที่ไม่มีอยู่จริง
+
+**ถูกถอดออกแล้ว — ทุกหัวข้อในไฟล์นี้ที่พูดถึงของพวกนี้ใช้ไม่ได้:**
+- **AI Enhance** (ให้ AI เรียบเรียงคำตอบสำเร็จรูปก่อนส่ง) — implement แล้วตัดทิ้ง
+- **คลังคำถาม-คำตอบรายกลุ่มคำ** — แทนด้วย **คลังความรู้ระดับร้าน** (`/settings/chatbot/knowledge`)
+- **คิวคำถามที่บอทตอบไม่ได้** (unanswered queue) — ตาราง `AutoReplyUnansweredQuestion` กำพร้า ห้าม DROP
+
+**ของใหม่ที่ยังไม่ได้บันทึกในไฟล์นี้:** ChatBot (DeepAI) ตอบจากคลังความรู้เมื่อไม่มีกลุ่มคำไหนตรง ·
+สถานะ 3 ค่า `OFFLINE`/`TEST`/`LIVE` ทั้งของกลุ่มคำและของ ChatBot · ตารางเวลาทำงาน ·
+พนักงานตอบเอง = บอทหลบ
+
+📖 **แหล่งอ้างอิงที่ตรงกับความจริงที่สุดตอนนี้:** `PRD.md` §3.10 (เขียนย้อนหลังจากโค้ด) ·
+`DATABASE.md` บล็อกสถานะต้นไฟล์ · `API.md` ตาราง endpoint ก/ข/ค
+
+⚠️ เอกสารชุดนี้ยัง **ไม่ผ่าน `safepay-planner` / `safepay-reviewer`** — Controller เขียนเองตอน
+subagent dispatch ใช้การไม่ได้ (2026-08-02) ถือเป็นหนี้ gate ที่ต้องรีวิวย้อนหลัง
+
+---
+
 
 ---
 

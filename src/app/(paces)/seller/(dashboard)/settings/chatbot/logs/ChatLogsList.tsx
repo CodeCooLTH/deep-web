@@ -42,7 +42,7 @@ const SKIP_LABEL: Record<string, string> = {
   AI_NO_ANSWER: 'AI ตอบคำถามนี้ไม่ได้',
   AI_ENHANCE_TIMEOUT: 'AI ใช้เวลานานเกินกำหนด',
   AI_ENHANCE_ERROR: 'เรียก AI ไม่สำเร็จ',
-  DAILY_CAP_OR_NO_CREDIT: 'ถึงเพดานค่าใช้จ่ายต่อวัน หรือเครดิตหมด',
+  DAILY_CAP_OR_NO_CREDIT: 'ถึงเพดานค่าใช้จ่ายต่อวัน หรือยอดเงินหมด',
   COOLDOWN: 'ยังไม่ครบระยะเว้นระหว่างคำตอบ',
   HOURLY_CAP: 'ตอบครบเพดานต่อห้องต่อชั่วโมงแล้ว',
   OUTSIDE_SCHEDULE: 'อยู่นอกช่วงเวลาที่ตั้งให้บอททำงาน',

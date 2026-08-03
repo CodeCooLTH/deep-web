@@ -5,7 +5,7 @@ import { resolveActiveShopContext } from "@/lib/shop-context";
 import { getAiSuggestQuotaStatus } from "@/services/ai-suggest-quota.service";
 
 /**
- * GET /api/chat/ai-quota — สถานะโควตาฟรี/เครดิต/paid-plan ของ ai-suggest ล่วงหน้า (feature 00019 ext, 2026-07-29)
+ * GET /api/chat/ai-quota — สถานะโควตาฟรี/ยอดเงิน/paid-plan ของ ai-suggest ล่วงหน้า (feature 00019 ext, 2026-07-29)
  * SSOT: docs/20 - Features/00019 - AI Reply Assistant/EXTENSIONS-2026-07-29-usage-limit.md (FR-AIQ-05)
  *
  * shopId derive จาก resolveActiveShopContext เท่านั้น (NFR-AIQ-Sec) — ห้ามรับ shopId จาก client

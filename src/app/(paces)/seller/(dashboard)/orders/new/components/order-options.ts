@@ -33,7 +33,7 @@ export const PAYMENT_OPTIONS: OrderOption[] = [
   { value: 'CASH', label: 'เงินสด', icon: 'cash' },
   { value: 'TRANSFER', label: 'โอนเงิน', icon: 'building-bank' },
   { value: 'PROMPTPAY', label: 'พร้อมเพย์', icon: 'qrcode' },
-  { value: 'CARD', label: 'บัตรเครดิต/เดบิต', icon: 'credit-card' },
+  { value: 'CARD', label: 'บัตรยอดเงิน/เดบิต', icon: 'credit-card' },
   { value: 'COD', label: 'เก็บเงินปลายทาง', icon: 'truck-delivery' },
   { value: 'OTHER', label: 'อื่นๆ', icon: 'dots' },
 ]

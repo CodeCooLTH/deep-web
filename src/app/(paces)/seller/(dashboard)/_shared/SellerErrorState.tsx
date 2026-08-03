@@ -37,7 +37,7 @@ const SellerErrorState = ({
     // โครงเดียวกับ SellerEmptyState แต่ icon เป็น alert-triangle สีแดง
     <div className={`flex flex-col items-center justify-center text-center ${compact ? 'py-12' : 'py-20'}`}>
       {/* สีแดง (text-danger) เพื่อแยกแยะออกจาก empty state ที่ใช้ opacity-40 */}
-      <Icon icon="alert-triangle" className="text-[56px] mb-4 text-danger opacity-70" />
+      <Icon icon="alert-triangle" className="size-14 mb-4 text-danger opacity-70" />
 
       <p className="font-semibold text-default-700 text-base mb-1">{title}</p>
 

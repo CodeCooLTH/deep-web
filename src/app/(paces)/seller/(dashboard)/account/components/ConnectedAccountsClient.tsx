@@ -29,6 +29,8 @@ interface ConnectedAccountsClientProps {
   lineLinked: boolean
   instagramLinked: boolean
   hasPassword: boolean
+  /** มีเบอร์แล้วไหม — ตั้งรหัสผ่านต้องยืนยันผ่าน OTP ทางเบอร์เท่านั้น (feature 00026) */
+  hasPhone: boolean
 }
 
 // ─── Provider Config ──────────────────────────────────────────────────────────
@@ -69,6 +71,7 @@ export function ConnectedAccountsClient({
   lineLinked: initialLine,
   instagramLinked: initialIg,
   hasPassword,
+  hasPhone,
 }: ConnectedAccountsClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -237,6 +240,91 @@ export function ConnectedAccountsClient({
 
   // ─── Provider Row Renderer ────────────────────────────────────────────────
 
+  /**
+   * ตั้ง/เปลี่ยนรหัสผ่าน (feature 00026) — เดิมการ์ดนี้ใช้ hasPassword แค่ขึ้นข้อความเตือน
+   * ไม่มีทางตั้งรหัสผ่านเลย ทางเดียวคือออกจากระบบแล้วใช้ "ลืมรหัสผ่าน" ที่หน้า login
+   * ซึ่งบัญชีที่ login มาด้วย FB/LINE ล้วนไปไม่ถึงถ้ายังไม่มีเบอร์
+   *
+   * ยืนยันด้วย OTP ทางเบอร์เสมอ (มติ D3) — reuse /api/otp/send + /api/account/set-password เดิม
+   * ทั้งคู่ ไม่ต้องมี endpoint ใหม่ และได้ recovery path (ลืมรหัส = OTP) มาฟรี
+   */
+  async function handleSetPassword() {
+    if (!hasPhone) {
+      pacesToast.error('ต้องเพิ่มเบอร์โทรก่อน จึงจะตั้งรหัสผ่านได้')
+      return
+    }
+
+    const sent = await Swal.fire({
+      title: hasPassword ? 'เปลี่ยนรหัสผ่าน' : 'ตั้งรหัสผ่าน',
+      html: 'เราจะส่งรหัส OTP ไปที่เบอร์ของคุณเพื่อยืนยันตัวตนก่อน',
+      icon: 'question',
+      buttonsStyling: false,
+      showCancelButton: true,
+      confirmButtonText: 'ส่งรหัส OTP',
+      cancelButtonText: 'ยกเลิก',
+      customClass: {
+        confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2 me-2',
+        cancelButton: 'btn bg-light hover:text-default-800 mt-2',
+      },
+      preConfirm: async () => {
+        const res = await fetch('/api/account/otp-for-password', { method: 'POST' })
+        if (!res.ok) {
+          Swal.showValidationMessage('ส่งรหัสไม่สำเร็จ กรุณาลองใหม่')
+          return false
+        }
+        const d = (await res.json()) as { phoneMasked: string }
+        return d.phoneMasked
+      },
+    })
+    if (!sent.isConfirmed) return
+
+    const done = await Swal.fire({
+      title: 'ตั้งรหัสผ่านใหม่',
+      buttonsStyling: false,
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกรหัสผ่าน',
+      cancelButtonText: 'ยกเลิก',
+      customClass: {
+        confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2 me-2',
+        cancelButton: 'btn bg-light hover:text-default-800 mt-2',
+      },
+      html: `
+        <p class="text-start text-sm mb-3">ส่งรหัส 6 หลักไปที่ <b>${sent.value}</b> แล้ว</p>
+        <input id="pw-otp" class="form-input mb-2" inputmode="numeric" maxlength="6" placeholder="รหัส OTP 6 หลัก" autocomplete="one-time-code" />
+        <input id="pw-new" class="form-input" type="password" placeholder="รหัสผ่านใหม่" autocomplete="new-password" />
+        <p class="text-default-500 text-xs text-start mt-2">ยาว 8 ตัวขึ้นไป มีตัวอักษร ตัวเลข และอักขระพิเศษ</p>
+      `,
+      preConfirm: async () => {
+        const otp = (document.getElementById('pw-otp') as HTMLInputElement | null)?.value.trim() ?? ''
+        const password = (document.getElementById('pw-new') as HTMLInputElement | null)?.value ?? ''
+        if (!/^[0-9]{6}$/.test(otp)) {
+          Swal.showValidationMessage('รหัส OTP ต้องเป็นตัวเลข 6 หลัก')
+          return false
+        }
+        // เช็คฝั่ง client ให้ตรงกับ isStrongPassword ของ server (lib/password.ts) — บอกเร็ว ไม่ใช่กัน
+        if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+          Swal.showValidationMessage('รหัสผ่านต้องยาว 8 ตัวขึ้นไป มีตัวอักษร ตัวเลข และอักขระพิเศษ')
+          return false
+        }
+        const res = await fetch('/api/account/set-password-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ otp, password }),
+        })
+        if (!res.ok) {
+          const d = (await res.json().catch(() => null)) as { error?: string } | null
+          Swal.showValidationMessage(d?.error ?? 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+          return false
+        }
+        return true
+      },
+    })
+    if (!done.isConfirmed) return
+
+    pacesToast.success(hasPassword ? 'เปลี่ยนรหัสผ่านแล้ว' : 'ตั้งรหัสผ่านแล้ว')
+    router.refresh()
+  }
+
   function ProviderRow({
     provider,
     label,
@@ -279,7 +367,7 @@ export function ConnectedAccountsClient({
             type="button"
             disabled={isLoading}
             onClick={() => handleDisconnect(provider)}
-            className="btn btn-sm bg-danger/15 text-danger hover:bg-danger/25 shrink-0 disabled:opacity-50"
+            className="btn btn-sm bg-danger/15 text-danger hover:bg-danger/25 min-h-11 shrink-0 disabled:opacity-50"
           >
             {isLoading ? (
               <span className="size-4 border-2 border-danger border-t-transparent rounded-full animate-spin inline-block" />
@@ -292,7 +380,7 @@ export function ConnectedAccountsClient({
             type="button"
             disabled={isLoading}
             onClick={() => handleConnect(provider)}
-            className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 shrink-0 disabled:opacity-50"
+            className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 min-h-11 shrink-0 disabled:opacity-50"
           >
             {isLoading ? (
               <span className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block" />
@@ -309,16 +397,49 @@ export function ConnectedAccountsClient({
     <div className="card-body">
       {/* description */}
       <p className="text-default-500 text-sm mb-4">
-        เชื่อมต่อบัญชี Social ของคุณเพื่อใช้เข้าสู่ระบบได้หลายวิธี
+        ตั้งรหัสผ่านหรือเชื่อมบัญชี Social เพื่อให้เข้าสู่ระบบได้หลายวิธี
         {!hasPassword && (
-          <span className="block mt-1 text-warning text-xs">
-            หมายเหตุ: บัญชีนี้ยังไม่มีรหัสผ่าน — ต้องเหลือการเชื่อมต่ออย่างน้อย 1 ทาง
+          <span className="text-warning-ink mt-1 block text-xs">
+            บัญชีนี้ยังไม่มีรหัสผ่าน — ต้องเหลือวิธีเข้าสู่ระบบอย่างน้อย 1 ทางเสมอ
           </span>
         )}
       </p>
 
       {/* Provider rows */}
       <div>
+        {/* แถวรหัสผ่าน — เดิมการ์ดนี้พูดถึงรหัสผ่านในข้อความเตือนแต่ไม่มีทางตั้งเลย (feature 00026)
+            ใช้ layout เดียวกับ ProviderRow เป๊ะ แต่ไม่ reuse component เพราะ prop `provider`
+            ของมันผูกกับ OAuth flow (link/unlink) ซึ่งรหัสผ่านไม่มี */}
+        <div className="border-default-200 flex items-center justify-between gap-3 border-b py-3 last:border-0">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="bg-default-100 flex size-9 shrink-0 items-center justify-center rounded-lg">
+              <Icon icon="tabler:key" width={20} height={20} aria-label="รหัสผ่าน" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-default-800 truncate text-sm font-medium">รหัสผ่าน</p>
+              {hasPassword ? (
+                <span className="text-success-ink bg-success/15 inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium">
+                  <Icon icon="tabler:check" className="text-xs" aria-hidden="true" />
+                  ตั้งแล้ว
+                </span>
+              ) : (
+                <span className="text-default-500 bg-default-100 inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium">
+                  {hasPhone ? 'ยังไม่ได้ตั้ง' : 'ต้องเพิ่มเบอร์โทรก่อน'}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSetPassword}
+            disabled={!hasPhone}
+            className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 min-h-11 shrink-0 disabled:opacity-50"
+          >
+            {hasPassword ? 'เปลี่ยนรหัสผ่าน' : 'ตั้งรหัสผ่าน'}
+          </button>
+        </div>
+
         <ProviderRow
           provider="facebook"
           label="Facebook"

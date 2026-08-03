@@ -69,6 +69,7 @@ API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint �
 | `POST` | `/api/channels/facebook/confirm` | เชื่อมเฉพาะ Page ที่ user ติ๊กเลือก + ย้ายรายเพจ | seller session + user-token cookie | ใหม่ 2026-07-24 |
 | `POST` | `/api/chat/conversations/[id]/messages` | ส่งข้อความ — dispatch ไป Send API เมื่อ `channel != "DEEP"` | participant session | แก้ไข (feature 00011) |
 | `POST` | `/api/chat/upload` | อัปโหลดไฟล์แนบของแชท (ทุกชนิด ≤25MB) — แยกจาก `/api/upload` เดิม | participant session | ใหม่ 2026-08-02 |
+| `DELETE` | `/api/chat/conversations/[id]/messages/[messageId]` | ยกเลิกข้อความที่ยิงออกไม่สำเร็จ (เฉพาะ `deliveryStatus='FAILED'` + `senderRole='SHOP'`) | seller session + `canAccessShop` ของเธรด | ใหม่ (2026-08-02) |
 | `GET` | `/api/chat/quick-messages` | list ข้อความสำเร็จรูปของร้านที่ active | seller session | ใหม่ (2026-07-23) |
 | `POST` | `/api/chat/quick-messages` | สร้างข้อความสำเร็จรูป | seller session | ใหม่ (2026-07-23) |
 | `PATCH` | `/api/chat/quick-messages/[id]` | แก้ข้อความสำเร็จรูป (scope `{id, shopId}`) | seller session | ใหม่ (2026-07-23) |
@@ -344,9 +345,56 @@ Contract เดิม (`type`, `body`, `imageUrl`, `productRefId`, response shap
 | 400 | service throw `NOT_EXTERNAL_CHANNEL` (defense — ไม่ควรเกิดถ้า route query ถูกต้อง) | `{ "error": "ช่องทางของบทสนทนานี้ไม่ถูกต้อง" }` |
 | 409 | service throw `WINDOW_CLOSED` (เกิน 24 ชม. นับจากข้อความล่าสุดของลูกค้า) | `{ "error": "เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความไม่ได้จนกว่าลูกค้าจะทักมาใหม่" }` |
 | 409 | service throw `CHANNEL_NOT_ACTIVE` (token ตาย/ถอดการเชื่อมต่อ) | `{ "error": "การเชื่อมต่อกับช่องทางนี้หมดอายุ กรุณาเชื่อม Facebook Page ใหม่อีกครั้ง" }` |
-| 502 | service throw `SEND_FAILED:*` (Graph API ปฏิเสธ — token ตาย, ลูกค้าบล็อกร้าน, เหตุอื่น) | `{ "error": "ส่งข้อความไปยังช่องทางภายนอกไม่สำเร็จ กรุณาลองใหม่" }` |
+| 502 | service throw `SEND_FAILED:*` (Graph API ปฏิเสธ — token ตาย, ลูกค้าบล็อกร้าน, เหตุอื่น) | `{ "error": "ส่งไม่สำเร็จ — <เหตุผลภาษาไทย>" }` — ดูหมายเหตุด้านล่าง |
+
+> 🔄 **แก้ไข 2026-08-02 — body ของ 502 ไม่ใช่ข้อความคงที่อีกแล้ว:** เดิมตอบ
+> `"ส่งข้อความไปยังช่องทางภายนอกไม่สำเร็จ กรุณาลองใหม่"` **ทุกกรณี** ซึ่งเป็นคำแนะนำที่ผิด
+> กับ error `#551` (ลูกค้าปิดรับข้อความ — กดกี่ครั้งก็ไม่ผ่าน) ตอนนี้ route แกะข้อความดิบ
+> ของ Meta ออกจาก `SEND_FAILED: <raw>` แล้วส่งผ่าน `describeSendFailure()`
+> (`src/lib/chat-send-failure.ts`) → ได้ประโยคไทยที่บอกทั้งสาเหตุและสิ่งที่ต้องทำต่อ
+> error ที่ยังไม่รู้จักจะคงข้อความดิบของ Meta ไว้ทั้งดุ้น (ไม่เดา ไม่กลืนหาย)
+> ตารางการแปลทั้งหมดอยู่ที่ [[EXTENSIONS-2026-08-02]] §E10.3
 
 Error 401/403/404/429/500 เดิมของ endpoint นี้ (unauthorized, forbidden, conversation not found, rate-limit, generic) **ยังใช้ mapping เดิมทุกประการ** — ไม่มีการเปลี่ยนแปลง
+
+---
+
+### 4.5a `DELETE /api/chat/conversations/[id]/messages/[messageId]` (ใหม่ 2026-08-02)
+
+ยกเลิกข้อความที่ยิงออกช่องทางนอกไม่สำเร็จ — ลบแถวทิ้งจริง ไม่ใช่ mark `isDeleted`
+Trace: [[EXTENSIONS-2026-08-02]] E11 (FR-CANCEL-01…05)
+
+**Request:** ไม่มี body — ทั้ง `id` (เธรด) และ `messageId` มาจาก path
+
+**ขอบเขตที่ลบได้ (แคบโดยตั้งใจ — ห้ามผ่อนโดยไม่คิดเรื่อง unsend ให้จบก่อน):**
+`deliveryStatus === 'FAILED'` **และ** `senderRole === 'SHOP'` เท่านั้น — ข้อความที่ส่งถึง
+ลูกค้าแล้วต้องใช้ unsend ของ Meta ซึ่งเป็นคนละกลไก (มี unit test ตรึงทั้งสองเงื่อนไข)
+
+**ลำดับการตรวจใน service (`cancelFailedOutboundMessage`):**
+1. หาแถวด้วย `{id: messageId, conversationId}` — ผูกเธรดเสมอ ไม่ใช่ `findUnique(id)` เดี่ยว ๆ
+2. โหลดเธรด → `canAccessShop(shopId, actorUserId)` — **เช็คสิทธิ์ก่อนเช็คสถานะข้อความ**
+   ไม่งั้นสถานะของข้อความในเธรดที่ไม่มีสิทธิ์จะรั่วออกไปทาง error code
+3. ตรวจ `deliveryStatus`/`senderRole`
+4. ทรานแซกชันเดียว: `delete` แถว → หาแถวล่าสุดที่เหลือ (`createdAt desc, seq desc`) →
+   เขียน `Conversation.lastMessageAt/lastMessagePreview/lastSenderRole` ใหม่
+   (เธรดว่างเปล่า = ล้าง preview เป็น `null` ไม่ปล่อยค้างชี้ข้อความที่ถูกลบ)
+
+**Response — Success (200):** `{ "ok": true }`
+
+**Response — Error:**
+
+| Status | เงื่อนไข | body |
+|--------|----------|------|
+| 401 | ไม่มี session | `{ "error": "unauthorized" }` |
+| 403 | `canAccessShop` = false | `{ "error": "ไม่มีสิทธิ์เข้าถึงบทสนทนานี้" }` |
+| 404 | ไม่พบเธรด | `{ "error": "ไม่พบบทสนทนา" }` |
+| 404 | ไม่พบข้อความในเธรดนี้ | `{ "error": "ไม่พบข้อความนี้" }` |
+| 409 | ข้อความไม่ใช่ `FAILED` ของฝั่งร้าน | `{ "error": "ยกเลิกได้เฉพาะข้อความที่ส่งไม่สำเร็จเท่านั้น" }` |
+| 500 | อื่น ๆ | `{ "error": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }` |
+
+**หมายเหตุฝั่ง client:** บับเบิล optimistic (id ขึ้นต้น `local-`) ยังไม่เคยถึง server
+จึงลบจาก state ตรง ๆ **ไม่ยิง endpoint นี้**; ส่วนแถวจริงต้องรอ 200 ก่อนค่อยเอาออกจาก state
+ไม่งั้นบับเบิลจะโผล่กลับมาตอนรีเฟรชทั้งที่ผู้ใช้เห็นว่ายกเลิกไปแล้ว
 
 ---
 
@@ -630,5 +678,5 @@ trace กลับ [[SDS]] และ [[SRS]] ได้ครบ
 
 **Open Questions (คงเหลือหลัง v1.2):**
 - ส่งวิดีโอ/เสียง/ไฟล์/reply/reaction ออกช่องทางนอก (E7/E9 ขาออก) ยังไม่มี contract — TEXT/IMAGE ส่งออกได้แล้ว แต่ `sendOutboundMessage` ไม่มี parameter สำหรับชนิดอื่น (ดู §4.5)
-- `messaging_referrals` **อยู่ใน `MESSENGER_SUBSCRIBED_FIELDS` แล้ว** — แต่ Meta ล็อกชุด subscribe field ไว้ตอนเชื่อมเพจครั้งแรก เพจที่เชื่อมก่อน 2026-07-25 จึงต้อง re-sync (`POST /api/channels` → `resubscribeShopChannels`) ถึงจะได้ pure-referral event (ดู [[EXTENSIONS-2026-07-26]] E5.6)
+- 🛑 **subscription มี 2 ชั้น — ชั้นเพจถูกแล้ว ชั้นแอปคือตัวบล็อก (ยืนยัน 2026-08-03)**: `MESSENGER_SUBSCRIBED_FIELDS` ครบ 6 field และถูกส่งผ่าน `POST /{page-id}/subscribed_apps` ตอนเชื่อมเพจอยู่แล้ว แต่ App Dashboard ของแอป `1570859340799126` subscribe topic `page` ไว้แค่ `messages` + `message_echoes` → `message_reads` / `message_reactions` / `messaging_referrals` ส่งไม่ถึง **ไม่ว่าจะ re-sync กี่ครั้ง**. คำแนะนำเดิม "เพจเก่าต้อง re-sync (`POST /api/channels` → `resubscribeShopChannels`)" จึง **จำเป็นแต่ไม่พอ** — ต้องเติม field ที่ App Dashboard ก่อน (รอผล App Review `pages_messaging` ที่ยัง PENDING). หลักฐาน: prod 387 เธรด MESSENGER / 2,539 ข้อความฝั่งร้าน แต่ `externalReadAt` NULL ทั้งหมด + `reactionEmoji` 0 แถว (ดู [[EXTENSIONS-2026-07-26]] E5.6)
 - migration ต้นทางของ `Conversation.isSpam`/`externalReadAt` ยังไม่ยืนยันชื่อไฟล์ (ดู [[DATABASE]] §5.1 ลำดับ 18) — ไม่กระทบ contract ของ API แต่ควรปิด gap เอกสาร

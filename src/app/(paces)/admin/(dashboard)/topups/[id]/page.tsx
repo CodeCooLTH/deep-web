@@ -26,7 +26,7 @@ import { getTransactions } from '@/services/wallet.service'
 import SlipImageClient from './SlipImageClient'
 import TopUpReviewActions from './TopUpReviewActions'
 
-export const metadata: Metadata = { title: 'ตรวจสอบคำขอเติมเครดิต' }
+export const metadata: Metadata = { title: 'ตรวจสอบคำขอเติมเงิน' }
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -75,7 +75,7 @@ export default async function TopUpDetailPage({ params }: PageProps) {
   // RC-7: คำนวณ boolean server-side — ส่งแค่ boolean ไป client ห้ามส่ง shop.userId ดิบ
   const isSelfRecord = !!adminId && adminId === record.shop.userId
 
-  // FR-INV-13: sidebar "รายการเครดิตล่าสุด" — read-only, admin แก้ entitlement ไม่ได้ (AC-3)
+  // FR-INV-13: sidebar "รายการเงินเข้า-ออกล่าสุด" — read-only, admin แก้ entitlement ไม่ได้ (AC-3)
   const [walletTx, entitlement] = await Promise.all([
     getTransactions(record.shop.id, 10),
     prisma.inventoryEntitlement.findUnique({
@@ -98,10 +98,10 @@ export default async function TopUpDetailPage({ params }: PageProps) {
   return (
     <>
       <PageBreadcrumb
-        title="ตรวจสอบคำขอเติมเครดิต"
+        title="ตรวจสอบคำขอเติมเงิน"
         trail={[
           { label: 'Wallet' },
-          { label: 'คำขอเติมเครดิต', href: '/topups' },
+          { label: 'คำขอเติมเงิน', href: '/topups' },
         ]}
       />
 
@@ -245,12 +245,12 @@ export default async function TopUpDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* FR-INV-13: รายการเครดิตล่าสุดของ shop — read-only ledger (admin แก้ entitlement ไม่ได้ AC-3)
+          {/* FR-INV-13: รายการเงินเข้า-ออกล่าสุดของ shop — read-only ledger (admin แก้ entitlement ไม่ได้ AC-3)
               Base: dl.divide-y card pattern เดียวกับการ์ด "ข้อมูลคำขอ" ด้านบนในไฟล์นี้
               (ทั้งคู่ derive จาก theme/paces/.../IssueDetailModal.tsx .card/.card-header/.card-body primitive) */}
           <div className="card">
             <div className="card-header">
-              <h4 className="text-dark text-sm font-semibold">รายการเครดิตล่าสุด</h4>
+              <h4 className="text-dark text-sm font-semibold">รายการเงินเข้า-ออกล่าสุด</h4>
               {/* S-21 (feat 00009): badge แพ็กเกจปัจจุบัน — read-only, admin ไม่แก้ entitlement เอง */}
               <div className="flex flex-col gap-1 mt-1">
                 {!entitlement && (
@@ -270,7 +270,7 @@ export default async function TopUpDetailPage({ params }: PageProps) {
                 )}
                 {entitlement?.status === 'LOCKED' && (
                   <span className="badge bg-danger/10 text-danger text-2xs">
-                    ล็อกจากเครดิตไม่พอ
+                    ล็อกจากยอดเงินไม่พอ
                     {entitlement.lockedAt && ` เมื่อ ${formatDateTime(entitlement.lockedAt)}`}
                   </span>
                 )}

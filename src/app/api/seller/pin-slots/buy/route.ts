@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   if (!active) {
     return NextResponse.json({ error: "ไม่พบร้านค้า", code: "SHOP_NOT_FOUND" }, { status: 404 });
   }
-  // buy = spend action (หักเครดิต + เพิ่ม slot) — ร้านที่ถูก lock ต้อง read-only (pattern เดียวกับ /pin)
+  // buy = spend action (หักเงิน + เพิ่ม slot) — ร้านที่ถูก lock ต้อง read-only (pattern เดียวกับ /pin)
   if (active.locked) {
     return NextResponse.json({ error: "ร้านถูกล็อก ไม่สามารถทำรายการนี้ได้", code: "SHOP_LOCKED" }, { status: 403 });
   }
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     // INSUFFICIENT_CREDIT เกิดได้เฉพาะจาก buyPinSlotAndPin() (ผ่าน deductCredit) — ครอบเฉพาะ route นี้
     if (e instanceof Error && e.message === "INSUFFICIENT_CREDIT") {
       return NextResponse.json(
-        { error: "เครดิตไม่พอ กรุณาเติมเครดิตก่อนซื้อสล็อต", code: "INSUFFICIENT_CREDIT" },
+        { error: "ยอดเงินไม่พอ กรุณาเติมเงินก่อนซื้อสล็อต", code: "INSUFFICIENT_CREDIT" },
         { status: 402 },
       );
     }

@@ -98,6 +98,21 @@ export async function POST(request: NextRequest) {
       } else {
         const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event })
 
+        // NO_CHANNEL = Meta ส่งข้อความของเพจที่ไม่มีร้านไหนในฐานเราเชื่อมอยู่ (หรือถอดไปแล้ว)
+        // — subscription อยู่ฝั่ง Meta ไม่ได้อยู่ในฐานเรา เพจที่ยัง subscribe ค้างจึงยิงเข้ามาต่อ
+        // ได้เรื่อย ๆ แล้วถูกทิ้งที่ ingestInboundMessage (ตอบ 200 กัน Meta retry ไม่จบ)
+        //
+        // ทำไมต้อง log: ก่อนหน้านี้เคสนี้ตกพื้นเงียบสนิท ไม่มีตัวนับสักตัว จึงไม่มีใครรู้ว่ามีเพจ
+        // ค้างอยู่กี่เพจ/ข้อความหายไปเท่าไหร่ — และการ "รับมาแล้วทิ้ง" ยังนับว่าเราแตะข้อมูล
+        // บทสนทนาที่ร้านเลิกอนุญาตแล้ว ซึ่งเป็นข้อที่ Meta ตรวจตอนรีวิว pages_manage_metadata
+        // (เหตุผลเดียวกับที่ unsubscribePageFromApp มีอยู่ — ดู lib/facebook/graph.ts)
+        //
+        // เก็บแค่ provider + page id: พอสำหรับตามว่าต้องให้ร้านไหนกลับมาเชื่อมเพจใหม่ และไม่แตะ
+        // เนื้อหา/ตัวตนลูกค้าของเพจที่เราไม่มีสิทธิ์เก็บอยู่แล้ว
+        if (ingested.status === 'NO_CHANNEL') {
+          console.warn('[fb-webhook] NO_CHANNEL — เพจไม่มีร้านเชื่อม ข้อความถูกทิ้ง', { provider, pageId })
+        }
+
         // ที่มาจากโฆษณา (E5) — referral มา 2 ที่: ซ้อนใน message (ลูกค้ากดโฆษณาแล้วทักครั้งแรก)
         // หรือระดับ event (ลูกค้าที่มีเธรดอยู่แล้วกดโฆษณาตัวใหม่). ต้องทำ "หลัง" ingest ข้อความเสมอ
         // เพราะเธรดเพิ่งถูกสร้างในขั้นตอนนั้น

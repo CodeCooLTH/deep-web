@@ -1239,3 +1239,77 @@ export async function sendOutboundMessage(params: {
   }
   return message
 }
+
+/** preview สำหรับ Conversation.lastMessagePreview เมื่อคำนวณจากแถวที่ "มีอยู่แล้ว" (ใช้ตอนสร้าง
+ *  snapshot ใหม่หลังยกเลิกข้อความ) — ต้องให้ผลตรงกับที่เขียนตอน insert ไม่งั้นข้อความในกล่องขาเข้า
+ *  จะไม่ตรงกับบับเบิลล่างสุดของเธรด. ชื่อไฟล์แนบไม่ได้ต่อท้ายเหมือนตอน insert เพราะ preview ใน
+ *  list ต้องสั้น (user report 2026-07-25) และแถวเก่าก่อน 2026-08-02 ไม่มี attachmentName */
+const CANCEL_SNAPSHOT_PREVIEW: Record<string, string> = {
+  IMAGE: '[รูปภาพ]',
+  VIDEO: '[วิดีโอ]',
+  AUDIO: '[ข้อความเสียง]',
+  FILE: '[ไฟล์แนบ]',
+  ORDER: '[คำสั่งซื้อ]',
+  PRODUCT: '[สินค้า]',
+}
+
+/**
+ * cancelFailedOutboundMessage — ร้านกด "ยกเลิกการส่งข้อความ" บนบับเบิลที่ยิงออกไม่สำเร็จ
+ * (user สั่ง 2026-08-02)
+ *
+ * ลบแถวทิ้งจริง ไม่ใช่ mark isDeleted: `isDeleted` มีไว้สำหรับ "unsend" ของข้อความที่ **ส่งถึง
+ * ลูกค้าไปแล้ว** จึงต้องเหลือหลักฐานว่าเคยมีข้อความอยู่ตรงนั้น (บับเบิล "ข้อความถูกลบ") — ส่วน
+ * แถวที่ deliveryStatus='FAILED' ลูกค้าไม่เคยเห็นอะไรเลย การทิ้ง tombstone ไว้จึงเป็นการโกหก
+ * ผู้ขายว่า "มีข้อความถูกลบ" ทั้งที่ไม่เคยมีข้อความไปถึง
+ *
+ * ข้อจำกัดที่ทำให้ปลอดภัยต่อ invariant append-only ของ ChatMessage (schema.prisma:1411):
+ * ลบได้เฉพาะแถว FAILED ของฝั่งร้านเท่านั้น — แถวที่ส่งสำเร็จ/ของลูกค้า ลบจากที่นี่ไม่ได้เด็ดขาด
+ * (นี่คือเหตุผลที่ "ส่งซ้ำ" ยังเป็นการสร้างข้อความใหม่ ไม่ใช่แก้แถวเดิม: ส่งซ้ำเป็นเหตุการณ์ใหม่
+ * ส่วนยกเลิกคือผู้ใช้สั่งทิ้งความพยายามนั้นทิ้งอย่างตั้งใจ)
+ */
+export async function cancelFailedOutboundMessage(params: {
+  conversationId: string
+  messageId: string
+  actorUserId: string
+}): Promise<void> {
+  const message = await prisma.chatMessage.findFirst({
+    where: { id: params.messageId, conversationId: params.conversationId },
+    select: { id: true, deliveryStatus: true, senderRole: true },
+  })
+  if (!message) throw new Error('MESSAGE_NOT_FOUND')
+  // เช็คก่อน authz ไม่ได้ — ต้องรู้ก่อนว่า user แตะเธรดนี้ได้ไหม ไม่งั้นสถานะของข้อความรั่วออกไป
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: params.conversationId },
+    select: { id: true, shopId: true },
+  })
+  if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
+  if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  // สองเงื่อนไขนี้คือขอบเขตทั้งหมดของสิ่งที่ลบได้ — อย่าผ่อนโดยไม่คิดให้จบ
+  if (message.deliveryStatus !== 'FAILED' || message.senderRole !== 'SHOP') {
+    throw new Error('MESSAGE_NOT_CANCELLABLE')
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.chatMessage.delete({ where: { id: message.id } })
+
+    // snapshot ของเธรดอาจชี้ข้อความที่เพิ่งลบไป — คำนวณใหม่จากแถวที่เหลือ ไม่งั้นกล่องขาเข้า
+    // จะโชว์ข้อความที่ไม่มีอยู่แล้ว. เรียงด้วย seq ร่วมด้วยตามที่ schema กำหนด (ตัวตัดสินเมื่อ
+    // createdAt เท่ากัน) เขียนใน transaction เดียวกับการลบเสมอ (invariant M-2)
+    const newest = await tx.chatMessage.findFirst({
+      where: { conversationId: params.conversationId },
+      orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
+      select: { createdAt: true, body: true, type: true, senderRole: true },
+    })
+    await tx.conversation.update({
+      where: { id: params.conversationId },
+      data: newest
+        ? {
+            lastMessageAt: newest.createdAt,
+            lastMessagePreview: CANCEL_SNAPSHOT_PREVIEW[newest.type] ?? (newest.body ?? '').slice(0, 100),
+            lastSenderRole: newest.senderRole,
+          }
+        : // เธรดว่างเปล่า (ข้อความเดียวที่มีคือตัวที่เพิ่งยกเลิก) — ล้าง preview ไม่ใช่ปล่อยค้าง
+          { lastMessagePreview: null, lastSenderRole: null },
+    })
+  })
+}

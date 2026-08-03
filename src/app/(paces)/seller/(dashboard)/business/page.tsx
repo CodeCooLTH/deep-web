@@ -50,7 +50,7 @@ export default async function BusinessPackagePage() {
 
   const ownerId = user.id as string
 
-  // 1. personal shop (สำหรับหักเครดิต/คำนวณ advance-warning) — fail-closed: หาไม่ได้ = balance 0
+  // 1. personal shop (สำหรับหักเงิน/คำนวณ advance-warning) — fail-closed: หาไม่ได้ = balance 0
   let personalShop: { id: string } | null = null
   try {
     personalShop = await getPersonalShop(ownerId)
@@ -110,7 +110,7 @@ export default async function BusinessPackagePage() {
   const maxBusinesses = currentQuotaConfig ? currentQuotaConfig.maxBusinesses : 0 // Free = 0 (Design Spec Constants)
   const canCreate = statusApp === 'ACTIVE' && (maxBusinesses === null || ownedCount < maxBusinesses)
 
-  // advance-warning — เฉพาะ ACTIVE + ใกล้รอบต่ออายุ + เครดิตไม่พอ (Design Spec §1 ข้อ 2)
+  // advance-warning — เฉพาะ ACTIVE + ใกล้รอบต่ออายุ + ยอดเงินไม่พอ (Design Spec §1 ข้อ 2)
   let showAdvanceWarning = false
   let advanceNextRenewalAt = ''
   let advanceShortfall = 0

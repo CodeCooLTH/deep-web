@@ -124,10 +124,20 @@ Base: `theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx` (DismissingAlert
 (ใช้ `pages_messaging` ที่มีอยู่). เอกสาร Meta ระบุเงื่อนไขเดียวคือเพจต้อง subscribe ทั้ง `messages`
 และ `messaging_referrals` ซึ่ง `MESSENGER_SUBSCRIBED_FIELDS` มีครบแล้วตั้งแต่ E8
 
+🛑 **แก้ 2026-08-03 — "เงื่อนไขเดียว" ไม่จริง มี 2 ชั้น:** นอกจากชั้นเพจ
+(`POST /{page-id}/subscribed_apps` ที่โค้ดทำถูกแล้ว) ยังต้อง subscribe field นั้นที่ **App Dashboard**
+ของแอปด้วย. ตอนนี้แอป `1570859340799126` มี topic `page` แค่ `messages` + `message_echoes`
+→ `messaging_referrals` ส่งไม่ถึงเรา (ตรวจด้วย MCP `meta_developer_tools` →
+`devtools_webhook_list` action `list_subscriptions`)
+
 ### E5.6 Known Gap
 
-- **เพจที่เชื่อมก่อนเพิ่ม `messaging_referrals` ต้อง re-sync** (`POST /api/channels` →
-  `resubscribeShopChannels`) — Meta ล็อกชุด subscribe field ไว้ตอนเชื่อมครั้งแรก (ยกมาจาก E8.3)
+- ~~**เพจที่เชื่อมก่อนเพิ่ม `messaging_referrals` ต้อง re-sync** (`POST /api/channels` →
+  `resubscribeShopChannels`)~~ — **จำเป็นแต่ไม่พอ (แก้ 2026-08-03)**: ตัวบล็อกจริงอยู่ที่ชั้น
+  App Dashboard ไม่ใช่ชั้นเพจ (ดู E5.5) re-sync อย่างเดียวไม่ทำให้ได้ pure-referral event.
+  **ยังไม่ยืนยัน** ว่าเมื่อเติม field ที่ชั้นแอปแล้วยังต้อง re-sync อีกหรือไม่ — แยก
+  referral แบบมาเดี่ยว ๆ ออกจาก `message.referral` ในฐานข้อมูลไม่ได้ (prod 290 เธรด
+  `referralSource='ADS'` อธิบายด้วย in-message referral ล้วนได้ทั้งหมด)
 - **แชทเก่าไม่มีรูปโฆษณา** — ไม่มี API ให้ backfill (BR-ADREF-04)
 - **Instagram ยังไม่ได้ทดสอบจริง** — เอกสาร Meta รวม Messenger/IG ไว้หน้าเดียวกัน แต่โปรเจกต์นี้
   เจอหลายเคสที่ IG ต่างจาก Messenger (ดู `getContactProfile`) ต้องยืนยันกับบัญชีจริง

@@ -176,8 +176,13 @@ export default async function SellerInboxPage() {
     // ป้าย DeepBot ในแถว (S-20) — ฟังก์ชันเดียวกับที่ GET /api/chat/conversations ใช้
     // ด้วยเหตุผลเดียวกับ stageMap ข้างบน: ถ้า enrich ทางเดียว ป้ายจะไม่ขึ้นตอนโหลดหน้าแรก
     // แล้วค่อยโผล่หลัง client refetch ซึ่งดูเหมือนบั๊กมากกว่าฟีเจอร์
+    // เก็บทั้งสองค่า — เดิม map ทิ้ง `lastMessageIsAiEnhanced` ไปแล้ว hardcode false ตอนประกอบ
+    // item ข้างล่าง ทำให้ป้าย DeepAI ไม่เคยขึ้นเลย ทั้งที่ enrich คำนวณมาให้แล้ว
     const autoReplyBadgeMap = new Map(
-      (await enrichWithAutoReplyBadge(result.items)).map((r) => [r.id, r.lastMessageAutoReplyKind]),
+      (await enrichWithAutoReplyBadge(result.items)).map((r) => [
+        r.id,
+        { kind: r.lastMessageAutoReplyKind, isAi: r.lastMessageIsAiEnhanced },
+      ]),
     )
 
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
@@ -218,8 +223,8 @@ export default async function SellerInboxPage() {
         referralAdId: c.referralAdId,
         orderStage: stageMap.get(c.id) ?? null,
         // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
-        lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id) ?? null,
-        lastMessageIsAiEnhanced: false,
+        lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,
+        lastMessageIsAiEnhanced: autoReplyBadgeMap.get(c.id)?.isAi ?? false,
       }
     })
     nextCursor = result.nextCursor

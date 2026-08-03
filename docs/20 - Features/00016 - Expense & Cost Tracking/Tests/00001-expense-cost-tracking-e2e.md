@@ -34,6 +34,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]", "[[PRD]]"]
 8. Owner resolution ของ PERSONAL/BUSINESS shop (SRS TFR-009)
 9. Cross-cutting: CSRF/auth/rate-limit บน endpoint ใหม่ + zero-regression ของ `createOrder()`/product routes เดิม
 10. **Security fix — cross-shop `productId` injection (`ProductNotInShopError`)**: `createOrder()` ต้อง pre-validate ว่าทุก client `productId` เป็นของ active shop ของผู้เรียกเท่านั้น ก่อนใช้ snapshot cost/ตัดสต็อก ป้องกันต้นทุนคู่แข่งรั่วและตัดสต็อกคู่แข่ง (หมวด B-SEC)
+11. **Redesign 2026-08-02 (deployed)** — response shape ใหม่ของ `/api/expenses/report` (`expenses[]`/`prevNetProfit`), `hasAnyExpense` (empty state 2 แบบ), กำไรสุทธิไหลเข้า 3 surface ของหน้ายอดขาย (`/sales`, การ์ด command center, ชีตมือถือ — FR-EXP-12), รูปแบบเงิน SSOT (`format-money.ts`), filter/search/pagination บนรายการค่าใช้จ่าย (หมวด P)
 
 ประเภทการทดสอบ: **Unit** (Vitest — `pnl.service.ts` reducer, `date-range.ts` pure function, `lib/expense.ts` constants — ไม่ต้อง DB), **Service/API integration** (`page.request.*` หรือเรียก service ตรงผ่าน Vitest — ownership scoping, cost snapshot, P&L formula กับ DB จริง), **E2E Playwright** (UI flow: ฟอร์ม cost/expense, gate/locked state, toggle, missing-cost warning banner)
 
@@ -503,7 +504,7 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]", "[[PRD]]"]
 - **ประเภท:** E2E Playwright
 - **Steps:**
   1. `loginAs` → `/expenses` → เปิดฟอร์มบันทึก → เปิด dropdown category
-- **Expected Result:** เห็นครบ 7 ตัวเลือก (ค่าเช่า/ค่าแพ็คเกจ-บรรจุภัณฑ์/ค่าโฆษณา/ค่าขนส่ง/เงินเดือน/สาธารณูปโภค/อื่นๆ) ไม่ขาด ไม่เกิน
+- **Expected Result:** เห็นครบ 7 ตัวเลือก (ค่าเช่า/ค่าบรรจุภัณฑ์-บรรจุภัณฑ์/ค่าโฆษณา/ค่าขนส่ง/เงินเดือน/ค่าน้ำ-ค่าไฟ/อื่นๆ) ไม่ขาด ไม่เกิน
 
 ---
 
@@ -1278,6 +1279,152 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]", "[[PRD]]"]
 
 ---
 
+### หมวด P — Redesign 2026-08-02: response shape ใหม่, กำไรไหลเข้าหน้ายอดขาย, prevNetProfit, empty state, รูปแบบเงิน
+
+> เพิ่มหลัง redesign deploy จริง (commits `69b235f4`/`3148bb42`/`a20d99ac`/`69a224ad`/`e0ec4926`/`56dcc657`) — เอกสารต้นทาง: SRS.md §10 (TFR-012..016), BRD.md FR-EXP-12, `docs/superpowers/specs/2026-08-02-expenses-redesign-design-spec.md`
+
+---
+
+#### TC-EXP-102: `GET /api/expenses/report` คืน `expenses[]` ที่ scope ด้วยช่วงเดียวกับรายงาน
+
+- **Linked to:** SRS TFR-015 (breaking change ของ response shape)
+- **Precondition:** shop มี expense 5 รายการ — 3 รายการอยู่ในช่วง 7 วันล่าสุด, 2 รายการอยู่นอกช่วง
+- **ประเภท:** API integration + DB verify
+- **Steps:**
+  1. `GET /api/expenses/report?range=7d`
+  2. ตรวจ field `expenses` ใน response
+- **Expected Result:** response มี field `expenses` เป็น array ยาว 3 (เฉพาะที่ `expenseDate` อยู่ในช่วง 7 วัน) แต่ละ item มี shape เดียวกับ `GET /api/expenses` (§4.2); field เดิมทั้งหมดของ `PnlReport` (revenue/cogs/grossProfit/totalExpense/netProfit/orderCount/hasMissingCost) ยังอยู่ครบไม่หาย
+
+---
+
+#### TC-EXP-103: `prevNetProfit = null` เมื่อช่วงก่อนหน้าไม่มีทั้งออเดอร์และค่าใช้จ่ายเลย
+
+- **Linked to:** SRS TFR-013 (`[FR-EXP-08-AC-02]` ส่วนขยาย)
+- **Precondition:** shop ใหม่ที่มี order/expense เฉพาะในช่วง 7 วันล่าสุด ไม่มีอะไรก่อนหน้านั้นเลย
+- **ประเภท:** Service integration + DB verify
+- **Steps:**
+  1. `getPnlReport(shopId, resolveDateRange('7d'))`
+- **Expected Result:** `prevNetProfit === null` (ไม่ใช่ `0`) — UI (การ์ด P&L) ต้องซ่อนตัวชี้วัด %เปลี่ยนแปลงเมื่อค่านี้เป็น `null`
+
+---
+
+#### TC-EXP-104: `prevNetProfit` คำนวณถูกต้องเมื่อช่วงก่อนหน้ามีข้อมูลจริง
+
+- **Linked to:** SRS TFR-013
+- **Precondition:** seed order `CONFIRMED` (`revenue=1000, cogs=400`) + expense (`amount=100`) ในช่วง "30 วันก่อน 30 วันล่าสุด" (prevRange ของ preset `30d`)
+- **ประเภท:** Service integration + DB verify
+- **Steps:**
+  1. `getPnlReport(shopId, resolveDateRange('30d'))`
+- **Expected Result:** `prevNetProfit = 500` (`1000 - 400 - 100`); ไม่ใช่ `null`
+
+---
+
+#### TC-EXP-105: `hasAnyExpense=false` → empty state "ยังไม่มีรายการค่าใช้จ่าย" (ชวนเริ่มบันทึก)
+
+- **Linked to:** SRS TFR-014
+- **Precondition:** shop ที่ไม่เคยบันทึก expense เลยแม้แต่รายการเดียว (ไม่จำกัดช่วงเวลา)
+- **ประเภท:** E2E Playwright + API integration
+- **Steps:**
+  1. `hasAnyExpense(shopId)` ตรง → ต้องคืน `false`
+  2. `loginAs` → `/expenses` → ตรวจข้อความ empty state
+- **Expected Result:** `hasAnyExpense = false`; UI แสดง "ยังไม่มีรายการค่าใช้จ่าย" + ปุ่ม "บันทึกรายการแรก" (ไม่ใช่ "ช่วงเวลานี้ยังไม่มีรายการ")
+
+---
+
+#### TC-EXP-106: `hasAnyExpense=true` แต่ช่วงที่เลือกไม่มีรายการ → empty state "ช่วงเวลานี้ยังไม่มีรายการ" (ชวนเปลี่ยนช่วง)
+
+- **Linked to:** SRS TFR-014
+- **Precondition:** shop มี expense 1 รายการที่ `expenseDate` เก่ากว่า 30 วัน (นอกช่วง default)
+- **ประเภท:** E2E Playwright
+- **Steps:**
+  1. `loginAs` → `/expenses` (default range `30d`) → ตรวจข้อความ empty state ของรายการ
+- **Expected Result:** แสดง "ช่วงเวลานี้ยังไม่มีรายการ" + คำแนะนำ "ลองเลือกช่วงเวลาอื่น หรือบันทึกรายการของช่วงนี้เพิ่ม" (ไม่ใช่ข้อความของ TC-EXP-105)
+
+---
+
+#### TC-EXP-107: `/sales` — gate ผ่าน → เห็นการ์ดสรุป 6 ใบ + 2 คอลัมน์การเงิน + series ค่าใช้จ่ายในกราฟ
+
+- **Linked to:** BRD `[FR-EXP-12-AC-01]`
+- **Precondition:** owner package ACTIVE (`resolveExpenseAccess` = GRANTED), มี order + expense ในเดือนปัจจุบัน
+- **ประเภท:** E2E Playwright + API integration
+- **Steps:**
+  1. `loginAs` → `/sales`
+  2. นับจำนวนการ์ดสรุป, คอลัมน์ตาราง, series ในกราฟ
+- **Expected Result:** การ์ดสรุป 6 ใบ (ยอดขายรวม/ออเดอร์ทั้งหมด/สำเร็จ/เฉลี่ยต่อออเดอร์/ค่าใช้จ่าย/กำไรสุทธิ); ตาราง `SalesTable` มีคอลัมน์ "ค่าใช้จ่าย"+"กำไรสุทธิ" ต่อท้าย; กราฟมี series "ค่าใช้จ่าย (฿)"
+
+---
+
+#### TC-EXP-108: `/sales` — gate ไม่ผ่าน → ไม่เห็นข้อมูลการเงินเลย (ไม่ใช่ ฿0)
+
+- **Linked to:** BRD `[FR-EXP-12-AC-03]`
+- **Precondition:** owner ไม่มี Business Package ACTIVE (`resolveExpenseAccess` = PACKAGE_LOCKED)
+- **ประเภท:** E2E Playwright + API integration — **security/leak gate สำคัญ**
+- **Steps:**
+  1. `loginAs` → `/sales`
+  2. ตรวจจำนวนการ์ดสรุป (ต้องเป็น 4), คอลัมน์ตาราง (ต้องไม่มี "ค่าใช้จ่าย"/"กำไรสุทธิ"), series กราฟ (ต้องไม่มี "ค่าใช้จ่าย (฿)")
+  3. ตรวจ network response ของ page (RSC payload) ว่าไม่มีตัวเลข `totalExpense`/`netProfit` หลุดมาเลย (ไม่ใช่แค่ UI ไม่ render)
+- **Expected Result:** การ์ดสรุปเหลือ 4 ใบ; ตาราง 5 คอลัมน์เดิม; กราฟไม่มี series ค่าใช้จ่าย; ไม่มีตัวเลขการเงินใด ๆ ใน payload
+
+---
+
+#### TC-EXP-109: Command-center card "ยอดขายและกำไร" — gate ผ่าน → hero = กำไรสุทธิ, gate ไม่ผ่าน → hero = ยอดขาย
+
+- **Linked to:** BRD `[FR-EXP-12-AC-02]`/`[FR-EXP-12-AC-03]`
+- **Precondition:** 2 เคส — owner GRANTED และ owner PACKAGE_LOCKED, ทั้งคู่มี order ในเดือนปัจจุบัน
+- **ประเภท:** E2E Playwright (มือถือ viewport)
+- **Steps:**
+  1. `loginAs` (GRANTED) → เปิด `/dashboard` (มือถือ) → ตรวจตัวเลข hero ของการ์ด "ยอดขายและกำไร"
+  2. ทำซ้ำด้วย owner ที่ PACKAGE_LOCKED
+- **Expected Result:** GRANTED → hero = กำไรสุทธิ (สี success/danger ตาม `profitDisplay`) + บรรทัดรอง "ขายได้ ฿..."; PACKAGE_LOCKED → hero = ยอดขายรวม (พฤติกรรมเดิมก่อน redesign ทุกประการ)
+
+---
+
+#### TC-EXP-110: `GET /api/seller/sales-series` — gate ไม่ผ่าน → response ไม่มี field การเงินเลย
+
+- **Linked to:** SRS TFR-016
+- **Precondition:** owner PACKAGE_LOCKED
+- **ประเภท:** API integration
+- **Steps:**
+  1. `GET /api/seller/sales-series?mode=daily&year=2026&month=8`
+- **Expected Result:** HTTP 200; response ไม่มี key `expenseValues`/`netProfitValues`/`totalExpense`/`netProfit` เลย (ไม่ใช่มี key แต่เป็น `undefined`/`0` — ต้อง `!('totalExpense' in body)`)
+
+---
+
+#### TC-EXP-111: `profitDisplay()` แสดงกำไรติดลบเป็น "ขาดทุน ฿N" ไม่ใช่ "-฿N"
+
+- **Linked to:** design spec (`format-money.ts` — ห้าม render เครื่องหมายลบชนสัญลักษณ์สกุลเงิน)
+- **Precondition:** —
+- **ประเภท:** Unit (Vitest, `format-money.ts`) — ไม่ต้อง DB
+- **Steps:**
+  1. `profitDisplay(-1500)`
+- **Expected Result:** `{ positive: false, label: 'ขาดทุนสุทธิ', text: '฿1,500', toneClass: 'text-danger-ink' }` — `formatBaht` คืนค่าสัมบูรณ์เสมอ (ไม่มี `-` นำหน้า `฿`) และ `text` ไม่มีคำนำหน้า: ทิศทางสื่อผ่าน `label` + `toneClass` ทุก surface จึงต้อง render label ด้วย
+
+---
+
+#### TC-EXP-112: `formatBaht()` แสดงทศนิยมเฉพาะเมื่อมีสตางค์จริง (นโยบายเดียวทั้งระบบ, แก้ 3 นโยบายที่ขัดกัน)
+
+- **Linked to:** `src/lib/format-money.ts` comment (ปัญหาเดิม: `/expenses`/`/sales`/การ์ดยอดขาย แสดงเงินก้อนเดียวกันไม่เหมือนกัน 3 แบบ)
+- **Precondition:** —
+- **ประเภท:** Unit (Vitest)
+- **Steps:**
+  1. `formatBaht(3680)`, `formatBaht(1123.7)`, `formatBaht(1123.70)`
+- **Expected Result:** `formatBaht(3680) === '฿3,680'` (ไม่มี `.00`); `formatBaht(1123.7) === '฿1,123.70'` (ไม่ตัดศูนย์ท้ายจนอ่านเป็น `1,123.7`)
+
+---
+
+#### TC-EXP-113: รายการค่าใช้จ่าย — filter ตามหมวด + ค้นหาหมายเหตุ + โหลดเพิ่ม ทำงานถูกต้อง (ขอบเขตใหม่ที่ UX-Design-Spec เดิมเขียนว่า "จะไม่ทำ")
+
+- **Linked to:** design spec §0 decision 6 / UX-Design-Spec.md decision ที่ถูกแทนที่ (`ExpenseList.tsx`)
+- **Precondition:** shop มี expense ≥ 15 รายการ คละหมวด ในช่วงที่เลือก
+- **ประเภท:** E2E Playwright
+- **Steps:**
+  1. `loginAs` → `/expenses` → เลือกชิปหมวด "ค่าโฆษณา" → ตรวจว่ารายการกรองเหลือเฉพาะหมวดนั้น + ตัวนับที่ชิปตรงกับจำนวนจริง
+  2. ล้างตัวกรอง → พิมพ์คำค้นในช่องค้นหาหมายเหตุ → ตรวจว่ารายการกรองตรงกับคำค้น (ไม่สนตัวพิมพ์เล็กใหญ่)
+  3. ล้างตัวกรอง+คำค้น → ตรวจว่าแสดง 10 รายการแรก + ปุ่ม "โหลดเพิ่ม" → กด → ตรวจว่าจำนวนที่แสดงเพิ่มขึ้นอีก 10 (หรือเท่าที่เหลือ)
+- **Expected Result:** filter/search/pagination ทำงานถูกต้องทั้ง 3 กรณี; เปลี่ยน filter/search แล้ว "จำนวนที่แสดง" รีเซ็ตกลับเป็น 10 เสมอ (ไม่ค้างจากชุดก่อนหน้า)
+
+---
+
 ## 3. Traceability Matrix
 
 | FR/AC ใน [[BRD]] | Test Case | ครอบคลุมหรือไม่ |
@@ -1336,10 +1483,20 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]", "[[PRD]]"]
 | SDS TD-002 dual boundary + edge ข้ามเดือน/ข้ามปี/off-by-one | TC-EXP-70..79 (โดยเฉพาะ **TC-EXP-74, TC-EXP-75, TC-EXP-77, TC-EXP-78**) | Yes |
 | Cross-cutting CSRF/401/429 endpoint ใหม่ | TC-EXP-84..90 | Yes |
 | Zero-regression (product/order/dashboard เดิม) | TC-EXP-91..96 | Yes |
+| `[FR-EXP-12-AC-01]` `/sales` การ์ด 6 ใบ+คอลัมน์+series (gate ผ่าน) | TC-EXP-107 | Yes |
+| `[FR-EXP-12-AC-02]` command-center/ชีตมือถือ hero=กำไรสุทธิ | TC-EXP-109 | Yes |
+| `[FR-EXP-12-AC-03]` gate ไม่ผ่าน → ไม่เห็นข้อมูลการเงินเลย (3 surface) | TC-EXP-108, TC-EXP-109, TC-EXP-110 | Yes |
+| `[FR-EXP-12-AC-04]` สูตรกำไรสุทธิเดียวกันทุก surface | TC-EXP-107, TC-EXP-109 (cross-check ตัวเลขกับ TC-EXP-39/47) | Yes |
+| SRS TFR-013/TFR-015 `prevNetProfit` + response shape `expenses[]` | TC-EXP-102, TC-EXP-103, TC-EXP-104 | Yes |
+| SRS TFR-014 empty state 2 แบบ | TC-EXP-105, TC-EXP-106 | Yes |
+| รูปแบบเงิน SSOT (`format-money.ts`) | TC-EXP-111, TC-EXP-112 | Yes |
+| Filter/search/pagination รายการค่าใช้จ่าย (ขอบเขตใหม่) | TC-EXP-113 | Yes |
 
 > ทุก AC ใน [[BRD]] (FR-EXP-01..11) ปรากฏในตารางนี้ครบ — ไม่มี AC ที่ไม่มี TC รองรับ (ยกเว้น `[FR-EXP-11-AC-04]` ซึ่ง BRD ระบุชัดว่าเป็น "Build-order note ไม่ใช่ acceptance ของ production" — ไม่ต้องมี TC โดยตรง แต่ TC-EXP-63..69 ทั้งหมดคือ regression gate ที่พิสูจน์ว่า stub ถูกถอดออกแล้วจริงก่อน sign-off)
 >
 > **เพิ่มเติม 2026-07-08 (security review):** TC-EXP-97..101 (หมวด B-SEC) เพิ่มหลัง security review เจอ critical vuln cross-shop `productId` ใน `createOrder()` — ไม่ใช่ gap ของ BRD/AC เดิม แต่เป็น defense-in-depth เพิ่มเติมที่จำเป็นเพื่อปิดช่องโหว่ cost/stock leak ข้ามร้าน (ดู fix `ProductNotInShopError`)
+>
+> **เพิ่มเติม 2026-08-02 (redesign, หมวด P):** FR-EXP-12 เป็น FR ใหม่ที่ไม่มีตอนเขียน BRD ฉบับแรก (เพิ่มพร้อม PRD §3.8) — ครอบทั้ง 4 AC ครบ; TC-EXP-102..106/111..113 ไม่ผูก AC ของ BRD โดยตรง (เป็น technical/UX regression ที่มาจาก SRS.md §10 และ design spec ใหม่)
 
 ---
 
@@ -1449,12 +1606,15 @@ feature นี้ต้อง seed สถานะที่ **ไม่มี UI
 |-----|--------|--------------------------|---------------------|
 | Pre-implement | 2026-07-08 | Blocked — feature ยังไม่ implement (DATABASE.md ยัง Draft, migration ยังไม่ apply) | shinobu22 |
 | Security fix TC เพิ่ม (TC-EXP-97..101) | 2026-07-08 | Blocked — เพิ่ม test case ตาม security review (cross-shop `productId` → `ProductNotInShopError`); developer แก้ code แล้ว แต่ยังไม่ apply migration ของโมดูลนี้ ทั้ง 5 TC ใหม่จึงยัง Blocked เหมือนชุดเดิม รอ §6 Dependencies ครบ | shinobu22 |
+| Redesign TC เพิ่ม (TC-EXP-102..113, หมวด P) | 2026-08-02 | Not Run — เพิ่ม test case ตาม redesign ที่ deploy จริงแล้ว (response shape/`prevNetProfit`/empty state/รายจ่ายไหลเข้าหน้ายอดขาย 3 surface/filter-search/รูปแบบเงิน) ยังไม่ได้รันจริง (doc sync งานนี้ทำโดย `safepay-docs` ไม่ใช่ QA run) | shinobu22 (docs sync) |
 
 ---
 
 ## 8. สรุป (Summary)
 
-เอกสาร Test Case นี้กำหนด **101 test case** (TC-EXP-01..101) สำหรับ **Expense & Cost Tracking (M00016)** ครอบคลุมทุก FR-EXP-01..11 และ Acceptance Criteria ทุกข้อใน [[BRD]] ประกอบด้วย:
+เอกสาร Test Case นี้กำหนด **113 test case** (TC-EXP-01..113) สำหรับ **Expense & Cost Tracking (M00016)** ครอบคลุมทุก FR-EXP-01..12 และ Acceptance Criteria ทุกข้อใน [[BRD]] ประกอบด้วย:
+
+- **Redesign 2026-08-02 (หมวด P, TC-EXP-102..113):** response shape ใหม่ของ `/api/expenses/report` (`expenses[]`), `prevNetProfit` (null เมื่อไม่มีฐานเทียบ vs คำนวณได้จริง), empty state 2 แบบ (`hasAnyExpense`), กำไรสุทธิไหลเข้า `/sales`+command-center+ชีตมือถือ ทั้ง gate-ผ่านและ gate-ไม่ผ่าน (FR-EXP-12), รูปแบบเงิน SSOT (`format-money.ts` — ทศนิยมเฉพาะมีสตางค์, ห้าม `-฿`), filter/search/pagination บนรายการค่าใช้จ่าย (ขอบเขตใหม่ที่เอกสารออกแบบเดิมตั้งใจไม่ทำ)
 
 - **Happy Path:** ตั้ง/แก้ cost, snapshot ตอนสร้างออเดอร์, CRUD expense, รายงาน P&L ครบ 5 ตัวเลข, owner/admin เข้าถึงตาม role+toggle
 - **Negative/Edge:** cost ติดลบ, amount≤0, category นอกลิสต์, order สถานะอื่นไม่นับ, ไม่มี expense/cost ไม่ error, cross-shop 404 ไม่ leak, admin toggle ปิด 403+ไม่เห็นเมนู, package ไม่ ACTIVE ไม่คืนข้อมูล

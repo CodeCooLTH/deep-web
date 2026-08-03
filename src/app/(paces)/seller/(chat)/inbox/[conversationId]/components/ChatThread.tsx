@@ -37,9 +37,8 @@
  *    TOKEN_INVALID — windowOpen/msRemaining/tokenInvalid คำนวณที่ server (page.tsx, getWindowState
  *    จาก channel-chat.service.ts) ส่งลงมาเป็น prop เพื่อเลี่ยง import service (มี prisma/fs) เข้า
  *    client bundle (feedback_verify_import_safety)
- *  - composer disabled เฉพาะเมื่อ token invalid (2026-08-03) — เดิมปิดตอน window ปิดด้วย แต่
- *    หน้าต่างเป็นค่าที่เราคำนวณเองและคลาดได้ จึงเลิกตัดสินแทน Meta: ส่งได้เสมอ ถ้าไม่ผ่านจะขึ้น
- *    เหตุผลบนบับเบิลแทน (ดู composerDisabled/sendAtRisk ด้านล่าง)
+ *  - composer disabled ทั้งชุดเมื่อ window ปิดหรือ token invalid; ปุ่มแนบรูป disabled ถาวรเมื่อ
+ *    channel != DEEP (back end คืน 400 ถ้าส่งรูปช่องทางนอก — กันที่ UI ก่อนถึง error นั้น)
  *  - badge "ส่งไม่สำเร็จ" ใต้ bubble เมื่อ deliveryStatus='FAILED' — ChatMessageView (hook) ไม่ประกาศ
  *    field นี้ในชนิดข้อมูล แต่ getMessages() (chat.service.ts) query แบบไม่มี select เลย คืนทุกคอลัมน์
  *    ของ ChatMessage จริงตอน runtime (ยืนยันแล้วจาก services/chat.service.ts:135-146) จึง extend
@@ -71,7 +70,8 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import AutoReplyTag from './AutoReplyTag'
-import BotPausedBanner from './BotPausedBanner'
+import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
+import ThreadStatusBar, { type ThreadStatusItem } from './ThreadStatusBar'
 import { pacesToast } from '@/lib/paces-toast'
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 import Link from 'next/link'
@@ -84,8 +84,7 @@ import { generateInitials } from '@/utils/helpers'
 import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
-import { describeSendFailure, withSendFailurePrefix } from '@/lib/chat-send-failure'
-import type { OutgoingRetry } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
+import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -429,6 +428,8 @@ type Props = {
   botHandoffReason?: string | null
   /** ห้องนี้ถูกเลือกไว้ทดสอบ DeepAI (ChatBot อยู่โหมดทดสอบ) */
   isChatbotTestThread?: boolean
+  /** มีบอทตัวไหนจะตอบห้องนี้ไหม — false = ไม่ต้องบอกว่า "พัก" เพราะไม่มีอะไรถูกพัก */
+  botCouldReply?: boolean
   /** feature 00018 — 'DEEP' | 'MESSENGER' | 'INSTAGRAM' (resolve/fallback ทำที่ server แล้ว) */
   channel: string
   /** ชื่อเพจ (ShopChannel.name) ที่เธรดนี้ผูกอยู่ — แสดงบน badge แทนคำว่า "Messenger"/"Instagram"
@@ -634,6 +635,7 @@ export default function ChatThread({
   botHandoffAt = null,
   botHandoffReason = null,
   isChatbotTestThread = false,
+  botCouldReply = false,
   channel,
   channelName,
   channelAvatarUrl,
@@ -746,7 +748,7 @@ export default function ChatThread({
   // ส่งข้อความที่ Meta จะรับจริง. ปล่อยให้ส่งแล้วโชว์เหตุผลบนบับเบิลถ้าไม่ผ่าน ตรงความจริงกว่า
   // (ฝั่ง service เลิกบล็อกล่วงหน้าให้ข้อความที่คนพิมพ์เองแล้ว — channel-chat.service.ts)
   const composerDisabled = isExternal && tokenInvalid
-  // แถบเตือน "อาจส่งไม่สำเร็จ" — ไม่บล็อกอะไร แค่บอกความเสี่ยงก่อนกดส่ง
+  // แถบเตือน "อาจส่งไม่สำเร็จ" — ไม่บล็อกอะไร แค่บอกความเสี่ยงตอนกำลังจะกดส่ง
   const sendAtRisk = isExternal && !tokenInvalid && !liveWindowOpen
   // feature 00018: ช่องทางนอก (Messenger/IG) ส่งรูปได้แล้ว (ผ่าน presigned URL) — แนบรูปปิดเฉพาะ
   // ตอนส่งไม่ได้ (window ปิด/token ตาย) เท่านั้น ไม่ปิดเพราะเป็นช่องทางนอกอีกต่อไป
@@ -776,6 +778,7 @@ export default function ChatThread({
     setReplyingTo,
     retryMessage,
     resendMessage,
+    cancelMessage,
     externalReadAt: externalReadAtLive,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
@@ -959,6 +962,136 @@ export default function ChatThread({
     }
   }
 
+  // ── สถานะห้อง (user report 2026-08-02: alert box ซ้อนกันรกจอ) ───────────────────────
+  // ประกอบเป็นรายการเดียวเรียงตามความสำคัญ แล้วให้ ThreadStatusBar ตัดสินใจเรื่องการแสดงผล
+  // (ยุบ/กาง) ที่เดียว — ก่อนหน้านี้แต่ละสถานะเป็น JSX แยกกันในหน้า จึงไม่มีใครรู้ว่ารวมแล้ว
+  // มีกี่อัน และไม่มีทางจัดลำดับความสำคัญได้เลย
+  const threadStatuses: ThreadStatusItem[] = []
+  if (isExternal && tokenInvalid) {
+    threadStatuses.push({
+      key: 'token',
+      tone: 'danger',
+      icon: 'alert-circle',
+      short: 'การเชื่อมต่อกับเพจนี้มีปัญหา — ต้องเชื่อมต่อใหม่',
+      action: (
+        <Link href="/settings/channels" className="shrink-0 text-xs font-semibold underline">
+          ตั้งค่าช่องทาง
+        </Link>
+      ),
+      detail: (
+        <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-lg" />
+          <span>
+            การเชื่อมต่อกับเพจนี้มีปัญหา — ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่{' '}
+            <Link href="/settings/channels" className="font-semibold underline">
+              ตั้งค่าช่องทาง
+            </Link>
+          </span>
+        </div>
+      ),
+    })
+  }
+  if (isExternal && !tokenInvalid && !liveWindowOpen) {
+    // แยก 3 เคส (user report 2026-07-24 / 2026-07-31):
+    //   1. เธรดที่เกิดจากการตอบคอมเมนต์ — Meta ให้ตอบได้ 1 ข้อความ (private reply) แล้วต้อง
+    //      รอลูกค้าตอบกลับ. ร้านเพิ่งส่งสำเร็จไปหยก ๆ การขึ้นแถบแดงจึงอ่านเหมือนระบบพัง
+    //      ทั้งที่เป็นสถานะปกติตามนโยบาย → ใช้โทน info ไม่ใช่ danger
+    //   2. ลูกค้ายังไม่เคยทักเลย (เธรดมาจากทางอื่น)
+    //   3. ทักแล้วแต่เกิน 24 ชม. — เสียโอกาสจริง แต่ตั้งแต่ 2026-08-03 ไม่บล็อกแล้ว (ดู composerDisabled)
+    //      สีจึงลงจาก danger → warning: danger สงวนไว้ให้สิ่งที่ยืนยันแล้วว่าล้มเหลว/บล็อกจริง
+    //      (token ตาย, แถบใต้บับเบิลที่ส่งไม่ผ่าน) ไม่ใช่สิ่งที่ยังกดส่งได้และอาจผ่าน
+    const soft = isCommentReplyThread || humanAgentOpen
+    threadStatuses.push({
+      key: 'window',
+      tone: soft ? 'info' : 'warning',
+      icon: soft ? 'info-circle' : 'alert-triangle',
+      short: neverInbound
+        ? isCommentReplyThread
+          ? 'ตอบคอมเมนต์ได้ 1 ข้อความ — รอลูกค้าตอบกลับ'
+          : 'ลูกค้ายังไม่เคยทักเข้ามา — อาจส่งไม่สำเร็จ'
+        : humanAgentOpen
+          ? 'เกิน 24 ชั่วโมงแล้ว — ตอบเองได้ ห้ามส่งโปรโมชัน'
+          : 'เกินเวลาที่ Meta ให้ตอบ — อาจส่งไม่สำเร็จ',
+      detail: (
+        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info' : 'bg-warning/15 text-warning'}`}>
+          <Icon icon={soft ? 'info-circle' : 'alert-triangle'} className="mt-0.5 shrink-0 text-lg" />
+          <span>
+            {neverInbound ? (
+              isCommentReplyThread ? (
+                // "แชทนี้" ไม่ใช่ "เธรดนี้" — PRODUCT.md ผูกกลุ่มผู้ใช้ digital-literacy ต่ำไว้
+                // คำทับศัพท์แบบนี้คือ jargon ที่ต้องตัด (impeccable clarify 2026-08-03)
+                'แชทนี้เริ่มจากการตอบกลับความคิดเห็นบนโพสต์ — Meta ให้ส่งได้ครั้งเดียวหลังตอบกลับ ข้อความถัดไปอาจส่งไม่สำเร็จจนกว่าลูกค้าจะทักกลับมา'
+              ) : (
+                'ลูกค้ายังไม่เคยทักเข้ามา — ตามนโยบาย Messenger/Instagram ข้อความที่ร้านทักไปก่อนมักส่งไม่สำเร็จ ลองส่งได้ ถ้าไม่ผ่านจะขึ้นเหตุผลใต้ข้อความ'
+              )
+            ) : humanAgentOpen ? (
+              // ระดับกลาง: เกิน 24 ชม. แต่ยังตอบได้ด้วย HUMAN_AGENT — ต้องบอกข้อจำกัดให้ครบ
+              // เพราะผู้ขายอาจเผลอส่งโปรโมชันซึ่งผิดนโยบายและทำให้แอปโดนระงับได้
+              <>
+                เกิน 24 ชั่วโมงแล้ว แต่ยังตอบเองได้ถึง{' '}
+                <span className="font-semibold">{humanAgentExpiresAt ? formatDateTime(humanAgentExpiresAt) : '7 วันนับจากข้อความล่าสุดของลูกค้า'}</span>{' '}
+                — ต้องเป็นข้อความที่พิมพ์เอง ห้ามส่งโปรโมชัน (นโยบาย Meta)
+              </>
+            ) : (
+              // ห้ามเขียนว่า "เกิน 7 วัน" ตรงนี้ (impeccable clarify 2026-08-03) — สาขานี้เข้าเมื่อ
+              // humanAgentOpen เป็นเท็จ ซึ่งเกิดได้จาก 2 เหตุ: เกิน 7 วันจริง หรือ
+              // META_HUMAN_AGENT_ENABLED ปิดอยู่ (ตอนนี้ปิด เพราะยังไม่ผ่าน App Review)
+              // → ร้านที่ลูกค้าเพิ่งเงียบไป 25 ชม. เห็นข้อความ "เกิน 7 วัน" ที่ไม่จริง
+              // เขียนเป็น 24 ชม. แทน — จริงทั้งสองเหตุ (7 วันก็เกิน 24 ชม. อยู่แล้ว)
+              'เกินเวลาที่ Meta ให้ตอบ (24 ชม. นับจากลูกค้าทักล่าสุด) — ลองส่งได้ แต่ Meta มักปฏิเสธ ถ้าไม่ผ่านจะขึ้นเหตุผลใต้ข้อความ'
+            )}
+          </span>
+        </div>
+      ),
+    })
+  }
+  // botCouldReply = คำถามที่ BotPausedBanner ไม่มีทางรู้ ("ห้องนี้บอทตอบได้ไหมตั้งแต่แรก")
+  // ส่วน "พักอยู่จริงไหม" ตัดสินที่ getBotPausedSummary ที่เดียว ทั้งแถบยุบและตัวแบนเนอร์เต็ม
+  const botPaused = getBotPausedSummary(botPausedUntil, botHandoffAt)
+  if (botCouldReply && botPaused.show) {
+    threadStatuses.push({
+      key: 'bot',
+      tone: 'warning',
+      icon: 'robot-off',
+      short: botPaused.short,
+      detail: (
+        <BotPausedBanner
+          conversationId={conversationId}
+          pausedUntil={botPausedUntil}
+          handoffAt={botHandoffAt}
+          handoffReason={botHandoffReason}
+        />
+      ),
+    })
+  }
+  if (isChatbotTestThread) {
+    // feature 00023 (user สั่ง 2026-08-01) — ต้องเห็นตั้งแต่เปิดห้อง เพราะข้อความที่บอทส่ง
+    // ในโหมดนี้ถึงลูกค้าจริง ไม่ใช่การจำลอง คนที่ไม่รู้จะนึกว่าปลอดภัยแล้วลองพิมพ์เล่น
+    threadStatuses.push({
+      key: 'chatbot-test',
+      tone: 'info',
+      icon: 'flask',
+      short: 'ห้องนี้กำลังใช้ทดสอบ DeepAI — บอทตอบถึงลูกค้าจริง',
+      action: (
+        <Link href="/settings/chatbot" className="shrink-0 text-xs font-semibold underline">
+          ตั้งค่า
+        </Link>
+      ),
+      detail: (
+        <div className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <Icon icon="flask" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            ห้องนี้กำลังใช้ทดสอบ DeepAI
+            <span className="block text-xs">ข้อความที่บอทตอบถูกส่งถึงลูกค้าจริง ไม่ใช่การจำลอง</span>
+          </span>
+          <Link href="/settings/chatbot" className="shrink-0 text-xs font-semibold underline">
+            ตั้งค่า
+          </Link>
+        </div>
+      ),
+    })
+  }
+
   return (
     <>
     <div className="card min-w-0 h-full flex-1 flex flex-col"> {/* h-full: parent คุมความสูงที่เหลือให้แล้ว (ดู comment หัวไฟล์) */}
@@ -980,10 +1113,19 @@ export default function ChatThread({
             <Icon icon="arrow-left" className="text-lg" />
           </Link>
           <ChatAvatar avatar={buyerAvatar} name={buyerName} />
-          <div className="min-w-0">
+          {/* justify-center: ชื่อ+ชิปอยู่กึ่งกลางแนวตั้งเทียบกับ avatar (user สั่ง 2026-08-02)
+              — เดิมกล่องนี้สูงไม่เท่า avatar เลยดูลอยสูงกว่ากลางรูป */}
+          <div className="flex min-w-0 flex-col justify-center">
             <h5 className="text-base mb-1.25">{buyerName}</h5>
             <div className="flex flex-wrap items-center gap-1.5">
-              <ChannelBadge channel={channel} label={channelName} imageUrl={channelAvatarUrl} />
+              {/* ไม่ส่ง imageUrl → ชิปใช้ "โลโก้แบรนด์ของช่องทาง" (f สีน้ำเงิน / IG) ให้ตรงกับ
+                  แผงลูกค้าฝั่งขวาที่เป็นแบบนี้อยู่แล้ว (user สั่ง 2026-08-02)
+                  เดิมส่ง avatar ของเพจเข้าไป ทำให้ชิปโชว์รูปเพจ ซึ่งซ้ำกับสิ่งที่ผู้ใช้เพิ่งเห็น
+                  และไม่ได้บอกว่าเป็นช่องทางไหน — ข้อมูลที่ชิปนี้มีหน้าที่บอกจริง ๆ
+                  ห้ามเติมตราช่องทางซ้อนบน avatar ที่นี่ด้วย: ลองแล้ว 2026-08-02 กลายเป็นไอคอน
+                  เพจโผล่ 2 ที่ติดกัน (user report "ทำไม icon เพจมันซ้อนกัน") — หัวเธรดบอกช่องทาง
+                  ที่ชิปที่เดียวพอ ต่างจากรายการแชทที่ไม่มีชิปจึงต้องใช้ตราบนรูป */}
+              <ChannelBadge channel={channel} label={channelName} />
             </div>
           </div>
         </div>
@@ -1095,117 +1237,24 @@ export default function ChatThread({
         </div>
       )}
 
-      {/* feature 00023 — ห้องนี้กำลังใช้ทดสอบ DeepAI (user สั่ง 2026-08-01)
-          ต้องเห็นตั้งแต่เปิดห้อง เพราะข้อความที่บอทส่งในโหมดนี้ถึงลูกค้าจริง
-          ไม่ใช่การจำลอง — คนที่ไม่รู้จะนึกว่าปลอดภัยแล้วลองพิมพ์เล่น */}
-      {isChatbotTestThread && (
-        <div className="px-4 pt-4">
-          <div className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
-            <Icon icon="flask" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
-            <span className="min-w-0 flex-1">
-              ห้องนี้กำลังใช้ทดสอบ DeepAI
-              <span className="block text-xs">ข้อความที่บอทตอบถูกส่งถึงลูกค้าจริง ไม่ใช่การจำลอง</span>
-            </span>
-            <Link href="/settings/chatbot" className="shrink-0 text-xs font-semibold underline">
-              ตั้งค่า
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {/* feature 00023 — บอทถูกพัก/ส่งต่อคนแล้ว
-          อยู่เหนือแบนเนอร์ 24 ชม. เพราะตอบคำถามคนละข้อกัน: อันนั้นบอกว่า "ส่งได้ไหม"
-          อันนี้บอกว่า "ทำไมบอทเงียบ" ซึ่งเป็นสิ่งที่ร้านสงสัยก่อนเสมอเมื่อเห็นห้องไม่ขยับ */}
-      {(botPausedUntil || botHandoffAt) && (
-        <div className="px-4 pt-4">
-          <BotPausedBanner
-            conversationId={conversationId}
-            pausedUntil={botPausedUntil}
-            handoffAt={botHandoffAt}
-            handoffReason={botHandoffReason}
-          />
-        </div>
-      )}
-
-      {/* feature 00018 T4 — แบนเนอร์ "ส่งไม่ได้แล้ว" / token invalid (เฉพาะ channel != DEEP)
-          user สั่ง 2026-07-26 ให้ลดความเข้มข้นของการเตือน: window เปิดและเหลือ > 4 ชม. = ไม่แสดงอะไรเลย
-          (เดิม BRD §6.5 ให้แสดงแถบฟ้าตลอดเวลา — รบกวนสายตาโดยไม่จำเป็นเพราะเคสปกติเหลือเวลาเยอะอยู่แล้ว)
-          user สั่ง 2026-08-02: tier "≤ 4 ชม." (นับถอยหลัง) ย้ายไปเป็นข้อความชิดขวาบนหัวเธรดแล้ว
-          เหลือที่นี่เฉพาะสถานะที่ "ส่งไม่ได้จริง" ซึ่งต้องอธิบายยาวและมีทางแก้ให้กด */}
-      {isExternal && (tokenInvalid || !liveWindowOpen) && (
-        <div className="px-4 pt-4">
-          {tokenInvalid ? (
-            <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
-              <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-lg" />
-              <span>
-                การเชื่อมต่อกับเพจนี้มีปัญหา — ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่{' '}
-                <Link href="/settings/channels" className="font-semibold underline">
-                  ตั้งค่าช่องทาง
-                </Link>
-              </span>
-            </div>
-          ) : (
-            // แยก 3 เคส (user report 2026-07-24 / 2026-07-31):
-            //   1. เธรดที่เกิดจากการตอบคอมเมนต์ — Meta ให้ตอบได้ 1 ข้อความ (private reply) แล้วต้อง
-            //      รอลูกค้าตอบกลับ. ร้านเพิ่งส่งสำเร็จไปหยก ๆ การขึ้นแถบแดงจึงอ่านเหมือนระบบพัง
-            //      ทั้งที่เป็นสถานะปกติตามนโยบาย → ใช้โทน info ไม่ใช่ danger
-            //   2. ลูกค้ายังไม่เคยทักเลย (เธรดมาจากทางอื่น)
-            //   3. ทักแล้วแต่เกิน 24 ชม. — อันนี้เป็นการเสียโอกาสจริง คงโทนแดงไว้
-            <div
-              className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${
-                // สีต้องสื่อ "สิ่งที่อาจเกิด" ไม่ใช่ "สิ่งที่เกิดแล้ว" (2026-08-03): danger สงวนไว้ให้
-                // สิ่งที่ยืนยันแล้วว่าล้มเหลว/บล็อกจริง (token ตาย, badge ใต้บับเบิลที่ส่งไม่ผ่าน)
-                // เคสหน้าต่างเวลาทั้งหมดตอนนี้ "ยังลองได้" จึงเป็น warning ไม่ใช่ danger
-                // info เหลือไว้ให้ข้อเท็จจริงที่เป็นกลาง (นโยบายตอบคอมเมนต์ / ยังตอบเองได้ถึงวันที่)
-                isCommentReplyThread || humanAgentOpen
-                  ? 'bg-info/15 text-info'
-                  : 'bg-warning/15 text-warning'
-              }`}
-            >
-              <Icon
-                icon={isCommentReplyThread || humanAgentOpen ? 'info-circle' : 'alert-triangle'}
-                className="mt-0.5 shrink-0 text-lg"
-              />
-              <span>
-                {neverInbound ? (
-                  isCommentReplyThread ? (
-                    // "แชทนี้" ไม่ใช่ "เธรดนี้" — PRODUCT.md ผูกกลุ่มผู้ใช้ที่ digital-literacy ต่ำไว้
-                    // คำทับศัพท์แบบนี้คือ jargon ที่ต้องตัดออก (คำว่า "เธรด" ที่เหลือในโค้ดอยู่ใน comment)
-                    'แชทนี้เริ่มจากการตอบกลับความคิดเห็นบนโพสต์ — Meta ให้ส่งได้ครั้งเดียวหลังตอบกลับ ข้อความถัดไปอาจส่งไม่สำเร็จจนกว่าลูกค้าจะทักกลับมา'
-                  ) : (
-                    'ลูกค้ายังไม่เคยทักเข้ามา — ตามนโยบาย Messenger/Instagram ข้อความที่ร้านทักไปก่อนมักส่งไม่สำเร็จ ลองส่งได้ ถ้าไม่ผ่านจะขึ้นเหตุผลใต้ข้อความ'
-                  )
-                ) : humanAgentOpen ? (
-                  // ระดับกลาง: เกิน 24 ชม. แต่ยังตอบได้ด้วย HUMAN_AGENT — ต้องบอกข้อจำกัดให้ครบ
-                  // เพราะผู้ขายอาจเผลอส่งโปรโมชันซึ่งผิดนโยบายและทำให้แอปโดนระงับได้
-                  <>
-                    เกิน 24 ชั่วโมงแล้ว แต่ยังตอบเองได้ถึง{' '}
-                    <span className="font-semibold">{humanAgentExpiresAt ? formatDateTime(humanAgentExpiresAt) : '7 วันนับจากข้อความล่าสุดของลูกค้า'}</span>{' '}
-                    — ต้องเป็นข้อความที่พิมพ์เอง ห้ามส่งโปรโมชัน (นโยบาย Meta)
-                  </>
-                ) : (
-                  // ห้ามเขียนว่า "เกิน 7 วัน" ตรงนี้ — สาขานี้เข้าเมื่อ humanAgentOpen เป็นเท็จ ซึ่ง
-                  // เกิดได้จาก 2 เหตุ: เกิน 7 วันจริง หรือ META_HUMAN_AGENT_ENABLED ปิดอยู่ (ตอนนี้ปิด)
-                  // แปลว่าร้านที่ลูกค้าเพิ่งเงียบไป 25 ชม. ก็เห็นข้อความ "เกิน 7 วัน" ซึ่งไม่จริง
-                  // เขียนเป็น 24 ชม. แทน — จริงทั้งสองเหตุ (7 วันก็เกิน 24 ชม. อยู่แล้ว)
-                  'เกินเวลาที่ Meta ให้ตอบ (24 ชม. นับจากลูกค้าทักล่าสุด) — ลองส่งได้ แต่ Meta มักปฏิเสธ ถ้าไม่ผ่านจะขึ้นเหตุผลใต้ข้อความ'
-                )}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
+      {/* แถบสถานะห้อง — ยุบเป็นบรรทัดเดียว กดกางดูรายละเอียด (user report 2026-08-02:
+          "alert box เยอะ ๆ ไม่ work มันรกหน้าจอมาก") ลำดับใน array = ลำดับความสำคัญ:
+          ส่งไม่ได้เลย > ส่งได้แบบมีเงื่อนไข > บอทเงียบ > โหมดทดสอบ
+          ตัวแรกคือตัวที่โชว์ตอนยุบ ที่เหลือนับเป็น +N */}
+      <ThreadStatusBar items={threadStatuses} />
 
       {/* scroll body — plain div + ref (ไม่ SimpleBar ตาม spec, ต้อง programmatic scroll) */}
       {/* overscroll-contain (user report prod 2026-07-23: "เวลา scroll มันไปถึง fixed ด้านบนเลย
           ทำให้ด้านบนขยับตลอด"): เมื่อเลื่อนถึงหัว/ท้ายรายการข้อความ เบราว์เซอร์จะส่ง scroll ต่อไปให้
           ancestor ที่เลื่อนได้ (scroll chaining) → คอลัมน์กลางของ (chat)/layout.tsx และหน้าเว็บ
           ขยับตาม หัวแชทเลื่อนหนีทั้งที่ควรค้าง. overscroll-contain ตัด chain ที่ container นี้ */}
-      {/* pb-0 + last:mb-1 (user สั่ง 2026-07-23: "ข้อความสุดท้ายห่างจากช่องพิมพ์มากเกินไป เปลืองพื้นที่"):
-          ระยะห่างเดิมเป็นผลรวม 3 ชั้น — `my-5` ของแถวสุดท้าย (20px) + `py-4` ของกล่อง scroll (16px)
-          + `py-3.75` ของ composer (15px) ≈ 51px. ตัดชั้นกลางทิ้ง (pb-0) และหุบ margin ล่างของ
-          "แถวสุดท้ายเท่านั้น" เหลือ 4px → ~19px โดยจังหวะห่างระหว่าง bubble (my-5 ตาม Base
-          ChatPage.tsx) ไม่เปลี่ยนแม้แต่นิดเดียว */}
+      {/* ระยะห่าง "ข้อความสุดท้าย ↔ เส้นประเหนือช่องพิมพ์" — ปรับมาแล้ว 2 รอบ บันทึกไว้กันปรับวน:
+          เดิมเป็นผลรวม 3 ชั้น (my-5 ของแถวสุดท้าย 20px + py-4 ของกล่อง scroll 16px +
+          py-3.75 ของ composer 15px ≈ 51px) → 2026-07-23 user ว่า "ห่างเกินไป เปลืองพื้นที่"
+          จึงตัดชั้นกลาง (pb-0) + หุบ margin แถวสุดท้ายเหลือ 4px = ~19px
+          → 2026-08-02 user ว่ากลับกัน "ชิดเส้นประเกินไป" (เห็นชัดสุดกับสติกเกอร์/รูปที่ขอบล่าง
+          เป็นเนื้อภาพเต็ม ไม่มี padding ในตัวแบบบับเบิลข้อความ) จึงขยับเป็น mb-3 (12px) = ~27px
+          ครึ่งทางของสองรอบ — ไม่แตะ my-5 ระหว่างบับเบิล จังหวะการอ่านในเธรดจึงไม่เปลี่ยน */}
       {/* relative: ให้แผงข้อความสำเร็จรูปวางทับ "พื้นที่ข้อความ" ได้พอดี (user สั่ง 2026-07-31
           "อยากปรับให้ panel นี้เต็มช่องแชทไปเลย") — วางทับแทนที่จะดันเลย์เอาต์ เพราะลิสต์ข้อความ
           ยัง mount อยู่ ตำแหน่ง scroll จึงไม่รีเซ็ตตอนปิดแผง */}
@@ -1256,7 +1305,7 @@ export default function ChatThread({
       <div
         ref={scrollRef}
         {...longPress.handlers}
-        className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-1"
+        className="card-body min-h-0 grow overflow-y-auto overscroll-contain pt-4 pb-0 [&>*:last-child>*:last-child]:mb-3"
       >
         {oldestCursor && (
           <div ref={topSentinelRef} className="flex justify-center py-2">
@@ -1345,6 +1394,65 @@ export default function ChatThread({
                 // feature 00018 T4 (ภาคผนวก A-3): deliveryStatus/failureReason มีจริงตอน runtime
                 // (getMessages ไม่ select เลย คืนทุกคอลัมน์ของ ChatMessage — ดู comment หัวไฟล์)
                 const mExt = m as ChatMessageWithDelivery
+                // ── ส่งไม่สำเร็จ (user สั่ง 2026-08-02) ─────────────────────────────────
+                // รวม 2 เส้นทางให้เป็นสถานะเดียวกันในสายตาผู้ขาย เพราะสำหรับเขามันคือเรื่อง
+                // เดียวกัน ("ข้อความนี้ไม่ถึงลูกค้า") ต่างกันแค่ว่าพลาดตรงไหน:
+                //   - deliveryStatus='FAILED' = บันทึกลง DB แล้ว แต่ Meta ปฏิเสธ (มีเหตุผลให้ดู)
+                //   - _status='failed'        = บับเบิล optimistic ที่ยังไม่เคยถึง server ของเรา
+                const failedPersisted = mExt.deliveryStatus === 'FAILED'
+                const failed = mine && (failedPersisted || m._status === 'failed')
+                const failDetail = failedPersisted ? describeSendFailure(mExt.failureReason) : null
+                // ฝั่ง optimistic เคยไม่มีเหตุผลให้ดู (เห็นแต่ toast ตอนกดส่ง) — แต่ toast หายเองใน
+                // ไม่กี่วินาที เหลือบับเบิลแดงที่ไม่บอกว่าทำไม. ตั้งแต่เลิกล็อกช่องพิมพ์ตามหน้าต่าง
+                // 24 ชม. (2026-08-03) บับเบิลล้มเหลวเกิดถี่ขึ้นมาก เหตุผลจึงต้องอยู่ติดข้อความถาวร
+                // เท่ากันทั้งสองเส้นทาง — hook เก็บไว้ที่ `_failReason` ให้แล้ว
+                const failReason = failDetail
+                  ? failDetail.known && failDetail.metaCode !== null
+                    ? `${failDetail.text} (Meta #${failDetail.metaCode})`
+                    : failDetail.text
+                  : stripSendFailurePrefix(m._failReason)
+                // ส่งซ้ำได้เฉพาะชนิดที่ประกอบ payload กลับได้ครบจากแถวที่เก็บไว้: TEXT ใช้ body,
+                // ไฟล์แนบทุกชนิดใช้ imageUrl (=fileId ที่ยังอยู่ใน storage — คอลัมน์เดียวกันหมดทั้ง
+                // IMAGE/VIDEO/AUDIO/FILE). ORDER เก็บแต่ orderRefToken ส่วนข้อความลิงก์ที่ยิงจริง
+                // ประกอบขึ้นตอนส่งและไม่ได้เก็บไว้ → ต้องส่งการ์ดใหม่จากออเดอร์
+                //
+                // 2026-08-03: เดิมเช็คแค่ TEXT/IMAGE ทำให้ VIDEO/AUDIO/FILE ที่ล้มเหลวไม่มีปุ่มส่งใหม่
+                // เลย ทั้งที่ resendMessage/OutgoingRetry รองรับครบ 4 ชนิดอยู่แล้ว — ร้านต้องแนบไฟล์
+                // ใหม่จากศูนย์ทุกครั้ง ซึ่งเจ็บขึ้นมากหลังเลิกล็อกช่องพิมพ์ (ล้มเหลวบ่อยขึ้น)
+                const retryAttachment =
+                  (m.type === 'IMAGE' || m.type === 'VIDEO' || m.type === 'AUDIO' || m.type === 'FILE') &&
+                  !!m.imageUrl
+                const canRetryFailed = failedPersisted
+                  ? (m.type === 'TEXT' && !!m.body?.trim()) || retryAttachment
+                  : !!m._retry
+                const retryFailed = () => {
+                  if (failedPersisted) {
+                    resendMessage({
+                      type: retryAttachment ? (m.type as 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE') : 'TEXT',
+                      body: m.body,
+                      ...(retryAttachment ? { imageUrl: m.imageUrl! } : {}),
+                    })
+                  } else if (m._retry) {
+                    retryMessage(m.id, m._retry)
+                  }
+                }
+                // ถามยืนยันก่อน: เนื้อความหายถาวร กู้ไม่ได้ (undo ทำไม่ได้เพราะแถวถูกลบจริง)
+                const cancelFailed = async () => {
+                  const r = await Swal.fire({
+                    buttonsStyling: false,
+                    icon: 'warning',
+                    title: 'ยกเลิกการส่งข้อความนี้?',
+                    text: 'ข้อความจะหายไปจากห้องแชทและกู้คืนไม่ได้ — ลูกค้าไม่เคยได้รับข้อความนี้อยู่แล้ว',
+                    showCancelButton: true,
+                    confirmButtonText: 'ยกเลิกการส่ง',
+                    cancelButtonText: 'เก็บไว้ก่อน',
+                    customClass: {
+                      confirmButton: 'btn bg-danger text-white hover:bg-danger-hover mt-2 me-2',
+                      cancelButton: 'btn bg-light hover:text-default-800 mt-2',
+                    },
+                  })
+                  if (r.isConfirmed) await cancelMessage(m.id)
+                }
                 // ปุ่มคัดลอกข้อความ — โผล่ตอน hover เฉพาะ desktop (lg:group-hover) และเฉพาะข้อความที่มี text
                 // (user request 2026-07-24) วางข้างบับเบิล: ฝั่งเรา=ซ้าย, ฝั่งลูกค้า=ขวา
                 const copyBtn = m.body ? <CopyMessageButton text={m.body} /> : null
@@ -1466,29 +1574,13 @@ export default function ChatThread({
                             {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
                             {m.type === 'VIDEO' && m.imageUrl && (
                               <>
-                                {/* playsInline: บังคับสำหรับ iOS (WKWebView ในแอปมือถือ) — ถ้าไม่มี
-                                    iOS จะไม่เล่น inline และในหลาย config เล่นไม่ได้เลย. ใช้ค่าเดียวกับ
-                                    preview ไฟล์แนบด้านล่างในไฟล์นี้
-                                    preload="metadata": ดึงแค่ส่วนหัวไฟล์เพื่อให้ได้เฟรมแรก + ความยาว
-                                    (เดิมไม่ระบุ → เห็นเป็นกล่องดำล้วน) โดยไม่ดึงวิดีโอทั้งก้อน */}
-                                <video
-                                  src={`/api/files/${m.imageUrl}`}
-                                  controls
-                                  playsInline
-                                  preload="metadata"
-                                  className="max-w-60 rounded"
-                                />
+                                <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
                                 <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกวิดีโอ" attachmentName={m.attachmentName} />
                               </>
                             )}
                             {m.type === 'AUDIO' && m.imageUrl && (
                               <>
-                                <audio
-                                  src={`/api/files/${m.imageUrl}`}
-                                  controls
-                                  preload="metadata"
-                                  className="max-w-60"
-                                />
+                                <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
                                 <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกไฟล์เสียง" attachmentName={m.attachmentName} />
                               </>
                             )}
@@ -1562,67 +1654,6 @@ export default function ChatThread({
                           </span>
                         </div>
                       )}
-                      {/* feature 00018 T4 — badge "ส่งไม่สำเร็จ" ใต้ bubble (deliveryStatus='FAILED';
-                          null สำหรับข้อความแชทในแอปเดิมทั้งหมด — เงื่อนไขนี้จึงไม่ trigger กับ DEEP) */}
-                      {/* 2026-08-03: รวมสองเส้นทางที่ล้มเหลวให้เป็นภาพเดียวกัน
-                          (ก) deliveryStatus='FAILED' — แถวที่บันทึกลง DB แล้วแต่ Meta ปฏิเสธ
-                          (ข) _status='failed' — ข้อความ optimistic ที่ยังไปไม่ถึง server
-                          เดิม (ข) มีแค่ลิงก์ "ลองใหม่" ลอย ๆ ไม่บอกเหตุผลเลย พอเลิกล็อกช่องพิมพ์
-                          ทั้งสองเคสจะเกิดถี่ขึ้นพร้อมกัน การมีสองมาตรฐานภาพทำให้ร้านสับสนว่า
-                          ทำไมบางทีมีเหตุผลบางทีไม่มี */}
-                      {(mExt.deliveryStatus === 'FAILED' || (mine && m._status === 'failed')) &&
-                        (() => {
-                          const persisted = mExt.deliveryStatus === 'FAILED'
-                          // Meta ตอบ error เป็นภาษาอังกฤษเสมอแม้เพจตั้งภาษาไทย — เดิมโชว์ดิบ
-                          // ("(#551) This person isn't available right now.") ร้านอ่านไม่ออกว่า
-                          // ต้องทำอะไรต่อ (user report 2026-08-02) แปลตอนแสดงผล ส่วน DB ยังเก็บดิบไว้
-                          const fail = persisted ? describeSendFailure(mExt.failureReason) : null
-                          const line = fail ? fail.message : withSendFailurePrefix(m._failReason)
-                          // ส่งซ้ำได้เฉพาะชนิดที่ประกอบ payload กลับได้ครบจากแถวที่เก็บไว้ (user 2026-08-02):
-                          // TEXT ใช้ body, ไฟล์แนบทุกชนิดใช้ imageUrl (=fileId ที่ยังอยู่ใน storage —
-                          // คอลัมน์เดียวกันหมดทั้ง IMAGE/VIDEO/AUDIO/FILE). ORDER เก็บแต่ orderRefToken
-                          // ส่วนข้อความลิงก์ที่ยิงจริงประกอบขึ้นตอนส่งและไม่ได้เก็บไว้ → ส่งซ้ำจากตรงนี้
-                          // ไม่ได้ ต้องส่งการ์ดใหม่จากออเดอร์
-                          const attachmentType =
-                            m.type === 'IMAGE' || m.type === 'VIDEO' || m.type === 'AUDIO' || m.type === 'FILE'
-                          const canResend = persisted
-                            ? (m.type === 'TEXT' && !!m.body?.trim()) || (attachmentType && !!m.imageUrl)
-                            : !!m._retry
-                          return (
-                            <div className="bg-danger/15 text-danger mt-1.5 flex items-start gap-1 rounded px-2 py-1 text-2xs">
-                              <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-sm" />
-                              {/* break-words: เหตุผลที่ระบบยังไม่รู้จักจะเป็นข้อความดิบของ Meta ซึ่งอาจยาว
-                                  และไม่มีช่องว่าง (URL/โค้ด) — ต้องไม่ดันขอบบับเบิลบนจอมือถือ */}
-                              <span className="break-words">
-                                {line}
-                                {/* คงเลข error ไว้ให้ร้านแจ้งซัพพอร์ตอ้างอิงได้ (เฉพาะกรณีที่แปลแล้ว —
-                                    กรณีไม่รู้จักเลขอยู่ในข้อความดิบอยู่แล้ว จะซ้ำ) */}
-                                {fail?.known && fail.metaCode !== null && (
-                                  <span className="opacity-70"> (Meta #{fail.metaCode})</span>
-                                )}
-                                {canResend && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      persisted
-                                        ? resendMessage({
-                                            type: attachmentType ? m.type : 'TEXT',
-                                            body: m.body,
-                                            ...(attachmentType ? { imageUrl: m.imageUrl! } : {}),
-                                          } as OutgoingRetry)
-                                        : retryMessage(m.id, m._retry!)
-                                    }
-                                    // -my-1 กันไม่ให้ padding ที่ใส่เพื่อขยายพื้นที่กดดันแถบสูงขึ้น
-                                    className="ms-1 -my-1 inline-flex items-center gap-0.5 px-1 py-1 font-medium hover:underline"
-                                  >
-                                    <Icon icon="refresh" />
-                                    ลองใหม่
-                                  </button>
-                                )}
-                              </span>
-                            </div>
-                          )
-                        })()}
                       {/* meta row (user request 2026-07-23): เวลาเป็นกลุ่ม (ท้าย burst, ไม่ทุกข้อความ) +
                           avatar เพจ/ร้าน ย้ายมาอยู่ใต้ข้อความ ขนาดเล็ก (size-5) + สถานะส่ง/อ่าน.
                           กำลังส่ง = ไม่มีเวลา; ข้อความล่าสุดซ่อนเวลาหลังส่งเกิน 1 นาที */}
@@ -1630,10 +1661,58 @@ export default function ChatThread({
                         (mine &&
                           (atBurstEnd ||
                             m._status === 'sending' ||
-                            (m._status === 'failed' && m._retry) ||
+                            failed ||
                             m.id === lastShopMsgId ||
                             m._status === 'sent'))) && (
-                        <div className={`text-default-400 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                        <div className={`text-default-400 mt-1 flex flex-wrap items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                          {/* ส่งไม่สำเร็จ — อยู่ "หน้าเวลา" (user สั่ง 2026-08-02) แทนกล่องแดงเต็มบรรทัด
+                              ใต้บับเบิลแบบเดิม ซึ่งกินพื้นที่เท่าข้อความอีกอันทั้งที่เป็นสถานะของ
+                              ข้อความที่อยู่ข้างบนมันเอง. รูปแบบ: [ส่งใหม่] ส่งไม่สำเร็จ (i) | ยกเลิก
+                              เหตุผลเต็มย้ายไปอยู่ใน (i) — hover เห็น, แตะได้บนมือถือที่ไม่มี hover */}
+                          {failed && (
+                            <span className="text-danger flex items-center gap-1">
+                              {canRetryFailed && (
+                                <button
+                                  type="button"
+                                  onClick={retryFailed}
+                                  title="ส่งข้อความนี้ใหม่"
+                                  aria-label="ส่งข้อความนี้ใหม่"
+                                  className="hover:bg-danger/10 -m-1 flex items-center rounded p-1"
+                                >
+                                  <Icon icon="refresh" className="text-sm" />
+                                </button>
+                              )}
+                              <span>ส่งไม่สำเร็จ</span>
+                              {failReason && (
+                                <button
+                                  type="button"
+                                  title={failReason}
+                                  aria-label={`สาเหตุ: ${failReason}`}
+                                  onClick={() =>
+                                    Swal.fire({
+                                      buttonsStyling: false,
+                                      icon: 'info',
+                                      title: 'ส่งข้อความไม่สำเร็จ',
+                                      text: failReason,
+                                      confirmButtonText: 'เข้าใจแล้ว',
+                                      customClass: {
+                                        confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2',
+                                      },
+                                    })
+                                  }
+                                  className="hover:bg-danger/10 -m-1 flex items-center rounded p-1"
+                                >
+                                  <Icon icon="info-circle" className="text-sm" />
+                                </button>
+                              )}
+                              <span className="text-default-300" aria-hidden="true">
+                                |
+                              </span>
+                              <button type="button" onClick={cancelFailed} className="hover:underline">
+                                ยกเลิกการส่งข้อความ
+                              </button>
+                            </span>
+                          )}
                           {showTime && (
                             <span className="flex items-center gap-1" title={formatTime(m.createdAt)}>
                               <Icon icon="clock" />
@@ -1646,10 +1725,9 @@ export default function ChatThread({
                               กำลังส่ง
                             </span>
                           )}
-                          {/* ปุ่ม "ลองใหม่" ของข้อความ optimistic ย้ายไปอยู่ใน badge ด้านบนแล้ว
-                              (2026-08-03) — ที่นั่นมีเหตุผลกำกับด้วย ตรงนี้จึงเหลือแค่เวลา/สถานะ
-                              ไม่งั้นจะมีปุ่มชื่อเดียวกันสองอันติดกันบนบับเบิลเดียว */}
-                          {mine && m._status !== 'sending' && m._status !== 'failed' && m.id === lastShopMsgId ? (
+                          {/* !failed: บับเบิลที่ยิงไม่ออกเคยขึ้น "ส่งแล้ว" ควบคู่กับแถบแดง เพราะเงื่อนไข
+                              เดิมดูแค่ _status (undefined สำหรับแถวที่บันทึกแล้ว) ไม่ได้ดู deliveryStatus */}
+                          {mine && m._status !== 'sending' && !failed && m.id === lastShopMsgId ? (
                             readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
                               <span className="text-success flex items-center gap-0.5">
                                 <Icon icon="checks" /> อ่านแล้ว
@@ -1666,18 +1744,38 @@ export default function ChatThread({
                               อยู่ด้านซ้าย และ icon page อยู่ชิดขวาเสมอ") — แถวนี้ justify-end อยู่แล้ว
                               พอ avatar เป็น child สุดท้ายจึงชิดขอบขวาของคอลัมน์ข้อความ ส่วนเวลา/สถานะ
                               ไหลไปทางซ้ายของมัน (เดิม avatar เป็น child ตัวแรก = ไปอยู่ซ้ายสุดของกลุ่ม) */}
-                          {mine && atBurstEnd && (
-                            <ChatAvatar
-                              avatar={shopAvatar}
-                              name={buyerName}
-                              size="size-5"
-                              fallback={
-                                <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
-                                  <Icon icon="building-store" className="size-3" />
-                                </span>
-                              }
-                            />
-                          )}
+                          {/* ใครเป็นคนตอบ (user สั่ง 2026-08-02) — ร้านที่มีพนักงานหลายคนย้อนดู
+                              ไม่ได้เลยว่าใครตอบข้อความไหน เพราะทุกบับเบิลใช้โลโก้เพจเหมือนกันหมด
+                                m.sender มีค่า  → รูปคนนั้น (ไม่มีรูป = ไอคอนคน placeholder) + ชื่อตอน hover
+                                m.sender = null → ข้อความมาทาง webhook/บอท ไม่มี "คน" ให้แสดง → รูปเพจตามเดิม */}
+                          {mine &&
+                            atBurstEnd &&
+                            (m.sender ? (
+                              <span title={m.sender.name}>
+                                <ChatAvatar
+                                  avatar={m.sender.avatar}
+                                  name={m.sender.name}
+                                  size="size-5"
+                                  fallback={
+                                    <span className="bg-default-200 text-default-600 flex size-5 shrink-0 items-center justify-center rounded-full">
+                                      <Icon icon="user" className="size-3" />
+                                    </span>
+                                  }
+                                />
+                                <span className="sr-only">ส่งโดย {m.sender.name}</span>
+                              </span>
+                            ) : (
+                              <ChatAvatar
+                                avatar={shopAvatar}
+                                name={buyerName}
+                                size="size-5"
+                                fallback={
+                                  <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
+                                    <Icon icon="building-store" className="size-3" />
+                                  </span>
+                                }
+                              />
+                            ))}
                         </div>
                       )}
                     </div>
@@ -1865,21 +1963,6 @@ export default function ChatThread({
             </button>
           </div>
         )}
-        {/* เตือนความเสี่ยงตรงจังหวะที่จะกดส่งจริง (2026-08-03) — แบนเนอร์หัวเธรดอธิบายครบก็จริง
-            แต่พอเธรดยาว มันเลื่อนพ้นจอไปแล้วตอนผู้ใช้อยู่ที่ช่องพิมพ์ ซึ่งเป็นวินาทีที่ข้อมูลนี้สำคัญที่สุด
-            เป็นบรรทัดข้อความเปล่า ไม่ใช่การ์ด — กันไม่ให้กลายเป็นการ์ดซ้อนการ์ดกับแบนเนอร์ด้านบน */}
-        {sendAtRisk && (
-          <p className="text-warning mb-1.5 flex items-center gap-1 text-2xs">
-            <Icon icon="alert-triangle" className="shrink-0 text-sm" />
-            {/* "อาจส่งไม่สำเร็จ" (อนาคต ยังไม่รู้ผล) ใช้คำเดียวกันทุกจุดที่เตือนความเสี่ยง
-                แยกขาดจาก "ส่งไม่สำเร็จ" (อดีต เกิดแล้ว) ที่ใช้เฉพาะ badge ใต้บับเบิล */}
-            {isCommentReplyThread
-              ? 'ตอบได้ครั้งเดียวหลังคอมเมนต์ — อาจส่งไม่สำเร็จ'
-              : neverInbound
-                ? 'ลูกค้ายังไม่เคยทักมา — อาจส่งไม่สำเร็จ'
-                : 'เกินเวลาที่ Meta ให้ตอบ — อาจส่งไม่สำเร็จ'}
-          </p>
-        )}
         <div className="flex items-end gap-2">
           {/* ช่องพิมพ์แบบกล่องเดียว — รูปที่แนบแสดง "ในช่องพิมพ์" (user request 2026-07-23) ให้รู้สึกว่า
               รูปติดกับข้อความนี้ (เหมือน Messenger); textarea ข้างในไร้ขอบ (กล่องนอกเป็นคนวาดขอบ) แต่ยัง
@@ -1959,9 +2042,7 @@ export default function ChatThread({
               // ไม่งั้นช่องไม่หดกลับตอนลบข้อความ) — จึงไม่มี style prop / ไม่มี min-h ที่นี่
               ref={composerRef}
               className="block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-0"
-              // เคสเดียวที่ล็อกแล้วคือเพจหลุดการเชื่อมต่อ — บอกเหตุผลกับทางแก้ตรงนี้เลย
-              // ผู้ใช้จะได้ไม่ต้องเลื่อนขึ้นไปอ่านแบนเนอร์หัวเธรด
-              placeholder={composerDisabled ? 'เชื่อมต่อเพจมีปัญหา — ส่งไม่ได้จนกว่าจะเชื่อมใหม่' : pendingImages.length > 0 ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ หรือวางไฟล์ที่นี่...'}
+              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImages.length > 0 ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ หรือวางไฟล์ที่นี่...'}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onPaste={handlePaste} // วางรูปจากคลิปบอร์ด (screenshot/Line/Ctrl+C) → แนบเลย (user 2026-07-25)

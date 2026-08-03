@@ -22,11 +22,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import { getChannelDisplay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 // import type ล้วน — ถูกลบทิ้งตอน compile จึงไม่ลาก service (prisma) เข้า bundle ฝั่ง client
 import type { PhraseOverlap } from '@/services/auto-reply-rule.service'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
-import PagePicker from './PagePicker'
+import PagePicker, { PageAvatar } from './PagePicker'
 import TestThreadsCard from './TestThreadsCard'
 
 const REPLY_MAX = 1000
@@ -331,8 +332,12 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
   async function movePriority(dir: 'up' | 'down') {
     if (dir === 'up' ? !canMoveUp : !canMoveDown) return
     const next = dir === 'up' ? upTarget : downTarget
-    // ชื่อกลุ่มที่อยู่ติดกัน "ก่อนย้าย" คือสิ่งที่ผู้ใช้เห็นบนจอตอนกด จึงเป็นตัวที่ควรพูดถึงใน toast
-    const neighbor = ranking[dir === 'up' ? myRank - 1 : myRank + 1]?.name ?? ''
+    /**
+     * toast ต้องบอกผลจริง ไม่ใช่ผลกับเพื่อนบ้าน — สูตร A-1 กระโดดสุดปลาย ไม่ได้ขยับทีละขั้น
+     * ของเดิมพูดถึงกลุ่มที่อยู่ติดกันกลุ่มเดียว ("จะถูกเลือกก่อน X แล้ว") ซึ่งจริงแต่บอกไม่หมด:
+     * ตอนมี 3 กลุ่มขึ้นไป กดครั้งเดียวแล้วแซงทุกกลุ่ม ผู้ใช้ที่อ่าน toast จะนึกว่าต้องกดอีกหลายที
+     */
+    const otherCount = overlaps.length
     setBusy(true)
     try {
       await callApi(`/api/shops/auto-reply/keywords/${keyword.id}`, {
@@ -343,8 +348,8 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
       setPriority(next)
       pacesToast.success(
         dir === 'up'
-          ? `กลุ่มนี้จะถูกเลือกก่อน "${neighbor}" แล้ว`
-          : `"${neighbor}" จะถูกเลือกก่อนกลุ่มนี้แล้ว`,
+          ? `กลุ่มนี้จะถูกเลือกก่อนอีก ${otherCount} กลุ่มที่ใช้คำซ้ำกันแล้ว`
+          : `อีก ${otherCount} กลุ่มที่ใช้คำซ้ำกันจะถูกเลือกก่อนกลุ่มนี้แล้ว`,
       )
       router.refresh()
     } catch (e) {
@@ -450,12 +455,59 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
     setAddingPhrase(false)
   }
 
-  const condLabel = (r: Rule) => {
-    const parts: string[] = []
-    if (r.shopChannelId) parts.push(`เพจ ${channels.find((c) => c.id === r.shopChannelId)?.name ?? '—'}`)
-    if (r.adId) parts.push(`โฆษณา ${r.adLabel ?? r.adId}`)
-    if (r.productId) parts.push(`สินค้า ${products.find((p) => p.id === r.productId)?.name ?? '—'}`)
-    return parts
+  /**
+   * ชื่อเพจซ้ำกันได้จริง — เพจ Facebook กับบัญชี Instagram ที่ผูกกันมักตั้งชื่อเดียวกันเป๊ะ
+   * (user report 2026-08-02: สร้าง 2 เพจ x 1 โฆษณา แล้วเห็นสองแถวเหมือนกันจนนึกว่าระบบเบิ้ล)
+   * ต่อท้ายด้วยชื่อช่องทางเฉพาะตอนที่ชื่อซ้ำ — ไม่รกในเคสปกติที่ชื่อไม่ซ้ำ
+   */
+  /**
+   * ชิปเงื่อนไข — เพจแสดงโลโก้จริง + ไอคอนช่องทาง (user 2026-08-02 "ให้ดูง่ายขึ้น")
+   *
+   * ชื่อเพจซ้ำกันได้จริง: เพจ Facebook กับบัญชี Instagram ที่ผูกกันมักตั้งชื่อเดียวกันเป๊ะ
+   * (user report: สร้าง 2 เพจ x 1 โฆษณา แล้วเห็นสองแถวเหมือนกันจนนึกว่าระบบเบิ้ล)
+   * โลโก้+ไอคอนแยกออกได้ตั้งแต่แรกเห็น ไม่ต้องอ่านตัวหนังสือเทียบทีละตัว
+   */
+  function CondChips({ r }: { r: Rule }) {
+    const ch = r.shopChannelId ? channels.find((c) => c.id === r.shopChannelId) : null
+    const chip = 'bg-primary/10 text-primary flex max-w-full items-center gap-1 rounded px-2 py-0.5 text-xs font-medium'
+    const display = ch ? getChannelDisplay(ch.provider) : null
+    return (
+      <>
+        {r.shopChannelId && (
+          <span className={chip}>
+            {ch?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={ch.avatarUrl} alt="" className="size-4 flex-none rounded-full object-cover" />
+            ) : (
+              <Icon icon="building-store" className="size-3.5 flex-none" aria-hidden="true" />
+            )}
+            <span className="truncate">{ch?.name ?? '—'}</span>
+            {display && (
+              <Icon
+                icon={display.icon}
+                width={13}
+                height={13}
+                className={`flex-none ${display.iconClassName ?? ''}`}
+                style={display.iconStyle}
+                aria-label={display.label}
+              />
+            )}
+          </span>
+        )}
+        {r.adId && (
+          <span className={chip}>
+            <Icon icon="speakerphone" className="size-3.5 flex-none" aria-hidden="true" />
+            <span className="truncate">{r.adLabel ?? r.adId}</span>
+          </span>
+        )}
+        {r.productId && (
+          <span className={chip}>
+            <Icon icon="package" className="size-3.5 flex-none" aria-hidden="true" />
+            <span className="truncate">{products.find((p) => p.id === r.productId)?.name ?? '—'}</span>
+          </span>
+        )}
+      </>
+    )
   }
 
   return (
@@ -658,14 +710,20 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                       ))}
                     </ul>
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {/* btn-outline ของ mockup ไม่มีนิยามใน Paces (CL-4) → ใช้ light/neutral variant จริง */}
+                      {/* btn-outline ของ mockup ไม่มีนิยามใน Paces (CL-4) → ใช้ light/neutral variant จริง
+
+                          ป้ายต้องบอกสิ่งที่โค้ดทำจริง (critique 2026-07-31 [P1] "เลื่อนขึ้น/ลง
+                          ป้ายบอกอย่าง โค้ดทำอีกอย่าง"): สูตร A-1 คือ
+                          upTarget = max(priority ของกลุ่มอื่นทั้งหมด) + 1 → **กระโดดขึ้นบนสุดทีเดียว**
+                          ไม่ใช่ขยับทีละขั้น (downTarget ก็ลงล่างสุดแบบเดียวกัน)
+                          "เลื่อนขึ้น" ที่กดแล้วแซงทุกกลุ่มรวดเดียว = ป้ายโกหกในหน้าที่มี 3 กลุ่มขึ้นไป */}
                       <button type="button" disabled={!canMoveUp} onClick={() => movePriority('up')}
                         className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0">
-                        <Icon icon="arrow-up" className="size-3" aria-hidden="true" />เลื่อนขึ้น
+                        <Icon icon="arrow-up" className="size-3" aria-hidden="true" />ให้กลุ่มนี้มาก่อนทุกกลุ่ม
                       </button>
                       <button type="button" disabled={!canMoveDown} onClick={() => movePriority('down')}
                         className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 sm:min-h-0">
-                        <Icon icon="arrow-down" className="size-3" aria-hidden="true" />เลื่อนลง
+                        <Icon icon="arrow-down" className="size-3" aria-hidden="true" />ให้กลุ่มอื่นมาก่อน
                       </button>
                       {/* ต้องเห็นเสมอแม้ปุ่มเลื่อนจะ disabled ทั้งคู่ — ไม่งั้นเคส "กลุ่มอื่นอยู่ที่ 1000 แล้ว" จะตัน (A-1b) */}
                       <button type="button" className="text-primary ms-1.5 text-xs font-medium underline underline-offset-4"
@@ -677,9 +735,12 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                 ) : (
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-default-700 text-xs">ยังไม่มีกลุ่มอื่นใช้คำซ้ำกับกลุ่มนี้</span>
+                    {/* ชื่อเดียวกับสาขา overlaps > 0 — ปุ่มตัวเดียวกันเปิดช่องเดียวกัน แต่เดิม
+                        เรียก "ตั้งลำดับเอง" ที่นี่ และ "ตั้งตัวเลขเอง" ข้างบน (clarify: ของชิ้น
+                        เดียวกันต้องใช้คำเดียวกันทั้ง product) */}
                     <button type="button" className="text-primary text-xs font-medium underline underline-offset-4"
                       onClick={() => setShowPriorityInput((v) => !v)}>
-                      ตั้งลำดับเอง
+                      ตั้งตัวเลขเอง
                     </button>
                   </div>
                 )}
@@ -730,9 +791,34 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                     ระบบไล่จากบนลงล่าง เจอข้อแรกที่ตรงก็ตอบข้อนั้นแล้วหยุด
                   </p>
                 )}
+                {/**
+                 * ทำไมต้องบอกว่า "สลับเองไม่ได้" (user ตัดสิน 2026-08-02 ตัด drag drop ออก)
+                 *
+                 * แถวมีเลข 1. 2. 3. ซึ่งเป็น affordance ที่อ่านว่า "ลากสลับได้" — critique
+                 * 2026-07-31 ให้ข้อ User Control 2/4 ด้วยเหตุนี้ ("บันไดมีเลขลำดับแต่เรียงใหม่
+                 * ไม่ได้ ขณะที่บล็อกคำซ้ำที่ไม่มีเลขกลับเลื่อนได้ = affordance กลับหัว")
+                 * ทางแก้ที่ user เลือกคือ **ไม่เพิ่ม drag** แล้วปิดช่องว่างด้วยคำอธิบายแทน
+                 *
+                 * เหตุผลที่เขียนต้องเป็นเหตุผล *จริง* ไม่ใช่ "ระบบจัดการให้": ลำดับมาจาก
+                 * computeSpecificity() = เพจ 4 + โฆษณา 2 + สินค้า 1 (auto-reply-constants.ts:151)
+                 * เรียง desc — ถ้าปล่อยให้ร้านยกข้อที่กว้างกว่าขึ้นไปไว้บน ข้อที่เจาะจงกว่าจะถูก
+                 * ข้อกว้างดักไว้ก่อนทุกครั้ง = ตั้งไปก็ไม่มีวันทำงาน ซึ่งเป็นของที่ผู้ใช้เดาเองไม่ได้
+                 *
+                 * โผล่ที่ >=2 เพราะมี 1 ข้อยังไม่มีลำดับให้เถียง (บรรทัดบนอธิบายพอแล้ว)
+                 */}
+                {exceptions.length >= 2 && (
+                  <p className="text-default-700 mt-1 text-xs">
+                    ข้อที่ระบุเงื่อนไขมากกว่าอยู่บนเสมอ — ระบบเรียงให้เอง สลับเองไม่ได้
+                    เพราะถ้าเอาข้อที่กว้างกว่าขึ้นไปไว้บน ข้อที่เจาะจงกว่าจะไม่มีวันถูกใช้
+                  </p>
+                )}
               </div>
-              {/* NOTE: ปุ่ม "คลังคำถาม" เคยอยู่ตรงนี้ — กลายเป็น Tab "คลังคำตอบ" ของหน้านี้แล้ว
-                  (user สั่ง 2026-08-01) ไม่ต้องมีปุ่มซ้ำในการ์ด */}
+              {/* NOTE: ปุ่ม "คลังคำถาม" เคยอยู่ตรงนี้ ตอนนี้ไม่มีแล้วและไม่ควรกลับมา —
+                  คลังคำถามรายกลุ่มคำถูกถอดออกทั้งชุดเมื่อ 2026-08-02 (`68c37cd3`) พร้อมกับ
+                  คิวคำถามที่ตอบไม่ได้และ AI Enhance · ของที่มาแทนคือ **คลังความรู้ระดับร้าน**
+                  ซึ่งอยู่คนละเมนู (`/settings/chatbot/knowledge`) ไม่ใช่แท็บของหน้านี้
+                  (คอมเมนต์เดิมเขียนว่ากลายเป็น Tab "คลังคำตอบ" ของหน้านี้ — KeywordTabs.tsx
+                   ถูกลบไปแล้ว แท็บนั้นไม่มีอยู่จริง) */}
               {canEdit && (
                 // CL-4: btn-primary ไม่มีนิยามใน (paces) เหมือน btn-soft-* → ใช้ variant จริงตาม
                 // paces-component-reference.md §1 (ไม่งั้นปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ)
@@ -755,9 +841,7 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-default-700 text-xs">เมื่อมาจาก</span>
-                          {condLabel(r).map((c) => (
-                            <span key={c} className="bg-primary/10 text-primary max-w-full truncate rounded px-2 py-0.5 text-xs font-medium">{c}</span>
-                          ))}
+                          <CondChips r={r} />
                         </div>
                         {/* ข้อความล้วน ไม่ใส่กล่องซ้อนกล่องในบันได (anti-slop) */}
                         <p className="text-default-800 mt-1 line-clamp-3 text-sm">{r.replyText}</p>
@@ -767,17 +851,21 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
                       <div className="flex gap-1.5 max-sm:w-full">
                         {/* เปิด sheet โหมดแก้ = ส่ง rule ทั้งแถวไป prefill (ไม่ใช่แค่ id)
                             sheet จึงอ่าน adLabel เดิมได้แม้รายการโฆษณายังโหลดไม่เสร็จ (CL-8) */}
+                        {/* ไอคอนล้วนบนจอใหญ่ (แถวสูงไม่เท่ากันเพราะคำตอบยาวไม่เท่ากัน
+                            ปุ่มกล่องเทาใหญ่จึงดูลอยไม่เกาะแถว) · มือถือคงข้อความไว้ให้กดง่าย */}
                         <button type="button"
                           className="btn btn-sm bg-light text-dark hover:bg-light-hover min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
                           aria-label={`แก้ไขเงื่อนไขข้อ ${i + 1}`}
                           onClick={() => { setEditingRule(r); setSheetOpen(true) }}>
-                          <Icon icon="pencil" className="size-3" aria-hidden="true" />แก้ไข
+                          <Icon icon="pencil" className="size-3.5" aria-hidden="true" />
+                          <span className="sm:hidden">แก้ไข</span>
                         </button>
                         <button type="button" disabled={busy}
                           className="btn btn-sm text-danger hover:bg-danger min-h-11 flex-1 justify-center hover:text-white sm:min-h-0 sm:flex-none"
                           aria-label={`ลบเงื่อนไขข้อ ${i + 1}`}
                           onClick={() => deleteException(r.id)}>
-                          <Icon icon="trash" className="size-3" aria-hidden="true" />ลบ
+                          <Icon icon="trash" className="size-3.5" aria-hidden="true" />
+                          <span className="sm:hidden">ลบ</span>
                         </button>
                       </div>
                     )}
@@ -941,6 +1029,7 @@ function ExceptionSheet({
   const [useProduct, setUseProduct] = useState(() => rule?.productId != null)
   const [channelIds, setChannelIds] = useState<string[]>(() => (rule?.shopChannelId ? [rule.shopChannelId] : []))
   const [adIds, setAdIds] = useState<string[]>(() => (rule?.adId ? [rule.adId] : []))
+  const [adQuery, setAdQuery] = useState('')
   const [productId, setProductId] = useState(() => rule?.productId ?? '')
   const [productQuery, setProductQuery] = useState('')
   const [reply, setReply] = useState(() => rule?.replyText ?? '')
@@ -966,6 +1055,23 @@ function ExceptionSheet({
     if (rule?.adId) loadAds()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /**
+   * ค้นได้ทั้งชื่อ ข้อความโฆษณา และ ID — ร้านที่จำชื่อไม่ได้มักถือ ID มาจาก Ads Manager
+   * ตัวที่เลือกไว้แล้วต้องไม่หายตอนพิมพ์ค้นหา ไม่งั้นจะดูเหมือนติ๊กหลุด
+   */
+  const visibleAds = useMemo(() => {
+    if (!ads) return null
+    const q = adQuery.trim().toLowerCase()
+    if (!q) return ads
+    return ads.filter(
+      (a) =>
+        adIds.includes(a.adId) ||
+        a.adId.toLowerCase().includes(q) ||
+        (a.adTitle ?? '').toLowerCase().includes(q) ||
+        (a.adBody ?? '').toLowerCase().includes(q),
+    )
+  }, [ads, adQuery, adIds])
 
   const visibleProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase()
@@ -1139,8 +1245,11 @@ function ExceptionSheet({
                         )
                       }
                     />
-                    <span className="text-default-700">{c.name}</span>
-                    <span className="text-default-400 text-xs">{c.provider === 'INSTAGRAM' ? 'Instagram' : 'Messenger'}</span>
+                    {/* รูปเพจ (user 2026-08-02) — ร้านที่มีหลายเพจชื่อคล้ายกันแยกด้วยรูปได้เร็ว
+                        กว่าอ่านชื่อจนจบ; ใช้ PageAvatar ตัวเดียวกับ PagePicker ไม่เขียนใหม่ */}
+                    <PageAvatar avatarUrl={c.avatarUrl} name={c.name} size="size-7" />
+                    <span className="text-default-700 min-w-0 truncate">{c.name}</span>
+                    <span className="text-default-400 shrink-0 text-xs">{c.provider === 'INSTAGRAM' ? 'Instagram' : 'Messenger'}</span>
                   </label>
                 ))}
               </div>
@@ -1165,20 +1274,50 @@ function ExceptionSheet({
             )}
             {useAd && (
               <div className="mt-2.5">
+                {/* บอกที่มาของรายการ (user 2026-08-02) — ร้านที่ยิงโฆษณาใหม่แล้วหาไม่เจอ
+                    จะนึกว่าระบบพัง ทั้งที่เป็นข้อจำกัดของสิทธิ์ที่ Meta ยังไม่ได้ให้:
+                    เราอ่านได้เฉพาะโฆษณาที่มีคนทักเข้ามาจริง (จาก webhook) ยังดึงรายชื่อ
+                    จาก Marketing API ไม่ได้จนกว่า App Review จะอนุมัติ ads_read */}
+                {ads !== null && (
+                  <p className="text-default-500 mb-2 flex items-start gap-1.5 text-xs">
+                    <Icon icon="info-circle" className="mt-0.5 size-3.5 flex-none" aria-hidden="true" />
+                    <span>
+                      รายการนี้คือโฆษณาที่เคยมีลูกค้าทักเข้ามาแล้วเท่านั้น
+                      โฆษณาที่เพิ่งยิงและยังไม่มีใครทัก จะขึ้นให้เลือกหลังมีคนทักครั้งแรก
+                    </span>
+                  </p>
+                )}
+                {ads !== null && ads.length > 5 && (
+                  <div className="input-icon-group mb-2">
+                    <Icon icon="search" className="input-icon" />
+                    <input
+                      type="search"
+                      className="form-input form-input-sm"
+                      placeholder="ค้นหาชื่อ ข้อความ หรือ ID โฆษณา"
+                      value={adQuery}
+                      onChange={(e) => setAdQuery(e.target.value)}
+                      aria-label="ค้นหาโฆษณา"
+                    />
+                  </div>
+                )}
                 {ads === null ? (
                   <p className="text-default-500 text-xs">กำลังโหลด…</p>
                 ) : ads.length === 0 ? (
-                  <p className="text-default-500 text-xs">ยังไม่มีลูกค้าทักเข้ามาจากโฆษณาใด</p>
+                  <p className="text-default-500 text-xs">
+                    ยังไม่มีลูกค้าทักเข้ามาจากโฆษณาใด — พอมีคนทักจากโฆษณาครั้งแรก โฆษณานั้นจะขึ้นที่นี่เอง
+                  </p>
+                ) : visibleAds && visibleAds.length === 0 ? (
+                  <p className="text-default-500 text-xs">ไม่พบโฆษณาที่ตรงกับคำค้นหา</p>
                 ) : (
-                  ads.map((a) => {
+                  (visibleAds ?? []).map((a) => {
                     const on = adIds.includes(a.adId)
                     return (
                       <label key={a.adId}
-                        className={`mb-1.5 flex w-full cursor-pointer items-center gap-2.5 rounded border p-2.5 ${on ? 'border-primary bg-primary/5' : 'border-default-200'}`}>
+                        className={`mb-1.5 flex w-full cursor-pointer items-start gap-3 rounded border p-3 ${on ? 'border-primary bg-primary/5' : 'border-default-200'}`}>
                         <input
                           type={isEdit ? 'radio' : 'checkbox'}
                           name={isEdit ? 'ex-ad' : undefined}
-                          className={isEdit ? 'form-radio rounded-full! flex-none' : 'form-checkbox flex-none'}
+                          className={isEdit ? 'form-radio rounded-full! mt-1 flex-none' : 'form-checkbox mt-1 flex-none'}
                           checked={on}
                           onChange={(e) =>
                             setAdIds((prev) =>
@@ -1198,17 +1337,19 @@ function ExceptionSheet({
                             src={`/api/files/${a.photoFileId}`}
                             alt=""
                             loading="lazy"
-                            className="size-10 shrink-0 rounded-md object-cover"
+                            className="size-16 shrink-0 rounded-md object-cover"
                           />
                         ) : (
-                          <span className="bg-default-100 text-default-400 flex size-10 shrink-0 items-center justify-center rounded-md">
-                            <Icon icon="speakerphone" className="text-lg" aria-hidden="true" />
+                          <span className="bg-default-100 text-default-400 flex size-16 shrink-0 items-center justify-center rounded-md">
+                            <Icon icon="speakerphone" className="text-2xl" aria-hidden="true" />
                           </span>
                         )}
                         <span className="min-w-0 flex-1">
                           <span className="text-default-800 block truncate text-sm font-medium">{a.adTitle ?? a.adId}</span>
+                          {/* ข้อความเต็ม ไม่ truncate (user 2026-08-02) — โฆษณาชุดเดียวกัน
+                              มักต่างกันแค่ท้ายข้อความ ตัดทิ้งแล้วแยกไม่ออกว่าอันไหนคืออันไหน */}
                           {a.adBody && (
-                            <span className="text-default-600 block truncate text-xs">{a.adBody}</span>
+                            <span className="text-default-600 mt-0.5 block text-xs whitespace-pre-wrap">{a.adBody}</span>
                           )}
                           {/* แสดง ID ด้วย (user request) — ชื่อโฆษณาซ้ำกันได้ ID คือตัวที่แยกออกจริง
                               และร้านเอาไปเทียบกับ Ads Manager ได้ */}
@@ -1307,6 +1448,7 @@ type SimTurn =
 
 function SimulatePanel({
   channels,
+  keywordId,
   previewReply,
   onEnable,
   canEdit,
@@ -1324,6 +1466,32 @@ function SimulatePanel({
   const [channelId, setChannelId] = useState(channels[0]?.id ?? '')
   const [busy, setBusy] = useState(false)
   const [needsEnable, setNeedsEnable] = useState(false)
+  /**
+   * "ลูกค้าคนนี้มาจากโฆษณาไหน" (user report 2026-08-02: "ทดสอบด้านขวาไม่สามารถเลือก option
+   * ads ได้ เลยทดสอบว่ามาจาก ads ไหนตอบอะไรไม่ได้")
+   *
+   * เดิม simulate ส่ง adId: null ตายตัว — เงื่อนไขเฉพาะที่ผูกกับโฆษณาจึงไม่มีทางถูกเลือกใน
+   * การทดสอบเลย ร้านตั้งกฎ "โฆษณาตัวนี้ตอบราคานี้" แล้วลองไม่ได้ ต้องรอลูกค้าจริงทักเข้ามา
+   * ถึงจะรู้ว่าถูกหรือผิด ซึ่งสายไปแล้ว (ตอบราคาผิดรุ่นคือความเสียหายอันดับ 1 ใน PRD §6.1)
+   */
+  const [ads, setAds] = useState<Ad[] | null>(null)
+  const [adId, setAdId] = useState('')
+
+  // โหลดครั้งเดียวตอน mount — รายการโฆษณาของร้านมักไม่เกินหลักสิบ และแผงนี้เปิดค้างทั้งหน้า
+  // ถ้าโหลดตอนกดเลือกจะเห็น select ว่างแวบหนึ่งทุกครั้ง
+  useEffect(() => {
+    let alive = true
+    callApi('/api/shops/auto-reply/ads', { method: 'GET' })
+      .then((data) => {
+        if (alive) setAds(data.items ?? [])
+      })
+      .catch(() => {
+        if (alive) setAds([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const page = channels.find((c) => c.id === channelId)
 
@@ -1337,21 +1505,59 @@ function SimulatePanel({
       const data = await callApi('/api/shops/auto-reply/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, shopChannelId: channelId || null, adId: null, productId: null }),
+        body: JSON.stringify({
+          message: text,
+          shopChannelId: channelId || null,
+          adId: adId || null,
+          productId: null,
+        }),
       })
 
       if (data.willHandoff) {
-        setTurns((t) => [...t, { who: 'none', text: 'ไม่เข้าเงื่อนไขข้อใด — ระบบจะเงียบและส่งต่อให้พนักงาน' }])
+        /**
+         * WARNING: ข้อความเดิมคือ "ไม่เข้าเงื่อนไขข้อใด — ระบบจะเงียบและส่งต่อให้พนักงาน"
+         * ซึ่ง **ผิดทั้งสองท่อน** หลังแก้บั๊ก 2026-07-31:
+         *
+         * 1) ไม่มีการส่งต่อ — `NO_KEYWORD_MATCH` เลิกเขียน `handoffAt` แล้ว
+         *    (auto-reply.service.ts:485) เพราะ handoffAt เป็นสวิตช์ถาวรที่ไม่มีที่ไหนเคลียร์
+         *    เคยล็อกห้องจริงบน prod 240 ห้องตั้งแต่ข้อความแรก
+         * 2) ไม่ได้เงียบเสมอไป — ตรงจุดที่เมื่อก่อนเงียบ ตอนนี้ DeepBot ลองตอบจากคลังความรู้ก่อน
+         *    (`tryChatbotAnswer` ใน else ของ NO_KEYWORD_MATCH)
+         *
+         * หน้าพรีวิวยืนยันแทน ChatBot ไม่ได้ เพราะ /simulate ไม่ได้เรียก AI (เป็น matcher ล้วน)
+         * จึงต้องพูดเท่าที่รู้จริง: "กลุ่มคำไม่มีข้อไหนตรง" แล้วบอกว่าใครรับช่วงต่อ — ห้าม
+         * ยืนยันว่าลูกค้าจะไม่ได้คำตอบ ร้านที่อ่านแล้วเชื่อจะไปไล่เพิ่มคำทั้งที่บอทตอบได้อยู่แล้ว
+         */
+        setTurns((t) => [
+          ...t,
+          {
+            who: 'none',
+            text: 'ไม่มีเงื่อนไขข้อไหนตรง — กลุ่มคำนี้จะไม่ตอบข้อความนี้ ถ้าเปิด DeepBot ไว้ ระบบจะให้ DeepBot ลองตอบจากคลังความรู้ต่อ (หน้านี้ยังลองส่วนนั้นให้ไม่ได้)',
+          },
+        ])
       } else {
-        // บอกสถานะเป็นหมายเหตุใต้บับเบิล ไม่บังคำตอบ (user: "อยากให้ลองตอบเลยว่าจะตอบว่าอะไร")
+        /**
+         * พรีวิวค้นทั้งร้าน ไม่ใช่เฉพาะกลุ่มนี้ (simulate/route.ts: findMany ทุก keyword ของ shop)
+         * ผู้ชนะจึงอาจเป็น "กลุ่มอื่น" — เดิมเขียนว่า "ชุดนี้ยังไม่ใช้งาน" ซึ่งชี้กลุ่มผิดได้
+         * critique 2026-07-31 [P0] "พรีวิวคิวรีทั้งร้าน แต่ไม่บอกว่ากลุ่มไหนตอบ ทั้งที่ API
+         * คืน winnerState.keywordName มาแล้ว" — เรียกชื่อกลุ่มตรง ๆ จบทั้งสองปัญหา
+         */
         const notes: string[] = []
-        if (data.winnerState?.status === 'OFFLINE') notes.push('ชุดนี้ยังไม่ใช้งาน')
-        if (data.winnerState?.status === 'TEST') notes.push('อยู่โหมดทดสอบ')
+        const winnerName = data.winnerState?.keywordName
+        const isThisGroup = data.winnerState?.keywordId === keywordId
+        if (winnerName && !isThisGroup) notes.push(`ตอบโดยกลุ่ม “${winnerName}”`)
+        if (data.winnerState?.status === 'OFFLINE') {
+          notes.push(isThisGroup ? 'กลุ่มนี้ยังไม่ใช้งาน' : `กลุ่ม “${winnerName}” ยังไม่ใช้งาน`)
+        }
+        if (data.winnerState?.status === 'TEST') {
+          notes.push(isThisGroup ? 'กลุ่มนี้อยู่โหมดทดสอบ' : `กลุ่ม “${winnerName}” อยู่โหมดทดสอบ`)
+        }
         setTurns((t) => [
           ...t,
           { who: 'page', text: data.replyText ?? '', note: notes.length ? notes.join(' · ') : undefined },
         ])
-        setNeedsEnable(data.winnerState?.status === 'OFFLINE')
+        // ปุ่มเปิดโหมดทดสอบสั่งได้เฉพาะ *กลุ่มนี้* — ถ้าผู้ชนะเป็นกลุ่มอื่น กดไปก็ไม่แก้สิ่งที่เห็น
+        setNeedsEnable(data.winnerState?.status === 'OFFLINE' && isThisGroup)
       }
     } catch (e) {
       pacesToast.error(e instanceof Error ? e.message : 'ดูตัวอย่างไม่สำเร็จ')
@@ -1367,21 +1573,62 @@ function SimulatePanel({
           ต่างกันตรงตัวตนบนหัว: ห้องแชทจริงโชว์ "ลูกค้าคนไหน" แต่หน้านี้ลูกค้าเป็นตัวสมมติ
           สิ่งที่ต้องรู้คือ "กำลังดูการตอบของเพจไหน" หัวจึงเป็นตัวเลือกเพจไปในตัว
           (แก้ตัวเลือกซ้อน 2 จุดที่ user ทัก — ดู PagePicker.tsx) */}
-      <div className="card-header flex items-center gap-2">
-        {channels.length > 0 ? (
-          <PagePicker options={channels} value={channelId} onChange={setChannelId} />
-        ) : (
-          <p className="text-default-500 flex-1 text-sm">ยังไม่ได้เชื่อมเพจใด</p>
-        )}
-        {turns.length > 0 && (
-          <button
-            className="btn btn-sm btn-soft-default flex-none"
-            onClick={() => { setTurns([]); setNeedsEnable(false) }}
-          >
-            ล้าง
-          </button>
-        )}
+      {/* แผงนี้เคยไม่มีชื่อเลย — หัวการ์ดมีแต่ตัวเลือกเพจกับปุ่มล้าง คนที่กวาดตามาเจอคอลัมน์ขวา
+          จึงไม่รู้ว่ามันคืออะไรจนกว่าจะลองพิมพ์ (critique heuristic 10 Help/Documentation)
+          ชื่อ + บรรทัดเดียวบอกขอบเขต ("ไม่ส่งออกจริง") ปิดช่องว่างนั้นโดยไม่กินที่ */}
+      <div className="card-header flex flex-col items-stretch gap-2">
+        <h6 className="text-default-800 mb-0 flex items-center gap-2 text-sm font-semibold">
+          <Icon icon="player-play" className="text-primary size-4 flex-none" aria-hidden="true" />
+          ลองพิมพ์ดูว่าจะตอบว่าอะไร
+        </h6>
+        <div className="flex items-center gap-2">
+          {channels.length > 0 ? (
+            <PagePicker options={channels} value={channelId} onChange={setChannelId} />
+          ) : (
+            <p className="text-default-500 flex-1 text-sm">ยังไม่ได้เชื่อมเพจใด</p>
+          )}
+          {turns.length > 0 && (
+            /* CL-4 (ซ้ำรอบสาม): `btn-soft-default` ไม่มีนิยามใน Paces และ `.btn` เองไม่มีพื้นหลัง
+               → ปุ่มเรนเดอร์เป็นตัวหนังสือลอย ๆ · ยืนยันด้วย
+               `rg '\.btn-[a-z-]+' src/assets/css/` = มีแค่ btn-icon|btn-lg|btn-light|
+               btn-on-hover-icon|btn-sm|btn-theme-setting · ครึ่งซ้ายของหน้าเลี่ยงไปใช้ utility
+               จริงตั้งแต่แรก แต่แผงขวาถูกข้าม ทั้งที่ critique 2026-07-31 แจ้งเป็น [P0] แล้ว */
+            <button
+              className="btn btn-sm bg-light text-dark hover:bg-light-hover flex-none"
+              onClick={() => { setTurns([]); setNeedsEnable(false) }}
+            >
+              ล้าง
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* "ลูกค้าคนนี้มาจากโฆษณาไหน" — ตัวแปรสำคัญที่สุดของการตอบอัตโนมัติรองจากเพจ เพราะกฎ
+          ระดับโฆษณาชนะกฎระดับเพจเสมอ (user report 2026-08-02: เลือกไม่ได้เลย เลยทดสอบกฎที่
+          ผูกโฆษณาไม่ได้). ใช้ form-select ไม่ใช่ dropdown เพราะเป็น "ค่าของฟิลด์" ไม่ใช่เมนู action
+          ซ่อนทั้งแถวเมื่อร้านยังไม่เคยมีลูกค้ามาจากโฆษณา — ไม่มีอะไรให้เลือกก็ไม่ต้องมีช่อง */}
+      {ads !== null && ads.length > 0 && (
+        <div className="border-default-200 flex items-center gap-2 border-b px-4 py-2">
+          <label htmlFor="sim-ad" className="text-default-500 shrink-0 text-xs">
+            มาจากโฆษณา
+          </label>
+          <select
+            id="sim-ad"
+            className="form-select form-select-sm min-w-0 flex-1 text-sm"
+            value={adId}
+            onChange={(e) => setAdId(e.target.value)}
+          >
+            <option value="">ไม่ได้มาจากโฆษณา</option>
+            {ads.map((a) => (
+              // ชื่อโฆษณาว่างได้ (Meta ไม่ส่ง ad_title มาทุกครั้ง) — fallback เป็น id ดิบดีกว่า
+              // ตัวเลือกว่างเปล่าที่เลือกแล้วไม่รู้ว่าเลือกอะไรไป
+              <option key={a.adId} value={a.adId}>
+                {a.adTitle ?? `รหัสโฆษณา ${a.adId}`}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* บทสนทนา — Base ChatThread.tsx:887-980 (`my-5 flex items-start gap-2.5` + justify-end
           ฝั่งเรา, บับเบิล `rounded px-6 py-3`, ลูกค้า `bg-light` / เพจ `bg-primary text-white`)
@@ -1460,8 +1707,13 @@ function SimulatePanel({
 
       {needsEnable && canEdit && (
         <div className="border-default-200 border-t px-4 pt-3">
-          <button className="btn btn-soft-primary btn-sm w-full" onClick={onEnable}>
-            เริ่มทดสอบชุดนี้
+          {/* ปุ่มนี้โผล่เฉพาะตอนผู้ชนะ = กลุ่มนี้เอง (เช็ค isThisGroup ใน send()) จึงพูดว่า
+              "กลุ่มนี้" ได้จริง · btn-soft-primary ไม่มีนิยาม → พื้นม่วงโปร่งด้วย token ตรง ๆ */}
+          <button
+            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/15 w-full"
+            onClick={onEnable}
+          >
+            เปิดโหมดทดสอบให้กลุ่มนี้
           </button>
         </div>
       )}
@@ -1481,7 +1733,7 @@ function SimulatePanel({
             type="button"
             onClick={send}
             disabled={busy || !draft.trim()}
-            className="btn btn-primary flex-none"
+            className="btn bg-primary hover:bg-primary-hover flex-none text-white"
             aria-label="ส่ง"
           >
             <Icon icon="send" className="text-base" aria-hidden="true" />

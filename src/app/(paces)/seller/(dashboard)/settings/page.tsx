@@ -1,5 +1,5 @@
 /**
- * Settings page — บัญชีที่เชื่อมต่อ (FR-LO-16)
+ * Settings page — การจัดส่งของร้าน (feature 00022 iShip)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/users/account-settings/page.tsx
  *   — card + card-header border-dashed section header pattern
@@ -12,13 +12,13 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import SellerEmptyState from '../_shared/SellerEmptyState'
 import type { Metadata } from 'next'
-import { ConnectedAccountsClient } from './ConnectedAccountsClient'
 import ShippingSettingsRow from './ShippingSettingsRow'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
 
-export const metadata: Metadata = { title: 'บัญชีที่เชื่อมต่อ' }
+export const metadata: Metadata = { title: 'การจัดส่ง' }
 
 // ไม่ต้องตั้ง force-dynamic — getServerSession อ่าน cookie ทำให้หน้า dynamic อยู่แล้ว
 // (เหมือน badges/page.tsx — force-dynamic บน Paces child ทำ MenuToggler crash)
@@ -27,22 +27,6 @@ export default async function SettingsPage() {
   const session = await getServerSession(authOptions)
   const user = (session as { user?: { id: string } } | null)?.user
   if (!user) return null
-
-  // ดึง AuthAccount + passwordHash — mask เป็น boolean ก่อนส่ง client
-  // ทำไม select เฉพาะ provider: กันส่ง providerAccountId/accessToken เข้า RSC flight
-  const [accounts, dbUser] = await Promise.all([
-    prisma.authAccount.findMany({
-      where: { userId: user.id },
-      select: { provider: true },
-    }),
-    prisma.user.findUnique({
-      where: { id: user.id },
-      select: { passwordHash: true },
-    }),
-  ])
-
-  // ทำไม Set: O(1) lookup ตอน render provider rows ข้างล่าง
-  const linkedProviders = new Set(accounts.map((a) => a.provider))
 
   // feature 00022 — การ์ดทางเข้าหน้าตั้งค่าการจัดส่ง
   // แสดงเฉพาะร้าน vertical = GENERAL: ร้านบ้านพักไม่มีพัสดุให้ส่ง การมีเมนูค้างอยู่
@@ -82,7 +66,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageBreadcrumb title="บัญชีที่เชื่อมต่อ" trail={[{ label: 'ภาพรวม' }]} />
+      <PageBreadcrumb title="การจัดส่ง" trail={[{ label: 'ภาพรวม' }]} />
 
       {showShipping && shipping && (
         <div className="card mb-4">
@@ -103,39 +87,21 @@ export default async function SettingsPage() {
         </div>
       )}
 
-      <div className="card">
-        {/* section header — Paces border-dashed pattern จาก account-settings theme */}
-        <div className="card-header">
-          <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium w-full justify-center">
-            {/* icon link — Paces Icon wrapper ไม่ used ที่นี่ (server component — ใช้ svg inline แทน) */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width={16}
-              height={16}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-              <path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-1.5 1.5" />
-              <path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l1.5 -1.5" />
-            </svg>
-            บัญชีที่เชื่อมต่อ
-          </h5>
+      {/* feature 00026 (user เคาะ 2026-08-02): การ์ด "บัญชีที่เชื่อมต่อ" (วิธี login ของ user)
+          ย้ายไป /account แล้ว — มันผูกกับ "ตัวคน" ไม่ผูกกับร้าน การวางไว้ในกลุ่มเมนู "ร้านค้า"
+          ทำให้ไม่มีใครหาเจอ (user รายงานเองว่าอยากได้ฟีเจอร์ที่มีอยู่แล้ว)
+          หน้านี้จึงเหลือเฉพาะเรื่องของร้าน = การจัดส่ง */}
+      {!showShipping && (
+        <div className="card">
+          <div className="card-body">
+            <SellerEmptyState
+              icon="truck-delivery"
+              title="ร้านนี้ยังไม่มีการตั้งค่าการจัดส่ง"
+              description="การเชื่อมต่อขนส่งใช้ได้กับร้านที่ขายสินค้าจัดส่งเท่านั้น"
+            />
+          </div>
         </div>
-
-        {/* ConnectedAccountsClient รับ boolean props เท่านั้น — ไม่มี PII */}
-        <ConnectedAccountsClient
-          facebookLinked={linkedProviders.has('FACEBOOK')}
-          lineLinked={linkedProviders.has('LINE')}
-          instagramLinked={linkedProviders.has('INSTAGRAM')}
-          hasPassword={dbUser?.passwordHash != null}
-        />
-      </div>
+      )}
     </>
   )
 }
