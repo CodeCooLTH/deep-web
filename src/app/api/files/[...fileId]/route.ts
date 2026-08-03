@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
-import { getFile } from "@/lib/storage";
+import { getFile, getFileMeta, getFileRange, fileIdExt } from "@/lib/storage";
 import { prisma } from "@/lib/prisma";
 import { EXT_TO_MIME, isInlineExt } from "@/lib/attachment-mime";
+import { parseRangeHeader, contentRangeHeader } from "@/lib/http-range";
 import { canAccessShop } from "@/lib/shop-context";
 
 // feature 00018 (user request 2026-07-24 "รองรับทุกอย่าง"): ตาราง ext→content-type ย้ายไป
@@ -264,31 +265,81 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // ไฟล์ public หรือผ่าน auth check แล้ว — serve เหมือนเดิม
-  const result = await getFile(fileId);
-  if (!result) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
+  //
   // isSensitive ครอบ KYC + slip + หลักฐานมิจฉาชีพ + เอกสารแนบในแชท — ไม่ควร cache ที่ browser/CDN
   const isSensitive = !!sensitiveRecord || isSlipFile || isScamEvidence || isChatDocument;
 
-  const ext = result.ext.toLowerCase();
+  const ext = fileIdExt(fileId).toLowerCase();
   const contentType = EXT_TO_MIME[ext] || "application/octet-stream";
   // ไฟล์ที่เรนเดอร์ inline ไม่ได้ (เอกสาร/zip/ชนิดแปลก) → บังคับดาวน์โหลดพร้อมชื่อไฟล์
   // basename เท่านั้น (fileId ชาร์ดมี slash — filename ต้องไม่มี path)
   const baseName = fileId.split("/").pop() || fileId;
   const disposition = isInlineExt(ext) ? "inline" : `attachment; filename="${baseName}"`;
 
+  const baseHeaders: Record<string, string> = {
+    "Content-Type": contentType,
+    "Content-Disposition": disposition,
+    // ไฟล์ KYC/slip ไม่ควร cache ที่ browser/CDN นาน (อาจถูก revoke)
+    // ไฟล์ทั่วไป (product image) ยังคง public, max-age=86400 เหมือนเดิม
+    "Cache-Control": isSensitive ? "private, no-cache" : "public, max-age=86400",
+    // nosniff — defense-in-depth เพราะ phase นี้เพิ่มไฟล์ admin-uploaded badge image
+    // ป้องกัน browser sniff content-type เป็น text/html แล้วรัน script
+    "X-Content-Type-Options": "nosniff",
+    // ประกาศว่ารองรับ byte-range — iOS ดูค่านี้ก่อนตัดสินใจว่าจะเล่นสื่อได้ไหม
+    "Accept-Ranges": "bytes",
+  };
+
+  // ---------------------------------------------------------------------------
+  // HTTP Range (2026-08-03): iOS Safari/WKWebView เล่น <video>/<audio> ไม่ได้เลย
+  // ถ้าเซิร์ฟเวอร์ไม่ตอบ 206 — มันยิง `Range: bytes=0-1` มา probe ก่อนเสมอ แล้วถ้า
+  // ได้ 200 พร้อมไฟล์ทั้งก้อนจะทิ้งทันที (ผู้ใช้เห็นกล่องดำ + ปุ่ม play ที่กดไม่ติด)
+  // Chrome/Android ยอมรับ 200 จึงเป็นบั๊กที่โผล่เฉพาะ iOS
+  //
+  // เรียก getFileMeta เฉพาะตอนมี Range header — request รูปสินค้าปกติ (traffic
+  // สูงสุดของ endpoint นี้) จึงไม่มี round-trip เพิ่มแม้แต่ครั้งเดียว
+  // ---------------------------------------------------------------------------
+  const rangeHeader = request.headers.get("range");
+  if (rangeHeader) {
+    const meta = await getFileMeta(fileId);
+    if (!meta) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const parsed = parseRangeHeader(rangeHeader, meta.size);
+
+    if (parsed.kind === "unsatisfiable") {
+      // 416 ต้องบอกขนาดจริงกลับไป client จะได้ขอใหม่ให้ถูกช่วง
+      return new NextResponse(null, {
+        status: 416,
+        headers: {
+          "Content-Range": `bytes */${meta.size}`,
+          "Accept-Ranges": "bytes",
+          "Cache-Control": baseHeaders["Cache-Control"],
+        },
+      });
+    }
+
+    if (parsed.kind === "ok") {
+      const part = await getFileRange(fileId, parsed.range);
+      if (!part) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+      return new NextResponse(new Uint8Array(part.buffer), {
+        status: 206,
+        headers: {
+          ...baseHeaders,
+          "Content-Range": contentRangeHeader(parsed.range, meta.size),
+          "Content-Length": String(part.buffer.length),
+        },
+      });
+    }
+    // parsed.kind === "none" (รูปแบบที่ไม่รองรับ เช่น multi-range) → ตกไปตอบทั้งไฟล์
+  }
+
+  const result = await getFile(fileId);
+  if (!result) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   return new NextResponse(new Uint8Array(result.buffer), {
     headers: {
-      "Content-Type": contentType,
-      "Content-Disposition": disposition,
-      // ไฟล์ KYC/slip ไม่ควร cache ที่ browser/CDN นาน (อาจถูก revoke)
-      // ไฟล์ทั่วไป (product image) ยังคง public, max-age=86400 เหมือนเดิม
-      "Cache-Control": isSensitive
-        ? "private, no-cache"
-        : "public, max-age=86400",
-      // nosniff — defense-in-depth เพราะ phase นี้เพิ่มไฟล์ admin-uploaded badge image
-      // ป้องกัน browser sniff content-type เป็น text/html แล้วรัน script
-      "X-Content-Type-Options": "nosniff",
+      ...baseHeaders,
+      "Content-Length": String(result.buffer.length),
     },
   });
 }

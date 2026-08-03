@@ -1,4 +1,4 @@
-import { writeFile, mkdir, readFile, unlink } from "fs/promises";
+import { writeFile, mkdir, readFile, unlink, stat, open } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { v4 as uuid } from "uuid";
@@ -29,6 +29,45 @@ export const getFile: Storage["getFile"] = async (fileId) => {
 
   const buffer = await readFile(filePath);
   return { buffer, ext: fileIdExt(fileId) };
+};
+
+/** path-traversal guard เดียวกับ getFile — fileId มาจาก URL segment ผู้ใช้ */
+function resolveInsideUploadDir(fileId: string): string | null {
+  const filePath = path.join(UPLOAD_DIR, fileId);
+  return filePath.startsWith(UPLOAD_DIR) ? filePath : null;
+}
+
+export const getFileMeta: Storage["getFileMeta"] = async (fileId) => {
+  const filePath = resolveInsideUploadDir(fileId);
+  if (!filePath) return null;
+
+  try {
+    const stats = await stat(filePath);
+    if (!stats.isFile()) return null;
+    return { size: stats.size, ext: fileIdExt(fileId) };
+  } catch {
+    return null;
+  }
+};
+
+export const getFileRange: Storage["getFileRange"] = async (fileId, range) => {
+  const filePath = resolveInsideUploadDir(fileId);
+  if (!filePath) return null;
+  if (!existsSync(filePath)) return null;
+
+  const length = range.end - range.start + 1;
+  const handle = await open(filePath, "r");
+  try {
+    const buffer = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, range.start);
+    // ไฟล์อาจสั้นลงระหว่าง stat กับ read — ส่งเท่าที่อ่านได้จริง
+    return {
+      buffer: bytesRead === length ? buffer : buffer.subarray(0, bytesRead),
+      ext: fileIdExt(fileId),
+    };
+  } finally {
+    await handle.close();
+  }
 };
 
 export const getFileUrl: Storage["getFileUrl"] = async (fileId) => {

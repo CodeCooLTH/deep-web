@@ -44,10 +44,18 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   //  - read (GET เช่น realtime refetch auction detail): auth 120/unauth 200 —
   //    auction ร้อน client refetch ทุกครั้งราคาเปลี่ยน; read ถูก+idempotent จึงยกเพดานได้
   //    กันคนดูเฉยๆ โดน 429 โดยไม่ลดความเข้มของ mutation
+  //  - GET /api/files/*: bucket แยกต่างหาก เพดานสูง (auth 600/unauth 600) — เป็น asset
+  //    route ไม่ใช่ API เชิงตรรกะ. หน้าแชท 1 หน้าโหลดรูปได้หลายสิบไฟล์อยู่แล้ว และตั้งแต่
+  //    รองรับ HTTP Range (2026-08-03) วิดีโอ 1 ตัวยิงได้อีกหลาย request (chunk ละ 4MB +
+  //    ทุกครั้งที่ผู้ใช้ลาก seek) — ถ้าใช้เพดาน GET ปกติ 120/นาที ผู้ใช้จะโดน 429 กลางคลิป
+  //    ตัว route มี auth gate ของตัวเองครบ (KYC/slip/scam/เอกสารแชท) การยกเพดานจึงไม่เปิด
+  //    ช่องข้อมูลรั่ว แค่ยอมให้ดึง asset ที่ตัวเองมีสิทธิ์อยู่แล้วได้ถี่ขึ้น
   const token = await getToken({ req: request })
   const isMutation = MUTATION_METHODS.has(request.method)
-  const limit = isMutation ? (token ? 30 : 100) : token ? 120 : 200
-  const key = `${clientIp(request)}:${token ? 'auth' : 'pub'}:${isMutation ? 'mut' : 'get'}`
+  const isFileAsset = !isMutation && pathname.startsWith('/api/files/')
+  const limit = isFileAsset ? 600 : isMutation ? (token ? 30 : 100) : token ? 120 : 200
+  const bucket = isFileAsset ? 'files' : isMutation ? 'mut' : 'get'
+  const key = `${clientIp(request)}:${token ? 'auth' : 'pub'}:${bucket}`
   if (!checkApiRateLimit(key, limit, 60_000)) {
     return NextResponse.json(
       { error: 'Rate limit exceeded' },

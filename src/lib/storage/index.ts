@@ -6,6 +6,8 @@ const impl = driver === "s3" ? s3 : local;
 
 export const saveFile = impl.saveFile;
 export const getFile = impl.getFile;
+export const getFileMeta = impl.getFileMeta;
+export const getFileRange = impl.getFileRange;
 export const getFileUrl = impl.getFileUrl;
 export const deleteFile = impl.deleteFile;
 

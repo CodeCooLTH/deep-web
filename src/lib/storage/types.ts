@@ -22,6 +22,9 @@ export const ALLOWED_TYPES = [
   "application/pdf",
 ];
 
+export type { ByteRange } from "@/lib/http-range";
+import type { ByteRange } from "@/lib/http-range";
+
 export type GetFileUrlOptions = {
   signed?: boolean;
   expiresIn?: number;
@@ -37,6 +40,14 @@ export type SaveFileOptions = {
 export interface Storage {
   saveFile(file: File, opts?: SaveFileOptions): Promise<string>;
   getFile(fileId: string): Promise<{ buffer: Buffer; ext: string } | null>;
+  /** ขนาดไฟล์โดยไม่ดึงเนื้อไฟล์ — ต้องรู้ก่อนถึงจะประกอบ Content-Range ได้
+   *  (เรียกเฉพาะตอนมี Range header เท่านั้น ไม่เพิ่ม round-trip ให้ request รูปปกติ) */
+  getFileMeta(fileId: string): Promise<{ size: number; ext: string } | null>;
+  /** ดึงเฉพาะช่วงไบต์ (inclusive ทั้งสองฝั่ง) สำหรับตอบ 206 Partial Content */
+  getFileRange(
+    fileId: string,
+    range: ByteRange
+  ): Promise<{ buffer: Buffer; ext: string } | null>;
   getFileUrl(fileId: string, opts?: GetFileUrlOptions): Promise<string>;
   deleteFile(fileId: string): Promise<void>;
 }

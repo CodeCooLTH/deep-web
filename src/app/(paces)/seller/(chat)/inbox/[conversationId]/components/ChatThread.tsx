@@ -1445,13 +1445,29 @@ export default function ChatThread({
                             {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
                             {m.type === 'VIDEO' && m.imageUrl && (
                               <>
-                                <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
+                                {/* playsInline: บังคับสำหรับ iOS (WKWebView ในแอปมือถือ) — ถ้าไม่มี
+                                    iOS จะไม่เล่น inline และในหลาย config เล่นไม่ได้เลย. ใช้ค่าเดียวกับ
+                                    preview ไฟล์แนบด้านล่างในไฟล์นี้
+                                    preload="metadata": ดึงแค่ส่วนหัวไฟล์เพื่อให้ได้เฟรมแรก + ความยาว
+                                    (เดิมไม่ระบุ → เห็นเป็นกล่องดำล้วน) โดยไม่ดึงวิดีโอทั้งก้อน */}
+                                <video
+                                  src={`/api/files/${m.imageUrl}`}
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                  className="max-w-60 rounded"
+                                />
                                 <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกวิดีโอ" attachmentName={m.attachmentName} />
                               </>
                             )}
                             {m.type === 'AUDIO' && m.imageUrl && (
                               <>
-                                <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
+                                <audio
+                                  src={`/api/files/${m.imageUrl}`}
+                                  controls
+                                  preload="metadata"
+                                  className="max-w-60"
+                                />
                                 <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกไฟล์เสียง" attachmentName={m.attachmentName} />
                               </>
                             )}
