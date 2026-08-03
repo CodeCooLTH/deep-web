@@ -60,7 +60,7 @@ S-7 ปักหมุด/ซ่อน/ปิดงาน/สแปม (logic+AP
 **นอกขอบเขตของเอกสารนี้ (ยังไม่ implement — ดู PRD/BRD สำหรับแผนเต็ม):**
 - **ส่งวิดีโอ/เสียง/ไฟล์ออกจาก Deep ไป Messenger/IG** — `sendOutboundMessage` รองรับแค่ `text`/`imageFileId`; ไม่มี parameter สำหรับ VIDEO/AUDIO/FILE. **TEXT และ IMAGE ส่งออกได้แล้ว** (แก้จาก v1.1 ที่เขียนผิดว่า "รองรับเฉพาะ TEXT") — ยังบล็อกเฉพาะ `type=PRODUCT` บนเธรดช่องทางนอก (ดู [[API]] §4.5)
 - **Reply/Unsend/Reaction ขาออก** — ร้านตอบทับ/ลบ/react ข้อความของตัวเองจาก Deep ยังไม่มี code path (inbound-only ทั้งชุด E7/E9 — ดู [[EXTENSIONS-2026-07-25]] Carry)
-- **`messaging_referrals` มีใน subscribe field แล้ว** — แต่ Meta ล็อกชุด field ไว้ตอนเชื่อมเพจครั้งแรก เพจที่เชื่อมก่อน 2026-07-25 ต้อง re-sync (`POST /api/channels`) ถึงจะได้ pure-referral event (ดู [[EXTENSIONS-2026-07-26]] E5.6)
+- 🛑 **subscription มี 2 ชั้น และชั้นแอปคือตัวบล็อกจริง (ยืนยัน 2026-08-03)** — ชั้นเพจ (`MESSENGER_SUBSCRIBED_FIELDS` → `POST /{page-id}/subscribed_apps`) **ขอครบ 6 field ถูกต้องอยู่แล้ว** แต่ชั้น App Dashboard topic `page` ของแอป `1570859340799126` subscribe ไว้แค่ `messages` + `message_echoes` → `message_reads` / `message_reactions` / `messaging_referrals` **ส่งไม่ถึงเราไม่ว่าจะ re-sync กี่ครั้ง**. ที่เอกสารเวอร์ชันก่อนเขียนว่า "เพจเก่าต้อง re-sync ถึงจะได้ pure-referral event" จึง **จำเป็นแต่ไม่พอ** — ต้องเติม field ที่ App Dashboard ก่อน (รอผล App Review ของ `pages_messaging` ที่ยัง PENDING อยู่). **ยังไม่ยืนยัน:** referral แบบมาเดี่ยว ๆ แยกจาก `message.referral` ในฐานข้อมูลไม่ได้ จึงพิสูจน์ไม่ได้ว่า re-sync ช่วยเรื่อง referral หรือเปล่า (ดู [[EXTENSIONS-2026-07-26]] E5.6)
 - **S-8 tab ใบเสนอราคา** — แก้ปัญหาด้วยการ์ดออเดอร์ในแชท (E1, `type=ORDER`) แทน ไม่ใช่ tab แยกตามที่ BRD เดิมคิดไว้ — เป็น design decision ที่ implement แล้วในรูปแบบต่าง
 - **Facebook Live** — นอก scope ทั้ง feature (PRD §5)
 
@@ -390,7 +390,7 @@ externalId)` บังคับ unique เฉพาะแถว active เท่
 | `ChatMessage.deliveryStatus` | `null` \| `"SENT"` \| `"FAILED"` | String column, nullable |
 | `MESSAGING_WINDOW_MS` | `24 * 60 * 60 * 1000` | `channel-chat.service.ts` |
 | `GRAPH_VERSION` / `GRAPH_BASE` | `"v21.0"` / `https://graph.facebook.com/v21.0` | `src/lib/facebook/constants.ts` — ตรึงจุดเดียว |
-| `MESSENGER_SUBSCRIBED_FIELDS` | `['messages', 'messaging_postbacks', 'message_reactions']` | `src/lib/facebook/constants.ts` |
+| `MESSENGER_SUBSCRIBED_FIELDS` | `['messages', 'messaging_postbacks', 'message_reactions', 'message_echoes', 'message_reads', 'messaging_referrals']` (แก้ 2026-08-03 — เอกสารเดิมค้างที่ 3 ตัว ตั้งแต่ก่อนเพิ่ม echo/read/referral) | `src/lib/facebook/constants.ts` |
 | `CONNECT_SCOPES` | `pages_show_list, pages_messaging, pages_manage_metadata, pages_read_engagement, business_management, instagram_basic, instagram_manage_messages` | `src/lib/facebook/constants.ts` |
 | `FB_CHAT_APP_ID` / `FB_CHAT_APP_SECRET` / `FB_WEBHOOK_VERIFY_TOKEN` / `CHANNEL_TOKEN_KEY` | env vars ใหม่ | ดู §12 PRD/BRD, `.env.example` |
 
@@ -458,9 +458,9 @@ export const WebhookBodySchema = v.object({
 | Badge ช่องทาง + filter | FR-FBC-12 | §8 | — | **Implemented** — `ChatConversationsQuerySchema` มี `channel`/`shopChannelId`/`chatGroupId`/`readState`/`spam` |
 | ปักหมุด/ซ่อน/ปิดงาน/สแปม (S-7) | BR-FBC-14/15/16 | §8.1 | — | **Implemented** (2026-07-23/24) — `updateConversationState` + `PATCH /api/chat/conversations/[id]` (แก้จาก v1.1 ที่บันทึกผิดว่า "logic ยังไม่ implement") |
 | กลุ่ม/แท็บจัดหมวดแชท (E5) | ผลตัดสิน user 2026-07-23 | — | — | Implemented — `ChatGroup` + `chat-group.service.ts` |
-| Read receipt ช่องทางนอก (E6) | ผลตัดสิน user | — | — | Implemented — `Conversation.externalReadAt` + `ingestReadEvent` |
-| Reaction บนข้อความ (E7) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) — `ChatMessage.reactionEmoji` + `ingestReactionEvent` |
-| Referral/context โฆษณา-ลิงก์ (E8 → E5 2026-07-26) | ผลตัดสิน user | — | — | Implemented — แบนเนอร์รูป+ชื่อโฆษณา, ค่าล่าสุด, เก็บประวัติ (ดู [[EXTENSIONS-2026-07-26]] E5). คงเหลือ: เพจเก่าต้อง re-sync, แชทเก่าไม่มีรูป, IG ยังไม่ทดสอบจริง |
+| Read receipt ช่องทางนอก (E6) | ผลตัดสิน user | — | — | Implemented แต่ **ไม่ทำงานจริงบน prod** — `Conversation.externalReadAt` + `ingestReadEvent` ครบ แต่ App Dashboard ไม่ได้ subscribe `message_reads` → prod 385 เธรด MESSENGER / 2,539 ข้อความฝั่งร้าน มี `externalReadAt` = NULL ทั้งหมด (ยืนยัน 2026-08-03) ป้ายในเธรดค้าง "ส่งแล้ว" ตลอด. ดู §1.2 |
+| Reaction บนข้อความ (E7) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) แต่ **ไม่ทำงานจริงบน prod** — `ChatMessage.reactionEmoji` + `ingestReactionEvent` ครบ แต่ไม่ได้ subscribe `message_reactions` ที่ชั้นแอป → prod `reactionEmoji` ไม่เป็น NULL 0 แถว. ผลพวง: กติกา "react ของลูกค้าเปิดหน้าต่าง 24 ชม." (แก้ 2026-08-01) ยังไม่เคยมีผลบน Messenger. ดู §1.2 |
+| Referral/context โฆษณา-ลิงก์ (E8 → E5 2026-07-26) | ผลตัดสิน user | — | — | Implemented — แบนเนอร์รูป+ชื่อโฆษณา, ค่าล่าสุด, เก็บประวัติ (ดู [[EXTENSIONS-2026-07-26]] E5). **ส่วนที่ทำงานจริง = referral ที่มาในข้อความแรก** (`message.referral`, prod 290 เธรด `referralSource='ADS'`); referral แบบมาเดี่ยว ๆ ต้องรอ `messaging_referrals` ที่ชั้นแอป (§1.2). คงเหลือ: แชทเก่าไม่มีรูป, IG ยังไม่ทดสอบจริง |
 | Reply/Unsend (E9) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) — `ChatMessage.replyToMid`/`isDeleted` |
 | แท็ก/โน้ตภายใน (S-8) | BR-FBC-17/18/19 | §8.1 | — | **Implemented** (2026-07-23 — เก็บที่คอลัมน์ `ExternalContact`/`Conversation.alias` ไม่ใช่ table แยกตามที่ BRD เดิมคิดไว้; tab ใบเสนอราคาแก้ด้วยการ์ดออเดอร์ในแชท E1 แทน) |
 | ยกเว้น webhook จาก CSRF | BR-FBC-22 | §7.2 | TFR-FBC-11 | Implemented |
