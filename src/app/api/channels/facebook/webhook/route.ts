@@ -3,7 +3,7 @@ import * as v from 'valibot'
 import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
-import { WebhookBodySchema, extractMessagingEvents, extractFeedChanges } from '@/lib/facebook/webhook-types'
+import { WebhookBodySchema, extractMessagingEventsWithRaw, extractFeedChanges } from '@/lib/facebook/webhook-types'
 import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent, ingestMessageEdit } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
@@ -69,8 +69,16 @@ export async function POST(request: NextRequest) {
   //
   // log เฉพาะ "ชื่อ field" ไม่แตะเนื้อหา — พอบอกได้ว่า event ที่เข้ามามีอะไรบ้างจริง ๆ
   // ถอดออกเมื่อได้คำตอบแล้ว
+  const rawJson: unknown = (() => {
+    try {
+      return JSON.parse(rawBody || '{}')
+    } catch {
+      return {}
+    }
+  })()
+
   try {
-    const probe = JSON.parse(rawBody || '{}') as {
+    const probe = rawJson as {
       entry?: Array<{ messaging?: Array<Record<string, unknown>>; changes?: Array<{ field?: string }> }>
     }
     for (const e of probe.entry ?? []) {
@@ -84,7 +92,7 @@ export async function POST(request: NextRequest) {
     // probe เท่านั้น — พังก็ปล่อยผ่าน ห้ามทำให้ webhook ล้ม
   }
 
-  const parsed = v.safeParse(WebhookBodySchema, JSON.parse(rawBody || '{}'))
+  const parsed = v.safeParse(WebhookBodySchema, rawJson)
   if (!parsed.success) {
     // shape ที่เราไม่รู้จัก — ตอบ 200 เพื่อไม่ให้ retry แต่ log ไว้ดู
     console.warn('[fb-webhook] payload parse ไม่ผ่าน', parsed.issues[0]?.message)
@@ -124,7 +132,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  for (const { pageId, event } of extractMessagingEvents(parsed.output)) {
+  for (const { pageId, event, rawEvent } of extractMessagingEventsWithRaw(parsed.output, rawJson)) {
     try {
       if (event.read) {
         // read receipt (message_reads) — ลูกค้าอ่านข้อความของเพจ (feature 00018)
@@ -158,7 +166,7 @@ export async function POST(request: NextRequest) {
           timestamp: event.timestamp,
         })
       } else {
-        const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event })
+        const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event, rawEvent })
 
         // NO_CHANNEL = Meta ส่งข้อความของเพจที่ไม่มีร้านไหนในฐานเราเชื่อมอยู่ (หรือถอดไปแล้ว)
         // — subscription อยู่ฝั่ง Meta ไม่ได้อยู่ในฐานเรา เพจที่ยัง subscribe ค้างจึงยิงเข้ามาต่อ

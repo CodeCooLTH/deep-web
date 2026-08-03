@@ -426,6 +426,8 @@ export async function ingestInboundMessage(params: {
   provider: string
   pageExternalId: string
   event: MessagingEvent
+  /** event ดิบก่อน Valibot parse (2026-08-03) — เก็บลง rawMessage แทนตัวที่ถูกตัด field ทิ้งแล้ว */
+  rawEvent?: unknown
 }): Promise<{
   status: IngestStatus
   conversationId?: string
@@ -735,7 +737,7 @@ export async function ingestInboundMessage(params: {
         // payload ดิบจาก platform (2026-08-03) — เก็บ event ทั้งก้อนตามที่ได้รับ ไม่ตัดอะไรออก
         // เพราะสิ่งที่จะต้องใช้สืบคือ "field ที่เรายังไม่รู้จัก" ตัดตอนเก็บ = ตัดคำตอบทิ้ง
         // อ่านไม่ได้จาก query ปกติ (global omit ที่ lib/prisma.ts)
-        rawMessage: toRawMessage(params.provider, event),
+        rawMessage: toRawMessage(params.provider, params.rawEvent ?? event),
       },
     })
 
@@ -754,7 +756,7 @@ export async function ingestInboundMessage(params: {
           deliveryStatus: 'SENT',
           // event เดียวกับแถวหลัก (Meta ส่งหลายไฟล์มาใน event เดียว) — เก็บซ้ำเพื่อให้ทุกแถว
           // สืบต้นทางของตัวเองได้โดยไม่ต้องไปไล่หาแถวพี่
-          rawMessage: toRawMessage(params.provider, event),
+          rawMessage: toRawMessage(params.provider, params.rawEvent ?? event),
         },
       })
     }

@@ -193,3 +193,39 @@ export function extractFeedChanges(
   }
   return out
 }
+
+/**
+ * เหมือน extractMessagingEvents แต่แนบ **event ดิบก่อน parse** มาด้วย (user สั่ง 2026-08-03
+ * "rawMessage ผมอยากได้ rawMessage ดิบ ๆ")
+ *
+ * ทำไมต้องมี: Valibot ตัด field ที่เราไม่ได้ประกาศทิ้งทั้งหมด สิ่งที่เก็บลง `ChatMessage.rawMessage`
+ * ตลอดมาจึงเป็น payload **หลัง** parse — field แปลกหน้าที่ Meta ส่งมา (ซึ่งคือสิ่งเดียวที่มีค่า
+ * ตอนสืบว่า "ทำไม event ชนิดใหม่ไม่ทำงาน") หายไปตั้งแต่ก่อนถึงฐาน. พบวันนี้ตอนไล่ message_edits:
+ * เปิดแถวจริงมาดูแล้วเจอแค่ `{sender, message:{mid}, recipient, timestamp}` ซึ่งไม่ได้แปลว่า
+ * Meta ส่งมาเท่านั้น — แปลว่าเราเก็บไว้เท่านั้น
+ *
+ * จับคู่ด้วย "ตำแหน่ง" (entry index + messaging index) เพราะ parse ไม่ได้สลับลำดับ และไม่มี key
+ * ที่ใช้ join ได้ทุกชนิด event (บาง event ไม่มี mid). ถ้าโครงไม่ตรง (จำนวนไม่เท่า) คืน undefined
+ * แล้วให้ caller ตกกลับไปใช้ event ที่ parse แล้ว — ดีกว่าจับคู่ผิดตัว
+ */
+export function extractMessagingEventsWithRaw(
+  body: WebhookBody,
+  rawBody: unknown,
+): Array<{ object: string; pageId: string; event: MessagingEvent; rawEvent?: unknown }> {
+  const rawEntries = (rawBody as { entry?: Array<{ messaging?: unknown[] }> } | null)?.entry
+  const out: Array<{ object: string; pageId: string; event: MessagingEvent; rawEvent?: unknown }> = []
+  body.entry.forEach((entry, ei) => {
+    const rawMessaging = Array.isArray(rawEntries?.[ei]?.messaging) ? rawEntries![ei]!.messaging! : null
+    const parsedMessaging = entry.messaging ?? []
+    const aligned = rawMessaging?.length === parsedMessaging.length
+    parsedMessaging.forEach((event, mi) => {
+      out.push({
+        object: body.object,
+        pageId: entry.id,
+        event,
+        rawEvent: aligned ? rawMessaging![mi] : undefined,
+      })
+    })
+  })
+  return out
+}
