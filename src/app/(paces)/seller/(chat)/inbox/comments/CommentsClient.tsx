@@ -21,6 +21,7 @@ import { formatTimeHM, formatDateTimeTH } from '@/lib/format-date'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
+import { ChannelBadgeOverlay } from '../components/ChannelBadge'
 
 export type ChannelOption = { id: string; name: string; provider: string; avatarUrl: string | null }
 
@@ -314,18 +315,10 @@ export default function CommentsClient({
                         <Icon icon="photo" className="text-xl" />
                       </span>
                     )}
-                    <span
-                      title={p.channel.name}
-                      className="ring-card bg-card absolute -end-1 -bottom-1 flex size-5 items-center justify-center rounded-full ring-2"
-                    >
-                      {p.channel.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.channel.avatarUrl} alt="" className="size-5 rounded-full object-cover" />
-                      ) : (
-                        // สี brand Facebook — ข้อยกเว้น Hard Rule 6/7 เดียวกับ ChannelBadge (asset ของแบรนด์)
-                        <Icon icon="brand-facebook" className="text-sm" style={{ color: '#0866FF' }} />
-                      )}
-                    </span>
+                    {/* ใช้ ChannelBadgeOverlay ตัวเดียวกับ badge ช่องทางในแท็บข้อความ — มีโลโก้
+                        Facebook เป็นไฟล์ asset อยู่แล้ว (/images/logos/facebook.svg) ไม่ต้อง
+                        hardcode สีแบรนด์ซ้ำที่นี่ และหน้าตาตรงกันทั้งสองแท็บโดยอัตโนมัติ */}
+                    <ChannelBadgeOverlay channel={p.channel.provider} imageUrl={p.channel.avatarUrl ?? undefined} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="text-default-800 line-clamp-2 text-sm font-medium">
