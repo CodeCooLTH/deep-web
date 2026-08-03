@@ -182,10 +182,18 @@ model Shop {
   // 🛑 ไม่ใช่ authorization gate เอง — แค่ data flag; service layer ต้องเช็ค role+toggle+package
   // ครบทุกครั้ง (ดู SRS สำหรับ authorization logic เต็ม)
   staffCanViewFinance Boolean @default(false)
-  // --- feature 00017: Lodging Vertical (Phase 1, additive) ---
-  // vertical: "GENERAL" (สินค้าและบริการ — ecommerce เดิม) | "LODGING" (บ้านพักตากอากาศ)
+  // --- feature 00017: Lodging Vertical (Phase 1) → ขยายเป็น 3 ค่าโดย feature 00028 ---
+  // vertical (ป้ายบนจอ "ประเภทร้านค้า") มี 3 ค่าเท่านั้น:
+  //   "ONLINE_SALES"  (ขายออนไลน์)      — ขายสินค้าที่ต้องจัดส่ง มีสต็อก/ประมูล/iShip
+  //   "SERVICE_QUEUE" (สินค้าและบริการ) — รับนัดคิวเข้ารับบริการ ไม่มีการจัดส่ง (feature 00024)
+  //   "LODGING"       (บ้านพัก)         — ให้เช่าที่พักรายคืน มีห้องพัก/ปฏิทิน/การจอง
   // String ตาม convention เดิม (มิเรอร์ kind/type/status) ไม่ใช่ Prisma enum
-  // default GENERAL = Shop เดิมทุกแถวก่อน feature นี้เป็น ecommerce อัตโนมัติ ไม่ต้อง backfill (BR-LODG-01/03)
+  //
+  // 🛑 ค่า "GENERAL" เดิมถูกลบทิ้งแล้ว (feature 00028 BR-SBT-05) — ห้ามเขียนกลับเข้ามาไม่ว่ากรณีใด
+  // migration 20260803120000_shop_business_type backfill ทุกแถว GENERAL → ONLINE_SALES และเพิ่ม
+  // CHECK constraint `Shop_vertical_check` จำกัดค่าไว้ 3 ค่านี้ที่ระดับ DB
+  // 🛑 CHECK นี้เป็น unmanaged SQL ที่ Prisma DSL ประกาศไม่ได้ — ห้าม `prisma db pull`/`migrate dev`
+  // เด็ดขาด (introspection มองไม่เห็นแล้วจะพยายาม DROP ทิ้ง เหมือน Shop_userId_personal_key)
   //
   // 🛑 คนละเรื่องกับ 3 field ที่ชื่อคล้ายกัน ห้าม reuse ห้ามเขียนค่าข้ามกัน (BR-LODG-04):
   //   - businessType (บรรทัด ~99) = INDIVIDUAL|COMPANY ป้ายนิติบุคคลสำหรับ L3 verification
@@ -193,10 +201,10 @@ model Shop {
   //   - category/categories        = หมวดสินค้า 10 key (src/lib/shop-categories.ts)
   // ป้ายบนหน้าจอ: vertical = "ประเภทกิจการ", businessType = "ประเภทผู้ประกอบการ"
   //
-  // 🛑 immutable — ตั้งครั้งเดียวตอนสร้างธุรกิจ เปลี่ยนภายหลังไม่ได้ (BR-LODG-30, D-01)
+  // 🛑 immutable — ตั้งครั้งเดียวตอนสร้างร้าน เปลี่ยนภายหลังไม่ได้ (BR-LODG-30/BR-SBT-08, D-01)
   // บังคับที่ service layer เท่านั้น (ไม่มี DB trigger — โครงการไม่ใช้ trigger ที่ไหนเลย)
   // service ที่แก้ข้อมูลร้านต้องไม่รับ field นี้เข้ามาเลย
-  vertical            String  @default("GENERAL")
+  vertical            String  @default("ONLINE_SALES")
 
   // appointmentGranularity: หน่วยเวลาของการนัด (feature 00024 FR-RSV-13) — DAY | TIME
   //   DAY  = รับนัดเป็นรายวัน ฟอร์มไม่ถามเวลาเริ่ม/สิ้นสุด (ค่าเริ่มต้น — กรอกน้อยที่สุด)
@@ -210,7 +218,7 @@ model Shop {
   appointmentGranularity String @default("DAY")
 
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rooms                Room[] // NEW (feature 00017 P1) — ห้องพัก; ว่างเสมอสำหรับ shop ที่ vertical = GENERAL
+  rooms                Room[] // NEW (feature 00017 P1) — ห้องพัก; ว่างเสมอสำหรับ shop ที่ vertical ไม่ใช่ LODGING
   housekeepers         Housekeeper[] // NEW (feature 00017 P3) — รายชื่อแม่บ้าน; ว่างเสมอสำหรับ GENERAL
   serviceResources     ServiceResource[] // NEW (feature 00024) — ทรัพยากรที่จองเวลาได้; ว่างเสมอถ้าไม่เข้า BR-RSV-01
   products             Product[]
@@ -235,7 +243,7 @@ model Shop {
   aiSetting            ShopAiSetting? // NEW (feature 00019) — ตั้งค่าผู้ช่วยร่างคำตอบ AI ของร้านนี้ (1:1)
   aiSuggestDailyUsages AiSuggestDailyUsage[] // NEW (feature 00019 ext 2026-07-29) — ตัวนับโควตาฟรี ai-suggest ต่อวัน (เฉพาะร้าน non-paid, ≤1 แถวต่อวัน)
   aiSuggestUsageEvents AiSuggestUsageEvent[] // NEW (feature 00019 ext 2026-07-29) — audit log ai-suggest ทุก path (FREE/CREDIT/UNLIMITED_PLAN)
-  shippingAccount      ShopShippingAccount? // NEW (feature 00022) — การเชื่อมต่อขนส่ง iShip + ค่าตั้งต้น (1:1, เฉพาะ vertical=GENERAL)
+  shippingAccount      ShopShippingAccount? // NEW (feature 00022) — การเชื่อมต่อขนส่ง iShip + ค่าตั้งต้น (1:1, เฉพาะ vertical=ONLINE_SALES)
   orderShipments       OrderShipment[] // NEW (feature 00022) — พัสดุที่ร้านนี้เปิดกับขนส่ง (denorm scope)
   shipmentPickups      ShipmentPickup[] // NEW (feature 00022) — คำขอเรียกรถเข้ารับ (ระดับร้าน ไม่ใช่ระดับออเดอร์)
 
@@ -334,7 +342,8 @@ model Housekeeper {
 
 // ServiceResource: สิ่งที่ลูกค้าจองเวลาเข้ามาใช้ — feature 00024
 // เช่น ช่างหนึ่งคน / เตียงนวดหนึ่งเตียง / ห้องสตูดิโอ / คลาสเรียน / ชุดอุปกรณ์ให้เช่า
-// ว่างเสมอสำหรับ shop ที่ไม่เข้าเงื่อนไข BR-RSV-01 (ต้อง kind=BUSINESS "และ" vertical=GENERAL)
+// ว่างเสมอสำหรับ shop ที่ไม่เข้าเงื่อนไข BR-RSV-01 (ต้อง vertical=SERVICE_QUEUE — feature 00028
+// BR-SBT-11 ตัดเงื่อนไข kind=BUSINESS ออก บัญชีบุคคลใช้คิวงานได้แล้ว)
 model ServiceResource {
   id          String  @id @default(uuid())
   shopId      String
@@ -1674,7 +1683,7 @@ model AiSuggestUsageEvent {
 // ร้านผูกบัญชีขนส่ง iShip ด้วย token ที่วางเอง แล้วเปิดพัสดุจากคำสั่งซื้อ +
 // พิมพ์ใบปะหน้า A6 ได้จากหน้าเรา — ดู docs/20 - Features/00022 .../DATABASE.md
 //
-// 🛑 ใช้ได้เฉพาะร้าน Shop.vertical = "GENERAL" — ร้าน "LODGING" (บ้านพัก) ไม่มีฟีเจอร์นี้
+// 🛑 ใช้ได้เฉพาะร้าน Shop.vertical = "ONLINE_SALES" — ร้าน "SERVICE_QUEUE"/"LODGING" ไม่มีฟีเจอร์นี้
 //    (BR-ISHIP-01/02) บังคับที่ service layer — DB ไม่มี cross-table CHECK
 // 🛑 ไม่แตะตาราง Order/Shop แม้แต่คอลัมน์เดียว — ได้แค่ back-relation (ไม่สร้างคอลัมน์จริง)
 // ============================================================================
