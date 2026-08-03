@@ -43,7 +43,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
   ใหม่ในงานนี้ + `Shop_userId_personal_key`, EXCLUDE ต่าง ๆ ที่มีอยู่แล้ว) แล้วเขียนทับ schema ให้ "ตรงกับ
   ที่มองเห็น" ซึ่งจะทำให้ constraint พวกนี้หายไปจาก schema.prisma (แม้ยังอยู่จริงในฐาน จนกว่าจะมี migration
   ถัดไปที่ auto-gen ไป DROP มันทิ้งจริง ๆ)
-- ใช้ **hand-written `migration.sql`** (ไฟล์นี้: `prisma/migrations/20260803120000_shop_business_type/`)
+- ใช้ **hand-written `migration.sql`** (ไฟล์นี้: `prisma/migrations/20260803140000_shop_business_type/`)
   **+ `prisma migrate deploy -e .env.local`** เท่านั้น (ไม่ใช่ `migrate dev`)
 - **ต้องขอผู้ใช้ยืนยันก่อนรันทุกครั้ง** เพราะแตะ prod โดยตรง — agent นี้เขียนไฟล์ไว้เฉยเท่านั้น **ไม่ apply เอง**
 - อนุญาตเฉพาะ: `prisma migrate status`, `prisma validate`, `prisma generate`, และ `SELECT` (read-only)
@@ -167,7 +167,7 @@ ALTER TABLE "Shop" VALIDATE CONSTRAINT "Shop_vertical_check";
 
 ### 5.1 ไฟล์ migration
 
-**`prisma/migrations/20260803120000_shop_business_type/migration.sql`** — เขียนมือ (hand-written)
+**`prisma/migrations/20260803140000_shop_business_type/migration.sql`** — เขียนมือ (hand-written)
 ยืนยันแล้วว่า timestamp มากกว่า migration ล่าสุดที่มีอยู่ในโฟลเดอร์ (`20260802190000_seller_shortcut_preference`)
 
 ลำดับ statement ภายในไฟล์ (รันเป็น transaction เดียวโดย `migrate deploy`):
