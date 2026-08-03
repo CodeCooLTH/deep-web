@@ -846,16 +846,23 @@ export default function ChatThread({
   // โดยไม่ต้องไปแตะ render ของแต่ละชนิด
   // mode: 'menu' = กดค้างบนมือถือ (แถวรีแอ็กชัน + ตอบกลับ/คัดลอก)
   //       'reactions' = กดปุ่มหน้ายิ้มตอน hover บนเดสก์ท็อป (มีปุ่มตอบกลับ/คัดลอกข้างบับเบิลอยู่แล้ว)
+  // โหมด 'menu' เก็บ "ตัว element ของบับเบิล" ไม่ใช่พิกัดนิ้ว เพราะ overlay ต้องโคลนบับเบิลนั้นมา
+  // ลอยเหนือฉากเบลอ (user สั่ง 2026-08-03 อ้าง Messenger) — พิกัดนิ้วบอกไม่ได้ว่าก้อนไหนกว้างแค่ไหน
   const [actionTarget, setActionTarget] = useState<
-    { message: ChatMessageView; x: number; y: number; mode: 'menu' | 'reactions' } | null
+    | { mode: 'menu'; message: ChatMessageView; bubble: HTMLElement }
+    | { mode: 'reactions'; message: ChatMessageView; x: number; y: number }
+    | null
   >(null)
   const messagesRef = useRef<ChatMessageView[]>([])
   messagesRef.current = messages
   const longPress = useLongPress((point) => {
-    const el = document.elementFromPoint(point.x, point.y)?.closest('[data-message-id]')
-    const id = el?.getAttribute('data-message-id')
+    const row = document.elementFromPoint(point.x, point.y)?.closest('[data-message-id]')
+    const id = row?.getAttribute('data-message-id')
     const message = id ? messagesRef.current.find((x) => x.id === id) : undefined
-    if (message) setActionTarget({ message, x: point.x, y: point.y, mode: 'menu' })
+    // แถว (`[data-message-id]`) กว้างเต็มบรรทัดเพราะมี avatar + ปุ่ม hover ด้วย — ที่ต้องยกขึ้นมา
+    // คือคอลัมน์บับเบิลข้างใน (`[data-message-bubble]`) ซึ่งกว้างเท่าเนื้อข้อความจริง
+    const bubble = row?.querySelector<HTMLElement>('[data-message-bubble]')
+    if (message && bubble) setActionTarget({ mode: 'menu', message, bubble })
   })
 
   const actionTargetActions: MessageAction[] = (() => {
@@ -1587,10 +1594,10 @@ export default function ChatThread({
                         <ReactMessageButton
                           onOpen={(rect) =>
                             setActionTarget({
+                              mode: 'reactions',
                               message: m,
                               x: rect.left + rect.width / 2,
                               y: rect.top,
-                              mode: 'reactions',
                             })
                           }
                         />
@@ -1643,7 +1650,10 @@ export default function ChatThread({
                         max-w-60 ที่บรรทัด IMAGE ด้านล่างในไฟล์นี้เอง; min-w-0 กัน flex item ไม่ยอม shrink,
                         break-words กันคำ/ลิงก์ยาวล้นกรอบ */}
                     {/* relative: จุดยึดของป้าย "ระบบตอบ" ที่เกยขอบบนบับเบิล (feature 00023 S-23) */}
-                    <div className="relative min-w-0 max-w-96 break-words">
+                    {/* data-message-bubble: จุดที่ MessageActionBubble โคลนไปลอยเหนือฉากเบลอตอน
+                        กดค้าง — ต้องอยู่ที่คอลัมน์นี้ (ไม่ใช่แถวด้านนอกที่กว้างเต็มบรรทัด) เพราะ
+                        ที่ผู้ใช้ "เพ่ง" คือเนื้อข้อความ + quote + ป้ายระบบตอบ ไม่ใช่ avatar/ปุ่ม hover */}
+                    <div data-message-bubble className="relative min-w-0 max-w-96 break-words">
                       {mExt.autoReplyKind && (
                         <AutoReplyTag isTest={mExt.autoReplyKind === 'AUTO_TEST'} trace={m.autoReply ?? null} />
                       )}
@@ -2221,12 +2231,20 @@ export default function ChatThread({
       </div>
     </div>
 
-    {/* เมนูลอยจากการกดค้างบนข้อความ (มือถือ) — ทางเข้าเดียวของตอบกลับ/คัดลอกบนจอสัมผัส
-        เพราะปุ่มข้างบับเบิลเป็น lg:group-hover (desktop-only) */}
+    {/* กดค้างบนข้อความ (มือถือ) → เบลอทั้งเธรด + ยกบับเบิลนั้นขึ้นมาพร้อมเมนู — ทางเข้าเดียวของ
+        ตอบกลับ/คัดลอกบนจอสัมผัส เพราะปุ่มข้างบับเบิลเป็น lg:group-hover (desktop-only)
+        ส่วนปุ่มหน้ายิ้มตอน hover บนเดสก์ท็อป (mode 'reactions') ยังเป็น popover เกาะปุ่ม ไม่เบลอจอ */}
     {actionTarget && (actionTargetActions.length > 0 || actionTargetReactions.length > 0) && (
       <MessageActionBubble
-        x={actionTarget.x}
-        y={actionTarget.y}
+        anchor={
+          actionTarget.mode === 'menu'
+            ? {
+                kind: 'bubble',
+                bubble: actionTarget.bubble,
+                mine: actionTarget.message.senderRole === 'SHOP',
+              }
+            : { kind: 'point', x: actionTarget.x, y: actionTarget.y }
+        }
         actions={actionTargetActions}
         reactions={actionTargetReactions}
         // ปุ่ม + → แผงอิโมจิทั้งชุด (user สั่ง 2026-08-03) — ส่งเฉพาะเมื่อข้อความนั้นกดรีแอ็กชันได้จริง

@@ -266,3 +266,26 @@ html[data-theme="dark"] .chat-header-logo {
     scroll-behavior: auto !important;
   }
 }
+
+
+/* ── แชท: กดค้างบนข้อความในมือถือ ต้องไม่เด้ง selection/callout ของ iOS ─────────
+ * อาการ (user report 2026-08-03): กดค้างบนบับเบิลในเธรดแชท → เมนูของเรา
+ * (useLongPress → MessageActionBubble: รีแอ็กชัน/ตอบกลับ/คัดลอก) เด้งขึ้นมาพร้อมกับ UI เลือก
+ * ข้อความของ iOS (ไฮไลต์ฟ้า + ที่จับสองข้าง + แถบ Copy/Look Up) ซ้อนกันสองชั้น
+ *
+ * ทำไม onContextMenu + preventDefault ที่ hook ไม่พอ: iOS Safari ไม่ยิง contextmenu
+ * กับข้อความล้วน (ยิงเฉพาะลิงก์/รูป) — ตัวที่เด้งคือ text selection ซึ่งปิดได้ทางเดียว
+ * คือ -webkit-user-select ที่ตัว element ส่วน -webkit-touch-callout กันชุด
+ * "คัดลอก/แชร์/บันทึกรูป" ของลิงก์กับรูปในบับเบิล
+ *
+ * จำกัดด้วย (hover: none) and (pointer: coarse) = เฉพาะจอสัมผัส — บน desktop ยังลาก
+ * เลือกข้อความคัดลอกเองได้ตามเดิม ส่วนมือถือมีปุ่ม "คัดลอก" ในเมนูกดค้างแทนอยู่แล้ว
+ * (สองพร็อพเพอร์ตี้นี้ inherit ลงลูก จึงครอบทุกชนิดบับเบิล: ข้อความ/รูป/ไฟล์/การ์ด)
+ */
+@media (hover: none) and (pointer: coarse) {
+  [data-message-id] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
