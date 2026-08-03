@@ -176,13 +176,13 @@ export default function ChatShopSwitcher() {
                     <span className="flex-1 truncate">{b.shopName}</span>
                     <span
                       className={`badge shrink-0 ${
-                        b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info-ink'
+                        b.role === 'OWNER' ? 'bg-primary/15 text-primary' : 'bg-info/15 text-info'
                       }`}
                     >
                       {b.role === 'OWNER' ? 'เจ้าของ' : 'ผู้ดูแล'}
                     </span>
                     {b.locked && (
-                      <span className="badge bg-danger/15 text-danger-ink inline-flex shrink-0 items-center">
+                      <span className="badge bg-danger/15 text-danger inline-flex shrink-0 items-center">
                         <Icon icon="lock" className="size-3" aria-hidden="true" />
                       </span>
                     )}

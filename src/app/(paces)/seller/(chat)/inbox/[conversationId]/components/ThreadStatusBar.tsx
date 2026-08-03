@@ -38,9 +38,9 @@ export interface ThreadStatusItem {
 
 /** class ของกล่อง/ข้อความตามโทน — เขียนเต็มคำ ไม่ประกอบสตริง เพราะ Tailwind สแกนแบบ static */
 const TONE_CLS: Record<ThreadStatusTone, string> = {
-  danger: 'bg-danger/15 text-danger-ink',
-  warning: 'bg-warning/15 text-warning-ink',
-  info: 'bg-info/15 text-info-ink',
+  danger: 'bg-danger/15 text-danger',
+  warning: 'bg-warning/15 text-warning',
+  info: 'bg-info/15 text-info',
 }
 
 export default function ThreadStatusBar({ items }: { items: ThreadStatusItem[] }) {

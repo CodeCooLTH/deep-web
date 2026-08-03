@@ -81,7 +81,7 @@ export default function OrderCardView({
         {data.shipment?.trackingNo && (
           <div className="border-default-200 mt-2.5 flex items-center justify-between gap-2 border-t border-dashed pt-2 text-xs">
             <span className="text-default-700">พัสดุ</span>
-            <span className="text-success-ink min-w-0 truncate font-semibold">
+            <span className="text-success min-w-0 truncate font-semibold">
               {data.shipment.courierName ? `${data.shipment.courierName} · ` : ''}
               {data.shipment.trackingNo}
             </span>

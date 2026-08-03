@@ -472,7 +472,7 @@ export default function QuickMessageManager({
               ) : error ? (
                 /* แยกจาก empty state ให้ชัด — เดิมโหลดพังแล้วขึ้น "ยังไม่มีข้อความ" ผู้ใช้นึกว่าข้อมูลหาย */
                 <div className="flex flex-col items-center gap-2 py-12 text-center">
-                  <span className="bg-warning/15 text-warning-ink flex size-12 items-center justify-center rounded-lg">
+                  <span className="bg-warning/15 text-warning flex size-12 items-center justify-center rounded-lg">
                     <Icon icon="alert-triangle" className="text-2xl" />
                   </span>
                   <span className="text-default-800 text-sm font-semibold">โหลดข้อความสำเร็จรูปไม่สำเร็จ</span>
@@ -665,7 +665,7 @@ export default function QuickMessageManager({
                                     e.stopPropagation()
                                     handleDelete(qm)
                                   }}
-                                  className="text-default-700 hover:bg-danger/10 hover:text-danger-ink flex size-11 items-center justify-center rounded-lg"
+                                  className="text-default-700 hover:bg-danger/10 hover:text-danger flex size-11 items-center justify-center rounded-lg"
                                   aria-label={`ลบ ${qm.title}`}
                                 >
                                   <Icon icon="trash" className="text-base" />
@@ -736,7 +736,7 @@ export default function QuickMessageManager({
                 />
                 <p
                   className={`mb-0 mt-1 text-end text-2xs ${
-                    bodyLen > BODY_WARN ? 'text-warning-ink' : 'text-default-700'
+                    bodyLen > BODY_WARN ? 'text-warning' : 'text-default-700'
                   }`}
                 >
                   {bodyLen} / {BODY_MAX}
@@ -795,7 +795,7 @@ export default function QuickMessageManager({
                     const target = localItems.find((i) => i.id === editingId)
                     if (target) handleDelete(target)
                   }}
-                  className="text-danger-ink flex min-h-11 items-center gap-2 text-sm font-semibold"
+                  className="text-danger flex min-h-11 items-center gap-2 text-sm font-semibold"
                 >
                   <Icon icon="trash" />
                   <span className="hidden sm:inline">ลบข้อความนี้</span>

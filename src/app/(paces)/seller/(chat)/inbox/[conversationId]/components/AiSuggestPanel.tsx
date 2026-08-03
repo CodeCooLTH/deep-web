@@ -9,7 +9,7 @@
  * ขั้นต่อเนื่อง (quota-check → auto suggest) ไม่แยก loading UI ตามสเปก
  *
  * accent เขียว (success token) ตาม reference ผู้ใช้ (Hard Rule 6 — asset/สีตาม ref) — ไม่ hardcode hex
- * ใช้ text-success-ink/bg-success token. Paces primitive เท่านั้น (HR7). Base: theme/paces card + list rows.
+ * ใช้ text-success/bg-success token. Paces primitive เท่านั้น (HR7). Base: theme/paces card + list rows.
  *
  * layout (user สั่ง 2026-07-23): "ไม่อยากให้เป็น panel ลอย ๆ ไม่มี shadow ไม่ให้ดูเป็น popover"
  * เดิมเป็น `absolute bottom-full ... rounded-lg border shadow-lg` = การ์ดลอยทับพื้นที่ข้อความ
@@ -203,10 +203,10 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
     <div className="border-default-300 bg-success/5 -mx-4 -mt-3 mb-3 border-b border-dashed px-4 py-2 sm:-mx-6 sm:-mt-3.75 sm:px-6">
       {/* header — ไม่มีเส้นคั่นในตัวแล้ว (แถบทั้งก้อนถูกคั่นจาก composer ด้วยเส้นประด้านล่างพอ) */}
       <div className="flex items-center justify-between pb-1.5">
-        <span className="text-success-ink flex items-center gap-2 text-sm font-semibold">
+        <span className="text-success flex items-center gap-2 text-sm font-semibold">
           <Icon icon="sparkles" className="text-base" />
           AI ช่วยร่างคำตอบ
-          {quota?.isPaidPlan && <span className="badge bg-success/15 text-success-ink">ใช้ได้ไม่จำกัด</span>}
+          {quota?.isPaidPlan && <span className="badge bg-success/15 text-success">ใช้ได้ไม่จำกัด</span>}
         </span>
         <div className="flex items-center gap-2">
           {!quota?.isPaidPlan && typeof quota?.freeRemaining === 'number' && quota.freeRemaining > 0 && (
@@ -231,7 +231,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
                 type="button"
                 onClick={fetchSuggestions}
                 disabled={phase === 'loading'}
-                className="text-default-700 hover:text-success-ink flex size-7 items-center justify-center rounded"
+                className="text-default-700 hover:text-success flex size-7 items-center justify-center rounded"
                 aria-label="ขอคำแนะนำใหม่"
                 title="ขอคำแนะนำใหม่"
               >
@@ -261,7 +261,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
           </>
         ) : phase === 'quota-error' ? (
           <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
-            <Icon icon="alert-circle" className="text-warning-ink text-2xl" />
+            <Icon icon="alert-circle" className="text-warning text-2xl" />
             <span>{quotaError}</span>
             <button type="button" onClick={fetchQuota} className="btn btn-sm border-default-300">
               <Icon icon="refresh" className="me-1" /> ลองใหม่
@@ -269,7 +269,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
           </div>
         ) : phase === 'suggest-error' ? (
           <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
-            <Icon icon="alert-circle" className="text-warning-ink text-2xl" />
+            <Icon icon="alert-circle" className="text-warning text-2xl" />
             <span>{suggestError}</span>
             <button type="button" onClick={fetchSuggestions} className="btn btn-sm border-default-300">
               <Icon icon="refresh" className="me-1" /> ลองใหม่
@@ -284,7 +284,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
           </div>
         ) : phase === 'credit-block' ? (
           <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
-            <Icon icon="alert-circle" className="text-warning-ink text-2xl" />
+            <Icon icon="alert-circle" className="text-warning text-2xl" />
             <span>ยอดเงินไม่พอ (คงเหลือ ฿{quota?.balance ?? 0})</span>
             <div className="flex items-center gap-2">
               <Link href="/wallet" className="btn btn-sm border-default-300">

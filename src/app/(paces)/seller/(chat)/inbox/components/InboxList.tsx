@@ -159,7 +159,7 @@ const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM']
 
 // feature 00018 CRM — badge สถานะการขายในแถว (UNSPECIFIED ไม่โชว์). ต้องตรงกับ CustomerCrmSection
 const SALES_STATUS_META: Record<string, { label: string; cls: string }> = {
-  INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success-ink' },
+  INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success' },
   NOT_INTERESTED: { label: 'ไม่สนใจ', cls: 'bg-default-200 text-default-600' },
 }
 
@@ -850,7 +850,7 @@ export default function InboxList({
               className={`badge text-2xs inline-flex items-center gap-1 py-2 ${
                 filter.shipment === 'problem'
                   ? 'bg-danger text-white'
-                  : 'bg-danger/15 text-danger-ink'
+                  : 'bg-danger/15 text-danger'
               }`}
             >
               <Icon icon="alert-triangle" width={12} height={12} />
@@ -907,8 +907,8 @@ export default function InboxList({
                   className={`-mb-px flex shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
                     t.danger
                       ? on
-                        ? 'border-danger text-danger-ink font-semibold'
-                        : 'border-transparent text-danger-ink font-medium'
+                        ? 'border-danger text-danger font-semibold'
+                        : 'border-transparent text-danger font-medium'
                       : on
                         ? 'border-primary text-primary font-semibold'
                         : 'border-transparent text-default-600 font-medium'
@@ -1003,7 +1003,7 @@ export default function InboxList({
                         onClick={() => handleDeleteGroup(g)}
                         aria-label={`ลบกลุ่ม ${g.name}`}
                         title="ลบกลุ่ม"
-                        className="text-default-700 hover:text-danger-ink flex size-8 shrink-0 items-center justify-center"
+                        className="text-default-700 hover:text-danger flex size-8 shrink-0 items-center justify-center"
                       >
                         <Icon icon="trash" width={14} height={14} />
                       </button>
@@ -1206,7 +1206,12 @@ export default function InboxList({
                             icon="star-filled"
                             width={14}
                             height={14}
-                            className="text-warning-ink shrink-0"
+                            // ดาวปักหมุด: คงสี warning (เหลือง) ไว้ ไม่ใช้ -ink (user 2026-08-03
+                            // "มันต้องสีเหลืองป่ะ") — เคสนี้ "สี = ตัวตนของไอคอน" ดาวสีน้ำตาลอ่านไม่ออกว่าเป็นดาว
+                            // ไม่เสียการเข้าถึง เพราะสถานะปักหมุดสื่อผ่านทางอื่นครบ: แถวถูกเรียงขึ้นบนสุด +
+                            // aria-label ของปุ่ม + เมนู ⋯ เขียนว่า "เลิกปักหมุด" (WCAG 1.4.11 ไม่บังคับเมื่อ
+                            // ข้อมูลมีในรูปแบบอื่นแล้ว) — ต่างจากข้อความที่ไม่มีทางเลือกอื่นนอกจากอ่าน
+                            className="text-warning shrink-0"
                             aria-label="ปักหมุดไว้"
                           />
                         )}
@@ -1218,7 +1223,7 @@ export default function InboxList({
                             icon="circle-check"
                             width={14}
                             height={14}
-                            className="text-success-ink shrink-0"
+                            className="text-success shrink-0"
                             aria-label="ปิดงานแล้ว"
                           />
                         )}
@@ -1227,7 +1232,7 @@ export default function InboxList({
                             icon="alert-octagon"
                             width={14}
                             height={14}
-                            className="text-danger-ink shrink-0"
+                            className="text-danger shrink-0"
                             aria-label="สแปม"
                           />
                         )}
@@ -1399,7 +1404,8 @@ export default function InboxList({
                     aria-label={c.isPinned ? 'เลิกปักหมุดบทสนทนานี้' : 'ปักหมุดบทสนทนานี้'}
                     title={c.isPinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
                     className={`btn btn-icon btn-sm hover:bg-default-100 disabled:opacity-50 ${
-                      c.isPinned ? 'text-warning-ink' : 'text-default-600'
+                      // เหลืองเหมือนดาวหน้าชื่อ — ต้องเป็นสีเดียวกันทั้งสองที่ ไม่งั้นดูเป็นคนละสถานะ
+                      c.isPinned ? 'text-warning' : 'text-default-600'
                     }`}
                   >
                     <Icon icon={c.isPinned ? 'star-filled' : 'star'} width={16} height={16} />
@@ -1469,7 +1475,7 @@ export default function InboxList({
                               handleRowAction(c.id, c.isSpam ? 'unspam' : 'spam')
                             }}
                             className={`dropdown-item text-sm disabled:opacity-50 ${
-                              c.isSpam ? '' : 'text-danger-ink hover:bg-danger/10'
+                              c.isSpam ? '' : 'text-danger hover:bg-danger/10'
                             }`}
                           >
                             <Icon icon={c.isSpam ? 'inbox' : 'alert-octagon'} className="size-4" />

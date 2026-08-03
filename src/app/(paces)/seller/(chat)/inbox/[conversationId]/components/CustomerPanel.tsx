@@ -561,7 +561,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
                 className="text-default-800 mb-0 flex items-center gap-1.5 text-sm"
                 title={`รหัสลูกค้า ${data.customer.id}`}
               >
-                <Icon icon="link" className="text-success-ink text-base" />
+                <Icon icon="link" className="text-success text-base" />
                 เชื่อมแล้ว · {data.customer.phoneMasked}
               </p>
             ) : (

@@ -29,7 +29,7 @@ type Crm = {
 
 export const SALES_STATUS_META: Record<SalesStatus, { label: string; cls: string }> = {
   UNSPECIFIED: { label: 'ยังไม่ระบุ', cls: 'bg-default-100 text-default-700' },
-  INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success-ink' },
+  INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success' },
   NOT_INTERESTED: { label: 'ไม่สนใจ', cls: 'bg-default-200 text-default-600' },
 }
 const STATUS_ORDER: SalesStatus[] = ['UNSPECIFIED', 'INTERESTED', 'NOT_INTERESTED']

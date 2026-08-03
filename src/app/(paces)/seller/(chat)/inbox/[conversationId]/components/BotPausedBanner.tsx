@@ -97,7 +97,7 @@ export default function BotPausedBanner({ conversationId, pausedUntil, handoffAt
   // ซึ่งเป็นเจ้าของระยะห่างของทั้งกลุ่มสถานะ (ก่อนหน้านี้ ChatThread ห่อ px-4 pt-4 ไว้ข้างนอกด้วย
   // เงื่อนไขที่ไม่ตรงกับข้างใน จนเหลือ div ว่างค้างบนจอ — ดู getBotPausedSummary)
   return (
-    <div className="bg-warning/15 text-warning-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+    <div className="bg-warning/15 text-warning flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
       <Icon icon="robot-off" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
       <span className="min-w-0 flex-1">
         {isHandedOff ? (

@@ -145,7 +145,7 @@ function CopyMessageButton({ text }: { text: string }) {
       aria-label={copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}
       title={copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}
       className={`mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex ${
-        copied ? 'text-success-ink' : 'text-default-700 hover:bg-default-100 hover:text-default-700'
+        copied ? 'text-success' : 'text-default-700 hover:bg-default-100 hover:text-default-700'
       }`}
     >
       {/* icon สลับ copy → check พร้อม pop (scale) — key เปลี่ยนเพื่อ retrigger transition ทุกครั้งที่คัดลอก */}
@@ -232,10 +232,10 @@ async function shareToDevice(url: string, filename: string): Promise<boolean> {
 /** ไอคอน+สีประจำชนิดไฟล์แนบ (2026-08-02) — ใช้ทั้งชิปในคิวและบับเบิลในเธรด ให้ร้านจำสีได้
  *  ทุกตัวเป็น tabler icon จริง ไม่ใช่ emoji (Hard Rule 12) */
 const ATTACHMENT_ICON: Record<string, { icon: string; cls: string }> = {
-  IMAGE: { icon: 'photo', cls: 'bg-info/15 text-info-ink' },
+  IMAGE: { icon: 'photo', cls: 'bg-info/15 text-info' },
   VIDEO: { icon: 'video', cls: 'bg-primary/15 text-primary' },
-  AUDIO: { icon: 'volume', cls: 'bg-success/15 text-success-ink' },
-  FILE: { icon: 'file-text', cls: 'bg-warning/15 text-warning-ink' },
+  AUDIO: { icon: 'volume', cls: 'bg-success/15 text-success' },
+  FILE: { icon: 'file-text', cls: 'bg-warning/15 text-warning' },
 }
 
 function MediaDownloadLink({
@@ -982,7 +982,7 @@ export default function ChatThread({
         </Link>
       ),
       detail: (
-        <div className="bg-danger/15 text-danger-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+        <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-lg" />
           <span>
             การเชื่อมต่อกับเพจนี้มีปัญหา — ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่{' '}
@@ -1016,7 +1016,7 @@ export default function ChatThread({
           ? 'เกิน 24 ชั่วโมงแล้ว — ตอบเองได้ ห้ามส่งโปรโมชัน'
           : 'เกินเวลาที่ Meta ให้ตอบ — อาจส่งไม่สำเร็จ',
       detail: (
-        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info-ink' : 'bg-warning/15 text-warning-ink'}`}>
+        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info' : 'bg-warning/15 text-warning'}`}>
           <Icon icon={soft ? 'info-circle' : 'alert-triangle'} className="mt-0.5 shrink-0 text-lg" />
           <span>
             {neverInbound ? (
@@ -1081,7 +1081,7 @@ export default function ChatThread({
         </Link>
       ),
       detail: (
-        <div className="bg-info/15 text-info-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+        <div className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="flask" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
           <span className="min-w-0 flex-1">
             ห้องนี้กำลังใช้ทดสอบ DeepAI
@@ -1141,7 +1141,7 @@ export default function ChatThread({
             ms-auto ตัวแรกกินที่ว่างทั้งหมด → ปุ่มถัดไปที่มี ms-auto อยู่แล้วไม่ขยับตำแหน่ง */}
         {isExternal && !tokenInvalid && liveWindowOpen && liveRemaining <= FOUR_HOURS_MS && (
           <span
-            className="text-warning-ink ms-auto flex shrink-0 items-center gap-1.5 text-sm"
+            className="text-warning ms-auto flex shrink-0 items-center gap-1.5 text-sm"
             title={`ใกล้หมดเวลาตอบ — เหลือ ${formatCountdown(liveRemaining)}`}
           >
             <Icon icon="alert-triangle" className="shrink-0 text-base" />
@@ -1361,7 +1361,7 @@ export default function ChatThread({
                             )}
                             {mine && last.id === lastShopMsgId ? (
                               readAtMs > 0 && new Date(last.createdAt).getTime() <= readAtMs ? (
-                                <span className="text-success-ink flex items-center gap-0.5">
+                                <span className="text-success flex items-center gap-0.5">
                                   <Icon icon="checks" /> อ่านแล้ว
                                 </span>
                               ) : (
@@ -1671,9 +1671,9 @@ export default function ChatThread({
                             )}
                             {/* extension #3 Scam-link Detection (FR-SCAM-04/06) — warning banner เฉพาะ
                                 TEXT ที่ flaggedScam=true (BR-SCAM-04 scan เฉพาะ TEXT); WARN เท่านั้น
-                                ไม่ block ส่ง (FR-SCAM-05); token bg-warning/15 text-warning-ink (HR7 ไม่ arbitrary) */}
+                                ไม่ block ส่ง (FR-SCAM-05); token bg-warning/15 text-warning (HR7 ไม่ arbitrary) */}
                             {m.type === 'TEXT' && m.flaggedScam && (
-                              <div className="bg-warning/15 text-warning-ink mt-2 flex items-start gap-1.5 rounded px-2 py-1 text-2xs">
+                              <div className="bg-warning/15 text-warning mt-2 flex items-start gap-1.5 rounded px-2 py-1 text-2xs">
                                 <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-sm" />
                                 <span>ข้อความนี้มีลิงก์ที่ควรระวัง — อย่าโอนเงินหรือให้รหัส OTP กับคนที่ไม่รู้จัก</span>
                               </div>
@@ -1710,7 +1710,7 @@ export default function ChatThread({
                               ข้อความที่อยู่ข้างบนมันเอง. รูปแบบ: [ส่งใหม่] ส่งไม่สำเร็จ (i) | ยกเลิก
                               เหตุผลเต็มย้ายไปอยู่ใน (i) — hover เห็น, แตะได้บนมือถือที่ไม่มี hover */}
                           {failed && (
-                            <span className="text-danger-ink flex items-center gap-1">
+                            <span className="text-danger flex items-center gap-1">
                               {/* user สั่ง 2026-08-03: ป้าย "ส่งไม่สำเร็จ" → "ลองใหม่" ให้เป็นคำสั่งที่กดได้
                                   รวมเข้ากับปุ่ม ↻ เป็นชิ้นเดียว (เดิมไอคอนกับคำแยกกัน กดได้แค่ไอคอนเล็ก ๆ)
                                   ยังคง "ส่งไม่สำเร็จ" ไว้เมื่อส่งซ้ำไม่ได้ — เขียน "ลองใหม่" ทั้งที่กดไม่ได้
@@ -1782,7 +1782,7 @@ export default function ChatThread({
                               เดิมดูแค่ _status (undefined สำหรับแถวที่บันทึกแล้ว) ไม่ได้ดู deliveryStatus */}
                           {mine && m._status !== 'sending' && !failed && m.id === lastShopMsgId ? (
                             readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
-                              <span className="text-success-ink flex items-center gap-0.5">
+                              <span className="text-success flex items-center gap-0.5">
                                 <Icon icon="checks" /> อ่านแล้ว
                               </span>
                             ) : (
@@ -1791,7 +1791,7 @@ export default function ChatThread({
                               </span>
                             )
                           ) : (
-                            mine && m._status === 'sent' && <Icon icon="check" className="text-success-ink" />
+                            mine && m._status === 'sent' && <Icon icon="check" className="text-success" />
                           )}
                           {/* avatar เพจ/ร้าน = ตัวสุดท้ายของแถวเสมอ (user สั่ง 2026-07-23: "เวลาต้อง
                               อยู่ด้านซ้าย และ icon page อยู่ชิดขวาเสมอ") — แถวนี้ justify-end อยู่แล้ว
@@ -1899,7 +1899,7 @@ export default function ChatThread({
             aria-label="เลือกสินค้า"
             aria-expanded={productOpen}
             title="เลือกสินค้า"
-            className={`btn btn-icon hover:bg-info/10 shrink-0 ${productOpen ? 'bg-info/10 text-info-ink' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            className={`btn btn-icon hover:bg-info/10 shrink-0 ${productOpen ? 'bg-info/10 text-info' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="package" className="text-lg" />
           </button>
@@ -1957,7 +1957,7 @@ export default function ChatThread({
             aria-label="AI ช่วยร่างคำตอบ"
             aria-expanded={aiOpen}
             title="AI ช่วยร่างคำตอบ"
-            className={`btn btn-icon hover:bg-success/10 shrink-0 ${aiOpen ? 'bg-success/10 text-success-ink' : 'text-success-ink'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            className={`btn btn-icon hover:bg-success/10 shrink-0 ${aiOpen ? 'bg-success/10 text-success' : 'text-success'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="sparkles" className="text-lg" />
           </button>

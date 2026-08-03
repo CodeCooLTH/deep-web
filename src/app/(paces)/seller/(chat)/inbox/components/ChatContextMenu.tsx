@@ -20,7 +20,7 @@ import type { RowAction } from './ConversationRowMenu'
 
 const STATUS_OPTIONS: { value: string; label: string; cls: string }[] = [
   { value: 'UNSPECIFIED', label: 'ยังไม่ระบุ', cls: 'text-default-700' },
-  { value: 'INTERESTED', label: 'สนใจ', cls: 'text-success-ink' },
+  { value: 'INTERESTED', label: 'สนใจ', cls: 'text-success' },
   { value: 'NOT_INTERESTED', label: 'ไม่สนใจ', cls: 'text-default-600' },
 ]
 

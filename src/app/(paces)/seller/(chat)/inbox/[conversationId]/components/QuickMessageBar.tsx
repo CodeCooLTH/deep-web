@@ -360,7 +360,7 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
           ) : loadError ? (
             /* โหลดพัง ≠ ไม่มีข้อมูล — ต้องแยกให้ชัด ไม่งั้นผู้ใช้ที่มี 30+ รายการนึกว่าข้อความหายหมด */
             <div className="text-default-700 flex flex-col items-center gap-2 py-12 text-center text-sm">
-              <Icon icon="alert-triangle" className="text-warning-ink text-2xl" />
+              <Icon icon="alert-triangle" className="text-warning text-2xl" />
               <span>โหลดข้อความสำเร็จรูปไม่สำเร็จ</span>
               <button type="button" onClick={load} className="btn border-default-300 min-h-11">
                 <Icon icon="refresh" className="me-1" /> ลองใหม่

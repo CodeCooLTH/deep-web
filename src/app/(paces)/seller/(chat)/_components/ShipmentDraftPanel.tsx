@@ -142,7 +142,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
   if (loadError) {
     return (
       <div className="flex flex-col gap-3 p-4">
-        <p className="mb-0 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2.5 text-sm text-danger-ink">
+        <p className="mb-0 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2.5 text-sm text-danger">
           <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
           <span>{loadError}</span>
         </p>
