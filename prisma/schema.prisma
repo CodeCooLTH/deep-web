@@ -1459,6 +1459,22 @@ model ChatMessage {
   deliveryStatus    String? // null = แชทในแอป (ไม่เกี่ยว) | "SENT" | "FAILED"
   failureReason     String?
 
+  // rawMessage — payload ดิบที่ได้รับจาก platform (Facebook/IG/…) ตอนสร้างแถวนี้ (2026-08-03)
+  //
+  // ทำไมต้องมี (user สั่ง): ทั้งตารางเก็บแต่ "ผลการตีความ" ไม่เคยเก็บ "ต้นทาง" เลย พอเจอข้อความที่
+  // เราตีความไม่ออก (เช่น การ์ดขอโทรกลับ/audio_call CTA ที่กลายเป็น "[ข้อความจากระบบของ Facebook]"
+  // 184 แถวบน prod) จะสืบย้อนหลังไม่ได้เลยว่า Meta ส่งอะไรมากันแน่ — ทำได้อย่างเดียวคือรอให้เกิดใหม่
+  // แล้วไปอ่าน console.warn ใน Vercel log ซึ่งหมดอายุไปเรื่อย ๆ
+  //
+  // 🛑 ห้าม select คอลัมน์นี้ในการ query ปกติ (user สั่ง — กัน query ช้า/payload บวม)
+  // บังคับด้วย **global omit** ที่ `src/lib/prisma.ts` ไม่ใช่การไล่ใส่ select ทีละ call site
+  // (getMessages ใช้ findMany แบบไม่มี select = คืนทุกคอลัมน์ ถ้าไม่ omit จะติดไปทุก request)
+  // จะอ่านต้องขอตรง ๆ: `prisma.chatMessage.findUnique({ omit: { rawMessage: false } })`
+  //
+  // null = แถวที่สร้างก่อนฟีเจอร์นี้ หรือข้อความที่ไม่ได้มาจาก platform ภายนอก (แชท DEEP ในแอป)
+  // ไม่ backfill ย้อนหลัง (payload เดิมไม่มีให้แล้ว) — เก็บเฉพาะที่ได้รับตั้งแต่นี้เป็นต้นไป
+  rawMessage        Json?
+
   // --- feature 00023 (additive) ---
   // null = คนส่ง | "AUTO" = ระบบตอบ | "AUTO_TEST" = ระบบตอบขณะอยู่ในโหมดทดสอบ
   // 🛑 คอลัมน์นี้คือสิ่งที่ทำให้ BR-AR-22 บังคับได้: "พนักงานตอบ" = senderRole='SHOP' AND autoReplyKind IS NULL

@@ -45,7 +45,31 @@ export const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
  * `startsWith("SEND_FAILED")` — ที่เพิ่มมาคือแถวที่บันทึกไว้แล้ว ให้ route ส่งกลับไปให้ client
  * เอาไปแทนบับเบิล optimistic ของตัวเอง (ไม่งั้นข้อความเดียวขึ้นสองอัน)
  */
-export type SendFailedError = Error & { savedMessage?: ChatMessage }
+// Omit<'rawMessage'> ไม่ใช่ ChatMessage เต็ม — client ที่ตั้ง global omit ไว้จะไม่คืนคอลัมน์นี้
+// และแถวนี้ถูกส่งต่อออก API ไปให้เบราว์เซอร์ จึงต้องไม่มี payload ดิบติดไปด้วยอยู่แล้ว
+export type SendFailedError = Error & { savedMessage?: Omit<ChatMessage, 'rawMessage'> }
+
+/**
+ * ประกอบค่าที่จะลงคอลัมน์ `ChatMessage.rawMessage` (2026-08-03, user สั่ง)
+ *
+ * เก็บ payload ที่ได้รับ **ทั้งก้อน ไม่ตัดอะไรออก** — สิ่งที่ต้องใช้ตอนสืบคือ "field ที่เรายังไม่รู้จัก"
+ * (เช่นการ์ด audio_call ที่มาถึงแบบ text ว่าง ไม่มี attachment) การตัดตอนเก็บ = ตัดคำตอบทิ้ง
+ *
+ * ห่อด้วย envelope เล็ก ๆ เพราะอนาคตจะมีหลาย platform (LINE/TikTok) และหลายทางเข้า
+ * (webhook vs backfill จาก Graph) — ถ้าเก็บ payload เปล่า ๆ จะแยกไม่ออกว่าโครงนี้ของใคร
+ *
+ * ไม่ throw เด็ดขาด: การเก็บ log ห้ามทำให้ข้อความของลูกค้าหายไปทั้งข้อความ
+ */
+function toRawMessage(provider: string, payload: unknown, source: 'webhook' | 'graph-backfill' = 'webhook'): Prisma.InputJsonValue | undefined {
+  try {
+    // ผ่าน JSON round-trip ก่อน — ตัด undefined/ฟังก์ชัน/ค่าที่ Prisma รับไม่ได้ออกให้หมด
+    // และเป็นการยืนยันว่า serialize ได้จริงก่อนส่งเข้า DB
+    const clean = JSON.parse(JSON.stringify({ provider, source, payload }))
+    return clean as Prisma.InputJsonValue
+  } catch {
+    return undefined
+  }
+}
 
 export function isHumanAgentEnabled(): boolean {
   return process.env.META_HUMAN_AGENT_ENABLED === 'true'
@@ -197,6 +221,9 @@ export async function syncMissingMessagesFromMeta(
         body: m.text ?? SYNCED_EMPTY_TEXT,
         createdAt: m.createdTime,
         externalMessageId: m.id,
+        // ทางเข้าที่สอง: ข้อความที่ webhook ไม่เคยส่งมา แล้วเราไปดึงจาก Graph เอง — ต้นทางคนละแบบ
+        // กับ webhook (โครง response ต่างกัน) จึงติด source ไว้ให้แยกออกตอนสืบ
+        rawMessage: toRawMessage('facebook', m, 'graph-backfill'),
       })),
       skipDuplicates: true,
     })
@@ -678,6 +705,10 @@ export async function ingestInboundMessage(params: {
         // reply (Phase 3): externalMessageId ของข้อความที่ตอบทับ — UI ดึง quote มาแสดง
         replyToMid: event.message?.reply_to?.mid ?? null,
         deliveryStatus: 'SENT',
+        // payload ดิบจาก platform (2026-08-03) — เก็บ event ทั้งก้อนตามที่ได้รับ ไม่ตัดอะไรออก
+        // เพราะสิ่งที่จะต้องใช้สืบคือ "field ที่เรายังไม่รู้จัก" ตัดตอนเก็บ = ตัดคำตอบทิ้ง
+        // อ่านไม่ได้จาก query ปกติ (global omit ที่ lib/prisma.ts)
+        rawMessage: toRawMessage(params.provider, event),
       },
     })
 
@@ -694,6 +725,9 @@ export async function ingestInboundMessage(params: {
           imageUrl: extraMedia[i].fileId,
           externalMessageId: mid ? `${mid}#${i + 1}` : null,
           deliveryStatus: 'SENT',
+          // event เดียวกับแถวหลัก (Meta ส่งหลายไฟล์มาใน event เดียว) — เก็บซ้ำเพื่อให้ทุกแถว
+          // สืบต้นทางของตัวเองได้โดยไม่ต้องไปไล่หาแถวพี่
+          rawMessage: toRawMessage(params.provider, event),
         },
       })
     }
