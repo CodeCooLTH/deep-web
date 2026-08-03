@@ -318,10 +318,13 @@ export default function ProfileForm({ user }: Props) {
           </label>
 
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="truncate font-semibold">{user.displayName}</span>
-              <span className="badge bg-primary/15 text-primary-ink shrink-0">ไม่ผูกกับร้านไหน</span>
-            </div>
+            {/* ไม่มีป้ายข้างชื่อ (user ตัดสิน 2026-08-03): เคยมีป้าย "ไม่ผูกกับร้านไหน" ตรงนี้ แต่พอ
+                วางติดชื่อคนแล้วอ่านรวดเดียวเป็น "<ชื่อ> · ไม่ผูกกับร้านไหน" = บรรยายตัวคนว่าไม่ได้
+                สังกัดร้านไหน ซึ่งผิดและน่าตกใจสำหรับคนที่มีร้านอยู่หลายร้าน (user ถามเองว่าป้ายนี้
+                คืออะไร = หลักฐานว่ามันสื่อไม่สำเร็จ)
+                หน้าที่บอกว่า "ข้อมูลนี้ไม่ผูกกับร้าน" อยู่ที่ subtitle ของหน้าแล้ว (account/page.tsx)
+                ซึ่งเป็นประโยคเต็มและชี้ถูกว่ากำลังพูดถึงข้อมูล ไม่ใช่ตัวคน */}
+            <span className="block truncate font-semibold">{user.displayName}</span>
             <div className="mt-1 flex items-center gap-3 text-sm">
               {/* min-h-11 + -my-2.5 — tap target 44px โดยที่กล่องข้อความไม่ดันบรรทัดให้ห่างขึ้น */}
               <label
