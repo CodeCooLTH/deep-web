@@ -21,6 +21,7 @@ import { getShopVideos } from '@/services/shop-video.service'
 import { toFileUrl } from '@/lib/file-url'
 import { getReviewsByUsername } from '@/services/review.service'
 import { getPublicRooms, getShopAvailability } from '@/services/room.service'
+import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
@@ -71,11 +72,17 @@ export default async function PublicProfilePage({ params }: Props) {
   const recentReviews = await getReviewsByUsername(username, 10)
   const shopVideos = user.shop ? await getShopVideos(user.shop.id) : []
 
-  // ประเภทกิจการกำหนดชุดแท็บ (feat 00017) — บ้านพักขาย "คืนที่ว่าง" ไม่ใช่ชิ้นสินค้า
+  // ประเภทกิจการกำหนดชุดแท็บ (feat 00017 + 00028) — บ้านพักขาย "คืนที่ว่าง" ไม่ใช่ชิ้นสินค้า,
+  // สินค้าและบริการมีแท็บ "บริการ" เพิ่มจากคิวงาน (ServiceResource)
   const isLodging = user.shop?.vertical === 'LODGING'
+  const isServiceQueue = user.shop?.vertical === 'SERVICE_QUEUE'
   const rawRooms = isLodging && user.shop ? await getPublicRooms(user.shop.id) : []
   // ปฏิทินวันว่าง — เฉพาะร้านที่พัก ร้านทั่วไปไม่ต้องคิวรี
   const availability = isLodging && user.shop ? await getShopAvailability(user.shop.id, 3) : null
+  // คิวงานที่เปิดใช้งานอยู่ — เฉพาะร้านสินค้าและบริการ (feature 00028 U11, reuse service เดิม feat 00024)
+  const rawServices =
+    isServiceQueue && user.shop ? await listServiceResources(user.shop.id, { activeOnly: true }) : []
+  const publicServices = rawServices.map(serializeServiceResource)
   const publicRooms = rawRooms.map((r) => ({
     id: r.id,
     name: r.name,
@@ -235,10 +242,13 @@ export default async function PublicProfilePage({ params }: Props) {
             completionRate: profileStats?.completionRate ?? null,
             canChat: !!user.shop && !isOwnShop,
             isLodging,
+            isServiceQueue,
           },
           isLodging,
+          isServiceQueue,
           rooms: publicRooms,
           availability,
+          services: publicServices,
           pinnedProducts,
           otherProducts,
           about: {

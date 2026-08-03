@@ -29,8 +29,8 @@ export default async function SettingsPage() {
   if (!user) return null
 
   // feature 00022 — การ์ดทางเข้าหน้าตั้งค่าการจัดส่ง
-  // แสดงเฉพาะร้าน vertical = GENERAL: ร้านบ้านพักไม่มีพัสดุให้ส่ง การมีเมนูค้างอยู่
-  // คือความรกที่ทำให้เจ้าของที่พักสงสัยว่าต้องไปตั้งค่าอะไรหรือเปล่า (BR-ISHIP-01)
+  // แสดงเฉพาะร้าน vertical = ONLINE_SALES (feature 00028 BR-SBT-12): ร้านบ้านพัก/รับคิว
+  // ไม่มีพัสดุให้ส่ง การมีเมนูค้างอยู่คือความรกที่ทำให้เจ้าของสงสัยว่าต้องไปตั้งค่าอะไรหรือเปล่า
   const activeCtx = await resolveActiveShopContext({
     user: { id: user.id, activeShopId: (user as { activeShopId?: string | null }).activeShopId ?? null },
   })
@@ -40,7 +40,7 @@ export default async function SettingsPage() {
         select: { vertical: true },
       })
     : null
-  const showShipping = shop?.vertical === 'GENERAL'
+  const showShipping = shop?.vertical === 'ONLINE_SALES'
   const connection = showShipping && activeCtx ? await getConnection(activeCtx.shopId) : null
 
   // ค่าตั้งต้นดึงมาพร้อมหน้าเลย (ไม่ lazy) — โมดัลตั้งค่าจะได้เปิดแล้วเห็นข้อมูลทันที

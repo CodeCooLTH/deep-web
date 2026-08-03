@@ -7,6 +7,7 @@ import { ManualStockAdjustSchema } from "@/lib/validations";
 import { getShopByUserId } from "@/services/shop.service";
 import { isEntitlementActive } from "@/services/inventory-entitlement.service";
 import { manualAdjustStock, InsufficientStockError } from "@/services/inventory-stock.service";
+import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
 /**
  * POST /api/inventory/stock/adjust — seller ปรับสต็อกด้วยมือ (feat 00009 S-9)
@@ -28,6 +29,10 @@ export async function POST(request: NextRequest) {
   if (!shop) {
     return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
   }
+
+  // 2.5 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
+  const verticalGate = requireOnlineSalesVertical(shop.vertical);
+  if (verticalGate) return verticalGate;
 
   // 3. parse body ด้วย Valibot
   const body = await request.json().catch(() => null);
@@ -54,7 +59,7 @@ export async function POST(request: NextRequest) {
     );
     return NextResponse.json(result);
   } catch (e: unknown) {
-    // ⚠️ service throw error string ต่างกันตามเคส — ต้อง map ครบทุกตัว (บทเรียน
+    // หมายเหตุ: service throw error string ต่างกันตามเคส — ต้อง map ครบทุกตัว (บทเรียน
     // service-error→route-catch: ห้ามปล่อยตกไป 500 เฉยๆ)
     if (e instanceof InsufficientStockError) {
       return NextResponse.json(

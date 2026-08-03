@@ -22,12 +22,14 @@ import { Icon } from '@iconify/react'
  * จุดที่ควรมีไอคอนแต่สเปกไม่ได้ระบุตัว ต้องถามก่อน ห้ามเดา)
  * ปักหมุด = ปุ่มเล่น สื่อว่าเป็นคลิป · สินค้า = กล่อง · เกี่ยวกับร้าน = วงกลม i · รีวิว = ดาว
  * ห้องพัก/ปฏิทิน ของร้านบ้านพักใช้เตียงกับปฏิทินตามความหมายตรงตัว
+ * บริการ (feat 00028 SERVICE_QUEUE) ใช้ armchair — ตรงกับกล่องไอคอนในการ์ดบริการเอง
  */
 const TAB_ICON: Record<string, string> = {
   pinned: 'tabler:player-play',
   items: 'tabler:package',
   rooms: 'tabler:bed',
   calendar: 'tabler:calendar',
+  services: 'tabler:armchair',
   about: 'tabler:info-circle',
   reviews: 'tabler:star',
 }

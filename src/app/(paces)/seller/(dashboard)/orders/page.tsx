@@ -66,7 +66,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // feature 00022 — ปุ่มพิมพ์ใบปะหน้าหลายใบใน bulk bar
   // ร้านบ้านพักและร้านที่ยังไม่เชื่อมต่อจะไม่เห็นปุ่มนี้เลย (BR-ISHIP-01)
   const ishipEnabled =
-    shop.vertical === 'GENERAL'
+    shop.vertical === 'ONLINE_SALES'
       ? await getConnection(shop.id)
           .then((c) => c.connected && c.status === 'ACTIVE')
           .catch(() => false)

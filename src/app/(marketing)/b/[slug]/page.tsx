@@ -14,6 +14,7 @@ import { getAvgRatingByShop } from '@/services/review.service'
 import { getProductsByShop, getConfirmedOrderCountByProduct } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
 import { getPublicRooms, getConfirmedBookingCountByRoom } from '@/services/room.service'
+import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
@@ -108,6 +109,11 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   // getPublicRooms คืนเฉพาะห้อง isActive และตัด field ตั้งค่าภายใน (depositMode/Value) ออกแล้ว
   const isLodging = shop.vertical === 'LODGING'
   const rooms = isLodging ? await getPublicRooms(shop.id) : []
+  // feature 00028 (U11) — เส้นทางที่ 2 ของ public profile (business shop ผ่าน slug) ต้องรู้จัก
+  // SERVICE_QUEUE เหมือน /u/[username] ไม่งั้นร้านนี้จะตกเข้า branch ONLINE_SALES เงียบ ๆ
+  const isServiceQueue = shop.vertical === 'SERVICE_QUEUE'
+  const rawServices = isServiceQueue ? await listServiceResources(shop.id, { activeOnly: true }) : []
+  const publicServices = rawServices.map(serializeServiceResource)
 
   // redesign 2026-07-26 — ใช้แหล่งข้อมูลชุดเดียวกับ /u/[username] ผ่าน ShopProfile
   const profileStats = await getShopProfileStats(shop.id)
@@ -211,10 +217,13 @@ export default async function BusinessShopProfilePage({ params }: Props) {
             completionRate: profileStats.completionRate,
             canChat: true,
             isLodging,
+            isServiceQueue,
           },
           isLodging,
+          isServiceQueue,
           rooms: publicRooms,
           availability,
+          services: publicServices,
           pinnedProducts,
           otherProducts,
           about: {

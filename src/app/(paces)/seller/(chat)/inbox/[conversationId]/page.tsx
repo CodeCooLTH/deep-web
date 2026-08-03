@@ -20,7 +20,7 @@
  *    แล้วส่งผลลัพธ์ (boolean/number ล้วน) ลงเป็น prop ให้ ChatThread — เลี่ยง service import
  *    เข้า client bundle (feedback_verify_import_safety)
  *  - T5 (ภาคผนวก A-1): อ่าน Shop.vertical (bug fix ด้านล่าง: query แยกจาก resolveActiveShopContext
- *    เพราะ context ไม่มี field นี้) resolve+fallback GENERAL ด้วย isShopVertical() ก่อนส่งลง prop
+ *    เพราะ context ไม่มี field นี้) resolve+fallback ONLINE_SALES ด้วย isShopVertical() ก่อนส่งลง prop
  *    (ห้าม client เดาเอง)
  *  - T5: หา Customer ที่ผูกไว้ — channel นอก (ExternalContact.customerId) หรือ DEEP
  *    (Customer.userId === conversation.buyerUserId) แล้ว query ประวัติ Order/Booking (Booking =
@@ -219,7 +219,7 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   // รูปเพจสำหรับ badge ช่องทางที่หัวเธรด (user สั่ง 2026-07-23) — select avatarUrl มาแล้วข้างบน
   const channelAvatarUrl = conversation.shopChannel?.avatarUrl ?? null
 
-  // T5 — ประเภทกิจการ (fallback GENERAL เมื่อค่าไม่รู้จัก ห้าม crash/ซ่อน CTA — ภาคผนวก A-1)
+  // T5 — ประเภทกิจการ (fallback ONLINE_SALES เมื่อค่าไม่รู้จัก ห้าม crash/ซ่อน CTA — ภาคผนวก A-1)
   const vertical = isShopVertical(shop.vertical) ? shop.vertical : DEFAULT_SHOP_VERTICAL
 
   // T5 — หา Customer ที่ผูกไว้: ช่องทางนอกผูกผ่าน ExternalContact.customerId, DEEP ผูกผ่าน

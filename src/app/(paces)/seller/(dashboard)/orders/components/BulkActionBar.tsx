@@ -34,8 +34,8 @@ interface BulkActionBarProps {
   /** buyer base URL (resolve ครั้งเดียวใน OrdersTable กัน hydration mismatch) */
   buyerBaseUrl: string
   /**
-   * ร้านเชื่อมต่อ iShip อยู่และเป็นร้านประเภทสินค้าและบริการ (feature 00022)
-   * false = ไม่ render ปุ่มพิมพ์ใบปะหน้าเลย — ร้านบ้านพัก/ร้านที่ไม่ได้เชื่อมต่อ
+   * ร้านเชื่อมต่อ iShip อยู่และเป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028)
+   * false = ไม่ render ปุ่มพิมพ์ใบปะหน้าเลย — ร้านสินค้าและบริการ/บ้านพัก/ร้านที่ไม่ได้เชื่อมต่อ
    * ต้องไม่เห็นปุ่มนี้ ไม่ใช่เห็นแล้วกดไม่ได้ (BR-ISHIP-01)
    */
   ishipEnabled?: boolean

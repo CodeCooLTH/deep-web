@@ -54,6 +54,8 @@ export type ProfileHeroData = {
   shopId?: string | null
   /** ร้านที่พักใช้คำคนละชุดกับร้านขายของ — ที่พักไม่มี "ออเดอร์" มีแต่ "การเข้าพัก" */
   isLodging?: boolean
+  /** feature 00028 — ร้านสินค้าและบริการใช้คำ "นัดหมาย" แทน "ออเดอร์" (isLodging ชนะถ้าเป็น true ทั้งคู่ — เคสจริงไม่เกิดขึ้น) */
+  isServiceQueue?: boolean
 }
 
 /** คำเรียกตัวเลขตามประเภทกิจการ — เปลี่ยนแค่คำ ไม่เปลี่ยนวิธีนับ */
@@ -69,6 +71,12 @@ const STAT_LABELS = {
     customers: 'จำนวนลูกค้า',
     repeat: 'ลูกค้าใช้บริการซ้ำ',
     rateCaption: 'อัตราความสำเร็จจากการเข้าพักทั้งหมดบน Deep',
+  },
+  serviceQueue: {
+    orders: 'นัดหมาย',
+    customers: 'จำนวนลูกค้า',
+    repeat: 'ลูกค้าใช้บริการซ้ำ',
+    rateCaption: 'อัตราความสำเร็จจากนัดหมายทั้งหมดบน Deep',
   },
 } as const
 
@@ -96,7 +104,7 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
     )
   }
 
-  const L = data.isLodging ? STAT_LABELS.lodging : STAT_LABELS.general
+  const L = data.isLodging ? STAT_LABELS.lodging : data.isServiceQueue ? STAT_LABELS.serviceQueue : STAT_LABELS.general
 
   // แสดงครบสามค่าเสมอ ไม่มีข้อมูลให้เป็น 0 (user กำหนด 2026-07-26) — ต่างจากบล็อกอื่นในหน้านี้
   // ที่ซ่อนเมื่อไม่มีข้อมูล เพราะสามค่านี้เป็นโครงหลักของหน้า การซ่อนบางช่องทำให้ layout ขยับ

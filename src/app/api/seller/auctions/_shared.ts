@@ -43,6 +43,17 @@ export async function requireSellerShop(opts?: { mutate?: boolean }) {
     } as const;
   }
 
+  // feature 00028 (BR-SBT-14) — ปิดช่องโหว่ที่ไม่เคยมี guard เลย: ระบบประมูลใช้ได้เฉพาะร้าน
+  // ประเภทขายออนไลน์เท่านั้น เช็คก่อน mutate/locked check เดิม ครอบทุก method (GET รวมด้วย)
+  if (active.shop.vertical !== "ONLINE_SALES") {
+    return {
+      response: NextResponse.json(
+        { error: "ระบบประมูลใช้ได้เฉพาะร้านประเภทขายออนไลน์เท่านั้น" },
+        { status: 403 },
+      ),
+    } as const;
+  }
+
   if (opts?.mutate && active.locked) {
     return {
       response: NextResponse.json(

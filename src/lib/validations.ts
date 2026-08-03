@@ -81,11 +81,14 @@ export const CategoriesSchema = v.object({
 });
 
 // Step 3 — address + map pin (lat/lng ขอบเขตประเทศไทย; lat+lng ต้องมาคู่ — XOR check ที่ route handler)
+// feature 00028 (SDS §3.3 task #16) — เพิ่ม vertical (optional): ตั้ง/เปลี่ยนประเภทร้านค้าได้เฉพาะ
+// ระหว่าง onboarding เท่านั้น (route handler เช็ค Shop.slug===null ก่อน — TD-002)
 export const ShopUpdateWithGeoSchema = v.object({
   category: v.optional(ShopCategorySchema),
   address: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500))),
   latitude: v.optional(v.pipe(v.number(), v.minValue(5), v.maxValue(21))),
   longitude: v.optional(v.pipe(v.number(), v.minValue(97), v.maxValue(106))),
+  vertical: v.optional(v.picklist(SHOP_VERTICAL_KEYS)),
 });
 
 // Step 3 — Nominatim reverse-geocode proxy input

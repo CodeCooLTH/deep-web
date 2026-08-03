@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { reactivateInventoryEntitlement } from "@/services/inventory-entitlement.service";
 import { requireActiveShop } from "@/lib/shop-context";
 import { ReactivateInventorySchema } from "@/lib/validations";
+import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
 /**
  * POST /api/inventory/reactivate — seller เปิดใช้ Inventory Add-on อีกครั้งจากสถานะ LOCKED
@@ -31,6 +32,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
   }
   const shop = active.shop;
+
+  // 2.4 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
+  const verticalGate = requireOnlineSalesVertical(shop.vertical);
+  if (verticalGate) return verticalGate;
 
   // 2.5 parse body — ต้องระบุ package (BASIC/PRO) ตาม API.md §4.3
   const body = await request.json().catch(() => null);

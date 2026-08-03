@@ -8,14 +8,20 @@
 // IMPORTANT: คนละเรื่องกับ Shop.businessType (INDIVIDUAL|COMPANY — ป้ายนิติบุคคลสำหรับ L3 verification),
 // Shop.kind (PERSONAL|BUSINESS — ระดับบัญชี feature 00008) และ Shop.category (หมวดสินค้า)
 // ป้ายบนหน้าจอ: vertical = "ประเภทกิจการ", businessType = "ประเภทผู้ประกอบการ" (BR-LODG-04)
+//
+// feature 00028 — ขยายจาก 2 ทาง (GENERAL/LODGING) เป็น 3 ทาง: GENERAL เดิมแยกเป็น
+// ONLINE_SALES (ขายของจริง มีจัดส่ง/สต็อก/ประมูล) กับ SERVICE_QUEUE (รับนัดคิว ไม่มีจัดส่ง)
+// BR-SBT-05: ค่าเก่า GENERAL ห้ามเหลืออยู่ที่ไหนเลยหลัง migration — ไม่เก็บเป็น legacy alias
 export const SHOP_VERTICALS = {
-  GENERAL: 'สินค้าและบริการ',
-  LODGING: 'บ้านพักตากอากาศ',
+  ONLINE_SALES: 'ขายออนไลน์',
+  SERVICE_QUEUE: 'สินค้าและบริการ',
+  LODGING: 'บ้านพัก',
 } as const
 
 export type ShopVertical = keyof typeof SHOP_VERTICALS
 export const SHOP_VERTICAL_KEYS = Object.keys(SHOP_VERTICALS) as ShopVertical[]
-export const DEFAULT_SHOP_VERTICAL: ShopVertical = 'GENERAL'
+// BR-SBT-07: ค่าเริ่มต้นของร้านใหม่ที่ยังไม่เลือก = ONLINE_SALES (เดิม GENERAL)
+export const DEFAULT_SHOP_VERTICAL: ShopVertical = 'ONLINE_SALES'
 
 export function isShopVertical(value: string): value is ShopVertical {
   return value in SHOP_VERTICALS
@@ -23,7 +29,8 @@ export function isShopVertical(value: string): value is ShopVertical {
 
 /** คำอธิบายใต้ตัวเลือกตอนสร้างธุรกิจ — บอกว่าเลือกแล้วได้ความสามารถอะไร */
 export const SHOP_VERTICAL_HINTS: Record<ShopVertical, string> = {
-  GENERAL: 'ขายสินค้าหรือบริการ มีระบบสินค้า สต็อก และออเดอร์',
+  ONLINE_SALES: 'ขายสินค้าที่ต้องจัดส่ง มีระบบสต็อก ประมูล และจัดส่งผ่าน iShip',
+  SERVICE_QUEUE: 'รับนัดคิวลูกค้าเข้ารับบริการ ไม่มีการจัดส่งสินค้า ขายของเสริมได้',
   LODGING: 'ให้เช่าที่พักรายคืน มีระบบห้องพัก ปฏิทินว่าง และการจอง',
 }
 

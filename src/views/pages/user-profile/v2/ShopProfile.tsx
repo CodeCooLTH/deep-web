@@ -11,14 +11,20 @@
  * ต้องเขียนกำกับว่า "ต้อง sync ทั้ง 2 หน้าเสมอ" ซึ่งเป็นสัญญาณว่าโครงสร้างผิดตั้งแต่แรก)
  * ที่นี่จึงรับข้อมูลรูปแบบเดียว แล้วหน้าไหนจะดึงจากที่ไหนก็เป็นเรื่องของหน้านั้น
  *
- * ชุดแท็บขึ้นกับประเภทกิจการ (user กำหนด 2026-07-26)
- *   ร้านทั่วไป  ปักหมุด / สินค้าและบริการ / เกี่ยวกับร้าน / รีวิว {คะแนน}
- *   ร้านที่พัก   ปักหมุด / ห้องพัก / ปฏิทิน / เกี่ยวกับร้าน / รีวิว {คะแนน}
- * แท็บปักหมุดโผล่เฉพาะเมื่อร้านปักคลิปไว้
+ * ชุดแท็บขึ้นกับประเภทกิจการ (user กำหนด 2026-07-26; feature 00028 เพิ่มสาขาที่ 3)
+ *   ร้านขายออนไลน์      ปักหมุด / สินค้า / เกี่ยวกับร้าน / รีวิว {คะแนน}
+ *   ร้านสินค้าและบริการ  ปักหมุด / บริการ / สินค้า(ถ้ามีของเสริม) / เกี่ยวกับร้าน / รีวิว {คะแนน}
+ *   ร้านที่พัก          ปักหมุด / ห้องพัก / ปฏิทิน / เกี่ยวกับร้าน / รีวิว {คะแนน}
+ * แท็บปักหมุดโผล่เฉพาะเมื่อร้านปักคลิปไว้ · แท็บ "บริการ"/"สินค้า" โผล่เฉพาะเมื่อมีข้อมูลจริง
+ *
+ * feature 00028 — label แท็บสินค้าเปลี่ยนจาก "สินค้าและบริการ" → "สินค้า": คำเดิมชนกับชื่อ vertical
+ * ใหม่ (Shop.vertical = SERVICE_QUEUE แสดงผลเป็น "สินค้าและบริการ") ตรงตัวถ้าไม่แก้จะเกิดร้าน
+ * SERVICE_QUEUE ที่มีทั้งแท็บ "บริการ" กับแท็บ "สินค้าและบริการ" วางเคียงกัน — คำเดียวกันสองความหมาย
  */
 import ProfileHero, { type ProfileHeroData } from './ProfileHero'
 import ProfileTabs from './ProfileTabs'
 import PublicRoomList, { type PublicRoom } from './PublicRoomList'
+import PublicServiceList, { type PublicService } from './PublicServiceList'
 import AvailabilityCalendar, { type AvailabilityData } from './AvailabilityCalendar'
 import OfficialChannels, { type OfficialChannel } from './OfficialChannels'
 import ReviewSummary, { type RatingBucket } from './ReviewSummary'
@@ -31,8 +37,12 @@ import type { SerializedProduct } from '../profile'
 export type ShopProfileData = {
   hero: ProfileHeroData
   isLodging: boolean
+  /** feature 00028 — ร้านประเภทสินค้าและบริการ (Shop.vertical === 'SERVICE_QUEUE') */
+  isServiceQueue: boolean
   rooms: PublicRoom[]
   availability: AvailabilityData | null
+  /** feature 00028 — คิวงานที่เปิดใช้งานอยู่ ([] เสมอสำหรับร้านที่ไม่ใช่ SERVICE_QUEUE) */
+  services: PublicService[]
   pinnedProducts: SerializedProduct[]
   otherProducts: SerializedProduct[]
   about: AboutData
@@ -74,11 +84,23 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
                 },
               ]
             : []),
+          // feature 00028 — แท็บ "บริการ" ของร้านสินค้าและบริการ ไม่มีคิวงานเลย = ไม่สร้างแท็บ
+          // (ไม่ fallback ไปที่อื่น — ตั้งใจตาม UX spec §B edge states)
+          ...(data.isServiceQueue && data.services.length > 0
+            ? [
+                {
+                  key: 'services',
+                  label: 'บริการ',
+                  content: <PublicServiceList services={data.services} />,
+                },
+              ]
+            : []),
           ...(!data.isLodging && hasItems
             ? [
                 {
                   key: 'items',
-                  label: 'สินค้าและบริการ',
+                  // feature 00028 — เดิม "สินค้าและบริการ" ชนกับชื่อ vertical ใหม่ เปลี่ยนเป็น "สินค้า"
+                  label: 'สินค้า',
                   content: (
                     <ProfileRightContent
                       data={{
