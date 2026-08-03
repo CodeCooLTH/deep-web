@@ -745,9 +745,13 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
    * — คนละเคสกับ retryMessage ข้างบนซึ่งเป็นบับเบิล optimistic ที่ยังไม่เคยถึง server (user 2026-08-02)
    *
    * ทำไมถึงเป็น "ข้อความใหม่" ไม่ใช่แก้แถวเดิมให้กลายเป็นสำเร็จ: ChatMessage ประกาศตัวเองว่า
-   * append-only (schema.prisma:1411 "ไม่มี updatedAt/edit/delete") — บับเบิลที่ยิงไม่ออกคือเหตุการณ์
-   * ที่เกิดขึ้นจริงและร้านควรเห็นว่าเกิด ส่วนครั้งที่ส่งใหม่ก็เป็นอีกเหตุการณ์หนึ่ง. ผลพลอยได้คือ
-   * ภาพก่อน/หลังรีเฟรชตรงกันเสมอ (ถ้าลบบับเบิลเก่าทิ้งฝั่ง client มันจะโผล่กลับมาตอนโหลดใหม่)
+   * append-only (schema.prisma "ไม่มี updatedAt/edit") — ครั้งที่ส่งใหม่คืออีกเหตุการณ์หนึ่งจริง ๆ
+   * (mid คนละตัว เวลาคนละเวลา) จึงต้องเป็นแถวใหม่ ไม่ใช่การเขียนทับแถวเก่า
+   *
+   * สำคัญ: caller ต้องเอาแถวเดิมออกเองด้วย `cancelMessage(oldId)` (ดู ChatThread `retryFailed`) —
+   * ไม่งั้นข้อความเดียวกันค้างเป็นบับเบิลแดงซ้อนกัน N อันตามจำนวนครั้งที่กด ซึ่งไม่ตรงกับคำว่า
+   * "ลองใหม่" (user report 2026-08-03). ที่ทำได้เพราะ `cancelMessage` ลบถึง DB จริงผ่าน DELETE
+   * endpoint — ภาพก่อน/หลังรีเฟรชจึงยังตรงกัน (ต่างจากการกรองทิ้งแค่ฝั่ง client ที่จะโผล่กลับมา)
    */
   const resendMessage = useCallback(
     (payload: OutgoingRetry) => {
