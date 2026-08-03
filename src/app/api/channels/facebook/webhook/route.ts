@@ -3,7 +3,7 @@ import * as v from 'valibot'
 import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
-import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
+import { WebhookBodySchema, extractMessagingEvents, extractFeedChanges } from '@/lib/facebook/webhook-types'
 import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent, ingestMessageEdit } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
@@ -72,6 +72,34 @@ export async function POST(request: NextRequest) {
 
   // เธรดที่มีงานตอบอัตโนมัติรอ — ประมวลผลใน after() หลังตอบ 200 ให้ Meta แล้ว (feature 00023)
   const pendingConversationIds = new Set<string>()
+
+  // ── feed: คอมเมนต์/โพสต์บนหน้าเพจ (user สั่ง 2026-08-03 "อยากรับ facebook comment") ──
+  //
+  // ชั่วคราว — ยังไม่มีโมเดลเก็บคอมเมนต์ (รอ PRD/BRD ตาม Hard Rule 11) ระยะนี้แค่ log
+  // โครง payload จริงไว้ออกแบบต่อ แล้วค่อยถอด log ออกเมื่อมีที่เก็บจริง
+  //
+  // ตัดข้อความเหลือ 80 ตัวอักษรก่อน log: เนื้อคอมเมนต์เป็นข้อมูลของลูกค้า ไม่ควรไหลเข้า log
+  // เต็ม ๆ — เท่านี้พอตอบคำถามที่ต้องรู้ (ภาษาไทยมาครบไหม, Meta ให้ชื่อคนคอมเมนต์หรือเปล่า)
+  for (const { pageId, change } of extractFeedChanges(parsed.output)) {
+    const val = change.value ?? {}
+    console.log(
+      '[fb-feed]',
+      JSON.stringify({
+        pageId,
+        item: val.item,
+        verb: val.verb,
+        commentId: val.comment_id,
+        postId: val.post_id,
+        parentId: val.parent_id,
+        fromId: val.from?.id,
+        fromName: val.from?.name,
+        hasPhoto: !!val.photo,
+        hasVideo: !!val.video,
+        msgLen: val.message?.length ?? 0,
+        msgHead: val.message?.slice(0, 80),
+      }),
+    )
+  }
 
   for (const { pageId, event } of extractMessagingEvents(parsed.output)) {
     try {

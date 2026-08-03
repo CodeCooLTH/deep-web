@@ -24,6 +24,10 @@ export const MESSENGER_SUBSCRIBED_FIELDS = [
   // messaging_referrals: ลูกค้าคลิกโฆษณา/ลิงก์ m.me แล้วเปิดแชท (feature 00018 Phase 2) — ต้อง subscribe
   // ไม่งั้น referral ที่ไม่มาพร้อมข้อความจะไม่เข้ามา (referral ในข้อความแรกมากับ messages อยู่แล้ว)
   'messaging_referrals',
+  // feed: คอมเมนต์/โพสต์บนหน้าเพจ (user สั่ง 2026-08-03 "อยากรับ facebook comment")
+  // มาที่ entry.changes ไม่ใช่ entry.messaging — ดู extractFeedChanges ใน webhook-types
+  // เพจที่เชื่อมไว้ก่อนหน้านี้ถูกเติม field นี้ให้แล้วผ่าน Graph (ไม่ต้องเชื่อมใหม่)
+  'feed',
 ] as const
 
 // scope ที่ขอตอนเชื่อม Page — business_management เป็น dependency บังคับของ
