@@ -44,7 +44,7 @@ const AttachmentSchema = v.object({
   // "image"|"sticker"|"video"|"reel"|"ig_reel"|"audio"|"file"|"fallback"|"post"|"ig_post"|
   // "template"|"appointment_booking"|"location"|"story_mention"|... (Meta attachment types เต็มชุด)
   //
-  // 🛑 optional ตั้งแต่ 2026-08-04: **ห้ามบังคับ** — user ส่งรูป 6 ใบเข้ามาแล้วหายทั้งก้อน
+  // สำคัญ: optional ตั้งแต่ 2026-08-04: **ห้ามบังคับ** — user ส่งรูป 6 ใบเข้ามาแล้วหายทั้งก้อน
   // (ไม่มีแถว source:"webhook" เลย ไปเจอทีหลังจาก graph-backfill ที่ชนิดเป็น "unknown" ทั้ง 6 ชิ้น)
   // เพราะ Meta ส่ง attachment ที่ไม่มี field `type` มา แล้ว Valibot ตี **ทั้ง event** ตกตั้งแต่ parse
   // = ข้อความหายเงียบ ๆ ซึ่งแย่กว่าการได้ field ไม่ครบ
@@ -160,6 +160,15 @@ const EntrySchema = v.object({
   id: v.string(), // Page ID (object=page) หรือ IG Business Account ID (object=instagram)
   time: v.optional(v.number()),
   messaging: v.optional(v.array(MessagingEventSchema)),
+  /**
+   * standby — เหตุการณ์ของห้องที่ **แอปอื่นถือสิทธิ์คุมอยู่** (Handover Protocol)
+   *
+   * โครงเหมือน messaging ทุกอย่าง ต่างแค่ Meta ส่งมาคนละกล่องเพื่อบอกว่า "ตอนนี้ไม่ใช่ตาคุณ"
+   * — Instagram ที่ร้านเปิดใช้ Business Suite/แอป IG อยู่ ห้องส่วนใหญ่จะถูกส่งมาทางนี้ ไม่ใช่
+   * messaging (user report prod 2026-08-04: "chat ig ไม่เข้าระบบ" ทั้งที่ช่องทางเชื่อม ACTIVE
+   * และ subscription ฝั่ง Meta มี messages+standby ครบ — เราอ่านแต่ messaging จึงทิ้งทั้งกล่อง)
+   */
+  standby: v.optional(v.array(MessagingEventSchema)),
   // changes: ช่องทางของ field ตระกูล "หน้าเพจ" (feed/mention) — คนละท่อกับ messaging
   changes: v.optional(v.array(ChangeSchema)),
 })
@@ -219,21 +228,43 @@ export function extractFeedChanges(
 export function extractMessagingEventsWithRaw(
   body: WebhookBody,
   rawBody: unknown,
-): Array<{ object: string; pageId: string; event: MessagingEvent; rawEvent?: unknown }> {
-  const rawEntries = (rawBody as { entry?: Array<{ messaging?: unknown[] }> } | null)?.entry
-  const out: Array<{ object: string; pageId: string; event: MessagingEvent; rawEvent?: unknown }> = []
+): Array<{ object: string; pageId: string; event: MessagingEvent; rawEvent?: unknown; standby?: boolean }> {
+  const rawEntries = (rawBody as { entry?: Array<{ messaging?: unknown[]; standby?: unknown[] }> } | null)
+    ?.entry
+  const out: Array<{
+    object: string
+    pageId: string
+    event: MessagingEvent
+    rawEvent?: unknown
+    /** มาจากกล่อง standby = ห้องนี้แอปอื่นถือสิทธิ์คุมอยู่ (อ่านได้ แต่ยังตอบไม่ได้) */
+    standby?: boolean
+  }> = []
   body.entry.forEach((entry, ei) => {
-    const rawMessaging = Array.isArray(rawEntries?.[ei]?.messaging) ? rawEntries![ei]!.messaging! : null
-    const parsedMessaging = entry.messaging ?? []
-    const aligned = rawMessaging?.length === parsedMessaging.length
-    parsedMessaging.forEach((event, mi) => {
-      out.push({
-        object: body.object,
-        pageId: entry.id,
-        event,
-        rawEvent: aligned ? rawMessaging![mi] : undefined,
+    // messaging กับ standby โครงเหมือนกันเป๊ะ ต่างแค่กล่อง — วนด้วยลูปเดียวกัน แล้วติดธงไว้ให้ caller
+    const boxes: Array<{ parsed: MessagingEvent[]; raw: unknown[] | null; standby: boolean }> = [
+      {
+        parsed: entry.messaging ?? [],
+        raw: Array.isArray(rawEntries?.[ei]?.messaging) ? rawEntries![ei]!.messaging! : null,
+        standby: false,
+      },
+      {
+        parsed: entry.standby ?? [],
+        raw: Array.isArray(rawEntries?.[ei]?.standby) ? rawEntries![ei]!.standby! : null,
+        standby: true,
+      },
+    ]
+    for (const box of boxes) {
+      const aligned = box.raw?.length === box.parsed.length
+      box.parsed.forEach((event, mi) => {
+        out.push({
+          object: body.object,
+          pageId: entry.id,
+          event,
+          rawEvent: aligned ? box.raw![mi] : undefined,
+          standby: box.standby || undefined,
+        })
       })
-    })
+    }
   })
   return out
 }
