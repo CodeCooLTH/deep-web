@@ -10,6 +10,7 @@ import {
   hasAddressConflict,
   matchesQuery,
   parseParcelRow,
+  normalizeIShipDate,
   parseParcelRows,
   type IShipParcel,
 } from "./unlinked";
@@ -60,10 +61,11 @@ describe("parseParcelRow — คู่ตำบล/อำเภอ ขาเข�
 });
 
 describe("parseParcelRow — ทนต่อชื่อฟิลด์ที่สะกดไม่ตรงเอกสาร", () => {
-  it("อ่านเวลาได้ทั้ง created และ created_at", () => {
-    expect(parseParcelRow(rawRow)!.createdAtRaw).toBe("2022-09-25 14:17:34");
+  it("อ่านเวลาได้ทั้ง created และ created_at แล้ว normalize เป็น ISO", () => {
+    // 14:17:34 เวลาไทย = 07:17:34Z
+    expect(parseParcelRow(rawRow)!.createdAtRaw).toBe("2022-09-25T07:17:34.000Z");
     const alt = { ...rawRow, created: undefined, created_at: "2026-08-01 09:00:00" };
-    expect(parseParcelRow(alt)!.createdAtRaw).toBe("2026-08-01 09:00:00");
+    expect(parseParcelRow(alt)!.createdAtRaw).toBe("2026-08-01T02:00:00.000Z");
   });
 
   it("cod_amount ที่มาเป็นสตริงต้องกลายเป็นตัวเลข", () => {
@@ -174,5 +176,45 @@ describe("matchesQuery", () => {
 
   it("ช่องว่าง = ผ่านทุกแถว", () => {
     expect(matchesQuery(p, "  ")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// normalizeIShipDate — regression ของบั๊ก "NaN ส.ค." (Impeccable critique 2026-08-04)
+//
+// ชุดเดิมยืนยันแต่รูป "YYYY-MM-DD HH:mm:ss" ตามเอกสารปี 2022 เท่านั้น ทั้งที่หัวไฟล์
+// unlinked.ts เตือนไว้เองว่าเอกสารกับ prod เคยไม่ตรงกันมาแล้ว — พอ prod ส่ง ISO
+// ตัวแกะวันที่ที่เขียนเองในหน้าจอก็คืน "NaN ส.ค." โดยไม่มีเทสไหนแดง
+// ---------------------------------------------------------------------------
+describe("normalizeIShipDate", () => {
+  it("รูปตามเอกสาร (เว้นวรรค, ไม่มี timezone) = เวลาไทย", () => {
+    expect(normalizeIShipDate("2026-08-01 09:00:00")).toBe("2026-08-01T02:00:00.000Z");
+  });
+
+  it("ISO ทั้งสามรูปที่เคยทำให้ขึ้น NaN ต้องแปลงได้", () => {
+    expect(normalizeIShipDate("2026-08-01T09:00:00")).toBe("2026-08-01T02:00:00.000Z");
+    expect(normalizeIShipDate("2026-08-01T09:00:00.000Z")).toBe("2026-08-01T09:00:00.000Z");
+    expect(normalizeIShipDate("2026-08-01T09:00:00+07:00")).toBe("2026-08-01T02:00:00.000Z");
+  });
+
+  it("วันที่ล้วน = เที่ยงคืนเวลาไทย", () => {
+    expect(normalizeIShipDate("2026-08-01")).toBe("2026-07-31T17:00:00.000Z");
+  });
+
+  it("epoch วินาทีและมิลลิวินาที", () => {
+    expect(normalizeIShipDate("1785801600")).toBe(new Date(1785801600000).toISOString());
+    expect(normalizeIShipDate("1785801600000")).toBe(new Date(1785801600000).toISOString());
+  });
+
+  it("ว่าง/null → null", () => {
+    expect(normalizeIShipDate(null)).toBeNull();
+    expect(normalizeIShipDate("")).toBeNull();
+    expect(normalizeIShipDate("   ")).toBeNull();
+  });
+
+  it("รูปที่แปลไม่ได้ต้องคืน null ไม่ใช่เดา — dd/mm/yyyy จะถูกอ่านสลับเป็น mm/dd เงียบ ๆ", () => {
+    expect(normalizeIShipDate("01/08/2026 09:00")).toBeNull();
+    expect(normalizeIShipDate("ไม่ใช่วันที่")).toBeNull();
+    expect(normalizeIShipDate("2026-13-45 99:99:99")).toBeNull();
   });
 });

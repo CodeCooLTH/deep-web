@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — โลโก้ช่องทางการขายบนหัวออเดอร์ (seller) 2026-08-04</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงจาก src/assets/css/config/_root.css (คัดมาเฉพาะที่ใช้ ห้ามเดาค่าเอง) ── */
+:root{
+  --card:#ffffff; --body-bg:#f6f7fb;
+  --primary:#236dc9; --primary-ink:#1e3a8a;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --success:#02bc9c; --success-ink:#065f46;
+  --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb;
+  --d700:#6c757d; --d800:#343a40; --d900:#313a46;
+  --radius:4px; --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eceef4;font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;color:var(--d900);line-height:1.5}
+.page{max-width:1240px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:26px;font-weight:600;margin:0 0 6px}
+.sub{color:var(--d700);font-size:15px;margin:0 0 28px;max-width:74ch}
+h2{font-size:19px;font-weight:600;margin:44px 0 4px;padding-top:22px;border-top:1px solid #dfe3ec}
+h2 .tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;vertical-align:3px;margin-left:8px}
+.tag-now{background:rgba(247,87,126,.15);color:#7f1d1d}
+.tag-rec{background:rgba(2,188,156,.15);color:var(--success-ink)}
+.why{color:var(--d700);font-size:14px;margin:6px 0 18px;max-width:80ch}
+.why b{color:var(--d800);font-weight:600}
+.devices{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.dev{background:#fff;border:1px solid #dfe3ec;border-radius:10px;padding:10px;box-shadow:0 2px 10px rgba(76,76,92,.06)}
+.dev > .lbl{font-size:11px;font-weight:600;letter-spacing:.3px;color:var(--d700);margin:0 0 8px 2px}
+.vp{background:var(--body-bg);border-radius:6px;padding:14px;overflow:hidden}
+.d-desktop .vp{width:660px} .d-tablet .vp{width:420px} .d-mobile .vp{width:300px}
+
+/* ── การ์ดหัวออเดอร์ (โครงจริงจาก StatusHero.tsx) ── */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+.top{display:flex;gap:14px;justify-content:space-between}
+.d-mobile .top,.d-tablet .top{flex-direction:column}
+.left{min-width:0;display:flex;flex-direction:column;gap:8px}
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.chip-wait{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.datetxt{display:inline-flex;align-items:center;gap:5px;color:var(--d700);font-size:12px;white-space:nowrap}
+.orderno{font-size:18px;font-weight:700;margin:0;color:var(--d900);letter-spacing:.2px}
+.right{display:flex;flex-direction:column;gap:2px}
+.d-desktop .right{align-items:flex-end}
+.rlabel{font-size:11px;color:var(--d800)}
+.amount{font-size:23px;font-weight:700;color:var(--d900)}
+.next{display:flex;gap:8px;align-items:flex-start;background:var(--d100);color:var(--d800);border-radius:var(--radius);padding:9px 12px;font-size:13px;margin-top:14px}
+svg{display:block}
+.ico{width:14px;height:14px;flex:0 0 auto;color:var(--d700)}
+
+/* ── ตัวเลือกที่ต้องเทียบกัน ── */
+/* NOW: ชิปเทา — สิ่งที่ user ปฏิเสธ */
+.ch-now{display:inline-flex;align-items:center;gap:6px;background:var(--d100);color:var(--d700);border-radius:999px;padding:3px 9px;font-size:11px;white-space:nowrap}
+/* A: ข้อความเปล่า ทรีตเมนต์เดียวกับวันที่ */
+.ch-plain{display:inline-flex;align-items:center;gap:6px;color:var(--d700);font-size:12px;white-space:nowrap}
+.ch-plain b{color:var(--d800);font-weight:500}
+/* B: ไทล์นำหน้าเลขออเดอร์ */
+.idrow{display:flex;align-items:center;gap:10px}
+.ch-tile{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:var(--d100);border:1px solid var(--d200)}
+/* C: ชิปสีแบรนด์ */
+.ch-brand{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.ch-brand.fb{background:rgba(24,119,242,.12);color:#0b4fa8}
+.ch-brand.ig{background:rgba(214,36,159,.12);color:#8c1268}
+.ch-brand.line{background:rgba(6,199,85,.14);color:#046b31}
+/* D: คู่ label/value ในคอลัมน์ขวา */
+.pair{display:flex;flex-direction:column;gap:1px}
+.d-desktop .pair{align-items:flex-end}
+.pair .k{font-size:11px;color:var(--d800)}
+.pair .v{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--d900)}
+.sep{width:1px;align-self:stretch;background:var(--d200)}
+
+.note{background:#fff;border:1px solid var(--d200);border-left:3px solid var(--primary);border-radius:var(--radius);padding:12px 14px;font-size:13.5px;color:var(--d800);margin-top:16px;max-width:86ch}
+.note b{font-weight:600}
+.matrix{width:100%;border-collapse:collapse;margin-top:16px;font-size:13.5px;background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.matrix th,.matrix td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--d200);vertical-align:top}
+.matrix th{background:var(--d100);font-weight:600;font-size:12px;color:var(--d800)}
+.matrix tr:last-child td{border-bottom:0}
+.yes{color:var(--success-ink);font-weight:600}
+.no{color:#7f1d1d;font-weight:600}
+.chanrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>โลโก้ช่องทางการขายบนหัวออเดอร์</h1>
+<p class="sub">
+  หน้า <code>seller/orders/[token]</code> — การ์ดหัวหน้า (<code>StatusHero.tsx</code>).
+  ทุกค่าสี/รัศมี/เงาในหน้านี้คัดมาจาก <code>src/assets/css/config/_root.css</code> ของจริง ไม่ได้เดา.
+  ทุกตัวเลือกแสดงครบ 3 ขนาด: Desktop ≥1024 · Tablet 768 · Mobile 360.
+</p>
+
+<!-- ══════════════ ตอนนี้ ══════════════ -->
+<h2>ตอนนี้ <span class="tag tag-now">ที่ไม่ชอบ</span></h2>
+<p class="why">
+  ช่องทางถูกวาดเป็น <b>ชิปเทา</b> วางข้างชิปสถานะ — เกิดชิป 2 ตัวในแถวเดียวที่หน้าตาเหมือนกันแต่คนละความหมาย
+  ตาจึงอ่านชิปเทาว่าเป็น “สถานะที่ถูกปิด/ยังไม่ถึง” และ<b>ลำดับชั้นพัง</b>: สถานะออเดอร์ซึ่งเป็นข้อมูลสำคัญที่สุดในแถวนี้
+  ไม่ได้เด่นกว่าที่มาของออเดอร์อีกต่อไป
+</p>
+<div class="devices">
+  <div class="dev d-desktop"><p class="lbl">DESKTOP ≥1024</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05:07</span>
+          <span class="ch-now"><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>Facebook</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+  <div class="dev d-tablet"><p class="lbl">TABLET 768</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+          <span class="ch-now"><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>Facebook</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+  <div class="dev d-mobile"><p class="lbl">MOBILE 360</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="ch-now"><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>Facebook</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+</div>
+
+<!-- ══════════════ A ══════════════ -->
+<h2>ตัวเลือก A — ข้อความเปล่า ทรีตเมนต์เดียวกับวันที่ <span class="tag tag-rec">แนะนำ</span></h2>
+<p class="why">
+  ถอดพื้นเทาออก เหลือโลโก้ + ชื่อเป็นข้อความธรรมดาสีเดียวกับวันที่.
+  <b>แถวนี้จะมีชิปเดียวคือสถานะ</b> — ลำดับชั้นกลับมาถูก: สิ่งที่เป็น “สถานะ” เท่านั้นที่มีพื้น
+  ส่วนที่เหลือเป็น metadata เสมอกัน. ได้ที่ว่างคืนด้วย ซึ่งสำคัญบนมือถือที่แถวนี้ต้องขึ้นบรรทัดใหม่อยู่แล้ว.
+</p>
+<div class="devices">
+  <div class="dev d-desktop"><p class="lbl">DESKTOP ≥1024</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05:07</span>
+          <span class="ch-plain"><svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg><b>Facebook</b></span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+  <div class="dev d-tablet"><p class="lbl">TABLET 768</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+          <span class="ch-plain"><svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg><b>Facebook</b></span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+  <div class="dev d-mobile"><p class="lbl">MOBILE 360</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="ch-plain"><svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg><b>Facebook</b></span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+</div>
+
+<!-- ══════════════ B ══════════════ -->
+<h2>ตัวเลือก B — ไทล์โลโก้นำหน้าเลขออเดอร์</h2>
+<p class="why">
+  ย้ายออกจากแถว metadata ไปเป็น<b>ไทล์ 32px วางหน้าเลขออเดอร์</b> อ่านเป็น “ใบนี้มาจากที่นี่”.
+  แถวบนกลับไปสะอาดเหลือสถานะ+วันที่ และเลขออเดอร์ซึ่งเดิมลอยเดี่ยวก็ได้จุดยึดทางสายตา.
+  แลกมาด้วยการที่<b>ไม่มีชื่อช่องทางเป็นตัวอักษร</b> — คนที่ไม่คุ้นโลโก้ต้องพึ่ง tooltip
+  (มี <code>title</code>/<code>aria-label</code> กำกับ แต่ผู้ใช้มือถือแตะค้างถึงจะเห็น).
+</p>
+<div class="devices">
+  <div class="dev d-desktop"><p class="lbl">DESKTOP ≥1024</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05:07</span>
+        </div>
+        <div class="idrow">
+          <span class="ch-tile" title="ขายผ่าน Facebook"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg></span>
+          <p class="orderno">DP2569086E48FAAB</p>
+        </div>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+  <div class="dev d-tablet"><p class="lbl">TABLET 768</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+        </div>
+        <div class="idrow">
+          <span class="ch-tile" title="ขายผ่าน Facebook"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg></span>
+          <p class="orderno">DP2569086E48FAAB</p>
+        </div>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+  <div class="dev d-mobile"><p class="lbl">MOBILE 360</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+        </div>
+        <div class="idrow">
+          <span class="ch-tile" title="ขายผ่าน Facebook"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg></span>
+          <p class="orderno">DP2569086E48FAAB</p>
+        </div>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+</div>
+
+<!-- ══════════════ C ══════════════ -->
+<h2>ตัวเลือก C — ชิปสีแบรนด์จริง</h2>
+<p class="why">
+  คงเป็นชิป แต่เลิกใช้พื้นเทา — ใช้สีแบรนด์ที่ opacity ต่ำ + ตัวอักษรสีแบรนด์เข้ม (ผ่าน AA 4.5:1 ทุกช่องทาง).
+  แก้ปัญหา “ชิปเทาดูเหมือนสถานะที่ถูกปิด” และแยกตัวเองจากชิปสถานะได้ชัดด้วยสี.
+  <b>ข้อเสียที่ต้องรับ:</b> เพิ่มสีเข้ามาในหัวการ์ดที่มีสีความหมายอยู่แล้ว (เหลือง=รอ, เขียว=สำเร็จ, แดง=ยกเลิก) —
+  สีแบรนด์อาจถูกอ่านผิดเป็นสถานะ และ Facebook สีน้ำเงินจะไปชนกับ primary ของ Paces เอง.
+</p>
+<div class="devices">
+  <div class="dev d-desktop"><p class="lbl">DESKTOP ≥1024</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05:07</span>
+          <span class="ch-brand fb"><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>Facebook</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+  <div class="dev d-tablet"><p class="lbl">TABLET 768</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+          <span class="ch-brand fb"><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>Facebook</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+  <div class="dev d-mobile"><p class="lbl">MOBILE 360</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="ch-brand fb"><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>Facebook</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right"><span class="rlabel">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+    </div></div>
+  </div></div>
+</div>
+
+<!-- ══════════════ D ══════════════ -->
+<h2>ตัวเลือก D — คู่ “ขายผ่าน / Facebook” ในคอลัมน์ขวา</h2>
+<p class="why">
+  ออกจากแถวสถานะไปเลย ไปอยู่คอลัมน์ขวาคู่กับยอดเงิน เป็น label เล็กบน + ค่าจริงล่าง
+  ซึ่งเป็น<b>รูปแบบเดียวกับที่การ์ดชำระเงินใช้อยู่แล้ว</b> (“วิธีชำระ / เงินสด”, “ช่องทางการขาย / Facebook”)
+  จึงต่อภาษาเดิมของหน้าได้ตรงที่สุด และมีคำว่า “ขายผ่าน” กำกับ ไม่ต้องเดาว่าโลโก้แปลว่าอะไร.
+  แลกมาด้วยคอลัมน์ขวาที่แน่นขึ้น และบนมือถือมันจะไปอยู่ใต้ยอดเงิน ห่างจากเลขออเดอร์.
+</p>
+<div class="devices">
+  <div class="dev d-desktop"><p class="lbl">DESKTOP ≥1024</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05:07</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right" style="gap:10px">
+        <div class="pair"><span class="k">ขายผ่าน</span><span class="v"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>Facebook</span></div>
+        <div class="pair"><span class="k">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+      </div>
+    </div></div>
+  </div></div>
+  <div class="dev d-tablet"><p class="lbl">TABLET 768</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right" style="gap:10px">
+        <div class="pair"><span class="k">ขายผ่าน</span><span class="v"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>Facebook</span></div>
+        <div class="pair"><span class="k">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+      </div>
+    </div></div>
+  </div></div>
+  <div class="dev d-mobile"><p class="lbl">MOBILE 360</p><div class="vp">
+    <div class="card"><div class="top">
+      <div class="left">
+        <div class="meta">
+          <span class="chip chip-wait">รอดำเนินการ</span>
+          <span class="datetxt"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:05</span>
+        </div>
+        <p class="orderno">DP2569086E48FAAB</p>
+      </div>
+      <div class="right" style="gap:10px">
+        <div class="pair"><span class="k">ขายผ่าน</span><span class="v"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>Facebook</span></div>
+        <div class="pair"><span class="k">ยอดรวมทั้งหมด</span><span class="amount">฿1,180.00</span></div>
+      </div>
+    </div></div>
+  </div></div>
+</div>
+
+<!-- ══════════════ ทุกช่องทาง ══════════════ -->
+<h2>ตัวเลือก A กับช่องทางอื่นครบทุกค่าใน enum</h2>
+<p class="why">
+  <code>Order.salesChannel</code> มี 6 ค่า — ต้องดูพร้อมกันว่าไม่มีอันไหนพังหรือกลืนหาย
+  (STOREFRONT กับ OTHER ไม่มีโลโก้แบรนด์ ใช้ tabler icon สีเทาแทน ซึ่งยังอ่านออกว่าเป็นช่องทาง)
+</p>
+<div class="dev" style="display:inline-block"><div class="vp" style="width:640px">
+  <div class="card">
+    <div class="chanrow">
+      <span class="ch-plain"><svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg><b>Facebook</b></span>
+      <span class="sep"></span>
+      <span class="ch-plain"><svg width="15" height="15" viewBox="0 0 24 24"><defs><linearGradient id="ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FEDA75"/><stop offset=".4" stop-color="#D62976"/><stop offset="1" stop-color="#4F5BD5"/></linearGradient></defs><rect width="24" height="24" rx="7" fill="url(#ig)"/><rect x="6" y="6" width="12" height="12" rx="4" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="17" cy="7" r="1.1" fill="#fff"/></svg><b>Instagram</b></span>
+      <span class="sep"></span>
+      <span class="ch-plain"><svg width="15" height="15" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#06C755"/><path d="M12 5.2c-3.9 0-7 2.5-7 5.6 0 2.8 2.5 5.1 5.9 5.5.23.05.54.15.62.35.07.18.05.46.02.64l-.1.6c-.03.18-.14.7.61.38.75-.32 4.05-2.39 5.53-4.09 1.02-1.12 1.42-2.26 1.42-3.38 0-3.1-3.11-5.6-7-5.6z" fill="#fff"/></svg><b>LINE</b></span>
+      <span class="sep"></span>
+      <span class="ch-plain"><svg width="15" height="15" viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#010101"/><path d="M17.6 8.4a3.6 3.6 0 0 1-2.3-.9v4.9a4.2 4.2 0 1 1-3.6-4.15v1.9a2.35 2.35 0 1 0 1.65 2.25V4.5h1.95a3.6 3.6 0 0 0 2.3 3.2z" fill="#fff"/></svg><b>TikTok</b></span>
+      <span class="sep"></span>
+      <span class="ch-plain"><svg class="ico" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21V10l9-7 9 7v11M9 21v-6h6v6"/></svg><b>หน้าร้าน</b></span>
+      <span class="sep"></span>
+      <span class="ch-plain"><svg class="ico" style="width:15px;height:15px" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg><b>อื่นๆ</b></span>
+    </div>
+  </div>
+</div></div>
+
+<!-- ══════════════ เทียบ ══════════════ -->
+<h2>ตารางเทียบ</h2>
+<table class="matrix">
+  <tr><th>เกณฑ์</th><th>ตอนนี้</th><th>A — ข้อความเปล่า</th><th>B — ไทล์นำเลข</th><th>C — ชิปสีแบรนด์</th><th>D — คู่ในคอลัมน์ขวา</th></tr>
+  <tr><td>แถวสถานะเหลือชิปเดียว (ลำดับชั้นถูก)</td><td class="no">ไม่</td><td class="yes">ใช่</td><td class="yes">ใช่</td><td class="no">ไม่ (2 ชิป)</td><td class="yes">ใช่</td></tr>
+  <tr><td>บอกชื่อช่องทางเป็นตัวอักษร</td><td class="yes">ใช่</td><td class="yes">ใช่</td><td class="no">ไม่</td><td class="yes">ใช่</td><td class="yes">ใช่</td></tr>
+  <tr><td>ไม่เพิ่มสีที่อาจอ่านผิดเป็นสถานะ</td><td class="yes">ใช่</td><td class="yes">ใช่</td><td class="yes">ใช่</td><td class="no">ไม่</td><td class="yes">ใช่</td></tr>
+  <tr><td>ต่อภาษาที่หน้านี้ใช้อยู่แล้ว</td><td>กลาง ๆ</td><td class="yes">ใช่ (เท่ากับวันที่)</td><td>ใหม่</td><td>ใหม่</td><td class="yes">ใช่ (เท่ากับการ์ดชำระเงิน)</td></tr>
+  <tr><td>มือถือ 360 ไม่ทำให้แถวยาวขึ้น</td><td class="no">ไม่</td><td class="yes">ใช่</td><td class="yes">ใช่</td><td class="no">ไม่</td><td class="yes">ใช่</td></tr>
+  <tr><td>ขนาดงาน</td><td>—</td><td>เล็ก (แก้ badge → span)</td><td>เล็ก</td><td>กลาง (+ตาราง 6 สี)</td><td>เล็ก</td></tr>
+</table>
+
+<div class="note">
+  <b>ข้อเสนอของผม: A</b> — มันแก้ตรงต้นเหตุที่ทำให้อันเดิมดูผิด (ชิปเทาตัวที่สองแย่งกับชิปสถานะ)
+  ด้วยการถอดพื้นออกเฉย ๆ ไม่ได้เพิ่มภาษาใหม่เข้ามาในหน้า และไม่เอาสีแบรนด์ไปปนกับสีความหมาย
+  (เหลือง/เขียว/แดง) ที่หัวการ์ดใช้สื่อสถานะอยู่.
+  ถ้าอยากให้ “ที่มาของออเดอร์” เด่นกว่านี้จริง ๆ ให้เลือก <b>D</b> เพราะมีคำว่า “ขายผ่าน” กำกับ
+  และยกภาษาที่การ์ดชำระเงินใช้อยู่แล้วมาใช้ซ้ำ — ไม่ใช่ B ซึ่งสวยแต่ทิ้งคนที่ไม่คุ้นโลโก้ไว้ข้างหลัง.
+</div>
+
+</div>
+</body>
+</html>

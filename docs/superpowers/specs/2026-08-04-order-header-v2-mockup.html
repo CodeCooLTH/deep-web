@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v2 — หัวออเดอร์แบบไทล์ช่องทาง (seller) 2026-08-04</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* token จริงจาก src/assets/css/config/_root.css — ห้ามเดาค่าเอง */
+:root{
+  --card:#fff; --body-bg:#f6f7fb;
+  --primary:#236dc9; --primary-hover:#1e5dab;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --success:#02bc9c; --success-ink:#065f46;
+  --danger:#f7577e; --danger-ink:#7f1d1d;
+  --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb;
+  --d700:#6c757d; --d800:#343a40; --d900:#313a46;
+  --radius:4px; --shadow:0px 1px 4px 0px rgba(130,143,163,.15);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eceef4;font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;color:var(--d900);line-height:1.5}
+.page{max-width:1280px;margin:0 auto;padding:32px 20px 90px}
+h1{font-size:26px;font-weight:600;margin:0 0 6px}
+.sub{color:var(--d700);font-size:15px;margin:0 0 26px;max-width:76ch}
+h2{font-size:19px;font-weight:600;margin:46px 0 4px;padding-top:22px;border-top:1px solid #dfe3ec}
+h2 .tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;vertical-align:3px;margin-left:8px;background:rgba(2,188,156,.15);color:var(--success-ink)}
+h2 .tag.q{background:rgba(249,191,89,.2);color:var(--warning-ink)}
+.why{color:var(--d700);font-size:14px;margin:6px 0 18px;max-width:82ch}
+.why b{color:var(--d800);font-weight:600}
+.devices{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.dev{background:#fff;border:1px solid #dfe3ec;border-radius:10px;padding:10px;box-shadow:0 2px 10px rgba(76,76,92,.06)}
+.dev>.lbl{font-size:11px;font-weight:600;letter-spacing:.3px;color:var(--d700);margin:0 0 8px 2px}
+.vp{background:var(--body-bg);border-radius:6px;padding:14px;overflow:hidden}
+.d-desktop .vp{width:700px}.d-tablet .vp{width:440px}.d-mobile .vp{width:312px}
+
+/* ══ การ์ดหัวออเดอร์ v2 ══ */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+.d-mobile .card{padding:14px}
+
+.head{display:flex;gap:14px;align-items:flex-start}
+.d-mobile .head{gap:12px}
+
+/* ไทล์ช่องทาง — ยืนคุมซ้าย สูงเท่าบล็อกข้อมูล 3 บรรทัด */
+.tile{width:48px;height:48px;flex:0 0 auto;border-radius:12px;background:#fff;border:1px solid var(--d200);
+      display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(130,143,163,.18)}
+.d-mobile .tile{width:42px;height:42px;border-radius:11px}
+.tile svg{width:26px;height:26px}
+.d-mobile .tile svg{width:23px;height:23px}
+
+.idblock{min-width:0;flex:1 1 auto;display:flex;flex-direction:column;gap:1px}
+.l1{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.orderno{font-size:19px;font-weight:700;letter-spacing:.2px;color:var(--d900);margin:0;line-height:1.3}
+.d-mobile .orderno{font-size:17px}
+.l2{font-size:15px;font-weight:500;color:var(--d800);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.l3{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--d700);margin:2px 0 0}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:600;white-space:nowrap}
+.chip-wait{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.chip-unpaid{background:rgba(249,191,89,.15);color:var(--warning-ink)}
+.ico{width:14px;height:14px;flex:0 0 auto}
+
+/* เงินฝั่งขวา */
+.money{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:0 0 auto;text-align:right}
+.money .k{font-size:11.5px;color:var(--d800);white-space:nowrap}
+.money .v{font-size:26px;font-weight:700;color:var(--d900);line-height:1.15;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.d-mobile .money .v{font-size:23px}
+
+/* มือถือ/แท็บเล็ต: เงินลงมาอยู่ใต้บล็อกข้อมูล ชิดขวาเหมือนเดิม */
+.d-mobile .head,.d-tablet .head{flex-wrap:wrap}
+.d-mobile .money,.d-tablet .money{width:100%;align-items:flex-end;margin-top:10px;
+  border-top:1px dashed var(--d300);padding-top:10px}
+
+/* เส้นคั่น + แถวปุ่ม */
+.rule{border:0;border-top:1px dashed var(--d300);margin:16px 0 14px}
+.acts{display:flex;gap:8px;align-items:center}
+.d-mobile .acts{flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 16px;
+     border-radius:var(--radius);font-size:14px;font-weight:500;border:1px solid transparent;cursor:pointer;white-space:nowrap}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-ghost{background:#fff;border-color:var(--d300);color:var(--d700)}
+.btn-icon{width:40px;padding:0}
+.d-mobile .btn-primary{flex:1 1 auto}
+.spacer{flex:1 1 auto}
+
+/* หมายเหตุ/ตาราง */
+.note{background:#fff;border:1px solid var(--d200);border-left:3px solid var(--primary);border-radius:var(--radius);
+      padding:12px 14px;font-size:13.5px;color:var(--d800);margin-top:18px;max-width:88ch}
+.note b{font-weight:600}
+.note.warn{border-left-color:var(--warning)}
+.q{background:#fff;border:1px solid var(--d200);border-radius:var(--radius);padding:14px 16px;margin-top:14px;max-width:88ch}
+.q h3{margin:0 0 6px;font-size:15px;font-weight:600}
+.q p{margin:0 0 10px;font-size:13.5px;color:var(--d700)}
+.opts{display:flex;flex-wrap:wrap;gap:10px}
+.opt{border:1px solid var(--d200);border-radius:8px;padding:10px 12px;font-size:13px;background:var(--d100);min-width:200px}
+.opt .t{font-weight:600;color:var(--d900);display:block;margin-bottom:2px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>หัวออเดอร์ v2 — ไทล์ช่องทางคุมซ้าย</h1>
+<p class="sub">
+  ตามที่คุณสาววาดมา: <code>[logo] เลขออเดอร์ / ชื่อ / วันที่สร้าง</code> ซ้าย · ยอดรวมขวา · เส้นคั่น · แถวปุ่ม ·
+  <b>ตัดแถบ “ขั้นต่อไป” ออก</b>. สีทุกค่าคัดจาก <code>src/assets/css/config/_root.css</code> ของจริง.
+  แสดงครบ 3 ขนาด — Desktop ≥1024 · Tablet 768 · Mobile 360.
+</p>
+
+<!-- ═══════════ MAIN ═══════════ -->
+<h2>โครงหลัก <span class="tag">ตามที่วาดมา</span></h2>
+<p class="why">
+  ไทล์ 48px คุมซ้ายทั้งบล็อก ทำให้ “ใบนี้มาจากช่องทางไหน” เป็นสิ่งแรกที่ตาเจอโดยไม่ต้องมีคำ
+  ส่วนเลขออเดอร์ได้เป็นบรรทัดแรกที่หนักที่สุด. <b>ชิปสถานะย้ายมาต่อท้ายเลขออเดอร์บรรทัดเดียวกัน</b> —
+  มันหายไปจากภาพที่วาดมา แต่ถอดออกจริงไม่ได้ (เป็นข้อมูลสำคัญสุดของหน้า) วางตรงนี้แล้วยังอ่านเป็นชุดเดียวกับเลข
+  และไม่ไปตั้งชิปแข่งกันเหมือนเวอร์ชันก่อน.
+</p>
+<div class="devices">
+
+  <div class="dev d-desktop"><p class="lbl">DESKTOP ≥1024</p><div class="vp">
+    <div class="card">
+      <div class="head">
+        <span class="tile" title="ขายผ่าน Facebook" aria-label="ขายผ่าน Facebook">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg>
+        </span>
+        <div class="idblock">
+          <div class="l1">
+            <p class="orderno">DP2569086E48FAAB</p>
+            <span class="chip chip-wait">รอดำเนินการ</span>
+          </div>
+          <p class="l2">ธนภัทร์ อะไหล่มอเตอร์ไซค์</p>
+          <p class="l3"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>วันที่สร้าง 2569-08-04 13:55:23</p>
+        </div>
+        <div class="money">
+          <span class="k">ยอดรวมทั้งหมด</span>
+          <span class="v">590.-</span>
+          <span class="chip chip-unpaid">ยังไม่ยืนยันการชำระ</span>
+        </div>
+      </div>
+      <hr class="rule">
+      <div class="acts">
+        <button class="btn btn-primary"><svg class="ico" style="width:17px;height:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h11v7H3zM14 11h4l3 3v2h-7z"/><circle cx="6.5" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>แจ้งเลขพัสดุ</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-icon" aria-label="เมนูเพิ่มเติม"><svg class="ico" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="dev d-tablet"><p class="lbl">TABLET 768</p><div class="vp">
+    <div class="card">
+      <div class="head">
+        <span class="tile" title="ขายผ่าน Instagram" aria-label="ขายผ่าน Instagram">
+          <svg viewBox="0 0 24 24"><defs><linearGradient id="ig1" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FEDA75"/><stop offset=".45" stop-color="#D62976"/><stop offset="1" stop-color="#4F5BD5"/></linearGradient></defs><rect width="24" height="24" rx="7" fill="url(#ig1)"/><rect x="6" y="6" width="12" height="12" rx="4" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="17" cy="7" r="1.15" fill="#fff"/></svg>
+        </span>
+        <div class="idblock">
+          <div class="l1">
+            <p class="orderno">DP2569086E48FAAB</p>
+            <span class="chip chip-wait">รอดำเนินการ</span>
+          </div>
+          <p class="l2">ธนภัทร์ อะไหล่มอเตอร์ไซค์</p>
+          <p class="l3"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>วันที่สร้าง 2569-08-04 13:55:23</p>
+        </div>
+        <div class="money">
+          <span class="k">ยอดรวมทั้งหมด</span>
+          <span class="v">590.-</span>
+          <span class="chip chip-unpaid">ยังไม่ยืนยันการชำระ</span>
+        </div>
+      </div>
+      <hr class="rule">
+      <div class="acts">
+        <button class="btn btn-primary"><svg class="ico" style="width:17px;height:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h11v7H3zM14 11h4l3 3v2h-7z"/><circle cx="6.5" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>แจ้งเลขพัสดุ</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-icon" aria-label="เมนูเพิ่มเติม"><svg class="ico" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="dev d-mobile"><p class="lbl">MOBILE 360</p><div class="vp">
+    <div class="card">
+      <div class="head">
+        <span class="tile" title="ขายผ่าน LINE" aria-label="ขายผ่าน LINE">
+          <svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#06C755"/><path d="M12 5.2c-3.9 0-7 2.5-7 5.6 0 2.8 2.5 5.1 5.9 5.5.23.05.54.15.62.35.07.18.05.46.02.64l-.1.6c-.03.18-.14.7.61.38.75-.32 4.05-2.39 5.53-4.09 1.02-1.12 1.42-2.26 1.42-3.38 0-3.1-3.11-5.6-7-5.6z" fill="#fff"/></svg>
+        </span>
+        <div class="idblock">
+          <div class="l1">
+            <p class="orderno">DP2569086E48FAAB</p>
+            <span class="chip chip-wait">รอดำเนินการ</span>
+          </div>
+          <p class="l2">ธนภัทร์ อะไหล่มอเตอร์ไซค์</p>
+          <p class="l3"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>2569-08-04 13:55:23</p>
+        </div>
+        <div class="money">
+          <span class="k">ยอดรวมทั้งหมด</span>
+          <span class="v">590.-</span>
+          <span class="chip chip-unpaid">ยังไม่ยืนยันการชำระ</span>
+        </div>
+      </div>
+      <hr class="rule">
+      <div class="acts">
+        <button class="btn btn-primary"><svg class="ico" style="width:17px;height:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h11v7H3zM14 11h4l3 3v2h-7z"/><circle cx="6.5" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>แจ้งเลขพัสดุ</button>
+        <button class="btn btn-ghost btn-icon" aria-label="เมนูเพิ่มเติม"><svg class="ico" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
+      </div>
+    </div>
+  </div></div>
+
+</div>
+
+<!-- ═══════════ ทุกช่องทาง ═══════════ -->
+<h2>ไทล์กับทุกค่าใน enum</h2>
+<p class="why">
+  <code>Order.salesChannel</code> มี 6 ค่า — STOREFRONT กับ OTHER ไม่มีโลโก้แบรนด์
+  ใช้ tabler icon สีเทาในไทล์เดียวกัน ขนาด/กรอบเท่ากันหมด ไทล์จึงไม่ “แหว่ง” เวลาไม่ใช่โซเชียล
+</p>
+<div class="dev" style="display:inline-block"><div class="vp" style="width:700px">
+  <div class="card" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+    <span class="tile"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1877F2"/><path d="M15.1 12.5l.4-2.6h-2.5V8.2c0-.7.35-1.4 1.5-1.4h1.15V4.6s-1.05-.18-2.05-.18c-2.1 0-3.45 1.27-3.45 3.56v2.02H7.9v2.6h2.25v6.3h2.85v-6.3z" fill="#fff"/></svg></span>
+    <span class="tile"><svg viewBox="0 0 24 24"><defs><linearGradient id="ig2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FEDA75"/><stop offset=".45" stop-color="#D62976"/><stop offset="1" stop-color="#4F5BD5"/></linearGradient></defs><rect width="24" height="24" rx="7" fill="url(#ig2)"/><rect x="6" y="6" width="12" height="12" rx="4" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="#fff" stroke-width="1.7"/><circle cx="17" cy="7" r="1.15" fill="#fff"/></svg></span>
+    <span class="tile"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#06C755"/><path d="M12 5.2c-3.9 0-7 2.5-7 5.6 0 2.8 2.5 5.1 5.9 5.5.23.05.54.15.62.35.07.18.05.46.02.64l-.1.6c-.03.18-.14.7.61.38.75-.32 4.05-2.39 5.53-4.09 1.02-1.12 1.42-2.26 1.42-3.38 0-3.1-3.11-5.6-7-5.6z" fill="#fff"/></svg></span>
+    <span class="tile"><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6" fill="#010101"/><path d="M17.6 8.4a3.6 3.6 0 0 1-2.3-.9v4.9a4.2 4.2 0 1 1-3.6-4.15v1.9a2.35 2.35 0 1 0 1.65 2.25V4.5h1.95a3.6 3.6 0 0 0 2.3 3.2z" fill="#fff"/></svg></span>
+    <span class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="1.7"><path d="M3 21V10l9-7 9 7v11M9 21v-6h6v6"/></svg></span>
+    <span class="tile"><svg viewBox="0 0 24 24" fill="#6c757d"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg></span>
+    <span style="font-size:13px;color:var(--d700)">Facebook · Instagram · LINE · TikTok · หน้าร้าน · อื่นๆ</span>
+  </div>
+</div></div>
+
+<!-- ═══════════ คำถาม ═══════════ -->
+<h2>3 จุดที่ผมตัดสินแทนไม่ได้ <span class="tag q">ต้องเคาะ</span></h2>
+
+<div class="q">
+  <h3>1. บรรทัดที่ 2 คือชื่อใคร</h3>
+  <p>ในภาพที่วาดมาเขียน “ธนภัทร์ อะไหล่มอเตอร์ไซค์” ซึ่งเป็น<b>ชื่อร้านของคุณสาวเอง</b> — แต่ในหน้ารายละเอียดออเดอร์ของร้าน การโชว์ชื่อร้านตัวเองทุกใบไม่ได้ให้ข้อมูลใหม่ (ทุกใบก็ร้านนี้)</p>
+  <div class="opts">
+    <div class="opt"><span class="t">ก. ชื่อผู้ซื้อ</span>“เล็ก วงษ์นาค” — ต่างกันทุกใบ เป็นสิ่งที่ร้านใช้แยกออเดอร์จริง <b>(ผมเชียร์)</b></div>
+    <div class="opt"><span class="t">ข. ชื่อเพจ/บัญชีบนช่องทาง</span>ชื่อเพจ Facebook ที่ออเดอร์เข้ามา — มีความหมายกับร้านที่มีหลายเพจ แต่ตอนนี้ DB ยังไม่ได้เก็บชื่อเพจผูกกับออเดอร์</div>
+    <div class="opt"><span class="t">ค. ชื่อร้านตามที่วาด</span>ทำได้ทันที แต่ซ้ำทุกใบ</div>
+  </div>
+</div>
+
+<div class="q">
+  <h3>2. รูปแบบเงิน “590.-”</h3>
+  <p>ในภาพเขียน <code>590.-</code> ส่วนทั้งระบบตอนนี้ใช้ <code>฿590.00</code> (<code>Intl.NumberFormat</code> style=currency) ถ้าเปลี่ยนเฉพาะหัวออเดอร์จะไม่ตรงกับที่อื่นในหน้าเดียวกัน (การ์ดยอดเงิน/รายการสินค้า)</p>
+  <div class="opts">
+    <div class="opt"><span class="t">ก. คง ฿590.00</span>ตรงกันทั้งหน้า <b>(ผมเชียร์)</b></div>
+    <div class="opt"><span class="t">ข. 590.- เฉพาะหัว</span>ตามภาพ แต่หน้าเดียวมี 2 รูปแบบ</div>
+    <div class="opt"><span class="t">ค. เปลี่ยน 590.- ทั้งระบบ</span>งานใหญ่กว่ามาก กระทบ buyer/ใบเสร็จ/SMS ด้วย</div>
+  </div>
+</div>
+
+<div class="q">
+  <h3>3. ตัด “ขั้นต่อไป” แล้ว ผู้ใช้ใหม่จะรู้ได้ยังไงว่าต้องทำอะไร</h3>
+  <p>ตัดได้ตามสั่ง — แต่มันเป็นประโยคเดียวในหน้าที่บอกร้านมือใหม่ว่าลำดับงานคืออะไร (PRODUCT.md ระบุกลุ่มผู้ใช้ digital-literacy ต่ำไว้ชัด)</p>
+  <div class="opts">
+    <div class="opt"><span class="t">ก. ตัดทิ้งเลย</span>ตามที่สั่ง — หัวสะอาดสุด ปุ่มหลักที่เหลือคือคำใบ้เดียว</div>
+    <div class="opt"><span class="t">ข. ตัดจากหัว ย้ายไปไทม์ไลน์</span>ย้ายประโยคไปอยู่การ์ด “ประวัติคำสั่งซื้อ” ที่มีลำดับขั้นอยู่แล้ว <b>(ผมเชียร์)</b></div>
+  </div>
+</div>
+
+<div class="note warn">
+  <b>สิ่งที่ผมเติมเข้าไปเองในภาพ ต้องบอกให้ชัด:</b> ชิป “รอดำเนินการ” (ต่อท้ายเลขออเดอร์)
+  และชิป “ยังไม่ยืนยันการชำระ” (ใต้ยอดเงิน) — ทั้งคู่ไม่มีในภาพที่วาดมา แต่ถอดออกไม่ได้จริง
+  เพราะเป็นสถานะออเดอร์กับสถานะเงิน ซึ่งเป็นสองสิ่งที่หน้านี้มีไว้เพื่อบอก
+  ถ้าอยากให้หายจริงบอกได้ ผมจะหาที่ใหม่ให้แทนการทิ้ง
+</div>
+
+<div class="note">
+  <b>ที่เปลี่ยนจาก v1 นอกจากไทล์:</b> ยอดเงินบนมือถือ/แท็บเล็ตไม่ลอยชิดซ้ายอีกแล้ว —
+  มีเส้นประคั่นแล้วชิดขวาเหมือน desktop จึงอ่านเป็น “ยอดสรุป” เหมือนกันทุกจอ ·
+  แถวปุ่มบนมือถือให้ปุ่มหลักยืดเต็ม เหลือ ⋮ ท้ายแถว ·
+  เส้นคั่นใช้เส้นประตามภาพที่วาดมา ซึ่งบังเอิญตรงกับ signature ของ Paces (<code>.card-header</code> เส้นประ) พอดี
+</div>
+
+</div>
+</body>
+</html>

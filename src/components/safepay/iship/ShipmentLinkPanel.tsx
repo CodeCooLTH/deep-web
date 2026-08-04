@@ -27,6 +27,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { describeCarrierStatus } from '@/lib/iship/status'
+import { formatDayMonthTimeTH } from '@/lib/format-date'
 import { matchesQuery } from '@/lib/iship/unlinked'
 import type {
   AddressDiffRow,
@@ -77,20 +78,6 @@ async function readError(res: Response): Promise<string> {
   } catch {
     return 'เกิดข้อผิดพลาด กรุณาลองใหม่'
   }
-}
-
-/** "2026-07-31 09:12:00" → "31 ก.ค. 09:12" — รูปสั้นพอสำหรับแถวในรายการ */
-function shortThaiDate(raw: string | null): string {
-  if (!raw) return '—'
-  const [datePart, timePart] = raw.split(' ')
-  const [, month, day] = (datePart ?? '').split('-')
-  const MONTHS = [
-    'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
-  ]
-  const label = MONTHS[Number(month) - 1]
-  if (!label || !day) return raw
-  return `${Number(day)} ${label}${timePart ? ` ${timePart.slice(0, 5)}` : ''}`
 }
 
 export default function ShipmentLinkPanel({
@@ -612,7 +599,7 @@ export default function ShipmentLinkPanel({
                     {p.courierName ?? p.courierCode ?? 'ไม่ระบุขนส่ง'}
                   </span>
                   <span aria-hidden="true">·</span>
-                  <span className="shrink-0">{shortThaiDate(p.createdAtRaw)}</span>
+                  <span className="shrink-0">{formatDayMonthTimeTH(p.createdAtRaw)}</span>
                 </span>
 
                 {/* ชื่อผู้รับคือสิ่งที่ร้านใช้ตัดสินว่า "ใบนี้ของลูกค้าคนนี้ไหม" จริง ๆ

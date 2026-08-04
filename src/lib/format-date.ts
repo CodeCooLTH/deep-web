@@ -145,6 +145,25 @@ export function formatDateTimeTH(input: Date | string | number | null | undefine
 }
 
 /**
+ * "1 ส.ค. 09:00" — วัน + เดือนย่อ + เวลา **ไม่มีปี** (timezone ไทย, 24 ชม.)
+ *
+ * ใช้กับรายการที่หน้าต่างเวลาสั้นจนปีเป็นสัญญาณรบกวน และพื้นที่ต่อแถวมีจำกัด —
+ * เคสจริงคือรายการพัสดุที่ยังไม่ผูกจาก iShip ซึ่ง API ให้ค้นย้อนหลังได้ไม่เกิน 7 วัน
+ * ปีจึงเป็นค่าเดียวกันหมดเสมอ ส่วนเวลาต่างหากที่ใช้แยกใบที่เปิดวันเดียวกัน
+ *
+ * เพิ่มที่นี่แทนที่จะให้ component เขียนตาราง MONTHS เอง — `docs/conventions/date-format.md`
+ * ให้ไฟล์นี้เป็นเจ้าของการเรนเดอร์วันที่ทั้งระบบ (ตัวที่เขียนเองใน ShipmentLinkPanel
+ * เคยคืน "NaN ส.ค." กับ input ISO มาแล้ว — Impeccable critique 2026-08-04)
+ */
+export function formatDayMonthTimeTH(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const p = partsInBangkok(d)
+  const monthIdx = Number(p.month) - 1
+  return `${Number(p.day)} ${THAI_MONTHS_ABBR[monthIdx] ?? '—'} ${p.hour}:${p.minute}`
+}
+
+/**
  * "19:30" — เวลาล้วน HH:mm (ระดับนาที, timezone ไทย, 24 ชม.)
  * ใช้คู่กับวันที่ที่แยกแสดงอยู่แล้ว เช่น เวลาข้อความในแชท / inbox ของวันนี้
  */

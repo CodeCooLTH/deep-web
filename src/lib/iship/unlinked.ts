@@ -43,7 +43,7 @@ export interface IShipParcel {
   height: number | null;
   categoryId: number | null;
   receiver: ParcelReceiver;
-  /** เวลาที่สร้างพัสดุฝั่ง iShip — ดิบตามที่ส่งมา ("YYYY-MM-DD HH:mm:ss") */
+  /** เวลาที่สร้างพัสดุฝั่ง iShip — normalize เป็น ISO แล้วโดย normalizeIShipDate() (null = แปลงไม่ได้) */
   createdAtRaw: string | null;
   /** ไม่ว่าง = ใบนี้ถูกยกเลิกไปแล้ว ผูกไปก็ใช้ไม่ได้ */
   cancelledAtRaw: string | null;
@@ -77,6 +77,46 @@ function str(o: Record<string, unknown>, ...keys: string[]): string | null {
     if (typeof v === "string" && v.trim() !== "") return v.trim();
     if (typeof v === "number") return String(v);
   }
+  return null;
+}
+
+/**
+ * แปลงเวลาที่ iShip ส่งมาเป็น ISO รูปเดียว — normalize ที่นี่ที่เดียว ไม่ใช่ให้หน้าจอเดาเอง
+ *
+ * ที่มา: `shortThaiDate()` ใน ShipmentLinkPanel เคยแกะสตริงเองด้วยการ split(' ') แล้ว split('-')
+ * ซึ่งใช้ได้เฉพาะรูป "YYYY-MM-DD HH:mm:ss" ตามเอกสารปี 2022 — พอ prod ส่ง ISO ที่ใช้ตัว T คั่น
+ * ส่วนวันจะกลายเป็น "01T09:00:00" แล้ว Number() ได้ NaN ขณะที่เดือนยังแปลงถูก ผลคือหน้าจอขึ้น
+ * **"NaN ส.ค."** ทุกแถว บนหน้าที่มีหน้าที่ช่วยร้านแยกว่าพัสดุใบไหนของลูกค้าคนไหนพอดี
+ * (ยืนยันด้วยสคริปต์ repro แล้ว — Impeccable critique 2026-08-04)
+ *
+ * **timezone สำคัญ:** รูปที่ไม่มี timezone ติดมาถือเป็นเวลาไทย (iShip เป็นบริการไทย) ถ้าปล่อยให้
+ * `new Date()` เดาเอง จะกลายเป็นเวลาของเครื่องที่รัน ซึ่งบน Vercel คือ UTC = เพี้ยนไป 7 ชั่วโมง
+ *
+ * รูปที่ไม่รู้จักคืน null ไปเลย (หน้าจอขึ้น "—") ดีกว่าเดาแล้วแสดงวันที่ผิดแบบเงียบ ๆ —
+ * โดยเฉพาะ dd/mm/yyyy ที่ `new Date()` จะอ่านสลับเป็น mm/dd โดยไม่มีอะไรฟ้อง
+ */
+export function normalizeIShipDate(raw: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.trim();
+  if (s === "") return null;
+
+  const iso = (v: string): string | null => {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  };
+
+  // epoch วินาที (10 หลัก) หรือมิลลิวินาที (13 หลัก) — str() แปลง number เป็นสตริงมาให้แล้ว
+  if (/^\d{10}$|^\d{13}$/.test(s)) {
+    return iso(new Date(s.length === 10 ? Number(s) * 1000 : Number(s)).toISOString());
+  }
+  // "YYYY-MM-DD HH:mm[:ss]" หรือ "YYYY-MM-DDTHH:mm[:ss]" ที่ไม่มี timezone = เวลาไทย
+  const dt = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (dt) return iso(`${dt[1]}-${dt[2]}-${dt[3]}T${dt[4]}:${dt[5]}:${dt[6] ?? "00"}+07:00`);
+  // วันที่ล้วน = เที่ยงคืนเวลาไทย
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return iso(`${s}T00:00:00+07:00`);
+  // มี timezone ติดมาเอง (Z หรือ ±hh:mm) → เชื่อค่านั้นตรง ๆ
+  if (/^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:?\d{2})$/.test(s)) return iso(s);
+
   return null;
 }
 
@@ -131,7 +171,7 @@ export function parseParcelRow(raw: unknown): IShipParcel | null {
       province: str(o, "dst_province"),
       postcode: str(o, "dst_zipcode", "dst_postcode"),
     },
-    createdAtRaw: str(o, "created", "created_at", "createdAt"),
+    createdAtRaw: normalizeIShipDate(str(o, "created", "created_at", "createdAt")),
     cancelledAtRaw: str(o, "cancel_at", "cancelled_at", "cancelAt"),
   };
 }
