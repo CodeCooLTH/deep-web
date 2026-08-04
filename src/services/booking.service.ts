@@ -161,7 +161,11 @@ export interface CreateBookingInput {
  * IMPORTANT: คำนวณยอดที่ server ซ้ำเสมอ ไม่เชื่อค่าที่ client ส่งมา ยกเว้น depositAmount
  * ที่เจ้าของตั้งใจ override ซึ่งยังต้องผ่านการตรวจขอบเขต 0..totalAmount ที่นี่
  */
-export async function createBooking(shopId: string, input: CreateBookingInput) {
+/**
+ * @param createdByUserId คนที่กดสร้างการจองนี้ (2026-08-04) — route ส่ง userId จาก guard เข้ามา
+ *   ไม่ส่งมา = ระบบสร้างเอง เก็บ NULL (หน้าประวัติจะแสดง "ระบบ") ห้ามเดาเป็นเจ้าของร้าน
+ */
+export async function createBooking(shopId: string, input: CreateBookingInput, createdByUserId?: string | null) {
   const q = await quoteBooking(shopId, input.roomId, input.checkIn, input.checkOut);
 
   const room = await prisma.room.findFirst({
@@ -204,6 +208,8 @@ export async function createBooking(shopId: string, input: CreateBookingInput) {
             customerId,
             internalNote: input.internalNote,
             shortCode: genShortCode(),
+            // ไม่ส่งมา = ระบบสร้างเอง เก็บ NULL (ห้าม fallback เป็นเจ้าของร้าน — จะเป็นบันทึกเท็จ)
+            createdByUserId: createdByUserId ?? undefined,
             // OrderItem 1 แถวเป็น snapshot ของห้อง เพื่อให้หน้าออเดอร์/สรุปยอดเดิมทำงานได้
             // โดยไม่ต้องแก้ — qty = จำนวนคืน, price = ราคาต่อคืน
             items: {

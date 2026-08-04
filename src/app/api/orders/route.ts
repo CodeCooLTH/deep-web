@@ -72,7 +72,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const order = await createOrder(shop.id, { ...parsed.output, appointment });
+    // คนที่กดสร้างคือเจ้าของ session นี้ — เอามาจาก session ฝั่ง server เท่านั้น ห้ามรับจาก body
+    // (ไม่งั้นใครก็ยิงระบุชื่อคนอื่นเป็นคนสร้างได้) มิเรอร์วิธีเดียวกับ otp-for-password ใน feat 00026
+    const createdByUserId = (session.user as { id?: string }).id ?? null;
+    const order = await createOrder(shop.id, { ...parsed.output, appointment, createdByUserId });
     return NextResponse.json(order, { status: 201 });
   } catch (e) {
     // feature 00024 — error ของโดเมนนัดหมายต้องมี catch ครอบที่นี่ มิฉะนั้นตกเป็น 500

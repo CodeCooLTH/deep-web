@@ -103,6 +103,13 @@ export async function createOrder(shopId: string, data: {
     end: Date;
     depositAmount?: string | null;
   };
+  /**
+   * คนที่กดสร้างออเดอร์นี้ (2026-08-04) — route เป็นคนส่ง session.user.id เข้ามา
+   *
+   * ไม่ส่งมา = ไม่มีคนกด (ระบบออกให้เอง) เก็บเป็น NULL ห้ามเดาว่าเป็นเจ้าของร้าน
+   * หน้า "ประวัติคำสั่งซื้อ" อ่านค่านี้ NULL แล้วแสดงคำว่า "ระบบ"
+   */
+  createdByUserId?: string | null;
 }) {
   // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
   // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
@@ -213,6 +220,8 @@ export async function createOrder(shopId: string, data: {
     vatRate: data.vatRate ?? undefined,
     vatAmount: data.vatAmount ?? undefined,
     shippingAddress: data.shippingAddress ?? undefined,
+    // ไม่ส่งมา = ระบบออกออเดอร์เอง เก็บ NULL (ห้าม fallback เป็นเจ้าของร้าน — จะกลายเป็นบันทึกเท็จ)
+    createdByUserId: data.createdByUserId ?? undefined,
   };
 
   // [!] TD-001 (SDS §3.5): retry loop ต้องครอบ $transaction ทั้งก้อน ไม่ใช่อยู่ข้างในเดียว
@@ -767,6 +776,10 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
       // buyer: เพิ่ม avatar เพื่อแสดง avatar ใน CustomerDetails (theme fidelity)
       // additive — ไม่ break caller เดิม
       buyer: { select: { id: true, displayName: true, username: true, avatar: true } },
+      // คนที่กดสร้างออเดอร์ (2026-08-04) — หน้า "ประวัติคำสั่งซื้อ" แสดงชื่อ+รูปแทนคำว่า "ระบบ"
+      // select แคบ ๆ เฉพาะที่ต้องโชว์: ห้ามดึง phone/email มาด้วย หน้านี้อยู่ใต้ client layout
+      // ทุก field ที่ include จะถูก serialize เข้า flight payload เสมอ (feedback_rsc_pii_neutralize_at_source)
+      createdBy: { select: { id: true, displayName: true, username: true, avatar: true } },
       shipmentTracking: true,
       review: true,
     },

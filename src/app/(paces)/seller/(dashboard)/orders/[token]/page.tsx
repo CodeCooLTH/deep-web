@@ -250,6 +250,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
                       trackingNo: order.shipmentTracking.trackingNo,
                     }
                   : null,
+                // คนที่กดสร้างออเดอร์ (2026-08-04) — pick เฉพาะ 3 field ที่การ์ดใช้แสดงผลจริง
+                // ไม่ส่งทั้ง object เพราะหน้านี้อยู่ใต้ client layout: ทุก field ที่ส่งจะถูก serialize
+                // เข้า flight payload ที่ผู้ใช้เปิดดูได้ (S-C1 / feedback_rsc_pii_neutralize_at_source)
+                createdBy: order.createdBy
+                  ? {
+                      displayName: order.createdBy.displayName,
+                      username: order.createdBy.username,
+                      avatar: order.createdBy.avatar,
+                    }
+                  : null,
               }}
             />
           </div>

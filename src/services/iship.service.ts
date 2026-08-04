@@ -2074,6 +2074,8 @@ export async function importParcelAsOrder(
   }
 
   const order = await createOrder(shopId, {
+    // ผูกพัสดุที่มีอยู่บน iShip แล้วออกออเดอร์ตาม — คนกดคือสมาชิกร้านคนนี้ (2026-08-04)
+    createdByUserId: userId,
     items: [
       {
         // ค่าเริ่มต้นอ้างอิงกลับไปยังพัสดุได้ ร้านแก้ตั้งแต่ก่อนกดสร้างก็ได้
