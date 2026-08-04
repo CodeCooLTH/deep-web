@@ -10,15 +10,19 @@
  * (โปรเจกต์ใช้ pattern เดียวกันนี้ที่ ChatbotTabs.tsx ของ settings/chatbot) ใช้ token ล้วน
  * ไม่มี arbitrary value
  *
- * badge "ยังไม่ตอบ" (user สั่ง 2026-08-04): เดิมตัวเลขมาทาง prop จาก RSC ของหน้า /inbox/comments
- * เท่านั้น → ตอนอยู่แท็บ "ข้อความ" เลยไม่เห็นเลย ต้องกดเข้าไปถึงจะรู้ว่ามีค้าง ซึ่งกลับหัวกับหน้าที่
- * ของ badge. ตอนนี้คอมโพเนนต์ดึงเลขเองจาก /api/chat/comments/unanswered ทุกที่ที่ถูก mount
- * โดย prop กลายเป็นแค่ค่าตั้งต้นกัน badge กระพริบตอนหน้า comments เพิ่งเรนเดอร์
+ * ── badge ทั้ง 2 แท็บ ───────────────────────────────────────────────────────────
+ * "ความคิดเห็น" = คอมเมนต์ที่ยังไม่ตอบ (user สั่ง 2026-08-04) — เดิมตัวเลขมาทาง prop จาก RSC ของ
+ * หน้า /inbox/comments เท่านั้น อยู่แท็บข้อความจึงไม่เห็นเลย ต้องกดเข้าไปถึงจะรู้ว่ามีค้าง
+ * "ข้อความ" = เธรดที่ยังไม่อ่าน (user สั่ง 2026-08-04 รอบถัดมา: "ตอนนี้มีแต่ความคิดเห็น")
+ *
+ * ทั้งคู่ดึงจาก /api/chat/inbox-tab-counts ครั้งเดียว แล้วอัปเดตทันทีด้วย realtime 2 ช่อง
+ * (`chat:shop:{id}` = ลูกค้าทักมา, `comments:shop:{id}` = คอมเมนต์ใหม่) โดยมี poll เป็นตัวสำรอง
  */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { subscribeShopChat } from '@/lib/chat-shop-realtime'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 
 const TABS = [
@@ -29,30 +33,32 @@ const TABS = [
 /** ทุก 60 วิ เท่ากับ throttle ของ badge สแปม/พัสดุมีปัญหาใน InboxList — ตัวเลขนี้ไม่ใช่ realtime */
 const REFRESH_MS = 60_000
 
+type Counts = { unread: number; unanswered: number }
+
 /**
  * แคชระดับโมดูล + ชุดผู้ติดตาม
  *
  * ทำไมต้องมี: InboxTabs ถูก mount พร้อมกันได้ถึง 2 ตัวเสมอ (ChatRail ฝั่ง ≥1024px และในหน้า
  * /inbox สำหรับ <1024px ซึ่ง `lg:hidden` แค่ซ่อนด้วย CSS ไม่ได้ unmount) ปล่อยให้ต่างคนต่างยิง
- * = 2 request ต่อรอบโดยได้เลขเดียวกัน ทั้งที่ query เป็น COUNT ข้ามตาราง
+ * = 2 request ต่อรอบโดยได้เลขเดียวกัน ทั้งที่เป็น COUNT ข้ามตาราง 2 ชุด
  */
-let cachedCount = 0
+let cached: Counts = { unread: 0, unanswered: 0 }
 let fetchedAt = 0
 let inFlight: Promise<void> | null = null
-const listeners = new Set<(n: number) => void>()
+const listeners = new Set<(c: Counts) => void>()
 
-async function refreshUnanswered(force = false) {
+async function refreshCounts(force = false) {
   if (!force && Date.now() - fetchedAt < REFRESH_MS) return
   if (inFlight) return inFlight
   inFlight = (async () => {
     try {
-      const res = await fetch('/api/chat/comments/unanswered', { cache: 'no-store' })
+      const res = await fetch('/api/chat/inbox-tab-counts', { cache: 'no-store' })
       if (!res.ok) return
-      const data = (await res.json()) as { count?: number }
-      if (typeof data.count !== 'number') return
+      const data = (await res.json()) as Partial<Counts>
+      if (typeof data.unread !== 'number' || typeof data.unanswered !== 'number') return
       fetchedAt = Date.now()
-      cachedCount = data.count
-      listeners.forEach((fn) => fn(cachedCount))
+      cached = { unread: data.unread, unanswered: data.unanswered }
+      listeners.forEach((fn) => fn(cached))
     } catch {
       // เงียบ — badge เป็นข้อมูลเสริม ไม่คุ้มที่จะรบกวนผู้ใช้เมื่อดึงไม่สำเร็จ
     } finally {
@@ -66,56 +72,73 @@ export default function InboxTabs({
   unansweredCount,
   shopId = null,
 }: {
+  /** ค่าที่ RSC ของหน้า comments นับมาแล้ว — ใช้เป็นค่าตั้งต้นกัน badge กระพริบตอนเพิ่งเรนเดอร์ */
   unansweredCount?: number
   /**
-   * ร้านที่กำลังใช้งาน — ใช้ subscribe `comments:shop:{shopId}` ให้ badge ขยับทันทีที่มีคอมเมนต์
-   * เข้ามา ไม่ต้องรอรอบ 60 วิ. ไม่ส่ง = ตกไปใช้ poll อย่างเดียว (ยังถูกต้อง แค่ช้ากว่า)
+   * ร้านที่กำลังใช้งาน — ใช้ subscribe `chat:shop:{id}` + `comments:shop:{id}` ให้ badge ขยับ
+   * ทันทีที่มีของใหม่ ไม่ต้องรอรอบ 60 วิ. ไม่ส่ง = ตกไปใช้ poll อย่างเดียว (ยังถูก แค่ช้ากว่า)
    *
-   * trigger ตัวเดียวกับที่หน้าความคิดเห็นใช้อยู่แล้ว — comment ใน migration
-   * 20260803180000 ระบุไว้ตรง ๆ ว่า channel นี้มีไว้ให้ "รายการโพสต์/ตัวนับยังไม่ตอบ" อัปเดต
-   * แม้ยังไม่ได้เปิดโพสต์นั้น ตอนนี้แค่มีคนใช้ครบตามที่ออกแบบไว้
+   * trigger ตัวเดียวกับที่รายการแชท/หน้าความคิดเห็นใช้อยู่แล้ว — comment ใน migration
+   * 20260803180000 ระบุไว้ตรง ๆ ว่า channel คอมเมนต์มีไว้ให้ "ตัวนับยังไม่ตอบ" อัปเดตด้วย
    */
   shopId?: string | null
 }) {
   const pathname = usePathname()
   // /inbox/[conversationId] ยังถือว่าอยู่แท็บ "ข้อความ" — เทียบ prefix ไม่ใช่ค่าเป๊ะ
   const isComments = pathname?.startsWith('/inbox/comments') ?? false
-  // prop = ค่าที่ RSC นับมาแล้ว (สดกว่าแคชเสมอ) จึงถือเป็นค่าตั้งต้นและยัดเข้าแคชเลย
-  const [count, setCount] = useState(unansweredCount ?? cachedCount)
+  const [counts, setCounts] = useState<Counts>(() =>
+    typeof unansweredCount === 'number' ? { ...cached, unanswered: unansweredCount } : cached,
+  )
 
   useEffect(() => {
-    if (typeof unansweredCount === 'number') {
-      cachedCount = unansweredCount
-      fetchedAt = Date.now()
-      setCount(unansweredCount)
-    }
+    if (typeof unansweredCount !== 'number') return
+    cached = { ...cached, unanswered: unansweredCount }
+    setCounts(cached)
   }, [unansweredCount])
 
   useEffect(() => {
-    listeners.add(setCount)
-    void refreshUnanswered()
+    listeners.add(setCounts)
+    void refreshCounts()
     // poll = ทางสำรองเวลา socket หลุด ไม่ใช่ทางหลัก — หยุดตอนแท็บไม่ได้อยู่หน้าจอ (ไม่มีใครดู
     // ก็ไม่ต้องยิง) จังหวะเดียวกับ fallback ของ CommentsClient
     const timer = setInterval(() => {
-      if (!document.hidden) void refreshUnanswered()
+      if (!document.hidden) void refreshCounts()
     }, REFRESH_MS)
     return () => {
-      listeners.delete(setCount)
+      listeners.delete(setCounts)
       clearInterval(timer)
     }
   }, [])
 
-  // realtime: คอมเมนต์ใหม่เข้า → badge ขยับทันที ไม่ต้องรอรอบ poll (force=true ข้าม throttle
-  // เพราะสัญญาณนี้แปลว่า "ตัวเลขเปลี่ยนแน่แล้ว" ไม่ใช่การเดา)
+  /**
+   * เปลี่ยน route ในกล่องข้อความ = เพิ่งเปิด/ปิดเธรดไป → ตัวเลข "ยังไม่อ่าน" เปลี่ยนแน่นอน
+   *
+   * ต้องมีเพราะการ "อ่าน" ไม่มี broadcast ให้ subscribe (trigger ยิงตอนมีข้อความใหม่เท่านั้น)
+   * ไม่มีบรรทัดนี้ = กดเข้าอ่านเธรดแล้วเลขบนแท็บยังค้างอยู่จนกว่าจะครบ 60 วิ ซึ่งดูเหมือนระบบพัง
+   */
+  useEffect(() => {
+    void refreshCounts(true)
+  }, [pathname])
+
+  // realtime: ลูกค้าทักมา / คอมเมนต์ใหม่ → badge ขยับทันที (force=true ข้าม throttle เพราะ
+  // สัญญาณนี้แปลว่า "ตัวเลขเปลี่ยนแน่แล้ว" ไม่ใช่การเดา)
   useEffect(() => {
     if (!shopId) return
-    return subscribeShopComments(shopId, () => void refreshUnanswered(true))
+    const offChat = subscribeShopChat(shopId, () => void refreshCounts(true))
+    const offComments = subscribeShopComments(shopId, () => void refreshCounts(true))
+    return () => {
+      offChat()
+      offComments()
+    }
   }, [shopId])
 
   return (
     <div className="border-default-200 flex gap-1 border-b px-4 pt-3">
       {TABS.map((t) => {
         const active = t.href === '/inbox/comments' ? isComments : !isComments
+        const count = t.href === '/inbox/comments' ? counts.unanswered : counts.unread
+        const badgeLabel =
+          t.href === '/inbox/comments' ? `ยังไม่ตอบ ${count} ความคิดเห็น` : `ยังไม่อ่าน ${count} แชท`
         return (
           <Link
             key={t.href}
@@ -128,10 +151,10 @@ export default function InboxTabs({
           >
             <Icon icon={t.icon} className="text-base" />
             {t.label}
-            {t.href === '/inbox/comments' && count > 0 && (
+            {count > 0 && (
               <span
                 className="bg-danger flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs text-white"
-                aria-label={`ยังไม่ตอบ ${count} ความคิดเห็น`}
+                aria-label={badgeLabel}
               >
                 {count > 99 ? '99+' : count}
               </span>
