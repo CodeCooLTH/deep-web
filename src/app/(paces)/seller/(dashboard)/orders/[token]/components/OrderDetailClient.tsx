@@ -250,6 +250,13 @@ export default function OrderDetailClient({
       {/* grid เนื้อหา — ส่งมาจาก page.tsx (RSC) ผ่าน children, mt-base คั่นจากหัวหน้า (token เดิม) */}
       <div className="mt-base">{children}</div>
 
+      {/* แถบล่างเป็น 2 แถวเมื่อมีทั้งปุ่มหลักและปุ่มรอง (สถานะ PENDING) จึงสูงกว่าที่
+          `.seller-mobile-shell .page-content main` เว้นไว้ (5rem = เผื่อ SellerBottomNav 64px)
+          — เติมช่องว่างเฉพาะกรณีนั้น ไม่ไปแก้ค่ากลางซึ่งใช้ร่วมกับทุกหน้า seller */}
+      {actionSet.primary && actionSet.ghosts.length > 0 && (
+        <div className="h-14 lg:hidden" aria-hidden="true" />
+      )}
+
       {/* <1024 เท่านั้น (className ภายในมี lg:hidden) — CANCELLED คืน null เอง (design §3) */}
       <OrderActionBar variant="bottom" actionSet={actionSet} onAction={handleAction} />
 

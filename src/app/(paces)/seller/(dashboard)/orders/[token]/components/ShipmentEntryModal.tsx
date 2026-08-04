@@ -252,12 +252,52 @@ export default function ShipmentEntryModal({
     </button>
   )
 
+  /* segmented เลือกวิธี — เฉพาะ create mode ที่ร้านเชื่อมต่อ iShip ไว้และยังไม่มีพัสดุ
+     edit mode ต้องไม่มี segmented (แก้ได้เฉพาะ MANUAL อยู่แล้ว ไม่ใช่จังหวะเลือกวิธีส่ง)
+
+     อยู่ในแถบ `tabs` ของ shell ซึ่งไม่เลื่อนตามเนื้อหา — แท็บ "สร้างพัสดุ iShip" สูงราว
+     1,600px ถ้าตัวเลือกเลื่อนหายไปด้วย ร้านต้องปัดกลับขึ้นบนสุดก่อนถึงจะสลับวิธีส่งได้
+
+     flex + flex-1: เดิมเป็น inline-flex ไม่ยืด ปุ่ม 3 ตัวจึงกินราว 355px แต่กล่องเนื้อหา
+     บนจอ 360px เหลือราว 296px = ล้นกรอบและปัดตามแนวนอนไม่ได้
+
+     radiogroup + roving tabindex: เดิมใช้ role="group" + aria-pressed ซึ่งประกาศว่าเป็น
+     ปุ่มสลับอิสระ 3 ตัว ทั้งที่เป็นตัวเลือกที่เลือกได้ทีละอัน */
+  const segmented = showSegmented ? (
+    <div className="flex" role="radiogroup" aria-label="เลือกวิธีจัดส่ง">
+      {SEGMENTS.map((seg, i) => (
+        <button
+          key={seg.value}
+          ref={(el) => {
+            segRefs.current[i] = el
+          }}
+          type="button"
+          role="radio"
+          aria-checked={method === seg.value}
+          tabIndex={method === seg.value ? 0 : -1}
+          onKeyDown={(e) => onSegKeyDown(e, i)}
+          onClick={() => setMethod(seg.value)}
+          // กันสลับโหมดระหว่างที่อีกฝั่งกำลังยิงคำขออยู่ — การสลับจะ unmount component
+          // ที่กำลังรอ response ของคำขอที่เปิดพัสดุจริงและคิดเงินไปแล้ว
+          disabled={busy}
+          className={`${segCls(method === seg.value)} ${
+            i === 0 ? 'rounded-e-none' : i === SEGMENTS.length - 1 ? '-ms-px rounded-s-none' : '-ms-px rounded-none'
+          } disabled:opacity-60`}
+        >
+          <Icon icon={seg.icon} className="text-sm" aria-hidden="true" />
+          {seg.label}
+        </button>
+      ))}
+    </div>
+  ) : null
+
   return (
     <IShipModalShell
       title={title}
       onClose={dismiss}
       size="2xl"
       busy={busy}
+      tabs={segmented}
       footer={footer}
       // ShipmentPanel มีเส้นคั่น border-b-8 เต็มความกว้างระหว่าง section และมี p-4 ในแต่ละบล็อก
       // ของตัวเอง ถ้า shell ใส่ px-5 ครอบอีกชั้น เส้นคั่นจะลอยมีขอบขาวสองข้างผิดจากที่ออกแบบไว้
@@ -265,49 +305,11 @@ export default function ShipmentEntryModal({
       bodyClassName={showManualForm ? 'px-5 py-4' : ''}
     >
       <div className={showManualForm ? 'flex flex-col gap-3' : ''}>
-        {/* segmented เลือกวิธี — เฉพาะ create mode ที่ร้านเชื่อมต่อ iShip ไว้และยังไม่มีพัสดุ
-            edit mode ต้องไม่มี segmented (แก้ได้เฉพาะ MANUAL อยู่แล้ว ไม่ใช่จังหวะเลือกวิธีส่ง)
-
-            flex + flex-1: เดิมเป็น inline-flex ไม่ยืด ปุ่ม 3 ตัวจึงกินราว 355px แต่กล่องเนื้อหา
-            บนจอ 360px เหลือราว 296px = ล้นกรอบและปัดตามแนวนอนไม่ได้ (Impeccable critique 2026-08-04)
-
-            radiogroup + roving tabindex: เดิมใช้ role="group" + aria-pressed ซึ่งประกาศว่าเป็น
-            ปุ่มสลับอิสระ 3 ตัว ทั้งที่เป็นตัวเลือกที่เลือกได้ทีละอัน */}
-        {showSegmented && (
-          <div
-            className={`flex ${showManualForm ? '' : 'px-5 pt-4'}`}
-            role="radiogroup"
-            aria-label="เลือกวิธีจัดส่ง"
-          >
-            {SEGMENTS.map((seg, i) => (
-              <button
-                key={seg.value}
-                ref={(el) => {
-                  segRefs.current[i] = el
-                }}
-                type="button"
-                role="radio"
-                aria-checked={method === seg.value}
-                tabIndex={method === seg.value ? 0 : -1}
-                onKeyDown={(e) => onSegKeyDown(e, i)}
-                onClick={() => setMethod(seg.value)}
-                // กันสลับโหมดระหว่างที่อีกฝั่งกำลังยิงคำขออยู่ — การสลับจะ unmount component
-                // ที่กำลังรอ response ของคำขอที่เปิดพัสดุจริงและคิดเงินไปแล้ว
-                disabled={busy}
-                className={`${segCls(method === seg.value)} ${
-                  i === 0 ? 'rounded-e-none' : i === SEGMENTS.length - 1 ? '-ms-px rounded-s-none' : '-ms-px rounded-none'
-                } disabled:opacity-60`}
-              >
-                <Icon icon={seg.icon} className="text-sm" aria-hidden="true" />
-                {seg.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* text-default-700 (4.69:1) — ค่าเดิม text-default-400 วัดได้ 2.46:1 ตก AA */}
+        {/* text-default-700 (4.69:1) — ค่าเดิม text-default-400 วัดได้ 2.46:1 ตก AA
+            helper ไม่ค้างไปกับ tabs โดยเจตนา: ปุ่มที่ active บอกอยู่แล้วตลอดเวลาว่าอยู่โหมดไหน
+            และพื้นที่แนวตั้งบนมือถือคือทรัพยากรที่หายากที่สุดของหน้านี้ */}
         {helper && (
-          <p className={`mb-0 text-xs text-default-700 ${showManualForm ? '' : 'px-5 pt-3'}`}>
+          <p className={`mb-0 text-xs text-default-700 ${showManualForm ? '' : 'px-5 pt-4'}`}>
             {helper}
           </p>
         )}

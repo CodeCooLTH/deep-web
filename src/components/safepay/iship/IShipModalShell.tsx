@@ -30,6 +30,15 @@ interface Props {
   /** แถบปุ่มล่าง — sticky อยู่ใต้เนื้อหาที่ scroll */
   footer?: React.ReactNode
   /**
+   * แถบใต้หัวโมดัลที่ไม่เลื่อนตามเนื้อหา — ใช้กับตัวเลือกที่ต้องกดสลับได้ตลอดเวลา (segmented)
+   *
+   * เป็น "แถวโครงสร้าง" (sibling ของกล่อง scroll) ไม่ใช่ `sticky top-0` ที่วางไว้ในกล่อง scroll
+   * โดยเจตนา: `bodyClassName` มีสองค่า (`px-5 py-4` กับ `''`) ตัว sticky จะเกาะที่ padding-box
+   * ของกล่อง scroll แถบเดียวกันจึงลอยห่างขอบไม่เท่ากันข้ามโหมด และเนื้อหาที่มีเส้นคั่น
+   * เต็มความกว้างจะเลื่อนลอดใต้มัน ต้องไล่แก้ z-index/พื้นทึบตามอีก — แถวโครงสร้างไม่มีปัญหานี้เลย
+   */
+  tabs?: React.ReactNode
+  /**
    * กำลังส่งคำขอที่ยกเลิกกลางทางไม่ได้ — Escape/scrim/ปุ่ม X หยุดทำงานชั่วคราว
    *
    * ที่มา: Impeccable critique 2026-08-04 (P0) — ปิดโมดัลระหว่าง POST ที่เปิดพัสดุจริง
@@ -57,6 +66,7 @@ export default function IShipModalShell({
   onClose,
   size = 'md',
   footer,
+  tabs,
   busy = false,
   bodyClassName = 'px-5 py-4',
   children,
@@ -172,6 +182,13 @@ export default function IShipModalShell({
             <Icon icon="x" className="text-lg" />
           </button>
         </div>
+
+        {/* px-5 ให้ตรงแนวตั้งกับหัวโมดัลและ footer; border-b เส้นทึบต่อภาษาจากหัว
+            (ไม่ใช้เส้นประ — เส้นประเป็นของ .card-header ในเนื้อหาหน้า ไม่ใช่ chrome ของโมดัล)
+            ไม่มีเงา เพราะไม่มีอะไรเลื่อนลอดใต้มัน เนื้อหาเริ่มต่อจากแถวนี้เสมอ */}
+        {tabs && (
+          <div className="shrink-0 border-b border-default-200 px-5 py-3">{tabs}</div>
+        )}
 
         <div className={`min-h-0 flex-1 overflow-y-auto ${bodyClassName}`}>{children}</div>
 

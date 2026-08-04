@@ -17,8 +17,12 @@
  * ทำไมไม่ใช่ 2 component แยก: design §3 บังคับ "ชุดปุ่มเดียวกัน render จากฟังก์ชันเดียว ห้ามเขียน
  * markup ซ้ำ" — GhostButton/PrimaryButton (sub-render ภายในไฟล์นี้) ใช้ร่วมกันทั้ง 2 variant
  * ต่างกันแค่ "เปลือก" (fixed bar เต็มความกว้าง vs แถวเปล่าในการ์ด) + ขนาดปุ่ม (44px แถบล่าง ตาม
- * tap-target / 37px inline ตาม token `.btn-icon`) + inline แสดง label เสมอ ส่วนแถบล่างสลับ
- * icon-only↔label ตามว่ามี primary หรือไม่ (ไม่ให้แถบดูโหว่)
+ * tap-target / 37px inline ตาม token `.btn-icon`)
+ *
+ * 2026-08-04: **ทุกปุ่มมี label เสมอ** ไม่มีโหมด icon-only อีกแล้ว เดิมแถบล่างบีบปุ่มรองเหลือ
+ * แต่ไอคอนเมื่อมี primary อยู่ด้วย ซึ่งทำให้ "แจ้งเลขพัสดุ" (action สำคัญสุดของออเดอร์ที่ยัง
+ * ไม่ส่ง) กลายเป็นสี่เหลี่ยมมีรูปรถที่เดาไม่ออก — แทนที่ด้วยการขึ้นบรรทัดที่สอง (ดูใน variant
+ * 'bottom') `iconOnly` ยังคงอยู่ใน GhostButton เผื่อผู้เรียกอนาคต แต่ตอนนี้ไม่มีใครส่ง true
  *
  * ⋮ = OrderOverflowMenu (page-specific — order-action-set.ts, custom dropdown pattern)
  * "ไม่มี action เลย" (CANCELLED) → return null ทั้งก้อน ไม่ใช่แถบว่าง (design §3)
@@ -99,23 +103,52 @@ export default function OrderActionBar({ variant, actionSet, onAction }: OrderAc
   if (!primary && ghosts.length === 0 && menu.length === 0) return null
 
   if (variant === 'bottom') {
-    // ไม่มี primary (SHIPPED/CONFIRMED) → ปุ่มรองยืดแทนพร้อม label กันแถบดูโหว่ (design §3 "noprimary")
-    const ghostShowsLabel = !primary
+    const shellClass = [
+      // <1024 เท่านั้น — ≥1024 action ย้ายไปมุมขวาบนของการ์ดหัวหน้า + แถบตรึง (variant="inline" ทั้งคู่ — ดู StatusHero.tsx)
+      'lg:hidden',
+      'fixed inset-x-0 bottom-0 z-30 flex bg-card px-3 pt-2.5',
+      // เงาบน — arbitrary โดยเจตนา (Paces ไม่มี token เงาด้านบน) ค่าเดียวกับ SellerBottomNav.tsx:186
+      'shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)]',
+      // safe-area iOS notch/home bar รวมกับ padding-bottom ปกติ 10px (py-2.5) — pattern เดียวกับ
+      // SellerBottomNav.tsx:195 (arbitrary โดยเจตนา ไม่มี token แทน)
+      'pb-[calc(0.625rem+env(safe-area-inset-bottom))]',
+    ].join(' ')
+
+    /**
+     * มี primary พร้อมปุ่มรอง (สถานะ PENDING เท่านั้น) → **2 แถว**
+     *
+     * เดิมยัดแถวเดียวแล้วบีบปุ่มรองให้เหลือแต่ไอคอน ผลคือ action ที่สำคัญที่สุดของออเดอร์
+     * ที่ยังไม่ส่ง ("แจ้งเลขพัสดุ") กลายเป็นสี่เหลี่ยมมีรูปรถ ไม่มีคำบอกว่ากดแล้วเกิดอะไร
+     * (user report 2026-08-04: "ดูไม่ออกว่าปุ่มไหนคืออะไร")
+     *
+     * ทำไมไม่ใส่ label แล้วอยู่แถวเดียวต่อ: "แจ้งเลขพัสดุ" + "ส่งลิงก์ทาง SMS (฿1)" พร้อมไอคอน
+     * และ ⋮ ต้องการราว 400px แต่จออ้างอิงเล็กสุดคือ 360px — จะเหลือทางเดียวคือตัดคำด้วย
+     * truncate ซึ่งได้ปุ่มที่อ่านไม่จบ แย่กว่าไอคอนเปล่าอีก
+     *
+     * primary อยู่แถวล่าง = ใกล้นิ้วโป้งที่สุด ตรงกับที่มันเป็น action ที่ตั้งใจให้กดบ่อยที่สุด
+     */
+    if (primary && ghosts.length > 0) {
+      return (
+        <div className={`${shellClass} flex-col gap-2`}>
+          <div className="flex w-full items-center gap-2">
+            {ghosts.map((g) => (
+              <GhostButton key={g.key} item={g} onAction={onAction} size="lg" iconOnly={false} />
+            ))}
+            <OrderOverflowMenu items={menu} onAction={onAction} size="lg" dropDirection="up" />
+          </div>
+          <div className="flex w-full">
+            <PrimaryButton item={primary} onAction={onAction} size="lg" />
+          </div>
+        </div>
+      )
+    }
+
+    // ไม่มี primary (SHIPPED/CONFIRMED) → ปุ่มรองยืดแทนพร้อม label อยู่แล้ว แถวเดียวพอ
+    // (และไม่มี primary ที่จะไปแย่งความกว้าง — design §3 "noprimary")
     return (
-      <div
-        className={[
-          // <1024 เท่านั้น — ≥1024 action ย้ายไปมุมขวาบนของการ์ดหัวหน้า + แถบตรึง (variant="inline" ทั้งคู่ — ดู StatusHero.tsx)
-          'lg:hidden',
-          'fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 bg-card px-3 pt-2.5',
-          // เงาบน — arbitrary โดยเจตนา (Paces ไม่มี token เงาด้านบน) ค่าเดียวกับ SellerBottomNav.tsx:186
-          'shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)]',
-          // safe-area iOS notch/home bar รวมกับ padding-bottom ปกติ 10px (py-2.5) — pattern เดียวกับ
-          // SellerBottomNav.tsx:195 (arbitrary โดยเจตนา ไม่มี token แทน)
-          'pb-[calc(0.625rem+env(safe-area-inset-bottom))]',
-        ].join(' ')}
-      >
+      <div className={`${shellClass} items-center gap-2`}>
         {ghosts.map((g) => (
-          <GhostButton key={g.key} item={g} onAction={onAction} size="lg" iconOnly={!ghostShowsLabel} />
+          <GhostButton key={g.key} item={g} onAction={onAction} size="lg" iconOnly={false} />
         ))}
         {primary && <PrimaryButton item={primary} onAction={onAction} size="lg" />}
         <OrderOverflowMenu items={menu} onAction={onAction} size="lg" dropDirection="up" />
