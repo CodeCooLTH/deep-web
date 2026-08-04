@@ -4,16 +4,18 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/UserCard.tsx
  * ปุ่ม pattern: theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx
  *
- * layout: 3 แถวบนพื้นหลัง SVG ลำแสง xenon โทน Paces น้ำเงิน
- *   Row 1: avatar+trust ring + ชื่อร้าน+stats + bell
- *   Row 2: wallet + ปุ่มเติมเงิน + divider + ShopLinkButtons
- *   Row 3: แถบแพ็กเกจร้านค้า (Business Package feat 00008) — มือถือไม่เห็นการ์ด
- *     sidenav (`.app-menu` ซ่อนที่ <1024px) จึงย้ายมาเป็นแถวบาง; logic สถานะ+copy
- *     คัดลอกมาจาก `_shared/ShopPackageSidenavCard.tsx` (ดู comment แต่ละ branch ด้านล่าง)
+ * layout: 2 แถวบนพื้นหลัง SVG ลำแสง xenon โทน Paces น้ำเงิน
+ *   Row 1:  avatar+trust ring + ชื่อร้าน + bell
+ *   Row 1b: สถิติ (ออเดอร์/รีวิว/ดาว) + ชิปแพ็กเกจ — อยู่นอกปุ่มสลับบัญชี
+ *   Row 2:  wallet + ปุ่มเติมเงิน + divider + ShopLinkButtons
+ *
+ * 2026-08-04: แถวแพ็กเกจเต็มความกว้าง (Row 3 เดิม) ถูกตัดออกตามคำสั่ง user แล้วย่อเป็นชิปใน Row 1b
+ * — hero เตี้ยลง ~69px; logic สถานะ+copy ยังอิง `_shared/ShopPackageSidenavCard.tsx` เหมือนเดิม
+ * ชิปยังเป็นทางเข้า /business ทางเดียวบนมือถือ (การ์ด sidenav ซ่อนที่ <1024px) จึงห้ามให้มันหาย
  *
  * S-1 (mobile account switcher): avatar-block + name-block ครอบด้วย AccountSwitcherLauncher
  * (client, อ่าน session เอง) — เปิด bottom sheet สลับบัญชีเมื่อมี business membership;
- * bell อยู่นอก launcher เหมือนเดิม (ไม่ใช่ trigger สลับบัญชี)
+ * bell กับบรรทัดสถิติอยู่นอก launcher (ไม่ใช่ trigger สลับบัญชี)
  */
 
 import Link from 'next/link'
@@ -58,6 +60,9 @@ export default function CompactHero({
   packageTier,
   packageCanManage,
 }: CompactHeroProps) {
+  /** ความกว้าง/สูงของวง trust ring (HR7 carve-out เดิมของไฟล์นี้ — Paces ไม่มี token progress ring)
+   *  ประกาศเป็นค่าเดียวเพราะบรรทัดสถิติที่อยู่นอกปุ่มสลับบัญชีต้องเยื้องตามความกว้างนี้เป๊ะ */
+  const AVATAR_SIZE = 58
   const initial = shopName.trim().charAt(0).toUpperCase() || 'S'
   // clamp trustScore 0–100 เพื่อป้องกัน ring ล้นวง
   const score = Math.min(100, Math.max(0, trustScore))
@@ -68,23 +73,33 @@ export default function CompactHero({
   // dashoffset = circumference × (1 - score/100) → ยิ่งสูงยิ่งเต็มวง
   const dashOffset = CIRCUMFERENCE * (1 - score / 100)
 
-  // ---- Row 3: แถบแพ็กเกจร้านค้า — logic สถานะ + copy คัดลอกจาก _shared/ShopPackageSidenavCard.tsx ----
+  /**
+   * ---- ชิปแพ็กเกจ (เดิมเป็น "Row 3" แถบเต็มความกว้างล่างสุดของ hero) ----
+   *
+   * user สั่งย้าย 2026-08-04: "เอา tab package ไปไว้ตรงอื่น ... แต่ไม่มี ตรงด้านล่าง" แล้วตามด้วย
+   * "ไว้ข้างล่าง ชื่อ ธนภัทร อะไหล่มอเตอร์ไซค์ เป็น label [Business] ไรงี้"
+   *
+   * แถวเดิมมีของ 4 ชิ้น (ไอคอน+ชื่อ+badge "ใช้งานอยู่"+ลูกศร) กระจายเต็มความกว้าง 350px ทั้งที่
+   * ตัวหนังสือรวมกันไม่ถึง 20 ตัวอักษร ช่องว่างตรงกลางจึงเป็น "รู" ไม่ใช่ระยะหายใจ — และกล่อง
+   * border-s-3 เป็นภาษาของ callout/คำเตือน ซึ่งขัดกับสถานะปกติที่เป็นเรื่องดี
+   * ตัดทั้งแถว + เส้นคั่น = hero เตี้ยลง ~69px
+   *
+   * badge "ใช้งานอยู่" ถูกตัดถาวร — ถ้าไม่ได้ใช้งานอยู่ก็จะไม่เห็นชื่อแพ็กเกจตั้งแต่แรก มันจึงไม่เคย
+   * บอกอะไรเพิ่ม และเป็นตัวที่ดันให้แถวยืดเต็มความกว้าง
+   */
   const isPackageLocked = packageStatus === 'LOCKED_RENEWAL_FAILED'
-  const isPackageActive = packageStatus === 'ACTIVE'
   const packageConfig = packageTier ? BUSINESS_PACKAGE_TIER_CONFIG[packageTier] : null
   // Free = pseudo tier (ไม่มี row ใน BUSINESS_PACKAGE_TIER_CONFIG) — NOT_SUBSCRIBED เท่านั้นที่ไม่มี config
   const packageTierLabel = packageConfig?.label ?? 'Free'
   const packageAriaLabel = `แพ็กเกจร้านค้า ${packageTierLabel}${isPackageLocked ? ' ต่ออายุไม่สำเร็จ' : ''} ไปที่หน้าแพ็กเกจ`
   const packageIcon = isPackageLocked ? 'tabler:alert-triangle' : 'tabler:crown'
-  const packageLabel = isPackageLocked
-    ? 'ต่ออายุไม่สำเร็จ · แก้ไขเลย'
-    : isPackageActive
-      ? packageTierLabel
-      : 'Free · อัพเกรดเพื่อเปิดธุรกิจเพิ่ม'
-  // ไม่ใช้สีเขียวแม้ ACTIVE — เขียวสงวนไว้เฉพาะ trust verified (Verified-Means-Green Rule)
-  const packageRowClasses = isPackageLocked
-    ? 'border-danger bg-danger/90 text-white font-bold'
-    : 'border-white/40 bg-white/10 ' + (isPackageActive ? 'text-white/95' : 'text-white/90')
+  const packageChipLabel = isPackageLocked ? 'ต่ออายุไม่สำเร็จ' : packageTierLabel
+  /* ไม่ใช้เขียวแม้ ACTIVE — เขียวสงวนให้ trust verified (Verified-Means-Green Rule)
+     ปกติ = outline ขาวโปร่ง (ไม่แย่งความเด่นจากชื่อร้านที่อยู่บรรทัดบน)
+     LOCKED = แดงทึบ สงวนน้ำหนักภาพไว้ให้สถานะที่ต้องสะดุดตาจริงเท่านั้น */
+  const packageChipClasses = isPackageLocked
+    ? 'badge bg-danger text-white'
+    : 'badge border border-white/40 text-white/90'
 
   return (
     /* edge-to-edge ทำที่ CommandCenter wrapper (-mx-4 หักล้าง gutter 16px ทั้ง CC) — hero ไม่ต้อง -mx เอง */
@@ -148,7 +163,7 @@ export default function CompactHero({
            * Paces ไม่มี token สำหรับ progress ring; ใช้ SVG circle stroke-dasharray
            * คำนวณจาก score% (circumference ≈ 163.36); ring ขาว, track โปร่ง
            */}
-          <div className="relative flex-shrink-0" style={{ width: 58, height: 58 }}>
+          <div className="relative flex-shrink-0" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
             {/* Ring SVG (rotate -90deg เพื่อให้ start ที่ 12 นาฬิกา) */}
             <svg
               viewBox="0 0 58 58"
@@ -206,26 +221,9 @@ export default function CompactHero({
             </span>
           </div>
 
-          {/* ชื่อร้าน + stats */}
+          {/* ชื่อร้าน — บรรทัดสถิติถูกย้ายออกไปนอกปุ่มแล้ว (ดูบล็อกถัดไป) */}
           <div className="flex-1 min-w-0">
             <p className="text-md font-semibold truncate leading-tight text-white">{shopName}</p>
-            <div className="flex items-center gap-1.5 mt-1 text-white/80 text-2xs whitespace-nowrap overflow-hidden">
-              <span>
-                <strong className="text-white font-bold">{orderCount.toLocaleString('th-TH')}</strong>{' '}
-                คำสั่งซื้อ
-              </span>
-              <span className="opacity-50">·</span>
-              <span>
-                <strong className="text-white font-bold">{reviewCount.toLocaleString('th-TH')}</strong>{' '}
-                รีวิว
-              </span>
-              <span className="opacity-50">·</span>
-              <span className="inline-flex items-center gap-0.5">
-                {/* Solar star icon สีทอง — HR7 arbitrary: #ffd24d (gold) Paces ไม่มี token สีทอง star (text-warning เป็นส้ม ไม่ตรง) */}
-                <Icon icon="solar:star-bold-duotone" className="text-sm" style={{ color: '#ffd24d' /* HR7 arbitrary: gold */ }} />
-                <strong className="text-white font-bold">{avgRating.toFixed(1)}</strong>
-              </span>
-            </div>
           </div>
 
           </AccountSwitcherLauncher>
@@ -251,6 +249,61 @@ export default function CompactHero({
               </span>
             )}
           </Link>
+        </div>
+
+        {/*
+         * Row 1b: สถิติ + ชิปแพ็กเกจ — อยู่ "นอก" AccountSwitcherLauncher โดยตั้งใจ
+         *
+         * เดิมบรรทัดนี้อยู่ในปุ่มสลับบัญชี ซึ่งเป็น <button> ก้อนเดียวครอบ avatar+ชื่อ+สถิติ
+         * การเอาชิปที่เป็น <Link> ไปวางข้างในจึงทำไม่ได้ (nested interactive element ผิด HTML
+         * และแตะชิปแล้ว event จะ bubble ไปเปิดชีตสลับบัญชีแทนที่จะไป /business)
+         * ⇒ ย่อปุ่มให้ครอบแค่ avatar+ชื่อ แล้วยกบรรทัดนี้ออกมาเป็นพี่น้อง
+         *
+         * spacer ใช้ค่าเดียวกับความกว้าง avatar (AVATAR_SIZE) + gap-3 ของ flex แม่ = เยื้องตรงกับ
+         * ชื่อร้านบรรทัดบนพอดี โดยไม่ต้องคิดตัวเลข margin ใหม่ (ถ้าวันหลังเปลี่ยนขนาด avatar
+         * บรรทัดนี้ขยับตามเอง — ไม่มีเลขซ้ำสองที่ให้ลืมแก้)
+         */}
+        <div className="flex items-center gap-3 mt-1">
+          <div className="shrink-0" style={{ width: AVATAR_SIZE }} aria-hidden="true" />
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 text-white/80 text-2xs">
+            {/* กลุ่มสถิติ — ให้กลุ่มนี้โดนตัดก่อนชิปเสมอบนจอแคบ เพราะชิปคือทางเข้า /business
+                ทางเดียวบนมือถือ (การ์ดแพ็กเกจฝั่ง sidenav ถูกซ่อนต่ำกว่า 1024px) หายไม่ได้ */}
+            <div className="flex items-center gap-1.5 min-w-0 overflow-hidden whitespace-nowrap">
+              <span>
+                <strong className="text-white font-bold">{orderCount.toLocaleString('th-TH')}</strong>{' '}
+                คำสั่งซื้อ
+              </span>
+              <span className="opacity-50">·</span>
+              <span>
+                <strong className="text-white font-bold">{reviewCount.toLocaleString('th-TH')}</strong>{' '}
+                รีวิว
+              </span>
+              <span className="opacity-50">·</span>
+              <span className="inline-flex items-center gap-0.5">
+                {/* Solar star icon สีทอง — HR7 arbitrary: #ffd24d (gold) Paces ไม่มี token สีทอง star (text-warning เป็นส้ม ไม่ตรง) */}
+                <Icon icon="solar:star-bold-duotone" className="text-sm" style={{ color: '#ffd24d' /* HR7 arbitrary: gold */ }} />
+                <strong className="text-white font-bold">{avgRating.toFixed(1)}</strong>
+              </span>
+            </div>
+
+            {/* ชิปแพ็กเกจ — ไม่ใช่ OWNER เห็นข้อมูลเหมือนกันแต่กดไม่ได้ (จัดการแพ็กเกจเป็นสิทธิ์
+                ระดับบัญชีเจ้าของ) จึง render เป็น <span> ไม่ใช่ <Link> */}
+            {packageCanManage ? (
+              <Link
+                href="/business"
+                aria-label={packageAriaLabel}
+                className={`${packageChipClasses} shrink-0 inline-flex items-center gap-1 text-2xs`}
+              >
+                <Icon icon={packageIcon} className="text-2xs" aria-hidden="true" />
+                {packageChipLabel}
+              </Link>
+            ) : (
+              <span className={`${packageChipClasses} shrink-0 inline-flex items-center gap-1 text-2xs`}>
+                <Icon icon={packageIcon} className="text-2xs" aria-hidden="true" />
+                {packageChipLabel}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Row 2: wallet balance + ปุ่มเติมเงิน + divider + ShopLinkButtons */}
@@ -290,44 +343,8 @@ export default function CompactHero({
           <ShopLinkButtons shopSlug={shopSlug} />
         </div>
 
-        {/*
-         * Row 3: แถบแพ็กเกจร้านค้า — sidenav card (_shared/ShopPackageSidenavCard.tsx) ถูกซ่อนบนมือถือ
-         * (.app-menu display:none <1024px) จึงย้าย entry point มาไว้ตรงนี้แทน (ทั้งแถวเป็นลิงก์เดียว)
-         * divider บาง — reuse ค่า rgba เดิมของ divider แนวตั้ง Row 2 (ไม่คิด opacity ใหม่)
-         */}
-        <div
-          className="border-t mt-3 pt-3"
-          style={{ borderColor: 'rgba(255,255,255,0.28)' }}
-        >
-          {/* ดูอย่างเดียว (ไม่ใช่ OWNER) → <div> ไม่ใช่ <Link> และไม่มีลูกศร — กันกดแล้วไปเจอ
-              หน้าที่จัดการอะไรไม่ได้ (Business Package สมัครระดับบัญชีเจ้าของ) */}
-          {(() => {
-            const rowInner = (
-              <>
-                <Icon icon={packageIcon} className="text-base shrink-0" aria-hidden="true" />
-                <span className="flex-1 min-w-0 truncate text-2xs font-semibold">{packageLabel}</span>
-                {isPackageActive && (
-                  <span className="badge bg-white/20 text-white text-2xs shrink-0">ใช้งานอยู่</span>
-                )}
-                {packageCanManage && (
-                  <span className="shrink-0 text-2xs" aria-hidden="true">&rarr;</span>
-                )}
-              </>
-            )
-            // tap target ≥44px: py-2.5 ให้แถวดูบาง + minHeight:44 (inline) ชดเชยเนื้อหาเตี้ย
-            // — pattern เดียวกับปุ่มกระดิ่ง Row 1 (style minWidth/minHeight:44)
-            const rowClass = `flex items-center gap-2 rounded-md border-s-3 px-2.5 py-2.5 ${packageCanManage ? 'transition-colors' : ''} ${packageRowClasses}`
-            return packageCanManage ? (
-              <Link href="/business" aria-label={packageAriaLabel} className={rowClass} style={{ minHeight: 44 }}>
-                {rowInner}
-              </Link>
-            ) : (
-              <div className={rowClass} style={{ minHeight: 44 }}>
-                {rowInner}
-              </div>
-            )
-          })()}
-        </div>
+        {/* Row 3 (แถบแพ็กเกจเต็มความกว้าง + เส้นคั่น) ถูกตัดออกทั้งหมด 2026-08-04 —
+            ย้ายไปเป็นชิปท้ายบรรทัดสถิติใน Row 1b แล้ว (ดูคอมเมนต์ที่นั่น) hero เตี้ยลง ~69px */}
       </div>
     </div>
   )
