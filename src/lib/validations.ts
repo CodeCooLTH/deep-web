@@ -741,7 +741,9 @@ export const SendChatMessageSchema = v.object({
   // ORDER = การ์ดออเดอร์/ใบเสนอราคาในแชท DEEP (user 2026-07-24) — อ้าง Order.publicToken
   // VIDEO/AUDIO/FILE (2026-08-02 multi-attachment): ร้านแนบไฟล์ทุกชนิดได้ ไม่ใช่แค่รูป
   // เดิม 3 ชนิดนี้เกิดได้ทางเดียวคือ mirror ขาเข้าจาก Messenger/IG (เขียน DB ตรง ไม่ผ่าน schema นี้)
-  type: v.picklist(["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "PRODUCT", "ORDER"]),
+  // STICKER (2026-08-04): ไม่ใช่ไฟล์แนบ — ยิง sticker_id ให้ Meta แล้วฝั่งเราเก็บเป็นแถว IMAGE
+  // (ดู sendOutboundMessage) จึงไม่อยู่ในชุด isAttachmentType
+  type: v.picklist(["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "PRODUCT", "ORDER", "STICKER"]),
   // nullish ไม่ใช่ optional — client ส่ง `body: null` มาจริงเมื่อแนบรูปโดยไม่ใส่ caption
   // (useSellerChatThread.handleSend + payload ที่เก็บไว้สำหรับปุ่ม "ลองใหม่") ซึ่ง v.optional รับแค่
   // undefined → เด้ง "Invalid type: Expected string but received null" = **ส่งรูปอย่างเดียวไม่ได้เลย**
@@ -756,6 +758,15 @@ export const SendChatMessageSchema = v.object({
   productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
   orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์ในแชท — เฉพาะ type=ORDER (Order.publicToken)
   replyToMessageId: v.optional(v.pipe(v.string(), v.uuid())), // reply/quote (user 2026-07-25) — id ของข้อความที่ตอบทับ (route resolve → replyToMid/Meta reply_to)
+  /**
+   * สติกเกอร์ Meta (user สั่ง 2026-08-04) — ส่งคู่กับ type='STICKER'
+   * stickerId: id จาก Sticker Catalog API (ตัวเลขล้วนเป็นสตริง) — Meta ยืนยันเองว่าส่งได้หรือไม่
+   * stickerImageUrl: รูปจาก catalog (โดเมน CDN ของ Meta) — server เอาไป mirror เก็บฝั่งเรา
+   *   บังคับ https + จำกัดความยาว: ค่านี้มาจาก client และถูกเอาไป fetch ฝั่ง server (SSRF)
+   *   host allow-list ตัวจริงอยู่ที่ mirrorRemoteImage (เฉพาะ CDN ของ Meta) — ที่นี่เป็นชั้นแรก
+   */
+  stickerId: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(32), v.regex(/^[0-9]+$/))),
+  stickerImageUrl: v.optional(v.pipe(v.string(), v.url(), v.maxLength(2000), v.startsWith('https://'))),
 });
 // ตรวจ conditional-required ที่ route:
 //   type='TEXT' → body ต้องมีจริง (minLength 1, ห้ามว่าง — FR-CHAT-04-AC-02)

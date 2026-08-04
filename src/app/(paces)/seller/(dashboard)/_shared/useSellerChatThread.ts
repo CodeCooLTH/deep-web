@@ -817,6 +817,42 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   )
 
   /**
+   * ส่งสติกเกอร์ Meta (user สั่ง 2026-08-04 "channel ที่เป็น facebook รองรับ sticker ด้วย")
+   *
+   * ไม่ทำ optimistic bubble ต่างจากข้อความ/รูป: บับเบิลสติกเกอร์ต้องแสดงจาก fileId ที่ server
+   * mirror ไว้ (ตัวเรนเดอร์อ่าน imageUrl เป็น fileId เสมอ) — ถ้าแอบใส่ URL ของ Meta ลงไปก่อน
+   * บับเบิลจะเป็นรูปแตกอยู่ชั่วขณะแล้วสลับ ซึ่งแย่กว่ารอ ~1 วินาทีแล้วขึ้นของจริงทีเดียว
+   * ระหว่างรอใช้ธง sending เดิม (ปุ่มในแผงจะกดซ้ำไม่ได้)
+   */
+  const sendSticker = useCallback(
+    async (sticker: { id: string; imageUrl: string }): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'STICKER',
+            body: null,
+            stickerId: sticker.id,
+            stickerImageUrl: sticker.imageUrl,
+          }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'ส่งสติกเกอร์ไม่สำเร็จ')
+          return false
+        }
+        await refetchNewer()
+        return true
+      } catch {
+        pacesToast.error('ส่งสติกเกอร์ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        return false
+      }
+    },
+    [conversationId, refetchNewer],
+  )
+
+  /**
    * ร้านกดรีแอ็กชันใส่ข้อความ (user สั่ง 2026-08-03) — optimistic แล้วค่อยยิง API
    *
    * optimistic เพราะการกดรีแอ็กชันต้องรู้สึก "ติดทันที" เหมือนในแอปแชททุกตัว และค่ามัน
@@ -863,6 +899,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     loadingOlder,
     sending,
     reactToMessage,
+    sendSticker,
     uploading,
     /** {done,total} ระหว่างแนบหลายไฟล์ — null เมื่อไม่ได้อัปโหลด (2026-08-02) */
     uploadProgress,

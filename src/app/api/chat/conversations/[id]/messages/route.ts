@@ -351,7 +351,15 @@ export async function POST(
     productRefId,
     orderRefToken,
     replyToMessageId,
+    stickerId,
+    stickerImageUrl,
   } = parsed.output;
+
+  // สติกเกอร์: ต้องมาครบทั้ง id และ url และเป็นของช่องทาง Meta เท่านั้น (แชท DEEP ไม่มีสติกเกอร์
+  // ให้ส่ง — ปล่อยผ่านจะได้แถว IMAGE ที่ไม่มีปลายทางจริง) — เช็คช่องทางหลัง fetch conv ด้านล่าง
+  if (type === "STICKER" && (!stickerId || !stickerImageUrl)) {
+    return NextResponse.json({ error: "ข้อมูลสติกเกอร์ไม่ครบ" }, { status: 400 });
+  }
 
   try {
     // feature 00018: เธรดช่องทางนอกต้องส่งออกผ่าน Graph API ไม่ใช่เขียน DB ตรง ๆ
@@ -447,13 +455,23 @@ export async function POST(
       const sent = await sendOutboundMessage({
         conversationId: id,
         actorUserId: userId,
-        text: text ?? undefined, // TEXT = ข้อความ, ไฟล์แนบ = caption (optional)
+        // สติกเกอร์ (2026-08-04) — Meta ให้ส่ง sticker_id เดี่ยว ๆ ต่อข้อความ ไม่ปนกับ text/attachment
+        sticker: type === "STICKER" ? { id: stickerId!, imageUrl: stickerImageUrl! } : undefined,
+        text: type === "STICKER" ? undefined : text ?? undefined, // TEXT = ข้อความ, ไฟล์แนบ = caption (optional)
         attachment: isAttachmentType(type)
           ? { fileId: imageUrl!, kind: type, name: attachmentName, size: attachmentSize ?? null }
           : undefined,
         replyToMid, // reply/quote — ส่ง reply_to:{mid} ให้ Meta (best-effort) + เก็บ quote ฝั่งเรา
       });
       return NextResponse.json(await withSender(sent, userId));
+    }
+
+    if (type === "STICKER") {
+      // ถึงตรงนี้ = เธรด DEEP (ช่องทางนอกถูกจัดการไปแล้วด้านบน) — ยังไม่มีสติกเกอร์ในแชทของเราเอง
+      return NextResponse.json(
+        { error: "ส่งสติกเกอร์ได้เฉพาะแชท Facebook/Instagram" },
+        { status: 400 },
+      );
     }
 
     const message = await sendMessage({

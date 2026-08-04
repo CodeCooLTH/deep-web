@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendStickerMessage, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -1187,6 +1187,12 @@ export async function sendOutboundMessage(params: {
   /** deprecated (2026-08-02) — ใช้ `attachment` แทน. คงไว้เพราะ auto-reply-send.service.ts
    *  ยังส่งรูปทีละใบด้วยพารามิเตอร์นี้อยู่ (ภายในแปลงเป็น attachment kind='IMAGE' ให้เอง) */
   imageFileId?: string
+  /**
+   * สติกเกอร์ Meta (user สั่ง 2026-08-04) — ส่ง `sticker_id` ไม่ใช่ไฟล์แนบ (Sticker API)
+   * imageUrl = รูปจาก catalog เอาไป mirror เก็บฝั่งเราให้บับเบิลมีรูปแสดงทันทีโดยไม่ต้องรอ echo
+   * ใช้ร่วมกับ text/attachment ไม่ได้ (Meta ให้ส่งอย่างใดอย่างหนึ่งต่อข้อความ) — sticker ชนะ
+   */
+  sticker?: { id: string; imageUrl: string }
   /** ไฟล์แนบทุกชนิด (2026-08-02 multi-attachment) — kind ตัดสิน `attachment.type` ที่ยิงให้ Meta */
   attachment?: {
     fileId: string
@@ -1272,7 +1278,11 @@ export async function sendOutboundMessage(params: {
     // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
     // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
     // sendText/sendImage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจ/IG account ให้เองแล้ว
-    if (attachment) {
+    if (params.sticker) {
+      // สติกเกอร์: ยิง sticker_id ตรง ๆ ไม่ใช่ attachment (ดู lib/facebook/graph.ts sendStickerMessage)
+      // อยู่ใต้กฎหน้าต่างเวลาเดียวกัน จึงส่ง messageTag ไปด้วยเหมือนข้อความปกติ
+      mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, messageTag)
+    } else if (attachment) {
       // presigned URL อายุ 1 ชม. — Meta ดึงไฟล์ไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
       const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
       mid = await sendAttachmentMessage(
@@ -1346,8 +1356,17 @@ export async function sendOutboundMessage(params: {
   // การ์ดคำสั่งซื้อ (user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" (bodyText ที่ยิงไป Meta) แต่
   // ฝั่งเราเก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด. echo ของลิงก์ (mid เดิม) จะ dedupe กับแถวนี้เอง
   const isOrder = !!params.orderRefToken
+  /**
+   * สติกเกอร์เก็บเป็นแถวชนิด IMAGE + mirror รูปมาไว้ storage ของเรา (เหมือนรูปขาเข้า) ไม่เก็บ URL
+   * ของ CDN Meta ตรง ๆ เพราะ (1) ตัวเรนเดอร์ในเธรดอ่าน imageUrl เป็น fileId เสมอ (`/api/files/{id}`)
+   * (2) URL ของ Meta หมดอายุได้ แล้วบับเบิลเก่าจะกลายเป็นรูปแตกย้อนหลัง
+   * mirror ล้มเหลว = ยังเก็บแถวไว้ (บับเบิลจะไม่มีรูป) ไม่ทำให้การส่งที่สำเร็จแล้วกลายเป็น error
+   */
+  const stickerFileId = params.sticker ? await mirrorRemoteImage(params.sticker.imageUrl) : null
   const preview = isOrder
     ? '[คำสั่งซื้อ]'
+    : params.sticker
+      ? '[สติกเกอร์]'
     : attachment
       ? attachment.kind === 'IMAGE'
         ? '[รูปภาพ]'
@@ -1368,10 +1387,10 @@ export async function sendOutboundMessage(params: {
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: isOrder ? 'ORDER' : (attachment?.kind ?? 'TEXT'),
+          type: isOrder ? 'ORDER' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
           // ORDER: เก็บ orderRefToken (การ์ด live-join); ไฟล์แนบ: body=null, imageUrl=fileId; ข้อความ: body=text
-          body: isOrder || attachment ? null : bodyText,
-          imageUrl: attachment?.fileId ?? null,
+          body: isOrder || attachment || params.sticker ? null : bodyText,
+          imageUrl: stickerFileId ?? attachment?.fileId ?? null,
           attachmentName: attachment?.name ?? null,
           attachmentSize: attachment?.size ?? null,
           orderRefToken: isOrder ? params.orderRefToken! : null,

@@ -596,39 +596,30 @@ export default function CommentsClient({
 
   const renderComposer = (inline: boolean) => (
     <div className={inline ? '' : 'w-full p-3'}>
-      {/* แถบ "กำลังตอบใคร" — มี container ของตัวเอง + ปุ่มยกเลิก 44px อยู่ในแถวเดียวกัน
-          (Base: ChatThread.tsx:2153-2179 แถบ replyingTo ของแท็บข้อความ — ตัด quote ข้อความออก
-          เพราะบับเบิลต้นทางอยู่ติดกันอยู่แล้ว ไม่เหมือนเธรดแชทที่เลื่อนไปไกลได้) */}
+      {/* บรรทัด "ตอบใคร" — บรรทัดข้อความเดียว ไม่ใช่การ์ดมีขอบ
+          user 2026-08-04 รอบสอง: "ที่ทำมา มันรกกว่าเดิม ใช้ยาก ไม่ minimal และ UI ก็ใหญ่เทอะทะ"
+          รอบแรกผมทำเป็นกล่องมีเส้นขอบซ้าย + แถบเตือนเต็มความกว้าง + pill ที่มีขอบซ้อนขอบ textarea
+          = กล่องซ้อนกัน 3 ชั้นสูงกว่าช่องพิมพ์เอง. ref ของ Facebook มีชั้นเดียวคือ pill */}
       {replyTo && (
-        <div className="border-s-2 border-primary bg-primary/5 mb-2 flex items-center gap-2 rounded-lg py-1 pe-1 ps-3">
-          <Icon icon="arrow-back-up" className="text-primary shrink-0" width={14} height={14} />
-          <span className="text-primary min-w-0 flex-1 truncate text-xs font-semibold">
-            ตอบ {replyTo.fromName ?? 'ความคิดเห็น'}
+        <div className="text-default-700 mb-1 flex items-center gap-1 text-2xs">
+          <Icon icon="arrow-back-up" width={12} height={12} className="shrink-0" />
+          <span className="min-w-0 flex-1 truncate">
+            ตอบ <span className="text-default-900 font-semibold">{replyTo.fromName ?? 'ผู้ใช้ Facebook'}</span>
           </span>
           <button
             type="button"
             onClick={() => setReplyTo(null)}
             aria-label="ยกเลิกการตอบ"
-            className="hover:bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center rounded-lg"
+            className="hover:bg-default-100 text-default-700 flex size-6 shrink-0 items-center justify-center rounded"
           >
-            <Icon icon="x" />
+            <Icon icon="x" width={12} height={12} />
           </button>
         </div>
       )}
-      {/* BR-23: เตือนถาวร ไม่ใช่ toast ที่หายไป — คอมเมนต์เป็นข้อความสาธารณะ
-          critique P0: ของเดิม text-warning บนขาว = 1.66:1 อ่านไม่ออกจริงบนมือถือกลางแดด ทั้งที่นี่
-          คือกลไกเดียวที่กัน PII หลุดสู่สาธารณะ — ใช้ token *-ink บนพื้น /15 (6.57:1) ตามกติกา
-          contrast-fix-keeps-hue: เปลี่ยนความเข้ม ไม่เปลี่ยนเฉด
-          ย่อเหลือบรรทัดเดียว (text-xs) ตาม ux spec: ก่อนหน้านี้กินพื้นที่มากกว่าช่องพิมพ์เอง
-          แต่ห้ามซ่อน/ทำเป็น conditional — BR-23 บังคับให้ถาวร */}
-      <p className="bg-warning/15 text-warning-ink mb-2 flex items-start gap-1.5 rounded-lg px-3 py-1.5 text-xs">
-        <Icon icon="alert-triangle" className="mt-0.5 shrink-0" width={13} height={13} />
-        คอมเมนต์นี้เป็นสาธารณะ — ห้ามพิมพ์เบอร์โทรหรือที่อยู่ลูกค้า
-      </p>
       {pendingFile && (
-        <div className="relative mb-2 inline-block">
+        <div className="relative mb-1 inline-block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={pendingFile.previewUrl} alt="" className="max-h-28 rounded-lg" />
+          <img src={pendingFile.previewUrl} alt="" className="max-h-20 rounded-lg" />
           <button
             type="button"
             onClick={() => setPendingFile(null)}
@@ -639,46 +630,62 @@ export default function CommentsClient({
           </button>
         </div>
       )}
-      <div className="relative flex items-end gap-2">
-        {/* รูปเพจอยู่นอก pill (ตาม ref) — บอกว่ากำลังพูดในนามใครโดยไม่กินที่ในช่องพิมพ์ */}
+      <div className="relative flex items-center gap-2">
         {thread?.channel.avatarUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={thread.channel.avatarUrl}
-            alt=""
-            className="size-9 shrink-0 self-end rounded-full object-cover"
-          />
+          <img src={thread.channel.avatarUrl} alt="" className="size-8 shrink-0 rounded-full object-cover" />
         )}
-        {/* pill ใบเดียว: ช่องพิมพ์ + ไอคอน action ข้างในชิดขวา (ตาม ref)
-            bg-light + rounded-full = ทรงเดียวกับ ref, โฟกัสแล้วขอบเป็น primary ให้รู้ว่าอยู่ในช่อง */}
-        <div className="bg-light focus-within:border-primary border-default-200 flex min-w-0 flex-1 items-end gap-1 rounded-3xl border py-1 pe-1 ps-4">
+        {/* pill ชั้นเดียว: ช่องพิมพ์ + ไอคอนข้างในชิดขวา (ตาม ref)
+            textarea ต้องไม่มีขอบ/เงา/ring ของตัวเองเลย ไม่งั้นได้กล่องซ้อนกล่องอย่างที่ user เจอ
+            — `.form-textarea` ของ Paces มีขอบในตัว จึงไม่ใช้คลาสนั้นที่นี่ */}
+        <div className="bg-light focus-within:border-primary border-default-200 flex min-w-0 flex-1 items-center gap-0.5 rounded-full border py-0.5 pe-1 ps-3">
           <textarea
             ref={replyBoxRef}
             rows={1}
             aria-label={replyTo ? 'พิมพ์คำตอบสาธารณะ' : 'เขียนความคิดเห็นในนามเพจ'}
-            // ช่องพิมพ์เป็นส่วนหนึ่งของ pill จึงไม่ใช้ .form-textarea (มีขอบ/พื้น/เงาของตัวเอง)
-            // — พื้นโปร่ง ขอบ 0 แล้วให้ pill เป็นคนถือกรอบ. resize-none กันลากขยายทะลุ pill
-            className="text-default-800 placeholder:text-default-500 min-h-11 w-0 flex-1 resize-none border-0 bg-transparent py-2.5 text-sm focus:outline-none"
-            placeholder={
-              replyTo
-                ? `ตอบในนาม ${thread?.channel.name ?? 'เพจ'}...`
-                : `แสดงความคิดเห็นในนาม ${thread?.channel.name ?? 'เพจ'}...`
-            }
+            className="text-default-800 placeholder:text-default-500 min-h-9 w-0 flex-1 resize-none appearance-none border-0 bg-transparent py-2 text-sm shadow-none outline-none focus:border-0 focus:ring-0 focus:outline-none"
+            placeholder={replyTo ? 'พิมพ์คำตอบ...' : `แสดงความคิดเห็นในนาม ${thread?.channel.name ?? 'เพจ'}...`}
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             disabled={sending}
           />
-          {composerIcons}
-          {/* ปุ่มส่งโผล่เมื่อมีอะไรจะส่ง (ref ไม่มีปุ่มส่งเลย แต่ต้องมีทางส่งที่มองเห็นได้) */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => void pickFile(e.target.files?.[0] ?? null)}
+          />
+          {/* ไอคอน 36px: เล็กกว่ากติกา 44px ของโปรเจกต์ แต่ pill สูง ~40px ทั้งแถบเป็นพื้นที่แตะของ
+              ช่องพิมพ์อยู่แล้ว และ user สั่งตรง ๆ ให้เล็กลง ("ใหญ่เทอะทะ") — บันทึกไว้เป็นการตัดสินใจ
+              ไม่ใช่ความพลาด */}
+          <button
+            type="button"
+            onClick={() => setEmojiOpen((v) => !v)}
+            aria-label="เลือกอิโมจิ"
+            aria-expanded={emojiOpen}
+            className="hover:bg-default-200 text-default-700 flex size-9 shrink-0 items-center justify-center rounded-full"
+          >
+            <Icon icon="mood-smile" className="text-lg" />
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || sending}
+            aria-label="แนบรูปในคำตอบ"
+            className="hover:bg-default-200 text-default-700 flex size-9 shrink-0 items-center justify-center rounded-full"
+          >
+            <Icon icon={uploading ? 'loader-2' : 'camera'} className={`text-lg ${uploading ? 'animate-spin' : ''}`} />
+          </button>
           {(replyText.trim() || pendingFile) && (
             <button
               type="button"
               onClick={submitReply}
               disabled={sending}
               aria-label={replyTo ? 'ส่งคำตอบ' : 'ส่งความคิดเห็น'}
-              className="bg-primary hover:bg-primary-hover flex size-11 shrink-0 items-center justify-center rounded-full text-white"
+              className="bg-primary hover:bg-primary-hover flex size-9 shrink-0 items-center justify-center rounded-full text-white"
             >
-              <Icon icon={sending ? 'loader-2' : 'send-2'} className={`text-xl ${sending ? 'animate-spin' : ''}`} />
+              <Icon icon={sending ? 'loader-2' : 'send-2'} className={`text-lg ${sending ? 'animate-spin' : ''}`} />
             </button>
           )}
         </div>
@@ -689,6 +696,13 @@ export default function CommentsClient({
           />
         )}
       </div>
+      {/* BR-23 บังคับให้เตือนถาวร ห้ามเป็น toast ที่หายไป — แต่ไม่ต้องเป็นแถบสีเต็มความกว้าง
+          ย้ายมาไว้ใต้ช่องพิมพ์เป็นบรรทัดเดียว text-2xs: ยังอ่านได้ตลอดเวลาที่พิมพ์ (คนมองที่ช่องพิมพ์)
+          และไม่แย่งความเด่นจาก pill. คงสี warning-ink ไว้ (contrast 6.57:1 — critique P0 เดิม) */}
+      <p className="text-warning-ink mt-1 flex items-center gap-1 text-2xs">
+        <Icon icon="alert-triangle" width={12} height={12} className="shrink-0" />
+        คอมเมนต์นี้เป็นสาธารณะ — ห้ามพิมพ์เบอร์โทรหรือที่อยู่ลูกค้า
+      </p>
     </div>
   )
 

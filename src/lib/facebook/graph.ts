@@ -666,3 +666,139 @@ export async function createCommentReply(
   })
   return typeof json.id === 'string' ? json.id : ''
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// สติกเกอร์ (Sticker API) — user สั่ง 2026-08-04 "channel ที่เป็น facebook รองรับ sticker ด้วย"
+//
+// contract ล็อกจากเอกสาร Meta "Sticker API" (Updated: Jun 3, 2026) ก่อนเขียนโค้ด ไม่ได้เดา:
+//   - catalog (browse/search) ใช้ **App Access Token** = `APP_ID|APP_SECRET` ไม่ใช่ page token
+//     GET /sticker_packs                        → { data: [{id,name,description,preview_image_url,sticker_count}] }
+//     GET /sticker_packs/<PACK_ID>/stickers     → { data: [{id,name,image_url,width,height,is_animated}] }
+//     GET /sticker_search?q=<>=min 2 ตัวอักษร   → รูปเดียวกับ stickers ข้างบน
+//   - ส่ง ใช้ **Page Access Token** + pages_messaging (เหมือน Send API อื่น) และอยู่ใต้กฎหน้าต่างเวลาเดิม
+//     POST /me/messages { recipient, message: { sticker_id } }
+//   - ส่งได้เฉพาะสติกเกอร์ฟรี first-party ของ Meta (~105 แพ็ก) + นิ้วโป้ง 369239263222822
+//     ที่ไม่อยู่ใน catalog แต่ส่งได้เสมอ
+//
+// locale: เอกสารเตือนตรง ๆ ว่าถ้าไม่ส่ง locale จะ default en_US แล้ว **ค้นภาษาไทยได้ผลว่างเปล่า**
+// จึงส่ง th_TH ทุกครั้ง (ยังตกไปอังกฤษเองถ้าไม่เจอ ตามที่เอกสารระบุ)
+
+/** สติกเกอร์นิ้วโป้งของ Messenger — ไม่อยู่ใน catalog แต่ส่งได้เสมอ (ตามเอกสาร) */
+export const THUMBS_UP_STICKER_ID = '369239263222822'
+
+const STICKER_LOCALE = 'th_TH'
+
+export interface GraphStickerPack {
+  id: string
+  name: string
+  description: string | null
+  previewImageUrl: string | null
+  stickerCount: number | null
+}
+
+export interface GraphSticker {
+  id: string
+  name: string | null
+  imageUrl: string
+  width: number | null
+  height: number | null
+  isAnimated: boolean
+}
+
+/**
+ * App Access Token — ประกอบจาก env ฝั่ง server เท่านั้น (ห้ามหลุดไปฝั่ง client เด็ดขาด:
+ * มันคือ secret ของแอปทั้งใบ ไม่ใช่ token ของเพจเดียว) route ที่เรียกต้องเป็น server route
+ */
+function appAccessToken(): string {
+  // ต้องเป็นแอปเดียวกับที่ใช้ทำ Messenger integration (FB_CHAT_APP_*) ไม่ใช่แอป login (FACEBOOK_ID/
+  // FACEBOOK_SECRET ที่ NextAuth ใช้) — page token ที่เราถือมาจากแอปนี้ สติกเกอร์ที่ส่งได้จึงต้อง
+  // มาจาก catalog ของแอปเดียวกัน (และ secret ของแอป login ไม่ควรถูกใช้ในเส้นทางแชทเลย)
+  const id = process.env.FB_CHAT_APP_ID
+  const secret = process.env.FB_CHAT_APP_SECRET
+  if (!id || !secret) throw new Error('FB_CHAT_APP_CREDENTIALS_MISSING')
+  return `${id}|${secret}`
+}
+
+function toSticker(raw: Record<string, unknown>): GraphSticker | null {
+  const id = typeof raw.id === 'string' ? raw.id : null
+  const imageUrl = typeof raw.image_url === 'string' ? raw.image_url : null
+  if (!id || !imageUrl) return null
+  return {
+    id,
+    name: typeof raw.name === 'string' ? raw.name : null,
+    imageUrl,
+    width: typeof raw.width === 'number' ? raw.width : null,
+    height: typeof raw.height === 'number' ? raw.height : null,
+    isAnimated: raw.is_animated === true,
+  }
+}
+
+/** แพ็กสติกเกอร์ทั้งหมดที่ส่งได้ (ฟรี first-party) */
+export async function fetchStickerPacks(): Promise<GraphStickerPack[]> {
+  const json = await graphFetch('/sticker_packs', appAccessToken(), {
+    query: { locale: STICKER_LOCALE },
+  })
+  const data = Array.isArray(json.data) ? (json.data as Record<string, unknown>[]) : []
+  return data.flatMap((p) => {
+    const id = typeof p.id === 'string' ? p.id : null
+    const name = typeof p.name === 'string' ? p.name : null
+    if (!id || !name) return []
+    return [
+      {
+        id,
+        name,
+        description: typeof p.description === 'string' ? p.description : null,
+        previewImageUrl: typeof p.preview_image_url === 'string' ? p.preview_image_url : null,
+        stickerCount: typeof p.sticker_count === 'number' ? p.sticker_count : null,
+      },
+    ]
+  })
+}
+
+/** สติกเกอร์ในแพ็กหนึ่ง */
+export async function fetchStickersInPack(packId: string): Promise<GraphSticker[]> {
+  const json = await graphFetch(`/sticker_packs/${encodeURIComponent(packId)}/stickers`, appAccessToken(), {
+    query: { locale: STICKER_LOCALE },
+  })
+  const data = Array.isArray(json.data) ? (json.data as Record<string, unknown>[]) : []
+  return data.flatMap((s) => {
+    const st = toSticker(s)
+    return st ? [st] : []
+  })
+}
+
+/** ค้นสติกเกอร์ข้ามทุกแพ็ก — q ต้องยาว ≥2 ตัวอักษรตามเอกสาร (สั้นกว่านั้น Meta ตีตก) */
+export async function searchStickers(q: string): Promise<GraphSticker[]> {
+  const query = q.trim()
+  if (query.length < 2) return []
+  const json = await graphFetch('/sticker_search', appAccessToken(), {
+    query: { q: query, locale: STICKER_LOCALE },
+  })
+  const data = Array.isArray(json.data) ? (json.data as Record<string, unknown>[]) : []
+  return data.flatMap((s) => {
+    const st = toSticker(s)
+    return st ? [st] : []
+  })
+}
+
+/**
+ * ส่งสติกเกอร์เข้าเธรด — คืน mid ของข้อความที่ Meta สร้าง (เหมือน sendTextMessage)
+ * tag: ส่งนอกหน้าต่าง 24 ชม. (HUMAN_AGENT) — เหตุผลเดียวกับ sendTextMessage
+ */
+export async function sendStickerMessage(
+  pageToken: string,
+  recipientId: string,
+  stickerId: string,
+  tag?: string,
+): Promise<string> {
+  const json = await graphFetch('/me/messages', pageToken, {
+    method: 'POST',
+    body: {
+      recipient: { id: recipientId },
+      ...(tag ? { messaging_type: 'MESSAGE_TAG', tag } : { messaging_type: 'RESPONSE' }),
+      // sticker_id เป็น field ระดับ message (ไม่ใช่ attachment) ตามตัวอย่างในเอกสาร
+      message: { sticker_id: stickerId },
+    },
+  })
+  return (json.message_id as string | undefined) ?? ''
+}

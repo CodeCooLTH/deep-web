@@ -108,7 +108,7 @@ import { ChannelBadge } from '../../components/ChannelBadge'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
-import EmojiPicker from './EmojiPicker'
+import EmojiPicker, { rememberRecentSticker } from './EmojiPicker'
 import AiSuggestPanel from './AiSuggestPanel'
 import QuickMessageBar from './QuickMessageBar'
 import {
@@ -841,6 +841,7 @@ export default function ChatThread({
     resendMessage,
     cancelMessage,
     reactToMessage,
+    sendSticker,
     externalReadAt: externalReadAtLive,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
@@ -2090,7 +2091,21 @@ export default function ChatThread({
               <Icon icon="mood-smile" className="text-lg" />
             </button>
             {emojiOpen && (
-              <EmojiPicker onSelect={(emoji) => setText((prev) => prev + emoji)} onClose={() => setEmojiOpen(false)} />
+              <EmojiPicker
+                onSelect={(emoji) => setText((prev) => prev + emoji)}
+                onClose={() => setEmojiOpen(false)}
+                // สติกเกอร์ส่งได้เฉพาะช่องทาง Meta (Graph ของ DEEP ไม่มี sticker_id) — ไม่ส่ง prop
+                // นี้ในเธรด DEEP แล้วแท็บสติกเกอร์จะไม่โผล่เลย ดีกว่าโผล่แล้วกดไม่ได้
+                onSelectSticker={
+                  channel === 'MESSENGER' || channel === 'INSTAGRAM'
+                    ? (sticker) => {
+                        rememberRecentSticker(sticker)
+                        setEmojiOpen(false)
+                        void sendSticker(sticker)
+                      }
+                    : undefined
+                }
+              />
             )}
           </div>
 
