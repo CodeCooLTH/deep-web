@@ -43,7 +43,15 @@ const AttachmentPayloadSchema = v.object({
 const AttachmentSchema = v.object({
   // "image"|"sticker"|"video"|"reel"|"ig_reel"|"audio"|"file"|"fallback"|"post"|"ig_post"|
   // "template"|"appointment_booking"|"location"|"story_mention"|... (Meta attachment types เต็มชุด)
-  type: v.string(),
+  //
+  // 🛑 optional ตั้งแต่ 2026-08-04: **ห้ามบังคับ** — user ส่งรูป 6 ใบเข้ามาแล้วหายทั้งก้อน
+  // (ไม่มีแถว source:"webhook" เลย ไปเจอทีหลังจาก graph-backfill ที่ชนิดเป็น "unknown" ทั้ง 6 ชิ้น)
+  // เพราะ Meta ส่ง attachment ที่ไม่มี field `type` มา แล้ว Valibot ตี **ทั้ง event** ตกตั้งแต่ parse
+  // = ข้อความหายเงียบ ๆ ซึ่งแย่กว่าการได้ field ไม่ครบ
+  // บทเรียนเดียวกับที่เขียนไว้เองข้างล่างกลับด้าน: "field ที่ไม่ประกาศ = หายก่อนถึง service" →
+  // "field ที่ประกาศเป็นบังคับทั้งที่ Meta ไม่ส่งเสมอ = ทำให้ event หายทั้งก้อน"
+  // ตัวตัดสินว่าเป็นสื่อจึงต้องเป็น `payload.url` ไม่ใช่ `type` (ดู channel-chat.service)
+  type: v.optional(v.string()),
   payload: v.optional(AttachmentPayloadSchema),
 })
 

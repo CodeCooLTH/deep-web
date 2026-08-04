@@ -528,7 +528,11 @@ export async function ingestInboundMessage(params: {
   // กลุ่มคำ ร้านที่มีคำว่า "รูป" จะโดนระบบตอบราคาสินค้าใส่ตอนลูกค้าส่งสติกเกอร์
   const hasCustomerText = !!text && text.trim().length > 0
   const firstAttachment = event.message.attachments?.[0]
-  const attType = firstAttachment?.type // 'image'|'video'|'audio'|'file'|'location'|'fallback'|...
+  // ชนิดหาย (Meta ส่งมาไม่ครบ — เจอจริง 2026-08-04 กับรูป 6 ใบ) → มี url ก็ถือว่าเป็นรูป
+  // ชนิดจริงถูกเดาอีกชั้นจาก content-type ตอน mirror อยู่แล้ว (contentTypeToExt) จึงปลอดภัยกว่า
+  // การทิ้งข้อความทั้งก้อน
+  const attType =
+    firstAttachment?.type ?? (firstAttachment?.payload?.url ? 'image' : undefined) // 'image'|'video'|'audio'|'file'|'location'|'fallback'|...
   // attachment.type → ChatMessage.type (feature 00018, user request 2026-07-24 "รองรับทุกอย่าง")
   // Meta attachment types เต็มชุด (จาก docs): media = มี asset จริงบน Meta CDN ให้ mirror ได้;
   // sticker เป็นรูป (มี url) — เดิมตกเป็น placeholder ทั้งที่พบบ่อยสุด; reel/ig_reel เป็นวิดีโอ
@@ -594,7 +598,7 @@ export async function ingestInboundMessage(params: {
   const extraMedia: { fileId: string; type: string }[] = []
   for (let i = 1; i < allAttachments.length; i++) {
     const a = allAttachments[i]
-    const t = a?.type
+    const t = a?.type ?? (a?.payload?.url ? 'image' : undefined)
     const url = a?.payload?.url
     if (!t || !MEDIA_TYPE[t] || !url) continue
     const key = attKey(a)
