@@ -901,10 +901,15 @@ export async function fetchPagePosts(
 export async function sendImageGridMessage(
   pageToken: string,
   recipientId: string,
-  imageUrls: string[],
+  /**
+   * `url` = ลิงก์ที่ Meta ใช้ดึงรูปไปเก็บตอนส่ง (อายุสั้นได้)
+   * `actionUrl` = ลิงก์ที่ฝังเป็น tap action ของรูปนั้น ต้องอายุยาวเพราะลูกค้าเป็นคนกดเปิดวันไหนก็ได้
+   *   ไม่ส่งมา = รูปนั้นกดไม่ได้ (เอกสาร Meta: "Images without an action are not tappable.")
+   */
+  images: Array<{ url: string; actionUrl?: string | null }>,
   opts: { caption?: string | null; tag?: string } = {},
 ): Promise<string> {
-  if (imageUrls.length < 2 || imageUrls.length > 6) {
+  if (images.length < 2 || images.length > 6) {
     // ผู้เรียกต้องแบ่งก้อนมาให้ถูกก่อน — โยนเป็น Error ธรรมดา (ไม่ใช่ GraphApiError) เพราะยังไม่ได้ยิงออก
     throw new Error('IMAGE_GRID_COUNT_OUT_OF_RANGE')
   }
@@ -923,7 +928,14 @@ export async function sendImageGridMessage(
           payload: {
             template_type: 'image_grid',
             elements: [
-              { images: imageUrls.map((url) => ({ url })) },
+              {
+                images: images.map((img) => ({
+                  url: img.url,
+                  // action ต่อรูป = กุญแจของ "กดดูรูปได้" — ชนิดที่ใช้ได้มีแค่ web_url/postback
+                  // (postback ไม่เหมาะ: มันโพสต์ข้อความตอบกลับเข้าห้องแชทในนามลูกค้า)
+                  ...(img.actionUrl ? { action: { type: 'web_url', url: img.actionUrl } } : {}),
+                })),
+              },
             ],
           },
         },
