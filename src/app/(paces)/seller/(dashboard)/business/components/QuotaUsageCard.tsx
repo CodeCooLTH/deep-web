@@ -46,7 +46,7 @@ export default function QuotaUsageCard({ ownedCount, maxBusinesses, businesses, 
         <h4 className="card-title">ธุรกิจของฉัน</h4>
         {canCreate ? (
           <Link
-            href="/business/create"
+            href="/business?create=1"
             className="btn btn-sm bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-1.5"
           >
             <Icon icon="plus" className="text-base" aria-hidden="true" />

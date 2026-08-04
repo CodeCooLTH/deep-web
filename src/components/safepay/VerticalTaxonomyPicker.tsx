@@ -18,8 +18,9 @@
  * controlled component: `value` เป็น null ได้เมื่อผู้ใช้เลือกหมวด "รับนัดหมายและจอง" แล้ว
  * แต่ยังไม่เลือกหมวดย่อย — parent ใช้ null นี้ปิดปุ่มถัดไป (ไม่ต้องคำนวณเอง)
  *
- * Base: src/app/(paces)/seller/(dashboard)/business/create/components/CreateBusinessForm.tsx:145-176
- *       (โครง radio-card เดิม — ลด 3→2 ใบต่อขั้น, ตัด badge, เพิ่มไอคอน, คั่นด้วยเส้นประ)
+ * Base: โครง radio-card เดิมของ CreateBusinessForm.tsx (ลบไปแล้ว — ดู git history) ที่ Paces
+ *       ใช้ทั่วไป: label > input[radio] + ขอบ 2px + พื้นจาง. ปรับ: ลด 3→2 ใบต่อขั้น, ตัด badge,
+ *       เพิ่มไอคอน, คั่นด้วยเส้นประ + พื้นจมสำหรับขั้นย่อย
  * Spec: docs/superpowers/specs/2026-08-04-feature-00030-vertical-picker-design.md
  * Copy: docs/20 - Features/00030 - Booking Business UX Unification/UX-Copy.md §7
  */
@@ -102,17 +103,29 @@ function ChoiceCard({
 }) {
   return (
     <label
-      className={`flex cursor-pointer items-start gap-2 rounded-lg border-2 p-3 ${
+      className={`relative flex cursor-pointer items-start gap-2.5 rounded-lg border-2 p-3 ${
         selected ? 'border-primary bg-primary/5' : 'border-default-200'
       } ${disabled ? 'pointer-events-none opacity-50' : ''}`}
     >
+      {/* radio ยังอยู่ใน DOM (คีย์บอร์ด/screen reader ต้องใช้) แต่ซ่อนจากสายตา — การ์ดบอกว่า
+          "เลือกอยู่" ด้วยขอบ+พื้นอยู่แล้ว มีจุดกลมอีกคือพูดซ้ำครั้งที่สาม */}
       <input
         type="radio"
         checked={selected}
         disabled={disabled}
         onChange={onSelect}
-        className="mt-0.5 shrink-0"
+        className="peer sr-only"
       />
+      {/* focus ring ต้องไม่หายไปพร้อม radio ที่มองไม่เห็น */}
+      <span
+        aria-hidden="true"
+        className="peer-focus-visible:ring-primary pointer-events-none absolute inset-0 rounded-lg peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2"
+      />
+      {selected && (
+        /* สัญญาณ "ยืนยันแล้ว" คนละหน้าที่กับขอบ+พื้น (ซึ่งเป็นสัญญาณผิว) — การเลือกนี้แก้ทีหลังไม่ได้
+           จึงสมควรมีเครื่องหมายที่อ่านออกทันทีว่าอันนี้แหละที่เลือก */
+        <Icon icon="circle-check-filled" className="text-primary absolute top-2 right-2 size-4" />
+      )}
       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
         <Icon icon={choice.icon} className="size-4" />
       </span>
@@ -180,7 +193,11 @@ export default function VerticalTaxonomyPicker({
         /* คั่นด้วยเส้นประ — ยืม signature ของ .card-header (Paces) มาใช้เป็น section divider
            แทนการซ้อนการ์ดในการ์ด ซึ่งเป็น anti-pattern ที่ DESIGN.md ห้ามไว้ */
         <div className="border-default-300 mt-4 border-t border-dashed pt-4">
-          <p className="text-default-900 mb-2 text-sm font-semibold">ลูกค้ามาแบบไหน</p>
+          {/* พื้นจมลงหนึ่งระดับ (สีเดียวกับพื้นหน้าเว็บ) — เส้นประอย่างเดียวคอนทราสต์ ~1.1:1
+              วัดจากของจริงบน prod แล้วว่าตาไม่เห็น จึงต้องมีรูปทรงช่วยบอกการจัดกลุ่มด้วย */}
+          <div className="bg-default-100 rounded-lg p-3">
+            {/* หัวข้อขั้นย่อยต้องเบากว่า .form-label ของฟิลด์แม่ ไม่งั้นอ่านเป็นฟิลด์พี่น้องกัน */}
+            <p className="text-default-500 mb-2 text-xs font-medium">ลูกค้ามาแบบไหน</p>
           <div className={gridClass}>
             {STEP2.map((c) => (
               <ChoiceCard
@@ -189,8 +206,9 @@ export default function VerticalTaxonomyPicker({
                 disabled={disabled}
                 selected={value === c.vertical}
                 onSelect={() => pickSub(c.vertical as ShopVertical)}
-              />
-            ))}
+                />
+              ))}
+            </div>
           </div>
         </div>
       )}
