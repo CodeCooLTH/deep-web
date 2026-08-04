@@ -40,6 +40,7 @@ import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
 import ChatRailColumn from './_components/ChatRailColumn'
 import InboxTabs from './_components/InboxTabs'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { prisma } from '@/lib/prisma'
 import DraftOrderProvider from './_components/DraftOrderProvider'
 import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
@@ -81,9 +82,12 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // ตัวกรอง iShip หายไปบนเดสก์ท็อป — page.tsx ส่ง prop นี้ให้ list แบบเต็มจอของมือถืออยู่แล้ว
   // แต่ rail ไม่เคยได้รับ จึงตกไปที่ค่า default = false)
   let hasShipping = false
+  // feature 00030 — คำในโมดัลสร้างรายการจากแชทต้องตรงกับประเภทกิจการเหมือนหน้า /orders
+  let shopVertical = ''
   if (activeCtx?.shopId) {
     const shopId = activeCtx.shopId
-    ;[catalog, bestSellers, inventoryEnabled, hasShipping] = await Promise.all([
+    let shopRow: { vertical: string } | null = null
+    ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow] = await Promise.all([
       getProductsByShop(shopId).then((ps) => ps.map(toCatalog)).catch(() => []),
       getBestSellerProducts(shopId, 8).then((ps) => ps.map(toCatalog)).catch(() => []),
       isEntitlementActive(shopId).catch(() => false),
@@ -91,7 +95,11 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         .findUnique({ where: { shopId }, select: { status: true } })
         .then((a) => a?.status === 'ACTIVE')
         .catch(() => false),
+      prisma.shop
+        .findUnique({ where: { id: shopId }, select: { vertical: true } })
+        .catch(() => null),
     ])
+    shopVertical = shopRow?.vertical ?? ''
   }
 
   const shell = (
@@ -153,6 +161,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       catalog={catalog}
       bestSellers={bestSellers}
       inventoryEnabled={inventoryEnabled}
+      vocab={resolveOrderVocab(shopVertical)}
     >
       {shell}
     </DraftOrderProvider>

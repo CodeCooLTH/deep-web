@@ -166,23 +166,26 @@ export default function OrderStatusBand({ counts, shipping }: OrderStatusBandPro
   return (
     <div className="card">
       {/* header: ชื่อ band + ลิงก์ "ดูทั้งหมด ›" (RSC-safe: Link ธรรมดา ไม่ใช้ component={Link} — Hard Rule 2) */}
-      <div className="card-header flex items-center justify-between">
+      {/* !py-3: ลดจาก py-3.75 ตาม feedback "section ห่างกันเกินไป" (2026-08-04) — per-instance
+          override ตาม pattern เดิมของโปรเจกต์ (AuctionStatStrip/OrderCard) ไม่แตะ _card.css กลาง
+          หมายเหตุ: component นี้ render ทั้งมือถือและเดสก์ท็อป การลดมีผลทั้งสอง breakpoint */}
+      <div className="card-header !py-3 flex items-center justify-between">
         <h4 className="card-title flex items-center gap-1.5">
           <Icon icon="tabler:clipboard-list" className="size-4 text-primary" />
           {shipping ? 'สถานะคำสั่งซื้อ' : 'คำสั่งซื้อ'}
         </h4>
         <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-center gap-0.5">
           ดูทั้งหมด
-          <Icon icon="solar:alt-arrow-right-linear" className="size-4" />
+          <Icon icon="tabler:chevron-right" className="size-4" />
         </Link>
       </div>
 
-      <div className="card-body">
+      <div className="card-body !p-4">
         {/* grid flat — ไม่มี bg/border ครอบ icon (spec §4.2 + mockup .ostat)
             ชุดพัสดุมี 5 ไทล์: มือถือแตกเป็น 3+2 ไม่ใช่ 5 คอลัมน์เดียว เพราะพื้นที่กริดจริงบนจอ 360px
-            เหลือ 288px (หัก padding shell 16×2 + card-body 20×2) → 5 คอลัมน์ได้ช่องละ ~51px และ
-            เหลือ ~43px บนจอ 320px ซึ่งต่ำกว่า tap target 44px ที่ PRODUCT.md บังคับ · 3 คอลัมน์
-            ได้ ~90px กว้างกว่าของเดิม (4 ช่อง = 82px) ด้วยซ้ำ
+            เหลือ ~296px (หัก padding shell 16×2 + card-body 16×2) → 5 คอลัมน์ได้ช่องละ ~53px และ
+            เหลือ ~45px บนจอ 320px ซึ่งเฉียด tap target 44px จนไม่เหลือระยะปลอดภัย · 3 คอลัมน์
+            ได้ ~93px กว้างกว่าของเดิม (4 ช่อง = 85px) ด้วยซ้ำ
             ไม่ใช้ scroll แนวนอนเพราะไทล์พวกนี้คือ "งานค้างวันนี้" ที่ต้องกวาดตาเห็นครบพร้อมกัน
             ถ้าต้องปัดถึงจะเห็นช่องสุดท้าย ก็เสียเหตุผลของ Command Center ไปเลย
             ชุดเดิม 4 ไทล์ (vertical อื่นที่ไม่มีพัสดุ) ไม่กระทบ — ยังเป็น grid-cols-4 เหมือนเดิม */}

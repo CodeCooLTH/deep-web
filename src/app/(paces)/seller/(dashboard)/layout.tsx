@@ -6,7 +6,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
 import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
-import { sellerMenuItems, applyChatBadge, resolveVisibleSellerMenu, resolveOrderMenuLabel } from '@/lib/seller-menu'
+import { sellerMenuItems, applyChatBadge, resolveVisibleSellerMenu, resolveOrderVocab } from '@/lib/seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
@@ -152,7 +152,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // ป้ายเมนู/แท็บของ /orders ต้องเป็นคำเดียวกันทั้ง sidebar, แถบล่างมือถือ และชื่อหน้าบนมือถือ
   // (ผู้ใช้เห็นทั้งสามที่พร้อมกันได้บนจอเดียว) — คำนวณครั้งเดียวที่นี่แล้วส่งลงไปทุกทาง
-  const orderLabel = resolveOrderMenuLabel(shop.vertical)
+  const orderVocab = resolveOrderVocab(shop.vertical)
 
   return (
     <VerticalLayout
@@ -164,14 +164,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
           avatarUrl={shop?.logo ?? null}
           tierName={tierName}
           trustScore={user.trustScore ?? 0}
-          orderLabel={orderLabel}
+          orderLabel={orderVocab.noun}
         />
       }
       bottomNavSlot={
         <SellerBottomNav
           pendingCount={pendingCount}
           unreadChatCount={unreadChatCount}
-          orderLabel={orderLabel}
+          orderVocab={orderVocab}
         />
       }
       sidenavFooterSlot={<OnboardingGate />}

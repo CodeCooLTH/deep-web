@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — 00030 Booking Business UX Unification (Deep / Paces)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Paces tokens — คัดมาจาก src/assets/css/config/_root.css (ห้ามเดา) */
+  --primary:#236dc9; --primary-hover:#1e5dab;
+  --danger:#f7577e; --danger-ink:#7f1d1d;
+  --dark:#313a46; --default-900:#313a46;
+  --default-200:#eef2f7; --default-300:#e7e9eb; --default-400:#9ba6b7; --default-500:#a1a9b1;
+  --body-bg:#f6f7fb; --paper:#fff;
+  --radius:4px;
+  --text-body:0.875rem; --text-xs:0.8125rem;
+  --shadow:0 1px 4px rgba(130,143,163,.15);
+  --shadow-lg:0 4px 16px rgba(76,76,92,.2);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:'Anuphan','Noto Sans Thai',system-ui,sans-serif;
+  background:#eceef4; color:var(--dark); line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+/* ── chrome ของหน้าสเปก (ไม่ใช่ส่วนของ UI จริง) ─────────────── */
+.pagehead{background:#fff;border-bottom:1px solid var(--default-300);padding:20px 24px;position:sticky;top:0;z-index:20}
+.pagehead h1{margin:0 0 4px;font-size:20px;font-weight:700}
+.pagehead p{margin:0;font-size:var(--text-xs);color:#6b7280;max-width:80ch}
+.nav{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
+.nav a{font-size:var(--text-xs);text-decoration:none;color:var(--primary);border:1px solid var(--default-300);border-radius:999px;padding:3px 12px}
+.nav a:hover{background:var(--primary);color:#fff;border-color:var(--primary)}
+main{padding:28px 24px 80px;max-width:1600px;margin:0 auto}
+section{margin-bottom:56px}
+h2{font-size:17px;font-weight:700;margin:0 0 6px;padding-bottom:8px;border-bottom:2px solid var(--dark)}
+h3{font-size:14px;font-weight:600;margin:28px 0 10px;color:#4b5563}
+.note{font-size:var(--text-xs);color:#6b7280;margin:0 0 16px;max-width:86ch}
+.note b{color:var(--dark)}
+.warn{border-left:3px solid var(--danger);background:#fff5f7;padding:10px 14px;border-radius:var(--radius);font-size:var(--text-xs);color:#7f1d1d;margin:0 0 16px;max-width:86ch}
+.rail{display:flex;gap:28px;align-items:flex-start;overflow-x:auto;padding-bottom:10px}
+.dev{flex:0 0 auto}
+.devlabel{font-size:11px;font-weight:700;letter-spacing:.4px;color:#6b7280;margin-bottom:6px;text-transform:none}
+.devlabel span{font-weight:400;color:#9ca3af}
+.screen{background:var(--body-bg);border:1px solid #cfd4dd;border-radius:8px;overflow:hidden;box-shadow:0 6px 20px rgba(49,58,70,.10)}
+.caption{font-size:11px;color:#6b7280;margin-top:6px;max-width:100%}
+
+/* ── Paces primitives (คัดจากธีมจริง) ───────────────────────── */
+.card{background:var(--paper);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-header{padding:12px 20px;border-bottom:1px dashed var(--default-300);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:var(--text-body);font-weight:600;margin:0}
+.card-body{padding:20px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:var(--radius);
+  padding:8px 16px;font:inherit;font-size:var(--text-body);font-weight:500;cursor:pointer;text-decoration:none;line-height:1.4}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-primary[disabled],.is-disabled{opacity:.5;cursor:not-allowed}
+.btn-light{background:var(--default-200);color:var(--dark)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-w{width:100%}
+.badge{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:500}
+.b-neutral{background:var(--default-200);color:#5b6472}
+.text-muted{color:var(--default-400)}
+.dashed-sep{border-top:1px dashed var(--default-300);margin-top:16px;padding-top:16px}
+
+/* การ์ดตัวเลือก — โครงจาก CreateBusinessForm.tsx:145-176 */
+.pick{display:flex;align-items:flex-start;gap:8px;border:2px solid var(--default-200);border-radius:8px;padding:12px;cursor:pointer;background:#fff}
+.pick + .pick{margin-top:8px}
+.pick.sel{border-color:var(--primary);background:rgba(35,109,201,.05)}
+.radio{width:16px;height:16px;border-radius:999px;border:2px solid #b9c0cb;flex:0 0 auto;margin-top:3px;position:relative;background:#fff}
+.pick.sel .radio{border-color:var(--primary)}
+.pick.sel .radio::after{content:"";position:absolute;inset:2px;border-radius:999px;background:var(--primary)}
+.pick .ico{flex:0 0 auto;width:32px;height:32px;border-radius:8px;background:rgba(35,109,201,.15);color:var(--primary);display:flex;align-items:center;justify-content:center;margin-top:-1px}
+.pick .ico svg{width:19px;height:19px}
+.pick-t{font-size:var(--text-body);font-weight:500;color:var(--dark)}
+.pick-d{font-size:var(--text-xs);color:var(--default-400);margin-top:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid2 .pick + .pick{margin-top:0}
+.step2-h{font-size:var(--text-body);font-weight:600;color:var(--default-900);margin:0 0 8px}
+
+/* onboarding shell */
+.ob-wrap{padding:24px 16px;display:flex;justify-content:center}
+.ob-card{width:100%;max-width:448px}
+.dots{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:14px}
+.dot{width:7px;height:7px;border-radius:999px;background:var(--default-300)}
+.dot.on{background:var(--primary)}
+.dots span{font-size:11px;color:var(--default-500);margin-left:6px}
+.stepico{width:56px;height:56px;border-radius:999px;background:rgba(35,109,201,.15);color:var(--primary);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.stepico svg{width:28px;height:28px}
+.ob-h{font-size:16px;font-weight:700;text-align:center;margin:0 0 4px;color:var(--default-900)}
+.ob-sub{font-size:var(--text-xs);color:var(--default-400);text-align:center;margin:0 0 20px}
+
+/* orders header */
+.crumb{display:flex;align-items:center;gap:6px;font-size:var(--text-xs);color:var(--default-400)}
+.crumb b{color:var(--default-900);font-size:var(--text-body);font-weight:600}
+.oh{padding:16px 20px}
+.oh-row{display:flex;align-items:center;gap:10px;margin-top:14px}
+.searchbox{flex:1 1 auto;min-width:0;height:36px;border:1px solid var(--default-300);border-radius:var(--radius);background:#fff;display:flex;align-items:center;padding:0 10px;gap:6px;color:var(--default-400);font-size:var(--text-xs)}
+.iconbtn{flex:0 0 auto;height:36px;width:36px;border:1px solid var(--default-300);border-radius:var(--radius);background:#fff;display:flex;align-items:center;justify-content:center;color:#6b7280}
+.shrink0{flex:0 0 auto}
+
+/* bottom nav */
+.bnav{background:#fff;border-top:1px solid var(--default-300);height:64px;display:grid;grid-template-columns:repeat(5,1fr);align-items:center;position:relative}
+.bn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#8b95a5;padding:0 2px;text-align:center}
+.bn.on{color:var(--primary)}
+.bn svg{width:22px;height:22px}
+.bn small{font-size:var(--text-xs);font-weight:500;line-height:1.25}
+.fab{position:absolute;left:50%;transform:translate(-50%,-46%);width:52px;height:52px;border-radius:999px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(35,109,201,.45);border:3px solid var(--body-bg)}
+.fab svg{width:24px;height:24px}
+
+/* dialog */
+.swal{width:340px;background:#fff;border-radius:8px;box-shadow:var(--shadow-lg);padding:22px 20px;text-align:center}
+.swal .ic{width:56px;height:56px;border-radius:999px;border:3px solid var(--danger);color:var(--danger);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:30px;font-weight:700}
+.swal h4{margin:0 0 8px;font-size:16px;font-weight:600;color:var(--default-900)}
+.swal p{margin:0 0 18px;font-size:var(--text-xs);color:#6b7280;line-height:1.6}
+.swal .acts{display:flex;gap:8px;justify-content:center}
+.dlgwrap{background:rgba(49,58,70,.35);padding:26px;border-radius:8px;display:flex;justify-content:center}
+
+table.cmp{border-collapse:collapse;font-size:var(--text-xs);background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);width:100%;max-width:920px}
+table.cmp th,table.cmp td{border:1px solid var(--default-300);padding:8px 10px;text-align:left;vertical-align:top}
+table.cmp th{background:#f8fafc;font-weight:600}
+code{background:#f1f3f7;border-radius:3px;padding:1px 5px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+</head>
+<body>
+
+<div class="pagehead">
+  <h1>Mockup — 00030 Booking Business UX Unification</h1>
+  <p>Deep (SafePay) · สกิน <b>Paces</b> (seller/admin) primary น้ำเงิน <code>#236dc9</code> · ฟอนต์ Anuphan · Mode: <b>Operate</b>. คำทุกคำมาจาก <code>UX-Copy.md</code> · โครง component มาจากไฟล์ที่มีอยู่จริง (Theme Source Mapping ใน .md คู่กัน). ทุกส่วนแสดง 3 ขนาดจอ</p>
+  <div class="nav">
+    <a href="#a">A · เลือกประเภทร้าน 2 ขั้น</a>
+    <a href="#b">B · คำผันตามประเภทร้าน</a>
+    <a href="#c">C · กล่องยืนยันยกเลิก</a>
+    <a href="#vocab">ชุดคำ 4 ช่อง</a>
+  </div>
+</div>
+
+<main>
+
+<!-- ══════════════════ A ══════════════════ -->
+<section id="a">
+  <h2>A · หน้าเลือกประเภทร้าน 2 ขั้น</h2>
+  <p class="note">
+    ปัจจุบันเป็นการ์ด 3 ใบเรียงเท่ากัน (<code>ขายออนไลน์</code> / <code>สินค้าและบริการ</code> / <code>บ้านพัก</code>) ซึ่งไม่ขนานกัน — "สินค้าและบริการ" ฟังเหมือนครอบ "ขายออนไลน์" อยู่ในตัว.
+    ของใหม่ถาม 2 ขั้น: <b>มีจัดส่งไหม</b> → ถ้าไม่มี <b>ลูกค้ามาแล้วกลับ หรือค้างคืน</b>. ค่าที่บันทึกยังเป็น 3 ค่าเดิม ไม่มีค่าใหม่.
+    ขั้น 2 เผยในหน้าเดิม คั่นด้วย<b>เส้นประ</b> (signature ของ Paces) ไม่ใช่การ์ดซ้อนการ์ด. การ์ดขั้น 1 ยังอยู่เสมอ กดสลับกลับได้ตลอด
+  </p>
+
+  <h3>Mobile 375 — Personal onboarding (<code>/onboarding</code>, shell <code>max-w-md</code>, กริด 1 คอลัมน์)</h3>
+  <div class="rail">
+
+    <div class="dev">
+      <div class="devlabel">สถานะ 1 <span>· เปิดเข้ามาครั้งแรก (default = ขายของออนไลน์, ปุ่มกดได้เลย)</span></div>
+      <div class="screen" style="width:375px">
+        <div class="ob-wrap"><div class="ob-card card"><div class="card-body">
+          <div class="dots"><i class="dot on"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>ขั้นที่ 1/4</span></div>
+          <div class="stepico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l18 0"/><path d="M3 7v1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1h-18l2 -4h14l2 4"/><path d="M5 21l0 -10.15"/><path d="M19 21l0 -10.15"/><path d="M9 21v-4a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v4"/></svg>
+          </div>
+          <p class="ob-h">ร้านของคุณเป็นแบบไหน</p>
+          <p class="ob-sub">เลือกได้ครั้งเดียว เปลี่ยนภายหลังไม่ได้ — ถ้าเลือกผิดต้องสร้างร้านใหม่</p>
+
+          <label class="pick sel">
+            <i class="radio"></i>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5"/></svg></span>
+            <span><span class="pick-t">ขายของออนไลน์</span><span class="pick-d">ลูกค้าสั่งแล้วคุณจัดส่งให้</span></span>
+          </label>
+          <label class="pick">
+            <i class="radio"></i>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M8 15h2v2h-2z"/></svg></span>
+            <span><span class="pick-t">รับนัดหมายและจอง</span><span class="pick-d">ลูกค้านัดวันแล้วมาที่ร้าน หรือมาเข้าพัก</span></span>
+          </label>
+
+          <div style="margin-top:16px"><button class="btn btn-primary btn-w">ถัดไป</button></div>
+        </div></div></div>
+      </div>
+      <p class="caption">ไม่มี badge "มีจัดส่งสินค้า/ไม่มีจัดส่งสินค้า" แล้ว — คำอธิบายใต้ป้ายบอกไปแล้ว มีซ้ำคือให้อ่านสองรอบเพื่อได้ข้อมูลเดียว</p>
+    </div>
+
+    <div class="dev">
+      <div class="devlabel">สถานะ 2 <span>· กด "รับนัดหมายและจอง" → ขั้น 2 เผยต่อท้าย ปุ่มปิดจนกว่าจะเลือก</span></div>
+      <div class="screen" style="width:375px">
+        <div class="ob-wrap"><div class="ob-card card"><div class="card-body">
+          <div class="dots"><i class="dot on"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>ขั้นที่ 1/4</span></div>
+          <div class="stepico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l18 0"/><path d="M3 7v1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1h-18l2 -4h14l2 4"/><path d="M5 21l0 -10.15"/><path d="M19 21l0 -10.15"/><path d="M9 21v-4a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v4"/></svg>
+          </div>
+          <p class="ob-h">ร้านของคุณเป็นแบบไหน</p>
+          <p class="ob-sub">เลือกได้ครั้งเดียว เปลี่ยนภายหลังไม่ได้ — ถ้าเลือกผิดต้องสร้างร้านใหม่</p>
+
+          <label class="pick">
+            <i class="radio"></i>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5"/></svg></span>
+            <span><span class="pick-t">ขายของออนไลน์</span><span class="pick-d">ลูกค้าสั่งแล้วคุณจัดส่งให้</span></span>
+          </label>
+          <label class="pick sel">
+            <i class="radio"></i>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M8 15h2v2h-2z"/></svg></span>
+            <span><span class="pick-t">รับนัดหมายและจอง</span><span class="pick-d">ลูกค้านัดวันแล้วมาที่ร้าน หรือมาเข้าพัก</span></span>
+          </label>
+
+          <div class="dashed-sep">
+            <p class="step2-h">ลูกค้ามาแบบไหน</p>
+            <label class="pick">
+              <i class="radio"></i>
+              <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11.8 21h-6.8a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M15 19l2 2l4 -4"/></svg></span>
+              <span><span class="pick-t">มาใช้บริการแล้วกลับ</span><span class="pick-d">เช่น ร้านตกแต่งรถ ร้านนวด คลินิก — กำหนดได้ว่าวันหนึ่งรับได้กี่คิว</span></span>
+            </label>
+            <label class="pick">
+              <i class="radio"></i>
+              <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v11m0 -4h18m0 4v-8a2 2 0 0 0 -2 -2h-8v6"/><path d="M7 10m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/></svg></span>
+              <span><span class="pick-t">มาพักค้างคืน</span><span class="pick-d">เช่น บ้านพัก รีสอร์ต — คิดราคาต่อคืน จองข้ามหลายคืนได้</span></span>
+            </label>
+          </div>
+
+          <div style="margin-top:16px"><button class="btn btn-primary btn-w is-disabled" disabled>ถัดไป</button></div>
+        </div></div></div>
+      </div>
+      <p class="caption">"แล้วกลับ" กับ "ค้างคืน" คือความต่างเชิงโครงสร้างจริงของสองระบบ (คิวต่อวัน vs ช่วงวันคูณราคาต่อคืน) เขียนเป็นภาษาที่ตัดสินได้โดยไม่ต้องรู้ศัพท์ระบบ</p>
+    </div>
+  </div>
+
+  <h3>Tablet 768 — shell เดิมไม่ขยายตามจอ (ตั้งใจ)</h3>
+  <div class="rail">
+    <div class="dev">
+      <div class="devlabel">Tablet 768 <span>· การ์ด <code>max-w-md</code> ลอยกลางจอ เนื้อหาเท่ามือถือทุกประการ</span></div>
+      <div class="screen" style="width:768px">
+        <div class="ob-wrap" style="padding:28px 16px"><div class="ob-card card"><div class="card-body">
+          <div class="dots"><i class="dot on"></i><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>ขั้นที่ 1/4</span></div>
+          <div class="stepico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l18 0"/><path d="M3 7v1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1h-18l2 -4h14l2 4"/><path d="M5 21l0 -10.15"/><path d="M19 21l0 -10.15"/><path d="M9 21v-4a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v4"/></svg>
+          </div>
+          <p class="ob-h">ร้านของคุณเป็นแบบไหน</p>
+          <p class="ob-sub">เลือกได้ครั้งเดียว เปลี่ยนภายหลังไม่ได้ — ถ้าเลือกผิดต้องสร้างร้านใหม่</p>
+          <label class="pick">
+            <i class="radio"></i>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5"/></svg></span>
+            <span><span class="pick-t">ขายของออนไลน์</span><span class="pick-d">ลูกค้าสั่งแล้วคุณจัดส่งให้</span></span>
+          </label>
+          <label class="pick sel">
+            <i class="radio"></i>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M8 15h2v2h-2z"/></svg></span>
+            <span><span class="pick-t">รับนัดหมายและจอง</span><span class="pick-d">ลูกค้านัดวันแล้วมาที่ร้าน หรือมาเข้าพัก</span></span>
+          </label>
+          <div class="dashed-sep">
+            <p class="step2-h">ลูกค้ามาแบบไหน</p>
+            <label class="pick sel">
+              <i class="radio"></i>
+              <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11.8 21h-6.8a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M15 19l2 2l4 -4"/></svg></span>
+              <span><span class="pick-t">มาใช้บริการแล้วกลับ</span><span class="pick-d">เช่น ร้านตกแต่งรถ ร้านนวด คลินิก — กำหนดได้ว่าวันหนึ่งรับได้กี่คิว</span></span>
+            </label>
+            <label class="pick">
+              <i class="radio"></i>
+              <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v11m0 -4h18m0 4v-8a2 2 0 0 0 -2 -2h-8v6"/><path d="M7 10m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/></svg></span>
+              <span><span class="pick-t">มาพักค้างคืน</span><span class="pick-d">เช่น บ้านพัก รีสอร์ต — คิดราคาต่อคืน จองข้ามหลายคืนได้</span></span>
+            </label>
+          </div>
+          <div style="margin-top:16px"><button class="btn btn-primary btn-w">ถัดไป</button></div>
+        </div></div></div>
+      </div>
+      <p class="caption">เลือกครบทั้ง 2 ขั้นแล้ว → ปุ่มกลับมากดได้ · ค่าที่บันทึกจริง = <code>SERVICE_QUEUE</code></p>
+    </div>
+  </div>
+
+  <h3>Desktop 1280 — Business creation (<code>/business/create</code>, กริด 2 คอลัมน์ในฟอร์มยาว)</h3>
+  <div class="rail">
+    <div class="dev">
+      <div class="devlabel">Desktop 1280 <span>· component ตัวเดียวกับมือถือ ต่างแค่ prop <code>columns={2}</code></span></div>
+      <div class="screen" style="width:1280px">
+        <div style="padding:24px">
+          <div class="card" style="max-width:672px;margin:0 auto">
+            <div class="card-header"><p class="card-title">ข้อมูลธุรกิจใหม่</p></div>
+            <div class="card-body">
+              <div class="grid2" style="gap:16px;margin-bottom:18px">
+                <div>
+                  <div style="font-size:var(--text-xs);font-weight:500;margin-bottom:5px">ชื่อธุรกิจ <span style="color:var(--danger)">*</span></div>
+                  <div class="searchbox" style="height:38px">ร้านไฟหน้ารถ ชลบุรี</div>
+                </div>
+                <div>
+                  <div style="font-size:var(--text-xs);font-weight:500;margin-bottom:5px">หมวดหมู่ <span style="color:var(--danger)">*</span></div>
+                  <div class="searchbox" style="height:38px;justify-content:space-between">ยานยนต์ <span>▾</span></div>
+                </div>
+              </div>
+
+              <div style="font-size:var(--text-xs);font-weight:500;margin-bottom:2px">ประเภทกิจการ <span style="color:var(--danger)">*</span></div>
+              <div style="font-size:var(--text-xs);color:var(--default-400);margin-bottom:10px">เลือกได้ครั้งเดียว เปลี่ยนภายหลังไม่ได้ — ถ้าเลือกผิดต้องสร้างร้านใหม่</div>
+
+              <div class="grid2">
+                <label class="pick">
+                  <i class="radio"></i>
+                  <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5"/></svg></span>
+                  <span><span class="pick-t">ขายของออนไลน์</span><span class="pick-d">ลูกค้าสั่งแล้วคุณจัดส่งให้</span></span>
+                </label>
+                <label class="pick sel">
+                  <i class="radio"></i>
+                  <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M8 15h2v2h-2z"/></svg></span>
+                  <span><span class="pick-t">รับนัดหมายและจอง</span><span class="pick-d">ลูกค้านัดวันแล้วมาที่ร้าน หรือมาเข้าพัก</span></span>
+                </label>
+              </div>
+
+              <div class="dashed-sep">
+                <p class="step2-h">ลูกค้ามาแบบไหน</p>
+                <div class="grid2">
+                  <label class="pick sel">
+                    <i class="radio"></i>
+                    <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11.8 21h-6.8a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M15 19l2 2l4 -4"/></svg></span>
+                    <span><span class="pick-t">มาใช้บริการแล้วกลับ</span><span class="pick-d">เช่น ร้านตกแต่งรถ ร้านนวด คลินิก — กำหนดได้ว่าวันหนึ่งรับได้กี่คิว</span></span>
+                  </label>
+                  <label class="pick">
+                    <i class="radio"></i>
+                    <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v11m0 -4h18m0 4v-8a2 2 0 0 0 -2 -2h-8v6"/><path d="M7 10m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/></svg></span>
+                    <span><span class="pick-t">มาพักค้างคืน</span><span class="pick-d">เช่น บ้านพัก รีสอร์ต — คิดราคาต่อคืน จองข้ามหลายคืนได้</span></span>
+                  </label>
+                </div>
+              </div>
+
+              <div style="margin-top:20px;font-size:var(--text-xs);font-weight:500;margin-bottom:6px">ประเภทผู้ประกอบการ <span style="color:var(--danger)">*</span></div>
+              <div style="display:flex;gap:18px;font-size:var(--text-xs);color:#4b5563">
+                <span style="display:flex;gap:6px;align-items:center"><i class="radio" style="margin-top:0"></i> บุคคลธรรมดา</span>
+                <span style="display:flex;gap:6px;align-items:center"><i class="radio" style="margin-top:0"></i> นิติบุคคล</span>
+              </div>
+            </div>
+            <div style="padding:12px 20px;border-top:1px dashed var(--default-300);display:flex;justify-content:flex-end">
+              <button class="btn btn-primary">สร้างธุรกิจ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">บรรทัดเตือน "เลือกแล้วเปลี่ยนไม่ได้" ย้ายขึ้นมา<b>ก่อน</b>การ์ด (ของเดิมอยู่ใต้การ์ด = เตือนหลังตัดสินใจไปแล้ว) และใช้ประโยคเดียวกับฝั่ง Personal</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ B ══════════════════ -->
+<section id="b">
+  <h2>B · คำผันตามประเภทร้าน — พิสูจน์ว่าคำที่ยาวขึ้นไม่พังของเดิม</h2>
+  <p class="note">
+    ไม่ใช่งาน layout ใหม่ — แต่ <b>"การเข้ารับบริการ" ยาวกว่า "คำสั่งซื้อ" ~1.6 เท่า</b> จึงต้องดูจุดที่คับที่สุด 3 จุด: ปุ่มบนหัวหน้า · ป้ายเมนูซ้าย · แท็บล่างบนจอ 320px
+  </p>
+
+  <h3>Desktop 1280 — หัวหน้า <code>/orders</code> ทั้ง 3 ประเภทร้าน</h3>
+  <div class="rail">
+    <div class="dev">
+      <div class="devlabel">Desktop 1280 <span>· ปุ่มเป็น auto-width ช่องค้นหาเป็น <code>flex-1</code> จึงหดรับได้เอง</span></div>
+      <div class="screen" style="width:1280px">
+        <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
+
+          <div class="card"><div class="oh">
+            <div class="crumb">การขาย <span>›</span> <b>คำสั่งซื้อ</b></div>
+            <div class="oh-row">
+              <div class="searchbox"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg> ค้นหาด้วยชื่อลูกค้า เบอร์ หรือเลขที่</div>
+              <div class="iconbtn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg></div>
+              <button class="btn btn-light shrink0">ดึงพัสดุจาก iShip</button>
+              <button class="btn btn-primary shrink0"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> สร้างคำสั่งซื้อ</button>
+            </div>
+          </div></div>
+
+          <div class="card"><div class="oh">
+            <div class="crumb">การขาย <span>›</span> <b>การเข้ารับบริการ</b></div>
+            <div class="oh-row">
+              <div class="searchbox"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg> ค้นหาด้วยชื่อลูกค้า เบอร์ หรือเลขที่</div>
+              <div class="iconbtn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg></div>
+              <button class="btn btn-primary shrink0"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> สร้างการเข้ารับบริการ</button>
+            </div>
+          </div></div>
+
+          <div class="card"><div class="oh">
+            <div class="crumb">การขาย <span>›</span> <b>บิลเข้าพัก</b></div>
+            <div style="font-size:var(--text-xs);color:var(--default-400);margin-top:2px">บิลเข้าพัก — ยอดเงินและการชำระของแต่ละการจอง</div>
+            <div class="oh-row">
+              <div class="searchbox"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/></svg> ค้นหาด้วยชื่อลูกค้า เบอร์ หรือเลขที่</div>
+              <div class="iconbtn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg></div>
+              <button class="btn btn-primary shrink0"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> เปิดบิลเข้าพัก</button>
+            </div>
+          </div></div>
+
+        </div>
+      </div>
+      <p class="caption">ร้านบ้านพักได้บรรทัดอธิบายเพิ่ม เพราะเป็นร้านเดียวที่เห็นทั้งเมนู "บิลเข้าพัก" และ "การจอง" พร้อมกัน (คนละของจริง) — ที่หน้า <code>/bookings</code> จะมีบรรทัดคู่ตรงข้าม "การจองห้องพัก — วันเข้าพักและห้องที่กันไว้"</p>
+    </div>
+  </div>
+
+  <h3>Mobile 320 — แท็บล่าง (จุดเสี่ยงที่สุด)</h3>
+  <div class="warn">
+    <b>นี่คือจุดที่ต้องกดดูจริงก่อนปิดงาน</b> — "เข้ารับบริการ" ตกเป็น 2 บรรทัดในเซลล์กว้าง ~64px. โค้ดปัจจุบันไม่มี <code>whitespace-nowrap</code> อยู่แล้ว แปลว่าดีไซน์เดิมก็ไม่ได้ล็อก 1 บรรทัดไว้ตั้งแต่ต้น — เติม <code>leading-tight</code> ให้ 2 บรรทัดยังอยู่ในแถบสูง 64px ได้ (24 + 4 + ~30 = 58px)
+  </div>
+  <div class="rail">
+    <div class="dev">
+      <div class="devlabel">ONLINE_SALES <span>· 320px</span></div>
+      <div class="screen" style="width:320px">
+        <div style="height:34px;background:#fff;border-bottom:1px solid var(--default-300)"></div>
+        <div style="height:120px"></div>
+        <div class="bnav">
+          <span class="bn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/></svg><small>หน้าแรก</small></span>
+          <span class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V5a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2z"/><path d="M9 7h6M9 11h6"/></svg><small>คำสั่งซื้อ</small></span>
+          <span></span>
+          <span class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg><small>แชท</small></span>
+          <span class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><small>เมนู</small></span>
+          <span class="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+        </div>
+      </div>
+      <p class="caption">baseline — "คำสั่งซื้อ" 1 บรรทัด</p>
+    </div>
+
+    <div class="dev">
+      <div class="devlabel">SERVICE_QUEUE <span>· 320px — ใช้ <code>nounShort</code></span></div>
+      <div class="screen" style="width:320px">
+        <div style="height:34px;background:#fff;border-bottom:1px solid var(--default-300)"></div>
+        <div style="height:120px"></div>
+        <div class="bnav">
+          <span class="bn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/></svg><small>หน้าแรก</small></span>
+          <span class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V5a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2z"/><path d="M9 7h6M9 11h6"/></svg><small>เข้ารับบริการ</small></span>
+          <span></span>
+          <span class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg><small>แชท</small></span>
+          <span class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><small>เมนู</small></span>
+          <span class="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+        </div>
+      </div>
+      <p class="caption">ใช้ <code>nounShort</code> "เข้ารับบริการ" ไม่ใช่ <code>noun</code> เต็ม — ยังตกเป็น 2 บรรทัด แต่อยู่ในแถบ 64px</p>
+    </div>
+
+    <div class="dev">
+      <div class="devlabel">LODGING <span>· 320px</span></div>
+      <div class="screen" style="width:320px">
+        <div style="height:34px;background:#fff;border-bottom:1px solid var(--default-300)"></div>
+        <div style="height:120px"></div>
+        <div class="bnav">
+          <span class="bn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/></svg><small>หน้าแรก</small></span>
+          <span class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V5a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2z"/><path d="M9 7h6M9 11h6"/></svg><small>บิลเข้าพัก</small></span>
+          <span></span>
+          <span class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg><small>แชท</small></span>
+          <span class="bn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><small>เมนู</small></span>
+          <span class="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+        </div>
+      </div>
+      <p class="caption">"บิลเข้าพัก" พอดี 1 บรรทัด</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ C ══════════════════ -->
+<section id="c">
+  <h2>C · กล่องยืนยันยกเลิก — แก้ข้อความที่พูดไม่จริง</h2>
+  <div class="warn">
+    <b>ของเดิมบอกทุกร้านว่า "สินค้าจะถูกคืนเข้าสต็อก"</b> แต่ <code>restockFromCancelledOrder</code> คืนเฉพาะ <code>OrderItem</code> ที่ <code>stockDeducted != null</code> ซึ่งเซ็ตจาก Inventory Add-on (฿199/เดือน) เท่านั้น →
+    เท็จกับร้านคิวงาน บ้านพัก <b>และร้านขายออนไลน์ที่ไม่ได้ซื้อ add-on ซึ่งคือส่วนใหญ่</b> — ในกล่องที่ย้อนกลับไม่ได้
+  </div>
+  <p class="note">
+    เงื่อนไขจริงคือ <b>มี stockDeducted หรือไม่ ไม่ใช่ vertical</b> จึงต้องส่ง <code>hasDeductedStock</code> มาจาก server ไม่ใช่เดาจากประเภทร้าน. หน้าตากล่องไม่เปลี่ยน (Sweet Alert เดิม) เปลี่ยนแค่ข้อความ
+  </p>
+  <div class="rail">
+    <div class="dev">
+      <div class="devlabel">กรณี A <span>· ร้านขายออนไลน์ที่มี Add-on และตัดสต็อกไปจริง</span></div>
+      <div class="dlgwrap" style="width:420px"><div class="swal">
+        <div class="ic">!</div>
+        <h4>ยกเลิกคำสั่งซื้อนี้?</h4>
+        <p>สินค้าจะถูกคืนเข้าสต็อก · ลิงก์ที่ส่งให้ลูกค้าจะใช้ไม่ได้ · ย้อนกลับไม่ได้</p>
+        <div class="acts"><button class="btn btn-light">ไม่ใช่ตอนนี้</button><button class="btn btn-danger">ยืนยันยกเลิก</button></div>
+      </div></div>
+      <p class="caption">3 ท่อนเหมือนเดิม เปลี่ยนแค่ "ผู้ซื้อ" → "ลูกค้า" (คำกลางที่ใช้ได้ทุกประเภทร้าน)</p>
+    </div>
+    <div class="dev">
+      <div class="devlabel">กรณี B <span>· ร้านคิวงาน / บ้านพัก / ขายออนไลน์ที่ไม่มี Add-on</span></div>
+      <div class="dlgwrap" style="width:420px"><div class="swal">
+        <div class="ic">!</div>
+        <h4>ยกเลิกการเข้ารับบริการนี้?</h4>
+        <p>ลิงก์ที่ส่งให้ลูกค้าจะใช้ไม่ได้ · ย้อนกลับไม่ได้</p>
+        <div class="acts"><button class="btn btn-light">ไม่ใช่ตอนนี้</button><button class="btn btn-danger">ยืนยันยกเลิก</button></div>
+      </div></div>
+      <p class="caption"><b>ตัดท่อนที่ไม่จริงทิ้ง ไม่เดาผลใหม่มาแทน</b> — เช่น ไม่เขียนว่า "คิวที่จองไว้จะถูกปล่อยคืน" เพราะยังไม่ได้พิสูจน์ว่าระบบทำอย่างนั้นจริง</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════ vocab ══════════════════ -->
+<section id="vocab">
+  <h2>ชุดคำ 4 ช่องต่อประเภทร้าน</h2>
+  <p class="note">ต้องมี 4 ช่อง ไม่ใช่คำเดียวแล้วเอาไปต่อสตริง — ภาษาไทยผันไม่เท่ากัน (<code>"สร้าง"+noun</code> ได้ "สร้างบิลเข้าพัก" ซึ่งไม่ใช่ภาษาที่คนพูด) และบางช่องแคบเกินกว่าจะรับคำเต็ม</p>
+  <table class="cmp">
+    <tr><th>ช่อง</th><th>ใช้ที่ไหน</th><th>ขายของออนไลน์</th><th>รับนัด · บริการ</th><th>รับนัด · ที่พัก</th></tr>
+    <tr><td><code>noun</code></td><td>เมนู, breadcrumb, page title, หัวข้อ, แท็บ</td><td>คำสั่งซื้อ</td><td>การเข้ารับบริการ</td><td>บิลเข้าพัก</td></tr>
+    <tr><td><code>nounShort</code></td><td>แท็บล่าง, chip, ที่กว้าง &lt;120px</td><td>คำสั่งซื้อ</td><td>เข้ารับบริการ</td><td>บิลเข้าพัก</td></tr>
+    <tr><td><code>createLabel</code></td><td>ปุ่มหลัก, หัวฟอร์ม, title ของ <code>/orders/new</code></td><td>สร้างคำสั่งซื้อ</td><td>สร้างการเข้ารับบริการ</td><td>เปิดบิลเข้าพัก</td></tr>
+    <tr><td><code>createLabelShort</code></td><td>ปุ่ม FAB, ปุ่มในแถบเครื่องมือแชท</td><td>สร้างคำสั่งซื้อ</td><td>เข้ารับบริการใหม่</td><td>เปิดบิลเข้าพัก</td></tr>
+  </table>
+  <p class="note" style="margin-top:14px">
+    ค่าที่ไม่รู้จัก → ใช้ชุดของ <b>ขายของออนไลน์</b> (fail-safe เดิมของ <code>resolveOrderMenuLabel</code>).
+    ปัจจุบันมีคลังคำอยู่ <b>2 ที่ที่ขัดกันเอง</b> — <code>ORDER_MENU_LABELS</code> กับ <code>VERTICAL_CTA</code> — ต้องยุบเหลือตัวเดียว โดย <code>VERTICAL_CTA</code> เก็บไว้แค่ <code>href</code>/<code>icon</code>
+  </p>
+</section>
+
+</main>
+</body>
+</html>

@@ -74,6 +74,13 @@ export type ChatMessageView = {
   // ORDER = การ์ดออเดอร์/ใบเสนอราคา (user 2026-07-24) — enrich orderCard จาก GET
   // CALL = เหตุการณ์การโทร (Meta icon-template) — render เป็นการ์ดกลางจอ ไม่ใช่บับเบิล
   type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
+  /**
+   * mid ของ Meta — รูปหลายใบในข้อความเดียวได้ `mid`, `mid#1`, `mid#2`… (convention ของ ingest)
+   * ใช้เป็นเส้นแบ่ง "ก้อนอัลบั้ม" ในเธรด (user report 2026-08-04: 2 รูป + 6 รูป กลายเป็นกอง 8)
+   * GET คืนคอลัมน์นี้มาอยู่แล้ว (findMany ไม่มี select) — ประกาศ type เพิ่มเท่านั้น
+   * optional เพราะแถว optimistic ฝั่ง client ยังไม่มี mid จนกว่าจะบันทึกจริง
+   */
+  externalMessageId?: string | null
   body: string | null
   imageUrl: string | null
   // ไฟล์แนบ (2026-08-02) — ชื่อเดิม/ขนาดที่ผู้ส่งเลือก; null = ข้อความเก่าหรือไฟล์ที่ mirror มาจาก

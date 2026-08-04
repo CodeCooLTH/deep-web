@@ -43,6 +43,8 @@ export const STATUS_META = ORDER_STATUS_META
 // TYPE_META ถูกลบ — type badge ถอดออกไปตั้งแต่ 2026-06-16 (user request) และไม่มีใคร import ต่อ
 
 export interface StatusHeroProps {
+  /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ใช้ผันป้าย action แก้ไข/ยกเลิก */
+  orderNoun?: string
   publicToken: string
   shortCode?: string | null
   status: string
@@ -90,6 +92,7 @@ function noop() {
 }
 
 export default function StatusHero({
+  orderNoun,
   publicToken,
   status,
   createdAtISO,
@@ -119,6 +122,7 @@ export default function StatusHero({
     status: status as OrderStatus,
     fulfillmentMode,
     shipmentSource,
+    orderNoun,
   })
   const handleAction = onAction ?? noop
   // CANCELLED คืนชุดว่างทั้งหมด → ไม่มีทั้งเส้นประและแถวปุ่มในการ์ด

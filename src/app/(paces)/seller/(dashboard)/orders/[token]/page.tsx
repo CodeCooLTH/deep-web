@@ -40,6 +40,7 @@ import { toShipmentContextJson } from '@/lib/iship/context'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { resolveBuyerDisplayName } from '@/lib/order-display'
 import OrderDetailClient from './components/OrderDetailClient'
 import OrderFactsCard from './components/OrderFactsCard'
@@ -48,7 +49,17 @@ import OrderReviewCard from './components/OrderReviewCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
 import type { ShipmentSource } from './components/order-action-set'
 
-export const metadata: Metadata = { title: 'รายละเอียดคำสั่งซื้อ' }
+/**
+ * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ (constant ไม่รู้จัก shop ของ request)
+ * resolve ไม่ได้ → ตกไปชุด ONLINE_SALES ตาม fail-safe ของ SSOT
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const session = await getServerSession(authOptions)
+  const active = await requireActiveShop(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  ).catch(() => null)
+  return { title: `รายละเอียด${resolveOrderVocab(active?.shop?.vertical ?? '').noun}` }
+}
 
 interface PageProps {
   params: Promise<{ token: string }>
@@ -65,6 +76,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   if (!active) redirect('/orders')
   const shop = active.shop
+  // feature 00030 — คลังคำผันตามประเภทกิจการ ใช้ทั้ง h1/breadcrumb และส่งลง client components
+  const vocab = resolveOrderVocab(shop.vertical)
 
   // DAL pattern: bake shopId filter เข้า query — กัน RSC flight-data leak
   // (redirect-after-fetch ไม่ได้ป้องกัน เพราะข้อมูล serialize เข้า flight ก่อน redirect throw)
@@ -82,6 +95,18 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
   const createdAtISO = (order.createdAt as Date).toISOString()
+
+  /**
+   * feature 00030 D-1 — กล่องยืนยันยกเลิกเคยบอกทุกร้านว่า "สินค้าจะถูกคืนเข้าสต็อก" ซึ่งเป็นเท็จ
+   * กับร้านส่วนใหญ่: restockFromCancelledOrder คืนเฉพาะ OrderItem ที่ stockDeducted != null
+   * (เซ็ตตอนตัดสต็อกผ่าน Inventory Add-on เท่านั้น) ไม่มีเลย → short-circuit return ทันที
+   *
+   * เงื่อนไขจริงคือ stockDeducted ไม่ใช่ vertical — ร้านขายออนไลน์ที่ไม่ได้ซื้อ add-on ก็ต้องได้
+   * ข้อความที่ไม่สัญญาการคืนสต็อกเหมือนกัน จึงคำนวณจากข้อมูลจริงของออเดอร์ ไม่ derive จาก vertical
+   */
+  const hasDeductedStock = ((order.items ?? []) as Array<{ stockDeducted: number | null }>).some(
+    (i) => i.stockDeducted != null,
+  )
 
   // สร้าง review data — ส่งข้าม RSC boundary ที่นี่ (S-C1: neutralize-at-source, ไม่ใช่ "mask")
   // user decision 2026-07-30: โชว์เบอร์/ชื่อผู้ซื้อเต็มทั้งหน้า (ไม่มาส์ก)
@@ -173,14 +198,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
           visually-hidden เฉพาะไฟล์ของหน้านี้แทน (sr-only เป็น convention เดิมของโปรเจกต์ — ดู
           seller/(dashboard)/products/components/ProductBasicCardV2.tsx) ให้ screen reader เจอ h1
           จริงโดยไม่กระทบภาพที่ user เห็น (breadcrumb ยังโชว์ title แบบเดิมทุกอย่าง) */}
-      <h1 className="sr-only">รายละเอียดคำสั่งซื้อ</h1>
+      <h1 className="sr-only">รายละเอียด{vocab.noun}</h1>
 
       <PageBreadcrumb
-        title="รายละเอียดคำสั่งซื้อ"
-        trail={[{ label: 'คำสั่งซื้อ', href: '/orders' }]}
+        title={`รายละเอียด${vocab.noun}`}
+        trail={[{ label: vocab.noun, href: '/orders' }]}
       />
 
       <OrderDetailClient
+        vocab={vocab}
+        hasDeductedStock={hasDeductedStock}
         publicToken={order.publicToken}
         shortCode={order.shortCode ?? null}
         status={order.status}
@@ -259,7 +286,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
               คือ ใครสร้าง/ใครขอเลขพัสดุ/ใครส่ง SMS/ใครยกเลิก ซึ่งฐานข้อมูลยังไม่ได้เก็บ
               กำลังทำเป็น feature 00031 (ตาราง OrderEvent) แล้วจะกลับมาลงตำแหน่งนี้ */}
           <div className="space-y-base">
-            {showReviewCard && <OrderReviewCard review={reviewData} />}
+            {showReviewCard && <OrderReviewCard review={reviewData} orderNoun={vocab.noun} />}
           </div>
         </div>
       </OrderDetailClient>

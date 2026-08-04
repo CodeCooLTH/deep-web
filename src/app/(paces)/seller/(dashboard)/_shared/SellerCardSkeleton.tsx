@@ -21,8 +21,8 @@
  *   เป็นตาราง แต่โชว์ skeleton การ์ด = ผิด — บทเรียน 2026-06-16)
  */
 
-/** PulseBar — bar เดี่ยวสำหรับ compose skeleton */
-const PulseBar = ({ className }: { className?: string }) => (
+/** PulseBar — bar เดี่ยวสำหรับ compose skeleton (export ให้หน้าที่ layout ไม่ใช่การ์ดประกอบเองได้) */
+export const PulseBar = ({ className }: { className?: string }) => (
   <span className={`bg-default-300 block animate-pulse rounded ${className ?? ''}`} />
 )
 

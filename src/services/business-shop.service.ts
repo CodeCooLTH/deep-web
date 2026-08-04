@@ -7,6 +7,9 @@ import {
 
 export async function createBusinessShop(ownerId: string, data: {
   shopName: string; businessType: string; category?: string; description?: string;
+  // categories = SSOT ของหมวดร้าน (≤5). category ช่องเดียวเป็น LEGACY ที่ยังมีหน้าอื่นอ่านอยู่
+  // จึง derive จากตัวแรกของ categories ให้อัตโนมัติ — ผู้เรียกไม่ต้องส่งสองที่ให้ตรงกันเอง
+  categories?: string[];
   // feature 00017 → ขยายเป็น 3 ค่าที่ feature 00028 — ประเภทร้านค้า:
   //   ONLINE_SALES (ขายออนไลน์) | SERVICE_QUEUE (สินค้าและบริการ) | LODGING (บ้านพัก)
   // optional เพื่อ backward-compat (ผู้เรียกเดิมไม่ส่ง = ONLINE_SALES ตาม default ของ DB)
@@ -26,7 +29,9 @@ export async function createBusinessShop(ownerId: string, data: {
     const shop = await tx.shop.create({
       data: {
         userId: ownerId, kind: "BUSINESS", shopName: data.shopName,
-        businessType: data.businessType, category: data.category, description: data.description,
+        businessType: data.businessType, description: data.description,
+        categories: data.categories ?? [],
+        category: data.category ?? data.categories?.[0],
         ...(data.vertical ? { vertical: data.vertical } : {}),
       },
     });

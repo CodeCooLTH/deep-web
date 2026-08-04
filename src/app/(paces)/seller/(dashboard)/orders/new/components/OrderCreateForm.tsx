@@ -16,6 +16,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
+import type { OrderVocab } from '@/lib/seller-menu'
 import { runAfterOrderCreate, type IShipCreateMode } from '@/lib/iship/after-order-create'
 import * as Yup from 'yup'
 import ProductGrid from './ProductGrid'
@@ -45,6 +46,8 @@ export interface CatalogProduct {
 }
 
 interface Props {
+  /** คลังคำผันตามประเภทกิจการ (feature 00030) — คำนวณที่ RSC */
+  vocab: OrderVocab
   shopId: string
   catalog: CatalogProduct[]
   /** สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน quick create ProductPickerSheet (< lg) */
@@ -224,6 +227,7 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function OrderCreateForm({
+  vocab,
   shopId: _shopId,
   catalog,
   bestSellers = [],
@@ -664,7 +668,7 @@ export default function OrderCreateForm({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setSubmitError(data?.error ?? (editOrderToken ? 'แก้ไขคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่' : 'สร้างออเดอร์ไม่สำเร็จ กรุณาลองใหม่'))
+        setSubmitError(data?.error ?? (editOrderToken ? `แก้ไข${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่` : `${vocab.createLabel}ไม่สำเร็จ กรุณาลองใหม่`))
         setSubmitStatus('error')
         return
       }
@@ -678,7 +682,7 @@ export default function OrderCreateForm({
       if (isDesktop) {
         // โหมดแก้ไข (PATCH) ไม่ได้สร้างลิงก์ใหม่ — copy เดิมชวนให้ "แชร์ลิงก์" ผิดบริบท
         pacesToast.success(
-          editOrderToken ? 'บันทึกการแก้ไขแล้ว' : 'สร้างออเดอร์แล้ว แชร์ลิงก์ให้ผู้ซื้อ',
+          editOrderToken ? 'บันทึกการแก้ไขแล้ว' : `${vocab.createLabel}แล้ว แชร์ลิงก์ให้ลูกค้า`,
         )
       }
 
@@ -767,6 +771,7 @@ export default function OrderCreateForm({
     >
       {/* Full-bleed status sheet: loading ระหว่าง submit / error + ปุ่มปิดกลับไปแก้ไข */}
       <SubmitStatusSheet
+        createLabel={vocab.createLabel}
         status={submitStatus}
         errorMessage={submitError}
         onDismiss={() => setSubmitStatus('idle')}
@@ -778,6 +783,7 @@ export default function OrderCreateForm({
           compact (โมดัลในแชท): บังคับ QuickForm ทุกขนาดจอ — เดสก์ท็อป 3-col แน่นเกินในโมดัล */}
       <div className={compact ? '' : 'lg:hidden'}>
         <QuickForm
+          orderNoun={vocab.noun}
           prefillParseText={prefillParseText}
           control={control}
           errors={errors}
@@ -808,6 +814,7 @@ export default function OrderCreateForm({
         </div>
         <div className="lg:h-full">
           <CartPanel
+            orderNoun={vocab.noun}
             control={control}
             catalog={catalog}
             itemsCtl={itemsCtl}

@@ -44,7 +44,7 @@ import type { ShopVertical } from '@/lib/lodging'
 type Step = 'info' | 'slug' | 'product'
 type SlugCheck = 'idle' | 'checking' | 'ok' | 'taken' | 'invalid'
 const STEP_META: Record<Step, { icon: string; heading: string; subtitle: string }> = {
-  info: { icon: 'building-store', heading: 'ข้อมูลร้านธุรกิจ', subtitle: 'ตั้งชื่อ หมวดหมู่ และโลโก้ของร้าน' },
+  info: { icon: 'photo', heading: 'ใส่โลโก้ร้าน', subtitle: 'ข้ามได้ เพิ่มทีหลังในหน้าตั้งค่าร้าน' },
   slug: { icon: 'link', heading: 'ตั้ง URL ร้านของคุณ', subtitle: 'ลูกค้าจะค้นหาร้านคุณผ่านลิงก์นี้' },
   product: { icon: 'package', heading: 'สร้างสินค้าแรกของคุณ', subtitle: 'เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้าน' },
 }
@@ -78,6 +78,16 @@ export default function BusinessOnboardingWizard({
   const { update } = useSession()
 
   const [step, setStep] = useState<Step>('info')
+
+  /**
+   * ธุรกิจที่สร้างผ่าน modal 4 ขั้น (feature 00030) มีชื่อร้าน+หมวดหมู่ครบมาแล้วตั้งแต่ตอนสร้าง
+   * — ถามซ้ำที่นี่คือให้ผู้ใช้กรอกสิ่งเดิมสองรอบ (user ทักเอง 2026-08-04 ว่า "ซ้ำซ้อนกัน")
+   *
+   * ยังเผื่อไว้สำหรับร้านที่ข้อมูลไม่ครบจริง: ร้านเก่าที่สร้างก่อนหน้านี้ หรือทางเข้าอื่นที่
+   * ยังสร้างร้านโดยไม่ระบุหมวดได้ (onboarding ผู้ขาย, สมัครสมาชิก) — กรณีนั้นยังต้องถาม
+   * ไม่งั้นจะไม่มีที่ให้กรอกเลย
+   */
+  const needsBasics = !initialShopName || !initialCategory
 
   // step ข้อมูลร้าน — react-hook-form (shopName+category) แยกจาก logo (fileId state ตาม ShopForm pattern)
   const {
@@ -297,7 +307,9 @@ export default function BusinessOnboardingWizard({
   const meta =
     step === 'product' && vertical === 'SERVICE_QUEUE'
       ? { icon: 'armchair', heading: 'สร้างคิวงานแรกของคุณ', subtitle: 'เพิ่มคิวงานที่รับได้ เพื่อเริ่มนัดลูกค้า' }
-      : STEP_META[step]
+      : step === 'info' && needsBasics
+        ? { icon: 'building-store', heading: 'ข้อมูลร้านธุรกิจ', subtitle: 'ตั้งชื่อ หมวดหมู่ และโลโก้ของร้าน' }
+        : STEP_META[step]
 
   return (
     <div className="card mx-auto max-w-2xl">
@@ -329,29 +341,42 @@ export default function BusinessOnboardingWizard({
 
         {step === 'info' && (
           <form onSubmit={handleSubmit(submitInfo)} noValidate>
-            <div className="mb-4">
-              <label className="form-label">
-                ชื่อร้าน<span className="text-danger ms-0.5">*</span>
-              </label>
-              <input type="text" className="form-input" placeholder="เช่น สาขา 2" {...register('shopName')} />
-              {errors.shopName && <p className="text-danger mt-1 text-sm">{errors.shopName.message}</p>}
-            </div>
+            {needsBasics ? (
+              <>
+                <div className="mb-4">
+                  <label className="form-label">
+                    ชื่อร้าน<span className="text-danger ms-0.5">*</span>
+                  </label>
+                  <input type="text" className="form-input" placeholder="เช่น สาขา 2" {...register('shopName')} />
+                  {errors.shopName && <p className="text-danger mt-1 text-sm">{errors.shopName.message}</p>}
+                </div>
 
-            {/* หมวดหมู่ — HR6 form-select native */}
-            <div className="mb-4">
-              <label className="form-label">
-                หมวดหมู่ <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
-              </label>
-              <select className="form-select" {...register('category')}>
-                <option value="">-- เลือกหมวดหมู่ --</option>
-                {SHOP_CATEGORY_KEYS.map((key) => (
-                  <option key={key} value={key}>
-                    {SHOP_CATEGORY_LABELS[key]}
-                  </option>
-                ))}
-              </select>
-              {errors.category && <p className="text-danger mt-1 text-sm">{errors.category.message}</p>}
-            </div>
+                {/* หมวดหมู่ — HR6 form-select native */}
+                <div className="mb-4">
+                  <label className="form-label">
+                    หมวดหมู่ <span className="text-default-400 text-xs">(ไม่บังคับ)</span>
+                  </label>
+                  <select className="form-select" {...register('category')}>
+                    <option value="">-- เลือกหมวดหมู่ --</option>
+                    {SHOP_CATEGORY_KEYS.map((key) => (
+                      <option key={key} value={key}>
+                        {SHOP_CATEGORY_LABELS[key]}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.category && <p className="text-danger mt-1 text-sm">{errors.category.message}</p>}
+                </div>
+              </>
+            ) : (
+              /* กรอกมาแล้วตอนสร้าง — ทวนให้เห็นว่าระบบจำได้ ไม่ใช่ให้กรอกใหม่
+                 (แก้ทีหลังได้ที่หน้าตั้งค่าร้าน ไม่ต้องมีปุ่มแก้ตรงนี้ให้รก) */
+              <div className="bg-default-100 mb-4 rounded-lg p-3">
+                <p className="text-default-900 text-sm font-medium">{initialShopName}</p>
+                <p className="text-default-400 mt-0.5 text-xs">
+                  {SHOP_CATEGORY_LABELS[initialCategory as keyof typeof SHOP_CATEGORY_LABELS] ?? initialCategory}
+                </p>
+              </div>
+            )}
 
             <div className="mb-4">
               <label className="form-label">
@@ -383,7 +408,7 @@ export default function BusinessOnboardingWizard({
               disabled={infoLoading}
               className="btn bg-primary text-white hover:bg-primary-hover mt-2 w-full disabled:opacity-50"
             >
-              {infoLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}
+              {infoLoading ? 'กำลังบันทึก...' : needsBasics ? 'ถัดไป' : logoFileId ? 'ถัดไป' : 'ข้ามไปก่อน'}
             </button>
           </form>
         )}

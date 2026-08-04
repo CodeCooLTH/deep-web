@@ -9,6 +9,11 @@ import bcrypt from "bcryptjs";
 import { verifyLinkIntent, LINK_INTENT_COOKIE } from "@/lib/link-intent";
 import { getPersonalShop, isShopMember } from "@/lib/shop-context";
 import { resolveOnboardingGate } from "@/lib/onboarding-gate";
+// ลบบัญชี (App Store 5.1.1(v)) — ทุก provider ต้องปฏิเสธบัญชีที่ deletedAt มีค่า
+// 🛑 ใช้ helper ตัวนี้ที่เดียว ห้ามเขียนเงื่อนไข deletedAt เองซ้ำ: มีทางเข้า 6 ทาง
+// (phone-otp / seller / buyer / admin credentials / mobile-ticket / OAuth) พลาดทางเดียว
+// = บัญชีที่ผู้ใช้สั่งลบยังกลับเข้ามาได้ ซึ่งผิดข้อกำหนดของ Apple ตรง ๆ
+import { isDeletedUser } from "@/lib/account-deletion";
 
 // Rate-limit store สำหรับ admin login — singleton pattern เหมือน otp.ts
 // ป้องกัน Next.js สร้าง instance ใหม่ต่อ module load ใน multi-route environment
@@ -43,6 +48,10 @@ async function upsertOAuthUser(
       },
     },
   });
+  // backstop ของ signIn callback (ซึ่งเป็นด่านหลัก) — ถ้าวันไหนมีคนแก้ signIn จนหลุด
+  // ต้องไม่กลายเป็นว่าบัญชีที่ผู้ใช้สั่งลบถูกปลุกกลับมาเงียบ ๆ ยอมให้ throw ดังกว่าปล่อยผ่าน
+  if (isDeletedUser(dbUser)) throw new Error("ACCOUNT_DELETED");
+
   if (!dbUser) {
     // linkEmail=true เฉพาะ provider ที่ email ถูก platform ยืนยัน + user consent (FB graph).
     // LINE/IG=false: LINE email claim ไม่ verified + ไม่ขอ scope → ห้ามเก็บ/ใช้ link history
@@ -149,6 +158,11 @@ export const authOptions: NextAuthOptions = {
         let user = await prisma.user.findFirst({
           where: { phone: credentials.phone },
         });
+
+        // บัญชีที่ถูกลบยัง "จอง" เบอร์ไว้ตลอด 30 วัน retention (User.phone @unique ยังไม่ถูกล้าง)
+        // ต้อง return null ที่นี่ ไม่ปล่อยให้หล่นไปสาขา !user ด้านล่างแล้วสร้างบัญชีใหม่ —
+        // จะชน unique constraint กลายเป็น 500 และ (ร้ายกว่า) ถ้าชนไม่โดนก็เท่ากับปลุกบัญชีที่สั่งลบไปแล้ว
+        if (isDeletedUser(user)) return null;
 
         if (!user) {
           const displayName =
@@ -299,6 +313,9 @@ export const authOptions: NextAuthOptions = {
           where: { username: credentials.username },
         });
         if (!user) return null;
+        // บัญชีถูกลบแล้ว → ปฏิเสธเงียบ ๆ เหมือนกรณี "ไม่เจอ user"/"รหัสผิด" ทุกประการ
+        // ห้ามแยกข้อความ — ไม่งั้นกลายเป็นช่องให้เดาว่า username ไหนมีตัวตน (account enumeration)
+        if (isDeletedUser(user)) return null;
         // seller = ไม่ใช่ admin (admin ใช้ provider แยก) + ต้องเปิดร้านแล้ว (isShop) + ตั้ง password แล้ว
         // buyer ที่ตั้ง password แต่ยังไม่เปิดร้าน → เป็น seller ผ่าน signup/onboarding ไม่ใช่ login ตรงนี้ (S-P1-9)
         if (user.isAdmin) return null;
@@ -340,6 +357,8 @@ export const authOptions: NextAuthOptions = {
           where: { username: credentials.username },
         });
         if (!user) return null;
+        // บัญชีถูกลบแล้ว → ปฏิเสธเงียบ ๆ (เหตุผลเดียวกับ seller-credentials ด้านบน)
+        if (isDeletedUser(user)) return null;
         // buyer login ฝั่ง main site: ทุก user ที่ไม่ใช่ admin + ตั้ง password แล้ว
         // (seller ก็ login ที่ main ได้ — บัญชีเดียวกัน — จึงไม่ตรวจ isShop; admin ใช้ provider แยก)
         if (user.isAdmin) return null;
@@ -393,6 +412,10 @@ export const authOptions: NextAuthOptions = {
         // (e) ไม่เจอ user → return null (ห้ามบอก error ละเอียด — กัน user enumeration)
         if (!user) return null;
 
+        // (e2) บัญชีถูกลบแล้ว → ปฏิเสธเงียบ ๆ เหมือน (e) ทุกประการ (กัน enumeration)
+        //      แอดมินลบบัญชีตัวเองได้ในทางทฤษฎี — ต้องกันไว้ให้ครบเหมือน provider อื่น
+        if (isDeletedUser(user)) return null;
+
         // (f) ต้องเป็น admin เท่านั้น — buyer/seller ที่รู้รหัส login เข้าไม่ได้
         if (!user.isAdmin) return null;
 
@@ -433,6 +456,8 @@ export const authOptions: NextAuthOptions = {
         if (!uid) return null;
         const user = await prisma.user.findUnique({ where: { id: uid } });
         if (!user) return null;
+        // ticket ที่ออกก่อนผู้ใช้กดลบบัญชียังเผาได้อยู่ (อายุสั้นแต่ไม่เป็นศูนย์) — ต้องกันซ้ำที่นี่
+        if (isDeletedUser(user)) return null;
         // shape เดียวกับ phone-otp/admin-credentials — jwt callback อ่าน user.id → token.userId
         return { id: user.id, name: user.displayName, email: user.email };
       },
@@ -468,6 +493,31 @@ export const authOptions: NextAuthOptions = {
       } as const;
       type OAuthProvider = keyof typeof oauthMap;
       if (!(account.provider in oauthMap)) return true;
+
+      /**
+       * บัญชีถูกลบแล้ว → ห้าม OAuth พากลับเข้ามา (App Store 5.1.1(v))
+       *
+       * ต้องเช็คที่ signIn ไม่ใช่ jwt: signIn ทำงาน "ก่อน" jwt เสมอ และ return false ที่นี่
+       * ทำให้ NextAuth หยุด flow อย่างสะอาด (พาไปหน้า error) ส่วนการ throw ใน jwt จะกลายเป็น
+       * 500 ที่ผู้ใช้อ่านไม่รู้เรื่อง
+       *
+       * เช็คทั้งสองโหมด (login ปกติ + link mode) เพราะวางไว้ก่อนแยกสาขา link-intent —
+       * บัญชีที่ถูกลบต้องผูก provider ใหม่ไม่ได้ด้วย ไม่ใช่แค่ล็อกอินไม่ได้
+       *
+       * AuthAccount ยังอยู่จนกว่าจะ purge (วันที่ 31) จึง lookup เจอในช่วง retention —
+       * นั่นคือจุดที่ต้องกัน หลัง purge แถวถูกลบไปแล้วจะกลายเป็น "สมัครใหม่" ตามปกติ
+       */
+      const deletedCheckProvider = oauthMap[account.provider as OAuthProvider];
+      const linkedAccount = await prisma.authAccount.findUnique({
+        where: {
+          provider_providerAccountId: {
+            provider: deletedCheckProvider,
+            providerAccountId: account.providerAccountId,
+          },
+        },
+        select: { user: { select: { deletedAt: true } } },
+      });
+      if (isDeletedUser(linkedAccount?.user)) return false;
 
       // อ่าน link-intent cookie — ถ้าไม่มีหรือ verify ไม่ผ่าน = login ปกติ
       let intent: { userId: string; provider: string } | null = null;
@@ -585,8 +635,22 @@ export const authOptions: NextAuthOptions = {
           where: { id: token.userId as string },
           // P2-4 (feature 00008 Phase 2 cutover): User.shop (1:1) → User.shops (1:N) — needsOnboarding
           // ยึด Personal shop เดิมเป็นฐานเสมอ (ไม่ใช่ shop แรกที่เจอ)
-          select: { phone: true, shops: { where: { kind: "PERSONAL" }, select: { id: true, slug: true } } },
+          select: { phone: true, deletedAt: true, shops: { where: { kind: "PERSONAL" }, select: { id: true, slug: true } } },
         });
+
+        /**
+         * บัญชีถูกลบระหว่างที่ยังมี session ค้างอยู่ → ตัด token ทิ้ง (App Store 5.1.1(v))
+         *
+         * เกิดได้จริง 2 กรณี: ผู้ใช้กดลบจากอีกเครื่อง/อีกแท็บ, หรือกดลบแล้วเบราว์เซอร์
+         * ยังไม่ทัน signOut (เน็ตหลุดกลางทาง). คืน token เปล่า = getToken() ได้ค่าไม่มี userId
+         * → layout/proxy พาไป /auth/sign-in ตามปกติ ไม่ต้องมีทางออกพิเศษ
+         *
+         * ทำงานเฉพาะจังหวะ sign-in / session.update() เท่านั้น (อยู่ใน if เดิม) — ไม่ query DB
+         * ทุก request ตามเจตนาเดิมของบล็อกนี้ ผู้ใช้ที่ถือ JWT เก่าจึงยังใช้ได้จนกว่าจะ refresh
+         * ซึ่งรับได้: การกดลบฝั่ง client เรียก signOut() ต่อทันทีอยู่แล้ว นี่เป็นแค่ตาข่ายรอง
+         */
+        if (u?.deletedAt) return {};
+
         const personal = u?.shops[0] ?? null;
 
         // activeShopId (feat 00008 TFR-012, ปรับ 00012) — trigger==='update' + client ส่ง activeShopId มา

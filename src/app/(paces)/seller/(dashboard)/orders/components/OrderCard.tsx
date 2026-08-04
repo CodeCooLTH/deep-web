@@ -20,6 +20,7 @@ import { Icon } from '@iconify/react'
 import Link from 'next/link'
 import { formatRelativeDayTime } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
+import type { OrderVocab } from '@/lib/seller-menu'
 import { useRef, useState } from 'react'
 import {
   PAYMENT_ICONS,
@@ -113,9 +114,11 @@ function ProductImage({ src, alt }: { src?: string; alt: string }) {
 interface OrderCardProps {
   order: OrderRow
   onCancelRequest: (token: string) => void
+  /** คลังคำผันตามประเภทกิจการ (feature 00030) — ส่งต่อมาจาก OrdersList */
+  vocab: OrderVocab
 }
 
-export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
+export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardProps) {
   const [expanded, setExpanded] = useState(false)
 
   // เลขคำสั่งซื้อ DP… (user 2026-07-25) — derive จาก publicToken+createdAt (ตรงกับ orderNo ใน DB)
@@ -143,7 +146,7 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
           ปุ่มที่ต้องกดได้ต้องถูกยกขึ้นเหนือแผ่นนี้ด้วย relative z-10 (ดูจุดที่กำกับไว้ข้างล่าง) */}
       <Link
         href={`/orders/${order.publicToken}`}
-        aria-label={`ดูรายละเอียดออเดอร์ ${displayId}`}
+        aria-label={`ดูรายละเอียด${vocab.noun} ${displayId}`}
         className="absolute inset-0 rounded transition-colors active:bg-default-500/10"
       />
 
@@ -291,7 +294,7 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
               relative z-10: ยกทั้งกลุ่มขึ้นเหนือแผ่นลิงก์ — .btn ของ Paces มี z-index:10 ในตัวอยู่แล้ว
               แต่เมนู ⋮ กางออกมาเป็น panel ที่ไม่ใช่ .btn จึงต้องยกที่ระดับกลุ่ม ไม่ใช่รายปุ่ม */}
           <div className="relative z-10 shrink-0">
-            <OrderActions order={order} onCancelRequest={onCancelRequest} variant="card" />
+            <OrderActions order={order} onCancelRequest={onCancelRequest} variant="card" orderNoun={vocab.noun} />
           </div>
         </div>
 

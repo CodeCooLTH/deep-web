@@ -29,7 +29,7 @@ export const MESSAGING_WINDOW_MS = 24 * 60 * 60 * 1000
  * (Messaging Policy: human agent tag "manually respond to user messages within a 7-day period")
  * ครอบทั้ง Messenger และ Instagram
  *
- * 🛑 ใช้ได้เฉพาะข้อความที่ "คนพิมพ์เอง" เท่านั้น — ห้าม auto-reply/AI ยิงผ่าน tag นี้ และห้าม
+ * สำคัญ: ใช้ได้เฉพาะข้อความที่ "คนพิมพ์เอง" เท่านั้น — ห้าม auto-reply/AI ยิงผ่าน tag นี้ และห้าม
  * เนื้อหาโปรโมชัน (ผิดนโยบาย เสี่ยงโดนระงับแอป) จึง gate ที่ service ไม่ใช่แค่ซ่อนปุ่มใน UI
  */
 export const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
@@ -577,7 +577,7 @@ export async function ingestInboundMessage(params: {
   // dedup (user report 2026-07-25: สติกเกอร์ส่งครั้งเดียวขึ้น 2 อัน): Messenger ส่งสติกเกอร์บางตัวเป็น
   // attachment ซ้ำ 2 ชิ้นใน event เดียว → loop นี้เคย mirror ตัวซ้ำเป็นข้อความที่ 2
   //
-  // 🛑 ต้องคีย์ด้วย **url ก่อน** แล้วค่อยตกไป sticker_id (user report prod 2026-08-04 "มันดันส่ง 2 ที
+  // สำคัญ: ต้องคีย์ด้วย **url ก่อน** แล้วค่อยตกไป sticker_id (user report prod 2026-08-04 "มันดันส่ง 2 ที
   // ทั้ง ๆ ที่ผมกดส่งทีเดียว"): ตั้งแต่ Sticker API รอบใหม่ Meta ส่งสติกเกอร์ 1 ใบมาเป็น attachment
   // 2 ชิ้นที่ **ชนิดต่างกันแต่ url เดียวกัน** — `{type:'sticker', payload:{sticker_id,url}}` +
   // `{type:'image', payload:{url}}` (เอกสาร Sticker API ระบุเองว่าเป็นช่วงเปลี่ยนผ่าน 90 วัน
@@ -1103,7 +1103,7 @@ export async function ingestReactionEvent(params: {
   if (!target) return
 
   /**
-   * 🛑 ห้ามเขียน null ตอน action='react' (user report prod 2026-08-04: "กด emoji ไม่ได้ กดแล้วมันขึ้น
+   * สำคัญ: ห้ามเขียน null ตอน action='react' (user report prod 2026-08-04: "กด emoji ไม่ได้ กดแล้วมันขึ้น
    * ซัก 1 วิ แล้วมันก็หายไป refresh ก็ไม่มา" — และเสริมว่าเกิดเฉพาะ "เวลาเรากด emoji ฝั่งเราเอง")
    *
    * ต้นเหตุ: ข้อความหนึ่งมี **ผู้เขียนคอลัมน์นี้ 2 ราย** — sendOutboundReaction (ตอนร้านกด) และ
@@ -1293,11 +1293,31 @@ export async function sendOutboundImageGrid(params: {
 
   const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
   const recipientId = conversation.externalContact.externalUserId
-  const urls = await Promise.all(files.map((id) => getFileUrl(id, { signed: true, expiresIn: 3600 })))
+  /**
+   * 2 ลิงก์ต่อรูป คนละอายุ คนละหน้าที่:
+   *  - `url` (1 ชม.) = ลิงก์ให้ **Meta ดึงรูปไปเก็บ** ตอนส่ง หมดอายุหลังจากนั้นไม่มีผล
+   *  - `actionUrl` (1 ปี) = ลิงก์ที่ฝังใน action ของรูป **ลูกค้าเป็นคนเปิดเอง** วันไหนก็ได้
+   *
+   * ต้องมี action ไม่งั้นกดรูปไม่ได้เลย — เอกสาร Meta (Image grid template) เขียนไว้ตรงตัวว่า
+   * "Images without an action are not tappable." และ action มีแค่ web_url/postback ไม่มีชนิด
+   * "เปิดตัวดูรูปเต็มจอ" ให้เลือก (user report prod 2026-08-04: "ส่ง 2 รูปแล้วมันกดดูรูปไม่ได้")
+   * web_url จึงเป็นทางเดียวที่ทำให้กดดูรูปเต็ม ๆ ได้ — เปิดใน webview ของ Messenger
+   *
+   * ลิงก์อายุ 1 ปีเป็น presigned ของ Supabase (เดาไม่ได้) และเป็น "รูปที่เราส่งให้ลูกค้าคนนั้นเอง
+   * อยู่แล้ว" ไม่ใช่การเปิดคลังไฟล์ร้านให้ใครก็เข้าถึง. พ้น 1 ปีลิงก์ตาย = กดแล้วขึ้น error ของ
+   * storage (รูปในกริดยังอยู่ เพราะ Meta เก็บสำเนาไว้ตอนส่งแล้ว)
+   */
+  const ACTION_URL_TTL = 60 * 60 * 24 * 365
+  const images = await Promise.all(
+    files.map(async (id) => ({
+      url: await getFileUrl(id, { signed: true, expiresIn: 3600 }),
+      actionUrl: await getFileUrl(id, { signed: true, expiresIn: ACTION_URL_TTL }),
+    })),
+  )
 
   let mid: string | null = null
   try {
-    mid = await sendImageGridMessage(pageToken, recipientId, urls, {
+    mid = await sendImageGridMessage(pageToken, recipientId, images, {
       caption: params.caption ?? null,
       tag: messageTag,
     })

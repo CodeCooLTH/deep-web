@@ -36,6 +36,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import LockedStateBanner from './components/LockedStateBanner'
 import AdvanceWarningBanner from './components/AdvanceWarningBanner'
 import QuotaUsageCard, { type QuotaBusinessItem } from './components/QuotaUsageCard'
+import BusinessCreateModalMount from './components/BusinessCreateModalMount'
 import PackageTierGrid from './components/PackageTierGrid'
 import type { DowngradeBusinessItem } from './components/DowngradeButton'
 
@@ -143,6 +144,10 @@ export default async function BusinessPackagePage() {
       )}
 
       {/* ─── 3. Quota-usage card ───────────────────────────────────────────── */}
+      {/* feature 00030 — สร้างธุรกิจเป็น modal ทับหน้านี้ (?create=1) ไม่ใช่หน้าแยกอีกต่อไป
+          ฉากหลังเบลอคือหน้ารายการธุรกิจจริง ผู้ใช้จึงไม่หลุดบริบทว่าตัวเองอยู่ที่ไหน */}
+      <BusinessCreateModalMount canCreate={canCreate} />
+
       <QuotaUsageCard
         ownedCount={ownedCount}
         maxBusinesses={maxBusinesses}

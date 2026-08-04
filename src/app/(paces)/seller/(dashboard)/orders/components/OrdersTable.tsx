@@ -12,6 +12,7 @@
 import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
+import type { OrderVocab } from '@/lib/seller-menu'
 import { formatDateTime } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import {
@@ -96,9 +97,11 @@ type Props = {
   orders: OrderRow[]
   /** ร้านเชื่อมต่อ iShip + เป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028) */
   ishipEnabled?: boolean
+  /** คลังคำผันตามประเภทกิจการ (feature 00030) — ส่งต่อมาจาก OrdersList ที่รับมาจาก RSC */
+  vocab: OrderVocab
 }
 
-export default function OrdersTable({ orders, ishipEnabled = false }: Props) {
+export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Props) {
   const router = useRouter()
   const [globalFilter,   setGlobalFilter]   = useState('')
   const [sorting,        setSorting]        = useState<SortingState>([])
@@ -116,7 +119,7 @@ export default function OrdersTable({ orders, ishipEnabled = false }: Props) {
   const handleCancelRequest = async (token: string) => {
     const o = orders.find((x) => x.publicToken === token)
     const label = o ? `ออเดอร์ ${formatOrderNo(o.publicToken, o.createdAtISO)}` : 'ออเดอร์นี้'
-    const ok = await pacesConfirm.danger('ยกเลิกออเดอร์นี้?', `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
+    const ok = await pacesConfirm.danger(`ยกเลิก${vocab.noun}นี้?`, `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
       confirmButtonText: 'ยืนยันยกเลิก',
       cancelButtonText: 'ไม่ใช่ตอนนี้',
     })
@@ -128,11 +131,11 @@ export default function OrdersTable({ orders, ishipEnabled = false }: Props) {
         body: JSON.stringify({}),
       })
       if (res.ok) {
-        pacesToast.success('ยกเลิกออเดอร์แล้ว')
+        pacesToast.success(`ยกเลิก${vocab.noun}แล้ว`)
         router.refresh()
       } else {
         const data = await res.json().catch(() => ({}))
-        pacesToast.error(typeof data?.error === 'string' ? data.error : 'ยกเลิกออเดอร์ไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(typeof data?.error === 'string' ? data.error : `ยกเลิก${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่`)
       }
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -322,7 +325,7 @@ export default function OrdersTable({ orders, ishipEnabled = false }: Props) {
       meta: { headerClassName: 'w-px whitespace-nowrap', cellClassName: 'w-px whitespace-nowrap' },
       cell: ({ row }: { row: TableRow<OrderRow> }) => (
         // centralized OrderActions (ชุดเดียวกับ mobile card) — variant table = icon only
-        <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table" />
+        <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table" orderNoun={vocab.noun} />
       ),
     },
   ]
@@ -453,7 +456,7 @@ export default function OrdersTable({ orders, ishipEnabled = false }: Props) {
         <div className="flex items-center gap-2">
           <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover">
             <Icon icon="plus" className="size-4.5" />
-            สร้างออเดอร์
+            {vocab.createLabel}
           </Link>
         </div>
       </div>

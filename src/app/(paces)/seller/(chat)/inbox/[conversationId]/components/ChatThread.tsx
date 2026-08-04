@@ -457,7 +457,14 @@ function ReplyMessageButton({ onReply }: { onReply: () => void }) {
 // จัดกลุ่มรูปที่ส่งติดกัน "ชุดเดียวกัน" เป็นอัลบั้ม (feat 00018, user request 2026-07-23 อ้าง FB):
 // contiguous same-sender bare IMAGE (ไม่มี caption) ที่ห่างกันไม่เกิน ALBUM_GAP_MS → รวมเป็น 1 album
 // (FB Messenger ส่งรูปหลายใบเป็นหลาย event ห่างกันไม่กี่วินาที). กลุ่มขนาด 1 = พฤติกรรมเดิม (bubble เดี่ยว)
-const ALBUM_GAP_MS = 2 * 60 * 1000
+/**
+ * ระยะห่างสูงสุดที่ยอมรวมรูป "ต่าง mid" เป็นก้อนเดียว — 5 วินาที มาจากข้อมูลจริงบน prod 2026-08-04:
+ *   ส่ง 2 รูปจาก Business Suite → Meta ส่งมา 2 mid ห่างกัน **2 วินาที** แต่ Messenger แสดงเป็นกลุ่มเดียว
+ *   ส่ง 2 รูปแล้วต่อด้วย 6 รูป → ห่างกัน **21 วินาที** ต้องเป็นคนละกลุ่ม (ไม่ใช่กอง 8)
+ * เดิมตั้งไว้ 2 นาที ซึ่งกว้างเกินจนเหมาก้อนถัดไปเข้ามารวม
+ * (รูปที่ mid ฐานเดียวกัน = ข้อความเดียวของ Meta → รวมเสมอ ไม่สนเวลา)
+ */
+const ALBUM_GAP_MS = 5 * 1000
 type AlbumRow = { kind: 'single'; m: ChatMessageView } | { kind: 'album'; ms: ChatMessageView[] }
 function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
   const rows: AlbumRow[] = []
@@ -473,12 +480,24 @@ function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
     // ปล่อยให้ไปทางแถวเดี่ยวซึ่งมีป้าย "ตอบกลับ…" อยู่แล้ว
     const bare = m.type === 'IMAGE' && !!m.imageUrl && !m.body && !m.replyTo
     const prev = buf[buf.length - 1]
+    /**
+     * ก้อนเดียวกันหรือไม่ ตัดสินด้วย **mid ฐานเดียวกัน** ก่อนเรื่องเวลา (user report prod 2026-08-04:
+     * ส่ง 2 รูปแล้วส่ง 6 รูปห่างกัน 21 วินาที → ฝั่งเรารวมเป็นกองเดียว "8 รูป")
+     *
+     * ingest ตั้ง externalMessageId ของรูปในข้อความเดียวกันเป็น `mid`, `mid#1`, `mid#2`… อยู่แล้ว
+     * (convention เดิมของ mirror หลาย attachment) จึงมีข้อมูลพอบอกขอบเขตก้อนอยู่แล้ว ไม่ต้องแก้ฐาน
+     * ต่าง mid = ต่างข้อความจริงของ Meta → ต้องเป็นคนละอัลบั้มแม้ส่งติดกันแค่ไหน
+     * ยังคงเงื่อนไขเวลา (ALBUM_GAP_MS) ไว้เป็นตัวช่วยสำหรับแถวที่ยังไม่มี mid (optimistic/DEEP)
+     */
+    const baseMid = (x: ChatMessageView) => (x.externalMessageId ?? '').split('#')[0]
+    const sameMidGroup = !!prev && !!baseMid(m) && baseMid(m) === baseMid(prev)
     const sameGroup =
       bare &&
       prev &&
       prev.senderRole === m.senderRole &&
       new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() <= ALBUM_GAP_MS
-    if (bare && (buf.length === 0 || sameGroup)) {
+    // mid เดียวกัน = ข้อความเดียวของ Meta → รวมเสมอ · ต่าง mid = ต้องผ่านเงื่อนไขเวลา/ผู้ส่ง
+    if (bare && (buf.length === 0 || sameMidGroup || sameGroup)) {
       buf.push(m)
     } else {
       flush()
@@ -1519,10 +1538,45 @@ export default function ChatThread({
                   const isLastOld = last.id === lastMsgId && nowMs - new Date(last.createdAt).getTime() >= RECENT_MS
                   const showTime = atBurstEnd && !isLastOld
                   return (
-                    <div key={ms[0].id} className={`my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}>
+                    /**
+                     * data-message-id / data-message-bubble / group — อัลบั้มต้องมีของชุดเดียวกับบับเบิล
+                     * ปกติ (user report prod 2026-08-04 "ผม react ไม่ได้ พวก reply, emoji ยังทำไม่ได้"):
+                     * เดิมสาขานี้เป็น <div> เปล่า ๆ ไม่มี data attribute เลย → useLongPress หา
+                     * closest('[data-message-id]') ไม่เจอ และไม่มีชุดปุ่ม hover ให้กดบนเดสก์ท็อป
+                     * รีแอ็กชัน/ตอบกลับผูกกับ **ก้อน** ด้วย mid จริงของรูปใบแรก (ms[0]) เพราะ Meta เก็บ
+                     * รีแอ็กชันที่ระดับข้อความ และ mid#1..n เป็นค่าที่เราสร้างเอง ไม่มีอยู่บน Meta
+                     */
+                    <div
+                      key={ms[0].id}
+                      data-message-id={ms[0].id}
+                      className={`group relative my-5 flex items-start gap-2.5 ${mine ? 'justify-end' : ''}`}
+                    >
                       {!mine && <ChatAvatar avatar={buyerAvatar} name={buyerName} />}
-                      <div className="min-w-0">
+                      {mine && (
+                        <div className="flex items-start gap-0.5">
+                          <ReplyMessageButton onReply={() => setReplyingTo(ms[0])} />
+                          <ReactMessageButton
+                            onOpen={(rect) =>
+                              setActionTarget({
+                                mode: 'reactions',
+                                message: ms[0],
+                                x: rect.left + rect.width / 2,
+                                y: rect.top,
+                              })
+                            }
+                          />
+                        </div>
+                      )}
+                      <div data-message-bubble className="min-w-0">
                         <PhotoAlbum ms={ms} onOpen={(id) => setLightboxIndex(slideIndexByMessageId.get(id) ?? -1)} />
+                        {/* ชิปรีแอ็กชันของก้อน (ผูกกับ ms[0] ตามที่ Meta เก็บ) */}
+                        {ms[0].reactionEmoji && (
+                          <span className={`mt-1 flex ${mine ? 'justify-end' : ''}`}>
+                            <span className="bg-card border-default-200 rounded-full border px-1.5 py-0.5 text-sm leading-none shadow-sm">
+                              {withEmojiPresentation(ms[0].reactionEmoji)}
+                            </span>
+                          </span>
+                        )}
                         {(showTime || (mine && (atBurstEnd || last.id === lastShopMsgId))) && (
                           <div className={`text-default-700 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                             {showTime && (

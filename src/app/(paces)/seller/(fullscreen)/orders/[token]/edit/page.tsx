@@ -18,6 +18,7 @@
 
 import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getOrderForShop } from '@/services/order.service'
 import { formatOrderNo } from '@/lib/order-no'
@@ -137,6 +138,7 @@ export default async function EditOrderPage({ params }: PageProps) {
         saveLabel="บันทึกการแก้ไข"
       />
       <OrderCreateForm
+        vocab={resolveOrderVocab(shop.vertical)}
         shopId={shop.id}
         catalog={catalog}
         bestSellers={bestSellers}

@@ -52,7 +52,8 @@ export type CommandCenterData = {
     AWAITING_CLOSE: number
     PROBLEM: number
   }
-  recentActivity: ActivityItem[]
+  /** ตัดออก 2026-08-04 — "กิจกรรมล่าสุด" ถูกถอดจากหน้าแรก (user: "ดูยาก เอาออก")
+   *  ยังคง re-export type ActivityItem ไว้ข้างบน เพราะ /notifications ใช้อยู่ */
   promoBanner: PromoBanner | null
   // v8: ข้อมูลเพิ่มสำหรับ header + wallet
   walletBalance?: number
@@ -103,12 +104,22 @@ export type SalesSeries = {
   total: number
   /** ยอดรวมช่วงก่อนหน้า (เดือนก่อน / ปีก่อน) — ใช้คำนวณ %เทียบ */
   prevTotal: number
+  /** ยอดช่วงก่อนหน้า **นับถึง bucket เดียวกับที่ช่วงปัจจุบันเดินมาถึง** — ตัวที่ต้องใช้เทียบ %
+   *  (prevTotal คือทั้งเดือนก่อน ซึ่งเอามาหารกับเดือนนี้ที่เพิ่งผ่านไปไม่กี่วันไม่ได้) */
+  prevTotalToDate: number
   /** index ตั้งแต่นี้ไป = อนาคต (เกินวันนี้/เดือนนี้) → UI ทำแท่งจาง */
   futureFromIndex: number
+  /** ยอดขายรายวัน 7 วันล่าสุด (index 6 = วันนี้) — มีเฉพาะตอนดูเดือนปัจจุบันแบบรายวัน */
+  last7Days?: number[]
+  /** label ของ last7Days */
+  last7Labels?: string[]
   /* ค่าใช้จ่าย (feature 00016) — undefined = ร้านนี้ไม่ผ่าน gate สิทธิ์ค่าใช้จ่าย
      UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "ไม่มีค่าใช้จ่าย" */
   expenseValues?: number[]
   netProfitValues?: number[]
+  /** ต้นทุนสินค้า (COGS) ต่อ bucket — ชีตรวมกับ expenseValues เป็น "เงินออก" ให้สมการลบกันได้จริง */
+  cogsValues?: number[]
+  totalCogs?: number
   totalExpense?: number
   netProfit?: number
 }

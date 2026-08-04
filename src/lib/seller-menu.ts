@@ -341,24 +341,70 @@ export function applyVerticalMenu(
 }
 
 /**
+ * ORDER_VOCAB — คลังคำของ order lifecycle ผันตามประเภทกิจการ (feature 00030 BR-BKU-10)
+ *
+ * ทำไม 4 ช่องไม่ใช่ noun เดี่ยวแล้วให้ call site ต่อสตริงเอง: ภาษาไทยผันไม่เท่ากันทุกช่อง —
+ * `"สร้าง" + noun` ได้ "สร้างบิลเข้าพัก" ซึ่งไม่ใช่ภาษาที่คนพูด (ของจริงคือ "เปิดบิลเข้าพัก")
+ * และช่องแคบอย่างแท็บล่าง/FAB รับคำเต็มไม่ไหว จึงต้องมีคู่สั้นแยกไว้ต่างหาก
+ *
+ * เลี่ยงคำว่า "การจอง" สำหรับ LODGING โดยตั้งใจ — ชนกับเมนู /bookings ที่มีอยู่แล้วตรงตัว
+ * (ทั้งสองอย่างมีจริงพร้อมกันในร้านบ้านพัก: การจอง = วันเข้าพัก+ห้องที่กันไว้, บิลเข้าพัก =
+ * ยอดเงินและการชำระ — ดู docs/20 - Features/00030 .../UX-Copy.md §6)
+ *
+ * ค่าที่ไม่รู้จัก → ชุดของ ONLINE_SALES (fail-safe เดียวกับ applyVerticalMenu)
+ *
+ * IMPORTANT: นี่คือ SSOT เดียวของคำเหล่านี้ — ห้ามประกาศคำชุดคู่ขนานที่ไฟล์อื่น. VERTICAL_CTA ใน
+ * (chat)/inbox/[conversationId]/components/CustomerPanel.tsx เคยประกาศคำของตัวเองจนขัดกัน
+ * (LODGING = "บิลเข้าพัก" ที่นี่ vs "การจอง" ที่นั่น) แก้แล้วให้อ่านจากไฟล์นี้ เหลือแค่ href/icon
+ */
+export type OrderVocab = {
+  /** ชื่อของสิ่งนั้น — เมนู, breadcrumb, page title, หัวข้อ, แท็บ */
+  noun: string
+  /** คู่สั้นสำหรับที่แคบ (<120px) — แท็บล่าง, chip */
+  nounShort: string
+  /** ปุ่มหลัก/หัวฟอร์ม/title ของ /orders/new */
+  createLabel: string
+  /** ปุ่ม FAB + ปุ่มในแถบเครื่องมือแชท */
+  createLabelShort: string
+}
+
+export const ORDER_VOCAB: Record<string, OrderVocab> = {
+  ONLINE_SALES: {
+    noun: 'คำสั่งซื้อ',
+    nounShort: 'คำสั่งซื้อ',
+    createLabel: 'สร้างคำสั่งซื้อ',
+    createLabelShort: 'สร้างคำสั่งซื้อ',
+  },
+  SERVICE_QUEUE: {
+    noun: 'การเข้ารับบริการ',
+    nounShort: 'เข้ารับบริการ',
+    createLabel: 'สร้างการเข้ารับบริการ',
+    createLabelShort: 'เข้ารับบริการใหม่',
+  },
+  LODGING: {
+    noun: 'บิลเข้าพัก',
+    nounShort: 'บิลเข้าพัก',
+    createLabel: 'เปิดบิลเข้าพัก',
+    createLabelShort: 'เปิดบิลเข้าพัก',
+  },
+}
+
+export function resolveOrderVocab(vertical: string): OrderVocab {
+  return ORDER_VOCAB[vertical] ?? ORDER_VOCAB.ONLINE_SALES
+}
+
+/** ป้ายเมนู /orders — wrapper บาง ๆ ของ resolveOrderVocab().noun ที่ call site เดิมยังใช้อยู่ */
+export function resolveOrderMenuLabel(vertical: string): string {
+  return resolveOrderVocab(vertical).noun
+}
+
+/**
  * applyOrderLabel — ป้ายเมนู /orders ผันตามประเภทกิจการ (user เคาะ 2026-08-04)
  *
  * ทำไมเป็น transform ไม่ใช่แก้ค่าใน sellerMenuItems: อาเรย์ต้นฉบับเป็น module-level constant
  * ที่ getSellerPageTitle.ts import ตรง ๆ ตอน module load — ไม่รู้จัก vertical ของ request นั้น
  * (pattern เดียวกับ applyInventoryGate)
- *
- * เลี่ยงคำว่า "การจอง" สำหรับ LODGING โดยตั้งใจ — ชนกับเมนู /bookings ที่มีอยู่แล้วตรงตัว
- * ค่าที่ไม่รู้จัก → คงป้ายเดิม "คำสั่งซื้อ" (fail-safe เดียวกับ applyVerticalMenu)
  */
-export const ORDER_MENU_LABELS: Record<string, string> = {
-  ONLINE_SALES: 'คำสั่งซื้อ',
-  SERVICE_QUEUE: 'ใบสั่งงาน',
-  LODGING: 'บิลเข้าพัก',
-}
-
-export function resolveOrderMenuLabel(vertical: string): string {
-  return ORDER_MENU_LABELS[vertical] ?? ORDER_MENU_LABELS.ONLINE_SALES
-}
 
 export function applyOrderLabel(items: MenuItemType[], vertical: string): MenuItemType[] {
   const label = resolveOrderMenuLabel(vertical)

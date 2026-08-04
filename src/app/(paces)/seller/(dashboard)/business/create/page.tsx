@@ -15,7 +15,7 @@
  *   2. subscription = getSubscriptionStatus(ownerId); ไม่มี/ไม่ ACTIVE → gate การ์ด "ยังไม่มีแพ็กเกจ ACTIVE"
  *   3. count = จำนวน Business shop (kind=BUSINESS, deletedAt=null) ของ owner (รวม LOCKED ตาม TFR-006 ข้อ 2)
  *      >= maxBusinesses (tier ปัจจุบัน) → gate การ์ด "ครบโควตาธุรกิจ"
- *   4. ผ่านทั้งคู่ → render CreateBusinessForm (client, single card ไม่มี wizard)
+ *   4. ผ่านทั้งคู่ → redirect ไป /business?create=1 (modal 4 ขั้นทับหน้ารายการ — feature 00030)
  */
 
 import { getServerSession } from 'next-auth'
@@ -28,7 +28,6 @@ import { prisma } from '@/lib/prisma'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/business-package'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import CreateBusinessForm from './components/CreateBusinessForm'
 
 export const metadata: Metadata = { title: 'สร้างธุรกิจใหม่' }
 
@@ -85,12 +84,14 @@ export default async function CreateBusinessPage() {
     )
   }
 
-  return (
-    <>
-      <PageBreadcrumb title="สร้างธุรกิจใหม่" trail={[{ label: 'ธุรกิจ', href: '/business' }]} />
-      <CreateBusinessForm />
-    </>
-  )
+  /**
+   * feature 00030 — ผ่าน gate แล้วส่งไปเปิด modal ทับหน้ารายการธุรกิจแทนการ render ฟอร์มที่นี่
+   * (user สั่ง 2026-08-04: "เป็น Modal หลังเบลอ"). คง route นี้ไว้ไม่ลบ เพราะ:
+   *   - ลิงก์/บุ๊กมาร์กเดิมยังใช้ได้
+   *   - gate ฝั่ง server (แพ็กเกจ ACTIVE + โควตา) ยังทำงานที่นี่เหมือนเดิมทุกบรรทัด
+   *     ถ้าไม่ผ่านจะเห็น GateCard ที่อธิบายเหตุผล ไม่ใช่เด้งไปหน้าอื่นแล้วงงว่าทำไมเปิดไม่ได้
+   */
+  redirect('/business?create=1')
 }
 
 /** GateCard — empty-state ก่อนฟอร์ม (Base: theme pricing/page.tsx card>card-body p-7.5 text-center) */

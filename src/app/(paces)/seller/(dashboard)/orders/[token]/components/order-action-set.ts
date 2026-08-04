@@ -34,6 +34,11 @@ export type GetOrderActionSetInput = {
    */
   fulfillmentMode: string
   /**
+   * ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030 — resolveOrderVocab().noun)
+   * ไม่ส่ง → 'คำสั่งซื้อ' (ชุดของ ONLINE_SALES ตาม fail-safe ของ SSOT)
+   */
+  orderNoun?: string
+  /**
    * แหล่งที่มาของพัสดุ — null เมื่อยังไม่แจ้งเลขพัสดุเลย
    * 'ISHIP' = ระบบสร้างพัสดุให้ (feat 00022) ห้ามเขียน ShipmentTracking เอง →
    * "แก้ไขเลขพัสดุ" ต้องหายไปทั้งปุ่ม ไม่ใช่ปุ่มที่กดไม่ได้
@@ -42,16 +47,19 @@ export type GetOrderActionSetInput = {
 }
 
 // ── action item catalog — key เดียว ใช้ซ้ำได้ทุกสถานะ ──────────────────────────
-const ACTIONS = {
-  sendSms: { key: 'send-sms', label: 'ส่งลิงก์ทาง SMS (฿1)', icon: 'message-forward' },
-  reportTracking: { key: 'report-tracking', label: 'แจ้งเลขพัสดุ', icon: 'truck' },
-  copyLink: { key: 'copy-link', label: 'คัดลอกลิงก์', icon: 'copy' },
-  copyAddress: { key: 'copy-address', label: 'คัดลอกที่อยู่จัดส่ง', icon: 'map-pin' },
-  editOrder: { key: 'edit-order', label: 'แก้ไขคำสั่งซื้อ', icon: 'edit' },
-  cancelOrder: { key: 'cancel-order', label: 'ยกเลิกคำสั่งซื้อ', icon: 'ban' },
-  editTracking: { key: 'edit-tracking', label: 'แก้ไขเลขพัสดุ', icon: 'pencil' },
-  copyTracking: { key: 'copy-tracking', label: 'คัดลอกเลขพัสดุ', icon: 'copy' },
-} as const satisfies Record<string, ActionItem>
+// feature 00030: 2 ตัว (editOrder/cancelOrder) ผันคำตามประเภทกิจการ จึงเป็นฟังก์ชันไม่ใช่ constant
+// ตัวที่เหลือพูดถึงพัสดุ/ลิงก์/SMS ซึ่งเป็นคำกลางอยู่แล้ว ไม่ผูกกับประเภทร้าน
+const buildActions = (orderNoun: string) =>
+  ({
+    sendSms: { key: 'send-sms', label: 'ส่งลิงก์ทาง SMS (฿1)', icon: 'message-forward' },
+    reportTracking: { key: 'report-tracking', label: 'แจ้งเลขพัสดุ', icon: 'truck' },
+    copyLink: { key: 'copy-link', label: 'คัดลอกลิงก์', icon: 'copy' },
+    copyAddress: { key: 'copy-address', label: 'คัดลอกที่อยู่จัดส่ง', icon: 'map-pin' },
+    editOrder: { key: 'edit-order', label: `แก้ไข${orderNoun}`, icon: 'edit' },
+    cancelOrder: { key: 'cancel-order', label: `ยกเลิก${orderNoun}`, icon: 'ban' },
+    editTracking: { key: 'edit-tracking', label: 'แก้ไขเลขพัสดุ', icon: 'pencil' },
+    copyTracking: { key: 'copy-tracking', label: 'คัดลอกเลขพัสดุ', icon: 'copy' },
+  }) as const satisfies Record<string, ActionItem>
 
 /**
  * getOrderActionSet — คืนชุด action (primary/ghosts/menu) ของหน้าตามสถานะ + fulfillment + shipment source
@@ -69,6 +77,8 @@ const ACTIONS = {
  */
 export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet {
   const { status, fulfillmentMode, shipmentSource } = input
+  // optional โดยตั้งใจ — caller ที่ยังไม่รู้จัก vertical (และเทสเดิม) ได้คำของ ONLINE_SALES
+  const ACTIONS = buildActions(input.orderNoun ?? 'คำสั่งซื้อ')
   // allow-list ไม่ใช่ deny-list โดยตั้งใจ — fulfillmentMode เป็น String ไม่ใช่ enum
   // ค่าใหม่ในอนาคต (เช่น PICKUP ที่หลุดมารอบนี้ — G-1) จะได้ไม่ถูกนับเป็น "ต้องส่งของ" เองโดยอัตโนมัติ
   const hasShipping = fulfillmentMode === 'SHIPPED'

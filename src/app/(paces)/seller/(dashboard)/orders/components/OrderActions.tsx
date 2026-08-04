@@ -25,6 +25,9 @@ import QrCodeButton from './QrCodeButton'
 export type OrderActionsVariant = 'card' | 'table'
 
 interface OrderActionsProps {
+  /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ส่งต่อลง OrderCardMenu */
+  orderNoun?: string
+
   order: OrderRow
   onCancelRequest: (token: string) => void
   variant: OrderActionsVariant
@@ -32,7 +35,7 @@ interface OrderActionsProps {
 
 const ICON_BTN = 'btn btn-icon border-default-300 text-default-700 hover:bg-default-100'
 
-export default function OrderActions({ order, onCancelRequest, variant }: OrderActionsProps) {
+export default function OrderActions({ order, onCancelRequest, variant, orderNoun }: OrderActionsProps) {
   const isTerminal = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
   const canEdit = order.status === 'PENDING'
 
@@ -80,6 +83,7 @@ export default function OrderActions({ order, onCancelRequest, variant }: OrderA
         token={order.publicToken}
         status={order.status}
         onCancelRequest={onCancelRequest}
+        orderNoun={orderNoun}
       />
     </div>
   )

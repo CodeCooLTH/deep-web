@@ -24,6 +24,9 @@ import QuickSummaryPanel from './QuickSummaryPanel'
 import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateForm'
 
 interface Props {
+  /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ส่งต่อลง QuickSummaryPanel */
+  orderNoun?: string
+
   /** ข้อความจากแชทที่จะให้ section ลูกค้ากระจายให้ตอนเปิดฟอร์ม (user สั่ง 2026-08-04) */
   prefillParseText?: string
   control: Control<FormValues>
@@ -43,6 +46,7 @@ interface Props {
 }
 
 export default function QuickForm({
+  orderNoun = 'คำสั่งซื้อ',
   prefillParseText,
   control,
   errors,
@@ -137,7 +141,7 @@ export default function QuickForm({
       </section>
 
       {/* Footer sticky (< lg) — collapsible summary + บันทึก */}
-      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} compact={compact} />
+      <QuickSummaryPanel control={control} subtotal={subtotal} total={total} formId={formId} compact={compact} orderNoun={orderNoun} />
 
       {/* ProductPickerSheet — instance เดียว เปิดเล็ง line ที่ pickerIndex */}
       <ProductPickerSheet

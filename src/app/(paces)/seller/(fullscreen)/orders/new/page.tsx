@@ -12,6 +12,7 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
 // feature 00024 — ทรัพยากรที่จองได้ + ตัวกั้นฟีเจอร์ (ใช้ตัวเดียวกับ API/เมนู กติกาไม่แตกเป็นสองชุด)
 import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { listServiceResources } from '@/services/service-resource.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
@@ -23,7 +24,14 @@ import Icon from '@/components/wrappers/Icon'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 
-export const metadata: Metadata = { title: 'สร้างออเดอร์' }
+/** feature 00030 — ชื่อหน้าผันตามประเภทกิจการ (constant ไม่รู้จัก shop ของ request) */
+export async function generateMetadata(): Promise<Metadata> {
+  const session = await getServerSession(authOptions)
+  const active = await requireActiveShop(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  ).catch(() => null)
+  return { title: resolveOrderVocab(active?.shop?.vertical ?? '').createLabel }
+}
 
 const FORM_ID = 'order-create-form'
 
@@ -45,7 +53,7 @@ export default async function NewOrderPage() {
           className="text-warning mx-auto mb-4"
         />
         <h2 className="text-xl font-bold text-dark mb-2">ยังไม่มีร้านค้า</h2>
-        <p className="text-default-400 mb-6">ต้องสร้างร้านก่อนจึงจะสร้างออเดอร์ได้</p>
+        <p className="text-default-400 mb-6">ต้องสร้างร้านก่อนจึงจะสร้างรายการได้</p>
         <Link
           href="/shop"
           className="btn bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-hover inline-flex items-center gap-2"
@@ -58,6 +66,7 @@ export default async function NewOrderPage() {
   }
 
   const shop = active.shop
+  const vocab = resolveOrderVocab(shop.vertical)
 
   // Business ถูก package lock (read-only) — ห้ามสร้างออเดอร์ใหม่
   if (active.locked) {
@@ -139,12 +148,12 @@ export default async function NewOrderPage() {
         ปุ่ม primary น้ำหนักเท่ากันสองจุดบนจอเดียวไม่ได้ช่วยใคร
       */}
       <FullscreenPageHeader
-        title="สร้างออเดอร์"
+        title={vocab.createLabel}
         subtitle={`ร้าน ${shop.shopName}`}
         backHref="/orders"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
+      <OrderCreateForm vocab={vocab} shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
     </>
   )
 }

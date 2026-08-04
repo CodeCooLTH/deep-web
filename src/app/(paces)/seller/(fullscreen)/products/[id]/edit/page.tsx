@@ -131,7 +131,9 @@ export default async function EditProductPage({ params }: PageProps) {
         layout split 3fr/2fr + preview panel implement ภายใน ProductFormV2
         ดู JSDoc ใน ProductFormV2.tsx สำหรับ layout และ validation details
       */}
+      {/* feature 00030 BR-BKU-13 — ร้านรับนัดใช้บริการไม่มีการจัดส่ง ซ่อนตัวเลือกไปเลย */}
       <ProductFormV2
+        noShipping={shop.vertical === 'SERVICE_QUEUE'}
         shopId={shop.id}
         product={product}
         formId={FORM_ID}

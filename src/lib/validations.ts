@@ -718,7 +718,11 @@ export const DowngradeBusinessPackageSchema = v.object({
 export const CreateBusinessShopSchema = v.object({
   shopName: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
   businessType: v.string(),
+  // category (ช่องเดียว) = LEGACY คงไว้เพื่อ backward-compat ของผู้เรียกเดิม
   category: v.optional(v.string()),
+  // categories = SSOT จริงของหมวดร้าน (Shop.categories String[] ≤5, feature 00001)
+  // เพิ่มรับที่นี่ 2026-08-04 — เดิม API สร้างธุรกิจรับได้แต่ช่องเดียว ทั้งที่ฐานเก็บได้หลายหมวด
+  categories: v.optional(v.pipe(v.array(v.picklist(SHOP_CATEGORY_KEYS)), v.maxLength(5))),
   description: v.optional(v.pipe(v.string(), v.maxLength(500))),
   // feature 00017 — ประเภทกิจการ; optional เพื่อ backward-compat (ผู้เรียกเดิมไม่ส่ง = GENERAL)
   // ตั้งได้ครั้งเดียวตอนสร้างเท่านั้น เปลี่ยนภายหลังไม่ได้ (BR-LODG-30)

@@ -31,6 +31,18 @@ export async function findByUsername(username: string) {
     },
   });
   if (!u) return null;
+  /**
+   * บัญชีที่ถูกลบ → ถือว่า "ไม่มีอยู่" ต่อสายตาสาธารณะ (App Store 5.1.1(v) / PDPA)
+   *
+   * จุดนี้เป็นคอขวดเดียวของทั้ง 3 ทางเข้าที่เปิดโปรไฟล์สาธารณะ — หน้า /u/[username],
+   * GET /api/public/profile/[username] และ GET /api/app/users/[username] (แอปมือถือ)
+   * ปิดที่นี่ที่เดียวจึงครอบครบ ไม่ต้องไล่แก้ทีละ call-site
+   *
+   * ทำไมสำคัญ: ระหว่างรอ purge 30 วัน แถว User ยังมี displayName/avatar/สินค้าครบ
+   * ถ้าไม่กัน คนที่กด "ลบบัญชี" ไปแล้วจะยังถูกค้นเจอและเปิดดูโปรไฟล์ได้อีกเดือนหนึ่ง
+   * (ร้าน BUSINESS ไม่มีปัญหานี้ — findShopBySlug กรอง deletedAt อยู่แล้ว)
+   */
+  if (u.deletedAt) return null;
   const { shops, ...rest } = u;
   return { ...rest, shop: shops[0] ?? null };
 }

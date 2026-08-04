@@ -25,10 +25,11 @@ import BackToBusinessButton from './components/BackToBusinessButton'
 import Icon from '@/components/wrappers/Icon'
 import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 import ThaiAddressSearch from '@/components/safepay/ThaiAddressSearch'
+import VerticalTaxonomyPicker, { VERTICAL_LOCK_NOTICE } from '@/components/safepay/VerticalTaxonomyPicker'
 import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
 import { isValidSlugFormat, isReservedSlug, normalizeSlug } from '@/lib/shop-slug'
-import { SHOP_VERTICALS, SHOP_VERTICAL_HINTS, SHOP_VERTICAL_KEYS, DEFAULT_SHOP_VERTICAL, type ShopVertical } from '@/lib/lodging'
+import { DEFAULT_SHOP_VERTICAL, type ShopVertical } from '@/lib/lodging'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -45,7 +46,7 @@ const ADDRESS_SUBTITLE: Record<ShopVertical, string> = {
 }
 
 const STEP_META: Record<Exclude<Step, 'address' | 'product'>, { icon: string; heading: string; subtitle: string }> = {
-  vertical: { icon: 'building-store', heading: 'ร้านของคุณเป็นแบบไหน', subtitle: 'เลือกครั้งเดียว จะใช้กำหนดเมนูและสิ่งที่ร้านทำได้ตลอดไป' },
+  vertical: { icon: 'building-store', heading: 'ร้านของคุณเป็นแบบไหน', subtitle: VERTICAL_LOCK_NOTICE },
   category: { icon: 'category', heading: 'เลือกหมวดหมู่ร้านของคุณ', subtitle: 'เลือกหมวดที่ตรงกับสินค้าของคุณมากที่สุด' },
   slug: { icon: 'link', heading: 'ตั้ง URL ร้านของคุณ', subtitle: 'ลูกค้าจะค้นหาร้านคุณผ่านลิงก์นี้' },
 }
@@ -70,7 +71,9 @@ export default function OnboardingPage() {
   const [ready, setReady] = useState(false)
 
   // feature 00028 (U10) — ค่าเริ่มต้น ONLINE_SALES ตาม BR-SBT-07, เปลี่ยนได้จนกว่าจะกด "ถัดไป"
-  const [vertical, setVertical] = useState<ShopVertical>(DEFAULT_SHOP_VERTICAL)
+  // feature 00030 — null = เลือกหมวด "รับนัดหมายและจอง" แล้วแต่ยังไม่เลือกหมวดย่อย (ปุ่มถัดไปปิด)
+  // ค่าตั้งต้นยังเป็น ONLINE_SALES เหมือนเดิม (BR-SBT-07) ผู้ใช้ที่ไม่แตะอะไรเลยกดถัดไปได้ทันที
+  const [vertical, setVertical] = useState<ShopVertical | null>(DEFAULT_SHOP_VERTICAL)
   const [vLoading, setVLoading] = useState(false)
 
   const [category, setCategory] = useState('')
@@ -107,6 +110,7 @@ export default function OnboardingPage() {
   )
 
   const submitVertical = async () => {
+    if (!vertical) return pacesToast.error('กรุณาเลือกให้ครบว่าลูกค้ามาแบบไหน')
     setVLoading(true)
     try {
       const res = await fetch('/api/shops/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vertical }) })
@@ -203,7 +207,7 @@ export default function OnboardingPage() {
   // meta ของ address/product ขึ้นกับ vertical ที่เลือกไว้ ที่เหลือคงที่ (STEP_META)
   const meta =
     step === 'address'
-      ? { icon: 'map-pin', heading: 'ตั้งที่อยู่ร้าน', subtitle: ADDRESS_SUBTITLE[vertical] }
+      ? { icon: 'map-pin', heading: 'ตั้งที่อยู่ร้าน', subtitle: ADDRESS_SUBTITLE[vertical ?? DEFAULT_SHOP_VERTICAL] }
       : step === 'product' && vertical === 'SERVICE_QUEUE'
         ? { icon: 'armchair', heading: 'สร้างคิวงานแรกของคุณ', subtitle: 'เพิ่มคิวงานที่รับได้ เพื่อเริ่มนัดลูกค้า' }
         : step === 'product'
@@ -242,40 +246,15 @@ export default function OnboardingPage() {
 
       {step === 'vertical' && (
         <>
-          {/* Base: src/app/(paces)/seller/(dashboard)/business/create/components/CreateBusinessForm.tsx:139-174
-              (radio-card ของ Business creation — ไล่ต่อไปถึงธีมได้จาก Base: หัวไฟล์นั้น)
-              ต่างกันแค่ grid-cols-1 เพราะ shell ของ onboarding แคบกว่า (max-w-md) */}
-          <div className="grid grid-cols-1 gap-2">
-            {SHOP_VERTICAL_KEYS.map((key) => {
-              const selected = vertical === key
-              return (
-                <label
-                  key={key}
-                  className={`flex cursor-pointer items-start gap-2 rounded-lg border-2 p-3 ${selected ? 'border-primary bg-primary/5' : 'border-default-200'}`}
-                >
-                  <input
-                    type="radio"
-                    name="vertical"
-                    value={key}
-                    checked={selected}
-                    onChange={() => setVertical(key)}
-                    className="mt-0.5 shrink-0"
-                  />
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-dark text-sm font-medium">{SHOP_VERTICALS[key]}</span>
-                      {/* ข้อมูลข้อเท็จจริง ไม่ใช่สถานะยืนยัน — สีกลาง ไม่ใช้เขียว/แดง (Verified-Means-Green rule) */}
-                      <span className="badge bg-default-100 text-default-600">
-                        {key === 'ONLINE_SALES' ? 'มีจัดส่งสินค้า' : 'ไม่มีจัดส่งสินค้า'}
-                      </span>
-                    </div>
-                    <p className="text-default-400 mt-0.5 text-xs">{SHOP_VERTICAL_HINTS[key]}</p>
-                  </div>
-                </label>
-              )
-            })}
-          </div>
-          <button type="button" onClick={submitVertical} disabled={vLoading} className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50">{vLoading ? 'กำลังบันทึก...' : 'ถัดไป →'}</button>
+          <VerticalTaxonomyPicker value={vertical} onChange={setVertical} columns={1} disabled={vLoading} />
+          <button
+            type="button"
+            onClick={submitVertical}
+            disabled={vLoading || !vertical}
+            className="btn bg-primary text-white hover:bg-primary-hover mt-4 w-full disabled:opacity-50"
+          >
+            {vLoading ? 'กำลังบันทึก...' : 'ถัดไป'}
+          </button>
         </>
       )}
 

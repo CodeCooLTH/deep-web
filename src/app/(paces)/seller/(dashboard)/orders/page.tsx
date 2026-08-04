@@ -21,11 +21,23 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import type { Metadata } from 'next'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import type { OrderRow, OrderStatCardData, OrderItemRow } from './components/data'
 import OrdersList from './components/OrdersList'
 import OrdersStatCard from './components/OrdersStatCard'
 
-export const metadata: Metadata = { title: 'ออเดอร์' }
+/**
+ * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
+ * (constant ถูกอ่านตอน module load ซึ่งยังไม่รู้จัก shop ของ request นั้น)
+ * resolve ไม่ได้ (ยังไม่ล็อกอิน/ไม่มีร้าน) → ตกไปชุด ONLINE_SALES ตาม fail-safe ของ SSOT
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const session = await getServerSession(authOptions)
+  const active = await requireActiveShop(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  ).catch(() => null)
+  return { title: resolveOrderVocab(active?.shop?.vertical ?? '').noun }
+}
 
 function maskContact(c: string | null | undefined): string {
   if (!c || c.length <= 4) return c ?? '—'
@@ -50,7 +62,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       <div className="card p-10 rounded-xl text-center max-w-2xl mx-auto">
         <Icon icon="building-store" className="size-16 text-warning mx-auto mb-4" />
         <h2 className="text-xl font-bold text-dark mb-2">ยังไม่มีร้านค้า</h2>
-        <p className="text-default-400 mb-6">ต้องสร้างร้านก่อนจึงจะดูออเดอร์ได้</p>
+        <p className="text-default-400 mb-6">ต้องสร้างร้านก่อนจึงจะดูรายการได้</p>
         <Link
           href="/shop"
           className="btn bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-hover inline-flex items-center gap-2"
@@ -220,12 +232,20 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   ]
 
   const activeStatus = sp.status ?? 'all'
+  const vocab = resolveOrderVocab(shop.vertical)
 
   return (
     <>
       {/* breadcrumb desktop เท่านั้น — มือถือมีชื่อหน้าใน SellerMobileHeader แล้ว (กันซ้ำ) */}
       <div className="hidden lg:block">
-        <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
+        <PageBreadcrumb title={vocab.noun} trail={[{ label: 'การขาย' }]} />
+        {/* ร้านบ้านพักเป็นร้านเดียวที่เห็นทั้ง "บิลเข้าพัก" (/orders) และ "การจอง" (/bookings)
+            พร้อมกัน — คนละของจริง จึงต้องมีบรรทัดบอกว่าหน้าไหนคืออะไร (00030 UX-Copy §6) */}
+        {shop.vertical === 'LODGING' && (
+          <p className="text-default-400 text-xs mt-0.5">
+            บิลเข้าพัก — ยอดเงินและการชำระของแต่ละการจอง
+          </p>
+        )}
       </div>
 
       {/* Stat cards — desktop ≥lg เท่านั้น (มือถือ: ซ้ำซ้อนกับ status filter tab ที่มี count ใน OrdersList → ซ่อน) */}
@@ -235,7 +255,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      <OrdersList orders={orders} activeStatus={activeStatus} ishipEnabled={ishipEnabled} />
+      <OrdersList orders={orders} activeStatus={activeStatus} ishipEnabled={ishipEnabled} vocab={vocab} />
     </>
   )
 }

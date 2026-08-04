@@ -40,7 +40,6 @@ import type { OrderType } from './components/data'
 import CommandCenter from './components/CommandCenter'
 import OrderStatusBand from './components/OrderStatusBand'
 import { PROMO_BANNER } from './_constants/command-center'
-import { getRecentActivity, type ActivityItem } from '@/services/activity.service'
 // v8: ดึง wallet balance + tier label เพิ่มใน CommandCenterData (S-6/S-8)
 import { getBalance } from '@/services/wallet.service'
 import { getTierLabel } from '@/lib/trust-tier'
@@ -112,8 +111,6 @@ export default async function SellerDashboardPage() {
   let shippingStageCounts:
     | { AWAITING_PARCEL: number; AWAITING_PICKUP: number; SHIPPING: number; AWAITING_CLOSE: number; PROBLEM: number }
     | undefined
-  // recentActivity: feed aggregate (Order/Review/SMS/TopUp) — service ครอบ try/catch→[] อยู่แล้ว
-  let recentActivity: ActivityItem[] = []
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
   let walletBalance = 0
   // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=; fallback []
@@ -212,13 +209,15 @@ export default async function SellerDashboardPage() {
 
         // perf: query เหล่านี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, shippingStageRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes] =
+        const [statusRes, shippingStageRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
             // ร้านอื่นไม่ต้องเสีย query — ส่ง null แทน แล้วข้ามผลด้านล่าง
             shop.vertical === 'ONLINE_SALES' ? getShippingStageCounts(shop.id) : Promise.resolve(null),
             getBalance(shop.id),
-            getRecentActivity(shop.id, 8),
+            // getRecentActivity ถูกถอดออก 2026-08-04 พร้อมการตัด "กิจกรรมล่าสุด" ออกจากหน้าแรก —
+            // มันรวม 5 แหล่ง (Order/Review/SMS/TopUp/StockMovement) ที่ไม่มีใครใช้ในหน้านี้แล้ว
+            // /notifications ยังเรียก service ตัวนี้เองแยกต่างหาก ข้อมูลจึงไม่หายไปจากระบบ
             getOrdersByShop(shop.id),
             getAvgRatingByUsername(owner?.username ?? ''),
             // D#13: นับ auction status='live' — lightweight count query ตรง ๆ (ไม่ over-fetch ผ่าน listSellerAuctions)
@@ -261,8 +260,6 @@ export default async function SellerDashboardPage() {
           console.error('[dashboard] resolveShortcutState failed', shortcutRes.reason)
         }
 
-        // recentActivity feed — fallback [] (service ครอบ error เองแต่กัน allSettled reject ด้วย)
-        recentActivity = activityRes.status === 'fulfilled' ? activityRes.value : []
 
         // สินค้าขายดี → map เป็น shape เบา {id,name,price,image} (resolve imageUrl server-side); fallback []
         if (bestSellerRes.status === 'fulfilled') {
@@ -382,7 +379,6 @@ export default async function SellerDashboardPage() {
             pendingOrderCount,
             orderStatusCounts,
             shippingStageCounts,
-            recentActivity,
             promoBanner: PROMO_BANNER,
             // v8: header card + wallet (S-6/S-8)
             walletBalance,
