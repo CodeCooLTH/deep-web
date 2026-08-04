@@ -225,6 +225,38 @@ export default function CommentsClient({
    */
   const [messageExpanded, setMessageExpanded] = useState(false)
   /**
+   * ความสูงของแผงคอมเมนต์บนมือถือ (px) — ลากปรับได้ (user สั่ง 2026-08-04: "ในมือถือแสดงผลแย่
+   * โดยเฉพาะตรงข้อความ พอจะพิมพ์ตอบ มันไม่เห็นเลยข้อความนั้น ๆ คืออะไร จะเป็นไปได้ไหมให้มันมี drag
+   * ขยายความสูงได้")
+   *
+   * ทำไมต้องลากได้ ไม่ใช่ตั้งค่าคงที่: โพสต์มีทั้งคลิปแนวตั้ง (สูงมาก) และรูปแนวนอน สัดส่วนที่ดี
+   * ระหว่าง "เห็นสื่อ" กับ "เห็นคอมเมนต์" จึงต่างกันทุกโพสต์ และตอนกำลังตอบคนก็อยากดันคอมเมนต์
+   * ขึ้นมาให้สุด — ค่าคงที่ค่าเดียวทำให้ผิดทั้งสองเคส
+   * ใช้ px ไม่ใช่ % เพราะคีย์บอร์ดมือถือทำให้ความสูง viewport เปลี่ยนกลางทาง
+   */
+  const [mobilePanelH, setMobilePanelH] = useState<number | null>(null)
+  const [isNarrow, setIsNarrow] = useState(false)
+  const dragRef = useRef<{ startY: number; startH: number } | null>(null)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const sync = () => setIsNarrow(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  // ค่าเริ่มต้นบนมือถือ ~45% ของจอ — ไม่ตั้งไว้เลยจะได้แถบคอมเมนต์บางเฉียบตามที่ user เจอ
+  useEffect(() => {
+    if (!isNarrow || mobilePanelH !== null) return
+    setMobilePanelH(Math.round(window.innerHeight * 0.45))
+  }, [isNarrow, mobilePanelH])
+
+  const clampPanelH = (h: number) => {
+    const max = Math.max(200, window.innerHeight - 180) // เหลือที่ให้หัวโพสต์/แท็บพอมองเห็น
+    return Math.min(Math.max(h, 140), max)
+  }
+  /**
    * ปลั๊กอินวิดีโอของ Facebook เรนเดอร์ player ตาม **ค่า width ที่ส่งไปใน URL** ไม่ใช่ตามขนาด
    * iframe — ส่ง width คงที่แล้ววาง iframe กว้างกว่า/แคบกว่า จะได้ภาพล้นกรอบ (user report
    * 2026-08-03 "ตอนเล่น video มันแสดงล้นเกิน iframe")
@@ -1113,7 +1145,10 @@ export default function CommentsClient({
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
             {/* คอลัมน์ซ้าย = โพสต์เต็มความสูง (user สั่ง 2026-08-03 "อยากให้เต็มจอเลย")
                 ข้อความอยู่บน สื่อกินพื้นที่ที่เหลือทั้งหมด แถวยอดชิดล่างสุดของคอลัมน์ */}
-            <div className="border-default-200 flex min-h-0 shrink-0 flex-col border-b lg:h-full lg:w-1/2 lg:shrink lg:border-e lg:border-b-0">
+            {/* มือถือ: คอลัมน์โพสต์ยืดหยุ่นได้ (flex-1 + overflow-hidden) เพื่อยอมให้แผงคอมเมนต์
+                ที่ลากปรับความสูงแล้วกินที่คืนได้ — เดิมเป็น shrink-0 สื่อจึงกินความสูงเท่าไหร่ก็ได้
+                แล้วเบียดคอมเมนต์เหลือแถบเดียว (user report 2026-08-04) */}
+            <div className="border-default-200 flex min-h-0 flex-1 flex-col overflow-hidden border-b lg:h-full lg:w-1/2 lg:flex-none lg:shrink lg:border-e lg:border-b-0">
               {/**
                * เนื้อโพสต์: 3 บรรทัดเป็นค่าตั้งต้น กด "ดูเพิ่มเติม" แล้วขยาย **ทับสื่อ** ไม่ใช่ดันสื่อลง
                * (user สั่ง 2026-08-04 — เจตนาคือให้คลิปได้พื้นที่คงที่)
@@ -1263,8 +1298,41 @@ export default function CommentsClient({
               </div>
             </div>
 
+            {/* ที่จับลากปรับความสูง (มือถือเท่านั้น) — touch-none ให้ pointer event เป็นของเราไม่ใช่
+                ของ scroller, cursor-row-resize บอกว่าลากได้ก่อนจะลอง */}
+            {isNarrow && (
+              <div
+                role="separator"
+                aria-label="ลากเพื่อปรับความสูงของรายการความคิดเห็น"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId)
+                  dragRef.current = { startY: e.clientY, startH: mobilePanelH ?? Math.round(window.innerHeight * 0.45) }
+                }}
+                onPointerMove={(e) => {
+                  const d = dragRef.current
+                  if (!d) return
+                  // ลากขึ้น = แผงสูงขึ้น (startY - clientY เป็นบวก)
+                  setMobilePanelH(clampPanelH(d.startH + (d.startY - e.clientY)))
+                }}
+                onPointerUp={() => {
+                  dragRef.current = null
+                }}
+                onPointerCancel={() => {
+                  dragRef.current = null
+                }}
+                className="border-default-200 bg-light flex h-6 shrink-0 cursor-row-resize touch-none items-center justify-center border-t lg:hidden"
+              >
+                <span className="bg-default-400 h-1 w-10 rounded-full" aria-hidden="true" />
+              </div>
+            )}
+
             {/* ฝั่งขวา: คอมเมนต์เลื่อนเองได้ + ช่องพิมพ์ปักอยู่ล่างคอลัมน์นี้ ไม่เลื่อนหนีไปกับโพสต์ */}
-            <div className="flex min-h-0 flex-1 flex-col lg:h-full lg:w-1/2">
+            <div
+              // inline style เฉพาะจอแคบ — บนเดสก์ท็อปต้องปล่อยให้คลาส lg:h-full/lg:w-1/2 ทำงาน
+              // (inline style ชนะคลาสเสมอ ถ้าใส่ทุกจอจะพังเลย์เอาต์ 2 คอลัมน์)
+              style={isNarrow && mobilePanelH ? { height: mobilePanelH } : undefined}
+              className={`flex min-h-0 flex-col lg:h-full lg:w-1/2 ${isNarrow && mobilePanelH ? 'shrink-0' : 'flex-1'}`}
+            >
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="w-full p-3">
                 {/* แถวจัดลำดับคอมเมนต์ — ชุดเดียวกับ Facebook (user สั่ง 2026-08-04)
