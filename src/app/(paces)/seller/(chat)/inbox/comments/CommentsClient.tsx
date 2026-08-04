@@ -19,7 +19,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatTimeHM, formatDateTimeTH, formatChatListTime, formatDateTH } from '@/lib/format-date'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
-import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
+import CommentsThreadSkeleton from './CommentsThreadSkeleton'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
@@ -1376,7 +1376,7 @@ export default function CommentsClient({
                   </div>
                 )}
               {loadingThread && !thread ? (
-                <SellerThreadSkeleton />
+                <CommentsThreadSkeleton />
               ) : visibleTree.length === 0 ? (
                 <SellerEmptyState compact icon="message-circle" title="ยังไม่มีความคิดเห็นในโพสต์นี้" />
               ) : (
