@@ -39,7 +39,13 @@ const schema = Yup.object({
     .required('กรุณากรอกชื่อธุรกิจ'),
   // หลายหมวดได้ ≤5 ตาม SSOT จริง (Shop.categories) — ของเดิมในฟอร์มนี้เลือกได้หมวดเดียว
   // ทั้งที่ฐานเก็บได้หลายหมวดมาตั้งแต่ feature 00001
-  categories: Yup.array().of(Yup.string().required()).max(5, 'เลือกได้สูงสุด 5 หมวด').default([]),
+  // บังคับอย่างน้อย 1 หมวด (user สั่ง 2026-08-04) — บังคับที่ฟอร์มนี้เท่านั้น ไม่ใช่ที่ backend
+  // เพราะทางเข้าอื่น (onboarding, สมัครผู้ขาย) ยังสร้างร้านโดยไม่ระบุหมวดได้ตามเดิม
+  categories: Yup.array()
+    .of(Yup.string().required())
+    .min(1, 'เลือกอย่างน้อย 1 หมวด')
+    .max(5, 'เลือกได้สูงสุด 5 หมวด')
+    .default([]),
   businessType: Yup.string()
     .oneOf(['INDIVIDUAL', 'COMPANY'] as const, 'กรุณาเลือกประเภทผู้ประกอบการ')
     .required('กรุณาเลือกประเภทผู้ประกอบการ'),
@@ -148,7 +154,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
         shopName: v.shopName,
         businessType: v.businessType,
         vertical: v.vertical,
-        ...(v.categories?.length ? { categories: v.categories } : {}),
+        categories: v.categories,
         ...(v.description ? { description: v.description } : {}),
       }
       const res = await fetch('/api/business/shops', {
@@ -256,7 +262,8 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
                 </div>
                 <div className="mt-4">
                   <label className="form-label">
-                    หมวดหมู่ <span className="text-default-400 font-normal">(ไม่บังคับ · เลือกได้ถึง 5)</span>
+                    หมวดหมู่<span className="text-danger ms-0.5">*</span>{' '}
+                    <span className="text-default-400 font-normal">(เลือกได้ถึง 5)</span>
                   </label>
                   <Controller
                     name="categories"
