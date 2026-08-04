@@ -70,7 +70,10 @@ export default function ChatHeader() {
 
   return (
     <header
-      className={`chat-header min-h-(--topbar-height) shrink-0 items-center gap-3 border-b border-default-200 px-4 shadow sm:px-5 ${
+      // ไม่มี shadow (user สั่ง 2026-08-04 "Top Bar ในหน้า chat ไม่อยากให้มี shadow") — เส้น
+      // border-b ทำหน้าที่แยกชั้นอยู่แล้ว และหน้าแชทเป็น shell เต็มจอที่ไม่มีอะไรเลื่อนผ่านใต้หัว
+      // (เงามีเหตุผลเมื่อเนื้อหาลอดใต้หัวได้ ซึ่งที่นี่ไม่ใช่ — เงาจึงเหลือแค่คราบเทาที่ขอบ)
+      className={`chat-header min-h-(--topbar-height) shrink-0 items-center gap-3 border-b border-default-200 px-4 sm:px-5 ${
         isThreadPage ? 'hidden lg:flex' : 'flex'
       }`}
     >
