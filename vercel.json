@@ -13,6 +13,7 @@
     { "path": "/api/cron/inventory-renewal", "schedule": "0 19 * * *" },
     { "path": "/api/cron/business-package-lifecycle", "schedule": "0 20 * * *" },
     { "path": "/api/cron/chat-response-metrics", "schedule": "0 21 * * *" },
-    { "path": "/api/cron/auto-reply-sweeper", "schedule": "0 22 * * *" }
+    { "path": "/api/cron/auto-reply-sweeper", "schedule": "0 22 * * *" },
+    { "path": "/api/cron/account-purge", "schedule": "0 23 * * *" }
   ]
 }

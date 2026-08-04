@@ -15,6 +15,7 @@ import { formatDateTH } from '@/lib/format-date'
 
 import ProfileForm from './ProfileForm'
 import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
+import DeleteAccountSection from '@/app/(marketing)/(buyer-app)/_components/DeleteAccountSection'
 
 export const metadata: Metadata = { title: 'ตั้งค่าบัญชี' }
 
@@ -53,6 +54,13 @@ export default async function ProfileSettingsPage() {
           badgeCount,
         }}
       />
+
+      {/* ลบบัญชี — ท้ายสุดของหน้าเสมอ (App Store 5.1.1(v) บังคับให้มีในแอป)
+          วางไว้ล่างสุดเพราะเป็นการกระทำที่ย้อนกลับไม่ได้ ไม่ควรอยู่ปนกับฟอร์มแก้ข้อมูลปกติ
+          ที่ผู้ใช้เข้ามาทำเป็นประจำ — ดูหัวไฟล์ DeleteAccountSection.tsx */}
+      <div className='mbs-6'>
+        <DeleteAccountSection />
+      </div>
     </>
   )
 }

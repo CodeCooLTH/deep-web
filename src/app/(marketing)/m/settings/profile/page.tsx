@@ -11,6 +11,7 @@ import { getTierGradient, getNextTierInfo, getTierColor } from '@/lib/trust-tier
 import type { TierChipColor } from '@/lib/trust-tier'
 
 import SignOutButton from '@/app/(marketing)/(buyer-app)/dashboard/SignOutButton'
+import DeleteAccountSection from '@/app/(marketing)/(buyer-app)/_components/DeleteAccountSection'
 import AvatarEditable from './AvatarEditable'
 
 export const metadata: Metadata = { title: 'บัญชีของฉัน' }
@@ -246,8 +247,19 @@ export default async function MobileAccountPage() {
         ]}
       />
 
+      {/* ── บัญชี ──
+          ลบบัญชีอยู่กล่องของตัวเอง ไม่ปนกับ "เกี่ยวกับฉัน" ที่เป็นเมนูใช้งานประจำ
+          และอยู่ "หลัง" ปุ่มออกจากระบบเสมอ — ทางออกที่ย้อนกลับได้ต้องมาก่อนทางที่ย้อนไม่ได้
+          (App Store 5.1.1(v) บังคับให้มีในแอป — ดูหัวไฟล์ DeleteAccountSection.tsx) */}
       <div className='flex justify-center plb-1'>
         <SignOutButton />
+      </div>
+
+      <div className='flex flex-col gap-2'>
+        <h2 className='text-[13px] font-semibold m-0 pli-1 text-[var(--mui-palette-text-secondary)]'>บัญชี</h2>
+        <div className='rounded-2xl bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] overflow-hidden'>
+          <DeleteAccountSection variant='row' />
+        </div>
       </div>
     </div>
   )

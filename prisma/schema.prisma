@@ -24,6 +24,20 @@ model User {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
+  // --- Account deletion (App Store Guideline 5.1.1(v), 2026-08-04) ---
+  // มิเรอร์ Shop.deletedAt/deletedReason/purgedAt เป๊ะ — ทีมคุ้นรูปแบบนี้แล้วและ cron/index
+  // ใช้ทรงเดียวกันได้ทันที (ดู business-shop.service.ts)
+  //
+  // deletedAt: มีค่า = ผู้ใช้กดลบบัญชีแล้ว → ล็อกอินไม่ได้ทุกช่องทาง (lib/auth.ts ตรวจทุก provider)
+  // deletedReason: "USER_DELETED" (เผื่อ "ADMIN_BANNED" ภายหลัง)
+  // purgedAt: ล้าง PII แล้ว (displayName/username/phone/email/avatar/passwordHash) — ห้ามล้างซ้ำ
+  //
+  // 🛑 ห้าม physical DELETE แถวนี้เด็ดขาด: onDelete:Cascade 85 จุดจะลากออเดอร์/รีวิว/แชท
+  // ของ "คู่ค้า" หายไปด้วย (เหตุผลเดียวกับ comment ที่ purgeExpiredShops)
+  deletedAt          DateTime?
+  deletedReason      String?
+  purgedAt           DateTime?
+
   authAccounts           AuthAccount[]
   mobileAuthTickets      MobileAuthTicket[]
   shops                  Shop[] // Phase 2 cutover (feature 00008 §4/§6.3) — เดิมเป็น `shop Shop?` (1:1); ตอนนี้ 1 user มีได้หลาย Shop (PERSONAL 1 แถว unique partial + BUSINESS หลายแถว) ใช้ .find(kind==='PERSONAL')/.filter ตามต้องการที่ caller
@@ -73,6 +87,10 @@ model User {
   // ของ AutoReplyKeyword/AutoReplyRule และ testModeEnabledByUserId ของ AutoReplyConfig เป็น
   // String ดิบไม่มี FK ตาม DATABASE.md §3 (audit เบา ไม่ผูก relation)
   autoReplyConfigUpdates AutoReplyConfig[] @relation("AutoReplyConfigUpdatedBy")
+
+  // cron account-purge สแกน "ถูกลบแล้วแต่ยังไม่ล้าง" ทุกคืน — index คู่นี้ทำให้ scan ไม่ full-table
+  // (มิเรอร์ Shop_deletedAt_purgedAt_idx)
+  @@index([deletedAt, purgedAt], map: "User_deletedAt_purgedAt_idx")
 }
 
 model AuthAccount {
@@ -143,8 +161,18 @@ model Shop {
   // QUOTA_EXCEEDED_ADMIN_COUNT — 2 ค่าแรก grace-eligible นับถอย 30 วัน, 2 ค่าหลังไม่มี grace)
   packageLockedAt   DateTime?
   packageLockReason String?
-  // deletedAt/deletedReason: soft-delete ("OWNER_DELETED" | "PACKAGE_LAPSED") — NULL เสมอสำหรับ PERSONAL;
+  // deletedAt/deletedReason: soft-delete ("OWNER_DELETED" | "PACKAGE_LAPSED")
   // restore ได้ภายใน 30 วันหลัง deletedAt (grace ก่อน purge)
+  //
+  // ⚠️ แก้ไข 2026-08-04: เดิมเขียนว่า "NULL เสมอสำหรับ PERSONAL" — ไม่จริงอีกต่อไป
+  // ตั้งแต่มีฟีเจอร์ลบบัญชี (App Store 5.1.1(v)) `deleteAccount()` soft-delete ร้าน
+  // **ทุกใบที่ผู้ใช้เป็นเจ้าของ รวม PERSONAL** ด้วย reason OWNER_DELETED
+  //
+  // ทำไมต้องรวม PERSONAL: หน้าค้นหาร้าน/ไดเรกทอรีกรองด้วย `shops: { some: { deletedAt: null } }`
+  // (shop.service.ts:77/158) — ถ้าไม่ตั้ง deletedAt ร้านของคนที่ลบบัญชีไปแล้วจะยังโผล่ในผลค้นหา
+  // อีก 30 วันจนกว่าจะ purge ซึ่งขัดกับสิ่งที่ผู้ใช้สั่ง
+  //
+  // ที่ยังจริงอยู่: PACKAGE_LAPSED ยังเป็นของ BUSINESS เท่านั้น (cron แพ็กเกจไม่แตะ PERSONAL)
   deletedAt         DateTime?
   deletedReason     String?
   // purgedAt: tombstone marker หลัง retention 30 วัน — 🛑 ไม่ใช่ physical DELETE (RD-11, DATABASE.md §12.5)

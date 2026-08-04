@@ -21,6 +21,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import type { Metadata } from 'next'
 import { ConnectedAccountsClient } from './components/ConnectedAccountsClient'
 import ProfileForm from './components/ProfileForm'
+import DeleteAccountCard from './components/DeleteAccountCard'
 
 export const metadata: Metadata = { title: 'ข้อมูลส่วนตัว' }
 
@@ -114,6 +115,17 @@ export default async function AccountPage() {
             hasPhone={dbUser.phone != null}
           />
         </div>
+
+        {/* ลบบัญชี — ท้ายสุดของหน้าเสมอ (App Store Guideline 5.1.1(v) บังคับให้มีในแอป)
+            ทำไมอยู่หน้านี้ ไม่ใช่ /shop: ลบบัญชีคือลบ "ตัวคน" ไม่ใช่ลบร้าน จึงเข้าพวกกับ
+            "ข้อมูลส่วนตัว" และ "วิธีเข้าสู่ระบบ" ด้านบน ตรงกับเส้นแบ่งที่หน้านี้ตั้งไว้ (ดู
+            comment หัวไฟล์) — เคยวางไว้ที่ /shop ตอนแรกแล้วย้ายมา 2026-08-04 เพราะปนกับ
+            ชื่อร้าน/โลโก้ร้าน แล้วอ่านไม่ออกว่าจะลบร้านหรือลบบัญชี
+
+            🛑 ห้ามใส่ lg:hidden: deep-seller-app ตั้ง supportsTablet: true → คนตรวจของ Apple
+            เปิดบน iPad ซึ่งกว้างเกิน 1024px ถ้าซ่อนไว้จะหาปุ่มไม่เจอแล้วตีกลับด้วยข้อเดียวกับ
+            ที่ฟีเจอร์นี้เกิดมาแก้ */}
+        <DeleteAccountCard />
       </div>
     </>
   )

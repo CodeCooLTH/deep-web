@@ -8,6 +8,9 @@ import type { Metadata } from 'next'
 // MUI Imports
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
+// Button ใช้ href ตรง ๆ (render เป็น <a>) — ห้าม component={Link} ในหน้า server component
+// ตาม docs/conventions/rsc-mui-navigation.md (Hard Rule 2)
+import Button from '@mui/material/Button'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -37,7 +40,7 @@ const DataDeletionPage = () => {
           <div className='flex flex-col gap-2'>
             <Typography variant='h4'>การลบข้อมูลผู้ใช้ (User Data Deletion)</Typography>
             <Typography variant='caption' className='text-textSecondary'>
-              อัปเดตล่าสุด 27 กรกฎาคม 2569
+              อัปเดตล่าสุด 4 สิงหาคม 2569
             </Typography>
           </div>
 
@@ -50,12 +53,52 @@ const DataDeletionPage = () => {
               สามารถดำเนินการตามขั้นตอนด้านล่าง
             </Typography>
 
-            {/* หัวข้อ 1: วิธีขอลบข้อมูล — highlight callout box */}
+            {/* หัวข้อ 1: วิธีขอลบข้อมูล — highlight callout box
+                🛑 ทางหลักต้องเป็น "ปุ่มในแอป" เสมอ ห้ามสลับกลับไปให้อีเมลนำ:
+                App Store Guideline 5.1.1(v) ระบุว่าแอปที่สมัครบัญชีได้ ต้องให้ผู้ใช้เริ่มลบบัญชี
+                ได้ด้วยตัวเองจากในแอป — หน้าที่บอกว่า "ส่งอีเมลมาขอ" อย่างเดียวคือเหตุผลที่แอปถูก
+                ตีกลับ (อีเมลคงไว้เป็นทางสำรองสำหรับคนที่ล็อกอินไม่ได้แล้วเท่านั้น) */}
             <div>
               <Typography variant='h6' className='mbe-3'>
-                1. วิธีขอลบข้อมูล
+                1. ลบบัญชีด้วยตัวเอง (แนะนำ)
               </Typography>
-              {/* ทำไม: FR-L2 "explicit instructions" ต้องมี email เด่นชัด — callout pattern จาก Questions.tsx บรรทัด 83 (bg-actionHover rounded), ขยาย plb เพื่อเน้น */}
+              {/* callout pattern จาก Questions.tsx บรรทัด 83 (bg-actionHover rounded), ขยาย plb เพื่อเน้น */}
+              <div className='pli-5 plb-5 bg-actionHover rounded'>
+                <Typography variant='body2' className='mbe-3'>
+                  เข้าสู่ระบบแล้วกดลบได้ทันที ข้อมูลส่วนตัวจะถูกล้างออกจากระบบภายใน 30 วัน
+                </Typography>
+                <ul className='list-disc pli-6 flex flex-col gap-1 mbe-3'>
+                  <li>
+                    <Typography variant='body2'>
+                      <strong>ผู้ซื้อ</strong> — ตั้งค่าบัญชี → เลื่อนลงล่างสุด → &quot;ลบบัญชี&quot;
+                    </Typography>
+                  </li>
+                  <li>
+                    <Typography variant='body2'>
+                      <strong>ผู้ขาย</strong> — เมนู &quot;ร้านค้า&quot; → เลื่อนลงล่างสุด → &quot;ลบบัญชี&quot;
+                    </Typography>
+                  </li>
+                </ul>
+                <Button
+                  variant='contained'
+                  color='error'
+                  href='/settings/profile'
+                  startIcon={<i className='tabler-trash' />}
+                >
+                  ไปที่ตั้งค่าบัญชี
+                </Button>
+                <Typography variant='body2' className='mbs-3 text-textSecondary'>
+                  หากมีคำสั่งซื้อที่ยังไม่ปิด ระบบจะแจ้งให้จัดการให้เรียบร้อยก่อน
+                  เพื่อไม่ให้คู่ค้าที่โอนเงินมาแล้วเสียหาย
+                </Typography>
+              </div>
+            </div>
+
+            {/* หัวข้อ 2: ทางสำรอง — สำหรับคนที่เข้าระบบไม่ได้แล้ว */}
+            <div>
+              <Typography variant='h6' className='mbe-3'>
+                2. เข้าสู่ระบบไม่ได้แล้ว?
+              </Typography>
               <div className='pli-5 plb-5 bg-actionHover rounded'>
                 <Typography variant='body2' className='mbe-2'>
                   ส่งอีเมลมาที่:
@@ -72,10 +115,10 @@ const DataDeletionPage = () => {
               </div>
             </div>
 
-            {/* หัวข้อ 2: ข้อมูลที่จะถูกลบ */}
+            {/* หัวข้อ 3: ข้อมูลที่จะถูกลบ */}
             <div>
               <Typography variant='h6' className='mbe-3'>
-                2. ข้อมูลที่จะถูกลบ
+                3. ข้อมูลที่จะถูกลบ
               </Typography>
               <ul className='list-disc pli-6 flex flex-col gap-1'>
                 <li>
@@ -106,12 +149,12 @@ const DataDeletionPage = () => {
               </Typography>
             </div>
 
-            {/* หัวข้อ 3 — เพิ่ม 2569-07-27 สำหรับ Meta App Review (feature 00018)
+            {/* หัวข้อ 4 — เพิ่ม 2569-07-27 สำหรับ Meta App Review (feature 00018)
                 คนที่ทักเข้าเพจร้านไม่ได้เป็นผู้ใช้ Deep จึงไม่มี username ให้อ้างอิงตามขั้นตอนข้อ 1
                 Meta บังคับว่าต้องมีช่องทางให้คนกลุ่มนี้ขอลบข้อมูลได้ด้วย ไม่ใช่เฉพาะผู้ถือบัญชี */}
             <div>
               <Typography variant='h6' className='mbe-3'>
-                3. หากคุณเป็นลูกค้าที่ทักเข้าเพจของร้าน
+                4. หากคุณเป็นลูกค้าที่ทักเข้าเพจของร้าน
               </Typography>
               <Typography variant='body2' className='mbe-3'>
                 หากคุณส่งข้อความหาเพจ Facebook หรือบัญชี Instagram ของร้านที่ใช้ Deep
@@ -138,20 +181,20 @@ const DataDeletionPage = () => {
               </ul>
             </div>
 
-            {/* หัวข้อ 4: กรอบเวลา */}
+            {/* หัวข้อ 5: กรอบเวลา */}
             <div>
               <Typography variant='h6' className='mbe-3'>
-                4. กรอบเวลา
+                5. กรอบเวลา
               </Typography>
               <Typography variant='body2'>
                 เราจะดำเนินการตามคำขอภายใน 30 วันนับจากวันที่ได้รับคำขอที่ครบถ้วน และจะยืนยันกลับทางอีเมล
               </Typography>
             </div>
 
-            {/* หัวข้อ 5: การติดต่อ */}
+            {/* หัวข้อ 6: การติดต่อ */}
             <div>
               <Typography variant='h6' className='mbe-3'>
-                5. การติดต่อ
+                6. การติดต่อ
               </Typography>
               {/* ผู้ควบคุมข้อมูล — ต้องตรงกับหน้า privacy/terms และกับ responsible-1 ใน Meta Data Handling */}
               <Typography variant='body2'>
