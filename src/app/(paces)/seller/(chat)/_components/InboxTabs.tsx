@@ -20,6 +20,7 @@
  */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { isChatThreadPath } from './chat-chrome'
 import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { subscribeShopChat } from '@/lib/chat-shop-realtime'
@@ -133,7 +134,16 @@ export default function InboxTabs({
   }, [shopId])
 
   return (
-    <div className="border-default-200 flex gap-1 border-b px-4 pt-3">
+    <div
+      // มือถือตอนเปิดอ่านเธรด: หายไปพร้อมแถบบนของแอป (ChatHeader ใช้เกณฑ์เดียวกันจาก chat-chrome.ts)
+      // เธรดบนจอเล็กเป็นหน้าเต็มจอแบบแอปแชท — ทางออกคือปุ่มย้อนกลับบนหัวเธรดซึ่งพากลับไปหน้ารายการ
+      // ที่มีแท็บอยู่. ถ้าโชว์แท็บที่นี่โดยไม่มีแถบบน จะได้แถบลอยเดี่ยวใต้ status bar (ดูเหมือนแถบบนหาย
+      // — user report 2026-08-04) และกินความสูงไป 1 แถบทั้งที่กดสลับแท็บกลางบทสนทนาไม่ใช่สิ่งที่ทำกัน
+      // ≥1024px โชว์ตามปกติ: เธรดอยู่คู่ rail บนจอเดียวกัน แท็บเป็นแถบร่วมของทั้งหน้า
+      className={`border-default-200 gap-1 border-b px-4 pt-3 ${
+        isChatThreadPath(pathname) ? 'hidden lg:flex' : 'flex'
+      }`}
+    >
       {TABS.map((t) => {
         const active = t.href === '/inbox/comments' ? isComments : !isComments
         const count = t.href === '/inbox/comments' ? counts.unanswered : counts.unread
