@@ -47,7 +47,11 @@ export default function ChatHeader() {
   // "กลับหน้าหลัก" ยังอยู่ที่หน้า /inbox ซึ่งเป็นที่ที่ย้อนกลับไปเจอ — ไม่มีทางตัน
   // ≥1024px ไม่ซ่อน: เป็นเลย์เอาต์ 3 คอลัมน์ที่ rail/เธรดอยู่บนจอเดียวกัน header เป็นแถบร่วมของทั้งหน้า
   const pathname = usePathname()
-  const isThreadPage = /^\/inbox\/[^/]+$/.test(pathname ?? '')
+  // 🛑 `/inbox/comments` ไม่ใช่หน้าเธรด (user report prod 2026-08-04: "พอสลับไป tab คอมเม้น
+  // TopBar หาย") — regex เดิมจับ `/inbox/<อะไรก็ได้>` จึงเหมาเอาแท็บความคิดเห็นไปด้วย แล้วมือถือ
+  // เลยไม่มีทั้งโลโก้/ช่องค้นหา/ปุ่มร้าน ทั้งที่มันคือ "รายการ" ไม่ใช่ห้องแชทที่ต้องกินพื้นที่เต็มจอ
+  // (เห็นชัดขึ้นหลังย้ายแท็บมาไว้ที่ layout — ก่อนหน้านี้แท็บอยู่ในหน้าเลยพอมีอะไรค้างให้เห็น)
+  const isThreadPage = /^\/inbox\/[^/]+$/.test(pathname ?? '') && !pathname?.startsWith('/inbox/comments')
 
   // โลโก้ร้าน active + สลับร้านย้ายเข้า ChatShopSwitcher (feat 2026-07-30) — ChatHeader ไม่ต้อง
   // อ่าน session เองอีกต่อไปสำหรับส่วนนั้น
