@@ -818,3 +818,67 @@ export async function sendStickerMessage(
   })
   return (json.message_id as string | undefined) ?? ''
 }
+
+/**
+ * โพสต์ของเพจย้อนหลัง (user สั่ง 2026-08-04 "จัดเลย ย้อนหลัง")
+ *
+ * ทำไมต้องมี: แถว FacebookPost ฝั่งเราเกิดขึ้นเฉพาะเมื่อมีคอมเมนต์ webhook วิ่งเข้ามา **หลัง**
+ * ร้านเชื่อมเพจ (ensurePost ถูกเรียกจาก ingestFeedComment ที่เดียว) โพสต์ที่คอมเมนต์เข้ามาก่อนนั้น
+ * จึงไม่มีในฐานเลย — รายการในแท็บความคิดเห็นจึงน้อยกว่า Business Suite ซึ่งอ่านประวัติจาก Meta ตรง ๆ
+ *
+ * ใช้ `/{page-id}/posts` (โพสต์ที่เพจเผยแพร่เอง) ไม่ใช่ `/feed` (รวมโพสต์ที่คนอื่นมาโพสต์บนเพจ
+ * ซึ่งไม่ใช่ของที่ร้านต้องตอบคอมเมนต์) ขอ summary ของคอมเมนต์มาด้วยเพื่อ "คัดเฉพาะโพสต์ที่มีคอมเมนต์"
+ * ก่อนจะไปยิงดึงคอมเมนต์รายโพสต์ — ไม่ต้องเสีย call ให้โพสต์ที่ไม่มีใครคอมเมนต์
+ *
+ * ต้องมี pages_read_engagement (อ่านโพสต์/ยอด) + pages_read_user_content (อ่านคอมเมนต์ของคนอื่น)
+ */
+export interface GraphPagePost {
+  id: string
+  message: string | null
+  createdTime: Date | null
+  permalink: string | null
+  picture: string | null
+  mediaType: string | null
+  commentCount: number
+  reactionCount: number | null
+  shareCount: number | null
+}
+
+export async function fetchPagePosts(
+  pageToken: string,
+  pageId: string,
+  limit = 25,
+): Promise<GraphPagePost[]> {
+  const json = await graphFetch(`/${pageId}/posts`, pageToken, {
+    query: {
+      // summary(true).limit(0) = ขอแค่ยอดรวม ไม่ต้องส่งรายการมาด้วย (payload เล็กลงมาก)
+      fields:
+        'id,message,created_time,permalink_url,full_picture,status_type,attachments{media_type},comments.summary(true).limit(0),reactions.summary(true).limit(0),shares',
+      limit: String(Math.min(Math.max(limit, 1), 100)),
+    },
+  })
+  const rows = Array.isArray(json.data) ? (json.data as Record<string, unknown>[]) : []
+  return rows.flatMap((p) => {
+    const id = typeof p.id === 'string' ? p.id : null
+    if (!id) return []
+    const comments = p.comments as { summary?: { total_count?: number } } | undefined
+    const reactions = p.reactions as { summary?: { total_count?: number } } | undefined
+    const shares = p.shares as { count?: number } | undefined
+    const atts = p.attachments as { data?: Array<{ media_type?: string }> } | undefined
+    return [
+      {
+        id,
+        message: typeof p.message === 'string' && p.message.length > 0 ? p.message : null,
+        createdTime: typeof p.created_time === 'string' ? new Date(p.created_time) : null,
+        permalink: typeof p.permalink_url === 'string' ? p.permalink_url : null,
+        picture: typeof p.full_picture === 'string' ? p.full_picture : null,
+        // media_type ของ attachment ตรงกับที่ fetchPostMeta ใช้ (video/photo/album/…) —
+        // ตกไปใช้ status_type ถ้าไม่มี attachment (โพสต์ข้อความล้วน)
+        mediaType: atts?.data?.[0]?.media_type ?? (typeof p.status_type === 'string' ? p.status_type : null),
+        commentCount: comments?.summary?.total_count ?? 0,
+        reactionCount: reactions?.summary?.total_count ?? null,
+        shareCount: shares?.count ?? null,
+      },
+    ]
+  })
+}

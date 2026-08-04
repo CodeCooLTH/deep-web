@@ -5,7 +5,7 @@
  *   CompactHero → OrderStatusBand → CarouselGrid → ActivityTimeline
  *
  * แทนของเดิม (v8): SellerHeader+WalletCard → CompactHero (รวม), ShortcutGrid → CarouselGrid,
- *   OrderStatusRow → OrderStatusBand, RecentActivityFeed → ActivityTimeline.
+ *   OrderStatusRow → OrderStatusBand (OrderStatusRow ลบทิ้งแล้ว 2026-08-04), RecentActivityFeed → ActivityTimeline.
  *   ไฟล์เก่า deprecate in-place (ลบ Phase 2 หลัง verify ไม่มี import — OOS-5)
  *
  * ห้ามใส่ px/pb บน wrapper — .seller-mobile-shell main มี padding-inline:1rem

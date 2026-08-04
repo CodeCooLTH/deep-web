@@ -2,9 +2,11 @@
  * OrderStatusBand — band คำสั่งซื้อ 4-status แบบ flat (RSC)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/dashboard/ecommerce/components/StatisticCard.tsx
- *       (in-project adapt ref: src/app/(paces)/seller/(dashboard)/dashboard/components/OrderStatusRow.tsx)
  *
- * ต่างจาก OrderStatusRow:
+ * ใช้ทั้งมือถือ (ใน CommandCenter) และเดสก์ท็อป (ในบล็อก hidden lg:block ของ dashboard ตั้งแต่
+ * 2026-08-04) — จอเดียวกันไม่เคยเห็น 2 ตัวพร้อมกัน เพราะสองบล็อกนั้นสลับกันด้วย breakpoint
+ *
+ * ต่างจาก OrderStatusRow (component รุ่นก่อน ลบทิ้งแล้ว 2026-08-04 หลังไม่มีใคร import):
  *  - icon Solar Duotone (ไม่ใช่ Tabler) ผ่าน @iconify/react โดยตรง (ไม่ใช้ wrapper)
  *  - icon flat ไม่มี circle/bg/border ครอบ (spec §4.2 + mockup .ostat)
  *  - badge เฉพาะ PENDING/SHIPPED เมื่อ count > 0 (งานที่ต้องทำ)
@@ -171,10 +173,13 @@ export default function OrderStatusBand({ counts, shipping }: OrderStatusBandPro
 
             return (
               /* Link ครอบ tap target ทั้งก้อน — short path ไม่มี /seller prefix (convention) */
+              /* lg:* มีผลเฉพาะตอนถูก render ในบล็อกเดสก์ท็อปของ dashboard (มือถืออยู่ใต้ lg:hidden
+                 จึงไม่ได้รับผล) — เรียงไอคอนไว้ข้างป้ายเพราะช่องกว้าง ~300px ต่อไทล์ ถ้าวางซ้อนกัน
+                 แนวตั้งแบบมือถือจะเหลือที่ว่างรอบไอคอน 30px จนอ่านเป็นการ์ดเปล่า */
               <Link
                 key={key}
                 href={href}
-                className="flex flex-col items-center gap-2 py-1 active:scale-95 transition-transform"
+                className="flex flex-col items-center gap-2 py-1 active:scale-95 transition-transform lg:flex-row lg:justify-center lg:gap-3 lg:py-3"
               >
                 {/* icon wrapper: relative เพื่อ position badge absolute */}
                 {/* arbitrary: px-1 / py-0.5 เพิ่ม tap target รอบ icon (Paces ไม่มี token ขนาด hit-area ไม่มี circle) — HR7 */}

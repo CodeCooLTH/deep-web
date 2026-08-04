@@ -168,6 +168,8 @@ export async function POST(request: NextRequest) {
           mid: event.reaction.mid,
           action: event.reaction.action,
           emoji: event.reaction.emoji,
+          // ชื่อเชิงความหมาย ("love"/"like"/…) — ทางสำรองเมื่อ payload ไม่มี emoji (echo ของฝั่งเพจ)
+          reactionName: event.reaction.reaction,
           // ส่งผู้กดกับเวลาไปด้วย — react ของ "ลูกค้า" เปิดหน้าต่าง 24 ชม. ใหม่ตามนโยบาย Meta
           reactorExternalId: event.sender.id,
           timestamp: event.timestamp,

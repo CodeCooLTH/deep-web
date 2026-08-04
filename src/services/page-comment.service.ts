@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { canAccessShop } from '@/lib/shop-context'
 import { decryptToken } from '@/lib/token-crypto'
 import { getChannelByExternalId } from '@/services/shop-channel.service'
-import { createCommentReply, fetchPostComments, fetchPostMeta } from '@/lib/facebook/graph'
+import { createCommentReply, fetchPagePosts, fetchPostComments, fetchPostMeta } from '@/lib/facebook/graph'
 import { getFileUrl } from '@/lib/storage'
 import type { FeedChange } from '@/lib/facebook/webhook-types'
 
@@ -143,6 +143,99 @@ async function ensurePost(shopChannelId: string, externalPostId: string) {
     // ชนกับ webhook อีกตัวที่สร้างพร้อมกัน (unique externalPostId) — อ่านของที่มีอยู่แล้วคืนไป
     return prisma.facebookPost.findUnique({ where: { externalPostId } })
   }
+}
+
+/** เว้นระยะก่อนดึงโพสต์ย้อนหลังของเพจเดิมซ้ำ — เปิดแท็บรัว ๆ ไม่ควรยิง Graph ทุกครั้ง */
+const PAGE_POSTS_BACKFILL_TTL_MS = 10 * 60 * 1000
+/** จำนวนโพสต์ที่ดึงมาดูต่อรอบ (คัดเฉพาะที่มีคอมเมนต์ก่อนจะไปดึงคอมเมนต์รายโพสต์) */
+const PAGE_POSTS_LIMIT = 50
+/** เพดานจำนวนโพสต์ที่จะไปดึงคอมเมนต์ต่อรอบ — กัน call พุ่งตอนเชื่อมเพจที่มีโพสต์เยอะครั้งแรก */
+const PAGE_POSTS_COMMENTS_PER_RUN = 15
+
+/**
+ * ดึง "โพสต์ย้อนหลังของเพจ" เข้าฐาน แล้วตามเก็บคอมเมนต์ของโพสต์ที่มีคนคอมเมนต์
+ * (user สั่ง 2026-08-04 หลังเทียบกับ Business Suite: "ทำไมไม่ครบตาม business suite")
+ *
+ * ปัญหาที่แก้: แถว FacebookPost เกิดขึ้นเฉพาะเมื่อมีคอมเมนต์ webhook เข้ามา **หลัง** เชื่อมเพจ
+ * (ensurePost เรียกจาก ingestFeedComment ที่เดียว) โพสต์ที่คอมเมนต์เข้ามาก่อนนั้นไม่มีในฐานเลย
+ *
+ * กติกาที่ตั้งใจ:
+ *  - **ไม่ throw เด็ดขาด** — นี่คือฟังก์ชันเสริมที่รันหลังส่ง response (after()) ถ้าพังต้องไม่มีผล
+ *    ต่อการเปิดหน้า และครั้งหน้าก็ลองใหม่เองได้
+ *  - throttle ต่อเพจ 10 นาที (in-memory เหมือน backfillPostComments) — เปิดแท็บซ้ำ ๆ ไม่ยิง Graph ซ้ำ
+ *  - คัดด้วย comments.summary ก่อน แล้วดึงคอมเมนต์แค่ 15 โพสต์แรกที่มีคอมเมนต์ต่อรอบ: โพสต์เก่า
+ *    ที่ไม่มีคอมเมนต์ไม่มีค่าอะไรกับหน้านี้ และการยิงคอมเมนต์ทุกโพสต์รอบเดียวคือทางตรงไป rate limit
+ *  - ใช้ `upsert` ผ่าน ensurePost เดิม (มี unique externalPostId + กันชนกับ webhook อยู่แล้ว)
+ *    แต่ **เติมค่า meta จากรายการที่ดึงมาแล้ว** ไม่ต้องยิง fetchPostMeta ต่อโพสต์อีกรอบ
+ */
+export async function backfillPagePosts(params: {
+  shopId: string
+  actorUserId: string
+}): Promise<{ postsAdded: number; commentsAdded: number }> {
+  const result = { postsAdded: 0, commentsAdded: 0 }
+  try {
+    if (!(await canAccessShop(params.shopId, params.actorUserId))) return result
+
+    const channels = await prisma.shopChannel.findMany({
+      where: { shopId: params.shopId, provider: 'MESSENGER', status: 'ACTIVE' },
+      select: { id: true },
+    })
+    const store = ((globalThis as { __pagePostsBackfillAt?: Map<string, number> }).__pagePostsBackfillAt ??= new Map())
+
+    for (const ch of channels) {
+      const last = store.get(ch.id)
+      if (last && Date.now() - last < PAGE_POSTS_BACKFILL_TTL_MS) continue
+      store.set(ch.id, Date.now())
+
+      const auth = await resolveChannelToken(ch.id)
+      if (!auth) continue
+
+      let posts: Awaited<ReturnType<typeof fetchPagePosts>> = []
+      try {
+        posts = await fetchPagePosts(auth.token, auth.pageId, PAGE_POSTS_LIMIT)
+      } catch (e) {
+        // สิทธิ์ไม่ครบ/โดน rate limit — ไม่ใช่เหตุให้หน้าพัง แค่ครั้งนี้ไม่ได้ของเพิ่ม
+        console.warn('[fb-comments] ดึงโพสต์ย้อนหลังไม่สำเร็จ', e instanceof Error ? e.message : e)
+        continue
+      }
+
+      const withComments = posts.filter((p) => p.commentCount > 0).slice(0, PAGE_POSTS_COMMENTS_PER_RUN)
+      for (const p of withComments) {
+        const existing = await prisma.facebookPost.findUnique({ where: { externalPostId: p.id } })
+        let postRowId = existing?.id ?? null
+        if (!existing) {
+          try {
+            const created = await prisma.facebookPost.create({
+              data: {
+                shopChannelId: ch.id,
+                externalPostId: p.id,
+                message: p.message,
+                permalink: p.permalink,
+                thumbnailUrl: p.picture,
+                createdTime: p.createdTime,
+                mediaType: p.mediaType,
+                reactionCount: p.reactionCount,
+                fbCommentCount: p.commentCount,
+                shareCount: p.shareCount,
+                statsSyncedAt: new Date(),
+              },
+            })
+            postRowId = created.id
+            result.postsAdded += 1
+          } catch {
+            // ชนกับ webhook ที่สร้างพร้อมกัน — อ่านของที่มีอยู่แล้วไปต่อ
+            postRowId = (await prisma.facebookPost.findUnique({ where: { externalPostId: p.id } }))?.id ?? null
+          }
+        }
+        if (!postRowId) continue
+        const { added } = await backfillPostComments(postRowId)
+        result.commentsAdded += added
+      }
+    }
+  } catch (e) {
+    console.warn('[fb-comments] backfillPagePosts ล้ม', e instanceof Error ? e.message : e)
+  }
+  return result
 }
 
 export interface CommentPostRow {
@@ -619,8 +712,18 @@ export async function countUnansweredForShop(params: {
   actorUserId: string
 }): Promise<number> {
   if (!(await canAccessShop(params.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  /**
+   * นับ **จำนวนโพสต์** ที่ยังมีคอมเมนต์ค้าง ไม่ใช่จำนวนคอมเมนต์ (user ถาม 2026-08-04 "มันควรเป็น 8 ไหม"
+   * ตอนแท็บขึ้น 26 แต่รายการมี 8 แถว)
+   *
+   * เหตุผลที่หน่วยต้องเป็น "โพสต์": badge ที่อยู่ข้างกันบนแถบเดียวกัน (`ข้อความ`) นับด้วย
+   * countUnreadConversations = **จำนวนเธรด** ไม่ใช่จำนวนข้อความ — สองแท็บบนแถบเดียวกันต้องเป็น
+   * หน่วยเดียวกัน คือ "มีกี่รายการในลิสต์ที่ต้องจัดการ" และตรงกับจำนวนแถวที่ผู้ใช้เห็นจริง
+   * (รอบก่อนผมเปลี่ยนเป็นนับคอมเมนต์เพราะ user บอกว่าเลข 24/5/3,7,3,8,3 ดูขัดกัน — ตอนนั้นแถวยังมี
+   *  วงกลมตัวเลขต่อโพสต์อยู่ พอถอดวงกลมออกตามที่สั่งทีหลัง เลขจำนวนคอมเมนต์ก็ไม่มีอะไรบนจอให้อ้างอิง)
+   */
   const rows = await prisma.$queryRaw<Array<{ count: bigint }>>`
-    SELECT count(*)::bigint AS count
+    SELECT count(DISTINCT c."postId")::bigint AS count
     FROM "PageComment" c
     JOIN "ShopChannel" sc ON sc.id = c."shopChannelId"
     WHERE sc."shopId" = ${params.shopId}

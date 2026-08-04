@@ -1028,12 +1028,32 @@ export async function ingestAdReferral(params: {
   ])
 }
 
+/**
+ * ชื่อรีแอ็กชันเชิงความหมายที่ Meta ส่งมาใน `reaction.reaction` → อักขระอิโมจิ
+ * (สร้างจาก codepoint ไม่ฝัง emoji ดิบในซอร์ส — HR12 grep gate)
+ *
+ * ใช้เป็นทางสำรองเมื่อ payload ไม่มี field `emoji` ติดมา (เจอจริงกับ echo ของรีแอ็กชันที่ "เพจ"
+ * เป็นคนกดเอง — ดูเหตุผลใน ingestReactionEvent)
+ */
+const REACTION_NAME_TO_EMOJI: Record<string, string> = {
+  love: String.fromCodePoint(0x2764),
+  like: String.fromCodePoint(0x1f44d),
+  wow: String.fromCodePoint(0x1f62e),
+  sad: String.fromCodePoint(0x1f622),
+  angry: String.fromCodePoint(0x1f621),
+  smile: String.fromCodePoint(0x1f606),
+  laugh: String.fromCodePoint(0x1f606),
+  dislike: String.fromCodePoint(0x1f44e),
+}
+
 export async function ingestReactionEvent(params: {
   provider: string
   pageExternalId: string
   mid: string
   action: string // "react" | "unreact"
   emoji?: string
+  /** ชื่อเชิงความหมาย ("love"/"like"/…) — ใช้เมื่อ payload ไม่มี emoji */
+  reactionName?: string
   /** ผู้กด react — เท่ากับ pageExternalId เมื่อร้านเป็นคนกดเอง (Meta ยิง event ทั้งสองทาง) */
   reactorExternalId?: string
   /** เวลาของ event (ms) จาก Meta — ใช้เป็นเวลาที่หน้าต่างเปิดใหม่ */
@@ -1047,10 +1067,28 @@ export async function ingestReactionEvent(params: {
   })
   if (!target) return
 
-  await prisma.chatMessage.updateMany({
-    where: { externalMessageId: params.mid, conversation: { shopChannelId: channel.id } },
-    data: { reactionEmoji: params.action === 'unreact' ? null : (params.emoji ?? null) },
-  })
+  /**
+   * 🛑 ห้ามเขียน null ตอน action='react' (user report prod 2026-08-04: "กด emoji ไม่ได้ กดแล้วมันขึ้น
+   * ซัก 1 วิ แล้วมันก็หายไป refresh ก็ไม่มา" — และเสริมว่าเกิดเฉพาะ "เวลาเรากด emoji ฝั่งเราเอง")
+   *
+   * ต้นเหตุ: ข้อความหนึ่งมี **ผู้เขียนคอลัมน์นี้ 2 ราย** — sendOutboundReaction (ตอนร้านกด) และ
+   * ingestReactionEvent (ตอน Meta ยิง echo กลับมา ~1 วินาทีให้หลัง; ยืนยันด้วย log prod ว่ามี event
+   * `reaction` วิ่งกลับมาจริงเมื่อฝั่งเพจกด) โค้ดเดิมเขียน `params.emoji ?? null` แปลว่า **echo ที่ไม่มี
+   * field `emoji` ติดมาจะล้างของที่เราเพิ่งเขียนสำเร็จทิ้ง** ผลคือรีแอ็กชันโผล่ ~1 วิ แล้วหายถาวร
+   * ส่วนรีแอ็กชันของลูกค้าไม่พังเพราะ payload ฝั่งนั้นมี emoji มาครบ (ในฐาน prod มีค้างอยู่จริง 4 แถว)
+   *
+   * กติกาใหม่: 'unreact' = ล้าง (นั่นคือความหมายของมันจริง ๆ) · 'react' = เขียนเฉพาะเมื่อ **รู้ค่า**
+   * (จาก emoji หรือแปลจากชื่อเชิงความหมาย) · ไม่รู้ค่า = **ไม่แตะคอลัมน์** ปล่อยของที่มีอยู่ไว้
+   * "ไม่มีข้อมูล" ไม่เท่ากับ "สั่งให้ลบข้อมูล"
+   */
+  const isUnreact = params.action === 'unreact'
+  const known = params.emoji ?? (params.reactionName ? REACTION_NAME_TO_EMOJI[params.reactionName.toLowerCase()] : undefined)
+  if (isUnreact || known) {
+    await prisma.chatMessage.updateMany({
+      where: { externalMessageId: params.mid, conversation: { shopChannelId: channel.id } },
+      data: { reactionEmoji: isUnreact ? null : known! },
+    })
+  }
 
   // ลูกค้ากด react = หน้าต่าง 24 ชม. เปิดใหม่ตามนโยบาย Meta — เอกสาร Messaging Policy ระบุ
   // "reacts to messages" เป็นหนึ่งใน action ที่เปิด/รีเซ็ตหน้าต่าง เท่ากับการส่งข้อความ

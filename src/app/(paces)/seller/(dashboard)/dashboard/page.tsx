@@ -38,6 +38,7 @@ import type { StatType } from './components/StatisticCard'
 import type { SalesSeriesPoint, SalesSummary } from './components/SalesReport'
 import type { OrderType } from './components/data'
 import CommandCenter from './components/CommandCenter'
+import OrderStatusBand from './components/OrderStatusBand'
 import { PROMO_BANNER } from './_constants/command-center'
 import { getRecentActivity, type ActivityItem } from '@/services/activity.service'
 // v8: ดึง wallet balance + tier label เพิ่มใน CommandCenterData (S-6/S-8)
@@ -413,6 +414,13 @@ export default async function SellerDashboardPage() {
           ครอบด้วย hidden lg:block เพื่อซ่อนบน mobile */}
       <div className="hidden lg:block">
         <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} />
+
+        {/* สถานะคำสั่งซื้อ — component ตัวเดียวกับบนมือถือ (user เคาะ 2026-08-04)
+            เดิมชุดนี้เป็น lg:hidden ทำให้เดสก์ท็อปไม่มีทางเข้าตัวกรองสถานะพัสดุเลย ต้องพิมพ์
+            ?stage= เอง. วางบนสุดเพราะเป็น "งานค้างวันนี้" ไม่ใช่ยอดสะสมเหมือนการ์ดแถวถัดไป */}
+        <div className="mb-base">
+          <OrderStatusBand counts={orderStatusCounts} shipping={shippingStageCounts} />
+        </div>
 
         {/* แถว 1 (theme row 1): UserCard + StatCards (5 คอล) | AchievementLevel (7 คอล)
             StorePerformanceOverview ถูก drop → AchievementLevel ยึด 7 คอลเต็ม */}

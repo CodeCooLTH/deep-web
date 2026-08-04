@@ -23,7 +23,10 @@ import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/S
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
-import CommentsFilterPanel from './CommentsFilterPanel'
+import CommentsFilterPanel, {
+  DEFAULT_COMMENT_SHOW_FILTER,
+  type CommentShowFilter,
+} from './CommentsFilterPanel'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 
 export type ChannelOption = { id: string; name: string; provider: string; avatarUrl: string | null }
@@ -182,10 +185,25 @@ export default function CommentsClient({
   const [hasMore, setHasMore] = useState(initialPosts.length >= 25)
   // ในเธรด: ดูเฉพาะคอมเมนต์ที่ยังไม่มีคำตอบของเพจ
   const [unansweredOnly, setUnansweredOnly] = useState(false)
-  // แท็บสถานะของรายการโพสต์ — 2 แท็บเท่านั้นตามที่ user สั่ง 2026-08-04 ("ทั้งหมด / ยังไม่ตอบ")
-  // "ตอบครบแล้ว" ถอดออก: เป็นส่วนเติมเต็มของ "ยังไม่ตอบ" อยู่แล้ว. union เหลือ 2 ค่าเพื่อให้ tsc
-  // บังคับว่าไม่มีที่ไหนอ้าง 'DONE' ค้าง (ไม่ใช่ลบแค่ปุ่มที่ render)
-  const [postTab, setPostTab] = useState<'ALL' | 'UNANSWERED'>('ALL')
+  /**
+   * ตัวกรอง "แสดงอะไร" — multi-select (user สั่ง 2026-08-04) เก็บที่เดียวแล้วให้ทั้งแถบแท็บและ
+   * แผงตัวกรองอ่าน/เขียนตัวเดียวกัน: แท็บเป็นทางลัดของค่าชุดนี้ ไม่ใช่ state คู่ขนาน
+   *   ทั้งหมด    = unanswered ✓ + done ✓
+   *   ยังไม่ตอบ  = unanswered ✓ + done ✗
+   * (สอง control ที่เก็บสถานะแยกกันแล้วต้องคอย sync คือที่มาของบั๊ก "ตัวเลข 2 ที่ไม่ตรงกัน" ที่เจอ
+   *  มาแล้วในหน้านี้ — ตัวกรองก็เหมือนกัน)
+   */
+  const [show, setShow] = useState<CommentShowFilter>(DEFAULT_COMMENT_SHOW_FILTER)
+  const postTab: 'ALL' | 'UNANSWERED' = show.unanswered && !show.done ? 'UNANSWERED' : 'ALL'
+  const setPostTab = (tab: 'ALL' | 'UNANSWERED') =>
+    setShow((s) => ({ ...s, unanswered: true, done: tab === 'ALL' }))
+  /**
+   * คอมเมนต์ระดับบนที่ร้านเขียนเอง — มาจากตัวกรองชุดเดียวกัน (show.shopComments, ค่าตั้งต้นปิด)
+   * ของพวกนี้ **เข้าฐานอยู่แล้ว** (ingestFeedComment เก็บทุกคอมเมนต์ + ติดธง isFromPage) แค่ไม่ควร
+   * ปนอยู่ในลิสต์ "สิ่งที่ต้องตอบ" — ซ่อนแค่ **ระดับบน** เท่านั้น คำตอบของเพจที่อยู่ใต้คอมเมนต์ลูกค้า
+   * ยังต้องเห็นตลอด (มันคือหลักฐานว่าเราตอบไปว่าอะไร)
+   */
+  const showShopComments = show.shopComments
   /**
    * ลำดับคอมเมนต์ในเธรด — ชุดเดียวกับ Facebook (user สั่ง 2026-08-04) คำไทยยึดคำที่ผู้ขายเห็นใน
    * Facebook/Business Suite อยู่แล้ว ไม่คิดคำใหม่ (impeccable clarify)
@@ -414,7 +432,10 @@ export default function CommentsClient({
       arr.push(c)
       children.set(c.parentExternalId, arr)
     }
-    const tops = list.filter((c) => !c.parentExternalId)
+    const tops = list
+      .filter((c) => !c.parentExternalId)
+      // คอมเมนต์ระดับบนของร้านเอง: ซ่อนเป็นค่าตั้งต้น (ดู showShopComments)
+      .filter((c) => showShopComments || !c.isFromPage)
     const newestFirst = [...tops].sort(
       (a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime(),
     )
@@ -452,7 +473,7 @@ export default function CommentsClient({
         const unansweredHere = (!c.isFromPage && !c.isDeleted && !answeredSelf ? 1 : 0) + unansweredReplies
         return { comment: c, replies, answered: unansweredHere === 0, unansweredHere }
       })
-  }, [thread, commentOrder])
+  }, [thread, commentOrder, showShopComments])
 
   const visibleTree = useMemo(
     () => (unansweredOnly ? tree.filter((t) => !t.answered) : tree),
@@ -529,14 +550,16 @@ export default function CommentsClient({
    * หน่วยเดียวทั้งจอคือ "คอมเมนต์ที่ยังไม่ตอบ" ตัวเลขจึงบวกกันได้ตรง ๆ
    * (ยังนับจาก postsByChannel ชุดเดียวกับรายการที่เรนเดอร์ — กรองเป็น Instagram แล้วเลขต้องเปลี่ยนตาม)
    */
-  const unansweredCommentCount = useMemo(
-    () => postsByChannel.reduce((n, p) => n + p.unansweredCount, 0),
+  const unansweredPostCount = useMemo(
+    () => postsByChannel.filter((p) => p.unansweredCount > 0).length,
     [postsByChannel],
   )
-  const visiblePosts = useMemo(() => {
-    if (postTab === 'UNANSWERED') return postsByChannel.filter((p) => p.unansweredCount > 0)
-    return postsByChannel
-  }, [postsByChannel, postTab])
+  const visiblePosts = useMemo(
+    // ตัวกรองเดียวครอบทั้งแถบแท็บและแผงตัวกรอง: โพสต์ที่มีของค้างขึ้นตาม show.unanswered
+    // ส่วนโพสต์ที่ตอบครบแล้วขึ้นตาม show.done — ปิดทั้งคู่ = ลิสต์ว่าง (ผู้ใช้เลือกเองอย่างนั้น)
+    () => postsByChannel.filter((p) => (p.unansweredCount > 0 ? show.unanswered : show.done)),
+    [postsByChannel, show.unanswered, show.done],
+  )
 
   const selectedPost = posts.find((p) => p.id === selectedId) ?? null
 
@@ -781,7 +804,11 @@ export default function CommentsClient({
             <CommentsFilterPanel
               pageOptions={channels}
               value={channelId}
-              onApply={setChannelId}
+              show={show}
+              onApply={(pageId, nextShow) => {
+                setChannelId(pageId)
+                setShow(nextShow)
+              }}
               open={filterOpen}
               onOpenChange={setFilterOpen}
             />
@@ -830,10 +857,12 @@ export default function CommentsClient({
                 {t.label}
                 {/* ตัวนับมาจาก postsByChannel ชุดเดียวกับรายการด้านล่าง (symbol เดียว) และตัดที่ 99+
                     เหมือน badge ยังไม่อ่านของแท็บข้อความ */}
-                {/* หน่วยเดียวกับวงกลมท้ายแถวและ badge บนแท็บ = "คอมเมนต์ที่ยังไม่ตอบ" (symbol เดียว) */}
-                {t.key === 'UNANSWERED' && unansweredCommentCount > 0 && (
+                {/* หน่วย = "จำนวนโพสต์ที่ยังมีของค้าง" ตรงกับจำนวนแถวที่เห็นในลิสต์ และตรงกับ badge
+                    บนแท็บ (countUnansweredForShop นับ DISTINCT postId) — user ถาม 2026-08-04
+                    "มันควรเป็น 8 ไหม" ตอนแท็บขึ้น 26 แต่รายการมี 8 แถว */}
+                {t.key === 'UNANSWERED' && unansweredPostCount > 0 && (
                   <span className="bg-danger text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold text-white">
-                    {unansweredCommentCount > 99 ? '99+' : unansweredCommentCount}
+                    {unansweredPostCount > 99 ? '99+' : unansweredPostCount}
                   </span>
                 )}
               </button>

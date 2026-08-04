@@ -24,25 +24,59 @@ import { ChannelBadgeOverlay } from '../components/ChannelBadge'
 import { PageAvatar } from '../components/PageFilterDropdown'
 import type { ChannelOption } from './CommentsClient'
 
+/**
+ * ตัวกรอง "แสดงอะไรในลิสต์" — multi-select (user สั่ง 2026-08-04 อ้างแถบชิปของ Business Suite
+ * "Follow up / Unread / Primary / Done / Spam / Page Comments / Group Comments"
+ * + "multi-select นะครับ ... select ทุกอัน ยกเว้น Page Comments ไว้ก่อน")
+ *
+ * ที่ทำได้จริงตอนนี้ 3 ตัว เพราะ `PageComment` มีแค่ `isFromPage` / `isDeleted` / `repliedByUserId`
+ * — ไม่มีคอลัมน์สถานะ อ่านแล้ว/ปิดงาน/สแปม/ติดตาม และไม่มีการดึงโพสต์จากกลุ่ม (Group Comments)
+ * ชิปที่กดแล้วไม่กรองอะไรเลยแย่กว่าไม่มีชิป — ตัวที่เหลือรอเพิ่มคอลัมน์ + ปุ่มให้ร้านตั้งสถานะก่อน
+ */
+export type CommentShowFilter = {
+  /** โพสต์ที่ยังมีคอมเมนต์ค้าง (คู่กับ Follow up ของ Business Suite) */
+  unanswered: boolean
+  /** โพสต์ที่ตอบครบแล้ว (คู่กับ Done) */
+  done: boolean
+  /** คอมเมนต์ระดับบนที่ร้านเขียนเอง (คู่กับ Page Comments) — ค่าตั้งต้นปิดตามที่ user สั่ง */
+  shopComments: boolean
+}
+
+export const DEFAULT_COMMENT_SHOW_FILTER: CommentShowFilter = {
+  unanswered: true,
+  done: true,
+  shopComments: false,
+}
+
 type Props = {
   pageOptions: ChannelOption[]
   /** เพจที่กรองอยู่จริง — null = ทุกเพจ */
   value: string | null
+  show: CommentShowFilter
   /** ยิงเมื่อกด "ใช้ตัวกรอง"/"ล้างตัวกรอง" เท่านั้น */
-  onApply: (pageId: string | null) => void
+  onApply: (pageId: string | null, show: CommentShowFilter) => void
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export default function CommentsFilterPanel({ pageOptions, value, onApply, open, onOpenChange }: Props) {
+export default function CommentsFilterPanel({ pageOptions, value, show, onApply, open, onOpenChange }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   // ร่าง — sync จากค่าจริงทุกครั้งที่เปิด ไม่ให้ค้างค่าที่เคยเลือกแล้วไม่ได้กดใช้จากรอบก่อน
   const [draftPage, setDraftPage] = useState<string | null>(value)
+  const [draftShow, setDraftShow] = useState<CommentShowFilter>(show)
   useEffect(() => {
-    if (open) setDraftPage(value)
-  }, [open, value])
+    if (open) {
+      setDraftPage(value)
+      setDraftShow(show)
+    }
+  }, [open, value, show])
 
-  const activeCount = value ? 1 : 0
+  // นับ "กี่เรื่องที่กรองอยู่" — เพจ 1 เรื่อง + การแสดงผลที่ไม่ใช่ค่าตั้งต้นอีก 1 เรื่อง
+  const showChanged =
+    show.unanswered !== DEFAULT_COMMENT_SHOW_FILTER.unanswered ||
+    show.done !== DEFAULT_COMMENT_SHOW_FILTER.done ||
+    show.shopComments !== DEFAULT_COMMENT_SHOW_FILTER.shopComments
+  const activeCount = (value ? 1 : 0) + (showChanged ? 1 : 0)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -102,6 +136,26 @@ export default function CommentsFilterPanel({ pageOptions, value, onApply, open,
           {/* max-h + scroll: ร้านที่เชื่อมเพจไว้หลายสิบเพจต้องยังกดปุ่มท้ายแผงได้
               (บั๊กเดียวกับที่เจอในแผงของแท็บข้อความ 2026-07-31) */}
           <div className="max-h-96 overflow-y-auto p-3">
+            <p className="text-default-700 mb-2 text-xs font-medium">
+              แสดง <span className="font-normal">— เลือกได้หลายอย่าง</span>
+            </p>
+            <div className="mb-4 flex flex-wrap gap-1.5">
+              <Chip
+                on={draftShow.unanswered}
+                label="ยังไม่ตอบ"
+                onClick={() => setDraftShow((d) => ({ ...d, unanswered: !d.unanswered }))}
+              />
+              <Chip
+                on={draftShow.done}
+                label="ตอบครบแล้ว"
+                onClick={() => setDraftShow((d) => ({ ...d, done: !d.done }))}
+              />
+              <Chip
+                on={draftShow.shopComments}
+                label="คอมเมนต์ของร้าน"
+                onClick={() => setDraftShow((d) => ({ ...d, shopComments: !d.shopComments }))}
+              />
+            </div>
             <p className="text-default-700 mb-2 text-xs font-medium">เพจ</p>
             <div className="flex flex-wrap gap-1.5">
               <Chip on={draftPage === null} label="ทุกเพจ" onClick={() => setDraftPage(null)} />
@@ -129,7 +183,8 @@ export default function CommentsFilterPanel({ pageOptions, value, onApply, open,
               type="button"
               onClick={() => {
                 setDraftPage(null)
-                onApply(null)
+                setDraftShow(DEFAULT_COMMENT_SHOW_FILTER)
+                onApply(null, DEFAULT_COMMENT_SHOW_FILTER)
                 onOpenChange(false)
               }}
               className="btn btn-sm text-default-800 hover:bg-light"
@@ -139,7 +194,7 @@ export default function CommentsFilterPanel({ pageOptions, value, onApply, open,
             <button
               type="button"
               onClick={() => {
-                onApply(draftPage)
+                onApply(draftPage, draftShow)
                 onOpenChange(false)
               }}
               className="btn btn-sm bg-primary hover:bg-primary-hover text-white"

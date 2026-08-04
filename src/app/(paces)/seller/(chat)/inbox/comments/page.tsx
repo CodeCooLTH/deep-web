@@ -8,11 +8,12 @@
  * (เหมือน /inbox ตอนยังไม่มีช่องทาง)
  */
 import type { Metadata } from 'next'
+import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { listCommentPosts, countUnansweredForShop } from '@/services/page-comment.service'
+import { listCommentPosts, countUnansweredForShop, backfillPagePosts } from '@/services/page-comment.service'
 import { listChannels } from '@/services/shop-channel.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
@@ -33,6 +34,18 @@ export default async function CommentsPage() {
   if (!activeCtx) {
     return <SellerErrorState title="ไม่พบร้านที่กำลังใช้งาน" message="ลองสลับร้านอีกครั้ง หรือรีเฟรชหน้านี้" />
   }
+
+  /**
+   * ดึงโพสต์ย้อนหลังของเพจเข้าฐาน (user สั่ง 2026-08-04 "จัดเลย ย้อนหลัง" หลังเทียบกับ Business Suite)
+   *
+   * รันใน `after()` = หลังส่ง HTML ให้ผู้ใช้แล้ว — ไม่ถ่วงเวลาเปิดหน้าเลย (ยิง Graph หลายรอบ:
+   * 1 ครั้งเอารายการโพสต์ + ไม่เกิน 15 ครั้งเอาคอมเมนต์ของโพสต์ที่มีคนคอมเมนต์)
+   * ของที่ได้เพิ่มจะโผล่เองในรอบ poll/realtime ถัดไปของ CommentsClient ไม่ต้องรีเฟรชมือ
+   * ฟังก์ชันไม่ throw และมี throttle ต่อเพจ 10 นาทีในตัว (ดู backfillPagePosts)
+   */
+  after(async () => {
+    await backfillPagePosts({ shopId: activeCtx.shopId, actorUserId: user.id })
+  })
 
   let posts: CommentPostItem[] = []
   let failed = false
