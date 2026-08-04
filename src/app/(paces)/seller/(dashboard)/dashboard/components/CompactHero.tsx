@@ -5,17 +5,20 @@
  * ปุ่ม pattern: theme/paces/Admin/TS/src/app/(admin)/ui/buttons/page.tsx
  *
  * layout: 2 แถวบนพื้นหลัง SVG ลำแสง xenon โทน Paces น้ำเงิน
- *   Row 1:  avatar+trust ring + ชื่อร้าน + bell
- *   Row 1b: สถิติ (ออเดอร์/รีวิว/ดาว) + ชิปแพ็กเกจ — อยู่นอกปุ่มสลับบัญชี
- *   Row 2:  wallet + ปุ่มเติมเงิน + divider + ShopLinkButtons
+ *   Row 1: avatar+trust ring + [ชื่อร้าน / สถิติ+ชิปแพ็กเกจ] + bell
+ *   Row 2: wallet + ปุ่มเติมเงิน + divider + ShopLinkButtons
  *
- * 2026-08-04: แถวแพ็กเกจเต็มความกว้าง (Row 3 เดิม) ถูกตัดออกตามคำสั่ง user แล้วย่อเป็นชิปใน Row 1b
- * — hero เตี้ยลง ~69px; logic สถานะ+copy ยังอิง `_shared/ShopPackageSidenavCard.tsx` เหมือนเดิม
- * ชิปยังเป็นทางเข้า /business ทางเดียวบนมือถือ (การ์ด sidenav ซ่อนที่ <1024px) จึงห้ามให้มันหาย
+ * 2026-08-04: แถวแพ็กเกจเต็มความกว้าง (Row 3 เดิม) ถูกตัดออกตามคำสั่ง user ย่อเป็นชิปท้ายบรรทัด
+ * สถิติแทน — hero เตี้ยลง ~69px; logic สถานะ+copy ยังอิง `_shared/ShopPackageSidenavCard.tsx`
+ *
+ * สำคัญ: ชื่อร้าน/สถิติ/ชิป ต้องอยู่ในคอลัมน์เดียวกันเสมอ ไม่งั้นชื่อจะลอยกลางวง avatar 58px แล้วสถิติ
+ * ตกไปอยู่ใต้วงกลายเป็นคนละก้อน (ลองแยกมาแล้วรอบหนึ่ง user บอกว่า "เพี้ยน" — ถูกต้อง)
+ * ⇒ ชิปอยู่ใน <button> ของ AccountSwitcherLauncher จึงเป็น <Link> ไม่ได้ (nested interactive)
+ *   เป็นป้ายอย่างเดียว; ทางเข้าหน้าแพ็กเกจบนมือถือ = เมนู "แพ็กเกจของฉัน" ใน sidebar
  *
  * S-1 (mobile account switcher): avatar-block + name-block ครอบด้วย AccountSwitcherLauncher
  * (client, อ่าน session เอง) — เปิด bottom sheet สลับบัญชีเมื่อมี business membership;
- * bell กับบรรทัดสถิติอยู่นอก launcher (ไม่ใช่ trigger สลับบัญชี)
+ * bell อยู่นอก launcher (ไม่ใช่ trigger สลับบัญชี)
  */
 
 import Link from 'next/link'
@@ -42,8 +45,9 @@ export interface CompactHeroProps {
   // เพื่อไม่ชนกับ tierName ที่แปลว่า trust tier ใน CommandCenterData — คนละเรื่องกัน)
   packageStatus: BusinessPackageStatusApp
   packageTier: BusinessPackageTier | null
-  /** true = OWNER → ทั้งแถวเป็นลิงก์ไป /business; false = สมาชิกอื่น เห็นข้อมูลเหมือนกันแต่กดไม่ได้ */
-  packageCanManage: boolean
+  /* หมายเหตุ: prop `packageCanManage` ถูกถอดออก 2026-08-04 — ชิปแพ็กเกจกลายเป็นป้ายอย่างเดียว
+     (อยู่ในปุ่มสลับบัญชี จึงเป็นลิงก์ไม่ได้) สิทธิ์กด "จัดการ" จึงไม่มีความหมายที่นี่อีก
+     ทางเข้าหน้าแพ็กเกจบนมือถือ = เมนู "แพ็กเกจของฉัน" ใน sidebar */
 }
 
 export default function CompactHero({
@@ -58,7 +62,6 @@ export default function CompactHero({
   notiCount = 0,
   packageStatus,
   packageTier,
-  packageCanManage,
 }: CompactHeroProps) {
   /** ความกว้าง/สูงของวง trust ring (HR7 carve-out เดิมของไฟล์นี้ — Paces ไม่มี token progress ring)
    *  ประกาศเป็นค่าเดียวเพราะบรรทัดสถิติที่อยู่นอกปุ่มสลับบัญชีต้องเยื้องตามความกว้างนี้เป๊ะ */
@@ -221,9 +224,50 @@ export default function CompactHero({
             </span>
           </div>
 
-          {/* ชื่อร้าน — บรรทัดสถิติถูกย้ายออกไปนอกปุ่มแล้ว (ดูบล็อกถัดไป) */}
+          {/*
+           * ชื่อร้าน + สถิติ + ชิป — ต้องอยู่ในคอลัมน์เดียวกันเสมอ เพื่อให้ทั้งก้อนจัดกึ่งกลาง
+           * เทียบกับวง avatar 58px
+           * (รอบแรกผมยกบรรทัดสถิติออกไปเป็นแถวใหม่ใต้ avatar เพื่อเลี่ยงปัญหาปุ่มซ้อนปุ่ม ผลคือ
+           *  ชื่อร้านลอยกลางวง avatar แล้วสถิติไปอยู่ใต้วงอีกที กลายเป็นคนละก้อน — user เห็นแล้วบอกว่า
+           *  "เพี้ยน" 2026-08-04 ถูกต้อง)
+           *
+           * ⇒ ชิปกลับเข้ามาอยู่ในปุ่มสลับบัญชี จึงเป็น <Link> ไม่ได้ (nested interactive) — เป็น
+           *   ป้ายอย่างเดียว ตรงกับที่ user สั่งว่า "เป็น label [Business] ไรงี้"
+           *   ทางเข้าหน้าแพ็กเกจบนมือถือย้ายไปใช้เมนู "แพ็กเกจของฉัน" ที่มีอยู่แล้วใน sidebar
+           */}
           <div className="flex-1 min-w-0">
-            <p className="text-md font-semibold truncate leading-tight text-white">{shopName}</p>
+            {/* ชื่อร้านต้องเด่นที่สุดในแถบนี้ — text-lg/bold ให้ห่างจากตัวเลขสถิติที่อยู่ใต้มันชัดเจน
+                (เดิม text-md/semibold ซึ่งน้ำหนักใกล้เคียงตัวเลขสถิติที่เป็น bold จนแยกไม่ออกว่าอะไรสำคัญกว่า) */}
+            <p className="text-lg font-bold truncate leading-tight text-white">{shopName}</p>
+
+            <div className="flex items-center gap-1.5 mt-1 text-white/80 text-2xs">
+              {/* กลุ่มสถิติยอมให้ถูกตัดก่อนชิปบนจอแคบ — ชิปบอกระดับแพ็กเกจซึ่งหายไม่ได้ */}
+              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden whitespace-nowrap">
+                <span>
+                  <strong className="text-white font-semibold">{orderCount.toLocaleString('th-TH')}</strong>{' '}
+                  คำสั่งซื้อ
+                </span>
+                <span className="opacity-50">·</span>
+                <span>
+                  <strong className="text-white font-semibold">{reviewCount.toLocaleString('th-TH')}</strong>{' '}
+                  รีวิว
+                </span>
+                <span className="opacity-50">·</span>
+                <span className="inline-flex items-center gap-0.5">
+                  {/* Solar star icon สีทอง — HR7 arbitrary: #ffd24d (gold) Paces ไม่มี token สีทอง star (text-warning เป็นส้ม ไม่ตรง) */}
+                  <Icon icon="solar:star-bold-duotone" className="text-sm" style={{ color: '#ffd24d' /* HR7 arbitrary: gold */ }} />
+                  <strong className="text-white font-semibold">{avgRating.toFixed(1)}</strong>
+                </span>
+              </div>
+
+              <span
+                className={`${packageChipClasses} shrink-0 inline-flex items-center gap-1 text-2xs`}
+                aria-label={packageAriaLabel}
+              >
+                <Icon icon={packageIcon} className="text-2xs" aria-hidden="true" />
+                {packageChipLabel}
+              </span>
+            </div>
           </div>
 
           </AccountSwitcherLauncher>
@@ -249,61 +293,6 @@ export default function CompactHero({
               </span>
             )}
           </Link>
-        </div>
-
-        {/*
-         * Row 1b: สถิติ + ชิปแพ็กเกจ — อยู่ "นอก" AccountSwitcherLauncher โดยตั้งใจ
-         *
-         * เดิมบรรทัดนี้อยู่ในปุ่มสลับบัญชี ซึ่งเป็น <button> ก้อนเดียวครอบ avatar+ชื่อ+สถิติ
-         * การเอาชิปที่เป็น <Link> ไปวางข้างในจึงทำไม่ได้ (nested interactive element ผิด HTML
-         * และแตะชิปแล้ว event จะ bubble ไปเปิดชีตสลับบัญชีแทนที่จะไป /business)
-         * ⇒ ย่อปุ่มให้ครอบแค่ avatar+ชื่อ แล้วยกบรรทัดนี้ออกมาเป็นพี่น้อง
-         *
-         * spacer ใช้ค่าเดียวกับความกว้าง avatar (AVATAR_SIZE) + gap-3 ของ flex แม่ = เยื้องตรงกับ
-         * ชื่อร้านบรรทัดบนพอดี โดยไม่ต้องคิดตัวเลข margin ใหม่ (ถ้าวันหลังเปลี่ยนขนาด avatar
-         * บรรทัดนี้ขยับตามเอง — ไม่มีเลขซ้ำสองที่ให้ลืมแก้)
-         */}
-        <div className="flex items-center gap-3 mt-1">
-          <div className="shrink-0" style={{ width: AVATAR_SIZE }} aria-hidden="true" />
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 text-white/80 text-2xs">
-            {/* กลุ่มสถิติ — ให้กลุ่มนี้โดนตัดก่อนชิปเสมอบนจอแคบ เพราะชิปคือทางเข้า /business
-                ทางเดียวบนมือถือ (การ์ดแพ็กเกจฝั่ง sidenav ถูกซ่อนต่ำกว่า 1024px) หายไม่ได้ */}
-            <div className="flex items-center gap-1.5 min-w-0 overflow-hidden whitespace-nowrap">
-              <span>
-                <strong className="text-white font-bold">{orderCount.toLocaleString('th-TH')}</strong>{' '}
-                คำสั่งซื้อ
-              </span>
-              <span className="opacity-50">·</span>
-              <span>
-                <strong className="text-white font-bold">{reviewCount.toLocaleString('th-TH')}</strong>{' '}
-                รีวิว
-              </span>
-              <span className="opacity-50">·</span>
-              <span className="inline-flex items-center gap-0.5">
-                {/* Solar star icon สีทอง — HR7 arbitrary: #ffd24d (gold) Paces ไม่มี token สีทอง star (text-warning เป็นส้ม ไม่ตรง) */}
-                <Icon icon="solar:star-bold-duotone" className="text-sm" style={{ color: '#ffd24d' /* HR7 arbitrary: gold */ }} />
-                <strong className="text-white font-bold">{avgRating.toFixed(1)}</strong>
-              </span>
-            </div>
-
-            {/* ชิปแพ็กเกจ — ไม่ใช่ OWNER เห็นข้อมูลเหมือนกันแต่กดไม่ได้ (จัดการแพ็กเกจเป็นสิทธิ์
-                ระดับบัญชีเจ้าของ) จึง render เป็น <span> ไม่ใช่ <Link> */}
-            {packageCanManage ? (
-              <Link
-                href="/business"
-                aria-label={packageAriaLabel}
-                className={`${packageChipClasses} shrink-0 inline-flex items-center gap-1 text-2xs`}
-              >
-                <Icon icon={packageIcon} className="text-2xs" aria-hidden="true" />
-                {packageChipLabel}
-              </Link>
-            ) : (
-              <span className={`${packageChipClasses} shrink-0 inline-flex items-center gap-1 text-2xs`}>
-                <Icon icon={packageIcon} className="text-2xs" aria-hidden="true" />
-                {packageChipLabel}
-              </span>
-            )}
-          </div>
         </div>
 
         {/* Row 2: wallet balance + ปุ่มเติมเงิน + divider + ShopLinkButtons */}
