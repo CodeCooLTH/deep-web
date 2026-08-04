@@ -17,6 +17,7 @@
 'use client'
 
 import { Icon } from '@iconify/react'
+import Link from 'next/link'
 import { formatRelativeDayTime } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import { useRef, useState } from 'react'
@@ -133,6 +134,19 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
 
   return (
     <div className={`card border-s-4 ${strip}`}>
+      {/* ── กดที่การ์ด = เปิดหน้ารายละเอียด (user สั่ง 2026-08-04) ──────────────────
+          ใช้ "stretched link" คือ <a> โปร่งใสทับทั้งการ์ด ไม่ใช่ห่อทั้งการ์ดด้วย <a>
+          เพราะในการ์ดมีปุ่มจริงอยู่ (ดูเพิ่มเติม / SMS / QR / คัดลอก / ⋮) ซึ่ง HTML ห้ามซ้อนใน <a>
+          และไม่ใช้ onClick+router.push เพราะจะเสีย href จริง — กดค้างเพื่อเปิดแท็บใหม่/คัดลอกลิงก์
+          และการโฟกัสด้วยคีย์บอร์ดจะหายไปทั้งหมด
+          .card มี position:relative อยู่แล้ว (assets/css/custom/_card.css) จึงไม่ต้องเติม
+          ปุ่มที่ต้องกดได้ต้องถูกยกขึ้นเหนือแผ่นนี้ด้วย relative z-10 (ดูจุดที่กำกับไว้ข้างล่าง) */}
+      <Link
+        href={`/orders/${order.publicToken}`}
+        aria-label={`ดูรายละเอียดออเดอร์ ${displayId}`}
+        className="absolute inset-0 rounded transition-colors active:bg-default-500/10"
+      />
+
       <div className="card-body !py-3 !px-4">
 
         {/* ── หัว: ซ้าย = อวตาร+ชื่อ(+meta) · ขวา = #ID + status badge (stack) ── */}
@@ -202,7 +216,8 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
             <button
               type="button"
               onClick={() => setExpanded((v) => !v)}
-              className="mt-1 flex w-full items-center justify-center gap-1 border-t border-dashed border-default-300 pt-2 text-xs font-medium text-primary"
+              /* relative z-10: ต้องอยู่เหนือแผ่นลิงก์ที่ทับการ์ด ไม่งั้นกด "ดูเพิ่มเติม" แล้วเด้งไปหน้า detail */
+              className="relative z-10 mt-1 flex w-full items-center justify-center gap-1 border-t border-dashed border-default-300 pt-2 text-xs font-medium text-primary"
             >
               {expanded ? 'ย่อ' : `ดูเพิ่มเติม (อีก ${itemCount - 1} รายการ)`}
               <Icon
@@ -272,8 +287,10 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
             <p className="mt-0.5 text-2xs text-default-400">{formatRelativeDayTime(order.createdAtISO)}</p>
           </div>
 
-          {/* ขวา: OrderActions icon-only [SMS][QR][copy][⋮] */}
-          <div className="shrink-0">
+          {/* ขวา: OrderActions icon-only [SMS][QR][copy][⋮]
+              relative z-10: ยกทั้งกลุ่มขึ้นเหนือแผ่นลิงก์ — .btn ของ Paces มี z-index:10 ในตัวอยู่แล้ว
+              แต่เมนู ⋮ กางออกมาเป็น panel ที่ไม่ใช่ .btn จึงต้องยกที่ระดับกลุ่ม ไม่ใช่รายปุ่ม */}
+          <div className="relative z-10 shrink-0">
             <OrderActions order={order} onCancelRequest={onCancelRequest} variant="card" />
           </div>
         </div>

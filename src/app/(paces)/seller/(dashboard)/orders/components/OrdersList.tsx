@@ -295,7 +295,9 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
     }
   }
 
-  const activeFilterCount = typeFilter ? 1 : 0
+  // จุดแดงบนปุ่มตัวกรอง — ต้องนับ stage ด้วย ไม่งั้นกรองสถานะพัสดุอยู่แต่ปุ่มดูเหมือนไม่ได้กรองอะไร
+  // (บนมือถือไม่มีชิปให้เห็นแล้ว ปุ่มนี้คือที่เดียวที่บอกว่ากำลังกรองอยู่)
+  const activeFilterCount = (typeFilter ? 1 : 0) + (stage ? 1 : 0)
 
   return (
     <>
@@ -434,16 +436,28 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
           })}
         </div>
 
-        {/* แถวชิปสถานะพัสดุ — แยกแถวจากชิปสถานะการขายด้านบนเพราะเป็นคนละแกน ใช้พร้อมกันได้
-            (เช่น "รอดำเนินการ" + "รอเลขพัสดุ") การเอามารวมแถวเดียวจะสื่อว่าเลือกได้อย่างเดียว
-            HR7: [&::-webkit-scrollbar]:hidden = arbitrary selector (Tailwind ไม่มี token) ตามแถวบน */}
-        {hasStageAxis && (
-          <StageChips
-            stage={stage}
-            counts={stageCounts}
-            onSelect={handleStageChip}
-            className="overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
-          />
+        {/* เคยมีแถวชิปสถานะพัสดุอยู่ตรงนี้ — ถอดออก 2026-08-04 หลัง user ลองบนเครื่องจริงแล้วบอกว่า
+            "ใช้ยาก": 2 แถวหน้าตาเหมือนกันเป๊ะ เลื่อนแนวนอนแยกกัน และถูกตัดขอบขวาทั้งคู่ ทำให้
+            หัวสติกกี้สูงขึ้นจนการ์ดใบแรกโดนดันตกจอ. ย้ายไปโมดัลตัวกรอง (ปุ่มไอคอนด้านบน) แทน
+            — เดสก์ท็อปยังเป็นแถวชิป เพราะกว้างพอให้เห็นครบโดยไม่ต้องเลื่อน
+
+            แถบด้านล่างจึงต้องกลับมา: พอไม่มีชิป สิ่งเดียวที่บอกว่ากำลังกรองอยู่คือจุดแดงบนปุ่มกรอง
+            ซึ่งไม่ได้บอกว่ากรองด้วยอะไร — คนที่กดมาจากไทล์หน้าแรกจะเห็นรายการสั้นลงแบบไม่มีคำอธิบาย
+            ต่างจากแถวชิปตรงที่แถบนี้โผล่เฉพาะตอนกรองอยู่จริง ไม่กินที่ถาวร */}
+        {stage && (
+          <div className="bg-primary/15 text-primary-ink mb-2 flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs">
+            <Icon icon="filter" className="shrink-0" />
+            <span className="min-w-0 flex-1 truncate">
+              {SHIPPING_STAGE_LABEL[stage]} ({filtered.length} รายการ)
+            </span>
+            <button
+              type="button"
+              onClick={() => pushQuery({ stage: null })}
+              className="shrink-0 font-medium hover:underline"
+            >
+              ล้าง
+            </button>
+          </div>
         )}
       </div>
 
@@ -496,6 +510,37 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
           </div>
 
           <div className="flex-1 overflow-auto p-4">
+            {/* สถานะพัสดุ — อยู่บนสุดเพราะเป็นตัวกรองที่ร้านขายออนไลน์ใช้ทุกวัน (ไล่งานค้าง)
+                ส่วนประเภทออเดอร์เป็นของนาน ๆ ใช้ที · แถวหน้าตาเดียวกับประเภทออเดอร์ทุกประการ */}
+            {hasStageAxis && (
+              <>
+                <p className="mb-2 text-sm font-medium text-default-900">สถานะพัสดุ</p>
+                <div className="mb-5 space-y-1">
+                  {[null, ...STAGE_CHIPS].map((key) => {
+                    const active = stage === key
+                    const count = key ? stageCounts[key] ?? 0 : orders.length
+                    return (
+                      <button
+                        key={key ?? 'all'}
+                        type="button"
+                        onClick={() => pushQuery({ stage: key })}
+                        className={cn(
+                          'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
+                          active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
+                        )}
+                      >
+                        <span>
+                          {key ? SHIPPING_STAGE_LABEL[key] : 'ทุกสถานะ'}
+                          <span className="ms-1.5 tabular-nums text-default-400">{count}</span>
+                        </span>
+                        {active && <Icon icon="check" className="text-base" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
             <p className="mb-2 text-sm font-medium text-default-900">ประเภทออเดอร์</p>
             <div className="space-y-1">
               {TYPE_OPTIONS.map((opt) => {
@@ -521,7 +566,11 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
           <div className="flex gap-2 border-t border-default-200 p-4">
             <button
               type="button"
-              onClick={() => setTypeFilter('')}
+              onClick={() => {
+                setTypeFilter('')
+                // ล้าง stage ด้วย ไม่งั้นกด "ล้างตัวกรอง" แล้วรายการยังสั้นอยู่โดยไม่มีอะไรอธิบาย
+                if (stage) pushQuery({ stage: null })
+              }}
               className="btn flex-1 border-default-300 text-default-700"
             >
               ล้างตัวกรอง
