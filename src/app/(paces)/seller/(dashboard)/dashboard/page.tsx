@@ -109,7 +109,9 @@ export default async function SellerDashboardPage() {
   // fallback = 0 ทุก bucket ถ้า fetch ล้ม (ตาม plan Error Handling)
   let orderStatusCounts = { PENDING: 0, SHIPPED: 0, CONFIRMED: 0, CANCELLED: 0 }
   // ตัวนับ "ของอยู่ไหน" — เฉพาะร้านขายออนไลน์ (user สั่ง 2026-08-04); undefined = การ์ดใช้ชุดเดิม
-  let shippingStageCounts: { AWAITING_PARCEL: number; AWAITING_PICKUP: number; SHIPPING: number; PROBLEM: number } | undefined
+  let shippingStageCounts:
+    | { AWAITING_PARCEL: number; AWAITING_PICKUP: number; SHIPPING: number; AWAITING_CLOSE: number; PROBLEM: number }
+    | undefined
   // recentActivity: feed aggregate (Order/Review/SMS/TopUp) — service ครอบ try/catch→[] อยู่แล้ว
   let recentActivity: ActivityItem[] = []
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
@@ -174,7 +176,7 @@ export default async function SellerDashboardPage() {
       // avatarUrl: ใช้ logo ร้านก่อน → fallback owner.avatar (รูปเดียวกับที่ public profile /u/[username] แสดง)
       // กัน header ขึ้นอักษรย่อทั้งที่มีรูป — ร้านที่ยังไม่ตั้ง logo จะใช้รูปโปรไฟล์ owner แทน; ไม่ใช่ PII sensitive
       //
-      // 🛑 ต้องผ่าน toFileUrl() — bug 2026-08-01: เดิมส่งค่าดิบจาก DB เข้า <img src> ตรง ๆ
+      // [สำคัญ] ต้องผ่าน toFileUrl() — bug 2026-08-01: เดิมส่งค่าดิบจาก DB เข้า src ของรูปตรง ๆ
       // แต่ Shop.logo เก็บเป็น "storage key" (เช่น "2026/07/31/uuid.jpg") ไม่ใช่ URL
       // เบราว์เซอร์จึงตีความเป็น path สัมพัทธ์ -> /dashboard/2026/07/31/uuid.jpg -> 404
       // ผลคือร้านที่ตั้งโลโก้แล้วยังเห็นเป็นอักษรย่อบน dashboard ทั้งที่หน้า /shop แสดงรูปได้

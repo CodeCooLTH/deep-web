@@ -36,9 +36,13 @@ export interface OrderStatusBandProps {
     AWAITING_PARCEL: number
     AWAITING_PICKUP: number
     SHIPPING: number
+    AWAITING_CLOSE: number
     PROBLEM: number
   }
 }
+
+const ICON_SIZE_CLS = 'size-[30px]' // HR7 carve-out: Paces size-* ไม่มี 30px (size-7=28 เล็กไป, size-8=32 ใหญ่ไป) — 30px ตรง mockup .os-ic
+const BADGE_CLS = 'absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-danger text-white rounded-full text-2xs font-bold flex items-center justify-center leading-none tabular-nums' // HR7 carve-out: negative offset + min-w ของ badge ที่ลอยทับมุมไอคอน ไม่มี token รองรับ
 
 // clamp count ≥100 → "99+" เพื่อไม่ให้ badge กว้างเกิน
 function fmtBadge(n: number): string {
@@ -115,6 +119,15 @@ const SHIPPING_STAGES: {
     iconClass: 'text-info',
   },
   {
+    // พัสดุจบเส้นทางแล้วแต่ออเดอร์ยังไม่ปิด — ธง = เส้นชัยที่ยังไม่มีใครไปแตะ
+    // ห้ามใช้เครื่องหมายถูก/สีเขียว: ไทล์นี้คือ "ยังไม่ยืนยัน" ตรงตัว (Verified-Means-Green)
+    // และเขียวจะชนกับ solar:check-circle ของ CONFIRMED ในชุดไทล์อีกชุดบนหน้าเดียวกัน
+    key: 'AWAITING_CLOSE',
+    label: 'รอปิดงาน',
+    icon: 'solar:flag-2-bold-duotone',
+    iconClass: 'text-warning',
+  },
+  {
     key: 'PROBLEM',
     label: 'พัสดุมีปัญหา',
     icon: 'solar:danger-triangle-bold-duotone',
@@ -165,8 +178,15 @@ export default function OrderStatusBand({ counts, shipping }: OrderStatusBandPro
       </div>
 
       <div className="card-body">
-        {/* grid 4 คอลัมน์ flat — ไม่มี bg/border ครอบ icon (spec §4.2 + mockup .ostat) */}
-        <div className="grid grid-cols-4 gap-2">
+        {/* grid flat — ไม่มี bg/border ครอบ icon (spec §4.2 + mockup .ostat)
+            ชุดพัสดุมี 5 ไทล์: มือถือแตกเป็น 3+2 ไม่ใช่ 5 คอลัมน์เดียว เพราะพื้นที่กริดจริงบนจอ 360px
+            เหลือ 288px (หัก padding shell 16×2 + card-body 20×2) → 5 คอลัมน์ได้ช่องละ ~51px และ
+            เหลือ ~43px บนจอ 320px ซึ่งต่ำกว่า tap target 44px ที่ PRODUCT.md บังคับ · 3 คอลัมน์
+            ได้ ~90px กว้างกว่าของเดิม (4 ช่อง = 82px) ด้วยซ้ำ
+            ไม่ใช้ scroll แนวนอนเพราะไทล์พวกนี้คือ "งานค้างวันนี้" ที่ต้องกวาดตาเห็นครบพร้อมกัน
+            ถ้าต้องปัดถึงจะเห็นช่องสุดท้าย ก็เสียเหตุผลของ Command Center ไปเลย
+            ชุดเดิม 4 ไทล์ (vertical อื่นที่ไม่มีพัสดุ) ไม่กระทบ — ยังเป็น grid-cols-4 เหมือนเดิม */}
+        <div className={`grid gap-2 ${tiles.length === 5 ? 'grid-cols-3 lg:grid-cols-5' : 'grid-cols-4'}`}>
           {tiles.map(({ key, label, icon, iconClass, showBadge, count, href }) => {
             // badge แสดงเฉพาะ showBadge=true และ count > 0
             const badgeText = showBadge && count > 0 ? fmtBadge(count) : null
@@ -185,20 +205,9 @@ export default function OrderStatusBand({ counts, shipping }: OrderStatusBandPro
                 {/* arbitrary: px-1 / py-0.5 เพิ่ม tap target รอบ icon (Paces ไม่มี token ขนาด hit-area ไม่มี circle) — HR7 */}
                 <span className="relative inline-flex items-center justify-center px-1 py-0.5">
                   {/* icon Solar Duotone flat ขนาด 30px ตาม mockup .os-ic font-size:30px */}
-                  {/* arbitrary: size-[30px] — Paces size-* token สูงสุด size-12(48px) ใหญ่เกินสำหรับ icon กริด; size-7(28px) เล็กไป, size-8(32px)ใกล้แต่ 30px ตรงกับ mockup — HR7 */}
-                  <Icon
-                    icon={icon}
-                    className={`size-[30px] ${iconClass}`}
-                  />
-                  {/* badge เล็กมุมบนขวา icon — แสดงเฉพาะ PENDING/SHIPPED และ count > 0 */}
-                  {badgeText !== null && (
-                    <span
-                      /* arbitrary: -top-1.5 / -right-2 จัดตำแหน่ง badge overlap มุมบนขวา icon — ค่า Paces spacing token ไม่ครอบ negative offset สำหรับ absolute badge — HR7 */
-                      className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-danger text-white rounded-full text-2xs font-bold flex items-center justify-center leading-none tabular-nums"
-                    >
-                      {badgeText}
-                    </span>
-                  )}
+                  <Icon icon={icon} className={`${ICON_SIZE_CLS} ${iconClass}`} />
+                  {/* badge เล็กมุมบนขวา icon — แสดงเมื่อ count > 0 */}
+                  {badgeText !== null && <span className={BADGE_CLS}>{badgeText}</span>}
                 </span>
                 {/* label ใต้ icon — text-default-700 ตาม mockup .os-lb */}
                 <span className="text-xs text-default-700 text-center leading-tight font-medium">

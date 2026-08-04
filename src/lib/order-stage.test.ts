@@ -5,7 +5,7 @@
 //   2. พัสดุมีปัญหาถูกกลืนเป็น "สร้างพัสดุแล้ว" → ร้านมองไม่เห็นของที่ต้องรีบจัดการ (2026-07-31)
 
 import { describe, expect, it } from "vitest";
-import { deriveOrderStage } from "./order-stage";
+import { deriveOrderStage, deriveShippingStage } from "./order-stage";
 
 const NOW = new Date("2026-07-31T12:00:00Z").getTime();
 const base = {
@@ -70,5 +70,55 @@ describe("deriveOrderStage — พัสดุมีปัญหาต้อง�
     expect(deriveOrderStage({ ...base, carrierStatus: null }, NOW)?.key).toBe(
       "PARCEL_CREATED",
     );
+  });
+});
+
+// ─── กองงานตามสถานะพัสดุ (Command Center + ตัวกรอง /orders) ───────────────
+//
+// บั๊กจริง 2026-08-04: ร้านผูกพัสดุ iShip ที่ขนส่ง "ส่งถึงแล้ว" เข้ากับออเดอร์ COD ที่ผู้ซื้อ
+// ยังไม่กดยืนยันรับของ → ใบนั้นหายไปจากทุกไทล์ทันที เพราะ deriveShippingStage คืน DONE
+// จาก carrierStatus='delivered' โดยไม่ดู Order.status เลย
+// (ยืนยันจากฐาน prod: DP2569085F97153B ผู้ซื้อ "มงคล บับภาเอก")
+describe("deriveShippingStage — พัสดุจบเส้นทางแล้ว ไม่ได้แปลว่าออเดอร์จบ", () => {
+  it("delivered + ออเดอร์ยังไม่ยืนยัน → รอปิดงาน (ห้ามหายไปจากทุกไทล์)", () => {
+    expect(
+      deriveShippingStage({ status: "SHIPPED", carrierStatus: "delivered", hasShipment: true }),
+    ).toBe("AWAITING_CLOSE");
+  });
+
+  it("delivered + ผู้ซื้อยืนยันรับของแล้ว → DONE จริง", () => {
+    expect(
+      deriveShippingStage({ status: "CONFIRMED", carrierStatus: "delivered", hasShipment: true }),
+    ).toBe("DONE");
+  });
+
+  it("ของตีกลับถึงร้านแล้วแต่ยังไม่ปิดออเดอร์ → รอปิดงาน (ร้านต้องคืนเงิน/ส่งใหม่)", () => {
+    expect(
+      deriveShippingStage({ status: "PENDING", carrierStatus: "return_success", hasShipment: true }),
+    ).toBe("AWAITING_CLOSE");
+  });
+
+  it("ยกเลิกทั้งใบ → DONE เสมอ ไม่ว่าพัสดุอยู่สถานะไหน", () => {
+    expect(
+      deriveShippingStage({ status: "CANCELLED", carrierStatus: "delivered", hasShipment: true }),
+    ).toBe("DONE");
+  });
+
+  it("พัสดุมีปัญหาต้องชนะทุกอย่าง — ไม่ตกไปรอปิดงาน", () => {
+    expect(
+      deriveShippingStage({ status: "SHIPPED", carrierStatus: "issue", hasShipment: true }),
+    ).toBe("PROBLEM");
+  });
+
+  it("กองงานเดิม 3 กองไม่เปลี่ยนพฤติกรรม", () => {
+    expect(
+      deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: false }),
+    ).toBe("AWAITING_PARCEL");
+    expect(
+      deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: true }),
+    ).toBe("AWAITING_PICKUP");
+    expect(
+      deriveShippingStage({ status: "PENDING", carrierStatus: "in_transit", hasShipment: true }),
+    ).toBe("SHIPPING");
   });
 });

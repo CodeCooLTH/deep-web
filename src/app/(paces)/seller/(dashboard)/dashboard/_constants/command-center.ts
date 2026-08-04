@@ -49,6 +49,7 @@ export type CommandCenterData = {
     AWAITING_PARCEL: number
     AWAITING_PICKUP: number
     SHIPPING: number
+    AWAITING_CLOSE: number
     PROBLEM: number
   }
   recentActivity: ActivityItem[]

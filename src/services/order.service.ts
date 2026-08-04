@@ -981,7 +981,7 @@ export async function getOrderStatusCounts(
  * user สั่ง 2026-08-04 ให้เปลี่ยนจาก [รอดำเนินการ/กำลังจัดส่ง/สำเร็จ/ยกเลิก] ซึ่งเป็นสถานะ "การขาย"
  * มาเป็นสถานะ "ของอยู่ไหน" ที่ร้านขายออนไลน์ต้องลงมือทำจริงในแต่ละวัน
  *
- * 🛑 นับด้วย deriveShippingStage ตัวเดียวกับที่หน้า /orders ใช้กรอง — เดิมเขียนเป็น CASE ใน SQL
+ * [สำคัญ] นับด้วย deriveShippingStage ตัวเดียวกับที่หน้า /orders ใช้กรอง — เดิมเขียนเป็น CASE ใน SQL
  * ซึ่งเร็วกว่าแต่แปลว่ามีนิยาม 2 ชุด (SQL นับ / TS กรอง) วันหนึ่งจะกดไทล์ที่บอก 5 แล้วเข้าไปเจอ 4 ใบ
  * โดยไม่มีอะไรเตือน. โหลดแถวมาแล้วนับใน TS แทน — ปริมาณรับได้เพราะหน้า /orders เองก็ดึงออเดอร์
  * ทั้งร้านมาอยู่แล้ว และ query นี้ select แค่ 3 คอลัมน์
@@ -993,6 +993,7 @@ export async function getShippingStageCounts(shopId: string): Promise<{
   AWAITING_PARCEL: number
   AWAITING_PICKUP: number
   SHIPPING: number
+  AWAITING_CLOSE: number
   PROBLEM: number
 }> {
   const rows = await prisma.order.findMany({
@@ -1008,7 +1009,7 @@ export async function getShippingStageCounts(shopId: string): Promise<{
     },
   });
 
-  const counts = { AWAITING_PARCEL: 0, AWAITING_PICKUP: 0, SHIPPING: 0, PROBLEM: 0 };
+  const counts = { AWAITING_PARCEL: 0, AWAITING_PICKUP: 0, SHIPPING: 0, AWAITING_CLOSE: 0, PROBLEM: 0 };
   for (const o of rows) {
     const stage = deriveShippingStage({
       status: o.status,

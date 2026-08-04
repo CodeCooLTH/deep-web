@@ -1167,6 +1167,33 @@ export async function getLabelPdfForOrders(
 
 // ─── ประวัติการเดินทาง ──────────────────────────────────────────────────────
 
+/**
+ * parseCarrierTimestamp — เวลาจาก traces ของ iShip เป็น "เวลาไทย" ที่ไม่มีโซนเวลาติดมา
+ *
+ * รูปแบบที่ได้จริงคือ `"2026-08-04 15:36:18"` เดิมโค้ดทำ `new Date(s.replace(" ", "T"))`
+ * ซึ่ง JS ตีความสตริงแบบไม่มีโซนว่าเป็น "เวลาท้องถิ่นของเครื่อง" — บน Vercel เครื่องเป็น UTC
+ * ผลคือเวลาไทยถูกบันทึกเป็น UTC ตรง ๆ = **ทุกเหตุการณ์เลื่อนไปข้างหน้า 7 ชั่วโมง**
+ *
+ * หลักฐานจากฐาน prod (พัสดุ TH460290DA197B, 2026-08-04): แถวสุดท้ายมี `occurredAt`
+ * 15:36:18Z แต่ `createdAt` (เวลาที่เราบันทึกเอง) เป็น 13:10:57Z — เท่ากับบันทึกเหตุการณ์
+ * ที่ "ยังไม่เกิด" ล่วงหน้า 2 ชั่วโมงครึ่ง และเวลาเดียวกันนี้ฝั่ง query_orders (ซึ่งส่ง ISO
+ * พร้อมโซนมา จึงถูกต้อง) เก็บไว้เป็น 08:36:18Z — ห่างกัน 7 ชั่วโมงพอดี
+ *
+ * ผลกระทบที่มองเห็น: ไทม์ไลน์ในหน้าออเดอร์โชว์เวลาอนาคต และเวลาจาก 2 endpoint
+ * เทียบกันไม่ได้ทั้งที่พูดถึงนาทีเดียวกัน
+ *
+ * ตรึง +07:00 ตรง ๆ (ไม่ใช่ timezone ของเครื่อง) เพราะ iShip เป็นผู้ให้บริการไทยที่ส่งเวลาไทยเสมอ
+ * — ค่าที่ขึ้นกับเครื่องจะทำให้ dev กับ prod ได้ผลไม่ตรงกันอีก ซึ่งคือรากของบั๊กนี้พอดี
+ */
+function parseCarrierTimestamp(raw: string): Date | null {
+  if (!raw) return null;
+  // มีโซนเวลาติดมาแล้ว (Z หรือ ±hh:mm) → เชื่อตามนั้น ไม่ยัด +07 ทับ
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw.trim());
+  const iso = raw.trim().replace(" ", "T");
+  const d = new Date(hasZone ? iso : `${iso}+07:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export async function getTraces(shopId: string, shipmentId: string) {
   const { token } = await loadAccount(shopId);
   const row = await prisma.orderShipment.findFirst({
@@ -1203,8 +1230,8 @@ export async function getTraces(shopId: string, shipmentId: string) {
 
   // เก็บลงฐานข้อมูลด้วย เพื่อให้ไทม์ไลน์ยังอ่านได้แม้ผู้ให้บริการล่ม
   for (const r of routes) {
-    const occurredAt = new Date(r.timestamp.replace(" ", "T"));
-    if (Number.isNaN(occurredAt.getTime())) continue;
+    const occurredAt = parseCarrierTimestamp(r.timestamp);
+    if (!occurredAt) continue;
     await prisma.shipmentEvent.upsert({
       where: {
         shipmentId_dedupeKey: {
@@ -1236,8 +1263,8 @@ export async function getTraces(shopId: string, shipmentId: string) {
   // "สถานะล่าสุดที่รู้" ทับลงไป และ ShipmentEvent มี dedupeKey กันบันทึกซ้ำอยู่แล้ว
   const latest = routes.at(-1);
   if (latest) {
-    const occurredAt = new Date(latest.timestamp.replace(" ", "T"));
-    if (!Number.isNaN(occurredAt.getTime())) {
+    const occurredAt = parseCarrierTimestamp(latest.timestamp);
+    if (occurredAt) {
       await prisma.orderShipment.update({
         where: { id: row.id },
         data: {
