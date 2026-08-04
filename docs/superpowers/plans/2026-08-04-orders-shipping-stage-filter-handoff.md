@@ -1,5 +1,16 @@
 # บันทึกส่งต่อ — ตัวกรอง "สถานะพัสดุ" ในหน้า /orders (+ ทางเข้าฝั่งเดสก์ท็อป)
 
+> **สถานะ: ทำเสร็จแล้ว 2026-08-04 — merged main + prod (`d33290db`)**
+>
+> - §1 ชิปในหน้า `/orders` — เสร็จ (`StageChips` ใน `OrdersList.tsx` render 2 ที่ ตัวนับจาก symbol เดียว)
+> - §2 ทางเข้าเดสก์ท็อป — user เคาะว่า **"มี"** → `OrderStatusBand` ตัวเดิมลงในบล็อก `hidden lg:block`
+>   ของ dashboard, `OrderStatusRow.tsx` ลบทิ้งแล้ว
+> - **พบเพิ่มระหว่างทำ (ไม่ได้อยู่ในบันทึกนี้):** `?stage=` **ไม่เคยมีผลบนเดสก์ท็อปเลย** —
+>   `OrdersList` ส่ง `orders` ก้อนดิบเข้า `OrdersTable` ส่วนตัวกรองอยู่ในสาขา `lg:hidden`
+>   ฉะนั้นไม่ใช่แค่ "ไม่มีทางเข้า" แต่ลิงก์ที่พิมพ์เองก็ไม่ทำงาน → แก้ด้วย `stageFiltered`
+> - แถบ "กำลังดูเฉพาะ…" ถอดออกแล้ว (ชิปทำหน้าที่แทนครบ)
+> - **ค้าง:** browser QA (เวิร์กทรีนี้ไม่มี `.env.local`) — ยังไม่เคยกดจริงสักครั้ง
+
 **วันที่:** 2026-08-04
 **เหตุที่ส่งต่อ:** ปิด session · งานนี้เป็น carry ข้อ 7 ของ `docs/retro/2026-08-04-chat-longpress-command-center-retrospective.md` แต่**ขอบเขตกว้างกว่าที่เขียนไว้ในเรโทร** (เพิ่งพบตอนตอบคำถาม user ก่อนปิด session)
 **Branch:** `main` · **Worktree:** `/Users/craftman/orca/workspaces/safepay/main-2`

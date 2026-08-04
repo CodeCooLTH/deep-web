@@ -222,7 +222,8 @@ theme/
   - 🛑 **เลขพัสดุมี 2 ทางเข้า เก็บคนละตาราง** — ส่งเอง → `ShipmentTracking.provider` (ชื่อขนส่ง ไม่มีรหัส) · ผ่าน iShip → `OrderShipment.courierCode/courierName` · ฝั่งอ่านต้องอ่านทั้งคู่ ให้ iShip ชนะเมื่อมีพร้อมกัน (`docs/conventions/one-value-many-entry-points.md`)
   - **โลโก้ขนส่ง 8 ไฟล์** แมปที่ระดับ **แบรนด์** ไม่ใช่รายรหัส (`src/lib/iship/courier.ts` — dropdown จริงมี 17 รายการแต่เป็นแพ็กเกจของ 9 แบรนด์: Flash 6 แบบ, KEX 2, ไปรษณีย์ไทย 2, DHL 2) · ได้โลโก้ 19/20 ตัวเลือก · เติมโลโก้ใหม่ที่ `COURIER_BRANDS` ที่เดียว UI ไม่ต้องแก้
   - **แท็บ ข้อความ|ความคิดเห็น**: badge ทั้ง 2 แท็บ realtime (`/api/chat/inbox-tab-counts` + subscribe 2 channel) · แท็บไม่หายตอนเลื่อน (rail = ย้ายออกนอก scroller, มือถือ = sticky + `tabsAbove` ดันหัวรายการลงไปเกาะใต้แท็บ) · เสียงแชทดังตอนอยู่แท็บความคิดเห็น (`ChatSoundListener` แขวนแทนตำแหน่ง rail)
-  - **carry:** ตัวกรองสถานะพัสดุยังไม่มีชิปในหน้า `/orders` (เข้าทาง `?stage=` จากไทล์เท่านั้น) · ปุ่ม "ทักแชท" ในแท็บความคิดเห็นยังเป็นป้ายบอกเวลา ไม่ใช่ปุ่มกดได้ (ต้องทำ Private Replies ก่อน)
+  - ~~carry: ตัวกรองสถานะพัสดุยังไม่มีชิปในหน้า `/orders`~~ — **ปิดแล้ว 2026-08-04 รอบสอง** (`d33290db`): ชิป `StageChips` ใน `OrdersList.tsx` render 2 ที่ (หัวสติกกี้มือถือ + เหนือการ์ดตารางเดสก์ท็อป) นับจาก symbol เดียว · `?stage=` เดิม**ไม่มีผลบนเดสก์ท็อปเลย** เพราะ `OrdersTable` รับ `orders` ก้อนดิบ ตอนนี้รับ `stageFiltered` แล้ว · `pushQuery()` คง `?status=`/`?stage=` ไว้ด้วยกัน (คนละแกน) · หน้าแรกเดสก์ท็อปได้ `OrderStatusBand` ตัวเดียวกับมือถือ · ลบ `OrderStatusRow.tsx` (dead code) · **ยังไม่ได้ browser QA** (เวิร์กทรีนี้ไม่มี `.env.local`)
+  - **carry:** ปุ่ม "ทักแชท" ในแท็บความคิดเห็นยังเป็นป้ายบอกเวลา ไม่ใช่ปุ่มกดได้ (ต้องทำ Private Replies ก่อน)
   - **browser QA: ปิดหนี้แล้ว** — user กดทดสอบเองบน prod ครบทุกงาน 2026-08-04
 
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
