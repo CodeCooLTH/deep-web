@@ -15,6 +15,7 @@
  */
 import { usePathname } from 'next/navigation'
 import ChatRail from './ChatRail'
+import ChatSoundListener from './ChatSoundListener'
 
 export default function ChatRailColumn({
   shopId,
@@ -24,7 +25,12 @@ export default function ChatRailColumn({
   hasShipping: boolean
 }) {
   const pathname = usePathname()
-  if (pathname?.startsWith('/inbox/comments')) return null
+  // แท็บความคิดเห็น: rail หายไปทั้งคอลัมน์ ซึ่งพา InboxList — "เจ้าของเสียงเตือนข้อความใหม่" —
+  // หายไปด้วย ทำให้ข้อความใหม่เข้ามาแล้วเงียบสนิททั้งที่ยังอยู่ในกล่องข้อความ (user report
+  // 2026-08-04) จึงต้องแขวนตัวฟังเสียงไว้แทน. วางไว้ตรงนี้ไม่ใช่ที่หน้า comments เพราะที่นี่คือจุด
+  // เดียวที่ "รู้ว่า rail หายไปเมื่อไหร่" — route ไหนที่ซ่อน rail ในอนาคตก็จะได้เสียงไปด้วยเอง
+  if (pathname?.startsWith('/inbox/comments')) return <ChatSoundListener shopId={shopId} />
+
 
   return (
     // xl:w-96 — เท่ากับ Customer Panel ฝั่งขวา (user request 2026-07-23) ให้ 2 คอลัมน์ข้างเท่ากัน

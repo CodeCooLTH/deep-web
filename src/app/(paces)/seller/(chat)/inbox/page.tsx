@@ -260,7 +260,7 @@ export default async function SellerInboxPage() {
           (user เจอจริงบน prod) — prop ชื่อ railMode คงเดิม แต่ความหมายตอนนี้ = "ค้นหาอยู่ที่ header" */}
       <div className="lg:hidden">
         {/* แท็บ ข้อความ | ความคิดเห็น (feature 00029) — มือถือไม่มี rail จึงต้องมีที่นี่ด้วย */}
-        <InboxTabs />
+        <InboxTabs shopId={shop.id} />
         <InboxList
           initialItems={items}
           initialNextCursor={nextCursor}

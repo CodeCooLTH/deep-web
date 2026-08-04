@@ -19,6 +19,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { subscribeShopComments } from '@/lib/comment-realtime'
 
 const TABS = [
   { href: '/inbox', label: 'ข้อความ', icon: 'message-2' },
@@ -61,7 +62,21 @@ async function refreshUnanswered(force = false) {
   return inFlight
 }
 
-export default function InboxTabs({ unansweredCount }: { unansweredCount?: number }) {
+export default function InboxTabs({
+  unansweredCount,
+  shopId = null,
+}: {
+  unansweredCount?: number
+  /**
+   * ร้านที่กำลังใช้งาน — ใช้ subscribe `comments:shop:{shopId}` ให้ badge ขยับทันทีที่มีคอมเมนต์
+   * เข้ามา ไม่ต้องรอรอบ 60 วิ. ไม่ส่ง = ตกไปใช้ poll อย่างเดียว (ยังถูกต้อง แค่ช้ากว่า)
+   *
+   * trigger ตัวเดียวกับที่หน้าความคิดเห็นใช้อยู่แล้ว — comment ใน migration
+   * 20260803180000 ระบุไว้ตรง ๆ ว่า channel นี้มีไว้ให้ "รายการโพสต์/ตัวนับยังไม่ตอบ" อัปเดต
+   * แม้ยังไม่ได้เปิดโพสต์นั้น ตอนนี้แค่มีคนใช้ครบตามที่ออกแบบไว้
+   */
+  shopId?: string | null
+}) {
   const pathname = usePathname()
   // /inbox/[conversationId] ยังถือว่าอยู่แท็บ "ข้อความ" — เทียบ prefix ไม่ใช่ค่าเป๊ะ
   const isComments = pathname?.startsWith('/inbox/comments') ?? false
@@ -79,12 +94,23 @@ export default function InboxTabs({ unansweredCount }: { unansweredCount?: numbe
   useEffect(() => {
     listeners.add(setCount)
     void refreshUnanswered()
-    const timer = setInterval(() => void refreshUnanswered(), REFRESH_MS)
+    // poll = ทางสำรองเวลา socket หลุด ไม่ใช่ทางหลัก — หยุดตอนแท็บไม่ได้อยู่หน้าจอ (ไม่มีใครดู
+    // ก็ไม่ต้องยิง) จังหวะเดียวกับ fallback ของ CommentsClient
+    const timer = setInterval(() => {
+      if (!document.hidden) void refreshUnanswered()
+    }, REFRESH_MS)
     return () => {
       listeners.delete(setCount)
       clearInterval(timer)
     }
   }, [])
+
+  // realtime: คอมเมนต์ใหม่เข้า → badge ขยับทันที ไม่ต้องรอรอบ poll (force=true ข้าม throttle
+  // เพราะสัญญาณนี้แปลว่า "ตัวเลขเปลี่ยนแน่แล้ว" ไม่ใช่การเดา)
+  useEffect(() => {
+    if (!shopId) return
+    return subscribeShopComments(shopId, () => void refreshUnanswered(true))
+  }, [shopId])
 
   return (
     <div className="border-default-200 flex gap-1 border-b px-4 pt-3">

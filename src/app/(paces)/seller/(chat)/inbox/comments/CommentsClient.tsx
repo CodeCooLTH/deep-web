@@ -88,18 +88,25 @@ function isVideoPost(mediaType: string | null | undefined): boolean {
  * ตัดสินใจว่าจะตอบสาธารณะหรือทักหลังไมค์ ไม่ใช่ไปรู้ตอนกดแล้วโดน Meta ปฏิเสธ
  */
 const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
-/** เหลือน้อยกว่า 1 วัน = เร่งสายตา (ใช้ token warning ตามระดับความเร่ง ไม่ใช่ danger ซึ่งแปลว่าพัง) */
-const PRIVATE_REPLY_URGENT_MS = 24 * 60 * 60 * 1000
 
-function privateReplyWindow(createdTime: string): { text: string; expired: boolean; urgent: boolean } {
+/**
+ * user สั่งรูปแบบไว้ตรง ๆ 2026-08-04: `ตอบ  ทักแชท [คงเหลือ 6 วัน 14 ชั่วโมง 34 นาที]` ป้ายสีแดง
+ * — เอาหน่วยเต็มทั้ง 3 ระดับ ไม่ย่อเหลือ "6 วัน" เฉย ๆ เพราะคนต้องใช้ตัดสินใจว่า "วันนี้ยังทันไหม"
+ * ตัดหน่วยบนที่เป็นศูนย์ทิ้ง (เหลือไม่ถึงวันไม่ต้องขึ้น "0 วัน") แต่ไม่ตัดหน่วยล่าง
+ */
+function privateReplyWindow(createdTime: string): { text: string; expired: boolean } {
   const left = new Date(createdTime).getTime() + PRIVATE_REPLY_WINDOW_MS - Date.now()
-  if (!Number.isFinite(left)) return { text: '', expired: false, urgent: false }
-  if (left <= 0) return { text: 'หมดเวลาทักแชท', expired: true, urgent: false }
+  if (!Number.isFinite(left)) return { text: '', expired: false }
+  if (left <= 0) return { text: 'หมดเวลาทักแชท', expired: true }
   const days = Math.floor(left / 86_400_000)
   const hours = Math.floor((left % 86_400_000) / 3_600_000)
   const minutes = Math.floor((left % 3_600_000) / 60_000)
-  const parts = days > 0 ? `${days} วัน` : hours > 0 ? `${hours} ชม.` : `${minutes} น.`
-  return { text: `ทักแชทได้อีก ${parts}`, expired: false, urgent: left < PRIVATE_REPLY_URGENT_MS }
+  const parts = [
+    days > 0 ? `${days} วัน` : '',
+    days > 0 || hours > 0 ? `${hours} ชั่วโมง` : '',
+    `${minutes} นาที`,
+  ].filter(Boolean)
+  return { text: `คงเหลือ ${parts.join(' ')}`, expired: false }
 }
 
 export default function CommentsClient({
@@ -281,11 +288,21 @@ export default function CommentsClient({
       ) ?? byNewest[0]
     if (!target) return
     setReplyTo(target)
-    replyBoxRef.current?.focus()
     document
       .querySelector(`[data-comment-id="${target.id}"]`)
       ?.scrollIntoView({ block: 'nearest' })
   }, [thread])
+
+  /**
+   * โฟกัสช่องพิมพ์ทุกครั้งที่ "กำลังจะตอบใคร" เปลี่ยน
+   *
+   * ต้องแยกเป็น effect ของ replyTo ไม่ใช่เรียก focus() ต่อท้าย setReplyTo ด้านบน — ตอนนั้น
+   * ช่องพิมพ์ inline ยังไม่ถูก mount (setState ยังไม่ทันเรนเดอร์) ref จึงยังชี้ช่องล่างที่กำลังจะ
+   * ถูกถอดออก โฟกัสจะหายไปพร้อมกับมัน. ผลพลอยได้: กดปุ่ม "ตอบ" เองก็ได้เคอร์เซอร์ทันทีเหมือนกัน
+   */
+  useEffect(() => {
+    if (replyTo) replyBoxRef.current?.focus()
+  }, [replyTo])
 
   // เดสก์ท็อปเลือกโพสต์แรกให้ (คอลัมน์ขวาว่างเปล่าดูเหมือนหน้าพัง) — มือถือปล่อยให้เห็นรายการ
   useEffect(() => {
@@ -326,6 +343,21 @@ export default function CommentsClient({
     }, 60_000)
     return () => clearInterval(timer)
   }, [refreshAll])
+
+  /**
+   * เดินนาฬิกาให้ป้าย "คงเหลือ X วัน Y ชั่วโมง Z นาที" ทุก 1 นาที
+   *
+   * พึ่ง re-render จาก refreshAll ไม่ได้ ถึงจะบังเอิญ 60 วิเท่ากัน — refreshAll จะไม่ setState
+   * เลยถ้า fetch ล้ม/ออฟไลน์ แล้วตัวเลขจะค้างอยู่อย่างนั้นโดยดูน่าเชื่อถือ ซึ่งอันตรายกว่าไม่โชว์
+   * (นี่คือตัวเลขที่ผู้ขายใช้ตัดสินใจว่ายังทักลูกค้าทันไหม)
+   */
+  const [, setMinuteTick] = useState(0)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!document.hidden) setMinuteTick((n) => n + 1)
+    }, 60_000)
+    return () => clearInterval(timer)
+  }, [])
 
   /** คอมเมนต์ระดับบน + ลูกของแต่ละอัน (BR-13) */
   const tree = useMemo(() => {
@@ -439,6 +471,135 @@ export default function CommentsClient({
   }, [postsByChannel, postTab])
 
   const selectedPost = posts.find((p) => p.id === selectedId) ?? null
+
+  /**
+   * ช่องพิมพ์ตัวเดียว เรนเดอร์ได้ 2 ที่ (user สั่ง 2026-08-04 พร้อมภาพ Business Suite)
+   *
+   *   inline=true  → แทรกใต้คอมเมนต์ที่กำลังตอบ (`Reply as <เพจ>` จ่อรอให้พิมพ์ทันที)
+   *   inline=false → แถบล่างสุดของแผง สำหรับ "คอมเมนต์ที่โพสต์" ตอนยังไม่ได้เลือกจะตอบใคร
+   *
+   * ทำไมไม่เขียนสองชุด: ช่องนี้มีทั้งอัปโหลดรูป/อิโมจิ/สถานะ sending/คำเตือน PII — ก๊อปไปวางอีกที่
+   * แปลว่าแก้บั๊กต้องแก้ 2 รอบตลอดไป และของสองอันจะเพี้ยนจากกันเมื่อไหร่ก็ได้ (บทเรียนเดียวกับที่
+   * ทำให้ "ยังไม่ตอบ" เคยโชว์ 7 กับ 8 พร้อมกันบนจอเดียว — ตัวเลข/ของชิ้นเดียวกันต้องมาจากที่เดียว)
+   */
+  const renderComposer = (inline: boolean) => (
+    <div className={inline ? '' : 'w-full p-3'}>
+      {replyTo && !inline && (
+        <div className="text-default-700 mb-2 flex items-center gap-2 text-xs">
+          <Icon icon="corner-down-right" />
+          <span className="min-w-0 flex-1 truncate">
+            ตอบ {replyTo.fromName ?? 'ความคิดเห็น'}: {replyTo.message ?? '(ไม่มีข้อความ)'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setReplyTo(null)}
+            aria-label="ยกเลิกการตอบ"
+            className="hover:bg-default-100 flex size-11 shrink-0 items-center justify-center rounded-lg"
+          >
+            <Icon icon="x" />
+          </button>
+        </div>
+      )}
+      {/* BR-23: เตือนถาวร ไม่ใช่ toast ที่หายไป — คอมเมนต์เป็นข้อความสาธารณะ
+          critique P0: ของเดิม text-warning บนขาว = 1.66:1 อ่านไม่ออกจริงบนมือถือกลางแดด ทั้งที่นี่
+          คือกลไกเดียวที่กัน PII หลุดสู่สาธารณะ — ใช้ token *-ink บนพื้น /15 (6.57:1) ตามกติกา
+          contrast-fix-keeps-hue: เปลี่ยนความเข้ม ไม่เปลี่ยนเฉด
+          ยังต้องมีในโหมด inline ด้วย: โหมดนี้กลายเป็นทางหลักที่คนพิมพ์คำตอบแล้ว ถอดออกเท่ากับ
+          ถอด guard ออกจากเส้นทางที่ใช้จริงที่สุด */}
+      <p className="bg-warning/15 text-warning-ink mb-2 flex items-start gap-1.5 rounded-lg px-3 py-2 text-sm">
+        <Icon icon="alert-triangle" className="mt-0.5 shrink-0" />
+        ทุกคนที่เห็นโพสต์นี้จะเห็นข้อความที่คุณเขียน — อย่าพิมพ์ที่อยู่หรือเบอร์ของลูกค้า
+      </p>
+      {pendingFile && (
+        <div className="relative mb-2 inline-block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={pendingFile.previewUrl} alt="" className="max-h-28 rounded-lg" />
+          <button
+            type="button"
+            onClick={() => setPendingFile(null)}
+            aria-label="เอารูปออก"
+            className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white"
+          >
+            <Icon icon="x" className="text-sm" />
+          </button>
+        </div>
+      )}
+      <div className="relative flex items-end gap-2">
+        {/* รูปเพจหน้าช่องพิมพ์เฉพาะโหมด inline — ตอบตรงนั้นต้องเห็นว่ากำลังพูดในนามใคร
+            (ภาพ ref: avatar เพจ + "Reply as <เพจ>") ส่วนแถบล่างมีข้อความบอกในตัวอยู่แล้ว */}
+        {inline && thread?.channel.avatarUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thread.channel.avatarUrl}
+            alt=""
+            className="size-8 shrink-0 rounded-full object-cover"
+          />
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => void pickFile(e.target.files?.[0] ?? null)}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || sending}
+          aria-label="แนบรูปในคำตอบ"
+          className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg disabled:opacity-60"
+        >
+          <Icon icon={uploading ? 'loader-2' : 'photo'} className={`text-xl ${uploading ? 'animate-spin' : ''}`} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setEmojiOpen((v) => !v)}
+          aria-label="เลือกอิโมจิ"
+          className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg"
+        >
+          <Icon icon="mood-smile" className="text-xl" />
+        </button>
+        {emojiOpen && (
+          <EmojiPicker
+            onSelect={(emoji) => setReplyText((prev) => prev + emoji)}
+            onClose={() => setEmojiOpen(false)}
+          />
+        )}
+        <textarea
+          ref={replyBoxRef}
+          rows={inline ? 1 : 2}
+          aria-label={replyTo ? 'พิมพ์คำตอบสาธารณะ' : 'เขียนความคิดเห็นในนามเพจ'}
+          className="form-textarea grow"
+          placeholder={
+            replyTo
+              ? `ตอบในนาม ${thread?.channel.name ?? 'เพจ'}...`
+              : `แสดงความคิดเห็นในนาม ${thread?.channel.name ?? 'เพจ'}...`
+          }
+          value={replyText}
+          onChange={(e) => setReplyText(e.target.value)}
+          disabled={sending}
+        />
+        <button
+          type="button"
+          onClick={submitReply}
+          disabled={sending || (!replyText.trim() && !pendingFile)}
+          className="btn bg-primary hover:bg-primary-hover min-h-11 shrink-0 text-white disabled:opacity-60"
+        >
+          {replyTo ? 'ตอบ' : 'คอมเมนต์'} <Icon icon="send-2" className="ms-1 text-xl" />
+        </button>
+      </div>
+      {inline && (
+        // ทางออกกลับไปโหมด "คอมเมนต์ที่โพสต์" — ไม่มีปุ่มนี้แล้วจะติดอยู่ในโหมดตอบจนกว่าจะส่ง
+        <button
+          type="button"
+          onClick={() => setReplyTo(null)}
+          className="text-default-700 mt-1 text-xs font-medium hover:underline"
+        >
+          ยกเลิกการตอบ
+        </button>
+      )}
+    </div>
+  )
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -916,110 +1077,28 @@ export default function CommentsClient({
                         ))}
                       </div>
                     )}
+                    {/* ช่องพิมพ์แทรกใต้คอมเมนต์ที่กำลังตอบ (user สั่ง 2026-08-04 พร้อมภาพ Business
+                        Suite: `Reply as <เพจ>` จ่อรออยู่ใต้คอมเมนต์เลย) — ms-10 ให้ตรงคอลัมน์
+                        เดียวกับตัวบับเบิล ไม่ใช่ชิดขอบซ้ายจนดูเป็นของโพสต์ทั้งอัน */}
+                    {replyTo &&
+                      (replyTo.id === comment.id || replies.some((r) => r.id === replyTo.id)) && (
+                        <div className="ms-10 mt-2">{renderComposer(true)}</div>
+                      )}
                   </div>
                 ))
               )}
               </div>
             </div>
 
-            {/* ── ช่องตอบ ─────────────────────────────────────── */}
+            {/* ── ช่องคอมเมนต์ที่โพสต์ (แถบล่าง) ─────────────────────────
+                โผล่เฉพาะตอน "ยังไม่ได้เลือกจะตอบใคร" — พอเลือกแล้ว ช่องพิมพ์ย้ายไปแทรกใต้คอมเมนต์
+                นั้นแทน (ดู renderComposer) ไม่ให้มีช่องพิมพ์ 2 ช่องบนจอเดียวกันซึ่งอ่านไม่ออกว่า
+                พิมพ์ช่องไหนแล้วไปโผล่ที่ไหน */}
+            {!replyTo && (
             <div className="border-default-200 border-t">
-              <div className="w-full p-3">
-              {replyTo && (
-                  <div className="text-default-700 mb-2 flex items-center gap-2 text-xs">
-                    <Icon icon="corner-down-right" />
-                    <span className="min-w-0 flex-1 truncate">
-                      ตอบ {replyTo.fromName ?? 'ความคิดเห็น'}: {replyTo.message ?? '(ไม่มีข้อความ)'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setReplyTo(null)}
-                      aria-label="ยกเลิกการตอบ"
-                      className="hover:bg-default-100 flex size-11 shrink-0 items-center justify-center rounded-lg"
-                    >
-                      <Icon icon="x" />
-                    </button>
-                  </div>
-              )}
-                  {/* BR-23: เตือนถาวร ไม่ใช่ toast ที่หายไป — คอมเมนต์เป็นข้อความสาธารณะ */}
-                  {/* critique P0: ของเดิม text-warning บนขาว = 1.66:1 อ่านไม่ออกจริงบนมือถือกลางแดด
-                      ทั้งที่นี่คือกลไกเดียวที่กัน PII หลุดสู่สาธารณะ — ใช้ token *-ink บนพื้น /15
-                      (6.57:1) ตามกติกา contrast-fix-keeps-hue: เปลี่ยนความเข้ม ไม่เปลี่ยนเฉด */
-                  }
-                  <p className="bg-warning/15 text-warning-ink mb-2 flex items-start gap-1.5 rounded-lg px-3 py-2 text-sm">
-                    <Icon icon="alert-triangle" className="mt-0.5 shrink-0" />
-                    ทุกคนที่เห็นโพสต์นี้จะเห็นข้อความที่คุณเขียน — อย่าพิมพ์ที่อยู่หรือเบอร์ของลูกค้า
-                  </p>
-                  {pendingFile && (
-                    <div className="relative mb-2 inline-block">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={pendingFile.previewUrl} alt="" className="max-h-28 rounded-lg" />
-                      <button
-                        type="button"
-                        onClick={() => setPendingFile(null)}
-                        aria-label="เอารูปออก"
-                        className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/50 text-white"
-                      >
-                        <Icon icon="x" className="text-sm" />
-                      </button>
-                    </div>
-                  )}
-                  <div className="relative flex items-end gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => void pickFile(e.target.files?.[0] ?? null)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading || sending}
-                      aria-label="แนบรูปในคำตอบ"
-                      className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg disabled:opacity-60"
-                    >
-                      <Icon icon={uploading ? 'loader-2' : 'photo'} className={`text-xl ${uploading ? 'animate-spin' : ''}`} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEmojiOpen((v) => !v)}
-                      aria-label="เลือกอิโมจิ"
-                      className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg"
-                    >
-                      <Icon icon="mood-smile" className="text-xl" />
-                    </button>
-                    {emojiOpen && (
-                      <EmojiPicker
-                        onSelect={(emoji) => setReplyText((prev) => prev + emoji)}
-                        onClose={() => setEmojiOpen(false)}
-                      />
-                    )}
-                    <textarea
-                      ref={replyBoxRef}
-                      rows={2}
-                      aria-label={replyTo ? 'พิมพ์คำตอบสาธารณะ' : 'เขียนความคิดเห็นในนามเพจ'}
-                      className="form-textarea grow"
-                      placeholder={
-                        replyTo
-                          ? 'พิมพ์คำตอบสาธารณะ...'
-                          : `แสดงความคิดเห็นในนาม ${thread?.channel.name ?? 'เพจ'}...`
-                      }
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      disabled={sending}
-                    />
-                    <button
-                      type="button"
-                      onClick={submitReply}
-                      disabled={sending || (!replyText.trim() && !pendingFile)}
-                      className="btn bg-primary hover:bg-primary-hover min-h-11 shrink-0 text-white disabled:opacity-60"
-                    >
-                      {replyTo ? 'ตอบ' : 'คอมเมนต์'} <Icon icon="send-2" className="ms-1 text-xl" />
-                    </button>
-                  </div>
-              </div>
+              {renderComposer(false)}
             </div>
+            )}
             </div>
             </div>
           </>
@@ -1132,22 +1211,24 @@ function CommentBubble({
               ตอบ
             </button>
           )}
-          {/* นาฬิกาถอยหลังหน้าต่างทักแชทส่วนตัว (user สั่ง 2026-08-04) — Meta ให้ทักแชทจากคอมเมนต์
-              ได้ภายใน 7 วันนับจากเวลาที่ลูกค้าคอมเมนต์ พ้นแล้วทักไม่ได้อีกเลย ผู้ขายต้องเห็นตัวเลข
-              ตรงนี้ ไม่ใช่ไปรู้ตอนกดแล้วโดนปฏิเสธ */}
-          {chatWindow && (
+          {/* นาฬิกาถอยหลังหน้าต่างทักแชทส่วนตัว (user สั่ง 2026-08-04 พร้อมรูปแบบที่ต้องการ:
+              `ตอบ  ทักแชท [คงเหลือ 6 วัน 14 ชั่วโมง 34 นาที]` ป้ายสีแดง) — Meta ให้ทักแชทจาก
+              คอมเมนต์ได้ภายใน 7 วันนับจากเวลาที่ลูกค้าคอมเมนต์ พ้นแล้วทักไม่ได้อีกเลย ผู้ขายต้อง
+              เห็นตัวเลขตอนกำลังตัดสินใจ ไม่ใช่ไปรู้ตอนกดแล้วโดน Meta ปฏิเสธ
+
+              รูปแบบตาม Business Suite ที่ user ชี้: `Like Reply Hide See Chat (6 วัน ...)` —
+              **หมดเวลาแล้วหายไปทั้งอัน** ไม่ใช่ขึ้นว่า "หมดเวลา" ค้างไว้ เพราะตัวเลือกที่เลือกไม่ได้
+              แล้วไม่ควรกินที่ในแถวเครื่องมือ (เหลือ ตอบ อย่างเดียวคือคำตอบที่ถูกของสถานะนั้น)
+
+              "ทักแชท" ยังไม่ใช่ปุ่มกดได้ — การทักแชทจริงต้องใช้ Private Replies ของ Meta ซึ่งยัง
+              ไม่ได้ทำฝั่ง backend จึงจงใจไม่ทำให้ดูกดได้ (ปุ่มที่กดแล้วไม่เกิดอะไรแย่กว่าไม่มีปุ่ม) */}
+          {chatWindow && !chatWindow.expired && (
             <span
-              className={`inline-flex items-center gap-0.5 ${
-                chatWindow.expired
-                  ? 'text-default-600'
-                  : chatWindow.urgent
-                    ? 'text-warning-ink'
-                    : 'text-default-700'
-              }`}
+              className="inline-flex items-center gap-1"
               title={`ทักแชทส่วนตัวได้ภายใน 7 วันนับจากเวลาคอมเมนต์ (${formatDateTimeTH(c.createdTime)})`}
             >
-              <Icon icon={chatWindow.expired ? 'clock-off' : 'clock'} className="text-sm" />
-              {chatWindow.text}
+              <span className="font-medium">ทักแชท</span>
+              <span className="text-danger-ink font-semibold">({chatWindow.text})</span>
             </span>
           )}
         </div>

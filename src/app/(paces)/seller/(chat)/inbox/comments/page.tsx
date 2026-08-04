@@ -58,7 +58,7 @@ export default async function CommentsPage() {
 
   return (
     <div className="card m-0 flex h-full min-w-0 flex-1 flex-col rounded-none border-0 shadow-none">
-      <InboxTabs unansweredCount={unanswered} />
+      <InboxTabs unansweredCount={unanswered} shopId={activeCtx.shopId} />
       {failed ? (
         <div className="p-4">
           <SellerEmptyState

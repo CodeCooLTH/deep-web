@@ -138,7 +138,7 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
     // ไปหาหน้าเว็บ/หัวแชท (bug เดียวกับที่แก้ในเธรด — user report prod 2026-07-23)
     <SimpleBar className="size-full" scrollableNodeProps={{ className: 'overscroll-contain' }}>
       {/* แท็บ ข้อความ | ความคิดเห็น (feature 00029) — อยู่เหนือรายการเหมือน Business Suite */}
-      <InboxTabs />
+      <InboxTabs shopId={shopId} />
       {loading ? (
         <div className="px-4 pt-4 pb-4">
           <SellerInboxSkeleton />
