@@ -269,7 +269,12 @@ export async function listCommentPosts(params: {
       thumbnailUrl: p.thumbnailUrl,
       permalink: p.permalink,
       lastCommentAt: p.lastCommentAt,
-      commentCount: p.comments.filter((c) => !c.isDeleted).length,
+      // นับเฉพาะคอมเมนต์ "ที่ลูกค้าเขียน" ไม่รวมคำตอบของเพจเอง (user สั่ง 2026-08-04: "เวลามันนับ
+      // ความคิดเห็น มันนับใน posts นั้น ๆ ทั้งหมด ซึ่งต่างจาก business suite ... คอมเม้นที่เข้ามา
+      // ต้องนับเฉพาะที่มาจาก user ด้วย") — ตัวเลขนี้คือ "มีคนถามเข้ามากี่อัน" ไม่ใช่ "มีข้อความ
+      // ในโพสต์กี่อัน" ร้านที่ตอบทุกคอมเมนต์จะได้เลขเบิ้ลเป็น 2 เท่าถ้านับของตัวเองด้วย
+      // (ยอดของ Facebook เองยังโชว์แยกที่หัวโพสต์ผ่าน fbCommentCount ไม่ได้หายไป)
+      commentCount: p.comments.filter((c) => !c.isDeleted && !c.isFromPage).length,
       mediaType: p.mediaType,
       reactionCount: p.reactionCount,
       fbCommentCount: p.fbCommentCount,

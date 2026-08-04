@@ -550,19 +550,66 @@ export default function CommentsClient({
    * แปลว่าแก้บั๊กต้องแก้ 2 รอบตลอดไป และของสองอันจะเพี้ยนจากกันเมื่อไหร่ก็ได้ (บทเรียนเดียวกับที่
    * ทำให้ "ยังไม่ตอบ" เคยโชว์ 7 กับ 8 พร้อมกันบนจอเดียว — ตัวเลข/ของชิ้นเดียวกันต้องมาจากที่เดียว)
    */
+  /**
+   * ช่องตอบคอมเมนต์ — โครงตาม ref ที่ user ส่งมาตรง ๆ 2026-08-04 ("ผมอยากให้ใช้ ref นี้อ่ะ ใช้ง่าย"):
+   * รูปเพจอยู่นอกช่อง แล้วช่องพิมพ์เป็น pill กลมใบเดียวที่มี "ไอคอน action เรียงอยู่ข้างในชิดขวา"
+   * ไม่ใช่ปุ่มลอยเรียงหน้า-หลังช่องแบบเดิม (ของเดิม avatar 32px ปนกับปุ่ม 44px ในแถวเดียว
+   * แล้วมีลิงก์ "ยกเลิกการตอบ" ห้อยใต้อีกบรรทัด = แถวเบี้ยวและอ่านไม่ออกว่าอะไรคู่กับอะไร)
+   *
+   * ปุ่มส่งไม่มีใน ref (Facebook ส่งด้วย Enter) แต่เราคงไว้แบบ "โผล่เมื่อมีอะไรจะส่ง" — ปุ่มส่ง
+   * ที่หายไปเลยทำให้คนที่ไม่รู้ว่ากด Enter ได้ติดตาย และ Enter เดี่ยวบนมือถือคือปุ่มขึ้นบรรทัดใหม่
+   *
+   * ตาม Design Spec ของ safepay-ux รอบนี้ (เก็บ 3 ข้อ): แถบบอกว่ากำลังตอบใครมี container ของตัวเอง
+   * (ไม่ใช่ลิงก์ลอย), คำเตือน PII ย่อเหลือบรรทัดเดียวแต่ **ไม่ซ่อน** (BR-23 บังคับให้ถาวร),
+   * และเลิกเขียน `disabled:opacity-60` ทับ default ของธีม (`_buttons.css` = opacity-50 อยู่แล้ว
+   * ซึ่งจางกว่า — ของเดิมจึงดูเหมือนยังกดได้)
+   */
+  const composerIcons = (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => void pickFile(e.target.files?.[0] ?? null)}
+      />
+      <button
+        type="button"
+        onClick={() => setEmojiOpen((v) => !v)}
+        aria-label="เลือกอิโมจิ"
+        aria-expanded={emojiOpen}
+        className="hover:bg-default-200 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-full"
+      >
+        <Icon icon="mood-smile" className="text-xl" />
+      </button>
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading || sending}
+        aria-label="แนบรูปในคำตอบ"
+        className="hover:bg-default-200 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-full"
+      >
+        <Icon icon={uploading ? 'loader-2' : 'camera'} className={`text-xl ${uploading ? 'animate-spin' : ''}`} />
+      </button>
+    </>
+  )
+
   const renderComposer = (inline: boolean) => (
     <div className={inline ? '' : 'w-full p-3'}>
-      {replyTo && !inline && (
-        <div className="text-default-700 mb-2 flex items-center gap-2 text-xs">
-          <Icon icon="corner-down-right" />
-          <span className="min-w-0 flex-1 truncate">
-            ตอบ {replyTo.fromName ?? 'ความคิดเห็น'}: {replyTo.message ?? '(ไม่มีข้อความ)'}
+      {/* แถบ "กำลังตอบใคร" — มี container ของตัวเอง + ปุ่มยกเลิก 44px อยู่ในแถวเดียวกัน
+          (Base: ChatThread.tsx:2153-2179 แถบ replyingTo ของแท็บข้อความ — ตัด quote ข้อความออก
+          เพราะบับเบิลต้นทางอยู่ติดกันอยู่แล้ว ไม่เหมือนเธรดแชทที่เลื่อนไปไกลได้) */}
+      {replyTo && (
+        <div className="border-s-2 border-primary bg-primary/5 mb-2 flex items-center gap-2 rounded-lg py-1 pe-1 ps-3">
+          <Icon icon="arrow-back-up" className="text-primary shrink-0" width={14} height={14} />
+          <span className="text-primary min-w-0 flex-1 truncate text-xs font-semibold">
+            ตอบ {replyTo.fromName ?? 'ความคิดเห็น'}
           </span>
           <button
             type="button"
             onClick={() => setReplyTo(null)}
             aria-label="ยกเลิกการตอบ"
-            className="hover:bg-default-100 flex size-11 shrink-0 items-center justify-center rounded-lg"
+            className="hover:bg-primary/10 text-primary flex size-11 shrink-0 items-center justify-center rounded-lg"
           >
             <Icon icon="x" />
           </button>
@@ -572,11 +619,11 @@ export default function CommentsClient({
           critique P0: ของเดิม text-warning บนขาว = 1.66:1 อ่านไม่ออกจริงบนมือถือกลางแดด ทั้งที่นี่
           คือกลไกเดียวที่กัน PII หลุดสู่สาธารณะ — ใช้ token *-ink บนพื้น /15 (6.57:1) ตามกติกา
           contrast-fix-keeps-hue: เปลี่ยนความเข้ม ไม่เปลี่ยนเฉด
-          ยังต้องมีในโหมด inline ด้วย: โหมดนี้กลายเป็นทางหลักที่คนพิมพ์คำตอบแล้ว ถอดออกเท่ากับ
-          ถอด guard ออกจากเส้นทางที่ใช้จริงที่สุด */}
-      <p className="bg-warning/15 text-warning-ink mb-2 flex items-start gap-1.5 rounded-lg px-3 py-2 text-sm">
-        <Icon icon="alert-triangle" className="mt-0.5 shrink-0" />
-        ทุกคนที่เห็นโพสต์นี้จะเห็นข้อความที่คุณเขียน — อย่าพิมพ์ที่อยู่หรือเบอร์ของลูกค้า
+          ย่อเหลือบรรทัดเดียว (text-xs) ตาม ux spec: ก่อนหน้านี้กินพื้นที่มากกว่าช่องพิมพ์เอง
+          แต่ห้ามซ่อน/ทำเป็น conditional — BR-23 บังคับให้ถาวร */}
+      <p className="bg-warning/15 text-warning-ink mb-2 flex items-start gap-1.5 rounded-lg px-3 py-1.5 text-xs">
+        <Icon icon="alert-triangle" className="mt-0.5 shrink-0" width={13} height={13} />
+        คอมเมนต์นี้เป็นสาธารณะ — ห้ามพิมพ์เบอร์โทรหรือที่อยู่ลูกค้า
       </p>
       {pendingFile && (
         <div className="relative mb-2 inline-block">
@@ -593,79 +640,55 @@ export default function CommentsClient({
         </div>
       )}
       <div className="relative flex items-end gap-2">
-        {/* รูปเพจหน้าช่องพิมพ์เฉพาะโหมด inline — ตอบตรงนั้นต้องเห็นว่ากำลังพูดในนามใคร
-            (ภาพ ref: avatar เพจ + "Reply as <เพจ>") ส่วนแถบล่างมีข้อความบอกในตัวอยู่แล้ว */}
-        {inline && thread?.channel.avatarUrl && (
+        {/* รูปเพจอยู่นอก pill (ตาม ref) — บอกว่ากำลังพูดในนามใครโดยไม่กินที่ในช่องพิมพ์ */}
+        {thread?.channel.avatarUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={thread.channel.avatarUrl}
             alt=""
-            className="size-8 shrink-0 rounded-full object-cover"
+            className="size-9 shrink-0 self-end rounded-full object-cover"
           />
         )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => void pickFile(e.target.files?.[0] ?? null)}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || sending}
-          aria-label="แนบรูปในคำตอบ"
-          className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg disabled:opacity-60"
-        >
-          <Icon icon={uploading ? 'loader-2' : 'photo'} className={`text-xl ${uploading ? 'animate-spin' : ''}`} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setEmojiOpen((v) => !v)}
-          aria-label="เลือกอิโมจิ"
-          className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg"
-        >
-          <Icon icon="mood-smile" className="text-xl" />
-        </button>
+        {/* pill ใบเดียว: ช่องพิมพ์ + ไอคอน action ข้างในชิดขวา (ตาม ref)
+            bg-light + rounded-full = ทรงเดียวกับ ref, โฟกัสแล้วขอบเป็น primary ให้รู้ว่าอยู่ในช่อง */}
+        <div className="bg-light focus-within:border-primary border-default-200 flex min-w-0 flex-1 items-end gap-1 rounded-3xl border py-1 pe-1 ps-4">
+          <textarea
+            ref={replyBoxRef}
+            rows={1}
+            aria-label={replyTo ? 'พิมพ์คำตอบสาธารณะ' : 'เขียนความคิดเห็นในนามเพจ'}
+            // ช่องพิมพ์เป็นส่วนหนึ่งของ pill จึงไม่ใช้ .form-textarea (มีขอบ/พื้น/เงาของตัวเอง)
+            // — พื้นโปร่ง ขอบ 0 แล้วให้ pill เป็นคนถือกรอบ. resize-none กันลากขยายทะลุ pill
+            className="text-default-800 placeholder:text-default-500 min-h-11 w-0 flex-1 resize-none border-0 bg-transparent py-2.5 text-sm focus:outline-none"
+            placeholder={
+              replyTo
+                ? `ตอบในนาม ${thread?.channel.name ?? 'เพจ'}...`
+                : `แสดงความคิดเห็นในนาม ${thread?.channel.name ?? 'เพจ'}...`
+            }
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            disabled={sending}
+          />
+          {composerIcons}
+          {/* ปุ่มส่งโผล่เมื่อมีอะไรจะส่ง (ref ไม่มีปุ่มส่งเลย แต่ต้องมีทางส่งที่มองเห็นได้) */}
+          {(replyText.trim() || pendingFile) && (
+            <button
+              type="button"
+              onClick={submitReply}
+              disabled={sending}
+              aria-label={replyTo ? 'ส่งคำตอบ' : 'ส่งความคิดเห็น'}
+              className="bg-primary hover:bg-primary-hover flex size-11 shrink-0 items-center justify-center rounded-full text-white"
+            >
+              <Icon icon={sending ? 'loader-2' : 'send-2'} className={`text-xl ${sending ? 'animate-spin' : ''}`} />
+            </button>
+          )}
+        </div>
         {emojiOpen && (
           <EmojiPicker
             onSelect={(emoji) => setReplyText((prev) => prev + emoji)}
             onClose={() => setEmojiOpen(false)}
           />
         )}
-        <textarea
-          ref={replyBoxRef}
-          rows={inline ? 1 : 2}
-          aria-label={replyTo ? 'พิมพ์คำตอบสาธารณะ' : 'เขียนความคิดเห็นในนามเพจ'}
-          className="form-textarea grow"
-          placeholder={
-            replyTo
-              ? `ตอบในนาม ${thread?.channel.name ?? 'เพจ'}...`
-              : `แสดงความคิดเห็นในนาม ${thread?.channel.name ?? 'เพจ'}...`
-          }
-          value={replyText}
-          onChange={(e) => setReplyText(e.target.value)}
-          disabled={sending}
-        />
-        <button
-          type="button"
-          onClick={submitReply}
-          disabled={sending || (!replyText.trim() && !pendingFile)}
-          className="btn bg-primary hover:bg-primary-hover min-h-11 shrink-0 text-white disabled:opacity-60"
-        >
-          {replyTo ? 'ตอบ' : 'คอมเมนต์'} <Icon icon="send-2" className="ms-1 text-xl" />
-        </button>
       </div>
-      {inline && (
-        // ทางออกกลับไปโหมด "คอมเมนต์ที่โพสต์" — ไม่มีปุ่มนี้แล้วจะติดอยู่ในโหมดตอบจนกว่าจะส่ง
-        <button
-          type="button"
-          onClick={() => setReplyTo(null)}
-          className="text-default-700 mt-1 text-xs font-medium hover:underline"
-        >
-          ยกเลิกการตอบ
-        </button>
-      )}
     </div>
   )
 
@@ -936,18 +959,9 @@ export default function CommentsClient({
                     <span className="text-default-700 text-2xs">
                       {p.lastCommentAt ? formatChatListTime(p.lastCommentAt) : ''}
                     </span>
-                    {/* วงกลมตัวเลขล้วน ไม่ใช่ป้าย "ยังไม่ตอบ N" (user สั่ง 2026-08-04 "ให้เหลือแค่ 3
-                        แบบเดียวกับ chat list") — ตำแหน่งใต้เวลาและหน้าตาตรงกับ badge ที่ยังไม่อ่าน
-                        ในแท็บข้อความเป๊ะ ๆ (InboxList.tsx) คนอ่านสองแท็บนี้สลับกันทั้งวัน ป้ายคนละ
-                        แบบทำให้ต้องแปลความใหม่ทุกครั้งที่สลับ */}
-                    {p.unansweredCount > 0 && (
-                      <span
-                        className="bg-danger flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white"
-                        aria-label={`ยังไม่ตอบ ${p.unansweredCount}`}
-                      >
-                        {p.unansweredCount > 99 ? '99+' : p.unansweredCount}
-                      </span>
-                    )}
+                    {/* วงกลมตัวเลขท้ายแถวถูกถอดออก 2026-08-04 (user: "เอาตรงนี้ออกให้หน่อย") —
+                        ข้อมูลเดียวกันอยู่ในป้าย "ยังไม่ตอบ" ใต้ preview แล้ว ตัวเลขซ้ำสองที่ในแถวเดียว
+                        ทำให้ต้องอ่านสองรอบว่ามันคือเรื่องเดียวกันหรือเปล่า */}
                   </span>
                 </button>
               ))}
