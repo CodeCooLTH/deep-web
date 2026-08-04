@@ -1117,42 +1117,59 @@ export default function CommentsClient({
             {/* คอลัมน์ซ้าย = โพสต์เต็มความสูง (user สั่ง 2026-08-03 "อยากให้เต็มจอเลย")
                 ข้อความอยู่บน สื่อกินพื้นที่ที่เหลือทั้งหมด แถวยอดชิดล่างสุดของคอลัมน์ */}
             <div className="border-default-200 flex min-h-0 shrink-0 flex-col border-b lg:h-full lg:w-1/2 lg:shrink lg:border-e lg:border-b-0">
-              {/* เนื้อโพสต์: 3 บรรทัดเป็นค่าตั้งต้น กด "ดูเพิ่มเติม" แล้วขยาย **ทับสื่อ** ไม่ใช่ดันสื่อลง
-                  (user สั่ง 2026-08-04 — เจตนาคือให้คลิปได้พื้นที่คงที่ไม่หดตามความยาวข้อความ)
-                  relative ที่ตัวห่อ + absolute ตอนขยาย = สื่อด้านล่างไม่ขยับเลยทั้งตอนเปิดและปิด */}
+              {/**
+               * เนื้อโพสต์: 3 บรรทัดเป็นค่าตั้งต้น กด "ดูเพิ่มเติม" แล้วขยาย **ทับสื่อ** ไม่ใช่ดันสื่อลง
+               * (user สั่ง 2026-08-04 — เจตนาคือให้คลิปได้พื้นที่คงที่)
+               *
+               * ทำไมต้อง render 2 ชั้น (ตัวในโฟลว์ที่ invisible + overlay): user report 2026-08-04
+               * "ขนาดคลิปก่อนดูเพิ่มเติม ขยับด้วย ขนาดไม่เท่ากัน" — รอบก่อนผมย้ายกล่องข้อความทั้งก้อน
+               * ไปเป็น absolute ตอนขยาย ทำให้ตัวห่อไม่มีลูกในโฟลว์เลย ความสูงจึงเหลือ 0 แล้วพื้นที่สื่อ
+               * ที่เหลือโตขึ้น → คลิปที่ล็อกสัดส่วนไว้ก็โตตาม (กว้างขึ้นเห็นได้ชัด)
+               * ชั้นในโฟลว์จึงต้องอยู่ตลอดเพื่อ **จองความสูงเท่าเดิม** แค่ซ่อนด้วย invisible
+               * (ไม่ใช่ hidden ซึ่งจะยุบความสูงเหมือนกัน)
+               */}
               <div className="relative w-full shrink-0">
-                <div
-                  className={`bg-card w-full p-3 ${
-                    messageExpanded
-                      ? 'absolute inset-x-0 top-0 z-10 max-h-80 overflow-y-auto shadow-lg'
-                      : ''
-                  }`}
-                >
-                  <p
-                    className={`text-default-800 mb-0 whitespace-pre-wrap text-sm ${
-                      messageExpanded ? '' : 'line-clamp-3'
-                    }`}
-                  >
-                    {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
-                  </p>
-                  {/* ปุ่มโผล่เฉพาะเมื่อข้อความยาวพอจะถูกตัด — เทียบด้วยความยาวตัวอักษร/จำนวนบรรทัด
-                      แทนการวัด DOM: ข้อความโพสต์เป็น plain text ที่ไม่เปลี่ยนตามขนาดจอมากนัก และ
-                      ปุ่มที่โผล่มาแล้วกดไม่เจออะไรเพิ่มยังเสียหายน้อยกว่าการวัดผิดจังหวะ resize */}
-                  {(() => {
-                    const text = selectedPost.message?.trim() ?? ''
-                    const looksLong = text.length > 120 || text.split('\n').length > 3
-                    if (!looksLong) return null
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => setMessageExpanded((v) => !v)}
-                        className="text-primary mt-1 text-xs font-semibold hover:underline"
-                      >
-                        {messageExpanded ? 'ย่อลง' : 'ดูเพิ่มเติม'}
-                      </button>
-                    )
-                  })()}
-                </div>
+                {(() => {
+                  const text = selectedPost.message?.trim() ?? ''
+                  const looksLong = text.length > 120 || text.split('\n').length > 3
+                  return (
+                    <>
+                      {/* ชั้นในโฟลว์ — จองความสูงของ "3 บรรทัด + ปุ่ม" ไว้เสมอ */}
+                      <div className={`w-full p-3 ${messageExpanded ? 'invisible' : ''}`} aria-hidden={messageExpanded}>
+                        <p className="text-default-800 mb-0 line-clamp-3 whitespace-pre-wrap text-sm">
+                          {text || 'โพสต์ไม่มีข้อความ'}
+                        </p>
+                        {looksLong && (
+                          <button
+                            type="button"
+                            onClick={() => setMessageExpanded(true)}
+                            tabIndex={messageExpanded ? -1 : 0}
+                            className="text-primary mt-1 text-xs font-semibold hover:underline"
+                          >
+                            ดูเพิ่มเติม
+                          </button>
+                        )}
+                      </div>
+
+                      {/* ชั้นขยาย — ลอยทับสื่อ ใช้เส้นคั่นล่างไม่ใช่เงา (เงาบนกล่องกว้างเต็มคอลัมน์
+                          อ่านเป็นแผ่นเทาขอบแข็ง — user report 2026-08-04) */}
+                      {messageExpanded && (
+                        <div className="border-default-200 bg-card absolute inset-x-0 top-0 z-10 max-h-80 w-full overflow-y-auto border-b p-3">
+                          <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
+                            {text || 'โพสต์ไม่มีข้อความ'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setMessageExpanded(false)}
+                            className="text-primary mt-1 text-xs font-semibold hover:underline"
+                          >
+                            ย่อลง
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {/* วิดีโอเล่นในหน้าเราผ่าน Facebook video plugin (iframe สาธารณะ ไม่ต้องใช้ token
