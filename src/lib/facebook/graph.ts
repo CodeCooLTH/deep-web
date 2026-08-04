@@ -882,3 +882,54 @@ export async function fetchPagePosts(
     ]
   })
 }
+
+/**
+ * ส่งรูปหลายใบเป็น "กริดรูปในข้อความเดียว" (image_grid template)
+ * user สั่ง 2026-08-04 หลังลูกค้าถามว่าทำไม Business Suite ส่งแล้วรูปรวมเป็นก้อนเดียวแต่ของเราแยกใบ
+ *
+ * contract ล็อกจากเอกสาร Meta "Image grid template" (Updated: Jun 30, 2026) ก่อนเขียน:
+ *   POST /<PAGE_ID>/messages
+ *   message.attachment = { type:'template', payload:{ template_type:'image_grid',
+ *     elements:[{ title?, subtitle?, images:[{url, is_hero_image?, action?}], buttons? }] } }
+ *   - elements มีได้ **1 อัน** · images **2–6 รูป** (ต่ำ/เกินกว่านี้ Meta ปฏิเสธ)
+ *   - title 45 อักขระ · subtitle 80 อักขระ
+ *   - รูปใช้ **URL ภายนอกได้** (ต่างจาก media template ที่บังคับ Facebook URL เท่านั้น)
+ *     จึงส่ง presigned URL ของ storage เราได้เหมือนตอนส่งรูปเดี่ยว
+ *
+ * เหตุผลที่ไม่ใส่ buttons/action: ยังไม่มี use case จากผู้ใช้ และปุ่มที่กดแล้วไม่มีอะไรรองรับคือ UI หลอก
+ */
+export async function sendImageGridMessage(
+  pageToken: string,
+  recipientId: string,
+  imageUrls: string[],
+  opts: { caption?: string | null; tag?: string } = {},
+): Promise<string> {
+  if (imageUrls.length < 2 || imageUrls.length > 6) {
+    // ผู้เรียกต้องแบ่งก้อนมาให้ถูกก่อน — โยนเป็น Error ธรรมดา (ไม่ใช่ GraphApiError) เพราะยังไม่ได้ยิงออก
+    throw new Error('IMAGE_GRID_COUNT_OUT_OF_RANGE')
+  }
+  const caption = opts.caption?.trim()
+  const json = await graphFetch('/me/messages', pageToken, {
+    method: 'POST',
+    body: {
+      recipient: { id: recipientId },
+      ...(opts.tag ? { messaging_type: 'MESSAGE_TAG', tag: opts.tag } : { messaging_type: 'RESPONSE' }),
+      message: {
+        attachment: {
+          type: 'template',
+          payload: {
+            template_type: 'image_grid',
+            elements: [
+              {
+                // caption ยาวกว่าเพดานของ title (45) ให้ตัด — ส่วนที่เหลือผู้เรียกส่งเป็นข้อความตามหลังได้
+                ...(caption ? { title: caption.slice(0, 45) } : {}),
+                images: imageUrls.map((url) => ({ url })),
+              },
+            ],
+          },
+        },
+      },
+    },
+  })
+  return (json.message_id as string | undefined) ?? ''
+}
