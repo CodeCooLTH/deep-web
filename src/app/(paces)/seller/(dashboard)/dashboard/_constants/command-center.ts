@@ -40,6 +40,17 @@ export type CommandCenterData = {
     CONFIRMED: number
     CANCELLED: number
   }
+
+  /**
+   * ตัวนับ "ของอยู่ไหน" — มีเฉพาะร้าน ONLINE_SALES (user สั่ง 2026-08-04); vertical อื่นเป็น
+   * undefined แล้วการ์ดตกกลับไปใช้ orderStatusCounts ชุดเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)
+   */
+  shippingStageCounts?: {
+    AWAITING_PARCEL: number
+    AWAITING_PICKUP: number
+    SHIPPING: number
+    PROBLEM: number
+  }
   recentActivity: ActivityItem[]
   promoBanner: PromoBanner | null
   // v8: ข้อมูลเพิ่มสำหรับ header + wallet

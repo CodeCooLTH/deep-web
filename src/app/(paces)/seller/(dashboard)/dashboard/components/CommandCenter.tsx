@@ -49,8 +49,9 @@ export default function CommandCenter({ data }: Props) {
       {/* ยอดขาย — การ์ด mini (sparkline + total เดือนนี้) จิ้ม→เปิด full sheet; null=fetch ล้ม→ซ่อนตัวเอง */}
       <SalesChartCard initialSeries={data.salesSeries ?? null} />
 
-      {/* คำสั่งซื้อ — 4-status flat + badge (PENDING/SHIPPED) */}
-      <OrderStatusBand counts={data.orderStatusCounts} />
+      {/* คำสั่งซื้อ — ร้านขายออนไลน์ได้ชุด "ของอยู่ไหน" (รอเลขพัสดุ/รอรับเข้า/กำลังจัดส่ง/มีปัญหา)
+          vertical อื่นได้ชุดสถานะการขายเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่) */}
+      <OrderStatusBand counts={data.orderStatusCounts} shipping={data.shippingStageCounts} />
 
       {/* สินค้าขายดี — จิ้ม→สร้างออเดอร์พร้อมสินค้านั้น (feature Quick Create); ว่าง→ไม่ render */}
       <BestSellerStrip products={data.bestSellers ?? []} />

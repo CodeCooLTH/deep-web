@@ -23,7 +23,7 @@ import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
 import { toFileUrl } from '@/lib/file-url'
 import { getTrustLevel } from '@/services/trust-score.service'
-import { getOrdersByShop, getOrderStatusCounts } from '@/services/order.service'
+import { getOrdersByShop, getOrderStatusCounts, getShippingStageCounts } from '@/services/order.service'
 import { getBestSellerProducts } from '@/services/product.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
@@ -107,6 +107,8 @@ export default async function SellerDashboardPage() {
   // orderStatusCounts: นับ order ต่อ status สำหรับ OrderStatusTimeline
   // fallback = 0 ทุก bucket ถ้า fetch ล้ม (ตาม plan Error Handling)
   let orderStatusCounts = { PENDING: 0, SHIPPED: 0, CONFIRMED: 0, CANCELLED: 0 }
+  // ตัวนับ "ของอยู่ไหน" — เฉพาะร้านขายออนไลน์ (user สั่ง 2026-08-04); undefined = การ์ดใช้ชุดเดิม
+  let shippingStageCounts: { AWAITING_PARCEL: number; AWAITING_PICKUP: number; SHIPPING: number; PROBLEM: number } | undefined
   // recentActivity: feed aggregate (Order/Review/SMS/TopUp) — service ครอบ try/catch→[] อยู่แล้ว
   let recentActivity: ActivityItem[] = []
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
@@ -207,9 +209,11 @@ export default async function SellerDashboardPage() {
 
         // perf: query เหล่านี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes] =
+        const [statusRes, shippingStageRes, balanceRes, activityRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
+            // ร้านอื่นไม่ต้องเสีย query — ส่ง null แทน แล้วข้ามผลด้านล่าง
+            shop.vertical === 'ONLINE_SALES' ? getShippingStageCounts(shop.id) : Promise.resolve(null),
             getBalance(shop.id),
             getRecentActivity(shop.id, 8),
             getOrdersByShop(shop.id),
@@ -227,6 +231,11 @@ export default async function SellerDashboardPage() {
         // orderStatusCounts: fallback 0 ทุก bucket ถ้าล้ม — CommandCenter แสดง 0 แทน crash
         if (statusRes.status === 'fulfilled') orderStatusCounts = statusRes.value
         else console.error('[dashboard] getOrderStatusCounts failed', statusRes.reason)
+
+        // ล้ม = ไม่ส่งชุดใหม่ไป → การ์ดตกกลับไปแสดงสถานะการขายชุดเดิม ดีกว่าโชว์ 0 ทั้งแถว
+        // ซึ่งอ่านได้ว่า "ไม่มีงานค้างเลย" ทั้งที่จริงคือเราไม่รู้
+        if (shippingStageRes.status === 'fulfilled') shippingStageCounts = shippingStageRes.value ?? undefined
+        else console.error('[dashboard] getShippingStageCounts failed', shippingStageRes.reason)
 
         // v8: walletBalance — fallback 0 ถ้าล้ม
         if (balanceRes.status === 'fulfilled') walletBalance = balanceRes.value
@@ -369,6 +378,7 @@ export default async function SellerDashboardPage() {
           data={{
             pendingOrderCount,
             orderStatusCounts,
+            shippingStageCounts,
             recentActivity,
             promoBanner: PROMO_BANNER,
             // v8: header card + wallet (S-6/S-8)

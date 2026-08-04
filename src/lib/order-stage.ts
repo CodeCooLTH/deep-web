@@ -14,7 +14,7 @@
  *     เข้ามาก็แทนที่ใบที่ยกเลิกไปเอง ไม่ต้องมีเงื่อนไขพิเศษ)
  */
 
-import { isProblemCarrierStatus } from './iship/status'
+import { isInTransitCarrierStatus, isProblemCarrierStatus } from './iship/status'
 
 export type OrderStageKey =
   | 'PARCEL_PROBLEM'
@@ -56,9 +56,6 @@ export const ORDER_STAGE_META: Record<OrderStageKey, { label: string; cls: strin
 const DAY_MS = 24 * 60 * 60 * 1000
 export const DELIVERED_VISIBLE_MS = 3 * DAY_MS
 export const CANCELLED_VISIBLE_MS = 1 * DAY_MS
-
-/** carrierStatus ที่ถือว่า "ของอยู่ระหว่างทาง" — ชุดเดียวกับ isInTransit ใน src/lib/iship/status.ts */
-const IN_TRANSIT = ['picked_up', 'with_branch', 'in_transit', 'progress']
 
 /**
  * สถานะที่ร้านต้องรู้ทันที — นิยามเดียวกับ PROBLEM_CARRIER_STATUSES ใน lib/iship/status.ts
@@ -139,7 +136,7 @@ export function deriveOrderStage(
       if (age > DELIVERED_VISIBLE_MS) return null
       key = 'DELIVERED'
     } else if (
-      (order.carrierStatus && IN_TRANSIT.includes(order.carrierStatus)) ||
+      isInTransitCarrierStatus(order.carrierStatus) ||
       // SHIPPED ต่างจาก CONFIRMED: มันคือคำยืนยันของร้านว่า "ของออกไปแล้ว" ซึ่งพูดถึงตัวพัสดุตรง ๆ
       // ไม่ใช่การปิดการขาย จึงเชื่อได้และต้องชนะ labelPrintedAt (ขนส่งมักอัปเดตช้ากว่าความจริง)
       order.status === 'SHIPPED'
