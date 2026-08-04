@@ -1,7 +1,7 @@
 /**
  * เทสของ seller-menu — เน้นสองเรื่องที่ "พังแบบเงียบ" ไม่มีอะไรฟ้อง
  *
- * 1. slug ของรายการ: ตาราง `ShopShortcut` เก็บ slug ไว้ในฐานข้อมูล (feature 00027) เปลี่ยนชื่อ
+ * 1. slug ของรายการ: `SellerShortcutPreference.slugs` เก็บ slug พวกนี้ไว้ในฐานข้อมูล (feature 00027) เปลี่ยนชื่อ
  *    slug เมื่อไร เมนูลัดที่ผู้ใช้ปักไว้จะกลายเป็น unavailable ทั้งหมดโดยไม่มี error ที่ไหนเลย
  *    เทสนี้ตรึงชุด slug ไว้ — ย้ายกลุ่ม/เปลี่ยนป้ายทำได้ตามใจ แต่ slug ต้องคงเดิม
  * 2. ตัวกรองตาม vertical: จัดกลุ่มเมนูใหม่ (2026-08-04) ย้าย 9 รายการข้ามกลุ่ม ถ้าตัวกรองอ่าน
@@ -32,7 +32,7 @@ function slugsOf(items: ReturnType<typeof flattenSellerMenu>) {
 }
 
 describe('sellerMenuItems — slug contract', () => {
-  it('มี slug ครบตามที่ ShopShortcut เก็บไว้ (ห้ามเปลี่ยนชื่อ)', () => {
+  it('มี slug ครบตามที่ SellerShortcutPreference.slugs อ้างถึง (ห้ามเปลี่ยนชื่อ)', () => {
     expect(slugsOf(flattenSellerMenu(sellerMenuItems)).sort()).toEqual(
       [
         'seller:admins',

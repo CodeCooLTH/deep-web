@@ -22,7 +22,8 @@ import type { ExpenseAccessDecision } from '@/services/expense-access.service'
  *   ANALYTICS = ดูตัวเลข · MANAGE = งานประจำวัน · CHAT = คุยกับลูกค้า
  *   SHOPS = ตัวตน/ความน่าเชื่อถือ/เงินของร้าน · SETTING = ตั้งค่า
  *
- * IMPORTANT: slug ของ "รายการ" ห้ามเปลี่ยนเด็ดขาด — ตาราง `ShopShortcut` เก็บ slug ไว้ในฐานข้อมูล
+ * IMPORTANT: slug ของ "รายการ" ห้ามเปลี่ยนเด็ดขาด — คอลัมน์ `SellerShortcutPreference.slugs`
+ * เก็บ slug พวกนี้ไว้ในฐานข้อมูล
  * (feature 00027 เมนูลัดปักหมุด) ถ้าเปลี่ยนแล้วเมนูลัดที่ผู้ใช้ปักไว้จะหลุดเงียบ ๆ กลายเป็น
  * unavailable ทั้งหมด. slug ของ "กลุ่ม" เปลี่ยนได้ (grep แล้วไม่มีใครอ้างถึงนอกไฟล์นี้)
  *
