@@ -137,14 +137,20 @@ export default function OrderActionBar({ variant, actionSet, onAction }: OrderAc
     )
   }
 
-  // variant === 'inline' — แถวเปล่า ไม่มี wrapper ตำแหน่งเอง (วางในมุมขวาบนของการ์ดหัวหน้า หรือใน
+  // variant === 'inline' — แถวเปล่า ไม่มี wrapper ตำแหน่งเอง (วางใต้เส้นประของการ์ดหัวหน้า หรือใน
   // sticky wrapper ของแถบตรึง — ทั้งคู่คุม chrome/ตำแหน่งเอง ที่นี่ render แค่แถวปุ่ม)
+  //
+  // จัดเป็น 2 กลุ่มด้วย justify-between: action จริงชิดซ้าย, ⋮ ชิดขวาสุด
+  // (เดิมทุกปุ่มเรียงชิดกันเป็นพวงเดียว ทำให้ ⋮ ซึ่งเป็น "ที่เก็บของที่เหลือ" ดูเป็นปุ่มลำดับถัดไป
+  //  ของชุด action ทั้งที่ไม่ใช่) — w-full เพราะตอนนี้แถวนี้กินเต็มความกว้างใต้เส้นประแล้ว
   return (
-    <div className="hidden items-center gap-2 lg:flex">
-      {ghosts.map((g) => (
-        <GhostButton key={g.key} item={g} onAction={onAction} size="sm" iconOnly={false} />
-      ))}
-      {primary && <PrimaryButton item={primary} onAction={onAction} size="sm" />}
+    <div className="hidden w-full items-center justify-between gap-2 lg:flex">
+      <div className="flex items-center gap-2">
+        {ghosts.map((g) => (
+          <GhostButton key={g.key} item={g} onAction={onAction} size="sm" iconOnly={false} />
+        ))}
+        {primary && <PrimaryButton item={primary} onAction={onAction} size="sm" />}
+      </div>
       <OrderOverflowMenu items={menu} onAction={onAction} size="sm" dropDirection="down" />
     </div>
   )

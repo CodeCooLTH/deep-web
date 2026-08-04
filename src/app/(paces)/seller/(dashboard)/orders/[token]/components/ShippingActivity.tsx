@@ -17,6 +17,43 @@ import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
 import { ORDER_STATUS_META } from '@/lib/order-display'
 
+/**
+ * "งานถัดไป" 1 ประโยคต่อสถานะ — ย้ายมาจากการ์ดหัวหน้า (StatusHero) 2026-08-04 ตาม user request
+ *
+ * ทำไมมาอยู่ที่นี่: หัวการ์ดถูกรื้อให้เหลือของที่ระบุตัวออเดอร์ (ช่องทาง/เลข/ผู้ซื้อ/ยอด) ส่วนประโยค
+ * นี้เป็นเรื่อง "ลำดับขั้นของงาน" ซึ่งเป็นหัวข้อของการ์ดนี้อยู่แล้ว — วางบนสุดเหนือไทม์ไลน์ จึงอ่านเป็น
+ * "ตอนนี้อยู่ตรงไหน แล้วต้องทำอะไรต่อ" ก้อนเดียวกัน แทนที่จะลอยอยู่คนละที่กับลำดับขั้นที่มันอ้างถึง
+ */
+const NEXT_STEP: Record<string, { text: string; tone: 'default' | 'done' | 'dead' }> = {
+  PENDING: {
+    text: 'ขั้นต่อไป: ส่งลิงก์ให้ผู้ซื้อยืนยันตัวตนและชำระเงิน — เลขพัสดุแจ้งทีหลังได้',
+    tone: 'default',
+  },
+  SHIPPED: {
+    text: 'รอผู้ซื้อกดยืนยันรับของ — ตอนนี้ยังไม่ต้องทำอะไรเพิ่ม',
+    tone: 'default',
+  },
+  CONFIRMED: {
+    text: 'คำสั่งซื้อนี้จบสมบูรณ์แล้ว — ผู้ซื้อยืนยันรับของและรีวิวแล้ว',
+    tone: 'done',
+  },
+  CANCELLED: {
+    text: 'คำสั่งซื้อนี้ถูกยกเลิกแล้ว — สินค้าคืนเข้าสต็อก และลิงก์ที่เคยส่งให้ผู้ซื้อใช้ไม่ได้อีก',
+    tone: 'dead',
+  },
+}
+
+const NEXT_STEP_BOX_CLS: Record<'default' | 'done' | 'dead', string> = {
+  default: 'bg-default-100 text-default-800',
+  done: 'bg-success/15 text-default-800',
+  dead: 'bg-danger/15 text-default-800',
+}
+const NEXT_STEP_ICON_CLS: Record<'default' | 'done' | 'dead', string> = {
+  default: 'text-primary',
+  done: 'text-success',
+  dead: 'text-danger',
+}
+
 // actor ที่รับผิดชอบแต่ละ step (SafePay ไม่มี per-event user record → label ธรรมดา)
 // key เปลี่ยนจาก order.status ดิบ → step แนวคิด (T14 P3) เพราะ PAYMENT ไม่ใช่ status จริงใน schema
 const STEP_ACTOR: Record<string, string> = {
@@ -112,6 +149,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
   const { status, fulfillmentMode, createdAtISO, updatedAtISO, shipmentTracking } = data
 
   const isCancelled = status === 'CANCELLED'
+  const nextStep = NEXT_STEP[status] ?? null
 
   // ถ้า fulfillmentMode=NO_SHIPPING/PICKUP ไม่มี step "จัดส่ง" — ตัดออก (spec §3 ShippingActivity,
   // G-1: PICKUP ปฏิบัติเหมือน NO_SHIPPING ตามมติ user)
@@ -196,6 +234,12 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
         <h4 className="card-title">ประวัติคำสั่งซื้อ</h4>
       </div>
       <div className="card-body p-5 sm:p-7.5">
+        {nextStep && (
+          <p className={`mb-5 flex items-start gap-2 rounded px-3.25 py-2.75 text-sm ${NEXT_STEP_BOX_CLS[nextStep.tone]}`}>
+            <Icon icon="arrow-right-circle" className={`mt-0.5 shrink-0 ${NEXT_STEP_ICON_CLS[nextStep.tone]}`} aria-hidden="true" />
+            <span>{nextStep.text}</span>
+          </p>
+        )}
         {timelineItems.length === 0 ? (
           // P5 (T14): text-default-400 บนพื้นขาว = 2.46:1 ไม่ผ่าน AA → default-700 (~4.69:1)
           <p className="text-default-700 text-sm text-center py-4">ไม่มีข้อมูลสถานะ</p>

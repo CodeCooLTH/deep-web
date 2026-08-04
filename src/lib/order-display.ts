@@ -235,3 +235,31 @@ export function getOrderTimeline(
       ]
   }
 }
+
+/**
+ * ชื่อผู้ซื้อที่จะโชว์บนหน้าจอ — SSOT ตัวเดียวของหน้ารายละเอียดคำสั่งซื้อ
+ *
+ * ลำดับ: ชื่อบัญชีที่สมัครไว้ (displayName > username) > ชื่อที่ร้านบันทึกเองตอนสร้างออเดอร์
+ * (logic เดิมยกมาจาก OrderFactsCard/CustomerDetails ที่ derive อยู่ก่อนแล้ว)
+ *
+ * ทำไมต้องมีฟังก์ชันนี้แทนที่จะให้แต่ละการ์ด derive เอง: StatusHero (หัวหน้า) กับ OrderFactsCard
+ * (การ์ดผู้ซื้อ) อยู่หน้าเดียวกันและพูดถึงคนคนเดียวกัน ถ้าต่างคนต่าง derive จะได้คำต่างกัน
+ * เมื่อข้อมูลไม่ครบ — ผู้ใช้เห็นสองการ์ดในหน้าเดียวเรียกสถานะเดียวกันคนละชื่อ
+ *
+ * **คืนสตริงที่พร้อมแสดง ไม่ใช่ raw field** โดยเจตนา: หน้า (paces) อยู่ใต้ client layout ทำให้
+ * Next serialize ทุก prop ลง flight payload — การส่งสตริงเดียวที่ resolve แล้วจึงไม่ขยายพื้นที่
+ * PII ของ client boundary เกินจำเป็น (บทเรียน S-C1 neutralize-at-source)
+ */
+export function resolveBuyerDisplayName(input: {
+  buyerDisplayName?: string | null
+  buyerUsername?: string | null
+  buyerName?: string | null
+  /** มีช่องทางติดต่อ (เบอร์/อีเมล) ไหม — แยก "ยังไม่มีผู้ซื้อ" ออกจาก "มีผู้ซื้อแต่ไม่รู้ชื่อ" */
+  hasContact?: boolean
+}): string {
+  const registered = input.buyerDisplayName || input.buyerUsername || null
+  const name = registered || input.buyerName || null
+  if (name) return name
+  // คำสองคำนี้ต้องตรงกับที่ OrderFactsCard ใช้อยู่แล้ว — คนละคำ = ผู้ใช้คิดว่าคนละเรื่อง
+  return input.hasContact ? 'ไม่ระบุชื่อ' : 'ยังไม่มีผู้ซื้อยืนยัน'
+}

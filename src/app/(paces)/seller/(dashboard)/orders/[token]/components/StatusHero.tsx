@@ -32,7 +32,7 @@ import { formatOrderNo } from '@/lib/order-no'
 import { ORDER_STATUS_META, getPaymentBadge } from '@/lib/order-display'
 import type { OrderStatus } from '@/lib/order-display'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
-import SalesChannelBadge from '@/components/safepay/SalesChannelBadge'
+import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/SalesChannelBadge'
 import { getOrderActionSet } from './order-action-set'
 import type { ShipmentSource } from './order-action-set'
 
@@ -57,6 +57,12 @@ export interface StatusHeroProps {
    * หลายช่องทางต้องรู้ตั้งแต่แวบแรกว่าใบนี้มาจากไหน โดยไม่ต้องเลื่อนลงไปหาที่การ์ดชำระเงิน
    */
   salesChannel?: string | null
+  /**
+   * ชื่อผู้ซื้อที่ resolve มาแล้วจาก resolveBuyerDisplayName() (lib/order-display.ts)
+   * รับเป็นสตริงพร้อมแสดง ไม่ใช่ raw field — หน้า (paces) อยู่ใต้ client layout ทำให้ Next
+   * serialize ทุก prop ลง flight payload จึงไม่ควรส่งข้อมูลผู้ซื้อดิบเข้ามาเกินจำเป็น
+   */
+  buyerLabel?: string
   /** @deprecated ย้ายไป ShippingCard แล้ว — คง prop ไว้กัน caller เดิมพัง (ไม่ถูกใช้) */
   ishipTrackingNo?: string | null
   /** @deprecated ย้ายไป ShippingCard แล้ว */
@@ -79,37 +85,6 @@ function formatAmount(amount: unknown) {
   return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(Number(amount ?? 0))
 }
 
-// งานถัดไป — ยกข้อความจาก design spec §5 ตรง ๆ ต่อสถานะ (ไม่แยกตาม fulfillmentMode ต่างจาก Option D เดิม)
-const NEXT_STEP: Record<string, { text: string; tone: 'default' | 'done' | 'dead' }> = {
-  PENDING: {
-    text: 'ขั้นต่อไป: ส่งลิงก์ให้ผู้ซื้อยืนยันตัวตนและชำระเงิน — เลขพัสดุแจ้งทีหลังได้',
-    tone: 'default',
-  },
-  SHIPPED: {
-    text: 'รอผู้ซื้อกดยืนยันรับของ — ตอนนี้ยังไม่ต้องทำอะไรเพิ่ม',
-    tone: 'default',
-  },
-  CONFIRMED: {
-    text: 'คำสั่งซื้อนี้จบสมบูรณ์แล้ว — ผู้ซื้อยืนยันรับของและรีวิวแล้ว',
-    tone: 'done',
-  },
-  CANCELLED: {
-    text: 'คำสั่งซื้อนี้ถูกยกเลิกแล้ว — สินค้าคืนเข้าสต็อก และลิงก์ที่เคยส่งให้ผู้ซื้อใช้ไม่ได้อีก',
-    tone: 'dead',
-  },
-}
-
-const NEXT_STEP_BOX_CLS: Record<'default' | 'done' | 'dead', string> = {
-  default: 'bg-default-100 text-default-800',
-  done: 'bg-success/15 text-default-800',
-  dead: 'bg-danger/15 text-default-800',
-}
-const NEXT_STEP_ICON_CLS: Record<'default' | 'done' | 'dead', string> = {
-  default: 'text-primary',
-  done: 'text-success',
-  dead: 'text-danger',
-}
-
 function noop() {
   // ไม่มี business logic ในไฟล์นี้ — ถ้า page.tsx ยังไม่ได้ส่ง onAction มา (ก่อน T11 ต่อสาย) กดแล้วไม่ทำอะไร
 }
@@ -121,6 +96,7 @@ export default function StatusHero({
   fulfillmentMode,
   isFromAuction,
   salesChannel,
+  buyerLabel = 'ยังไม่มีผู้ซื้อยืนยัน',
   totalAmount,
   paymentMethod = null,
   slipFileId = null,
@@ -135,7 +111,7 @@ export default function StatusHero({
   const createdDisplay = formatDateTime(createdAtISO)
 
   const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId)
-  const nextStep = NEXT_STEP[status] ?? null
+  const channelLabel = getSalesChannelDisplay(salesChannel || 'OTHER').label
 
   // ชุด action เดียว (T5 contract) — inline (การ์ด) กับ stuck (แถบตรึง) ใช้ actionSet ตัวเดียวกันนี้
   // ไม่มี markup ปุ่มเขียนเองในไฟล์นี้อีกต่อไป (ย้ายทั้งหมดไป OrderActionBar)
@@ -145,6 +121,9 @@ export default function StatusHero({
     shipmentSource,
   })
   const handleAction = onAction ?? noop
+  // CANCELLED คืนชุดว่างทั้งหมด → ไม่มีทั้งเส้นประและแถวปุ่มในการ์ด
+  const hasActions =
+    Boolean(actionSet.primary) || actionSet.ghosts.length > 0 || actionSet.menu.length > 0
 
   // แถบตรึงโผล่เมื่อการ์ด hero เลื่อนพ้นจอ — IntersectionObserver ถูกกว่า scroll listener
   // reuse ของเดิมทั้งก้อน (ไม่สร้างกลไก sticky ตัวที่ 2 ตามข้อบังคับ T7)
@@ -182,12 +161,13 @@ export default function StatusHero({
         aria-hidden={!stuck}
       >
         <div className="flex min-w-0 items-center gap-3">
+          {/* ลำดับ เลขออเดอร์ → สถานะ ให้ตรงกับการ์ดหัวหน้า ไม่งั้นพอเลื่อนพ้นจอแล้วสองอย่างสลับที่กัน */}
+          <span className="text-default-900 truncate text-sm font-bold">
+            {formatOrderNo(publicToken, createdAtISO)}
+          </span>
           <span className={`badge badge-label text-2xs shrink-0 font-semibold ${s.cls}`}>
             <Icon icon={s.icon} className="text-sm" />
             {s.label}
-          </span>
-          <span className="text-default-900 truncate text-sm font-bold">
-            {formatOrderNo(publicToken, createdAtISO)}
           </span>
           <span className="text-default-900 shrink-0 text-sm font-bold">{formatAmount(totalAmount)}</span>
         </div>
@@ -195,63 +175,79 @@ export default function StatusHero({
       </div>
 
       <div className="card" ref={heroRef}>
-        <div className="flex flex-col gap-3.5 px-4.5 py-4.5 sm:px-5 sm:py-5 md:px-6.5 md:py-6">
-          {/* แถวบน — มือถือคอลัมน์เดียว, ≥768 สองคอลัมน์ซ้าย-ขวา */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-col px-4.5 py-4.5 sm:px-5 sm:py-5 md:px-6.5 md:py-6">
+          {/* แถวบน — คอลัมน์เดียวจนถึง <1024, สองคอลัมน์ซ้าย-ขวาที่ ≥1024
+              เส้น lg คือ breakpoint เดียวที่หน้า seller ใช้จริง (sidebar หายที่ต่ำกว่า 1024 —
+              .seller-mobile-shell) เดิมแถวนี้สลับที่ md (768) ซึ่งไม่ตรงกับเส้นของ shell */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
 
-            {/* ซ้าย: badge สถานะ + วันที่สร้าง + เลขคำสั่งซื้อ */}
-            <div className="flex flex-col gap-1.25">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className={`badge badge-label text-2xs font-semibold ${s.cls}`}>
-                  <Icon icon={s.icon} className="text-sm" />
-                  {s.label}
-                </span>
-                {/* P5 (T14): text-default-400 บนพื้นขาว = 2.46:1 ไม่ผ่าน AA → default-700 (~4.69:1) */}
-                <span className="text-default-700 flex items-center gap-1.25 text-xs">
-                  <Icon icon="calendar" className="text-sm" />
-                  {createdDisplay}
-                </span>
-                {isFromAuction && (
-                  // P1 (T14): text-warning บน bg-warning/15 = 1.54:1 ไม่ผ่าน AA → text-warning-ink (~6.57:1)
-                  <span className="badge badge-label bg-warning/15 text-warning-ink text-2xs font-semibold">
-                    <Icon icon="gavel" className="text-sm" />
-                    จากการประมูล
+            {/* ซ้าย: ไทล์ช่องทาง + (เลขออเดอร์+สถานะ / ชื่อผู้ซื้อ / วันที่สร้าง) */}
+            <div className="flex min-w-0 items-start gap-3.5">
+              {/* ไทล์ช่องทางการขาย — reuse SalesChannelLogo ที่การ์ดชำระเงินใช้อยู่แล้ว
+                  ช่องทางเป็น null (ออเดอร์เก่าก่อนมี field นี้) → ส่ง OTHER เพื่อให้ได้ไอคอนกลาง
+                  ไม่ใช่ไทล์หาย ซึ่งจะทำให้เลย์เอาต์กระโดดระหว่างออเดอร์เก่ากับใหม่
+                  ขนาดคงที่ 48px ทุกจอ — Paces ไม่มี step ที่ 42px และ Hard Rule 7 ห้าม arbitrary */}
+              <span
+                className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-default-200 bg-card shadow-sm"
+                title={`ขายผ่าน ${channelLabel}`}
+                aria-label={`ขายผ่าน ${channelLabel}`}
+              >
+                <SalesChannelLogo channel={salesChannel || 'OTHER'} size={26} />
+              </span>
+
+              <div className="flex min-w-0 flex-col gap-0.75">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* เลขคำสั่งซื้อ DP… — ห้าม font-mono (Anuphan ไม่มี mono → fallback Courier หลุดธีม) */}
+                  <h3 className="text-lg text-default-900 mb-0 font-bold">
+                    {formatOrderNo(publicToken, createdAtISO)}
+                  </h3>
+                  <span className={`badge badge-label text-2xs font-semibold ${s.cls}`}>
+                    <Icon icon={s.icon} className="text-sm" />
+                    {s.label}
                   </span>
-                )}
-                {/* ช่องทางการขาย — reuse SalesChannelBadge ที่การ์ดชำระเงินใช้อยู่แล้ว (โลโก้จริง
-                    + fallback tabler icon เมื่อรูปโหลดไม่ขึ้น) ไม่ทำ badge ชุดใหม่ให้ต้องดูแลสองที่ */}
-                {salesChannel && <SalesChannelBadge channel={salesChannel} />}
+                  {isFromAuction && (
+                    // P1 (T14): text-warning บน bg-warning/15 = 1.54:1 ไม่ผ่าน AA → text-warning-ink (~6.57:1)
+                    <span className="badge badge-label bg-warning/15 text-warning-ink text-2xs font-semibold">
+                      <Icon icon="gavel" className="text-sm" />
+                      จากการประมูล
+                    </span>
+                  )}
+                </div>
+
+                {/* ชื่อผู้ซื้อ — สิ่งที่ต่างกันจริงในแต่ละใบ (เดิมแถวนี้ไม่มีอะไรเลย)
+                    truncate เฉพาะบรรทัดนี้ ชื่อที่ร้านพิมพ์เองยาวได้ไม่จำกัด */}
+                <p className="text-default-800 mb-0 truncate text-sm font-medium">{buyerLabel}</p>
+
+                {/* P5 (T14): text-default-400 บนพื้นขาว = 2.46:1 ไม่ผ่าน AA → default-700 (~4.69:1) */}
+                <p className="text-default-700 mb-0 flex items-center gap-1.25 text-xs">
+                  <Icon icon="calendar" className="text-sm shrink-0" />
+                  <span className="hidden sm:inline">วันที่สร้าง&nbsp;</span>
+                  {createdDisplay}
+                </p>
               </div>
-              {/* เลขคำสั่งซื้อ DP… — ห้าม font-mono (Anuphan ไม่มี mono → fallback Courier หลุดธีม) */}
-              <h3 className="text-lg text-default-900 mb-0 font-bold">
-                {formatOrderNo(publicToken, createdAtISO)}
-              </h3>
             </div>
 
-            {/* ขวา: ยอดรวม + badge ชำระเงิน + action inline (≥1024 เท่านั้น — ชิดขวาเฉพาะ ≥768)
-                หมายเหตุ: มือถือคอลัมน์เดียวต้องชิดซ้ายให้ตรงแนวกับซ้าย จึงไม่ใส่ items-end นอก md: */}
-            <div className="flex flex-col gap-3 md:items-end">
-              <div className="flex flex-col gap-0.75 md:items-end">
-                {/* P5 (T14): text-default-600 = 3.03:1 ไม่ผ่าน AA → default-800 (label tier, ~10.7:1) */}
-                <span className="text-2xs text-default-800">ยอดรวมทั้งหมด</span>
-                <span className="text-2xl text-default-900 font-bold">{formatAmount(totalAmount)}</span>
-                {paymentBadge && (
-                  <span className={`badge-label text-2xs font-semibold ${paymentBadge.cls}`}>
-                    {paymentBadge.label}
-                  </span>
-                )}
-              </div>
-              {/* OrderActionBar variant="inline" ซ่อนตัวเองอัตโนมัติ <1024 (className ภายในมี lg:flex) */}
-              <OrderActionBar variant="inline" actionSet={actionSet} onAction={handleAction} />
+            {/* ขวา: ยอดรวม + badge ชำระเงิน — ที่ <1024 ลงมาอยู่ใต้บล็อกซ้าย
+                แต่ยังชิดขวาพร้อมเส้นประคั่น เพื่อให้อ่านเป็น "ยอดสรุป" เหมือนกันทุกจอ */}
+            <div className="flex flex-col items-end gap-0.75 border-t border-dashed border-default-300 pt-3 lg:border-0 lg:pt-0">
+              {/* P5 (T14): text-default-600 = 3.03:1 ไม่ผ่าน AA → default-800 (label tier, ~10.7:1) */}
+              <span className="text-2xs text-default-800">ยอดรวมทั้งหมด</span>
+              <span className="text-2xl text-default-900 font-bold">{formatAmount(totalAmount)}</span>
+              {paymentBadge && (
+                <span className={`badge-label text-2xs font-semibold ${paymentBadge.cls}`}>
+                  {paymentBadge.label}
+                </span>
+              )}
             </div>
           </div>
 
-          {/* แถบ "งานถัดไป" 1 ประโยค — พื้น default-100 ปกติ / success tint เมื่อจบ / danger tint เมื่อยกเลิก */}
-          {nextStep && (
-            <p className={`mb-0 flex items-start gap-2 rounded px-3.25 py-2.75 text-sm ${NEXT_STEP_BOX_CLS[nextStep.tone]}`}>
-              <Icon icon="arrow-right-circle" className={`mt-0.5 shrink-0 ${NEXT_STEP_ICON_CLS[nextStep.tone]}`} aria-hidden="true" />
-              <span>{nextStep.text}</span>
-            </p>
+          {/* แถวปุ่ม — ≥1024 เท่านั้น (ต่ำกว่านั้นปุ่มชุดเดียวกันอยู่แถบ fixed ล่างจอผ่าน
+              OrderActionBar variant="bottom" แล้ว ถ้าใส่ที่นี่ด้วยจะได้ปุ่มซ้ำสองที่พร้อมกัน)
+              CANCELLED ไม่มี action เลย → ไม่มีทั้งเส้นประและแถว (design §3) */}
+          {hasActions && (
+            <div className="mt-4 hidden border-t border-dashed border-default-300 pt-3.5 lg:block">
+              <OrderActionBar variant="inline" actionSet={actionSet} onAction={handleAction} />
+            </div>
           )}
         </div>
       </div>
