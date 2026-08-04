@@ -109,6 +109,15 @@ import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker, { rememberRecentSticker } from './EmojiPicker'
+
+/**
+ * ที่มาของรูปในบับเบิล — ปกติ `imageUrl` คือ fileId ใน storage ของเรา (`/api/files/{id}`) แต่บับเบิล
+ * optimistic ของสติกเกอร์ถือ URL ของ CDN Meta มาตรง ๆ (server ยัง mirror ไม่เสร็จ) — user สั่ง
+ * 2026-08-04 ให้เห็นรูปสติกเกอร์ทันทีพร้อม spinner เหมือนส่งข้อความ ไม่ใช่รอเงียบ ๆ แล้วคิดว่าหาย
+ */
+function mediaSrc(key: string): string {
+  return key.startsWith('http') ? key : `/api/files/${key}`
+}
 import AiSuggestPanel from './AiSuggestPanel'
 import QuickMessageBar from './QuickMessageBar'
 import {
@@ -282,7 +291,7 @@ function MediaDownloadLink({
   useEffect(() => {
     setCanSaveAs('showSaveFilePicker' in window)
   }, [])
-  const url = `/api/files/${storageKey}`
+  const url = mediaSrc(storageKey)
   // ชื่อตอนบันทึก = ชื่อเดิมที่ผู้ส่งเลือก; ไม่มีก็ fallback "ไฟล์แนบ.<ext>" แทน uuid ที่อ่านไม่รู้เรื่อง
   const filename = attachmentDisplayName(storageKey, attachmentName)
 
@@ -370,7 +379,7 @@ function ChatImageMessage({ storageKey, onOpen }: { storageKey: string; onOpen: 
       <button type="button" onClick={onOpen} aria-label="ดูรูปเต็มจอ" className="block w-fit cursor-zoom-in">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={`/api/files/${storageKey}`}
+          src={mediaSrc(storageKey)}
           alt="รูปภาพที่ส่ง"
           className="max-w-60 rounded"
           onLoad={(e) => {
@@ -1076,7 +1085,7 @@ export default function ChatThread({
   for (const m of messages) {
     if (m.type === 'IMAGE' && m.imageUrl) {
       slideIndexByMessageId.set(m.id, imageSlides.length)
-      const url = `/api/files/${m.imageUrl}`
+      const url = mediaSrc(m.imageUrl)
       imageSlides.push({
         src: url,
         download: { url, filename: m.imageUrl.split('/').filter(Boolean).pop() || 'image' },
@@ -1750,13 +1759,13 @@ export default function ChatThread({
                             {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
                             {m.type === 'VIDEO' && m.imageUrl && (
                               <>
-                                <video src={`/api/files/${m.imageUrl}`} controls className="max-w-60 rounded" />
+                                <video src={mediaSrc(m.imageUrl)} controls className="max-w-60 rounded" />
                                 <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกวิดีโอ" attachmentName={m.attachmentName} />
                               </>
                             )}
                             {m.type === 'AUDIO' && m.imageUrl && (
                               <>
-                                <audio src={`/api/files/${m.imageUrl}`} controls className="max-w-60" />
+                                <audio src={mediaSrc(m.imageUrl)} controls className="max-w-60" />
                                 <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกไฟล์เสียง" attachmentName={m.attachmentName} />
                               </>
                             )}

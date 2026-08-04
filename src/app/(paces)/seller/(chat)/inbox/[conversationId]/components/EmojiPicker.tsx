@@ -209,9 +209,14 @@ export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Prop
       // w-96 (384px) แทน w-72 (288px): สติกเกอร์เป็นรูปที่ต้อง "ดูออกว่าเป็นตัวอะไร" ก่อนกด
       // ไม่ใช่ไอคอนที่จำตำแหน่งได้ — 4 คอลัมน์ในแผง 384px = ช่องละ ~88px (เดิม ~66px)
       // max-w-[calc] ไม่ใช้ (HR7) — บนมือถือแผงอยู่ในคอลัมน์ที่กว้างกว่านี้อยู่แล้ว
-      // มือถือ: กว้างเต็มแถบ composer (inset-x-0) — popover แคบ ๆ ทำให้สติกเกอร์เล็กจนดูไม่ออก
-      // (user report 2026-08-04 "ใน mobile ก็ใช้ยาก") · ≥640px กลับเป็นแผงลอยกว้าง 384px
-      className="card bg-card border-default-200 absolute bottom-full inset-x-0 z-20 mb-2 w-auto border p-0 shadow-lg sm:left-0 sm:right-auto sm:w-96"
+      /**
+       * ความกว้างต้องเป็นค่าคงที่ **ห้ามใช้ inset-x-0 / w-auto** (user report prod 2026-08-04
+       * "ใน Mobile เพี้ยนเลย" — แผงบีบเหลือเท่าปุ่ม ข้อความตกเป็นแนวตั้งทีละตัวอักษร):
+       * กล่อง `relative` ที่ครอบแผงนี้คือกล่องของ **ปุ่มอิโมจิ** (กว้าง ~40px) ไม่ใช่แถบ composer
+       * → inset-x-0 = 40px. บนมือถือ 288px คือค่าที่พอดีขอบจอเมื่อวัดจากตำแหน่งปุ่มจริง
+       * ≥640px ขยายเป็น 384px ได้เพราะมีที่เหลือ
+       */
+      className="card bg-card border-default-200 absolute bottom-full left-0 z-20 mb-2 w-72 border p-0 shadow-lg sm:w-96"
     >
       {/* แท็บ อิโมจิ | สติกเกอร์ — โครงเดียวกับ segmented ของแท็บช่องทางในกล่องข้อความ
           (bg-light rounded-lg p-1 + ตัวที่เลือกเป็นการ์ดขาว) เพื่อให้เป็นภาษาเดียวกันทั้งแอป */}
@@ -265,14 +270,14 @@ export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Prop
               <>
                 {/* แท็บ "ใช้ล่าสุด" — อ่านจากเครื่อง ไม่ยิง Graph */}
                 {packId === RECENT_TAB && !q.trim() && (
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
                     {recents.map((st) => (
                       <StickerButton key={`r-${st.id}`} sticker={st} onPick={onSelectSticker} />
                     ))}
                   </div>
                 )}
                 {packId !== RECENT_TAB && stickers && stickers.length > 0 && (
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
                     {stickers.map((st) => (
                       <StickerButton key={st.id} sticker={st} onPick={onSelectSticker} />
                     ))}
