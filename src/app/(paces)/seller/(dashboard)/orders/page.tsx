@@ -86,6 +86,14 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // ไม่งั้นกดไทล์ที่บอก 5 แล้วเข้ามาเจอ 4 ใบ (ดูคอมเมนต์ที่ตัวฟังก์ชันใน lib/order-stage.ts)
   const isOnlineSales = shop.vertical === 'ONLINE_SALES'
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
+    shipment: o.shipments?.[0]
+      ? {
+          trackingNo: o.shipments[0].trackingNo ?? null,
+          courierCode: o.shipments[0].courierCode ?? null,
+          courierName: o.shipments[0].courierName ?? null,
+          provider: o.shipments[0].provider ?? 'ISHIP',
+        }
+      : null,
     shippingStage: isOnlineSales
       ? deriveShippingStage({
           status: o.status,

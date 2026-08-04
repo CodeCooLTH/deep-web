@@ -2138,9 +2138,15 @@ export default function ChatThread({
           <button
             type="button"
             onClick={startCreateOrder}
-            className="btn bg-primary/15 text-primary-ink hover:bg-primary/25 ms-auto shrink-0 md:hidden"
+            // สไตล์ต้องเป็นภาษาเดียวกับปุ่มอื่นในแถวนี้ (user report 2026-08-04 "ไม่เข้าพวกเลย"):
+            // ทุกตัวคือ `btn btn-icon` พื้นใส สีบอกบทบาท แล้วค่อยติดสีตอน hover/active — AI ใช้
+            // text-success, เลือกสินค้าใช้ text-info. ของเดิมเป็นพิลล์ทึบ bg-primary/15 ซึ่งเป็น
+            // ภาษาของ "ปุ่มหลักในการ์ด" ไม่ใช่ของแถบเครื่องมือ จึงเด่นผิดที่และดูเป็นของแปลกปลอม
+            // คงข้อความไว้ (ไม่ยุบเป็นไอคอนเปล่า) เพราะเหตุผลเดิม: ไอคอนเปล่าในแถวนี้เคยทำให้
+            // user หาปุ่มไม่เจอมาแล้ว และนี่คือปุ่มที่ปิดการขาย
+            className="btn text-primary hover:bg-primary/10 ms-auto shrink-0 gap-1 text-sm font-medium md:hidden"
           >
-            <Icon icon={VERTICAL_CTA[customerPanelData.vertical].icon} className="text-base" />
+            <Icon icon={VERTICAL_CTA[customerPanelData.vertical].icon} className="text-lg" />
             {VERTICAL_CTA[customerPanelData.vertical].label}
           </button>
 

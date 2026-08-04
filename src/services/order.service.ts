@@ -791,7 +791,14 @@ export async function getOrdersByShop(shopId: string, status?: string) {
         where: { status: "CREATED", isDryRun: false },
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { carrierStatus: true },
+        select: {
+          carrierStatus: true,
+          // แถวออเดอร์ต้องเห็นเลขพัสดุ + ขนส่งเจ้าไหน + เปิดผ่านแพลตฟอร์มไหน (user สั่ง 2026-08-04)
+          trackingNo: true,
+          courierCode: true,
+          courierName: true,
+          provider: true,
+        },
       },
       review: true,
       // buyer: registered user ที่ยืนยัน order — ใช้แสดงชื่อลูกค้าใน seller order list
