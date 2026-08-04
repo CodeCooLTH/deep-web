@@ -38,6 +38,8 @@ export type CommentPostItem = {
   lastCommentAt: string | null
   commentCount: number
   unansweredCount: number
+  /** เวลาของคอมเมนต์ที่ยังไม่ตอบและ "เก่าที่สุด" — เส้นตายทักแชท 7 วันที่มาถึงก่อน (null = ตอบครบ) */
+  oldestUnansweredAt: string | null
   lastCommenterName: string | null
   lastCommentText: string | null
   mediaType: string | null
@@ -153,6 +155,16 @@ export default function CommentsClient({
    */
   const [channelTab, setChannelTab] = useState<'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM'>('ALL')
   const [filterOpen, setFilterOpen] = useState(false)
+  /**
+   * เดินนาฬิกาให้ตัวนับถอยหลังในแถวรายการขยับเอง (user สั่ง 2026-08-04)
+   * ทุก 60 วินาทีพอ เพราะหน่วยเล็กสุดที่โชว์คือ "นาที" — ถี่กว่านั้นคือ re-render ฟรี ๆ
+   * ค่าที่เก็บไม่ได้ถูกใช้ตรง ๆ มันมีไว้บังคับให้ component คำนวณเวลาที่เหลือใหม่เท่านั้น
+   */
+  const [, setClockTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setClockTick((n) => n + 1), 60_000)
+    return () => clearInterval(t)
+  }, [])
   // เริ่มที่ null เสมอ — มือถือต้องเห็น "รายการ" ก่อน ไม่ใช่ถูกโยนเข้าโพสต์ใดโพสต์หนึ่ง
   // (critique P0) เดสก์ท็อปมี 2 คอลัมน์อยู่แล้ว จึง auto-select ให้เฉพาะ ≥1024px
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -875,6 +887,39 @@ export default function CommentsClient({
                         ? `${p.lastCommenterName ?? 'ผู้ใช้ Facebook'}: ${p.lastCommentText}`
                         : `${p.commentCount} ความคิดเห็น`}
                     </span>
+                    {/* บรรทัดที่ 3 — โผล่เฉพาะแถวที่ยังมีคอมเมนต์ค้าง (user สั่ง 2026-08-04):
+                        ไอคอนบอกว่ายังไม่ตอบ + นับถอยหลังหน้าต่างทักแชทส่วนตัว 7 วันของ Meta
+                        นับจาก "คอมเมนต์ที่ค้างเก่าสุด" ของโพสต์นั้น = เส้นตายที่มาถึงก่อน
+                        (ถ้านับจากอันใหม่สุดจะขึ้น "เหลือ 6 วัน" ทั้งที่มีอันเหลือ 2 ชั่วโมงอยู่ในโพสต์
+                        เดียวกัน) ใช้ privateReplyWindow ตัวเดียวกับที่บับเบิลในเธรดใช้ — เวลาเดียวกัน
+                        ต้องมาจาก symbol เดียว. หมดเวลาแล้วขึ้น danger, ยังไม่หมดขึ้น warning
+                        เพราะเป็นเรื่อง "เร่ง" ไม่ใช่ "พัง" */}
+                    {p.unansweredCount > 0 && p.oldestUnansweredAt && (() => {
+                      const w = privateReplyWindow(p.oldestUnansweredAt)
+                      return (
+                        <span className="mt-1 flex items-center gap-1 text-2xs">
+                          <Icon
+                            icon="alert-circle"
+                            width={12}
+                            height={12}
+                            className="text-danger shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="text-danger font-medium">ยังไม่ตอบ</span>
+                          <span className="text-default-300" aria-hidden="true">·</span>
+                          <Icon
+                            icon="message-2"
+                            width={12}
+                            height={12}
+                            className={`shrink-0 ${w.expired ? 'text-danger' : 'text-warning'}`}
+                            aria-hidden="true"
+                          />
+                          <span className={`truncate ${w.expired ? 'text-danger' : 'text-default-800'}`}>
+                            {w.expired ? w.text : `ทักแชทได้อีก ${w.text.replace('คงเหลือ ', '')}`}
+                          </span>
+                        </span>
+                      )
+                    })()}
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1.25">
                     {/* เวลาแบบสัมพัทธ์ (เมื่อกี้ / 3 ชม. / 2 วัน) — HH:MM เดิมทำให้เมื่อวานกับ

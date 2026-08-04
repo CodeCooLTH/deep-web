@@ -45,6 +45,7 @@ export default async function CommentsPage() {
     posts = rows.map((p) => ({
       ...p,
       lastCommentAt: p.lastCommentAt ? p.lastCommentAt.toISOString() : null,
+      oldestUnansweredAt: p.oldestUnansweredAt ? p.oldestUnansweredAt.toISOString() : null,
     }))
   } catch {
     failed = true

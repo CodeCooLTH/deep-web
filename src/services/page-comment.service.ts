@@ -156,6 +156,14 @@ export interface CommentPostRow {
   lastCommentAt: Date | null
   commentCount: number
   unansweredCount: number
+  /**
+   * เวลาของคอมเมนต์ลูกค้า **ที่ยังไม่ถูกตอบและเก่าที่สุด** ในโพสต์นี้ (null = ตอบครบแล้ว)
+   *
+   * ใช้เดินนับถอยหลังหน้าต่าง "ทักแชทส่วนตัว 7 วัน" ของ Meta ในแถวรายการ (user สั่ง 2026-08-04)
+   * ต้องเป็นตัว **เก่าที่สุด** ไม่ใช่ล่าสุด เพราะอันที่เก่าสุดคืออันที่หมดเวลาก่อน — ถ้าโชว์เวลาของ
+   * คอมเมนต์ใหม่สุด ร้านจะเห็น "เหลืออีก 6 วัน" ทั้งที่มีอันที่เหลือ 2 ชั่วโมงอยู่ในโพสต์เดียวกัน
+   */
+  oldestUnansweredAt: Date | null
   lastCommenterName: string | null
   /** ข้อความคอมเมนต์ล่าสุด — แถวรายการต้องบอกว่า "ลูกค้าถามอะไร" ไม่ใช่แค่จำนวน (critique P1) */
   lastCommentText: string | null
@@ -235,6 +243,7 @@ export async function listCommentPosts(params: {
       p.comments.filter((c) => c.isFromPage && c.parentExternalId).map((c) => c.parentExternalId!),
     )
     const customerComments = p.comments.filter((c) => !c.isFromPage && !c.isDeleted)
+    const unanswered = customerComments.filter((c) => !answered.has(c.externalCommentId))
     const last = [...p.comments]
       .filter((c) => !c.isFromPage)
       .sort((a, b) => b.createdTime.getTime() - a.createdTime.getTime())[0]
@@ -256,7 +265,12 @@ export async function listCommentPosts(params: {
       reactionCount: p.reactionCount,
       fbCommentCount: p.fbCommentCount,
       shareCount: p.shareCount,
-      unansweredCount: customerComments.filter((c) => !answered.has(c.externalCommentId)).length,
+      unansweredCount: unanswered.length,
+      // เก่าสุดของกลุ่มที่ยังไม่ตอบ = เส้นตายที่มาถึงก่อน (ดู comment ที่ CommentPostRow)
+      oldestUnansweredAt: unanswered.reduce<Date | null>(
+        (oldest, c) => (oldest === null || c.createdTime < oldest ? c.createdTime : oldest),
+        null,
+      ),
       lastCommenterName: last?.fromName ?? null,
       lastCommentText: last ? (last.message ?? (last.attachmentUrl ? '[รูปภาพ]' : null)) : null,
     }
