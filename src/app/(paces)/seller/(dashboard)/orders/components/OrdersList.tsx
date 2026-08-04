@@ -30,6 +30,9 @@ import OrdersTable from './OrdersTable'
 // ─── status tabs ────────────────────────────────────────────────────────────
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
 
+/** ลำดับชิปสถานะพัสดุ — เรียงตามเส้นทางจริงของพัสดุ ปิดท้ายด้วยกองที่ต้องแก้ */
+const STAGE_CHIPS = ['AWAITING_PARCEL', 'AWAITING_PICKUP', 'SHIPPING', 'PROBLEM'] as const
+
 const STATUS_TABS: { value: string; label: string }[] = [
   { value: 'all',       label: 'ทั้งหมด' },
   { value: 'PENDING',   label: 'รอดำเนินการ' },
@@ -48,6 +51,57 @@ const TYPE_OPTIONS = [
 
 const PAGE = 8 // จำนวนต่อรอบ lazy-load
 
+/**
+ * StageChips — แถวชิป "สถานะพัสดุ" ใช้ร่วมกันทั้งมือถือและเดสก์ท็อป
+ *
+ * render 2 ที่ (ในหัวสติกกี้ของมือถือ / เหนือการ์ดตารางบนเดสก์ท็อป) แต่ตัวนับกับ handler มาจาก
+ * ที่เดียวใน OrdersList — ห้ามให้สองจอนับกันเอง (บทเรียน docs/conventions/sibling-surface-parity.md
+ * "ตัวเลขเดียวกันที่โผล่ >1 ที่ ต้องมาจาก symbol เดียว")
+ *
+ * สไตล์ชิปลอกจากแถว STATUS_TABS ในไฟล์เดียวกันทุกคลาส — ต่างกันแค่มีป้ายนำหน้าและกากบาทบนชิปที่เลือก
+ * เพราะ 2 แถวนี้เป็นคนละแกน ถ้าหน้าตาเหมือนกันเป๊ะผู้ใช้จะอ่านเป็นแถวเดียวที่ตัดบรรทัด
+ */
+function StageChips({
+  stage,
+  counts,
+  onSelect,
+  className,
+}: {
+  stage: string | null
+  counts: Record<string, number>
+  onSelect: (value: string) => void
+  className?: string
+}) {
+  return (
+    <div className={cn('flex items-center gap-2', className)}>
+      <span className="shrink-0 text-xs font-medium text-default-500">พัสดุ:</span>
+      {STAGE_CHIPS.map((key) => {
+        const active = stage === key
+        const count = counts[key] ?? 0
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onSelect(key)}
+            aria-pressed={active}
+            className={cn(
+              'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
+              // HR7: rounded-full ไม่ใช่ .badge default radius — ตามชิป STATUS_TABS ที่อยู่แถวบน
+              'rounded-full px-3.5 py-1.5 text-xs font-medium',
+              active ? 'bg-primary text-white' : 'bg-default-100 text-default-500',
+            )}
+          >
+            {SHIPPING_STAGE_LABEL[key]}
+            {count > 0 && <span className="ms-1 font-bold tabular-nums">{count}</span>}
+            {/* กากบาทบอกทางออก — ชิปที่เลือกอยู่กดซ้ำเพื่อล้าง ซึ่งเดาเองไม่ได้ถ้าไม่มีสัญลักษณ์ */}
+            {active && <Icon icon="x" className="ms-1 text-sm" />}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 type Props = {
   orders: OrderRow[]
   activeStatus: string
@@ -61,11 +115,15 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
 
   const [localStatus, setLocalStatus] = useState<string>(activeStatus ?? 'all')
   /**
-   * ?stage= จากไทล์ "สถานะคำสั่งซื้อ" บน Command Center (user สั่ง 2026-08-04 "กดเข้าไปแล้ว query
-   * ต้องตรงกันด้วย") — อ่านจาก URL ตรง ๆ ไม่เก็บเป็น state เพราะไม่มีปุ่มในหน้านี้ให้สลับ
+   * ?stage= — ตัวกรองกองงานตามสถานะพัสดุ มี 2 ทางเข้า: ไทล์ "สถานะคำสั่งซื้อ" บนหน้าแรก
+   * และชิปในหน้านี้ (เพิ่ม 2026-08-04 รอบสอง — เดิมมีแต่ไทล์ซึ่งเป็น lg:hidden = เดสก์ท็อปเข้าไม่ถึงเลย)
+   *
+   * ยังคงอ่านจาก URL เป็นแหล่งเดียว ไม่ mirror เป็น state — ชิปกดแล้ว push URL แล้วค่าไหลกลับมาทางเดิม
+   * ทำให้ปุ่ม back ของเบราว์เซอร์และลิงก์จากไทล์ให้ผลตรงกันเสมอ
    * ค่าที่ไม่รู้จักถือว่าไม่กรอง (fail-open) — ลิงก์เก่า/พิมพ์มั่วต้องไม่ทำให้หน้าว่างเปล่าโดยไม่มีคำอธิบาย
    */
-  const stageParam = useSearchParams().get('stage')
+  const searchParams = useSearchParams()
+  const stageParam = searchParams.get('stage')
   const stage =
     stageParam && stageParam in SHIPPING_STAGE_LABEL
       ? (stageParam as keyof typeof SHIPPING_STAGE_LABEL)
@@ -114,11 +172,29 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
       ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
   }, [localStatus])
 
+  /**
+   * เขียน query ใหม่โดยคงพารามิเตอร์อีกตัวไว้เสมอ — `?status=` (สถานะการขาย) กับ `?stage=`
+   * (สถานะพัสดุ) เป็นคนละแกน ใช้พร้อมกันได้ ถ้าเขียนทับกันผู้ใช้จะรู้สึกว่ากดอันหนึ่งแล้วอีกอันหลุด
+   */
+  const pushQuery = (patch: { status?: string | null; stage?: string | null }) => {
+    const next = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(patch)) {
+      if (v == null) next.delete(k)
+      else next.set(k, v)
+    }
+    const qs = next.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
+
   // ─── status tab click (sync URL) ───────────────────────────────────────────
   const handleStatusTab = (value: string) => {
     setLocalStatus(value)
-    if (value === 'all') router.push(pathname, { scroll: false })
-    else router.push(`${pathname}?status=${value}`, { scroll: false })
+    pushQuery({ status: value === 'all' ? null : value })
+  }
+
+  /** กดชิปที่เลือกอยู่ซ้ำ = ล้างตัวกรอง (ทางออกเดียวกับกากบาทบนชิป) */
+  const handleStageChip = (value: string) => {
+    pushQuery({ stage: stage === value ? null : value })
   }
 
   // ─── count per status ───────────────────────────────────────────────────────
@@ -128,11 +204,32 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
     return counts
   }, [orders])
 
+  /**
+   * ตัวนับบนชิปสถานะพัสดุ — นับจาก `orders` ก้อนเดียวกับที่กรอง ห้ามยิง endpoint นับแยก
+   * ไม่งั้นเลขบนชิปกับจำนวนแถวที่กรองได้จะเพี้ยนจากกันโดยไม่มีอะไรเตือน
+   * นับก่อนกรองด้วย stage แต่หลังกรอง status/ประเภท/คำค้น ไม่ได้ — จงใจนับจากก้อนดิบ เพราะชิป
+   * ต้องบอก "ทั้งร้านมีกี่ใบในกองนี้" ให้ตรงกับตัวเลขบนไทล์หน้าแรกซึ่งก็นับจากทั้งร้านเช่นกัน
+   */
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const o of orders) {
+      if (o.shippingStage) counts[o.shippingStage] = (counts[o.shippingStage] ?? 0) + 1
+    }
+    return counts
+  }, [orders])
+
+  /** ร้านที่ไม่ใช่ ONLINE_SALES ไม่มีพัสดุให้ไล่ → shippingStage undefined ทุกแถว → ไม่มีแถวชิปนี้ */
+  const hasStageAxis = STAGE_CHIPS.some((k) => (stageCounts[k] ?? 0) > 0) || stage !== null
+
   // ─── filter pipeline ─────────────────────────────────────────────────────────
+  /** กรองด้วย stage อย่างเดียว — ตารางเดสก์ท็อปมีตัวกรอง status/ประเภท/ค้นหาของตัวเองอยู่แล้ว */
+  const stageFiltered = useMemo(
+    () => (stage ? orders.filter((o) => o.shippingStage === stage) : orders),
+    [orders, stage],
+  )
+
   const filtered = useMemo(() => {
-    let list = orders
-    // กองงานตามสถานะพัสดุ (มาจากไทล์บน Command Center) — คนละแกนกับ status จึงกรองแยก ไม่ทับกัน
-    if (stage) list = list.filter((o) => o.shippingStage === stage)
+    let list = stageFiltered
     if (localStatus !== 'all') list = list.filter((o) => o.status === localStatus)
     if (typeFilter) list = list.filter((o) => o.orderType === typeFilter)
     if (search.trim()) {
@@ -146,12 +243,12 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
       )
     }
     return list
-  }, [orders, stage, localStatus, typeFilter, search])
+  }, [stageFiltered, localStatus, typeFilter, search])
 
   // reset lazy-load เมื่อ filter/search/status เปลี่ยน
   useEffect(() => {
     setVisibleCount(PAGE)
-  }, [localStatus, typeFilter, search])
+  }, [localStatus, typeFilter, search, stage])
 
   // ─── lazy-load: เพิ่ม visibleCount เมื่อ sentinel เข้า viewport ───────────────
   const visible = filtered.slice(0, visibleCount)
@@ -204,7 +301,17 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
     <>
       {/* ─── Desktop (≥lg): DataTable แบบ Paces theme ──────────────────────── */}
       <div className="hidden lg:block">
-        <OrdersTable orders={orders} ishipEnabled={ishipEnabled} />
+        {/* ชิปสถานะพัสดุอยู่นอกการ์ดตาราง เพราะเป็นการ "เลือกกองงาน" ก่อนจะมากรองย่อยด้วย
+            dropdown ในแถบเครื่องมือของตาราง — และเป็นตัวกรองตัวเดียวที่ผูกกับ URL (แชร์ลิงก์ได้) */}
+        {hasStageAxis && (
+          <StageChips
+            stage={stage}
+            counts={stageCounts}
+            onSelect={handleStageChip}
+            className="mb-base flex-wrap"
+          />
+        )}
+        <OrdersTable orders={stageFiltered} ishipEnabled={ishipEnabled} />
       </div>
 
       {/* ─── Mobile/Tablet (<lg): card layout เดิม (ห้ามแตะ logic ข้างใน) ─── */}
@@ -290,23 +397,8 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
           </Link>
         </div>
 
-        {/* แถบบอกว่ากำลังกรองด้วยกองงานจากไทล์บน Command Center — ต้องมี ไม่งั้นผู้ใช้เห็นรายการ
-            สั้นกว่าที่คิดโดยไม่รู้สาเหตุ และหาทางกลับไปดูทั้งหมดไม่เจอ (ตัวกรองนี้ไม่มีชิปในหน้านี้) */}
-        {stage && (
-          <div className="bg-primary/15 text-primary-ink mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
-            <Icon icon="filter" className="shrink-0" />
-            <span className="min-w-0 flex-1">
-              กำลังดูเฉพาะ “{SHIPPING_STAGE_LABEL[stage]}” ({filtered.length} รายการ)
-            </span>
-            <button
-              type="button"
-              onClick={() => router.push(pathname, { scroll: false })}
-              className="shrink-0 font-medium hover:underline"
-            >
-              ดูทั้งหมด
-            </button>
-          </div>
-        )}
+        {/* แถบ "กำลังดูเฉพาะ…" ถูกแทนด้วยชิปด้านล่าง (2026-08-04) — ชิปบอกทั้งว่ากรองอะไรอยู่
+            และเปลี่ยน/ล้างได้ในที่เดียว แถบแจ้งเตือนจึงเหลือแค่บรรทัดซ้ำที่กินพื้นที่หัวสติกกี้ */}
 
         {/* filter chips — เลื่อนแนวนอน (ซ่อน scrollbar); สลับด้วย swipe ทั้งจอ
             เปลี่ยนจาก underline-tab → chip row ตาม mockup v10 Frame 3 ".chips" style
@@ -341,6 +433,18 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
             )
           })}
         </div>
+
+        {/* แถวชิปสถานะพัสดุ — แยกแถวจากชิปสถานะการขายด้านบนเพราะเป็นคนละแกน ใช้พร้อมกันได้
+            (เช่น "รอดำเนินการ" + "รอเลขพัสดุ") การเอามารวมแถวเดียวจะสื่อว่าเลือกได้อย่างเดียว
+            HR7: [&::-webkit-scrollbar]:hidden = arbitrary selector (Tailwind ไม่มี token) ตามแถวบน */}
+        {hasStageAxis && (
+          <StageChips
+            stage={stage}
+            counts={stageCounts}
+            onSelect={handleStageChip}
+            className="overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
+          />
+        )}
       </div>
 
       {/* ─── Order cards + lazy-load ──────────────────────────────────────────── */}
