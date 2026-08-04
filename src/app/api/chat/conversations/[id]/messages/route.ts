@@ -401,11 +401,24 @@ export async function POST(
       if (!productRefId) {
         return NextResponse.json({ error: "กรุณาระบุสินค้า" }, { status: 400 });
       }
-    } else {
-      // type === "ORDER" — การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24)
+    } else if (type === "STICKER") {
+      // ตรวจ stickerId/stickerImageUrl ไปแล้วก่อนเข้า try — ที่นี่แค่ต้อง "มีสาขาของตัวเอง"
+      //
+      // bug ที่ user เจอบน prod 2026-08-04 ("พอกดเลือก sticker แล้ว ... ไม่ส่งอะไรเลย"):
+      // ก่อนหน้านี้ห่วงโซ่นี้ปิดท้ายด้วย `else` ที่เขียนไว้สำหรับ ORDER อย่างเดียว — ค่าใหม่ที่เพิ่ม
+      // เข้า picklist จึงตกลงไปในนั้นแล้วถูกตอบ 400 "กรุณาระบุออเดอร์" ทุกครั้ง
+      // นี่คือรูปแบบเดียวกับบทเรียน docs/conventions/enum-value-removal.md เป๊ะ ๆ (ตรรกะที่ปิดท้าย
+      // ด้วย else เงียบ ๆ ไม่พังตอนเพิ่มค่าใหม่ แต่ส่งค่าใหม่ไปเข้า branch ที่ผิด) — เปลี่ยนก้อน
+      // สุดท้ายเป็น `else if (type === "ORDER")` + fail-closed ให้ค่าที่ยังไม่รองรับเด้ง error
+      // ที่บอกตรง ๆ ไม่ใช่ error ของชนิดอื่น
+    } else if (type === "ORDER") {
+      // การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24)
       if (!orderRefToken) {
         return NextResponse.json({ error: "กรุณาระบุออเดอร์" }, { status: 400 });
       }
+    } else {
+      // fail-closed: ชนิดที่เพิ่มใน picklist แต่ยังไม่มีใครเขียนกฎรองรับ — ห้ามตกไปใช้กฎของชนิดอื่น
+      return NextResponse.json({ error: "ยังไม่รองรับชนิดข้อความนี้" }, { status: 400 });
     }
 
     // sanitize ซ้ำที่ server — ชื่อนี้ไปโผล่ใน Content-Disposition ตอนดาวน์โหลด (header injection)

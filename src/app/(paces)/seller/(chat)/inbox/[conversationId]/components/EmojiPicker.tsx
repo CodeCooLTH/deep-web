@@ -72,6 +72,8 @@ type StickerPack = { id: string; name: string; previewImageUrl: string | null }
 /** สติกเกอร์ที่ใช้ล่าสุด (user สั่ง 2026-08-04 "มี recent ให้ใช้ด้วย") — เก็บที่เครื่อง ไม่ต้องมี
  *  ตารางใหม่: มันเป็นความชอบส่วนตัวของเครื่องที่ใช้ ไม่ใช่ข้อมูลร้านที่ต้องแชร์ข้ามอุปกรณ์ */
 const RECENT_KEY = 'deep.chat.recentStickers'
+/** ค่าพิเศษของแท็บ "ใช้ล่าสุด" — ไม่ใช่ id แพ็กจริง (id ของ Meta เป็นตัวเลขล้วน ไม่ชนกัน) */
+const RECENT_TAB = 'RECENT'
 const RECENT_MAX = 16
 
 function readRecentStickers(): StickerItem[] {
@@ -114,6 +116,11 @@ export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Prop
   const ref = useRef<HTMLDivElement>(null)
   const [tab, setTab] = useState<'EMOJI' | 'STICKER'>('EMOJI')
   const [packs, setPacks] = useState<StickerPack[] | null>(null)
+  /**
+   * แท็บที่เปิดอยู่ในแถบล่าง — id ของแพ็ก หรือ RECENT_TAB (ใช้ล่าสุด)
+   * user สั่ง 2026-08-04: "ปรกติมันต้องมี tab recent sticker อยู่อันแรกเสมอ เพื่อให้ทุกครั้งที่เลือก
+   * tab sticker มันเปิด recent ก่อนเสมอ" — ตรงกับ Messenger (นาฬิกาเป็นแท็บแรก)
+   */
   const [packId, setPackId] = useState<string | null>(null)
   const [stickers, setStickers] = useState<StickerItem[] | null>(null)
   const [q, setQ] = useState('')
@@ -150,6 +157,22 @@ export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Prop
     if (packs === null) void loadStickers('/api/channels/facebook/stickers')
   }, [tab, packs, loadStickers])
 
+  // ได้รายการแพ็กแล้ว → เปิดแพ็กแรกให้เลย (user report 2026-08-04: แผงค้างที่ข้อความ "เลือกแพ็ก
+  // ด้านล่าง" ซึ่งเท่ากับบังคับให้กดอีกครั้งก่อนเห็นของ — Messenger เปิดมาเห็นสติกเกอร์ทันที)
+  useEffect(() => {
+    if (tab !== 'STICKER' || packId !== null || q.trim()) return
+    // มีของที่ใช้ล่าสุด → เปิดแท็บนั้นก่อนเสมอ (ไม่ต้องยิง Graph เลย)
+    if (recents.length > 0) {
+      setPackId(RECENT_TAB)
+      return
+    }
+    // ยังไม่เคยส่งสติกเกอร์ (recents ว่าง) → เปิดแพ็กแรกให้ ไม่ปล่อยให้แผงว่างเปล่า
+    if (!packs || packs.length === 0 || stickers !== null) return
+    const first = packs[0]
+    setPackId(first.id)
+    void loadStickers(`/api/channels/facebook/stickers?packId=${encodeURIComponent(first.id)}`)
+  }, [tab, packs, packId, stickers, q, recents, loadStickers])
+
   // ค้นหา — debounce กันยิงทุกตัวอักษร; Meta บังคับ ≥2 ตัวอักษร
   useEffect(() => {
     if (tab !== 'STICKER') return
@@ -183,7 +206,12 @@ export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Prop
       ref={ref}
       role="dialog"
       aria-label="เลือกอิโมจิ"
-      className="card bg-card border-default-200 absolute bottom-full left-0 z-20 mb-2 w-72 border p-0 shadow-lg"
+      // w-96 (384px) แทน w-72 (288px): สติกเกอร์เป็นรูปที่ต้อง "ดูออกว่าเป็นตัวอะไร" ก่อนกด
+      // ไม่ใช่ไอคอนที่จำตำแหน่งได้ — 4 คอลัมน์ในแผง 384px = ช่องละ ~88px (เดิม ~66px)
+      // max-w-[calc] ไม่ใช้ (HR7) — บนมือถือแผงอยู่ในคอลัมน์ที่กว้างกว่านี้อยู่แล้ว
+      // มือถือ: กว้างเต็มแถบ composer (inset-x-0) — popover แคบ ๆ ทำให้สติกเกอร์เล็กจนดูไม่ออก
+      // (user report 2026-08-04 "ใน mobile ก็ใช้ยาก") · ≥640px กลับเป็นแผงลอยกว้าง 384px
+      className="card bg-card border-default-200 absolute bottom-full inset-x-0 z-20 mb-2 w-auto border p-0 shadow-lg sm:left-0 sm:right-auto sm:w-96"
     >
       {/* แท็บ อิโมจิ | สติกเกอร์ — โครงเดียวกับ segmented ของแท็บช่องทางในกล่องข้อความ
           (bg-light rounded-lg p-1 + ตัวที่เลือกเป็นการ์ดขาว) เพื่อให้เป็นภาษาเดียวกันทั้งแอป */}
@@ -226,7 +254,7 @@ export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Prop
               />
             </div>
           </div>
-          <div className="max-h-64 overflow-y-auto p-2">
+          <div className="max-h-80 overflow-y-auto p-2">
             {error ? (
               <p className="text-danger p-2 text-xs" role="alert">
                 {error}
@@ -235,36 +263,54 @@ export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Prop
               <p className="text-default-700 p-2 text-xs">กำลังโหลด...</p>
             ) : (
               <>
-                {/* ใช้ล่าสุด — โผล่เฉพาะตอนยังไม่ค้นหา/ไม่ได้เลือกแพ็ก (เหมือน Recents ของ Messenger) */}
-                {!q.trim() && !packId && recents.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-default-700 mb-1.5 text-2xs font-semibold">ใช้ล่าสุด</p>
-                    <div className="grid grid-cols-4 gap-1">
-                      {recents.map((st) => (
-                        <StickerButton key={`r-${st.id}`} sticker={st} onPick={onSelectSticker} />
-                      ))}
-                    </div>
+                {/* แท็บ "ใช้ล่าสุด" — อ่านจากเครื่อง ไม่ยิง Graph */}
+                {packId === RECENT_TAB && !q.trim() && (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {recents.map((st) => (
+                      <StickerButton key={`r-${st.id}`} sticker={st} onPick={onSelectSticker} />
+                    ))}
                   </div>
                 )}
-                {stickers && stickers.length > 0 && (
-                  <div className="grid grid-cols-4 gap-1">
+                {packId !== RECENT_TAB && stickers && stickers.length > 0 && (
+                  <div className="grid grid-cols-4 gap-1.5">
                     {stickers.map((st) => (
                       <StickerButton key={st.id} sticker={st} onPick={onSelectSticker} />
                     ))}
                   </div>
                 )}
-                {stickers && stickers.length === 0 && (
+                {/* ไม่พบจากการค้นหา = ต้องบอก (ไม่งั้นดูเหมือนแผงพัง) ส่วนตอน "ยังไม่มีอะไรให้แสดง"
+                    ไม่ต้องมีข้อความอะไรเลย — แพ็กแรกถูกเปิดให้เองอยู่แล้ว ข้อความสอนวิธีใช้
+                    ("เลือกแพ็กด้านล่าง หรือค้นหาด้านบน") ถูกถอดออกตามที่ user สั่ง 2026-08-04 */}
+                {stickers && stickers.length === 0 && q.trim() && (
                   <p className="text-default-700 p-2 text-xs">ไม่พบสติกเกอร์ที่ค้นหา</p>
-                )}
-                {!stickers && !q.trim() && (
-                  <p className="text-default-700 p-2 text-xs">เลือกแพ็กด้านล่าง หรือค้นหาด้านบน</p>
                 )}
               </>
             )}
           </div>
           {/* แถบแพ็กด้านล่าง (เหมือน Messenger) — เลื่อนแนวนอน กดแล้วโหลดสติกเกอร์ในแพ็กนั้น */}
           {packs && packs.length > 0 && (
-            <div className="border-default-200 flex gap-1 overflow-x-auto border-t p-2">
+            /* เลื่อนข้างได้เหมือน Messenger — thumb ใหญ่ขึ้นเป็น 44px (ของเดิม 36px กับรูป preview
+               ที่เป็นตารางสติกเกอร์ย่อ = ดูไม่ออกว่าแพ็กอะไร) flex-nowrap กันตกบรรทัดเป็นกำแพงรูป */
+            <div className="border-default-200 flex flex-nowrap gap-1 overflow-x-auto border-t p-2">
+              {/* ใช้ล่าสุด = แท็บแรกเสมอ (เหมือน Messenger) — โผล่เมื่อมีของที่เคยส่งแล้ว
+                  ถ้ายังไม่เคยส่งเลย แท็บนี้ไม่มีประโยชน์ (กดแล้วว่าง) จึงไม่โชว์ */}
+              {recents.length > 0 && (
+                <button
+                  type="button"
+                  title="ใช้ล่าสุด"
+                  aria-label="สติกเกอร์ที่ใช้ล่าสุด"
+                  aria-pressed={packId === RECENT_TAB}
+                  onClick={() => {
+                    setQ('')
+                    setPackId(RECENT_TAB)
+                  }}
+                  className={`flex size-11 shrink-0 items-center justify-center rounded-lg ${
+                    packId === RECENT_TAB ? 'bg-primary/15 text-primary' : 'text-default-700 hover:bg-default-100'
+                  }`}
+                >
+                  <Icon icon="clock" className="text-lg" />
+                </button>
+              )}
               {packs.map((pk) => (
                 <button
                   key={pk.id}
@@ -277,13 +323,13 @@ export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Prop
                     setPackId(pk.id)
                     void loadStickers(`/api/channels/facebook/stickers?packId=${encodeURIComponent(pk.id)}`)
                   }}
-                  className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${
+                  className={`flex size-11 shrink-0 items-center justify-center rounded-lg ${
                     packId === pk.id ? 'bg-primary/15' : 'hover:bg-default-100'
                   }`}
                 >
                   {pk.previewImageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={pk.previewImageUrl} alt="" className="size-7 object-contain" />
+                    <img src={pk.previewImageUrl} alt="" className="size-9 object-contain" />
                   ) : (
                     <Icon icon="sticker" className="text-default-700 text-lg" />
                   )}
