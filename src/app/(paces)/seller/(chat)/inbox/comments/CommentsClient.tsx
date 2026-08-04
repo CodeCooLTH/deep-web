@@ -1474,8 +1474,30 @@ function CommentBubble({
 
   const chatWindow = c.isFromPage || c.isDeleted ? null : privateReplyWindow(c.createdTime)
 
+  /**
+   * กดที่แถวคอมเมนต์ = เตรียมช่องตอบให้เลย (user สั่ง 2026-08-04: "ยังไม่ auto reply เวลากดเข้า
+   * comment list นั้น") — ผูกเป้าหมายการตอบ + โฟกัสช่องพิมพ์ในจังหวะเดียว ไม่ต้องเล็งปุ่ม "ตอบ"
+   * ตัวเล็กใต้บับเบิล (บนมือถือปุ่มนั้นเล็กกว่า 44px ตามแถวเครื่องมือของ Facebook อยู่แล้ว)
+   *
+   * ข้ามคลิกที่ตกบนปุ่ม/ลิงก์ข้างใน (ปุ่ม "ตอบ" มี onClick ของตัวเองอยู่แล้ว — ปล่อยให้ bubble มาถึง
+   * ที่นี่จะสั่งซ้ำอีกรอบ) · คอมเมนต์ที่ถูกลบไม่มีอะไรให้ตอบ
+   *
+   * ยังเก็บปุ่ม "ตอบ" ไว้ ไม่ทำ div นี้เป็น role="button": ปุ่มคือทางของคีย์บอร์ด/screen reader
+   * (โฟกัสได้อยู่แล้ว) ส่วนการกดทั้งแถวเป็นทางลัดของเมาส์/นิ้ว — ยัด role ทับ div ที่มีปุ่มซ้อนอยู่
+   * ข้างในจะได้ nested interactive ที่ a11y ตีว่าผิดแทน
+   */
+  const startReplyFromRow = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (c.isDeleted) return
+    if ((e.target as HTMLElement).closest('button, a')) return
+    onReply()
+  }
+
   return (
-    <div className="flex items-start gap-2" data-comment-id={c.id}>
+    <div
+      className={`flex items-start gap-2 ${c.isDeleted ? '' : 'cursor-pointer'}`}
+      data-comment-id={c.id}
+      onClick={startReplyFromRow}
+    >
       {c.isFromPage && channel?.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={channel.avatarUrl} alt="" className={`${avatarSize} shrink-0 rounded-full object-cover`} />
