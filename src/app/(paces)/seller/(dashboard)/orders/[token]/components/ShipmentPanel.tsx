@@ -12,7 +12,7 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/... card + card-header (โครงเดิมของหน้านี้)
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import SenderIncompleteNotice from '@/components/safepay/iship/SenderIncompleteNotice'
@@ -21,6 +21,7 @@ import ShipmentLinkPanel from '@/components/safepay/iship/ShipmentLinkPanel'
 import ShipmentStatusView from '@/components/safepay/iship/ShipmentStatusView'
 import { useIShipCouriers } from '@/components/safepay/iship/useIShipCouriers'
 import type { ShipmentContextJson, ShipmentViewJson } from '@/lib/iship/context'
+import type { ShipmentFooterReporter } from '@/components/safepay/iship/shipment-footer'
 
 interface Props {
   /** token ของคำสั่งซื้อ — endpoint สร้างพัสดุรับ token ได้โดยตรง */
@@ -37,6 +38,13 @@ interface Props {
    * ผู้เรียกเป็นคนเลือกผ่าน segmented ของตัวเอง — ที่นี่แค่สลับเนื้อใน
    */
   ishipMode?: 'CREATE' | 'LINK'
+  /**
+   * id ของ `<form>` ที่แผงลูกจะใช้ — ให้ปุ่มใน footer ค้างของโมดัลยิง submit ผ่าน
+   * attribute `form=` ได้ ไม่ส่งมา = ปุ่มยังอยู่ในเนื้อหาเหมือนเดิม (พฤติกรรมของผู้เรียกเดิม)
+   */
+  formId?: string
+  /** รายงานปุ่มหลักของแผงลูกขึ้นไปให้ผู้เรียกวาด footer เอง */
+  onFooterChange?: ShipmentFooterReporter
 }
 
 export default function ShipmentPanel({
@@ -44,6 +52,8 @@ export default function ShipmentPanel({
   context,
   bare = false,
   ishipMode = 'CREATE',
+  formId,
+  onFooterChange,
 }: Props) {
   const router = useRouter()
   const { couriers, error: couriersError } = useIShipCouriers(!context.blockedBy)
@@ -58,6 +68,14 @@ export default function ShipmentPanel({
     setForceForm(false)
     router.refresh()
   }
+
+  // สองสถานะนี้ไม่มีปุ่ม commit ของตัวเอง (ทางตันเรื่องที่อยู่ผู้ส่ง / ดูสถานะพัสดุที่เปิดแล้ว)
+  // ต้องเคลียร์ footer ที่แผงก่อนหน้าเคยรายงานไว้ ไม่งั้นโมดัลจะค้างปุ่มของหน้าจอเก่า
+  const noPrimaryAction = Boolean(context.blockedBy) || Boolean(shipment && !forceForm)
+  useEffect(() => {
+    if (!onFooterChange || !noPrimaryAction) return
+    onFooterChange(null)
+  }, [onFooterChange, noPrimaryAction])
 
   const body = (
     <>
@@ -80,10 +98,16 @@ export default function ShipmentPanel({
           orderToken={orderToken}
           onLinked={afterChange}
           onSwitchToCreate={() => setLinkMode(false)}
+          formId={formId}
+          hideSubmit={Boolean(formId)}
+          onFooterChange={onFooterChange}
         />
       ) : (
         <ShipmentCreateForm
           orderToken={orderToken}
+          formId={formId}
+          hideSubmit={Boolean(formId)}
+          onFooterChange={onFooterChange}
           missingReceiver={context.missingReceiver}
           receiver={context.receiver}
           sender={context.sender}

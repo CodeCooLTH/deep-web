@@ -62,6 +62,16 @@ interface ShipFormProps {
   onCancel?: () => void
   /** แจ้งสถานะกำลังส่งฟอร์มออกไปให้ผู้เรียก (โมดัลใช้กันปิด backdrop ระหว่างส่ง) */
   onSubmittingChange?: (submitting: boolean) => void
+  /**
+   * id ของ `<form>` — ให้ปุ่มที่อยู่นอกฟอร์ม (footer ค้างของโมดัล) ยิง submit ผ่าน
+   * attribute `form=` ได้ ไม่ส่งมา = ฟอร์มไม่มี id เหมือนเดิม
+   */
+  formId?: string
+  /**
+   * true = ไม่วาดแถวปุ่มของตัวเอง — ผู้เรียกวาดปุ่มไว้ที่ footer ที่ไม่เลื่อนตามเนื้อหาแล้ว
+   * (Impeccable critique 2026-08-04 P0: ปุ่มหลักเดิมเลื่อนหายไปกับฟอร์ม)
+   */
+  hideActions?: boolean
 }
 
 export default function ShipForm({
@@ -73,6 +83,8 @@ export default function ShipForm({
   onSuccess,
   onCancel,
   onSubmittingChange,
+  formId,
+  hideActions = false,
 }: ShipFormProps) {
   const router = useRouter()
   const [showShipForm, setShowShipForm] = useState(false)
@@ -163,11 +175,14 @@ export default function ShipForm({
       {(alwaysOpen || showShipForm) && (
         // ไม่ใส่ bg-card/border/rounded — ฟอร์มนี้อยู่ใน card-body ของ StatusHero/ShipmentEntryModal อยู่แล้ว
         // การ์ดซ้อนการ์ดผิด DESIGN.md §6; ผู้เรียกห่อ border-t/card-body ให้ด้านนอกแล้ว
-        <form onSubmit={handleSubmit(handleShip)} className={alwaysOpen ? 'flex flex-col gap-3' : 'flex flex-col gap-3 pt-3'}>
+        <form id={formId} onSubmit={handleSubmit(handleShip)} className={alwaysOpen ? 'flex flex-col gap-3' : 'flex flex-col gap-3 pt-3'}>
           {!alwaysOpen && <p className="text-sm font-semibold text-default-800 mb-0">ข้อมูลการจัดส่ง</p>}
 
           <div>
-            <label className="form-label text-xs mb-1 block">
+            {/* htmlFor/id + aria-describedby/aria-invalid: เดิม label ทั้งสองอันไม่ผูกกับช่องกรอกเลย
+                (ไม่มี htmlFor และ input ไม่มี id) ทั้งคู่จึงไม่มีชื่อในเชิงโปรแกรม และข้อความ error
+                ก็ไม่ถูกประกาศ — Impeccable audit 2026-08-04 */}
+            <label htmlFor="ship-provider" className="form-label text-xs mb-1 block">
               ขนส่ง <span className="text-danger">*</span>
             </label>
             <Controller
@@ -177,6 +192,9 @@ export default function ShipForm({
                 const options = CARRIERS.map((c) => ({ value: c, label: c }))
                 return (
                   <Select
+                    inputId="ship-provider"
+                    aria-invalid={errors.provider ? true : undefined}
+                    aria-describedby={errors.provider ? 'ship-provider-error' : undefined}
                     className="select2 react-select"
                     classNamePrefix="react-select"
                     isSearchable={false}
@@ -189,45 +207,54 @@ export default function ShipForm({
               }}
             />
             {errors.provider && (
-              <p className="text-danger text-xs mt-1">{errors.provider.message}</p>
+              <p id="ship-provider-error" className="text-danger text-xs mt-1">{errors.provider.message}</p>
             )}
           </div>
 
           <div>
-            <label className="form-label text-xs mb-1 block">
+            <label htmlFor="ship-tracking-no" className="form-label text-xs mb-1 block">
               เลขพัสดุ <span className="text-danger">*</span>
             </label>
             <input
               {...register('trackingNo')}
+              id="ship-tracking-no"
               type="text"
               placeholder="เช่น TH123456789"
+              aria-invalid={errors.trackingNo ? true : undefined}
+              aria-describedby={errors.trackingNo ? 'ship-tracking-no-error' : undefined}
               className="form-input text-sm w-full"
             />
             {errors.trackingNo && (
-              <p className="text-danger text-xs mt-1">{errors.trackingNo.message}</p>
+              <p id="ship-tracking-no-error" className="text-danger text-xs mt-1">{errors.trackingNo.message}</p>
             )}
           </div>
 
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn bg-primary text-white hover:bg-primary-hover text-sm font-medium disabled:opacity-60 flex-1"
-            >
-              {/* edit mode ใช้คำว่า "บันทึกการแก้ไข" — คนละคำกับ "ยืนยันจัดส่ง" ตอนสร้าง (task T9) */}
-              {loading ? 'กำลังบันทึก...' : mode === 'edit' ? 'บันทึกการแก้ไข' : 'ยืนยันจัดส่ง'}
-            </button>
-            {/* เดิมเขียน "ยกเลิก" ซึ่งซ้ำกับปุ่ม "ยกเลิกออเดอร์" (ทำลายล้าง) ที่อยู่ถัดลงไปไม่กี่พิกเซล
-                — คำเดียวกัน ผลลัพธ์คนละเรื่อง จึงเปลี่ยนเป็น "ปิด" */}
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={loading}
-              className="btn border border-default-300 bg-card hover:bg-default-50 text-default-700 text-sm min-h-11 disabled:opacity-60"
-            >
-              ปิด
-            </button>
-          </div>
+          {/* hideActions = ผู้เรียกยกปุ่มไปไว้ที่ footer ที่ไม่เลื่อนตามเนื้อหาแล้ว
+              (ปุ่มนั้นยิง submit กลับมาที่ฟอร์มนี้ผ่าน attribute form={formId}) */}
+          {!hideActions && (
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={loading}
+                // min-h-11: tap target ≥44px — เดิมปุ่มหลักเตี้ยกว่าปุ่ม "ปิด" ที่อยู่ข้าง ๆ
+                // ทั้งที่สำคัญกว่า (Impeccable audit 2026-08-04)
+                className="btn bg-primary text-white hover:bg-primary-hover text-sm font-medium min-h-11 disabled:opacity-60 flex-1"
+              >
+                {/* edit mode ใช้คำว่า "บันทึกการแก้ไข" — คนละคำกับ "ยืนยันจัดส่ง" ตอนสร้าง (task T9) */}
+                {loading ? 'กำลังบันทึก...' : mode === 'edit' ? 'บันทึกการแก้ไข' : 'ยืนยันจัดส่ง'}
+              </button>
+              {/* เดิมเขียน "ยกเลิก" ซึ่งซ้ำกับปุ่ม "ยกเลิกออเดอร์" (ทำลายล้าง) ที่อยู่ถัดลงไปไม่กี่พิกเซล
+                  — คำเดียวกัน ผลลัพธ์คนละเรื่อง จึงเปลี่ยนเป็น "ปิด" */}
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={loading}
+                className="btn border border-default-300 bg-card hover:bg-default-50 text-default-700 text-sm min-h-11 disabled:opacity-60"
+              >
+                ปิด
+              </button>
+            </div>
+          )}
         </form>
       )}
     </>

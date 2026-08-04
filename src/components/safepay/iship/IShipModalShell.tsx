@@ -29,6 +29,20 @@ interface Props {
   size?: 'sm' | 'md' | '2xl'
   /** แถบปุ่มล่าง — sticky อยู่ใต้เนื้อหาที่ scroll */
   footer?: React.ReactNode
+  /**
+   * กำลังส่งคำขอที่ยกเลิกกลางทางไม่ได้ — Escape/scrim/ปุ่ม X หยุดทำงานชั่วคราว
+   *
+   * ที่มา: Impeccable critique 2026-08-04 (P0) — ปิดโมดัลระหว่าง POST ที่เปิดพัสดุจริง
+   * ไม่ได้ยกเลิกคำขอ พัสดุถูกเปิดและถูกคิดเงินไปแล้ว แต่ร้านเสียเลขพัสดุกับใบปะหน้าไป
+   * ปุ่มยังอยู่ที่เดิม (ไม่หาย) แต่จางลงและกดไม่ติด — ผู้ใช้ต้องเห็นว่า "กดไม่ได้ตอนนี้"
+   * โดยไม่ต้องอ่านคำอธิบาย (PRODUCT.md: กลุ่ม digital-literacy ต่ำ)
+   */
+  busy?: boolean
+  /**
+   * class ของกล่องเนื้อหาที่ scroll ได้ — ไม่ส่ง = `px-5 py-4` (พฤติกรรมเดิมของ caller ทั้ง 3 ตัวใน settings)
+   * ส่งค่าว่างเมื่อเนื้อในมี padding/เส้นคั่นเต็มความกว้างของตัวเองอยู่แล้ว (ShipmentPanel)
+   */
+  bodyClassName?: string
   children: React.ReactNode
 }
 
@@ -43,9 +57,14 @@ export default function IShipModalShell({
   onClose,
   size = 'md',
   footer,
+  busy = false,
+  bodyClassName = 'px-5 py-4',
   children,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null)
+  // element ที่โฟกัสอยู่ก่อนเปิดโมดัล — คืนโฟกัสให้ตอนปิด ไม่งั้นคนใช้คีย์บอร์ดถูกดีดไป
+  // ต้นหน้าและต้องไล่ Tab กลับมาที่ปุ่มเดิมเอง (WCAG 2.4.3)
+  const previouslyFocused = useRef<HTMLElement | null>(null)
 
   // เก็บ onClose ไว้ใน ref แล้วให้ effect ด้านล่างรันครั้งเดียวตอน mount
   //
@@ -54,13 +73,20 @@ export default function IShipModalShell({
   // onClose เป็น reference ใหม่ → effect รันซ้ำ → โฟกัสเด้งไปปุ่มปิดทุกครั้งที่พิมพ์
   // (user report 2026-07-29) — แก้ที่นี่ ไม่ใช่ให้ผู้เรียกทุกที่ต้องจำ memo handler เอง
   const onCloseRef = useRef(onClose)
+  // เหตุผลเดียวกับ onCloseRef: effect ด้านล่างต้องรันครั้งเดียวตอน mount แต่ busy
+  // เปลี่ยนค่าระหว่างทาง จึงอ่านผ่าน ref แทนการใส่ใน dependency (ซึ่งจะทำให้โฟกัสเด้ง
+  // ทุกครั้งที่เริ่ม/จบการส่งฟอร์ม — บั๊กเดิมของ ShipmentEntryModal ที่งานนี้กำลังแก้)
+  const busyRef = useRef(busy)
   useEffect(() => {
     onCloseRef.current = onClose
+    busyRef.current = busy
   })
 
   useEffect(() => {
     const panel = panelRef.current
     if (!panel) return
+
+    previouslyFocused.current = document.activeElement as HTMLElement | null
 
     // โฟกัสแรก: ช่องกรอก/ปุ่มตัวแรกในโมดัล ไม่ใช่ปล่อยค้างอยู่ที่ปุ่มหลัง scrim
     const first = panel.querySelector<HTMLElement>(FOCUSABLE)
@@ -68,6 +94,7 @@ export default function IShipModalShell({
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (busyRef.current) return
         onCloseRef.current()
         return
       }
@@ -90,8 +117,12 @@ export default function IShipModalShell({
     }
 
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      previouslyFocused.current?.focus?.()
+    }
     // mount ครั้งเดียวโดยเจตนา — โฟกัสแรกต้องเกิดตอนเปิดโมดัลเท่านั้น ไม่ใช่ทุก render
+    // (deps ว่างจริง ๆ จึงคืนโฟกัสตอน unmount เท่านั้น ไม่ใช่ทุกครั้งที่ busy เปลี่ยน)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -103,11 +134,16 @@ export default function IShipModalShell({
       aria-modal="true"
       aria-label={title}
     >
+      {/* scrim: เป็นทางลัดของเมาส์เท่านั้น — ซ่อนจาก a11y tree และถอดออกจากลำดับ Tab
+          เพราะปุ่ม X ที่หัวโมดัลคือทางปิดที่ประกาศชื่อไว้แล้ว ถ้าปล่อยไว้ dialog เดียวจะมี
+          element ชื่อ "ปิด" สองตัวซึ่ง screen reader อ่านซ้ำโดยไม่มีความหมายเพิ่ม */}
       <button
         type="button"
-        aria-label="ปิด"
+        tabIndex={-1}
+        aria-hidden="true"
+        disabled={busy}
         onClick={onClose}
-        className="absolute inset-0 bg-default-900/40 backdrop-blur-xs"
+        className="absolute inset-0 bg-default-900/40 backdrop-blur-xs disabled:cursor-not-allowed"
       />
 
       {/* HR7: max-h-[92dvh] / safe-area — Paces ไม่มี token สำหรับความสูงหน้าจอมือถือ (precedent sheet อื่น)
@@ -127,14 +163,17 @@ export default function IShipModalShell({
           <button
             type="button"
             onClick={onClose}
+            disabled={busy}
             aria-label="ปิด"
-            className="btn btn-icon shrink-0 text-default-500 hover:bg-default-100"
+            // min-h-11/min-w-11: tap target ≥44px ตาม PRODUCT.md §Accessibility
+            // (.btn-icon ของ Paces = size-9.25 ≈ 37px ซึ่งต่ำกว่าเกณฑ์)
+            className="btn btn-icon min-h-11 min-w-11 shrink-0 text-default-500 hover:bg-default-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Icon icon="x" className="text-lg" />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className={`min-h-0 flex-1 overflow-y-auto ${bodyClassName}`}>{children}</div>
 
         {footer && (
           <div className="shrink-0 border-t border-default-200 px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 lg:pb-4">

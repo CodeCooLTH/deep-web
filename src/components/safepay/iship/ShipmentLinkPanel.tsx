@@ -34,6 +34,7 @@ import type {
   UnlinkedParcelView,
 } from '@/lib/iship/unlinked'
 import type { ShipmentViewJson } from '@/lib/iship/context'
+import type { ShipmentFooterReporter } from './shipment-footer'
 
 const TONE_BADGE: Record<string, string> = {
   primary: 'badge bg-primary/15 text-primary-ink',
@@ -58,6 +59,15 @@ interface Props {
   onImported?: (result: { orderId: string; orderToken: string }) => void
   /** ร้านกดปุ่มในสถานะว่าง เพื่อไปเปิดพัสดุใบใหม่แทน — ไม่ส่งมา = ไม่แสดงปุ่มนั้น */
   onSwitchToCreate?: () => void
+  /**
+   * id ของ `<form>` ในขั้นยืนยัน — ให้ปุ่มที่อยู่นอกฟอร์ม (footer ค้างของโมดัล) ยิง submit
+   * ผ่าน attribute `form=` ได้ ขั้น "เลือกใบ" ไม่มีฟอร์มเพราะไม่มีอะไรให้ commit
+   */
+  formId?: string
+  /** true = ไม่วาดปุ่มยืนยันของตัวเอง เพราะผู้เรียกยกไปไว้ที่ footer ที่ไม่เลื่อนแล้ว */
+  hideSubmit?: boolean
+  /** รายงานสถานะปุ่มขึ้นไปให้ผู้เรียกวาด footer + กันปิดโมดัลระหว่างส่ง */
+  onFooterChange?: ShipmentFooterReporter
 }
 
 async function readError(res: Response): Promise<string> {
@@ -89,6 +99,9 @@ export default function ShipmentLinkPanel({
   onLinked,
   onImported,
   onSwitchToCreate,
+  formId,
+  hideSubmit = false,
+  onFooterChange,
 }: Props) {
   const importing = mode === 'IMPORT'
   const [parcels, setParcels] = useState<UnlinkedParcelView[] | null>(null)
@@ -127,6 +140,21 @@ export default function ShipmentLinkPanel({
     () => (parcels ?? []).filter((p) => matchesQuery(p, query)),
     [parcels, query],
   )
+
+  // รายงานปุ่มหลักของ "ขั้นที่กำลังแสดงอยู่" ขึ้นไปให้ผู้เรียกวาดที่ footer ที่ไม่เลื่อน
+  // ขั้น "เลือกใบ" ส่ง null เพราะยังไม่มีอะไรให้ยืนยัน — footer จะเหลือแค่ปุ่มปิด
+  // (hook อยู่เหนือ early-return ทั้งหมดโดยเจตนา ลำดับ hook ต้องคงที่ทุก render)
+  useEffect(() => {
+    if (!onFooterChange || !formId) return
+    if (selected) {
+      onFooterChange({ formId, label: 'สร้างคำสั่งซื้อจากพัสดุนี้', icon: 'tabler:file-plus', busy })
+    } else if (preview) {
+      onFooterChange({ formId, label: 'ผูกพัสดุนี้', icon: 'tabler:link', busy })
+    } else {
+      onFooterChange(null)
+    }
+    return () => onFooterChange(null)
+  }, [onFooterChange, formId, selected, preview, busy])
 
   async function handleSelect(parcel: UnlinkedParcelView) {
     if (previewing) return
@@ -266,7 +294,15 @@ export default function ShipmentLinkPanel({
         .join(' ') || '—'
 
     return (
-      <div>
+      // <form> จริง: ปุ่มใน footer ค้างของโมดัลอ้าง id นี้ผ่าน attribute form= และกด Enter
+      // ในช่องกรอกก็ส่งได้ตามมาตรฐาน — ปุ่มอื่นทุกตัวประกาศ type="button" ไว้แล้ว
+      <form
+        id={formId}
+        onSubmit={(e) => {
+          e.preventDefault()
+          void handleImport()
+        }}
+      >
         <div className="border-b border-dashed border-default-200 p-4">
           <button
             type="button"
@@ -358,28 +394,35 @@ export default function ShipmentLinkPanel({
             </p>
           )}
 
-          <button
-            type="button"
-            onClick={handleImport}
-            disabled={busy}
-            className="btn mt-4 inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
-          >
-            {busy ? (
-              <Icon icon="tabler:loader-2" className="animate-spin text-base" aria-hidden="true" />
-            ) : (
-              <Icon icon="tabler:file-plus" className="text-base" aria-hidden="true" />
-            )}
-            สร้างคำสั่งซื้อจากพัสดุนี้
-          </button>
+          {!hideSubmit && (
+            <button
+              type="submit"
+              disabled={busy}
+              className="btn mt-4 inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
+            >
+              {busy ? (
+                <Icon icon="tabler:loader-2" className="animate-spin text-base" aria-hidden="true" />
+              ) : (
+                <Icon icon="tabler:file-plus" className="text-base" aria-hidden="true" />
+              )}
+              สร้างคำสั่งซื้อจากพัสดุนี้
+            </button>
+          )}
         </div>
-      </div>
+      </form>
     )
   }
 
   // ── ขั้น 2 (โหมด LINK): เทียบที่อยู่แล้วยืนยัน ────────────────────────────
   if (preview) {
     return (
-      <div>
+      <form
+        id={formId}
+        onSubmit={(e) => {
+          e.preventDefault()
+          void handleLink()
+        }}
+      >
         <div className="border-b border-dashed border-default-200 p-4">
           <button
             type="button"
@@ -446,21 +489,22 @@ export default function ShipmentLinkPanel({
             </p>
           )}
 
-          <button
-            type="button"
-            onClick={handleLink}
-            disabled={busy}
-            className="btn mt-4 inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
-          >
-            {busy ? (
-              <Icon icon="tabler:loader-2" className="animate-spin text-base" aria-hidden="true" />
-            ) : (
-              <Icon icon="tabler:link" className="text-base" aria-hidden="true" />
-            )}
-            ผูกพัสดุนี้
-          </button>
+          {!hideSubmit && (
+            <button
+              type="submit"
+              disabled={busy}
+              className="btn mt-4 inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
+            >
+              {busy ? (
+                <Icon icon="tabler:loader-2" className="animate-spin text-base" aria-hidden="true" />
+              ) : (
+                <Icon icon="tabler:link" className="text-base" aria-hidden="true" />
+              )}
+              ผูกพัสดุนี้
+            </button>
+          )}
         </div>
-      </div>
+      </form>
     )
   }
 
@@ -468,7 +512,10 @@ export default function ShipmentLinkPanel({
   return (
     <div>
       <div className="border-b border-dashed border-default-200 p-4">
-        <p className="mb-3 text-sm text-default-500">
+        {/* คำอธิบายของแผงนี้อยู่ที่นี่ที่เดียว — เดิม ShipmentEntryModal เขียนประโยคความหมายเดียวกัน
+            ซ้ำอีกชุดคนละสำนวนห่างกันไม่กี่พิกเซล (Impeccable critique 2026-08-04) ตัวนั้นถูกลบแล้ว
+            text-default-700 (4.69:1) แทน -500 (2.38:1) — ตก AA (Impeccable audit 2026-08-04) */}
+        <p className="mb-3 text-sm text-default-700">
           {importing
             ? 'เลือกพัสดุที่คุณเปิดไว้แล้วบน iShip แล้วสร้างคำสั่งซื้อจากข้อมูลบนพัสดุเลย'
             : 'เลือกพัสดุที่คุณเปิดไว้แล้วบน iShip มาผูกกับคำสั่งซื้อนี้ — ไม่เปิดพัสดุใหม่'}

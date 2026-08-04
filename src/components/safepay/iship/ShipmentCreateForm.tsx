@@ -28,6 +28,7 @@ import type {
   ShipmentViewJson,
 } from '@/lib/iship/context'
 import { useIShipBoxes } from './useIShipBoxes'
+import type { ShipmentFooterReporter } from './shipment-footer'
 import AddressSearchSheet, {
   type SelectedLocality,
 } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AddressSearchSheet'
@@ -58,6 +59,18 @@ interface Props {
   onCreated: (shipment: ShipmentViewJson) => void
   /** 409 = มีพัสดุที่ยังใช้งานอยู่แล้ว — ผู้เรียกโหลด context ใหม่แล้วสลับโหมด */
   onExists: () => void
+  /**
+   * id ของ `<form>` — ให้ปุ่มที่อยู่นอกฟอร์ม (footer ค้างของโมดัล) ยิง submit ผ่าน
+   * attribute `form=` ได้ ไม่ส่งมา = ฟอร์มไม่มี id เหมือนเดิม
+   */
+  formId?: string
+  /**
+   * true = ไม่วาดปุ่มสร้าง/คำกำกับของตัวเอง เพราะผู้เรียกยกไปไว้ที่ footer ที่ไม่เลื่อนแล้ว
+   * (Impeccable critique 2026-08-04 P0 — ปุ่มที่เสียเงินจริงเดิมอยู่ล่างสุดของฟอร์มสูง ~1,600px)
+   */
+  hideSubmit?: boolean
+  /** รายงานสถานะปุ่มขึ้นไปให้ผู้เรียกวาด footer + กันปิดโมดัลระหว่างส่ง */
+  onFooterChange?: ShipmentFooterReporter
 }
 
 async function readError(res: Response): Promise<string> {
@@ -148,6 +161,9 @@ export default function ShipmentCreateForm({
   extraFields,
   onCreated,
   onExists,
+  formId,
+  hideSubmit = false,
+  onFooterChange,
 }: Props) {
   const [busy, setBusy] = useState(false)
   const [addrOpen, setAddrOpen] = useState(false)
@@ -397,8 +413,27 @@ export default function ShipmentCreateForm({
     }
   }
 
+  // รายงานปุ่มหลักขึ้นไปให้ผู้เรียกวาดที่ footer ที่ไม่เลื่อนตามเนื้อหา
+  // deps เป็น primitive ล้วน + onFooterChange ต้องเป็น setState ที่ identity คงที่ จึงไม่เกิดลูป
+  useEffect(() => {
+    if (!onFooterChange || !formId) return
+    onFooterChange({ formId, label: submitLabel, icon: 'tabler:package-export', busy })
+    return () => onFooterChange(null)
+  }, [onFooterChange, formId, submitLabel, busy])
+
   return (
-    <div className="flex flex-col">
+    // เป็น <form> จริง ไม่ใช่ <div>: ปุ่มใน footer อ้าง id นี้ผ่าน attribute form= ได้
+    // และกด Enter ในช่องกรอกก็ส่งฟอร์มได้ตามมาตรฐาน (เดิมเป็น div ปุ่ม onClick ล้วน
+    // Enter จึงไม่ทำอะไรเลย) — ปุ่มอื่นทุกตัวในฟอร์มนี้ประกาศ type="button" ไว้แล้ว
+    // จึงไม่มีปุ่มไหนกลายเป็น submit โดยไม่ตั้งใจ
+    <form
+      id={formId}
+      onSubmit={(e) => {
+        e.preventDefault()
+        void handleSubmit()
+      }}
+      className="flex flex-col"
+    >
       {/* ── ผู้รับ ─────────────────────────────────────────────── */}
       <section className="border-b-8 border-default-100 p-4">
         <header className="mb-3 flex items-center gap-2">
@@ -887,24 +922,28 @@ export default function ShipmentCreateForm({
         </div>
       </section>
 
-      <div className="p-4">
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={busy}
-          className="btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
-        >
-          {busy ? (
-            <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-          ) : (
-            <Icon icon="tabler:package-export" className="text-base" aria-hidden="true" />
-          )}
-          {submitLabel}
-        </button>
-        <p className="mb-0 mt-2 text-center text-xs text-default-400">
-          ข้อมูลผู้รับที่กรอกจะถูกบันทึกลงคำสั่งซื้อด้วย · มีค่าใช้จ่ายจริงกับบัญชี iShip ของร้าน
-        </p>
-      </div>
+      {/* hideSubmit = ผู้เรียกยกปุ่มกับคำกำกับไปไว้ที่ footer ที่ไม่เลื่อนตามเนื้อหาแล้ว */}
+      {!hideSubmit && (
+        <div className="p-4">
+          <button
+            type="submit"
+            disabled={busy}
+            className="btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
+          >
+            {busy ? (
+              <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <Icon icon="tabler:package-export" className="text-base" aria-hidden="true" />
+            )}
+            {submitLabel}
+          </button>
+          {/* text-default-700 (4.69:1) แทน -400 (2.46:1) — ประโยคนี้บอกเรื่องเงินและเรื่องข้อมูล
+              ที่จะถูกเขียนกลับเข้าคำสั่งซื้อ ต้องอ่านออกจริง (Impeccable audit 2026-08-04) */}
+          <p className="mb-0 mt-2 text-center text-xs text-default-700">
+            ข้อมูลผู้รับที่กรอกจะถูกบันทึกลงคำสั่งซื้อด้วย · มีค่าใช้จ่ายจริงกับบัญชี iShip ของร้าน
+          </p>
+        </div>
+      )}
 
       <AddressSearchSheet
         open={addrOpen}
@@ -929,6 +968,6 @@ export default function ShipmentCreateForm({
         }
         onClose={() => setAddrOpen(false)}
       />
-    </div>
+    </form>
   )
 }
