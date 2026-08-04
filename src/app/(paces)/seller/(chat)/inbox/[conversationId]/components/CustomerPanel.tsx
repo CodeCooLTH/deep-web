@@ -39,6 +39,7 @@ import { useSearchParams } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
+import { ORDER_VOCAB } from '@/lib/seller-menu'
 import type { ShopVertical } from '@/lib/lodging'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
@@ -121,20 +122,29 @@ type VerticalCta = { label: string; href: string; icon: string; tabLabel: string
  * คำเรียก จะเพี้ยนจากกันทันทีโดยไม่มีอะไรเตือน (ร้านบ้านพักต้องได้ "เปิดการจอง" ทั้งสองที่)
  */
 export const VERTICAL_CTA: Record<ShopVertical, VerticalCta> = {
+  // ONLINE_SALES / SERVICE_QUEUE → /orders/new จึงใช้คำจาก SSOT ของ order (feature 00030 BR-BKU-10b)
+  // เดิมไฟล์นี้ประกาศคำเองจนขัดกับ ORDER_VOCAB ตรง ๆ (SERVICE_QUEUE เคยได้ "คำสั่งซื้อ" ทั้งที่
+  // sidebar เรียก "ใบสั่งงาน") — ตอนนี้เหลือแค่ href/icon ที่เป็นเรื่องของ routing ไม่ใช่เรื่องของคำ
   ONLINE_SALES: {
-    label: 'สร้างออเดอร์',
+    label: ORDER_VOCAB.ONLINE_SALES.createLabelShort,
     href: '/orders/new',
     icon: 'shopping-cart-plus',
-    tabLabel: 'คำสั่งซื้อ', // user สั่ง 2026-07-23 (เดิม "ออเดอร์")
-    emptyLabel: 'ยังไม่มีประวัติออเดอร์',
+    tabLabel: ORDER_VOCAB.ONLINE_SALES.noun,
+    emptyLabel: `ยังไม่มีประวัติ${ORDER_VOCAB.ONLINE_SALES.noun}`,
   },
   SERVICE_QUEUE: {
-    label: 'สร้างออเดอร์',
+    label: ORDER_VOCAB.SERVICE_QUEUE.createLabelShort,
     href: '/orders/new',
     icon: 'shopping-cart-plus',
-    tabLabel: 'คำสั่งซื้อ',
-    emptyLabel: 'ยังไม่มีประวัติออเดอร์',
+    tabLabel: ORDER_VOCAB.SERVICE_QUEUE.noun,
+    emptyLabel: `ยังไม่มีประวัติ${ORDER_VOCAB.SERVICE_QUEUE.noun}`,
   },
+  /**
+   * LODGING ไม่ได้อ่านจาก ORDER_VOCAB โดยตั้งใจ — CTA นี้ชี้ /bookings/new ซึ่งเป็น "การจอง"
+   * (วันเข้าพัก + ห้องที่กันไว้) คนละ entity กับ "บิลเข้าพัก" (ยอดเงิน/การชำระ) ที่อยู่ /orders
+   * ร้านบ้านพักเห็นทั้งสองเมนูพร้อมกันและเป็นคนละของจริง — ห้ามยุบเป็นคำเดียวกัน
+   * (user เคาะ 2026-08-04; docs/20 - Features/00030 .../UX-Copy.md §1 C-3, §6)
+   */
   LODGING: {
     label: 'เปิดการจอง',
     href: '/bookings/new',

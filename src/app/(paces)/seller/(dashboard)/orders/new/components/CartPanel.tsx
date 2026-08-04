@@ -40,6 +40,9 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 type AccKey = 'customer' | 'payment' | 'shipping' | 'appointment' | 'note'
 
 interface Props {
+  /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ไม่ส่ง = คำของ ONLINE_SALES */
+  orderNoun?: string
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<any>
   catalog: CatalogProduct[]
@@ -65,6 +68,7 @@ interface Props {
 }
 
 export default function CartPanel({
+  orderNoun = 'คำสั่งซื้อ',
   control,
   catalog,
   itemsCtl,
@@ -553,7 +557,7 @@ export default function CartPanel({
           disabled={count === 0}
           className="btn min-h-11 w-full bg-primary font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
         >
-          บันทึกออเดอร์
+          บันทึก{orderNoun}
         </button>
       </div>
     </div>

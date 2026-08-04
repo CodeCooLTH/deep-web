@@ -16,7 +16,9 @@ import {
 
 const OrdersLoading = () => (
   <>
-    <PageBreadcrumb title="คำสั่งซื้อ" trail={[{ label: 'การขาย' }]} />
+    {/* feature 00030: skeleton ทำงานก่อน RSC resolve shop จึงยังไม่รู้ vertical — ใช้คำกลาง
+        "รายการ" แทนการเดาคำของประเภทร้าน (เดาผิดแล้วหัวหน้าจะกระพริบเปลี่ยนคำตอนโหลดเสร็จ) */}
+    <PageBreadcrumb title="รายการ" trail={[{ label: 'การขาย' }]} />
     {/* desktop ≥lg: ตาราง (ตรงกับ OrdersTable) */}
     <div className="hidden lg:block">
       <SellerTableSkeleton />

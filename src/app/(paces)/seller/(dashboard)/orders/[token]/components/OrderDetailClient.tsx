@@ -31,6 +31,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import type { OrderStatus } from '@/lib/order-display'
+import type { OrderVocab } from '@/lib/seller-menu'
 import type { ShipmentContextJson } from '@/lib/iship/context'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
 import dynamic from 'next/dynamic'
@@ -51,20 +52,27 @@ import type { ShipmentSource } from './order-action-set'
 const ShipmentEntryModal = dynamic(() => import('./ShipmentEntryModal'), { ssr: false })
 
 // map HTTP status → validation message (HTML) — เหมือน smsErrorMessage() ใน SendSmsButton.tsx เป๊ะ
-function smsErrorMessage(status: number): string {
+function smsErrorMessage(status: number, orderNoun: string): string {
   switch (status) {
     case 402:
       return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงิน</a>'
     case 429:
       return 'ส่ง SMS บ่อยเกินไป กรุณารอสักครู่'
     case 422:
-      return 'ยังไม่มีเบอร์ผู้ซื้อในคำสั่งซื้อนี้ — ส่ง SMS ไม่ได้ ให้คัดลอกลิงก์ส่งทางแชทแทน'
+      return `ยังไม่มีเบอร์ลูกค้าใน${orderNoun}นี้ — ส่ง SMS ไม่ได้ ให้คัดลอกลิงก์ส่งทางแชทแทน`
     default:
       return 'ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่'
   }
 }
 
 export interface OrderDetailClientProps {
+  /** คลังคำผันตามประเภทกิจการ (feature 00030) — คำนวณที่ RSC ที่รู้จัก shop.vertical */
+  vocab: OrderVocab
+  /**
+   * ออเดอร์นี้เคยตัดสต็อกจริงไหม (มี OrderItem.stockDeducted != null อย่างน้อย 1 รายการ)
+   * ใช้ตัดสินว่ากล่องยืนยันยกเลิกพูดเรื่องคืนสต็อกได้หรือไม่ — ห้าม derive จาก vertical
+   */
+  hasDeductedStock: boolean
   // ── StatusHero passthrough (T7 props) ──────────────────────────────────────
   publicToken: string
   shortCode: string | null
@@ -98,6 +106,8 @@ export interface OrderDetailClientProps {
 }
 
 export default function OrderDetailClient({
+  vocab,
+  hasDeductedStock,
   publicToken,
   shortCode,
   status,
@@ -127,6 +137,7 @@ export default function OrderDetailClient({
     status: status as OrderStatus,
     fulfillmentMode,
     shipmentSource,
+    orderNoun: vocab.noun,
   })
 
   // คัดลอกข้อความ/ลิงก์ — Base: CopyLinkButton.tsx handleCopy (fallback execCommand สำหรับ HTTP context)
@@ -156,7 +167,7 @@ export default function OrderDetailClient({
       buttonsStyling: false,
       icon: 'question',
       title: 'ส่งลิงก์ทาง SMS?',
-      text: 'ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อ และหัก ฿1 จากกระเป๋าเงินของคุณ',
+      text: `ระบบจะส่งลิงก์${vocab.noun}ทาง SMS ให้ลูกค้า และหัก ฿1 จากกระเป๋าเงินของคุณ`,
       showCancelButton: true,
       confirmButtonText: 'ส่ง SMS',
       cancelButtonText: 'ยกเลิก',
@@ -170,7 +181,7 @@ export default function OrderDetailClient({
         try {
           const res = await fetch(`/api/orders/${publicToken}/send-sms`, { method: 'POST' })
           if (res.ok) return true
-          Swal.showValidationMessage(smsErrorMessage(res.status))
+          Swal.showValidationMessage(smsErrorMessage(res.status, vocab.noun))
           return false
         } catch {
           Swal.showValidationMessage('ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่')
@@ -187,12 +198,24 @@ export default function OrderDetailClient({
   // T14 (เพิ่ม): ของเดิมใช้ข้อความ "สินค้าจะถูกคืนเข้าสต็อก" ชุดเดียวทุกสถานะ — ไม่จริงเมื่อ
   // status==='SHIPPED' (ของออกจากร้านไปแล้ว จะคืนสต็อกไม่ได้จริง ๆ) แยกข้อความตามสถานะแทน
   const handleCancelOrder = async () => {
-    const cancelDetail =
-      status === 'SHIPPED'
-        ? 'สินค้าถูกส่งออกไปแล้ว ระบบจะไม่คืนเข้าสต็อกอัตโนมัติ · ลิงก์ที่ส่งให้ผู้ซื้อจะใช้ไม่ได้ · ย้อนกลับไม่ได้'
-        : 'สินค้าจะถูกคืนเข้าสต็อก · ลิงก์ที่ส่งให้ผู้ซื้อจะใช้ไม่ได้ · ย้อนกลับไม่ได้'
+    /**
+     * 00030 D-1 — ข้อความต้องตรงกับสิ่งที่ระบบทำจริง
+     *
+     * เดิมแยกด้วย `status === 'SHIPPED'` แล้วบอกว่า "ระบบจะไม่คืนเข้าสต็อกอัตโนมัติ" ซึ่งเป็นเท็จ:
+     * `cancelOrder` (order.service.ts) เรียก `restockFromCancelledOrder` **โดยไม่ดูสถานะเลย** และ
+     * ตัวมันเองกรองด้วย `stockDeducted != null` อย่างเดียว (inventory-stock.service.ts) — ออเดอร์
+     * ที่ส่งไปแล้วแต่เคยตัดสต็อกจึงถูกคืนสต็อกจริง ตรงข้ามกับที่ข้อความบอก
+     *
+     * เงื่อนไขที่ถูกคือ hasDeductedStock ตัวเดียว ไม่เกี่ยวกับ status
+     * (ว่าการคืนสต็อกให้ออเดอร์ที่ส่งของออกไปแล้ว *ควร* เกิดขึ้นไหม เป็นคำถามเชิงธุรกิจคนละเรื่อง
+     *  — ยังไม่แก้ในรอบนี้ บันทึกไว้เป็นหนี้)
+     */
+    const linkClause = 'ลิงก์ที่ส่งให้ลูกค้าจะใช้ไม่ได้ · ย้อนกลับไม่ได้'
+    const cancelDetail = hasDeductedStock
+      ? `สินค้าจะถูกคืนเข้าสต็อก · ${linkClause}`
+      : linkClause
     const ok = await pacesConfirm.danger(
-      'ยกเลิกคำสั่งซื้อนี้?',
+      `ยกเลิก${vocab.noun}นี้?`,
       cancelDetail,
       { confirmButtonText: 'ยืนยันยกเลิก', cancelButtonText: 'ไม่ใช่ตอนนี้' },
     )
@@ -201,12 +224,12 @@ export default function OrderDetailClient({
       const res = await fetch(`/api/orders/${publicToken}/cancel`, { method: 'POST' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error((data as { error?: string }).error || 'ยกเลิกคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่')
+        throw new Error((data as { error?: string }).error || `ยกเลิก${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่`)
       }
-      pacesToast.success('ยกเลิกคำสั่งซื้อแล้ว')
+      pacesToast.success(`ยกเลิก${vocab.noun}แล้ว`)
       router.refresh()
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'ยกเลิกคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่'
+      const message = err instanceof Error ? err.message : `ยกเลิก${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่`
       pacesToast.error(message)
     }
   }
@@ -252,6 +275,7 @@ export default function OrderDetailClient({
   return (
     <>
       <StatusHero
+        orderNoun={vocab.noun}
         publicToken={publicToken}
         shortCode={shortCode}
         status={status}

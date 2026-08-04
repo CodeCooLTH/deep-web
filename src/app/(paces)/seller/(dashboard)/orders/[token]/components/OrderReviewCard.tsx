@@ -31,11 +31,13 @@ export interface OrderReviewData {
 }
 
 interface OrderReviewCardProps {
+  /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) */
+  orderNoun?: string
   /** null = ยังไม่มีรีวิวสำหรับคำสั่งซื้อนี้ */
   review: OrderReviewData | null
 }
 
-const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
+const OrderReviewCard = ({ review, orderNoun = 'คำสั่งซื้อ' }: OrderReviewCardProps) => {
   return (
     <div className="card">
       <div className="card-header">
@@ -47,7 +49,7 @@ const OrderReviewCard = ({ review }: OrderReviewCardProps) => {
           /* P5 (T14): text-default-400 บนพื้นขาว = 2.46:1 ไม่ผ่าน AA → default-700 (~4.69:1) */
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <Icon icon="star-off" className="text-3xl text-default-300 mb-2" />
-            <p className="text-default-700 text-sm">ยังไม่มีรีวิวสำหรับคำสั่งซื้อนี้</p>
+            <p className="text-default-700 text-sm">ยังไม่มีรีวิวสำหรับ{orderNoun}นี้</p>
             <p className="text-default-700 text-xs mt-1">
               ผู้ซื้อจะสามารถรีวิวได้หลังยืนยันการรับสินค้า
             </p>

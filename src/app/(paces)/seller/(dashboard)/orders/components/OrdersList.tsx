@@ -14,6 +14,7 @@
 'use client'
 
 import Icon from '@/components/wrappers/Icon'
+import type { OrderVocab } from '@/lib/seller-menu'
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
@@ -107,9 +108,11 @@ type Props = {
   activeStatus: string
   /** ร้านเชื่อมต่อ iShip + เป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028) */
   ishipEnabled?: boolean
+  /** คลังคำผันตามประเภทกิจการ (feature 00030) — มาจาก RSC ที่รู้จัก shop.vertical ของ request */
+  vocab: OrderVocab
 }
 
-export default function OrdersList({ orders, activeStatus, ishipEnabled = false }: Props) {
+export default function OrdersList({ orders, activeStatus, ishipEnabled = false, vocab }: Props) {
   const router   = useRouter()
   const pathname = usePathname()
 
@@ -311,7 +314,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
   const handleCancelRequest = async (token: string) => {
     const order = orders.find((o) => o.publicToken === token)
     const label = order ? `ออเดอร์ ${formatOrderNo(order.publicToken, order.createdAtISO)}` : 'ออเดอร์นี้'
-    const ok = await pacesConfirm.danger('ยกเลิกออเดอร์นี้?', `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
+    const ok = await pacesConfirm.danger(`ยกเลิก${vocab.noun}นี้?`, `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
       confirmButtonText: 'ยืนยันยกเลิก',
       cancelButtonText: 'ไม่ใช่ตอนนี้',
     })
@@ -323,11 +326,11 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
         body: JSON.stringify({}),
       })
       if (res.ok) {
-        pacesToast.success('ยกเลิกออเดอร์แล้ว')
+        pacesToast.success(`ยกเลิก${vocab.noun}แล้ว`)
         router.refresh()
       } else {
         const data = await res.json().catch(() => ({}))
-        pacesToast.error(typeof data?.error === 'string' ? data.error : 'ยกเลิกออเดอร์ไม่สำเร็จ กรุณาลองใหม่')
+        pacesToast.error(typeof data?.error === 'string' ? data.error : `ยกเลิก${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่`)
       }
     } catch {
       pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -356,7 +359,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
             className="mb-base flex-wrap"
           />
         )}
-        <OrdersTable orders={stageFiltered} ishipEnabled={ishipEnabled} />
+        <OrdersTable orders={stageFiltered} ishipEnabled={ishipEnabled} vocab={vocab} />
       </div>
 
       {/* ─── Mobile/Tablet (<lg): card layout เดิม (ห้ามแตะ logic ข้างใน) ─── */}
@@ -438,7 +441,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
             className="btn hidden shrink-0 bg-primary text-white hover:bg-primary-hover lg:inline-flex"
           >
             <Icon icon="plus" className="text-sm" />
-            สร้างออเดอร์
+            {vocab.createLabel}
           </Link>
         </div>
 
@@ -481,15 +484,15 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
             <SellerEmptyState
               compact
               icon="shopping-cart-off"
-              title="ไม่มีออเดอร์ในสถานะนี้"
-              action={{ label: '+ สร้างออเดอร์แรก', href: '/orders/new' }}
+              title={`ไม่มี${vocab.noun}ในสถานะนี้`}
+              action={{ label: `+ ${vocab.createLabel}แรก`, href: '/orders/new' }}
             />
           </div>
         </div>
       ) : (
         <div className="mt-3 space-y-3">
           {visible.map((order) => (
-            <OrderCard key={order.publicToken} order={order} onCancelRequest={handleCancelRequest} />
+            <OrderCard key={order.publicToken} order={order} onCancelRequest={handleCancelRequest} vocab={vocab} />
           ))}
 
           {/* sentinel — IntersectionObserver โหลดเพิ่มเมื่อเลื่อนถึง */}

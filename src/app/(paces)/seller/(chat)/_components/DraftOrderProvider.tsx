@@ -17,6 +17,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { pacesConfirm } from '@/lib/paces-swal'
+import type { OrderVocab } from '@/lib/seller-menu'
 import { pacesToast } from '@/lib/paces-toast'
 import { getChannelDisplay, ChannelBadgeOverlay } from '../inbox/components/ChannelBadge'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
@@ -110,10 +111,12 @@ type ProviderProps = {
   catalog: CatalogProduct[]
   bestSellers: CatalogProduct[]
   inventoryEnabled: boolean
+  /** คลังคำผันตามประเภทกิจการ (feature 00030) — layout เป็นคนคำนวณ */
+  vocab: OrderVocab
   children: React.ReactNode
 }
 
-export default function DraftOrderProvider({ shopId, catalog, bestSellers, inventoryEnabled, children }: ProviderProps) {
+export default function DraftOrderProvider({ shopId, catalog, bestSellers, inventoryEnabled, vocab, children }: ProviderProps) {
   const [drafts, setDrafts] = useState<ChatDraft[]>([])
 
   // feature 00022 — โหมดสร้างพัสดุของร้าน
@@ -280,6 +283,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               />
             ) : (
               <OrderCreateForm
+              vocab={vocab}
                 shopId={shopId}
                 catalog={catalog}
                 bestSellers={bestSellers}

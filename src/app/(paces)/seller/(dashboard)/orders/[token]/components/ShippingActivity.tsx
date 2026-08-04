@@ -25,7 +25,7 @@ import { ORDER_STATUS_META } from '@/lib/order-display'
  * นี้เป็นเรื่อง "ลำดับขั้นของงาน" ซึ่งเป็นหัวข้อของการ์ดนี้อยู่แล้ว — วางบนสุดเหนือไทม์ไลน์ จึงอ่านเป็น
  * "ตอนนี้อยู่ตรงไหน แล้วต้องทำอะไรต่อ" ก้อนเดียวกัน แทนที่จะลอยอยู่คนละที่กับลำดับขั้นที่มันอ้างถึง
  */
-const NEXT_STEP: Record<string, { text: string; tone: 'default' | 'done' | 'dead' }> = {
+const buildNextStep = (orderNoun: string): Record<string, { text: string; tone: 'default' | 'done' | 'dead' }> => ({
   PENDING: {
     text: 'ขั้นต่อไป: ส่งลิงก์ให้ผู้ซื้อยืนยันตัวตนและชำระเงิน — เลขพัสดุแจ้งทีหลังได้',
     tone: 'default',
@@ -35,14 +35,16 @@ const NEXT_STEP: Record<string, { text: string; tone: 'default' | 'done' | 'dead
     tone: 'default',
   },
   CONFIRMED: {
-    text: 'คำสั่งซื้อนี้จบสมบูรณ์แล้ว — ผู้ซื้อยืนยันรับของและรีวิวแล้ว',
+    text: `${orderNoun}นี้จบสมบูรณ์แล้ว — ผู้ซื้อยืนยันรับของและรีวิวแล้ว`,
     tone: 'done',
   },
   CANCELLED: {
-    text: 'คำสั่งซื้อนี้ถูกยกเลิกแล้ว — สินค้าคืนเข้าสต็อก และลิงก์ที่เคยส่งให้ผู้ซื้อใช้ไม่ได้อีก',
+    // 00030 D-1: เดิมเขียนว่า "สินค้าคืนเข้าสต็อก" ลอย ๆ ซึ่งเป็นเท็จกับร้านที่ไม่เคยตัดสต็อก
+    // (ส่วนใหญ่ — ต้องมี Inventory Add-on ถึงจะมี stockDeducted). ตัดท่อนนั้นทิ้ง เหลือผลที่จริงเสมอ
+    text: `${orderNoun}นี้ถูกยกเลิกแล้ว — ลิงก์ที่เคยส่งให้ลูกค้าใช้ไม่ได้อีก`,
     tone: 'dead',
   },
-}
+})
 
 const NEXT_STEP_BOX_CLS: Record<'default' | 'done' | 'dead', string> = {
   default: 'bg-default-100 text-default-800',
@@ -86,12 +88,14 @@ type StepKey = 'PLACED' | 'PAYMENT' | 'SHIPPED' | 'CONFIRMED'
 
 const STEP_ORDER: StepKey[] = ['PLACED', 'PAYMENT', 'SHIPPED', 'CONFIRMED']
 
-const STEP_DEFS: Record<StepKey, { doneTitle: string; doneDesc: string; pendingTitle: string; pendingDesc: string; icon: string }> = {
+// feature 00030: คำผันตามประเภทกิจการ จึงเป็นฟังก์ชัน — คงค่าเดิมทุกประการเมื่อ orderNoun
+// เป็นคำของ ONLINE_SALES ('คำสั่งซื้อ') ซึ่งเป็น fail-safe เดิมอยู่แล้ว
+const buildStepDefs = (orderNoun: string, createLabel: string): Record<StepKey, { doneTitle: string; doneDesc: string; pendingTitle: string; pendingDesc: string; icon: string }> => ({
   PLACED: {
     doneTitle: 'สั่งซื้อแล้ว',
-    doneDesc: 'ผู้ขายสร้างคำสั่งซื้อแล้ว',
+    doneDesc: `ผู้ขาย${createLabel}แล้ว`,
     pendingTitle: 'สั่งซื้อแล้ว', // PLACED เป็น done เสมอ (order มีอยู่แปลว่าสั่งซื้อแล้ว) — ไม่ใช้ branch pending จริง
-    pendingDesc: 'ผู้ขายสร้างคำสั่งซื้อแล้ว',
+    pendingDesc: `ผู้ขาย${createLabel}แล้ว`,
     icon: 'file-plus',
   },
   PAYMENT: {
@@ -115,10 +119,10 @@ const STEP_DEFS: Record<StepKey, { doneTitle: string; doneDesc: string; pendingT
     pendingDesc: 'รอผู้ซื้อกดยืนยันว่าได้รับสินค้า/บริการแล้ว',
     icon: 'circle-check-filled',
   },
-}
+})
 
 // PLACED + CANCELLED — ใช้เฉพาะ branch ยกเลิก (ไม่ได้อยู่ใน step แนวคิด 4 ขั้น)
-const CANCELLED_LABEL = { title: 'ยกเลิกแล้ว', description: 'คำสั่งซื้อถูกยกเลิก', icon: 'circle-x' }
+const buildCancelledLabel = (orderNoun: string) => ({ title: 'ยกเลิกแล้ว', description: `${orderNoun}ถูกยกเลิก`, icon: 'circle-x' })
 
 /**
  * tone (จาก ORDER_STATUS_META) → class ของวงกลม dashed + icon
@@ -159,9 +163,16 @@ export type ShippingActivityData = {
 
 interface ShippingActivityProps {
   data: ShippingActivityData
+  /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ไม่ส่ง = คำของ ONLINE_SALES */
+  orderNoun?: string
+  /** ป้ายการสร้างตามประเภทกิจการ ("สร้างคำสั่งซื้อ"/"สร้างการเข้ารับบริการ"/"เปิดบิลเข้าพัก") */
+  createLabel?: string
 }
 
-const ShippingActivity = ({ data }: ShippingActivityProps) => {
+const ShippingActivity = ({ data, orderNoun = 'คำสั่งซื้อ', createLabel = 'สร้างคำสั่งซื้อ' }: ShippingActivityProps) => {
+  const STEP_DEFS = buildStepDefs(orderNoun, createLabel)
+  const CANCELLED_LABEL = buildCancelledLabel(orderNoun)
+  const NEXT_STEP = buildNextStep(orderNoun)
   const { status, fulfillmentMode, createdAtISO, updatedAtISO, shipmentTracking, createdBy } = data
 
   // ชื่อที่จะโชว์คู่รูป — displayName → username → คำกลาง (ห้ามปล่อยว่างจนขึ้นรูปลอย ๆ ไม่มีชื่อ)
@@ -232,7 +243,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
         // ที่ถูกเชิญ (feature 00012) — พนักงานเปิดบิลแทนได้ ข้อความใหม่จึงเป็นกลางกับทุกคนในร้าน
         description: isDone
           ? stepKey === 'PLACED' && creatorName
-            ? 'สร้างคำสั่งซื้อนี้แล้ว'
+            ? `${createLabel}นี้แล้ว`
             : def.doneDesc
           : def.pendingDesc,
         icon: def.icon,
@@ -257,7 +268,7 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
   return (
     <div className="card">
       <div className="card-header">
-        <h4 className="card-title">ประวัติคำสั่งซื้อ</h4>
+        <h4 className="card-title">ประวัติ{orderNoun}</h4>
       </div>
       <div className="card-body p-5 sm:p-7.5">
         {nextStep && (

@@ -21,6 +21,8 @@ import Icon from '@/components/wrappers/Icon'
 export type SubmitStatus = 'idle' | 'loading' | 'error'
 
 interface Props {
+  /** ป้ายการสร้างตามประเภทกิจการ (feature 00030) — ไม่ส่ง = คำของ ONLINE_SALES */
+  createLabel?: string
   status: SubmitStatus
   /** ข้อความ error (server message หรือ fallback) — ใช้เฉพาะ status === 'error' */
   errorMessage?: string
@@ -28,7 +30,7 @@ interface Props {
   onDismiss: () => void
 }
 
-export default function SubmitStatusSheet({ status, errorMessage, onDismiss }: Props) {
+export default function SubmitStatusSheet({ status, errorMessage, onDismiss, createLabel = 'สร้างคำสั่งซื้อ' }: Props) {
   if (status === 'idle') return null
 
   const isError = status === 'error'
@@ -39,12 +41,12 @@ export default function SubmitStatusSheet({ status, errorMessage, onDismiss }: P
       className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-card px-6 pb-[env(safe-area-inset-bottom)] text-center"
       role="alertdialog"
       aria-live="assertive"
-      aria-label={isError ? 'สร้างออเดอร์ไม่สำเร็จ' : 'กำลังสร้างคำสั่งซื้อ'}
+      aria-label={isError ? `${createLabel}ไม่สำเร็จ` : `กำลัง${createLabel}`}
     >
       {status === 'loading' && (
         <>
           <Icon icon="loader-2" className="size-12 animate-spin text-primary" aria-hidden="true" />
-          <p className="mt-5 text-lg font-semibold text-dark">กำลังสร้างคำสั่งซื้อ</p>
+          <p className="mt-5 text-lg font-semibold text-dark">กำลัง{createLabel}</p>
           <p className="mt-1 text-sm text-default-500">กรุณารอสักครู่...</p>
         </>
       )}
@@ -57,7 +59,7 @@ export default function SubmitStatusSheet({ status, errorMessage, onDismiss }: P
           >
             <Icon icon="alert-triangle" className="size-8 text-danger" />
           </span>
-          <p className="mt-5 text-lg font-semibold text-dark">สร้างออเดอร์ไม่สำเร็จ</p>
+          <p className="mt-5 text-lg font-semibold text-dark">{createLabel}ไม่สำเร็จ</p>
           <p className="mt-1 max-w-sm text-sm text-default-500">
             {errorMessage || 'กรุณาลองใหม่อีกครั้ง'}
           </p>

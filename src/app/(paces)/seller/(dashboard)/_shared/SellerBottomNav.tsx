@@ -24,6 +24,7 @@
  */
 
 import Icon from '@/components/wrappers/Icon'
+import type { OrderVocab } from '@/lib/seller-menu'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -34,23 +35,27 @@ import { useEffect, useRef, useState } from 'react'
 // index สุดท้ายอยู่ล่างสุด = ใกล้ปุ่ม FAB ที่สุด. ดังนั้น 'สร้างออเดอร์' (index 2, action หลัก
 // ตาม PRD S-3) เป็น pill ล่างสุด/ใกล้นิ้วสุด — อ่านจาก FAB ขึ้นบน = ออเดอร์→สินค้า→หมวดหมู่
 // ตรงกับ scope acceptance S-7 (ห้ามสลับลำดับ array โดยไม่ดูทิศ flex-col)
-const FAB_ACTIONS = [
-  {
-    label: 'สร้างหมวดหมู่',
-    href: '/categories',
-    icon: 'category-plus',
-  },
-  {
-    label: 'สร้างสินค้า',
-    href: '/products/new',
-    icon: 'package-plus',
-  },
-  {
-    label: 'สร้างออเดอร์',
-    href: '/orders/new',
-    icon: 'shopping-cart-plus',
-  },
-] as const
+// feature 00030: ป้ายของ action ออเดอร์ผันตามประเภทกิจการ จึงเป็นฟังก์ชันไม่ใช่ constant
+// (อีก 2 ตัวคงที่ — สินค้า/หมวดหมู่ ไม่ผูกกับ vertical)
+const buildFabActions = (vocab: OrderVocab) =>
+  [
+    {
+      label: 'สร้างหมวดหมู่',
+      href: '/categories',
+      icon: 'category-plus',
+    },
+    {
+      label: 'สร้างสินค้า',
+      href: '/products/new',
+      icon: 'package-plus',
+    },
+    {
+      // createLabelShort ไม่ใช่ createLabel — pill ลอยกลางจอ คำเต็มของร้านบริการยาวเกินสวย
+      label: vocab.createLabelShort,
+      href: '/orders/new',
+      icon: 'shopping-cart-plus',
+    },
+  ] as const
 
 // ─── Nav tabs (4 ช่อง ยกเว้น center) ────────────────────────────────────────
 // S-2: ตัด "สินค้า" ออก — /products ยังเข้าได้จากเมนูลัด dashboard (CarouselGrid)
@@ -58,6 +63,7 @@ const FAB_ACTIONS = [
 // ทุกช่องจน map ไม่คุ้ม) เก็บไว้เป็นสารบัญของช่องทั้ง 5 เท่านั้น แก้ที่นี่แล้วหน้าจอไม่เปลี่ยน
 const NAV_ITEMS = [
   { label: 'หน้าหลัก', href: '/dashboard', icon: 'home-2', exactMatch: true },
+  // ป้ายจริงของช่องนี้มาจาก vocab.nounShort ไม่ใช่ค่านี้ (อาเรย์นี้เป็นสารบัญเฉย ๆ ไม่ถูก render)
   { label: 'คำสั่งซื้อ', href: '/orders', icon: 'clipboard-list', exactMatch: false },
   // index 2 = center button (placeholder ไม่อยู่ใน array นี้)
   { label: 'แชท', href: '/inbox', icon: 'message-circle', exactMatch: false },
@@ -70,10 +76,11 @@ interface SellerBottomNavProps {
   /** unread chat count — badge ช่อง "แชท" (ChatWidget task, feat 00011 Deep Chat) */
   unreadChatCount: number
   /**
-   * ป้ายช่อง /orders — ผันตามประเภทกิจการ (คำสั่งซื้อ / ใบสั่งงาน / บิลเข้าพัก)
-   * layout เป็นคนคำนวณ (resolveOrderMenuLabel) เพื่อให้ตรงกับ sidebar และชื่อหน้าเป๊ะ ๆ
+   * คลังคำของ order lifecycle ผันตามประเภทกิจการ — layout เป็นคนคำนวณ (resolveOrderVocab)
+   * เพื่อให้ตรงกับ sidebar และชื่อหน้าเป๊ะ ๆ. ที่นี่ใช้ 2 ช่อง: nounShort (ป้ายช่อง /orders
+   * กว้าง ~64px ที่ 320px) และ createLabelShort (pill ของ FAB)
    */
-  orderLabel: string
+  orderVocab: OrderVocab
 }
 
 // ─── SpeedDialAction pill — sub-component (ใช้เฉพาะใน SellerBottomNav) ────────
@@ -99,7 +106,8 @@ function SpeedDialAction({ href, label, icon, innerRef }: SpeedDialActionProps) 
 }
 
 // ─── SellerBottomNav — main component ─────────────────────────────────────────
-export default function SellerBottomNav({ pendingCount, unreadChatCount, orderLabel }: SellerBottomNavProps) {
+export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVocab }: SellerBottomNavProps) {
+  const fabActions = buildFabActions(orderVocab)
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
@@ -172,7 +180,7 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderLa
       {/* Speed-dial action pills — แสดงเหนือ center button เมื่อ open */}
       {open && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-3 pb-2">
-          {FAB_ACTIONS.map((action, index) => (
+          {fabActions.map((action, index) => (
             <SpeedDialAction
               key={action.href}
               href={action.href}
@@ -228,11 +236,11 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderLa
               ? 'text-primary'
               : 'text-default-500'
           }`}
-          aria-label={`${orderLabel}${pendingCount > 0 ? ` (${pendingCount} รายการรอดำเนินการ)` : ''}`}
+          aria-label={`${orderVocab.noun}${pendingCount > 0 ? ` (${pendingCount} รายการรอดำเนินการ)` : ''}`}
           aria-current={isActive('/orders', false) ? 'page' : undefined}
         >
           <Icon icon="clipboard-list" className="text-2xl" />
-          <span className="text-xs font-medium">{orderLabel}</span>
+          <span className="text-xs font-medium leading-tight">{orderVocab.nounShort}</span>
           {/* badge — แสดงเฉพาะเมื่อ pendingCount > 0 */}
           {pendingCount > 0 && (
             <span

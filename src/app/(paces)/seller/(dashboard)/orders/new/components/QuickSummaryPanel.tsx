@@ -16,6 +16,9 @@ const formatThb = (n: number) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
 
 interface Props {
+  /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ไม่ส่ง = คำของ ONLINE_SALES */
+  orderNoun?: string
+
   control: Control<FormValues>
   subtotal: number
   total: number
@@ -25,7 +28,7 @@ interface Props {
   compact?: boolean
 }
 
-export default function QuickSummaryPanel({ control, subtotal, total, formId, compact = false }: Props) {
+export default function QuickSummaryPanel({ control, subtotal, total, formId, compact = false, orderNoun = 'คำสั่งซื้อ' }: Props) {
   const [expanded, setExpanded] = useState(false)
   const discount = (useWatch({ control, name: 'discount' }) as number | undefined) ?? 0
   const vatRate = (useWatch({ control, name: 'vatRate' }) as number | undefined) ?? 0
@@ -87,7 +90,7 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
         className="btn inline-flex min-h-11 w-full items-center justify-center gap-2 bg-primary font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
       >
         <Icon icon="device-floppy" className="text-lg" />
-        บันทึกออเดอร์
+        บันทึก{orderNoun}
       </button>
     </div>
   )

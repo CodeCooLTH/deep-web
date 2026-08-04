@@ -17,12 +17,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { OrderStatus } from './data'
 
 interface OrderCardMenuProps {
+  /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ต้องตรงกับเมนู ⋮ ของหน้ารายละเอียด */
+  orderNoun?: string
   token: string
   status: OrderStatus
   onCancelRequest: (token: string) => void
 }
 
-export default function OrderCardMenu({ token, status, onCancelRequest }: OrderCardMenuProps) {
+export default function OrderCardMenu({ token, status, onCancelRequest, orderNoun = 'คำสั่งซื้อ' }: OrderCardMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -61,7 +63,7 @@ export default function OrderCardMenu({ token, status, onCancelRequest }: OrderC
             {canEdit && (
               <Link href={`/orders/${token}/edit`} className="dropdown-item text-sm" role="menuitem" onClick={() => setOpen(false)}>
                 <Icon icon="pencil" className="size-4" />
-                แก้ไขออเดอร์
+                แก้ไข{orderNoun}
               </Link>
             )}
             <Link href={`/orders/${token}`} className="dropdown-item text-sm" role="menuitem" onClick={() => setOpen(false)}>
@@ -80,7 +82,7 @@ export default function OrderCardMenu({ token, status, onCancelRequest }: OrderC
                 }}
               >
                 <Icon icon="x" className="size-4" />
-                ยกเลิกออเดอร์
+                ยกเลิก{orderNoun}
               </button>
             )}
           </div>

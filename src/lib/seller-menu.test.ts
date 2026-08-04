@@ -13,6 +13,8 @@ import {
   applyOrderLabel,
   flattenSellerMenu,
   resolveOrderMenuLabel,
+  resolveOrderVocab,
+  ORDER_VOCAB,
   resolveVisibleSellerMenu,
   sellerMenuItems,
 } from './seller-menu'
@@ -76,7 +78,7 @@ describe('sellerMenuItems — slug contract', () => {
 describe('applyOrderLabel', () => {
   it.each([
     ['ONLINE_SALES', 'คำสั่งซื้อ'],
-    ['SERVICE_QUEUE', 'ใบสั่งงาน'],
+    ['SERVICE_QUEUE', 'การเข้ารับบริการ'],
     ['LODGING', 'บิลเข้าพัก'],
   ])('%s → %s', (vertical, expected) => {
     expect(resolveOrderMenuLabel(vertical)).toBe(expected)
@@ -104,6 +106,33 @@ describe('applyOrderLabel', () => {
     applyOrderLabel(sellerMenuItems, 'LODGING')
     const orders = flattenSellerMenu(sellerMenuItems).find((i) => i.slug === 'seller:orders')
     expect(orders?.label).toBe('คำสั่งซื้อ')
+  })
+})
+
+describe('resolveOrderVocab — คลังคำ 4 ช่อง (feature 00030)', () => {
+  it.each([
+    ['ONLINE_SALES', 'คำสั่งซื้อ', 'คำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'สร้างคำสั่งซื้อ'],
+    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'เข้ารับบริการ', 'สร้างการเข้ารับบริการ', 'เข้ารับบริการใหม่'],
+    ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก'],
+  ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort) => {
+    expect(resolveOrderVocab(vertical)).toEqual({ noun, nounShort, createLabel, createLabelShort })
+  })
+
+  it('vertical ที่ไม่รู้จัก → ชุดของ ONLINE_SALES (fail-safe)', () => {
+    expect(resolveOrderVocab('SOMETHING_NEW')).toEqual(ORDER_VOCAB.ONLINE_SALES)
+  })
+
+  it('resolveOrderMenuLabel = noun ของชุดเดียวกัน (ห้ามแยกคลังคำ)', () => {
+    for (const v of ['ONLINE_SALES', 'SERVICE_QUEUE', 'LODGING', 'ค่าเพี้ยน']) {
+      expect(resolveOrderMenuLabel(v)).toBe(resolveOrderVocab(v).noun)
+    }
+  })
+
+  it('nounShort ต้องไม่ยาวกว่า noun — ช่องแคบ (แท็บล่าง 320px) พึ่งค่านี้', () => {
+    for (const v of Object.keys(ORDER_VOCAB)) {
+      const { noun, nounShort } = ORDER_VOCAB[v]
+      expect(nounShort.length).toBeLessThanOrEqual(noun.length)
+    }
   })
 })
 
