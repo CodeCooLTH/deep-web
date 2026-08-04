@@ -473,12 +473,24 @@ function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
     // ปล่อยให้ไปทางแถวเดี่ยวซึ่งมีป้าย "ตอบกลับ…" อยู่แล้ว
     const bare = m.type === 'IMAGE' && !!m.imageUrl && !m.body && !m.replyTo
     const prev = buf[buf.length - 1]
+    /**
+     * ก้อนเดียวกันหรือไม่ ตัดสินด้วย **mid ฐานเดียวกัน** ก่อนเรื่องเวลา (user report prod 2026-08-04:
+     * ส่ง 2 รูปแล้วส่ง 6 รูปห่างกัน 21 วินาที → ฝั่งเรารวมเป็นกองเดียว "8 รูป")
+     *
+     * ingest ตั้ง externalMessageId ของรูปในข้อความเดียวกันเป็น `mid`, `mid#1`, `mid#2`… อยู่แล้ว
+     * (convention เดิมของ mirror หลาย attachment) จึงมีข้อมูลพอบอกขอบเขตก้อนอยู่แล้ว ไม่ต้องแก้ฐาน
+     * ต่าง mid = ต่างข้อความจริงของ Meta → ต้องเป็นคนละอัลบั้มแม้ส่งติดกันแค่ไหน
+     * ยังคงเงื่อนไขเวลา (ALBUM_GAP_MS) ไว้เป็นตัวช่วยสำหรับแถวที่ยังไม่มี mid (optimistic/DEEP)
+     */
+    const baseMid = (x: ChatMessageView) => (x.externalMessageId ?? '').split('#')[0]
+    const sameMidGroup = !!baseMid(m) && baseMid(m) === baseMid(prev ?? m) && !!prev
+    const differentMid = !!prev && !!baseMid(m) && !!baseMid(prev) && baseMid(m) !== baseMid(prev)
     const sameGroup =
       bare &&
       prev &&
       prev.senderRole === m.senderRole &&
       new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() <= ALBUM_GAP_MS
-    if (bare && (buf.length === 0 || sameGroup)) {
+    if (bare && (buf.length === 0 || (sameGroup && !differentMid))) {
       buf.push(m)
     } else {
       flush()
