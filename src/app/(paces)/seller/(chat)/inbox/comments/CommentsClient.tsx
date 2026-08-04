@@ -23,7 +23,10 @@ import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/S
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
-import CommentsFilterPanel from './CommentsFilterPanel'
+import CommentsFilterPanel, {
+  DEFAULT_COMMENT_SHOW_FILTER,
+  type CommentShowFilter,
+} from './CommentsFilterPanel'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 
 export type ChannelOption = { id: string; name: string; provider: string; avatarUrl: string | null }
@@ -183,19 +186,24 @@ export default function CommentsClient({
   // ในเธรด: ดูเฉพาะคอมเมนต์ที่ยังไม่มีคำตอบของเพจ
   const [unansweredOnly, setUnansweredOnly] = useState(false)
   /**
-   * แสดงคอมเมนต์ระดับบนที่ "ร้านเขียนเอง" ด้วยไหม — ค่าตั้งต้น false (user สั่ง 2026-08-04:
-   * "comment กลุ่มที่เป็นร้านคอมเม้นเองละ ... อยากให้เอาเข้ามาด้วย แต่แบ่ง default ตัวกรองไป
-   * ไม่ต้องดึงออกมาแสดง")
-   *
+   * ตัวกรอง "แสดงอะไร" — multi-select (user สั่ง 2026-08-04) เก็บที่เดียวแล้วให้ทั้งแถบแท็บและ
+   * แผงตัวกรองอ่าน/เขียนตัวเดียวกัน: แท็บเป็นทางลัดของค่าชุดนี้ ไม่ใช่ state คู่ขนาน
+   *   ทั้งหมด    = unanswered ✓ + done ✓
+   *   ยังไม่ตอบ  = unanswered ✓ + done ✗
+   * (สอง control ที่เก็บสถานะแยกกันแล้วต้องคอย sync คือที่มาของบั๊ก "ตัวเลข 2 ที่ไม่ตรงกัน" ที่เจอ
+   *  มาแล้วในหน้านี้ — ตัวกรองก็เหมือนกัน)
+   */
+  const [show, setShow] = useState<CommentShowFilter>(DEFAULT_COMMENT_SHOW_FILTER)
+  const postTab: 'ALL' | 'UNANSWERED' = show.unanswered && !show.done ? 'UNANSWERED' : 'ALL'
+  const setPostTab = (tab: 'ALL' | 'UNANSWERED') =>
+    setShow((s) => ({ ...s, unanswered: true, done: tab === 'ALL' }))
+  /**
+   * คอมเมนต์ระดับบนที่ร้านเขียนเอง — มาจากตัวกรองชุดเดียวกัน (show.shopComments, ค่าตั้งต้นปิด)
    * ของพวกนี้ **เข้าฐานอยู่แล้ว** (ingestFeedComment เก็บทุกคอมเมนต์ + ติดธง isFromPage) แค่ไม่ควร
    * ปนอยู่ในลิสต์ "สิ่งที่ต้องตอบ" — ซ่อนแค่ **ระดับบน** เท่านั้น คำตอบของเพจที่อยู่ใต้คอมเมนต์ลูกค้า
    * ยังต้องเห็นตลอด (มันคือหลักฐานว่าเราตอบไปว่าอะไร)
    */
-  const [showShopComments, setShowShopComments] = useState(false)
-  // แท็บสถานะของรายการโพสต์ — 2 แท็บเท่านั้นตามที่ user สั่ง 2026-08-04 ("ทั้งหมด / ยังไม่ตอบ")
-  // "ตอบครบแล้ว" ถอดออก: เป็นส่วนเติมเต็มของ "ยังไม่ตอบ" อยู่แล้ว. union เหลือ 2 ค่าเพื่อให้ tsc
-  // บังคับว่าไม่มีที่ไหนอ้าง 'DONE' ค้าง (ไม่ใช่ลบแค่ปุ่มที่ render)
-  const [postTab, setPostTab] = useState<'ALL' | 'UNANSWERED'>('ALL')
+  const showShopComments = show.shopComments
   /**
    * ลำดับคอมเมนต์ในเธรด — ชุดเดียวกับ Facebook (user สั่ง 2026-08-04) คำไทยยึดคำที่ผู้ขายเห็นใน
    * Facebook/Business Suite อยู่แล้ว ไม่คิดคำใหม่ (impeccable clarify)
@@ -546,10 +554,12 @@ export default function CommentsClient({
     () => postsByChannel.filter((p) => p.unansweredCount > 0).length,
     [postsByChannel],
   )
-  const visiblePosts = useMemo(() => {
-    if (postTab === 'UNANSWERED') return postsByChannel.filter((p) => p.unansweredCount > 0)
-    return postsByChannel
-  }, [postsByChannel, postTab])
+  const visiblePosts = useMemo(
+    // ตัวกรองเดียวครอบทั้งแถบแท็บและแผงตัวกรอง: โพสต์ที่มีของค้างขึ้นตาม show.unanswered
+    // ส่วนโพสต์ที่ตอบครบแล้วขึ้นตาม show.done — ปิดทั้งคู่ = ลิสต์ว่าง (ผู้ใช้เลือกเองอย่างนั้น)
+    () => postsByChannel.filter((p) => (p.unansweredCount > 0 ? show.unanswered : show.done)),
+    [postsByChannel, show.unanswered, show.done],
+  )
 
   const selectedPost = posts.find((p) => p.id === selectedId) ?? null
 
@@ -794,7 +804,11 @@ export default function CommentsClient({
             <CommentsFilterPanel
               pageOptions={channels}
               value={channelId}
-              onApply={setChannelId}
+              show={show}
+              onApply={(pageId, nextShow) => {
+                setChannelId(pageId)
+                setShow(nextShow)
+              }}
               open={filterOpen}
               onOpenChange={setFilterOpen}
             />
@@ -1206,18 +1220,6 @@ export default function CommentsClient({
                         { value: 'ALL', label: 'ทั้งหมด' },
                       ]}
                     />
-                    {/* คอมเมนต์ของร้านเอง — ซ่อนเป็นค่าตั้งต้น กดเพื่อดูรวม (user สั่ง 2026-08-04) */}
-                    <button
-                      type="button"
-                      onClick={() => setShowShopComments((v) => !v)}
-                      aria-pressed={showShopComments}
-                      className={`badge text-2xs inline-flex min-h-9 items-center gap-1 px-3 ${
-                        showShopComments ? 'bg-primary text-white' : 'bg-default-100 text-default-700'
-                      }`}
-                    >
-                      <Icon icon="building-store" width={12} height={12} />
-                      ของร้าน
-                    </button>
                     <button
                       type="button"
                       onClick={() => setUnansweredOnly(!unansweredOnly)}
