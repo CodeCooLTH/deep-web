@@ -36,7 +36,7 @@ export default function SenderIncompleteNotice({
 }: Props) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2.5 text-sm text-warning">
+      <div className="flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2.5 text-sm text-warning-ink">
         <Icon icon="tabler:alert-triangle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
         <div className="min-w-0">
           <p className="mb-1 font-semibold">ยังตั้งที่อยู่ผู้ส่งของร้านไม่ครบ</p>
@@ -53,7 +53,7 @@ export default function SenderIncompleteNotice({
 
       {/* บอกว่าผู้รับครบแล้วได้ต่อเมื่อครบจริง — ไม่งั้นร้านจะเชื่อแล้วไปเจอด่านสองทีหลัง */}
       {missingReceiver.length === 0 && (
-        <p className="mb-0 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2.5 text-sm text-info">
+        <p className="mb-0 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2.5 text-sm text-info-ink">
           <Icon icon="tabler:info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
           <span>ข้อมูลผู้รับของคำสั่งซื้อนี้ครบแล้ว — ตั้งที่อยู่ผู้ส่งเสร็จ กลับมากดสร้างได้เลย</span>
         </p>
@@ -66,7 +66,7 @@ export default function SenderIncompleteNotice({
         <Icon icon="tabler:settings" className="text-base" aria-hidden="true" />
         ไปตั้งค่าที่อยู่ผู้ส่ง
       </Link>
-      <p className="mb-0 text-center text-xs text-default-400">เจ้าของร้านเท่านั้นที่ตั้งค่านี้ได้</p>
+      <p className="mb-0 text-center text-xs text-default-700">เจ้าของร้านเท่านั้นที่ตั้งค่านี้ได้</p>
     </div>
   )
 }

@@ -91,7 +91,7 @@ function numOrUndefined(v: string): number | undefined {
 
 /** ช่องที่ยังไม่ได้กรอก — เขียน class เต็มคำ ไม่ประกอบชื่อสีแบบ dynamic (Tailwind สแกนข้อความ) */
 function MissingChip({ label }: { label: string }) {
-  return <span className="badge bg-danger/15 text-danger">ขาด{label}</span>
+  return <span className="badge bg-danger/15 text-danger-ink">ขาด{label}</span>
 }
 
 /**
@@ -120,7 +120,7 @@ function ReviewParty({
         <Icon icon={icon} className="text-sm" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="mb-1 text-xs text-default-400">{label}</p>
+        <p className="mb-1 text-xs text-default-700">{label}</p>
         <p className="mb-0.5 flex flex-wrap items-center gap-1 text-sm font-semibold text-default-900">
           {has(party.name) ? party.name : lacks('ชื่อผู้รับ') ? <MissingChip label="ชื่อ" /> : '—'}
         </p>
@@ -441,7 +441,7 @@ export default function ShipmentCreateForm({
             <Icon icon="tabler:user" className="text-sm" aria-hidden="true" />
           </span>
           <h6 className="mb-0 text-sm font-semibold text-default-900">ผู้รับ</h6>
-          <span className="ms-auto text-xs text-default-400">บันทึกกลับเข้าคำสั่งซื้อ</span>
+          <span className="ms-auto text-xs text-default-700">บันทึกกลับเข้าคำสั่งซื้อ</span>
         </header>
 
         <div className="mb-2.5">
@@ -457,7 +457,7 @@ export default function ShipmentCreateForm({
             onChange={(e) => setField('name', e.target.value)}
           />
           {isMissing('ชื่อผู้รับ') && (
-            <p id="rcv-name-err" className="mb-0 mt-1 text-xs text-danger">
+            <p id="rcv-name-err" className="mb-0 mt-1 text-xs text-danger-ink">
               จำเป็นสำหรับเปิดพัสดุ
             </p>
           )}
@@ -477,7 +477,7 @@ export default function ShipmentCreateForm({
             onChange={(e) => setField('phone', e.target.value)}
           />
           {isMissing('เบอร์โทรผู้รับ') && (
-            <p id="rcv-phone-err" className="mb-0 mt-1 text-xs text-danger">
+            <p id="rcv-phone-err" className="mb-0 mt-1 text-xs text-danger-ink">
               จำเป็นสำหรับเปิดพัสดุ
             </p>
           )}
@@ -496,7 +496,7 @@ export default function ShipmentCreateForm({
             onChange={(e) => setField('line1', e.target.value)}
           />
           {isMissing('ที่อยู่') && (
-            <p id="rcv-line1-err" className="mb-0 mt-1 text-xs text-danger">
+            <p id="rcv-line1-err" className="mb-0 mt-1 text-xs text-danger-ink">
               จำเป็นสำหรับเปิดพัสดุ
             </p>
           )}
@@ -530,19 +530,19 @@ export default function ShipmentCreateForm({
                 <span className="block font-semibold text-default-900">
                   ต.{form.subdistrict || '—'} · อ.{form.district || '—'}
                 </span>
-                <span className="block text-xs text-default-500">
+                <span className="block text-xs text-default-700">
                   {form.province || '—'} · {form.postcode || '—'}
                 </span>
               </span>
             ) : (
-              <span className="min-w-0 flex-1 text-sm text-default-400">
+              <span className="min-w-0 flex-1 text-sm text-default-700">
                 แตะเพื่อเลือกตำบล / อำเภอ / จังหวัด
               </span>
             )}
             <Icon icon="tabler:chevron-right" className="size-4 shrink-0 text-default-400" aria-hidden="true" />
           </button>
           {localityMissing && (
-            <p id="rcv-locality-err" className="mb-0 mt-1 text-xs text-danger">
+            <p id="rcv-locality-err" className="mb-0 mt-1 text-xs text-danger-ink">
               ยังไม่ได้เลือก — จำเป็นสำหรับเปิดพัสดุ
             </p>
           )}
@@ -556,7 +556,7 @@ export default function ShipmentCreateForm({
             <Icon icon="tabler:package" className="text-sm" aria-hidden="true" />
           </span>
           <h6 className="mb-0 text-sm font-semibold text-default-900">พัสดุ</h6>
-          <span className="ms-auto text-xs text-default-400">ค่าตั้งต้นของร้าน</span>
+          <span className="ms-auto text-xs text-default-700">ค่าตั้งต้นของร้าน</span>
         </header>
 
         <div className="mb-2.5">
@@ -577,7 +577,7 @@ export default function ShipmentCreateForm({
             ))}
           </select>
           {couriersError && (
-            <p className="mb-0 mt-1 text-xs text-default-400">
+            <p className="mb-0 mt-1 text-xs text-default-700">
               โหลดรายชื่อขนส่งไม่ได้ — จะใช้ขนส่งค่าตั้งต้นของร้าน
             </p>
           )}
@@ -641,7 +641,7 @@ export default function ShipmentCreateForm({
                 ))
               )}
             </select>
-            <p className="mb-0 mt-1 text-xs text-default-400">
+            <p className="mb-0 mt-1 text-xs text-default-700">
               เพิ่มกล่องใหม่ได้ที่ระบบ iShip
             </p>
           </div>
@@ -737,7 +737,7 @@ export default function ShipmentCreateForm({
                 value={codAmount}
                 onChange={(e) => setCodAmount(e.target.value)}
               />
-              <p className="mb-0 mt-1 text-xs text-default-400">เว้นว่างหรือ 0 = ไม่เก็บเงินปลายทาง</p>
+              <p className="mb-0 mt-1 text-xs text-default-700">เว้นว่างหรือ 0 = ไม่เก็บเงินปลายทาง</p>
             </div>
 
             <div>
@@ -812,12 +812,12 @@ export default function ShipmentCreateForm({
             <Icon icon="tabler:clipboard-check" className="text-sm" aria-hidden="true" />
           </span>
           <h6 className="mb-0 text-sm font-semibold text-default-900">ตรวจก่อนสร้างพัสดุ</h6>
-          <span className="ms-auto text-xs text-default-400">กวาดตาก่อนกดสร้าง</span>
+          <span className="ms-auto text-xs text-default-700">กวาดตาก่อนกดสร้าง</span>
         </div>
 
         <div className="rounded-lg border border-dashed border-default-300 bg-default-50 p-3">
           {liveMissing.length > 0 && (
-            <p className="mb-3 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2 text-xs text-danger">
+            <p className="mb-3 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2 text-xs text-danger-ink">
               <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
               <span>ผู้รับยังกรอกไม่ครบ {liveMissing.length} ช่อง — เลื่อนขึ้นไปกรอกด้านบนก่อนกดสร้าง</span>
             </p>
@@ -845,16 +845,16 @@ export default function ShipmentCreateForm({
           />
 
           <div className="mt-3 border-t border-dashed border-default-300 pt-3">
-            <p className="mb-2 text-xs text-default-400">สินค้าในคำสั่งซื้อ</p>
+            <p className="mb-2 text-xs text-default-700">สินค้าในคำสั่งซื้อ</p>
             {items.length === 0 ? (
-              <p className="mb-0 text-sm text-default-400">ไม่มีรายการสินค้าในคำสั่งซื้อนี้</p>
+              <p className="mb-0 text-sm text-default-700">ไม่มีรายการสินค้าในคำสั่งซื้อนี้</p>
             ) : (
               <>
                 <ul className="mb-0 flex list-none flex-col gap-1.5 ps-0">
                   {(itemsOpen ? items : items.slice(0, 3)).map((it) => (
                     <li key={it.id} className="flex items-start gap-2 text-sm">
                       <span className="min-w-0 flex-1 truncate text-default-700">{it.name}</span>
-                      <span className="shrink-0 text-default-500">×{it.qty}</span>
+                      <span className="shrink-0 text-default-700">×{it.qty}</span>
                       <span className="shrink-0 font-semibold text-default-900">
                         ฿{(it.price * it.qty).toLocaleString('th-TH')}
                       </span>
@@ -878,7 +878,7 @@ export default function ShipmentCreateForm({
                 )}
 
                 <div className="mt-2 flex items-center justify-between border-t border-dashed border-default-300 pt-2 text-sm">
-                  <span className="text-default-500">รวมสินค้า {itemCount} ชิ้น</span>
+                  <span className="text-default-700">รวมสินค้า {itemCount} ชิ้น</span>
                   <span className="font-semibold text-default-900">
                     ฿{itemsSubtotal.toLocaleString('th-TH')}
                   </span>
@@ -891,7 +891,7 @@ export default function ShipmentCreateForm({
               เป็นการประเมิน ไม่ใช่ราคาผูกพัน (BR-ISHIP-34) จึงเขียนกำกับไว้ตรง ๆ */}
           <div className="mt-3 border-t border-dashed border-default-300 pt-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-default-500">ค่าส่งโดยประมาณ</span>
+              <span className="text-default-700">ค่าส่งโดยประมาณ</span>
               {quoting && !quote ? (
                 <span className="h-4 w-16 animate-pulse rounded bg-default-100" />
               ) : quote ? (
@@ -899,17 +899,17 @@ export default function ShipmentCreateForm({
                   ฿{quote.totalPrice.toLocaleString('th-TH')}
                 </span>
               ) : (
-                <span className="text-default-400">กรอกขนส่ง ขนาด และปลายทางให้ครบ</span>
+                <span className="text-default-700">กรอกขนส่ง ขนาด และปลายทางให้ครบ</span>
               )}
             </div>
             {quote && (
-              <p className="mb-0 mt-1 text-xs text-default-400">
+              <p className="mb-0 mt-1 text-xs text-default-700">
                 ขนส่งประเมินจากขนาดและน้ำหนักที่แจ้ง — ค่าจริงอาจต่างถ้าชั่งแล้วไม่ตรง
                 {quote.estimateDays ? ` · ถึงปลายทางราว ${quote.estimateDays} วัน` : ''}
               </p>
             )}
             {quote?.remoteArea && (
-              <p className="mb-0 mt-1 flex items-start gap-1.5 text-xs text-warning">
+              <p className="mb-0 mt-1 flex items-start gap-1.5 text-xs text-warning-ink">
                 <Icon
                   icon="tabler:map-pin-exclamation"
                   className="mt-0.5 shrink-0 text-sm"

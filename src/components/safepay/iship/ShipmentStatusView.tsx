@@ -15,6 +15,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime } from '@/lib/format-date'
+import { TONE_BADGE, NOTICE_BOX } from './tone'
 import {
   SHIPMENT_STAGES,
   describeCarrierStatus,
@@ -54,19 +55,6 @@ async function readError(res: Response): Promise<string> {
  * ต้องเขียน class เต็มตัวทุกอัน — Tailwind สแกนซอร์สแบบข้อความ
  * `bg-${tone}/15` จะไม่ถูกสร้าง แล้ว badge จะออกมาไม่มีสีโดยไม่มี error ให้เห็น
  */
-const TONE_BADGE: Record<string, string> = {
-  primary: 'badge bg-primary/15 text-primary',
-  info: 'badge bg-info/15 text-info',
-  success: 'badge bg-success/15 text-success',
-  warning: 'badge bg-warning/15 text-warning',
-  danger: 'badge bg-danger/15 text-danger',
-  secondary: 'badge bg-secondary/15 text-secondary',
-}
-
-/**
- * สีของแถบความคืบหน้า — เขียนเต็มคำทุกอัน เพราะ Tailwind สแกนซอร์สเป็นข้อความ
- * เขียวสงวนไว้ให้ "ถึงมือผู้รับแล้ว" เท่านั้น ระหว่างทางใช้น้ำเงิน (Verified-Means-Green)
- */
 const STAGE_DOT: Record<string, string> = {
   progress: 'bg-primary text-white',
   delivered: 'bg-success text-white',
@@ -81,19 +69,10 @@ const STAGE_LINE: Record<string, string> = {
   stopped: 'bg-default-200',
 }
 
-const NOTICE_BOX: Record<string, string> = {
-  warning: 'bg-warning/15 text-warning',
-  danger: 'bg-danger/15 text-danger',
-  info: 'bg-info/15 text-info',
-  secondary: 'bg-default-100 text-default-600',
-  success: 'bg-success/15 text-success',
-  primary: 'bg-primary/15 text-primary',
-}
-
 function StatRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-dashed border-default-200 py-2 text-sm last:border-0">
-      <span className="text-default-500">{label}</span>
+      <span className="text-default-700">{label}</span>
       <span className="text-end font-semibold text-default-900">{value}</span>
     </div>
   )
@@ -248,11 +227,11 @@ export default function ShipmentStatusView({
   if (shipment.status === 'FAILED') {
     return (
       <div className="flex flex-col gap-3 p-4">
-        <p className="mb-0 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2.5 text-sm text-danger">
+        <p className="mb-0 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2.5 text-sm text-danger-ink">
           <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
           <span>{shipment.lastErrorMessage ?? 'สร้างพัสดุไม่สำเร็จ'}</span>
         </p>
-        <p className="mb-0 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2.5 text-sm text-info">
+        <p className="mb-0 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2.5 text-sm text-info-ink">
           <Icon icon="tabler:info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
           <span>
             ลองใหม่จะใช้คีย์เดิม ไม่เปิดพัสดุใบที่สอง — ถ้าครั้งก่อนเปิดสำเร็จแล้วแต่คำตอบหาย
@@ -299,7 +278,7 @@ export default function ShipmentStatusView({
           อ่านจาก prop ตรง ๆ ไม่รอ /traces จึงเห็นทันทีที่เปิด ไม่มีจังหวะว่างให้ต้องรอ */}
       <section className="border-b-8 border-default-100 p-4">
         {shipment.isDryRun && (
-          <p className="mb-3 flex items-center gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning">
+          <p className="mb-3 flex items-center gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning-ink">
             <Icon icon="tabler:flask" className="shrink-0 text-base" aria-hidden="true" />
             พัสดุจำลอง (โหมดทดสอบ) — ไม่ได้ส่งออกไปที่ขนส่งจริง
           </p>
@@ -332,7 +311,7 @@ export default function ShipmentStatusView({
                   className={`text-center text-2xs leading-tight ${
                     i === progress.stage
                       ? 'font-semibold text-default-900'
-                      : 'text-default-500'
+                      : 'text-default-700'
                   }`}
                 >
                   {isLast ? (progress.lastLabel ?? s.label) : s.label}
@@ -360,7 +339,7 @@ export default function ShipmentStatusView({
 
       <section className="border-b-8 border-default-100 p-4">
         <div className="text-center">
-          <p className="mb-1 text-xs font-semibold tracking-wide text-default-400">เลขติดตามพัสดุ</p>
+          <p className="mb-1 text-xs font-semibold tracking-wide text-default-700">เลขติดตามพัสดุ</p>
           <p className="mb-2 text-xl font-bold tabular-nums text-default-900">
             {shipment.trackingNo ?? '—'}
           </p>
@@ -368,7 +347,7 @@ export default function ShipmentStatusView({
         </div>
 
         {(shipment.isOverWeight || shipment.isOverSize) && (
-          <p className="mb-0 mt-3 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning">
+          <p className="mb-0 mt-3 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning-ink">
             <Icon icon="tabler:scale" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
             ขนส่งวัด{shipment.isOverWeight ? 'น้ำหนัก' : 'ขนาด'}ได้เกินกว่าที่แจ้งไว้ —
             ค่าส่งจริงอาจสูงกว่าที่ประเมิน
@@ -458,7 +437,7 @@ export default function ShipmentStatusView({
               onClick={() => loadTraces()}
               disabled={loadingTraces}
               aria-label="โหลดสถานะล่าสุดอีกครั้ง"
-              className="btn btn-icon ms-auto text-default-500 hover:bg-default-100 disabled:opacity-50"
+              className="btn btn-icon ms-auto text-default-700 hover:bg-default-100 disabled:opacity-50"
             >
               {loadingTraces ? (
                 <span className="inline-block size-4 animate-spin rounded-full border-2 border-default-400 border-t-transparent" />
@@ -492,8 +471,8 @@ export default function ShipmentStatusView({
                   <p className="mb-0 text-sm font-medium text-default-900">
                     {t.statusText ?? t.status}
                   </p>
-                  {t.statusDesc && <p className="mb-0 text-xs text-default-500">{t.statusDesc}</p>}
-                  <p className="mb-0 text-xs text-default-400">
+                  {t.statusDesc && <p className="mb-0 text-xs text-default-700">{t.statusDesc}</p>}
+                  <p className="mb-0 text-xs text-default-700">
                     {formatDateTime(new Date(t.occurredAt))}
                     {t.location ? ` · ${t.location}` : ''}
                   </p>
@@ -504,14 +483,14 @@ export default function ShipmentStatusView({
         )}
 
         {traces && traces.length === 0 && (
-          <p className="mb-0 text-xs text-default-400">
+          <p className="mb-0 text-xs text-default-700">
             ยังไม่มีข้อมูลการเดินทาง — ขนส่งจะอัปเดตหลังรับพัสดุเข้าระบบ
           </p>
         )}
 
         {/* ดึงไม่สำเร็จตอนเปิด (เงียบไว้ไม่เด้ง toast) — บอกตรงนี้แทน พร้อมทางกดเอง */}
         {traces === null && !loadingTraces && (
-          <p className="mb-0 text-xs text-default-400">
+          <p className="mb-0 text-xs text-default-700">
             ยังไม่ได้ข้อมูลการเดินทาง กดปุ่มรีเฟรชด้านบนเพื่อลองใหม่
           </p>
         )}
@@ -525,7 +504,7 @@ export default function ShipmentStatusView({
             type="button"
             onClick={handleCopy}
             disabled={!shipment.trackingNo}
-            className="btn inline-flex items-center justify-center gap-1.5 bg-primary/15 py-2.5 text-primary hover:bg-primary/25 disabled:opacity-50"
+            className="btn inline-flex items-center justify-center gap-1.5 bg-primary/15 py-2.5 text-primary-ink hover:bg-primary/25 disabled:opacity-50"
           >
             <Icon icon="tabler:copy" className="text-base" aria-hidden="true" />
             คัดลอกเลข
@@ -534,7 +513,7 @@ export default function ShipmentStatusView({
             href={`/api/seller/iship/shipments/${shipment.id}/label`}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn inline-flex items-center justify-center gap-1.5 bg-primary/15 py-2.5 text-primary hover:bg-primary/25"
+            className="btn inline-flex items-center justify-center gap-1.5 bg-primary/15 py-2.5 text-primary-ink hover:bg-primary/25"
           >
             <Icon icon="tabler:printer" className="text-base" aria-hidden="true" />
             พิมพ์ใบปะหน้า
@@ -547,7 +526,7 @@ export default function ShipmentStatusView({
           type="button"
           onClick={handleCancel}
           disabled={busy}
-          className="btn inline-flex items-center justify-center gap-1.5 bg-danger/15 py-2.5 text-danger hover:bg-danger/25 disabled:opacity-50"
+          className="btn inline-flex items-center justify-center gap-1.5 bg-danger/15 py-2.5 text-danger-ink hover:bg-danger/25 disabled:opacity-50"
         >
           <Icon icon="tabler:package-off" className="text-base" aria-hidden="true" />
           ยกเลิกพัสดุ

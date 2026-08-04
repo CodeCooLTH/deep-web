@@ -183,7 +183,7 @@ export default function IShipModalShell({
             aria-label="ปิด"
             // min-h-11/min-w-11: tap target ≥44px ตาม PRODUCT.md §Accessibility
             // (.btn-icon ของ Paces = size-9.25 ≈ 37px ซึ่งต่ำกว่าเกณฑ์)
-            className="btn btn-icon min-h-11 min-w-11 shrink-0 text-default-500 hover:bg-default-100 disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn btn-icon min-h-11 min-w-11 shrink-0 text-default-700 hover:bg-default-100 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Icon icon="x" className="text-lg" />
           </button>

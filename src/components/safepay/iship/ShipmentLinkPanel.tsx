@@ -36,15 +36,7 @@ import type {
 } from '@/lib/iship/unlinked'
 import type { ShipmentViewJson } from '@/lib/iship/context'
 import type { ShipmentFooterReporter } from './shipment-footer'
-
-const TONE_BADGE: Record<string, string> = {
-  primary: 'badge bg-primary/15 text-primary-ink',
-  info: 'badge bg-info/15 text-info-ink',
-  success: 'badge bg-success/15 text-success-ink',
-  warning: 'badge bg-warning/15 text-warning-ink',
-  danger: 'badge bg-danger/15 text-danger-ink',
-  secondary: 'badge bg-secondary/15 text-default-700',
-}
+import { TONE_BADGE } from './tone'
 
 interface Props {
   /**
@@ -311,7 +303,7 @@ export default function ShipmentLinkPanel({
               {selected.carrierStatusText}
             </span>
           </div>
-          <p className="mb-0 mt-1 flex items-center gap-1.5 text-sm text-default-500">
+          <p className="mb-0 mt-1 flex items-center gap-1.5 text-sm text-default-700">
             <Icon icon="tabler:truck-delivery" className="text-base" aria-hidden="true" />
             {selected.courierName ?? selected.courierCode ?? 'ไม่ระบุขนส่ง'}
           </p>
@@ -323,14 +315,14 @@ export default function ShipmentLinkPanel({
           </h6>
           <dl className="mb-4 space-y-2">
             <div className="rounded-lg bg-default-50 p-3">
-              <dt className="text-xs text-default-500">ผู้รับ</dt>
+              <dt className="text-xs text-default-700">ผู้รับ</dt>
               <dd className="mb-0 text-sm text-default-900">
                 {r.name ?? '—'}
                 {r.phone ? ` · ${r.phone}` : ''}
               </dd>
             </div>
             <div className="rounded-lg bg-default-50 p-3">
-              <dt className="text-xs text-default-500">ที่อยู่จัดส่ง</dt>
+              <dt className="text-xs text-default-700">ที่อยู่จัดส่ง</dt>
               <dd className="mb-0 text-sm text-default-900">{addressLine}</dd>
             </div>
           </dl>
@@ -371,12 +363,12 @@ export default function ShipmentLinkPanel({
             onChange={(e) => setItemPrice(e.target.value)}
           />
           {selected.codAmount > 0 ? (
-            <p className="mb-0 mt-1 text-xs text-default-500">
+            <p className="mb-0 mt-1 text-xs text-default-700">
               เติมมาจากยอดเก็บปลายทางของพัสดุ ({selected.codAmount.toLocaleString('th-TH')} บาท)
               — ยอดที่ขนส่งจะไปเก็บจริงยึดตามพัสดุ ไม่ใช่ตัวเลขนี้
             </p>
           ) : (
-            <p className="mb-0 mt-1 text-xs text-default-500">
+            <p className="mb-0 mt-1 text-xs text-default-700">
               พัสดุใบนี้ไม่ใช่เก็บเงินปลายทาง จึงไม่มียอดให้เติมให้ กรอกเองได้ถ้าต้องการ
             </p>
           )}
@@ -435,7 +427,7 @@ export default function ShipmentLinkPanel({
               {preview.parcel.carrierStatusText}
             </span>
           </div>
-          <p className="mb-0 mt-1 flex items-center gap-1.5 text-sm text-default-500">
+          <p className="mb-0 mt-1 flex items-center gap-1.5 text-sm text-default-700">
             <Icon icon="tabler:truck-delivery" className="text-base" aria-hidden="true" />
             {preview.parcel.courierName ?? preview.parcel.courierCode ?? 'ไม่ระบุขนส่ง'}
           </p>
@@ -589,7 +581,7 @@ export default function ShipmentLinkPanel({
                   </span>
                 </span>
 
-                <span className="flex items-center gap-1.5 text-sm text-default-500">
+                <span className="flex items-center gap-1.5 text-sm text-default-700">
                   <Icon
                     icon="tabler:truck-delivery"
                     className="shrink-0 text-base"
@@ -608,7 +600,7 @@ export default function ShipmentLinkPanel({
                   {p.receiver.name ?? 'ไม่ระบุชื่อผู้รับ'}
                   {p.receiver.phone ? ` · ${p.receiver.phone}` : ''}
                 </span>
-                <span className="text-sm text-default-500">
+                <span className="text-sm text-default-700">
                   {[
                     p.receiver.subdistrict && `ต.${p.receiver.subdistrict}`,
                     p.receiver.district && `อ.${p.receiver.district}`,
@@ -668,11 +660,11 @@ function DiffTable({ rows }: { rows: AddressDiffRow[] }) {
           </div>
           <dl className="mb-0 mt-1.5 grid grid-cols-1 gap-1 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-default-500">ในคำสั่งซื้อ</dt>
+              <dt className="text-xs text-default-700">ในคำสั่งซื้อ</dt>
               <dd className="mb-0 text-sm text-default-900">{r.order ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-xs text-default-500">บนพัสดุ iShip</dt>
+              <dt className="text-xs text-default-700">บนพัสดุ iShip</dt>
               <dd className="mb-0 text-sm text-default-900">{r.parcel ?? '—'}</dd>
             </div>
           </dl>
@@ -706,7 +698,7 @@ function ResolutionChoice({
       />
       <span>
         <span className="block text-sm font-medium text-default-900">{label}</span>
-        <span className="block text-xs text-default-500">{help}</span>
+        <span className="block text-xs text-default-700">{help}</span>
       </span>
     </label>
   )
@@ -732,7 +724,7 @@ function EmptyState({
       />
       {searching ? (
         <>
-          <p className="mb-3 mt-2 text-sm text-default-500">
+          <p className="mb-3 mt-2 text-sm text-default-700">
             ไม่พบพัสดุที่ตรงกับ &laquo;{query}&raquo;
           </p>
           <button
@@ -745,7 +737,7 @@ function EmptyState({
         </>
       ) : (
         <>
-          <p className="mb-3 mt-2 text-sm text-default-500">
+          <p className="mb-3 mt-2 text-sm text-default-700">
             ไม่พบพัสดุที่ยังไม่ได้ผูกในช่วง 7 วันล่าสุด — iShip ให้ค้นย้อนหลังได้ไม่เกิน 7 วัน
           </p>
           {onSwitchToCreate && (
