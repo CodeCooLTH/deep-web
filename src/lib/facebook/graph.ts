@@ -789,6 +789,10 @@ export async function sendStickerMessage(
   pageToken: string,
   recipientId: string,
   stickerId: string,
+  /** ตอบทับข้อความ mid นี้ (user สั่ง 2026-08-04 "กด sticker จะถือว่าเป็น reply อัตโนมัติ")
+   *  เอกสาร Sticker API ไม่ได้พูดถึง reply_to ไว้ — เป็น field ระดับคำขอเดียวกับข้อความปกติ จึงส่ง
+   *  แบบ best-effort: ถ้า Meta ปฏิเสธ ผู้เรียก (sendOutboundMessage) จะลองใหม่แบบไม่มี reply_to */
+  replyToMid?: string | null,
   tag?: string,
 ): Promise<string> {
   const json = await graphFetch('/me/messages', pageToken, {
@@ -798,6 +802,7 @@ export async function sendStickerMessage(
       ...(tag ? { messaging_type: 'MESSAGE_TAG', tag } : { messaging_type: 'RESPONSE' }),
       // sticker_id เป็น field ระดับ message (ไม่ใช่ attachment) ตามตัวอย่างในเอกสาร
       message: { sticker_id: stickerId },
+      ...(replyToMid ? { reply_to: { mid: replyToMid } } : {}),
     },
   })
   return (json.message_id as string | undefined) ?? ''

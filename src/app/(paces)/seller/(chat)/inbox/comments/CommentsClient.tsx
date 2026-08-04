@@ -659,15 +659,27 @@ export default function CommentsClient({
           {/* ไอคอน 36px: เล็กกว่ากติกา 44px ของโปรเจกต์ แต่ pill สูง ~40px ทั้งแถบเป็นพื้นที่แตะของ
               ช่องพิมพ์อยู่แล้ว และ user สั่งตรง ๆ ให้เล็กลง ("ใหญ่เทอะทะ") — บันทึกไว้เป็นการตัดสินใจ
               ไม่ใช่ความพลาด */}
-          <button
-            type="button"
-            onClick={() => setEmojiOpen((v) => !v)}
-            aria-label="เลือกอิโมจิ"
-            aria-expanded={emojiOpen}
-            className="hover:bg-default-200 text-default-700 flex size-9 shrink-0 items-center justify-center rounded-full"
-          >
-            <Icon icon="mood-smile" className="text-lg" />
-          </button>
+          {/* แผงอิโมจิต้องยึดกับ "ปุ่มนี้" ไม่ใช่ยึดกับแถวทั้งแถว (user report 2026-08-04
+              "panel มันเพี้ยน" — ก่อนหน้านี้ relative อยู่ที่แถว แผงจึงไปเริ่มที่ขอบซ้ายสุดของแถว
+              ห่างจากปุ่มที่กดไปครึ่งจอ) + align right เพราะปุ่มอยู่ชิดขวาของ pill */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setEmojiOpen((v) => !v)}
+              aria-label="เลือกอิโมจิ"
+              aria-expanded={emojiOpen}
+              className="hover:bg-default-200 text-default-700 flex size-9 items-center justify-center rounded-full"
+            >
+              <Icon icon="mood-smile" className="text-lg" />
+            </button>
+            {emojiOpen && (
+              <EmojiPicker
+                align="right"
+                onSelect={(emoji) => setReplyText((prev) => prev + emoji)}
+                onClose={() => setEmojiOpen(false)}
+              />
+            )}
+          </div>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -689,12 +701,6 @@ export default function CommentsClient({
             </button>
           )}
         </div>
-        {emojiOpen && (
-          <EmojiPicker
-            onSelect={(emoji) => setReplyText((prev) => prev + emoji)}
-            onClose={() => setEmojiOpen(false)}
-          />
-        )}
       </div>
       {/* BR-23 บังคับให้เตือนถาวร ห้ามเป็น toast ที่หายไป — แต่ไม่ต้องเป็นแถบสีเต็มความกว้าง
           ย้ายมาไว้ใต้ช่องพิมพ์เป็นบรรทัดเดียว text-2xs: ยังอ่านได้ตลอดเวลาที่พิมพ์ (คนมองที่ช่องพิมพ์)

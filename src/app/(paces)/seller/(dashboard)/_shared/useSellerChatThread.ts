@@ -836,6 +836,13 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
        * fileId และ URL เต็ม) จึงโชว์รูปจาก CDN ได้ทันที แล้วพอ POST สำเร็จ refetch จะแทนด้วยแถวจริง
        * ที่ชี้ไฟล์ที่ mirror ไว้ฝั่งเรา (URL ของ Meta หมดอายุได้ — ห้ามเก็บถาวร)
        */
+      /**
+       * กดสติกเกอร์จากเมนูกดค้าง = ตอบทับข้อความนั้น (user สั่ง 2026-08-04 "ถ้ากด sticker จะถือว่า
+       * เป็น reply อัตโนมัติ") — ใช้ replyingTo ตัวเดียวกับการตอบด้วยข้อความ ไม่มี state ใหม่:
+       * เมนูกดค้างตั้ง replyingTo ให้อยู่แล้ว สติกเกอร์จึงไปผูกการตอบเองโดยไม่ต้องต่อสายเพิ่ม
+       * (Meta ไม่ได้ระบุว่า sticker รองรับ reply_to — service ลองใหม่แบบไม่ผูกให้ถ้าถูกปฏิเสธ)
+       */
+      const replyTarget = replyingTo
       const localId = `local-s${localIdRef.current++}-${Date.now()}`
       const optimistic: ChatMessageView = {
         id: localId,
@@ -846,6 +853,12 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         body: null,
         imageUrl: sticker.imageUrl,
         createdAt: new Date().toISOString(),
+        replyTo: replyTarget
+          ? {
+              body: replyTarget.body ?? '[รูปภาพ]',
+              senderRole: replyTarget.senderRole,
+            }
+          : null,
         _status: 'sending',
       } as ChatMessageView
       setMessages((prev) => [...prev, optimistic])
@@ -858,6 +871,9 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
             body: null,
             stickerId: sticker.id,
             stickerImageUrl: sticker.imageUrl,
+            ...(replyTarget && !replyTarget.id.startsWith('local-')
+              ? { replyToMessageId: replyTarget.id }
+              : {}),
           }),
         })
         if (!res.ok) {
@@ -867,6 +883,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' } : m)))
           return false
         }
+        setReplyingTo(null) // ส่งแล้วเลิกโหมดตอบ เหมือนส่งข้อความตอบสำเร็จ
         await refetchNewer()
         // แถวจริงมาแล้ว (refetch) → เอาบับเบิลชั่วคราวออก
         setMessages((prev) => prev.filter((m) => m.id !== localId))
@@ -877,7 +894,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         return false
       }
     },
-    [conversationId, refetchNewer],
+    [conversationId, refetchNewer, replyingTo],
   )
 
   /**

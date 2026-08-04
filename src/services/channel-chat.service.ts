@@ -1281,7 +1281,7 @@ export async function sendOutboundMessage(params: {
     if (params.sticker) {
       // สติกเกอร์: ยิง sticker_id ตรง ๆ ไม่ใช่ attachment (ดู lib/facebook/graph.ts sendStickerMessage)
       // อยู่ใต้กฎหน้าต่างเวลาเดียวกัน จึงส่ง messageTag ไปด้วยเหมือนข้อความปกติ
-      mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, messageTag)
+      mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, params.replyToMid, messageTag)
     } else if (attachment) {
       // presigned URL อายุ 1 ชม. — Meta ดึงไฟล์ไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
       const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
@@ -1306,7 +1306,11 @@ export async function sendOutboundMessage(params: {
     // ลองใหม่แบบไม่มี reply_to เพื่อให้ข้อความยังส่งออกได้ (quote ฝั่งเราแสดงอยู่ดี)
     if (params.replyToMid && !mid) {
       try {
-        if (attachment) {
+        if (params.sticker) {
+          // Meta ไม่ได้ระบุว่า sticker รองรับ reply_to — ปฏิเสธก็ยิงซ้ำแบบไม่ผูกการตอบ
+          // (ผู้ใช้ต้องได้สติกเกอร์ ดีกว่าไม่ได้อะไรเพราะ quote)
+          mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, null, messageTag)
+        } else if (attachment) {
           const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
           // ต้องส่ง kind เดิม ห้ามถอยกลับเป็น 'image' — ไม่งั้นวิดีโอ/ไฟล์จะถูกส่งผิดชนิดเงียบ ๆ
           // เฉพาะรอบ retry (บั๊กแบบที่เห็นเฉพาะตอน Meta ปฏิเสธ reply_to จึงหาเจอยากมาก)

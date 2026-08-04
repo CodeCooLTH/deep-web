@@ -736,6 +736,9 @@ export default function ChatThread({
   // composer improvement #1 (feature 00018) — emoji picker; append ต่อท้ายข้อความ ไม่ปิด picker
   // (ผู้ใช้เลือกหลายตัวต่อกันได้ ปิดเองด้วยคลิกนอก/Escape)
   const [emojiOpen, setEmojiOpen] = useState(false)
+  /** แผงสติกเกอร์เป็นปุ่มของตัวเอง (user สั่ง 2026-08-04 "อยากให้แยก emoji / sticker เป็น 2 icon") */
+  const [stickerOpen, setStickerOpen] = useState(false)
+  const canSendSticker = channel === 'MESSENGER' || channel === 'INSTAGRAM'
   // composer improvement #2/#3 — แผงเหนือช่องพิมพ์ (ข้อความสำเร็จรูป / AI ช่วยร่างคำตอบ)
   // state เดียวคุมทั้งคู่ (user สั่ง 2026-07-23: "ต้องไม่ขึ้นซ้อนกัน เปิดได้ทีละอัน") — เดิมแยก
   // boolean คนละตัว กดสองปุ่มแล้วกางพร้อมกันทับกัน (ทั้งคู่เป็นแถบ full-bleed -mt ติดลบ)
@@ -904,6 +907,25 @@ export default function ChatThread({
      * แย่กว่าปุ่มที่ไม่มี) ส่วนข้อความ optimistic/ลบแล้วไม่ต้องกันเพิ่ม เพราะ body ยังอ่านได้และ
      * การสร้างออเดอร์ไม่ได้อ้างอิง id ของข้อความเลย
      */
+    /**
+     * ส่งสติกเกอร์ตอบข้อความนี้ (user สั่ง 2026-08-04: "อยากให้มี sticker บน long press ... ถ้ากด
+     * sticker จะถือว่าเป็น reply อัตโนมัติ")
+     *
+     * ไม่ใช่รีแอ็กชัน: Meta รับรีแอ็กชันเป็น "อักขระอิโมจิ" เท่านั้น ไม่มีช่องให้ใส่ sticker_id
+     * (ดู sendMessageReaction) — สติกเกอร์คือ "ข้อความชนิดหนึ่ง" จึงส่งเป็นข้อความใหม่ที่ผูก reply_to
+     * ตั้ง replyingTo ให้ก่อนแล้วเปิดแผงเดียวกับปุ่มในแถบพิมพ์ — ไม่มี state/เส้นทางส่งใหม่
+     */
+    if (canSendSticker && !m.isDeleted && !m._status && !m.id.startsWith('local-')) {
+      list.push({
+        key: 'sticker',
+        icon: 'sticker',
+        label: 'สติกเกอร์',
+        onSelect: () => {
+          setReplyingTo(m)
+          setStickerOpen(true)
+        },
+      })
+    }
     if (m.body?.trim()) {
       list.push({
         key: 'order',
@@ -2100,23 +2122,39 @@ export default function ChatThread({
               <Icon icon="mood-smile" className="text-lg" />
             </button>
             {emojiOpen && (
-              <EmojiPicker
-                onSelect={(emoji) => setText((prev) => prev + emoji)}
-                onClose={() => setEmojiOpen(false)}
-                // สติกเกอร์ส่งได้เฉพาะช่องทาง Meta (Graph ของ DEEP ไม่มี sticker_id) — ไม่ส่ง prop
-                // นี้ในเธรด DEEP แล้วแท็บสติกเกอร์จะไม่โผล่เลย ดีกว่าโผล่แล้วกดไม่ได้
-                onSelectSticker={
-                  channel === 'MESSENGER' || channel === 'INSTAGRAM'
-                    ? (sticker) => {
-                        rememberRecentSticker(sticker)
-                        setEmojiOpen(false)
-                        void sendSticker(sticker)
-                      }
-                    : undefined
-                }
-              />
+              <EmojiPicker onSelect={(emoji) => setText((prev) => prev + emoji)} onClose={() => setEmojiOpen(false)} />
             )}
           </div>
+
+          {/* ปุ่มสติกเกอร์แยกจากอิโมจิ (user สั่ง 2026-08-04) — เฉพาะช่องทาง Meta เพราะ Graph ของ
+              แชทเราเอง (DEEP) ไม่มี sticker_id ให้ส่ง. relative ของตัวเอง = แผงยึดกับปุ่มนี้ ไม่ใช่
+              ยึดกับแถวทั้งแถว (สาเหตุที่แผงเคย "เพี้ยน") */}
+          {canSendSticker && (
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setStickerOpen((v) => !v)}
+                disabled={composerDisabled}
+                aria-label="ส่งสติกเกอร์"
+                aria-expanded={stickerOpen}
+                className={`btn btn-icon text-default-600 hover:bg-default-100 ${stickerOpen ? 'bg-default-100' : ''} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+              >
+                <Icon icon="sticker" className="text-lg" />
+              </button>
+              {stickerOpen && (
+                <EmojiPicker
+                  mode="STICKER"
+                  onSelect={() => {}}
+                  onClose={() => setStickerOpen(false)}
+                  onSelectSticker={(sticker) => {
+                    rememberRecentSticker(sticker)
+                    setStickerOpen(false)
+                    void sendSticker(sticker)
+                  }}
+                />
+              )}
+            </div>
+          )}
 
           {/* composer improvement #3 — ปุ่ม AI ช่วยร่างคำตอบ (accent เขียว success ตาม ref) */}
           <button
