@@ -826,6 +826,29 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
    */
   const sendSticker = useCallback(
     async (sticker: { id: string; imageUrl: string }): Promise<boolean> => {
+      /**
+       * บับเบิล optimistic เหมือนส่งข้อความ (user สั่ง 2026-08-04: "อยากให้เหมือนส่งข้อความ คือ
+       * แสดงรูป sticker ก่อน แล้วข้างล่างมี spinner ว่ากำลังส่งไปที่ API เพราะเมื่อกี้ user จะเข้าใจ
+       * ว่าข้อความหายไป")
+       *
+       * รอบก่อนผมตั้งใจไม่ทำ optimistic เพราะบับเบิลอ่าน imageUrl เป็น fileId ใน storage เราเสมอ
+       * → ใส่ URL ของ Meta ลงไปจะได้รูปแตก. แก้ที่ต้นเหตุแล้ว (mediaSrc ใน ChatThread รับทั้ง
+       * fileId และ URL เต็ม) จึงโชว์รูปจาก CDN ได้ทันที แล้วพอ POST สำเร็จ refetch จะแทนด้วยแถวจริง
+       * ที่ชี้ไฟล์ที่ mirror ไว้ฝั่งเรา (URL ของ Meta หมดอายุได้ — ห้ามเก็บถาวร)
+       */
+      const localId = `local-s${localIdRef.current++}-${Date.now()}`
+      const optimistic: ChatMessageView = {
+        id: localId,
+        conversationId,
+        senderUserId: '',
+        senderRole: 'SHOP',
+        type: 'IMAGE',
+        body: null,
+        imageUrl: sticker.imageUrl,
+        createdAt: new Date().toISOString(),
+        _status: 'sending',
+      } as ChatMessageView
+      setMessages((prev) => [...prev, optimistic])
       try {
         const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
           method: 'POST',
@@ -840,12 +863,17 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         if (!res.ok) {
           const body = await res.json().catch(() => null)
           pacesToast.error(body?.error ?? 'ส่งสติกเกอร์ไม่สำเร็จ')
+          // คงบับเบิลไว้เป็นสถานะ failed — หายไปเงียบ ๆ คือสิ่งที่ user บอกว่าทำให้เข้าใจว่าข้อความหาย
+          setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' } : m)))
           return false
         }
         await refetchNewer()
+        // แถวจริงมาแล้ว (refetch) → เอาบับเบิลชั่วคราวออก
+        setMessages((prev) => prev.filter((m) => m.id !== localId))
         return true
       } catch {
         pacesToast.error('ส่งสติกเกอร์ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' } : m)))
         return false
       }
     },
