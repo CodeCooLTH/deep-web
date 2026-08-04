@@ -141,10 +141,11 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
   const tabsRef = useRef<HTMLDivElement | null>(null)
   const touchStart = useRef<{ x: number; y: number; inHeader: boolean }>({ x: 0, y: 0, inHeader: false })
 
+  /** ปัดสลับ "ชิปที่เห็นอยู่บนจอ" ไม่ผูกกับ STATUS_TABS ตายตัว — ร้านขายออนไลน์แถวนี้เป็นสถานะพัสดุ */
   const switchTabByDir = (dir: number) => {
-    const idx = STATUS_TABS.findIndex((t) => t.value === localStatus)
+    const idx = chipRow.findIndex((c) => c.active)
     const next = idx + dir
-    if (next >= 0 && next < STATUS_TABS.length) handleStatusTab(STATUS_TABS[next].value)
+    if (next >= 0 && next < chipRow.length) chipRow[next].select()
   }
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0]
@@ -170,7 +171,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
     tabsRef.current
       ?.querySelector('[data-active="true"]')
       ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
-  }, [localStatus])
+  }, [localStatus, stage])
 
   /**
    * เขียน query ใหม่โดยคงพารามิเตอร์อีกตัวไว้เสมอ — `?status=` (สถานะการขาย) กับ `?stage=`
@@ -218,8 +219,46 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
     return counts
   }, [orders])
 
-  /** ร้านที่ไม่ใช่ ONLINE_SALES ไม่มีพัสดุให้ไล่ → shippingStage undefined ทุกแถว → ไม่มีแถวชิปนี้ */
+  /** ร้านที่ไม่ใช่ ONLINE_SALES ไม่มีพัสดุให้ไล่ → shippingStage undefined ทุกแถว → ไม่มีแกนนี้ */
   const hasStageAxis = STAGE_CHIPS.some((k) => (stageCounts[k] ?? 0) > 0) || stage !== null
+
+  /**
+   * ชิปแถวเดียวบนมือถือ — ร้านขายออนไลน์ได้ "สถานะพัสดุ" ร้านอื่นได้ "สถานะการขาย" แบบเดิม
+   * (user เคาะ 2026-08-04 หลังลองของจริง 2 รอบ)
+   *
+   * เหตุผลที่เป็นการ *แทนที่* ไม่ใช่ *เพิ่มแถว*: สองแกนนี้ทับกันเกือบสนิทสำหรับร้านขายออนไลน์
+   * (บนจอจริงของ user: รอดำเนินการ 5 กับ รอเลขพัสดุ 4 คือออเดอร์กองเดียวกัน) การมี 2 แถว
+   * จึงได้ความสามารถเพิ่มน้อยมากแลกกับหัวสติกกี้ที่สูงขึ้นและชิปโดนตัดขอบทั้งคู่
+   * เป็นเหตุผลชุดเดียวกับที่ไทล์บนหน้าแรกเลือกเปลี่ยนทั้งชุดแทนที่จะเพิ่มช่อง (OrderStatusBand)
+   *
+   * แกนที่ถูกแทน (สำเร็จ/ยกเลิก ฯลฯ) ไม่ได้หายไป — ย้ายเข้าโมดัลตัวกรอง ซึ่งเป็นที่ของ
+   * "ตัวกรองที่นาน ๆ ใช้ที" ส่วนแถวชิปเป็นที่ของ "กองงานที่สลับดูทุกวัน"
+   */
+  const chipRow: { key: string; label: string; count: number; active: boolean; select: () => void }[] =
+    hasStageAxis
+      ? [
+          {
+            key: 'all',
+            label: 'ทั้งหมด',
+            count: orders.length,
+            active: stage === null,
+            select: () => pushQuery({ stage: null }),
+          },
+          ...STAGE_CHIPS.map((k) => ({
+            key: k,
+            label: SHIPPING_STAGE_LABEL[k],
+            count: stageCounts[k] ?? 0,
+            active: stage === k,
+            select: () => pushQuery({ stage: k }),
+          })),
+        ]
+      : STATUS_TABS.map((t) => ({
+          key: t.value,
+          label: t.label,
+          count: statusCounts[t.value] ?? 0,
+          active: localStatus === t.value,
+          select: () => handleStatusTab(t.value),
+        }))
 
   // ─── filter pipeline ─────────────────────────────────────────────────────────
   /** กรองด้วย stage อย่างเดียว — ตารางเดสก์ท็อปมีตัวกรอง status/ประเภท/ค้นหาของตัวเองอยู่แล้ว */
@@ -295,9 +334,13 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
     }
   }
 
-  // จุดแดงบนปุ่มตัวกรอง — ต้องนับ stage ด้วย ไม่งั้นกรองสถานะพัสดุอยู่แต่ปุ่มดูเหมือนไม่ได้กรองอะไร
-  // (บนมือถือไม่มีชิปให้เห็นแล้ว ปุ่มนี้คือที่เดียวที่บอกว่ากำลังกรองอยู่)
-  const activeFilterCount = (typeFilter ? 1 : 0) + (stage ? 1 : 0)
+  /**
+   * จุดแดงบนปุ่มตัวกรอง = "มีตัวกรองที่มองไม่เห็นบนจอเปิดอยู่" จึงนับเฉพาะแกนที่ไม่ได้อยู่บนแถวชิป
+   * แกนที่อยู่บนชิปไม่ต้องนับ เพราะชิปที่ถูกเลือกบอกตัวเองอยู่แล้ว — ถ้านับด้วยจุดแดงจะติดตลอดเวลา
+   * จนกลายเป็นสัญญาณที่ไม่มีความหมาย
+   */
+  const activeFilterCount =
+    (typeFilter ? 1 : 0) + (hasStageAxis && localStatus !== 'all' ? 1 : 0)
 
   return (
     <>
@@ -399,66 +442,36 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
           </Link>
         </div>
 
-        {/* แถบ "กำลังดูเฉพาะ…" ถูกแทนด้วยชิปด้านล่าง (2026-08-04) — ชิปบอกทั้งว่ากรองอะไรอยู่
-            และเปลี่ยน/ล้างได้ในที่เดียว แถบแจ้งเตือนจึงเหลือแค่บรรทัดซ้ำที่กินพื้นที่หัวสติกกี้ */}
-
-        {/* filter chips — เลื่อนแนวนอน (ซ่อน scrollbar); สลับด้วย swipe ทั้งจอ
+        {/* filter chips — แถวเดียว เลื่อนแนวนอน (ซ่อน scrollbar); สลับด้วย swipe ทั้งจอ
+            รายการชิปมาจาก chipRow: ร้านขายออนไลน์ = สถานะพัสดุ · ร้านอื่น = สถานะการขายแบบเดิม
             เปลี่ยนจาก underline-tab → chip row ตาม mockup v10 Frame 3 ".chips" style
             HR7: [&::-webkit-scrollbar]:hidden = arbitrary selector (Tailwind utility ไม่มี token) — ซ่อน scrollbar Safari/Chrome */}
         <div
           ref={tabsRef}
           className="mt-2 flex gap-2 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
         >
-          {STATUS_TABS.map((tab) => {
-            const active = localStatus === tab.value
-            const count  = statusCounts[tab.value] ?? 0
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                data-active={active}
-                onClick={() => handleStatusTab(tab.value)}
-                className={cn(
-                  'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
-                  // HR7: rounded-full ไม่ใช่ Paces .badge default radius แต่ตาม mockup v10 chip style
-                  'rounded-full px-3.5 py-1.5 text-xs font-medium',
-                  active
-                    ? 'bg-primary text-white'
-                    : 'bg-default-100 text-default-500',
-                )}
-              >
-                {tab.label}
-                {count > 0 && (
-                  <span className="ms-1 font-bold tabular-nums">{count}</span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* เคยมีแถวชิปสถานะพัสดุอยู่ตรงนี้ — ถอดออก 2026-08-04 หลัง user ลองบนเครื่องจริงแล้วบอกว่า
-            "ใช้ยาก": 2 แถวหน้าตาเหมือนกันเป๊ะ เลื่อนแนวนอนแยกกัน และถูกตัดขอบขวาทั้งคู่ ทำให้
-            หัวสติกกี้สูงขึ้นจนการ์ดใบแรกโดนดันตกจอ. ย้ายไปโมดัลตัวกรอง (ปุ่มไอคอนด้านบน) แทน
-            — เดสก์ท็อปยังเป็นแถวชิป เพราะกว้างพอให้เห็นครบโดยไม่ต้องเลื่อน
-
-            แถบด้านล่างจึงต้องกลับมา: พอไม่มีชิป สิ่งเดียวที่บอกว่ากำลังกรองอยู่คือจุดแดงบนปุ่มกรอง
-            ซึ่งไม่ได้บอกว่ากรองด้วยอะไร — คนที่กดมาจากไทล์หน้าแรกจะเห็นรายการสั้นลงแบบไม่มีคำอธิบาย
-            ต่างจากแถวชิปตรงที่แถบนี้โผล่เฉพาะตอนกรองอยู่จริง ไม่กินที่ถาวร */}
-        {stage && (
-          <div className="bg-primary/15 text-primary-ink mb-2 flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs">
-            <Icon icon="filter" className="shrink-0" />
-            <span className="min-w-0 flex-1 truncate">
-              {SHIPPING_STAGE_LABEL[stage]} ({filtered.length} รายการ)
-            </span>
+          {chipRow.map((chip) => (
             <button
+              key={chip.key}
               type="button"
-              onClick={() => pushQuery({ stage: null })}
-              className="shrink-0 font-medium hover:underline"
+              data-active={chip.active}
+              onClick={chip.select}
+              className={cn(
+                'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
+                // HR7: rounded-full ไม่ใช่ Paces .badge default radius แต่ตาม mockup v10 chip style
+                'rounded-full px-3.5 py-1.5 text-xs font-medium',
+                chip.active
+                  ? 'bg-primary text-white'
+                  : 'bg-default-100 text-default-500',
+              )}
             >
-              ล้าง
+              {chip.label}
+              {chip.count > 0 && (
+                <span className="ms-1 font-bold tabular-nums">{chip.count}</span>
+              )}
             </button>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
 
       {/* ─── Order cards + lazy-load ──────────────────────────────────────────── */}
@@ -510,27 +523,28 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
           </div>
 
           <div className="flex-1 overflow-auto p-4">
-            {/* สถานะพัสดุ — อยู่บนสุดเพราะเป็นตัวกรองที่ร้านขายออนไลน์ใช้ทุกวัน (ไล่งานค้าง)
-                ส่วนประเภทออเดอร์เป็นของนาน ๆ ใช้ที · แถวหน้าตาเดียวกับประเภทออเดอร์ทุกประการ */}
+            {/* สถานะการขาย — เฉพาะร้านขายออนไลน์ ที่แถวชิปถูกใช้ไปกับสถานะพัสดุแล้ว
+                (ร้าน vertical อื่นแกนนี้ยังอยู่บนแถวชิป จึงไม่ต้องมีซ้ำในนี้)
+                แถวหน้าตาเดียวกับประเภทออเดอร์ทุกประการ */}
             {hasStageAxis && (
               <>
-                <p className="mb-2 text-sm font-medium text-default-900">สถานะพัสดุ</p>
+                <p className="mb-2 text-sm font-medium text-default-900">สถานะการขาย</p>
                 <div className="mb-5 space-y-1">
-                  {[null, ...STAGE_CHIPS].map((key) => {
-                    const active = stage === key
-                    const count = key ? stageCounts[key] ?? 0 : orders.length
+                  {STATUS_TABS.map((tab) => {
+                    const active = localStatus === tab.value
+                    const count = statusCounts[tab.value] ?? 0
                     return (
                       <button
-                        key={key ?? 'all'}
+                        key={tab.value}
                         type="button"
-                        onClick={() => pushQuery({ stage: key })}
+                        onClick={() => handleStatusTab(tab.value)}
                         className={cn(
                           'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
                           active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
                         )}
                       >
                         <span>
-                          {key ? SHIPPING_STAGE_LABEL[key] : 'ทุกสถานะ'}
+                          {tab.label}
                           <span className="ms-1.5 tabular-nums text-default-400">{count}</span>
                         </span>
                         {active && <Icon icon="check" className="text-base" />}
@@ -568,8 +582,9 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
               type="button"
               onClick={() => {
                 setTypeFilter('')
-                // ล้าง stage ด้วย ไม่งั้นกด "ล้างตัวกรอง" แล้วรายการยังสั้นอยู่โดยไม่มีอะไรอธิบาย
-                if (stage) pushQuery({ stage: null })
+                // ล้างเฉพาะสิ่งที่โมดัลนี้คุม — แถวชิปด้านนอกเป็นการเลือกของผู้ใช้ที่ยังเห็นอยู่
+                // ถ้าล้างไปด้วยจะเหมือนปุ่มนี้แอบไปกดชิปแทนเขา
+                if (hasStageAxis && localStatus !== 'all') handleStatusTab('all')
               }}
               className="btn flex-1 border-default-300 text-default-700"
             >
