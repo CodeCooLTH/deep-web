@@ -86,6 +86,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // ไม่งั้นกดไทล์ที่บอก 5 แล้วเข้ามาเจอ 4 ใบ (ดูคอมเมนต์ที่ตัวฟังก์ชันใน lib/order-stage.ts)
   const isOnlineSales = shop.vertical === 'ONLINE_SALES'
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
+    // เลขพัสดุมาได้ 2 ทางและเก็บคนละตาราง — ต้องอ่านทั้งคู่ ไม่งั้นออเดอร์ที่ร้าน "ส่งเอง"
+    // (ShipmentTracking: provider = ชื่อขนส่งที่ผู้ขายเลือก, ไม่มีรหัส) จะไม่ขึ้นเลขพัสดุเลย
+    // ทั้งที่มีเลขอยู่ — เจอตอน user ส่งภาพหน้าจอ "แจ้งเลขพัสดุ" มาให้ดู 2026-08-04
+    // ให้พัสดุ iShip ชนะเมื่อมีทั้งคู่ เพราะเป็นใบที่ระบบติดตามสถานะขนส่งให้จริง
     shipment: o.shipments?.[0]
       ? {
           trackingNo: o.shipments[0].trackingNo ?? null,
@@ -93,7 +97,14 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           courierName: o.shipments[0].courierName ?? null,
           provider: o.shipments[0].provider ?? 'ISHIP',
         }
-      : null,
+      : o.shipmentTracking
+        ? {
+            trackingNo: o.shipmentTracking.trackingNo ?? null,
+            courierCode: null,
+            courierName: o.shipmentTracking.provider ?? null,
+            provider: 'MANUAL',
+          }
+        : null,
     shippingStage: isOnlineSales
       ? deriveShippingStage({
           status: o.status,

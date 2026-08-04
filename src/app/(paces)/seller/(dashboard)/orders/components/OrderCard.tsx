@@ -128,7 +128,7 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
   const strip = STATUS_STRIP[order.status] ?? 'border-default-300'
   const hasChannel = Boolean(order.salesChannel && SALES_CHANNEL_LABELS[order.salesChannel])
   // null = ยังไม่มีไฟล์โลโก้ของขนส่งเจ้านี้ → ตกไปใช้ตัวย่อ (ดู lib/iship/courier.ts)
-  const courierLogo = courierLogoUrl(order.shipment?.courierCode)
+  const courierLogo = courierLogoUrl(order.shipment?.courierCode, order.shipment?.courierName)
   const hasPayment = Boolean(order.paymentMethod)
 
   return (
@@ -220,6 +220,7 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
         {order.shipment?.trackingNo && (
           <div className="mt-2.5 flex items-center gap-2 border-t border-dashed border-default-200 pt-2.5">
             {/* แพลตฟอร์มที่เปิดพัสดุ — ตอนนี้มี iShip เจ้าเดียว แต่เช็ค provider ไว้ ไม่ hardcode */}
+            {/* MANUAL = ร้านส่งเองแล้วมากรอกเลข ไม่ได้เปิดผ่านแพลตฟอร์มไหน จึงไม่มีไอคอนแพลตฟอร์ม */}
             {order.shipment.provider === 'ISHIP' && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
