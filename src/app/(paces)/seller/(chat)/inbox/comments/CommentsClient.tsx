@@ -79,6 +79,28 @@ function isVideoPost(mediaType: string | null | undefined): boolean {
   return !!mediaType && (mediaType === 'video' || mediaType.includes('video'))
 }
 
+/**
+ * หน้าต่าง "ทักแชทส่วนตัวจากคอมเมนต์" ของ Meta = 7 วันนับจากเวลาที่ลูกค้าคอมเมนต์
+ * (คนละตัวกับหน้าต่าง 24 ชม. ของการตอบข้อความในกล่องแชท ซึ่งนับจากข้อความล่าสุดของลูกค้า)
+ *
+ * ทำไมต้องโชว์ (user สั่ง 2026-08-04): พ้น 7 วันแล้วทักไม่ได้อีกเลย ผู้ขายต้องเห็นตัวเลขตอนกำลัง
+ * ตัดสินใจว่าจะตอบสาธารณะหรือทักหลังไมค์ ไม่ใช่ไปรู้ตอนกดแล้วโดน Meta ปฏิเสธ
+ */
+const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+/** เหลือน้อยกว่า 1 วัน = เร่งสายตา (ใช้ token warning ตามระดับความเร่ง ไม่ใช่ danger ซึ่งแปลว่าพัง) */
+const PRIVATE_REPLY_URGENT_MS = 24 * 60 * 60 * 1000
+
+function privateReplyWindow(createdTime: string): { text: string; expired: boolean; urgent: boolean } {
+  const left = new Date(createdTime).getTime() + PRIVATE_REPLY_WINDOW_MS - Date.now()
+  if (!Number.isFinite(left)) return { text: '', expired: false, urgent: false }
+  if (left <= 0) return { text: 'หมดเวลาทักแชท', expired: true, urgent: false }
+  const days = Math.floor(left / 86_400_000)
+  const hours = Math.floor((left % 86_400_000) / 3_600_000)
+  const minutes = Math.floor((left % 3_600_000) / 60_000)
+  const parts = days > 0 ? `${days} วัน` : hours > 0 ? `${hours} ชม.` : `${minutes} น.`
+  return { text: `ทักแชทได้อีก ${parts}`, expired: false, urgent: left < PRIVATE_REPLY_URGENT_MS }
+}
+
 export default function CommentsClient({
   initialPosts,
   shopId,
@@ -129,6 +151,15 @@ export default function CommentsClient({
   const [playerWidth, setPlayerWidth] = useState(0)
   const [posterRatio, setPosterRatio] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const replyBoxRef = useRef<HTMLTextAreaElement>(null)
+  /**
+   * "การเลือกโพสต์รอบนี้มาจากการที่ผู้ใช้กดแถวเอง" (user สั่ง 2026-08-04)
+   *
+   * ต้องเป็น ref ไม่ใช่ state และต้องแยกจาก selectedId เพราะ selectedId ถูกตั้งจาก 3 ทาง:
+   * ผู้ใช้กดแถว / auto-select โพสต์แรกบนเดสก์ท็อป / โหลดเธรดซ้ำรอบ poll — มีแต่ทางแรกที่ควร
+   * ไปยึดโฟกัสช่องพิมพ์ อีกสองทางถ้าโฟกัสด้วยจะเด้งคีย์บอร์ดขึ้นมาเองตอนเพิ่งเปิดหน้า
+   */
+  const focusReplyOnLoad = useRef(false)
 
   const refreshPosts = useCallback(async (keyword: string, ch: string | null) => {
     try {
@@ -216,6 +247,35 @@ export default function CommentsClient({
     if (selectedId) void loadThread(selectedId)
   }, [selectedId, loadThread])
 
+  /**
+   * กดแถวในรายการ → พอเธรดโหลดเสร็จ ให้จ่อตอบคอมเมนต์นั้นเลย (user สั่ง 2026-08-04)
+   *
+   * เดิมกดแถวแล้วได้แค่ "เห็น" คอมเมนต์ ต้องไปกดปุ่ม ตอบ อีกทีถึงจะพิมพ์ได้ ทั้งที่เหตุผลเดียว
+   * ที่คนกดแถวคือจะตอบ — Business Suite เปิดมาพร้อมช่อง "Reply as <เพจ>" จ่อไว้ให้แล้ว
+   *
+   * เลือกเป้าหมายเป็น "คอมเมนต์ของลูกค้าที่ใหม่สุดและยังไม่มีคำตอบของเพจ" ไม่ใช่คอมเมนต์ล่าสุด
+   * เฉย ๆ — ล่าสุดอาจเป็นคำตอบของเพจเอง ซึ่งจ่อตอบตัวเองไม่มีความหมาย. ถ้าตอบครบหมดแล้วค่อย
+   * ตกไปใช้คอมเมนต์ลูกค้าที่ใหม่สุดแทน (ยังตอบเสริมได้) ไม่มีเลยก็ไม่ต้องจ่ออะไร
+   */
+  useEffect(() => {
+    if (!focusReplyOnLoad.current || !thread) return
+    focusReplyOnLoad.current = false
+    const list = thread.comments
+    const byNewest = list
+      .filter((c) => !c.isFromPage && !c.isDeleted)
+      .sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime())
+    const target =
+      byNewest.find(
+        (c) => !list.some((r) => r.isFromPage && r.parentExternalId === c.externalCommentId),
+      ) ?? byNewest[0]
+    if (!target) return
+    setReplyTo(target)
+    replyBoxRef.current?.focus()
+    document
+      .querySelector(`[data-comment-id="${target.id}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [thread])
+
   // เดสก์ท็อปเลือกโพสต์แรกให้ (คอลัมน์ขวาว่างเปล่าดูเหมือนหน้าพัง) — มือถือปล่อยให้เห็นรายการ
   useEffect(() => {
     if (selectedId || posts.length === 0) return
@@ -268,6 +328,11 @@ export default function CommentsClient({
     }
     return list
       .filter((c) => !c.parentExternalId)
+      // ใหม่สุดอยู่บน (user สั่ง 2026-08-04 "ให้ขึ้น Newest เสมอ เหมือน Business Suite") — service
+      // ส่งมาเก่า→ใหม่ ซึ่งแปลว่าคอมเมนต์ที่เพิ่งเข้ามา (ตัวที่ต้องรีบตอบ) ไปจมอยู่ล่างสุดของโพสต์
+      // ที่มีคอมเมนต์เป็นร้อย. เรียงเฉพาะ "คอมเมนต์ระดับบน" เท่านั้น — คำตอบใต้แต่ละอันยังเก่า→ใหม่
+      // ตามเดิม เพราะข้างในนั้นคือบทสนทนา อ่านกลับหัวไม่รู้เรื่อง (Business Suite ก็ทำแบบนี้)
+      .sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime())
       .map((c) => {
         const replies = children.get(c.externalCommentId) ?? []
         const answeredSelf = c.isFromPage || replies.some((r) => r.isFromPage)
@@ -484,7 +549,11 @@ export default function CommentsClient({
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setSelectedId(p.id)}
+                  onClick={() => {
+                    // ธงนี้ทำให้ effect หลังเธรดโหลดเสร็จรู้ว่าควรจ่อตอบให้ (ดู focusReplyOnLoad)
+                    focusReplyOnLoad.current = true
+                    setSelectedId(p.id)
+                  }}
                   className={`flex w-full items-start gap-3 p-3 text-start ${
                     p.id === selectedId ? 'bg-primary/5' : 'hover:bg-default-100'
                   }`}
@@ -531,9 +600,16 @@ export default function CommentsClient({
                     <span className="text-default-700 text-xs">
                       {p.lastCommentAt ? formatChatListTime(p.lastCommentAt) : ''}
                     </span>
+                    {/* วงกลมตัวเลขล้วน ไม่ใช่ป้าย "ยังไม่ตอบ N" (user สั่ง 2026-08-04 "ให้เหลือแค่ 3
+                        แบบเดียวกับ chat list") — ตำแหน่งใต้เวลาและหน้าตาตรงกับ badge ที่ยังไม่อ่าน
+                        ในแท็บข้อความเป๊ะ ๆ (InboxList.tsx) คนอ่านสองแท็บนี้สลับกันทั้งวัน ป้ายคนละ
+                        แบบทำให้ต้องแปลความใหม่ทุกครั้งที่สลับ */}
                     {p.unansweredCount > 0 && (
-                      <span className="bg-danger/15 text-danger-ink rounded-full px-2 py-0.5 text-2xs font-semibold">
-                        ยังไม่ตอบ {p.unansweredCount}
+                      <span
+                        className="bg-danger flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white"
+                        aria-label={`ยังไม่ตอบ ${p.unansweredCount}`}
+                      >
+                        {p.unansweredCount > 99 ? '99+' : p.unansweredCount}
                       </span>
                     )}
                   </span>
@@ -757,13 +833,21 @@ export default function CommentsClient({
                       c={comment}
                       channel={thread?.channel}
                       answered={answered}
+                      active={replyTo?.id === comment.id}
                       onReply={() => setReplyTo(comment)}
                     />
                     {replies.length > 0 && (
                       // ย่อหน้าเฉย ๆ แบบ Facebook — เส้นตั้งของเดิมทำให้อ่านเป็น "บล็อกโค้ด" มากกว่าบทสนทนา
                       <div className="ms-10 mt-2 space-y-3">
                         {replies.map((r) => (
-                          <CommentBubble key={r.id} c={r} channel={thread?.channel} isReply onReply={() => setReplyTo(r)} />
+                          <CommentBubble
+                            key={r.id}
+                            c={r}
+                            channel={thread?.channel}
+                            isReply
+                            active={replyTo?.id === r.id}
+                            onReply={() => setReplyTo(r)}
+                          />
                         ))}
                       </div>
                     )}
@@ -847,6 +931,7 @@ export default function CommentsClient({
                       />
                     )}
                     <textarea
+                      ref={replyBoxRef}
                       rows={2}
                       aria-label={replyTo ? 'พิมพ์คำตอบสาธารณะ' : 'เขียนความคิดเห็นในนามเพจ'}
                       className="form-textarea grow"
@@ -885,6 +970,7 @@ function CommentBubble({
   onReply,
   isReply = false,
   answered = false,
+  active = false,
 }: {
   c: CommentItem
   channel?: { name: string; avatarUrl: string | null; provider: string }
@@ -892,6 +978,8 @@ function CommentBubble({
   isReply?: boolean
   /** มีคำตอบของเพจอยู่ข้างใต้แล้ว — ไม่งั้นผู้ขายต้องจำเองว่าตอบอันไหนไปแล้ว (critique P1) */
   answered?: boolean
+  /** คอมเมนต์ที่ช่องพิมพ์กำลังจ่อตอบอยู่ (user สั่ง 2026-08-04 "ใส่สีฟ้าอ่อน ๆ พื้นหลังให้ด้วย") */
+  active?: boolean
 }) {
   /**
    * โครงตามภาพ Facebook จริงที่ user ส่งมา 2026-08-03 ("ต้องดูรู้เรื่องกว่านี้ ตอนนี้มันดูยาก แยกยาก"):
@@ -913,8 +1001,10 @@ function CommentBubble({
     : (c.fromName ?? 'ผู้ใช้ Facebook')
   const avatarSize = isReply ? 'size-7' : 'size-8'
 
+  const chatWindow = c.isFromPage || c.isDeleted ? null : privateReplyWindow(c.createdTime)
+
   return (
-    <div className="flex items-start gap-2">
+    <div className="flex items-start gap-2" data-comment-id={c.id}>
       {c.isFromPage && channel?.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={channel.avatarUrl} alt="" className={`${avatarSize} shrink-0 rounded-full object-cover`} />
@@ -936,9 +1026,12 @@ function CommentBubble({
 
       <div className="min-w-0 flex-1">
         {/* บับเบิลหุ้มเนื้อหา: inline-block + max-w กันคอมเมนต์ยาวลากเต็มจอบนจอกว้าง */}
+        {/* active = ตัวที่ช่องพิมพ์จ่อตอบอยู่ → พื้นฟ้าจางกว่าปกติหนึ่งขั้น (user สั่ง 2026-08-04)
+            ใช้ความเข้มของ primary เดิม ไม่ใช่สลับไปเฉดอื่น (docs/conventions/contrast-fix-keeps-hue)
+            บับเบิลของเพจอยู่ที่ /10 อยู่แล้ว แต่ไม่ชนกันเพราะมันมีทั้งป้าย "ผู้ดูแลเพจ" และรูปเพจกำกับ */}
         <div
           className={`inline-block max-w-2xl rounded-2xl px-3 py-2 ${
-            c.isFromPage ? 'bg-primary/10' : 'bg-default-100'
+            active ? 'bg-primary/15' : c.isFromPage ? 'bg-primary/10' : 'bg-default-100'
           }`}
         >
           <p className="mb-0 flex flex-wrap items-center gap-1.5">
@@ -973,6 +1066,24 @@ function CommentBubble({
             <button type="button" onClick={onReply} className="font-medium hover:underline">
               ตอบ
             </button>
+          )}
+          {/* นาฬิกาถอยหลังหน้าต่างทักแชทส่วนตัว (user สั่ง 2026-08-04) — Meta ให้ทักแชทจากคอมเมนต์
+              ได้ภายใน 7 วันนับจากเวลาที่ลูกค้าคอมเมนต์ พ้นแล้วทักไม่ได้อีกเลย ผู้ขายต้องเห็นตัวเลข
+              ตรงนี้ ไม่ใช่ไปรู้ตอนกดแล้วโดนปฏิเสธ */}
+          {chatWindow && (
+            <span
+              className={`inline-flex items-center gap-0.5 ${
+                chatWindow.expired
+                  ? 'text-default-600'
+                  : chatWindow.urgent
+                    ? 'text-warning-ink'
+                    : 'text-default-700'
+              }`}
+              title={`ทักแชทส่วนตัวได้ภายใน 7 วันนับจากเวลาคอมเมนต์ (${formatDateTimeTH(c.createdTime)})`}
+            >
+              <Icon icon={chatWindow.expired ? 'clock-off' : 'clock'} className="text-sm" />
+              {chatWindow.text}
+            </span>
           )}
         </div>
       </div>

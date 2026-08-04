@@ -9,9 +9,15 @@
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/chat — ชุด nav-link/nav-tabs ของ Paces
  * (โปรเจกต์ใช้ pattern เดียวกันนี้ที่ ChatbotTabs.tsx ของ settings/chatbot) ใช้ token ล้วน
  * ไม่มี arbitrary value
+ *
+ * badge "ยังไม่ตอบ" (user สั่ง 2026-08-04): เดิมตัวเลขมาทาง prop จาก RSC ของหน้า /inbox/comments
+ * เท่านั้น → ตอนอยู่แท็บ "ข้อความ" เลยไม่เห็นเลย ต้องกดเข้าไปถึงจะรู้ว่ามีค้าง ซึ่งกลับหัวกับหน้าที่
+ * ของ badge. ตอนนี้คอมโพเนนต์ดึงเลขเองจาก /api/chat/comments/unanswered ทุกที่ที่ถูก mount
+ * โดย prop กลายเป็นแค่ค่าตั้งต้นกัน badge กระพริบตอนหน้า comments เพิ่งเรนเดอร์
  */
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 
 const TABS = [
@@ -19,10 +25,66 @@ const TABS = [
   { href: '/inbox/comments', label: 'ความคิดเห็น', icon: 'message-circle-2' },
 ] as const
 
-export default function InboxTabs({ unansweredCount = 0 }: { unansweredCount?: number }) {
+/** ทุก 60 วิ เท่ากับ throttle ของ badge สแปม/พัสดุมีปัญหาใน InboxList — ตัวเลขนี้ไม่ใช่ realtime */
+const REFRESH_MS = 60_000
+
+/**
+ * แคชระดับโมดูล + ชุดผู้ติดตาม
+ *
+ * ทำไมต้องมี: InboxTabs ถูก mount พร้อมกันได้ถึง 2 ตัวเสมอ (ChatRail ฝั่ง ≥1024px และในหน้า
+ * /inbox สำหรับ <1024px ซึ่ง `lg:hidden` แค่ซ่อนด้วย CSS ไม่ได้ unmount) ปล่อยให้ต่างคนต่างยิง
+ * = 2 request ต่อรอบโดยได้เลขเดียวกัน ทั้งที่ query เป็น COUNT ข้ามตาราง
+ */
+let cachedCount = 0
+let fetchedAt = 0
+let inFlight: Promise<void> | null = null
+const listeners = new Set<(n: number) => void>()
+
+async function refreshUnanswered(force = false) {
+  if (!force && Date.now() - fetchedAt < REFRESH_MS) return
+  if (inFlight) return inFlight
+  inFlight = (async () => {
+    try {
+      const res = await fetch('/api/chat/comments/unanswered', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = (await res.json()) as { count?: number }
+      if (typeof data.count !== 'number') return
+      fetchedAt = Date.now()
+      cachedCount = data.count
+      listeners.forEach((fn) => fn(cachedCount))
+    } catch {
+      // เงียบ — badge เป็นข้อมูลเสริม ไม่คุ้มที่จะรบกวนผู้ใช้เมื่อดึงไม่สำเร็จ
+    } finally {
+      inFlight = null
+    }
+  })()
+  return inFlight
+}
+
+export default function InboxTabs({ unansweredCount }: { unansweredCount?: number }) {
   const pathname = usePathname()
   // /inbox/[conversationId] ยังถือว่าอยู่แท็บ "ข้อความ" — เทียบ prefix ไม่ใช่ค่าเป๊ะ
   const isComments = pathname?.startsWith('/inbox/comments') ?? false
+  // prop = ค่าที่ RSC นับมาแล้ว (สดกว่าแคชเสมอ) จึงถือเป็นค่าตั้งต้นและยัดเข้าแคชเลย
+  const [count, setCount] = useState(unansweredCount ?? cachedCount)
+
+  useEffect(() => {
+    if (typeof unansweredCount === 'number') {
+      cachedCount = unansweredCount
+      fetchedAt = Date.now()
+      setCount(unansweredCount)
+    }
+  }, [unansweredCount])
+
+  useEffect(() => {
+    listeners.add(setCount)
+    void refreshUnanswered()
+    const timer = setInterval(() => void refreshUnanswered(), REFRESH_MS)
+    return () => {
+      listeners.delete(setCount)
+      clearInterval(timer)
+    }
+  }, [])
 
   return (
     <div className="border-default-200 flex gap-1 border-b px-4 pt-3">
@@ -40,9 +102,12 @@ export default function InboxTabs({ unansweredCount = 0 }: { unansweredCount?: n
           >
             <Icon icon={t.icon} className="text-base" />
             {t.label}
-            {t.href === '/inbox/comments' && unansweredCount > 0 && (
-              <span className="bg-danger flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs text-white">
-                {unansweredCount}
+            {t.href === '/inbox/comments' && count > 0 && (
+              <span
+                className="bg-danger flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs text-white"
+                aria-label={`ยังไม่ตอบ ${count} ความคิดเห็น`}
+              >
+                {count > 99 ? '99+' : count}
               </span>
             )}
           </Link>
