@@ -157,11 +157,16 @@ export interface CommentPostRow {
   commentCount: number
   unansweredCount: number
   /**
-   * เวลาของคอมเมนต์ลูกค้า **ที่ยังไม่ถูกตอบและเก่าที่สุด** ในโพสต์นี้ (null = ตอบครบแล้ว)
+   * เวลาของคอมเมนต์ลูกค้าที่ยังไม่ถูกตอบ **ที่เก่าที่สุดในกลุ่มที่ยังทักแชทได้** (null = ไม่มีอันไหน
+   * ที่ยังทักได้ — ตอบครบแล้ว หรือของที่ค้างอยู่พ้น 7 วันไปหมดแล้ว)
    *
    * ใช้เดินนับถอยหลังหน้าต่าง "ทักแชทส่วนตัว 7 วัน" ของ Meta ในแถวรายการ (user สั่ง 2026-08-04)
-   * ต้องเป็นตัว **เก่าที่สุด** ไม่ใช่ล่าสุด เพราะอันที่เก่าสุดคืออันที่หมดเวลาก่อน — ถ้าโชว์เวลาของ
-   * คอมเมนต์ใหม่สุด ร้านจะเห็น "เหลืออีก 6 วัน" ทั้งที่มีอันที่เหลือ 2 ชั่วโมงอยู่ในโพสต์เดียวกัน
+   *
+   * ทำไมต้อง "เก่าที่สุดในกลุ่มที่ยังไม่หมดเวลา" ไม่ใช่เก่าที่สุดเฉย ๆ (bug ที่ user เจอบน prod
+   * 2026-08-04: ทุกแถวขึ้น "หมดเวลาทักแชท" ทั้งที่กดเข้าไปแล้วในเธรดยังเหลือ 6 วัน 22 ชั่วโมง):
+   * โพสต์เก่าที่ยิงคอมเมนต์มาเรื่อย ๆ จะมีคอมเมนต์ค้างทั้งอันที่พ้น 7 วันแล้วและอันที่เพิ่งเข้ามา
+   * ปนกัน — ถ้าเอาอันเก่าสุดทั้งกอง แถวจะประกาศว่า "หมดเวลา" ตลอดกาลทั้งที่ยังทักคนใหม่ได้อยู่
+   * ตัวเลขที่ร้านต้องเห็นคือ "เส้นตายที่ใกล้ที่สุดในบรรดาอันที่ยังทำอะไรได้"
    */
   oldestUnansweredAt: Date | null
   lastCommenterName: string | null
@@ -238,6 +243,10 @@ export async function listCommentPosts(params: {
     },
   })
 
+  // ขอบเขตหน้าต่างทักแชทส่วนตัวของ Meta = 7 วัน — คอมเมนต์ที่เก่ากว่านี้ทักไม่ได้อีกแล้ว
+  // คิดครั้งเดียวนอกลูป (ทุกแถวใช้เส้นเดียวกัน) — ค่าคงที่อยู่ที่ UI ด้วย (privateReplyWindow)
+  const dmWindowStart = Date.now() - 7 * 24 * 60 * 60 * 1000
+
   return posts.map((p) => {
     const answered = new Set(
       p.comments.filter((c) => c.isFromPage && c.parentExternalId).map((c) => c.parentExternalId!),
@@ -266,11 +275,10 @@ export async function listCommentPosts(params: {
       fbCommentCount: p.fbCommentCount,
       shareCount: p.shareCount,
       unansweredCount: unanswered.length,
-      // เก่าสุดของกลุ่มที่ยังไม่ตอบ = เส้นตายที่มาถึงก่อน (ดู comment ที่ CommentPostRow)
-      oldestUnansweredAt: unanswered.reduce<Date | null>(
-        (oldest, c) => (oldest === null || c.createdTime < oldest ? c.createdTime : oldest),
-        null,
-      ),
+      // เก่าสุด "ในกลุ่มที่ยังทักแชทได้" = เส้นตายที่ใกล้ที่สุดที่ยังทำอะไรได้ (ดู comment ที่ CommentPostRow)
+      oldestUnansweredAt: unanswered
+        .filter((c) => c.createdTime.getTime() > dmWindowStart)
+        .reduce<Date | null>((oldest, c) => (oldest === null || c.createdTime < oldest ? c.createdTime : oldest), null),
       lastCommenterName: last?.fromName ?? null,
       lastCommentText: last ? (last.message ?? (last.attachmentUrl ? '[รูปภาพ]' : null)) : null,
     }

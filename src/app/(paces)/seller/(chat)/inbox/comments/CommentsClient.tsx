@@ -673,8 +673,13 @@ export default function CommentsClient({
     <div className="flex min-h-0 flex-1">
       {/* ── รายการโพสต์ ─────────────────────────────────────────── */}
       <div
+        // lg:flex-none คู่กับ flex-1 (bug user report prod 2026-08-04 "กดเข้ามาใน tab ความคิดเห็น
+        // ครั้งแรก มันกว้างมาก"): ตอนยังไม่เลือกโพสต์ คลาส `flex-1` ทำให้ flex-basis เป็น 0 แล้ว
+        // grow ทับความกว้าง lg:w-96 — บนมือถือคือสิ่งที่ต้องการ (รายการเต็มจอ) แต่บนเดสก์ท็อป
+        // คอลัมน์บวมกินครึ่งจอ. เดิมไม่เห็นบั๊กนี้เพราะ auto-select โพสต์แรกทำให้ selectedId
+        // ไม่เคยเป็น null บนเดสก์ท็อป — พอถอด auto-select ออกตามที่ user สั่ง มันจึงโผล่
         className={`border-default-200 flex min-w-0 flex-col border-e lg:flex lg:w-96 lg:shrink-0 ${
-          selectedId ? 'hidden' : 'flex flex-1'
+          selectedId ? 'hidden' : 'flex flex-1 lg:flex-none'
         }`}
       >
         {/* ตัวกรองเพจ — pill group ชุดเดียวกับ "ตัวกรองช่องทาง" ของแท็บข้อความ
@@ -894,32 +899,36 @@ export default function CommentsClient({
                         เดียวกัน) ใช้ privateReplyWindow ตัวเดียวกับที่บับเบิลในเธรดใช้ — เวลาเดียวกัน
                         ต้องมาจาก symbol เดียว. หมดเวลาแล้วขึ้น danger, ยังไม่หมดขึ้น warning
                         เพราะเป็นเรื่อง "เร่ง" ไม่ใช่ "พัง" */}
-                    {p.unansweredCount > 0 && p.oldestUnansweredAt && (() => {
-                      const w = privateReplyWindow(p.oldestUnansweredAt)
-                      return (
-                        <span className="mt-1 flex items-center gap-1 text-2xs">
-                          <Icon
-                            icon="alert-circle"
-                            width={12}
-                            height={12}
-                            className="text-danger shrink-0"
-                            aria-hidden="true"
-                          />
-                          <span className="text-danger font-medium">ยังไม่ตอบ</span>
-                          <span className="text-default-300" aria-hidden="true">·</span>
-                          <Icon
-                            icon="message-2"
-                            width={12}
-                            height={12}
-                            className={`shrink-0 ${w.expired ? 'text-danger' : 'text-warning'}`}
-                            aria-hidden="true"
-                          />
-                          <span className={`truncate ${w.expired ? 'text-danger' : 'text-default-800'}`}>
-                            {w.expired ? w.text : `ทักแชทได้อีก ${w.text.replace('คงเหลือ ', '')}`}
-                          </span>
+                    {p.unansweredCount > 0 && (
+                      /* ป้ายสองใบใต้ preview — เป็น `badge` จริงไม่ใช่ข้อความสีแดงลอย ๆ
+                         (user report 2026-08-04 "ยังไม่ตอบ มันไม่เห็น label ด้วย" + ส่งภาพชิป
+                         สนใจ/DEV มาเทียบ) ชุดเดียวกับชิปแท็กในรายการแชท: badge + พื้นจาง 15%
+                         ป้ายเวลาแยกใบเพราะเป็นข้อมูลคนละเรื่อง (สถานะงาน vs เส้นตายของ Meta) */
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        <span className="badge bg-danger/15 text-danger text-2xs inline-flex items-center gap-1">
+                          <Icon icon="alert-circle" width={11} height={11} className="shrink-0" />
+                          ยังไม่ตอบ
                         </span>
-                      )
-                    })()}
+                        {/* เส้นตายทักแชท: มีค่า = ยังมีคอมเมนต์ค้างที่ทักได้ (นับถอยหลังอันที่ใกล้สุด)
+                            null = ของที่ค้างพ้น 7 วันไปหมดแล้ว → บอกว่าทักไม่ได้แล้ว แต่ยัง
+                            "ยังไม่ตอบ" อยู่ (ตอบสาธารณะใต้โพสต์ได้ตลอด)
+                            เดิมบรรทัดนี้อ่าน oldestUnansweredAt ที่เป็น "เก่าสุดทั้งกอง" จึงขึ้น
+                            "หมดเวลาทักแชท" ทุกแถวทั้งที่ในเธรดยังเหลือ 6 วัน — แก้ที่ service แล้ว */}
+                        {p.oldestUnansweredAt ? (
+                          <span className="badge bg-warning/15 text-warning-ink text-2xs inline-flex max-w-full items-center gap-1">
+                            <Icon icon="clock" width={11} height={11} className="shrink-0" />
+                            <span className="truncate">
+                              ทักแชทได้อีก {privateReplyWindow(p.oldestUnansweredAt).text.replace('คงเหลือ ', '')}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
+                            <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
+                            หมดเวลาทักแชท
+                          </span>
+                        )}
+                      </span>
+                    )}
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1.25">
                     {/* เวลาแบบสัมพัทธ์ (เมื่อกี้ / 3 ชม. / 2 วัน) — HH:MM เดิมทำให้เมื่อวานกับ
