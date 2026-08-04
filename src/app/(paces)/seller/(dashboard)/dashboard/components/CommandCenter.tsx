@@ -2,7 +2,8 @@
  * CommandCenter — Mobile shell RSC (lg:hidden)
  *
  * T6 (v10): rewrite wrapper ประกอบ component ใหม่ตาม v10 section order:
- *   CompactHero → OrderStatusBand → CarouselGrid → ActivityTimeline
+ *   CompactHero → SalesChartCard → OrderStatusBand → BestSellerStrip → CarouselGrid
+ *   (ActivityTimeline ถูกถอดออก 2026-08-04 — ดูเหตุผลท้ายไฟล์)
  *
  * แทนของเดิม (v8): SellerHeader+WalletCard → CompactHero (รวม), ShortcutGrid → CarouselGrid,
  *   OrderStatusRow → OrderStatusBand (OrderStatusRow ลบทิ้งแล้ว 2026-08-04), RecentActivityFeed → ActivityTimeline.
@@ -18,7 +19,6 @@ import CompactHero from './CompactHero'
 import OrderStatusBand from './OrderStatusBand'
 import BestSellerStrip from './BestSellerStrip'
 import CarouselGrid from './CarouselGrid'
-import ActivityTimeline from './ActivityTimeline'
 import SalesChartCard from './SalesChartCard'
 
 type Props = {
@@ -30,7 +30,10 @@ export default function CommandCenter({ data }: Props) {
   // ให้ทุก section (hero+cards) ชนขอบจอ ไม่มี padding ซ้าย/ขวา ตาม mockup v10 (HR7 arbitrary: ไม่มี full-bleed token)
   // pb อยู่ที่ main แล้ว (safepay-overrides.css) — wrapper ไม่ใส่ซ้ำ
   return (
-    <div className="lg:hidden space-y-3 -mx-4">
+    // space-y-2.5 (10px): ลดจาก 12px ตาม feedback "section ห่างกันเกินไป" (user 2026-08-04)
+    // ลดแค่ระยะระหว่างการ์ดกับ padding ในการ์ด ไม่แตะขนาดตัวอักษรหรือ tap target
+    // เพราะกลุ่มผู้ใช้ตาม PRODUCT.md (digital-literacy ต่ำ/ผู้สูงวัย) ต้องการตัวใหญ่กดง่ายเหมือนเดิม
+    <div className="lg:hidden space-y-2.5 -mx-4">
       {/* HERO — avatar + trust ring + stats + wallet + shop link (รวม header+wallet เดิม) */}
       <CompactHero
         shopName={data.shopName ?? ''}
@@ -62,8 +65,11 @@ export default function CommandCenter({ data }: Props) {
         <CarouselGrid initialTiles={data.shortcutTiles} liveAuctionCount={data.liveAuctionCount ?? 0} />
       )}
 
-      {/* กิจกรรมล่าสุด — timeline real data */}
-      <ActivityTimeline items={data.recentActivity} />
+      {/* กิจกรรมล่าสุด — ตัดออกจากหน้าแรก 2026-08-04 (user: "ดูยาก เอาออก")
+          มันโชว์รหัสออเดอร์ดิบ + timestamp เต็มวินาที ("สร้างคำสั่งซื้อ 17D20C9F / 2569-08-04 13:55:23")
+          ซึ่งอ่านแล้วไม่ได้ช่วยตัดสินใจอะไร แต่กินความสูงเกือบ 380px = ยาวเป็นอันดับ 2 ของหน้า
+          ข้อมูลไม่หาย — /notifications เรียก getRecentActivity เองแยกอยู่แล้ว (คนละ query คนละ take)
+          จึงไม่กระทบเลยจากการตัด recentActivity ออกจาก data path ของหน้านี้ */}
     </div>
   )
 }

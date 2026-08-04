@@ -153,18 +153,21 @@ export default function OrderStatusBand({ counts, shipping }: OrderStatusBandPro
   return (
     <div className="card">
       {/* header: ชื่อ band + ลิงก์ "ดูทั้งหมด ›" (RSC-safe: Link ธรรมดา ไม่ใช้ component={Link} — Hard Rule 2) */}
-      <div className="card-header flex items-center justify-between">
+      {/* !py-3: ลดจาก py-3.75 ตาม feedback "section ห่างกันเกินไป" (2026-08-04) — per-instance
+          override ตาม pattern เดิมของโปรเจกต์ (AuctionStatStrip/OrderCard) ไม่แตะ _card.css กลาง
+          หมายเหตุ: component นี้ render ทั้งมือถือและเดสก์ท็อป การลดมีผลทั้งสอง breakpoint */}
+      <div className="card-header !py-3 flex items-center justify-between">
         <h4 className="card-title flex items-center gap-1.5">
           <Icon icon="tabler:clipboard-list" className="size-4 text-primary" />
           {shipping ? 'สถานะคำสั่งซื้อ' : 'คำสั่งซื้อ'}
         </h4>
         <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-center gap-0.5">
           ดูทั้งหมด
-          <Icon icon="solar:alt-arrow-right-linear" className="size-4" />
+          <Icon icon="tabler:chevron-right" className="size-4" />
         </Link>
       </div>
 
-      <div className="card-body">
+      <div className="card-body !p-4">
         {/* grid 4 คอลัมน์ flat — ไม่มี bg/border ครอบ icon (spec §4.2 + mockup .ostat) */}
         <div className="grid grid-cols-4 gap-2">
           {tiles.map(({ key, label, icon, iconClass, showBadge, count, href }) => {

@@ -55,7 +55,7 @@ export default function CarouselGrid({ initialTiles, liveAuctionCount = 0 }: Pro
   return (
     <>
       <div className="card">
-        <div className="card-header">
+        <div className="card-header !py-3">
           <h4 className="card-title flex items-center gap-1.5">
             <Icon icon="layout-grid" className="size-4 text-primary" />
             เมนูลัด
@@ -72,7 +72,7 @@ export default function CarouselGrid({ initialTiles, liveAuctionCount = 0 }: Pro
           </button>
         </div>
 
-        <div className="card-body !px-0">
+        <div className="card-body !px-0 !py-4">
           {tiles.length === 0 ? (
             <div className="px-4">
               {/* เกิดได้จริง: ถอดช่องที่หมดสิทธิ์ช่องสุดท้ายออก หรือสิทธิ์หลุดพร้อมกันทุกช่อง

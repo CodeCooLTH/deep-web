@@ -37,7 +37,7 @@ export default function BestSellerStrip({ products }: Props) {
         สินค้าขายดี
       </p>
       {/* hint CTA ระดับ section (ครั้งเดียว) — แทนข้อความซ้ำทุกการ์ด */}
-      <p className="mb-2.5 text-2xs text-default-400">จิ้มที่การ์ดเพื่อเพิ่มลงออเดอร์ใหม่</p>
+      <p className="mb-2 text-2xs text-default-400">จิ้มที่การ์ดเพื่อเพิ่มลงออเดอร์ใหม่</p>
 
       {/* scroll-snap + ซ่อน scrollbar (pattern เดียวกับ CarouselGrid) ให้เลื่อนนิ่งบนมือถือ */}
       <div

@@ -162,10 +162,13 @@ export default function SalesChartCard({ initialSeries }: Props) {
             y: avg7,
             borderColor: getColor('warning-ink'),
             strokeDashArray: 4,
+            /** ป้ายอยู่ซ้ายและลอยเหนือเส้น — เดิมชิดขวาแล้วไปทับแท่ง "วันนี้" ซึ่งเป็นแท่งที่ตั้งใจ
+             *  ให้เด่นที่สุด (สีเข้มกว่าอีก 6 แท่ง) พบตอนดูของจริงบน prod 2026-08-04 */
             label: {
               text: `เฉลี่ย ${formatNumberNoSymbol(Math.round(avg7))}`,
-              position: 'right',
-              textAnchor: 'end',
+              position: 'left',
+              textAnchor: 'start',
+              offsetY: -6,
               borderWidth: 0,
               style: { background: 'transparent', color: getColor('warning-ink'), fontSize: '10px' },
             },
@@ -186,7 +189,10 @@ export default function SalesChartCard({ initialSeries }: Props) {
           (nested interactive element ผิด HTML + แตะ pill แล้ว event bubble ไปเปิดชีต)
           จึงแยกเป็น 3 โซน sibling: header+pill / โซนที่กดเปิดชีต / ปุ่มท้ายการ์ด */}
       <div className="card">
-        <div className="card-body">
+        {/* !p-4: ลดจาก p-5 ตาม feedback "section ห่างกันเกินไป และใหญ่เกินไป" (2026-08-04)
+            per-instance override ตาม pattern เดิมของโปรเจกต์ (AuctionStatStrip/OrderCard/CustomerSelectBlock)
+            ไม่แตะ `.card-body` กลางใน _card.css ที่หน้าอื่นทั้งระบบใช้อยู่ */}
+        <div className="card-body !p-4">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <Icon icon="chart-bar" className="size-4 text-primary" />
@@ -257,7 +263,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
         {/* กำไร/ค่าใช้จ่ายย้ายออกจากการ์ดไปอยู่ /expenses ทั้งหมด — ปุ่มนี้คือทางเข้าเดียว
             ลิงก์ตรงเสมอไม่มีเงื่อนไข: /expenses มี state รองรับครบแล้ว (ExpenseLockedCard เมื่อ
             แพ็กเกจล็อก/พนักงานไม่มีสิทธิ์ + หน้า "ยังไม่มีร้านค้า") ไม่ต้องแตกเงื่อนไขซ้ำที่นี่ */}
-        <Link href="/expenses" className="card-footer text-sm">
+        <Link href="/expenses" className="card-footer !py-3 text-sm">
           <span className="flex items-center gap-1.5 font-medium text-default-800">
             <Icon icon="report-money" className="size-4 text-default-700" />
             กำไรขาดทุน

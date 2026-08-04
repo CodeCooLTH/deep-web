@@ -51,7 +51,8 @@ export type CommandCenterData = {
     SHIPPING: number
     PROBLEM: number
   }
-  recentActivity: ActivityItem[]
+  /** ตัดออก 2026-08-04 — "กิจกรรมล่าสุด" ถูกถอดจากหน้าแรก (user: "ดูยาก เอาออก")
+   *  ยังคง re-export type ActivityItem ไว้ข้างบน เพราะ /notifications ใช้อยู่ */
   promoBanner: PromoBanner | null
   // v8: ข้อมูลเพิ่มสำหรับ header + wallet
   walletBalance?: number
