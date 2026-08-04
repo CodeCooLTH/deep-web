@@ -21,11 +21,14 @@ function AlbumCell({
   onOpen,
   overlay,
   className,
+  onMeasure,
 }: {
   msg: AlbumMsg
   onOpen: (id: string) => void
   overlay?: number // จำนวนรูปที่เหลือ (แสดง "+N") — ช่องสุดท้ายของ 5+ รูป
   className: string
+  /** รายงานสัดส่วนรูปจริง (w/h) ให้ album เลือกทรงช่อง — ใส่เฉพาะรูปนำ */
+  onMeasure?: (ratio: number) => void
 }) {
   const [failed, setFailed] = useState(false)
   return (
@@ -46,6 +49,14 @@ function AlbumCell({
           alt="รูปภาพที่ส่ง"
           loading="lazy"
           onError={() => setFailed(true)}
+          onLoad={
+            onMeasure
+              ? (e) => {
+                  const el = e.currentTarget
+                  if (el.naturalWidth > 0 && el.naturalHeight > 0) onMeasure(el.naturalWidth / el.naturalHeight)
+                }
+              : undefined
+          }
           className="size-full object-cover"
         />
       )}
@@ -58,17 +69,57 @@ function AlbumCell({
   )
 }
 
+/**
+ * ทรงช่องของอัลบั้ม — 3 แบบตายตัว เลือกจาก "รูปนำ" ของชุด (user 2026-08-04: ช่องจัตุรัสครอปรูปแนวตั้ง/
+ * สกรีนช็อตทิ้งจนดูไม่รู้ว่าเป็นอะไร)
+ *
+ * ทำไมไม่ใช้สัดส่วนจริงของแต่ละรูป (masonry แบบ Meta): ช่องคนละทรงในกริดเดียวทำให้ขอบขวา/ล่างไม่เสมอกัน
+ * ต้องคำนวณ layout เองทั้งหมด และ**ต้องรอรูปโหลดครบทุกใบก่อนวางกริด** — บับเบิลจะกระตุกทุกครั้งที่รูปมา
+ * ไม่พร้อมกัน. ชุดจริงเกือบทั้งหมดเป็นรูปแนวเดียวกันหมด (ถ่ายจากกล้องชุดเดียว / สกรีนช็อตชุดเดียว)
+ * การให้ทั้งกริดใช้ทรงเดียวตามรูปนำจึงได้ผลใกล้เคียง แต่ขอบยังเรียบและวางได้ทันทีที่รูปแรกโหลด
+ *
+ * ทำไมไม่เก็บ w/h ตอนรับรูป: `ChatMessage` ไม่มีคอลัมน์ขนาดภาพ (มีแค่ attachmentName/Size) — เพิ่มคอลัมน์
+ * = migration บนฐานที่แชร์กับ prod และยังต้องมี backfill ให้รูปเก่าอยู่ดี วัดตอน onLoad ถูกกว่าและครอบของเก่า
+ */
+type TileShape = 'PORTRAIT' | 'SQUARE' | 'LANDSCAPE'
+
+const TILE_ASPECT: Record<TileShape, string> = {
+  // fraction utility ของ Tailwind 4 (aspect-3/4) ไม่ใช่ arbitrary value ในวงเล็บ — HR7 ผ่าน
+  PORTRAIT: 'aspect-3/4',
+  SQUARE: 'aspect-square',
+  LANDSCAPE: 'aspect-4/3',
+}
+
+/** เกณฑ์กว้าง ๆ — รูปที่เกือบจัตุรัส (0.85–1.2) ให้เป็นจัตุรัสไปเลย ไม่ต้องเปลี่ยนทรงเพราะเอียงไปนิดเดียว */
+function shapeFromRatio(ratio: number): TileShape {
+  if (ratio <= 0.85) return 'PORTRAIT'
+  if (ratio >= 1.2) return 'LANDSCAPE'
+  return 'SQUARE'
+}
+
 export default function PhotoAlbum({ ms, onOpen }: { ms: AlbumMsg[]; onOpen: (id: string) => void }) {
+  // เริ่มที่ SQUARE เพื่อให้จองพื้นที่ได้ทันทีก่อนรูปโหลด แล้วปรับครั้งเดียวเมื่อรูปนำโหลดเสร็จ
+  const [shape, setShape] = useState<TileShape>('SQUARE')
+  const tile = TILE_ASPECT[shape]
+
   const imgs = ms.filter((m) => m.imageUrl)
   const count = imgs.length
   if (count < 2) return null // safety — buildAlbumRows สร้าง album เฉพาะ ≥2 อยู่แล้ว
 
-  // 2 รูป — คู่จัตุรัสชิดกัน
+  const measureLead = (ratio: number) => setShape(shapeFromRatio(ratio))
+
+  // 2 รูป — คู่ชิดกัน ทรงตามรูปนำ
   if (count === 2) {
     return (
       <div className="grid w-60 grid-cols-2 gap-1">
-        {imgs.map((m) => (
-          <AlbumCell key={m.id} msg={m} onOpen={onOpen} className="aspect-square" />
+        {imgs.map((m, i) => (
+          <AlbumCell
+            key={m.id}
+            msg={m}
+            onOpen={onOpen}
+            className={tile}
+            onMeasure={i === 0 ? measureLead : undefined}
+          />
         ))}
       </div>
     )
@@ -77,11 +128,28 @@ export default function PhotoAlbum({ ms, onOpen }: { ms: AlbumMsg[]; onOpen: (id
   // 3 รูป — ซ้ายสูง (row-span-2) + ขวา 2 เรียง (implicit rows: ขวา aspect-square กำหนดความสูงแถว,
   // ซ้าย row-span-2 h-full ยืดเท่าสองแถวรวม gap — ไม่ใช้ grid-rows-2 เพราะ 1fr ยุบเมื่อ container ไม่มีความสูง)
   if (count === 3) {
+    // ชุดแนวตั้งไม่ใช้ collage ซ้ายสูง — ช่องซ้ายจะสูงเท่าสองแถวรวมกัน (ประมาณ 1:2.7) ครอปหนักกว่าเดิม
+    // 3 คอลัมน์เท่ากันแทน (Messenger ก็เรียงแบบนี้กับชุดแนวตั้ง)
+    if (shape === 'PORTRAIT') {
+      return (
+        <div className="grid w-60 grid-cols-3 gap-1">
+          {imgs.map((m, i) => (
+            <AlbumCell
+              key={m.id}
+              msg={m}
+              onOpen={onOpen}
+              className={tile}
+              onMeasure={i === 0 ? measureLead : undefined}
+            />
+          ))}
+        </div>
+      )
+    }
     return (
       <div className="grid w-60 grid-cols-2 gap-1">
-        <AlbumCell msg={imgs[0]} onOpen={onOpen} className="row-span-2 h-full" />
-        <AlbumCell msg={imgs[1]} onOpen={onOpen} className="aspect-square" />
-        <AlbumCell msg={imgs[2]} onOpen={onOpen} className="aspect-square" />
+        <AlbumCell msg={imgs[0]} onOpen={onOpen} className="row-span-2 h-full" onMeasure={measureLead} />
+        <AlbumCell msg={imgs[1]} onOpen={onOpen} className={tile} />
+        <AlbumCell msg={imgs[2]} onOpen={onOpen} className={tile} />
       </div>
     )
   }
@@ -103,7 +171,8 @@ export default function PhotoAlbum({ ms, onOpen }: { ms: AlbumMsg[]; onOpen: (id
             key={m.id}
             msg={m}
             onOpen={onOpen}
-            className="aspect-square"
+            className={tile}
+            onMeasure={i === 0 ? measureLead : undefined}
             // +N อยู่ช่องสุดท้ายที่โชว์จริง (ช่องที่ 6) ไม่ใช่ช่องที่ 4 ตายตัว
             overlay={i === shown.length - 1 && extra > 0 ? extra : undefined}
           />
