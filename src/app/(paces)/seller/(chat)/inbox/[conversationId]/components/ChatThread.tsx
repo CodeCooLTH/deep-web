@@ -874,6 +874,32 @@ export default function ChatThread({
     if (!m.isDeleted && !m._status && !m.id.startsWith('local-')) {
       list.push({ key: 'reply', icon: 'arrow-back-up', label: 'ตอบกลับ', onSelect: () => setReplyingTo(m) })
     }
+    /**
+     * สร้างคำสั่งซื้อจากข้อความนี้ (user สั่ง 2026-08-04: "ใน mobile กดสร้างคำสั่งซื้อยาก และอยากให้
+     * มัน auto เอาข้อความที่ long press ไว้ ไปเข้ากระจายที่อยู่อัตโนมัติ")
+     *
+     * ทางเดิมบนมือถือคือ เปิดแผงลูกค้า (sheet) → หาปุ่มสร้างคำสั่งซื้อ → กดปุ่มกระจาย → ก๊อปข้อความ
+     * จากเธรดมาวาง = 4 จังหวะ และต้องออกจากเธรดไปก๊อปข้อความกลับมา. ตรงนี้คือ 1 จังหวะ
+     *
+     * เฉพาะข้อความที่มีตัวอักษร: ข้อความรูป/ไฟล์/การ์ดไม่มีอะไรให้กระจาย (ปุ่มที่กดแล้วไม่เกิดอะไร
+     * แย่กว่าปุ่มที่ไม่มี) ส่วนข้อความ optimistic/ลบแล้วไม่ต้องกันเพิ่ม เพราะ body ยังอ่านได้และ
+     * การสร้างออเดอร์ไม่ได้อ้างอิง id ของข้อความเลย
+     */
+    if (m.body?.trim()) {
+      list.push({
+        key: 'order',
+        icon: 'receipt',
+        label: 'สร้างคำสั่งซื้อ',
+        onSelect: () =>
+          openDraft({
+            conversationId,
+            customerName: buyerName,
+            channel,
+            customerAvatar: buyerAvatar,
+            prefillText: m.body!,
+          }),
+      })
+    }
     if (m.body) {
       list.push({
         key: 'copy',

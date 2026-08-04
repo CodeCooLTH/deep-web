@@ -47,6 +47,14 @@ export type OpenDraftInput = {
   kind?: DraftKind
   /** คำสั่งซื้อที่จะเปิด/ดูพัสดุ (feature 00022) */
   shipmentOrderToken?: string | null
+  /**
+   * ข้อความจากเธรดที่จะให้ฟอร์ม "กระจาย" เป็นชื่อ/เบอร์/ที่อยู่ให้เลย (user สั่ง 2026-08-04 —
+   * กดค้างบนข้อความในแชท → สร้างคำสั่งซื้อ)
+   *
+   * มีผลเฉพาะตอน "สร้างร่างใหม่" เท่านั้น: ถ้าร่างของเธรดนี้เปิดค้างอยู่แล้ว การกดจะขยายร่างเดิม
+   * ตามพฤติกรรมเดิม **ไม่ทับค่าที่ร้านพิมพ์ไว้** — ทับได้คือทำข้อมูลที่กรอกมาแล้วหาย
+   */
+  prefillText?: string
 }
 
 type ChatDraft = {
@@ -58,6 +66,8 @@ type ChatDraft = {
   channel: string
   editOrderToken: string | null // null = สร้างใหม่; มีค่า = แก้ไขออเดอร์นั้น
   shipmentOrderToken: string | null
+  /** ข้อความที่จะให้ฟอร์มกระจายตอน mount (null = ไม่มี) */
+  prefillText: string | null
   state: 'expanded' | 'minimized'
 }
 
@@ -162,6 +172,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
         channel: input.channel,
         editOrderToken: editToken,
         shipmentOrderToken: shipmentToken,
+        prefillText: input.prefillText ?? null,
         state: 'expanded',
       }
       return [...prev.map((d) => (d.state === 'expanded' ? { ...d, state: 'minimized' as const } : d)), next]
@@ -278,6 +289,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
                 initialSalesChannel={chatChannelToSalesChannel(d.channel)}
                 conversationId={d.conversationId}
                 editOrderToken={d.editOrderToken ?? undefined}
+                prefillParseText={d.prefillText ?? undefined}
                 ishipCreateMode={ishipCreateMode}
                 onSuccess={() => handleSuccess(d)}
                 compact
