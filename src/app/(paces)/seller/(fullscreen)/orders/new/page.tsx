@@ -78,13 +78,14 @@ export default async function NewOrderPage() {
   // feature 00022 — โหมดสร้างพัสดุของร้าน ส่งลง form ตอน render (ไม่ต้องยิงถามฝั่ง client)
   // ร้านบ้านพักและร้านที่ยังไม่เชื่อมต่อจะได้ 'OFF' → ไม่มีอะไรเกิดขึ้นตอนสร้างออเดอร์
   const ishipCreateMode =
-    shop.vertical === 'GENERAL'
+    shop.vertical === 'ONLINE_SALES'
       ? await getConnection(shop.id)
           .then((c) => (c.connected && c.status === 'ACTIVE' ? c.createMode : 'OFF'))
           .catch(() => 'OFF' as const)
       : ('OFF' as const)
 
-  // feature 00024 — ระบบนัดหมายเปิดให้เฉพาะบัญชีธุรกิจประเภทสินค้าและบริการ (BR-RSV-01)
+  // feature 00024/00028 — ระบบนัดหมายเปิดให้เฉพาะร้าน vertical=SERVICE_QUEUE (BR-RSV-01,
+  // BR-SBT-11 ตัดเงื่อนไข kind=BUSINESS ออกแล้ว — บัญชีบุคคลใช้ได้ด้วย)
   // ร้านที่ไม่เข้าเงื่อนไขจะไม่ได้รับทรัพยากรเลย → ฟอร์มไม่ render บล็อกวันนัด DOM เหมือนเดิมทุกจุด
   // ดึงด้วย service function ตรง (มิเรอร์ listRooms ใน bookings/new/page.tsx) ไม่ fetch API ตัวเอง
   const serviceResourcesEnabled = canUseAppointments({

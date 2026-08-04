@@ -7,6 +7,7 @@ import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
+import { deriveShippingStage } from "@/lib/order-stage";
 import { formatOrderNo } from "@/lib/order-no";
 import {
   attachAppointmentInTx,
@@ -784,6 +785,21 @@ export async function getOrdersByShop(shopId: string, status?: string) {
         },
       },
       shipmentTracking: true,
+      // พัสดุใบล่าสุดที่ยัง active — หน้ารายการใช้จัด "กองงานตามสถานะพัสดุ" (deriveShippingStage)
+      // take:1 + select แคบ ๆ เพื่อไม่ให้ payload บวมทั้งที่ต้องการแค่ carrierStatus
+      shipments: {
+        where: { status: "CREATED", isDryRun: false },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          carrierStatus: true,
+          // แถวออเดอร์ต้องเห็นเลขพัสดุ + ขนส่งเจ้าไหน + เปิดผ่านแพลตฟอร์มไหน (user สั่ง 2026-08-04)
+          trackingNo: true,
+          courierCode: true,
+          courierName: true,
+          provider: true,
+        },
+      },
       review: true,
       // buyer: registered user ที่ยืนยัน order — ใช้แสดงชื่อลูกค้าใน seller order list
       // คัดลอก select เดียวกับ getOrderForShop (additive — ไม่ break caller เดิม)
@@ -945,6 +961,50 @@ export async function getOrderStatusCounts(
     CONFIRMED: map['CONFIRMED'] ?? 0,
     CANCELLED: map['CANCELLED'] ?? 0,
   }
+}
+
+/**
+ * getShippingStageCounts — ตัวนับ 4 ช่องของ "สถานะคำสั่งซื้อ" บน Command Center (ร้าน ONLINE_SALES)
+ * user สั่ง 2026-08-04 ให้เปลี่ยนจาก [รอดำเนินการ/กำลังจัดส่ง/สำเร็จ/ยกเลิก] ซึ่งเป็นสถานะ "การขาย"
+ * มาเป็นสถานะ "ของอยู่ไหน" ที่ร้านขายออนไลน์ต้องลงมือทำจริงในแต่ละวัน
+ *
+ * 🛑 นับด้วย deriveShippingStage ตัวเดียวกับที่หน้า /orders ใช้กรอง — เดิมเขียนเป็น CASE ใน SQL
+ * ซึ่งเร็วกว่าแต่แปลว่ามีนิยาม 2 ชุด (SQL นับ / TS กรอง) วันหนึ่งจะกดไทล์ที่บอก 5 แล้วเข้าไปเจอ 4 ใบ
+ * โดยไม่มีอะไรเตือน. โหลดแถวมาแล้วนับใน TS แทน — ปริมาณรับได้เพราะหน้า /orders เองก็ดึงออเดอร์
+ * ทั้งร้านมาอยู่แล้ว และ query นี้ select แค่ 3 คอลัมน์
+ *
+ * พัสดุที่นับ = ใบล่าสุดต่อออเดอร์ที่ยัง active (status='CREATED') และไม่ใช่ของทดสอบ
+ * (isDryRun=false ตาม BR-ISHIP-60/61 ที่สั่งไว้ว่าต้องกันออกจากสถิติทุกชนิด)
+ */
+export async function getShippingStageCounts(shopId: string): Promise<{
+  AWAITING_PARCEL: number
+  AWAITING_PICKUP: number
+  SHIPPING: number
+  PROBLEM: number
+}> {
+  const rows = await prisma.order.findMany({
+    where: { shopId, status: { not: "CANCELLED" } },
+    select: {
+      status: true,
+      shipments: {
+        where: { status: "CREATED", isDryRun: false },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { carrierStatus: true },
+      },
+    },
+  });
+
+  const counts = { AWAITING_PARCEL: 0, AWAITING_PICKUP: 0, SHIPPING: 0, PROBLEM: 0 };
+  for (const o of rows) {
+    const stage = deriveShippingStage({
+      status: o.status,
+      carrierStatus: o.shipments[0]?.carrierStatus ?? null,
+      hasShipment: o.shipments.length > 0,
+    });
+    if (stage !== "DONE") counts[stage] += 1;
+  }
+  return counts;
 }
 
 export async function getOrdersByBuyer(userId: string) {

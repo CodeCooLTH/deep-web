@@ -116,7 +116,7 @@ export default function TagInput({ selected, onAdd, placeholder = 'เพิ่�
         <div className="border-default-300 bg-card absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border shadow-lg">
           {suggestions.map((t) => (
             <button key={t} type="button" onClick={() => add(t)} className="dropdown-item text-sm">
-              <Icon icon="tag" className="text-default-400 size-4" />
+              <Icon icon="tag" className="text-default-700 size-4" />
               {t}
             </button>
           ))}
@@ -127,7 +127,7 @@ export default function TagInput({ selected, onAdd, placeholder = 'เพิ่�
             </button>
           )}
           {suggestions.length === 0 && !showCreate && (
-            <p className="text-default-400 px-3 py-2.5 text-xs">
+            <p className="text-default-700 px-3 py-2.5 text-xs">
               {loading
                 ? 'กำลังโหลดแท็ก...'
                 : allTags.length === 0

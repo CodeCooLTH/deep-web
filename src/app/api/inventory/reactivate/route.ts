@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { reactivateInventoryEntitlement } from "@/services/inventory-entitlement.service";
 import { requireActiveShop } from "@/lib/shop-context";
 import { ReactivateInventorySchema } from "@/lib/validations";
+import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
 /**
  * POST /api/inventory/reactivate — seller เปิดใช้ Inventory Add-on อีกครั้งจากสถานะ LOCKED
@@ -12,7 +13,7 @@ import { ReactivateInventorySchema } from "@/lib/validations";
  *
  * ทำไม shop derive จาก session เท่านั้น (ไม่รับ shopId จาก body):
  * DAL ownership (S-C7 pattern — ดู src/app/api/wallet/topup/route.ts) — ถ้ารับ
- * shopId จาก client, seller A อาจส่ง shopId ของ seller B เพื่อ reactivate/หักเครดิตแทนคนอื่น.
+ * shopId จาก client, seller A อาจส่ง shopId ของ seller B เพื่อ reactivate/หักเงินแทนคนอื่น.
  * session.user.id เป็น single source of truth สำหรับ identity — ดู API.md §2.
  *
  * Request body: { package: 'BASIC' | 'PRO' } — API.md §4.3 (BREAKING feature 00009 — เดิม {})
@@ -31,6 +32,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
   }
   const shop = active.shop;
+
+  // 2.4 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
+  const verticalGate = requireOnlineSalesVertical(shop.vertical);
+  if (verticalGate) return verticalGate;
 
   // 2.5 parse body — ต้องระบุ package (BASIC/PRO) ตาม API.md §4.3
   const body = await request.json().catch(() => null);
@@ -53,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
     if (e instanceof Error && e.message === "INSUFFICIENT_CREDIT") {
       return NextResponse.json(
-        { error: "เครดิตไม่พอ กรุณาเติมเครดิตก่อนเปิดใช้อีกครั้ง" },
+        { error: "ยอดเงินไม่พอ กรุณาเติมเงินก่อนเปิดใช้อีกครั้ง" },
         { status: 402 },
       );
     }

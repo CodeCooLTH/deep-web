@@ -7,7 +7,7 @@ import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { fileIdExt } from "@/lib/storage";
 import { prisma } from "@/lib/prisma";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
-import { sendOutboundMessage, syncMissingMessagesFromMeta } from "@/services/channel-chat.service";
+import { sendOutboundMessage, syncMissingMessagesFromMeta, type SendFailedError } from "@/services/channel-chat.service";
 import { getProductsByIds } from "@/services/product.service";
 import { pushNewChatMessage } from "@/services/seller-push.service";
 import { SendChatMessageSchema, ChatMessagesQuerySchema } from "@/lib/validations";
@@ -73,7 +73,10 @@ function mapChatServiceError(e: unknown, context: string) {
     // (user report 2026-08-02) เดิมตอบ "กรุณาลองใหม่" ทุกกรณี ซึ่งเป็นคำแนะนำที่ผิดกับ #551
     // (ลูกค้าปิดรับข้อความ — กดกี่ครั้งก็ไม่ผ่าน) ร้านจะกดซ้ำเปล่า ๆ แล้วโทษระบบ
     const { message } = describeSendFailure(e.message.replace(/^SEND_FAILED:\s*/, ""));
-    return NextResponse.json({ error: message }, { status: 502 });
+    // แนบแถวที่บันทึกไว้แล้วกลับไปด้วย (2026-08-03) — ส่งไม่ผ่าน ≠ ไม่ได้บันทึก
+    // client ต้องเอาไปแทนบับเบิล optimistic ของตัวเอง ไม่งั้นข้อความเดียวขึ้นสองอันจนกว่าจะ refresh
+    const saved = (e as SendFailedError).savedMessage;
+    return NextResponse.json({ error: message, savedMessage: saved ?? null }, { status: 502 });
   }
   console.error(`[${context}]`, e instanceof Error ? e.message : e);
   return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
@@ -209,8 +212,40 @@ export async function GET(
       repliedMap.set(r.id, entry);
     }
 
+    // ผู้ส่งฝั่งร้าน (user 2026-08-02) — avatar ท้ายบับเบิลต้องบอกว่า "ใครในทีมเป็นคนตอบ"
+    // ไม่ใช่โลโก้เพจเหมือนกันหมด. ร้านที่มีพนักงานหลายคนย้อนดูไม่ได้เลยว่าใครตอบข้อความไหน
+    //
+    // senderUserId = null คือข้อความที่มาทาง webhook (echo ของสิ่งที่ส่งจาก Messenger/Business
+    // Suite โดยตรง หรือบอทตอบ) — ไม่มี "คน" ให้แสดง จึงตกไปใช้รูปเพจตามเดิม
+    //
+    // batch fetch กัน N+1; ไม่ select อะไรเกินชื่อ+รูป (ผู้ดูเป็นสมาชิกร้านเดียวกันอยู่แล้ว
+    // แต่ไม่มีเหตุผลให้ email/เบอร์ของเพื่อนร่วมทีมหลุดลง flight payload)
+    const senderIds = Array.from(
+      new Set(
+        result.items
+          .filter((m) => m.senderRole === "SHOP" && m.senderUserId)
+          .map((m) => m.senderUserId as string),
+      ),
+    );
+    const senderRows =
+      senderIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: senderIds } },
+            select: { id: true, displayName: true, avatar: true },
+          })
+        : [];
+    const senderMap = new Map(
+      senderRows.map((u) => [u.id, { name: u.displayName, avatar: u.avatar }]),
+    );
+
     const items = result.items.map((m) => ({
       ...m,
+      // ลูกค้าแก้ข้อความนี้ทีหลังหรือเปล่า (message_edits, 2026-08-03) — ร่องรอยเก็บใน rawMessage.edit
+      // ไม่ได้เพิ่มคอลัมน์ (ดู ingestMessageEdit); UI ใช้ขึ้นป้าย "แก้ไขแล้ว" ท้ายบับเบิล
+      edited: !!(m as { rawMessage?: { edit?: unknown } | null }).rawMessage?.edit,
+      // null = ไม่มีคนส่ง (webhook/บอท) → UI แสดงรูปเพจ; มีค่า = แสดงรูปคนนั้น + ชื่อตอน hover
+      sender:
+        m.senderRole === "SHOP" && m.senderUserId ? senderMap.get(m.senderUserId) ?? null : null,
       replyTo: (() => {
         const rmid = (m as { replyToMid?: string | null }).replyToMid;
         return rmid ? repliedMap.get(rmid) ?? null : null;
@@ -253,6 +288,21 @@ export async function GET(
  * route รู้ context ของตัวเองอยู่แล้ว (seller.* = SHOP, main = BUYER) — SDS §3.3.
  * service ยัง verify ซ้ำอีกชั้น (กัน client ปลอม แม้ derive ถูกที่ route แล้ว)
  */
+/**
+ * แนบผู้ส่ง (คนในทีมร้าน) ให้ข้อความที่เพิ่งสร้าง — ให้ shape ตรงกับ GET ซึ่ง enrich `sender` มาแล้ว
+ * (user 2026-08-02: avatar ท้ายบับเบิลต้องบอกว่าใครเป็นคนตอบ)
+ *
+ * ถ้าไม่แนบ บับเบิลที่เพิ่งส่งจะแสดงรูปเพจอยู่พักหนึ่งแล้วเปลี่ยนเป็นรูปคนตอน refetch รอบถัดไป
+ * ซึ่งอ่านเหมือนระบบสลับตัวตนของผู้ส่งเอง. PK lookup ครั้งเดียวต่อการส่ง 1 ข้อความ
+ */
+async function withSender<T extends { senderUserId: string | null }>(message: T, userId: string) {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { displayName: true, avatar: true },
+  });
+  return { ...message, sender: u ? { name: u.displayName, avatar: u.avatar } : null };
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -301,7 +351,15 @@ export async function POST(
     productRefId,
     orderRefToken,
     replyToMessageId,
+    stickerId,
+    stickerImageUrl,
   } = parsed.output;
+
+  // สติกเกอร์: ต้องมาครบทั้ง id และ url และเป็นของช่องทาง Meta เท่านั้น (แชท DEEP ไม่มีสติกเกอร์
+  // ให้ส่ง — ปล่อยผ่านจะได้แถว IMAGE ที่ไม่มีปลายทางจริง) — เช็คช่องทางหลัง fetch conv ด้านล่าง
+  if (type === "STICKER" && (!stickerId || !stickerImageUrl)) {
+    return NextResponse.json({ error: "ข้อมูลสติกเกอร์ไม่ครบ" }, { status: 400 });
+  }
 
   try {
     // feature 00018: เธรดช่องทางนอกต้องส่งออกผ่าน Graph API ไม่ใช่เขียน DB ตรง ๆ
@@ -343,11 +401,24 @@ export async function POST(
       if (!productRefId) {
         return NextResponse.json({ error: "กรุณาระบุสินค้า" }, { status: 400 });
       }
-    } else {
-      // type === "ORDER" — การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24)
+    } else if (type === "STICKER") {
+      // ตรวจ stickerId/stickerImageUrl ไปแล้วก่อนเข้า try — ที่นี่แค่ต้อง "มีสาขาของตัวเอง"
+      //
+      // bug ที่ user เจอบน prod 2026-08-04 ("พอกดเลือก sticker แล้ว ... ไม่ส่งอะไรเลย"):
+      // ก่อนหน้านี้ห่วงโซ่นี้ปิดท้ายด้วย `else` ที่เขียนไว้สำหรับ ORDER อย่างเดียว — ค่าใหม่ที่เพิ่ม
+      // เข้า picklist จึงตกลงไปในนั้นแล้วถูกตอบ 400 "กรุณาระบุออเดอร์" ทุกครั้ง
+      // นี่คือรูปแบบเดียวกับบทเรียน docs/conventions/enum-value-removal.md เป๊ะ ๆ (ตรรกะที่ปิดท้าย
+      // ด้วย else เงียบ ๆ ไม่พังตอนเพิ่มค่าใหม่ แต่ส่งค่าใหม่ไปเข้า branch ที่ผิด) — เปลี่ยนก้อน
+      // สุดท้ายเป็น `else if (type === "ORDER")` + fail-closed ให้ค่าที่ยังไม่รองรับเด้ง error
+      // ที่บอกตรง ๆ ไม่ใช่ error ของชนิดอื่น
+    } else if (type === "ORDER") {
+      // การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24)
       if (!orderRefToken) {
         return NextResponse.json({ error: "กรุณาระบุออเดอร์" }, { status: 400 });
       }
+    } else {
+      // fail-closed: ชนิดที่เพิ่มใน picklist แต่ยังไม่มีใครเขียนกฎรองรับ — ห้ามตกไปใช้กฎของชนิดอื่น
+      return NextResponse.json({ error: "ยังไม่รองรับชนิดข้อความนี้" }, { status: 400 });
     }
 
     // sanitize ซ้ำที่ server — ชื่อนี้ไปโผล่ใน Content-Disposition ตอนดาวน์โหลด (header injection)
@@ -392,18 +463,28 @@ export async function POST(
           text: linkText, // ลูกค้าได้ลิงก์นี้
           orderRefToken: orderRefToken!, // ฝั่งเราเก็บเป็นการ์ด
         });
-        return NextResponse.json(sent);
+        return NextResponse.json(await withSender(sent, userId));
       }
       const sent = await sendOutboundMessage({
         conversationId: id,
         actorUserId: userId,
-        text: text ?? undefined, // TEXT = ข้อความ, ไฟล์แนบ = caption (optional)
+        // สติกเกอร์ (2026-08-04) — Meta ให้ส่ง sticker_id เดี่ยว ๆ ต่อข้อความ ไม่ปนกับ text/attachment
+        sticker: type === "STICKER" ? { id: stickerId!, imageUrl: stickerImageUrl! } : undefined,
+        text: type === "STICKER" ? undefined : text ?? undefined, // TEXT = ข้อความ, ไฟล์แนบ = caption (optional)
         attachment: isAttachmentType(type)
           ? { fileId: imageUrl!, kind: type, name: attachmentName, size: attachmentSize ?? null }
           : undefined,
         replyToMid, // reply/quote — ส่ง reply_to:{mid} ให้ Meta (best-effort) + เก็บ quote ฝั่งเรา
       });
-      return NextResponse.json(sent);
+      return NextResponse.json(await withSender(sent, userId));
+    }
+
+    if (type === "STICKER") {
+      // ถึงตรงนี้ = เธรด DEEP (ช่องทางนอกถูกจัดการไปแล้วด้านบน) — ยังไม่มีสติกเกอร์ในแชทของเราเอง
+      return NextResponse.json(
+        { error: "ส่งสติกเกอร์ได้เฉพาะแชท Facebook/Instagram" },
+        { status: 400 },
+      );
     }
 
     const message = await sendMessage({
@@ -436,7 +517,7 @@ export async function POST(
         .catch(() => {});
     }
 
-    return NextResponse.json(message);
+    return NextResponse.json(await withSender(message, userId));
   } catch (e: unknown) {
     return mapChatServiceError(e, "POST /api/chat/conversations/[id]/messages");
   }

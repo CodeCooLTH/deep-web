@@ -7,7 +7,7 @@ import { CreateTopUpRequestSchema } from "@/lib/validations";
 import { requireActiveShop } from "@/lib/shop-context";
 
 /**
- * POST /api/wallet/topup — seller ส่งคำขอเติมเครดิต SMS พร้อม slip
+ * POST /api/wallet/topup — seller ส่งคำขอเติมเงิน พร้อม slip
  *
  * ทำไม shop derive จาก session เท่านั้น (ไม่รับ shopId จาก body):
  * DAL ownership S-C7 — ถ้ารับ shopId จาก client, seller A อาจส่ง shopId ของ
@@ -36,12 +36,12 @@ export async function POST(request: Request) {
   }
 
   // 2. DAL: shop derive จาก active shop context ของ session เท่านั้น — ห้ามรับ shopId จาก client (S-C7)
-  // ไม่ gate locked — เติมเครดิตเข้า business ที่ locked ได้ (ใช้เพื่อ reactivate)
+  // ไม่ gate locked — เติมเงินเข้า business ที่ locked ได้ (ใช้เพื่อ reactivate)
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
   if (!active) {
-    // seller ยังไม่มีร้าน = ไม่สามารถเติมเครดิตได้ (TopUpRequest.shopId ต้องมีจริง)
+    // seller ยังไม่มีร้าน = ไม่สามารถเติมเงินได้ (TopUpRequest.shopId ต้องมีจริง)
     return NextResponse.json(
-      { error: "ต้องมีร้านก่อนเติมเครดิต" },
+      { error: "ต้องมีร้านก่อนเติมเงิน" },
       { status: 403 },
     );
   }

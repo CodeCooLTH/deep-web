@@ -20,6 +20,8 @@ related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
 
 ---
 
+> **อัปเดต 2026-08-02 (redesign — deployed, commits `69b235f4`/`3148bb42`/`a20d99ac`/`69a224ad`/`e0ec4926`/`56dcc657`):** **ไม่มีการเปลี่ยน schema/migration ใด ๆ ในรอบนี้** — `prevNetProfit` (ช่วงก่อนหน้า), `hasAnyExpense`, `expenses[]` ใน response ของ `/api/expenses/report`, และ `getSalesSeries(includeFinance)` (กำไรสุทธิไหลเข้าหน้ายอดขาย) ล้วนเป็น **query/compute เพิ่มเติมบน schema เดิมที่ §3 อธิบายไว้ครบแล้ว** ไม่มี column/index/model ใหม่ ดู SRS.md §10 (TFR-012..016) สำหรับรายละเอียด service-layer
+
 ## 1. Overview
 
 โมดูล Expense & Cost Tracking (M00016) เป็น **additive migration ล้วน** — เพิ่ม nullable/default column บน 3 model เดิม (`Product`, `OrderItem`, `Shop`) + สร้าง model ใหม่ 1 ตัว (`Expense`) ไม่แตะ column/relation เดิมแม้แต่จุดเดียว (D-5/D-7 ของ PRD §10.3)

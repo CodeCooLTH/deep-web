@@ -24,6 +24,10 @@ export const MESSENGER_SUBSCRIBED_FIELDS = [
   // messaging_referrals: ลูกค้าคลิกโฆษณา/ลิงก์ m.me แล้วเปิดแชท (feature 00018 Phase 2) — ต้อง subscribe
   // ไม่งั้น referral ที่ไม่มาพร้อมข้อความจะไม่เข้ามา (referral ในข้อความแรกมากับ messages อยู่แล้ว)
   'messaging_referrals',
+  // feed: คอมเมนต์/โพสต์บนหน้าเพจ (user สั่ง 2026-08-03 "อยากรับ facebook comment")
+  // มาที่ entry.changes ไม่ใช่ entry.messaging — ดู extractFeedChanges ใน webhook-types
+  // เพจที่เชื่อมไว้ก่อนหน้านี้ถูกเติม field นี้ให้แล้วผ่าน Graph (ไม่ต้องเชื่อมใหม่)
+  'feed',
 ] as const
 
 // scope ที่ขอตอนเชื่อม Page — business_management เป็น dependency บังคับของ
@@ -33,6 +37,12 @@ export const CONNECT_SCOPES = [
   'pages_messaging',
   'pages_manage_metadata',
   'pages_read_engagement',
+  // feature 00029 (คอมเมนต์บนโพสต์) — เพิ่ม 2026-08-03 หลังเพิ่ม use case "Manage everything on
+  // your Page" ใน App Dashboard. **token ที่ออกไปก่อนหน้านี้ไม่มีสิทธิ์ 2 ตัวนี้** (scope ติดตัว
+  // token ตอนกดอนุญาต ไม่ใช่ตอนแอปประกาศ) → ร้านที่เชื่อมไว้แล้วต้องกดเชื่อมเพจใหม่ครั้งเดียว
+  // ไม่งั้นตอบคอมเมนต์จะได้ (#200) Permissions error และ backfill คอมเมนต์เก่าก็ดึงไม่ได้
+  'pages_read_user_content',  // อ่านคอมเมนต์ที่ผู้ใช้เขียนบนเพจ + ดึงคอมเมนต์ย้อนหลัง
+  'pages_manage_engagement',  // ตอบ/จัดการคอมเมนต์ในนามเพจ
   'business_management',
   'instagram_basic',
   'instagram_manage_messages',

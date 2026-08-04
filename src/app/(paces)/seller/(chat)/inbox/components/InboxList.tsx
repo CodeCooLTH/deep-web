@@ -43,7 +43,7 @@
  * ใช้ typography เดียวกันเป๊ะจนแยกไม่ออกตอนกวาดตา. เพิ่ม "น้ำหนัก/สีตัวอักษรตามสถานะอ่าน"
  * (convention แอปแชททั่วไป): ยังไม่อ่าน = ชื่อ text-default-900 font-bold + ข้อความย่อ
  * text-default-800 font-semibold + เวลา text-default-700; อ่านแล้ว = เทาลงทั้งแถว
- * (text-default-600 / text-default-400 เหมือนเดิม) — token Paces ล้วน ไม่มี arbitrary value (HR7)
+ * (text-default-600 / text-default-700 เหมือนเดิม) — token Paces ล้วน ไม่มี arbitrary value (HR7)
  *
  * Realtime (bug fix เดียวกัน): เดิมรายการนี้ fetch ครั้งเดียวตอน mount แล้วนิ่งตลอด — ข้อความที่
  * webhook (Messenger/Instagram) หรือผู้ซื้อ Deep ส่งเข้ามาไม่โผล่จนกว่าจะรีเฟรชหน้าเอง ทั้งที่ DB
@@ -133,7 +133,13 @@ export type ConversationListItem = {
   // enrich ด้วย enrichWithAutoReplyBadge ทั้งฝั่ง RSC (inbox/page.tsx) และ route
   // optional เผื่อ payload เก่าที่ยังไม่มี field นี้ -> fallback เป็นพฤติกรรมเดิม ("คุณ: ")
   lastMessageAutoReplyKind?: string | null
-  /** สงวนไว้สำหรับ DeepAI (AI Enhance) — ยังเป็น false เสมอในเฟสนี้ */
+  /**
+   * true = ข้อความล่าสุดมาจาก **ChatBot (DeepAI)** ตอบจากคลังความรู้ · false = คำตอบสำเร็จรูป (DeepBot)
+   *
+   * ชื่อฟิลด์เป็นมรดกจากยุค AI Enhance ที่ถูกถอดออกไปแล้ว (`68c37cd3`) — คงชื่อไว้เพราะทั้ง RSC
+   * และ route ส่งชื่อนี้อยู่ · เดิมค่านี้ hardcode `false` ทั้งสองทาง ป้าย DeepAI จึงไม่เคยขึ้นเลย
+   * (แก้แล้ว 2026-08-02 — อ่านจาก `AutoReplyLog.matchedVia = 'CHATBOT'`)
+   */
   lastMessageIsAiEnhanced?: boolean
   // feature 00018 E5 (user request 2026-07-26) — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา โชว์เป็นชิป
   // `ad_id.…` ในแถวแบบ Business Suite; optional เผื่อ payload เก่า
@@ -219,6 +225,10 @@ type Props = {
   /** true = เรียกจาก Chat Rail (desktop, feat 00018) — ช่องค้นหาอยู่ topbar แล้ว ไม่ render ในตัว
    *  ไม่ระบุ/false = มือถือ/แท็บเล็ต drill-down list (inbox/page.tsx) — พฤติกรรมเดิมทุกประการ */
   railMode?: boolean
+  /** true = มีแท็บ ข้อความ|ความคิดเห็น เป็น sticky อยู่เหนือขึ้นไปในกล่อง scroll เดียวกัน (มือถือ)
+   *  → หัวรายการต้องเกาะใต้แท็บแทนที่จะเกาะขอบบน ไม่งั้นทับกัน. Chat Rail ไม่ต้องใช้ เพราะที่นั่น
+   *  แท็บอยู่นอกกล่อง scroll ไปแล้ว (ChatRail.tsx) */
+  tabsAbove?: boolean
   /** ร้านที่ active — ใช้ subscribe realtime `chat:shop:{shopId}`; null = ไม่ subscribe
    *  (ยัง fallback refresh ตอน focus ได้ปกติ) */
   shopId?: string | null
@@ -231,6 +241,7 @@ export default function InboxList({
   initialGroups = [],
   hasShipping = false,
   railMode = false,
+  tabsAbove = false,
   shopId = null,
 }: Props) {
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
@@ -745,7 +756,15 @@ export default function InboxList({
           ต้อง bg-card ในตัวเอง (พื้นของ .card อยู่ "หลัง" แถวที่เลื่อนผ่าน — ถ้าหัวโปร่งจะเห็นแถว
           ทะลุ) + z-10 ให้อยู่เหนือทั้งแถวและชุดปุ่มลอยตอน hover. ใช้ได้จริงเพราะ .card ไม่มี
           overflow:hidden (custom/_card.css — มีเฉพาะ .card-collapsed) ที่จะตัด sticky ทิ้ง */}
-      <div className="card-header sticky top-0 z-10 flex flex-col items-stretch gap-3 border-dashed bg-card">
+      {/* tabsAbove (มือถือ): มีแท็บ ข้อความ|ความคิดเห็น เป็น sticky อยู่เหนือขึ้นไปในกล่อง scroll
+          เดียวกัน — หัวรายการต้องเกาะ "ใต้แท็บ" ไม่ใช่ที่ 0 ไม่งั้นสองอันค้างที่เส้นเดียวกันแล้วทับกัน
+          top-14 = 3.5rem = 56px = ความสูงจริงของแท็บ (pt-3 12px + min-h-11 44px) และเป็น Tailwind
+          scale class ปกติ ไม่ใช่ arbitrary value (HR7) */}
+      <div
+        className={`card-header sticky z-10 flex flex-col items-stretch gap-3 border-dashed bg-card ${
+          tabsAbove ? 'top-14' : 'top-0'
+        }`}
+      >
         {/* ช่องค้นหา — Base ContactList.tsx:19-24 — railMode (desktop rail) ย้ายขึ้น topbar
             แล้ว (ChatSearchBox.tsx) ไม่ render ซ้ำที่นี่ — มือถือ/แท็บเล็ต drill-down ยังมีเหมือนเดิม */}
         {!railMode && (
@@ -944,7 +963,7 @@ export default function InboxList({
                 ) : (
                   <>
                     กลุ่ม
-                    {groups.length > 0 && <span className="text-default-500">{groups.length}</span>}
+                    {groups.length > 0 && <span className="text-default-700">{groups.length}</span>}
                   </>
                 )}
                 <Icon icon={openPanel === 'group' ? 'chevron-up' : 'chevron-down'} width={12} height={12} />
@@ -997,7 +1016,7 @@ export default function InboxList({
                         onClick={() => handleDeleteGroup(g)}
                         aria-label={`ลบกลุ่ม ${g.name}`}
                         title="ลบกลุ่ม"
-                        className="text-default-400 hover:text-danger flex size-8 shrink-0 items-center justify-center"
+                        className="text-default-700 hover:text-danger flex size-8 shrink-0 items-center justify-center"
                       >
                         <Icon icon="trash" width={14} height={14} />
                       </button>
@@ -1200,6 +1219,11 @@ export default function InboxList({
                             icon="star-filled"
                             width={14}
                             height={14}
+                            // ดาวปักหมุด: คงสี warning (เหลือง) ไว้ ไม่ใช้ -ink (user 2026-08-03
+                            // "มันต้องสีเหลืองป่ะ") — เคสนี้ "สี = ตัวตนของไอคอน" ดาวสีน้ำตาลอ่านไม่ออกว่าเป็นดาว
+                            // ไม่เสียการเข้าถึง เพราะสถานะปักหมุดสื่อผ่านทางอื่นครบ: แถวถูกเรียงขึ้นบนสุด +
+                            // aria-label ของปุ่ม + เมนู ⋯ เขียนว่า "เลิกปักหมุด" (WCAG 1.4.11 ไม่บังคับเมื่อ
+                            // ข้อมูลมีในรูปแบบอื่นแล้ว) — ต่างจากข้อความที่ไม่มีทางเลือกอื่นนอกจากอ่าน
                             className="text-warning shrink-0"
                             aria-label="ปักหมุดไว้"
                           />
@@ -1233,12 +1257,12 @@ export default function InboxList({
                           senderRole='SHOP' ครอบทั้งที่ตอบจาก Deep และ echo จากแอป Messenger ของร้าน
                           — ทั้งคู่คือ "เรา" ในสายตาผู้ใช้ */}
                       {/* preview: text-xs ตามเดิม (เคยขยับเป็น text-sm แล้วถอยกลับพร้อม padding แถว
-                          2026-07-31 — แถวสูงเกินไป). คงสี text-default-500 ที่ปรับจาก 400 ไว้
+                          2026-07-31 — แถวสูงเกินไป). คงสี text-default-700 ที่ปรับจาก 400 ไว้
                           เพราะเป็นเรื่องคอนทราสต์ให้อ่านออก ไม่ใช่เรื่องขนาด และตอนนี้บรรทัดนี้
                           เป็นตัวหลักที่บอกสถานะอ่าน (ชื่อเข้มเสมอแล้ว) */}
                       <span
                         className={`block max-w-52 truncate text-2xs ${
-                          unread ? 'text-default-800 font-semibold' : 'text-default-500'
+                          unread ? 'text-default-800 font-semibold' : 'text-default-700'
                         }`}
                       >
                         {/* user request 2026-08-01: ป้าย DeepBot/DeepAI เคยแทนที่คำว่า "คุณ: " ตรงนี้
@@ -1247,7 +1271,7 @@ export default function InboxList({
                             "คุณ: " ให้ทุกข้อความที่ฝั่งร้านส่ง ไม่ว่าคนหรือบอทเป็นคนส่ง — ในสายตา
                             ลูกค้าทั้งคู่คือ "ร้าน" เหมือนกันอยู่แล้ว */}
                         {c.lastSenderRole === 'SHOP' && c.lastMessagePreview && (
-                          <span className="text-default-500 font-normal">คุณ: </span>
+                          <span className="text-default-700 font-normal">คุณ: </span>
                         )}
                         {preview}
                       </span>
@@ -1287,7 +1311,7 @@ export default function InboxList({
                             <span key={t} className="badge bg-primary/15 text-primary text-2xs">{t}</span>
                           ))}
                           {contactTags.length > 2 && (
-                            <span className="badge bg-default-100 text-default-500 text-2xs">+{contactTags.length - 2}</span>
+                            <span className="badge bg-default-100 text-default-700 text-2xs">+{contactTags.length - 2}</span>
                           )}
                         </span>
                       )}
@@ -1336,11 +1360,11 @@ export default function InboxList({
                   <span className="flex shrink-0 flex-col items-end justify-between self-stretch py-0.5">
                     <span className="flex flex-col items-end gap-1.25">
                       {/* timestamp — สีตามสถานะอ่าน (main); indicator ปักหมุดอยู่หน้าชื่อแล้ว */}
-                      {/* lg:group-hover:invisible — ชุดปุ่ม hover มาแทนที่ตรงนี้พอดี (user 2026-08-02)
-                          ใช้ invisible ไม่ใช่ hidden: ต้องกันที่ไว้เท่าเดิม ไม่งั้นความกว้างคอลัมน์ขวา
-                          ยุบตอน hover แล้วชื่อ/ข้อความกระตุกทุกครั้งที่เมาส์ผ่าน */}
+                      {/* เดิมซ่อนเวลาตอน hover (`lg:group-hover:invisible`, 2026-08-02) เพราะชุดปุ่ม
+                          มาทับที่ตรงนี้พอดี — พอ user สั่งย้ายชุดปุ่มไปกลางการ์ด (2026-08-03) มันไม่ทับ
+                          แล้ว การซ่อนเวลาจึงกลายเป็นการทิ้งข้อมูลฟรี ๆ ทุกครั้งที่เมาส์ผ่าน → เอาออก */}
                       <span
-                        className={`text-2xs lg:group-hover:invisible ${unread ? 'text-default-700 font-semibold' : 'text-default-400'}`}
+                        className={`text-2xs ${unread ? 'text-default-700 font-semibold' : 'text-default-700'}`}
                       >
                         {formatChatListTime(c.lastMessageAt)}
                       </span>
@@ -1371,12 +1395,15 @@ export default function InboxList({
                     เฉพาะตอน hover ไม่เบียดความกว้างของเนื้อหาแถวเลย
                     ปักหมุดย้ายเข้าชุดนี้ด้วย (2026-07-23) หลังจากดาวหน้าสุดถูกเปลี่ยนเป็น indicator
                     inline หน้าชื่อ — action ต้องยังกดได้ที่เดียวกับ ปิดงาน/ซ่อน ไม่ใช่หายไป */}
-                {/* top-2 (เดิม top-1/2): ย้ายจากกลางแถวมาอยู่บรรทัดเดียวกับเวลา แล้วซ่อนเวลาตอน hover
-                    — ของเดิมลอยกลางแถวพอดี จึงทับ "ข้อความล่าสุด + แท็ก" ซึ่งเป็นบรรทัดที่ต้องอ่าน
-                    จริง ๆ ทำให้ต้องขยับเมาส์หนีเพื่ออ่านว่าห้องไหนเป็นห้องไหน (user report 2026-08-02)
+                {/* ตำแหน่งแนวตั้ง — โดนสั่งกลับไปกลับมา บันทึกไว้กันแก้วน:
+                    2026-08-02 ย้าย top-1/2 → top-2 เพราะลอยกลางแถวแล้วทับ "ข้อความล่าสุด + แท็ก"
+                      ซึ่งเป็นบรรทัดที่ต้องอ่านจริง ๆ (ต้องขยับเมาส์หนีเพื่ออ่านว่าห้องไหนเป็นห้องไหน)
+                    2026-08-03 user สั่งกลับมากลางการ์ด ("มันไม่อยู่ตรงกลาง card ของ chat lists")
+                      → กลับไป top-1/2 + -translate-y-1/2. ข้อแลกเปลี่ยนเดิมยังอยู่: ตอน hover
+                      ชุดปุ่มจะบังปลายบรรทัดข้อความล่าสุด/แท็กด้านขวา (ชุดปุ่มทึบ มีขอบ+เงา)
                     เหลือ 2 action ที่ใช้บ่อยสุด (ปักหมุด/ปิดงาน) ส่วน ซ่อน+สแปม เข้าเมนู ⋯ */}
                 <div
-                  className={`absolute end-2 top-2 items-center gap-0.5 rounded-lg border border-default-200 bg-card p-0.5 shadow ${
+                  className={`absolute end-2 top-1/2 -translate-y-1/2 items-center gap-0.5 rounded-lg border border-default-200 bg-card p-0.5 shadow ${
                     // เมนูเปิดอยู่ = ต้องค้างไว้แม้เมาส์ออกนอกแถว ไม่งั้นเมนูที่ล้นออกนอกขอบแถว
                     // จะทำให้ hover หลุด → ชุดปุ่มหาย → เมนูหายตามระหว่างที่ผู้ใช้กำลังจะกดมัน
                     rowMenuId === c.id ? 'flex' : 'hidden lg:group-hover:flex'
@@ -1390,6 +1417,7 @@ export default function InboxList({
                     aria-label={c.isPinned ? 'เลิกปักหมุดบทสนทนานี้' : 'ปักหมุดบทสนทนานี้'}
                     title={c.isPinned ? 'เลิกปักหมุด' : 'ปักหมุด'}
                     className={`btn btn-icon btn-sm hover:bg-default-100 disabled:opacity-50 ${
+                      // เหลืองเหมือนดาวหน้าชื่อ — ต้องเป็นสีเดียวกันทั้งสองที่ ไม่งั้นดูเป็นคนละสถานะ
                       c.isPinned ? 'text-warning' : 'text-default-600'
                     }`}
                   >
@@ -1484,7 +1512,7 @@ export default function InboxList({
                 role="status"
                 aria-label="กำลังโหลด"
               />
-              <span className="text-default-500 text-sm font-medium">กำลังโหลด...</span>
+              <span className="text-default-700 text-sm font-medium">กำลังโหลด...</span>
             </div>
           )}
         </div>

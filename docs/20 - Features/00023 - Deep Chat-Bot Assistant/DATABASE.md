@@ -1,10 +1,11 @@
 ---
-title: "DATABASE — Chat Auto-Reply"
+title: "DATABASE — Deep Chat-Bot Assistant"
 owner: shinobu22
-status: draft
+status: shipped-partially-superseded
 module: M00023-ChatAutoReply
-version: "1.0"
+version: "1.1"
 created: 2026-07-29
+updated: 2026-08-02
 tags: [feature, database, prisma, postgres, auto-reply, chat]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]"]
 ---
@@ -17,6 +18,31 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]"]
 > **เจ้าของเอกสาร:** safepay-database (ดู [[Feature-Docs-Ownership]])
 
 # DATABASE: ตอบแชทอัตโนมัติจาก Keyword
+
+---
+
+## 📌 สถานะ ณ 2026-08-02 — ส่วนที่ไม่ตรงกับ schema จริงแล้ว
+
+เอกสารนี้เขียน 2026-07-29/31 · หลังจากนั้น `68c37cd3` (2026-08-02) ถอดฟีเจอร์ออกไป 3 ชุด
+ทำให้ **ตารางยังอยู่ครบแต่ความหมายเปลี่ยน** — ตรวจกับ `prisma/schema.prisma` ก่อนเชื่อทุกครั้ง
+
+| ตาราง | สถานะจริง |
+|---|---|
+| `AutoReplyQna` | ✅ **ยังใช้อยู่ แต่ scope กลับด้าน** — เดิมเอกสารนี้ยืนยันว่า "คลังคำถามเป็นของกลุ่มคำ ไม่ใช่คลังกลางของร้าน" (§2 ท้าย ERD) · ตอนนี้ **กลับเป็นคลังกลางระดับร้าน** คอลัมน์ `keywordId` ยังอยู่แต่ **ไม่ถูกใช้ในเส้นทางไหนแล้ว** · query จริงคือ `listShopQna(shopId)` (`auto-reply-qna.service.ts`) |
+| `AutoReplyUnansweredQuestion` | 🛑 **กำพร้า** — ไม่มีโค้ด production เขียนหรืออ่านอีกแล้ว (service/route/UI/สคริปต์ backfill ถูกลบทั้งหมดใน `68c37cd3`) เหลือแค่ mock ค้างในเทส `auto-reply.service.test.ts:18,86` ที่ยัง mock `upsert` ทั้งที่ service เลิกเรียกแล้ว |
+| `AutoReplyGuardrail` | ✅ ใช้อยู่ แต่ย้ายเจ้าของจาก AI Enhance → **ChatBot** (`auto-reply.service.ts:946`) |
+| `AiChatbotTestThread` | ➕ **ตารางใหม่ที่ยังไม่มีในเอกสารนี้** (migration `20260802000000_ai_chatbot_status`) — allowlist แชทสำหรับโหมดทดสอบของ ChatBot |
+| `AutoReplyConfig` | ➕ เพิ่มคอลัมน์ ChatBot อีก ~17 ตัว (`aiChatbotStatus`, `aiChatbotShopOnly`, `aiChatbotCooldownSec`, `aiChatbotStartTime/EndTime`, …) ที่ยังไม่มีในเอกสารนี้ — ดู PRD §3.10 |
+
+### 🛑 `AutoReplyUnansweredQuestion` — อย่าเพิ่งลบ
+
+ตารางกำพร้าแต่ **ยังไม่ควร `DROP`** ด้วยเหตุผลเรื่องข้อมูล ไม่ใช่เรื่องโค้ด:
+- แถวในนั้นคือคำถามจริงที่ลูกค้าเคยถามแล้วบอทตอบไม่ได้ (~317–401 แถว) ซึ่งเป็น **วัตถุดิบตั้งต้น
+  ที่ดีที่สุดของคลังความรู้** ที่มาแทน — ลบทิ้งคือทิ้งข้อมูลที่หามาไม่ได้อีก
+- ฐาน prod เคยถูกล้างทั้งฐานมาแล้วครั้งหนึ่ง (2026-07-31) — งดคำสั่ง DDL ที่ทำลายข้อมูลโดยไม่จำเป็น
+  จนกว่าจะมีคนตัดสินใจเรื่องนี้อย่างชัดเจน (Hard Rule 14)
+
+**สิ่งที่ควรทำแทน:** ล้าง mock ที่ค้างในเทสออก แล้วบันทึกตารางนี้เป็น "deprecated — data retained"
 
 ---
 
@@ -111,7 +137,12 @@ erDiagram
     AutoReplyQna |o--o{ AutoReplyUnansweredQuestion : "คิวที่ถูกแปลงเป็นคลังแล้ว"
 ```
 
-**อ่าน ERD ตรงนี้ให้ถูก:** `AutoReplyQna` ผูกกับ `AutoReplyKeyword` **ไม่ใช่กับ `Shop` โดยตรงในเชิงความหมาย** (คอลัมน์ `shopId` มีไว้ให้ query เร็วเฉย ๆ) — คลังคำถามเป็นของกลุ่มคำ ไม่ใช่คลังกลางของร้าน ซึ่งเป็นข้อตัดสินของ user ที่มีเหตุผลรองรับ (ดู §3.9)
+**อ่าน ERD ตรงนี้ให้ถูก:** ~~`AutoReplyQna` ผูกกับ `AutoReplyKeyword` **ไม่ใช่กับ `Shop` โดยตรงในเชิงความหมาย** (คอลัมน์ `shopId` มีไว้ให้ query เร็วเฉย ๆ) — คลังคำถามเป็นของกลุ่มคำ ไม่ใช่คลังกลางของร้าน ซึ่งเป็นข้อตัดสินของ user ที่มีเหตุผลรองรับ (ดู §3.9)~~
+
+🛑 **ข้อความข้างบนกลับด้านแล้วตั้งแต่ 2026-08-02 (`68c37cd3`)** — user เปลี่ยนใจให้คลังความรู้เป็น
+**ของกลาง ระดับร้าน** ความสัมพันธ์ที่มีความหมายจริงตอนนี้คือ `Shop ||--o{ AutoReplyQna`
+ส่วน `keywordId` กลายเป็นคอลัมน์ที่ไม่มีใครใช้ · เส้น `AutoReplyKeyword ||--o{ AutoReplyQna` และ
+`AutoReplyQna |o--o{ AutoReplyUnansweredQuestion` ใน ERD ด้านบน **ไม่สะท้อนเส้นทางโค้ดจริงอีกแล้ว**
 
 ---
 
@@ -560,7 +591,13 @@ model AutoReplyQna {
 
 🛑 เกณฑ์ที่ 3 มีไว้ให้ผล **ซ้ำได้ทุกครั้ง** ตามหลักเดียวกับ AC-011-03 — ไม่ใช่ tie-break ที่คาดว่าจะได้ใช้
 
-### 3.10 `AutoReplyUnansweredQuestion` (เพิ่ม 2026-07-31 — phase `00023-qna`)
+### 3.10 `AutoReplyUnansweredQuestion` — 🛑 DEPRECATED (กำพร้าตั้งแต่ 2026-08-02, ข้อมูลเก็บไว้)
+
+> ตารางยังอยู่ใน DB และยังมี declaration ใน `schema.prisma` แต่ **ไม่มีเส้นทางโค้ดไหนแตะแล้ว**
+> ทั้ง service (`auto-reply-unanswered.service.ts`), route (`/api/shops/auto-reply/unanswered/**`),
+> UI (`auto-reply/unanswered/**`) และสคริปต์ backfill ถูกลบไปกับ `68c37cd3`
+> **ห้าม DROP** — ดูเหตุผลในบล็อก "สถานะ ณ 2026-08-02" ต้นไฟล์
+> เนื้อหาข้างล่างเก็บไว้เป็นสเปกของตารางตามที่มันมีอยู่จริง ไม่ใช่ของที่ทำงานอยู่
 
 คิว "คำถามที่ DeepBot ตอบไม่ได้" — **ตารางจริงที่เขียนตอนเกิดเหตุ ไม่ใช่ `groupBy` บน `AutoReplyLog` ตอนเปิดหน้า**
 

@@ -8,7 +8,7 @@ export const AI_SUGGEST_FREE_DAILY_LIMIT = 10
 /** ราคาซื้อเพิ่มเกินโควตาฟรี ต่อ 1 ครั้ง (บาท) — credit path เท่านั้น (BR-AIQ-01) */
 export const AI_SUGGEST_EXTRA_USE_PRICE_BAHT = 1
 
-/** WalletTransaction.reason ใหม่สำหรับหัก/คืนเครดิต ai-suggest (ไม่มี DDL — แค่ค่า string ใหม่) */
+/** WalletTransaction.reason ใหม่สำหรับหัก/คืนเงิน ai-suggest (ไม่มี DDL — แค่ค่า string ใหม่) */
 export const WALLET_REASON_AI_SUGGEST = {
   AI_SUGGEST_EXTRA_USE: 'AI_SUGGEST_EXTRA_USE',
 } as const

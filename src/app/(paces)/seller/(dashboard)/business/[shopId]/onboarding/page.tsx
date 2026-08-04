@@ -25,6 +25,7 @@ import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import BusinessOnboardingWizard from './components/BusinessOnboardingWizard'
 
 export const metadata: Metadata = { title: 'ตั้งค่าร้านธุรกิจ' }
@@ -52,6 +53,8 @@ export default async function BusinessOnboardingPage({ params }: BusinessOnboard
       kind: true,
       slug: true,
       deletedAt: true,
+      // feature 00028 (A2b) — step สุดท้ายของ wizard ต้องรู้ vertical เพื่อแตกฟอร์มให้ถูกประเภท
+      vertical: true,
     },
   })
 
@@ -62,6 +65,9 @@ export default async function BusinessOnboardingPage({ params }: BusinessOnboard
   // onboard เสร็จแล้ว (มี slug) → กันเข้าซ้ำ พากลับหน้าจัดการธุรกิจ
   if (shop.slug) redirect('/business')
 
+  // shop.vertical เป็น String ในสคีมา (constant ไม่ใช่ DB enum ตาม src/lib/lodging.ts) — cast แบบมี guard
+  const vertical = isShopVertical(shop.vertical) ? shop.vertical : DEFAULT_SHOP_VERTICAL
+
   return (
     <>
       <PageBreadcrumb title={`ตั้งค่าร้าน — ${shop.shopName}`} trail={[{ label: 'ธุรกิจ', href: '/business' }]} />
@@ -70,6 +76,7 @@ export default async function BusinessOnboardingPage({ params }: BusinessOnboard
         initialShopName={shop.shopName}
         initialCategory={shop.category ?? ''}
         initialLogo={shop.logo ?? ''}
+        vertical={vertical}
       />
     </>
   )

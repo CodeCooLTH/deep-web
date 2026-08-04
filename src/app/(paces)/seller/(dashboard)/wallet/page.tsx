@@ -24,7 +24,7 @@ import WalletCard from './components/WalletCard'
 import TopUpRequestTable, { type TopUpRequestRow } from './components/TopUpRequestTable'
 import WalletTransactionTable from './components/WalletTransactionTable'
 
-export const metadata: Metadata = { title: 'เครดิต SMS' }
+export const metadata: Metadata = { title: 'กระเป๋าเงิน' }
 
 // TransactionRow type — serializable (no Date object ข้าม RSC boundary)
 export type TransactionRow = {
@@ -56,9 +56,9 @@ export default async function WalletPage() {
   // no-shop case: balance = 0, transactions = [] — ตาม spec "no-shop → balance 0 + empty table"
   let balance = 0
   let transactions: TransactionRow[] = []
-  // topUpRequests: ประวัติคำขอเติมเครดิตของ shop (รวม PENDING ที่รออนุมัติ)
+  // topUpRequests: ประวัติคำขอเติมเงินของ shop (รวม PENDING ที่รออนุมัติ)
   let topUpRequests: TopUpRequestRow[] = []
-  // hasError: true เมื่อ service throw — ห้าม silent ฿0 ที่ทำให้ seller เข้าใจผิดว่าเครดิตหาย
+  // hasError: true เมื่อ service throw — ห้าม silent ฿0 ที่ทำให้ seller เข้าใจผิดว่ายอดเงินหาย
   let hasError = false
 
   if (shop) {
@@ -102,7 +102,7 @@ export default async function WalletPage() {
       }))
     } catch {
       // service throw → บอก WalletCard ให้แสดง error banner ชัด ๆ
-      // ไม่ silent ฿0 เพราะ seller อาจเข้าใจผิดว่าเครดิตจริงหาย (financial trust issue)
+      // ไม่ silent ฿0 เพราะ seller อาจเข้าใจผิดว่ายอดเงินจริงหาย (financial trust issue)
       hasError = true
       balance = 0
       transactions = []
@@ -110,15 +110,15 @@ export default async function WalletPage() {
     }
   }
 
-  // lowBalance: เครดิตเคยมีและกำลังจะหมด (> 0 && ≤ 10)
-  // balance=0 ไม่นับ — seller ใหม่ที่ยังไม่ซื้อเครดิตไม่ควรเห็น warning "เครดิตเหลือน้อย"
+  // lowBalance: ยอดเงินเคยมีและกำลังจะหมด (> 0 && ≤ 10)
+  // balance=0 ไม่นับ — seller ใหม่ที่ยังไม่เติมเงินไม่ควรเห็น warning "ยอดเงินเหลือน้อย"
   const lowBalance = balance > 0 && balance <= 10
 
   return (
     <>
-      {/* Breadcrumb: Business → เครดิต SMS (ตาม Design Spec) */}
+      {/* Breadcrumb: Business → กระเป๋าเงิน (ตาม Design Spec) */}
       <PageBreadcrumb
-        title="เครดิต SMS"
+        title="กระเป๋าเงิน"
         trail={[{ label: 'การขาย' }]}
       />
 
@@ -132,7 +132,7 @@ export default async function WalletPage() {
       </div>
 
       {/* TopUpRequest section — วางระหว่าง balance card กับ ledger table */}
-      {/* แยก section นี้ออกจาก "ประวัติรายการเครดิต" (WalletTransactionTable ด้านล่าง) */}
+      {/* แยก section นี้ออกจาก "ประวัติรายการเงินเข้า-ออก" (WalletTransactionTable ด้านล่าง) */}
       {/* เหตุผล: ledger แสดงเฉพาะที่ approve แล้ว; section นี้แสดง PENDING ที่รออยู่ด้วย */}
       {!hasError && (
         <div className="mb-6">

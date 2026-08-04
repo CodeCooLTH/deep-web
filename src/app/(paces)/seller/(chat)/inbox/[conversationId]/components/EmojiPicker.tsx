@@ -13,10 +13,13 @@
  * Paces primitive เท่านั้น (Hard Rule 7): .card/bg-card/token spacing/size-* — ไม่มี arbitrary value
  * Base (popover ทรง card ลอย): theme/paces/Admin/TS ใช้ .card + shadow-sm สำหรับ dropdown panel
  */
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import Icon from '@/components/wrappers/Icon'
 
 // codepoint (ไม่ใช่ตัว emoji) — จัดกลุ่มให้เหมาะกับแชทร้านค้า (ทักทาย/ขอบคุณ/นิ้วโป้ง/หัวใจ/เงิน/ช้อป)
-const CATEGORIES: { key: string; label: string; codepoints: number[] }[] = [
+// export เพื่อให้แผงรีแอ็กชันบนข้อความ (MessageActionBubble) ใช้ชุดเดียวกัน — user สั่ง 2026-08-03
+// "กดแล้วขึ้น panel emoji ที่รองรับทั้งหมด" ชุด emoji ต้องเป็นชุดเดียวกับที่ composer ใช้ ไม่ใช่คนละชุด
+export const EMOJI_CATEGORIES: { key: string; label: string; codepoints: number[] }[] = [
   {
     key: 'smileys',
     label: 'หน้ายิ้ม',
@@ -62,13 +65,125 @@ const CATEGORIES: { key: string; label: string; codepoints: number[] }[] = [
   },
 ]
 
+/** สติกเกอร์จาก Sticker Catalog API ของ Meta (ผ่าน /api/channels/facebook/stickers) */
+export type StickerItem = { id: string; name: string | null; imageUrl: string }
+type StickerPack = { id: string; name: string; previewImageUrl: string | null }
+
+/** สติกเกอร์ที่ใช้ล่าสุด (user สั่ง 2026-08-04 "มี recent ให้ใช้ด้วย") — เก็บที่เครื่อง ไม่ต้องมี
+ *  ตารางใหม่: มันเป็นความชอบส่วนตัวของเครื่องที่ใช้ ไม่ใช่ข้อมูลร้านที่ต้องแชร์ข้ามอุปกรณ์ */
+const RECENT_KEY = 'deep.chat.recentStickers'
+/** ค่าพิเศษของแท็บ "ใช้ล่าสุด" — ไม่ใช่ id แพ็กจริง (id ของ Meta เป็นตัวเลขล้วน ไม่ชนกัน) */
+const RECENT_TAB = 'RECENT'
+const RECENT_MAX = 16
+
+function readRecentStickers(): StickerItem[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY)
+    const arr = raw ? (JSON.parse(raw) as unknown) : null
+    if (!Array.isArray(arr)) return []
+    return arr.filter(
+      (x): x is StickerItem =>
+        !!x && typeof (x as StickerItem).id === 'string' && typeof (x as StickerItem).imageUrl === 'string',
+    )
+  } catch {
+    return []
+  }
+}
+
+export function rememberRecentSticker(sticker: StickerItem): void {
+  if (typeof window === 'undefined') return
+  try {
+    const next = [sticker, ...readRecentStickers().filter((s) => s.id !== sticker.id)].slice(0, RECENT_MAX)
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+  } catch {
+    /* localStorage เต็ม/ปิดอยู่ — recents เป็นของเสริม ห้ามทำให้ส่งสติกเกอร์ไม่ได้ */
+  }
+}
+
 type Props = {
   onSelect: (emoji: string) => void
   onClose: () => void
+  /**
+   * มีค่า = โชว์แท็บ "สติกเกอร์" ด้วย (user สั่ง 2026-08-04: "ปรกติเค้ากดจาก emoji กันป่ะ แล้วเจอ
+   * tab เลือกว่าจะ emoji หรือ sticker") — ไม่ส่ง = แผงอิโมจิล้วนเหมือนเดิม
+   * ฝั่งคอมเมนต์ไม่ส่งค่านี้: Graph ของคอมเมนต์ไม่รับ sticker_id (ส่งได้แค่ข้อความ + รูป 1 ใบ)
+   */
+  onSelectSticker?: (sticker: StickerItem) => void
 }
 
-export default function EmojiPicker({ onSelect, onClose }: Props) {
+export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  const [tab, setTab] = useState<'EMOJI' | 'STICKER'>('EMOJI')
+  const [packs, setPacks] = useState<StickerPack[] | null>(null)
+  /**
+   * แท็บที่เปิดอยู่ในแถบล่าง — id ของแพ็ก หรือ RECENT_TAB (ใช้ล่าสุด)
+   * user สั่ง 2026-08-04: "ปรกติมันต้องมี tab recent sticker อยู่อันแรกเสมอ เพื่อให้ทุกครั้งที่เลือก
+   * tab sticker มันเปิด recent ก่อนเสมอ" — ตรงกับ Messenger (นาฬิกาเป็นแท็บแรก)
+   */
+  const [packId, setPackId] = useState<string | null>(null)
+  const [stickers, setStickers] = useState<StickerItem[] | null>(null)
+  const [q, setQ] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [recents, setRecents] = useState<StickerItem[]>([])
+
+  const loadStickers = useCallback(async (url: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(url)
+      const body = (await res.json().catch(() => null)) as
+        | { items?: StickerItem[]; packs?: StickerPack[]; error?: string }
+        | null
+      if (!res.ok) {
+        setError(body?.error ?? 'โหลดสติกเกอร์ไม่สำเร็จ')
+        return
+      }
+      if (body?.packs) setPacks(body.packs)
+      if (body?.items) setStickers(body.items)
+    } catch {
+      setError('เชื่อมต่อไม่สำเร็จ')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // เปิดแท็บสติกเกอร์ครั้งแรก → โหลดรายการแพ็ก + อ่าน recents (ไม่โหลดล่วงหน้าตอนเปิดแผงอิโมจิ
+  // เพราะคนส่วนใหญ่เปิดมาเพื่อกดอิโมจิ ไม่ควรยิง Graph ทิ้งทุกครั้ง)
+  useEffect(() => {
+    if (tab !== 'STICKER') return
+    setRecents(readRecentStickers())
+    if (packs === null) void loadStickers('/api/channels/facebook/stickers')
+  }, [tab, packs, loadStickers])
+
+  // ได้รายการแพ็กแล้ว → เปิดแพ็กแรกให้เลย (user report 2026-08-04: แผงค้างที่ข้อความ "เลือกแพ็ก
+  // ด้านล่าง" ซึ่งเท่ากับบังคับให้กดอีกครั้งก่อนเห็นของ — Messenger เปิดมาเห็นสติกเกอร์ทันที)
+  useEffect(() => {
+    if (tab !== 'STICKER' || packId !== null || q.trim()) return
+    // มีของที่ใช้ล่าสุด → เปิดแท็บนั้นก่อนเสมอ (ไม่ต้องยิง Graph เลย)
+    if (recents.length > 0) {
+      setPackId(RECENT_TAB)
+      return
+    }
+    // ยังไม่เคยส่งสติกเกอร์ (recents ว่าง) → เปิดแพ็กแรกให้ ไม่ปล่อยให้แผงว่างเปล่า
+    if (!packs || packs.length === 0 || stickers !== null) return
+    const first = packs[0]
+    setPackId(first.id)
+    void loadStickers(`/api/channels/facebook/stickers?packId=${encodeURIComponent(first.id)}`)
+  }, [tab, packs, packId, stickers, q, recents, loadStickers])
+
+  // ค้นหา — debounce กันยิงทุกตัวอักษร; Meta บังคับ ≥2 ตัวอักษร
+  useEffect(() => {
+    if (tab !== 'STICKER') return
+    const term = q.trim()
+    if (term.length < 2) return
+    const t = setTimeout(() => {
+      setPackId(null)
+      void loadStickers(`/api/channels/facebook/stickers?q=${encodeURIComponent(term)}`)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [q, tab, loadStickers])
 
   // ปิดเมื่อคลิกนอก panel หรือกด Escape (pattern เดียวกับ FilterDropdown/dropdown อื่นใน (paces))
   useEffect(() => {
@@ -91,12 +206,143 @@ export default function EmojiPicker({ onSelect, onClose }: Props) {
       ref={ref}
       role="dialog"
       aria-label="เลือกอิโมจิ"
-      className="card bg-card border-default-200 absolute bottom-full left-0 z-20 mb-2 w-72 border p-0 shadow-lg"
+      // w-96 (384px) แทน w-72 (288px): สติกเกอร์เป็นรูปที่ต้อง "ดูออกว่าเป็นตัวอะไร" ก่อนกด
+      // ไม่ใช่ไอคอนที่จำตำแหน่งได้ — 4 คอลัมน์ในแผง 384px = ช่องละ ~88px (เดิม ~66px)
+      // max-w-[calc] ไม่ใช้ (HR7) — บนมือถือแผงอยู่ในคอลัมน์ที่กว้างกว่านี้อยู่แล้ว
+      // มือถือ: กว้างเต็มแถบ composer (inset-x-0) — popover แคบ ๆ ทำให้สติกเกอร์เล็กจนดูไม่ออก
+      // (user report 2026-08-04 "ใน mobile ก็ใช้ยาก") · ≥640px กลับเป็นแผงลอยกว้าง 384px
+      className="card bg-card border-default-200 absolute bottom-full inset-x-0 z-20 mb-2 w-auto border p-0 shadow-lg sm:left-0 sm:right-auto sm:w-96"
     >
+      {/* แท็บ อิโมจิ | สติกเกอร์ — โครงเดียวกับ segmented ของแท็บช่องทางในกล่องข้อความ
+          (bg-light rounded-lg p-1 + ตัวที่เลือกเป็นการ์ดขาว) เพื่อให้เป็นภาษาเดียวกันทั้งแอป */}
+      {onSelectSticker && (
+        <div className="border-default-200 border-b p-2">
+          <div className="bg-light flex items-center gap-0.5 rounded-lg p-1" role="tablist" aria-label="ชนิดที่จะแทรก">
+            {([
+              { key: 'EMOJI', label: 'อิโมจิ' },
+              { key: 'STICKER', label: 'สติกเกอร์' },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => setTab(t.key)}
+                className={`flex min-w-0 flex-1 items-center justify-center rounded-md px-2 py-1.5 text-sm font-medium ${
+                  tab === t.key ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {onSelectSticker && tab === 'STICKER' ? (
+        <div className="flex flex-col">
+          <div className="border-default-200 border-b p-2">
+            <div className="input-icon-group">
+              <Icon icon="search" className="input-icon" />
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="ค้นหาสติกเกอร์"
+                aria-label="ค้นหาสติกเกอร์"
+                className="form-input"
+              />
+            </div>
+          </div>
+          <div className="max-h-80 overflow-y-auto p-2">
+            {error ? (
+              <p className="text-danger p-2 text-xs" role="alert">
+                {error}
+              </p>
+            ) : loading ? (
+              <p className="text-default-700 p-2 text-xs">กำลังโหลด...</p>
+            ) : (
+              <>
+                {/* แท็บ "ใช้ล่าสุด" — อ่านจากเครื่อง ไม่ยิง Graph */}
+                {packId === RECENT_TAB && !q.trim() && (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {recents.map((st) => (
+                      <StickerButton key={`r-${st.id}`} sticker={st} onPick={onSelectSticker} />
+                    ))}
+                  </div>
+                )}
+                {packId !== RECENT_TAB && stickers && stickers.length > 0 && (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {stickers.map((st) => (
+                      <StickerButton key={st.id} sticker={st} onPick={onSelectSticker} />
+                    ))}
+                  </div>
+                )}
+                {/* ไม่พบจากการค้นหา = ต้องบอก (ไม่งั้นดูเหมือนแผงพัง) ส่วนตอน "ยังไม่มีอะไรให้แสดง"
+                    ไม่ต้องมีข้อความอะไรเลย — แพ็กแรกถูกเปิดให้เองอยู่แล้ว ข้อความสอนวิธีใช้
+                    ("เลือกแพ็กด้านล่าง หรือค้นหาด้านบน") ถูกถอดออกตามที่ user สั่ง 2026-08-04 */}
+                {stickers && stickers.length === 0 && q.trim() && (
+                  <p className="text-default-700 p-2 text-xs">ไม่พบสติกเกอร์ที่ค้นหา</p>
+                )}
+              </>
+            )}
+          </div>
+          {/* แถบแพ็กด้านล่าง (เหมือน Messenger) — เลื่อนแนวนอน กดแล้วโหลดสติกเกอร์ในแพ็กนั้น */}
+          {packs && packs.length > 0 && (
+            /* เลื่อนข้างได้เหมือน Messenger — thumb ใหญ่ขึ้นเป็น 44px (ของเดิม 36px กับรูป preview
+               ที่เป็นตารางสติกเกอร์ย่อ = ดูไม่ออกว่าแพ็กอะไร) flex-nowrap กันตกบรรทัดเป็นกำแพงรูป */
+            <div className="border-default-200 flex flex-nowrap gap-1 overflow-x-auto border-t p-2">
+              {/* ใช้ล่าสุด = แท็บแรกเสมอ (เหมือน Messenger) — โผล่เมื่อมีของที่เคยส่งแล้ว
+                  ถ้ายังไม่เคยส่งเลย แท็บนี้ไม่มีประโยชน์ (กดแล้วว่าง) จึงไม่โชว์ */}
+              {recents.length > 0 && (
+                <button
+                  type="button"
+                  title="ใช้ล่าสุด"
+                  aria-label="สติกเกอร์ที่ใช้ล่าสุด"
+                  aria-pressed={packId === RECENT_TAB}
+                  onClick={() => {
+                    setQ('')
+                    setPackId(RECENT_TAB)
+                  }}
+                  className={`flex size-11 shrink-0 items-center justify-center rounded-lg ${
+                    packId === RECENT_TAB ? 'bg-primary/15 text-primary' : 'text-default-700 hover:bg-default-100'
+                  }`}
+                >
+                  <Icon icon="clock" className="text-lg" />
+                </button>
+              )}
+              {packs.map((pk) => (
+                <button
+                  key={pk.id}
+                  type="button"
+                  title={pk.name}
+                  aria-label={`แพ็ก ${pk.name}`}
+                  aria-pressed={packId === pk.id}
+                  onClick={() => {
+                    setQ('')
+                    setPackId(pk.id)
+                    void loadStickers(`/api/channels/facebook/stickers?packId=${encodeURIComponent(pk.id)}`)
+                  }}
+                  className={`flex size-11 shrink-0 items-center justify-center rounded-lg ${
+                    packId === pk.id ? 'bg-primary/15' : 'hover:bg-default-100'
+                  }`}
+                >
+                  {pk.previewImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={pk.previewImageUrl} alt="" className="size-9 object-contain" />
+                  ) : (
+                    <Icon icon="sticker" className="text-default-700 text-lg" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="max-h-64 overflow-y-auto p-3">
-        {CATEGORIES.map((cat) => (
+        {EMOJI_CATEGORIES.map((cat) => (
           <div key={cat.key} className="mb-3 last:mb-0">
-            <p className="text-default-400 mb-1.5 text-2xs font-semibold">{cat.label}</p>
+            <p className="text-default-700 mb-1.5 text-2xs font-semibold">{cat.label}</p>
             <div className="grid grid-cols-8 gap-0.5">
               {cat.codepoints.map((cp) => {
                 const glyph = String.fromCodePoint(cp)
@@ -116,6 +362,22 @@ export default function EmojiPicker({ onSelect, onClose }: Props) {
           </div>
         ))}
       </div>
+      )}
     </div>
+  )
+}
+
+/** ปุ่มสติกเกอร์ 1 ใบ — กดแล้วส่งทันทีเหมือน Messenger (ไม่ต้องกดยืนยันอีกครั้ง) */
+function StickerButton({ sticker, onPick }: { sticker: StickerItem; onPick: (s: StickerItem) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(sticker)}
+      aria-label={sticker.name ? `สติกเกอร์ ${sticker.name}` : 'สติกเกอร์'}
+      className="hover:bg-default-100 flex aspect-square items-center justify-center rounded-lg p-1"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={sticker.imageUrl} alt={sticker.name ?? ''} loading="lazy" className="max-h-full max-w-full object-contain" />
+    </button>
   )
 }

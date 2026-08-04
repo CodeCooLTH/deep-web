@@ -60,7 +60,7 @@ async function getDailySmsCount(shopId: string): Promise<number> {
 // 1. session check → 401 ถ้าไม่มี session
 // 2. DAL ownership: resolve shop จาก session.user.id → load order scoped ด้วย shopId ใน WHERE (S-C7)
 // 3. [ถูกตัด] L2 verification gate (D3/RC-5) ถูกตัดตาม product decision 2026-05-17 — credit-only
-//    (มีเครดิตก็ส่งได้). anti-abuse เหลือ: ฿1/SMS + OQ-5 20/ชม + RC-4 daily-cap + RC-1.
+//    (มียอดเงินก็ส่งได้). anti-abuse เหลือ: ฿1/SMS + OQ-5 20/ชม + RC-4 daily-cap + RC-1.
 //    ดู retro 2026-05-17 + spec note
 // 4. RC-4: daily SMS cap DB-layer (200/วัน ICT boundary)
 // 5. OQ-5: in-memory hourly rate-limit (20/ชม./shop, globalThis) → 429 เกิน
@@ -107,7 +107,7 @@ export async function POST(
 
   // ── Step 3: [ถูกตัด] L2 verification gate (D3/RC-5) ──────────────────────
   // L2 verification gate (D3/RC-5) ถูกตัดตาม product decision 2026-05-17 — credit-only
-  // (มีเครดิตก็ส่งได้). anti-abuse เหลือ: ฿1/SMS + OQ-5 20/ชม + RC-4 daily-cap + RC-1.
+  // (มียอดเงินก็ส่งได้). anti-abuse เหลือ: ฿1/SMS + OQ-5 20/ชม + RC-4 daily-cap + RC-1.
   // ดู retro 2026-05-17 + spec note
 
   // ── Step 4: RC-4 daily SMS cap (DB-layer) ────────────────────────────────
@@ -210,7 +210,7 @@ export async function POST(
     const message = err instanceof Error ? err.message : "";
     if (message === "INSUFFICIENT_CREDIT") {
       return NextResponse.json(
-        { error: "เครดิตไม่พอ กรุณาเติมเครดิตก่อนส่ง SMS" },
+        { error: "ยอดเงินไม่พอ กรุณาเติมเงินก่อนส่ง SMS" },
         { status: 402 },
       );
     }
@@ -242,7 +242,7 @@ export async function POST(
   try {
     await sendSms(buyerPhone, smsText);
   } catch {
-    // NFR-ATOM: SMS fail → ต้องชดเชยเครดิตคืน (ไม่หักเงินถ้า SMS ไม่ออก)
+    // NFR-ATOM: SMS fail → ต้องชดเชยยอดเงินคืน (ไม่หักเงินถ้า SMS ไม่ออก)
     // AR-1: ถ้า compensate เองก็ crash → seller เสีย ฿1 + code orphan (accepted risk MVP)
     // mark code FAILED ก่อนเพื่อ reconcile ได้ (RC-3 deliveryStatus)
     await markSmsCodeDelivery(smsCodeId, "FAILED").catch(() => {
@@ -250,12 +250,12 @@ export async function POST(
       console.error("[send-sms] markSmsCodeDelivery FAILED: update error");
     });
 
-    // compensate: คืนเครดิต ฿1 ที่หักไปแล้ว
+    // compensate: คืนเงิน ฿1 ที่หักไปแล้ว
     await creditWallet(
       shop.id,
       SMS_COST_BAHT,
       order.id,
-      `คืนเครดิต SMS ล้มเหลว คำสั่งซื้อ ${token.slice(0, 8)}...`,
+      `คืนเงิน ล้มเหลว คำสั่งซื้อ ${token.slice(0, 8)}...`,
     ).catch(() => {
       // ถ้า compensate fail → log สำหรับ manual reconcile (AR-1 accepted risk)
       console.error("[send-sms] creditWallet compensate failed: manual reconcile needed");

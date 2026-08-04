@@ -29,6 +29,7 @@ import {
 } from './data'
 import BuyerAvatar from './BuyerAvatar'
 import OrderActions from './OrderActions'
+import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 
 // ── status badge (สี Paces semantic token — ไม่ใช้ hex) ──
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
@@ -126,6 +127,8 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
   const statusCfg = STATUS_CONFIG[order.status] ?? { label: order.status, cls: 'bg-default-100 text-default-500' }
   const strip = STATUS_STRIP[order.status] ?? 'border-default-300'
   const hasChannel = Boolean(order.salesChannel && SALES_CHANNEL_LABELS[order.salesChannel])
+  // null = ยังไม่มีไฟล์โลโก้ของขนส่งเจ้านี้ → ตกไปใช้ตัวย่อ (ดู lib/iship/courier.ts)
+  const courierLogo = courierLogoUrl(order.shipment?.courierCode, order.shipment?.courierName)
   const hasPayment = Boolean(order.paymentMethod)
 
   return (
@@ -209,6 +212,56 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
             </button>
           )}
         </div>
+
+        {/* ── พัสดุ: โลโก้แพลตฟอร์ม + ขนส่ง + เลขพัสดุ (user สั่ง 2026-08-04) ─────────────
+            "กดจากไทล์สถานะเข้ามาแล้วต้องเห็นเลขพัสดุชัดเจน ว่าจากขนส่งไหน และเปิดผ่านแพลตฟอร์มไหน"
+            ขึ้นเฉพาะออเดอร์ที่มีพัสดุจริง — ใบที่ยังไม่มีเลขไม่ต้องมีบรรทัดว่าง ๆ ให้ตากลับไปอ่านซ้ำ
+            tabular-nums: เลขพัสดุคือของที่คนเอาไปเทียบทีละหลัก ต้องเรียงคอลัมน์ตรงกัน */}
+        {order.shipment?.trackingNo && (
+          <div className="mt-2.5 flex items-center gap-2 border-t border-dashed border-default-200 pt-2.5">
+            {/* แพลตฟอร์มที่เปิดพัสดุ — ตอนนี้มี iShip เจ้าเดียว แต่เช็ค provider ไว้ ไม่ hardcode */}
+            {/* MANUAL = ร้านส่งเองแล้วมากรอกเลข ไม่ได้เปิดผ่านแพลตฟอร์มไหน จึงไม่มีไอคอนแพลตฟอร์ม */}
+            {order.shipment.provider === 'ISHIP' && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src="/images/logos/iship.jpeg"
+                alt="iShip"
+                title="เปิดพัสดุผ่าน iShip"
+                className="ring-default-200 size-5 shrink-0 rounded object-contain ring-1"
+              />
+            )}
+
+            {/* ขนส่ง — ตัวย่อบนพื้นกลาง ๆ ระหว่างรอไฟล์โลโก้จริง (user: "ถ้าไม่มีให้ใส่ตัวย่อไปก่อน")
+                ไม่ใส่สีแบรนด์เพราะต้องเดาเอง ซึ่งชนกฎห้าม hardcode สีนอก token — วันที่ได้โลโก้มา
+                เติมใน COURIER_LOGO (lib/iship/courier.ts) ที่เดียว บรรทัดนี้ไม่ต้องแก้ */}
+            {courierLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={courierLogo}
+                alt={order.shipment.courierName ?? ''}
+                /* object-contain ไม่ใช่ cover: โลโก้ที่ได้มาส่วนใหญ่เป็นจัตุรัสซึ่ง contain ก็เต็มกรอบ
+                   เท่ากัน แต่ Fuze Post เป็น 600x300 (2:1) — cover จะครอปซ้าย-ขวาทิ้งจนเหลือแต่
+                   ตัวอักษรกลางคำ อ่านไม่ออก. contain ยอมให้เหลือที่ว่างบน-ล่างแทน ซึ่งอ่านออก
+                   ring-1: โลโก้พื้นขาว (ไปรษณีย์ไทย, Best) จะกลืนไปกับการ์ดขาวจนไม่เห็นขอบ */
+                className="ring-default-200 size-5 shrink-0 rounded object-contain ring-1"
+              />
+            ) : (
+              <span
+                className="bg-default-100 text-default-700 flex size-5 shrink-0 items-center justify-center rounded text-2xs font-bold"
+                title={order.shipment.courierName ?? order.shipment.courierCode ?? 'ขนส่ง'}
+              >
+                {courierInitials(order.shipment.courierName, order.shipment.courierCode)}
+              </span>
+            )}
+
+            <span className="truncate text-xs text-default-700">
+              {order.shipment.courierName ?? order.shipment.courierCode ?? 'ขนส่ง'}
+            </span>
+            <span className="ms-auto truncate text-xs font-semibold tabular-nums text-default-900">
+              {order.shipment.trackingNo}
+            </span>
+          </div>
+        )}
 
         {/* ── footer: ฿ยอดรวม + เวลาย่อ (ซ้าย) + OrderActions icon-only (ขวา) ── */}
         <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-dashed border-default-200 pt-2.5">

@@ -255,6 +255,25 @@ export function carrierStatusCodeFromId(id: number | null | undefined): string |
  * แยกออกมาเป็นชุดเดียวใช้ร่วมกันทั้งป้ายในรายการแชทและตัวกรอง เพื่อไม่ให้สองที่นิยาม
  * คำว่า "มีปัญหา" ไม่ตรงกัน (ซึ่งจะทำให้ตัวกรองกรองแล้วได้ผลไม่ตรงกับป้ายที่เห็น)
  */
+/**
+ * สถานะที่แปลว่า "ขนส่งรับของไปแล้วและกำลังเดินทาง" — คู่กับ PROBLEM_CARRIER_STATUSES
+ *
+ * ย้ายมาจาก const IN_TRANSIT ที่เคยเขียนไว้เฉพาะใน lib/order-stage.ts (คอมเมนต์ตรงนั้นบอกเองว่า
+ * "ชุดเดียวกับ isInTransit ใน status.ts") — พอมีที่ใช้ที่สองคือตัวนับบน Command Center จึงต้อง
+ * ยกขึ้นมาเป็นของกลาง ไม่งั้นวันที่ iShip เพิ่มสถานะใหม่ ป้ายกับตัวเลขจะนับคนละชุดเงียบ ๆ
+ */
+export const IN_TRANSIT_CARRIER_STATUSES = [
+  "picked_up",
+  "with_branch",
+  "in_transit",
+  "progress",
+] as const;
+
+export function isInTransitCarrierStatus(code?: string | null): boolean {
+  if (!code) return false;
+  return (IN_TRANSIT_CARRIER_STATUSES as readonly string[]).includes(code);
+}
+
 export const PROBLEM_CARRIER_STATUSES = [
   "issue",
   "cannot_pickup",

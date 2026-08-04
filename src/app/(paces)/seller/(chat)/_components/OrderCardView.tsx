@@ -59,28 +59,28 @@ export default function OrderCardView({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={`/api/files/${it.imageFileId}`} alt={it.name} className="size-full object-cover" />
                 ) : (
-                  <Icon icon="photo" className="text-default-400 text-base" />
+                  <Icon icon="photo" className="text-default-700 text-base" />
                 )}
               </span>
               <span className="text-default-700 min-w-0 flex-1 truncate">{it.name}</span>
-              <span className="text-default-400 shrink-0 text-2xs">x{it.qty}</span>
+              <span className="text-default-700 shrink-0 text-2xs">x{it.qty}</span>
               <span className="text-default-800 shrink-0 font-medium">฿{Number(it.price).toLocaleString('th-TH')}</span>
             </div>
           ))}
         </div>
         <div className="border-default-200 my-2.5 border-t border-dashed" />
         <div className="flex items-center justify-between text-sm">
-          <span className="text-default-500">รายการ</span>
+          <span className="text-default-700">รายการ</span>
           <span className="text-default-800 font-semibold">{data.items.length} รายการ</span>
         </div>
         <div className="mt-1.5 flex items-center justify-between text-sm">
-          <span className="text-default-500">ยอดสุทธิ</span>
+          <span className="text-default-700">ยอดสุทธิ</span>
           <span className="text-primary font-bold">{priceLabel}</span>
         </div>
         {/* พัสดุที่เปิดแล้ว (feature 00022) — เขียวเพราะเป็นสิ่งที่เกิดขึ้นจริงแล้ว ไม่ใช่สถานะรอ */}
         {data.shipment?.trackingNo && (
           <div className="border-default-200 mt-2.5 flex items-center justify-between gap-2 border-t border-dashed pt-2 text-xs">
-            <span className="text-default-500">พัสดุ</span>
+            <span className="text-default-700">พัสดุ</span>
             <span className="text-success min-w-0 truncate font-semibold">
               {data.shipment.courierName ? `${data.shipment.courierName} · ` : ''}
               {data.shipment.trackingNo}

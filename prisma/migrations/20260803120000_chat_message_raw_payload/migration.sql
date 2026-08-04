@@ -1,0 +1,16 @@
+-- ChatMessage.rawMessage — payload ดิบที่ได้รับจาก platform (Facebook/IG/…) ตอนสร้างแถวนั้น
+--
+-- ทำไม (user สั่ง 2026-08-03): ตารางเก็บแต่ "ผลการตีความ" ไม่เคยเก็บ "ต้นทาง" พอเจอข้อความที่
+-- ตีความไม่ออก (การ์ด audio_call ที่กลายเป็น "[ข้อความจากระบบของ Facebook]" 184 แถวบน prod)
+-- จะสืบย้อนหลังไม่ได้เลย ต้องรอให้เกิดใหม่แล้วไปอ่าน log ที่หมดอายุไปเรื่อย ๆ
+--
+-- nullable + ไม่มี default + ไม่มี index โดยตั้งใจ:
+--   * nullable — ไม่ backfill ย้อนหลัง (payload เดิมไม่มีให้แล้ว) และแชท DEEP ในแอปไม่มี payload
+--   * ไม่มี index — คอลัมน์นี้ไว้เปิดดูรายตัวตอน investigate ไม่ใช่ไว้ค้นหา
+--   * JSONB ไม่ใช่ JSON — เก็บกะทัดรัดกว่าและ query ด้วย operator ได้ตอนต้องสืบจริง
+--
+-- ADD COLUMN ที่เป็น nullable และไม่มี default = metadata-only ใน PostgreSQL 11+
+-- ไม่ rewrite ตาราง ไม่ล็อกนาน แม้ ChatMessage จะเป็นตารางที่ใหญ่ที่สุดในระบบ
+--
+-- 🛑 ห้าม select คอลัมน์นี้ใน query ปกติ — บังคับด้วย global omit ที่ src/lib/prisma.ts
+ALTER TABLE "ChatMessage" ADD COLUMN "rawMessage" JSONB;

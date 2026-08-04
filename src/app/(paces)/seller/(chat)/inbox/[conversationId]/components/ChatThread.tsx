@@ -84,7 +84,8 @@ import { generateInitials } from '@/utils/helpers'
 import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
-import { describeSendFailure } from '@/lib/chat-send-failure'
+import { withEmojiPresentation } from '@/lib/emoji-presentation'
+import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -99,15 +100,15 @@ import {
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
 import { useLongPress } from '@/hooks/useLongPress'
-import MessageActionBubble, { type MessageAction } from './MessageActionBubble'
+import MessageActionBubble, { type MessageAction, type MessageReactionOption } from './MessageActionBubble'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
-import { ChannelBadge, ChannelBadgeOverlay } from '../../components/ChannelBadge'
+import { ChannelBadge } from '../../components/ChannelBadge'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
-import EmojiPicker from './EmojiPicker'
+import EmojiPicker, { rememberRecentSticker } from './EmojiPicker'
 import AiSuggestPanel from './AiSuggestPanel'
 import QuickMessageBar from './QuickMessageBar'
 import {
@@ -119,6 +120,33 @@ import {
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
+
+/**
+ * แถวรีแอ็กชันลัด 6 ตัว — ชุดเดียวกับแถวที่ Messenger โชว์ตอนกดค้าง (user ส่งภาพจริงมาเทียบ
+ * 2026-08-03: หัวใจ/ฮา/ว้าว/เศร้า/โกรธ/ถูกใจ แล้วปิดท้ายด้วยปุ่ม + เปิดแผงอิโมจิทั้งชุด)
+ *
+ * เอกสาร message_reactions ระบุค่า `reaction` ที่ Meta รู้จัก: "smile, angry, sad, wow, love,
+ * like, dislike" (+ `other` เมื่ออิโมจิไม่ตรง 7 ตัวนี้) ส่วน Send API ฝั่งส่งรับ "any emoji" —
+ * แถวลัดจึงเป็น 6 ตัวที่คนกดบ่อยจริง ส่วนที่เหลือ (รวม dislike) อยู่ในแผงเต็มหลังปุ่ม +
+ *
+ * `raw` = สิ่งที่ยิงให้ Meta และเก็บลงฐาน — ตรงกับรูปแบบที่ Meta ส่งมาให้เราตอนลูกค้ากด
+ * (ตรวจของจริงบน prod: หัวใจมาเป็น U+2764 เปล่า ไม่มี variation selector)
+ * `emoji` = ตัวที่เอาไปแสดงผล ต่อ VS-16 แล้วให้เป็นอิโมจิสี ไม่ใช่สัญลักษณ์ขาวดำ
+ *
+ * ประกอบด้วย String.fromCodePoint ไม่ใช่อักขระตรง ๆ — HR12 ห้าม emoji ในซอร์ส UI และค่าพวกนี้
+ * คือ "ข้อมูลรีแอ็กชัน" ที่ต้องตรงกับของ Meta ไม่ใช่ไอคอนตกแต่งที่แทนด้วย tabler icon ได้
+ */
+const REACTION_CHOICES: { raw: string; emoji: string; label: string }[] = [
+  { cp: 0x2764, label: 'หัวใจ' },
+  { cp: 0x1f606, label: 'ฮา' },
+  { cp: 0x1f62e, label: 'ว้าว' },
+  { cp: 0x1f622, label: 'เศร้า' },
+  { cp: 0x1f620, label: 'โกรธ' },
+  { cp: 0x1f44d, label: 'ถูกใจ' },
+].map(({ cp, label }) => {
+  const raw = String.fromCodePoint(cp)
+  return { raw, emoji: withEmojiPresentation(raw), label }
+})
 /**
  * CopyMessageButton — ปุ่มคัดลอกข้อความข้างบับเบิล (feature 00018)
  * user request 2026-07-24: ไม่ต้องขึ้น toast — เปลี่ยน icon copy เป็นเช็คถูก (พร้อม animation) ตรงปุ่มเลย
@@ -145,7 +173,7 @@ function CopyMessageButton({ text }: { text: string }) {
       aria-label={copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}
       title={copied ? 'คัดลอกแล้ว' : 'คัดลอกข้อความ'}
       className={`mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex ${
-        copied ? 'text-success' : 'text-default-400 hover:bg-default-100 hover:text-default-700'
+        copied ? 'text-success' : 'text-default-700 hover:bg-default-100 hover:text-default-700'
       }`}
     >
       {/* icon สลับ copy → check พร้อม pop (scale) — key เปลี่ยนเพื่อ retrigger transition ทุกครั้งที่คัดลอก */}
@@ -173,7 +201,7 @@ function MetaOrderCardBubble({ amount }: { amount: string }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="text-default-900 block text-base font-bold">{amount}</span>
-        <span className="text-default-500 block text-xs">คำขอชำระเงินผ่าน Messenger</span>
+        <span className="text-default-700 block text-xs">คำขอชำระเงินผ่าน Messenger</span>
       </span>
     </div>
   )
@@ -311,7 +339,7 @@ function MediaDownloadLink({
         download={filename}
         onClick={handleClick}
         aria-busy={busy}
-        className="text-default-500 hover:text-primary inline-flex items-center gap-1 text-2xs font-medium"
+        className="text-default-700 hover:text-primary inline-flex items-center gap-1 text-2xs font-medium"
       >
         <Icon icon={busy ? 'loader-2' : 'download'} width={13} height={13} className={`shrink-0 ${busy ? 'animate-spin' : ''}`} />
         {label}
@@ -319,7 +347,7 @@ function MediaDownloadLink({
       {canSaveAs && (
         <>
           <span className="bg-default-300 h-3 w-px" aria-hidden="true" />
-          <button type="button" onClick={handleSaveAs} className="text-default-500 hover:text-primary text-2xs font-medium">
+          <button type="button" onClick={handleSaveAs} className="text-default-700 hover:text-primary text-2xs font-medium">
             บันทึกเป็น…
           </button>
         </>
@@ -360,6 +388,27 @@ function ChatImageMessage({ storageKey, onOpen }: { storageKey: string; onOpen: 
  * ปุ่ม "ตอบกลับ" (reply/quote, user 2026-07-25) — โผล่ตอน hover เฉพาะ desktop (lg:group-hover)
  * เหมือน CopyMessageButton; ใช้กับข้อความทุกชนิด (text/รูป/การ์ด — ตอบทับได้หมด)
  */
+/**
+ * ReactMessageButton — ปุ่มหน้ายิ้มข้างบับเบิลตอน hover (เดสก์ท็อป, user สั่ง 2026-08-03
+ * "ใน web เวลา hover จะเป็น icon emoji ข้างๆ reply, copy กดแล้วขึ้น panel emoji")
+ *
+ * มือถือไม่มี hover จึงใช้ "กดค้าง" เปิดเมนูเดียวกันแทน (ดู useLongPress) — เหมือนที่ Messenger ทำ
+ * ส่งตำแหน่งปุ่มกลับไปให้ ChatThread วาง popover ให้เกาะปุ่ม ไม่ใช่เกาะกลางจอ
+ */
+function ReactMessageButton({ onOpen }: { onOpen: (rect: DOMRect) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
+      aria-label="กดรีแอ็กชันข้อความนี้"
+      title="รีแอ็กชัน"
+      className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
+    >
+      <Icon icon="mood-smile" className="size-4" />
+    </button>
+  )
+}
+
 function ReplyMessageButton({ onReply }: { onReply: () => void }) {
   return (
     <button
@@ -367,7 +416,7 @@ function ReplyMessageButton({ onReply }: { onReply: () => void }) {
       onClick={onReply}
       aria-label="ตอบกลับข้อความนี้"
       title="ตอบกลับ"
-      className="text-default-400 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
+      className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
     >
       <Icon icon="arrow-back-up" className="size-4" />
     </button>
@@ -409,7 +458,7 @@ function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
   flush()
   return rows
 }
-import type { CustomerPanelData } from './CustomerPanel'
+import { VERTICAL_CTA, type CustomerPanelData } from './CustomerPanel'
 
 type Props = {
   conversationId: string
@@ -545,7 +594,7 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
   if (!card) {
     // FR-CTX-08 — สินค้าถูกลบจริง (ไม่พบใน productMap) แทนทั้งการ์ดด้วย empty state ไม่มีลิงก์/รูป
     return (
-      <div className="text-default-400 flex items-center gap-2">
+      <div className="text-default-700 flex items-center gap-2">
         <Icon icon="package-off" className="text-xl" />
         <span className="text-sm">ไม่พบสินค้านี้แล้ว</span>
       </div>
@@ -562,14 +611,14 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
           // eslint-disable-next-line @next/next/no-img-element
           <img src={`/api/files/${card.imageFileId}`} alt={card.name} className="size-full object-cover" />
         ) : (
-          <Icon icon="photo" className="text-default-400 text-xl" />
+          <Icon icon="photo" className="text-default-700 text-xl" />
         )}
       </span>
       <div className="min-w-0">
         <p className="text-default-800 mb-0 line-clamp-1 text-sm font-semibold">{card.name}</p>
         <p className="text-default-600 mb-0 text-sm">{priceLabel}</p>
         {!card.isActive && (
-          <span className="text-default-400 mt-0.5 flex items-center gap-1 text-2xs">
+          <span className="text-default-700 mt-0.5 flex items-center gap-1 text-2xs">
             <Icon icon="ban" />
             หยุดขายแล้ว
           </span>
@@ -600,7 +649,7 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
 function OrderCardBubble({ card, onEdit }: { card: ChatOrderCard | null; onEdit: (token: string) => void }) {
   if (!card) {
     return (
-      <div className="text-default-400 flex items-center gap-2">
+      <div className="text-default-700 flex items-center gap-2">
         <Icon icon="receipt-off" className="text-xl" />
         <span className="text-sm">ไม่พบคำสั่งซื้อนี้แล้ว</span>
       </div>
@@ -654,6 +703,15 @@ export default function ChatThread({
   const { openDraft } = useDraftOrders()
   const openEditOrder = (token: string) =>
     openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar, editOrderToken: token })
+  /**
+   * สร้างออเดอร์จากในแชทได้ในแตะเดียว (user สั่ง 2026-08-04 "อยากให้กดสร้าง order ใน chat ไว ๆ")
+   *
+   * เดิมบนมือถือต้อง: แตะไอคอนคนมุมขวาของแถวเครื่องมือ → sheet ข้อมูลลูกค้าเด้ง → หา CTA ในนั้น
+   * = 2–3 แตะ และแตะแรกเป็นไอคอนเปล่าที่เคยมีคนหาไม่เจอมาแล้ว (user report 2026-08-01 iPad Pro)
+   * payload เดียวกับ CTA ในแผงลูกค้าเป๊ะ — เปิดโมดัลพับได้ ไม่ navigate ออกจากแชท
+   */
+  const startCreateOrder = () =>
+    openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar })
   const [sheetOpen, setSheetOpen] = useState(false)
   // user request 2026-07-25 — กดไอคอนตะกร้าใน inbox (?panel=orders) บนจอเล็ก (<1024px) → เด้ง sheet
   // ข้อมูลลูกค้า (แท็บออเดอร์เปิดเองใน CustomerPanelBody). เดสก์ท็อปมี panel persistent ไม่ต้องเปิด sheet
@@ -740,9 +798,19 @@ export default function ChatThread({
     return () => window.removeEventListener(CHAT_SOUND_EVENT, sync)
   }, [conversationId])
 
-  // ระดับกลาง (เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน + ได้ permission แล้ว) ยังพิมพ์ได้ — service จะแนบ
-  // HUMAN_AGENT tag ให้เอง; ถ้ายังไม่ได้ permission ฝั่ง server ส่ง humanAgentOpen=false มาอยู่แล้ว
-  const composerDisabled = isExternal && (tokenInvalid || (!liveWindowOpen && !humanAgentOpen))
+  // เหลือเงื่อนไขล็อกเดียว: เพจหลุดการเชื่อมต่อ (2026-08-03 — user: "การไป lock ui มันทำให้เกิดปัญหา")
+  //
+  // ต่างกันตรง "รู้แน่" กับ "เดา": tokenInvalid คือข้อเท็จจริงที่ยืนยันแล้ว (ยิงไปก็ 190 ทุกครั้ง)
+  // และร้านแก้ที่หน้านี้ไม่ได้ ต้องไปเชื่อมเพจใหม่ก่อน — ล็อกไว้ถูกแล้ว. ส่วนหน้าต่าง 24 ชม./7 วัน
+  // เป็นค่าที่ "เราคำนวณเอง" จาก lastInboundAt ที่คลาดได้ทั้งสองทาง การล็อกจากค่านั้น = ห้ามร้าน
+  // ส่งข้อความที่ Meta จะรับจริง. ปล่อยให้ส่งแล้วโชว์เหตุผลบนบับเบิลถ้าไม่ผ่าน ตรงความจริงกว่า
+  // (ฝั่ง service เลิกบล็อกล่วงหน้าให้ข้อความที่คนพิมพ์เองแล้ว — channel-chat.service.ts)
+  const composerDisabled = isExternal && tokenInvalid
+  //
+  // เคยมี `sendAtRisk` ตรงนี้สำหรับบรรทัดเตือน "อาจส่งไม่สำเร็จ" เหนือช่องพิมพ์ — ตัวบรรทัดถูกตัด
+  // ตอน merge (ไม่อยากทับงานยุบแถบสถานะเหลือบรรทัดเดียวของอีก session) แต่ตัวแปรตกค้างไว้
+  // จน impeccable critique จับได้ว่าประกาศแล้วไม่ถูกใช้ที่ไหนเลย — ลบทิ้ง 2026-08-03
+  // คำเตือนความเสี่ยงตอนนี้อยู่ที่แถบสถานะหัวแชท (`threadStatuses` key 'window') ที่เดียว
   // feature 00018: ช่องทางนอก (Messenger/IG) ส่งรูปได้แล้ว (ผ่าน presigned URL) — แนบรูปปิดเฉพาะ
   // ตอนส่งไม่ได้ (window ปิด/token ตาย) เท่านั้น ไม่ปิดเพราะเป็นช่องทางนอกอีกต่อไป
   const attachDisabled = false
@@ -772,6 +840,8 @@ export default function ChatThread({
     retryMessage,
     resendMessage,
     cancelMessage,
+    reactToMessage,
+    sendSticker,
     externalReadAt: externalReadAtLive,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
@@ -784,24 +854,61 @@ export default function ChatThread({
   // hook เรียกในลูปไม่ได้ จึงมี useLongPress ตัวเดียวที่ container แล้ว resolve ย้อนกลับว่านิ้ว
   // อยู่บนข้อความไหนผ่าน data-message-id — วิธีนี้ยังทำให้ทุกชนิดบับเบิล (รูป/ไฟล์/การ์ด) ใช้ได้หมด
   // โดยไม่ต้องไปแตะ render ของแต่ละชนิด
-  const [actionTarget, setActionTarget] = useState<{ message: ChatMessageView; x: number; y: number } | null>(null)
+  // mode: 'menu' = กดค้างบนมือถือ (แถวรีแอ็กชัน + ตอบกลับ/คัดลอก)
+  //       'reactions' = กดปุ่มหน้ายิ้มตอน hover บนเดสก์ท็อป (มีปุ่มตอบกลับ/คัดลอกข้างบับเบิลอยู่แล้ว)
+  // โหมด 'menu' เก็บ "ตัว element ของบับเบิล" ไม่ใช่พิกัดนิ้ว เพราะ overlay ต้องโคลนบับเบิลนั้นมา
+  // ลอยเหนือฉากเบลอ (user สั่ง 2026-08-03 อ้าง Messenger) — พิกัดนิ้วบอกไม่ได้ว่าก้อนไหนกว้างแค่ไหน
+  const [actionTarget, setActionTarget] = useState<
+    | { mode: 'menu'; message: ChatMessageView; bubble: HTMLElement }
+    | { mode: 'reactions'; message: ChatMessageView; x: number; y: number }
+    | null
+  >(null)
   const messagesRef = useRef<ChatMessageView[]>([])
   messagesRef.current = messages
   const longPress = useLongPress((point) => {
-    const el = document.elementFromPoint(point.x, point.y)?.closest('[data-message-id]')
-    const id = el?.getAttribute('data-message-id')
+    const row = document.elementFromPoint(point.x, point.y)?.closest('[data-message-id]')
+    const id = row?.getAttribute('data-message-id')
     const message = id ? messagesRef.current.find((x) => x.id === id) : undefined
-    if (message) setActionTarget({ message, x: point.x, y: point.y })
+    // แถว (`[data-message-id]`) กว้างเต็มบรรทัดเพราะมี avatar + ปุ่ม hover ด้วย — ที่ต้องยกขึ้นมา
+    // คือคอลัมน์บับเบิลข้างใน (`[data-message-bubble]`) ซึ่งกว้างเท่าเนื้อข้อความจริง
+    const bubble = row?.querySelector<HTMLElement>('[data-message-bubble]')
+    if (message && bubble) setActionTarget({ mode: 'menu', message, bubble })
   })
 
   const actionTargetActions: MessageAction[] = (() => {
     const m = actionTarget?.message
-    if (!m) return []
+    if (!m || actionTarget?.mode === 'reactions') return []
     const list: MessageAction[] = []
     // เงื่อนไขเดียวกับปุ่ม hover ฝั่ง desktop (ดู canReply ตอน render) — ตอบทับข้อความ optimistic
     // ไม่ได้เพราะ route ต้องการ uuid จริง
     if (!m.isDeleted && !m._status && !m.id.startsWith('local-')) {
       list.push({ key: 'reply', icon: 'arrow-back-up', label: 'ตอบกลับ', onSelect: () => setReplyingTo(m) })
+    }
+    /**
+     * สร้างคำสั่งซื้อจากข้อความนี้ (user สั่ง 2026-08-04: "ใน mobile กดสร้างคำสั่งซื้อยาก และอยากให้
+     * มัน auto เอาข้อความที่ long press ไว้ ไปเข้ากระจายที่อยู่อัตโนมัติ")
+     *
+     * ทางเดิมบนมือถือคือ เปิดแผงลูกค้า (sheet) → หาปุ่มสร้างคำสั่งซื้อ → กดปุ่มกระจาย → ก๊อปข้อความ
+     * จากเธรดมาวาง = 4 จังหวะ และต้องออกจากเธรดไปก๊อปข้อความกลับมา. ตรงนี้คือ 1 จังหวะ
+     *
+     * เฉพาะข้อความที่มีตัวอักษร: ข้อความรูป/ไฟล์/การ์ดไม่มีอะไรให้กระจาย (ปุ่มที่กดแล้วไม่เกิดอะไร
+     * แย่กว่าปุ่มที่ไม่มี) ส่วนข้อความ optimistic/ลบแล้วไม่ต้องกันเพิ่ม เพราะ body ยังอ่านได้และ
+     * การสร้างออเดอร์ไม่ได้อ้างอิง id ของข้อความเลย
+     */
+    if (m.body?.trim()) {
+      list.push({
+        key: 'order',
+        icon: 'receipt',
+        label: 'สร้างคำสั่งซื้อ',
+        onSelect: () =>
+          openDraft({
+            conversationId,
+            customerName: buyerName,
+            channel,
+            customerAvatar: buyerAvatar,
+            prefillText: m.body!,
+          }),
+      })
     }
     if (m.body) {
       list.push({
@@ -816,6 +923,28 @@ export default function ChatThread({
       })
     }
     return list
+  })()
+
+  /**
+   * รีแอ็กชันที่ร้านกดใส่ข้อความได้ (user สั่ง 2026-08-03 "reaction ข้อความด้วย")
+   *
+   * ชุดเดียวกับ 6 ตัวมาตรฐานของ Messenger เพื่อให้สิ่งที่ลูกค้าเห็นฝั่งโน้นตรงกับที่ร้านกดฝั่งนี้
+   * ประกอบจาก code point (ไม่มีอักขระอิโมจิในซอร์ส — HR12 grep gate) แล้วผ่าน
+   * withEmojiPresentation ให้ออกมาเป็นอิโมจิสีเหมือนกับที่ใช้ในชิปใต้บับเบิล
+   *
+   * เงื่อนไขที่กดไม่ได้: ข้อความถูกลบ, ข้อความ optimistic/ยังส่งไม่สำเร็จ (ยังไม่มี mid ให้ Meta ผูก)
+   */
+  const actionTargetReactions: MessageReactionOption[] = (() => {
+    const m = actionTarget?.message
+    if (!m || m.isDeleted || m._status || m.id.startsWith('local-')) return []
+    return REACTION_CHOICES.map((c) => ({
+      emoji: c.emoji,
+      label: c.label,
+      active: m.reactionEmoji === c.raw || m.reactionEmoji === c.emoji,
+      // ส่งค่าดิบ (ไม่มี variation selector) ให้ Meta — ตรงกับที่ Meta ส่งมาให้เราเวลาลูกค้ากด
+      // จึงเทียบ active ได้ตรงและไม่มีสองรูปแบบปนกันในฐาน
+      onSelect: () => void reactToMessage(m.id, c.raw),
+    }))
   })()
 
   // ── ลากไฟล์มาวางในเธรด (user สั่ง 2026-08-02) ──────────────────────
@@ -990,28 +1119,32 @@ export default function ChatThread({
     //      รอลูกค้าตอบกลับ. ร้านเพิ่งส่งสำเร็จไปหยก ๆ การขึ้นแถบแดงจึงอ่านเหมือนระบบพัง
     //      ทั้งที่เป็นสถานะปกติตามนโยบาย → ใช้โทน info ไม่ใช่ danger
     //   2. ลูกค้ายังไม่เคยทักเลย (เธรดมาจากทางอื่น)
-    //   3. ทักแล้วแต่เกิน 24 ชม. — อันนี้เป็นการเสียโอกาสจริง คงโทนแดงไว้
-    const soft = neverInbound || humanAgentOpen
+    //   3. ทักแล้วแต่เกิน 24 ชม. — เสียโอกาสจริง แต่ตั้งแต่ 2026-08-03 ไม่บล็อกแล้ว (ดู composerDisabled)
+    //      สีจึงลงจาก danger → warning: danger สงวนไว้ให้สิ่งที่ยืนยันแล้วว่าล้มเหลว/บล็อกจริง
+    //      (token ตาย, แถบใต้บับเบิลที่ส่งไม่ผ่าน) ไม่ใช่สิ่งที่ยังกดส่งได้และอาจผ่าน
+    const soft = isCommentReplyThread || humanAgentOpen
     threadStatuses.push({
       key: 'window',
-      tone: soft ? 'info' : 'danger',
-      icon: soft ? 'info-circle' : 'message-circle-off',
+      tone: soft ? 'info' : 'warning',
+      icon: soft ? 'info-circle' : 'alert-triangle',
       short: neverInbound
         ? isCommentReplyThread
           ? 'ตอบคอมเมนต์ได้ 1 ข้อความ — รอลูกค้าตอบกลับ'
-          : 'ลูกค้ายังไม่เคยทักเข้ามา — ส่งข้อความไม่ได้'
+          : 'ลูกค้ายังไม่เคยทักเข้ามา — อาจส่งไม่สำเร็จ'
         : humanAgentOpen
           ? 'เกิน 24 ชั่วโมงแล้ว — ตอบเองได้ ห้ามส่งโปรโมชัน'
-          : 'เกิน 7 วัน — ส่งข้อความใหม่ไม่ได้',
+          : 'เกินเวลาที่ Meta ให้ตอบ — อาจส่งไม่สำเร็จ',
       detail: (
-        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info' : 'bg-danger/15 text-danger'}`}>
-          <Icon icon={soft ? 'info-circle' : 'message-circle-off'} className="mt-0.5 shrink-0 text-lg" />
+        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info' : 'bg-warning/15 text-warning'}`}>
+          <Icon icon={soft ? 'info-circle' : 'alert-triangle'} className="mt-0.5 shrink-0 text-lg" />
           <span>
             {neverInbound ? (
               isCommentReplyThread ? (
-                'เธรดนี้เริ่มจากการตอบกลับความคิดเห็นบนโพสต์ — Meta ให้ตอบได้ 1 ข้อความเท่านั้น ส่งเพิ่มได้เมื่อลูกค้าตอบกลับเข้ามา'
+                // "แชทนี้" ไม่ใช่ "เธรดนี้" — PRODUCT.md ผูกกลุ่มผู้ใช้ digital-literacy ต่ำไว้
+                // คำทับศัพท์แบบนี้คือ jargon ที่ต้องตัด (impeccable clarify 2026-08-03)
+                'แชทนี้เริ่มจากการตอบกลับความคิดเห็นบนโพสต์ — Meta ให้ส่งได้ครั้งเดียวหลังตอบกลับ ข้อความถัดไปอาจส่งไม่สำเร็จจนกว่าลูกค้าจะทักกลับมา'
               ) : (
-                'ลูกค้ายังไม่เคยทักเข้ามาในระบบ — ส่งข้อความจากที่นี่ไม่ได้จนกว่าลูกค้าจะทักมา (นโยบาย Messenger/Instagram)'
+                'ลูกค้ายังไม่เคยทักเข้ามา — ตามนโยบาย Messenger/Instagram ข้อความที่ร้านทักไปก่อนมักส่งไม่สำเร็จ ลองส่งได้ ถ้าไม่ผ่านจะขึ้นเหตุผลใต้ข้อความ'
               )
             ) : humanAgentOpen ? (
               // ระดับกลาง: เกิน 24 ชม. แต่ยังตอบได้ด้วย HUMAN_AGENT — ต้องบอกข้อจำกัดให้ครบ
@@ -1022,7 +1155,12 @@ export default function ChatThread({
                 — ต้องเป็นข้อความที่พิมพ์เอง ห้ามส่งโปรโมชัน (นโยบาย Meta)
               </>
             ) : (
-              'เกิน 7 วันนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความใหม่ไม่ได้ กรุณารอให้ลูกค้าทักมาใหม่'
+              // ห้ามเขียนว่า "เกิน 7 วัน" ตรงนี้ (impeccable clarify 2026-08-03) — สาขานี้เข้าเมื่อ
+              // humanAgentOpen เป็นเท็จ ซึ่งเกิดได้จาก 2 เหตุ: เกิน 7 วันจริง หรือ
+              // META_HUMAN_AGENT_ENABLED ปิดอยู่ (ตอนนี้ปิด เพราะยังไม่ผ่าน App Review)
+              // → ร้านที่ลูกค้าเพิ่งเงียบไป 25 ชม. เห็นข้อความ "เกิน 7 วัน" ที่ไม่จริง
+              // เขียนเป็น 24 ชม. แทน — จริงทั้งสองเหตุ (7 วันก็เกิน 24 ชม. อยู่แล้ว)
+              'เกินเวลาที่ Meta ให้ตอบ (24 ชม. นับจากลูกค้าทักล่าสุด) — ลองส่งได้ แต่ Meta มักปฏิเสธ ถ้าไม่ผ่านจะขึ้นเหตุผลใต้ข้อความ'
             )}
           </span>
         </div>
@@ -1096,20 +1234,20 @@ export default function ChatThread({
           >
             <Icon icon="arrow-left" className="text-lg" />
           </Link>
-          {/* avatar + ตราช่องทางมุมล่างขวา — ให้เหมือนแถวในรายการแชท (user สั่ง 2026-08-02)
-              เดิมหัวเธรดบอกช่องทางด้วยชิปใต้ชื่ออย่างเดียว ซึ่งเป็นคนละภาษากับรายการที่ผู้ใช้
-              เพิ่งคลิกมา — ตราบนรูปคือสิ่งที่เขาจำได้แล้วจากหน้าก่อน
-              relative: ChannelBadgeOverlay วาง absolute เทียบกับปลอกนี้ */}
-          <span className="relative shrink-0">
-            <ChatAvatar avatar={buyerAvatar} name={buyerName} />
-            <ChannelBadgeOverlay channel={channel} imageUrl={channelAvatarUrl} />
-          </span>
+          <ChatAvatar avatar={buyerAvatar} name={buyerName} />
           {/* justify-center: ชื่อ+ชิปอยู่กึ่งกลางแนวตั้งเทียบกับ avatar (user สั่ง 2026-08-02)
               — เดิมกล่องนี้สูงไม่เท่า avatar เลยดูลอยสูงกว่ากลางรูป */}
           <div className="flex min-w-0 flex-col justify-center">
             <h5 className="text-base mb-1.25">{buyerName}</h5>
             <div className="flex flex-wrap items-center gap-1.5">
-              <ChannelBadge channel={channel} label={channelName} imageUrl={channelAvatarUrl} />
+              {/* ไม่ส่ง imageUrl → ชิปใช้ "โลโก้แบรนด์ของช่องทาง" (f สีน้ำเงิน / IG) ให้ตรงกับ
+                  แผงลูกค้าฝั่งขวาที่เป็นแบบนี้อยู่แล้ว (user สั่ง 2026-08-02)
+                  เดิมส่ง avatar ของเพจเข้าไป ทำให้ชิปโชว์รูปเพจ ซึ่งซ้ำกับสิ่งที่ผู้ใช้เพิ่งเห็น
+                  และไม่ได้บอกว่าเป็นช่องทางไหน — ข้อมูลที่ชิปนี้มีหน้าที่บอกจริง ๆ
+                  ห้ามเติมตราช่องทางซ้อนบน avatar ที่นี่ด้วย: ลองแล้ว 2026-08-02 กลายเป็นไอคอน
+                  เพจโผล่ 2 ที่ติดกัน (user report "ทำไม icon เพจมันซ้อนกัน") — หัวเธรดบอกช่องทาง
+                  ที่ชิปที่เดียวพอ ต่างจากรายการแชทที่ไม่มีชิปจึงต้องใช้ตราบนรูป */}
+              <ChannelBadge channel={channel} label={channelName} />
             </div>
           </div>
         </div>
@@ -1157,7 +1295,7 @@ export default function ChatThread({
             aria-pressed={threadMuted}
             title={threadMuted ? 'เปิดเสียงเฉพาะแชทนี้' : 'ปิดเสียงเฉพาะแชทนี้'}
             aria-label={threadMuted ? 'เปิดเสียงเฉพาะแชทนี้' : 'ปิดเสียงเฉพาะแชทนี้'}
-            className={`btn btn-icon hover:bg-default-100 shrink-0 ${threadMuted ? 'text-default-500' : 'text-default-700'}`}
+            className={`btn btn-icon hover:bg-default-100 shrink-0 ${threadMuted ? 'text-default-700' : 'text-default-700'}`}
           >
             <Icon icon={threadMuted ? 'bell-off' : 'bell'} className="text-lg" />
           </button>
@@ -1182,7 +1320,7 @@ export default function ChatThread({
               className="size-10 shrink-0 rounded-md object-cover"
             />
           ) : (
-            <span className="bg-default-100 text-default-500 flex size-10 shrink-0 items-center justify-center rounded-md">
+            <span className="bg-default-100 text-default-700 flex size-10 shrink-0 items-center justify-center rounded-md">
               <Icon icon="speakerphone" className="text-lg" />
             </span>
           )}
@@ -1192,7 +1330,7 @@ export default function ChatThread({
               {/* ลำดับ: ข้อความโฆษณาจริง > ชื่อ ad ใน Ads Manager > รหัสโฆษณา
                   (adBody คือตัวที่ผู้ขายอ่านแล้วรู้ทันทีว่าโฆษณาชิ้นไหน — ad_title เป็นชื่อภายใน) */}
               <span
-                className="text-default-500 truncate text-sm"
+                className="text-default-700 truncate text-sm"
                 title={adReferral.adBody ?? adReferral.adTitle ?? undefined}
               >
                 {adReferral.adBody ?? adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`}
@@ -1214,7 +1352,7 @@ export default function ChatThread({
             onClick={dismissAdBanner}
             title="ปิดป้ายที่มาของโฆษณา"
             aria-label="ปิดป้ายที่มาของโฆษณา"
-            className="btn btn-icon text-default-500 hover:bg-default-100 shrink-0"
+            className="btn btn-icon text-default-700 hover:bg-default-100 shrink-0"
           >
             <Icon icon="x" className="text-lg" />
           </button>
@@ -1275,7 +1413,7 @@ export default function ChatThread({
           <div className="border-primary bg-card rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
             <Icon icon="upload" className="text-primary text-3xl" />
             <p className="text-default-800 mb-0 mt-2 text-sm font-semibold">วางไฟล์ที่นี่เพื่อแนบ</p>
-            <p className="text-default-500 mb-0 text-xs">แนบได้หลายไฟล์พร้อมกัน · สูงสุด 25MB ต่อไฟล์</p>
+            <p className="text-default-700 mb-0 text-xs">แนบได้หลายไฟล์พร้อมกัน · สูงสุด 25MB ต่อไฟล์</p>
           </div>
         </div>
       )}
@@ -1315,7 +1453,7 @@ export default function ChatThread({
             <div key={g.key}>
               {/* date divider — badge chip กึ่งกลาง */}
               <div className="my-4 flex justify-center">
-                <span className="badge bg-default-100 text-default-500 text-2xs">{g.label}</span>
+                <span className="badge bg-default-100 text-default-700 text-2xs">{g.label}</span>
               </div>
 
               {buildAlbumRows(g.items).map((row) => {
@@ -1333,7 +1471,7 @@ export default function ChatThread({
                       <div className="min-w-0">
                         <PhotoAlbum ms={ms} onOpen={(id) => setLightboxIndex(slideIndexByMessageId.get(id) ?? -1)} />
                         {(showTime || (mine && (atBurstEnd || last.id === lastShopMsgId))) && (
-                          <div className={`text-default-400 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                          <div className={`text-default-700 mt-1 flex items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                             {showTime && (
                               <span className="flex items-center gap-1" title={formatTime(last.createdAt)}>
                                 <Icon icon="clock" />
@@ -1370,6 +1508,33 @@ export default function ChatThread({
                   )
                 }
                 const m = row.m
+                // เหตุการณ์การโทร — การ์ดกลางจอ ไม่ใช่บับเบิล (2026-08-03)
+                //
+                // ทำไมไม่ทำเป็นบับเบิล: ข้อมูลจริงจาก Meta คือ senderRole='SHOP' เสมอ **แม้เป็นสายที่
+                // ลูกค้าโทรเข้ามา** ถ้า render ชิดขวาเป็นบับเบิลสีร้าน = โกหกว่าร้านพิมพ์ข้อความนี้เอง
+                // ใช้ pattern เดียวกับ date divider ด้านบน (กึ่งกลาง ไม่มี avatar) เพราะมันคือ log
+                // ของระบบ ไม่ใช่บทสนทนา — และไม่มีปุ่ม "โทรกลับ" เพราะเรายังโทรกลับไม่ได้จริง
+                // (Calling API ต้อง subscribe webhook `calls` + รัน WebRTC เอง) ปุ่มที่กดไม่ได้ = UI โกหก
+                if (m.type === 'CALL') {
+                  const missed = m.body === 'Missed call'
+                  return (
+                    <div key={m.id} className="my-4 flex justify-center">
+                      <div className="bg-default-100 flex max-w-xs items-center gap-2.5 rounded-lg px-3.5 py-2.5">
+                        <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-full">
+                          <Icon icon="phone-off" className="text-lg" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="text-default-900 block text-sm font-semibold">
+                            {missed ? 'สายที่ไม่ได้รับ' : 'มีการโทรด้วยเสียง'}
+                          </span>
+                          <span className="text-default-700 block text-xs">
+                            {missed ? 'ไม่มีใครรับสายนี้' : 'การโทรผ่านแชทนี้'} · {formatTimeHM(m.createdAt)}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )
+                }
                 const mine = m.senderRole === 'SHOP'
                 // จัดเวลาเป็นกลุ่ม — แสดงเวลาเฉพาะท้าย burst, ไม่ขณะกำลังส่ง, และข้อความล่าสุดซ่อนหลัง 1 นาที
                 const atBurstEnd = burstEndIds.has(m.id)
@@ -1385,26 +1550,47 @@ export default function ChatThread({
                 //   - _status='failed'        = บับเบิล optimistic ที่ยังไม่เคยถึง server ของเรา
                 const failedPersisted = mExt.deliveryStatus === 'FAILED'
                 const failed = mine && (failedPersisted || m._status === 'failed')
-                // เหตุผลมีเฉพาะแถวที่ถึง server แล้ว — ฝั่ง optimistic เห็น toast ไปตอนกดส่งแล้ว
                 const failDetail = failedPersisted ? describeSendFailure(mExt.failureReason) : null
+                // ฝั่ง optimistic เคยไม่มีเหตุผลให้ดู (เห็นแต่ toast ตอนกดส่ง) — แต่ toast หายเองใน
+                // ไม่กี่วินาที เหลือบับเบิลแดงที่ไม่บอกว่าทำไม. ตั้งแต่เลิกล็อกช่องพิมพ์ตามหน้าต่าง
+                // 24 ชม. (2026-08-03) บับเบิลล้มเหลวเกิดถี่ขึ้นมาก เหตุผลจึงต้องอยู่ติดข้อความถาวร
+                // เท่ากันทั้งสองเส้นทาง — hook เก็บไว้ที่ `_failReason` ให้แล้ว
                 const failReason = failDetail
                   ? failDetail.known && failDetail.metaCode !== null
                     ? `${failDetail.text} (Meta #${failDetail.metaCode})`
                     : failDetail.text
-                  : null
+                  : stripSendFailurePrefix(m._failReason)
                 // ส่งซ้ำได้เฉพาะชนิดที่ประกอบ payload กลับได้ครบจากแถวที่เก็บไว้: TEXT ใช้ body,
-                // IMAGE ใช้ imageUrl (=fileId ที่ยังอยู่ใน storage). ORDER เก็บแต่ orderRefToken
-                // ส่วนข้อความลิงก์ที่ยิงจริงประกอบขึ้นตอนส่งและไม่ได้เก็บไว้ → ต้องส่งการ์ดใหม่จากออเดอร์
+                // ไฟล์แนบทุกชนิดใช้ imageUrl (=fileId ที่ยังอยู่ใน storage — คอลัมน์เดียวกันหมดทั้ง
+                // IMAGE/VIDEO/AUDIO/FILE). ORDER เก็บแต่ orderRefToken ส่วนข้อความลิงก์ที่ยิงจริง
+                // ประกอบขึ้นตอนส่งและไม่ได้เก็บไว้ → ต้องส่งการ์ดใหม่จากออเดอร์
+                //
+                // 2026-08-03: เดิมเช็คแค่ TEXT/IMAGE ทำให้ VIDEO/AUDIO/FILE ที่ล้มเหลวไม่มีปุ่มส่งใหม่
+                // เลย ทั้งที่ resendMessage/OutgoingRetry รองรับครบ 4 ชนิดอยู่แล้ว — ร้านต้องแนบไฟล์
+                // ใหม่จากศูนย์ทุกครั้ง ซึ่งเจ็บขึ้นมากหลังเลิกล็อกช่องพิมพ์ (ล้มเหลวบ่อยขึ้น)
+                const retryAttachment =
+                  (m.type === 'IMAGE' || m.type === 'VIDEO' || m.type === 'AUDIO' || m.type === 'FILE') &&
+                  !!m.imageUrl
                 const canRetryFailed = failedPersisted
-                  ? (m.type === 'TEXT' && !!m.body?.trim()) || (m.type === 'IMAGE' && !!m.imageUrl)
+                  ? (m.type === 'TEXT' && !!m.body?.trim()) || retryAttachment
                   : !!m._retry
                 const retryFailed = () => {
                   if (failedPersisted) {
                     resendMessage({
-                      type: m.type === 'IMAGE' ? 'IMAGE' : 'TEXT',
+                      type: retryAttachment ? (m.type as 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE') : 'TEXT',
                       body: m.body,
-                      ...(m.type === 'IMAGE' ? { imageUrl: m.imageUrl! } : {}),
+                      ...(retryAttachment ? { imageUrl: m.imageUrl! } : {}),
                     })
+                    // เอาแถวเดิมออกด้วย (user report 2026-08-03: "กดลองใหม่แล้วทำไมอันบนไม่หายไป")
+                    //
+                    // เดิมตั้งใจให้ append-only — แถวที่ยิงไม่ออกคือเหตุการณ์จริงที่ควรเห็น แต่ผลคือ
+                    // ข้อความเดียวกันค้างเป็นบับเบิลแดง 2 อันซ้อน (และเป็น N อันถ้ากดหลายรอบ) ซึ่ง
+                    // ไม่ตรงกับสิ่งที่คำว่า "ลองใหม่" สื่อ และไม่ตรงกับอีกเส้นทางของปุ่มเดียวกัน
+                    // (`retryMessage` ของบับเบิล optimistic แทนที่ในตัวมาตลอด)
+                    //
+                    // เหตุผล "append-only" ที่เคยเขียนไว้หมดอายุไปแล้วตั้งแต่มีปุ่ม "ยกเลิก" ซึ่งลบแถว
+                    // FAILED ทิ้งจริงผ่าน DELETE endpoint เดียวกันนี้ — ลบตอนยกเลิกได้ ก็ลบตอนลองใหม่ได้
+                    void cancelMessage(m.id)
                   } else if (m._retry) {
                     retryMessage(m.id, m._retry)
                   }
@@ -1438,6 +1624,20 @@ export default function ChatThread({
                     <div className="flex items-start gap-0.5">
                       {canReply && <ReplyMessageButton onReply={() => setReplyingTo(m)} />}
                       {copyBtn}
+                      {/* รีแอ็กชัน (user 2026-08-03) — เงื่อนไขเดียวกับ canReply: ต้องเป็นข้อความจริง
+                          ที่ถึง Meta แล้ว ไม่งั้นไม่มี mid ให้ผูก. y = ขอบบนของปุ่ม ให้แผงเด้งเหนือปุ่ม */}
+                      {canReply && (
+                        <ReactMessageButton
+                          onOpen={(rect) =>
+                            setActionTarget({
+                              mode: 'reactions',
+                              message: m,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top,
+                            })
+                          }
+                        />
+                      )}
                     </div>
                   ) : null
                 // ข้อความ "ระบบ" ที่ Facebook แทรกเองในเธรด (user report 2026-07-30) — เช่น
@@ -1486,7 +1686,10 @@ export default function ChatThread({
                         max-w-60 ที่บรรทัด IMAGE ด้านล่างในไฟล์นี้เอง; min-w-0 กัน flex item ไม่ยอม shrink,
                         break-words กันคำ/ลิงก์ยาวล้นกรอบ */}
                     {/* relative: จุดยึดของป้าย "ระบบตอบ" ที่เกยขอบบนบับเบิล (feature 00023 S-23) */}
-                    <div className="relative min-w-0 max-w-96 break-words">
+                    {/* data-message-bubble: จุดที่ MessageActionBubble โคลนไปลอยเหนือฉากเบลอตอน
+                        กดค้าง — ต้องอยู่ที่คอลัมน์นี้ (ไม่ใช่แถวด้านนอกที่กว้างเต็มบรรทัด) เพราะ
+                        ที่ผู้ใช้ "เพ่ง" คือเนื้อข้อความ + quote + ป้ายระบบตอบ ไม่ใช่ avatar/ปุ่ม hover */}
+                    <div data-message-bubble className="relative min-w-0 max-w-96 break-words">
                       {mExt.autoReplyKind && (
                         <AutoReplyTag isTest={mExt.autoReplyKind === 'AUTO_TEST'} trace={m.autoReply ?? null} />
                       )}
@@ -1495,10 +1698,10 @@ export default function ChatThread({
                       {m.replyTo && (
                         <div className={`mb-1 flex ${mine ? 'justify-end' : 'justify-start'}`}>
                           <div className="border-default-300 bg-default-100/70 max-w-full rounded-lg border-s-2 px-2.5 py-1">
-                            <p className="text-default-500 mb-0 text-2xs font-medium">
+                            <p className="text-default-700 mb-0 text-2xs font-medium">
                               ตอบกลับ{m.replyTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
                             </p>
-                            <p className="text-default-500 mb-0 line-clamp-2 text-xs opacity-90">
+                            <p className="text-default-700 mb-0 line-clamp-2 text-xs opacity-90">
                               {m.replyTo.body ?? '[สื่อ/ไฟล์แนบ]'}
                             </p>
                           </div>
@@ -1513,7 +1716,7 @@ export default function ChatThread({
                         if (m.isDeleted) {
                           return (
                             <div className={`rounded px-6 py-3 ${mine ? 'bg-primary/15' : 'bg-light'}`}>
-                              <p className="text-default-400 mb-0 flex items-center gap-1 text-sm italic">
+                              <p className="text-default-700 mb-0 flex items-center gap-1 text-sm italic">
                                 <Icon icon="ban" className="text-sm" />
                                 ข้อความถูกลบ
                               </p>
@@ -1580,7 +1783,7 @@ export default function ChatThread({
                                   <span className={`block truncate text-sm font-medium ${mine ? 'text-white' : 'text-default-800'}`}>
                                     {attachmentDisplayName(m.imageUrl, m.attachmentName)}
                                   </span>
-                                  <span className={`mt-0.5 block text-xs ${mine ? 'text-white/75' : 'text-default-400'}`}>
+                                  <span className={`mt-0.5 block text-xs ${mine ? 'text-white/75' : 'text-default-700'}`}>
                                     {[formatAttachmentSize(m.attachmentSize), 'เปิดไฟล์'].filter(Boolean).join(' · ')}
                                   </span>
                                 </span>
@@ -1600,7 +1803,7 @@ export default function ChatThread({
                             {/* กันบับเบิลว่าง (ข้อมูลเก่า/ข้อความไม่รองรับที่ body ว่าง) — แสดง placeholder จาง ๆ
                                 (อยู่ใน branch non-PRODUCT แล้ว จึงเช็คแค่ body/imageUrl ว่าง) */}
                             {!m.body && !m.imageUrl && (
-                              <p className="text-default-400 mb-0 text-sm italic">ข้อความไม่รองรับ — เปิดดูใน Messenger</p>
+                              <p className="text-default-700 mb-0 text-sm italic">ข้อความไม่รองรับ — เปิดดูใน Messenger</p>
                             )}
                             {/* extension #3 Scam-link Detection (FR-SCAM-04/06) — warning banner เฉพาะ
                                 TEXT ที่ flaggedScam=true (BR-SCAM-04 scan เฉพาะ TEXT); WARN เท่านั้น
@@ -1619,11 +1822,16 @@ export default function ChatThread({
                         )
                       })()}
                       {/* reaction (feature 00018 Phase 2, message_reactions) — emoji ที่ react บนข้อความนี้
-                          ชิปเล็ก ๆ เกยขอบล่างบับเบิล (FB-style); ฝั่งเรา justify-end, ฝั่งลูกค้า justify-start */}
+                          ชิปเล็ก ๆ เกยขอบล่างบับเบิล (FB-style); ฝั่งเรา justify-end, ฝั่งลูกค้า justify-start
+
+                          withEmojiPresentation: Meta ส่งหัวใจมาเป็น U+2764 เปล่า ๆ ซึ่ง default เป็น
+                          "ตัวหนังสือ" เบราว์เซอร์เลยวาดเป็นหัวใจดำเล็ก ๆ ไม่ใช่หัวใจแดงแบบใน Facebook
+                          (user report 2026-08-03) — ต้องต่อ VS-16 ให้ก่อน ดู lib/emoji-presentation
+                          text-sm + leading-none: ขนาดใกล้ชิปรีแอ็กชันของ Messenger จริง (12px เล็กไป) */}
                       {m.reactionEmoji && (
                         <div className={`-mt-1.5 flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                          <span className="bg-card border-default-200 rounded-full border px-1.5 py-0.5 text-xs shadow-sm">
-                            {m.reactionEmoji}
+                          <span className="bg-card border-default-200 rounded-full border px-1.5 py-1 text-sm leading-none shadow-sm">
+                            {withEmojiPresentation(m.reactionEmoji)}
                           </span>
                         </div>
                       )}
@@ -1631,31 +1839,38 @@ export default function ChatThread({
                           avatar เพจ/ร้าน ย้ายมาอยู่ใต้ข้อความ ขนาดเล็ก (size-5) + สถานะส่ง/อ่าน.
                           กำลังส่ง = ไม่มีเวลา; ข้อความล่าสุดซ่อนเวลาหลังส่งเกิน 1 นาที */}
                       {(showTime ||
+                        m.edited || // ป้าย "แก้ไขแล้ว" ต้องโผล่แม้ข้อความนั้นไม่ได้อยู่ท้าย burst (ไม่มีแถวเวลา)
                         (mine &&
                           (atBurstEnd ||
                             m._status === 'sending' ||
                             failed ||
                             m.id === lastShopMsgId ||
                             m._status === 'sent'))) && (
-                        <div className={`text-default-400 mt-1 flex flex-wrap items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
+                        <div className={`text-default-700 mt-1 flex flex-wrap items-center gap-1.5 text-xs ${mine ? 'justify-end' : ''}`}>
                           {/* ส่งไม่สำเร็จ — อยู่ "หน้าเวลา" (user สั่ง 2026-08-02) แทนกล่องแดงเต็มบรรทัด
                               ใต้บับเบิลแบบเดิม ซึ่งกินพื้นที่เท่าข้อความอีกอันทั้งที่เป็นสถานะของ
                               ข้อความที่อยู่ข้างบนมันเอง. รูปแบบ: [ส่งใหม่] ส่งไม่สำเร็จ (i) | ยกเลิก
                               เหตุผลเต็มย้ายไปอยู่ใน (i) — hover เห็น, แตะได้บนมือถือที่ไม่มี hover */}
                           {failed && (
                             <span className="text-danger flex items-center gap-1">
-                              {canRetryFailed && (
+                              {/* user สั่ง 2026-08-03: ป้าย "ส่งไม่สำเร็จ" → "ลองใหม่" ให้เป็นคำสั่งที่กดได้
+                                  รวมเข้ากับปุ่ม ↻ เป็นชิ้นเดียว (เดิมไอคอนกับคำแยกกัน กดได้แค่ไอคอนเล็ก ๆ)
+                                  ยังคง "ส่งไม่สำเร็จ" ไว้เมื่อส่งซ้ำไม่ได้ — เขียน "ลองใหม่" ทั้งที่กดไม่ได้
+                                  คือ UI โกหก (เช่น การ์ดออเดอร์ที่ประกอบ payload กลับไม่ได้) */}
+                              {canRetryFailed ? (
                                 <button
                                   type="button"
                                   onClick={retryFailed}
                                   title="ส่งข้อความนี้ใหม่"
                                   aria-label="ส่งข้อความนี้ใหม่"
-                                  className="hover:bg-danger/10 -m-1 flex items-center rounded p-1"
+                                  className="hover:bg-danger/10 -m-1 flex items-center gap-1 rounded p-1"
                                 >
                                   <Icon icon="refresh" className="text-sm" />
+                                  ลองใหม่
                                 </button>
+                              ) : (
+                                <span>ส่งไม่สำเร็จ</span>
                               )}
-                              <span>ส่งไม่สำเร็จ</span>
                               {failReason && (
                                 <button
                                   type="button"
@@ -1681,11 +1896,22 @@ export default function ChatThread({
                               <span className="text-default-300" aria-hidden="true">
                                 |
                               </span>
-                              <button type="button" onClick={cancelFailed} className="hover:underline">
-                                ยกเลิกการส่งข้อความ
+                              <button
+                                type="button"
+                                onClick={cancelFailed}
+                                // คำสั้น (user สั่ง 2026-08-03) — บริบทอยู่ครบแล้วจากบับเบิลที่มันเกาะอยู่
+                                // ส่วนคำเต็มยังอยู่ใน aria-label + หัวข้อ Swal ตอนยืนยัน
+                                aria-label="ยกเลิกการส่งข้อความนี้"
+                                className="hover:underline"
+                              >
+                                ยกเลิก
                               </button>
                             </span>
                           )}
+                          {/* ลูกค้าแก้ข้อความนี้ทีหลัง (message_edits, 2026-08-03) — ต้องบอกให้รู้
+                              เพราะร้านอาจอ่าน/คุยกับเวอร์ชันก่อนแก้ไปแล้ว (ที่อยู่/จำนวน/เบอร์
+                              เปลี่ยนได้ทั้งนั้น) เนื้อความที่แสดงคือของใหม่เสมอ */}
+                          {m.edited && <span className="text-default-600">แก้ไขแล้ว</span>}
                           {showTime && (
                             <span className="flex items-center gap-1" title={formatTime(m.createdAt)}>
                               <Icon icon="clock" />
@@ -1717,18 +1943,38 @@ export default function ChatThread({
                               อยู่ด้านซ้าย และ icon page อยู่ชิดขวาเสมอ") — แถวนี้ justify-end อยู่แล้ว
                               พอ avatar เป็น child สุดท้ายจึงชิดขอบขวาของคอลัมน์ข้อความ ส่วนเวลา/สถานะ
                               ไหลไปทางซ้ายของมัน (เดิม avatar เป็น child ตัวแรก = ไปอยู่ซ้ายสุดของกลุ่ม) */}
-                          {mine && atBurstEnd && (
-                            <ChatAvatar
-                              avatar={shopAvatar}
-                              name={buyerName}
-                              size="size-5"
-                              fallback={
-                                <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
-                                  <Icon icon="building-store" className="size-3" />
-                                </span>
-                              }
-                            />
-                          )}
+                          {/* ใครเป็นคนตอบ (user สั่ง 2026-08-02) — ร้านที่มีพนักงานหลายคนย้อนดู
+                              ไม่ได้เลยว่าใครตอบข้อความไหน เพราะทุกบับเบิลใช้โลโก้เพจเหมือนกันหมด
+                                m.sender มีค่า  → รูปคนนั้น (ไม่มีรูป = ไอคอนคน placeholder) + ชื่อตอน hover
+                                m.sender = null → ข้อความมาทาง webhook/บอท ไม่มี "คน" ให้แสดง → รูปเพจตามเดิม */}
+                          {mine &&
+                            atBurstEnd &&
+                            (m.sender ? (
+                              <span title={m.sender.name}>
+                                <ChatAvatar
+                                  avatar={m.sender.avatar}
+                                  name={m.sender.name}
+                                  size="size-5"
+                                  fallback={
+                                    <span className="bg-default-200 text-default-600 flex size-5 shrink-0 items-center justify-center rounded-full">
+                                      <Icon icon="user" className="size-3" />
+                                    </span>
+                                  }
+                                />
+                                <span className="sr-only">ส่งโดย {m.sender.name}</span>
+                              </span>
+                            ) : (
+                              <ChatAvatar
+                                avatar={shopAvatar}
+                                name={buyerName}
+                                size="size-5"
+                                fallback={
+                                  <span className="bg-primary flex size-5 shrink-0 items-center justify-center rounded-full text-white">
+                                    <Icon icon="building-store" className="size-3" />
+                                  </span>
+                                }
+                              />
+                            ))}
                         </div>
                       )}
                     </div>
@@ -1826,7 +2072,7 @@ export default function ChatThread({
           {/* ความคืบหน้าตอนแนบหลายไฟล์ — spinner เปล่าบอกได้แค่ "กำลังทำอะไรอยู่" ซึ่งไม่พอเมื่อคิว
               มี 8 ไฟล์และแต่ละไฟล์ใช้เวลาไม่เท่ากัน (ร้านจะไม่รู้ว่าค้างหรือกำลังไป) */}
           {uploadProgress && uploadProgress.total > 1 && (
-            <span className="text-default-500 shrink-0 text-xs" aria-live="polite">
+            <span className="text-default-700 shrink-0 text-xs" aria-live="polite">
               กำลังอัปโหลด {uploadProgress.done + 1}/{uploadProgress.total}
             </span>
           )}
@@ -1845,7 +2091,21 @@ export default function ChatThread({
               <Icon icon="mood-smile" className="text-lg" />
             </button>
             {emojiOpen && (
-              <EmojiPicker onSelect={(emoji) => setText((prev) => prev + emoji)} onClose={() => setEmojiOpen(false)} />
+              <EmojiPicker
+                onSelect={(emoji) => setText((prev) => prev + emoji)}
+                onClose={() => setEmojiOpen(false)}
+                // สติกเกอร์ส่งได้เฉพาะช่องทาง Meta (Graph ของ DEEP ไม่มี sticker_id) — ไม่ส่ง prop
+                // นี้ในเธรด DEEP แล้วแท็บสติกเกอร์จะไม่โผล่เลย ดีกว่าโผล่แล้วกดไม่ได้
+                onSelectSticker={
+                  channel === 'MESSENGER' || channel === 'INSTAGRAM'
+                    ? (sticker) => {
+                        rememberRecentSticker(sticker)
+                        setEmojiOpen(false)
+                        void sendSticker(sticker)
+                      }
+                    : undefined
+                }
+              />
             )}
           </div>
 
@@ -1867,11 +2127,34 @@ export default function ChatThread({
               user report 2026-08-01) และตั้งแต่ 1280px ขึ้นไปเป็นคอลัมน์ขวาจริง (ดู page.tsx)
               ไอคอนเปล่าตรงนี้จึงเหลือไว้เฉพาะจอที่แคบจนหัวเธรดใส่ปุ่มมีข้อความไม่ไหว
               ms-auto: ดันไปชิดขวาสุดของแถวเครื่องมือ — คนละกลุ่มกับปุ่มแต่งข้อความ 3 ตัวทางซ้าย */}
+          {/* สร้างออเดอร์ — มือถือเท่านั้น (user สั่ง 2026-08-04 "อยากให้กดสร้าง order ใน chat ไว ๆ")
+              ตั้งแต่ 768px ขึ้นไปมีปุ่มมีป้าย "ข้อมูลลูกค้า" ที่หัวเธรด และ ≥1280px มีแผงขวาที่มี CTA
+              อยู่แล้ว — ใส่ที่นี่ด้วยจะกลายเป็นปุ่มซ้ำ 2 ที่บนจอเดียว
+              **มีป้ายกำกับ ไม่ใช่ไอคอนเปล่า** เพราะบทเรียน 2026-08-01: ไอคอนเปล่าในแถวนี้เคยทำให้
+              user หาปุ่มไม่เจอทั้งที่มีอยู่จริง — และนี่คือปุ่มที่ปิดการขาย ห้ามหาไม่เจอ
+              ms-auto ย้ายมาที่ปุ่มนี้ (เดิมอยู่ที่ไอคอนคน) ให้ทั้งคู่เกาะกลุ่มกันชิดขวา
+              label/icon อ่านจาก VERTICAL_CTA ตัวเดียวกับแผงลูกค้า — ร้านบ้านพักจะได้ "เปิดการจอง"
+              ทั้งสองที่ ไม่ใช่คำคนละคำ */}
+          <button
+            type="button"
+            onClick={startCreateOrder}
+            // สไตล์ต้องเป็นภาษาเดียวกับปุ่มอื่นในแถวนี้ (user report 2026-08-04 "ไม่เข้าพวกเลย"):
+            // ทุกตัวคือ `btn btn-icon` พื้นใส สีบอกบทบาท แล้วค่อยติดสีตอน hover/active — AI ใช้
+            // text-success, เลือกสินค้าใช้ text-info. ของเดิมเป็นพิลล์ทึบ bg-primary/15 ซึ่งเป็น
+            // ภาษาของ "ปุ่มหลักในการ์ด" ไม่ใช่ของแถบเครื่องมือ จึงเด่นผิดที่และดูเป็นของแปลกปลอม
+            // คงข้อความไว้ (ไม่ยุบเป็นไอคอนเปล่า) เพราะเหตุผลเดิม: ไอคอนเปล่าในแถวนี้เคยทำให้
+            // user หาปุ่มไม่เจอมาแล้ว และนี่คือปุ่มที่ปิดการขาย
+            className="btn text-primary hover:bg-primary/10 ms-auto shrink-0 gap-1 text-sm font-medium md:hidden"
+          >
+            <Icon icon={VERTICAL_CTA[customerPanelData.vertical].icon} className="text-lg" />
+            {VERTICAL_CTA[customerPanelData.vertical].label}
+          </button>
+
           <button
             type="button"
             onClick={() => setSheetOpen(true)}
             aria-label="ข้อมูลลูกค้า"
-            className="btn btn-icon text-default-600 hover:bg-default-100 ms-auto shrink-0 md:hidden"
+            className="btn btn-icon text-default-600 hover:bg-default-100 shrink-0 md:hidden"
           >
             <Icon icon="user-circle" className="text-lg" />
           </button>
@@ -1910,7 +2193,7 @@ export default function ChatThread({
               type="button"
               onClick={() => setReplyingTo(null)}
               aria-label="ยกเลิกการตอบกลับ"
-              className="text-default-400 hover:bg-default-100 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
+              className="text-default-700 hover:bg-default-100 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
             >
               <Icon icon="x" className="text-sm" />
             </button>
@@ -1969,7 +2252,7 @@ export default function ChatThread({
                           <span className="min-w-0">
                             <span className="text-default-800 block truncate text-xs font-medium">{label}</span>
                             {formatAttachmentSize(att.size) && (
-                              <span className="text-default-400 mt-0.5 block text-xs">
+                              <span className="text-default-700 mt-0.5 block text-xs">
                                 {formatAttachmentSize(att.size)}
                               </span>
                             )}
@@ -2021,13 +2304,28 @@ export default function ChatThread({
       </div>
     </div>
 
-    {/* เมนูลอยจากการกดค้างบนข้อความ (มือถือ) — ทางเข้าเดียวของตอบกลับ/คัดลอกบนจอสัมผัส
-        เพราะปุ่มข้างบับเบิลเป็น lg:group-hover (desktop-only) */}
-    {actionTarget && actionTargetActions.length > 0 && (
+    {/* กดค้างบนข้อความ (มือถือ) → เบลอทั้งเธรด + ยกบับเบิลนั้นขึ้นมาพร้อมเมนู — ทางเข้าเดียวของ
+        ตอบกลับ/คัดลอกบนจอสัมผัส เพราะปุ่มข้างบับเบิลเป็น lg:group-hover (desktop-only)
+        ส่วนปุ่มหน้ายิ้มตอน hover บนเดสก์ท็อป (mode 'reactions') ยังเป็น popover เกาะปุ่ม ไม่เบลอจอ */}
+    {actionTarget && (actionTargetActions.length > 0 || actionTargetReactions.length > 0) && (
       <MessageActionBubble
-        x={actionTarget.x}
-        y={actionTarget.y}
+        anchor={
+          actionTarget.mode === 'menu'
+            ? {
+                kind: 'bubble',
+                bubble: actionTarget.bubble,
+                mine: actionTarget.message.senderRole === 'SHOP',
+              }
+            : { kind: 'point', x: actionTarget.x, y: actionTarget.y }
+        }
         actions={actionTargetActions}
+        reactions={actionTargetReactions}
+        // ปุ่ม + → แผงอิโมจิทั้งชุด (user สั่ง 2026-08-03) — ส่งเฉพาะเมื่อข้อความนั้นกดรีแอ็กชันได้จริง
+        onPickCustomEmoji={
+          actionTargetReactions.length > 0 && actionTarget.message
+            ? (emoji) => void reactToMessage(actionTarget.message.id, emoji)
+            : undefined
+        }
         onClose={() => setActionTarget(null)}
       />
     )}

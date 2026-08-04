@@ -56,8 +56,8 @@ const GENERIC_RETRY_MESSAGE = 'ขอคำแนะนำไม่สำเร�
  * - loading        : กำลังเช็คโควตา (GET ai-quota) หรือกำลังขอร่าง (POST ai-suggest แบบ auto) — skeleton เดียวกัน
  * - quota-error     : GET ai-quota ล้มเหลว (fail-closed — ห้าม fallback ไป auto POST เอง)
  * - suggest-error   : POST ai-suggest (auto path) ล้มเหลว
- * - credit-prompt   : ครบโควตาฟรี + มีเครดิตพอ — รอผู้ใช้กดปุ่มแล้วยืนยันใน Swal
- * - credit-block    : ครบโควตาฟรี + เครดิตไม่พอ — บล็อกทันที
+ * - credit-prompt   : ครบโควตาฟรี + มียอดเงินพอ — รอผู้ใช้กดปุ่มแล้วยืนยันใน Swal
+ * - credit-block    : ครบโควตาฟรี + ยอดเงินไม่พอ — บล็อกทันที
  * - success         : มี suggestions แล้ว (ไม่ว่าจะมาจาก unlimited/free/credit path)
  */
 type Phase = 'loading' | 'quota-error' | 'suggest-error' | 'credit-prompt' | 'credit-block' | 'success'
@@ -102,7 +102,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
     }
   }, [conversationId])
 
-  // GET ai-quota — ก่อนเสมอ (BR-AIQ-12) ตัดสินว่าจะ auto POST / โชว์ปุ่มเครดิต / บล็อก
+  // GET ai-quota — ก่อนเสมอ (BR-AIQ-12) ตัดสินว่าจะ auto POST / โชว์ปุ่มยอดเงิน / บล็อก
   const fetchQuota = useCallback(async () => {
     setPhase('loading')
     setQuotaError(null)
@@ -150,10 +150,10 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
     const result = await Swal.fire({
       buttonsStyling: false,
       icon: 'question',
-      title: 'ใช้เครดิต ฿1 ขอร่างเพิ่ม?',
+      title: 'ใช้เงินในกระเป๋า ฿1 ขอร่างเพิ่ม?',
       text: `ยอดคงเหลือในกระเป๋าเงิน ฿${balance}`,
       showCancelButton: true,
-      confirmButtonText: 'ใช้เครดิต ฿1',
+      confirmButtonText: 'ใช้เงินในกระเป๋า ฿1',
       cancelButtonText: 'ยกเลิก',
       showLoaderOnConfirm: true,
       allowOutsideClick: () => !Swal.isLoading(),
@@ -171,7 +171,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
           const data = await res.json().catch(() => null)
           if (res.ok) return data
           if (res.status === 402 && data?.error === 'INSUFFICIENT_CREDIT') {
-            Swal.showValidationMessage('เครดิตไม่พอ — <a href="/wallet" class="underline">เติมเครดิต</a>')
+            Swal.showValidationMessage('ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงิน</a>')
             return false
           }
           Swal.showValidationMessage(typeof data?.error === 'string' ? data.error : 'เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -191,7 +191,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
       // API ไม่ส่ง balance หลังหักกลับมาตรง ๆ (contract response 200 มีแค่ suggestions/usedCredit/freeRemaining)
       // คำนวณจากยอดที่รู้ล่าสุด (จาก GET ai-quota) ลบราคาคงที่ ฿1 — ค่าประมาณที่ดีที่สุดที่ client มี
       const newBalance = Math.max(0, balance - priceBaht)
-      pacesToast.success(`หักเครดิต ฿1 แล้ว คงเหลือ ฿${newBalance}`)
+      pacesToast.success(`หักเงิน ฿1 แล้ว คงเหลือ ฿${newBalance}`)
     }
   }, [conversationId, quota])
 
@@ -210,7 +210,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
         </span>
         <div className="flex items-center gap-2">
           {!quota?.isPaidPlan && typeof quota?.freeRemaining === 'number' && quota.freeRemaining > 0 && (
-            <span className="text-default-400 text-xs">เหลือฟรีวันนี้ {quota.freeRemaining}/10</span>
+            <span className="text-default-700 text-xs">เหลือฟรีวันนี้ {quota.freeRemaining}/10</span>
           )}
           {/* ต้นทุนจริงของรอบล่าสุด (user 2026-07-31 — ย้ายจาก footer มาไว้ข้างปุ่ม refresh)
               อยู่หัวแผงเพราะเป็นตัวเลขที่ร้านต้องเห็นสะสมจนคาดเดาค่าใช้จ่ายรายเดือนได้เอง
@@ -231,7 +231,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
                 type="button"
                 onClick={fetchSuggestions}
                 disabled={phase === 'loading'}
-                className="text-default-500 hover:text-success flex size-7 items-center justify-center rounded"
+                className="text-default-700 hover:text-success flex size-7 items-center justify-center rounded"
                 aria-label="ขอคำแนะนำใหม่"
                 title="ขอคำแนะนำใหม่"
               >
@@ -241,7 +241,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
             <button
               type="button"
               onClick={onClose}
-              className="text-default-500 hover:text-default-800 flex size-7 items-center justify-center rounded"
+              className="text-default-700 hover:text-default-800 flex size-7 items-center justify-center rounded"
               aria-label="ปิด"
             >
               <Icon icon="x" className="text-base" />
@@ -260,7 +260,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
             ))}
           </>
         ) : phase === 'quota-error' ? (
-          <div className="text-default-500 flex flex-col items-center gap-2 py-4 text-center text-sm">
+          <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
             <Icon icon="alert-circle" className="text-warning text-2xl" />
             <span>{quotaError}</span>
             <button type="button" onClick={fetchQuota} className="btn btn-sm border-default-300">
@@ -268,7 +268,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
             </button>
           </div>
         ) : phase === 'suggest-error' ? (
-          <div className="text-default-500 flex flex-col items-center gap-2 py-4 text-center text-sm">
+          <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
             <Icon icon="alert-circle" className="text-warning text-2xl" />
             <span>{suggestError}</span>
             <button type="button" onClick={fetchSuggestions} className="btn btn-sm border-default-300">
@@ -276,19 +276,19 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
             </button>
           </div>
         ) : phase === 'credit-prompt' ? (
-          <div className="text-default-500 flex flex-col items-center gap-2 py-4 text-center text-sm">
+          <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
             <span>ใช้ฟรีครบ 10 ครั้งของวันนี้แล้ว</span>
             <button type="button" onClick={handleUseCredit} className="btn btn-sm bg-primary text-white">
-              ใช้เครดิต ฿1 เพื่อขอร่างเพิ่ม
+              ใช้เงินในกระเป๋า ฿1 เพื่อขอร่างเพิ่ม
             </button>
           </div>
         ) : phase === 'credit-block' ? (
-          <div className="text-default-500 flex flex-col items-center gap-2 py-4 text-center text-sm">
+          <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
             <Icon icon="alert-circle" className="text-warning text-2xl" />
-            <span>เครดิตไม่พอ (คงเหลือ ฿{quota?.balance ?? 0})</span>
+            <span>ยอดเงินไม่พอ (คงเหลือ ฿{quota?.balance ?? 0})</span>
             <div className="flex items-center gap-2">
               <Link href="/wallet" className="btn btn-sm border-default-300">
-                เติมเครดิต
+                เติมเงิน
               </Link>
               <Link href="/business" className="btn btn-sm border-default-300">
                 อัพเกรดแพ็กเกจ ใช้ AI ไม่จำกัด
@@ -310,7 +310,7 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
       </div>
 
       {/* footer disclaimer — ไม่มีเส้นคั่นในตัว (ดูเหตุผลที่ header) */}
-      <div className="text-default-400 pt-1.5 text-2xs">
+      <div className="text-default-700 pt-1.5 text-2xs">
         AI สร้างคำแนะนำ — ตรวจทานก่อนส่งทุกครั้ง
       </div>
     </div>

@@ -3,10 +3,11 @@ import * as v from 'valibot'
 import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
-import { WebhookBodySchema, extractMessagingEvents } from '@/lib/facebook/webhook-types'
-import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent } from '@/services/channel-chat.service'
+import { WebhookBodySchema, extractMessagingEventsWithRaw, extractFeedChanges } from '@/lib/facebook/webhook-types'
+import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent, ingestMessageEdit } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
+import { ingestFeedComment } from '@/services/page-comment.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -61,7 +62,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 })
   }
 
-  const parsed = v.safeParse(WebhookBodySchema, JSON.parse(rawBody || '{}'))
+  // ชั่วคราว (2026-08-03) — สืบว่า Meta ส่ง message_edits มาในรูปแบบไหนกันแน่
+  //
+  // ทำไมต้อง log "ก่อน" parse: Valibot ตัด field ที่เราไม่ได้ประกาศทิ้งทั้งหมด และ rawMessage
+  // ที่เราเก็บลงฐานก็คือ payload **หลัง** parse แล้ว — field แปลกหน้าที่ Meta ส่งมาจึงมองไม่เห็น
+  // จากทั้ง log และฐาน (พบ 2026-08-03 ตอนไล่ว่าทำไมแก้ข้อความแล้วเธรดไม่ขยับ)
+  //
+  // log เฉพาะ "ชื่อ field" ไม่แตะเนื้อหา — พอบอกได้ว่า event ที่เข้ามามีอะไรบ้างจริง ๆ
+  // ถอดออกเมื่อได้คำตอบแล้ว
+  const rawJson: unknown = (() => {
+    try {
+      return JSON.parse(rawBody || '{}')
+    } catch {
+      return {}
+    }
+  })()
+
+  try {
+    const probe = rawJson as {
+      entry?: Array<{ messaging?: Array<Record<string, unknown>>; changes?: Array<{ field?: string }> }>
+    }
+    for (const e of probe.entry ?? []) {
+      for (const ev of e.messaging ?? []) {
+        const msg = (ev.message ?? {}) as Record<string, unknown>
+        console.log('[fb-raw-evt]', JSON.stringify({ evt: Object.keys(ev), msg: Object.keys(msg) }))
+      }
+      for (const c of e.changes ?? []) console.log('[fb-raw-chg]', c.field)
+    }
+  } catch {
+    // probe เท่านั้น — พังก็ปล่อยผ่าน ห้ามทำให้ webhook ล้ม
+  }
+
+  const parsed = v.safeParse(WebhookBodySchema, rawJson)
   if (!parsed.success) {
     // shape ที่เราไม่รู้จัก — ตอบ 200 เพื่อไม่ให้ retry แต่ log ไว้ดู
     console.warn('[fb-webhook] payload parse ไม่ผ่าน', parsed.issues[0]?.message)
@@ -73,7 +105,41 @@ export async function POST(request: NextRequest) {
   // เธรดที่มีงานตอบอัตโนมัติรอ — ประมวลผลใน after() หลังตอบ 200 ให้ Meta แล้ว (feature 00023)
   const pendingConversationIds = new Set<string>()
 
-  for (const { pageId, event } of extractMessagingEvents(parsed.output)) {
+  // ── feed: คอมเมนต์/โพสต์บนหน้าเพจ (user สั่ง 2026-08-03 "อยากรับ facebook comment") ──
+  //
+  // ชั่วคราว — ยังไม่มีโมเดลเก็บคอมเมนต์ (รอ PRD/BRD ตาม Hard Rule 11) ระยะนี้แค่ log
+  // โครง payload จริงไว้ออกแบบต่อ แล้วค่อยถอด log ออกเมื่อมีที่เก็บจริง
+  //
+  // ตัดข้อความเหลือ 80 ตัวอักษรก่อน log: เนื้อคอมเมนต์เป็นข้อมูลของลูกค้า ไม่ควรไหลเข้า log
+  // เต็ม ๆ — เท่านี้พอตอบคำถามที่ต้องรู้ (ภาษาไทยมาครบไหม, Meta ให้ชื่อคนคอมเมนต์หรือเปล่า)
+  for (const { pageId, change } of extractFeedChanges(parsed.output)) {
+    const val = change.value ?? {}
+    // เก็บคอมเมนต์ลงฐานจริง (feature 00029) — ไม่ throw: webhook ต้องตอบ 200 เสมอ
+    if (val.item === 'comment') {
+      await ingestFeedComment({ pageExternalId: pageId, change, rawChange: change }).catch((e) =>
+        console.error('[fb-feed] เก็บคอมเมนต์ไม่สำเร็จ', e instanceof Error ? e.message : e),
+      )
+    }
+    console.log(
+      '[fb-feed]',
+      JSON.stringify({
+        pageId,
+        item: val.item,
+        verb: val.verb,
+        commentId: val.comment_id,
+        postId: val.post_id,
+        parentId: val.parent_id,
+        fromId: val.from?.id,
+        fromName: val.from?.name,
+        hasPhoto: !!val.photo,
+        hasVideo: !!val.video,
+        msgLen: val.message?.length ?? 0,
+        msgHead: val.message?.slice(0, 80),
+      }),
+    )
+  }
+
+  for (const { pageId, event, rawEvent } of extractMessagingEventsWithRaw(parsed.output, rawJson)) {
     try {
       if (event.read) {
         // read receipt (message_reads) — ลูกค้าอ่านข้อความของเพจ (feature 00018)
@@ -82,6 +148,17 @@ export async function POST(request: NextRequest) {
           pageExternalId: pageId,
           contactExternalId: event.sender.id,
           watermark: event.read.watermark,
+        })
+      } else if (event.message_edit) {
+        // ลูกค้าแก้ข้อความที่ส่งไปแล้ว (message_edits) — ต้องอัปเดตเนื้อความฝั่งเราตาม
+        // ไม่งั้นร้านอ่าน "เวอร์ชันก่อนแก้" ไปทำงานต่อ ทั้งที่ลูกค้าเห็นของใหม่แล้ว
+        await ingestMessageEdit({
+          provider,
+          pageExternalId: pageId,
+          mid: event.message_edit.mid,
+          text: event.message_edit.text,
+          numEdit: event.message_edit.num_edit,
+          timestamp: event.timestamp,
         })
       } else if (event.reaction) {
         // reaction (message_reactions) — react/unreact บนข้อความ (feature 00018 Phase 2)
@@ -96,7 +173,22 @@ export async function POST(request: NextRequest) {
           timestamp: event.timestamp,
         })
       } else {
-        const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event })
+        const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event, rawEvent })
+
+        // NO_CHANNEL = Meta ส่งข้อความของเพจที่ไม่มีร้านไหนในฐานเราเชื่อมอยู่ (หรือถอดไปแล้ว)
+        // — subscription อยู่ฝั่ง Meta ไม่ได้อยู่ในฐานเรา เพจที่ยัง subscribe ค้างจึงยิงเข้ามาต่อ
+        // ได้เรื่อย ๆ แล้วถูกทิ้งที่ ingestInboundMessage (ตอบ 200 กัน Meta retry ไม่จบ)
+        //
+        // ทำไมต้อง log: ก่อนหน้านี้เคสนี้ตกพื้นเงียบสนิท ไม่มีตัวนับสักตัว จึงไม่มีใครรู้ว่ามีเพจ
+        // ค้างอยู่กี่เพจ/ข้อความหายไปเท่าไหร่ — และการ "รับมาแล้วทิ้ง" ยังนับว่าเราแตะข้อมูล
+        // บทสนทนาที่ร้านเลิกอนุญาตแล้ว ซึ่งเป็นข้อที่ Meta ตรวจตอนรีวิว pages_manage_metadata
+        // (เหตุผลเดียวกับที่ unsubscribePageFromApp มีอยู่ — ดู lib/facebook/graph.ts)
+        //
+        // เก็บแค่ provider + page id: พอสำหรับตามว่าต้องให้ร้านไหนกลับมาเชื่อมเพจใหม่ และไม่แตะ
+        // เนื้อหา/ตัวตนลูกค้าของเพจที่เราไม่มีสิทธิ์เก็บอยู่แล้ว
+        if (ingested.status === 'NO_CHANNEL') {
+          console.warn('[fb-webhook] NO_CHANNEL — เพจไม่มีร้านเชื่อม ข้อความถูกทิ้ง', { provider, pageId })
+        }
 
         // ที่มาจากโฆษณา (E5) — referral มา 2 ที่: ซ้อนใน message (ลูกค้ากดโฆษณาแล้วทักครั้งแรก)
         // หรือระดับ event (ลูกค้าที่มีเธรดอยู่แล้วกดโฆษณาตัวใหม่). ต้องทำ "หลัง" ingest ข้อความเสมอ

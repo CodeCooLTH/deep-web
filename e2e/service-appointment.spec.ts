@@ -28,7 +28,10 @@ import { prisma, loginAs, cleanup, type Seeded } from './helpers/auth'
  */
 async function createShop(opts: {
   kind: 'BUSINESS' | 'PERSONAL'
-  vertical: 'GENERAL' | 'LODGING'
+  // feature 00028 (BR-SBT-11): เดิม 'GENERAL' ครอบทั้งร้านขายของและร้านรับคิว — gate เก่าเช็ค
+  // kind==='BUSINESS' ควบคู่กัน ตอนนี้ vertical แยกเป็น 3 ทางแล้ว และ canUseAppointments()
+  // เหลือเช็คแค่ vertical==='SERVICE_QUEUE' เงื่อนไขเดียว (kind ไม่เกี่ยวแล้ว — บัญชีบุคคลใช้ได้ด้วย)
+  vertical: 'ONLINE_SALES' | 'SERVICE_QUEUE' | 'LODGING'
 }): Promise<Seeded & { shopId: string }> {
   const s = Math.random().toString(36).slice(2, 8)
   const user = await prisma.user.create({
@@ -69,7 +72,7 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
     context,
     page,
   }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       await loginAs(context, seeded)
       await page.goto('/queues')
@@ -92,8 +95,10 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
   })
 
   test('TC-B02 ร้านบุคคลธรรมดาเข้าหน้าเดียวกันไม่ได้ และไม่เห็นเมนู', async ({ context, page }) => {
-    // เคสสำคัญ: vertical เป็น GENERAL เหมือนกัน ต่างแค่ kind — ตัวกั้นต้องดูทั้งสองอย่าง
-    const seeded = await createShop({ kind: 'PERSONAL', vertical: 'GENERAL' })
+    // feature 00028 (BR-SBT-11): gate เดิมเช็คทั้ง kind+vertical ตอนนี้เหลือแค่ vertical
+    // เดียว — บัญชีบุคคลที่เลือก SERVICE_QUEUE ใช้คิวงานได้แล้ว (ไม่ถูกกันอีกต่อไป) เคสนี้
+    // จึงต้องใช้ vertical ที่ไม่ใช่ SERVICE_QUEUE (ONLINE_SALES) เพื่อให้ยัง denied ตามชื่อเทส
+    const seeded = await createShop({ kind: 'PERSONAL', vertical: 'ONLINE_SALES' })
     try {
       await loginAs(context, seeded)
       const res = await page.goto('/queues')
@@ -125,7 +130,8 @@ test.describe('feature 00024 — ตัวกั้นฟีเจอร์ (ก
     context,
     page,
   }) => {
-    const seeded = await createShop({ kind: 'PERSONAL', vertical: 'GENERAL' })
+    // vertical ต้องไม่ใช่ SERVICE_QUEUE ถึงจะยัง 403 ได้ (BR-SBT-11 — ONLINE_SALES ไม่ผ่าน gate)
+    const seeded = await createShop({ kind: 'PERSONAL', vertical: 'ONLINE_SALES' })
     try {
       await loginAs(context, seeded)
       // ยิงจาก browser context เดิมเพื่อให้ session cookie ติดไปด้วย
@@ -146,7 +152,7 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
     context,
     page,
   }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       await loginAs(context, seeded)
       await page.goto('/queues/new')
@@ -176,7 +182,7 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
     context,
     page,
   }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       await loginAs(context, seeded)
       await page.goto('/queues/new')
@@ -207,7 +213,7 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
   })
 
   test('TC-C02 ความจุ 0 ต้องถูกปฏิเสธ ไม่บันทึกลงฐานข้อมูล', async ({ context, page }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       await loginAs(context, seeded)
       await page.goto('/queues/new')
@@ -228,7 +234,7 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
   })
 
   test('ลบคิวงานที่มีนัดผูกอยู่ไม่ได้ — ต้องเสนอปิดการใช้งานแทน', async ({ context, page }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       const resource = await prisma.serviceResource.create({
         data: { shopId: seeded.shopId, name: 'ช่างสมชาย', capacity: 1 },
@@ -272,7 +278,7 @@ test.describe('feature 00024 — คิวงาน (กลุ่ม C) + มั
 
 test.describe('feature 00024 — ปฏิทินคิว (FR-RSV-04)', () => {
   test('ไม่มีนัดวันนี้ → เห็นสถานะว่างที่บอกว่านัดจะขึ้นเมื่อไร', async ({ context, page }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       // ต้องมีคิวงานอย่างน้อย 1 ก่อน — ยังไม่มีคิวงาน = ยังจองอะไรไม่ได้ ปฏิทินจึงถูกซ่อน
       // ตั้งใจ (queues/page.tsx:57) ไม่ให้ร้านเปิดใหม่เจอตารางเดือนเปล่าเต็มจอแล้วสับสน
@@ -303,7 +309,7 @@ test.describe('feature 00024 — ปฏิทินคิว (FR-RSV-04)', () =>
    * user รายงานว่า "สีมันไม่ได้เลย" — tsc/build/grep มองไม่เห็นบั๊กแบบนี้
    */
   test('ร้านความจุ 1 และไม่มีนัด — ต้องไม่มีช่องวันไหนถูกย้อมสีเลย', async ({ context, page }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       await prisma.serviceResource.create({
         data: { shopId: seeded.shopId, name: 'ช่างซ่อม', capacity: 1 },
@@ -331,7 +337,7 @@ test.describe('feature 00024 — ปฏิทินคิว (FR-RSV-04)', () =>
   })
 
   test('นัดที่มีอยู่แสดงบนปฏิทินพร้อมสถานะ และกดแล้วไปหน้าออเดอร์', async ({ context, page }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       const resource = await prisma.serviceResource.create({
         data: { shopId: seeded.shopId, name: 'เตียงนวด 1', capacity: 1 },
@@ -378,7 +384,8 @@ test.describe('feature 00024 — zero-regression (กลุ่ม G)', () => {
     context,
     page,
   }) => {
-    const seeded = await createShop({ kind: 'PERSONAL', vertical: 'GENERAL' })
+    // shop ที่ใช้ฟีเจอร์ไม่ได้ = vertical ไม่ใช่ SERVICE_QUEUE (BR-SBT-11)
+    const seeded = await createShop({ kind: 'PERSONAL', vertical: 'ONLINE_SALES' })
     try {
       await loginAs(context, seeded)
       await page.goto('/orders/new')
@@ -392,7 +399,7 @@ test.describe('feature 00024 — zero-regression (กลุ่ม G)', () => {
     context,
     page,
   }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       await loginAs(context, seeded)
       await page.goto('/orders/new')
@@ -413,7 +420,7 @@ test.describe('feature 00024 — zero-regression (กลุ่ม G)', () => {
     context,
     page,
   }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       await prisma.serviceResource.create({
         data: { shopId: seeded.shopId, name: 'ช่องบริการ 1', capacity: 2, durationMinutes: 60 },
@@ -451,7 +458,7 @@ test.describe('feature 00024 — zero-regression (กลุ่ม G)', () => {
     context,
     page,
   }) => {
-    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'GENERAL' })
+    const seeded = await createShop({ kind: 'BUSINESS', vertical: 'SERVICE_QUEUE' })
     try {
       await prisma.serviceResource.create({
         data: { shopId: seeded.shopId, name: 'ช่างตัดผม', capacity: 2, durationMinutes: 45 },

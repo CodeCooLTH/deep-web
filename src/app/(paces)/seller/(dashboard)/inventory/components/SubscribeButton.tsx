@@ -20,7 +20,7 @@ import { pacesToast } from '@/lib/paces-toast'
 function subscribeErrorMessage(status: number): string {
   switch (status) {
     case 402:
-      return 'เครดิตไม่พอ — <a href="/wallet" class="underline">เติมเครดิตก่อนสมัคร</a>'
+      return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงินก่อนสมัคร</a>'
     case 409:
       return 'สมัครใช้งานอยู่แล้ว'
     default:
@@ -37,7 +37,7 @@ export default function SubscribeButton() {
       buttonsStyling: false,
       icon: 'question',
       title: 'สมัคร Inventory Add-on?',
-      text: 'ระบบจะหักเครดิต ฿199 จากกระเป๋าเงินของคุณทันที และเริ่มรอบใช้งาน 30 วัน',
+      text: 'ระบบจะหักเงิน ฿199 จากกระเป๋าเงินของคุณทันที และเริ่มรอบใช้งาน 30 วัน',
       showCancelButton: true,
       confirmButtonText: 'สมัคร ฿199',
       cancelButtonText: 'ยกเลิก',

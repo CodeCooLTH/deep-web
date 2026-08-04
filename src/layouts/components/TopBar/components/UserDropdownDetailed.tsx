@@ -9,6 +9,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { pacesToast } from '@/lib/paces-toast'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
+import { useCreatePersonalShop } from '@/hooks/useCreatePersonalShop'
 
 type UserProfileMenuType = {
   label: string
@@ -75,24 +76,33 @@ const UserDropdown = () => {
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
   const { switching, target, switchShop } = useShopSwitcher()
+  // feature 00026 — ผู้ถูกเชิญที่ยังไม่มีร้านส่วนตัว (context.personal === null) กดสร้างได้จากที่นี่
+  const { creating, createPersonalShop } = useCreatePersonalShop()
+
+  // 2026-08-04: เลิก guard ด้วย hasBusinessMembership — บล็อก "บัญชีทั้งหมด" แสดงเสมอแล้ว
+  // จึงต้องรู้ทุกกรณีว่ามีร้านส่วนตัวหรือยัง (ไม่งั้นคนที่มีแต่ร้านส่วนตัวจะเห็นหัวข้อว่างเปล่า
+  // และผู้ถูกเชิญที่ยังไม่มีร้านส่วนตัวจะไม่ได้ปุ่มสร้าง)
+  const [contextFailed, setContextFailed] = useState(false)
 
   useEffect(() => {
-    // guard: fetch เฉพาะเมื่อมี business membership จริง (กันยิง request เปล่าให้ทุก seller)
-    if (!hasBusinessMembership) return
     let cancelled = false
     // no-store + cache-buster query: กัน cache ทุกชั้น serve response เก่า (ร้านใหม่ไม่โผล่)
     fetch(`/api/business/context?_t=${Date.now()}`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!cancelled && data) setContext({ personal: data.personal, businesses: data.businesses ?? [] })
+        if (cancelled) return
+        if (data) setContext({ personal: data.personal, businesses: data.businesses ?? [] })
+        else setContextFailed(true)
       })
       .catch(() => {
-        /* เงียบ — progressive enhancement ไม่บล็อก UI หลักของ dropdown */
+        // เดิมเงียบสนิทได้เพราะบล็อกถูกซ่อนอยู่แล้วเมื่อไม่มี business — ตอนนี้บล็อกโชว์เสมอ
+        // ความว่างเปล่าจึงอ่านเหมือนบั๊ก ต้องบอกให้ชัดว่าโหลดไม่สำเร็จ (ดู fallback ด้านล่าง)
+        if (!cancelled) setContextFailed(true)
       })
     return () => {
       cancelled = true
     }
-  }, [hasBusinessMembership])
+  }, [])
 
   const handleSwitch = (
     shopId: string,
@@ -137,12 +147,22 @@ const UserDropdown = () => {
           </div>
         </div>
 
-        {/* สลับบัญชี — เฉพาะ seller ที่มี business membership; list ไม่รวมบัญชีที่ active */}
-        {hasBusinessMembership && (
-          <>
+        {/* บัญชีทั้งหมด — แสดงเสมอ (user เคาะ 2026-08-04). เดิมทั้งบล็อกถูกซ่อนเมื่อไม่มี business
+            membership ซึ่งทำให้คนที่มีแต่ร้านส่วนตัวไม่มีทางเปิดธุรกิจจากที่นี่เลย
+            list ไม่รวมบัญชีที่ active — มันอยู่ในกล่องไฮไลต์ด้านบนแล้ว */}
+        <>
             <div className="px-2 pt-3 pb-1">
-              <span className="text-default-400 text-xs">สลับบัญชี</span>
+              <span className="text-default-400 text-xs">บัญชีทั้งหมด</span>
             </div>
+
+            {/* โหลดรายการไม่สำเร็จ — บอกตรง ๆ ดีกว่าปล่อยหัวข้อลอยไม่มีอะไรอยู่ใต้มัน
+                และต้องบอกทางออกที่ได้ผลจริง: dropdown ถูก toggle ด้วย CSS ของ Preline ไม่ได้ unmount
+                useEffect([]) จึงไม่ยิงซ้ำตอนเปิดใหม่ — ทางเดียวที่ fetch ใหม่คือโหลดหน้าใหม่ */}
+            {contextFailed && (
+              <div className="text-default-400 px-3 py-2 text-xs">
+                โหลดรายการบัญชีไม่สำเร็จ ลองโหลดหน้านี้ใหม่อีกครั้ง
+              </div>
+            )}
 
             {/* Personal (ซ่อนถ้า personal = active) */}
             {context?.personal && activeShopId !== context.personal.shopId && (
@@ -162,6 +182,29 @@ const UserDropdown = () => {
                 <AccountAvatar src={user?.avatar} kind="personal" className="size-7" />
                 <span className="flex-1 truncate">{displayName}</span>
                 <span className="badge bg-default-100 text-default-500 shrink-0">ส่วนตัว</span>
+              </button>
+            )}
+
+            {/* ยังไม่มีร้านส่วนตัว (ผู้ถูกเชิญ feature 00012) → เสนอให้สร้าง แทนตำแหน่งที่แถว personal
+                จะอยู่. เส้นประ + primary = grammar เดียวกับปุ่ม "เปิดร้านของฉันเอง" ที่ ChooseShopClient
+                ใช้อยู่แล้ว (ผู้ใช้จำ affordance "เส้นประ = สร้างของใหม่" ข้ามหน้าได้) */}
+            {context && context.personal === null && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={createPersonalShop}
+                disabled={creating}
+                className="dropdown-item border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 mb-1 flex w-full items-start gap-2.5 rounded-lg border border-dashed text-start disabled:opacity-50"
+              >
+                <Icon
+                  icon={creating ? 'loader-2' : 'plus'}
+                  className={`mt-0.5 shrink-0${creating ? ' animate-spin' : ''}`}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0">
+                  <span className="block font-medium">สร้างร้านส่วนตัวของฉัน</span>
+                  <span className="text-default-500 block text-xs">ขายของในนามตัวเอง</span>
+                </span>
               </button>
             )}
 
@@ -193,22 +236,43 @@ const UserDropdown = () => {
                   )}
                 </button>
               ))}
-          </>
-        )}
+
+            {/* ไม่มีบัญชีอื่นให้สลับเลย (มีแต่ร้านส่วนตัวที่ active อยู่) → เสนอเปิดธุรกิจ
+                grammar เดียวกับปุ่ม "สร้างร้านส่วนตัวของฉัน" ด้านบน (เส้นประ + primary) เพราะเป็น
+                affordance เดียวกันคือ "เพิ่มบัญชีใหม่เข้ารายการนี้" ต่างที่ chevron ท้ายแถว —
+                อันนี้พาไปหน้าฟอร์มหลายขั้น ไม่ใช่ action จบในตัวเหมือนปุ่มสร้างร้านส่วนตัว */}
+            {!hasBusinessMembership && context?.personal && (
+              <Link
+                href="/business/create"
+                role="menuitem"
+                className="dropdown-item border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 mb-1 flex w-full items-start gap-2.5 rounded-lg border border-dashed text-start"
+              >
+                <Icon icon="plus" className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">สร้างธุรกิจใหม่</span>
+                  {/* คำอธิบายต้องตอบ "ทำไมต้องมี" ไม่ใช่พูดชื่อปุ่มซ้ำ — คู่ขนานกับปุ่มร้านส่วนตัว
+                      ที่บอกว่า "ขายของในนามตัวเอง" อันนี้จึงบอกสิ่งที่ร้านส่วนตัวทำไม่ได้ */}
+                  <span className="text-default-500 block text-xs">ขายในนามร้าน เพิ่มทีมงานช่วยดูแลได้</span>
+                </span>
+                <Icon icon="chevron-right" className="text-default-400 mt-0.5 shrink-0" aria-hidden="true" />
+              </Link>
+            )}
+        </>
 
         <div className="dropdown-divider"></div>
 
-        <Link href="/business" className="dropdown-item">
-          <Icon icon="rocket" className="me-1 fs-lg align-middle" />
-          <span className="align-middle">แพ็กเกจธุรกิจ</span>
+        {/* feature 00026 — ข้อมูลของ "ตัวคน" ผูกกับ session.user ไม่ผูกร้านที่ active อยู่
+            2026-08-04: ตัด "แพ็กเกจธุรกิจ" (การ์ดเหนือเมนูซ้ายพาไป /business แล้ว) และ
+            "โปรไฟล์ / ตั้งค่าร้าน" (= /shop ซึ่งอยู่ในกลุ่ม SETTING ของเมนูซ้ายแล้ว) ออก —
+            dropdown นี้เหลือเฉพาะของ "ตัวคน" ไม่ปนกับของร้าน */}
+        <Link href="/account" className="dropdown-item">
+          <Icon icon="user-circle" className="me-1 fs-lg align-middle" />
+          <span className="align-middle">ข้อมูลส่วนตัว</span>
         </Link>
 
-        <Link href="/shop" className="dropdown-item">
-          <Icon icon="settings" className="me-1 fs-lg align-middle" />
-          <span className="align-middle">โปรไฟล์ / ตั้งค่าร้าน</span>
-        </Link>
-
-        {/* เปิดหน้าร้าน — แสดงเมื่อมี username (ทุก user มีหน้าโปรไฟล์สาธารณะ /u/[username] ไม่ว่าจะเปิดร้านหรือยัง; ข้าม subdomain ใช้ <a> ธรรมดา) */}
+        {/* โปรไฟล์ = หน้าร้านจริงที่ลูกค้าเห็น (ป้ายเดิม "เปิดหน้าร้าน" — ใช้คำเดียวกับเมนูซ้ายแล้ว)
+            แสดงเมื่อมี username: ทุก user มี /u/[username] ไม่ว่าจะเปิดร้านหรือยัง
+            ข้าม subdomain ใช้ <a> ธรรมดา ไม่ใช่ <Link> */}
         {user?.username && (
           <a
             href={
@@ -221,7 +285,7 @@ const UserDropdown = () => {
             className="dropdown-item"
           >
             <Icon icon="building-store" className="me-1 fs-lg align-middle" />
-            <span className="align-middle">เปิดหน้าร้าน</span>
+            <span className="align-middle">โปรไฟล์</span>
             <Icon icon="external-link" className="ms-auto size-3.5 align-middle" />
           </a>
         )}
@@ -245,6 +309,13 @@ const UserDropdown = () => {
     </div>
 
     <ShopSwitchOverlay show={switching} targetName={target?.name} targetKind={target?.kind} targetLogo={target?.logo} />
+    {/* overlay ตอนสร้างร้าน — ยังไม่มีร้านให้เอ่ยชื่อ จึง override ข้อความ ไม่งั้นจะขึ้น "กำลังสลับบัญชี"
+        ซึ่งบรรยายผิดเหตุการณ์ */}
+    <ShopSwitchOverlay
+      show={creating}
+      label="กำลังเปิดร้านส่วนตัวให้คุณ…"
+      subLabel="อีกสักครู่จะพาไปตั้งค่าร้านต่อ"
+    />
     </>
   )
 }

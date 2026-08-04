@@ -2,6 +2,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -67,6 +68,48 @@ export const getFile: Storage["getFile"] = async (fileId) => {
     return { buffer: Buffer.from(bytes), ext: fileIdExt(fileId) };
   } catch (err: unknown) {
     if (err instanceof Error && err.name === "NoSuchKey") return null;
+    throw err;
+  }
+};
+
+/** S3 คืนชื่อ error ต่างกันตาม command: GetObject → NoSuchKey, HeadObject → NotFound
+ *  (บาง S3-compatible ส่งมาแต่ httpStatusCode 404) — เช็คทั้งสามทางให้ครบ */
+function isNotFound(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (err.name === "NoSuchKey" || err.name === "NotFound") return true;
+  const meta = (err as { $metadata?: { httpStatusCode?: number } }).$metadata;
+  return meta?.httpStatusCode === 404;
+}
+
+export const getFileMeta: Storage["getFileMeta"] = async (fileId) => {
+  try {
+    const response = await getClient().send(
+      new HeadObjectCommand({ Bucket: getBucket(), Key: fileId })
+    );
+    return { size: response.ContentLength ?? 0, ext: fileIdExt(fileId) };
+  } catch (err: unknown) {
+    if (isNotFound(err)) return null;
+    throw err;
+  }
+};
+
+export const getFileRange: Storage["getFileRange"] = async (fileId, range) => {
+  try {
+    // ส่ง Range ต่อให้ S3 เลย — ไม่ดึงไฟล์ทั้งก้อนมาแล้วค่อยตัดในเมมโมรี
+    // (วิดีโอ 25MB ที่ถูก seek ไปมาจะกินทั้ง bandwidth และ RAM ของ function โดยเปล่าประโยชน์)
+    const response = await getClient().send(
+      new GetObjectCommand({
+        Bucket: getBucket(),
+        Key: fileId,
+        Range: `bytes=${range.start}-${range.end}`,
+      })
+    );
+    if (!response.Body) return null;
+
+    const bytes = await response.Body.transformToByteArray();
+    return { buffer: Buffer.from(bytes), ext: fileIdExt(fileId) };
+  } catch (err: unknown) {
+    if (isNotFound(err)) return null;
     throw err;
   }
 };

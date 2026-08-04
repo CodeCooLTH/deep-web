@@ -47,6 +47,14 @@ export type OpenDraftInput = {
   kind?: DraftKind
   /** คำสั่งซื้อที่จะเปิด/ดูพัสดุ (feature 00022) */
   shipmentOrderToken?: string | null
+  /**
+   * ข้อความจากเธรดที่จะให้ฟอร์ม "กระจาย" เป็นชื่อ/เบอร์/ที่อยู่ให้เลย (user สั่ง 2026-08-04 —
+   * กดค้างบนข้อความในแชท → สร้างคำสั่งซื้อ)
+   *
+   * มีผลเฉพาะตอน "สร้างร่างใหม่" เท่านั้น: ถ้าร่างของเธรดนี้เปิดค้างอยู่แล้ว การกดจะขยายร่างเดิม
+   * ตามพฤติกรรมเดิม **ไม่ทับค่าที่ร้านพิมพ์ไว้** — ทับได้คือทำข้อมูลที่กรอกมาแล้วหาย
+   */
+  prefillText?: string
 }
 
 type ChatDraft = {
@@ -58,6 +66,8 @@ type ChatDraft = {
   channel: string
   editOrderToken: string | null // null = สร้างใหม่; มีค่า = แก้ไขออเดอร์นั้น
   shipmentOrderToken: string | null
+  /** ข้อความที่จะให้ฟอร์มกระจายตอน mount (null = ไม่มี) */
+  prefillText: string | null
   state: 'expanded' | 'minimized'
 }
 
@@ -162,6 +172,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
         channel: input.channel,
         editOrderToken: editToken,
         shipmentOrderToken: shipmentToken,
+        prefillText: input.prefillText ?? null,
         state: 'expanded',
       }
       return [...prev.map((d) => (d.state === 'expanded' ? { ...d, state: 'minimized' as const } : d)), next]
@@ -278,6 +289,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
                 initialSalesChannel={chatChannelToSalesChannel(d.channel)}
                 conversationId={d.conversationId}
                 editOrderToken={d.editOrderToken ?? undefined}
+                prefillParseText={d.prefillText ?? undefined}
                 ishipCreateMode={ishipCreateMode}
                 onSuccess={() => handleSuccess(d)}
                 compact
@@ -307,7 +319,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               <button type="button" onClick={() => expand(d.id)} className="flex min-w-0 items-center gap-2">
                 <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
                 <span className="flex min-w-0 flex-col text-start">
-                  <span className="text-default-500 text-2xs">{draftTitle(d)}</span>
+                  <span className="text-default-700 text-2xs">{draftTitle(d)}</span>
                   <span className="text-default-800 truncate text-sm font-medium">{d.customerName}</span>
                 </span>
               </button>
@@ -315,7 +327,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
                 type="button"
                 onClick={() => requestClose(d.id)}
                 aria-label="ปิดร่างคำสั่งซื้อ"
-                className="text-default-400 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
+                className="text-default-700 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
               >
                 <Icon icon="x" className="size-4" />
               </button>

@@ -290,7 +290,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
               <span className="block text-sm font-semibold text-default-900">
                 แจ้งเลขติดตามในแชทหลังสร้าง
               </span>
-              <span className="block text-xs text-default-500">
+              <span className="block text-xs text-default-700">
                 ส่งเป็นข้อความให้ลูกค้าในห้องนี้ทันทีที่เปิดพัสดุสำเร็จ
               </span>
             </span>
@@ -298,7 +298,7 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
 
           {notify && (
             <div className="mt-2 rounded-lg border border-dashed border-default-300 bg-default-50 px-3 py-2.5">
-              <p className="mb-1 text-xs font-semibold tracking-wide text-default-400">
+              <p className="mb-1 text-xs font-semibold tracking-wide text-default-700">
                 ข้อความที่ลูกค้าจะได้รับ
               </p>
               {/* ยังไม่มีเลขจริงจนกว่าจะสร้างสำเร็จ — ห้ามโชว์เลขตัวอย่างให้เข้าใจผิด */}

@@ -7,7 +7,7 @@
  * wand tool → PasteParseSheet; locality field → AddressSearchSheet; ที่อยู่แสดงเมื่อ salesChannel !== STOREFRONT
  */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useController, useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
@@ -17,6 +17,7 @@ import CustomerSearchSheet, { type CustomerResult } from './CustomerSearchSheet'
 import type { FormValues } from './OrderCreateForm'
 import type { ParsedOrderMessage } from '@/lib/parse-order-message'
 import { getLocalityStatus } from '@/lib/shipping-address-status'
+import { parseOrderMessage } from '@/lib/parse-order-message'
 
 interface Props {
   control: Control<FormValues>
@@ -24,10 +25,19 @@ interface Props {
   setValue: UseFormSetValue<FormValues>
   /** ออเดอร์นี้ต้องจัดส่ง (มีสินค้า SHIPPED + ไม่ใช่หน้าร้าน) → เตือนให้ตั้งที่อยู่ปลายทางให้ครบ */
   needsShipping: boolean
+  /**
+   * ข้อความจากแชทที่ต้องกระจายให้ตอนเปิดฟอร์ม (user สั่ง 2026-08-04 — กดค้างบนข้อความ →
+   * สร้างคำสั่งซื้อ) กระจายรอบเดียวตอน mount เท่านั้น ไม่ตามค่า prop ที่เปลี่ยนทีหลัง
+   */
+  prefillParseText?: string
 }
 
-export default function CustomerQuickBlock({ control, errors, setValue, needsShipping }: Props) {
+export default function CustomerQuickBlock({ control, errors, setValue, needsShipping, prefillParseText }: Props) {
   const [pasteOpen, setPasteOpen] = useState(false)
+  /** ข้อความตั้งต้นในชีตกระจาย — มีค่าเมื่อเปิดชีตเพราะกระจายได้ไม่ครบ (ให้ร้านแก้ต่อจากของเดิม) */
+  const [pasteInitialText, setPasteInitialText] = useState('')
+  /** กระจายจากข้อความในแชทให้แล้ว → ขึ้นแถบบอก ไม่ให้ค่าโผล่มาเองอย่างเงียบ ๆ */
+  const [prefilledFromChat, setPrefilledFromChat] = useState(false)
   const [addrOpen, setAddrOpen] = useState(false)
   const [custOpen, setCustOpen] = useState(false)
   const [custQuery, setCustQuery] = useState('')
@@ -137,6 +147,42 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
     setPasteOpen(false)
   }
 
+  /**
+   * กระจายข้อความจากแชทให้ทันทีที่ฟอร์มเปิด (user สั่ง 2026-08-04 — กดค้างบนข้อความ → สร้างคำสั่งซื้อ)
+   *
+   * รอบเดียวตอน mount: ref กันไม่ให้รันซ้ำเมื่อ component re-render (setValue ทำให้ re-render เอง)
+   * และไม่ผูกกับค่า prop ที่เปลี่ยนทีหลัง — ถ้าร้านแก้ค่าในฟอร์มแล้วมี re-render ห้ามเขียนทับของที่พิมพ์
+   *
+   * ครบ/ไม่ครบตัดสินด้วย lib/shipping-address-status.ts (SSOT เดียวกับที่ปุ่มที่อยู่ใช้ ซึ่งตรงกับ
+   * เงื่อนไขจริงของ createOrder) — ขาดช่องบังคับ = เปิดชีตกระจายให้พร้อมข้อความตั้งต้น ให้ร้านแก้
+   * หรือก๊อปข้อความอื่นมาต่อได้ทันที ไม่ใช่ปล่อยให้ไปเจอ error ตอนกดบันทึก
+   */
+  const prefillDoneRef = useRef(false)
+  useEffect(() => {
+    const text = prefillParseText?.trim()
+    if (!text || prefillDoneRef.current) return
+    prefillDoneRef.current = true
+    const parsed = parseOrderMessage(text)
+    applyPaste(parsed)
+    setPrefilledFromChat(true)
+    // ที่อยู่ครบพอบันทึกไหม — ใช้ผล parse ตรง ๆ ไม่รอค่าจากฟอร์ม (setValue ยังไม่ propagate ในรอบนี้)
+    const status = getLocalityStatus(
+      {
+        line1: parsed.addressLine,
+        subdistrict: parsed.subdistrict,
+        district: parsed.district,
+        province: parsed.province,
+        postcode: parsed.postcode,
+      },
+      false,
+    )
+    if (!parsed.addressLine?.trim() || status.state !== 'complete') {
+      setPasteInitialText(text)
+      setPasteOpen(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillParseText])
+
   const applyLocality = (loc: SelectedLocality) => {
     setValue('shippingAddress.subdistrict', loc.subdistrict)
     setValue('shippingAddress.district', loc.district)
@@ -148,6 +194,15 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
   return (
     <>
       {/* header: ลูกค้า (title เด่น) + badge ลูกค้าเก่า + ปุ่มกระจายที่อยู่ (paste) */}
+      {/* แถบบอกว่าค่าในฟอร์มมาจากข้อความในแชท ไม่ใช่โผล่มาเอง (user สั่ง 2026-08-04) —
+          ต้องมีเพราะค่าถูกเติมให้ตอนเปิดฟอร์ม ถ้าไม่บอกเลยร้านจะไม่รู้ว่าควรตรวจอะไร และ parser
+          พลาดได้เสมอ. ไม่ใช้ success/เขียว: "เติมให้แล้ว" ไม่ใช่ "ยืนยันแล้วว่าถูก" (Verified-Means-Green) */}
+      {prefilledFromChat && (
+        <div className="bg-info/10 text-info-ink mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs">
+          <Icon icon="info-circle" className="mt-0.5 size-4 shrink-0" />
+          <span>เติมชื่อ เบอร์ และที่อยู่จากข้อความในแชทให้แล้ว — ตรวจอีกครั้งก่อนบันทึก</span>
+        </div>
+      )}
       <div className="mb-3 flex items-center gap-2">
         <Icon icon="user" className="size-5 text-primary" />
         <h2 className="text-base font-bold text-dark">ลูกค้า</h2>
@@ -304,7 +359,13 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
         onClose={() => setCustOpen(false)}
       />
       {/* key={pasteOpen} → remount ทุกครั้งที่เปิด: text/showBubble เริ่มสด ไม่ต้อง setState ใน effect */}
-      <PasteParseSheet key={String(pasteOpen)} open={pasteOpen} onApply={applyPaste} onClose={() => setPasteOpen(false)} />
+      <PasteParseSheet
+        key={String(pasteOpen)}
+        open={pasteOpen}
+        initialText={pasteInitialText}
+        onApply={applyPaste}
+        onClose={() => setPasteOpen(false)}
+      />
       <AddressSearchSheet open={addrOpen} current={locality} onSelect={applyLocality} onClose={() => setAddrOpen(false)} />
     </>
   )

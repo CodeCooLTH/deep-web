@@ -14,7 +14,7 @@
  *     เข้ามาก็แทนที่ใบที่ยกเลิกไปเอง ไม่ต้องมีเงื่อนไขพิเศษ)
  */
 
-import { isProblemCarrierStatus } from './iship/status'
+import { isInTransitCarrierStatus, isProblemCarrierStatus } from './iship/status'
 
 export type OrderStageKey =
   | 'PARCEL_PROBLEM'
@@ -57,15 +57,69 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export const DELIVERED_VISIBLE_MS = 3 * DAY_MS
 export const CANCELLED_VISIBLE_MS = 1 * DAY_MS
 
-/** carrierStatus ที่ถือว่า "ของอยู่ระหว่างทาง" — ชุดเดียวกับ isInTransit ใน src/lib/iship/status.ts */
-const IN_TRANSIT = ['picked_up', 'with_branch', 'in_transit', 'progress']
-
 /**
  * สถานะที่ร้านต้องรู้ทันที — นิยามเดียวกับ PROBLEM_CARRIER_STATUSES ใน lib/iship/status.ts
  *
  * import มาใช้แทนการเขียนซ้ำ เพราะถ้าสองที่นิยาม "มีปัญหา" ไม่ตรงกัน ตัวกรองจะกรองแล้วได้ผล
  * ไม่ตรงกับป้ายที่เห็น ซึ่งเป็นบั๊กที่หาสาเหตุยากมาก
  */
+
+/**
+ * ─── สถานะ "ของอยู่ไหน" สำหรับ Command Center + ตัวกรองหน้า /orders (user สั่ง 2026-08-04) ───
+ *
+ * แยกจาก OrderStageKey (ป้ายในรายการแชท) เพราะคนละคำถาม: ป้ายตอบว่า "ออเดอร์ใบนี้ถึงขั้นไหน"
+ * ส่วนชุดนี้ตอบว่า "ใบนี้อยู่ในกองงานไหนของวันนี้" — LABEL_PRINTED/PARCEL_CREATED เป็นกองเดียวกัน
+ * (รอขนส่งมารับ) และของที่จบแล้วถูกยุบเป็น DONE ก้อนเดียวเพราะไม่ต้องทำอะไรต่อ
+ *
+ * 🛑 ฟังก์ชันนี้ต้องเป็นตัวเดียวที่ทั้ง "ตัวนับบนไทล์" และ "ตัวกรองในหน้ารายการ" เรียกใช้
+ * ถ้าแยกกันเขียน (เช่นนับด้วย SQL แล้วกรองด้วย TS) วันหนึ่งจะกดไทล์ที่บอก 5 แล้วเข้าไปเจอ 4 ใบ
+ * โดยไม่มีอะไรเตือน — บั๊กแบบนั้นหาสาเหตุยากมากและทำให้ทั้งหน้าจอเชื่อไม่ได้
+ */
+export type ShippingStageKey =
+  | 'AWAITING_PARCEL'
+  | 'AWAITING_PICKUP'
+  | 'SHIPPING'
+  | 'PROBLEM'
+  /** จบแล้ว/ไม่ใช่งานค้าง — ไม่นับบนไทล์ และไม่ขึ้นในตัวกรอง */
+  | 'DONE'
+
+export interface ShippingStageInput {
+  status: string
+  /** carrierStatus ของพัสดุใบล่าสุดที่ยัง active (status='CREATED', ไม่ใช่ dry-run) */
+  carrierStatus: string | null
+  /** มีพัสดุ active อยู่ไหม — null carrierStatus ยังแปลว่า "มีพัสดุแต่ขนส่งยังไม่อัปเดต" ได้ */
+  hasShipment: boolean
+}
+
+/** carrierStatus ที่แปลว่าจบเส้นทางแล้ว ไม่ต้องตามต่อ */
+const TERMINAL_CARRIER = ['delivered', 'return_success', 'is_expired', 'cancelled']
+
+export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
+  // ยกเลิกทั้งใบ = ไม่ใช่งานค้าง ไม่ว่าพัสดุจะอยู่สถานะไหน
+  if (o.status === 'CANCELLED') return 'DONE'
+
+  if (o.hasShipment) {
+    // ลำดับเดียวกับ deriveOrderStage: ปัญหามาก่อน แล้วค่อยดูปลายทาง/ระหว่างทาง
+    if (isProblemCarrierStatus(o.carrierStatus)) return 'PROBLEM'
+    if (o.carrierStatus && TERMINAL_CARRIER.includes(o.carrierStatus)) return 'DONE'
+    // SHIPPED = ร้านยืนยันเองว่าของออกไปแล้ว เชื่อได้และชนะการที่ขนส่งยังไม่อัปเดต
+    if (isInTransitCarrierStatus(o.carrierStatus) || o.status === 'SHIPPED') return 'SHIPPING'
+    return 'AWAITING_PICKUP'
+  }
+
+  // ไม่มีพัสดุ — ร้านแจ้งส่งเองก็ถือว่ากำลังส่ง, ปิดการขายแล้วก็จบ, ที่เหลือคือยังไม่ได้เปิดพัสดุ
+  if (o.status === 'SHIPPED') return 'SHIPPING'
+  if (o.status === 'CONFIRMED') return 'DONE'
+  return 'AWAITING_PARCEL'
+}
+
+/** ป้ายไทยของแต่ละกอง — ใช้ทั้งไทล์บน Command Center และชิปตัวกรองในหน้า /orders */
+export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE'>, string> = {
+  AWAITING_PARCEL: 'รอเลขพัสดุ',
+  AWAITING_PICKUP: 'รอรับเข้า',
+  SHIPPING: 'กำลังจัดส่ง',
+  PROBLEM: 'พัสดุมีปัญหา',
+}
 
 export interface OrderStageInput {
   status: string
@@ -139,7 +193,7 @@ export function deriveOrderStage(
       if (age > DELIVERED_VISIBLE_MS) return null
       key = 'DELIVERED'
     } else if (
-      (order.carrierStatus && IN_TRANSIT.includes(order.carrierStatus)) ||
+      isInTransitCarrierStatus(order.carrierStatus) ||
       // SHIPPED ต่างจาก CONFIRMED: มันคือคำยืนยันของร้านว่า "ของออกไปแล้ว" ซึ่งพูดถึงตัวพัสดุตรง ๆ
       // ไม่ใช่การปิดการขาย จึงเชื่อได้และต้องชนะ labelPrintedAt (ขนส่งมักอัปเดตช้ากว่าความจริง)
       order.status === 'SHIPPED'

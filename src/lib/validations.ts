@@ -81,11 +81,14 @@ export const CategoriesSchema = v.object({
 });
 
 // Step 3 — address + map pin (lat/lng ขอบเขตประเทศไทย; lat+lng ต้องมาคู่ — XOR check ที่ route handler)
+// feature 00028 (SDS §3.3 task #16) — เพิ่ม vertical (optional): ตั้ง/เปลี่ยนประเภทร้านค้าได้เฉพาะ
+// ระหว่าง onboarding เท่านั้น (route handler เช็ค Shop.slug===null ก่อน — TD-002)
 export const ShopUpdateWithGeoSchema = v.object({
   category: v.optional(ShopCategorySchema),
   address: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500))),
   latitude: v.optional(v.pipe(v.number(), v.minValue(5), v.maxValue(21))),
   longitude: v.optional(v.pipe(v.number(), v.minValue(97), v.maxValue(106))),
+  vertical: v.optional(v.picklist(SHOP_VERTICAL_KEYS)),
 });
 
 // Step 3 — Nominatim reverse-geocode proxy input
@@ -99,6 +102,33 @@ export const SetPasswordSchema = v.object({
   phone: v.pipe(v.string(), v.regex(/^0[0-9]{9}$/)),
   otp: v.pipe(v.string(), v.length(6)),
   password: PasswordSchema,
+});
+
+// UpdateProfileSchema — allow-list ของ PATCH /api/users/me
+//
+// สำคัญ — เหตุผลที่ต้องเป็น allow-list ไม่ใช่แค่ type: เดิม route ส่ง body ดิบเข้า
+// prisma.user.update({ data }) ตรง ๆ โดยไม่ parse — TS type บน updateProfile() กรองอะไรไม่ได้ตอน
+// runtime → user ที่ล็อกอินคนไหนก็ได้ยิง {"isAdmin":true} แล้วยกระดับตัวเองเป็นแอดมินระบบ
+// (รวมถึงเซ็ต trustScore/passwordHash/phone ทับกฎ phone-immutable). ห้ามเปลี่ยนกลับไปรับ body ดิบ
+// และห้ามเพิ่ม field ที่ user ไม่ควรตั้งเองเข้ามาใน schema นี้
+//
+// ทุก field เป็น optional = partial update (caller ส่งมาเฉพาะที่แก้) — ดูรูปแบบที่ caller ใช้จริงที่
+// (marketing)/m/settings/profile/AvatarEditable.tsx (avatar) และ .../settings/profile/ProfileForm.tsx (displayName)
+export const UpdateProfileSchema = v.object({
+  displayName: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
+  // regex เดียวกับ /api/account/shop-info (SSOT ของรูปแบบ username ทั้งระบบ)
+  username: v.optional(v.pipe(v.string(), v.trim(), v.toLowerCase(), v.regex(/^[a-z0-9_]{3,30}$/))),
+  // avatar: path ของไฟล์ที่อัปโหลดเอง (/api/files/{fileId}) หรือ https URL (รูปจาก FB/LINE ที่
+  // auth.ts เซ็ตไว้). null = ลบรูป. จำกัดไว้แค่ 2 รูปแบบนี้เพื่อกัน javascript:/data: หลุดเข้า src
+  avatar: v.optional(
+    v.nullable(
+      v.pipe(
+        v.string(),
+        v.maxLength(2048),
+        v.regex(/^(\/api\/files\/|https:\/\/)/, "รูปแบบรูปโปรไฟล์ไม่ถูกต้อง"),
+      ),
+    ),
+  ),
 });
 
 export const CreateShopSchema = v.object({
@@ -711,7 +741,9 @@ export const SendChatMessageSchema = v.object({
   // ORDER = การ์ดออเดอร์/ใบเสนอราคาในแชท DEEP (user 2026-07-24) — อ้าง Order.publicToken
   // VIDEO/AUDIO/FILE (2026-08-02 multi-attachment): ร้านแนบไฟล์ทุกชนิดได้ ไม่ใช่แค่รูป
   // เดิม 3 ชนิดนี้เกิดได้ทางเดียวคือ mirror ขาเข้าจาก Messenger/IG (เขียน DB ตรง ไม่ผ่าน schema นี้)
-  type: v.picklist(["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "PRODUCT", "ORDER"]),
+  // STICKER (2026-08-04): ไม่ใช่ไฟล์แนบ — ยิง sticker_id ให้ Meta แล้วฝั่งเราเก็บเป็นแถว IMAGE
+  // (ดู sendOutboundMessage) จึงไม่อยู่ในชุด isAttachmentType
+  type: v.picklist(["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "PRODUCT", "ORDER", "STICKER"]),
   // nullish ไม่ใช่ optional — client ส่ง `body: null` มาจริงเมื่อแนบรูปโดยไม่ใส่ caption
   // (useSellerChatThread.handleSend + payload ที่เก็บไว้สำหรับปุ่ม "ลองใหม่") ซึ่ง v.optional รับแค่
   // undefined → เด้ง "Invalid type: Expected string but received null" = **ส่งรูปอย่างเดียวไม่ได้เลย**
@@ -726,6 +758,15 @@ export const SendChatMessageSchema = v.object({
   productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
   orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์ในแชท — เฉพาะ type=ORDER (Order.publicToken)
   replyToMessageId: v.optional(v.pipe(v.string(), v.uuid())), // reply/quote (user 2026-07-25) — id ของข้อความที่ตอบทับ (route resolve → replyToMid/Meta reply_to)
+  /**
+   * สติกเกอร์ Meta (user สั่ง 2026-08-04) — ส่งคู่กับ type='STICKER'
+   * stickerId: id จาก Sticker Catalog API (ตัวเลขล้วนเป็นสตริง) — Meta ยืนยันเองว่าส่งได้หรือไม่
+   * stickerImageUrl: รูปจาก catalog (โดเมน CDN ของ Meta) — server เอาไป mirror เก็บฝั่งเรา
+   *   บังคับ https + จำกัดความยาว: ค่านี้มาจาก client และถูกเอาไป fetch ฝั่ง server (SSRF)
+   *   host allow-list ตัวจริงอยู่ที่ mirrorRemoteImage (เฉพาะ CDN ของ Meta) — ที่นี่เป็นชั้นแรก
+   */
+  stickerId: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(32), v.regex(/^[0-9]+$/))),
+  stickerImageUrl: v.optional(v.pipe(v.string(), v.url(), v.maxLength(2000), v.startsWith('https://'))),
 });
 // ตรวจ conditional-required ที่ route:
 //   type='TEXT' → body ต้องมีจริง (minLength 1, ห้ามว่าง — FR-CHAT-04-AC-02)
@@ -859,7 +900,9 @@ export const UpdateExpenseSchema = v.object({
 
 // PnlReportQuerySchema — manual parse (query params ไม่ใช่ JSON body) ตาม API.md §4.5
 export const PnlReportQuerySchema = v.object({
-  range: v.optional(v.picklist(["today", "7d", "30d", "month", "custom"]), "today"),
+  // default ต้องตรงกับหน้า /expenses (30d) — เดิม API เป็น "today" ส่วนหน้าเป็น "30d"
+  // ใครเรียก endpoint นี้โดยไม่ส่ง range จะได้คนละช่วงกับที่เห็นบนจอ
+  range: v.optional(v.picklist(["today", "7d", "30d", "month", "custom"]), "30d"),
   start: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
   end: v.optional(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
 });
@@ -990,7 +1033,7 @@ export const SetHousekeepingStatusSchema = v.object({
 //      จะถูกเขียนทับเป็นเปิด ทั้งที่ร้านอาจตั้งใจปิดไว้ (ไฟล์ลูกค้าเข้า AI ทั้งไฟล์) — fallback
 //      ไปค่า stored ปลอดภัยกว่าและยังไม่ 400 กับ client เก่าเหมือนเดิม
 // feature 00019 ext (2026-07-29) — body ของ POST /api/chat/conversations/{id}/ai-suggest
-// confirmUseCredit: ผู้ใช้ยืนยันแล้วว่ายอมให้หักเครดิต ฿1 เมื่อโควตาฟรีหมด (FR-AIQ-04)
+// confirmUseCredit: ผู้ใช้ยืนยันแล้วว่ายอมให้หักเงิน ฿1 เมื่อโควตาฟรีหมด (FR-AIQ-04)
 // input ตัวนี้ทำให้ "เงินจริงถูกหัก" จึงต้องเป็น boolean แท้เท่านั้น — ค่าอื่น (string "true",
 // object, array) ต้องตกเป็น false ไม่ใช่ตีความเป็น truthy
 export const AiSuggestRequestSchema = v.object({

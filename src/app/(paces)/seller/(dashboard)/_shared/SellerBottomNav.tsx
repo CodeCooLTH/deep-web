@@ -54,6 +54,8 @@ const FAB_ACTIONS = [
 
 // ─── Nav tabs (4 ช่อง ยกเว้น center) ────────────────────────────────────────
 // S-2: ตัด "สินค้า" ออก — /products ยังเข้าได้จากเมนูลัด dashboard (CarouselGrid)
+// WARNING: อาเรย์นี้ไม่ได้ถูก render — nav ด้านล่างเขียน JSX ทีละช่องด้วยมือ (badge/FAB ต่างกัน
+// ทุกช่องจน map ไม่คุ้ม) เก็บไว้เป็นสารบัญของช่องทั้ง 5 เท่านั้น แก้ที่นี่แล้วหน้าจอไม่เปลี่ยน
 const NAV_ITEMS = [
   { label: 'หน้าหลัก', href: '/dashboard', icon: 'home-2', exactMatch: true },
   { label: 'คำสั่งซื้อ', href: '/orders', icon: 'clipboard-list', exactMatch: false },
@@ -67,6 +69,11 @@ interface SellerBottomNavProps {
   pendingCount: number
   /** unread chat count — badge ช่อง "แชท" (ChatWidget task, feat 00011 Deep Chat) */
   unreadChatCount: number
+  /**
+   * ป้ายช่อง /orders — ผันตามประเภทกิจการ (คำสั่งซื้อ / ใบสั่งงาน / บิลเข้าพัก)
+   * layout เป็นคนคำนวณ (resolveOrderMenuLabel) เพื่อให้ตรงกับ sidebar และชื่อหน้าเป๊ะ ๆ
+   */
+  orderLabel: string
 }
 
 // ─── SpeedDialAction pill — sub-component (ใช้เฉพาะใน SellerBottomNav) ────────
@@ -92,7 +99,7 @@ function SpeedDialAction({ href, label, icon, innerRef }: SpeedDialActionProps) 
 }
 
 // ─── SellerBottomNav — main component ─────────────────────────────────────────
-export default function SellerBottomNav({ pendingCount, unreadChatCount }: SellerBottomNavProps) {
+export default function SellerBottomNav({ pendingCount, unreadChatCount, orderLabel }: SellerBottomNavProps) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
@@ -221,11 +228,11 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount }: Selle
               ? 'text-primary'
               : 'text-default-500'
           }`}
-          aria-label={`คำสั่งซื้อ${pendingCount > 0 ? ` (${pendingCount} รายการรอดำเนินการ)` : ''}`}
+          aria-label={`${orderLabel}${pendingCount > 0 ? ` (${pendingCount} รายการรอดำเนินการ)` : ''}`}
           aria-current={isActive('/orders', false) ? 'page' : undefined}
         >
           <Icon icon="clipboard-list" className="text-2xl" />
-          <span className="text-xs font-medium">คำสั่งซื้อ</span>
+          <span className="text-xs font-medium">{orderLabel}</span>
           {/* badge — แสดงเฉพาะเมื่อ pendingCount > 0 */}
           {pendingCount > 0 && (
             <span
@@ -269,8 +276,8 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount }: Selle
             ].join(' ')}
           >
             {/* icon toggle: plus (ปิด) → x (เปิด)
-                arbitrary fontSize 26px: FAB hero icon ใหญ่กว่า nav (text-2xl=24) — ไม่มี token 26px แทน */}
-            <Icon icon={open ? 'x' : 'plus'} style={{ fontSize: '26px' }} />
+                size-6.5 = 26px: FAB hero icon ใหญ่กว่าไอคอนใน nav เล็กน้อย (text-2xl=24) */}
+            <Icon icon={open ? 'x' : 'plus'} className="size-6.5" />
           </button>
           {/* label ใต้ปุ่ม — arbitrary marginTop 34px ชดเชย absolute FAB ที่ยกขึ้น (top-[-26px]+h-54) — ไม่มี token แทน */}
           <span

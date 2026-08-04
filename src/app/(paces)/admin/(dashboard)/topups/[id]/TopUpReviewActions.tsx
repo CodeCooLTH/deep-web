@@ -65,7 +65,7 @@ export default function TopUpReviewActions({ topupId, isSelfRecord }: Props) {
         }
         return
       }
-      pacesToast.success('อนุมัติคำขอเติมเครดิตแล้ว')
+      pacesToast.success('อนุมัติคำขอเติมเงินแล้ว')
       router.push('/topups')
       router.refresh()
     } catch (err: unknown) {
@@ -101,7 +101,7 @@ export default function TopUpReviewActions({ topupId, isSelfRecord }: Props) {
         }
         return
       }
-      pacesToast.success('ปฏิเสธคำขอเติมเครดิตแล้ว')
+      pacesToast.success('ปฏิเสธคำขอเติมเงินแล้ว')
       router.push('/topups')
       router.refresh()
     } catch (err: unknown) {
@@ -121,7 +121,7 @@ export default function TopUpReviewActions({ topupId, isSelfRecord }: Props) {
         {mode === 'idle' ? (
           <>
             <p className="text-default-500 text-sm">
-              ตรวจสอบสลิปแล้ว เลือกผลการตรวจสอบด้านล่าง หากอนุมัติระบบจะเติมเครดิตให้ร้านค้าอัตโนมัติ
+              ตรวจสอบสลิปแล้ว เลือกผลการตรวจสอบด้านล่าง หากอนุมัติระบบจะเติมเงินให้ร้านค้าอัตโนมัติ
             </p>
             <div className="flex flex-wrap gap-3 pt-1">
               {/* approve 1-click ไม่มี confirm dialog — Controller decision LOCKED */}

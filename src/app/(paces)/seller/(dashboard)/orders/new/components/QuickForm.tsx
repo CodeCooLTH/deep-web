@@ -24,6 +24,8 @@ import QuickSummaryPanel from './QuickSummaryPanel'
 import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateForm'
 
 interface Props {
+  /** ข้อความจากแชทที่จะให้ section ลูกค้ากระจายให้ตอนเปิดฟอร์ม (user สั่ง 2026-08-04) */
+  prefillParseText?: string
   control: Control<FormValues>
   errors: FieldErrors<FormValues>
   setValue: UseFormSetValue<FormValues>
@@ -41,6 +43,7 @@ interface Props {
 }
 
 export default function QuickForm({
+  prefillParseText,
   control,
   errors,
   setValue,
@@ -78,7 +81,13 @@ export default function QuickForm({
     <div className={rootCls}>
       {/* SECTION 1: ลูกค้า (phone-first + wand paste + address) */}
       <section className={`border-b-8 border-default-100 ${secX} py-4`}>
-        <CustomerQuickBlock control={control} errors={errors} setValue={setValue} needsShipping={needsShipping} />
+        <CustomerQuickBlock
+          control={control}
+          errors={errors}
+          setValue={setValue}
+          needsShipping={needsShipping}
+          prefillParseText={prefillParseText}
+        />
       </section>
 
       {/* SECTION 2: ช่องทางการขาย + การชำระเงิน */}

@@ -68,6 +68,8 @@ API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint �
 | `GET` | `/api/channels/facebook/pages` | รายการ Page + สถานะ (ว่าง/เชื่อมร้านนี้/ติดร้านอื่น) ให้หน้าเลือกเพจ | seller session + user-token cookie | ใหม่ 2026-07-24 |
 | `POST` | `/api/channels/facebook/confirm` | เชื่อมเฉพาะ Page ที่ user ติ๊กเลือก + ย้ายรายเพจ | seller session + user-token cookie | ใหม่ 2026-07-24 |
 | `POST` | `/api/chat/conversations/[id]/messages` | ส่งข้อความ — dispatch ไป Send API เมื่อ `channel != "DEEP"` | participant session | แก้ไข (feature 00011) |
+| `POST` | `/api/chat/upload` | อัปโหลดไฟล์แนบของแชท (ทุกชนิด ≤25MB) — แยกจาก `/api/upload` เดิม | participant session | ใหม่ 2026-08-02 |
+| `DELETE` | `/api/chat/conversations/[id]/messages/[messageId]` | ยกเลิกข้อความที่ยิงออกไม่สำเร็จ (เฉพาะ `deliveryStatus='FAILED'` + `senderRole='SHOP'`) | seller session + `canAccessShop` ของเธรด | ใหม่ (2026-08-02) |
 | `GET` | `/api/chat/quick-messages` | list ข้อความสำเร็จรูปของร้านที่ active | seller session | ใหม่ (2026-07-23) |
 | `POST` | `/api/chat/quick-messages` | สร้างข้อความสำเร็จรูป | seller session | ใหม่ (2026-07-23) |
 | `PATCH` | `/api/chat/quick-messages/[id]` | แก้ข้อความสำเร็จรูป (scope `{id, shopId}`) | seller session | ใหม่ (2026-07-23) |
@@ -89,7 +91,14 @@ API ชุดนี้แบ่งเป็น 2 กลุ่ม: (1) endpoint �
 | ~~`DELETE`/`PATCH` disconnect~~ | ~~—~~ | FR-FBC-11 | **มีแล้ว (2026-07-23):** `/api/channels/[id]` + `disconnectChannel()` (soft — ตั้ง `status='DISCONNECTED'`) |
 | ~~สร้างออเดอร์จาก prefill เธรด FB~~ | ~~—~~ | FR-FBC-07 | **มีแล้ว (2026-07-24):** สร้างออเดอร์จากโมดัลในแชท reuse POS/`CreateOrderSchema` (`conversationId` optional field) |
 | ~~ผูก `ExternalContact.customerId`~~ | ~~—~~ | FR-FBC-08 | **มีแล้ว (2026-07-24):** `createOrder({conversationId})` ผูก atomically ในทรานแซกชันเดียวกับสร้างออเดอร์ ([[EXTENSIONS-2026-07-25]] E3) |
-| — | ส่ง วิดีโอ/เสียง/ไฟล์/ตอบทับ/react ออกไป Messenger/IG | FR-FBC-17, E7, E9 | ขาเข้ารองรับครบแล้ว; **TEXT/IMAGE ส่งออกได้แล้ว** (`sendOutboundMessage` รองรับ `imageFileId`) แต่ `POST .../messages` ยังปฏิเสธ `type=PRODUCT` บนเธรดช่องทางนอก และ `sendOutboundMessage` ไม่มี parameter ให้ส่ง VIDEO/AUDIO/FILE/reply/reaction ออก (inbound-only เฉพาะกลุ่มนี้) |
+| — | ส่ง react ออกไป Messenger/IG | E7 | ขาเข้ารองรับแล้ว แต่ยังไม่มี parameter ให้ส่ง reaction ออก (inbound-only) |
+
+> 🔄 **แก้ไข 2026-08-02:** แถวเดิมของตารางนี้เขียนว่า "`sendOutboundMessage` ไม่มี parameter ให้ส่ง
+> VIDEO/AUDIO/FILE/reply ออก" — **ไม่ตรงกับโค้ดแล้ว**
+> - **reply/ตอบทับ**: ปิดไปตั้งแต่ [[EXTENSIONS-2026-07-25]] E10 (`replyToMid`)
+> - **VIDEO/AUDIO/FILE**: ปิดแล้ว 2026-08-02 — `sendOutboundMessage` รับ `attachment { fileId, kind, name, size }`
+>   แล้วเรียก `sendAttachmentMessage` (`attachment.type` = `image|video|audio|file`) ดู [[EXTENSIONS-2026-08-02]] E1
+> - ที่ยังเหลือจริง: `type=PRODUCT` บนเธรดช่องทางนอก (การ์ดสินค้ายังไม่มี representation ฝั่ง Meta) และ reaction ขาออก
 
 ---
 
@@ -306,13 +315,24 @@ Contract เดิม (`type`, `body`, `imageUrl`, `productRefId`, response shap
 
 **Request:** เหมือนเดิมทุกประการ (`{type: "TEXT"|"IMAGE"|"PRODUCT"|"ORDER", body?, imageUrl?, productRefId?, orderRefToken?}`)
 
-> 🔄 **แก้ไข 2026-07-25 — พฤติกรรมจริงกว้างกว่าที่ v1.1 เคยบันทึกไว้:** v1.1 เขียนว่าเธรดช่องทางนอก "รองรับเฉพาะ `type=TEXT`" — **ไม่ตรงกับโค้ดจริง** ตอนนี้ `sendOutboundMessage` (`channel-chat.service.ts`) รับ `imageFileId` และเรียก `sendImageMessage` (Graph API) ได้แล้ว route จึงส่ง **TEXT และ IMAGE** ออกช่องทางนอกได้ทั้งคู่ เหลือแค่ `PRODUCT` ที่ยังบล็อก (การ์ดสินค้ายังไม่มี representation ฝั่ง Meta) ส่วน `ORDER` มี branch พิเศษ (ดูด้านล่าง)
+> 🔄 **แก้ไข 2026-08-02 — พฤติกรรมจริงกว้างกว่าที่เคยบันทึกไว้ (รอบสอง):**
+> - v1.1 เขียนว่าเธรดช่องทางนอก "รองรับเฉพาะ `type=TEXT`" → 2026-07-25 แก้เป็น "TEXT และ IMAGE"
+> - **2026-08-02 กว้างขึ้นอีก:** `sendOutboundMessage` รับ `attachment { fileId, kind, name, size }`
+>   แล้วเรียก `sendAttachmentMessage` ซึ่งยิง `message.attachment.type` เป็น `image|video|audio|file`
+>   → route ส่ง **TEXT · IMAGE · VIDEO · AUDIO · FILE** ออกช่องทางนอกได้ทั้งหมด
+>   (`sendImageMessage` เดิมยังอยู่เป็น wrapper เพราะ `auto-reply-send.service.ts` เรียกอยู่)
+> - เหลือแค่ `PRODUCT` ที่ยังบล็อก (การ์ดสินค้ายังไม่มี representation ฝั่ง Meta) ส่วน `ORDER` มี branch พิเศษ (ดูด้านล่าง)
+> - ⚠️ ชนิดที่ส่งได้จริง **ขึ้นกับช่องทาง** — IG รับไฟล์เฉพาะ PDF และรูปไม่เกิน 8MB
+>   ตัวตัดสินคือ `checkChannelSupport()` ใน `src/lib/chat-attachment.ts` ดู [[EXTENSIONS-2026-08-02]] E1.4
 
 **Behavior เพิ่มเติม (เฉพาะเธรดช่องทางนอก, `conversation.channel != "DEEP"`):**
-1. Route query `conversation.channel`/`shopId` ก่อนตัดสินใจ branch
+1. Route query `conversation.channel`/`shopId` **ก่อน** บล็อก conditional-required (ย้ายขึ้นมา 2026-08-02 — กฎของไฟล์แนบขึ้นกับช่องทางปลายทาง จึงตัดสินไม่ได้ถ้ายังไม่รู้ channel) แล้วค่อยตัดสินใจ branch
 2. `type === "PRODUCT"` → คืน `400` ทันที (`"ช่องทางนี้ยังไม่รองรับการ์ดสินค้า"` — การ์ดสินค้ายังไม่มี representation ที่ส่งออกไป Meta ได้)
 3. `type === "ORDER"` → verify `Order.publicToken` เป็นของร้านนี้จริง (`prisma.order.findFirst({publicToken, shopId})`, ไม่พบ → `400`) แล้วประกอบข้อความลิงก์ (`คำสั่งซื้อ: {ชื่อสินค้ารายการแรก}\nยอดสุทธิ ฿{totalAmount}\n{buyerBaseUrl}/o/{token}`) → เรียก `sendOutboundMessage({text: linkText, orderRefToken})` — **ลูกค้าได้ข้อความลิงก์ (Meta ไม่ render การ์ด)** แต่ฝั่งเราเก็บเป็น `type=ORDER` ให้ seller เห็นเป็นการ์ดในเธรดของตัวเอง (ดู [[EXTENSIONS-2026-07-25]] E1 BR-ORD-01)
-4. `type === "TEXT"` หรือ `"IMAGE"` → เรียก `sendOutboundMessage({text, imageFileId})` แทน `sendMessage()` เดิม (IMAGE: `imageFileId = imageUrl` ที่ผ่าน validate นามสกุลแล้วจากขั้นตอนก่อนหน้า; caption ส่งเป็นข้อความ echo แยกตามหลัง — ไม่ได้อยู่ใน response เดียวกัน)
+4. `type === "TEXT"` หรือไฟล์แนบ (`IMAGE`/`VIDEO`/`AUDIO`/`FILE`) → เรียก `sendOutboundMessage({ text, attachment })` แทน `sendMessage()` เดิม (อัปเดต 2026-08-02 — เดิมเป็น `{text, imageFileId}` รับเฉพาะรูป)
+   - `attachment = { fileId: imageUrl, kind: type, name: attachmentName, size: attachmentSize }` โดย `imageUrl` ผ่าน `checkChannelSupport()` มาแล้วจากขั้นตอนก่อนหน้า
+   - caption ส่งเป็นข้อความ echo แยกตามหลัง — ไม่ได้อยู่ใน response เดียวกัน (Meta attachment ไม่มี text ในตัว)
+   - `imageFileId` ตัวเดิมยังรับอยู่ (deprecated) เพราะ `auto-reply-send.service.ts` ยังเรียก — ภายในแปลงเป็น `attachment` kind `IMAGE` ให้เอง
 
 **Response — Success (200):** เหมือนเดิม (`ChatMessage` object)
 
@@ -325,9 +345,56 @@ Contract เดิม (`type`, `body`, `imageUrl`, `productRefId`, response shap
 | 400 | service throw `NOT_EXTERNAL_CHANNEL` (defense — ไม่ควรเกิดถ้า route query ถูกต้อง) | `{ "error": "ช่องทางของบทสนทนานี้ไม่ถูกต้อง" }` |
 | 409 | service throw `WINDOW_CLOSED` (เกิน 24 ชม. นับจากข้อความล่าสุดของลูกค้า) | `{ "error": "เกิน 24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า — ส่งข้อความไม่ได้จนกว่าลูกค้าจะทักมาใหม่" }` |
 | 409 | service throw `CHANNEL_NOT_ACTIVE` (token ตาย/ถอดการเชื่อมต่อ) | `{ "error": "การเชื่อมต่อกับช่องทางนี้หมดอายุ กรุณาเชื่อม Facebook Page ใหม่อีกครั้ง" }` |
-| 502 | service throw `SEND_FAILED:*` (Graph API ปฏิเสธ — token ตาย, ลูกค้าบล็อกร้าน, เหตุอื่น) | `{ "error": "ส่งข้อความไปยังช่องทางภายนอกไม่สำเร็จ กรุณาลองใหม่" }` |
+| 502 | service throw `SEND_FAILED:*` (Graph API ปฏิเสธ — token ตาย, ลูกค้าบล็อกร้าน, เหตุอื่น) | `{ "error": "ส่งไม่สำเร็จ — <เหตุผลภาษาไทย>" }` — ดูหมายเหตุด้านล่าง |
+
+> 🔄 **แก้ไข 2026-08-02 — body ของ 502 ไม่ใช่ข้อความคงที่อีกแล้ว:** เดิมตอบ
+> `"ส่งข้อความไปยังช่องทางภายนอกไม่สำเร็จ กรุณาลองใหม่"` **ทุกกรณี** ซึ่งเป็นคำแนะนำที่ผิด
+> กับ error `#551` (ลูกค้าปิดรับข้อความ — กดกี่ครั้งก็ไม่ผ่าน) ตอนนี้ route แกะข้อความดิบ
+> ของ Meta ออกจาก `SEND_FAILED: <raw>` แล้วส่งผ่าน `describeSendFailure()`
+> (`src/lib/chat-send-failure.ts`) → ได้ประโยคไทยที่บอกทั้งสาเหตุและสิ่งที่ต้องทำต่อ
+> error ที่ยังไม่รู้จักจะคงข้อความดิบของ Meta ไว้ทั้งดุ้น (ไม่เดา ไม่กลืนหาย)
+> ตารางการแปลทั้งหมดอยู่ที่ [[EXTENSIONS-2026-08-02]] §E10.3
 
 Error 401/403/404/429/500 เดิมของ endpoint นี้ (unauthorized, forbidden, conversation not found, rate-limit, generic) **ยังใช้ mapping เดิมทุกประการ** — ไม่มีการเปลี่ยนแปลง
+
+---
+
+### 4.5a `DELETE /api/chat/conversations/[id]/messages/[messageId]` (ใหม่ 2026-08-02)
+
+ยกเลิกข้อความที่ยิงออกช่องทางนอกไม่สำเร็จ — ลบแถวทิ้งจริง ไม่ใช่ mark `isDeleted`
+Trace: [[EXTENSIONS-2026-08-02]] E11 (FR-CANCEL-01…05)
+
+**Request:** ไม่มี body — ทั้ง `id` (เธรด) และ `messageId` มาจาก path
+
+**ขอบเขตที่ลบได้ (แคบโดยตั้งใจ — ห้ามผ่อนโดยไม่คิดเรื่อง unsend ให้จบก่อน):**
+`deliveryStatus === 'FAILED'` **และ** `senderRole === 'SHOP'` เท่านั้น — ข้อความที่ส่งถึง
+ลูกค้าแล้วต้องใช้ unsend ของ Meta ซึ่งเป็นคนละกลไก (มี unit test ตรึงทั้งสองเงื่อนไข)
+
+**ลำดับการตรวจใน service (`cancelFailedOutboundMessage`):**
+1. หาแถวด้วย `{id: messageId, conversationId}` — ผูกเธรดเสมอ ไม่ใช่ `findUnique(id)` เดี่ยว ๆ
+2. โหลดเธรด → `canAccessShop(shopId, actorUserId)` — **เช็คสิทธิ์ก่อนเช็คสถานะข้อความ**
+   ไม่งั้นสถานะของข้อความในเธรดที่ไม่มีสิทธิ์จะรั่วออกไปทาง error code
+3. ตรวจ `deliveryStatus`/`senderRole`
+4. ทรานแซกชันเดียว: `delete` แถว → หาแถวล่าสุดที่เหลือ (`createdAt desc, seq desc`) →
+   เขียน `Conversation.lastMessageAt/lastMessagePreview/lastSenderRole` ใหม่
+   (เธรดว่างเปล่า = ล้าง preview เป็น `null` ไม่ปล่อยค้างชี้ข้อความที่ถูกลบ)
+
+**Response — Success (200):** `{ "ok": true }`
+
+**Response — Error:**
+
+| Status | เงื่อนไข | body |
+|--------|----------|------|
+| 401 | ไม่มี session | `{ "error": "unauthorized" }` |
+| 403 | `canAccessShop` = false | `{ "error": "ไม่มีสิทธิ์เข้าถึงบทสนทนานี้" }` |
+| 404 | ไม่พบเธรด | `{ "error": "ไม่พบบทสนทนา" }` |
+| 404 | ไม่พบข้อความในเธรดนี้ | `{ "error": "ไม่พบข้อความนี้" }` |
+| 409 | ข้อความไม่ใช่ `FAILED` ของฝั่งร้าน | `{ "error": "ยกเลิกได้เฉพาะข้อความที่ส่งไม่สำเร็จเท่านั้น" }` |
+| 500 | อื่น ๆ | `{ "error": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }` |
+
+**หมายเหตุฝั่ง client:** บับเบิล optimistic (id ขึ้นต้น `local-`) ยังไม่เคยถึง server
+จึงลบจาก state ตรง ๆ **ไม่ยิง endpoint นี้**; ส่วนแถวจริงต้องรอ 200 ก่อนค่อยเอาออกจาก state
+ไม่งั้นบับเบิลจะโผล่กลับมาตอนรีเฟรชทั้งที่ผู้ใช้เห็นว่ายกเลิกไปแล้ว
 
 ---
 
@@ -516,6 +583,33 @@ CRUD กลุ่ม/แท็บจัดหมวดแชทระดับ�
 
 **Response item เพิ่ม field** (buyer surface ไม่มี): `contactTags: string[]`, `contactSalesStatus: string` (จาก `ExternalContact`, สำหรับแสดง badge ใน inbox list)
 
+### 4.15 `POST /api/chat/upload` (ใหม่ 2026-08-02)
+
+อัปโหลดไฟล์แนบของแชท — ดูเหตุผลที่ต้องแยกจาก `/api/upload` เดิมที่ [[EXTENSIONS-2026-08-02]] §E1.3
+
+**Request:** `multipart/form-data` — field `file` (1 ไฟล์ต่อครั้ง; client ยิงเรียงกันเมื่อแนบหลายไฟล์
+เพื่อให้ลำดับในคิวตรงกับลำดับข้อความที่ลูกค้าเห็น)
+
+**Query:** `conversationId` (uuid, optional) — ส่งมา = route resolve `channel` ของเธรดแล้วตรวจกฎ
+เฉพาะช่องทางให้ด้วย (client ส่งเสมอ); ไม่ส่ง = ตรวจแค่ deny-list + เพดานขนาด
+
+**Response `201`:**
+```json
+{ "fileId": "2026/08/02/uuid.pdf", "name": "ใบเสนอราคา-สมชาย.pdf",
+  "size": 1258291, "mime": "application/pdf", "kind": "FILE" }
+```
+`name` = ชื่อที่ sanitize แล้ว (path separator → `_`, ตัด control char/quote, cap 200) —
+client ส่งค่านี้ต่อเป็น `attachmentName` ตอน `POST .../messages`
+
+| Status | เมื่อ |
+|---|---|
+| `400` | ไม่มีไฟล์ / ไม่ผ่าน `checkChannelSupport` — `error` เป็นเหตุผลภาษาไทยที่โชว์ได้ตรง ๆ |
+| `401` | ไม่มี session |
+| `403` | มี session แต่ไม่ใช่คู่สนทนาของเธรดนี้ (เช็ค **ก่อน** resolve channel — ไม่งั้นใครที่ล็อกอินก็ probe ได้ว่า `conversationId` ไหนมีจริง) |
+| `404` | ไม่พบห้องแชท |
+| `413` | ไฟล์ใหญ่เกิน 25MB |
+| `500` | `saveFile` ล้ม — log เฉพาะ `kind`/`ext`/`size` ไม่ log ชื่อไฟล์/fileId (RC-8: ชื่อไฟล์ของลูกค้าอาจมี PII) |
+
 ---
 
 ## 5. Error Code Summary
@@ -584,5 +678,5 @@ trace กลับ [[SDS]] และ [[SRS]] ได้ครบ
 
 **Open Questions (คงเหลือหลัง v1.2):**
 - ส่งวิดีโอ/เสียง/ไฟล์/reply/reaction ออกช่องทางนอก (E7/E9 ขาออก) ยังไม่มี contract — TEXT/IMAGE ส่งออกได้แล้ว แต่ `sendOutboundMessage` ไม่มี parameter สำหรับชนิดอื่น (ดู §4.5)
-- `messaging_referrals` **อยู่ใน `MESSENGER_SUBSCRIBED_FIELDS` แล้ว** — แต่ Meta ล็อกชุด subscribe field ไว้ตอนเชื่อมเพจครั้งแรก เพจที่เชื่อมก่อน 2026-07-25 จึงต้อง re-sync (`POST /api/channels` → `resubscribeShopChannels`) ถึงจะได้ pure-referral event (ดู [[EXTENSIONS-2026-07-26]] E5.6)
+- 🛑 **subscription มี 2 ชั้น — ชั้นเพจถูกแล้ว ชั้นแอปคือตัวบล็อก (ยืนยัน 2026-08-03)**: `MESSENGER_SUBSCRIBED_FIELDS` ครบ 6 field และถูกส่งผ่าน `POST /{page-id}/subscribed_apps` ตอนเชื่อมเพจอยู่แล้ว แต่ App Dashboard ของแอป `1570859340799126` subscribe topic `page` ไว้แค่ `messages` + `message_echoes` → `message_reads` / `message_reactions` / `messaging_referrals` ส่งไม่ถึง **ไม่ว่าจะ re-sync กี่ครั้ง**. คำแนะนำเดิม "เพจเก่าต้อง re-sync (`POST /api/channels` → `resubscribeShopChannels`)" จึง **จำเป็นแต่ไม่พอ** — ต้องเติม field ที่ App Dashboard ก่อน (รอผล App Review `pages_messaging` ที่ยัง PENDING). หลักฐาน: prod 387 เธรด MESSENGER / 2,539 ข้อความฝั่งร้าน แต่ `externalReadAt` NULL ทั้งหมด + `reactionEmoji` 0 แถว (ดู [[EXTENSIONS-2026-07-26]] E5.6)
 - migration ต้นทางของ `Conversation.isSpam`/`externalReadAt` ยังไม่ยืนยันชื่อไฟล์ (ดู [[DATABASE]] §5.1 ลำดับ 18) — ไม่กระทบ contract ของ API แต่ควรปิด gap เอกสาร

@@ -1,5 +1,5 @@
 /**
- * AdvanceWarningBanner — เตือนล่วงหน้าว่าเครดิตอาจไม่พอสำหรับรอบต่ออายุ Inventory Add-on
+ * AdvanceWarningBanner — เตือนล่วงหน้าว่ายอดเงินอาจไม่พอสำหรับรอบต่ออายุ Inventory Add-on
  *
  * Base: src/app/(paces)/seller/(dashboard)/wallet/components/WalletCard.tsx
  * (บรรทัด ~42-52 error-banner block: role="alert" + icon + rounded-lg border/bg
@@ -9,7 +9,7 @@
  * - เป็น full-width block (ไม่ใช่ chip เล็กใน row) — ขยาย low-balance chip
  *   ให้เป็น banner เต็มความกว้างเหมือน error-banner แต่สลับสีเป็น warning
  * - severity = warning (เตือนล่วงหน้า) แยกจาก LOCKED banner (danger, สถานะจริงที่ล็อกแล้ว)
- * - เพิ่มลิงก์ "เติมเครดิต →" ไป /wallet
+ * - เพิ่มลิงก์ "เติมเงิน →" ไป /wallet
  * - server component ล้วน (ไม่มี interactive state) — parent คำนวณ shortfall +
  *   formatDateTime(nextRenewalAt) มาให้แล้ว ไม่ต้อง client-side logic ในนี้
  */
@@ -19,7 +19,7 @@ import Link from 'next/link'
 export interface AdvanceWarningBannerProps {
   /** วันที่รอบต่ออายุถัดไป — parent format มาแล้ว (formatDateTime) */
   nextRenewalAt: string
-  /** จำนวนเครดิตที่ขาด (บาท) — parent คำนวณมาแล้ว */
+  /** จำนวนเงินที่ขาด (บาท) — parent คำนวณมาแล้ว */
   shortfall: number
 }
 
@@ -33,12 +33,12 @@ export default function AdvanceWarningBanner({ nextRenewalAt, shortfall }: Advan
       <div className="flex items-center gap-2">
         <Icon icon="tabler-alert-triangle" className="size-5 shrink-0" aria-hidden="true" />
         <span>
-          เครดิตอาจไม่พอสำหรับรอบต่ออายุวันที่ {nextRenewalAt} (ขาดอีก ฿{shortfall.toLocaleString('th-TH')})
+          ยอดเงินอาจไม่พอสำหรับรอบต่ออายุวันที่ {nextRenewalAt} (ขาดอีก ฿{shortfall.toLocaleString('th-TH')})
         </span>
       </div>
 
       <Link href="/wallet" className="shrink-0 font-bold underline hover:no-underline">
-        เติมเครดิต →
+        เติมเงิน →
       </Link>
     </div>
   )

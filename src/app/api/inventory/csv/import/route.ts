@@ -6,6 +6,7 @@ import { CsvImportSchema } from "@/lib/validations";
 import { getShopByUserId } from "@/services/shop.service";
 import { isProActive } from "@/services/inventory-entitlement.service";
 import { importStockFromCsvRows } from "@/services/inventory-stock.service";
+import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
 // 500 แถว sequential (per-row transaction) อาจใช้เวลานาน — กัน default timeout ตัดกลางคัน (API.md §4.7)
 export const maxDuration = 30;
@@ -17,7 +18,7 @@ export const maxDuration = 30;
  * PRO-gate: entitlement ต้อง ACTIVE+PRO — BASIC/LOCKED/NOT_SUBSCRIBED = 403
  * DAL ownership: shop derive จาก session เท่านั้น
  *
- * ⚠️ HTTP 200 เสมอถ้า request ผ่าน validation ระดับ body (ไม่ใช่ per-row) — ความล้มเหลว
+ * หมายเหตุ: HTTP 200 เสมอถ้า request ผ่าน validation ระดับ body (ไม่ใช่ per-row) — ความล้มเหลว
  * รายแถวอยู่ใน results[] ไม่ใช่ HTTP error code (FR-DSP-10-AC-03: รายงานว่าแถวไหนล้มเหลว
  * ไม่ทำให้ทั้งไฟล์ fail เงียบ ๆ). 400/401/403/429 = request-level เท่านั้น
  */
@@ -34,6 +35,10 @@ export async function POST(request: NextRequest) {
   if (!shop) {
     return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
   }
+
+  // 2.5 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
+  const verticalGate = requireOnlineSalesVertical(shop.vertical);
+  if (verticalGate) return verticalGate;
 
   // 3. PRO-gate — SRS TFR-DSP-10: CSV เฉพาะ package PRO เท่านั้น (BASIC ไม่ได้)
   if (!(await isProActive(shop.id))) {

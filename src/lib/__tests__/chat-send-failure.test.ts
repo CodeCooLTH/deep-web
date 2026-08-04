@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { describeSendFailure } from '../chat-send-failure'
+import { describeSendFailure, stripSendFailurePrefix } from '../chat-send-failure'
 
 describe('describeSendFailure', () => {
   it('แปลง #551 (ผู้รับไม่พร้อมรับข้อความ) เป็นไทย พร้อมบอกว่าต้องทำอะไรต่อ', () => {
@@ -22,8 +22,23 @@ describe('describeSendFailure', () => {
     const out = describeSendFailure(
       '(#10) This message is sent outside of allowed window.',
     )
-    expect(out.text).toContain('24 ชั่วโมง')
+    // ย่อถ้อยคำลง 2026-08-03 ("24 ชั่วโมง" → "24 ชม.") เพราะข้อความนี้ไปอยู่บนบับเบิลจอมือถือ —
+    // ที่ต้องคงไว้คือ "บอกกรอบเวลา" ไม่ใช่รูปคำที่สะกดเต็ม
+    expect(out.text).toContain('24 ชม.')
     expect(out.known).toBe(true)
+  })
+
+  it('stripSendFailurePrefix — เหลือแต่เหตุผล เพราะ UI มีป้าย "ส่งไม่สำเร็จ" ของตัวเองแล้ว', () => {
+    // ข้อความจาก route ที่เติมคำนำหน้ามาแล้ว (SEND_FAILED ผ่าน describeSendFailure)
+    expect(stripSendFailurePrefix('ส่งไม่สำเร็จ — ลูกค้าไม่พร้อมรับข้อความ')).toBe(
+      'ลูกค้าไม่พร้อมรับข้อความ',
+    )
+    // ข้อความจาก route ที่ไม่มีคำนำหน้า (WINDOW_CLOSED/CHANNEL_NOT_ACTIVE/429) — ปล่อยผ่านทั้งดุ้น
+    expect(stripSendFailurePrefix('การเชื่อมต่อหมดอายุ')).toBe('การเชื่อมต่อหมดอายุ')
+    // ไม่มีข้อมูล → null เพื่อให้ UI ซ่อนปุ่ม (i) ไปเลย ไม่ใช่เปิดมาแล้วว่างเปล่า
+    expect(stripSendFailurePrefix(null)).toBeNull()
+    expect(stripSendFailurePrefix('   ')).toBeNull()
+    expect(stripSendFailurePrefix('ส่งไม่สำเร็จ')).toBeNull()
   })
 
   it('message = ประโยคเต็ม ขึ้นต้นเหมือนกันทุกกรณี (badge กับ toast ต้องพูดตรงกัน)', () => {

@@ -5,6 +5,7 @@ import { getShopByUserId } from "@/services/shop.service";
 import { isProActive } from "@/services/inventory-entitlement.service";
 import { exportStockToCsv } from "@/services/inventory-stock.service";
 import { formatDate } from "@/lib/format-date";
+import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
 /**
  * GET /api/inventory/csv/export — seller export รายการสินค้า PHYSICAL + stockQty เป็นไฟล์ CSV
@@ -26,6 +27,10 @@ export async function GET() {
   if (!shop) {
     return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
   }
+
+  // 2.5 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
+  const verticalGate = requireOnlineSalesVertical(shop.vertical);
+  if (verticalGate) return verticalGate;
 
   // 3. PRO-gate — SRS TFR-DSP-10: CSV เฉพาะ package PRO เท่านั้น (BASIC ไม่ได้)
   if (!(await isProActive(shop.id))) {

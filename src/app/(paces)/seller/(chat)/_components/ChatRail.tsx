@@ -35,6 +35,7 @@
  */
 import { useEffect, useState } from 'react'
 import { SimpleBar } from '@/components/wrappers/SimpleBar'
+import InboxTabs from './InboxTabs'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import { SellerInboxSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import InboxList, { type ConversationListItem, type ChannelFilterOption, type ChatGroupTab } from '../inbox/components/InboxList'
@@ -135,7 +136,17 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
     // scrollableNodeProps: SimpleBar เลื่อนจริงที่ `.simplebar-content-wrapper` ข้างใน ไม่ใช่ที่ root
     // → ต้องยัด overscroll-contain ลงโหนดนั้นโดยตรง ไม่งั้นเลื่อนรายการแชทจนสุดแล้ว scroll จะไหลต่อ
     // ไปหาหน้าเว็บ/หัวแชท (bug เดียวกับที่แก้ในเธรด — user report prod 2026-07-23)
-    <SimpleBar className="size-full" scrollableNodeProps={{ className: 'overscroll-contain' }}>
+    // แท็บอยู่ "นอก" กล่อง scroll (user report 2026-08-04: เลื่อนรายการแชทลงมาแล้วแท็บบนสุดหายไป)
+    // — เดิมแท็บอยู่ในตัว SimpleBar จึงเลื่อนหนีไปพร้อมรายการ ขณะที่หัวรายการ (card-header) เป็น
+    // sticky อยู่แล้วเลยค้างไว้ ผลคือเห็นตัวกรอง/สถานะ แต่ไม่เห็นว่าอยู่แท็บไหน
+    // แก้เชิงโครงสร้างแทนการใส่ sticky ซ้อน: แท็บคือ "โหมดของทั้งคอลัมน์" ไม่ใช่หัวของรายการ —
+    // sticky 2 ชั้นที่ top-0 เท่ากันจะทับกันเอง ต้องมานั่งชดเชยความสูงกันไปมา
+    <div className="flex h-full min-h-0 flex-col">
+      <InboxTabs shopId={shopId} />
+      <SimpleBar
+        className="min-h-0 flex-1"
+        scrollableNodeProps={{ className: 'overscroll-contain' }}
+      >
       {loading ? (
         <div className="px-4 pt-4 pb-4">
           <SellerInboxSkeleton />
@@ -156,6 +167,7 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
       ) : (
         <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} initialGroups={groups} shopId={shopId} hasShipping={hasShipping} railMode />
       )}
-    </SimpleBar>
+      </SimpleBar>
+    </div>
   )
 }

@@ -29,7 +29,7 @@ export const adminMenuItems: MenuItemType[] = [
     children: [
       { url: '/orders', slug: 'admin:orders', label: 'คำสั่งซื้อ', icon: 'receipt-2' },
       { url: '/subscriptions', slug: 'admin:subscriptions', label: 'แพ็กเกจ', icon: 'crown' },
-      { url: '/topups', slug: 'admin:topups', label: 'เติมเครดิต SMS', icon: 'credit-card' },
+      { url: '/topups', slug: 'admin:topups', label: 'เติมเงิน', icon: 'credit-card' },
       { url: '/badges', slug: 'admin:badges', label: 'ตราสัญลักษณ์', icon: 'award' },
     ],
   },

@@ -20,7 +20,13 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
-type Listener = () => void
+/**
+ * signal ที่ trigger ส่งมา — มีแค่ conversationId (ห้ามมีเนื้อข้อความ ดู migration)
+ * listener เดิมที่ไม่รับ argument ยังใช้ได้เหมือนเดิม; ตัวที่ต้องรู้ว่า "ห้องไหน" (เช่นเช็ค mute
+ * รายเธรดก่อนเล่นเสียง) ค่อยอ่านจากตรงนี้ — ยังห้ามใช้ทำอย่างอื่นนอกจากเป็น key ต้อง refetch เสมอ
+ */
+type ChatSignal = { conversationId?: string }
+type Listener = (signal: ChatSignal) => void
 
 const subscriptions = new Map<string, { channel: RealtimeChannel; listeners: Set<Listener> }>()
 
@@ -32,8 +38,10 @@ export function subscribeShopChat(shopId: string, listener: Listener): () => voi
     const listeners = new Set<Listener>()
     const channel = getSupabaseBrowserClient()
       .channel(`chat:shop:${shopId}`)
-      .on('broadcast', { event: 'new_message' }, () => {
-        listeners.forEach((l) => l())
+      .on('broadcast', { event: 'new_message' }, (msg) => {
+        const raw = (msg as { payload?: { conversationId?: unknown } } | undefined)?.payload
+        const conversationId = typeof raw?.conversationId === 'string' ? raw.conversationId : undefined
+        listeners.forEach((l) => l({ conversationId }))
       })
       .subscribe()
     entry = { channel, listeners }

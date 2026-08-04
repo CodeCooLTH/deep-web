@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const product = await createProduct(shop.id, parsed.output);
+  // feature 00028 (BR-SBT-22) — ส่ง shopVertical เข้า service ให้ override fulfillmentMode default
+  const product = await createProduct(shop.id, { ...parsed.output, shopVertical: shop.vertical });
   return NextResponse.json(serializeProduct(product), { status: 201 });
 }

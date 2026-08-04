@@ -57,6 +57,7 @@ import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
+import InboxTabs from '../_components/InboxTabs'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -176,8 +177,13 @@ export default async function SellerInboxPage() {
     // ป้าย DeepBot ในแถว (S-20) — ฟังก์ชันเดียวกับที่ GET /api/chat/conversations ใช้
     // ด้วยเหตุผลเดียวกับ stageMap ข้างบน: ถ้า enrich ทางเดียว ป้ายจะไม่ขึ้นตอนโหลดหน้าแรก
     // แล้วค่อยโผล่หลัง client refetch ซึ่งดูเหมือนบั๊กมากกว่าฟีเจอร์
+    // เก็บทั้งสองค่า — เดิม map ทิ้ง `lastMessageIsAiEnhanced` ไปแล้ว hardcode false ตอนประกอบ
+    // item ข้างล่าง ทำให้ป้าย DeepAI ไม่เคยขึ้นเลย ทั้งที่ enrich คำนวณมาให้แล้ว
     const autoReplyBadgeMap = new Map(
-      (await enrichWithAutoReplyBadge(result.items)).map((r) => [r.id, r.lastMessageAutoReplyKind]),
+      (await enrichWithAutoReplyBadge(result.items)).map((r) => [
+        r.id,
+        { kind: r.lastMessageAutoReplyKind, isAi: r.lastMessageIsAiEnhanced },
+      ]),
     )
 
     // serialize ก่อนข้าม RSC boundary — Date → ISO string (pattern movements/[productId]/page.tsx)
@@ -218,8 +224,8 @@ export default async function SellerInboxPage() {
         referralAdId: c.referralAdId,
         orderStage: stageMap.get(c.id) ?? null,
         // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
-        lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id) ?? null,
-        lastMessageIsAiEnhanced: false,
+        lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,
+        lastMessageIsAiEnhanced: autoReplyBadgeMap.get(c.id)?.isAi ?? false,
       }
     })
     nextCursor = result.nextCursor
@@ -253,11 +259,21 @@ export default async function SellerInboxPage() {
           → InboxList ต้องอ่านจาก context ไม่ render ช่องของตัวเอง ไม่งั้นมือถือเห็นช่องค้นหาซ้ำ 2 อัน
           (user เจอจริงบน prod) — prop ชื่อ railMode คงเดิม แต่ความหมายตอนนี้ = "ค้นหาอยู่ที่ header" */}
       <div className="lg:hidden">
+        {/* แท็บ ข้อความ | ความคิดเห็น (feature 00029) — มือถือไม่มี rail จึงต้องมีที่นี่ด้วย
+            sticky (user report 2026-08-04: เลื่อนรายการลงมาแล้วแท็บหายไป) — กล่อง scroll ของมือถือ
+            คือ `<div className="overflow-y-auto">` ใน (chat)/layout.tsx จึงค้างเทียบกับตัวนั้น
+            ที่นี่ย้ายแท็บออกนอก scroller แบบ ChatRail ไม่ได้ (แท็บกับรายการอยู่ใน children ก้อนเดียว)
+            → ใช้ sticky แทน แล้วดันหัวรายการลงไปเกาะใต้แท็บด้วย tabsAbove ไม่ให้ทับกัน
+            z-20 ต้องสูงกว่า z-10 ของหัวรายการ; bg-card เพราะพื้น .card อยู่หลังแถวที่เลื่อนผ่าน */}
+        <div className="bg-card sticky top-0 z-20">
+          <InboxTabs shopId={shop.id} />
+        </div>
         <InboxList
           initialItems={items}
           initialNextCursor={nextCursor}
           channels={channels}
           initialGroups={groups}
+          tabsAbove
           hasShipping={hasShipping}
           shopId={shop.id}
           railMode

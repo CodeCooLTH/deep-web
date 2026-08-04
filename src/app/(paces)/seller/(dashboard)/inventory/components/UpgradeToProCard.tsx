@@ -27,7 +27,7 @@ import { INVENTORY_PRO_PRICE } from '@/lib/inventory-addon'
 // 402 override เป็นข้อความมีลิงก์ /wallet ให้สอดคล้อง pattern เดียวกับ SubscribeButton/PackageSelector)
 function upgradeErrorMessage(status: number, apiError: string): string {
   if (status === 402) {
-    return 'เครดิตไม่พอ — <a href="/wallet" class="underline">เติมเครดิตก่อนอัพเกรด</a>'
+    return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงินก่อนอัพเกรด</a>'
   }
   if (status === 409) {
     return apiError || 'ไม่สามารถอัพเกรดได้ในขณะนี้'

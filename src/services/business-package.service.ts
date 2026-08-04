@@ -167,7 +167,7 @@ export async function renewOrLockBusinessPackage(ownerId: string): Promise<'RENE
     if (claimed.count === 0) return 'SKIPPED'
 
     const personal = await getPersonalShop(ownerId)
-    if (!personal) { // edge: Personal shop หาย — ปฏิบัติเหมือนเครดิตไม่พอ
+    if (!personal) { // edge: Personal shop หาย — ปฏิบัติเหมือนยอดเงินไม่พอ
       await tx.businessPackageSubscription.update({
         where: { ownerId }, data: { status: 'LOCKED_RENEWAL_FAILED', lockedAt: now, nextRenewalAt: before.nextRenewalAt },
       })

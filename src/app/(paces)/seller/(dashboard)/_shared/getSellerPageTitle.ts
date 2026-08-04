@@ -54,7 +54,12 @@ const EXTRA_TITLES: Record<string, string> = {
  *
  * @param pathname - pathname จาก usePathname() ของ Next.js (short path เช่น /orders)
  */
-export function getSellerPageTitle(pathname: string): string {
+export function getSellerPageTitle(pathname: string, orderLabel?: string): string {
+  // /orders ผันตามประเภทกิจการ (คำสั่งซื้อ / ใบสั่งงาน / บิลเข้าพัก) — SORTED_ITEMS มาจากอาเรย์
+  // ต้นฉบับที่ยังไม่ผ่าน applyOrderLabel (module-level constant ไม่รู้จัก vertical ของ request)
+  // ผู้เรียกที่รู้ vertical จึงต้องส่งป้ายมาเอง ไม่งั้นชื่อหน้าจะไม่ตรงกับ sidebar/แถบล่าง
+  if (orderLabel && (pathname === '/orders' || pathname.startsWith('/orders/'))) return orderLabel
+
   // ตรวจ extra map ก่อน (route นอก menu เช่น /notifications)
   for (const [url, label] of Object.entries(EXTRA_TITLES)) {
     if (pathname === url || pathname.startsWith(url + '/')) return label

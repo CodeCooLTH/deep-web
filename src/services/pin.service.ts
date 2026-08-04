@@ -117,7 +117,7 @@ export async function unpinProduct(shopId: string, productId: string): Promise<P
 
 /**
  * buyPinSlotAndPin — ซื้อ slot ฿99 (หัก SellerWallet) และปักหมุด productId ในธุรกรรมเดียว (atomic)
- * ทุก step commit/rollback พร้อมกัน — เครดิตไม่พอ = rollback ทั้งหมด ไม่หัก/ไม่เพิ่ม slot/ไม่ปักหมุด
+ * ทุก step commit/rollback พร้อมกัน — ยอดเงินไม่พอ = rollback ทั้งหมด ไม่หัก/ไม่เพิ่ม slot/ไม่ปักหมุด
  *
  * @throws PinProductNotFoundError - ไม่พบสินค้า/ไม่ใช่ของร้านนี้
  * @throws PinProductInactiveError - สินค้า isActive=false

@@ -1,204 +1,113 @@
 'use client'
 
 /**
- * PnlReportCard — รายงานกำไรขาดทุน (P&L): segmented date-range switcher + stat row 5 ตัวเลข
- * (feature 00016 Expense & Cost Tracking, Unit 5A)
+ * PnlReportCard — รายงานกำไรขาดทุน (P&L) — feature 00016
  *
- * Base:
- *   - stat row grid: src/app/(paces)/seller/(dashboard)/dashboard/components/SalesReport.tsx:161-194
- *     (bg-light/25 border-dashed grid grid-cols-N text-center + CountUp wrapper) — ขยาย 3→5 คอลัมน์
- *   - segmented date-range switcher: docs/system/ui-guideline/paces-component-reference.md §2 Button Group
- *     (inline-flex + .btn + rounded-*-none) — ไม่ใช้ hs-dropdown เพราะ component นี้ re-render ทุกครั้งที่
- *     เปลี่ยนช่วง (ดู "Preline hs-dropdown พังใน list/toolbar ที่ re-render" component reference §3)
- *   - custom range picker: src/app/(paces)/seller/(dashboard)/sales/components/SalesDateRange.tsx
- *     (Flatpickr wrapper mode="range") — ต่างจาก sales: local state ในนี้เอง ไม่ผ่าน URL searchParams
- *   - missing-cost warning banner: src/app/(paces)/seller/(dashboard)/inventory/components/PackageSelector.tsx
- *     (role="alert" border-{semantic}/20 bg-{semantic}/10 block) — สลับ danger→warning (เตือน ไม่ใช่ error)
+ * v4 (2026-08-02, re-source ตาม safepay-ux): การ์ด 5 ใบ **ขนาดเท่ากันทั้งหมด**
+ * Base: src/app/(paces)/seller/(dashboard)/products/page.tsx:181 (in-app precedent ที่ใช้ grid
+ *   เดียวกับธีมเป๊ะ: `grid-cols-1 gap-1.25 md:grid-cols-2 lg:grid-cols-5`)
+ * โครงการ์ด: _shared/PacesStatCard.tsx (copy จาก products/components/ProductStats.tsx)
+ *   ใช้ร่วมกับ /sales — ก่อนหน้านี้สองหน้ามีการ์ดที่เขียนเองคนละตัวและตัดแถวทิ้งทั้งคู่
  *
- * Design decision: ไม่ auto-refetch เอง — parent (ExpenseWorkspace) ส่ง `refreshSignal` เพิ่มค่าทุกครั้งที่
- * expense ถูก mutate → useEffect ด้านล่าง watch ทั้ง range/customDates/refreshSignal (คง range ที่เลือกไว้)
+ * v3 เคยทำการ์ด "พระเอก" ที่ใหญ่กว่าใบอื่น (`md:col-span-2 lg:row-span-2`) — **เป็นของที่ประดิษฐ์เอง
+ * ไม่มีใน theme ที่ไหนเลย** และผลจริงคือเหลือพื้นที่ว่างครึ่งการ์ดกับกริดที่ไม่สมมาตร
+ * ตอนนี้ "พระเอก" มาจาก **ลำดับการอ่าน** (กำไรสุทธิเป็นการ์ดแรก) ไม่ใช่ขนาดกล่อง
+ *
+ * ไม่ fetch เอง ไม่ถือ state ช่วงเวลาเอง — รับ report/expenses มาจาก ExpenseWorkspace
+ * ไม่ใช้ CountUp — DESIGN.md §Motion ห้าม choreography ตอนโหลดฝั่ง product
  */
-import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
-import Flatpickr from '@/components/wrappers/Flatpickr'
-import Icon from '@/components/wrappers/Icon'
-import { CountUp } from '@/components/wrappers/CountUp'
-import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
+import { formatBaht, profitDisplay, NET_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
+import { EXPENSE_CATEGORY_LABEL_TH, groupExpensesByCategory } from '@/lib/expense'
+import type { SerializedExpense } from '@/services/expense.service'
 import type { PnlReport } from '@/services/pnl.service'
-import type { DateRangePreset } from '@/lib/date-range'
+import PacesStatCard from '../../_shared/PacesStatCard'
+
+const CALC_NOTE = `คิดจากออเดอร์ที่ลูกค้ายืนยันรับของแล้วเท่านั้น · ${NET_PROFIT_FORMULA}`
 
 type Props = {
-  initialReport: PnlReport
-  refreshSignal: number
+  report: PnlReport
+  /** รายการในช่วงเดียวกัน — ใช้หา "หมวดที่จ่ายมากสุด" ของการ์ดค่าใช้จ่าย */
+  expenses: SerializedExpense[]
+  loading?: boolean
+  /** ข้อความช่วงเวลาสั้น ๆ ต่อท้ายหัวข้อการ์ดแรก เช่น "30 วันล่าสุด" */
+  rangeLabel: string
 }
 
-const RANGE_OPTIONS: { value: DateRangePreset; label: string }[] = [
-  { value: 'today', label: 'วันนี้' },
-  { value: '7d', label: '7 วัน' },
-  { value: '30d', label: '30 วัน' },
-  { value: 'month', label: 'เดือนนี้' },
-  { value: 'custom', label: 'กำหนดเอง' },
-]
-
-export default function PnlReportCard({ initialReport, refreshSignal }: Props) {
-  const [range, setRange] = useState<DateRangePreset>('today')
-  const [customDates, setCustomDates] = useState<[string, string] | null>(null)
-  const [report, setReport] = useState<PnlReport>(initialReport)
-  const [loading, setLoading] = useState(false)
-  // กัน fetch ซ้ำตอน mount ครั้งแรก — SSR ส่ง initialReport ของ range='today' มาให้แล้ว (ตรงกับ default state)
-  const isFirstRun = useRef(true)
-
-  useEffect(() => {
-    if (isFirstRun.current) {
-      isFirstRun.current = false
-      if (refreshSignal === 0) return
-    }
-    if (range === 'custom' && !customDates) return // ยังไม่เลือกช่วง "กำหนดเอง" — รอผู้ใช้เลือกก่อน
-
-    const controller = new AbortController()
-    const run = async () => {
-      setLoading(true)
-      try {
-        const params = new URLSearchParams({ range })
-        if (range === 'custom' && customDates) {
-          params.set('start', customDates[0])
-          params.set('end', customDates[1])
-        }
-        const res = await fetch(`/api/expenses/report?${params.toString()}`, { signal: controller.signal })
-        if (!res.ok) throw new Error('fetch failed')
-        const data: PnlReport = await res.json()
-        setReport(data)
-      } catch (e) {
-        if ((e as Error).name !== 'AbortError') {
-          // ค้าง state เก่าไว้ (ไม่ล้างตัวเลข) ตาม UX-Design-Spec.md §Edge states "Error"
-          pacesToast.error('โหลดรายงานไม่สำเร็จ กรุณาลองใหม่')
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-    run()
-    return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, customDates, refreshSignal])
-
-  const handleCustomChange = (selectedDates: Date[]) => {
-    if (selectedDates.length === 2) {
-      const f = selectedDates[0].toISOString().slice(0, 10)
-      const t = selectedDates[1].toISOString().slice(0, 10)
-      setCustomDates([f, t])
-    }
-  }
-
-  const grossPositive = report.grossProfit >= 0
-  const netPositive = report.netProfit >= 0
+export default function PnlReportCard({ report, expenses, loading = false, rangeLabel }: Props) {
+  const profit = profitDisplay(report.netProfit)
+  const topCategory = groupExpensesByCategory(expenses)[0]
+  const pct = (v: number) => `${v.toFixed(1)}%`
 
   return (
-    <div className="card">
-      <div className="card-header flex flex-wrap items-center justify-between gap-3">
-        <h4 className="card-title">รายงานกำไรขาดทุน</h4>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {/* segmented date-range switcher — Button Group (§2), ไม่ใช่ .btn-group (ไม่มีใน Paces) */}
-          <div className="inline-flex" role="group" aria-label="ช่วงเวลารายงาน">
-            {RANGE_OPTIONS.map((opt, idx) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setRange(opt.value)}
-                aria-pressed={range === opt.value}
-                className={cn(
-                  'btn btn-sm',
-                  idx === 0 && 'rounded-e-none',
-                  idx > 0 && idx < RANGE_OPTIONS.length - 1 && 'rounded-none',
-                  idx === RANGE_OPTIONS.length - 1 && 'rounded-s-none',
-                  range === opt.value ? 'bg-primary/15 text-primary' : 'bg-light text-dark',
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {range === 'custom' && (
-            <div className="input-icon-group">
-              <Icon icon="calendar" className="input-icon" aria-hidden="true" />
-              <Flatpickr
-                className="form-input"
-                style={{ minWidth: 220 }}
-                options={{ dateFormat: 'd M, Y', mode: 'range' }}
-                onChange={handleCustomChange}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="card-body">
-        {report.hasMissingCost && (
-          <div
-            role="alert"
-            aria-live="polite"
-            className="border-warning/20 bg-warning/10 text-warning mb-4 flex items-start gap-2 rounded-lg border px-4 py-3 text-start text-sm font-medium"
-          >
-            <Icon icon="alert-triangle" className="size-5 shrink-0 mt-0.5" aria-hidden="true" />
-            <span>
-              กำไรอาจไม่สมบูรณ์ — มีสินค้าที่ยังไม่ตั้งต้นทุนในช่วงนี้{' '}
-              <Link href="/products" className="font-semibold underline">
-                ตั้งต้นทุนตอนนี้ →
-              </Link>
-            </span>
-          </div>
-        )}
-
-        <div className="relative">
-          <div className={cn('bg-light/25 rounded-lg transition-opacity', loading && 'opacity-50')}>
-            <div className="grid grid-cols-2 gap-y-4 py-5 text-center md:grid-cols-5 md:gap-y-0">
-              <StatCell label="รายได้" value={report.revenue} colorClass="text-success" />
-              <StatCell label="ต้นทุนสินค้า (COGS)" value={report.cogs} colorClass="text-default-700" />
-              <StatCell
-                label="กำไรขั้นต้น"
-                value={report.grossProfit}
-                colorClass={grossPositive ? 'text-success' : 'text-danger'}
-              />
-              <StatCell label="ค่าใช้จ่าย" value={report.totalExpense} colorClass="text-danger" />
-              <StatCell
-                label="กำไรสุทธิ"
-                value={report.netProfit}
-                colorClass={netPositive ? 'text-success' : 'text-danger'}
-                big
-              />
-            </div>
-          </div>
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center" aria-live="polite" aria-busy="true">
-              <Icon icon="refresh" className="animate-spin text-primary text-2xl" aria-hidden="true" />
-            </div>
-          )}
-        </div>
-      </div>
+    <div
+      className={cn(
+        'grid grid-cols-1 gap-1.25 transition-opacity md:grid-cols-2 lg:grid-cols-5',
+        loading && 'opacity-50',
+      )}
+    >
+      {/* การ์ดแรก = คำตอบของหน้า — เด่นด้วยลำดับการอ่าน ไม่ใช่ขนาด */}
+      <PacesStatCard
+        icon={profit.positive ? 'trending-up' : 'trending-down'}
+        iconClass={profit.positive ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink'}
+        title={`${profit.label} · ${rangeLabel}`}
+        note={CALC_NOTE}
+        text={profit.text}
+        valueClass={profit.toneClass}
+        changePercent={pctChangeVsPrev(report.netProfit, report.prevNetProfit)}
+        bulletClass={profit.positive ? 'text-success' : 'text-danger'}
+        metric="อัตรากำไรสุทธิ"
+        metricValue={report.revenue > 0 ? pct((report.netProfit / report.revenue) * 100) : 'ยังไม่มียอดขาย'}
+      />
+      <PacesStatCard
+        icon="cash"
+        iconClass="bg-success/15 text-success-ink"
+        title="ยอดขายที่ยืนยันแล้ว"
+        text={formatBaht(report.revenue)}
+        valueClass="text-success-ink"
+        changePercent={pctChangeVsPrev(report.revenue, report.prevRevenue)}
+        bulletClass="text-success"
+        metric="จากออเดอร์สำเร็จ"
+        metricValue={`${report.orderCount.toLocaleString('th-TH')} ออเดอร์`}
+      />
+      <PacesStatCard
+        icon="package"
+        iconClass="bg-default-200 text-default-700"
+        title="ต้นทุนสินค้า"
+        text={formatBaht(report.cogs)}
+        valueClass="text-default-800"
+        // ต้นทุนเพิ่มขึ้นไม่ใช่ข่าวดี — invert ทิศทางสีก่อนส่งเข้า badge
+        changePercent={pctChangeVsPrev(report.cogs, report.prevCogs, true)}
+        changeHint="เทียบช่วงก่อนหน้า — ต้นทุนลดลงคือดีขึ้น"
+        bulletClass="text-default-700"
+        metric="เฉลี่ยต่อออเดอร์"
+        metricValue={report.orderCount > 0 ? formatBaht(report.cogs / report.orderCount) : 'ยังไม่มีออเดอร์'}
+      />
+      <PacesStatCard
+        icon="calculator"
+        iconClass="bg-info/15 text-info-ink"
+        title="กำไรก่อนหักค่าใช้จ่าย"
+        text={formatBaht(report.grossProfit)}
+        valueClass={report.grossProfit >= 0 ? 'text-success-ink' : 'text-danger-ink'}
+        changePercent={pctChangeVsPrev(report.grossProfit, report.prevGrossProfit)}
+        bulletClass="text-info"
+        metric="อัตรากำไรขั้นต้น"
+        metricValue={report.revenue > 0 ? pct((report.grossProfit / report.revenue) * 100) : 'ยังไม่มียอดขาย'}
+      />
+      <PacesStatCard
+        icon="receipt"
+        iconClass="bg-danger/15 text-danger-ink"
+        title="ค่าใช้จ่าย"
+        text={formatBaht(report.totalExpense)}
+        valueClass="text-danger-ink"
+        // ค่าใช้จ่ายเพิ่มขึ้นไม่ใช่ข่าวดีเช่นกัน
+        changePercent={pctChangeVsPrev(report.totalExpense, report.prevExpense, true)}
+        changeHint="เทียบช่วงก่อนหน้า — ค่าใช้จ่ายลดลงคือดีขึ้น"
+        bulletClass="text-danger"
+        metric="หมวดที่จ่ายมากสุด"
+        metricValue={topCategory ? EXPENSE_CATEGORY_LABEL_TH[topCategory.category] : 'ยังไม่มีรายการ'}
+      />
     </div>
   )
 }
 
-function StatCell({
-  label,
-  value,
-  colorClass,
-  big = false,
-}: {
-  label: string
-  value: number
-  colorClass: string
-  big?: boolean
-}) {
-  return (
-    <div>
-      <p className="text-default-400 mb-1.25">{label}</p>
-      <h4 className={cn('flex items-center justify-center font-semibold', big ? 'text-xl' : 'text-lg', colorClass)}>
-        <CountUp start={0} end={value} prefix="฿" duration={1} decimals={2} />
-      </h4>
-    </div>
-  )
-}

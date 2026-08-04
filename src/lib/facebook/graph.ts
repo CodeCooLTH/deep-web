@@ -10,6 +10,11 @@ export class GraphApiError extends Error {
     readonly code: number | null,
     readonly subcode: number | null,
     readonly httpStatus: number,
+    /** error object ดิบทั้งก้อนที่ Meta ตอบมา (2026-08-03) — เก็บลง ChatMessage.rawMessage ตอนส่งไม่ผ่าน
+     *  code/subcode ที่แกะไว้ข้างบนไม่พอตอนสืบจริง: ของที่ต้องใช้บ่อยคือ `fbtrace_id` (ใช้แจ้ง Meta),
+     *  `error_user_title`/`error_user_msg` (ข้อความที่ Meta ตั้งใจให้แสดงผู้ใช้) และ `type`
+     *  ไม่มี token ปนอยู่ในนี้ — เป็น error body ฝั่งตอบกลับล้วน */
+    readonly raw?: unknown,
   ) {
     super(message)
     this.name = 'GraphApiError'
@@ -41,6 +46,7 @@ async function graphFetch(
       err.code ?? null,
       err.error_subcode ?? null,
       res.status,
+      json.error ?? json,
     )
   }
   return json
@@ -483,6 +489,38 @@ export async function sendAttachmentMessage(
   return (json.message_id as string | undefined) ?? ''
 }
 
+/**
+ * ร้าน "กดรีแอ็กชัน" ใส่ข้อความของลูกค้า (feature 00018 — user สั่ง 2026-08-03 "reaction ข้อความด้วย")
+ *
+ * เอกสาร Send API → Sender Actions (ล็อกโครงจากเอกสารก่อนเขียน ไม่เดา):
+ *   POST /me/messages
+ *   { recipient: { id }, sender_action: "react", payload: { message_id, reaction } }
+ *   ถอนรีแอ็กชัน = sender_action "unreact" และ **ไม่ส่ง** field reaction
+ * ใช้ได้ทั้ง Messenger และ Instagram (โครงเดียวกัน) — pageToken resolve เพจ/IG account ให้เอง
+ * เหมือน sendTextMessage จึงใช้ /me/messages ไม่ใช่ path ที่มี id
+ *
+ * ไม่มี messaging_type/tag: sender action ไม่ใช่ "ข้อความ" เอกสารระบุให้ส่งเฉพาะ sender_action
+ * + recipient (+ payload) เท่านั้น — ใส่ field เกินไปเสี่ยงโดนปฏิเสธทั้งคำขอ
+ *
+ * emoji ต้องเป็น UTF-8 จริง (เช่นหัวใจ) ไม่ใช่ชื่อเชิงความหมายอย่าง "love"
+ */
+export async function sendMessageReaction(
+  pageToken: string,
+  recipientId: string,
+  mid: string,
+  /** null = ถอนรีแอ็กชันออก */
+  emoji: string | null,
+): Promise<void> {
+  await graphFetch('/me/messages', pageToken, {
+    method: 'POST',
+    body: {
+      recipient: { id: recipientId },
+      sender_action: emoji ? 'react' : 'unreact',
+      payload: { message_id: mid, ...(emoji ? { reaction: emoji } : {}) },
+    },
+  })
+}
+
 /** wrapper ของเดิม — auto-reply-send.service.ts และเทสเก่ายังเรียกชื่อนี้อยู่ */
 export async function sendImageMessage(
   pageToken: string,
@@ -492,4 +530,275 @@ export async function sendImageMessage(
   tag?: string,
 ): Promise<string> {
   return sendAttachmentMessage(pageToken, recipientId, 'image', imageUrl, replyToMid, tag)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// feature 00029 — คอมเมนต์บนโพสต์ของเพจ
+// ต้องมี pages_read_user_content (อ่าน) / pages_manage_engagement (ตอบ)
+// ───────────────────────────────────────────────────────────────────────────
+
+export interface GraphPostMeta {
+  id: string
+  message: string | null
+  permalink: string | null
+  /** รูปประกอบโพสต์ — ใช้เป็น thumbnail ในรายการซ้าย */
+  picture: string | null
+  createdTime: Date | null
+  /** 'video' | 'photo' | 'album' | 'link' | 'status' — วิดีโอต้องมีปุ่มเล่นทับรูปปก */
+  mediaType: string | null
+  /** ยอด engagement (user สั่ง 2026-08-03 ให้มีเหมือนหน้าโพสต์จริง) — null = ดึงไม่ได้ */
+  reactionCount: number | null
+  commentCount: number | null
+  shareCount: number | null
+}
+
+/**
+ * ข้อมูลโพสต์ที่ webhook ไม่ได้ส่งมา — `feed` ให้แค่ `post_id` (ยืนยันจาก payload จริง 2026-08-03)
+ * เรียกครั้งเดียวต่อโพสต์แล้ว cache ลง FacebookPost ไม่เรียกซ้ำทุกคอมเมนต์
+ */
+export async function fetchPostMeta(postId: string, pageToken: string): Promise<GraphPostMeta | null> {
+  try {
+    // summary(true) = ขอ "จำนวนรวม" ไม่ใช่รายชื่อคนกด (เร็วกว่าและไม่ดึง PII ของคนที่ไม่เกี่ยว)
+    const json = await graphFetch(`/${encodeURIComponent(postId)}`, pageToken, {
+      query: {
+        fields:
+          'id,message,permalink_url,full_picture,created_time,status_type,' +
+          'attachments{media_type},shares,' +
+          'reactions.summary(true).limit(0),comments.summary(true).limit(0)',
+      },
+    })
+    const atts = (json.attachments as { data?: Array<{ media_type?: string }> } | undefined)?.data ?? []
+    const reactions = json.reactions as { summary?: { total_count?: number } } | undefined
+    const comments = json.comments as { summary?: { total_count?: number } } | undefined
+    const shares = json.shares as { count?: number } | undefined
+    return {
+      id: String(json.id ?? postId),
+      message: typeof json.message === 'string' ? json.message : null,
+      permalink: typeof json.permalink_url === 'string' ? json.permalink_url : null,
+      picture: typeof json.full_picture === 'string' ? json.full_picture : null,
+      createdTime: typeof json.created_time === 'string' ? new Date(json.created_time) : null,
+      mediaType: atts[0]?.media_type ?? (typeof json.status_type === 'string' ? json.status_type : null),
+      reactionCount: reactions?.summary?.total_count ?? null,
+      commentCount: comments?.summary?.total_count ?? null,
+      shareCount: shares?.count ?? null,
+    }
+  } catch {
+    // โพสต์ที่เข้าไม่ถึง (dark post/ถูกลบ/สิทธิ์ไม่พอ) — คืน null ให้ caller เก็บเท่าที่มี
+    // ดีกว่าทำให้ทั้ง ingest ล้มเพราะข้อมูลประกอบชิ้นเดียว
+    return null
+  }
+}
+
+export interface GraphComment {
+  id: string
+  message: string | null
+  createdTime: Date
+  fromId: string | null
+  fromName: string | null
+  parentId: string | null
+  attachmentUrl: string | null
+}
+
+/**
+ * คอมเมนต์ย้อนหลังของโพสต์ (backfill ตอนเปิดโพสต์ — BRD Q-2: ครั้งละ 30 อัน)
+ *
+ * `order=chronological` เพื่อให้ลำดับตรงกับที่แสดงบนจอ (เก่า→ใหม่) และ cursor เดินหน้าได้ตรง
+ * `filter=stream` = เอาคอมเมนต์ลูกมาด้วย ไม่ใช่เฉพาะ top-level (เราต้องใช้ลูกตัดสินว่า "ตอบแล้ว")
+ */
+export async function fetchPostComments(
+  postId: string,
+  pageToken: string,
+  limit = 30,
+  after?: string | null,
+): Promise<{ items: GraphComment[]; nextCursor: string | null }> {
+  const json = await graphFetch(`/${encodeURIComponent(postId)}/comments`, pageToken, {
+    query: {
+      fields: 'id,message,created_time,from{id,name},parent{id},attachment{url,media}',
+      order: 'chronological',
+      filter: 'stream',
+      limit: String(limit),
+      ...(after ? { after } : {}),
+    },
+  })
+  const rows = (json.data ?? []) as Array<Record<string, unknown>>
+  const paging = (json.paging ?? {}) as { cursors?: { after?: string }; next?: string }
+  return {
+    items: rows.map((r) => {
+      const from = r.from as { id?: string; name?: string } | undefined
+      const parent = r.parent as { id?: string } | undefined
+      const att = r.attachment as { url?: string; media?: { image?: { src?: string } } } | undefined
+      return {
+        id: String(r.id),
+        message: typeof r.message === 'string' && r.message.length > 0 ? r.message : null,
+        createdTime: new Date(String(r.created_time)),
+        fromId: from?.id ?? null,
+        fromName: from?.name ?? null,
+        parentId: parent?.id ?? null,
+        attachmentUrl: att?.media?.image?.src ?? att?.url ?? null,
+      }
+    }),
+    // มี next เท่านั้นถึงจะมีหน้าถัดไปจริง — cursors.after มาแม้หมดแล้ว
+    nextCursor: paging.next ? (paging.cursors?.after ?? null) : null,
+  }
+}
+
+/**
+ * ตอบคอมเมนต์แบบสาธารณะในนามเพจ — คืน comment id ของคำตอบ
+ * เอกสาร Pages API: `POST /{object-id}/comments` (pages_manage_engagement)
+ */
+export async function createCommentReply(
+  commentId: string,
+  pageToken: string,
+  message: string,
+  /**
+   * URL รูปสาธารณะที่ Meta ดึงเองได้ → คอมเมนต์เป็นรูป (เอกสาร Object comments edge: `attachment_url`)
+   * เอกสารระบุว่าต้องมีอย่างน้อยหนึ่งใน message/attachment_url/attachment_id/attachment_share_url/source
+   * — ส่งได้ทั้งคู่ (รูป + คำบรรยาย) ในคอมเมนต์เดียว ต่างจาก Send API ของแชทที่ต้องแยกข้อความออกมา
+   */
+  attachmentUrl?: string | null,
+): Promise<string> {
+  const json = await graphFetch(`/${encodeURIComponent(commentId)}/comments`, pageToken, {
+    method: 'POST',
+    body: {
+      ...(message ? { message } : {}),
+      ...(attachmentUrl ? { attachment_url: attachmentUrl } : {}),
+    },
+  })
+  return typeof json.id === 'string' ? json.id : ''
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// สติกเกอร์ (Sticker API) — user สั่ง 2026-08-04 "channel ที่เป็น facebook รองรับ sticker ด้วย"
+//
+// contract ล็อกจากเอกสาร Meta "Sticker API" (Updated: Jun 3, 2026) ก่อนเขียนโค้ด ไม่ได้เดา:
+//   - catalog (browse/search) ใช้ **App Access Token** = `APP_ID|APP_SECRET` ไม่ใช่ page token
+//     GET /sticker_packs                        → { data: [{id,name,description,preview_image_url,sticker_count}] }
+//     GET /sticker_packs/<PACK_ID>/stickers     → { data: [{id,name,image_url,width,height,is_animated}] }
+//     GET /sticker_search?q=<>=min 2 ตัวอักษร   → รูปเดียวกับ stickers ข้างบน
+//   - ส่ง ใช้ **Page Access Token** + pages_messaging (เหมือน Send API อื่น) และอยู่ใต้กฎหน้าต่างเวลาเดิม
+//     POST /me/messages { recipient, message: { sticker_id } }
+//   - ส่งได้เฉพาะสติกเกอร์ฟรี first-party ของ Meta (~105 แพ็ก) + นิ้วโป้ง 369239263222822
+//     ที่ไม่อยู่ใน catalog แต่ส่งได้เสมอ
+//
+// locale: เอกสารเตือนตรง ๆ ว่าถ้าไม่ส่ง locale จะ default en_US แล้ว **ค้นภาษาไทยได้ผลว่างเปล่า**
+// จึงส่ง th_TH ทุกครั้ง (ยังตกไปอังกฤษเองถ้าไม่เจอ ตามที่เอกสารระบุ)
+
+/** สติกเกอร์นิ้วโป้งของ Messenger — ไม่อยู่ใน catalog แต่ส่งได้เสมอ (ตามเอกสาร) */
+export const THUMBS_UP_STICKER_ID = '369239263222822'
+
+const STICKER_LOCALE = 'th_TH'
+
+export interface GraphStickerPack {
+  id: string
+  name: string
+  description: string | null
+  previewImageUrl: string | null
+  stickerCount: number | null
+}
+
+export interface GraphSticker {
+  id: string
+  name: string | null
+  imageUrl: string
+  width: number | null
+  height: number | null
+  isAnimated: boolean
+}
+
+/**
+ * App Access Token — ประกอบจาก env ฝั่ง server เท่านั้น (ห้ามหลุดไปฝั่ง client เด็ดขาด:
+ * มันคือ secret ของแอปทั้งใบ ไม่ใช่ token ของเพจเดียว) route ที่เรียกต้องเป็น server route
+ */
+function appAccessToken(): string {
+  // ต้องเป็นแอปเดียวกับที่ใช้ทำ Messenger integration (FB_CHAT_APP_*) ไม่ใช่แอป login (FACEBOOK_ID/
+  // FACEBOOK_SECRET ที่ NextAuth ใช้) — page token ที่เราถือมาจากแอปนี้ สติกเกอร์ที่ส่งได้จึงต้อง
+  // มาจาก catalog ของแอปเดียวกัน (และ secret ของแอป login ไม่ควรถูกใช้ในเส้นทางแชทเลย)
+  const id = process.env.FB_CHAT_APP_ID
+  const secret = process.env.FB_CHAT_APP_SECRET
+  if (!id || !secret) throw new Error('FB_CHAT_APP_CREDENTIALS_MISSING')
+  return `${id}|${secret}`
+}
+
+function toSticker(raw: Record<string, unknown>): GraphSticker | null {
+  const id = typeof raw.id === 'string' ? raw.id : null
+  const imageUrl = typeof raw.image_url === 'string' ? raw.image_url : null
+  if (!id || !imageUrl) return null
+  return {
+    id,
+    name: typeof raw.name === 'string' ? raw.name : null,
+    imageUrl,
+    width: typeof raw.width === 'number' ? raw.width : null,
+    height: typeof raw.height === 'number' ? raw.height : null,
+    isAnimated: raw.is_animated === true,
+  }
+}
+
+/** แพ็กสติกเกอร์ทั้งหมดที่ส่งได้ (ฟรี first-party) */
+export async function fetchStickerPacks(): Promise<GraphStickerPack[]> {
+  const json = await graphFetch('/sticker_packs', appAccessToken(), {
+    query: { locale: STICKER_LOCALE },
+  })
+  const data = Array.isArray(json.data) ? (json.data as Record<string, unknown>[]) : []
+  return data.flatMap((p) => {
+    const id = typeof p.id === 'string' ? p.id : null
+    const name = typeof p.name === 'string' ? p.name : null
+    if (!id || !name) return []
+    return [
+      {
+        id,
+        name,
+        description: typeof p.description === 'string' ? p.description : null,
+        previewImageUrl: typeof p.preview_image_url === 'string' ? p.preview_image_url : null,
+        stickerCount: typeof p.sticker_count === 'number' ? p.sticker_count : null,
+      },
+    ]
+  })
+}
+
+/** สติกเกอร์ในแพ็กหนึ่ง */
+export async function fetchStickersInPack(packId: string): Promise<GraphSticker[]> {
+  const json = await graphFetch(`/sticker_packs/${encodeURIComponent(packId)}/stickers`, appAccessToken(), {
+    query: { locale: STICKER_LOCALE },
+  })
+  const data = Array.isArray(json.data) ? (json.data as Record<string, unknown>[]) : []
+  return data.flatMap((s) => {
+    const st = toSticker(s)
+    return st ? [st] : []
+  })
+}
+
+/** ค้นสติกเกอร์ข้ามทุกแพ็ก — q ต้องยาว ≥2 ตัวอักษรตามเอกสาร (สั้นกว่านั้น Meta ตีตก) */
+export async function searchStickers(q: string): Promise<GraphSticker[]> {
+  const query = q.trim()
+  if (query.length < 2) return []
+  const json = await graphFetch('/sticker_search', appAccessToken(), {
+    query: { q: query, locale: STICKER_LOCALE },
+  })
+  const data = Array.isArray(json.data) ? (json.data as Record<string, unknown>[]) : []
+  return data.flatMap((s) => {
+    const st = toSticker(s)
+    return st ? [st] : []
+  })
+}
+
+/**
+ * ส่งสติกเกอร์เข้าเธรด — คืน mid ของข้อความที่ Meta สร้าง (เหมือน sendTextMessage)
+ * tag: ส่งนอกหน้าต่าง 24 ชม. (HUMAN_AGENT) — เหตุผลเดียวกับ sendTextMessage
+ */
+export async function sendStickerMessage(
+  pageToken: string,
+  recipientId: string,
+  stickerId: string,
+  tag?: string,
+): Promise<string> {
+  const json = await graphFetch('/me/messages', pageToken, {
+    method: 'POST',
+    body: {
+      recipient: { id: recipientId },
+      ...(tag ? { messaging_type: 'MESSAGE_TAG', tag } : { messaging_type: 'RESPONSE' }),
+      // sticker_id เป็น field ระดับ message (ไม่ใช่ attachment) ตามตัวอย่างในเอกสาร
+      message: { sticker_id: stickerId },
+    },
+  })
+  return (json.message_id as string | undefined) ?? ''
 }

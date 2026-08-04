@@ -43,7 +43,7 @@ import type { ShipmentSource } from './order-action-set'
 function smsErrorMessage(status: number): string {
   switch (status) {
     case 402:
-      return 'เครดิตไม่พอ — <a href="/wallet" class="underline">ซื้อเครดิต SMS</a>'
+      return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงิน</a>'
     case 429:
       return 'ส่ง SMS บ่อยเกินไป กรุณารอสักครู่'
     case 422:
@@ -137,7 +137,7 @@ export default function OrderDetailClient({
       buttonsStyling: false,
       icon: 'question',
       title: 'ส่งลิงก์ทาง SMS?',
-      text: 'ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อ และหัก ฿1 จากเครดิต SMS ของคุณ',
+      text: 'ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อ และหัก ฿1 จากกระเป๋าเงินของคุณ',
       showCancelButton: true,
       confirmButtonText: 'ส่ง SMS',
       cancelButtonText: 'ยกเลิก',
@@ -160,7 +160,7 @@ export default function OrderDetailClient({
       },
     })
     if (result.isConfirmed && result.value === true) {
-      pacesToast.success('ส่ง SMS แล้ว ฿1 ถูกหักจากเครดิต')
+      pacesToast.success('ส่ง SMS แล้ว ฿1 ถูกหักจากยอดเงิน')
     }
   }
 

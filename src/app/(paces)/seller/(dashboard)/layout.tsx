@@ -6,15 +6,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
 import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
-import {
-  sellerMenuItems,
-  applyInventoryGate,
-  applyChatBadge,
-  applyStaffMenu,
-  applyExpenseMenu,
-  applyVerticalMenu,
-  applyAppointmentMenu,
-} from './_seller-menu'
+import { sellerMenuItems, applyChatBadge, resolveVisibleSellerMenu, resolveOrderMenuLabel } from '@/lib/seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
@@ -120,46 +112,47 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Business Package sidenav card — fail-closed: query error → NOT_SUBSCRIBED
   // (pattern เดียวกับ entitlementInfo บรรทัดด้านบน — ไม่ให้ layout crash จาก DB error)
+  // ข้าม query ทั้งก้อนเมื่อ active เป็นบัญชีส่วนตัว — การ์ดไม่ถูก render อยู่แล้ว (ดู sidenavHeaderSlot)
   let businessPackageStatus: BusinessPackageStatusApp = 'NOT_SUBSCRIBED'
   let businessPackageTier: BusinessPackageTier | null = null
-  try {
-    // ต้อง resolve จาก "เจ้าของร้านที่กำลังเปิดอยู่" (shop.userId) ไม่ใช่ session user —
-    // การ์ดเขียนว่า "แพ็กเกจร้านค้า" ถ้าใช้ user.id สมาชิก ADMIN ของร้าน Business จะเห็น
-    // แพ็กเกจ "ส่วนตัวของตัวเอง" แทนของร้าน (bug ที่เจอ 2026-07-29 ตอนเปิดให้ทุก role เห็น)
-    // มิเรอร์ isOwnerPaidPlan(shopId) ใน ai-suggest-quota.service ที่ resolve แบบเดียวกัน
-    const subscription = await getSubscriptionStatus(shop.userId)
-    if (subscription) {
-      businessPackageStatus = subscription.status as BusinessPackageStatusApp
-      businessPackageTier = subscription.tier as BusinessPackageTier
+  if (active.kind === 'BUSINESS') {
+    try {
+      // ต้อง resolve จาก "เจ้าของร้านที่กำลังเปิดอยู่" (shop.userId) ไม่ใช่ session user —
+      // การ์ดเขียนว่า "แพ็กเกจร้านค้า" ถ้าใช้ user.id สมาชิก ADMIN ของร้าน Business จะเห็น
+      // แพ็กเกจ "ส่วนตัวของตัวเอง" แทนของร้าน (bug ที่เจอ 2026-07-29 ตอนเปิดให้ทุก role เห็น)
+      // มิเรอร์ isOwnerPaidPlan(shopId) ใน ai-suggest-quota.service ที่ resolve แบบเดียวกัน
+      const subscription = await getSubscriptionStatus(shop.userId)
+      if (subscription) {
+        businessPackageStatus = subscription.status as BusinessPackageStatusApp
+        businessPackageTier = subscription.tier as BusinessPackageTier
+      }
+    } catch (e) {
+      console.error('[layout] getSubscriptionStatus failed, fallback NOT_SUBSCRIBED', e)
     }
-  } catch (e) {
-    console.error('[layout] getSubscriptionStatus failed, fallback NOT_SUBSCRIBED', e)
   }
 
-  // feature 00012 (Task 4.3) — applyStaffMenu ซ่อนเมนู "พนักงาน" ให้เห็นเฉพาะ owner ของ Business shop
-  // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
-  // feature 00016 — applyExpenseMenu ซ่อน/ติด badge เมนู "ค่าใช้จ่าย" ตามสิทธิ์+แพ็กเกจ
-  // feature 00017 — applyVerticalMenu กรองเมนูตามประเภทกิจการ (ห้องพัก vs สินค้า/สต็อก/ประมูล)
+  // feature 00027 TFR-001 — การ compose ตัวกรอง 5 ตัว (inventory/staff/expense/appointment/vertical)
+  // ย้ายไปอยู่ใน resolveVisibleSellerMenu ที่ src/lib/seller-menu.ts พร้อมเหตุผลของลำดับทั้งหมด
+  // เพื่อให้ shortcut.service.ts เรียกชุดเดียวกันได้ (service import จาก src/app/** ไม่ได้)
   //
-  // ลำดับสำคัญ: applyVerticalMenu อยู่ "ชั้นนอกสุด" โดยตั้งใจ — กรองหลัง gate อื่นทุกตัว
-  // เพื่อไม่ให้ badge/disable ที่ gate ชั้นในติดไว้ ไปโผล่บนเมนูที่ควรถูกซ่อนไปแล้ว
-  // (เช่น badge "เลือกแพ็กเกจ" ของสต็อก ต้องไม่โผล่ในร้านบ้านพักที่ไม่มีเมนูสต็อกเลย)
-  // feature 00024 — applyAppointmentMenu ซ่อนเมนู "ทรัพยากรบริการ" จากร้านที่ไม่เข้าเงื่อนไข
-  //   ต้องใช้ทั้ง kind และ vertical (BR-RSV-01) จึงส่ง active.kind เข้าไปด้วย
-  //   วางไว้ชั้นในกว่า applyVerticalMenu เพราะเป็น filter ล้วนเหมือนกัน ลำดับไม่มีผลต่อผลลัพธ์
-  const menuItems = applyVerticalMenu(
-    applyAppointmentMenu(
-      applyExpenseMenu(
-        applyStaffMenu(
-          applyChatBadge(applyInventoryGate(sellerMenuItems, entitlementInfo), unreadChatCount),
-          { kind: active.kind, role: active.role },
-        ),
-        expenseAccessDecision,
-      ),
-      { kind: active.kind, vertical: shop.vertical },
-    ),
-    shop.vertical,
+  // สำคัญ: applyChatBadge ย้ายจาก "ชั้นในสุดอันดับสอง" มาเป็น "ชั้นนอกสุด" — ผลลัพธ์เท่าเดิม
+  // เพราะมันแตะแค่ `seller:inbox` ซึ่งไม่มีตัวกรองไหนกรองออกเลยสักตัว badge จึงไปเกาะรายการเดิม
+  // ไม่ว่าจะแปะก่อนหรือหลังกรอง — ถ้าวันหน้ามีตัวกรองที่ซ่อนเมนู "ข้อความ" ได้ ข้อสรุปนี้ตายทันที
+  // ให้ย้าย applyChatBadge กลับเข้าไปก่อนตัวกรองนั้น
+  // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
+  const menuItems = applyChatBadge(
+    resolveVisibleSellerMenu(sellerMenuItems, {
+      entitlement: entitlementInfo,
+      staff: { kind: active.kind, role: active.role },
+      expense: expenseAccessDecision,
+      shop: { kind: active.kind, vertical: shop.vertical },
+    }),
+    unreadChatCount,
   )
+
+  // ป้ายเมนู/แท็บของ /orders ต้องเป็นคำเดียวกันทั้ง sidebar, แถบล่างมือถือ และชื่อหน้าบนมือถือ
+  // (ผู้ใช้เห็นทั้งสามที่พร้อมกันได้บนจอเดียว) — คำนวณครั้งเดียวที่นี่แล้วส่งลงไปทุกทาง
+  const orderLabel = resolveOrderMenuLabel(shop.vertical)
 
   return (
     <VerticalLayout
@@ -171,18 +164,31 @@ export default async function DashboardLayout({ children }: { children: React.Re
           avatarUrl={shop?.logo ?? null}
           tierName={tierName}
           trustScore={user.trustScore ?? 0}
+          orderLabel={orderLabel}
         />
       }
-      bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} unreadChatCount={unreadChatCount} />}
+      bottomNavSlot={
+        <SellerBottomNav
+          pendingCount={pendingCount}
+          unreadChatCount={unreadChatCount}
+          orderLabel={orderLabel}
+        />
+      }
       sidenavFooterSlot={<OnboardingGate />}
-      // ทุก role เห็นการ์ดเหมือนกัน (user สั่ง 2026-07-29 — เดิมซ่อนจาก ADMIN แล้วพบว่าผิด:
+      // การ์ดแพ็กเกจเป็นเรื่องของร้านแบบธุรกิจเท่านั้น — บัญชีส่วนตัวไม่มี Business Package
+      // ให้พูดถึงจริง ๆ (schema ผูกกับ Business) การไม่แสดงจึงตรงความจริง ไม่ใช่การซ่อนของที่มีอยู่
+      // (user เคาะ 2026-08-04). Sidenav/index.tsx เช็ค `headerSlot &&` อยู่แล้ว → ไม่มี div เปล่าค้าง
+      //
+      // ทุก role ของร้านธุรกิจเห็นการ์ดเหมือนกัน (user สั่ง 2026-07-29 — เดิมซ่อนจาก ADMIN แล้วพบว่าผิด:
       // พนักงานก็ควรรู้ว่าร้านอยู่แพ็กเกจไหน) ต่างแค่ canManage — เฉพาะ OWNER ที่กดไปจัดการได้
       sidenavHeaderSlot={
-        <ShopPackageSidenavCard
-          status={businessPackageStatus}
-          tier={businessPackageTier}
-          canManage={active.role === 'OWNER'}
-        />
+        active.kind === 'BUSINESS' ? (
+          <ShopPackageSidenavCard
+            status={businessPackageStatus}
+            tier={businessPackageTier}
+            canManage={active.role === 'OWNER'}
+          />
+        ) : undefined
       }
     >
       {children}

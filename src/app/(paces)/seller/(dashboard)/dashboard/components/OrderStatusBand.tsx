@@ -22,6 +22,20 @@ export interface OrderStatusBandProps {
     CONFIRMED: number
     CANCELLED: number
   }
+  /**
+   * ตัวนับ "ของอยู่ไหน" สำหรับร้านขายออนไลน์ (user สั่ง 2026-08-04) — ส่งมา = ใช้ชุดนี้แทน counts
+   *
+   * ทำไมเปลี่ยนทั้งชุดแทนที่จะเพิ่มช่อง: 4 ช่องเดิมเป็นสถานะ "การขาย" (รอดำเนินการ/สำเร็จ/ยกเลิก)
+   * ซึ่งร้านขายออนไลน์ไม่ได้ใช้ตัดสินใจอะไรในแต่ละวัน — งานจริงของเขาคือไล่พัสดุ: ใบไหนยังไม่มีเลข
+   * ใบไหนขนส่งยังไม่มารับ ใบไหนติดปัญหา. เก็บของเดิมไว้ให้ vertical อื่น (บ้านพัก/คิวงาน) ที่ไม่มี
+   * พัสดุให้ไล่
+   */
+  shipping?: {
+    AWAITING_PARCEL: number
+    AWAITING_PICKUP: number
+    SHIPPING: number
+    PROBLEM: number
+  }
 }
 
 // clamp count ≥100 → "99+" เพื่อไม่ให้ badge กว้างเกิน
@@ -70,14 +84,77 @@ const STATUSES: {
   },
 ]
 
-export default function OrderStatusBand({ counts }: OrderStatusBandProps) {
+/**
+ * ชุด "ของอยู่ไหน" — ป้าย/สีต้องสื่อว่าใครต้องลงมือ ไม่ใช่ไล่ตามเวลา
+ * ทุกช่องมี badge เพราะทุกช่องคือ "งานค้าง" (ต่างจากชุดเดิมที่ สำเร็จ/ยกเลิก เป็นแค่ยอดสะสม)
+ */
+const SHIPPING_STAGES: {
+  key: keyof NonNullable<OrderStatusBandProps['shipping']>
+  label: string
+  icon: string
+  iconClass: string
+}[] = [
+  {
+    key: 'AWAITING_PARCEL',
+    label: 'รอเลขพัสดุ',
+    icon: 'solar:clipboard-list-bold-duotone',
+    iconClass: 'text-warning',
+  },
+  {
+    key: 'AWAITING_PICKUP',
+    label: 'รอรับเข้า',
+    icon: 'solar:box-bold-duotone',
+    iconClass: 'text-primary',
+  },
+  {
+    key: 'SHIPPING',
+    label: 'กำลังจัดส่ง',
+    icon: 'solar:delivery-bold-duotone',
+    iconClass: 'text-info',
+  },
+  {
+    key: 'PROBLEM',
+    label: 'พัสดุมีปัญหา',
+    icon: 'solar:danger-triangle-bold-duotone',
+    iconClass: 'text-danger',
+  },
+]
+
+export default function OrderStatusBand({ counts, shipping }: OrderStatusBandProps) {
+  // ชุด "ของอยู่ไหน" (ร้านขายออนไลน์) หรือชุด "สถานะการขาย" เดิม — เลือกที่ระดับ props ไม่ใช่ในลูป
+  const tiles = shipping
+    ? SHIPPING_STAGES.map((st) => ({
+        key: st.key,
+        label: st.label,
+        icon: st.icon,
+        iconClass: st.iconClass,
+        count: shipping[st.key],
+        // ทุกช่องคือ "งานค้าง" จึงมี badge ได้หมด ต่างจากชุดเดิมที่ สำเร็จ/ยกเลิก เป็นยอดสะสม
+        showBadge: true,
+        /**
+         * ?stage= = ตัวกรองตามสถานะพัสดุของหน้า /orders (user สั่ง 2026-08-04 "กดเข้าไปแล้ว query
+         * ต้องตรงกันด้วย") — ไม่ใช่ ?status= ซึ่งเป็น Order.status คนละแกนกัน
+         * ตัวเลขบนไทล์กับรายการที่กรองได้ ตรงกันเพราะทั้งคู่ผ่าน deriveShippingStage ตัวเดียวกัน
+         */
+        href: `/orders?stage=${st.key}`,
+      }))
+    : STATUSES.map((st) => ({
+        key: st.key,
+        label: st.label,
+        icon: st.icon,
+        iconClass: st.iconClass,
+        count: counts[st.key],
+        showBadge: st.showBadge,
+        href: `/orders?status=${st.key}`,
+      }))
+
   return (
     <div className="card">
       {/* header: ชื่อ band + ลิงก์ "ดูทั้งหมด ›" (RSC-safe: Link ธรรมดา ไม่ใช้ component={Link} — Hard Rule 2) */}
       <div className="card-header flex items-center justify-between">
         <h4 className="card-title flex items-center gap-1.5">
           <Icon icon="tabler:clipboard-list" className="size-4 text-primary" />
-          คำสั่งซื้อ
+          {shipping ? 'สถานะคำสั่งซื้อ' : 'คำสั่งซื้อ'}
         </h4>
         <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-center gap-0.5">
           ดูทั้งหมด
@@ -88,8 +165,7 @@ export default function OrderStatusBand({ counts }: OrderStatusBandProps) {
       <div className="card-body">
         {/* grid 4 คอลัมน์ flat — ไม่มี bg/border ครอบ icon (spec §4.2 + mockup .ostat) */}
         <div className="grid grid-cols-4 gap-2">
-          {STATUSES.map(({ key, label, icon, iconClass, showBadge }) => {
-            const count = counts[key]
+          {tiles.map(({ key, label, icon, iconClass, showBadge, count, href }) => {
             // badge แสดงเฉพาะ showBadge=true และ count > 0
             const badgeText = showBadge && count > 0 ? fmtBadge(count) : null
 
@@ -97,7 +173,7 @@ export default function OrderStatusBand({ counts }: OrderStatusBandProps) {
               /* Link ครอบ tap target ทั้งก้อน — short path ไม่มี /seller prefix (convention) */
               <Link
                 key={key}
-                href={`/orders?status=${key}`}
+                href={href}
                 className="flex flex-col items-center gap-2 py-1 active:scale-95 transition-transform"
               >
                 {/* icon wrapper: relative เพื่อ position badge absolute */}

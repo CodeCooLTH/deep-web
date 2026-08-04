@@ -6,6 +6,7 @@ import { PnlReportQuerySchema } from "@/lib/validations";
 import { resolveExpenseAccess } from "@/services/expense-access.service";
 import { resolveDateRange } from "@/lib/date-range";
 import { getPnlReport } from "@/services/pnl.service";
+import { listExpenses, serializeExpense } from "@/services/expense.service";
 
 // GET /api/expenses/report — รายงาน P&L — API.md §4.5
 export async function GET(request: NextRequest) {
@@ -32,6 +33,14 @@ export async function GET(request: NextRequest) {
   }
 
   const range = resolveDateRange(preset, start, end);
-  const report = await getPnlReport(decision.shop.id, range);
-  return NextResponse.json(report);
+
+  // คืนรายงาน + รายการที่ scope ด้วย "ช่วงเดียวกัน" ใน response เดียว — หน้า /expenses ใช้ทั้งการ์ด P&L,
+  // การ์ดแยกหมวด, การ์ดสรุปเร็ว และตัวรายการ จากก้อนนี้ก้อนเดียว จึงไม่มีทางที่ตัวเลขสองส่วนขัดกันเอง
+  // (เดิม list ดึงทั้งหมดไม่ผูกช่วง แต่ P&L ผูกช่วง — คนละฐานกัน)
+  const [report, expenses] = await Promise.all([
+    getPnlReport(decision.shop.id, range),
+    listExpenses(decision.shop.id, { range: range.expenseRange }),
+  ]);
+
+  return NextResponse.json({ ...report, expenses: expenses.map(serializeExpense) });
 }

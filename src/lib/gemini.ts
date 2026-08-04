@@ -63,7 +63,7 @@ export type SuggestMedia = { label: string; mimeType: string; dataBase64: string
 // ราคาเลย ผลจึงวนอยู่กับ "ขอข้อมูลเพิ่มครับ" — instruction/contextBlock คือส่วนที่เติมเข้ามา
 export type SuggestContext = {
   shopName: string
-  vertical: string // 'GENERAL' | 'LODGING' | ...
+  vertical: string // 'ONLINE_SALES' | 'SERVICE_QUEUE' | 'LODGING' (feature 00028)
   /** คำสั่งประจำร้านที่เจ้าของร้านเขียนเอง (ShopAiSetting.instruction, feature 00019) — '' = ไม่มี */
   instruction?: string
   /** บล็อกบริบทสินค้า/ลูกค้าที่ ai-context.service ประกอบมาแล้ว (feature 00019) — '' = ไม่มี */
@@ -88,7 +88,13 @@ const INSTRUCTION_MAX = 2000
  * ส่วนบทสนทนาอยู่ใน user message แยก และถูกกำกับว่าเป็น "เนื้อหา" ไม่ใช่คำสั่ง (buildTranscript)
  */
 function buildSystemPrompt(ctx: SuggestContext): string {
-  const businessDesc = ctx.vertical === 'LODGING' ? 'ที่พัก/โรงแรม (รับจอง)' : 'ร้านค้าออนไลน์ (ขายสินค้า)'
+  // feature 00028 — 3 ทาง: ONLINE_SALES/SERVICE_QUEUE/LODGING (เดิม 2 ทาง GENERAL/LODGING)
+  const businessDesc =
+    ctx.vertical === 'LODGING'
+      ? 'ที่พัก/โรงแรม (รับจอง)'
+      : ctx.vertical === 'SERVICE_QUEUE'
+        ? 'ร้านสินค้าและบริการ (รับนัดคิว)'
+        : 'ร้านค้าออนไลน์ (ขายสินค้า)'
   const lines: string[] = [
     `คุณเป็นผู้ช่วยแอดมินของ "${ctx.shopName}" ซึ่งเป็น${businessDesc}`,
     'หน้าที่ของคุณคือช่วยแอดมิน "ร่างข้อความตอบลูกค้า" จากบทสนทนาที่กำลังคุยกันในแชท',

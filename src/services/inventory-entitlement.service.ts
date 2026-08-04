@@ -147,7 +147,7 @@ export async function reactivateInventoryEntitlement(
  *      before.nextRenewalAt เดิม (ไม่ใช่ค่าที่ advance ไปแล้วตอน claim) — เพื่อรักษา
  *      invariant "LOCKED ต้องไม่แตะ nextRenewalAt" (เก็บไว้เป็นหลักฐานว่ารอบไหน fail
  *      สำหรับตอน reactivate ทีหลัง)
- *   OD-A: เครดิตไม่พอ → LOCKED ทันที ไม่ fallback หัก package ต่ำกว่า (lock ทั้งก้อน)
+ *   OD-A: ยอดเงินไม่พอ → LOCKED ทันที ไม่ fallback หัก package ต่ำกว่า (lock ทั้งก้อน)
  */
 export async function renewOrLockEntitlement(
   shopId: string,
@@ -194,7 +194,7 @@ export async function renewOrLockEntitlement(
 }
 
 /**
- * shouldWarnAdvance — เตือนล่วงหน้าก่อน renewal เมื่อ ACTIVE + ใกล้ครบรอบ (≤3 วัน) + เครดิตไม่พอ
+ * shouldWarnAdvance — เตือนล่วงหน้าก่อน renewal เมื่อ ACTIVE + ใกล้ครบรอบ (≤3 วัน) + ยอดเงินไม่พอ
  * BREAKING (feature 00009) — เพิ่ม field package ใน entitlement param (ราคาที่เทียบ = ตาม package)
  */
 export function shouldWarnAdvance(

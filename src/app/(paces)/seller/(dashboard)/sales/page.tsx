@@ -10,6 +10,9 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDate } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
+import { listExpenses } from '@/services/expense.service'
+import { groupExpensesByCategory } from '@/lib/expense'
+import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
@@ -72,7 +75,37 @@ export default async function SalesPage({
   const to = parseDate(toStr, defTo)
   to.setHours(23, 59, 59, 999)
 
-  const allOrders = await getOrdersByShop(shop.id)
+  /**
+   * ค่าใช้จ่าย (feature 00016) มี gate สิทธิ์ของตัวเอง — หน้านี้ไม่มี. ไม่ผ่าน gate = ไม่ query
+   * และไม่ส่งฟิลด์ใด ๆ ลงไป (คอลัมน์/การ์ดหายทั้งอัน) ไม่ใช่ส่ง 0 ลงไปแล้วให้ดูเหมือนไม่มีค่าใช้จ่าย
+   */
+  const expenseAccess = await resolveExpenseAccess(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  )
+  const canSeeFinance = expenseAccess.kind === 'GRANTED'
+
+  /**
+   * ช่วงก่อนหน้า — ยาวเท่ากัน ต่อเนื่องกันทันทีก่อน `from` (นิยามเดียวกับ pnl.service)
+   * getOrdersByShop ดึงออเดอร์ทั้งหมดอยู่แล้วแล้วค่อยกรองในหน่วยความจำ → คิดช่วงก่อนหน้าได้ฟรี
+   * ไม่มี query เพิ่ม ส่วนค่าใช้จ่ายแค่ขยายช่วงของ query เดิมให้คลุมทั้งสองช่วง
+   */
+  const spanMs = to.getTime() - from.getTime()
+  const prevFrom = new Date(from.getTime() - spanMs)
+
+  const [allOrders, expensesInRange] = await Promise.all([
+    getOrdersByShop(shop.id),
+    canSeeFinance
+      ? // expenseDate เก็บเป็น UTC-midnight ของวันตามปฏิทิน (ไม่ shift TZ) — boundary จึงต่างจาก
+        // order.createdAt ที่เป็น timestamptz. ดู "Dual Boundary Design" ใน src/lib/date-range.ts
+        // ดึงคลุมช่วงก่อนหน้าด้วย (ยาวเท่ากัน ต่อเนื่องกัน) เพื่อคิด %เปลี่ยนแปลง — ยังเป็น query เดียว
+        listExpenses(shop.id, {
+          range: {
+            gte: new Date(Date.UTC(from.getFullYear(), from.getMonth(), from.getDate()) - spanMs),
+            lt: new Date(Date.UTC(to.getFullYear(), to.getMonth(), to.getDate() + 1)),
+          },
+        })
+      : Promise.resolve([]),
+  ])
 
   // ใช้ type จริงจาก return value ของ getOrdersByShop — ป้องกัน silent break ถ้า schema เปลี่ยน
   type OrderItem = Awaited<ReturnType<typeof getOrdersByShop>>[number]
@@ -81,11 +114,34 @@ export default async function SalesPage({
     const t = new Date(o.createdAt).getTime()
     return t >= from.getTime() && t <= to.getTime()
   })
+  const inPrevRange = allOrders.filter((o: OrderItem) => {
+    const t = new Date(o.createdAt).getTime()
+    return t >= prevFrom.getTime() && t < from.getTime()
+  })
+
+  /** รวมยอดของช่วงหนึ่ง — ใช้กับทั้งช่วงปัจจุบันและช่วงก่อนหน้า กันสูตรสองชุดหลุดจากกัน */
+  const sumWindow = (rows: OrderItem[]) => {
+    let revenue = 0, unconfirmed = 0, completed = 0, cancelled = 0
+    for (const o of rows) {
+      if (o.status === 'CONFIRMED') { revenue += Number(o.totalAmount ?? 0); completed++ }
+      else if (o.status === 'CANCELLED') cancelled++
+      else { unconfirmed += Number(o.totalAmount ?? 0) }
+    }
+    return { revenue, unconfirmed, completed, cancelled, orders: rows.length }
+  }
+  const prevWindow = sumWindow(inPrevRange)
 
   // Build bucket maps
   const ordersPerDay: Record<string, number> = {}
   const completedPerDay: Record<string, number> = {}
   const revenuePerDay: Record<string, number> = {}
+  // ยอดที่ลูกค้ายังไม่กดยืนยัน (ไม่นับที่ยกเลิก) — ชีตยอดขายบนมือถือแยกสองยอดนี้มาตั้งแต่แรก
+  // แต่หน้าเว็บเก็บแค่ยอดที่ยืนยันแล้ว ทำให้สอง surface เล่าเรื่องคนละแบบจากข้อมูลชุดเดียวกัน
+  const unconfirmedPerDay: Record<string, number> = {}
+
+  // COGS ต่อวัน — ต้องคิดด้วยถึงจะได้ "กำไรสุทธิ" สูตรเดียวกับการ์ด P&L ใน /expenses
+  // (revenue − COGS − expense) ถ้าใช้แค่ revenue − expense ตัวเลขสองหน้าจะไม่ตรงกัน
+  const cogsPerDay: Record<string, number> = {}
 
   for (const o of inRange) {
     const day = new Date(o.createdAt).toISOString().slice(0, 10)
@@ -93,7 +149,26 @@ export default async function SalesPage({
     if (o.status === 'CONFIRMED') {
       completedPerDay[day] = (completedPerDay[day] ?? 0) + 1
       revenuePerDay[day] = (revenuePerDay[day] ?? 0) + Number(o.totalAmount ?? 0)
+      for (const item of o.items) {
+        // cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ "ต้นทุน 0" — ข้ามไป (การ์ด P&L เตือนเรื่องนี้อยู่แล้ว)
+        if (item.cost == null) continue
+        cogsPerDay[day] = (cogsPerDay[day] ?? 0) + Number(item.cost) * item.qty
+      }
+    } else if (o.status !== 'CANCELLED') {
+      // PENDING/SHIPPED = ขายได้แล้วแต่ยังไม่ถูกนับเป็นรายได้ (ตรงนิยามเดียวกับ getSalesSeries)
+      unconfirmedPerDay[day] = (unconfirmedPerDay[day] ?? 0) + Number(o.totalAmount ?? 0)
     }
+  }
+
+  const expensePerDay: Record<string, number> = {}
+  let prevExpenseTotal = 0
+  const currentExpenses: typeof expensesInRange = []
+  for (const e of expensesInRange) {
+    const t = new Date(e.expenseDate).getTime()
+    if (t < from.getTime()) { prevExpenseTotal += Number(e.amount); continue }  // ช่วงก่อนหน้า
+    currentExpenses.push(e)
+    const day = new Date(e.expenseDate).toISOString().slice(0, 10)
+    expensePerDay[day] = (expensePerDay[day] ?? 0) + Number(e.amount)
   }
 
   // Zero-fill every day in range
@@ -104,36 +179,63 @@ export default async function SalesPage({
     const revenue = revenuePerDay[date] ?? 0
     const avgOrder = completed > 0 ? revenue / completed : 0
     const label = formatDate(date)
-    return { date, label, orders, completed, revenue, avgOrder }
+    const unconfirmedRevenue = unconfirmedPerDay[date] ?? 0
+    if (!canSeeFinance) return { date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder }
+    const expense = expensePerDay[date] ?? 0
+    return {
+      date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder,
+      expense,
+      netProfit: revenue - (cogsPerDay[date] ?? 0) - expense,
+    }
   })
 
   const totalOrders = daily.reduce((s, d) => s + d.orders, 0)
   const totalCompleted = daily.reduce((s, d) => s + d.completed, 0)
   const totalRevenue = daily.reduce((s, d) => s + d.revenue, 0)
+  const totalUnconfirmed = daily.reduce((s, d) => s + d.unconfirmedRevenue, 0)
   const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0
 
-  const summary: SummaryData = { totalOrders, totalCompleted, totalRevenue, avgOrderValue }
+  const cancelledCount = inRange.filter((o: OrderItem) => o.status === 'CANCELLED').length
+  const unconfirmedCount = totalOrders - totalCompleted - cancelledCount
+  const prevAvgOrder = prevWindow.completed > 0 ? prevWindow.revenue / prevWindow.completed : 0
+
+  const summary: SummaryData = {
+    totalOrders,
+    totalCompleted,
+    totalRevenue,
+    totalUnconfirmed,
+    avgOrderValue,
+    unconfirmedCount,
+    cancelledCount,
+    days: days.length,
+    prevRevenue: prevWindow.orders === 0 ? null : prevWindow.revenue,
+    prevUnconfirmed: prevWindow.orders === 0 ? null : prevWindow.unconfirmed,
+    prevOrders: prevWindow.orders === 0 ? null : prevWindow.orders,
+    prevAvgOrder: prevWindow.completed === 0 ? null : prevAvgOrder,
+    ...(canSeeFinance && {
+      totalExpense: daily.reduce((s, d) => s + (d.expense ?? 0), 0),
+      netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
+      prevExpense: prevExpenseTotal,
+      topExpenseCategory: groupExpensesByCategory(
+        currentExpenses.map((e) => ({ category: e.category, amount: Number(e.amount) })),
+      )[0]?.category,
+    }),
+  }
 
   return (
     <>
       <PageBreadcrumb title="ภาพรวมยอดขาย" trail={[{ label: 'ภาพรวม' }]} />
 
-      {/* โครงสร้าง single-card ตาม Paces theme: header → card-body (chart) → table+pagination */}
-      <div className="card">
-        <div className="card-header flex items-center justify-between flex-wrap gap-3">
-          <h5 className="card-title">รายงานยอดขาย</h5>
-          <SalesDateRange
-            from={from.toISOString().slice(0, 10)}
-            to={to.toISOString().slice(0, 10)}
-          />
-        </div>
+      {/* เลิกใช้ single-card ครอบทั้งหน้า — SalesChart render การ์ดสรุปแยกใบเองแล้ว (แบบหน้าสินค้า)
+          ถ้ายังครอบอยู่จะกลายเป็นการ์ดซ้อนการ์ด ซึ่ง DESIGN.md §anti-slop ห้าม */}
+      <div className="mb-1.25 flex flex-wrap items-center justify-end gap-3">
+        <SalesDateRange from={from.toISOString().slice(0, 10)} to={to.toISOString().slice(0, 10)} />
+      </div>
 
-        <div className="card-body">
-          <SalesChart daily={daily} summary={summary} />
-        </div>
+      <SalesChart daily={daily} summary={summary} />
 
-        {/* SalesTable render เป็น header+DataTable+card-footer ภายใน card เดียวกัน */}
-        <SalesTable rows={daily} />
+      <div className="card mt-1.25">
+        <SalesTable rows={daily} showFinance={canSeeFinance} />
       </div>
     </>
   )

@@ -61,6 +61,12 @@ interface Props {
   /** prefill ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK) จากช่องทางแชท — ชนะ localStorage default */
   initialSalesChannel?: string
   /**
+   * ข้อความจากแชทที่จะ "กระจาย" เป็นชื่อ/เบอร์/ที่อยู่ให้ทันทีที่ฟอร์มเปิด (user สั่ง 2026-08-04)
+   * ส่งต่อลง CustomerQuickBlock ซึ่งเป็นเจ้าของทั้ง parseOrderMessage และชีตกระจายอยู่แล้ว —
+   * ไม่เขียน logic เติมฟอร์มใหม่ที่นี่ (เส้นเดียวกับที่ปุ่มกระจายของ POS ใช้)
+   */
+  prefillParseText?: string
+  /**
    * โหมดสร้างพัสดุ iShip ของร้าน (feature 00022) — ส่งมาจาก server ตอน render
    * เพื่อไม่ต้องยิงถามทุกครั้งที่เปิดหน้า. ไม่ส่งมา = 'OFF' (ร้านที่ไม่ได้เชื่อมต่อ
    * หรือร้านบ้านพัก จะไม่มีอะไรเกิดขึ้นเลย)
@@ -226,6 +232,7 @@ export default function OrderCreateForm({
   initialBuyerName,
   initialBuyerContact,
   initialSalesChannel,
+  prefillParseText,
   onSuccess,
   conversationId,
   editOrderToken,
@@ -771,6 +778,7 @@ export default function OrderCreateForm({
           compact (โมดัลในแชท): บังคับ QuickForm ทุกขนาดจอ — เดสก์ท็อป 3-col แน่นเกินในโมดัล */}
       <div className={compact ? '' : 'lg:hidden'}>
         <QuickForm
+          prefillParseText={prefillParseText}
           control={control}
           errors={errors}
           setValue={setValue}

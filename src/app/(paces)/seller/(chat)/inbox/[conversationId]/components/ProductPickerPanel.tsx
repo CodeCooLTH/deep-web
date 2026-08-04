@@ -133,7 +133,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
                 type="button"
                 onClick={() => setSelected(null)}
                 aria-label="กลับไปเลือกสินค้า"
-                className="text-default-500 hover:text-info flex size-7 items-center justify-center rounded"
+                className="text-default-700 hover:text-info flex size-7 items-center justify-center rounded"
               >
                 <Icon icon="arrow-left" className="text-base" />
               </button>
@@ -150,7 +150,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
           type="button"
           onClick={onClose}
           aria-label="ปิด"
-          className="text-default-500 hover:text-default-800 flex size-7 items-center justify-center rounded"
+          className="text-default-700 hover:text-default-800 flex size-7 items-center justify-center rounded"
         >
           <Icon icon="x" className="text-base" />
         </button>

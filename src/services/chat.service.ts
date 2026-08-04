@@ -7,7 +7,8 @@ import { detectScamLink } from '@/lib/scam-link-detector'
 import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-reply-takeover.service'
 
 export type SenderRole = 'BUYER' | 'SHOP'
-export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'
+// CALL = เหตุการณ์การโทรที่ Meta แจ้งมา (icon-template) — ไม่ใช่ข้อความที่ใครพิมพ์ ไม่มีใครส่งได้เอง
+export type ChatMessageType = 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
 
 export interface ConversationSummary {
   id: string
@@ -397,6 +398,36 @@ export async function countUnreadSpamConversations(shopId: string): Promise<numb
       JOIN "ChatMessage" m ON m."conversationId" = c.id
       WHERE c."shopId" = ${shopId}
         AND c."isSpam" = true
+        AND m."senderRole" = 'BUYER'
+        AND c."lastSenderRole" IS DISTINCT FROM 'SHOP'
+        AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt")
+      LIMIT 100
+    ) t
+  `
+  return Number(rows[0]?.n ?? 0)
+}
+
+/**
+ * countUnreadConversations — จำนวนเธรด "ยังไม่อ่าน" ของร้าน สำหรับ badge บนแท็บ "ข้อความ"
+ * (user สั่ง 2026-08-04: แท็บความคิดเห็นมีตัวเลขแล้ว แท็บข้อความต้องมีด้วย)
+ *
+ * เกณฑ์ต้องตรงกับ countUnreadSpamConversations เป๊ะ ต่างแค่ฝั่ง isSpam — ไม่งั้นเลข 2 ตัวบนจอ
+ * เดียวกันจะนับคนละนิยามแล้วดูเหมือนระบบพัง (บทเรียนเดิม: "ยังไม่ตอบ" เคยโชว์ 7 กับ 8 พร้อมกัน)
+ *
+ * นับ "จำนวนเธรด" ไม่ใช่ "จำนวนข้อความ" — badge บนแท็บตอบคำถามว่า "มีกี่คนรอเราอยู่" ส่วนจำนวน
+ * ข้อความต่อเธรดมีอยู่แล้วที่ badge ในแถว (countUnreadByConversation)
+ *
+ * ไม่รวมสแปม เพราะแท็บนั้นมี badge ของตัวเองอยู่แล้ว (นับซ้ำ = ตัวเลขบนสุดไม่ตรงกับผลรวมข้างล่าง)
+ * LIMIT 100 เหมือนกัน — UI แสดงแค่ 99+ อยู่แล้ว ไม่ต้องนับต่อให้เปลืองฐาน
+ */
+export async function countUnreadConversations(shopId: string): Promise<number> {
+  const rows = await prisma.$queryRaw<{ n: bigint }[]>`
+    SELECT count(*)::bigint AS n FROM (
+      SELECT DISTINCT c.id
+      FROM "Conversation" c
+      JOIN "ChatMessage" m ON m."conversationId" = c.id
+      WHERE c."shopId" = ${shopId}
+        AND c."isSpam" = false
         AND m."senderRole" = 'BUYER'
         AND c."lastSenderRole" IS DISTINCT FROM 'SHOP'
         AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt")

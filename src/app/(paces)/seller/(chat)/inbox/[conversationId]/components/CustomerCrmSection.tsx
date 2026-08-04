@@ -28,7 +28,7 @@ type Crm = {
 }
 
 export const SALES_STATUS_META: Record<SalesStatus, { label: string; cls: string }> = {
-  UNSPECIFIED: { label: 'ยังไม่ระบุ', cls: 'bg-default-100 text-default-500' },
+  UNSPECIFIED: { label: 'ยังไม่ระบุ', cls: 'bg-default-100 text-default-700' },
   INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success' },
   NOT_INTERESTED: { label: 'ไม่สนใจ', cls: 'bg-default-200 text-default-600' },
 }
@@ -46,7 +46,7 @@ function ViewRow({ label, children }: { label: string; children: React.ReactNode
   )
 }
 
-/** ค่าว่าง — เดิมใช้ text-default-400 ซึ่งวัดได้ 2.46:1 บนการ์ดขาว (ตก AA ที่ต้อง 4.5:1) ทั้งที่
+/** ค่าว่าง — เดิมใช้ text-default-700 ซึ่งวัดได้ 2.46:1 บนการ์ดขาว (ตก AA ที่ต้อง 4.5:1) ทั้งที่
  *  PRODUCT.md ผูกมัด AA + "เข้าถึงพิเศษ" สำหรับผู้สูงวัย — default-600 อ่านออกกว่าโดยยังดูเป็นค่าว่าง */
 const EmptyValue = () => <span className="text-default-600">—</span>
 

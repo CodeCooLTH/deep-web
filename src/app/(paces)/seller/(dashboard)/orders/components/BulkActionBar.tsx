@@ -34,8 +34,8 @@ interface BulkActionBarProps {
   /** buyer base URL (resolve ครั้งเดียวใน OrdersTable กัน hydration mismatch) */
   buyerBaseUrl: string
   /**
-   * ร้านเชื่อมต่อ iShip อยู่และเป็นร้านประเภทสินค้าและบริการ (feature 00022)
-   * false = ไม่ render ปุ่มพิมพ์ใบปะหน้าเลย — ร้านบ้านพัก/ร้านที่ไม่ได้เชื่อมต่อ
+   * ร้านเชื่อมต่อ iShip อยู่และเป็นร้านขายออนไลน์ (feature 00022; vertical=ONLINE_SALES ตั้งแต่ 00028)
+   * false = ไม่ render ปุ่มพิมพ์ใบปะหน้าเลย — ร้านสินค้าและบริการ/บ้านพัก/ร้านที่ไม่ได้เชื่อมต่อ
    * ต้องไม่เห็นปุ่มนี้ ไม่ใช่เห็นแล้วกดไม่ได้ (BR-ISHIP-01)
    */
   ishipEnabled?: boolean
@@ -278,7 +278,7 @@ function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onCom
         if (res.ok) {
           sent++
         } else if (res.status === 402) {
-          // เครดิตไม่พอ — หยุด loop (ตัวถัด ๆ ก็จะ fail เหมือนกัน)
+          // ยอดเงินไม่พอ — หยุด loop (ตัวถัด ๆ ก็จะ fail เหมือนกัน)
           credit = true
           break
         } else {
@@ -290,15 +290,15 @@ function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onCom
       setProgress({ sent, failed })
     }
 
-    if (credit) failed = total - sent // ที่เหลือถือว่าส่งไม่สำเร็จเพราะเครดิตหมด
+    if (credit) failed = total - sent // ที่เหลือถือว่าส่งไม่สำเร็จเพราะยอดเงินหมด
     setCreditError(credit)
     setProgress({ sent, failed })
     setPhase('done')
 
     if (sent === total) {
-      pacesToast.success(`ส่ง SMS แล้ว ${sent} ออเดอร์ หัก ฿${sent} จากเครดิต`)
+      pacesToast.success(`ส่ง SMS แล้ว ${sent} ออเดอร์ หัก ฿${sent} จากยอดเงิน`)
     } else if (sent === 0) {
-      pacesToast.error(credit ? 'เครดิต SMS ไม่พอ' : 'ส่ง SMS ล้มเหลวทั้งหมด กรุณาลองใหม่')
+      pacesToast.error(credit ? 'ยอดเงินไม่พอ' : 'ส่ง SMS ล้มเหลวทั้งหมด กรุณาลองใหม่')
     } else {
       pacesToast.warning(`ส่ง SMS สำเร็จ ${sent}/${total} ออเดอร์`)
     }
@@ -345,7 +345,7 @@ function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onCom
               <div>
                 <p className="font-semibold text-default-800 text-base">ส่ง SMS ให้ {total} ออเดอร์?</p>
                 <p className="mt-1 text-sm text-default-500">
-                  ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อแต่ละออเดอร์ และหัก ฿{total} จากเครดิต SMS ของคุณ
+                  ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อแต่ละออเดอร์ และหัก ฿{total} จากกระเป๋าเงินของคุณ
                 </p>
               </div>
               {skippedCount > 0 && (
@@ -385,8 +385,8 @@ function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onCom
                     <p className="font-semibold text-default-800 text-base">สำเร็จ {progress.sent} · ล้มเหลว {progress.failed} ออเดอร์</p>
                     {creditError && (
                       <p className="mt-1 text-sm text-default-500">
-                        เครดิต SMS ไม่พอ —{' '}
-                        <Link href="/wallet" className="text-primary underline">เติมเครดิต</Link>
+                        ยอดเงินไม่พอ —{' '}
+                        <Link href="/wallet" className="text-primary underline">เติมเงิน</Link>
                       </p>
                     )}
                   </div>

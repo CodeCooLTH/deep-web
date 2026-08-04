@@ -6,6 +6,7 @@ import { MovementHistoryQuerySchema } from "@/lib/validations";
 import { getShopByUserId } from "@/services/shop.service";
 import { isProActive } from "@/services/inventory-entitlement.service";
 import { getStockMovementHistory } from "@/services/inventory-stock.service";
+import { requireOnlineSalesVertical } from "@/lib/shop-api-guard";
 
 /**
  * GET /api/inventory/movements — ประวัติการเคลื่อนไหวสต็อกของสินค้าหนึ่งชิ้น (feat 00009 S-10)
@@ -27,6 +28,10 @@ export async function GET(request: NextRequest) {
   if (!shop) {
     return NextResponse.json({ error: "ไม่พบร้านค้า" }, { status: 404 });
   }
+
+  // 2.5 vertical gate — Inventory Add-on เปิดเฉพาะ ONLINE_SALES (feature 00028 BR-SBT-10)
+  const verticalGate = requireOnlineSalesVertical(shop.vertical);
+  if (verticalGate) return verticalGate;
 
   // 3. parse query params ด้วย Valibot (searchParams ไม่ใช่ JSON body — manual parse)
   const { searchParams } = request.nextUrl;

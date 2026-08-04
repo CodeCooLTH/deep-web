@@ -69,7 +69,10 @@ interface Fixture {
 let fx: Fixture
 
 test.beforeAll(async () => {
-  // ── ร้านสินค้าและบริการ (GENERAL) ──
+  // ── ร้านขายออนไลน์ (ONLINE_SALES) — เดิมชื่อตัวแปร/comment อ้าง GENERAL ก่อน feature 00028
+  // แยก vertical เป็น 3 ทาง คงชื่อตัวแปร generalShop/generalUser ไว้ (ไม่ rename เพื่อลด diff
+  // ที่ไม่เกี่ยวกับงานนี้) แต่ค่า vertical จริงต้องเป็น ONLINE_SALES เพราะ iShip เปิดเฉพาะ
+  // ประเภทนี้เท่านั้น (BRD §8.1 matrix) ──
   const generalUser = await prisma.user.create({
     data: { username: `${PREFIX}general`, displayName: 'ร้านทดสอบ iShip', phone: '0900000221' },
   })
@@ -79,7 +82,7 @@ test.beforeAll(async () => {
       kind: 'PERSONAL',
       shopName: 'ร้านทดสอบ iShip',
       businessType: 'INDIVIDUAL',
-      vertical: 'GENERAL',
+      vertical: 'ONLINE_SALES',
     },
   })
 
@@ -97,7 +100,7 @@ test.beforeAll(async () => {
     },
   })
 
-  // การเชื่อมต่อ iShip ของร้าน GENERAL — token ปลอมที่เข้ารหัสถูกวิธี
+  // การเชื่อมต่อ iShip ของร้าน ONLINE_SALES — token ปลอมที่เข้ารหัสถูกวิธี
   // ใช้ได้กับทุกเคสที่ไม่ได้ยิงออกไปหา iShip จริง (โหมดจำลอง stub การสร้างพัสดุไว้แล้ว)
   await prisma.shopShippingAccount.create({
     data: {
@@ -213,7 +216,7 @@ test.describe('A. ร้านบ้านพักต้องไม่มี�
 // ─── B. ร้านที่ยังไม่เชื่อมต่อ ───────────────────────────────────────────────
 
 test.describe('B. สถานะการเชื่อมต่อ', () => {
-  test('B1 ร้าน GENERAL เห็นแถว iShip พร้อมสถานะในหน้าตั้งค่า', async ({ page, context }) => {
+  test('B1 ร้าน ONLINE_SALES เห็นแถว iShip พร้อมสถานะในหน้าตั้งค่า', async ({ page, context }) => {
     await loginAs(context, fx.generalUserId)
     const res = await page.goto('/settings')
     expect(res?.status()).toBe(200)

@@ -1,3 +1,4 @@
+import type { ShippingStageKey } from '@/lib/order-stage'
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/data.ts
  * (OrderRow/OrderStatus เป็น SafePay-specific; OrderStatCardData copy pattern จาก RevenueStat)
@@ -11,7 +12,7 @@ export const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'เงินสด',
   TRANSFER: 'โอนเงิน',
   PROMPTPAY: 'พร้อมเพย์',
-  CARD: 'บัตรเครดิต/เดบิต',
+  CARD: 'บัตรยอดเงิน/เดบิต',
   COD: 'เก็บปลายทาง',
   OTHER: 'อื่นๆ',
 }
@@ -36,6 +37,23 @@ export type OrderItemRow = {
 }
 
 export type OrderRow = {
+  /**
+   * กองงานตามสถานะพัสดุ (user สั่ง 2026-08-04: กดไทล์บน Command Center แล้วรายการต้องกรองตรงกัน)
+   * คำนวณที่ server ด้วย deriveShippingStage ตัวเดียวกับที่ตัวนับบนไทล์ใช้ — undefined = ร้านที่
+   * ไม่ใช่ ONLINE_SALES (ไม่มีพัสดุให้ไล่ จึงไม่มีตัวกรองนี้)
+   */
+  shippingStage?: ShippingStageKey
+  /**
+   * พัสดุใบล่าสุดที่ยัง active — null = ยังไม่ได้เปิดพัสดุ (แถวจะไม่ขึ้นบรรทัดพัสดุเลย)
+   * user สั่ง 2026-08-04: กดจากไทล์เข้ามาแล้วต้องเห็นเลขพัสดุชัด ๆ ว่าเจ้าไหน เปิดผ่านอะไร
+   */
+  shipment?: {
+    trackingNo: string | null
+    courierCode: string | null
+    courierName: string | null
+    /** "ISHIP" | ... — ใช้เลือกไอคอนแพลตฟอร์ม */
+    provider: string
+  } | null
   id: string            // publicToken short (8-char)
   publicToken: string
   /** short-code 8 ตัวสำหรับ copy/share link; null = order เก่าก่อน backfill (fallback publicToken) */

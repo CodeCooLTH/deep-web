@@ -58,7 +58,8 @@ export default function CreateBusinessForm() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
-    defaultValues: { shopName: '', category: '', businessType: 'INDIVIDUAL', vertical: 'GENERAL', description: '' },
+    // feature 00028 (BR-SBT-07) — ค่าเริ่มต้นเปลี่ยนจากค่าเก่า GENERAL เป็น ONLINE_SALES ให้ sync กับ DB default ใหม่
+    defaultValues: { shopName: '', category: '', businessType: 'INDIVIDUAL', vertical: 'ONLINE_SALES', description: '' },
   })
 
   const watchVertical = watch('vertical')
@@ -140,7 +141,8 @@ export default function CreateBusinessForm() {
               <label className="form-label">
                 ประเภทกิจการ<span className="text-danger ms-0.5">*</span>
               </label>
-              <div className="mt-1 grid grid-cols-1 gap-2 lg:grid-cols-2">
+              {/* feature 00028 — 3 การ์ดพอดีตั้งแต่ sm: ขึ้นไป (เดิม lg:grid-cols-2 รองรับ 2 ตัวเลือก) */}
+              <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {SHOP_VERTICAL_KEYS.map((key: ShopVertical) => {
                   const selected = watchVertical === key
                   return (

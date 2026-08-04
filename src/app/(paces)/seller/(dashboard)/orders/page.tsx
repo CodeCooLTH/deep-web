@@ -13,6 +13,7 @@
 
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
+import { deriveShippingStage } from '@/lib/order-stage'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
 import Icon from '@/components/wrappers/Icon'
@@ -32,7 +33,7 @@ function maskContact(c: string | null | undefined): string {
 }
 
 interface PageProps {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; stage?: string }>
 }
 
 export default async function OrdersPage({ searchParams }: PageProps) {
@@ -66,7 +67,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // feature 00022 — ปุ่มพิมพ์ใบปะหน้าหลายใบใน bulk bar
   // ร้านบ้านพักและร้านที่ยังไม่เชื่อมต่อจะไม่เห็นปุ่มนี้เลย (BR-ISHIP-01)
   const ishipEnabled =
-    shop.vertical === 'GENERAL'
+    shop.vertical === 'ONLINE_SALES'
       ? await getConnection(shop.id)
           .then((c) => c.connected && c.status === 'ACTIVE')
           .catch(() => false)
@@ -81,7 +82,36 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   }
 
   // แปลง rawOrder → OrderRow, Date → ISO string ที่ RSC boundary (ห้ามส่ง Date object ข้าม boundary)
+  // กองงานตามสถานะพัสดุ — ต้องมาจาก deriveShippingStage ตัวเดียวกับที่ตัวนับบน Command Center ใช้
+  // ไม่งั้นกดไทล์ที่บอก 5 แล้วเข้ามาเจอ 4 ใบ (ดูคอมเมนต์ที่ตัวฟังก์ชันใน lib/order-stage.ts)
+  const isOnlineSales = shop.vertical === 'ONLINE_SALES'
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
+    // เลขพัสดุมาได้ 2 ทางและเก็บคนละตาราง — ต้องอ่านทั้งคู่ ไม่งั้นออเดอร์ที่ร้าน "ส่งเอง"
+    // (ShipmentTracking: provider = ชื่อขนส่งที่ผู้ขายเลือก, ไม่มีรหัส) จะไม่ขึ้นเลขพัสดุเลย
+    // ทั้งที่มีเลขอยู่ — เจอตอน user ส่งภาพหน้าจอ "แจ้งเลขพัสดุ" มาให้ดู 2026-08-04
+    // ให้พัสดุ iShip ชนะเมื่อมีทั้งคู่ เพราะเป็นใบที่ระบบติดตามสถานะขนส่งให้จริง
+    shipment: o.shipments?.[0]
+      ? {
+          trackingNo: o.shipments[0].trackingNo ?? null,
+          courierCode: o.shipments[0].courierCode ?? null,
+          courierName: o.shipments[0].courierName ?? null,
+          provider: o.shipments[0].provider ?? 'ISHIP',
+        }
+      : o.shipmentTracking
+        ? {
+            trackingNo: o.shipmentTracking.trackingNo ?? null,
+            courierCode: null,
+            courierName: o.shipmentTracking.provider ?? null,
+            provider: 'MANUAL',
+          }
+        : null,
+    shippingStage: isOnlineSales
+      ? deriveShippingStage({
+          status: o.status,
+          carrierStatus: o.shipments?.[0]?.carrierStatus ?? null,
+          hasShipment: (o.shipments?.length ?? 0) > 0,
+        })
+      : undefined,
     id: (o.publicToken ?? o.id).slice(0, 8),
     publicToken: o.publicToken ?? o.id,
     shortCode: o.shortCode ?? null,

@@ -58,9 +58,9 @@ S-7 ปักหมุด/ซ่อน/ปิดงาน/สแปม (logic+AP
 อยู่ด้านล่างนี้:
 
 **นอกขอบเขตของเอกสารนี้ (ยังไม่ implement — ดู PRD/BRD สำหรับแผนเต็ม):**
-- **ส่งวิดีโอ/เสียง/ไฟล์ออกจาก Deep ไป Messenger/IG** — `sendOutboundMessage` รองรับแค่ `text`/`imageFileId`; ไม่มี parameter สำหรับ VIDEO/AUDIO/FILE. **TEXT และ IMAGE ส่งออกได้แล้ว** (แก้จาก v1.1 ที่เขียนผิดว่า "รองรับเฉพาะ TEXT") — ยังบล็อกเฉพาะ `type=PRODUCT` บนเธรดช่องทางนอก (ดู [[API]] §4.5)
+- ~~**ส่งวิดีโอ/เสียง/ไฟล์ออกจาก Deep ไป Messenger/IG**~~ — **ปิดแล้ว 2026-08-02**: `sendOutboundMessage` รับ `attachment { fileId, kind, name, size }` แล้วเรียก `sendAttachmentMessage` (`attachment.type` = `image|video|audio|file`) → ส่งออกได้ทั้ง TEXT · IMAGE · VIDEO · AUDIO · FILE (ดู [[EXTENSIONS-2026-08-02]] E1). ที่ยังบล็อกจริงเหลือ `type=PRODUCT` บนเธรดช่องทางนอก และ reaction ขาออก (ดู [[API]] §4.5)
 - **Reply/Unsend/Reaction ขาออก** — ร้านตอบทับ/ลบ/react ข้อความของตัวเองจาก Deep ยังไม่มี code path (inbound-only ทั้งชุด E7/E9 — ดู [[EXTENSIONS-2026-07-25]] Carry)
-- **`messaging_referrals` มีใน subscribe field แล้ว** — แต่ Meta ล็อกชุด field ไว้ตอนเชื่อมเพจครั้งแรก เพจที่เชื่อมก่อน 2026-07-25 ต้อง re-sync (`POST /api/channels`) ถึงจะได้ pure-referral event (ดู [[EXTENSIONS-2026-07-26]] E5.6)
+- 🛑 **subscription มี 2 ชั้น และชั้นแอปคือตัวบล็อกจริง (ยืนยัน 2026-08-03)** — ชั้นเพจ (`MESSENGER_SUBSCRIBED_FIELDS` → `POST /{page-id}/subscribed_apps`) **ขอครบ 6 field ถูกต้องอยู่แล้ว** แต่ชั้น App Dashboard topic `page` ของแอป `1570859340799126` subscribe ไว้แค่ `messages` + `message_echoes` → `message_reads` / `message_reactions` / `messaging_referrals` **ส่งไม่ถึงเราไม่ว่าจะ re-sync กี่ครั้ง**. ที่เอกสารเวอร์ชันก่อนเขียนว่า "เพจเก่าต้อง re-sync ถึงจะได้ pure-referral event" จึง **จำเป็นแต่ไม่พอ** — ต้องเติม field ที่ App Dashboard ก่อน (รอผล App Review ของ `pages_messaging` ที่ยัง PENDING อยู่). **ยังไม่ยืนยัน:** referral แบบมาเดี่ยว ๆ แยกจาก `message.referral` ในฐานข้อมูลไม่ได้ จึงพิสูจน์ไม่ได้ว่า re-sync ช่วยเรื่อง referral หรือเปล่า (ดู [[EXTENSIONS-2026-07-26]] E5.6)
 - **S-8 tab ใบเสนอราคา** — แก้ปัญหาด้วยการ์ดออเดอร์ในแชท (E1, `type=ORDER`) แทน ไม่ใช่ tab แยกตามที่ BRD เดิมคิดไว้ — เป็น design decision ที่ implement แล้วในรูปแบบต่าง
 - **Facebook Live** — นอก scope ทั้ง feature (PRD §5)
 
@@ -197,6 +197,24 @@ flowchart LR
 - **Postcondition:** ฟังก์ชัน pure — ไม่แตะ DB ไม่มี side effect, เรียกซ้ำได้ปลอดภัย
 - **ใช้ที่:** `sendOutboundMessage` เรียกก่อนยิง Graph API เสมอ (ดู TFR-FBC-08) — **ยังไม่มี UI ใดเรียกฟังก์ชันนี้เพื่อแสดงแบนเนอร์นับถอยหลัง** (FR-FBC-05 ฝั่ง UI ยังไม่ implement)
 
+> 🔄 **แก้ไข 2026-08-02 — อะไรบ้างที่ "ขยับ `lastInboundAt`":** นิยามในเอกสารนี้เขียนไว้ว่า
+> นับจาก "เวลาที่ลูกค้าส่งข้อความล่าสุด" ซึ่ง **แคบกว่านโยบายจริงของ Meta** เอกสาร Messaging
+> Policy ระบุ action ที่เปิด/รีเซ็ตหน้าต่างไว้หลายอย่าง สถานะปัจจุบันของโค้ด:
+>
+> | Action ตามนโยบาย Meta | เราขยับ `lastInboundAt` ไหม |
+> |---|---|
+> | ลูกค้าส่งข้อความ | ✅ `ingestInboundMessage` (ไม่นับ echo) |
+> | ลูกค้า react ข้อความ | ✅ `ingestReactionEvent` (นับเฉพาะ `react` ของฝั่งลูกค้า) — 2026-08-01 |
+> | คลิกโฆษณา Click-to-Messenger / ลิงก์ m.me ที่มี `ref` | ✅ `ingestAdReferral({customerActionAt})` — 2026-08-02 |
+> | กดปุ่ม CTA / Get Started (`event.postback`) | ❌ **ยังไม่ handle เลยทั้ง event** — known gap |
+>
+> เคสที่ 3 เคยเป็นบั๊กจริง: ลูกค้าเก่ากดโฆษณาตัวใหม่แล้วยังไม่พิมพ์ → ระบบขึ้นว่าหมดเวลาและ
+> บล็อกไม่ให้ร้านตอบ ทั้งที่ Meta เปิดหน้าต่างให้แล้ว (ดู [[EXTENSIONS-2026-08-02]] E12)
+>
+> **ข้อควรระวังที่ยังเหลือ:** ข้อความระบบของ Meta บางอย่าง (เช่น `You missed a call from …`)
+> ถูก attribute ว่ามาจากฝั่งผู้ใช้ เราจึงขยับหน้าต่างตามนั้น แต่เอกสารไม่ได้ระบุว่าสายที่ไม่ได้รับ
+> เปิดหน้าต่าง — แบนเนอร์อาจบอกว่ายังส่งได้ทั้งที่จริงส่งไม่ได้
+
 ### TFR-FBC-07: เชื่อม Facebook Page (OAuth แยกจาก login)
 
 - **Trace:** FR-FBC-09/10, BR-FBC-01/02/03/04
@@ -223,7 +241,8 @@ flowchart LR
   1. โหลด `Conversation` พร้อม `include: {shopChannel, externalContact}` — ไม่พบ → `CONVERSATION_NOT_FOUND`; `channel==='DEEP'` หรือไม่มี `shopChannel`/`externalContact` → `NOT_EXTERNAL_CHANNEL`
   2. ownership: `shop.userId !== actorUserId` → `FORBIDDEN`
   3. **window check ก่อนยิง Graph API เสมอ:** `!getWindowState(conversation.lastInboundAt).open` → throw `WINDOW_CLOSED` (กันเปลือง quota + กัน error ที่คาดเดาได้อยู่แล้ว) — **ไม่มีการยิง Graph API เลยถ้า window ปิด**
-  4. `decryptToken(shopChannel.accessTokenEnc)` → **`params.imageFileId` มีค่า** → `getFileUrl(imageFileId, {signed, expiresIn:3600})` แล้ว `sendImageMessage(token, PSID, imageUrl)` (+ caption แยกเป็น `sendTextMessage` ถ้ามี `text`, best-effort ไม่ throw ถ้าพลาด) — **ไม่มี** `imageFileId` → `sendTextMessage(pageId, token, PSID, text)` → ได้ `mid` ทั้งสองกรณี (แก้จาก v1.1 ที่เขียนว่ารองรับแค่ TEXT)
+  4. `decryptToken(shopChannel.accessTokenEnc)` → **มีไฟล์แนบ** (`params.attachment` หรือ `params.imageFileId` เดิมที่ถูกแปลงเป็น kind `IMAGE` ให้) → `getFileUrl(fileId, {signed, expiresIn:3600})` แล้ว `sendAttachmentMessage(token, PSID, GRAPH_ATTACHMENT_TYPE[kind], url)` (+ caption แยกเป็น `sendTextMessage` ถ้ามี `text`, best-effort ไม่ throw ถ้าพลาด) — **ไม่มีไฟล์แนบ** → `sendTextMessage(token, PSID, text)` → ได้ `mid` ทั้งสองกรณี
+     - อัปเดต 2026-08-02: เดิมเป็น `sendImageMessage` ที่ยิง `attachment.type = 'image'` ตายตัว — ตอนนี้ generalize ตาม kind. **สองทางเข้า (`attachment`/`imageFileId`) ถูกรวมเป็นตัวแปรเดียวก่อนใช้** เพื่อไม่ให้ retry path (ตอน Meta ปฏิเสธ `reply_to`) ส่งผิดชนิดเงียบ ๆ
   5. **ลำดับสำคัญ:** ส่งออกก่อน (`try/catch`) แล้วค่อย `chatMessage.create` เสมอ — ถ้า Graph ตอบ error, `mid = null`, `failureReason = e.message`, ถ้า `GraphApiError.code === 190` (token ตาย) → `markChannelTokenInvalid(shopChannel.id)`
   6. `chatMessage.create({senderRole:'SHOP', externalMessageId: mid || null, deliveryStatus: failureReason ? 'FAILED' : 'SENT', failureReason})` แล้วอัปเดต `Conversation` snapshot **แม้ส่งไม่สำเร็จ** (seller ต้องเห็นในเธรดว่าพยายามส่งแล้วพลาด)
 - **Postcondition:** สำเร็จ → คืน `ChatMessage` ที่สร้าง; ล้มเหลว → **throw `SEND_FAILED: <reason>`** (แม้จะ insert ChatMessage ไปแล้วก็ตาม — caller/route ต้อง map เป็น error response ที่เหมาะสม ไม่ใช่ 200)
@@ -235,7 +254,7 @@ flowchart LR
 - **คำอธิบาย:** `POST /api/chat/conversations/[id]/messages` เดิม (feature 00011) แก้เพิ่ม: ก่อนเรียก `sendMessage()` เดิม ให้ query `conversation.channel` ก่อน — ถ้า `channel !== 'DEEP'`:
   - `type === 'PRODUCT'` → คืน `400` ทันที (ยังไม่รองรับการ์ดสินค้าออกช่องทางนอก)
   - `type === 'ORDER'` → verify `orderRefToken` เป็นของร้านนี้จริงก่อน แล้วประกอบข้อความลิงก์ `/o/{token}` เรียก `sendOutboundMessage({text: linkText, orderRefToken})` — ลูกค้าได้ลิงก์ (ไม่ใช่การ์ด) แต่ฝั่งเราเก็บเป็นการ์ด (E1)
-  - `type === 'TEXT'` หรือ `'IMAGE'` → เรียก `sendOutboundMessage({text, imageFileId})` แทน `sendMessage` — **แก้จาก v1.1 ที่เขียนผิดว่ารองรับแค่ TEXT** (`sendOutboundMessage` มี branch `isImage` เรียก `sendImageMessage` จริง)
+  - `type === 'TEXT'` หรือไฟล์แนบ (`IMAGE`/`VIDEO`/`AUDIO`/`FILE`) → เรียก `sendOutboundMessage({ text, attachment })` แทน `sendMessage` — อัปเดต 2026-08-02 (เดิมเป็น `{text, imageFileId}` รับเฉพาะรูป). ก่อนถึงจุดนี้ route ต้องผ่าน `checkChannelSupport(conv.channel, …)` แล้ว ซึ่งเป็นเหตุผลที่ต้อง query `conversation` **ก่อน** บล็อก conditional-required
   - `channel === 'DEEP'` (หรือ conversation ไม่พบ — ปล่อยให้ `sendMessage` เดิม throw `CONVERSATION_NOT_FOUND`) → เดินทาง `sendMessage` เดิมเหมือนก่อนมี feature นี้ (**zero-regression**)
 - **Error mapping ใหม่ที่ route:** `WINDOW_CLOSED` → `409`, `CHANNEL_NOT_ACTIVE` → `409`, `NOT_EXTERNAL_CHANNEL` → `400`, `SEND_FAILED:*` (prefix match) → `502` — ดู [[API]] §5
 
@@ -273,8 +292,8 @@ flowchart LR
 - **Trace:** FR-FBC-17
 - **คำอธิบาย:** `channel-chat.service.ts` map `attachment.type` ของ Meta เป็น `ChatMessage.type` ผ่านตาราง `{ image: 'IMAGE', video: 'VIDEO', audio: 'AUDIO', file: 'FILE' }` แล้ว mirror ไฟล์เข้า storage ของ Deep เอง (URL ของ Meta หมดอายุ — เหตุผลเดียวกับ TFR-FBC-04)
 - **การแสดงผล:** เธรดเลือก element ตามชนิด — `<video controls>` / `<audio controls>` / ลิงก์ดาวน์โหลด โดยทุกชนิด serve ผ่าน `/api/files/{fileId}`
-- **ขาออกยังไม่รองรับ:** ร้านส่งได้เฉพาะ TEXT/IMAGE (ดู TFR-FBC-10) — ชนิดอื่นเป็น inbound-only
-- **หมายเหตุ contract:** comment ของ `ChatMessage.type` ใน `prisma/schema.prisma` เขียนไว้ตั้งแต่ feature 00011 ว่า `"TEXT" | "IMAGE" | "PRODUCT"` — ค่าใช้จริงตอนนี้มี `VIDEO`/`AUDIO`/`FILE` เพิ่ม (คอลัมน์เป็น `String` ไม่ใช่ enum จึงไม่ต้อง migrate) ดู [[DATABASE]] §3.4
+- **ขาออก (อัปเดต 2026-08-02):** ร้านส่งได้ทั้ง TEXT · IMAGE · VIDEO · AUDIO · FILE แล้ว — ไม่ใช่ inbound-only อีกต่อไป (ดู [[EXTENSIONS-2026-08-02]] E1) ชนิดที่ส่งได้จริงขึ้นกับช่องทางปลายทางตาม `checkChannelSupport()`
+- **หมายเหตุ contract:** comment ของ `ChatMessage.type` ใน `prisma/schema.prisma` เคยเขียนไว้ตั้งแต่ feature 00011 ว่า `"TEXT" | "IMAGE" | "PRODUCT"` — **แก้แล้ว 2026-08-02** ให้ระบุครบทั้ง 7 ค่า (คอลัมน์เป็น `String` ไม่ใช่ enum จึงไม่ต้อง migrate) ดู [[DATABASE]] §3.4
 
 ---
 
@@ -372,7 +391,7 @@ externalId)` บังคับ unique เฉพาะแถว active เท่
 | `ChatMessage.deliveryStatus` | `null` \| `"SENT"` \| `"FAILED"` | String column, nullable |
 | `MESSAGING_WINDOW_MS` | `24 * 60 * 60 * 1000` | `channel-chat.service.ts` |
 | `GRAPH_VERSION` / `GRAPH_BASE` | `"v21.0"` / `https://graph.facebook.com/v21.0` | `src/lib/facebook/constants.ts` — ตรึงจุดเดียว |
-| `MESSENGER_SUBSCRIBED_FIELDS` | `['messages', 'messaging_postbacks', 'message_reactions']` | `src/lib/facebook/constants.ts` |
+| `MESSENGER_SUBSCRIBED_FIELDS` | `['messages', 'messaging_postbacks', 'message_reactions', 'message_echoes', 'message_reads', 'messaging_referrals']` (แก้ 2026-08-03 — เอกสารเดิมค้างที่ 3 ตัว ตั้งแต่ก่อนเพิ่ม echo/read/referral) | `src/lib/facebook/constants.ts` |
 | `CONNECT_SCOPES` | `pages_show_list, pages_messaging, pages_manage_metadata, pages_read_engagement, business_management, instagram_basic, instagram_manage_messages` | `src/lib/facebook/constants.ts` |
 | `FB_CHAT_APP_ID` / `FB_CHAT_APP_SECRET` / `FB_WEBHOOK_VERIFY_TOKEN` / `CHANNEL_TOKEN_KEY` | env vars ใหม่ | ดู §12 PRD/BRD, `.env.example` |
 
@@ -440,9 +459,9 @@ export const WebhookBodySchema = v.object({
 | Badge ช่องทาง + filter | FR-FBC-12 | §8 | — | **Implemented** — `ChatConversationsQuerySchema` มี `channel`/`shopChannelId`/`chatGroupId`/`readState`/`spam` |
 | ปักหมุด/ซ่อน/ปิดงาน/สแปม (S-7) | BR-FBC-14/15/16 | §8.1 | — | **Implemented** (2026-07-23/24) — `updateConversationState` + `PATCH /api/chat/conversations/[id]` (แก้จาก v1.1 ที่บันทึกผิดว่า "logic ยังไม่ implement") |
 | กลุ่ม/แท็บจัดหมวดแชท (E5) | ผลตัดสิน user 2026-07-23 | — | — | Implemented — `ChatGroup` + `chat-group.service.ts` |
-| Read receipt ช่องทางนอก (E6) | ผลตัดสิน user | — | — | Implemented — `Conversation.externalReadAt` + `ingestReadEvent` |
-| Reaction บนข้อความ (E7) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) — `ChatMessage.reactionEmoji` + `ingestReactionEvent` |
-| Referral/context โฆษณา-ลิงก์ (E8 → E5 2026-07-26) | ผลตัดสิน user | — | — | Implemented — แบนเนอร์รูป+ชื่อโฆษณา, ค่าล่าสุด, เก็บประวัติ (ดู [[EXTENSIONS-2026-07-26]] E5). คงเหลือ: เพจเก่าต้อง re-sync, แชทเก่าไม่มีรูป, IG ยังไม่ทดสอบจริง |
+| Read receipt ช่องทางนอก (E6) | ผลตัดสิน user | — | — | Implemented แต่ **ไม่ทำงานจริงบน prod** — `Conversation.externalReadAt` + `ingestReadEvent` ครบ แต่ App Dashboard ไม่ได้ subscribe `message_reads` → prod 385 เธรด MESSENGER / 2,539 ข้อความฝั่งร้าน มี `externalReadAt` = NULL ทั้งหมด (ยืนยัน 2026-08-03) ป้ายในเธรดค้าง "ส่งแล้ว" ตลอด. ดู §1.2 |
+| Reaction บนข้อความ (E7) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) แต่ **ไม่ทำงานจริงบน prod** — `ChatMessage.reactionEmoji` + `ingestReactionEvent` ครบ แต่ไม่ได้ subscribe `message_reactions` ที่ชั้นแอป → prod `reactionEmoji` ไม่เป็น NULL 0 แถว. ผลพวง: กติกา "react ของลูกค้าเปิดหน้าต่าง 24 ชม." (แก้ 2026-08-01) ยังไม่เคยมีผลบน Messenger. ดู §1.2 |
+| Referral/context โฆษณา-ลิงก์ (E8 → E5 2026-07-26) | ผลตัดสิน user | — | — | Implemented — แบนเนอร์รูป+ชื่อโฆษณา, ค่าล่าสุด, เก็บประวัติ (ดู [[EXTENSIONS-2026-07-26]] E5). **ส่วนที่ทำงานจริง = referral ที่มาในข้อความแรก** (`message.referral`, prod 290 เธรด `referralSource='ADS'`); referral แบบมาเดี่ยว ๆ ต้องรอ `messaging_referrals` ที่ชั้นแอป (§1.2). คงเหลือ: แชทเก่าไม่มีรูป, IG ยังไม่ทดสอบจริง |
 | Reply/Unsend (E9) | ผลตัดสิน user | — | — | Implemented (ขาเข้าเท่านั้น) — `ChatMessage.replyToMid`/`isDeleted` |
 | แท็ก/โน้ตภายใน (S-8) | BR-FBC-17/18/19 | §8.1 | — | **Implemented** (2026-07-23 — เก็บที่คอลัมน์ `ExternalContact`/`Conversation.alias` ไม่ใช่ table แยกตามที่ BRD เดิมคิดไว้; tab ใบเสนอราคาแก้ด้วยการ์ดออเดอร์ในแชท E1 แทน) |
 | ยกเว้น webhook จาก CSRF | BR-FBC-22 | §7.2 | TFR-FBC-11 | Implemented |

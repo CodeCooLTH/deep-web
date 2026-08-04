@@ -5,13 +5,13 @@
  * Adaptations from base (OrdersList.tsx):
  * - columns: type (badge TOPUP/DEDUCT), amount (signed), balanceAfter, description, createdAt
  * - No action column (read-only ledger — ตาม Design Spec)
- * - Status tabs → filter type dropdown (ทั้งหมด/เติมเครดิต/ส่ง SMS) เหมือน orderType select
+ * - Status tabs → filter type dropdown (ทั้งหมด/เติมเงิน/ส่ง SMS) เหมือน orderType select
  * - search = description field (globalFilter)
  * - page size: 10/25/50 (ตาม spec แทน 5/8/10/15/20 ของ OrdersList)
  * - DeleteConfirmationModal: stripped (ไม่มี delete บน ledger)
  * - Link column: stripped (ไม่มี action ลิงก์)
  * - createdAt: รับ ISO string แล้ว format เป็น th-TH toLocaleString (ตาม spec)
- * - table caption "ประวัติรายการเครดิต SMS" เพื่อ a11y
+ * - table caption "ประวัติเงินเข้า-ออก" เพื่อ a11y
  * - badge aria-label สำหรับ TOPUP/DEDUCT
  * - states: loading skeleton (ไม่มีใน RSC pass แต่ client side no-data handled), empty, populated
  * - RC-8: ไม่ log transactions; ไม่แสดง buyer PII (type/amount/balanceAfter/description/refId เท่านั้น)
@@ -39,13 +39,13 @@ import type { TransactionRow } from '../page'
 // ─── type filter tabs ─────────────────────────────────────────────────────────
 const TYPE_FILTER_OPTIONS = [
   { value: 'all',    label: 'ทั้งหมด' },
-  { value: 'TOPUP',  label: 'เติมเครดิต' },
+  { value: 'TOPUP',  label: 'เติมเงิน' },
   { value: 'DEDUCT', label: 'ส่ง SMS' },
 ] as const
 
 // ─── badge meta สำหรับ TOPUP / DEDUCT ───────────────────────────────────────
 const TYPE_META = {
-  TOPUP:  { label: 'เติมเครดิต', cls: 'bg-success/15 text-success', sign: '+' },
+  TOPUP:  { label: 'เติมเงิน', cls: 'bg-success/15 text-success', sign: '+' },
   DEDUCT: { label: 'ส่ง SMS',    cls: 'bg-danger/15 text-danger',   sign: '−' },
 } satisfies Record<'TOPUP' | 'DEDUCT', { label: string; cls: string; sign: string }>
 
@@ -182,7 +182,7 @@ const WalletTransactionTable = ({ transactions }: Props) => {
   const emptyMessage = (
     <div className="flex flex-col items-center gap-2 py-8 text-center">
       <Icon icon="receipt-off" className="size-10 text-default-300" aria-hidden="true" />
-      <p className="text-sm text-default-400">ยังไม่มีรายการเครดิต</p>
+      <p className="text-sm text-default-400">ยังไม่มีรายการเงินเข้า-ออก</p>
     </div>
   )
 
@@ -244,8 +244,8 @@ const WalletTransactionTable = ({ transactions }: Props) => {
 
       {/* DataTable พร้อม caption สำหรับ a11y — ใช้ aria-label บน region wrapper
           เพราะ DataTable ไม่รับ caption prop; ห้ามแตะ DataTable.tsx (parallel stream)
-          screen reader จะอ่าน "ตาราง ประวัติรายการเครดิต SMS" */}
-      <div role="region" aria-label="ประวัติรายการเครดิต SMS">
+          screen reader จะอ่าน "ตาราง ประวัติเงินเข้า-ออก" */}
+      <div role="region" aria-label="ประวัติเงินเข้า-ออก">
         <DataTable<TransactionRow>
           table={table}
           emptyMessage={emptyMessage}

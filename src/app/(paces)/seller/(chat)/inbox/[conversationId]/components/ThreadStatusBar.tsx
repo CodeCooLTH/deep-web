@@ -59,7 +59,7 @@ export default function ThreadStatusBar({ items }: { items: ThreadStatusItem[] }
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="text-default-500 hover:text-default-700 flex items-center gap-1 text-xs font-medium"
+            className="text-default-700 hover:text-default-700 flex items-center gap-1 text-xs font-medium"
           >
             <Icon icon="chevron-up" className="text-sm" />
             ย่อสถานะห้อง

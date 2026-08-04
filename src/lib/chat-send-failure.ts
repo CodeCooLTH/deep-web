@@ -61,7 +61,10 @@ const RULES: Rule[] = [
   {
     // ถ้อยคำล้อกับ WINDOW_CLOSED ใน route เดียวกัน + เติมตัวเลขให้ร้านรู้ว่านับจากอะไร
     match: (raw) => /outside\s+(?:of\s+)?(?:the\s+)?allowed\s+window|24[-\s]?hour/i.test(raw),
-    text: 'หมดเวลาที่ Meta อนุญาตให้ส่งข้อความในเธรดนี้ (24 ชั่วโมงนับจากข้อความล่าสุดของลูกค้า) — ต้องรอให้ลูกค้าทักเข้ามาใหม่',
+    // สั้นลงจากเดิม ~30% (2026-08-03) — หลังเลิกล็อกช่องพิมพ์ตามหน้าต่าง 24 ชม. ข้อความนี้
+    // กลายเป็นเหตุผลที่ร้านเห็นบ่อยที่สุด และมันอยู่บนบับเบิลที่แคบบนจอมือถือ. ยังครบ 3 อย่าง
+    // ที่ต้องมี: เกิดอะไร / กรอบเวลา / ต้องทำอะไรต่อ
+    text: 'เกินเวลาที่ Meta ให้ตอบ (24 ชม. นับจากลูกค้าทักล่าสุด) — ต้องรอให้ลูกค้าทักเข้ามาใหม่ก่อน',
   },
   {
     match: (raw) => /rate limit|too many (?:calls|requests)/i.test(raw),
@@ -72,6 +75,24 @@ const RULES: Rule[] = [
     text: 'ไม่พบบัญชีผู้รับนี้แล้ว — ลูกค้าอาจลบบัญชีหรือเลิกเชื่อมต่อกับเพจไปแล้ว',
   },
 ]
+
+/**
+ * ตัดคำนำหน้า "ส่งไม่สำเร็จ — " ออก เหลือแต่ตัวเหตุผล
+ *
+ * ทำไมต้องมี: บับเบิลที่ล้มเหลวมี 2 เส้นทาง — แถวที่บันทึกลง DB แล้ว (ใช้ `describeSendFailure().text`
+ * ซึ่งเป็นเหตุผลล้วน) กับข้อความ optimistic ที่ยังไปไม่ถึง server (ได้ข้อความจาก `body.error` ซึ่ง
+ * บางเส้นทางเติมคำนำหน้ามาแล้ว บางเส้นทางยังไม่เติม) UI วาง "ส่งไม่สำเร็จ" เป็นป้ายของตัวเองแล้ว
+ * ทั้งสองเส้นทางจึงต้องส่งเข้ามาเป็นเหตุผลล้วนเหมือนกัน ไม่งั้นจะอ่านได้ว่า
+ * "ส่งไม่สำเร็จ (i) ส่งไม่สำเร็จ — เกินเวลา…"
+ */
+export function stripSendFailurePrefix(text: string | null | undefined): string | null {
+  const trimmed = (text ?? '').trim()
+  if (!trimmed) return null
+  if (!trimmed.startsWith(PREFIX)) return trimmed
+  // ตัดทั้งคำนำหน้าและตัวคั่น (em dash พร้อมช่องว่างรอบข้าง) ถ้ามี
+  const rest = trimmed.slice(PREFIX.length).replace(/^\s*—\s*/, '').trim()
+  return rest || null
+}
 
 export function describeSendFailure(reason: string | null | undefined): SendFailureDescription {
   const raw = (reason ?? '').trim()

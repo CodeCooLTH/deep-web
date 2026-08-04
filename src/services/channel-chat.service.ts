@@ -1,9 +1,9 @@
-import { Prisma } from '@prisma/client'
+import { Prisma, type ChatMessage } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendStickerMessage, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -38,6 +38,44 @@ export const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
  * ต้องได้ permission `human_agent` จาก App Review ก่อนถึงจะยิงจริงได้ — ถ้ายังไม่ได้แล้วส่ง tag ไป
  * Meta จะปฏิเสธทั้งข้อความ ซึ่งแย่กว่าการบล็อกไว้ตั้งแต่ต้น จึงเปิดด้วย env หลังได้อนุมัติแล้วเท่านั้น
  */
+/**
+ * error ของ `sendOutboundMessage` เมื่อ "บันทึกแถวแล้วแต่ Meta ปฏิเสธ"
+ *
+ * ยังคงรูป `message = "SEND_FAILED: <เหตุผลดิบ>"` ไว้เหมือนเดิม เพราะ route จับด้วย
+ * `startsWith("SEND_FAILED")` — ที่เพิ่มมาคือแถวที่บันทึกไว้แล้ว ให้ route ส่งกลับไปให้ client
+ * เอาไปแทนบับเบิล optimistic ของตัวเอง (ไม่งั้นข้อความเดียวขึ้นสองอัน)
+ */
+// Omit<'rawMessage'> ไม่ใช่ ChatMessage เต็ม — client ที่ตั้ง global omit ไว้จะไม่คืนคอลัมน์นี้
+// และแถวนี้ถูกส่งต่อออก API ไปให้เบราว์เซอร์ จึงต้องไม่มี payload ดิบติดไปด้วยอยู่แล้ว
+export type SendFailedError = Error & { savedMessage?: Omit<ChatMessage, 'rawMessage'> }
+
+/**
+ * ประกอบค่าที่จะลงคอลัมน์ `ChatMessage.rawMessage` (2026-08-03, user สั่ง)
+ *
+ * เก็บ payload ที่ได้รับ **ทั้งก้อน ไม่ตัดอะไรออก** — สิ่งที่ต้องใช้ตอนสืบคือ "field ที่เรายังไม่รู้จัก"
+ * (เช่นการ์ด audio_call ที่มาถึงแบบ text ว่าง ไม่มี attachment) การตัดตอนเก็บ = ตัดคำตอบทิ้ง
+ *
+ * ห่อด้วย envelope เล็ก ๆ เพราะอนาคตจะมีหลาย platform (LINE/TikTok) และหลายทางเข้า
+ * (webhook vs backfill จาก Graph) — ถ้าเก็บ payload เปล่า ๆ จะแยกไม่ออกว่าโครงนี้ของใคร
+ *
+ * ไม่ throw เด็ดขาด: การเก็บ log ห้ามทำให้ข้อความของลูกค้าหายไปทั้งข้อความ
+ */
+function toRawMessage(
+  provider: string,
+  payload: unknown,
+  // 'outbound-response' = ขาออก ไม่มี payload ที่ได้รับ เก็บสิ่งที่ Meta ตอบกลับตอนเรายิงไปแทน
+  source: 'webhook' | 'graph-backfill' | 'outbound-response' = 'webhook',
+): Prisma.InputJsonValue | undefined {
+  try {
+    // ผ่าน JSON round-trip ก่อน — ตัด undefined/ฟังก์ชัน/ค่าที่ Prisma รับไม่ได้ออกให้หมด
+    // และเป็นการยืนยันว่า serialize ได้จริงก่อนส่งเข้า DB
+    const clean = JSON.parse(JSON.stringify({ provider, source, payload }))
+    return clean as Prisma.InputJsonValue
+  } catch {
+    return undefined
+  }
+}
+
 export function isHumanAgentEnabled(): boolean {
   return process.env.META_HUMAN_AGENT_ENABLED === 'true'
 }
@@ -188,6 +226,9 @@ export async function syncMissingMessagesFromMeta(
         body: m.text ?? SYNCED_EMPTY_TEXT,
         createdAt: m.createdTime,
         externalMessageId: m.id,
+        // ทางเข้าที่สอง: ข้อความที่ webhook ไม่เคยส่งมา แล้วเราไปดึงจาก Graph เอง — ต้นทางคนละแบบ
+        // กับ webhook (โครง response ต่างกัน) จึงติด source ไว้ให้แยกออกตอนสืบ
+        rawMessage: toRawMessage('facebook', m, 'graph-backfill'),
       })),
       skipDuplicates: true,
     })
@@ -385,6 +426,8 @@ export async function ingestInboundMessage(params: {
   provider: string
   pageExternalId: string
   event: MessagingEvent
+  /** event ดิบก่อน Valibot parse (2026-08-03) — เก็บลง rawMessage แทนตัวที่ถูกตัด field ทิ้งแล้ว */
+  rawEvent?: unknown
 }): Promise<{
   status: IngestStatus
   conversationId?: string
@@ -522,8 +565,24 @@ export async function ingestInboundMessage(params: {
     if (fid) extraMedia.push({ fileId: fid, type: MEDIA_TYPE[t] })
   }
 
-  const type =
-    mirroredFileId && attType && MEDIA_TYPE[attType]
+  // เหตุการณ์การโทร (2026-08-03) — Meta ส่งมาทาง webhook `messages` ปกติ ไม่ใช่ field `calls`
+  // เป็น attachment template ชนิด `icon-template`:
+  //   { template_type: "icon-template",
+  //     elements: [{ title: "Missed call", subtitle: "Call again", image_url: "…" }] }
+  // (payload จริงจาก prod 2026-08-03 — เก็บได้เพราะเพิ่ง เปิด ChatMessage.rawMessage)
+  //
+  // ติดป้ายเป็น type='CALL' ตั้งแต่ตอน ingest แทนการให้ฝั่ง render ไปเดาจาก body — body เป็น
+  // ภาษาอังกฤษของ Meta ซึ่งเปลี่ยนเมื่อไรก็ได้ ถ้าผูก UI กับสตริงนั้นจะพังเงียบ ๆ วันที่ Meta แก้คำ
+  const callTitle = attType === 'template' && firstAttachment?.payload?.template_type === 'icon-template'
+    ? firstAttachment.payload.elements?.[0]?.title?.trim()
+    : undefined
+  // รู้จักเฉพาะ 2 ค่าที่ยืนยันจากข้อมูลจริงบน prod — ค่าอื่น (เช่น "Video call" ในอนาคต) ตกกลับไป
+  // เป็นข้อความธรรมดาเหมือนเดิม ไม่เดาแล้ววาดการ์ดผิดชนิด
+  const isCallEvent = callTitle === 'Missed call' || callTitle === 'Audio call'
+
+  const type = isCallEvent
+    ? 'CALL'
+    : mirroredFileId && attType && MEDIA_TYPE[attType]
       ? MEDIA_TYPE[attType]
       : isImageLike
         ? 'IMAGE' // รูป/สติกเกอร์ที่ mirror ไม่ผ่าน → คง IMAGE (imageUrl null + placeholder)
@@ -630,7 +689,13 @@ export async function ingestInboundMessage(params: {
     ig_post: '[ลิงก์ที่แชร์]',
     template: '[ข้อความจากระบบ]',
   }
-  const singlePreview = mirroredFileId
+  const singlePreview = isCallEvent
+    ? // preview ในรายการแชทต้องเป็นไทยเหมือนการ์ดในเธรด — ถ้าปล่อยตกไปสาขา hasDisplayText
+      // มันจะเอา title ของ Meta ("Missed call") มาแสดงดิบ ๆ คนละภาษากับที่เห็นตอนเปิดห้อง
+      callTitle === 'Missed call'
+      ? '[สายที่ไม่ได้รับ]'
+      : '[มีการโทรด้วยเสียง]'
+    : mirroredFileId
     ? (previewByType[type] ?? '[ไฟล์แนบ]')
     : hasDisplayText
       ? displayText!.slice(0, 100)
@@ -669,6 +734,10 @@ export async function ingestInboundMessage(params: {
         // reply (Phase 3): externalMessageId ของข้อความที่ตอบทับ — UI ดึง quote มาแสดง
         replyToMid: event.message?.reply_to?.mid ?? null,
         deliveryStatus: 'SENT',
+        // payload ดิบจาก platform (2026-08-03) — เก็บ event ทั้งก้อนตามที่ได้รับ ไม่ตัดอะไรออก
+        // เพราะสิ่งที่จะต้องใช้สืบคือ "field ที่เรายังไม่รู้จัก" ตัดตอนเก็บ = ตัดคำตอบทิ้ง
+        // อ่านไม่ได้จาก query ปกติ (global omit ที่ lib/prisma.ts)
+        rawMessage: toRawMessage(params.provider, params.rawEvent ?? event),
       },
     })
 
@@ -685,6 +754,9 @@ export async function ingestInboundMessage(params: {
           imageUrl: extraMedia[i].fileId,
           externalMessageId: mid ? `${mid}#${i + 1}` : null,
           deliveryStatus: 'SENT',
+          // event เดียวกับแถวหลัก (Meta ส่งหลายไฟล์มาใน event เดียว) — เก็บซ้ำเพื่อให้ทุกแถว
+          // สืบต้นทางของตัวเองได้โดยไม่ต้องไปไล่หาแถวพี่
+          rawMessage: toRawMessage(params.provider, params.rawEvent ?? event),
         },
       })
     }
@@ -987,6 +1059,114 @@ export async function ingestReactionEvent(params: {
   })
 }
 
+/**
+ * ร้านกดรีแอ็กชันใส่ข้อความในเธรด (feature 00018 — user สั่ง 2026-08-03 "reaction ข้อความด้วย")
+ *
+ * เส้นทางกลับด้านของ ingestReactionEvent: ตัวนั้นรับของจาก Meta ตัวนี้ส่งของออกไป
+ * `ChatMessage.reactionEmoji` ยังเป็นคอลัมน์เดียวเหมือนเดิม = "รีแอ็กชันล่าสุดบนข้อความนี้"
+ * ไม่แยกว่าใครกด — ตรงกับพฤติกรรมที่มีอยู่ก่อนแล้ว (ร้านกดจากแอป Messenger เองก็เขียนช่องนี้
+ * ผ่าน echo อยู่ดี). ผลที่ตามมาคือถ้าทั้งสองฝั่งกด จะเห็นอันล่าสุดอันเดียว ไม่ซ้อนกันแบบ Messenger
+ * — ยอมรับไว้ก่อน การแยกต้องเพิ่มคอลัมน์ + migration บนฐาน prod ที่แชร์กัน
+ *
+ * เขียนฐานเองด้วยหลังยิงสำเร็จ ไม่รอ echo: Meta ยิง message_reactions กลับมาให้ก็จริง แต่ช้ากว่า
+ * การกดของผู้ใช้มาก และรอบก่อนหน้านี้พิสูจน์แล้วว่า echo ของ action ที่ระบบเราเป็นคนทำ ไม่ใช่สิ่งที่
+ * รับประกันได้ (ข้อความอัตโนมัติของ Meta เองยังไม่ echo) — ถ้า echo มาทีหลังก็เขียนค่าเดิมทับ ไม่เสียหาย
+ */
+export async function sendOutboundReaction(params: {
+  conversationId: string
+  messageId: string
+  /** null = ถอนรีแอ็กชัน */
+  emoji: string | null
+  actorUserId: string
+}): Promise<{ emoji: string | null }> {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: params.conversationId },
+    include: { shopChannel: true, externalContact: true },
+  })
+  if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
+  // authz ก่อนแตะข้อมูลข้อความ — เหมือน cancelFailedOutboundMessage
+  if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+
+  const message = await prisma.chatMessage.findFirst({
+    where: { id: params.messageId, conversationId: params.conversationId },
+    select: { id: true, externalMessageId: true, isDeleted: true },
+  })
+  if (!message) throw new Error('MESSAGE_NOT_FOUND')
+  if (message.isDeleted) throw new Error('MESSAGE_DELETED')
+
+  // แชทในแอป (DEEP) ไม่มีปลายทางให้ยิง — เก็บฝั่งเราอย่างเดียวก็ครบความหมายแล้ว
+  const isExternal = conversation.channel !== 'DEEP' && !!conversation.shopChannel && !!conversation.externalContact
+  if (isExternal) {
+    if (conversation.shopChannel!.status !== 'ACTIVE') throw new Error('CHANNEL_INACTIVE')
+    // ข้อความที่ยังไม่มี mid = ยังไม่ถึง Meta (ส่งไม่สำเร็จ/optimistic) — รีแอ็กชันไม่มีเป้าให้ผูก
+    if (!message.externalMessageId) throw new Error('MESSAGE_NOT_ON_CHANNEL')
+    const pageToken = decryptToken(conversation.shopChannel!.accessTokenEnc)
+    await sendMessageReaction(
+      pageToken,
+      conversation.externalContact!.externalUserId,
+      message.externalMessageId,
+      params.emoji,
+    )
+  }
+
+  await prisma.chatMessage.update({
+    where: { id: message.id },
+    data: { reactionEmoji: params.emoji },
+  })
+  return { emoji: params.emoji }
+}
+
+/**
+ * ลูกค้าแก้ข้อความที่ส่งไปแล้ว (message_edits — เปิด field 2026-08-03)
+ *
+ * ถ้าไม่รับ event นี้ เธรดฝั่งเราจะค้างอยู่ที่ข้อความ **ก่อนแก้** ตลอดไป ซึ่งอันตรายกว่าการไม่มีฟีเจอร์
+ * เพราะร้านอ่านที่อยู่/จำนวน/เบอร์เวอร์ชันเก่าไปทำงานต่อโดยไม่รู้ตัว (Messenger ฝั่งลูกค้าเห็นของใหม่)
+ *
+ * ไม่เพิ่มคอลัมน์: บันทึกร่องรอยการแก้ไว้ใน `rawMessage.edit` (json ที่มีอยู่แล้ว) — พอสำหรับให้ UI
+ * ขึ้นป้าย "แก้ไขแล้ว" และไม่ต้องแตะ schema ของฐานที่ใช้ร่วมกับ prod
+ * num_edit: Meta จำกัดให้แก้ได้ไม่เกิน 5 ครั้ง (ข้อจำกัดฝั่ง client ตามเอกสาร) เก็บไว้เป็นหลักฐาน
+ */
+export async function ingestMessageEdit(params: {
+  provider: string
+  pageExternalId: string
+  mid: string
+  text?: string
+  numEdit?: number | string
+  timestamp?: number
+}): Promise<void> {
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  if (!channel) return
+  const target = await prisma.chatMessage.findFirst({
+    where: { externalMessageId: params.mid, conversation: { shopChannelId: channel.id } },
+    select: { id: true, conversationId: true, rawMessage: true },
+  })
+  if (!target) return
+
+  const raw = (target.rawMessage ?? {}) as Prisma.JsonObject
+  const editedAt = new Date(params.timestamp ?? Date.now()).toISOString()
+  await prisma.chatMessage.update({
+    where: { id: target.id },
+    data: {
+      body: params.text ?? null,
+      rawMessage: { ...raw, edit: { at: editedAt, numEdit: params.numEdit ?? null } },
+    },
+  })
+
+  // snapshot ของเธรดชี้ข้อความนี้อยู่หรือเปล่า — ถ้าใช่ต้องอัปเดตด้วย ไม่งั้นกล่องขาเข้าโชว์ข้อความ
+  // เวอร์ชันเก่าที่ไม่มีอยู่จริงแล้ว (invariant เดียวกับที่ cancelFailedOutboundMessage รักษาไว้)
+  const newest = await prisma.chatMessage.findFirst({
+    where: { conversationId: target.conversationId },
+    orderBy: [{ createdAt: 'desc' }, { seq: 'desc' }],
+    select: { id: true },
+  })
+  if (newest?.id === target.id && params.text) {
+    await prisma.conversation.update({
+      where: { id: target.conversationId },
+      data: { lastMessagePreview: params.text.slice(0, 100) },
+    })
+  }
+}
+
 export async function sendOutboundMessage(params: {
   conversationId: string
   // actorUserId = คนกดส่ง. null ได้เฉพาะเส้นทางระบบ (auto-reply) ซึ่งต้องส่ง systemShopId มาคู่กัน
@@ -1007,6 +1187,12 @@ export async function sendOutboundMessage(params: {
   /** deprecated (2026-08-02) — ใช้ `attachment` แทน. คงไว้เพราะ auto-reply-send.service.ts
    *  ยังส่งรูปทีละใบด้วยพารามิเตอร์นี้อยู่ (ภายในแปลงเป็น attachment kind='IMAGE' ให้เอง) */
   imageFileId?: string
+  /**
+   * สติกเกอร์ Meta (user สั่ง 2026-08-04) — ส่ง `sticker_id` ไม่ใช่ไฟล์แนบ (Sticker API)
+   * imageUrl = รูปจาก catalog เอาไป mirror เก็บฝั่งเราให้บับเบิลมีรูปแสดงทันทีโดยไม่ต้องรอ echo
+   * ใช้ร่วมกับ text/attachment ไม่ได้ (Meta ให้ส่งอย่างใดอย่างหนึ่งต่อข้อความ) — sticker ชนะ
+   */
+  sticker?: { id: string; imageUrl: string }
   /** ไฟล์แนบทุกชนิด (2026-08-02 multi-attachment) — kind ตัดสิน `attachment.type` ที่ยิงให้ Meta */
   attachment?: {
     fileId: string
@@ -1044,21 +1230,33 @@ export async function sendOutboundMessage(params: {
     if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
   }
 
-  // เช็คหน้าต่างก่อนยิง — กันเปลือง quota และกัน error ที่คาดเดาได้อยู่แล้ว (1545041)
+  // หน้าต่างการส่งของ Meta — เลิก "ตัดสินแทน Meta" สำหรับข้อความที่คนพิมพ์เอง
+  // (user request 2026-08-03: "การไป lock ui มันทำให้เกิดปัญหา")
   //
-  // 3 ระดับ: ในหน้าต่าง 24 ชม. = ส่งได้ปกติ | เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน = ส่งได้เฉพาะ
-  // "คนพิมพ์เอง" ผ่าน HUMAN_AGENT tag | เกิน 7 วัน = ส่งไม่ได้จริง ต้องรอลูกค้าทัก
+  // เดิม: ถ้า getWindowState บอกว่าปิด เราจะ throw WINDOW_CLOSED ทิ้งตั้งแต่ตรงนี้ — ก่อนที่จะ
+  // สร้างแถว ChatMessage ด้วยซ้ำ ผลคือร้านไม่เห็นบับเบิลอะไรเลย เห็นแค่ช่องพิมพ์ที่ถูกล็อกไว้
   //
-  // เงื่อนไข "คนพิมพ์เอง" = มี actorUserId (เส้นทางระบบ/auto-reply ส่ง systemShopId มาแทน
-  // และ actorUserId เป็น null เสมอ — ดู WARNING ที่ params) นี่คือ gate ของนโยบาย ห้ามผ่อน
+  // ทำไมถึงเปลี่ยน: `lastInboundAt` ที่เราเก็บไม่ใช่ความจริงเสมอไป (นั่นคือเหตุผลที่ต้องมี
+  // syncInboundWindowFromMeta มาตั้งแต่แรก) และหลักฐานฝั่งตรงข้ามก็มีแล้ว — subcode 1545041
+  // ที่เคยเชื่อว่าผูกกับหน้าต่าง พิสูจน์แล้วว่าเด้งตอนหน้าต่างยังเปิดอยู่ด้วย (ดู lib/chat-send-failure.ts)
+  // แปลว่าโมเดลหน้าต่างของเราคลาดทั้งสองทาง การล็อก UI จากค่าที่ไม่แม่น = ห้ามร้านส่งข้อความ
+  // ที่ Meta ยอมรับ ซึ่งเสียหายกว่าปล่อยให้ยิงแล้วโดนปฏิเสธ
+  //
+  // ตอนนี้: คนพิมพ์เอง = ยิงไปให้ Meta ตัดสิน ถ้าโดนปฏิเสธจะถูกบันทึกเป็น deliveryStatus
+  // FAILED + failureReason (ดูด้านล่าง) แล้วขึ้นเป็นบับเบิล "ส่งไม่สำเร็จ — <เหตุผล>" พร้อมปุ่ม
+  // ลองใหม่ ซึ่งบอกความจริงกับร้านได้ตรงกว่าช่องพิมพ์ที่กดไม่ได้โดยไม่บอกเหตุผล
+  //
+  // ที่ยัง gate ไว้เหมือนเดิม (ห้ามผ่อน): เส้นทางระบบ/auto-reply/AI (actorUserId เป็น null) — ห้ามยิง
+  // นอกหน้าต่างเด็ดขาด เพราะนั่นคือข้อความอัตโนมัติที่ผิดนโยบาย Meta จริง ๆ (เสี่ยงโดนระงับแอป)
+  // ไม่ใช่แค่ error ที่คาดเดาได้ นี่คือ gate ของนโยบาย ห้ามผ่อน
   const windowState = getWindowState(conversation.lastInboundAt)
   const sentByHuman = params.actorUserId !== null && !params.autoReplyKind
   let messageTag: 'HUMAN_AGENT' | undefined
   if (!windowState.open) {
-    if (!(isHumanAgentEnabled() && windowState.humanAgentOpen && sentByHuman)) {
-      throw new Error('WINDOW_CLOSED')
-    }
-    messageTag = 'HUMAN_AGENT'
+    if (!sentByHuman) throw new Error('WINDOW_CLOSED')
+    // ติด HUMAN_AGENT ให้เมื่อทำได้ — เป็น tag ที่ถูกต้องสำหรับ "คนตอบเองหลังพ้น 24 ชม."
+    // (ต้องได้ permission จาก App Review ก่อน ไม่งั้น Meta ปฏิเสธทั้งข้อความ จึงยังคุมด้วย env)
+    if (isHumanAgentEnabled() && windowState.humanAgentOpen) messageTag = 'HUMAN_AGENT'
   }
 
   // เช็คสถานะ channel ก่อนยิง Send API — token ตายแล้ว (ถูก markChannelTokenInvalid ไว้) หรือ
@@ -1074,11 +1272,17 @@ export async function sendOutboundMessage(params: {
 
   let mid: string | null = null
   let failureReason: string | null = null
+  /** สิ่งที่ Meta ตอบกลับตอนเรายิงไป — ลง ChatMessage.rawMessage (source: 'outbound-response') */
+  let outboundResponse: unknown = null
   try {
     // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
     // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
     // sendText/sendImage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจ/IG account ให้เองแล้ว
-    if (attachment) {
+    if (params.sticker) {
+      // สติกเกอร์: ยิง sticker_id ตรง ๆ ไม่ใช่ attachment (ดู lib/facebook/graph.ts sendStickerMessage)
+      // อยู่ใต้กฎหน้าต่างเวลาเดียวกัน จึงส่ง messageTag ไปด้วยเหมือนข้อความปกติ
+      mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, messageTag)
+    } else if (attachment) {
       // presigned URL อายุ 1 ชม. — Meta ดึงไฟล์ไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
       const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
       mid = await sendAttachmentMessage(
@@ -1124,18 +1328,45 @@ export async function sendOutboundMessage(params: {
     }
     if (!mid) {
       failureReason = e instanceof Error ? e.message : 'ส่งข้อความไม่สำเร็จ'
+      // เก็บ error ดิบของ Meta ไว้สืบ (2026-08-03, user สั่ง) — `failureReason` เป็นสตริงเดียว
+      // ซึ่งไม่พอตอนเจอ error แปลก ๆ อย่าง #551: ที่ต้องใช้จริงคือ fbtrace_id (ไว้แจ้ง Meta),
+      // error_subcode และ error_user_msg ที่อยู่ใน body เต็มเท่านั้น
+      if (e instanceof GraphApiError) {
+        outboundResponse = { ok: false, httpStatus: e.httpStatus, code: e.code, subcode: e.subcode, error: e.raw }
+      } else {
+        outboundResponse = { ok: false, error: e instanceof Error ? e.message : String(e) }
+      }
       // code 190 = token ใช้ไม่ได้แล้ว (เจ้าของถอนสิทธิ์/เปลี่ยนรหัส) — ต้องให้ร้านเชื่อมใหม่
       if (e instanceof GraphApiError && e.code === 190) {
         await markChannelTokenInvalid(conversation.shopChannel.id)
       }
     }
   }
+  // ขาออกไม่มี "payload ที่ได้รับ" แบบขาเข้า — สิ่งที่มีค่าเทียบเท่าคือสิ่งที่ Meta ตอบกลับตอนเรายิงไป
+  if (mid) {
+    outboundResponse = {
+      ok: true,
+      mid,
+      messageTag: messageTag ?? null,
+      attachmentKind: attachment?.kind ?? null,
+      replyToMid: params.replyToMid ?? null,
+    }
+  }
 
   // การ์ดคำสั่งซื้อ (user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" (bodyText ที่ยิงไป Meta) แต่
   // ฝั่งเราเก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด. echo ของลิงก์ (mid เดิม) จะ dedupe กับแถวนี้เอง
   const isOrder = !!params.orderRefToken
+  /**
+   * สติกเกอร์เก็บเป็นแถวชนิด IMAGE + mirror รูปมาไว้ storage ของเรา (เหมือนรูปขาเข้า) ไม่เก็บ URL
+   * ของ CDN Meta ตรง ๆ เพราะ (1) ตัวเรนเดอร์ในเธรดอ่าน imageUrl เป็น fileId เสมอ (`/api/files/{id}`)
+   * (2) URL ของ Meta หมดอายุได้ แล้วบับเบิลเก่าจะกลายเป็นรูปแตกย้อนหลัง
+   * mirror ล้มเหลว = ยังเก็บแถวไว้ (บับเบิลจะไม่มีรูป) ไม่ทำให้การส่งที่สำเร็จแล้วกลายเป็น error
+   */
+  const stickerFileId = params.sticker ? await mirrorRemoteImage(params.sticker.imageUrl) : null
   const preview = isOrder
     ? '[คำสั่งซื้อ]'
+    : params.sticker
+      ? '[สติกเกอร์]'
     : attachment
       ? attachment.kind === 'IMAGE'
         ? '[รูปภาพ]'
@@ -1156,10 +1387,10 @@ export async function sendOutboundMessage(params: {
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: isOrder ? 'ORDER' : (attachment?.kind ?? 'TEXT'),
+          type: isOrder ? 'ORDER' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
           // ORDER: เก็บ orderRefToken (การ์ด live-join); ไฟล์แนบ: body=null, imageUrl=fileId; ข้อความ: body=text
-          body: isOrder || attachment ? null : bodyText,
-          imageUrl: attachment?.fileId ?? null,
+          body: isOrder || attachment || params.sticker ? null : bodyText,
+          imageUrl: stickerFileId ?? attachment?.fileId ?? null,
           attachmentName: attachment?.name ?? null,
           attachmentSize: attachment?.size ?? null,
           orderRefToken: isOrder ? params.orderRefToken! : null,
@@ -1169,6 +1400,9 @@ export async function sendOutboundMessage(params: {
           failureReason,
           // feature 00023 — null = คนส่ง (พฤติกรรมเดิมทุก caller ที่ไม่ส่งค่านี้มา)
           autoReplyKind: params.autoReplyKind ?? null,
+          // ขาออก: เก็บ "สิ่งที่ Meta ตอบกลับ" แทน "payload ที่ได้รับ" (2026-08-03)
+          // อ่านไม่ได้จาก query ปกติ — global omit ที่ lib/prisma.ts
+          rawMessage: toRawMessage(conversation.channel, outboundResponse, 'outbound-response'),
         },
       })
 
@@ -1215,7 +1449,18 @@ export async function sendOutboundMessage(params: {
     }
   }
 
-  if (failureReason) throw new Error(`SEND_FAILED: ${failureReason}`)
+  if (failureReason) {
+    // แนบแถวที่ "บันทึกสำเร็จแล้ว" ไปกับ error ด้วย (2026-08-03)
+    //
+    // ทำไม: ส่งไม่ผ่าน ≠ ไม่ได้บันทึก — เราเขียนแถว deliveryStatus=FAILED ลง DB ไปแล้วข้างบน
+    // ถ้าโยน error เปล่า ๆ ฝั่ง client จะไม่มีอะไรไปแทนบับเบิล optimistic ของมัน → ค้างไว้คู่กับ
+    // แถวจริงที่ตามมาทาง realtime/GET = ผู้ใช้เห็นข้อความเดียวกันสองอัน แล้วหายไปเองตอน refresh
+    // (บั๊กจริง user report 2026-08-03 หลังเลิกบล็อกหน้าต่าง 24 ชม. — ก่อนหน้านั้น WINDOW_CLOSED
+    // ถูกโยนก่อนสร้างแถว จึงไม่เคยมีแถวจริงมาชนกับบับเบิล optimistic)
+    const err = new Error(`SEND_FAILED: ${failureReason}`) as SendFailedError
+    err.savedMessage = message
+    throw err
+  }
 
   // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (BR-AR-22 / humanTakeoverPauseMode)
   //

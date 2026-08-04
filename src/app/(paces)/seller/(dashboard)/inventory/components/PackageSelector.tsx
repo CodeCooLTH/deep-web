@@ -65,20 +65,20 @@ const MODE_CONFIG = {
     endpoint: '/api/inventory/subscribe',
     ctaVerb: 'สมัครแพ็กเกจนี้',
     confirmTitle: (label: string) => `สมัคร ${label}?`,
-    confirmText: (price: number) => `ระบบจะหักเครดิต ฿${price} จากกระเป๋าเงินของคุณทันที และเริ่มรอบใช้งาน 30 วัน`,
+    confirmText: (price: number) => `ระบบจะหักเงิน ฿${price} จากกระเป๋าเงินของคุณทันที และเริ่มรอบใช้งาน 30 วัน`,
     confirmButtonText: (price: number) => `สมัคร ฿${price}`,
     successToast: (label: string) => `สมัคร ${label} สำเร็จ`,
-    insufficientCreditLink: 'เติมเครดิตก่อนสมัคร',
+    insufficientCreditLink: 'เติมเงินก่อนสมัคร',
     conflictMessage: 'สมัครใช้งานอยู่แล้ว',
   },
   reactivate: {
     endpoint: '/api/inventory/reactivate',
     ctaVerb: 'เปิดใช้งานอีกครั้ง',
     confirmTitle: (label: string) => `เปิดใช้งานอีกครั้ง (${label})?`,
-    confirmText: (price: number) => `ระบบจะหักเครดิต ฿${price} และเปิดใช้งานทันที ข้อมูลสต็อกเดิมของคุณยังอยู่ครบ`,
+    confirmText: (price: number) => `ระบบจะหักเงิน ฿${price} และเปิดใช้งานทันที ข้อมูลสต็อกเดิมของคุณยังอยู่ครบ`,
     confirmButtonText: (price: number) => `เปิดใช้งาน ฿${price}`,
     successToast: (label: string) => `เปิดใช้งาน ${label} อีกครั้งสำเร็จ`,
-    insufficientCreditLink: 'เติมเครดิตก่อนเปิดใช้อีกครั้ง',
+    insufficientCreditLink: 'เติมเงินก่อนเปิดใช้อีกครั้ง',
     conflictMessage: 'บัญชีนี้ไม่ได้ถูกล็อก',
   },
 } as const
@@ -88,7 +88,7 @@ function errorMessage(mode: 'subscribe' | 'reactivate', status: number): string 
   const cfg = MODE_CONFIG[mode]
   switch (status) {
     case 402:
-      return `เครดิตไม่พอ — <a href="/wallet" class="underline">${cfg.insufficientCreditLink}</a>`
+      return `ยอดเงินไม่พอ — <a href="/wallet" class="underline">${cfg.insufficientCreditLink}</a>`
     case 409:
       return cfg.conflictMessage
     default:
@@ -157,7 +157,7 @@ export default function PackageSelector({ mode, lockedAt = null }: PackageSelect
         >
           <Icon icon="alert-triangle" className="size-5 shrink-0 mt-0.5" aria-hidden="true" />
           <span>
-            ถูกล็อกเพราะเครดิตไม่พอ
+            ถูกล็อกเพราะยอดเงินไม่พอ
             {lockedAt && (
               <>
                 <br />

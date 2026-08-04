@@ -12,6 +12,7 @@
  * ต่างจาก widget panel ที่ h-full ไม่มี .card ซ้ำ)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
@@ -71,7 +72,8 @@ export type ChatMessageView = {
   senderRole: 'BUYER' | 'SHOP'
   // VIDEO/AUDIO/FILE = ไฟล์แนบช่องทางนอก (feature 00018) — fileId เก็บใน imageUrl เหมือน IMAGE
   // ORDER = การ์ดออเดอร์/ใบเสนอราคา (user 2026-07-24) — enrich orderCard จาก GET
-  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER'
+  // CALL = เหตุการณ์การโทร (Meta icon-template) — render เป็นการ์ดกลางจอ ไม่ใช่บับเบิล
+  type: 'TEXT' | 'IMAGE' | 'PRODUCT' | 'VIDEO' | 'AUDIO' | 'FILE' | 'ORDER' | 'CALL'
   body: string | null
   imageUrl: string | null
   // ไฟล์แนบ (2026-08-02) — ชื่อเดิม/ขนาดที่ผู้ส่งเลือก; null = ข้อความเก่าหรือไฟล์ที่ mirror มาจาก
@@ -102,13 +104,28 @@ export type ChatMessageView = {
     adLabel: string | null
     productName: string | null
   } | null
+  /**
+   * คนในทีมร้านที่กดส่งข้อความนี้ (user 2026-08-02) — enrich จาก API ทั้ง GET และ POST
+   *
+   * `null` = ไม่มีคนส่ง: ข้อความมาทาง webhook (echo ของสิ่งที่ส่งจาก Messenger/Business Suite
+   * โดยตรง) หรือบอทตอบ → UI แสดงรูปเพจตามเดิม
+   * มีค่าแต่ `avatar = null` = คนนั้นยังไม่ได้ตั้งรูปโปรไฟล์ → UI แสดงไอคอนคน placeholder
+   */
+  sender?: { name: string; avatar: string | null } | null
   // feature 00018 Phase 3 — reply/unsend
   isDeleted?: boolean // ผู้ส่ง unsend → แสดง "ข้อความถูกลบ"
+  /** ลูกค้าแก้ข้อความนี้ทีหลัง (message_edits, 2026-08-03) — เนื้อความที่เห็นคือเวอร์ชันล่าสุดแล้ว */
+  edited?: boolean
   replyTo?: { body: string | null; senderRole: 'BUYER' | 'SHOP' } | null // quote ข้อความที่ตอบทับ (enrich ที่ API)
   // optimistic send (client-only, ไม่มาจาก server): 'sending'=spinner, 'sent'=check, 'failed'=refresh แดง
   _status?: 'sending' | 'sent' | 'failed'
   // payload สำหรับ resend เมื่อ _status='failed' (เก็บเฉพาะข้อความ optimistic ที่ยังไม่สำเร็จ)
   _retry?: OutgoingRetry
+  /** เหตุผลที่ส่งไม่สำเร็จของข้อความ optimistic (2026-08-03) — เดิมเหตุผลไปอยู่ใน toast อย่างเดียว
+   *  ซึ่งหายไปเองใน 2-3 วินาที เหลือบับเบิลแดงที่มีแต่ปุ่ม "ลองใหม่" ไม่บอกว่าทำไมพัง. หลังเลิกล็อก
+   *  ช่องพิมพ์ตามหน้าต่าง 24 ชม. บับเบิลล้มเหลวจะเกิดถี่ขึ้นมาก เหตุผลจึงต้องอยู่ติดข้อความถาวร
+   *  เหมือนเส้นทาง deliveryStatus='FAILED' (แถวที่บันทึกลง DB แล้ว) ไม่ใช่คนละมาตรฐาน */
+  _failReason?: string
 }
 
 type MessagesApiResponse = {
@@ -176,6 +193,13 @@ export function groupByDate(messages: ChatMessageView[]) {
 // dashboard ไม่มี list → คงเปิด beep (default true)
 export function useSellerChatThread(conversationId: string, shopId?: string | null, beepEnabled = true) {
   const [messages, setMessages] = useState<ChatMessageView[]>([])
+  // ผู้ส่ง = ตัวเราเองเสมอสำหรับบับเบิล optimistic (user 2026-08-02) — ถ้าไม่ใส่ไป บับเบิลที่เพิ่ง
+  // กดส่งจะขึ้นรูปเพจอยู่ครู่หนึ่งแล้วเปลี่ยนเป็นรูปเราตอน API ตอบกลับ ซึ่งอ่านเหมือนระบบสลับ
+  // ตัวตนผู้ส่งเอง (session มี displayName/avatar อยู่แล้ว ไม่ต้องยิง API เพิ่ม)
+  const { data: _session } = useSession()
+  const me = _session?.user as { displayName?: string; avatar?: string | null } | undefined
+  const optimisticSender = me?.displayName ? { name: me.displayName, avatar: me.avatar ?? null } : null
+
   const [oldestCursor, setOldestCursor] = useState<string | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [externalReadAt, setExternalReadAt] = useState<string | null>(null)
@@ -573,15 +597,32 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           body: JSON.stringify(payload),
         })
         if (!res.ok) {
+          let reason: string
+          const body = await res.json().catch(() => null)
           if (res.status === 429) {
-            pacesToast.error('ส่งข้อความถี่เกินไป กรุณารอสักครู่')
+            reason = 'ส่งข้อความถี่เกินไป กรุณารอสักครู่'
           } else {
             // บอกสาเหตุทันทีตอนกดส่ง/กดลองใหม่ (user 2026-08-02) — เดิมเงียบ เห็นแค่บับเบิลแดง
             // แล้วต้องรอ GET รอบถัดไปถึงจะรู้ว่าทำไม. route ตอบเป็นไทยแล้ว (chat-send-failure.ts)
-            const body = await res.json().catch(() => null)
-            pacesToast.error(body?.error ?? 'ส่งข้อความไม่สำเร็จ')
+            reason = body?.error ?? 'ส่งข้อความไม่สำเร็จ'
           }
-          setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const } : m)))
+          pacesToast.error(reason)
+          // ส่งไม่ผ่าน ≠ ไม่ได้บันทึก — ถ้า Meta ปฏิเสธ server จะบันทึกแถว deliveryStatus=FAILED
+          // ไว้แล้วและส่งกลับมาใน `savedMessage` ต้องเอามาแทนบับเบิล optimistic เหมือน path ที่สำเร็จ
+          // ไม่งั้นบับเบิลชั่วคราวจะค้างคู่กับแถวจริงที่ตามมาทาง realtime/GET = ข้อความเดียวขึ้นสองอัน
+          // แล้วหายไปเองตอน refresh (user report 2026-08-03)
+          const saved: ChatMessageView | null = body?.savedMessage ?? null
+          setMessages((prev) => {
+            if (saved?.id) {
+              const deduped = prev.filter((m) => m.id !== saved.id)
+              return deduped.map((m) => (m.id === localId ? { ...saved, _status: undefined } : m))
+            }
+            // ไม่มีแถวจริง (ยังไม่ถึง Meta เลย เช่น 429/สิทธิ์/validation) — คงบับเบิลชั่วคราวไว้
+            // พร้อมเหตุผล — toast หายเองแต่บับเบิลอยู่ต่อ ร้านต้องย้อนดูได้ว่าทำไมไม่ผ่าน
+            return prev.map((m) =>
+              m.id === localId ? { ...m, _status: 'failed' as const, _failReason: reason } : m,
+            )
+          })
           return
         }
         const real: ChatMessageView = await res.json()
@@ -591,7 +632,14 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           return deduped.map((m) => (m.id === localId ? { ...real, _status: 'sent' as const } : m))
         })
       } catch {
-        setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, _status: 'failed' as const } : m)))
+        // ไปไม่ถึง server เลย (เน็ตหลุด/หมดเวลา) — แยกถ้อยคำจากกรณีที่ Meta ปฏิเสธ เพราะทางแก้คนละอย่าง
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === localId
+              ? { ...m, _status: 'failed' as const, _failReason: 'เชื่อมต่อไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่' }
+              : m,
+          ),
+        )
       }
     },
     [conversationId],
@@ -647,6 +695,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         id: localId,
         conversationId,
         senderUserId: '',
+        sender: optimisticSender,
         senderRole: 'SHOP',
         type: payload.type,
         body: payload.body,
@@ -698,9 +747,13 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
    * — คนละเคสกับ retryMessage ข้างบนซึ่งเป็นบับเบิล optimistic ที่ยังไม่เคยถึง server (user 2026-08-02)
    *
    * ทำไมถึงเป็น "ข้อความใหม่" ไม่ใช่แก้แถวเดิมให้กลายเป็นสำเร็จ: ChatMessage ประกาศตัวเองว่า
-   * append-only (schema.prisma:1411 "ไม่มี updatedAt/edit/delete") — บับเบิลที่ยิงไม่ออกคือเหตุการณ์
-   * ที่เกิดขึ้นจริงและร้านควรเห็นว่าเกิด ส่วนครั้งที่ส่งใหม่ก็เป็นอีกเหตุการณ์หนึ่ง. ผลพลอยได้คือ
-   * ภาพก่อน/หลังรีเฟรชตรงกันเสมอ (ถ้าลบบับเบิลเก่าทิ้งฝั่ง client มันจะโผล่กลับมาตอนโหลดใหม่)
+   * append-only (schema.prisma "ไม่มี updatedAt/edit") — ครั้งที่ส่งใหม่คืออีกเหตุการณ์หนึ่งจริง ๆ
+   * (mid คนละตัว เวลาคนละเวลา) จึงต้องเป็นแถวใหม่ ไม่ใช่การเขียนทับแถวเก่า
+   *
+   * สำคัญ: caller ต้องเอาแถวเดิมออกเองด้วย `cancelMessage(oldId)` (ดู ChatThread `retryFailed`) —
+   * ไม่งั้นข้อความเดียวกันค้างเป็นบับเบิลแดงซ้อนกัน N อันตามจำนวนครั้งที่กด ซึ่งไม่ตรงกับคำว่า
+   * "ลองใหม่" (user report 2026-08-03). ที่ทำได้เพราะ `cancelMessage` ลบถึง DB จริงผ่าน DELETE
+   * endpoint — ภาพก่อน/หลังรีเฟรชจึงยังตรงกัน (ต่างจากการกรองทิ้งแค่ฝั่ง client ที่จะโผล่กลับมา)
    */
   const resendMessage = useCallback(
     (payload: OutgoingRetry) => {
@@ -711,6 +764,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           id: localId,
           conversationId,
           senderUserId: '',
+          sender: optimisticSender,
           senderRole: 'SHOP',
           type: payload.type,
           body: payload.body,
@@ -762,12 +816,90 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     [conversationId],
   )
 
+  /**
+   * ส่งสติกเกอร์ Meta (user สั่ง 2026-08-04 "channel ที่เป็น facebook รองรับ sticker ด้วย")
+   *
+   * ไม่ทำ optimistic bubble ต่างจากข้อความ/รูป: บับเบิลสติกเกอร์ต้องแสดงจาก fileId ที่ server
+   * mirror ไว้ (ตัวเรนเดอร์อ่าน imageUrl เป็น fileId เสมอ) — ถ้าแอบใส่ URL ของ Meta ลงไปก่อน
+   * บับเบิลจะเป็นรูปแตกอยู่ชั่วขณะแล้วสลับ ซึ่งแย่กว่ารอ ~1 วินาทีแล้วขึ้นของจริงทีเดียว
+   * ระหว่างรอใช้ธง sending เดิม (ปุ่มในแผงจะกดซ้ำไม่ได้)
+   */
+  const sendSticker = useCallback(
+    async (sticker: { id: string; imageUrl: string }): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'STICKER',
+            body: null,
+            stickerId: sticker.id,
+            stickerImageUrl: sticker.imageUrl,
+          }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'ส่งสติกเกอร์ไม่สำเร็จ')
+          return false
+        }
+        await refetchNewer()
+        return true
+      } catch {
+        pacesToast.error('ส่งสติกเกอร์ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        return false
+      }
+    },
+    [conversationId, refetchNewer],
+  )
+
+  /**
+   * ร้านกดรีแอ็กชันใส่ข้อความ (user สั่ง 2026-08-03) — optimistic แล้วค่อยยิง API
+   *
+   * optimistic เพราะการกดรีแอ็กชันต้องรู้สึก "ติดทันที" เหมือนในแอปแชททุกตัว และค่ามัน
+   * ย้อนกลับง่าย (คืนค่าเดิมถ้า API ปฏิเสธ) ต่างจากการส่งข้อความที่ต้องมีบับเบิลค้างให้กดซ้ำ
+   * กดอันเดิมซ้ำ = ถอนออก (emoji=null) ตามพฤติกรรม Messenger
+   */
+  const reactToMessage = useCallback(
+    async (messageId: string, emoji: string): Promise<void> => {
+      // ข้อความ optimistic ยังไม่มีแถวจริงใน DB ให้ผูกรีแอ็กชัน
+      if (messageId.startsWith('local-')) return
+      let previous: string | null = null
+      let next: string | null = null
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId) return m
+          previous = m.reactionEmoji ?? null
+          next = m.reactionEmoji === emoji ? null : emoji
+          return { ...m, reactionEmoji: next }
+        }),
+      )
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages/${messageId}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ emoji: next }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'กดรีแอ็กชันไม่สำเร็จ')
+          setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactionEmoji: previous } : m)))
+        }
+      } catch {
+        pacesToast.error('กดรีแอ็กชันไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactionEmoji: previous } : m)))
+      }
+    },
+    [conversationId],
+  )
+
   return {
     messages,
     oldestCursor,
     loadingInitial,
     loadingOlder,
     sending,
+    reactToMessage,
+    sendSticker,
     uploading,
     /** {done,total} ระหว่างแนบหลายไฟล์ — null เมื่อไม่ได้อัปโหลด (2026-08-02) */
     uploadProgress,

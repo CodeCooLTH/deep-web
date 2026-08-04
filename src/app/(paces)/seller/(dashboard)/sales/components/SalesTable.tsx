@@ -22,16 +22,21 @@ import {
 } from '@tanstack/react-table'
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { formatBaht } from '@/lib/format-money'
 import type { DailyRow } from './data'
 
-type Props = { rows: DailyRow[] }
+type Props = {
+  rows: DailyRow[]
+  /** มีสิทธิ์ดูข้อมูลการเงิน (feature 00016) — false = ไม่ render คอลัมน์ค่าใช้จ่าย/กำไรสุทธิเลย */
+  showFinance?: boolean
+}
 
 const columnHelper = createColumnHelper<DailyRow>()
 
 // formatter ฿ สกุลบาท — client-side เท่านั้น (Date→ISO ทำที่ RSC boundary แล้ว)
-const thb = new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 })
+// รูปแบบเงินใช้ SSOT กลาง (src/lib/format-money.ts)
 
-const columns = [
+const baseColumns = [
   columnHelper.accessor('label', {
     header: 'วันที่',
     enableColumnFilter: false,
@@ -47,16 +52,35 @@ const columns = [
   columnHelper.accessor('revenue', {
     header: 'ยอดขาย',
     enableColumnFilter: false,
-    cell: ({ getValue }) => thb.format(getValue()),
+    cell: ({ getValue }) => formatBaht(getValue()),
   }),
   columnHelper.accessor('avgOrder', {
     header: 'เฉลี่ย/ออเดอร์',
     enableColumnFilter: false,
-    cell: ({ getValue }) => thb.format(getValue()),
+    cell: ({ getValue }) => formatBaht(getValue()),
   }),
 ]
 
-const SalesTable = ({ rows }: Props) => {
+// คอลัมน์การเงิน (feature 00016) — ต่อท้ายเฉพาะร้านที่ผ่าน gate สิทธิ์ค่าใช้จ่าย
+const financeColumns = [
+  columnHelper.accessor('expense', {
+    header: 'ค่าใช้จ่าย',
+    enableColumnFilter: false,
+    cell: ({ getValue }) => <span className="text-danger-ink">{formatBaht(getValue() ?? 0)}</span>,
+  }),
+  columnHelper.accessor('netProfit', {
+    header: 'กำไรสุทธิ',
+    enableColumnFilter: false,
+    cell: ({ getValue }) => {
+      const v = getValue() ?? 0
+      return <span className={`font-semibold ${v >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>{formatBaht(v)}</span>
+    },
+  }),
+]
+
+const SalesTable = ({ rows, showFinance = false }: Props) => {
+  const columns = showFinance ? [...baseColumns, ...financeColumns] : baseColumns
+
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })

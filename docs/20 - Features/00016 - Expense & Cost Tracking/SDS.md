@@ -489,6 +489,30 @@ sequenceDiagram
 
 ---
 
+## 8.5 Extension — Redesign 2026-08-02 (deployed, ไม่มี schema เปลี่ยน)
+
+รายละเอียด requirement เต็มอยู่ที่ SRS.md §10 (TFR-012..016) — สรุปเฉพาะมุม design/flow ที่ SDS ต้องเติมที่นี่:
+
+- **`ExpenseWorkspace.tsx`** (client, ใหม่) กลายเป็นเจ้าของ state ทั้งหน้า `/expenses` แทน `PnlReportCard` เดิมที่ fetch เอง — ช่วงเวลา (`range`) ยกขึ้นมาที่นี่ตัวเดียว แล้ว fetch `GET /api/expenses/report` (ขยาย response แล้ว, TFR-015) ครั้งเดียวต่อการเปลี่ยนช่วง/mutate แจกจ่าย `report`+`expenses` ให้ `PnlReportCard`/`ExpenseBreakdownCard`/`ExpenseList` ทั้งหมด (แก้ root cause ของปัญหา "ตัวเลขขัดกันเอง" ที่ §6 Technical Decisions เดิมไม่ได้ระบุไว้เพราะยังไม่เกิด)
+- **`ExpenseFormModal.tsx`** แทนที่ `ExpenseForm.tsx` เดิม (การ์ดแปะหน้าตลอดเวลา) — modal shell เดียว ปรับ CSS ตาม breakpoint (`sm:` 640px: < 640px = bottom sheet, ≥ 640px = กล่องกลางจอ) dual-mode create/edit ผ่าน prop เดียวกับที่ SDS เดิมออกแบบไว้ (`mode`/`editing`) — เปลี่ยนแค่ container ไม่เปลี่ยน field/validation
+- **`getSalesSeries()` gate flow** (TFR-016) — `resolveExpenseAccess()` (§4.1 เดิม) ถูกเรียกเพิ่มที่ 2 จุดใหม่นอก `/expenses`: `dashboard/page.tsx` (RSC) และ `api/seller/sales-series/route.ts` — ทั้งคู่ resolve decision แล้วส่ง `boolean` (`kind === 'GRANTED'`) เข้า `getSalesSeries` เป็น param ที่ 4 (ไม่ใช่ query แล้วกรองทีหลัง — fail-closed ตั้งแต่ query). `sales/page.tsx` resolve gate เดียวกันแต่ไม่ผ่าน `getSalesSeries` (คำนวณ COGS/expense เองจาก query ที่มีอยู่แล้วในหน้านั้น)
+
+```mermaid
+flowchart LR
+    Sales[sales/page.tsx] -->|resolveExpenseAccess| Gate[expense-access.service.ts]
+    Dashboard[dashboard/page.tsx] -->|resolveExpenseAccess| Gate
+    SalesSeriesAPI[api/seller/sales-series] -->|resolveExpenseAccess| Gate
+    Gate -->|GRANTED boolean| SalesSeriesSvc[dashboard.service.ts getSalesSeries includeFinance]
+    SalesSeriesAPI --> SalesSeriesSvc
+    Dashboard --> SalesSeriesSvc
+    SalesSeriesSvc --> DB[(Order + Expense)]
+    Sales -->|query COGS/expense เอง| DB
+```
+
+**ไฟล์ใหม่เพิ่มจาก §8 เดิม:** `src/lib/format-money.ts` (`formatBaht`/`profitDisplay` — SSOT รูปแบบเงิน แก้ 3 นโยบายที่ขัดกันมาก่อน), `expenses/components/{ExpenseFormModal,ExpenseToolbar,ExpenseBreakdownCard,ExpenseCategoryFilterSheet,ExpenseWorkspace}.tsx` (แทนที่ `ExpenseForm.tsx` เดิมที่ถูกลบ)
+
+---
+
 ## 9. สรุป (Summary)
 
 SDS นี้ออกแบบ Expense & Cost Tracking ด้วย access-decision core (`resolveExpenseAccess`) แยกจาก calculation core (`getPnlReport`) และ date-boundary core (`resolveDateRange`) — ทั้ง 3 เป็น pure/testable ให้มากที่สุด ลดความเสี่ยง bug จากการปนกันระหว่าง auth logic กับ business calculation. Cost snapshot เพิ่มเข้า `createOrder()` แบบ additive เดียวกับที่ `price` เคยทำมา ไม่กระทบ retry-loop/Quick-Create/stock-deduct เดิม

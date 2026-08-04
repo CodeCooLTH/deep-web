@@ -234,6 +234,47 @@ describe('ingestInboundMessage', () => {
       expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toBeTruthy()
     })
 
+    // เหตุการณ์การโทร (2026-08-03) — payload ของจริงจาก prod: Meta ส่งมาทาง webhook `messages`
+    // ปกติเป็น template ชนิด icon-template ไม่ใช่ field `calls`
+    const callEvent = (title: string) => ({
+      sender: { id: 'PAGE1' },
+      recipient: { id: 'PSID_1' },
+      timestamp: 1750000000000,
+      message: {
+        mid: `mid.call.${title}`,
+        is_echo: true,
+        attachments: [
+          {
+            type: 'template',
+            payload: { template_type: 'icon-template', elements: [{ title, subtitle: 'Call again' }] },
+          },
+        ],
+      },
+    })
+
+    it('สายที่ไม่ได้รับ → type=CALL และ preview เป็นไทย (ไม่ใช่ "Missed call" ดิบ)', async () => {
+      const r = await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: callEvent('Missed call') })
+      expect(r.status).toBe('STORED')
+      const data = db.chatMessage.create.mock.calls[0]![0].data
+      expect(data.type).toBe('CALL')
+      // body คง title ของ Meta ไว้ — UI ใช้แยกว่าเป็นสายที่ไม่ได้รับหรือสายที่คุยจบ
+      expect(data.body).toBe('Missed call')
+      expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toBe('[สายที่ไม่ได้รับ]')
+    })
+
+    it('สายที่คุยแล้ว → type=CALL preview คนละคำกับสายที่ไม่ได้รับ', async () => {
+      await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: callEvent('Audio call') })
+      expect(db.chatMessage.create.mock.calls[0]![0].data.type).toBe('CALL')
+      expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toBe('[มีการโทรด้วยเสียง]')
+    })
+
+    it('icon-template ที่ title ไม่รู้จัก (เช่น Video call ในอนาคต) → ตกกลับเป็นข้อความธรรมดา ไม่เดาเป็น CALL', async () => {
+      await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: callEvent('Video call') })
+      const data = db.chatMessage.create.mock.calls[0]![0].data
+      expect(data.type).toBe('TEXT')
+      expect(data.body).toBe('Video call')
+    })
+
     it('attachment ที่ไม่ใช่รูป (วิดีโอ/เสียง/ไฟล์) → เก็บ placeholder ให้ seller รู้ว่ามีไฟล์แนบ', async () => {
       const fileEvent = {
         sender: { id: 'PSID_1' },
