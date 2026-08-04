@@ -7,7 +7,7 @@ import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
-import { IN_TRANSIT_CARRIER_STATUSES, PROBLEM_CARRIER_STATUSES } from "@/lib/iship/status";
+import { deriveShippingStage } from "@/lib/order-stage";
 import { formatOrderNo } from "@/lib/order-no";
 import {
   attachAppointmentInTx,
@@ -785,6 +785,14 @@ export async function getOrdersByShop(shopId: string, status?: string) {
         },
       },
       shipmentTracking: true,
+      // พัสดุใบล่าสุดที่ยัง active — หน้ารายการใช้จัด "กองงานตามสถานะพัสดุ" (deriveShippingStage)
+      // take:1 + select แคบ ๆ เพื่อไม่ให้ payload บวมทั้งที่ต้องการแค่ carrierStatus
+      shipments: {
+        where: { status: "CREATED", isDryRun: false },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { carrierStatus: true },
+      },
       review: true,
       // buyer: registered user ที่ยืนยัน order — ใช้แสดงชื่อลูกค้าใน seller order list
       // คัดลอก select เดียวกับ getOrderForShop (additive — ไม่ break caller เดิม)
@@ -953,16 +961,13 @@ export async function getOrderStatusCounts(
  * user สั่ง 2026-08-04 ให้เปลี่ยนจาก [รอดำเนินการ/กำลังจัดส่ง/สำเร็จ/ยกเลิก] ซึ่งเป็นสถานะ "การขาย"
  * มาเป็นสถานะ "ของอยู่ไหน" ที่ร้านขายออนไลน์ต้องลงมือทำจริงในแต่ละวัน
  *
- * 🛑 เกณฑ์ทุกช่องต้องตรงกับ deriveOrderStage (src/lib/order-stage.ts) ซึ่งเป็น SSOT ของ "ขั้นตอน
- * ของออเดอร์" อยู่แล้ว — ถ้าตัวเลขหน้าแรกนับคนละนิยามกับป้ายที่ร้านเห็นในรายการแชท/หน้าออเดอร์
- * จะกลายเป็นเลขที่กดเข้าไปแล้วนับไม่ตรง (บทเรียนเดิม: "ยังไม่ตอบ" เคยโชว์ 7 กับ 8 บนจอเดียว)
- * ลำดับตัดสินจึงลอกมาทั้งชุด: มีพัสดุ → พัสดุเป็นคนบอกสถานะ; ไม่มีพัสดุ → ค่อยอ่านจาก Order.status
+ * 🛑 นับด้วย deriveShippingStage ตัวเดียวกับที่หน้า /orders ใช้กรอง — เดิมเขียนเป็น CASE ใน SQL
+ * ซึ่งเร็วกว่าแต่แปลว่ามีนิยาม 2 ชุด (SQL นับ / TS กรอง) วันหนึ่งจะกดไทล์ที่บอก 5 แล้วเข้าไปเจอ 4 ใบ
+ * โดยไม่มีอะไรเตือน. โหลดแถวมาแล้วนับใน TS แทน — ปริมาณรับได้เพราะหน้า /orders เองก็ดึงออเดอร์
+ * ทั้งร้านมาอยู่แล้ว และ query นี้ select แค่ 3 คอลัมน์
  *
- * ช่องที่ "ไม่ต้องทำอะไรแล้ว" ไม่นับเลย (ไม่ใช่นับแล้วซ่อน): ยกเลิก, ส่งถึงแล้ว, ปิดการขายโดยไม่มีพัสดุ
- * — การ์ดนี้คือรายการงานค้าง ไม่ใช่สรุปยอด
- *
- * พัสดุที่นับ = ใบที่ยัง active (status='CREATED') และไม่ใช่ของทดสอบ (isDryRun=false ตาม
- * BR-ISHIP-60/61 ที่สั่งไว้ว่าต้องกันออกจากสถิติทุกชนิด) เอาใบล่าสุดต่อออเดอร์ใบเดียว
+ * พัสดุที่นับ = ใบล่าสุดต่อออเดอร์ที่ยัง active (status='CREATED') และไม่ใช่ของทดสอบ
+ * (isDryRun=false ตาม BR-ISHIP-60/61 ที่สั่งไว้ว่าต้องกันออกจากสถิติทุกชนิด)
  */
 export async function getShippingStageCounts(shopId: string): Promise<{
   AWAITING_PARCEL: number
@@ -970,52 +975,29 @@ export async function getShippingStageCounts(shopId: string): Promise<{
   SHIPPING: number
   PROBLEM: number
 }> {
-  const rows = await prisma.$queryRaw<
-    Array<{ awaiting_parcel: bigint; awaiting_pickup: bigint; shipping: bigint; problem: bigint }>
-  >`
-    WITH active AS (
-      SELECT DISTINCT ON (s."orderId") s."orderId", s."carrierStatus"
-      FROM "OrderShipment" s
-      WHERE s."shopId" = ${shopId} AND s.status = 'CREATED' AND s."isDryRun" = false
-      ORDER BY s."orderId", s."createdAt" DESC
-    )
-    SELECT
-      count(*) FILTER (
-        WHERE a."orderId" IS NULL AND o.status = 'PENDING'
-      )::bigint AS awaiting_parcel,
-      count(*) FILTER (
-        WHERE a."orderId" IS NOT NULL
-          AND NOT (a."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[]))
-          AND a."carrierStatus" IS DISTINCT FROM 'delivered'
-          AND a."carrierStatus" IS DISTINCT FROM 'return_success'
-          AND a."carrierStatus" IS DISTINCT FROM 'is_expired'
-          AND a."carrierStatus" IS DISTINCT FROM 'cancelled'
-          AND NOT (a."carrierStatus" = ANY(${[...IN_TRANSIT_CARRIER_STATUSES]}::text[]))
-          AND o.status <> 'SHIPPED'
-      )::bigint AS awaiting_pickup,
-      count(*) FILTER (
-        WHERE (
-          a."orderId" IS NOT NULL
-          AND NOT (a."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[]))
-          AND a."carrierStatus" IS DISTINCT FROM 'delivered'
-          AND (a."carrierStatus" = ANY(${[...IN_TRANSIT_CARRIER_STATUSES]}::text[]) OR o.status = 'SHIPPED')
-        ) OR (a."orderId" IS NULL AND o.status = 'SHIPPED')
-      )::bigint AS shipping,
-      count(*) FILTER (
-        WHERE a."orderId" IS NOT NULL
-          AND a."carrierStatus" = ANY(${[...PROBLEM_CARRIER_STATUSES]}::text[])
-      )::bigint AS problem
-    FROM "Order" o
-    LEFT JOIN active a ON a."orderId" = o.id
-    WHERE o."shopId" = ${shopId} AND o.status <> 'CANCELLED'
-  `
-  const r = rows[0]
-  return {
-    AWAITING_PARCEL: Number(r?.awaiting_parcel ?? 0),
-    AWAITING_PICKUP: Number(r?.awaiting_pickup ?? 0),
-    SHIPPING: Number(r?.shipping ?? 0),
-    PROBLEM: Number(r?.problem ?? 0),
+  const rows = await prisma.order.findMany({
+    where: { shopId, status: { not: "CANCELLED" } },
+    select: {
+      status: true,
+      shipments: {
+        where: { status: "CREATED", isDryRun: false },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { carrierStatus: true },
+      },
+    },
+  });
+
+  const counts = { AWAITING_PARCEL: 0, AWAITING_PICKUP: 0, SHIPPING: 0, PROBLEM: 0 };
+  for (const o of rows) {
+    const stage = deriveShippingStage({
+      status: o.status,
+      carrierStatus: o.shipments[0]?.carrierStatus ?? null,
+      hasShipment: o.shipments.length > 0,
+    });
+    if (stage !== "DONE") counts[stage] += 1;
   }
+  return counts;
 }
 
 export async function getOrdersByBuyer(userId: string) {

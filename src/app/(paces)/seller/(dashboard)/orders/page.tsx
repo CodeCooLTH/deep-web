@@ -13,6 +13,7 @@
 
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
+import { deriveShippingStage } from '@/lib/order-stage'
 import { requireActiveShop } from '@/lib/shop-context'
 import { getConnection } from '@/services/iship.service'
 import Icon from '@/components/wrappers/Icon'
@@ -32,7 +33,7 @@ function maskContact(c: string | null | undefined): string {
 }
 
 interface PageProps {
-  searchParams: Promise<{ status?: string }>
+  searchParams: Promise<{ status?: string; stage?: string }>
 }
 
 export default async function OrdersPage({ searchParams }: PageProps) {
@@ -81,7 +82,17 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   }
 
   // แปลง rawOrder → OrderRow, Date → ISO string ที่ RSC boundary (ห้ามส่ง Date object ข้าม boundary)
+  // กองงานตามสถานะพัสดุ — ต้องมาจาก deriveShippingStage ตัวเดียวกับที่ตัวนับบน Command Center ใช้
+  // ไม่งั้นกดไทล์ที่บอก 5 แล้วเข้ามาเจอ 4 ใบ (ดูคอมเมนต์ที่ตัวฟังก์ชันใน lib/order-stage.ts)
+  const isOnlineSales = shop.vertical === 'ONLINE_SALES'
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
+    shippingStage: isOnlineSales
+      ? deriveShippingStage({
+          status: o.status,
+          carrierStatus: o.shipments?.[0]?.carrierStatus ?? null,
+          hasShipment: (o.shipments?.length ?? 0) > 0,
+        })
+      : undefined,
     id: (o.publicToken ?? o.id).slice(0, 8),
     publicToken: o.publicToken ?? o.id,
     shortCode: o.shortCode ?? null,

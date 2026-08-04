@@ -132,12 +132,11 @@ export default function OrderStatusBand({ counts, shipping }: OrderStatusBandPro
         // ทุกช่องคือ "งานค้าง" จึงมี badge ได้หมด ต่างจากชุดเดิมที่ สำเร็จ/ยกเลิก เป็นยอดสะสม
         showBadge: true,
         /**
-         * ทั้ง 4 ช่องลิงก์ไป /orders เปล่า ๆ ไม่ผูก ?status= — เพราะ /orders กรองได้แค่ Order.status
-         * (PENDING/SHIPPED/CONFIRMED/CANCELLED) ซึ่ง "คนละแกน" กับสถานะพัสดุ. ผูกมั่ว ๆ ให้ดูเหมือน
-         * กดแล้วกรองได้ จะได้รายการที่นับไม่ตรงกับตัวเลขบนไทล์ ซึ่งแย่กว่าไม่กรองเลย
-         * (ตัวกรองตามสถานะพัสดุในหน้า /orders = งานถัดไป)
+         * ?stage= = ตัวกรองตามสถานะพัสดุของหน้า /orders (user สั่ง 2026-08-04 "กดเข้าไปแล้ว query
+         * ต้องตรงกันด้วย") — ไม่ใช่ ?status= ซึ่งเป็น Order.status คนละแกนกัน
+         * ตัวเลขบนไทล์กับรายการที่กรองได้ ตรงกันเพราะทั้งคู่ผ่าน deriveShippingStage ตัวเดียวกัน
          */
-        href: '/orders',
+        href: `/orders?stage=${st.key}`,
       }))
     : STATUSES.map((st) => ({
         key: st.key,

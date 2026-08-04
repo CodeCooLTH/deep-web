@@ -16,7 +16,7 @@
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/utils/helpers'
 import type { OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
@@ -28,6 +28,8 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 import OrdersTable from './OrdersTable'
 
 // ─── status tabs ────────────────────────────────────────────────────────────
+import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
+
 const STATUS_TABS: { value: string; label: string }[] = [
   { value: 'all',       label: 'ทั้งหมด' },
   { value: 'PENDING',   label: 'รอดำเนินการ' },
@@ -58,6 +60,16 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
   const pathname = usePathname()
 
   const [localStatus, setLocalStatus] = useState<string>(activeStatus ?? 'all')
+  /**
+   * ?stage= จากไทล์ "สถานะคำสั่งซื้อ" บน Command Center (user สั่ง 2026-08-04 "กดเข้าไปแล้ว query
+   * ต้องตรงกันด้วย") — อ่านจาก URL ตรง ๆ ไม่เก็บเป็น state เพราะไม่มีปุ่มในหน้านี้ให้สลับ
+   * ค่าที่ไม่รู้จักถือว่าไม่กรอง (fail-open) — ลิงก์เก่า/พิมพ์มั่วต้องไม่ทำให้หน้าว่างเปล่าโดยไม่มีคำอธิบาย
+   */
+  const stageParam = useSearchParams().get('stage')
+  const stage =
+    stageParam && stageParam in SHIPPING_STAGE_LABEL
+      ? (stageParam as keyof typeof SHIPPING_STAGE_LABEL)
+      : null
   const [search,      setSearch]      = useState('')
   const [typeFilter,  setTypeFilter]  = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
@@ -119,6 +131,8 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
   // ─── filter pipeline ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = orders
+    // กองงานตามสถานะพัสดุ (มาจากไทล์บน Command Center) — คนละแกนกับ status จึงกรองแยก ไม่ทับกัน
+    if (stage) list = list.filter((o) => o.shippingStage === stage)
     if (localStatus !== 'all') list = list.filter((o) => o.status === localStatus)
     if (typeFilter) list = list.filter((o) => o.orderType === typeFilter)
     if (search.trim()) {
@@ -132,7 +146,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
       )
     }
     return list
-  }, [orders, localStatus, typeFilter, search])
+  }, [orders, stage, localStatus, typeFilter, search])
 
   // reset lazy-load เมื่อ filter/search/status เปลี่ยน
   useEffect(() => {
@@ -275,6 +289,24 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false 
             สร้างออเดอร์
           </Link>
         </div>
+
+        {/* แถบบอกว่ากำลังกรองด้วยกองงานจากไทล์บน Command Center — ต้องมี ไม่งั้นผู้ใช้เห็นรายการ
+            สั้นกว่าที่คิดโดยไม่รู้สาเหตุ และหาทางกลับไปดูทั้งหมดไม่เจอ (ตัวกรองนี้ไม่มีชิปในหน้านี้) */}
+        {stage && (
+          <div className="bg-primary/15 text-primary-ink mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm">
+            <Icon icon="filter" className="shrink-0" />
+            <span className="min-w-0 flex-1">
+              กำลังดูเฉพาะ “{SHIPPING_STAGE_LABEL[stage]}” ({filtered.length} รายการ)
+            </span>
+            <button
+              type="button"
+              onClick={() => router.push(pathname, { scroll: false })}
+              className="shrink-0 font-medium hover:underline"
+            >
+              ดูทั้งหมด
+            </button>
+          </div>
+        )}
 
         {/* filter chips — เลื่อนแนวนอน (ซ่อน scrollbar); สลับด้วย swipe ทั้งจอ
             เปลี่ยนจาก underline-tab → chip row ตาม mockup v10 Frame 3 ".chips" style

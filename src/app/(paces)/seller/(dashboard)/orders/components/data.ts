@@ -1,3 +1,4 @@
+import type { ShippingStageKey } from '@/lib/order-stage'
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/data.ts
  * (OrderRow/OrderStatus เป็น SafePay-specific; OrderStatCardData copy pattern จาก RevenueStat)
@@ -36,6 +37,12 @@ export type OrderItemRow = {
 }
 
 export type OrderRow = {
+  /**
+   * กองงานตามสถานะพัสดุ (user สั่ง 2026-08-04: กดไทล์บน Command Center แล้วรายการต้องกรองตรงกัน)
+   * คำนวณที่ server ด้วย deriveShippingStage ตัวเดียวกับที่ตัวนับบนไทล์ใช้ — undefined = ร้านที่
+   * ไม่ใช่ ONLINE_SALES (ไม่มีพัสดุให้ไล่ จึงไม่มีตัวกรองนี้)
+   */
+  shippingStage?: ShippingStageKey
   id: string            // publicToken short (8-char)
   publicToken: string
   /** short-code 8 ตัวสำหรับ copy/share link; null = order เก่าก่อน backfill (fallback publicToken) */
