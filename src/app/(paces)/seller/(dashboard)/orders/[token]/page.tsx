@@ -177,6 +177,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         createdAtISO={createdAtISO}
         fulfillmentMode={order.fulfillmentMode}
         isFromAuction={Boolean(order.auctionId)}
+        salesChannel={order.salesChannel ?? null}
         totalAmount={Number(order.totalAmount)}
         paymentMethod={order.paymentMethod ?? null}
         slipFileId={order.slipFileId ?? null}

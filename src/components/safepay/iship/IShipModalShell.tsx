@@ -161,9 +161,15 @@ export default function IShipModalShell({
           ยึดกับ "กรอบโมดัล" แทน viewport — พฤติกรรม CSS: ancestor ที่มี transform เป็น containing block
           ของ fixed descendant ถ้าไม่ใส่ บนเดสก์ท็อป sheet จะกางเต็มจอทับโมดัลจนดูหลุดกรอบ
           (precedent: (chat)/_components/DraftOrderProvider.tsx) */}
+      {/* มี tabs = โมดัลที่สลับเนื้อหาได้ → **ล็อกความสูงจริง** ไม่ใช่เพดาน เพราะเนื้อของแต่ละแท็บ
+          ยาวไม่เท่ากันมาก (ส่งเอง 2 ช่อง vs สร้างพัสดุ ~1,600px) กล่องจึงกระโดดทั้งใบทุกครั้ง
+          ที่สลับแท็บ และปุ่มหลักย้ายตำแหน่งตาม (user report 2026-08-04)
+          ค่าเท่าเพดานเดิม — 2 ใน 3 แท็บชนเพดานอยู่แล้ว จึงเปลี่ยนหน้าตาเฉพาะแท็บที่เนื้อสั้น
+          ไม่มี tabs (mode='edit', 3 โมดัลในหน้าตั้งค่า) = สถานะเดียวไม่มีการสลับ → คงเพดานเดิม
+          ไม่งั้นฟอร์ม 2 ช่องจะได้กล่องสูงเต็มจอโดยไม่มีเหตุผล */}
       <div
         ref={panelRef}
-        className={`relative flex max-h-[92dvh] w-full transform-gpu flex-col rounded-t-2xl bg-card shadow-lg lg:max-h-[85dvh] lg:rounded-2xl ${DESKTOP_WIDTH[size]}`}
+        className={`relative flex ${tabs ? 'h-[92dvh] lg:h-[85dvh]' : 'max-h-[92dvh] lg:max-h-[85dvh]'} w-full transform-gpu flex-col rounded-t-2xl bg-card shadow-lg lg:rounded-2xl ${DESKTOP_WIDTH[size]}`}
       >
         <div className="flex shrink-0 items-center gap-2 border-b border-default-200 px-5 pb-3 pt-4">
           <div className="absolute inset-x-0 top-2 mx-auto h-1 w-9 rounded-full bg-default-300 lg:hidden" />

@@ -20,11 +20,13 @@ const STATUSES: OrderStatus[] = ['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED']
 // Matrix ที่ Controller ระบุตรง ๆ ใน task (fulfillmentMode='SHIPPED' = มีจัดส่งปกติ)
 // -------------------------------------------------------------------------
 describe('getOrderActionSet — matrix ตาม design §3', () => {
-  it('PENDING → primary=ส่งลิงก์ทาง SMS, ghost=[แจ้งเลขพัสดุ], menu=[คัดลอกลิงก์,คัดลอกที่อยู่,แก้ไขคำสั่งซื้อ,ยกเลิก]', () => {
+  // 2026-08-04 (user request): "ส่งลิงก์ทาง SMS" ลงไปอยู่ใน ⋮ และ "แจ้งเลขพัสดุ" ขึ้นเป็น primary
+  // — เดิม primary=send-sms · ghost=[report-tracking]
+  it('PENDING → primary=แจ้งเลขพัสดุ, ghost=[], menu=[ส่ง SMS,คัดลอกลิงก์,คัดลอกที่อยู่,แก้ไขคำสั่งซื้อ,ยกเลิก]', () => {
     const r = getOrderActionSet({ status: 'PENDING', fulfillmentMode: 'SHIPPED', shipmentSource: null })
-    expect(r.primary).toEqual({ key: 'send-sms', label: 'ส่งลิงก์ทาง SMS (฿1)', icon: 'message-forward' })
-    expect(keys(r.ghosts)).toEqual(['report-tracking'])
-    expect(keys(r.menu)).toEqual(['copy-link', 'copy-address', 'edit-order', 'cancel-order'])
+    expect(r.primary).toEqual({ key: 'report-tracking', label: 'แจ้งเลขพัสดุ', icon: 'truck' })
+    expect(keys(r.ghosts)).toEqual([])
+    expect(keys(r.menu)).toEqual(['send-sms', 'copy-link', 'copy-address', 'edit-order', 'cancel-order'])
   })
 
   it('SHIPPED + MANUAL → primary=null, ghost=[คัดลอกลิงก์,แก้ไขเลขพัสดุ], menu=[คัดลอกเลขพัสดุ,คัดลอกที่อยู่,ยกเลิก]', () => {

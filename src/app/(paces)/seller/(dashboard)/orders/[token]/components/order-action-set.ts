@@ -57,7 +57,8 @@ const ACTIONS = {
  * getOrderActionSet — คืนชุด action (primary/ghosts/menu) ของหน้าตามสถานะ + fulfillment + shipment source
  *
  * matrix อ้างอิง design §3 (แก้ตาม Change Log 2026-07-31):
- *   PENDING:   primary=sendSms · ghost=[reportTracking] · menu=[copyLink,copyAddress,editOrder,cancelOrder]
+ *   PENDING:   primary=reportTracking · ghost=[] · menu=[sendSms,copyLink,copyAddress,editOrder,cancelOrder]
+ *              (2026-08-04 user request — เดิม primary=sendSms · ghost=[reportTracking])
  *   SHIPPED:   primary=null    · ghost=[copyLink,editTracking(MANUAL only)] · menu=[copyTracking,copyAddress,cancelOrder]
  *   CONFIRMED: primary=null    · ghost=[copyLink]  · menu=[copyTracking,copyAddress]
  *   CANCELLED: primary=null    · ghost=[]           · menu=[]  (ไม่มีแถบเลย)
@@ -79,14 +80,28 @@ export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet
   }
 
   if (status === 'PENDING') {
-    const ghosts: ActionItem[] = []
-    if (hasShipping) ghosts.push(ACTIONS.reportTracking)
+    /**
+     * 2026-08-04 (user request): "ส่งลิงก์ทาง SMS" ย้ายลงไปอยู่ใน ⋮ แทนที่จะเป็นปุ่มหลัก
+     *
+     * เหตุผลฝั่งผู้ใช้: มันเป็น action ที่เสียเงินจริง (฿1/ครั้ง) และร้านไม่ได้ใช้ทุกใบ แต่เดิม
+     * มันกินความกว้างเกือบทั้งแถบล่างบนมือถือจนปุ่ม "แจ้งเลขพัสดุ" ถูกบีบเหลือแค่ไอคอน
+     *
+     * "แจ้งเลขพัสดุ" ขึ้นมาเป็น primary แทน — เป็น action ที่ร้านกดจริงบ่อยที่สุดในสถานะนี้
+     * และเป็นตัวเดียวที่ขยับสถานะออเดอร์ไปข้างหน้าได้จากหน้านี้
+     *
+     * ถ้าออเดอร์ไม่ต้องส่งของ (NO_SHIPPING/PICKUP) จะไม่มี "แจ้งเลขพัสดุ" ให้ promote —
+     * กรณีนั้น sendSms ยังเป็น primary เหมือนเดิม เพราะไม่มี action อื่นเหลือให้เป็นปุ่มหลัก
+     * (ปล่อยว่างแล้วแถบจะเหลือแค่ปุ่ม ⋮ อันเดียว)
+     */
+    const primary = hasShipping ? ACTIONS.reportTracking : ACTIONS.sendSms
 
-    const menu: ActionItem[] = [ACTIONS.copyLink]
+    const menu: ActionItem[] = []
+    if (hasShipping) menu.push(ACTIONS.sendSms)
+    menu.push(ACTIONS.copyLink)
     if (hasShipping) menu.push(ACTIONS.copyAddress)
     menu.push(ACTIONS.editOrder, ACTIONS.cancelOrder)
 
-    return { primary: ACTIONS.sendSms, ghosts, menu }
+    return { primary, ghosts: [], menu }
   }
 
   if (status === 'SHIPPED') {

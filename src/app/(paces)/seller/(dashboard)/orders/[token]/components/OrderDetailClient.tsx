@@ -62,6 +62,8 @@ export interface OrderDetailClientProps {
   createdAtISO: string
   fulfillmentMode: string
   isFromAuction: boolean
+  /** ช่องทางการขายของออเดอร์ — ส่งต่อให้ StatusHero โชว์โลโก้แบรนด์ในแถวหัว */
+  salesChannel: string | null
   totalAmount: number
   paymentMethod: string | null
   slipFileId: string | null
@@ -90,6 +92,7 @@ export default function OrderDetailClient({
   createdAtISO,
   fulfillmentMode,
   isFromAuction,
+  salesChannel,
   totalAmount,
   paymentMethod,
   slipFileId,
@@ -240,6 +243,7 @@ export default function OrderDetailClient({
         createdAtISO={createdAtISO}
         fulfillmentMode={fulfillmentMode}
         isFromAuction={isFromAuction}
+        salesChannel={salesChannel}
         totalAmount={totalAmount}
         paymentMethod={paymentMethod}
         slipFileId={slipFileId}
@@ -249,13 +253,6 @@ export default function OrderDetailClient({
 
       {/* grid เนื้อหา — ส่งมาจาก page.tsx (RSC) ผ่าน children, mt-base คั่นจากหัวหน้า (token เดิม) */}
       <div className="mt-base">{children}</div>
-
-      {/* แถบล่างเป็น 2 แถวเมื่อมีทั้งปุ่มหลักและปุ่มรอง (สถานะ PENDING) จึงสูงกว่าที่
-          `.seller-mobile-shell .page-content main` เว้นไว้ (5rem = เผื่อ SellerBottomNav 64px)
-          — เติมช่องว่างเฉพาะกรณีนั้น ไม่ไปแก้ค่ากลางซึ่งใช้ร่วมกับทุกหน้า seller */}
-      {actionSet.primary && actionSet.ghosts.length > 0 && (
-        <div className="h-14 lg:hidden" aria-hidden="true" />
-      )}
 
       {/* <1024 เท่านั้น (className ภายในมี lg:hidden) — CANCELLED คืน null เอง (design §3) */}
       <OrderActionBar variant="bottom" actionSet={actionSet} onAction={handleAction} />

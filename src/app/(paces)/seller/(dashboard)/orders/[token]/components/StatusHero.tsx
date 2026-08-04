@@ -32,6 +32,7 @@ import { formatOrderNo } from '@/lib/order-no'
 import { ORDER_STATUS_META, getPaymentBadge } from '@/lib/order-display'
 import type { OrderStatus } from '@/lib/order-display'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
+import SalesChannelBadge from '@/components/safepay/SalesChannelBadge'
 import { getOrderActionSet } from './order-action-set'
 import type { ShipmentSource } from './order-action-set'
 
@@ -50,6 +51,12 @@ export interface StatusHeroProps {
   fulfillmentMode: string
   /** true = order เกิดจากการชนะประมูล (มี auctionId) → badge ค้อนประมูล */
   isFromAuction?: boolean
+  /**
+   * ช่องทางที่ขายออเดอร์นี้ (STOREFRONT|FACEBOOK|INSTAGRAM|LINE|TIKTOK|OTHER) — null = ไม่ระบุ
+   * โชว์เป็นโลโก้แบรนด์จริงในแถวเดียวกับสถานะ/วันที่ (user request 2026-08-04): ร้านที่ขาย
+   * หลายช่องทางต้องรู้ตั้งแต่แวบแรกว่าใบนี้มาจากไหน โดยไม่ต้องเลื่อนลงไปหาที่การ์ดชำระเงิน
+   */
+  salesChannel?: string | null
   /** @deprecated ย้ายไป ShippingCard แล้ว — คง prop ไว้กัน caller เดิมพัง (ไม่ถูกใช้) */
   ishipTrackingNo?: string | null
   /** @deprecated ย้ายไป ShippingCard แล้ว */
@@ -113,6 +120,7 @@ export default function StatusHero({
   createdAtISO,
   fulfillmentMode,
   isFromAuction,
+  salesChannel,
   totalAmount,
   paymentMethod = null,
   slipFileId = null,
@@ -210,6 +218,9 @@ export default function StatusHero({
                     จากการประมูล
                   </span>
                 )}
+                {/* ช่องทางการขาย — reuse SalesChannelBadge ที่การ์ดชำระเงินใช้อยู่แล้ว (โลโก้จริง
+                    + fallback tabler icon เมื่อรูปโหลดไม่ขึ้น) ไม่ทำ badge ชุดใหม่ให้ต้องดูแลสองที่ */}
+                {salesChannel && <SalesChannelBadge channel={salesChannel} />}
               </div>
               {/* เลขคำสั่งซื้อ DP… — ห้าม font-mono (Anuphan ไม่มี mono → fallback Courier หลุดธีม) */}
               <h3 className="text-lg text-default-900 mb-0 font-bold">

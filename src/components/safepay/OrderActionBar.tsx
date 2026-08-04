@@ -115,36 +115,17 @@ export default function OrderActionBar({ variant, actionSet, onAction }: OrderAc
     ].join(' ')
 
     /**
-     * มี primary พร้อมปุ่มรอง (สถานะ PENDING เท่านั้น) → **2 แถว**
+     * แถวเดียวเสมอ และ **ทุกปุ่มมี label**
      *
-     * เดิมยัดแถวเดียวแล้วบีบปุ่มรองให้เหลือแต่ไอคอน ผลคือ action ที่สำคัญที่สุดของออเดอร์
-     * ที่ยังไม่ส่ง ("แจ้งเลขพัสดุ") กลายเป็นสี่เหลี่ยมมีรูปรถ ไม่มีคำบอกว่ากดแล้วเกิดอะไร
-     * (user report 2026-08-04: "ดูไม่ออกว่าปุ่มไหนคืออะไร")
+     * เป็นไปได้เพราะ matrix ใน order-action-set.ts ไม่มีสถานะไหนที่มีทั้ง primary และปุ่มรอง
+     * พร้อมกันอีกแล้ว (2026-08-04 user request ย้าย "ส่งลิงก์ทาง SMS" ลง ⋮ แล้วดัน
+     * "แจ้งเลขพัสดุ" ขึ้นเป็น primary แทน) — PENDING จึงเหลือ [primary][⋮] ส่วน
+     * SHIPPED/CONFIRMED เป็น [ปุ่มรอง...][⋮] เหมือนเดิม
      *
-     * ทำไมไม่ใส่ label แล้วอยู่แถวเดียวต่อ: "แจ้งเลขพัสดุ" + "ส่งลิงก์ทาง SMS (฿1)" พร้อมไอคอน
-     * และ ⋮ ต้องการราว 400px แต่จออ้างอิงเล็กสุดคือ 360px — จะเหลือทางเดียวคือตัดคำด้วย
-     * truncate ซึ่งได้ปุ่มที่อ่านไม่จบ แย่กว่าไอคอนเปล่าอีก
-     *
-     * primary อยู่แถวล่าง = ใกล้นิ้วโป้งที่สุด ตรงกับที่มันเป็น action ที่ตั้งใจให้กดบ่อยที่สุด
+     * ก่อนหน้านี้แถบนี้บีบปุ่มรองให้เหลือแต่ไอคอนเมื่อมี primary อยู่ด้วย ซึ่งทำให้
+     * "แจ้งเลขพัสดุ" กลายเป็นสี่เหลี่ยมมีรูปรถที่เดาไม่ออก (user report 2026-08-04)
+     * ตอนนี้ไม่มีเคสนั้นแล้วโดยโครงสร้าง ไม่ใช่โดยการเลือก class
      */
-    if (primary && ghosts.length > 0) {
-      return (
-        <div className={`${shellClass} flex-col gap-2`}>
-          <div className="flex w-full items-center gap-2">
-            {ghosts.map((g) => (
-              <GhostButton key={g.key} item={g} onAction={onAction} size="lg" iconOnly={false} />
-            ))}
-            <OrderOverflowMenu items={menu} onAction={onAction} size="lg" dropDirection="up" />
-          </div>
-          <div className="flex w-full">
-            <PrimaryButton item={primary} onAction={onAction} size="lg" />
-          </div>
-        </div>
-      )
-    }
-
-    // ไม่มี primary (SHIPPED/CONFIRMED) → ปุ่มรองยืดแทนพร้อม label อยู่แล้ว แถวเดียวพอ
-    // (และไม่มี primary ที่จะไปแย่งความกว้าง — design §3 "noprimary")
     return (
       <div className={`${shellClass} items-center gap-2`}>
         {ghosts.map((g) => (
