@@ -458,7 +458,7 @@ function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
   flush()
   return rows
 }
-import type { CustomerPanelData } from './CustomerPanel'
+import { VERTICAL_CTA, type CustomerPanelData } from './CustomerPanel'
 
 type Props = {
   conversationId: string
@@ -703,6 +703,15 @@ export default function ChatThread({
   const { openDraft } = useDraftOrders()
   const openEditOrder = (token: string) =>
     openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar, editOrderToken: token })
+  /**
+   * สร้างออเดอร์จากในแชทได้ในแตะเดียว (user สั่ง 2026-08-04 "อยากให้กดสร้าง order ใน chat ไว ๆ")
+   *
+   * เดิมบนมือถือต้อง: แตะไอคอนคนมุมขวาของแถวเครื่องมือ → sheet ข้อมูลลูกค้าเด้ง → หา CTA ในนั้น
+   * = 2–3 แตะ และแตะแรกเป็นไอคอนเปล่าที่เคยมีคนหาไม่เจอมาแล้ว (user report 2026-08-01 iPad Pro)
+   * payload เดียวกับ CTA ในแผงลูกค้าเป๊ะ — เปิดโมดัลพับได้ ไม่ navigate ออกจากแชท
+   */
+  const startCreateOrder = () =>
+    openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar })
   const [sheetOpen, setSheetOpen] = useState(false)
   // user request 2026-07-25 — กดไอคอนตะกร้าใน inbox (?panel=orders) บนจอเล็ก (<1024px) → เด้ง sheet
   // ข้อมูลลูกค้า (แท็บออเดอร์เปิดเองใน CustomerPanelBody). เดสก์ท็อปมี panel persistent ไม่ต้องเปิด sheet
@@ -2103,11 +2112,28 @@ export default function ChatThread({
               user report 2026-08-01) และตั้งแต่ 1280px ขึ้นไปเป็นคอลัมน์ขวาจริง (ดู page.tsx)
               ไอคอนเปล่าตรงนี้จึงเหลือไว้เฉพาะจอที่แคบจนหัวเธรดใส่ปุ่มมีข้อความไม่ไหว
               ms-auto: ดันไปชิดขวาสุดของแถวเครื่องมือ — คนละกลุ่มกับปุ่มแต่งข้อความ 3 ตัวทางซ้าย */}
+          {/* สร้างออเดอร์ — มือถือเท่านั้น (user สั่ง 2026-08-04 "อยากให้กดสร้าง order ใน chat ไว ๆ")
+              ตั้งแต่ 768px ขึ้นไปมีปุ่มมีป้าย "ข้อมูลลูกค้า" ที่หัวเธรด และ ≥1280px มีแผงขวาที่มี CTA
+              อยู่แล้ว — ใส่ที่นี่ด้วยจะกลายเป็นปุ่มซ้ำ 2 ที่บนจอเดียว
+              **มีป้ายกำกับ ไม่ใช่ไอคอนเปล่า** เพราะบทเรียน 2026-08-01: ไอคอนเปล่าในแถวนี้เคยทำให้
+              user หาปุ่มไม่เจอทั้งที่มีอยู่จริง — และนี่คือปุ่มที่ปิดการขาย ห้ามหาไม่เจอ
+              ms-auto ย้ายมาที่ปุ่มนี้ (เดิมอยู่ที่ไอคอนคน) ให้ทั้งคู่เกาะกลุ่มกันชิดขวา
+              label/icon อ่านจาก VERTICAL_CTA ตัวเดียวกับแผงลูกค้า — ร้านบ้านพักจะได้ "เปิดการจอง"
+              ทั้งสองที่ ไม่ใช่คำคนละคำ */}
+          <button
+            type="button"
+            onClick={startCreateOrder}
+            className="btn bg-primary/15 text-primary-ink hover:bg-primary/25 ms-auto shrink-0 md:hidden"
+          >
+            <Icon icon={VERTICAL_CTA[customerPanelData.vertical].icon} className="text-base" />
+            {VERTICAL_CTA[customerPanelData.vertical].label}
+          </button>
+
           <button
             type="button"
             onClick={() => setSheetOpen(true)}
             aria-label="ข้อมูลลูกค้า"
-            className="btn btn-icon text-default-600 hover:bg-default-100 ms-auto shrink-0 md:hidden"
+            className="btn btn-icon text-default-600 hover:bg-default-100 shrink-0 md:hidden"
           >
             <Icon icon="user-circle" className="text-lg" />
           </button>

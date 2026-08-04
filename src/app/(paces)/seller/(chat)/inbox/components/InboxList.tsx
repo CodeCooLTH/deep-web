@@ -225,6 +225,10 @@ type Props = {
   /** true = เรียกจาก Chat Rail (desktop, feat 00018) — ช่องค้นหาอยู่ topbar แล้ว ไม่ render ในตัว
    *  ไม่ระบุ/false = มือถือ/แท็บเล็ต drill-down list (inbox/page.tsx) — พฤติกรรมเดิมทุกประการ */
   railMode?: boolean
+  /** true = มีแท็บ ข้อความ|ความคิดเห็น เป็น sticky อยู่เหนือขึ้นไปในกล่อง scroll เดียวกัน (มือถือ)
+   *  → หัวรายการต้องเกาะใต้แท็บแทนที่จะเกาะขอบบน ไม่งั้นทับกัน. Chat Rail ไม่ต้องใช้ เพราะที่นั่น
+   *  แท็บอยู่นอกกล่อง scroll ไปแล้ว (ChatRail.tsx) */
+  tabsAbove?: boolean
   /** ร้านที่ active — ใช้ subscribe realtime `chat:shop:{shopId}`; null = ไม่ subscribe
    *  (ยัง fallback refresh ตอน focus ได้ปกติ) */
   shopId?: string | null
@@ -237,6 +241,7 @@ export default function InboxList({
   initialGroups = [],
   hasShipping = false,
   railMode = false,
+  tabsAbove = false,
   shopId = null,
 }: Props) {
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
@@ -751,7 +756,15 @@ export default function InboxList({
           ต้อง bg-card ในตัวเอง (พื้นของ .card อยู่ "หลัง" แถวที่เลื่อนผ่าน — ถ้าหัวโปร่งจะเห็นแถว
           ทะลุ) + z-10 ให้อยู่เหนือทั้งแถวและชุดปุ่มลอยตอน hover. ใช้ได้จริงเพราะ .card ไม่มี
           overflow:hidden (custom/_card.css — มีเฉพาะ .card-collapsed) ที่จะตัด sticky ทิ้ง */}
-      <div className="card-header sticky top-0 z-10 flex flex-col items-stretch gap-3 border-dashed bg-card">
+      {/* tabsAbove (มือถือ): มีแท็บ ข้อความ|ความคิดเห็น เป็น sticky อยู่เหนือขึ้นไปในกล่อง scroll
+          เดียวกัน — หัวรายการต้องเกาะ "ใต้แท็บ" ไม่ใช่ที่ 0 ไม่งั้นสองอันค้างที่เส้นเดียวกันแล้วทับกัน
+          top-14 = 3.5rem = 56px = ความสูงจริงของแท็บ (pt-3 12px + min-h-11 44px) และเป็น Tailwind
+          scale class ปกติ ไม่ใช่ arbitrary value (HR7) */}
+      <div
+        className={`card-header sticky z-10 flex flex-col items-stretch gap-3 border-dashed bg-card ${
+          tabsAbove ? 'top-14' : 'top-0'
+        }`}
+      >
         {/* ช่องค้นหา — Base ContactList.tsx:19-24 — railMode (desktop rail) ย้ายขึ้น topbar
             แล้ว (ChatSearchBox.tsx) ไม่ render ซ้ำที่นี่ — มือถือ/แท็บเล็ต drill-down ยังมีเหมือนเดิม */}
         {!railMode && (

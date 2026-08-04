@@ -259,13 +259,21 @@ export default async function SellerInboxPage() {
           → InboxList ต้องอ่านจาก context ไม่ render ช่องของตัวเอง ไม่งั้นมือถือเห็นช่องค้นหาซ้ำ 2 อัน
           (user เจอจริงบน prod) — prop ชื่อ railMode คงเดิม แต่ความหมายตอนนี้ = "ค้นหาอยู่ที่ header" */}
       <div className="lg:hidden">
-        {/* แท็บ ข้อความ | ความคิดเห็น (feature 00029) — มือถือไม่มี rail จึงต้องมีที่นี่ด้วย */}
-        <InboxTabs shopId={shop.id} />
+        {/* แท็บ ข้อความ | ความคิดเห็น (feature 00029) — มือถือไม่มี rail จึงต้องมีที่นี่ด้วย
+            sticky (user report 2026-08-04: เลื่อนรายการลงมาแล้วแท็บหายไป) — กล่อง scroll ของมือถือ
+            คือ `<div className="overflow-y-auto">` ใน (chat)/layout.tsx จึงค้างเทียบกับตัวนั้น
+            ที่นี่ย้ายแท็บออกนอก scroller แบบ ChatRail ไม่ได้ (แท็บกับรายการอยู่ใน children ก้อนเดียว)
+            → ใช้ sticky แทน แล้วดันหัวรายการลงไปเกาะใต้แท็บด้วย tabsAbove ไม่ให้ทับกัน
+            z-20 ต้องสูงกว่า z-10 ของหัวรายการ; bg-card เพราะพื้น .card อยู่หลังแถวที่เลื่อนผ่าน */}
+        <div className="bg-card sticky top-0 z-20">
+          <InboxTabs shopId={shop.id} />
+        </div>
         <InboxList
           initialItems={items}
           initialNextCursor={nextCursor}
           channels={channels}
           initialGroups={groups}
+          tabsAbove
           hasShipping={hasShipping}
           shopId={shop.id}
           railMode

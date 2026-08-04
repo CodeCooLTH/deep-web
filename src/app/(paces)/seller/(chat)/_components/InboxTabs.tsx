@@ -152,8 +152,11 @@ export default function InboxTabs({
             <Icon icon={t.icon} className="text-base" />
             {t.label}
             {count > 0 && (
+              // ย่อลงให้เท่า badge ที่ยังไม่อ่านในแถวรายการแชท (InboxList.tsx: h-4.5 min-w-4.5
+              // text-2xs) — user สั่ง 2026-08-04 ว่าของเดิมใหญ่ไป; ตัวเลขบนแท็บกับในแถวเป็นของ
+              // ตระกูลเดียวกัน ขนาดต่างกันทำให้ตัวบนแท็บดูสำคัญกว่าที่ควรจะเป็น
               <span
-                className="bg-danger flex min-w-5 items-center justify-center rounded-full px-1.5 text-xs text-white"
+                className="bg-danger flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-2xs font-semibold text-white"
                 aria-label={badgeLabel}
               >
                 {count > 99 ? '99+' : count}

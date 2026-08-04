@@ -115,7 +115,12 @@ type VerticalCta = { label: string; href: string; icon: string; tabLabel: string
 // เหมือนกัน (POS ใช้ได้ทั้ง 2 ประเภทตาม BRD §8.1 matrix — SERVICE_QUEUE ไม่มี booking แยกต่างหาก
 // การจองคิวเป็นคนละหน้าจอ /queues ไม่ใช่ CTA ของแผงลูกค้าในแชทนี้)
 // gap ที่ SDS ไม่ครอบ: object key (ไม่ใช่ string literal ในเครื่องหมายคำพูด) grep `'GENERAL'` มองไม่เห็น
-const VERTICAL_CTA: Record<ShopVertical, VerticalCta> = {
+/**
+ * export เพราะ ChatThread ใช้ตารางเดียวกันทำปุ่ม "สร้างออเดอร์" ในแถวเครื่องมือบนมือถือ
+ * (user สั่ง 2026-08-04) — ถ้าต่างคนต่างเขียน label/icon เอง วันที่เพิ่ม vertical ใหม่หรือเปลี่ยน
+ * คำเรียก จะเพี้ยนจากกันทันทีโดยไม่มีอะไรเตือน (ร้านบ้านพักต้องได้ "เปิดการจอง" ทั้งสองที่)
+ */
+export const VERTICAL_CTA: Record<ShopVertical, VerticalCta> = {
   ONLINE_SALES: {
     label: 'สร้างออเดอร์',
     href: '/orders/new',
