@@ -33,14 +33,15 @@ const COURIER_BRANDS: CourierBrand[] = [
   { match: /iship/i, logo: '/images/logos/iship.jpeg' },
   // user ส่งไฟล์มาเอง 2026-08-04 — 447x447 พื้นเหลืองเต็มกรอบ ไม่โปร่งใส (ดู object-cover ที่ OrderCard)
   { match: /flash/i, logo: '/images/logos/flash-express.jpeg' },
-  // ── ด้านล่างนี้รอไฟล์จาก user — เติม logo แล้วจบ ไม่ต้องแตะ UI ──
-  { match: /kerry|kex/i, logo: null },
-  { match: /thailand\s*post|ไปรษณีย์|\bthp\b|\bems\b/i, logo: null },
-  { match: /j\s*&\s*t|jnt/i, logo: null },
-  { match: /dhl/i, logo: null },
-  { match: /best/i, logo: null },
-  { match: /spx|shopee/i, logo: null },
-  { match: /fuze/i, logo: null },
+  // user อัปโหลดมาครบทุกแบรนด์ 2026-08-04
+  { match: /kerry|kex/i, logo: '/images/logos/kerry-express.jpeg' },
+  { match: /thailand\s*post|ไปรษณีย์|\bthp\b|\bems\b/i, logo: '/images/logos/thaipost.png' },
+  { match: /dhl/i, logo: '/images/logos/dhl.webp' },
+  { match: /best/i, logo: '/images/logos/best-express.jpeg' },
+  { match: /spx|shopee/i, logo: '/images/logos/spx-express.webp' },
+  { match: /fuze/i, logo: '/images/logos/fuze-post.png' },
+  // ชื่อไฟล์สะกด "jandt" (& ในชื่อไฟล์ทำให้ URL ต้อง escape) — คนละสะกดกับชื่อแบรนด์ "J&T"
+  { match: /j\s*&\s*t|jnt|jandt/i, logo: '/images/logos/jandt-express.png' },
 ]
 
 /** path โลโก้ของขนส่งเจ้านี้ — null = ยังไม่มีไฟล์ ให้ผู้เรียกตกไปใช้ตัวย่อแทน */

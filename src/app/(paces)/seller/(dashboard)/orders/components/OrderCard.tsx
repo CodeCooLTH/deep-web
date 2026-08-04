@@ -227,7 +227,7 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
                 src="/images/logos/iship.jpeg"
                 alt="iShip"
                 title="เปิดพัสดุผ่าน iShip"
-                className="size-5 shrink-0 rounded object-cover"
+                className="ring-default-200 size-5 shrink-0 rounded object-contain ring-1"
               />
             )}
 
@@ -239,9 +239,11 @@ export default function OrderCard({ order, onCancelRequest }: OrderCardProps) {
               <img
                 src={courierLogo}
                 alt={order.shipment.courierName ?? ''}
-                // object-cover: ไฟล์โลโก้ที่ได้มามีพื้นสีของตัวเอง (Flash = พื้นเหลืองเต็มกรอบ ไม่โปร่งใส)
-                // contain จะเหลือขอบขาวรอบ ๆ ดูเป็นรูปติดในกล่อง — cover ทำให้เป็นชิปสีเหมือนโลโก้ iShip ข้าง ๆ
-                className="size-5 shrink-0 rounded object-cover"
+                /* object-contain ไม่ใช่ cover: โลโก้ที่ได้มาส่วนใหญ่เป็นจัตุรัสซึ่ง contain ก็เต็มกรอบ
+                   เท่ากัน แต่ Fuze Post เป็น 600x300 (2:1) — cover จะครอปซ้าย-ขวาทิ้งจนเหลือแต่
+                   ตัวอักษรกลางคำ อ่านไม่ออก. contain ยอมให้เหลือที่ว่างบน-ล่างแทน ซึ่งอ่านออก
+                   ring-1: โลโก้พื้นขาว (ไปรษณีย์ไทย, Best) จะกลืนไปกับการ์ดขาวจนไม่เห็นขอบ */
+                className="ring-default-200 size-5 shrink-0 rounded object-contain ring-1"
               />
             ) : (
               <span
