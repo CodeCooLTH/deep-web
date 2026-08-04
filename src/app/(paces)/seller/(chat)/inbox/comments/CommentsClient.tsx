@@ -249,12 +249,19 @@ export default function CommentsClient({
   // ค่าเริ่มต้นบนมือถือ ~45% ของจอ — ไม่ตั้งไว้เลยจะได้แถบคอมเมนต์บางเฉียบตามที่ user เจอ
   useEffect(() => {
     if (!isNarrow || mobilePanelH !== null) return
-    setMobilePanelH(Math.round(window.innerHeight * 0.45))
+    setMobilePanelH(clampPanelH(Math.round(window.innerHeight * 0.45)))
   }, [isNarrow, mobilePanelH])
 
   const clampPanelH = (h: number) => {
-    const max = Math.max(200, window.innerHeight - 180) // เหลือที่ให้หัวโพสต์/แท็บพอมองเห็น
-    return Math.min(Math.max(h, 140), max)
+    /**
+     * เพดานต้องเผื่อ "ของที่อยู่เหนือแผง" ให้พอจริง (user report 2026-08-04 รอบสอง "มันเพี้ยนกว่าเดิม
+     * เวลาเราลากขึ้นลง"): รอบแรกผมเผื่อไว้แค่ 180px ซึ่งน้อยกว่าความสูงจริงของ header + แถบแท็บ +
+     * หัวโพสต์ + ข้อความ 3 บรรทัด (~300px) คอลัมน์โพสต์จึงยุบจนสื่อเหลือเป็นเสี้ยวและแถบยอดไปเบียดกัน
+     * 300px = ผลรวมจริงของ 4 ก้อนนั้น (วัดจากโครงที่ render อยู่ ไม่ใช่เลขสวย ๆ)
+     */
+    const reservedAbove = 300
+    const max = Math.max(220, window.innerHeight - reservedAbove)
+    return Math.min(Math.max(h, 160), max)
   }
   /**
    * ปลั๊กอินวิดีโอของ Facebook เรนเดอร์ player ตาม **ค่า width ที่ส่งไปใน URL** ไม่ใช่ตามขนาด
@@ -1207,7 +1214,7 @@ export default function CommentsClient({
               {/* วิดีโอเล่นในหน้าเราผ่าน Facebook video plugin (iframe สาธารณะ ไม่ต้องใช้ token
                   และไม่ต้องมีสิทธิ์อ่านไฟล์วิดีโอ ซึ่งเป็นเหตุผลที่ก่อนหน้านี้ทำได้แค่ลิงก์ออก) */}
               {playing && isVideoPost(selectedPost.mediaType) && selectedPost.permalink ? (
-                <div className="bg-default-100 flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
+                <div className="bg-default-100 flex min-h-40 w-full flex-1 items-center justify-center overflow-hidden lg:min-h-0">
                   {/* กล่องล็อกสัดส่วนตามรูปปก แล้วย่อให้พอดีกับพื้นที่ที่เหลือ (max-h-full/max-w-full)
                       — iframe จึงไม่มีวันสูง/กว้างเกินคอลัมน์ ส่วน width ที่ส่งให้ปลั๊กอินมาจากการวัด
                       กล่องจริง จึงไม่มีภาพล้นกรอบอีก */}
@@ -1249,7 +1256,9 @@ export default function CommentsClient({
                       setPlaying(true)
                     }
                   }}
-                  className="bg-default-100 relative block min-h-0 w-full flex-1"
+                  // มือถือ: ให้สื่อมีความสูงขั้นต่ำ (min-h-40) แล้วค่อยยืดตามที่เหลือ — ไม่ใช่ยุบตาม
+                  // flex จนเหลือเสี้ยวเดียวเมื่อผู้ใช้ลากแผงคอมเมนต์ขึ้นสูง (user report 2026-08-04)
+                  className="bg-default-100 relative block min-h-40 w-full flex-1 lg:min-h-0"
                   aria-label={isVideoPost(selectedPost.mediaType) ? 'เล่นวิดีโอ' : 'เปิดโพสต์บน Facebook'}
                 >
                   {/* เดสก์ท็อป: สูงเท่าที่เหลือในคอลัมน์ (h-full) — ของเดิม max-h คงที่ทำให้เหลือ
