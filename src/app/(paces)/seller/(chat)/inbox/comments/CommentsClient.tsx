@@ -24,6 +24,7 @@ import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
 import CommentsFilterPanel from './CommentsFilterPanel'
+import FilterDropdown from '@/components/safepay/FilterDropdown'
 
 export type ChannelOption = { id: string; name: string; provider: string; avatarUrl: string | null }
 
@@ -73,6 +74,25 @@ type ThreadData = {
   }
   channel: { name: string; avatarUrl: string | null; provider: string }
   comments: CommentItem[]
+}
+
+/**
+ * "คอมเมนต์ที่เกี่ยวข้อง" ของโพสต์ = คอมเมนต์ของลูกค้าที่ใหม่สุดและยังไม่มีคำตอบของเพจอยู่ข้างใต้
+ * ตอบครบหมดแล้วตกไปใช้คอมเมนต์ลูกค้าที่ใหม่สุด (ยังตอบเสริมได้) — ไม่มีเลยคืน null
+ *
+ * ต้องเป็นฟังก์ชันเดียวที่ทั้ง "การจ่อตอบ" และ "การเรียงให้อยู่บนสุด" เรียก (user สั่ง 2026-08-04
+ * "comment ที่เกี่ยวข้องควรอยู่บนสุดเสมอ") — ถ้าสองที่ตัดสินคนละนิยาม ระบบจะจ่อตอบอันหนึ่ง
+ * แต่ดันอีกอันขึ้นไปอยู่บนสุด
+ */
+function pickRelevantComment(list: CommentItem[]): CommentItem | null {
+  const byNewest = list
+    .filter((c) => !c.isFromPage && !c.isDeleted)
+    .sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime())
+  return (
+    byNewest.find((c) => !list.some((r) => r.isFromPage && r.parentExternalId === c.externalCommentId)) ??
+    byNewest[0] ??
+    null
+  )
 }
 
 /** โพสต์วิดีโอหรือเปล่า — Graph ส่ง media_type เป็น 'video' ส่วน status_type เก่าใช้ 'added_video' */
@@ -150,8 +170,19 @@ export default function CommentsClient({
   const [hasMore, setHasMore] = useState(initialPosts.length >= 25)
   // ในเธรด: ดูเฉพาะคอมเมนต์ที่ยังไม่มีคำตอบของเพจ
   const [unansweredOnly, setUnansweredOnly] = useState(false)
-  // แท็บสถานะของรายการโพสต์ (ให้เหมือนแท็บข้อความ: ทั้งหมด / ยังไม่ตอบ / ตอบครบแล้ว)
-  const [postTab, setPostTab] = useState<'ALL' | 'UNANSWERED' | 'DONE'>('ALL')
+  // แท็บสถานะของรายการโพสต์ — 2 แท็บเท่านั้นตามที่ user สั่ง 2026-08-04 ("ทั้งหมด / ยังไม่ตอบ")
+  // "ตอบครบแล้ว" ถอดออก: เป็นส่วนเติมเต็มของ "ยังไม่ตอบ" อยู่แล้ว. union เหลือ 2 ค่าเพื่อให้ tsc
+  // บังคับว่าไม่มีที่ไหนอ้าง 'DONE' ค้าง (ไม่ใช่ลบแค่ปุ่มที่ render)
+  const [postTab, setPostTab] = useState<'ALL' | 'UNANSWERED'>('ALL')
+  /**
+   * ลำดับคอมเมนต์ในเธรด — ชุดเดียวกับ Facebook (user สั่ง 2026-08-04) คำไทยยึดคำที่ผู้ขายเห็นใน
+   * Facebook/Business Suite อยู่แล้ว ไม่คิดคำใหม่ (impeccable clarify)
+   *   RELEVANT = 'เกี่ยวข้องที่สุด' (ค่าตั้งต้น) — คอมเมนต์ที่ต้องตอบอยู่บนสุด แล้วไล่ใหม่→เก่า
+   *   NEWEST   = 'ใหม่สุด' — ใหม่→เก่าล้วน
+   *   ALL      = 'ทั้งหมด' — เก่า→ใหม่ตามลำดับที่เกิดจริง (เท่ากับ All comments ของ Facebook)
+   * 'ซ่อนโดยเพจนี้' ยังทำไม่ได้ — PageComment ไม่มีคอลัมน์สถานะซ่อน จึงไม่ใส่ตัวเลือกที่กดแล้วว่างเสมอ
+   */
+  const [commentOrder, setCommentOrder] = useState<'RELEVANT' | 'NEWEST' | 'ALL'>('RELEVANT')
   const [emojiOpen, setEmojiOpen] = useState(false)
   // เล่นวิดีโอในหน้าเรา (user สั่ง 2026-08-03 "ไม่อยากให้กดออกไปใน facebook") — โหลด iframe ของ
   // Facebook video plugin เมื่อ "กดเล่น" เท่านั้น ไม่โหลดล่วงหน้าทุกโพสต์ (iframe ของ Meta หนัก
@@ -304,13 +335,15 @@ export default function CommentsClient({
     if (replyTo) replyBoxRef.current?.focus()
   }, [replyTo])
 
-  // เดสก์ท็อปเลือกโพสต์แรกให้ (คอลัมน์ขวาว่างเปล่าดูเหมือนหน้าพัง) — มือถือปล่อยให้เห็นรายการ
-  useEffect(() => {
-    if (selectedId || posts.length === 0) return
-    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
-      setSelectedId(posts[0].id)
-    }
-  }, [posts, selectedId])
+  /**
+   * ไม่เลือกโพสต์ให้เอง — เข้ามาต้องเห็น "เลือกความคิดเห็น" เหมือนที่แท็บข้อความเห็น "เลือกบทสนทนา"
+   * (user สั่ง 2026-08-04: "พอเข้าไป มันก็ไม่มี default เลือกความคิดเห็น มันเลือกอันแรกเสมอเลย")
+   *
+   * เหตุผลเดิม ("คอลัมน์ขวาว่างเปล่าดูเหมือนหน้าพัง", critique P0) ตกไปเพราะคอลัมน์ขวามี empty
+   * state ที่บอกว่าต้องทำอะไรต่ออยู่แล้ว และการเลือกให้เองมีราคาที่มองไม่เห็น: โพสต์แรกถูกจ่อตอบ
+   * ทุกครั้งที่เปิดหน้าโดยร้านไม่ได้เลือก แล้วรายการเรียงตามคอมเมนต์ล่าสุด = ตัวที่ถูกเลือก
+   * เปลี่ยนไปเรื่อย ๆ
+   */
 
   /**
    * ของใหม่เข้ามาเองทุก 15 วินาที (user report 2026-08-03 "ลองทักแล้วมันไม่ขึ้นใน tab ความคิดเห็น")
@@ -369,13 +402,31 @@ export default function CommentsClient({
       arr.push(c)
       children.set(c.parentExternalId, arr)
     }
-    return list
+    const tops = list.filter((c) => !c.parentExternalId)
+    const newestFirst = [...tops].sort(
+      (a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime(),
+    )
+    // ALL = เก่า→ใหม่ตามที่ service ส่งมา (ลำดับที่เกิดจริง) | NEWEST = ใหม่→เก่า
+    // RELEVANT = ดัน "คอมเมนต์ที่ต้องตอบ" ขึ้นบนสุด แล้วที่เหลือใหม่→เก่า (user สั่ง 2026-08-04
+    // "comment ที่เกี่ยวข้องควรอยู่บนสุดเสมอ") — ถ้าตัวที่เกี่ยวข้องเป็นคำตอบใต้คอมเมนต์อื่น
+    // ให้ดัน "ต้นเธรดของมัน" ขึ้นไป ไม่ใช่ดึงลูกออกมาลอยเดี่ยวจนอ่านไม่รู้ว่าตอบใคร
+    const ordered =
+      commentOrder === 'ALL'
+        ? tops
+        : commentOrder === 'NEWEST'
+          ? newestFirst
+          : (() => {
+              const relevant = pickRelevantComment(list)
+              if (!relevant) return newestFirst
+              const topId = relevant.parentExternalId ?? relevant.externalCommentId
+              const idx = newestFirst.findIndex((c) => c.externalCommentId === topId)
+              if (idx <= 0) return newestFirst
+              return [newestFirst[idx], ...newestFirst.filter((_, i) => i !== idx)]
+            })()
+    return ordered
       .filter((c) => !c.parentExternalId)
-      // ใหม่สุดอยู่บน (user สั่ง 2026-08-04 "ให้ขึ้น Newest เสมอ เหมือน Business Suite") — service
-      // ส่งมาเก่า→ใหม่ ซึ่งแปลว่าคอมเมนต์ที่เพิ่งเข้ามา (ตัวที่ต้องรีบตอบ) ไปจมอยู่ล่างสุดของโพสต์
-      // ที่มีคอมเมนต์เป็นร้อย. เรียงเฉพาะ "คอมเมนต์ระดับบน" เท่านั้น — คำตอบใต้แต่ละอันยังเก่า→ใหม่
-      // ตามเดิม เพราะข้างในนั้นคือบทสนทนา อ่านกลับหัวไม่รู้เรื่อง (Business Suite ก็ทำแบบนี้)
-      .sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime())
+      // ลำดับถูกตัดสินไปแล้วข้างบนตาม commentOrder — เรียงเฉพาะ "คอมเมนต์ระดับบน" เท่านั้น
+      // คำตอบใต้แต่ละอันยังเก่า→ใหม่ตามเดิม เพราะข้างในนั้นคือบทสนทนา อ่านกลับหัวไม่รู้เรื่อง
       .map((c) => {
         const replies = children.get(c.externalCommentId) ?? []
         const answeredSelf = c.isFromPage || replies.some((r) => r.isFromPage)
@@ -389,7 +440,7 @@ export default function CommentsClient({
         const unansweredHere = (!c.isFromPage && !c.isDeleted && !answeredSelf ? 1 : 0) + unansweredReplies
         return { comment: c, replies, answered: unansweredHere === 0, unansweredHere }
       })
-  }, [thread])
+  }, [thread, commentOrder])
 
   const visibleTree = useMemo(
     () => (unansweredOnly ? tree.filter((t) => !t.answered) : tree),
@@ -457,16 +508,21 @@ export default function CommentsClient({
     [posts, channelTab],
   )
   /**
-   * จำนวนโพสต์ที่ยังมีคอมเมนต์ค้าง — ตัวเลขบนแท็บต้องมาจากชุดเดียวกับรายการที่เรนเดอร์อยู่
-   * (เดิมนับจาก `posts` ทั้งร้าน: กรองเป็น Instagram แล้วแท็บยังขึ้นเลขของ Facebook)
+   * จำนวน **คอมเมนต์** ที่ยังไม่ตอบ — ไม่ใช่จำนวนโพสต์ (user report prod 2026-08-04: "จำนวนมัน
+   * แปลก ๆ ใน tab 24 ในยังไม่ตอบ 5 แต่ในแต่ละ comment lists ดันขึ้น 3, 7, 3, 8, 3")
+   *
+   * เลขทั้งสามชุดถูกหมดแต่ **นับคนละหน่วย**: badge บนแท็บ = คอมเมนต์ค้างทั้งร้าน (24),
+   * แท็บ "ยังไม่ตอบ" = จำนวนโพสต์ที่มีของค้าง (5), วงกลมท้ายแถว = คอมเมนต์ค้างต่อโพสต์
+   * (3+7+3+8+3 = 24) — วางเรียงกันในจอเดียวแล้วอ่านเป็น "ระบบนับเลขไม่ตรง"
+   * หน่วยเดียวทั้งจอคือ "คอมเมนต์ที่ยังไม่ตอบ" ตัวเลขจึงบวกกันได้ตรง ๆ
+   * (ยังนับจาก postsByChannel ชุดเดียวกับรายการที่เรนเดอร์ — กรองเป็น Instagram แล้วเลขต้องเปลี่ยนตาม)
    */
-  const unansweredPostCount = useMemo(
-    () => postsByChannel.filter((p) => p.unansweredCount > 0).length,
+  const unansweredCommentCount = useMemo(
+    () => postsByChannel.reduce((n, p) => n + p.unansweredCount, 0),
     [postsByChannel],
   )
   const visiblePosts = useMemo(() => {
     if (postTab === 'UNANSWERED') return postsByChannel.filter((p) => p.unansweredCount > 0)
-    if (postTab === 'DONE') return postsByChannel.filter((p) => p.unansweredCount === 0)
     return postsByChannel
   }, [postsByChannel, postTab])
 
@@ -697,7 +753,6 @@ export default function CommentsClient({
           {([
             { key: 'ALL', label: 'ทั้งหมด', icon: null },
             { key: 'UNANSWERED', label: 'ยังไม่ตอบ', icon: 'alert-circle' },
-            { key: 'DONE', label: 'ตอบครบแล้ว', icon: 'circle-check' },
           ] as const).map((t) => {
             const on = postTab === t.key
             return (
@@ -715,9 +770,10 @@ export default function CommentsClient({
                 {t.label}
                 {/* ตัวนับมาจาก postsByChannel ชุดเดียวกับรายการด้านล่าง (symbol เดียว) และตัดที่ 99+
                     เหมือน badge ยังไม่อ่านของแท็บข้อความ */}
-                {t.key === 'UNANSWERED' && unansweredPostCount > 0 && (
+                {/* หน่วยเดียวกับวงกลมท้ายแถวและ badge บนแท็บ = "คอมเมนต์ที่ยังไม่ตอบ" (symbol เดียว) */}
+                {t.key === 'UNANSWERED' && unansweredCommentCount > 0 && (
                   <span className="bg-danger text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold text-white">
-                    {unansweredPostCount > 99 ? '99+' : unansweredPostCount}
+                    {unansweredCommentCount > 99 ? '99+' : unansweredCommentCount}
                   </span>
                 )}
               </button>
@@ -861,11 +917,15 @@ export default function CommentsClient({
       {/* ── โพสต์ + ความคิดเห็น ─────────────────────────────────── */}
       <div className={`min-w-0 flex-1 flex-col ${selectedId ? 'flex' : 'hidden lg:flex'}`}>
         {!selectedPost ? (
-          <div className="flex flex-1 items-center justify-center p-6">
+          /* คำและโครงคู่กับคอลัมน์กลางของ /inbox ตอนยังไม่เลือกเธรด (page.tsx:283-289 —
+             `card flex h-full min-w-0 flex-1 items-center justify-center` + EmptyState compact)
+             อ่านเป็นประโยคคู่กัน: เลือกบทสนทนา / เลือกความคิดเห็น */
+          <div className="card flex h-full min-w-0 flex-1 items-center justify-center">
             <SellerEmptyState
+              compact
               icon="message-circle"
-              title="เลือกโพสต์เพื่อดูความคิดเห็น"
-              description="รายการทางซ้ายเรียงตามโพสต์ที่มีความคิดเห็นล่าสุด"
+              title="เลือกความคิดเห็น"
+              description="เลือกโพสต์ทางซ้ายมือเพื่อเริ่มอ่านและตอบความคิดเห็น"
             />
           </div>
         ) : (
@@ -1025,25 +1085,33 @@ export default function CommentsClient({
             <div className="flex min-h-0 flex-1 flex-col lg:h-full lg:w-1/2">
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="w-full p-3">
-                {/* ดูเฉพาะที่ยังไม่ตอบ — โพสต์ไวรัลมีคอมเมนต์เป็นร้อย ไล่หาเองไม่ไหว (critique P1) */}
+                {/* แถวจัดลำดับคอมเมนต์ — ชุดเดียวกับ Facebook (user สั่ง 2026-08-04)
+                    ใช้ดรอปดาวน์ตัวเดียวไม่ใช่ชิป 4 อัน เพราะคอลัมน์นี้กว้างครึ่งเดียวของแผงขวา
+                    (มือถือเต็มจอ ~360px) ชิป 4 อันตกบรรทัดแน่ — Facebook เองก็ใช้ดรอปดาวน์
+                    Base: components/safepay/FilterDropdown.tsx (ตัวเดียวกับหน้าอื่นใน (paces))
+                    ชิป "ยังไม่ตอบ N" แยกไว้: เป็นตัวกรองของเราเอง ไม่มีใน Facebook และเป็นเหตุผล
+                    ที่ร้านเปิดหน้านี้ (critique P1 — โพสต์ไวรัลมีคอมเมนต์เป็นร้อย) */}
                 {tree.length > 0 && (
-                  <div className="mb-3 flex gap-1">
+                  <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                    <FilterDropdown
+                      icon="arrows-sort"
+                      value={commentOrder}
+                      onChange={(v) => setCommentOrder(v as 'RELEVANT' | 'NEWEST' | 'ALL')}
+                      options={[
+                        { value: 'RELEVANT', label: 'เกี่ยวข้องที่สุด' },
+                        { value: 'NEWEST', label: 'ใหม่สุด' },
+                        { value: 'ALL', label: 'ทั้งหมด' },
+                      ]}
+                    />
                     <button
                       type="button"
-                      onClick={() => setUnansweredOnly(false)}
-                      className={`min-h-9 rounded-lg px-3 text-sm ${
-                        unansweredOnly ? 'text-default-700 hover:bg-default-100' : 'bg-primary text-white'
+                      onClick={() => setUnansweredOnly(!unansweredOnly)}
+                      aria-pressed={unansweredOnly}
+                      className={`badge text-2xs inline-flex min-h-9 items-center gap-1 px-3 ${
+                        unansweredOnly ? 'bg-danger text-white' : 'bg-danger/15 text-danger'
                       }`}
                     >
-                      ทั้งหมด {tree.length}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUnansweredOnly(true)}
-                      className={`min-h-9 rounded-lg px-3 text-sm ${
-                        unansweredOnly ? 'bg-primary text-white' : 'text-default-700 hover:bg-default-100'
-                      }`}
-                    >
+                      <Icon icon="alert-circle" width={12} height={12} />
                       ยังไม่ตอบ {tree.reduce((n, t) => n + t.unansweredHere, 0)}
                     </button>
                   </div>
