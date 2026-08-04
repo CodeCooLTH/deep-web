@@ -142,6 +142,8 @@ const schema = Yup.object({
 })
 
 interface ProductFormV2Props {
+  /** ร้านนี้ไม่มีการจัดส่ง (vertical === 'SERVICE_QUEUE') — feature 00030 BR-BKU-13 */
+  noShipping?: boolean
   shopId: string
   formId?: string
   product?: SerializedProduct
@@ -158,6 +160,7 @@ interface ProductFormV2Props {
 }
 
 export default function ProductFormV2({
+  noShipping = false,
   shopId,
   formId,
   product,
@@ -397,7 +400,7 @@ export default function ProductFormV2({
             )}
 
             <div className="border-default-100 border-t" />
-            <ProductCapabilityCardV2 register={register} errors={errors} />
+            <ProductCapabilityCardV2 register={register} errors={errors} noShipping={noShipping} />
 
             {/* BillingPeriodCardV2 self-renders null ถ้า billingMode !== RECURRING */}
             <ProductBillingPeriodCardV2

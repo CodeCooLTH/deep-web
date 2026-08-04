@@ -101,7 +101,9 @@ export default async function NewProductV2Page() {
         ตาม product-add ซ้าย = fields, ขวา = preview panel (ProductPreviewPanel)
         ดู JSDoc ใน ProductFormV2.tsx สำหรับ domain-component note
       */}
+      {/* feature 00030 BR-BKU-13 — ร้านรับนัดใช้บริการไม่มีการจัดส่ง ซ่อนตัวเลือกไปเลย */}
       <ProductFormV2
+        noShipping={shop.vertical === 'SERVICE_QUEUE'}
         shopId={shop.id}
         formId={FORM_ID}
         entitlementActive={entitlementActive}

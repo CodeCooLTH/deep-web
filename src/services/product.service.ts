@@ -231,18 +231,20 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
       // ไม่พึ่ง client หรือ DB default: SERVICE/DIGITAL ที่ไม่ส่ง fulfillmentMode จะได้
       // SHIPPED จาก schema default → post-OMS createOrder จะ require shipping ผิด
       //
-      // priority (feature 00028 BR-SBT-22, SDS TD-004):
-      //   1) data.fulfillmentMode ที่ caller ส่งมาเอง ชนะเสมอ
-      //   2) ร้าน SERVICE_QUEUE (ไม่มีจัดส่ง) → default NO_SHIPPING แม้ type จะ derive เป็น SHIPPED
+      // priority (feature 00030 BR-BKU-13 — กลับด้านจาก 00028 BR-SBT-22):
+      //   1) ร้าน SERVICE_QUEUE → NO_SHIPPING **เสมอ** ไม่ว่า caller จะส่งอะไรมา
+      //   2) data.fulfillmentMode ที่ caller ส่งมาเอง
       //   3) เดิม — derive จาก type (PHYSICAL → SHIPPED, SERVICE/DIGITAL/... → ตาม registry)
-      fulfillmentMode:
-        data.fulfillmentMode !== undefined
-          ? data.fulfillmentMode
-          : data.shopVertical === "SERVICE_QUEUE"
-            ? "NO_SHIPPING"
-            : (data.type in PRODUCT_TYPES
-                ? deriveCapabilityDefaults(data.type as ProductTypeId).fulfillmentMode
-                : undefined),
+      //
+      // ทำไมต้องกลับด้าน: 00028 ตั้งใจ "ล็อก" แต่เขียนเป็น default ที่ caller ทับได้ ซึ่งไม่ได้
+      // ปิดอะไรเลย — ฟอร์มสินค้าส่ง fulfillmentMode มาทุกครั้งอยู่แล้ว ค่าที่ตั้งใจให้ล็อกจึงแพ้
+      // ทุกครั้งในทางปฏิบัติ. ร้านที่ประกาศว่า "ไม่มีการจัดส่ง" ต้องไม่มีทางสร้างสินค้าที่ต้อง
+      // ส่งของได้ ไม่ว่าจะผ่าน UI หรือยิง API ตรง
+      fulfillmentMode: resolveFulfillmentMode({
+        shopVertical: data.shopVertical,
+        explicit: data.fulfillmentMode,
+        type: data.type,
+      }),
       ...(data.billingMode !== undefined && { billingMode: data.billingMode }),
       ...(data.billingPeriod !== undefined && { billingPeriod: data.billingPeriod }),
       ...(data.billingPeriodDays !== undefined && { billingPeriodDays: data.billingPeriodDays }),
@@ -259,6 +261,33 @@ export async function createProduct(shopId: string, data: CreateProductInput) {
   });
 
   return created;
+}
+
+/**
+ * resolveFulfillmentMode — ตัวตัดสินค่า Product.fulfillmentMode ที่เดียวของระบบ
+ * (feature 00030 BR-BKU-13 — สกัดออกมาเพราะเดิม createProduct กับ updateProduct ตัดสินคนละที่
+ *  ด้วยลำดับคนละแบบ จนสร้างถูกแล้วแก้ให้ผิดทีหลังได้)
+ *
+ * ลำดับ:
+ *   1) ร้าน SERVICE_QUEUE → NO_SHIPPING **เสมอ** ไม่ว่า caller จะส่งอะไรมา (ล็อก ไม่ใช่ default)
+ *   2) ค่าที่ caller ส่งมาเอง
+ *   3) derive จาก product type ตาม registry
+ *   4) undefined = ไม่แตะ (ให้ schema default / ค่าเดิมใน DB ทำงาน)
+ *
+ * ทำไมข้อ 1 ต้องชนะข้อ 2: 00028 (BR-SBT-22) ตั้งใจล็อกแต่เขียนเป็น default ที่ caller ทับได้
+ * ซึ่งไม่ได้ปิดอะไรเลย เพราะฟอร์มสินค้าส่ง fulfillmentMode มาทุกครั้งอยู่แล้ว
+ */
+export function resolveFulfillmentMode(input: {
+  shopVertical?: string;
+  explicit?: FulfillmentMode;
+  type?: string;
+}): FulfillmentMode | undefined {
+  if (input.shopVertical === "SERVICE_QUEUE") return "NO_SHIPPING";
+  if (input.explicit !== undefined) return input.explicit;
+  if (input.type !== undefined && input.type in PRODUCT_TYPES) {
+    return deriveCapabilityDefaults(input.type as ProductTypeId).fulfillmentMode;
+  }
+  return undefined;
 }
 
 export interface UpdateProductInput {
@@ -282,6 +311,13 @@ export interface UpdateProductInput {
   lowStockThreshold?: number | null;
   // cost — Expense & Cost Tracking (feature 00016): omit=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า (gate ที่ route ด้วย isCostEditAllowed)
   cost?: number | null;
+  /**
+   * shopVertical — feature 00030 (BR-BKU-13): mirror ของ CreateProductInput
+   * ร้าน SERVICE_QUEUE ต้องได้ NO_SHIPPING เสมอตอนแก้ไขด้วย ไม่ใช่แค่ตอนสร้าง
+   * (เดิม updateProduct ไม่รู้จัก vertical เลย — สร้างถูกแล้วแก้ให้ผิดทีหลังได้)
+   * caller ส่ง shop.vertical ที่มีอยู่แล้วในมือ ไม่ต้อง query ซ้ำใน service
+   */
+  shopVertical?: string;
 }
 
 /**
@@ -315,11 +351,15 @@ export async function updateProduct(productId: string, data: UpdateProductInput)
   if (data.isActive === false) scalarUpdate.pinnedAt = null;
   // ถ้าเปลี่ยน type + ไม่ได้ส่ง fulfillmentMode มาด้วย → re-derive จาก type ใหม่
   // ไม่พึ่ง client: PHYSICAL→SERVICE โดยไม่ส่ง fulfillmentMode จะเหลือ SHIPPED เดิม → OMS ผิด
-  if (data.fulfillmentMode !== undefined) {
-    scalarUpdate.fulfillmentMode = data.fulfillmentMode;
-  } else if (data.type !== undefined && data.type in PRODUCT_TYPES) {
-    scalarUpdate.fulfillmentMode = deriveCapabilityDefaults(data.type as ProductTypeId).fulfillmentMode;
-  }
+  // feature 00030 BR-BKU-13 — ร้าน SERVICE_QUEUE ล็อก NO_SHIPPING เสมอ ชนะทั้งค่าที่ caller
+  // ส่งมาและค่าที่ derive จาก type. เขียนไว้ก่อน branch เดิมเพื่อให้อ่านลำดับได้จากบนลงล่าง
+  const resolvedFulfillment = resolveFulfillmentMode({
+    shopVertical: data.shopVertical,
+    explicit: data.fulfillmentMode,
+    type: data.type,
+  });
+  // undefined = caller ไม่ได้ส่งและไม่ได้เปลี่ยน type → ไม่แตะค่าเดิมใน DB (partial update)
+  if (resolvedFulfillment !== undefined) scalarUpdate.fulfillmentMode = resolvedFulfillment;
   if (data.billingMode !== undefined) scalarUpdate.billingMode = data.billingMode;
   if (data.billingPeriod !== undefined) scalarUpdate.billingPeriod = data.billingPeriod;
   if (data.billingPeriodDays !== undefined) scalarUpdate.billingPeriodDays = data.billingPeriodDays;

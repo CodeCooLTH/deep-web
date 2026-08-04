@@ -21,6 +21,13 @@ import type { ProductFormV2Values } from './ProductFormV2.types'
 interface ProductCapabilityCardV2Props {
   register: UseFormRegister<ProductFormV2Values>
   errors: FieldErrors<ProductFormV2Values>
+  /**
+   * ร้านนี้ไม่มีการจัดส่งเลย (Shop.vertical === 'SERVICE_QUEUE') — feature 00030 BR-BKU-13
+   * true → ไม่ render ตัวเลือก "การจัดส่ง" เลย ไม่ใช่ disable ทิ้งไว้ให้เห็น: ตัวเลือกที่กดไม่ได้
+   * ยังบอกเป็นนัยว่า "ร้านนี้อาจจัดส่งได้ในบางกรณี" ซึ่งไม่จริง
+   * (ล็อกจริงอยู่ที่ service layer — ซ่อนใน UI อย่างเดียวไม่ใช่การควบคุม)
+   */
+  noShipping?: boolean
 }
 
 const FULFILLMENT_LABEL: Record<string, string> = {
@@ -35,6 +42,7 @@ const BILLING_LABEL: Record<string, string> = {
 export default function ProductCapabilityCardV2({
   register,
   errors,
+  noShipping = false,
 }: ProductCapabilityCardV2Props) {
   const [open, setOpen] = useState(false)
 
@@ -54,34 +62,42 @@ export default function ProductCapabilityCardV2({
 
       {open && (
         <div id="v2-capability-panel" className="mt-3 space-y-3">
-          <fieldset>
-            <legend className="text-default-700 mb-1.5 text-xs font-semibold">การจัดส่ง</legend>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {FULFILLMENT_MODES.map((mode) => {
-                const elemId = `v2-fulfillment-${mode.toLowerCase()}`
-                return (
-                  <div key={mode}>
-                    <input
-                      type="radio"
-                      id={elemId}
-                      value={mode}
-                      className="peer hidden"
-                      {...register('fulfillmentMode')}
-                    />
-                    <label
-                      htmlFor={elemId}
-                      className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-11 rounded-full px-2.5 text-xs peer-checked:text-white"
-                    >
-                      {FULFILLMENT_LABEL[mode]}
-                    </label>
-                  </div>
-                )
-              })}
-            </div>
-            {errors.fulfillmentMode && (
-              <p className="text-danger mt-1 text-sm">{errors.fulfillmentMode.message}</p>
-            )}
-          </fieldset>
+          {noShipping ? (
+            /* ร้านรับนัดใช้บริการไม่มีการจัดส่ง — บอกเป็นข้อเท็จจริงแทนตัวเลือกที่กดไม่ได้ */
+            <p className="text-default-500 flex items-start gap-1 text-xs">
+              <Icon icon="tabler:info-circle" className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              ร้านของคุณเป็นแบบรับนัดใช้บริการ สินค้าทุกชิ้นจึงไม่มีการจัดส่ง
+            </p>
+          ) : (
+            <fieldset>
+              <legend className="text-default-700 mb-1.5 text-xs font-semibold">การจัดส่ง</legend>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {FULFILLMENT_MODES.map((mode) => {
+                  const elemId = `v2-fulfillment-${mode.toLowerCase()}`
+                  return (
+                    <div key={mode}>
+                      <input
+                        type="radio"
+                        id={elemId}
+                        value={mode}
+                        className="peer hidden"
+                        {...register('fulfillmentMode')}
+                      />
+                      <label
+                        htmlFor={elemId}
+                        className="btn btn-xs border-default-300 text-default-700 peer-checked:bg-primary peer-checked:border-primary cursor-pointer min-h-11 rounded-full px-2.5 text-xs peer-checked:text-white"
+                      >
+                        {FULFILLMENT_LABEL[mode]}
+                      </label>
+                    </div>
+                  )
+                })}
+              </div>
+              {errors.fulfillmentMode && (
+                <p className="text-danger mt-1 text-sm">{errors.fulfillmentMode.message}</p>
+              )}
+            </fieldset>
+          )}
 
           <fieldset>
             <legend className="text-default-700 mb-1.5 text-xs font-semibold">การเก็บเงิน</legend>
