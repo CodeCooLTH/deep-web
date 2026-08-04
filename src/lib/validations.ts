@@ -743,7 +743,9 @@ export const SendChatMessageSchema = v.object({
   // เดิม 3 ชนิดนี้เกิดได้ทางเดียวคือ mirror ขาเข้าจาก Messenger/IG (เขียน DB ตรง ไม่ผ่าน schema นี้)
   // STICKER (2026-08-04): ไม่ใช่ไฟล์แนบ — ยิง sticker_id ให้ Meta แล้วฝั่งเราเก็บเป็นแถว IMAGE
   // (ดู sendOutboundMessage) จึงไม่อยู่ในชุด isAttachmentType
-  type: v.picklist(["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "PRODUCT", "ORDER", "STICKER"]),
+  // IMAGE_GRID (2026-08-04): รูปหลายใบในข้อความเดียว (Meta image_grid template) — ส่ง imageFileIds
+  // มาแทน imageUrl เดี่ยว; route แบ่งเป็นก้อนละไม่เกิน 6 ใบตามเพดานของ Meta
+  type: v.picklist(["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "PRODUCT", "ORDER", "STICKER", "IMAGE_GRID"]),
   // nullish ไม่ใช่ optional — client ส่ง `body: null` มาจริงเมื่อแนบรูปโดยไม่ใส่ caption
   // (useSellerChatThread.handleSend + payload ที่เก็บไว้สำหรับปุ่ม "ลองใหม่") ซึ่ง v.optional รับแค่
   // undefined → เด้ง "Invalid type: Expected string but received null" = **ส่งรูปอย่างเดียวไม่ได้เลย**
@@ -765,6 +767,8 @@ export const SendChatMessageSchema = v.object({
    *   บังคับ https + จำกัดความยาว: ค่านี้มาจาก client และถูกเอาไป fetch ฝั่ง server (SSRF)
    *   host allow-list ตัวจริงอยู่ที่ mirrorRemoteImage (เฉพาะ CDN ของ Meta) — ที่นี่เป็นชั้นแรก
    */
+  /** รูปหลายใบสำหรับ type='IMAGE_GRID' — fileId จาก POST /api/chat/upload (จำกัด 24 ใบต่อคำขอ) */
+  imageFileIds: v.optional(v.pipe(v.array(v.pipe(v.string(), v.minLength(1))), v.maxLength(24))),
   stickerId: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(32), v.regex(/^[0-9]+$/))),
   stickerImageUrl: v.optional(v.pipe(v.string(), v.url(), v.maxLength(2000), v.startsWith('https://'))),
 });

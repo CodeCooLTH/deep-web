@@ -381,7 +381,8 @@ function ChatImageMessage({ storageKey, onOpen }: { storageKey: string; onOpen: 
         <img
           src={mediaSrc(storageKey)}
           alt="รูปภาพที่ส่ง"
-          className="max-w-60 rounded"
+          // chat-media = ปิดเมนู long-press ของ iOS ให้ gesture เป็นของ useLongPress (react/ตอบกลับ)
+          className="chat-media max-w-60 rounded"
           onLoad={(e) => {
             const el = e.currentTarget
             if (el.naturalWidth <= STICKER_MAX_PX && el.naturalHeight <= STICKER_MAX_PX) setIsSticker(true)
@@ -1817,7 +1818,7 @@ export default function ChatThread({
                             {/* feature 00018 — ไฟล์แนบช่องทางนอก (วิดีโอ/เสียง/ไฟล์) mirror มาแล้ว serve ผ่าน /api/files */}
                             {m.type === 'VIDEO' && m.imageUrl && (
                               <>
-                                <video src={mediaSrc(m.imageUrl)} controls className="max-w-60 rounded" />
+                                <video src={mediaSrc(m.imageUrl)} controls className="chat-media max-w-60 rounded" />
                                 <MediaDownloadLink storageKey={m.imageUrl} label="บันทึกวิดีโอ" attachmentName={m.attachmentName} />
                               </>
                             )}

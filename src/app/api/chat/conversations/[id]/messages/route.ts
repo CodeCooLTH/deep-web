@@ -18,6 +18,7 @@ import {
 } from "@/lib/chat-constants";
 import { describeSendFailure } from "@/lib/chat-send-failure";
 import { EXT_TO_MIME } from "@/lib/attachment-mime";
+import { sendOutboundImageGrid, IMAGE_GRID_MAX } from "@/services/channel-chat.service";
 import {
   attachmentKind,
   checkChannelSupport,
@@ -353,12 +354,17 @@ export async function POST(
     replyToMessageId,
     stickerId,
     stickerImageUrl,
+    imageFileIds,
   } = parsed.output;
 
   // สติกเกอร์: ต้องมาครบทั้ง id และ url และเป็นของช่องทาง Meta เท่านั้น (แชท DEEP ไม่มีสติกเกอร์
   // ให้ส่ง — ปล่อยผ่านจะได้แถว IMAGE ที่ไม่มีปลายทางจริง) — เช็คช่องทางหลัง fetch conv ด้านล่าง
   if (type === "STICKER" && (!stickerId || !stickerImageUrl)) {
     return NextResponse.json({ error: "ข้อมูลสติกเกอร์ไม่ครบ" }, { status: 400 });
+  }
+  // กริดรูป (2026-08-04) — ต้องมีอย่างน้อย 2 ใบ ไม่งั้นใช้เส้นทางรูปเดี่ยวเดิมก็พอ
+  if (type === "IMAGE_GRID" && (!imageFileIds || imageFileIds.length < 2)) {
+    return NextResponse.json({ error: "ต้องมีรูปอย่างน้อย 2 ใบ" }, { status: 400 });
   }
 
   try {
@@ -401,6 +407,8 @@ export async function POST(
       if (!productRefId) {
         return NextResponse.json({ error: "กรุณาระบุสินค้า" }, { status: 400 });
       }
+    } else if (type === "IMAGE_GRID") {
+      // ตรวจครบก่อนเข้า try แล้ว — สาขานี้มีไว้กัน fail-closed ด้านล่างไม่ให้ตีตก
     } else if (type === "STICKER") {
       // ตรวจ stickerId/stickerImageUrl ไปแล้วก่อนเข้า try — ที่นี่แค่ต้อง "มีสาขาของตัวเอง"
       //
@@ -465,6 +473,33 @@ export async function POST(
         });
         return NextResponse.json(await withSender(sent, userId));
       }
+      // กริดรูป (2026-08-04) — แบ่งเป็นก้อนละไม่เกิน 6 ใบตามเพดาน Meta; เศษ 1 ใบส่งเป็นรูปเดี่ยว
+      // service มี fail-safe ตกไปส่งทีละใบเองถ้า Meta ปฏิเสธกริด (ร้านต้องส่งออกได้เสมอ)
+      if (type === "IMAGE_GRID") {
+        const ids = imageFileIds!;
+        let first = true;
+        for (let i = 0; i < ids.length; i += IMAGE_GRID_MAX) {
+          const chunk = ids.slice(i, i + IMAGE_GRID_MAX);
+          if (chunk.length === 1) {
+            await sendOutboundMessage({
+              conversationId: id,
+              actorUserId: userId,
+              attachment: { fileId: chunk[0], kind: "IMAGE", name: null, size: null },
+              text: first ? text ?? undefined : undefined,
+            });
+          } else {
+            await sendOutboundImageGrid({
+              conversationId: id,
+              actorUserId: userId,
+              fileIds: chunk,
+              caption: first ? text ?? null : null,
+            });
+          }
+          first = false;
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       const sent = await sendOutboundMessage({
         conversationId: id,
         actorUserId: userId,
@@ -479,6 +514,10 @@ export async function POST(
       return NextResponse.json(await withSender(sent, userId));
     }
 
+    if (type === "IMAGE_GRID") {
+      // ถึงตรงนี้ = เธรด DEEP — กริดเป็นรูปแบบของ Meta ไม่มีในแชทของเราเอง
+      return NextResponse.json({ error: "ส่งรูปหลายใบเป็นกริดได้เฉพาะแชท Facebook/Instagram" }, { status: 400 });
+    }
     if (type === "STICKER") {
       // ถึงตรงนี้ = เธรด DEEP (ช่องทางนอกถูกจัดการไปแล้วด้านบน) — ยังไม่มีสติกเกอร์ในแชทของเราเอง
       return NextResponse.json(

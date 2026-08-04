@@ -289,3 +289,15 @@ html[data-theme="dark"] .chat-header-logo {
     user-select: none;
   }
 }
+
+/* กดค้างบนรูป/สติกเกอร์ในแชทต้องเป็นของเรา ไม่ใช่ของ iOS (user report ผ่านลูกค้า 2026-08-04:
+   "longpress เพื่อ react บนรูปภาพ หรือ image grid ไม่ได้" + "sticker, like ด้วยนะ")
+   Safari/iOS ดัก long-press บน <img> เป็นเมนู Save Image/Copy ของตัวเองก่อน แล้ว pointer event
+   ของเรา (useLongPress) ไม่เคยยิง — ต้องปิด touch-callout ที่ตัวสื่อ
+   ประกาศเป็นคลาสจริงในไฟล์ override (ไม่ใช่ arbitrary value ใน className — HR7) เพราะ
+   -webkit-touch-callout ไม่มีใน utility ของ Tailwind */
+.chat-media {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

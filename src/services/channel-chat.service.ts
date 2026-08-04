@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendStickerMessage, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendStickerMessage, sendImageGridMessage, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -223,7 +223,7 @@ export async function syncMissingMessagesFromMeta(
         type: 'TEXT',
         // ไม่มีข้อความจริง = การ์ด/template ที่ Graph ไม่ให้เนื้อหา — ใช้ placeholder ชุดเดียวกับ
         // ฝั่ง webhook เพื่อไม่ให้เกิดบับเบิลว่างเปล่า (บทเรียน bubble ว่าง 2026-07-23)
-        body: m.text ?? SYNCED_EMPTY_TEXT,
+        body: m.text ?? syncedFallbackText(m.attachmentTypes),
         createdAt: m.createdTime,
         externalMessageId: m.id,
         // ทางเข้าที่สอง: ข้อความที่ webhook ไม่เคยส่งมา แล้วเราไปดึงจาก Graph เอง — ต้นทางคนละแบบ
@@ -241,7 +241,7 @@ export async function syncMissingMessagesFromMeta(
         where: { id: conversationId },
         data: {
           lastMessageAt: newest.createdTime,
-          lastMessagePreview: newest.text ?? SYNCED_EMPTY_TEXT,
+          lastMessagePreview: newest.text ?? syncedFallbackText(newest.attachmentTypes),
           lastSenderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
         },
       })
@@ -260,6 +260,37 @@ export async function syncMissingMessagesFromMeta(
 
 /** placeholder ของข้อความที่ Graph ไม่ให้เนื้อหา (การ์ด/template) — ล้อกับฝั่ง webhook */
 const SYNCED_EMPTY_TEXT = '[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]'
+
+/**
+ * ป้ายบอกชนิดของ "ข้อความที่ Graph ไม่ให้เนื้อหา" ตอน backfill (user report prod 2026-08-04:
+ * การ์ดปุ่มโทรของ Facebook ขึ้นเป็น "[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]" ก้อนเดียว
+ * ทั้งที่ Graph บอกชนิด attachment มาแล้ว)
+ *
+ * `fetchThreadMessages` ขอ `attachments{type}` มาอยู่แล้วและคืนเป็น `attachmentTypes` — โค้ดเดิม
+ * โยนทิ้งทั้งหมดแล้วเขียน placeholder เดียวกันหมด ผู้ขายจึงแยกไม่ออกว่านั่นคือการ์ดปุ่มโทร,
+ * ลิงก์ที่แชร์ หรือรูป
+ *
+ * Graph ให้แค่ "ชนิด" ไม่ให้ payload ของ template (ไม่มี field ให้ขอ) — ป้ายจึงบอกได้เท่าที่รู้จริง
+ * ห้ามเดาเนื้อหาการ์ด
+ */
+const SYNCED_ATTACHMENT_LABEL: Record<string, string> = {
+  template: '[การ์ดปุ่มจาก Facebook เช่น ปุ่มโทร — เปิดดูใน Messenger]',
+  fallback: '[ลิงก์ที่แชร์ — เปิดดูใน Messenger]',
+  image: '[รูปภาพ — เปิดดูใน Messenger]',
+  video: '[วิดีโอ — เปิดดูใน Messenger]',
+  audio: '[ข้อความเสียง — เปิดดูใน Messenger]',
+  file: '[ไฟล์แนบ — เปิดดูใน Messenger]',
+  sticker: '[สติกเกอร์ — เปิดดูใน Messenger]',
+}
+
+/** ข้อความที่จะเก็บลง body เมื่อ Graph ไม่ให้เนื้อความ — ใช้ชนิด attachment ตัวแรกที่รู้จัก */
+function syncedFallbackText(attachmentTypes: string[]): string {
+  for (const t of attachmentTypes) {
+    const label = SYNCED_ATTACHMENT_LABEL[t]
+    if (label) return label
+  }
+  return SYNCED_EMPTY_TEXT
+}
 /** เว้นระยะก่อน sync เธรดเดิมซ้ำ — ข้อความปกติมาทาง webhook อยู่แล้ว sync เป็นแค่ตาข่ายรับส่วนที่หลุด */
 const SYNC_THROTTLE_MS = 5 * 60 * 1000
 
@@ -1211,6 +1242,111 @@ export async function ingestMessageEdit(params: {
       data: { lastMessagePreview: params.text.slice(0, 100) },
     })
   }
+}
+
+/** เพดานรูปต่อกริด 1 ก้อนตามเอกสาร Meta (2–6) — เกินกว่านี้ผู้เรียกต้องแบ่งเป็นหลายข้อความ */
+export const IMAGE_GRID_MAX = 6
+
+/**
+ * ส่งรูปหลายใบเป็น "กริดในข้อความเดียว" (user สั่ง 2026-08-04 — ให้เหมือน Business Suite)
+ *
+ * fail-safe ตามที่ตกลงกับ user: ถ้า Meta ปฏิเสธ image_grid (รูปโหลดไม่ได้/ชนิดไม่ผ่าน/ฟีเจอร์ไม่เปิด
+ * ให้แอปนี้) **ตกไปส่งทีละใบด้วยเส้นทางเดิมอัตโนมัติ** ร้านต้องส่งออกได้เสมอ ห้ามล้มทั้งชุด
+ *
+ * เก็บฝั่งเรายังเป็น 1 แถวต่อ 1 รูป (เหมือนเดิม) เพราะ:
+ *  - ตัวเรนเดอร์ในเธรดจับรูปที่ติดกันเป็นอัลบั้มให้อยู่แล้ว หน้าตาจึงไม่เปลี่ยน
+ *  - คอลัมน์ imageUrl เก็บ fileId ได้ 1 ค่า การยัดหลายรูปลงแถวเดียวต้องแก้ schema + ทุกที่ที่อ่าน
+ *  - mid ที่ Meta คืนมามีอันเดียว → ใส่ที่แถวแรก ที่เหลือ suffix `#i` (convention เดียวกับ mirror
+ *    ขาเข้าที่ event เดียวมีหลาย attachment)
+ */
+export async function sendOutboundImageGrid(params: {
+  conversationId: string
+  actorUserId: string
+  /** fileId ใน storage ของเรา 2–6 ใบ */
+  fileIds: string[]
+  caption?: string | null
+}): Promise<{ mode: 'grid' | 'fallback'; count: number }> {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: params.conversationId },
+    include: { shopChannel: true, externalContact: true },
+  })
+  if (!conversation) throw new Error('CONVERSATION_NOT_FOUND')
+  if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (conversation.channel === 'DEEP' || !conversation.shopChannel || !conversation.externalContact) {
+    throw new Error('NOT_EXTERNAL_CHANNEL')
+  }
+  if (conversation.shopChannel.status !== 'ACTIVE') throw new Error('CHANNEL_NOT_ACTIVE')
+  const files = params.fileIds.slice(0, IMAGE_GRID_MAX)
+  if (files.length < 2) throw new Error('IMAGE_GRID_COUNT_OUT_OF_RANGE')
+
+  // หน้าต่างเวลา/แท็ก ใช้กฎเดียวกับการส่งข้อความ (คนกดเองเท่านั้นที่ติด HUMAN_AGENT ได้)
+  const windowState = getWindowState(conversation.lastInboundAt)
+  let messageTag: 'HUMAN_AGENT' | undefined
+  if (!windowState.open) {
+    if (isHumanAgentEnabled() && windowState.humanAgentOpen) messageTag = 'HUMAN_AGENT'
+    else throw new Error('WINDOW_CLOSED')
+  }
+
+  const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
+  const recipientId = conversation.externalContact.externalUserId
+  const urls = await Promise.all(files.map((id) => getFileUrl(id, { signed: true, expiresIn: 3600 })))
+
+  let mid: string | null = null
+  try {
+    mid = await sendImageGridMessage(pageToken, recipientId, urls, {
+      caption: params.caption ?? null,
+      tag: messageTag,
+    })
+  } catch (e) {
+    // fail-safe: ตกไปส่งทีละใบด้วยเส้นทางเดิม (ผ่าน sendOutboundMessage ที่จัดการ retry/บันทึกครบแล้ว)
+    console.warn('[fb-chat] image_grid ถูกปฏิเสธ ตกไปส่งทีละใบ', e instanceof Error ? e.message : e)
+    for (const fileId of files) {
+      await sendOutboundMessage({
+        conversationId: params.conversationId,
+        actorUserId: params.actorUserId,
+        attachment: { fileId, kind: 'IMAGE', name: null, size: null },
+      })
+    }
+    if (params.caption?.trim()) {
+      await sendOutboundMessage({
+        conversationId: params.conversationId,
+        actorUserId: params.actorUserId,
+        text: params.caption,
+      })
+    }
+    return { mode: 'fallback', count: files.length }
+  }
+
+  // บันทึกฝั่งเรา 1 แถวต่อรูป (mid อยู่แถวแรก ที่เหลือ suffix #i กัน unique ชน)
+  await prisma.$transaction(async (tx) => {
+    await tx.chatMessage.createMany({
+      data: files.map((fileId, i) => ({
+        conversationId: conversation.id,
+        senderUserId: params.actorUserId,
+        senderRole: 'SHOP' as const,
+        type: 'IMAGE' as const,
+        body: null,
+        imageUrl: fileId,
+        externalMessageId: mid ? (i === 0 ? mid : `${mid}#${i}`) : null,
+        deliveryStatus: 'SENT' as const,
+      })),
+      skipDuplicates: true,
+    })
+    await tx.conversation.update({
+      where: { id: conversation.id },
+      data: { lastMessageAt: new Date(), lastMessagePreview: '[รูปภาพ]', lastSenderRole: 'SHOP' },
+    })
+  })
+
+  // caption ส่งตามหลังเป็นข้อความ (title ของกริดจำกัด 45 อักขระ — ข้อความเต็มต้องไปเป็นบับเบิลข้อความ)
+  if (params.caption?.trim()) {
+    await sendOutboundMessage({
+      conversationId: params.conversationId,
+      actorUserId: params.actorUserId,
+      text: params.caption,
+    })
+  }
+  return { mode: 'grid', count: files.length }
 }
 
 export async function sendOutboundMessage(params: {
