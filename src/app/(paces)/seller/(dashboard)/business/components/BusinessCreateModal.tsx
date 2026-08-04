@@ -27,7 +27,8 @@ import VerticalTaxonomyPicker, { VERTICAL_LOCK_NOTICE } from '@/components/safep
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
-import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
+import CategoryMultiSelect from '../../dashboard/components/CategoryMultiSelect'
+import { SHOP_CATEGORY_LABELS } from '@/lib/shop-categories'
 import { SHOP_VERTICAL_KEYS, type ShopVertical } from '@/lib/lodging'
 
 // mirror CreateBusinessShopSchema ฝั่ง backend (SRS §9 / API.md §4.7) — ห้าม fork กฎ
@@ -36,7 +37,9 @@ const schema = Yup.object({
     .min(1, 'กรุณากรอกชื่อธุรกิจ')
     .max(100, 'ชื่อธุรกิจต้องไม่เกิน 100 ตัวอักษร')
     .required('กรุณากรอกชื่อธุรกิจ'),
-  category: Yup.string().oneOf(['', ...(SHOP_CATEGORY_KEYS as string[])]).default(''),
+  // หลายหมวดได้ ≤5 ตาม SSOT จริง (Shop.categories) — ของเดิมในฟอร์มนี้เลือกได้หมวดเดียว
+  // ทั้งที่ฐานเก็บได้หลายหมวดมาตั้งแต่ feature 00001
+  categories: Yup.array().of(Yup.string().required()).max(5, 'เลือกได้สูงสุด 5 หมวด').default([]),
   businessType: Yup.string()
     .oneOf(['INDIVIDUAL', 'COMPANY'] as const, 'กรุณาเลือกประเภทผู้ประกอบการ')
     .required('กรุณาเลือกประเภทผู้ประกอบการ'),
@@ -83,7 +86,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
     // BR-SBT-07 — ค่าเริ่มต้นยังเป็น ONLINE_SALES เหมือนฟอร์มเดิมทุกประการ
-    defaultValues: { shopName: '', category: '', businessType: 'INDIVIDUAL', vertical: 'ONLINE_SALES', description: '' },
+    defaultValues: { shopName: '', categories: [], businessType: 'INDIVIDUAL', vertical: 'ONLINE_SALES', description: '' },
   })
 
   const values = watch()
@@ -131,7 +134,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
   const next = async () => {
     // validate เฉพาะฟิลด์ของขั้นนั้น — กันผู้ใช้เดินข้ามขั้นที่ยังกรอกไม่ครบ
     const fields: Record<number, (keyof FormValues)[]> = {
-      1: ['shopName', 'category'],
+      1: ['shopName', 'categories'],
       2: ['vertical'],
       3: ['businessType', 'description'],
     }
@@ -145,7 +148,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
         shopName: v.shopName,
         businessType: v.businessType,
         vertical: v.vertical,
-        ...(v.category ? { category: v.category } : {}),
+        ...(v.categories?.length ? { categories: v.categories } : {}),
         ...(v.description ? { description: v.description } : {}),
       }
       const res = await fetch('/api/business/shops', {
@@ -238,8 +241,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
               <>
                 <p className="text-default-900 mb-1 text-xl font-semibold">ธุรกิจนี้ชื่ออะไร</p>
                 <p className="text-default-400 mb-5 text-xs">ชื่อที่ลูกค้าจะเห็น เปลี่ยนภายหลังได้</p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
+                <div>
                     <label className="form-label" htmlFor="bcm-name">
                       ชื่อธุรกิจ<span className="text-danger ms-0.5">*</span>
                     </label>
@@ -251,20 +253,25 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
                       {...register('shopName')}
                     />
                     {errors.shopName && <p className="text-danger mt-1 text-sm">{errors.shopName.message}</p>}
-                  </div>
-                  <div>
-                    <label className="form-label" htmlFor="bcm-cat">
-                      หมวดหมู่ <span className="text-default-400 font-normal">(ไม่บังคับ)</span>
-                    </label>
-                    <select id="bcm-cat" className="form-select" {...register('category')}>
-                      <option value="">-- เลือกหมวดหมู่ --</option>
-                      {SHOP_CATEGORY_KEYS.map((k) => (
-                        <option key={k} value={k}>
-                          {SHOP_CATEGORY_LABELS[k]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="form-label">
+                    หมวดหมู่ <span className="text-default-400 font-normal">(ไม่บังคับ · เลือกได้ถึง 5)</span>
+                  </label>
+                  <Controller
+                    name="categories"
+                    control={control}
+                    render={({ field }) => (
+                      <CategoryMultiSelect
+                        value={(field.value ?? []) as string[]}
+                        onChange={field.onChange}
+                        max={5}
+                      />
+                    )}
+                  />
+                  {errors.categories && (
+                    <p className="text-danger mt-1 text-sm">{errors.categories.message}</p>
+                  )}
                 </div>
               </>
             )}
@@ -344,7 +351,16 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
                 </p>
                 <dl className="border-default-300 divide-default-300 divide-y overflow-hidden rounded-lg border">
                   <Row k="ชื่อธุรกิจ" v={values.shopName} />
-                  <Row k="หมวดหมู่" v={values.category ? (SHOP_CATEGORY_LABELS as Record<string, string>)[values.category] : null} />
+                  <Row
+                    k="หมวดหมู่"
+                    v={
+                      values.categories?.length
+                        ? values.categories
+                            .map((c) => (SHOP_CATEGORY_LABELS as Record<string, string>)[c as string] ?? c)
+                            .join(" · ")
+                        : null
+                    }
+                  />
                   <div className="bg-warning/15 flex items-start justify-between gap-4 px-3.5 py-2.5">
                     <dt className="text-default-400 shrink-0 text-xs">ประเภทกิจการ</dt>
                     <dd className="text-default-900 text-right text-sm font-medium">
