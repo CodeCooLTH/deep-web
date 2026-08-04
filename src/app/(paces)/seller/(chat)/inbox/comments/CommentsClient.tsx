@@ -456,7 +456,13 @@ export default function CommentsClient({
             bg-light rounded-lg p-1, ตัวที่เลือก bg-card shadow-sm, ปุ่มตัวกรองเป็น btn เส้นขอบ)
             user สั่ง 2026-08-04: pill ต้องเป็น "ช่องทาง" ไม่ใช่ชื่อเพจ — เพจย้ายเข้าปุ่ม "ตัวกรอง"
             `relative` ที่แถวนี้คือจุดอ้างอิงของ popover ตัวกรอง (inset-x-0 = กว้างเท่าแถว ไม่ล้นจอ) */}
-        <div className="border-default-200 border-b p-2">
+        {/* กล่องหัวเดียวสำหรับทั้ง segmented ช่องทาง + ปุ่มตัวกรอง + แถวแท็บ
+            (Base: InboxList.tsx:754 `card-header sticky top-0 z-10 flex flex-col items-stretch
+            gap-3 border-dashed bg-card`)
+            รอบแรกผมแยกเป็น 2 กล่องคนละ padding (p-2 / px-3) → แท็บเยื้องกับ pill และระยะห่าง
+            ระหว่างแถวไม่เท่าฝั่งข้อความ (user report 2026-08-04 "tab ก็ยังไม่เห็นเหมือน")
+            ความ "เหมือน" ของสองหน้านี้อยู่ที่กล่องหัว ไม่ใช่แค่ตัวปุ่มแต่ละอัน */}
+        <div className="card-header sticky top-0 z-10 flex flex-col items-stretch gap-3 border-dashed bg-card">
           <div className="relative flex flex-wrap items-center gap-1.5">
             <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="tablist" aria-label="ตัวกรองช่องทาง">
               {(['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM'] as const).map((tab) => {
@@ -490,19 +496,34 @@ export default function CommentsClient({
                 )
               })}
             </div>
-            {/* ปุ่มตัวกรอง — โผล่เฉพาะร้านที่เชื่อมหลายเพจ (user สั่ง 2026-08-04 "ควรมีตัวกรองเพิ่ม
-                ในกรณีมีหลายเพจ เพื่อไปกด modal") ร้านเพจเดียวกดเข้าไปเจอตัวเลือกเดียว = ปุ่มหลอก */}
-            {channels.length > 1 && (
-              <CommentsFilterPanel
-                pageOptions={channels}
-                value={channelId}
-                onApply={setChannelId}
-                open={filterOpen}
-                onOpenChange={setFilterOpen}
-              />
+            {/* ปุ่มตัวกรอง — โผล่เสมอเหมือนแท็บข้อความ
+                รอบแรกผมใส่เงื่อนไข `channels.length > 1` เพราะ user เขียนว่า "ในกรณีมีหลายเพจ"
+                แล้ว user รายงานทันทีว่า "ไม่เห็นมี button ตัวกรองเลย" (ร้านเชื่อมเพจเดียว) —
+                เจตนาคือ "ต้องมีปุ่มตัวกรองเหมือนฝั่งข้อความ" ไม่ใช่ "ซ่อนเมื่อเพจเดียว":
+                ปุ่มที่หาย ๆ โผล่ ๆ ตามจำนวนเพจทำให้หน้าสองแท็บไม่เหมือนกันอยู่ดี */}
+            <CommentsFilterPanel
+              pageOptions={channels}
+              value={channelId}
+              onApply={setChannelId}
+              open={filterOpen}
+              onOpenChange={setFilterOpen}
+            />
+            {/* ชิปบอกว่ากำลังกรองเพจไหนอยู่ + กดกากบาทล้างได้ (Base: active-filter chips ของ
+                InboxList.tsx:867-882) — ปุ่มตัวกรองไม่ได้โชว์ชื่อเพจบนหน้าปุ่ม ชิปจึงจำเป็น */}
+            {channelId && (
+              <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+                {channels.find((c) => c.id === channelId)?.name ?? 'เพจที่เลือก'}
+                <button
+                  type="button"
+                  onClick={() => setChannelId(null)}
+                  aria-label="ล้างตัวกรองเพจ"
+                  className="inline-flex items-center"
+                >
+                  <Icon icon="x" width={12} height={12} />
+                </button>
+              </span>
             )}
           </div>
-        </div>
 
         {/* แท็บสถานะ — โครงเดียวกับแถว "ทั้งหมด · ปิดงาน · สแปม" ของแท็บข้อความ
             (Base: InboxList.tsx:890-927 — flex flex-wrap gap-1.5 ครอบ, แถบ min-w-0 flex-1 gap-3
@@ -510,7 +531,7 @@ export default function CommentsClient({
             **ความหมาย**ของแท็บยังเป็นของหน้านี้เอง (ทั้งหมด/ยังไม่ตอบ/ตอบครบแล้ว) — user สั่งชัด
             2026-08-04 ว่า "ไม่ได้ให้ลอก tab มา ผมให้ copy style" คือยกหน้าตา ไม่ใช่ยกความหมายของ
             ปิดงาน/สแปม ซึ่งฝั่งคอมเมนต์ไม่มีคอลัมน์รองรับอยู่แล้ว */}
-        <div className="flex flex-wrap items-center gap-1.5 px-3">
+        <div className="flex flex-wrap items-center gap-1.5">
           <div className="border-default-200 flex min-w-0 flex-1 items-center gap-3 border-b" role="tablist" aria-label="สถานะการตอบ">
           {([
             { key: 'ALL', label: 'ทั้งหมด', icon: null },
@@ -542,6 +563,7 @@ export default function CommentsClient({
             )
           })}
           </div>
+        </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
