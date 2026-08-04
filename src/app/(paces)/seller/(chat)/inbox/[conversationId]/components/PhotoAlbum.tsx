@@ -87,8 +87,14 @@ export default function PhotoAlbum({ ms, onOpen }: { ms: AlbumMsg[]; onOpen: (id
   }
 
   // 4+ รูป — grid 2×2 (4 ช่อง aspect-square auto-flow 2 แถว), ช่องที่ 4 overlay "+N" ถ้ามากกว่า 4 + ชิป "N รูป"
-  const shown = imgs.slice(0, 4)
-  const extra = count - 4
+  /**
+   * โชว์ได้ถึง 6 ช่อง (2×3) ก่อนจะเริ่มตัด — user เทียบกับ Messenger 2026-08-04: ส่ง 6 รูปแล้ว Meta
+   * แสดงครบทั้ง 6 ส่วนของเราตัดที่ 4 แล้วขึ้น "+2" ทุกกรณี ทำให้ดูไม่เหมือนและเห็นรูปน้อยกว่าจริง
+   * 7 ใบขึ้นไปจึงตัดแล้วขึ้น +N (10 ใบเรียงเรียบ ๆ จะยาวเกินบับเบิล — Messenger ก็ย่อเหมือนกัน)
+   */
+  const MAX_TILES = 6
+  const shown = imgs.slice(0, MAX_TILES)
+  const extra = count - MAX_TILES
   return (
     <div className="w-60">
       <div className="grid grid-cols-2 gap-1">
@@ -98,16 +104,21 @@ export default function PhotoAlbum({ ms, onOpen }: { ms: AlbumMsg[]; onOpen: (id
             msg={m}
             onOpen={onOpen}
             className="aspect-square"
-            overlay={i === 3 && extra > 0 ? extra : undefined}
+            // +N อยู่ช่องสุดท้ายที่โชว์จริง (ช่องที่ 6) ไม่ใช่ช่องที่ 4 ตายตัว
+            overlay={i === shown.length - 1 && extra > 0 ? extra : undefined}
           />
         ))}
       </div>
+      {/* ชิปจำนวนขึ้นเฉพาะตอนที่ "ตัดรูป" จริง (เกิน 6 ใบ) — 2-6 ใบเห็นครบอยู่แล้ว ไม่ต้องบอกจำนวนซ้ำ
+          (user เทียบกับ Messenger 2026-08-04) */}
+      {extra > 0 && (
       <div className="mt-1.5">
         <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
           <Icon icon="stack-2" />
           {count} รูป
         </span>
       </div>
+      )}
     </div>
   )
 }
