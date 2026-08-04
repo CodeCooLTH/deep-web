@@ -32,12 +32,36 @@ export interface SalesSeries {
   total: number
   /** ยอดรวมช่วงก่อนหน้า (เดือนก่อน / ปีก่อน) — ใช้คำนวณ %เทียบ */
   prevTotal: number
+  /**
+   * ยอดรวมช่วงก่อนหน้า **นับถึง bucket เดียวกับที่ช่วงปัจจุบันเดินมาถึง** — ตัวที่ควรใช้เทียบ %
+   *
+   * ทำไมต้องมี: `prevTotal` คือเดือนก่อน *ทั้งเดือน* แต่ `total` คือเดือนนี้ *เท่าที่ผ่านมา*
+   * วันที่ 4 จึงเอา 4 วันไปหารด้วย 31 วัน ได้ ▼80%+ ทุกเดือนต้นเดือน ทั้งที่อาจขายดีกว่าเดิม
+   * (บั๊กที่มีมาตลอด — ยังไม่เคยมีใครเห็นเพราะร้านที่เดือนก่อนยอด 0 จะถูกซ่อน % อยู่แล้ว)
+   *
+   * ช่วงที่จบไปแล้ว (ดูเดือนย้อนหลัง) → futureFromIndex = bucketCount → ค่านี้ = prevTotal พอดี
+   */
+  prevTotalToDate: number
   /** index ตั้งแต่นี้ไป = อนาคต (เกินวันนี้/เดือนนี้) → UI ทำแท่งจาง; = labels.length ถ้าช่วงเป็นอดีตทั้งหมด */
   futureFromIndex: number
+  /**
+   * ยอดขายราย **วัน** ของ 7 วันล่าสุดนับถึงวันนี้ (index 6 = วันนี้) — ข้ามเดือนได้
+   * มีเฉพาะเมื่อกำลังดู "เดือนปัจจุบันแบบรายวัน" เท่านั้น (ช่วงอื่น "7 วันล่าสุด" ไม่มีความหมาย)
+   *
+   * ไม่ต้อง query เพิ่ม: คิวรีเดิมครอบ prevGte..lt (2 เดือน) อยู่แล้ว ต้นเดือนจึงดึงวันของเดือนก่อนได้
+   */
+  last7Days?: number[]
+  /** label ของ last7Days — "29 ก.ค." เมื่อขึ้นเดือนใหม่/ตัวแรก, "30" สำหรับวันถัดไปในเดือนเดียวกัน */
+  last7Labels?: string[]
   /* ── ค่าใช้จ่าย (feature 00016) — มีเฉพาะเมื่อ caller ส่ง includeFinance=true คือผ่าน gate สิทธิ์แล้ว
         undefined ทั้งชุด = ไม่มีสิทธิ์ดู UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ────────────────────── */
   /** ค่าใช้จ่ายที่บันทึกต่อ bucket (บาท) */
   expenseValues?: number[]
+  /** ต้นทุนสินค้าที่ขายได้ (COGS) ต่อ bucket — คำนวณอยู่แล้วในลูป เดิมแค่ไม่เคยส่งออกมา
+   *  ชีตต้องใช้เพื่อให้ "ยืนยันแล้ว − เงินออก = กำไร" ลบกันได้จริงบนหน้าจอ (เงินออก = COGS + ค่าใช้จ่าย) */
+  cogsValues?: number[]
+  /** ต้นทุนสินค้ารวมทั้งช่วง */
+  totalCogs?: number
   /** กำไรสุทธิต่อ bucket = ยอดที่ยืนยันแล้ว − ต้นทุนสินค้า − ค่าใช้จ่าย (สูตรเดียวกับการ์ด P&L) */
   netProfitValues?: number[]
   /** ค่าใช้จ่ายรวมทั้งช่วง */
@@ -143,10 +167,32 @@ export async function getSalesSeries(
   const expenseValues = new Array<number>(bucketCount).fill(0)
   let total = 0
   let prevTotal = 0
+  let prevTotalToDate = 0
+
+  /**
+   * 7 วันล่าสุด — เตรียมขอบเขตเป็น "UTC instant ของเที่ยงคืนไทย" เพื่อให้หาร 86400000 ได้ตรง ๆ
+   * (tz ไทยเป็น offset คงที่ ไม่มี DST ขอบวันจึงห่างกัน 24 ชม.เป๊ะเสมอ)
+   * มีเฉพาะตอนดูเดือนปัจจุบันแบบรายวัน — ช่วงอื่น "7 วันล่าสุด" เทียบกับอะไรไม่ได้
+   */
+  const isCurrentDaily =
+    mode === 'daily' && period.year === nowYear && (period.month ?? 1) - 1 === nowMonth0
+  const DAY_MS = 24 * 60 * 60 * 1000
+  const todayStartMs = isCurrentDaily
+    ? Date.UTC(nowYear, nowMonth0, thaiNow.getUTCDate()) - TZ_OFFSET_MS
+    : 0
+  const sevenStartMs = todayStartMs - 6 * DAY_MS
+  const last7Days = isCurrentDaily ? new Array<number>(7).fill(0) : undefined
 
   for (const r of rows) {
     const amt = Number(r.totalAmount) // Prisma Decimal → number
     const created = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt)
+
+    // นับแยกจากบล็อกช่วงปัจจุบัน/ก่อนหน้าด้านล่าง เพราะหน้าต่าง 7 วันคาบเกี่ยวสองเดือนได้
+    if (last7Days) {
+      const off = Math.floor((created.getTime() - sevenStartMs) / DAY_MS)
+      if (off >= 0 && off < 7) last7Days[off] += amt
+    }
+
     if (created >= gte && created < lt) {
       const shifted = new Date(created.getTime() + TZ_OFFSET_MS)
       const idx = bucketOf(shifted)
@@ -166,10 +212,30 @@ export async function getSalesSeries(
       total += amt
     } else if (created >= prevGte && created < gte) {
       prevTotal += amt
+      /**
+       * เทียบแบบวันต่อวัน: นับเฉพาะ bucket ที่ช่วงปัจจุบันเดินมาถึงแล้ว
+       * `bucketOf` คืน index จาก "วันที่ในเดือน" (daily) หรือ "เดือนในปี" (monthly) โดยไม่สนว่าปี/เดือนไหน
+       * จึงป้อน timestamp ของช่วงก่อนหน้าเข้าไปตรง ๆ ได้ ไม่ต้องเขียนตัวแปลงใหม่
+       */
+      const shiftedPrev = new Date(created.getTime() + TZ_OFFSET_MS)
+      if (bucketOf(shiftedPrev) < futureFromIndex) prevTotalToDate += amt
     }
   }
 
-  const base = { labels, values, confirmedValues, unconfirmedValues, total, prevTotal, futureFromIndex }
+  /** label ของ 7 วันล่าสุด — ใส่ชื่อเดือนเฉพาะตัวแรกกับวันที่ข้ามเดือน (ที่เหลือรกโดยไม่ได้ข้อมูลเพิ่ม) */
+  const last7Labels = last7Days
+    ? Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(sevenStartMs + i * DAY_MS + TZ_OFFSET_MS)
+        const day = d.getUTCDate()
+        return i === 0 || day === 1 ? `${day} ${THAI_MONTHS_ABBR[d.getUTCMonth()]}` : String(day)
+      })
+    : undefined
+
+  const base = {
+    labels, values, confirmedValues, unconfirmedValues,
+    total, prevTotal, prevTotalToDate, futureFromIndex,
+    ...(last7Days ? { last7Days, last7Labels } : {}),
+  }
   if (!includeFinance) return base
 
   for (const e of expenseRows) {
@@ -184,6 +250,8 @@ export async function getSalesSeries(
     ...base,
     expenseValues,
     netProfitValues,
+    cogsValues,
+    totalCogs: cogsValues.reduce((s, v) => s + v, 0),
     totalExpense: expenseValues.reduce((s, v) => s + v, 0),
     netProfit: netProfitValues.reduce((s, v) => s + v, 0),
   }
