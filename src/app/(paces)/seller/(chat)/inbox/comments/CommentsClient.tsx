@@ -1106,11 +1106,8 @@ export default function CommentsClient({
                   {thread?.post.createdTime && ` · ${formatDateTH(thread.post.createdTime)}`}
                 </p>
               </div>
-              {selectedPost.unansweredCount > 0 && (
-                <span className="bg-danger/15 text-danger-ink text-2xs shrink-0 rounded-full px-2 py-0.5 font-semibold">
-                  ยังไม่ตอบ {selectedPost.unansweredCount}
-                </span>
-              )}
+              {/* ชิป "ยังไม่ตอบ N" ในหัวโพสต์ถูกถอดออก 2026-08-04 (user: "ยังไม่ตอบ 4 เอาออกด้วย") —
+                  ตัวเลขเดียวกันอยู่บนชิปในแผงคอมเมนต์ด้านขวาและบนแถวในรายการซ้ายแล้ว */}
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -1175,14 +1172,22 @@ export default function CommentsClient({
               {/* วิดีโอเล่นในหน้าเราผ่าน Facebook video plugin (iframe สาธารณะ ไม่ต้องใช้ token
                   และไม่ต้องมีสิทธิ์อ่านไฟล์วิดีโอ ซึ่งเป็นเหตุผลที่ก่อนหน้านี้ทำได้แค่ลิงก์ออก) */}
               {playing && isVideoPost(selectedPost.mediaType) && selectedPost.permalink ? (
-                <div className="bg-default-100 flex min-h-0 w-full flex-1 items-center justify-center">
+                <div className="bg-default-100 flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
                   {/* กล่องล็อกสัดส่วนตามรูปปก แล้วย่อให้พอดีกับพื้นที่ที่เหลือ (max-h-full/max-w-full)
                       — iframe จึงไม่มีวันสูง/กว้างเกินคอลัมน์ ส่วน width ที่ส่งให้ปลั๊กอินมาจากการวัด
                       กล่องจริง จึงไม่มีภาพล้นกรอบอีก */}
                   <div
                     ref={playerBoxRef}
                     style={{ aspectRatio: String(posterRatio ?? 16 / 9) }}
-                    className="max-h-full w-full max-w-full"
+                    /**
+                     * เดสก์ท็อป: ให้ **ความสูง** เป็นตัวคุม (h-full w-auto) แล้ว aspect-ratio คำนวณ
+                     * ความกว้างตามมา — user report 2026-08-04 "พอจะกดเล่น video มันเต็มจอเฉย":
+                     * เดิมคุมด้วย w-full แล้วหวังให้ max-h-full ตัด ซึ่งไม่ทำงานเมื่อคอลัมน์ยังไม่มี
+                     * ความสูงที่แน่นอน (คลิปแนวตั้งอัตราส่วน ~9:16 จึงสูงเป็น 1.8 เท่าของความกว้าง
+                     * แล้วดันแถวยอดตกจอ) · มือถือคอลัมน์เรียงลงมาไม่มีความสูงตายตัว จึงยังใช้ w-full
+                     * ตามเดิม + ตัวห่อมี overflow-hidden กันส่วนเกินอีกชั้น
+                     */
+                    className="max-h-full w-full max-w-full lg:h-full lg:w-auto"
                   >
                     {playerWidth > 0 && (
                       <iframe

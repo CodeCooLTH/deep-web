@@ -281,22 +281,14 @@ export default async function SellerInboxPage() {
           <SellerEmptyState
             compact
             icon="message-circle"
-            title="เลือกบทสนทนา"
+            title="เลือกข้อความ"
             description="เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ"
           />
         </div>
-        {/* คอลัมน์ขวาของ empty-state ต้องโผล่ที่ breakpoint เดียวกับ CustomerPanel จริงใน
-            [conversationId]/page.tsx (xl = 1280px) ไม่งั้นช่วง 1024-1279 หน้าเปล่าจะมี 3 คอลัมน์
-            แต่พอกดเข้าห้องแชทเหลือ 2 คอลัมน์ — เลย์เอาต์กระตุกตอนสลับหน้า */}
-        <div className="hidden h-full w-96 shrink-0 xl:block">
-          <div className="card flex h-full items-center justify-center">
-            <SellerEmptyState
-              compact
-              icon="user-circle"
-              title="เลือกบทสนทนาเพื่อดูข้อมูลลูกค้า"
-            />
-          </div>
-        </div>
+        {/* คอลัมน์ขวาของ empty-state ถูกถอดออก 2026-08-04 (user: "ไม่จำเป็นต้องมีด้านขวา เพราะ
+            เลือกบทสนทนาแล้วก็เห็นด้านขวาอยู่ดี") — เดิมมีไว้กันเลย์เอาต์กระตุกตอนสลับหน้า (หน้าเปล่า
+            3 คอลัมน์ → เข้าห้องแชท 3 คอลัมน์) ผลที่ยอมรับแล้ว: ตอนยังไม่เลือก คอลัมน์กลางจะกว้างกว่า
+            ตอนเลือกแล้วเล็กน้อย ซึ่ง user ตัดสินว่าคุ้มกว่าการมีข้อความว่างเปล่า 2 ก้อนบนจอเดียว */}
       </div>
     </>
   )
