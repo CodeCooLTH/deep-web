@@ -158,8 +158,32 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  for (const { pageId, event, rawEvent } of extractMessagingEventsWithRaw(parsed.output, rawJson)) {
+  for (const { pageId, event, rawEvent, standby } of extractMessagingEventsWithRaw(parsed.output, rawJson)) {
     try {
+      /**
+       * standby = ห้องที่ **แอปอื่นถือสิทธิ์คุมอยู่** (Handover Protocol) — Meta ส่งมาคนละกล่อง
+       * กับ messaging เพื่อบอกว่า "ตอนนี้ไม่ใช่ตาคุณ" ร้านที่ยังทำงานผ่าน Business Suite/แอป IG
+       * อยู่ ห้องส่วนใหญ่จะมาทางนี้ (user report prod 2026-08-04: "chat ig ไม่เข้าระบบ" ทั้งที่
+       * ช่องทาง ACTIVE และฝั่ง Meta สมัคร messages+standby ไว้ครบ — เราอ่านแต่ messaging)
+       *
+       * ทำไมยัง ingest ต่อ: การ "เห็นบทสนทนา" ไม่ต้องใช้สิทธิ์คุมห้อง สิ่งที่ต้องใช้คือการ "ตอบ"
+       * ซึ่งจะยังส่งไม่ผ่านจนกว่าจะขอสิทธิ์คุม (take_thread_control) — ดังนั้นเข้ามาก่อน
+       * ให้ผู้ขายเห็นครบ ดีกว่าปล่อยห้องหายทั้งห้องแบบเดิม
+       *
+       * mid ซ้ำไม่พัง: ChatMessage.externalMessageId เป็น @unique อยู่แล้ว event เดียวกันที่มา
+       * ทั้ง standby และ messaging (เช่นตอนสิทธิ์ถูกส่งกลับมาหาเรา) จะไม่เกิดแถวซ้ำ
+       */
+      if (standby) {
+        console.log(
+          '[fb-standby]',
+          JSON.stringify({
+            provider,
+            pageId,
+            kind: event.message ? 'message' : event.reaction ? 'reaction' : event.read ? 'read' : 'other',
+            isEcho: event.message?.is_echo ?? false,
+          }),
+        )
+      }
       if (event.read) {
         // read receipt (message_reads) — ลูกค้าอ่านข้อความของเพจ (feature 00018)
         await ingestReadEvent({
@@ -259,7 +283,10 @@ export async function POST(request: NextRequest) {
         //
         // try/catch ของตัวเอง + enqueueAutoReplyJob ที่ไม่ throw (TD-008) = สองชั้น เพื่อให้แน่ใจว่า
         // เส้นทาง isInfraError -> 503 ด้านล่างยังสงวนไว้ให้ ingestInboundMessage เท่านั้น
+        // standby: ห้ามตอบอัตโนมัติเด็ดขาด — เราไม่ได้ถือสิทธิ์คุมห้อง ข้อความจะถูก Meta ปฏิเสธ
+        // และต่อให้ส่งผ่าน ก็เป็นการแทรกกลางบทสนทนาที่ทีมกำลังตอบอยู่ในเครื่องมืออีกตัว
         if (
+          !standby &&
           ingested.status === 'STORED' &&
           ingested.headMessageId &&
           ingested.conversationId &&
