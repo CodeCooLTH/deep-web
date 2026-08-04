@@ -223,7 +223,7 @@ export async function syncMissingMessagesFromMeta(
         type: 'TEXT',
         // ไม่มีข้อความจริง = การ์ด/template ที่ Graph ไม่ให้เนื้อหา — ใช้ placeholder ชุดเดียวกับ
         // ฝั่ง webhook เพื่อไม่ให้เกิดบับเบิลว่างเปล่า (บทเรียน bubble ว่าง 2026-07-23)
-        body: m.text ?? SYNCED_EMPTY_TEXT,
+        body: m.text ?? syncedFallbackText(m.attachmentTypes),
         createdAt: m.createdTime,
         externalMessageId: m.id,
         // ทางเข้าที่สอง: ข้อความที่ webhook ไม่เคยส่งมา แล้วเราไปดึงจาก Graph เอง — ต้นทางคนละแบบ
@@ -241,7 +241,7 @@ export async function syncMissingMessagesFromMeta(
         where: { id: conversationId },
         data: {
           lastMessageAt: newest.createdTime,
-          lastMessagePreview: newest.text ?? SYNCED_EMPTY_TEXT,
+          lastMessagePreview: newest.text ?? syncedFallbackText(newest.attachmentTypes),
           lastSenderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
         },
       })
@@ -260,6 +260,37 @@ export async function syncMissingMessagesFromMeta(
 
 /** placeholder ของข้อความที่ Graph ไม่ให้เนื้อหา (การ์ด/template) — ล้อกับฝั่ง webhook */
 const SYNCED_EMPTY_TEXT = '[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]'
+
+/**
+ * ป้ายบอกชนิดของ "ข้อความที่ Graph ไม่ให้เนื้อหา" ตอน backfill (user report prod 2026-08-04:
+ * การ์ดปุ่มโทรของ Facebook ขึ้นเป็น "[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]" ก้อนเดียว
+ * ทั้งที่ Graph บอกชนิด attachment มาแล้ว)
+ *
+ * `fetchThreadMessages` ขอ `attachments{type}` มาอยู่แล้วและคืนเป็น `attachmentTypes` — โค้ดเดิม
+ * โยนทิ้งทั้งหมดแล้วเขียน placeholder เดียวกันหมด ผู้ขายจึงแยกไม่ออกว่านั่นคือการ์ดปุ่มโทร,
+ * ลิงก์ที่แชร์ หรือรูป
+ *
+ * Graph ให้แค่ "ชนิด" ไม่ให้ payload ของ template (ไม่มี field ให้ขอ) — ป้ายจึงบอกได้เท่าที่รู้จริง
+ * ห้ามเดาเนื้อหาการ์ด
+ */
+const SYNCED_ATTACHMENT_LABEL: Record<string, string> = {
+  template: '[การ์ดปุ่มจาก Facebook เช่น ปุ่มโทร — เปิดดูใน Messenger]',
+  fallback: '[ลิงก์ที่แชร์ — เปิดดูใน Messenger]',
+  image: '[รูปภาพ — เปิดดูใน Messenger]',
+  video: '[วิดีโอ — เปิดดูใน Messenger]',
+  audio: '[ข้อความเสียง — เปิดดูใน Messenger]',
+  file: '[ไฟล์แนบ — เปิดดูใน Messenger]',
+  sticker: '[สติกเกอร์ — เปิดดูใน Messenger]',
+}
+
+/** ข้อความที่จะเก็บลง body เมื่อ Graph ไม่ให้เนื้อความ — ใช้ชนิด attachment ตัวแรกที่รู้จัก */
+function syncedFallbackText(attachmentTypes: string[]): string {
+  for (const t of attachmentTypes) {
+    const label = SYNCED_ATTACHMENT_LABEL[t]
+    if (label) return label
+  }
+  return SYNCED_EMPTY_TEXT
+}
 /** เว้นระยะก่อน sync เธรดเดิมซ้ำ — ข้อความปกติมาทาง webhook อยู่แล้ว sync เป็นแค่ตาข่ายรับส่วนที่หลุด */
 const SYNC_THROTTLE_MS = 5 * 60 * 1000
 
