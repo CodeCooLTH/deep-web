@@ -418,6 +418,27 @@ function ReactMessageButton({ onOpen }: { onOpen: (rect: DOMRect) => void }) {
   )
 }
 
+/**
+ * ปุ่ม "สร้างคำสั่งซื้อจากข้อความนี้" ข้างบับเบิลตอน hover (user สั่ง 2026-08-04 "อยากให้เพิ่มปุ่ม
+ * สร้างคำสั่งซื้อเวลา hover ใน web ด้วย มันสะดวกดี")
+ *
+ * ทำงานเหมือนปุ่มในเมนูกดค้างของมือถือเป๊ะ ๆ (เปิดหน้าต่างคำสั่งซื้อ + กระจายที่อยู่จากข้อความนั้น)
+ * — เดสก์ท็อปไม่มี "กดค้าง" จึงต้องมีทางเข้าคู่ขนานที่ hover เหมือน ตอบกลับ/คัดลอก/รีแอ็กชัน
+ */
+function CreateOrderFromMessageButton({ onCreate }: { onCreate: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onCreate}
+      aria-label="สร้างคำสั่งซื้อจากข้อความนี้"
+      title="สร้างคำสั่งซื้อจากข้อความนี้"
+      className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
+    >
+      <Icon icon="receipt" className="size-4" />
+    </button>
+  )
+}
+
 function ReplyMessageButton({ onReply }: { onReply: () => void }) {
   return (
     <button
@@ -1665,6 +1686,21 @@ export default function ChatThread({
                               message: m,
                               x: rect.left + rect.width / 2,
                               y: rect.top,
+                            })
+                          }
+                        />
+                      )}
+                      {/* สร้างคำสั่งซื้อจากข้อความนี้ (user 2026-08-04) — เงื่อนไขเดียวกับปุ่มในเมนู
+                          กดค้างของมือถือ: เฉพาะข้อความที่มีตัวอักษร (รูป/การ์ดไม่มีอะไรให้กระจาย) */}
+                      {m.body?.trim() && (
+                        <CreateOrderFromMessageButton
+                          onCreate={() =>
+                            openDraft({
+                              conversationId,
+                              customerName: buyerName,
+                              channel,
+                              customerAvatar: buyerAvatar,
+                              prefillText: m.body!,
                             })
                           }
                         />
