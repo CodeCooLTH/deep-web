@@ -105,16 +105,23 @@ type Props = {
   onSelect: (emoji: string) => void
   onClose: () => void
   /**
-   * มีค่า = โชว์แท็บ "สติกเกอร์" ด้วย (user สั่ง 2026-08-04: "ปรกติเค้ากดจาก emoji กันป่ะ แล้วเจอ
-   * tab เลือกว่าจะ emoji หรือ sticker") — ไม่ส่ง = แผงอิโมจิล้วนเหมือนเดิม
-   * ฝั่งคอมเมนต์ไม่ส่งค่านี้: Graph ของคอมเมนต์ไม่รับ sticker_id (ส่งได้แค่ข้อความ + รูป 1 ใบ)
+   * โหมดของแผง — user สั่ง 2026-08-04 รอบสอง: "อยากให้แยก emoji / sticker เป็น 2 icon"
+   * (รอบแรกทำเป็นแท็บในแผงเดียวตามที่สั่งไว้ก่อนหน้า แล้ว user เปลี่ยนใจหลังลองใช้จริง)
+   * 'STICKER' ต้องมาคู่กับ onSelectSticker เสมอ
    */
+  mode?: 'EMOJI' | 'STICKER'
   onSelectSticker?: (sticker: StickerItem) => void
+  /**
+   * ยึดขอบไหนของปุ่ม — 'right' = ขอบขวาของแผงตรงกับขอบขวาของปุ่ม (ใช้เมื่อปุ่มอยู่ชิดขวาของแถบ
+   * อย่างในช่องตอบคอมเมนต์ ไม่งั้นแผงยื่นออกนอกคอลัมน์แล้วถูกกล่อง scroll ตัด — user report
+   * 2026-08-04 "panel มันเพี้ยน")
+   */
+  align?: 'left' | 'right'
 }
 
-export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Props) {
+export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelectSticker, align = 'left' }: Props) {
   const ref = useRef<HTMLDivElement>(null)
-  const [tab, setTab] = useState<'EMOJI' | 'STICKER'>('EMOJI')
+  const tab = mode
   const [packs, setPacks] = useState<StickerPack[] | null>(null)
   /**
    * แท็บที่เปิดอยู่ในแถบล่าง — id ของแพ็ก หรือ RECENT_TAB (ใช้ล่าสุด)
@@ -216,35 +223,12 @@ export default function EmojiPicker({ onSelect, onClose, onSelectSticker }: Prop
        * → inset-x-0 = 40px. บนมือถือ 288px คือค่าที่พอดีขอบจอเมื่อวัดจากตำแหน่งปุ่มจริง
        * ≥640px ขยายเป็น 384px ได้เพราะมีที่เหลือ
        */
-      className="card bg-card border-default-200 absolute bottom-full left-0 z-20 mb-2 w-72 border p-0 shadow-lg sm:w-96"
+      className={`card bg-card border-default-200 absolute bottom-full z-20 mb-2 w-72 border p-0 shadow-lg sm:w-96 ${
+        align === 'right' ? 'right-0' : 'left-0'
+      }`}
     >
-      {/* แท็บ อิโมจิ | สติกเกอร์ — โครงเดียวกับ segmented ของแท็บช่องทางในกล่องข้อความ
-          (bg-light rounded-lg p-1 + ตัวที่เลือกเป็นการ์ดขาว) เพื่อให้เป็นภาษาเดียวกันทั้งแอป */}
-      {onSelectSticker && (
-        <div className="border-default-200 border-b p-2">
-          <div className="bg-light flex items-center gap-0.5 rounded-lg p-1" role="tablist" aria-label="ชนิดที่จะแทรก">
-            {([
-              { key: 'EMOJI', label: 'อิโมจิ' },
-              { key: 'STICKER', label: 'สติกเกอร์' },
-            ] as const).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex min-w-0 flex-1 items-center justify-center rounded-md px-2 py-1.5 text-sm font-medium ${
-                  tab === t.key ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {onSelectSticker && tab === 'STICKER' ? (
+      {tab === 'STICKER' && onSelectSticker ? (
         <div className="flex flex-col">
           <div className="border-default-200 border-b p-2">
             <div className="input-icon-group">

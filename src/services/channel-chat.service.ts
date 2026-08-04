@@ -540,14 +540,22 @@ export async function ingestInboundMessage(params: {
   // ชน unique (mid เดียวทั้ง event) — redelivery ชนตัวแรก tx abort → DUPLICATE เหมือนเดิม
   //
   // dedup (user report 2026-07-25: สติกเกอร์ส่งครั้งเดียวขึ้น 2 อัน): Messenger ส่งสติกเกอร์บางตัวเป็น
-  // attachment ซ้ำ 2 ชิ้น (sticker_id/url เดียวกัน) ใน event เดียว → loop นี้เคย mirror ตัวซ้ำเป็นข้อความ
-  // ที่ 2. กันด้วย key = sticker_id (ถ้ามี) ไม่งั้น url — ต่างจากส่งหลายรูปจริงที่ url ต่างกันทุกใบ (ยังขึ้นครบ)
+  // attachment ซ้ำ 2 ชิ้นใน event เดียว → loop นี้เคย mirror ตัวซ้ำเป็นข้อความที่ 2
+  //
+  // 🛑 ต้องคีย์ด้วย **url ก่อน** แล้วค่อยตกไป sticker_id (user report prod 2026-08-04 "มันดันส่ง 2 ที
+  // ทั้ง ๆ ที่ผมกดส่งทีเดียว"): ตั้งแต่ Sticker API รอบใหม่ Meta ส่งสติกเกอร์ 1 ใบมาเป็น attachment
+  // 2 ชิ้นที่ **ชนิดต่างกันแต่ url เดียวกัน** — `{type:'sticker', payload:{sticker_id,url}}` +
+  // `{type:'image', payload:{url}}` (เอกสาร Sticker API ระบุเองว่าเป็นช่วงเปลี่ยนผ่าน 90 วัน
+  // ถึง 30 ส.ค. 2026 หลังจากนั้นจะเหลือแต่ชนิด sticker)
+  // คีย์แบบเดิม (sticker_id ก่อน) ทำให้ชิ้นแรกได้ `s:<id>` ชิ้นที่สองได้ `u:<url>` = คนละคีย์ →
+  // หลุด dedup ทั้งคู่. คีย์ด้วย url จับได้ทั้งสองชิ้นเพราะ url ตรงกันเป๊ะ และยังไม่กระทบการส่ง
+  // หลายรูปจริง (url ต่างกันทุกใบ)
   const allAttachments = event.message.attachments ?? []
   const attKey = (a: (typeof allAttachments)[number] | undefined): string | null =>
-    a?.payload?.sticker_id != null
-      ? `s:${a.payload.sticker_id}`
-      : a?.payload?.url
-        ? `u:${a.payload.url}`
+    a?.payload?.url
+      ? `u:${a.payload.url}`
+      : a?.payload?.sticker_id != null
+        ? `s:${a.payload.sticker_id}`
         : null
   const seenAttKeys = new Set<string>()
   const firstKey = attKey(firstAttachment)
@@ -1281,7 +1289,7 @@ export async function sendOutboundMessage(params: {
     if (params.sticker) {
       // สติกเกอร์: ยิง sticker_id ตรง ๆ ไม่ใช่ attachment (ดู lib/facebook/graph.ts sendStickerMessage)
       // อยู่ใต้กฎหน้าต่างเวลาเดียวกัน จึงส่ง messageTag ไปด้วยเหมือนข้อความปกติ
-      mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, messageTag)
+      mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, params.replyToMid, messageTag)
     } else if (attachment) {
       // presigned URL อายุ 1 ชม. — Meta ดึงไฟล์ไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
       const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
@@ -1306,7 +1314,11 @@ export async function sendOutboundMessage(params: {
     // ลองใหม่แบบไม่มี reply_to เพื่อให้ข้อความยังส่งออกได้ (quote ฝั่งเราแสดงอยู่ดี)
     if (params.replyToMid && !mid) {
       try {
-        if (attachment) {
+        if (params.sticker) {
+          // Meta ไม่ได้ระบุว่า sticker รองรับ reply_to — ปฏิเสธก็ยิงซ้ำแบบไม่ผูกการตอบ
+          // (ผู้ใช้ต้องได้สติกเกอร์ ดีกว่าไม่ได้อะไรเพราะ quote)
+          mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, null, messageTag)
+        } else if (attachment) {
           const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
           // ต้องส่ง kind เดิม ห้ามถอยกลับเป็น 'image' — ไม่งั้นวิดีโอ/ไฟล์จะถูกส่งผิดชนิดเงียบ ๆ
           // เฉพาะรอบ retry (บั๊กแบบที่เห็นเฉพาะตอน Meta ปฏิเสธ reply_to จึงหาเจอยากมาก)

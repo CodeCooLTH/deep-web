@@ -767,12 +767,23 @@ export async function fetchStickersInPack(packId: string): Promise<GraphSticker[
   })
 }
 
-/** ค้นสติกเกอร์ข้ามทุกแพ็ก — q ต้องยาว ≥2 ตัวอักษรตามเอกสาร (สั้นกว่านั้น Meta ตีตก) */
+/**
+ * ค้นสติกเกอร์ข้ามทุกแพ็ก — q ต้องยาว >=2 ตัวอักษรตามเอกสาร (สั้นกว่านั้น Meta ตีตก)
+ *
+ * ส่ง `locale` **เฉพาะเมื่อคำค้นเป็นภาษาไทย** — วัดกับ API จริง 2026-08-04:
+ *     q=cat (ไม่ส่ง locale) -> 25 ผลลัพธ์
+ *     q=แมว + locale=th_TH  -> 25 ผลลัพธ์
+ *     q=cat + locale=th_TH  -> **0 ผลลัพธ์**
+ * เอกสารเขียนว่า "searches in the specified language first; falls back to English if no results"
+ * แต่พฤติกรรมจริงไม่ fallback — ส่ง locale ไทยติดไปกับคำอังกฤษแล้วได้ศูนย์ ซึ่งผู้ใช้อ่านว่า
+ * "ค้นไม่เจอ/ระบบพัง" ทั้งที่มีสติกเกอร์อยู่. ยึดพฤติกรรมจริง ไม่ยึดเอกสาร
+ */
 export async function searchStickers(q: string): Promise<GraphSticker[]> {
   const query = q.trim()
   if (query.length < 2) return []
+  const hasThai = /[\u0E00-\u0E7F]/.test(query)
   const json = await graphFetch('/sticker_search', appAccessToken(), {
-    query: { q: query, locale: STICKER_LOCALE },
+    query: { q: query, ...(hasThai ? { locale: STICKER_LOCALE } : {}) },
   })
   const data = Array.isArray(json.data) ? (json.data as Record<string, unknown>[]) : []
   return data.flatMap((s) => {
@@ -789,6 +800,10 @@ export async function sendStickerMessage(
   pageToken: string,
   recipientId: string,
   stickerId: string,
+  /** ตอบทับข้อความ mid นี้ (user สั่ง 2026-08-04 "กด sticker จะถือว่าเป็น reply อัตโนมัติ")
+   *  เอกสาร Sticker API ไม่ได้พูดถึง reply_to ไว้ — เป็น field ระดับคำขอเดียวกับข้อความปกติ จึงส่ง
+   *  แบบ best-effort: ถ้า Meta ปฏิเสธ ผู้เรียก (sendOutboundMessage) จะลองใหม่แบบไม่มี reply_to */
+  replyToMid?: string | null,
   tag?: string,
 ): Promise<string> {
   const json = await graphFetch('/me/messages', pageToken, {
@@ -798,6 +813,7 @@ export async function sendStickerMessage(
       ...(tag ? { messaging_type: 'MESSAGE_TAG', tag } : { messaging_type: 'RESPONSE' }),
       // sticker_id เป็น field ระดับ message (ไม่ใช่ attachment) ตามตัวอย่างในเอกสาร
       message: { sticker_id: stickerId },
+      ...(replyToMid ? { reply_to: { mid: replyToMid } } : {}),
     },
   })
   return (json.message_id as string | undefined) ?? ''
