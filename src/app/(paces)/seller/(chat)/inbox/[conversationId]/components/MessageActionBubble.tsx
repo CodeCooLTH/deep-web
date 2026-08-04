@@ -123,6 +123,18 @@ export default function MessageActionBubble({
   // แผงอิโมจิเต็มชุดสูง ~300px + บับเบิลยาว = เกินจอแน่ ๆ → โหมดนั้นให้แผงเป็นพระเอกคนเดียว
   // (Messenger ก็ทิ้งโฟกัสบับเบิลตอนเปิดแผงเหมือนกัน) ฉากเบลอยังอยู่ ไม่หลุดบริบท
   const showClone = !!bubble && !showAll
+  // นับครั้งที่ "พื้นที่ที่มองเห็นจริง" เปลี่ยน (คีย์บอร์ดขึ้น-ลง / หมุนจอ) → บังคับวัดตำแหน่งใหม่
+  const [viewportTick, setViewportTick] = useState(0)
+
+  // ── คีย์บอร์ดเปิดค้างอยู่ตอนกดค้าง → ปิดมันก่อน (user report 2026-08-04) ──────
+  // อาการ: พิมพ์อยู่แล้วกดค้างบนข้อความ คีย์บอร์ดยังกินครึ่งจอล่าง แต่ overlay เป็น position:fixed
+  // ซึ่งบน iOS ยึดกับ *layout* viewport (ไม่หดตามคีย์บอร์ด) บับเบิล+เมนู+แผงอิโมจิจึงไปนอนอยู่
+  // ใต้คีย์บอร์ด มองไม่เห็นเลย. ท่าเดียวกับ Messenger คือกดค้าง = ทิ้งโฟกัสช่องพิมพ์ไปเลย
+  useEffect(() => {
+    if (!bubble) return
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active !== document.body) active.blur()
+  }, [bubble])
 
   // ── โคลนบับเบิลมาวางบนฉาก + ซ่อนตัวจริง ─────────────────────────────────
   useLayoutEffect(() => {
@@ -154,7 +166,16 @@ export default function MessageActionBubble({
     if (!el) return
     const { width, height } = el.getBoundingClientRect()
     const vw = window.innerWidth
-    const vh = window.innerHeight
+
+    // ── ขอบเขต "ที่มองเห็นจริง" ไม่ใช่ window.innerHeight ────────────────────────
+    // บน iOS คีย์บอร์ดไม่หด layout viewport (innerHeight เท่าเดิม) แต่หด *visual* viewport —
+    // ของที่ position:fixed จึงยังกางเต็มจอทั้งที่ครึ่งล่างถูกคีย์บอร์ดทับ. ใช้ visualViewport
+    // เป็นกรอบ clamp แทน: offsetTop = ขอบบนที่เห็น, +height = ขอบล่างที่เห็น (พิกัด layout viewport
+    // เดียวกับ getBoundingClientRect และ top/left ของ fixed) — เบราว์เซอร์ที่ไม่มี API ตกไปใช้
+    // innerHeight ตามเดิม
+    const vv = window.visualViewport
+    const minTop = (vv ? vv.offsetTop : 0) + EDGE
+    const maxBottom = (vv ? vv.offsetTop + vv.height : window.innerHeight) - EDGE
 
     if (!bubble) {
       // โหมด popover เกาะจุด (ปุ่มรีแอ็กชันบนเดสก์ท็อป) — ตรรกะเดิมทุกบรรทัด
@@ -162,7 +183,7 @@ export default function MessageActionBubble({
       const left = Math.min(Math.max(EDGE, pointX - width / 2), vw - width - EDGE)
       // แนวตั้ง: เหนือจุดก่อน (นิ้ว/เมาส์บังน้อยกว่า) — ถ้าชนขอบบนค่อยพลิกลงล่าง
       const above = pointY - GAP - height
-      setPos({ top: above >= EDGE ? above : Math.min(pointY + GAP, vh - height - EDGE), left })
+      setPos({ top: above >= minTop ? above : Math.min(pointY + GAP, maxBottom - height), left })
       return
     }
 
@@ -177,15 +198,15 @@ export default function MessageActionBubble({
     // แนวตั้ง: ใต้บับเบิลก่อน (ตาไล่จากข้อความ→ตัวเลือก) → ไม่พอค่อยพลิกขึ้นเหนือบับเบิล
     let cloneTop = rect.top
     let top = cloneTop + cloneH + GAP
-    if (top + height > vh - EDGE) {
+    if (top + height > maxBottom) {
       const above = cloneTop - GAP - height
-      if (above >= EDGE) {
+      if (above >= minTop) {
         top = above
       } else {
-        // ไม่พอทั้งบนและล่าง → เลื่อนบับเบิลขึ้นให้ทั้งชุดพอดีจอ; ถ้าเมนูสูงจนดันบับเบิลพ้นจอ
-        // (แผงอิโมจิเต็มชุด) ก็ clamp เมนูอย่างเดียว — โหมดนั้นไม่โชว์โคลนอยู่แล้ว
-        cloneTop = Math.max(EDGE, vh - EDGE - height - GAP - cloneH)
-        top = Math.min(Math.max(EDGE, cloneTop + cloneH + GAP), Math.max(EDGE, vh - height - EDGE))
+        // ไม่พอทั้งบนและล่าง → เลื่อนบับเบิลขึ้นให้ทั้งชุดพอดีพื้นที่ที่เห็น; ถ้าเมนูสูงจนดันบับเบิล
+        // พ้นจอ (แผงอิโมจิเต็มชุด) ก็ clamp เมนูอย่างเดียว — โหมดนั้นไม่โชว์โคลนอยู่แล้ว
+        cloneTop = Math.max(minTop, maxBottom - height - GAP - cloneH)
+        top = Math.min(Math.max(minTop, cloneTop + cloneH + GAP), Math.max(minTop, maxBottom - height))
       }
     }
 
@@ -194,7 +215,8 @@ export default function MessageActionBubble({
     const id = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(id)
     // showAll: แผงเต็มสูงกว่าแถวสั้นมาก ถ้าไม่วัดใหม่จะทะลุขอบจอล่าง/บน
-  }, [bubble, mine, pointX, pointY, showClone, showAll])
+    // viewportTick: คีย์บอร์ดขึ้น-ลง/หมุนจอ ทำให้กรอบที่เห็นเปลี่ยน ต้องวัดใหม่ทั้งชุด
+  }, [bubble, mine, pointX, pointY, showClone, showAll, viewportTick])
 
   // ปิดเมื่อ: แตะที่อื่น / เลื่อนเธรด / กด Esc
   // scroll ใช้ capture=true เพราะตัวที่เลื่อนจริงคือ container ของเธรด ไม่ใช่ window (event ไม่ bubble)
@@ -211,17 +233,27 @@ export default function MessageActionBubble({
       document.addEventListener('touchstart', onPointerDown)
     }, 0)
     document.addEventListener('keydown', onKey)
-    window.addEventListener('scroll', onClose, true)
-    window.addEventListener('resize', onClose)
+
+    // โหมดเพ่ง: scroll/resize ที่เกิดตอนนี้คือ "คีย์บอร์ดกำลังปิด" (เราสั่ง blur เอง) หรือหมุนจอ —
+    // ปิด overlay ทิ้งจะกลายเป็นกดค้างแล้วเมนูหายเองทันที ต้อง **วัดตำแหน่งใหม่** แทน
+    // ผู้ใช้เลื่อนเธรดเองระหว่างนี้ไม่ได้อยู่แล้ว เพราะ overlay กิน touch ทั้งจอ (touch-none)
+    // โหมด popover (เดสก์ท็อป) ไม่มี overlay กัน เลื่อน/ย่อจอ = เมนูหลุดจากปุ่ม → ปิดตามเดิม
+    const onViewportChange = bubble ? () => setViewportTick((t) => t + 1) : onClose
+    window.addEventListener('scroll', onViewportChange, true)
+    window.addEventListener('resize', onViewportChange)
+    window.visualViewport?.addEventListener('resize', onViewportChange)
+    window.visualViewport?.addEventListener('scroll', onViewportChange)
     return () => {
       clearTimeout(id)
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('touchstart', onPointerDown)
       document.removeEventListener('keydown', onKey)
-      window.removeEventListener('scroll', onClose, true)
-      window.removeEventListener('resize', onClose)
+      window.removeEventListener('scroll', onViewportChange, true)
+      window.removeEventListener('resize', onViewportChange)
+      window.visualViewport?.removeEventListener('resize', onViewportChange)
+      window.visualViewport?.removeEventListener('scroll', onViewportChange)
     }
-  }, [onClose])
+  }, [bubble, onClose])
 
   if (actions.length === 0 && reactions.length === 0) return null
 
