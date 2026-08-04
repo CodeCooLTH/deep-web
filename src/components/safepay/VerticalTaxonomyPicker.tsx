@@ -1,0 +1,199 @@
+'use client'
+
+/**
+ * VerticalTaxonomyPicker — หน้าเลือกประเภทร้านค้าแบบ 2 ขั้น (feature 00030 FR-BKU-01/02)
+ *
+ * ทำไมต้องมีไฟล์นี้: เดิมหน้าเลือกประเภทร้านเขียนแยกกัน 2 ที่ (Personal onboarding กับ
+ * Business creation) ด้วยการ์ด 3 ใบเรียงเท่ากัน — ป้ายไม่ขนานกันจนคนอ่านแล้วเดาไม่ออกว่า
+ * ร้านตัวเองอยู่ใบไหน ("สินค้าและบริการ" ฟังเหมือนครอบ "ขายออนไลน์" อยู่ในตัว) และเพราะ
+ * เป็นคนละไฟล์ แก้ที่หนึ่งอีกที่ก็ไม่ตาม
+ *
+ * ของใหม่ถามเป็นลำดับที่คนคิดจริง: **มีจัดส่งไหม** → ถ้าไม่มี **ลูกค้ามาแล้วกลับ หรือค้างคืน**
+ * "แล้วกลับ" กับ "ค้างคืน" คือความต่างเชิงโครงสร้างจริงของสองระบบ (คิวต่อวัน vs ช่วงวันคูณ
+ * ราคาต่อคืน) เขียนออกมาเป็นภาษาที่ตัดสินได้โดยไม่ต้องรู้ศัพท์ระบบ
+ *
+ * ค่าที่บันทึกจริงยังเป็น 3 ค่าเดิมของ Shop.vertical ทุกประการ — 2 ขั้นเป็นแค่วิธีถาม
+ * ไม่ใช่ค่าใหม่ ไม่มี migration ไม่แตะ CHECK constraint
+ *
+ * controlled component: `value` เป็น null ได้เมื่อผู้ใช้เลือกหมวด "รับนัดหมายและจอง" แล้ว
+ * แต่ยังไม่เลือกหมวดย่อย — parent ใช้ null นี้ปิดปุ่มถัดไป (ไม่ต้องคำนวณเอง)
+ *
+ * Base: src/app/(paces)/seller/(dashboard)/business/create/components/CreateBusinessForm.tsx:145-176
+ *       (โครง radio-card เดิม — ลด 3→2 ใบต่อขั้น, ตัด badge, เพิ่มไอคอน, คั่นด้วยเส้นประ)
+ * Spec: docs/superpowers/specs/2026-08-04-feature-00030-vertical-picker-design.md
+ * Copy: docs/20 - Features/00030 - Booking Business UX Unification/UX-Copy.md §7
+ */
+
+import Icon from '@/components/wrappers/Icon'
+import type { ShopVertical } from '@/lib/lodging'
+import { useState } from 'react'
+
+/**
+ * ประโยคเตือนว่าเลือกแล้วเปลี่ยนไม่ได้ — export เพื่อให้ทั้ง 2 ทางเข้าใช้ "ประโยคเดียวกัน"
+ * โดยที่แต่ละที่ยังวางในตำแหน่ง/สไตล์ของตัวเองได้ (onboarding = subtitle กลางจอ,
+ * business = บรรทัดใต้ label ของฟิลด์)
+ *
+ * ของเดิมเป็นคนละประโยคกัน และฝั่ง business วางไว้ **ใต้** การ์ด = เตือนหลังคนตัดสินใจไปแล้ว
+ */
+export const VERTICAL_LOCK_NOTICE =
+  'เลือกได้ครั้งเดียว เปลี่ยนภายหลังไม่ได้ — ถ้าเลือกผิดต้องสร้างร้านใหม่'
+
+/** หมวดใหญ่ขั้นที่ 1 — ไม่ใช่ค่าที่บันทึกลง DB เป็นแค่ทางแยกของคำถาม */
+type Category = 'SALES' | 'BOOKING'
+
+type Choice = {
+  /** null = การ์ดนี้พาไปขั้นที่ 2 ไม่ได้ตั้งค่าเอง */
+  vertical: ShopVertical | null
+  label: string
+  desc: string
+  icon: string
+}
+
+const STEP1: Choice[] = [
+  {
+    vertical: 'ONLINE_SALES',
+    label: 'ขายของออนไลน์',
+    desc: 'ลูกค้าสั่งแล้วคุณจัดส่งให้',
+    icon: 'truck-delivery',
+  },
+  {
+    vertical: null,
+    label: 'รับนัดหมายและจอง',
+    desc: 'ลูกค้านัดวันแล้วมาที่ร้าน หรือมาเข้าพัก',
+    icon: 'calendar-event',
+  },
+]
+
+const STEP2: Choice[] = [
+  {
+    vertical: 'SERVICE_QUEUE',
+    label: 'มาใช้บริการแล้วกลับ',
+    desc: 'เช่น ร้านตกแต่งรถ ร้านนวด คลินิก — กำหนดได้ว่าวันหนึ่งรับได้กี่คิว',
+    icon: 'calendar-check',
+  },
+  {
+    vertical: 'LODGING',
+    label: 'มาพักค้างคืน',
+    desc: 'เช่น บ้านพัก รีสอร์ต — คิดราคาต่อคืน จองข้ามหลายคืนได้',
+    icon: 'bed',
+  },
+]
+
+interface Props {
+  /** null = เลือกหมวด "รับนัดหมายและจอง" แล้วแต่ยังไม่เลือกหมวดย่อย → parent ปิดปุ่มถัดไป */
+  value: ShopVertical | null
+  onChange: (v: ShopVertical | null) => void
+  /** 1 = onboarding (shell แคบ max-w-md) · 2 = ฟอร์มสร้างธุรกิจ (กว้าง) */
+  columns?: 1 | 2
+  /** ปิดการกดระหว่าง submit — ของเดิมไม่เคย disable จึงเป็น false เป็นค่าตั้งต้น */
+  disabled?: boolean
+}
+
+function ChoiceCard({
+  choice,
+  selected,
+  disabled,
+  onSelect,
+}: {
+  choice: Choice
+  selected: boolean
+  disabled: boolean
+  onSelect: () => void
+}) {
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-2 rounded-lg border-2 p-3 ${
+        selected ? 'border-primary bg-primary/5' : 'border-default-200'
+      } ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+    >
+      <input
+        type="radio"
+        checked={selected}
+        disabled={disabled}
+        onChange={onSelect}
+        className="mt-0.5 shrink-0"
+      />
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+        <Icon icon={choice.icon} className="size-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="text-dark block text-sm font-medium">{choice.label}</span>
+        <span className="text-default-400 mt-0.5 block text-xs">{choice.desc}</span>
+      </span>
+    </label>
+  )
+}
+
+export default function VerticalTaxonomyPicker({
+  value,
+  onChange,
+  columns = 1,
+  disabled = false,
+}: Props) {
+  /**
+   * หมวดใหญ่เก็บเป็น state ของตัวเองเพราะ value=null บอกไม่ได้ว่าผู้ใช้อยู่หมวดไหน
+   * (null เกิดเฉพาะตอนเลือก BOOKING แล้วยังไม่เลือกย่อย — ถ้า derive จาก value อย่างเดียว
+   *  ขั้นที่ 2 จะหายไปทันทีที่ผู้ใช้ยังไม่ได้เลือกอะไร ซึ่งคือทางตัน)
+   */
+  const [category, setCategory] = useState<Category>(
+    value === 'SERVICE_QUEUE' || value === 'LODGING' ? 'BOOKING' : 'SALES',
+  )
+  /**
+   * จำหมวดย่อยที่เคยเลือกไว้ — สลับไป "ขายของออนไลน์" แล้วกลับมา ต้องเห็นตัวเดิมยัง highlight
+   * ไม่ใช่เริ่มใหม่ (ลด friction ตอนกดพลาด ซึ่งเกิดง่ายเพราะเลือกผิดแล้วแก้ไม่ได้)
+   */
+  const [lastSub, setLastSub] = useState<ShopVertical | null>(
+    value === 'SERVICE_QUEUE' || value === 'LODGING' ? value : null,
+  )
+
+  const gridClass = columns === 2 ? 'grid grid-cols-1 gap-2 sm:grid-cols-2' : 'grid grid-cols-1 gap-2'
+
+  const pickCategory = (c: Category) => {
+    setCategory(c)
+    // SALES ตั้งค่าได้ทันทีไม่มีขั้นที่ 2 · BOOKING คืนค่าที่เคยเลือก (หรือ null = ยังไม่ครบ)
+    onChange(c === 'SALES' ? 'ONLINE_SALES' : lastSub)
+  }
+
+  const pickSub = (v: ShopVertical) => {
+    setLastSub(v)
+    onChange(v)
+  }
+
+  return (
+    <div>
+      <div className={gridClass}>
+        {STEP1.map((c) => {
+          const isSales = c.vertical === 'ONLINE_SALES'
+          return (
+            <ChoiceCard
+              key={c.label}
+              choice={c}
+              disabled={disabled}
+              selected={isSales ? category === 'SALES' : category === 'BOOKING'}
+              onSelect={() => pickCategory(isSales ? 'SALES' : 'BOOKING')}
+            />
+          )
+        })}
+      </div>
+
+      {category === 'BOOKING' && (
+        /* คั่นด้วยเส้นประ — ยืม signature ของ .card-header (Paces) มาใช้เป็น section divider
+           แทนการซ้อนการ์ดในการ์ด ซึ่งเป็น anti-pattern ที่ DESIGN.md ห้ามไว้ */
+        <div className="border-default-300 mt-4 border-t border-dashed pt-4">
+          <p className="text-default-900 mb-2 text-sm font-semibold">ลูกค้ามาแบบไหน</p>
+          <div className={gridClass}>
+            {STEP2.map((c) => (
+              <ChoiceCard
+                key={c.label}
+                choice={c}
+                disabled={disabled}
+                selected={value === c.vertical}
+                onSelect={() => pickSub(c.vertical as ShopVertical)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

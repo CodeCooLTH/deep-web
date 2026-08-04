@@ -16,12 +16,13 @@
 
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import * as Yup from 'yup'
+import VerticalTaxonomyPicker, { VERTICAL_LOCK_NOTICE } from '@/components/safepay/VerticalTaxonomyPicker'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
-import { SHOP_VERTICALS, SHOP_VERTICAL_HINTS, SHOP_VERTICAL_KEYS, type ShopVertical } from '@/lib/lodging'
+import { SHOP_VERTICAL_KEYS, type ShopVertical } from '@/lib/lodging'
 
 const schema = Yup.object({
   shopName: Yup.string()
@@ -54,7 +55,7 @@ export default function CreateBusinessForm() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: yupResolver(schema),
@@ -62,7 +63,6 @@ export default function CreateBusinessForm() {
     defaultValues: { shopName: '', category: '', businessType: 'INDIVIDUAL', vertical: 'ONLINE_SALES', description: '' },
   })
 
-  const watchVertical = watch('vertical')
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -136,40 +136,32 @@ export default function CreateBusinessForm() {
               )}
             </div>
 
-            {/* ประเภทกิจการ (feature 00017) — กำหนดว่าธุรกิจนี้จะได้ความสามารถชุดไหน */}
+            {/* ประเภทกิจการ — feature 00030 ใช้ VerticalTaxonomyPicker ตัวเดียวกับ Personal
+                onboarding (เดิมเป็นการ์ด 3 ใบเขียนซ้ำที่นี่อีกชุด แก้ที่เดียวอีกที่ไม่ตาม) */}
             <div className="lg:col-span-2">
               <label className="form-label">
                 ประเภทกิจการ<span className="text-danger ms-0.5">*</span>
               </label>
-              {/* feature 00028 — 3 การ์ดพอดีตั้งแต่ sm: ขึ้นไป (เดิม lg:grid-cols-2 รองรับ 2 ตัวเลือก) */}
-              <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {SHOP_VERTICAL_KEYS.map((key: ShopVertical) => {
-                  const selected = watchVertical === key
-                  return (
-                    <label
-                      key={key}
-                      className={`flex cursor-pointer items-start gap-2 rounded-lg border-2 p-3 ${
-                        selected ? 'border-primary bg-primary/5' : 'border-default-200'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        value={key}
-                        className="mt-0.5 shrink-0"
-                        {...register('vertical')}
-                      />
-                      <div>
-                        <span className="text-dark text-sm font-medium">{SHOP_VERTICALS[key]}</span>
-                        <p className="text-default-400 mt-0.5 text-xs">{SHOP_VERTICAL_HINTS[key]}</p>
-                      </div>
-                    </label>
-                  )
-                })}
-              </div>
-              <p className="text-default-500 mt-2 flex items-start gap-1 text-xs">
+              {/* คำเตือนอยู่ "ก่อน" การ์ด — ของเดิมอยู่ใต้การ์ด คือเตือนหลังคนตัดสินใจไปแล้ว
+                  และเป็นคนละประโยคกับฝั่ง onboarding ทั้งที่พูดเรื่องเดียวกัน */}
+              <p className="text-default-500 mt-0.5 mb-2 flex items-start gap-1 text-xs">
                 <Icon icon="tabler:info-circle" className="mt-0.5 size-3.5 shrink-0" />
-                เลือกแล้วเปลี่ยนภายหลังไม่ได้ หากต้องการประเภทอื่นให้สร้างธุรกิจใหม่
+                {VERTICAL_LOCK_NOTICE}
               </p>
+              <Controller
+                name="vertical"
+                control={control}
+                render={({ field }) => (
+                  <VerticalTaxonomyPicker
+                    columns={2}
+                    value={(field.value as ShopVertical | '') || null}
+                    /* null (เลือกหมวดใหญ่แล้วยังไม่เลือกย่อย) → '' เพื่อให้ Yup ตกที่
+                       oneOf(SHOP_VERTICAL_KEYS) แล้วขึ้นข้อความ "กรุณาเลือกประเภทกิจการ"
+                       ตามกลไก validation เดิม ไม่ต้องเขียนกฎซ้ำที่นี่ */
+                    onChange={(v) => field.onChange(v ?? '')}
+                  />
+                )}
+              />
               {errors.vertical && (
                 <p className="text-danger mt-2 text-sm">{errors.vertical.message}</p>
               )}
