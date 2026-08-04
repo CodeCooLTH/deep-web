@@ -22,7 +22,8 @@ import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmp
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
-import { ChannelBadgeOverlay } from '../components/ChannelBadge'
+import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
+import CommentsFilterPanel from './CommentsFilterPanel'
 
 export type ChannelOption = { id: string; name: string; provider: string; avatarUrl: string | null }
 
@@ -113,9 +114,18 @@ export default function CommentsClient({
   channels: ChannelOption[]
 }) {
   const [posts, setPosts] = useState(initialPosts)
-  const [q, setQ] = useState('')
   // null = ทุกเพจ; ตัวกรองอยู่ที่ server เหมือนแท็บข้อความ ไม่ใช่กรองเฉพาะที่โหลดมาแล้ว
   const [channelId, setChannelId] = useState<string | null>(null)
+  /**
+   * แท็บช่องทาง — ชุดเดียวกับแท็บข้อความ (user สั่ง 2026-08-04: "filter การ์ดด้านบน ควรมีทั้งหมด,
+   * facebook, ig, deep(in-app) ไม่ใช่เป็นชื่อเพจ") เพจย้ายเข้าไปอยู่ในปุ่ม "ตัวกรอง" แล้ว
+   * ค่าและลำดับตรงกับ CHANNEL_TABS ของ InboxList.tsx เป๊ะ ๆ — สองแท็บนี้ต้องกดแล้วรู้สึกเหมือนกัน
+   *
+   * DEEP/INSTAGRAM ยังไม่มีคอมเมนต์ไหลเข้า (00029 รับเฉพาะ feed ของเพจ Facebook) — pill ยังโชว์
+   * เพื่อให้หน้าตาสองแท็บตรงกัน และกดแล้วได้ empty state ที่บอกตรง ๆ ว่าไม่มีในช่องทางนี้
+   */
+  const [channelTab, setChannelTab] = useState<'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM'>('ALL')
+  const [filterOpen, setFilterOpen] = useState(false)
   // เริ่มที่ null เสมอ — มือถือต้องเห็น "รายการ" ก่อน ไม่ใช่ถูกโยนเข้าโพสต์ใดโพสต์หนึ่ง
   // (critique P0) เดสก์ท็อปมี 2 คอลัมน์อยู่แล้ว จึง auto-select ให้เฉพาะ ≥1024px
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -161,10 +171,9 @@ export default function CommentsClient({
    */
   const focusReplyOnLoad = useRef(false)
 
-  const refreshPosts = useCallback(async (keyword: string, ch: string | null) => {
+  const refreshPosts = useCallback(async (ch: string | null) => {
     try {
       const params = new URLSearchParams()
-      if (keyword.trim()) params.set('q', keyword.trim())
       if (ch) params.set('channelId', ch)
       const qs = params.toString()
       const res = await fetch(`/api/chat/comments/posts${qs ? `?${qs}` : ''}`)
@@ -177,18 +186,20 @@ export default function CommentsClient({
     }
   }, [])
 
-  // ค้นหา (BRD Q-3) — ยิงที่ server เพราะต้องค้นในคอมเมนต์ ไม่ใช่แค่โพสต์ที่โหลดมาแล้ว
+  // เปลี่ยนเพจที่กรอง → ดึงรายการใหม่จาก server (กรองที่ฐาน ไม่ใช่กรองเฉพาะที่โหลดมาแล้ว)
+  //
+  // ช่องค้นหาถูกถอดออก 2026-08-04 ตามที่ user สั่ง ("ไม่ต้อง search") — แท็บข้อความมีช่องค้นหา
+  // เพราะเธรดสะสมเป็นพันและชื่อลูกค้าคือกุญแจ ส่วนที่นี่หน่วยของรายการคือ "โพสต์" ซึ่งมีไม่มากและ
+  // เรียงตามคอมเมนต์ล่าสุดอยู่แล้ว. debounce 350ms ที่มีไว้รอพิมพ์จึงไม่ต้องมีด้วย
   useEffect(() => {
-    const t = setTimeout(() => void refreshPosts(q, channelId), 350)
-    return () => clearTimeout(t)
-  }, [q, channelId, refreshPosts])
+    void refreshPosts(channelId)
+  }, [channelId, refreshPosts])
 
   async function loadMorePosts() {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
     try {
       const params = new URLSearchParams({ skip: String(posts.length) })
-      if (q.trim()) params.set('q', q.trim())
       if (channelId) params.set('channelId', channelId)
       const res = await fetch(`/api/chat/comments/posts?${params.toString()}`)
       if (!res.ok) return
@@ -295,9 +306,9 @@ export default function CommentsClient({
    * หยุดเมื่อแท็บไม่ได้อยู่หน้าจอ — ไม่มีใครดูอยู่ก็ไม่ต้องยิง
    */
   const refreshAll = useCallback(() => {
-    void refreshPosts(q, channelId)
+    void refreshPosts(channelId)
     if (selectedId) void loadThread(selectedId, { silent: true })
-  }, [q, channelId, selectedId, refreshPosts, loadThread])
+  }, [channelId, selectedId, refreshPosts, loadThread])
 
   // realtime จริง (user สั่ง 2026-08-03 "ทำ trigger ให้เป็น realtime จริงเลย") — DB trigger บน
   // PageComment ยิง broadcast `comments:shop:{shopId}` แบบ signal-only แล้ว client refetch เอง
@@ -407,11 +418,25 @@ export default function CommentsClient({
     }
   }
 
+  // แท็บช่องทางกรองฝั่ง client ตั้งใจ: provider ติดมากับโพสต์ทุกแถวแล้ว (p.channel.provider)
+  // ไม่ต้องยิง server ใหม่ — ต่างจากตัวกรอง "เพจ" ที่กรองที่ฐานเพราะต้องแบ่งหน้าให้ถูก
+  const postsByChannel = useMemo(
+    () => (channelTab === 'ALL' ? posts : posts.filter((p) => p.channel.provider === channelTab)),
+    [posts, channelTab],
+  )
+  /**
+   * จำนวนโพสต์ที่ยังมีคอมเมนต์ค้าง — ตัวเลขบนแท็บต้องมาจากชุดเดียวกับรายการที่เรนเดอร์อยู่
+   * (เดิมนับจาก `posts` ทั้งร้าน: กรองเป็น Instagram แล้วแท็บยังขึ้นเลขของ Facebook)
+   */
+  const unansweredPostCount = useMemo(
+    () => postsByChannel.filter((p) => p.unansweredCount > 0).length,
+    [postsByChannel],
+  )
   const visiblePosts = useMemo(() => {
-    if (postTab === 'UNANSWERED') return posts.filter((p) => p.unansweredCount > 0)
-    if (postTab === 'DONE') return posts.filter((p) => p.unansweredCount === 0)
-    return posts
-  }, [posts, postTab])
+    if (postTab === 'UNANSWERED') return postsByChannel.filter((p) => p.unansweredCount > 0)
+    if (postTab === 'DONE') return postsByChannel.filter((p) => p.unansweredCount === 0)
+    return postsByChannel
+  }, [postsByChannel, postTab])
 
   const selectedPost = posts.find((p) => p.id === selectedId) ?? null
 
@@ -426,59 +451,67 @@ export default function CommentsClient({
         {/* ตัวกรองเพจ — pill group ชุดเดียวกับ "ตัวกรองช่องทาง" ของแท็บข้อความ
             (Base: InboxList.tsx:778 — bg-light + rounded-lg p-1, ตัวที่เลือก bg-card shadow-sm)
             user สั่ง 2026-08-03: "ตรงตัวกรองและสถานะทำไมไม่ทำเหมือนตรงข้อความ" */}
-        {channels.length > 0 && (
-          <div className="border-default-200 border-b p-2">
-            <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="tablist" aria-label="ตัวกรองเพจ">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={channelId === null}
-                onClick={() => setChannelId(null)}
-                className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
-                  channelId === null ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
-                }`}
-              >
-                ทั้งหมด
-              </button>
-              {channels.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={channelId === c.id}
-                  title={c.name}
-                  aria-label={`กรองเฉพาะเพจ ${c.name}`}
-                  onClick={() => setChannelId(c.id)}
-                  className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
-                    channelId === c.id ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
-                  }`}
-                >
-                  <Icon icon="brand-facebook" width={16} height={16} />
-                  <span className="max-w-24 truncate">{c.name}</span>
-                </button>
-              ))}
+        {/* แถวหัว = segmented ช่องทาง + ปุ่มตัวกรอง เรียงแบบเดียวกับแท็บข้อความทุกจุด
+            (Base: InboxList.tsx:777-828 — relative flex flex-wrap gap-1.5 ครอบ, segmented
+            bg-light rounded-lg p-1, ตัวที่เลือก bg-card shadow-sm, ปุ่มตัวกรองเป็น btn เส้นขอบ)
+            user สั่ง 2026-08-04: pill ต้องเป็น "ช่องทาง" ไม่ใช่ชื่อเพจ — เพจย้ายเข้าปุ่ม "ตัวกรอง"
+            `relative` ที่แถวนี้คือจุดอ้างอิงของ popover ตัวกรอง (inset-x-0 = กว้างเท่าแถว ไม่ล้นจอ) */}
+        <div className="border-default-200 border-b p-2">
+          <div className="relative flex flex-wrap items-center gap-1.5">
+            <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="tablist" aria-label="ตัวกรองช่องทาง">
+              {(['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM'] as const).map((tab) => {
+                const active = channelTab === tab
+                const display = tab === 'ALL' ? null : getChannelDisplay(tab)
+                const label = tab === 'ALL' ? 'ทั้งหมด' : display!.label
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    title={label}
+                    aria-label={tab === 'ALL' ? 'ทั้งหมด' : `กรองเฉพาะช่องทาง ${label}`}
+                    onClick={() => setChannelTab(tab)}
+                    className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-nowrap ${
+                      active ? 'bg-card text-dark font-semibold shadow-sm' : 'text-default-600'
+                    }`}
+                  >
+                    {display && (
+                      <Icon
+                        icon={display.icon}
+                        width={16}
+                        height={16}
+                        className={display.iconClassName}
+                        style={display.iconStyle}
+                      />
+                    )}
+                    {tab === 'ALL' && label}
+                  </button>
+                )
+              })}
             </div>
-          </div>
-        )}
-        <div className="border-default-200 border-b p-3">
-          <div className="input-group">
-            <span className="input-group-text">
-              <Icon icon="search" />
-            </span>
-            <input
-              type="search"
-              className="form-input"
-              aria-label="ค้นหาความคิดเห็นหรือชื่อผู้คอมเมนต์"
-              placeholder="ค้นหาความคิดเห็นหรือชื่อผู้คอมเมนต์"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
+            {/* ปุ่มตัวกรอง — โผล่เฉพาะร้านที่เชื่อมหลายเพจ (user สั่ง 2026-08-04 "ควรมีตัวกรองเพิ่ม
+                ในกรณีมีหลายเพจ เพื่อไปกด modal") ร้านเพจเดียวกดเข้าไปเจอตัวเลือกเดียว = ปุ่มหลอก */}
+            {channels.length > 1 && (
+              <CommentsFilterPanel
+                pageOptions={channels}
+                value={channelId}
+                onApply={setChannelId}
+                open={filterOpen}
+                onOpenChange={setFilterOpen}
+              />
+            )}
           </div>
         </div>
 
         {/* แท็บสถานะ — โครงเดียวกับแถว "ทั้งหมด · ปิดงาน · สแปม" ของแท็บข้อความ
-            (Base: InboxList.tsx:907 — -mb-px border-b-2 px-0 py-1.5) */}
-        <div className="border-default-200 flex items-center gap-4 border-b px-3" role="tablist" aria-label="สถานะการตอบ">
+            (Base: InboxList.tsx:890-927 — flex flex-wrap gap-1.5 ครอบ, แถบ min-w-0 flex-1 gap-3
+            border-b, ปุ่ม -mb-px border-b-2 px-0 py-1.5)
+            **ความหมาย**ของแท็บยังเป็นของหน้านี้เอง (ทั้งหมด/ยังไม่ตอบ/ตอบครบแล้ว) — user สั่งชัด
+            2026-08-04 ว่า "ไม่ได้ให้ลอก tab มา ผมให้ copy style" คือยกหน้าตา ไม่ใช่ยกความหมายของ
+            ปิดงาน/สแปม ซึ่งฝั่งคอมเมนต์ไม่มีคอลัมน์รองรับอยู่แล้ว */}
+        <div className="flex flex-wrap items-center gap-1.5 px-3">
+          <div className="border-default-200 flex min-w-0 flex-1 items-center gap-3 border-b" role="tablist" aria-label="สถานะการตอบ">
           {([
             { key: 'ALL', label: 'ทั้งหมด', icon: null },
             { key: 'UNANSWERED', label: 'ยังไม่ตอบ', icon: 'alert-circle' },
@@ -498,27 +531,32 @@ export default function CommentsClient({
               >
                 {t.icon && <Icon icon={t.icon} width={14} height={14} className="shrink-0" />}
                 {t.label}
-                {t.key === 'UNANSWERED' && posts.some((p) => p.unansweredCount > 0) && (
+                {/* ตัวนับมาจาก postsByChannel ชุดเดียวกับรายการด้านล่าง (symbol เดียว) และตัดที่ 99+
+                    เหมือน badge ยังไม่อ่านของแท็บข้อความ */}
+                {t.key === 'UNANSWERED' && unansweredPostCount > 0 && (
                   <span className="bg-danger text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold text-white">
-                    {posts.reduce((n, p) => n + (p.unansweredCount > 0 ? 1 : 0), 0)}
+                    {unansweredPostCount > 99 ? '99+' : unansweredPostCount}
                   </span>
                 )}
               </button>
             )
           })}
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {visiblePosts.length === 0 ? (
             <div className="p-4">
-              {/* แยกกรณี "ค้นหาไม่เจอ" ออกจาก "ยังไม่มีเลย" — ของเดิมบอกว่าไม่มีความคิดเห็น
-                  ทั้งที่กรองอยู่ ทำให้เข้าใจผิดว่าระบบพัง (critique P1) */}
-              {q.trim() || channelId ? (
+              {/* แยกกรณี "กรองแล้วไม่เจอ" ออกจาก "ยังไม่มีเลย" — ของเดิมบอกว่าไม่มีความคิดเห็น
+                  ทั้งที่กรองอยู่ ทำให้เข้าใจผิดว่าระบบพัง (critique P1)
+                  ต้องครอบแท็บช่องทางด้วย: กด IG/Deep ที่ยังไม่มีคอมเมนต์ไหลเข้าเลย ต้องได้คำอธิบาย
+                  ว่าไม่มี "ตามตัวกรอง" ไม่ใช่ "ยังไม่มีความคิดเห็น" ลอย ๆ ซึ่งอ่านเหมือนระบบพัง */}
+              {channelId || channelTab !== 'ALL' ? (
                 <SellerEmptyState
                   compact
                   icon="search-off"
-                  title="ไม่พบความคิดเห็นตามที่ค้นหา"
-                  description="ลองคำอื่น หรือล้างตัวกรองเพื่อดูทั้งหมด"
+                  title="ไม่พบความคิดเห็นตามตัวกรอง"
+                  description="ลองเปลี่ยนช่องทาง/เพจ หรือล้างตัวกรองเพื่อดูทั้งหมด"
                 />
               ) : (
                 <SellerEmptyState
@@ -528,17 +566,17 @@ export default function CommentsClient({
                   description="เมื่อมีคนคอมเมนต์ใต้โพสต์ของเพจ จะแสดงที่นี่"
                 />
               )}
-              {(q.trim() || channelId) && (
+              {(channelId || channelTab !== 'ALL') && (
                 <div className="mt-3 flex justify-center">
                   <button
                     type="button"
                     onClick={() => {
-                      setQ('')
+                      setChannelTab('ALL')
                       setChannelId(null)
                     }}
                     className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11"
                   >
-                    ล้างการค้นหา
+                    ล้างตัวกรอง
                   </button>
                 </div>
               )}
@@ -582,22 +620,27 @@ export default function CommentsClient({
                       </span>
                     )}
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="text-default-800 line-clamp-2 text-sm font-medium">
+                  {/* ขนาดตัวอักษรของแถวยกมาจากแถวแชทตรง ๆ (Base: InboxList.tsx:1199-1256) —
+                      บรรทัดหัว text-xs semibold / preview text-2xs / เวลา text-2xs
+                      ก่อนหน้านี้ทั้งสามอย่างใหญ่ขึ้นหนึ่งสเต็ป ทำให้แถวสูงกว่าและ "ดูเป็นอีกหน้า"
+                      แม้โครงจะเหมือนกัน (user report 2026-08-04 "chatlist + comment lists
+                      แสดงผลไม่เหมือนกัน") */}
+                  <span className="min-w-0 flex-1 overflow-hidden">
+                    <span className="text-default-900 line-clamp-2 text-xs font-semibold">
                       {p.message?.trim() || 'โพสต์ไม่มีข้อความ'}
                     </span>
                     {/* บรรทัดที่ 2 = "ลูกค้าถามอะไร" ไม่ใช่ตัวเลขที่ตัดสินใจอะไรไม่ได้ (critique P1)
                         แบบเดียวกับ preview ข้อความล่าสุดในแท็บข้อความ */}
-                    <span className="text-default-700 mt-0.5 block truncate text-xs">
+                    <span className="text-default-700 mt-0.5 block truncate text-2xs">
                       {p.lastCommentText
                         ? `${p.lastCommenterName ?? 'ผู้ใช้ Facebook'}: ${p.lastCommentText}`
                         : `${p.commentCount} ความคิดเห็น`}
                     </span>
                   </span>
-                  <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="flex shrink-0 flex-col items-end gap-1.25">
                     {/* เวลาแบบสัมพัทธ์ (เมื่อกี้ / 3 ชม. / 2 วัน) — HH:MM เดิมทำให้เมื่อวานกับ
                         เมื่อครู่หน้าตาเหมือนกัน (critique P1) ตัวเดียวกับที่แท็บข้อความใช้ */}
-                    <span className="text-default-700 text-xs">
+                    <span className="text-default-700 text-2xs">
                       {p.lastCommentAt ? formatChatListTime(p.lastCommentAt) : ''}
                     </span>
                     {/* วงกลมตัวเลขล้วน ไม่ใช่ป้าย "ยังไม่ตอบ N" (user สั่ง 2026-08-04 "ให้เหลือแค่ 3
