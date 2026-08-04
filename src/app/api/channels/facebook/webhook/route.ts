@@ -96,7 +96,26 @@ export async function POST(request: NextRequest) {
   const parsed = v.safeParse(WebhookBodySchema, rawJson)
   if (!parsed.success) {
     // shape ที่เราไม่รู้จัก — ตอบ 200 เพื่อไม่ให้ retry แต่ log ไว้ดู
-    console.warn('[fb-webhook] payload parse ไม่ผ่าน', parsed.issues[0]?.message)
+    // log ให้พอสืบได้ทันทีว่าตกที่ field ไหน (2026-08-04): เดิม log แค่ข้อความ error ตัวแรก
+    // ทำให้เคส "รูป 6 ใบหายทั้งก้อน" ต้องไปขุดจากฐาน prod ย้อนหลังเพื่อเดาสาเหตุ
+    // ไม่ log เนื้อหา/URL — เฉพาะ path ของ field ที่ตก + จำนวน entry/event + keys ระดับบน
+    console.warn(
+      '[fb-webhook] payload parse ไม่ผ่าน',
+      JSON.stringify({
+        message: parsed.issues[0]?.message,
+        path: parsed.issues[0]?.path?.map((p) => (p as { key?: unknown }).key).join('.'),
+        issues: parsed.issues.length,
+        entries: Array.isArray((rawJson as { entry?: unknown[] })?.entry)
+          ? (rawJson as { entry: unknown[] }).entry.length
+          : 0,
+        eventKeys: (rawJson as { entry?: Array<{ messaging?: Array<Record<string, unknown>> }> })?.entry?.[0]
+          ?.messaging?.[0]
+          ? Object.keys(
+              (rawJson as { entry: Array<{ messaging: Array<Record<string, unknown>> }> }).entry[0].messaging[0],
+            )
+          : [],
+      }),
+    )
     return NextResponse.json({ ok: true })
   }
 
