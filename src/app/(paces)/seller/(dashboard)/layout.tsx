@@ -6,7 +6,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { requireActiveShop } from '@/lib/shop-context'
 import { resolveExpenseAccess, type ExpenseAccessDecision } from '@/services/expense-access.service'
-import { sellerMenuItems, applyChatBadge, resolveVisibleSellerMenu } from '@/lib/seller-menu'
+import { sellerMenuItems, applyChatBadge, resolveVisibleSellerMenu, resolveOrderMenuLabel } from '@/lib/seller-menu'
 import SellerMobileHeader from './_shared/SellerMobileHeader'
 import SellerBottomNav from './_shared/SellerBottomNav'
 import TopUpCelebrationPoller from './wallet/components/TopUpCelebrationPoller'
@@ -112,20 +112,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Business Package sidenav card — fail-closed: query error → NOT_SUBSCRIBED
   // (pattern เดียวกับ entitlementInfo บรรทัดด้านบน — ไม่ให้ layout crash จาก DB error)
+  // ข้าม query ทั้งก้อนเมื่อ active เป็นบัญชีส่วนตัว — การ์ดไม่ถูก render อยู่แล้ว (ดู sidenavHeaderSlot)
   let businessPackageStatus: BusinessPackageStatusApp = 'NOT_SUBSCRIBED'
   let businessPackageTier: BusinessPackageTier | null = null
-  try {
-    // ต้อง resolve จาก "เจ้าของร้านที่กำลังเปิดอยู่" (shop.userId) ไม่ใช่ session user —
-    // การ์ดเขียนว่า "แพ็กเกจร้านค้า" ถ้าใช้ user.id สมาชิก ADMIN ของร้าน Business จะเห็น
-    // แพ็กเกจ "ส่วนตัวของตัวเอง" แทนของร้าน (bug ที่เจอ 2026-07-29 ตอนเปิดให้ทุก role เห็น)
-    // มิเรอร์ isOwnerPaidPlan(shopId) ใน ai-suggest-quota.service ที่ resolve แบบเดียวกัน
-    const subscription = await getSubscriptionStatus(shop.userId)
-    if (subscription) {
-      businessPackageStatus = subscription.status as BusinessPackageStatusApp
-      businessPackageTier = subscription.tier as BusinessPackageTier
+  if (active.kind === 'BUSINESS') {
+    try {
+      // ต้อง resolve จาก "เจ้าของร้านที่กำลังเปิดอยู่" (shop.userId) ไม่ใช่ session user —
+      // การ์ดเขียนว่า "แพ็กเกจร้านค้า" ถ้าใช้ user.id สมาชิก ADMIN ของร้าน Business จะเห็น
+      // แพ็กเกจ "ส่วนตัวของตัวเอง" แทนของร้าน (bug ที่เจอ 2026-07-29 ตอนเปิดให้ทุก role เห็น)
+      // มิเรอร์ isOwnerPaidPlan(shopId) ใน ai-suggest-quota.service ที่ resolve แบบเดียวกัน
+      const subscription = await getSubscriptionStatus(shop.userId)
+      if (subscription) {
+        businessPackageStatus = subscription.status as BusinessPackageStatusApp
+        businessPackageTier = subscription.tier as BusinessPackageTier
+      }
+    } catch (e) {
+      console.error('[layout] getSubscriptionStatus failed, fallback NOT_SUBSCRIBED', e)
     }
-  } catch (e) {
-    console.error('[layout] getSubscriptionStatus failed, fallback NOT_SUBSCRIBED', e)
   }
 
   // feature 00027 TFR-001 — การ compose ตัวกรอง 5 ตัว (inventory/staff/expense/appointment/vertical)
@@ -147,6 +150,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     unreadChatCount,
   )
 
+  // ป้ายเมนู/แท็บของ /orders ต้องเป็นคำเดียวกันทั้ง sidebar, แถบล่างมือถือ และชื่อหน้าบนมือถือ
+  // (ผู้ใช้เห็นทั้งสามที่พร้อมกันได้บนจอเดียว) — คำนวณครั้งเดียวที่นี่แล้วส่งลงไปทุกทาง
+  const orderLabel = resolveOrderMenuLabel(shop.vertical)
+
   return (
     <VerticalLayout
       menuItems={menuItems}
@@ -157,18 +164,31 @@ export default async function DashboardLayout({ children }: { children: React.Re
           avatarUrl={shop?.logo ?? null}
           tierName={tierName}
           trustScore={user.trustScore ?? 0}
+          orderLabel={orderLabel}
         />
       }
-      bottomNavSlot={<SellerBottomNav pendingCount={pendingCount} unreadChatCount={unreadChatCount} />}
+      bottomNavSlot={
+        <SellerBottomNav
+          pendingCount={pendingCount}
+          unreadChatCount={unreadChatCount}
+          orderLabel={orderLabel}
+        />
+      }
       sidenavFooterSlot={<OnboardingGate />}
-      // ทุก role เห็นการ์ดเหมือนกัน (user สั่ง 2026-07-29 — เดิมซ่อนจาก ADMIN แล้วพบว่าผิด:
+      // การ์ดแพ็กเกจเป็นเรื่องของร้านแบบธุรกิจเท่านั้น — บัญชีส่วนตัวไม่มี Business Package
+      // ให้พูดถึงจริง ๆ (schema ผูกกับ Business) การไม่แสดงจึงตรงความจริง ไม่ใช่การซ่อนของที่มีอยู่
+      // (user เคาะ 2026-08-04). Sidenav/index.tsx เช็ค `headerSlot &&` อยู่แล้ว → ไม่มี div เปล่าค้าง
+      //
+      // ทุก role ของร้านธุรกิจเห็นการ์ดเหมือนกัน (user สั่ง 2026-07-29 — เดิมซ่อนจาก ADMIN แล้วพบว่าผิด:
       // พนักงานก็ควรรู้ว่าร้านอยู่แพ็กเกจไหน) ต่างแค่ canManage — เฉพาะ OWNER ที่กดไปจัดการได้
       sidenavHeaderSlot={
-        <ShopPackageSidenavCard
-          status={businessPackageStatus}
-          tier={businessPackageTier}
-          canManage={active.role === 'OWNER'}
-        />
+        active.kind === 'BUSINESS' ? (
+          <ShopPackageSidenavCard
+            status={businessPackageStatus}
+            tier={businessPackageTier}
+            canManage={active.role === 'OWNER'}
+          />
+        ) : undefined
       }
     >
       {children}

@@ -96,16 +96,45 @@ const MenuItem = ({ item, level = 0 }: { item: MenuItemType; level?: number }) =
   const bestMatch = useContext(BestMatchContext)
   const isActive = !!item.url && item.url === bestMatch
   if (!item.url) return null
+
+  const linkClass = cn('menu-link', isActive && 'active', item.isDisabled && 'disabled', item.isSpecial && 'special-menu')
+  const body = (
+    <>
+      {item.icon && isTopLevel && (
+        <span className="menu-icon">
+          <Icon icon={item.icon} />
+        </span>
+      )}
+      <span className="menu-text">{item.label}</span>
+      {item.badge && <span className={cn('badge text-white', item.badge.className)}>{item.badge.text}</span>}
+    </>
+  )
+
+  // target='_blank' = ลิงก์ออกนอกคอนโซล (คนละ subdomain) — <Link> ของ Next ใช้ไม่ได้เพราะ
+  // มัน prefetch/soft-navigate ภายในแอปเดียวกัน ต้องเป็น <a> ธรรมดา + rel กัน tabnabbing
+  // ไอคอน external-link ท้ายแถวคือสัญญาณเดียวที่บอกผู้ใช้ว่ากดแล้วออกไปที่อื่น — ห้ามถอด
+  // (สถานะ sidenav ยุบไม่มี text ให้อ่าน จึงต้องมี aria-label กำกับด้วย)
+  if (item.target === '_blank') {
+    return (
+      <li className="menu-item">
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={linkClass}
+          aria-label={`${item.label} (เปิดในแท็บใหม่)`}
+        >
+          {body}
+          <Icon icon="external-link" className="ms-auto size-3.5 shrink-0 opacity-60" aria-hidden="true" />
+        </a>
+      </li>
+    )
+  }
+
   return (
     <li className={cn('menu-item', isActive && 'active')}>
-      <Link href={item.url ?? '/'} className={cn('menu-link', isActive && 'active', item.isDisabled && 'disabled', item.isSpecial && 'special-menu')}>
-        {item.icon && isTopLevel && (
-          <span className="menu-icon">
-            <Icon icon={item.icon} />
-          </span>
-        )}
-        <span className="menu-text">{item.label}</span>
-        {item.badge && <span className={cn('badge text-white', item.badge.className)}>{item.badge.text}</span>}
+      <Link href={item.url ?? '/'} className={linkClass}>
+        {body}
       </Link>
     </li>
   )

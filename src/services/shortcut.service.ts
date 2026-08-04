@@ -26,7 +26,9 @@ export const MIN_SHORTCUTS = 1
  * seller:dashboard ไม่อยู่ในแคตตาล็อก — การ์ดเมนูลัดอยู่บนหน้า /dashboard เอง
  * ปักหมุดทางลัดไปหน้าที่กำลังเปิดอยู่ไม่มีความหมาย
  */
-const EXCLUDED_SLUGS = new Set(['seller:dashboard'])
+// 'seller:profile-external' ไม่ใช่หน้าในคอนโซล — เป็นลิงก์ออกไปหน้าร้านบนโดเมนผู้ซื้อ
+// ปักเป็นไทล์เมนูลัดแล้วจะพาผู้ใช้ออกจากระบบไปเลยโดยไม่ทันตั้งตัว (ไทล์ไม่มี affordance ↗)
+const EXCLUDED_SLUGS = new Set(['seller:dashboard', 'seller:profile-external'])
 
 export type ShortcutCatalogItem = {
   slug: string

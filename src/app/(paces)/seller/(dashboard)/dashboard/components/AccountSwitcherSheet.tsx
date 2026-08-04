@@ -21,6 +21,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 import { useCreatePersonalShop } from '@/hooks/useCreatePersonalShop'
+import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
@@ -50,6 +51,7 @@ type SessionUser = {
   activeShopKind?: 'PERSONAL' | 'BUSINESS'
   activeShopName?: string | null
   activeShopLogo?: string | null
+  activeShopSlug?: string | null
 }
 
 export default function AccountSwitcherSheet() {
@@ -261,6 +263,29 @@ export default function AccountSwitcherSheet() {
               <span className="min-w-0 flex-1 font-medium">ข้อมูลส่วนตัว</span>
               <Icon icon="chevron-right" className="text-default-400 shrink-0" aria-hidden="true" />
             </Link>
+
+            {/* โปรไฟล์ (หน้าร้านจริงที่ลูกค้าเห็น) — 2026-08-04
+                บนมือถือ sheet นี้เป็นทางเดียวที่เข้าถึงได้: เมนูซ้ายกับ dropdown มุมขวาบนถูกซ่อน
+                ทั้งคู่ (.seller-mobile-shell) และ SellerBottomNav ไม่มีช่องนี้ ถ้าไม่มีแถวนี้
+                ผู้ขายบนมือถือ (ซึ่งเป็นคนส่วนใหญ่) จะกดดูหน้าร้านตัวเองไม่ได้เลย
+                ข้าม subdomain ใช้ <a> ธรรมดา + external-link บอกว่าเปิดแท็บใหม่ */}
+            {user?.username && (
+              <a
+                href={
+                  isBusiness && user.activeShopSlug
+                    ? `${resolveBuyerBaseUrl()}/b/${user.activeShopSlug}`
+                    : `${resolveBuyerBaseUrl()}/u/${user.username}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                data-hs-overlay="#account-switcher-sheet"
+                className="hover:bg-default-100 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-start"
+              >
+                <Icon icon="building-store" className="text-default-500 size-5 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 flex-1 font-medium">โปรไฟล์</span>
+                <Icon icon="external-link" className="text-default-400 size-4 shrink-0" aria-hidden="true" />
+              </a>
+            )}
           </div>
         </div>
           </div>,

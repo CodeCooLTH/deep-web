@@ -60,7 +60,8 @@ const UserProfileSettings = () => {
             </button>
             <div className="hs-dropdown-menu" role="menu" aria-orientation="vertical" aria-labelledby="hs-dropdown-with-icons">
               <div className="py-2 px-3.5">
-                <h6 className="text-xs">ยินดีต้อนรับ 👋</h6>
+                {/* ถอด emoji มือโบกออก 2026-08-04 (Hard Rule 12 — UI ใช้ icon จริงเท่านั้น) */}
+                <h6 className="text-xs">ยินดีต้อนรับ</h6>
               </div>
               {/* เปิดหน้าร้าน — แสดงเมื่อมี username (ทุก user มีหน้าโปรไฟล์สาธารณะ /u/[username] ไม่ว่าจะเปิดร้านหรือยัง; ข้าม subdomain ใช้ <a> ธรรมดา) */}
               {user?.username && (

@@ -13,6 +13,22 @@ import { type MenuItemType } from '@/types'
 import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import type { ExpenseAccessDecision } from '@/services/expense-access.service'
 
+/**
+ * โครงกลุ่ม 5 กลุ่ม (user เคาะ 2026-08-04 — spec `docs/superpowers/specs/2026-08-04-seller-menu-ia-design.md`)
+ *
+ * เดิมมี 8 กลุ่มที่โตตามลำดับที่ feature ถูกสร้าง ไม่ใช่ตามวิธีที่ผู้ขายคิด — กลุ่ม STORE
+ * กลายเป็นถังรวมของ 8 อย่างที่ไม่เกี่ยวกัน (ตั้งค่าร้าน + สต็อก + กระเป๋าเงิน + ค่าใช้จ่าย +
+ * พนักงาน + แพ็กเกจ + การจัดส่ง + โปรไฟล์สาธารณะ) จัดใหม่เป็น:
+ *   ANALYTICS = ดูตัวเลข · MANAGE = งานประจำวัน · CHAT = คุยกับลูกค้า
+ *   SHOPS = ตัวตน/ความน่าเชื่อถือ/เงินของร้าน · SETTING = ตั้งค่า
+ *
+ * IMPORTANT: slug ของ "รายการ" ห้ามเปลี่ยนเด็ดขาด — ตาราง `ShopShortcut` เก็บ slug ไว้ในฐานข้อมูล
+ * (feature 00027 เมนูลัดปักหมุด) ถ้าเปลี่ยนแล้วเมนูลัดที่ผู้ใช้ปักไว้จะหลุดเงียบ ๆ กลายเป็น
+ * unavailable ทั้งหมด. slug ของ "กลุ่ม" เปลี่ยนได้ (grep แล้วไม่มีใครอ้างถึงนอกไฟล์นี้)
+ *
+ * NOTE: field `icon` ระดับกลุ่มไม่เคย render — AppMenu.tsx render กลุ่มเป็น
+ * `<li className="menu-title"><span>{label}</span></li>` เท่านั้น เก็บไว้เพื่อความหมายในโค้ด
+ */
 export const sellerMenuItems: MenuItemType[] = [
   {
     icon: 'chart-bar',
@@ -21,37 +37,36 @@ export const sellerMenuItems: MenuItemType[] = [
     isTitle: true,
     children: [
       { url: '/dashboard', slug: 'seller:dashboard', label: 'ภาพรวมร้านค้า', icon: 'dashboard' },
-      { url: '/sales', slug: 'seller:sales', label: 'ภาพรวมยอดขาย', icon: 'chart-line' },
+      // ป้ายเดิม "ภาพรวมยอดขาย" บอกไม่ครบ — หน้านี้คำนวณ netProfit (revenue − COGS − expense)
+      // รายวันอยู่แล้วตั้งแต่ feature 00016 (ดู sales/components/data.ts::DailyRow)
+      { url: '/sales', slug: 'seller:sales', label: 'ภาพรวมกำไร/ขาดทุน', icon: 'chart-line' },
     ],
   },
+  /**
+   * MANAGE — ของที่ผู้ขายแตะทุกวัน รวมงานที่เคยกระจายอยู่ 4 กลุ่ม (ORDERS/PRODUCTS/CUSTOMERS/STORE)
+   *
+   * "ลูกค้า" อยู่ที่นี่ไม่ใช่ CHAT โดยตั้งใจ — เป็นทะเบียนลูกค้าที่ใช้ตอนเปิดบิล (POS /orders/new
+   * ดึงจากที่นี่) ไม่ใช่กล่องสนทนา
+   */
   {
     icon: 'receipt-2',
-    slug: 'seller-orders',
-    label: 'ORDERS',
+    slug: 'seller-manage',
+    label: 'MANAGE',
     isTitle: true,
     children: [
+      // ป้ายผันตามประเภทกิจการด้วย applyOrderLabel ด้านล่าง — ค่าในอาเรย์นี้คือของ ONLINE_SALES
       { url: '/orders', slug: 'seller:orders', label: 'คำสั่งซื้อ', icon: 'receipt-2' },
       { url: '/auctions', slug: 'seller:auctions', label: 'การประมูล', icon: 'gavel' },
-    ],
-  },
-  {
-    icon: 'package',
-    slug: 'seller-products',
-    label: 'PRODUCTS',
-    isTitle: true,
-    children: [
       { url: '/products', slug: 'seller:products', label: 'สินค้า', icon: 'package' },
+      // icon 'boxes' ไม่มีใน tabler icon set (verify: api.iconify.design/tabler.json?icons=boxes → not_found)
+      // ใช้ 'archive' แทน (verified มีจริง) — ห้ามใช้ 'box'/'package' เพราะชนกับเมนู "สินค้า"
+      { url: '/inventory', slug: 'seller:inventory', label: 'จัดการสต็อก', icon: 'archive' },
       // feature 00024/00028 — เห็นเฉพาะร้าน vertical=SERVICE_QUEUE (กรองด้วย applyVerticalMenu
       // ด้านล่าง — เดิมต้องเช็ค kind คู่กันด้วย ตอนนี้เหลือเงื่อนไข vertical เดียวพอ)
       // icon 'armchair' user เลือกเอง 2026-07-31 (verified มีจริง — ใช้อยู่แล้วในโปรเจกต์)
       // ป้าย "คิวงาน" มาจาก user โดยตรง — คำเดิม "ทรัพยากร" อ่านแล้วไม่เข้าใจ
-      // ลูกค้ากลุ่มแรกคือร้านตกแต่งไฟหน้ารถ ซึ่งเรียกหน่วยที่รับงานพร้อมกันว่า "คิวงาน" 
-      {
-        url: '/queues',
-        slug: 'seller:queues',
-        label: 'คิวงาน',
-        icon: 'armchair',
-      },
+      // ลูกค้ากลุ่มแรกคือร้านตกแต่งไฟหน้ารถ ซึ่งเรียกหน่วยที่รับงานพร้อมกันว่า "คิวงาน"
+      { url: '/queues', slug: 'seller:queues', label: 'คิวงาน', icon: 'armchair' },
       // feature 00017 — เห็นเฉพาะร้าน vertical=LODGING (กรองด้วย applyVerticalMenu ด้านล่าง)
       // icon 'building-cottage' verified มีจริงใน tabler (api.iconify.design/tabler.json → found);
       // เลือกแทน 'bed' เพราะ "ห้องพัก" = หน่วยที่ให้จอง ซึ่งอาจเป็นทั้งหลัง ไม่ใช่แค่ห้องนอน
@@ -62,133 +77,101 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/bookings', slug: 'seller:bookings', label: 'การจอง', icon: 'calendar-check' },
       // feature 00017 P3 — icon 'users' verified มีจริงใน tabler
       { url: '/housekeepers', slug: 'seller:housekeepers', label: 'แม่บ้าน', icon: 'users' },
+      { url: '/customers', slug: 'seller:customers', label: 'ลูกค้า', icon: 'user-circle' },
+      // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyExpenseMenu ด้านล่าง
+      // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
+      { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
       // ซ่อนเมนู "หมวดหมู่สินค้า" ชั่วคราว — route /categories ยังอยู่ (เข้าตรงผ่าน URL ได้)
       // { url: '/categories', slug: 'seller:categories', label: 'หมวดหมู่สินค้า', icon: 'category' },
-      { url: '/reviews', slug: 'seller:reviews', label: 'รีวิว', icon: 'star' },
-    ],
-  },
-  {
-    icon: 'users',
-    slug: 'seller-customers',
-    label: 'CUSTOMERS',
-    isTitle: true,
-    children: [
-      { url: '/customers', slug: 'seller:customers', label: 'ลูกค้า', icon: 'user-circle' },
-      // S-13 (feat 00011 Deep Chat) — เมนู "ข้อความ" กลุ่ม CUSTOMERS (UX-Design-Spec.md S1)
-      { url: '/inbox', slug: 'seller:inbox', label: 'ข้อความ', icon: 'message-circle' },
     ],
   },
   /**
-   * ผู้ช่วยอัตโนมัติ — รวมทุกอย่างที่ "ระบบคุยกับลูกค้าแทนร้าน" ไว้กลุ่มเดียว (user สั่ง 2026-08-01)
+   * CHAT — ทุกอย่างที่เกี่ยวกับการคุยกับลูกค้า ทั้งที่คนตอบเองและที่ระบบตอบแทน
    *
-   * ทำไมต้องรวม: ของสามชิ้นนี้เคยกระจายอยู่ใน STORE ปนกับตั้งค่าร้าน/สต็อก/ยอดเงิน ทั้งที่
-   * ผู้ใช้คิดถึงมันเป็นเรื่องเดียวกัน ("ใครตอบลูกค้าแทนฉัน") และต้องสลับไปมาระหว่างสามหน้านี้
-   * ตลอดตอนตั้งค่า — วางไว้ต่อจากกลุ่ม CUSTOMERS เพราะเป็นเรื่องของแชทเหมือนกัน
+   * เดิมแยกเป็น CUSTOMERS (ข้อความ) กับ "ผู้ช่วยอัตโนมัติ" (Auto Reply/ChatBot) ซึ่งบังคับให้
+   * ผู้ใช้กระโดดข้ามกลุ่มไปมาระหว่างตั้งค่าบอทกับอ่านผลที่บอทตอบไป
    *
-   * คำที่ใช้ (Impeccable clarify + PRODUCT.md "ภาษาไทยเรียบง่าย ลด jargon"):
-   *   - "บุคลิกและคำสั่ง AI" — หน้านี้คือที่ตั้งคำสั่งประจำร้าน + น้ำเสียงของ AI ที่ร่างคำตอบให้คนกดส่ง
-   *     ไม่ใช้คำเดิม "ผู้ช่วยร่างคำตอบ AI" เพราะขึ้นต้นด้วย "ผู้ช่วย" ซ้ำกับชื่อกลุ่ม
-   *   - "คำตอบของ DeepBot" — DeepBot เป็นชื่อที่ลูกค้าเห็นในแชทจริงอยู่แล้ว (ป้ายในเธรด + รายการแชท)
-   *     จึงไม่ใช่ jargon และต้องใช้คำเดียวกันทั้งระบบ
-   *   - (ล้าสมัยตั้งแต่ feature 00026) เคยมีบันทึกเรื่องคำว่า "บัญชีที่เชื่อมต่อ" ไว้ตรงนี้ —
-   *     ป้ายนั้นถูกเลิกใช้แล้ว: /settings เปลี่ยนเป็น "การจัดส่ง" และวิธี login ของ user
-   *     ย้ายไป /account "ข้อมูลส่วนตัว"  ดูเหตุผลที่รายการเมนูทั้งสองในกลุ่ม STORE
+   * ป้าย "Auto Reply"/"ChatBot" เปลี่ยนเป็นไทยตาม PRODUCT.md "ภาษาไทยเรียบง่าย ลด jargon"
+   * (user เคาะ 2026-08-04) — ของสองอันนี้ยังเป็นคนละความคิดกัน ไม่ใช่ระดับความสามารถของของเดียวกัน:
+   *   ตอบกลับอัตโนมัติ — ตอบเป๊ะตามเงื่อนไขที่ร้านตั้ง ไม่มีค่าใช้จ่าย ไม่ตรงก็เงียบ
+   *   ผู้ช่วยอัตโนมัติ  — ส่วนเสริม AI ที่ครอบทุกข้อความ มีค่าใช้จ่ายต่อครั้ง
+   * เรียงของฟรีก่อนโดยเจตนา — ทุกร้านควรตั้งให้ครบก่อนพิจารณาเปิดของที่มีค่าใช้จ่าย
+   *
+   * NOTE: "บุคลิก AI" (/settings/ai) เป็นแท็บในหน้าผู้ช่วยอัตโนมัติ ห้ามเพิ่มกลับเป็นเมนูแยก
+   * จะกลายเป็นสองทางเข้าไปที่เดียวกัน
    */
   {
-    icon: 'robot',
-    slug: 'seller-assistant',
-    label: 'ผู้ช่วยอัตโนมัติ',
+    icon: 'message-circle',
+    slug: 'seller-chat',
+    label: 'CHAT',
     isTitle: true,
     children: [
-      // NOTE: "บุคลิก AI" (/settings/ai) ย้ายไปเป็นแท็บในเมนู ChatBot แล้ว (user สั่ง 2026-08-01
-      // "เพื่อเป็นการตั้งค่าตัวบอท") — route ยังอยู่ที่เดิม เข้าถึงผ่านแท็บ ห้ามเพิ่มกลับเป็นเมนู
-      // แยกอีก จะกลายเป็นสองทางเข้าไปที่เดียวกัน
-      // feature 00023 Deep Chat-Bot Assistant — บอทตอบเองจากกลุ่มคำ + คลังคำถาม-คำตอบ
-      /**
-       * แยก Auto Reply กับ ChatBot เป็นคนละเมนู (user ตัดสิน 2026-08-01)
-       *
-       * เพราะเป็นคนละความคิดกันจริง ๆ ไม่ใช่ระดับความสามารถของของเดียวกัน:
-       *   Auto Reply — ตอบเป๊ะตามเงื่อนไขที่ร้านตั้ง ไม่มีค่าใช้จ่าย ไม่ตรงก็เงียบ
-       *   ChatBot    — ส่วนเสริม AI ที่ครอบทุกข้อความ ตอบแทน/เสริมคนตามช่วงเวลาที่ตั้ง
-       *                มีค่าใช้จ่ายต่อครั้ง และเป็นที่อยู่ของ option "ขัดเกลาคำตอบ Auto Reply"
-       *
-       * เรียง Auto Reply ก่อนโดยเจตนา — เป็นของฟรีที่ทุกร้านควรตั้งให้ครบก่อน
-       * แล้วค่อยพิจารณาเปิดของที่มีค่าใช้จ่าย
-       */
-      { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'Auto Reply', icon: 'message-bolt' },
-      { url: '/settings/chatbot', slug: 'seller:settings-chatbot', label: 'ChatBot', icon: 'robot' },
-      // NOTE: /settings เคยถูกย้ายมาไว้ที่นี่ชั่วคราว 2026-08-01 แล้วย้ายกลับในวันเดียวกัน —
-      // ของที่อยู่ในหน้านั้นถูก "ทั้งระบบแชทใช้ร่วมกัน" (กล่องข้อความปกติก็ต้องใช้) ไม่ใช่ของ
-      // ผู้ช่วยอัตโนมัติ การเอามาไว้ในกลุ่มนี้ทำให้ผู้ใช้เข้าใจผิดว่าต้องเปิดผู้ช่วยก่อนถึงจะ
-      // เชื่อมช่องทางได้ ห้ามย้ายกลับมาอีก
-      // (feature 00026: หน้านั้นเหลือเฉพาะ "การจัดส่ง" แล้ว ข้อห้ามยังใช้เหมือนเดิม)
+      { url: '/inbox', slug: 'seller:inbox', label: 'ข้อความ', icon: 'message-circle' },
+      { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'ตอบกลับอัตโนมัติ', icon: 'message-bolt' },
+      { url: '/settings/chatbot', slug: 'seller:settings-chatbot', label: 'ผู้ช่วยอัตโนมัติ', icon: 'robot' },
     ],
   },
+  /**
+   * SHOPS — ตัวตน ความน่าเชื่อถือ และเงินของร้าน (ของที่เข้าไปนาน ๆ ครั้ง ไม่ใช่งานประจำวัน)
+   */
   {
     icon: 'building-store',
     slug: 'seller-shops',
     label: 'SHOPS',
     isTitle: true,
     children: [
-      { url: '/verification', slug: 'seller:verification', label: 'ยืนยันตน', icon: 'shield-check' },
+      { url: '/reviews', slug: 'seller:reviews', label: 'รีวิว', icon: 'star' },
+      // ป้ายเดิม "ยืนยันตน" อธิบายวิธีการ ไม่ได้อธิบายผลลัพธ์ — หน้านี้คือที่ที่ร้านไต่ระดับ
+      // L1 OTP → L2 บัตรประชาชน → L3 จดทะเบียน ซึ่งผู้ขายเรียกกันว่า "ระดับร้าน"
+      { url: '/verification', slug: 'seller:verification', label: 'ระดับร้าน', icon: 'shield-check' },
       { url: '/badges', slug: 'seller:badges', label: 'ความสำเร็จ', icon: 'award' },
-    ],
-  },
-  {
-    icon: 'settings',
-    slug: 'seller-store',
-    label: 'STORE',
-    isTitle: true,
-    children: [
-      { url: '/shop', slug: 'seller:shop', label: 'ตั้งค่าร้านค้า', icon: 'building-store' },
-      { url: '/public-profile', slug: 'seller:public-profile', label: 'โปรไฟล์สาธารณะ', icon: 'world' },
+      { url: '/wallet', slug: 'seller:wallet', label: 'กระเป๋าเงิน', icon: 'wallet' },
+      // "แพ็กเกจของฉัน" — หน้ารวมศูนย์ Business Package + Stock Pro รายร้าน (2026-07-04 subscription overview)
+      // คนละหน้ากับ /business ที่การ์ดแพ็กเกจเหนือเมนูพาไป (นั่นคือหน้าเลือก/จัดการแพ็กเกจธุรกิจ)
+      // icon 'crown' verified มีจริงใน tabler (ใช้ซ้ำกับ UpgradeToProCard)
+      { url: '/subscriptions', slug: 'seller:subscriptions', label: 'แพ็กเกจของฉัน', icon: 'crown' },
       // feature 00012 (Shop Staff Invite Links, Task 4.3) — เมนู "พนักงาน" จัดการลิงก์เชิญ + สมาชิก Business
       // แสดงเฉพาะ owner ของ Business shop (ซ่อน runtime ด้วย applyStaffMenu ด้านล่าง — mirror applyInventoryGate)
       // icon 'users-group' verified มีจริงใน tabler set (api.iconify.design/tabler.json?icons=users-group → found)
       { url: '/admins', slug: 'seller:admins', label: 'พนักงาน', icon: 'users-group' },
-      // "แพ็กเกจธุรกิจ" ย้ายไป topbar profile dropdown แล้ว (feat 00008 P4-6 — user ปฏิเสธตำแหน่ง sidebar)
-      // ดู src/layouts/components/TopBar/components/UserDropdownDetailed.tsx
-      // "แพ็กเกจของฉัน" — หน้ารวมศูนย์ Business Package + Stock Pro รายร้าน (2026-07-04 subscription overview)
-      // icon 'crown' verified มีจริงใน tabler (ใช้ซ้ำกับ UpgradeToProCard)
-      { url: '/subscriptions', slug: 'seller:subscriptions', label: 'แพ็กเกจของฉัน', icon: 'crown' },
-      // icon 'boxes' ไม่มีใน tabler icon set (verify: api.iconify.design/tabler.json?icons=boxes → not_found)
-      // ใช้ 'archive' แทน (verified มีจริง) — ห้ามใช้ 'box'/'package' เพราะชนกับเมนู Products
-      { url: '/inventory', slug: 'seller:inventory', label: 'จัดการสต็อก', icon: 'archive' },
-      { url: '/wallet', slug: 'seller:wallet', label: 'กระเป๋าเงิน', icon: 'wallet' },
-      // feature 00016 (Expense & Cost Tracking, Unit 5A) — conditional render ด้วย applyExpenseMenu ด้านล่าง
-      // icon 'report-money' ยืนยันแล้วใน UX-Design-Spec.md §Resolved Decisions #1 (tabler set มีจริง)
-      { url: '/expenses', slug: 'seller:expenses', label: 'ค่าใช้จ่าย', icon: 'report-money' },
+    ],
+  },
+  {
+    icon: 'settings',
+    slug: 'seller-setting',
+    label: 'SETTING',
+    isTitle: true,
+    children: [
+      { url: '/shop', slug: 'seller:shop', label: 'ร้านค้า', icon: 'building-store' },
+      // ป้ายเดิม "โปรไฟล์สาธารณะ" ชนกับรายการ "โปรไฟล์" (ลิงก์ออกไปหน้าร้านจริง) ที่อยู่กลุ่มเดียวกัน
+      // อันนี้คือที่ "ตั้งว่าหน้าร้านจะโชว์อะไร" อีกอันคือ "ไปดูของจริง"
+      { url: '/public-profile', slug: 'seller:public-profile', label: 'ตั้งค่าหน้าร้าน', icon: 'world' },
       // เดิม label "บัญชีที่เชื่อมต่อ" ครอบ 2 เรื่องที่คนละเจ้าของ (การจัดส่งของร้าน + วิธี login
       // ของ user) ทำให้ผู้ใช้หาการตั้งค่าของตัวเองไม่เจอ — วิธี login ย้ายไป /account แล้ว
       // (feature 00026, user เคาะ 2026-08-02) เหลือเฉพาะการจัดส่ง จึงเปลี่ยนชื่อให้ตรงเนื้อใน
       { url: '/settings', slug: 'seller:settings', label: 'การจัดส่ง', icon: 'truck-delivery' },
-      // ย้ายออกไปกลุ่ม "ผู้ช่วยอัตโนมัติ" แล้ว (user สั่ง 2026-08-01):
-      //   /settings/ai (บุคลิกและคำสั่ง AI) · /settings/auto-reply (คำตอบของ DeepBot)
+      // หน้านี้มีมาตั้งแต่ feature 00018 แต่ไม่เคยมีลิงก์ใน sidebar เลย — เข้าได้จากหน้าแชท
+      // และจาก callback ของ Facebook เท่านั้น. icon 'plug-connected' ใช้อยู่แล้วในโปรเจกต์
+      // สำหรับความหมายเดียวกัน (เชื่อมเพจ FB / เชื่อมขนส่ง iShip) ผู้ใช้จำสัญลักษณ์นี้ได้แล้ว
+      { url: '/settings/channels', slug: 'seller:settings-channels', label: 'ช่องทางการขาย', icon: 'plug-connected' },
+      /**
+       * โปรไฟล์ — ลิงก์ออกไปหน้าร้านจริงบนโดเมนผู้ซื้อ (เปิดแท็บใหม่)
+       *
+       * ทำไม url เป็น /go/profile ไม่ใช่ /b/{slug} ตรง ๆ: อาเรย์นี้เป็น module-level constant
+       * ที่ getSellerPageTitle.ts import ตรง ๆ ตอน module load — ไม่รู้จัก session ปลายทางจึง
+       * ต้อง resolve ต่อ request. route handler `(paces)/seller/go/profile/route.ts` ทำหน้าที่นั้น
+       * แล้ว 302 ต่อ (ที่นั่นยังต้องตัด `seller.` ออกจาก host ไม่งั้น proxy จะ rewrite เป็น
+       * /seller/b/{slug} → 404 ซึ่งเป็นบั๊กจริงที่เคยเจอกับปุ่มเดียวกันนี้)
+       *
+       * `target: '_blank'` เป็น field ที่มีใน MenuItemType อยู่แล้วแต่ไม่เคยถูกอ่าน —
+       * AppMenu.tsx เพิ่งเดินสายให้รอบนี้ (render <a> + icon external-link แทน <Link>)
+       */
+      { url: '/go/profile', slug: 'seller:profile-external', label: 'โปรไฟล์', icon: 'building-store', target: '_blank' },
     ],
   },
-  /**
-   * บัญชีของฉัน — กลุ่มของ "ตัวคน" ไม่ใช่ของร้าน (feature 00026)
-   *
-   * ทำไมต้องเป็นกลุ่มแยก ไม่ใช่รายการหนึ่งในกลุ่ม STORE: รอบแรกวางไว้ในกลุ่ม STORE
-   * ลำดับที่ 8 จาก 9 ซึ่งกลายเป็นการบอกผู้ใช้ว่าตัวเขาเป็นทรัพย์สินชิ้นหนึ่งของร้าน — และเป็น
-   * อาการเดียวกับบั๊กต้นเรื่องเป๊ะ ๆ (user หา "การตั้งค่าของตัวเอง" ไม่เจอเพราะถูกวางปนกับของร้าน)
-   * กลุ่มเมนูคือคำตอบว่า "อะไรเป็นของใคร" จึงต้องแยกให้ขาดตั้งแต่ระดับกลุ่ม
-   *
-   * วางล่างสุด (user สั่ง 2026-08-02): เมนูที่ใช้ทุกวันคืองานร้าน — ของส่วนตัวเป็นของที่เข้าไป
-   * นาน ๆ ครั้ง วางท้ายจึงตรงกับความถี่การใช้จริง และยังแยกขาดจากกลุ่มร้านเหมือนเดิม
-   *
-   * ยังไม่ย้าย /verification กับ /badges เข้ามาที่นี่ ทั้งที่ทั้งคู่ผูกกับ User เหมือนกัน —
-   * เป็นการจัดเมนูใหม่ที่กระทบคนที่ใช้อยู่แล้ว ควรตัดสินแยกต่างหาก ไม่ใช่พ่วงมากับฟีเจอร์นี้
-   */
-  {
-    icon: 'user-circle',
-    slug: 'seller-me',
-    label: 'บัญชีของฉัน',
-    isTitle: true,
-    children: [
-      { url: '/account', slug: 'seller:account', label: 'ข้อมูลส่วนตัว', icon: 'user-circle' },
-    ],
-  },
+  // กลุ่ม "บัญชีของฉัน" (/account) ถูกยุบ 2026-08-04 — ย้ายไปอยู่ใน dropdown มุมขวาบน
+  // (desktop) และ AccountSwitcherSheet (มือถือ) ที่เดียว เพราะเป็นของ "ตัวคน" ไม่ใช่ของร้าน
+  // route /account ยังอยู่ครบ ไม่ได้ถูกลบ
 ]
 
 /**
@@ -366,6 +349,37 @@ export function applyVerticalMenu(
 }
 
 /**
+ * applyOrderLabel — ป้ายเมนู /orders ผันตามประเภทกิจการ (user เคาะ 2026-08-04)
+ *
+ * ทำไมเป็น transform ไม่ใช่แก้ค่าใน sellerMenuItems: อาเรย์ต้นฉบับเป็น module-level constant
+ * ที่ getSellerPageTitle.ts import ตรง ๆ ตอน module load — ไม่รู้จัก vertical ของ request นั้น
+ * (pattern เดียวกับ applyInventoryGate)
+ *
+ * เลี่ยงคำว่า "การจอง" สำหรับ LODGING โดยตั้งใจ — ชนกับเมนู /bookings ที่มีอยู่แล้วตรงตัว
+ * ค่าที่ไม่รู้จัก → คงป้ายเดิม "คำสั่งซื้อ" (fail-safe เดียวกับ applyVerticalMenu)
+ */
+export const ORDER_MENU_LABELS: Record<string, string> = {
+  ONLINE_SALES: 'คำสั่งซื้อ',
+  SERVICE_QUEUE: 'ใบสั่งงาน',
+  LODGING: 'บิลเข้าพัก',
+}
+
+export function resolveOrderMenuLabel(vertical: string): string {
+  return ORDER_MENU_LABELS[vertical] ?? ORDER_MENU_LABELS.ONLINE_SALES
+}
+
+export function applyOrderLabel(items: MenuItemType[], vertical: string): MenuItemType[] {
+  const label = resolveOrderMenuLabel(vertical)
+
+  return items.map((group) => !group.children ? group : {
+    ...group,
+    children: group.children.map((child) =>
+      child.slug === 'seller:orders' ? { ...child, label } : child,
+    ),
+  })
+}
+
+/**
  * resolveVisibleSellerMenu — compose ตัวกรอง "ที่กรองจริง" ทั้ง 4 ตัวไว้ที่เดียว (feature 00027 TFR-001;
  * เดิม 5 ตัว — applyAppointmentMenu ถูกยุบเข้า applyVerticalMenu แล้วที่ feature 00028 BR-SBT-16)
  *
@@ -387,10 +401,15 @@ export function resolveVisibleSellerMenu(
     shop: { kind: string; vertical: string }
   },
 ): MenuItemType[] {
-  return applyVerticalMenu(
-    applyExpenseMenu(
-      applyStaffMenu(applyInventoryGate(items, ctx.entitlement), ctx.staff),
-      ctx.expense,
+  // applyOrderLabel อยู่นอกสุด — แค่เปลี่ยนป้าย ไม่กรองอะไร วางหลังตัวกรองทุกตัวจึงไม่ต่างกัน
+  // เชิงผลลัพธ์ แต่อ่านง่ายกว่าเมื่อวางคู่กับ applyVerticalMenu ซึ่งใช้ vertical ตัวเดียวกัน
+  return applyOrderLabel(
+    applyVerticalMenu(
+      applyExpenseMenu(
+        applyStaffMenu(applyInventoryGate(items, ctx.entitlement), ctx.staff),
+        ctx.expense,
+      ),
+      ctx.shop.vertical,
     ),
     ctx.shop.vertical,
   )
