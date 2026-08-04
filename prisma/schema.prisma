@@ -31,6 +31,7 @@ model User {
   userBadges             UserBadge[]
   trustScoreHistory      TrustScoreHistory[]
   ordersAsBuyer          Order[]                 @relation("BuyerOrders")
+  ordersCreated          Order[]                 @relation("CreatedOrders") // ออเดอร์ที่คนนี้เป็นคนกดสร้าง (2026-08-04)
   customer               Customer? // feat 00014 — link Customer เมื่อสมัครเป็น buyer (Phase 2; nullable)
   reviewsGiven           Review[]                @relation("ReviewerReviews")
   verificationsReviewed  VerificationRecord[]    @relation("ReviewedBy")
@@ -667,8 +668,21 @@ model Order {
   buyerConfirmedAt      DateTime? // ลูกค้ากดยืนยันนัดเมื่อไร (BR-RSV-26) — NULL = ยังไม่ยืนยัน
   rescheduleRequestNote String?   @db.Text // เหตุผลที่ลูกค้าขอเลื่อน (ไม่บังคับกรอก)
 
+  /// คนที่กดสร้างออเดอร์นี้ (2026-08-04) — เจ้าของร้านหรือพนักงานที่ถูกเชิญ (feature 00012)
+  ///
+  /// nullable โดยตั้งใจ 2 เหตุผล ห้ามเปลี่ยนเป็น required:
+  ///   1. ออเดอร์ที่มีอยู่ก่อน migration นี้ไม่มีทางรู้ว่าใครสร้าง — เดาแล้วใส่เจ้าของร้านลงไป
+  ///      จะเป็นการบันทึกข้อมูลเท็จที่พิสูจน์ไม่ได้ (ร้านที่มีพนักงานหลายคนยิ่งผิด)
+  ///   2. ออเดอร์ที่ระบบออกให้เองไม่มีคนสร้างจริง ๆ — ปิดประมูลแล้วออกออเดอร์ให้ผู้ชนะ
+  ///      (auction.service) ต้องเป็น null เท่านั้น ห้ามยัดชื่อใครลงไป
+  /// หน้าจอที่แสดงผลต้องถือว่า null = "ระบบ" เสมอ (ดู ShippingActivity.tsx)
+  ///
+  /// onDelete: SetNull — ลบบัญชีพนักงานแล้วออเดอร์ต้องไม่หายตาม (ประวัติการขายของร้าน)
+  createdByUserId String?
+
   shop             Shop                    @relation(fields: [shopId], references: [id])
   buyer            User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
+  createdBy        User?                   @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
   customer         Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
   room             Room?                   @relation(fields: [roomId], references: [id], onDelete: Restrict)
   housekeeper      Housekeeper?            @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)
@@ -713,6 +727,7 @@ model Order {
   @@index([shopId, type, checkIn], map: "Order_shopId_type_checkIn_idx") // ปฏิทินรวมทุกห้อง + list การจอง
   @@index([customerId, status], map: "Order_customerId_status_idx") // นับประวัติการยกเลิกต่อลูกค้า
   @@index([housekeeperId, housekeepingStatus], map: "Order_housekeeperId_status_idx") // feat 00017 P3 — หน้ารวมงานแม่บ้านที่ค้าง
+  @@index([createdByUserId], map: "Order_createdByUserId_idx") // 2026-08-04 — ดูว่าพนักงานคนไหนเปิดบิลอะไรไว้บ้าง
   @@index([serviceResourceId, serviceStart], map: "Order_serviceResourceId_start_idx") // feat 00024 — ปฏิทินของทรัพยากร + หาที่ว่าง
   @@index([shopId, type, serviceStart], map: "Order_shopId_type_serviceStart_idx") // feat 00024 — ปฏิทินคิวรวมของร้าน
   @@index([shopId, appointmentStatus], map: "Order_shopId_appointmentStatus_idx") // feat 00024 — นัดที่รอร้านตัดสิน

@@ -48,7 +48,6 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:inventory',
         'seller:orders',
         'seller:products',
-        'seller:profile-external',
         'seller:public-profile',
         'seller:queues',
         'seller:reviews',

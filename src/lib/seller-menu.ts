@@ -155,19 +155,10 @@ export const sellerMenuItems: MenuItemType[] = [
       // และจาก callback ของ Facebook เท่านั้น. icon 'plug-connected' ใช้อยู่แล้วในโปรเจกต์
       // สำหรับความหมายเดียวกัน (เชื่อมเพจ FB / เชื่อมขนส่ง iShip) ผู้ใช้จำสัญลักษณ์นี้ได้แล้ว
       { url: '/settings/channels', slug: 'seller:settings-channels', label: 'ช่องทางการขาย', icon: 'plug-connected' },
-      /**
-       * โปรไฟล์ — ลิงก์ออกไปหน้าร้านจริงบนโดเมนผู้ซื้อ (เปิดแท็บใหม่)
-       *
-       * ทำไม url เป็น /go/profile ไม่ใช่ /b/{slug} ตรง ๆ: อาเรย์นี้เป็น module-level constant
-       * ที่ getSellerPageTitle.ts import ตรง ๆ ตอน module load — ไม่รู้จัก session ปลายทางจึง
-       * ต้อง resolve ต่อ request. route handler `(paces)/seller/go/profile/route.ts` ทำหน้าที่นั้น
-       * แล้ว 302 ต่อ (ที่นั่นยังต้องตัด `seller.` ออกจาก host ไม่งั้น proxy จะ rewrite เป็น
-       * /seller/b/{slug} → 404 ซึ่งเป็นบั๊กจริงที่เคยเจอกับปุ่มเดียวกันนี้)
-       *
-       * `target: '_blank'` เป็น field ที่มีใน MenuItemType อยู่แล้วแต่ไม่เคยถูกอ่าน —
-       * AppMenu.tsx เพิ่งเดินสายให้รอบนี้ (render <a> + icon external-link แทน <Link>)
-       */
-      { url: '/go/profile', slug: 'seller:profile-external', label: 'โปรไฟล์', icon: 'building-store', target: '_blank' },
+      // เคยมีรายการ "โปรไฟล์" (ลิงก์ออกไปหน้าร้านจริงบนโดเมนผู้ซื้อ) ต่อจากนี้ — user ให้เอาออก
+      // 2026-08-04 ทางเข้าหน้าร้านจริงเหลือที่ dropdown มุมขวาบน (desktop) กับแผงบัญชีในหน้าแรก
+      // (มือถือ) ซึ่งเป็นที่ของ "ตัวคน" อยู่แล้ว ไม่ใช่เมนูตั้งค่าร้าน
+      // ห้ามใส่กลับโดยไม่ถาม — ตอนถอดออกได้ลบ route /go/profile ทิ้งไปด้วย
     ],
   },
   // กลุ่ม "บัญชีของฉัน" (/account) ถูกยุบ 2026-08-04 — ย้ายไปอยู่ใน dropdown มุมขวาบน

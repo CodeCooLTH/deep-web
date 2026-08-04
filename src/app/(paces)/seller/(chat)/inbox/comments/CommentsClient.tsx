@@ -188,8 +188,8 @@ export default function CommentsClient({
   /**
    * ตัวกรอง "แสดงอะไร" — multi-select (user สั่ง 2026-08-04) เก็บที่เดียวแล้วให้ทั้งแถบแท็บและ
    * แผงตัวกรองอ่าน/เขียนตัวเดียวกัน: แท็บเป็นทางลัดของค่าชุดนี้ ไม่ใช่ state คู่ขนาน
-   *   ทั้งหมด    = unanswered ✓ + done ✓
-   *   ยังไม่ตอบ  = unanswered ✓ + done ✗
+   *   ทั้งหมด    = unanswered เปิด + done เปิด
+   *   ยังไม่ตอบ  = unanswered เปิด + done ปิด
    * (สอง control ที่เก็บสถานะแยกกันแล้วต้องคอย sync คือที่มาของบั๊ก "ตัวเลข 2 ที่ไม่ตรงกัน" ที่เจอ
    *  มาแล้วในหน้านี้ — ตัวกรองก็เหมือนกัน)
    */
@@ -218,6 +218,51 @@ export default function CommentsClient({
   // Facebook video plugin เมื่อ "กดเล่น" เท่านั้น ไม่โหลดล่วงหน้าทุกโพสต์ (iframe ของ Meta หนัก
   // และตามผู้ใช้ด้วย cookie — โหลดเมื่อผู้ใช้สั่งเท่านั้นคือพฤติกรรมที่ถูกต้อง)
   const [playing, setPlaying] = useState(false)
+  /**
+   * ข้อความโพสต์ขยายอยู่ไหม (user สั่ง 2026-08-04: "อยากให้ description แสดงแค่ 3 แถวสูงสุด แต่ถ้า
+   * ข้อความเกิน ให้กดดูเพิ่มเติมโดยที่มันจะ expand ลงมาทับคลิป เพื่อเพิ่มพื้นที่ให้แสดงผลคลิปหน่อย")
+   * รีเซ็ตเมื่อเปลี่ยนโพสต์ ไม่งั้นโพสต์ถัดไปเปิดมาค้างสถานะขยายของโพสต์ก่อน
+   */
+  const [messageExpanded, setMessageExpanded] = useState(false)
+  /**
+   * ความสูงของแผงคอมเมนต์บนมือถือ (px) — ลากปรับได้ (user สั่ง 2026-08-04: "ในมือถือแสดงผลแย่
+   * โดยเฉพาะตรงข้อความ พอจะพิมพ์ตอบ มันไม่เห็นเลยข้อความนั้น ๆ คืออะไร จะเป็นไปได้ไหมให้มันมี drag
+   * ขยายความสูงได้")
+   *
+   * ทำไมต้องลากได้ ไม่ใช่ตั้งค่าคงที่: โพสต์มีทั้งคลิปแนวตั้ง (สูงมาก) และรูปแนวนอน สัดส่วนที่ดี
+   * ระหว่าง "เห็นสื่อ" กับ "เห็นคอมเมนต์" จึงต่างกันทุกโพสต์ และตอนกำลังตอบคนก็อยากดันคอมเมนต์
+   * ขึ้นมาให้สุด — ค่าคงที่ค่าเดียวทำให้ผิดทั้งสองเคส
+   * ใช้ px ไม่ใช่ % เพราะคีย์บอร์ดมือถือทำให้ความสูง viewport เปลี่ยนกลางทาง
+   */
+  const [mobilePanelH, setMobilePanelH] = useState<number | null>(null)
+  const [isNarrow, setIsNarrow] = useState(false)
+  const dragRef = useRef<{ startY: number; startH: number } | null>(null)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const sync = () => setIsNarrow(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  // ค่าเริ่มต้นบนมือถือ ~45% ของจอ — ไม่ตั้งไว้เลยจะได้แถบคอมเมนต์บางเฉียบตามที่ user เจอ
+  useEffect(() => {
+    if (!isNarrow || mobilePanelH !== null) return
+    setMobilePanelH(clampPanelH(Math.round(window.innerHeight * 0.45)))
+  }, [isNarrow, mobilePanelH])
+
+  const clampPanelH = (h: number) => {
+    /**
+     * เพดานต้องเผื่อ "ของที่อยู่เหนือแผง" ให้พอจริง (user report 2026-08-04 รอบสอง "มันเพี้ยนกว่าเดิม
+     * เวลาเราลากขึ้นลง"): รอบแรกผมเผื่อไว้แค่ 180px ซึ่งน้อยกว่าความสูงจริงของ header + แถบแท็บ +
+     * หัวโพสต์ + ข้อความ 3 บรรทัด (~300px) คอลัมน์โพสต์จึงยุบจนสื่อเหลือเป็นเสี้ยวและแถบยอดไปเบียดกัน
+     * 300px = ผลรวมจริงของ 4 ก้อนนั้น (วัดจากโครงที่ render อยู่ ไม่ใช่เลขสวย ๆ)
+     */
+    const reservedAbove = 300
+    const max = Math.max(220, window.innerHeight - reservedAbove)
+    return Math.min(Math.max(h, 160), max)
+  }
   /**
    * ปลั๊กอินวิดีโอของ Facebook เรนเดอร์ player ตาม **ค่า width ที่ส่งไปใน URL** ไม่ใช่ตามขนาด
    * iframe — ส่ง width คงที่แล้ววาง iframe กว้างกว่า/แคบกว่า จะได้ภาพล้นกรอบ (user report
@@ -1074,9 +1119,25 @@ export default function CommentsClient({
                 <img src={selectedPost.thumbnailUrl} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-default-800 mb-0 truncate text-sm font-semibold">
-                  {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
-                </p>
+                {/* ชื่อโพสต์เป็นลิงก์ไป Facebook แทนปุ่มแยก (user สั่ง 2026-08-04 "เอา button เปิดบน
+                    facebook เปลี่ยนเป็น hyperlink ที่ชื่อคลิกแทน") — คืนพื้นที่แถวหัวให้เนื้อหา
+                    ไม่มี permalink (โพสต์เก่าที่ดึง meta ไม่ได้) = ข้อความเฉย ๆ ไม่ใช่ลิงก์ตาย */}
+                {selectedPost.permalink ? (
+                  <a
+                    href={selectedPost.permalink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="เปิดโพสต์นี้บน Facebook"
+                    className="text-default-800 hover:text-primary mb-0 flex items-center gap-1 truncate text-sm font-semibold"
+                  >
+                    <span className="truncate">{selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}</span>
+                    <Icon icon="external-link" className="text-default-600 size-3.5 shrink-0" />
+                  </a>
+                ) : (
+                  <p className="text-default-800 mb-0 truncate text-sm font-semibold">
+                    {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
+                  </p>
+                )}
                 <p className="text-default-700 mb-0 truncate text-xs">
                   {selectedPost.reactionCount ?? '–'} รีแอ็กชัน ·{' '}
                   {thread?.post.fbCommentCount ?? selectedPost.commentCount} ความคิดเห็น
@@ -1084,45 +1145,91 @@ export default function CommentsClient({
                   {thread?.post.createdTime && ` · ${formatDateTH(thread.post.createdTime)}`}
                 </p>
               </div>
-              {selectedPost.unansweredCount > 0 && (
-                <span className="bg-danger/15 text-danger-ink text-2xs shrink-0 rounded-full px-2 py-0.5 font-semibold">
-                  ยังไม่ตอบ {selectedPost.unansweredCount}
-                </span>
-              )}
-              {selectedPost.permalink && (
-                <a
-                  href={selectedPost.permalink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11 shrink-0"
-                >
-                  <Icon icon="brand-facebook" className="me-1 text-base" />
-                  เปิดบน Facebook
-                </a>
-              )}
+              {/* ชิป "ยังไม่ตอบ N" ในหัวโพสต์ถูกถอดออก 2026-08-04 (user: "ยังไม่ตอบ 4 เอาออกด้วย") —
+                  ตัวเลขเดียวกันอยู่บนชิปในแผงคอมเมนต์ด้านขวาและบนแถวในรายการซ้ายแล้ว */}
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
             {/* คอลัมน์ซ้าย = โพสต์เต็มความสูง (user สั่ง 2026-08-03 "อยากให้เต็มจอเลย")
                 ข้อความอยู่บน สื่อกินพื้นที่ที่เหลือทั้งหมด แถวยอดชิดล่างสุดของคอลัมน์ */}
-            <div className="border-default-200 flex min-h-0 shrink-0 flex-col border-b lg:h-full lg:w-1/2 lg:shrink lg:border-e lg:border-b-0">
-              <div className="w-full shrink-0 overflow-y-auto p-3 lg:max-h-40">
-                <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
-                  {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
-                </p>
+            {/* มือถือ: คอลัมน์โพสต์ยืดหยุ่นได้ (flex-1 + overflow-hidden) เพื่อยอมให้แผงคอมเมนต์
+                ที่ลากปรับความสูงแล้วกินที่คืนได้ — เดิมเป็น shrink-0 สื่อจึงกินความสูงเท่าไหร่ก็ได้
+                แล้วเบียดคอมเมนต์เหลือแถบเดียว (user report 2026-08-04) */}
+            <div className="border-default-200 flex min-h-0 flex-1 flex-col overflow-hidden border-b lg:h-full lg:w-1/2 lg:flex-none lg:shrink lg:border-e lg:border-b-0">
+              {/**
+               * เนื้อโพสต์: 3 บรรทัดเป็นค่าตั้งต้น กด "ดูเพิ่มเติม" แล้วขยาย **ทับสื่อ** ไม่ใช่ดันสื่อลง
+               * (user สั่ง 2026-08-04 — เจตนาคือให้คลิปได้พื้นที่คงที่)
+               *
+               * ทำไมต้อง render 2 ชั้น (ตัวในโฟลว์ที่ invisible + overlay): user report 2026-08-04
+               * "ขนาดคลิปก่อนดูเพิ่มเติม ขยับด้วย ขนาดไม่เท่ากัน" — รอบก่อนผมย้ายกล่องข้อความทั้งก้อน
+               * ไปเป็น absolute ตอนขยาย ทำให้ตัวห่อไม่มีลูกในโฟลว์เลย ความสูงจึงเหลือ 0 แล้วพื้นที่สื่อ
+               * ที่เหลือโตขึ้น → คลิปที่ล็อกสัดส่วนไว้ก็โตตาม (กว้างขึ้นเห็นได้ชัด)
+               * ชั้นในโฟลว์จึงต้องอยู่ตลอดเพื่อ **จองความสูงเท่าเดิม** แค่ซ่อนด้วย invisible
+               * (ไม่ใช่ hidden ซึ่งจะยุบความสูงเหมือนกัน)
+               */}
+              <div className="relative w-full shrink-0">
+                {(() => {
+                  const text = selectedPost.message?.trim() ?? ''
+                  const looksLong = text.length > 120 || text.split('\n').length > 3
+                  return (
+                    <>
+                      {/* ชั้นในโฟลว์ — จองความสูงของ "3 บรรทัด + ปุ่ม" ไว้เสมอ */}
+                      <div className={`w-full p-3 ${messageExpanded ? 'invisible' : ''}`} aria-hidden={messageExpanded}>
+                        <p className="text-default-800 mb-0 line-clamp-3 whitespace-pre-wrap text-sm">
+                          {text || 'โพสต์ไม่มีข้อความ'}
+                        </p>
+                        {looksLong && (
+                          <button
+                            type="button"
+                            onClick={() => setMessageExpanded(true)}
+                            tabIndex={messageExpanded ? -1 : 0}
+                            className="text-primary mt-1 text-xs font-semibold hover:underline"
+                          >
+                            ดูเพิ่มเติม
+                          </button>
+                        )}
+                      </div>
+
+                      {/* ชั้นขยาย — ลอยทับสื่อ ใช้เส้นคั่นล่างไม่ใช่เงา (เงาบนกล่องกว้างเต็มคอลัมน์
+                          อ่านเป็นแผ่นเทาขอบแข็ง — user report 2026-08-04) */}
+                      {messageExpanded && (
+                        <div className="border-default-200 bg-card absolute inset-x-0 top-0 z-10 max-h-80 w-full overflow-y-auto border-b p-3">
+                          <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
+                            {text || 'โพสต์ไม่มีข้อความ'}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setMessageExpanded(false)}
+                            className="text-primary mt-1 text-xs font-semibold hover:underline"
+                          >
+                            ย่อลง
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {/* วิดีโอเล่นในหน้าเราผ่าน Facebook video plugin (iframe สาธารณะ ไม่ต้องใช้ token
                   และไม่ต้องมีสิทธิ์อ่านไฟล์วิดีโอ ซึ่งเป็นเหตุผลที่ก่อนหน้านี้ทำได้แค่ลิงก์ออก) */}
               {playing && isVideoPost(selectedPost.mediaType) && selectedPost.permalink ? (
-                <div className="bg-default-100 flex min-h-0 w-full flex-1 items-center justify-center">
+                <div className="bg-default-100 flex min-h-40 w-full flex-1 items-center justify-center overflow-hidden lg:min-h-0">
                   {/* กล่องล็อกสัดส่วนตามรูปปก แล้วย่อให้พอดีกับพื้นที่ที่เหลือ (max-h-full/max-w-full)
                       — iframe จึงไม่มีวันสูง/กว้างเกินคอลัมน์ ส่วน width ที่ส่งให้ปลั๊กอินมาจากการวัด
                       กล่องจริง จึงไม่มีภาพล้นกรอบอีก */}
                   <div
                     ref={playerBoxRef}
                     style={{ aspectRatio: String(posterRatio ?? 16 / 9) }}
-                    className="max-h-full w-full max-w-full"
+                    /**
+                     * เดสก์ท็อป: ให้ **ความสูง** เป็นตัวคุม (h-full w-auto) แล้ว aspect-ratio คำนวณ
+                     * ความกว้างตามมา — user report 2026-08-04 "พอจะกดเล่น video มันเต็มจอเฉย":
+                     * เดิมคุมด้วย w-full แล้วหวังให้ max-h-full ตัด ซึ่งไม่ทำงานเมื่อคอลัมน์ยังไม่มี
+                     * ความสูงที่แน่นอน (คลิปแนวตั้งอัตราส่วน ~9:16 จึงสูงเป็น 1.8 เท่าของความกว้าง
+                     * แล้วดันแถวยอดตกจอ) · มือถือคอลัมน์เรียงลงมาไม่มีความสูงตายตัว จึงยังใช้ w-full
+                     * ตามเดิม + ตัวห่อมี overflow-hidden กันส่วนเกินอีกชั้น
+                     */
+                    className="max-h-full w-full max-w-full lg:h-full lg:w-auto"
                   >
                     {playerWidth > 0 && (
                       <iframe
@@ -1149,7 +1256,9 @@ export default function CommentsClient({
                       setPlaying(true)
                     }
                   }}
-                  className="bg-default-100 relative block min-h-0 w-full flex-1"
+                  // มือถือ: ให้สื่อมีความสูงขั้นต่ำ (min-h-40) แล้วค่อยยืดตามที่เหลือ — ไม่ใช่ยุบตาม
+                  // flex จนเหลือเสี้ยวเดียวเมื่อผู้ใช้ลากแผงคอมเมนต์ขึ้นสูง (user report 2026-08-04)
+                  className="bg-default-100 relative block min-h-40 w-full flex-1 lg:min-h-0"
                   aria-label={isVideoPost(selectedPost.mediaType) ? 'เล่นวิดีโอ' : 'เปิดโพสต์บน Facebook'}
                 >
                   {/* เดสก์ท็อป: สูงเท่าที่เหลือในคอลัมน์ (h-full) — ของเดิม max-h คงที่ทำให้เหลือ
@@ -1198,8 +1307,41 @@ export default function CommentsClient({
               </div>
             </div>
 
+            {/* ที่จับลากปรับความสูง (มือถือเท่านั้น) — touch-none ให้ pointer event เป็นของเราไม่ใช่
+                ของ scroller, cursor-row-resize บอกว่าลากได้ก่อนจะลอง */}
+            {isNarrow && (
+              <div
+                role="separator"
+                aria-label="ลากเพื่อปรับความสูงของรายการความคิดเห็น"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId)
+                  dragRef.current = { startY: e.clientY, startH: mobilePanelH ?? Math.round(window.innerHeight * 0.45) }
+                }}
+                onPointerMove={(e) => {
+                  const d = dragRef.current
+                  if (!d) return
+                  // ลากขึ้น = แผงสูงขึ้น (startY - clientY เป็นบวก)
+                  setMobilePanelH(clampPanelH(d.startH + (d.startY - e.clientY)))
+                }}
+                onPointerUp={() => {
+                  dragRef.current = null
+                }}
+                onPointerCancel={() => {
+                  dragRef.current = null
+                }}
+                className="border-default-200 bg-light flex h-6 shrink-0 cursor-row-resize touch-none items-center justify-center border-t lg:hidden"
+              >
+                <span className="bg-default-400 h-1 w-10 rounded-full" aria-hidden="true" />
+              </div>
+            )}
+
             {/* ฝั่งขวา: คอมเมนต์เลื่อนเองได้ + ช่องพิมพ์ปักอยู่ล่างคอลัมน์นี้ ไม่เลื่อนหนีไปกับโพสต์ */}
-            <div className="flex min-h-0 flex-1 flex-col lg:h-full lg:w-1/2">
+            <div
+              // inline style เฉพาะจอแคบ — บนเดสก์ท็อปต้องปล่อยให้คลาส lg:h-full/lg:w-1/2 ทำงาน
+              // (inline style ชนะคลาสเสมอ ถ้าใส่ทุกจอจะพังเลย์เอาต์ 2 คอลัมน์)
+              style={isNarrow && mobilePanelH ? { height: mobilePanelH } : undefined}
+              className={`flex min-h-0 flex-col lg:h-full lg:w-1/2 ${isNarrow && mobilePanelH ? 'shrink-0' : 'flex-1'}`}
+            >
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               <div className="w-full p-3">
                 {/* แถวจัดลำดับคอมเมนต์ — ชุดเดียวกับ Facebook (user สั่ง 2026-08-04)

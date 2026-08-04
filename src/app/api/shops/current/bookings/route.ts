@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return jsonNoStore({ error: "VALIDATION_ERROR" }, { status: 400 });
 
   try {
-    const order = await createBooking(ctx.shopId, parsed.output);
+    // คนที่กดจองคือสมาชิกร้านที่ยิง request นี้ — guard resolve มาให้แล้ว ไม่รับจาก body
+    const order = await createBooking(ctx.shopId, parsed.output, ctx.userId);
     return jsonNoStore(serializeBooking(order), { status: 201 });
   } catch (e: unknown) {
     if (e instanceof RoomUnavailableError) {

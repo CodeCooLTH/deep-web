@@ -14,6 +14,7 @@
 
 import { cn } from '@/utils/helpers'
 import Icon from '@/components/wrappers/Icon'
+import AccountAvatar from '@/components/AccountAvatar'
 import { formatDateTime } from '@/lib/format-date'
 import { ORDER_STATUS_META } from '@/lib/order-display'
 
@@ -54,7 +55,13 @@ const NEXT_STEP_ICON_CLS: Record<'default' | 'done' | 'dead', string> = {
   dead: 'text-danger',
 }
 
-// actor ที่รับผิดชอบแต่ละ step (SafePay ไม่มี per-event user record → label ธรรมดา)
+// actor ที่รับผิดชอบแต่ละ step — ยังเป็นป้ายบทบาทธรรมดาสำหรับ step ที่ระบบไม่ได้เก็บว่า "ใคร" ทำ
+//
+// ยกเว้น PLACED: ตั้งแต่ 2026-08-04 `Order.createdByUserId` เก็บคนที่กดสร้างจริง ถ้ามีค่าจะแสดง
+// รูป+ชื่อคนนั้นแทนป้ายนี้ (ดู renderActor ด้านล่าง) — ค่า 'ระบบ' ที่นี่เหลือไว้สำหรับกรณีที่
+// ไม่มีคนกดจริง: ออเดอร์จากการปิดประมูล (auction.service ไม่ส่ง createdByUserId) และออเดอร์
+// ที่สร้างก่อน migration วันนั้น ซึ่งไม่มีทางรู้ย้อนหลังได้ว่าใครสร้าง (user เคาะ: คงคำว่า "ระบบ")
+//
 // key เปลี่ยนจาก order.status ดิบ → step แนวคิด (T14 P3) เพราะ PAYMENT ไม่ใช่ status จริงใน schema
 const STEP_ACTOR: Record<string, string> = {
   PLACED: 'ระบบ',
@@ -139,6 +146,15 @@ export type ShippingActivityData = {
     provider: string
     trackingNo: string
   } | null
+  /**
+   * คนที่กดสร้างออเดอร์นี้ (2026-08-04) — null = ไม่มีคนกดจริง (ระบบออกให้เอง/ออเดอร์เก่า)
+   * ห้ามใส่เจ้าของร้านเป็นค่า fallback ตอน null — จะกลายเป็นการยืนยันสิ่งที่ไม่รู้
+   */
+  createdBy?: {
+    displayName: string | null
+    username: string | null
+    avatar: string | null
+  } | null
 }
 
 interface ShippingActivityProps {
@@ -146,7 +162,10 @@ interface ShippingActivityProps {
 }
 
 const ShippingActivity = ({ data }: ShippingActivityProps) => {
-  const { status, fulfillmentMode, createdAtISO, updatedAtISO, shipmentTracking } = data
+  const { status, fulfillmentMode, createdAtISO, updatedAtISO, shipmentTracking, createdBy } = data
+
+  // ชื่อที่จะโชว์คู่รูป — displayName → username → คำกลาง (ห้ามปล่อยว่างจนขึ้นรูปลอย ๆ ไม่มีชื่อ)
+  const creatorName = createdBy ? (createdBy.displayName || createdBy.username || 'สมาชิกร้าน') : null
 
   const isCancelled = status === 'CANCELLED'
   const nextStep = NEXT_STEP[status] ?? null
@@ -208,7 +227,14 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
       timelineItems.push({
         key: stepKey,
         title: isDone ? def.doneTitle : def.pendingTitle,
-        description: isDone ? def.doneDesc : def.pendingDesc,
+        // PLACED ที่รู้ตัวคนสร้าง: ตัดคำว่า "ผู้ขาย" ออกจากคำอธิบาย เพราะ (1) ซ้ำกับชื่อคนที่อยู่
+        // บรรทัดถัดไปพอดี (2) คำเดิมสมมติว่าคนสร้าง = เจ้าของร้านเสมอ ซึ่งไม่จริงตั้งแต่มีพนักงาน
+        // ที่ถูกเชิญ (feature 00012) — พนักงานเปิดบิลแทนได้ ข้อความใหม่จึงเป็นกลางกับทุกคนในร้าน
+        description: isDone
+          ? stepKey === 'PLACED' && creatorName
+            ? 'สร้างคำสั่งซื้อนี้แล้ว'
+            : def.doneDesc
+          : def.pendingDesc,
         icon: def.icon,
         isDone,
         isCurrent,
@@ -357,7 +383,21 @@ const ShippingActivity = ({ data }: ShippingActivityProps) => {
                     <p className="mb-1.25 text-sm break-words text-default-700">
                       {item.description}
                     </p>
-                    {actor && <span className="text-default-700 text-xs">{actor}</span>}
+                    {/* แถวคนสร้าง: มีรูป+ชื่อจริงเฉพาะ PLACED ที่รู้ตัวคนกด — step อื่นระบบไม่ได้เก็บ
+                        ว่าใครทำ รู้แค่บทบาท จึงเป็นข้อความล้วนเหมือนเดิม **ห้ามใส่ avatar หลอกให้ครบ
+                        ทุกแถวเพื่อความสม่ำเสมอทางสายตา** — นั่นคือการแต่งข้อมูลที่ไม่มีจริง
+                        (ux 2026-08-04 ตัดสินทางเลือก B ด้วยเหตุผลนี้)
+                        ชื่อเข้มกว่าคำบทบาท (default-800 vs 700) โดยตั้งใจ = "รู้ตัวจริง" คนละชั้นกับ
+                        "รู้แค่บทบาท" — ใช้น้ำหนักไม่ใช่สี ไม่กิน budget สีเน้นของหน้า
+                        ไม่ทำเป็นลิงก์: ยังไม่มีหน้าโปรไฟล์พนักงานให้ไป ใส่ลิงก์เปล่า = affordance หลอก */}
+                    {item.key === 'PLACED' && creatorName ? (
+                      <span className="flex items-center gap-1.5">
+                        <AccountAvatar src={createdBy?.avatar} kind="personal" className="size-4.5" />
+                        <span className="text-default-800 text-xs font-medium break-words">{creatorName}</span>
+                      </span>
+                    ) : (
+                      actor && <span className="text-default-700 text-xs">{actor}</span>
+                    )}
                     {/* shipment tracking info สำหรับ SHIPPED step */}
                     {item.key === 'SHIPPED' && shipmentTracking && (
                       <p className="text-default-700 text-xs mt-0.5">

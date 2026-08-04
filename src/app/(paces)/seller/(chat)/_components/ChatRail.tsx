@@ -35,7 +35,6 @@
  */
 import { useEffect, useState } from 'react'
 import { SimpleBar } from '@/components/wrappers/SimpleBar'
-import InboxTabs from './InboxTabs'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import { SellerInboxSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import InboxList, { type ConversationListItem, type ChannelFilterOption, type ChatGroupTab } from '../inbox/components/InboxList'
@@ -142,7 +141,6 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
     // แก้เชิงโครงสร้างแทนการใส่ sticky ซ้อน: แท็บคือ "โหมดของทั้งคอลัมน์" ไม่ใช่หัวของรายการ —
     // sticky 2 ชั้นที่ top-0 เท่ากันจะทับกันเอง ต้องมานั่งชดเชยความสูงกันไปมา
     <div className="flex h-full min-h-0 flex-col">
-      <InboxTabs shopId={shopId} />
       <SimpleBar
         className="min-h-0 flex-1"
         scrollableNodeProps={{ className: 'overscroll-contain' }}

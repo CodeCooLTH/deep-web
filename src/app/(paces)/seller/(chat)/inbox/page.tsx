@@ -57,7 +57,6 @@ import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
-import InboxTabs from '../_components/InboxTabs'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -259,21 +258,11 @@ export default async function SellerInboxPage() {
           → InboxList ต้องอ่านจาก context ไม่ render ช่องของตัวเอง ไม่งั้นมือถือเห็นช่องค้นหาซ้ำ 2 อัน
           (user เจอจริงบน prod) — prop ชื่อ railMode คงเดิม แต่ความหมายตอนนี้ = "ค้นหาอยู่ที่ header" */}
       <div className="lg:hidden">
-        {/* แท็บ ข้อความ | ความคิดเห็น (feature 00029) — มือถือไม่มี rail จึงต้องมีที่นี่ด้วย
-            sticky (user report 2026-08-04: เลื่อนรายการลงมาแล้วแท็บหายไป) — กล่อง scroll ของมือถือ
-            คือ `<div className="overflow-y-auto">` ใน (chat)/layout.tsx จึงค้างเทียบกับตัวนั้น
-            ที่นี่ย้ายแท็บออกนอก scroller แบบ ChatRail ไม่ได้ (แท็บกับรายการอยู่ใน children ก้อนเดียว)
-            → ใช้ sticky แทน แล้วดันหัวรายการลงไปเกาะใต้แท็บด้วย tabsAbove ไม่ให้ทับกัน
-            z-20 ต้องสูงกว่า z-10 ของหัวรายการ; bg-card เพราะพื้น .card อยู่หลังแถวที่เลื่อนผ่าน */}
-        <div className="bg-card sticky top-0 z-20">
-          <InboxTabs shopId={shop.id} />
-        </div>
         <InboxList
           initialItems={items}
           initialNextCursor={nextCursor}
           channels={channels}
           initialGroups={groups}
-          tabsAbove
           hasShipping={hasShipping}
           shopId={shop.id}
           railMode
@@ -292,22 +281,14 @@ export default async function SellerInboxPage() {
           <SellerEmptyState
             compact
             icon="message-circle"
-            title="เลือกบทสนทนา"
+            title="เลือกข้อความ"
             description="เลือกรายการแชททางซ้ายมือเพื่อเริ่มอ่านและตอบข้อความ"
           />
         </div>
-        {/* คอลัมน์ขวาของ empty-state ต้องโผล่ที่ breakpoint เดียวกับ CustomerPanel จริงใน
-            [conversationId]/page.tsx (xl = 1280px) ไม่งั้นช่วง 1024-1279 หน้าเปล่าจะมี 3 คอลัมน์
-            แต่พอกดเข้าห้องแชทเหลือ 2 คอลัมน์ — เลย์เอาต์กระตุกตอนสลับหน้า */}
-        <div className="hidden h-full w-96 shrink-0 xl:block">
-          <div className="card flex h-full items-center justify-center">
-            <SellerEmptyState
-              compact
-              icon="user-circle"
-              title="เลือกบทสนทนาเพื่อดูข้อมูลลูกค้า"
-            />
-          </div>
-        </div>
+        {/* คอลัมน์ขวาของ empty-state ถูกถอดออก 2026-08-04 (user: "ไม่จำเป็นต้องมีด้านขวา เพราะ
+            เลือกบทสนทนาแล้วก็เห็นด้านขวาอยู่ดี") — เดิมมีไว้กันเลย์เอาต์กระตุกตอนสลับหน้า (หน้าเปล่า
+            3 คอลัมน์ → เข้าห้องแชท 3 คอลัมน์) ผลที่ยอมรับแล้ว: ตอนยังไม่เลือก คอลัมน์กลางจะกว้างกว่า
+            ตอนเลือกแล้วเล็กน้อย ซึ่ง user ตัดสินว่าคุ้มกว่าการมีข้อความว่างเปล่า 2 ก้อนบนจอเดียว */}
       </div>
     </>
   )

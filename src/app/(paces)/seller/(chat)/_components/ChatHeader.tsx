@@ -47,7 +47,11 @@ export default function ChatHeader() {
   // "กลับหน้าหลัก" ยังอยู่ที่หน้า /inbox ซึ่งเป็นที่ที่ย้อนกลับไปเจอ — ไม่มีทางตัน
   // ≥1024px ไม่ซ่อน: เป็นเลย์เอาต์ 3 คอลัมน์ที่ rail/เธรดอยู่บนจอเดียวกัน header เป็นแถบร่วมของทั้งหน้า
   const pathname = usePathname()
-  const isThreadPage = /^\/inbox\/[^/]+$/.test(pathname ?? '')
+  // 🛑 `/inbox/comments` ไม่ใช่หน้าเธรด (user report prod 2026-08-04: "พอสลับไป tab คอมเม้น
+  // TopBar หาย") — regex เดิมจับ `/inbox/<อะไรก็ได้>` จึงเหมาเอาแท็บความคิดเห็นไปด้วย แล้วมือถือ
+  // เลยไม่มีทั้งโลโก้/ช่องค้นหา/ปุ่มร้าน ทั้งที่มันคือ "รายการ" ไม่ใช่ห้องแชทที่ต้องกินพื้นที่เต็มจอ
+  // (เห็นชัดขึ้นหลังย้ายแท็บมาไว้ที่ layout — ก่อนหน้านี้แท็บอยู่ในหน้าเลยพอมีอะไรค้างให้เห็น)
+  const isThreadPage = /^\/inbox\/[^/]+$/.test(pathname ?? '') && !pathname?.startsWith('/inbox/comments')
 
   // โลโก้ร้าน active + สลับร้านย้ายเข้า ChatShopSwitcher (feat 2026-07-30) — ChatHeader ไม่ต้อง
   // อ่าน session เองอีกต่อไปสำหรับส่วนนั้น
@@ -70,7 +74,10 @@ export default function ChatHeader() {
 
   return (
     <header
-      className={`chat-header min-h-(--topbar-height) shrink-0 items-center gap-3 border-b border-default-200 px-4 shadow sm:px-5 ${
+      // ไม่มี shadow (user สั่ง 2026-08-04 "Top Bar ในหน้า chat ไม่อยากให้มี shadow") — เส้น
+      // border-b ทำหน้าที่แยกชั้นอยู่แล้ว และหน้าแชทเป็น shell เต็มจอที่ไม่มีอะไรเลื่อนผ่านใต้หัว
+      // (เงามีเหตุผลเมื่อเนื้อหาลอดใต้หัวได้ ซึ่งที่นี่ไม่ใช่ — เงาจึงเหลือแค่คราบเทาที่ขอบ)
+      className={`chat-header min-h-(--topbar-height) shrink-0 items-center gap-3 border-b border-default-200 px-4 sm:px-5 ${
         isThreadPage ? 'hidden lg:flex' : 'flex'
       }`}
     >
@@ -85,11 +92,6 @@ export default function ChatHeader() {
       <div className="min-w-0 flex-1">
         <ChatSearchBox />
       </div>
-
-      {/* ปุ่มร้าน ข้างช่องค้นหา — เดิมคลิกไป /dashboard อย่างเดียว (user request 2026-07-23);
-          เปลี่ยนเป็น dropdown สลับร้าน (feat 2026-07-30): คลิกเลือกร้านที่มีสิทธิ์ → สลับ context
-          → แชททั้งหมดโหลดตามร้านใหม่. ทางกลับหน้าหลักย้ายเข้าไปเป็นเมนู "กลับหน้าหลัก" ใน dropdown */}
-      <ChatShopSwitcher />
 
       <div className="flex shrink-0 items-center gap-1">
         <button
@@ -106,6 +108,11 @@ export default function ChatHeader() {
         </button>
         <ThemeDropdown />
         <TextScaleToggler />
+        {/* ปุ่มร้าน (dropdown สลับร้าน) — ย้ายมาไว้ **ขวาสุด** ตามที่ user สั่ง 2026-08-04
+            ("ฝากย้าย icon ร้าน ไปไว้ขวาสุดให้หน่อย") เดิมอยู่ก่อนกลุ่มไอคอนระบบ (เสียง/ธีม/ขนาด
+            ตัวอักษร) ซึ่งทำให้รูปร้านที่เป็นสีจัดที่สุดในแถบไปแทรกกลางกลุ่มไอคอนสีเทา
+            ขวาสุด = ตำแหน่งที่ทุกแอปวางเมนูบัญชี/พื้นที่ทำงาน (earned familiarity) */}
+        <ChatShopSwitcher />
       </div>
     </header>
   )
