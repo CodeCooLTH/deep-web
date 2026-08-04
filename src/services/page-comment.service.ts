@@ -712,8 +712,18 @@ export async function countUnansweredForShop(params: {
   actorUserId: string
 }): Promise<number> {
   if (!(await canAccessShop(params.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  /**
+   * นับ **จำนวนโพสต์** ที่ยังมีคอมเมนต์ค้าง ไม่ใช่จำนวนคอมเมนต์ (user ถาม 2026-08-04 "มันควรเป็น 8 ไหม"
+   * ตอนแท็บขึ้น 26 แต่รายการมี 8 แถว)
+   *
+   * เหตุผลที่หน่วยต้องเป็น "โพสต์": badge ที่อยู่ข้างกันบนแถบเดียวกัน (`ข้อความ`) นับด้วย
+   * countUnreadConversations = **จำนวนเธรด** ไม่ใช่จำนวนข้อความ — สองแท็บบนแถบเดียวกันต้องเป็น
+   * หน่วยเดียวกัน คือ "มีกี่รายการในลิสต์ที่ต้องจัดการ" และตรงกับจำนวนแถวที่ผู้ใช้เห็นจริง
+   * (รอบก่อนผมเปลี่ยนเป็นนับคอมเมนต์เพราะ user บอกว่าเลข 24/5/3,7,3,8,3 ดูขัดกัน — ตอนนั้นแถวยังมี
+   *  วงกลมตัวเลขต่อโพสต์อยู่ พอถอดวงกลมออกตามที่สั่งทีหลัง เลขจำนวนคอมเมนต์ก็ไม่มีอะไรบนจอให้อ้างอิง)
+   */
   const rows = await prisma.$queryRaw<Array<{ count: bigint }>>`
-    SELECT count(*)::bigint AS count
+    SELECT count(DISTINCT c."postId")::bigint AS count
     FROM "PageComment" c
     JOIN "ShopChannel" sc ON sc.id = c."shopChannelId"
     WHERE sc."shopId" = ${params.shopId}

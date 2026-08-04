@@ -182,6 +182,16 @@ export default function CommentsClient({
   const [hasMore, setHasMore] = useState(initialPosts.length >= 25)
   // ในเธรด: ดูเฉพาะคอมเมนต์ที่ยังไม่มีคำตอบของเพจ
   const [unansweredOnly, setUnansweredOnly] = useState(false)
+  /**
+   * แสดงคอมเมนต์ระดับบนที่ "ร้านเขียนเอง" ด้วยไหม — ค่าตั้งต้น false (user สั่ง 2026-08-04:
+   * "comment กลุ่มที่เป็นร้านคอมเม้นเองละ ... อยากให้เอาเข้ามาด้วย แต่แบ่ง default ตัวกรองไป
+   * ไม่ต้องดึงออกมาแสดง")
+   *
+   * ของพวกนี้ **เข้าฐานอยู่แล้ว** (ingestFeedComment เก็บทุกคอมเมนต์ + ติดธง isFromPage) แค่ไม่ควร
+   * ปนอยู่ในลิสต์ "สิ่งที่ต้องตอบ" — ซ่อนแค่ **ระดับบน** เท่านั้น คำตอบของเพจที่อยู่ใต้คอมเมนต์ลูกค้า
+   * ยังต้องเห็นตลอด (มันคือหลักฐานว่าเราตอบไปว่าอะไร)
+   */
+  const [showShopComments, setShowShopComments] = useState(false)
   // แท็บสถานะของรายการโพสต์ — 2 แท็บเท่านั้นตามที่ user สั่ง 2026-08-04 ("ทั้งหมด / ยังไม่ตอบ")
   // "ตอบครบแล้ว" ถอดออก: เป็นส่วนเติมเต็มของ "ยังไม่ตอบ" อยู่แล้ว. union เหลือ 2 ค่าเพื่อให้ tsc
   // บังคับว่าไม่มีที่ไหนอ้าง 'DONE' ค้าง (ไม่ใช่ลบแค่ปุ่มที่ render)
@@ -414,7 +424,10 @@ export default function CommentsClient({
       arr.push(c)
       children.set(c.parentExternalId, arr)
     }
-    const tops = list.filter((c) => !c.parentExternalId)
+    const tops = list
+      .filter((c) => !c.parentExternalId)
+      // คอมเมนต์ระดับบนของร้านเอง: ซ่อนเป็นค่าตั้งต้น (ดู showShopComments)
+      .filter((c) => showShopComments || !c.isFromPage)
     const newestFirst = [...tops].sort(
       (a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime(),
     )
@@ -452,7 +465,7 @@ export default function CommentsClient({
         const unansweredHere = (!c.isFromPage && !c.isDeleted && !answeredSelf ? 1 : 0) + unansweredReplies
         return { comment: c, replies, answered: unansweredHere === 0, unansweredHere }
       })
-  }, [thread, commentOrder])
+  }, [thread, commentOrder, showShopComments])
 
   const visibleTree = useMemo(
     () => (unansweredOnly ? tree.filter((t) => !t.answered) : tree),
@@ -529,8 +542,8 @@ export default function CommentsClient({
    * หน่วยเดียวทั้งจอคือ "คอมเมนต์ที่ยังไม่ตอบ" ตัวเลขจึงบวกกันได้ตรง ๆ
    * (ยังนับจาก postsByChannel ชุดเดียวกับรายการที่เรนเดอร์ — กรองเป็น Instagram แล้วเลขต้องเปลี่ยนตาม)
    */
-  const unansweredCommentCount = useMemo(
-    () => postsByChannel.reduce((n, p) => n + p.unansweredCount, 0),
+  const unansweredPostCount = useMemo(
+    () => postsByChannel.filter((p) => p.unansweredCount > 0).length,
     [postsByChannel],
   )
   const visiblePosts = useMemo(() => {
@@ -830,10 +843,12 @@ export default function CommentsClient({
                 {t.label}
                 {/* ตัวนับมาจาก postsByChannel ชุดเดียวกับรายการด้านล่าง (symbol เดียว) และตัดที่ 99+
                     เหมือน badge ยังไม่อ่านของแท็บข้อความ */}
-                {/* หน่วยเดียวกับวงกลมท้ายแถวและ badge บนแท็บ = "คอมเมนต์ที่ยังไม่ตอบ" (symbol เดียว) */}
-                {t.key === 'UNANSWERED' && unansweredCommentCount > 0 && (
+                {/* หน่วย = "จำนวนโพสต์ที่ยังมีของค้าง" ตรงกับจำนวนแถวที่เห็นในลิสต์ และตรงกับ badge
+                    บนแท็บ (countUnansweredForShop นับ DISTINCT postId) — user ถาม 2026-08-04
+                    "มันควรเป็น 8 ไหม" ตอนแท็บขึ้น 26 แต่รายการมี 8 แถว */}
+                {t.key === 'UNANSWERED' && unansweredPostCount > 0 && (
                   <span className="bg-danger text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold text-white">
-                    {unansweredCommentCount > 99 ? '99+' : unansweredCommentCount}
+                    {unansweredPostCount > 99 ? '99+' : unansweredPostCount}
                   </span>
                 )}
               </button>
@@ -1191,6 +1206,18 @@ export default function CommentsClient({
                         { value: 'ALL', label: 'ทั้งหมด' },
                       ]}
                     />
+                    {/* คอมเมนต์ของร้านเอง — ซ่อนเป็นค่าตั้งต้น กดเพื่อดูรวม (user สั่ง 2026-08-04) */}
+                    <button
+                      type="button"
+                      onClick={() => setShowShopComments((v) => !v)}
+                      aria-pressed={showShopComments}
+                      className={`badge text-2xs inline-flex min-h-9 items-center gap-1 px-3 ${
+                        showShopComments ? 'bg-primary text-white' : 'bg-default-100 text-default-700'
+                      }`}
+                    >
+                      <Icon icon="building-store" width={12} height={12} />
+                      ของร้าน
+                    </button>
                     <button
                       type="button"
                       onClick={() => setUnansweredOnly(!unansweredOnly)}
