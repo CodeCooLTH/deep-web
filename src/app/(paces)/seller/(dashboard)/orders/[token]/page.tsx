@@ -5,14 +5,16 @@
  *   docs/superpowers/specs/2026-07-31-seller-order-detail-v5-design.md
  *   docs/scope/2026-07-31-seller-order-detail-v5-scope-baseline.md
  * - StatusHero (T7) = หัวหน้าเต็มความกว้างเหนือ grid (ปุ่ม inline+stuck ในตัวเอง ผ่าน onAction)
+ * - OrderProgressStepper (2026-08-04) = แถบสถานะเต็มความกว้าง คั่นระหว่างหัวการ์ดกับ grid
+ *   render จาก OrderDetailClient ไม่ใช่ children เพราะ derive จาก props ที่ shell ถืออยู่แล้ว
  * - grid 75/25 (`grid grid-cols-1 lg:grid-cols-4 gap-base`): ซ้าย col-span-3 = OrderFactsCard
  *   (การ์ด "ใบสั่งซื้อ" รวม 3 section — ผู้ซื้อ+ที่อยู่ / รายการ+เงิน+ชำระเงิน / การจัดส่ง, T6)
- *   ขวา col-span-1 = OrderReviewCard (เฉพาะ CONFIRMED ที่มีรีวิวจริง, T3) → ShippingActivity (T2)
+ *   ขวา col-span-1 = OrderReviewCard (เฉพาะ CONFIRMED ที่มีรีวิวจริง, T3)
  * - OrderActionBar variant="bottom" (T8, <1024) + ShipmentEntryModal (T9, controlled by
  *   OrderDetailClient) แทนที่ SellerBottomNav ของหน้านี้ (S-7 ตัดไปแล้วที่ SellerBottomNav.tsx)
  * - onAction ต่อ logic จริง (ยิง API/Swal/clipboard/เปิด modal) ใน OrderDetailClient.tsx —
  *   page.tsx (RSC) ส่งฟังก์ชันข้ามขอบเขต server→client ไม่ได้ จึงมี client wrapper เดียวเป็นเจ้าของ
- *   handler ทั้งหมด ส่วน OrderFactsCard/OrderReviewCard/ShippingActivity ยังส่งผ่าน `children`
+ *   handler ทั้งหมด ส่วน OrderFactsCard/OrderReviewCard ยังส่งผ่าน `children`
  *   จาก RSC ตรง ๆ (ไม่ลากเข้า client bundle)
  * - shipmentSource ('MANUAL'|'ISHIP'|null): ISHIP เมื่อมี OrderShipment ที่ยัง active
  *   (shipmentPanel.shipment, ไม่ CANCELLED) MANUAL เมื่อมี order.shipmentTracking — คุมว่ามีปุ่ม
@@ -42,7 +44,6 @@ import { resolveBuyerDisplayName } from '@/lib/order-display'
 import OrderDetailClient from './components/OrderDetailClient'
 import OrderFactsCard from './components/OrderFactsCard'
 import type { ShippingAddressData, OrderFactsShipping } from './components/OrderFactsCard'
-import ShippingActivity from './components/ShippingActivity'
 import OrderReviewCard from './components/OrderReviewCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
 import type { ShipmentSource } from './components/order-action-set'
@@ -198,6 +199,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
         trackingNo={shippingInfo?.trackingNo ?? null}
         provider={shippingInfo?.courier ?? null}
         addressText={addressText}
+        updatedAtISO={(order.updatedAt as Date).toISOString()}
+        // carrierStatus: มีเฉพาะพัสดุที่เปิดผ่าน iShip — เลขพัสดุที่ร้านแจ้งเอง (ShipmentTracking)
+        // ไม่มีสถานะฝั่งขนส่งให้อ่าน จึงเป็น null และแถบสถานะจะตัดสินขั้นเก็บเงิน COD จาก
+        // การที่ผู้ซื้อกดยืนยันรับของอย่างเดียว (ดู src/lib/order-progress.ts)
+        carrierStatus={shipmentPanel?.shipment?.carrierStatus ?? null}
       >
         {/* grid 75/25 (≥1024) · คอลัมน์เดียว (<1024) — Base: order-details/page.tsx
             `grid grid-cols-1 lg:grid-cols-4 gap-base` + `space-y-base lg:col-span-3` */}
@@ -246,33 +252,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
             />
           </div>
 
-          {/* ขวา — col-span-1 (25%): รีวิว (เมื่อมี) → ประวัติคำสั่งซื้อ (เหตุการณ์ อ่านอย่างเดียว) */}
+          {/* ขวา — col-span-1 (25%): รีวิว (เมื่อมี)
+              การ์ด "ประวัติคำสั่งซื้อ" เดิม (ShippingActivity) ถูกถอดออก 2026-08-04: เนื้อหาของมัน
+              คือ "สถานะ" ล้วน ซึ่งย้ายไปอยู่แถบ OrderProgressStepper เต็มความกว้างเหนือ grid แล้ว
+              (และเวอร์ชันเดิมยังบอกลำดับผิดสำหรับ COD ด้วย) — ส่วน "ประวัติ" ที่ user ต้องการจริง
+              คือ ใครสร้าง/ใครขอเลขพัสดุ/ใครส่ง SMS/ใครยกเลิก ซึ่งฐานข้อมูลยังไม่ได้เก็บ
+              กำลังทำเป็น feature 00031 (ตาราง OrderEvent) แล้วจะกลับมาลงตำแหน่งนี้ */}
           <div className="space-y-base">
             {showReviewCard && <OrderReviewCard review={reviewData} />}
-            <ShippingActivity
-              data={{
-                status: order.status,
-                fulfillmentMode: order.fulfillmentMode,
-                createdAtISO,
-                updatedAtISO: (order.updatedAt as Date).toISOString(),
-                shipmentTracking: order.shipmentTracking
-                  ? {
-                      provider: order.shipmentTracking.provider,
-                      trackingNo: order.shipmentTracking.trackingNo,
-                    }
-                  : null,
-                // คนที่กดสร้างออเดอร์ (2026-08-04) — pick เฉพาะ 3 field ที่การ์ดใช้แสดงผลจริง
-                // ไม่ส่งทั้ง object เพราะหน้านี้อยู่ใต้ client layout: ทุก field ที่ส่งจะถูก serialize
-                // เข้า flight payload ที่ผู้ใช้เปิดดูได้ (S-C1 / feedback_rsc_pii_neutralize_at_source)
-                createdBy: order.createdBy
-                  ? {
-                      displayName: order.createdBy.displayName,
-                      username: order.createdBy.username,
-                      avatar: order.createdBy.avatar,
-                    }
-                  : null,
-              }}
-            />
           </div>
         </div>
       </OrderDetailClient>

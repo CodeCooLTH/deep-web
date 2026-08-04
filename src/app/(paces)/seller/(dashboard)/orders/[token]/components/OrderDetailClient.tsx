@@ -6,7 +6,7 @@
  * ทำไมต้องมี client wrapper: `onAction` ของ StatusHero/OrderActionBar ต้องเป็นฟังก์ชันจริง
  * (fetch/Swal/clipboard/modal state) — page.tsx เป็น RSC ส่งฟังก์ชันข้ามขอบเขต Server→Client
  * ไม่ได้ (ไม่ใช่ Server Action) จึงต้องมี component เดียวที่เป็นเจ้าของ handler ทั้งหมด แล้ว
- * ส่ง `children` (grid เนื้อหา — OrderFactsCard/OrderReviewCard/ShippingActivity) เข้ามาจาก
+ * ส่ง `children` (grid เนื้อหา — OrderFactsCard/OrderReviewCard) เข้ามาจาก
  * page.tsx ตรง ๆ เพื่อให้ subtree นั้นยัง render จาก RSC ได้เหมือนเดิม ไม่ลากเข้า client bundle
  * โดยไม่จำเป็น (pattern "server component ผ่าน children เข้า client component")
  *
@@ -35,6 +35,7 @@ import type { ShipmentContextJson } from '@/lib/iship/context'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
 import dynamic from 'next/dynamic'
 import StatusHero from './StatusHero'
+import OrderProgressStepper from './OrderProgressStepper'
 import { getOrderActionSet } from './order-action-set'
 import type { ShipmentSource } from './order-action-set'
 
@@ -92,7 +93,16 @@ export interface OrderDetailClientProps {
   /** ที่อยู่จัดส่งรวมเป็นบรรทัดเดียว (สำหรับ copy-address) — null = ไม่มีที่อยู่ให้คัดลอก */
   addressText: string | null
 
-  /** grid เนื้อหา (OrderFactsCard/OrderReviewCard/ShippingActivity) — ส่งมาจาก page.tsx (RSC)
+  // ── OrderProgressStepper (แถบสถานะเต็มความกว้างใต้หัวการ์ด) ───────────────
+  /** เวลาที่ออเดอร์ถูกแตะล่าสุด — ใช้เป็นเวลาของขั้นที่ตรงกับสถานะปัจจุบัน */
+  updatedAtISO: string
+  /**
+   * สถานะฝั่งขนส่ง iShip ('delivered' | 'picked_up' | ...) — null = ไม่มีพัสดุ iShip
+   * มีผลเฉพาะออเดอร์ COD: ส่งถึงมือผู้ซื้อแล้ว = ขนส่งเก็บเงินให้แล้ว แม้ผู้ซื้อยังไม่กดยืนยันรับของ
+   */
+  carrierStatus: string | null
+
+  /** grid เนื้อหา (OrderFactsCard/OrderReviewCard) — ส่งมาจาก page.tsx (RSC)
       ตรง ๆ ผ่าน children เพื่อให้ subtree นั้นยัง server-render ได้ ไม่ลากเข้า client bundle */
   children: React.ReactNode
 }
@@ -116,6 +126,8 @@ export default function OrderDetailClient({
   trackingNo,
   provider,
   addressText,
+  updatedAtISO,
+  carrierStatus,
   children,
 }: OrderDetailClientProps) {
   const router = useRouter()
@@ -267,6 +279,23 @@ export default function OrderDetailClient({
         shipmentSource={shipmentSource}
         onAction={handleAction}
       />
+
+      {/* แถบสถานะเต็มความกว้าง คั่นระหว่างหัวการ์ดกับเนื้อหา (user 2026-08-04) — ตอบคำถาม
+          "ตอนนี้ไปถึงไหนแล้ว" ในบรรทัดเดียว โดยลำดับขั้นแตกตาม COD/โอนเงิน (src/lib/order-progress.ts)
+          ไม่ผ่าน children เพราะ derive จาก props ที่ client shell ถืออยู่แล้วทั้งหมด ไม่ต้องข้าม
+          server boundary และไม่มี PII เพิ่ม (status/fulfillmentMode/paymentMethod/ยอดเงิน) */}
+      <div className="mt-base">
+        <OrderProgressStepper
+          status={status}
+          fulfillmentMode={fulfillmentMode}
+          paymentMethod={paymentMethod}
+          slipFileId={slipFileId}
+          totalAmount={totalAmount}
+          carrierStatus={carrierStatus}
+          createdAtISO={createdAtISO}
+          updatedAtISO={updatedAtISO}
+        />
+      </div>
 
       {/* grid เนื้อหา — ส่งมาจาก page.tsx (RSC) ผ่าน children, mt-base คั่นจากหัวหน้า (token เดิม) */}
       <div className="mt-base">{children}</div>
