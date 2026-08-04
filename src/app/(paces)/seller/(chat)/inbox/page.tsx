@@ -57,7 +57,6 @@ import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import InboxList, { type ConversationListItem, type ChannelFilterOption } from './components/InboxList'
-import InboxTabs from '../_components/InboxTabs'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -266,7 +265,6 @@ export default async function SellerInboxPage() {
             → ใช้ sticky แทน แล้วดันหัวรายการลงไปเกาะใต้แท็บด้วย tabsAbove ไม่ให้ทับกัน
             z-20 ต้องสูงกว่า z-10 ของหัวรายการ; bg-card เพราะพื้น .card อยู่หลังแถวที่เลื่อนผ่าน */}
         <div className="bg-card sticky top-0 z-20">
-          <InboxTabs shopId={shop.id} />
         </div>
         <InboxList
           initialItems={items}

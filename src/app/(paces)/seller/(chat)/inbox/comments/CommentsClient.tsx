@@ -188,8 +188,8 @@ export default function CommentsClient({
   /**
    * ตัวกรอง "แสดงอะไร" — multi-select (user สั่ง 2026-08-04) เก็บที่เดียวแล้วให้ทั้งแถบแท็บและ
    * แผงตัวกรองอ่าน/เขียนตัวเดียวกัน: แท็บเป็นทางลัดของค่าชุดนี้ ไม่ใช่ state คู่ขนาน
-   *   ทั้งหมด    = unanswered ✓ + done ✓
-   *   ยังไม่ตอบ  = unanswered ✓ + done ✗
+   *   ทั้งหมด    = unanswered เปิด + done เปิด
+   *   ยังไม่ตอบ  = unanswered เปิด + done ปิด
    * (สอง control ที่เก็บสถานะแยกกันแล้วต้องคอย sync คือที่มาของบั๊ก "ตัวเลข 2 ที่ไม่ตรงกัน" ที่เจอ
    *  มาแล้วในหน้านี้ — ตัวกรองก็เหมือนกัน)
    */
@@ -218,6 +218,12 @@ export default function CommentsClient({
   // Facebook video plugin เมื่อ "กดเล่น" เท่านั้น ไม่โหลดล่วงหน้าทุกโพสต์ (iframe ของ Meta หนัก
   // และตามผู้ใช้ด้วย cookie — โหลดเมื่อผู้ใช้สั่งเท่านั้นคือพฤติกรรมที่ถูกต้อง)
   const [playing, setPlaying] = useState(false)
+  /**
+   * ข้อความโพสต์ขยายอยู่ไหม (user สั่ง 2026-08-04: "อยากให้ description แสดงแค่ 3 แถวสูงสุด แต่ถ้า
+   * ข้อความเกิน ให้กดดูเพิ่มเติมโดยที่มันจะ expand ลงมาทับคลิป เพื่อเพิ่มพื้นที่ให้แสดงผลคลิปหน่อย")
+   * รีเซ็ตเมื่อเปลี่ยนโพสต์ ไม่งั้นโพสต์ถัดไปเปิดมาค้างสถานะขยายของโพสต์ก่อน
+   */
+  const [messageExpanded, setMessageExpanded] = useState(false)
   /**
    * ปลั๊กอินวิดีโอของ Facebook เรนเดอร์ player ตาม **ค่า width ที่ส่งไปใน URL** ไม่ใช่ตามขนาด
    * iframe — ส่ง width คงที่แล้ววาง iframe กว้างกว่า/แคบกว่า จะได้ภาพล้นกรอบ (user report
@@ -1074,9 +1080,25 @@ export default function CommentsClient({
                 <img src={selectedPost.thumbnailUrl} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-default-800 mb-0 truncate text-sm font-semibold">
-                  {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
-                </p>
+                {/* ชื่อโพสต์เป็นลิงก์ไป Facebook แทนปุ่มแยก (user สั่ง 2026-08-04 "เอา button เปิดบน
+                    facebook เปลี่ยนเป็น hyperlink ที่ชื่อคลิกแทน") — คืนพื้นที่แถวหัวให้เนื้อหา
+                    ไม่มี permalink (โพสต์เก่าที่ดึง meta ไม่ได้) = ข้อความเฉย ๆ ไม่ใช่ลิงก์ตาย */}
+                {selectedPost.permalink ? (
+                  <a
+                    href={selectedPost.permalink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="เปิดโพสต์นี้บน Facebook"
+                    className="text-default-800 hover:text-primary mb-0 flex items-center gap-1 truncate text-sm font-semibold"
+                  >
+                    <span className="truncate">{selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}</span>
+                    <Icon icon="external-link" className="text-default-600 size-3.5 shrink-0" />
+                  </a>
+                ) : (
+                  <p className="text-default-800 mb-0 truncate text-sm font-semibold">
+                    {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
+                  </p>
+                )}
                 <p className="text-default-700 mb-0 truncate text-xs">
                   {selectedPost.reactionCount ?? '–'} รีแอ็กชัน ·{' '}
                   {thread?.post.fbCommentCount ?? selectedPost.commentCount} ความคิดเห็น
@@ -1089,27 +1111,48 @@ export default function CommentsClient({
                   ยังไม่ตอบ {selectedPost.unansweredCount}
                 </span>
               )}
-              {selectedPost.permalink && (
-                <a
-                  href={selectedPost.permalink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11 shrink-0"
-                >
-                  <Icon icon="brand-facebook" className="me-1 text-base" />
-                  เปิดบน Facebook
-                </a>
-              )}
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
             {/* คอลัมน์ซ้าย = โพสต์เต็มความสูง (user สั่ง 2026-08-03 "อยากให้เต็มจอเลย")
                 ข้อความอยู่บน สื่อกินพื้นที่ที่เหลือทั้งหมด แถวยอดชิดล่างสุดของคอลัมน์ */}
             <div className="border-default-200 flex min-h-0 shrink-0 flex-col border-b lg:h-full lg:w-1/2 lg:shrink lg:border-e lg:border-b-0">
-              <div className="w-full shrink-0 overflow-y-auto p-3 lg:max-h-40">
-                <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
-                  {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
-                </p>
+              {/* เนื้อโพสต์: 3 บรรทัดเป็นค่าตั้งต้น กด "ดูเพิ่มเติม" แล้วขยาย **ทับสื่อ** ไม่ใช่ดันสื่อลง
+                  (user สั่ง 2026-08-04 — เจตนาคือให้คลิปได้พื้นที่คงที่ไม่หดตามความยาวข้อความ)
+                  relative ที่ตัวห่อ + absolute ตอนขยาย = สื่อด้านล่างไม่ขยับเลยทั้งตอนเปิดและปิด */}
+              <div className="relative w-full shrink-0">
+                <div
+                  className={`bg-card w-full p-3 ${
+                    messageExpanded
+                      ? 'absolute inset-x-0 top-0 z-10 max-h-80 overflow-y-auto shadow-lg'
+                      : ''
+                  }`}
+                >
+                  <p
+                    className={`text-default-800 mb-0 whitespace-pre-wrap text-sm ${
+                      messageExpanded ? '' : 'line-clamp-3'
+                    }`}
+                  >
+                    {selectedPost.message?.trim() || 'โพสต์ไม่มีข้อความ'}
+                  </p>
+                  {/* ปุ่มโผล่เฉพาะเมื่อข้อความยาวพอจะถูกตัด — เทียบด้วยความยาวตัวอักษร/จำนวนบรรทัด
+                      แทนการวัด DOM: ข้อความโพสต์เป็น plain text ที่ไม่เปลี่ยนตามขนาดจอมากนัก และ
+                      ปุ่มที่โผล่มาแล้วกดไม่เจออะไรเพิ่มยังเสียหายน้อยกว่าการวัดผิดจังหวะ resize */}
+                  {(() => {
+                    const text = selectedPost.message?.trim() ?? ''
+                    const looksLong = text.length > 120 || text.split('\n').length > 3
+                    if (!looksLong) return null
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setMessageExpanded((v) => !v)}
+                        className="text-primary mt-1 text-xs font-semibold hover:underline"
+                      >
+                        {messageExpanded ? 'ย่อลง' : 'ดูเพิ่มเติม'}
+                      </button>
+                    )
+                  })()}
+                </div>
               </div>
 
               {/* วิดีโอเล่นในหน้าเราผ่าน Facebook video plugin (iframe สาธารณะ ไม่ต้องใช้ token

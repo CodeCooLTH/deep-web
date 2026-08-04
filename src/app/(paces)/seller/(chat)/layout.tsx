@@ -39,6 +39,7 @@ import { getProductsByShop, getBestSellerProducts } from '@/services/product.ser
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
 import ChatRailColumn from './_components/ChatRailColumn'
+import InboxTabs from './_components/InboxTabs'
 import { prisma } from '@/lib/prisma'
 import DraftOrderProvider from './_components/DraftOrderProvider'
 import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
@@ -97,6 +98,20 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     <ChatSearchProvider>
       <div className="chat-shell flex h-dvh flex-col overflow-hidden bg-card">
         <ChatHeader />
+
+        {/**
+         * แถบแท็บ ข้อความ/ความคิดเห็น — **พาดเต็มความกว้างเหนือทุกคอลัมน์** (user เลือกเอง
+         * 2026-08-04: "ซึ่งผมชอบแบบพาดเต็มความกว้างนะ" หลังเทียบสองแท็บด้วยภาพ)
+         *
+         * ก่อนหน้านี้ถูก render 3 ที่: ChatRail (บนสุดของคอลัมน์ rail เดสก์ท็อป), inbox/page.tsx
+         * (มือถือ), comments/page.tsx (พาดเต็มความกว้าง) — ผลคือสองแท็บมีโครงไม่เหมือนกัน
+         * (ฝั่งข้อความคอลัมน์กลาง/ขวาเริ่มจากขอบบน ฝั่งความคิดเห็นถูกดันลงมา) และตัวเลข badge
+         * ต้องคอย sync กัน 3 ที่
+         * ย้ายมาที่นี่ที่เดียว: layout เป็นเจ้าของ "โหมดของทั้งหน้า" อยู่แล้ว (มันคือสิ่งที่สลับ
+         * ทั้งหน้าไม่ใช่แค่คอลัมน์เดียว) และ InboxTabs ดึงตัวเลขเองผ่าน endpoint + cache ระดับโมดูล
+         * จึงไม่ต้องส่ง unansweredCount จาก server ของแต่ละหน้าอีก
+         */}
+        <InboxTabs shopId={activeCtx?.shopId ?? null} />
 
         <div className="flex min-h-0 flex-1">
           {/* rail — desktop เท่านั้น (≥1024px); <1024px ไม่มีเมนูซ้ายให้แทนที่อยู่แล้ว (ตาม design

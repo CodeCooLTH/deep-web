@@ -86,11 +86,6 @@ export default function ChatHeader() {
         <ChatSearchBox />
       </div>
 
-      {/* ปุ่มร้าน ข้างช่องค้นหา — เดิมคลิกไป /dashboard อย่างเดียว (user request 2026-07-23);
-          เปลี่ยนเป็น dropdown สลับร้าน (feat 2026-07-30): คลิกเลือกร้านที่มีสิทธิ์ → สลับ context
-          → แชททั้งหมดโหลดตามร้านใหม่. ทางกลับหน้าหลักย้ายเข้าไปเป็นเมนู "กลับหน้าหลัก" ใน dropdown */}
-      <ChatShopSwitcher />
-
       <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
@@ -106,6 +101,11 @@ export default function ChatHeader() {
         </button>
         <ThemeDropdown />
         <TextScaleToggler />
+        {/* ปุ่มร้าน (dropdown สลับร้าน) — ย้ายมาไว้ **ขวาสุด** ตามที่ user สั่ง 2026-08-04
+            ("ฝากย้าย icon ร้าน ไปไว้ขวาสุดให้หน่อย") เดิมอยู่ก่อนกลุ่มไอคอนระบบ (เสียง/ธีม/ขนาด
+            ตัวอักษร) ซึ่งทำให้รูปร้านที่เป็นสีจัดที่สุดในแถบไปแทรกกลางกลุ่มไอคอนสีเทา
+            ขวาสุด = ตำแหน่งที่ทุกแอปวางเมนูบัญชี/พื้นที่ทำงาน (earned familiarity) */}
+        <ChatShopSwitcher />
       </div>
     </header>
   )

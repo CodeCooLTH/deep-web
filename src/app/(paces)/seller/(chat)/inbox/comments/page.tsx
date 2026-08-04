@@ -13,11 +13,10 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { listCommentPosts, countUnansweredForShop, backfillPagePosts } from '@/services/page-comment.service'
+import { listCommentPosts, backfillPagePosts } from '@/services/page-comment.service'
 import { listChannels } from '@/services/shop-channel.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
-import InboxTabs from '../../_components/InboxTabs'
 import CommentsClient, { type CommentPostItem } from './CommentsClient'
 
 export const metadata: Metadata = { title: 'ความคิดเห็น' }
@@ -64,15 +63,11 @@ export default async function CommentsPage() {
     failed = true
   }
 
-  // นับจากฐานทั้งร้าน ไม่ใช่บวกจากโพสต์ที่โหลดมา 25 อันแรก (ไม่งั้นร้านโพสต์เยอะได้เลขต่ำกว่าจริง)
-  const unanswered = await countUnansweredForShop({
-    shopId: activeCtx.shopId,
-    actorUserId: user.id,
-  }).catch(() => posts.reduce((sum, p) => sum + p.unansweredCount, 0))
+  // ตัวเลข "ยังไม่ตอบ" บนแท็บถูกย้ายไปให้ InboxTabs ดึงเองที่ layout แล้ว (endpoint เดียว + cache
+  // ระดับโมดูล) — หน้านี้ไม่ต้อง query ซ้ำอีก
 
   return (
     <div className="card m-0 flex h-full min-w-0 flex-1 flex-col rounded-none border-0 shadow-none">
-      <InboxTabs unansweredCount={unanswered} shopId={activeCtx.shopId} />
       {failed ? (
         <div className="p-4">
           <SellerEmptyState
