@@ -32,7 +32,7 @@ import OrdersTable from './OrdersTable'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
 
 /** ลำดับชิปสถานะพัสดุ — เรียงตามเส้นทางจริงของพัสดุ ปิดท้ายด้วยกองที่ต้องแก้ */
-const STAGE_CHIPS = ['AWAITING_PARCEL', 'AWAITING_PICKUP', 'SHIPPING', 'AWAITING_CLOSE', 'PROBLEM'] as const
+const STAGE_CHIPS = ['AWAITING_PARCEL', 'AWAITING_PICKUP', 'SHIPPING', 'AWAITING_COD', 'PROBLEM'] as const
 
 const STATUS_TABS: { value: string; label: string }[] = [
   { value: 'all',       label: 'ทั้งหมด' },

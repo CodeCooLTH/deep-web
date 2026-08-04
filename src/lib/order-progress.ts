@@ -151,17 +151,22 @@ export function getOrderProgress(input: OrderProgressInput): ProgressStep[] {
     state,
   });
 
-  // ── เส้นทาง COD — เงินอยู่ท้ายสุด ─────────────────────────────────────────
+  // ── เส้นทาง COD ───────────────────────────────────────────────────────────
+  //
+  // ลำดับ: สั่งซื้อ → [จัดส่ง] → เก็บเงินปลายทาง → ผู้ซื้อยืนยันรับของ
+  //
+  // ทำไมเงินอยู่ "ก่อน" ผู้ซื้อยืนยัน ทั้งที่ COD คือได้เงินทีหลัง: เพราะเงินถูกเก็บตอนขนส่ง
+  // เอาของไปส่งถึงหน้าบ้าน ซึ่งเกิดก่อนที่ผู้ซื้อจะมากดยืนยันในแอปเสมอ (บางคนไม่กดเลยด้วยซ้ำ)
+  // รอบแรกวางเงินไว้ท้ายสุดแล้วเจอของจริง: ใบที่ขนส่งส่งถึงแล้วแต่ผู้ซื้อยังไม่กด จะขึ้น
+  // "เก็บเงินปลายทางแล้ว" เป็นเขียวข้ามหัวขั้น "รอผู้ซื้อยืนยันรับของ" ที่ยังไม่เสร็จ —
+  // แถบขั้นตอนที่มีขั้นหลังเสร็จก่อนขั้นหน้า อ่านแล้วขัดกันเองทันที (user เห็นแล้วทักทันที)
+  // ลำดับนี้เดินหน้าเรียงเสมอในทุกสถานะ ไม่มีทางเกิดเขียวข้ามขั้นอีก
   if (isCOD) {
     const moneyDone = isConfirmed || delivered;
     const steps: ProgressStep[] = [placedDone];
 
     if (hasShipping) {
       steps.push(shipStep(isShipped || isConfirmed ? "done" : "current"));
-      steps.push(confirmStep(isConfirmed ? "done" : isShipped ? "current" : "upcoming"));
-    } else {
-      // ไม่มีการจัดส่ง (บริการ/ดิจิทัล/รับเอง) — ขั้นถัดจากสั่งซื้อคือผู้ซื้อยืนยันรับของเลย
-      steps.push(confirmStep(isConfirmed ? "done" : "current"));
     }
 
     steps.push({
@@ -173,8 +178,11 @@ export function getOrderProgress(input: OrderProgressInput): ProgressStep[] {
         ? "ขนส่งเก็บเงินให้แล้ว · รอโอนเข้าร้านตามรอบของขนส่ง"
         : `${baht(totalAmount)} · เก็บตอนส่งถึง`,
       icon: ICON.COD_MONEY,
-      state: moneyDone ? "done" : "upcoming",
+      // ยังไม่ถึงคิวเก็บเงินจนกว่าของจะออกจากร้าน (หรือถึงขั้นส่งมอบ ถ้าไม่มีการจัดส่ง)
+      state: moneyDone ? "done" : hasShipping ? (isShipped ? "current" : "upcoming") : "current",
     });
+
+    steps.push(confirmStep(isConfirmed ? "done" : moneyDone ? "current" : "upcoming"));
 
     return steps;
   }

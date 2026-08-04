@@ -786,6 +786,30 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
   });
 }
 
+/**
+ * setCodReceived — บันทึก/ล้าง "ร้านได้รับเงินเก็บปลายทางแล้ว"
+ *
+ * ตั้งใจไม่แตะ Order.status เลย: การได้เงินเป็นคนละแกนกับสถานะคำสั่งซื้อ (ผู้ซื้อยืนยันรับของ
+ * ยังเป็นเงื่อนไขเดียวที่ทำให้ออเดอร์ CONFIRMED และมีผลต่อ Trust Score) — ถ้าให้ปุ่มนี้ไปปิด
+ * ออเดอร์ด้วย ร้านจะปิดการขายแทนผู้ซื้อได้ ซึ่งเป็นการปลอมคำยืนยัน
+ *
+ * ล้างค่าได้ (clear) เพราะกดผิดใบเป็นเรื่องที่เกิดจริง และไม่มีอะไรเสียหายถาวรจากการย้อน —
+ * ต่างจาก CONFIRMED ที่เป็นสถานะปลายทางจึงย้อนไม่ได้
+ */
+export async function setCodReceived(
+  orderId: string,
+  actorUserId: string | null,
+  opts?: { clear?: boolean },
+) {
+  return prisma.order.update({
+    where: { id: orderId },
+    data: opts?.clear
+      ? { codReceivedAt: null, codReceivedByUserId: null }
+      : { codReceivedAt: new Date(), codReceivedByUserId: actorUserId },
+    select: { id: true, codReceivedAt: true },
+  });
+}
+
 export async function getOrdersByShop(shopId: string, status?: string) {
   return prisma.order.findMany({
     where: { shopId, ...(status ? { status } : {}) },
@@ -993,13 +1017,16 @@ export async function getShippingStageCounts(shopId: string): Promise<{
   AWAITING_PARCEL: number
   AWAITING_PICKUP: number
   SHIPPING: number
-  AWAITING_CLOSE: number
+  AWAITING_COD: number
   PROBLEM: number
 }> {
   const rows = await prisma.order.findMany({
     where: { shopId, status: { not: "CANCELLED" } },
     select: {
       status: true,
+      // ไทล์ "รอเงิน COD" ต้องรู้ว่าใบนี้เก็บเงินปลายทางไหม และร้านกดว่าได้เงินแล้วหรือยัง
+      paymentMethod: true,
+      codReceivedAt: true,
       shipments: {
         where: { status: "CREATED", isDryRun: false },
         orderBy: { createdAt: "desc" },
@@ -1009,12 +1036,14 @@ export async function getShippingStageCounts(shopId: string): Promise<{
     },
   });
 
-  const counts = { AWAITING_PARCEL: 0, AWAITING_PICKUP: 0, SHIPPING: 0, AWAITING_CLOSE: 0, PROBLEM: 0 };
+  const counts = { AWAITING_PARCEL: 0, AWAITING_PICKUP: 0, SHIPPING: 0, AWAITING_COD: 0, PROBLEM: 0 };
   for (const o of rows) {
     const stage = deriveShippingStage({
       status: o.status,
       carrierStatus: o.shipments[0]?.carrierStatus ?? null,
       hasShipment: o.shipments.length > 0,
+      paymentMethod: o.paymentMethod,
+      codReceivedAt: o.codReceivedAt,
     });
     if (stage !== "DONE") counts[stage] += 1;
   }

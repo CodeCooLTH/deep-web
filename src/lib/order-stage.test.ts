@@ -75,50 +75,66 @@ describe("deriveOrderStage — พัสดุมีปัญหาต้อง�
 
 // ─── กองงานตามสถานะพัสดุ (Command Center + ตัวกรอง /orders) ───────────────
 //
-// บั๊กจริง 2026-08-04: ร้านผูกพัสดุ iShip ที่ขนส่ง "ส่งถึงแล้ว" เข้ากับออเดอร์ COD ที่ผู้ซื้อ
-// ยังไม่กดยืนยันรับของ → ใบนั้นหายไปจากทุกไทล์ทันที เพราะ deriveShippingStage คืน DONE
-// จาก carrierStatus='delivered' โดยไม่ดู Order.status เลย
+// บั๊กจริง 2026-08-04: ร้านผูกพัสดุ iShip ที่ขนส่ง "ส่งถึงแล้ว" เข้ากับออเดอร์ COD ที่ร้านยังไม่ได้
+// รับเงิน → ใบนั้นหายไปจากทุกไทล์ทันที เพราะ deriveShippingStage คืน DONE จาก
+// carrierStatus='delivered' โดยไม่ดูว่าร้านยังมีงานค้างอยู่ไหม
 // (ยืนยันจากฐาน prod: DP2569085F97153B ผู้ซื้อ "มงคล บับภาเอก")
-describe("deriveShippingStage — พัสดุจบเส้นทางแล้ว ไม่ได้แปลว่าออเดอร์จบ", () => {
-  it("delivered + ออเดอร์ยังไม่ยืนยัน → รอปิดงาน (ห้ามหายไปจากทุกไทล์)", () => {
+const shipped = { status: "SHIPPED", hasShipment: true };
+
+describe("deriveShippingStage — พัสดุจบเส้นทางแล้ว ไม่ได้แปลว่างานของร้านจบ", () => {
+  it("COD ส่งถึงแล้ว แต่ร้านยังไม่กดรับเงิน → รอเงิน COD (ห้ามหายจากทุกไทล์)", () => {
     expect(
-      deriveShippingStage({ status: "SHIPPED", carrierStatus: "delivered", hasShipment: true }),
-    ).toBe("AWAITING_CLOSE");
+      deriveShippingStage({ ...shipped, carrierStatus: "delivered", paymentMethod: "COD" }),
+    ).toBe("AWAITING_COD");
   });
 
-  it("delivered + ผู้ซื้อยืนยันรับของแล้ว → DONE จริง", () => {
+  it("COD ส่งถึงแล้ว + ร้านกดรับเงินแล้ว → DONE", () => {
     expect(
-      deriveShippingStage({ status: "CONFIRMED", carrierStatus: "delivered", hasShipment: true }),
+      deriveShippingStage({
+        ...shipped,
+        carrierStatus: "delivered",
+        paymentMethod: "COD",
+        codReceivedAt: new Date("2026-08-04T10:00:00Z"),
+      }),
     ).toBe("DONE");
   });
 
-  it("ของตีกลับถึงร้านแล้วแต่ยังไม่ปิดออเดอร์ → รอปิดงาน (ร้านต้องคืนเงิน/ส่งใหม่)", () => {
+  it("ผู้ซื้อยืนยันรับของแล้วก็ยังต้องรอเงิน COD ถ้าร้านยังไม่กด (เงินคนละแกนกับสถานะออเดอร์)", () => {
     expect(
-      deriveShippingStage({ status: "PENDING", carrierStatus: "return_success", hasShipment: true }),
-    ).toBe("AWAITING_CLOSE");
+      deriveShippingStage({
+        status: "CONFIRMED",
+        hasShipment: true,
+        carrierStatus: "delivered",
+        paymentMethod: "เก็บเงินปลายทาง (COD)",
+      }),
+    ).toBe("AWAITING_COD");
+  });
+
+  it("โอนเงินล่วงหน้า + ส่งถึงแล้ว → DONE (ได้เงินแล้ว ของถึงแล้ว ไม่มีงานเหลือ)", () => {
+    expect(
+      deriveShippingStage({ ...shipped, carrierStatus: "delivered", paymentMethod: "TRANSFER" }),
+    ).toBe("DONE");
+  });
+
+  it("ของตีกลับถึงร้านแล้ว → พัสดุมีปัญหา (กองเดียวกับ return ที่กำลังตีกลับ)", () => {
+    expect(
+      deriveShippingStage({ ...shipped, carrierStatus: "return_success", paymentMethod: "COD" }),
+    ).toBe("PROBLEM");
   });
 
   it("ยกเลิกทั้งใบ → DONE เสมอ ไม่ว่าพัสดุอยู่สถานะไหน", () => {
     expect(
-      deriveShippingStage({ status: "CANCELLED", carrierStatus: "delivered", hasShipment: true }),
+      deriveShippingStage({ status: "CANCELLED", carrierStatus: "delivered", hasShipment: true, paymentMethod: "COD" }),
     ).toBe("DONE");
   });
 
-  it("พัสดุมีปัญหาต้องชนะทุกอย่าง — ไม่ตกไปรอปิดงาน", () => {
-    expect(
-      deriveShippingStage({ status: "SHIPPED", carrierStatus: "issue", hasShipment: true }),
-    ).toBe("PROBLEM");
+  it("พัสดุมีปัญหาต้องชนะทุกอย่าง", () => {
+    expect(deriveShippingStage({ ...shipped, carrierStatus: "issue", paymentMethod: "COD" })).toBe("PROBLEM");
   });
 
   it("กองงานเดิม 3 กองไม่เปลี่ยนพฤติกรรม", () => {
-    expect(
-      deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: false }),
-    ).toBe("AWAITING_PARCEL");
-    expect(
-      deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: true }),
-    ).toBe("AWAITING_PICKUP");
-    expect(
-      deriveShippingStage({ status: "PENDING", carrierStatus: "in_transit", hasShipment: true }),
-    ).toBe("SHIPPING");
+    expect(deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: false })).toBe("AWAITING_PARCEL");
+    expect(deriveShippingStage({ status: "PENDING", carrierStatus: null, hasShipment: true })).toBe("AWAITING_PICKUP");
+    expect(deriveShippingStage({ status: "PENDING", carrierStatus: "in_transit", hasShipment: true })).toBe("SHIPPING");
   });
 });

@@ -46,6 +46,7 @@ model User {
   trustScoreHistory      TrustScoreHistory[]
   ordersAsBuyer          Order[]                 @relation("BuyerOrders")
   ordersCreated          Order[]                 @relation("CreatedOrders") // ออเดอร์ที่คนนี้เป็นคนกดสร้าง (2026-08-04)
+  ordersCodReceived      Order[]                 @relation("CodReceivedOrders") // ออเดอร์ที่คนนี้กดยืนยันรับเงินปลายทาง (2026-08-04)
   customer               Customer? // feat 00014 — link Customer เมื่อสมัครเป็น buyer (Phase 2; nullable)
   reviewsGiven           Review[]                @relation("ReviewerReviews")
   verificationsReviewed  VerificationRecord[]    @relation("ReviewedBy")
@@ -708,9 +709,21 @@ model Order {
   /// onDelete: SetNull — ลบบัญชีพนักงานแล้วออเดอร์ต้องไม่หายตาม (ประวัติการขายของร้าน)
   createdByUserId String?
 
+  /// ร้านกดยืนยันเองว่า "ได้รับเงินเก็บปลายทางแล้ว" เมื่อไร (2026-08-04) — NULL = ยังไม่ได้รับ
+  ///
+  /// ทำไมต้องให้คนกด ไม่ดึงจากขนส่ง: iShip มีรหัสสถานะที่ *ดูเหมือน* เกี่ยวกับเงิน
+  /// (payment_success id 12, cod_refund id 14) แต่คำแปลเป็นของเราเอง ยังไม่เคยยืนยันกับ iShip
+  /// และไม่เคยปรากฏในข้อมูลจริงเลยสักครั้ง — เดาแล้วผิดเท่ากับบอกร้านว่าได้เงินทั้งที่ยังไม่ได้
+  /// (user เคาะ 2026-08-04: ให้ร้านกดเอง ซึ่งเชื่อถือได้ 100% เพราะมาจากคนที่รู้จริง)
+  /// เมื่อยืนยันความหมายรหัสกับ iShip ได้แล้ว ค่อยเติมทางอัตโนมัติมาเขียนช่องเดียวกันนี้
+  codReceivedAt     DateTime?
+  /// คนที่กดยืนยันรับเงิน — NULL ได้ทั้งตอนยังไม่กด และตอนบัญชีคนกดถูกลบ (SetNull)
+  codReceivedByUserId String?
+
   shop             Shop                    @relation(fields: [shopId], references: [id])
   buyer            User?                   @relation("BuyerOrders", fields: [buyerUserId], references: [id])
   createdBy        User?                   @relation("CreatedOrders", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  codReceivedBy    User?                   @relation("CodReceivedOrders", fields: [codReceivedByUserId], references: [id], onDelete: SetNull)
   customer         Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
   room             Room?                   @relation(fields: [roomId], references: [id], onDelete: Restrict)
   housekeeper      Housekeeper?            @relation(fields: [housekeeperId], references: [id], onDelete: SetNull)

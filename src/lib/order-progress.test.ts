@@ -26,8 +26,8 @@ describe('getOrderProgress — เส้นทาง COD (เงินอยู�
     expect(shape(steps)).toEqual([
       ['PLACED', 'done'],
       ['SHIPPED', 'current'],
-      ['CONFIRMED', 'upcoming'],
       ['COD_MONEY', 'upcoming'],
+      ['CONFIRMED', 'upcoming'],
     ])
     // สิ่งที่บั๊กเดิมทำ: ขึ้น "รอผู้ซื้อชำระเงิน" ทั้งที่ COD ไม่มีการชำระล่วงหน้า
     expect(steps.some((s) => s.key === 'PAYMENT')).toBe(false)
@@ -38,8 +38,8 @@ describe('getOrderProgress — เส้นทาง COD (เงินอยู�
     expect(shape(steps)).toEqual([
       ['PLACED', 'done'],
       ['SHIPPED', 'done'],
-      ['CONFIRMED', 'current'],
-      ['COD_MONEY', 'upcoming'],
+      ['COD_MONEY', 'current'],
+      ['CONFIRMED', 'upcoming'],
     ])
     const money = steps.find((s) => s.key === 'COD_MONEY')!
     expect(money.label).toBe('รอเก็บเงินปลายทาง')
@@ -53,11 +53,13 @@ describe('getOrderProgress — เส้นทาง COD (เงินอยู�
       paymentMethod: 'COD',
       carrierStatus: 'delivered',
     })
+    // เงินถูกเก็บตอนขนส่งไปส่งถึงบ้าน = เกิดก่อนผู้ซื้อมากดยืนยันเสมอ ลำดับจึงเดินหน้าเรียง
+    // ไม่มีขั้นเขียวข้ามหัวขั้นที่ยังไม่เสร็จ (บั๊กที่ user ทักตอนเห็นของจริง)
     expect(shape(steps)).toEqual([
       ['PLACED', 'done'],
       ['SHIPPED', 'done'],
-      ['CONFIRMED', 'current'],
       ['COD_MONEY', 'done'],
+      ['CONFIRMED', 'current'],
     ])
   })
 
@@ -78,8 +80,8 @@ describe('getOrderProgress — เส้นทาง COD (เงินอยู�
     })
     expect(shape(steps)).toEqual([
       ['PLACED', 'done'],
-      ['CONFIRMED', 'current'],
-      ['COD_MONEY', 'upcoming'],
+      ['COD_MONEY', 'current'],
+      ['CONFIRMED', 'upcoming'],
     ])
   })
 })

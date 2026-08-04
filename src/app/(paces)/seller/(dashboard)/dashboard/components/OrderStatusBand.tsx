@@ -36,7 +36,7 @@ export interface OrderStatusBandProps {
     AWAITING_PARCEL: number
     AWAITING_PICKUP: number
     SHIPPING: number
-    AWAITING_CLOSE: number
+    AWAITING_COD: number
     PROBLEM: number
   }
 }
@@ -119,12 +119,13 @@ const SHIPPING_STAGES: {
     iconClass: 'text-info',
   },
   {
-    // พัสดุจบเส้นทางแล้วแต่ออเดอร์ยังไม่ปิด — ธง = เส้นชัยที่ยังไม่มีใครไปแตะ
-    // ห้ามใช้เครื่องหมายถูก/สีเขียว: ไทล์นี้คือ "ยังไม่ยืนยัน" ตรงตัว (Verified-Means-Green)
-    // และเขียวจะชนกับ solar:check-circle ของ CONFIRMED ในชุดไทล์อีกชุดบนหน้าเดียวกัน
-    key: 'AWAITING_CLOSE',
-    label: 'รอปิดงาน',
-    icon: 'solar:flag-2-bold-duotone',
+    // ของถึงแล้วแต่เงินปลายทางยังไม่เข้าร้าน — มือรับเงิน สื่อว่า "ยังต้องไปตามเก็บ"
+    // ไม่ใช้เขียว/เครื่องหมายถูก: ยังไม่ได้รับเงินจริง (Verified-Means-Green)
+    // warning ซ้ำกับ "รอเลขพัสดุ" โดยตั้งใจ — ทั้งคู่คือ "รอให้ไปทำอะไรสักอย่าง" ไม่ใช่เหตุด่วน
+    // แบบ PROBLEM (danger) และ Paces เหลือ semantic ที่ไม่ใช่เขียวแค่ 4 ตัวซึ่งถูกใช้ครบแล้ว
+    key: 'AWAITING_COD',
+    label: 'รอเงิน COD',
+    icon: 'solar:hand-money-bold-duotone',
     iconClass: 'text-warning',
   },
   {
@@ -181,15 +182,12 @@ export default function OrderStatusBand({ counts, shipping }: OrderStatusBandPro
       </div>
 
       <div className="card-body !p-4">
-        {/* grid flat — ไม่มี bg/border ครอบ icon (spec §4.2 + mockup .ostat)
-            ชุดพัสดุมี 5 ไทล์: มือถือแตกเป็น 3+2 ไม่ใช่ 5 คอลัมน์เดียว เพราะพื้นที่กริดจริงบนจอ 360px
-            เหลือ ~296px (หัก padding shell 16×2 + card-body 16×2) → 5 คอลัมน์ได้ช่องละ ~53px และ
-            เหลือ ~45px บนจอ 320px ซึ่งเฉียด tap target 44px จนไม่เหลือระยะปลอดภัย · 3 คอลัมน์
-            ได้ ~93px กว้างกว่าของเดิม (4 ช่อง = 85px) ด้วยซ้ำ
-            ไม่ใช้ scroll แนวนอนเพราะไทล์พวกนี้คือ "งานค้างวันนี้" ที่ต้องกวาดตาเห็นครบพร้อมกัน
-            ถ้าต้องปัดถึงจะเห็นช่องสุดท้าย ก็เสียเหตุผลของ Command Center ไปเลย
-            ชุดเดิม 4 ไทล์ (vertical อื่นที่ไม่มีพัสดุ) ไม่กระทบ — ยังเป็น grid-cols-4 เหมือนเดิม */}
-        <div className={`grid gap-2 ${tiles.length === 5 ? 'grid-cols-3 lg:grid-cols-5' : 'grid-cols-4'}`}>
+        {/* grid 4 คอลัมน์ flat — ไม่มี bg/border ครอบ icon (spec §4.2 + mockup .ostat)
+            ชุดพัสดุมี 5 ไทล์ แต่ยังใช้ 4 คอลัมน์เหมือนเดิม: user สั่งลำดับมาเองว่า
+            [รอเลขพัสดุ · รอรับเข้า · กำลังจัดส่ง · รอเงิน COD] แล้ว "พัสดุมีปัญหา" ตกลงแถวสอง
+            — ได้กริดที่ไทล์ยังกว้างเท่าเดิม (~85px บนจอ 360px, ผ่าน tap target 44px)
+            โดยไม่ต้องบีบเป็น 5 คอลัมน์ซึ่งจะเหลือช่องละ ~53px */}
+        <div className="grid grid-cols-4 gap-2">
           {tiles.map(({ key, label, icon, iconClass, showBadge, count, href }) => {
             // badge แสดงเฉพาะ showBadge=true และ count > 0
             const badgeText = showBadge && count > 0 ? fmtBadge(count) : null

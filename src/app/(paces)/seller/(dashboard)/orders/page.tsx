@@ -122,6 +122,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           status: o.status,
           carrierStatus: o.shipments?.[0]?.carrierStatus ?? null,
           hasShipment: (o.shipments?.length ?? 0) > 0,
+          // 2 ช่องนี้ต้องส่งให้ครบเหมือนที่ getShippingStageCounts ส่ง ไม่งั้นตัวเลขบนไทล์กับ
+          // รายการที่กรองได้จะไม่ตรงกัน ทั้งที่เรียกฟังก์ชันเดียวกัน
+          paymentMethod: o.paymentMethod ?? null,
+          codReceivedAt: o.codReceivedAt ?? null,
         })
       : undefined,
     id: (o.publicToken ?? o.id).slice(0, 8),

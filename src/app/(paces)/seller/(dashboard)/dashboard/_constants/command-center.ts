@@ -49,7 +49,7 @@ export type CommandCenterData = {
     AWAITING_PARCEL: number
     AWAITING_PICKUP: number
     SHIPPING: number
-    AWAITING_CLOSE: number
+    AWAITING_COD: number
     PROBLEM: number
   }
   /** ตัดออก 2026-08-04 — "กิจกรรมล่าสุด" ถูกถอดจากหน้าแรก (user: "ดูยาก เอาออก")

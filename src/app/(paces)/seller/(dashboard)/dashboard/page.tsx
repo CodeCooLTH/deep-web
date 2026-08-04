@@ -108,9 +108,7 @@ export default async function SellerDashboardPage() {
   // fallback = 0 ทุก bucket ถ้า fetch ล้ม (ตาม plan Error Handling)
   let orderStatusCounts = { PENDING: 0, SHIPPED: 0, CONFIRMED: 0, CANCELLED: 0 }
   // ตัวนับ "ของอยู่ไหน" — เฉพาะร้านขายออนไลน์ (user สั่ง 2026-08-04); undefined = การ์ดใช้ชุดเดิม
-  let shippingStageCounts:
-    | { AWAITING_PARCEL: number; AWAITING_PICKUP: number; SHIPPING: number; AWAITING_CLOSE: number; PROBLEM: number }
-    | undefined
+  let shippingStageCounts: { AWAITING_PARCEL: number; AWAITING_PICKUP: number; SHIPPING: number; AWAITING_COD: number; PROBLEM: number } | undefined
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
   let walletBalance = 0
   // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=; fallback []

@@ -109,6 +109,8 @@ export interface OrderDetailClientProps {
    * มีผลเฉพาะออเดอร์ COD: ส่งถึงมือผู้ซื้อแล้ว = ขนส่งเก็บเงินให้แล้ว แม้ผู้ซื้อยังไม่กดยืนยันรับของ
    */
   carrierStatus: string | null
+  /** ออเดอร์เก็บเงินปลายทางที่ร้านยังไม่ได้กดว่าได้เงิน → มีปุ่ม "ได้รับเงินปลายทางแล้ว" */
+  isCodUnpaid: boolean
 
   /** grid เนื้อหา (OrderFactsCard/OrderReviewCard) — ส่งมาจาก page.tsx (RSC)
       ตรง ๆ ผ่าน children เพื่อให้ subtree นั้นยัง server-render ได้ ไม่ลากเข้า client bundle */
@@ -138,6 +140,7 @@ export default function OrderDetailClient({
   addressText,
   updatedAtISO,
   carrierStatus,
+  isCodUnpaid,
   children,
 }: OrderDetailClientProps) {
   const router = useRouter()
@@ -246,6 +249,31 @@ export default function OrderDetailClient({
     }
   }
 
+  /**
+   * ยืนยันก่อนกด เพราะมันคือการบันทึกข้อเท็จจริงทางการเงิน — กดพลาดแล้วใบนั้นจะหลุดออกจาก
+   * กอง "รอเงิน COD" ไปเงียบ ๆ ทั้งที่ยังไม่ได้เงิน ซึ่งเป็นความผิดพลาดที่ตามเก็บยากที่สุด
+   * (ย้อนได้ผ่าน DELETE ของ endpoint เดียวกัน แต่ต้องรู้ตัวก่อนว่ากดผิด)
+   */
+  const handleCodReceived = async () => {
+    const ok = await pacesConfirm.question(
+      'ยืนยันว่าได้รับเงินปลายทางแล้ว?',
+      'ระบบจะบันทึกว่าร้านได้รับเงินของคำสั่งซื้อนี้แล้ว และใบนี้จะออกจากกอง "รอเงิน COD" บนหน้าแรก',
+      { confirmButtonText: 'ได้รับเงินแล้ว', cancelButtonText: 'ยังไม่ได้รับ' },
+    )
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/cod-received`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error || 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+      }
+      pacesToast.success('บันทึกแล้วว่าได้รับเงินปลายทาง')
+      router.refresh()
+    } catch (err: unknown) {
+      pacesToast.error(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+    }
+  }
+
   // ปุ่ม action ทั้งหมดของหน้านี้ (StatusHero inline/stuck + OrderActionBar variant="bottom") วิ่งเข้า
   // handler เดียวนี้ผ่าน key จาก order-action-set.ts — ดูตาราง key → พฤติกรรมในรายงาน T11
   const handleAction = (key: string) => {
@@ -275,6 +303,9 @@ export default function OrderDetailClient({
         return
       case 'edit-order':
         router.push(`/orders/${publicToken}/edit`)
+        return
+      case 'cod-received':
+        void handleCodReceived()
         return
       case 'cancel-order':
         void handleCancelOrder()

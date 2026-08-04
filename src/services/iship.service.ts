@@ -1194,11 +1194,41 @@ function parseCarrierTimestamp(raw: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * advanceOrderOnCarrierMove — ขนส่งรับของไปแล้ว → ขยับคำสั่งซื้อเป็น "จัดส่งแล้ว" อัตโนมัติ
+ *
+ * user สั่ง 2026-08-04: "ถ้าสถานะ >= กำลังจัดส่ง ต้องเท่ากับคำสั่งซื้อส่งแล้ว โดยอัตโนมัติ"
+ *
+ * ที่มาของปัญหา: ชิป "กำลังจัดส่ง" ในหน้า /orders ตัดสินจาก *สถานะพัสดุ* แต่ป้ายบนแถวตัดสินจาก
+ * *Order.status* — ใบที่ขนส่งรับของไปแล้วแต่ร้านไม่ได้กด "แจ้งจัดส่ง" เอง จึงขึ้นอยู่ในชิป
+ * "กำลังจัดส่ง" พร้อมป้ายสีส้ม "รอดำเนินการ" ในจอเดียวกัน (user ส่งภาพมาให้ดู)
+ *
+ * ขอบเขตที่ทำได้ (user เคาะแล้ว): PENDING → SHIPPED **เท่านั้น**
+ * ห้ามขยับไป CONFIRMED เด็ดขาด แม้ขนส่งจะแจ้ง delivered — CONFIRMED เป็นสถานะปลายทางที่
+ * ย้อนกลับไม่ได้ตาม state machine และแปลว่า "ผู้ซื้อยืนยันรับของแล้ว" ซึ่งกระทบ Trust Score
+ * และสิทธิ์รีวิว การตั้งเองเท่ากับปลอมคำยืนยันของผู้ซื้อ (BR-ISHIP-41 ยังคุมส่วนนี้อยู่)
+ *
+ * คืน true เมื่อขยับจริง — ผู้เรียกใช้บอก caller ได้ว่ามีอะไรเปลี่ยน
+ */
+export async function advanceOrderOnCarrierMove(
+  orderId: string,
+  carrierStatus: string | null | undefined,
+): Promise<boolean> {
+  if (!impliesDispatched(carrierStatus)) return false;
+  // conditional update — เช็คแล้วเขียนในคำสั่งเดียว กันสองทาง (webhook/poll) ยิงพร้อมกัน
+  // แล้วดึงออเดอร์ที่เพิ่งถูกยืนยัน/ยกเลิกไปเสี้ยววินาทีก่อน กลับมาเป็น "จัดส่งแล้ว"
+  const r = await prisma.order.updateMany({
+    where: { id: orderId, status: "PENDING" },
+    data: { status: "SHIPPED" },
+  });
+  return r.count > 0;
+}
+
 export async function getTraces(shopId: string, shipmentId: string) {
   const { token } = await loadAccount(shopId);
   const row = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId },
-    select: { id: true, trackingNo: true },
+    select: { id: true, trackingNo: true, orderId: true },
   });
   if (!row) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
   if (!row.trackingNo) return [];
@@ -1273,6 +1303,7 @@ export async function getTraces(shopId: string, shipmentId: string) {
           carrierStatusAt: occurredAt,
         },
       });
+      await advanceOrderOnCarrierMove(row.orderId, latest.status);
     }
   }
 
@@ -1382,7 +1413,7 @@ export async function handleStatusWebhook(payload: unknown): Promise<void> {
   // จับคู่ด้วย refCode ก่อน (เจาะจงกว่า) แล้วค่อย trackingNo
   const shipment = await prisma.orderShipment.findFirst({
     where: refCode ? { refCode } : { trackingNo: tracking! },
-    select: { id: true },
+    select: { id: true, orderId: true },
   });
   if (!shipment) {
     // จับคู่ไม่ได้ = พัสดุของระบบอื่นที่ใช้บัญชี iShip เดียวกัน หรือข้อมูลเพี้ยน
@@ -1424,6 +1455,8 @@ export async function handleStatusWebhook(payload: unknown): Promise<void> {
       carrierPrice: typeof p.price === "number" ? p.price : undefined,
     },
   });
+
+  await advanceOrderOnCarrierMove(shipment.orderId, status);
 }
 
 /** handlePickupWebhook — รับแจ้งสถานะรถเข้ารับ */
@@ -1532,7 +1565,7 @@ export async function syncShipmentStatuses(
         { carrierStatus: { notIn: ["delivered", "return_success", "is_expired", "close"] } },
       ],
     },
-    select: { id: true, trackingNo: true, carrierStatus: true },
+    select: { id: true, trackingNo: true, carrierStatus: true, orderId: true },
   });
   if (tracking.length === 0) {
     await prisma.shopShippingAccount.update({
@@ -1583,6 +1616,7 @@ export async function syncShipmentStatuses(
           : {}),
       },
     });
+    await advanceOrderOnCarrierMove(s.orderId, code);
     changed += 1;
   }
 

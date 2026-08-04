@@ -44,6 +44,13 @@ export type GetOrderActionSetInput = {
    * "แก้ไขเลขพัสดุ" ต้องหายไปทั้งปุ่ม ไม่ใช่ปุ่มที่กดไม่ได้
    */
   shipmentSource: ShipmentSource
+  /**
+   * ออเดอร์นี้เก็บเงินปลายทาง และร้านยังไม่ได้กดว่าได้เงิน (2026-08-04)
+   * true → มีปุ่ม "ได้รับเงินแล้ว" ให้กดเคลียร์ไทล์ "รอเงิน COD" บนหน้าแรก
+   * ต้องเป็น 2 ค่าแยกกัน ไม่ใช่ derive จาก paymentMethod ที่นี่ เพราะ pure module นี้ห้ามรู้จัก
+   * รูปแบบข้อความวิธีชำระ (SSOT อยู่ที่ isCODPayment ใน lib/order-display)
+   */
+  isCodUnpaid?: boolean
 }
 
 // ── action item catalog — key เดียว ใช้ซ้ำได้ทุกสถานะ ──────────────────────────
@@ -59,6 +66,9 @@ const buildActions = (orderNoun: string) =>
     cancelOrder: { key: 'cancel-order', label: `ยกเลิก${orderNoun}`, icon: 'ban' },
     editTracking: { key: 'edit-tracking', label: 'แก้ไขเลขพัสดุ', icon: 'pencil' },
     copyTracking: { key: 'copy-tracking', label: 'คัดลอกเลขพัสดุ', icon: 'copy' },
+    // ปุ่มเดียวที่เคลียร์ไทล์ "รอเงิน COD" ได้ — iShip ไม่มีสถานะไหนบอกว่าโอนเข้าร้านแล้ว
+    // (ยืนยันจากรายการ order_statuses เต็ม ๆ 2026-08-04) จึงต้องมาจากคนที่เห็นเงินจริง
+    codReceived: { key: 'cod-received', label: 'ได้รับเงินปลายทางแล้ว', icon: 'cash' },
   }) as const satisfies Record<string, ActionItem>
 
 /**
@@ -76,7 +86,7 @@ const buildActions = (orderNoun: string) =>
  * ครอบคลุมทั้ง 'NO_SHIPPING' และ 'PICKUP' (G-1: จองที่พักไม่ใช่ NO_SHIPPING แต่ต้องไม่มี action พัสดุเหมือนกัน)
  */
 export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet {
-  const { status, fulfillmentMode, shipmentSource } = input
+  const { status, fulfillmentMode, shipmentSource, isCodUnpaid } = input
   // optional โดยตั้งใจ — caller ที่ยังไม่รู้จัก vertical (และเทสเดิม) ได้คำของ ONLINE_SALES
   const ACTIONS = buildActions(input.orderNoun ?? 'คำสั่งซื้อ')
   // allow-list ไม่ใช่ deny-list โดยตั้งใจ — fulfillmentMode เป็น String ไม่ใช่ enum
@@ -125,12 +135,15 @@ export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet
     if (hasShipping) menu.push(ACTIONS.copyTracking, ACTIONS.copyAddress)
     menu.push(ACTIONS.cancelOrder)
 
-    return { primary: null, ghosts, menu }
+    // ของออกไปแล้ว งานเดียวที่เหลือของร้านคือตามเงินปลายทาง → ยกขึ้นเป็นปุ่มหลัก
+    // ไม่ใช่ซ่อนใน ⋮ เพราะเป็นตัวเดียวที่ทำให้ใบนี้ออกจากกอง "รอเงิน COD" ได้
+    return { primary: isCodUnpaid ? ACTIONS.codReceived : null, ghosts, menu }
   }
 
-  // CONFIRMED
+  // CONFIRMED — ผู้ซื้อยืนยันรับของแล้วไม่ได้แปลว่าเงินปลายทางเข้าร้านแล้ว (คนละแกน)
+  // ปุ่มจึงต้องยังอยู่ ไม่งั้นใบที่ผู้ซื้อกดยืนยันไวกว่ารอบโอนของขนส่ง จะไม่มีทางบันทึกว่าได้เงิน
   const menu: ActionItem[] = []
   if (hasShipping) menu.push(ACTIONS.copyTracking, ACTIONS.copyAddress)
 
-  return { primary: null, ghosts: [ACTIONS.copyLink], menu }
+  return { primary: isCodUnpaid ? ACTIONS.codReceived : null, ghosts: [ACTIONS.copyLink], menu }
 }

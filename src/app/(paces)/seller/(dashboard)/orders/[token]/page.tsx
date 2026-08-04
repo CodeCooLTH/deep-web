@@ -41,7 +41,7 @@ import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveOrderVocab } from '@/lib/seller-menu'
-import { resolveBuyerDisplayName } from '@/lib/order-display'
+import { resolveBuyerDisplayName, isCODPayment } from '@/lib/order-display'
 import OrderDetailClient from './components/OrderDetailClient'
 import OrderFactsCard from './components/OrderFactsCard'
 import type { ShippingAddressData, OrderFactsShipping } from './components/OrderFactsCard'
@@ -231,6 +231,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
         // ไม่มีสถานะฝั่งขนส่งให้อ่าน จึงเป็น null และแถบสถานะจะตัดสินขั้นเก็บเงิน COD จาก
         // การที่ผู้ซื้อกดยืนยันรับของอย่างเดียว (ดู src/lib/order-progress.ts)
         carrierStatus={shipmentPanel?.shipment?.carrierStatus ?? null}
+        // เก็บเงินปลายทางที่ร้านยังไม่กดว่าได้เงิน — ตัดสินที่ server ด้วย SSOT ตัวเดียวกับไทล์
+        // หน้าแรก (isCODPayment) ไม่ส่ง paymentMethod ดิบไปให้ client ตัดสินเอง
+        isCodUnpaid={isCODPayment(order.paymentMethod) && !order.codReceivedAt}
       >
         {/* grid 75/25 (≥1024) · คอลัมน์เดียว (<1024) — Base: order-details/page.tsx
             `grid grid-cols-1 lg:grid-cols-4 gap-base` + `space-y-base lg:col-span-3` */}
