@@ -27,17 +27,28 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import type { OrderStatus } from '@/lib/order-display'
 import type { ShipmentContextJson } from '@/lib/iship/context'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
+import dynamic from 'next/dynamic'
 import StatusHero from './StatusHero'
-import ShipmentEntryModal from './ShipmentEntryModal'
 import { getOrderActionSet } from './order-action-set'
 import type { ShipmentSource } from './order-action-set'
+
+/**
+ * โมดัลแจ้งเลขพัสดุ = โค้ดก้อนใหญ่ที่สุดของหน้านี้ (ฟอร์ม iShip + แผงเลือกพัสดุ + หน้าสถานะ +
+ * แผงค้นที่อยู่ + react-select) แต่มันเริ่มต้นด้วยสถานะ "ปิด" เสมอ — Impeccable optimize
+ * 2026-08-04 วัดจาก build จริงว่าทั้งทรีนี้เดินทางมากับ first-load ของทุกครั้งที่เปิดหน้า
+ * ทั้งที่ร้านจะกดเปิดมันหรือไม่ก็ได้
+ *
+ * ssr:false ปลอดภัยเพราะเป็นโมดัลที่เปิดจากการกดปุ่มเท่านั้น ไม่มีอะไรใน first paint
+ * และต้อง render แบบมีเงื่อนไข (ไม่ใช่ปล่อยให้ตัวมันคืน null เอง) ไม่งั้น chunk จะถูกโหลด
+ * ทันทีที่ component เข้า tree ซึ่งเท่ากับไม่ได้แยกอะไรเลย
+ */
+const ShipmentEntryModal = dynamic(() => import('./ShipmentEntryModal'), { ssr: false })
 
 // map HTTP status → validation message (HTML) — เหมือน smsErrorMessage() ใน SendSmsButton.tsx เป๊ะ
 function smsErrorMessage(status: number): string {
@@ -136,6 +147,8 @@ export default function OrderDetailClient({
   // Base: SendSmsButton.tsx handleOpenDialog — confirm+fetch ใน flow เดียว (Swal preConfirm),
   // error ค้าง dialog ผ่าน showValidationMessage. RC-8: ไม่ส่ง buyerContact ใด ๆ จาก client
   const handleSendSms = async () => {
+    // โหลดตรงนี้แทน import บนหัวไฟล์ — ปุ่มนี้อยู่ใน ⋮ ผู้ใช้ส่วนใหญ่ไม่ได้กดทุกครั้งที่เปิดหน้า
+    const Swal = (await import('sweetalert2')).default
     const result = await Swal.fire({
       buttonsStyling: false,
       icon: 'question',
@@ -257,18 +270,22 @@ export default function OrderDetailClient({
       {/* <1024 เท่านั้น (className ภายในมี lg:hidden) — CANCELLED คืน null เอง (design §3) */}
       <OrderActionBar variant="bottom" actionSet={actionSet} onAction={handleAction} />
 
-      <ShipmentEntryModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        // โมดัลไม่ router.refresh() เอง (ยกเว้น branch iShip ที่มีของตัวเองอยู่ก่อนแล้ว) — หน้าเป็นคนสั่ง
-        onSuccess={() => router.refresh()}
-        orderToken={publicToken}
-        mode={modalMode}
-        ishipContext={ishipContext}
-        hasIshipShipment={hasIshipShipment}
-        initialTrackingNo={trackingNo}
-        initialProvider={provider}
-      />
+      {/* mount เฉพาะตอนเปิด — ถ้าปล่อยไว้ใน tree ตลอดแล้วให้ตัวมันคืน null เอง
+          chunk ที่แยกออกไปจะถูกโหลดทันทีที่หน้า mount = ไม่ได้แยกอะไรเลย */}
+      {modalOpen && (
+        <ShipmentEntryModal
+          open
+          onClose={() => setModalOpen(false)}
+          // โมดัลไม่ router.refresh() เอง (ยกเว้น branch iShip ที่มีของตัวเองอยู่ก่อนแล้ว) — หน้าเป็นคนสั่ง
+          onSuccess={() => router.refresh()}
+          orderToken={publicToken}
+          mode={modalMode}
+          ishipContext={ishipContext}
+          hasIshipShipment={hasIshipShipment}
+          initialTrackingNo={trackingNo}
+          initialProvider={provider}
+        />
+      )}
     </>
   )
 }

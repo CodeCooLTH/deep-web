@@ -14,7 +14,22 @@
  *
  * client-only: เรียกจาก event handler ใน 'use client' component เท่านั้น (Swal แตะ window/DOM)
  */
-import Swal, { type SweetAlertIcon } from 'sweetalert2'
+import { type SweetAlertIcon } from 'sweetalert2'
+
+/**
+ * โหลด sweetalert2 ตอนจะใช้จริง ไม่ใช่ตอนโหลดหน้า (Impeccable optimize 2026-08-04)
+ *
+ * วัดจาก build จริง: sweetalert2 = 76.3 KB raw / 20.3 KB gzip และมันเคยอยู่ใน first-load
+ * ของทุกหน้าที่ import helper นี้ ทั้งที่ผู้ใช้ส่วนใหญ่ไม่ได้กดปุ่มที่เปิด confirm เลยสักครั้ง
+ * ในหนึ่งครั้งที่เข้าหน้า
+ *
+ * ทำได้แบบไม่เปลี่ยนสัญญาเพราะทางเข้าสาธารณะทุกตัว (pacesConfirm/.danger/.warning/.question,
+ * pacesAlert) คืน Promise อยู่แล้ว — ผู้เรียกทุกที่ await อยู่แล้ว ไม่มีใครต้องแก้
+ * type import ถูกลบตอน compile จึงไม่ลากอะไรลงมา
+ *
+ * CSS ของ sweetalert2 ยัง wire ผ่าน app.css เหมือนเดิม (ไม่ได้อยู่ใน chunk นี้) หน้าตาจึงไม่เปลี่ยน
+ */
+const loadSwal = async () => (await import('sweetalert2')).default
 
 type ConfirmSemantic = 'danger' | 'primary' | 'warning' | 'success'
 
@@ -53,6 +68,7 @@ interface PacesConfirmFn {
 
 /** เปิด confirm modal — คืน true ถ้ากดยืนยัน, false ถ้า cancel/Esc/close */
 const base = async (options: PacesConfirmOptions): Promise<boolean> => {
+  const Swal = await loadSwal()
   const result = await Swal.fire({
     buttonsStyling: false,
     showCancelButton: true,
@@ -84,6 +100,7 @@ export interface PacesAlertOptions {
 
 /** alert/result modal — ปุ่มเดียว ไม่มี cancel (รับทราบอย่างเดียว เช่น winner announcement feat 00007) */
 export const pacesAlert = async (options: PacesAlertOptions): Promise<void> => {
+  const Swal = await loadSwal()
   await Swal.fire({
     buttonsStyling: false,
     showCancelButton: false,
