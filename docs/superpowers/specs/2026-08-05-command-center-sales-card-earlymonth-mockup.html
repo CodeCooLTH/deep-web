@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — การ์ดยอดขาย: วันที่บนแกน x อ่านยาก (ต้นเดือน)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@5.10.6/dist/apexcharts.min.js"></script>
+<style>
+:root{
+  --primary:#236dc9; --success:#02bc9c; --warning:#f9bf59; --warning-ink:#92400e;
+  --success-ink:#065f46; --dark:#313a46; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9ba6b7;
+  --d500:#a1a9b1; --d700:#4c4c5c; --d800:#3b3b48; --paper:#fff; --radius:4px;
+  --shadow:0 1px 4px rgba(130,143,163,.15);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Anuphan','Noto Sans Thai',system-ui,sans-serif;background:#eceef4;color:var(--dark);line-height:1.5;-webkit-font-smoothing:antialiased}
+.pagehead{background:#fff;border-bottom:1px solid var(--d300);padding:20px 24px;position:sticky;top:0;z-index:20}
+.pagehead h1{margin:0 0 4px;font-size:20px;font-weight:700}
+.pagehead p{margin:0;font-size:13px;color:#6b7280;max-width:90ch}
+main{padding:28px 24px 90px;max-width:1500px;margin:0 auto}
+h2{font-size:17px;font-weight:700;margin:0 0 6px;padding-bottom:8px;border-bottom:2px solid var(--dark)}
+section{margin-bottom:40px}
+.note{font-size:13px;color:#6b7280;margin:0 0 16px;max-width:90ch}
+.note b{color:var(--dark)}
+.rail{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+.dev{flex:0 0 auto}
+.devlabel{font-size:11px;font-weight:700;letter-spacing:.4px;color:#6b7280;margin-bottom:6px}
+.devlabel span{font-weight:400;color:#9ca3af}
+.screen{background:var(--d100);border:1px solid #cfd4dd;border-radius:8px;padding:12px;box-shadow:0 6px 20px rgba(49,58,70,.10)}
+.caption{font-size:12px;color:#6b7280;margin-top:8px;max-width:420px}
+.caption b{color:var(--dark)}
+
+/* ── การ์ดจริง ── */
+.card{background:var(--paper);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-body{padding:16px}
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.hdr .t{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--dark)}
+.hdr .t svg{width:16px;height:16px;color:var(--primary)}
+.pills{display:flex;background:var(--d100);border-radius:6px;padding:2px}
+.pills button{border:0;background:transparent;font:inherit;font-size:13px;padding:4px 12px;border-radius:5px;color:var(--d700);cursor:pointer}
+.pills button.on{background:#fff;box-shadow:var(--shadow);font-weight:600;color:var(--dark)}
+.heroRow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hero{font-size:36px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--dark);margin:0}
+.chev{width:16px;height:16px;color:var(--d500);flex:0 0 auto}
+.chg{min-height:20px;margin-top:-2px}
+.legend{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--d700);margin-bottom:8px}
+.legend i{width:8px;height:8px;border-radius:999px;display:inline-block;margin-right:6px;vertical-align:middle}
+.legend b{font-weight:600;color:var(--d800)}
+.dot-s{background:var(--success)}
+.dot-w{background:var(--warning)}
+
+table.cmp{border-collapse:collapse;font-size:13px;background:#fff;border-radius:4px;overflow:hidden;box-shadow:var(--shadow);width:100%;max-width:980px;margin-top:8px}
+table.cmp th,table.cmp td{border:1px solid var(--d300);padding:8px 10px;text-align:left;vertical-align:top}
+table.cmp th{background:#f8fafc;font-weight:600}
+code{background:#f1f3f7;border-radius:3px;padding:1px 5px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.warn{border-left:3px solid #f0b046;background:#fdf6ec;padding:10px 14px;border-radius:4px;font-size:13px;color:#8a5a1a;margin:0 0 18px;max-width:90ch}
+.warn b{color:#6b4310}
+.pick{border-left:3px solid var(--success);background:#eefaf7;padding:10px 14px;border-radius:4px;font-size:13px;color:#0b6152;margin:0 0 18px;max-width:90ch}
+</style>
+</head>
+<body>
+
+<div class="pagehead">
+  <h1>Mockup — วันที่บนแกน x อ่านยาก (เคสต้นเดือน)</h1>
+  <p>โหลด <b>ApexCharts 5.10.6 ตัวจริง</b> ด้วย config ชุดเดียวกับที่จะลงโค้ด — ที่เห็นคือของจริง ไม่ใช่ภาพวาด</p>
+</div>
+
+<main>
+
+<div class="warn">
+  <b>ทำไม mockup รอบก่อนถึงหลอกตา:</b> รอบนั้นตั้ง <code>TODAY = 20</code> คือมีข้อมูล 20 วันจาก 31 กราฟเลยดูเต็มสวย
+  ส่วนของจริงวันนี้คือวันที่ 5 ข้อมูลกินแค่ 16% ของแกน · <b>รอบนี้ใช้ตัวเลขจากจอจริงของคุณ</b>
+  (ยอด 12,750 · ยืนยันแล้ว 3,090 · รอยืนยัน 9,660 · 23 ออเดอร์ · วันที่ 5)
+</div>
+
+<div class="warn">
+  <b>บั๊กที่เจอตอนไล่โค้ด:</b> <code>ApexChart</code> wrapper เขียนว่า <code>height ?? options.chart?.height</code>
+  คือ <b>prop ชนะ options เสมอ</b> · การ์ดตั้ง <code>height: 168</code> ไว้ใน options แต่ prop ยังค้าง <code>104</code>
+  กราฟจึงเรนเดอร์ที่ 104px มาตลอด — ความสูงที่คุณสั่งไม่เคยขึ้น prod เลย และไม่มี error เตือนสักตัว
+</div>
+
+<section>
+  <h2>ก. ของจริงบน prod ตอนนี้ — 104px + ป้ายเอียง 31 ตัว</h2>
+  <p class="note">ทำซ้ำภาพที่คุณส่งมาเป๊ะ ๆ ป้ายวันหมุน -60° ขนาด 9px กินความสูงราว 40px จาก 104px
+    เหลือพื้นที่วาดจริง ~55px แท่งวันที่ 2 กับ 3 (มีออเดอร์จริง เส้นน้ำเงินยืนยัน) เตี้ยกว่า 1px จนหายไปทั้งแท่ง</p>
+  <div class="rail">
+    <div class="dev">
+      <div class="devlabel">Mobile 375 <span>· ของที่อยู่บน prod</span></div>
+      <div class="screen" style="width:375px">
+        <div class="card">
+          <div class="card-body">
+            <div class="hdr">
+              <span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg> ยอดขาย</span>
+              <span class="pills"><button>วันนี้</button><button class="on">เดือนนี้</button></span>
+            </div>
+            <div class="heroRow"><p class="hero">12,750</p>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg></div>
+            <div class="chg"></div>
+            <div class="legend">
+              <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
+              <span><i class="dot-w"></i>รอยืนยัน <b>9,660</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>23</b></span>
+            </div>
+            <div id="chartA"></div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">อ่านวันที่ไม่ออก · แท่งเป็นตอ · วันที่ 2–3 หายทั้งที่มีออเดอร์</p>
+    </div>
+  </div>
+</section>
+
+<div class="pick">
+  <b>ข้างล่างคือทรงที่คุณเลือก</b> — แท่งยังครบ 31 วันเหมือนเดิม เปลี่ยนแค่ป้ายวันเป็นแนวนอนเฉพาะหมุด
+  ผลพลอยได้: เลิกใช้ 9px ได้ (กลับไป 10px ที่อยู่ในชุดเดียวกับป้ายแกนที่อื่นของการ์ด) และ finding
+  <code>design-system-font-size 9px</code> ของ impeccable หายไปเองโดยไม่ต้อง waive
+</div>
+
+<section>
+  <h2>ข. แก้แล้ว — 168px + ป้ายหมุดแนวนอน <span style="font-weight:400;color:#6b7280;font-size:14px">(ทรงที่คุณเลือก)</span></h2>
+  <p class="note">หมุด = 1 / 5 / 10 / 15 / 20 / 25 / วันสุดท้ายของเดือน + วันนี้ · หมุดที่อยู่ห่างวันนี้ไม่ถึง 3 วันจะถูกตัดทิ้ง
+    ไม่ให้เลขสองตัวเบียดกัน · พื้นที่วาดจริงเพิ่มจาก ~55px เป็น ~140px</p>
+  <div class="rail">
+    <div class="dev">
+      <div class="devlabel">Mobile 375 <span>· ทรงที่เลือก</span></div>
+      <div class="screen" style="width:375px">
+        <div class="card">
+          <div class="card-body">
+            <div class="hdr">
+              <span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg> ยอดขาย</span>
+              <span class="pills"><button>วันนี้</button><button class="on">เดือนนี้</button></span>
+            </div>
+            <div class="heroRow"><p class="hero">12,750</p>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg></div>
+            <div class="chg"></div>
+            <div class="legend">
+              <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
+              <span><i class="dot-w"></i>รอยืนยัน <b>9,660</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>23</b></span>
+            </div>
+            <div id="chartB"></div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">วันที่อ่านออกทันที · แท่งวันที่ 2–3 โผล่มาแล้ว · แต่ขวายังว่าง 84%</p>
+    </div>
+
+    <div class="dev">
+      <div class="devlabel">ค. ตัวเลือกเสริม <span>· เติมเส้น "วันนี้" คั่น</span></div>
+      <div class="screen" style="width:375px">
+        <div class="card">
+          <div class="card-body">
+            <div class="hdr">
+              <span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg> ยอดขาย</span>
+              <span class="pills"><button>วันนี้</button><button class="on">เดือนนี้</button></span>
+            </div>
+            <div class="heroRow"><p class="hero">12,750</p>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg></div>
+            <div class="chg"></div>
+            <div class="legend">
+              <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
+              <span><i class="dot-w"></i>รอยืนยัน <b>9,660</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>23</b></span>
+            </div>
+            <div id="chartC"></div>
+          </div>
+        </div>
+      </div>
+      <p class="caption"><b>แก้ปัญหา "ขวาว่างเหมือนพัง" โดยไม่ต้องตัดวันทิ้ง</b> — เส้นประบอกว่าที่ว่างคือวันที่ยังมาไม่ถึง
+        ไม่ใช่วันที่ขายไม่ได้ · เอาไหมบอกได้</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>ทรง ข. บนขนาดจออื่น</h2>
+  <p class="note">Command Center เป็นจอมือถือ (<code>lg:hidden</code>) จึงแสดงที่ 375 / 414 / 768</p>
+  <div class="rail">
+    <div class="dev">
+      <div class="devlabel">Mobile 414 <span>· iPhone Pro Max</span></div>
+      <div class="screen" style="width:414px">
+        <div class="card">
+          <div class="card-body">
+            <div class="hdr">
+              <span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg> ยอดขาย</span>
+              <span class="pills"><button>วันนี้</button><button class="on">เดือนนี้</button></span>
+            </div>
+            <div class="heroRow"><p class="hero">12,750</p>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg></div>
+            <div class="chg"></div>
+            <div class="legend">
+              <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
+              <span><i class="dot-w"></i>รอยืนยัน <b>9,660</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>23</b></span>
+            </div>
+            <div id="chart414"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dev">
+      <div class="devlabel">Tablet 768 <span>· ยังเป็น mobile shell (&lt;1024)</span></div>
+      <div class="screen" style="width:768px">
+        <div class="card">
+          <div class="card-body">
+            <div class="hdr">
+              <span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg> ยอดขาย</span>
+              <span class="pills"><button>วันนี้</button><button class="on">เดือนนี้</button></span>
+            </div>
+            <div class="heroRow"><p class="hero">12,750</p>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg></div>
+            <div class="chg"></div>
+            <div class="legend">
+              <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
+              <span><i class="dot-w"></i>รอยืนยัน <b>9,660</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>23</b></span>
+            </div>
+            <div id="chart768"></div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">จอกว้างขึ้นหมุดยังเท่าเดิม — จงใจ ให้ทุกจอนับวันด้วยจังหวะเดียวกัน</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>สรุปสิ่งที่เปลี่ยน</h2>
+  <table class="cmp">
+    <tr><th style="width:26%">รายการ</th><th style="width:30%">บน prod ตอนนี้</th><th>หลังแก้</th></tr>
+    <tr><td>ความสูงกราฟ</td><td>104px (options เขียน 168 แต่ prop ทับ)</td><td><b>168px จริง</b> — แก้ prop ให้ตรง options + คอมเมนต์กันพลาดซ้ำ</td></tr>
+    <tr><td><code>type</code> ของ chart</td><td><code>"bar"</code> (options เขียน <code>"line"</code>)</td><td><b><code>"line"</code></b> ตรงกับ options</td></tr>
+    <tr><td>ป้ายวันที่</td><td>ครบ 31 ตัว หมุน -60° ขนาด 9px</td><td><b>เฉพาะหมุด แนวนอน 10px</b> — 1/5/10/15/20/25/วันสุดท้าย + วันนี้</td></tr>
+    <tr><td>จำนวนแท่ง</td><td>31 (ทั้งเดือน)</td><td><b>31 เท่าเดิม</b> — ไม่ตัดวันทิ้ง ตามที่เคาะไว้ 2026-08-04</td></tr>
+    <tr><td>พื้นที่วาดจริง</td><td>~55px</td><td><b>~140px</b> (สูงขึ้น 64px จากความสูง + 25px จากป้ายที่ไม่เอียง)</td></tr>
+    <tr><td>โค้ดตาย</td><td><code>AXIS_ANCHOR_DAYS</code> + <code>anchorDays</code> คำนวณทิ้งไว้ ไม่มีใครใช้</td><td><b>กลับมาใช้จริง</b> เป็นตัวกำหนดหมุด</td></tr>
+    <tr><td>finding impeccable</td><td><code>design-system-font-size 9px</code></td><td><b>หายเอง</b> ไม่ต้อง waive</td></tr>
+  </table>
+</section>
+
+</main>
+
+<script>
+// ── ข้อมูลจากจอจริงของ user (2026-08-05 วันที่ 5) ─────────────────────────────
+// ยอด 12,750 = ยืนยันแล้ว 3,090 + รอยืนยัน 9,660 · 23 ออเดอร์ · วันในอนาคตเป็น null
+const DAYS = 31, TODAY = 5;
+const pad = (a) => a.concat(Array(DAYS - a.length).fill(null));
+const confirmed = pad([1200,   0,   0,  690, 1200]);   // = 3,090
+const pending   = pad([ 800, 350, 260, 4900, 3350]);   // = 9,660
+const orders    = pad([   4,   2,   2,    8,    7]);   // = 23
+const labels    = Array.from({length:DAYS}, (_,i) => String(i+1));
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/**
+ * หมุดบนแกน x — 1 / ทุก 5 วัน / วันสุดท้ายของเดือน + วันนี้
+ * หมุดกลางที่อยู่ห่างวันนี้ไม่ถึง 3 วันถูกตัดทิ้ง ไม่ให้เลขสองตัวเบียดกันจนอ่านไม่ออก
+ * (31 ช่องบนการ์ด ~330px = ช่องละ ~10.6px · เลข 2 หลักที่ 10px กว้าง ~13px จึงต้องห่างกัน ≥3 ช่อง)
+ */
+function anchorSet(days, today){
+  const mid  = [5,10,15,20,25].filter(d => d < days && Math.abs(d - today) >= 3);
+  const ends = [1, days];
+  const withToday = (Math.abs(today - 1) >= 3 && Math.abs(today - days) >= 3) ? [today] : [];
+  return new Set([...ends, ...mid, ...withToday]);
+}
+const ANCHOR = anchorSet(DAYS, TODAY);
+
+const series = [
+  {name:'ยืนยันแล้ว', type:'column', data:confirmed},
+  {name:'รอยืนยัน',  type:'column', data:pending},
+  {name:'ออเดอร์',   type:'line',   data:orders},
+];
+const commonYaxis = [
+  { show:false, tickAmount:2, seriesName:'ยืนยันแล้ว' },
+  { show:false, tickAmount:2, seriesName:'ยืนยันแล้ว' },
+  { show:false, opposite:true, seriesName:'ออเดอร์', min:0 },
+];
+const commonGrid = { show:true, borderColor:css('--d300'), strokeDashArray:4,
+  xaxis:{lines:{show:false}}, yaxis:{lines:{show:true}}, padding:{top:0,right:0,bottom:0,left:0} };
+
+// ── ก. ของจริงบน prod: height 104 (prop ทับ options) + ป้ายเอียงครบ 31 ตัว ──
+new ApexCharts(document.querySelector('#chartA'), {
+  chart:{ type:'line', height:104, stacked:true, stackOnlyBar:true, toolbar:{show:false}, parentHeightOffset:0, animations:{enabled:false} },
+  plotOptions:{ bar:{ columnWidth:'92%', borderRadius:1 } },
+  series, colors:[css('--success'), css('--warning'), css('--primary')],
+  stroke:{ show:true, width:[0,0,2], curve:'straight', colors:['transparent','transparent',css('--primary')] },
+  markers:{ size:2, strokeWidth:0, colors:[css('--primary')] },
+  dataLabels:{enabled:false}, legend:{show:false},
+  xaxis:{ categories:labels, axisBorder:{show:false}, axisTicks:{show:false},
+    labels:{ style:{fontSize:'9px',colors:css('--d700')}, rotate:-60, rotateAlways:true, hideOverlappingLabels:false, trim:false } },
+  yaxis:commonYaxis, grid:commonGrid, tooltip:{enabled:false},
+}).render();
+
+// ── ข. หลังแก้: height 168 จริง + ป้ายหมุดแนวนอน 10px ──
+function fixedOptions(todayMarker){
+  return {
+    chart:{ type:'line', height:168, stacked:true, stackOnlyBar:true, toolbar:{show:false}, parentHeightOffset:0, animations:{enabled:false} },
+    plotOptions:{ bar:{ columnWidth:'92%', borderRadius:1 } },
+    series, colors:[css('--success'), css('--warning'), css('--primary')],
+    stroke:{ show:true, width:[0,0,2], curve:'straight', colors:['transparent','transparent',css('--primary')] },
+    markers:{ size:2, strokeWidth:0, colors:[css('--primary')] },
+    dataLabels:{enabled:false}, legend:{show:false},
+    xaxis:{ categories:labels, axisBorder:{show:false}, axisTicks:{show:false},
+      labels:{ style:{fontSize:'10px',colors:css('--d700')}, rotate:0, rotateAlways:false,
+        hideOverlappingLabels:false, trim:false,
+        formatter:(v) => ANCHOR.has(Number(v)) ? String(v) : '' } },
+    yaxis:commonYaxis, grid:commonGrid, tooltip:{enabled:false},
+    // เส้นคั่น "วันนี้" — บอกว่าที่ว่างฝั่งขวาคือวันที่ยังมาไม่ถึง ไม่ใช่วันที่ขายไม่ได้
+    annotations: todayMarker ? { xaxis:[{ x: String(TODAY), borderColor: css('--d400'), strokeDashArray: 3,
+      label:{ text:'วันนี้', position:'top', orientation:'horizontal', offsetY:-4, borderWidth:0,
+        style:{ background:'transparent', color:css('--d700'), fontSize:'10px' } } }] } : undefined,
+  };
+}
+new ApexCharts(document.querySelector('#chartB'),   fixedOptions(false)).render();
+new ApexCharts(document.querySelector('#chartC'),   fixedOptions(true)).render();
+new ApexCharts(document.querySelector('#chart414'), fixedOptions(false)).render();
+new ApexCharts(document.querySelector('#chart768'), fixedOptions(false)).render();
+</script>
+</body>
+</html>
