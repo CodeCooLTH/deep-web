@@ -5,6 +5,14 @@
  *
  * เปลี่ยน: ดึง customers จาก orders จริง (ไม่ใช้ demo data)
  * ตัด: StatStrip (เป็นของ S20), AddCustomerModal (seller ไม่ add customers เอง)
+ *
+ * dedupe (S-1, 00014-ext): เดิม group ด้วย raw buyerUserId/contact ตรง ๆ ทำให้ลูกค้าคนเดียวกันที่
+ * พิมพ์เบอร์ต่าง format กันในแต่ละออเดอร์โผล่เป็นคนละแถว — ย้ายมาใช้ `makeCustomerRowKey`
+ * (`@/lib/customer-row-key`) ซึ่งให้ `customerId` (Customer กลางจาก feature 00014) ชนะก่อนเสมอ
+ *
+ * ยอดขาย (S-3, SSOT): เดิมเช็คสถานะยืนยันเดี่ยว ๆ + ผลรวมจาก items (ไม่รวม VAT/discount/
+ * shipping) ทำให้ตัวเลขไม่ตรงกับ dashboard/รายงานยอดขายที่ใช้ `countsAsRevenue` + `totalAmount`
+ * อยู่แล้ว — เปลี่ยนมาใช้ทั้งสองตัวนี้เพื่อให้เลขตรงกันทุกหน้าจอ
  */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
@@ -13,7 +21,8 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { getServerSession } from 'next-auth'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
-import { createHash } from 'crypto'
+import { makeCustomerRowKey } from '@/lib/customer-row-key'
+import { countsAsRevenue } from '@/lib/order-revenue'
 import type { Metadata } from 'next'
 import type { CustomerRow } from './components/data'
 import CustomerTable from './components/CustomerTable'
@@ -24,19 +33,6 @@ export const metadata: Metadata = { title: 'ลูกค้า' }
 function maskContact(c: string | null | undefined): string {
   if (!c || c.length <= 4) return c ?? '—'
   return '•'.repeat(Math.max(0, c.length - 4)) + c.slice(-4)
-}
-
-/**
- * สร้าง row key ที่ไม่สามารถย้อนกลับเป็น raw contact ได้
- * — registered buyer: ใช้ buyerUserId โดยตรง (ไม่มี PII)
- * — guest buyer: SHA-256 ของ raw contact → 16 hex chars (server-side เท่านั้น)
- * ค่านี้ใช้แค่เพื่อ Map grouping (dedupe) และ React list identity
- * ไม่มีข้อมูลส่วนตัวข้ามไปยัง RSC payload
- */
-function makeRowKey(buyerUserId: string | null | undefined, contact: string | null | undefined): string {
-  if (buyerUserId) return buyerUserId
-  if (!contact) return 'guest-unknown'
-  return 'g-' + createHash('sha256').update(contact).digest('hex').slice(0, 16)
 }
 
 export default async function CustomersPage() {
@@ -69,9 +65,17 @@ export default async function CustomersPage() {
   try {
     orders = await prisma.order.findMany({
       where: { shopId: shop.id },
-      include: {
-        items: true,
-        buyer: { select: { id: true, username: true, displayName: true, avatar: true } },
+      select: {
+        createdAt: true,
+        customerId: true,
+        buyerUserId: true,
+        buyerContact: true,
+        buyerName: true,
+        status: true,
+        totalAmount: true,
+        // เฉพาะ field ที่ countsAsRevenue (@/lib/order-revenue) ต้องใช้ตัดสิน SHIPPED+ขนส่งรับของแล้ว
+        shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
+        buyer: { select: { id: true, username: true, displayName: true, avatar: true, deletedAt: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -79,20 +83,17 @@ export default async function CustomersPage() {
     orders = []
   }
 
-  // รวม orders เป็น customer rows — group by hashed key (ไม่ใช้ raw contact เป็น key)
+  // รวม orders เป็น customer rows — group by opaque key (ไม่ใช้ raw contact เป็น key)
   const map = new Map<string, CustomerRow>()
   for (const o of orders) {
-    // PDPA fix: key ต้องไม่ใช่ raw contact — ใช้ userId หรือ hash ที่ย้อนกลับไม่ได้แทน
-    const key = makeRowKey(o.buyerUserId, o.buyerContact)
+    // PDPA fix: key ต้องไม่ใช่ raw contact — customerId (SSOT 00014) > buyerUserId > hash contact
+    const key = makeCustomerRowKey(o.customerId, o.buyerUserId, o.buyerContact)
     const existing = map.get(key)
-    const itemTotal = o.items.reduce(
-      (s: number, i: any) => s + Number(i.price ?? 0) * (i.qty ?? 1),
-      0
-    )
-    const isCompleted = o.status === 'CONFIRMED'
+    const orderTotal = Number(o.totalAmount)
+    const isCompleted = countsAsRevenue(o)
     if (existing) {
       existing.totalOrders += 1
-      if (isCompleted) existing.totalSpent += itemTotal
+      if (isCompleted) existing.totalSpent += orderTotal
       // อัปเดต lastOrder ถ้าใหม่กว่า
       const oTime = new Date(o.createdAt).getTime()
       if (oTime > existing.lastOrderRaw) {
@@ -101,7 +102,9 @@ export default async function CustomersPage() {
         existing.lastOrderISO = new Date(o.createdAt).toISOString()
       }
     } else {
-      const isReg = !!o.buyer
+      // user ที่ soft-delete แล้ว (deletedAt ตั้งแล้วยังไม่ purge) ต้อง render เป็น guest-like —
+      // ไม่มีลิงก์ /u/{username} เพราะ findByUsername กัน deletedAt ที่ต้นทางแล้ว ลิงก์จะ 404
+      const isReg = !!o.buyer && !o.buyer.deletedAt
       // registered → displayName; guest → ชื่อที่ seller กรอกตอนสร้างออเดอร์ (o.buyerName);
       // ไม่ได้กรอกชื่อ → fallback label "ลูกค้าทั่วไป" + initial '?'
       const typedName = o.buyerName?.trim() || ''
@@ -115,9 +118,9 @@ export default async function CustomersPage() {
         initial,
         contact: maskContact(o.buyerContact),
         isRegistered: isReg,
-        username: o.buyer?.username ?? null,
+        username: isReg ? (o.buyer?.username ?? null) : null,
         totalOrders: 1,
-        totalSpent: isCompleted ? itemTotal : 0,
+        totalSpent: isCompleted ? orderTotal : 0,
         // แปลง Date → ISO string เพื่อส่ง RSC → client component ได้อย่างปลอดภัย
         lastOrderISO: new Date(o.createdAt).toISOString(),
         lastOrderRaw: new Date(o.createdAt).getTime(),
