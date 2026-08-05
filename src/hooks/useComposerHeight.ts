@@ -61,6 +61,8 @@ export function useComposerHeight(content: string) {
   const ceilingRef = useRef(COMPOSER_MAX_H)
   // ตัวกระตุ้นให้วัดใหม่เมื่อพื้นที่เปลี่ยนโดยเนื้อหาไม่เปลี่ยน (ย่อหน้าต่าง/หมุนจอ/คีย์บอร์ดมือถือ)
   const [measureTick, setMeasureTick] = useState(0)
+  /** true = ผู้ใช้เพิ่งลาก/กดลูกศรปรับเองในเนื้อหาชุดนี้ → ค่าที่ปรับชนะเนื้อหา (ดู comment ในการตั้งความสูง) */
+  const manualRef = useRef(false)
 
   useEffect(() => {
     try {
@@ -134,11 +136,29 @@ export function useComposerHeight(content: string) {
     if (box) box.style.height = `${box.offsetHeight}px`
     el.style.height = 'auto'
     const fitsContent = el.scrollHeight
-    // เพดานสด (ceiling) ชนะทุกอย่าง — ทั้งค่าที่ผู้ใช้ลากไว้ (อาจลากไว้ 420 บนจอใหญ่แล้วมาเปิด
-    // จอเตี้ย) และ auto-grow ตามเนื้อหา; เนื้อหาที่เกินเพดาน scroll ภายใน textarea เอง (native)
-    el.style.height = `${clampTo(Math.max(userHeight ?? COMPOSER_MIN_H, fitsContent), ceilingRef.current)}px`
+    /**
+     * bug fix 2026-08-05 รอบสาม (user report: "เลือก quick message ปุ๊บ drag ไม่ได้อีกเลย"):
+     * กติกาเดิม `max(ค่าที่ลาก, เนื้อหา)` ให้เนื้อหายาวชนะการลากเสมอ — เมื่อ quick message
+     * ยาวจนชนเพดาน ลากลงโดนเนื้อหาดันกลับ ลากขึ้นก็ชนเพดานอยู่แล้ว = ลากตายทั้งสองทาง
+     *
+     * กติกาใหม่: **เหตุการณ์ล่าสุดชนะ** —
+     *   - เนื้อหาเปลี่ยน (พิมพ์/เติม quick message/AI) และยังไม่ได้ลากรอบนี้ → auto-grow
+     *     แบบเดิม (ค่าที่ persist ไว้เป็นพื้นขั้นต่ำตาม request 2026-07-30)
+     *   - ลาก/ลูกศรคีย์บอร์ด → ค่านั้นชนะ "เป๊ะ" ทั้งขึ้นและลง เนื้อหาที่เกิน scroll ในช่องเอง
+     *   - ช่องถูกล้าง (ส่งข้อความ/ลบหมด) → กลับสู่โหมด auto สำหรับเนื้อหาชุดถัดไป
+     * เพดานสด (ceiling) ยังชนะทุกอย่างเหมือนเดิม — ปุ่มส่งต้องไม่หลุดจอไม่ว่าโหมดไหน
+     */
+    const wanted = manualRef.current && userHeight != null
+      ? userHeight
+      : Math.max(userHeight ?? COMPOSER_MIN_H, fitsContent)
+    el.style.height = `${clampTo(wanted, ceilingRef.current)}px`
     if (box) box.style.height = prevBoxHeight
   }, [content, userHeight, measureTick])
+
+  useEffect(() => {
+    // ช่องว่าง = จบรอบเขียนข้อความ (ส่งแล้ว/ลบหมด) → เนื้อหาชุดถัดไปกลับไป auto-grow ได้
+    if (content === '') manualRef.current = false
+  }, [content])
 
   /**
    * พื้นที่เปลี่ยนโดยที่เนื้อหาไม่เปลี่ยน → กระตุ้นให้ layout effect วัดเพดานใหม่:
@@ -185,6 +205,7 @@ export function useComposerHeight(content: string) {
     if (!start) return
     // ลากขึ้น (clientY ลดลง) = สูงขึ้น — เพดานคือ ceiling ที่วัดสด ไม่ใช่ 420 ตายตัว
     // (กติกาเดียวกับ auto-grow ตามที่ user สั่ง 2026-08-05: ปุ่มส่งต้องไม่หลุดจอไม่ว่าทางไหน)
+    manualRef.current = true // ลากแล้ว = ค่าที่ลากชนะเนื้อหา (ทั้งขึ้นและลง) จนกว่าช่องจะถูกล้าง
     setUserHeight(clampTo(start.h + (start.y - e.clientY), ceilingRef.current))
   }, [])
 
@@ -207,6 +228,7 @@ export function useComposerHeight(content: string) {
     (e: React.KeyboardEvent<HTMLElement>) => {
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
       e.preventDefault()
+      manualRef.current = true // ปรับด้วยคีย์บอร์ด = manual เหมือนการลาก
       setUserHeight((h) => {
         const base = h ?? textareaRef.current?.offsetHeight ?? COMPOSER_MIN_H
         // เพดานเดียวกับการลาก/auto-grow — ดู comment ที่ ceilingRef
