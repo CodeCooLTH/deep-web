@@ -83,6 +83,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
   const legendConfirmed = isToday ? todayConfirmed : confirmedValues.reduce((s, v) => s + v, 0)
   const legendUnconfirmed = isToday ? todayUnconfirmed : unconfirmedValues.reduce((s, v) => s + v, 0)
   const legendOrderCount = orderCounts.reduce((s, v) => s + v, 0)
+  const todayOrderCount = orderCounts[todayIndex] ?? 0
 
   /** ค่าเฉลี่ยของ 7 แท่งที่วาดจริง (รวมวันนี้) — ตัวเลขต้องตรงกับเส้นประบนกราฟเป๊ะ
    *  ถ้าใช้ค่าเฉลี่ย 6 วันก่อนแทน เส้นที่เห็นกับ % ที่อ่านจะเป็นคนละตัว */
@@ -128,7 +129,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
   const monthSeries = [
     { name: 'ยืนยันแล้ว', type: 'column', data: maskFuture(confirmedValues) },
     { name: 'รอยืนยัน', type: 'column', data: maskFuture(unconfirmedValues) },
-    { name: 'ออเดอร์', type: 'line', data: maskFuture(orderCounts) },
+    { name: 'คำสั่งซื้อ', type: 'line', data: maskFuture(orderCounts) },
   ]
   const todaySeries = [{ name: 'ยอดขาย', data: last7Days ?? [] }]
 
@@ -191,7 +192,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
     yaxis: [
       { show: false, tickAmount: 2, seriesName: 'ยืนยันแล้ว' },
       { show: false, tickAmount: 2, seriesName: 'ยืนยันแล้ว' },
-      { show: false, opposite: true, seriesName: 'ออเดอร์', min: 0 },
+      { show: false, opposite: true, seriesName: 'คำสั่งซื้อ', min: 0 },
     ],
     grid: {
       show: true,
@@ -310,11 +311,13 @@ export default function SalesChartCard({ initialSeries }: Props) {
             </div>
           </div>
 
+          {/* aria-label ทับเนื้อหาในปุ่มทั้งก้อน — ต้องพูดแทนแถว legend ให้ครบ (คำสั่งซื้อ/ยืนยันแล้ว/รอยืนยัน)
+              ไม่งั้น screen reader ไม่มีทางรู้ว่าเงินก้อนไหนยังไม่ชัวร์ ทั้งที่นั่นคือหน้าที่หลักของแถวนั้น */}
           <button
             type="button"
             onClick={() => setOpen(true)}
             className="block w-full text-start"
-            aria-label={`ยอดขาย${isToday ? 'วันนี้' : 'เดือนนี้'} ${formatNumberNoSymbol(heroValue)} บาท กดเพื่อดูรายงานฉบับเต็ม`}
+            aria-label={`ยอดขาย${isToday ? 'วันนี้' : 'เดือนนี้'} ${formatNumberNoSymbol(heroValue)} บาท จาก ${isToday ? todayOrderCount : legendOrderCount} คำสั่งซื้อ ยืนยันแล้ว ${formatNumberNoSymbol(legendConfirmed)} บาท รอยืนยัน ${formatNumberNoSymbol(legendUnconfirmed)} บาท กดเพื่อดูรายงานฉบับเต็ม`}
           >
             <div className="flex items-center justify-between gap-2">
               {/* ไม่มี ฿ และไม่มีคำนำหน้า — user สั่งตรง ๆ ("ไม่ต้อง ฿ มาก็ได้ เพราะเราขายคนไทย",
@@ -345,7 +348,18 @@ export default function SalesChartCard({ initialSeries }: Props) {
 
             {/* แถวนี้ทำสองหน้าที่: บอกว่าเงินก้อนไหนยังไม่ชัวร์ + เป็น legend ของสีในกราฟ (จุดสี 1:1)
                 เดิมกราฟมี 2-3 สีโดยไม่มีคำอธิบายเลยบนการ์ด ต้องเปิดชีตถึงจะรู้ว่าสีไหนคืออะไร */}
-            <div className="mb-2 flex items-center gap-4 text-xs text-default-700">
+            {/* flex-wrap: โหมดวันนี้มี 3 รายการเป็นครั้งแรก (คำสั่งซื้อ + ยืนยันแล้ว + รอยืนยัน)
+                จอแคบ 320-375px กับตัวเลขหลักหมื่นทำให้แถวล้นได้ — ให้ตกบรรทัดแทนการเบียด */}
+            <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-default-700">
+              {/* จำนวนคำสั่งซื้อวันนี้ (user ขอ 2026-08-05: ดูยอดแล้วไม่รู้ว่ามาจากกี่ใบ)
+                  ใช้ icon แทนจุดสี — จุดสีในแถวนี้ = legend ของ series บนกราฟ 1:1
+                  ซึ่งกราฟ 7 วันของโหมดวันนี้ไม่มี series จำนวนออเดอร์ จุดสีจะโกหก */}
+              {isToday && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon icon="receipt-2" className="size-3.5 shrink-0 text-default-500" aria-hidden="true" />
+                  <b className="font-semibold text-default-800">{todayOrderCount}</b> คำสั่งซื้อ
+                </span>
+              )}
               <span className="inline-flex items-center gap-1.5">
                 <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
                 ยืนยันแล้ว <b className="font-semibold text-default-800">{formatNumberNoSymbol(legendConfirmed)}</b>
@@ -359,7 +373,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
               {!isToday && (
                 <span className="inline-flex items-center gap-1.5">
                   <span className="bg-primary h-0.5 w-3 shrink-0" aria-hidden="true" />
-                  ออเดอร์ <b className="font-semibold text-default-800">{legendOrderCount}</b>
+                  คำสั่งซื้อ <b className="font-semibold text-default-800">{legendOrderCount}</b>
                 </span>
               )}
             </div>
