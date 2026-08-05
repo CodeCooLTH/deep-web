@@ -13,17 +13,19 @@ export interface ProgressOrderInput {
   status: string
   paymentMethod?: string | null
   codReceivedAt?: string | null
-  /** พัสดุใบล่าสุดที่ไม่ถูกยกเลิก (null = ยังไม่เปิดพัสดุ) */
-  shipment: { status: string; carrierStatus: string | null } | null
+  /** พัสดุใบล่าสุดที่ไม่ถูกยกเลิก (null/ไม่ส่งมา = ยังไม่เปิดพัสดุ) — optional เพื่อรับ
+   *  CustomerPanelOrder ตรง ๆ ได้โดยไม่ต้อง remap (field เกินผ่าน structural typing) */
+  shipment?: { status: string; carrierStatus: string | null } | null
 }
 
 /** แปลง shape ของการ์ดในแชท → input ของ deriveShippingStage */
 export function orderShippingStage(o: ProgressOrderInput): ShippingStageKey {
+  const sh = o.shipment ?? null
   // FAILED = การสร้างพัสดุล้มเหลว ยังไม่มีพัสดุจริงบนขนส่ง — เทียบเท่า "ยังไม่เปิดพัสดุ"
-  const hasShipment = !!o.shipment && o.shipment.status !== 'FAILED'
+  const hasShipment = !!sh && sh.status !== 'FAILED'
   return deriveShippingStage({
     status: o.status,
-    carrierStatus: hasShipment ? o.shipment!.carrierStatus : null,
+    carrierStatus: hasShipment ? sh.carrierStatus : null,
     hasShipment,
     paymentMethod: o.paymentMethod,
     codReceivedAt: o.codReceivedAt,
