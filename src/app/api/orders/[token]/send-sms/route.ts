@@ -6,6 +6,7 @@ import { SendSmsSchema } from "@/lib/validations";
 import { getOrderForShop } from "@/services/order.service";
 import { requireActiveShop } from "@/lib/shop-context";
 import { issueSmsCode, markSmsCodeDelivery } from "@/services/sms-code.service";
+import { recordOrderEventSafe } from "@/services/order-event.service";
 import { deductCredit, creditWallet } from "@/services/wallet.service";
 import { prisma } from "@/lib/prisma";
 import { sendSms, consumeSmsQuota } from "@/lib/sms";
@@ -272,6 +273,15 @@ export async function POST(
   await markSmsCodeDelivery(smsCodeId, "SENT").catch(() => {
     // mark SENT fail ไม่ block response — SMS ออกแล้ว (RC-3: reconcile ด้วย deliveryStatus)
     console.error("[send-sms] markSmsCodeDelivery SENT: update error (SMS delivered)");
+  });
+
+  // feature 00031 — SMS_LINK_SENT เฉพาะเมื่อส่งสำเร็จจริง (BRD: event = "ส่งสำเร็จ" ไม่ใช่
+  // "พยายามส่ง") ใช้ตัว Safe เพราะเงินถูกหัก + SMS ออกไปแล้ว log ล้มห้ามทำ response พัง
+  // meta ไม่มีเบอร์/ข้อความ (กัน PII ตาม RC-8)
+  await recordOrderEventSafe({
+    orderId: order.id,
+    type: "SMS_LINK_SENT",
+    actorUserId: (session.user as { id?: string }).id ?? null,
   });
 
   return NextResponse.json({ ok: true });

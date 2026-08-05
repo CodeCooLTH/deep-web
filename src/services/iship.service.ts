@@ -9,6 +9,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { createOrder } from "@/services/order.service";
+import { recordOrderEvent } from "@/services/order-event.service";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
@@ -951,19 +952,30 @@ async function dispatchShipment(
     const { result, dryRun } = await withTokenGuard(shopId, () =>
       iship.createOrder(token, payload),
     );
-    const updated = await prisma.orderShipment.update({
-      where: { id: shipmentId },
-      data: {
-        status: "CREATED",
-        trackingNo: result.tracking_number,
-        refCode: result.ref,
-        externalId: result.id != null ? String(result.id) : null,
-        isDryRun: dryRun,
-        attemptCount: { increment: 1 },
-        lastErrorCode: null,
-        lastErrorMessage: null,
-      },
-      select: SHIPMENT_SELECT,
+    // event อยู่ใน tx เดียวกับการ mark CREATED (feature 00031) — actor = คนที่กดสร้าง/ลองใหม่
+    // (row.createdByUserId ถูกเขียนทับตอน retry แล้ว จึงเป็นคนล่าสุดที่กดจริงเสมอ)
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.orderShipment.update({
+        where: { id: shipmentId },
+        data: {
+          status: "CREATED",
+          trackingNo: result.tracking_number,
+          refCode: result.ref,
+          externalId: result.id != null ? String(result.id) : null,
+          isDryRun: dryRun,
+          attemptCount: { increment: 1 },
+          lastErrorCode: null,
+          lastErrorMessage: null,
+        },
+        select: SHIPMENT_SELECT,
+      });
+      await recordOrderEvent(tx, {
+        orderId: row.orderId,
+        type: "SHIPMENT_CREATED",
+        actorUserId: row.createdByUserId,
+        meta: { shipmentId, courierName: row.courierName ?? undefined },
+      });
+      return u;
     });
     return toShipmentView(updated);
   } catch (err) {
@@ -1029,14 +1041,24 @@ export async function cancelShipment(
     );
   }
 
-  const updated = await prisma.orderShipment.update({
-    where: { id: shipmentId },
-    data: {
-      status: "CANCELLED",
-      cancelledAt: new Date(),
-      cancelledByUserId: userId,
-    },
-    select: SHIPMENT_SELECT,
+  // event อยู่ใน tx เดียวกับการ mark CANCELLED (feature 00031)
+  const updated = await prisma.$transaction(async (tx) => {
+    const u = await tx.orderShipment.update({
+      where: { id: shipmentId },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+        cancelledByUserId: userId,
+      },
+      select: SHIPMENT_SELECT,
+    });
+    await recordOrderEvent(tx, {
+      orderId: u.orderId,
+      type: "SHIPMENT_CANCELLED",
+      actorUserId: userId,
+      meta: { shipmentId, courierName: u.courierName ?? undefined },
+    });
+    return u;
   });
   return toShipmentView(updated);
 }
@@ -1939,27 +1961,38 @@ export async function linkShipment(
     where: { orderId, status: "CANCELLED" },
   });
 
-  const created = await prisma.orderShipment.create({
-    data: {
+  // event อยู่ใน tx เดียวกับการสร้างแถวผูก (feature 00031 — บั๊กจริง 2026-08-05:
+  // ผูกพัสดุแล้วประวัติคำสั่งซื้อไม่ขึ้น เพราะไม่มีจุดเขียน SHIPMENT_LINKED เลย)
+  const created = await prisma.$transaction(async (tx) => {
+    const row = await tx.orderShipment.create({
+      data: {
+        orderId,
+        shopId,
+        status: "CREATED",
+        source: "LINKED",
+        linkedAt: new Date(),
+        // คีย์คนละรูปกับใบที่เราเปิดเอง โดยเจตนา — ใบนี้ไม่เคยมี custom_order_id ของเรา
+        // ฝั่ง iShip การเอารูปเดิมมาใช้จะทำให้อ่านผิดว่าเราเป็นคนยิง create_order
+        idempotencyKey: `link:${trackingNo}:${cancelledCount + 1}`,
+        trackingNo,
+        courierCode: parcel.courierCode,
+        courierName: parcel.courierName,
+        codAmount: parcel.codAmount,
+        carrierStatus: parcel.carrierStatus,
+        carrierStatusText: parcel.carrierStatusText,
+        carrierStatusAt: new Date(),
+        createdByUserId: userId,
+        receiverSnapshot: parcel.receiver as object,
+      },
+      select: { id: true },
+    });
+    await recordOrderEvent(tx, {
       orderId,
-      shopId,
-      status: "CREATED",
-      source: "LINKED",
-      linkedAt: new Date(),
-      // คีย์คนละรูปกับใบที่เราเปิดเอง โดยเจตนา — ใบนี้ไม่เคยมี custom_order_id ของเรา
-      // ฝั่ง iShip การเอารูปเดิมมาใช้จะทำให้อ่านผิดว่าเราเป็นคนยิง create_order
-      idempotencyKey: `link:${trackingNo}:${cancelledCount + 1}`,
-      trackingNo,
-      courierCode: parcel.courierCode,
-      courierName: parcel.courierName,
-      codAmount: parcel.codAmount,
-      carrierStatus: parcel.carrierStatus,
-      carrierStatusText: parcel.carrierStatusText,
-      carrierStatusAt: new Date(),
-      createdByUserId: userId,
-      receiverSnapshot: parcel.receiver as object,
-    },
-    select: { id: true },
+      type: "SHIPMENT_LINKED",
+      actorUserId: userId,
+      meta: { shipmentId: row.id, courierName: parcel.courierName ?? undefined },
+    });
+    return row;
   });
 
   // เติมไทม์ไลน์ย้อนหลังทันที — ใบที่ผูกย้อนหลังอาจเดินทางไปไกลแล้วตั้งแต่เมื่อวาน

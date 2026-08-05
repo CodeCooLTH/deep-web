@@ -85,7 +85,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   try {
-    const order = await updateOrder(ctx.shopId, token, parsed.output);
+    // feature 00031 — actor ของ ORDER_EDITED มาจาก session เสมอ ไม่รับจาก body
+    const actorUserId = (session as { user?: { id?: string } }).user?.id ?? null;
+    const order = await updateOrder(ctx.shopId, token, parsed.output, actorUserId);
     return NextResponse.json(order, { headers: NO_STORE });
   } catch (e: unknown) {
     if (e instanceof OrderNotFoundError) return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้" }, { status: 404 });

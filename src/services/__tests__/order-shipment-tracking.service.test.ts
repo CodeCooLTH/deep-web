@@ -2,12 +2,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // S-12 — updateShipmentTracking() ต้อง update อย่างเดียว ไม่แตะ order.status
 // mock prisma ตาม pattern shop-slug.service.test.ts (mock เฉพาะ model ที่ใช้จริง)
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+// $transaction ส่ง prisma ก้อนเดิมกลับเป็น tx — พอสำหรับ assert ว่า update + orderEvent
+// ถูกเรียกในทรานแซกชันเดียวกัน (feature 00031: TRACKING_ADDED เขียนคู่กับการแก้เลขเสมอ)
+vi.mock("@/lib/prisma", () => {
+  const prismaMock: Record<string, unknown> = {
     order: { findFirst: vi.fn() },
     shipmentTracking: { update: vi.fn() },
-  },
-}));
+    orderEvent: { create: vi.fn() },
+    user: { findUnique: vi.fn() },
+  };
+  prismaMock.$transaction = vi.fn(
+    (fn: (tx: typeof prismaMock) => Promise<unknown>) => fn(prismaMock),
+  );
+  return { prisma: prismaMock };
+});
 import { prisma } from "@/lib/prisma";
 import {
   updateShipmentTracking,
@@ -44,6 +52,16 @@ describe("updateShipmentTracking", () => {
       where: { orderId: "order-1" },
       data: { provider: "flash", trackingNo: "NEW999" },
     });
+    // feature 00031 — แก้เลขพัสดุต้องทิ้งรอย TRACKING_ADDED ในประวัติคำสั่งซื้อเสมอ
+    expect((prisma as any).orderEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderId: "order-1",
+          type: "TRACKING_ADDED",
+          meta: expect.objectContaining({ provider: "flash" }),
+        }),
+      }),
+    );
   });
 
   it("throw Order not found เมื่อไม่พบ order", async () => {
