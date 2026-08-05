@@ -58,6 +58,16 @@ import type { SalesSeries as SalesChartSeries } from '@/services/dashboard.servi
 // (query เล็ก ยอมรับได้ — ห้าม refactor เป็น context/global ตาม Controller decision)
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
+// การ์ดเดสก์ท็อปที่ดึงกลับมา 2026-08-05 (เคยถูกตัดตั้งแต่ยุค MVP ด้วยเหตุผล "ยังไม่มีข้อมูลจริง"
+// ซึ่งหมดอายุไปแล้ว — ตอนนี้ทุกใบมี service ป้อนข้อมูลจริงครบ ดูตารางใน mockup ที่ user อนุมัติ
+// docs/superpowers/specs/2026-08-05-seller-dashboard-desktop-mockup.html)
+import { getSalesChannelBreakdown, getProvinceSales } from '@/services/dashboard.service'
+import type { SalesChannelSlice, ProvinceSales } from '@/services/dashboard.service'
+import { getRecentActivity, type ActivityItem } from '@/services/activity.service'
+import SalesChannelDonut from './components/SalesChannelDonut'
+import TopSellingProducts from './components/TopSellingProducts'
+import RecentActivityFeed from './components/RecentActivityFeed'
+import ProvinceSalesMap from '@/components/safepay/ProvinceSalesMap'
 
 export const metadata: Metadata = { title: 'แดชบอร์ด' }
 
@@ -131,6 +141,15 @@ export default async function SellerDashboardPage() {
   let packageCanManage = false
   // เมนูลัด (feature 00027) — undefined = ยังไม่ได้ resolve/ไม่ผ่าน gate ร้าน → การ์ดซ่อนตัวเอง
   let shortcutTiles: ShortcutCatalogItemDto[] | undefined
+
+  // ─── การ์ดเดสก์ท็อปที่ดึงกลับ 2026-08-05 (ทั้งหมดเป็นข้อมูล "เดือนนี้" ชุดเดียวกัน) ────────
+  // ช่องทางการขาย: [] = ยังไม่มีออเดอร์เดือนนี้ หรือ fetch ล้ม → การ์ดขึ้น empty state (honest-zero)
+  let salesChannels: SalesChannelSlice[] = []
+  // กิจกรรมล่าสุด: service รวม 5 แหล่งและ mask PII ให้แล้วก่อนข้าม RSC boundary
+  let recentActivity: ActivityItem[] = []
+  // ยอดขายรายจังหวัด: undefined = ร้านไม่ใช่ประเภทขายออนไลน์ หรือ fetch ล้ม → ไม่ render การ์ดแผนที่
+  // (user เคาะ 2026-08-05: ร้านขายหน้าร้านไม่ต้องมี panel นี้เลย ไม่ใช่โชว์การ์ดว่าง)
+  let provinceSales: ProvinceSales | undefined
 
   if (user?.id) {
     score = user.trustScore ?? 0
@@ -208,7 +227,7 @@ export default async function SellerDashboardPage() {
 
         // perf: query เหล่านี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, shippingStageRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes] =
+        const [statusRes, shippingStageRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes, channelRes, activityRes, provinceRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
             // ร้านอื่นไม่ต้องเสีย query — ส่ง null แทน แล้วข้ามผลด้านล่าง
@@ -227,6 +246,16 @@ export default async function SellerDashboardPage() {
             getSalesSeries(shop.id, 'daily', { year: currentYear, month: currentMonth }, expenseGranted),
             // เมนูลัดที่ผู้ใช้เลือกไว้ (feature 00027) — เรียก service ตรง ไม่ผ่าน HTTP เพราะอยู่ฝั่ง server แล้ว
             resolveShortcutState(session as unknown as { user: { id: string; activeShopId?: string | null } }),
+            // ─── 3 การ์ดเดสก์ท็อปที่ดึงกลับ 2026-08-05 — ทั้งหมดผูกกับ "เดือนปฏิทินไทยเดือนนี้" ───
+            // ชุดเดียวกับที่ Sales Chart ใช้ (currentYear/currentMonth ด้านบน) เพื่อไม่ให้หน้าเดียว
+            // มีสองนิยามของคำว่า "เดือนนี้"
+            getSalesChannelBreakdown(shop.id, { year: currentYear, month: currentMonth }),
+            // กิจกรรมล่าสุด — เคยถูกถอดออก 2026-08-04 ตอนตัดการ์ดนี้ทิ้งจากมือถือ ตอนนี้กลับมาเฉพาะเดสก์ท็อป
+            getRecentActivity(shop.id, 6),
+            // แผนที่จังหวัด — เฉพาะร้านขายออนไลน์ (user เคาะ) ร้านประเภทอื่นไม่ต้องเสีย query
+            shop.vertical === 'ONLINE_SALES'
+              ? getProvinceSales(shop.id, { year: currentYear, month: currentMonth })
+              : Promise.resolve(null),
           ])
 
         // orderStatusCounts: fallback 0 ทุก bucket ถ้าล้ม — CommandCenter แสดง 0 แทน crash
@@ -278,6 +307,18 @@ export default async function SellerDashboardPage() {
         // Sales Chart mini card — fallback null ถ้าล้ม → SalesChartCard ซ่อนตัวเอง (honest-hide)
         if (salesSeriesRes.status === 'fulfilled') mobileSalesSeries = salesSeriesRes.value
         else console.error('[dashboard] getSalesSeries failed', salesSeriesRes.reason)
+
+        // ช่องทางการขาย — ล้ม = [] → การ์ดขึ้น empty state ("เดือนนี้ยังไม่มีออเดอร์")
+        if (channelRes.status === 'fulfilled') salesChannels = channelRes.value
+        else console.error('[dashboard] getSalesChannelBreakdown failed', channelRes.reason)
+
+        // กิจกรรมล่าสุด — ล้ม = [] → RecentActivityFeed มี empty state พร้อม CTA ของตัวเองอยู่แล้ว
+        if (activityRes.status === 'fulfilled') recentActivity = activityRes.value
+        else console.error('[dashboard] getRecentActivity failed', activityRes.reason)
+
+        // ยอดขายรายจังหวัด — null (ร้านไม่ใช่ขายออนไลน์) หรือล้ม = ไม่ render การ์ดแผนที่เลย
+        if (provinceRes.status === 'fulfilled') provinceSales = provinceRes.value ?? undefined
+        else console.error('[dashboard] getProvinceSales failed', provinceRes.reason)
 
         const rawOrders = ordersRes.status === 'fulfilled' ? ordersRes.value : []
 
@@ -408,20 +449,18 @@ export default async function SellerDashboardPage() {
       </div>
 
       {/* ─── Desktop: ภาพรวมร้านค้า (≥ lg) ──────────────────────────────────
-          ห้ามแก้/ลบ desktop widget ใด ๆ ตาม Hard Rule T1
-          ครอบด้วย hidden lg:block เพื่อซ่อนบน mobile */}
+          ครอบด้วย hidden lg:block เพื่อซ่อนบน mobile (มือถือใช้ Command Center v10 ด้านบน)
+
+          เรียงแถวใหม่ 2026-08-05 ตามผังที่ user เคาะ: ตัวตนร้าน → งานค้าง → กราฟ → รายการ → แผนที่
+          พร้อมดึง widget ของ theme ecommerce ที่เคยถูกตัดทิ้งกลับมา 4 ตัว (ช่องทางการขาย /
+          สินค้าขายดี / กิจกรรมล่าสุด / ยอดขายตามจังหวัด)
+          mockup: docs/superpowers/specs/2026-08-05-seller-dashboard-desktop-mockup.html */}
       <div className="hidden lg:block">
         <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} />
 
-        {/* สถานะคำสั่งซื้อ — component ตัวเดียวกับบนมือถือ (user เคาะ 2026-08-04)
-            เดิมชุดนี้เป็น lg:hidden ทำให้เดสก์ท็อปไม่มีทางเข้าตัวกรองสถานะพัสดุเลย ต้องพิมพ์
-            ?stage= เอง. วางบนสุดเพราะเป็น "งานค้างวันนี้" ไม่ใช่ยอดสะสมเหมือนการ์ดแถวถัดไป */}
-        <div className="mb-base">
-          <OrderStatusBand counts={orderStatusCounts} shipping={shippingStageCounts} />
-        </div>
-
-        {/* แถว 1 (theme row 1): UserCard + StatCards (5 คอล) | AchievementLevel (7 คอล)
-            StorePerformanceOverview ถูก drop → AchievementLevel ยึด 7 คอลเต็ม */}
+        {/* แถว 1: UserCard + StatCards (5 คอล) | ช่องทางการขาย + AchievementLevel (7 คอล)
+            ครึ่งขวาเคยเป็น AchievementLevel ใบเดียวกิน 7 คอล เพราะ StorePerformanceOverview
+            ของ theme ถูกตัดทิ้ง — ตอนนี้ช่องนั้นกลับมาเป็น "ช่องทางการขาย" ที่มีข้อมูลจริง */}
         <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mb-base">
           <div className="xl:col-span-5">
             <div className="grid md:grid-cols-2 grid-cols-1 gap-base h-full">
@@ -432,27 +471,51 @@ export default async function SellerDashboardPage() {
             </div>
           </div>
           <div className="xl:col-span-7">
-            <AchievementLevel
-              score={score}
-              level={level}
-              levelColor={levelColor}
-              earnedBadges={earnedBadges}
-              topInProgress={topInProgress}
-            />
+            <div className="grid xl:grid-cols-2 grid-cols-1 gap-base h-full">
+              <SalesChannelDonut slices={salesChannels} />
+              <AchievementLevel
+                score={score}
+                level={level}
+                levelColor={levelColor}
+                earnedBadges={earnedBadges}
+                topInProgress={topInProgress}
+              />
+            </div>
           </div>
         </div>
 
-        {/* แถว 2 (re-grid Unit-C): SalesReport xl:col-span-8 + RecentOrder xl:col-span-4
-            ลดจาก 3 แถวโล่งเหลือ 2 แถว — ไม่เพิ่ม widget ใหม่
-            SalesReport รับ real series+summary จาก RSC boundary */}
+        {/* แถว 2: สถานะคำสั่งซื้อเต็มความกว้าง — component ตัวเดียวกับบนมือถือ (user เคาะ 2026-08-04)
+            เดิมชุดนี้เป็น lg:hidden ทำให้เดสก์ท็อปไม่มีทางเข้าตัวกรองสถานะพัสดุเลย ต้องพิมพ์ ?stage= เอง
+            อยู่แถวนี้เพราะเป็น "งานค้างวันนี้" — ต้องอยู่เหนือกราฟที่เป็นข้อมูลย้อนหลัง */}
+        <div className="mb-base">
+          <OrderStatusBand counts={orderStatusCounts} shipping={shippingStageCounts} />
+        </div>
+
+        {/* แถว 3: SalesReport | สินค้าขายดี — ครึ่งต่อครึ่ง (theme วางคู่กันแบบนี้เหมือนกัน) */}
+        <div className="grid xl:grid-cols-2 grid-cols-1 gap-base mb-base">
+          <SalesReport series={salesSeries} summary={salesSummary} />
+          <TopSellingProducts products={bestSellers} />
+        </div>
+
+        {/* แถว 4: ออเดอร์ล่าสุด (5) | กิจกรรมล่าสุด (7)
+            RecentActivityFeed เขียนเสร็จมาตั้งแต่รอบ command center v7 แต่ไม่มีไฟล์ไหน import
+            หลังการ์ดถูกถอดออกจากมือถือ 2026-08-04 — รอบนี้เอากลับมาใช้ตัวเดิม ไม่สร้างใหม่ซ้อน */}
         <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
-          <div className="xl:col-span-8">
-            <SalesReport series={salesSeries} summary={salesSummary} />
-          </div>
-          <div className="xl:col-span-4">
+          <div className="xl:col-span-5">
             <RecentOrder orders={recentOrders} />
           </div>
+          <div className="xl:col-span-7">
+            <RecentActivityFeed items={recentActivity} />
+          </div>
         </div>
+
+        {/* แถว 5: ยอดขายตามจังหวัด — เฉพาะร้านขายออนไลน์เท่านั้น (undefined = ไม่ render ทั้งใบ)
+            ร้านคิวงาน/บ้านพักไม่มีพัสดุส่งไปต่างจังหวัด การ์ดนี้จึงไม่มีความหมายกับเขา */}
+        {provinceSales && (
+          <div className="mt-base">
+            <ProvinceSalesMap {...provinceSales} />
+          </div>
+        )}
       </div>
       {/* onboarding ย้ายไปหน้า /onboarding (บังคับผ่าน proxy) — ไม่ใช้ modal บน dashboard แล้ว */}
     </>
