@@ -94,7 +94,9 @@ export default function OrderSummary({
 
   return (
     <div className="card">
-      <div className="card-header block items-start p-7.5 md:flex">
+      {/* ธีมใช้ p-7.5 (30px) + px-7.5! ในตัว — วัดจริงแล้วการ์ดสูง 468px สำหรับสินค้าชิ้นเดียว
+          (user: "padding เยอะ") ลดเหลือ p-5 ทั้งคู่ ยังเป็น token ของ Paces ไม่ใช่ arbitrary */}
+      <div className="card-header block items-start p-5 md:flex">
         <div className="flex min-w-0 items-start gap-3.5">
           {/* ไทล์ช่องทางการขาย — โลโก้เต็มสี่เหลี่ยม (user สั่ง 2026-08-05)
               ช่องทางเป็น null (ออเดอร์เก่าก่อนมี field นี้) → OTHER เพื่อไม่ให้เลย์เอาต์กระโดด */}
@@ -108,9 +110,9 @@ export default function OrderSummary({
 
           <div className="min-w-0">
             {/* เลขคำสั่งซื้อ — ห้าม font-mono (Anuphan ไม่มี mono จะ fallback Courier หลุดธีม) */}
-            <h3 className="text-default-900 mb-1.25 flex items-center text-lg font-bold">
+            <h2 className="text-default-900 mb-1.25 flex items-center text-lg font-bold">
               {formatOrderNo(publicToken, createdAtISO)}
-            </h3>
+            </h2>
             <p className="text-default-700 mb-2.5 truncate text-sm">{buyerLabel}</p>
             <p className="text-default-700 mb-3.5 flex items-center gap-1 text-xs">
               <Icon icon="calendar" className="align-middle" aria-hidden="true" />
@@ -140,7 +142,7 @@ export default function OrderSummary({
         </div>
       </div>
 
-      <div className="card-body px-7.5!">
+      <div className="card-body px-5!">
         <h4 className="text-default-900 mb-5 text-md font-semibold">รายการ{orderNoun}</h4>
 
         {/* ── มือถือ (<sm): รายการแบบ stacked — ธีมไม่มี ต้อง adapt เพราะร้านใช้มือถือเป็นหลัก ── */}

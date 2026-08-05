@@ -93,12 +93,13 @@ export function buildBreakdown(params: {
 export function ItemThumbnail({ imageUrl, name }: { imageUrl: string | null; name: string }) {
   if (imageUrl) {
     return (
-      <Image alt={name} className="size-14 shrink-0 rounded-lg object-cover" height={56} src={imageUrl} width={56} />
+      // 40px แทน 56px ของเดิม — แถวตารางเคยสูง 81px ต่อสินค้า 1 ชิ้น ทำให้การ์ดยืดเกินจำเป็น
+      <Image alt={name} className="size-10 shrink-0 rounded-lg object-cover" height={40} src={imageUrl} width={40} />
     )
   }
   return (
-    <div className="bg-default-100 flex size-14 shrink-0 items-center justify-center rounded-lg">
-      <Icon icon="photo" className="text-default-400 size-6" />
+    <div className="bg-default-100 flex size-10 shrink-0 items-center justify-center rounded-lg">
+      <Icon icon="photo" className="text-default-500 size-4.5" />
     </div>
   )
 }

@@ -20,6 +20,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { getLocalityStatus } from '@/lib/shipping-address-status'
 import type { ShippingAddressData } from './order-detail-shared'
 
 export type ShippingAddressCardProps = {
@@ -81,16 +82,51 @@ export default function ShippingAddress({
   // จองที่พัก/รับเอง — ไม่มีทั้งที่อยู่จัดส่งและลิงก์ดิจิทัล จึงไม่ render การ์ดนี้เลย ไม่ใช่การ์ดว่าง
   if (!hasShipping && !showAccessUrl) return null
 
+  /**
+   * SSOT เดียวกับที่ฟอร์มสร้างออเดอร์ใช้ตัดสินว่า "ที่อยู่ครบพอเปิดพัสดุไหม" —
+   * user บอกการ์ดนี้ "ข้อมูลน้อย ไม่มีลูกเล่น" (วัดจริง: 157px, ไม่มีไอคอนสักตัว)
+   * สิ่งที่เติมไม่ใช่ของตกแต่ง แต่เป็นคำเตือนที่กันร้านเปิดพัสดุแล้วโดนขนส่งตีกลับ
+   */
+  const locality = getLocalityStatus(shippingAddr)
+
+  const handleCopyAddress = async () => {
+    const text = [line1Text, line2, line3].filter(Boolean).join(' ')
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    pacesToast.success('คัดลอกที่อยู่แล้ว')
+  }
+
+  const line1Text = shippingAddr?.line1 ?? ''
   const line2 = shippingAddr ? [shippingAddr.subdistrict, shippingAddr.district].filter(Boolean).join(' ') : ''
   const line3 = shippingAddr ? [shippingAddr.province, shippingAddr.postcode].filter(Boolean).join(' ') : ''
-  const addrLines = shippingAddr
-    ? [shippingAddr.line1, line2, line3].filter((l) => l && String(l).trim())
-    : []
+  const addrLines = shippingAddr ? [line1Text, line2, line3].filter((l) => l && String(l).trim()) : []
 
   return (
     <div className="card">
       <div className="card-header">
         <h4 className="card-title">{showAccessUrl ? 'การส่งมอบ' : 'ที่อยู่จัดส่ง'}</h4>
+        {/* ธีมมีปุ่มดินสอที่ไม่ทำอะไร — แทนด้วยปุ่มที่ทำงานจริงและร้านใช้ทุกวันตอนแปะหน้ากล่อง */}
+        {hasShipping && addrLines.length > 0 && (
+          <button
+            className="btn btn-icon border-default-300 text-default-700 hover:text-primary size-8! rounded-full border"
+            onClick={handleCopyAddress}
+            title="คัดลอกที่อยู่"
+            aria-label="คัดลอกที่อยู่"
+            type="button"
+          >
+            <Icon icon="copy" className="text-base" aria-hidden="true" />
+          </button>
+        )}
       </div>
       <div className="card-body">
         {hasShipping &&
@@ -109,6 +145,14 @@ export default function ShippingAddress({
               <p className="text-default-700 text-sm">ยังไม่มีที่อยู่จัดส่ง</p>
             </div>
           ))}
+
+        {/* ขาดตำบล/อำเภอ = บันทึกออเดอร์ผ่าน แต่เปิดพัสดุ iShip ไม่ผ่าน — ต้องบอกก่อนร้านไปกดแล้วเจอ error */}
+        {hasShipping && addrLines.length > 0 && locality.recommendedGap && (
+          <div className="bg-warning/15 text-default-800 mt-4 flex items-start gap-2.25 rounded px-3.5 py-2.75 text-xs">
+            <Icon icon="alert-triangle" className="text-warning mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+            <span>ยังไม่มีตำบล/อำเภอ — เติมก่อนเปิดพัสดุกับขนส่ง ไม่งั้นระบบขนส่งจะหาปลายทางไม่เจอ</span>
+          </div>
+        )}
 
         {/* callout ของธีม (เดิมเป็น "Delivery Instructions") — เสียบหมายเหตุจริงของเราแทนที่จะทิ้ง */}
         {hasShipping && shippingAddr?.note && shippingAddr.note.trim() && (

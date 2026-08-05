@@ -18,9 +18,17 @@
 
 import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
+import { formatDateTH } from '@/lib/format-date'
 import { resolveBuyerNames, type OrderFactsBuyer } from './order-detail-shared'
 
-export default function CustomerDetails({ buyer }: { buyer: OrderFactsBuyer }) {
+export default function CustomerDetails({
+  buyer,
+  summary,
+}: {
+  buyer: OrderFactsBuyer
+  /** ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ — null = ออเดอร์ยังไม่ผูก Customer (ไม่มีเบอร์) */
+  summary: { orderCount: number; sinceISO: string } | null
+}) {
   const { registeredName, displayName, hasBuyerInfo } = resolveBuyerNames(buyer)
 
   return (
@@ -74,6 +82,32 @@ export default function CustomerDetails({ buyer }: { buyer: OrderFactsBuyer }) {
             </div>
 
             <ul className="space-y-2.5">
+              {/* ตัวเลขจริงจากฐาน — บอกว่าลูกค้าคนนี้เคยซื้อกับ *ร้านนี้* มาแล้วกี่ครั้ง
+                  ร้านใช้ตัดสินใจได้จริง (ลูกค้าประจำ vs คนใหม่) และไม่ใช่ข้อมูลที่แต่งขึ้น */}
+              {summary && (
+                <>
+                  <li>
+                    <div className="flex items-center gap-2.5">
+                      <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
+                        <Icon icon="shopping-bag" className="text-sm" aria-hidden="true" />
+                      </span>
+                      <span className="text-default-800 text-sm font-medium">
+                        สั่งกับร้านนี้ {summary.orderCount} ครั้ง
+                      </span>
+                    </div>
+                  </li>
+                  <li>
+                    <div className="flex items-center gap-2.5">
+                      <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
+                        <Icon icon="calendar-plus" className="text-sm" aria-hidden="true" />
+                      </span>
+                      <span className="text-default-700 text-sm">
+                        ลูกค้าตั้งแต่ {formatDateTH(summary.sinceISO)}
+                      </span>
+                    </div>
+                  </li>
+                </>
+              )}
               <li>
                 <div className="flex items-center gap-2.5">
                   <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">

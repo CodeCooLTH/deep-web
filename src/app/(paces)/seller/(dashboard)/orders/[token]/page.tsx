@@ -48,6 +48,7 @@ import CustomerDetails from './components/CustomerDetails'
 import ShippingAddressCard from './components/ShippingAddress'
 import BillingDetails from './components/BillingDetails'
 import { getOrderEvents } from '@/services/order-event.service'
+import { getCustomerSummary } from '@/services/customer.service'
 import type { ShippingAddressData, OrderFactsShipping } from './components/order-detail-shared'
 import OrderReviewCard from './components/OrderReviewCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
@@ -98,6 +99,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
   // ประวัติกิจกรรม (feature 00031) — ownership scope มาแล้วจาก getOrderForShop ด้านบน
   const orderEvents = await getOrderEvents(order.id)
+
+  // ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ (scope shopId เสมอ) — เติมการ์ด "ผู้ซื้อ" ที่ user บอกว่าข้อมูลน้อย
+  const customerSummary = await getCustomerSummary(order.customerId ?? null, shop.id)
 
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
@@ -260,6 +264,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         sideCards={
           <>
             <CustomerDetails
+              summary={customerSummary}
               buyer={{
                 buyerContact,
                 buyerDisplayName: order.buyer?.displayName ?? null,

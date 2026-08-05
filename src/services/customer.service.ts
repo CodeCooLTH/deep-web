@@ -66,3 +66,25 @@ export async function getCancellationSummary(customerId: string): Promise<{
   }
   return { total, byReason }
 }
+
+/**
+ * getCustomerSummary — ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ สำหรับการ์ด "ผู้ซื้อ" ในหน้าออเดอร์
+ *
+ * user บอกว่าการ์ดผู้ซื้อ "ข้อมูลน้อย" (วัดจริง: การ์ดสูง 183px มีข้อความแค่ 58 ตัวอักษร) —
+ * แต่ห้ามเติมด้วยของปลอม จึงเติมเฉพาะ 2 อย่างที่ระบบมีจริงและร้านใช้ตัดสินใจได้:
+ *   - เคยสั่งกับร้านนี้มาแล้วกี่ใบ (ไม่นับที่ยกเลิก) → แยกลูกค้าใหม่ออกจากลูกค้าประจำ
+ *   - เป็นลูกค้าตั้งแต่เมื่อไร (Customer.createdAt)
+ * scope ด้วย shopId เสมอ — ร้านต้องไม่เห็นยอดสั่งซื้อของลูกค้าคนนี้กับร้านอื่น
+ */
+export async function getCustomerSummary(
+  customerId: string | null | undefined,
+  shopId: string,
+): Promise<{ orderCount: number; sinceISO: string } | null> {
+  if (!customerId) return null;
+  const [customer, orderCount] = await Promise.all([
+    prisma.customer.findUnique({ where: { id: customerId }, select: { createdAt: true } }),
+    prisma.order.count({ where: { customerId, shopId, status: { not: "CANCELLED" } } }),
+  ]);
+  if (!customer) return null;
+  return { orderCount, sinceISO: customer.createdAt.toISOString() };
+}
