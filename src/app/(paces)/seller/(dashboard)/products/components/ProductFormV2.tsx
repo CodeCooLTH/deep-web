@@ -203,7 +203,10 @@ export default function ProductFormV2({
           ? (product.attributes as Record<string, string>)
           : {},
       // capability defaults — edit mode อ่านจาก product, create mode = SHIPPED+ONE_TIME
-      fulfillmentMode: (product?.fulfillmentMode as ProductFormV2Values['fulfillmentMode']) ?? 'SHIPPED',
+      // ยกเว้นร้านที่ไม่มีจัดส่ง (SERVICE_QUEUE): payload ต้องตรงกับที่ UI สื่อสาร ไม่พึ่ง server ทับให้ (FR-BKU-04)
+      fulfillmentMode:
+        (product?.fulfillmentMode as ProductFormV2Values['fulfillmentMode']) ??
+        (noShipping ? 'NO_SHIPPING' : 'SHIPPED'),
       billingMode: (product?.billingMode as ProductFormV2Values['billingMode']) ?? 'ONE_TIME',
       billingPeriod: (product?.billingPeriod as ProductFormV2Values['billingPeriod']) ?? null,
       billingPeriodDays: product?.billingPeriodDays ?? null,
