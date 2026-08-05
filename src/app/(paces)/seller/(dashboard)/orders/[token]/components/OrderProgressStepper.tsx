@@ -76,14 +76,38 @@ const StepDot = ({ step }: { step: ProgressStep }) => (
   </span>
 )
 
-const StepTrack = ({ steps }: { steps: ProgressStep[] }) => (
-  <ol className="flex w-full items-center justify-between">
+/**
+ * แถบขั้นตอน — จุด + ป้าย อยู่ใน "คอลัมน์เดียวกัน" ทุกขั้น
+ *
+ * เวอร์ชันแรกแยกเป็น 2 แถว (แถวจุดใช้ justify-between / แถวป้ายใช้ flex-1 เท่ากัน) ผลคือจุดไป
+ * เกาะหัวช่องแต่ป้ายอยู่กลางช่อง — ไม่ตรงกันสักคู่ และป้ายขวาสุดถูกดันไปติดขอบการ์ดจนดูแหว่ง
+ * (user ส่งภาพหน้าจอมาให้ดู 2026-08-05)
+ *
+ * รอบนี้ทุกขั้นเป็นคอลัมน์กว้างเท่ากัน จุดอยู่กึ่งกลางคอลัมน์ ป้ายอยู่ใต้จุดพอดีเสมอ
+ * เส้นเชื่อมวาดแบบ absolute จากกึ่งกลางจุดนี้ไปกึ่งกลางจุดถัดไป (`start-1/2` + `w-full`
+ * = กว้างเท่าคอลัมน์พอดี) — วิธีนี้ทำให้ระยะห่างเท่ากันทุกช่วงโดยไม่ต้องรู้จำนวนขั้นล่วงหน้า
+ * `top-4.5` = 18px = กึ่งกลางแนวตั้งของจุด size-9 (36px) พอดี
+ */
+const StepTrack = ({
+  steps,
+  renderBody,
+}: {
+  steps: ProgressStep[]
+  renderBody?: (step: ProgressStep, index: number) => React.ReactNode
+}) => (
+  <ol className="flex w-full items-start">
     {steps.map((step, i) => {
       const isLast = i === steps.length - 1
       return (
-        <li className={cn('flex items-center', !isLast && 'w-full')} key={step.key}>
+        <li className="relative flex flex-1 flex-col items-center text-center" key={step.key}>
+          {!isLast && (
+            <span
+              aria-hidden="true"
+              className={cn('absolute start-1/2 top-4.5 h-0.5 w-full', lineClass(step, steps[i + 1]))}
+            />
+          )}
           <StepDot step={step} />
-          {!isLast && <span className={cn('mx-1 h-0.5 flex-1', lineClass(step, steps[i + 1]))} />}
+          {renderBody && <div className="mt-2.5 min-w-0 px-1">{renderBody(step, i)}</div>}
         </li>
       )
     })}
@@ -161,25 +185,14 @@ const OrderProgressStepper = (props: OrderProgressStepperProps) => {
   return (
     <div className="card">
       <div className="card-body">
-        {/* ═══ ≥768px: แถบ + ป้ายและวันที่ใต้ทุกจุด ═══ */}
+        {/* ═══ ≥768px: จุด + ป้าย/วันที่ อยู่คอลัมน์เดียวกัน ═══ */}
         <div className="hidden md:block">
-          <StepTrack steps={steps} />
-          <div className="mt-2.5 flex w-full items-start justify-between gap-1">
-            {steps.map((step, i) => {
-              const isFirst = i === 0
-              const isLast = i === steps.length - 1
+          <StepTrack
+            renderBody={(step) => {
               const isDate = step.state === 'done' || step.state === 'cancelled'
               const secondary = secondaryOf(step)
-
               return (
-                <div
-                  className={cn(
-                    'min-w-0 flex-1',
-                    // หัวท้ายชิดขอบ ไม่งั้นป้ายของจุดริมล้นออกนอกการ์ด
-                    isFirst ? 'text-left' : isLast ? 'text-right' : 'text-center',
-                  )}
-                  key={step.key}
-                >
+                <>
                   <p
                     className={
                       isSpotlight(step.state)
@@ -202,10 +215,11 @@ const OrderProgressStepper = (props: OrderProgressStepperProps) => {
                   >
                     {secondary ?? '—'}
                   </span>
-                </div>
+                </>
               )
-            })}
-          </div>
+            }}
+            steps={steps}
+          />
         </div>
 
         {/* ═══ <768px: แถบเดียวกัน แต่สรุปเหลือ 2 บรรทัด (user สั่งเอง — ห้ามกลับไปเป็นลิสต์ทุกขั้น) ═══ */}

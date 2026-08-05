@@ -190,13 +190,18 @@ export default function StatusHero({
               {/* ไทล์ช่องทางการขาย — reuse SalesChannelLogo ที่การ์ดชำระเงินใช้อยู่แล้ว
                   ช่องทางเป็น null (ออเดอร์เก่าก่อนมี field นี้) → ส่ง OTHER เพื่อให้ได้ไอคอนกลาง
                   ไม่ใช่ไทล์หาย ซึ่งจะทำให้เลย์เอาต์กระโดดระหว่างออเดอร์เก่ากับใหม่
-                  ขนาดคงที่ 48px ทุกจอ — Paces ไม่มี step ที่ 42px และ Hard Rule 7 ห้าม arbitrary */}
+                  ขนาดคงที่ 48px ทุกจอ — Paces ไม่มี step ที่ 42px และ Hard Rule 7 ห้าม arbitrary
+
+                  user 2026-08-05: ให้โลโก้เต็มสี่เหลี่ยม — เดิมโลโก้ 26px ลอยกลางกรอบ 48px
+                  ที่มีขอบ+เงา ทำให้เห็นเป็น "ไอคอนเล็กในกล่อง" ไม่ใช่โลโก้แบรนด์
+                  ตัดขอบ/เงา/พื้นออกแล้วให้รูปกินเต็มไทล์ (overflow-hidden กันมุมรูปล้นออกนอกโค้ง)
+                  fallback ที่เป็น Icon (ช่องทางที่ไม่มีไฟล์โลโก้) ยังได้กรอบเดิมไว้ไม่ให้ลอยเปล่า */}
               <span
-                className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-default-200 bg-card shadow-sm"
+                className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl"
                 title={`ขายผ่าน ${channelLabel}`}
                 aria-label={`ขายผ่าน ${channelLabel}`}
               >
-                <SalesChannelLogo channel={salesChannel || 'OTHER'} size={26} />
+                <SalesChannelLogo channel={salesChannel || 'OTHER'} className="size-full rounded-xl" size={48} />
               </span>
 
               <div className="flex min-w-0 flex-col gap-0.75">
