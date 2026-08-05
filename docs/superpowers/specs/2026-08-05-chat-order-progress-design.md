@@ -14,7 +14,7 @@
 | เรื่อง | ตัดสินใจ |
 |---|---|
 | ตำแหน่ง (mobile/tablet) | แถบปักใต้หัวเธรด **ยุบเป็นค่าตั้งต้น** แตะแล้วกางเห็นทุกใบ + timeline ในการ์ดออเดอร์ด้วย |
-| ตำแหน่ง (desktop) | **timeline ในการ์ดออเดอร์** (bubble ในเธรด + แท็บคำสั่งซื้อใน right panel) — ไม่มีแถบปัก เพราะ right panel เห็น progress ทุกใบอยู่แล้วแม้ bubble เลื่อนหาย |
+| ตำแหน่ง (desktop) | **timeline ในการ์ดออเดอร์** (bubble ในเธรด + แท็บคำสั่งซื้อใน right panel) — ไม่มีแถบปัก เพราะ right panel เห็น progress ทุกใบอยู่แล้วแม้ bubble เลื่อนหาย · **breakpoint จริง = 1280px (`xl:`)** ตรงกับ `xl:block` ของ CustomerPanel — ไม่ใช่ 1024 (ux gate ตรวจพบ 2026-08-05: ช่วง 1024-1279 iPad Pro ยังใช้ sheet จึงต้องได้แถบปัก) |
 | ขอบเขตออเดอร์ | ทุกใบที่ **ยังไม่จบงาน** (`deriveShippingStage() !== 'DONE'`) — ยุบเหลือใบล่าสุด 1 บรรทัด กางเห็นครบ |
 | รูปแบบ | **Stepper 4 ขั้น** ตาม `SHIPMENT_STAGES`: สร้างพัสดุ → รับเข้าระบบแล้ว → กำลังจัดส่ง → จัดส่งสำเร็จ + หัวบล็อกโลโก้ขนส่ง/เลขพัสดุ/ปุ่มคัดลอก (ตาม ref รูปที่ user ส่ง) |
 | สี | ยึดกติกา `describeProgress().tone` เดิม: กำลังเดินทาง = primary น้ำเงินทุกจุดที่ถึง / delivered = เขียวทั้งแถบ / ตีกลับ-หมดอายุ = เทา (ref ใช้เขียว+น้ำเงินผสม → ปรับตามธีมเราตามกฎ reference-vs-theme) |
@@ -37,7 +37,7 @@
 - **ยังไม่มีพัสดุ:** ชิปสถานะจาก `ORDER_STAGE_META` เช่น "สั่งซื้อแล้ว · รอเลขพัสดุ" (bg-primary/15 text-primary-ink)
 - **พัสดุมีปัญหา:** stepper ค้างจุดที่ไปถึง + กล่อง notice จาก `NOTICE_OF` (bg-danger/15 text-danger-ink)
 - **ยกเลิก:** ชิป danger เดิมของการ์ด — ไม่มี timeline
-- **ออเดอร์จอง (BOOKING/SERVICE):** ไม่มีการส่งของ → ชิปสถานะอย่างเดียว ไม่มี stepper
+- **งานไม่มีการส่งของ:** ตัดสินด้วย **`fulfillmentMode === 'NO_SHIPPING'` เท่านั้น ห้ามเช็ค `Order.type`** (guard ใน `src/lib/iship/eligibility.ts` — ร้านบริการที่ส่งอุปกรณ์ได้มี SHIPPED) → ชิปสถานะอย่างเดียว ไม่มี stepper
 - data prop ขยาย: `shipment` เพิ่ม `carrierStatus`, `shipmentStatus`, `courierCode` (ให้ `describeProgress` + `courierLogoUrl` ทำงานได้)
 
 ### 2) แถบปักใต้หัวเธรด (mobile/tablet เท่านั้น — ซ่อนที่ breakpoint ที่ right panel โผล่)
@@ -74,3 +74,10 @@
 - Commit มี `Base:` ชี้ `ShipmentStatusView.tsx` / `ThreadStatusBar.tsx` (HR3)
 - Paces primitive เท่านั้น ห้าม arbitrary value (HR7) · ห้าม emoji ใช้ tabler icon (HR12)
 - toast = `pacesToast` (HR9)
+
+## Resolution (2026-08-05 — เคาะระหว่าง implement, โหมด autonomous)
+
+- ชิปสถานะในการ์ดออเดอร์ **ไม่หมดอายุ** — เรียก `deriveOrderStage(order, now = statusAt)` ปิด age-decay (ป้ายในลิสต์แชทยังหายตามเดิม — คนละบริบท)
+- ใบ AWAITING_COD ในการ์ด: stepper เขียวเต็ม (ของถึงจริง) + notice info "ส่งถึงแล้ว — รอยืนยันรับเงินปลายทาง" กันงงว่าทำไมยังค้างในแถบ
+- แถบกางเกิน ~4 ใบ: scroll ภายใน `max-h-80 overflow-y-auto` (ไม่ cap จำนวน)
+- แถบยุบใช้ `bg-primary/15` (ไม่ใช่ /12 ตามแผน) — ให้ตรง pattern `/15` ของ ThreadStatusBar/ชิปทั้งระบบ
