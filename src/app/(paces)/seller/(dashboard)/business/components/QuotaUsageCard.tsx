@@ -103,7 +103,7 @@ export default function QuotaUsageCard({ ownedCount, maxBusinesses, businesses, 
                   </span>
                   {b.locked && <span className="badge bg-danger/15 text-danger">ถูกล็อก</span>}
                 </div>
-                <Link href={`/business/${b.shopId}/invites`} className="text-primary text-sm font-medium hover:underline">
+                <Link href={`/business/${b.shopId}/settings`} className="text-primary text-sm font-medium hover:underline">
                   จัดการ
                 </Link>
               </div>
