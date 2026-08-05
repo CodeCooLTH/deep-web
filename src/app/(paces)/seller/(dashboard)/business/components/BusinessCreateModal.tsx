@@ -12,7 +12,8 @@
  * ฟอร์มนี้ที่ **เลือกแล้วแก้ไม่ได้** (409 VERTICAL_LOCKED) — ไม่ควรถูกกรอกผ่าน ๆ ปนกับชื่อร้าน
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/ui/modals/page.tsx (modal shell: backdrop + panel)
- *       + src/app/(paces)/seller/onboarding/page.tsx (step dots / ปุ่มถัดไป-ย้อนกลับ)
+ *       + theme/paces/Admin/TS/src/app/(admin)/form/wizard/components/WizardWithProgressbar.tsx
+ *         (แถบความคืบหน้า + chip เส้นประต่อ step + ปุ่ม Back/Next ท้ายฟอร์ม)
  *       + CreateBusinessForm.tsx เดิม (ลบแล้วในคอมมิตเดียวกัน — schema/onSubmit/ERROR_MESSAGE ยกมา
  *         ทั้งชุด ไฟล์นี้จึงเป็นนิยามเดียวของกฎฟอร์มนี้ ไม่ใช่สำเนาที่สอง)
  * Mockup: docs/superpowers/specs/2026-08-04-business-create-modal-mockup.html
@@ -52,7 +53,14 @@ const schema = Yup.object({
   vertical: Yup.string()
     .oneOf(SHOP_VERTICAL_KEYS, 'กรุณาเลือกประเภทกิจการ')
     .required('กรุณาเลือกประเภทกิจการ'),
-  description: Yup.string().max(500, 'คำอธิบายต้องไม่เกิน 500 ตัวอักษร').default(''),
+  // บังคับกรอก (user สั่ง 2026-08-05) — ค่านี้ไปโผล่บนโปรไฟล์สาธารณะจริง (shop.description
+  // → bio → AboutOverview.tsx) ร้านที่ไม่มีคำอธิบายจึงหน้าโปรไฟล์โล่ง
+  // บังคับที่ฟอร์มนี้เท่านั้น ไม่ใช่ที่ schema — ทางเข้าอื่นยังสร้างร้านโดยไม่มีคำอธิบายได้ตามเดิม
+  description: Yup.string()
+    .trim()
+    .min(1, 'กรุณากรอกคำอธิบายธุรกิจ')
+    .max(500, 'คำอธิบายต้องไม่เกิน 500 ตัวอักษร')
+    .required('กรุณากรอกคำอธิบายธุรกิจ'),
 })
 
 type FormValues = Yup.InferType<typeof schema>
@@ -64,11 +72,18 @@ const ERROR_MESSAGE: Record<string, string> = {
   SHOP_CREATE_BLOCKED_PENDING_PHASE2: 'ยังไม่รองรับขั้นตอนนี้ในเวอร์ชันปัจจุบัน',
 }
 
+/**
+ * โครง step ตาม WizardWithProgressbar ของธีม (icon + title + subtitle ต่อ step)
+ * ไอคอนเลือกจากที่ "มีที่ใช้อยู่แล้วในโปรเจกต์" ไม่ได้เดาชื่อใหม่:
+ *   building-store / category — ใช้ใน STEP_META ของ seller/onboarding
+ *   user-circle — ใช้ใน WizardWithProgressbar ของธีมเอง (step ข้อมูลผู้กรอก)
+ *   circle-check — ใช้ใน BusinessOnboardingWizard (สถานะอัปโหลดโลโก้สำเร็จ)
+ */
 const STEPS = [
-  { n: 1, cap: 'ข้อมูลธุรกิจ', capShort: 'ข้อมูล' },
-  { n: 2, cap: 'ประเภทกิจการ', capShort: 'ประเภท' },
-  { n: 3, cap: 'ผู้ประกอบการ', capShort: 'ผู้ประกอบการ' },
-  { n: 4, cap: 'ตรวจทาน', capShort: 'ตรวจทาน' },
+  { n: 1, cap: 'ข้อมูลธุรกิจ', sub: 'ชื่อและหมวดหมู่', icon: 'building-store' },
+  { n: 2, cap: 'ประเภทกิจการ', sub: 'เลือกครั้งเดียว', icon: 'category' },
+  { n: 3, cap: 'ผู้ประกอบการ', sub: 'บุคคล/นิติบุคคล', icon: 'user-circle' },
+  { n: 4, cap: 'ตรวจทาน', sub: 'ก่อนกดสร้าง', icon: 'circle-check' },
 ] as const
 
 const VERTICAL_SUMMARY: Record<string, string> = {
@@ -155,7 +170,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
         businessType: v.businessType,
         vertical: v.vertical,
         categories: v.categories,
-        ...(v.description ? { description: v.description } : {}),
+        description: v.description,
       }
       const res = await fetch('/api/business/shops', {
         method: 'POST',
@@ -191,58 +206,73 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
         role="dialog"
         aria-modal="true"
         aria-labelledby="bcm-title"
-        className="bg-card relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-lg shadow-lg"
+        className="card pointer-events-auto relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden"
       >
-        {/* ── หัว: ชื่อ + แถบขั้นตอน ── */}
-        <div className="shrink-0 px-5 pt-5 sm:px-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h4 id="bcm-title" className="text-default-900 text-base font-semibold">สร้างธุรกิจใหม่</h4>
-            <button
-              type="button"
-              onClick={requestClose}
-              aria-label="ปิด"
-              className="text-default-400 hover:bg-default-100 hover:text-dark flex size-8 items-center justify-center rounded-full"
-            >
-              <Icon icon="x" className="size-4" />
-            </button>
-          </div>
+        {/* หัว modal — โครงจาก AddClientModal ของธีม: border-b + card-title + ปุ่ม x */}
+        <div className="border-default-300 flex shrink-0 items-center justify-between border-b p-5">
+          <h3 id="bcm-title" className="card-title">
+            สร้างธุรกิจใหม่
+          </h3>
+          <button type="button" onClick={requestClose} aria-label="ปิด">
+            <Icon icon="x" className="text-xl" />
+          </button>
+        </div>
 
-          <ol className="flex items-start pb-5">
-            {STEPS.map((s) => {
-              const done = step > s.n
-              const now = step === s.n
-              return (
-                <li key={s.n} className="relative flex min-w-0 flex-1 flex-col items-center gap-1.5">
-                  {/* เส้นเชื่อมขั้น: right-1/2 + w-full = ขอบขวาอยู่กึ่งกลางจุดนี้ แล้วลากย้อนเต็มความกว้าง
-                      ไปถึงกึ่งกลางจุดก่อนหน้าพอดี — ใช้ utility มาตรฐานล้วน ไม่ต้องพึ่ง arbitrary value */}
-                  {s.n > 1 && (
-                    <span
-                      aria-hidden="true"
-                      className={`absolute top-3 right-1/2 h-0.5 w-full ${done || now ? 'bg-primary' : 'bg-default-200'}`}
-                    />
-                  )}
-                  <span
-                    className={`relative z-10 flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
-                      done || now ? 'bg-primary text-white' : 'bg-default-200 text-default-500'
-                    } ${now ? 'ring-primary/15 ring-4' : ''}`}
-                  >
-                    {done ? <Icon icon="check" className="size-3.5" /> : s.n}
-                  </span>
-                  <span
-                    className={`w-full truncate text-center text-2xs ${now ? 'text-default-900 font-semibold' : 'text-default-400'}`}
-                  >
-                    <span className="hidden sm:inline">{s.cap}</span>
-                    <span className="sm:hidden">{s.capShort}</span>
-                  </span>
-                </li>
-              )
-            })}
-          </ol>
+        {/* แถบความคืบหน้า — WizardWithProgressbar ของธีม */}
+        <div className="shrink-0 px-5 pt-5">
+
+          {/* Base: theme/paces/Admin/TS/src/app/(admin)/form/wizard/components/WizardWithProgressbar.tsx
+              — progress bar (h-1.5 rounded-full + hs-stepper-progress-bar) + chip เส้นประต่อ step
+              ปรับ content เป็นไทยและเหลือ 4 step; ตัดพฤติกรรมกดที่ chip เพื่อกระโดดข้ามขั้นออก
+              เพราะ wizard นี้ validate ทีละขั้น (ธีมเป็นเดโมที่ไม่มี validation) */}
+          <div data-hs-stepper="" className="pb-5">
+            <div className="mb-4">
+              <div className="bg-default-100 flex h-1.5 w-full overflow-hidden rounded-full">
+                <div
+                  className="hs-stepper-progress-bar bg-primary flex flex-col justify-center overflow-hidden whitespace-nowrap text-center text-xs text-white transition-all duration-300"
+                  style={{ width: `${(step / STEPS.length) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            <ul className="relative flex flex-wrap gap-1.25">
+              {STEPS.map((s2) => {
+                const done = step > s2.n
+                const now = step === s2.n
+                return (
+                  <li key={s2.n}>
+                    <span className="group inline-flex items-center align-middle text-xs">
+                      <span
+                        className={`flex shrink-0 items-center justify-center gap-2 rounded border border-dashed px-3 py-1.5 font-medium ${
+                          now
+                            ? 'bg-default-50 text-default-700 border-default-300'
+                            : done
+                              ? 'bg-success/10 text-success border-success'
+                              : 'border-default-300 text-default-400'
+                        }`}
+                      >
+                        <Icon icon={done ? 'circle-check-filled' : s2.icon} className="size-5" />
+                        <span className="text-start">
+                          <span className="block text-xs font-semibold">{s2.cap}</span>
+                          <span className="text-2xs">{s2.sub}</span>
+                        </span>
+                      </span>
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
         </div>
 
         {/* ── เนื้อ ── */}
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-1 flex-col">
-          <div className="border-default-300 min-h-0 flex-1 overflow-y-auto border-t px-5 py-5 sm:px-6">
+          {/* ความสูงคงที่ — วัดจากของจริงบน prod แล้วแต่ละขั้นสูงไม่เท่ากันมาก (body 240/310/399/718)
+              ทำให้กล่องกระโดดขึ้นลงเกือบ 500px ระหว่างกดถัดไป (user ทักเอง 2026-08-05)
+              เลือก h-100 (400px) เพราะขั้นตรวจทาน (399px) ซึ่งเป็นจังหวะตัดสินใจสุดท้ายพอดีไม่ต้องเลื่อน
+              ขั้น 1 (กริดหมวด 25 ชิป) เลื่อนภายในเอา — ยอมให้ขั้นเดียวเลื่อน ดีกว่ากล่องเต้นทุกขั้น
+              max-h-full กันจอเตี้ยกว่านั้นไม่ให้ล้นออกนอกจอ */}
+          <div className="card-body h-100 max-h-full min-h-0 shrink overflow-y-auto">
             {step === 1 && (
               <>
                 <p className="text-default-900 mb-1 text-xl font-semibold">ธุรกิจนี้ชื่ออะไร</p>
@@ -286,11 +316,14 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
             {step === 2 && (
               <>
                 <p className="text-default-900 mb-1 text-xl font-semibold">ธุรกิจของคุณเป็นแบบไหน</p>
-                <p className="text-default-400 mb-4 text-xs">กำหนดว่าธุรกิจนี้จะได้เมนูและความสามารถชุดไหน</p>
+                <p className="text-default-400 mb-4 text-xs">ระบุรูปแบบธุรกิจ เพื่อฟังก์ชันการทำงานที่เหมาะสม</p>
 
                 {/* เตือนก่อนตัดสินใจ ไม่ใช่หลัง — และเป็นคำเดียวกับฝั่ง onboarding */}
-                <div className="bg-warning/15 text-warning-ink mb-4 flex items-start gap-2 rounded p-2.5 text-xs">
-                  <Icon icon="lock" className="mt-0.5 size-3.5 shrink-0" />
+                {/* Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx:48 (bg-{semantic}/15 + rounded px-4 py-3)
+                    ต่างจากธีมจุดเดียว: ใช้ text-warning-ink แทน text-warning ตาม DESIGN.md
+                    (ตัวหนังสือบนพื้น /15 ต้องใช้ตระกูล -ink ให้ผ่านคอนทราสต์) */}
+                <div className="bg-warning/15 text-warning-ink mb-4 flex items-center gap-2 rounded px-4 py-3 text-xs" role="alert">
+                  <Icon icon="lock" className="size-3.5 shrink-0" />
                   <span>{VERTICAL_LOCK_NOTICE}</span>
                 </div>
 
@@ -336,7 +369,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
                 </div>
                 <div>
                   <label className="form-label" htmlFor="bcm-desc">
-                    คำอธิบาย <span className="text-default-400 font-normal">(ไม่บังคับ)</span>
+                    คำอธิบาย<span className="text-danger ms-0.5">*</span>
                   </label>
                   <textarea
                     id="bcm-desc"
@@ -356,7 +389,9 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
                 <p className="text-default-400 mb-5 text-xs">
                   มีข้อมูลหนึ่งอย่างที่แก้ทีหลังไม่ได้ ตรวจให้แน่ใจก่อนกดสร้าง
                 </p>
-                <dl className="border-default-300 divide-default-300 divide-y overflow-hidden rounded-lg border">
+                {/* Base: src/app/(paces)/seller/(dashboard)/account/components/ConnectedAccountsClient.tsx:342
+                    (โครงแถว: flex items-center justify-between + border-b py-3 last:border-0) */}
+                <dl className="border-default-200 rounded border px-4">
                   <Row k="ชื่อธุรกิจ" v={values.shopName} />
                   <Row
                     k="หมวดหมู่"
@@ -368,7 +403,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
                         : null
                     }
                   />
-                  <div className="bg-warning/15 flex items-start justify-between gap-4 px-3.5 py-2.5">
+                  <div className="border-default-200 flex items-center justify-between gap-3 border-b py-3 last:border-0">
                     <dt className="text-default-400 shrink-0 text-xs">ประเภทกิจการ</dt>
                     <dd className="text-default-900 text-right text-sm font-medium">
                       {VERTICAL_SUMMARY[values.vertical] ?? '—'}
@@ -392,12 +427,12 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
           </div>
 
           {/* ── ท้าย ── */}
-          <div className="border-default-300 bg-default-100 flex shrink-0 items-center justify-between gap-2 border-t px-5 py-3 sm:px-6">
+          <div className="border-default-300 flex shrink-0 items-center justify-between gap-x-2 border-t p-5">
             <button
               type="button"
               onClick={() => setStep((s) => Math.max(1, s - 1))}
               disabled={step === 1 || isSubmitting}
-              className="btn text-default-500 hover:text-dark inline-flex items-center gap-1 bg-transparent disabled:opacity-40"
+              className="btn bg-light hover:text-primary inline-flex items-center gap-1 disabled:opacity-40"
             >
               <Icon icon="chevron-left" className="size-4" />
               ย้อนกลับ
@@ -431,7 +466,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
 /** แถวสรุปในขั้นตรวจทาน — ค่าที่ไม่ได้กรอกบอกตรง ๆ ว่า "ไม่ได้กรอก" ไม่ใช่ปล่อยว่างให้เดา */
 function Row({ k, v }: { k: string; v: string | null }) {
   return (
-    <div className="flex items-start justify-between gap-4 px-3.5 py-2.5">
+    <div className="border-default-200 flex items-center justify-between gap-3 border-b py-3 last:border-0">
       <dt className="text-default-400 shrink-0 text-xs">{k}</dt>
       <dd className={`text-right text-sm ${v ? 'text-default-900 font-medium' : 'text-default-400'}`}>
         {v || 'ไม่ได้กรอก'}

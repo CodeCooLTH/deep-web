@@ -18,9 +18,12 @@
  * controlled component: `value` เป็น null ได้เมื่อผู้ใช้เลือกหมวด "รับนัดหมายและจอง" แล้ว
  * แต่ยังไม่เลือกหมวดย่อย — parent ใช้ null นี้ปิดปุ่มถัดไป (ไม่ต้องคำนวณเอง)
  *
- * Base: โครง radio-card เดิมของ CreateBusinessForm.tsx (ลบไปแล้ว — ดู git history) ที่ Paces
- *       ใช้ทั่วไป: label > input[radio] + ขอบ 2px + พื้นจาง. ปรับ: ลด 3→2 ใบต่อขั้น, ตัด badge,
- *       เพิ่มไอคอน, คั่นด้วยเส้นประ + พื้นจมสำหรับขั้นย่อย
+ * Base: ธีม Paces ไม่มี component "radio card" ให้ copy ตรง ๆ (radio ของธีมเป็น form-radio
+ *       แถวเรียบ ๆ — form/elements/components/ChecksRadioSwitches.tsx:193-231) จึงประกอบจาก
+ *       primitive ของธีม 2 ชิ้น:
+ *         - สถานะเลือกอยู่ = ui/cards/page.tsx:67 `card border-primary border-2`
+ *         - เส้นประคั่น    = .card-header ของ Paces (border-b border-dashed border-default-300)
+ *       ปรับ content: 2 ใบต่อขั้น, ไอคอนนำ, พื้นจมหนึ่งระดับสำหรับขั้นย่อย
  * Spec: docs/superpowers/specs/2026-08-04-feature-00030-vertical-picker-design.md
  * Copy: docs/20 - Features/00030 - Booking Business UX Unification/UX-Copy.md §7
  */
@@ -36,8 +39,7 @@ import { useState } from 'react'
  *
  * ของเดิมเป็นคนละประโยคกัน และฝั่ง business วางไว้ **ใต้** การ์ด = เตือนหลังคนตัดสินใจไปแล้ว
  */
-export const VERTICAL_LOCK_NOTICE =
-  'เลือกได้ครั้งเดียว เปลี่ยนภายหลังไม่ได้ — ถ้าเลือกผิดต้องสร้างร้านใหม่'
+export const VERTICAL_LOCK_NOTICE = 'ไม่สามารถเปลี่ยนแปลงภายหลังได้'
 
 /** หมวดใหญ่ขั้นที่ 1 — ไม่ใช่ค่าที่บันทึกลง DB เป็นแค่ทางแยกของคำถาม */
 type Category = 'SALES' | 'BOOKING'
