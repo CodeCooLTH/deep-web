@@ -53,7 +53,14 @@ const schema = Yup.object({
   vertical: Yup.string()
     .oneOf(SHOP_VERTICAL_KEYS, 'กรุณาเลือกประเภทกิจการ')
     .required('กรุณาเลือกประเภทกิจการ'),
-  description: Yup.string().max(500, 'คำอธิบายต้องไม่เกิน 500 ตัวอักษร').default(''),
+  // บังคับกรอก (user สั่ง 2026-08-05) — ค่านี้ไปโผล่บนโปรไฟล์สาธารณะจริง (shop.description
+  // → bio → AboutOverview.tsx) ร้านที่ไม่มีคำอธิบายจึงหน้าโปรไฟล์โล่ง
+  // บังคับที่ฟอร์มนี้เท่านั้น ไม่ใช่ที่ schema — ทางเข้าอื่นยังสร้างร้านโดยไม่มีคำอธิบายได้ตามเดิม
+  description: Yup.string()
+    .trim()
+    .min(1, 'กรุณากรอกคำอธิบายธุรกิจ')
+    .max(500, 'คำอธิบายต้องไม่เกิน 500 ตัวอักษร')
+    .required('กรุณากรอกคำอธิบายธุรกิจ'),
 })
 
 type FormValues = Yup.InferType<typeof schema>
@@ -163,7 +170,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
         businessType: v.businessType,
         vertical: v.vertical,
         categories: v.categories,
-        ...(v.description ? { description: v.description } : {}),
+        description: v.description,
       }
       const res = await fetch('/api/business/shops', {
         method: 'POST',
@@ -260,7 +267,12 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
 
         {/* ── เนื้อ ── */}
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-1 flex-col">
-          <div className="card-body min-h-0 flex-1 overflow-y-auto">
+          {/* ความสูงคงที่ — วัดจากของจริงบน prod แล้วแต่ละขั้นสูงไม่เท่ากันมาก (body 240/310/399/718)
+              ทำให้กล่องกระโดดขึ้นลงเกือบ 500px ระหว่างกดถัดไป (user ทักเอง 2026-08-05)
+              เลือก h-100 (400px) เพราะขั้นตรวจทาน (399px) ซึ่งเป็นจังหวะตัดสินใจสุดท้ายพอดีไม่ต้องเลื่อน
+              ขั้น 1 (กริดหมวด 25 ชิป) เลื่อนภายในเอา — ยอมให้ขั้นเดียวเลื่อน ดีกว่ากล่องเต้นทุกขั้น
+              max-h-full กันจอเตี้ยกว่านั้นไม่ให้ล้นออกนอกจอ */}
+          <div className="card-body h-100 max-h-full min-h-0 shrink overflow-y-auto">
             {step === 1 && (
               <>
                 <p className="text-default-900 mb-1 text-xl font-semibold">ธุรกิจนี้ชื่ออะไร</p>
@@ -304,7 +316,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
             {step === 2 && (
               <>
                 <p className="text-default-900 mb-1 text-xl font-semibold">ธุรกิจของคุณเป็นแบบไหน</p>
-                <p className="text-default-400 mb-4 text-xs">กำหนดว่าธุรกิจนี้จะได้เมนูและความสามารถชุดไหน</p>
+                <p className="text-default-400 mb-4 text-xs">ระบุรูปแบบธุรกิจ เพื่อฟังก์ชันการทำงานที่เหมาะสม</p>
 
                 {/* เตือนก่อนตัดสินใจ ไม่ใช่หลัง — และเป็นคำเดียวกับฝั่ง onboarding */}
                 {/* Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx:48 (bg-{semantic}/15 + rounded px-4 py-3)
@@ -357,7 +369,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
                 </div>
                 <div>
                   <label className="form-label" htmlFor="bcm-desc">
-                    คำอธิบาย <span className="text-default-400 font-normal">(ไม่บังคับ)</span>
+                    คำอธิบาย<span className="text-danger ms-0.5">*</span>
                   </label>
                   <textarea
                     id="bcm-desc"
