@@ -145,13 +145,25 @@ export async function GET(
       ? await prisma.order.findMany({
           where: { publicToken: { in: orderTokens } },
           // user 2026-07-25: การ์ดต้องมีรายการสินค้าข้างใน (ชื่อ/จำนวน/ราคา/รูป) + จำนวนรวม + ยอดสุทธิ
+          // Order Progress (2026-08-05): เพิ่ม fulfillmentMode + shipment ให้การ์ดในเธรดแสดง
+          // timeline พัสดุได้เหมือนการ์ดใน right panel (เดิม orderMap ไม่เคยมี shipment เลย)
           select: {
             publicToken: true,
             orderNo: true,
             status: true,
+            fulfillmentMode: true,
             totalAmount: true,
+            updatedAt: true,
+            paymentMethod: true,
+            codReceivedAt: true,
             items: {
               select: { name: true, qty: true, price: true, product: { select: { images: true } } },
+            },
+            shipments: {
+              where: { status: { not: "CANCELLED" } },
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true },
             },
           },
         })
@@ -163,7 +175,11 @@ export async function GET(
           token: o.publicToken,
           orderNo: o.orderNo, // เลขคำสั่งซื้อ DP… (user 2026-07-25)
           status: o.status,
+          fulfillmentMode: o.fulfillmentMode,
           totalAmount: o.totalAmount.toFixed(2),
+          statusAt: o.updatedAt.toISOString(),
+          paymentMethod: o.paymentMethod,
+          codReceivedAt: o.codReceivedAt ? o.codReceivedAt.toISOString() : null,
           items: o.items.map((it) => ({
             name: it.name,
             qty: it.qty,
@@ -171,6 +187,15 @@ export async function GET(
             // Product.images = Json (array of fileId) → cast; custom line (productId null) = null
             imageFileId: (it.product?.images as string[] | undefined)?.[0] ?? null,
           })),
+          shipment: o.shipments[0]
+            ? {
+                trackingNo: o.shipments[0].trackingNo,
+                courierName: o.shipments[0].courierName,
+                courierCode: o.shipments[0].courierCode,
+                status: o.shipments[0].status,
+                carrierStatus: o.shipments[0].carrierStatus,
+              }
+            : null,
         },
       ]),
     );

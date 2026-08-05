@@ -255,16 +255,21 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
           fulfillmentMode: true,
           totalAmount: true,
           createdAt: true,
+          updatedAt: true,
           checkIn: true,
           checkOut: true,
+          // Order Progress (2026-08-05) — AWAITING_COD ต้องรู้วิธีชำระ + เวลากดรับเงิน
+          paymentMethod: true,
+          codReceivedAt: true,
           // การ์ด right panel แสดงเหมือนในแชท (user 2026-07-25): ชื่อ/จำนวน/ราคา/รูปสินค้า
           items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
           // feature 00022 — shape เดียวกับ getOrdersByCustomer (lazy-load ต่อจากชุดนี้)
+          // status/carrierStatus/courierCode เพิ่ม 2026-08-05: stepper + โลโก้ขนส่งในการ์ด/แถบปัก
           shipments: {
             where: { status: { not: 'CANCELLED' } },
             orderBy: { createdAt: 'desc' },
             take: 1,
-            select: { trackingNo: true, courierName: true },
+            select: { trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true },
           },
         },
       })
@@ -278,8 +283,11 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
     fulfillmentMode: o.fulfillmentMode,
     totalAmount: o.totalAmount.toFixed(2),
     createdAt: o.createdAt.toISOString(),
+    statusAt: o.updatedAt.toISOString(),
     checkIn: o.checkIn ? o.checkIn.toISOString() : null,
     checkOut: o.checkOut ? o.checkOut.toISOString() : null,
+    paymentMethod: o.paymentMethod,
+    codReceivedAt: o.codReceivedAt ? o.codReceivedAt.toISOString() : null,
     items: o.items.map((it) => ({
       name: it.name,
       qty: it.qty,
@@ -287,7 +295,13 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
       imageFileId: (it.product?.images as string[] | undefined)?.[0] ?? null,
     })),
     shipment: o.shipments[0]
-      ? { trackingNo: o.shipments[0].trackingNo, courierName: o.shipments[0].courierName }
+      ? {
+          trackingNo: o.shipments[0].trackingNo,
+          courierName: o.shipments[0].courierName,
+          courierCode: o.shipments[0].courierCode,
+          status: o.shipments[0].status,
+          carrierStatus: o.shipments[0].carrierStatus,
+        }
       : null,
   }))
 

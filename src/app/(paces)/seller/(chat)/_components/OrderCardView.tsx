@@ -17,8 +17,23 @@ export type OrderCardViewData = {
   status: string
   totalAmount: string // "1234.00"
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
-  /** พัสดุ iShip ที่เปิดแล้ว (feature 00022) — ไม่ส่งมา = ไม่แสดงแถวนี้ */
-  shipment?: { trackingNo: string | null; courierName: string | null } | null
+  /** พัสดุ iShip ที่เปิดแล้ว (feature 00022) — ขยาย 2026-08-05 (Order Progress): status/carrierStatus/
+   *  courierCode ให้ section พัสดุแสดง timeline 4 ขั้น + โลโก้ขนส่งได้ ไม่ใช่แค่บรรทัดเลข */
+  shipment?: {
+    trackingNo: string | null
+    courierName: string | null
+    courierCode?: string | null
+    status?: string
+    carrierStatus?: string | null
+  } | null
+  /** 'SHIPPED' | 'NO_SHIPPING' — NO_SHIPPING = งานไม่มีการส่งของ ไม่แสดง stepper (ห้ามเช็ค Order.type
+   *  — ดู src/lib/iship/eligibility.ts) · ไม่ส่งมา (caller เก่า) = ปฏิบัติเหมือน SHIPPED */
+  fulfillmentMode?: string
+  paymentMethod?: string | null
+  codReceivedAt?: string | null
+  /** Order.updatedAt ISO — ใช้เป็น `now` ตอนเรียก deriveOrderStage เพื่อปิด age-decay (ชิปในการ์ด
+   *  ไม่หมดอายุ ต่างจากป้ายในรายการแชทโดยเจตนา — การ์ดว่างเปล่ากลางคันแย่กว่าป้ายค้าง) */
+  statusAt?: string
 }
 
 export default function OrderCardView({

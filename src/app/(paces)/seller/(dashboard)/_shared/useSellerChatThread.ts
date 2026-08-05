@@ -47,6 +47,21 @@ export type ChatOrderCard = {
   totalAmount: string // "1234.00" — Decimal serialize เป็น string
   // รายการสินค้าในออเดอร์ (user 2026-07-25) — name/qty/ราคาต่อชิ้น + รูป (null = custom line ไม่มีสินค้า)
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
+  // ── Order Progress (2026-08-05) — ให้การ์ดในเธรดแสดง timeline พัสดุได้เหมือน right panel ──
+  /** 'SHIPPED' | 'NO_SHIPPING' — NO_SHIPPING ไม่มี stepper (SSOT: fulfillmentMode ไม่ใช่ Order.type) */
+  fulfillmentMode?: string
+  /** พัสดุใบล่าสุดที่ไม่ถูกยกเลิก — null = ยังไม่เปิดพัสดุ */
+  shipment?: {
+    trackingNo: string | null
+    courierName: string | null
+    courierCode: string | null
+    status: string
+    carrierStatus: string | null
+  } | null
+  paymentMethod?: string | null
+  codReceivedAt?: string | null
+  /** Order.updatedAt ISO — ให้ deriveOrderStage เรียกแบบปิด age-decay */
+  statusAt?: string
 }
 
 // optimistic send (composer UX): payload ที่ใช้ resend เมื่อกด "ลองใหม่"
