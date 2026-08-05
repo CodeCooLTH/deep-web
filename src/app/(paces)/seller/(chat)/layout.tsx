@@ -44,6 +44,10 @@ import { resolveOrderVocab } from '@/lib/seller-menu'
 import { prisma } from '@/lib/prisma'
 import DraftOrderProvider from './_components/DraftOrderProvider'
 import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+// feature 00024 — บล็อกวันเข้าใช้บริการในโมดัลสร้างรายการจากแชท (user request 2026-08-05)
+import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
+import { listServiceResources } from '@/services/service-resource.service'
+import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentBlock'
 
 // map Product → CatalogProduct (เหมือน (fullscreen)/orders/new/page.tsx) — สำหรับโมดัลสร้างคำสั่งซื้อในแชท
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,9 +88,17 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   let hasShipping = false
   // feature 00030 — คำในโมดัลสร้างรายการจากแชทต้องตรงกับประเภทกิจการเหมือนหน้า /orders
   let shopVertical = ''
+  // feature 00024 — บล็อก "วันเข้าใช้บริการ" ในโมดัลสร้างรายการจากแชท (user request 2026-08-05)
+  // เดิมโมดัลนี้ไม่เคยส่ง 3 ค่านี้เข้า OrderCreateForm เลย บล็อกวันนัดจึงไม่มีทางโผล่ในแชท
+  // ทั้งที่หน้า /orders/new เต็มจอมีมาตั้งแต่ 00024 — ร้านบริการที่ทำงานอยู่ในแชทเป็นหลัก
+  // จึงปักวันที่ลูกค้าจะเข้ามาที่ร้านไม่ได้เลย ต้องออกไปเปิดหน้าใหม่
+  // (ยกวิธี fetch มาจาก (fullscreen)/orders/new/page.tsx ทั้งดุ้นเพื่อให้สองทางเข้าตรงกัน)
+  let serviceResourcesEnabled = false
+  let serviceResources: ServiceResourceOption[] = []
+  let appointmentGranularity: AppointmentGranularity = 'DAY'
   if (activeCtx?.shopId) {
     const shopId = activeCtx.shopId
-    let shopRow: { vertical: string } | null = null
+    let shopRow: { vertical: string; appointmentGranularity: string } | null = null
     ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow] = await Promise.all([
       getProductsByShop(shopId).then((ps) => ps.map(toCatalog)).catch(() => []),
       getBestSellerProducts(shopId, 8).then((ps) => ps.map(toCatalog)).catch(() => []),
@@ -96,10 +108,29 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
         .then((a) => a?.status === 'ACTIVE')
         .catch(() => false),
       prisma.shop
-        .findUnique({ where: { id: shopId }, select: { vertical: true } })
+        .findUnique({ where: { id: shopId }, select: { vertical: true, appointmentGranularity: true } })
         .catch(() => null),
     ])
     shopVertical = shopRow?.vertical ?? ''
+
+    // ระบบนัดหมายเปิดให้เฉพาะ vertical=SERVICE_QUEUE (BR-RSV-01) — ร้านอื่นไม่ได้รับทรัพยากรเลย
+    // ฟอร์มจึงไม่ render บล็อกวันนัด DOM เหมือนก่อนมีฟีเจอร์นี้ทุกจุด
+    serviceResourcesEnabled = canUseAppointments({ kind: activeCtx.kind, vertical: shopVertical })
+    if (serviceResourcesEnabled) {
+      appointmentGranularity = (shopRow?.appointmentGranularity as AppointmentGranularity) ?? 'DAY'
+      serviceResources = await listServiceResources(shopId, { activeOnly: true })
+        .then((rows) =>
+          rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            durationMinutes: r.durationMinutes,
+            capacity: r.capacity,
+            depositMode: r.depositMode,
+            depositValue: r.depositValue.toFixed(2),
+          })),
+        )
+        .catch(() => [])
+    }
   }
 
   const shell = (
@@ -162,6 +193,9 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       bestSellers={bestSellers}
       inventoryEnabled={inventoryEnabled}
       vocab={resolveOrderVocab(shopVertical)}
+      serviceResourcesEnabled={serviceResourcesEnabled}
+      serviceResources={serviceResources}
+      appointmentGranularity={appointmentGranularity}
     >
       {shell}
     </DraftOrderProvider>

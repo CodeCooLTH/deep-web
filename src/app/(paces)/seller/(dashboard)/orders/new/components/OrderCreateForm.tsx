@@ -324,7 +324,7 @@ export default function OrderCreateForm({
           },
         })
       } catch {
-        if (!cancelled) setSubmitError('โหลดข้อมูลคำสั่งซื้อไม่สำเร็จ')
+        if (!cancelled) setSubmitError(`โหลดข้อมูล${vocab.noun}ไม่สำเร็จ`)
       } finally {
         if (!cancelled) setEditLoaded(true)
       }
