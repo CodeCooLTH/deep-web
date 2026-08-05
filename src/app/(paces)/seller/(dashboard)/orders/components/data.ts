@@ -98,12 +98,12 @@ export const SALES_CHANNEL_LABELS: Record<string, string> = {
   OTHER: 'อื่นๆ',
 }
 
-// OrderStatCardData — RevenueStat layout (sparkline bar trend)
-// Base: theme/paces/Admin/TS/src/app/(admin)/widgets/charts/components/data.ts (RevenueStatisticType pattern)
+// OrderStatCardData — การ์ดสถิติหัวหน้า orders (ตัวเลข + ไอคอนวงกลม + %เปลี่ยนแปลง)
+// Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/data.ts
+//       (OrderStatType) — เดิมยึด RevenueStat (sparkline) ซึ่งเป็นคนละหน้า ดู OrdersStatCard.tsx
 export type OrderStatCardData = {
   title: string                                              // 'รอดำเนินการ' ฯลฯ
   status: 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
   totalCount: number                                         // ยอดรวมทั้งหมดของ status (headline h3)
-  changePct: number                                          // %, +/-/0 (7วันล่าสุด vs 7วันก่อนหน้า)
-  trendSeries: number[]                                      // length 7 (sparkline) — number ล้วน ข้าม RSC boundary ปลอดภัย
+  changePct: number                                          // %, +/-/0 (30วันล่าสุด vs 30วันก่อนหน้า)
 }
