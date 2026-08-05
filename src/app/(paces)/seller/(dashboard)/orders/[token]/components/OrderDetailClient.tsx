@@ -35,8 +35,8 @@ import type { OrderVocab } from '@/lib/seller-menu'
 import type { ShipmentContextJson } from '@/lib/iship/context'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
 import dynamic from 'next/dynamic'
-import StatusHero from './StatusHero'
-import OrderProgressStepper from './OrderProgressStepper'
+import OrderSummary from './OrderSummary'
+import type { OrderFactsItem } from './order-detail-shared'
 import { getOrderActionSet } from './order-action-set'
 import type { ShipmentSource } from './order-action-set'
 
@@ -101,24 +101,20 @@ export interface OrderDetailClientProps {
   /** ที่อยู่จัดส่งรวมเป็นบรรทัดเดียว (สำหรับ copy-address) — null = ไม่มีที่อยู่ให้คัดลอก */
   addressText: string | null
 
-  // ── OrderProgressStepper (แถบสถานะเต็มความกว้างใต้หัวการ์ด) ───────────────
-  /** เวลาที่ออเดอร์ถูกแตะล่าสุด — ใช้เป็นเวลาของขั้นที่ตรงกับสถานะปัจจุบัน */
-  updatedAtISO: string
-  /**
-   * สถานะฝั่งขนส่ง iShip ('delivered' | 'picked_up' | ...) — null = ไม่มีพัสดุ iShip
-   * มีผลเฉพาะออเดอร์ COD: ส่งถึงมือผู้ซื้อแล้ว = ขนส่งเก็บเงินให้แล้ว แม้ผู้ซื้อยังไม่กดยืนยันรับของ
-   */
-  carrierStatus: string | null
   /** ออเดอร์เก็บเงินปลายทางที่ร้านยังไม่ได้กดว่าได้เงิน → มีปุ่ม "ได้รับเงินปลายทางแล้ว" */
   isCodUnpaid: boolean
-  /** เวลาที่เปิดพัสดุ/แจ้งเลขพัสดุ — วันที่ของขั้น "จัดส่งแล้ว" ในแถบสถานะ */
-  shippedAtISO: string | null
-  /** เวลาที่ได้เงินปลายทาง (ร้านกดเอง) หรือเวลาที่ขนส่งส่งถึง — วันที่ของขั้น "เก็บเงินปลายทาง" */
-  codMoneyAtISO: string | null
 
-  /** grid เนื้อหา (OrderFactsCard/OrderReviewCard) — ส่งมาจาก page.tsx (RSC)
-      ตรง ๆ ผ่าน children เพื่อให้ subtree นั้นยัง server-render ได้ ไม่ลากเข้า client bundle */
-  children: React.ReactNode
+  // ── OrderSummary (การ์ดหัวตามโครงธีม: หัว + ปุ่ม + ตารางสินค้า + ยอดรวม) ──────
+  items: OrderFactsItem[]
+  discount: unknown
+  vatRate: unknown
+  vatAmount: unknown
+  /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) */
+  orderNoun?: string
+
+  /** การ์ดที่ยัง server-render ได้ — ส่งมาจาก page.tsx เป็น ReactNode ไม่ลากเข้า client bundle */
+  shippingActivity: React.ReactNode
+  sideCards: React.ReactNode
 }
 
 export default function OrderDetailClient({
@@ -142,12 +138,14 @@ export default function OrderDetailClient({
   trackingNo,
   provider,
   addressText,
-  updatedAtISO,
-  carrierStatus,
   isCodUnpaid,
-  shippedAtISO,
-  codMoneyAtISO,
-  children,
+  items,
+  discount,
+  vatRate,
+  vatAmount,
+  orderNoun,
+  shippingActivity,
+  sideCards,
 }: OrderDetailClientProps) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
@@ -323,45 +321,33 @@ export default function OrderDetailClient({
 
   return (
     <>
-      <StatusHero
-        orderNoun={vocab.noun}
-        publicToken={publicToken}
-        shortCode={shortCode}
-        status={status}
-        type={type}
-        createdAtISO={createdAtISO}
-        fulfillmentMode={fulfillmentMode}
-        isFromAuction={isFromAuction}
-        salesChannel={salesChannel}
-        buyerLabel={buyerLabel}
-        totalAmount={totalAmount}
-        paymentMethod={paymentMethod}
-        slipFileId={slipFileId}
-        shipmentSource={shipmentSource}
-        onAction={handleAction}
-      />
-
-      {/* แถบสถานะเต็มความกว้าง คั่นระหว่างหัวการ์ดกับเนื้อหา (user 2026-08-04) — ตอบคำถาม
-          "ตอนนี้ไปถึงไหนแล้ว" ในบรรทัดเดียว โดยลำดับขั้นแตกตาม COD/โอนเงิน (src/lib/order-progress.ts)
-          ไม่ผ่าน children เพราะ derive จาก props ที่ client shell ถืออยู่แล้วทั้งหมด ไม่ต้องข้าม
-          server boundary และไม่มี PII เพิ่ม (status/fulfillmentMode/paymentMethod/ยอดเงิน) */}
-      <div className="mt-base">
-        <OrderProgressStepper
-          status={status}
-          fulfillmentMode={fulfillmentMode}
-          paymentMethod={paymentMethod}
-          slipFileId={slipFileId}
-          totalAmount={totalAmount}
-          carrierStatus={carrierStatus}
-          createdAtISO={createdAtISO}
-          updatedAtISO={updatedAtISO}
-          shippedAtISO={shippedAtISO}
-          codMoneyAtISO={codMoneyAtISO}
-        />
+      {/* โครงตามธีม Paces order-details เป๊ะ: grid 75/25 · ซ้าย = สรุปคำสั่งซื้อ + ประวัติ ·
+          ขวา = ผู้ซื้อ / ที่อยู่ / การชำระเงิน / รีวิว
+          Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/page.tsx */}
+      <div className="grid grid-cols-1 gap-base lg:grid-cols-4">
+        <div className="space-y-base lg:col-span-3">
+          <OrderSummary
+            actionSet={actionSet}
+            buyerLabel={buyerLabel}
+            createdAtISO={createdAtISO}
+            discount={discount}
+            isFromAuction={isFromAuction}
+            items={items}
+            onAction={handleAction}
+            orderNoun={orderNoun}
+            paymentMethod={paymentMethod}
+            publicToken={publicToken}
+            salesChannel={salesChannel}
+            slipFileId={slipFileId}
+            status={status}
+            totalAmount={totalAmount}
+            vatAmount={vatAmount}
+            vatRate={vatRate}
+          />
+          {shippingActivity}
+        </div>
+        <div className="space-y-base">{sideCards}</div>
       </div>
-
-      {/* grid เนื้อหา — ส่งมาจาก page.tsx (RSC) ผ่าน children, mt-base คั่นจากหัวหน้า (token เดิม) */}
-      <div className="mt-base">{children}</div>
 
       {/* <1024 เท่านั้น (className ภายในมี lg:hidden) — CANCELLED คืน null เอง (design §3) */}
       <OrderActionBar variant="bottom" actionSet={actionSet} onAction={handleAction} />

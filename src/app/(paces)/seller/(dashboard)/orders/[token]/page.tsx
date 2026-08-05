@@ -43,8 +43,12 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { resolveBuyerDisplayName, isCODPayment } from '@/lib/order-display'
 import OrderDetailClient from './components/OrderDetailClient'
-import OrderFactsCard from './components/OrderFactsCard'
-import type { ShippingAddressData, OrderFactsShipping } from './components/OrderFactsCard'
+import ShippingActivity from './components/ShippingActivity'
+import CustomerDetails from './components/CustomerDetails'
+import ShippingAddressCard from './components/ShippingAddress'
+import BillingDetails from './components/BillingDetails'
+import { getOrderEvents } from '@/services/order-event.service'
+import type { ShippingAddressData, OrderFactsShipping } from './components/order-detail-shared'
 import OrderReviewCard from './components/OrderReviewCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
 import type { ShipmentSource } from './components/order-action-set'
@@ -91,6 +95,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // คืน null เมื่อร้านไม่ได้เชื่อมต่อ หรือออเดอร์นี้ไม่เกี่ยวกับการส่งของ
   // (รับเอง/ดิจิทัล/บริการ/การจอง) → ไม่ render ส่วนนี้เลย ไม่ใช่โชว์กล่องเปล่า
   const shipmentPanel = await getShipmentPanel(shop.id, order.id)
+
+  // ประวัติกิจกรรม (feature 00031) — ownership scope มาแล้วจาก getOrderForShop ด้านบน
+  const orderEvents = await getOrderEvents(order.id)
 
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
@@ -226,85 +233,58 @@ export default async function OrderDetailPage({ params }: PageProps) {
         trackingNo={shippingInfo?.trackingNo ?? null}
         provider={shippingInfo?.courier ?? null}
         addressText={addressText}
-        updatedAtISO={(order.updatedAt as Date).toISOString()}
-        // carrierStatus: มีเฉพาะพัสดุที่เปิดผ่าน iShip — เลขพัสดุที่ร้านแจ้งเอง (ShipmentTracking)
-        // ไม่มีสถานะฝั่งขนส่งให้อ่าน จึงเป็น null และแถบสถานะจะตัดสินขั้นเก็บเงิน COD จาก
-        // การที่ผู้ซื้อกดยืนยันรับของอย่างเดียว (ดู src/lib/order-progress.ts)
-        carrierStatus={shipmentPanel?.shipment?.carrierStatus ?? null}
-        // เก็บเงินปลายทางที่ร้านยังไม่กดว่าได้เงิน — ตัดสินที่ server ด้วย SSOT ตัวเดียวกับไทล์
-        // หน้าแรก (isCODPayment) ไม่ส่ง paymentMethod ดิบไปให้ client ตัดสินเอง
         isCodUnpaid={isCODPayment(order.paymentMethod) && !order.codReceivedAt}
-        // วันที่จริงของ 2 ขั้นในแถบสถานะ — คำนวณที่ server เพราะต้องดู 3 แหล่ง (พัสดุ iShip /
-        // เลขพัสดุที่ร้านแจ้งเอง / การกดรับเงิน) ซึ่ง client ไม่ได้ถืออยู่
-        shippedAtISO={shippingInfo?.shippedAtISO ?? null}
-        // ได้เงินแล้วจริง = ร้านกดเอง · ยังไม่กดแต่ขนส่งส่งถึงแล้ว = ใช้เวลาที่ส่งถึงเป็นเวลาที่เก็บเงิน
-        // (ขนส่งเก็บเงินตอนยื่นของให้ผู้ซื้อ จึงเป็นเวลาเดียวกัน) — ไม่มีทั้งคู่ = null ไม่เดา
-        codMoneyAtISO={
-          order.codReceivedAt
-            ? (order.codReceivedAt as Date).toISOString()
-            : shipmentPanel?.shipment?.carrierStatus === 'delivered' && shipmentPanel.shipment.carrierStatusAt
-              ? (shipmentPanel.shipment.carrierStatusAt as Date).toISOString()
-              : null
-        }
-      >
-        {/* grid 75/25 (≥1024) · คอลัมน์เดียว (<1024) — Base: order-details/page.tsx
-            `grid grid-cols-1 lg:grid-cols-4 gap-base` + `space-y-base lg:col-span-3` */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-base">
-          {/* ซ้าย — col-span-3 (75%): การ์ด "ใบสั่งซื้อ" (ข้อเท็จจริง — เห็นหมดเสมอ ไม่มีกาง/พับ) */}
-          <div className="space-y-base lg:col-span-3">
-            <OrderFactsCard
+        items={(order.items ?? []).map((item: any) => {
+          const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
+          const firstImg: string = rawImages[0] ?? ''
+          const imageUrl: string | null = firstImg
+            ? firstImg.startsWith('http')
+              ? firstImg
+              : `/api/files/${firstImg}`
+            : null
+          return {
+            id: item.id,
+            name: item.name,
+            description: item.description ?? null,
+            qty: item.qty,
+            // Decimal (Prisma) ไม่ใช่ plain object — ข้าม RSC→client boundary ไม่ได้
+            price: Number(item.price),
+            imageUrl,
+          }
+        })}
+        discount={order.discount != null ? Number(order.discount) : null}
+        vatRate={order.vatRate != null ? Number(order.vatRate) : null}
+        vatAmount={order.vatAmount != null ? Number(order.vatAmount) : null}
+        orderNoun={vocab.noun}
+        shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} />}
+        sideCards={
+          <>
+            <CustomerDetails
               buyer={{
                 buyerContact,
                 buyerDisplayName: order.buyer?.displayName ?? null,
                 buyerUsername: order.buyer?.username ?? null,
                 buyerName: order.buyerName ?? null,
-                // avatar: Facebook CDN URL หรือ null (ไม่ใช่ PII — URL สาธารณะ) — ส่งได้ตาม spec
                 avatar: order.buyer?.avatar ?? null,
                 shippingAddr,
               }}
-              items={(order.items ?? []).map((item: any) => {
-                // resolve imageUrl server-side — pattern เดียวกับ products/page.tsx L98-99
-                const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
-                const firstImg: string = rawImages[0] ?? ''
-                const imageUrl: string | null = firstImg
-                  ? (firstImg.startsWith('http') ? firstImg : `/api/files/${firstImg}`)
-                  : null
-                return {
-                  id: item.id,
-                  name: item.name,
-                  description: item.description ?? null,
-                  qty: item.qty,
-                  // Decimal (Prisma) ไม่ใช่ plain object — ข้าม RSC→client boundary ไม่ได้ (T12 fix)
-                  price: Number(item.price),
-                  imageUrl,
-                }
-              })}
-              discount={order.discount != null ? Number(order.discount) : null}
-              vatRate={order.vatRate != null ? Number(order.vatRate) : null}
-              vatAmount={order.vatAmount != null ? Number(order.vatAmount) : null}
-              totalAmount={Number(order.totalAmount)}
-              paymentMethod={order.paymentMethod ?? null}
-              salesChannel={order.salesChannel ?? null}
-              slipFileId={order.slipFileId ?? null}
+            />
+            <ShippingAddressCard
               accessUrl={order.accessUrl ?? null}
               fulfillmentMode={order.fulfillmentMode}
               publicToken={order.publicToken}
-              status={order.status}
-              shipping={shippingInfo}
+              shippingAddr={shippingAddr}
             />
-          </div>
-
-          {/* ขวา — col-span-1 (25%): รีวิว (เมื่อมี)
-              การ์ด "ประวัติคำสั่งซื้อ" เดิม (ShippingActivity) ถูกถอดออก 2026-08-04: เนื้อหาของมัน
-              คือ "สถานะ" ล้วน ซึ่งย้ายไปอยู่แถบ OrderProgressStepper เต็มความกว้างเหนือ grid แล้ว
-              (และเวอร์ชันเดิมยังบอกลำดับผิดสำหรับ COD ด้วย) — ส่วน "ประวัติ" ที่ user ต้องการจริง
-              คือ ใครสร้าง/ใครขอเลขพัสดุ/ใครส่ง SMS/ใครยกเลิก ซึ่งฐานข้อมูลยังไม่ได้เก็บ
-              กำลังทำเป็น feature 00031 (ตาราง OrderEvent) แล้วจะกลับมาลงตำแหน่งนี้ */}
-          <div className="space-y-base">
-            {showReviewCard && <OrderReviewCard review={reviewData} orderNoun={vocab.noun} />}
-          </div>
-        </div>
-      </OrderDetailClient>
+            <BillingDetails
+              paymentMethod={order.paymentMethod ?? null}
+              salesChannel={order.salesChannel ?? null}
+              slipFileId={order.slipFileId ?? null}
+              status={order.status}
+            />
+            {showReviewCard && <OrderReviewCard orderNoun={vocab.noun} review={reviewData} />}
+          </>
+        }
+      />
     </>
   )
 }
