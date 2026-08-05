@@ -38,8 +38,27 @@ type Props = {
  *  ชีต = granularity ที่เลื่อนข้ามเดือน/ปีได้ · การ์ด = snapshot คงที่ 2 อัน เลื่อนไม่ได้ */
 type Period = 'today' | 'month'
 
-/** วันที่ปักหมุดบนแกน x — 31 แท่งบนความกว้าง ~300px = แท่งละ ~7px ใส่ครบทุกวันชนกันแน่ */
-const AXIS_ANCHOR_DAYS = [1, 8, 15, 22, 29]
+/** หมุดกลางบนแกน x — ทุก 5 วัน (หัวเดือน/ท้ายเดือน/วันนี้ เติมให้ใน axisAnchorDays) */
+const AXIS_ANCHOR_DAYS = [5, 10, 15, 20, 25]
+
+/**
+ * วันที่ที่จะโชว์ตัวเลขบนแกน x — แท่งยังครบทุกวันเหมือนเดิม โชว์ป้ายเฉพาะหมุด
+ *
+ * ทำไมไม่โชว์ครบ 31 ตัว: เคยลองแล้ว (2026-08-05) ต้องหมุน -60° + ย่อเหลือ 9px ถึงจะไม่ทับกัน
+ * ผลคืออ่านไม่ออกต้องเอียงคอ และป้ายเอียงกินความสูงราว 40px จากกราฟ 104px จนแท่งวันที่ยอดน้อย
+ * เตี้ยกว่า 1px = หายไปทั้งแท่งทั้งที่มีออเดอร์จริง (user: "ตรงตัวเลขวันที่ ... มันดูยากมาก")
+ *
+ * กติกาหมุด: หัวเดือน + ท้ายเดือนเสมอ (ปักกรอบของช่วง) + ทุก 5 วัน + วันนี้
+ * หมุดกลางที่อยู่ใกล้วันนี้ไม่ถึง 3 วันถูกตัดทิ้ง แล้วให้วันนี้ยืนแทน — 31 ช่องบนการ์ด ~330px
+ * = ช่องละ ~10.6px ส่วนเลข 2 หลักที่ 10px กว้าง ~13px จึงต้องห่างกัน ≥3 ช่องถึงจะไม่เบียด
+ * (ไล่เทสครบเดือน 28/30/31 วัน × วันนี้ต้นถึงปลายเดือน: ระยะห่างน้อยสุดที่เกิดขึ้นได้ = 3 ช่อง)
+ */
+function axisAnchorDays(bucketCount: number, today: number): Set<number> {
+  const mid = AXIS_ANCHOR_DAYS.filter((d) => d < bucketCount && Math.abs(d - today) >= 3)
+  // วันนี้ที่ชิดหัว/ท้ายเดือนไม่ต้องเติม — ป้ายหัวเดือน/ท้ายเดือนยืนแทนอยู่แล้ว
+  const withToday = Math.abs(today - 1) >= 3 && Math.abs(today - bucketCount) >= 3 ? [today] : []
+  return new Set([1, bucketCount, ...mid, ...withToday])
+}
 
 export default function SalesChartCard({ initialSeries }: Props) {
   const [open, setOpen] = useState(false)
@@ -85,7 +104,16 @@ export default function SalesChartCard({ initialSeries }: Props) {
 
   // วันนี้ = ป้ายคำ ไม่ใช่เลขวันที่ — คนอ่านหาตัวเองเจอเร็วกว่าไล่นับวันที่
   const todayLabels = last7Labels ? [...last7Labels.slice(0, 6), 'วันนี้'] : []
-  const anchorDays = new Set([...AXIS_ANCHOR_DAYS.filter((d) => d <= bucketCount), futureFromIndex])
+  const anchorDays = axisAnchorDays(bucketCount, futureFromIndex)
+
+  /**
+   * วันนี้อยู่วันที่เท่าไร — ใช้ปักเส้นคั่น "วันนี้" บนกราฟ
+   *
+   * `futureFromIndex === bucketCount` = เดือนนั้นจบไปแล้ว (service คืนค่านี้เมื่อไม่ใช่เดือนปัจจุบัน
+   * หรือเมื่อวันนี้เป็นวันสุดท้ายของเดือน) → ไม่ปักเส้น เพราะไม่มีช่องว่างฝั่งขวาให้ต้องอธิบาย
+   * และวันสุดท้ายมีป้ายท้ายเดือนยืนอยู่แล้ว
+   */
+  const todayDay = futureFromIndex < bucketCount ? futureFromIndex : null
 
   /**
    * เส้น = จำนวนคำสั่งซื้อต่อวัน (user สั่ง 2026-08-05)
@@ -125,8 +153,8 @@ export default function SalesChartCard({ initialSeries }: Props) {
      * ไม่มีขอบทั้งสองแท่ง (user เคาะ 2026-08-05 หลังดู mockup: "รอยืนยันมีขอบ ยืนยันแล้วไม่มี
      * ทำให้ดูต่างกัน ลองตัดขอบออก")
      *
-     * ที่บันทึกไว้ให้คนอ่านทีหลัง: ขอบเดิมมีเพื่อคอนทราสต์ — เหลือง #f9bf59 บนขาวได้ ~1.8:1
-     * เขียว #02bc9c ได้ ~2.4:1 ทั้งคู่ต่ำกว่าเกณฑ์กราฟิก 3:1 ถ้าจะแก้ทีหลังให้ปรับ "ความเข้ม
+     * ที่บันทึกไว้ให้คนอ่านทีหลัง: ขอบเดิมมีเพื่อคอนทราสต์ — token `warning` บนขาวได้ ~1.8:1
+     * `success` ได้ ~2.4:1 ทั้งคู่ต่ำกว่าเกณฑ์กราฟิก 3:1 ถ้าจะแก้ทีหลังให้ปรับ "ความเข้ม
      * ของสีเดิม" ไม่ใช่เติมขอบกลับมาข้างเดียว (docs/conventions/contrast-fix-keeps-hue.md)
      *
      * width ตัวที่ 3 = ความหนาเส้นจำนวนออเดอร์ — 2 ตัวแรกเป็นแท่งซึ่งไม่มีขอบแล้ว
@@ -140,14 +168,19 @@ export default function SalesChartCard({ initialSeries }: Props) {
       axisBorder: { show: false },
       axisTicks: { show: false },
       labels: {
-        // user สั่งให้แสดงวันที่ครบทุกแท่ง (2026-08-05) — 31 label บนความกว้าง ~330px ทับกันแน่
-        // ถ้าวางแนวนอน จึงหมุน -60° + ลดเหลือ 9px และปิด hideOverlappingLabels ไม่ให้ ApexCharts
-        // ตัดทิ้งเองแบบเดาไม่ได้ว่าจะเหลือวันไหน
-        style: { ...axisLabelStyle, fontSize: '9px' },
-        rotate: -60,
-        rotateAlways: true,
+        /**
+         * ป้ายวันแนวนอน โชว์เฉพาะหมุด (ดู axisAnchorDays) — แท่งยังครบทุกวัน
+         *
+         * รอบก่อนโชว์ครบ 31 ตัวโดยหมุน -60° ที่ 9px แล้ว user อ่านไม่ออก ("มันดูยากมาก")
+         * ปิด hideOverlappingLabels ไว้เหมือนเดิม เพื่อไม่ให้ ApexCharts ตัดป้ายเองแบบเดาไม่ได้ว่า
+         * จะเหลือวันไหน — เราคุมเองหมดผ่าน formatter แล้ว
+         */
+        style: axisLabelStyle,
+        rotate: 0,
+        rotateAlways: false,
         hideOverlappingLabels: false,
         trim: false,
+        formatter: (v: string) => (anchorDays.has(Number(v)) ? String(v) : ''),
       },
     },
     /**
@@ -168,6 +201,30 @@ export default function SalesChartCard({ initialSeries }: Props) {
       yaxis: { lines: { show: true } },
       padding: { top: 0, right: 0, bottom: 0, left: 0 },
     },
+    /**
+     * เส้นประคั่นตรงวันนี้ (user เลือก 2026-08-05 จาก mockup ตัวเลือก ค.)
+     *
+     * ต้นเดือนข้อมูลกินแค่ไม่กี่วันจาก 31 ที่เหลือว่างทั้งแถบ — เส้นนี้เปลี่ยนความหมายของที่ว่าง
+     * จาก "ขายไม่ได้" เป็น "ยังมาไม่ถึง" โดยไม่ต้องตัดวันในอนาคตทิ้ง (ซึ่ง user เคาะไว้แล้วว่าไม่เอา:
+     * เคย .slice() จริงแล้วพัง วันที่ 2 เหลือ 2 แท่งยืดเต็มการ์ด อ่านไม่ออกว่าเป็นทั้งเดือน)
+     */
+    annotations: todayDay
+      ? {
+          xaxis: [{
+            x: String(todayDay),
+            borderColor: getColor('default-400'),
+            strokeDashArray: 3,
+            label: {
+              text: 'วันนี้',
+              position: 'top',
+              orientation: 'horizontal',
+              offsetY: -4,
+              borderWidth: 0,
+              style: { background: 'transparent', color: getColor('default-700'), fontSize: '10px' },
+            },
+          }],
+        }
+      : undefined,
     // tooltip ปิด — การ์ดทั้งโซนเป็นปุ่มเปิดชีต การมี tooltip แย่งการแตะบนมือถือ (ตัวเลขเป๊ะอยู่ในชีต)
     tooltip: { enabled: false },
   })
@@ -305,10 +362,15 @@ export default function SalesChartCard({ initialSeries }: Props) {
               )}
             </div>
 
+            {/* height/type ต้องตรงกับ getXxxOptions() เป๊ะ — ApexChart wrapper ให้ prop ชนะ options
+                (`height ?? options.chart?.height`) ถ้าลืมแก้ prop ตอนแก้ options ตัวเลขใน options
+                จะถูกทิ้งเงียบ ๆ โดยไม่มี error: 2026-08-05 ตั้ง height 168 ใน options แต่ prop ยังค้าง
+                104 กราฟจึงเรนเดอร์ 104 ทั้งที่โค้ดอ่านแล้วเหมือนสูง 168 (ป้ายวันหมุน -60° กิน ~40px
+                เหลือพื้นที่วาด ~55px แท่งวันที่ยอดน้อยเตี้ยกว่า 1px = หายไปทั้งแท่ง) */}
             {isToday && last7Days ? (
               <ApexChart key="today" getOptions={getTodayOptions} series={todaySeries} type="bar" height={104} />
             ) : (
-              <ApexChart key="month" getOptions={getMonthOptions} series={monthSeries} type="bar" height={104} />
+              <ApexChart key="month" getOptions={getMonthOptions} series={monthSeries} type="line" height={168} />
             )}
           </button>
         </div>

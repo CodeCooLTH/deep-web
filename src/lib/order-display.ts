@@ -128,7 +128,11 @@ export const ORDER_STATUS_META: Record<
   // T14 P1: text-{semantic} บน bg-{semantic}/15 ตกคอนทราสต์ AA จริง (วัด: PENDING 1.54:1,
   // SHIPPED 1.83:1, CONFIRMED 2.11:1, CANCELLED 2.68:1) → text-{semantic}-ink (≥4.5:1 ทุกตัว)
   PENDING: { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning-ink', icon: 'clock', tone: 'warning' },
-  SHIPPED: { label: 'จัดส่งแล้ว', cls: 'bg-info/15 text-info-ink', icon: 'truck', tone: 'info' },
+  // "กำลังจัดส่ง" ไม่ใช่ "จัดส่งแล้ว" (user เลือก 2026-08-05) — SHIPPED แปลว่าของออกจากร้านแล้วแต่
+  // ยังไม่ถึงมือผู้ซื้อ ซึ่งเป็นสถานะ "ระหว่างทาง" ไม่ใช่สถานะจบ. คำนี้ตรงกับที่ระบบใช้อยู่แล้วทุกที่
+  // (ORDER_STAGE_META.SHIPPING, SHIPPING_STAGE_LABEL.SHIPPING, getStatusPill) — เดิมมีแต่ badge
+  // ฝั่งรายการออเดอร์ที่พูดคนละคำ ทำให้จอเดียวกันขึ้น "จัดส่งแล้ว" บนตารางแต่ "กำลังจัดส่ง" บนการ์ด
+  SHIPPED: { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info-ink', icon: 'truck', tone: 'info' },
   CONFIRMED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success-ink', icon: 'circle-check-filled', tone: 'success' },
   CANCELLED: { label: 'ยกเลิก', cls: 'bg-danger/15 text-danger-ink', icon: 'circle-x', tone: 'danger' },
 }

@@ -13,10 +13,17 @@ import type { OrderStatCardData } from './data'
 
 export type StatChangeTone = 'success' | 'danger' | 'neutral'
 
-/** className ต่อ tone — ชุดเดิมที่ component ใช้อยู่ (Hard Rule 7: semantic token เท่านั้น) */
+/**
+ * className ต่อ tone (Hard Rule 7: semantic token เท่านั้น)
+ *
+ * ใช้ `text-{semantic}-ink` ไม่ใช่ `text-{semantic}` เปล่าแบบที่ธีมเขียนไว้ — สี semantic ของ Paces
+ * ถูกเลือกมาให้เป็น *พื้น* ไม่ใช่ *หมึก* บนพื้น `/15` จึงตกคอนทราสต์ AA (success 2.11:1,
+ * danger 2.68:1) ส่วน -ink ผ่านทุกตัว (≥6.5:1). เป็น token ในธีมจริง (_root.css) ไม่ใช่ arbitrary
+ * และเป็นชุดเดียวกับ badge สถานะในตารางที่อยู่ใต้การ์ดพวกนี้ (lib/order-display.ts)
+ */
 export const STAT_CHANGE_TONE_CLASS: Record<StatChangeTone, string> = {
-  success: 'bg-success/15 text-success',
-  danger: 'bg-danger/15 text-danger',
+  success: 'bg-success/15 text-success-ink',
+  danger: 'bg-danger/15 text-danger-ink',
   neutral: 'bg-default-400/15 text-default-400',
 }
 
