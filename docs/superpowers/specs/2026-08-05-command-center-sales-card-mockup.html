@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — การ์ดยอดขาย Command Center (ก่อน/หลัง)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@5.10.6/dist/apexcharts.min.js"></script>
+<style>
+:root{
+  --primary:#236dc9; --success:#02bc9c; --warning:#f9bf59; --warning-ink:#92400e;
+  --success-ink:#065f46; --dark:#313a46; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9ba6b7;
+  --d500:#a1a9b1; --d700:#4c4c5c; --d800:#3b3b48; --paper:#fff; --radius:4px;
+  --shadow:0 1px 4px rgba(130,143,163,.15);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Anuphan','Noto Sans Thai',system-ui,sans-serif;background:#eceef4;color:var(--dark);line-height:1.5;-webkit-font-smoothing:antialiased}
+.pagehead{background:#fff;border-bottom:1px solid var(--d300);padding:20px 24px;position:sticky;top:0;z-index:20}
+.pagehead h1{margin:0 0 4px;font-size:20px;font-weight:700}
+.pagehead p{margin:0;font-size:13px;color:#6b7280;max-width:90ch}
+main{padding:28px 24px 90px;max-width:1500px;margin:0 auto}
+h2{font-size:17px;font-weight:700;margin:0 0 6px;padding-bottom:8px;border-bottom:2px solid var(--dark)}
+h3{font-size:14px;font-weight:600;margin:26px 0 10px;color:#4b5563}
+.note{font-size:13px;color:#6b7280;margin:0 0 16px;max-width:90ch}
+.note b{color:var(--dark)}
+.rail{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+.dev{flex:0 0 auto}
+.devlabel{font-size:11px;font-weight:700;letter-spacing:.4px;color:#6b7280;margin-bottom:6px}
+.devlabel span{font-weight:400;color:#9ca3af}
+.screen{background:var(--d100);border:1px solid #cfd4dd;border-radius:8px;padding:12px;box-shadow:0 6px 20px rgba(49,58,70,.10)}
+.caption{font-size:11px;color:#6b7280;margin-top:6px;max-width:400px}
+
+/* ── การ์ดจริง ── */
+.card{background:var(--paper);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-body{padding:16px}
+.card-footer{padding:12px 16px;border-top:1px solid var(--d300);display:flex;align-items:center;justify-content:space-between}
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.hdr .t{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--dark)}
+.hdr .t svg{width:16px;height:16px;color:var(--primary)}
+.pills{display:flex;background:var(--d100);border-radius:6px;padding:2px}
+.pills button{border:0;background:transparent;font:inherit;font-size:13px;padding:4px 12px;border-radius:5px;color:var(--d700);cursor:pointer}
+.pills button.on{background:#fff;box-shadow:var(--shadow);font-weight:600;color:var(--dark)}
+.heroRow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.chev{width:16px;height:16px;color:var(--d500);flex:0 0 auto}
+.legend{display:flex;align-items:center;gap:16px;font-size:12px;color:var(--d700)}
+.legend i{width:8px;height:8px;border-radius:999px;display:inline-block;margin-right:6px;vertical-align:middle}
+.legend b{font-weight:600;color:var(--d800)}
+.dot-s{background:var(--success)}
+.dot-w{background:var(--warning);box-shadow:0 0 0 1px var(--warning-ink)}
+
+/* ก่อน */
+.old .hero{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--dark);margin:0}
+.old .chg{min-height:20px}
+.old .legend{margin-top:4px;margin-bottom:6px}
+
+/* หลัง */
+.new .hero{font-size:36px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--dark);margin:0}
+.new .chg{min-height:20px;margin-top:-2px}
+.new .legend{margin-bottom:8px}
+
+table.cmp{border-collapse:collapse;font-size:13px;background:#fff;border-radius:4px;overflow:hidden;box-shadow:var(--shadow);width:100%;max-width:900px;margin-top:8px}
+table.cmp th,table.cmp td{border:1px solid var(--d300);padding:8px 10px;text-align:left;vertical-align:top}
+table.cmp th{background:#f8fafc;font-weight:600}
+code{background:#f1f3f7;border-radius:3px;padding:1px 5px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.warn{border-left:3px solid #f0b046;background:#fdf6ec;padding:10px 14px;border-radius:4px;font-size:13px;color:#8a5a1a;margin:0 0 16px;max-width:90ch}
+</style>
+</head>
+<body>
+
+<div class="pagehead">
+  <h1>Mockup — การ์ดยอดขาย Command Center</h1>
+  <p>โหลด <b>ApexCharts 5.10.6 ตัวจริง</b> ด้วย config ชุดเดียวกับที่จะลงโค้ด — ที่เห็นคือของจริง ไม่ใช่ภาพวาด. Command Center เป็นจอมือถือ (<code>lg:hidden</code>) จึงแสดงที่ 375 / 414 / 768</p>
+</div>
+
+<main>
+
+<section>
+  <h2>เทียบก่อน / หลัง — Mobile 375</h2>
+  <p class="note">ข้อมูลชุดเดียวกันทั้งสองใบ (สุ่มให้เหมือนเดือนจริงที่มีขายบางวัน) ต่างกันเฉพาะสิ่งที่คุณสั่งให้แก้</p>
+  <div class="rail">
+
+    <div class="dev">
+      <div class="devlabel">ก่อน <span>· ของที่อยู่บน prod ตอนนี้</span></div>
+      <div class="screen" style="width:375px">
+        <div class="card old">
+          <div class="card-body">
+            <div class="hdr">
+              <span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg> ยอดขาย</span>
+              <span class="pills"><button>วันนี้</button><button class="on">เดือนนี้</button></span>
+            </div>
+            <div class="heroRow">
+              <p class="hero">12,030</p>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg>
+            </div>
+            <div class="chg"></div>
+            <div class="legend">
+              <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
+              <span><i class="dot-w"></i>รอยืนยัน <b>8,940</b></span>
+            </div>
+            <div id="chartOld"></div>
+          </div>
+          <div class="card-footer">
+            <span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:500;color:var(--d800)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14c0 1.1.9 2 2 2h2a2 2 0 0 0 0-4h-2a2 2 0 0 1 0-4h2c1.1 0 2 .9 2 2"/><path d="M12 6v2m0 8v2"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+              กำไรขาดทุน
+            </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg>
+          </div>
+        </div>
+      </div>
+      <p class="caption">สูง 104px · แท่ง 70% · วันที่โชว์แค่ 1/5/8/15/22/29 · ไม่มีเส้นยอดรวม · มีปุ่มกำไรขาดทุน</p>
+    </div>
+
+    <div class="dev">
+      <div class="devlabel">หลัง <span>· ตามที่สั่ง</span></div>
+      <div class="screen" style="width:375px">
+        <div class="card new">
+          <div class="card-body">
+            <div class="hdr">
+              <span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg> ยอดขาย</span>
+              <span class="pills"><button>วันนี้</button><button class="on">เดือนนี้</button></span>
+            </div>
+            <div class="heroRow">
+              <p class="hero">12,030</p>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg>
+            </div>
+            <div class="chg"></div>
+            <div class="legend">
+              <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
+              <span><i class="dot-w"></i>รอยืนยัน <b>8,940</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>19</b></span>
+            </div>
+            <div id="chartNew"></div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">เลข 30→36px น้ำหนัก 700→800 · ชิดแถวสีขึ้น · สูง 104→168px · แท่ง 70→92% · วันที่ครบ 31 แท่ง · มีเส้นยอดรวม · ตัดปุ่มกำไรขาดทุนออก</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>ขนาดจออื่น</h2>
+  <div class="rail">
+    <div class="dev">
+      <div class="devlabel">Mobile 414 <span>· iPhone Pro Max</span></div>
+      <div class="screen" style="width:414px">
+        <div class="card new">
+          <div class="card-body">
+            <div class="hdr">
+              <span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg> ยอดขาย</span>
+              <span class="pills"><button>วันนี้</button><button class="on">เดือนนี้</button></span>
+            </div>
+            <div class="heroRow"><p class="hero">12,030</p>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg></div>
+            <div class="chg"></div>
+            <div class="legend">
+              <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
+              <span><i class="dot-w"></i>รอยืนยัน <b>8,940</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>19</b></span>
+            </div>
+            <div id="chart414"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dev">
+      <div class="devlabel">Tablet 768 <span>· ยังเป็น mobile shell (&lt;1024)</span></div>
+      <div class="screen" style="width:768px">
+        <div class="card new">
+          <div class="card-body">
+            <div class="hdr">
+              <span class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg> ยอดขาย</span>
+              <span class="pills"><button>วันนี้</button><button class="on">เดือนนี้</button></span>
+            </div>
+            <div class="heroRow"><p class="hero">12,030</p>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg></div>
+            <div class="chg"></div>
+            <div class="legend">
+              <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
+              <span><i class="dot-w"></i>รอยืนยัน <b>8,940</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>19</b></span>
+            </div>
+            <div id="chart768"></div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">จอกว้างขึ้น วันที่อ่านง่ายขึ้นมาก แท่งก็หนาขึ้นตาม</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>สิ่งที่ต้องตัดสินใจ</h2>
+  <div class="warn">
+    <b>เส้นเปลี่ยนเป็นจำนวนออเดอร์แล้ว (user สั่ง)</b> — เดิมผมทำเป็นยอดรวมซึ่งเท่ากับหัวแท่งพอดี
+    ไม่ได้บอกอะไรใหม่ ตอนนี้เส้นอยู่คนละหน่วยกับแท่ง (ครั้ง vs บาท) จึงต้องใช้แกน y ที่สอง
+    ผลคือแยกออกได้ว่า "วันที่ยอดสูงเพราะออเดอร์เยอะ" ต่างจาก "วันที่ยอดสูงเพราะออเดอร์ใหญ่ใบเดียว"
+  </div>
+  <table class="cmp">
+    <tr><th style="width:30%">รายการ</th><th>ก่อน</th><th>หลัง</th></tr>
+    <tr><td>ตัวเลขยอดขาย</td><td>30px / น้ำหนัก 700</td><td><b>36px / น้ำหนัก 800</b> + letter-spacing แน่นขึ้น (ramp "Metric" ของ DESIGN.md)</td></tr>
+    <tr><td>ระยะเลข → แถวสี</td><td>เว้น 2 ชั้น (min-h-5 + mt-1 + mb-1.5)</td><td>ยุบเหลือชั้นเดียว ชิดขึ้นราว 8px</td></tr>
+    <tr><td>ความสูงกราฟ</td><td>104px</td><td><b>168px</b></td></tr>
+    <tr><td>ความกว้างแท่ง</td><td>70%</td><td><b>92%</b></td></tr>
+    <tr><td>วันที่แกนล่าง</td><td>6 วัน (1/5/8/15/22/29)</td><td><b>ครบ 31 วัน</b> หมุน -60° ขนาด 9px</td></tr>
+    <tr><td>เส้นบนกราฟ</td><td>ไม่มี</td><td><b>จำนวนออเดอร์ต่อวัน</b> เส้นน้ำเงิน 2px บนแกน y ที่สอง — บอกข้อมูลใหม่ที่แท่งไม่ได้บอก (แท่ง = เงิน, เส้น = จำนวนครั้ง) วันที่ยอดสูงเพราะออเดอร์เยอะ กับวันที่ยอดสูงเพราะออเดอร์ใหญ่ใบเดียว จะแยกออกจากกันได้ทันที</td></tr>
+    <tr><td>ขอบแท่ง</td><td>มีเฉพาะ "รอยืนยัน"</td><td><b>มีทั้งสองแท่ง</b> — เขียว #02bc9c บนขาวได้ ~2.4:1 เหลือง ~1.8:1 ต่ำกว่าเกณฑ์กราฟิก 3:1 ทั้งคู่ ถอดออกทั้งคู่จะเสีย a11y จึงเติมให้ครบแทน (ใช้ -ink ในตระกูลสีเดิม ไม่สลับเฉด)</td></tr>
+    <tr><td>ปุ่มกำไรขาดทุน</td><td>อยู่ท้ายการ์ด</td><td><b>ตัดออก</b> — ยังเข้าได้จากเมนูซ้าย (ค่าใช้จ่าย / ภาพรวมกำไรขาดทุน)</td></tr>
+  </table>
+</section>
+
+</main>
+
+<script>
+// ── ข้อมูลชุดเดียวกันทั้งสองใบ (เดือน 31 วัน ขายบางวัน เหมือนของจริง) ──
+const DAYS = 31, TODAY = 20;
+const confirmed = [0,0,0,900,0,0,540,0,0,1200,0,0,0,0,650,0,0,0,0,1800, null,null,null,null,null,null,null,null,null,null,null];
+const pending   = [520,0,0,2400,780,0,0,0,1100,0,0,640,0,0,0,0,2200,0,0,1300, null,null,null,null,null,null,null,null,null,null,null];
+// จำนวนออเดอร์ต่อวัน — คนละหน่วยกับแท่ง (บาท) จึงต้องมีแกน y ที่สอง
+const orders    = [1,0,0,3,1,0,1,0,2,2,0,1,0,0,1,0,3,0,0,4, null,null,null,null,null,null,null,null,null,null,null];
+const labels    = Array.from({length:DAYS}, (_,i) => String(i+1));
+const ANCHOR    = new Set([1,5,8,15,22,29,TODAY]);
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ── ก่อน ──
+new ApexCharts(document.querySelector('#chartOld'), {
+  chart:{ type:'bar', height:104, stacked:true, toolbar:{show:false}, parentHeightOffset:0, animations:{enabled:false} },
+  plotOptions:{ bar:{ columnWidth:'70%', borderRadius:1 } },
+  series:[ {name:'ยืนยันแล้ว',data:confirmed}, {name:'รอยืนยัน',data:pending} ],
+  colors:[css('--success'), css('--warning')],
+  stroke:{ show:true, width:[0,1], colors:['transparent', css('--warning-ink')] },
+  dataLabels:{enabled:false}, legend:{show:false},
+  xaxis:{ categories:labels, axisBorder:{show:false}, axisTicks:{show:false},
+    labels:{ style:{fontSize:'10px',colors:css('--d700')}, formatter:(v)=>ANCHOR.has(Number(v))?v:'' } },
+  yaxis:{ show:false, tickAmount:2 },
+  grid:{ show:true, borderColor:css('--d300'), strokeDashArray:4, xaxis:{lines:{show:false}}, yaxis:{lines:{show:true}}, padding:{top:0,right:0,bottom:0,left:0} },
+  tooltip:{enabled:false},
+}).render();
+
+// ── หลัง (config เดียวกับที่จะลงโค้ด) ──
+function newOptions(){
+  return {
+    chart:{ type:'line', height:168, stacked:true, stackOnlyBar:true, toolbar:{show:false}, parentHeightOffset:0, animations:{enabled:false} },
+    plotOptions:{ bar:{ columnWidth:'92%', borderRadius:1 } },
+    series:[
+      {name:'ยืนยันแล้ว', type:'column', data:confirmed},
+      {name:'รอยืนยัน',  type:'column', data:pending},
+      {name:'ออเดอร์',   type:'line',   data:orders},
+    ],
+    colors:[css('--success'), css('--warning'), css('--primary')],
+    // ขอบครบทั้งสองแท่ง (user สั่ง) — เขียว #02bc9c บนขาวได้ ~2.4:1 เหลือง ~1.8:1 ต่ำกว่าเกณฑ์
+    // กราฟิก 3:1 ทั้งคู่ จึงต้องมีขอบทั้งคู่ ใช้ -ink ในตระกูลสีเดิม ไม่สลับเฉด
+    stroke:{ show:true, width:[1,1,2], curve:'straight', colors:[css('--success-ink'), css('--warning-ink'), css('--primary')] },
+    markers:{ size:2, strokeWidth:0, colors:[css('--primary')] },
+    dataLabels:{enabled:false}, legend:{show:false},
+    xaxis:{ categories:labels, axisBorder:{show:false}, axisTicks:{show:false},
+      labels:{ style:{fontSize:'9px',colors:css('--d700')}, rotate:-60, rotateAlways:true, hideOverlappingLabels:false, trim:false } },
+    // แกนที่ 2 สำหรับจำนวนออเดอร์ — คนละหน่วยกับบาท ถ้าใช้แกนเดียวกันเส้นจะแบนติดพื้น
+    yaxis:[
+      { show:false, tickAmount:2, seriesName:'ยืนยันแล้ว' },
+      { show:false, tickAmount:2, seriesName:'ยืนยันแล้ว' },
+      { show:false, opposite:true, seriesName:'ออเดอร์', min:0 },
+    ],
+    grid:{ show:true, borderColor:css('--d300'), strokeDashArray:4, xaxis:{lines:{show:false}}, yaxis:{lines:{show:true}}, padding:{top:0,right:0,bottom:0,left:0} },
+    tooltip:{enabled:false},
+  };
+}
+['#chartNew','#chart414','#chart768'].forEach(sel => new ApexCharts(document.querySelector(sel), newOptions()).render());
+</script>
+</body>
+</html>

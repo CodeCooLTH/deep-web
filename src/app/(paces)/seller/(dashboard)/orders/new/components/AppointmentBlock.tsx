@@ -241,7 +241,10 @@ export default function AppointmentBlock({
             name="appointment.resourceId"
             render={({ field }) => (
               <select id={`${idPrefix}-appt-resource`} className="form-select" {...field} value={field.value ?? ''}>
-                <option value="">ไม่ตั้งวันนัด (ออเดอร์ปกติ)</option>
+                {/* เดิมเขียน "(ออเดอร์ปกติ)" — บล็อกนี้ขึ้นเฉพาะร้าน SERVICE_QUEUE ซึ่งเรียกของตัวเองว่า
+                    "การเข้ารับบริการ" ไม่ใช่ "ออเดอร์" (ORDER_VOCAB) การอธิบายด้วยคำของอีก vertical
+                    ทำให้จอเดียวมีสองชื่อเรียกของสิ่งเดียวกัน — ตัดวงเล็บทิ้ง ตัวเลือกอธิบายตัวเองอยู่แล้ว */}
+                <option value="">ไม่ตั้งวันนัด</option>
                 {resources.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name} · รับพร้อมกัน {r.capacity} คิว

@@ -323,6 +323,51 @@ function roundTo(n: number, digits: number): number {
   return Math.round((n + Number.EPSILON) * f) / f;
 }
 
+// ─── payload ของ check-price (ส่วนขยาย 00022: quote รายตัว + ปุ่มเทียบราคา) ──
+
+export interface CheckPriceDims {
+  weight: number;
+  width: number;
+  length: number;
+  height: number;
+}
+
+/**
+ * buildCheckPricePayload — payload ของ /api/v2/check-price ไม่รวม courier_code
+ * (ผู้เรียกเติมเองต่อขนส่ง — ปุ่มเทียบราคาใช้ base เดียวยิงทุกขนส่ง)
+ *
+ * BR-ISHIP-31 — ตำบล → district, อำเภอ → amphure (กลับหัวกับชื่อช่องของ iShip):
+ * เดิม mapping ชุดนี้เขียนซ้ำใน estimateShippingPrice ฝั่ง service; ย้ายมารวมที่นี่
+ * ให้ estimate กับ compare ใช้ตัวเดียวกัน — อ่านหัวไฟล์ก่อนแก้คู่บรรทัดนี้
+ */
+export function buildCheckPricePayload(
+  sender: SenderAddress,
+  receiver: {
+    subdistrict?: string | null;
+    district?: string | null;
+    province?: string | null;
+    postcode?: string | null;
+  },
+  dims: CheckPriceDims,
+) {
+  return {
+    src_zipcode: sender.postcode ?? "",
+    src_province: normalizeProvince(sender.province),
+    // BR-ISHIP-31 — อ่านหัวไฟล์ก่อนแก้บรรทัดคู่นี้
+    src_district: sender.subdistrict ?? "", // ตำบล → district
+    src_amphure: sender.district ?? "", //      อำเภอ → amphure
+    dst_zipcode: receiver.postcode ?? "",
+    dst_province: normalizeProvince(receiver.province),
+    // BR-ISHIP-31 — อ่านหัวไฟล์ก่อนแก้บรรทัดคู่นี้
+    dst_district: receiver.subdistrict ?? "", // ตำบล → district
+    dst_amphure: receiver.district ?? "", //      อำเภอ → amphure
+    weight: dims.weight,
+    width: dims.width,
+    length: dims.length,
+    height: dims.height,
+  };
+}
+
 /**
  * buildIdempotencyKey — คีย์กันเปิดพัสดุซ้ำ (BR-ISHIP-22/26)
  *

@@ -724,6 +724,14 @@ export const CreateBusinessShopSchema = v.object({
   // เพิ่มรับที่นี่ 2026-08-04 — เดิม API สร้างธุรกิจรับได้แต่ช่องเดียว ทั้งที่ฐานเก็บได้หลายหมวด
   categories: v.optional(v.pipe(v.array(v.picklist(SHOP_CATEGORY_KEYS)), v.maxLength(5))),
   description: v.optional(v.pipe(v.string(), v.maxLength(500))),
+  // feature 00030 — ย้ายของที่เคยอยู่ใน /business/[shopId]/onboarding เข้ามาสร้างทีเดียว
+  // (user 2026-08-05: onboarding ซ้ำซ้อนกับ modal) สร้างครบใน transaction เดียว ไม่มีร้านครึ่ง ๆ
+  logo: v.optional(v.pipe(v.string(), v.maxLength(200))),
+  slug: v.optional(ShopSlugSchema),
+  address: v.optional(v.pipe(v.string(), v.maxLength(300))),
+  // พิกัดไทย: lat 5-21N / lng 97-106E (validate ที่ app layer ตาม schema.prisma:147-148)
+  latitude: v.optional(v.pipe(v.number(), v.minValue(5), v.maxValue(21))),
+  longitude: v.optional(v.pipe(v.number(), v.minValue(97), v.maxValue(106))),
   // feature 00017 — ประเภทกิจการ; optional เพื่อ backward-compat (ผู้เรียกเดิมไม่ส่ง = GENERAL)
   // ตั้งได้ครั้งเดียวตอนสร้างเท่านั้น เปลี่ยนภายหลังไม่ได้ (BR-LODG-30)
   vertical: v.optional(v.picklist(SHOP_VERTICAL_KEYS)),
@@ -1230,6 +1238,10 @@ export const IShipPriceQuoteSchema = v.object({
   length: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
   height: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
 });
+
+// ส่วนขยาย 00022 — เทียบราคาทุกขนส่งในคำขอเดียว (ปุ่ม "เทียบราคา")
+// input เดียวกับ quote รายตัวแต่ไม่ระบุขนส่ง — server เป็นคนไล่ทุกขนส่งของร้านเอง
+export const IShipPriceCompareSchema = v.omit(IShipPriceQuoteSchema, ["courierCode"]);
 
 export const IShipPickupSchema = v.object({
   courierCode: shortText(50),

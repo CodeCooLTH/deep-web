@@ -16,6 +16,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import ShopForm from './components/ShopForm'
 import SignOutCard from './components/SignOutCard'
+import { BUSINESS_DELETE_RETENTION_DAYS } from '@/lib/business-package'
 import ShopQuickLinks from './components/ShopQuickLinks'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
@@ -89,6 +90,14 @@ export default async function ShopSettingsPage() {
         shop={shop}
         isExisting={isExisting}
         ageText={isExisting ? formatShopAge(shop.createdAt) : null}
+        /* โซนอันตรายเป็นแท็บใน ShopForm ไม่ใช่การ์ดแยกท้ายหน้า (user ทัก 2026-08-05)
+           ส่งเฉพาะ BUSINESS + OWNER + มีร้านจริง — ร้านส่วนตัวลบไม่ได้ (ลบบัญชีอยู่ /account)
+           และผู้ดูแลที่ถูกเชิญไม่ใช่เจ้าของ จึงไม่มีสิทธิ์ลบร้านของคนอื่น */
+        dangerZone={
+          shopKind === 'BUSINESS' && shopRole === 'OWNER' && isExisting
+            ? { shopId: shop.id, shopName: shop.shopName, retentionDays: BUSINESS_DELETE_RETENTION_DAYS }
+            : undefined
+        }
       />
 
       {/* รายการ "จัดการร้าน" + ออกจากระบบ — เฉพาะ <1024px

@@ -49,6 +49,18 @@ const PROVINCES = [
 const BANGKOK = 'กรุงเทพ'
 
 /**
+ * ชื่อนี้อยู่ในชุดข้อมูล 77 จังหวัดจริงไหม (เทียบหลัง canonicalProvince แล้ว)
+ *
+ * มีไว้ให้ฝั่งที่ต้อง "จับคู่กับข้อมูลอื่นที่คีย์ด้วยชื่อจังหวัด" — เช่นแผนที่บนแดชบอร์ดที่ระบายสี
+ * จาก public/data/thailand-provinces.json (ไฟล์นั้นสะกดชื่อตาม PROVINCES ชุดนี้เป๊ะ)
+ * ชื่อที่สะกดเพี้ยนต้องถูกตีเป็น "ไม่ระบุ" ตั้งแต่ต้นทาง ไม่ใช่ปล่อยให้ไปโผล่ในรายการ
+ * แล้วแผนที่ไม่ระบายสีให้ ซึ่งอ่านเหมือนระบบพัง
+ */
+export function isKnownProvince(name: string | undefined): boolean {
+  return !!name && PROVINCES.includes(name)
+}
+
+/**
  * เบอร์โทรพร้อม label — ใช้ "ตัดออกจากบรรทัด" ก่อนมองหาที่อยู่
  *
  * เดิมบรรทัดที่มีคำว่า โทร/เบอร์ ถูกข้ามทั้งบรรทัด ทำให้ข้อความที่ร้านได้จริงบ่อยที่สุด
@@ -82,8 +94,14 @@ function findProvinceByName(text: string): string | undefined {
   return best?.name
 }
 
-/** ชื่อจังหวัดที่ร้านพิมพ์เอง → สะกดแบบชุดข้อมูล (กรุงเทพมหานคร / กทม. → กรุงเทพ) */
-function canonicalProvince(v: string | undefined): string | undefined {
+/**
+ * ชื่อจังหวัดที่ร้านพิมพ์เอง → สะกดแบบชุดข้อมูล (กรุงเทพมหานคร / กทม. → กรุงเทพ)
+ *
+ * export ตั้งแต่ 2026-08-05: การ์ด "ยอดขายตามจังหวัด" บนแดชบอร์ดอ่าน Order.shippingAddress
+ * ซึ่งเป็น Json ที่คนกรอกเอง จึงต้อง normalize ด้วยตัวเดียวกับตอนแยกข้อความเข้ามา ไม่งั้น
+ * "กรุงเทพมหานคร" กับ "กรุงเทพ" จะกลายเป็นคนละจังหวัดบนแผนที่เดียวกัน
+ */
+export function canonicalProvince(v: string | undefined): string | undefined {
   if (!v) return undefined
   const s = v.trim()
   if (!s) return undefined

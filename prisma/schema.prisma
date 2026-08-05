@@ -47,6 +47,7 @@ model User {
   ordersAsBuyer          Order[]                 @relation("BuyerOrders")
   ordersCreated          Order[]                 @relation("CreatedOrders") // ออเดอร์ที่คนนี้เป็นคนกดสร้าง (2026-08-04)
   ordersCodReceived      Order[]                 @relation("CodReceivedOrders") // ออเดอร์ที่คนนี้กดยืนยันรับเงินปลายทาง (2026-08-04)
+  orderEventsActedOn     OrderEvent[]            @relation("OrderEventActor") // feature 00031 — เหตุการณ์ที่คนนี้เป็นผู้กระทำ
   customer               Customer? // feat 00014 — link Customer เมื่อสมัครเป็น buyer (Phase 2; nullable)
   reviewsGiven           Review[]                @relation("ReviewerReviews")
   verificationsReviewed  VerificationRecord[]    @relation("ReviewedBy")
@@ -736,6 +737,7 @@ model Order {
   // NEW (feature 00022) — พัสดุที่เปิดกับขนส่งสำหรับออเดอร์นี้ (active ได้ใบเดียว บังคับด้วย partial
   // unique index `OrderShipment_active_order_key` — unmanaged SQL ดู DATABASE.md §4)
   shipments        OrderShipment[]
+  events           OrderEvent[] // feature 00031 — ประวัติกิจกรรมของออเดอร์นี้ (audit log, insert-only)
 
   // 🛑 EXCLUDE constraint `Order_room_no_overlap` มีอยู่จริงในฐานข้อมูล แต่ Prisma DSL
   // ประกาศไม่ได้ (unmanaged SQL — migration 20260722000100):
@@ -1376,6 +1378,16 @@ model Conversation {
   // externalReadAt: watermark "ลูกค้าฝั่งช่องทางนอกอ่านถึงเวลานี้" (Messenger message_reads) — ข้อความ
   // ฝั่งร้าน (SHOP) ที่ createdAt <= ค่านี้ ถือว่า "อ่านแล้ว" (feature 00018 read receipt)
   externalReadAt      DateTime?
+  // externalDeliveredAt: watermark "ข้อความของร้านถึงเครื่องลูกค้าถึงเวลานี้" (Messenger message_deliveries)
+  // — ข้อความฝั่งร้าน (SHOP) ที่ createdAt <= ค่านี้ ถือว่า "ได้รับแล้ว" (2026-08-05)
+  //
+  // ทำไมต้องมี: `deliveryStatus='SENT'` แปลว่า "Meta ตอบ mid กลับมาแล้ว" เท่านั้น ไม่ได้แปลว่าข้อความ
+  // อยู่ในแชทลูกค้าจริง (user report prod 2026-08-05: ส่งรูปหลายใบแล้ว UI ขึ้นว่าส่งแล้วทั้งที่ฝั่ง
+  // Messenger ยังไม่มีรูป) หลักฐานเดียวที่ยืนยันได้คือ event นี้จาก Meta
+  //
+  // 🛑 Messenger เท่านั้น — Instagram ไม่มี message_deliveries ในโปรโตคอล ค่าจึงเป็น null ตลอดกาล
+  // สำหรับเธรด IG (ไม่ใช่ข้อมูลขาด) ฝั่ง UI ต้อง gate ด้วย channel ไม่ใช่เช็คแค่ค่า null
+  externalDeliveredAt DateTime?
   // chatGroupId: กลุ่ม/แท็บที่ร้านจัดเธรดนี้ไว้ (feature 00018) — null = ยังไม่จัดกลุ่ม (แท็บ "ทั้งหมด")
   // ต่อ conversation (ไม่ใช่ต่อลูกค้า) เพื่อให้ใช้ได้ทุกช่องทางรวม DEEP; ลบกลุ่ม → SetNull (เธรดกลับ "ทั้งหมด")
   chatGroupId         String?
@@ -2683,4 +2695,58 @@ model PageComment {
   @@index([postId, createdTime])
   @@index([shopChannelId, createdTime])
   @@index([parentExternalId])
+}
+
+// ── feature 00031: Order Activity Log (additive) ───────────────────────────
+// OrderEvent = audit log ระดับออเดอร์ ("ใครทำอะไรกับออเดอร์นี้เมื่อไหร่") ซึ่งเป็นคนละคำถามกับ
+// Order.status ("ตอนนี้ออเดอร์อยู่ขั้นไหน") — การ์ด "ประวัติคำสั่งซื้อ" เดิมที่ derive จาก state
+// machine ตอบผิดคำถามมาตลอด ตารางนี้มาแทน (PRD 00031 §3.2)
+//
+// [สำคัญ] insert-only — ไม่มี UPDATE/DELETE ผ่าน application code และไม่มี auto-purge
+// เพราะจุดประสงค์คือหลักฐานเมื่อเกิดข้อพิพาท/ปัญหาภายในร้าน การลบทิ้งเองขัดกับจุดประสงค์ตรง ๆ
+model OrderEvent {
+  id      String @id @default(uuid())
+  orderId String
+
+  // type: 9 ค่าคงที่ (ดู src/lib/order-event.ts) — String + DB CHECK ไม่ใช่ Prisma enum ตาม
+  // convention ปัจจุบันของโปรเจกต์ (Shop.vertical ฯลฯ) บวกเหตุผลเฉพาะของตารางนี้: มันเป็น
+  // insert-only แถวที่เขียน type ผิดจากบั๊กจะแก้ไม่ได้อีกเลยตลอดชีพตาราง จึงคุ้มที่จะมี CHECK
+  // ที่ระดับ DB เป็นด่านสอง ไม่ใช่เชื่อ validation ฝั่ง server อย่างเดียว
+  // [สำคัญ] CHECK `OrderEvent_type_check` เป็น unmanaged SQL ที่ Prisma DSL ประกาศไม่ได้ —
+  // ห้าม `prisma db pull`/`migrate dev` เด็ดขาด (introspect ไม่เห็นแล้วจะสร้าง migration ที่ DROP ทิ้ง)
+  type String
+
+  // actorUserId: ผู้กระทำ — null ได้ 2 ความหมายที่ต้องแยกกันตอนแสดงผล
+  //   (1) ไม่เคยมีคนกระทำจริง (ระบบทำเอง) → ไม่มี meta.actorNameSnapshot
+  //   (2) เคยมีคนกระทำแต่บัญชีถูกลบ (onDelete SetNull ทำงาน) → มี meta.actorNameSnapshot
+  // ห้าม fallback เป็นเจ้าของร้านเด็ดขาด — pattern เดียวกับ Order.createdByUserId
+  actorUserId String?
+
+  // meta: โครงต่างกันตาม type (ดู docs 00031 DATABASE.md §7)
+  // [สำคัญ] ห้ามมี PII ผู้ซื้อดิบ (เบอร์/อีเมล/ที่อยู่) ไม่ว่า type ไหน — field กลุ่มนั้นเก็บได้แค่
+  // { field, changed: true } เพราะร้านมีพนักงานหลายคนเปิดดูประวัติได้ และหน้า (paces) อยู่ใต้
+  // client layout ทุก field ที่ส่งไปแสดงผลจะอยู่ใน flight payload ที่เปิดดูได้
+  meta Json @default("{}")
+
+  // occurredAt: เวลาที่เหตุการณ์เกิดจริงทางธุรกิจ — แยกจาก createdAt (เวลาที่แถวถูกบันทึก)
+  // pattern เดียวกับ ShipmentEvent · ไม่มี default: ผู้เรียกต้องส่งเวลาจริงมาเสมอ
+  // (สด = เวลาตอนเกิด · backfill = เวลาย้อนหลังจากคอลัมน์ต้นทาง)
+  occurredAt DateTime
+
+  // seq: ลำดับที่แถวถูกบันทึกจริง — ตัดสินลำดับเมื่อ occurredAt ชนกันเป๊ะ
+  // ใช้ pattern เดียวกับ ChatMessage.seq (บทเรียนเดียวกัน: createdAt เท่ากันหลายแถว = เรียงไม่แน่นอน)
+  // ไม่ใช้ id เป็น tie-break เพราะ uuid v4 สุ่ม เรียงตามตัวอักษรไม่ได้แปลว่าตามเวลา
+  seq Int @unique @default(autoincrement())
+
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // SetNull บังคับเสมอ — ลบพนักงานออกจากร้านแล้วประวัติของร้านต้องไม่หายตาม
+  actor User? @relation("OrderEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  // query หลัก: "ไทม์ไลน์ของ 1 ออเดอร์ เรียงเวลา" — index เดียวทั้งกรองและเรียง (Postgres scan
+  // ถอยหลังได้ฟรีสำหรับ DESC) ตารางนี้โตเร็วกว่า Order หลายเท่าเพราะ 1 การกระทำ = 1 แถว
+  @@index([orderId, occurredAt, seq])
+  // ไม่ใช่ product query — ไว้กัน full table scan ตอนลบบัญชีพนักงาน (onDelete SetNull ต้องหาแถวลูก)
+  @@index([actorUserId])
 }

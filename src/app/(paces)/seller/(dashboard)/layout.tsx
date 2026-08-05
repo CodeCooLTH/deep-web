@@ -49,12 +49,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // x-pathname (proxy ตั้งไว้) — ใช้กัน redirect loop ของ onboarding เท่านั้น
   const currentPath = (await headers()).get('x-pathname') ?? ''
 
-  // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding
-  // ยกเว้นเมื่อกำลังอยู่หน้า onboarding เอง — กัน redirect loop
-  if (active.kind === 'BUSINESS' && !shop.slug) {
-    const onboardingPath = `/business/${shop.id}/onboarding`
-    if (currentPath !== onboardingPath) redirect(onboardingPath)
-  }
+  /**
+   * ธุรกิจที่ยังไม่มี slug — **ไม่บังคับให้ไปตั้งก่อนใช้งาน** (user เคาะ 2026-08-05)
+   *
+   * เดิม layout นี้ force-redirect ไปหน้า setup ทุก route จนกว่าจะตั้ง slug เสร็จ ซึ่ง:
+   *   - เป็นด่านที่ขวางงานจริงทั้งหมดเพื่อของที่ไม่จำเป็นต่อการขายหน้าร้าน
+   *   - และเพราะปลายทางอยู่ใต้ layout ตัวเดียวกัน มันเคยกลายเป็นลูปไม่รู้จบมาแล้ว (ERR_TOO_MANY_REDIRECTS)
+   *
+   * ของใหม่: slug จำเป็นเฉพาะตอน "อยากมีหน้าร้านสาธารณะ" (/b/{slug}) เท่านั้น — ไม่มีก็ทำงาน
+   * ในระบบได้ครบ แค่ยังไม่มีลิงก์ให้ลูกค้าเปิด ผู้ใช้ไปตั้งเองได้ที่หน้าตั้งค่าธุรกิจเมื่อพร้อม
+   * (ธุรกิจที่สร้างผ่าน wizard ใหม่มี slug มาตั้งแต่ต้นอยู่แล้ว เงื่อนไขนี้จึงเจอเฉพาะร้านเก่า)
+   */
 
   // คำนวณ tier label ตาม SSOT (getTierLabel) จาก trustScore session
   const tierName = getTierLabel(user.trustScore ?? 0)

@@ -30,16 +30,16 @@ import OrdersTable from './OrdersTable'
 
 // ─── status tabs ────────────────────────────────────────────────────────────
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
+import { ORDER_STATUS_META } from '@/lib/order-display'
 
 /** ลำดับชิปสถานะพัสดุ — เรียงตามเส้นทางจริงของพัสดุ ปิดท้ายด้วยกองที่ต้องแก้ */
 const STAGE_CHIPS = ['AWAITING_PARCEL', 'AWAITING_PICKUP', 'SHIPPING', 'AWAITING_COD', 'PROBLEM'] as const
 
+// คำของแต่ละสถานะมาจาก SSOT ตัวเดียวกับ badge บนแถว/การ์ด (lib/order-display.ts) — ชิปกับป้าย
+// ที่อยู่ห่างกันไม่กี่สิบพิกเซลต้องพูดคำเดียวกันเสมอ ห้ามพิมพ์คำซ้ำไว้ที่นี่
 const STATUS_TABS: { value: string; label: string }[] = [
-  { value: 'all',       label: 'ทั้งหมด' },
-  { value: 'PENDING',   label: 'รอดำเนินการ' },
-  { value: 'SHIPPED',   label: 'จัดส่งแล้ว' },
-  { value: 'CONFIRMED', label: 'สำเร็จ' },
-  { value: 'CANCELLED', label: 'ยกเลิก' },
+  { value: 'all', label: 'ทั้งหมด' },
+  ...Object.entries(ORDER_STATUS_META).map(([value, meta]) => ({ value, label: meta.label })),
 ]
 
 // ─── order type options (ใช้ใน filter modal) ────────────────────────────────

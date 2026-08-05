@@ -3,6 +3,7 @@
  * SSOT: docs/20 - Features/00016 - Expense & Cost Tracking/SDS.md §4.2 (copy เป๊ะ); SRS.md TFR-006/007/008
  */
 import { prisma } from '@/lib/prisma'
+import { revenueOrderWhere } from '@/lib/order-revenue'
 import type { ResolvedDateRange } from '@/lib/date-range'
 
 export interface PnlReport {
@@ -36,7 +37,7 @@ const ORDER_SELECT = { totalAmount: true, items: { select: { cost: true, qty: tr
 
 type PnlOrder = { totalAmount: unknown; items: { cost: unknown; qty: number }[] }
 
-/** รวมยอดจากออเดอร์ CONFIRMED — คืน revenue/cogs และธงว่ามีสินค้าที่ยังไม่ตั้งต้นทุนไหม */
+/** รวมยอดจากออเดอร์ที่นับเป็นยอดขายแล้ว — คืน revenue/cogs และธงว่ามีสินค้าที่ยังไม่ตั้งต้นทุนไหม */
 function sumOrders(orders: PnlOrder[]): { revenue: number; cogs: number; hasMissingCost: boolean } {
   let revenue = 0, cogs = 0, hasMissingCost = false
   for (const o of orders) {
@@ -52,7 +53,8 @@ function sumOrders(orders: PnlOrder[]): { revenue: number; cogs: number; hasMiss
 export async function getPnlReport(shopId: string, range: ResolvedDateRange): Promise<PnlReport> {
   const [orders, expenseAgg, prevOrders, prevExpenseAgg] = await Promise.all([
     prisma.order.findMany({
-      where: { shopId, status: 'CONFIRMED', createdAt: { gte: range.orderRange.gte, lt: range.orderRange.lt } },
+      // ยอดขายนับ CONFIRMED + ใบที่ขนส่งรับของไปแล้วจริง (SSOT: lib/order-revenue.ts)
+      where: { shopId, ...revenueOrderWhere, createdAt: { gte: range.orderRange.gte, lt: range.orderRange.lt } },
       select: ORDER_SELECT,
     }),
     prisma.expense.aggregate({
@@ -62,7 +64,7 @@ export async function getPnlReport(shopId: string, range: ResolvedDateRange): Pr
     // ช่วงก่อนหน้า — ใช้คำนวณ %เปลี่ยนแปลงเท่านั้น ไม่ได้ส่งตัวเลขดิบออกไป
     prisma.order.findMany({
       where: {
-        shopId, status: 'CONFIRMED',
+        shopId, ...revenueOrderWhere,
         createdAt: { gte: range.prevRange.orderRange.gte, lt: range.prevRange.orderRange.lt },
       },
       select: ORDER_SELECT,

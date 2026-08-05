@@ -206,13 +206,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // totalCount = ทุก order ของ status นี้ (ทุกช่วงเวลา)
     const totalCount = forStatus.length
 
-    // trendSeries: จำนวน order ของ status ใน 30 วันล่าสุดแต่ละวัน (length 30)
-    const trendSeries = lastDays.map((day) =>
-      forStatus.filter((o) => toDateStr(o.createdAtISO) === day).length,
-    )
-
-    // current = sum(trendSeries) = ยอด 30 วันล่าสุด
-    const current = trendSeries.reduce((s, n) => s + n, 0)
+    // current = ยอด 30 วันล่าสุด (เดิมสร้าง trendSeries รายวันไว้ป้อน sparkline ด้วย — การ์ดไม่มี
+    // กราฟแล้วจึงนับตรง ๆ ไม่ต้องแตกเป็นรายวัน)
+    const lastDaySet = new Set(lastDays)
+    const current = forStatus.filter((o) => lastDaySet.has(toDateStr(o.createdAtISO))).length
 
     // prev: order ที่ createdAt อยู่ระหว่าง prevStartStr ถึง prevEndStr (30 วันก่อนหน้า, inclusive)
     const prev = forStatus.filter((o) => {
@@ -225,12 +222,12 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         ? current > 0 ? 100 : 0
         : Math.round(((current - prev) / prev) * 100)
 
-    return { title, status, totalCount, changePct, trendSeries }
+    return { title, status, totalCount, changePct }
   }
 
   const orderStatData: OrderStatCardData[] = [
     buildStatCard('รอดำเนินการ', 'PENDING'),
-    buildStatCard('จัดส่งแล้ว',  'SHIPPED'),
+    buildStatCard('กำลังจัดส่ง', 'SHIPPED'),
     buildStatCard('สำเร็จแล้ว',  'CONFIRMED'),
     buildStatCard('ยกเลิก',      'CANCELLED'),
   ]

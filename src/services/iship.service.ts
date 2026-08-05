@@ -9,6 +9,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { createOrder } from "@/services/order.service";
+import { recordOrderEvent } from "@/services/order-event.service";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
 import { IShipError } from "@/lib/iship/errors";
@@ -28,7 +29,9 @@ import {
 
 export type { ParcelPreview, UnlinkedParcelView };
 import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility";
+import { assembleCompareResult, type CompareResult } from "@/lib/iship/compare";
 import {
+  buildCheckPricePayload,
   buildCreateOrderPayload,
   buildIdempotencyKey,
   buildOptionsSnapshot,
@@ -951,19 +954,30 @@ async function dispatchShipment(
     const { result, dryRun } = await withTokenGuard(shopId, () =>
       iship.createOrder(token, payload),
     );
-    const updated = await prisma.orderShipment.update({
-      where: { id: shipmentId },
-      data: {
-        status: "CREATED",
-        trackingNo: result.tracking_number,
-        refCode: result.ref,
-        externalId: result.id != null ? String(result.id) : null,
-        isDryRun: dryRun,
-        attemptCount: { increment: 1 },
-        lastErrorCode: null,
-        lastErrorMessage: null,
-      },
-      select: SHIPMENT_SELECT,
+    // event อยู่ใน tx เดียวกับการ mark CREATED (feature 00031) — actor = คนที่กดสร้าง/ลองใหม่
+    // (row.createdByUserId ถูกเขียนทับตอน retry แล้ว จึงเป็นคนล่าสุดที่กดจริงเสมอ)
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.orderShipment.update({
+        where: { id: shipmentId },
+        data: {
+          status: "CREATED",
+          trackingNo: result.tracking_number,
+          refCode: result.ref,
+          externalId: result.id != null ? String(result.id) : null,
+          isDryRun: dryRun,
+          attemptCount: { increment: 1 },
+          lastErrorCode: null,
+          lastErrorMessage: null,
+        },
+        select: SHIPMENT_SELECT,
+      });
+      await recordOrderEvent(tx, {
+        orderId: row.orderId,
+        type: "SHIPMENT_CREATED",
+        actorUserId: row.createdByUserId,
+        meta: { shipmentId, courierName: row.courierName ?? undefined },
+      });
+      return u;
     });
     return toShipmentView(updated);
   } catch (err) {
@@ -1029,14 +1043,24 @@ export async function cancelShipment(
     );
   }
 
-  const updated = await prisma.orderShipment.update({
-    where: { id: shipmentId },
-    data: {
-      status: "CANCELLED",
-      cancelledAt: new Date(),
-      cancelledByUserId: userId,
-    },
-    select: SHIPMENT_SELECT,
+  // event อยู่ใน tx เดียวกับการ mark CANCELLED (feature 00031)
+  const updated = await prisma.$transaction(async (tx) => {
+    const u = await tx.orderShipment.update({
+      where: { id: shipmentId },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+        cancelledByUserId: userId,
+      },
+      select: SHIPMENT_SELECT,
+    });
+    await recordOrderEvent(tx, {
+      orderId: u.orderId,
+      type: "SHIPMENT_CANCELLED",
+      actorUserId: userId,
+      meta: { shipmentId, courierName: u.courierName ?? undefined },
+    });
+    return u;
   });
   return toShipmentView(updated);
 }
@@ -1688,18 +1712,12 @@ export async function estimateShippingPrice(
   const price = await withTokenGuard(shopId, () =>
     iship.checkPrice(token, {
       courier_code: input.courierCode,
-      src_zipcode: sender.postcode ?? "",
-      src_province: normalizeProvince(sender.province),
-      src_amphure: sender.district ?? "", // อำเภอ
-      src_district: sender.subdistrict ?? "", // ตำบล
-      dst_zipcode: r.postcode ?? "",
-      dst_province: normalizeProvince(r.province),
-      dst_amphure: r.district ?? "", // อำเภอ
-      dst_district: r.subdistrict ?? "", // ตำบล
-      weight: input.weight,
-      width: input.width,
-      length: input.length,
-      height: input.height,
+      ...buildCheckPricePayload(sender, r, {
+        weight: input.weight,
+        width: input.width,
+        length: input.length,
+        height: input.height,
+      }),
     }),
   );
 
@@ -1709,6 +1727,109 @@ export async function estimateShippingPrice(
     estimateDays: Number.isFinite(days) && days > 0 ? days : null,
     remoteArea: Number(price.remote_area) > 0,
   };
+}
+
+/**
+ * compareShippingPrices — ถามราคา "ทุกขนส่งของร้าน" ในคำขอเดียว (ปุ่มเทียบราคา)
+ *
+ * ทำไม fan-out ฝั่ง server: ให้ client วนยิง /price ทีละขนส่ง ~17 ครั้งจะชน rate-limit
+ * ของเราเอง (authenticated 30 req/นาที) — ฝั่งนี้รวมเป็น 1 คำขอ แล้วยิง iShip ขนานด้วย
+ * allSettled: ขนส่งที่ไม่ตอบถูกตัดเข้า failed[] ไม่ล้มทั้งชุด (check-price ไม่ก่อค่าใช้จ่าย)
+ */
+export async function compareShippingPrices(
+  shopId: string,
+  input: {
+    receiver: {
+      subdistrict?: string | null;
+      district?: string | null;
+      province?: string | null;
+      postcode?: string | null;
+    };
+    weight: number;
+    width: number;
+    length: number;
+    height: number;
+  },
+): Promise<CompareResult> {
+  const { account, token } = await loadAccount(shopId);
+  const sender = senderOf(account);
+
+  const missingSender = findMissingSenderFields(sender);
+  if (missingSender.length > 0) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      `ยังตั้งที่อยู่ผู้ส่งไม่ครบ — ขาด ${missingSender.join(", ")}`,
+      missingSender,
+    );
+  }
+
+  const r = input.receiver;
+  if (!r.subdistrict || !r.district || !r.province || !r.postcode) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      "ยังกรอกที่อยู่ปลายทางไม่ครบ จึงประเมินค่าส่งไม่ได้",
+    );
+  }
+
+  const base = buildCheckPricePayload(sender, r, {
+    weight: input.weight,
+    width: input.width,
+    length: input.length,
+    height: input.height,
+  });
+
+  return withTokenGuard(shopId, async () => {
+    const couriers = await iship.listCouriers(token);
+    if (couriers.length === 0) return { rows: [], failed: [] };
+
+    // ยิงเป็นชุดละ 4 ไม่ใช่ทั้ง ~17 พร้อมกัน — burst ใหญ่จาก token เดียวเสี่ยงโดนฝั่ง
+    // iShip จำกัด/block ทั้งชุด (เหตุ prod 2026-08-05: ทุกเจ้าพังพร้อมกันทั้งที่ quote
+    // รายตัวใช้ได้) ช้าลงแค่ ~2-3 วินาทีแต่เสถียรกว่า
+    const settled: PromiseSettledResult<Awaited<ReturnType<typeof iship.checkPrice>>>[] = [];
+    for (let i = 0; i < couriers.length; i += 4) {
+      const chunk = couriers.slice(i, i + 4);
+      settled.push(
+        ...(await Promise.allSettled(
+          chunk.map((c) => iship.checkPrice(token, { courier_code: c.code, ...base })),
+        )),
+      );
+    }
+    const result = assembleCompareResult(couriers, settled);
+    if (result.failed.length > 0) {
+      // เหตุผลจริงรายเจ้า — ไม่มีบรรทัดนี้ debug บน prod ไม่ได้เลย (mapIShipError ไม่ log
+      // IShipError และ reject รายเจ้าถูกกลืนเป็น failed[] เงียบ ๆ) token ถูก redact ในชั้น client แล้ว
+      console.error(
+        "[iship-compare]",
+        `failed ${result.failed.length}/${couriers.length}`,
+        settled
+          .map((s, i) =>
+            s.status === "rejected"
+              ? `${couriers[i]?.code}: ${s.reason instanceof Error ? `${s.reason.name} ${s.reason.message}` : String(s.reason)}${s.reason instanceof IShipError ? ` [${s.reason.code} http=${s.reason.httpStatus ?? "-"} ${(s.reason.upstreamMessage ?? "").slice(0, 120)}]` : ""}`
+              : null,
+          )
+          .filter(Boolean)
+          .join(" | "),
+      );
+    }
+    if (result.rows.length === 0 && result.failed.length > 0) {
+      // ทุกขนส่งพัง — ไม่ throw เป็น 502 ทึบ ๆ อีก (เหตุ prod 2026-08-05 วินิจฉัยไม่ได้เลย):
+      // คืน 200 พร้อมเหตุผลรายเจ้าให้หน้าจอแสดง state ล้มเหลว + รายละเอียดจริง
+      result.failedDetail = settled
+        .map((s, i) => {
+          if (s.status !== "rejected") return null;
+          const r = s.reason;
+          const base = `${couriers[i]?.code ?? "?"}`;
+          if (r instanceof IShipError) {
+            return `${base}: ${r.code} http=${r.httpStatus ?? "-"} ${(r.upstreamMessage ?? "").slice(0, 100)}`;
+          }
+          return `${base}: ${r instanceof Error ? r.message : String(r)}`;
+        })
+        .filter(Boolean)
+        .join(" | ")
+        .slice(0, 1500);
+    }
+    return result;
+  });
 }
 
 // ─── ผูกพัสดุที่มีอยู่แล้วบน iShip (ส่วนขยาย feature 00022) ─────────────────
@@ -1939,27 +2060,38 @@ export async function linkShipment(
     where: { orderId, status: "CANCELLED" },
   });
 
-  const created = await prisma.orderShipment.create({
-    data: {
+  // event อยู่ใน tx เดียวกับการสร้างแถวผูก (feature 00031 — บั๊กจริง 2026-08-05:
+  // ผูกพัสดุแล้วประวัติคำสั่งซื้อไม่ขึ้น เพราะไม่มีจุดเขียน SHIPMENT_LINKED เลย)
+  const created = await prisma.$transaction(async (tx) => {
+    const row = await tx.orderShipment.create({
+      data: {
+        orderId,
+        shopId,
+        status: "CREATED",
+        source: "LINKED",
+        linkedAt: new Date(),
+        // คีย์คนละรูปกับใบที่เราเปิดเอง โดยเจตนา — ใบนี้ไม่เคยมี custom_order_id ของเรา
+        // ฝั่ง iShip การเอารูปเดิมมาใช้จะทำให้อ่านผิดว่าเราเป็นคนยิง create_order
+        idempotencyKey: `link:${trackingNo}:${cancelledCount + 1}`,
+        trackingNo,
+        courierCode: parcel.courierCode,
+        courierName: parcel.courierName,
+        codAmount: parcel.codAmount,
+        carrierStatus: parcel.carrierStatus,
+        carrierStatusText: parcel.carrierStatusText,
+        carrierStatusAt: new Date(),
+        createdByUserId: userId,
+        receiverSnapshot: parcel.receiver as object,
+      },
+      select: { id: true },
+    });
+    await recordOrderEvent(tx, {
       orderId,
-      shopId,
-      status: "CREATED",
-      source: "LINKED",
-      linkedAt: new Date(),
-      // คีย์คนละรูปกับใบที่เราเปิดเอง โดยเจตนา — ใบนี้ไม่เคยมี custom_order_id ของเรา
-      // ฝั่ง iShip การเอารูปเดิมมาใช้จะทำให้อ่านผิดว่าเราเป็นคนยิง create_order
-      idempotencyKey: `link:${trackingNo}:${cancelledCount + 1}`,
-      trackingNo,
-      courierCode: parcel.courierCode,
-      courierName: parcel.courierName,
-      codAmount: parcel.codAmount,
-      carrierStatus: parcel.carrierStatus,
-      carrierStatusText: parcel.carrierStatusText,
-      carrierStatusAt: new Date(),
-      createdByUserId: userId,
-      receiverSnapshot: parcel.receiver as object,
-    },
-    select: { id: true },
+      type: "SHIPMENT_LINKED",
+      actorUserId: userId,
+      meta: { shipmentId: row.id, courierName: parcel.courierName ?? undefined },
+    });
+    return row;
   });
 
   // เติมไทม์ไลน์ย้อนหลังทันที — ใบที่ผูกย้อนหลังอาจเดินทางไปไกลแล้วตั้งแต่เมื่อวาน

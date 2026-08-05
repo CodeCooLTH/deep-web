@@ -32,7 +32,7 @@ const columnHelper = createColumnHelper<OrderType>()
 // แปลงสถานะจาก state machine ใหม่เป็นภาษาไทยสำหรับ badge
 const STATUS_LABEL: Record<string, string> = {
   PENDING:   'รอดำเนินการ',
-  SHIPPED:   'จัดส่งแล้ว',
+  SHIPPED:   'กำลังจัดส่ง',
   CONFIRMED: 'สำเร็จ',
   CANCELLED: 'ยกเลิก',
 }

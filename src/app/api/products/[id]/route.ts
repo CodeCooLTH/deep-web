@@ -11,6 +11,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
 import { isCostEditAllowed } from "@/services/expense-access.service";
+import { canAccessShop } from "@/lib/shop-context";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -18,7 +19,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { id } = await params;
   const product = await prisma.product.findUnique({ where: { id }, include: { shop: true } });
-  if (!product || product.shop.userId !== (session.user as any).id) {
+  // membership check (owner หรือ BUSINESS admin) — เดิมเช็ค shop.userId ตรง ๆ ทำให้ admin
+  // สร้างสินค้าได้ (POST ใช้ requireActiveShop) แต่แก้/ลบไม่ได้ (คลาสเดียวกับบั๊ก cancel/แชท)
+  // คง 404 ไว้ (ไม่ใช่ 403) — ไม่บอกคนนอกว่า product id นี้มีอยู่จริง
+  if (!product || !(await canAccessShop(product.shopId, (session.user as any).id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -54,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   // cost — Expense & Cost Tracking (feature 00016): guard เฉพาะเมื่อ caller ส่ง field นี้มา
-  // (ownership check ผ่านไปแล้วด้านบน — product.shop.userId === session.user.id — isCostEditAllowed เช็คแค่ package ACTIVE)
+  // (membership check ผ่านไปแล้วด้านบน — isCostEditAllowed เช็คแค่ package ACTIVE)
   if (parsed.output.cost !== undefined) {
     if (!(await isCostEditAllowed(product.shop))) {
       return NextResponse.json({ error: "COST_REQUIRES_BUSINESS_PACKAGE" }, { status: 403 });
@@ -73,7 +77,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const { id } = await params;
   const product = await prisma.product.findUnique({ where: { id }, include: { shop: true } });
-  if (!product || product.shop.userId !== (session.user as any).id) {
+  // membership check เหมือน PATCH ด้านบน
+  if (!product || !(await canAccessShop(product.shopId, (session.user as any).id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

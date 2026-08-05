@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup — Order Detail Enhance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/@iconify/iconify@3/dist/iconify.min.js"></script>
+<style>
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a; --primary-hover:#1e5dab;
+  --success:#02bc9c; --success-ink:#065f46;
+  --info:#5bc3e1;    --info-ink:#1e40af;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --danger:#f7577e;  --danger-ink:#7f1d1d;
+  --light:#eef2f7;
+  --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9ba6b7;
+  --d500:#a1a9b1; --d600:#8a969c; --d700:#6c757d; --d800:#343a40; --d900:#313a46;
+  --bg:#f6f7fb;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;background:#e8ebf2;color:var(--d800);
+     font-size:14px;line-height:1.5;padding:32px 16px 80px}
+.page{max-width:1420px;margin:0 auto}
+h1{font-size:22px;font-weight:700;color:var(--d900);margin-bottom:6px}
+.lede{color:var(--d700);font-size:14px;margin-bottom:20px;max-width:80ch}
+.alert{background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:28px;box-shadow:0 1px 3px rgba(49,58,70,.1);
+       display:flex;gap:11px;align-items:flex-start;max-width:96ch}
+.alert .ic{color:var(--danger);font-size:20px;flex:0 0 auto;margin-top:1px}
+.alert b{color:var(--d900)}
+h2{font-size:17px;font-weight:700;color:var(--d900);margin:38px 0 3px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+h2 .n{background:var(--primary);color:#fff;font-size:12px;font-weight:700;width:22px;height:22px;border-radius:50%;
+      display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+h2 .tag{font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px}
+.t-fix{background:color-mix(in srgb,var(--danger) 15%,#fff);color:var(--danger-ink)}
+.t-new{background:color-mix(in srgb,var(--primary) 15%,#fff);color:var(--primary-ink)}
+.why{color:var(--d700);font-size:13px;margin:6px 0 14px;max-width:88ch}
+.why b{color:var(--d900)} .why code{background:#fff;padding:1px 5px;border-radius:4px;font-size:12px}
+.row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.frame{background:var(--bg);border-radius:10px;padding:14px;box-shadow:0 2px 12px rgba(49,58,70,.09);flex:0 0 auto}
+.frame .cap{font-size:11px;color:var(--d600);margin-bottom:8px;font-weight:600}
+.w-side{width:330px} .w-main{width:620px} .w-full{width:100%;max-width:980px}
+
+/* Paces-like primitives */
+.card{background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(130,143,163,.15)}
+.card-header{padding:14px 20px;border-bottom:1px dashed var(--d300);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card-title{font-size:15px;font-weight:600;color:var(--d900)}
+.card-body{padding:20px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px}
+.b-info{background:color-mix(in srgb,var(--info) 15%,#fff);color:var(--info-ink)}
+.b-warn{background:color-mix(in srgb,var(--warning) 15%,#fff);color:var(--warning-ink)}
+.b-succ{background:color-mix(in srgb,var(--success) 15%,#fff);color:var(--success-ink)}
+.b-mute{background:var(--d100);color:var(--d800)}
+.btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;padding:9px 14px;border-radius:6px;
+     border:0;cursor:default;background:var(--light);color:var(--d800)}
+.btn-p{background:var(--primary);color:#fff}
+.btn-i{width:32px;height:32px;padding:0;justify-content:center;border-radius:50%;border:1px solid var(--d300);background:#fff;color:var(--d700)}
+.lbl{font-size:11px;color:var(--d800);margin-bottom:3px}
+.val{font-size:14px;color:var(--d900);font-weight:500}
+.mono{font-variant-numeric:tabular-nums;letter-spacing:.03em}
+
+/* ── การจัดส่ง ── */
+.ship-top{display:flex;align-items:center;gap:12px}
+.ship-logo{width:44px;height:44px;border-radius:9px;background:var(--d100);display:grid;place-items:center;flex:0 0 auto;
+           font-size:10px;font-weight:700;color:var(--d600);overflow:hidden}
+.track-row{display:flex;align-items:center;gap:8px;margin-top:2px}
+.track-no{font-size:16px;font-weight:700;color:var(--d900)}
+.stages{display:flex;align-items:center;margin-top:18px}
+.stg{flex:1;display:flex;align-items:center}
+.stg:last-child{flex:0 0 auto}
+.dot{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:15px;flex:0 0 auto;
+     background:var(--d100);color:var(--d500)}
+.dot.on{background:var(--success);color:#fff}
+.dot.now{background:var(--primary);color:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 16%,#fff)}
+.bar{height:2px;flex:1;background:var(--d200);margin:0 4px}
+.bar.on{background:var(--success)}
+.stg-lb{display:flex;margin-top:9px}
+.stg-lb span{flex:1;text-align:center;font-size:11px;color:var(--d700);line-height:1.3}
+.stg-lb span:first-child{text-align:left}.stg-lb span:last-child{text-align:right}
+.stg-lb span.now{font-size:12px;font-weight:700;color:var(--d900)}
+.trace{margin-top:16px;border-top:1px dashed var(--d300);padding-top:14px}
+.trace .ev{display:flex;gap:11px;font-size:12px;padding:5px 0}
+.trace .ev .tm{color:var(--d600);white-space:nowrap;width:105px;flex:0 0 auto}
+.trace .ev .tx{color:var(--d800)}
+.trace .ev .pl{color:var(--d600)}
+.more{font-size:12px;color:var(--primary);font-weight:600;margin-top:8px;display:inline-block}
+
+/* ── quick actions ── */
+.qa{display:flex;gap:8px;flex-wrap:wrap}
+.qa .q{flex:1;min-width:96px;background:#fff;border:1px solid var(--d300);border-radius:8px;padding:11px 8px;
+       display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--d800)}
+.qa .q i{font-size:19px;color:var(--primary)}
+
+/* ── note ── */
+.note-box{background:color-mix(in srgb,var(--warning) 12%,#fff);border-radius:6px;padding:11px 13px;font-size:13px;color:var(--d800);
+          display:flex;gap:9px;align-items:flex-start}
+.note-box i{color:var(--warning-ink);font-size:15px;flex:0 0 auto;margin-top:1px}
+
+/* ── COD ── */
+.cod{display:flex;align-items:center;gap:12px}
+.cod .amt{font-size:22px;font-weight:700;color:var(--d900);line-height:1.15}
+.cod .sub{font-size:11px;color:var(--d700)}
+
+/* ── buyer ── */
+.b-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.b-av{width:44px;height:44px;border-radius:50%;background:var(--d200);display:grid;place-items:center;font-weight:700;color:var(--d700);flex:0 0 auto}
+.b-name{font-size:14px;font-weight:600;color:var(--d900)}
+.b-sub{font-size:11px;color:var(--d700)}
+.ilist{list-style:none;display:flex;flex-direction:column;gap:10px}
+.ilist li{display:flex;align-items:center;gap:10px;font-size:13px}
+.ico{width:24px;height:24px;border-radius:50%;background:var(--light);display:grid;place-items:center;color:var(--d800);font-size:12px;flex:0 0 auto}
+.lnk{color:var(--primary);font-weight:500}
+
+table{border-collapse:collapse;width:100%;margin-top:12px;font-size:13px;background:#fff;border-radius:8px;overflow:hidden}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--d200);vertical-align:top}
+th{background:var(--d100);font-weight:600;color:var(--d900);font-size:12px}
+td code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:12px}
+.ok{color:var(--success-ink);font-weight:600}.no{color:var(--danger-ink);font-weight:600}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Order Detail — สิ่งที่ปรับเพิ่มได้</h1>
+<p class="lede">
+  ทุกอย่างในหน้านี้ใช้ <b>ข้อมูลที่ระบบมีอยู่จริงแล้ว</b> ไม่มีของแต่ง — ตารางท้ายหน้าบอกว่าแต่ละชิ้นมาจากคอลัมน์ไหน
+  สีจาก token จริงของ Paces ฟอนต์ Anuphan
+</p>
+
+<div class="alert">
+  <span class="iconify ic" data-icon="tabler:alert-triangle"></span>
+  <span>
+    <b>ข้อ 1 ไม่ใช่ของใหม่ — เป็นของที่ผมทำหายตอนรื้อหน้าเป็นโครงธีมเมื่อกี้</b><br>
+    การ์ด "การจัดส่ง" เดิมอยู่ใน <code>OrderFactsCard</code> ที่ผมลบทิ้ง ตอนนี้ <b>เลขพัสดุกับชื่อขนส่งไม่ปรากฏบนหน้าจอเลย</b>
+    (ยืนยันด้วย grep: ไม่มีการ์ดไหนใน 5 ใบ render <code>trackingNo</code>) — ออเดอร์ที่ส่งของแล้วจะดูเลขพัสดุไม่ได้
+    ผมไม่เห็นตอนเปิด production เพราะใบที่เปิดดูยังไม่มีเลขพัสดุ
+  </span>
+</div>
+
+<!-- ══════════ 1 ══════════ -->
+<h2><span class="n">1</span> การจัดส่ง <span class="tag t-fix">เอาของที่หายกลับ + ทำให้ดีกว่าเดิม</span></h2>
+<p class="why">
+  ของเดิมมีแค่ 3 ช่อง (ขนส่ง / เลขพัสดุ / แจ้งจัดส่งเมื่อ) แต่ระบบมีมากกว่านั้นมาก:
+  <b>โลโก้ขนส่ง 9 แบรนด์</b> (<code>src/lib/iship/courier.ts</code>) · <b>สถานะจากขนส่ง 15 สถานะยุบเป็น 4 ขั้น</b>
+  (<code>SHIPMENT_STAGES</code> ใน <code>lib/iship/status.ts</code>) · <b>ไทม์ไลน์การเดินทางจริง</b>
+  (ตาราง <code>ShipmentEvent</code> — มีข้อมูลจริงบน prod แล้ว เช่นพัสดุ Flash Thunder ที่มี 12 เหตุการณ์)
+  ทั้งหมดนี้เก็บอยู่แล้วแต่หน้ารายละเอียดไม่เคยเอามาแสดง
+</p>
+<div class="row">
+  <div class="frame w-main"><div class="cap">เดสก์ท็อป · คอลัมน์ซ้าย 75%</div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">การจัดส่ง</span>
+        <span class="badge b-info"><span class="iconify" data-icon="tabler:truck"></span> ส่งผ่าน iShip</span></div>
+      <div class="card-body">
+        <div class="ship-top">
+          <span class="ship-logo">FLASH</span>
+          <div style="flex:1;min-width:0">
+            <div class="lbl">Flash Thunder</div>
+            <div class="track-row">
+              <span class="track-no mono">TH460290DA197B</span>
+              <span class="btn btn-i" title="คัดลอกเลขพัสดุ"><span class="iconify" data-icon="tabler:copy"></span></span>
+              <span class="btn btn-i" title="เปิดหน้าติดตามของขนส่ง"><span class="iconify" data-icon="tabler:external-link"></span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="stages">
+          <div class="stg"><span class="dot on"><span class="iconify" data-icon="tabler:package"></span></span><span class="bar on"></span></div>
+          <div class="stg"><span class="dot on"><span class="iconify" data-icon="tabler:package-import"></span></span><span class="bar on"></span></div>
+          <div class="stg"><span class="dot now"><span class="iconify" data-icon="tabler:truck-delivery"></span></span><span class="bar"></span></div>
+          <div class="stg"><span class="dot"><span class="iconify" data-icon="tabler:circle-check"></span></span></div>
+        </div>
+        <div class="stg-lb"><span>สร้างพัสดุ</span><span>รับเข้าระบบแล้ว</span><span class="now">กำลังจัดส่ง</span><span>จัดส่งสำเร็จ</span></div>
+
+        <div class="trace">
+          <div class="lbl" style="margin-bottom:6px">การเดินทางล่าสุด</div>
+          <div class="ev"><span class="tm">04 ส.ค. 19:23</span><span class="tx">อยู่ระหว่างจัดส่ง <span class="pl">· นิคมคำสร้อย มุกดาหาร</span></span></div>
+          <div class="ev"><span class="tm">04 ส.ค. 16:37</span><span class="tx">อยู่ระหว่างขนส่ง <span class="pl">· นิคมคำสร้อย มุกดาหาร</span></span></div>
+          <div class="ev"><span class="tm">04 ส.ค. 12:26</span><span class="tx">พัสดุถึงสถานีคัดแยก <span class="pl">· ดู่ทุ่ง ยโสธร</span></span></div>
+          <span class="more">ดูทั้งหมด 12 เหตุการณ์ ›</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame w-side"><div class="cap">มือถือ · 360px</div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">การจัดส่ง</span>
+        <span class="badge b-info">iShip</span></div>
+      <div class="card-body">
+        <div class="ship-top">
+          <span class="ship-logo">FLASH</span>
+          <div style="flex:1;min-width:0">
+            <div class="lbl">Flash Thunder</div>
+            <div class="track-row"><span class="track-no mono" style="font-size:14px">TH460290DA197B</span>
+              <span class="btn btn-i" style="width:28px;height:28px"><span class="iconify" data-icon="tabler:copy"></span></span></div>
+          </div>
+        </div>
+        <div class="stages">
+          <div class="stg"><span class="dot on" style="width:26px;height:26px;font-size:13px"><span class="iconify" data-icon="tabler:package"></span></span><span class="bar on"></span></div>
+          <div class="stg"><span class="dot on" style="width:26px;height:26px;font-size:13px"><span class="iconify" data-icon="tabler:package-import"></span></span><span class="bar on"></span></div>
+          <div class="stg"><span class="dot now" style="width:26px;height:26px;font-size:13px"><span class="iconify" data-icon="tabler:truck-delivery"></span></span><span class="bar"></span></div>
+          <div class="stg"><span class="dot" style="width:26px;height:26px;font-size:13px"><span class="iconify" data-icon="tabler:circle-check"></span></span></div>
+        </div>
+        <div style="margin-top:12px"><b style="font-size:14px;color:var(--d900)">กำลังจัดส่ง</b>
+          <div style="font-size:11px;color:var(--d700);margin-top:2px">ล่าสุด 04 ส.ค. 19:23 · นิคมคำสร้อย มุกดาหาร</div></div>
+        <span class="more">ดูการเดินทางทั้งหมด ›</span>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--d600);margin-top:7px">มือถือ: ตัดรายการเดินทางเหลือบรรทัดเดียว กดดูทั้งหมดได้</p>
+  </div>
+</div>
+
+<!-- ══════════ 2 ══════════ -->
+<h2><span class="n">2</span> หมายเหตุภายในร้าน <span class="tag t-fix">มีข้อมูลอยู่แล้ว แต่ไม่เคยแสดง</span></h2>
+<p class="why">
+  <code>Order.internalNote</code> — ร้าน<b>กรอกได้ตอนสร้างออเดอร์</b> (มีช่องใน POS: <code>MoreOptions.tsx</code>, <code>CartPanel.tsx</code>)
+  แต่ <b>หน้ารายละเอียดไม่แสดงเลยสักที่</b> แปลว่าร้านพิมพ์โน้ตไว้แล้วเปิดกลับมาดูไม่ได้ — เป็นข้อมูลที่หายเข้าไปในฐานเฉย ๆ
+  (ต่างจาก "หมายเหตุจากผู้ซื้อ" ที่แสดงอยู่แล้วในการ์ดที่อยู่ — คนละช่องกัน)
+</p>
+<div class="row">
+  <div class="frame w-side"><div class="cap">แทรกในการ์ดสรุป ใต้ตารางสินค้า</div>
+    <div class="card"><div class="card-body">
+      <div class="note-box">
+        <i class="iconify" data-icon="tabler:note"></i>
+        <span><b>หมายเหตุภายในร้าน</b><br>ลูกค้าขอห่อกันกระแทก 2 ชั้น · โทรก่อนส่ง 1 ชม.</span>
+      </div>
+      <p style="font-size:11px;color:var(--d600);margin-top:8px">เห็นเฉพาะร้าน ผู้ซื้อไม่เห็น</p>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════════ 3 ══════════ -->
+<h2><span class="n">3</span> ปุ่มลัดที่ร้านใช้ทุกวัน <span class="tag t-new">ประกอบจากของที่มีอยู่</span></h2>
+<p class="why">
+  ทุกปุ่มต่อกับ flow ที่<b>มีอยู่แล้ว</b> ไม่ใช่ปุ่มใหม่: คัดลอกลิงก์ (<code>shortCode</code>) · QR ของลิงก์เดียวกัน
+  (หน้ารายการออเดอร์มีปุ่มนี้อยู่แล้ว หน้ารายละเอียดไม่มี) · ทักแชท (ผูก <code>Customer</code> → ห้องแชทที่มีอยู่)
+  · ส่ง SMS (อยู่ใน ⋮ ปัจจุบัน — ยกขึ้นมาให้เห็น)
+</p>
+<div class="row">
+  <div class="frame w-side"><div class="cap">ใต้หัวการ์ดสรุป</div>
+    <div class="card"><div class="card-body">
+      <div class="qa">
+        <span class="q"><i class="iconify" data-icon="tabler:copy"></i>คัดลอกลิงก์</span>
+        <span class="q"><i class="iconify" data-icon="tabler:qrcode"></i>QR</span>
+        <span class="q"><i class="iconify" data-icon="tabler:message"></i>ทักแชท</span>
+        <span class="q"><i class="iconify" data-icon="tabler:message-forward"></i>SMS ฿1</span>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ══════════ 4 ══════════ -->
+<h2><span class="n">4</span> เก็บเงินปลายทาง <span class="tag t-new">ยกปุ่มที่ซ่อนอยู่ขึ้นมา</span></h2>
+<p class="why">
+  ปุ่ม "ได้รับเงินปลายทางแล้ว" มีอยู่แล้ว (ทำเมื่อวาน) แต่ไปอยู่รวมกับปุ่มอื่นในหัวการ์ด — ทั้งที่มันคือ
+  <b>งานเดียวที่เหลือของร้าน</b> หลังของออกไปแล้ว และเป็นตัวเดียวที่ทำให้ใบนี้ออกจากกอง "รอเงิน COD" บนหน้าแรก
+  ยอดที่ต้องเก็บมาจาก <code>Order.totalAmount</code> ตรง ๆ
+</p>
+<div class="row">
+  <div class="frame w-side"><div class="cap">การ์ดแยก · เฉพาะออเดอร์ COD ที่ยังไม่ได้เงิน</div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">เก็บเงินปลายทาง</span>
+        <span class="badge b-warn">ยังไม่ได้รับเงิน</span></div>
+      <div class="card-body">
+        <div class="cod">
+          <span class="ico" style="width:40px;height:40px;font-size:19px;background:color-mix(in srgb,var(--warning) 15%,#fff);color:var(--warning-ink)">
+            <span class="iconify" data-icon="tabler:coin"></span></span>
+          <div><div class="amt">฿2,500.00</div><div class="sub">ขนส่งเก็บให้ตอนส่งถึง · โอนเข้าร้านตามรอบของขนส่ง</div></div>
+        </div>
+        <span class="btn btn-p" style="width:100%;justify-content:center;margin-top:14px">
+          <span class="iconify" data-icon="tabler:cash"></span> ได้รับเงินแล้ว</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 5 ══════════ -->
+<h2><span class="n">5</span> ผู้ซื้อ — ต่อไปหน้าลูกค้า <span class="tag t-new">ลิงก์ที่ยังไม่มี</span></h2>
+<p class="why">
+  ตอนนี้เพิ่ง<b>เติม "สั่งกับร้านนี้ N ครั้ง" ไปเมื่อกี้</b> แต่ตัวเลขนั้นกดไม่ได้ — ทั้งที่มีหน้า
+  <code>/customers/[id]</code> อยู่แล้ว (feature 00014) ทำให้กดจากออเดอร์ไปดูประวัติทั้งหมดของลูกค้าได้
+</p>
+<div class="row">
+  <div class="frame w-side"><div class="cap">การ์ดผู้ซื้อ</div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">ผู้ซื้อ</span>
+        <span class="btn btn-i" title="เปิดหน้าลูกค้า"><span class="iconify" data-icon="tabler:external-link"></span></span></div>
+      <div class="card-body">
+        <div class="b-row"><span class="b-av">ธ</span>
+          <div><div class="b-name">ธวัชชัย แก้ววิลัย</div><div class="b-sub">ชื่อที่ร้านบันทึก</div></div></div>
+        <ul class="ilist">
+          <li><span class="ico"><span class="iconify" data-icon="tabler:shopping-bag"></span></span>
+            <span>สั่งกับร้านนี้ <b>3 ครั้ง</b> <span class="lnk">· ดูทั้งหมด</span></span></li>
+          <li><span class="ico"><span class="iconify" data-icon="tabler:calendar-plus"></span></span>
+            <span style="color:var(--d700)">ลูกค้าตั้งแต่ 12 ก.ค. 2569</span></li>
+          <li><span class="ico"><span class="iconify" data-icon="tabler:phone"></span></span>
+            <span class="lnk">095 762 6786</span></li>
+          <li><span class="ico"><span class="iconify" data-icon="tabler:brand-facebook"></span></span>
+            <span style="color:var(--d700)">มาจาก Facebook</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ภาพรวม ══════════ -->
+<h2><span class="n">6</span> หน้าตารวมหลังปรับ</h2>
+<div class="row">
+  <div class="frame w-full"><div class="cap">เดสก์ท็อป ≥1024px — โครงธีมเดิม แค่เติมการ์ดและปุ่ม</div>
+    <div style="display:grid;grid-template-columns:3fr 1fr;gap:14px">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card"><div class="card-body" style="padding:16px 20px">
+          <div style="display:flex;align-items:flex-start;gap:12px">
+            <span class="ship-logo" style="border-radius:11px;background:#1877f2;color:#fff;font-size:16px">f</span>
+            <div style="flex:1"><div style="font-size:17px;font-weight:700;color:var(--d900)">DP256908CACDBF13</div>
+              <div style="font-size:13px;color:var(--d700)">ธวัชชัย แก้ววิลัย · 05 ส.ค. 2569 09:30</div>
+              <div style="margin-top:7px;display:flex;gap:6px"><span class="badge b-warn">รอดำเนินการ</span><span class="badge b-info">รอเก็บปลายทาง</span></div></div>
+            <span class="btn btn-p"><span class="iconify" data-icon="tabler:truck"></span> แจ้งเลขพัสดุ</span>
+            <span class="btn btn-i">⋮</span>
+          </div>
+          <div class="qa" style="margin-top:14px">
+            <span class="q"><i class="iconify" data-icon="tabler:copy"></i>คัดลอกลิงก์</span>
+            <span class="q"><i class="iconify" data-icon="tabler:qrcode"></i>QR</span>
+            <span class="q"><i class="iconify" data-icon="tabler:message"></i>ทักแชท</span>
+            <span class="q"><i class="iconify" data-icon="tabler:message-forward"></i>SMS ฿1</span>
+          </div>
+        </div></div>
+        <div class="card"><div class="card-body" style="padding:16px 20px;color:var(--d600);font-size:12px">
+          รายการสินค้า + ยอดรวม <span style="color:var(--d800)">(เดิม — padding ลดแล้ว)</span>
+          <div class="note-box" style="margin-top:12px"><i class="iconify" data-icon="tabler:note"></i>
+            <span><b>หมายเหตุภายในร้าน</b> — ห่อกันกระแทก 2 ชั้น</span></div>
+        </div></div>
+        <div class="card"><div class="card-body" style="padding:16px 20px;color:var(--d600);font-size:12px">
+          <b style="color:var(--d900);font-size:14px">การจัดส่ง</b> — โลโก้ขนส่ง + เลขพัสดุ + แถบ 4 ขั้น + การเดินทาง <span style="color:var(--danger-ink);font-weight:600">(ของที่หายไป)</span></div></div>
+        <div class="card"><div class="card-body" style="padding:16px 20px;color:var(--d600);font-size:12px">
+          <b style="color:var(--d900);font-size:14px">ประวัติคำสั่งซื้อ</b> — ไทม์ไลน์ตามธีม (แก้แล้ว)</div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card"><div class="card-body" style="padding:14px;font-size:12px;color:var(--d600)"><b style="color:var(--d900);font-size:13px">ผู้ซื้อ</b><br>+ ลิงก์ไปหน้าลูกค้า</div></div>
+        <div class="card"><div class="card-body" style="padding:14px;font-size:12px;color:var(--d600)"><b style="color:var(--d900);font-size:13px">เก็บเงินปลายทาง</b><br>฿2,500 + ปุ่มได้รับเงิน</div></div>
+        <div class="card"><div class="card-body" style="padding:14px;font-size:12px;color:var(--d600)"><b style="color:var(--d900);font-size:13px">ที่อยู่จัดส่ง</b><br>+ ปุ่มคัดลอก (แก้แล้ว)</div></div>
+        <div class="card"><div class="card-body" style="padding:14px;font-size:12px;color:var(--d600)"><b style="color:var(--d900);font-size:13px">การชำระเงิน</b></div></div>
+        <div class="card"><div class="card-body" style="padding:14px;font-size:12px;color:var(--d600)"><b style="color:var(--d900);font-size:13px">รีวิว</b> (เมื่อมี)</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ที่มา ══════════ -->
+<h2><span class="n">7</span> ข้อมูลแต่ละชิ้นมาจากไหน</h2>
+<p class="why">ไม่มีแถวไหนเป็นของแต่ง — ถ้าคอลัมน์ไหนไม่มีข้อมูลจริง ผมไม่ใส่ลงใน mockup ตั้งแต่แรก</p>
+<table>
+  <tr><th>สิ่งที่เพิ่ม</th><th>มีข้อมูลไหม</th><th>มาจากไหน</th></tr>
+  <tr><td>โลโก้ขนส่ง</td><td class="ok">มี</td><td><code>src/lib/iship/courier.ts</code> — 9 แบรนด์ ไฟล์อยู่ใน <code>public/images/logos/</code> แล้ว</td></tr>
+  <tr><td>เลขพัสดุ + ชื่อขนส่ง</td><td class="ok">มี</td><td><code>OrderShipment</code> (iShip) หรือ <code>ShipmentTracking</code> (ร้านแจ้งเอง) — หน้านี้คำนวณไว้แล้วในชื่อ <code>shippingInfo</code> แต่ไม่ได้ render</td></tr>
+  <tr><td>แถบ 4 ขั้นของขนส่ง</td><td class="ok">มี</td><td><code>SHIPMENT_STAGES</code> + <code>describeProgress()</code> ใน <code>lib/iship/status.ts</code></td></tr>
+  <tr><td>ไทม์ไลน์การเดินทาง</td><td class="ok">มี</td><td>ตาราง <code>ShipmentEvent</code> — บน prod มีจริงแล้ว (พัสดุ Flash Thunder 12 เหตุการณ์)</td></tr>
+  <tr><td>ลิงก์หน้าติดตามของขนส่ง</td><td class="no">ยังไม่มี</td><td>ต้องทำ URL ต่อแบรนด์เอง — <b>ถ้าไม่อยากทำ ตัดปุ่มนี้ออกได้</b></td></tr>
+  <tr><td>หมายเหตุภายในร้าน</td><td class="ok">มี</td><td><code>Order.internalNote</code> — เขียนได้ตอนสร้างออเดอร์ แต่ไม่เคยแสดงที่ไหนเลย</td></tr>
+  <tr><td>QR ของลิงก์ผู้ซื้อ</td><td class="ok">มี</td><td><code>Order.shortCode</code> + ปุ่ม QR ที่หน้ารายการออเดอร์ใช้อยู่แล้ว</td></tr>
+  <tr><td>ทักแชท</td><td class="ok">มี</td><td><code>Order.customerId</code> → <code>Conversation</code> ของลูกค้ารายนั้น</td></tr>
+  <tr><td>ยอดเก็บปลายทาง + ปุ่มได้รับเงิน</td><td class="ok">มี</td><td><code>Order.totalAmount</code> + <code>codReceivedAt</code> + API ที่ทำไปเมื่อวาน</td></tr>
+  <tr><td>ลิงก์ไปหน้าลูกค้า</td><td class="ok">มี</td><td><code>/customers/[id]</code> (feature 00014)</td></tr>
+  <tr><td>ช่องทางที่ลูกค้ามาจาก</td><td class="ok">มี</td><td><code>Order.salesChannel</code></td></tr>
+</table>
+
+<p style="font-size:12px;color:var(--d600);margin-top:20px">
+  ยังไม่แตะโค้ด — บอกได้ว่าจะเอาข้อไหน ไม่เอาข้อไหน · ข้อ 1 ผมแนะนำให้ทำก่อนเพราะเป็นของที่หายไปจริง ไม่ใช่ของเพิ่ม
+</p>
+
+</div>
+</body>
+</html>

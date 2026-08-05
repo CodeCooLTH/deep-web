@@ -148,6 +148,16 @@ export type ChatMessageView = {
    *  ช่องพิมพ์ตามหน้าต่าง 24 ชม. บับเบิลล้มเหลวจะเกิดถี่ขึ้นมาก เหตุผลจึงต้องอยู่ติดข้อความถาวร
    *  เหมือนเส้นทาง deliveryStatus='FAILED' (แถวที่บันทึกลง DB แล้ว) ไม่ใช่คนละมาตรฐาน */
   _failReason?: string
+  /** หมายเหตุระดับ "ชุดที่ส่งด้วยกัน" (2026-08-05 ux spec partial-send) — แนบท้ายเหตุผลบนปุ่ม (i)
+   *  เมื่อใบนี้ล้มเหลวแต่ใบอื่นในชุดเดียวกันถึงลูกค้าไปแล้ว: กัน "ผู้ขายเข้าใจว่าพังทั้งชุดแล้วไป
+   *  เลือกรูปส่งใหม่ทั้ง 8 ใบเองที่ composer" ซึ่งจะทำให้ลูกค้าได้รูปที่ถึงแล้วซ้ำ. แยกจาก
+   *  _failReason เพราะเหตุผลจริงมาจาก server (describeSendFailure) แต่หมายเหตุนี้ client เท่านั้น
+   *  ที่รู้ (server ไม่รู้ว่าบับเบิลไหนอยู่ชุดเดียวกัน) */
+  _batchNote?: string
+  /** สถานะคลุมเครือ (2026-08-05): เชื่อมต่อหลุดหลังกดส่ง — ไม่รู้ว่า server ส่งออกไปแล้วแค่ไหน
+   *  ผลต่อ UI: ข้อความยืนยันตอน "ยกเลิก" ต้องไม่พูดว่า "ลูกค้าไม่เคยได้รับ" (อาจเป็นเท็จ)
+   *  และ refetch จะ reconcile บับเบิลนี้กับแถวจริงด้วย fileId (ดู reconcileIdsRef) */
+  _ambiguous?: boolean
 }
 
 type MessagesApiResponse = {
@@ -156,6 +166,11 @@ type MessagesApiResponse = {
   /** watermark "ลูกค้าอ่านถึงเวลานี้" (feature 00018 read receipt) — มากับทุก GET เพื่อให้ป้าย
    *  "ส่งแล้ว → อ่านแล้ว" อัปเดตได้เองโดยไม่ต้องรีโหลดหน้า (read event ไม่ทริกเกอร์ realtime) */
   externalReadAt?: string | null
+  /** watermark "ข้อความของร้านถึงเครื่องลูกค้าถึงเวลานี้" (Messenger message_deliveries, 2026-08-05)
+   *  มาคู่กับ externalReadAt ด้วยเหตุผลเดียวกัน — delivery event ไม่ insert ChatMessage จึงไม่มี
+   *  realtime broadcast ให้เกาะ ต้องติดมากับ GET ให้ป้ายขยับเองในรอบ poll ถัดไป
+   *  null เสมอสำหรับเธรด Instagram (โปรโตคอลไม่มี delivery receipt) — ไม่ใช่ข้อมูลขาด */
+  externalDeliveredAt?: string | null
 }
 
 /**
@@ -225,6 +240,14 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   const [oldestCursor, setOldestCursor] = useState<string | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [externalReadAt, setExternalReadAt] = useState<string | null>(null)
+  const [externalDeliveredAt, setExternalDeliveredAt] = useState<string | null>(null)
+  /**
+   * บับเบิลคลุมเครือที่รอเทียบกับแถวจริง (2026-08-05) — เน็ตหลุดหลังกดส่งกริด ไม่รู้ว่า server
+   * ส่งออกไปแล้วแค่ไหน. refetch รอบถัดไปจะจับคู่บับเบิลในชุดนี้กับแถวจริงด้วย fileId (unique ต่อ
+   * การอัปโหลด — จับคู่แน่นอนกว่าเดา index) แถวจริงโผล่ = บับเบิลคลุมเครือใบนั้นถูกลบทิ้ง
+   * (ภาพที่ผู้ขายเห็น: บับเบิลแดง "ไม่แน่ใจ" เปลี่ยนเป็นข้อความที่ส่งสำเร็จ ตาม ux spec Q3)
+   */
+  const reconcileIdsRef = useRef<Set<string>>(new Set())
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [uploading, setUploading] = useState(false)
   // ความคืบหน้าเมื่อแนบหลายไฟล์ (2026-08-02) — boolean เดิมบอกได้แค่ "กำลังทำอะไรอยู่"
@@ -287,6 +310,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         setMessages([...data.items].reverse())
         setOldestCursor(data.nextCursor)
         if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
+        if (data.externalDeliveredAt !== undefined) setExternalDeliveredAt(data.externalDeliveredAt)
         scrollToBottom()
         // mark-read ทันทีตอนเปิด thread (ไม่ debounce รอบแรก)
         fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
@@ -380,6 +404,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
       if (!res.ok) return
       const data: MessagesApiResponse = await res.json()
       if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
+      if (data.externalDeliveredAt !== undefined) setExternalDeliveredAt(data.externalDeliveredAt)
       setMessages((prev) => {
         const map = new Map(prev.map((m) => [m.id, m]))
         // เสียงเตือน (user สั่ง 2026-07-23) — ดังเฉพาะข้อความ "ใหม่จริง" ของฝั่งลูกค้า: ต้องไม่เคย
@@ -390,10 +415,28 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         if (hasNewFromBuyer && beepEnabled) playChatBeep({ shopId, conversationId })
         // seq เป็นตัวตัดสินเมื่อ createdAt เท่ากัน (Meta ส่งเวลาข้อความระบบมาแค่ระดับวินาที)
         // ให้ตรงกับลำดับที่ server จัดมา — ข้อความ optimistic ยังไม่มี seq จึงถือว่าอยู่ท้ายสุด
-        return Array.from(map.values()).sort((a, b) => {
+        const merged = Array.from(map.values()).sort((a, b) => {
           const dt = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
           if (dt !== 0) return dt
           return (a.seq ?? Number.MAX_SAFE_INTEGER) - (b.seq ?? Number.MAX_SAFE_INTEGER)
+        })
+        // reconcile บับเบิลคลุมเครือ (เน็ตหลุดตอนส่งกริด — ดู reconcileIdsRef): แถวจริงของรูปใบ
+        // เดียวกันโผล่มา = การส่งนั้นถึง server จริง ลบบับเบิลแดงทิ้ง เหลือแถวจริงใบเดียว
+        // จับคู่: รูป/ไฟล์ = fileId (unique ต่อการอัปโหลด — แม่นเสมอ); แคปชัน TEXT = body ตรงกัน
+        // ในกรอบเวลาใกล้เคียง (กัน false-positive จากข้อความซ้ำ ๆ อย่าง "ขอบคุณครับ" ในอดีต)
+        if (reconcileIdsRef.current.size === 0) return merged
+        return merged.filter((m) => {
+          if (!reconcileIdsRef.current.has(m.id)) return true
+          const notBefore = new Date(m.createdAt).getTime() - 120_000
+          const landed = merged.some(
+            (r) =>
+              !r.id.startsWith('local-') &&
+              r.senderRole === 'SHOP' &&
+              new Date(r.createdAt).getTime() >= notBefore &&
+              (m.imageUrl ? r.imageUrl === m.imageUrl : r.type === 'TEXT' && !!m.body && r.body === m.body),
+          )
+          if (landed) reconcileIdsRef.current.delete(m.id)
+          return !landed
         })
       })
     } catch {
@@ -743,11 +786,13 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     // ส่งเรียงทีละใบ (ไม่ Promise.all) — ให้ลำดับข้อความฝั่งลูกค้าตรงกับลำดับรูปที่แนบ และไม่ยิง
     // Graph API พร้อมกันจนโดน rate limit
     //
-    // เลิกส่งหลายใบเป็น "กริดในข้อความเดียว" (Meta image_grid) แล้ว — ผลตัดสิน user 2026-08-05:
-    // กริดของ Meta ครอปทุกใบเป็นแท่งแนวตั้งตามสัดส่วน tile ที่เราคุมไม่ได้ โปสเตอร์สินค้าแบบ
-    // จัตุรัสข้อมูลแน่น (หัวเรื่อง/รายการรุ่น/ราคา) เหลือแค่แถบกลางจนอ่านไม่รู้เรื่อง
-    // (เคสจริง: ข้อความสำเร็จรูปโช๊ค — ลูกค้าเห็น "งสปริง" กับตัวโช๊ค ที่เหลือถูกครอปทิ้งหมด)
-    // ส่งทีละใบ ลูกค้าได้รูปเต็มทุกใบเสมอ; endpoint IMAGE_GRID ฝั่ง server ยังอยู่แต่ไม่มีใครเรียก
+    // เลิกส่งหลายใบเป็น "กริดในข้อความเดียว" (Meta image_grid ที่ใช้ช่วง 2026-08-04→05) — ผลตัดสิน
+    // user 2026-08-05: กริดของ Meta ครอปทุกใบเป็นแท่งแนวตั้งตามสัดส่วน tile ที่เราคุมไม่ได้
+    // โปสเตอร์สินค้าจัตุรัสข้อมูลแน่น (หัวเรื่อง/รายการรุ่น/โปร) เหลือแค่แถบกลางจนอ่านไม่รู้เรื่อง
+    // (เคสจริง: quick message โช๊คหลัง — ลูกค้าเห็นแค่ "งสปริง" กับตัวโช๊ค ที่เหลือถูกครอปทิ้ง)
+    // ส่งทีละใบ ลูกค้าได้รูปเต็มทุกใบเสมอ; endpoint IMAGE_GRID + เครื่อง partial-send ฝั่ง server
+    // ยังอยู่ (83ea566b) แต่ไม่มีผู้เรียกแล้ว — ถ้าจะฟื้นกริดต้องแก้เรื่องครอปให้ได้ก่อน
+
     void (async () => {
       for (const q of queued) await postMessage(q.localId, q.payload)
     })()
@@ -1004,5 +1049,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     /** read receipt (feature 00018) — สดจาก GET ล่าสุด; caller ควรใช้ค่านี้แทน server prop ตอนเปิดหน้า
      *  เพราะ read event มาทีหลังทาง webhook โดยไม่ทริกเกอร์ realtime (ดู comment ที่ route GET) */
     externalReadAt,
+    /** delivery receipt (2026-08-05) — watermark "ถึงเครื่องลูกค้าถึงเวลานี้" จาก message_deliveries
+     *  null ตลอดสำหรับ Instagram (โปรโตคอลไม่มี event นี้) caller ต้อง gate ด้วย channel เอง */
+    externalDeliveredAt,
   }
 }

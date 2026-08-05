@@ -2,7 +2,7 @@
  * OrderCard — mobile/tablet order card (v11 redesign 2026-07-06: อ่านง่าย + scan เร็ว)
  *
  * v11 (2026-07-06 — spec docs/superpowers/specs/2026-07-06-seller-order-card-redesign-design.*):
- *  - แถบสีซ้ายการ์ดตามสถานะ (border-s-4 border-s-{semantic}) — กวาดตาแยกออเดอร์ด้วยสี
+ *  - แถบสีซ้ายการ์ดตามสถานะ (border-s-3 border-{semantic}) — กวาดตาแยกออเดอร์ด้วยสี
  *  - หัว: ซ้าย = อวตาร(size-9)+ชื่อลูกค้า(หนา)+verified · ขวา(stack) = #ID(เทาเล็ก) เหนือ status badge
  *  - meta ใต้ชื่อ = โลโก้ช่องทางสีจริง(FB/LINE self-host)+ชื่อ · icon+ป้ายวิธีชำระ (แทนเบอร์โทร — เบอร์อยู่หน้า detail)
  *  - item row: ตัด label ประเภท "สินค้า" ออก (expand หลายรายการคงเดิม)
@@ -32,23 +32,22 @@ import {
 import BuyerAvatar from './BuyerAvatar'
 import OrderActions from './OrderActions'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
+import { ORDER_STATUS_META } from '@/lib/order-display'
 
-// ── status badge (สี Paces semantic token — ไม่ใช้ hex) ──
-const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
-  PENDING:   { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning' },
-  SHIPPED:   { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info'       },
-  CONFIRMED: { label: 'สำเร็จ',       cls: 'bg-success/15 text-success'  },
-  CANCELLED: { label: 'ยกเลิก',       cls: 'bg-default-100 text-default-500' },
-}
+// ── status badge — อ่านจาก SSOT ตัวเดียวกับตารางเดสก์ท็อปและหน้ารายละเอียด (lib/order-display.ts)
+//    เดิมประกาศเองที่นี่ ทำให้ CANCELLED เป็นเทา (bg-default-100) ขณะที่ตารางเป็นแดง ทั้งที่
+//    DESIGN.md กำหนด Error Coral ให้ "ยกเลิก" ตรงตัว — และได้ text-{semantic}-ink ที่ผ่าน AA มาด้วย
+const STATUS_CONFIG = ORDER_STATUS_META
 
 // ── แถบสีซ้ายการ์ดตามสถานะ — pattern เดียวกับ theme "card border-{color} border-s-3"
-//    (.card ไม่มี border เอง มีแต่ shadow → border-{color} ให้สี, border-s-4 ให้เฉพาะซ้ายกว้าง 4px)
+//    (.card ไม่มี border เอง มีแต่ shadow → border-{color} ให้สี, border-s-3 ให้เฉพาะซ้ายกว้าง 3px)
 //    Base: theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx (`card border-primary border-s-3`)
+//    สีต้องตรงกับ tone ของ badge ในการ์ดใบเดียวกันเสมอ (SSOT = ORDER_STATUS_META[...].tone)
 const STATUS_STRIP: Record<string, string> = {
   PENDING:   'border-warning',
   SHIPPED:   'border-info',
   CONFIRMED: 'border-success',
-  CANCELLED: 'border-default-300',
+  CANCELLED: 'border-danger',
 }
 
 // ── โลโก้ช่องทางสีจริง (self-host public/) — เฉพาะช่องทางที่มีไฟล์; ที่เหลือ fallback tabler mono ──
@@ -136,7 +135,7 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
   const hasPayment = Boolean(order.paymentMethod)
 
   return (
-    <div className={`card border-s-4 ${strip}`}>
+    <div className={`card border-s-3 ${strip}`}>
       {/* ── กดที่การ์ด = เปิดหน้ารายละเอียด (user สั่ง 2026-08-04) ──────────────────
           ใช้ "stretched link" คือ <a> โปร่งใสทับทั้งการ์ด ไม่ใช่ห่อทั้งการ์ดด้วย <a>
           เพราะในการ์ดมีปุ่มจริงอยู่ (ดูเพิ่มเติม / SMS / QR / คัดลอก / ⋮) ซึ่ง HTML ห้ามซ้อนใน <a>

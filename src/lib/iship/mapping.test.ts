@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  buildCheckPricePayload,
   buildCreateOrderPayload,
   buildIdempotencyKey,
   buildOptionsSnapshot,
@@ -300,5 +301,57 @@ describe("buildOptionsSnapshot — หมายเหตุต้องไปถ
     const snap = buildOptionsSnapshot({ remark: " ห้ามโยน ", options: {} }, shop);
     const payload = buildCreateOrderPayload({ ...baseInput, remark: snap.remark });
     expect(payload.remark).toBe("ห้ามโยน");
+  });
+});
+
+// ─── ส่วนขยาย 00022: payload ของ check-price (ปุ่มเทียบราคา + quote รายตัว) ─────
+describe("buildCheckPricePayload — คู่ตำบล/อำเภอ (BR-ISHIP-31, blocker)", () => {
+  // ตำบลกับอำเภอต้อง "ต่างกัน" เสมอในเทสชุดนี้ — ค่าเดียวกันสองช่องคือรูปแบบที่
+  // จับคู่กลับหัวแล้วยังเขียวอยู่ (ธรรมเนียมเดียวกับชุด BR-ISHIP-32 ข้างบน)
+  const sender = {
+    name: "ร้านทดสอบ",
+    phone: "0812345678",
+    address: "1/1 ถ.ทดสอบ",
+    subdistrict: "ออเงิน",
+    district: "สายไหม",
+    province: "กรุงเทพมหานคร",
+    postcode: "10220",
+  };
+  const receiver = {
+    subdistrict: "ควนรู",
+    district: "รัตภูมิ",
+    province: "สงขลา",
+    postcode: "90220",
+  };
+  const dims = { weight: 1.25, width: 14, length: 20, height: 6 };
+
+  it("ตำบลเข้า district และอำเภอเข้า amphure ทั้งขา src และ dst — ไม่สลับ", () => {
+    const p = buildCheckPricePayload(sender, receiver, dims);
+    expect(p.src_district).toBe("ออเงิน");
+    expect(p.src_amphure).toBe("สายไหม");
+    expect(p.dst_district).toBe("ควนรู");
+    expect(p.dst_amphure).toBe("รัตภูมิ");
+  });
+
+  it("จังหวัดผ่าน normalizeProvince — กทม. ขาออกเป็น 'กรุงเทพมหานคร' เสมอ (ตามเอกสาร iShip, ตัดสิน 2026-07-29)", () => {
+    const p = buildCheckPricePayload(sender, receiver, dims);
+    expect(p.src_province).toBe("กรุงเทพมหานคร");
+    expect(p.dst_province).toBe("สงขลา");
+
+    const fromPicker = buildCheckPricePayload({ ...sender, province: "กรุงเทพ" }, receiver, dims);
+    expect(fromPicker.src_province).toBe("กรุงเทพมหานคร");
+  });
+
+  it("ค่าว่าง/null กลายเป็นสตริงว่าง ไม่ใช่ 'null'", () => {
+    const p = buildCheckPricePayload(sender, { ...receiver, subdistrict: null }, dims);
+    expect(p.dst_district).toBe("");
+  });
+
+  it("ขนาด/น้ำหนักส่งผ่านตามตัวเลขเดิม", () => {
+    const p = buildCheckPricePayload(sender, receiver, dims);
+    expect(p.weight).toBe(1.25);
+    expect(p.width).toBe(14);
+    expect(p.length).toBe(20);
+    expect(p.height).toBe(6);
   });
 });

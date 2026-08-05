@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Prisma, type ChatMessage } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
@@ -944,6 +945,48 @@ export async function ingestReadEvent(params: {
   })
 }
 
+/**
+ * ingestDeliveryEvent — Meta ยืนยันว่าข้อความของเพจ "ถึงเครื่องลูกค้า" แล้ว (message_deliveries)
+ *
+ * ทำไมต้องมี (user report prod 2026-08-05 "ส่งรูปหลายใบแล้วขึ้นว่าส่งแล้วทั้งที่ฝั่ง Meta ยังไม่มีรูป"):
+ * `deliveryStatus='SENT'` ที่เราเขียนตอน Send API ตอบ mid กลับมา **ไม่ใช่หลักฐานว่าข้อความอยู่ในแชท
+ * ลูกค้าแล้ว** — Meta รับคำสั่งก่อน แล้วค่อยไปดึงไฟล์/ประมวลผลทีหลัง ยิ่งรูปหลายใบยิ่งเห็นช่องว่างชัด
+ * event นี้คือสิ่งเดียวที่ยืนยันได้จริง จึงเป็นตัวปลดสถานะ "ได้รับแล้ว" ฝั่ง UI
+ *
+ * เขียนเป็น watermark (ไม่ใช่รายข้อความ) ด้วยเหตุผลเดียวกับ ingestReadEvent: Meta ให้ delivery มาเป็น
+ * "ถึงหมดแล้วจนถึงเวลานี้" การเก็บรายแถวจะต้องไล่ update N แถวทุก event โดยไม่ได้ความแม่นเพิ่ม
+ *
+ * ห้าม throw: เธรด/เพจที่หาไม่เจอ = เงียบ (เหมือน ingestReadEvent) — delivery receipt เป็นข้อมูลเสริม
+ * ถ้าพังต้องไม่ทำให้ webhook ทั้งก้อนล้มจนข้อความจริงหาย
+ *
+ * ข้อควรระวัง: Instagram ไม่ส่ง event นี้เลย เธรด IG จึงมี externalDeliveredAt = null ตลอดกาล
+ * ฝั่ง UI ต้อง gate ด้วย channel ไม่ใช่ตีความ null ว่า "ยังไม่ถึง"
+ */
+export async function ingestDeliveryEvent(params: {
+  provider: string
+  pageExternalId: string
+  contactExternalId: string
+  watermark: number
+}): Promise<void> {
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  if (!channel) return
+  const contact = await prisma.externalContact.findUnique({
+    where: { shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: params.contactExternalId } },
+    select: { id: true },
+  })
+  if (!contact) return
+  const deliveredAt = new Date(params.watermark)
+  await prisma.conversation.updateMany({
+    where: {
+      shopChannelId: channel.id,
+      externalContactId: contact.id,
+      // watermark ถอยหลังไม่ได้ — event ที่มาช้ากว่าของเดิมต้องไม่ลบสถานะที่ยืนยันไปแล้ว
+      OR: [{ externalDeliveredAt: null }, { externalDeliveredAt: { lt: deliveredAt } }],
+    },
+    data: { externalDeliveredAt: deliveredAt },
+  })
+}
+
 // reaction (feature 00018 Phase 2, message_reactions) — react/unreact บนข้อความ mid หนึ่ง
 // เก็บ emoji ล่าสุดบน ChatMessage.reactionEmoji (unreact = null). scope ด้วย channel กันข้ามร้าน
 /**
@@ -1252,6 +1295,17 @@ export async function ingestMessageEdit(params: {
 export const IMAGE_GRID_MAX = 6
 
 /**
+ * แถว ChatMessage อย่างที่ query จริงคืนกลับมา — **ไม่ใช่** `ChatMessage` เต็มจาก Prisma
+ *
+ * ต่างกันตรง `rawMessage` ซึ่งถูก global `omit` ตัดออกที่ lib/prisma.ts (payload ดิบของ Meta ห้าม
+ * หลุดออกนอก service โดยไม่ตั้งใจ) — ประกาศเป็น `ChatMessage` ตรง ๆ จะ type error ทันที
+ *
+ * ต้อง `Omit` ซ้ำอีกชั้นเพราะแถวที่ได้จาก `tx` ในทรานแซกชันกับแถวที่ได้จาก client ปกติ TS มองเป็น
+ * คนละชนิดกันเรื่อง rawMessage — ตัดทิ้งให้ชัดตรงนี้ ทั้งสองทางจึงมารวมเป็นชนิดเดียวกันได้
+ */
+type OutboundMessageRow = Omit<ChatMessage, 'rawMessage'>
+
+/**
  * ส่งรูปหลายใบเป็น "กริดในข้อความเดียว" (user สั่ง 2026-08-04 — ให้เหมือน Business Suite)
  *
  * fail-safe ตามที่ตกลงกับ user: ถ้า Meta ปฏิเสธ image_grid (รูปโหลดไม่ได้/ชนิดไม่ผ่าน/ฟีเจอร์ไม่เปิด
@@ -1269,7 +1323,15 @@ export async function sendOutboundImageGrid(params: {
   /** fileId ใน storage ของเรา 2–6 ใบ */
   fileIds: string[]
   caption?: string | null
-}): Promise<{ mode: 'grid' | 'fallback'; count: number }> {
+  /**
+   * แถวที่สร้างจริง เรียงตามลำดับรูปที่ส่ง (+ แถวแคปชันต่อท้ายถ้ามี) — 2026-08-05
+   *
+   * ทำไมต้องคืนแถวออกไป: ฝั่ง composer วาดบับเบิลชั่วคราวไว้ล่วงหน้าใบต่อรูป แล้วต้องเอาแถวจริง
+   * ไป "ทับ" ใบเดิมให้ตรงตัว เหมือนเส้นทางส่งรูปเดี่ยว (postMessage) เดิมเส้นทางนี้ไม่คืนอะไรเลย
+   * client จึงต้องลบบับเบิลชั่วคราวทิ้งแล้วรอ refetch — ระหว่างนั้น poll/realtime ดึงแถวจริงมาก่อน
+   * ได้ ทำให้รูปเดียวกันขึ้นสองใบ (ใบจริงหน้าตาเหมือนส่งสำเร็จแล้ว ใบชั่วคราวยังหมุนอยู่)
+   */
+}): Promise<{ mode: 'grid' | 'fallback'; count: number; messages: OutboundMessageRow[] }> {
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.conversationId },
     include: { shopChannel: true, externalContact: true },
@@ -1303,20 +1365,42 @@ export async function sendOutboundImageGrid(params: {
    * "เปิดตัวดูรูปเต็มจอ" ให้เลือก (user report prod 2026-08-04: "ส่ง 2 รูปแล้วมันกดดูรูปไม่ได้")
    * web_url จึงเป็นทางเดียวที่ทำให้กดดูรูปเต็ม ๆ ได้ — เปิดใน webview ของ Messenger
    *
-   * ลิงก์อายุ 1 ปีเป็น presigned ของ Supabase (เดาไม่ได้) และเป็น "รูปที่เราส่งให้ลูกค้าคนนั้นเอง
-   * อยู่แล้ว" ไม่ใช่การเปิดคลังไฟล์ร้านให้ใครก็เข้าถึง. พ้น 1 ปีลิงก์ตาย = กดแล้วขึ้น error ของ
+   * ลิงก์ action เป็น presigned ของ Supabase (เดาไม่ได้) และเป็น "รูปที่เราส่งให้ลูกค้าคนนั้นเอง
+   * อยู่แล้ว" ไม่ใช่การเปิดคลังไฟล์ร้านให้ใครก็เข้าถึง. พ้นอายุลิงก์ตาย = กดแล้วขึ้น error ของ
    * storage (รูปในกริดยังอยู่ เพราะ Meta เก็บสำเนาไว้ตอนส่งแล้ว)
+   *
+   * ห้ามเพิ่ม: 7 วันคือเพดานแข็งของ SigV4 — presigned URL ที่ขออายุเกินนี้ไม่ได้ "ได้ลิงก์ที่
+   * หมดอายุเร็วกว่าที่ขอ" แต่ `getSignedUrl` **โยน error ทิ้ง** ("Signature version 4 presigned URLs
+   * must have an expiration date less than one week in the future")
+   *
+   * บั๊กจริงที่เกิดจากบรรทัดนี้ (user report prod 2026-08-05 "รูปใน quickmessage ยังส่งแยกกัน +
+   * ส่งช้ามาก"): ค่าเดิมตั้งไว้ 1 ปี ทำให้ทั้งฟังก์ชันโยนตั้งแต่ยังไม่ได้ยิงหา Meta → route ตอบ 500
+   * → client ตกไปวนส่งทีละใบ. **กริดจึงไม่เคยทำงานบน prod เลยตั้งแต่เขียนมา** และช้ากว่าเดิมด้วย
+   * เพราะเสีย round-trip ที่พังทิ้งไปก่อน 1 รอบแล้วค่อยยิงทีละใบอีก N รอบ
+   *
+   * ที่ dev ไม่เจอเพราะ driver `local` (ค่าตั้งต้นของ STORAGE_DRIVER) ไม่สนใจ opts เลย คืน
+   * `/api/files/{id}` เสมอ ไม่มีวันโยน — บั๊กนี้มองเห็นได้เฉพาะตอนต่อ S3/Supabase จริงเท่านั้น
    */
-  const ACTION_URL_TTL = 60 * 60 * 24 * 365
-  const images = await Promise.all(
-    files.map(async (id) => ({
-      url: await getFileUrl(id, { signed: true, expiresIn: 3600 }),
-      actionUrl: await getFileUrl(id, { signed: true, expiresIn: ACTION_URL_TTL }),
-    })),
-  )
+  const ACTION_URL_TTL = 60 * 60 * 24 * 7
 
   let mid: string | null = null
   try {
+    /**
+     * สร้างลิงก์ **ในนี้** ไม่ใช่ข้างนอก try (2026-08-05) — เดิมอยู่ข้างนอก ทำให้ error ตอนทำลิงก์
+     * ทะลุขึ้นไปเป็น 500 แทนที่จะตกลง fallback "ส่งทีละใบ" ที่เขียนรออยู่แล้วข้างล่าง
+     *
+     * actionUrl พังได้โดยไม่ล้มทั้งชุด: "กดรูปเพื่อดูเต็มจอ" เป็นของเสริม ส่วน "ลูกค้าได้รับรูป"
+     * เป็นหน้าที่หลัก — ของเสริมต้องไม่มีสิทธิ์ล้มของหลัก (นั่นคือสิ่งที่เพิ่งเกิดขึ้นมาแล้วรอบนี้)
+     */
+    const images = await Promise.all(
+      files.map(async (id) => ({
+        url: await getFileUrl(id, { signed: true, expiresIn: 3600 }),
+        actionUrl: await getFileUrl(id, { signed: true, expiresIn: ACTION_URL_TTL }).catch((e) => {
+          console.warn('[fb-chat] ทำลิงก์ action ของรูปไม่สำเร็จ ส่งต่อแบบกดรูปไม่ได้', id, e instanceof Error ? e.message : e)
+          return null
+        }),
+      })),
+    )
     mid = await sendImageGridMessage(pageToken, recipientId, images, {
       caption: params.caption ?? null,
       tag: messageTag,
@@ -1324,27 +1408,59 @@ export async function sendOutboundImageGrid(params: {
   } catch (e) {
     // fail-safe: ตกไปส่งทีละใบด้วยเส้นทางเดิม (ผ่าน sendOutboundMessage ที่จัดการ retry/บันทึกครบแล้ว)
     console.warn('[fb-chat] image_grid ถูกปฏิเสธ ตกไปส่งทีละใบ', e instanceof Error ? e.message : e)
+    // เก็บแถวที่ได้จากการส่งทีละใบไว้คืนออกไปด้วย — ฝั่ง client ต้องเอาไปทับบับเบิลชั่วคราวเหมือนกัน
+    // ไม่ว่าจะไปทางกริดหรือทางสำรอง (ถ้าคืนเฉพาะทางกริด ทางสำรองจะกลับไปเป็นบั๊กบับเบิลซ้ำเหมือนเดิม)
+    //
+    // ห้าม throw กลางคัน (2026-08-05): ใบที่ 3 พังต้องไม่ทำให้ใบ 4-6 ไม่ถูกส่งและแถวของใบ 1-2
+    // ที่ "ถึงลูกค้าไปแล้วจริง" หายไปจาก response — เดิม throw ทะลุขึ้น route เป็น 500 แล้ว client
+    // วนส่งใหม่ทั้งชุด = ลูกค้าได้ใบ 1-2 ซ้ำสองรอบ ถอนคืนไม่ได้. รูปแบบเดียวกับ auto-reply-send
+    // (TFR-036 ข้อ 3): ความล้มเหลวรายใบต้องไม่ล้มทั้งชุด. ใบที่ Meta ปฏิเสธมีแถว FAILED บันทึกไว้
+    // แล้ว (savedMessage) — คืนแถวนั้นออกไปให้บับเบิลขึ้น "ส่งไม่สำเร็จ" พร้อมเหตุผลรายใบ
+    const fallbackRows: OutboundMessageRow[] = []
     for (const fileId of files) {
-      await sendOutboundMessage({
-        conversationId: params.conversationId,
-        actorUserId: params.actorUserId,
-        attachment: { fileId, kind: 'IMAGE', name: null, size: null },
-      })
+      try {
+        fallbackRows.push(
+          await sendOutboundMessage({
+            conversationId: params.conversationId,
+            actorUserId: params.actorUserId,
+            attachment: { fileId, kind: 'IMAGE', name: null, size: null },
+          }),
+        )
+      } catch (fe) {
+        const saved = (fe as SendFailedError).savedMessage
+        if (saved) fallbackRows.push(saved)
+        console.warn('[fb-chat] ส่งรูปสำรองทีละใบไม่สำเร็จ', fileId, fe instanceof Error ? fe.message : fe)
+      }
     }
     if (params.caption?.trim()) {
-      await sendOutboundMessage({
-        conversationId: params.conversationId,
-        actorUserId: params.actorUserId,
-        text: params.caption,
-      })
+      try {
+        fallbackRows.push(
+          await sendOutboundMessage({
+            conversationId: params.conversationId,
+            actorUserId: params.actorUserId,
+            text: params.caption,
+          }),
+        )
+      } catch (fe) {
+        const saved = (fe as SendFailedError).savedMessage
+        if (saved) fallbackRows.push(saved)
+        console.warn('[fb-chat] ส่งแคปชันตามหลังไม่สำเร็จ', fe instanceof Error ? fe.message : fe)
+      }
     }
-    return { mode: 'fallback', count: files.length }
+    return { mode: 'fallback', count: files.length, messages: fallbackRows }
   }
 
   // บันทึกฝั่งเรา 1 แถวต่อรูป (mid อยู่แถวแรก ที่เหลือ suffix #i กัน unique ชน)
-  await prisma.$transaction(async (tx) => {
+  //
+  // กำหนด id เองล่วงหน้าแทนการปล่อยให้ DB สุ่ม (2026-08-05) — createMany ไม่คืนแถวที่สร้าง และเรา
+  // ต้องคืนแถวออกไปให้ client เอาไปทับบับเบิลชั่วคราว. วิธีอื่นที่ไม่ต้องกำหนด id เอง (ไล่หาแถวล่าสุด
+  // ตาม createdAt หรือตาม mid) ล้วนเดาได้ผิดเมื่อ echo webhook เขียนแถวแทรกเข้ามาพอดี — id ที่เรา
+  // ถือเองตั้งแต่ต้นเป็นตัวเดียวที่ชี้ได้แน่นอนว่า "แถวไหนคือของการส่งครั้งนี้"
+  const rowIds = files.map(() => randomUUID())
+  const imageRows = await prisma.$transaction(async (tx) => {
     await tx.chatMessage.createMany({
       data: files.map((fileId, i) => ({
+        id: rowIds[i],
         conversationId: conversation.id,
         senderUserId: params.actorUserId,
         senderRole: 'SHOP' as const,
@@ -1360,17 +1476,47 @@ export async function sendOutboundImageGrid(params: {
       where: { id: conversation.id },
       data: { lastMessageAt: new Date(), lastMessagePreview: '[รูปภาพ]', lastSenderRole: 'SHOP' },
     })
+    // skipDuplicates อาจข้ามบางแถว (echo ของ mid เดียวกันมาถึงก่อน) — findMany จึงคืนน้อยกว่า
+    // จำนวนรูปได้ ซึ่งถูกต้องแล้ว: แถวที่ถูกข้ามมีตัวจริงอยู่ในเธรดแล้วจากทาง echo
+    // เรียงตามลำดับที่ส่งเสมอ ไม่พึ่ง createdAt (แถวจาก createMany ชุดเดียวกันเวลาชนกันได้)
+    const created = await tx.chatMessage.findMany({
+      // tx ไม่พา global omit ของ lib/prisma.ts มาด้วย (ชนิดของ tx เป็น client เปล่า) — ต้อง omit
+      // rawMessage เองตรงนี้ ไม่งั้น payload ดิบของ Meta จะไหลออกไปถึง client ผ่าน response ของ POST
+      omit: { rawMessage: true },
+      where: { id: { in: rowIds } },
+    })
+    const byId = new Map(created.map((m) => [m.id, m]))
+    // flatMap แทน filter+type predicate — ได้ชนิดที่แคบถูกต้องโดยไม่ต้องประกาศ predicate เอง
+    return rowIds.flatMap((id) => {
+      const row = byId.get(id)
+      return row ? [row] : []
+    })
   })
 
   // caption ส่งตามหลังเป็นข้อความ (title ของกริดจำกัด 45 อักขระ — ข้อความเต็มต้องไปเป็นบับเบิลข้อความ)
+  //
+  // แคปชันพังต้องไม่ throw (2026-08-05) — ถึงจุดนี้กริดรูป "ถึงลูกค้าไปแล้วจริง" การโยน error ออกไป
+  // จะทำให้ route ตอบ 500 ทั้งที่ของหลักส่งสำเร็จ แล้ว client วนส่งใหม่ทั้งชุด = รูปซ้ำทั้งกริด
+  // แถวแคปชันที่ Meta ปฏิเสธถูกบันทึกเป็น FAILED ไว้แล้ว (savedMessage) — คืนออกไปให้ขึ้นบับเบิลแดง
+  // กดลองใหม่เฉพาะแคปชันได้ ไม่พารูปที่สำเร็จแล้วไปตกน้ำด้วย
+  let captionRow: OutboundMessageRow | null = null
   if (params.caption?.trim()) {
-    await sendOutboundMessage({
-      conversationId: params.conversationId,
-      actorUserId: params.actorUserId,
-      text: params.caption,
-    })
+    try {
+      captionRow = await sendOutboundMessage({
+        conversationId: params.conversationId,
+        actorUserId: params.actorUserId,
+        text: params.caption,
+      })
+    } catch (ce) {
+      captionRow = (ce as SendFailedError).savedMessage ?? null
+      console.warn('[fb-chat] ส่งแคปชันตามหลังกริดไม่สำเร็จ', ce instanceof Error ? ce.message : ce)
+    }
   }
-  return { mode: 'grid', count: files.length }
+  return {
+    mode: 'grid',
+    count: files.length,
+    messages: captionRow ? [...imageRows, captionRow] : imageRows,
+  }
 }
 
 export async function sendOutboundMessage(params: {

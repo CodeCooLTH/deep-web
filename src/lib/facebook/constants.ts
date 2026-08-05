@@ -21,6 +21,20 @@ export const MESSENGER_SUBSCRIBED_FIELDS = [
   // message_reads: event ที่ลูกค้า "อ่าน" ข้อความของเพจ (มี read.watermark) — feature 00018 read receipt
   // ต้อง subscribe field นี้ ไม่งั้น Messenger ไม่ส่ง read event เข้ามาเลย (แสดง "อ่านแล้ว" ไม่ได้)
   'message_reads',
+  // message_deliveries: event ที่ข้อความของเพจ "ถึงเครื่องลูกค้า" (มี delivery.watermark) — 2026-08-05
+  //
+  // ทำไมถึงเพิ่ม (user report prod 2026-08-05): ก่อนหน้านี้ "ส่งแล้ว" ของเราหมายถึง "Meta ตอบ mid
+  // กลับมาแล้ว" เท่านั้น ซึ่งเกิดขึ้นก่อนที่ Meta จะเอาข้อความเข้าเธรดจริง — ส่งรูปหลายใบแล้ว UI
+  // ขึ้นว่าส่งสำเร็จทั้งที่ฝั่ง Messenger ยังไม่มีรูป event นี้คือหลักฐานเดียวที่ยืนยันได้จริง
+  //
+  // ข้อควรระวัง: Instagram ไม่มี field นี้ — โปรโตคอล IG ไม่ส่ง delivery receipt เลย
+  // (ไม่ใช่ว่าเราลืม subscribe)
+  // ฝั่ง UI จึงต้องข้ามสถานะ "ได้รับแล้ว" สำหรับ IG ไม่ใช่รอค่าที่ไม่มีวันมา
+  //
+  // เพจที่เชื่อมไว้ก่อนหน้านี้ไม่ได้ subscribe field นี้ → ต้อง re-sync ผ่าน POST /api/channels
+  // (ทางเดียวกับตอนเพิ่ม message_reads) ไม่ต้องให้ร้านกดเชื่อมเพจใหม่ เพราะ subscribed_fields
+  // เป็นค่าระดับเพจ ไม่ได้ผูกกับ scope ของ token
+  'message_deliveries',
   // messaging_referrals: ลูกค้าคลิกโฆษณา/ลิงก์ m.me แล้วเปิดแชท (feature 00018 Phase 2) — ต้อง subscribe
   // ไม่งั้น referral ที่ไม่มาพร้อมข้อความจะไม่เข้ามา (referral ในข้อความแรกมากับ messages อยู่แล้ว)
   'messaging_referrals',

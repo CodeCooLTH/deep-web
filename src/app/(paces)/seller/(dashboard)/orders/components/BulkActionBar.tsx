@@ -5,16 +5,21 @@
  *
  * โผล่เมื่อ selectedRows ≥ 1: นับจำนวน + [คัดลอกลิงก์] [ส่ง SMS กลุ่ม] [× ปิด=uncheck all]
  *  - copy: public order URL ทุกอันที่เลือก แยกบรรทัด ลง clipboard
- *  - ส่ง SMS: เฉพาะออเดอร์ที่ส่งได้ (ข้าม terminal) → confirm dialog แสดง ฿N ก่อนยิง (loop ทีละ token)
+ *  - ส่ง SMS: เฉพาะออเดอร์ที่ส่งได้ (ข้าม terminal) → Sweet Alert ยืนยัน ฿N ก่อน แล้วจึงเปิด
+ *    overlay แสดงความคืบหน้าระหว่าง loop ทีละ token
  *  - ปิด: onClear() = table.resetRowSelection()
  *
  * Desktop-only (scope 2026-06-15) — mobile card ไม่มี checkbox
  *
  * Base (button/badge/card primitive): docs/system/ui-guideline/paces-component-reference.md §1/§6/§7
  * Base (progress dialog shell): theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/categories/components/AddCategoryModal.tsx
- *   (card overlay/backdrop — controlled React state). หมายเหตุ: dialog นี้เป็น multi-phase progress
- *   (confirm → sending + progress bar → done breakdown) ไม่ใช่ confirm/alert ธรรมดา → คงเป็น custom
- *   card-overlay (Sweet Alerts ไม่เหมาะกับ progress loop; ดู safepay-ux Hard Rule 8 ขอบเขต = blocking alert/confirm)
+ *   (card overlay/backdrop — controlled React state)
+ *
+ * เส้นแบ่งกับ Sweet Alerts (Hard Rule 8): **ขั้น "ยืนยันจะส่งไหม" เป็น blocking confirm ธรรมดา
+ * จึงต้องเป็น pacesConfirm** — เดิมทั้ง 3 ขั้นถูกยัดอยู่ใน custom overlay ตัวเดียวโดยอ้างว่า
+ * "multi-phase progress ไม่เหมาะกับ Swal" ซึ่งจริงแค่กับสองขั้นหลัง ไม่ใช่กับขั้นแรก
+ * ตอนนี้เหลือ overlay เฉพาะ sending (progress bar ของ loop) → done (สรุปสำเร็จ/ล้มเหลว)
+ * ซึ่งเป็น progress/result panel ที่ Swal ทำไม่ได้จริง
  * Base (clipboard fallback): ../[token]/components/CopyLinkButton.tsx
  * Base (ปุ่ม "พิมพ์ใบปะหน้า" feature 00022): ปุ่ม "ส่ง SMS กลุ่ม" ในไฟล์เดียวกันนี้
  *   — ใช้ primitive ชุดเดิมทั้งหมด (btn + text-white/80 + rounded-full + gap-1.5 + spinner
@@ -24,7 +29,8 @@
 import Icon from '@/components/wrappers/Icon'
 import type { Row as TableRow } from '@tanstack/react-table'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import type { OrderRow } from './data'
 
@@ -137,6 +143,23 @@ export default function BulkActionBar({
     pacesToast.success(`คัดลอก ${selectedCount} ลิงก์แล้ว`)
   }
 
+  /**
+   * ขั้นยืนยันก่อนส่ง — Sweet Alert (Hard Rule 8) ไม่ใช่ overlay ที่เขียนเอง
+   *
+   * ต้องบอกจำนวนที่ "ข้าม" ในคำถามด้วย ไม่ใช่บอกทีหลัง เพราะร้านตัดสินใจจากยอดเงินที่จะถูกหัก
+   * (฿1/ออเดอร์) ซึ่งนับเฉพาะออเดอร์ที่ส่งได้จริง
+   */
+  const handleSmsClick = async () => {
+    const skippedNote =
+      skippedCount > 0 ? `\n\nข้าม ${skippedCount} ออเดอร์ที่เสร็จสิ้น/ยกเลิกแล้ว (ส่ง SMS ไม่ได้)` : ''
+    const ok = await pacesConfirm.question(
+      `ส่ง SMS ให้ ${eligibleCount} ออเดอร์?`,
+      `ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อแต่ละออเดอร์ และหัก ฿${eligibleCount} จากกระเป๋าเงินของคุณ${skippedNote}`,
+      { confirmButtonText: `ส่ง SMS (฿${eligibleCount})` },
+    )
+    if (ok) setSmsDialogOpen(true)
+  }
+
   return (
     <>
       {/* fixed-bar centering — no Paces token (Hard Rule 7 exception) */}
@@ -169,7 +192,7 @@ export default function BulkActionBar({
 
             <button
               type="button"
-              onClick={() => setSmsDialogOpen(true)}
+              onClick={() => void handleSmsClick()}
               disabled={eligibleCount === 0}
               title={eligibleCount === 0 ? 'ออเดอร์ที่เลือกทั้งหมดเสร็จสิ้นแล้ว ส่ง SMS ไม่ได้' : undefined}
               className="btn bg-primary hover:bg-primary-hover text-white rounded-full inline-flex items-center gap-1.5 text-nowrap disabled:pointer-events-none disabled:opacity-50"
@@ -206,11 +229,9 @@ export default function BulkActionBar({
         </div>
       </div>
 
-      <BulkSmsConfirmDialog
+      <BulkSmsProgressDialog
         open={smsDialogOpen}
         eligibleRows={eligibleRows}
-        skippedCount={skippedCount}
-        onClose={() => setSmsDialogOpen(false)}
         onComplete={() => {
           setSmsDialogOpen(false)
           onClear()
@@ -222,36 +243,46 @@ export default function BulkActionBar({
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Phase = 'confirm' | 'sending' | 'done'
+type Phase = 'sending' | 'done'
 
-interface BulkSmsConfirmDialogProps {
+interface BulkSmsProgressDialogProps {
   open: boolean
   eligibleRows: TableRow<OrderRow>[]
-  skippedCount: number
-  onClose: () => void
   onComplete: () => void
 }
 
-function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onComplete }: BulkSmsConfirmDialogProps) {
+/**
+ * overlay แสดงความคืบหน้าของ loop ส่ง SMS + สรุปผล — เปิดหลังผู้ใช้กดยืนยันใน Sweet Alert แล้ว
+ * เท่านั้น (ขั้นยืนยันอยู่ที่ handleSmsClick ตาม Hard Rule 8) จึงเริ่มยิงทันทีที่ open
+ */
+function BulkSmsProgressDialog({ open, eligibleRows, onComplete }: BulkSmsProgressDialogProps) {
   const total = eligibleRows.length
-  const [phase, setPhase] = useState<Phase>('confirm')
+  const [phase, setPhase] = useState<Phase>('sending')
   const [progress, setProgress] = useState({ sent: 0, failed: 0 })
   const [creditError, setCreditError] = useState(false)
+  /**
+   * กันยิงซ้ำ — effect ที่ผูกกับ `open` ถูกเรียก 2 รอบใน StrictMode (dev) และ SMS ใบละ ฿1 จริง
+   * ถ้าไม่กัน ร้านจะถูกหักเงินสองเท่าโดยไม่มีอะไรบนจอบอก
+   */
+  const startedRef = useRef(false)
 
-  // reset state ทุกครั้งที่เปิด dialog
   useEffect(() => {
-    if (open) {
-      setPhase('confirm')
-      setProgress({ sent: 0, failed: 0 })
-      setCreditError(false)
+    if (!open) {
+      startedRef.current = false
+      return
     }
+    if (startedRef.current) return
+    startedRef.current = true
+    setPhase('sending')
+    setProgress({ sent: 0, failed: 0 })
+    setCreditError(false)
+    void handleSend()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // ปิดได้เมื่อไม่ได้กำลังส่ง; phase done → ปิด = onComplete (clear selection)
+  // ปิดได้เมื่อส่งจบแล้วเท่านั้น — ระหว่างยิง loop ปิดไม่ได้ (ปิดแล้ว loop ยังวิ่งต่อ = หักเงินเงียบ)
   const dismiss = () => {
-    if (phase === 'sending') return
     if (phase === 'done') onComplete()
-    else onClose()
   }
 
   // Escape ปิด dialog (ยกเว้นระหว่างส่ง)
@@ -266,7 +297,6 @@ function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onCom
   }, [open, phase])
 
   const handleSend = async () => {
-    setPhase('sending')
     let sent = 0
     let failed = 0
     let credit = false
@@ -319,7 +349,7 @@ function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onCom
         if (e.target === e.currentTarget) dismiss()
       }}
     >
-      <div className="ease-in-out transition-all duration-200 sm:max-w-sm w-[calc(100%-24px)] m-3 sm:mx-auto flex items-center">
+      <div className="ease-in-out transition-all duration-200 sm:max-w-sm w-[calc(100%-24px)] m-3 sm:mx-auto flex items-center"> {/* w-[calc(100%-24px)]: carve-out ของโครง modal — เว้นขอบ 12px (m-3) รอบโมดัลบนจอแคบ ไม่มี Paces token ให้ค่านี้; pattern เดียวกับ IShipImportModal.tsx ในโฟลเดอร์นี้ และ theme components/table/DeleteConfirmationModal.tsx */}
         <div className="w-full flex flex-col card pointer-events-auto">
 
           {/* Header */}
@@ -337,26 +367,6 @@ function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onCom
           </div>
 
           {/* Body */}
-          {phase === 'confirm' && (
-            <div className="card-body flex flex-col items-center text-center gap-4 py-6">
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Icon icon="message-forward" className="text-3xl" />
-              </span>
-              <div>
-                <p className="font-semibold text-default-800 text-base">ส่ง SMS ให้ {total} ออเดอร์?</p>
-                <p className="mt-1 text-sm text-default-500">
-                  ระบบจะส่งลิงก์คำสั่งซื้อทาง SMS ให้ผู้ซื้อแต่ละออเดอร์ และหัก ฿{total} จากกระเป๋าเงินของคุณ
-                </p>
-              </div>
-              {skippedCount > 0 && (
-                <p className="flex items-center gap-1.5 text-xs text-warning w-full justify-center" role="alert">
-                  <Icon icon="alert-triangle" className="size-4 shrink-0" />
-                  ข้าม {skippedCount} ออเดอร์ที่เสร็จสิ้น/ยกเลิกแล้ว (ส่ง SMS ไม่ได้)
-                </p>
-              )}
-            </div>
-          )}
-
           {phase === 'sending' && (
             <div className="card-body flex flex-col items-center text-center gap-4 py-6">
               <Icon icon="loader-2" className="text-3xl text-primary animate-spin" />
@@ -397,18 +407,6 @@ function BulkSmsConfirmDialog({ open, eligibleRows, skippedCount, onClose, onCom
 
           {/* Footer */}
           <div className="flex justify-end items-center gap-x-2 border-t border-default-300 card-body">
-            {phase === 'confirm' && (
-              <>
-                <button type="button" className="btn bg-light hover:text-primary" onClick={onClose}>ยกเลิก</button>
-                <button
-                  type="button"
-                  className="btn bg-primary text-white hover:opacity-90 inline-flex items-center gap-2"
-                  onClick={handleSend}
-                >
-                  ส่ง SMS (฿{total})
-                </button>
-              </>
-            )}
             {phase === 'sending' && (
               <button type="button" className="btn bg-light opacity-40" disabled>กำลังส่ง...</button>
             )}

@@ -1,4 +1,5 @@
 'use client'
+import { useOrderVocab } from '../../_components/DraftOrderProvider'
 
 /**
  * InboxList — client list component ของ /inbox (feat 00011 Deep Chat, S-11;
@@ -244,6 +245,10 @@ export default function InboxList({
   tabsAbove = false,
   shopId = null,
 }: Props) {
+  // ชื่อเรียกรายการตามประเภทกิจการ — อ่านจาก DraftOrderProvider ที่ครอบทั้ง (chat) อยู่แล้ว
+  // (ป้ายสถานะออเดอร์ล่าสุดในรายการแชทเคยเขียน "คำสั่งซื้อ" ตายตัว ทั้งที่ร้านบริการ/บ้านพัก
+  //  เรียกคนละชื่อ — ตัวเลขและป้ายเดียวกันโผล่หลายที่ต้องมาจากคำชุดเดียวกัน)
+  const orderVocab = useOrderVocab()
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor)
   const [loading, setLoading] = useState(false)
@@ -1343,7 +1348,7 @@ export default function InboxList({
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') openOrders(e)
                             }}
-                            aria-label={`คำสั่งซื้อล่าสุด: ${stageLabel} — ดูรายการคำสั่งซื้อ`}
+                            aria-label={`${orderVocab.noun}ล่าสุด: ${stageLabel} — ดูรายการ${orderVocab.noun}`}
                             className={`badge ${c.orderStage.cls} text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 focus-visible:outline-none focus-visible:ring-2`}
                           >
                             <Icon icon={c.orderStage.icon} width={13} height={13} className="shrink-0" />

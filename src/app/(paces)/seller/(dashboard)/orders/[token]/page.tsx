@@ -43,8 +43,14 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { resolveBuyerDisplayName, isCODPayment } from '@/lib/order-display'
 import OrderDetailClient from './components/OrderDetailClient'
-import OrderFactsCard from './components/OrderFactsCard'
-import type { ShippingAddressData, OrderFactsShipping } from './components/OrderFactsCard'
+import ShippingActivity from './components/ShippingActivity'
+import CustomerDetails from './components/CustomerDetails'
+import ShippingAddressCard from './components/ShippingAddress'
+import BillingDetails from './components/BillingDetails'
+import ShippingCard from './components/ShippingCard'
+import { getOrderEvents } from '@/services/order-event.service'
+import { getCustomerSummary } from '@/services/customer.service'
+import type { ShippingAddressData, OrderFactsShipping } from './components/order-detail-shared'
 import OrderReviewCard from './components/OrderReviewCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
 import type { ShipmentSource } from './components/order-action-set'
@@ -56,7 +62,7 @@ import type { ShipmentSource } from './components/order-action-set'
 export async function generateMetadata(): Promise<Metadata> {
   const session = await getServerSession(authOptions)
   const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
+    session as unknown as { user: { id: string; activeShopId?: string | null } }
   ).catch(() => null)
   return { title: `รายละเอียด${resolveOrderVocab(active?.shop?.vertical ?? '').noun}` }
 }
@@ -92,6 +98,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // (รับเอง/ดิจิทัล/บริการ/การจอง) → ไม่ render ส่วนนี้เลย ไม่ใช่โชว์กล่องเปล่า
   const shipmentPanel = await getShipmentPanel(shop.id, order.id)
 
+  // ประวัติกิจกรรม (feature 00031) — ownership scope มาแล้วจาก getOrderForShop ด้านบน
+  const orderEvents = await getOrderEvents(order.id)
+
+  // ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ (scope shopId เสมอ) — เติมการ์ด "ผู้ซื้อ" ที่ user บอกว่าข้อมูลน้อย
+  const customerSummary = await getCustomerSummary(order.customerId ?? null, shop.id)
+
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
   const createdAtISO = (order.createdAt as Date).toISOString()
@@ -105,7 +117,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
    * ข้อความที่ไม่สัญญาการคืนสต็อกเหมือนกัน จึงคำนวณจากข้อมูลจริงของออเดอร์ ไม่ derive จาก vertical
    */
   const hasDeductedStock = ((order.items ?? []) as Array<{ stockDeducted: number | null }>).some(
-    (i) => i.stockDeducted != null,
+    i => i.stockDeducted != null
   )
 
   // สร้าง review data — ส่งข้าม RSC boundary ที่นี่ (S-C1: neutralize-at-source, ไม่ใช่ "mask")
@@ -127,7 +139,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         comment: order.review.comment ?? null,
         // reviewerLabel คือ raw contact/displayName จาก server (ไม่ mask — ดู comment ด้านบน)
         reviewerLabel,
-        createdAtISO: (order.review.createdAt as Date).toISOString(),
+        createdAtISO: (order.review.createdAt as Date).toISOString()
       }
     : null
   // S-4: การ์ดรีวิวแสดงเฉพาะ CONFIRMED ที่มีรีวิวจริง (ไม่ใช่ empty-state) — status อื่นไม่ render เลย
@@ -142,13 +154,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
     buyerDisplayName: order.buyer?.displayName ?? null,
     buyerUsername: order.buyer?.username ?? null,
     buyerName: order.buyerName ?? null,
-    hasContact: Boolean(buyerContact),
+    hasContact: Boolean(buyerContact)
   })
 
   // Phase B: shippingAddress เป็น Json (Prisma คืน object แล้ว) — render card เฉพาะเมื่อมีค่าจริง
   const rawAddr = order.shippingAddress
   const shippingAddr: ShippingAddressData | null =
-    rawAddr && typeof rawAddr === 'object' && Object.values(rawAddr).some((v) => v && String(v).trim())
+    rawAddr && typeof rawAddr === 'object' && Object.values(rawAddr).some(v => v && String(v).trim())
       ? (rawAddr as ShippingAddressData)
       : null
 
@@ -157,9 +169,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
     ? [
         shippingAddr.line1,
         [shippingAddr.subdistrict, shippingAddr.district].filter(Boolean).join(' '),
-        [shippingAddr.province, shippingAddr.postcode].filter(Boolean).join(' '),
+        [shippingAddr.province, shippingAddr.postcode].filter(Boolean).join(' ')
       ]
-        .filter((l) => l && String(l).trim())
+        .filter(l => l && String(l).trim())
         .join(', ')
     : null
 
@@ -167,11 +179,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // MANUAL (order.shipmentTracking) — ทั้งสองไม่ควรมีพร้อมกันตาม business flow ปกติของระบบ
   // (feat 00022: ห้ามเขียน ShipmentTracking ให้ออเดอร์ที่ใช้ iShip) แต่ถ้าเกิดขึ้นจริง ให้ ISHIP
   // ชนะเพราะเป็น system-generated source of truth
-  const shipmentSource: ShipmentSource = shipmentPanel?.shipment
-    ? 'ISHIP'
-    : order.shipmentTracking
-      ? 'MANUAL'
-      : null
+  const shipmentSource: ShipmentSource = shipmentPanel?.shipment ? 'ISHIP' : order.shipmentTracking ? 'MANUAL' : null
 
   // ข้อมูลการจัดส่งสำหรับ OrderFactsCard (section 3) + prefill ShipmentEntryModal (mode='edit')
   const shippingInfo: OrderFactsShipping | null =
@@ -180,14 +188,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
           courier: shipmentPanel!.shipment!.courierName ?? '—',
           trackingNo: shipmentPanel!.shipment!.trackingNo ?? '—',
           shippedAtISO: shipmentPanel!.shipment!.createdAt.toISOString(),
-          isIship: true,
+          isIship: true
         }
       : shipmentSource === 'MANUAL'
         ? {
             courier: order.shipmentTracking.provider,
             trackingNo: order.shipmentTracking.trackingNo,
             shippedAtISO: (order.shipmentTracking.createdAt as Date).toISOString(),
-            isIship: false,
+            isIship: false
           }
         : null
 
@@ -198,12 +206,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
           visually-hidden เฉพาะไฟล์ของหน้านี้แทน (sr-only เป็น convention เดิมของโปรเจกต์ — ดู
           seller/(dashboard)/products/components/ProductBasicCardV2.tsx) ให้ screen reader เจอ h1
           จริงโดยไม่กระทบภาพที่ user เห็น (breadcrumb ยังโชว์ title แบบเดิมทุกอย่าง) */}
-      <h1 className="sr-only">รายละเอียด{vocab.noun}</h1>
+      <h1 className='sr-only'>รายละเอียด{vocab.noun}</h1>
 
-      <PageBreadcrumb
-        title={`รายละเอียด${vocab.noun}`}
-        trail={[{ label: vocab.noun, href: '/orders' }]}
-      />
+      <PageBreadcrumb title={`รายละเอียด${vocab.noun}`} trail={[{ label: vocab.noun, href: '/orders' }]} />
 
       <OrderDetailClient
         vocab={vocab}
@@ -226,73 +231,101 @@ export default async function OrderDetailPage({ params }: PageProps) {
         trackingNo={shippingInfo?.trackingNo ?? null}
         provider={shippingInfo?.courier ?? null}
         addressText={addressText}
-        updatedAtISO={(order.updatedAt as Date).toISOString()}
-        // carrierStatus: มีเฉพาะพัสดุที่เปิดผ่าน iShip — เลขพัสดุที่ร้านแจ้งเอง (ShipmentTracking)
-        // ไม่มีสถานะฝั่งขนส่งให้อ่าน จึงเป็น null และแถบสถานะจะตัดสินขั้นเก็บเงิน COD จาก
-        // การที่ผู้ซื้อกดยืนยันรับของอย่างเดียว (ดู src/lib/order-progress.ts)
-        carrierStatus={shipmentPanel?.shipment?.carrierStatus ?? null}
-        // เก็บเงินปลายทางที่ร้านยังไม่กดว่าได้เงิน — ตัดสินที่ server ด้วย SSOT ตัวเดียวกับไทล์
-        // หน้าแรก (isCODPayment) ไม่ส่ง paymentMethod ดิบไปให้ client ตัดสินเอง
         isCodUnpaid={isCODPayment(order.paymentMethod) && !order.codReceivedAt}
-      >
-        {/* grid 75/25 (≥1024) · คอลัมน์เดียว (<1024) — Base: order-details/page.tsx
-            `grid grid-cols-1 lg:grid-cols-4 gap-base` + `space-y-base lg:col-span-3` */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-base">
-          {/* ซ้าย — col-span-3 (75%): การ์ด "ใบสั่งซื้อ" (ข้อเท็จจริง — เห็นหมดเสมอ ไม่มีกาง/พับ) */}
-          <div className="space-y-base lg:col-span-3">
-            <OrderFactsCard
-              buyer={{
-                buyerContact,
-                buyerDisplayName: order.buyer?.displayName ?? null,
-                buyerUsername: order.buyer?.username ?? null,
-                buyerName: order.buyerName ?? null,
-                // avatar: Facebook CDN URL หรือ null (ไม่ใช่ PII — URL สาธารณะ) — ส่งได้ตาม spec
-                avatar: order.buyer?.avatar ?? null,
-                shippingAddr,
-              }}
-              items={(order.items ?? []).map((item: any) => {
-                // resolve imageUrl server-side — pattern เดียวกับ products/page.tsx L98-99
-                const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
-                const firstImg: string = rawImages[0] ?? ''
-                const imageUrl: string | null = firstImg
-                  ? (firstImg.startsWith('http') ? firstImg : `/api/files/${firstImg}`)
-                  : null
-                return {
-                  id: item.id,
-                  name: item.name,
-                  description: item.description ?? null,
-                  qty: item.qty,
-                  // Decimal (Prisma) ไม่ใช่ plain object — ข้าม RSC→client boundary ไม่ได้ (T12 fix)
-                  price: Number(item.price),
-                  imageUrl,
-                }
-              })}
-              discount={order.discount != null ? Number(order.discount) : null}
-              vatRate={order.vatRate != null ? Number(order.vatRate) : null}
-              vatAmount={order.vatAmount != null ? Number(order.vatAmount) : null}
-              totalAmount={Number(order.totalAmount)}
-              paymentMethod={order.paymentMethod ?? null}
-              salesChannel={order.salesChannel ?? null}
-              slipFileId={order.slipFileId ?? null}
+        buyerAvatar={order.buyer?.avatar ?? null}
+        internalNote={order.internalNote ?? null}
+        items={(order.items ?? []).map((item: any) => {
+          const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
+          const firstImg: string = rawImages[0] ?? ''
+          const imageUrl: string | null = firstImg
+            ? firstImg.startsWith('http')
+              ? firstImg
+              : `/api/files/${firstImg}`
+            : null
+          return {
+            id: item.id,
+            name: item.name,
+            description: item.description ?? null,
+            qty: item.qty,
+            // Decimal (Prisma) ไม่ใช่ plain object — ข้าม RSC→client boundary ไม่ได้
+            price: Number(item.price),
+            imageUrl
+          }
+        })}
+        discount={order.discount != null ? Number(order.discount) : null}
+        vatRate={order.vatRate != null ? Number(order.vatRate) : null}
+        vatAmount={order.vatAmount != null ? Number(order.vatAmount) : null}
+        orderNoun={vocab.noun}
+        codReceivedAtISO={order.codReceivedAt ? (order.codReceivedAt as Date).toISOString() : null}
+        codReceivedByLabel={order.codReceivedBy?.displayName ?? order.codReceivedBy?.username ?? null}
+        isCod={isCODPayment(order.paymentMethod)}
+        shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} createLabel={vocab.createLabel} />}
+        customerCard={
+          <CustomerDetails
+            summary={customerSummary}
+            salesChannel={order.salesChannel ?? null}
+            buyer={{
+              buyerContact,
+              buyerDisplayName: order.buyer?.displayName ?? null,
+              buyerUsername: order.buyer?.username ?? null,
+              buyerName: order.buyerName ?? null,
+              avatar: order.buyer?.avatar ?? null,
+              shippingAddr
+            }}
+          />
+        }
+        sideCards={
+          <>
+            <ShippingAddressCard
               accessUrl={order.accessUrl ?? null}
               fulfillmentMode={order.fulfillmentMode}
               publicToken={order.publicToken}
-              status={order.status}
-              shipping={shippingInfo}
+              shippingAddr={shippingAddr}
             />
-          </div>
+            {/* ใต้ "ที่อยู่จัดส่ง" (user 2026-08-05) — ของสองอย่างนี้ตอบคำถามเดียวกันว่า
+                "ของไปถึงไหนแล้ว/จะไปที่ไหน" อยู่ติดกันแล้วอ่านต่อเนื่องกว่าแยกคนละคอลัมน์ */}
+            <ShippingCard
+              iship={
+                shipmentPanel?.shipment
+                  ? {
+                      id: shipmentPanel.shipment.id,
+                      status: shipmentPanel.shipment.status,
+                      carrierStatus: shipmentPanel.shipment.carrierStatus ?? null,
+                      courierName: shipmentPanel.shipment.courierName ?? null,
+                      courierCode: shipmentPanel.shipment.courierCode ?? null,
+                      trackingNo: shipmentPanel.shipment.trackingNo ?? null,
+                      isDryRun: Boolean(shipmentPanel.shipment.isDryRun),
+                      lastTracedAtISO: shipmentPanel.shipment.carrierStatusAt
+                        ? (shipmentPanel.shipment.carrierStatusAt as Date).toISOString()
+                        : null
+                    }
+                  : null
+              }
+              manual={
+                shipmentSource === 'MANUAL'
+                  ? {
+                      provider: order.shipmentTracking.provider,
+                      trackingNo: order.shipmentTracking.trackingNo,
+                      shippedAtISO: (order.shipmentTracking.createdAt as Date).toISOString()
+                    }
+                  : null
+              }
+            />
 
-          {/* ขวา — col-span-1 (25%): รีวิว (เมื่อมี)
-              การ์ด "ประวัติคำสั่งซื้อ" เดิม (ShippingActivity) ถูกถอดออก 2026-08-04: เนื้อหาของมัน
-              คือ "สถานะ" ล้วน ซึ่งย้ายไปอยู่แถบ OrderProgressStepper เต็มความกว้างเหนือ grid แล้ว
-              (และเวอร์ชันเดิมยังบอกลำดับผิดสำหรับ COD ด้วย) — ส่วน "ประวัติ" ที่ user ต้องการจริง
-              คือ ใครสร้าง/ใครขอเลขพัสดุ/ใครส่ง SMS/ใครยกเลิก ซึ่งฐานข้อมูลยังไม่ได้เก็บ
-              กำลังทำเป็น feature 00031 (ตาราง OrderEvent) แล้วจะกลับมาลงตำแหน่งนี้ */}
-          <div className="space-y-base">
-            {showReviewCard && <OrderReviewCard review={reviewData} orderNoun={vocab.noun} />}
-          </div>
-        </div>
-      </OrderDetailClient>
+            {/* COD มีการ์ด "เก็บเงินปลายทาง" ของตัวเองแล้ว ซึ่งบอกวิธีชำระ/สถานะ/ยอด ครบทุกบรรทัด
+                — แสดงทั้งคู่ = ข้อมูลเดียวกันโผล่ 2 การ์ดในจอเดียว (user ทัก 2026-08-05) */}
+            {!isCODPayment(order.paymentMethod) && (
+              <BillingDetails
+                paymentMethod={order.paymentMethod ?? null}
+                salesChannel={order.salesChannel ?? null}
+                slipFileId={order.slipFileId ?? null}
+                status={order.status}
+              />
+            )}
+            {showReviewCard && <OrderReviewCard orderNoun={vocab.noun} review={reviewData} />}
+          </>
+        }
+      />
     </>
   )
 }

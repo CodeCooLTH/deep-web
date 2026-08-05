@@ -7,6 +7,8 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { countsAsRevenue } from '@/lib/order-revenue'
+import { canonicalProvince, isKnownProvince } from '@/lib/parse-order-message'
 
 // เดือนไทยแบบย่อ — label แกน x โหมดรายเดือน
 const THAI_MONTHS_ABBR = [
@@ -28,6 +30,14 @@ export interface SalesSeries {
   confirmedValues: number[]
   /** ยอดขายส่วนที่ยังไม่ยืนยัน (PENDING/SHIPPED) ต่อ bucket — ใช้แท่งสี stacked */
   unconfirmedValues: number[]
+  /**
+   * จำนวนคำสั่งซื้อต่อ bucket (ใบ) — เส้นบนกราฟการ์ดยอดขาย (user สั่ง 2026-08-05)
+   *
+   * ทำไมต้องมีแยกจาก values: แท่งบอก "เงิน" เส้นบอก "จำนวนครั้ง" — คนละหน่วยกัน
+   * วันที่ยอดสูงเพราะขายได้หลายใบ กับวันที่ยอดสูงเพราะใบเดียวก้อนใหญ่ แยกออกจากกันไม่ได้เลย
+   * ถ้าดูแต่ความสูงของแท่ง
+   */
+  orderCounts: number[]
   /** ยอดรวมทั้งช่วง */
   total: number
   /** ยอดรวมช่วงก่อนหน้า (เดือนก่อน / ปีก่อน) — ใช้คำนวณ %เทียบ */
@@ -147,6 +157,9 @@ export async function getSalesSeries(
         totalAmount: true,
         createdAt: true,
         status: true,
+        // ต้องรู้ว่าขนส่งรับของไปแล้วหรือยัง — เกณฑ์ "นับเป็นยอดขาย" ไม่ได้ดูแค่ status
+        // (SSOT: lib/order-revenue.ts) select แคบ ๆ 3 คอลัมน์ ไม่ให้ payload บวม
+        shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
         // ต้นทุนสินค้า — จำเป็นต่อ "กำไรสุทธิ" ให้ได้สูตรเดียวกับการ์ด P&L ใน /expenses
         // (ถ้าใช้ ยอดยืนยันแล้ว − ค่าใช้จ่าย เฉย ๆ ตัวเลขจะไม่ตรงกับอีกสองหน้า)
         ...(includeFinance ? { items: { select: { cost: true, qty: true } } } : {}),
@@ -163,6 +176,7 @@ export async function getSalesSeries(
   const values = new Array<number>(bucketCount).fill(0)
   const confirmedValues = new Array<number>(bucketCount).fill(0)
   const unconfirmedValues = new Array<number>(bucketCount).fill(0)
+  const orderCounts = new Array<number>(bucketCount).fill(0)
   const cogsValues = new Array<number>(bucketCount).fill(0)
   const expenseValues = new Array<number>(bucketCount).fill(0)
   let total = 0
@@ -198,8 +212,9 @@ export async function getSalesSeries(
       const idx = bucketOf(shifted)
       if (idx >= 0 && idx < bucketCount) {
         values[idx] += amt
-        // แยกยอด buyer ยืนยันแล้ว vs ยังไม่ยืนยัน (PENDING/SHIPPED) สำหรับแท่งสี stacked
-        if (r.status === 'CONFIRMED') {
+        orderCounts[idx] += 1
+        // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ
+        if (countsAsRevenue(r)) {
           confirmedValues[idx] += amt
           const items = (r as { items?: { cost: unknown; qty: number }[] }).items
           for (const item of items ?? []) {
@@ -232,7 +247,7 @@ export async function getSalesSeries(
     : undefined
 
   const base = {
-    labels, values, confirmedValues, unconfirmedValues,
+    labels, values, confirmedValues, unconfirmedValues, orderCounts,
     total, prevTotal, prevTotalToDate, futureFromIndex,
     ...(last7Days ? { last7Days, last7Labels } : {}),
   }
@@ -254,5 +269,143 @@ export async function getSalesSeries(
     totalCogs: cogsValues.reduce((s, v) => s + v, 0),
     totalExpense: expenseValues.reduce((s, v) => s + v, 0),
     netProfit: netProfitValues.reduce((s, v) => s + v, 0),
+  }
+}
+
+// ─── การ์ดเดสก์ท็อป: ช่องทางการขาย + ยอดขายตามจังหวัด ─────────────────────────
+// ทั้งสองตัวคิดจาก "เดือนตามปฏิทินไทย" ชุดเดียวกับ getSalesSeries(mode='daily')
+// — user เคาะ 2026-08-05 ว่าทุกการ์ดบนแดชบอร์ดต้องพูดถึงช่วงเวลาเดียวกัน
+
+/** ขอบเขต [gte, lt) ตามปฏิทินไทยของ period — ใช้ร่วมกันทั้งสองฟังก์ชันด้านล่าง
+ *  มี `day` = ขอบเขต 1 วัน (filter "วันนี้" บนแดชบอร์ดเดสก์ท็อป) · ไม่มี = ทั้งเดือนตามเดิม */
+function thaiMonthRange(period: { year: number; month: number; day?: number }) {
+  const month0 = period.month - 1
+  if (period.day != null) {
+    const gte = new Date(Date.UTC(period.year, month0, period.day) - TZ_OFFSET_MS)
+    return { gte, lt: new Date(gte.getTime() + 24 * 60 * 60 * 1000) }
+  }
+  return { gte: thaiMonthStartUtc(period.year, month0), lt: thaiMonthStartUtc(period.year, month0 + 1) }
+}
+
+export interface SalesChannelSlice {
+  /** ค่าดิบของ Order.salesChannel — ฝั่ง UI แปลงเป็นชื่อ/โลโก้ด้วย getSalesChannelDisplay() */
+  channel: string
+  orderCount: number
+}
+
+/**
+ * สัดส่วนออเดอร์ต่อช่องทางการขายในเดือนที่ระบุ (มาก→น้อย)
+ *
+ * นับ "ใบ" ไม่ใช่ "เงิน" เพราะการ์ดตอบคำถาม "ลูกค้ามาจากทางไหน" — ออเดอร์ก้อนใหญ่ใบเดียว
+ * ไม่ควรทำให้ช่องทางนั้นดูเป็นแหล่งลูกค้าหลัก
+ *
+ * ออเดอร์ที่ salesChannel เป็น null (สร้างก่อนมีฟิลด์นี้ / ไม่ได้เลือก) นับรวมเป็น OTHER
+ * ไม่ใช่ทิ้ง — ไม่งั้นผลรวมบนโดนัทจะไม่เท่ากับจำนวนออเดอร์จริงของเดือนนั้น
+ */
+export async function getSalesChannelBreakdown(
+  shopId: string,
+  period: { year: number; month: number; day?: number },
+): Promise<SalesChannelSlice[]> {
+  const { gte, lt } = thaiMonthRange(period)
+  const rows = await prisma.order.groupBy({
+    by: ['salesChannel'],
+    where: { shopId, status: { not: 'CANCELLED' }, createdAt: { gte, lt } },
+    _count: { _all: true },
+  })
+
+  const merged = new Map<string, number>()
+  for (const r of rows) {
+    const key = r.salesChannel ?? 'OTHER'
+    merged.set(key, (merged.get(key) ?? 0) + r._count._all)
+  }
+
+  return Array.from(merged, ([channel, orderCount]) => ({ channel, orderCount })).sort(
+    (a, b) => b.orderCount - a.orderCount,
+  )
+}
+
+export interface ProvinceSalesRow {
+  /** ชื่อจังหวัดสะกดตามชุดข้อมูล iShip — ตรงกับ properties.name ใน public/data/thailand-provinces.json */
+  province: string
+  orderCount: number
+  revenue: number
+}
+
+export interface ProvinceSales {
+  /** เรียงรายได้มาก→น้อย */
+  rows: ProvinceSalesRow[]
+  /** รายได้รวมของออเดอร์ "ที่มีการจัดส่ง" เท่านั้น — ไม่ใช่รายได้รวมทั้งร้าน (ดู doc ของฟังก์ชัน) */
+  shippedRevenue: number
+  /** จำนวนจังหวัดที่มีออเดอร์อย่างน้อย 1 ใบ */
+  provinceCount: number
+  /** ออเดอร์จัดส่งที่ยังไม่รู้จังหวัด (ที่อยู่ว่าง/สะกดไม่ตรงชุดข้อมูล) — ต้องบอกผู้ใช้ ห้ามกลืนหาย */
+  unknownCount: number
+}
+
+/**
+ * ยอดขายรายจังหวัดของเดือนที่ระบุ สำหรับการ์ดแผนที่บนแดชบอร์ด
+ *
+ * [ขอบเขตที่ user เคาะ 2026-08-05]
+ * - นับเฉพาะออเดอร์ที่ "มีการจัดส่ง" — ตัด salesChannel = STOREFRONT ออกทั้งหมด เพราะขายหน้าร้าน
+ *   ไม่มีที่อยู่ผู้รับโดยธรรมชาติ ถ้าเอามารวมมันจะไปกองอยู่ในถัง "ไม่ระบุจังหวัด" แล้วอ่านเหมือน
+ *   ร้านกรอกที่อยู่ไม่ครบ ทั้งที่ไม่มีอะไรผิด
+ * - รายได้ใช้เกณฑ์เดียวกับการ์ดอื่น (countsAsRevenue) ห้ามเขียนเกณฑ์ซ้ำเอง — SSOT lib/order-revenue.ts
+ * - ใบที่ยังไม่นับเป็นยอดขายยัง "นับหัว" ในจำนวนออเดอร์ของจังหวัดอยู่ (ของส่งไปแล้วจริง)
+ *
+ * ทำไม aggregate ใน JS: Order.shippingAddress เป็นคอลัมน์ Json — groupBy ตรง ๆ ไม่ได้ และช่วงข้อมูล
+ * แค่เดือนเดียวของร้านเดียว จึงถูกกว่าการทำ generated column/ดัชนีเพิ่ม
+ */
+export async function getProvinceSales(
+  shopId: string,
+  period: { year: number; month: number; day?: number },
+): Promise<ProvinceSales> {
+  const { gte, lt } = thaiMonthRange(period)
+  const rows = await prisma.order.findMany({
+    where: {
+      shopId,
+      status: { not: 'CANCELLED' },
+      createdAt: { gte, lt },
+      // ขายหน้าร้านไม่เข้าแผนที่ (ดู doc ด้านบน) — ครอบ null ด้วย เพราะ `not` ใน Prisma
+      // ไม่ match แถวที่เป็น null เอง ต้องเขียน OR ให้ชัด
+      OR: [{ salesChannel: null }, { salesChannel: { not: 'STOREFRONT' } }],
+    },
+    select: {
+      totalAmount: true,
+      shippingAddress: true,
+      status: true,
+      shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
+    },
+  })
+
+  const acc = new Map<string, ProvinceSalesRow>()
+  let unknownCount = 0
+  let shippedRevenue = 0
+
+  for (const o of rows) {
+    const addr = o.shippingAddress as { province?: unknown } | null
+    const raw = canonicalProvince(typeof addr?.province === 'string' ? addr.province : undefined)
+    // สะกดไม่ตรงชุดข้อมูล = จับคู่กับแผนที่ไม่ได้ → ตีเป็น "ไม่ระบุ" ตั้งแต่ต้นทาง
+    const province = isKnownProvince(raw) ? raw : undefined
+    const revenue = countsAsRevenue(o) ? Number(o.totalAmount) : 0
+    shippedRevenue += revenue
+
+    if (!province) {
+      unknownCount += 1
+      continue
+    }
+    const cur = acc.get(province)
+    if (cur) {
+      cur.orderCount += 1
+      cur.revenue += revenue
+    } else {
+      acc.set(province, { province, orderCount: 1, revenue })
+    }
+  }
+
+  return {
+    rows: Array.from(acc.values()).sort((a, b) => b.revenue - a.revenue || b.orderCount - a.orderCount),
+    shippedRevenue,
+    provinceCount: acc.size,
+    unknownCount,
   }
 }

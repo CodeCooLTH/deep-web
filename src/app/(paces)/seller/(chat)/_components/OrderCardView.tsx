@@ -181,6 +181,7 @@ export default function OrderCardView({
   onEdit,
   footer,
   className = '',
+  orderNoun = 'คำสั่งซื้อ',
 }: {
   data: OrderCardViewData
   /** แตะ body → เปิดโมดัลแก้ไข (ไม่ใส่ = การ์ดไม่คลิก เช่นฝั่ง buyer) */
@@ -188,8 +189,16 @@ export default function OrderCardView({
   /** action ท้ายการ์ด — ส่งเข้าแชท / ดูคำสั่งซื้อ (caller ใส่เอง) */
   footer?: React.ReactNode
   className?: string
+  /**
+   * ชื่อเรียกรายการตามประเภทกิจการ (ORDER_VOCAB.noun) — "คำสั่งซื้อ" / "การเข้ารับบริการ" / "บิลเข้าพัก"
+   *
+   * รับเป็น prop ไม่ใช่อ่านจาก DraftOrderProvider โดยตรง เพราะการ์ดใบนี้ตั้งใจให้ใช้ซ้ำนอกกล่องแชทได้
+   * (ดู onEdit — "ไม่ใส่ = การ์ดไม่คลิก เช่นฝั่ง buyer") การผูกกับ context ของแชทจะทำให้พังทันที
+   * ที่มีคนเอาไปใช้จริงตามเจตนานั้น
+   */
+  orderNoun?: string
 }) {
-  const title = data.items[0]?.name ?? 'คำสั่งซื้อ'
+  const title = data.items[0]?.name ?? orderNoun
   // เลขคำสั่งซื้อ DP… (fallback โค้ด 8 หลักของ token สำหรับข้อมูลเก่าที่ยังไม่ backfill)
   const displayNo = data.orderNo || data.token.slice(0, 8).toUpperCase()
   const priceLabel = `฿${Number(data.totalAmount).toLocaleString('th-TH')}`
@@ -201,7 +210,7 @@ export default function OrderCardView({
         <Icon icon="receipt-2" className="shrink-0 text-2xl" />
         <div className="min-w-0">
           <p className="mb-0 truncate text-sm font-semibold">{title}</p>
-          <p className="mb-0 truncate text-2xs opacity-90">คำสั่งซื้อ · {displayNo}</p>
+          <p className="mb-0 truncate text-2xs opacity-90">{orderNoun} · {displayNo}</p>
         </div>
       </div>
       {/* รายการสินค้า + รวม + ยอดสุทธิ */}
@@ -245,7 +254,7 @@ export default function OrderCardView({
         <button
           type="button"
           onClick={onEdit}
-          aria-label={`แก้ไขคำสั่งซื้อ ${title}`}
+          aria-label={`แก้ไข${orderNoun} ${title}`}
           className="hover:bg-default-50 block w-full cursor-pointer text-start transition-colors"
         >
           {body}

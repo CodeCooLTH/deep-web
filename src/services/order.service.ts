@@ -9,6 +9,7 @@ import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
 import { deriveShippingStage } from "@/lib/order-stage";
 import { formatOrderNo } from "@/lib/order-no";
+import { recordOrderEvent } from "@/services/order-event.service";
 import {
   attachAppointmentInTx,
   computeAppointmentDeposit,
@@ -319,6 +320,15 @@ export async function createOrder(shopId: string, data: {
         await tx.order.update({ where: { id: order.id }, data: { orderNo } });
         order.orderNo = orderNo;
 
+        // feature 00031 — ประวัติคำสั่งซื้อ: เขียนใน tx เดียวกับการสร้างเสมอ
+        // actor = คนที่กดสร้าง (null = ระบบออกเอง — ห้าม fallback เป็นเจ้าของร้าน)
+        await recordOrderEvent(tx, {
+          orderId: order.id,
+          type: "ORDER_CREATED",
+          actorUserId: data.createdByUserId ?? null,
+          occurredAt: order.createdAt,
+        });
+
         // feature 00018 (user request 2026-07-24) — ผูกเธรดแชทเข้ากับ Customer ทันทีเมื่อสร้างจากแชท
         // เงื่อนไข: มี conversationId + ได้ customerId (มีเบอร์) เท่านั้น. scope ownership ด้วย shopId ใน
         // WHERE (กันผูกเธรดของร้านอื่น) + updateMany เฉพาะแถวที่ externalContact ยังไม่ผูก (customerId=null)
@@ -403,7 +413,13 @@ export class OrderNotEditableError extends Error {
  * ⚠ stock-sensitive: reverse+deduct อยู่ใน transaction เดียว — ถ้า deduct ใหม่ OutOfStock → rollback
  * ทั้งก้อน (reverse ถูก undo ด้วย). แก้ CANCELLED ไม่ได้ (สต็อกคืนไปแล้ว — แก้=งง)
  */
-export async function updateOrder(shopId: string, publicToken: string, data: Parameters<typeof createOrder>[1]) {
+export async function updateOrder(
+  shopId: string,
+  publicToken: string,
+  data: Parameters<typeof createOrder>[1],
+  // feature 00031 — คนที่กดแก้ไข (optional เพื่อไม่ให้ผู้เรียกเดิมพัง; ไม่ส่ง = "ระบบ")
+  actorUserId?: string | null,
+) {
   const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
   const subtotal = round2(data.items.reduce((sum, item) => sum + item.qty * item.price, 0));
   const totalAmount = round2(subtotal - (data.discount ?? 0) + (data.vatAmount ?? 0));
@@ -434,7 +450,16 @@ export async function updateOrder(shopId: string, publicToken: string, data: Par
   }
 
   return await prisma.$transaction(async (tx) => {
-    const existing = await tx.order.findFirst({ where: { publicToken, shopId }, select: { id: true, status: true } });
+    const existing = await tx.order.findFirst({
+      where: { publicToken, shopId },
+      // ฟิลด์เพิ่มจาก id/status ใช้นับ changedCount ของ ORDER_EDITED (feature 00031) เท่านั้น
+      select: {
+        id: true, status: true, type: true, totalAmount: true, buyerContact: true,
+        buyerName: true, paymentMethod: true, salesChannel: true, internalNote: true,
+        discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
+        items: { select: { productId: true, name: true, qty: true, price: true } },
+      },
+    });
     if (!existing) throw new OrderNotFoundError();
     // แก้ได้เฉพาะ PENDING — ตรงกับกฎที่ UI ใช้อยู่แล้วทุกที่ (OrderActions/OrderCardMenu: canEdit = PENDING)
     // เดิมบล็อกแค่ CANCELLED ทำให้โมดัลแก้ไขในแชท (ซึ่งไม่ได้ gate สถานะเลย) แก้ออเดอร์ที่
@@ -519,6 +544,39 @@ export async function updateOrder(shopId: string, publicToken: string, data: Par
         },
       });
     }
+
+    // 9) feature 00031 — ORDER_EDITED ใน tx เดียวกัน. changedCount นับจากค่าที่ต่างจริง
+    // (เทียบ scalar ต่อ field + รายการสินค้าเป็น 1 หน่วย) — ไม่ส่งค่าจริงเข้า meta (กัน PII)
+    const numEq = (a: Prisma.Decimal | number | null | undefined, b: number | null | undefined) => {
+      const av = a == null ? null : Number(a);
+      const bv = b == null ? null : b;
+      return av === bv;
+    };
+    const strEq = (a: string | null | undefined, b: string | null | undefined) =>
+      (a ?? null) === (b ?? null);
+    const itemKey = (items: { name: string; qty: number; price: number | Prisma.Decimal }[]) =>
+      JSON.stringify(items.map((i) => [i.name.trim(), i.qty, Number(i.price)]));
+    const changedCount = [
+      strEq(existing.type, data.type),
+      numEq(existing.totalAmount, totalAmount),
+      strEq(existing.buyerContact, data.buyerContact),
+      strEq(existing.buyerName, data.buyerName),
+      strEq(existing.paymentMethod, data.paymentMethod),
+      strEq(existing.salesChannel, data.salesChannel),
+      strEq(existing.internalNote, data.internalNote),
+      numEq(existing.discount, data.discount),
+      numEq(existing.vatRate, data.vatRate),
+      numEq(existing.vatAmount, data.vatAmount),
+      JSON.stringify(existing.shippingAddress ?? null) === JSON.stringify(data.shippingAddress ?? null),
+      itemKey(existing.items) === itemKey(data.items),
+    ].filter((same) => !same).length;
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "ORDER_EDITED",
+      actorUserId: actorUserId ?? null,
+      meta: changedCount > 0 ? { changedCount } : {},
+    });
+
     return order;
   });
 }
@@ -551,9 +609,18 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
   assertTransition(order.status, "CONFIRMED");
   // ไม่เขียน buyerContact/buyerUserId ที่นี่อีกต่อไป — ทั้งคู่ถูก set ที่ต้นทาง
   // (createOrder) หรือ claim-time (guaranteeOrderLink) แล้วก่อนหน้านี้
-  const updated = await prisma.order.update({
-    where: { publicToken },
-    data: { status: "CONFIRMED" },
+  // feature 00031 — BUYER_CONFIRMED ใน tx เดียวกับการ mark CONFIRMED
+  const updated = await prisma.$transaction(async (tx) => {
+    const u = await tx.order.update({
+      where: { publicToken },
+      data: { status: "CONFIRMED" },
+    });
+    await recordOrderEvent(tx, {
+      orderId: u.id,
+      type: "BUYER_CONFIRMED",
+      actorUserId: buyerUserId,
+    });
+    return u;
   });
   // Post-confirm recalc เป็น best-effort — ถ้า dev pool timeout หรือ error
   // อื่นใน badges/trust-score ไม่ควร fail confirmation (ข้อมูลหลัก save
@@ -593,7 +660,12 @@ export async function confirmOrder(publicToken: string, buyerUserId: string) {
 }
 
 
-export async function shipOrder(publicToken: string, data: { provider: string; trackingNo: string }) {
+export async function shipOrder(
+  publicToken: string,
+  data: { provider: string; trackingNo: string },
+  // feature 00031 — คนที่กดแจ้งจัดส่ง (optional เพื่อไม่ให้ผู้เรียกเดิมพัง)
+  actorUserId?: string | null,
+) {
   const order = await prisma.order.findUnique({ where: { publicToken } });
   if (!order) throw new Error("Order not found");
   // Guard ใช้ fulfillmentMode แทน order.type (spec §2 ship guard)
@@ -605,6 +677,13 @@ export async function shipOrder(publicToken: string, data: { provider: string; t
   return prisma.$transaction(async (tx) => {
     await tx.shipmentTracking.create({
       data: { orderId: order.id, provider: data.provider, trackingNo: data.trackingNo },
+    });
+    // feature 00031 — TRACKING_ADDED ใน tx เดียวกัน; provider = ชื่อขนส่งที่ร้านกรอกเอง (ไม่ใช่ PII)
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "TRACKING_ADDED",
+      actorUserId: actorUserId ?? null,
+      meta: { provider: data.provider },
     });
     return tx.order.update({ where: { publicToken }, data: { status: "SHIPPED" } });
   });
@@ -640,6 +719,8 @@ export class IShipManagedShipmentError extends Error {
 export async function updateShipmentTracking(
   publicToken: string,
   data: { provider: string; trackingNo: string },
+  // feature 00031 — คนที่แก้เลขพัสดุ (optional เพื่อไม่ให้ผู้เรียกเดิมพัง)
+  actorUserId?: string | null,
 ) {
   // scope ในคำสั่งเดียว (order + shipmentTracking + iShip shipments ที่ยัง active) แทนการ
   // findUnique แล้วค่อย query เพิ่มทีหลัง — ownership ของ order ถูก route เช็คมาก่อนแล้ว (S-C7)
@@ -655,9 +736,20 @@ export async function updateShipmentTracking(
   if (!order.shipmentTracking) throw new ShipmentTrackingNotFoundError();
   if (order.shipments.length > 0) throw new IShipManagedShipmentError();
 
-  return prisma.shipmentTracking.update({
-    where: { orderId: order.id },
-    data: { provider: data.provider, trackingNo: data.trackingNo },
+  // feature 00031 — การแก้เลข/ขนส่งคือการ "แจ้งเลขพัสดุ" รอบใหม่ของออเดอร์เดิม
+  // บันทึกเป็น TRACKING_ADDED ใน tx เดียวกัน (ค่าใหม่คือความจริงล่าสุดที่ผู้ซื้อจะได้เห็น)
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.shipmentTracking.update({
+      where: { orderId: order.id },
+      data: { provider: data.provider, trackingNo: data.trackingNo },
+    });
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "TRACKING_ADDED",
+      actorUserId: actorUserId ?? null,
+      meta: { provider: data.provider },
+    });
+    return updated;
   });
 }
 
@@ -682,6 +774,8 @@ export async function cancelOrder(
   publicToken: string,
   initiator: "seller" | "buyer",
   reason?: string,
+  // feature 00031 — คนที่กดยกเลิก (guest buyer = null เป็นค่าปกติ ไม่ใช่ข้อยกเว้น)
+  actorUserId?: string | null,
 ) {
   const order = await prisma.order.findUnique({ where: { publicToken } });
   if (!order) throw new Error("Order not found");
@@ -708,6 +802,14 @@ export async function cancelOrder(
     });
     // BREAKING (00009 S-3/S-5) — restockFromCancelledOrder เพิ่ม param shopId (สำหรับ StockMovement.shopId)
     await restockFromCancelledOrder(tx, order.shopId, order.id);
+    // feature 00031 — ORDER_CANCELLED ใน tx เดียวกัน; initiatorRole ไว้แสดง "ยกเลิกโดยฝั่งไหน"
+    // ตอนไม่รู้ตัวคน (guest buyer)
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "ORDER_CANCELLED",
+      actorUserId: actorUserId ?? null,
+      meta: { initiatorRole: initiator },
+    });
     return updated;
   });
 }
@@ -780,6 +882,9 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
       // select แคบ ๆ เฉพาะที่ต้องโชว์: ห้ามดึง phone/email มาด้วย หน้านี้อยู่ใต้ client layout
       // ทุก field ที่ include จะถูก serialize เข้า flight payload เสมอ (feedback_rsc_pii_neutralize_at_source)
       createdBy: { select: { id: true, displayName: true, username: true, avatar: true } },
+      // คนที่กดยืนยันรับเงินปลายทาง — การ์ด COD แสดง "รับเมื่อ ... โดย ..." ให้ตามตัวได้ว่าใครกด
+      // (กดผิดแล้วใบหลุดจากกอง "รอเงิน COD" เงียบ ๆ ต้องรู้ว่าถามใคร) select แคบเหมือน createdBy
+      codReceivedBy: { select: { id: true, displayName: true, username: true } },
       shipmentTracking: true,
       review: true,
     },
@@ -830,6 +935,10 @@ export async function getOrdersByShop(shopId: string, status?: string) {
         take: 1,
         select: {
           carrierStatus: true,
+          // 2 ช่องนี้ซ้ำกับ where ด้านบนโดยตั้งใจ — countsAsRevenue() (lib/order-revenue.ts) ตรวจ
+          // เงื่อนไขเองอีกชั้นเพื่อให้ผลตรงกับ revenueOrderWhere เป๊ะ ไม่ต้องเชื่อว่า caller กรองมาแล้ว
+          status: true,
+          isDryRun: true,
           // แถวออเดอร์ต้องเห็นเลขพัสดุ + ขนส่งเจ้าไหน + เปิดผ่านแพลตฟอร์มไหน (user สั่ง 2026-08-04)
           trackingNo: true,
           courierCode: true,

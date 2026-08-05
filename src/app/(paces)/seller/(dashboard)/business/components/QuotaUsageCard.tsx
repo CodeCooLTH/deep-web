@@ -9,6 +9,7 @@
  *
  * server component ล้วน — ไม่มี interactive state (ปุ่ม "สร้างธุรกิจใหม่" เป็นแค่ next/link)
  */
+import SwitchAndManageButton from './SwitchAndManageButton'
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 
@@ -103,9 +104,7 @@ export default function QuotaUsageCard({ ownedCount, maxBusinesses, businesses, 
                   </span>
                   {b.locked && <span className="badge bg-danger/15 text-danger">ถูกล็อก</span>}
                 </div>
-                <Link href={`/business/${b.shopId}/invites`} className="text-primary text-sm font-medium hover:underline">
-                  จัดการ
-                </Link>
+                <SwitchAndManageButton shopId={b.shopId} shopName={b.shopName} />
               </div>
             ))}
           </div>
