@@ -896,6 +896,7 @@ export default function ChatThread({
     reactToMessage,
     sendSticker,
     externalReadAt: externalReadAtLive,
+    externalDeliveredAt,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
 
@@ -1134,6 +1135,21 @@ export default function ChatThread({
   // event ของ Meta มาทีหลังและไม่ทริกเกอร์ realtime จึงต้องพึ่ง refetch รอบถัดไป (bug fix 2026-07-23)
   const readAt = externalReadAtLive ?? externalReadAtInitial
   const readAtMs = readAt ? new Date(readAt).getTime() : 0
+
+  /**
+   * delivery receipt (2026-08-05) — ป้ายขั้นกลาง "ได้รับแล้ว" ระหว่าง "ส่งแล้ว" กับ "อ่านแล้ว"
+   *
+   * ทำไมต้องมี (user report prod 2026-08-05): "ส่งแล้ว" ของเราแปลว่า "Meta ตอบ mid กลับมา" ซึ่ง
+   * เกิดขึ้นก่อนที่ข้อความจะเข้าเธรดลูกค้าจริง ส่งรูปหลายใบทีเดียวจะเห็นช่องว่างนี้ชัด — ผู้ขาย
+   * เห็นว่าส่งสำเร็จแล้วทั้งที่ฝั่ง Messenger ยังไม่มีรูป. watermark นี้คือหลักฐานจาก Meta ว่าถึงจริง
+   *
+   * gate ด้วยช่องทาง ไม่ใช่ด้วยค่า null: Instagram ไม่มี message_deliveries ในโปรโตคอลเลย ถ้าเช็ค
+   * แค่ "ยังไม่มี watermark" เธรด IG จะไม่มีวันขึ้น "ได้รับแล้ว" แล้วถ้าเผลอเอาไปผูกกับการซ่อน
+   * "ส่งแล้ว" ก็จะค้างสถานะกำกวมตลอดกาล — ที่ถูกคือ IG ข้ามขั้นนี้ไปที่ "อ่านแล้ว" เลย
+   */
+  const supportsDeliveryReceipt = channel === 'MESSENGER'
+  const deliveredAtMs =
+    supportsDeliveryReceipt && externalDeliveredAt ? new Date(externalDeliveredAt).getTime() : 0
 
   // เธรดที่เกิดจาก "ตอบกลับความคิดเห็น" (private reply) — Meta แนบบรรทัดระบบที่มีลิงก์คอมเมนต์
   // มาด้วยเสมอ จับจาก comment_id ในลิงก์ ไม่ใช่จากถ้อยคำ เพราะเพจตั้งภาษาต่างกันได้
@@ -2048,10 +2064,21 @@ export default function ChatThread({
                           )}
                           {/* !failed: บับเบิลที่ยิงไม่ออกเคยขึ้น "ส่งแล้ว" ควบคู่กับแถบแดง เพราะเงื่อนไข
                               เดิมดูแค่ _status (undefined สำหรับแถวที่บันทึกแล้ว) ไม่ได้ดู deliveryStatus */}
+                          {/* บันได 3 ขั้นของข้อความที่ส่งสำเร็จ (2026-08-05):
+                                อ่านแล้ว   — ลูกค้าเปิดอ่านจริง (message_reads) เขียวขั้นเดียวในบันไดนี้
+                                ได้รับแล้ว — Meta ยืนยันว่าถึงเครื่องลูกค้า (message_deliveries) สีปกติ
+                                ส่งแล้ว    — Meta รับคำสั่งแล้ว (ตอบ mid) แต่ยังไม่มีหลักฐานว่าถึง
+                              เขียวสงวนไว้ให้ "อ่านแล้ว" ตัวเดียวตาม Verified-Means-Green — "ได้รับแล้ว"
+                              เป็นสถานะระหว่างทาง ไม่ใช่สัญญาณความน่าเชื่อถือระดับเดียวกัน (ux 2026-08-05)
+                              เธรด Instagram ไม่มีขั้นกลาง (deliveredAtMs=0 เสมอ) ข้ามไปที่อ่านแล้วเลย */}
                           {mine && m._status !== 'sending' && !failed && m.id === lastShopMsgId ? (
                             readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
                               <span className="text-success flex items-center gap-0.5">
                                 <Icon icon="checks" /> อ่านแล้ว
+                              </span>
+                            ) : deliveredAtMs > 0 && new Date(m.createdAt).getTime() <= deliveredAtMs ? (
+                              <span className="flex items-center gap-0.5">
+                                <Icon icon="checks" /> ได้รับแล้ว
                               </span>
                             ) : (
                               <span className="flex items-center gap-0.5">

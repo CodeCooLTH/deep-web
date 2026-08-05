@@ -268,14 +268,19 @@ export async function GET(
     // ทาง webhook และ **ไม่ได้ insert ChatMessage** จึงไม่ทริกเกอร์ realtime broadcast → client
     // ไม่มีทางรู้เลยจนกว่าจะรีโหลดหน้าเอง. ส่งมากับ GET นี้ด้วยเพื่อให้ refetch รอบถัดไป (realtime/
     // focus/poll) อัปเดตป้าย "ส่งแล้ว → อ่านแล้ว" ได้เอง
+    // externalDeliveredAt — watermark "ข้อความของร้านถึงเครื่องลูกค้าถึงเวลานี้" (message_deliveries,
+    // 2026-08-05) เดินทางคู่กับ externalReadAt ด้วยเหตุผลเดียวกันเป๊ะ: delivery event ของ Meta
+    // **ไม่ได้ insert ChatMessage** จึงไม่มี realtime broadcast ให้เกาะ ต้องติดมากับ GET นี้เพื่อให้
+    // ป้าย "ส่งแล้ว → ได้รับแล้ว" ขยับเองได้ใน refetch รอบถัดไป (poll 6 วิ) โดยไม่ต้องรีโหลดหน้า
     const conv = await prisma.conversation.findUnique({
       where: { id },
-      select: { externalReadAt: true },
+      select: { externalReadAt: true, externalDeliveredAt: true },
     });
     return NextResponse.json({
       items,
       nextCursor: result.nextCursor,
       externalReadAt: conv?.externalReadAt ? conv.externalReadAt.toISOString() : null,
+      externalDeliveredAt: conv?.externalDeliveredAt ? conv.externalDeliveredAt.toISOString() : null,
     });
   } catch (e: unknown) {
     return mapChatServiceError(e, "GET /api/chat/conversations/[id]/messages");
@@ -478,26 +483,37 @@ export async function POST(
       if (type === "IMAGE_GRID") {
         const ids = imageFileIds!;
         let first = true;
+        // แถวที่สร้างจริงทุกก้อน เรียงตามลำดับรูปที่ผู้ขายแนบ (2026-08-05) — client เอาไปทับบับเบิล
+        // ชั่วคราวใบต่อใบเหมือนเส้นทางส่งรูปเดี่ยว เดิม route นี้ตอบแค่ {ok:true} client จึงต้องลบ
+        // บับเบิลชั่วคราวทิ้งแล้วรอ refetch ซึ่งเปิดช่องให้รูปเดียวกันขึ้นซ้อนสองใบ
+        const createdRows = [];
         for (let i = 0; i < ids.length; i += IMAGE_GRID_MAX) {
           const chunk = ids.slice(i, i + IMAGE_GRID_MAX);
           if (chunk.length === 1) {
-            await sendOutboundMessage({
-              conversationId: id,
-              actorUserId: userId,
-              attachment: { fileId: chunk[0], kind: "IMAGE", name: null, size: null },
-              text: first ? text ?? undefined : undefined,
-            });
+            // เศษใบเดียว: caption ไปกับ text ของ sendOutboundMessage ซึ่ง **ไม่สร้างแถวแยกให้ caption**
+            // (echo ของ Meta จะพาเข้ามาเอง) — จำนวนแถวที่คืนจึงน้อยกว่าบับเบิลชั่วคราวได้ 1 ใบ
+            // client ต้องทนกับจำนวนไม่เท่ากัน ไม่ใช่ผูก index ตายตัว
+            createdRows.push(
+              await sendOutboundMessage({
+                conversationId: id,
+                actorUserId: userId,
+                attachment: { fileId: chunk[0], kind: "IMAGE", name: null, size: null },
+                text: first ? text ?? undefined : undefined,
+              }),
+            );
           } else {
-            await sendOutboundImageGrid({
+            const res = await sendOutboundImageGrid({
               conversationId: id,
               actorUserId: userId,
               fileIds: chunk,
               caption: first ? text ?? null : null,
             });
+            createdRows.push(...res.messages);
           }
           first = false;
         }
-        return NextResponse.json({ ok: true });
+        const items = await Promise.all(createdRows.map((m) => withSender(m, userId)));
+        return NextResponse.json({ ok: true, items });
       }
 
       const sent = await sendOutboundMessage({

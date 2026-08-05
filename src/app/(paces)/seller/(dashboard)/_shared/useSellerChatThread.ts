@@ -141,6 +141,11 @@ type MessagesApiResponse = {
   /** watermark "ลูกค้าอ่านถึงเวลานี้" (feature 00018 read receipt) — มากับทุก GET เพื่อให้ป้าย
    *  "ส่งแล้ว → อ่านแล้ว" อัปเดตได้เองโดยไม่ต้องรีโหลดหน้า (read event ไม่ทริกเกอร์ realtime) */
   externalReadAt?: string | null
+  /** watermark "ข้อความของร้านถึงเครื่องลูกค้าถึงเวลานี้" (Messenger message_deliveries, 2026-08-05)
+   *  มาคู่กับ externalReadAt ด้วยเหตุผลเดียวกัน — delivery event ไม่ insert ChatMessage จึงไม่มี
+   *  realtime broadcast ให้เกาะ ต้องติดมากับ GET ให้ป้ายขยับเองในรอบ poll ถัดไป
+   *  null เสมอสำหรับเธรด Instagram (โปรโตคอลไม่มี delivery receipt) — ไม่ใช่ข้อมูลขาด */
+  externalDeliveredAt?: string | null
 }
 
 /**
@@ -210,6 +215,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   const [oldestCursor, setOldestCursor] = useState<string | null>(null)
   const [loadingInitial, setLoadingInitial] = useState(true)
   const [externalReadAt, setExternalReadAt] = useState<string | null>(null)
+  const [externalDeliveredAt, setExternalDeliveredAt] = useState<string | null>(null)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [uploading, setUploading] = useState(false)
   // ความคืบหน้าเมื่อแนบหลายไฟล์ (2026-08-02) — boolean เดิมบอกได้แค่ "กำลังทำอะไรอยู่"
@@ -272,6 +278,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         setMessages([...data.items].reverse())
         setOldestCursor(data.nextCursor)
         if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
+        if (data.externalDeliveredAt !== undefined) setExternalDeliveredAt(data.externalDeliveredAt)
         scrollToBottom()
         // mark-read ทันทีตอนเปิด thread (ไม่ debounce รอบแรก)
         fetch(`/api/chat/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {})
@@ -365,6 +372,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
       if (!res.ok) return
       const data: MessagesApiResponse = await res.json()
       if (data.externalReadAt !== undefined) setExternalReadAt(data.externalReadAt)
+      if (data.externalDeliveredAt !== undefined) setExternalDeliveredAt(data.externalDeliveredAt)
       setMessages((prev) => {
         const map = new Map(prev.map((m) => [m.id, m]))
         // เสียงเตือน (user สั่ง 2026-07-23) — ดังเฉพาะข้อความ "ใหม่จริง" ของฝั่งลูกค้า: ต้องไม่เคย
@@ -753,9 +761,40 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
             }),
           })
           if (res.ok) {
+            /**
+             * เอาแถวจริงไป "ทับ" บับเบิลชั่วคราวใบต่อใบ แทนการลบทิ้งแล้วรอ refetch (2026-08-05)
+             *
+             * ของเดิมลบบับเบิลชั่วคราวแล้วให้ refetchNewer ดึงแถวจริงมาแสดงแทน ปัญหาคือ trigger
+             * ฝั่งฐานยิง broadcast ทันทีที่ createMany สำเร็จ (ก่อน route จะตอบกลับด้วยซ้ำ เพราะยัง
+             * เหลือแคปชัน/ก้อนถัดไปให้ส่ง) — poll 6 วิ/realtime จึงดึงแถวจริงเข้ามาได้ตั้งแต่บับเบิล
+             * ชั่วคราวยังหมุนอยู่ ผลคือรูปเดียวกันขึ้นสองใบ ใบล่างหน้าตาเหมือนส่งสำเร็จเรียบร้อยแล้ว
+             * ทั้งที่ยังส่งไม่จบ — ตรงกับที่ผู้ขายรายงานว่า "ขึ้นเหมือนส่งแล้วเลย"
+             *
+             * จับคู่ตามลำดับ (แถวที่ i ↔ บับเบิลที่ i) ได้เพราะ route ประกอบ items เรียงตามลำดับรูป
+             * ที่แนบมาอยู่แล้ว. จำนวนไม่เท่ากันได้ 2 ทาง — echo ชนกันจน skipDuplicates ข้ามบางแถว
+             * (items สั้นกว่า) และเคสเศษรูปใบเดียวที่แคปชันไม่ได้แถวของตัวเอง — บับเบิลที่เหลือจึง
+             * ต้องลบทิ้งแล้วปล่อยให้ refetch เก็บ ไม่ใช่ปล่อยค้างหมุนตลอดกาล
+             */
+            const body = (await res.json().catch(() => null)) as { items?: ChatMessageView[] } | null
+            const items = body?.items ?? []
+            setMessages((prev) => {
+              const byLocalId = new Map(queued.map((q, i) => [q.localId, items[i]]))
+              const realIds = new Set(items.map((m) => m.id))
+              return (
+                prev
+                  // กันซ้ำ: realtime/poll อาจดึงแถวจริงชุดเดียวกันเข้ามาก่อนหน้านี้แล้ว
+                  .filter((m) => !realIds.has(m.id))
+                  .map((m) => {
+                    if (!byLocalId.has(m.id)) return m
+                    const real = byLocalId.get(m.id)
+                    return real ? { ...real, _status: 'sent' as const } : null
+                  })
+                  .filter((m): m is ChatMessageView => m !== null)
+              )
+            })
+            // ยังต้อง refetch อยู่ — เก็บแถวที่ไม่ได้กลับมากับ response (แคปชันของเศษรูปใบเดียว
+            // ที่ Meta พาเข้ามาทาง echo) และ enrich field ที่ POST ไม่ได้ประกอบให้ (เช่น replyTo)
             await refetchNewer()
-            const localIds = new Set(queued.map((q) => q.localId))
-            setMessages((prev) => prev.filter((m) => !localIds.has(m.id)))
             return
           }
         } catch {
@@ -1017,5 +1056,8 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     /** read receipt (feature 00018) — สดจาก GET ล่าสุด; caller ควรใช้ค่านี้แทน server prop ตอนเปิดหน้า
      *  เพราะ read event มาทีหลังทาง webhook โดยไม่ทริกเกอร์ realtime (ดู comment ที่ route GET) */
     externalReadAt,
+    /** delivery receipt (2026-08-05) — watermark "ถึงเครื่องลูกค้าถึงเวลานี้" จาก message_deliveries
+     *  null ตลอดสำหรับ Instagram (โปรโตคอลไม่มี event นี้) caller ต้อง gate ด้วย channel เอง */
+    externalDeliveredAt,
   }
 }
