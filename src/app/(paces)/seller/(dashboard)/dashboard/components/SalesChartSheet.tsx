@@ -83,6 +83,11 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
     ],
     chart: {
       type: 'bar', height: 220, stacked: true, toolbar: { show: false },
+      /** ปิด drag-to-zoom — toolbar:false ซ่อนแค่ปุ่ม ไม่ได้ปิดพฤติกรรมลาก: จิ้มลากบนมือถือ
+       *  แล้วเกิดกล่อง selection ฟ้าค้างบนกราฟ (user รายงาน 2026-08-05 บน SalesChartCard —
+       *  ชีตใช้กราฟตระกูลเดียวกันจึงปิดพร้อมกัน) · selection:false เป็นกันเหนียว */
+      zoom: { enabled: false },
+      selection: { enabled: false },
       // กัน ApexCharts เว้น padding ในกรอบ SVG เอง — เป็นที่มาของช่องว่างก้อนใหญ่เหนือกราฟที่
       // หาไม่เจอใน JSX (ไม่มี margin ตัวไหนสร้างมัน)
       parentHeightOffset: 0,
