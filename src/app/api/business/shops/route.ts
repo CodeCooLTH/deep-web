@@ -46,6 +46,12 @@ export async function POST(request: NextRequest) {
     // เพราะ Phase 1 ยังไม่ได้ตัด @unique เดิมออก (partial unique index มาใน Phase 2 — ดู DATABASE.md §4/§9-1
     // และ comment ใน prisma/schema.prisma model Shop) ไม่ใช่ bug ของ route/service นี้
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      // feature 00030 — create รับ slug ได้แล้ว P2002 จึงมาจาก 2 สาเหตุ ต้องแยกให้ผู้ใช้แก้ถูกจุด
+      // (target บอกคอลัมน์ที่ชน — slug ชน = ผู้ใช้แก้เองได้, userId ชน = ข้อจำกัดของระบบ)
+      const target = Array.isArray(e.meta?.target) ? (e.meta.target as string[]) : [];
+      if (target.includes("slug")) {
+        return NextResponse.json({ error: "SLUG_TAKEN" }, { status: 409 });
+      }
       return NextResponse.json({ error: "SHOP_CREATE_BLOCKED_PENDING_PHASE2" }, { status: 409 });
     }
     console.error("[POST /api/business/shops] ownerId:", ownerId, e instanceof Error ? e.message : e);

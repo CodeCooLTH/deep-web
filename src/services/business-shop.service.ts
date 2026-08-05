@@ -10,6 +10,12 @@ export async function createBusinessShop(ownerId: string, data: {
   // categories = SSOT ของหมวดร้าน (≤5). category ช่องเดียวเป็น LEGACY ที่ยังมีหน้าอื่นอ่านอยู่
   // จึง derive จากตัวแรกของ categories ให้อัตโนมัติ — ผู้เรียกไม่ต้องส่งสองที่ให้ตรงกันเอง
   categories?: string[];
+  // feature 00030 — สร้างร้านให้ใช้งานได้ทันทีในคำสั่งเดียว (เดิมต้องไปต่อที่หน้า onboarding)
+  logo?: string;
+  slug?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
   // feature 00017 → ขยายเป็น 3 ค่าที่ feature 00028 — ประเภทร้านค้า:
   //   ONLINE_SALES (ขายออนไลน์) | SERVICE_QUEUE (สินค้าและบริการ) | LODGING (บ้านพัก)
   // optional เพื่อ backward-compat (ผู้เรียกเดิมไม่ส่ง = ONLINE_SALES ตาม default ของ DB)
@@ -32,6 +38,12 @@ export async function createBusinessShop(ownerId: string, data: {
         businessType: data.businessType, description: data.description,
         categories: data.categories ?? [],
         category: data.category ?? data.categories?.[0],
+        // slug: Shop.slug @unique เป็นด่านสุดท้าย — ชนกันจะได้ P2002 แล้ว route แปลงเป็น SLUG_TAKEN
+        ...(data.slug ? { slug: data.slug } : {}),
+        ...(data.logo ? { logo: data.logo } : {}),
+        ...(data.address ? { address: data.address } : {}),
+        ...(data.latitude != null ? { latitude: data.latitude } : {}),
+        ...(data.longitude != null ? { longitude: data.longitude } : {}),
         ...(data.vertical ? { vertical: data.vertical } : {}),
       },
     });
