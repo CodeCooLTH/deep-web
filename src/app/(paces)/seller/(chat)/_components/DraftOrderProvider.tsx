@@ -17,7 +17,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { pacesConfirm } from '@/lib/paces-swal'
-import type { OrderVocab } from '@/lib/seller-menu'
+import { ORDER_VOCAB, type OrderVocab } from '@/lib/seller-menu'
 import { pacesToast } from '@/lib/paces-toast'
 import { getChannelDisplay, ChannelBadgeOverlay } from '../inbox/components/ChannelBadge'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
@@ -108,13 +108,32 @@ function DraftAvatar({ avatar, name, channel }: { avatar: string | null; name: s
   )
 }
 
-type DraftOrderContextValue = { openDraft: (input: OpenDraftInput) => void }
+/**
+ * vocab อยู่ใน context ด้วย (เพิ่ม 2026-08-05) — client component ในโฟลเดอร์แชทหลายตัวเรียกรายการ
+ * ว่า "คำสั่งซื้อ" ตายตัว (การ์ดออเดอร์, เมนูกดค้างบนข้อความ, รายการแชท) ทั้งที่ร้านบริการ/บ้านพัก
+ * เรียกคนละชื่อ. ตัวเหล่านั้นอยู่ลึกจาก layout หลายชั้นเกินกว่าจะส่ง prop ไล่ลงไปไหว และ Provider
+ * ตัวนี้ครอบทั้ง (chat) อยู่แล้วพร้อม vocab ในมือ — เปิดให้ hook เดิมคืนค่าให้จึงถูกกว่าสร้าง context ใหม่
+ */
+type DraftOrderContextValue = { openDraft: (input: OpenDraftInput) => void; vocab: OrderVocab }
 const DraftOrderContext = createContext<DraftOrderContextValue | null>(null)
 
 export function useDraftOrders(): DraftOrderContextValue {
   const ctx = useContext(DraftOrderContext)
   if (!ctx) throw new Error('useDraftOrders ต้องอยู่ภายใต้ <DraftOrderProvider>')
   return ctx
+}
+
+/**
+ * อ่านเฉพาะคลังคำ โดยไม่บังคับว่าต้องมี Provider — ใช้กับ component ที่แค่ "เรียกชื่อรายการให้ถูก"
+ * ไม่ได้จะเปิดโมดัล (รายการแชท, การ์ดออเดอร์ในบับเบิล)
+ *
+ * ทำไมต้องมีคู่กับ useDraftOrders: layout ห่อ Provider เฉพาะตอนมีร้าน active (`if (!activeCtx?.shopId)
+ * return shell`) ผู้ใช้ที่ยังไม่มีร้านจึงอยู่นอก Provider — ถ้า component พวกนั้นเรียก useDraftOrders
+ * ตรง ๆ ทั้งหน้าจะพังด้วย error ที่ไม่เกี่ยวกับสิ่งที่มันต้องการเลย
+ * ไม่มี Provider → ชุดคำของ ONLINE_SALES (fail-safe เดียวกับ resolveOrderVocab)
+ */
+export function useOrderVocab(): OrderVocab {
+  return useContext(DraftOrderContext)?.vocab ?? ORDER_VOCAB.ONLINE_SALES
 }
 
 type ProviderProps = {
@@ -251,7 +270,7 @@ export default function DraftOrderProvider({
   const minimized = drafts.filter((d) => d.state === 'minimized')
 
   return (
-    <DraftOrderContext.Provider value={{ openDraft }}>
+    <DraftOrderContext.Provider value={{ openDraft, vocab }}>
       {children}
 
       {/* ทุก draft mount ฟอร์มค้างไว้ (hidden เมื่อไม่ได้ขยาย) กันข้อมูลที่กรอกหาย — expanded เห็นทีละ 1 */}

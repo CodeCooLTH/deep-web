@@ -284,7 +284,9 @@ function OrderCard({
     e.preventDefault()
     e.stopPropagation()
     if (sending) return
-    const ok = await pacesConfirm.question('ส่งคำสั่งซื้อนี้เข้าแชท?', 'ลูกค้าจะได้รับข้อมูลคำสั่งซื้อนี้ในแชท', {
+    // ใช้ noun เดียวกับที่การ์ดนี้ใช้อยู่แล้ว (บรรทัดบน) — ร้านบริการ/บ้านพักไม่เรียกรายการของ
+    // ตัวเองว่า "คำสั่งซื้อ" และกล่องยืนยันนี้เด้งทับหน้าจอที่ใช้คำอีกแบบอยู่
+    const ok = await pacesConfirm.question(`ส่ง${noun}นี้เข้าแชท?`, `ลูกค้าจะได้รับข้อมูล${noun}นี้ในแชท`, {
       confirmButtonText: 'ส่งเลย',
     })
     if (!ok) return
@@ -313,6 +315,7 @@ function OrderCard({
   // การ์ดเดียวกับในแชท (user 2026-07-25) — OrderCardView shared; แตะ = เปิดโมดัลแก้ไข; footer = ส่งเข้าแชท
   return (
     <OrderCardView
+      orderNoun={noun}
       data={{
         token: o.token,
         orderNo: o.orderNo,
@@ -352,7 +355,7 @@ function OrderCard({
               type="button"
               onClick={openShipment}
               disabled={cancelling}
-              aria-label={hasShipment ? 'ดูพัสดุของคำสั่งซื้อนี้' : 'สร้างพัสดุสำหรับคำสั่งซื้อนี้'}
+              aria-label={hasShipment ? `ดูพัสดุของ${noun}นี้` : `สร้างพัสดุสำหรับ${noun}นี้`}
               className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
             >
               <Icon icon="truck-delivery" className="text-sm" />
