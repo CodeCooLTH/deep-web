@@ -65,7 +65,16 @@ export default async function BookingsPage() {
 
   return (
     <>
-      <PageBreadcrumb title="การจอง" />
+      {/* desktop เท่านั้น — ตรงกับพี่น้อง /orders (มือถือมีชื่อหน้าใน SellerMobileHeader แล้ว กันซ้ำ) */}
+      <div className="hidden lg:block">
+        <PageBreadcrumb title="การจอง" />
+        {/* คู่ขนานกับ /orders ที่มี "บิลเข้าพัก — ยอดเงินและการชำระ..." — ร้านบ้านพักเห็นสองหน้านี้
+            พร้อมกัน ต้องอ่านแล้วแยกออกโดยไม่ต้องกดเข้าไปลอง (00030 UX-Copy §6) — เขียน <p> sibling
+            ห้ามใช้ prop subtitle ของ PageBreadcrumb (prop นั้นคือ breadcrumb crumb ไม่ใช่คำอธิบาย) */}
+        <p className="text-default-400 text-xs mt-0.5">
+          การจองห้องพัก — วันเข้าพักและห้องที่กันไว้
+        </p>
+      </div>
 
       <div className="card">
         <div className="card-header flex flex-wrap items-center justify-between gap-3">

@@ -259,7 +259,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         codReceivedAtISO={order.codReceivedAt ? (order.codReceivedAt as Date).toISOString() : null}
         codReceivedByLabel={order.codReceivedBy?.displayName ?? order.codReceivedBy?.username ?? null}
         isCod={isCODPayment(order.paymentMethod)}
-        shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} />}
+        shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} createLabel={vocab.createLabel} />}
         customerCard={
           <CustomerDetails
             summary={customerSummary}

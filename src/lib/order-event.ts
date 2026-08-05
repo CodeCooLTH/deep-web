@@ -43,6 +43,29 @@ export const ORDER_EVENT_META: Record<
 }
 
 /**
+ * ผันเฉพาะ 3 event ที่เป็น order-lifecycle ทั่วไป (feature 00030 BR-BKU-09) — ที่เหลือ
+ * (โดเมนพัสดุ/SMS/BUYER_CONFIRMED) ไม่ผัน ตาม BR-BKU-11 คืน label static เดิม
+ *
+ * ORDER_CREATED ใช้ vocab.createLabel ตรง ๆ ไม่ใช่ "สร้าง"+noun — LODGING ผันเป็น
+ * "เปิดบิลเข้าพัก" ไม่ใช่ "สร้างบิลเข้าพัก" (UX-Copy.md §3)
+ */
+export function resolveOrderEventLabel(
+  type: OrderEventType,
+  vocab: { noun: string; createLabel: string },
+): string {
+  switch (type) {
+    case 'ORDER_CREATED':
+      return vocab.createLabel
+    case 'ORDER_EDITED':
+      return `แก้ไข${vocab.noun}`
+    case 'ORDER_CANCELLED':
+      return `ยกเลิก${vocab.noun}`
+    default:
+      return ORDER_EVENT_META[type].label
+  }
+}
+
+/**
  * meta ที่หน้าจอใช้จริง — ตั้งใจแคบมาก
  * [สำคัญ] ห้ามเพิ่ม key ที่มี PII ผู้ซื้อ (เบอร์/อีเมล/ที่อยู่) เด็ดขาด ไม่ว่าเหตุการณ์ประเภทไหน
  * ร้านมีพนักงานหลายคนเปิดดูประวัติได้ และหน้า (paces) อยู่ใต้ client layout ทุก field ที่ส่งไป
