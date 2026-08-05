@@ -58,9 +58,6 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
   const [loading, setLoading] = useState(false)
   const [checkedAt, setCheckedAt] = useState<string | null>(iship?.lastTracedAtISO ?? null)
 
-  // ไม่มีทั้งพัสดุ iShip และเลขที่กรอกเอง → ไม่ render การ์ดว่าง (ปุ่มแจ้งเลขพัสดุอยู่หัวหน้าแล้ว)
-  if (!iship && !manual) return null
-
   const courierName = iship?.courierName ?? manual?.provider ?? null
   const courierCode = iship?.courierCode ?? null
   const trackingNo = iship?.trackingNo ?? manual?.trackingNo ?? null
@@ -126,6 +123,14 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
     if (!shipmentId) return
     void fetchTraces(false)
   }, [shipmentId, fetchTraces])
+
+  // ไม่มีทั้งพัสดุ iShip และเลขที่กรอกเอง → ไม่ render การ์ดว่าง (ปุ่มแจ้งเลขพัสดุอยู่หัวหน้าแล้ว)
+  //
+  // [สำคัญ] ต้องอยู่ "หลัง" hook ทุกตัว — เดิมอยู่บนสุดก่อน useCallback/useEffect ทำให้ตอน
+  // ผูกพัสดุสำเร็จ (iship เปลี่ยน null → มีค่า ผ่าน router.refresh) จำนวน hook เพิ่มระหว่าง
+  // render → React error #310 พังทั้งหน้าเป็น "Application error: a client-side exception"
+  // (เกิดจริงบน prod 2026-08-05 สองครั้ง: ออเดอร์ cacdbf13 11:53 และ 31e0f85e 12:15)
+  if (!iship && !manual) return null
 
   const visibleTraces = traces?.slice(0, 3) ?? []
 
