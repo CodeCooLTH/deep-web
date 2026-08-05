@@ -30,6 +30,7 @@ import {
 export type { ParcelPreview, UnlinkedParcelView };
 import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility";
 import {
+  buildCheckPricePayload,
   buildCreateOrderPayload,
   buildIdempotencyKey,
   buildOptionsSnapshot,
@@ -1710,18 +1711,12 @@ export async function estimateShippingPrice(
   const price = await withTokenGuard(shopId, () =>
     iship.checkPrice(token, {
       courier_code: input.courierCode,
-      src_zipcode: sender.postcode ?? "",
-      src_province: normalizeProvince(sender.province),
-      src_amphure: sender.district ?? "", // อำเภอ
-      src_district: sender.subdistrict ?? "", // ตำบล
-      dst_zipcode: r.postcode ?? "",
-      dst_province: normalizeProvince(r.province),
-      dst_amphure: r.district ?? "", // อำเภอ
-      dst_district: r.subdistrict ?? "", // ตำบล
-      weight: input.weight,
-      width: input.width,
-      length: input.length,
-      height: input.height,
+      ...buildCheckPricePayload(sender, r, {
+        weight: input.weight,
+        width: input.width,
+        length: input.length,
+        height: input.height,
+      }),
     }),
   );
 
