@@ -1365,20 +1365,42 @@ export async function sendOutboundImageGrid(params: {
    * "เปิดตัวดูรูปเต็มจอ" ให้เลือก (user report prod 2026-08-04: "ส่ง 2 รูปแล้วมันกดดูรูปไม่ได้")
    * web_url จึงเป็นทางเดียวที่ทำให้กดดูรูปเต็ม ๆ ได้ — เปิดใน webview ของ Messenger
    *
-   * ลิงก์อายุ 1 ปีเป็น presigned ของ Supabase (เดาไม่ได้) และเป็น "รูปที่เราส่งให้ลูกค้าคนนั้นเอง
-   * อยู่แล้ว" ไม่ใช่การเปิดคลังไฟล์ร้านให้ใครก็เข้าถึง. พ้น 1 ปีลิงก์ตาย = กดแล้วขึ้น error ของ
+   * ลิงก์ action เป็น presigned ของ Supabase (เดาไม่ได้) และเป็น "รูปที่เราส่งให้ลูกค้าคนนั้นเอง
+   * อยู่แล้ว" ไม่ใช่การเปิดคลังไฟล์ร้านให้ใครก็เข้าถึง. พ้นอายุลิงก์ตาย = กดแล้วขึ้น error ของ
    * storage (รูปในกริดยังอยู่ เพราะ Meta เก็บสำเนาไว้ตอนส่งแล้ว)
+   *
+   * ห้ามเพิ่ม: 7 วันคือเพดานแข็งของ SigV4 — presigned URL ที่ขออายุเกินนี้ไม่ได้ "ได้ลิงก์ที่
+   * หมดอายุเร็วกว่าที่ขอ" แต่ `getSignedUrl` **โยน error ทิ้ง** ("Signature version 4 presigned URLs
+   * must have an expiration date less than one week in the future")
+   *
+   * บั๊กจริงที่เกิดจากบรรทัดนี้ (user report prod 2026-08-05 "รูปใน quickmessage ยังส่งแยกกัน +
+   * ส่งช้ามาก"): ค่าเดิมตั้งไว้ 1 ปี ทำให้ทั้งฟังก์ชันโยนตั้งแต่ยังไม่ได้ยิงหา Meta → route ตอบ 500
+   * → client ตกไปวนส่งทีละใบ. **กริดจึงไม่เคยทำงานบน prod เลยตั้งแต่เขียนมา** และช้ากว่าเดิมด้วย
+   * เพราะเสีย round-trip ที่พังทิ้งไปก่อน 1 รอบแล้วค่อยยิงทีละใบอีก N รอบ
+   *
+   * ที่ dev ไม่เจอเพราะ driver `local` (ค่าตั้งต้นของ STORAGE_DRIVER) ไม่สนใจ opts เลย คืน
+   * `/api/files/{id}` เสมอ ไม่มีวันโยน — บั๊กนี้มองเห็นได้เฉพาะตอนต่อ S3/Supabase จริงเท่านั้น
    */
-  const ACTION_URL_TTL = 60 * 60 * 24 * 365
-  const images = await Promise.all(
-    files.map(async (id) => ({
-      url: await getFileUrl(id, { signed: true, expiresIn: 3600 }),
-      actionUrl: await getFileUrl(id, { signed: true, expiresIn: ACTION_URL_TTL }),
-    })),
-  )
+  const ACTION_URL_TTL = 60 * 60 * 24 * 7
 
   let mid: string | null = null
   try {
+    /**
+     * สร้างลิงก์ **ในนี้** ไม่ใช่ข้างนอก try (2026-08-05) — เดิมอยู่ข้างนอก ทำให้ error ตอนทำลิงก์
+     * ทะลุขึ้นไปเป็น 500 แทนที่จะตกลง fallback "ส่งทีละใบ" ที่เขียนรออยู่แล้วข้างล่าง
+     *
+     * actionUrl พังได้โดยไม่ล้มทั้งชุด: "กดรูปเพื่อดูเต็มจอ" เป็นของเสริม ส่วน "ลูกค้าได้รับรูป"
+     * เป็นหน้าที่หลัก — ของเสริมต้องไม่มีสิทธิ์ล้มของหลัก (นั่นคือสิ่งที่เพิ่งเกิดขึ้นมาแล้วรอบนี้)
+     */
+    const images = await Promise.all(
+      files.map(async (id) => ({
+        url: await getFileUrl(id, { signed: true, expiresIn: 3600 }),
+        actionUrl: await getFileUrl(id, { signed: true, expiresIn: ACTION_URL_TTL }).catch((e) => {
+          console.warn('[fb-chat] ทำลิงก์ action ของรูปไม่สำเร็จ ส่งต่อแบบกดรูปไม่ได้', id, e instanceof Error ? e.message : e)
+          return null
+        }),
+      })),
+    )
     mid = await sendImageGridMessage(pageToken, recipientId, images, {
       caption: params.caption ?? null,
       tag: messageTag,
