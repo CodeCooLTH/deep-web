@@ -117,8 +117,18 @@ export function useComposerHeight(content: string) {
      */
     const card = el.closest('.card')
     if (box && card) {
-      const slack = card.getBoundingClientRect().bottom - SAFE_MARGIN - box.getBoundingClientRect().bottom
-      ceilingRef.current = clampTo(el.offsetHeight + slack, COMPOSER_MAX_H)
+      /**
+       * bug fix 2026-08-05 รอบสอง (user report: "drag ขยายความสูงไม่ได้"): ช่องว่างใต้กล่องพิมพ์
+       * อย่างเดียว **เป็นศูนย์เสมอ** ในสภาวะปกติ — รายการข้อความเป็น flex `grow` ที่กินพื้นที่
+       * เหลือทั้งหมด กล่องพิมพ์จึงชิดขอบล่างการ์ดตลอด วัดแค่ gap = เพดานติดความสูงปัจจุบัน
+       * → ลาก/auto-grow ถูกล็อกที่ ~44px. พื้นที่ที่ composer ขยายได้จริงคือ **ความสูงปัจจุบัน
+       * ของรายการข้อความ** (.card-body ประกาศ min-h-0 ยุบได้ถึง 0 — ส่วนเดียวที่ยืดหยุ่นในการ์ด)
+       * บวก gap ซึ่งติดลบเมื่อกำลังล้น (เคสปุ่มส่งหลุดจอ) — สองพจน์รวมกันครอบทั้งสองอาการ
+       */
+      const list = card.querySelector('.card-body')
+      const listH = list ? list.getBoundingClientRect().height : 0
+      const gap = card.getBoundingClientRect().bottom - SAFE_MARGIN - box.getBoundingClientRect().bottom
+      ceilingRef.current = clampTo(el.offsetHeight + gap + listH, COMPOSER_MAX_H)
     }
     const prevBoxHeight = box?.style.height ?? ''
     if (box) box.style.height = `${box.offsetHeight}px`
