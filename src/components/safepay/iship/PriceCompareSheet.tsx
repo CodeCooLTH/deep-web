@@ -20,7 +20,7 @@ import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import type { CompareResult, CompareRow } from '@/lib/iship/compare'
-import type { MissingSenderField } from '@/lib/iship/mapping'
+import type { MissingReceiverField, MissingSenderField } from '@/lib/iship/mapping'
 import SenderIncompleteNotice from './SenderIncompleteNotice'
 
 export interface CompareInput {
@@ -39,6 +39,12 @@ interface Props {
   destinationLabel: string
   /** "1.0 กก. · 20×14×6 ซม." */
   parcelLabel: string
+  /**
+   * ช่องผู้รับที่ยังขาด "ณ ตอนนี้" จากฟอร์ม — ส่งต่อให้ SenderIncompleteNotice ตอน
+   * INCOMPLETE_DATA: ถ้า hardcode [] บล็อกสีฟ้าจะอ้างว่า "ข้อมูลผู้รับครบแล้ว" ทั้งที่
+   * ชื่อ/เบอร์/บ้านเลขที่อาจยังว่าง (compareReady ไม่เช็คสามช่องนั้น) = ข้อมูลเท็จ
+   */
+  missingReceiver: MissingReceiverField[]
   onPick: (courierCode: string) => void
   /** กลับไปหน้าฟอร์ม — ผู้เรียกเป็นคนคืน focus ให้ปุ่มเทียบราคา */
   onClose: () => void
@@ -58,6 +64,7 @@ export default function PriceCompareSheet({
   input,
   destinationLabel,
   parcelLabel,
+  missingReceiver,
   onPick,
   onClose,
 }: Props) {
@@ -67,6 +74,20 @@ export default function PriceCompareSheet({
   /** md เท่านั้น: การ์ดที่กาง breakdown อยู่ — mobile/desktop โชว์เสมอ */
   const [expanded, setExpanded] = useState<string | null>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
+
+  /**
+   * ช่วง md (accordion ทำงานจริง) — ใช้ตัดสินว่า header การ์ดเป็นปุ่มกาง/ยุบ หรือเป็น
+   * div เฉย ๆ: ประกาศ aria-expanded ทุก breakpoint ทั้งที่ mobile/desktop กางตายตัว
+   * = screen reader ได้ยิน "collapsed" บนเนื้อหาที่กางอยู่ (phantom affordance)
+   */
+  const [isMd, setIsMd] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px) and (max-width: 1023.98px)')
+    const sync = () => setIsMd(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   const inputKey = useMemo(
     () =>
@@ -124,10 +145,36 @@ export default function PriceCompareSheet({
     if (open) headingRef.current?.focus()
   }, [open])
 
+  // Escape = กลับไปฟอร์ม ไม่ใช่ปิดโมดัลทั้งใบ — ดักที่ document แบบ capture เพราะ listener
+  // ของ IShipModalShell อยู่ระดับ document เหมือนกัน: ถ้าดักแค่ใน div ของ sheet แล้ว focus
+  // หลุดไปที่พื้นที่ไม่ focusable กด Esc จะทิ้งทั้งโมดัล (ฟอร์มที่กรอกไว้หายทั้งชุด)
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [open, onClose])
+
   const rows = state.kind === 'data' ? state.result.rows : []
   const failed = state.kind === 'data' ? state.result.failed : []
   const isEmpty = state.kind === 'data' && rows.length === 0 && failed.length === 0
   const hasRemote = rows.some((r) => r.remoteFee != null)
+
+  // แกนตัดสินใจที่สอง "ความเร็ว" — ไม่มี badge นี้ผู้ใช้ต้องไล่อ่านวันเองทั้ง ~17 ใบ
+  // ให้ใบแรกที่วันน้อยสุดใบเดียว (วันเท่ากันหลายใบ = ใบที่ถูกกว่าชนะเพราะ rows เรียงราคาแล้ว)
+  const fastestCode = useMemo(() => {
+    if (rows.length < 2) return null
+    let best: CompareRow | null = null
+    for (const r of rows) {
+      if (r.estimateDays == null) continue
+      if (!best || r.estimateDays < (best.estimateDays as number)) best = r
+    }
+    return best?.courierCode ?? null
+  }, [rows])
 
   /** สรุปสั้นให้ screen reader ครั้งเดียวตอนผลมา — ไม่อ่านทุกการ์ด */
   const liveMessage =
@@ -141,16 +188,7 @@ export default function PriceCompareSheet({
         : ''
 
   return (
-    <div
-      className={open ? undefined : 'hidden'}
-      onKeyDown={(e) => {
-        // Escape = กลับไปฟอร์ม ไม่ใช่ปิดโมดัลทั้งใบ — สกัดก่อนถึง listener ของ IShipModalShell
-        if (e.key === 'Escape') {
-          e.stopPropagation()
-          onClose()
-        }
-      }}
-    >
+    <div className={open ? undefined : 'hidden'}>
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {liveMessage}
       </div>
@@ -220,7 +258,7 @@ export default function PriceCompareSheet({
 
       {state.kind === 'incomplete' && (
         <div className="p-4">
-          <SenderIncompleteNotice missing={state.missing} missingReceiver={[]} />
+          <SenderIncompleteNotice missing={state.missing} missingReceiver={missingReceiver} />
         </div>
       )}
 
@@ -253,15 +291,26 @@ export default function PriceCompareSheet({
           </span>
           <div>
             <p className="mb-1 font-semibold text-default-900">ยังไม่มีขนส่งให้เทียบราคา</p>
+            {/* การเปิดใช้ขนส่งทำในหลังบ้าน iShip ไม่ใช่หน้าตั้งค่าของเรา — ห้าม copy
+                สัญญาปุ่มที่พาไปแล้วทำสิ่งนั้นไม่ได้ (clarify gate 2026-08-05) */}
             <p className="mb-0 text-sm text-default-700">
-              บัญชี iShip ของร้านยังไม่เปิดใช้งานขนส่งเจ้าไหนเลย ไปเปิดใช้งานที่หน้าตั้งค่าก่อน
+              บัญชี iShip ของร้านยังไม่มีขนส่งที่เปิดใช้งาน — เปิดใช้งานขนส่งในหลังบ้าน iShip
+              แล้วกลับมากดลองใหม่
             </p>
           </div>
-          <Link
-            href="/settings?iship=settings"
+          <button
+            type="button"
+            onClick={() => void load()}
             className="btn inline-flex items-center gap-2 bg-primary px-5 py-3 text-white hover:bg-primary-hover"
           >
-            ไปตั้งค่าขนส่ง
+            <Icon icon="tabler:refresh" className="text-base" aria-hidden="true" />
+            ลองใหม่
+          </button>
+          <Link
+            href="/settings?iship=settings"
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            ตรวจการเชื่อมต่อ iShip
           </Link>
         </div>
       )}
@@ -273,6 +322,8 @@ export default function PriceCompareSheet({
               key={row.courierCode}
               row={row}
               cheapest={i === 0}
+              fastest={row.courierCode === fastestCode}
+              isMd={isMd}
               expanded={expanded === row.courierCode}
               onToggle={() =>
                 setExpanded((cur) => (cur === row.courierCode ? null : row.courierCode))
@@ -283,7 +334,16 @@ export default function PriceCompareSheet({
           {failed.length > 0 && (
             <p className="mb-0 text-xs text-default-700 md:col-span-2">
               ประเมินไม่ได้ {failed.length} ขนส่ง: {failed.map((f) => f.courierName).join(', ')} —
-              ขนส่งไม่ตอบกลับ ลองใหม่ได้จากปุ่มเทียบราคา
+              ขนส่งไม่ตอบกลับ{' '}
+              {/* ต้องเป็นปุ่มที่ยิงจริง — ผลถูก cache ตาม inputKey การปิดแล้วกดเทียบราคาซ้ำ
+                  จะได้ cache เดิม ไม่ retry (critique 2026-08-05 priority #1) */}
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="font-medium text-primary hover:underline"
+              >
+                ลองใหม่อีกครั้ง
+              </button>
             </p>
           )}
         </div>
@@ -295,60 +355,83 @@ export default function PriceCompareSheet({
 function CourierCard({
   row,
   cheapest,
+  fastest,
+  isMd,
   expanded,
   onToggle,
   onPick,
 }: {
   row: CompareRow
   cheapest: boolean
+  fastest: boolean
+  /** อยู่ช่วง md จริง — header เป็นปุ่มกาง/ยุบเฉพาะช่วงนี้ (ช่วงอื่น breakdown กางตายตัว) */
+  isMd: boolean
   expanded: boolean
   onToggle: () => void
   onPick: () => void
 }) {
   const logo = courierLogoUrl(row.courierCode, row.courierName)
+
+  const headerInner = (
+    <>
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logo}
+          alt={row.courierName}
+          loading="lazy"
+          /* object-contain + ring-1 ตาม OrderCard: โลโก้ 2:1 (Fuze) ห้ามครอป,
+             โลโก้พื้นขาวต้องมีขอบไม่ให้กลืนการ์ด */
+          className="ring-default-200 size-10 shrink-0 rounded-lg bg-white object-contain ring-1"
+        />
+      ) : (
+        <span className="bg-default-100 text-default-700 flex size-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold">
+          {courierInitials(row.courierName, row.courierCode)}
+        </span>
+      )}
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5">
+          <span className="truncate font-semibold text-default-900">{row.courierName}</span>
+          {cheapest && <span className="badge bg-primary text-white shrink-0">ถูกที่สุด</span>}
+          {fastest && (
+            <span className="badge bg-info/15 text-info-ink shrink-0">เร็วที่สุด</span>
+          )}
+        </span>
+        {row.estimateDays != null && (
+          <span className="block text-xs text-default-700">
+            ถึงปลายทางราว {row.estimateDays} วัน
+          </span>
+        )}
+      </span>
+      <span className="ms-auto text-lg font-bold tabular-nums text-default-900 lg:hidden">
+        ฿{row.totalPrice.toLocaleString('th-TH')}
+      </span>
+    </>
+  )
+
+  const headerCls = 'flex w-full items-center gap-2.5 text-start lg:w-56 lg:shrink-0'
+
   return (
     <div
       className={`rounded-lg border p-3 lg:flex lg:items-center lg:gap-3 ${
         cheapest ? 'border-primary' : 'border-default-300'
       }`}
     >
-      {/* หัวการ์ด — บน md เป็นปุ่มกาง breakdown (mobile/desktop โชว์เสมอ กดไม่มีผล) */}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        aria-controls={`bd-${row.courierCode}`}
-        className="flex w-full items-center gap-2.5 text-start lg:w-56 lg:shrink-0"
-      >
-        {logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={logo}
-            alt={row.courierName}
-            /* object-contain + ring-1 ตาม OrderCard: โลโก้ 2:1 (Fuze) ห้ามครอป,
-               โลโก้พื้นขาวต้องมีขอบไม่ให้กลืนการ์ด */
-            className="ring-default-200 size-10 shrink-0 rounded-lg bg-white object-contain ring-1"
-          />
-        ) : (
-          <span className="bg-default-100 text-default-700 flex size-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold">
-            {courierInitials(row.courierName, row.courierCode)}
-          </span>
-        )}
-        <span className="min-w-0">
-          <span className="flex items-center gap-1.5">
-            <span className="truncate font-semibold text-default-900">{row.courierName}</span>
-            {cheapest && <span className="badge bg-primary text-white shrink-0">ถูกที่สุด</span>}
-          </span>
-          {row.estimateDays != null && (
-            <span className="block text-xs text-default-700">
-              ถึงปลายทางราว {row.estimateDays} วัน
-            </span>
-          )}
-        </span>
-        <span className="ms-auto text-lg font-bold tabular-nums text-default-900 lg:hidden">
-          ฿{row.totalPrice.toLocaleString('th-TH')}
-        </span>
-      </button>
+      {/* หัวการ์ด — เป็นปุ่มเฉพาะช่วง md ที่ accordion ทำงานจริง: ประกาศ aria-expanded
+          ทุก breakpoint ทั้งที่กางตายตัว = screen reader ได้ยิน "collapsed" บนของที่กางอยู่ */}
+      {isMd ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-controls={`bd-${row.courierCode}`}
+          className={headerCls}
+        >
+          {headerInner}
+        </button>
+      ) : (
+        <div className={headerCls}>{headerInner}</div>
+      )}
 
       {/* breakdown 3 ช่อง — md ยุบไว้หลังแตะการ์ด (จอแคบ 2 คอลัมน์ไม่พอ), mobile/desktop โชว์เสมอ */}
       <div

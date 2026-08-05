@@ -479,6 +479,7 @@ export default function ShipmentCreateForm({
         }}
         destinationLabel={`ไป ต.${form.subdistrict ?? ''} อ.${form.district ?? ''} ${form.province ?? ''} ${form.postcode ?? ''}`}
         parcelLabel={`${weight} กก. · ${width}×${length}×${height} ซม.`}
+        missingReceiver={liveMissing}
         onPick={(code) => {
           // dropdown เปลี่ยน → quoteKey เปลี่ยน → บรรทัด "ค่าส่งโดยประมาณ" refetch เอง
           setCourierCode(code)
