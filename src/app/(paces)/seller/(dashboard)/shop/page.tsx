@@ -16,6 +16,8 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import ShopForm from './components/ShopForm'
 import SignOutCard from './components/SignOutCard'
+import BusinessDangerZone from './components/BusinessDangerZone'
+import { BUSINESS_DELETE_RETENTION_DAYS } from '@/lib/business-package'
 import ShopQuickLinks from './components/ShopQuickLinks'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDateTime } from '@/lib/format-date'
@@ -90,6 +92,20 @@ export default async function ShopSettingsPage() {
         isExisting={isExisting}
         ageText={isExisting ? formatShopAge(shop.createdAt) : null}
       />
+
+      {/**
+        * โซนอันตราย — อยู่หน้านี้เพราะ /shop คือ "ตั้งค่าร้านที่กำลังใช้งานอยู่" อยู่แล้ว
+        * (user ทัก 2026-08-05: "ทำไมหน้าตั้งค่าหรือลบร้าน มันไม่ไปอยู่ใน /shop")
+        *
+        * เดิมผมสร้างหน้า /business/[shopId]/settings แยกต่างหากซึ่ง **ซ้ำงานกับหน้านี้ทั้งหน้า**
+        * (ชื่อ/โลโก้/คำอธิบาย/ที่อยู่ แก้ได้ทั้งสองที่) = SSOT สองที่ที่พร้อมจะขัดกันเอง ลบทิ้งแล้ว
+        *
+        * เฉพาะ BUSINESS + OWNER: ร้านส่วนตัวลบไม่ได้ (ลบบัญชีคือคนละเรื่อง อยู่ /account)
+        * และผู้ดูแลที่ถูกเชิญมาไม่ใช่เจ้าของ จึงไม่มีสิทธิ์ลบร้านของคนอื่น
+        */}
+      {shopKind === 'BUSINESS' && shopRole === 'OWNER' && isExisting && (
+        <BusinessDangerZone shopId={shop.id} shopName={shop.shopName} retentionDays={BUSINESS_DELETE_RETENTION_DAYS} />
+      )}
 
       {/* รายการ "จัดการร้าน" + ออกจากระบบ — เฉพาะ <1024px
           `.seller-mobile-shell` ซ่อน TopBar + Sidenav บนจอเล็ก ซึ่งเป็นที่อยู่ของทั้งเมนูร้าน

@@ -11,7 +11,7 @@
 <style>
 :root{
   --primary:#236dc9; --success:#02bc9c; --warning:#f9bf59; --warning-ink:#92400e;
-  --dark:#313a46; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9ba6b7;
+  --success-ink:#065f46; --dark:#313a46; --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9ba6b7;
   --d500:#a1a9b1; --d700:#4c4c5c; --d800:#3b3b48; --paper:#fff; --radius:4px;
   --shadow:0 1px 4px rgba(130,143,163,.15);
 }
@@ -131,6 +131,7 @@ code{background:#f1f3f7;border-radius:3px;padding:1px 5px;font-size:12px;font-fa
             <div class="legend">
               <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
               <span><i class="dot-w"></i>รอยืนยัน <b>8,940</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>19</b></span>
             </div>
             <div id="chartNew"></div>
           </div>
@@ -159,6 +160,7 @@ code{background:#f1f3f7;border-radius:3px;padding:1px 5px;font-size:12px;font-fa
             <div class="legend">
               <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
               <span><i class="dot-w"></i>รอยืนยัน <b>8,940</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>19</b></span>
             </div>
             <div id="chart414"></div>
           </div>
@@ -181,6 +183,7 @@ code{background:#f1f3f7;border-radius:3px;padding:1px 5px;font-size:12px;font-fa
             <div class="legend">
               <span><i class="dot-s"></i>ยืนยันแล้ว <b>3,090</b></span>
               <span><i class="dot-w"></i>รอยืนยัน <b>8,940</b></span>
+              <span><i style="width:12px;height:2px;border-radius:0;background:var(--primary)"></i>ออเดอร์ <b>19</b></span>
             </div>
             <div id="chart768"></div>
           </div>
@@ -194,9 +197,9 @@ code{background:#f1f3f7;border-radius:3px;padding:1px 5px;font-size:12px;font-fa
 <section>
   <h2>สิ่งที่ต้องตัดสินใจ</h2>
   <div class="warn">
-    <b>เส้นยอดรวมทับหัวแท่งพอดี</b> — เพราะยอดรวม = ยืนยันแล้ว + รอยืนยัน ซึ่งก็คือความสูงของแท่งซ้อนอยู่แล้ว
-    เส้นจึงลากผ่านหัวแท่งทุกวัน ข้อดีคือเห็นแนวโน้มต่อเนื่องโดยไม่ต้องกวาดสายตาไล่หัวแท่งเอง
-    ข้อเสียคือมันไม่ได้บอกข้อมูลใหม่ที่แท่งไม่ได้บอก — ดูจากของจริงด้านบนแล้วบอกได้ว่าจะเอาไว้หรือตัดออก
+    <b>เส้นเปลี่ยนเป็นจำนวนออเดอร์แล้ว (user สั่ง)</b> — เดิมผมทำเป็นยอดรวมซึ่งเท่ากับหัวแท่งพอดี
+    ไม่ได้บอกอะไรใหม่ ตอนนี้เส้นอยู่คนละหน่วยกับแท่ง (ครั้ง vs บาท) จึงต้องใช้แกน y ที่สอง
+    ผลคือแยกออกได้ว่า "วันที่ยอดสูงเพราะออเดอร์เยอะ" ต่างจาก "วันที่ยอดสูงเพราะออเดอร์ใหญ่ใบเดียว"
   </div>
   <table class="cmp">
     <tr><th style="width:30%">รายการ</th><th>ก่อน</th><th>หลัง</th></tr>
@@ -205,7 +208,8 @@ code{background:#f1f3f7;border-radius:3px;padding:1px 5px;font-size:12px;font-fa
     <tr><td>ความสูงกราฟ</td><td>104px</td><td><b>168px</b></td></tr>
     <tr><td>ความกว้างแท่ง</td><td>70%</td><td><b>92%</b></td></tr>
     <tr><td>วันที่แกนล่าง</td><td>6 วัน (1/5/8/15/22/29)</td><td><b>ครบ 31 วัน</b> หมุน -60° ขนาด 9px</td></tr>
-    <tr><td>เส้นยอดรวม</td><td>ไม่มี</td><td>เส้นน้ำเงิน 2px ผ่านหัวแท่งทุกวัน (<code>stackOnlyBar</code> กันไม่ให้ถูกซ้อนทับยอดสะสม)</td></tr>
+    <tr><td>เส้นบนกราฟ</td><td>ไม่มี</td><td><b>จำนวนออเดอร์ต่อวัน</b> เส้นน้ำเงิน 2px บนแกน y ที่สอง — บอกข้อมูลใหม่ที่แท่งไม่ได้บอก (แท่ง = เงิน, เส้น = จำนวนครั้ง) วันที่ยอดสูงเพราะออเดอร์เยอะ กับวันที่ยอดสูงเพราะออเดอร์ใหญ่ใบเดียว จะแยกออกจากกันได้ทันที</td></tr>
+    <tr><td>ขอบแท่ง</td><td>มีเฉพาะ "รอยืนยัน"</td><td><b>มีทั้งสองแท่ง</b> — เขียว #02bc9c บนขาวได้ ~2.4:1 เหลือง ~1.8:1 ต่ำกว่าเกณฑ์กราฟิก 3:1 ทั้งคู่ ถอดออกทั้งคู่จะเสีย a11y จึงเติมให้ครบแทน (ใช้ -ink ในตระกูลสีเดิม ไม่สลับเฉด)</td></tr>
     <tr><td>ปุ่มกำไรขาดทุน</td><td>อยู่ท้ายการ์ด</td><td><b>ตัดออก</b> — ยังเข้าได้จากเมนูซ้าย (ค่าใช้จ่าย / ภาพรวมกำไรขาดทุน)</td></tr>
   </table>
 </section>
@@ -217,7 +221,8 @@ code{background:#f1f3f7;border-radius:3px;padding:1px 5px;font-size:12px;font-fa
 const DAYS = 31, TODAY = 20;
 const confirmed = [0,0,0,900,0,0,540,0,0,1200,0,0,0,0,650,0,0,0,0,1800, null,null,null,null,null,null,null,null,null,null,null];
 const pending   = [520,0,0,2400,780,0,0,0,1100,0,0,640,0,0,0,0,2200,0,0,1300, null,null,null,null,null,null,null,null,null,null,null];
-const totals    = confirmed.map((c,i) => (c===null?null:(c||0)+(pending[i]||0)));
+// จำนวนออเดอร์ต่อวัน — คนละหน่วยกับแท่ง (บาท) จึงต้องมีแกน y ที่สอง
+const orders    = [1,0,0,3,1,0,1,0,2,2,0,1,0,0,1,0,3,0,0,4, null,null,null,null,null,null,null,null,null,null,null];
 const labels    = Array.from({length:DAYS}, (_,i) => String(i+1));
 const ANCHOR    = new Set([1,5,8,15,22,29,TODAY]);
 const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -245,15 +250,22 @@ function newOptions(){
     series:[
       {name:'ยืนยันแล้ว', type:'column', data:confirmed},
       {name:'รอยืนยัน',  type:'column', data:pending},
-      {name:'รวม',       type:'line',   data:totals},
+      {name:'ออเดอร์',   type:'line',   data:orders},
     ],
     colors:[css('--success'), css('--warning'), css('--primary')],
-    stroke:{ show:true, width:[0,1,2], curve:'straight', colors:['transparent', css('--warning-ink'), css('--primary')] },
-    markers:{ size:0 },
+    // ขอบครบทั้งสองแท่ง (user สั่ง) — เขียว #02bc9c บนขาวได้ ~2.4:1 เหลือง ~1.8:1 ต่ำกว่าเกณฑ์
+    // กราฟิก 3:1 ทั้งคู่ จึงต้องมีขอบทั้งคู่ ใช้ -ink ในตระกูลสีเดิม ไม่สลับเฉด
+    stroke:{ show:true, width:[1,1,2], curve:'straight', colors:[css('--success-ink'), css('--warning-ink'), css('--primary')] },
+    markers:{ size:2, strokeWidth:0, colors:[css('--primary')] },
     dataLabels:{enabled:false}, legend:{show:false},
     xaxis:{ categories:labels, axisBorder:{show:false}, axisTicks:{show:false},
       labels:{ style:{fontSize:'9px',colors:css('--d700')}, rotate:-60, rotateAlways:true, hideOverlappingLabels:false, trim:false } },
-    yaxis:{ show:false, tickAmount:2 },
+    // แกนที่ 2 สำหรับจำนวนออเดอร์ — คนละหน่วยกับบาท ถ้าใช้แกนเดียวกันเส้นจะแบนติดพื้น
+    yaxis:[
+      { show:false, tickAmount:2, seriesName:'ยืนยันแล้ว' },
+      { show:false, tickAmount:2, seriesName:'ยืนยันแล้ว' },
+      { show:false, opposite:true, seriesName:'ออเดอร์', min:0 },
+    ],
     grid:{ show:true, borderColor:css('--d300'), strokeDashArray:4, xaxis:{lines:{show:false}}, yaxis:{lines:{show:true}}, padding:{top:0,right:0,bottom:0,left:0} },
     tooltip:{enabled:false},
   };
