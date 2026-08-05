@@ -27,6 +27,12 @@
         ],
         "createdAt": "2026-07-31T03:51:45.545Z",
         "reason": "แถบ quoted-reply มาตรฐานของแอปแชท (quote เหนือบับเบิล + preview เหนือช่องพิมพ์) เพิ่มตาม user report 2026-07-25 ว่าดูยาก (user ยืนยัน 2026-07-31)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "10px",
+        "createdAt": "2026-08-05T13:54:09.863Z",
+        "reason": "ป้ายแกน/annotation ของกราฟ ApexCharts ต้อง 10px ไม่งั้นเบียดกัน (user ยืนยัน 2026-08-05 — เคาะจาก mockup 2026-08-04/05)"
       }
     ]
   }
