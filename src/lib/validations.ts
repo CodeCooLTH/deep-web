@@ -1239,6 +1239,10 @@ export const IShipPriceQuoteSchema = v.object({
   height: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(300)),
 });
 
+// ส่วนขยาย 00022 — เทียบราคาทุกขนส่งในคำขอเดียว (ปุ่ม "เทียบราคา")
+// input เดียวกับ quote รายตัวแต่ไม่ระบุขนส่ง — server เป็นคนไล่ทุกขนส่งของร้านเอง
+export const IShipPriceCompareSchema = v.omit(IShipPriceQuoteSchema, ["courierCode"]);
+
 export const IShipPickupSchema = v.object({
   courierCode: shortText(50),
   parcelCount: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)),

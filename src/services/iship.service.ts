@@ -29,6 +29,7 @@ import {
 
 export type { ParcelPreview, UnlinkedParcelView };
 import { checkEligibility as evaluateEligibility } from "@/lib/iship/eligibility";
+import { assembleCompareResult, type CompareResult } from "@/lib/iship/compare";
 import {
   buildCheckPricePayload,
   buildCreateOrderPayload,
@@ -1726,6 +1727,76 @@ export async function estimateShippingPrice(
     estimateDays: Number.isFinite(days) && days > 0 ? days : null,
     remoteArea: Number(price.remote_area) > 0,
   };
+}
+
+/**
+ * compareShippingPrices — ถามราคา "ทุกขนส่งของร้าน" ในคำขอเดียว (ปุ่มเทียบราคา)
+ *
+ * ทำไม fan-out ฝั่ง server: ให้ client วนยิง /price ทีละขนส่ง ~17 ครั้งจะชน rate-limit
+ * ของเราเอง (authenticated 30 req/นาที) — ฝั่งนี้รวมเป็น 1 คำขอ แล้วยิง iShip ขนานด้วย
+ * allSettled: ขนส่งที่ไม่ตอบถูกตัดเข้า failed[] ไม่ล้มทั้งชุด (check-price ไม่ก่อค่าใช้จ่าย)
+ */
+export async function compareShippingPrices(
+  shopId: string,
+  input: {
+    receiver: {
+      subdistrict?: string | null;
+      district?: string | null;
+      province?: string | null;
+      postcode?: string | null;
+    };
+    weight: number;
+    width: number;
+    length: number;
+    height: number;
+  },
+): Promise<CompareResult> {
+  const { account, token } = await loadAccount(shopId);
+  const sender = senderOf(account);
+
+  const missingSender = findMissingSenderFields(sender);
+  if (missingSender.length > 0) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      `ยังตั้งที่อยู่ผู้ส่งไม่ครบ — ขาด ${missingSender.join(", ")}`,
+      missingSender,
+    );
+  }
+
+  const r = input.receiver;
+  if (!r.subdistrict || !r.district || !r.province || !r.postcode) {
+    throw new IShipServiceError(
+      "INCOMPLETE_DATA",
+      "ยังกรอกที่อยู่ปลายทางไม่ครบ จึงประเมินค่าส่งไม่ได้",
+    );
+  }
+
+  const base = buildCheckPricePayload(sender, r, {
+    weight: input.weight,
+    width: input.width,
+    length: input.length,
+    height: input.height,
+  });
+
+  return withTokenGuard(shopId, async () => {
+    const couriers = await iship.listCouriers(token);
+    if (couriers.length === 0) return { rows: [], failed: [] };
+
+    const settled = await Promise.allSettled(
+      couriers.map((c) => iship.checkPrice(token, { courier_code: c.code, ...base })),
+    );
+    const result = assembleCompareResult(couriers, settled);
+    if (result.rows.length === 0) {
+      // ทุกขนส่งพัง = โครงสร้างพัง (token/เครือข่าย) ไม่ใช่ "ราคาไม่มี" — rethrow เหตุแรก
+      // ที่ reject: เป็น IShipError จากชั้น client ซึ่ง mapIShipError จับเป็น 502/504 อยู่แล้ว
+      // (จงใจไม่เพิ่ม ServiceErrorCode ใหม่ เพื่อไม่ให้มี error ที่ route ไม่มีใคร map)
+      const firstReject = settled.find(
+        (s): s is PromiseRejectedResult => s.status === "rejected",
+      );
+      throw firstReject?.reason ?? new Error("compare: no usable price");
+    }
+    return result;
+  });
 }
 
 // ─── ผูกพัสดุที่มีอยู่แล้วบน iShip (ส่วนขยาย feature 00022) ─────────────────
