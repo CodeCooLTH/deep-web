@@ -17,6 +17,7 @@
 
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
+import BusinessDangerZone from './BusinessDangerZone'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
@@ -59,16 +60,30 @@ interface ShopFormProps {
     businessType: string
   } | null
   isExisting: boolean
+  /**
+   * โซนอันตราย — ส่งมาเฉพาะตอน active shop เป็น BUSINESS และผู้ใช้เป็น OWNER
+   * undefined = ไม่มีแท็บนี้เลย (ร้านส่วนตัวลบไม่ได้ · ผู้ดูแลที่ถูกเชิญไม่ใช่เจ้าของ)
+   *
+   * ทำไมอยู่ในแท็บ ไม่ใช่การ์ดแยกท้ายหน้า (user ทัก 2026-08-05 "แยกกันทำไม แทนที่จะเอาไป
+   * เป็น tab ใต้ข้อมูลร้านค้า"): หน้านี้มี nav ซ้ายอยู่แล้ว การ์ดที่ลอยอยู่ข้างล่างอ่านเป็น
+   * ของคนละหน้า และหัวข้อ h5 w-full ที่ออกแบบมาสำหรับหน้าแคบ /account ยืดเต็มจอจนดูหลุด
+   */
+  dangerZone?: { shopId: string; shopName: string; retentionDays: number }
 }
 
 // ข้อมูล step ที่เก็บไว้ใน SafePay MVP (2 step จาก 12 step ของ theme)
-const stepData = [
+const BASE_STEPS = [
   { icon: 'building-store', title: 'ข้อมูลร้านค้า', subtitle: 'ชื่อ / ติดต่อ / ประเภท' },
   { icon: 'photo', title: 'โลโก้ร้าน', subtitle: 'อัปโหลดภาพ' },
 ]
 
-export default function ShopForm({ shop, isExisting, ageText = null }: ShopFormProps) {
+export default function ShopForm({ shop, isExisting, ageText = null, dangerZone }: ShopFormProps) {
   const router = useRouter()
+
+  // แท็บที่ 3 โผล่เฉพาะร้านที่ลบได้ — ประกอบใน component เพราะขึ้นกับ prop
+  const stepData = dangerZone
+    ? [...BASE_STEPS, { icon: 'alert-triangle', title: 'โซนอันตราย', subtitle: 'ลบธุรกิจนี้' }]
+    : BASE_STEPS
 
   // React state แทน data-hs-stepper (Preline plugin) — ป้องกัน hydration mismatch ใน Next.js 16
   const [activeStep, setActiveStep] = useState(0)
@@ -395,6 +410,17 @@ export default function ShopForm({ shop, isExisting, ageText = null }: ShopFormP
                     </div>
                 </div>
 
+                {/* Step 3: โซนอันตราย — render เฉพาะเมื่อมีสิทธิ์ลบ (ดู prop dangerZone) */}
+                {dangerZone && (
+                  <div className={activeStep === 2 ? '' : 'hidden'}>
+                    <BusinessDangerZone
+                      shopId={dangerZone.shopId}
+                      shopName={dangerZone.shopName}
+                      retentionDays={dangerZone.retentionDays}
+                    />
+                  </div>
+                )}
+
                 {/* Step 2: โลโก้ร้าน + ภาพหน้าปก — เดสก์ท็อปเท่านั้น
                     มือถือย้ายไปอยู่ใน ShopMobileHero ด้านบนแล้ว (แตะที่รูปเพื่อเปลี่ยน) จึงซ่อนที่นี่
                     ไม่งั้นจะมีช่องอัปโหลดรูปเดียวกันสองที่ในหน้าเดียว */}
@@ -488,7 +514,7 @@ export default function ShopForm({ shop, isExisting, ageText = null }: ShopFormP
                     ย้อนกลับ
                   </button>
 
-                  {activeStep < stepData.length - 1 ? (
+                  {dangerZone && activeStep === 2 ? null : activeStep < stepData.length - 1 ? (
                     <button
                       type="button"
                       className="btn bg-primary text-white hover:bg-primary-hover"
