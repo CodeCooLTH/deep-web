@@ -144,6 +144,11 @@ export default function SalesChartCard({ initialSeries }: Props) {
       stacked: true,
       stackOnlyBar: true, // ไม่ให้ line ถูกซ้อนทับยอดสะสม (ไม่งั้นเส้นไปอยู่ที่ 2 เท่า)
       toolbar: { show: false },
+      /** ปิด drag-to-zoom — toolbar:false ซ่อนแค่ปุ่ม ไม่ได้ปิดพฤติกรรมลาก: จิ้มลากบนมือถือ
+       *  แล้วเกิดกล่อง selection ฟ้าค้างบนกราฟ (user รายงาน 2026-08-05) กราฟนี้เป็น snapshot
+       *  อ่านอย่างเดียว ไม่มี use case ซูม · selection:false เป็นกันเหนียว (ตัวแก้จริงคือ zoom) */
+      zoom: { enabled: false },
+      selection: { enabled: false },
       parentHeightOffset: 0,
     },
     plotOptions: { bar: { columnWidth: '92%', borderRadius: 1 } },
@@ -233,7 +238,8 @@ export default function SalesChartCard({ initialSeries }: Props) {
   const getTodayOptions = (): ApexOptions => ({
     /** สูง 168 เท่าโหมดเดือนเป๊ะ ๆ — user สั่ง 2026-08-05 ("ความสูง card มันขยับ อยากให้เท่ากับเดือนนี้เสมอ")
      *  เดิม 104 การ์ดจึงเตี้ยลง 64px ตอนกดแท็บ "วันนี้" แล้วเนื้อหาใต้การ์ดกระโดดตาม */
-    chart: { type: 'bar', height: 168, toolbar: { show: false }, parentHeightOffset: 0 },
+    // zoom/selection ปิดด้วยเหตุผลเดียวกับโหมดเดือน (ดูคอมเมนต์ใน getMonthOptions)
+    chart: { type: 'bar', height: 168, toolbar: { show: false }, zoom: { enabled: false }, selection: { enabled: false }, parentHeightOffset: 0 },
     // distributed = ระบายสีรายแท่ง (ซีรีส์เดียว) เพื่อเน้นวันนี้ให้เข้มกว่าอีก 6 วัน
     plotOptions: { bar: { columnWidth: '58%', borderRadius: 2, distributed: true } },
     colors: [...Array(6).fill(getColor('success', 0.28)), getColor('success')],
