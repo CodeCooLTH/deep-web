@@ -486,34 +486,58 @@ export async function POST(
         // แถวที่สร้างจริงทุกก้อน เรียงตามลำดับรูปที่ผู้ขายแนบ (2026-08-05) — client เอาไปทับบับเบิล
         // ชั่วคราวใบต่อใบเหมือนเส้นทางส่งรูปเดี่ยว เดิม route นี้ตอบแค่ {ok:true} client จึงต้องลบ
         // บับเบิลชั่วคราวทิ้งแล้วรอ refetch ซึ่งเปิดช่องให้รูปเดียวกันขึ้นซ้อนสองใบ
+        //
+        // สัญญาเรื่องความล้มเหลว (2026-08-05 รอบสอง — กัน partial-send ซ้ำ):
+        //   - ยังไม่มีอะไรถูกส่งออกไปเลย → โยนต่อ (client ตกไปส่งทีละใบได้ปลอดภัย ไม่มีอะไรซ้ำ)
+        //   - มีของออกไปแล้วบางส่วน → **ห้ามตอบ error** ต้องตอบ 200 พร้อมแถวที่สำเร็จ + partialError
+        //     เพราะ error ก้อนเดียวแยกไม่ออกระหว่าง "ยังไม่ได้ส่ง" กับ "ส่งไปครึ่งแล้ว" — client เห็น
+        //     !ok จะวนส่งใหม่ทั้งชุด = ลูกค้าได้รูปที่ถึงแล้วซ้ำสองรอบ ถอนคืนไม่ได้ (ux spec 2026-08-05)
         const createdRows = [];
+        let partialError: string | null = null;
         for (let i = 0; i < ids.length; i += IMAGE_GRID_MAX) {
           const chunk = ids.slice(i, i + IMAGE_GRID_MAX);
-          if (chunk.length === 1) {
-            // เศษใบเดียว: caption ไปกับ text ของ sendOutboundMessage ซึ่ง **ไม่สร้างแถวแยกให้ caption**
-            // (echo ของ Meta จะพาเข้ามาเอง) — จำนวนแถวที่คืนจึงน้อยกว่าบับเบิลชั่วคราวได้ 1 ใบ
-            // client ต้องทนกับจำนวนไม่เท่ากัน ไม่ใช่ผูก index ตายตัว
-            createdRows.push(
-              await sendOutboundMessage({
+          try {
+            if (chunk.length === 1) {
+              // เศษใบเดียว: caption ไปกับ text ของ sendOutboundMessage ซึ่ง **ไม่สร้างแถวแยกให้ caption**
+              // (echo ของ Meta จะพาเข้ามาเอง) — จำนวนแถวที่คืนจึงน้อยกว่าบับเบิลชั่วคราวได้ 1 ใบ
+              // client ต้องทนกับจำนวนไม่เท่ากัน ไม่ใช่ผูก index ตายตัว
+              createdRows.push(
+                await sendOutboundMessage({
+                  conversationId: id,
+                  actorUserId: userId,
+                  attachment: { fileId: chunk[0], kind: "IMAGE", name: null, size: null },
+                  text: first ? text ?? undefined : undefined,
+                }),
+              );
+            } else {
+              const res = await sendOutboundImageGrid({
                 conversationId: id,
                 actorUserId: userId,
-                attachment: { fileId: chunk[0], kind: "IMAGE", name: null, size: null },
-                text: first ? text ?? undefined : undefined,
-              }),
-            );
-          } else {
-            const res = await sendOutboundImageGrid({
-              conversationId: id,
-              actorUserId: userId,
-              fileIds: chunk,
-              caption: first ? text ?? null : null,
-            });
-            createdRows.push(...res.messages);
+                fileIds: chunk,
+                caption: first ? text ?? null : null,
+              });
+              createdRows.push(...res.messages);
+            }
+          } catch (chunkErr) {
+            // แถวที่บันทึกเป็น FAILED ไว้แล้ว (Meta ปฏิเสธ) นับเป็น "ความจริงที่ต้องคืน" เหมือนกัน —
+            // client จะได้ขึ้นบับเบิลแดงพร้อมเหตุผลรายใบ ไม่ใช่หายเงียบ
+            const saved =
+              chunkErr instanceof Error && chunkErr.message.startsWith("SEND_FAILED")
+                ? (chunkErr as SendFailedError).savedMessage
+                : null;
+            if (saved) createdRows.push(saved);
+            if (createdRows.length === 0) throw chunkErr; // ยังไม่มีอะไรออกไป — ปล่อยให้ mapChatServiceError จัดการ
+            partialError =
+              chunkErr instanceof Error && chunkErr.message.startsWith("SEND_FAILED")
+                ? describeSendFailure(chunkErr.message.replace(/^SEND_FAILED:\s*/, "")).message
+                : "ส่งรูปส่วนที่เหลือไม่สำเร็จ กรุณาลองใหม่ทีละใบ";
+            // ก้อนถัดไปมักพังด้วยเหตุเดียวกัน (rate limit/token/ลูกค้าปิดรับ) — หยุดเลย ไม่ยิงซ้ำให้เปลือง
+            break;
           }
           first = false;
         }
         const items = await Promise.all(createdRows.map((m) => withSender(m, userId)));
-        return NextResponse.json({ ok: true, items });
+        return NextResponse.json({ ok: true, items, partialError });
       }
 
       const sent = await sendOutboundMessage({

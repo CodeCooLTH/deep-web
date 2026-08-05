@@ -1410,24 +1410,42 @@ export async function sendOutboundImageGrid(params: {
     console.warn('[fb-chat] image_grid ถูกปฏิเสธ ตกไปส่งทีละใบ', e instanceof Error ? e.message : e)
     // เก็บแถวที่ได้จากการส่งทีละใบไว้คืนออกไปด้วย — ฝั่ง client ต้องเอาไปทับบับเบิลชั่วคราวเหมือนกัน
     // ไม่ว่าจะไปทางกริดหรือทางสำรอง (ถ้าคืนเฉพาะทางกริด ทางสำรองจะกลับไปเป็นบั๊กบับเบิลซ้ำเหมือนเดิม)
+    //
+    // ห้าม throw กลางคัน (2026-08-05): ใบที่ 3 พังต้องไม่ทำให้ใบ 4-6 ไม่ถูกส่งและแถวของใบ 1-2
+    // ที่ "ถึงลูกค้าไปแล้วจริง" หายไปจาก response — เดิม throw ทะลุขึ้น route เป็น 500 แล้ว client
+    // วนส่งใหม่ทั้งชุด = ลูกค้าได้ใบ 1-2 ซ้ำสองรอบ ถอนคืนไม่ได้. รูปแบบเดียวกับ auto-reply-send
+    // (TFR-036 ข้อ 3): ความล้มเหลวรายใบต้องไม่ล้มทั้งชุด. ใบที่ Meta ปฏิเสธมีแถว FAILED บันทึกไว้
+    // แล้ว (savedMessage) — คืนแถวนั้นออกไปให้บับเบิลขึ้น "ส่งไม่สำเร็จ" พร้อมเหตุผลรายใบ
     const fallbackRows: OutboundMessageRow[] = []
     for (const fileId of files) {
-      fallbackRows.push(
-        await sendOutboundMessage({
-          conversationId: params.conversationId,
-          actorUserId: params.actorUserId,
-          attachment: { fileId, kind: 'IMAGE', name: null, size: null },
-        }),
-      )
+      try {
+        fallbackRows.push(
+          await sendOutboundMessage({
+            conversationId: params.conversationId,
+            actorUserId: params.actorUserId,
+            attachment: { fileId, kind: 'IMAGE', name: null, size: null },
+          }),
+        )
+      } catch (fe) {
+        const saved = (fe as SendFailedError).savedMessage
+        if (saved) fallbackRows.push(saved)
+        console.warn('[fb-chat] ส่งรูปสำรองทีละใบไม่สำเร็จ', fileId, fe instanceof Error ? fe.message : fe)
+      }
     }
     if (params.caption?.trim()) {
-      fallbackRows.push(
-        await sendOutboundMessage({
-          conversationId: params.conversationId,
-          actorUserId: params.actorUserId,
-          text: params.caption,
-        }),
-      )
+      try {
+        fallbackRows.push(
+          await sendOutboundMessage({
+            conversationId: params.conversationId,
+            actorUserId: params.actorUserId,
+            text: params.caption,
+          }),
+        )
+      } catch (fe) {
+        const saved = (fe as SendFailedError).savedMessage
+        if (saved) fallbackRows.push(saved)
+        console.warn('[fb-chat] ส่งแคปชันตามหลังไม่สำเร็จ', fe instanceof Error ? fe.message : fe)
+      }
     }
     return { mode: 'fallback', count: files.length, messages: fallbackRows }
   }
@@ -1476,13 +1494,24 @@ export async function sendOutboundImageGrid(params: {
   })
 
   // caption ส่งตามหลังเป็นข้อความ (title ของกริดจำกัด 45 อักขระ — ข้อความเต็มต้องไปเป็นบับเบิลข้อความ)
-  const captionRow = params.caption?.trim()
-    ? await sendOutboundMessage({
+  //
+  // แคปชันพังต้องไม่ throw (2026-08-05) — ถึงจุดนี้กริดรูป "ถึงลูกค้าไปแล้วจริง" การโยน error ออกไป
+  // จะทำให้ route ตอบ 500 ทั้งที่ของหลักส่งสำเร็จ แล้ว client วนส่งใหม่ทั้งชุด = รูปซ้ำทั้งกริด
+  // แถวแคปชันที่ Meta ปฏิเสธถูกบันทึกเป็น FAILED ไว้แล้ว (savedMessage) — คืนออกไปให้ขึ้นบับเบิลแดง
+  // กดลองใหม่เฉพาะแคปชันได้ ไม่พารูปที่สำเร็จแล้วไปตกน้ำด้วย
+  let captionRow: OutboundMessageRow | null = null
+  if (params.caption?.trim()) {
+    try {
+      captionRow = await sendOutboundMessage({
         conversationId: params.conversationId,
         actorUserId: params.actorUserId,
         text: params.caption,
       })
-    : null
+    } catch (ce) {
+      captionRow = (ce as SendFailedError).savedMessage ?? null
+      console.warn('[fb-chat] ส่งแคปชันตามหลังกริดไม่สำเร็จ', ce instanceof Error ? ce.message : ce)
+    }
+  }
   return {
     mode: 'grid',
     count: files.length,
