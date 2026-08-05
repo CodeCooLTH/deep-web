@@ -23,6 +23,12 @@ export interface CompareResult {
   rows: CompareRow[];
   /** ขนส่งที่ประเมินไม่ได้ — หน้าจอต้องสรุปชื่อไว้ท้ายรายการ ไม่ปล่อยหายเงียบ */
   failed: { courierCode: string; courierName: string }[];
+  /**
+   * สรุปเหตุผลพังรายเจ้า (token ถูก redact แล้วในชั้น client) — service เติมเมื่อพัง
+   * ทุกเจ้า เพื่อให้หน้าจอ/DevTools เห็นเหตุจริงตรง ๆ: เหตุ prod 2026-08-05 ตอบ 502
+   * ทึบ ๆ แล้ววินิจฉัยอะไรไม่ได้เลย (log CLI ของ Vercel ก็ stream ไม่ได้จริง)
+   */
+  failedDetail?: string;
 }
 
 /** ตัวเลขบวกจาก field ที่ iShip ส่งมาเป็นได้ทั้ง number/string — 0 หรือเพี้ยน = null */

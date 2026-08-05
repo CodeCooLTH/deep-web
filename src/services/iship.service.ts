@@ -1782,18 +1782,51 @@ export async function compareShippingPrices(
     const couriers = await iship.listCouriers(token);
     if (couriers.length === 0) return { rows: [], failed: [] };
 
-    const settled = await Promise.allSettled(
-      couriers.map((c) => iship.checkPrice(token, { courier_code: c.code, ...base })),
-    );
-    const result = assembleCompareResult(couriers, settled);
-    if (result.rows.length === 0) {
-      // ทุกขนส่งพัง = โครงสร้างพัง (token/เครือข่าย) ไม่ใช่ "ราคาไม่มี" — rethrow เหตุแรก
-      // ที่ reject: เป็น IShipError จากชั้น client ซึ่ง mapIShipError จับเป็น 502/504 อยู่แล้ว
-      // (จงใจไม่เพิ่ม ServiceErrorCode ใหม่ เพื่อไม่ให้มี error ที่ route ไม่มีใคร map)
-      const firstReject = settled.find(
-        (s): s is PromiseRejectedResult => s.status === "rejected",
+    // ยิงเป็นชุดละ 4 ไม่ใช่ทั้ง ~17 พร้อมกัน — burst ใหญ่จาก token เดียวเสี่ยงโดนฝั่ง
+    // iShip จำกัด/block ทั้งชุด (เหตุ prod 2026-08-05: ทุกเจ้าพังพร้อมกันทั้งที่ quote
+    // รายตัวใช้ได้) ช้าลงแค่ ~2-3 วินาทีแต่เสถียรกว่า
+    const settled: PromiseSettledResult<Awaited<ReturnType<typeof iship.checkPrice>>>[] = [];
+    for (let i = 0; i < couriers.length; i += 4) {
+      const chunk = couriers.slice(i, i + 4);
+      settled.push(
+        ...(await Promise.allSettled(
+          chunk.map((c) => iship.checkPrice(token, { courier_code: c.code, ...base })),
+        )),
       );
-      throw firstReject?.reason ?? new Error("compare: no usable price");
+    }
+    const result = assembleCompareResult(couriers, settled);
+    if (result.failed.length > 0) {
+      // เหตุผลจริงรายเจ้า — ไม่มีบรรทัดนี้ debug บน prod ไม่ได้เลย (mapIShipError ไม่ log
+      // IShipError และ reject รายเจ้าถูกกลืนเป็น failed[] เงียบ ๆ) token ถูก redact ในชั้น client แล้ว
+      console.error(
+        "[iship-compare]",
+        `failed ${result.failed.length}/${couriers.length}`,
+        settled
+          .map((s, i) =>
+            s.status === "rejected"
+              ? `${couriers[i]?.code}: ${s.reason instanceof Error ? `${s.reason.name} ${s.reason.message}` : String(s.reason)}${s.reason instanceof IShipError ? ` [${s.reason.code} http=${s.reason.httpStatus ?? "-"} ${(s.reason.upstreamMessage ?? "").slice(0, 120)}]` : ""}`
+              : null,
+          )
+          .filter(Boolean)
+          .join(" | "),
+      );
+    }
+    if (result.rows.length === 0 && result.failed.length > 0) {
+      // ทุกขนส่งพัง — ไม่ throw เป็น 502 ทึบ ๆ อีก (เหตุ prod 2026-08-05 วินิจฉัยไม่ได้เลย):
+      // คืน 200 พร้อมเหตุผลรายเจ้าให้หน้าจอแสดง state ล้มเหลว + รายละเอียดจริง
+      result.failedDetail = settled
+        .map((s, i) => {
+          if (s.status !== "rejected") return null;
+          const r = s.reason;
+          const base = `${couriers[i]?.code ?? "?"}`;
+          if (r instanceof IShipError) {
+            return `${base}: ${r.code} http=${r.httpStatus ?? "-"} ${(r.upstreamMessage ?? "").slice(0, 100)}`;
+          }
+          return `${base}: ${r instanceof Error ? r.message : String(r)}`;
+        })
+        .filter(Boolean)
+        .join(" | ")
+        .slice(0, 1500);
     }
     return result;
   });

@@ -55,7 +55,8 @@ type SheetState =
   | { kind: 'loading' }
   | { kind: 'data'; result: CompareResult }
   | { kind: 'incomplete'; missing: MissingSenderField[] }
-  | { kind: 'error' }
+  /** detail = ข้อความจริงจาก server — ไม่มีบรรทัดนี้ user/เรา วินิจฉัยจากหน้าจอไม่ได้เลย */
+  | { kind: 'error'; detail?: string }
 
 const fee = (n: number | null) => (n != null ? `฿${n.toLocaleString('th-TH')}` : '—')
 
@@ -115,18 +116,23 @@ export default function PriceCompareSheet({
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as {
-          error?: { code?: string; missing?: MissingSenderField[] }
+          error?: { code?: string; message?: string; missing?: MissingSenderField[] }
         } | null
         if (body?.error?.code === 'INCOMPLETE_DATA') {
           setState({ kind: 'incomplete', missing: body.error.missing ?? [] })
         } else {
-          setState({ kind: 'error' })
+          setState({
+            kind: 'error',
+            detail: body?.error
+              ? `${body.error.code ?? ''} ${body.error.message ?? ''}`.trim()
+              : `HTTP ${res.status}`,
+          })
         }
         return
       }
       setState({ kind: 'data', result: (await res.json()) as CompareResult })
     } catch {
-      setState({ kind: 'error' })
+      setState({ kind: 'error', detail: 'เครือข่ายมีปัญหา — คำขอส่งไม่ถึงระบบ' })
     }
   }
 
@@ -162,6 +168,15 @@ export default function PriceCompareSheet({
   const rows = state.kind === 'data' ? state.result.rows : []
   const failed = state.kind === 'data' ? state.result.failed : []
   const isEmpty = state.kind === 'data' && rows.length === 0 && failed.length === 0
+  /** พังทุกเจ้า (server ตอบ 200 พร้อมเหตุผลรายเจ้า) — แสดงเป็น state ล้มเหลวไม่ใช่รายการว่าง */
+  const allFailed = state.kind === 'data' && rows.length === 0 && failed.length > 0
+  const errorDetail =
+    state.kind === 'error'
+      ? state.detail
+      : allFailed && state.kind === 'data'
+        ? state.result.failedDetail
+        : undefined
+  const showError = state.kind === 'error' || allFailed
   const hasRemote = rows.some((r) => r.remoteFee != null)
 
   // แกนตัดสินใจที่สอง "ความเร็ว" — ไม่มี badge นี้ผู้ใช้ต้องไล่อ่านวันเองทั้ง ~17 ใบ
@@ -181,8 +196,10 @@ export default function PriceCompareSheet({
     state.kind === 'data'
       ? isEmpty
         ? 'ยังไม่มีขนส่งให้เทียบราคา'
-        : `พบราคาจาก ${rows.length} ขนส่ง ถูกที่สุดคือ ${rows[0].courierName} ${rows[0].totalPrice.toLocaleString('th-TH')} บาท` +
-          (failed.length > 0 ? ` · ประเมินไม่ได้ ${failed.length} ขนส่ง` : '')
+        : allFailed
+          ? 'เทียบราคาไม่สำเร็จ ลองใหม่ได้'
+          : `พบราคาจาก ${rows.length} ขนส่ง ถูกที่สุดคือ ${rows[0].courierName} ${rows[0].totalPrice.toLocaleString('th-TH')} บาท` +
+            (failed.length > 0 ? ` · ประเมินไม่ได้ ${failed.length} ขนส่ง` : '')
       : state.kind === 'error'
         ? 'เทียบราคาไม่สำเร็จ ลองใหม่ได้'
         : ''
@@ -262,7 +279,7 @@ export default function PriceCompareSheet({
         </div>
       )}
 
-      {state.kind === 'error' && (
+      {showError && (
         <div className="flex flex-col items-center gap-3 p-8 text-center">
           <span className="flex size-12 items-center justify-center rounded-full bg-danger/15 text-danger">
             <Icon icon="tabler:alert-circle" className="text-2xl" aria-hidden="true" />
@@ -272,6 +289,11 @@ export default function PriceCompareSheet({
             <p className="mb-0 text-sm text-default-700">
               ขนส่งทุกเจ้ายังไม่ตอบกลับตอนนี้ ลองใหม่อีกครั้งได้เลย
             </p>
+            {errorDetail && (
+              <p className="mx-auto mb-0 mt-2 max-w-md break-all text-xs text-default-500">
+                รายละเอียด: {errorDetail}
+              </p>
+            )}
           </div>
           <button
             type="button"
