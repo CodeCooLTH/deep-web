@@ -83,7 +83,10 @@ export async function proxy(request: NextRequest) {
   // (public/ เสิร์ฟที่ root; ถ้า rewrite → /seller/data/... = 404) — bug จริง feature Quick Create address db
   // เพิ่มนามสกุลเสียง (m4a/mp3/wav/ogg/aac) 2026-07-24: เสียงแจ้งเตือนแชท /sounds/*.m4a อยู่บน
   // seller subdomain → เดิม regex ไม่ครอบ → โดน rewrite เป็น /seller/sounds/... = 404 (user report ไม่มีเสียง)
-  if (/\.(?:json|png|jpe?g|svg|gif|webp|ico|txt|woff2?|css|js|map|m4a|mp3|wav|ogg|aac)$/i.test(pathname)) {
+  // เพิ่ม webmanifest 2026-08-05: `/manifest.webmanifest` ที่ Next สร้างจาก src/app/manifest.ts เสิร์ฟที่ root
+  // เดิมไม่อยู่ใน list → โดน rewrite เป็น /seller/manifest.webmanifest = 404 (เจอตอน debug บน iPhone)
+  // PWA "เพิ่มลงหน้าจอโฮม" บน seller/admin จึงไม่ทำงานมาตลอด — บั๊กคลาสเดียวกับ /sounds/*.m4a ข้างบน
+  if (/\.(?:json|webmanifest|png|jpe?g|svg|gif|webp|ico|txt|woff2?|css|js|map|m4a|mp3|wav|ogg|aac)$/i.test(pathname)) {
     return NextResponse.next()
   }
 
