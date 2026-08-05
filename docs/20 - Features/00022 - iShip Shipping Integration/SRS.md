@@ -457,3 +457,120 @@ flowchart TD
 
 **จุดเข้า:** ปุ่ม "ดึงจาก iShip" บนหน้ารายการคำสั่งซื้อ (tonal — "สร้างออเดอร์" ยังเป็น action หลัก)
 เนื้อในโมดัล reuse `ShipmentLinkPanel` โหมด `IMPORT` ทั้งชุด (รายการ/ค้นหา/empty/error)
+
+---
+
+## 17. ส่วนขยาย 2026-08-05 — เปรียบเทียบราคาทุกขนส่งในคำขอเดียว
+
+> เพิ่มหลังส่วนขยาย §16 ขึ้น prod แล้ว หัวข้อนี้จึงเขียนต่อท้ายเช่นเดียวกัน
+> สเปกออกแบบเต็ม: `docs/superpowers/specs/2026-08-05-iship-price-compare-design.md`
+
+### 17.1 Functional requirement
+
+รองรับ FR-ISHIP-032 (BRD §12.1), BR-ISHIP-35/36 (BRD §12.2)
+
+### 17.2 Endpoint และ request/response shape
+
+`POST /api/seller/iship/price/compare` — guard 3 ชั้นเดียวกับทุก endpoint (§8): session สมาชิกร้าน →
+`Shop.vertical === "GENERAL"` → **ไม่บังคับเป็นเจ้าของร้าน** (เจ้าของ+พนักงานเรียกได้เหมือน `POST /price` เดิม)
+
+**Request** (`IShipPriceCompareSchema = v.omit(IShipPriceQuoteSchema, ["courierCode"])` — `src/lib/validations.ts`):
+```ts
+{
+  receiver: {
+    subdistrict?: string | null   // ตำบล — ว่าง/null = ถือว่าที่อยู่ยังไม่ครบ
+    district?: string | null      // อำเภอ
+    province?: string | null
+    postcode?: string | null
+  }
+  weight: number   // 0.01–100 kg
+  width: number    // 1–300 cm (integer)
+  length: number   // 1–300 cm (integer)
+  height: number   // 1–300 cm (integer)
+}
+```
+ไม่มี `courierCode` — server เป็นคนไล่ทุกขนส่งของร้านเอง ที่อยู่ผู้ส่งไม่รับจาก body (อ่านจาก
+`ShopShippingAccount.sender*` เสมอ เหมือน `POST /price`)
+
+**Response `200`** (`CompareResult` — `src/lib/iship/compare.ts`):
+```ts
+{
+  rows: {
+    courierCode: string
+    courierName: string
+    totalPrice: number          // ราคารวม — field เดียวที่บังคับมี ไม่มี/ไม่ใช่เลข = ตกไป failed
+    basePrice: number | null    // price ของ iShip; null = ไม่ส่งมา/เป็น 0 → ช่องแสดง "—"
+    fuelFee: number | null      // fuel_surcharge_fee
+    remoteFee: number | null    // remote_area (บาท); "0"/ไม่ส่ง = null (ไม่ใช่ ฿0)
+    estimateDays: number | null // estimate_shipping_date
+  }[]   // เรียง totalPrice น้อย→มาก แล้ว — client ไม่ต้องเรียงซ้ำ
+  failed: { courierCode: string; courierName: string }[]
+}
+```
+
+### 17.3 พฤติกรรม fan-out (`compareShippingPrices` — `iship.service.ts`)
+
+```mermaid
+flowchart TD
+    A[POST .../price/compare] --> B{sender ครบ?}
+    B -- ไม่ --> C["422 INCOMPLETE_DATA + missing"]
+    B -- ครบ --> D{receiver 4 ช่องครบ?}
+    D -- ไม่ --> E[422 INCOMPLETE_DATA]
+    D -- ครบ --> F[listCouriers — รายชื่อขนส่งของร้าน]
+    F --> G{มีขนส่งเปิดใช้งานไหม?}
+    G -- ไม่มี --> H["คืน rows: [], failed: []"]
+    G -- มี --> I["Promise.allSettled: checkPrice ทุกขนส่งพร้อมกัน"]
+    I --> J[assembleCompareResult]
+    J --> K{rows.length > 0?}
+    K -- ใช่ --> L[คืน rows เรียงราคา + failed]
+    K -- ไม่ — ทุกตัวพัง --> M[rethrow เหตุ reject แรก → route ตอบ 502/504]
+```
+
+- payload พื้นฐาน (ที่อยู่+ขนาด) เตรียม**ครั้งเดียว** ด้วย `buildCheckPricePayload()` (BR-ISHIP-31
+  mapping ตำบล→`district`/อำเภอ→`amphure` — เดิมอยู่แค่ใน `estimateShippingPrice` จุดเดียว
+  refactor ให้ทั้งสองฟังก์ชันเรียก helper เดียวกันแทนเขียน mapping ซ้ำ) แล้วเติม `courier_code`
+  ต่อขนส่งตอนยิงแต่ละตัว
+- ขนส่งที่ `reject` (timeout/error) หรือ `total_price` ไม่ใช่ตัวเลขที่ finite และ `> 0` → เข้า
+  `failed[]` พร้อมชื่อ **ไม่ทำให้ทั้งชุดล้ม** — ขนส่งเจ้าเดียวไม่ตอบไม่ควรทำให้ร้านเทียบเจ้าที่เหลือไม่ได้
+- ทุกขนส่ง fail พร้อมกัน (`rows` ว่าง) ถือว่าเป็นปัญหาระดับโครงสร้าง (token/เครือข่าย) ไม่ใช่
+  "ไม่มีราคา" → rethrow เหตุ reject แรก ให้ `mapIShipError` แมปเป็น `502`/`504` ตามปกติ
+  (ไม่เพิ่ม `ServiceErrorCode` ใหม่ — กันไม่ให้มี error ที่ route ไม่มีใคร map ตาม memory
+  `feedback_service_error_route_mapping`)
+- ไม่มี rate-limit เพิ่มเติมเฉพาะ endpoint นี้ — อาศัย per-IP/per-user rate-limit เดิมของ `guardApi`
+  (authenticated 30 req/นาที) เพราะ client ยิงคำขอนี้แค่ 1 ครั้งต่อการเปิด sheet ไม่ใช่วนยิงต่อขนส่ง
+  แบบที่ endpoint นี้ถูกสร้างมาเพื่อกัน
+
+### 17.4 UI
+
+`PriceCompareSheet.tsx` (`src/components/safepay/iship/`) — view swap ภายในโมดัลเดิมของ
+`ShipmentCreateForm` (ไม่ใช่ portal ใหม่ เพราะฟอร์มถูกใช้ทั้งในโมดัลหน้าออเดอร์และแผงในแชทที่ซ่อนด้วย
+`hidden` ไม่ unmount — ซ้อน fixed overlay ในบริบทแชทจะชน transform/z-index ของ Chat Rail)
+
+- ผลถูก cache ภายใน sheet ตาม `inputKey` (join ของที่อยู่+ขนาดทั้งหมดด้วย `|`) — เปิดซ้ำโดยไม่แก้
+  ที่อยู่/ขนาด เห็นผลเดิมทันที ไม่ยิงซ้ำ; แก้ค่าแล้วเปิดใหม่ถึงยิงใหม่
+- Escape ดักที่ `document` แบบ capture แล้ว `stopPropagation` — กลับไปหน้าฟอร์ม ไม่ปิดโมดัลทั้งใบ
+  (listener ของ modal shell อยู่ระดับ document เดียวกัน — ดักแค่ใน div ของ sheet แล้ว focus หลุด
+  ไปที่พื้นที่ไม่ focusable จะทำให้ Esc ทิ้งทั้งโมดัลแทน)
+- badge "เร็วที่สุด" คำนวณจาก `estimateDays` น้อยสุดในกลุ่ม `rows` (ไม่นับ `null`) — มีได้เมื่อ
+  `rows.length >= 2`; วันเท่ากันหลายใบ ใบที่ถูกกว่าชนะเพราะ `rows` เรียงราคาไว้แล้ว
+- `failed.length > 0` (ยังมี `rows`) → สรุปท้ายรายการพร้อมปุ่ม "ลองใหม่อีกครั้ง" ที่ยิง `load()`
+  ใหม่จริง ไม่ใช้ cache เดิม (ปิดแล้วกดเทียบราคาซ้ำจะได้ cache เดิม ไม่ retry)
+- โลโก้ขนส่ง: `courierLogoUrl()`/`courierInitials()` จาก `src/lib/iship/courier.ts` (mapping ระดับ
+  แบรนด์ตัวเดียวกับแถวออเดอร์ — ไม่สร้าง mapping ใหม่)
+
+### 17.5 Known gap — field ยังไม่ยืนยันครบกับบัญชีจริง
+
+🛑 ยังไม่เคย smoke test `check-price` กับบัญชี iShip จริงเพื่อยืนยัน field ทั้งหมดของ response —
+`price`/`fuel_surcharge_fee`/`remote_area`/`estimate_shipping_date`/`total_price` ที่ type
+`IShipPrice` ประกาศไว้ (`src/lib/iship/client.ts`) อิงจาก curl จริงของ user + ยืนยันกับบัญชีจริง
+2026-07-31 — หน้า iShip เองมีช่อง "ค่าขนส่ง(ปริมาตร)" และ "พื้นที่ท่องเที่ยว" ที่**ไม่อยู่**ใน
+response ที่เรารู้จัก ถ้ายิงจริงแล้วพบว่ามีมาด้วย ต้องเพิ่มเป็น optional field ใหม่ + คอลัมน์
+ในการ์ด — dev DB มีแต่บัญชีเทสที่ token ปลอม ยิงจริงไม่ได้ (carry — ดู [[RESUME]])
+
+### 17.6 Traceability
+
+| ข้อกำหนด | ส่วนของ SRS |
+|---|---|
+| FR-ISHIP-032 | §17.2, §17.3 |
+| BR-ISHIP-35 (ราคาประมาณการ) | §17.2 |
+| BR-ISHIP-36 (ประเมินไม่ได้ต้องไม่หายเงียบ) | §17.3, §17.4 |

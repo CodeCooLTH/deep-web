@@ -13,6 +13,34 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]",
 
 ---
 
+## 0. อัปเดตล่าสุด 2026-08-05 — ส่วนขยาย "เปรียบเทียบราคาขนส่งทุกเจ้า"
+
+**DEPLOYED PRODUCTION** — merge `7dfc7cb4` (2026-08-05) หลัง `0b067517` (§1/§9 ด้านล่างยังเป็น
+snapshot ของเวอร์ชันแรก 2026-07-26 — ไม่ได้อัปเดตตามการ deploy รอบ 2026-08-01/2026-08-05 ทุกจุด
+อ่าน `docs/20 - Features/00022 - iShip Shipping Integration/{PRD,BRD,SRS,API,TestCase}.md`
+หัวข้อ "ส่วนขยาย 2026-08-05" สำหรับสเปกเต็ม)
+
+ปุ่ม "เทียบราคา" ในฟอร์มสร้างพัสดุ (`ShipmentCreateForm.tsx`) → ยิง `POST
+/api/seller/iship/price/compare` ครั้งเดียว server fan-out ไปทุกขนส่งของร้าน (`Promise.allSettled`)
+→ `PriceCompareSheet.tsx` แสดงผลเรียงถูก→แพง พร้อม badge ถูกที่สุด/เร็วที่สุด — กด "ใช้ขนส่งนี้"
+ตั้งค่ากลับเข้าฟอร์มหลัก ไม่เปิดพัสดุให้ทันที
+
+**carry ที่ยังไม่ปิด:**
+1. **ยังไม่เคย smoke test `check-price` กับบัญชี iShip จริง** — field ที่ใช้ (`price`,
+   `fuel_surcharge_fee`, `remote_area`, `estimate_shipping_date`, `total_price`) อิงจาก curl จริง
+   ของ user + ยืนยันกับบัญชีจริงเมื่อ 2026-07-31 ใน `src/lib/iship/client.ts` เท่านั้น — ยังไม่ได้
+   ยิงซ้ำเฉพาะ endpoint เปรียบเทียบนี้ dev DB มีแต่บัญชีเทสที่ token ปลอม ยิงจริงไม่ได้ที่นี่.
+   ช่อง "ค่าขนส่ง(ปริมาตร)"/"พื้นที่ท่องเที่ยว" ที่หน้า iShip เองมี **ไม่อยู่** ใน `IShipPrice`
+   ที่เราอ้างอิง — ถ้ายิงจริงแล้วพบว่ามีมาด้วย ต้องเพิ่มเป็น optional field ใหม่
+2. **browser QA เป็นของ user** — ยังไม่เคยกดจริงบนเบราว์เซอร์สักครั้ง user รับไปทดสอบเองบน prod
+   2026-08-05 (เคส M-10..M-20 ใน `TestCase.md`)
+
+**ไฟล์หลักที่เพิ่ม:** `src/lib/iship/compare.ts` (+`.test.ts`), `src/app/api/seller/iship/price/compare/route.ts`,
+`src/components/safepay/iship/PriceCompareSheet.tsx`, `buildCheckPricePayload()` ใน `src/lib/iship/mapping.ts`
+(รวม mapping payload check-price ที่เคยเขียนซ้ำใน `estimateShippingPrice` ให้เหลือจุดเดียว)
+
+---
+
 ## 1. สถานะ ณ 2026-07-26
 
 **DEPLOYED PRODUCTION แล้ว** — commit ล่าสุดบน main คือ `0b067517`
@@ -43,6 +71,7 @@ branch `feat/i-ship-integrate` sync กับ main แล้ว
 - ติดตามสถานะ ยกเลิกพัสดุ เรียกรถเข้ารับ
 - ผู้ซื้อเห็นเลขติดตามบนหน้าลิงก์คำสั่งซื้อ
 - สร้างพัสดุ + แจ้งเลขติดตามในห้องแชทรวดเดียว
+- เทียบราคาทุกขนส่งของร้านในคำขอเดียว ก่อนตัดสินใจเปิดพัสดุ (ส่วนขยาย 2026-08-05 — ดู §0)
 
 **ฟรีทุกร้าน** ไม่แตะกระเป๋าเงินร้าน · **เฉพาะร้าน `Shop.vertical = "GENERAL"`** (ร้านบ้านพักไม่มีฟีเจอร์นี้เลย)
 
@@ -226,4 +255,10 @@ cd <worktree ที่มี .env.local> && set -a && . ./.env.local && set +a
 | `d737dd12` | E2E spec + timing-safe webhook secret |
 | `6a8549c4` | **merge → main รอบแรก (deploy prod)** |
 | `dc78363c` | กรอกข้อมูลผู้รับตรงจุดสร้างพัสดุ + เขียนกลับเข้าออเดอร์ |
-| `0b067517` | **สร้างพัสดุ + แจ้งเลขในแชท (deploy prod ล่าสุด)** |
+| `0b067517` | สร้างพัสดุ + แจ้งเลขในแชท |
+| `dea044c8` | ส่วนขยาย: แผน implement เปรียบเทียบราคาขนส่ง iShip (9 tasks) |
+| `0aa01051` | refactor: รวม mapping payload ของ check-price ไว้ที่เดียว (`buildCheckPricePayload`) |
+| `6f0da506` | `assembleCompareResult` — รวม/เรียงผลเทียบราคาหลายขนส่ง (pure + tests) |
+| `4d48985e` | `compareShippingPrices` — fan-out check-price ทุกขนส่งของร้านในคำขอเดียว |
+| `e2018f5c` | `POST /api/seller/iship/price/compare` — endpoint เทียบราคาทุกขนส่ง |
+| `7dfc7cb4` | **merge → main (deploy prod ล่าสุด) — รวม UI `PriceCompareSheet` + wiring ใน `ShipmentCreateForm`** |

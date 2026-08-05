@@ -386,3 +386,40 @@ payload สถานะรถเข้ารับ: `ticketPickupId`, `staffInfo
 - ลบแถว `OrderShipment` ทิ้ง (ไม่ mark `CANCELLED` — ดู BR-ISHIP-29)
 - คืน `Order.status` เป็น `PENDING` และลบ `ShipmentTracking` ที่ตัวเองสร้างไว้ตอนผูก (BR-ISHIP-45)
 - `409 INVALID_STATE` ถ้าใบนั้น `source = CREATED` (Deep เปิดเอง) — ใบพวกนั้นต้องยกเลิกกับขนส่งจริง
+
+---
+
+## ส่วนขยาย 2026-08-05 — เปรียบเทียบราคาทุกขนส่งในคำขอเดียว
+
+> รองรับ FR-ISHIP-032 · BR-ISHIP-35/36 — สเปกเต็ม `docs/superpowers/specs/2026-08-05-iship-price-compare-design.md`
+> อยู่ใต้กติกาเดียวกับหัวข้อบนสุด (`private, no-store`, guard 3 ชั้น — **ไม่บังคับเจ้าของร้าน** เหมือน `quote`)
+
+### `POST /api/seller/iship/price/compare`
+เทียบราคาทุกขนส่งของร้านในคำขอเดียว (ปุ่ม "เทียบราคา" ในฟอร์มสร้างพัสดุ) — server เป็นคน fan-out
+ให้ client ไม่ต้องวนยิง `/price` ทีละขนส่งจนชน rate-limit ของเราเอง
+
+```json
+{
+  "receiver": { "subdistrict": "ควนรู", "district": "รัตภูมิ", "province": "สงขลา", "postcode": "90220" },
+  "weight": 1.25, "width": 14, "length": 20, "height": 6
+}
+```
+ไม่มี `courierCode` (ตัดออกจาก schema ของ `POST /price` เดิม) · ที่อยู่ผู้ส่งอ่านจากการตั้งค่าร้านเสมอ
+
+ตอบ `200`:
+```json
+{
+  "rows": [
+    { "courierCode": "ThailandPost", "courierName": "ไปรษณีย์ไทย EMS", "totalPrice": 45,
+      "basePrice": 40, "fuelFee": 5, "remoteFee": null, "estimateDays": 3 }
+  ],
+  "failed": [{ "courierCode": "SomeCourier", "courierName": "..." }]
+}
+```
+`rows` เรียง `totalPrice` น้อย→มากแล้ว · `failed` = ขนส่งที่ยิงไม่สำเร็จ/ราคาไม่ใช่เลข (ไม่ทำให้ทั้งชุดล้ม)
+ทุกขนส่งพังพร้อมกัน (ไม่มี `rows` เลย) → รหัส error เดิมของ iShip (`502`/`504`) ไม่ใช่ error ใหม่
+
+- `422 INCOMPLETE_DATA` — ที่อยู่ผู้ส่ง**หรือ**ผู้รับไม่ครบ (พร้อม `missing[]` เมื่อขาดที่อยู่ผู้ส่ง)
+- `409 NOT_CONNECTED` — ยังไม่ได้เชื่อมต่อ iShip
+
+รองรับ: FR-ISHIP-032 · BR-ISHIP-34/35/36
