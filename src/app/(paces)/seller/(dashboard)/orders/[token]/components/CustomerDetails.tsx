@@ -19,17 +19,22 @@
 import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTH } from '@/lib/format-date'
+import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/SalesChannelBadge'
 import { resolveBuyerNames, type OrderFactsBuyer } from './order-detail-shared'
 
 export default function CustomerDetails({
   buyer,
   summary,
+  salesChannel,
 }: {
   buyer: OrderFactsBuyer
   /** ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ — null = ออเดอร์ยังไม่ผูก Customer (ไม่มีเบอร์) */
   summary: { orderCount: number; sinceISO: string } | null
+  /** ช่องทางที่ลูกค้าทักเข้ามา — เป็นตราเกาะรูปโปรไฟล์ ไม่กินแถวของตัวเองในรายการติดต่อ */
+  salesChannel: string | null
 }) {
   const { registeredName, displayName, hasBuyerInfo } = resolveBuyerNames(buyer)
+  const channelLabel = salesChannel ? getSalesChannelDisplay(salesChannel).label : null
 
   return (
     <div className="card">
@@ -65,6 +70,15 @@ export default function CustomerDetails({
                       )}
                     </span>
                   </div>
+                )}
+                {salesChannel && (
+                  <span
+                    aria-label={`ทักมาจาก ${channelLabel}`}
+                    className="ring-card absolute -end-0.5 -bottom-0.5 flex size-4.5 items-center justify-center overflow-hidden rounded-full ring-2"
+                    title={`ทักมาจาก ${channelLabel}`}
+                  >
+                    <SalesChannelLogo channel={salesChannel} className="size-full rounded-full" size={18} />
+                  </span>
                 )}
               </div>
               <div className="min-w-0">

@@ -34,6 +34,7 @@ import type { OrderStatus } from '@/lib/order-display'
 import type { OrderVocab } from '@/lib/seller-menu'
 import type { ShipmentContextJson } from '@/lib/iship/context'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
+import CodCard from './CodCard'
 import dynamic from 'next/dynamic'
 import OrderSummary from './OrderSummary'
 import type { OrderFactsItem } from './order-detail-shared'
@@ -103,6 +104,8 @@ export interface OrderDetailClientProps {
 
   /** ออเดอร์เก็บเงินปลายทางที่ร้านยังไม่ได้กดว่าได้เงิน → มีปุ่ม "ได้รับเงินปลายทางแล้ว" */
   isCodUnpaid: boolean
+  buyerAvatar: string | null
+  internalNote: string | null
 
   // ── OrderSummary (การ์ดหัวตามโครงธีม: หัว + ปุ่ม + ตารางสินค้า + ยอดรวม) ──────
   items: OrderFactsItem[]
@@ -114,7 +117,16 @@ export interface OrderDetailClientProps {
 
   /** การ์ดที่ยัง server-render ได้ — ส่งมาจาก page.tsx เป็น ReactNode ไม่ลากเข้า client bundle */
   shippingActivity: React.ReactNode
+  /** การ์ด "การจัดส่ง" — คำนวณที่ server (ต้องรู้ทั้ง OrderShipment และ ShipmentTracking) */
+  shippingCard: React.ReactNode
+  /** การ์ดผู้ซื้อ — แยกจาก sideCards เพราะการ์ด COD ต้องแทรก "หลังผู้ซื้อ ก่อนที่อยู่" */
+  customerCard: React.ReactNode
   sideCards: React.ReactNode
+  /** ISO — มีค่า = ร้านยืนยันรับเงินปลายทางแล้ว (null = ยังไม่ได้รับ / ไม่ใช่ออเดอร์ COD) */
+  codReceivedAtISO: string | null
+  codReceivedByLabel: string | null
+  /** true = ออเดอร์นี้เก็บเงินปลายทาง (แสดงการ์ดเงินแทนการ์ดการชำระเงิน) */
+  isCod: boolean
 }
 
 export default function OrderDetailClient({
@@ -139,13 +151,20 @@ export default function OrderDetailClient({
   provider,
   addressText,
   isCodUnpaid,
+  buyerAvatar,
+  internalNote,
   items,
   discount,
   vatRate,
   vatAmount,
   orderNoun,
   shippingActivity,
+  shippingCard,
+  customerCard,
   sideCards,
+  codReceivedAtISO,
+  codReceivedByLabel,
+  isCod,
 }: OrderDetailClientProps) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
@@ -278,6 +297,27 @@ export default function OrderDetailClient({
     }
   }
 
+  /** ย้อนการยืนยัน — กดผิดแล้วต้องแก้ได้ ไม่งั้นตัวเลขเงินในระบบผิดถาวรโดยไม่มีทางกลับ */
+  const handleCodUndo = async () => {
+    const ok = await pacesConfirm.question(
+      'ยกเลิกการยืนยันรับเงิน?',
+      'ใบนี้จะกลับไปอยู่ในกอง "รอเงิน COD" บนหน้าแรกอีกครั้ง',
+      { confirmButtonText: 'ยกเลิกการยืนยัน', cancelButtonText: 'ไม่ใช่' },
+    )
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/orders/${publicToken}/cod-received`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error((data as { error?: string }).error || 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่')
+      }
+      pacesToast.success('ยกเลิกการยืนยันแล้ว')
+      router.refresh()
+    } catch (err: unknown) {
+      pacesToast.error(err instanceof Error ? err.message : 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่')
+    }
+  }
+
   // ปุ่ม action ทั้งหมดของหน้านี้ (StatusHero inline/stuck + OrderActionBar variant="bottom") วิ่งเข้า
   // handler เดียวนี้ผ่าน key จาก order-action-set.ts — ดูตาราง key → พฤติกรรมในรายงาน T11
   const handleAction = (key: string) => {
@@ -328,8 +368,11 @@ export default function OrderDetailClient({
         <div className="space-y-base lg:col-span-3">
           <OrderSummary
             actionSet={actionSet}
+            buyerAvatar={buyerAvatar}
             buyerLabel={buyerLabel}
             createdAtISO={createdAtISO}
+            internalNote={internalNote}
+            isCod={isCod}
             discount={discount}
             isFromAuction={isFromAuction}
             items={items}
@@ -344,9 +387,23 @@ export default function OrderDetailClient({
             vatAmount={vatAmount}
             vatRate={vatRate}
           />
+          {shippingCard}
           {shippingActivity}
         </div>
-        <div className="space-y-base">{sideCards}</div>
+        <div className="space-y-base">
+          {customerCard}
+          {/* การ์ดเงินอยู่ใต้ผู้ซื้อ = ลำดับที่ร้านอ่านจริง (ใครซื้อ → ได้เงินหรือยัง → ส่งที่ไหน) */}
+          {isCod && (
+            <CodCard
+              codReceivedAtISO={codReceivedAtISO}
+              onMarkReceived={handleCodReceived}
+              onUndo={handleCodUndo}
+              receivedByLabel={codReceivedByLabel}
+              totalAmount={totalAmount}
+            />
+          )}
+          {sideCards}
+        </div>
       </div>
 
       {/* <1024 เท่านั้น (className ภายในมี lg:hidden) — CANCELLED คืน null เอง (design §3) */}

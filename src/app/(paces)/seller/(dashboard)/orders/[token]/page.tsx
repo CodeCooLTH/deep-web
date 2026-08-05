@@ -47,6 +47,7 @@ import ShippingActivity from './components/ShippingActivity'
 import CustomerDetails from './components/CustomerDetails'
 import ShippingAddressCard from './components/ShippingAddress'
 import BillingDetails from './components/BillingDetails'
+import ShippingCard from './components/ShippingCard'
 import { getOrderEvents } from '@/services/order-event.service'
 import { getCustomerSummary } from '@/services/customer.service'
 import type { ShippingAddressData, OrderFactsShipping } from './components/order-detail-shared'
@@ -238,6 +239,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
         provider={shippingInfo?.courier ?? null}
         addressText={addressText}
         isCodUnpaid={isCODPayment(order.paymentMethod) && !order.codReceivedAt}
+        buyerAvatar={order.buyer?.avatar ?? null}
+        internalNote={order.internalNote ?? null}
         items={(order.items ?? []).map((item: any) => {
           const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
           const firstImg: string = rawImages[0] ?? ''
@@ -260,32 +263,71 @@ export default async function OrderDetailPage({ params }: PageProps) {
         vatRate={order.vatRate != null ? Number(order.vatRate) : null}
         vatAmount={order.vatAmount != null ? Number(order.vatAmount) : null}
         orderNoun={vocab.noun}
+        codReceivedAtISO={order.codReceivedAt ? (order.codReceivedAt as Date).toISOString() : null}
+        codReceivedByLabel={order.codReceivedBy?.displayName ?? order.codReceivedBy?.username ?? null}
+        isCod={isCODPayment(order.paymentMethod)}
         shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} />}
+        shippingCard={
+          <ShippingCard
+            iship={
+              shipmentPanel?.shipment
+                ? {
+                    id: shipmentPanel.shipment.id,
+                    status: shipmentPanel.shipment.status,
+                    carrierStatus: shipmentPanel.shipment.carrierStatus ?? null,
+                    courierName: shipmentPanel.shipment.courierName ?? null,
+                    courierCode: shipmentPanel.shipment.courierCode ?? null,
+                    trackingNo: shipmentPanel.shipment.trackingNo ?? null,
+                    isDryRun: Boolean(shipmentPanel.shipment.isDryRun),
+                    lastTracedAtISO: shipmentPanel.shipment.carrierStatusAt
+                      ? (shipmentPanel.shipment.carrierStatusAt as Date).toISOString()
+                      : null,
+                  }
+                : null
+            }
+            manual={
+              shipmentSource === 'MANUAL'
+                ? {
+                    provider: order.shipmentTracking.provider,
+                    trackingNo: order.shipmentTracking.trackingNo,
+                    shippedAtISO: (order.shipmentTracking.createdAt as Date).toISOString(),
+                  }
+                : null
+            }
+          />
+        }
+        customerCard={
+          <CustomerDetails
+            summary={customerSummary}
+            salesChannel={order.salesChannel ?? null}
+            buyer={{
+              buyerContact,
+              buyerDisplayName: order.buyer?.displayName ?? null,
+              buyerUsername: order.buyer?.username ?? null,
+              buyerName: order.buyerName ?? null,
+              avatar: order.buyer?.avatar ?? null,
+              shippingAddr,
+            }}
+          />
+        }
         sideCards={
           <>
-            <CustomerDetails
-              summary={customerSummary}
-              buyer={{
-                buyerContact,
-                buyerDisplayName: order.buyer?.displayName ?? null,
-                buyerUsername: order.buyer?.username ?? null,
-                buyerName: order.buyerName ?? null,
-                avatar: order.buyer?.avatar ?? null,
-                shippingAddr,
-              }}
-            />
             <ShippingAddressCard
               accessUrl={order.accessUrl ?? null}
               fulfillmentMode={order.fulfillmentMode}
               publicToken={order.publicToken}
               shippingAddr={shippingAddr}
             />
-            <BillingDetails
-              paymentMethod={order.paymentMethod ?? null}
-              salesChannel={order.salesChannel ?? null}
-              slipFileId={order.slipFileId ?? null}
-              status={order.status}
-            />
+            {/* COD มีการ์ด "เก็บเงินปลายทาง" ของตัวเองแล้ว ซึ่งบอกวิธีชำระ/สถานะ/ยอด ครบทุกบรรทัด
+                — แสดงทั้งคู่ = ข้อมูลเดียวกันโผล่ 2 การ์ดในจอเดียว (user ทัก 2026-08-05) */}
+            {!isCODPayment(order.paymentMethod) && (
+              <BillingDetails
+                paymentMethod={order.paymentMethod ?? null}
+                salesChannel={order.salesChannel ?? null}
+                slipFileId={order.slipFileId ?? null}
+                status={order.status}
+              />
+            )}
             {showReviewCard && <OrderReviewCard orderNoun={vocab.noun} review={reviewData} />}
           </>
         }

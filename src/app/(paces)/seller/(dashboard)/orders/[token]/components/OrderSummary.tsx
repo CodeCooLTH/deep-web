@@ -19,6 +19,7 @@
  *     บนพื้น `/15` — ตก AA ทุกจุด เปลี่ยนเป็น `-700`/`-ink` (badge มาจาก SSOT ที่แก้ไว้แล้ว)
  */
 
+import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { formatDateTime } from '@/lib/format-date'
@@ -42,6 +43,12 @@ export type OrderSummaryProps = {
   createdAtISO: string
   salesChannel: string | null
   buyerLabel: string
+  /** รูปโปรไฟล์ผู้ซื้อ (URL สาธารณะ ไม่ใช่ PII) — null = ยังไม่ลงทะเบียน/ไม่มีรูป */
+  buyerAvatar: string | null
+  /** หมายเหตุที่ร้านพิมพ์ไว้ตอนสร้างออเดอร์ — เห็นเฉพาะร้าน ผู้ซื้อไม่เห็น */
+  internalNote: string | null
+  /** true = เก็บเงินปลายทาง → ไม่ต้องมี badge วิธีชำระที่หัว เพราะมีการ์ดของตัวเองอยู่ขวามือ */
+  isCod: boolean
   paymentMethod: string | null
   slipFileId: string | null
   isFromAuction: boolean
@@ -63,6 +70,9 @@ export default function OrderSummary({
   createdAtISO,
   salesChannel,
   buyerLabel,
+  buyerAvatar,
+  internalNote,
+  isCod,
   paymentMethod,
   slipFileId,
   isFromAuction,
@@ -113,7 +123,17 @@ export default function OrderSummary({
             <h2 className="text-default-900 mb-1.25 flex items-center text-lg font-bold">
               {formatOrderNo(publicToken, createdAtISO)}
             </h2>
-            <p className="text-default-700 mb-2.5 truncate text-sm">{buyerLabel}</p>
+            {/* รูปผู้ซื้อคู่ชื่อ — user 2026-08-05 "ตรงไหนมี Profile แสดงผลได้ ให้แสดงด้วย" */}
+            <p className="text-default-700 mb-2.5 flex items-center gap-1.5 text-sm">
+              {buyerAvatar ? (
+                <Image alt="" className="size-5 shrink-0 rounded-full object-cover" height={20} src={buyerAvatar} width={20} />
+              ) : (
+                <span className="bg-default-200 text-default-700 flex size-5 shrink-0 items-center justify-center rounded-full text-2xs font-semibold">
+                  {buyerLabel.trim().charAt(0).toUpperCase() || '?'}
+                </span>
+              )}
+              <span className="truncate">{buyerLabel}</span>
+            </p>
             <p className="text-default-700 mb-3.5 flex items-center gap-1 text-xs">
               <Icon icon="calendar" className="align-middle" aria-hidden="true" />
               {formatDateTime(createdAtISO)}
@@ -123,7 +143,10 @@ export default function OrderSummary({
                 <Icon icon={meta.icon} className="text-sm" aria-hidden="true" />
                 {meta.label}
               </span>
-              {paymentBadge && <span className={cn(paymentBadge.cls, 'text-2xs font-semibold')}>{paymentBadge.label}</span>}
+              {/* ออเดอร์ COD มีการ์ด "เก็บเงินปลายทาง" อยู่ขวามือแล้ว badge ตรงนี้เป็นข้อมูลซ้ำ */}
+              {!isCod && paymentBadge && (
+                <span className={cn(paymentBadge.cls, 'text-2xs font-semibold')}>{paymentBadge.label}</span>
+              )}
               {isFromAuction && (
                 <span className="badge badge-label bg-warning/15 text-warning-ink text-2xs font-semibold">
                   <Icon icon="gavel" className="text-sm" aria-hidden="true" />
@@ -256,6 +279,18 @@ export default function OrderSummary({
             </tbody>
           </table>
         </div>
+
+        {/* Order.internalNote — ร้านกรอกได้ตอนสร้างออเดอร์ (POS/quick form) แต่หน้ารายละเอียด
+            ไม่เคยแสดงเลยสักที่ พิมพ์ไว้แล้วเปิดกลับมาดูไม่ได้ = ข้อมูลหายเข้าไปในฐานเฉย ๆ */}
+        {internalNote && internalNote.trim() && (
+          <div className="bg-warning/15 text-default-800 mt-5 flex items-start gap-2.25 rounded px-3.5 py-2.75 text-xs">
+            <Icon icon="note" className="text-warning-ink mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+            <span>
+              <span className="font-semibold">หมายเหตุภายในร้าน</span> — {internalNote}
+              <span className="text-default-700"> (เห็นเฉพาะร้าน ผู้ซื้อไม่เห็น)</span>
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -780,6 +780,9 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
       // select แคบ ๆ เฉพาะที่ต้องโชว์: ห้ามดึง phone/email มาด้วย หน้านี้อยู่ใต้ client layout
       // ทุก field ที่ include จะถูก serialize เข้า flight payload เสมอ (feedback_rsc_pii_neutralize_at_source)
       createdBy: { select: { id: true, displayName: true, username: true, avatar: true } },
+      // คนที่กดยืนยันรับเงินปลายทาง — การ์ด COD แสดง "รับเมื่อ ... โดย ..." ให้ตามตัวได้ว่าใครกด
+      // (กดผิดแล้วใบหลุดจากกอง "รอเงิน COD" เงียบ ๆ ต้องรู้ว่าถามใคร) select แคบเหมือน createdBy
+      codReceivedBy: { select: { id: true, displayName: true, username: true } },
       shipmentTracking: true,
       review: true,
     },
