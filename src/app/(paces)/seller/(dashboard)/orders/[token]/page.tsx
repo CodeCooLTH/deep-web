@@ -234,6 +234,18 @@ export default async function OrderDetailPage({ params }: PageProps) {
         // เก็บเงินปลายทางที่ร้านยังไม่กดว่าได้เงิน — ตัดสินที่ server ด้วย SSOT ตัวเดียวกับไทล์
         // หน้าแรก (isCODPayment) ไม่ส่ง paymentMethod ดิบไปให้ client ตัดสินเอง
         isCodUnpaid={isCODPayment(order.paymentMethod) && !order.codReceivedAt}
+        // วันที่จริงของ 2 ขั้นในแถบสถานะ — คำนวณที่ server เพราะต้องดู 3 แหล่ง (พัสดุ iShip /
+        // เลขพัสดุที่ร้านแจ้งเอง / การกดรับเงิน) ซึ่ง client ไม่ได้ถืออยู่
+        shippedAtISO={shippingInfo?.shippedAtISO ?? null}
+        // ได้เงินแล้วจริง = ร้านกดเอง · ยังไม่กดแต่ขนส่งส่งถึงแล้ว = ใช้เวลาที่ส่งถึงเป็นเวลาที่เก็บเงิน
+        // (ขนส่งเก็บเงินตอนยื่นของให้ผู้ซื้อ จึงเป็นเวลาเดียวกัน) — ไม่มีทั้งคู่ = null ไม่เดา
+        codMoneyAtISO={
+          order.codReceivedAt
+            ? (order.codReceivedAt as Date).toISOString()
+            : shipmentPanel?.shipment?.carrierStatus === 'delivered' && shipmentPanel.shipment.carrierStatusAt
+              ? (shipmentPanel.shipment.carrierStatusAt as Date).toISOString()
+              : null
+        }
       >
         {/* grid 75/25 (≥1024) · คอลัมน์เดียว (<1024) — Base: order-details/page.tsx
             `grid grid-cols-1 lg:grid-cols-4 gap-base` + `space-y-base lg:col-span-3` */}

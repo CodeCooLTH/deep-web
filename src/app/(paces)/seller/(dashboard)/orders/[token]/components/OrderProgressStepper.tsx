@@ -1,102 +1,94 @@
 /**
- * Base: theme/paces/Admin/TS/src/app/(admin)/pages/timeline/page.tsx ("Timeline with Icons")
+ * Base: theme/paces/Admin/TS/src/app/(admin)/ui/progress/page.tsx → Steps()
  *
- * ปรับจาก Paces Timeline: ยกกลไก **จุดวงกลม + เส้นประเชื่อมที่ยืดตามความสูงของเนื้อหาข้าง ๆ**
- * (`after:absolute after:start-1/2 after:top-* after:bottom-0 after:w-px after:border-e
- * after:border-dashed after:border-default-300 -ms-px`) มาทั้งดุ้น แล้วตัดสิ่งที่ไม่เกี่ยวออก:
- * theme เป็น activity feed (คอลัมน์เวลา + หัวข้อ + คำอธิบาย + ชื่อผู้เขียน) ที่ไม่มีแนวคิด
- * "สถานะของขั้น" เลย — ที่นี่จึงเติม state → สี เข้าไปเอง และไม่มีคอลัมน์เวลา/ผู้เขียน
- * `after:top-4` (ไม่ใช่ `top-3` ของ theme) เพราะจุดของเราคงที่ size-8 ครึ่งหนึ่งพอดี = 16px
+ * copy ตรง ๆ จากธีม: โครง `<ul className="flex w-full items-center justify-between">` +
+ * `<li className="flex w-full items-center">` (ตัวสุดท้าย `flex items-center` ไม่มีเส้น) +
+ * วงกลม `size-9 shrink-0 rounded-full flex items-center justify-center` + เส้น `h-0.5 flex-1`
+ * โครงนี้รองรับ 2-4 ขั้นได้เองด้วย flex — ไม่ต้อง map เป็น `grid-cols-${n}` ซึ่ง Tailwind
+ * สแกน source ตรง ๆ ไม่เห็น (ปัญหาที่เวอร์ชันก่อนต้องมีตาราง GRID_COLS ไว้แก้)
  *
- * ทำไมเลิกใช้ Base เดิม (checkout stepper — กล่องขอบประเรียงกันเป็นกริด): user เห็นของจริง
- * บน prod แล้วบอกว่า "ไม่สวยเลย" ซึ่งตรงกับข้อห้ามใน craft-floor ("การ์ด icon+heading+text
- * ขนาดเท่ากันเรียงเป็นตับ") อาการที่วัดได้: อ่านเป็นการ์ด 4 ใบแยกกัน ไม่ใช่เส้นทางเดียว ·
- * ทุกขั้นน้ำหนักเท่ากันจนขั้นที่กำลังรออยู่ไม่เด่น · ออเดอร์ที่เดินมาไกลเขียว 3 ใน 4 ช่อง
- * เต็มความกว้างจอ อ่านแวบแรกเหมือนจบแล้ว · เนื้อหากินไม่ถึงครึ่งกล่อง เหลือที่ว่างเป็นแถบ
+ * adapt เพิ่มจากธีม (ธีมไม่มีสิ่งเหล่านี้เลย — มันเป็น progress indicator ล้วน):
+ *   - ไอคอนแทนตัวเลข 1/2/3 ในวงกลม
+ *   - ป้ายชื่อขั้น + วันที่ใต้แถบ
+ *   - เส้นเชื่อมเปลี่ยนสีตาม state (ธีมมีสีเดียว) — เขียว=ผ่านแล้ว เทา=ยังไม่ถึง แดง=นำไปสู่ยกเลิก
+ *   - เลย์เอาต์มือถือ (ธีมมีแบบเดียว) — สรุปเหลือ 2 บรรทัด
  *
- * แนวนอน (md+) ไม่มีไฟล์ใน theme ให้ copy ตรง ๆ (สำรวจทั้งต้นไม้แล้ว: WizardWithProgressbar
- * เป็น fill-bar, checkout stepper เป็นกล่อง — ทั้งคู่คือปัญหาที่กำลังแก้) จึงประกอบจาก primitive
- * ที่ Hard Rule 7 ขึ้นทะเบียนไว้แล้วล้วน ๆ (`flex`/`size-*`/`rounded-full`/`border-dashed`/
- * `bg-{semantic}/15`/`text-{semantic}-ink`) — ไม่มี arbitrary value สักตัว
+ * ที่มาของหน้าตา: user ปฏิเสธ 2 เวอร์ชันก่อน (กล่องขอบประเรียงกริด / จุดกลม+เส้นประ) แล้วเลือกจาก
+ * mockup `docs/superpowers/specs/2026-08-05-order-progress-mockup-A-full.html`
+ * สองข้อที่ user สั่งเองและห้ามย้อน: (1) ตัดกล่องข้อความใต้แถบทิ้ง (2) มือถือให้เห็นแค่สถานะปัจจุบัน
+ * กับเวลาล่าสุด ไม่ใช่ลิสต์ครบทุกขั้น
  *
- * เน้น 2 ชั้น ไม่ใช่ 4 ชั้นเท่ากันแบบเดิม:
- *   spotlight (current/cancelled) = จุดทึบ + ring + ตัวหนา + note เป็นป้ายสี
- *   quiet (done/upcoming)         = จุดขอบบาง + ตัวเล็ก + note เป็นบรรทัดเงียบ
- * เขียวยังสงวนให้ "เสร็จแล้วจริง" เหมือนเดิมทุกประการ — ที่ลดคือ *พื้นที่* ที่เขียวกินบนจอ
- * ไม่ใช่ความหมาย (Verified-Means-Green ไม่ถูกแตะ)
- *
- * ลำดับขั้น/สถานะทั้งหมด derive ที่ src/lib/order-progress.ts (SSOT) — ไฟล์นี้เป็น render layer ล้วน
+ * ลำดับขั้น/label/สถานะ derive ที่ src/lib/order-progress.ts (SSOT) — ไฟล์นี้เป็น render layer ล้วน
  */
 
-import { Fragment } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
-import { getOrderProgress, type ProgressState, type ProgressStep } from '@/lib/order-progress'
-import { formatDateTime } from '@/lib/format-date'
+import {
+  getOrderProgress,
+  type ProgressState,
+  type ProgressStep,
+  type ProgressStepKey,
+} from '@/lib/order-progress'
+import { formatDateTime, formatDateTimeTH } from '@/lib/format-date'
 
 const STATE_DOT: Record<ProgressState, string> = {
-  done: 'border-2 border-success bg-success/10',
+  done: 'bg-success',
   current: 'bg-primary ring-4 ring-primary/15',
-  upcoming: 'border-2 border-default-300 bg-card',
+  upcoming: 'bg-default-100',
   cancelled: 'bg-danger ring-4 ring-danger/15',
 }
 
 const STATE_ICON: Record<ProgressState, string> = {
-  done: 'text-success',
-  current: 'text-white',
-  // เทาจางได้เพราะเป็นไอคอนของขั้นที่ยังไม่เกิด (decorative) — ตัวหนังสือข้าง ๆ ยังผ่าน AA
-  upcoming: 'text-default-300',
-  cancelled: 'text-white',
-}
-
-const SPOTLIGHT_PILL: Record<'current' | 'cancelled', string> = {
-  // text-{semantic} บนพื้น /15 ตกคอนทราสต์ AA (วัดจริง) — ต้องเป็น token หมึกคู่กันเสมอ
-  current: 'bg-primary/15 text-primary-ink',
-  cancelled: 'bg-danger/15 text-danger-ink',
+  /**
+   * ไอคอนขาวบนพื้น success วัดได้ 2.42:1 — ตก WCAG 1.4.11 ที่บังคับ ≥3:1 สำหรับ
+   * graphical object แก้ด้วยการเปลี่ยน "หมึก" ของไอคอนเป็น success-ink (3.18:1 ผ่าน)
+   * พื้นเขียวสดยังเป็นสีเดิมทุกพิกเซลตามที่ user อนุมัติ — ปรับความเข้ม ไม่สลับเฉด
+   * (docs/conventions/contrast-fix-keeps-hue.md)
+   */
+  done: 'text-success-ink',
+  current: 'text-white', // บนพื้น primary วัดได้ 5.12:1 ผ่าน
+  // ขั้นที่ยังไม่เกิด = decorative เหมือน disabled ไม่อยู่ใต้เกณฑ์คอนทราสต์ข้อความ
+  upcoming: 'text-default-400',
+  cancelled: 'text-white', // บนพื้น danger วัดได้ 3.17:1 ผ่านเกณฑ์ไอคอน
 }
 
 const isSpotlight = (s: ProgressState) => s === 'current' || s === 'cancelled'
 
+/** สีเส้นระหว่างจุด i กับ i+1 — อ่านความคืบหน้าได้จากเส้นโดยไม่ต้องนับวงกลม */
+const lineClass = (from: ProgressStep, to: ProgressStep) =>
+  to.state === 'cancelled' ? 'bg-danger' : from.state === 'done' ? 'bg-success' : 'bg-default-300'
+
 const StepDot = ({ step }: { step: ProgressStep }) => (
   <span
     className={cn(
-      'relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full',
+      'relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full',
       STATE_DOT[step.state],
     )}
   >
-    <Icon icon={step.icon} className={cn('text-base', STATE_ICON[step.state])} aria-hidden="true" />
+    {/* ขั้นที่เกิดขึ้นแล้ว/จบแล้วใช้ check/x เสมอ ไม่ใช่ไอคอนประจำขั้น (coin/truck) —
+        ไอคอนประจำขั้นมีความหมายตอน "กำลังรอสิ่งนี้" ไม่ใช่ตอนที่มันผ่านไปแล้ว
+        ใช้ check/x เปล่าเพราะวงกลมห่อให้อยู่แล้ว circle-check จะกลายเป็นวงกลมซ้อนวงกลม */}
+    <Icon
+      icon={step.state === 'done' ? 'check' : step.state === 'cancelled' ? 'x' : step.icon}
+      className={cn('text-base', STATE_ICON[step.state])}
+      aria-hidden="true"
+    />
   </span>
 )
 
-const StepBody = ({ step }: { step: ProgressStep }) => {
-  const spotlight = isSpotlight(step.state)
-  // ขั้นแรกส่งเวลาสร้างมาด้วยเสมอ แต่ StatusHero เหนือแถบนี้ขึ้นแถว "วันที่สร้าง" อยู่แล้ว
-  // — โชว์ซ้ำในจอเดียวไม่ได้เพิ่มอะไร มีแต่ทำให้ขั้นแรกดูหนักกว่าที่ควร (SSOT ไม่ต้องแก้)
-  const note = step.key === 'PLACED' ? undefined : step.note
-
-  return (
-    <>
-      <p className={spotlight ? 'text-sm font-bold text-default-900' : 'text-2xs font-medium text-default-700'}>
-        {step.label}
-      </p>
-      {note &&
-        (spotlight ? (
-          <span
-            className={cn(
-              'mt-1 inline-block rounded px-2 py-1 text-2xs font-medium',
-              SPOTLIGHT_PILL[step.state as 'current' | 'cancelled'],
-            )}
-          >
-            {note}
-          </span>
-        ) : (
-          // เข้มกว่าป้ายข้าง ๆ (800 vs 700) โดยตั้งใจ — บรรทัดนี้มีคำเตือนเรื่องเงิน COD อยู่
-          // ("รอโอนเข้าร้านตามรอบของขนส่ง") ซึ่งห้ามจมหายไปกับตัวอักษรเงียบ ๆ รอบตัว
-          <p className="text-default-800 mt-0.5 text-2xs break-words">{note}</p>
-        ))}
-    </>
-  )
-}
+const StepTrack = ({ steps }: { steps: ProgressStep[] }) => (
+  <ol className="flex w-full items-center justify-between">
+    {steps.map((step, i) => {
+      const isLast = i === steps.length - 1
+      return (
+        <li className={cn('flex items-center', !isLast && 'w-full')} key={step.key}>
+          <StepDot step={step} />
+          {!isLast && <span className={cn('mx-1 h-0.5 flex-1', lineClass(step, steps[i + 1]))} />}
+        </li>
+      )
+    })}
+  </ol>
+)
 
 export type OrderProgressStepperProps = {
   status: string
@@ -104,10 +96,13 @@ export type OrderProgressStepperProps = {
   paymentMethod: string | null
   slipFileId: string | null
   totalAmount: number
-  /** สถานะฝั่งขนส่ง iShip — 'delivered' = ถึงมือผู้ซื้อแล้ว (มีผลกับขั้นเก็บเงิน COD เท่านั้น) */
   carrierStatus: string | null
   createdAtISO: string
   updatedAtISO: string
+  /** เวลาที่เปิดพัสดุ/แจ้งเลขพัสดุ — วันที่จริงของขั้น "จัดส่งแล้ว" */
+  shippedAtISO: string | null
+  /** Order.codReceivedAt หรือเวลาที่ขนส่งส่งถึง — วันที่จริงของขั้น "เก็บเงินปลายทาง" */
+  codMoneyAtISO: string | null
 }
 
 const OrderProgressStepper = (props: OrderProgressStepperProps) => {
@@ -124,52 +119,119 @@ const OrderProgressStepper = (props: OrderProgressStepperProps) => {
 
   if (steps.length === 0) return null
 
+  /**
+   * วันที่จริงต่อขั้น — key ที่ไม่มีในนี้คือขั้นที่ระบบ **ไม่มีข้อมูลจริง** จะขึ้น "—" ไม่ใช่เดาให้
+   * โดยเฉพาะขั้นชำระเงินของการโอน: ฐานข้อมูลไม่มี `paidAt` เลย การเอา updatedAt มาแปะทุกช่อง
+   * จะได้เวลาเดียวกันหมดซึ่งเป็นเท็จ
+   * ใช้ formatDateTimeTH ("04 ส.ค. 2569 19:58") ไม่ใช่ formatDateTime ("2569-08-04 19:58:23")
+   * เพราะช่องใต้จุดกว้างราว 1/4 ของการ์ด แบบยาวจะตัดบรรทัดจนอ่านไม่ออก
+   */
+  const dateByKey: Partial<Record<ProgressStepKey, string>> = {
+    PLACED: formatDateTimeTH(props.createdAtISO),
+    ...(props.shippedAtISO ? { SHIPPED: formatDateTimeTH(props.shippedAtISO) } : {}),
+    ...(props.codMoneyAtISO ? { COD_MONEY: formatDateTimeTH(props.codMoneyAtISO) } : {}),
+    ...(props.status === 'CONFIRMED' ? { CONFIRMED: formatDateTimeTH(props.updatedAtISO) } : {}),
+    ...(props.status === 'CANCELLED' ? { CANCELLED: formatDateTimeTH(props.updatedAtISO) } : {}),
+  }
+
+  // บรรทัดรอง: ขั้นที่เกิดแล้ว → วันที่จริง · ขั้นที่กำลังรอ → ข้อความสถานะจาก SSOT · ยังไม่ถึง → "—"
+  const secondaryOf = (step: ProgressStep): string | undefined => {
+    if (step.state === 'done' || step.state === 'cancelled') return dateByKey[step.key] ?? step.note
+    if (step.state === 'current') return step.note
+    return undefined
+  }
+
+  /**
+   * คำเตือน "ขนส่งเก็บเงินให้แล้ว · รอโอนเข้าร้านตามรอบของขนส่ง" ถูกแทนที่ด้วยวันที่บนหน้าจอ
+   * ตามที่ user สั่งให้ตัดกล่องข้อความออก — เก็บไว้เป็น tooltip เพื่อไม่ให้ข้อความที่กันร้าน
+   * เข้าใจผิดว่าเงินเข้าบัญชีแล้ว หายไปจากระบบทั้งหมด
+   */
+  const tooltipOf = (step: ProgressStep): string | undefined =>
+    step.key === 'COD_MONEY' && step.state === 'done' && dateByKey.COD_MONEY ? step.note : undefined
+
+  // จุดที่ควรเพ่งบนมือถือ: ขั้นที่กำลังรอ/ยกเลิก — ถ้าไม่มีแล้ว (ทุกขั้นเสร็จ) ใช้ขั้นสุดท้าย
+  const spotlightStep = steps.find((s) => isSpotlight(s.state)) ?? steps[steps.length - 1]
+  const spotlightIndex = steps.indexOf(spotlightStep)
+  const isComplete = spotlightStep.state === 'done' && spotlightIndex === steps.length - 1
+  // เหตุการณ์ล่าสุดที่มีเวลาจริง — ขั้นที่กำลังรออยู่ยังไม่เกิดจึงไม่มีเวลาของตัวเอง
+  // สิ่งที่ตอบได้จริงคือ "ครั้งสุดท้ายที่ออเดอร์นี้ขยับคือเมื่อไหร่"
+  const lastEvent = [...steps].reverse().find((s) => s.state === 'done' || s.state === 'cancelled')
+  const lastEventDate = lastEvent ? secondaryOf(lastEvent) : undefined
+
   return (
     <div className="card">
       <div className="card-body">
-        {/* มือถือ: เส้นทางแนวตั้ง — 4 ขั้นเรียงแนวนอนบนจอ 360px อ่านไม่ออกแน่ */}
-        <ol className="flex flex-col md:hidden">
-          {steps.map((step, i) => {
-            const isLast = i === steps.length - 1
-            return (
-              <li className="flex gap-x-3" key={step.key}>
+        {/* ═══ ≥768px: แถบ + ป้ายและวันที่ใต้ทุกจุด ═══ */}
+        <div className="hidden md:block">
+          <StepTrack steps={steps} />
+          <div className="mt-2.5 flex w-full items-start justify-between gap-1">
+            {steps.map((step, i) => {
+              const isFirst = i === 0
+              const isLast = i === steps.length - 1
+              const isDate = step.state === 'done' || step.state === 'cancelled'
+              const secondary = secondaryOf(step)
+
+              return (
                 <div
                   className={cn(
-                    'relative shrink-0',
-                    !isLast &&
-                      'after:border-default-300 after:absolute after:start-1/2 after:top-4 after:bottom-0 after:-ms-px after:w-px after:border-e after:border-dashed',
+                    'min-w-0 flex-1',
+                    // หัวท้ายชิดขอบ ไม่งั้นป้ายของจุดริมล้นออกนอกการ์ด
+                    isFirst ? 'text-left' : isLast ? 'text-right' : 'text-center',
                   )}
+                  key={step.key}
                 >
-                  <StepDot step={step} />
+                  <p
+                    className={
+                      isSpotlight(step.state)
+                        ? 'text-default-900 text-xs font-bold'
+                        : 'text-default-700 text-2xs font-medium'
+                    }
+                  >
+                    {step.label}
+                  </p>
+                  <span
+                    className={cn(
+                      'mt-0.5 block text-2xs',
+                      // วันที่ห้ามตัดบรรทัด ส่วนข้อความสถานะยอมให้พันบรรทัดได้
+                      isDate ? 'whitespace-nowrap' : 'break-words',
+                      step.state === 'current' && 'text-primary-ink font-semibold',
+                      step.state === 'cancelled' && 'text-danger-ink font-semibold',
+                      (step.state === 'done' || step.state === 'upcoming') && 'text-default-700',
+                    )}
+                    title={tooltipOf(step)}
+                  >
+                    {secondary ?? '—'}
+                  </span>
                 </div>
-                <div className={cn('min-w-0 flex-1', !isLast && 'pb-4')}>
-                  <StepBody step={step} />
-                </div>
-              </li>
-            )
-          })}
-        </ol>
+              )
+            })}
+          </div>
+        </div>
 
-        {/* ≥768px: เส้นทางแนวนอน — max-w กันจุดกระจายไกลกันเองบนจอกว้าง (การ์ดนี้เต็มความกว้าง
-            หน้า ไม่ได้อยู่ในคอลัมน์ 75%) ถ้าปล่อยยืดเต็ม 1200px+ เส้นเชื่อมจะยาวจนอ่านเป็น
-            "จุดลอย 4 จุด" แทนที่จะเป็นเส้นทางเดียว */}
-        <ol className="mx-auto hidden max-w-3xl items-start md:flex">
-          {steps.map((step, i) => (
-            <Fragment key={step.key}>
-              <li className="flex w-32 shrink-0 flex-col items-center text-center">
-                <StepDot step={step} />
-                <div className="mt-1.5">
-                  <StepBody step={step} />
-                </div>
-              </li>
-              {i < steps.length - 1 && (
-                // mt-4 = กึ่งกลางแนวตั้งของจุด size-8 พอดี · สีคงที่ทุก state โดยตั้งใจ —
-                // เส้นทางเป็นกลาง ให้สีอยู่ที่จุดอย่างเดียว ไม่งั้นแถบจะกลายเป็นแถบสีทั้งเส้น
-                <li aria-hidden="true" className="border-default-300 mt-4 h-px flex-1 border-t border-dashed" />
+        {/* ═══ <768px: แถบเดียวกัน แต่สรุปเหลือ 2 บรรทัด (user สั่งเอง — ห้ามกลับไปเป็นลิสต์ทุกขั้น) ═══ */}
+        <div className="md:hidden">
+          <StepTrack steps={steps} />
+          <div className="mt-3.5">
+            <div className="flex items-baseline gap-2">
+              <p className="text-default-900 text-md font-bold">{spotlightStep.label}</p>
+              {spotlightStep.state === 'current' && (
+                <span className="bg-default-100 text-default-700 ms-auto shrink-0 rounded-full px-2.5 py-0.5 text-2xs font-semibold whitespace-nowrap">
+                  ขั้นที่ {spotlightIndex + 1} จาก {steps.length}
+                </span>
               )}
-            </Fragment>
-          ))}
-        </ol>
+              {isComplete && (
+                <span className="bg-success/15 text-success-ink ms-auto shrink-0 rounded-full px-2.5 py-0.5 text-2xs font-semibold whitespace-nowrap">
+                  เสร็จสมบูรณ์
+                </span>
+              )}
+            </div>
+            {lastEvent && lastEventDate && (
+              <p className="text-default-700 mt-1 text-2xs">
+                ล่าสุด: {lastEvent.label} · {lastEventDate}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

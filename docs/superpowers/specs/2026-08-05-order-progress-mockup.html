@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup — แถบสถานะคำสั่งซื้อ (4 แบบให้เลือก)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/@iconify/iconify@3/dist/iconify.min.js"></script>
+<style>
+/* ── token จริงจาก src/assets/css/config/_root.css (คัดลอกค่ามา ห้ามเดา) ── */
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a;
+  --success:#02bc9c; --success-ink:#065f46;
+  --info:#5bc3e1;    --info-ink:#1e40af;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --danger:#f7577e;  --danger-ink:#7f1d1d;
+  --light:#eef2f7;
+  --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb; --d400:#9ba6b7;
+  --d500:#a1a9b1; --d600:#8a969c; --d700:#6c757d; --d800:#343a40; --d900:#313a46;
+  --body-bg:#f6f7fb; --card:#fff;
+  --text-2xs:11px; --text-xs:13px; --text-sm:14px; --text-md:15px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;background:#e8ebf2;color:var(--d800);
+     font-size:14px;line-height:1.5;padding:32px 16px 80px}
+.page{max-width:1400px;margin:0 auto}
+h1{font-size:22px;font-weight:700;color:var(--d900);margin-bottom:6px}
+.lede{color:var(--d700);font-size:14px;margin-bottom:28px;max-width:74ch}
+h2{font-size:17px;font-weight:700;color:var(--d900);margin:40px 0 4px;display:flex;align-items:center;gap:10px}
+h2 .tag{font-size:11px;font-weight:600;background:var(--primary);color:#fff;padding:2px 9px;border-radius:999px}
+.why{color:var(--d700);font-size:13px;margin-bottom:16px;max-width:80ch}
+.why b{color:var(--d900)}
+.devices{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.dev{background:#fff;border-radius:12px;box-shadow:0 2px 14px rgba(49,58,70,.10);overflow:hidden;flex:0 0 auto}
+.dev .bar{background:var(--d200);color:var(--d700);font-size:11px;font-weight:600;padding:6px 12px;letter-spacing:.02em}
+.dev .screen{background:var(--body-bg);padding:12px}
+.m{width:390px}.t{width:640px}.k{width:720px}
+
+/* ── ชิ้นส่วนจริงของหน้า (จำลอง StatusHero ให้เห็นบริบทว่ามันอยู่ใต้อะไร) ── */
+.card{background:var(--card);border-radius:8px;box-shadow:0 1px 2px rgba(49,58,70,.06)}
+.hero{padding:14px 16px;margin-bottom:10px}
+.hero .row1{display:flex;align-items:center;gap:8px}
+.hero .no{font-size:var(--text-md);font-weight:700;color:var(--d900);letter-spacing:.01em}
+.hero .pill{font-size:var(--text-2xs);font-weight:600;padding:2px 8px;border-radius:5px;
+            background:color-mix(in srgb,var(--info) 15%,#fff);color:var(--info-ink)}
+.hero .buyer{font-size:var(--text-xs);color:var(--d700);margin-top:2px}
+.hero .amt{margin-left:auto;text-align:right}
+.hero .amt b{display:block;font-size:18px;font-weight:700;color:var(--d900)}
+.hero .amt span{font-size:var(--text-2xs);color:var(--d700)}
+.cap{font-size:11px;color:var(--d600);margin:6px 2px 0}
+
+/* ══ แบบ A — แถบความคืบหน้าแบบขนส่ง ══ */
+.A{padding:16px 16px 14px}
+.A .track{position:relative;height:6px;border-radius:999px;background:var(--d200);margin:26px 0 0}
+.A .fill{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--success)}
+.A .nodes{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center}
+.A .nd{width:26px;height:26px;border-radius:999px;background:#fff;display:grid;place-items:center;
+       box-shadow:0 0 0 2px var(--d300) inset;color:var(--d400);font-size:14px}
+.A .nd.done{box-shadow:none;background:var(--success);color:#fff}
+.A .nd.now{box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 16%,#fff);background:var(--primary);color:#fff;
+           width:30px;height:30px;font-size:16px}
+.A .labels{display:flex;justify-content:space-between;margin-top:12px;gap:6px}
+.A .lb{flex:1;text-align:center;font-size:var(--text-2xs);color:var(--d700);line-height:1.35}
+.A .lb.now{font-size:var(--text-xs);font-weight:700;color:var(--d900)}
+.A .lb:first-child{text-align:left}.A .lb:last-child{text-align:right}
+.A .note{margin-top:12px;display:flex;gap:8px;align-items:flex-start;background:color-mix(in srgb,var(--primary) 10%,#fff);
+         border-radius:6px;padding:8px 10px;font-size:var(--text-xs);color:var(--primary-ink);font-weight:500}
+.A .note .ic{font-size:15px;flex:0 0 auto;margin-top:1px}
+/* มือถือ: แถบเดิมแต่ป้ายเหลือเฉพาะ "ตอนนี้" */
+.A.mob .labels{display:none}
+.A.mob .now-only{margin-top:14px;display:flex;align-items:baseline;gap:8px}
+.A.mob .now-only b{font-size:var(--text-md);font-weight:700;color:var(--d900)}
+.A.mob .now-only span{font-size:var(--text-2xs);color:var(--d600)}
+
+/* ══ แบบ B — "ตอนนี้" เป็นพระเอก ══ */
+.B{padding:14px 16px}
+.B .top{display:flex;gap:12px;align-items:flex-start}
+.B .badge{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-size:22px;flex:0 0 auto;
+          background:color-mix(in srgb,var(--primary) 12%,#fff);color:var(--primary)}
+.B .ttl{font-size:var(--text-md);font-weight:700;color:var(--d900);line-height:1.35}
+.B .sub{font-size:var(--text-xs);color:var(--d700);margin-top:1px}
+.B .step-of{margin-left:auto;font-size:var(--text-2xs);color:var(--d600);white-space:nowrap;
+            background:var(--d100);border-radius:999px;padding:3px 9px;font-weight:600}
+.B .rail{display:flex;gap:5px;margin-top:14px}
+.B .seg{height:5px;flex:1;border-radius:999px;background:var(--d200)}
+.B .seg.done{background:var(--success)}
+.B .seg.now{background:var(--primary)}
+.B .foot{display:flex;justify-content:space-between;margin-top:8px;font-size:var(--text-2xs);color:var(--d600)}
+.B .done-list{margin-top:12px;padding-top:10px;border-top:1px dashed var(--d300);
+              display:flex;flex-wrap:wrap;gap:x 14px;gap:6px 14px;font-size:var(--text-2xs);color:var(--d700)}
+.B .done-list i{color:var(--success);font-size:13px;vertical-align:-2px;margin-right:3px}
+
+/* ══ แบบ C — รวมเข้ากับการ์ดหัว (ไม่มีการ์ดแยก) ══ */
+.C{padding:0 16px 14px}
+.C .hr{border-top:1px dashed var(--d300);margin:0 0 12px}
+.C .strip{display:flex;align-items:center;gap:0}
+.C .s{display:flex;align-items:center;gap:7px;font-size:var(--text-2xs);color:var(--d600);white-space:nowrap}
+.C .s i{font-size:16px;color:var(--d400)}
+.C .s.done i{color:var(--success)}
+.C .s.done{color:var(--d700)}
+.C .s.now{font-size:var(--text-xs);font-weight:700;color:var(--primary-ink)}
+.C .s.now i{color:var(--primary)}
+.C .ln{flex:1;height:1px;border-top:1px dashed var(--d300);margin:0 9px;min-width:14px}
+.C .note{margin-top:10px;font-size:var(--text-2xs);color:var(--primary-ink);font-weight:500;
+         background:color-mix(in srgb,var(--primary) 10%,#fff);border-radius:5px;padding:6px 9px;display:inline-block}
+.C.mob .strip{flex-direction:column;align-items:stretch;gap:0}
+.C.mob .s{padding:5px 0}
+.C.mob .ln{display:none}
+.C.mob .s+.s{border-top:1px dashed var(--d300)}
+
+/* ══ แบบ D — ไทม์ไลน์แนวตั้งกะทัดรัด ══ */
+.D{padding:14px 16px}
+.D .hd{font-size:var(--text-2xs);font-weight:700;color:var(--d600);letter-spacing:.03em;margin-bottom:12px}
+.D ol{list-style:none}
+.D li{display:flex;gap:11px;position:relative}
+.D li:not(:last-child)::after{content:"";position:absolute;left:9px;top:22px;bottom:-2px;width:2px;background:var(--d200)}
+.D li.done:not(:last-child)::after{background:var(--success)}
+.D .dot{width:20px;height:20px;border-radius:999px;flex:0 0 auto;display:grid;place-items:center;z-index:1;
+        background:#fff;box-shadow:0 0 0 2px var(--d300) inset;color:var(--d400);font-size:11px;margin-top:1px}
+.D li.done .dot{background:var(--success);color:#fff;box-shadow:none}
+.D li.now .dot{background:var(--primary);color:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 15%,#fff)}
+.D .bd{padding-bottom:14px;min-width:0}
+.D li:last-child .bd{padding-bottom:0}
+.D .t{font-size:var(--text-2xs);color:var(--d700);font-weight:500}
+.D li.now .t{font-size:var(--text-sm);font-weight:700;color:var(--d900)}
+.D .n{font-size:var(--text-2xs);color:var(--d600);margin-top:1px}
+.D li.now .n{color:var(--primary-ink);font-weight:500}
+.D .when{font-size:var(--text-2xs);color:var(--d500);margin-top:1px}
+
+/* ── ตารางเทียบ ── */
+table{border-collapse:collapse;width:100%;margin-top:14px;font-size:13px;background:#fff;border-radius:8px;overflow:hidden}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--d200);vertical-align:top}
+th{background:var(--d100);font-weight:600;color:var(--d900);font-size:12px}
+td:first-child{font-weight:600;white-space:nowrap}
+.states{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px}
+.states .dev{width:340px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>แถบสถานะคำสั่งซื้อ — 4 แบบให้เลือก</h1>
+<p class="lede">
+  ตัวอย่างใช้ออเดอร์จริง <b>DP2569085F97153B</b> · เก็บเงินปลายทาง ฿2,500 · ของออกจากร้านแล้ว กำลังรอเก็บเงิน
+  ทุกแบบใช้สีจาก token จริงของ Paces (<code>--color-primary #236dc9</code>, <code>--color-success #02bc9c</code>, ฯลฯ) และฟอนต์ Anuphan
+  — สิ่งที่เห็นคือสิ่งที่จะได้จริง ไม่ใช่สีสมมติ · การ์ดสีขาวด้านบนของแต่ละจอคือการ์ดหัวออเดอร์ที่มีอยู่แล้ว ใส่ไว้ให้เห็นบริบท
+</p>
+
+<!-- ══════════ A ══════════ -->
+<h2>แบบ A <span class="tag">แถบความคืบหน้าแบบขนส่ง</span></h2>
+<p class="why">
+  แถบเดียวยาวต่อเนื่อง เติมสีถึงจุดที่มาถึง — <b>รูปแบบที่คนไทยเห็นทุกวันจากแอปขนส่ง/ช้อปปิ้ง</b> จึงอ่านออกโดยไม่ต้องเรียนรู้
+  ความสูงน้อยที่สุดในบรรดา 4 แบบ · มือถือซ่อนป้ายทุกขั้น เหลือแค่บรรทัด "ตอนนี้อยู่ตรงไหน" ใต้แถบ
+</p>
+<div class="devices">
+  <div class="dev m"><div class="bar">Mobile · 390px</div><div class="screen">
+    <div class="card hero"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span></div>
+      <div class="buyer">มงคล บับภาเอก · ฿2,500.00</div></div>
+    <div class="card A mob">
+      <div class="track"><div class="fill" style="width:calc(50% + 4px)"></div>
+        <div class="nodes">
+          <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+          <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+          <span class="nd now"><span class="iconify" data-icon="tabler:coin"></span></span>
+          <span class="nd"><span class="iconify" data-icon="tabler:circle-check"></span></span>
+        </div></div>
+      <div class="now-only"><b>รอเก็บเงินปลายทาง</b><span>ขั้นที่ 3 จาก 4</span></div>
+      <div class="note"><span class="iconify ic" data-icon="tabler:coin"></span><span>฿2,500 · ขนส่งเก็บให้ตอนส่งถึง</span></div>
+    </div>
+    <p class="cap">มือถือ: ไม่ยัดป้าย 4 อัน เหลือเฉพาะขั้นที่กำลังรอ</p>
+  </div></div>
+
+  <div class="dev t"><div class="bar">Tablet · 640px</div><div class="screen">
+    <div class="card hero"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span>
+      <span class="amt"><b>฿2,500.00</b><span>ยอดรวมทั้งหมด</span></span></div>
+      <div class="buyer">มงคล บับภาเอก</div></div>
+    <div class="card A">
+      <div class="track"><div class="fill" style="width:calc(50% + 4px)"></div>
+        <div class="nodes">
+          <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+          <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+          <span class="nd now"><span class="iconify" data-icon="tabler:coin"></span></span>
+          <span class="nd"><span class="iconify" data-icon="tabler:circle-check"></span></span>
+        </div></div>
+      <div class="labels"><span class="lb">สั่งซื้อแล้ว</span><span class="lb">จัดส่งแล้ว</span>
+        <span class="lb now">รอเก็บเงินปลายทาง</span><span class="lb">รอผู้ซื้อยืนยันรับของ</span></div>
+      <div class="note"><span class="iconify ic" data-icon="tabler:coin"></span><span>฿2,500 · ขนส่งเก็บให้ตอนส่งถึง แล้วโอนเข้าร้านตามรอบของขนส่ง</span></div>
+    </div>
+  </div></div>
+
+  <div class="dev k"><div class="bar">Desktop · 720px (ความกว้างจริงของแถบบนจอ 1440)</div><div class="screen">
+    <div class="card hero"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span>
+      <span class="amt"><b>฿2,500.00</b><span>ยอดรวมทั้งหมด</span></span></div>
+      <div class="buyer">มงคล บับภาเอก · วันที่สร้าง 2569-08-01 10:25</div></div>
+    <div class="card A">
+      <div class="track"><div class="fill" style="width:calc(50% + 4px)"></div>
+        <div class="nodes">
+          <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+          <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+          <span class="nd now"><span class="iconify" data-icon="tabler:coin"></span></span>
+          <span class="nd"><span class="iconify" data-icon="tabler:circle-check"></span></span>
+        </div></div>
+      <div class="labels"><span class="lb">สั่งซื้อแล้ว</span><span class="lb">จัดส่งแล้ว</span>
+        <span class="lb now">รอเก็บเงินปลายทาง</span><span class="lb">รอผู้ซื้อยืนยันรับของ</span></div>
+      <div class="note"><span class="iconify ic" data-icon="tabler:coin"></span><span>฿2,500 · ขนส่งเก็บให้ตอนส่งถึง แล้วโอนเข้าร้านตามรอบของขนส่ง</span></div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ══════════ B ══════════ -->
+<h2>แบบ B <span class="tag">"ตอนนี้" เป็นพระเอก</span></h2>
+<p class="why">
+  ไม่พยายามโชว์ทุกขั้นเท่ากัน — <b>ตอบคำถามเดียวคือ "ตอนนี้ต้องรออะไร"</b> ด้วยตัวใหญ่บรรทัดเดียว
+  แล้วใช้แถบขีดสั้น ๆ บอกว่ามาถึงไหนแล้ว ขั้นที่ผ่านไปแล้วยุบเป็นบรรทัดเดียวข้างล่าง
+  หน้าตาเหมือนกันทุกจอ ไม่ต้องมี layout แยกมือถือ/เดสก์ท็อป
+</p>
+<div class="devices">
+  <div class="dev m"><div class="bar">Mobile · 390px</div><div class="screen">
+    <div class="card hero"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span></div>
+      <div class="buyer">มงคล บับภาเอก · ฿2,500.00</div></div>
+    <div class="card B">
+      <div class="top"><span class="badge"><span class="iconify" data-icon="tabler:coin"></span></span>
+        <div><div class="ttl">รอเก็บเงินปลายทาง</div><div class="sub">฿2,500 · ขนส่งเก็บให้ตอนส่งถึง</div></div>
+        <span class="step-of">3 / 4</span></div>
+      <div class="rail"><span class="seg done"></span><span class="seg done"></span><span class="seg now"></span><span class="seg"></span></div>
+      <div class="foot"><span>สั่งซื้อแล้ว</span><span>ผู้ซื้อยืนยันรับของ</span></div>
+      <div class="done-list">
+        <span><i class="iconify" data-icon="tabler:check"></i>สั่งซื้อแล้ว</span>
+        <span><i class="iconify" data-icon="tabler:check"></i>จัดส่งแล้ว 04 ส.ค. 19:58</span>
+      </div>
+    </div>
+    <p class="cap">ขั้นที่ผ่านแล้วยุบเป็นบรรทัดเดียว ไม่กินพื้นที่</p>
+  </div></div>
+
+  <div class="dev t"><div class="bar">Tablet · 640px</div><div class="screen">
+    <div class="card hero"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span>
+      <span class="amt"><b>฿2,500.00</b><span>ยอดรวมทั้งหมด</span></span></div><div class="buyer">มงคล บับภาเอก</div></div>
+    <div class="card B">
+      <div class="top"><span class="badge"><span class="iconify" data-icon="tabler:coin"></span></span>
+        <div><div class="ttl">รอเก็บเงินปลายทาง</div><div class="sub">฿2,500 · ขนส่งเก็บให้ตอนส่งถึง แล้วโอนเข้าร้านตามรอบของขนส่ง</div></div>
+        <span class="step-of">3 / 4</span></div>
+      <div class="rail"><span class="seg done"></span><span class="seg done"></span><span class="seg now"></span><span class="seg"></span></div>
+      <div class="foot"><span>สั่งซื้อแล้ว</span><span>ผู้ซื้อยืนยันรับของ</span></div>
+      <div class="done-list">
+        <span><i class="iconify" data-icon="tabler:check"></i>สั่งซื้อแล้ว 01 ส.ค. 10:25</span>
+        <span><i class="iconify" data-icon="tabler:check"></i>จัดส่งแล้ว 04 ส.ค. 19:58</span>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="dev k"><div class="bar">Desktop · 720px</div><div class="screen">
+    <div class="card hero"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span>
+      <span class="amt"><b>฿2,500.00</b><span>ยอดรวมทั้งหมด</span></span></div>
+      <div class="buyer">มงคล บับภาเอก · วันที่สร้าง 2569-08-01 10:25</div></div>
+    <div class="card B">
+      <div class="top"><span class="badge"><span class="iconify" data-icon="tabler:coin"></span></span>
+        <div><div class="ttl">รอเก็บเงินปลายทาง</div><div class="sub">฿2,500 · ขนส่งเก็บให้ตอนส่งถึง แล้วโอนเข้าร้านตามรอบของขนส่ง</div></div>
+        <span class="step-of">ขั้นที่ 3 จาก 4</span></div>
+      <div class="rail"><span class="seg done"></span><span class="seg done"></span><span class="seg now"></span><span class="seg"></span></div>
+      <div class="foot"><span>สั่งซื้อแล้ว</span><span>ผู้ซื้อยืนยันรับของ</span></div>
+      <div class="done-list">
+        <span><i class="iconify" data-icon="tabler:check"></i>สั่งซื้อแล้ว 01 ส.ค. 10:25</span>
+        <span><i class="iconify" data-icon="tabler:check"></i>จัดส่งแล้ว 04 ส.ค. 19:58 · Flash Thunder</span>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ══════════ C ══════════ -->
+<h2>แบบ C <span class="tag">รวมเข้ากับการ์ดหัว — ไม่มีการ์ดแยก</span></h2>
+<p class="why">
+  <b>ต้นเหตุที่ 2 เวอร์ชันก่อนดูโล่ง คือมันเป็นการ์ดใบใหม่เต็มความกว้างที่มีของอยู่นิดเดียว</b>
+  แบบนี้เลิกสร้างการ์ดใหม่ ย้ายไปเป็นแถบบางใต้เส้นประของการ์ดหัวที่มีอยู่แล้ว — หน้าสั้นลง ไม่มีกล่องลอย
+  แลกกับการที่มันไม่เด่น (ตั้งใจ: การ์ดหัวยังเป็นพระเอกของหน้า)
+</p>
+<div class="devices">
+  <div class="dev m"><div class="bar">Mobile · 390px</div><div class="screen">
+    <div class="card">
+      <div class="hero" style="padding-bottom:12px"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span></div>
+        <div class="buyer">มงคล บับภาเอก · ฿2,500.00</div></div>
+      <div class="C mob"><div class="hr"></div>
+        <div class="strip">
+          <span class="s done"><i class="iconify" data-icon="tabler:circle-check-filled"></i>สั่งซื้อแล้ว</span>
+          <span class="s done"><i class="iconify" data-icon="tabler:circle-check-filled"></i>จัดส่งแล้ว</span>
+          <span class="s now"><i class="iconify" data-icon="tabler:coin"></i>รอเก็บเงินปลายทาง</span>
+          <span class="s"><i class="iconify" data-icon="tabler:circle"></i>รอผู้ซื้อยืนยันรับของ</span>
+        </div>
+        <span class="note">฿2,500 · ขนส่งเก็บให้ตอนส่งถึง</span>
+      </div>
+    </div>
+    <p class="cap">ไม่มีการ์ดใบที่สอง — ทุกอย่างอยู่ในใบเดียว</p>
+  </div></div>
+
+  <div class="dev t"><div class="bar">Tablet · 640px</div><div class="screen">
+    <div class="card">
+      <div class="hero" style="padding-bottom:12px"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span>
+        <span class="amt"><b>฿2,500.00</b><span>ยอดรวมทั้งหมด</span></span></div><div class="buyer">มงคล บับภาเอก</div></div>
+      <div class="C"><div class="hr"></div>
+        <div class="strip">
+          <span class="s done"><i class="iconify" data-icon="tabler:circle-check-filled"></i>สั่งซื้อแล้ว</span><span class="ln"></span>
+          <span class="s done"><i class="iconify" data-icon="tabler:circle-check-filled"></i>จัดส่งแล้ว</span><span class="ln"></span>
+          <span class="s now"><i class="iconify" data-icon="tabler:coin"></i>รอเก็บเงินปลายทาง</span><span class="ln"></span>
+          <span class="s"><i class="iconify" data-icon="tabler:circle"></i>รอผู้ซื้อยืนยันรับของ</span>
+        </div>
+        <span class="note">฿2,500 · ขนส่งเก็บให้ตอนส่งถึง แล้วโอนเข้าร้านตามรอบของขนส่ง</span>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="dev k"><div class="bar">Desktop · 720px</div><div class="screen">
+    <div class="card">
+      <div class="hero" style="padding-bottom:12px"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span>
+        <span class="amt"><b>฿2,500.00</b><span>ยอดรวมทั้งหมด</span></span></div>
+        <div class="buyer">มงคล บับภาเอก · วันที่สร้าง 2569-08-01 10:25</div></div>
+      <div class="C"><div class="hr"></div>
+        <div class="strip">
+          <span class="s done"><i class="iconify" data-icon="tabler:circle-check-filled"></i>สั่งซื้อแล้ว</span><span class="ln"></span>
+          <span class="s done"><i class="iconify" data-icon="tabler:circle-check-filled"></i>จัดส่งแล้ว</span><span class="ln"></span>
+          <span class="s now"><i class="iconify" data-icon="tabler:coin"></i>รอเก็บเงินปลายทาง</span><span class="ln"></span>
+          <span class="s"><i class="iconify" data-icon="tabler:circle"></i>รอผู้ซื้อยืนยันรับของ</span>
+        </div>
+        <span class="note">฿2,500 · ขนส่งเก็บให้ตอนส่งถึง แล้วโอนเข้าร้านตามรอบของขนส่ง</span>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ══════════ D ══════════ -->
+<h2>แบบ D <span class="tag">ไทม์ไลน์แนวตั้ง มีเวลาจริง</span></h2>
+<p class="why">
+  แนวตั้งเหมือนกันทุกจอ เส้นทึบเชื่อมจุด <b>ได้พื้นที่เขียนเวลาจริงของแต่ละขั้น</b> ซึ่งอีก 3 แบบไม่มีที่ให้
+  เป็นแบบเดียวที่ยัดกลับเข้าคอลัมน์ขวา 25% ได้โดยไม่พัง (ถ้าอยากได้พื้นที่หลักคืนให้รายการสินค้า)
+  ข้อเสีย: สูงที่สุดใน 4 แบบ ต้องเลื่อนผ่านทุกครั้ง
+</p>
+<div class="devices">
+  <div class="dev m"><div class="bar">Mobile · 390px</div><div class="screen">
+    <div class="card hero"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span></div>
+      <div class="buyer">มงคล บับภาเอก · ฿2,500.00</div></div>
+    <div class="card D">
+      <ol>
+        <li class="done"><span class="dot"><span class="iconify" data-icon="tabler:check"></span></span>
+          <div class="bd"><div class="t">สั่งซื้อแล้ว</div><div class="when">01 ส.ค. 2569 10:25</div></div></li>
+        <li class="done"><span class="dot"><span class="iconify" data-icon="tabler:check"></span></span>
+          <div class="bd"><div class="t">จัดส่งแล้ว</div><div class="n">Flash Thunder · TH460290DA197B</div><div class="when">04 ส.ค. 2569 19:58</div></div></li>
+        <li class="now"><span class="dot"><span class="iconify" data-icon="tabler:coin"></span></span>
+          <div class="bd"><div class="t">รอเก็บเงินปลายทาง</div><div class="n">฿2,500 · ขนส่งเก็บให้ตอนส่งถึง</div></div></li>
+        <li><span class="dot"></span>
+          <div class="bd"><div class="t">รอผู้ซื้อยืนยันรับของ</div></div></li>
+      </ol>
+    </div>
+    <p class="cap">แบบเดียวที่มีที่พอเขียนเวลาครบทุกขั้น</p>
+  </div></div>
+
+  <div class="dev t"><div class="bar">Tablet · 640px</div><div class="screen">
+    <div class="card hero"><div class="row1"><span class="no">DP2569085F97153B</span><span class="pill">จัดส่งแล้ว</span>
+      <span class="amt"><b>฿2,500.00</b><span>ยอดรวมทั้งหมด</span></span></div><div class="buyer">มงคล บับภาเอก</div></div>
+    <div class="card D">
+      <ol>
+        <li class="done"><span class="dot"><span class="iconify" data-icon="tabler:check"></span></span>
+          <div class="bd"><div class="t">สั่งซื้อแล้ว</div><div class="when">01 ส.ค. 2569 10:25</div></div></li>
+        <li class="done"><span class="dot"><span class="iconify" data-icon="tabler:check"></span></span>
+          <div class="bd"><div class="t">จัดส่งแล้ว</div><div class="n">Flash Thunder · TH460290DA197B</div><div class="when">04 ส.ค. 2569 19:58</div></div></li>
+        <li class="now"><span class="dot"><span class="iconify" data-icon="tabler:coin"></span></span>
+          <div class="bd"><div class="t">รอเก็บเงินปลายทาง</div><div class="n">฿2,500 · ขนส่งเก็บให้ตอนส่งถึง แล้วโอนเข้าร้านตามรอบของขนส่ง</div></div></li>
+        <li><span class="dot"></span><div class="bd"><div class="t">รอผู้ซื้อยืนยันรับของ</div></div></li>
+      </ol>
+    </div>
+  </div></div>
+
+  <div class="dev k"><div class="bar">Desktop · คอลัมน์ขวา 25% (280px)</div><div class="screen" style="display:flex;gap:10px">
+    <div style="flex:1;background:#fff;border-radius:8px;min-height:210px;display:grid;place-items:center;color:var(--d500);font-size:12px">
+      การ์ด "ใบสั่งซื้อ" (รายการสินค้า/ที่อยู่)</div>
+    <div style="width:280px"><div class="card D">
+      <div class="hd">สถานะคำสั่งซื้อ</div>
+      <ol>
+        <li class="done"><span class="dot"><span class="iconify" data-icon="tabler:check"></span></span>
+          <div class="bd"><div class="t">สั่งซื้อแล้ว</div><div class="when">01 ส.ค. 10:25</div></div></li>
+        <li class="done"><span class="dot"><span class="iconify" data-icon="tabler:check"></span></span>
+          <div class="bd"><div class="t">จัดส่งแล้ว</div><div class="when">04 ส.ค. 19:58</div></div></li>
+        <li class="now"><span class="dot"><span class="iconify" data-icon="tabler:coin"></span></span>
+          <div class="bd"><div class="t">รอเก็บเงินปลายทาง</div><div class="n">฿2,500 · เก็บตอนส่งถึง</div></div></li>
+        <li><span class="dot"></span><div class="bd"><div class="t">รอผู้ซื้อยืนยันรับของ</div></div></li>
+      </ol>
+    </div></div>
+  </div></div>
+</div>
+
+<!-- ══════════ สถานะอื่น ══════════ -->
+<h2>สถานะอื่นหน้าตาเป็นยังไง <span class="tag">ยกแบบ A มาเทียบ</span></h2>
+<p class="why">ทุกแบบต้องรองรับ 4 เส้นทางนี้ — ยกแบบ A มาให้ดูว่ามันไม่พังเวลาขั้นน้อยลงหรือโดนยกเลิก</p>
+<div class="states">
+  <div class="dev"><div class="bar">โอน/พร้อมเพย์ · รอผู้ซื้อชำระเงิน</div><div class="screen">
+    <div class="card A"><div class="track"><div class="fill" style="width:12px"></div>
+      <div class="nodes">
+        <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+        <span class="nd now"><span class="iconify" data-icon="tabler:credit-card"></span></span>
+        <span class="nd"><span class="iconify" data-icon="tabler:truck"></span></span>
+        <span class="nd"><span class="iconify" data-icon="tabler:circle-check"></span></span></div></div>
+      <div class="labels"><span class="lb">สั่งซื้อแล้ว</span><span class="lb now">รอผู้ซื้อชำระเงิน</span>
+        <span class="lb">จัดส่ง</span><span class="lb">ยืนยันรับของ</span></div></div>
+  </div></div>
+
+  <div class="dev"><div class="bar">บริการ/ดิจิทัล · ไม่มีขั้นจัดส่ง (3 ขั้น)</div><div class="screen">
+    <div class="card A"><div class="track"><div class="fill" style="width:calc(50% + 4px)"></div>
+      <div class="nodes">
+        <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+        <span class="nd now"><span class="iconify" data-icon="tabler:coin"></span></span>
+        <span class="nd"><span class="iconify" data-icon="tabler:circle-check"></span></span></div></div>
+      <div class="labels"><span class="lb">สั่งซื้อแล้ว</span><span class="lb now">รอเก็บเงินปลายทาง</span>
+        <span class="lb">ยืนยันรับของ</span></div></div>
+  </div></div>
+
+  <div class="dev"><div class="bar">ยกเลิกแล้ว (2 ขั้น)</div><div class="screen">
+    <div class="card A"><div class="track"><div class="fill" style="width:12px;background:var(--danger)"></div>
+      <div class="nodes">
+        <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+        <span class="nd now" style="background:var(--danger);box-shadow:0 0 0 4px color-mix(in srgb,var(--danger) 16%,#fff)">
+          <span class="iconify" data-icon="tabler:x"></span></span></div></div>
+      <div class="labels"><span class="lb">สั่งซื้อแล้ว</span><span class="lb now" style="color:var(--danger-ink)">ยกเลิกแล้ว</span></div>
+      <div class="note" style="background:color-mix(in srgb,var(--danger) 10%,#fff);color:var(--danger-ink)">
+        <span class="iconify ic" data-icon="tabler:circle-x"></span><span>ลิงก์ที่เคยส่งให้ลูกค้าใช้ไม่ได้อีก</span></div></div>
+  </div></div>
+
+  <div class="dev"><div class="bar">จบแล้ว · ผู้ซื้อยืนยันรับของ</div><div class="screen">
+    <div class="card A"><div class="track"><div class="fill" style="width:100%"></div>
+      <div class="nodes">
+        <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+        <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+        <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span>
+        <span class="nd done"><span class="iconify" data-icon="tabler:check"></span></span></div></div>
+      <div class="labels"><span class="lb">สั่งซื้อแล้ว</span><span class="lb">จัดส่งแล้ว</span>
+        <span class="lb">เก็บเงินแล้ว</span><span class="lb">ผู้ซื้อรับของแล้ว</span></div></div>
+  </div></div>
+</div>
+
+<h2>เทียบให้เห็นภาพ</h2>
+<table>
+  <tr><th></th><th>A · แถบขนส่ง</th><th>B · "ตอนนี้" พระเอก</th><th>C · รวมกับการ์ดหัว</th><th>D · ไทม์ไลน์แนวตั้ง</th></tr>
+  <tr><td>ความสูงที่กิน</td><td>ต่ำ (~110px)</td><td>กลาง (~140px)</td><td><b>ต่ำสุด</b> (~70px, ไม่มีการ์ดใหม่)</td><td>สูงสุด (~200px)</td></tr>
+  <tr><td>รู้ทันทีว่ารออะไร</td><td>ดี</td><td><b>ดีที่สุด</b></td><td>พอใช้ (ตัวเล็ก)</td><td>ดี</td></tr>
+  <tr><td>เห็นภาพรวมทั้งเส้นทาง</td><td><b>ดีที่สุด</b></td><td>พอใช้ (แถบขีด)</td><td>ดี</td><td>ดี</td></tr>
+  <tr><td>มีที่เขียนเวลาจริง</td><td>ไม่มี</td><td>เฉพาะขั้นที่ผ่านแล้ว</td><td>ไม่มี</td><td><b>ครบทุกขั้น</b></td></tr>
+  <tr><td>มือถือ</td><td>ต้องซ่อนป้าย</td><td>เหมือนเดสก์ท็อป</td><td>ต้องพลิกเป็นแนวตั้ง</td><td>เหมือนเดสก์ท็อป</td></tr>
+  <tr><td>ความคุ้นเคยของผู้ใช้</td><td><b>สูงสุด</b> (เหมือนแอปขนส่ง)</td><td>กลาง</td><td>กลาง</td><td>สูง</td></tr>
+  <tr><td>ต้องหา Base ในธีมเพิ่ม</td><td>ใช่ (progress bar)</td><td>ใช่</td><td>ไม่ (ยืด card เดิม)</td><td><b>ไม่ (Paces Timeline ตรง ๆ)</b></td></tr>
+</table>
+
+<p class="cap" style="margin-top:20px">
+  ยังไม่แตะโค้ดจริง — เลือกแบบแล้วบอกได้เลย ผสมกันก็ได้ (เช่น เอาแถบของ A แต่ใส่บรรทัด "ตอนนี้" ตัวใหญ่แบบ B)
+</p>
+
+</div>
+</body>
+</html>

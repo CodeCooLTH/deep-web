@@ -111,6 +111,10 @@ export interface OrderDetailClientProps {
   carrierStatus: string | null
   /** ออเดอร์เก็บเงินปลายทางที่ร้านยังไม่ได้กดว่าได้เงิน → มีปุ่ม "ได้รับเงินปลายทางแล้ว" */
   isCodUnpaid: boolean
+  /** เวลาที่เปิดพัสดุ/แจ้งเลขพัสดุ — วันที่ของขั้น "จัดส่งแล้ว" ในแถบสถานะ */
+  shippedAtISO: string | null
+  /** เวลาที่ได้เงินปลายทาง (ร้านกดเอง) หรือเวลาที่ขนส่งส่งถึง — วันที่ของขั้น "เก็บเงินปลายทาง" */
+  codMoneyAtISO: string | null
 
   /** grid เนื้อหา (OrderFactsCard/OrderReviewCard) — ส่งมาจาก page.tsx (RSC)
       ตรง ๆ ผ่าน children เพื่อให้ subtree นั้นยัง server-render ได้ ไม่ลากเข้า client bundle */
@@ -141,6 +145,8 @@ export default function OrderDetailClient({
   updatedAtISO,
   carrierStatus,
   isCodUnpaid,
+  shippedAtISO,
+  codMoneyAtISO,
   children,
 }: OrderDetailClientProps) {
   const router = useRouter()
@@ -349,6 +355,8 @@ export default function OrderDetailClient({
           carrierStatus={carrierStatus}
           createdAtISO={createdAtISO}
           updatedAtISO={updatedAtISO}
+          shippedAtISO={shippedAtISO}
+          codMoneyAtISO={codMoneyAtISO}
         />
       </div>
 
