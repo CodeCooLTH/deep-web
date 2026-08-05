@@ -106,43 +106,11 @@ const SalesReport = ({ series, summary }: SalesReportProps) => {
     <div className="card h-full">
       <div className="card-header md:py-0 pt-6 pb-0">
         <h4 className="card-title">รายงานยอดขาย</h4>
-        <div>
-          <nav className="flex gap-x-1" aria-label="Tabs" role="tablist" aria-orientation="horizontal">
-            <button
-              type="button"
-              className="hs-tab-active:font-semibold hs-tab-active:border-primary hs-tab-active:text-primary md:py-4.25 py-3 px-4 inline-flex items-center border-b border-transparent text-sm whitespace-nowrap hover:text-primary focus:outline-hidden focus:text-primary disabled:opacity-50 disabled:pointer-events-none"
-              id="today"
-              aria-selected="true"
-              data-hs-tab="#today-tab"
-              aria-controls="today-tab"
-              role="tab"
-            >
-              วันนี้
-            </button>
-            <button
-              type="button"
-              className="hs-tab-active:font-semibold hs-tab-active:border-primary hs-tab-active:text-primary md:py-4.25 py-3 px-4 inline-flex items-center border-b border-transparent text-sm whitespace-nowrap hover:text-primary focus:outline-hidden focus:text-primary disabled:opacity-50 disabled:pointer-events-none active"
-              id="monthly"
-              aria-selected="false"
-              data-hs-tab="#monthly-tab"
-              aria-controls="monthly-tab"
-              role="tab"
-            >
-              รายเดือน
-            </button>
-            <button
-              type="button"
-              className="hs-tab-active:font-semibold hs-tab-active:border-primary hs-tab-active:text-primary md:py-4.25 py-3 px-4 inline-flex items-center border-b border-transparent text-sm whitespace-nowrap hover:text-primary focus:outline-hidden focus:text-primary disabled:opacity-50 disabled:pointer-events-none"
-              id="annual"
-              aria-selected="false"
-              data-hs-tab="#annual-atb"
-              aria-controls="annual-atb"
-              role="tab"
-            >
-              รายปี
-            </button>
-          </nav>
-        </div>
+        {/* เดิมตรงนี้เป็นแท็บ "วันนี้/รายเดือน/รายปี" ที่ติดมากับธีมแต่กดแล้วไม่ทำอะไรเลย
+            (hs-tab ชี้ panel ที่ไม่มีจริง — id "annual-atb" สะกดผิดด้วยซ้ำ) พอหน้ามี filter
+            วันนี้/เดือนนี้ ของจริงที่แถวหัวแล้ว ปุ่มปลอมชุดนี้ยิ่งหลอกตา — ตัดทิ้ง เหลือป้ายนิ่ง
+            บอกตรง ๆ ว่ากราฟใบนี้เป็นรายเดือนย้อนหลัง (ไม่ตาม filter ระดับหน้า) */}
+        <span className="text-default-500 text-xs">ยอดขายรายเดือน</span>
       </div>
 
       {isEmpty ? (

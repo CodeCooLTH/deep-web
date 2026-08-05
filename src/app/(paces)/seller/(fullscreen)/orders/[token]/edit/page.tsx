@@ -33,7 +33,17 @@ import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/Full
 import Icon from '@/components/wrappers/Icon'
 import LockedStateBanner from '@/app/(paces)/seller/(dashboard)/business/components/LockedStateBanner'
 
-export const metadata: Metadata = { title: 'แก้ไขคำสั่งซื้อ' }
+/**
+ * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
+ * (mirror orders/page.tsx) resolve ไม่ได้ → ตกไปชุด ONLINE_SALES ตาม fail-safe ของ SSOT
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const session = await getServerSession(authOptions)
+  const active = await requireActiveShop(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  ).catch(() => null)
+  return { title: `แก้ไข${resolveOrderVocab(active?.shop?.vertical ?? '').noun}` }
+}
 
 const FORM_ID = 'order-edit-form'
 
@@ -49,6 +59,8 @@ export default async function EditOrderPage({ params }: PageProps) {
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   if (!active) notFound()
   const shop = active.shop
+  // hoist ครั้งเดียว — ใช้ทั้ง heading/blocked copy/ฟอร์ม (feature 00030 BR-BKU-09)
+  const vocab = resolveOrderVocab(shop.vertical)
 
   // DAL pattern: scope shopId เข้า query — กัน IDOR + กัน RSC flight-data leak
   // (redirect หลัง findUnique ไม่ช่วย เพราะข้อมูล serialize เข้า flight ไปแล้ว)
@@ -78,13 +90,26 @@ export default async function EditOrderPage({ params }: PageProps) {
     // ข้อความต่างกันตามสถานะ — เดิมใช้ข้อความเดียวว่า "ให้ยกเลิกแล้วสร้างใหม่" ซึ่งใช้ไม่ได้กับ
     // CONFIRMED/CANCELLED: CancelOrderButton คืน null เมื่อไม่ใช่ PENDING/SHIPPED ผู้ใช้จึงหา
     // ปุ่มยกเลิกไม่เจอ = copy สั่งให้ทำสิ่งที่ระบบไม่มีให้ทำ
-    const blockedCopy: Record<string, string> = {
-      SHIPPED:
-        'คำสั่งซื้อนี้จัดส่งไปแล้ว จึงแก้ไขรายการสินค้าหรือยอดเงินไม่ได้ หากข้อมูลผิด ให้ยกเลิกคำสั่งซื้อแล้วสร้างใบใหม่',
-      CONFIRMED:
-        'ผู้ซื้อยืนยันรับสินค้าแล้ว คำสั่งซื้อที่ปิดแล้วแก้ไขไม่ได้ เพราะประวัติและคะแนนความน่าเชื่อถือถูกบันทึกไปแล้ว',
-      CANCELLED: 'คำสั่งซื้อนี้ถูกยกเลิกไปแล้ว หากยังต้องการขาย ให้สร้างคำสั่งซื้อใบใหม่',
-    }
+    // ประโยคพวกนี้มี "กริยาเชิงโดเมน" ฝังอยู่ (จัดส่ง/รับสินค้า/ขาย/ลักษณนาม "ใบ") — แทน noun
+    // อย่างเดียวจะได้ประโยคถูกไวยากรณ์แต่ผิดโลกจริง ("สร้างบิลเข้าพักใบใหม่" ละเมิดคำล็อก
+    // "เปิดบิลเข้าพัก" ใน UX-Copy §3) จึง allow-list ร้านรับนัด/บ้านพักไปชุด vocab-template
+    // ส่วน vertical อื่น/ไม่รู้จัก fail-closed ไปชุด ONLINE_SALES เดิม
+    const isBookingVertical = shop.vertical === 'SERVICE_QUEUE' || shop.vertical === 'LODGING'
+    const blockedCopy: Record<string, string> = isBookingVertical
+      ? {
+          // SHIPPED บนร้านรับนัด/บ้านพัก = ข้อมูลเก่าก่อน enforcement (สินค้า SHIPPED ค้างในฐาน)
+          // ห้ามพูด "จัดส่งไปแล้ว" กับร้านที่ไม่มีจัดส่ง — บอกสถานะแบบกลางที่ยังจริงอยู่
+          SHIPPED: `${vocab.noun}นี้เลยขั้นรอดำเนินการไปแล้ว จึงแก้ไขรายการหรือยอดเงินไม่ได้ หากข้อมูลผิด ให้ยกเลิกแล้ว${vocab.createLabel}ใหม่`,
+          CONFIRMED: `ลูกค้ายืนยันแล้ว ${vocab.noun}ที่ปิดแล้วแก้ไขไม่ได้ เพราะประวัติและคะแนนความน่าเชื่อถือถูกบันทึกไปแล้ว`,
+          CANCELLED: `${vocab.noun}นี้ถูกยกเลิกไปแล้ว หากต้องการเริ่มใหม่ ให้${vocab.createLabel}อีกครั้ง`,
+        }
+      : {
+          SHIPPED:
+            'คำสั่งซื้อนี้จัดส่งไปแล้ว จึงแก้ไขรายการสินค้าหรือยอดเงินไม่ได้ หากข้อมูลผิด ให้ยกเลิกคำสั่งซื้อแล้วสร้างใบใหม่',
+          CONFIRMED:
+            'ผู้ซื้อยืนยันรับสินค้าแล้ว คำสั่งซื้อที่ปิดแล้วแก้ไขไม่ได้ เพราะประวัติและคะแนนความน่าเชื่อถือถูกบันทึกไปแล้ว',
+          CANCELLED: 'คำสั่งซื้อนี้ถูกยกเลิกไปแล้ว หากยังต้องการขาย ให้สร้างคำสั่งซื้อใบใหม่',
+        }
     return (
       <div className="card mx-auto max-w-2xl rounded-xl p-10 text-center">
         <Icon
@@ -93,9 +118,9 @@ export default async function EditOrderPage({ params }: PageProps) {
           height={64}
           className="text-warning mx-auto mb-4"
         />
-        <h2 className="text-dark mb-2 text-xl font-bold">แก้ไขคำสั่งซื้อ {orderNo} ไม่ได้</h2>
+        <h2 className="text-dark mb-2 text-xl font-bold">แก้ไข{vocab.noun} {orderNo} ไม่ได้</h2>
         <p className="text-default-400 mb-6">
-          {blockedCopy[order.status] ?? 'แก้ไขได้เฉพาะคำสั่งซื้อที่ยังรอดำเนินการเท่านั้น'}
+          {blockedCopy[order.status] ?? `แก้ไขได้เฉพาะ${vocab.noun}ที่ยังรอดำเนินการเท่านั้น`}
         </p>
         <Link
           href={`/orders/${order.publicToken}`}
@@ -131,14 +156,14 @@ export default async function EditOrderPage({ params }: PageProps) {
       {/* backHref ชี้กลับหน้ารายละเอียดออเดอร์ (ที่มาของปุ่มแก้ไข) — ไม่ใช่ /orders
           cancelHref เป็น deprecated prop แล้ว (FullscreenPageHeader M0-a) */}
       <FullscreenPageHeader
-        title="แก้ไขคำสั่งซื้อ"
+        title={`แก้ไข${vocab.noun}`}
         subtitle={orderNo}
         backHref={`/orders/${order.publicToken}`}
         saveFormId={FORM_ID}
         saveLabel="บันทึกการแก้ไข"
       />
       <OrderCreateForm
-        vocab={resolveOrderVocab(shop.vertical)}
+        vocab={vocab}
         shopId={shop.id}
         catalog={catalog}
         bestSellers={bestSellers}

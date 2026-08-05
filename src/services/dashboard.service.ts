@@ -276,9 +276,14 @@ export async function getSalesSeries(
 // ทั้งสองตัวคิดจาก "เดือนตามปฏิทินไทย" ชุดเดียวกับ getSalesSeries(mode='daily')
 // — user เคาะ 2026-08-05 ว่าทุกการ์ดบนแดชบอร์ดต้องพูดถึงช่วงเวลาเดียวกัน
 
-/** ขอบเขตเดือนไทย [gte, lt) ของ period — ใช้ร่วมกันทั้งสองฟังก์ชันด้านล่าง */
-function thaiMonthRange(period: { year: number; month: number }) {
+/** ขอบเขต [gte, lt) ตามปฏิทินไทยของ period — ใช้ร่วมกันทั้งสองฟังก์ชันด้านล่าง
+ *  มี `day` = ขอบเขต 1 วัน (filter "วันนี้" บนแดชบอร์ดเดสก์ท็อป) · ไม่มี = ทั้งเดือนตามเดิม */
+function thaiMonthRange(period: { year: number; month: number; day?: number }) {
   const month0 = period.month - 1
+  if (period.day != null) {
+    const gte = new Date(Date.UTC(period.year, month0, period.day) - TZ_OFFSET_MS)
+    return { gte, lt: new Date(gte.getTime() + 24 * 60 * 60 * 1000) }
+  }
   return { gte: thaiMonthStartUtc(period.year, month0), lt: thaiMonthStartUtc(period.year, month0 + 1) }
 }
 
@@ -299,7 +304,7 @@ export interface SalesChannelSlice {
  */
 export async function getSalesChannelBreakdown(
   shopId: string,
-  period: { year: number; month: number },
+  period: { year: number; month: number; day?: number },
 ): Promise<SalesChannelSlice[]> {
   const { gte, lt } = thaiMonthRange(period)
   const rows = await prisma.order.groupBy({
@@ -352,7 +357,7 @@ export interface ProvinceSales {
  */
 export async function getProvinceSales(
   shopId: string,
-  period: { year: number; month: number },
+  period: { year: number; month: number; day?: number },
 ): Promise<ProvinceSales> {
   const { gte, lt } = thaiMonthRange(period)
   const rows = await prisma.order.findMany({

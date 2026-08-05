@@ -112,7 +112,9 @@ describe('applyOrderLabel', () => {
 describe('resolveOrderVocab — คลังคำ 4 ช่อง (feature 00030)', () => {
   it.each([
     ['ONLINE_SALES', 'คำสั่งซื้อ', 'คำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'สร้างคำสั่งซื้อ'],
-    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'เข้ารับบริการ', 'สร้างการเข้ารับบริการ', 'เข้ารับบริการใหม่'],
+    // nounShort ย่อจาก 'เข้ารับบริการ' → 'บริการ' (user เคาะ 2026-08-05) — หัวหน้าต่างโมดัลในแชท
+    // และแท็บล่างมือถือประกอบคำจากช่องนี้ ("บริการใหม่" แทน "การเข้ารับบริการใหม่")
+    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'บริการ', 'สร้างการเข้ารับบริการ', 'เข้ารับบริการใหม่'],
     ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก'],
   ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort) => {
     expect(resolveOrderVocab(vertical)).toEqual({ noun, nounShort, createLabel, createLabelShort })

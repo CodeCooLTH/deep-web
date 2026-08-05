@@ -18,6 +18,15 @@
  *  - WeeklyPerformanceInsights (ไม่มีใน SafePay schema)
  */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
+// filter วันนี้/เดือนนี้ ระดับหน้า (desktop) — อ่านจาก cookie ตอน SSR เพื่อ render ช่วงที่ user
+// เลือกไว้ตั้งแต่ paint แรก (requirement: "ทุกครั้งที่เปิดหน้านี้ให้ filter แบบนั้นเสมอ")
+import { cookies } from 'next/headers'
+import {
+  DashboardRangeProvider,
+  DashboardRangePills,
+  DashboardRangeFade,
+  type DashboardRange,
+} from './components/DashboardRangeControl'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
@@ -93,6 +102,11 @@ const LEVEL_COLOR: Record<string, string> = {
 // stat card data รับ live values จากนั้น fallback 0 ถ้ายังไม่มี session
 
 export default async function SellerDashboardPage() {
+  // filter ช่วงเวลา (desktop) — ค่าที่ไม่รู้จัก/ไม่มี cookie ตกเป็น 'month' (พฤติกรรมเดิมของหน้า)
+  const range: DashboardRange =
+    (await cookies()).get('seller_dashboard_range')?.value === 'today' ? 'today' : 'month'
+  const rangeLabel = range === 'today' ? 'วันนี้' : 'เดือนนี้'
+
   const session = await getServerSession(authOptions)
   const user = (session as { user?: { id?: string; trustScore?: number; name?: string; needsOnboarding?: boolean; needsPhoneVerify?: boolean; displayName?: string } } | null)?.user
 
@@ -106,8 +120,12 @@ export default async function SellerDashboardPage() {
   // ออเดอร์ล่าสุดสำหรับ RecentOrder widget (real data)
   let recentOrders: OrderType[] = []
   // stat counters — คำนวณจาก rawOrders ที่ fetch ครั้งเดียว (ไม่ duplicate query)
+  // orderCount = ตลอดชีพ (มือถือ CompactHero + SalesReport summary ใช้ — ห้ามเปลี่ยนความหมาย)
   let orderCount = 0
   let revenueK = 0
+  // ตัวเลข stat card เดสก์ท็อปตาม filter วันนี้/เดือนนี้ — กรองจาก rawOrders ก้อนเดียวกันด้วย JS
+  let rangeOrderCount = 0
+  let rangeRevenueK = 0
   // monthly series สำหรับ SalesReport chart
   let salesSeries: SalesSeriesPoint[] = []
   let salesSummary: SalesSummary = { totalRevenue: 0, totalOrders: 0, growth: null }
@@ -215,6 +233,23 @@ export default async function SellerDashboardPage() {
         const thaiNow = new Date(Date.now() + 7 * 60 * 60 * 1000)
         const currentYear = thaiNow.getUTCFullYear()
         const currentMonth = thaiNow.getUTCMonth() + 1
+        const currentDay = thaiNow.getUTCDate()
+
+        // ช่วงของ filter เดสก์ท็อป — นิยาม "วันนี้/เดือนนี้" เดียวกับ dashboard.service (เที่ยงคืนไทย)
+        // ใช้ทั้งเป็น param ของ channel/province query และเป็นกรอบกรอง rawOrders ฝั่ง JS ด้านล่าง
+        const rangePeriod =
+          range === 'today'
+            ? { year: currentYear, month: currentMonth, day: currentDay }
+            : { year: currentYear, month: currentMonth }
+        const TZ_MS = 7 * 60 * 60 * 1000
+        const rangeGte =
+          range === 'today'
+            ? new Date(Date.UTC(currentYear, currentMonth - 1, currentDay) - TZ_MS)
+            : new Date(Date.UTC(currentYear, currentMonth - 1, 1) - TZ_MS)
+        const rangeLt =
+          range === 'today'
+            ? new Date(rangeGte.getTime() + 24 * 60 * 60 * 1000)
+            : new Date(Date.UTC(currentYear, currentMonth, 1) - TZ_MS)
 
         // ต้องรู้ผลก่อนยิง getSalesSeries เพราะมันตัดสินว่าจะ query ค่าใช้จ่าย/ต้นทุนด้วยไหม
         // (fail-closed ตั้งแต่ชั้น query — ไม่ใช่ query มาแล้วค่อยซ่อนตอน render)
@@ -249,12 +284,12 @@ export default async function SellerDashboardPage() {
             // ─── 3 การ์ดเดสก์ท็อปที่ดึงกลับ 2026-08-05 — ทั้งหมดผูกกับ "เดือนปฏิทินไทยเดือนนี้" ───
             // ชุดเดียวกับที่ Sales Chart ใช้ (currentYear/currentMonth ด้านบน) เพื่อไม่ให้หน้าเดียว
             // มีสองนิยามของคำว่า "เดือนนี้"
-            getSalesChannelBreakdown(shop.id, { year: currentYear, month: currentMonth }),
+            getSalesChannelBreakdown(shop.id, rangePeriod),
             // กิจกรรมล่าสุด — เคยถูกถอดออก 2026-08-04 ตอนตัดการ์ดนี้ทิ้งจากมือถือ ตอนนี้กลับมาเฉพาะเดสก์ท็อป
             getRecentActivity(shop.id, 6),
             // แผนที่จังหวัด — เฉพาะร้านขายออนไลน์ (user เคาะ) ร้านประเภทอื่นไม่ต้องเสีย query
             shop.vertical === 'ONLINE_SALES'
-              ? getProvinceSales(shop.id, { year: currentYear, month: currentMonth })
+              ? getProvinceSales(shop.id, rangePeriod)
               : Promise.resolve(null),
           ])
 
@@ -333,6 +368,16 @@ export default async function SellerDashboardPage() {
           .reduce((sum, o) => sum + Number(o.totalAmount), 0)
         revenueK = completedRevenueBaht / 1000
 
+        // ─── stat card เดสก์ท็อปตาม filter วันนี้/เดือนนี้ ────────────────────
+        // นับใบไม่รวม CANCELLED ให้ตรงนิยามเดียวกับโดนัทช่องทางการขาย (ไม่งั้นเลขบนการ์ด
+        // กับเลขกลางโดนัทในหน้าเดียวกันไม่เท่ากันทั้งที่ป้ายบอกช่วงเดียวกัน)
+        const inRange = (o: { createdAt: Date }) => o.createdAt >= rangeGte && o.createdAt < rangeLt
+        rangeOrderCount = rawOrders.filter((o) => inRange(o) && o.status !== 'CANCELLED').length
+        rangeRevenueK =
+          rawOrders
+            .filter((o) => inRange(o) && countsAsRevenue(o))
+            .reduce((sum, o) => sum + Number(o.totalAmount), 0) / 1000
+
         // เอา 8 รายการล่าสุด; map เป็น OrderType ที่ client component รับได้
         // totalAmount เป็น Prisma Decimal → ต้อง Number() ก่อนส่งผ่าน RSC boundary
         // createdAt เป็น Date → .toISOString() ป้องกัน Date serialization error
@@ -396,9 +441,11 @@ export default async function SellerDashboardPage() {
 
   // stat cards — ไม่ส่ง change field (undefined) → StatisticCard ซ่อน indicator block
   // เพราะยังไม่มี prev period data — ไม่โชว์ "0%" หลอกตา
+  // ออเดอร์/รายได้ ตาม filter วันนี้/เดือนนี้ (มี periodLabel กำกับ) — Trust Score ไม่ผูกช่วงเวลา
+  // จึงไม่มีป้าย: การมี/ไม่มีป้ายคือตัวบอกว่าใบไหนตาม filter
   const statData: StatType[] = [
-    { title: 'ออเดอร์', value: orderCount, icon: 'shopping-cart' },
-    { title: 'รายได้', value: revenueK, prefix: '฿', suffix: 'k', icon: 'pig-money' },
+    { title: 'ออเดอร์', value: rangeOrderCount, periodLabel: rangeLabel, icon: 'shopping-cart' },
+    { title: 'รายได้', value: rangeRevenueK, prefix: '฿', suffix: 'k', periodLabel: rangeLabel, icon: 'pig-money' },
     { title: 'Trust Score', value: score, suffix: '/100', icon: 'shield-check' },
   ]
 
@@ -456,7 +503,11 @@ export default async function SellerDashboardPage() {
           สินค้าขายดี / กิจกรรมล่าสุด / ยอดขายตามจังหวัด)
           mockup: docs/superpowers/specs/2026-08-05-seller-dashboard-desktop-mockup.html */}
       <div className="hidden lg:block">
-        <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} />
+        {/* Provider ครอบทั้ง filter pill (ที่แถวหัว) และเนื้อหา — แชร์สถานะ isPending ให้
+            DashboardRangeFade จางเนื้อหาระหว่างรอ RSC refresh ตอนสลับช่วง */}
+        <DashboardRangeProvider initialRange={range}>
+          <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} action={<DashboardRangePills />} />
+          <DashboardRangeFade>
 
         {/* แถว 1: UserCard + StatCards (5 คอล) | ช่องทางการขาย (7 คอล)
             ช่องขวานี้คือช่องที่ theme ตั้งใจให้เป็น "การ์ดเตี้ย" (StorePerformanceOverview โดนัท 210px)
@@ -477,7 +528,7 @@ export default async function SellerDashboardPage() {
             </div>
           </div>
           <div className="xl:col-span-7">
-            <SalesChannelDonut slices={salesChannels} />
+            <SalesChannelDonut slices={salesChannels} rangeLabel={rangeLabel} />
           </div>
         </div>
 
@@ -523,10 +574,12 @@ export default async function SellerDashboardPage() {
           </div>
           {provinceSales && (
             <div className="xl:col-span-7">
-              <ProvinceSalesMap {...provinceSales} />
+              <ProvinceSalesMap {...provinceSales} rangeLabel={rangeLabel} />
             </div>
           )}
         </div>
+          </DashboardRangeFade>
+        </DashboardRangeProvider>
       </div>
       {/* onboarding ย้ายไปหน้า /onboarding (บังคับผ่าน proxy) — ไม่ใช้ modal บน dashboard แล้ว */}
     </>

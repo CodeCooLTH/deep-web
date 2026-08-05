@@ -106,7 +106,7 @@ import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErr
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import OrderCardView from '../../../_components/OrderCardView'
-import { useDraftOrders } from '../../../_components/DraftOrderProvider'
+import { useDraftOrders, useOrderVocab } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker, { rememberRecentSticker } from './EmojiPicker'
 
@@ -427,12 +427,14 @@ function ReactMessageButton({ onOpen }: { onOpen: (rect: DOMRect) => void }) {
  * — เดสก์ท็อปไม่มี "กดค้าง" จึงต้องมีทางเข้าคู่ขนานที่ hover เหมือน ตอบกลับ/คัดลอก/รีแอ็กชัน
  */
 function CreateOrderFromMessageButton({ onCreate }: { onCreate: () => void }) {
+  // createLabel ตรง ๆ ห้ามประกอบ "สร้าง"+noun เอง — LODGING คำล็อกคือ "เปิดบิลเข้าพัก"
+  const vocab = useOrderVocab()
   return (
     <button
       type="button"
       onClick={onCreate}
-      aria-label="สร้างคำสั่งซื้อจากข้อความนี้"
-      title="สร้างคำสั่งซื้อจากข้อความนี้"
+      aria-label={`${vocab.createLabel}จากข้อความนี้`}
+      title={`${vocab.createLabel}จากข้อความนี้`}
       className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
     >
       <Icon icon="receipt" className="size-4" />
@@ -697,16 +699,19 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
  * โมดัลแก้ไข (onEdit); footer "ดูคำสั่งซื้อ" → /orders/{token}. buyer มี component แยก (Vuexy)
  */
 function OrderCardBubble({ card, onEdit }: { card: ChatOrderCard | null; onEdit: (token: string) => void }) {
+  // ชื่อรายการต้องตรงกับประเภทกิจการ — ใช้ hook ที่ไม่บังคับ Provider (การ์ดใบนี้ไม่ได้จะเปิดโมดัล)
+  const vocab = useOrderVocab()
   if (!card) {
     return (
       <div className="text-default-700 flex items-center gap-2">
         <Icon icon="receipt-off" className="text-xl" />
-        <span className="text-sm">ไม่พบคำสั่งซื้อนี้แล้ว</span>
+        <span className="text-sm">ไม่พบ{vocab.noun}นี้แล้ว</span>
       </div>
     )
   }
   return (
     <OrderCardView
+      orderNoun={vocab.noun}
       data={card}
       onEdit={() => onEdit(card.token)}
       className="w-64"
@@ -750,7 +755,7 @@ export default function ChatThread({
   const { data: session } = useSession()
   const shopUsername = (session?.user as { username?: string } | undefined)?.username
   // แตะการ์ดคำสั่งซื้อในแชท → เปิดโมดัลแก้ไข (user 2026-07-25: เหมือนแตะการ์ดใน right panel)
-  const { openDraft } = useDraftOrders()
+  const { openDraft, vocab } = useDraftOrders()
   const openEditOrder = (token: string) =>
     openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar, editOrderToken: token })
   /**
@@ -972,7 +977,7 @@ export default function ChatThread({
       list.push({
         key: 'order',
         icon: 'receipt',
-        label: 'สร้างคำสั่งซื้อ',
+        label: vocab.createLabelShort,
         onSelect: () =>
           openDraft({
             conversationId,
@@ -2362,7 +2367,7 @@ export default function ChatThread({
                   (replyingTo.type === 'IMAGE'
                     ? '[รูปภาพ]'
                     : replyingTo.type === 'ORDER'
-                      ? '[คำสั่งซื้อ]'
+                      ? `[${vocab.nounShort}]`
                       : replyingTo.type === 'PRODUCT'
                         ? '[สินค้า]'
                         : '[สื่อ/ไฟล์แนบ]')}

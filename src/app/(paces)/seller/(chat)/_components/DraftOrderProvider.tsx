@@ -17,10 +17,13 @@ import { useRouter, usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { pacesConfirm } from '@/lib/paces-swal'
-import type { OrderVocab } from '@/lib/seller-menu'
+import { ORDER_VOCAB, type OrderVocab } from '@/lib/seller-menu'
 import { pacesToast } from '@/lib/paces-toast'
 import { getChannelDisplay, ChannelBadgeOverlay } from '../inbox/components/ChannelBadge'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
+// feature 00024 — บล็อกวันเข้าใช้บริการในโมดัลนี้ (user request 2026-08-05)
+import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentBlock'
+import type { AppointmentGranularity } from '@/lib/appointments'
 import ShipmentDraftPanel from './ShipmentDraftPanel'
 import type { IShipCreateMode } from '@/lib/iship/after-order-create'
 
@@ -72,10 +75,18 @@ type ChatDraft = {
   state: 'expanded' | 'minimized'
 }
 
-/** คำบนหัวหน้าต่าง/chip — ต่างกันตามชนิดงาน ร้านจะได้รู้ว่า chip ที่ย่อไว้คืออะไร */
-function draftTitle(d: Pick<ChatDraft, 'kind' | 'editOrderToken'>): string {
+/**
+ * คำบนหัวหน้าต่าง/chip — ต่างกันตามชนิดงาน ร้านจะได้รู้ว่า chip ที่ย่อไว้คืออะไร
+ *
+ * ต้องผันตามประเภทกิจการด้วย (user request 2026-08-05): ร้านบริการเห็นปุ่มล่างเขียน
+ * "บันทึกการเข้ารับบริการ" แต่หัวหน้าต่างเดียวกันเขียน "คำสั่งซื้อใหม่" — คำสองคำเรียก
+ * ของสิ่งเดียวกันอยู่คนละที่บนจอเดียว. vocab.noun เป็น SSOT (ดู ORDER_VOCAB ใน lib/seller-menu)
+ */
+function draftTitle(d: Pick<ChatDraft, 'kind' | 'editOrderToken'>, vocab: OrderVocab): string {
   if (d.kind === 'SHIPMENT') return 'พัสดุ'
-  return d.editOrderToken ? 'แก้ไขคำสั่งซื้อ' : 'คำสั่งซื้อใหม่'
+  // ใช้ nounShort ไม่ใช่ noun — แถบหัวมี avatar + ชื่อลูกค้า + ปุ่มย่อ/ปิด อยู่ในความกว้าง w-96
+  // "การเข้ารับบริการใหม่" กินที่จนชื่อลูกค้าถูกตัด (user เคาะ 2026-08-05 ให้เหลือ "บริการใหม่")
+  return d.editOrderToken ? `แก้ไข${vocab.nounShort}` : `${vocab.nounShort}ใหม่`
 }
 
 /** avatar เล็กของลูกค้า + ไอคอนช่องทาง (chip/หัวโมดัล) — src เดียวกับ ChatAvatar (http URL / fileId / initials) */
@@ -97,13 +108,32 @@ function DraftAvatar({ avatar, name, channel }: { avatar: string | null; name: s
   )
 }
 
-type DraftOrderContextValue = { openDraft: (input: OpenDraftInput) => void }
+/**
+ * vocab อยู่ใน context ด้วย (เพิ่ม 2026-08-05) — client component ในโฟลเดอร์แชทหลายตัวเรียกรายการ
+ * ว่า "คำสั่งซื้อ" ตายตัว (การ์ดออเดอร์, เมนูกดค้างบนข้อความ, รายการแชท) ทั้งที่ร้านบริการ/บ้านพัก
+ * เรียกคนละชื่อ. ตัวเหล่านั้นอยู่ลึกจาก layout หลายชั้นเกินกว่าจะส่ง prop ไล่ลงไปไหว และ Provider
+ * ตัวนี้ครอบทั้ง (chat) อยู่แล้วพร้อม vocab ในมือ — เปิดให้ hook เดิมคืนค่าให้จึงถูกกว่าสร้าง context ใหม่
+ */
+type DraftOrderContextValue = { openDraft: (input: OpenDraftInput) => void; vocab: OrderVocab }
 const DraftOrderContext = createContext<DraftOrderContextValue | null>(null)
 
 export function useDraftOrders(): DraftOrderContextValue {
   const ctx = useContext(DraftOrderContext)
   if (!ctx) throw new Error('useDraftOrders ต้องอยู่ภายใต้ <DraftOrderProvider>')
   return ctx
+}
+
+/**
+ * อ่านเฉพาะคลังคำ โดยไม่บังคับว่าต้องมี Provider — ใช้กับ component ที่แค่ "เรียกชื่อรายการให้ถูก"
+ * ไม่ได้จะเปิดโมดัล (รายการแชท, การ์ดออเดอร์ในบับเบิล)
+ *
+ * ทำไมต้องมีคู่กับ useDraftOrders: layout ห่อ Provider เฉพาะตอนมีร้าน active (`if (!activeCtx?.shopId)
+ * return shell`) ผู้ใช้ที่ยังไม่มีร้านจึงอยู่นอก Provider — ถ้า component พวกนั้นเรียก useDraftOrders
+ * ตรง ๆ ทั้งหน้าจะพังด้วย error ที่ไม่เกี่ยวกับสิ่งที่มันต้องการเลย
+ * ไม่มี Provider → ชุดคำของ ONLINE_SALES (fail-safe เดียวกับ resolveOrderVocab)
+ */
+export function useOrderVocab(): OrderVocab {
+  return useContext(DraftOrderContext)?.vocab ?? ORDER_VOCAB.ONLINE_SALES
 }
 
 type ProviderProps = {
@@ -113,10 +143,26 @@ type ProviderProps = {
   inventoryEnabled: boolean
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — layout เป็นคนคำนวณ */
   vocab: OrderVocab
+  /** feature 00024 — ร้านนี้ใช้ระบบนัดหมายได้ไหม (SERVICE_QUEUE เท่านั้น); false = ฟอร์มไม่ render บล็อกวันนัด */
+  serviceResourcesEnabled?: boolean
+  /** ทรัพยากรบริการที่เปิดใช้งาน (ช่าง/ช่องบริการ) — ว่าง = ไม่มีอะไรให้จอง บล็อกไม่ขึ้น */
+  serviceResources?: ServiceResourceOption[]
+  /** ร้านรับนัดรายวัน (DAY) หรือระบุช่วงเวลา (TIME) */
+  appointmentGranularity?: AppointmentGranularity
   children: React.ReactNode
 }
 
-export default function DraftOrderProvider({ shopId, catalog, bestSellers, inventoryEnabled, vocab, children }: ProviderProps) {
+export default function DraftOrderProvider({
+  shopId,
+  catalog,
+  bestSellers,
+  inventoryEnabled,
+  vocab,
+  serviceResourcesEnabled = false,
+  serviceResources = [],
+  appointmentGranularity = 'DAY',
+  children,
+}: ProviderProps) {
   const [drafts, setDrafts] = useState<ChatDraft[]>([])
 
   // feature 00022 — โหมดสร้างพัสดุของร้าน
@@ -203,7 +249,11 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
   const handleSuccess = useCallback(
     (draft: ChatDraft) => {
       setDrafts((prev) => prev.filter((d) => d.id !== draft.id))
-      pacesToast.success(draft.editOrderToken ? 'แก้ไขคำสั่งซื้อแล้ว' : 'สร้างคำสั่งซื้อแล้ว')
+      // toast ใช้คำสั้นเช่นกัน — "สร้างการเข้ารับบริการแล้ว" ยาวเกินกว่าที่ toast บรรทัดเดียวรับไหว
+      // สร้างสำเร็จใช้ createLabel ตรง ๆ ห้ามประกอบ "บันทึก/สร้าง" + noun เอง — LODGING คำล็อกคือ
+      // "เปิดบิลเข้าพัก" ไม่ใช่ "บันทึกบิลเข้าพัก" (memory: feedback_vocab_substitution_needs_sentence_sets)
+      // toast มีที่ให้คำเต็มอยู่แล้ว ต่างจากหัวหน้าต่างที่ต้องย่อ
+      pacesToast.success(draft.editOrderToken ? `แก้ไข${vocab.nounShort}แล้ว` : `${vocab.createLabel}แล้ว`)
       // ถ้ากำลังเปิดแชทของ draft นี้อยู่ → refresh ให้แท็บคำสั่งซื้อเห็นออเดอร์ใหม่ทันที
       if (pathname === `/inbox/${draft.conversationId}`) router.refresh()
     },
@@ -223,7 +273,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
   const minimized = drafts.filter((d) => d.state === 'minimized')
 
   return (
-    <DraftOrderContext.Provider value={{ openDraft }}>
+    <DraftOrderContext.Provider value={{ openDraft, vocab }}>
       {children}
 
       {/* ทุก draft mount ฟอร์มค้างไว้ (hidden เมื่อไม่ได้ขยาย) กันข้อมูลที่กรอกหาย — expanded เห็นทีละ 1 */}
@@ -231,7 +281,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
         <div
           key={d.id}
           role="dialog"
-          aria-label={`${draftTitle(d)} ${d.customerName}`}
+          aria-label={`${draftTitle(d, vocab)} ${d.customerName}`}
           aria-hidden={d.state !== 'expanded'}
           // z-80 = viewport overlay (Paces ไม่มี token; precedent CustomerPanelSheet/OrderQrSheet — HR7 carve-out)
           // ไม่มี backdrop ทึบ (ลอยแบบหน้าต่าง ไม่บล็อกทั้งจอ). มือถือเต็มจอ (inset-0); desktop = หน้าต่างขนาดมือถือ
@@ -250,7 +300,7 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
             <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
             <div className="min-w-0 flex-1">
               <p className="mb-0 truncate text-sm font-semibold">
-                {draftTitle(d)} · {d.customerName}
+                {draftTitle(d, vocab)} · {d.customerName}
               </p>
               <p className="mb-0 truncate text-xs text-white/80">{getChannelDisplay(d.channel).label}</p>
             </div>
@@ -295,6 +345,9 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
                 editOrderToken={d.editOrderToken ?? undefined}
                 prefillParseText={d.prefillText ?? undefined}
                 ishipCreateMode={ishipCreateMode}
+                serviceResourcesEnabled={serviceResourcesEnabled}
+                serviceResources={serviceResources}
+                appointmentGranularity={appointmentGranularity}
                 onSuccess={() => handleSuccess(d)}
                 compact
               />
@@ -323,14 +376,14 @@ export default function DraftOrderProvider({ shopId, catalog, bestSellers, inven
               <button type="button" onClick={() => expand(d.id)} className="flex min-w-0 items-center gap-2">
                 <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
                 <span className="flex min-w-0 flex-col text-start">
-                  <span className="text-default-700 text-2xs">{draftTitle(d)}</span>
+                  <span className="text-default-700 text-2xs">{draftTitle(d, vocab)}</span>
                   <span className="text-default-800 truncate text-sm font-medium">{d.customerName}</span>
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => requestClose(d.id)}
-                aria-label="ปิดร่างคำสั่งซื้อ"
+                aria-label={`ปิดร่าง${vocab.noun}`}
                 className="text-default-700 hover:text-default-700 flex size-6 shrink-0 items-center justify-center rounded-full"
               >
                 <Icon icon="x" className="size-4" />

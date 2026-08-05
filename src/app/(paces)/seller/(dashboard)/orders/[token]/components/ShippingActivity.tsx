@@ -22,14 +22,16 @@ import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { formatDateTH, formatTimeHM } from '@/lib/format-date'
-import { ORDER_EVENT_META, describeOrderEvent, type OrderEventView } from '@/lib/order-event'
+import { ORDER_EVENT_META, describeOrderEvent, resolveOrderEventLabel, type OrderEventView } from '@/lib/order-event'
 
 export default function ShippingActivity({
   events,
   orderNoun = 'คำสั่งซื้อ',
+  createLabel = 'สร้างคำสั่งซื้อ',
 }: {
   events: OrderEventView[]
   orderNoun?: string
+  createLabel?: string
 }) {
   return (
     <div className="card">
@@ -43,8 +45,9 @@ export default function ShippingActivity({
             <p className="text-default-800 text-sm font-medium">ยังไม่มีประวัติให้แสดง</p>
             {/* บอกสาเหตุ ไม่ใช่แค่ "ไม่มีข้อมูล" — ออเดอร์เก่าไม่มีประวัติเพราะระบบเพิ่งเริ่มบันทึก
                 ไม่ใช่เพราะหน้าจอพัง */}
+            {/* กริยากลาง "เกิดขึ้น" — "สร้าง"+noun ผิดคำล็อกของ LODGING (เปิดบิลเข้าพัก ไม่ใช่สร้าง) */}
             <p className="text-default-700 mt-1 text-xs">
-              {orderNoun}นี้สร้างก่อนระบบเริ่มบันทึกประวัติ — เหตุการณ์ใหม่หลังจากนี้จะแสดงที่นี่
+              {orderNoun}นี้เกิดขึ้นก่อนระบบเริ่มบันทึกประวัติ — เหตุการณ์ใหม่หลังจากนี้จะแสดงที่นี่
             </p>
           </div>
         ) : (
@@ -96,7 +99,10 @@ export default function ShippingActivity({
 
                   <div className={cn('min-w-0 flex-1', isLast ? '' : 'pb-9')}>
                     {/* min-h-9 เท่ากับวงกลม → หัวข้อจัดกึ่งกลางตรงกับไอคอนพอดี (user 2026-08-05) */}
-                    <h5 className="text-default-800 flex min-h-9 items-center text-sm font-medium">{meta.label}</h5>
+                    {/* 3 event ของ order-lifecycle ผันตาม vertical (BR-BKU-09) — โดเมนพัสดุคง label กลาง */}
+                    <h5 className="text-default-800 flex min-h-9 items-center text-sm font-medium">
+                      {resolveOrderEventLabel(ev.type, { noun: orderNoun, createLabel })}
+                    </h5>
                     {desc && <p className="text-default-700 mt-0.5 mb-1 text-sm break-words">{desc}</p>}
                     {/* ไม่มีทั้ง actor และชื่อที่ freeze ไว้ = ระบบทำเอง — ห้ามเดาชื่อเจ้าของร้านมาเติม */}
                     <span className="text-default-800 text-xs font-semibold">โดย {ev.actorLabel ?? 'ระบบ'}</span>
