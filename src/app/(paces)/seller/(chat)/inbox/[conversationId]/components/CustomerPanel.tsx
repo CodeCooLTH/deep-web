@@ -39,8 +39,13 @@ import { useSearchParams } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
-import { ORDER_VOCAB } from '@/lib/seller-menu'
+import { ORDER_VOCAB, resolveOrderVocab } from '@/lib/seller-menu'
+import { ORDER_STATUS_META, type OrderStatus } from '@/lib/order-display'
 import type { ShopVertical } from '@/lib/lodging'
+// import ข้ามกลุ่มโฟลเดอร์ตาม precedent ใน OrderActionBar.tsx — reuse ⋮ + SSOT ของ action
+// เดียวกับหน้า order detail แทนประดิษฐ์ dropdown/เงื่อนไขสถานะใหม่ (sibling-surface-parity)
+import OrderOverflowMenu from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/OrderOverflowMenu'
+import { getOrderActionSet } from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/order-action-set'
 import { ChannelBadge } from '../../components/ChannelBadge'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
@@ -184,16 +189,70 @@ function OrderCard({
   contactName,
   channel,
   customerAvatar,
+  vertical,
+  onCancelled,
 }: {
   o: CustomerPanelOrder
   conversationId: string
   contactName: string
   channel: string
   customerAvatar: string | null
+  vertical: ShopVertical
+  /** แจ้ง OrdersList อัปเดต status ใน local state — ไม่ router.refresh() เพราะจะรบกวน
+   *  scroll/​state ของห้องแชทที่เปิดค้างอยู่ (pattern เดียวกับ CRM section ในไฟล์นี้) */
+  onCancelled: (id: string) => void
 }) {
   const { openDraft } = useDraftOrders()
   const [sending, setSending] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const hasShipment = !!o.shipment
+  // IMPORTANT: ใช้ noun ไม่ใช่ cta.tabLabel — LODGING สองค่านี้ตั้งใจไม่เท่ากัน (tabLabel="การจอง" เรียกลิสต์,
+  // noun="บิลเข้าพัก" คือ Order entity ที่ confirm/toast ต้องพูดถึงให้ตรงกับหน้า order detail)
+  const noun = resolveOrderVocab(vertical).noun
+
+  // เงื่อนไข "สถานะไหนยกเลิกได้" (PENDING/SHIPPED) มาจาก SSOT เดียวกับหน้า order detail —
+  // ไม่ hardcode status ที่นี่ กัน rule drift. ดึงเฉพาะ item ยกเลิก (action อื่นการ์ดนี้มีปุ่มของ
+  // ตัวเองอยู่แล้ว ใส่ซ้ำ = scope creep). shipmentSource ไม่กระทบการมี/ไม่มี cancel item
+  //
+  // LODGING ไม่เสนอ action ยกเลิกที่นี่ (fail-closed): ออเดอร์ในลิสต์นี้ของร้านบ้านพักเป็น
+  // type=BOOKING ซึ่ง cancelOrder บังคับเลือกเหตุผล (BR-LODG-36/37) — UI เลือกเหตุผลอยู่ที่
+  // /bookings/[token] (BookingDetail) ถ้าโชว์ปุ่มที่นี่จะกดแล้วเจอ error ทางตัน
+  // ("เลือกเหตุผลก่อนยกเลิกการจอง" โดยไม่มีที่ให้เลือก)
+  const cancelItems =
+    vertical === 'LODGING'
+      ? []
+      : getOrderActionSet({
+          status: o.status as OrderStatus,
+          fulfillmentMode: o.fulfillmentMode,
+          shipmentSource: null,
+          orderNoun: noun,
+        }).menu.filter((i) => i.key === 'cancel-order')
+
+  // Base: OrderDetailClient.tsx handleCancelOrder — confirm → POST → toast; ตัดประโยค
+  // "สินค้าจะถูกคืนเข้าสต็อก" ออกโดยตั้งใจ: การ์ดนี้ไม่รู้ hasDeductedStock ห้ามพูดเกินจริง (00030 D-1)
+  async function handleCancelOrder() {
+    if (cancelling) return
+    const ok = await pacesConfirm.danger(
+      `ยกเลิก${noun}นี้?`,
+      'ลิงก์ที่ส่งให้ลูกค้าจะใช้ไม่ได้ · ย้อนกลับไม่ได้',
+      { confirmButtonText: 'ยืนยันยกเลิก', cancelButtonText: 'ไม่ใช่ตอนนี้' },
+    )
+    if (!ok) return
+    setCancelling(true)
+    try {
+      const res = await fetch(`/api/orders/${o.token}/cancel`, { method: 'POST' })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error((d as { error?: string }).error || `ยกเลิก${noun}ไม่สำเร็จ ลองใหม่อีกครั้ง`)
+      }
+      pacesToast.success(`ยกเลิก${noun}แล้ว`)
+      onCancelled(o.id)
+    } catch (err: unknown) {
+      pacesToast.error(err instanceof Error ? err.message : `ยกเลิก${noun}ไม่สำเร็จ ลองใหม่อีกครั้ง`)
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   /**
    * เปิดหน้าต่างพัสดุ (feature 00022, user request 2026-07-27)
@@ -265,29 +324,64 @@ function OrderCard({
       onEdit={openEdit}
       className="w-full"
       footer={
-        <div className="border-default-200 flex gap-2 border-t p-2">
-          <button
-            type="button"
-            onClick={sendToChat}
-            disabled={sending}
-            aria-label="ส่งคำสั่งซื้อนี้เข้าแชท"
-            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
-          >
-            <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
-            ส่งเข้าแชท
-          </button>
-          {/* feature 00022 — เปิดหน้าต่างพัสดุในห้องนี้เลย ไม่ต้องสลับหน้า
-              คำบนปุ่มบอกล่วงหน้าว่ากดแล้วเจอฟอร์มหรือเจอเลขติดตาม */}
-          <button
-            type="button"
-            onClick={openShipment}
-            aria-label={hasShipment ? 'ดูพัสดุของคำสั่งซื้อนี้' : 'สร้างพัสดุสำหรับคำสั่งซื้อนี้'}
-            className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1"
-          >
-            <Icon icon="truck-delivery" className="text-sm" />
-            {hasShipment ? 'ดูพัสดุ' : 'สร้างพัสดุ'}
-          </button>
-        </div>
+        o.status === 'CANCELLED' ? (
+          // CANCELLED — แทนแถวปุ่มทั้งหมดด้วย badge นิ่ง (ส่งเข้าแชท/สร้างพัสดุกับออเดอร์ที่ยกเลิก
+          // แล้ว = กดแล้วพัง) ครอบทั้งใบที่เพิ่งกดยกเลิกและใบที่ถูกยกเลิกมาก่อนแล้วตั้งแต่โหลด
+          // badge จาก ORDER_STATUS_META — SSOT เดียวกับ StatusHero/inbox list
+          <div className="border-default-200 border-t p-2">
+            <span className={`badge ${ORDER_STATUS_META.CANCELLED.cls} gap-1`}>
+              <Icon icon={ORDER_STATUS_META.CANCELLED.icon} className="size-3.5" />
+              {ORDER_STATUS_META.CANCELLED.label}
+            </span>
+          </div>
+        ) : (
+          <div className="border-default-200 flex gap-2 border-t p-2">
+            <button
+              type="button"
+              onClick={sendToChat}
+              disabled={sending || cancelling}
+              aria-label="ส่งคำสั่งซื้อนี้เข้าแชท"
+              className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
+            >
+              <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
+              ส่งเข้าแชท
+            </button>
+            {/* feature 00022 — เปิดหน้าต่างพัสดุในห้องนี้เลย ไม่ต้องสลับหน้า
+                คำบนปุ่มบอกล่วงหน้าว่ากดแล้วเจอฟอร์มหรือเจอเลขติดตาม */}
+            <button
+              type="button"
+              onClick={openShipment}
+              disabled={cancelling}
+              aria-label={hasShipment ? 'ดูพัสดุของคำสั่งซื้อนี้' : 'สร้างพัสดุสำหรับคำสั่งซื้อนี้'}
+              className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
+            >
+              <Icon icon="truck-delivery" className="text-sm" />
+              {hasShipment ? 'ดูพัสดุ' : 'สร้างพัสดุ'}
+            </button>
+            {/* ⋮ ยกเลิก (user 2026-08-05) — PENDING/SHIPPED เท่านั้น (cancelItems ว่าง →
+                OrderOverflowMenu คืน null เอง). กางขึ้นเพราะ OrderCardView ครอบ overflow-hidden
+                — เมนูที่กางลงพ้นขอบล่างการ์ดจะโดนตัดหาย ส่วนกางขึ้นทับเนื้อการ์ดซึ่งอยู่ในขอบเขต.
+                INVARIANT: เมนูของ instance นี้ต้องสั้นกว่าความสูง body ของการ์ดเตี้ยสุด (~127px)
+                — วันนี้มี 1 รายการ (~48px) พอดี; ห้ามส่ง menu เต็มของ getOrderActionSet เข้ามา
+                ไม่งั้นเมนูทะลุหัวการ์ดแล้วโดน clip ยอดแบบเงียบ ๆ (บั๊กคลาส first-paint วัดย้อนหลังไม่เจอ).
+                ระหว่างยิง API แสดง spinner แทน ⋮ + disable ปุ่มข้างเคียง — กัน race ส่งการ์ดเข้าแชท
+                ระหว่างออเดอร์กำลังถูกยกเลิก (Impeccable critique P1) */}
+            {cancelling ? (
+              <span className="flex size-9.25 items-center justify-center" aria-label="กำลังยกเลิก" role="status">
+                <span className="border-danger size-4 animate-spin rounded-full border-2 border-t-transparent" />
+              </span>
+            ) : (
+              <OrderOverflowMenu
+                items={cancelItems}
+                onAction={(key) => {
+                  if (key === 'cancel-order') void handleCancelOrder()
+                }}
+                size="sm"
+                dropDirection="up"
+              />
+            )}
+          </div>
+        )
       }
     />
   )
@@ -304,14 +398,22 @@ function OrdersList({
   contactName,
   channel,
   customerAvatar,
+  vertical,
 }: {
   conversationId: string
   initial: CustomerPanelOrder[]
   contactName: string
   channel: string
   customerAvatar: string | null
+  vertical: ShopVertical
 }) {
   const [orders, setOrders] = useState<CustomerPanelOrder[]>(initial)
+
+  // ยกเลิกสำเร็จ → เปลี่ยน status ใน local state (การ์ดใบนั้น re-render เป็น badge "ยกเลิก" ทันที)
+  // ไม่ refetch/refresh — ไม่รบกวน scroll ของเธรดและ state อื่นในหน้าแชทที่เปิดค้างอยู่
+  const markCancelled = useCallback((id: string) => {
+    setOrders((prev) => prev.map((x) => (x.id === id ? { ...x, status: 'CANCELLED' } : x)))
+  }, [])
   const [cursor, setCursor] = useState<string | null>(
     initial.length >= 20 ? initial[initial.length - 1].createdAt : null,
   )
@@ -346,7 +448,7 @@ function OrdersList({
   return (
     <div className="space-y-2">
       {orders.map((o) => (
-        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} />
+        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} vertical={vertical} onCancelled={markCancelled} />
       ))}
       {cursor && (
         <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
@@ -621,7 +723,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           data.orders.length === 0 ? (
             <p className="text-default-700 mb-0 text-sm">{cta.emptyLabel}</p>
           ) : (
-            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} />
+            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} vertical={data.vertical} />
           )
         ) : (
           <p className="text-default-700 mb-0 text-sm">
