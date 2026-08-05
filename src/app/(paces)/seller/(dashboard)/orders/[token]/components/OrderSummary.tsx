@@ -22,7 +22,7 @@
 import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
-import { formatDateTime } from '@/lib/format-date'
+import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import { ORDER_STATUS_META, getPaymentBadge } from '@/lib/order-display'
 import type { OrderStatus } from '@/lib/order-display'
@@ -136,7 +136,7 @@ export default function OrderSummary({
             </p>
             <p className="text-default-700 mb-3.5 flex items-center gap-1 text-xs">
               <Icon icon="calendar" className="align-middle" aria-hidden="true" />
-              {formatDateTime(createdAtISO)}
+              {formatDateTimeTH(createdAtISO)}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className={cn('badge badge-label text-2xs font-semibold', meta.cls)}>

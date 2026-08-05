@@ -62,7 +62,7 @@ import type { ShipmentSource } from './components/order-action-set'
 export async function generateMetadata(): Promise<Metadata> {
   const session = await getServerSession(authOptions)
   const active = await requireActiveShop(
-    session as unknown as { user: { id: string; activeShopId?: string | null } },
+    session as unknown as { user: { id: string; activeShopId?: string | null } }
   ).catch(() => null)
   return { title: `รายละเอียด${resolveOrderVocab(active?.shop?.vertical ?? '').noun}` }
 }
@@ -117,7 +117,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
    * ข้อความที่ไม่สัญญาการคืนสต็อกเหมือนกัน จึงคำนวณจากข้อมูลจริงของออเดอร์ ไม่ derive จาก vertical
    */
   const hasDeductedStock = ((order.items ?? []) as Array<{ stockDeducted: number | null }>).some(
-    (i) => i.stockDeducted != null,
+    i => i.stockDeducted != null
   )
 
   // สร้าง review data — ส่งข้าม RSC boundary ที่นี่ (S-C1: neutralize-at-source, ไม่ใช่ "mask")
@@ -139,7 +139,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         comment: order.review.comment ?? null,
         // reviewerLabel คือ raw contact/displayName จาก server (ไม่ mask — ดู comment ด้านบน)
         reviewerLabel,
-        createdAtISO: (order.review.createdAt as Date).toISOString(),
+        createdAtISO: (order.review.createdAt as Date).toISOString()
       }
     : null
   // S-4: การ์ดรีวิวแสดงเฉพาะ CONFIRMED ที่มีรีวิวจริง (ไม่ใช่ empty-state) — status อื่นไม่ render เลย
@@ -154,13 +154,13 @@ export default async function OrderDetailPage({ params }: PageProps) {
     buyerDisplayName: order.buyer?.displayName ?? null,
     buyerUsername: order.buyer?.username ?? null,
     buyerName: order.buyerName ?? null,
-    hasContact: Boolean(buyerContact),
+    hasContact: Boolean(buyerContact)
   })
 
   // Phase B: shippingAddress เป็น Json (Prisma คืน object แล้ว) — render card เฉพาะเมื่อมีค่าจริง
   const rawAddr = order.shippingAddress
   const shippingAddr: ShippingAddressData | null =
-    rawAddr && typeof rawAddr === 'object' && Object.values(rawAddr).some((v) => v && String(v).trim())
+    rawAddr && typeof rawAddr === 'object' && Object.values(rawAddr).some(v => v && String(v).trim())
       ? (rawAddr as ShippingAddressData)
       : null
 
@@ -169,9 +169,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
     ? [
         shippingAddr.line1,
         [shippingAddr.subdistrict, shippingAddr.district].filter(Boolean).join(' '),
-        [shippingAddr.province, shippingAddr.postcode].filter(Boolean).join(' '),
+        [shippingAddr.province, shippingAddr.postcode].filter(Boolean).join(' ')
       ]
-        .filter((l) => l && String(l).trim())
+        .filter(l => l && String(l).trim())
         .join(', ')
     : null
 
@@ -179,11 +179,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // MANUAL (order.shipmentTracking) — ทั้งสองไม่ควรมีพร้อมกันตาม business flow ปกติของระบบ
   // (feat 00022: ห้ามเขียน ShipmentTracking ให้ออเดอร์ที่ใช้ iShip) แต่ถ้าเกิดขึ้นจริง ให้ ISHIP
   // ชนะเพราะเป็น system-generated source of truth
-  const shipmentSource: ShipmentSource = shipmentPanel?.shipment
-    ? 'ISHIP'
-    : order.shipmentTracking
-      ? 'MANUAL'
-      : null
+  const shipmentSource: ShipmentSource = shipmentPanel?.shipment ? 'ISHIP' : order.shipmentTracking ? 'MANUAL' : null
 
   // ข้อมูลการจัดส่งสำหรับ OrderFactsCard (section 3) + prefill ShipmentEntryModal (mode='edit')
   const shippingInfo: OrderFactsShipping | null =
@@ -192,14 +188,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
           courier: shipmentPanel!.shipment!.courierName ?? '—',
           trackingNo: shipmentPanel!.shipment!.trackingNo ?? '—',
           shippedAtISO: shipmentPanel!.shipment!.createdAt.toISOString(),
-          isIship: true,
+          isIship: true
         }
       : shipmentSource === 'MANUAL'
         ? {
             courier: order.shipmentTracking.provider,
             trackingNo: order.shipmentTracking.trackingNo,
             shippedAtISO: (order.shipmentTracking.createdAt as Date).toISOString(),
-            isIship: false,
+            isIship: false
           }
         : null
 
@@ -210,12 +206,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
           visually-hidden เฉพาะไฟล์ของหน้านี้แทน (sr-only เป็น convention เดิมของโปรเจกต์ — ดู
           seller/(dashboard)/products/components/ProductBasicCardV2.tsx) ให้ screen reader เจอ h1
           จริงโดยไม่กระทบภาพที่ user เห็น (breadcrumb ยังโชว์ title แบบเดิมทุกอย่าง) */}
-      <h1 className="sr-only">รายละเอียด{vocab.noun}</h1>
+      <h1 className='sr-only'>รายละเอียด{vocab.noun}</h1>
 
-      <PageBreadcrumb
-        title={`รายละเอียด${vocab.noun}`}
-        trail={[{ label: vocab.noun, href: '/orders' }]}
-      />
+      <PageBreadcrumb title={`รายละเอียด${vocab.noun}`} trail={[{ label: vocab.noun, href: '/orders' }]} />
 
       <OrderDetailClient
         vocab={vocab}
@@ -256,7 +249,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
             qty: item.qty,
             // Decimal (Prisma) ไม่ใช่ plain object — ข้าม RSC→client boundary ไม่ได้
             price: Number(item.price),
-            imageUrl,
+            imageUrl
           }
         })}
         discount={order.discount != null ? Number(order.discount) : null}
@@ -267,35 +260,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
         codReceivedByLabel={order.codReceivedBy?.displayName ?? order.codReceivedBy?.username ?? null}
         isCod={isCODPayment(order.paymentMethod)}
         shippingActivity={<ShippingActivity events={orderEvents} orderNoun={vocab.noun} />}
-        shippingCard={
-          <ShippingCard
-            iship={
-              shipmentPanel?.shipment
-                ? {
-                    id: shipmentPanel.shipment.id,
-                    status: shipmentPanel.shipment.status,
-                    carrierStatus: shipmentPanel.shipment.carrierStatus ?? null,
-                    courierName: shipmentPanel.shipment.courierName ?? null,
-                    courierCode: shipmentPanel.shipment.courierCode ?? null,
-                    trackingNo: shipmentPanel.shipment.trackingNo ?? null,
-                    isDryRun: Boolean(shipmentPanel.shipment.isDryRun),
-                    lastTracedAtISO: shipmentPanel.shipment.carrierStatusAt
-                      ? (shipmentPanel.shipment.carrierStatusAt as Date).toISOString()
-                      : null,
-                  }
-                : null
-            }
-            manual={
-              shipmentSource === 'MANUAL'
-                ? {
-                    provider: order.shipmentTracking.provider,
-                    trackingNo: order.shipmentTracking.trackingNo,
-                    shippedAtISO: (order.shipmentTracking.createdAt as Date).toISOString(),
-                  }
-                : null
-            }
-          />
-        }
         customerCard={
           <CustomerDetails
             summary={customerSummary}
@@ -306,7 +270,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
               buyerUsername: order.buyer?.username ?? null,
               buyerName: order.buyerName ?? null,
               avatar: order.buyer?.avatar ?? null,
-              shippingAddr,
+              shippingAddr
             }}
           />
         }
@@ -318,6 +282,36 @@ export default async function OrderDetailPage({ params }: PageProps) {
               publicToken={order.publicToken}
               shippingAddr={shippingAddr}
             />
+            {/* ใต้ "ที่อยู่จัดส่ง" (user 2026-08-05) — ของสองอย่างนี้ตอบคำถามเดียวกันว่า
+                "ของไปถึงไหนแล้ว/จะไปที่ไหน" อยู่ติดกันแล้วอ่านต่อเนื่องกว่าแยกคนละคอลัมน์ */}
+            <ShippingCard
+              iship={
+                shipmentPanel?.shipment
+                  ? {
+                      id: shipmentPanel.shipment.id,
+                      status: shipmentPanel.shipment.status,
+                      carrierStatus: shipmentPanel.shipment.carrierStatus ?? null,
+                      courierName: shipmentPanel.shipment.courierName ?? null,
+                      courierCode: shipmentPanel.shipment.courierCode ?? null,
+                      trackingNo: shipmentPanel.shipment.trackingNo ?? null,
+                      isDryRun: Boolean(shipmentPanel.shipment.isDryRun),
+                      lastTracedAtISO: shipmentPanel.shipment.carrierStatusAt
+                        ? (shipmentPanel.shipment.carrierStatusAt as Date).toISOString()
+                        : null
+                    }
+                  : null
+              }
+              manual={
+                shipmentSource === 'MANUAL'
+                  ? {
+                      provider: order.shipmentTracking.provider,
+                      trackingNo: order.shipmentTracking.trackingNo,
+                      shippedAtISO: (order.shipmentTracking.createdAt as Date).toISOString()
+                    }
+                  : null
+              }
+            />
+
             {/* COD มีการ์ด "เก็บเงินปลายทาง" ของตัวเองแล้ว ซึ่งบอกวิธีชำระ/สถานะ/ยอด ครบทุกบรรทัด
                 — แสดงทั้งคู่ = ข้อมูลเดียวกันโผล่ 2 การ์ดในจอเดียว (user ทัก 2026-08-05) */}
             {!isCODPayment(order.paymentMethod) && (

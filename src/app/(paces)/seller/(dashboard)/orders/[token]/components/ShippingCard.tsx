@@ -16,7 +16,7 @@
  *       ShippingActivity.tsx (card + card-header + card-body) — โครงการ์ดเดียวกับพี่น้องในหน้านี้
  */
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
@@ -88,23 +88,44 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
    * ดึงสถานะจากฝั่ง iShip เดี๋ยวนั้น — มีเฉพาะพัสดุที่เปิดผ่าน iShip
    * ร้านที่พิมพ์เลขพัสดุเองไม่มีปุ่มนี้ เพราะเราไม่ได้เป็นคนคุยกับขนส่งให้ จะไปถามแทนไม่ได้
    */
-  const handleRefresh = async () => {
-    if (!iship) return
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/seller/iship/shipments/${iship.id}/traces`, { cache: 'no-store' })
-      if (!res.ok) throw new Error('ดึงสถานะจาก iShip ไม่สำเร็จ')
-      const data = (await res.json()) as { data?: TraceEvent[] } | TraceEvent[]
-      const list = Array.isArray(data) ? data : (data.data ?? [])
-      setTraces(list)
-      setCheckedAt(new Date().toISOString())
-      pacesToast.success(list.length > 0 ? `อัปเดตแล้ว ${list.length} เหตุการณ์` : 'ขนส่งยังไม่มีข้อมูลการเดินทาง')
-    } catch (err) {
-      pacesToast.error(err instanceof Error ? err.message : 'ดึงสถานะจาก iShip ไม่สำเร็จ')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const shipmentId = iship?.id ?? null
+  const fetchTraces = useCallback(
+    async (announce: boolean) => {
+      if (!shipmentId) return
+      setLoading(true)
+      try {
+        const res = await fetch(`/api/seller/iship/shipments/${shipmentId}/traces`, { cache: 'no-store' })
+        if (!res.ok) throw new Error('ดึงสถานะจาก iShip ไม่สำเร็จ')
+        const data = (await res.json()) as { data?: TraceEvent[] } | TraceEvent[]
+        const list = Array.isArray(data) ? data : (data.data ?? [])
+        setTraces(list)
+        setCheckedAt(new Date().toISOString())
+        if (announce) {
+          pacesToast.success(list.length > 0 ? `อัปเดตแล้ว ${list.length} เหตุการณ์` : 'ขนส่งยังไม่มีข้อมูลการเดินทาง')
+        }
+      } catch (err) {
+        // ตอนเปิดหน้าไม่ต้องเด้ง toast — ผู้ใช้ไม่ได้สั่งอะไร เด้ง error ใส่เท่ากับรบกวนเปล่า ๆ
+        // (กล่องด้านล่างขึ้นข้อความบอกเองว่าดึงไม่ได้ พร้อมปุ่มให้ลองใหม่)
+        if (announce) pacesToast.error(err instanceof Error ? err.message : 'ดึงสถานะจาก iShip ไม่สำเร็จ')
+        setTraces([])
+      } finally {
+        setLoading(false)
+      }
+    },
+    [shipmentId],
+  )
+
+  /**
+   * ยิงเองตอนเปิดหน้า — user 2026-08-05: "ทำไมต้องมากด refresh อีกที ทั้งที่เข้ามายิงให้เลยก็ได้"
+   *
+   * ไม่ขัด NFR เดิมของ feature 00022 ที่ห้าม prefetch: ข้อนั้นพูดถึง**หน้ารายการ**ที่มีออเดอร์
+   * เป็นสิบ ๆ ใบ (ค่าใช้จ่ายโตตามจำนวนออเดอร์) — ที่นี่ผู้ใช้เปิดใบเดียวเจาะจงแล้ว การยิง 1 ครั้ง
+   * ต่อการเปิดหน้าคือความหมายตรงตัวของ "โหลดเมื่อผู้ใช้เปิดดู"
+   */
+  useEffect(() => {
+    if (!shipmentId) return
+    void fetchTraces(false)
+  }, [shipmentId, fetchTraces])
 
   const visibleTraces = traces?.slice(0, 3) ?? []
 
@@ -128,7 +149,7 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
               aria-label="ดึงสถานะจาก iShip เดี๋ยวนี้"
               className="btn btn-icon border-default-300 text-default-700 hover:text-primary size-8! rounded-full border disabled:opacity-60"
               disabled={loading}
-              onClick={handleRefresh}
+              onClick={() => void fetchTraces(true)}
               title="ดึงสถานะจาก iShip เดี๋ยวนี้"
               type="button"
             >
@@ -147,11 +168,12 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
         )}
 
         <div className="flex items-center gap-3.5">
-          {/* object-contain ไม่ใช่ cover — โลโก้ขนส่งไม่จัตุรัส cover จะครอปตัวหนังสือทิ้ง
-              ring เพราะโลโก้หลายเจ้าพื้นขาว วางบนการ์ดขาวแล้วขอบหายไปเลย */}
-          <span className="ring-default-200 bg-card flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl p-1 ring-1">
+          {/* เต็มกรอบ ไม่มีขอบ (user 2026-08-05) — ทำได้เพราะไฟล์โลโก้ขนส่งทุกตัวใน
+              public/images/logos/ เป็นจัตุรัสหมด (ตรวจแล้ว 447x447 / 554 / 240) object-cover
+              จึงไม่ครอปอะไรทิ้ง · โลโก้เจ้าใหม่ที่ไม่จัตุรัสต้องครอปเป็นจัตุรัสก่อนวางไฟล์ */}
+          <span className="bg-default-100 flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">
             {logo ? (
-              <Image alt={courierName ?? 'ขนส่ง'} className="size-full rounded-lg object-contain" height={56} src={logo} width={56} />
+              <Image alt={courierName ?? 'ขนส่ง'} className="size-full object-cover" height={56} src={logo} width={56} />
             ) : (
               <span className="text-default-700 text-xs font-bold">{courierInitials(courierName, courierCode)}</span>
             )}
@@ -229,12 +251,15 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
           <div className="border-default-200 mt-5 border-t border-dashed pt-4">
             <p className="text-default-800 mb-2.5 text-xs font-semibold">การเดินทางล่าสุด</p>
 
-            {traces === null ? (
-              <p className="text-default-700 mb-0 text-xs">
-                กด <Icon icon="refresh" className="align-middle text-sm" aria-hidden="true" /> เพื่อดึงสถานะล่าสุดจาก iShip
+            {traces === null || (loading && visibleTraces.length === 0) ? (
+              <p className="text-default-700 mb-0 flex items-center gap-2 text-xs">
+                <Icon icon="loader-2" className="animate-spin text-sm" aria-hidden="true" />
+                กำลังดึงสถานะจาก iShip…
               </p>
             ) : visibleTraces.length === 0 ? (
-              <p className="text-default-700 mb-0 text-xs">ขนส่งยังไม่บันทึกการเดินทางของพัสดุใบนี้</p>
+              <p className="text-default-700 mb-0 text-xs">
+                ขนส่งยังไม่บันทึกการเดินทางของพัสดุใบนี้ — กดปุ่มรีเฟรชที่หัวการ์ดเพื่อลองใหม่
+              </p>
             ) : (
               <div className="space-y-2">
                 {visibleTraces.map((t, i) => (

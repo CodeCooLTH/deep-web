@@ -117,8 +117,6 @@ export interface OrderDetailClientProps {
 
   /** การ์ดที่ยัง server-render ได้ — ส่งมาจาก page.tsx เป็น ReactNode ไม่ลากเข้า client bundle */
   shippingActivity: React.ReactNode
-  /** การ์ด "การจัดส่ง" — คำนวณที่ server (ต้องรู้ทั้ง OrderShipment และ ShipmentTracking) */
-  shippingCard: React.ReactNode
   /** การ์ดผู้ซื้อ — แยกจาก sideCards เพราะการ์ด COD ต้องแทรก "หลังผู้ซื้อ ก่อนที่อยู่" */
   customerCard: React.ReactNode
   sideCards: React.ReactNode
@@ -159,7 +157,6 @@ export default function OrderDetailClient({
   vatAmount,
   orderNoun,
   shippingActivity,
-  shippingCard,
   customerCard,
   sideCards,
   codReceivedAtISO,
@@ -387,7 +384,6 @@ export default function OrderDetailClient({
             vatAmount={vatAmount}
             vatRate={vatRate}
           />
-          {shippingCard}
           {shippingActivity}
         </div>
         <div className="space-y-base">
