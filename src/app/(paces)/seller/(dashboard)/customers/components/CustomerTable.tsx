@@ -8,7 +8,8 @@
  * เปลี่ยน: ใช้ CustomerRow จาก real data แทน CustomerType demo
  * ตัด: AddCustomerModal, DeleteConfirmationModal, checkbox select, demo data import,
  *       country column, avatar image — seller ไม่มี action เหล่านี้
- * เปลี่ยน columns: displayName, contact (PDPA masked), totalOrders, lastOrderISO (แสดงเป็น locale date)
+ * เปลี่ยน columns: displayName, contact (PDPA masked), totalOrders, totalSpent (ยอดซื้อสะสม),
+ *       lastOrderISO (แสดงเป็น locale date)
  * เพิ่ม: filterFns: {} ใน useReactTable (ป้องกัน type error)
  * Date: lastOrderISO รับมาเป็น ISO string (RSC→client ปลอดภัย) แล้ว format ใน cell
  */
@@ -17,6 +18,7 @@ import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import { formatDateTime } from '@/lib/format-date'
+import { formatBaht } from '@/lib/format-money'
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -102,6 +104,19 @@ const CustomerTable = ({ customers }: CustomerTableProps) => {
         <span className="font-medium">{row.original.totalOrders}</span>
       ),
     }),
+    columnHelper.accessor('totalSpent', {
+      header: () => (
+        <div className="flex flex-col">
+          <span>ยอดซื้อสะสม</span>
+          <span className="font-normal text-2xs text-default-400">(นับเป็นยอดขายแล้ว)</span>
+        </div>
+      ),
+      cell: ({ row }) => (
+        <span className="tabular-nums text-sm font-semibold text-default-900">
+          {formatBaht(row.original.totalSpent)}
+        </span>
+      ),
+    }),
     columnHelper.accessor('lastOrderISO', {
       header: 'ออเดอร์ล่าสุด',
       cell: ({ row }) => (
@@ -175,34 +190,46 @@ const CustomerTable = ({ customers }: CustomerTableProps) => {
         emptyMessage="ยังไม่มีลูกค้า — รอผู้ซื้อสั่งซื้อสินค้าจากร้านค้าของคุณ"
         mobileCard={(row) => {
           const c = row.original
-          const lastDate = formatDateTime(c.lastOrderISO)
           return (
-            <div className="flex items-center gap-3 px-1 py-3.5">
-              {/* leading: avatar initial */}
-              <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm shrink-0">
-                {c.initial}
+            <div className="flex flex-col">
+              <div className="flex items-center gap-3 px-1 py-3.5">
+                {/* leading: avatar initial */}
+                <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-sm shrink-0">
+                  {c.initial}
+                </div>
+                {/* main: ชื่อ (link ถ้า registered) + ติดต่อ */}
+                <div className="min-w-0 flex-1">
+                  {c.isRegistered && c.username ? (
+                    <a
+                      href={`${buyerBase}/u/${c.username}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-default-900 hover:text-primary block truncate"
+                    >
+                      {c.displayName}
+                    </a>
+                  ) : (
+                    <p className="text-sm font-medium text-default-900 truncate">{c.displayName}</p>
+                  )}
+                  {/* HR7: text-[12px] — เบอร์/อีเมลผู้ติดต่อรอง ต้องเล็กกว่าชื่อ (text-sm); Paces ไม่มี token 12px พอดี (text-2xs=11px/text-xs=13px) */}
+                  <p className="text-[12px] text-default-500 font-mono truncate">{c.contact}</p>
+                </div>
+                {/* trailing: จำนวนออเดอร์ */}
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold text-default-900 leading-tight">{c.totalOrders}</p>
+                  <p className="text-2xs text-default-400 leading-tight">ออเดอร์</p>
+                </div>
               </div>
-              {/* main: ชื่อ (link ถ้า registered) + ติดต่อ */}
-              <div className="min-w-0 flex-1">
-                {c.isRegistered && c.username ? (
-                  <a
-                    href={`${buyerBase}/u/${c.username}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[14px] font-medium text-ink hover:text-primary block truncate"
-                  >
-                    {c.displayName}
-                  </a>
-                ) : (
-                  <p className="text-[14px] font-medium text-ink truncate">{c.displayName}</p>
-                )}
-                {/* HR7: text-[12px] — เบอร์/อีเมลผู้ติดต่อรอง ต้องเล็กกว่าชื่อ (text-[14px]); Paces ไม่มี token 12px พอดี (text-2xs=11px/text-xs=13px) */}
-                <p className="text-[12px] text-default-500 font-mono truncate">{c.contact}</p>
-              </div>
-              {/* trailing: จำนวนออเดอร์ + ล่าสุด */}
-              <div className="shrink-0 text-right">
-                <p className="text-[14px] font-semibold text-ink leading-tight">{c.totalOrders}</p>
-                <p className="text-[11px] text-default-400 leading-tight">{lastDate}</p>
+              {/* row 2: ล่าสุด + ยอดซื้อสะสม — เส้นทึบ (dashed สงวนให้ .card-header เท่านั้น) */}
+              <div className="flex items-center justify-between gap-3 px-1 pb-3.5 pt-3 border-t border-default-100">
+                <div>
+                  <p className="text-2xs text-default-400">ล่าสุด</p>
+                  <p className="text-sm text-default-500">{formatDateTime(c.lastOrderISO)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xs text-default-400">ยอดซื้อสะสม (นับเป็นยอดขายแล้ว)</p>
+                  <p className="tabular-nums text-sm font-semibold text-default-900">{formatBaht(c.totalSpent)}</p>
+                </div>
               </div>
             </div>
           )
