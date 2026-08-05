@@ -24,6 +24,7 @@ import { requireActiveShop } from '@/lib/shop-context'
 import { toFileUrl } from '@/lib/file-url'
 import { getTrustLevel } from '@/services/trust-score.service'
 import { getOrdersByShop, getOrderStatusCounts, getShippingStageCounts } from '@/services/order.service'
+import { countsAsRevenue } from '@/lib/order-revenue'
 import { getBestSellerProducts } from '@/services/product.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
@@ -282,11 +283,12 @@ export default async function SellerDashboardPage() {
 
         // คำนวณ stat จาก rawOrders ที่ fetch มาแล้ว — ไม่ query ซ้ำ
         orderCount = rawOrders.length
-        // รวมยอดเฉพาะ CONFIRMED orders (terminal สำเร็จ); หาร 1000 เพื่อให้แสดงในหน่วย k
-        // (StatisticCard ใช้ suffix:'k' เป็น literal text — value ต้องเป็น หน่วยพัน)
+        // รวมยอดของใบที่ "นับเป็นยอดขายแล้ว" — ผู้ซื้อยืนยันรับของ หรือขนส่งรับของไปแล้วจริง
+        // (SSOT: lib/order-revenue.ts — ต้องตรงกับ P&L และกราฟยอดขาย ห้ามเขียนเกณฑ์ซ้ำที่นี่)
+        // หาร 1000 เพราะ StatisticCard ใช้ suffix:'k' เป็น literal text — value ต้องเป็นหน่วยพัน
         // ตัวอย่าง: ฿12,400 → 12.4 → แสดงเป็น ฿12.4k
         const completedRevenueBaht = rawOrders
-          .filter((o) => o.status === 'CONFIRMED')
+          .filter((o) => countsAsRevenue(o))
           .reduce((sum, o) => sum + Number(o.totalAmount), 0)
         revenueK = completedRevenueBaht / 1000
 

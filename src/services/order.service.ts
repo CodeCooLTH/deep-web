@@ -830,6 +830,10 @@ export async function getOrdersByShop(shopId: string, status?: string) {
         take: 1,
         select: {
           carrierStatus: true,
+          // 2 ช่องนี้ซ้ำกับ where ด้านบนโดยตั้งใจ — countsAsRevenue() (lib/order-revenue.ts) ตรวจ
+          // เงื่อนไขเองอีกชั้นเพื่อให้ผลตรงกับ revenueOrderWhere เป๊ะ ไม่ต้องเชื่อว่า caller กรองมาแล้ว
+          status: true,
+          isDryRun: true,
           // แถวออเดอร์ต้องเห็นเลขพัสดุ + ขนส่งเจ้าไหน + เปิดผ่านแพลตฟอร์มไหน (user สั่ง 2026-08-04)
           trackingNo: true,
           courierCode: true,

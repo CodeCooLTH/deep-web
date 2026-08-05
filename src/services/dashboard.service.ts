@@ -7,6 +7,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { countsAsRevenue } from '@/lib/order-revenue'
 
 // เดือนไทยแบบย่อ — label แกน x โหมดรายเดือน
 const THAI_MONTHS_ABBR = [
@@ -147,6 +148,9 @@ export async function getSalesSeries(
         totalAmount: true,
         createdAt: true,
         status: true,
+        // ต้องรู้ว่าขนส่งรับของไปแล้วหรือยัง — เกณฑ์ "นับเป็นยอดขาย" ไม่ได้ดูแค่ status
+        // (SSOT: lib/order-revenue.ts) select แคบ ๆ 3 คอลัมน์ ไม่ให้ payload บวม
+        shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
         // ต้นทุนสินค้า — จำเป็นต่อ "กำไรสุทธิ" ให้ได้สูตรเดียวกับการ์ด P&L ใน /expenses
         // (ถ้าใช้ ยอดยืนยันแล้ว − ค่าใช้จ่าย เฉย ๆ ตัวเลขจะไม่ตรงกับอีกสองหน้า)
         ...(includeFinance ? { items: { select: { cost: true, qty: true } } } : {}),
@@ -198,8 +202,8 @@ export async function getSalesSeries(
       const idx = bucketOf(shifted)
       if (idx >= 0 && idx < bucketCount) {
         values[idx] += amt
-        // แยกยอด buyer ยืนยันแล้ว vs ยังไม่ยืนยัน (PENDING/SHIPPED) สำหรับแท่งสี stacked
-        if (r.status === 'CONFIRMED') {
+        // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ
+        if (countsAsRevenue(r)) {
           confirmedValues[idx] += amt
           const items = (r as { items?: { cost: unknown; qty: number }[] }).items
           for (const item of items ?? []) {
