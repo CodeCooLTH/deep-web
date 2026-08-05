@@ -19,6 +19,7 @@ import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
+import { getShortcutTileIcon } from '../_constants/shortcut-icons'
 import type { ShortcutStateDto } from '../_constants/command-center'
 
 type Props = {
@@ -163,10 +164,13 @@ export default function ShortcutEditSheet({ onClose, onSync }: Props) {
                 <p className="text-default-700 py-3 text-sm">ยังไม่ได้เลือกเมนูลัดไว้เลย เลือกจากด้านล่างได้เลย</p>
               ) : (
                 <ul className="grid gap-1.5">
+                  {/* icon มาจาก getShortcutTileIcon(slug) เดียวกับการ์ดจริงบนหน้าแรก — ถ้าใช้
+                      item.icon (ชุด sidebar) ผู้ใช้จะเลือกไอคอนแบบหนึ่งแล้วได้อีกแบบบนหน้าแรก */}
                   {pinnedUsable.map((item) => (
                     <ShortcutRow
                       key={item.slug}
-                      icon={item.icon}
+                      icon={getShortcutTileIcon(item.slug).icon}
+                      iconTone={getShortcutTileIcon(item.slug).tone}
                       label={item.label}
                       tone="pinned"
                       actionIcon="x"
@@ -208,7 +212,8 @@ export default function ShortcutEditSheet({ onClose, onSync }: Props) {
                   {addable.map((item) => (
                     <ShortcutRow
                       key={item.slug}
-                      icon={item.icon}
+                      icon={getShortcutTileIcon(item.slug).icon}
+                      iconTone={getShortcutTileIcon(item.slug).tone}
                       label={item.label}
                       tone="plain"
                       actionIcon="plus"
@@ -247,6 +252,7 @@ export default function ShortcutEditSheet({ onClose, onSync }: Props) {
  */
 function ShortcutRow({
   icon,
+  iconTone = 'text-primary',
   label,
   tone,
   actionIcon,
@@ -258,6 +264,8 @@ function ShortcutRow({
   onClick,
 }: {
   icon: string
+  /** คลาสสีของไอคอน (token ธีม) — ไม่ส่งมา = น้ำเงินตามเดิม (ใช้กับแถวที่ไม่มีสีประจำช่อง เช่น lock) */
+  iconTone?: string
   label: string
   tone: 'pinned' | 'unavailable' | 'plain'
   actionIcon: 'x' | 'plus'
@@ -290,7 +298,9 @@ function ShortcutRow({
       >
         <Icon
           icon={icon}
-          className={cn('shrink-0 text-xl', tone === 'unavailable' ? 'text-default-500' : 'text-primary')}
+          /* iconTone = สีประจำช่องนั้นบนการ์ดจริง ส่งมาจากผู้เรียก; ช่องที่สิทธิ์หมดบังคับเป็นเทา
+             เสมอ เพราะสีประจำช่องจะขัดกับสารที่ต้องสื่อว่า "ใช้ไม่ได้แล้ว" */
+          className={cn('shrink-0 text-xl', tone === 'unavailable' ? 'text-default-500' : iconTone)}
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">

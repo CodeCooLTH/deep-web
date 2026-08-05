@@ -25,6 +25,7 @@ import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import ShortcutEditSheet from './ShortcutEditSheet'
+import { getShortcutTileIcon } from '../_constants/shortcut-icons'
 import type { ShortcutCatalogItemDto, ShortcutStateDto } from '../_constants/command-center'
 
 type Props = {
@@ -35,7 +36,9 @@ type Props = {
 
 // HR7 carve-out: 30px คือขนาดที่ Design Spec กำหนด และ Paces ไม่มี token ที่ให้ 30px ตรง ๆ
 // (text-3xl = 30px ก็จริง แต่ผูก line-height ของ heading มาด้วย ซึ่งดันระยะในกริดเพี้ยน)
-const TILE_ICON_CLASS = 'text-primary text-[30px] leading-none' // HR7: arbitrary — ดูเหตุผลด้านบน
+// สีมาต่อช่องจาก getShortcutTileIcon(slug).tone ไม่ได้อยู่ในคลาสนี้แล้ว (user 2026-08-05
+// "ทำไมใช้สีน้ำเงินล้วน") — เหลือเฉพาะขนาด/จังหวะบรรทัดที่ทุกช่องใช้เหมือนกัน
+const TILE_ICON_CLASS = 'text-[30px] leading-none' // HR7: arbitrary — ดูเหตุผลด้านบน
 
 // HR7 carve-out: badge เกยมุมไอคอน ต้องใช้ระยะติดลบ + ความกว้างขั้นต่ำที่ Paces ไม่มี token ให้
 // คลาสชุดนี้ copy ตรงจาก OrderStatusBand.tsx (badge เดียวกัน คนละที่วาง)
@@ -120,11 +123,15 @@ export default function CarouselGrid({ initialTiles, liveAuctionCount = 0 }: Pro
 
 function TileItem({ tile, badgeCount }: { tile: ShortcutCatalogItemDto; badgeCount: number }) {
   const badgeText = badgeCount > 0 ? fmtBadge(badgeCount) : null
+  const { icon, tone } = getShortcutTileIcon(tile.slug)
 
   return (
     <Link href={tile.url} className="flex flex-col items-center gap-2 transition-transform active:scale-95">
       <span className="relative inline-flex items-center justify-center">
-        <Icon icon={tile.icon} className={TILE_ICON_CLASS} aria-hidden="true" />
+        {/* ไอคอน+สีมาจาก getShortcutTileIcon(slug) ไม่ใช่ tile.icon (= ไอคอน sidebar ชุด tabler
+            เส้นบาง สีเดียว) เพื่อให้เข้าชุดกับการ์ด "สถานะคำสั่งซื้อ" ที่อยู่เหนือกันในจอเดียว
+            ทั้งรูปทรง (duotone) และสีสัน — ดู _constants/shortcut-icons.ts */}
+        <Icon icon={icon} className={cn(TILE_ICON_CLASS, tone)} aria-hidden="true" />
         {badgeText !== null && <span className={TILE_BADGE_CLASS}>{badgeText}</span>}
       </span>
       {/* text-2xs = 11px (ดู _root.css); text-default-700 เพื่อ contrast ผ่าน AA */}
