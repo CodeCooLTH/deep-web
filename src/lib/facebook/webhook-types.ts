@@ -109,6 +109,21 @@ const MessagingEventSchema = v.object({
   // read: event ที่ลูกค้าอ่านข้อความของเพจ (message_reads) — watermark = อ่านถึง timestamp นี้
   // feature 00018 read receipt. sender = ลูกค้า (คนอ่าน), recipient = เพจ
   read: v.optional(v.object({ watermark: v.number() })),
+  // delivery: event ที่ข้อความของเพจ "ถึงเครื่องลูกค้า" (message_deliveries, 2026-08-05)
+  // watermark = ข้อความที่ส่งก่อน timestamp นี้ถึงปลายทางหมดแล้ว — โมเดลเดียวกับ read ข้างบน
+  //
+  // ทุก field optional ตาม docs/conventions/external-payload-schema.md: เอกสาร Meta ระบุว่า `mids`
+  // ไม่ได้ติดมาทุกครั้ง (ส่งมาเฉพาะบางกรณี) ถ้าประกาศเป็นบังคับ Valibot จะตี event ตกทั้งก้อน
+  // แล้วสถานะ "ได้รับแล้ว" จะไม่มีวันขึ้นเลยโดยไม่มี error ให้เห็น
+  //
+  // เราใช้แค่ watermark — ไม่ใช้ mids เพราะ watermark ครอบข้อความก่อนหน้าให้หมดในตัวอยู่แล้ว
+  // (ประกาศ mids ไว้เพื่อให้ schema ตรงกับของจริง ไม่ได้อ่านค่า)
+  delivery: v.optional(
+    v.object({
+      mids: v.optional(v.array(v.string())),
+      watermark: v.optional(v.number()),
+    }),
+  ),
   // reaction (message_reactions) + referral (messaging_referrals) — feature 00018 Phase 2
   reaction: v.optional(ReactionSchema),
   referral: v.optional(ReferralSchema),

@@ -1378,6 +1378,16 @@ model Conversation {
   // externalReadAt: watermark "ลูกค้าฝั่งช่องทางนอกอ่านถึงเวลานี้" (Messenger message_reads) — ข้อความ
   // ฝั่งร้าน (SHOP) ที่ createdAt <= ค่านี้ ถือว่า "อ่านแล้ว" (feature 00018 read receipt)
   externalReadAt      DateTime?
+  // externalDeliveredAt: watermark "ข้อความของร้านถึงเครื่องลูกค้าถึงเวลานี้" (Messenger message_deliveries)
+  // — ข้อความฝั่งร้าน (SHOP) ที่ createdAt <= ค่านี้ ถือว่า "ได้รับแล้ว" (2026-08-05)
+  //
+  // ทำไมต้องมี: `deliveryStatus='SENT'` แปลว่า "Meta ตอบ mid กลับมาแล้ว" เท่านั้น ไม่ได้แปลว่าข้อความ
+  // อยู่ในแชทลูกค้าจริง (user report prod 2026-08-05: ส่งรูปหลายใบแล้ว UI ขึ้นว่าส่งแล้วทั้งที่ฝั่ง
+  // Messenger ยังไม่มีรูป) หลักฐานเดียวที่ยืนยันได้คือ event นี้จาก Meta
+  //
+  // 🛑 Messenger เท่านั้น — Instagram ไม่มี message_deliveries ในโปรโตคอล ค่าจึงเป็น null ตลอดกาล
+  // สำหรับเธรด IG (ไม่ใช่ข้อมูลขาด) ฝั่ง UI ต้อง gate ด้วย channel ไม่ใช่เช็คแค่ค่า null
+  externalDeliveredAt DateTime?
   // chatGroupId: กลุ่ม/แท็บที่ร้านจัดเธรดนี้ไว้ (feature 00018) — null = ยังไม่จัดกลุ่ม (แท็บ "ทั้งหมด")
   // ต่อ conversation (ไม่ใช่ต่อลูกค้า) เพื่อให้ใช้ได้ทุกช่องทางรวม DEEP; ลบกลุ่ม → SetNull (เธรดกลับ "ทั้งหมด")
   chatGroupId         String?

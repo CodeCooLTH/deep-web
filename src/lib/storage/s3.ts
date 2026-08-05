@@ -114,6 +114,18 @@ export const getFileRange: Storage["getFileRange"] = async (fileId, range) => {
   }
 };
 
+/**
+ * เพดานอายุของ presigned URL แบบ SigV4 = 7 วัน (ข้อจำกัดของ AWS ไม่ใช่ของเรา)
+ *
+ * ขอเกินนี้ `getSignedUrl` **โยน error ทิ้ง** ไม่ใช่คืนลิงก์ที่หมดอายุเร็วกว่าที่ขอ — พฤติกรรมนี้
+ * ทำให้ feature ทั้งตัวตายเงียบมาแล้ว (กริดรูปในแชท ขอ 1 ปี → โยนทุกครั้ง → prod ตกไปส่งทีละใบ
+ * ตั้งแต่วันแรกโดยไม่มีใครรู้ ดู channel-chat.service.ts ACTION_URL_TTL)
+ *
+ * clamp แทนการปล่อยให้โยน: ลิงก์ที่หมดอายุเร็วกว่าที่ขอ = เสื่อมทีละน้อยและเห็นได้ตอนกดจริง
+ * ส่วนการโยน = ฟังก์ชันที่เรียกมันตายทั้งตัว ซึ่งแย่กว่ามากและวินิจฉัยยากกว่ามาก
+ */
+const MAX_PRESIGNED_TTL = 60 * 60 * 24 * 7;
+
 export const getFileUrl: Storage["getFileUrl"] = async (fileId, opts) => {
   const publicUrl = process.env.S3_PUBLIC_URL;
 
@@ -121,10 +133,17 @@ export const getFileUrl: Storage["getFileUrl"] = async (fileId, opts) => {
     return `${publicUrl.replace(/\/$/, "")}/${fileId}`;
   }
 
+  const requested = opts?.expiresIn ?? 3600;
+  if (requested > MAX_PRESIGNED_TTL) {
+    console.warn(
+      `[storage] ขอ presigned URL อายุ ${requested}s เกินเพดาน SigV4 (${MAX_PRESIGNED_TTL}s) — ลดให้อัตโนมัติ`,
+    );
+  }
+
   return getSignedUrl(
     getClient(),
     new GetObjectCommand({ Bucket: getBucket(), Key: fileId }),
-    { expiresIn: opts?.expiresIn ?? 3600 }
+    { expiresIn: Math.min(requested, MAX_PRESIGNED_TTL) }
   );
 };
 

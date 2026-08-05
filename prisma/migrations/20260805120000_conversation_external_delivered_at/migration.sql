@@ -1,0 +1,13 @@
+-- Conversation.externalDeliveredAt — watermark "ข้อความของร้านถึงเครื่องลูกค้าถึงเวลานี้"
+-- (Messenger `message_deliveries`) คู่ขนานกับ externalReadAt ที่มีอยู่แล้ว
+--
+-- ที่มา (user report prod 2026-08-05): ส่งรูปหลายใบแล้ว UI ขึ้น "ส่งแล้ว" ทันที ทั้งที่ฝั่ง Messenger
+-- ยังไม่มีรูป — เพราะ deliveryStatus='SENT' ของเราแปลว่า "Meta ตอบ mid กลับมา" เท่านั้น
+-- ไม่ได้แปลว่าข้อความถึงเครื่องลูกค้า. คอลัมน์นี้คือหลักฐานฝั่ง Meta ที่ยืนยันได้จริง
+--
+-- nullable ไม่มี default โดยตั้งใจ:
+--   - เธรดเก่าทั้งหมด = null → UI ค้างที่ "ส่งแล้ว" ไม่ขึ้น "ได้รับแล้ว" ย้อนหลัง (ถูกต้อง —
+--     เราไม่มีหลักฐานว่าข้อความเก่าถึงเครื่องเมื่อไหร่ ไม่แสดงดีกว่าเดา)
+--   - เธรด Instagram = null ตลอดกาล (โปรโตคอล IG ไม่มี message_deliveries) ฝั่ง UI จึงต้อง gate
+--     ด้วย channel ไม่ใช่ตีความ null ว่า "ยังไม่ถึง"
+ALTER TABLE "Conversation" ADD COLUMN "externalDeliveredAt" TIMESTAMP(3);

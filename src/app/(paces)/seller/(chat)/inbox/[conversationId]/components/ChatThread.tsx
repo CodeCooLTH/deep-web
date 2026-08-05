@@ -896,6 +896,7 @@ export default function ChatThread({
     reactToMessage,
     sendSticker,
     externalReadAt: externalReadAtLive,
+    externalDeliveredAt,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
 
@@ -1134,6 +1135,21 @@ export default function ChatThread({
   // event ของ Meta มาทีหลังและไม่ทริกเกอร์ realtime จึงต้องพึ่ง refetch รอบถัดไป (bug fix 2026-07-23)
   const readAt = externalReadAtLive ?? externalReadAtInitial
   const readAtMs = readAt ? new Date(readAt).getTime() : 0
+
+  /**
+   * delivery receipt (2026-08-05) — ป้ายขั้นกลาง "ได้รับแล้ว" ระหว่าง "ส่งแล้ว" กับ "อ่านแล้ว"
+   *
+   * ทำไมต้องมี (user report prod 2026-08-05): "ส่งแล้ว" ของเราแปลว่า "Meta ตอบ mid กลับมา" ซึ่ง
+   * เกิดขึ้นก่อนที่ข้อความจะเข้าเธรดลูกค้าจริง ส่งรูปหลายใบทีเดียวจะเห็นช่องว่างนี้ชัด — ผู้ขาย
+   * เห็นว่าส่งสำเร็จแล้วทั้งที่ฝั่ง Messenger ยังไม่มีรูป. watermark นี้คือหลักฐานจาก Meta ว่าถึงจริง
+   *
+   * gate ด้วยช่องทาง ไม่ใช่ด้วยค่า null: Instagram ไม่มี message_deliveries ในโปรโตคอลเลย ถ้าเช็ค
+   * แค่ "ยังไม่มี watermark" เธรด IG จะไม่มีวันขึ้น "ได้รับแล้ว" แล้วถ้าเผลอเอาไปผูกกับการซ่อน
+   * "ส่งแล้ว" ก็จะค้างสถานะกำกวมตลอดกาล — ที่ถูกคือ IG ข้ามขั้นนี้ไปที่ "อ่านแล้ว" เลย
+   */
+  const supportsDeliveryReceipt = channel === 'MESSENGER'
+  const deliveredAtMs =
+    supportsDeliveryReceipt && externalDeliveredAt ? new Date(externalDeliveredAt).getTime() : 0
 
   // เธรดที่เกิดจาก "ตอบกลับความคิดเห็น" (private reply) — Meta แนบบรรทัดระบบที่มีลิงก์คอมเมนต์
   // มาด้วยเสมอ จับจาก comment_id ในลิงก์ ไม่ใช่จากถ้อยคำ เพราะเพจตั้งภาษาต่างกันได้
@@ -1662,11 +1678,19 @@ export default function ChatThread({
                 // ไม่กี่วินาที เหลือบับเบิลแดงที่ไม่บอกว่าทำไม. ตั้งแต่เลิกล็อกช่องพิมพ์ตามหน้าต่าง
                 // 24 ชม. (2026-08-03) บับเบิลล้มเหลวเกิดถี่ขึ้นมาก เหตุผลจึงต้องอยู่ติดข้อความถาวร
                 // เท่ากันทั้งสองเส้นทาง — hook เก็บไว้ที่ `_failReason` ให้แล้ว
-                const failReason = failDetail
+                const baseFailReason = failDetail
                   ? failDetail.known && failDetail.metaCode !== null
                     ? `${failDetail.text} (Meta #${failDetail.metaCode})`
                     : failDetail.text
                   : stripSendFailurePrefix(m._failReason)
+                // หมายเหตุประจำชุด (ux 2026-08-05): ใบนี้พังแต่ใบอื่นในชุดเดียวกันถึงลูกค้าแล้ว —
+                // ต่อท้ายเหตุผลเสมอไม่ว่าเหตุผลจะมาจาก server (failDetail) หรือ client (_failReason)
+                // เพราะสิ่งที่กันคือผู้ขายไปเลือกรูปส่งใหม่ทั้งชุดเองที่ composer = ลูกค้าได้รูปซ้ำ
+                const failReason = m._batchNote
+                  ? baseFailReason
+                    ? `${baseFailReason} — ${m._batchNote}`
+                    : m._batchNote
+                  : baseFailReason
                 // ส่งซ้ำได้เฉพาะชนิดที่ประกอบ payload กลับได้ครบจากแถวที่เก็บไว้: TEXT ใช้ body,
                 // ไฟล์แนบทุกชนิดใช้ imageUrl (=fileId ที่ยังอยู่ใน storage — คอลัมน์เดียวกันหมดทั้ง
                 // IMAGE/VIDEO/AUDIO/FILE). ORDER เก็บแต่ orderRefToken ส่วนข้อความลิงก์ที่ยิงจริง
@@ -1703,12 +1727,18 @@ export default function ChatThread({
                   }
                 }
                 // ถามยืนยันก่อน: เนื้อความหายถาวร กู้ไม่ได้ (undo ทำไม่ได้เพราะแถวถูกลบจริง)
+                //
+                // ข้อความยืนยันแยก 2 กรณี (ux 2026-08-05): ประโยค "ลูกค้าไม่เคยได้รับข้อความนี้อยู่แล้ว"
+                // เขียนไว้สมัยที่ failed = "ยังไม่ถึง server" เสมอ — พอมีเคสเน็ตหลุดหลังกดส่ง (_ambiguous)
+                // ประโยคนี้อาจเป็นเท็จ (บางใบอาจถึงลูกค้าไปแล้วจริง) ห้ามยืนยันสิ่งที่ระบบไม่รู้
                 const cancelFailed = async () => {
                   const r = await Swal.fire({
                     buttonsStyling: false,
                     icon: 'warning',
                     title: 'ยกเลิกการส่งข้อความนี้?',
-                    text: 'ข้อความจะหายไปจากห้องแชทและกู้คืนไม่ได้ — ลูกค้าไม่เคยได้รับข้อความนี้อยู่แล้ว',
+                    text: m._ambiguous
+                      ? 'ยังไม่แน่ใจว่าข้อความนี้ถึงลูกค้าแล้วหรือยัง — ถ้ายกเลิกตอนนี้ ระบบจะไม่ลองส่งซ้ำให้อีก'
+                      : 'ข้อความจะหายไปจากห้องแชทและกู้คืนไม่ได้ — ลูกค้าไม่เคยได้รับข้อความนี้อยู่แล้ว',
                     showCancelButton: true,
                     confirmButtonText: 'ยกเลิกการส่ง',
                     cancelButtonText: 'เก็บไว้ก่อน',
@@ -2048,10 +2078,21 @@ export default function ChatThread({
                           )}
                           {/* !failed: บับเบิลที่ยิงไม่ออกเคยขึ้น "ส่งแล้ว" ควบคู่กับแถบแดง เพราะเงื่อนไข
                               เดิมดูแค่ _status (undefined สำหรับแถวที่บันทึกแล้ว) ไม่ได้ดู deliveryStatus */}
+                          {/* บันได 3 ขั้นของข้อความที่ส่งสำเร็จ (2026-08-05):
+                                อ่านแล้ว   — ลูกค้าเปิดอ่านจริง (message_reads) เขียวขั้นเดียวในบันไดนี้
+                                ได้รับแล้ว — Meta ยืนยันว่าถึงเครื่องลูกค้า (message_deliveries) สีปกติ
+                                ส่งแล้ว    — Meta รับคำสั่งแล้ว (ตอบ mid) แต่ยังไม่มีหลักฐานว่าถึง
+                              เขียวสงวนไว้ให้ "อ่านแล้ว" ตัวเดียวตาม Verified-Means-Green — "ได้รับแล้ว"
+                              เป็นสถานะระหว่างทาง ไม่ใช่สัญญาณความน่าเชื่อถือระดับเดียวกัน (ux 2026-08-05)
+                              เธรด Instagram ไม่มีขั้นกลาง (deliveredAtMs=0 เสมอ) ข้ามไปที่อ่านแล้วเลย */}
                           {mine && m._status !== 'sending' && !failed && m.id === lastShopMsgId ? (
                             readAtMs > 0 && new Date(m.createdAt).getTime() <= readAtMs ? (
                               <span className="text-success flex items-center gap-0.5">
                                 <Icon icon="checks" /> อ่านแล้ว
+                              </span>
+                            ) : deliveredAtMs > 0 && new Date(m.createdAt).getTime() <= deliveredAtMs ? (
+                              <span className="flex items-center gap-0.5">
+                                <Icon icon="checks" /> ได้รับแล้ว
                               </span>
                             ) : (
                               <span className="flex items-center gap-0.5">

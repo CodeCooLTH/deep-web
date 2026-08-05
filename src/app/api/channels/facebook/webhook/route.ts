@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEventsWithRaw, extractFeedChanges } from '@/lib/facebook/webhook-types'
-import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestReactionEvent, ingestMessageEdit } from '@/services/channel-chat.service'
+import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDeliveryEvent, ingestReactionEvent, ingestMessageEdit } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
 import { ingestFeedComment } from '@/services/page-comment.service'
@@ -192,6 +192,21 @@ export async function POST(request: NextRequest) {
           contactExternalId: event.sender.id,
           watermark: event.read.watermark,
         })
+      } else if (event.delivery) {
+        // delivery receipt (message_deliveries, 2026-08-05) — ข้อความของเพจถึงเครื่องลูกค้าแล้ว
+        // sender = ลูกค้า (เจ้าของเครื่องที่รับ), recipient = เพจ — ทิศเดียวกับ read event ข้างบน
+        //
+        // watermark ไม่ติดมาได้ (schema ประกาศ optional ตาม external-payload-schema.md) — ไม่มีค่า
+        // = ไม่รู้ว่าถึงถึงเมื่อไหร่ ต้องข้ามไปเฉย ๆ ห้ามเดาเป็น Date.now() เพราะจะไปปลดสถานะ
+        // "ได้รับแล้ว" ให้ข้อความที่ยังไม่ถึงจริง ซึ่งคือบั๊กเดิมที่งานรอบนี้กำลังแก้อยู่พอดี
+        if (typeof event.delivery.watermark === 'number') {
+          await ingestDeliveryEvent({
+            provider,
+            pageExternalId: pageId,
+            contactExternalId: event.sender.id,
+            watermark: event.delivery.watermark,
+          })
+        }
       } else if (event.message_edit) {
         // ลูกค้าแก้ข้อความที่ส่งไปแล้ว (message_edits) — ต้องอัปเดตเนื้อความฝั่งเราตาม
         // ไม่งั้นร้านอ่าน "เวอร์ชันก่อนแก้" ไปทำงานต่อ ทั้งที่ลูกค้าเห็นของใหม่แล้ว
