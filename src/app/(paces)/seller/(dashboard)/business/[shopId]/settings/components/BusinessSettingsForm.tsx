@@ -26,6 +26,7 @@ import Icon from '@/components/wrappers/Icon'
 import CategoryMultiSelect from '../../../../dashboard/components/CategoryMultiSelect'
 import ThaiAddressSearch from '@/components/safepay/ThaiAddressSearch'
 import { pacesToast } from '@/lib/paces-toast'
+import { isValidSlugFormat, isReservedSlug, normalizeSlug } from '@/lib/shop-slug'
 
 // Leaflet แตะ window ตอน import — ต้อง ssr:false
 const MapPicker = dynamic(() => import('../../../../dashboard/components/MapPicker'), { ssr: false })
@@ -33,6 +34,8 @@ const MapPicker = dynamic(() => import('../../../../dashboard/components/MapPick
 interface Props {
   shopId: string
   needsLocation: boolean
+  /** '' = ยังไม่เคยตั้ง — ต้องตั้งให้เสร็จก่อนถึงจะออกจากหน้านี้ได้ (layout guard) */
+  currentSlug: string
   initial: {
     shopName: string
     description: string
@@ -44,7 +47,7 @@ interface Props {
   }
 }
 
-export default function BusinessSettingsForm({ shopId, needsLocation, initial }: Props) {
+export default function BusinessSettingsForm({ shopId, needsLocation, currentSlug, initial }: Props) {
   const router = useRouter()
   const [shopName, setShopName] = useState(initial.shopName)
   const [description, setDescription] = useState(initial.description)
@@ -55,6 +58,24 @@ export default function BusinessSettingsForm({ shopId, needsLocation, initial }:
   const [lng, setLng] = useState<number | null>(initial.longitude)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [slug, setSlug] = useState('')
+  const [slugState, setSlugState] = useState<'idle' | 'checking' | 'ok' | 'taken' | 'invalid'>('idle')
+  const needsSlug = !currentSlug
+
+  const checkSlug = async (raw: string) => {
+    const v = normalizeSlug(raw)
+    setSlug(v)
+    if (!v) return setSlugState('idle')
+    if (!isValidSlugFormat(v) || isReservedSlug(v)) return setSlugState('invalid')
+    setSlugState('checking')
+    try {
+      const res = await fetch(`/api/shops/check-slug?slug=${encodeURIComponent(v)}`)
+      const d = (await res.json()) as { available: boolean }
+      setSlugState(d.available ? 'ok' : 'taken')
+    } catch {
+      setSlugState('idle')
+    }
+  }
 
   const handleLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -77,8 +98,27 @@ export default function BusinessSettingsForm({ shopId, needsLocation, initial }:
 
   const save = async () => {
     if (!shopName.trim()) return pacesToast.error('กรุณากรอกชื่อธุรกิจ')
+    // ไม่บังคับ — slug จำเป็นเฉพาะตอนอยากมีหน้าร้านสาธารณะ (user เคาะ 2026-08-05)
+    // กรอกค้างไว้แบบผิด/ซ้ำ ค่อยเตือน ไม่ใช่ห้ามบันทึกส่วนอื่นไปด้วย
+    if (needsSlug && slug && slugState !== 'ok') {
+      return pacesToast.error(slugState === 'taken' ? 'URL นี้มีคนใช้แล้ว' : 'URL ร้านยังไม่ถูกต้อง')
+    }
     setSaving(true)
     try {
+      // slug ต้องผ่าน setShopSlug (จัดการ unique/TOCTOU เอง) จึงยิงคนละ endpoint กับ PATCH ทั่วไป
+      // reuse route เดิมของ onboarding ที่รับ slug อยู่แล้ว — ไม่สร้าง endpoint ซ้ำ
+      if (needsSlug && slug && slugState === 'ok') {
+        const r = await fetch(`/api/business/shops/${shopId}/onboarding`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug }),
+        })
+        if (!r.ok) {
+          pacesToast.error('ตั้ง URL ร้านไม่สำเร็จ — อาจมีคนใช้ไปแล้ว')
+          setSaving(false)
+          return
+        }
+      }
       const res = await fetch(`/api/business/shops/${shopId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -111,6 +151,39 @@ export default function BusinessSettingsForm({ shopId, needsLocation, initial }:
         <h4 className="card-title">ข้อมูลธุรกิจ</h4>
       </div>
       <div className="card-body">
+        {needsSlug && (
+          <div className="bg-warning/15 text-warning-ink mb-4 flex items-start gap-2 rounded px-4 py-3 text-xs" role="alert">
+            <Icon icon="alert-triangle" className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              ธุรกิจนี้ยังไม่มี URL ร้าน — ใช้งานในระบบได้ตามปกติ แต่ยังไม่มีหน้าร้านสาธารณะให้ลูกค้าเปิด
+              ตั้งเมื่อไหร่ก็ได้
+            </span>
+          </div>
+        )}
+
+        {needsSlug && (
+          <div className="mb-4">
+            <label className="form-label" htmlFor="bs-slug">
+              URL ร้าน <span className="text-default-400 font-normal">(ตั้งเมื่อพร้อม)</span>
+            </label>
+            <div className="input-group">
+              <span className="input-group-text">deepthailand.app/b/</span>
+              <input
+                id="bs-slug"
+                className="form-input"
+                placeholder="my-shop"
+                onChange={(e) => void checkSlug(e.target.value)}
+              />
+            </div>
+            {slugState === 'checking' && <p className="text-default-400 mt-1 text-sm">กำลังตรวจสอบ...</p>}
+            {slugState === 'ok' && <p className="text-success mt-1 text-sm">ใช้ URL นี้ได้</p>}
+            {slugState === 'taken' && <p className="text-danger mt-1 text-sm">URL นี้มีคนใช้แล้ว</p>}
+            {slugState === 'invalid' && (
+              <p className="text-danger mt-1 text-sm">ใช้ได้เฉพาะ a-z 0-9 และ - เท่านั้น</p>
+            )}
+          </div>
+        )}
+
         <div className="mb-4">
           <label className="form-label" htmlFor="bs-name">
             ชื่อธุรกิจ<span className="text-danger ms-0.5">*</span>

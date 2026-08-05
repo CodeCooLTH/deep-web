@@ -77,7 +77,7 @@ export default async function BusinessSettingsPage({ params }: { params: Promise
           </dl>
           <p className="text-default-400 mt-3 flex items-start gap-1 text-xs">
             <Icon icon="info-circle" className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            ประเภทกิจการเลือกได้ครั้งเดียวตอนสร้าง · เปลี่ยน URL ร้านได้ที่หน้าตั้งค่าร้านหลังสลับมาใช้ธุรกิจนี้
+            ประเภทกิจการเลือกได้ครั้งเดียวตอนสร้าง · ไม่มี URL ร้าน = ยังไม่มีหน้าร้านสาธารณะให้ลูกค้าเปิด แต่ใช้งานในระบบได้ครบ
           </p>
         </div>
       </div>
@@ -85,6 +85,7 @@ export default async function BusinessSettingsPage({ params }: { params: Promise
       <BusinessSettingsForm
         shopId={shop.id}
         needsLocation={shop.vertical === 'SERVICE_QUEUE' || shop.vertical === 'LODGING'}
+        currentSlug={shop.slug ?? ''}
         initial={{
           shopName: shop.shopName,
           description: shop.description ?? '',
