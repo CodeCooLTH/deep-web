@@ -49,11 +49,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // x-pathname (proxy ตั้งไว้) — ใช้กัน redirect loop ของ onboarding เท่านั้น
   const currentPath = (await headers()).get('x-pathname') ?? ''
 
-  // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding
-  // ยกเว้นเมื่อกำลังอยู่หน้า onboarding เอง — กัน redirect loop
+  /**
+   * D4: active = Business ที่ยังไม่มี slug → บังคับไปตั้งให้เสร็จก่อนใช้งาน
+   *
+   * 🛑 ปลายทางต้องเป็น /settings ไม่ใช่ /business/{id}/onboarding อีกแล้ว — หน้า onboarding
+   * ถูกตัดทิ้ง (feature 00030) เหลือเป็น redirect ไป /settings ซึ่งอยู่ใต้ layout ตัวนี้เอง
+   * ถ้ายังชี้ path เก่าจะกลายเป็นลูป: layout → /onboarding → /settings → layout → /onboarding …
+   * (เกิดจริงบน prod 2026-08-05 ผู้ใช้เจอ ERR_TOO_MANY_REDIRECTS ทั้ง subdomain)
+   *
+   * ธุรกิจที่สร้างผ่าน wizard ใหม่มี slug มาตั้งแต่ต้นอยู่แล้ว เงื่อนไขนี้จึงเหลือไว้สำหรับ
+   * ธุรกิจเก่าที่สร้างก่อนหน้านั้น (และตัวที่เกิดจากบั๊ก auto-submit) ซึ่งยังไม่มี slug
+   */
   if (active.kind === 'BUSINESS' && !shop.slug) {
-    const onboardingPath = `/business/${shop.id}/onboarding`
-    if (currentPath !== onboardingPath) redirect(onboardingPath)
+    const setupPath = `/business/${shop.id}/settings`
+    if (currentPath !== setupPath) redirect(setupPath)
   }
 
   // คำนวณ tier label ตาม SSOT (getTierLabel) จาก trustScore session

@@ -85,6 +85,7 @@ export default async function BusinessSettingsPage({ params }: { params: Promise
       <BusinessSettingsForm
         shopId={shop.id}
         needsLocation={shop.vertical === 'SERVICE_QUEUE' || shop.vertical === 'LODGING'}
+        currentSlug={shop.slug ?? ''}
         initial={{
           shopName: shop.shopName,
           description: shop.description ?? '',
