@@ -250,7 +250,10 @@ export default function DraftOrderProvider({
     (draft: ChatDraft) => {
       setDrafts((prev) => prev.filter((d) => d.id !== draft.id))
       // toast ใช้คำสั้นเช่นกัน — "สร้างการเข้ารับบริการแล้ว" ยาวเกินกว่าที่ toast บรรทัดเดียวรับไหว
-      pacesToast.success(draft.editOrderToken ? `แก้ไข${vocab.nounShort}แล้ว` : `บันทึก${vocab.nounShort}แล้ว`)
+      // สร้างสำเร็จใช้ createLabel ตรง ๆ ห้ามประกอบ "บันทึก/สร้าง" + noun เอง — LODGING คำล็อกคือ
+      // "เปิดบิลเข้าพัก" ไม่ใช่ "บันทึกบิลเข้าพัก" (memory: feedback_vocab_substitution_needs_sentence_sets)
+      // toast มีที่ให้คำเต็มอยู่แล้ว ต่างจากหัวหน้าต่างที่ต้องย่อ
+      pacesToast.success(draft.editOrderToken ? `แก้ไข${vocab.nounShort}แล้ว` : `${vocab.createLabel}แล้ว`)
       // ถ้ากำลังเปิดแชทของ draft นี้อยู่ → refresh ให้แท็บคำสั่งซื้อเห็นออเดอร์ใหม่ทันที
       if (pathname === `/inbox/${draft.conversationId}`) router.refresh()
     },

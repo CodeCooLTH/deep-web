@@ -427,12 +427,14 @@ function ReactMessageButton({ onOpen }: { onOpen: (rect: DOMRect) => void }) {
  * — เดสก์ท็อปไม่มี "กดค้าง" จึงต้องมีทางเข้าคู่ขนานที่ hover เหมือน ตอบกลับ/คัดลอก/รีแอ็กชัน
  */
 function CreateOrderFromMessageButton({ onCreate }: { onCreate: () => void }) {
+  // createLabel ตรง ๆ ห้ามประกอบ "สร้าง"+noun เอง — LODGING คำล็อกคือ "เปิดบิลเข้าพัก"
+  const vocab = useOrderVocab()
   return (
     <button
       type="button"
       onClick={onCreate}
-      aria-label="สร้างคำสั่งซื้อจากข้อความนี้"
-      title="สร้างคำสั่งซื้อจากข้อความนี้"
+      aria-label={`${vocab.createLabel}จากข้อความนี้`}
+      title={`${vocab.createLabel}จากข้อความนี้`}
       className="text-default-700 hover:bg-default-100 hover:text-default-700 mt-1.5 hidden size-7 shrink-0 items-center justify-center rounded-full transition-colors lg:group-hover:flex"
     >
       <Icon icon="receipt" className="size-4" />

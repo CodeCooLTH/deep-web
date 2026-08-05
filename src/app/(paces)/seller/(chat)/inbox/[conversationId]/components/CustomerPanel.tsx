@@ -343,7 +343,7 @@ function OrderCard({
               type="button"
               onClick={sendToChat}
               disabled={sending || cancelling}
-              aria-label="ส่งคำสั่งซื้อนี้เข้าแชท"
+              aria-label={`ส่ง${noun}นี้เข้าแชท`}
               className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
             >
               <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
