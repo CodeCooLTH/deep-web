@@ -639,7 +639,7 @@ export default function ShipmentCreateForm({
               disabled={!compareReady}
               aria-describedby={!compareReady ? 'cmp-hint' : undefined}
               onClick={() => setCompareOpen(true)}
-              className={`btn inline-flex shrink-0 items-center gap-1.5 border ${
+              className={`btn inline-flex min-h-11 shrink-0 items-center gap-1.5 border ${
                 compareReady
                   ? 'border-primary text-primary hover:bg-primary hover:text-white'
                   : 'border-default-300 text-default-500'
