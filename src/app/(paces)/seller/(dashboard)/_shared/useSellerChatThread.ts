@@ -727,41 +727,13 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     scrollToBottom()
     // ส่งเรียงทีละใบ (ไม่ Promise.all) — ให้ลำดับข้อความฝั่งลูกค้าตรงกับลำดับรูปที่แนบ และไม่ยิง
     // Graph API พร้อมกันจนโดน rate limit
-    /**
-     * รูปหลายใบ → ส่งเป็น "กริดในข้อความเดียว" (Meta image_grid) — user สั่ง 2026-08-04 ให้เหมือน
-     * Business Suite (ครอบทั้งการแนบเองและ "ข้อความสำเร็จรูป" ที่พารูปมาหลายใบ เพราะทั้งสองทาง
-     * ลงมาที่ pendingImages ชุดเดียวกัน)
-     *
-     * เงื่อนไข: ตั้งแต่ 2 ใบขึ้นไป และเป็น "รูป" ทั้งหมด (วิดีโอ/ไฟล์ยังต้องส่งทีละชิ้นตาม Send API)
-     * fail-safe 2 ชั้น: (1) ที่นี่ — ยิงกริดไม่ผ่าน (เช่นเธรด DEEP ตอบ 400) ตกไปวนส่งทีละใบแบบเดิม
-     * (2) ที่ service — Meta ปฏิเสธ template ก็ยังส่งทีละใบให้เอง ร้านต้องส่งออกได้เสมอ
-     */
-    const gridFiles = pendingImages.filter((a) => pendingKind(a) === 'IMAGE').map((a) => a.fileId)
-    const gridMode = pendingImages.length >= 2 && gridFiles.length === pendingImages.length
-
+    //
+    // เลิกส่งหลายใบเป็น "กริดในข้อความเดียว" (Meta image_grid) แล้ว — ผลตัดสิน user 2026-08-05:
+    // กริดของ Meta ครอปทุกใบเป็นแท่งแนวตั้งตามสัดส่วน tile ที่เราคุมไม่ได้ โปสเตอร์สินค้าแบบ
+    // จัตุรัสข้อมูลแน่น (หัวเรื่อง/รายการรุ่น/ราคา) เหลือแค่แถบกลางจนอ่านไม่รู้เรื่อง
+    // (เคสจริง: ข้อความสำเร็จรูปโช๊ค — ลูกค้าเห็น "งสปริง" กับตัวโช๊ค ที่เหลือถูกครอปทิ้งหมด)
+    // ส่งทีละใบ ลูกค้าได้รูปเต็มทุกใบเสมอ; endpoint IMAGE_GRID ฝั่ง server ยังอยู่แต่ไม่มีใครเรียก
     void (async () => {
-      if (gridMode) {
-        try {
-          const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'IMAGE_GRID',
-              body: trimmed || null,
-              imageFileIds: gridFiles,
-              ...(replyTargetId ? { replyToMessageId: replyTargetId } : {}),
-            }),
-          })
-          if (res.ok) {
-            await refetchNewer()
-            const localIds = new Set(queued.map((q) => q.localId))
-            setMessages((prev) => prev.filter((m) => !localIds.has(m.id)))
-            return
-          }
-        } catch {
-          /* ตกไปเส้นทางทีละใบด้านล่าง */
-        }
-      }
       for (const q of queued) await postMessage(q.localId, q.payload)
     })()
   }
