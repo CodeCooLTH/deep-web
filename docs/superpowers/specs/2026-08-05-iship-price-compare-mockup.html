@@ -1,0 +1,2861 @@
+<!DOCTYPE html>
+<html lang="th" data-skin="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — เปรียบเทียบราคาขนส่ง iShip (ext. 00022) · Paces components จริง</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── Paces CSS จริง — compile จาก _root/_theme-default/custom/*+safepay-overrides ด้วย tailwindcss v4 CLI (2026-08-05) ── */
+/*! tailwindcss v4.3.3 | MIT License | https://tailwindcss.com */
+@layer properties;
+@layer theme, base, components, utilities;
+@layer theme {
+  :root, :host {
+    --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+      "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+    --color-rose-400: oklch(71.2% 0.194 13.428);
+    --color-slate-50: oklch(98.4% 0.003 247.858);
+    --color-zinc-50: oklch(98.5% 0 0);
+    --color-zinc-100: oklch(96.7% 0.001 286.375);
+    --color-zinc-200: oklch(92% 0.004 286.32);
+    --color-zinc-300: oklch(87.1% 0.006 286.286);
+    --color-zinc-400: oklch(70.5% 0.015 286.067);
+    --color-zinc-800: oklch(27.4% 0.006 286.033);
+    --color-white: #fff;
+    --spacing: 0.25rem;
+    --text-xs: 0.8125rem;
+    --text-xs--line-height: 1.5;
+    --text-sm: 0.875rem;
+    --text-sm--line-height: 1.5;
+    --text-base: 1rem;
+    --text-base--line-height: 1.5;
+    --text-lg: 1.125rem;
+    --text-lg--line-height: 1.5;
+    --text-xl: 1.25rem;
+    --text-xl--line-height: 1.5;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --leading-normal: 1.5;
+    --radius-sm: 0.25rem;
+    --radius-lg: 0.5rem;
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --default-transition-duration: 150ms;
+    --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    --default-font-family: var(--font-sans);
+    --default-mono-font-family: var(--font-mono);
+    --shadow: 0px 1px 4px 0px rgba(130, 143, 163, 0.15);
+    --radius: 4px;
+    --font-body: var(--font-anuphan), "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-secondary: var(--font-anuphan), "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --text-body: 0.875rem;
+    --color-body-bg: #f6f7fb;
+    --color-body-color: #4c4c5c;
+    --color-card: var(--color-white);
+    --color-primary: #236dc9;
+    --color-success: #02bc9c;
+    --color-primary-hover: #1e5dab;
+    --color-warning: #f9bf59;
+    --color-danger: #f7577e;
+    --color-light: #eef2f7;
+    --color-dark: #313a46;
+    --color-warning-ink: #92400e;
+    --color-danger-ink: #7f1d1d;
+    --color-default-50: var(--color-slate-50);
+    --color-default-100: #f6f7fb;
+    --color-default-200: #eef2f7;
+    --color-default-300: #e7e9eb;
+    --color-default-400: #9ba6b7;
+    --color-default-500: #a1a9b1;
+    --color-default-600: #8a969c;
+    --color-default-700: #6c757d;
+    --color-default-800: #343a40;
+    --color-default-900: #313a46;
+    --text-md: 15px;
+    --text-md--line-height: 1.5;
+    --tw-shadow: var(--shadow);
+    --logo-lg-height: 22px;
+  }
+}
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid;
+  }
+  html, :host {
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    font-family: var(--default-font-family, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");
+    font-feature-settings: var(--default-font-feature-settings, normal);
+    font-variation-settings: var(--default-font-variation-settings, normal);
+    -webkit-tap-highlight-color: transparent;
+  }
+  hr {
+    height: 0;
+    color: inherit;
+    border-top-width: 1px;
+  }
+  abbr:where([title]) {
+    -webkit-text-decoration: underline dotted;
+    text-decoration: underline dotted;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  a {
+    color: inherit;
+    -webkit-text-decoration: inherit;
+    text-decoration: inherit;
+  }
+  b, strong {
+    font-weight: bolder;
+  }
+  code, kbd, samp, pre {
+    font-family: var(--default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+    font-feature-settings: var(--default-mono-font-feature-settings, normal);
+    font-variation-settings: var(--default-mono-font-variation-settings, normal);
+    font-size: 1em;
+  }
+  small {
+    font-size: 80%;
+  }
+  sub, sup {
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+  sub {
+    bottom: -0.25em;
+  }
+  sup {
+    top: -0.5em;
+  }
+  table {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
+  :-moz-focusring {
+    outline: auto;
+  }
+  progress {
+    vertical-align: baseline;
+  }
+  summary {
+    display: list-item;
+  }
+  ol, ul, menu {
+    list-style: none;
+  }
+  img, svg, video, canvas, audio, iframe, embed, object {
+    display: block;
+    vertical-align: middle;
+  }
+  img, video {
+    max-width: 100%;
+    height: auto;
+  }
+  button, input, select, optgroup, textarea, ::file-selector-button {
+    font: inherit;
+    font-feature-settings: inherit;
+    font-variation-settings: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    border-radius: 0;
+    background-color: transparent;
+    opacity: 1;
+  }
+  :where(select:is([multiple], [size])) optgroup {
+    font-weight: bolder;
+  }
+  :where(select:is([multiple], [size])) optgroup option {
+    padding-inline-start: 20px;
+  }
+  ::file-selector-button {
+    margin-inline-end: 4px;
+  }
+  ::placeholder {
+    opacity: 1;
+  }
+  @supports (not (-webkit-appearance: -apple-pay-button))  or (contain-intrinsic-size: 1px) {
+    ::placeholder {
+      color: currentcolor;
+      @supports (color: color-mix(in lab, red, red)) {
+        color: color-mix(in oklab, currentcolor 50%, transparent);
+      }
+    }
+  }
+  textarea {
+    resize: vertical;
+  }
+  ::-webkit-search-decoration {
+    -webkit-appearance: none;
+  }
+  ::-webkit-date-and-time-value {
+    min-height: 1lh;
+    text-align: inherit;
+  }
+  ::-webkit-datetime-edit {
+    display: inline-flex;
+  }
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+  ::-webkit-datetime-edit, ::-webkit-datetime-edit-year-field, ::-webkit-datetime-edit-month-field, ::-webkit-datetime-edit-day-field, ::-webkit-datetime-edit-hour-field, ::-webkit-datetime-edit-minute-field, ::-webkit-datetime-edit-second-field, ::-webkit-datetime-edit-millisecond-field, ::-webkit-datetime-edit-meridiem-field {
+    padding-block: 0;
+  }
+  ::-webkit-calendar-picker-indicator {
+    line-height: 1;
+  }
+  :-moz-ui-invalid {
+    box-shadow: none;
+  }
+  button, input:where([type="button"], [type="reset"], [type="submit"]), ::file-selector-button {
+    appearance: button;
+  }
+  ::-webkit-inner-spin-button, ::-webkit-outer-spin-button {
+    height: auto;
+  }
+  [hidden]:where(:not([hidden="until-found"])) {
+    display: none !important;
+  }
+}
+@layer utilities {
+  .mt-0\.5 {
+    margin-top: calc(var(--spacing) * 0.5);
+  }
+  .mt-2\.5 {
+    margin-top: calc(var(--spacing) * 2.5);
+  }
+  .mt-4 {
+    margin-top: calc(var(--spacing) * 4);
+  }
+  .mb-0 {
+    margin-bottom: 0px;
+  }
+  .mb-2 {
+    margin-bottom: calc(var(--spacing) * 2);
+  }
+  .mb-3 {
+    margin-bottom: calc(var(--spacing) * 3);
+  }
+  .form-input {
+    appearance: none;
+    background-color: #fff;
+    border-color: oklch(55.1% 0.027 264.364);
+    border-width: 1px;
+    border-radius: 0px;
+    padding-top: 0.5rem;
+    padding-right: 0.75rem;
+    padding-bottom: 0.5rem;
+    padding-left: 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    --tw-shadow: 0 0 #0000;
+    &:focus {
+      outline: 2px solid transparent;
+      outline-offset: 2px;
+      --tw-ring-inset: var(--tw-empty,/*!*/ /*!*/);
+      --tw-ring-offset-width: 0px;
+      --tw-ring-offset-color: #fff;
+      --tw-ring-color: oklch(54.6% 0.245 262.881);
+      --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+      --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+      box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+      border-color: oklch(54.6% 0.245 262.881);
+    }
+    &::placeholder {
+      color: oklch(55.1% 0.027 264.364);
+      opacity: 1;
+    }
+    &::-webkit-datetime-edit-fields-wrapper {
+      padding: 0;
+    }
+    &::-webkit-date-and-time-value {
+      min-height: 1.5em;
+    }
+    &::-webkit-date-and-time-value {
+      text-align: inherit;
+    }
+    &::-webkit-datetime-edit {
+      display: inline-flex;
+    }
+    &::-webkit-datetime-edit {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    &::-webkit-datetime-edit-year-field {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    &::-webkit-datetime-edit-month-field {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    &::-webkit-datetime-edit-day-field {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    &::-webkit-datetime-edit-hour-field {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    &::-webkit-datetime-edit-minute-field {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    &::-webkit-datetime-edit-second-field {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    &::-webkit-datetime-edit-millisecond-field {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+    &::-webkit-datetime-edit-meridiem-field {
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+  }
+  .flex {
+    display: flex;
+  }
+  .grid {
+    display: grid;
+  }
+  .inline {
+    display: inline;
+  }
+  .inline-flex {
+    display: inline-flex;
+  }
+  .size-9 {
+    width: calc(var(--spacing) * 9);
+    height: calc(var(--spacing) * 9);
+  }
+  .w-full {
+    width: 100%;
+  }
+  .min-w-0 {
+    min-width: 0px;
+  }
+  .shrink-0 {
+    flex-shrink: 0;
+  }
+  .list-none {
+    list-style-type: none;
+  }
+  .grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .flex-col {
+    flex-direction: column;
+  }
+  .flex-wrap {
+    flex-wrap: wrap;
+  }
+  .items-center {
+    align-items: center;
+  }
+  .items-start {
+    align-items: flex-start;
+  }
+  .items-stretch {
+    align-items: stretch;
+  }
+  .justify-between {
+    justify-content: space-between;
+  }
+  .justify-center {
+    justify-content: center;
+  }
+  .gap-1 {
+    gap: var(--spacing);
+  }
+  .gap-1\.5 {
+    gap: calc(var(--spacing) * 1.5);
+  }
+  .gap-2 {
+    gap: calc(var(--spacing) * 2);
+  }
+  .gap-2\.5 {
+    gap: calc(var(--spacing) * 2.5);
+  }
+  .gap-5 {
+    gap: calc(var(--spacing) * 5);
+  }
+  :where(.divide-y > :not(:last-child)) {
+    --tw-divide-y-reverse: 0;
+    border-bottom-style: var(--tw-border-style);
+    border-top-style: var(--tw-border-style);
+    border-top-width: calc(1px * var(--tw-divide-y-reverse));
+    border-bottom-width: calc(1px * calc(1 - var(--tw-divide-y-reverse)));
+  }
+  :where(.divide-default-100 > :not(:last-child)) {
+    border-color: var(--color-default-100);
+  }
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rounded-full {
+    border-radius: calc(infinity * 1px);
+  }
+  .rounded-lg {
+    border-radius: var(--radius-lg);
+  }
+  .border {
+    border-style: var(--tw-border-style);
+    border-width: 1px;
+  }
+  .border-t {
+    border-top-style: var(--tw-border-style);
+    border-top-width: 1px;
+  }
+  .border-b {
+    border-bottom-style: var(--tw-border-style);
+    border-bottom-width: 1px;
+  }
+  .border-dashed {
+    --tw-border-style: dashed;
+    border-style: dashed;
+  }
+  .border-default-200 {
+    border-color: var(--color-default-200);
+  }
+  .border-warning {
+    border-color: var(--color-warning);
+  }
+  .bg-danger\/15 {
+    background-color: color-mix(in srgb, #f7577e 15%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-danger) 15%, transparent);
+    }
+  }
+  .bg-default-50 {
+    background-color: var(--color-default-50);
+  }
+  .bg-default-200 {
+    background-color: var(--color-default-200);
+  }
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+  .bg-warning\/10 {
+    background-color: color-mix(in srgb, #f9bf59 10%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-warning) 10%, transparent);
+    }
+  }
+  .bg-warning\/15 {
+    background-color: color-mix(in srgb, #f9bf59 15%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-warning) 15%, transparent);
+    }
+  }
+  .p-0 {
+    padding: 0px;
+  }
+  .p-3 {
+    padding: calc(var(--spacing) * 3);
+  }
+  .p-4 {
+    padding: calc(var(--spacing) * 4);
+  }
+  .px-3 {
+    padding-inline: calc(var(--spacing) * 3);
+  }
+  .px-4 {
+    padding-inline: calc(var(--spacing) * 4);
+  }
+  .py-2 {
+    padding-block: calc(var(--spacing) * 2);
+  }
+  .pt-3 {
+    padding-top: calc(var(--spacing) * 3);
+  }
+  .pb-3 {
+    padding-bottom: calc(var(--spacing) * 3);
+  }
+  .text-center {
+    text-align: center;
+  }
+  .text-start {
+    text-align: start;
+  }
+  .text-sm {
+    font-size: var(--text-sm);
+    line-height: var(--tw-leading, var(--text-sm--line-height));
+  }
+  .text-xl {
+    font-size: var(--text-xl);
+    line-height: var(--tw-leading, var(--text-xl--line-height));
+  }
+  .text-xs {
+    font-size: var(--text-xs);
+    line-height: var(--tw-leading, var(--text-xs--line-height));
+  }
+  .font-bold {
+    --tw-font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-bold);
+  }
+  .font-medium {
+    --tw-font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-medium);
+  }
+  .font-normal {
+    --tw-font-weight: var(--font-weight-normal);
+    font-weight: var(--font-weight-normal);
+  }
+  .font-semibold {
+    --tw-font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold);
+  }
+  .text-danger-ink {
+    color: var(--color-danger-ink);
+  }
+  .text-default-400 {
+    color: var(--color-default-400);
+  }
+  .text-default-700 {
+    color: var(--color-default-700);
+  }
+  .text-default-800 {
+    color: var(--color-default-800);
+  }
+  .text-default-900 {
+    color: var(--color-default-900);
+  }
+  .text-warning-ink {
+    color: var(--color-warning-ink);
+  }
+  .text-white {
+    color: var(--color-white);
+  }
+  .tabular-nums {
+    --tw-numeric-spacing: tabular-nums;
+    font-variant-numeric: var(--tw-ordinal,) var(--tw-slashed-zero,) var(--tw-numeric-figure,) var(--tw-numeric-spacing,) var(--tw-numeric-fraction,);
+  }
+  @media (hover: hover) {
+    .hover\:bg-default-50:hover {
+      background-color: var(--color-default-50);
+    }
+    .hover\:bg-primary-hover:hover {
+      background-color: var(--color-primary-hover);
+    }
+    .hover\:text-danger:hover {
+      color: var(--color-danger);
+    }
+  }
+}
+:root {
+  color-scheme: light;
+  --color-chart-primary: #236dc9;
+  --color-chart-secondary: #7b70ef;
+  --color-chart-alpha: #02bc9c;
+  --color-chart-beta: #f7577e;
+  --color-chart-gamma: #f9bf59;
+  --color-chart-delta: #5bc3e1;
+  --color-chart-zeta: #db9052;
+  --color-chart-gray: #edeff3;
+  --color-chart-dark: #1a57a1;
+  --color-chart-border-color: #ecf4fc;
+  --color-chart-title-color: #bbcae1;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-body-bg: #17181e;
+  --color-body-color: #aab8c5;
+  --color-card: #1e1f27;
+  --color-light: #252630;
+  --color-light-hover: #8a969c;
+  --color-dark: #4b4d5c;
+  --color-dark-hover: #343a40;
+  --color-chart-border-color: #242c31;
+  --color-chart-gray: #40424f;
+  --shadow: 0px 0px 30px rgba(0, 0, 0, 0.3);
+  --color-default-50: #22232c;
+  --color-default-100: #272832;
+  --color-default-200: var(--color-zinc-800);
+  --color-default-300: #293036;
+  --color-default-400: #8391a2;
+  --color-default-500: #a1a9b1;
+  --color-default-600: var(--color-zinc-400);
+  --color-default-700: var(--color-zinc-300);
+  --color-default-800: var(--color-zinc-200);
+  --color-default-900: var(--color-zinc-100);
+  --color-default-950: var(--color-zinc-50);
+  --color-warning-ink: #fcd34d;
+  --color-info-ink: #7dd3fc;
+  --color-success-ink: #6ee7b7;
+  --color-danger-ink: #fda4af;
+  --color-primary-ink: #93c5fd;
+  .text-dark {
+    color: #dce0fb !important;
+  }
+}
+html[data-menu-color="light"] {
+  --sidenav-bg: white;
+  --sidenav-border-color: var(--color-default-300);
+  --sidenav-item-color: #667787;
+  --sidenav-item-hover-color: var(--color-primary);
+  --sidenav-item-hover-bg: transparent;
+  --sidenav-item-active-color: var(--color-primary);
+  --sidenav-item-active-bg: transparent;
+}
+html[data-menu-color="dark"] {
+  --sidenav-bg: #1e1f27;
+  --sidenav-border-color: #1e1f27;
+  --sidenav-item-color: #7a8ea7;
+  --sidenav-item-hover-color: #bccee4;
+  --sidenav-item-hover-bg: #2f3742;
+  --sidenav-item-active-color: #ced6df;
+  --sidenav-item-active-bg: #22232c;
+}
+html[data-menu-color="gray"] {
+  --sidenav-bg: #f1f2f7;
+  --sidenav-border-color: #e7e9eb;
+  --sidenav-item-color: var(--color-default-700);
+  --sidenav-item-hover-color: var(--color-primary);
+  --sidenav-item-hover-bg: #e8f7f4;
+  --sidenav-item-active-color: #212b29;
+  --sidenav-item-active-bg: #e8e8ed;
+}
+html[data-menu-color="gradient"] {
+  --sidenav-bg: linear-gradient(135deg, #195274, #3b215c);
+  --sidenav-border-color: null;
+  --sidenav-item-color: #799cb7;
+  --sidenav-item-hover-color: #bccee4;
+  --sidenav-item-hover-bg: #2f3742;
+  --sidenav-item-active-color: #cfdff1;
+  --sidenav-item-active-bg: rgba(219, 236, 255, 0.05);
+}
+html[data-menu-color="image"] {
+  --sidenav-bg: linear-gradient(to bottom right, rgba(16, 16, 30, 0.85), #183c52), url("../../images/sidenav-bg.jpg") center/cover no-repeat;
+  --sidenav-border-color: null;
+  --sidenav-item-color: #799cb7;
+  --sidenav-item-hover-color: #bccee4;
+  --sidenav-item-hover-bg: #2f3742;
+  --sidenav-item-active-color: #cfdff1;
+  --sidenav-item-active-bg: rgba(219, 236, 255, 0.05);
+}
+html[data-theme="dark"][data-menu-color="dark"], html[data-theme="dark"][data-menu-color="gray"], html[data-theme="dark"][data-menu-color="light"] {
+  --sidenav-bg: #1e1f27;
+  --sidenav-border-color: #2c2d38;
+  --sidenav-item-color: #8495ab;
+  --sidenav-item-hover-color: #bccee4;
+  --sidenav-item-hover-bg: #2f3742;
+  --sidenav-item-active-color: #ced6df;
+  --sidenav-item-active-bg: #22232c;
+}
+html[data-topbar-color="light"] {
+  --topbar-bg: #ffffff;
+  --topbar-item-color: var(--color-default-700);
+  --topbar-item-hover-color: var(--color-primary);
+  --topbar-search-bg: transparent;
+  --topbar-search-border: #e7e9eb;
+}
+html[data-topbar-color="gray"] {
+  --topbar-bg: #f6f7fb;
+  --topbar-item-color: var(--color-default-700);
+  --topbar-item-hover-color: var(--color-primary);
+  --topbar-search-bg: #ecedf3;
+  --topbar-search-border: #ecedf3;
+}
+html[data-topbar-color="dark"] {
+  --topbar-bg: #1e1f27;
+  --topbar-item-color: #adb5bf;
+  --topbar-item-hover-color: #e0eeff;
+  --topbar-search-bg: #272937;
+  --topbar-search-border: #272937;
+}
+html[data-topbar-color="gradient"] {
+  --topbar-bg: linear-gradient(to bottom, #1a455f, #262549);
+  --topbar-item-color: rgba(255, 255, 255, 0.7);
+  --topbar-item-hover-color: #ffffff;
+  --topbar-search-bg: rgba(255, 255, 255, 0.1);
+  --topbar-search-border: rgba(255, 255, 255, 0.1);
+}
+html[data-theme="dark"][data-topbar-color="light"], html[data-theme="dark"][data-topbar-color="dark"], html[data-theme="dark"][data-topbar-color="gray"] {
+  --topbar-bg: #252630;
+  --topbar-item-color: #adb5bf;
+  --topbar-item-hover-color: #e0eeff;
+  --topbar-search-bg: #2d2e3c;
+  --topbar-search-border: #2d2e3c;
+}
+@layer base {
+  html {
+    position: relative;
+    scroll-behavior: smooth;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.5 !important;
+    font-family: var(--font-secondary);
+    --tw-font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-medium);
+  }
+  body {
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+    width: 100%;
+    height: 100%;
+    background-color: var(--color-body-bg);
+    font-family: var(--font-body);
+    font-size: var(--text-body);
+    --tw-leading: var(--leading-normal);
+    line-height: var(--leading-normal);
+    --tw-font-weight: var(--font-weight-normal);
+    font-weight: var(--font-weight-normal);
+    color: var(--color-body-color);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  small {
+    font-size: 0.85em;
+  }
+  label {
+    display: block;
+    --tw-font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold);
+  }
+  b, strong {
+    --tw-font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold);
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  code {
+    color: var(--color-rose-400);
+  }
+  svg.lucide {
+    width: 1em;
+    height: 1em;
+  }
+}
+.container {
+  margin-inline: auto;
+  max-width: calc(var(--spacing) * 330);
+  padding-inline: calc(var(--spacing) * 3);
+}
+.container-fluid {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 100%;
+}
+@layer components {
+  .card {
+    position: relative;
+    display: flex;
+    height: fit-content;
+    flex-direction: column;
+    border-radius: var(--radius);
+    background-color: var(--color-card);
+    background-clip: border-box;
+    overflow-wrap: break-word;
+    --tw-shadow: 0px 1px 4px 0px var(--tw-shadow-color, rgba(130, 143, 163, 0.15));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    box-shadow: var(--shadow);
+    .card-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: calc(var(--spacing) * 3);
+      border-bottom-style: var(--tw-border-style);
+      border-bottom-width: 1px;
+      --tw-border-style: dashed;
+      border-style: dashed;
+      border-color: var(--color-default-300);
+      padding-inline: calc(var(--spacing) * 5);
+      padding-block: calc(var(--spacing) * 3.75);
+    }
+    .card-footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: calc(var(--spacing) * 3);
+      border-top-style: var(--tw-border-style);
+      border-top-width: 1px;
+      border-color: var(--color-light);
+      padding-inline: calc(var(--spacing) * 5);
+      padding-block: calc(var(--spacing) * 3.75);
+    }
+    [data-action="card-toggle"] i {
+      transition-property: transform, translate, scale, rotate;
+      transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+      transition-duration: var(--tw-duration, var(--default-transition-duration));
+      --tw-duration: 200ms;
+      transition-duration: 200ms;
+    }
+  }
+  .card-body {
+    flex: auto;
+    padding: calc(var(--spacing) * 5);
+    transition-property: all;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+    --tw-duration: 300ms;
+    transition-duration: 300ms;
+  }
+  .card-title {
+    font-size: var(--text-md);
+    line-height: var(--tw-leading, var(--text-md--line-height));
+    --tw-leading: var(--leading-normal);
+    line-height: var(--leading-normal);
+    --tw-font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-body-color);
+  }
+  .card-body.collapsing {
+    height: 0 !important;
+    margin-block: calc(var(--spacing) * -5);
+    opacity: 0%;
+  }
+  .card-collapse .card-header {
+    border-bottom: 0;
+  }
+  .card.card-collapsed {
+    overflow: hidden;
+    .card-header {
+      border-bottom: 0;
+    }
+    .card-body {
+      margin-bottom: -2.5rem;
+    }
+    .card-footer {
+      margin-top: -1.875rem;
+      margin-bottom: -1.875rem;
+    }
+    [data-action="card-toggle"] i {
+      rotate: calc(180deg * -1);
+    }
+  }
+  .card-overlay {
+    position: absolute;
+    inset: 0px;
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    background-color: color-mix(in srgb, #236dc9 15%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    }
+    --tw-backdrop-blur: blur(2px);
+    -webkit-backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+    backdrop-filter: var(--tw-backdrop-blur,) var(--tw-backdrop-brightness,) var(--tw-backdrop-contrast,) var(--tw-backdrop-grayscale,) var(--tw-backdrop-hue-rotate,) var(--tw-backdrop-invert,) var(--tw-backdrop-opacity,) var(--tw-backdrop-saturate,) var(--tw-backdrop-sepia,);
+  }
+  .nav-tabs {
+    margin-block: calc(var(--spacing) * -3.75);
+    margin-inline-end: calc(var(--spacing) * -3);
+    display: flex;
+    height: 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: calc(var(--spacing) * 2);
+    .nav-link {
+      margin-bottom: calc(var(--spacing) * -1);
+      border-bottom-style: var(--tw-border-style);
+      border-bottom-width: 1px;
+      border-color: transparent;
+      padding-inline: calc(var(--spacing) * 5);
+      padding-block: calc(var(--spacing) * 3.75);
+      --tw-font-weight: var(--font-weight-medium);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-body-color);
+    }
+  }
+  .btn {
+    position: relative;
+    z-index: 10;
+    display: inline-flex;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    column-gap: calc(var(--spacing) * 2);
+    border-radius: var(--radius);
+    border-style: var(--tw-border-style);
+    border-width: 1px;
+    border-color: transparent;
+    padding-inline: calc(var(--spacing) * 4);
+    padding-block: calc(var(--spacing) * 1.75);
+    text-align: center;
+    font-size: var(--text-sm);
+    line-height: var(--tw-leading, var(--text-sm--line-height));
+    --tw-font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-medium);
+    transition-property: all;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+    &.btn-lg {
+      border-radius: var(--radius);
+      padding-inline: calc(var(--spacing) * 5);
+      padding-block: calc(var(--spacing) * 2.25);
+      font-size: var(--text-lg);
+      line-height: var(--tw-leading, var(--text-lg--line-height));
+    }
+    &.btn-icon {
+      width: calc(var(--spacing) * 9.25);
+      height: calc(var(--spacing) * 9.25);
+      padding: 0px;
+    }
+    &.btn-sm {
+      padding-inline: calc(var(--spacing) * 3);
+      padding-block: calc(var(--spacing) * 1.25);
+      font-size: var(--text-xs);
+      line-height: var(--tw-leading, var(--text-xs--line-height));
+      &.btn-icon {
+        width: calc(var(--spacing) * 7.5);
+        height: calc(var(--spacing) * 7.5);
+        padding: 0px;
+      }
+    }
+  }
+  .btn[class*="size-"] {
+    padding: 0 !important;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 50%;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing);
+    border-radius: var(--radius);
+    padding-inline: 0.5em;
+    padding-block: 0.15em;
+    vertical-align: middle;
+    font-size: 0.75em;
+    --tw-font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-semibold);
+  }
+  .badge.rounded-full {
+    padding-inline: 0.75em;
+  }
+  .badge-label {
+    border-radius: 0;
+    padding-inline: 0.8em;
+    padding-block: calc(var(--spacing) * 0.5);
+  }
+}
+.form-input {
+  display: block;
+  height: calc(var(--spacing) * 9.25);
+  width: 100%;
+  border-radius: var(--radius);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  padding-block: 0px;
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  color: var(--color-body-color);
+  outline-style: var(--tw-outline-style);
+  outline-width: 0px;
+  transition-property: all;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+  &::placeholder {
+    color: var(--color-default-400);
+  }
+  &:hover {
+    @media (hover: hover) {
+      border-color: var(--color-default-500) !important;
+    }
+  }
+  &:focus {
+    border-color: var(--color-default-500) !important;
+  }
+  &:focus {
+    outline-style: var(--tw-outline-style);
+    outline-width: 0px;
+  }
+  &:focus-visible {
+    border-color: var(--color-default-500);
+  }
+  &:focus-visible {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &:focus-visible {
+    --tw-outline-style: none;
+    outline-style: none;
+  }
+  &[aria-invalid="true"] {
+    border-color: color-mix(in srgb, #f7577e 60%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-danger) 60%, transparent);
+    }
+  }
+  &[aria-invalid="true"] {
+    --tw-ring-color: color-mix(in srgb, #f7577e 10%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      --tw-ring-color: color-mix(in oklab, var(--color-danger) 10%, transparent);
+    }
+  }
+  transition-property: color, box-shadow;
+}
+.is-invalid {
+  border-color: var(--color-danger) !important;
+  &:focus {
+    border-color: var(--color-danger) !important;
+  }
+  &:focus {
+    --tw-ring-color: color-mix(in srgb, #f7577e 20%, transparent) !important;
+    @supports (color: color-mix(in lab, red, red)) {
+      --tw-ring-color: color-mix(in oklab, var(--color-danger) 20%, transparent) !important;
+    }
+  }
+}
+.is-valid {
+  border-color: var(--color-success) !important;
+  &:focus {
+    border-color: var(--color-success) !important;
+  }
+  &:focus {
+    --tw-ring-color: color-mix(in srgb, #02bc9c 20%, transparent) !important;
+    @supports (color: color-mix(in lab, red, red)) {
+      --tw-ring-color: color-mix(in oklab, var(--color-success) 20%, transparent) !important;
+    }
+  }
+}
+:is(.form-input, .form-select, .form-textarea):disabled {
+  cursor: not-allowed;
+  background-color: var(--color-default-100);
+  opacity: 70%;
+}
+:is(.form-input, .form-select, .form-textarea):is([readonly]) {
+  cursor: not-allowed;
+  color: var(--color-body-color);
+}
+.form-label {
+  margin-bottom: calc(var(--spacing) * 2);
+  display: block;
+  --tw-font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-body-color);
+}
+.form-input:not([class*="bg-"]), .form-textarea:not([class*="bg-"]), .form-select:not([class*="bg-"]) {
+  background-color: var(--color-card);
+}
+.form-input:not([class*="border-"]), .form-textarea:not([class*="border-"]), .form-select:not([class*="border-"]) {
+  border-color: var(--color-default-300);
+}
+.form-input-sm {
+  height: calc(var(--spacing) * 7.5) !important;
+  font-size: var(--text-xs) !important;
+  line-height: var(--tw-leading, var(--text-xs--line-height)) !important;
+}
+.form-input-lg {
+  height: calc(var(--spacing) * 11.75) !important;
+  font-size: var(--text-base) !important;
+  line-height: var(--tw-leading, var(--text-base--line-height)) !important;
+}
+.form-select-sm {
+  height: calc(var(--spacing) * 7.5) !important;
+  font-size: var(--text-xs) !important;
+  line-height: var(--tw-leading, var(--text-xs--line-height)) !important;
+}
+.form-select-lg {
+  height: calc(var(--spacing) * 11.75) !important;
+  font-size: var(--text-base) !important;
+  line-height: var(--tw-leading, var(--text-base--line-height)) !important;
+}
+.form-textarea {
+  display: block;
+  height: auto !important;
+  width: 100%;
+  border-radius: var(--radius);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  padding-inline: calc(var(--spacing) * 3);
+  padding-block: calc(var(--spacing) * 2);
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  color: var(--color-body-color);
+  outline-style: var(--tw-outline-style);
+  outline-width: 0px;
+  transition-property: all;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+  &::placeholder {
+    color: var(--color-default-400);
+  }
+  &:hover {
+    @media (hover: hover) {
+      border-color: var(--color-default-500);
+    }
+  }
+  &:focus {
+    border-color: var(--color-default-500);
+  }
+  &:focus {
+    outline-style: var(--tw-outline-style);
+    outline-width: 0px;
+  }
+  &:focus-visible {
+    border-color: var(--color-default-500);
+  }
+  &:focus-visible {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &:focus-visible {
+    --tw-outline-style: none;
+    outline-style: none;
+  }
+  transition-property: color, box-shadow;
+}
+.form-select {
+  display: block;
+  height: calc(var(--spacing) * 9.25);
+  width: 100%;
+  border-radius: var(--radius);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-default-300);
+  background-color: var(--color-card);
+  padding-block: 0px;
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  color: var(--color-body-color);
+  outline-style: var(--tw-outline-style);
+  outline-width: 0px;
+  transition-property: all;
+  transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+  transition-duration: var(--tw-duration, var(--default-transition-duration));
+  &::placeholder {
+    color: var(--color-body-color);
+  }
+  &:hover {
+    @media (hover: hover) {
+      border-color: var(--color-default-500);
+    }
+  }
+  &:focus {
+    border-color: var(--color-default-500);
+  }
+  &:focus {
+    outline-style: var(--tw-outline-style);
+    outline-width: 0px;
+  }
+  &:focus-visible {
+    border-color: var(--color-default-500);
+  }
+  &:focus-visible {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &:focus-visible {
+    --tw-outline-style: none;
+    outline-style: none;
+  }
+  &:disabled {
+    cursor: not-allowed;
+  }
+  &:disabled {
+    opacity: 70%;
+  }
+  &:is([readonly]) {
+    cursor: not-allowed;
+  }
+  &:is([readonly]) {
+    color: var(--color-body-color);
+  }
+  &[aria-invalid="true"] {
+    border-color: color-mix(in srgb, #f7577e 60%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-danger) 60%, transparent);
+    }
+  }
+  &[aria-invalid="true"] {
+    --tw-ring-color: color-mix(in srgb, #f7577e 10%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      --tw-ring-color: color-mix(in oklab, var(--color-danger) 10%, transparent);
+    }
+  }
+  padding-inline-end: 2.31rem !important;
+  transition-property: color, box-shadow;
+  &[multiple] {
+    height: auto !important;
+    padding-block: calc(var(--spacing) * 2);
+    padding-inline-end: 0 !important;
+    background-image: none;
+  }
+}
+select[multiple] option {
+  padding: 4px 6px;
+}
+.form-radio, .form-checkbox {
+  width: calc(var(--spacing) * 4.5);
+  height: calc(var(--spacing) * 4.5);
+  appearance: none;
+  border-radius: var(--radius);
+  background-position: center;
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-default-300);
+  background-color: transparent;
+  --tw-ring-offset-color: var(--color-white);
+  &:focus-visible {
+    --tw-outline-style: none;
+    outline-style: none;
+  }
+  &:focus-visible {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &:focus-visible {
+    --tw-ring-color: inherit;
+  }
+  &:focus-visible {
+    --tw-ring-offset-width: 2px;
+    --tw-ring-offset-shadow: var(--tw-ring-inset,) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+  }
+  &:disabled {
+    cursor: not-allowed;
+  }
+  &:disabled {
+    opacity: 90%;
+  }
+  &[aria-invalid="true"] {
+    border-color: color-mix(in srgb, #f7577e 60%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-danger) 60%, transparent);
+    }
+  }
+  &[aria-invalid="true"] {
+    --tw-ring-color: color-mix(in srgb, #f7577e 10%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      --tw-ring-color: color-mix(in oklab, var(--color-danger) 10%, transparent);
+    }
+  }
+  cursor: pointer;
+  &:checked {
+    border-color: inherit;
+  }
+  &:focus {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &:focus {
+    --tw-ring-offset-width: 0px;
+    --tw-ring-offset-shadow: var(--tw-ring-inset,) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+  }
+  &:checked {
+    border-color: transparent !important;
+  }
+  &:checked {
+    background-color: var(--color-primary) !important;
+  }
+}
+.form-checkbox-light {
+  border-color: color-mix(in srgb, #eef2f7 90%, transparent) !important;
+  @supports (color: color-mix(in lab, red, red)) {
+    border-color: color-mix(in oklab, var(--color-light) 90%, transparent) !important;
+  }
+  background-color: color-mix(in srgb, #eef2f7 90%, transparent) !important;
+  @supports (color: color-mix(in lab, red, red)) {
+    background-color: color-mix(in oklab, var(--color-light) 90%, transparent) !important;
+  }
+  box-shadow: inset 0 1px 2px rgba(var(--color-dark), 0.05);
+}
+.form-checkbox {
+  border-radius: var(--radius-sm);
+}
+.form-radio:not([class*="size-"]), .form-checkbox:not([class*="size-"]) {
+  font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+}
+.form-checkbox[class*="rounded-full"] {
+  border-radius: calc(infinity * 1px);
+}
+.form-checkbox-sm {
+  font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+}
+.form-radio-sm {
+  font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+}
+.form-radio-lg {
+  width: calc(var(--spacing) * 5.5);
+  height: calc(var(--spacing) * 5.5);
+}
+.form-switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  appearance: none;
+  border-style: var(--tw-border-style) !important;
+  border-width: 1px !important;
+  border-color: var(--color-default-300);
+  background-color: var(--color-default-200);
+  &:checked {
+    background-image: none;
+  }
+  &:focus-visible {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &:focus-visible {
+    --tw-ring-color: var(--color-default-300);
+  }
+  &:focus-visible {
+    --tw-ring-offset-width: 2px;
+    --tw-ring-offset-shadow: var(--tw-ring-inset,) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+  }
+  &:focus-visible {
+    --tw-ring-offset-color: var(--color-card);
+  }
+  &:focus-visible {
+    --tw-outline-style: none;
+    outline-style: none;
+    @media (forced-colors: active) {
+      outline: 2px solid transparent;
+      outline-offset: 2px;
+    }
+  }
+  &:disabled {
+    cursor: not-allowed;
+  }
+  &:disabled {
+    opacity: 50%;
+  }
+  &[aria-invalid="true"] {
+    border-style: var(--tw-border-style);
+    border-width: 1px;
+  }
+  &[aria-invalid="true"] {
+    border-color: color-mix(in srgb, #f7577e 60%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--color-danger) 60%, transparent);
+    }
+  }
+  &[aria-invalid="true"] {
+    --tw-ring-color: color-mix(in srgb, #f7577e 10%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      --tw-ring-color: color-mix(in oklab, var(--color-danger) 10%, transparent);
+    }
+  }
+  cursor: pointer;
+  border-style: var(--tw-border-style);
+  border-width: 0px;
+  &:focus {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &:focus {
+    --tw-ring-offset-width: 0px;
+    --tw-ring-offset-shadow: var(--tw-ring-inset,) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+  }
+  &:before {
+    pointer-events: none;
+    position: absolute;
+    inset-inline-start: calc(var(--spacing) * 0);
+    top: calc(1 / 2 * 100%);
+    display: block;
+    --tw-translate-x: var(--spacing);
+    translate: var(--tw-translate-x) var(--tw-translate-y);
+    --tw-translate-y: calc(calc(1 / 2 * 100%) * -1);
+    translate: var(--tw-translate-x) var(--tw-translate-y);
+    border-radius: calc(infinity * 1px);
+    background-color: color-mix(in srgb, #313a46 30%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-dark) 30%, transparent);
+    }
+    --tw-shadow: 0 1px 2px 0 var(--tw-shadow-color, rgb(0 0 0 / 0.05));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    transition-property: transform, translate, scale, rotate;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+    --tw-content: "";
+    content: var(--tw-content);
+  }
+  &:checked, &[aria-checked="true"] {
+    border-color: var(--color-primary) !important;
+    background-color: var(--color-primary) !important;
+    &:before {
+      background-color: var(--color-white);
+    }
+  }
+  height: calc(var(--spacing) * 5);
+  width: calc(var(--spacing) * 7.5);
+  border-radius: calc(infinity * 1px);
+  &:before {
+    width: calc(var(--spacing) * 3);
+    height: calc(var(--spacing) * 3);
+  }
+  &:checked, &[aria-checked="true"] {
+    &:before {
+      --tw-translate-x: calc(var(--spacing) * 3.5);
+      translate: var(--tw-translate-x) var(--tw-translate-y);
+    }
+  }
+}
+.form-switch-sm {
+  height: calc(var(--spacing) * 4.5);
+  width: calc(var(--spacing) * 6.5);
+  border-radius: calc(infinity * 1px);
+  &:before {
+    width: calc(var(--spacing) * 2.5);
+    height: calc(var(--spacing) * 2.5);
+  }
+  &:checked, &[aria-checked="true"] {
+    &:before {
+      --tw-translate-x: calc(var(--spacing) * 3);
+      translate: var(--tw-translate-x) var(--tw-translate-y);
+    }
+  }
+}
+.form-switch-lg {
+  height: calc(var(--spacing) * 5.5);
+  width: calc(var(--spacing) * 8.5);
+  border-radius: calc(infinity * 1px);
+  &:before {
+    width: calc(var(--spacing) * 3.5);
+    height: calc(var(--spacing) * 3.5);
+  }
+  &:checked, &[aria-checked="true"] {
+    &:before {
+      --tw-translate-x: calc(var(--spacing) * 4);
+      translate: var(--tw-translate-x) var(--tw-translate-y);
+    }
+  }
+}
+[dir="rtl"] .form-switch:before {
+  --tw-translate-x: calc(var(--spacing) * -1);
+  translate: var(--tw-translate-x) var(--tw-translate-y);
+}
+:is([dir="rtl"] .form-switch:checked, [dir="rtl"] .form-switch[aria-checked="true"]):before {
+  --tw-translate-x: calc(var(--spacing) * -3.5);
+  translate: var(--tw-translate-x) var(--tw-translate-y);
+}
+:is([dir="rtl"] .form-switch.form-switch-sm:checked, [dir="rtl"] .form-switch.form-switch-sm[aria-checked="true"]):before {
+  --tw-translate-x: calc(var(--spacing) * -3);
+  translate: var(--tw-translate-x) var(--tw-translate-y);
+}
+:is([dir="rtl"] .form-switch.form-switch-lg:checked, [dir="rtl"] .form-switch.form-switch-lg[aria-checked="true"]):before {
+  --tw-translate-x: calc(var(--spacing) * -4);
+  translate: var(--tw-translate-x) var(--tw-translate-y);
+}
+.card-radio {
+  position: relative;
+  label {
+    cursor: pointer;
+  }
+  input:checked + .form-label {
+    position: relative;
+    &::after {
+      content: "";
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='black' d='M12.01 2.011a3.2 3.2 0 0 1 2.113.797l.154.145l.698.698a1.2 1.2 0 0 0 .71.341L15.82 4h1a3.2 3.2 0 0 1 3.195 3.018l.005.182v1c0 .27.092.533.258.743l.09.1l.697.698a3.2 3.2 0 0 1 .147 4.382l-.145.154l-.698.698a1.2 1.2 0 0 0-.341.71l-.008.135v1a3.2 3.2 0 0 1-3.018 3.195l-.182.005h-1a1.2 1.2 0 0 0-.743.258l-.1.09l-.698.697a3.2 3.2 0 0 1-4.382.147l-.154-.145l-.698-.698a1.2 1.2 0 0 0-.71-.341L8.2 20.02h-1a3.2 3.2 0 0 1-3.195-3.018L4 16.82v-1a1.2 1.2 0 0 0-.258-.743l-.09-.1l-.697-.698a3.2 3.2 0 0 1-.147-4.382l.145-.154l.698-.698a1.2 1.2 0 0 0 .341-.71L4 8.2v-1l.005-.182a3.2 3.2 0 0 1 3.013-3.013L7.2 4h1a1.2 1.2 0 0 0 .743-.258l.1-.09l.698-.697a3.2 3.2 0 0 1 2.269-.944m3.697 7.282a1 1 0 0 0-1.414 0L11 12.585l-1.293-1.292l-.094-.083a1 1 0 0 0-1.32 1.497l2 2l.094.083a1 1 0 0 0 1.32-.083l4-4l.083-.094a1 1 0 0 0-.083-1.32'/%3E%3C/svg%3E");
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      background-color: currentColor;
+      mask-repeat: no-repeat;
+      mask-size: 100% 100%;
+      position: absolute;
+      inset-inline-end: calc(var(--spacing) * 2);
+      bottom: calc(var(--spacing) * 2);
+      margin-inline-start: auto;
+      width: calc(var(--spacing) * 6);
+      height: calc(var(--spacing) * 6);
+      color: var(--color-success);
+      transition-property: all;
+      transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+      transition-duration: var(--tw-duration, var(--default-transition-duration));
+    }
+  }
+}
+input:checked + .form-label.btn {
+  background-color: color-mix(in srgb, #236dc9 15%, transparent);
+  @supports (color: color-mix(in lab, red, red)) {
+    background-color: color-mix(in oklab, var(--color-primary) 15%, transparent);
+  }
+  color: var(--color-primary);
+}
+@layer base {
+  .input-group {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+}
+.input-group > .form-input, .input-group  > .form-select, .input-group  > .form-textarea {
+  position: relative;
+  flex: 1 1 auto;
+  width: 1%;
+  min-width: 0;
+}
+.input-group .input-group-text {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-default-300);
+  background-color: var(--color-default-100);
+  padding-inline: calc(var(--spacing) * 3);
+  color: var(--color-default-600);
+}
+.input-group > :not(:last-child) {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-default-300);
+}
+.input-group > :not(:first-child) {
+  margin-inline-start: -1px;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+.input-group > .btn {
+  position: relative;
+  z-index: 2;
+}
+.input-group .hs-dropdown {
+  border-width: 0;
+}
+@layer base {
+  .input-icon-group {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+  }
+}
+.input-icon-group > .form-input, .input-icon-group  > .form-select {
+  width: 100%;
+}
+.input-icon-group > .input-icon:first-child {
+  pointer-events: none;
+  position: absolute;
+  inset-inline-start: calc(var(--spacing) * 3);
+  top: calc(1 / 2 * 100%);
+  --tw-translate-y: calc(calc(1 / 2 * 100%) * -1);
+  translate: var(--tw-translate-x) var(--tw-translate-y);
+  font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+  color: var(--color-default-400);
+}
+.input-icon-group > .input-icon:first-child + .form-input, .input-icon-group  > .input-icon:first-child + .form-select {
+  padding-inline-start: calc(var(--spacing) * 10) !important;
+}
+.input-icon-group > .input-icon:last-child {
+  pointer-events: none;
+  position: absolute;
+  inset-inline-end: calc(var(--spacing) * 3);
+  top: calc(1 / 2 * 100%);
+  --tw-translate-y: calc(calc(1 / 2 * 100%) * -1);
+  translate: var(--tw-translate-x) var(--tw-translate-y);
+  font-size: var(--text-lg);
+  line-height: var(--tw-leading, var(--text-lg--line-height));
+  color: var(--color-default-400);
+}
+.input-icon-group > .form-input:not(:last-child), .input-icon-group  > .form-select:not(:last-child) {
+  padding-inline-end: calc(var(--spacing) * 10);
+}
+.input-icon-group > .form-select:not(:last-child) {
+  background-size: 4rem 1.5rem;
+}
+.input-group[data-touchspin] {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2.5);
+  border-radius: var(--radius);
+  border-style: var(--tw-border-style);
+  border-width: 1px;
+  border-color: var(--color-default-300);
+  padding: var(--spacing);
+  > .btn {
+    display: inline-flex;
+    height: calc(var(--spacing) * 7);
+    width: calc(var(--spacing) * 7);
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    border-style: var(--tw-border-style);
+    border-width: 0px;
+    padding: 0px;
+    --tw-leading: 1;
+    line-height: 1;
+    &:focus {
+      --tw-shadow: 0 0 #0000;
+      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+      --tw-outline-style: none;
+      outline-style: none;
+    }
+  }
+  > .form-input {
+    margin: 0px;
+    height: auto;
+    border-style: var(--tw-border-style);
+    border-width: 0px;
+    background-color: transparent;
+    padding: 0px;
+    text-align: center;
+    font-size: var(--text-sm);
+    line-height: var(--tw-leading, var(--text-sm--line-height));
+    --tw-shadow: 0 0 #0000;
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+    &:focus {
+      --tw-shadow: 0 0 #0000;
+      box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+      --tw-outline-style: none;
+      outline-style: none;
+    }
+  }
+  [data-icon] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--text-xs);
+    line-height: var(--tw-leading, var(--text-xs--line-height));
+  }
+  &:has(.form-input:disabled) {
+    pointer-events: none;
+    background-color: color-mix(in srgb, #eef2f7 15%, transparent);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--color-light) 15%, transparent);
+    }
+  }
+  &:has(.form-input[readonly]) {
+    pointer-events: none;
+  }
+}
+.form-range {
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  background-color: transparent;
+  &:focus {
+    --tw-outline-style: none;
+    outline-style: none;
+    @media (forced-colors: active) {
+      outline: 2px solid transparent;
+      outline-offset: 2px;
+    }
+  }
+  &:disabled {
+    pointer-events: none;
+  }
+  &:disabled {
+    opacity: 50%;
+  }
+  &::-webkit-slider-thumb {
+    width: calc(var(--spacing) * 2.5);
+  }
+  &::-webkit-slider-thumb {
+    margin-top: calc(var(--spacing) * -0.5);
+  }
+  &::-webkit-slider-thumb {
+    height: calc(var(--spacing) * 2.5);
+  }
+  &::-webkit-slider-thumb {
+    appearance: none;
+  }
+  &::-webkit-slider-thumb {
+    background-color: var(--color-primary);
+  }
+  &::-webkit-slider-thumb {
+    border-radius: calc(infinity * 1px);
+  }
+  &::-webkit-slider-thumb {
+    --tw-shadow: 0 0 0 4px var(--tw-shadow-color, var(--color-primary));
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &::-webkit-slider-thumb {
+    transition-property: all;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+  &::-moz-range-thumb {
+    height: calc(var(--spacing) * 2.5);
+  }
+  &::-moz-range-thumb {
+    width: calc(var(--spacing) * 2.5);
+  }
+  &::-webkit-slider-thumb {
+    --tw-duration: 150ms;
+    transition-duration: 150ms;
+  }
+  &::-webkit-slider-thumb {
+    --tw-ease: var(--ease-in-out);
+    transition-timing-function: var(--ease-in-out);
+  }
+  &::-moz-range-thumb {
+    appearance: none;
+  }
+  &::-moz-range-thumb {
+    border-style: var(--tw-border-style);
+    border-width: 8px;
+  }
+  &::-moz-range-thumb {
+    border-color: var(--color-primary);
+  }
+  &::-moz-range-thumb {
+    background-color: var(--color-primary);
+  }
+  &::-moz-range-thumb {
+    border-radius: calc(infinity * 1px);
+  }
+  &::-moz-range-thumb {
+    transition-property: all;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+  &::-moz-range-thumb {
+    --tw-duration: 150ms;
+    transition-duration: 150ms;
+  }
+  &::-moz-range-thumb {
+    --tw-ease: var(--ease-in-out);
+    transition-timing-function: var(--ease-in-out);
+  }
+  &::-webkit-slider-runnable-track {
+    height: calc(var(--spacing) * 2);
+  }
+  &::-webkit-slider-runnable-track {
+    width: 100%;
+  }
+  &::-webkit-slider-runnable-track {
+    background-color: var(--color-default-100);
+  }
+  &::-moz-range-track {
+    height: calc(var(--spacing) * 2);
+  }
+  &::-moz-range-track {
+    width: 100%;
+  }
+  &::-moz-range-track {
+    border-radius: calc(infinity * 1px);
+  }
+  &::-moz-range-track {
+    background-color: var(--color-default-100);
+  }
+  &::-webkit-slider-runnable-track {
+    border-radius: calc(infinity * 1px);
+  }
+}
+.form-input[type="file"] {
+  cursor: pointer;
+  padding: 0px;
+  font-size: var(--text-sm);
+  line-height: var(--tw-leading, var(--text-sm--line-height));
+  &::file-selector-button {
+    margin-inline-end: calc(var(--spacing) * 3);
+  }
+  &::file-selector-button {
+    height: 100%;
+  }
+  &::file-selector-button {
+    cursor: pointer;
+  }
+  &::file-selector-button {
+    border-style: var(--tw-border-style);
+    border-width: 0px;
+  }
+  &::file-selector-button {
+    border-inline-end-style: var(--tw-border-style);
+    border-inline-end-width: 1px;
+  }
+  &::file-selector-button {
+    border-color: var(--color-default-300);
+  }
+  &::file-selector-button {
+    background-color: var(--color-default-100);
+  }
+  &::file-selector-button {
+    padding-inline: calc(var(--spacing) * 3);
+  }
+  &::file-selector-button {
+    --tw-font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-medium);
+  }
+  &::file-selector-button {
+    color: var(--color-default-700);
+  }
+  &:hover {
+    @media (hover: hover) {
+      border-color: var(--color-default-500);
+    }
+  }
+  &:hover {
+    @media (hover: hover) {
+      &::file-selector-button {
+        border-color: var(--color-default-300);
+      }
+    }
+  }
+  &:focus {
+    border-color: var(--color-default-500);
+  }
+  &:focus {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &:focus {
+    outline-style: var(--tw-outline-style);
+    outline-width: 0px;
+  }
+  &:focus-visible {
+    border-color: var(--color-default-500);
+  }
+  &:focus-visible {
+    --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
+    box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  &:focus-visible {
+    --tw-outline-style: none;
+    outline-style: none;
+  }
+}
+.animate-grow {
+  opacity: 0;
+  animation: 0.75s linear infinite spinner-grow;
+}
+@keyframes spinner-grow {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    opacity: 1;
+    transform: none;
+  }
+}
+html[data-theme="light"] #theme .card-radio [for="layout-color-light"] {
+  position: relative;
+  &::after {
+    content: "";
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='black' d='M12.01 2.011a3.2 3.2 0 0 1 2.113.797l.154.145l.698.698a1.2 1.2 0 0 0 .71.341L15.82 4h1a3.2 3.2 0 0 1 3.195 3.018l.005.182v1c0 .27.092.533.258.743l.09.1l.697.698a3.2 3.2 0 0 1 .147 4.382l-.145.154l-.698.698a1.2 1.2 0 0 0-.341.71l-.008.135v1a3.2 3.2 0 0 1-3.018 3.195l-.182.005h-1a1.2 1.2 0 0 0-.743.258l-.1.09l-.698.697a3.2 3.2 0 0 1-4.382.147l-.154-.145l-.698-.698a1.2 1.2 0 0 0-.71-.341L8.2 20.02h-1a3.2 3.2 0 0 1-3.195-3.018L4 16.82v-1a1.2 1.2 0 0 0-.258-.743l-.09-.1l-.697-.698a3.2 3.2 0 0 1-.147-4.382l.145-.154l.698-.698a1.2 1.2 0 0 0 .341-.71L4 8.2v-1l.005-.182a3.2 3.2 0 0 1 3.013-3.013L7.2 4h1a1.2 1.2 0 0 0 .743-.258l.1-.09l.698-.697a3.2 3.2 0 0 1 2.269-.944m3.697 7.282a1 1 0 0 0-1.414 0L11 12.585l-1.293-1.292l-.094-.083a1 1 0 0 0-1.32 1.497l2 2l.094.083a1 1 0 0 0 1.32-.083l4-4l.083-.094a1 1 0 0 0-.083-1.32'/%3E%3C/svg%3E");
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    background-color: currentColor;
+    mask-repeat: no-repeat;
+    mask-size: 100% 100%;
+    position: absolute;
+    inset-inline-end: calc(var(--spacing) * 2);
+    bottom: calc(var(--spacing) * 2);
+    margin-inline-start: auto;
+    width: calc(var(--spacing) * 6);
+    height: calc(var(--spacing) * 6);
+    color: var(--color-success);
+    transition-property: all;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+}
+html[data-theme="dark"] #theme .card-radio [for="layout-color-dark"] {
+  position: relative;
+  &::after {
+    content: "";
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='black' d='M12.01 2.011a3.2 3.2 0 0 1 2.113.797l.154.145l.698.698a1.2 1.2 0 0 0 .71.341L15.82 4h1a3.2 3.2 0 0 1 3.195 3.018l.005.182v1c0 .27.092.533.258.743l.09.1l.697.698a3.2 3.2 0 0 1 .147 4.382l-.145.154l-.698.698a1.2 1.2 0 0 0-.341.71l-.008.135v1a3.2 3.2 0 0 1-3.018 3.195l-.182.005h-1a1.2 1.2 0 0 0-.743.258l-.1.09l-.698.697a3.2 3.2 0 0 1-4.382.147l-.154-.145l-.698-.698a1.2 1.2 0 0 0-.71-.341L8.2 20.02h-1a3.2 3.2 0 0 1-3.195-3.018L4 16.82v-1a1.2 1.2 0 0 0-.258-.743l-.09-.1l-.697-.698a3.2 3.2 0 0 1-.147-4.382l.145-.154l.698-.698a1.2 1.2 0 0 0 .341-.71L4 8.2v-1l.005-.182a3.2 3.2 0 0 1 3.013-3.013L7.2 4h1a1.2 1.2 0 0 0 .743-.258l.1-.09l.698-.697a3.2 3.2 0 0 1 2.269-.944m3.697 7.282a1 1 0 0 0-1.414 0L11 12.585l-1.293-1.292l-.094-.083a1 1 0 0 0-1.32 1.497l2 2l.094.083a1 1 0 0 0 1.32-.083l4-4l.083-.094a1 1 0 0 0-.083-1.32'/%3E%3C/svg%3E");
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    background-color: currentColor;
+    mask-repeat: no-repeat;
+    mask-size: 100% 100%;
+    position: absolute;
+    inset-inline-end: calc(var(--spacing) * 2);
+    bottom: calc(var(--spacing) * 2);
+    margin-inline-start: auto;
+    width: calc(var(--spacing) * 6);
+    height: calc(var(--spacing) * 6);
+    color: var(--color-success);
+    transition-property: all;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+html {
+  --font-body: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-secondary: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html[data-skin="default"], html[data-skin="saas"], html[data-skin="modern"], html[data-skin="minimal"], html[data-skin="silver"], html[data-skin="luxe"], html[data-skin="pixel"], html[data-skin="flat"], html[data-skin="crystal"], html[data-skin="zen"], html[data-skin="galaxy"], html[data-skin="retro"], html[data-skin="neon"], html[data-skin="soft"], html[data-skin="mono"], html[data-skin="neo"], html[data-skin="prism"], html[data-skin="nova"], html[data-skin="elegant"], html[data-skin="aurora"], html[data-skin="xenon"], html[data-skin="matrix"], html[data-skin="orbit"] {
+  --font-body: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-secondary: "Anuphan", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html[data-skin="saas"] {
+  font-size: 16px;
+}
+html[data-skin="default"], html[data-skin="saas"], html[data-skin="modern"], html[data-skin="minimal"], html[data-skin="silver"], html[data-skin="luxe"], html[data-skin="pixel"], html[data-skin="flat"], html[data-skin="crystal"], html[data-skin="zen"], html[data-skin="galaxy"], html[data-skin="retro"], html[data-skin="neon"], html[data-skin="soft"], html[data-skin="mono"], html[data-skin="neo"], html[data-skin="prism"], html[data-skin="nova"], html[data-skin="elegant"], html[data-skin="aurora"], html[data-skin="xenon"], html[data-skin="matrix"], html[data-skin="orbit"] {
+  --text-body: 0.875rem;
+  --text-sm: 0.875rem;
+  --text-xs: 0.8125rem;
+  --text-2xs: 0.6875rem;
+}
+html[data-text-scale="lg"] {
+  font-size: 18px;
+}
+html[data-text-scale="xl"] {
+  font-size: 20px;
+}
+@media (max-width: 1023px) {
+  .seller-mobile-shell .app-menu {
+    display: none !important;
+  }
+  .seller-mobile-shell .app-header {
+    display: none !important;
+  }
+  .seller-mobile-shell .page-content {
+    margin-inline-start: 0 !important;
+  }
+  .seller-mobile-shell .page-content main {
+    padding-inline: 1rem !important;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
+  }
+  .seller-mobile-shell {
+    margin-inline: 0 !important;
+  }
+  .seller-mobile-shell:has(.orders-fullbleed) {
+    margin-top: 0 !important;
+  }
+  .seller-mobile-shell:has(.orders-fullbleed) footer {
+    display: none !important;
+  }
+  .seller-mobile-shell .page-content {
+    background: var(--color-body-bg);
+  }
+}
+html[data-sidenav-size="on-hover"] .app-menu:not(:hover) .shop-package-card, html[data-sidenav-size="condensed"] .shop-package-card {
+  padding-inline: 0;
+  justify-content: center;
+}
+html[data-sidenav-size="on-hover"] .app-menu:not(:hover) .shop-package-card .shop-package-card-text, html[data-sidenav-size="condensed"] .shop-package-card .shop-package-card-text {
+  display: none;
+}
+.chat-header {
+  background: var(--topbar-bg);
+  .topbar-item {
+    display: flex;
+    height: calc(var(--spacing) * 14.5);
+    align-items: center;
+  }
+  .topbar-link {
+    display: flex;
+    align-items: center;
+    padding-inline: calc(var(--spacing) * 1.5);
+    color: var(--topbar-item-color);
+    &:hover, &:active, &:focus {
+      color: var(--topbar-item-hover-color);
+    }
+  }
+}
+.chat-header-logo .logo-sm {
+  display: none;
+}
+.chat-header-logo .logo-lg img {
+  height: var(--logo-lg-height);
+}
+.chat-header-logo .logo-dark {
+  display: block;
+}
+.chat-header-logo .logo-light {
+  display: none;
+}
+html[data-theme="dark"] .chat-header-logo .logo-dark {
+  display: none;
+}
+html[data-theme="dark"] .chat-header-logo .logo-light {
+  display: block;
+}
+.choices__inner {
+  background-color: var(--color-card) !important;
+  border: 1px solid var(--color-default-300) !important;
+  border-radius: var(--radius) !important;
+  font-size: var(--text-sm) !important;
+}
+.choices[data-type*="select-one"] .choices__inner {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 2.3125rem !important;
+  height: 2.3125rem !important;
+  padding: 0 2.25rem 0 0.75rem !important;
+}
+.choices[data-type*="select-one"].is-focused .choices__inner, .choices[data-type*="select-one"].is-open .choices__inner {
+  border-color: var(--color-default-500) !important;
+}
+.choices.is-disabled .choices__inner {
+  background-color: var(--color-default-100) !important;
+  cursor: not-allowed !important;
+  opacity: 0.7 !important;
+}
+.choices.is-open {
+  position: relative;
+  z-index: 40 !important;
+}
+.choices__list--dropdown, .choices__list[aria-expanded="true"] {
+  z-index: 40 !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.12s !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (hover: none) and (pointer: coarse) {
+  [data-message-id] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+.chat-media {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+@layer base {
+  input:where([type='text']),input:where(:not([type])),input:where([type='email']),input:where([type='url']),input:where([type='password']),input:where([type='number']),input:where([type='date']),input:where([type='datetime-local']),input:where([type='month']),input:where([type='search']),input:where([type='tel']),input:where([type='time']),input:where([type='week']),select:where([multiple]),textarea,select {
+    appearance: none;
+    background-color: #fff;
+    border-color: oklch(55.1% 0.027 264.364);
+    border-width: 1px;
+    border-radius: 0px;
+    padding-top: 0.5rem;
+    padding-right: 0.75rem;
+    padding-bottom: 0.5rem;
+    padding-left: 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    --tw-shadow: 0 0 #0000;
+    &:focus {
+      outline: 2px solid transparent;
+      outline-offset: 2px;
+      --tw-ring-inset: var(--tw-empty,/*!*/ /*!*/);
+      --tw-ring-offset-width: 0px;
+      --tw-ring-offset-color: #fff;
+      --tw-ring-color: oklch(54.6% 0.245 262.881);
+      --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+      --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+      box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+      border-color: oklch(54.6% 0.245 262.881);
+    }
+  }
+  input::placeholder,textarea::placeholder {
+    color: oklch(55.1% 0.027 264.364);
+    opacity: 1;
+  }
+  ::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+  ::-webkit-date-and-time-value {
+    min-height: 1.5em;
+    text-align: inherit;
+  }
+  ::-webkit-datetime-edit {
+    display: inline-flex;
+  }
+  ::-webkit-datetime-edit,::-webkit-datetime-edit-year-field,::-webkit-datetime-edit-month-field,::-webkit-datetime-edit-day-field,::-webkit-datetime-edit-hour-field,::-webkit-datetime-edit-minute-field,::-webkit-datetime-edit-second-field,::-webkit-datetime-edit-millisecond-field,::-webkit-datetime-edit-meridiem-field {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='oklch(55.1%25 0.027 264.364)' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+    print-color-adjust: exact;
+  }
+  select:where([multiple]),select:where([size]:not([size="1"])) {
+    background-image: initial;
+    background-position: initial;
+    background-repeat: unset;
+    background-size: initial;
+    padding-right: 0.75rem;
+    print-color-adjust: unset;
+  }
+  input:where([type='checkbox']),input:where([type='radio']) {
+    appearance: none;
+    padding: 0;
+    print-color-adjust: exact;
+    display: inline-block;
+    vertical-align: middle;
+    background-origin: border-box;
+    user-select: none;
+    flex-shrink: 0;
+    height: 1rem;
+    width: 1rem;
+    color: oklch(54.6% 0.245 262.881);
+    background-color: #fff;
+    border-color: oklch(55.1% 0.027 264.364);
+    border-width: 1px;
+    --tw-shadow: 0 0 #0000;
+  }
+  input:where([type='checkbox']) {
+    border-radius: 0px;
+  }
+  input:where([type='radio']) {
+    border-radius: 100%;
+  }
+  input:where([type='checkbox']):focus,input:where([type='radio']):focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    --tw-ring-inset: var(--tw-empty,/*!*/ /*!*/);
+    --tw-ring-offset-width: 2px;
+    --tw-ring-offset-color: #fff;
+    --tw-ring-color: oklch(54.6% 0.245 262.881);
+    --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+    --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+    box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+  }
+  input:where([type='checkbox']):checked,input:where([type='radio']):checked {
+    border-color: transparent;
+    background-color: currentColor;
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  input:where([type='checkbox']):checked {
+    background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+    @media (forced-colors: active) {
+      appearance: auto;
+    }
+  }
+  input:where([type='radio']):checked {
+    background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle cx='8' cy='8' r='3'/%3e%3c/svg%3e");
+    @media (forced-colors: active) {
+      appearance: auto;
+    }
+  }
+  input:where([type='checkbox']):checked:hover,input:where([type='checkbox']):checked:focus,input:where([type='radio']):checked:hover,input:where([type='radio']):checked:focus {
+    border-color: transparent;
+    background-color: currentColor;
+  }
+  input:where([type='checkbox']):indeterminate {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 16 16'%3e%3cpath stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 8h8'/%3e%3c/svg%3e");
+    border-color: transparent;
+    background-color: currentColor;
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+    @media (forced-colors: active) {
+      appearance: auto;
+    }
+  }
+  input:where([type='checkbox']):indeterminate:hover,input:where([type='checkbox']):indeterminate:focus {
+    border-color: transparent;
+    background-color: currentColor;
+  }
+  input:where([type='file']) {
+    background: unset;
+    border-color: inherit;
+    border-width: 0;
+    border-radius: 0;
+    padding: 0;
+    font-size: unset;
+    line-height: inherit;
+  }
+  input:where([type='file']):focus {
+    outline: 1px solid ButtonText;
+    outline: 1px auto -webkit-focus-ring-color;
+  }
+}
+@property --tw-divide-y-reverse {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+@property --tw-font-weight {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ordinal {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-slashed-zero {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-numeric-figure {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-numeric-spacing {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-numeric-fraction {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-leading {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-shadow-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+@property --tw-inset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-inset-shadow-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-inset-shadow-alpha {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+@property --tw-ring-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-inset-ring-color {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-inset-ring-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-ring-inset {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-ring-offset-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --tw-ring-offset-color {
+  syntax: "*";
+  inherits: false;
+  initial-value: #fff;
+}
+@property --tw-ring-offset-shadow {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0 0 #0000;
+}
+@property --tw-duration {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-backdrop-blur {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-backdrop-brightness {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-backdrop-contrast {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-backdrop-grayscale {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-backdrop-hue-rotate {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-backdrop-invert {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-backdrop-opacity {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-backdrop-saturate {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-backdrop-sepia {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-outline-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
+@property --tw-translate-x {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+@property --tw-translate-y {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+@property --tw-translate-z {
+  syntax: "*";
+  inherits: false;
+  initial-value: 0;
+}
+@property --tw-content {
+  syntax: "*";
+  inherits: false;
+  initial-value: "";
+}
+@property --tw-ease {
+  syntax: "*";
+  inherits: false;
+}
+@layer properties {
+  @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {
+    *, ::before, ::after, ::backdrop {
+      --tw-divide-y-reverse: 0;
+      --tw-border-style: solid;
+      --tw-font-weight: initial;
+      --tw-ordinal: initial;
+      --tw-slashed-zero: initial;
+      --tw-numeric-figure: initial;
+      --tw-numeric-spacing: initial;
+      --tw-numeric-fraction: initial;
+      --tw-leading: initial;
+      --tw-shadow: 0 0 #0000;
+      --tw-shadow-color: initial;
+      --tw-shadow-alpha: 100%;
+      --tw-inset-shadow: 0 0 #0000;
+      --tw-inset-shadow-color: initial;
+      --tw-inset-shadow-alpha: 100%;
+      --tw-ring-color: initial;
+      --tw-ring-shadow: 0 0 #0000;
+      --tw-inset-ring-color: initial;
+      --tw-inset-ring-shadow: 0 0 #0000;
+      --tw-ring-inset: initial;
+      --tw-ring-offset-width: 0px;
+      --tw-ring-offset-color: #fff;
+      --tw-ring-offset-shadow: 0 0 #0000;
+      --tw-duration: initial;
+      --tw-backdrop-blur: initial;
+      --tw-backdrop-brightness: initial;
+      --tw-backdrop-contrast: initial;
+      --tw-backdrop-grayscale: initial;
+      --tw-backdrop-hue-rotate: initial;
+      --tw-backdrop-invert: initial;
+      --tw-backdrop-opacity: initial;
+      --tw-backdrop-saturate: initial;
+      --tw-backdrop-sepia: initial;
+      --tw-outline-style: solid;
+      --tw-translate-x: 0;
+      --tw-translate-y: 0;
+      --tw-translate-z: 0;
+      --tw-content: "";
+      --tw-ease: initial;
+    }
+  }
+}
+
+</style>
+<style>
+/* ── scaffold ของหน้า mockup เท่านั้น (ไม่ใช่ component) ── */
+.mk-pagehead{background:#fff;border-bottom:1px solid var(--color-default-300);padding:20px 24px;position:sticky;top:0;z-index:20}
+.mk-pagehead h1{margin:0 0 4px;font-size:20px;font-weight:700}
+.mk-pagehead p{margin:0;font-size:13px;color:#6b7280;max-width:100ch}
+.mk-main{padding:28px 24px 90px;max-width:1560px;margin:0 auto}
+.mk-h2{font-size:17px;font-weight:700;margin:34px 0 6px;padding-bottom:8px;border-bottom:2px solid var(--color-default-800,#3b3b48)}
+.mk-h2:first-child{margin-top:0}
+.mk-note{font-size:13px;color:#6b7280;margin:0 0 16px;max-width:100ch}
+.mk-note b{color:var(--color-default-800,#3b3b48)}
+.mk-rail{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+.mk-dev{flex:0 0 auto}
+.mk-devlabel{font-size:11px;font-weight:700;letter-spacing:.4px;color:#6b7280;margin-bottom:6px}
+.mk-devlabel span{font-weight:400;color:#9ca3af}
+.mk-screen{background:var(--color-body-bg,#f6f7fb);border:1px solid #cfd4dd;border-radius:8px;padding:12px;box-shadow:0 6px 20px rgba(49,58,70,.10)}
+.mk-caption{font-size:11px;color:#6b7280;margin-top:6px;max-width:420px}
+.mk-i{width:1em;height:1em;flex:0 0 auto;display:inline-block;vertical-align:-0.125em}
+/* utility ที่ CSS compile รอบก่อนยังไม่มี (Tailwind ตัดตาม content) — ค่าตรง token ธีมทุกตัว */
+.text-primary{color:var(--color-primary)}
+.border-primary{border-color:var(--color-primary)}
+.ring-primary\/40{--tw-ring-color:color-mix(in oklab,var(--color-primary) 40%,transparent)}
+.bg-warning\/10{background-color:color-mix(in oklab,var(--color-warning) 10%,transparent)}
+.border-warning{border-color:var(--color-warning)}
+.size-10{width:2.5rem;height:2.5rem}
+.size-9{width:2.25rem;height:2.25rem}
+.object-cover{object-fit:cover}
+.object-contain{object-fit:contain}
+.ms-auto{margin-inline-start:auto}
+.animate-pulse{animation:mkpulse 1.6s ease-in-out infinite}
+@keyframes mkpulse{0%,100%{opacity:1}50%{opacity:.45}}
+.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.flex-1{flex:1 1 0%}
+.text-end{text-align:end}
+.text-lg{font-size:var(--text-lg);line-height:var(--text-lg--line-height)}
+.gap-2\.5{gap:calc(var(--spacing)*2.5)}
+.gap-3{gap:calc(var(--spacing)*3)}
+.h-3{height:calc(var(--spacing)*3)}
+.h-3\.5{height:calc(var(--spacing)*3.5)}
+.h-6{height:calc(var(--spacing)*6)}
+.w-14{width:calc(var(--spacing)*14)}
+.w-20{width:calc(var(--spacing)*20)}
+.w-24{width:calc(var(--spacing)*24)}
+.w-28{width:calc(var(--spacing)*28)}
+.w-32{width:calc(var(--spacing)*32)}
+.mk-logo{border-radius:.5rem;border:1px solid var(--color-default-200);background:#fff;overflow:hidden;flex:0 0 auto}
+.mk-logo img{width:100%;height:100%;object-fit:cover}
+.mk-abbr{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--color-default-700);background:var(--color-default-100)}
+</style>
+</head>
+<body>
+
+<div class="mk-pagehead">
+  <h1>Mockup — เปรียบเทียบราคาขนส่ง iShip (ส่วนขยาย feature 00022)</h1>
+  <p>ทุกกล่องใช้ <b>class ของ Paces จริงจาก CSS ที่ compile จากไฟล์ธีมของโปรเจกต์</b> —
+  IA/ลำดับข้อมูลอิงหน้า "เปรียบเทียบราคาขนส่ง" ของ iShip (ref จาก user) แต่ skin/สี/component = Paces ปัจจุบันทั้งหมด (Hard Rule 6) ·
+  โลโก้ = ไฟล์จริงใน <code>public/images/logos/</code> (mapping ระดับแบรนด์จาก <code>src/lib/iship/courier.ts</code>) ·
+  ตัวเลขราคา = fixture ทรงเดียวกับ response จริงของ <code>check-price</code> (price + fuel_surcharge_fee + remote_area = total_price)</p>
+</div>
+
+<main class="mk-main">
+
+<!-- ═══ จุดที่ 1: ปุ่มเปิด ═══ -->
+<h2 class="mk-h2">จุดที่ 1 — ปุ่มเปิด "เทียบราคา" ข้าง dropdown ขนส่ง (ใน ShipmentCreateForm)</h2>
+<p class="mk-note">อยู่ใน section "พัสดุ" ของฟอร์มเดิม — ได้ทั้ง 2 ทางเข้าอัตโนมัติ (modal หน้า order detail + แผงสร้างพัสดุในแชท) ·
+ปุ่ม disabled จนกว่าที่อยู่ปลายทาง + น้ำหนัก/ขนาดครบ (เงื่อนไขเดียวกับที่ quote เดิมใช้)</p>
+<div class="mk-rail">
+
+  <div class="mk-dev">
+    <div class="mk-devlabel">MOBILE <span>375px — กรอกยังไม่ครบ (ปุ่ม disabled)</span></div>
+    <div class="mk-screen" style="width:375px">
+      <div class="card"><div class="card-body">
+        <label class="form-label" for="mk-c1">ขนส่ง</label>
+        <div class="flex gap-2">
+          <select id="mk-c1" class="form-select"><option>ใช้ขนส่งค่าตั้งต้นของร้าน</option></select>
+          <button type="button" class="btn border border-default-300 text-default-500 shrink-0" disabled>
+            <svg class="mk-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 20V4m0 0L3 8m4-4 4 4m6 4v8m0 0 4-4m-4 4-4-4"/></svg>
+            เทียบราคา
+          </button>
+        </div>
+        <p class="mb-0 mt-1 text-xs text-default-700">กรอกที่อยู่ปลายทางและขนาดพัสดุให้ครบเพื่อเทียบราคาทุกขนส่ง</p>
+      </div></div>
+    </div>
+    <p class="mk-caption">ปุ่ม <code>btn border-default-300</code> disabled + คำอธิบายใต้ช่อง — บอกเงื่อนไขตรง ๆ ไม่ปล่อยให้กดแล้วเงียบ</p>
+  </div>
+
+  <div class="mk-dev">
+    <div class="mk-devlabel">MOBILE <span>375px — พร้อมกด</span></div>
+    <div class="mk-screen" style="width:375px">
+      <div class="card"><div class="card-body">
+        <label class="form-label" for="mk-c2">ขนส่ง</label>
+        <div class="flex gap-2">
+          <select id="mk-c2" class="form-select"><option>Flash Thunder</option></select>
+          <button type="button" class="btn border border-primary text-primary shrink-0">
+            <svg class="mk-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 20V4m0 0L3 8m4-4 4 4m6 4v8m0 0 4-4m-4 4-4-4"/></svg>
+            เทียบราคา
+          </button>
+        </div>
+        <div class="mt-2 flex items-center justify-between border-t border-dashed border-default-300 pt-2 text-sm">
+          <span class="text-default-700">ค่าส่งโดยประมาณ</span>
+          <span class="font-semibold text-default-900">฿71</span>
+        </div>
+      </div></div>
+    </div>
+    <p class="mk-caption">พร้อมกด = <code>btn border-primary text-primary</code> (secondary action — ไม่แย่งน้ำหนักปุ่ม "เปิดพัสดุ" ที่เป็น primary ทึบ) · บรรทัด "ค่าส่งโดยประมาณ" ของเดิมยังอยู่ที่เดิม</p>
+  </div>
+
+</div>
+
+<!-- ═══ จุดที่ 2: หน้าเปรียบเทียบ — Mobile ═══ -->
+<h2 class="mk-h2">จุดที่ 2 — หน้าเปรียบเทียบราคา (Mobile 375px — sheet เต็มจอ)</h2>
+<p class="mk-note">เรียงราคารวม <b>ถูก → แพง</b> · ใบแรก = ขอบ <code>border-primary</code> + badge "ถูกที่สุด" (<code>bg-primary text-white</code> — ตาม ref เป็นแดง แต่ skin เราใช้น้ำเงิน brand) ·
+กด "ใช้ขนส่งนี้" = ตั้งค่า dropdown ขนส่งในฟอร์มแล้วปิด sheet กลับไปที่ฟอร์ม</p>
+<div class="mk-rail">
+
+  <div class="mk-dev">
+    <div class="mk-devlabel">MOBILE <span>375px — ผลเทียบ 6 ขนส่ง</span></div>
+    <div class="mk-screen" style="width:375px">
+      <div class="card">
+        <div class="flex items-center gap-2 border-b border-default-200 p-4">
+          <button type="button" class="flex size-9 items-center justify-center rounded-lg text-default-700 hover:bg-default-100" aria-label="กลับ">
+            <svg class="mk-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 6-6 6 6 6"/></svg>
+          </button>
+          <h6 class="mb-0 text-base font-semibold text-default-900">เปรียบเทียบราคาขนส่ง</h6>
+        </div>
+
+        <div class="border-b border-default-200 p-4">
+          <p class="mb-0 text-sm text-default-700">ไป ต.ขุนยวม อ.ขุนยวม แม่ฮ่องสอน 58140 · 1.0 กก. · 20×14×6 ซม.</p>
+          <p class="mb-0 mt-1.5 flex items-start gap-1.5 text-xs text-warning-ink">
+            <svg class="mk-i mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+            ราคาประมาณการ — ค่าจริงอาจต่างถ้าน้ำหนัก/ขนาดที่ชั่งไม่ตรง · ปลายทางเป็นพื้นที่ห่างไกล มีค่าเพิ่ม (รวมในราคาแล้ว)
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-3 p-4">
+
+          <!-- ใบถูกที่สุด -->
+          <div class="rounded-lg border border-primary p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/flash-express.jpeg" alt="Flash Express"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">Flash Thunder</p>
+                <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 3 วัน</p>
+              </div>
+              <div class="ms-auto text-end">
+                <span class="badge bg-primary text-white">ถูกที่สุด</span>
+                <p class="mb-0 mt-0.5 text-lg font-bold text-default-900">฿71</p>
+              </div>
+            </div>
+            <div class="mt-2.5 grid grid-cols-3 gap-2 border-t border-dashed border-default-300 pt-2.5 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿19</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">฿2</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <button type="button" class="btn bg-primary text-white mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+
+          <!-- ใบถัดไป -->
+          <div class="rounded-lg border border-default-300 p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/flash-express.jpeg" alt="Flash Express"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">Flash Pro OK</p>
+                <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 3 วัน</p>
+              </div>
+              <p class="ms-auto mb-0 text-lg font-bold text-default-900">฿77</p>
+            </div>
+            <div class="mt-2.5 grid grid-cols-3 gap-2 border-t border-dashed border-default-300 pt-2.5 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿24</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">฿3</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <button type="button" class="btn border border-primary text-primary mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+
+          <div class="rounded-lg border border-default-300 p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/spx-express.webp" alt="SPX Express"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">SPX Express</p>
+                <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 4 วัน</p>
+              </div>
+              <p class="ms-auto mb-0 text-lg font-bold text-default-900">฿85</p>
+            </div>
+            <div class="mt-2.5 grid grid-cols-3 gap-2 border-t border-dashed border-default-300 pt-2.5 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿32</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">฿3</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <button type="button" class="btn border border-primary text-primary mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+
+          <div class="rounded-lg border border-default-300 p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/jandt-express.png" alt="J&amp;T Express"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">J&amp;T Express</p>
+                <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 3 วัน</p>
+              </div>
+              <p class="ms-auto mb-0 text-lg font-bold text-default-900">฿89</p>
+            </div>
+            <div class="mt-2.5 grid grid-cols-3 gap-2 border-t border-dashed border-default-300 pt-2.5 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿35</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">฿4</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <button type="button" class="btn border border-primary text-primary mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+
+          <div class="rounded-lg border border-default-300 p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/thaipost.png" alt="ไปรษณีย์ไทย"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">ไปรษณีย์ไทย EMS</p>
+                <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 2 วัน</p>
+              </div>
+              <p class="ms-auto mb-0 text-lg font-bold text-default-900">฿95</p>
+            </div>
+            <div class="mt-2.5 grid grid-cols-3 gap-2 border-t border-dashed border-default-300 pt-2.5 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿45</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">—</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <button type="button" class="btn border border-primary text-primary mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+
+          <div class="rounded-lg border border-default-300 p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/kerry-express.jpeg" alt="Kerry Express"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">KEX Express</p>
+                <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 3 วัน</p>
+              </div>
+              <p class="ms-auto mb-0 text-lg font-bold text-default-900">฿103</p>
+            </div>
+            <div class="mt-2.5 grid grid-cols-3 gap-2 border-t border-dashed border-default-300 pt-2.5 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿48</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">฿5</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <button type="button" class="btn border border-primary text-primary mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+
+          <p class="mb-0 text-xs text-default-700">ประเมินไม่ได้ 2 ขนส่ง: DHL eCommerce, Best Express — ขนส่งไม่ตอบกลับ ลองใหม่ได้จากปุ่มเทียบราคา</p>
+        </div>
+      </div>
+    </div>
+    <p class="mk-caption">การ์ดละขนส่ง เรียงราคารวมถูก→แพง · breakdown 3 ช่องต่อใบ (ค่าส่ง / ค่าน้ำมัน / พื้นที่ห่างไกล — field ที่ response ไม่ส่งมาแสดง "—") · ขนส่งที่ประเมินไม่ได้ไม่โชว์การ์ด แต่บอกไว้ท้ายรายการ ไม่หายเงียบ</p>
+  </div>
+
+  <div class="mk-dev">
+    <div class="mk-devlabel">MOBILE <span>375px — กำลังโหลด</span></div>
+    <div class="mk-screen" style="width:375px">
+      <div class="card">
+        <div class="flex items-center gap-2 border-b border-default-200 p-4">
+          <button type="button" class="flex size-9 items-center justify-center rounded-lg text-default-700" aria-label="กลับ">
+            <svg class="mk-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 6-6 6 6 6"/></svg>
+          </button>
+          <h6 class="mb-0 text-base font-semibold text-default-900">เปรียบเทียบราคาขนส่ง</h6>
+        </div>
+        <div class="p-4">
+          <p class="mb-3 text-sm text-default-700">กำลังถามราคาจากขนส่งทุกเจ้า…</p>
+          <div class="flex flex-col gap-3">
+            <div class="rounded-lg border border-default-300 p-3">
+              <div class="flex items-center gap-2.5">
+                <span class="size-10 animate-pulse rounded-lg bg-default-200"></span>
+                <div class="flex-1"><span class="mb-1.5 block h-3.5 w-28 animate-pulse rounded bg-default-200"></span><span class="block h-3 w-20 animate-pulse rounded bg-default-200"></span></div>
+                <span class="h-6 w-14 animate-pulse rounded bg-default-200"></span>
+              </div>
+            </div>
+            <div class="rounded-lg border border-default-300 p-3">
+              <div class="flex items-center gap-2.5">
+                <span class="size-10 animate-pulse rounded-lg bg-default-200"></span>
+                <div class="flex-1"><span class="mb-1.5 block h-3.5 w-32 animate-pulse rounded bg-default-200"></span><span class="block h-3 w-24 animate-pulse rounded bg-default-200"></span></div>
+                <span class="h-6 w-14 animate-pulse rounded bg-default-200"></span>
+              </div>
+            </div>
+            <div class="rounded-lg border border-default-300 p-3">
+              <div class="flex items-center gap-2.5">
+                <span class="size-10 animate-pulse rounded-lg bg-default-200"></span>
+                <div class="flex-1"><span class="mb-1.5 block h-3.5 w-24 animate-pulse rounded bg-default-200"></span><span class="block h-3 w-28 animate-pulse rounded bg-default-200"></span></div>
+                <span class="h-6 w-14 animate-pulse rounded bg-default-200"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mk-caption">โหลด = skeleton โครงเดียวกับการ์ดจริง (ยิงครั้งเดียวได้ทั้งชุด — ไม่ทยอยโผล่ทีละใบ กันรายการกระโดดตอนเรียงราคา)</p>
+  </div>
+
+</div>
+
+<!-- ═══ จุดที่ 3: Tablet ═══ -->
+<h2 class="mk-h2">จุดที่ 3 — Tablet 768px (การ์ด 2 คอลัมน์)</h2>
+<div class="mk-rail">
+  <div class="mk-dev">
+    <div class="mk-devlabel">TABLET <span>768px — modal กว้าง ~640px</span></div>
+    <div class="mk-screen" style="width:680px">
+      <div class="card">
+        <div class="flex items-center gap-2 border-b border-default-200 p-4">
+          <h6 class="mb-0 text-base font-semibold text-default-900">เปรียบเทียบราคาขนส่ง</h6>
+          <p class="mb-0 ms-2 text-sm text-default-700">ไป แม่ฮ่องสอน 58140 · 1.0 กก. · 20×14×6 ซม.</p>
+          <button type="button" class="ms-auto flex size-9 items-center justify-center rounded-lg text-default-700 hover:bg-default-100" aria-label="ปิด">
+            <svg class="mk-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-3 p-4">
+          <div class="rounded-lg border border-primary p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/flash-express.jpeg" alt="Flash Express"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">Flash Thunder</p>
+                <p class="mb-0 text-xs text-default-700">ราว 3 วัน</p>
+              </div>
+              <div class="ms-auto text-end">
+                <span class="badge bg-primary text-white">ถูกที่สุด</span>
+                <p class="mb-0 mt-0.5 text-lg font-bold text-default-900">฿71</p>
+              </div>
+            </div>
+            <button type="button" class="btn bg-primary text-white mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+          <div class="rounded-lg border border-default-300 p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/flash-express.jpeg" alt="Flash Express"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">Flash Pro OK</p>
+                <p class="mb-0 text-xs text-default-700">ราว 3 วัน</p>
+              </div>
+              <p class="ms-auto mb-0 text-lg font-bold text-default-900">฿77</p>
+            </div>
+            <button type="button" class="btn border border-primary text-primary mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+          <div class="rounded-lg border border-default-300 p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/spx-express.webp" alt="SPX Express"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">SPX Express</p>
+                <p class="mb-0 text-xs text-default-700">ราว 4 วัน</p>
+              </div>
+              <p class="ms-auto mb-0 text-lg font-bold text-default-900">฿85</p>
+            </div>
+            <button type="button" class="btn border border-primary text-primary mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+          <div class="rounded-lg border border-default-300 p-3">
+            <div class="flex items-center gap-2.5">
+              <span class="mk-logo size-10"><img src="../../../public/images/logos/jandt-express.png" alt="J&amp;T Express"></span>
+              <div class="min-w-0">
+                <p class="mb-0 truncate font-semibold text-default-900">J&amp;T Express</p>
+                <p class="mb-0 text-xs text-default-700">ราว 3 วัน</p>
+              </div>
+              <p class="ms-auto mb-0 text-lg font-bold text-default-900">฿89</p>
+            </div>
+            <button type="button" class="btn border border-primary text-primary mt-2.5 w-full">ใช้ขนส่งนี้</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mk-caption">Tablet ยุบ breakdown ต่อใบไว้หลังกดการ์ด (แตะการ์ด = ขยาย) — โชว์เฉพาะราคารวม กันตาราง 6 ใบยาวเกินจอ · การ์ดใช้โครงเดียวกับ mobile</p>
+  </div>
+</div>
+
+<!-- ═══ จุดที่ 4: Desktop ═══ -->
+<h2 class="mk-h2">จุดที่ 4 — Desktop ≥1200px (แถวเต็มแบบ ref — modal กว้าง ~760px)</h2>
+<div class="mk-rail">
+  <div class="mk-dev">
+    <div class="mk-devlabel">DESKTOP <span>modal 760px — แถวละขนส่ง breakdown แผ่เต็ม</span></div>
+    <div class="mk-screen" style="width:800px">
+      <div class="card">
+        <div class="flex items-center gap-2 border-b border-default-200 p-4">
+          <h6 class="mb-0 text-base font-semibold text-default-900">เปรียบเทียบราคาขนส่ง</h6>
+          <p class="mb-0 ms-2 text-sm text-default-700">ไป ต.ขุนยวม อ.ขุนยวม แม่ฮ่องสอน 58140 · 1.0 กก. · 20×14×6 ซม.</p>
+          <button type="button" class="ms-auto flex size-9 items-center justify-center rounded-lg text-default-700 hover:bg-default-100" aria-label="ปิด">
+            <svg class="mk-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="border-b border-default-200 px-4 py-2.5">
+          <p class="mb-0 flex items-start gap-1.5 text-xs text-warning-ink">
+            <svg class="mk-i mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+            ราคาประมาณการ — ค่าจริงอาจเปลี่ยนถ้าน้ำหนัก/ขนาดที่ขนส่งชั่งไม่ตรง · ปลายทางเป็นพื้นที่ห่างไกล มีค่าเพิ่ม (รวมในราคาแล้ว)
+          </p>
+        </div>
+        <ul class="mb-0 list-none p-0 divide-y divide-default-100">
+          <li class="flex items-center gap-3 p-4" style="box-shadow:inset 3px 0 0 var(--color-primary)">
+            <span class="mk-logo size-10"><img src="../../../public/images/logos/flash-express.jpeg" alt="Flash Express"></span>
+            <div class="min-w-0" style="width:170px">
+              <p class="mb-0 flex items-center gap-1.5 truncate font-semibold text-default-900">Flash Thunder <span class="badge bg-primary text-white">ถูกที่สุด</span></p>
+              <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 3 วัน</p>
+            </div>
+            <div class="grid flex-1 grid-cols-3 gap-2 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿19</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">฿2</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <p class="mb-0 text-lg font-bold text-default-900" style="width:64px;text-align:end">฿71</p>
+            <button type="button" class="btn bg-primary text-white shrink-0">ใช้ขนส่งนี้</button>
+          </li>
+          <li class="flex items-center gap-3 p-4">
+            <span class="mk-logo size-10"><img src="../../../public/images/logos/flash-express.jpeg" alt="Flash Express"></span>
+            <div class="min-w-0" style="width:170px">
+              <p class="mb-0 truncate font-semibold text-default-900">Flash Pro OK</p>
+              <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 3 วัน</p>
+            </div>
+            <div class="grid flex-1 grid-cols-3 gap-2 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿24</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">฿3</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <p class="mb-0 text-lg font-bold text-default-900" style="width:64px;text-align:end">฿77</p>
+            <button type="button" class="btn border border-primary text-primary shrink-0">ใช้ขนส่งนี้</button>
+          </li>
+          <li class="flex items-center gap-3 p-4">
+            <span class="mk-logo size-10"><img src="../../../public/images/logos/spx-express.webp" alt="SPX Express"></span>
+            <div class="min-w-0" style="width:170px">
+              <p class="mb-0 truncate font-semibold text-default-900">SPX Express</p>
+              <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 4 วัน</p>
+            </div>
+            <div class="grid flex-1 grid-cols-3 gap-2 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿32</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">฿3</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <p class="mb-0 text-lg font-bold text-default-900" style="width:64px;text-align:end">฿85</p>
+            <button type="button" class="btn border border-primary text-primary shrink-0">ใช้ขนส่งนี้</button>
+          </li>
+          <li class="flex items-center gap-3 p-4">
+            <span class="mk-logo size-10"><img src="../../../public/images/logos/jandt-express.png" alt="J&amp;T Express"></span>
+            <div class="min-w-0" style="width:170px">
+              <p class="mb-0 truncate font-semibold text-default-900">J&amp;T Express</p>
+              <p class="mb-0 text-xs text-default-700">ถึงปลายทางราว 3 วัน</p>
+            </div>
+            <div class="grid flex-1 grid-cols-3 gap-2 text-center">
+              <div><p class="mb-0 text-xs text-default-700">ค่าส่ง</p><p class="mb-0 text-sm font-medium text-default-900">฿35</p></div>
+              <div><p class="mb-0 text-xs text-default-700">ค่าน้ำมัน</p><p class="mb-0 text-sm font-medium text-default-900">฿4</p></div>
+              <div><p class="mb-0 text-xs text-default-700">พื้นที่ห่างไกล</p><p class="mb-0 text-sm font-medium text-default-900">฿50</p></div>
+            </div>
+            <p class="mb-0 text-lg font-bold text-default-900" style="width:64px;text-align:end">฿89</p>
+            <button type="button" class="btn border border-primary text-primary shrink-0">ใช้ขนส่งนี้</button>
+          </li>
+        </ul>
+        <div class="border-t border-default-200 p-3">
+          <p class="mb-0 text-xs text-default-700">ประเมินไม่ได้ 2 ขนส่ง: DHL eCommerce, Best Express — ขนส่งไม่ตอบกลับ</p>
+        </div>
+      </div>
+    </div>
+    <p class="mk-caption">Desktop = แถวเต็มตาม IA ของ ref (โลโก้ · ชื่อ+วัน · breakdown 3 คอลัมน์ · รวม · ปุ่ม) · ใบถูกที่สุดคาดขอบซ้ายน้ำเงิน + badge — ไม่ใช้กรอบแดงแบบ ref เพราะแดง = danger ใน skin เรา</p>
+  </div>
+</div>
+
+</main>
+</body>
+</html>
