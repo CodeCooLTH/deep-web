@@ -3,12 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { cancelOrder, CancelReasonRequiredError, InvalidCancelReasonError } from "@/services/order.service";
 import { prisma } from "@/lib/prisma";
+import { canAccessShop } from "@/lib/shop-context";
 
 // POST /api/orders/[token]/cancel
 //
 // Access model (feature 00015 TD-004 — session+ownership แทน phone-parity):
 // ─────────────────────────────────────────────────────────────────────
-// Seller  = session เป็น owner ของ shop นั้น → ยืนยันตัวตนผ่าน session แล้ว
+// Seller  = session เข้าถึงร้านเจ้าของออเดอร์ได้ (owner หรือ BUSINESS admin ผ่าน canAccessShop
+//           — เดิมเช็ค shop.userId ตรง ๆ ทำให้ admin ที่ถูกเชิญโดน 403 ทั้งที่เปิดหน้า
+//           order detail ได้ เพราะหน้าใช้ requireActiveShop ซึ่งเป็น membership-based;
+//           บั๊กคลาสเดียวกับที่เคยแก้ในแชท ดู comment ของ canAccessShop)
 // Buyer   = session required + session.user.id === order.buyerUserId
 //           (Order.buyerUserId ถูก guarantee ตรงกับ session มาก่อนแล้วโดย
 //           Access Gate ของหน้า /o/[token] — ไม่มี guest-cancel อีกต่อไป)
@@ -29,17 +33,18 @@ export async function POST(
   const session = await getServerSession(authOptions);
   const sessionUserId = (session?.user as { id?: string } | undefined)?.id;
 
-  const isSellerOwner = !!sessionUserId && sessionUserId === order.shop.userId;
+  const isSellerMember =
+    !!sessionUserId && (await canAccessShop(order.shopId, sessionUserId));
   const isBuyerOwner = !!sessionUserId && sessionUserId === order.buyerUserId;
 
   let initiator: "seller" | "buyer";
 
-  if (isSellerOwner) {
+  if (isSellerMember) {
     initiator = "seller";
   } else if (isBuyerOwner) {
     initiator = "buyer";
   } else {
-    // ไม่ใช่ seller-owner และไม่ใช่ buyer-owner (รวมเคส order.buyerUserId == null
+    // ไม่ใช่สมาชิกร้าน และไม่ใช่ buyer-owner (รวมเคส order.buyerUserId == null
     // — ไม่มีใครยกเลิกได้ยกเว้น seller)
     return NextResponse.json(
       { error: "ไม่มีสิทธิ์ยกเลิกคำสั่งซื้อนี้" },

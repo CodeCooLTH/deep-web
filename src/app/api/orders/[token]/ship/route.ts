@@ -11,6 +11,7 @@ import {
   IShipManagedShipmentError,
 } from "@/services/order.service";
 import { prisma } from "@/lib/prisma";
+import { canAccessShop } from "@/lib/shop-context";
 
 export async function POST(
   request: NextRequest,
@@ -21,11 +22,12 @@ export async function POST(
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Verify the seller owns this order
+  // สมาชิกร้านเจ้าของออเดอร์ (owner หรือ BUSINESS admin) — เดิมเช็ค shop.userId ตรง ๆ
+  // ทำให้ admin ที่ถูกเชิญแจ้งเลขพัสดุไม่ได้ (คลาสเดียวกับบั๊ก cancel/แชท ดู canAccessShop)
   const userId = (session.user as any).id;
   const order = await prisma.order.findUnique({ where: { publicToken: token }, include: { shop: true } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  if (order.shop.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await canAccessShop(order.shopId, userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const parsed = v.safeParse(ShipOrderSchema, body);
@@ -50,11 +52,11 @@ export async function PATCH(
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Verify the seller owns this order (เหมือน POST เดิมเป๊ะ)
+  // สมาชิกร้านเจ้าของออเดอร์ (เหมือน POST เดิมเป๊ะ)
   const userId = (session.user as any).id;
   const order = await prisma.order.findUnique({ where: { publicToken: token }, include: { shop: true } });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  if (order.shop.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!(await canAccessShop(order.shopId, userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const parsed = v.safeParse(ShipOrderSchema, body);
