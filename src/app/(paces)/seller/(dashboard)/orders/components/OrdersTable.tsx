@@ -42,14 +42,22 @@ import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { useRouter } from 'next/navigation'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
+import { ORDER_STATUS_META } from '@/lib/order-display'
 
 // ─── status badge config ──────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  PENDING:   { label: 'รอดำเนินการ', className: 'bg-warning/15 text-warning' },
-  SHIPPED:   { label: 'จัดส่งแล้ว',  className: 'bg-primary/15 text-primary' },
-  CONFIRMED: { label: 'สำเร็จ',      className: 'bg-success/15 text-success' },
-  CANCELLED: { label: 'ยกเลิก',      className: 'bg-danger/15 text-danger'   },
-}
+// อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —
+// เดิมไฟล์นี้ประกาศ map ของตัวเองแล้วเพี้ยนจากที่อื่นทั้งคำและสี: SHIPPED เป็น "จัดส่งแล้ว" +
+// primary(น้ำเงิน) ขณะที่ OrderCard เป็น "กำลังจัดส่ง" + info และ SSOT เป็น info เหมือน OrderCard
+// ผลคือจอเดียวกัน (ตารางเดสก์ท็อป vs การ์ดมือถือ) พูดคนละคำคนละสีสำหรับสถานะเดียวกัน
+// เลิกประกาศซ้ำแล้วนำเข้าแทน — ได้ text-{semantic}-ink ที่ผ่านคอนทราสต์ AA มาด้วย (DESIGN.md §Status chip)
+const STATUS_CONFIG = ORDER_STATUS_META
+
+// ตัวเลือกในดรอปดาวน์ "สถานะ" — สร้างจาก SSOT ตัวเดียวกับ badge ห้ามพิมพ์คำซ้ำมือ
+// (เดิมพิมพ์เอง จึงค้างคำว่า "จัดส่งแล้ว" อยู่ในตัวกรองทั้งที่ป้ายบนแถวเปลี่ยนคำไปแล้ว)
+const STATUS_FILTER_OPTIONS = [
+  { value: 'All', label: 'ทั้งหมด' },
+  ...Object.entries(ORDER_STATUS_META).map(([value, meta]) => ({ value, label: meta.label })),
+]
 
 // ─── order type label ─────────────────────────────────────────────────────────
 const TYPE_LABEL: Record<string, string> = {
@@ -312,8 +320,8 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
       filterFn: 'equalsString',
       enableColumnFilter: true,
       cell: ({ row }) => {
-        const cfg = STATUS_CONFIG[row.original.status] ?? { label: row.original.status, className: 'bg-default-200 text-default-600' }
-        return <span className={cn('badge', cfg.className)}>{cfg.label}</span>
+        const cfg = STATUS_CONFIG[row.original.status] ?? { label: row.original.status, cls: 'bg-default-200 text-default-600' }
+        return <span className={cn('badge', cfg.cls)}>{cfg.label}</span>
       },
     }),
 
@@ -393,13 +401,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
             defaultLabel="สถานะ"
             resetValue="All"
             value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
-            options={[
-              { value: 'All', label: 'ทั้งหมด' },
-              { value: 'PENDING', label: 'รอดำเนินการ' },
-              { value: 'SHIPPED', label: 'จัดส่งแล้ว' },
-              { value: 'CONFIRMED', label: 'สำเร็จ' },
-              { value: 'CANCELLED', label: 'ยกเลิก' },
-            ]}
+            options={STATUS_FILTER_OPTIONS}
             onChange={(v) => {
               table.getColumn('status')?.setFilterValue(v === 'All' ? undefined : v)
               setPagination((p) => ({ ...p, pageIndex: 0 }))
