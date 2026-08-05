@@ -54,7 +54,7 @@ export async function POST(
     const reason = typeof body?.reason === "string" ? body.reason : undefined;
 
     // cancelOrder → assertTransition → throw ถ้า cancel-after-CONFIRMED
-    const updated = await cancelOrder(token, initiator, reason);
+    const updated = await cancelOrder(token, initiator, reason, sessionUserId ?? null);
     return NextResponse.json(updated);
   } catch (err: unknown) {
     if (err instanceof CancelReasonRequiredError) {

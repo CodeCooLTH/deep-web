@@ -458,9 +458,15 @@ export default async function SellerDashboardPage() {
       <div className="hidden lg:block">
         <PageBreadcrumb title="ภาพรวมร้านค้า" trail={[{ label: 'ภาพรวม' }]} />
 
-        {/* แถว 1: UserCard + StatCards (5 คอล) | ช่องทางการขาย + AchievementLevel (7 คอล)
-            ครึ่งขวาเคยเป็น AchievementLevel ใบเดียวกิน 7 คอล เพราะ StorePerformanceOverview
-            ของ theme ถูกตัดทิ้ง — ตอนนี้ช่องนั้นกลับมาเป็น "ช่องทางการขาย" ที่มีข้อมูลจริง */}
+        {/* แถว 1: UserCard + StatCards (5 คอล) | ช่องทางการขาย (7 คอล)
+            ช่องขวานี้คือช่องที่ theme ตั้งใจให้เป็น "การ์ดเตี้ย" (StorePerformanceOverview โดนัท 210px)
+            เคยลองวาง AchievementLevel ไว้ครึ่งหนึ่งของช่องนี้แล้วหน้าบวมทั้งแถว (user รายงาน
+            2026-08-05 ว่า "การ์ดใหญ่ผิดปกติไปหมด"): AchievementLevel มี ring + 2 section +
+            progress bar 4 แถว พอถูกบีบเหลือครึ่งความกว้าง เนื้อหา wrap เป็นสองเท่า แล้วเพราะทุกใบ
+            ในแถวมี h-full ความสูงแถวจึงถูกลากตามใบที่สูงสุด — UserCard กับ stat card ทางซ้าย
+            ถูกยืดตามไปด้วยทั้งที่เนื้อหาไม่ได้เพิ่ม
+            โดนัทกิน 7 คอลเต็มจึงเตี้ยที่สุด: layout ข้างในเป็น chart ซ้าย + legend ขวา ยิ่งกว้าง
+            legend ยิ่งไม่ wrap (AchievementLevel ย้ายไปแถว 5 ที่มีเพื่อนสูงพอ ๆ กัน) */}
         <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mb-base">
           <div className="xl:col-span-5">
             <div className="grid md:grid-cols-2 grid-cols-1 gap-base h-full">
@@ -471,16 +477,7 @@ export default async function SellerDashboardPage() {
             </div>
           </div>
           <div className="xl:col-span-7">
-            <div className="grid xl:grid-cols-2 grid-cols-1 gap-base h-full">
-              <SalesChannelDonut slices={salesChannels} />
-              <AchievementLevel
-                score={score}
-                level={level}
-                levelColor={levelColor}
-                earnedBadges={earnedBadges}
-                topInProgress={topInProgress}
-              />
-            </div>
+            <SalesChannelDonut slices={salesChannels} />
           </div>
         </div>
 
@@ -509,13 +506,27 @@ export default async function SellerDashboardPage() {
           </div>
         </div>
 
-        {/* แถว 5: ยอดขายตามจังหวัด — เฉพาะร้านขายออนไลน์เท่านั้น (undefined = ไม่ render ทั้งใบ)
-            ร้านคิวงาน/บ้านพักไม่มีพัสดุส่งไปต่างจังหวัด การ์ดนี้จึงไม่มีความหมายกับเขา */}
-        {provinceSales && (
-          <div className="mt-base">
-            <ProvinceSalesMap {...provinceSales} />
+        {/* แถว 5: ระดับความสำเร็จ (5) | ยอดขายตามจังหวัด (7)
+            จับคู่กันเพราะทั้งสองใบสูงพอ ๆ กัน (~400px) — ไม่มีใครถูก h-full ลากให้บวม
+            แผนที่แสดงเฉพาะร้านขายออนไลน์ (undefined = ไม่ render) ร้านคิวงาน/บ้านพักไม่มีพัสดุ
+            ส่งไปต่างจังหวัด การ์ดนี้จึงไม่มีความหมายกับเขา — กรณีนั้น AchievementLevel ยึด 5 คอล
+            ตามเดิม ไม่ถูกยืดเพราะไม่มีเพื่อนในแถว */}
+        <div className="grid xl:grid-cols-12 grid-cols-1 gap-base mt-base">
+          <div className="xl:col-span-5">
+            <AchievementLevel
+              score={score}
+              level={level}
+              levelColor={levelColor}
+              earnedBadges={earnedBadges}
+              topInProgress={topInProgress}
+            />
           </div>
-        )}
+          {provinceSales && (
+            <div className="xl:col-span-7">
+              <ProvinceSalesMap {...provinceSales} />
+            </div>
+          )}
+        </div>
       </div>
       {/* onboarding ย้ายไปหน้า /onboarding (บังคับผ่าน proxy) — ไม่ใช้ modal บน dashboard แล้ว */}
     </>

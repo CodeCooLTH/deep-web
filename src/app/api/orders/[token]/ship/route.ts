@@ -32,7 +32,7 @@ export async function POST(
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
   try {
-    const updated = await shipOrder(token, parsed.output);
+    const updated = await shipOrder(token, parsed.output, userId);
     return NextResponse.json(updated);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });
@@ -61,7 +61,7 @@ export async function PATCH(
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
 
   try {
-    const updated = await updateShipmentTracking(token, parsed.output);
+    const updated = await updateShipmentTracking(token, parsed.output, userId);
     return NextResponse.json(updated);
   } catch (err: any) {
     if (err instanceof OrderNotShippedError) {

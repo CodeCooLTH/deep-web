@@ -770,141 +770,15 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     scrollToBottom()
     // ส่งเรียงทีละใบ (ไม่ Promise.all) — ให้ลำดับข้อความฝั่งลูกค้าตรงกับลำดับรูปที่แนบ และไม่ยิง
     // Graph API พร้อมกันจนโดน rate limit
-    /**
-     * รูปหลายใบ → ส่งเป็น "กริดในข้อความเดียว" (Meta image_grid) — user สั่ง 2026-08-04 ให้เหมือน
-     * Business Suite (ครอบทั้งการแนบเองและ "ข้อความสำเร็จรูป" ที่พารูปมาหลายใบ เพราะทั้งสองทาง
-     * ลงมาที่ pendingImages ชุดเดียวกัน)
-     *
-     * เงื่อนไข: ตั้งแต่ 2 ใบขึ้นไป และเป็น "รูป" ทั้งหมด (วิดีโอ/ไฟล์ยังต้องส่งทีละชิ้นตาม Send API)
-     * fail-safe 2 ชั้น: (1) ที่นี่ — ยิงกริดไม่ผ่าน (เช่นเธรด DEEP ตอบ 400) ตกไปวนส่งทีละใบแบบเดิม
-     * (2) ที่ service — Meta ปฏิเสธ template ก็ยังส่งทีละใบให้เอง ร้านต้องส่งออกได้เสมอ
-     */
-    const gridFiles = pendingImages.filter((a) => pendingKind(a) === 'IMAGE').map((a) => a.fileId)
-    const gridMode = pendingImages.length >= 2 && gridFiles.length === pendingImages.length
+    //
+    // เลิกส่งหลายใบเป็น "กริดในข้อความเดียว" (Meta image_grid ที่ใช้ช่วง 2026-08-04→05) — ผลตัดสิน
+    // user 2026-08-05: กริดของ Meta ครอปทุกใบเป็นแท่งแนวตั้งตามสัดส่วน tile ที่เราคุมไม่ได้
+    // โปสเตอร์สินค้าจัตุรัสข้อมูลแน่น (หัวเรื่อง/รายการรุ่น/โปร) เหลือแค่แถบกลางจนอ่านไม่รู้เรื่อง
+    // (เคสจริง: quick message โช๊คหลัง — ลูกค้าเห็นแค่ "งสปริง" กับตัวโช๊ค ที่เหลือถูกครอปทิ้ง)
+    // ส่งทีละใบ ลูกค้าได้รูปเต็มทุกใบเสมอ; endpoint IMAGE_GRID + เครื่อง partial-send ฝั่ง server
+    // ยังอยู่ (83ea566b) แต่ไม่มีผู้เรียกแล้ว — ถ้าจะฟื้นกริดต้องแก้เรื่องครอปให้ได้ก่อน
 
     void (async () => {
-      if (gridMode) {
-        let res: Response
-        try {
-          res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'IMAGE_GRID',
-              body: trimmed || null,
-              imageFileIds: gridFiles,
-              ...(replyTargetId ? { replyToMessageId: replyTargetId } : {}),
-            }),
-          })
-        } catch {
-          /**
-           * เชื่อมต่อหลุดหลังกดส่ง (2026-08-05 ux spec) — request อาจไปถึง server แล้วหรือไม่ก็ได้
-           * **ห้ามวนส่งใหม่ทั้งชุดเด็ดขาด**: ถ้า server ได้รับไปแล้ว การ resend = ลูกค้าได้รูปซ้ำ
-           * ทั้งกริด ถอนคืนไม่ได้ (เดิม catch นี้ตกลงไปเส้นทางส่งทีละใบ = resend ทั้งชุดพอดี)
-           *
-           * ทำแทน: มาร์กทุกบับเบิลเป็นคลุมเครือ (_ambiguous) + refetch มาเทียบ — reconcileIdsRef
-           * จะลบบับเบิลที่มีแถวจริง (จับคู่ด้วย fileId ซึ่ง unique ต่อการอัปโหลด) ออกให้เอง
-           * ผู้ขายกด "ลองใหม่" รายใบได้จาก _retry ที่บับเบิลถืออยู่แล้ว
-           */
-          const ambiguousReason =
-            'เชื่อมต่อขาดหายระหว่างส่งชุดนี้ — บางรูปอาจถึงลูกค้าแล้ว ระบบกำลังตรวจสอบให้อัตโนมัติ รออีกสักครู่ก่อนกดลองใหม่ รูปที่ถึงแล้วจะเปลี่ยนเป็นสถานะส่งสำเร็จเอง'
-          const ids = new Set(queued.map((q) => q.localId))
-          for (const q of queued) reconcileIdsRef.current.add(q.localId)
-          setMessages((prev) =>
-            prev.map((m) =>
-              ids.has(m.id)
-                ? { ...m, _status: 'failed' as const, _failReason: ambiguousReason, _ambiguous: true }
-                : m,
-            ),
-          )
-          void refetchNewer()
-          return
-        }
-        if (res.ok) {
-          /**
-           * เอาแถวจริงไป "ทับ" บับเบิลชั่วคราวใบต่อใบ แทนการลบทิ้งแล้วรอ refetch (2026-08-05)
-           *
-           * ของเดิมลบบับเบิลชั่วคราวแล้วให้ refetchNewer ดึงแถวจริงมาแสดงแทน ปัญหาคือ trigger
-           * ฝั่งฐานยิง broadcast ทันทีที่ createMany สำเร็จ (ก่อน route จะตอบกลับด้วยซ้ำ เพราะยัง
-           * เหลือแคปชัน/ก้อนถัดไปให้ส่ง) — poll 6 วิ/realtime จึงดึงแถวจริงเข้ามาได้ตั้งแต่บับเบิล
-           * ชั่วคราวยังหมุนอยู่ ผลคือรูปเดียวกันขึ้นสองใบ ใบล่างหน้าตาเหมือนส่งสำเร็จเรียบร้อยแล้ว
-           * ทั้งที่ยังส่งไม่จบ — ตรงกับที่ผู้ขายรายงานว่า "ขึ้นเหมือนส่งแล้วเลย"
-           *
-           * จับคู่ตามลำดับ (แถวที่ i ↔ บับเบิลที่ i) ได้เพราะ route ประกอบ items เรียงตามลำดับรูป
-           * ที่แนบมาอยู่แล้ว. จำนวนไม่เท่ากันได้ 3 ทาง:
-           *   - echo ชนกันจน skipDuplicates ข้ามบางแถว → บับเบิลนั้นลบทิ้ง (ตัวจริงมากับ refetch)
-           *   - เศษรูปใบเดียวที่แคปชันไม่ได้แถวของตัวเอง → เหมือนกัน ลบทิ้ง
-           *   - **ก้อนหลังพังหลังก้อนแรกออกไปแล้ว (partialError)** → ห้ามลบ ต้องมาร์กแดงพร้อม
-           *     เหตุผล ให้ผู้ขายกดลองใหม่รายใบ — ลบทิ้งเงียบ ๆ คือการโกหกว่าส่งครบ (ux spec 2026-08-05)
-           */
-          const body = (await res.json().catch(() => null)) as {
-            items?: ChatMessageView[]
-            partialError?: string | null
-          } | null
-          const items = body?.items ?? []
-          const partialError = body?.partialError ?? null
-
-          // นับเฉพาะ "รูป" — แถวแคปชัน (TEXT) ไม่ใช่ใบ (ux: toast พูดเป็นจำนวนใบ)
-          const deliveryOf = (m: ChatMessageView) => (m as { deliveryStatus?: string | null }).deliveryStatus
-          const okImages = items.filter((m) => m.type !== 'TEXT' && deliveryOf(m) !== 'FAILED').length
-          const failedServerImages = items.filter((m) => m.type !== 'TEXT' && deliveryOf(m) === 'FAILED').length
-          // บับเบิลรูปที่ไม่มีแถวมาแทนและก้อนมันพัง — จะถูกมาร์กแดงข้างล่าง นับรวมเป็น "ไม่สำเร็จ"
-          const leftoverFailedImages = partialError
-            ? queued.filter((q, i) => !items[i] && q.payload.type === 'IMAGE').length
-            : 0
-          const failedImages = failedServerImages + leftoverFailedImages
-
-          // หมายเหตุประจำชุด (ux Q2): แปะเฉพาะเมื่อ "มีใบที่ถึงลูกค้าแล้วจริง" — ไม่มีก็ห้ามพูด
-          const batchNote =
-            okImages > 0
-              ? 'รูปอื่นในชุดเดียวกันที่ส่งไปก่อนหน้าถึงลูกค้าเรียบร้อยแล้ว ไม่ต้องกดส่งซ้ำทั้งชุด กดลองใหม่เฉพาะรูปนี้ได้เลย'
-              : undefined
-
-          setMessages((prev) => {
-            const byLocalId = new Map(queued.map((q, i) => [q.localId, items[i]]))
-            const localIds = new Set(queued.map((q) => q.localId))
-            const realIds = new Set(items.map((m) => m.id))
-            return (
-              prev
-                // กันซ้ำ: realtime/poll อาจดึงแถวจริงชุดเดียวกันเข้ามาก่อนหน้านี้แล้ว
-                .filter((m) => !realIds.has(m.id))
-                .map((m) => {
-                  if (!localIds.has(m.id)) return m
-                  const real = byLocalId.get(m.id)
-                  if (real) {
-                    // แถว FAILED จาก server = บับเบิลแดงถาวร (deliveryStatus ทำงานเอง) + หมายเหตุชุด
-                    return deliveryOf(real) === 'FAILED'
-                      ? { ...real, _batchNote: batchNote }
-                      : { ...real, _status: 'sent' as const }
-                  }
-                  // ไม่มีแถวมาแทน: ก้อนพัง → มาร์กแดง (ยังมี _retry ให้กดลองใหม่รายใบ);
-                  // ปกติ (แคปชัน echo) → ลบ รอ refetch เก็บ
-                  return partialError
-                    ? { ...m, _status: 'failed' as const, _failReason: partialError, _batchNote: batchNote }
-                    : null
-                })
-                .filter((m): m is ChatMessageView => m !== null)
-            )
-          })
-
-          // toast สรุปชุด (ux Q1) — บับเบิลแดงอาจอยู่นอกจอตอนส่งหลายใบ toast คือสัญญาณเดียวที่เห็นแน่
-          // ผู้ขายเพิ่งกด action เอง → top-right ไม่ใช่ .chat.* (precedent เดียวกับ postMessage)
-          if (failedImages > 0) {
-            if (okImages > 0) {
-              pacesToast.warning(`ส่งถึงลูกค้าแล้ว ${okImages} ใบ · อีก ${failedImages} ใบส่งไม่สำเร็จ`, { duration: 5000 })
-            } else {
-              pacesToast.error(`ส่งรูปไม่สำเร็จทั้ง ${failedImages} ใบ`, { duration: 5000 })
-            }
-          }
-
-          // ยังต้อง refetch อยู่ — เก็บแถวที่ไม่ได้กลับมากับ response (แคปชันของเศษรูปใบเดียว
-          // ที่ Meta พาเข้ามาทาง echo) และ enrich field ที่ POST ไม่ได้ประกอบให้ (เช่น replyTo)
-          await refetchNewer()
-          return
-        }
-        // non-ok: route รับประกัน (สัญญา 2026-08-05) ว่า error = ยังไม่มีอะไรถูกส่งออกไปเลย
-        // → ตกไปส่งทีละใบได้โดยไม่เสี่ยงรูปซ้ำ
-      }
       for (const q of queued) await postMessage(q.localId, q.payload)
     })()
   }
