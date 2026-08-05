@@ -98,14 +98,16 @@ export default function BusinessSettingsForm({ shopId, needsLocation, currentSlu
 
   const save = async () => {
     if (!shopName.trim()) return pacesToast.error('กรุณากรอกชื่อธุรกิจ')
-    if (needsSlug && slugState !== 'ok') {
-      return pacesToast.error(slugState === 'taken' ? 'URL นี้มีคนใช้แล้ว' : 'กรุณาตั้ง URL ร้านให้ถูกต้อง')
+    // ไม่บังคับ — slug จำเป็นเฉพาะตอนอยากมีหน้าร้านสาธารณะ (user เคาะ 2026-08-05)
+    // กรอกค้างไว้แบบผิด/ซ้ำ ค่อยเตือน ไม่ใช่ห้ามบันทึกส่วนอื่นไปด้วย
+    if (needsSlug && slug && slugState !== 'ok') {
+      return pacesToast.error(slugState === 'taken' ? 'URL นี้มีคนใช้แล้ว' : 'URL ร้านยังไม่ถูกต้อง')
     }
     setSaving(true)
     try {
       // slug ต้องผ่าน setShopSlug (จัดการ unique/TOCTOU เอง) จึงยิงคนละ endpoint กับ PATCH ทั่วไป
       // reuse route เดิมของ onboarding ที่รับ slug อยู่แล้ว — ไม่สร้าง endpoint ซ้ำ
-      if (needsSlug) {
+      if (needsSlug && slug && slugState === 'ok') {
         const r = await fetch(`/api/business/shops/${shopId}/onboarding`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -152,14 +154,17 @@ export default function BusinessSettingsForm({ shopId, needsLocation, currentSlu
         {needsSlug && (
           <div className="bg-warning/15 text-warning-ink mb-4 flex items-start gap-2 rounded px-4 py-3 text-xs" role="alert">
             <Icon icon="alert-triangle" className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            <span>ธุรกิจนี้ยังไม่มี URL ร้าน — ตั้งให้เรียบร้อยก่อนถึงจะเริ่มใช้งานได้</span>
+            <span>
+              ธุรกิจนี้ยังไม่มี URL ร้าน — ใช้งานในระบบได้ตามปกติ แต่ยังไม่มีหน้าร้านสาธารณะให้ลูกค้าเปิด
+              ตั้งเมื่อไหร่ก็ได้
+            </span>
           </div>
         )}
 
         {needsSlug && (
           <div className="mb-4">
             <label className="form-label" htmlFor="bs-slug">
-              URL ร้าน<span className="text-danger ms-0.5">*</span>
+              URL ร้าน <span className="text-default-400 font-normal">(ตั้งเมื่อพร้อม)</span>
             </label>
             <div className="input-group">
               <span className="input-group-text">deepthailand.app/b/</span>
