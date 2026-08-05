@@ -383,7 +383,16 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
         </div>
 
         {/* ── เนื้อ ── */}
-        <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex min-h-0 flex-1 flex-col">
+        {/* กด Enter ในช่องกรอกก็ยิง submit ได้เหมือนกัน — กันไว้ที่ตัวฟอร์มอีกชั้น
+            ไม่ให้สร้างธุรกิจจากขั้นที่ยังไม่ใช่ขั้นสุดท้าย */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (isLast) void handleSubmit(onSubmit)()
+          }}
+          noValidate
+          className="flex min-h-0 flex-1 flex-col"
+        >
           {/* ความสูงคงที่ — วัดจากของจริงบน prod แล้วแต่ละขั้นสูงไม่เท่ากันมาก (body 240/310/399/718)
               ทำให้กล่องกระโดดขึ้นลงเกือบ 500px ระหว่างกดถัดไป (user ทักเอง 2026-08-05)
               เลือก h-100 (400px) เพราะขั้นตรวจทาน (399px) ซึ่งเป็นจังหวะตัดสินใจสุดท้ายพอดีไม่ต้องเลื่อน
@@ -652,6 +661,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
             <span className="text-default-400 text-2xs">ขั้นที่ {stepIdx + 1} จาก {steps.length}</span>
             {!isLast ? (
               <button
+                key="next"
                 type="button"
                 onClick={next}
                 className="btn bg-primary hover:bg-primary-hover inline-flex items-center gap-1 text-white"
@@ -661,7 +671,17 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
               </button>
             ) : (
               <button
-                type="submit"
+                /**
+                 * 🛑 ต้องเป็น type="button" ห้ามเป็น "submit" — บั๊กจริงที่เจอบน prod 2026-08-05:
+                 * React reconcile ปุ่มตัวนี้ทับปุ่ม "ถัดไป" (ตำแหน่งเดียวกัน element เดียวกัน)
+                 * พอกด "ถัดไป" เข้าขั้นสุดท้าย type จะพลิกเป็น submit **ระหว่างคลิกเดียวกัน**
+                 * แล้ว default action ของคลิกนั้นยิง submit ต่อทันที = สร้างธุรกิจเองโดยผู้ใช้
+                 * ยังไม่ได้กดสร้าง (user เจอเอง: "กดไปถึงสเตปที่ 4 ระบบสร้างให้อัตโนมัติ")
+                 * key ที่ต่างกันกันไม่ให้ reuse node อีกชั้น
+                 */
+                key="submit"
+                type="button"
+                onClick={() => void handleSubmit(onSubmit)()}
                 disabled={isSubmitting}
                 className="btn bg-primary hover:bg-primary-hover text-white disabled:opacity-50"
               >
