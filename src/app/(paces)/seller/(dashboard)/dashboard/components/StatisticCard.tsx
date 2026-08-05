@@ -17,11 +17,14 @@ export type StatType = {
   suffix?: string
   /** ซ่อน indicator ทั้ง block เมื่อ change == null — ป้องกัน "0% เทียบเดือนที่แล้ว" หลอกตา */
   change?: number
+  /** ป้ายช่วงเวลาของตัวเลข ("วันนี้"/"เดือนนี้") — ใส่เฉพาะการ์ดที่ตาม filter ระดับหน้า
+   *  การ์ดที่ไม่ผูกช่วงเวลา (Trust Score) ไม่ส่ง = ไม่มีป้าย นี่คือตัวแยกให้ผู้ใช้เห็นว่าใบไหนตาม filter */
+  periodLabel?: string
   icon: string
 }
 
 const StatisticCard = ({ stat }: { stat: StatType }) => {
-  const { title, value, prefix, suffix, change, icon } = stat
+  const { title, value, prefix, suffix, change, periodLabel, icon } = stat
   return (
     <div className="card h-full">
       <div className="card-body">
@@ -33,6 +36,13 @@ const StatisticCard = ({ stat }: { stat: StatType }) => {
             <h3 className="my-5 py-1.25 text-xl">
               <CountUp start={0} end={value} prefix={prefix ?? ''} suffix={suffix ?? ''} duration={1} decimals={Number.isInteger(value) ? 0 : 2} />
             </h3>
+            {/* badge แบบเดียวกับโดนัท/แผนที่ — ให้ป้ายช่วงเวลาทั้งหน้าเป็นภาษาเดียว และ contrast
+                ผ่านเกณฑ์ (default-700) เพราะป้ายนี้ load-bearing: ตัวเดียวที่แยกว่าเลขนี้คือช่วงไหน.
+                จงใจไม่ผูกกับ change (ไม่ใช้ slot ร่วม) — วันที่ระบบเริ่มส่ง % เทียบช่วงก่อน
+                ป้ายนี้ต้องไม่หายไปเงียบ ๆ */}
+            {periodLabel && (
+              <span className="badge bg-default-100 text-default-700 text-xs">{periodLabel}</span>
+            )}
             {/* ซ่อน indicator ทั้ง block เมื่อ change == null — ไม่โชว์ 0% หลอกตา */}
             {change != null && (
               <p className="text-default-400 text-sm flex items-center gap-3.25">

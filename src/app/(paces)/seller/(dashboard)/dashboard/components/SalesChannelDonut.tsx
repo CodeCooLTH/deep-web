@@ -24,6 +24,8 @@ import type { SalesChannelSlice } from '@/services/dashboard.service'
 
 type Props = {
   slices: SalesChannelSlice[]
+  /** ช่วงเวลาที่ข้อมูลชุดนี้ครอบ ("วันนี้"/"เดือนนี้") — ตาม filter ระดับหน้า */
+  rangeLabel: string
 }
 
 /**
@@ -44,7 +46,7 @@ const CHANNEL_COLOR_TOKEN: Record<string, string> = {
 
 const colorOf = (channel: string) => getColor(CHANNEL_COLOR_TOKEN[channel] ?? 'chart-gray')
 
-const SalesChannelDonut = ({ slices }: Props) => {
+const SalesChannelDonut = ({ slices, rangeLabel }: Props) => {
   const total = slices.reduce((sum, s) => sum + s.orderCount, 0)
 
   const getOptions = (): ApexOptions => ({
@@ -81,16 +83,16 @@ const SalesChannelDonut = ({ slices }: Props) => {
     <div className="card h-full">
       <div className="card-header">
         <h4 className="card-title">ช่องทางการขาย</h4>
-        <span className="badge bg-default-100 text-default-700 text-xs">เดือนนี้</span>
+        <span className="badge bg-default-100 text-default-700 text-xs">{rangeLabel}</span>
       </div>
       <div className="card-body">
         {total === 0 ? (
-          // honest-zero: ร้านที่เดือนนี้ยังไม่มีออเดอร์ต้องเห็นว่า "ยังไม่มี" ไม่ใช่โดนัทว่าง ๆ ที่อ่านไม่ออก
+          // honest-zero: ร้านที่ช่วงนี้ยังไม่มีออเดอร์ต้องเห็นว่า "ยังไม่มี" ไม่ใช่โดนัทว่าง ๆ ที่อ่านไม่ออก
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
             <span className="flex items-center justify-center rounded-full bg-default-100 text-default-400 size-12">
               <Icon icon="chart-donut" className="text-2xl" />
             </span>
-            <p className="text-sm font-semibold">เดือนนี้ยังไม่มีออเดอร์</p>
+            <p className="text-sm font-semibold">{rangeLabel}ยังไม่มีออเดอร์</p>
             <p className="text-xs text-default-500">เมื่อมีคำสั่งซื้อ สัดส่วนช่องทางจะแสดงที่นี่</p>
           </div>
         ) : (

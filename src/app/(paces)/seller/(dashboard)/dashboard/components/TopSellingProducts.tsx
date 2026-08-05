@@ -37,7 +37,12 @@ const TopSellingProducts = ({ products }: Props) => {
   return (
     <div className="card h-full">
       <div className="card-header">
-        <h4 className="card-title">สินค้าขายดี</h4>
+        <div className="flex items-center gap-2">
+          <h4 className="card-title">สินค้าขายดี</h4>
+          {/* ป้ายช่วงเวลาแบบเดียวกับโดนัท/แผนที่ — การ์ดนี้เป็นยอดสะสมตลอดชีพ ไม่ตาม filter
+              วันนี้/เดือนนี้ ของหน้า ถ้าไม่บอก ผู้ใช้ที่เพิ่งกด "วันนี้" จะอ่าน soldCount เป็นยอดวันนี้ */}
+          <span className="badge bg-default-100 text-default-700 text-xs">ตลอดชีพ</span>
+        </div>
         <Link href="/products" className="text-primary text-sm">
           ดูสินค้าทั้งหมด ›
         </Link>

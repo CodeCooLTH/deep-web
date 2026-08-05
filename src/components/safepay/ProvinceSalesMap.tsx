@@ -36,9 +36,12 @@ const MAP_NAME = 'thailand-provinces'
 const formatThb = (n: number) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 }).format(n)
 
-type Props = ProvinceSales
+type Props = ProvinceSales & {
+  /** ช่วงเวลาที่ข้อมูลชุดนี้ครอบ ("วันนี้"/"เดือนนี้") — ตาม filter ระดับหน้าของแดชบอร์ด */
+  rangeLabel: string
+}
 
-const ProvinceSalesMap = ({ rows, shippedRevenue, provinceCount, unknownCount }: Props) => {
+const ProvinceSalesMap = ({ rows, shippedRevenue, provinceCount, unknownCount, rangeLabel }: Props) => {
   const [mapReady, setMapReady] = useState(false)
   const [mapFailed, setMapFailed] = useState(false)
 
@@ -124,7 +127,7 @@ const ProvinceSalesMap = ({ rows, shippedRevenue, provinceCount, unknownCount }:
     <div className="card h-full">
       <div className="card-header">
         <h4 className="card-title">ยอดขายตามจังหวัด</h4>
-        <span className="badge bg-default-100 text-default-700 text-xs">เดือนนี้</span>
+        <span className="badge bg-default-100 text-default-700 text-xs">{rangeLabel}</span>
       </div>
 
       <div className="card-body">
@@ -155,7 +158,7 @@ const ProvinceSalesMap = ({ rows, shippedRevenue, provinceCount, unknownCount }:
                 <Icon icon="map-pin" className="text-2xl" />
               </span>
               <div>
-                <h5 className="text-sm font-semibold">ส่งไป {provinceCount.toLocaleString('th-TH')} จังหวัดในเดือนนี้</h5>
+                <h5 className="text-sm font-semibold">ส่งไป {provinceCount.toLocaleString('th-TH')} จังหวัดใน{rangeLabel}</h5>
                 <p className="text-xs text-default-500">นับเฉพาะคำสั่งซื้อที่มีการจัดส่ง</p>
               </div>
               <div className="ms-auto text-end">
@@ -169,7 +172,7 @@ const ProvinceSalesMap = ({ rows, shippedRevenue, provinceCount, unknownCount }:
                 <span className="flex size-12 items-center justify-center rounded-full bg-default-100 text-default-400">
                   <Icon icon="truck-delivery" className="text-2xl" />
                 </span>
-                <p className="text-sm font-semibold">เดือนนี้ยังไม่มีคำสั่งซื้อที่จัดส่ง</p>
+                <p className="text-sm font-semibold">{rangeLabel}ยังไม่มีคำสั่งซื้อที่จัดส่ง</p>
                 <p className="text-xs text-default-500">เมื่อมีการจัดส่ง จังหวัดปลายทางจะขึ้นที่นี่</p>
               </div>
             ) : (
