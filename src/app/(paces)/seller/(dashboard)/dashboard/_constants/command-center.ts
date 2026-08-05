@@ -100,6 +100,8 @@ export type SalesSeries = {
   confirmedValues: number[]
   /** ยอดขายส่วนที่ยังไม่ยืนยัน (PENDING/SHIPPED) ต่อ bucket — ใช้แท่งสี stacked */
   unconfirmedValues: number[]
+  /** จำนวนคำสั่งซื้อต่อ bucket (ใบ) — เส้นบนกราฟ คนละหน่วยกับแท่ง จึงอยู่บนแกน y ที่สอง */
+  orderCounts: number[]
   /** ยอดรวมทั้งช่วง */
   total: number
   /** ยอดรวมช่วงก่อนหน้า (เดือนก่อน / ปีก่อน) — ใช้คำนวณ %เทียบ */

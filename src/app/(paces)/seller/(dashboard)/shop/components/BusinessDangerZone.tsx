@@ -104,30 +104,27 @@ export default function BusinessDangerZone({
 
   return (
     <>
-      <div className="card mt-4">
-        <div className="card-header">
-          <h5 className="bg-danger/10 border-danger/30 text-danger flex w-full items-center justify-center gap-1.5 rounded border border-dashed p-1.25 text-sm font-medium">
-            <Icon icon="alert-triangle" aria-hidden="true" />
-            โซนอันตราย
-          </h5>
-        </div>
-        <div className="card-body">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-default-900 text-sm font-medium">ลบธุรกิจนี้</p>
-              <p className="text-default-400 mt-0.5 text-xs">
-                ร้านจะถูกซ่อนทันที ข้อมูลเก็บไว้ {retentionDays} วันก่อนลบถาวร
-              </p>
-            </div>
-            <button
-              ref={launcherRef}
-              type="button"
-              onClick={() => setOpen(true)}
-              className="btn border-danger text-danger hover:bg-danger shrink-0 hover:text-white"
-            >
-              ลบธุรกิจ
-            </button>
+      {/* ไม่ห่อ .card — อยู่ในเนื้อแท็บของ ShopForm ซึ่งอยู่ใน card-body อยู่แล้ว
+          ห่อซ้ำจะกลายเป็นการ์ดซ้อนการ์ด (DESIGN.md ห้าม) */}
+      <div className="border-danger/30 bg-danger/5 rounded-lg border border-dashed p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-danger flex items-center gap-1.5 text-sm font-semibold">
+              <Icon icon="alert-triangle" aria-hidden="true" />
+              ลบธุรกิจนี้
+            </p>
+            <p className="text-default-500 mt-1 text-xs">
+              ร้านจะถูกซ่อนทันที ข้อมูลเก็บไว้ {retentionDays} วันก่อนลบถาวร · เปิดร้านเดิมกลับมาเองไม่ได้
+            </p>
           </div>
+          <button
+            ref={launcherRef}
+            type="button"
+            onClick={() => setOpen(true)}
+            className="btn border-danger text-danger hover:bg-danger shrink-0 hover:text-white"
+          >
+            ลบธุรกิจ
+          </button>
         </div>
       </div>
 

@@ -737,17 +737,6 @@ export const CreateBusinessShopSchema = v.object({
   vertical: v.optional(v.picklist(SHOP_VERTICAL_KEYS)),
 });
 
-/** แก้ข้อมูลธุรกิจจากหน้า settings — ไม่มี vertical/slug โดยตั้งใจ (ดู updateBusinessShop) */
-export const UpdateBusinessShopSchema = v.object({
-  shopName: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100))),
-  description: v.optional(v.pipe(v.string(), v.maxLength(500))),
-  logo: v.optional(v.pipe(v.string(), v.maxLength(200))),
-  address: v.optional(v.pipe(v.string(), v.maxLength(300))),
-  latitude: v.optional(v.pipe(v.number(), v.minValue(5), v.maxValue(21))),
-  longitude: v.optional(v.pipe(v.number(), v.minValue(97), v.maxValue(106))),
-  categories: v.optional(v.pipe(v.array(v.picklist(SHOP_CATEGORY_KEYS)), v.maxLength(5))),
-});
-
 export const InviteShopMemberSchema = v.object({
   contact: v.pipe(v.string(), v.minLength(1), v.maxLength(255)),
   contactType: v.picklist(["PHONE", "EMAIL"]),

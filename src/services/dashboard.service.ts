@@ -29,6 +29,14 @@ export interface SalesSeries {
   confirmedValues: number[]
   /** ยอดขายส่วนที่ยังไม่ยืนยัน (PENDING/SHIPPED) ต่อ bucket — ใช้แท่งสี stacked */
   unconfirmedValues: number[]
+  /**
+   * จำนวนคำสั่งซื้อต่อ bucket (ใบ) — เส้นบนกราฟการ์ดยอดขาย (user สั่ง 2026-08-05)
+   *
+   * ทำไมต้องมีแยกจาก values: แท่งบอก "เงิน" เส้นบอก "จำนวนครั้ง" — คนละหน่วยกัน
+   * วันที่ยอดสูงเพราะขายได้หลายใบ กับวันที่ยอดสูงเพราะใบเดียวก้อนใหญ่ แยกออกจากกันไม่ได้เลย
+   * ถ้าดูแต่ความสูงของแท่ง
+   */
+  orderCounts: number[]
   /** ยอดรวมทั้งช่วง */
   total: number
   /** ยอดรวมช่วงก่อนหน้า (เดือนก่อน / ปีก่อน) — ใช้คำนวณ %เทียบ */
@@ -167,6 +175,7 @@ export async function getSalesSeries(
   const values = new Array<number>(bucketCount).fill(0)
   const confirmedValues = new Array<number>(bucketCount).fill(0)
   const unconfirmedValues = new Array<number>(bucketCount).fill(0)
+  const orderCounts = new Array<number>(bucketCount).fill(0)
   const cogsValues = new Array<number>(bucketCount).fill(0)
   const expenseValues = new Array<number>(bucketCount).fill(0)
   let total = 0
@@ -202,6 +211,7 @@ export async function getSalesSeries(
       const idx = bucketOf(shifted)
       if (idx >= 0 && idx < bucketCount) {
         values[idx] += amt
+        orderCounts[idx] += 1
         // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ
         if (countsAsRevenue(r)) {
           confirmedValues[idx] += amt
@@ -236,7 +246,7 @@ export async function getSalesSeries(
     : undefined
 
   const base = {
-    labels, values, confirmedValues, unconfirmedValues,
+    labels, values, confirmedValues, unconfirmedValues, orderCounts,
     total, prevTotal, prevTotalToDate, futureFromIndex,
     ...(last7Days ? { last7Days, last7Labels } : {}),
   }

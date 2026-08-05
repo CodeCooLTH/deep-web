@@ -53,50 +53,6 @@ export async function createBusinessShop(ownerId: string, data: {
   });
 }
 
-/**
- * updateBusinessShop — แก้ข้อมูลธุรกิจรายตัวจากหน้า /business/[shopId]/settings
- *
- * ทำไมแยกจาก updateShop ของร้าน active: หน้านี้แก้ "ธุรกิจตัวที่เลือกจาก path" ซึ่งอาจไม่ใช่ร้าน
- * ที่ active อยู่ — ownership จึง verify จาก ownerId+shopId ตรง ๆ ไม่ใช่จาก session context
- *
- * 🛑 ไม่รับ vertical และ slug โดยตั้งใจ:
- *   vertical = immutable หลังสร้าง (BR-LODG-30/BR-SBT-08)
- *   slug     = มี setShopSlug ที่จัดการ TOCTOU/unique เอง ห้ามเขียนตรงผ่าน update ทั่วไป
- */
-export async function updateBusinessShop(
-  ownerId: string,
-  shopId: string,
-  data: {
-    shopName?: string;
-    description?: string;
-    logo?: string;
-    address?: string;
-    latitude?: number;
-    longitude?: number;
-    categories?: string[];
-  },
-) {
-  const shop = await prisma.shop.findUnique({ where: { id: shopId } });
-  if (!shop || shop.userId !== ownerId || shop.kind !== "BUSINESS") throw new Error("NOT_OWNER");
-  if (shop.deletedAt) throw new Error("ALREADY_DELETED");
-  return prisma.shop.update({
-    where: { id: shopId },
-    data: {
-      ...(data.shopName !== undefined && { shopName: data.shopName }),
-      ...(data.description !== undefined && { description: data.description }),
-      ...(data.logo !== undefined && { logo: data.logo }),
-      ...(data.address !== undefined && { address: data.address }),
-      ...(data.latitude !== undefined && { latitude: data.latitude }),
-      ...(data.longitude !== undefined && { longitude: data.longitude }),
-      // category ช่องเดียวเป็น LEGACY — sync จากตัวแรกให้เหมือนตอนสร้าง ไม่ให้ 2 ช่องขัดกัน
-      ...(data.categories !== undefined && {
-        categories: data.categories,
-        category: data.categories[0] ?? null,
-      }),
-    },
-  });
-}
-
 export async function softDeleteBusinessShop(ownerId: string, shopId: string) {
   const shop = await prisma.shop.findUnique({ where: { id: shopId } });
   if (!shop || shop.userId !== ownerId || shop.kind !== "BUSINESS") throw new Error("NOT_OWNER");

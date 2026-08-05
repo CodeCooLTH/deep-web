@@ -11,14 +11,11 @@ import { redirect } from 'next/navigation'
  * ลิงก์เก่า/บุ๊กมาร์กก็ตกอยู่ในกรณีเดียวกัน — ปล่อยให้ 404 คือทิ้งคนที่ทำถูกทุกอย่าง
  * ให้ไปเจอทางตัน ทั้งที่ปลายทางที่เขาต้องการมีอยู่จริงแค่ย้ายที่
  *
- * ไม่ใช้ redirects ใน next.config เพราะกฎนี้ผูกกับ path param ของ route นี้ตัวเดียว
- * อยู่ใกล้กับหน้าที่มันแทนที่ อ่านแล้วรู้ทันทีว่าทำไมยังมีอยู่
+ * ไม่ใช้ redirects ใน next.config เพราะกฎนี้อยู่ใกล้กับหน้าที่มันแทนที่ อ่านแล้วรู้ทันทีว่าทำไมยังมีอยู่
  */
-export default async function BusinessOnboardingRedirect({
-  params,
-}: {
-  params: Promise<{ shopId: string }>
-}) {
-  const { shopId } = await params
-  redirect(`/business/${shopId}/settings`)
+export default async function BusinessOnboardingRedirect() {
+  // ปลายทางคือ "รายการธุรกิจ" ไม่ใช่หน้าตั้งค่าของธุรกิจตัวนั้น — เพราะการตั้งค่าย้ายไปรวมที่ /shop
+  // ซึ่งแก้ "ร้านที่กำลังใช้งานอยู่" คนที่มาจากลิงก์เก่าอาจยังไม่ได้สลับ context มาที่ธุรกิจนั้น
+  // ส่งไป /business แล้วกด "จัดการ" (สลับ context ให้ก่อน) จึงเป็นทางที่ไม่พาไปตั้งค่าผิดร้าน
+  redirect('/business')
 }
