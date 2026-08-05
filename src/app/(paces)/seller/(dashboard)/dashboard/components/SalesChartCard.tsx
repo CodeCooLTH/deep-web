@@ -230,7 +230,9 @@ export default function SalesChartCard({ initialSeries }: Props) {
   })
 
   const getTodayOptions = (): ApexOptions => ({
-    chart: { type: 'bar', height: 104, toolbar: { show: false }, parentHeightOffset: 0 },
+    /** สูง 168 เท่าโหมดเดือนเป๊ะ ๆ — user สั่ง 2026-08-05 ("ความสูง card มันขยับ อยากให้เท่ากับเดือนนี้เสมอ")
+     *  เดิม 104 การ์ดจึงเตี้ยลง 64px ตอนกดแท็บ "วันนี้" แล้วเนื้อหาใต้การ์ดกระโดดตาม */
+    chart: { type: 'bar', height: 168, toolbar: { show: false }, parentHeightOffset: 0 },
     // distributed = ระบายสีรายแท่ง (ซีรีส์เดียว) เพื่อเน้นวันนี้ให้เข้มกว่าอีก 6 วัน
     plotOptions: { bar: { columnWidth: '58%', borderRadius: 2, distributed: true } },
     colors: [...Array(6).fill(getColor('success', 0.28)), getColor('success')],
@@ -368,7 +370,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
                 104 กราฟจึงเรนเดอร์ 104 ทั้งที่โค้ดอ่านแล้วเหมือนสูง 168 (ป้ายวันหมุน -60° กิน ~40px
                 เหลือพื้นที่วาด ~55px แท่งวันที่ยอดน้อยเตี้ยกว่า 1px = หายไปทั้งแท่ง) */}
             {isToday && last7Days ? (
-              <ApexChart key="today" getOptions={getTodayOptions} series={todaySeries} type="bar" height={104} />
+              <ApexChart key="today" getOptions={getTodayOptions} series={todaySeries} type="bar" height={168} />
             ) : (
               <ApexChart key="month" getOptions={getMonthOptions} series={monthSeries} type="line" height={168} />
             )}
