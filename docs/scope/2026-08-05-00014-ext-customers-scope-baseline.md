@@ -50,3 +50,4 @@ feature: `docs/20 - Features/00014 - Customer Directory/`
 
 | วันที่ | การเปลี่ยน | เหตุผล | ใครอนุมัติ |
 |--------|-----------|--------|-----------|
+| 2026-08-05 | S-2/S-3: label หน้าจอเปลี่ยนจาก "ไม่รวมออเดอร์ที่ยกเลิก" → `(นับเป็นยอดขายแล้ว)` และนิยาม totalSpent = `countsAsRevenue()` + `Order.totalAmount` (ไม่ใช่ CONFIRMED-only + sum items) | planner พบ SSOT จริงคือ `src/lib/order-revenue.ts` (dashboard ใช้) — เกณฑ์กว้างกว่า "ไม่รวมยกเลิก"; ux ยืนยันคำ "ยืนยันแล้ว" ถูก `/sales` ผูกกับ CONFIRMED-only แล้ว ใช้ซ้ำจะทำคำเดียวกันมี 2 ความหมาย. หมายเหตุ known gap: `/sales` ยังใช้ CONFIRMED-only ต่างจาก dashboard — ไม่แก้ในรอบนี้ | Controller (ตีความในกรอบ S-3 ที่ user เคาะ: ยึด SSOT เดียวกับ dashboard) |
