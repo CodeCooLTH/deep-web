@@ -15,7 +15,7 @@
  *       (ปุ่มเลือกที่อยู่ + AddressSearchSheet), ShipmentPanel.tsx (ปุ่ม submit + spinner)
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -28,6 +28,7 @@ import type {
   ShipmentViewJson,
 } from '@/lib/iship/context'
 import { useIShipBoxes } from './useIShipBoxes'
+import PriceCompareSheet from './PriceCompareSheet'
 import type { ShipmentFooterReporter } from './shipment-footer'
 import AddressSearchSheet, {
   type SelectedLocality,
@@ -272,6 +273,31 @@ export default function ShipmentCreateForm({
   } | null>(null)
   const [quoting, setQuoting] = useState(false)
 
+  /**
+   * เทียบราคาทุกขนส่ง (ส่วนขยาย 00022) — view swap: เปิดแล้วฟอร์มทั้งก้อนถูกซ่อนด้วย
+   * hidden (คง state ทุกช่อง) แล้ว PriceCompareSheet โผล่แทนในพื้นที่ scroll เดิมของโมดัล
+   *
+   * เงื่อนไขพร้อมเทียบ = เงื่อนไข quote เดิม "ตัด courierCode ออก" — ปุ่มนี้มีไว้เทียบ
+   * ทุกเจ้ารวมถึงตอนยังไม่ได้เลือกขนส่ง
+   */
+  const [compareOpen, setCompareOpen] = useState(false)
+  const compareBtnRef = useRef<HTMLButtonElement>(null)
+  const compareReady =
+    numOrUndefined(weight) != null &&
+    numOrUndefined(width) != null &&
+    numOrUndefined(length) != null &&
+    numOrUndefined(height) != null &&
+    !!form.subdistrict &&
+    !!form.district &&
+    !!form.province &&
+    !!form.postcode
+
+  function closeCompare() {
+    setCompareOpen(false)
+    // คืน focus ให้ปุ่มเทียบราคา — ผู้ใช้คีย์บอร์ดไม่หลุดตำแหน่ง
+    compareBtnRef.current?.focus()
+  }
+
   const quoteKey = [
     courierCode,
     weight,
@@ -352,7 +378,9 @@ export default function ShipmentCreateForm({
     isMissing('ตำบล') || isMissing('อำเภอ') || isMissing('จังหวัด') || isMissing('รหัสไปรษณีย์')
 
   async function handleSubmit() {
-    if (busy) return
+    // compareOpen: ปุ่ม submit ที่ footer โมดัลยังชี้ฟอร์มนี้อยู่ระหว่างเปิดหน้าเทียบราคา —
+    // ห้ามเปิดพัสดุ (เสียเงินจริง) จากปุ่มที่มองไม่เห็นบริบทของฟอร์ม
+    if (busy || compareOpen) return
     // ยืนยันเสมอ — การกดปุ่มนี้เปิดพัสดุจริงและเกิดค่าใช้จ่ายจริงของร้าน ไม่ใช่บันทึกที่ย้อนได้ฟรี
     const ok = await pacesConfirm.question(
       'สร้างพัสดุที่ iShip',
@@ -434,6 +462,33 @@ export default function ShipmentCreateForm({
       }}
       className="flex flex-col"
     >
+      {/* หน้าเทียบราคา — mount ค้างเสมอ (คงผลเดิมไว้ตอนเปิดซ้ำ) สลับด้วย hidden */}
+      <PriceCompareSheet
+        open={compareOpen}
+        input={{
+          receiver: {
+            subdistrict: form.subdistrict ?? '',
+            district: form.district ?? '',
+            province: form.province ?? '',
+            postcode: form.postcode ?? '',
+          },
+          weight: numOrUndefined(weight) ?? 0,
+          width: numOrUndefined(width) ?? 0,
+          length: numOrUndefined(length) ?? 0,
+          height: numOrUndefined(height) ?? 0,
+        }}
+        destinationLabel={`ไป ต.${form.subdistrict ?? ''} อ.${form.district ?? ''} ${form.province ?? ''} ${form.postcode ?? ''}`}
+        parcelLabel={`${weight} กก. · ${width}×${length}×${height} ซม.`}
+        onPick={(code) => {
+          // dropdown เปลี่ยน → quoteKey เปลี่ยน → บรรทัด "ค่าส่งโดยประมาณ" refetch เอง
+          setCourierCode(code)
+          closeCompare()
+        }}
+        onClose={closeCompare}
+      />
+
+      {/* เนื้อฟอร์มทั้งก้อน — ซ่อนระหว่างเทียบราคา (ไม่ unmount: ทุกช่องคง state) */}
+      <div className={compareOpen ? 'hidden' : undefined}>
       {/* ── ผู้รับ ─────────────────────────────────────────────── */}
       <section className="border-b-8 border-default-100 p-4">
         <header className="mb-3 flex items-center gap-2">
@@ -563,19 +618,42 @@ export default function ShipmentCreateForm({
           <label className="form-label" htmlFor="shp-courier">
             ขนส่ง
           </label>
-          <select
-            id="shp-courier"
-            className="form-select"
-            value={courierCode}
-            onChange={(e) => setCourierCode(e.target.value)}
-          >
-            <option value="">ใช้ขนส่งค่าตั้งต้นของร้าน</option>
-            {couriers.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex gap-2">
+            <select
+              id="shp-courier"
+              className="form-select"
+              value={courierCode}
+              onChange={(e) => setCourierCode(e.target.value)}
+            >
+              <option value="">ใช้ขนส่งค่าตั้งต้นของร้าน</option>
+              {couriers.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {/* secondary action (outline) — ไม่แย่งน้ำหนักปุ่มสร้างพัสดุที่เป็น primary ทึบ */}
+            <button
+              ref={compareBtnRef}
+              type="button"
+              disabled={!compareReady}
+              aria-describedby={!compareReady ? 'cmp-hint' : undefined}
+              onClick={() => setCompareOpen(true)}
+              className={`btn inline-flex shrink-0 items-center gap-1.5 border ${
+                compareReady
+                  ? 'border-primary text-primary hover:bg-primary hover:text-white'
+                  : 'border-default-300 text-default-500'
+              }`}
+            >
+              <Icon icon="tabler:arrows-sort" className="text-base" aria-hidden="true" />
+              เทียบราคา
+            </button>
+          </div>
+          {!compareReady && (
+            <p id="cmp-hint" className="mb-0 mt-1 text-xs text-default-700">
+              กรอกที่อยู่ปลายทางและขนาดพัสดุให้ครบเพื่อเทียบราคาทุกขนส่ง
+            </p>
+          )}
           {couriersError && (
             <p className="mb-0 mt-1 text-xs text-default-700">
               โหลดรายชื่อขนส่งไม่ได้ — จะใช้ขนส่งค่าตั้งต้นของร้าน
@@ -944,6 +1022,7 @@ export default function ShipmentCreateForm({
           </p>
         </div>
       )}
+      </div>
 
       <AddressSearchSheet
         open={addrOpen}
