@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/order-details/components/CustomerDetails.tsx
  *
@@ -14,6 +16,11 @@
  *   - อีเมล — ระบบเก็บช่องทางติดต่อช่องเดียว (buyerContact) ซึ่งเป็นเบอร์เป็นหลัก
  *
  * คอนทราสต์: ธีมใช้ `text-default-400` ทั้งการ์ด (2.46:1 ตก AA) → `text-default-700`/`-800`
+ *
+ * 'use client' บังคับ: การ์ดนี้ใช้ getSalesChannelDisplay() ซึ่งอยู่ในโมดูล 'use client'
+ * (SalesChannelBadge.tsx) — เรียกจาก server component แล้วพังทั้งหน้าเป็น 500 ตอน runtime
+ * โดยที่ tsc/build ไม่ฟ้องอะไรเลย (เกิดจริงบน production 2026-08-05 11:21)
+ * การ์ดนี้รับ props ที่ serialize ได้ทั้งหมดอยู่แล้ว ไม่มี logic ฝั่ง server จึงย้ายมาได้ปลอดภัย
  */
 
 import Image from 'next/image'
