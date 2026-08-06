@@ -14,7 +14,7 @@
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { useForm, useFieldArray, useWatch } from 'react-hook-form'
+import { useForm, useFieldArray, useWatch, useFormState } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
 import type { OrderVocab } from '@/lib/seller-menu'
 import { runAfterOrderCreate, type IShipCreateMode } from '@/lib/iship/after-order-create'
@@ -284,7 +284,7 @@ export default function OrderCreateForm({
     setValue,
     getValues,
     reset,
-    formState: { errors, dirtyFields },
+    formState: { errors },
   } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: yupResolver(schema) as any,
@@ -311,6 +311,13 @@ export default function OrderCreateForm({
       orderedAt: prefillCreatedAt ? toDatetimeLocalValue(new Date(prefillCreatedAt)) : undefined,
     },
   })
+
+  // impeccable optimize 2026-08-06 — เดิม destructure `dirtyFields` ออกจาก formState ของ useForm
+  // ซึ่ง RHF ห่อด้วย Proxy: การอ่าน key = การ subscribe (ยืนยันจาก dist — getter เซ็ต
+  // `_proxyFormState[key]`) ผลคือฟอร์ม 916 บรรทัดนี้ re-render ทุกครั้งที่ "ฟิลด์ไหนก็ได้"
+  // ถูกแก้ครั้งแรก ทั้งที่ค่านี้ถูกอ่านแค่ใน onSubmit ซึ่งไม่ต้องการ reactivity เลย
+  // useFormState({ name }) จำกัด subscription ให้เหลือฟิลด์เดียว
+  const { dirtyFields } = useFormState({ control, name: 'orderedAt' })
 
   // ── แก้ไขคำสั่งซื้อ (user 2026-07-25): โหลดข้อมูล order เดิมเข้าฟอร์ม (reset) เมื่อมี editOrderToken ──
   // editLoaded กันไม่ให้ effect "แถวเปล่ารอเสมอ" เติมแถวก่อน prefill เสร็จ (แล้ว reset ทับ)
