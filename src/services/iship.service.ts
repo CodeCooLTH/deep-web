@@ -1602,7 +1602,13 @@ export async function syncShipmentStatuses(
         { carrierStatus: { notIn: ["delivered", "return_success", "is_expired", "close"] } },
         // ส่งถึงแล้วแต่เป็นใบเก็บเงินปลายทางที่ยังไม่ได้รับแจ้งว่าโอนเงิน → ยังต้องถามต่อ
         // (มี codSettledAt แล้ว = จบจริง หลุดออกจากชุดนี้เอง)
-        { codSettledAt: null, codAmount: { gt: 0 } },
+        // ตัดปลายทางที่ไม่มีวันมีเงินเข้าออก (ตีกลับ/หมดอายุ/ยกเลิก) ไม่งั้นใบพวกนี้จะค้าง
+        // อยู่ในชุดที่ดึงมาทุกรอบตลอดไป — ไม่เปลืองคำขอ iShip แต่เปลืองแถวที่ query ฐานทุกครั้ง
+        {
+          codSettledAt: null,
+          codAmount: { gt: 0 },
+          carrierStatus: { notIn: ["return_success", "is_expired", "close", "cancelled"] },
+        },
       ],
     },
     select: {
