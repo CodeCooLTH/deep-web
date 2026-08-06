@@ -149,6 +149,25 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     if (c.buyerUserId && !convByBuyer.has(c.buyerUserId)) convByBuyer.set(c.buyerUserId, c.id)
   }
 
+  // ประวัติลูกค้าต่อร้าน — groupBy ครั้งเดียวสำหรับลูกค้าทุกคนในหน้านี้ ไม่วนต่อแถว
+  // (ใช้ index Order_customerId_status_idx ที่มีอยู่แล้ว)
+  const custStatRows =
+    customerIds.length > 0
+      ? await prisma.order.groupBy({
+          by: ['customerId', 'status'],
+          where: { shopId: shop.id, customerId: { in: customerIds } },
+          _count: { _all: true },
+        })
+      : []
+  const statByCustomer = new Map<string, { orders: number; cancelled: number }>()
+  for (const r of custStatRows) {
+    if (!r.customerId) continue
+    const cur = statByCustomer.get(r.customerId) ?? { orders: 0, cancelled: 0 }
+    cur.orders += r._count._all
+    if (r.status === 'CANCELLED') cur.cancelled += r._count._all
+    statByCustomer.set(r.customerId, cur)
+  }
+
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
     sourceLogoUrl: o.salesChannel === 'FACEBOOK' ? fbPageAvatar : null,
     // เลขพัสดุมาได้ 2 ทางและเก็บคนละตาราง — ต้องอ่านทั้งคู่ ไม่งั้นออเดอร์ที่ร้าน "ส่งเอง"
@@ -220,6 +239,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       return Object.values(shape).some(Boolean) ? shape : null
     })(),
     codReceivedAtISO: o.codReceivedAt ? new Date(o.codReceivedAt).toISOString() : null,
+    customerStats: o.customerId ? (statByCustomer.get(o.customerId) ?? null) : null,
     conversationId:
       (o.customerId ? convByCustomer.get(o.customerId) : undefined) ??
       (o.buyerUserId ? convByBuyer.get(o.buyerUserId) : undefined) ??

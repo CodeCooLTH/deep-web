@@ -286,6 +286,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       meta: { cellClassName: 'min-w-32 align-top' },
       cell: ({ row }) => {
         const displayName = row.original.buyerName ?? row.original.buyerUsername ?? 'ลูกค้าทั่วไป'
+        const stats = row.original.customerStats
         return (
           <>
             <p className="mb-0 flex items-center gap-1 text-sm font-semibold text-default-900">
@@ -298,6 +299,23 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
             <p className="mb-0 select-all text-xs tabular-nums text-default-500">
               {row.original.buyerPhone ?? row.original.buyer}
             </p>
+            {/* ประวัติกับร้าน — เล็กกว่าชื่อชัดเจน (user สั่ง "ไม่ต้องเด่นเท่าชื่อลูกค้า")
+                ลูกค้าใหม่บอกตรง ๆ ไม่ปล่อยว่าง เพราะ "ว่าง" อ่านไม่ออกว่าใหม่หรือระบบไม่รู้ */}
+            {stats && (
+              <p className="mb-0 mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-2xs">
+                <span className="text-default-500 inline-flex items-center gap-1">
+                  <Icon icon="history" className="text-xs" aria-hidden="true" />
+                  {stats.orders <= 1 ? 'ลูกค้าใหม่' : `สั่งครั้งที่ ${stats.orders}`}
+                </span>
+                {/* เตือนเฉพาะตอนมีจริง — ศูนย์ครั้งไม่ต้องประกาศ ไม่งั้นทุกแถวมีคำว่า
+                    "ยกเลิก" อยู่ด้วยจนคำนั้นหมดความหมาย */}
+                {stats.cancelled > 0 && (
+                  <span className="text-warning-ink font-medium">
+                    · เคยยกเลิก {stats.cancelled} ครั้ง
+                  </span>
+                )}
+              </p>
+            )}
           </>
         )
       },
