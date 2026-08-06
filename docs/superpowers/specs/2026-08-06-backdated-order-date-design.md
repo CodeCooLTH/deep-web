@@ -46,7 +46,7 @@
 | ค่าตั้งต้น | เวลาปัจจุบัน — ไม่แตะอะไร = พฤติกรรมเดิมเป๊ะ (ไม่ส่งฟิลด์มา → `@default(now())` ทำงานตามเดิม) |
 | ช่วงที่ยอมรับ | `now − 90d` ≤ ค่า ≤ `now + 7d` (ตรวจทั้ง client และ server) |
 | นอกช่วง | ปฏิเสธที่ server ด้วย error เฉพาะ ไม่ clamp เงียบ |
-| แก้ทีหลัง | เฉพาะออเดอร์ `PENDING` (`updateOrderContent` โยน `OrderNotEditableError` อยู่แล้วที่ `order.service.ts:466`) |
+| แก้ทีหลัง | เฉพาะออเดอร์ `PENDING` (`updateOrder` โยน `OrderNotEditableError` อยู่แล้วที่ `order.service.ts:466`) |
 | เวลาจากแชทเก่ากว่า 90 วัน | **ไม่เติม** ใช้เวลาปัจจุบันแทน + ป้ายบอกเหตุผล (fail-closed ไม่ใช่ error) |
 | สต็อก / พัสดุ iShip / ค่าใช้จ่าย | **ไม่ย้อนตาม** ยังตัดสต็อกและเปิดพัสดุด้วยเวลาปัจจุบันเสมอ |
 | ทางสร้างออเดอร์ที่ไม่ผ่านฟอร์ม | booking / auction / iShip import ใช้เวลาจริงของเหตุการณ์เหมือนเดิม — นอกขอบเขต |
@@ -119,7 +119,7 @@ export function orderDateRejectReason(valueMs: number, nowMs: number): string | 
 - ใส่ลง `orderDataBase` (`:209-226`) เมื่อมีค่า
 - `formatOrderNo` (`:319`) และ `recordOrderEvent({ occurredAt: order.createdAt })` (`:329`) อ่านค่ากลับจากแถวที่ insert แล้ว จึงได้ค่าที่ถูกต้องโดยไม่ต้องแก้
 
-### 6.2 `updateOrderContent` (`src/services/order.service.ts:419`)
+### 6.2 `updateOrder` (`src/services/order.service.ts:419`)
 
 - รับ `createdAt?: Date`
 - เมื่อค่าต่างจากเดิม ในทรานแซกชันเดียวกัน:

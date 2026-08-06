@@ -45,7 +45,7 @@
 | **แก้** `src/lib/validations.ts` | ย้าย `IsoDateTimeWithOffset` ขึ้นบน + เพิ่มคีย์ `createdAt` | 4 |
 | **แก้** `src/lib/order-event.ts` | เพิ่ม `ORDER_DATE_CHANGED` + `meta.orderedAt` + บรรทัดรอง | 5 |
 | **สร้าง** `prisma/migrations/20260806120000_order_event_date_changed/migration.sql` | ขยาย CHECK constraint | 5 |
-| **แก้** `src/services/order.service.ts` | `createOrder` + `updateOrderContent` รับ `createdAt`; `keyedInAt` | 6, 7 |
+| **แก้** `src/services/order.service.ts` | `createOrder` + `updateOrder` รับ `createdAt`; `keyedInAt` | 6, 7 |
 | **แก้** `src/app/api/orders/route.ts` | catch error ใหม่ → 400 | 8 |
 | **แก้** `src/app/api/orders/[token]/route.ts` | catch error ใหม่ → 400 | 8 |
 | **สร้าง** `src/app/(paces)/seller/(dashboard)/orders/new/components/OrderDateRow.tsx` | แถววันที่สั่งซื้อ (ยุบ/ขยาย) | 9 |
@@ -726,10 +726,10 @@ git commit -m "feat(00033): createOrder รับ createdAt + occurredAt ใช�
 
 ---
 
-### Task 7: `updateOrderContent` — แก้วันที่ + ซิงก์ `orderNo`
+### Task 7: `updateOrder` — แก้วันที่ + ซิงก์ `orderNo`
 
 **Files:**
-- Modify: `src/services/order.service.ts` — `updateOrderContent` (บรรทัด 419 เป็นต้นไป)
+- Modify: `src/services/order.service.ts` — `updateOrder` (บรรทัด 419 เป็นต้นไป)
 
 **Interfaces:**
 - Consumes: `createOrder` type (บรรทัด `data: Parameters<typeof createOrder>[1]` ทำให้ `createdAt` ไหลเข้ามาเองแล้วจาก Task 6), `formatOrderNo`, `OrderDateOutOfWindowError`
@@ -741,7 +741,7 @@ git commit -m "feat(00033): createOrder รับ createdAt + occurredAt ใช�
 
 - [ ] **Step 1: ตรวจช่วงเวลา + จับเวลาจริง ต้นฟังก์ชัน**
 
-วางก่อน `const round2 = …` ใน `updateOrderContent`:
+วางก่อน `const round2 = …` ใน `updateOrder`:
 
 ```ts
   // feature 00033 — เวลาจริงที่กดแก้ (ใช้กับ occurredAt ของ event ทุกตัวในรอบนี้)
@@ -1343,7 +1343,7 @@ dashboard/P&L คิดเวลาไทยถูกอยู่แล้ว �
 // tests/orders/backdated-order-date.test.ts
 import { describe, it, expect, afterAll } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createOrder, updateOrderContent, OrderDateOutOfWindowError } from '@/services/order.service'
+import { createOrder, updateOrder, OrderDateOutOfWindowError } from '@/services/order.service'
 import { deleteTestData } from '../setup'
 
 const createdUserIds: string[] = []
@@ -1415,7 +1415,7 @@ describe('วันที่คำสั่งซื้อย้อนหลั�
   })
 
   it('PATCH เปลี่ยนวันที่ข้ามเดือน → orderNo update ตาม + มี ORDER_DATE_CHANGED', async () => {
-    // สร้างออเดอร์ลงวันที่เดือนนี้ แล้ว updateOrderContent ให้ย้ายไปเดือนก่อน
+    // สร้างออเดอร์ลงวันที่เดือนนี้ แล้ว updateOrder ให้ย้ายไปเดือนก่อน
     // ยืนยัน: orderNo เปลี่ยนเดือน · มี event ORDER_DATE_CHANGED · meta มี from/to
     // · occurredAt ของ event นั้น ≈ now
   })
