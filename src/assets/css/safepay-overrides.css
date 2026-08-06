@@ -307,6 +307,16 @@ html[data-theme="dark"] .chat-header-logo {
     -webkit-user-select: none;
     user-select: none;
   }
+
+  /* แถวในรายการแชท (user สั่ง 2026-08-06: กดค้างแล้วเปิดแผงลัด) — เคสหนักกว่าบับเบิลข้อความ
+     เพราะทั้งแถวเป็น <a href> : iOS กดค้างบนลิงก์จะเด้งชีต "เปิด/คัดลอกลิงก์/แชร์" ทับเมนูของเรา
+     และ Android ตั้งท่าลากลิงก์ ทั้งคู่ปิดได้ด้วย touch-callout + user-select ที่ตัวแถว
+     (สองพร็อพเพอร์ตี้นี้ inherit ลงลูก จึงครอบ <Link> กับชิปข้างในให้เอง) */
+  [data-conversation-id] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 }
 
 /* กดค้างบนรูป/สติกเกอร์ในแชทต้องเป็นของเรา ไม่ใช่ของ iOS (user report ผ่านลูกค้า 2026-08-04:

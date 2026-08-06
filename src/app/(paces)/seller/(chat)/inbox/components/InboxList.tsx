@@ -86,13 +86,14 @@ import { pacesToast } from '@/lib/paces-toast'
 import { subscribeShopChat } from '@/lib/chat-shop-realtime'
 import { playChatBeep } from '@/lib/chat-sound'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
+import { useLongPress } from '@/hooks/useLongPress'
 import { pacesConfirm } from '@/lib/paces-swal'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import PageFilterDropdown from './PageFilterDropdown'
 import InboxFilterPanel from './InboxFilterPanel'
 import { buildChatListParams, DEFAULT_CHAT_FILTER, type ChatFilterState } from './chat-list-query'
 import { type RowAction } from './ConversationRowMenu'
-import ChatContextMenu from './ChatContextMenu'
+import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
 import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
 
@@ -278,8 +279,23 @@ export default function InboxList({
   const [openPanel, setOpenPanel] = useState<'filter' | 'page' | 'group' | null>(null)
   const groupMenuRef = useRef<HTMLDivElement | null>(null)
   const [actioningId, setActioningId] = useState<string | null>(null) // แถวที่มี PATCH ค้าง (กันดับเบิล)
-  // feature 00018 CRM — เมนูคลิกขวา (ตั้งสถานะ/แท็กเร็ว) เฉพาะเธรดช่องทางนอก
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: string } | null>(null)
+  // feature 00018 CRM — แผงลัดประจำแถว (ปักหมุด/ปิดงาน/ซ่อน/สแปม + สถานะขาย/แท็ก/กลุ่ม/เสียง)
+  // เปิดได้ 2 ทาง: คลิกขวา (เดสก์ท็อป → anchor 'point') และกดค้าง (มือถือ → anchor 'row' = โหมดเพ่ง)
+  const [ctxMenu, setCtxMenu] = useState<{ id: string; anchor: ChatRowAnchor } | null>(null)
+
+  // ── กดค้างบนแถว → แผงลัดโหมดเพ่ง (user สั่ง 2026-08-06) ────────────────
+  //
+  // ทำไมต้องมี: ทางเข้าเดิมของแผงนี้คือ `onContextMenu` = คลิกขวา ซึ่งจอสัมผัสไม่มี — iOS Safari
+  // ไม่ยิง contextmenu จากการกดค้างเลย ผลคือบนมือถือ "ใช้ shortcut ไม่ได้" ทั้งแผง (ปัดซ้ายให้แค่
+  // 4 ปุ่มแรก ไม่มีสถานะขาย/แท็ก/กลุ่ม/เสียง)
+  //
+  // hook เรียกในลูปไม่ได้ จึงมีตัวเดียวที่ container แล้ว resolve ย้อนกลับว่านิ้วอยู่บนแถวไหนผ่าน
+  // data-conversation-id — idiom เดียวกับเธรดแชท (ChatThread.tsx:928)
+  const longPress = useLongPress((point) => {
+    const el = document.elementFromPoint(point.x, point.y)?.closest<HTMLElement>('[data-conversation-id]')
+    const id = el?.getAttribute('data-conversation-id')
+    if (el && id) setCtxMenu({ id, anchor: { kind: 'row', row: el } })
+  })
   // เมนู ⋯ ของชุดปุ่ม hover (user สั่ง 2026-08-02) — เก็บเป็น "id ของแถวที่เปิดอยู่" ที่ระดับ list
   // ไม่ใช่ state ในแต่ละแถว เพราะชุดปุ่มต้องรู้ด้วยว่าเมนูเปิดอยู่ไหม (ต้องค้างไว้แม้เมาส์ออกนอกแถว)
   // และเปิดได้ทีละแถวเดียวอยู่แล้ว ref จึงใช้ตัวเดียวร่วมกันได้
@@ -1110,7 +1126,20 @@ export default function InboxList({
         </div>
       ) : (
         // card-body: เส้นประเทาบางๆ (divide-dashed) แบ่งระหว่างแชท — user request 2026-07-23 เดิมดูไม่ออก
-        <div className="card-body divide-y divide-dashed divide-default-300 !p-0">
+        // handlers ของกดค้างอยู่ที่ container ตัวเดียว (hook เรียกในลูปไม่ได้) — ตัวที่ถูกกดหาย้อนกลับ
+        // จาก data-conversation-id ของแถว
+        <div
+          className="card-body divide-y divide-dashed divide-default-300 !p-0"
+          {...longPress.handlers}
+          // กดค้างครบแล้วปล่อยนิ้ว เบราว์เซอร์ยังยิง click ตามมา → จะเด้งเข้าห้องแชททับเมนูที่เพิ่งเปิด
+          // ต้องกลืนใน capture (ก่อนถึง <Link> และก่อน onClickCapture ของ SwipeableRow)
+          onClickCapture={(e) => {
+            if (longPress.didFire()) {
+              e.preventDefault()
+              e.stopPropagation()
+            }
+          }}
+        >
           {items.map((c) => {
             // บทสนทนาที่กำลังเปิดอยู่ = อ่านแล้วเสมอ (ไม่ต้องรอ localReadAt/DB ตามทัน)
             const unreadCount = c.id === activeConversationId ? 0 : unreadCountOf(c, localReadAt[c.id])
@@ -1179,12 +1208,15 @@ export default function InboxList({
                 }
               >
               <div
+                // จุดยึดของ "กดค้าง" — useLongPress ที่ container resolve ย้อนกลับมาที่ element นี้
+                // เพื่อโคลนไปลอยเหนือฉากเบลอ (ดู ChatContextMenu โหมด 'row')
+                data-conversation-id={c.id}
                 onContextMenu={(e) => {
                   // เปิดได้ทุกเธรดแล้ว (user สั่ง 2026-07-23: action ประจำแถวต้องอยู่ในคลิกขวาด้วย) —
                   // เดิมเปิดเฉพาะช่องทางนอกเพราะเมนูมีแต่ฟิลด์ CRM; ตอนนี้ DEEP ก็มี ปักหมุด/ปิดงาน/
                   // ซ่อน/เสียง ให้ใช้ (เมนูซ่อนเฉพาะส่วน CRM เอง)
                   e.preventDefault()
-                  setCtxMenu({ x: e.clientX, y: e.clientY, id: c.id })
+                  setCtxMenu({ id: c.id, anchor: { kind: 'point', x: e.clientX, y: e.clientY } })
                 }}
                 className={`group relative flex items-stretch border-s-2 ${
                   c.id === activeConversationId
@@ -1536,7 +1568,7 @@ export default function InboxList({
         </div>
       )}
 
-      {/* feature 00018 CRM — เมนูคลิกขวา (ตั้งสถานะ/แท็กเร็ว) */}
+      {/* feature 00018 CRM — แผงลัดประจำแถว: คลิกขวา (เดสก์ท็อป) / กดค้าง (มือถือ — โหมดเพ่ง) */}
       {ctxMenu &&
         (() => {
           // อ่านสถานะจาก items ตอน render (ไม่ snapshot ลง state ตอนคลิกขวา) — หลัง action + refetch
@@ -1545,8 +1577,7 @@ export default function InboxList({
           if (!row) return null
           return (
             <ChatContextMenu
-              x={ctxMenu.x}
-              y={ctxMenu.y}
+              anchor={ctxMenu.anchor}
               conversationId={row.id}
               external={row.channel !== 'DEEP'}
               salesStatus={row.contactSalesStatus ?? 'UNSPECIFIED'}
