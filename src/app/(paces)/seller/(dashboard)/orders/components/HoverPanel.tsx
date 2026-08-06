@@ -37,13 +37,22 @@ export default function HoverPanel({ trigger, children, width = 320, className, 
   const anchorRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number; below: boolean } | null>(null)
 
-  const open = () => {
-    const r = anchorRef.current?.getBoundingClientRect()
-    if (!r) return
-    const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8)
-    // ที่ว่างเหนือ trigger ไม่พอ (แถวบนสุดของจอ) → เปิดลงล่างแทน
-    const below = r.top < 340
-    setPos({ top: below ? r.bottom + 8 : r.top - 8, left, below })
+  /**
+   * ตำแหน่งอิง "เมาส์" ไม่ใช่กล่อง trigger (แก้ 2026-08-06)
+   *
+   * เดิมคำนวณจาก getBoundingClientRect ของ trigger แล้วดันขึ้นบนเสมอ ซึ่งพอ trigger
+   * เป็นบล็อกสูง ๆ (บล็อก "จัดส่งโดย" ทั้งก้อน) panel จะไปโผล่เหนือบล็อกทั้งอัน =
+   * ไกลจากจุดที่เมาส์อยู่จนดูเหมือนของคนละชิ้น (user เจอบน prod)
+   *
+   * ตอนนี้เกาะพิกัดเมาส์: ที่ว่างใต้เคอร์เซอร์พอ (>PANEL_SPACE) ก็เปิดลงล่าง ไม่พอค่อย
+   * เปิดขึ้นบน — ไม่ใช่ "ขึ้นบนไว้ก่อน" เหมือนเดิม
+   */
+  const open = (e: React.MouseEvent) => {
+    const left = Math.min(Math.max(8, e.clientX - 24), window.innerWidth - width - 8)
+    // 320 = ความสูงโดยประมาณของ panel ที่ยาวที่สุด (การ์ดพัสดุพร้อมไทม์ไลน์+ประวัติ)
+    // ไม่วัดจริงเพราะยังไม่ mount ตอนคำนวณ — ประมาณเกินไว้ดีกว่าเปิดลงล่างแล้วล้นจอ
+    const below = window.innerHeight - e.clientY > 320
+    setPos({ top: below ? e.clientY + 16 : e.clientY - 16, left, below })
     onOpen?.()
   }
 

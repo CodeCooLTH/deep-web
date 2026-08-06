@@ -1206,6 +1206,10 @@ export async function getOrdersByShop(shopId: string, status?: string) {
         orderBy: { createdAt: "desc" },
         take: 1,
         select: {
+          // id: ต้องมี ไม่งั้นหน้ารายการยิงถามสถานะจาก iShip ไม่ได้ (ต้องใช้ใน
+          // /api/seller/iship/shipments/[id]/traces) — เคยลืมแล้วการ์ด hover ขึ้นแต่
+          // ส่วน "การเดินทางล่าสุด" หายทั้งหมดโดยไม่มี error (user เจอ 2026-08-06)
+          id: true,
           carrierStatus: true,
           // 2 ช่องนี้ซ้ำกับ where ด้านบนโดยตั้งใจ — countsAsRevenue() (lib/order-revenue.ts) ตรวจ
           // เงื่อนไขเองอีกชั้นเพื่อให้ผลตรงกับ revenueOrderWhere เป๊ะ ไม่ต้องเชื่อว่า caller กรองมาแล้ว

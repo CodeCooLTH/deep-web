@@ -294,28 +294,24 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
                 <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
               )}
               <span className="truncate">{displayName}</span>
+              {/* ประวัติกับร้านเป็น icon ท้ายชื่อ ไม่ใช่ป้ายข้อความ (user สั่ง 2026-08-06)
+                  ชื่อ icon + เกณฑ์เสี่ยง user เคาะเอง ไม่ได้เดา (HR12)
+                  title = คำอธิบายตอนชี้ค้าง — icon ล้วนที่ไม่มีคำอธิบายคือปริศนา */}
+              {stats && stats.orders <= 1 && (
+                <span className="inline-flex shrink-0" title="ลูกค้าใหม่ — สั่งครั้งแรกกับร้าน">
+                  <Icon icon="sparkles" className="text-default-400 text-sm" />
+                </span>
+              )}
+              {stats && stats.cancelled >= 2 && (
+                <span className="inline-flex shrink-0" title={`เคยยกเลิก ${stats.cancelled} ครั้ง`}>
+                  <Icon icon="flag" className="text-warning-ink text-sm" />
+                </span>
+              )}
             </p>
             {/* select-all: คลิกเดียวเลือกทั้งเบอร์ ไม่ต้องลาก */}
             <p className="mb-0 select-all text-xs tabular-nums text-default-500">
               {row.original.buyerPhone ?? row.original.buyer}
             </p>
-            {/* ประวัติกับร้าน — เล็กกว่าชื่อชัดเจน (user สั่ง "ไม่ต้องเด่นเท่าชื่อลูกค้า")
-                ลูกค้าใหม่บอกตรง ๆ ไม่ปล่อยว่าง เพราะ "ว่าง" อ่านไม่ออกว่าใหม่หรือระบบไม่รู้ */}
-            {stats && (
-              <p className="mb-0 mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-2xs">
-                <span className="text-default-500 inline-flex items-center gap-1">
-                  <Icon icon="history" className="text-xs" aria-hidden="true" />
-                  {stats.orders <= 1 ? 'ลูกค้าใหม่' : `สั่งครั้งที่ ${stats.orders}`}
-                </span>
-                {/* เตือนเฉพาะตอนมีจริง — ศูนย์ครั้งไม่ต้องประกาศ ไม่งั้นทุกแถวมีคำว่า
-                    "ยกเลิก" อยู่ด้วยจนคำนั้นหมดความหมาย */}
-                {stats.cancelled > 0 && (
-                  <span className="text-warning-ink font-medium">
-                    · เคยยกเลิก {stats.cancelled} ครั้ง
-                  </span>
-                )}
-              </p>
-            )}
           </>
         )
       },
