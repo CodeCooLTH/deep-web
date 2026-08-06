@@ -2366,8 +2366,9 @@ export default function ChatThread({
             เพราะ .form-input ล็อก h-9.25 + py-0 ไว้สำหรับบรรทัดเดียว ส่วน .form-textarea เป็น h-auto!
             (custom/_forms.css:56) จึงยืดได้จริง
             min-h-11 ปกติ (tap target 44px) → focus:min-h-20 (Tailwind scale ปกติ ไม่ใช่ arbitrary — HR7)
-            resize-none: ห้ามลากขยายเอง (จะพัง layout การ์ด); Enter = ส่ง, Shift+Enter = ขึ้นบรรทัดใหม่
-            (พฤติกรรมเดิมของ input ที่ต้องคงไว้ — textarea จะขึ้นบรรทัดใหม่เองถ้าไม่ preventDefault)
+            resize-none: ห้ามลากขยายเอง (จะพัง layout การ์ด)
+            เดสก์ท็อป: Enter = ส่ง, Shift+Enter = ขึ้นบรรทัดใหม่ (พฤติกรรมเดิมของ input ที่ต้องคงไว้)
+            มือถือ/จอสัมผัส: Enter = ขึ้นบรรทัดใหม่เสมอ ส่งด้วยปุ่ม "ส่ง" (ไม่มี Shift ให้กดคู่)
             items-end: ปุ่มส่งชิดล่างเสมอเวลา textarea ยืด ไม่ลอยกลาง */}
         {/* reply/quote (user 2026-07-25) — แถบ preview ข้อความที่กำลังตอบทับ เหนือช่องพิมพ์ (เหมือน Messenger);
             แถบสี primary ด้านซ้าย + ปุ่มกากบาทยกเลิก */}
@@ -2482,8 +2483,19 @@ export default function ChatThread({
               value={text}
               onChange={(e) => setText(e.target.value)}
               onPaste={handlePaste} // วางรูปจากคลิปบอร์ด (screenshot/Line/Ctrl+C) → แนบเลย (user 2026-07-25)
+              // enterKeyHint="enter" → คีย์บอร์ดมือถือขึ้นปุ่ม "ขึ้นบรรทัดใหม่" ไม่ใช่ "ส่ง"
+              // ให้ป้ายบนปุ่มตรงกับสิ่งที่เกิดขึ้นจริงตาม handler ข้างล่าง
+              enterKeyHint="enter"
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                // Enter = ส่ง เฉพาะ "เดสก์ท็อป" เท่านั้น (user 2026-08-06)
+                // บนจอสัมผัสไม่มีปุ่ม Shift ให้กดคู่ → กฎ Shift+Enter ขึ้นบรรทัดใหม่ใช้ไม่ได้เลย
+                // ผู้ใช้จึงพิมพ์ข้อความหลายบรรทัดไม่ได้ กด Enter ทีไรข้อความหลุดออกไปทันที
+                // บนมือถือปล่อยให้ textarea ขึ้นบรรทัดใหม่ตามปกติ — ส่งด้วยปุ่ม "ส่ง" ข้าง ๆ
+                // เช็คในตัว handler ไม่ใช่ตอน render: อ่าน window ตอน render = hydration mismatch
+                // (idiom เดียวกับ shareToDevice/MediaDownloadLink ในไฟล์นี้)
+                const isTouch = window.matchMedia('(pointer: coarse)').matches
+                // isComposing = กำลังเลือกคำจาก IME อยู่ Enter คือ "ยืนยันคำ" ไม่ใช่ "ส่ง"
+                if (e.key === 'Enter' && !e.shiftKey && !isTouch && !e.nativeEvent.isComposing) {
                   e.preventDefault()
                   handleSend()
                 }
