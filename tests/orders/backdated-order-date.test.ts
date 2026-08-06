@@ -155,4 +155,76 @@ describe('วันที่คำสั่งซื้อย้อนหลั�
     expect(meta.orderedAtFrom).toBe(created.createdAt.toISOString())
     expect(meta.orderedAtTo).toBe(movedTo.toISOString())
   })
+
+  // C-1/C-2 (final review 2026-08-06) — OrderCreateForm เคยส่ง createdAt ไปทุกครั้งที่กดบันทึก
+  // แม้ผู้ใช้ไม่เคยแตะแถววันที่ (reset() เติมจาก order เดิมเสมอ) เทสนี้ยืนยันฝั่ง service:
+  // แก้ไขโดยไม่ส่ง createdAt เลย ต้องไม่แตะ Order.createdAt และไม่มี ORDER_DATE_CHANGED ปลอม
+  it('แก้ออเดอร์โดยไม่ส่ง createdAt — Order.createdAt ไม่ขยับเลย และไม่มี event ORDER_DATE_CHANGED', async () => {
+    const created = await createOrder(shopId, {
+      items: [{ name: 'เสื้อยืด', qty: 1, price: 250 }],
+      type: 'DIGITAL',
+      buyerContact: '0899990005',
+      buyerName: 'ลูกค้าเดิม',
+    })
+
+    const updated = await updateOrder(
+      shopId,
+      created.publicToken,
+      {
+        items: [{ name: 'เสื้อยืด', qty: 1, price: 250 }],
+        type: 'DIGITAL',
+        buyerContact: '0899990005',
+        buyerName: 'ลูกค้าใหม่', // แก้ชื่อ ไม่แตะวันที่ — ไม่ส่ง createdAt เลย (ไม่ใช่ undefined ในคีย์)
+      },
+      null,
+    )
+    expect(updated.id).toBe(created.id)
+    // I-3: order ที่ return ต้องสะท้อนค่าจริง (createdAt เดิม เพราะไม่ได้เปลี่ยน)
+    expect(updated.createdAt.getTime()).toBe(created.createdAt.getTime())
+
+    const row = await prisma.order.findUnique({
+      where: { id: created.id },
+      select: { createdAt: true },
+    })
+    expect(row?.createdAt.getTime()).toBe(created.createdAt.getTime())
+
+    const dateChangedEvent = await prisma.orderEvent.findFirst({
+      where: { orderId: created.id, type: 'ORDER_DATE_CHANGED' },
+    })
+    expect(dateChangedEvent).toBeNull()
+  })
+
+  // regression เดิม: ออเดอร์ PENDING ที่เก่ากว่า 90 วันแก้ไม่ได้อีกเลย เพราะ orderDateRejectReason
+  // ถูกเรียกกับ "ค่าที่ส่งมา" ทั้งที่ผู้ใช้แค่จะแก้ฟิลด์อื่น — เทสนี้จำลองออเดอร์ที่ createdAt เก่า
+  // 120 วัน (ตั้งตรงผ่าน prisma.order.update ข้ามด่าน orderDateWindow ตอนสร้าง) แล้วยืนยันว่า
+  // updateOrder ที่ไม่ส่ง createdAt ต้องสำเร็จเสมอ ไม่ว่า existing.createdAt จะเก่าแค่ไหน
+  it('ออเดอร์เก่า 120 วัน แก้ฟิลด์อื่นโดยไม่ส่ง createdAt — ต้องสำเร็จ ไม่ throw', async () => {
+    const created = await createOrder(shopId, {
+      items: [{ name: 'หมวก', qty: 1, price: 300 }],
+      type: 'DIGITAL',
+      buyerContact: '0899990006',
+    })
+    const old = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000)
+    await prisma.order.update({ where: { id: created.id }, data: { createdAt: old } })
+
+    await expect(
+      updateOrder(
+        shopId,
+        created.publicToken,
+        {
+          items: [{ name: 'หมวก', qty: 2, price: 300 }], // แก้จำนวน ไม่แตะวันที่
+          type: 'DIGITAL',
+          buyerContact: '0899990006',
+        },
+        null,
+      ),
+    ).resolves.toBeTruthy()
+
+    const row = await prisma.order.findUnique({
+      where: { id: created.id },
+      select: { createdAt: true },
+    })
+    // createdAt เก่ายังอยู่ครบ — ไม่ถูกแตะเลยเพราะไม่ได้ส่ง createdAt มาด้วย
+    expect(row?.createdAt.getTime()).toBe(old.getTime())
+  })
 })

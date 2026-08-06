@@ -32,6 +32,23 @@ function parseDate(s?: string, fallback?: Date): Date {
   return isNaN(d.getTime()) ? (fallback ?? new Date()) : d
 }
 
+/**
+ * "YYYY-MM-DD" จาก getter ตาม server-local ของ Date instance (I-1, 2026-08-06)
+ *
+ * ใช้คู่กับ from/toExcl ที่สร้างจาก getter ชุดเดียวกัน (thaiMidnightUtc(fromLocal.getFullYear()/
+ * getMonth()/getDate())) ด้านล่าง — ห้ามใช้ thaiDayKey(instant) กับ toLocal เพราะ monthRange()
+ * ปิดท้ายด้วย to.setHours(23,59,59,999) แบบ server-local: บน prod (Vercel, TZ=UTC)
+ * instant นั้นตกไปอยู่ 06:59 น. ของ "วันถัดไป" ตามเวลาไทย → thaiDayKey อ่านผิดวันไปหนึ่งวัน
+ * (ชิปเขียน "1 ก.ย." ทั้งที่กราฟ/ตารางข้างล่างยังถูก เพราะ from/toExcl ใช้ getter ตัวนี้อยู่แล้ว)
+ * บั๊กนี้ไม่ reproduce บนเครื่อง dev ที่ TZ=Asia/Bangkok — ต้องทดสอบด้วย TZ=UTC เท่านั้น
+ */
+function localDayKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function monthRange(): { from: Date; to: Date } {
   const from = new Date()
   from.setDate(1)
@@ -242,8 +259,9 @@ export default async function SalesPage({
       {/* เลิกใช้ single-card ครอบทั้งหน้า — SalesChart render การ์ดสรุปแยกใบเองแล้ว (แบบหน้าสินค้า)
           ถ้ายังครอบอยู่จะกลายเป็นการ์ดซ้อนการ์ด ซึ่ง DESIGN.md §anti-slop ห้าม */}
       <div className="mb-1.25 flex flex-wrap items-center justify-end gap-3">
-        {/* ใช้ fromLocal/toLocal (วันที่ตามที่เลือกจริง ไม่ shift) — from/toExcl ใช้เฉพาะกรอง order เท่านั้น */}
-        <SalesDateRange from={thaiDayKey(fromLocal)} to={thaiDayKey(toLocal)} />
+        {/* ใช้ fromLocal/toLocal (วันที่ตามที่เลือกจริง ไม่ shift) — from/toExcl ใช้เฉพาะกรอง order เท่านั้น
+            localDayKey ไม่ใช่ thaiDayKey — ดูเหตุผลที่นิยามฟังก์ชันด้านบน (I-1) */}
+        <SalesDateRange from={localDayKey(fromLocal)} to={localDayKey(toLocal)} />
       </div>
 
       <SalesChart daily={daily} summary={summary} />

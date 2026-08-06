@@ -20,14 +20,24 @@
 --
 -- ห้าม `prisma db pull` / `migrate dev` เด็ดขาด — introspect ไม่เห็น CHECK นี้ แล้วจะสร้าง migration ที่ DROP ทิ้ง
 
+-- I-2 (2026-08-06) — แก้ 3 จุดจาก final review:
+--   1. regex '[A-Z_]+' ขยายเป็น '[A-Za-z0-9_]+' — ตัวเดิมจับไม่ได้ถ้าวันหนึ่งมี event type ที่มี
+--      ตัวเลข/ตัวพิมพ์เล็ก (เช่น SLA_L2_BREACH) → ค่านั้นหายจาก constraint ใหม่โดยไม่มีใครรู้
+--      (failure mode เดียวกับที่ migration นี้ถูกเขียนมาแก้พอดี)
+--   2. เพิ่ม sanity check เทียบจำนวนค่าที่ regex จับได้กับจำนวนคู่ quote ในนิยามเดิม — ไม่ตรง
+--      ให้ RAISE EXCEPTION ทันที (ล้มเสียงดังดีกว่าลบค่าทิ้งเงียบ ๆ แล้ว ALTER TABLE ทับไปเลย)
+--   3. เพิ่ม conrelid = '"OrderEvent"'::regclass กันหยิบ constraint ชื่อซ้ำข้าม schema/ตารางอื่น
 DO $$
 DECLARE
-  def  text;
-  vals text;
+  def           text;
+  vals          text;
+  matched_count int;
+  quote_count   int;
 BEGIN
   SELECT pg_get_constraintdef(oid) INTO def
   FROM pg_constraint
-  WHERE conname = 'OrderEvent_type_check';
+  WHERE conname = 'OrderEvent_type_check'
+    AND conrelid = '"OrderEvent"'::regclass;
 
   IF def IS NULL THEN
     -- ฐานที่ยังไม่มี constraint (เช่นฐานสร้างใหม่ที่ migration ของ branch อื่นยังไม่รัน)
@@ -41,9 +51,18 @@ BEGIN
 
   ELSIF position('ORDER_DATE_CHANGED' IN def) = 0 THEN
     -- มี constraint อยู่แล้วแต่ยังไม่มีค่าของเรา — ดึงรายชื่อเดิมออกมาแล้วต่อท้าย
-    SELECT string_agg(quote_literal(m[1]), ', ')
-    INTO vals
-    FROM regexp_matches(def, '''([A-Z_]+)''', 'g') AS m;
+    SELECT string_agg(quote_literal(m[1]), ', '), count(*)
+    INTO vals, matched_count
+    FROM regexp_matches(def, '''([A-Za-z0-9_]+)''', 'g') AS m;
+
+    -- sanity check: จำนวนค่าที่จับได้ต้องคูณ 2 แล้วเท่ากับจำนวน quote (') ใน def เป๊ะ — ไม่ตรง
+    -- แปลว่ามี literal ที่ regex จับไม่ครบ (มีอักขระนอกช่วง [A-Za-z0-9_]) ต้องหยุดทันที
+    quote_count := regexp_count(def, '''');
+    IF matched_count IS NULL OR matched_count * 2 <> quote_count THEN
+      RAISE EXCEPTION
+        'OrderEvent_type_check: regex จับค่าได้ % รายการ แต่พบ quote ในนิยามเดิม % ตัว (ต้องเป็น %*2) — def=%',
+        matched_count, quote_count, matched_count, def;
+    END IF;
 
     ALTER TABLE "OrderEvent" DROP CONSTRAINT "OrderEvent_type_check";
     EXECUTE format(

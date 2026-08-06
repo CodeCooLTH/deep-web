@@ -272,7 +272,7 @@ export default function OrderCreateForm({
     setValue,
     getValues,
     reset,
-    formState: { errors },
+    formState: { errors, dirtyFields },
   } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: yupResolver(schema) as any,
@@ -663,9 +663,28 @@ export default function OrderCreateForm({
       ...(appointmentPayload ? { appointment: appointmentPayload } : {}),
       // feature 00018 (user 2026-07-24): สร้างจากแชท → ผูก ExternalContact กับ Customer ทันที
       ...(conversationId ? { conversationId } : {}),
-      // feature 00033 — datetime-local เป็นเวลาเครื่อง แปลงเป็น ISO พร้อม offset (Z) ก่อนส่ง
+      // feature 00033 (C-1/C-2, 2026-08-06) — datetime-local เป็นเวลาเครื่อง แปลงเป็น ISO พร้อม offset (Z) ก่อนส่ง
       // ไม่มีค่า = ไม่ส่งคีย์เลย → เส้นทางเดิมทุกประการ (95% ของการคีย์)
-      ...(values.orderedAt ? { createdAt: new Date(values.orderedAt).toISOString() } : {}),
+      //
+      // โหมดแก้ไข (editOrderToken): reset() ด้านบนเติม orderedAt จาก order เดิมเสมอ (defaultValues)
+      // ถ้าเช็คแค่ "มีค่า" จะส่ง createdAt ไปทุกครั้งที่กดบันทึก แม้ผู้ใช้ไม่เคยแตะแถววันที่เลย —
+      // พังสองทาง: (1) ออเดอร์เก่ากว่า 90 วันแก้ไม่ได้อีกเลย (2) createdAt เขียนทับ + orderNo
+      // recompute + ORDER_DATE_CHANGED ปลอมทุกครั้ง (toDatetimeLocalValue ตัดเหลือระดับนาที แต่
+      // service เทียบระดับ ms — createdAt จาก now() ไม่เคยมีวินาที/มิลลิวินาทีเป็นศูนย์ เงื่อนไข
+      // "เปลี่ยนไหม" จึงเป็นจริงเสมอ). ต้องเช็ค dirtyFields.orderedAt — ส่งเฉพาะเมื่อผู้ใช้เปลี่ยน
+      // ค่าจริงในแถว (พิมพ์ในช่อง datetime-local ผ่าน field.onChange ของ Controller)
+      //
+      // โหมดสร้างใหม่ (ไม่มี editOrderToken): orderedAt มาจาก defaultValues เสมอ (prefillCreatedAt
+      // จากแชท หรือ undefined) ไม่ใช่จากการพิมพ์ของผู้ใช้ — dirtyFields จึงมองว่า "ไม่ dirty" ทั้งที่
+      // ต้องส่งค่านี้ไป API ปกติ (เวลาข้อความในแชท = วันที่สั่งซื้อจริง). เส้นนี้จึงแยกจาก edit mode
+      // ส่งเมื่อมีค่าเสมอ (ไม่เช็ค dirty) — พฤติกรรมเดิมทุกประการ
+      ...(editOrderToken
+        ? dirtyFields.orderedAt && values.orderedAt
+          ? { createdAt: new Date(values.orderedAt).toISOString() }
+          : {}
+        : values.orderedAt
+          ? { createdAt: new Date(values.orderedAt).toISOString() }
+          : {}),
     }
 
     // full-bleed sheet: โชว์ "กำลังสร้างคำสั่งซื้อ" ตั้งแต่เริ่มยิง POST (block ทั้งจอ กันกดซ้ำ)

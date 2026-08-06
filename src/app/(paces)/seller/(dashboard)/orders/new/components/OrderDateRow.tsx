@@ -13,7 +13,7 @@
  * เพิ่มภาระสายตาให้ทุกคนเพื่อคนส่วนน้อย
  * ผ่าน ux gate แล้ว — ดู .superpowers/sdd/2026-08-06-backdated-order-date/task-9-ux-rulings.md
  */
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Controller, type Control, type UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
 import { orderDateWindow, orderDateRejectReason } from '@/lib/order-date-window'
@@ -42,6 +42,13 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
   const [editing, setEditing] = useState(!!fromMessage)
   const now = new Date()
   const { minMs, maxMs } = orderDateWindow(now.getTime())
+
+  // Minor-1 (2026-08-06) — component นี้ถูก render พร้อมกัน 2 ชุดเสมอ (QuickForm มือถือ +
+  // CartPanel เดสก์ท็อป ซ่อนด้วย CSS ไม่ unmount) id คงที่จึงชนกันใน DOM ทำให้ aria-describedby
+  // ของชุดหนึ่งชี้ไปหาแถวของอีกชุด. useId() ให้ id ต่างกันต่อ instance โดยอัตโนมัติ
+  const uid = useId()
+  const inputId = `order-date-input-${uid}`
+  const errorId = `order-date-error-${uid}`
 
   return (
     <div>
@@ -75,20 +82,22 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
             <>
               <div className="flex items-center gap-2">
                 <input
-                  id="order-date-input"
+                  id={inputId}
                   type="datetime-local"
                   className={`form-input flex-1${rejectReason ? ' is-invalid' : ''}`}
                   value={field.value ?? toDatetimeLocalValue(now)}
                   min={toDatetimeLocalValue(new Date(minMs))}
                   max={toDatetimeLocalValue(new Date(maxMs))}
-                  aria-describedby={rejectReason ? 'order-date-error' : undefined}
+                  aria-describedby={rejectReason ? errorId : undefined}
                   onChange={(e) => field.onChange(e.target.value || undefined)}
                 />
                 <button
                   type="button"
                   className="btn min-h-11 bg-primary/15 text-primary"
                   onClick={() => {
-                    setValue('orderedAt', undefined)
+                    // shouldDirty: true — นี่คือการแก้ไขของผู้ใช้จริง (ล้างวันที่ย้อนหลังกลับไปใช้
+                    // "ตอนนี้") ไม่ใช่ค่า default ต้องนับเป็น dirty เหมือน field.onChange (C-1/C-2)
+                    setValue('orderedAt', undefined, { shouldDirty: true })
                     setEditing(false)
                   }}
                 >
@@ -96,7 +105,7 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                 </button>
               </div>
               {rejectReason && (
-                <p id="order-date-error" className="mt-1 text-xs text-danger" role="alert">
+                <p id={errorId} className="mt-1 text-xs text-danger" role="alert">
                   {rejectReason}
                 </p>
               )}

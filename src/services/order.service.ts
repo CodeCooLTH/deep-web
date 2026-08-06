@@ -620,13 +620,19 @@ export async function updateOrder(
       // เลขออเดอร์คิดจากปี/เดือนของ createdAt — ต้อง recompute พร้อมกันในทรานแซกชันเดียว
       // ไม่งั้นคอลัมน์ orderNo ค้างเดือนเก่า ขณะที่หน้าจอคำนวณสดแล้วโชว์เดือนใหม่
       // → ผู้ใช้ค้นด้วยเลขที่เห็นบนจอแล้วไม่เจอ (@@index([orderNo]))
+      const recomputedOrderNo = formatOrderNo(existing.publicToken, orderCreatedAt);
       await tx.order.update({
         where: { id: existing.id },
         data: {
           createdAt: orderCreatedAt,
-          orderNo: formatOrderNo(existing.publicToken, orderCreatedAt),
+          orderNo: recomputedOrderNo,
         },
       });
+      // I-3 (2026-08-06) — `order` ถูก select ไว้ "ก่อน" update นี้ (บรรทัดด้านบน) จึงยังถือ
+      // createdAt/orderNo เก่าอยู่ในหน่วยความจำ ถ้าไม่ sync กลับ ค่าที่ return ให้ route (แล้ว
+      // PATCH ตอบกลับ client) จะเป็นค่าเก่าทั้งที่ DB อัปเดตแล้ว — mutate object เดิม ไม่ refetch
+      order.createdAt = orderCreatedAt;
+      order.orderNo = recomputedOrderNo;
 
       // occurredAt = เวลาจริงที่กดแก้ ไม่ใช่วันที่ใหม่ที่กรอก (Global Constraint)
       await recordOrderEvent(tx, {
@@ -666,12 +672,18 @@ export async function updateOrder(
       JSON.stringify(existing.shippingAddress ?? null) === JSON.stringify(data.shippingAddress ?? null),
       itemKey(existing.items) === itemKey(data.items),
     ].filter((same) => !same).length;
-    await recordOrderEvent(tx, {
-      orderId: order.id,
-      type: "ORDER_EDITED",
-      actorUserId: actorUserId ?? null,
-      meta: changedCount > 0 ? { changedCount } : {},
-    });
+    // I-4 (2026-08-06) — แก้เฉพาะวันที่อย่างเดียว (ฟิลด์อื่นเหมือนเดิมทุกตัว) ทำให้ changedCount = 0
+    // ถ้ายังเขียน ORDER_EDITED อยู่ ไทม์ไลน์จะขึ้น "แก้ไขคำสั่งซื้อ" ลอย ๆ ซ้อนกับ ORDER_DATE_CHANGED
+    // ที่เพิ่งบันทึกไปด้านบน โดยไม่มีบรรทัดรองบอกว่าแก้อะไร — ข้ามการเขียน event นี้ไปเลยเมื่อไม่มี
+    // อะไรเปลี่ยนจริงนอกจากวันที่
+    if (changedCount > 0) {
+      await recordOrderEvent(tx, {
+        orderId: order.id,
+        type: "ORDER_EDITED",
+        actorUserId: actorUserId ?? null,
+        meta: { changedCount },
+      });
+    }
 
     return order;
   });
