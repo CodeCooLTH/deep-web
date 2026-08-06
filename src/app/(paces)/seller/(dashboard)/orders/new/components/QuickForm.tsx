@@ -48,6 +48,8 @@ interface Props {
   orderDateFromMessage?: boolean
   /** feature 00033 — เวลาข้อความต้นทางเก่ากว่าเพดานย้อนหลัง จึงไม่ได้เติมให้ (โชว์ชิปเตือนใน OrderDateRow) */
   orderDateMessageTooOld?: boolean
+  /** feature 00033 + impeccable clarify — ป้ายช่องวันที่ ผันตามประเภทกิจการ (ORDER_VOCAB.dateLabel) */
+  orderDateLabel?: string
 }
 
 export default function QuickForm({
@@ -67,6 +69,7 @@ export default function QuickForm({
   compact = false,
   orderDateFromMessage,
   orderDateMessageTooOld,
+  orderDateLabel,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
 
@@ -114,6 +117,7 @@ export default function QuickForm({
           setValue={setValue}
           fromMessage={orderDateFromMessage}
           messageTooOld={orderDateMessageTooOld}
+          dateLabel={orderDateLabel}
         />
       </section>
 

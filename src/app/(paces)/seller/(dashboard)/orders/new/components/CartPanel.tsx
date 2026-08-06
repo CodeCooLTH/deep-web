@@ -70,6 +70,8 @@ interface Props {
   orderDateFromMessage?: boolean
   /** feature 00033 — เวลาข้อความต้นทางเก่ากว่าเพดานย้อนหลัง จึงไม่ได้เติมให้ (โชว์ชิปเตือนใน OrderDateRow) */
   orderDateMessageTooOld?: boolean
+  /** feature 00033 + impeccable clarify — ป้ายช่องวันที่ ผันตามประเภทกิจการ (ORDER_VOCAB.dateLabel) */
+  orderDateLabel?: string
 }
 
 export default function CartPanel({
@@ -85,6 +87,7 @@ export default function CartPanel({
   appointmentPrefilledDate,
   orderDateFromMessage,
   orderDateMessageTooOld,
+  orderDateLabel,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
@@ -369,6 +372,7 @@ export default function CartPanel({
           setValue={setValue ?? (() => {})}
           fromMessage={orderDateFromMessage}
           messageTooOld={orderDateMessageTooOld}
+          dateLabel={orderDateLabel}
         />
       </div>
 

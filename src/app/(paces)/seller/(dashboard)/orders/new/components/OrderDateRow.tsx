@@ -70,9 +70,12 @@ type Props = {
   /** เวลาข้อความต้นทางเก่ากว่าเพดานย้อนหลัง จึงไม่ได้เติมให้ (Task 10 ฝั่งแชทเป็นคนคำนวณค่านี้ —
    *  ที่นี่แค่เปิดทางรับมาโชว์ชิปเตือน) */
   messageTooOld?: boolean
+  /** ป้ายช่อง ผันตามประเภทกิจการ (ORDER_VOCAB.dateLabel) — ร้านบ้านพัก/คิวงานใช้คำต่างกัน
+   *  ไม่ส่งมา = ชุดของร้านขายออนไลน์ (fail-safe เดียวกับ resolveOrderVocab) */
+  dateLabel?: string
 }
 
-export default function OrderDateRow({ control, setValue, fromMessage, messageTooOld }: Props) {
+export default function OrderDateRow({ control, setValue, fromMessage, messageTooOld, dateLabel = 'วันที่สั่งซื้อ' }: Props) {
   // เปิดช่องค้างไว้เลยเมื่อค่ามาจากข้อความ — ปกติ/แก้ไขออเดอร์เดิม = ยุบ
   const [editing, setEditing] = useState(!!fromMessage)
   const now = new Date()
@@ -106,9 +109,9 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
   return (
     <div>
       {editing ? (
-        <label htmlFor={inputId} className="form-label">วันที่สั่งซื้อ</label>
+        <label htmlFor={inputId} className="form-label">{dateLabel}</label>
       ) : (
-        <span className="form-label">วันที่สั่งซื้อ</span>
+        <span className="form-label">{dateLabel}</span>
       )}
       <Controller
         control={control}
@@ -128,7 +131,7 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                 <button
                   ref={changeButtonRef}
                   type="button"
-                  aria-label={`เปลี่ยนวันที่สั่งซื้อ ค่าปัจจุบันคือ ${currentLabel}`}
+                  aria-label={`เปลี่ยน${dateLabel} ค่าปัจจุบันคือ ${currentLabel}`}
                   className="btn min-h-11 text-primary hover:bg-primary hover:text-white"
                   onClick={() => setEditing(true)}
                 >

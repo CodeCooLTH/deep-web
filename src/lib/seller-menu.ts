@@ -366,6 +366,15 @@ export type OrderVocab = {
   createLabel: string
   /** ปุ่ม FAB + ปุ่มในแถบเครื่องมือแชท */
   createLabelShort: string
+  /**
+   * ป้ายช่อง "วันที่ที่รายการนี้เกิดขึ้น" ใน OrderDateRow (feature 00033)
+   *
+   * [สำคัญ] ห้ามผันเป็น `"วันที่" + noun` เด็ดขาด — LODGING จะได้ "วันที่บิลเข้าพัก" ซึ่งผู้ใช้อ่านเป็น
+   * "วันเข้าพัก" ทั้งที่นั่นคือคอลัมน์ `Order.checkIn` คนละตัวกัน (SERVICE_QUEUE ก็มี
+   * `serviceStart` แยกอยู่เหมือนกัน) ป้ายนี้หมายถึง **วันที่ธุรกรรมเกิด** เท่านั้น
+   * จึงต้องเป็นคำที่ผูกกับ "การเปิดบิล/รับงาน" ไม่ใช่กับ "การใช้บริการ"
+   */
+  dateLabel: string
 }
 
 export const ORDER_VOCAB: Record<string, OrderVocab> = {
@@ -374,6 +383,7 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     nounShort: 'คำสั่งซื้อ',
     createLabel: 'สร้างคำสั่งซื้อ',
     createLabelShort: 'สร้างคำสั่งซื้อ',
+    dateLabel: 'วันที่สั่งซื้อ',
   },
   SERVICE_QUEUE: {
     noun: 'การเข้ารับบริการ',
@@ -383,12 +393,16 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     nounShort: 'บริการ',
     createLabel: 'สร้างการเข้ารับบริการ',
     createLabelShort: 'เข้ารับบริการใหม่',
+    // ไม่ใช่ "วันที่เข้ารับบริการ" — นั่นคือ Order.serviceStart คนละคอลัมน์
+    dateLabel: 'วันที่รับงาน',
   },
   LODGING: {
     noun: 'บิลเข้าพัก',
     nounShort: 'บิลเข้าพัก',
     createLabel: 'เปิดบิลเข้าพัก',
     createLabelShort: 'เปิดบิลเข้าพัก',
+    // ไม่ใช่ "วันที่เข้าพัก" — นั่นคือ Order.checkIn คนละคอลัมน์
+    dateLabel: 'วันที่เปิดบิล',
   },
 }
 

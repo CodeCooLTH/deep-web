@@ -859,6 +859,7 @@ export default function OrderCreateForm({
           compact={compact}
           orderDateFromMessage={!!prefillCreatedAt}
           orderDateMessageTooOld={prefillCreatedAtTooOld}
+          orderDateLabel={vocab.dateLabel}
         />
       </div>
 
@@ -888,6 +889,7 @@ export default function OrderCreateForm({
             appointmentPrefilledDate={appointmentPrefilledDate}
             orderDateFromMessage={!!prefillCreatedAt}
             orderDateMessageTooOld={prefillCreatedAtTooOld}
+            orderDateLabel={vocab.dateLabel}
           />
         </div>
       </div>
