@@ -25,7 +25,17 @@ const CARRIER_STATUS: Record<string, CarrierStatusMeta> = {
   in_transit: { text: "อยู่ระหว่างขนส่ง", tone: "info", terminal: false },
   progress: { text: "อยู่ระหว่างจัดส่ง", tone: "info", terminal: false },
   delivered: { text: "จัดส่งแล้ว", tone: "success", terminal: true },
-  payment_success: { text: "ชำระเงินสำเร็จ", tone: "success", terminal: false },
+  /**
+   * terminal: true (แก้ 2026-08-06) — `payment_success` (id 12) คือ "เงินเก็บปลายทางเข้าร้านแล้ว"
+   * ซึ่งเกิด *หลัง* `delivered` เสมอ (ของจริงห่างกัน ~33 ชม.) มันจึงเป็นปลายทางที่ไกลกว่า
+   * `delivered` ไม่ใช่สถานะระหว่างทาง
+   *
+   * ค่า false เดิมทำให้พัสดุที่ส่งถึงและได้เงินแล้วตกไปเข้าเงื่อนไข "ยังไม่ถึงปลายทาง" ทุกที่:
+   * `deriveShippingStage` คืน AWAITING_PICKUP → ไทม์ไลน์ถอยไปจุดแรก "สร้างพัสดุ" ทั้งที่
+   * รายการเดินทางข้าง ๆ มันขึ้นครบถึง "อยู่ระหว่างขนส่ง" (user เจอบน prod: TH069306110878
+   * ออเดอร์ CONFIRMED + ได้เงินแล้ว แต่แถบอยู่จุดที่ 1)
+   */
+  payment_success: { text: "ชำระเงินสำเร็จ", tone: "success", terminal: true },
   return_success: { text: "ส่งคืนสำเร็จ", tone: "secondary", terminal: true },
   return: { text: "พัสดุตีกลับ", tone: "warning", terminal: false },
   issue: { text: "พัสดุมีปัญหา", tone: "danger", terminal: false },
@@ -34,7 +44,44 @@ const CARRIER_STATUS: Record<string, CarrierStatusMeta> = {
   cod_refund: { text: "รายการขอเงินคืน", tone: "warning", terminal: false },
   is_expired: { text: "หมดอายุ", tone: "secondary", terminal: true },
   cancelled: { text: "ยกเลิก", tone: "secondary", terminal: true },
+  /**
+   * id 99 "ปิดงาน" — มีในตาราง STATUS_ID_TO_CODE มาตั้งแต่แรกแต่ไม่เคยมีที่นี่ แปลว่าถ้ามันมาจริง
+   * describeCarrierStatus จะคืน "อยู่ระหว่างดำเนินการ" = พัสดุที่จบงานแล้วขึ้นว่ายังเดินอยู่
+   *
+   * terminal: true (เลิกตามต่อ — ตรงกับที่ syncShipmentStatuses ตัด `close` ออกจากชุดติดตาม
+   * อยู่แล้ว) แต่ **ไม่นับเป็น "ส่งถึงแล้ว"** เพราะยังพิสูจน์ไม่ได้ว่า "ปิดงาน" แปลว่าสำเร็จ —
+   * ยังไม่เคยเจอค่านี้ในข้อมูลจริงสักแถว (ตรวจ prod 2026-08-06) จึงห้ามเดาให้เป็นสีเขียว
+   */
+  close: { text: "ปิดงานแล้ว", tone: "secondary", terminal: true },
 };
+
+/**
+ * isTerminalCarrierStatus — จบเส้นทางแล้ว ไม่ต้องตามต่อ
+ *
+ * อ่านจาก `terminal` ในตารางข้างบนโดยตรง ไม่ประกาศรายชื่อซ้ำ — เดิม `order-stage.ts` มี
+ * const TERMINAL_CARRIER เขียนรายชื่อไว้เอง แล้วตอนที่ payment_success ควรเป็นปลายทาง
+ * ต้องไปแก้สองที่ ซึ่งแก้ไม่ครบทั้งคู่มาแล้ว
+ *
+ * รหัสที่ไม่รู้จัก = ไม่ terminal (ยังตามต่อ) — เดาว่า "จบแล้ว" กับพัสดุที่ยังเดินอยู่
+ * แปลว่าเราเลิกอัปเดตสถานะให้ร้านเงียบ ๆ ซึ่งแย่กว่าการถามซ้ำโดยไม่จำเป็น
+ */
+export function isTerminalCarrierStatus(code?: string | null): boolean {
+  if (!code) return false;
+  return CARRIER_STATUS[code]?.terminal === true;
+}
+
+/**
+ * สถานะที่แปลว่า "ของถึงมือผู้รับแล้ว" — คนละชุดกับ terminal
+ *
+ * terminal รวมปลายทางที่ *ไม่สำเร็จ* ด้วย (ตีกลับ/หมดอายุ/ยกเลิก/ปิดงาน) ชุดนี้คือปลายทาง
+ * ที่ยืนยันได้ว่าของถึงผู้รับจริง จึงเป็นชุดเดียวที่มีสิทธิ์ทำให้แถบเป็นสีเขียว (Verified-Means-Green)
+ */
+export const DELIVERED_CARRIER_STATUSES = ["delivered", "payment_success"] as const;
+
+export function isDeliveredCarrierStatus(code?: string | null): boolean {
+  if (!code) return false;
+  return (DELIVERED_CARRIER_STATUSES as readonly string[]).includes(code);
+}
 
 /**
  * describeCarrierStatus — แปลรหัสสถานะเป็นข้อความ/สี
@@ -151,6 +198,10 @@ const STAGE_OF: Record<string, number> = {
   cod_refund: 2,
   delivered: 3,
   return_success: 3,
+  // ปลายทางที่ไกลกว่า delivered (เงิน COD เข้าแล้ว) — ขาดไปตั้งแต่แรก จึงตกไป ?? 0 = ถอย
+  // กลับไปจุด "สร้างพัสดุ" ทั้งที่จบงานแล้ว (user เจอ TH069306110878 บน prod 2026-08-06)
+  payment_success: 3,
+  close: 3,
 };
 
 const NOTICE_OF: Record<string, { tone: ShipmentTone; text: string }> = {
@@ -199,17 +250,22 @@ export function describeProgress(
   }
 
   const stage = code ? (STAGE_OF[code] ?? 0) : 0;
-  const tone: ShipmentBarTone =
-    code === "delivered"
-      ? "delivered"
-      : code === "return_success"
-        ? "diverted"
-        : "progress";
+  const tone: ShipmentBarTone = isDeliveredCarrierStatus(code)
+    ? "delivered"
+    : code === "return_success" || code === "close"
+      ? "diverted"
+      : "progress";
 
   return {
     stage,
     tone,
-    lastLabel: code === "return_success" ? "ส่งคืนสำเร็จ" : undefined,
+    lastLabel:
+      code === "return_success"
+        ? "ส่งคืนสำเร็จ"
+        : // ปิดงานโดยไม่รู้ว่าสำเร็จหรือไม่ — ห้ามเขียน "จัดส่งสำเร็จ" ทับจุดสุดท้าย
+          code === "close"
+          ? "ปิดงานแล้ว"
+          : undefined,
     notice: code ? NOTICE_OF[code] : undefined,
   };
 }
