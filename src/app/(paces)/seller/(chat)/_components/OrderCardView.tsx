@@ -162,7 +162,7 @@ function ShipmentSection({ data }: { data: OrderCardViewData }) {
           </button>
         )}
       </div>
-      <div className="mt-2">
+      <div className="mt-1.5">
         <ShipmentStepper shipmentStatus={sh.status ?? 'CREATED'} carrierStatus={sh.carrierStatus ?? null} size="md" />
       </div>
       {awaitingCod && (
@@ -206,7 +206,7 @@ export default function OrderCardView({
   const body = (
     <>
       {/* หัวการ์ด — Paces primary (น้ำเงิน) + เลขคำสั่งซื้อ */}
-      <div className="bg-primary flex items-center gap-2.5 px-4 py-3 text-white">
+      <div className="bg-primary flex items-center gap-2.5 px-4 py-2.5 text-white">
         <Icon icon="receipt-2" className="shrink-0 text-2xl" />
         <div className="min-w-0">
           <p className="mb-0 truncate text-sm font-semibold">{title}</p>
@@ -214,8 +214,8 @@ export default function OrderCardView({
         </div>
       </div>
       {/* รายการสินค้า + รวม + ยอดสุทธิ */}
-      <div className="bg-card px-4 py-3">
-        <div className="space-y-2">
+      <div className="bg-card px-4 py-2.5">
+        <div className="space-y-1.5">
           {data.items.map((it, i) => (
             <div key={i} className="flex items-center gap-2 text-sm">
               <span className="bg-default-100 flex size-9 shrink-0 items-center justify-center overflow-hidden rounded">
@@ -232,12 +232,9 @@ export default function OrderCardView({
             </div>
           ))}
         </div>
-        <div className="border-default-200 my-2.5 border-t border-dashed" />
+        <div className="border-default-200 my-2 border-t border-dashed" />
+        {/* แถว "รายการ N รายการ" ถูกตัด (user 2026-08-06 ขอ compact) — จำนวนนับได้จากลิสต์ข้างบนเอง */}
         <div className="flex items-center justify-between text-sm">
-          <span className="text-default-700">รายการ</span>
-          <span className="text-default-800 font-semibold">{data.items.length} รายการ</span>
-        </div>
-        <div className="mt-1.5 flex items-center justify-between text-sm">
           <span className="text-default-700">ยอดสุทธิ</span>
           <span className="text-primary font-bold">{priceLabel}</span>
         </div>
