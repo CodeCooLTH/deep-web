@@ -375,7 +375,10 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
       {/* ─── Sticky header (พื้นขาว bg-card): back + search + filter + bell + tabs ──
           z-30: Paces .btn มี position:relative z-index:10 → ปุ่มในการ์ดจะทะลุทับ header
           ตอน scroll ถ้า header z ≤ 10. ดัน z-30 ให้ชนะ (modal = z-50 ยังเหนือกว่า) */}
-      <div data-orders-header className="sticky top-0 z-30 bg-card px-2 pt-6">
+      {/* pt = 1.5rem + safe-area: หน้านี้ full-bleed ไม่มี header ของ layout (SellerMobileHeader
+          คืน null) และ sticky top-0 → ตั้งแต่เปิด viewportFit:'cover' (2026-08-06) ต้องเว้น
+          status bar เอง ไม่งั้นแถวค้นหาไปนอนใต้นาฬิกาทั้งตอนพักและตอนเลื่อน */}
+      <div data-orders-header className="sticky top-0 z-30 bg-card px-2 pt-[calc(1.5rem+env(safe-area-inset-top))]"> {/* carve-out: safe-area ไม่มี token */}
         <div className="flex items-center gap-2">
           {/* back → /dashboard (แท็บหลัก: กลับหน้าหลัก) */}
           <Link

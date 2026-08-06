@@ -102,6 +102,24 @@ html[data-text-scale="xl"] {
    ปล่อย base Paces `main { px-5 pb-5 }` (20px สมมาตร) ทำงานเอง = ตรง theme demo (skin default) เป๊ะ.
    ไม่เพิ่ม custom gutter (บทเรียน: ชิดขอบมาจาก asymmetry ไม่ใช่ค่าน้อยไป — แค่ลบตัวผิดพอ) */
 
+/* ─── Safe area (iOS) — ตั้งแต่เปิด viewportFit:'cover' ที่ (paces)/layout.tsx 2026-08-06 ───
+   ก่อนหน้านี้ไม่มี cover → env(safe-area-inset-*) คืน 0 ทุกตัว แปลว่า pb-[env(...)] ที่กระจาย
+   อยู่ทั่ว (paces) ไม่เคยทำงานเลย (อาการที่ user จับได้: label ของ bottom nav คาบแถบ home
+   indicator). พอเปิด cover เนื้อหาจะกินพื้นที่ status bar/home indicator ด้วย → surface ที่
+   ยึดขอบจอต้องเว้น inset เอง. 2 ตัวนี้เป็น "เปลือกจอ" ที่คุมได้จาก CSS ที่เดียว:
+
+   .app-header  = topbar Paces (ฝั่ง admin; seller mobile ซ่อนตัวนี้แล้วใช้ SellerMobileHeader)
+                  sticky top-0 + min-h → เติม padding-top ได้ตรง ๆ ความสูงโตตาม
+   .chat-shell  = shell เต็มจอของ (chat) route group (h-dvh flex-col) — ใส่ inset ที่เปลือก
+                  ชั้นเดียวจบทั้งกลุ่ม (หัวแชท/แท็บ/ช่องพิมพ์อยู่ข้างในหมด) พื้นเป็น bg-card
+                  เหมือนช่องพิมพ์อยู่แล้ว แถบที่เว้นจึงกลืนเป็นเนื้อเดียว ไม่เห็นเป็นขอบ
+   ค่าเป็น 0 บนเดสก์ท็อป/เครื่องไม่มีรอยบาก → เขียนรวมไม่ต้องแยก media query */
+.app-header { padding-top: env(safe-area-inset-top); }
+.chat-shell {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* ─── Seller Mobile Shell — <lg ซ่อน sidebar/header, ตัด margin และ padding สม่ำเสมอ ─── */
 /* breakpoint เส้นเดียว = lg (1024px) ตรงกับ SellerMobileHeader / CommandCenter lg:hidden    */
 /* scoped ด้วย .seller-mobile-shell → ไม่กระทบ buyer (Vuexy) และ admin                       */

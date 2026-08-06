@@ -81,7 +81,9 @@ export default function CustomerSearchSheet({ open, initialQuery = '', onSelect,
 
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock
-    <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label="ค้นหาลูกค้า">
+    /* pt safe-area: เต็มจอจริงตั้งแต่เปิด viewportFit:'cover' (2026-08-06) → หัวแผ่นต้องเว้น
+       status bar เอง (ขอบล่างมี pb-[env(...)] ที่ scroller อยู่แล้ว) */
+    <div className="fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)]" role="dialog" aria-label="ค้นหาลูกค้า"> {/* carve-out: safe-area ไม่มี token */}
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
         <button type="button" onClick={onClose} aria-label="ย้อนกลับ" className="shrink-0 text-default-500">
           <Icon icon="chevron-left" className="size-6" />
