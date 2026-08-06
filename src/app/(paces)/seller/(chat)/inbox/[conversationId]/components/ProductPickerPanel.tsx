@@ -21,6 +21,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import ProductThumb from '@/app/(paces)/seller/(dashboard)/orders/new/components/ProductThumb'
 
 /** field ที่ใช้จริงจาก GET /api/products (serializeProduct คืนมากกว่านี้ — ประกาศเท่าที่ใช้) */
 type PickerProduct = {
@@ -199,8 +200,9 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
 
           {/* สไลด์แนวนอน เรียงขายดีก่อน (user สั่ง 2026-07-23 + ส่งภาพ "สินค้าขายดี" บน command center
               มาให้เป็นแบบ) — Base: (dashboard)/dashboard/components/BestSellerStrip.tsx ทั้งการ์ด
-              (w-24 / aspect-square / line-clamp-2 / ราคา bold primary / บรรทัดที่ 3 เป็น meta) และ
-              พฤติกรรม scroll-snap + ซ่อน scrollbar. ต่างจากต้นแบบแค่ปลายทางของการกด: ที่นั่น
+              (w-28 / ProductThumb aspect-video / ชื่อ line-clamp-2 min-h-8 / ราคา bold primary /
+              บรรทัดที่ 3 เป็น meta) และพฤติกรรม scroll-snap + ซ่อน scrollbar
+              ต่างจากต้นแบบแค่ปลายทางของการกด: ที่นั่น
               navigate ไป /orders/new ที่นี่เปิดหน้าเลือกรูปแบบการส่ง */}
           <div
             className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-contain pb-1 [&::-webkit-scrollbar]:hidden"
@@ -209,7 +211,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
             {loading ? (
               <>
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="bg-default-100 h-36 w-24 shrink-0 animate-pulse rounded-xl" role="status" aria-label="กำลังโหลดสินค้า" />
+                  <div key={i} className="bg-default-100 h-36 w-28 shrink-0 animate-pulse rounded-xl" role="status" aria-label="กำลังโหลดสินค้า" />
                 ))}
               </>
             ) : failed ? (
@@ -233,33 +235,20 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
                     onClick={() => setSelected(p)}
                     disabled={disabled}
                     aria-label={`${p.name} ${formatThb(p.price)}`}
-                    className={`w-24 shrink-0 snap-start overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95 ${
+                    className={`w-28 shrink-0 snap-start overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95 ${
                       disabled ? 'pointer-events-none opacity-50' : ''
                     }`}
                   >
-                    {src ? (
-                      // aspect-square ต้องอยู่ที่ "กรอบ" ไม่ใช่ที่ <img> — img เป็น replaced element ที่มี
-                      // intrinsic ratio ของตัวเอง สั่ง aspect-ratio ทับไม่ได้ผลแน่นอน และ object-cover
-                      // ไม่มีอะไรให้ครอปเพราะความสูงยัง auto → รูปสูงตามสัดส่วนจริงของแต่ละไฟล์
-                      // การ์ดจึงสูงไม่เท่ากัน (บั๊กเดียวกับแผงข้อความสำเร็จรูปที่ user รายงาน 2026-07-30
-                      // — ไฟล์นี้คัดลอกโครงมาจากกันจึงติดมาด้วย แก้พร้อมกันกันเจอซ้ำ)
-                      <span className="relative block aspect-square w-full overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={src}
-                          alt={p.name}
-                          loading="lazy"
-                          className="absolute inset-0 size-full object-cover"
-                        />
-                      </span>
-                    ) : (
-                      <span className="flex aspect-square w-full flex-col items-center justify-center gap-1 bg-default-100 text-default-300">
-                        <Icon icon="package" className="size-8" />
-                        <span className="text-2xs">ไม่มีรูป</span>
-                      </span>
-                    )}
+                    {/* ProductThumb + aspect-video ชุดเดียวกับ BestSellerStrip (user สั่ง 2026-08-06
+                        "ทำให้เหมือนสินค้าขายดีใน command center"): รูป 96×96 จัตุรัสของเดิมกินเกินครึ่ง
+                        การ์ด และร้านส่วนใหญ่สินค้าไม่มีรูป ⇒ กล่องเทาว่างเป็นตัวเด่นที่สุดของแผง.
+                        ProductThumb ยังมี fallback ตอนรูปโหลดไม่ขึ้น (onError) ซึ่ง <img> ดิบที่เคย
+                        เขียนไว้ตรงนี้ไม่มี — รูปเสียแล้วได้ไอคอนรูปแตกของเบราว์เซอร์ */}
+                    <ProductThumb src={src} alt={p.name} className="aspect-video w-full" iconClassName="size-8" />
                     <div className="p-2">
-                      <p className="line-clamp-2 text-xs font-medium text-dark">{p.name}</p>
+                      {/* min-h-8 = จอง 2 บรรทัดของ text-xs เสมอ → ราคา/บรรทัดล่างของทุกใบอยู่ระดับเดียวกัน
+                          (ทรงเดียวกับ BestSellerStrip — นี่คือ "การ์ดไม่สมส่วน" ที่เคยรายงานที่นั่น) */}
+                      <p className="line-clamp-2 min-h-8 text-xs font-medium text-dark">{p.name}</p>
                       <p className="mt-0.5 truncate text-sm font-bold text-primary">{formatThb(p.price)}</p>
                       {/* บรรทัดที่ 3 ตาม BestSellerStrip — แต่สลับเป็น "คงเหลือ" เมื่อร้าน track สต็อก
                           เพราะในบริบทแชท สิ่งที่แม่ค้าต้องรู้ก่อนตอบลูกค้าคือ "ของยังมีไหม" */}
