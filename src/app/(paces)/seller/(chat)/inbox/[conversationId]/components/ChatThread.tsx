@@ -2370,7 +2370,8 @@ export default function ChatThread({
             resize-none: ห้ามลากขยายเอง (จะพัง layout การ์ด)
             เดสก์ท็อป: Enter = ส่ง, Shift+Enter = ขึ้นบรรทัดใหม่ (พฤติกรรมเดิมของ input ที่ต้องคงไว้)
             มือถือ/จอสัมผัส: Enter = ขึ้นบรรทัดใหม่เสมอ ส่งด้วยปุ่ม "ส่ง" (ไม่มี Shift ให้กดคู่)
-            items-end: ปุ่มส่งชิดล่างเสมอเวลา textarea ยืด ไม่ลอยกลาง */}
+            ปุ่มส่งอยู่ "ในกล่อง" มุมขวาล่าง (user request 2026-08-06) — เดิมอยู่นอกกล่องข้าง ๆ
+            ซึ่งกินความกว้างของช่องพิมพ์ไปตลอด บนมือถือจึงเหลือที่พิมพ์แคบ */}
         {/* reply/quote (user 2026-07-25) — แถบ preview ข้อความที่กำลังตอบทับ เหนือช่องพิมพ์ (เหมือน Messenger);
             แถบสี primary ด้านซ้าย + ปุ่มกากบาทยกเลิก */}
         {replyingTo && (
@@ -2503,16 +2504,28 @@ export default function ChatThread({
               }}
               disabled={composerDisabled}
             />
+            {/* ปุ่มส่ง — อยู่ในกล่องเดียวกับช่องพิมพ์ ชิดขวาล่าง (user request 2026-08-06)
+                เป็น "แถวของตัวเอง" ใต้ textarea ไม่ใช่ absolute ทับมุม: absolute ต้องกัน
+                พื้นที่ด้วย padding-end ที่ textarea ซึ่งกินความกว้างของ **ทุกบรรทัด** ทั้งที่
+                บรรทัดล่างสุดบรรทัดเดียวที่ชนปุ่ม
+                และต้องเป็นพี่น้องของ textarea ในกล่องนี้ ไม่ใช่ห่อ textarea เพิ่มอีกชั้น —
+                useComposerHeight ใช้ `textarea.parentElement` เป็น "กล่องนอก" ทั้งตอนล็อก
+                ความสูงระหว่างวัด (กันเธรดเด้งบน iOS) และตอน observe การโผล่/หายของคิวรูปแนบ */}
+            <div className="flex justify-end px-2 pb-2">
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={composerDisabled || sending || uploading || (!text.trim() && pendingImages.length === 0)}
+                // btn-sm + rounded-full = ทรงพิลล์เล็กตามภาพอ้างอิง (user 2026-08-06) — ทั้งคู่เป็น
+                // primitive ของธีม (_buttons.css `.btn-sm`, Tailwind `rounded-full`) ไม่ใช่ arbitrary
+                // ปุ่มเล็กลงได้เพราะย้ายเข้ามาในกล่องแล้ว: กล่องทั้งใบคือเป้าสายตาอยู่แล้ว
+                // ปุ่มไม่ต้องแบกหน้าที่ "หาให้เจอ" เหมือนตอนลอยเดี่ยวข้างกล่อง
+                className="btn btn-sm bg-primary text-white hover:bg-primary-hover shrink-0 rounded-full disabled:opacity-60"
+              >
+                ส่ง <Icon icon="send-2" className="ms-1 text-base" />
+              </button>
+            </div>
           </div>
-
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={composerDisabled || sending || uploading || (!text.trim() && pendingImages.length === 0)}
-            className="btn bg-primary text-white hover:bg-primary-hover shrink-0 disabled:opacity-60"
-          >
-            ส่ง <Icon icon="send-2" className="ms-1 text-xl" />
-          </button>
         </div>
       </div>
     </div>
