@@ -43,6 +43,7 @@ import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveOrderVocab } from '@/lib/seller-menu'
 import { resolveBuyerDisplayName, isCODPayment } from '@/lib/order-display'
+import { deriveShippingStage } from '@/lib/order-stage'
 import OrderDetailClient from './components/OrderDetailClient'
 import ShippingActivity from './components/ShippingActivity'
 import CustomerDetails from './components/CustomerDetails'
@@ -208,6 +209,24 @@ export default async function OrderDetailPage({ params }: PageProps) {
           }
         : null
 
+  /**
+   * กองงานตามสถานะพัสดุ — ส่งให้ป้ายหัวหน้าพูดตรงกับความจริงของพัสดุ (เหมือนหน้า /orders)
+   *
+   * ต้องเรียก deriveShippingStage ตัวเดียวกับหน้ารายการ + ไทล์ Command Center และส่ง
+   * paymentMethod/codReceivedAt ให้ครบ ไม่งั้นใบเดียวกันจะได้ป้ายคนละคำตอนกดเข้ามาดู
+   * (นี่คือบั๊กที่กำลังแก้อยู่พอดี แค่คนละหน้า)
+   */
+  const shippingStage =
+    shop.vertical === 'ONLINE_SALES'
+      ? deriveShippingStage({
+          status: order.status,
+          carrierStatus: shipmentPanel?.shipment?.carrierStatus ?? null,
+          hasShipment: Boolean(shipmentPanel?.shipment),
+          paymentMethod: order.paymentMethod ?? null,
+          codReceivedAt: order.codReceivedAt ?? null,
+        })
+      : undefined
+
   return (
     <>
       {/* P6 (T14): หน้านี้ไม่มี h1 เลย (PageBreadcrumb เป็น shared component ใช้ h4 — แก้เองไม่ได้,
@@ -225,6 +244,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         publicToken={order.publicToken}
         shortCode={order.shortCode ?? null}
         status={order.status}
+        shippingStage={shippingStage}
         type={order.type}
         createdAtISO={createdAtISO}
         fulfillmentMode={order.fulfillmentMode}

@@ -17,7 +17,7 @@
 import { isInTransitCarrierStatus, isProblemCarrierStatus } from './iship/status'
 // นิยาม "เก็บเงินปลายทาง" ตัวเดียวกับที่หน้าออเดอร์/ป้ายชำระเงินใช้ — ห้ามเขียน regex ซ้ำที่นี่
 // ไม่งั้นไทล์กับป้ายบนจอเดียวกันจะตัดสินคนละแบบเมื่อร้านพิมพ์วิธีชำระเป็นข้อความอิสระ
-import { isCODPayment as isCodPayment } from './order-display'
+import { ORDER_STATUS_META, isCODPayment as isCodPayment, type OrderStatusTone } from './order-display'
 
 export type OrderStageKey =
   | 'PARCEL_PROBLEM'
@@ -145,6 +145,85 @@ export const SHIPPING_STAGE_LABEL: Record<Exclude<ShippingStageKey, 'DONE'>, str
   SHIPPING: 'กำลังจัดส่ง',
   AWAITING_COD: 'รอเงิน COD',
   PROBLEM: 'พัสดุมีปัญหา',
+}
+
+/**
+ * ─── ป้ายสถานะออเดอร์ที่ "พูดตรงกับความจริงของพัสดุ" ────────────────────────────
+ *
+ * บั๊กที่แก้ (user เจอบน prod 2026-08-06 — DP25690853C0FA9B): ใบ COD ที่ขนส่งส่งถึงแล้ว
+ * แต่ร้านยังไม่ได้กดรับเงิน → Command Center จัดอยู่กอง "รอเงิน COD" ถูกต้องเพราะอ่านจาก
+ * deriveShippingStage แต่ป้ายในหน้า /orders อ่าน Order.status ดิบ ๆ เลยขึ้น "กำลังจัดส่ง"
+ * ทั้งที่ของถึงมือผู้ซื้อไปแล้ว = ใบเดียวกันพูดคนละเรื่องบนสองหน้าจอ
+ *
+ * [สำคัญ] ตัวนี้ไม่ใช่ SSOT ใหม่ — ไม่คำนวณ stage เอง แค่ "เลือกคำ" จากค่าที่
+ * deriveShippingStage ตัดสินไว้แล้ว. Order.status ไม่ถูกแตะแม้แต่นิดเดียว: CONFIRMED
+ * ต้องมาจากผู้ซื้อกดยืนยันเท่านั้น (BR-ISHIP-41) เพราะไปคิด Trust Score + สิทธิ์รีวิว
+ * ถ้าปล่อยให้ขนส่งดันได้ = ปั่นคะแนนความน่าเชื่อถือด้วยพัสดุปลอมได้
+ */
+const STAGE_BADGE_OVERRIDE: Partial<
+  Record<ShippingStageKey, { label: string; cls: string; icon: string; tone: OrderStatusTone }>
+> = {
+  SHIPPING: {
+    label: SHIPPING_STAGE_LABEL.SHIPPING,
+    cls: 'bg-info/15 text-info-ink',
+    icon: 'truck',
+    tone: 'info',
+  },
+  AWAITING_COD: {
+    label: SHIPPING_STAGE_LABEL.AWAITING_COD,
+    cls: 'bg-warning/15 text-warning-ink',
+    icon: 'coin',
+    tone: 'warning',
+  },
+  PROBLEM: {
+    label: SHIPPING_STAGE_LABEL.PROBLEM,
+    cls: 'bg-danger/15 text-danger-ink',
+    icon: 'alert-triangle',
+    tone: 'danger',
+  },
+  /**
+   * DONE ไม่มีคำอยู่ใน SHIPPING_STAGE_LABEL โดยตั้งใจ (type เป็น Exclude<...,'DONE'>) —
+   * record นั้นเป็นของ "ตัวกรอง ?stage=" ซึ่ง OrdersList.tsx ใช้ key ของมันเป็นตัววาลิเดต
+   * พารามิเตอร์ตรง ๆ (`stageParam in SHIPPING_STAGE_LABEL`) การเติม DONE เข้าไปจะทำให้
+   * ?stage=DONE กลายเป็นตัวกรองที่ใช้ได้แต่ไม่มีชิปไหนพาไป จึงประกาศคำไว้ที่นี่แทน
+   *
+   * Verified-Means-Green: เขียวได้เพราะขนส่งยืนยันแล้วว่าถึงปลายทาง + ไม่มีเงินค้าง —
+   * เป็นข้อเท็จจริงที่ตรวจสอบได้ ไม่ใช่การเดา. คนละเขียวกับ CONFIRMED (ผู้ซื้อยืนยันเอง)
+   */
+  DONE: {
+    label: 'ส่งถึงแล้ว',
+    cls: 'bg-success/15 text-success-ink',
+    icon: 'circle-check-filled',
+    tone: 'success',
+  },
+}
+
+/**
+ * resolveOrderStatusBadge — ป้ายที่ควรแสดงจริงบนแถว/การ์ด/หัวหน้ารายละเอียด
+ *
+ * รูปแบบที่คืนเหมือน ORDER_STATUS_META[status] ทุกฟิลด์ (drop-in) — จุดที่เรียกไม่ต้องรู้ว่า
+ * มีการรวมสองชั้นเกิดขึ้น
+ *
+ * ไม่ override 3 กรณี:
+ *   - `shippingStage` undefined = ร้านที่ไม่ใช่ ONLINE_SALES (ไม่มีพัสดุให้ไล่) → ของเดิมเป๊ะ
+ *   - CANCELLED = การตัดสินใจเชิงธุรกิจ ไม่ใช่สถานะพัสดุ
+ *   - CONFIRMED = ความจริงระดับสูงสุดของระบบ (ผู้ซื้อยืนยันเอง) ห้ามให้ชั้นพัสดุมาทับ
+ * และไม่ override stage ต้นทาง (AWAITING_PARCEL/AWAITING_PICKUP) เพราะ "รอดำเนินการ"
+ * ครอบคลุมอยู่แล้ว ส่วน "รอรับเข้า" เป็นภาษาของกองงานพัสดุ ไม่ใช่ของสถานะออเดอร์
+ */
+export function resolveOrderStatusBadge(
+  status: string,
+  shippingStage?: ShippingStageKey,
+): { label: string; cls: string; icon: string; tone: OrderStatusTone } {
+  const base = ORDER_STATUS_META[status] ?? {
+    label: status,
+    cls: 'bg-default-100 text-default-800',
+    icon: 'clock',
+    tone: 'warning' as OrderStatusTone,
+  }
+  if (!shippingStage || status === 'CANCELLED' || status === 'CONFIRMED') return base
+  // ไม่รู้จัก stage = คืนของเดิม ห้ามคืน undefined — ป้ายหายทั้งแถวแย่กว่าป้ายที่ไม่ละเอียด
+  return STAGE_BADGE_OVERRIDE[shippingStage] ?? base
 }
 
 export interface OrderStageInput {

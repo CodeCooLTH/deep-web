@@ -40,7 +40,7 @@ import HoverPanel from './HoverPanel'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderSourceLogo from './OrderSourceLogo'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
-import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
+import { SHIPPING_STAGE_LABEL, resolveOrderStatusBadge } from '@/lib/order-stage'
 import OrderActions from './OrderActions'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
@@ -55,7 +55,10 @@ import { ORDER_STATUS_META } from '@/lib/order-display'
 // primary(น้ำเงิน) ขณะที่ OrderCard เป็น "กำลังจัดส่ง" + info และ SSOT เป็น info เหมือน OrderCard
 // ผลคือจอเดียวกัน (ตารางเดสก์ท็อป vs การ์ดมือถือ) พูดคนละคำคนละสีสำหรับสถานะเดียวกัน
 // เลิกประกาศซ้ำแล้วนำเข้าแทน — ได้ text-{semantic}-ink ที่ผ่านคอนทราสต์ AA มาด้วย (DESIGN.md §Status chip)
-const STATUS_CONFIG = ORDER_STATUS_META
+//
+// 2026-08-06: ป้ายบนแถวเลิกอ่าน ORDER_STATUS_META ตรง ๆ แล้ว ใช้ resolveOrderStatusBadge()
+// ที่รวมสถานะพัสดุเข้ามาด้วย (ดูเหตุผลในคอมเมนต์ของฟังก์ชันนั้น) — ตัวนี้ยังเหลือไว้ให้
+// ดรอปดาวน์ "สถานะ" ข้างล่างซึ่งกรองด้วย Order.status ดิบ จึงต้องใช้คำของ status ไม่ใช่ของพัสดุ
 
 // ตัวเลือกในดรอปดาวน์ "สถานะ" — สร้างจาก SSOT ตัวเดียวกับ badge ห้ามพิมพ์คำซ้ำมือ
 // (เดิมพิมพ์เอง จึงค้างคำว่า "จัดส่งแล้ว" อยู่ในตัวกรองทั้งที่ป้ายบนแถวเปลี่ยนคำไปแล้ว)
@@ -78,7 +81,9 @@ const STAGE_BADGE_CLS: Record<(typeof STAGE_FILTER_KEYS)[number], string> = {
   AWAITING_PARCEL: 'bg-warning/15 text-warning-ink',
   AWAITING_PICKUP: 'bg-default-100 text-default-700',
   SHIPPING: 'bg-default-100 text-default-700',
-  AWAITING_COD: 'bg-info/15 text-info-ink',
+  // warning ไม่ใช่ info — ตรงกับป้าย "รอเงิน COD" บนแถว (STAGE_BADGE_OVERRIDE) และไทล์
+  // Command Center ที่เป็น warning มาตั้งแต่แรก; เดิมไฟล์นี้ตั้ง info ไว้ที่เดียวจึงเพี้ยนกับที่อื่น
+  AWAITING_COD: 'bg-warning/15 text-warning-ink',
   PROBLEM: 'bg-danger/15 text-danger-ink',
 }
 
@@ -272,10 +277,9 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
         }
         const first = items[0]
         const extra = items.length - 1
-        const cfg = STATUS_CONFIG[row.original.status] ?? {
-          label: row.original.status,
-          cls: 'bg-default-200 text-default-600',
-        }
+        // ป้ายใน hover panel ต้องเป็นตัวเดียวกับคอลัมน์ "สถานะ" — เดิมอ่าน status ดิบทั้งคู่
+        // แต่คนละบรรทัด พอแก้จุดเดียวจะเหลือใบที่พูดสองอย่างในแถวเดียวกัน
+        const cfg = resolveOrderStatusBadge(row.original.status, row.original.shippingStage)
         // เกิน 5 ชิ้นตัดเหลือ 5 + บรรทัดสรุป — จงใจไม่ scroll ใน panel (hover แล้วต้องเลื่อน
         // scroll = เมาส์หลุดนิดเดียว panel หุบ) · ยอดสุทธิเป็นยอดจริงทั้งใบเสมอ
         const visible = items.slice(0, 5)
@@ -456,9 +460,13 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       header: 'สถานะ',
       filterFn: 'equalsString',
       enableColumnFilter: true,
+      // w-px + nowrap = คอลัมน์หดพอดีความยาวป้าย (pattern เดียวกับคอลัมน์ "จัดการ" ข้างล่าง)
+      // ไม่งั้น TanStack บีบคอลัมน์จนป้ายตัดบรรทัด — วัดจากจอจริง 1440px: "รอดำเนินการ"
+      // แตกเป็น 3 บรรทัด ("รอ/ดำเนิน/การ") ซึ่งอ่านไม่ออกว่าเป็นคำเดียว
+      meta: { headerClassName: 'w-px whitespace-nowrap', cellClassName: 'w-px whitespace-nowrap' },
       cell: ({ row }) => {
-        const cfg = STATUS_CONFIG[row.original.status] ?? { label: row.original.status, cls: 'bg-default-200 text-default-600' }
-        return <span className={cn('badge', cfg.cls)}>{cfg.label}</span>
+        const cfg = resolveOrderStatusBadge(row.original.status, row.original.shippingStage)
+        return <span className={cn('badge whitespace-nowrap', cfg.cls)}>{cfg.label}</span>
       },
     }),
 

@@ -33,23 +33,19 @@ import BuyerAvatar from './BuyerAvatar'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderActions from './OrderActions'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
-import { ORDER_STATUS_META } from '@/lib/order-display'
+import { ORDER_STATUS_TONE_BORDER } from '@/lib/order-display'
+import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
 // ── status badge — อ่านจาก SSOT ตัวเดียวกับตารางเดสก์ท็อปและหน้ารายละเอียด (lib/order-display.ts)
 //    เดิมประกาศเองที่นี่ ทำให้ CANCELLED เป็นเทา (bg-default-100) ขณะที่ตารางเป็นแดง ทั้งที่
 //    DESIGN.md กำหนด Error Coral ให้ "ยกเลิก" ตรงตัว — และได้ text-{semantic}-ink ที่ผ่าน AA มาด้วย
-const STATUS_CONFIG = ORDER_STATUS_META
-
 // ── แถบสีซ้ายการ์ดตามสถานะ — pattern เดียวกับ theme "card border-{color} border-s-3"
 //    (.card ไม่มี border เอง มีแต่ shadow → border-{color} ให้สี, border-s-3 ให้เฉพาะซ้ายกว้าง 3px)
 //    Base: theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx (`card border-primary border-s-3`)
-//    สีต้องตรงกับ tone ของ badge ในการ์ดใบเดียวกันเสมอ (SSOT = ORDER_STATUS_META[...].tone)
-const STATUS_STRIP: Record<string, string> = {
-  PENDING:   'border-warning',
-  SHIPPED:   'border-info',
-  CONFIRMED: 'border-success',
-  CANCELLED: 'border-danger',
-}
+//
+//    2026-08-06: เลิกคีย์ตาม status แล้วคีย์ตาม tone ที่ป้ายคืนมา — ตั้งแต่ป้ายเริ่มรวม
+//    สถานะพัสดุเข้ามาด้วย ใบ COD ที่ส่งถึงแล้วจะได้ป้ายเหลือง "รอเงิน COD" ถ้าแถบยังคีย์
+//    ตาม status=SHIPPED มันจะฟ้า = การ์ดใบเดียวมีสองสีที่ขัดกันเอง
 
 // ── โลโก้ช่องทางสีจริง (self-host public/) — เฉพาะช่องทางที่มีไฟล์; ที่เหลือ fallback tabler mono ──
 const CHANNEL_LOGO: Record<string, string> = {
@@ -133,8 +129,8 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
   const itemCount = order.items.length
   const visibleItems = expanded ? order.items : order.items.slice(0, 1)
 
-  const statusCfg = STATUS_CONFIG[order.status] ?? { label: order.status, cls: 'bg-default-100 text-default-500' }
-  const strip = STATUS_STRIP[order.status] ?? 'border-default-300'
+  const statusCfg = resolveOrderStatusBadge(order.status, order.shippingStage)
+  const strip = ORDER_STATUS_TONE_BORDER[statusCfg.tone] ?? 'border-default-300'
   const hasChannel = Boolean(order.salesChannel && SALES_CHANNEL_LABELS[order.salesChannel])
   // null = ยังไม่มีไฟล์โลโก้ของขนส่งเจ้านี้ → ตกไปใช้ตัวย่อ (ดู lib/iship/courier.ts)
   const courierLogo = courierLogoUrl(order.shipment?.courierCode, order.shipment?.courierName)

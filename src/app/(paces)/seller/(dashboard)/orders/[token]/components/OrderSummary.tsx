@@ -24,7 +24,8 @@ import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
-import { ORDER_STATUS_META, getPaymentBadge } from '@/lib/order-display'
+import { getPaymentBadge } from '@/lib/order-display'
+import { resolveOrderStatusBadge, type ShippingStageKey } from '@/lib/order-stage'
 import type { OrderStatus } from '@/lib/order-display'
 import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/SalesChannelBadge'
 import OrderSourceLogo from '../../components/OrderSourceLogo'
@@ -41,6 +42,8 @@ import {
 export type OrderSummaryProps = {
   publicToken: string
   status: string
+  /** กองงานตามสถานะพัสดุ — undefined = ร้านที่ไม่ใช่ ONLINE_SALES (ป้ายกลับไปใช้ status ล้วน) */
+  shippingStage?: ShippingStageKey
   createdAtISO: string
   salesChannel: string | null
   /** รูปเพจที่ลูกค้าทักมา — null = ใช้โลโก้แพลตฟอร์มเดิม (user 2026-08-06) */
@@ -70,6 +73,7 @@ export type OrderSummaryProps = {
 export default function OrderSummary({
   publicToken,
   status,
+  shippingStage,
   createdAtISO,
   salesChannel,
   pageLogoUrl = null,
@@ -89,11 +93,9 @@ export default function OrderSummary({
   onAction,
   orderNoun = 'คำสั่งซื้อ',
 }: OrderSummaryProps) {
-  const meta = ORDER_STATUS_META[status] ?? {
-    label: status,
-    cls: 'bg-default-100 text-default-800',
-    icon: 'clock',
-  }
+  // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
+  // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
+  const meta = resolveOrderStatusBadge(status, shippingStage)
   const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId)
   const channelLabel = getSalesChannelDisplay(salesChannel || 'OTHER').label
 
