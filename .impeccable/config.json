@@ -2,7 +2,8 @@
   "detector": {
     "ignoreRules": [],
     "ignoreFiles": [
-      "docs/superpowers/specs/*mockup.html"
+      "docs/superpowers/specs/*mockup.html",
+      "*/scratchpad/mockup/*.html"
     ],
     "ignoreValues": [
       {
@@ -33,6 +34,14 @@
         "value": "10px",
         "createdAt": "2026-08-05T13:54:09.863Z",
         "reason": "ป้ายแกน/annotation ของกราฟ ApexCharts ต้อง 10px ไม่งั้นเบียดกัน (user ยืนยัน 2026-08-05 — เคาะจาก mockup 2026-08-04/05)"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "*/scratchpad/mockup/*.html"
+        ],
+        "createdAt": "2026-08-06T04:20:56.586Z"
       }
     ]
   }
