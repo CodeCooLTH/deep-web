@@ -54,7 +54,9 @@ type DataTableProps<TData> = {
 
 const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow }: DataTableProps<TData>) => {
   'use no memo'
-  const columns = table.getAllColumns()
+  // visible ไม่ใช่ all — ตารางที่มีคอลัมน์ซ่อน (เช่น OrdersTable ที่เก็บ createdAtISO ไว้ให้
+  // ตัวกรองเกาะอย่างเดียว) จะได้ colSpan ของแถว empty เกินจำนวนคอลัมน์จริงไป 1
+  const columns = table.getVisibleLeafColumns()
   const rows = table.getRowModel().rows
 
   // ตารางเดิม — ใช้ร่วมกันทั้งสองโหมด

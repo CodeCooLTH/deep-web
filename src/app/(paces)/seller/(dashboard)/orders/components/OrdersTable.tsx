@@ -545,6 +545,20 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       },
     }),
 
+    // ─ วันที่/เวลา — คอลัมน์ซ่อน มีไว้ให้ตัวกรอง "ช่วงเวลา" เกาะเท่านั้น ─
+    //   วันที่ย้ายไปแสดงบนแถบหัวกลุ่ม (groupRow) ตอนทำตารางแบบจัดกลุ่ม 2026-08-06 แล้ว
+    //   คอลัมน์นี้ถูกลบไปด้วย — แต่ dropdown ยังยิง table.getColumn('createdAtISO')
+    //   ซึ่งคืน undefined ทำให้ `?.setFilterValue()` เป็น no-op เงียบ ๆ (ตัวกรองวันที่
+    //   จึงไม่ทำงานเลยตั้งแต่วันนั้น) · ตัวกรองของ TanStack ไม่สนใจ visibility
+    //   คอลัมน์ที่ซ่อนอยู่ยังกรองได้ปกติ จึงเอาคอลัมน์กลับมาแบบไม่แสดงผล
+    columnHelper.accessor('createdAtISO', {
+      header: 'วันที่/เวลา',
+      filterFn: dateRangeFilterFn,
+      enableColumnFilter: true,
+      enableSorting: false,
+      cell: () => null,
+    }),
+
     // ─ ดำเนินการ ─
     // w-36 ไม่ใช่ w-px: `w-px` = "หดพอดีเนื้อหา" ซึ่ง grid คำนวณ min-content คนละแบบกับ
     // inline-flex คอลัมน์เลยยุบจนปุ่มล้น (เจอจริงบน prod 2026-08-06)
@@ -562,6 +576,8 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
     data: orders,
     columns,
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection },
+    // createdAtISO = คอลัมน์กรองอย่างเดียว ไม่ต้องโผล่เป็นคอลัมน์จริง (วันที่อยู่บนแถบหัวกลุ่ม)
+    initialState: { columnVisibility: { createdAtISO: false } },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
@@ -578,6 +594,20 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       dateRange: dateRangeFilterFn,
     },
   })
+
+  /**
+   * ตัวกรองใน toolbar ผูกกับคอลัมน์ด้วย "ชื่อ" — พอคอลัมน์ถูกลบหรือเปลี่ยนชื่อ
+   * `table.getColumn(id)?.setFilterValue()` จะกลายเป็น no-op เงียบ ๆ ตัวกรองตายทั้งตัว
+   * โดยไม่มี error ให้เห็นเลย (เกิดจริงกับ 'createdAtISO' — ตัวกรองช่วงเวลาไม่ทำงาน
+   * ตั้งแต่ 2026-08-06 จนผู้ใช้มาเจอเอง) จึงให้มันดังตอน dev แทนที่จะเงียบ
+   */
+  const filterColumn = (id: string) => {
+    const column = table.getColumn(id)
+    if (!column && process.env.NODE_ENV !== 'production') {
+      console.error(`[OrdersTable] ตัวกรองอ้างคอลัมน์ "${id}" ที่ไม่มีในตาราง — ตัวกรองนี้จะไม่ทำงาน`)
+    }
+    return column
+  }
 
   const pageIndex  = table.getState().pagination.pageIndex
   const pageSize   = table.getState().pagination.pageSize
@@ -620,10 +650,10 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
             icon="truck"
             defaultLabel="สถานะ"
             resetValue="All"
-            value={(table.getColumn('status')?.getFilterValue() as string) ?? 'All'}
+            value={(filterColumn('status')?.getFilterValue() as string) ?? 'All'}
             options={STATUS_FILTER_OPTIONS}
             onChange={(v) => {
-              table.getColumn('status')?.setFilterValue(v === 'All' ? undefined : v)
+              filterColumn('status')?.setFilterValue(v === 'All' ? undefined : v)
               setPagination((p) => ({ ...p, pageIndex: 0 }))
             }}
           />
@@ -656,10 +686,10 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
               icon="truck-delivery"
               defaultLabel="ขนส่ง"
               resetValue="All"
-              value={(table.getColumn('shipTo')?.getFilterValue() as string) ?? 'All'}
+              value={(filterColumn('shipTo')?.getFilterValue() as string) ?? 'All'}
               options={courierOptions}
               onChange={(v) => {
-                table.getColumn('shipTo')?.setFilterValue(v === 'All' ? undefined : v)
+                filterColumn('shipTo')?.setFilterValue(v === 'All' ? undefined : v)
                 setPagination((p) => ({ ...p, pageIndex: 0 }))
               }}
             />
@@ -670,7 +700,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
             icon="calendar"
             defaultLabel="ช่วงเวลา"
             resetValue="All"
-            value={(table.getColumn('createdAtISO')?.getFilterValue() as string) ?? 'All'}
+            value={(filterColumn('createdAtISO')?.getFilterValue() as string) ?? 'All'}
             options={[
               { value: 'All', label: 'ทั้งหมด' },
               { value: 'Today', label: 'วันนี้' },
@@ -679,7 +709,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
               { value: 'This Year', label: 'ปีนี้' },
             ]}
             onChange={(v) => {
-              table.getColumn('createdAtISO')?.setFilterValue(v === 'All' ? undefined : v)
+              filterColumn('createdAtISO')?.setFilterValue(v === 'All' ? undefined : v)
               setPagination((p) => ({ ...p, pageIndex: 0 }))
             }}
           />
