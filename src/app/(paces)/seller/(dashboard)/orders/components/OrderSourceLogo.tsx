@@ -30,20 +30,48 @@ interface Props {
 }
 
 export default function OrderSourceLogo({ logoUrl, channel, className }: Props) {
-  const [failed, setFailed] = useState(false)
+  // แยก failed ราย src — รูปเพจโหลดพัง (URL ฝั่ง Meta หมดอายุได้) ต้องตกไปโลโก้แพลตฟอร์มต่อ
+  const [pageFailed, setPageFailed] = useState(false)
+  const [platformFailed, setPlatformFailed] = useState(false)
   const label = channel ? (SALES_CHANNEL_LABELS[channel] ?? channel) : 'ไม่ระบุช่องทาง'
-  const src = (!failed && logoUrl) || (channel ? PLATFORM_LOGO[channel] : undefined)
+  const pageSrc = !pageFailed && logoUrl ? logoUrl : null
+  const platformSrc = channel && !platformFailed ? PLATFORM_LOGO[channel] : undefined
 
-  if (src) {
+  if (pageSrc) {
+    return (
+      <span className={cn('relative inline-block shrink-0', className)} title={label}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={pageSrc}
+          alt={label}
+          /* ring กันรูปเพจพื้นขาวกลืนกับพื้นการ์ด (convention user-supplied-image-assets) */
+          className="ring-default-200 size-8 rounded-full object-cover ring-1"
+          onError={() => setPageFailed(true)}
+        />
+        {/* badge แพลตฟอร์มมุมขวาล่างของรูปเพจ (user 2026-08-06) — pattern เดียวกับ
+            avatar+channel badge ในกล่องแชท: ring-card คั่นรูปกับ badge ให้อ่านเป็นคนละชั้น */}
+        {platformSrc && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={platformSrc}
+            alt=""
+            className="ring-card bg-card absolute -bottom-0.5 -end-0.5 size-3.5 rounded-full ring-2"
+            onError={() => setPlatformFailed(true)}
+          />
+        )}
+      </span>
+    )
+  }
+
+  if (platformSrc) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={src}
+        src={platformSrc}
         alt={label}
         title={label}
-        /* ring กันรูปเพจพื้นขาวกลืนกับพื้นการ์ด (convention user-supplied-image-assets) */
-        className={cn('ring-default-200 size-8 shrink-0 rounded-full object-cover ring-1', className)}
-        onError={() => setFailed(true)}
+        className={cn('size-8 shrink-0 rounded-full object-contain', className)}
+        onError={() => setPlatformFailed(true)}
       />
     )
   }

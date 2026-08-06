@@ -215,16 +215,12 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
             <BuyerAvatar src={buyerAvatar} name={displayName} />
             <div className="min-w-0">
               {/* verified check หน้าชื่อ + channel icon ท้ายชื่อ (inline flex กัน icon เด้งลงบรรทัด) */}
+              {/* icon ช่องทางท้ายชื่อถูกถอด (user 2026-08-06) — ช่องทางมีคอลัมน์ "ที่มา" ของตัวเองแล้ว */}
               <p className="flex items-center gap-1 font-medium text-default-900">
                 {buyerUsername && (
                   <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
                 )}
                 <span className="truncate">{displayName}</span>
-                {chIcon && (
-                  <span className="shrink-0" title={salesChannel ? SALES_CHANNEL_LABELS[salesChannel] : undefined}>
-                    <Icon icon={chIcon} className="text-sm text-default-400" />
-                  </span>
-                )}
               </p>
               <p className="text-xs text-default-400">
                 {/* แสดงเบอร์จริง (seller เห็นลูกค้าตัวเอง) หรือ masked contact */}
