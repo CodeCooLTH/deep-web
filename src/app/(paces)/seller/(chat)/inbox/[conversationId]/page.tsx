@@ -52,7 +52,9 @@ import { getWindowState, syncInboundWindowFromMeta, isHumanAgentEnabled } from '
 import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import { maskPhone } from '@/lib/phone-mask'
+import { findConversationShopForUser } from '@/services/chat.service'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
+import ChatShopAutoSwitch from './components/ChatShopAutoSwitch'
 import ChatThread from './components/ChatThread'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
 
@@ -60,10 +62,13 @@ export const metadata: Metadata = { title: 'ข้อความ' }
 
 type PageProps = {
   params: Promise<{ conversationId: string }>
+  /** `switched=1` = เพิ่งสลับร้านมารอบหนึ่งแล้ว — ตัวกันวนซ้ำ (ดู ChatShopAutoSwitch ด้านล่าง) */
+  searchParams: Promise<{ switched?: string }>
 }
 
-export default async function SellerInboxThreadPage({ params }: PageProps) {
+export default async function SellerInboxThreadPage({ params, searchParams }: PageProps) {
   const { conversationId } = await params
+  const { switched } = await searchParams
 
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
@@ -171,6 +176,46 @@ export default async function SellerInboxThreadPage({ params }: PageProps) {
   })
 
   if (!conversation) {
+    /**
+     * ไม่เจอในร้านที่ active — ก่อนจะโยนหน้า error ให้เช็คก่อนว่าเป็นของ "อีกร้าน" ที่ผู้ใช้
+     * มีสิทธิ์อยู่หรือเปล่า (bug จริง หัวหน้ารายงาน 2026-08-06)
+     *
+     * เคสที่เกิด: ผู้ขายถือ 2 ร้าน ผูก Facebook Page คนละเพจไว้คนละร้าน → push ของทั้งสองร้าน
+     * ลงเครื่องเดียวกัน (shopAudience ส่งให้เจ้าของ+สมาชิก ซึ่งเป็นคนเดียวกัน) แต่ payload มี
+     * แค่ /inbox/{conversationId} ไม่มี shopId → กด noti ของร้าน B ตอน active ร้าน A แล้ว
+     * WHERE ด้านบน (scope ที่ activeShopId) ไม่เจอ → ขึ้น "ไม่พบบทสนทนานี้" ทั้งที่มีสิทธิ์เต็ม
+     *
+     * แก้ที่นี่แทนการใส่ shopId ลง push payload โดยตั้งใจ: payload เป็นของแอป ซึ่งต้อง build
+     * และส่ง App Store ใหม่ทุกครั้งที่แก้ — ทำที่เว็บแล้วแอปที่ติดตั้งไปแล้วได้ผลทันที
+     *
+     * ยังปลอดภัยเท่าเดิม: findConversationShopForUser scope สิทธิ์ใน WHERE
+     * (shopId ∈ ร้านที่ user เข้าถึงได้) และคืน null เหมือนกันทั้ง "ไม่มี" กับ "ไม่มีสิทธิ์"
+     */
+    /**
+     * 🛑 กันวนไม่รู้จบ: สลับได้รอบเดียวเท่านั้น
+     *
+     * ถ้า session.update() ไม่โปรพาเกตทัน (เน็ตหลุดกลางคัน / JWT ไม่ refresh) รอบถัดไปจะยัง
+     * resolve ได้ร้านเดิม แล้ว render ตัวสลับซ้ำ → เด้งวนไม่จบ ซึ่งแย่กว่าบั๊กเดิมที่อย่างน้อย
+     * ยังหยุดที่หน้า error ให้กดกลับได้
+     *
+     * ChatShopAutoSwitch จึงพากลับมาที่ `?switched=1` เสมอ — เห็นค่านี้แล้วยังไม่เจอเธรด
+     * แปลว่าสลับไม่สำเร็จจริง ให้ตกไปหน้า error ตามปกติ ผู้ใช้กด "ลองใหม่" กลับ /inbox ได้
+     */
+    const ownerShop = switched
+      ? null
+      : await findConversationShopForUser(conversationId, user.id as string)
+    if (ownerShop && ownerShop.shopId !== activeCtx.shopId) {
+      return (
+        <ChatShopAutoSwitch
+          conversationId={conversationId}
+          shopId={ownerShop.shopId}
+          shopName={ownerShop.shopName}
+          logo={ownerShop.logo}
+          kind={ownerShop.kind}
+        />
+      )
+    }
+
     // feat 00018 งาน 1: ตัด PageBreadcrumb ออก (ดู comment หัวไฟล์ inbox/page.tsx) — desktop chat
     // เต็มจอไม่มี breadcrumb; retryHref="/inbox" ในปุ่ม "ลองใหม่" ของ SellerErrorState ทำหน้าที่
     // ทางกลับแทนอยู่แล้ว

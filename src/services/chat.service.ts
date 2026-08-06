@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShop, listAccessibleShopIds } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
 import { detectScamLink } from '@/lib/scam-link-detector'
@@ -941,4 +941,49 @@ async function assertParticipant(conversationId: string, actorUserId: string) {
   // (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
   if (await canAccessShop(conversation.shopId, actorUserId)) return conversation
   throw new Error('FORBIDDEN')
+}
+
+/**
+ * findConversationShopForUser — เธรดนี้เป็นของร้านไหน "ในบรรดาร้านที่ user เข้าถึงได้"
+ *
+ * ทำไมต้องมี (bug จริง หัวหน้ารายงาน 2026-08-06): ผู้ขายที่ถือ 2 ร้าน และผูก Facebook Page
+ * คนละเพจไว้คนละร้าน จะได้ push ของ "ทั้งสองร้าน" ลงเครื่องเดียวกัน (shopAudience ใน
+ * seller-push.service ส่งให้เจ้าของ+สมาชิกของร้านนั้น ซึ่งเป็นคนเดียวกัน) แต่ payload มีแค่
+ * `url: /inbox/{conversationId}` ไม่มี shopId — พอกด noti ของร้าน B ขณะที่ active อยู่ร้าน A
+ * ownership guard ของหน้าเธรด (WHERE {id, shopId: activeShopId}) จะไม่เจอ แล้วขึ้น
+ * "ไม่พบบทสนทนานี้" ทั้งที่เธรดมีอยู่จริงและผู้ใช้มีสิทธิ์เต็ม
+ *
+ * ตัวนี้ตอบว่า "ถ้าไม่ใช่ร้านที่ active อยู่ แล้วมันเป็นของร้านไหนที่คุณเข้าถึงได้" เพื่อให้หน้า
+ * สลับร้านให้อัตโนมัติแทนที่จะโยนหน้า error ใส่ผู้ใช้
+ *
+ * 🛑 scope สิทธิ์อยู่ใน WHERE ตั้งแต่ query แรก (`shopId: { in: accessibleShopIds }`) ไม่ใช่
+ * ดึงมาแล้วค่อยเช็ค — เธรดของร้านที่ไม่มีสิทธิ์จะไม่ถูกอ่านขึ้นมาเลย (feedback_rsc_dal_authz)
+ * คืน null ทั้งกรณี "ไม่มีเธรดนี้" และ "มีแต่ไม่มีสิทธิ์" เหมือนกันทุกประการ — กัน enumeration
+ *
+ * ทำไมไม่แก้ด้วยการใส่ shopId ลง push payload แทน: payload อยู่ในความรับผิดชอบของ "แอป"
+ * ซึ่งต้อง build + ส่ง App Store ใหม่ทุกครั้งที่แก้ ส่วนวิธีนี้แก้ที่เว็บล้วน — แอปที่ติดตั้ง
+ * ไปแล้ว (รวมตัวที่อยู่ระหว่างรีวิวของ Apple) ได้ผลทันทีที่ deploy โดยไม่ต้องอัปเดต
+ */
+export async function findConversationShopForUser(
+  conversationId: string,
+  userId: string,
+): Promise<{ shopId: string; shopName: string; logo: string | null; kind: string } | null> {
+  const accessibleShopIds = await listAccessibleShopIds(userId)
+  if (accessibleShopIds.length === 0) return null
+
+  const conversation = await prisma.conversation.findFirst({
+    where: { id: conversationId, shopId: { in: accessibleShopIds } },
+    select: {
+      shopId: true,
+      shop: { select: { shopName: true, logo: true, kind: true } },
+    },
+  })
+  if (!conversation) return null
+
+  return {
+    shopId: conversation.shopId,
+    shopName: conversation.shop.shopName,
+    logo: conversation.shop.logo,
+    kind: conversation.shop.kind,
+  }
 }

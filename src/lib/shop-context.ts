@@ -29,6 +29,32 @@ export async function canAccessShop(shopId: string, userId: string): Promise<boo
   return isShopMember(shopId, userId); // BUSINESS admin/staff
 }
 
+/**
+ * listAccessibleShopIds — ทุกร้านที่ user เข้าถึงได้ (เจ้าของ + ที่ถูกเชิญเป็นสมาชิก)
+ *
+ * ทำไมต้องมี: canAccessShop() ตอบได้แค่ "ร้านนี้เข้าได้ไหม" ซึ่งใช้เป็น post-check เท่านั้น
+ * บางเคสต้องค้นของ "ข้ามร้าน" โดยยังคง scope สิทธิ์ไว้ใน WHERE ตั้งแต่ query แรก
+ * (feedback_rsc_dal_authz — ห้ามดึงมาก่อนแล้วค่อยเช็ค) เช่นการหาว่าเธรดแชทที่กดมาจาก
+ * notification เป็นของร้านไหน ทั้งที่ยังไม่รู้ว่าร้านไหน
+ *
+ * กรอง deletedAt/purgedAt ออก — ร้านที่ถูกลบไม่ควรถูกค้นเจอผ่านทางไหนทั้งสิ้น
+ * (มิเรอร์ตัวกรองเดียวกับ shop.service.ts บรรทัด 77/158)
+ */
+export async function listAccessibleShopIds(userId: string): Promise<string[]> {
+  const [owned, memberships] = await Promise.all([
+    prisma.shop.findMany({
+      where: { userId, deletedAt: null, purgedAt: null },
+      select: { id: true },
+    }),
+    prisma.shopMember.findMany({
+      where: { userId, shop: { deletedAt: null, purgedAt: null } },
+      select: { shopId: true },
+    }),
+  ]);
+  // Set — owner ของร้าน BUSINESS มีแถว ShopMember ของตัวเองด้วย จะซ้ำถ้าไม่ dedupe
+  return [...new Set([...owned.map((s) => s.id), ...memberships.map((m) => m.shopId)])];
+}
+
 export interface ActiveShopContext {
   shopId: string;
   kind: "PERSONAL" | "BUSINESS";
