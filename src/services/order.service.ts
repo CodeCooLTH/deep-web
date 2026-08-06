@@ -11,6 +11,7 @@ import { deriveShippingStage } from "@/lib/order-stage";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
+import { orderDateRejectReason } from "@/lib/order-date-window";
 import {
   attachAppointmentInTx,
   computeAppointmentDeposit,
@@ -59,6 +60,18 @@ export class ShippingAddressRequiredError extends Error {
 // custom item เพราะ productId ผิด shop คือ malicious/malformed input ชัดเจน — UI จริงไม่เคยส่งแบบนี้)
 export class ProductNotInShopError extends Error {
   constructor() { super("PRODUCT_NOT_IN_SHOP"); this.name = "ProductNotInShopError"; }
+}
+
+/**
+ * feature 00033 — วันที่คำสั่งซื้อที่ส่งมาอยู่นอกช่วง 90 วันย้อนหลัง / 7 วันล่วงหน้า
+ * ตรวจที่ service ด้วย ไม่ใช่เชื่อ Valibot อย่างเดียว: caller ฝั่ง server (เช่น iShip import)
+ * เรียก createOrder ตรง ๆ ไม่ผ่าน schema ของ route
+ */
+export class OrderDateOutOfWindowError extends Error {
+  constructor() {
+    super("ORDER_DATE_OUT_OF_WINDOW")
+    this.name = "OrderDateOutOfWindowError"
+  }
 }
 
 // charset เดียวกับ sms-code.service (ตัด 0/O/1/I) — 8 ตัว = 32^8 ≈ 1.1e12 (40-bit)
@@ -112,12 +125,40 @@ export async function createOrder(shopId: string, data: {
    * หน้า "ประวัติคำสั่งซื้อ" อ่านค่านี้ NULL แล้วแสดงคำว่า "ระบบ"
    */
   createdByUserId?: string | null;
+  /**
+   * feature 00033 — วันที่/เวลาที่ลูกค้าสั่ง (ไม่ใช่เวลาที่คีย์เข้าระบบ)
+   *
+   * ไม่ส่งมา = เส้นทางเดิมทุกประการ (คอลัมน์ได้ @default(now()) ของ Postgres)
+   * ส่งมา = ทับ createdAt ซึ่งพา "เลขออเดอร์" (formatOrderNo คิดจากปี/เดือนของค่านี้)
+   * และ "ลำดับในรายการ" (keyset createdAt DESC) ไปด้วยทั้งชุด — ตั้งใจตามมติ D-1
+   *
+   * รับ `Date | string` (ไม่ใช่แค่ Date): CreateOrderSchema (Task 5) ส่ง ISO string ออกจาก
+   * Valibot parse แล้ว route ยัง spread `parsed.output` ตรง ๆ เข้าฟังก์ชันนี้ (route/updateOrder
+   * เดินสายจริงเป็นงาน Task 8 — ที่นี่กันพังไว้ก่อนด้วยการ normalize เป็น Date ตัวเดียวข้างล่าง)
+   */
+  createdAt?: Date | string;
 }) {
   // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
   // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
   const appointmentResource = data.appointment
     ? await resolveResourceForOrder(shopId, data.appointment.resourceId)
     : null;
+
+  // feature 00033 — เวลาจริงที่ "มีคนกดสร้าง" จับไว้ครั้งเดียวตั้งแต่ต้น
+  // ใช้กับ OrderEvent.occurredAt เสมอ ห้ามใช้ order.createdAt ซึ่งย้อนหลังได้แล้ว
+  const keyedInAt = new Date();
+
+  // normalize เป็น Date ตัวเดียว — data.createdAt รับได้ทั้ง Date (caller ภายในระบบ) และ
+  // ISO string (ผ่าน Valibot parse จาก route) ใช้ตัวแปรนี้แทน data.createdAt ตลอดฟังก์ชัน
+  const orderCreatedAt =
+    data.createdAt instanceof Date ? data.createdAt : data.createdAt ? new Date(data.createdAt) : undefined;
+
+  if (orderCreatedAt) {
+    const ms = orderCreatedAt.getTime();
+    if (orderDateRejectReason(ms, keyedInAt.getTime()) !== null) {
+      throw new OrderDateOutOfWindowError();
+    }
+  }
 
   // ปัดเศษ 2 ตำแหน่งเพื่อไม่ให้เกิด float tail ก่อนส่งเข้า Decimal(12,2) column
   // (เช่น 0.1+0.2 = 0.30000000000000004 → ปัด → 0.30)
@@ -224,6 +265,8 @@ export async function createOrder(shopId: string, data: {
     shippingAddress: data.shippingAddress ?? undefined,
     // ไม่ส่งมา = ระบบออกออเดอร์เอง เก็บ NULL (ห้าม fallback เป็นเจ้าของร้าน — จะกลายเป็นบันทึกเท็จ)
     createdByUserId: data.createdByUserId ?? undefined,
+    // ไม่ส่งมา = undefined → Prisma ไม่ใส่คอลัมน์นี้ใน INSERT → @default(now()) ทำงานตามเดิม
+    createdAt: orderCreatedAt ?? undefined,
   };
 
   // [!] TD-001 (SDS §3.5): retry loop ต้องครอบ $transaction ทั้งก้อน ไม่ใช่อยู่ข้างในเดียว
@@ -323,11 +366,21 @@ export async function createOrder(shopId: string, data: {
 
         // feature 00031 — ประวัติคำสั่งซื้อ: เขียนใน tx เดียวกับการสร้างเสมอ
         // actor = คนที่กดสร้าง (null = ระบบออกเอง — ห้าม fallback เป็นเจ้าของร้าน)
+        //
+        // feature 00033 — occurredAt = "เวลาที่มีคนกดสร้าง" ไม่ใช่ "วันที่ลูกค้าสั่ง"
+        // เดิมส่ง order.createdAt ซึ่งบังเอิญถูกเพราะสองค่านี้เคยเท่ากันเสมอ. ประวัติคือหลักฐาน
+        // ว่าใครทำอะไรเมื่อไหร่ — ย้อนตามค่าที่ผู้ใช้กรอกได้เมื่อไหร่ ก็เลิกเป็นหลักฐานเมื่อนั้น
+        // ลงวันที่เอง = ค่าที่ส่งมาต่างจากเวลาที่กด (ไม่ส่งมาเลย = ไม่ใช่การลงย้อนหลัง)
+        const isBackdated =
+          !!orderCreatedAt && orderCreatedAt.getTime() !== keyedInAt.getTime();
+
         await recordOrderEvent(tx, {
           orderId: order.id,
           type: "ORDER_CREATED",
           actorUserId: data.createdByUserId ?? null,
-          occurredAt: order.createdAt,
+          occurredAt: keyedInAt,
+          // ใส่ orderedAt เฉพาะออเดอร์ที่ลงวันที่เอง — ออเดอร์ปกติ meta ว่างเหมือนเดิมทุกประการ
+          ...(isBackdated ? { meta: { orderedAt: order.createdAt.toISOString() } } : {}),
         });
 
         // feature 00018 (user request 2026-07-24) — ผูกเธรดแชทเข้ากับ Customer ทันทีเมื่อสร้างจากแชท
