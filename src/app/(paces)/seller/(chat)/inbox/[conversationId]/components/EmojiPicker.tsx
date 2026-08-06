@@ -12,8 +12,13 @@
  *
  * Paces primitive เท่านั้น (Hard Rule 7): .card/bg-card/token spacing/size-* — ไม่มี arbitrary value
  * Base (popover ทรง card ลอย): theme/paces/Admin/TS ใช้ .card + shadow-sm สำหรับ dropdown panel
+ *
+ * 2 ทรงตามความกว้างจอ (user สั่ง 2026-08-06 "ตอนกด emoji หรือ sticker ให้มันเป็น full จอใน mobile"):
+ *   - <768px  = bottom sheet 70dvh portal ที่ body + scrim  (Base: CustomerPanelSheet.tsx)
+ *   - ≥768px  = popover เกาะปุ่มเหมือนเดิม                    (Base: .card + shadow ของ Paces)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
 
 // codepoint (ไม่ใช่ตัว emoji) — จัดกลุ่มให้เหมาะกับแชทร้านค้า (ทักทาย/ขอบคุณ/นิ้วโป้ง/หัวใจ/เงิน/ช้อป)
@@ -192,6 +197,34 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
     return () => clearTimeout(t)
   }, [q, tab, loadStickers])
 
+  /**
+   * มือถือ (<768px) = bottom sheet ครึ่งจอ ไม่ใช่ popover เกาะปุ่ม — user สั่ง 2026-08-06:
+   * "ตอนกด emoji หรือ sticker ให้มันเป็น full จอใน mobile (หรือครึ่งความสูง) ตอนนี้ใช้ยากไป"
+   * (popover 288px เหนือปุ่ม = อิโมจิช่องละ ~34px และสติกเกอร์เห็นทีละแถวครึ่ง)
+   *
+   * ต้องเป็น state ไม่ใช่แค่ responsive class เพราะโหมด sheet ต้อง portal ออกไปที่ body:
+   * เธรดอยู่ใน Chat Rail ที่มี overflow/transform ซึ่ง clip ตัว fixed
+   * (บทเรียนเดียวกับ MessageActionBubble.tsx / ChatContextMenu.tsx)
+   */
+  const [isSheet, setIsSheet] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const sync = () => setIsSheet(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  /** เปิด sheet = ปิดคีย์บอร์ดก่อน — `position:fixed` บน iOS ยึดกับ layout viewport ซึ่ง **ไม่หด**
+   *  ตามคีย์บอร์ด แผงจึงไปนอนใต้คีย์บอร์ด (บทเรียน 2026-08-04, docs/conventions ios safe-area/overlay) */
+  useEffect(() => {
+    if (!isSheet) return
+    const el = document.activeElement
+    if (el instanceof HTMLElement) el.blur()
+  }, [isSheet])
+
   // ปิดเมื่อคลิกนอก panel หรือกด Escape (pattern เดียวกับ FilterDropdown/dropdown อื่นใน (paces))
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -208,11 +241,12 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
     }
   }, [onClose])
 
-  return (
+  const panel = (
     <div
       ref={ref}
       role="dialog"
-      aria-label="เลือกอิโมจิ"
+      aria-label={tab === 'STICKER' ? 'เลือกสติกเกอร์' : 'เลือกอิโมจิ'}
+      aria-modal={isSheet || undefined}
       // w-96 (384px) แทน w-72 (288px): สติกเกอร์เป็นรูปที่ต้อง "ดูออกว่าเป็นตัวอะไร" ก่อนกด
       // ไม่ใช่ไอคอนที่จำตำแหน่งได้ — 4 คอลัมน์ในแผง 384px = ช่องละ ~88px (เดิม ~66px)
       // max-w-[calc] ไม่ใช้ (HR7) — บนมือถือแผงอยู่ในคอลัมน์ที่กว้างกว่านี้อยู่แล้ว
@@ -220,17 +254,44 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
        * ความกว้างต้องเป็นค่าคงที่ **ห้ามใช้ inset-x-0 / w-auto** (user report prod 2026-08-04
        * "ใน Mobile เพี้ยนเลย" — แผงบีบเหลือเท่าปุ่ม ข้อความตกเป็นแนวตั้งทีละตัวอักษร):
        * กล่อง `relative` ที่ครอบแผงนี้คือกล่องของ **ปุ่มอิโมจิ** (กว้าง ~40px) ไม่ใช่แถบ composer
-       * → inset-x-0 = 40px. บนมือถือ 288px คือค่าที่พอดีขอบจอเมื่อวัดจากตำแหน่งปุ่มจริง
+       * → inset-x-0 = 40px. 288px คือค่าที่พอดีขอบจอเมื่อวัดจากตำแหน่งปุ่มจริงบนจอแคบ
        * ≥640px ขยายเป็น 384px ได้เพราะมีที่เหลือ
+       * (ตั้งแต่ 2026-08-06 จอ <768px ไม่เข้าสาขานี้แล้ว — เป็น sheet ด้านบน ค่านี้จึงมีผลช่วง 640–767px
+       *  และเมื่อ matchMedia ใช้ไม่ได้)
        */
-      className={`card bg-card border-default-200 absolute bottom-full z-20 mb-2 w-72 border p-0 shadow-lg sm:w-96 ${
-        align === 'right' ? 'right-0' : 'left-0'
-      }`}
+      className={
+        isSheet
+          ? /* 70dvh = "ครึ่งค่อนจอ" ตามที่ user เลือก — ยังเห็นข้อความบนสุดของเธรดว่ากำลังตอบใครอยู่ */
+            'relative flex h-[70dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-card pb-[env(safe-area-inset-bottom)] shadow-lg' // HR7 carve-out: viewport-height + safe-area ไม่มีใน Paces scale (precedent CustomerPanelSheet.tsx)
+          : `card bg-card border-default-200 absolute bottom-full z-20 mb-2 w-72 border p-0 shadow-lg sm:w-96 ${
+              align === 'right' ? 'right-0' : 'left-0'
+            }`
+      }
     >
+      {/* หัว sheet (มือถือเท่านั้น) — grip + ชื่อ + ปุ่มปิด ชุดเดียวกับ CustomerPanelSheet
+          เพราะบน sheet ไม่มี "คลิกนอกแผง" ที่มองเห็นได้เหมือน popover */}
+      {isSheet && (
+        <div className="shrink-0 pt-2">
+          <div className="bg-default-300 mx-auto mb-2 h-1 w-9 rounded-full" />
+          <div className="mb-1 flex items-center justify-between px-4">
+            <h3 className="text-default-900 mb-0 text-base font-bold">
+              {tab === 'STICKER' ? 'สติกเกอร์' : 'อิโมจิ'}
+            </h3>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="ปิด"
+              className="btn btn-icon text-default-700 hover:bg-default-100"
+            >
+              <Icon icon="x" className="text-lg" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {tab === 'STICKER' && onSelectSticker ? (
-        <div className="flex flex-col">
-          <div className="border-default-200 border-b p-2">
+        <div className={`flex flex-col ${isSheet ? 'min-h-0 flex-1' : ''}`}>
+          <div className="border-default-200 shrink-0 border-b p-2">
             <div className="input-icon-group">
               <Icon icon="search" className="input-icon" />
               <input
@@ -243,7 +304,7 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
               />
             </div>
           </div>
-          <div className="max-h-80 overflow-y-auto p-2">
+          <div className={`overflow-y-auto overscroll-contain p-2 ${isSheet ? 'min-h-0 flex-1' : 'max-h-80'}`}>
             {error ? (
               <p className="text-danger p-2 text-xs" role="alert">
                 {error}
@@ -254,14 +315,14 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
               <>
                 {/* แท็บ "ใช้ล่าสุด" — อ่านจากเครื่อง ไม่ยิง Graph */}
                 {packId === RECENT_TAB && !q.trim() && (
-                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                  <div className={`grid gap-1.5 ${isSheet ? 'grid-cols-4' : 'grid-cols-3 sm:grid-cols-4'}`}>
                     {recents.map((st) => (
                       <StickerButton key={`r-${st.id}`} sticker={st} onPick={onSelectSticker} />
                     ))}
                   </div>
                 )}
                 {packId !== RECENT_TAB && stickers && stickers.length > 0 && (
-                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                  <div className={`grid gap-1.5 ${isSheet ? 'grid-cols-4' : 'grid-cols-3 sm:grid-cols-4'}`}>
                     {stickers.map((st) => (
                       <StickerButton key={st.id} sticker={st} onPick={onSelectSticker} />
                     ))}
@@ -328,7 +389,7 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
           )}
         </div>
       ) : (
-      <div className="max-h-64 overflow-y-auto p-3">
+      <div className={`overflow-y-auto overscroll-contain p-3 ${isSheet ? 'min-h-0 flex-1' : 'max-h-64'}`}>
         {EMOJI_CATEGORIES.map((cat) => (
           <div key={cat.key} className="mb-3 last:mb-0">
             <p className="text-default-700 mb-1.5 text-2xs font-semibold">{cat.label}</p>
@@ -340,7 +401,11 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
                     key={cp}
                     type="button"
                     onClick={() => onSelect(glyph)}
-                    className="hover:bg-default-100 flex size-8 items-center justify-center rounded text-xl leading-none"
+                    // sheet: ปุ่มกินเต็มช่องกริด (จอ 390px → ~44px = tap target ตาม PRODUCT.md)
+                    // popover: ขนาดคงที่ size-8 เหมือนเดิม เพราะแผงกว้างแค่ 288/384px
+                    className={`hover:bg-default-100 flex items-center justify-center rounded leading-none ${
+                      isSheet ? 'aspect-square w-full text-2xl' : 'size-8 text-xl'
+                    }`}
                     aria-label={`อิโมจิ ${glyph}`}
                   >
                     {glyph}
@@ -353,6 +418,18 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
       </div>
       )}
     </div>
+  )
+
+  if (!isSheet) return panel
+
+  /* โหมด sheet — portal ไป body (Chat Rail clip ตัว fixed) + scrim คลิกปิด
+     ชุดเดียวกับ CustomerPanelSheet.tsx ซึ่ง Base คือ theme/paces .../ui/offcanvas (offcanvasBottom) */
+  return createPortal(
+    <div className="fixed inset-0 z-80 flex items-end justify-center">
+      <button type="button" aria-label="ปิด" onClick={onClose} className="bg-default-900/40 absolute inset-0" />
+      {panel}
+    </div>,
+    document.body,
   )
 }
 
