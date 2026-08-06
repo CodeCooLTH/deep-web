@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — การ์ดออเดอร์ compact (แท็บคำสั่งซื้อ right panel)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #236dc9; --primary-ink: #1e3a8a;
+    --success: #02bc9c; --success-ink: #065f46;
+    --danger: #f7577e; --danger-ink: #7f1d1d;
+    --info: #5bc3e1; --info-ink: #1e40af;
+    --warning: #f9bf59; --warning-ink: #92400e;
+    --d100: #f6f7fb; --d200: #eef2f7; --d300: #d8dfe7; --d700: #6c757d; --d900: #313a46;
+    --card: #fff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Anuphan', sans-serif; background: #e9edf3; color: var(--d900); padding: 24px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: var(--d700); margin-bottom: 20px; }
+  h2 { font-size: 14px; margin: 0 0 10px; }
+  .row { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .panel { width: 384px; background: var(--card); border-radius: 12px; box-shadow: 0 8px 28px rgba(49,58,70,.14); padding: 14px; }
+  .note { font-size: 12px; color: var(--d700); margin-top: 8px; max-width: 384px; line-height: 1.6; }
+  .h-tag { display:inline-block; background: var(--d200); border-radius: 6px; padding: 1px 8px; font-size: 11px; color: var(--d700); margin-left: 6px; font-weight: 400; }
+
+  .order-card { border: 1px solid var(--d200); border-radius: 10px; overflow: hidden; background: var(--card); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
+  .chip.info { background: rgba(91,195,225,.15); color: var(--info-ink); }
+  .chip.primary { background: rgba(35,109,201,.15); color: var(--primary-ink); }
+  .chip.danger { background: rgba(247,87,126,.15); color: var(--danger-ink); }
+  .icon-btn { width: 26px; height: 26px; border-radius: 6px; border: none; background: transparent; display: flex; align-items: center; justify-content: center; color: var(--d700); flex-shrink: 0; }
+
+  /* ── แบบเดิม (อ้างอิง) ── */
+  .old .head { background: var(--primary); color: #fff; display: flex; gap: 10px; align-items: center; padding: 10px 14px; }
+  .old .head .t1 { font-size: 13px; font-weight: 600; }
+  .old .head .t2 { font-size: 11px; opacity: .9; }
+  .old .body { padding: 10px 14px; }
+  .old .item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .old .thumb { width: 34px; height: 34px; border-radius: 6px; background: #caa50a; flex-shrink: 0; }
+  .old .kv { display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; }
+  .old .dashed { border-top: 1px dashed var(--d300); margin: 10px 0; }
+  .old .steps { display: grid; grid-template-columns: repeat(4,1fr); margin-top: 10px; list-style: none; }
+  .old .steps li { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .old .dot { width: 32px; height: 32px; border-radius: 50%; background: var(--d100); color: #aab1b9; display: flex; align-items: center; justify-content: center; }
+  .old .dot.on { background: var(--primary); color: #fff; }
+  .old .lb { font-size: 11px; color: var(--d700); }
+  .old .lb.cur { font-weight: 600; color: var(--d900); }
+
+  /* ── แบบ compact ── */
+  .cp .head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--primary); color: #fff; }
+  .cp .head .t1 { font-size: 12.5px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cp .head .no { font-size: 10.5px; opacity: .9; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .cp .body { padding: 8px 12px; }
+  .cp .line1 { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .cp .thumb { width: 26px; height: 26px; border-radius: 5px; background: #caa50a; flex-shrink: 0; }
+  .cp .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--d700); }
+  .cp .qty { font-size: 11px; color: var(--d700); flex-shrink: 0; }
+  .cp .total { font-weight: 700; color: var(--primary); flex-shrink: 0; }
+  .cp .ship { display: flex; align-items: center; gap: 8px; border-top: 1px dashed var(--d300); margin-top: 8px; padding-top: 8px; }
+  .cp .logo { width: 26px; height: 26px; border-radius: 6px; background: #ffe200; flex-shrink: 0; display:flex; align-items:center; justify-content:center; font-size:7px; font-weight:700; }
+  .cp .trk-wrap { flex: 1; min-width: 0; }
+  .cp .trk { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* จุดจิ๋วไร้ป้าย — progress ยังอ่านได้ ป้ายบอกขั้นย้ายไปอยู่ในชิปตัวเดียว */
+  .mini { display: flex; align-items: center; margin-top: 3px; width: 96px; }
+  .mini i { width: 8px; height: 8px; border-radius: 50%; background: var(--d200); flex-shrink: 0; }
+  .mini i.on { background: var(--primary); }
+  .mini s { height: 2px; flex: 1; background: var(--d200); text-decoration: none; }
+  .mini s.on { background: var(--primary); }
+  .mini.done i.on, .mini.done s.on { background: var(--success); }
+  .cp .footer { display: flex; gap: 6px; border-top: 1px solid var(--d200); padding: 6px 8px; }
+  .cp .fbtn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; background: rgba(35,109,201,.1); color: var(--primary); border-radius: 7px; padding: 6px 0; font-size: 12px; font-weight: 600; border: none; }
+  .cp .fmore { width: 30px; border-radius: 7px; background: var(--d100); border: none; display: flex; align-items: center; justify-content: center; color: var(--d700); }
+
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  svg { display: block; }
+
+  /* ── Variant A: stepper กางเต็มความกว้าง ชิดขอบเท่าโลโก้/ปุ่ม copy ── */
+  .full-steps { margin-top: 10px; }
+  .full-steps .track { display: flex; align-items: center; }
+  .full-steps .dot { width: 28px; height: 28px; border-radius: 50%; background: var(--d100); color: #aab1b9; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .full-steps .dot.on { background: var(--primary); color: #fff; }
+  .full-steps .ln { height: 2px; flex: 1; background: var(--d200); }
+  .full-steps .ln.on { background: var(--primary); }
+  .full-steps .labels { display: flex; justify-content: space-between; margin-top: 4px; }
+  .full-steps .lb { font-size: 10.5px; color: var(--d700); line-height: 1.25; }
+  .full-steps .lb:first-child { text-align: left; }
+  .full-steps .lb:last-child { text-align: right; }
+  .full-steps .lb.cur { font-weight: 600; color: var(--d900); }
+</style>
+</head>
+<body>
+
+<h1>การ์ดออเดอร์ compact — แท็บคำสั่งซื้อ (right panel)</h1>
+<p class="sub">เดิม ~340px/ใบ → compact ~150px/ใบ (เห็น 2-3 ใบต่อจอแทน 1 ใบ) · ป้ายขั้นตอน 4 อันถูกแทนด้วย <b>ชิปสถานะตัวเดียว + จุดจิ๋ว</b> — ความหมายเท่าเดิม เพราะชิปคือคำตอบ "ถึงไหนแล้ว" ส่วนจุดบอก "อีกไกลแค่ไหน"</p>
+
+<div class="row">
+
+  <!-- เดิม -->
+  <div>
+    <h2>แบบเดิม<span class="h-tag">~340px</span></h2>
+    <div class="panel old">
+      <div class="order-card">
+        <div class="head">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2"/><path d="M9 7h6M9 11h6"/></svg>
+          <div>
+            <div class="t1">โช๊คหลัง 110 สีเทา</div>
+            <div class="t2">คำสั่งซื้อ · DP25690823A70A6F</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="item"><span class="thumb"></span><span style="flex:1;color:var(--d700)">โช๊คหลัง 110 สีเทา</span><span style="font-size:11px;color:var(--d700)">x1</span><span style="font-weight:600">฿360</span></div>
+          <div class="dashed"></div>
+          <div class="kv"><span style="color:var(--d700)">รายการ</span><b>1 รายการ</b></div>
+          <div class="kv"><span style="color:var(--d700)">ยอดสุทธิ</span><b style="color:var(--primary)">฿360</b></div>
+          <div class="dashed"></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="cp logo" style="width:34px;height:34px;border-radius:8px;background:#ffe200;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700">FLASH</span>
+            <div><div style="font-size:11px;color:var(--d700)">Flash Thunder</div><div style="font-size:13px;font-weight:700">TH590990YB714A</div></div>
+            <button class="icon-btn" style="margin-left:auto;border:1px solid var(--d200);border-radius:50%"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
+          </div>
+          <ol class="steps">
+            <li><span class="dot on"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9l8 -4.5"/></svg></span><span class="lb cur">สร้างพัสดุ</span></li>
+            <li><span class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21l-8 -4.5v-9l8 -4.5l8 4.5v4.5"/><path d="M22 18h-7M18 15l-3 3l3 3"/></svg></span><span class="lb">รับเข้าระบบแล้ว</span></li>
+            <li><span class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></span><span class="lb">กำลังจัดส่ง</span></li>
+            <li><span class="dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2l4 -4"/></svg></span><span class="lb">จัดส่งสำเร็จ</span></li>
+          </ol>
+        </div>
+        <div style="display:flex;gap:6px;border-top:1px solid var(--d200);padding:8px 10px">
+          <button style="flex:1;background:rgba(35,109,201,.1);color:var(--primary);border-radius:8px;padding:9px 0;font-size:12.5px;font-weight:600;border:none;font-family:inherit">ส่งเข้าแชท</button>
+          <button style="flex:1;background:rgba(35,109,201,.1);color:var(--primary);border-radius:8px;padding:9px 0;font-size:12.5px;font-weight:600;border:none;font-family:inherit">ดูพัสดุ</button>
+          <button style="width:34px;border-radius:8px;background:var(--d100);border:none;color:var(--d700)">⋮</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variant A: timeline ชิดขอบ + กระชับ -->
+  <div>
+    <h2>A — timeline ชิดขอบเท่าโลโก้/ปุ่ม copy + กระชับ<span class="h-tag">~280px · โครงเดิม</span></h2>
+    <div class="panel cp">
+      <div class="order-card">
+        <div class="head" style="padding:9px 12px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" style="flex-shrink:0"><path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2"/><path d="M9 7h6M9 11h6"/></svg>
+          <div style="min-width:0;flex:1">
+            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">โช๊คหลัง 110 สีเทา</div>
+            <div style="font-size:10.5px;opacity:.9">คำสั่งซื้อ · DP25690823A70A6F</div>
+          </div>
+        </div>
+        <div class="body" style="padding:9px 12px">
+          <div class="line1">
+            <span class="thumb"></span>
+            <span class="nm">โช๊คหลัง 110 สีเทา</span>
+            <span class="qty">x1</span>
+            <span class="total">฿360</span>
+          </div>
+          <!-- รวมยอดเข้าบรรทัดสินค้าแล้ว — เหลือเส้นคั่นเดียว -->
+          <div style="border-top:1px dashed var(--d300);margin-top:8px;padding-top:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="logo" style="width:30px;height:30px;font-size:7px">FLASH</span>
+              <div style="min-width:0;flex:1">
+                <div style="font-size:10.5px;color:var(--d700)">Flash Thunder</div>
+                <div style="font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums">TH590990YB714A</div>
+              </div>
+              <button class="icon-btn" style="border:1px solid var(--d200);border-radius:50%;width:28px;height:28px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
+            </div>
+            <!-- ✦ stepper กางเต็ม: จุดแรกชิดซ้ายแนวโลโก้ จุดสุดท้ายชิดขวาแนวปุ่ม copy -->
+            <div class="full-steps">
+              <div class="track">
+                <span class="dot on"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9l8 -4.5"/></svg></span>
+                <span class="ln"></span>
+                <span class="dot"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21l-8 -4.5v-9l8 -4.5l8 4.5v4.5"/><path d="M22 18h-7M18 15l-3 3l3 3"/></svg></span>
+                <span class="ln"></span>
+                <span class="dot"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></span>
+                <span class="ln"></span>
+                <span class="dot"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2l4 -4"/></svg></span>
+              </div>
+              <div class="labels">
+                <span class="lb cur">สร้างพัสดุ</span>
+                <span class="lb">รับเข้าระบบแล้ว</span>
+                <span class="lb">กำลังจัดส่ง</span>
+                <span class="lb">จัดส่งสำเร็จ</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footer">
+          <button class="fbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14l11 -11M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/></svg>ส่งเข้าแชท</button>
+          <button class="fbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9l8 -4.5"/></svg>ดูพัสดุ</button>
+          <button class="fmore">⋮</button>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>เปลี่ยน:</b> stepper เลิกใช้ grid 4 คอลัมน์ (ที่ทำให้จุดหัว-ท้ายหดเข้ากลาง) → จุดวางแบบ flex เส้นเชื่อมยืดเต็ม จุดแรกชิดซ้ายตรงแนวโลโก้ จุดท้ายชิดขวาตรงแนวปุ่ม copy · ป้ายแรกชิดซ้าย/ป้ายท้ายชิดขวา · รวม "รายการ/ยอดสุทธิ" เข้าบรรทัดสินค้า · จุด 32→28px, padding ลดหนึ่งขั้น</p>
+  </div>
+
+  <!-- Variant B: compact เต็มรูป -->
+  <div>
+    <h2>B — compact เต็มรูป<span class="h-tag">~150px/ใบ — เห็น 2-3 ใบต่อจอ</span></h2>
+    <div class="panel cp">
+      <div class="stack">
+
+        <!-- ใบ 1: มีพัสดุ กำลังส่ง -->
+        <div class="order-card">
+          <div class="head">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" style="flex-shrink:0"><path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2"/><path d="M9 7h6M9 11h6"/></svg>
+            <span class="t1">โช๊คหลัง 110 สีเทา</span>
+            <span class="no">DP…23A70A6F</span>
+          </div>
+          <div class="body">
+            <!-- รวม รายการ+ยอดสุทธิ เหลือบรรทัดเดียว -->
+            <div class="line1">
+              <span class="thumb"></span>
+              <span class="nm">โช๊คหลัง 110 สีเทา</span>
+              <span class="qty">x1</span>
+              <span class="total">฿360</span>
+            </div>
+            <!-- ขนส่ง+เลข+ชิปสถานะ+จุดจิ๋ว ในบล็อกเดียว -->
+            <div class="ship">
+              <span class="logo">FLASH</span>
+              <div class="trk-wrap">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span class="trk">TH590990YB714A</span>
+                  <button class="icon-btn" style="width:22px;height:22px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
+                </div>
+                <div class="mini"><i class="on"></i><s class="on"></s><i class="on"></i><s class="on"></s><i class="on"></i><s></s><i></i></div>
+              </div>
+              <span class="chip info">กำลังจัดส่ง</span>
+            </div>
+          </div>
+          <div class="footer">
+            <button class="fbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14l11 -11M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/></svg>ส่งเข้าแชท</button>
+            <button class="fbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9l8 -4.5"/></svg>ดูพัสดุ</button>
+            <button class="fmore">⋮</button>
+          </div>
+        </div>
+
+        <!-- ใบ 2: ส่งถึงแล้ว (เขียว) -->
+        <div class="order-card">
+          <div class="head">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" style="flex-shrink:0"><path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2"/><path d="M9 7h6M9 11h6"/></svg>
+            <span class="t1">โช๊คหน้า เดี่ยว + สปริงแต่ง</span>
+            <span class="no">DP…07C3159D21</span>
+          </div>
+          <div class="body">
+            <div class="line1">
+              <span class="thumb" style="background:#8898a8"></span>
+              <span class="nm">2 รายการ</span>
+              <span class="total">฿1,250</span>
+            </div>
+            <div class="ship">
+              <span class="logo">FLASH</span>
+              <div class="trk-wrap">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span class="trk">TH020390UME39E0</span>
+                  <button class="icon-btn" style="width:22px;height:22px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
+                </div>
+                <div class="mini done"><i class="on"></i><s class="on"></s><i class="on"></i><s class="on"></s><i class="on"></i><s class="on"></s><i class="on"></i></div>
+              </div>
+              <span class="chip" style="background:rgba(2,188,156,.15);color:var(--success-ink)">จัดส่งสำเร็จ</span>
+            </div>
+          </div>
+          <div class="footer">
+            <button class="fbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14l11 -11M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/></svg>ส่งเข้าแชท</button>
+            <button class="fbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9l8 -4.5"/></svg>ดูพัสดุ</button>
+            <button class="fmore">⋮</button>
+          </div>
+        </div>
+
+        <!-- ใบ 3: ยังไม่มีพัสดุ -->
+        <div class="order-card">
+          <div class="head">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" style="flex-shrink:0"><path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16l-3 -2l-2 2l-2 -2l-2 2l-2 -2l-3 2"/><path d="M9 7h6M9 11h6"/></svg>
+            <span class="t1">กรองอากาศ PCX</span>
+            <span class="no">DP…08B12CD934</span>
+          </div>
+          <div class="body">
+            <div class="line1">
+              <span class="thumb" style="background:#4a6741"></span>
+              <span class="nm">กรองอากาศ PCX</span>
+              <span class="qty">x1</span>
+              <span class="total">฿290</span>
+            </div>
+            <div class="ship">
+              <span class="nm" style="font-size:12px">สถานะ</span>
+              <span class="chip primary" style="margin-left:auto">สั่งซื้อแล้ว</span>
+            </div>
+          </div>
+          <div class="footer">
+            <button class="fbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14l11 -11M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/></svg>ส่งเข้าแชท</button>
+            <button class="fbtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9l8 -4.5"/></svg>เปิดพัสดุ</button>
+            <button class="fmore">⋮</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <p class="note">
+      <b>สิ่งที่เปลี่ยน:</b> หัวการ์ด 2 บรรทัด → 1 บรรทัด (เลขออเดอร์ย่อ DP…8 ตัวท้าย) · แถวสินค้า + "รายการ/ยอดสุทธิ" 3 แถว → 1 แถว (หลายรายการ = "N รายการ") · stepper ใหญ่+ป้าย 4 อัน → <b>ชิปสถานะ 1 ตัว</b> (ป้ายเดียวกับ SHIPMENT_STAGES ขั้นปัจจุบัน) + จุดจิ๋ว 4 จุดบอกระยะทาง · ปุ่ม footer เตี้ยลง<br>
+      <b>สิ่งที่ไม่เปลี่ยน:</b> การ์ดใน bubble แชทยังเป็นแบบเต็ม (เป็น message ที่ส่งหาลูกค้า ไม่ได้ stack กันเป็นลิสต์) · สี = กติกา describeProgress เดิม (น้ำเงินกำลังเดิน/เขียวส่งถึง) · แตะการ์ด/ปุ่มทำงานเหมือนเดิมทุกอย่าง
+    </p>
+  </div>
+
+</div>
+
+</body>
+</html>
