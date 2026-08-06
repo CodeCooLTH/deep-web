@@ -154,11 +154,11 @@ html[data-text-scale="xl"] {
      page padding ใช้ 1rem จาก rule line ~98 (ไม่ override 0.5rem แล้ว). */
   /* kill sidebar offset (inline) — ทุกหน้า seller mobile */
   .seller-mobile-shell { margin-inline: 0 !important; }
-  /* เฉพาะ /orders (full-bleed): ตัด top margin 20px ของ .wrapper + ซ่อน footer
-     scope ด้วย :has(.orders-fullbleed) marker จาก OrdersList → ไม่กระทบหน้าอื่น
-     (เดิมใช้ margin:0 global ทำให้หน้าอื่นเพี้ยน — user รายงาน 2026-06-15) */
-  .seller-mobile-shell:has(.orders-fullbleed) { margin-top: 0 !important; }
-  .seller-mobile-shell:has(.orders-fullbleed) footer { display: none !important; }
+  /* เฉพาะ /orders, /products (full-bleed): ตัด top margin 20px ของ .wrapper + ซ่อน footer
+     scope ด้วย :has(.orders-fullbleed, .products-fullbleed) marker จาก OrdersList/ProductsListing
+     → ไม่กระทบหน้าอื่น (เดิมใช้ margin:0 global ทำให้หน้าอื่นเพี้ยน — user รายงาน 2026-06-15) */
+  .seller-mobile-shell:has(.orders-fullbleed, .products-fullbleed) { margin-top: 0 !important; }
+  .seller-mobile-shell:has(.orders-fullbleed, .products-fullbleed) footer { display: none !important; }
   /* พื้นหลัง = Paces body-bg token (ให้การ์ดขาวเด้ง) แทน hardcode hex เดิม */
   .seller-mobile-shell .page-content { background: var(--color-body-bg); }
 }

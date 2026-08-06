@@ -174,10 +174,12 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
   // /orders/<token> (order detail, S-7) = งานเดียวจบ พื้นที่แถบล่างเอาไปทำ action bar แทน
   // → ซ่อนเฉพาะ path ที่มี segment เดียวหลัง /orders/ และไม่ใช่ 'new' (สร้างออเดอร์ต้องเห็น nav ปกติ)
   // /orders/<token>/edit มี 2 segment ไม่ match regex นี้ → ยังเห็น nav ตามปกติ
+  // /products (list): full-bleed เดียวกับ /orders (2026-08-06) — exact match เท่านั้น
+  // ห้ามกระทบ /products/<id> (product detail ยังต้องเห็น nav ปกติ)
   // วาง return null หลัง hooks ทั้งหมดเพื่อไม่ละเมิด rules of hooks
   const orderDetailMatch = pathname.match(/^\/orders\/([^/]+)$/)
   const isOrderDetail = orderDetailMatch !== null && orderDetailMatch[1] !== 'new'
-  if (pathname === '/orders' || isOrderDetail) {
+  if (pathname === '/orders' || isOrderDetail || pathname === '/products') {
     return null
   }
 
