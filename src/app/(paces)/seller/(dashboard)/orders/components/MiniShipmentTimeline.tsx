@@ -13,6 +13,7 @@
 
 import { Fragment } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import HoverPanel from './HoverPanel'
 import { cn } from '@/utils/helpers'
 import { SHIPMENT_STAGES } from '@/lib/iship/status'
 import type { ShippingStageKey } from '@/lib/order-stage'
@@ -77,22 +78,28 @@ export default function MiniShipmentTimeline({ stage, hasShipment, cancelled }: 
   }
 
   return (
-    // group-hover ขึ้น panel เต็ม (user 2026-08-06) — CSS ล้วน ไม่มี JS state:
-    // touch ไม่มี hover ก็แค่ไม่ขึ้น (มือถือมี title ต่อจุดอยู่แล้ว)
-    <div className="group relative inline-flex items-center" role="img" aria-label={ariaLabel}>
-      {SHIPMENT_STAGES.map((s, i) => (
-        <Fragment key={s.label}>
-          {i > 0 && (
-            <span className={cn('h-0.5 w-2 shrink-0', i <= cur ? 'bg-success' : 'bg-default-200')} />
-          )}
-          <span title={s.label}>{dot(i, 'sm')}</span>
-        </Fragment>
-      ))}
-
-      {/* panel เต็มตอน hover — stepper ทรงเดียวกับการ์ดการจัดส่ง (ShippingCard) ย่อกว้าง 288px
-          ยึด absolute กับตัว timeline (บทเรียน popover: ยึดที่ตัว trigger ไม่ใช่แถว) เปิดขึ้นบน
-          กันชนขอบล่างของกล่อง scroll ตาราง */}
-      <div className="border-default-200 bg-card pointer-events-none invisible absolute bottom-full start-0 z-30 mb-2 w-72 rounded-lg border p-3 opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100">
+    // hover ขึ้น panel เต็มผ่าน HoverPanel (portal ระดับ body — cell อยู่ใน .table-wrapper
+    // overflow-auto, absolute ใน cell โดน clip; touch ไม่มี hover ก็แค่ไม่ขึ้น มี title ต่อจุดแล้ว)
+    <HoverPanel
+      width={288}
+      className="inline-flex items-center"
+      trigger={
+        <div className="flex items-center" role="img" aria-label={ariaLabel}>
+          {SHIPMENT_STAGES.map((s, i) => (
+            <Fragment key={s.label}>
+              {i > 0 && (
+                <span
+                  className={cn('h-0.5 w-2 shrink-0', i <= cur ? 'bg-success' : 'bg-default-200')}
+                />
+              )}
+              <span title={s.label}>{dot(i, 'sm')}</span>
+            </Fragment>
+          ))}
+        </div>
+      }
+    >
+      {/* stepper เต็ม ทรงเดียวกับการ์ดการจัดส่ง (ShippingCard) ย่อส่วน */}
+      <div className="p-3">
         <p className={cn('mb-2 text-xs font-semibold', problem ? 'text-danger-ink' : 'text-default-900')}>
           {currentLabel}
         </p>
@@ -134,6 +141,6 @@ export default function MiniShipmentTimeline({ stage, hasShipment, cancelled }: 
           })}
         </div>
       </div>
-    </div>
+    </HoverPanel>
   )
 }

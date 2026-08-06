@@ -349,17 +349,22 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
     <>
       {/* ─── Desktop (≥lg): DataTable แบบ Paces theme ──────────────────────── */}
       <div className="hidden lg:block">
-        {/* ชิปสถานะพัสดุอยู่นอกการ์ดตาราง เพราะเป็นการ "เลือกกองงาน" ก่อนจะมากรองย่อยด้วย
-            dropdown ในแถบเครื่องมือของตาราง — และเป็นตัวกรองตัวเดียวที่ผูกกับ URL (แชร์ลิงก์ได้) */}
-        {hasStageAxis && (
-          <StageChips
-            stage={stage}
-            counts={stageCounts}
-            onSelect={handleStageChip}
-            className="mb-base flex-wrap"
-          />
-        )}
-        <OrdersTable orders={stageFiltered} ishipEnabled={ishipEnabled} vocab={vocab} />
+        {/* แถบชิปพัสดุ desktop ถูกย้ายเป็น dropdown "พัสดุ" ใน toolbar ของตาราง
+            (user 2026-08-06) — state/ตัวนับยังอยู่ที่นี่ symbol เดียวกับชิปมือถือ */}
+        <OrdersTable
+          orders={stageFiltered}
+          ishipEnabled={ishipEnabled}
+          vocab={vocab}
+          stageFilter={
+            hasStageAxis
+              ? {
+                  value: stage,
+                  counts: stageCounts,
+                  onChange: (v) => pushQuery({ stage: v }),
+                }
+              : undefined
+          }
+        />
       </div>
 
       {/* ─── Mobile/Tablet (<lg): card layout เดิม (ห้ามแตะ logic ข้างใน) ─── */}

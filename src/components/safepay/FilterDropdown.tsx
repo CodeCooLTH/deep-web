@@ -22,9 +22,18 @@
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
 
+export interface FilterOptionBadge {
+  /** ตัวเลขท้าย option (เช่น จำนวนออเดอร์ต่อกองงาน) */
+  label: string | number
+  /** class ของ badge — token ตามความหมาย เช่น 'bg-warning/15 text-warning-ink' */
+  className: string
+}
+
 export interface FilterOption {
   value: string
   label: string
+  /** ตัวเลขท้าย option (เช่น จำนวนต่อกองงานพัสดุ) — ไม่ส่ง = ไม่มี badge */
+  badge?: FilterOptionBadge
 }
 
 interface FilterDropdownProps {
@@ -127,7 +136,12 @@ export default function FilterDropdown({
                 ) : (
                   <span className="size-4 shrink-0" aria-hidden="true" />
                 )}
-                {opt.label}
+                <span className="min-w-0 flex-1 truncate text-start">{opt.label}</span>
+                {opt.badge != null && (
+                  <span className={`badge ms-2 shrink-0 tabular-nums ${opt.badge.className}`}>
+                    {opt.badge.label}
+                  </span>
+                )}
               </button>
             )
           })}

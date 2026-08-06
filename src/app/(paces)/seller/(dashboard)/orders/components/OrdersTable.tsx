@@ -33,12 +33,14 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
-import { PAYMENT_LABELS, PAYMENT_ICONS, SALES_CHANNEL_ICONS, SALES_CHANNEL_LABELS, type OrderRow } from './data'
+import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderItemRow, type OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import BuyerAvatar from './BuyerAvatar'
+import HoverPanel from './HoverPanel'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderSourceLogo from './OrderSourceLogo'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
+import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
 import OrderActions from './OrderActions'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
@@ -61,6 +63,24 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'All', label: 'ทั้งหมด' },
   ...Object.entries(ORDER_STATUS_META).map(([value, meta]) => ({ value, label: meta.label })),
 ]
+
+// ─── ตัวกรองพัสดุ (?stage=) — ลำดับ/ค่าเดียวกับ STAGE_CHIPS ใน OrdersList ────────
+const STAGE_FILTER_KEYS = [
+  'AWAITING_PARCEL',
+  'AWAITING_PICKUP',
+  'SHIPPING',
+  'AWAITING_COD',
+  'PROBLEM',
+] as const satisfies readonly (keyof typeof SHIPPING_STAGE_LABEL)[]
+
+/** สี badge จำนวนต่อกองงาน — token ตามความหมายของกอง (mockup 2026-08-06) */
+const STAGE_BADGE_CLS: Record<(typeof STAGE_FILTER_KEYS)[number], string> = {
+  AWAITING_PARCEL: 'bg-warning/15 text-warning-ink',
+  AWAITING_PICKUP: 'bg-default-100 text-default-700',
+  SHIPPING: 'bg-default-100 text-default-700',
+  AWAITING_COD: 'bg-info/15 text-info-ink',
+  PROBLEM: 'bg-danger/15 text-danger-ink',
+}
 
 // ─── date range filter (adapt จาก theme dateRangeFilterFn) ───────────────────
 const dateRangeFilterFn: FilterFn<OrderRow> = (row, _columnId, selectedRange) => {
@@ -102,9 +122,19 @@ type Props = {
   ishipEnabled?: boolean
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — ส่งต่อมาจาก OrdersList ที่รับมาจาก RSC */
   vocab: OrderVocab
+  /**
+   * ตัวกรองกองงานพัสดุ (?stage= — user 2026-08-06 ย้ายจากแถบชิปมาเป็น dropdown ใน toolbar)
+   * state/ตัวนับอยู่ที่ OrdersList (symbol เดียวกับชิปมือถือ — sibling-surface-parity)
+   * undefined = ร้านไม่มีแกนพัสดุ (ไม่ใช่ ONLINE_SALES) ไม่แสดง dropdown
+   */
+  stageFilter?: {
+    value: string | null
+    counts: Record<string, number>
+    onChange: (value: string | null) => void
+  }
 }
 
-export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Props) {
+export default function OrdersTable({ orders, ishipEnabled = false, vocab, stageFilter }: Props) {
   const router = useRouter()
   const [globalFilter,   setGlobalFilter]   = useState('')
   const [sorting,        setSorting]        = useState<SortingState>([])
@@ -206,9 +236,8 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
     columnHelper.accessor('buyerName', {
       header: 'ลูกค้า',
       cell: ({ row }) => {
-        const { buyerName, buyer, buyerPhone, buyerUsername, buyerAvatar, salesChannel } = row.original
+        const { buyerName, buyer, buyerPhone, buyerUsername, buyerAvatar } = row.original
         const displayName = buyerName ?? 'ลูกค้า'
-        const chIcon = salesChannel ? SALES_CHANNEL_ICONS[salesChannel] : null
         return (
           <div className="flex items-center gap-3">
             {/* รูป buyer (User.avatar) + fallback ตัวอักษรแรก */}
@@ -232,7 +261,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
       },
     }),
 
-    // ─ สินค้า ─
+    // ─ สินค้า (hover = panel รายการสินค้าเต็ม — user อนุมัติ mockup 2026-08-06) ─
     columnHelper.accessor('items', {
       header: 'สินค้า',
       enableSorting: false,
@@ -243,29 +272,80 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
         }
         const first = items[0]
         const extra = items.length - 1
+        const cfg = STATUS_CONFIG[row.original.status] ?? {
+          label: row.original.status,
+          cls: 'bg-default-200 text-default-600',
+        }
+        // เกิน 5 ชิ้นตัดเหลือ 5 + บรรทัดสรุป — จงใจไม่ scroll ใน panel (hover แล้วต้องเลื่อน
+        // scroll = เมาส์หลุดนิดเดียว panel หุบ) · ยอดสุทธิเป็นยอดจริงทั้งใบเสมอ
+        const visible = items.slice(0, 5)
+        const hiddenCount = items.length - visible.length
+        const thumb = (it: OrderItemRow, size: string) =>
+          it.imageUrl ? (
+            <Image
+              src={it.imageUrl}
+              alt={it.name}
+              width={36}
+              height={36}
+              className={`${size} rounded-lg object-cover`}
+            />
+          ) : (
+            <span className={`bg-default-100 text-default-400 flex ${size} shrink-0 items-center justify-center rounded-lg`}>
+              <Icon icon="package" className="text-sm" />
+            </span>
+          )
         return (
-          <div className="flex items-center gap-2.5">
-            {first.imageUrl ? (
-              <Image
-                src={first.imageUrl}
-                alt={first.name}
-                width={36}
-                height={36}
-                className="size-9 rounded-lg object-cover"
-              />
-            ) : (
-              /* placeholder เมื่อไม่มีรูป */
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-default-100">
-                <Icon icon="package" className="text-sm text-default-400" />
+          <HoverPanel
+            width={320}
+            trigger={
+              <div className="flex items-center gap-2.5">
+                {thumb(first, 'size-9')}
+                <div>
+                  <p className="line-clamp-1 text-sm font-medium text-default-900">{first.name}</p>
+                  {extra > 0 && <p className="text-xs text-default-400">+{extra} รายการ</p>}
+                </div>
               </div>
-            )}
-            <div>
-              <p className="line-clamp-1 text-sm font-medium text-default-900">{first.name}</p>
-              {extra > 0 && (
-                <p className="text-xs text-default-400">+{extra} รายการ</p>
-              )}
+            }
+          >
+            <div className="border-default-200 flex items-center gap-2 border-b p-3">
+              <span className="text-default-900 min-w-0 truncate text-sm font-semibold">
+                {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+              </span>
+              <span className={`badge ms-auto shrink-0 ${cfg.cls}`}>{cfg.label}</span>
             </div>
-          </div>
+            <div className="px-3 pt-2">
+              <p className="text-default-700 mb-0 flex items-center gap-1.5 text-xs">
+                <Icon icon="calendar" className="text-sm" aria-hidden="true" />
+                {formatDateTime(row.original.createdAtISO)}
+              </p>
+              <p className="text-default-900 mb-0 mt-2 text-xs font-semibold">
+                รายการ ({items.length})
+              </p>
+            </div>
+            <ul className="divide-default-100 mb-0 list-none divide-y p-0">
+              {visible.map((it) => (
+                <li key={it.id} className="flex items-center gap-2.5 px-3 py-2">
+                  {thumb(it, 'size-9')}
+                  <span className="text-default-800 min-w-0 flex-1 truncate text-sm">{it.name}</span>
+                  <span className="text-default-700 text-2xs shrink-0">x{it.qty}</span>
+                  <span className="text-default-900 shrink-0 text-sm font-medium tabular-nums">
+                    ฿{(it.price * it.qty).toLocaleString('th-TH')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {hiddenCount > 0 && (
+              <p className="border-default-100 text-default-700 mb-0 border-t px-3 py-2 text-xs">
+                +อีก {hiddenCount} รายการ — เปิดดูทั้งหมดที่หน้าออเดอร์
+              </p>
+            )}
+            <div className="border-default-200 flex items-center justify-between border-t px-3 py-2.5">
+              <span className="text-default-700 text-sm">ยอดรวมสุทธิ</span>
+              <span className="text-primary text-sm font-bold tabular-nums">
+                ฿{row.original.total.toLocaleString('th-TH')}
+              </span>
+            </div>
+          </HoverPanel>
         )
       },
     }),
@@ -449,9 +529,9 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
         {/* กลาง: กรอง: + Single Button Dropdown (สถานะ/ประเภท/ช่วงเวลา) + page size
             Base: theme/paces/Admin/TS/src/app/(admin)/ui/dropdowns/page.tsx (SingleButtonDropdowns)
             ใช้ FilterDropdown (custom React + theme .dropdown-item) — ไม่ใช่ native select */}
+        {/* toolbar ใหม่ (user อนุมัติ mockup 2026-08-06): ตัดป้าย "กรอง:" ทิ้ง — ปุ่มมี icon+ชื่อ
+            ในตัว ไม่ต้องมีป้ายบอกอีกชั้น · ตัวกรองพัสดุย้ายจากแถบชิปมาอยู่แถวเดียวกัน */}
         <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
-          <span className="font-semibold text-nowrap">กรอง:</span>
-
           {/* สถานะ */}
           <FilterDropdown
             icon="truck"
@@ -464,6 +544,28 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
               setPagination((p) => ({ ...p, pageIndex: 0 }))
             }}
           />
+
+          {/* พัสดุ (?stage= URL — state อยู่ที่ OrdersList ตัวเดียวกับชิปมือถือ) */}
+          {stageFilter && (
+            <FilterDropdown
+              icon="package"
+              defaultLabel="พัสดุ"
+              resetValue="All"
+              value={stageFilter.value ?? 'All'}
+              options={[
+                { value: 'All', label: 'ทั้งหมด' },
+                ...STAGE_FILTER_KEYS.map((key) => ({
+                  value: key,
+                  label: SHIPPING_STAGE_LABEL[key],
+                  badge: {
+                    label: stageFilter.counts[key] ?? 0,
+                    className: STAGE_BADGE_CLS[key],
+                  },
+                })),
+              ]}
+              onChange={(v) => stageFilter.onChange(v === 'All' ? null : v)}
+            />
+          )}
 
           {/* ช่วงเวลา */}
           <FilterDropdown
@@ -484,17 +586,18 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
             }}
           />
 
-          {/* page size — โชว์ตัวเลขเสมอ, เปิดลงขวา กัน overflow */}
+          {/* page size — "แถวละ N" ไม่ใช่เลขเปล่า ๆ (mockup 2026-08-06: "10" เดาไม่ออกว่าคืออะไร) */}
           <FilterDropdown
             align="right"
             value={String(pageSize)}
-            options={[5, 10, 15, 20].map((n) => ({ value: String(n), label: String(n) }))}
+            options={[5, 10, 15, 20].map((n) => ({ value: String(n), label: `แถวละ ${n}` }))}
             onChange={(v) => table.setPageSize(Number(v))}
           />
         </div>
 
-        {/* ขวา: สร้างออเดอร์ */}
-        <div className="flex items-center gap-2">
+        {/* ขวา: เส้นคั่นบางแยกโซนตัวกรองออกจาก action + สร้างออเดอร์ */}
+        <div className="flex items-center gap-2.5">
+          <span className="bg-default-200 h-6 w-px" aria-hidden="true" />
           <Link href="/orders/new" className="btn bg-primary text-white hover:bg-primary-hover">
             <Icon icon="plus" className="size-4.5" />
             {vocab.createLabel}
