@@ -315,7 +315,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         ? current > 0 ? 100 : 0
         : Math.round(((current - prev) / prev) * 100)
 
-    return { title, status, totalCount, changePct }
+    return { title, status, totalCount, changePct, recentCount: current }
   }
 
   /**

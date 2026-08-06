@@ -150,5 +150,6 @@ export type OrderStatCardData = {
   title: string                                              // 'รอดำเนินการ' ฯลฯ
   status: 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
   totalCount: number                                         // ยอดรวมทั้งหมดของ status (headline h3)
-  changePct: number                                          // %, +/-/0 (30วันล่าสุด vs 30วันก่อนหน้า)
+  changePct: number                                          // %, +/-/0 (30วันล่าสุด vs 30วันก่อนหน้า)  /** จำนวนใน 30 วันล่าสุด — บรรทัดล่างของการ์ด (โครงเดียวกับ ProductStats) */
+  recentCount: number
 }
