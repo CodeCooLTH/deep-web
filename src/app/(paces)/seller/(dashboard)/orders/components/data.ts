@@ -86,14 +86,25 @@ export type OrderRow = {
   /** วิธีชำระเงิน (code) — map ผ่าน PAYMENT_LABELS/PAYMENT_ICONS */
   paymentMethod: string | null
   /**
-   * ปลายทางแบบย่อ "ตำบล อำเภอ จังหวัด" (2026-08-06 — ตารางแบบแถวจัดกลุ่ม)
+   * ปลายทางแยกเป็นส่วน ๆ (2026-08-06 — user สั่งให้รหัสไปรษณีย์อยู่บรรทัดล่างสุดเสมอ
+   * "จะได้ก้อบง่าย ๆ") — ประกอบเป็นบรรทัดที่ฝั่งจอ ไม่ใช่ต่อสตริงมาจาก server เพราะ
+   * การขึ้นบรรทัดเป็นเรื่องของการแสดงผล ไม่ใช่ของข้อมูล
    *
-   * ไม่รวมบ้านเลขที่โดยเจตนา: หน้านี้อยู่ใต้ client layout ทุก field จะถูก serialize
-   * เข้า flight payload (feedback_rsc_pii_neutralize_at_source) — ระดับตำบลพอให้ร้าน
-   * กวาดตาดูว่าส่งไปทางไหน ส่วนที่อยู่เต็มดูได้ในหน้ารายละเอียด
-   * null = ยังไม่มีที่อยู่ (ออเดอร์ที่ยังกรอกไม่ครบ / ไม่ใช่ออเดอร์ที่ต้องส่งของ)
+   * PII: หน้านี้อยู่ใต้ client layout ทุก field ถูก serialize เข้า flight payload ของทุกแถว
+   * ที่โหลดมา (feedback_rsc_pii_neutralize_at_source) — user เคาะ 2026-08-06 ให้แสดงที่อยู่
+   * เต็มเพราะร้านใช้จ่าหน้าซองจริง ผู้ที่เห็นคือเจ้าของออเดอร์เท่านั้น
+   * null ทั้งก้อน = ยังไม่มีที่อยู่
    */
-  shipTo: string | null
+  shipTo: {
+    /** บ้านเลขที่/อาคาร */
+    line1: string | null
+    /** หมู่/ตำบล/อำเภอ รวมบรรทัดเดียว */
+    locality: string | null
+    province: string | null
+    postcode: string | null
+  } | null
+  /** ร้านได้รับเงินเก็บปลายทางแล้วเมื่อไร (null = ยังไม่ได้รับ) — ใช้ทำเช็กลิสต์สถานะ */
+  codReceivedAtISO: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */
   items: OrderItemRow[]
 }

@@ -35,9 +35,7 @@ import { useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderItemRow, type OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
-import BuyerAvatar from './BuyerAvatar'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
-import HoverPanel from './HoverPanel'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderSourceLogo from './OrderSourceLogo'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
@@ -48,7 +46,7 @@ import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { useRouter } from 'next/navigation'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
-import { ORDER_STATUS_META } from '@/lib/order-display'
+import { ORDER_STATUS_META, isCODPayment } from '@/lib/order-display'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 // อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —
@@ -183,27 +181,19 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
   }
 
   /**
-   * ─── คอลัมน์ (ตารางแบบแถวจัดกลุ่ม — user อนุมัติ mockup 2026-08-06) ─────────
+   * ─── คอลัมน์ (โครง 2 แถว — user ให้สเปกเองและอนุมัติ mockup 2026-08-06) ────────
    *
-   * เดิมเป็น 12 คอลัมน์ผอม ๆ ซึ่งวัดจริงบน prod แล้วต้องการความกว้าง 1691px แต่จอที่ร้าน
-   * ใช้จริงให้พื้นที่แค่ ~1250px (แถบข้างกิน 285px คงที่) ผลคือเบราว์เซอร์บีบคอลัมน์จน
-   * ตัดกลางคำ — ภาษาไทยไม่มีช่องว่างระหว่างคำ "เก็บเงินปลายทาง" จึงกลายเป็น "เก็บ/ปลาย/ทาง"
-   * และแถวสูง 88px แทนที่จะเป็น 66px (วัดทุกความกว้างตั้งแต่ 1024 ถึง 1800 = พังหมด)
+   * แถวหัวกลุ่ม: [รูปเพจ+badge] เลขออเดอร์ [คัดลอก] … วันที่สร้างชิดขวา
+   * แถวเนื้อหา: สินค้า · ลูกค้า · ที่อยู่จัดส่ง+จัดส่งโดย · วิธีชำระ · ยอด · เช็กลิสต์ · ปุ่ม
    *
-   * ทางที่ไม่เอา (ลองแล้ววัดแล้ว):
-   *   - ใส่ whitespace-nowrap เฉย ๆ → ตารางกว้าง 1691px แล้ว scroll แนวนอนทุกความกว้าง
-   *     (= แบบที่ iShip ทำ ซึ่ง user บอกเองว่าใช้ยาก และของเขาก็ยังตัดบรรทัดอยู่ดี)
-   *   - ซ่อนคอลัมน์เป็นชั้นตามความกว้าง → ต้องซ่อน "ที่มา" ด้วย ซึ่ง user ไม่ยอม
-   *     (อยากเห็นตลอดว่าออเดอร์มาจากเพจไหน แพลตฟอร์มไหน)
-   *
-   * ที่เลือก: ย้ายข้อมูล "ระดับใบ" (เลขออเดอร์ / ที่มา / วันที่) ขึ้นไปอยู่แถบหัวกลุ่ม
-   * ที่กินเต็มความกว้างแถว แล้วเหลือคอลัมน์อ้วน 6 ช่องที่ใช้แนวตั้งได้อย่างตั้งใจ
-   * ผลที่วัดจาก mockup ที่คอมไพล์ด้วย CSS จริง: ต้องการ 1013px (จาก 1691px)
+   * ที่มาของโครงนี้: ตาราง 12 คอลัมน์เดิมต้องการ 1691px แต่จอจริงให้ ~1250px จึงบีบจน
+   * ตัดกลางคำ · ใส่ nowrap เฉย ๆ ก็กลายเป็น scroll แนวนอนซึ่ง user ปฏิเสธ (ชี้ไปที่ iShip
+   * ว่าใช้ยาก) · ซ่อนคอลัมน์เป็นชั้นก็ต้องซ่อน "ที่มา" ซึ่ง user ไม่ยอม
+   * → ย้ายข้อมูลระดับใบขึ้นแถบหัว แล้วทำคอลัมน์ที่เหลือให้ "อ้วน" พอใช้แนวตั้งได้
    */
   const columns = [
     // ─ checkbox select ─
-    // เซลล์ในแถวเนื้อหาว่างโดยเจตนา: ตัวติ๊กจริงย้ายไปอยู่แถบหัวกลุ่ม (groupRow ข้างล่าง)
-    // ที่นี่เหลือไว้เพื่อกันคอลัมน์ให้ตรงกับ checkbox เลือกทั้งหน้าบนหัวตาราง
+    // เซลล์ในแถวเนื้อหาว่างโดยเจตนา: ตัวติ๊กจริงอยู่แถบหัวกลุ่ม (groupRow ข้างล่าง)
     {
       id: 'select',
       header: ({ table }: { table: TableType<OrderRow> }) => (
@@ -220,7 +210,11 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       meta: { headerClassName: 'w-px', cellClassName: 'w-px' },
     },
 
-    // ─ รายการสินค้า (hover = panel รายการเต็ม) ─
+    // ─ รายการสินค้า — โชว์ 2 รายการแรก เกินกว่านั้นกางด้วย <details> ─
+    //   user สั่ง 2026-08-06: เลิกใช้ hover panel ให้กด "ดูเพิ่มเติม" แล้วกางในแถวเดิม
+    //   ใช้ <details> ของ HTML ตรง ๆ = ไม่ต้องมี state ฝั่ง client เลย (ไม่ต้องจำว่าแถวไหน
+    //   กางอยู่ตอน re-render) และ Ctrl+F ยังหาข้อความที่ยังไม่กางเจอ ต่างจาก panel ที่
+    //   เนื้อหาไม่มีตัวตนจนกว่าจะเอาเมาส์ไปวาง
     columnHelper.accessor('items', {
       header: 'รายการสินค้า',
       enableSorting: false,
@@ -230,248 +224,252 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
         if (!items || items.length === 0) {
           return <span className="text-default-400 text-sm">—</span>
         }
-        const first = items[0]
-        const extra = items.length - 1
-        // ป้ายใน hover panel ต้องเป็นตัวเดียวกับคอลัมน์ "สถานะ" — เดิมอ่าน status ดิบทั้งคู่
-        // แต่คนละบรรทัด พอแก้จุดเดียวจะเหลือใบที่พูดสองอย่างในแถวเดียวกัน
-        const cfg = resolveOrderStatusBadge(row.original.status, row.original.shippingStage)
-        // เกิน 5 ชิ้นตัดเหลือ 5 + บรรทัดสรุป — จงใจไม่ scroll ใน panel (hover แล้วต้องเลื่อน
-        // scroll = เมาส์หลุดนิดเดียว panel หุบ) · ยอดสุทธิเป็นยอดจริงทั้งใบเสมอ
-        const visible = items.slice(0, 5)
-        const hiddenCount = items.length - visible.length
-        const thumb = (it: OrderItemRow, size: string) =>
-          it.imageUrl ? (
-            <Image
-              src={it.imageUrl}
-              alt={it.name}
-              width={44}
-              height={44}
-              className={`${size} rounded-lg object-cover`}
-            />
-          ) : (
-            <span className={`bg-default-100 text-default-400 flex ${size} shrink-0 items-center justify-center rounded-lg`}>
-              <Icon icon="package" className="text-lg" />
-            </span>
-          )
-        return (
-          <HoverPanel
-            width={320}
-            trigger={
-              <div className="flex gap-2.5">
-                {thumb(first, 'size-11')}
-                <div className="min-w-0">
-                  <p className="mb-0 line-clamp-2 text-sm font-semibold text-default-900">{first.name}</p>
-                  <p className="mb-0 text-xs text-default-500">
-                    x{first.qty} · ฿{first.price.toLocaleString('th-TH')} ต่อชิ้น
-                  </p>
-                  {extra > 0 && <p className="mb-0 mt-0.5 text-xs text-primary">+{extra} รายการ</p>}
-                </div>
-              </div>
-            }
-          >
-            <div className="border-default-200 flex items-center gap-2 border-b p-3">
-              <span className="text-default-900 min-w-0 truncate text-sm font-semibold">
-                {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+        const line = (it: OrderItemRow) => (
+          <div key={it.id} className="flex gap-3">
+            {it.imageUrl ? (
+              <Image
+                src={it.imageUrl}
+                alt={it.name}
+                width={44}
+                height={44}
+                className="size-11 shrink-0 rounded-lg object-cover"
+              />
+            ) : (
+              <span className="bg-default-100 text-default-400 flex size-11 shrink-0 items-center justify-center rounded-lg">
+                <Icon icon="package" className="text-lg" />
               </span>
-              <span className={`badge ms-auto shrink-0 ${cfg.cls}`}>
-                <Icon icon={cfg.icon} aria-hidden="true" />
-                {cfg.label}
-              </span>
-            </div>
-            <div className="px-3 pt-2">
-              <p className="text-default-700 mb-0 flex items-center gap-1.5 text-xs">
-                <Icon icon="calendar" className="text-sm" aria-hidden="true" />
-                {formatDateTime(row.original.createdAtISO)}
-              </p>
-              <p className="text-default-900 mb-0 mt-2 text-xs font-semibold">
-                รายการ ({items.length})
-              </p>
-            </div>
-            <ul className="divide-default-100 mb-0 list-none divide-y p-0">
-              {visible.map((it) => (
-                <li key={it.id} className="flex items-center gap-2.5 px-3 py-2">
-                  {thumb(it, 'size-9')}
-                  <span className="text-default-800 min-w-0 flex-1 truncate text-sm">{it.name}</span>
-                  <span className="text-default-700 text-2xs shrink-0">x{it.qty}</span>
-                  <span className="text-default-900 shrink-0 text-sm font-medium tabular-nums">
-                    ฿{(it.price * it.qty).toLocaleString('th-TH')}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {hiddenCount > 0 && (
-              <p className="border-default-100 text-default-700 mb-0 border-t px-3 py-2 text-xs">
-                +อีก {hiddenCount} รายการ — เปิดดูทั้งหมดที่หน้าออเดอร์
-              </p>
             )}
-            <div className="border-default-200 flex items-center justify-between border-t px-3 py-2.5">
-              <span className="text-default-700 text-sm">ยอดรวมสุทธิ</span>
-              <span className="text-primary text-sm font-bold tabular-nums">
-                ฿{row.original.total.toLocaleString('th-TH')}
-              </span>
+            <div className="min-w-0">
+              <p className="mb-0 line-clamp-1 text-sm font-semibold text-default-900">{it.name}</p>
+              {/* ไม่มี SKU ใน OrderItem — บอกราคาต่อชิ้นแทน ซึ่งเป็นข้อมูลที่มีจริง */}
+              <p className="mb-0 text-xs text-default-500">
+                ฿{it.price.toLocaleString('th-TH')} ต่อชิ้น
+              </p>
+              <p className="mb-0 text-xs text-default-500">x{it.qty}</p>
             </div>
-          </HoverPanel>
+          </div>
+        )
+        const shown = items.slice(0, 2)
+        const rest = items.slice(2)
+        return (
+          <>
+            <div className="space-y-2.5">{shown.map(line)}</div>
+            {rest.length > 0 && (
+              <details className="group mt-2">
+                {/* marker:content-[''] = ซ่อนสามเหลี่ยมของเบราว์เซอร์ (Tailwind ไม่มี token ให้)
+                    group-open: สลับข้อความตอนกาง — คำว่า "ดูเพิ่มเติม" ต้องหายไป (user สั่ง)
+                    แต่ยังต้องย่อกลับได้ ถ้าซ่อน summary ทั้งอันจะกางแล้วปิดไม่ได้เลย */}
+                <summary className="text-primary hover:text-primary/80 cursor-pointer text-xs font-medium marker:content-['']">
+                  <span className="inline-flex items-center gap-1 group-open:hidden">
+                    <Icon icon="chevron-down" className="text-sm" aria-hidden="true" />
+                    ดูเพิ่มเติม (+{rest.length} รายการ)
+                  </span>
+                  <span className="hidden items-center gap-1 group-open:inline-flex">
+                    <Icon icon="chevron-up" className="text-sm" aria-hidden="true" />
+                    ย่อรายการ
+                  </span>
+                </summary>
+                <div className="border-default-200 mt-2 space-y-2.5 border-t border-dashed pt-2.5">
+                  {rest.map(line)}
+                </div>
+              </details>
+            )}
+          </>
         )
       },
     }),
 
-    // ─ ที่อยู่จัดส่ง ─
-    // ชื่อลูกค้าย้ายขึ้นแถบหัวกลุ่มแล้ว (user 2026-08-06) ที่นี่จึงเหลือเบอร์ + ปลายทาง
-    // ไม่ซ้ำกับหัวกลุ่ม — ข้อมูลเดียวกันโผล่สองที่ในแถวเดียวคือการกินพื้นที่เปล่า
-    // ที่อยู่เพิ่งโผล่ในตารางรอบนี้ (เดิมต้องเปิดเข้าไปดูทีละใบ) ระดับตำบลเท่านั้น —
-    // ดูเหตุผลเรื่อง PII ที่ OrderRow.shipTo
+    // ─ ลูกค้า ─
     columnHelper.accessor('buyerName', {
-      header: 'ที่อยู่จัดส่ง',
-      meta: { cellClassName: 'min-w-44 align-top' },
-      cell: ({ row }) => (
-        <>
-          <p className="mb-0 inline-flex items-center gap-1.5 text-sm tabular-nums text-default-800">
-            <Icon icon="phone" className="text-sm text-default-500" aria-hidden="true" />
-            {row.original.buyerPhone ?? row.original.buyer}
-          </p>
-          {row.original.shipTo ? (
-            <p className="mb-0 mt-1 text-xs leading-relaxed text-default-700">{row.original.shipTo}</p>
-          ) : (
-            <p className="mb-0 mt-1 text-xs text-default-400">ยังไม่มีที่อยู่</p>
-          )}
-        </>
-      ),
+      header: 'ลูกค้า',
+      meta: { cellClassName: 'min-w-32 align-top' },
+      cell: ({ row }) => {
+        const displayName = row.original.buyerName ?? row.original.buyerUsername ?? 'ลูกค้าทั่วไป'
+        return (
+          <>
+            <p className="mb-0 flex items-center gap-1 text-sm font-semibold text-default-900">
+              {row.original.buyerUsername && (
+                <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
+              )}
+              <span className="truncate">{displayName}</span>
+            </p>
+            {/* select-all: คลิกเดียวเลือกทั้งเบอร์ ไม่ต้องลาก */}
+            <p className="mb-0 select-all text-xs tabular-nums text-default-500">
+              {row.original.buyerPhone ?? row.original.buyer}
+            </p>
+          </>
+        )
+      },
     }),
 
-    // ─ การจัดส่ง (ขนส่ง + เลขพัสดุ + ไทม์ไลน์ เรียงลงมาในช่องเดียว) ─
-    //   สามอย่างนี้เดิมเป็น 3 คอลัมน์กิน 427px ทั้งที่ถูกอ่านพร้อมกันเสมอในงาน "ตามเลขพัสดุ"
-    //   เลขพัสดุอ่านจาก 2 ตารางแล้วที่ page.tsx (ส่งเอง vs iShip — one-value-many-entry-points)
+    // ─ ที่อยู่จัดส่ง + จัดส่งโดย ─
+    //   user สั่ง 2026-08-06: แตกที่อยู่เป็นบรรทัด **รหัสไปรษณีย์อยู่ล่างสุดเสมอ**
+    //   "จะได้ก้อบง่าย ๆ" → select-all ให้คลิกเดียวได้ทั้งก้อนพร้อมวาง
+    //   ใต้เส้นประคือบล็อกขนส่ง (ชื่อ/เลขพัสดุ/ไทม์ไลน์) เพราะตอบคำถามชุดเดียวกันว่า
+    //   "ของไปไหน ไปยังไง ถึงไหนแล้ว"
     {
-      id: 'shipping',
-      header: 'การจัดส่ง',
+      id: 'shipTo',
+      header: 'ที่อยู่จัดส่ง',
       enableSorting: false,
       enableColumnFilter: false,
-      meta: { cellClassName: 'min-w-44 align-top' },
+      meta: { cellClassName: 'min-w-56 align-top' },
       cell: ({ row }: { row: TableRow<OrderRow> }) => {
+        const a = row.original.shipTo
         const s = row.original.shipment
-        const stage = row.original.shippingStage
-        if (!s || (!s.courierName && !s.courierCode)) {
-          return (
-            <>
-              <span className="text-sm text-default-400">ยังไม่มีพัสดุ</span>
-              <div className="mt-2">
+        const hasCourier = Boolean(s && (s.courierName || s.courierCode))
+        const logo = s ? courierLogoUrl(s.courierCode, s.courierName) : null
+        return (
+          <>
+            {a ? (
+              <p className="mb-0 select-all text-xs leading-relaxed text-default-800">
+                {[a.line1, a.locality, a.province, a.postcode].filter(Boolean).map((part, i) => (
+                  <span key={i} className="block">
+                    {part}
+                  </span>
+                ))}
+              </p>
+            ) : (
+              <p className="mb-0 text-xs text-default-400">ยังไม่มีที่อยู่</p>
+            )}
+            <div className="border-default-200 mt-2 border-t border-dashed pt-2">
+              {hasCourier ? (
+                <>
+                  <p className="mb-0 flex items-center gap-1.5 text-xs text-default-500">
+                    จัดส่งโดย
+                    {logo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={logo}
+                        alt=""
+                        /* object-contain + ring: โลโก้ 2:1 (Fuze) ห้ามครอป, พื้นขาวต้องมีขอบ */
+                        className="ring-default-200 size-5 shrink-0 rounded bg-white object-contain ring-1"
+                      />
+                    ) : (
+                      <span className="bg-default-100 text-default-700 flex size-5 shrink-0 items-center justify-center rounded text-2xs font-bold">
+                        {courierInitials(s!.courierName, s!.courierCode)}
+                      </span>
+                    )}
+                    <span className="font-medium text-default-800">
+                      {s!.courierName ?? s!.courierCode}
+                    </span>
+                  </p>
+                  {/* ห้าม font-mono (Anuphan ไม่มี mono จะ fallback หลุดธีม) — tabular-nums พอ */}
+                  {s!.trackingNo && (
+                    <p className="mb-0 select-all text-xs font-semibold tabular-nums text-default-700">
+                      {s!.trackingNo}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="mb-0 text-xs text-default-400">ยังไม่ได้เปิดพัสดุ</p>
+              )}
+              <div className="mt-1.5">
                 <MiniShipmentTimeline
-                  stage={stage}
-                  hasShipment={false}
+                  stage={row.original.shippingStage}
+                  hasShipment={Boolean(s?.trackingNo)}
                   cancelled={row.original.status === 'CANCELLED'}
                 />
               </div>
-            </>
-          )
-        }
-        const logo = courierLogoUrl(s.courierCode, s.courierName)
-        return (
-          <>
-            <div className="flex items-center gap-2">
-              {logo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={logo}
-                  alt=""
-                  /* object-contain + ring: โลโก้ 2:1 (Fuze) ห้ามครอป, พื้นขาวต้องมีขอบ (pattern OrderCard) */
-                  className="ring-default-200 size-7 shrink-0 rounded-lg bg-white object-contain ring-1"
-                />
-              ) : (
-                <span className="bg-default-100 text-default-700 flex size-7 shrink-0 items-center justify-center rounded-lg text-2xs font-bold">
-                  {courierInitials(s.courierName, s.courierCode)}
-                </span>
-              )}
-              <div className="min-w-0">
-                <p className="mb-0 truncate text-sm font-medium text-default-800">
-                  {s.courierName ?? s.courierCode}
-                </p>
-                {/* ห้าม font-mono (Anuphan ไม่มี mono จะ fallback หลุดธีม) — tabular-nums พอ
-                    ไม่ truncate: เลขพัสดุต้องอ่านครบทุกตัวถึงจะเอาไปพิมพ์ตามต่อได้ */}
-                {s.trackingNo && (
-                  <p className="mb-0 text-xs font-semibold tabular-nums text-default-700">
-                    {s.trackingNo}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="mt-2">
-              <MiniShipmentTimeline
-                stage={stage}
-                hasShipment={Boolean(s.trackingNo)}
-                cancelled={row.original.status === 'CANCELLED'}
-              />
             </div>
           </>
         )
       },
     },
 
-    // ─ การชำระเงิน (วิธีจ่าย + ยอด + เงินเข้าหรือยัง อยู่ด้วยกันเพราะเป็นเรื่องเดียวกัน) ─
+    // ─ การชำระเงิน ─
     columnHelper.accessor('paymentMethod', {
       header: 'การชำระเงิน',
       meta: { cellClassName: 'min-w-36 align-top' },
       cell: ({ row }) => {
         const pm = row.original.paymentMethod
-        // "รอเงิน COD" มาจาก SSOT เดียวกับป้ายสถานะและไทล์ Command Center — ไม่คิดเงื่อนไขเอง
-        const awaitingCod = row.original.shippingStage === 'AWAITING_COD'
+        if (!pm) return <span className="text-sm text-default-400">—</span>
+        // วงกลมสีบอกว่าเงินถึงมือหรือยัง: เขียว = ได้รับแล้ว (Verified-Means-Green —
+        // เขียวเมื่อเป็นข้อเท็จจริงที่ตรวจสอบได้เท่านั้น) ที่เหลือเป็นกลาง
+        const settled = Boolean(row.original.codReceivedAtISO)
         return (
-          <>
-            {pm ? (
-              <p className="mb-0 inline-flex items-center gap-1.5 whitespace-nowrap text-sm text-default-800">
-                <Icon icon={PAYMENT_ICONS[pm] ?? 'wallet'} className="text-base text-default-500" />
-                {PAYMENT_LABELS[pm] ?? pm}
-              </p>
-            ) : (
-              <p className="mb-0 text-sm text-default-400">—</p>
-            )}
-            <p className="mb-0 mt-1 text-base font-bold tabular-nums text-default-900">
-              ฿{row.original.total.toLocaleString('th-TH')}
-            </p>
-            {awaitingCod && (
-              <p className="mb-0 text-xs font-semibold text-warning-ink">ยังไม่ได้รับเงิน</p>
-            )}
-          </>
+          <p className="mb-0 inline-flex items-center gap-1.5 whitespace-nowrap text-sm text-default-800">
+            <span
+              className={cn(
+                'flex size-6 shrink-0 items-center justify-center rounded-full',
+                settled ? 'bg-success/15 text-success-ink' : 'bg-default-100 text-default-700',
+              )}
+            >
+              <Icon icon={PAYMENT_ICONS[pm] ?? 'wallet'} className="text-sm" />
+            </span>
+            {PAYMENT_LABELS[pm] ?? pm}
+          </p>
         )
       },
     }),
 
-    // ─ สถานะ ─
+    // ─ ยอดคำสั่งซื้อ ─
+    columnHelper.accessor('total', {
+      header: 'ยอดคำสั่งซื้อ',
+      meta: { headerClassName: 'text-end', cellClassName: 'text-end align-top whitespace-nowrap' },
+      cell: ({ row }) => (
+        <span className="text-lg font-bold tabular-nums text-default-900">
+          ฿{row.original.total.toLocaleString('th-TH')}
+        </span>
+      ),
+    }),
+
+    // ─ สถานะ = เช็กลิสต์ "ใบนี้ค้างตรงไหน" ─
+    //   user สั่ง 2026-08-06 (ยกมาจาก UI ที่เคยทำเอง): เห็นทันทีว่าเหลืออะไร แทนป้ายคำเดียว
+    //   ที่ต้องแปลเอง · ทุกข้อผูกกับข้อมูลที่มีอยู่แล้ว ไม่ต้องเก็บอะไรเพิ่ม
+    //   บรรทัด "รับเงินปลายทาง" โผล่เฉพาะใบ COD — ใบโอนล่วงหน้าไม่มีเงินให้ตาม การขึ้น
+    //   ให้ครบทุกใบเท่ากับสร้างงานค้างปลอม
     columnHelper.accessor('status', {
       header: 'สถานะ',
       filterFn: 'equalsString',
       enableColumnFilter: true,
       meta: { cellClassName: 'min-w-40 align-top' },
       cell: ({ row }) => {
-        const cfg = resolveOrderStatusBadge(row.original.status, row.original.shippingStage)
-        const stage = row.original.shippingStage
-        // บรรทัดรองบอกสถานะพัสดุ **เฉพาะเมื่อมันพูดคนละเรื่องกับป้าย** — ไม่งั้นได้ป้าย
-        // "กำลังจัดส่ง" ทับด้วยคำว่า "กำลังจัดส่ง" อีกบรรทัด ซึ่งไม่ได้ข้อมูลอะไรเพิ่ม
-        const sub =
-          stage && stage !== 'DONE' && SHIPPING_STAGE_LABEL[stage] !== cfg.label
-            ? SHIPPING_STAGE_LABEL[stage]
-            : null
-        return (
-          <>
+        const o = row.original
+        if (o.status === 'CANCELLED') {
+          const cfg = resolveOrderStatusBadge(o.status, o.shippingStage)
+          return (
             <span className={cn('badge whitespace-nowrap text-sm', cfg.cls)}>
               <Icon icon={cfg.icon} className="text-sm" aria-hidden="true" />
               {cfg.label}
             </span>
-            {sub && <p className="mb-0 mt-1.5 text-xs text-default-500">{sub}</p>}
-          </>
+          )
+        }
+        const steps: { label: string; done: boolean }[] = [
+          { label: 'ยืนยันการจัดส่ง', done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
+          ...(isCODPayment(o.paymentMethod)
+            ? [{ label: 'รับเงินปลายทาง', done: Boolean(o.codReceivedAtISO) }]
+            : []),
+          { label: 'ผู้ซื้อยืนยันรับของ', done: o.status === 'CONFIRMED' },
+        ]
+        return (
+          <ul className="mb-0 list-none space-y-1 p-0">
+            {steps.map((s) => (
+              <li
+                key={s.label}
+                className={cn(
+                  'flex items-center gap-1.5 text-xs',
+                  s.done ? 'font-medium text-success-ink' : 'text-default-400',
+                )}
+              >
+                <Icon
+                  icon={s.done ? 'circle-check-filled' : 'x'}
+                  className="shrink-0 text-sm"
+                  aria-hidden="true"
+                />
+                {s.label}
+              </li>
+            ))}
+          </ul>
         )
       },
     }),
 
-    // ─ จัดการ ─
-    // variant table-grid: ปุ่มชุดเดิมครบทุกตัว แต่จัดเป็นกริด 3 คอลัมน์ — เรียงแถวเดียว
-    // กิน 209px (คอลัมน์ที่กว้างที่สุดในตาราง วัดจริง) กริดเหลือ ~106px โดยไม่ต้องมีเมนู ⋮
+    // ─ ดำเนินการ ─
+    // w-36 ไม่ใช่ w-px: `w-px` = "หดพอดีเนื้อหา" ซึ่ง grid คำนวณ min-content คนละแบบกับ
+    // inline-flex คอลัมน์เลยยุบจนปุ่มล้น (เจอจริงบน prod 2026-08-06)
     {
       id: 'action',
-      header: () => <div>จัดการ</div>,
-      // w-36 ไม่ใช่ w-px: `w-px` = "หดพอดีเนื้อหา" ซึ่งใช้ได้ตอนปุ่มเป็นแถวเดียว inline-flex
-      // แต่ grid คำนวณ min-content ต่างออกไป คอลัมน์เลยยุบเหลือ 57px ทั้งที่ปุ่ม 3 ตัว
-      // ต้องการ 3x37 + gap 2x6 = 123px → ปุ่มล้นออกนอกเซลล์และปุ่มคัดลอกถูกบีบเหลือ 6px
-      // (user เจอบน prod 2026-08-06 ทันทีที่ deploy) — 144px = 123 + padding ของ td
+      header: () => <div>ดำเนินการ</div>,
       meta: { headerClassName: 'w-36 whitespace-nowrap', cellClassName: 'w-36 whitespace-nowrap align-top' },
       cell: ({ row }: { row: TableRow<OrderRow> }) => (
         <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table-grid" orderNoun={vocab.noun} />
@@ -615,64 +613,45 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       <DataTable<OrderRow>
         table={table}
         emptyMessage="ไม่พบออเดอร์"
-        groupRow={(row) => {
-          const displayName =
-            row.original.buyerName ?? row.original.buyerUsername ?? 'ลูกค้าทั่วไป'
-          return (
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-              <input
-                type="checkbox"
-                className="form-checkbox form-checkbox-light size-4.5"
-                checked={row.getIsSelected()}
-                onChange={row.getToggleSelectedHandler()}
-                aria-label="เลือกออเดอร์นี้"
-              />
-              {/* ลำดับตามที่ user สั่ง 2026-08-06:
-                  [รูปเพจ+badge แพลตฟอร์ม] [เลขออเดอร์] [คัดลอก] [รูปลูกค้า] [ชื่อลูกค้า]
-                  "ที่มา" ต้องมาก่อนเลขออเดอร์ — user ยืนยันว่าต้องเห็นตลอดว่ามาจากเพจไหน */}
-              <OrderSourceLogo
-                logoUrl={row.original.sourceLogoUrl ?? null}
-                channel={row.original.salesChannel}
-              />
-              <Link
-                href={`/orders/${row.original.publicToken}`}
-                className="text-sm font-semibold tabular-nums text-primary hover:underline"
-              >
-                {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
-              </Link>
-              {/* คัดลอก "เลขออเดอร์" ไม่ใช่ลิงก์ — ปุ่มคัดลอกลิงก์ของผู้ซื้ออยู่ในชุดจัดการแล้ว */}
-              <CopyLinkButton
-                value={formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
-                label="คัดลอกเลขออเดอร์"
-                iconOnly
-                className="btn-sm border-none bg-transparent text-default-400 hover:bg-default-200 hover:text-default-800"
-              />
-              {row.original.isFromAuction && (
-                <span className="badge bg-warning/15 text-warning-ink inline-flex items-center gap-0.5" title="จากการประมูล">
-                  <Icon icon="gavel" className="size-3" />
-                  ประมูล
-                </span>
-              )}
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <BuyerAvatar
-                  src={row.original.buyerAvatar}
-                  name={displayName}
-                  className="size-6 shrink-0"
-                />
-                <span className="flex min-w-0 items-center gap-1 text-sm font-medium text-default-800">
-                  {row.original.buyerUsername && (
-                    <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
-                  )}
-                  <span className="truncate">{displayName}</span>
-                </span>
+        groupRow={(row) => (
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <input
+              type="checkbox"
+              className="form-checkbox form-checkbox-light size-4.5"
+              checked={row.getIsSelected()}
+              onChange={row.getToggleSelectedHandler()}
+              aria-label="เลือกออเดอร์นี้"
+            />
+            {/* ลำดับตามที่ user สั่ง: [รูปเพจ+badge แพลตฟอร์ม] [เลขออเดอร์] [คัดลอก] … [วันที่] */}
+            <OrderSourceLogo
+              logoUrl={row.original.sourceLogoUrl ?? null}
+              channel={row.original.salesChannel}
+            />
+            <Link
+              href={`/orders/${row.original.publicToken}`}
+              className="text-sm font-bold tabular-nums text-primary hover:underline"
+            >
+              {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+            </Link>
+            {/* คัดลอก "เลขออเดอร์" ไม่ใช่ลิงก์ — ลิงก์ผู้ซื้อมีปุ่มของตัวเองในชุดดำเนินการแล้ว */}
+            <CopyLinkButton
+              value={formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+              label="คัดลอกเลขออเดอร์"
+              iconOnly
+              className="btn-sm border-none bg-transparent text-default-400 hover:bg-default-200 hover:text-default-800"
+            />
+            {row.original.isFromAuction && (
+              <span className="badge bg-warning/15 text-warning-ink inline-flex items-center gap-0.5" title="จากการประมูล">
+                <Icon icon="gavel" className="size-3" />
+                ประมูล
               </span>
-              <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-default-500">
-                <Icon icon="calendar" className="text-sm" aria-hidden="true" />
-                {formatDateTime(row.original.createdAtISO)}
-              </span>
-            </div>
-          )
-        }}
+            )}
+            <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-default-500">
+              <Icon icon="calendar" className="text-sm" aria-hidden="true" />
+              {formatDateTime(row.original.createdAtISO)}
+            </span>
+          </div>
+        )}
       />
 
       {/* ─── pagination ──────────────────────────────────────────────────────── */}

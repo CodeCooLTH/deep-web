@@ -161,15 +161,22 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller โทรลูกค้าตัวเองได้ (user decision 2026-06-15)
     // PII note: เปิดเบอร์จริงเข้า flight ของ seller (เจ้าของออเดอร์) — ต้อง security review ก่อน prod
     buyerPhone: o.buyerContact ?? null,
-    // ปลายทางย่อ — ตัดบ้านเลขที่ทิ้งโดยเจตนา (ดูเหตุผลที่ OrderRow.shipTo)
+    // ปลายทางแยกส่วน — ประกอบบรรทัดที่ฝั่งจอ (ดูเหตุผล + หมายเหตุ PII ที่ OrderRow.shipTo)
     shipTo: (() => {
       const a = o.shippingAddress as Record<string, unknown> | null
       if (!a) return null
-      const parts = [a.subdistrict, a.district, a.province]
-        .map((v) => (typeof v === 'string' ? v.trim() : ''))
-        .filter((v) => v !== '')
-      return parts.length > 0 ? parts.join(' ') : null
+      const str = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null)
+      const locality = [str(a.subdistrict), str(a.district)].filter(Boolean).join(' ') || null
+      const shape = {
+        line1: str(a.line1),
+        locality,
+        province: str(a.province),
+        postcode: str(a.postcode),
+      }
+      // ไม่มีอะไรเลยสักช่อง = ถือว่าไม่มีที่อยู่ (อย่าคืนก้อนที่ทุกช่องเป็น null ให้จอไปเช็กเอง)
+      return Object.values(shape).some(Boolean) ? shape : null
     })(),
+    codReceivedAtISO: o.codReceivedAt ? new Date(o.codReceivedAt).toISOString() : null,
     paymentMethod: o.paymentMethod ?? null,
     // F2: map OrderItem → OrderItemRow; imageUrl = /api/files/{images[0]} ถ้า product มีรูป
     // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary
