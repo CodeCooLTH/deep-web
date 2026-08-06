@@ -45,7 +45,10 @@ export default function AuthCardShell({ children }: { children: ReactNode }) {
               <div className="grid min-h-screen grid-cols-1 min-[1025px]:min-h-0 min-[1025px]:grid-cols-2">
                 {/* form panel — ≤1024 form อยู่กลางแนวตั้ง (justify-center) + จำกัดความกว้าง centered;
                     >1024 ปล่อยเต็ม panel (max-w-none) */}
-                <div className="card-body relative flex flex-col justify-center p-6 sm:p-10 min-[1025px]:p-12.5">
+                {/* pt/pb เพิ่ม safe-area บนจอเล็ก (<640px = มือถือแนวตั้ง): ตั้งแต่เปิด
+                    viewportFit:'cover' (2026-08-06) การ์ดเต็มจอใบนี้กินพื้นที่ status bar/
+                    home indicator ด้วย — เนื้อหาจัดกึ่งกลางอยู่แล้วจึงชนเฉพาะตอนฟอร์มยาว */}
+                <div className="card-body relative flex flex-col justify-center p-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:p-10 min-[1025px]:p-12.5"> {/* carve-out: safe-area ไม่มี token */}
                   <div className="mx-auto w-full max-w-md min-[1025px]:max-w-none">
                     {children}
                   </div>

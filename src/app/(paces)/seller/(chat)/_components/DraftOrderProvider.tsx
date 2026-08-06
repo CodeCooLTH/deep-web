@@ -305,7 +305,10 @@ export default function DraftOrderProvider({
           // sheet ถูก contain ในโมดัลแทนกินเต็มจอ โดยไม่ต้องแก้ทีละ sheet (user report 2026-07-24)
           className={
             d.state === 'expanded'
-              ? 'bg-card fixed inset-0 z-80 flex transform-gpu flex-col overflow-hidden shadow-lg lg:inset-y-4 lg:left-auto lg:right-4 lg:w-96 lg:rounded-lg'
+              // pt/pb safe-area เฉพาะโหมดเต็มจอ (<lg): ตั้งแต่เปิด viewportFit:'cover' (2026-08-06)
+              // inset-0 = ทับ status bar/home indicator จริง; ≥lg เป็นหน้าต่าง inset-y-4 ไม่ต้องเว้น
+              // (lg:pt-0/lg:pb-0 ล้างค่ากลับ) — HR7 carve-out: safe-area ไม่มี token
+              ? 'bg-card fixed inset-0 z-80 flex transform-gpu flex-col overflow-hidden shadow-lg pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] lg:inset-y-4 lg:left-auto lg:right-4 lg:w-96 lg:rounded-lg lg:pt-0 lg:pb-0'
               : 'hidden'
           }
         >

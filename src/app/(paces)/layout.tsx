@@ -33,11 +33,23 @@ export const metadata: Metadata = {
 
 // ปิด pinch-zoom บนมือถือ — แอป seller/admin เป็น native-like (Paces) ไม่อยาก
 // ให้ผู้ใช้ซูมจนเลย์เอาต์เพี้ยน. maximumScale=1 + userScalable=false
+//
+// viewportFit 'cover' (2026-08-06): ถ้าไม่ตั้ง iOS จะคืน env(safe-area-inset-*) = 0 ทั้งหมด
+// แปลว่า `pb-[env(safe-area-inset-bottom)]` ทุกจุดใน (paces) — bottom nav, sheet, action bar,
+// main padding ใน safepay-overrides.css — ไม่เคยทำงานเลยตั้งแต่แรก. อาการที่ user จับได้:
+// label ของ bottom nav ไปนอนคาบแถบ home indicator (เว้นขอบล่าง ~12pt ขณะที่ Shopee/TrueMoney
+// เว้น ~36pt). ฝั่ง buyer (marketing)/layout.tsx ตั้ง cover ไว้อยู่แล้ว
+//
+// สำคัญ: เปิด cover = เนื้อหากินพื้นที่ status bar/home indicator ด้วย → ทุก surface ที่ยึดขอบจอ
+// ต้องเว้น inset เอง (ไม่งั้นหัวจอมุดใต้นาฬิกา) จุดที่จัดการไว้แล้วในคอมมิตเดียวกัน:
+// SellerMobileHeader (pt), .app-header + .chat-shell (safepay-overrides.css),
+// SellerBottomNav (h + pb), (fullscreen)/layout, action bar/sheet เต็มจอ, หน้า auth/onboarding
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({

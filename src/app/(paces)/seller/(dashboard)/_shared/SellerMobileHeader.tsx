@@ -40,8 +40,14 @@ const SellerMobileHeader = ({ orderLabel }: Props) => {
   // v8: /dashboard มี SellerHeader (น้ำเงิน) ของตัวเองใน CommandCenter (page content)
   // → layout topbar คืน null กัน header ซ้อน 2 อัน
   // /orders: หน้าเป็นเจ้าของ header เอง (search + filter + bell ใน OrdersList) → คืน null เช่นกัน
-  if (pathname === '/dashboard' || pathname === '/orders') {
+  // safe-area (2026-08-06, viewportFit:'cover'): 2 หน้านี้ไม่มี header ของ layout แต่เนื้อหา
+  // เริ่มที่ขอบบนจอพอดี — /orders มี header sticky ของตัวเองที่รับ inset ไปแล้ว (OrdersList.tsx)
+  // ส่วน /dashboard เป็นการ์ด hero ลอย ๆ ไม่มีใครรับ → คืน spacer สูงเท่า inset แทน null
+  if (pathname === '/orders') {
     return null
+  }
+  if (pathname === '/dashboard') {
+    return <div aria-hidden="true" className="pt-[env(safe-area-inset-top)]" /> /* carve-out: safe-area ไม่มี token */
   }
 
   // ชื่อหน้ามาจาก longest-prefix match บน sellerMenuItems
@@ -68,9 +74,12 @@ const SellerMobileHeader = ({ orderLabel }: Props) => {
 
   return (
     /* sticky top + gradient fade ด้านล่าง (body-bg 80%→transparent) — flat บนพื้น body ไม่มี card ครอบ
-       v8 fix: เดิม hardcode #F8F7FA (สี mist ของ Vuexy) → ใช้ var(--color-body-bg) (#f6f7fb ของ Paces) */
+       v8 fix: เดิม hardcode สี mist ของ Vuexy → ใช้ var(--color-body-bg) ของ Paces แทน */
     <header
-      className="sticky top-0 z-20"
+      /* pt-[env(safe-area-inset-top)]: ตั้งแต่เปิด viewportFit:'cover' ที่ (paces)/layout.tsx
+         (2026-08-06) webview กินพื้นที่ status bar ด้วย — หัวนี้ sticky top-0 จึงต้องเว้น inset
+         เอง ไม่งั้นชื่อหน้าไปนอนใต้นาฬิกา. พื้นหลัง gradient ของ header เองเป็นตัวถมแถบนั้น */
+      className="sticky top-0 z-20 pt-[env(safe-area-inset-top)]" /* carve-out: safe-area ไม่มี token */
       style={{ background: 'linear-gradient(180deg, var(--color-body-bg) 80%, transparent)' }}
       role="banner"
     >
@@ -109,7 +118,7 @@ const SellerMobileHeader = ({ orderLabel }: Props) => {
             {/* dot bg-danger (token) + ring body-bg กัน dot ชน icon
                 arbitrary size/offset: ตำแหน่ง+ขนาด dot 7px ไม่มี token แทน */}
             <span
-              className="absolute w-[7px] h-[7px] rounded-full bg-danger ring-2 ring-[var(--color-body-bg)]"
+              className="absolute w-[7px] h-[7px] rounded-full bg-danger ring-2 ring-[var(--color-body-bg)]" /* carve-out: จุดแจ้งเตือน 7px + ring สีพื้น body */
               style={{ top: '9px', right: '10px' }}
             />
           </button>

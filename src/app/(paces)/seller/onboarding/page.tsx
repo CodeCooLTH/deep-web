@@ -54,7 +54,9 @@ const STEP_META: Record<Exclude<Step, 'address' | 'product'>, { icon: string; he
 /** หน้า seller เปล่า — Paces card centered (ไม่ใช่ auth split-card) */
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-default-100 p-4">
+    /* p-4 + safe-area บนขอบบน/ล่าง: ตั้งแต่เปิด viewportFit:'cover' (2026-08-06) หน้าเต็มจอ
+       กินพื้นที่ status bar/home indicator ด้วย — หน้านี้คือจอแรกของ seller ใหม่ ห้ามให้หัวมุด */
+    <div className="flex min-h-screen items-center justify-center bg-default-100 p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]"> {/* carve-out: safe-area ไม่มี token */}
       <div className="card w-full max-w-md">
         <div className="card-body p-6 sm:p-8">{children}</div>
       </div>

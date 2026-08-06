@@ -31,7 +31,7 @@ import { useEffect, useRef, useState } from 'react'
 
 // ─── FAB_ACTIONS — reuse ตรงจาก CreateFab (href verified จากไฟล์นั้น) ────────
 // short path ไม่มี /seller prefix ตาม Paces routing convention
-// ลำดับ array: pills render ผ่าน flex-col ที่ bottom-22 (เหนือ FAB) → index 0 อยู่บนสุด,
+// ลำดับ array: pills render ผ่าน flex-col ที่ระยะ 5.5rem+safe-area (เหนือ FAB) → index 0 อยู่บนสุด,
 // index สุดท้ายอยู่ล่างสุด = ใกล้ปุ่ม FAB ที่สุด. ดังนั้น 'สร้างออเดอร์' (index 2, action หลัก
 // ตาม PRD S-3) เป็น pill ล่างสุด/ใกล้นิ้วสุด — อ่านจาก FAB ขึ้นบน = ออเดอร์→สินค้า→หมวดหมู่
 // ตรงกับ scope acceptance S-7 (ห้ามสลับลำดับ array โดยไม่ดูทิศ flex-col)
@@ -179,7 +179,7 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
 
       {/* Speed-dial action pills — แสดงเหนือ center button เมื่อ open */}
       {open && (
-        <div className="fixed bottom-22 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-3 pb-2">
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-3 pb-2"> {/* carve-out: 5.5rem = nav 72px + 16px ต้องเลื่อนตาม safe-area ไม่งั้นทับแถบ */}
           {fabActions.map((action, index) => (
             <SpeedDialAction
               key={action.href}
@@ -201,12 +201,18 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
       <nav
         className={[
           /* h-18 (72px): เพิ่มจาก h-16 ตาม user 2026-08-06 "มันเล็กไป" — ขยับ 4 จุดพ่วงตามกัน:
-             speed-dial bottom-22, main padding-bottom 5.5rem (safepay-overrides.css),
-             FAB top-[-30px] + label mt 30px, KeywordEditorClient footer bottom-22 */
-          'fixed bottom-0 left-0 right-0 z-30 h-18 bg-white',
+             speed-dial 5.5rem, main padding-bottom 5.5rem (safepay-overrides.css),
+             FAB top -30px + label mt 30px, KeywordEditorClient footer bottom 5.5rem
+
+             HR7 carve-out (2026-08-06): ความสูง = 4.5rem + safe-area แทน h-18 เปล่า ๆ เพราะ
+             Tailwind ตั้ง box-sizing: border-box ให้ทุก element → `h-18` + `pb-[env(...)]`
+             แปลว่า padding safe-area **กินเข้าไปข้างใน** 72px (เหลือเนื้อหา 38px) ไม่ใช่ต่อเพิ่ม
+             ด้านล่าง. ต้องเขียนความสูงรวม inset ตรง ๆ เนื้อหาถึงจะคงที่ 72px แล้วมีเบาะ 34px
+             ใต้ label กันแถบ home indicator ของ iOS (เทียบ Shopee/TrueMoney เว้น ~36pt) */
+          'fixed bottom-0 left-0 right-0 z-30 h-[calc(4.5rem+env(safe-area-inset-bottom))] bg-white', // carve-out: safe-area ต้องบวก *นอก* 4.5rem (ดูบล็อกบน)
           'border-t border-default-200',
           /* arbitrary: nav drop-shadow — Paces ไม่มี token shadow ด้านบน (shadow-md ลงล่าง) */
-          'shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)]',
+          'shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)]', // carve-out: เงาทิศขึ้น Paces ไม่มี token
           /* grid-cols-5 = 4 nav item + 1 center FAB cell (S-2: ตัด "สินค้า" ออก) */
           'grid grid-cols-5 items-center',
           /* arbitrary: safe-area iOS notch/home bar — ไม่มี token แทน */
@@ -249,13 +255,13 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
             <span
               aria-hidden="true"
               className={[
-                'absolute top-[-2px] left-[calc(50%+8px)]',
+                'absolute top-[-2px] left-[calc(50%+8px)]', // carve-out: ตำแหน่ง badge เทียบ icon กลางช่อง
                 /* arbitrary: badge ตำแหน่ง offset จาก center icon — calc ไม่มี token แทน */
-                'min-w-[16px] h-[16px]',
+                'min-w-[16px] h-[16px]', // carve-out: badge 16px รองรับ 2 หลัก
                 /* arbitrary: badge ขนาดเล็กสุด 16px — ต่ำกว่า Tailwind w-4 (=16px) ใช้ w-4 ได้แต่ใช้ min-w เพื่อรองรับ 2 หลัก */
                 'px-1 rounded-full bg-danger text-white text-xs font-bold flex items-center justify-center',
                 /* arbitrary: badge ring 2px ขาว — ไม่มี Paces/Tailwind token outline white สำหรับ ring บน badge */
-                'shadow-[0_0_0_2px_white]',
+                'shadow-[0_0_0_2px_white]', // carve-out: ring ขาวรอบ badge
               ].join(' ')}
             >
               {badgeText}
@@ -279,12 +285,12 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
               /* arbitrary: raised FAB ขนาด/ตำแหน่ง — Paces ไม่มี token สำหรับ center raised button
                  -30px (เดิม -26): แถบสูงขึ้น 8px → จุดกึ่งกลาง cell เลื่อนลง 4px ต้องชดเชยเพื่อให้
                  FAB โผล่พ้นขอบบนแถบเท่าเดิม */
-              'absolute top-[-30px] left-1/2 -translate-x-1/2',
-              'w-[54px] h-[54px]',
+              'absolute top-[-30px] left-1/2 -translate-x-1/2', // carve-out: raised FAB
+              'w-[54px] h-[54px]', // carve-out: ขนาด FAB
               /* arbitrary: FAB border ring 3px ขาว — ไม่มี Paces border-width token > 2px */
-              'rounded-full bg-primary text-white flex items-center justify-center border-[3px] border-white',
+              'rounded-full bg-primary text-white flex items-center justify-center border-[3px] border-white', // carve-out: border 3px (Paces มีถึง 2px)
               /* arbitrary: FAB drop shadow + inset highlight — Paces shadow-* ไม่รองรับ multi-layer + inset */
-              'shadow-[0_8px_18px_-4px_rgba(47,43,61,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]',
+              'shadow-[0_8px_18px_-4px_rgba(47,43,61,0.35),inset_0_1px_0_rgba(255,255,255,0.25)]', // carve-out: เงา multi-layer + inset
               'transition-transform active:scale-95',
             ].join(' ')}
           >
@@ -319,13 +325,13 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
             <span
               aria-hidden="true"
               className={[
-                'absolute top-[-2px] left-[calc(50%+8px)]',
+                'absolute top-[-2px] left-[calc(50%+8px)]', // carve-out: ตำแหน่ง badge เทียบ icon กลางช่อง
                 /* arbitrary: badge ตำแหน่ง offset จาก center icon — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
-                'min-w-[16px] h-[16px]',
+                'min-w-[16px] h-[16px]', // carve-out: badge 16px รองรับ 2 หลัก
                 /* arbitrary: badge ขนาดเล็กสุด 16px — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
                 'px-1 rounded-full bg-danger text-white text-xs font-bold flex items-center justify-center',
                 /* arbitrary: badge ring 2px ขาว — เหตุผลเดียวกับ badge "คำสั่งซื้อ" */
-                'shadow-[0_0_0_2px_white]',
+                'shadow-[0_0_0_2px_white]', // carve-out: ring ขาวรอบ badge
               ].join(' ')}
             >
               {chatBadgeText}

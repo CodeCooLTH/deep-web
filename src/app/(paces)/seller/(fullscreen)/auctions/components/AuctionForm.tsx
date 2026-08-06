@@ -375,7 +375,9 @@ export default function AuctionForm({ mode, products, hasL2 = true, auction }: A
 
       {/* Sticky bottom footer — mobile เท่านั้น (md:hidden); tablet/desktop ใช้การ์ด "เผยแพร่" ด้านบนแทน
           (ไม่ใช้ saveFormId ที่ FullscreenPageHeader) */}
-      <div className="bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 md:hidden">
+      {/* pb = p-3 (0.75rem) + safe-area: fixed bottom-0 → ตั้งแต่เปิด viewportFit:'cover' (2026-08-06)
+          ปุ่มจะไปนอนใต้แถบ home indicator ถ้าไม่เว้น inset */}
+      <div className="bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:hidden"> {/* carve-out: safe-area ไม่มี token */}
         <div className="mx-auto flex w-full max-w-2xl gap-3">
           {!isEdit ? (
             <>

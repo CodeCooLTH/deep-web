@@ -473,9 +473,13 @@ export default function ProductFormV2({
       {/* Sticky bottom save bar — mobile only (desktop ใช้ FullscreenPageHeader)
           แสดงเฉพาะตอน edit tab; preview tab ไม่ต้องมีเพราะไม่ใช่จุดบันทึก */}
       <div
-        className={`bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 lg:hidden ${
-          mobileTab === 'edit' ? 'block' : 'hidden'
-        }`}
+        className={[
+          'bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 lg:hidden',
+          /* pb = p-3 (0.75rem) + safe-area: แถบนี้ fixed bottom-0 → ตั้งแต่เปิด viewportFit:'cover'
+             (2026-08-06) ปุ่มบันทึกจะไปนอนใต้แถบ home indicator ถ้าไม่เว้น inset */
+          'pb-[calc(0.75rem+env(safe-area-inset-bottom))]', /* carve-out: safe-area ไม่มี token */
+          mobileTab === 'edit' ? 'block' : 'hidden',
+        ].join(' ')}
       >
         <button
           type="submit"
