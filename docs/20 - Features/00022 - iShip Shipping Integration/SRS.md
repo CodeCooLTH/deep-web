@@ -773,3 +773,124 @@ iShip ตอบว่า `"เครดิตไม่เพียงพอ"` �
 เดิมสร้างจาก code เปล่า ทำให้ข้อยกเว้นเดียวของ BR-ISHIP §6.4 (`REJECTED_BY_CARRIER` ต่อท้าย
 รายละเอียดจากขนส่ง เช่น "กรุณากรอก สีสินค้า") **ไม่เคยทำงานเลยสักครั้ง** ตัวกรองอยู่ใน
 `IShipError` อยู่แล้ว — code อื่นยังไม่เปิดเผยข้อความดิบ
+
+---
+
+## 19. แก้ 2026-08-06 (รอบสาม) — "สถานะปัจจุบัน" ของพัสดุมีเจ้าของเดียว
+
+### BR-ISHIP-68 — `OrderShipment.carrierStatus` ต้องมาจาก **สถานะระดับออเดอร์ของ iShip** เท่านั้น
+
+แหล่งที่ยอมรับ (ทั้งสามให้ค่าเดียวกันเพราะเป็นตัวเลข/รหัสสถานะออเดอร์ชุดเดียว):
+
+| ทาง | endpoint | ตัวแปลง |
+|------|----------|---------|
+| sync ทั้งร้าน | `query_orders` | `carrierStatusCodeFromId(row.status)` |
+| อ่านรายใบ (ตอนเปิดไทม์ไลน์) | `get_order` | `parseParcelRow(...).statusId` → `carrierStatusCodeFromId` |
+| webhook | order webhook | `status_code` ตรง ๆ |
+
+**ห้ามอ่านจาก `/api/traces` เด็ดขาด** — trace คือ *ข้อความเล่าการเดินทาง* ไม่ใช่ *สถานะ*
+
+**เคสจริงที่เป็นเหตุ (user report 2026-08-06, `TH061118024638` ขนส่ง SPX):** หน้าจอ iShip เอง
+ขึ้น "รอเข้ารับพัสดุ" (`order_success`) แต่หน้า `/orders` ของเราขึ้น "กำลังจัดส่ง" ตั้งแต่ **3 วินาที**
+หลังเปิดพัสดุ เพราะ trace แถวแรกของ SPX ส่ง `status = "picked_up"` มาพร้อม
+`status_desc = "ผู้ส่งกำลังเตรียมพัสดุ"` — คือเหตุการณ์ *สร้างพัสดุ* ที่ผู้ให้บริการติดป้ายเป็น
+*เข้ารับแล้ว* (ตรวจฐาน prod แล้วเป็นครบทั้ง **3 ใบที่เป็น SPX** ไม่ใช่ใบเดียว)
+
+ผลต่อเนื่อง 2 ชั้นจากค่าเดียวที่ผิด:
+1. `picked_up ∈ IN_TRANSIT_CARRIER_STATUSES` → `deriveShippingStage` = `SHIPPING` →
+   ไทม์ไลน์กระโดดไปจุดที่ 3 ทั้งบนแถว `/orders` และในการ์ด hover
+2. `impliesDispatched('picked_up')` = true → `advanceOrderOnCarrierMove` ดัน
+   `Order.status` `PENDING → SHIPPED` อัตโนมัติ ทั้งที่ขนส่งยังไม่มารับของ
+   (ผู้ซื้อที่เปิดลิงก์ออเดอร์เห็น "จัดส่งแล้ว")
+
+### BR-ISHIP-69 — ค่าที่มีผู้เขียนสองรายต้องพิสูจน์ได้ว่าทั้งสองรายเขียน "เรื่องเดียวกัน"
+
+`carrierStatus` มีผู้เขียน 2 ทางมาตลอด: `syncShipmentStatuses` (ทุก 15 นาที ผ่าน `query_orders`)
+และ `getTraces` (ทุกครั้งที่ร้านเปิด/hover ดูไทม์ไลน์) — คอมเมนต์เดิมที่ `getTraces` เขียนไว้ว่า
+"สองทางนี้เขียนช่องเดียวกันโดยไม่ตีกัน เพราะต่างก็เขียนสถานะล่าสุดที่รู้" **เป็นข้อสันนิษฐานที่ผิด**
+ของจริงคือ sync เขียน `order_success` แล้ว hover เขียน `picked_up` ทับ สลับไปมาทุก 15 นาที
+โดยไม่มีอะไรฟ้อง (ตอนที่ user รายงาน รอบ sync ล่าสุดคือ 14:00:08 พัสดุเปิด 14:07:29
+จึงยังไม่ทันเขียนทับ — ถ้าช้ากว่านั้นอีก 8 นาที บั๊กจะ "หายเอง" แล้วหาไม่เจอ)
+
+### FR-ISHIP-075 — `getTraces` แยกหน้าที่ trace ออกจาก state
+
+`getTraces(shopId, shipmentId)` หลังบันทึก `ShipmentEvent` ครบแล้ว:
+
+1. ยิง `get_order(trackingNo)` → `parseParcelRow` → `carrierStatusCodeFromId(statusId)`
+2. ได้ code → เขียน `carrierStatus` / `carrierStatusText` (`describeCarrierStatus(code).text`
+   ไม่ใช่ `status_name` ดิบ เพื่อให้สะกดตรงกับทางเข้าอื่นทุกตัวอักษร) /
+   `carrierStatusAt` = `IShipParcel.updatedAtRaw` (fallback = now)
+3. เรียก `advanceOrderOnCarrierMove` ด้วย code ที่ได้จากขั้น 1 เท่านั้น
+4. ยิงไม่สำเร็จ = **คงค่าเดิมไว้** ห้าม fallback ไปใช้สถานะจาก trace
+
+`IShipParcel.updatedAtRaw` (`unlinked.ts`) เพิ่มในรอบนี้ — รับทั้ง `updated` / `updated_at` /
+`updatedAt` ผ่าน `normalizeIShipDate` เกณฑ์เดียวกับที่ `syncShipmentStatuses` ใช้ `row.updated_at`
+
+**ต้นทุน:** เปิดไทม์ไลน์ 1 ครั้ง = 2 คำขอ (traces + get_order) แทน 1 — ยิงเฉพาะตอนร้านเปิดดูจริง
+และ hover card จำผลไว้ต่อการเปิดหน้าหนึ่งครั้งอยู่แล้ว
+
+**หลักฐานว่าเส้นทางนี้ใช้ได้จริง:** พัสดุ `source = 'LINKED'` 22 ใบบน prod ได้ `carrierStatus`
+ครบทุกใบผ่าน `get_order` + `parseParcelRow` + `carrierStatusCodeFromId` ชุดเดียวกันนี้
+
+### การซ่อมข้อมูลที่เสียไปแล้ว (prod, 2026-08-06)
+
+`DP25690865D87C24` ถูกดันเป็น `SHIPPED` ไปแล้ว — โค้ดใหม่ไม่ย้อนให้เอง (`advanceOrderOnCarrierMove`
+เดินทางเดียว) จึงแก้ด้วย UPDATE ที่ scope ด้วย `orderNo` + `trackingNo`: คืน `Order.status` เป็น
+`PENDING` และ `carrierStatus` เป็น `order_success` / `carrierStatusAt` = `OrderShipment.createdAt`
+อีก 2 ใบ SPX ไม่ต้องแก้ (ใบหนึ่ง `with_branch` = เดินทางจริง อีกใบผู้ซื้อยืนยันรับของแล้ว)
+
+**ไม่ลบแถว `ShipmentEvent` ที่เป็นต้นเหตุ** — มันเป็นเหตุการณ์ที่ iShip ส่งมาจริง ถูกต้องในฐานะ
+*ประวัติ* ปัญหาอยู่ที่เราเคยเอามันไปใช้เป็น *สถานะ* ซึ่งแก้ที่โค้ดไปแล้ว
+
+---
+
+## 20. แก้ 2026-08-06 (รอบสี่) — `payment_success` หายจากตารางแมปทุกตัวพร้อมกัน
+
+### BR-ISHIP-70 — `payment_success` (id 12) เป็น **ปลายทาง** ไม่ใช่ระหว่างทาง
+
+เงินเก็บปลายทางเข้าร้านเกิด **หลัง** `delivered` เสมอ (ของจริงห่างกัน ~33 ชม. — §18.1)
+`payment_success` จึงเป็นปลายทางที่ *ไกลกว่า* `delivered` ไม่ใช่สถานะระหว่างทาง
+
+**เคสจริง (user report 2026-08-06, `TH069306110878`):** ออเดอร์ `CONFIRMED` เงินเข้าตั้งแต่
+4 ส.ค. รายการ "การเดินทางล่าสุด" ในการ์ด hover ขึ้นครบถึง "อยู่ระหว่างขนส่ง" แต่แถบ 4 จุด
+ชี้จุดแรก "สร้างพัสดุ" — **การ์ดใบเดียวพูดขัดกันเอง**
+
+ค่าเดียวนี้หายไปจาก **4 ตาราง/เงื่อนไขพร้อมกัน** ซึ่งเป็นเหตุผลที่อาการดูรุนแรงกว่าที่ควร:
+
+| จุด | ผลที่เกิด |
+|-----|-----------|
+| `CARRIER_STATUS.payment_success.terminal = false` | ทุกที่ที่ถาม "จบหรือยัง" ตอบว่ายัง |
+| `TERMINAL_CARRIER` ใน `order-stage.ts` (รายชื่อคัดลอกมาเขียนซ้ำ) | `deriveShippingStage` → `AWAITING_PICKUP` "รอรับเข้า" → `CURRENT_INDEX` = 0 |
+| `STAGE_OF` ใน `describeProgress` | `?? 0` → stepper ใหญ่ในการ์ดการจัดส่งถอยไปจุดแรกด้วย |
+| `deriveOrderStage` เทียบ `=== 'delivered'` ตรง ๆ | ป้ายในรายการแชท = "สร้างพัสดุแล้ว" |
+
+### BR-ISHIP-71 — "จบเส้นทาง" กับ "ถึงมือผู้รับ" เป็นคนละชุด
+
+| ชุด | สมาชิก | ใช้ทำอะไร |
+|-----|--------|-----------|
+| `isTerminalCarrierStatus()` | อ่านจากคอลัมน์ `terminal` ในตาราง `CARRIER_STATUS` โดยตรง — `delivered` `payment_success` `return_success` `is_expired` `cancelled` `close` | เลิกตามต่อ / `deriveShippingStage` เข้าสาขาปลายทาง |
+| `DELIVERED_CARRIER_STATUSES` | `delivered` `payment_success` เท่านั้น | มีสิทธิ์ทำให้แถบเป็น **สีเขียว** (Verified-Means-Green) |
+
+terminal รวมปลายทางที่ *ไม่สำเร็จ* ด้วย — ตีกลับ/หมดอายุ/ยกเลิก/ปิดงาน ห้ามได้สีเขียว
+
+**ลบ `const TERMINAL_CARRIER` ใน `order-stage.ts` ทิ้ง** — รายชื่อที่ถูกคัดลอกไปเขียนซ้ำสองที่
+ไม่มีวันถูกแก้พร้อมกัน (รอบนี้พิสูจน์แล้ว: ตาราง `CARRIER_STATUS` มีคอลัมน์ `terminal` อยู่แล้ว
+แต่ไม่มีใครอ่าน) ตัวตัดสินต้องอยู่ติดกับตารางที่นิยามข้อมูลนั้น
+
+### BR-ISHIP-72 — `close` (id 99) ต้องมีในตารางสถานะ
+
+`close` อยู่ใน `STATUS_ID_TO_CODE` มาตั้งแต่แรกแต่ไม่เคยมีใน `CARRIER_STATUS` — ถ้ามาจริง
+`describeCarrierStatus` จะคืน fallback "อยู่ระหว่างดำเนินการ" = พัสดุที่ปิดงานแล้วขึ้นว่ายังเดินอยู่
+
+ให้ `terminal: true` (ตรงกับที่ `syncShipmentStatuses` ตัด `close` ออกจากชุดติดตามอยู่แล้ว)
+แต่ **ไม่อยู่ใน `DELIVERED_CARRIER_STATUSES`** เพราะยังไม่เคยเจอค่านี้ในข้อมูลจริงสักแถว
+(ตรวจ prod 2026-08-06) — พิสูจน์ไม่ได้ว่า "ปิดงาน" แปลว่าสำเร็จ ห้ามเดาให้เป็นสีเขียว
+`describeProgress` ให้ stage 3 tone `diverted` + `lastLabel` "ปิดงานแล้ว"
+
+### Traceability
+
+| ข้อ | ไฟล์ | เทส |
+|-----|------|-----|
+| BR-ISHIP-70 | `lib/iship/status.ts` (`CARRIER_STATUS`, `STAGE_OF`) · `lib/order-stage.ts` | `order-stage.test.ts` "payment_success = ปลายทาง ไม่ใช่ระหว่างทาง" |
+| BR-ISHIP-71 | `lib/iship/status.ts` (`isTerminalCarrierStatus`, `DELIVERED_CARRIER_STATUSES`) | เดียวกัน |
+| BR-ISHIP-72 | `lib/iship/status.ts` (`CARRIER_STATUS.close`) | เดียวกัน (เคส close → DONE) |

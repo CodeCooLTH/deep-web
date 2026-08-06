@@ -45,6 +45,15 @@ export interface IShipParcel {
   receiver: ParcelReceiver;
   /** เวลาที่สร้างพัสดุฝั่ง iShip — normalize เป็น ISO แล้วโดย normalizeIShipDate() (null = แปลงไม่ได้) */
   createdAtRaw: string | null;
+  /**
+   * เวลาที่สถานะพัสดุเปลี่ยนล่าสุดฝั่ง iShip — normalize เป็น ISO แล้วเช่นกัน
+   *
+   * ใช้เป็น `OrderShipment.carrierStatusAt` ตอนอ่านสถานะจาก get_order (getTraces) —
+   * ต้องเป็นเวลาที่ iShip บอกว่าสถานะเปลี่ยน ไม่ใช่เวลาที่เราไปดึงมา ไม่งั้นทุกใบจะได้เวลา
+   * เท่ากับตอนที่ร้านเผลอเอาเมาส์ไปวาง แล้วเรียงลำดับเหตุการณ์ไม่ได้อีกเลย
+   * (เกณฑ์เดียวกับที่ syncShipmentStatuses ใช้ `row.updated_at`)
+   */
+  updatedAtRaw: string | null;
   /** ไม่ว่าง = ใบนี้ถูกยกเลิกไปแล้ว ผูกไปก็ใช้ไม่ได้ */
   cancelledAtRaw: string | null;
 }
@@ -172,6 +181,8 @@ export function parseParcelRow(raw: unknown): IShipParcel | null {
       postcode: str(o, "dst_zipcode", "dst_postcode"),
     },
     createdAtRaw: normalizeIShipDate(str(o, "created", "created_at", "createdAt")),
+    // "updated" คือสะกดในเอกสาร ส่วนของจริงเคยเจอเป็น "updated_at" — รับทั้งคู่ตามหมายเหตุที่ str()
+    updatedAtRaw: normalizeIShipDate(str(o, "updated", "updated_at", "updatedAt")),
     cancelledAtRaw: str(o, "cancel_at", "cancelled_at", "cancelAt"),
   };
 }

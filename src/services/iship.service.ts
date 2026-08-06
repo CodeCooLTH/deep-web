@@ -1388,26 +1388,45 @@ export async function getTraces(shopId: string, shipmentId: string) {
 
   // sync สถานะล่าสุดลง OrderShipment ด้วย ไม่ใช่บันทึกแค่ไทม์ไลน์
   //
-  // เดิมออกแบบให้ webhook เป็นคนอัปเดตช่องนี้ แต่ webhook ต้องรอประสานกับผู้ให้บริการ
-  // (แจ้ง URL ให้เขา) จึงไม่พร้อมพร้อมกับส่วนอื่น ถ้าไม่ sync ตรงนี้ ช่อง "สถานะพัสดุ"
-  // จะว่างตลอดกาลทั้งที่ไทม์ไลน์มีข้อมูลครบ — ร้านจะเห็นสองอย่างขัดกันเองในการ์ดเดียว
+  // [สำคัญที่สุดในไฟล์นี้] สถานะปัจจุบันต้องอ่านจาก **สถานะระดับออเดอร์ของ iShip (get_order)**
+  //    ห้ามอ่านจากแถว trace เด็ดขาด
   //
-  // เมื่อ webhook เปิดใช้ภายหลัง สองทางนี้เขียนช่องเดียวกันโดยไม่ตีกัน เพราะต่างก็เขียน
-  // "สถานะล่าสุดที่รู้" ทับลงไป และ ShipmentEvent มี dedupeKey กันบันทึกซ้ำอยู่แล้ว
-  const latest = routes.at(-1);
-  if (latest) {
-    const occurredAt = parseCarrierTimestamp(latest.timestamp);
-    if (occurredAt) {
+  // บั๊กที่แก้ (user เจอบน prod 2026-08-06 — TH061118024638 ขนส่ง SPX): หน้าจอ iShip เอง
+  // ขึ้น "รอเข้ารับพัสดุ" แต่ของเราขึ้น "กำลังจัดส่ง" ตั้งแต่ 3 วินาทีหลังเปิดพัสดุ เพราะ
+  // trace แถวแรกของ SPX มาเป็น status `picked_up` พร้อมคำอธิบาย "ผู้ส่งกำลังเตรียมพัสดุ"
+  // — คือเหตุการณ์ *สร้างพัสดุ* ที่ถูกติดป้ายเป็น *เข้ารับแล้ว* (เจอครบทั้ง 3 ใบ SPX ที่มี
+  // บนฐาน prod ไม่ใช่ใบเดียว) แล้ว `picked_up` อยู่ใน IN_TRANSIT_CARRIER_STATUSES
+  // → แถบสถานะกระโดดไป "กำลังจัดส่ง" และ impliesDispatched() ยังดันคำสั่งซื้อ
+  // PENDING → SHIPPED ให้อัตโนมัติทั้งที่ขนส่งยังไม่มารับของ
+  //
+  // แยกหน้าที่ให้ชัด: trace = *ข้อความเล่าการเดินทาง* (เก็บลง ShipmentEvent ข้างบน ถูกต้อง
+  // ในฐานะประวัติ) ส่วน "สถานะปัจจุบัน" มีเจ้าของเดียวคือ status ระดับออเดอร์ ซึ่งเป็นค่า
+  // เดียวกับที่ syncShipmentStatuses (query_orders) และ webhook เขียน — สองทางนี้จึงพูด
+  // ตรงกันเสมอ และตรงกับสิ่งที่ร้านเห็นบนเว็บ iShip ด้วย
+  //
+  // เดิมสองทางตีกันจริง: รอบ sync เขียน order_success แล้วการเอาเมาส์ไป hover เขียน
+  // picked_up ทับ สลับไปมาทุก 15 นาทีโดยไม่มีอะไรฟ้อง
+  try {
+    const parcel = parseParcelRow(
+      await withTokenGuard(shopId, () => iship.getOrder(token, row.trackingNo!)),
+    );
+    const code = carrierStatusCodeFromId(parcel?.statusId);
+    if (code) {
       await prisma.orderShipment.update({
         where: { id: row.id },
         data: {
-          carrierStatus: latest.status,
-          carrierStatusText: describeCarrierStatus(latest.status).text,
-          carrierStatusAt: occurredAt,
+          carrierStatus: code,
+          // ใช้ describeCarrierStatus ไม่ใช่ status_name ที่ iShip ส่งมา เพื่อให้ข้อความ
+          // ตรงกับทางเข้าอื่น (sync/webhook) ทุกตัวอักษร — คำเดียวกันต้องสะกดแบบเดียว
+          carrierStatusText: describeCarrierStatus(code).text,
+          carrierStatusAt: parcel?.updatedAtRaw ? new Date(parcel.updatedAtRaw) : new Date(),
         },
       });
-      await advanceOrderOnCarrierMove(row.orderId, latest.status);
+      await advanceOrderOnCarrierMove(row.orderId, code);
     }
+  } catch {
+    // อ่านสถานะไม่ได้ = คงค่าเดิมไว้ ไทม์ไลน์ที่เพิ่งบันทึกยังแสดงได้ตามปกติ
+    // ห้ามถอยไปใช้สถานะจาก trace แทน — นั่นคือต้นเหตุของบั๊กที่บล็อกข้างบนอธิบายไว้
   }
 
   return prisma.shipmentEvent.findMany({
