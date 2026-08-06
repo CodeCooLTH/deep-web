@@ -861,3 +861,20 @@ npx playwright test e2e/iship-*.spec.ts
 | M-18 | มือถือ 375px | breakdown 3 ช่องแผ่ใต้การ์ด ปุ่มเต็มความกว้าง หัว sheet มีปุ่มย้อนกลับด้านซ้าย |
 | M-19 | tablet (768–1023px) | breakdown ยุบไว้ กดหัวการ์ดเพื่อกางดู (accordion, `aria-expanded` ตรงสถานะจริง) |
 | M-20 | desktop (≥1024px) | breakdown แผ่เป็นคอลัมน์ในแถวเดียว ไม่ต้องกด |
+
+---
+
+## ส่วนขยาย 2026-08-06 — ปิดงาน COD อัตโนมัติ
+
+| # | เคส | ข้อมูลตั้งต้น | คาดหวัง | อ้างกฎ |
+|---|-----|---------------|---------|--------|
+| E6-1 | เงินเข้าครั้งแรก | ใบ COD, `status=SHIPPED`, `codReceivedAt=null`, iShip ส่ง `settlement_at` | `codSettledAt` ถูกเขียน · `codReceivedAt` = เวลาที่ iShip แจ้ง · `codReceivedByUserId=null` · `status=CONFIRMED` · มี event `COD_SETTLED` + `SYSTEM_CONFIRMED` | BR-ISHIP-45/47 |
+| E6-2 | รอบ sync ซ้ำ | ใบเดียวกับ E6-1 ที่ประมวลผลไปแล้ว | ไม่เขียนอะไรเพิ่ม ไม่เกิด event ซ้ำ | idempotent |
+| E6-3 | ร้านกดไปก่อนแล้ว | `codReceivedAt` มีค่าจากร้าน (มี `codReceivedByUserId`) | `codReceivedAt`/ผู้กดเดิม **ไม่ถูกทับ** · `codSettledAt` ยังถูกเขียน · ยัง auto-confirm ได้ถ้ายังไม่ CONFIRMED | BR-ISHIP-48 |
+| E6-4 | ใบที่ยกเลิกแล้ว | `status=CANCELLED` + iShip ส่ง `settlement_at` | สถานะคงเป็น `CANCELLED` · ไม่มี `SYSTEM_CONFIRMED` | BR-ISHIP-46 |
+| E6-5 | ไม่ใช่ COD | `paymentMethod=TRANSFER`, `cod_amount="0.00"` | ไม่แตะ `codReceivedAt` · ไม่ auto-confirm | BR-ISHIP-45(ก) |
+| E6-6 | ผู้ซื้อกดยืนยันไปก่อน | `status=CONFIRMED` อยู่แล้ว | ไม่เกิด `SYSTEM_CONFIRMED` ซ้ำ · `codSettledAt` ยังถูกเขียน (เป็นข้อเท็จจริงคนละเรื่อง) | — |
+| E6-7 | ยังติดตามพัสดุที่ส่งถึงแล้ว | ใบ COD `carrierStatus=delivered`, `codSettledAt=null` | ยังอยู่ในชุดที่ sync ถาม iShip รอบถัดไป | BR-ISHIP-49 |
+| E6-8 | เลิกติดตามเมื่อจบจริง | ใบ COD ที่มี `codSettledAt` แล้ว | ไม่ถูกถามอีก | BR-ISHIP-49 |
+| E6-9 | เขตเวลา | `settlement_at="2026-08-05 19:00:00"` | เก็บลงฐานแล้วอ่านกลับเป็น 5 ส.ค. 19:00 เวลาไทย ไม่ใช่ 02:00 ของวันถัดไป | SRS §18.1 |
+| E6-10 | Trust Score | ใบที่ auto-confirm สำเร็จ | คะแนน/badge ถูกคำนวณใหม่ด้วยเส้นทางเดียวกับผู้ซื้อกดยืนยัน | BR-ISHIP-44 |

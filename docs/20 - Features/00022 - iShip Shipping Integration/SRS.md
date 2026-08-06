@@ -582,3 +582,69 @@ response ที่เรารู้จัก ถ้ายิงจริงแ�
 | FR-ISHIP-032 | §17.2, §17.3 |
 | BR-ISHIP-35 (ราคาประมาณการ) | §17.2 |
 | BR-ISHIP-36 (ประเมินไม่ได้ต้องไม่หายเงียบ) | §17.3, §17.4 |
+
+---
+
+## 18. ส่วนขยาย 2026-08-06 — ปิดงาน COD อัตโนมัติจาก `settlement_at` ของ iShip
+
+> อ้างอิงกฎธุรกิจ: BRD §13 (BR-ISHIP-41/42/44 แก้ · BR-ISHIP-45..49 ใหม่)
+
+### 18.1 ข้อเท็จจริงของ payload (ยืนยันกับ API จริง 2026-08-06)
+
+`GET /api/get_order/{track}` และ `GET /api/query_orders` **ทั้งคู่** คืนช่องเหล่านี้ ส่วน `POST /api/traces` **ไม่คืน**:
+
+| ช่อง | ชนิด | ความหมาย |
+|------|------|----------|
+| `settlement_at` | `"YYYY-MM-DD HH:mm:ss"` \| `null` | วันเวลาที่เงินเก็บปลายทางเข้าระบบร้าน — ตรงกับคำว่า "เงินเข้าระบบ" บนหน้าจอ iShip |
+| `cod_amount` | `"590.00"` (string) | ยอดเก็บปลายทาง — `"0.00"` เมื่อไม่ใช่ COD |
+| `cod_fee` | `"12.63"` (string) | ค่าธรรมเนียมที่ขนส่งหักจากยอด COD |
+| `delivered_at` | `"YYYY-MM-DD HH:mm:ss"` \| `null` | เวลาที่ส่งถึงผู้รับ — **มาก่อน** `settlement_at` เสมอ (ตัวอย่างจริงห่างกัน ~33 ชม.) |
+| `status` | `12` | `payment_success` — เกิดพร้อม `settlement_at` |
+
+**เขตเวลา:** ค่าเหล่านี้เป็นเวลาไทยแบบไม่มี timezone suffix (ต่างจาก `created_at`/`updated_at` ที่เป็น ISO UTC ในคำตอบเดียวกัน) — ต้องแปลงด้วยตัวแปลง timestamp ของขนส่งที่มีอยู่แล้ว (`parseCarrierTimestamp`) ห้ามส่งเข้า `new Date()` ตรง ๆ เพราะจะถูกตีเป็น UTC แล้วเพี้ยนไป 7 ชั่วโมง
+
+### 18.2 FR-ISHIP-070 — ยืดการติดตามพัสดุ COD ที่ยังไม่ได้เงิน
+
+**เดิม** `syncShipmentStatuses` เลือกเฉพาะพัสดุที่ `carrierStatus ∉ {delivered, return_success, is_expired, close}` มาถาม iShip
+
+**ปัญหา** เงิน COD เข้าหลัง `delivered` เสมอ (ตัวอย่างจริง: ส่งถึง 04 ส.ค. 09:27 → เงินเข้า 05 ส.ค. 19:00) พัสดุจึงหลุดจากรายการติดตามไปก่อนที่เหตุการณ์เงินเข้าจะเกิด = **ไม่มีวันเห็นสถานะ 12 เลยสักใบ**
+
+**ใหม่** เงื่อนไขคัดพัสดุต้องรวมกรณี "ส่งถึงแล้วแต่เป็น COD ที่ยังไม่มี `codSettledAt`" เข้ามาด้วย และหยุดติดตามเมื่อได้ `codSettledAt` แล้ว (BR-ISHIP-49)
+
+**ขอบเขตการถามย้อนหลัง:** iShip จำกัดช่วง `query_orders` ไม่เกิน 7 วัน (ระบบขอ 6) — พัสดุ COD ที่เงินเข้าช้ากว่านั้นจะตกช่วงและไม่ถูกเก็บ ถือเป็นข้อจำกัดที่ยอมรับ ร้านยังกดยืนยันเองได้ตาม BR-ISHIP-48
+
+### 18.3 FR-ISHIP-071 — บันทึกการได้รับเงินและยืนยันคำสั่งซื้อ
+
+เมื่อรอบ sync พบว่าพัสดุใบหนึ่งมี `settlement_at` และยังไม่เคยบันทึก:
+
+1. เขียน `OrderShipment.codSettledAt` = `settlement_at` ที่แปลงเขตเวลาแล้ว (idempotent — เขียนครั้งเดียว รอบถัดไปข้าม)
+2. ถ้าคำสั่งซื้อเป็น COD และ `codReceivedAt` ยังว่าง → เขียน `codReceivedAt = settlement_at`, `codReceivedByUserId = null` (null = "ระบบ" ตามที่หน้าจอตีความอยู่แล้ว, BR-ISHIP-48 — ไม่ทับค่าที่ร้านกดไว้)
+3. บันทึกเหตุการณ์ `COD_SETTLED` พร้อม meta ยอดเงิน
+4. ถ้าคำสั่งซื้ออยู่ที่ `PENDING` หรือ `SHIPPED` → เปลี่ยนเป็น `CONFIRMED` ด้วย conditional update (`updateMany` + `where.status in [PENDING, SHIPPED]`) กันการแข่งกับผู้ซื้อ/ร้านที่กดพร้อมกัน แล้วบันทึกเหตุการณ์ `SYSTEM_CONFIRMED`
+5. ถ้าข้อ 4 เปลี่ยนสถานะสำเร็จจริง → เรียกคำนวณ Trust Score/Badge ชุดเดียวกับ `confirmOrder` แบบ best-effort (ล้มแล้วไม่ย้อนสถานะ — ข้อมูลหลักบันทึกแล้ว log ไว้พอ)
+
+**เงื่อนไขที่ต้องไม่ผ่าน:** ไม่ใช่ COD · `cod_amount ≤ 0` · คำสั่งซื้อ `CANCELLED` · คำสั่งซื้อ `CONFIRMED` อยู่แล้ว · พัสดุ `isDryRun` · พัสดุที่ไม่ได้ผูกกับคำสั่งซื้อ
+
+### 18.4 FR-ISHIP-072 — ไทม์ไลน์ต้องแยกผู้ยืนยัน
+
+เพิ่มชนิดเหตุการณ์ 2 ตัวใน `ORDER_EVENT_TYPES`:
+
+| ชนิด | ป้ายไทย | icon | tone |
+|------|---------|------|------|
+| `COD_SETTLED` | ขนส่งโอนเงินเก็บปลายทางแล้ว | `coin` | `success` |
+| `SYSTEM_CONFIRMED` | ระบบยืนยันคำสั่งซื้ออัตโนมัติ | `circle-check` | `success` |
+
+ห้ามใช้ `BUYER_CONFIRMED` แทน (BR-ISHIP-47) — ผู้ซื้อไม่ได้กด การบันทึกแบบนั้นคือข้อมูลเท็จที่ตรวจสอบย้อนหลังไม่ได้
+
+### 18.5 ผลกระทบต่อ `deriveShippingStage`
+
+ไม่ต้องแก้ตรรกะเลย — กอง `AWAITING_COD` นิยามด้วย `isCodPayment(paymentMethod) && !codReceivedAt` อยู่แล้ว การเติม `codReceivedAt` จึงทำให้ใบนั้นออกจากกองเอง และเมื่อสถานะกลายเป็น `CONFIRMED` ก็ตกไป `DONE` ตามเส้นเดิมทุกประการ
+
+### 18.6 Traceability
+
+| FR | BR | ไฟล์ที่รับผิดชอบ |
+|----|----|------------------|
+| FR-ISHIP-070 | BR-ISHIP-49 | `src/services/iship.service.ts` (`syncShipmentStatuses`) |
+| FR-ISHIP-071 | BR-ISHIP-45/46/48 | `src/services/iship.service.ts` (`settleCodFromCarrier`), `src/services/order.service.ts` |
+| FR-ISHIP-072 | BR-ISHIP-47 | `src/lib/order-event.ts` |
+| — | — | `src/lib/iship/client.ts` (`IShipOrderRow` เพิ่ม `settlement_at`/`cod_amount`) |

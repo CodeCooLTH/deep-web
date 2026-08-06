@@ -521,3 +521,24 @@ migration: `prisma/migrations/20260801100000_iship_shipment_source/`
 🛑 **partial unique ที่ยังบังคับใช้กับใบที่ผูกด้วย** — `OrderShipment_trackingNo_key`
 (`WHERE trackingNo IS NOT NULL`) ไม่สนสถานะ จึงเป็นเหตุผลที่ "เลิกผูก" ต้อง **ลบแถว**
 ไม่ใช่ mark `CANCELLED` (BR-ISHIP-29) — ไม่งั้นเลขนั้นถูกจองไว้ถาวร
+
+---
+
+## ส่วนขยาย 2026-08-06 — คอลัมน์บันทึกการโอนเงิน COD
+
+### `OrderShipment.codSettledAt` (ใหม่)
+
+| คอลัมน์ | ชนิด | Null | ความหมาย |
+|---------|------|:----:|----------|
+| `codSettledAt` | `DateTime` | ✅ | วันเวลาที่ iShip แจ้งว่าเงินเก็บปลายทางเข้าระบบร้าน (`settlement_at`) — `NULL` = ยังไม่ได้รับแจ้ง |
+
+**ทำไมต้องมีคอลัมน์นี้ทั้งที่มี `Order.codReceivedAt` อยู่แล้ว:** สองช่องนี้ตอบคนละคำถาม
+
+- `Order.codReceivedAt` = "ร้านได้เงินหรือยัง" — เขียนได้ทั้งจากร้านกดเองและจากระบบ
+- `OrderShipment.codSettledAt` = "ขนส่งแจ้งว่าโอนเมื่อไร" — เป็นหลักฐานว่าการยืนยันอัตโนมัติเกิดจากอะไร และเป็น **กุญแจกันเขียนซ้ำ** ของรอบ sync (มีค่าแล้ว = เคยประมวลผลไปแล้ว ข้าม)
+
+ถ้ารวมเป็นช่องเดียว จะแยกไม่ออกว่าใบที่ร้านกดเองไปแล้วเคยได้รับแจ้งจากขนส่งหรือยัง แล้วรอบ sync จะประมวลผลซ้ำทุกรอบตลอดไป
+
+**Migration:** `ALTER TABLE "OrderShipment" ADD COLUMN "codSettledAt" TIMESTAMP(3);` — additive ล้วน ไม่มี default ไม่มี backfill ไม่แตะแถวเดิม
+
+**ไม่แตะ:** `Order.codReceivedAt` / `Order.codReceivedByUserId` คงรูปเดิมทุกประการ เปลี่ยนแค่ "ใครเขียนได้บ้าง" ซึ่งเป็นเรื่องของโค้ด ไม่ใช่ของ schema

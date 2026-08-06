@@ -433,3 +433,38 @@ payload สถานะรถเข้ารับ: `ticketPickupId`, `staffInfo
 - `409 NOT_CONNECTED` — ยังไม่ได้เชื่อมต่อ iShip
 
 รองรับ: FR-ISHIP-032 · BR-ISHIP-34/35/36
+
+---
+
+## ส่วนขยาย 2026-08-06 — ช่องข้อมูลการโอนเงิน COD
+
+**ไม่มี endpoint ใหม่ทั้งฝั่ง A และฝั่ง B** — ข้อมูลที่ต้องใช้อยู่ใน payload ของ endpoint ที่เรียกอยู่แล้ว เพียงแต่ schema ฝั่งเราไม่เคยประกาศช่องเหล่านี้จึงอ่านไม่เห็น
+
+### ช่องที่เพิ่มใน `IShipOrderRow` (`src/lib/iship/client.ts`)
+
+| ช่อง | มีใน `query_orders` | มีใน `get_order` | มีใน `traces` |
+|------|:---:|:---:|:---:|
+| `settlement_at` | ✅ | ✅ | ❌ |
+| `cod_amount` | ✅ | ✅ | ❌ |
+| `cod_fee` | ✅ | ✅ | ❌ |
+| `delivered_at` | ✅ | ✅ | ❌ |
+
+🛑 **ห้ามเพิ่มการยิง `get_order` รายใบเพื่อเอาข้อมูลนี้** — `query_orders` มีครบอยู่แล้วในคำขอเดียวต่อร้าน การวนรายใบจะกลายเป็นหลักร้อยคำขอต่อรอบ sync
+
+### ตัวอย่างคำตอบจริง (พัสดุ `TH160390J7DJ1I`, บัญชีร้านจริง, 2026-08-06)
+
+```jsonc
+{
+  "track_no": "TH160390J7DJ1I",
+  "courier_code": "FlashExpressA",
+  "pickedup_date": "2026-08-03 14:03:36",
+  "delivered_at":  "2026-08-04 09:27:42",
+  "settlement_at": "2026-08-05 19:00:00",  // "เงินเข้าระบบ" บนหน้าจอ iShip
+  "cod_amount": "590.00",
+  "cod_fee": "12.63",
+  "status": 12,
+  "status_name": "ชำระเงินสำเร็จ"
+}
+```
+
+**ข้อควรระวังเรื่องเขตเวลา:** `settlement_at`/`delivered_at`/`pickedup_date` เป็นเวลาไทยไม่มี suffix ส่วน `created_at`/`updated_at` ในคำตอบเดียวกันเป็น ISO UTC (`2026-08-05T18:16:34.000000Z`) — สองรูปแบบปนกันในออบเจ็กต์เดียว ต้องแปลงด้วย `parseCarrierTimestamp` ห้ามส่งเข้า `new Date()` ตรง ๆ
