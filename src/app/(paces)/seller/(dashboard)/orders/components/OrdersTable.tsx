@@ -31,7 +31,7 @@ import {
 } from '@tanstack/react-table'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderItemRow, type OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
@@ -120,6 +120,13 @@ const dateRangeFilterFn: FilterFn<OrderRow> = (row, _columnId, selectedRange) =>
 
 
 
+/** ชื่อขนส่งที่ใช้เป็นคีย์ตัวกรอง — null = ใบที่ยังไม่ได้เปิดพัสดุ */
+function courierKeyOf(o: OrderRow): string | null {
+  const s = o.shipment
+  if (!s) return null
+  return s.courierName ?? s.courierCode ?? null
+}
+
 const columnHelper = createColumnHelper<OrderRow>()
 
 type Props = {
@@ -147,6 +154,37 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
   const [columnFilters,  setColumnFilters]  = useState<ColumnFiltersState>([])
   const [pagination,     setPagination]     = useState({ pageIndex: 0, pageSize: 10 })
   const [rowSelection,   setRowSelection]   = useState<RowSelectionState>({})
+
+  // ตัวเลือกขนส่งมาจากออเดอร์จริงของร้านเท่านั้น (user สั่ง 2026-08-06) — ไม่ใช่รายชื่อ
+  // ขนส่งทั้งหมดของ iShip ซึ่งมี 17 รายการ ส่วนใหญ่ร้านไม่เคยใช้ · เรียงตามจำนวนที่ใช้
+  // มากไปน้อย ของที่ใช้บ่อยจะอยู่บนสุดโดยไม่ต้องเลื่อนหา
+  const courierOptions = useMemo(() => {
+    const count = new Map<string, number>()
+    let none = 0
+    for (const o of orders) {
+      const k = courierKeyOf(o)
+      if (k) count.set(k, (count.get(k) ?? 0) + 1)
+      else none += 1
+    }
+    const sorted = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'th'))
+    return [
+      { value: 'All', label: 'ทั้งหมด' },
+      ...sorted.map(([name, n]) => ({
+        value: name,
+        label: name,
+        badge: { label: n, className: 'bg-default-100 text-default-700' },
+      })),
+      ...(none > 0
+        ? [
+            {
+              value: 'NONE',
+              label: 'ยังไม่ได้เปิดพัสดุ',
+              badge: { label: none, className: 'bg-warning/15 text-warning-ink' },
+            },
+          ]
+        : []),
+    ]
+  }, [orders])
 
   // buyer base URL — resolve client-side ครั้งเดียว (กัน hydration mismatch) สำหรับ copy ลิงก์กลุ่ม
   const [buyerBaseUrl, setBuyerBaseUrl] = useState('')
@@ -326,7 +364,15 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       id: 'shipTo',
       header: 'ที่อยู่จัดส่ง',
       enableSorting: false,
-      enableColumnFilter: false,
+      // ตัวกรอง "ขนส่ง" เกาะคอลัมน์นี้เพราะข้อมูลขนส่งอยู่ในเซลล์นี้ (บล็อก "จัดส่งโดย")
+      // เทียบด้วยชื่อที่แสดงจริง ไม่ใช่ courierCode — dropdown จริงของ iShip มี 17 รายการ
+      // ที่เป็นแพ็กเกจของ 9 แบรนด์ (lib/iship/courier.ts) ร้านคิดเป็น "แบรนด์" ไม่ใช่รหัส
+      enableColumnFilter: true,
+      filterFn: ((row, _id, value) => {
+        if (!value || value === 'All') return true
+        if (value === 'NONE') return !courierKeyOf(row.original)
+        return courierKeyOf(row.original) === value
+      }) as FilterFn<OrderRow>,
       meta: { cellClassName: 'min-w-56 align-top' },
       cell: ({ row }: { row: TableRow<OrderRow> }) => {
         const a = row.original.shipTo
@@ -601,6 +647,21 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
                 })),
               ]}
               onChange={(v) => stageFilter.onChange(v === 'All' ? null : v)}
+            />
+          )}
+
+          {/* ขนส่ง — ตัวเลือกมาจากออเดอร์จริงของร้าน (user สั่ง 2026-08-06) */}
+          {courierOptions.length > 1 && (
+            <FilterDropdown
+              icon="truck-delivery"
+              defaultLabel="ขนส่ง"
+              resetValue="All"
+              value={(table.getColumn('shipTo')?.getFilterValue() as string) ?? 'All'}
+              options={courierOptions}
+              onChange={(v) => {
+                table.getColumn('shipTo')?.setFilterValue(v === 'All' ? undefined : v)
+                setPagination((p) => ({ ...p, pageIndex: 0 }))
+              }}
             />
           )}
 
