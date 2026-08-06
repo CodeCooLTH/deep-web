@@ -230,6 +230,13 @@ theme/
   - **carry:** ปุ่ม "ทักแชท" ในแท็บความคิดเห็นยังเป็นป้ายบอกเวลา ไม่ใช่ปุ่มกดได้ (ต้องทำ Private Replies ก่อน)
   - **browser QA: ปิดหนี้แล้ว** — user กดทดสอบเองบน prod ครบทุกงาน 2026-08-04
 
+- **2026-08-05→06: เปรียบเทียบราคาขนส่ง iShip (00022-ext) + ปรับหน้า orders ยกชุด — DEPLOYED PROD** (ล่าสุด `efc8f3a3`; docs หัวข้อ "ส่วนขยาย 2026-08-05"+"แก้ 2026-08-06" ใน 00022)
+  - **ปุ่ม "เทียบราคา" ในฟอร์มสร้างพัสดุ** → `POST /api/seller/iship/price/compare` (server fan-out **ชุดละ 4**) → `PriceCompareSheet` เรียงถูก→แพง badge ถูกที่สุด/เร็วที่สุด · sheet เป็น **view swap + `@container`** (แผงแชทแคบบนจอ desktop ต้องได้ layout การ์ด — viewport breakpoint ใช้ไม่ได้)
+  - 🛑 **`unwrap` ใน `lib/iship/client.ts`: object ที่ไม่มี key envelope เลย (`status/success/data/message`) = payload สำเร็จ คืนทั้งก้อน** — check-price ตอบ payload เปล่า เดิมถูกตีเป็น `UPSTREAM_ERROR http=200` ทุกคำขอ (quote รายตัวจึง**พังเงียบบน prod มาตลอด**โดยไม่มีใครเห็น เพราะ fail-silent by design — feature ที่ fail เงียบต้องมี console.error เสมอ) · `total_price ≤ 0` = ขนส่งไม่รองรับเส้นทาง เข้า `failed[]` ไม่ใช่การ์ดราคา ฿0 (Fuze Post เคยชนะ "ถูกที่สุด") · พังทุกเจ้า → ตอบ 200+`failedDetail` รายเจ้าให้อ่านจากหน้าจอ (vercel logs CLI stream ใช้ไม่ได้จริง)
+  - **หน้า orders ยกชุด (user สั่งไล่ทีละจุด 2026-08-06):** คอลัมน์ "ที่มา" (รูปเพจ+badge แพลตฟอร์มห้อยมุม — `OrderSourceLogo`; Order เก็บแค่ salesChannel จึงชี้เพจได้เฉพาะร้านเพจเดียว) · คอลัมน์ขนส่ง/เลขพัสดุ/mini timeline (`MiniShipmentTimeline` — stage จาก `deriveShippingStage` SSOT เดิม) · ตัดคอลัมน์+ฟิลเตอร์ "ประเภท" · toolbar ใหม่ (ไม่มีป้าย "กรอง:", dropdown "พัสดุ" พร้อมจำนวนแทนแถบชิป desktop — ผูก `?stage=` symbol เดียวกับชิปมือถือ, "แถวละ N") · hover panel รายการสินค้า+timeline ผ่าน **`HoverPanel` (portal ระดับ body)** — cell อยู่ใน `.table-wrapper` overflow-auto, absolute โดน clip · หัว order detail ใช้รูปเพจ+badge (`OrderSummary` prop `pageLogoUrl`)
+  - ปุ่มหลัก PENDING ที่เปิดพัสดุ iShip แล้ว (ขนส่งยังไม่เข้ารับ) = **"สถานะพัสดุ"** ไม่ใช่ "แจ้งเลขพัสดุ" + คัดลอกเลขใน ⋮ (`order-action-set.ts` ใช้ `shipmentSource` แล้ว) · timeline การ์ดการจัดส่งชิดขอบ content · การ์ดออเดอร์ข้างแชท: ใบยกเลิกเหลือชิปเดียว (footer badge ซ้ำถูกถอด) · `FilterDropdown` รองรับ `badge` ต่อ option
+  - **browser QA: user ทดสอบเองบน prod ตลอดทั้งรอบ** (สั่ง "ไม่ต้อง QA เทส") — เจอบั๊กแล้วรายงานเป็น screenshot สด ๆ ทั้ง 4 ตัวข้างบน
+
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 
 @AGENTS.md

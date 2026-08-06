@@ -416,8 +416,18 @@ payload สถานะรถเข้ารับ: `ticketPickupId`, `staffInfo
   "failed": [{ "courierCode": "SomeCourier", "courierName": "..." }]
 }
 ```
-`rows` เรียง `totalPrice` น้อย→มากแล้ว · `failed` = ขนส่งที่ยิงไม่สำเร็จ/ราคาไม่ใช่เลข (ไม่ทำให้ทั้งชุดล้ม)
-ทุกขนส่งพังพร้อมกัน (ไม่มี `rows` เลย) → รหัส error เดิมของ iShip (`502`/`504`) ไม่ใช่ error ใหม่
+`rows` เรียง `totalPrice` น้อย→มากแล้ว · `failed` = ขนส่งที่ยิงไม่สำเร็จ/ราคาไม่ใช่เลข/**ราคา ≤ 0**
+(0 = ขนส่งไม่รองรับเส้นทาง ไม่ใช่ส่งฟรี — เคสจริง Fuze Post บน prod 2026-08-06) — ไม่ทำให้ทั้งชุดล้ม
+
+**แก้ 2026-08-06 (หลังพบบน prod):**
+- fan-out ยิง**ชุดละ 4** ไม่ใช่ทั้ง ~17 พร้อมกัน (กันชน rate-limit/WAF ฝั่ง iShip)
+- ทุกขนส่งพังพร้อมกัน → **ตอบ `200` พร้อม `failedDetail`** (สรุปเหตุผลรายเจ้า code/http/upstream,
+  token ถูก redact แล้ว) ไม่ใช่ 502 ทึบ ๆ อีก — UI แสดง state ล้มเหลว + บรรทัด "รายละเอียด: …"
+  ให้วินิจฉัยจากหน้าจอ/DevTools ได้เลย (vercel logs CLI stream ใช้ไม่ได้จริง)
+- root cause ของ "พังทุกเจ้า" รอบแรก: `unwrap` ใน `lib/iship/client.ts` บังคับ envelope
+  `status/success` แต่ **check-price ตอบ payload เปล่าตรง ๆ** — แก้ให้ object ที่ไม่มี key
+  ของ envelope เลย (`status`/`success`/`data`/`message`) = สำเร็จ คืนทั้งก้อน
+  (บั๊กนี้ทำให้ quote รายตัว "ค่าส่งโดยประมาณ" พังเงียบบน prod มาตลอดด้วย — หายพร้อมกัน)
 
 - `422 INCOMPLETE_DATA` — ที่อยู่ผู้ส่ง**หรือ**ผู้รับไม่ครบ (พร้อม `missing[]` เมื่อขาดที่อยู่ผู้ส่ง)
 - `409 NOT_CONNECTED` — ยังไม่ได้เชื่อมต่อ iShip

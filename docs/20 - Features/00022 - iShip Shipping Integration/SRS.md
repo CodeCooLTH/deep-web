@@ -519,11 +519,11 @@ flowchart TD
     D -- ครบ --> F[listCouriers — รายชื่อขนส่งของร้าน]
     F --> G{มีขนส่งเปิดใช้งานไหม?}
     G -- ไม่มี --> H["คืน rows: [], failed: []"]
-    G -- มี --> I["Promise.allSettled: checkPrice ทุกขนส่งพร้อมกัน"]
+    G -- มี --> I["Promise.allSettled: checkPrice ชุดละ 4 (แก้ 2026-08-06 กันชน rate-limit ฝั่ง iShip)"]
     I --> J[assembleCompareResult]
     J --> K{rows.length > 0?}
     K -- ใช่ --> L[คืน rows เรียงราคา + failed]
-    K -- ไม่ — ทุกตัวพัง --> M[rethrow เหตุ reject แรก → route ตอบ 502/504]
+    K -- ไม่ — ทุกตัวพัง --> M["คืน 200 + failed + failedDetail (เหตุผลรายเจ้า — แก้ 2026-08-06)"]
 ```
 
 - payload พื้นฐาน (ที่อยู่+ขนาด) เตรียม**ครั้งเดียว** ด้วย `buildCheckPricePayload()` (BR-ISHIP-31
@@ -532,10 +532,18 @@ flowchart TD
   ต่อขนส่งตอนยิงแต่ละตัว
 - ขนส่งที่ `reject` (timeout/error) หรือ `total_price` ไม่ใช่ตัวเลขที่ finite และ `> 0` → เข้า
   `failed[]` พร้อมชื่อ **ไม่ทำให้ทั้งชุดล้ม** — ขนส่งเจ้าเดียวไม่ตอบไม่ควรทำให้ร้านเทียบเจ้าที่เหลือไม่ได้
-- ทุกขนส่ง fail พร้อมกัน (`rows` ว่าง) ถือว่าเป็นปัญหาระดับโครงสร้าง (token/เครือข่าย) ไม่ใช่
-  "ไม่มีราคา" → rethrow เหตุ reject แรก ให้ `mapIShipError` แมปเป็น `502`/`504` ตามปกติ
-  (ไม่เพิ่ม `ServiceErrorCode` ใหม่ — กันไม่ให้มี error ที่ route ไม่มีใคร map ตาม memory
-  `feedback_service_error_route_mapping`)
+- `total_price` ≤ 0 → เข้า `failed[]` ด้วย — 0 คือ "ขนส่งไม่รองรับเส้นทางนี้" ไม่ใช่ส่งฟรี
+  (เคสจริง Fuze Post ตอบ 0 แล้วเคยชนะ badge "ถูกที่สุด" บน prod 2026-08-06)
+- ทุกขนส่ง fail พร้อมกัน (`rows` ว่าง) → **แก้ 2026-08-06**: คืน `200` + `failedDetail`
+  (สรุป code/http/upstream รายเจ้า token-redacted) แทน rethrow 502 ทึบ ๆ — เหตุ prod รอบแรก
+  วินิจฉัยไม่ได้เลยเพราะ reject รายเจ้าถูกกลืนเงียบ + vercel logs stream ใช้ไม่ได้จริง
+  UI แสดง state ล้มเหลว + "รายละเอียด: …" ให้อ่านจากหน้าจอ/DevTools ได้ตรง ๆ
+- **root cause บั๊ก "พังทุกเจ้า" รอบแรก (แก้ 2026-08-06 `541a7296`):** `unwrap` ใน
+  `lib/iship/client.ts` บังคับ envelope `status/success` กับ object ทุกก้อน แต่
+  `/api/v2/check-price` ตอบ payload เปล่าตรง ๆ → ทุกคำขอถูกตีเป็น `UPSTREAM_ERROR http=200`
+  ทั้งที่สำเร็จ (ผลพลอย: quote รายตัวพังเงียบบน prod มาตลอด) — แก้: object ที่ไม่มี key ของ
+  envelope เลย (`status`/`success`/`data`/`message`/`msg`) = payload สำเร็จ คืนทั้งก้อน
+  (มีเทสกัน 3 เคสใน `client.test.ts`)
 - ไม่มี rate-limit เพิ่มเติมเฉพาะ endpoint นี้ — อาศัย per-IP/per-user rate-limit เดิมของ `guardApi`
   (authenticated 30 req/นาที) เพราะ client ยิงคำขอนี้แค่ 1 ครั้งต่อการเปิด sheet ไม่ใช่วนยิงต่อขนส่ง
   แบบที่ endpoint นี้ถูกสร้างมาเพื่อกัน
