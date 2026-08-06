@@ -29,7 +29,7 @@ import type { AppointmentGranularity } from '@/lib/appointments'
 import QuickForm from './QuickForm'
 import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 import { toDatetimeLocalValue } from './OrderDateRow'
-import { resolveEditedOrderedAtPayload } from '@/lib/order-date-window'
+import { resolveEditedOrderedAtPayload, orderDateRejectReason } from '@/lib/order-date-window'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -208,6 +208,17 @@ const schema = Yup.object({
     .transform((v) => (isNaN(v) ? undefined : v))
     .nullable()
     .optional(),
+  // feature 00033 (impeccable polish) — เดิมไม่มีกฎช่องนี้เลย: แถววันที่ขึ้นแดงอยู่แต่ปุ่มบันทึก
+  // ยังกดได้ แล้วไปตายที่ API เป็น 400 ซึ่งเด้งเป็นชีตเต็มจอห่างจากช่องที่ผิด ผู้ใช้ต้องเดาเองว่า
+  // ปัญหาอยู่ตรงไหน. ตรวจด้วย orderDateRejectReason ตัวเดียวกับที่ช่องกรอกและ service ใช้ —
+  // ห้ามเขียนกฎ 90/7 ซ้ำที่นี่ (ไม่งั้นกฎเดียวมี 3 นิยาม ซึ่งเป็นบั๊กที่ SSOT ตัวนี้ตั้งใจกันตั้งแต่แรก)
+  orderedAt: Yup.string()
+    .optional()
+    .test('order-date-window', (value, ctx) => {
+      if (!value) return true
+      const reason = orderDateRejectReason(new Date(value).getTime(), Date.now())
+      return reason ? ctx.createError({ message: reason }) : true
+    }),
   shippingAddress: Yup.object({
     line1: Yup.string().optional(),
     subdistrict: Yup.string().optional(),
@@ -729,20 +740,27 @@ export default function OrderCreateForm({
       // toast เฉพาะ desktop POS (≥ lg) — mobile ไม่ต้อง (redirect ไปหน้าออเดอร์อยู่แล้ว, toast ซ้ำซ้อน; user req)
       const isDesktop =
         typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
-      if (isDesktop) {
-        // feature 00033 — ออเดอร์ที่ลงวันที่ย้อนหลังไม่โผล่หัวรายการ (keyset createdAt DESC)
-        // ถ้าไม่บอก คนคีย์จะหาไม่เจอแล้วคีย์ซ้ำ
-        const orderedDate = values.orderedAt ? new Date(values.orderedAt) : null
-        const isBackdated = orderedDate ? thaiDayKey(orderedDate) !== thaiDayKey(new Date()) : false
+      // feature 00033 — ออเดอร์ที่ลงวันที่ย้อนหลังไม่โผล่หัวรายการ (keyset createdAt DESC)
+      // ถ้าไม่บอก คนคีย์จะหาไม่เจอแล้วคีย์ซ้ำ
+      const orderedDate = values.orderedAt ? new Date(values.orderedAt) : null
+      const isBackdated = orderedDate ? thaiDayKey(orderedDate) !== thaiDayKey(new Date()) : false
+
+      // impeccable polish — ข้อความนี้ต้องขึ้นบนมือถือด้วย ไม่ใช่เฉพาะเดสก์ท็อป
+      // กฎเดิม "มือถือไม่ต้อง toast เพราะ redirect อยู่แล้ว" ใช้กับข้อความที่บอกว่า "สำเร็จ"
+      // อันนี้ไม่ได้บอกว่าสำเร็จ แต่บอกว่า "ของไปอยู่ไหน" — และ PRODUCT.md ระบุว่าผู้ขาย
+      // ทำงานบนมือถือเป็นหลัก มาตรการกันคีย์ซ้ำจึงหายไปจากแพลตฟอร์มที่ปัญหาเกิดจริงพอดี
+      if (!editOrderToken && isBackdated) {
+        pacesToast.success(
+          `บันทึกแล้ว ลงวันที่ ${formatDateTimeTH(orderedDate!)} — รายการเรียงตามวันที่ จึงไม่อยู่บนสุด`,
+        )
+      }
+
+      // เดสก์ท็อปเท่านั้น: ข้อความ "สำเร็จ" ทั่วไป — มือถือไม่ต้องเพราะ redirect ไปหน้าออเดอร์อยู่แล้ว
+      // (เคสลงวันที่ย้อนหลังยิงไปแล้วข้างบนทั้งสองแพลตฟอร์ม จึงต้องกันไม่ให้เดสก์ท็อปยิงซ้ำ)
+      if (isDesktop && !isBackdated) {
         // โหมดแก้ไข (PATCH) ไม่ได้สร้างลิงก์ใหม่ — copy เดิมชวนให้ "แชร์ลิงก์" ผิดบริบท
         pacesToast.success(
-          editOrderToken
-            ? 'บันทึกการแก้ไขแล้ว'
-            : isBackdated
-              // "อยู่ในรายการย้อนหลัง" (copy เดิม) อ่านได้ว่า "ถูกเก็บเข้าประวัติ" ซึ่งไม่ใช่เรื่องเดียวกัน
-              // สิ่งที่ต้องบอกคือ "หาไม่เจอบนสุดนะ เพราะรายการเรียงตามวันที่" (impeccable clarify 2026-08-06)
-              ? `บันทึกแล้ว ลงวันที่ ${formatDateTimeTH(orderedDate!)} — รายการเรียงตามวันที่ จึงไม่อยู่บนสุด`
-              : `${vocab.createLabel}แล้ว แชร์ลิงก์ให้ลูกค้า`,
+          editOrderToken ? 'บันทึกการแก้ไขแล้ว' : `${vocab.createLabel}แล้ว แชร์ลิงก์ให้ลูกค้า`,
         )
       }
 

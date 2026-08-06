@@ -78,7 +78,9 @@ type Props = {
 export default function OrderDateRow({ control, setValue, fromMessage, messageTooOld, dateLabel = 'วันที่สั่งซื้อ' }: Props) {
   // เปิดช่องค้างไว้เลยเมื่อค่ามาจากข้อความ — ปกติ/แก้ไขออเดอร์เดิม = ยุบ
   const [editing, setEditing] = useState(!!fromMessage)
-  const now = new Date()
+  // ตรึงไว้ครั้งเดียว — เดิม `new Date()` ตอน render ทำให้ min/max ถูกเขียนลง DOM ใหม่ทุกครั้ง
+  // ที่ฟอร์มขยับ และป้าย "วันนี้/เมื่อวาน" อ้างอิงค่าที่ขยับเงียบ ๆ (impeccable audit 2026-08-06)
+  const [now] = useState(() => new Date())
   const { minMs, maxMs } = orderDateWindow(now.getTime())
 
   // Minor-1 (2026-08-06) — component นี้ถูก render พร้อมกัน 2 ชุดเสมอ (QuickForm มือถือ +
@@ -87,6 +89,7 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
   const uid = useId()
   const inputId = `order-date-input-${uid}`
   const errorId = `order-date-error-${uid}`
+  const helperId = `order-date-helper-${uid}`
 
   // P1-2(ข): focus ต้องตามแถวไป — ขยาย → ช่องกรอก, ยุบกลับ → ปุ่ม "เปลี่ยน" เดิม
   // skipNextFocusRef กัน autofocus ตอน mount ครั้งแรก (เส้นทางจากแชท editing เริ่มเป็น true อยู่แล้ว
@@ -161,7 +164,13 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                         // min-h-11 นอกเหนือจากต้นทาง StageChips — ที่นี่กดด้วยนิ้วบนมือถือ (ดู Base ด้านบนไฟล์)
                         // text-default-800 (ไม่ใช่ -500 ของต้นทาง StageChips) — ตัวอักษร text-xs บน
                         // bg-default-100 ด้วย -500 ตกคอนทราสต์ (~2.2:1) เหมือนกับ 3 จุดที่ P1-1 แก้ในไฟล์นี้
-                        'badge min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-3.5 text-xs font-medium transition-colors focus:outline-none disabled:pointer-events-none disabled:opacity-50',
+                        // focus-visible:ring แทน focus:outline-none ลอย ๆ — ธีมไม่มี .badge:focus มาชดเชย
+                        // (ยืนยันแล้ว: rg '\.badge' src/assets/css | grep focus = 0) คนใช้คีย์บอร์ด
+                        // จึงมองไม่เห็นว่าตัวเองอยู่ชิปไหน — WCAG 2.4.7 (impeccable audit 2026-08-06)
+                        'badge min-h-11 shrink-0 cursor-pointer whitespace-nowrap rounded-full px-3.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-50',
+                        // ไม่ใส่ ring-offset — ค่าตั้งต้นของ offset color คือขาว ซึ่งบนการ์ดโหมดมืด
+                        // จะกลายเป็นวงขาวคาดรอบชิป และผมยืนยันด้วยตาไม่ได้ในรอบนี้ (dev server ไม่ขึ้น)
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                         active ? 'bg-primary text-white' : 'bg-default-100 text-default-800',
                       )}
                     >
@@ -179,7 +188,8 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                   value={field.value ?? toDatetimeLocalValue(now)}
                   min={toDatetimeLocalValue(new Date(minMs))}
                   max={toDatetimeLocalValue(new Date(maxMs))}
-                  aria-describedby={rejectReason ? errorId : undefined}
+                  // helper (ขอบเขตที่เลือกได้) ต้องถูกอ่านเสมอ ไม่ใช่โผล่ตอนพลาดไปแล้ว — มันคือสิ่งที่กันไม่ให้พลาด
+                  aria-describedby={rejectReason ? `${errorId} ${helperId}` : helperId}
                   onChange={(e) => field.onChange(e.target.value || undefined)}
                 />
                 <button
@@ -200,7 +210,7 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                   {rejectReason}
                 </p>
               )}
-              <p className="mt-1 text-xs text-default-700">
+              <p id={helperId} className="mt-1 text-xs text-default-700">
                 ย้อนหลังได้ถึง {formatDateTH(new Date(minMs))} · ล่วงหน้าได้ถึง {formatDateTH(new Date(maxMs))}
               </p>
             </>
