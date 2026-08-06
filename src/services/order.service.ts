@@ -474,6 +474,21 @@ export async function updateOrder(
   // feature 00031 — คนที่กดแก้ไข (optional เพื่อไม่ให้ผู้เรียกเดิมพัง; ไม่ส่ง = "ระบบ")
   actorUserId?: string | null,
 ) {
+  // feature 00033 — เวลาจริงที่กดแก้ (ใช้กับ occurredAt ของ event ทุกตัวในรอบนี้)
+  const editedAt = new Date();
+
+  // normalize เป็น Date ตัวเดียว — เหมือน createOrder เป๊ะ: data.createdAt รับได้ทั้ง Date
+  // (caller ภายในระบบ) และ ISO string (ผ่าน Valibot parse จาก route)
+  const orderCreatedAt =
+    data.createdAt instanceof Date ? data.createdAt : data.createdAt ? new Date(data.createdAt) : undefined;
+
+  if (orderCreatedAt) {
+    const ms = orderCreatedAt.getTime();
+    if (orderDateRejectReason(ms, editedAt.getTime()) !== null) {
+      throw new OrderDateOutOfWindowError();
+    }
+  }
+
   const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
   const subtotal = round2(data.items.reduce((sum, item) => sum + item.qty * item.price, 0));
   const totalAmount = round2(subtotal - (data.discount ?? 0) + (data.vatAmount ?? 0));
@@ -511,6 +526,7 @@ export async function updateOrder(
         id: true, status: true, type: true, totalAmount: true, buyerContact: true,
         buyerName: true, paymentMethod: true, salesChannel: true, internalNote: true,
         discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
+        createdAt: true, publicToken: true,
         items: { select: { productId: true, name: true, qty: true, price: true } },
       },
     });
@@ -595,6 +611,32 @@ export async function updateOrder(
         data: {
           shopId, productId, productName: d.name, delta: -d.qty, resultingQty: d.resultingQty,
           source: "ORDER_DEDUCT", refId: order.id, note: null, actorUserId: null,
+        },
+      });
+    }
+
+    // feature 00033 — เปลี่ยนวันที่คำสั่งซื้อ
+    if (orderCreatedAt && orderCreatedAt.getTime() !== existing.createdAt.getTime()) {
+      // เลขออเดอร์คิดจากปี/เดือนของ createdAt — ต้อง recompute พร้อมกันในทรานแซกชันเดียว
+      // ไม่งั้นคอลัมน์ orderNo ค้างเดือนเก่า ขณะที่หน้าจอคำนวณสดแล้วโชว์เดือนใหม่
+      // → ผู้ใช้ค้นด้วยเลขที่เห็นบนจอแล้วไม่เจอ (@@index([orderNo]))
+      await tx.order.update({
+        where: { id: existing.id },
+        data: {
+          createdAt: orderCreatedAt,
+          orderNo: formatOrderNo(existing.publicToken, orderCreatedAt),
+        },
+      });
+
+      // occurredAt = เวลาจริงที่กดแก้ ไม่ใช่วันที่ใหม่ที่กรอก (Global Constraint)
+      await recordOrderEvent(tx, {
+        orderId: existing.id,
+        type: "ORDER_DATE_CHANGED",
+        actorUserId: actorUserId ?? null,
+        occurredAt: editedAt,
+        meta: {
+          orderedAtFrom: existing.createdAt.toISOString(),
+          orderedAtTo: orderCreatedAt.toISOString(),
         },
       });
     }
