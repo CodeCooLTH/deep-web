@@ -18,6 +18,8 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
 import type { OrderVocab } from '@/lib/seller-menu'
 import { runAfterOrderCreate, type IShipCreateMode } from '@/lib/iship/after-order-create'
+// feature 00033 — ตัวเดียวกับ SSOT ที่ /orders?stage= ใช้กรอง ห้ามคำนวณ "วันไหน" ซ้ำที่นี่
+import { thaiDayKey, formatDateTimeTH } from '@/lib/format-date'
 import * as Yup from 'yup'
 import ProductGrid from './ProductGrid'
 import CartPanel from './CartPanel'
@@ -26,6 +28,7 @@ import AppointmentBlock, { type ServiceResourceOption } from './AppointmentBlock
 import type { AppointmentGranularity } from '@/lib/appointments'
 import QuickForm from './QuickForm'
 import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
+import { toDatetimeLocalValue } from './OrderDateRow'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,6 +96,10 @@ interface Props {
   serviceResources?: ServiceResourceOption[]
   /** feature 00024 FR-RSV-13 — ร้านรับนัดเป็นรายวัน (DAY) หรือระบุช่วงเวลา (TIME) */
   appointmentGranularity?: AppointmentGranularity
+  /** feature 00033 — เวลาของข้อความในแชทที่กดสร้างออเดอร์ (ISO string) ใช้เป็นวันที่สั่งซื้อ */
+  prefillCreatedAt?: string
+  /** feature 00033 — เวลาข้อความต้นทางเก่ากว่าเพดานย้อนหลัง จึงไม่ได้เติมให้ (โชว์ชิปบอกเหตุผลใน OrderDateRow) */
+  prefillCreatedAtTooOld?: boolean
 }
 
 // ─── ItemsController — helper set ที่ OrderCreateForm (form owner) ส่งเป็น prop ให้ POS components ──
@@ -139,6 +146,9 @@ export interface FormValues {
     endTime?: string       // "HH:mm"
     depositAmount?: number | null
   }
+  /** feature 00033 — วันที่สั่งซื้อเป็นค่า datetime-local ("YYYY-MM-DDTHH:mm" เวลาเครื่อง)
+   *  undefined = ใช้เวลาปัจจุบัน (ไม่ส่งฟิลด์ไป API เลย → เส้นทางเดิมทุกประการ) */
+  orderedAt?: string
 }
 
 // ─── itemSchema — ใช้ใน Yup schema + ยืม pattern ของ OrderCreateForm เดิม ────
@@ -245,6 +255,8 @@ export default function OrderCreateForm({
   serviceResourcesEnabled = false,
   serviceResources = [],
   appointmentGranularity = 'DAY',
+  prefillCreatedAt,
+  prefillCreatedAtTooOld = false,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -283,6 +295,8 @@ export default function OrderCreateForm({
         postcode: '',
         note: '',
       },
+      // feature 00033 — เวลาข้อความในแชท (ถ้ามี) เป็นวันที่สั่งซื้อเริ่มต้น
+      orderedAt: prefillCreatedAt ? toDatetimeLocalValue(new Date(prefillCreatedAt)) : undefined,
     },
   })
 
@@ -322,6 +336,8 @@ export default function OrderCreateForm({
             postcode: o.shippingAddress?.postcode ?? '',
             note: o.shippingAddress?.note ?? '',
           },
+          // feature 00033 — โหลดวันที่สั่งซื้อเดิมเข้าฟอร์ม (ยุบไว้ ไม่ auto-open)
+          orderedAt: o.createdAt ? toDatetimeLocalValue(new Date(o.createdAt)) : undefined,
         })
       } catch {
         if (!cancelled) setSubmitError(`โหลดข้อมูล${vocab.noun}ไม่สำเร็จ`)
@@ -647,6 +663,9 @@ export default function OrderCreateForm({
       ...(appointmentPayload ? { appointment: appointmentPayload } : {}),
       // feature 00018 (user 2026-07-24): สร้างจากแชท → ผูก ExternalContact กับ Customer ทันที
       ...(conversationId ? { conversationId } : {}),
+      // feature 00033 — datetime-local เป็นเวลาเครื่อง แปลงเป็น ISO พร้อม offset (Z) ก่อนส่ง
+      // ไม่มีค่า = ไม่ส่งคีย์เลย → เส้นทางเดิมทุกประการ (95% ของการคีย์)
+      ...(values.orderedAt ? { createdAt: new Date(values.orderedAt).toISOString() } : {}),
     }
 
     // full-bleed sheet: โชว์ "กำลังสร้างคำสั่งซื้อ" ตั้งแต่เริ่มยิง POST (block ทั้งจอ กันกดซ้ำ)
@@ -680,9 +699,17 @@ export default function OrderCreateForm({
       const isDesktop =
         typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
       if (isDesktop) {
+        // feature 00033 — ออเดอร์ที่ลงวันที่ย้อนหลังไม่โผล่หัวรายการ (keyset createdAt DESC)
+        // ถ้าไม่บอก คนคีย์จะหาไม่เจอแล้วคีย์ซ้ำ
+        const orderedDate = values.orderedAt ? new Date(values.orderedAt) : null
+        const isBackdated = orderedDate ? thaiDayKey(orderedDate) !== thaiDayKey(new Date()) : false
         // โหมดแก้ไข (PATCH) ไม่ได้สร้างลิงก์ใหม่ — copy เดิมชวนให้ "แชร์ลิงก์" ผิดบริบท
         pacesToast.success(
-          editOrderToken ? 'บันทึกการแก้ไขแล้ว' : `${vocab.createLabel}แล้ว แชร์ลิงก์ให้ลูกค้า`,
+          editOrderToken
+            ? 'บันทึกการแก้ไขแล้ว'
+            : isBackdated
+              ? `บันทึกแล้ว ลงวันที่ ${formatDateTimeTH(orderedDate!)} — อยู่ในรายการย้อนหลัง`
+              : `${vocab.createLabel}แล้ว แชร์ลิงก์ให้ลูกค้า`,
         )
       }
 
@@ -797,6 +824,8 @@ export default function OrderCreateForm({
           total={barTotal}
           appointmentBlock={renderAppointmentBlock('m', 'card')}
           compact={compact}
+          orderDateFromMessage={!!prefillCreatedAt}
+          orderDateMessageTooOld={prefillCreatedAtTooOld}
         />
       </div>
 
@@ -824,6 +853,8 @@ export default function OrderCreateForm({
             setValue={setValue}
             appointmentBlock={renderAppointmentBlock('d', 'embedded')}
             appointmentPrefilledDate={appointmentPrefilledDate}
+            orderDateFromMessage={!!prefillCreatedAt}
+            orderDateMessageTooOld={prefillCreatedAtTooOld}
           />
         </div>
       </div>

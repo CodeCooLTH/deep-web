@@ -20,6 +20,7 @@ import ProductPickerSheet from './ProductPickerSheet'
 import ChannelPaymentSelect from './ChannelPaymentSelect'
 import CustomerQuickBlock from './CustomerQuickBlock'
 import MoreOptions from './MoreOptions'
+import OrderDateRow from './OrderDateRow'
 import QuickSummaryPanel from './QuickSummaryPanel'
 import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateForm'
 
@@ -43,6 +44,10 @@ interface Props {
   appointmentBlock?: ReactNode
   /** compact = render ในโมดัลสร้างคำสั่งซื้อ (feature 00018) — footer sticky ในโมดัลแทน fixed viewport */
   compact?: boolean
+  /** feature 00033 — ค่า orderedAt เริ่มต้นมาจากเวลาข้อความในแชท → OrderDateRow เปิดช่องค้างไว้เอง */
+  orderDateFromMessage?: boolean
+  /** feature 00033 — เวลาข้อความต้นทางเก่ากว่าเพดานย้อนหลัง จึงไม่ได้เติมให้ (โชว์ชิปเตือนใน OrderDateRow) */
+  orderDateMessageTooOld?: boolean
 }
 
 export default function QuickForm({
@@ -60,6 +65,8 @@ export default function QuickForm({
   total,
   appointmentBlock,
   compact = false,
+  orderDateFromMessage,
+  orderDateMessageTooOld,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
 
@@ -97,6 +104,17 @@ export default function QuickForm({
       {/* SECTION 2: ช่องทางการขาย + การชำระเงิน */}
       <section className={`border-b-8 border-default-100 ${secX} py-3.5`}>
         <ChannelPaymentSelect control={control} compact={compact} />
+      </section>
+
+      {/* SECTION 2.5: วันที่สั่งซื้อ (feature 00033) — ยุบไว้ + ปุ่มเปลี่ยน ตาม D-7
+          ห้ามห่อด้วย accordion ซ้ำ (ux ruling) — ยุบ/ขยายในตัวอยู่แล้ว */}
+      <section className={`border-b-8 border-default-100 ${secX} py-3.5`}>
+        <OrderDateRow
+          control={control}
+          setValue={setValue}
+          fromMessage={orderDateFromMessage}
+          messageTooOld={orderDateMessageTooOld}
+        />
       </section>
 
       {/* SECTION 3: สินค้า — ไม่มีปุ่มพิมพ์เอง: แถวเปล่ารอเสมออยู่แล้ว (spreadsheet pattern, จัดการที่ OrderCreateForm) */}

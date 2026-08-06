@@ -25,6 +25,7 @@ import Select from '@/components/wrappers/Select'
 import { pacesToast } from '@/lib/paces-toast'
 import CartLineItem from './CartLineItem'
 import CustomerSelectBlock from './CustomerSelectBlock'
+import OrderDateRow from './OrderDateRow'
 import AddressSearchPanel, { type SelectedLocality } from './AddressSearchPanel'
 import { DEFAULT_CHANNEL_KEY, DEFAULT_PAYMENT_KEY } from './ChannelPaymentSelect'
 // SSOT ของตัวเลือก — ต้องเป็นชุดเดียวกับมือถือ (ดูเหตุผลใน order-options.ts)
@@ -65,6 +66,10 @@ interface Props {
    * มีค่า = ผู้ใช้ตั้งใจสร้างนัด → accordion ต้องกางเอง และโชว์วันที่บนหัวให้เห็นทันที
    */
   appointmentPrefilledDate?: string | null
+  /** feature 00033 — ค่า orderedAt เริ่มต้นมาจากเวลาข้อความในแชท → OrderDateRow เปิดช่องค้างไว้เอง */
+  orderDateFromMessage?: boolean
+  /** feature 00033 — เวลาข้อความต้นทางเก่ากว่าเพดานย้อนหลัง จึงไม่ได้เติมให้ (โชว์ชิปเตือนใน OrderDateRow) */
+  orderDateMessageTooOld?: boolean
 }
 
 export default function CartPanel({
@@ -78,6 +83,8 @@ export default function CartPanel({
   setValue,
   appointmentBlock,
   appointmentPrefilledDate,
+  orderDateFromMessage,
+  orderDateMessageTooOld,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
@@ -352,6 +359,17 @@ export default function CartPanel({
             </div>
           </div>
         )}
+      </div>
+
+      {/* feature 00033 — แถววันที่สั่งซื้อ (ยุบไว้ + ปุ่มเปลี่ยน) อยู่นอก accordion ตาม D-7
+          (ux ruling: ห้ามห่อด้วย accordion ซ้ำ — ยุบ/ขยายในตัวอยู่แล้ว) */}
+      <div className="border-t border-default-200 px-4 py-3">
+        <OrderDateRow
+          control={control}
+          setValue={setValue ?? (() => {})}
+          fromMessage={orderDateFromMessage}
+          messageTooOld={orderDateMessageTooOld}
+        />
       </div>
 
       {/* ── accordion: ที่อยู่จัดส่ง (เฉพาะ needsShipping) ── */}
