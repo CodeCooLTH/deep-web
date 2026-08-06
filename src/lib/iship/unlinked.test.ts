@@ -68,6 +68,17 @@ describe("parseParcelRow — ทนต่อชื่อฟิลด์ที่
     expect(parseParcelRow(alt)!.createdAtRaw).toBe("2026-08-01T02:00:00.000Z");
   });
 
+  it("อ่านเวลาอัปเดตล่าสุดได้ทั้ง updated และ updated_at (ใช้เป็น carrierStatusAt)", () => {
+    // ISO ที่มีโซนติดมาแล้ว = เชื่อตามนั้น ไม่ยัด +07 ทับ
+    expect(parseParcelRow({ ...rawRow, updated_at: "2026-08-06T14:07:32.000Z" })!.updatedAtRaw)
+      .toBe("2026-08-06T14:07:32.000Z");
+    // สะกดตามเอกสาร + ไม่มีโซน = เวลาไทย (21:07:32 +07 = 14:07:32Z)
+    expect(parseParcelRow({ ...rawRow, updated: "2026-08-06 21:07:32" })!.updatedAtRaw)
+      .toBe("2026-08-06T14:07:32.000Z");
+    // ไม่มีเลย = null → ผู้เรียกค่อยตัดสินใจเอง ห้ามเดาเป็น "เมื่อกี้"
+    expect(parseParcelRow(rawRow)!.updatedAtRaw).toBeNull();
+  });
+
   it("cod_amount ที่มาเป็นสตริงต้องกลายเป็นตัวเลข", () => {
     expect(parseParcelRow(rawRow)!.codAmount).toBe(100);
   });
