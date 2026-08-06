@@ -125,7 +125,11 @@ export function classifyUpstream(
   // ใช้คำเดี่ยวที่เป็นแก่นของความหมาย ไม่ผูกกับโครงประโยค
   if (/(unauthor|invalid token|token.*(expire|invalid)|ไม่มีสิทธิ|โทเคน)/.test(msg))
     return "TOKEN_INVALID";
-  if (/(insufficient|balance|ยอดเงิน|เครดิต.*ไม่พอ|เงินไม่พอ)/.test(msg))
+  // "เครดิต" เดี่ยว ๆ พอ — ห้ามผูกกับ "ไม่พอ" ท้ายประโยค: iShip ตอบจริงว่า "เครดิตไม่เพียงพอ"
+  // ซึ่งไม่มีสตริง "ไม่พอ" อยู่เลย (ไ-ม-่-เ-พ-ี-ย-ง-พ-อ) แพตเทิร์นเดิมจึงพลาดทั้งที่ดูเหมือนครอบคลุม
+  // → ตกไปเป็น UPSTREAM_ERROR = บอกร้านว่า "ระบบขนส่งขัดข้อง กรุณาลองใหม่" แล้วโชว์ปุ่มลองใหม่
+  // ทั้งที่กดกี่ครั้งก็ไม่ผ่านจนกว่าจะเติมเงิน (เคสจริง prod 2026-08-06 DP256908A896B1BE กด 3 ครั้ง)
+  if (/(insufficient|balance|ยอดเงิน|เครดิต|เงินไม่พอ|เงินไม่เพียงพอ)/.test(msg))
     return "INSUFFICIENT_BALANCE";
   if (/(address|zipcode|postcode|ที่อยู่|รหัสไปรษณีย์|ตำบล|อำเภอ)/.test(msg))
     return "ADDRESS_INVALID";

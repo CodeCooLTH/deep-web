@@ -26,6 +26,8 @@ describe("classifyUpstream — คำสำคัญ ทน 2 ภาษา", () 
     ["ไม่มีสิทธิเข้าถึง", "TOKEN_INVALID"],
     ["insufficient balance", "INSUFFICIENT_BALANCE"],
     ["ยอดเงินคงเหลือไม่เพียงพอ", "INSUFFICIENT_BALANCE"],
+    // ข้อความจริงจาก iShip บน prod 2026-08-06 — ไม่มีสตริง "ไม่พอ" อยู่ในประโยคเลย
+    ["เครดิตไม่เพียงพอ", "INSUFFICIENT_BALANCE"],
     ["invalid address zipcode", "ADDRESS_INVALID"],
     ["รหัสไปรษณีย์ไม่ถูกต้อง", "ADDRESS_INVALID"],
     ["ตำบลไม่ตรงกับอำเภอ", "ADDRESS_INVALID"],

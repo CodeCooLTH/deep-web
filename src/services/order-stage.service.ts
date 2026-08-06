@@ -108,7 +108,11 @@ export async function enrichWithOrderStage<T extends Linkable>(
     LEFT JOIN LATERAL (
       SELECT sh."id", sh."labelPrintedAt", sh."labelPrintCount", sh."carrierStatus", sh."carrierStatusAt"
       FROM "OrderShipment" sh
-      WHERE sh."orderId" = o."id" AND sh."status" <> 'CANCELLED'
+      -- นิยาม "มีพัสดุจริง" ต้องตรงกับ getShippingStageCounts/getOrdersByShop เป๊ะ ๆ:
+      -- status='CREATED' และไม่ใช่ของทดสอบ. เดิมใช้ <> 'CANCELLED' ซึ่งนับใบที่ *สร้างไม่สำเร็จ*
+      -- (FAILED) ด้วย → แถวในกล่องแชทขึ้นชิป "สร้างพัสดุแล้ว" ทั้งที่ไม่มีเลขพัสดุสักตัว
+      -- (user เจอบน prod 2026-08-06: DP256908A896B1BE ล้มเพราะเครดิต iShip ไม่พอ)
+      WHERE sh."orderId" = o."id" AND sh."status" = 'CREATED' AND sh."isDryRun" = false
       ORDER BY sh."createdAt" DESC
       LIMIT 1
     ) s ON true
