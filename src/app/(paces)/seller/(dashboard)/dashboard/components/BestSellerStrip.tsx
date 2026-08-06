@@ -3,20 +3,29 @@
 /**
  * BestSellerStrip — "สินค้าขายดี" บน command center (< lg) → จิ้ม → /orders/new?product=<id> (pre-add, feature Quick Create)
  *
- * Base: OrderStatusBand.tsx + CarouselGrid.tsx (โครง .card/.card-header !py-3/.card-title —
- *   sibling-surface-parity: ทุก section ใน CommandCenter เป็น .card เหมือนกัน)
- * Base (row-card): TopSellingProducts.tsx — sibling เดสก์ท็อปของข้อมูลชุดเดียวกัน
- *   (thumbnail rounded bg-default-100 object-cover + placeholder ไอคอน package ไม่มี caption)
+ * Base (โครง section): OrderStatusBand.tsx — .card/.card-header !py-3/.card-title
+ *   (sibling-surface-parity: ทุก section ใน CommandCenter เป็น .card เหมือนกัน)
+ * Base (การ์ดสินค้า): src/app/(paces)/seller/(dashboard)/orders/new/components/ProductGrid.tsx
+ *   สาขา grid — การ์ดแนวตั้ง rounded-xl + ProductThumb `aspect-video w-full` + ชื่อ line-clamp-2
+ *   → ราคา. เป็น sibling ตรงตัวที่สุด: การ์ดสินค้าที่ "จิ้มแล้วเพิ่มลงออเดอร์" เหมือนกัน
  *
- * เดิมเป็นแถบเปล่า px-4 บนพื้นเทา + การ์ดแนวตั้ง w-24 (mockup 2026-07-06-quick-create-order.html)
- * — user 2026-08-06: "panel ไม่เข้ากับเพื่อนเลย" + "การ์ดไม่สมส่วน" → ยกโครงเป็น .card เข้าชุด
- * พี่น้อง และเปลี่ยนการ์ดสินค้าเป็นแนวนอน (thumbnail 56px ซ้าย + ข้อความขวา); สินค้าเดียว = เต็มกว้าง
+ * ประวัติทรงการ์ด (อย่าวนกลับ):
+ * - เดิม w-24 + รูป `aspect-square` → รูป 96×96px กินเกินครึ่งการ์ด และร้านส่วนใหญ่สินค้าไม่มีรูป
+ *   ⇒ กล่องเทาว่าง 4 ใบเป็นตัวเด่นที่สุดของ section (ปัญหาเดียวกับที่ ProductGrid บันทึกไว้
+ *   แล้วแก้ด้วย aspect-video — ที่นี่ยกมาใช้ชุดเดียวกัน ไม่ใช่คิดใหม่)
+ * - 2026-08-06 เคยเปลี่ยนเป็นการ์ดแนวนอน (รูป 56px ซ้าย) เพื่อล็อกความสูง แต่ w-56 ทำให้จอ 390px
+ *   เห็นแค่ ~1.5 ใบ ⇒ user สั่งกลับเป็นแนวตั้ง "เพิ่ม width หน่อยก็ได้" → w-28 (112px, เห็น ~3.2 ใบ)
+ * - ความสูงเท่ากันทุกใบมาจาก `min-h-8` ที่ชื่อ (จอง 2 บรรทัดของ text-xs = 2rem เสมอ) ไม่ใช่จาก
+ *   การบังคับความสูงการ์ด — ชื่อ 1 บรรทัดกับ 2 บรรทัดจึงไม่ทำให้ราคา/ยอดขายของแต่ละใบเหลื่อมกัน
+ *   (นี่คือ "การ์ดไม่สมส่วน" ที่ user รายงาน)
+ *
  * ว่าง (ร้านใหม่/ไม่มียอดสั่งซื้อ) → ไม่ render ทั้งการ์ด (honest-hide แบบ SalesChartCard)
  */
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import ProductThumb from '../../orders/new/components/ProductThumb'
 
 const formatThb = (n: number) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
@@ -38,7 +47,7 @@ export default function BestSellerStrip({ products }: Props) {
   const router = useRouter()
   if (!products.length) return null
 
-  // สินค้าเดียว → การ์ดเต็มความกว้าง (ไม่ให้เป็นแท่งแคบลอยมุมซ้ายกลางพื้นที่ว่าง — เคสที่ user รายงาน)
+  // สินค้าเดียว → การ์ดเต็มความกว้าง (ไม่ให้เป็นการ์ดแคบใบเดียวลอยมุมซ้ายกลางพื้นที่ว่าง — เคสที่ user รายงาน)
   const single = products.length === 1
 
   return (
@@ -57,9 +66,6 @@ export default function BestSellerStrip({ products }: Props) {
       </div>
 
       <div className="card-body !p-4">
-        {/* hint CTA ระดับ section (ครั้งเดียว) — แทนข้อความซ้ำทุกการ์ด */}
-        <p className="mb-2 text-2xs text-default-400">จิ้มที่การ์ดเพื่อเพิ่มลงออเดอร์ใหม่</p>
-
         {/* scroll-snap + ซ่อน scrollbar (pattern เดียวกับ CarouselGrid) ให้เลื่อนนิ่งบนมือถือ */}
         <div
           className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
@@ -70,32 +76,23 @@ export default function BestSellerStrip({ products }: Props) {
               key={p.id}
               type="button"
               onClick={() => router.push(`/orders/new?product=${p.id}`)}
-              aria-label={`${p.name} ${formatThb(p.price)} สั่งซื้อแล้ว ${p.soldCount} ชิ้น`}
-              className={`${single ? 'w-full' : 'w-56 shrink-0 snap-start'} flex items-center gap-3 rounded-lg border border-default-200 bg-card p-2 text-left transition-transform duration-150 hover:shadow-sm active:scale-95`}
+              aria-label={`${p.name} ${formatThb(p.price)} สั่งซื้อแล้ว ${p.soldCount} ชิ้น — เพิ่มลงออเดอร์ใหม่`}
+              className={`${single ? 'w-full' : 'w-28 shrink-0 snap-start'} overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95`}
             >
-              {p.image ? (
-                // กรอบเป็นตัวคุมสัดส่วน ไม่ใช่ <img> — img เป็น replaced element มี intrinsic ratio
-                // ของตัวเอง สั่งสัดส่วนที่ตัวมันตรง ๆ ไม่มีผล (บทเรียนเดียวกับ TopSellingProducts)
-                <span className="relative block size-14 shrink-0 overflow-hidden rounded bg-default-100">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.image} alt={p.name} className="absolute inset-0 size-full object-cover" />
-                </span>
-              ) : (
-                // placeholder ไอคอนล้วนไม่มี caption — 56px เล็กเกินจะอ่านทั้งไอคอน+ข้อความ
-                // (ยึด pattern TopSellingProducts เดสก์ท็อป)
-                <span className="flex size-14 shrink-0 items-center justify-center rounded bg-default-100 text-default-300">
-                  <Icon icon="package" className="size-6" />
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="line-clamp-2 block text-xs font-medium text-dark">{p.name}</span>
-                <span className="mt-0.5 block truncate text-sm font-bold text-primary">{formatThb(p.price)}</span>
-                {/* จำนวนสั่งซื้อ (ไม่รวมออเดอร์ที่ยกเลิก) — "สั่งซื้อแล้ว X ชิ้น" (ลำดับซ้าย→ขวา = ขายดีสุดก่อน) */}
-                <span className="mt-0.5 flex items-center gap-1 truncate text-2xs text-default-400">
+              {/* ProductThumb: สัดส่วนคุมที่กรอบ ไม่ใช่ที่ <img> (img เป็น replaced element มี intrinsic
+                  ratio ของตัวเอง สั่งทับตรง ๆ ไม่มีผล) + มี fallback ตอนรูปโหลดไม่ขึ้น (onError) ซึ่ง
+                  <img> ดิบที่เคยเขียนไว้ตรงนี้ไม่มี — รูปเสียแล้วได้ไอคอนรูปแตกของเบราว์เซอร์ */}
+              <ProductThumb src={p.image} alt={p.name} className="aspect-video w-full" iconClassName="size-8" />
+              <div className="p-2">
+                {/* min-h-8 = จอง 2 บรรทัดของ text-xs เสมอ → ราคาของทุกใบอยู่ระดับเดียวกัน */}
+                <p className="line-clamp-2 min-h-8 text-xs font-medium text-dark">{p.name}</p>
+                <p className="mt-0.5 truncate text-sm font-bold text-primary">{formatThb(p.price)}</p>
+                {/* จำนวนสั่งซื้อ (ไม่รวมออเดอร์ที่ยกเลิก) — ลำดับซ้าย→ขวา = ขายดีสุดก่อน */}
+                <p className="mt-1 flex items-center gap-1 truncate text-2xs text-default-400">
                   <Icon icon="package" className="size-3 shrink-0" />
                   สั่งซื้อแล้ว {p.soldCount.toLocaleString('th-TH')} ชิ้น
-                </span>
-              </span>
+                </p>
+              </div>
             </button>
           ))}
         </div>
