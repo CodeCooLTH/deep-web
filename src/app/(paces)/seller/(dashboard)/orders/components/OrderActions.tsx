@@ -55,7 +55,7 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
   // กริด: ปุ่มไม่เชื่อมกันแล้ว (คนละแถว) จึงมีขอบมนของตัวเองทุกใบ ไม่ใช้ -ms-px/rounded-*-none
   if (variant === 'table-grid') {
     return (
-      <div className="grid w-fit grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5">
         <Link href={`/orders/${order.publicToken}`} aria-label="ดูรายละเอียด" className={ICON_BTN}>
           <Icon icon="eye" className="text-base" />
         </Link>

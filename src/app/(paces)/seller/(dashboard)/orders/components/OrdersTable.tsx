@@ -468,7 +468,11 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
     {
       id: 'action',
       header: () => <div>จัดการ</div>,
-      meta: { headerClassName: 'w-px whitespace-nowrap', cellClassName: 'w-px whitespace-nowrap align-top' },
+      // w-36 ไม่ใช่ w-px: `w-px` = "หดพอดีเนื้อหา" ซึ่งใช้ได้ตอนปุ่มเป็นแถวเดียว inline-flex
+      // แต่ grid คำนวณ min-content ต่างออกไป คอลัมน์เลยยุบเหลือ 57px ทั้งที่ปุ่ม 3 ตัว
+      // ต้องการ 3x37 + gap 2x6 = 123px → ปุ่มล้นออกนอกเซลล์และปุ่มคัดลอกถูกบีบเหลือ 6px
+      // (user เจอบน prod 2026-08-06 ทันทีที่ deploy) — 144px = 123 + padding ของ td
+      meta: { headerClassName: 'w-36 whitespace-nowrap', cellClassName: 'w-36 whitespace-nowrap align-top' },
       cell: ({ row }: { row: TableRow<OrderRow> }) => (
         <OrderActions order={row.original} onCancelRequest={handleCancelRequest} variant="table-grid" orderNoun={vocab.noun} />
       ),
