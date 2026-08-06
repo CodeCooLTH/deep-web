@@ -339,9 +339,11 @@
 
 <!-- ═══════════ 6. activity log ═══════════ -->
 <h2><span class="no">6.</span> ประวัติคำสั่งซื้อ (feature 00031) — ความจริงไม่หาย</h2>
-<p class="note"><code>ORDER_CREATED.occurredAt</code> = วันที่ที่เลือก เพื่อให้ไทม์ไลน์อ่านแล้วสมเหตุสมผล
-แต่เก็บ <code>meta.keyedInAt</code> = เวลาจริงที่คีย์ไว้ด้วยเสมอ · การเลื่อนวันที่ย้ายยอดข้ามงวด
-จึงเป็นเหตุการณ์แยกชนิด <code>ORDER_DATE_CHANGED</code> ไม่ยุบรวมกับ <code>ORDER_EDITED</code></p>
+<p class="note"><strong><code>occurredAt</code> ของทุก event = เวลาจริงที่กดเสมอ ไม่ย้อนตามวันที่ที่กรอก</strong> —
+ประวัติคือหลักฐานว่าใครทำอะไรเมื่อไหร่ ถ้าย้อนตามค่าที่ผู้ใช้กรอกได้ก็ไม่ใช่หลักฐานอีกต่อไป ·
+วันที่สั่งซื้อเก็บใน <code>meta.orderedAt</code> แล้วแสดงเป็นบรรทัดรอง ·
+การเลื่อนวันที่ย้ายยอดข้ามงวด จึงเป็นเหตุการณ์แยกชนิด <code>ORDER_DATE_CHANGED</code>
+ไม่ยุบรวมกับ <code>ORDER_EDITED</code></p>
 
 <div class="frames">
   <figure class="frame w-desktop" style="margin:0">
@@ -353,8 +355,8 @@
           <div class="muted" style="font-size:13.5px">โดย ปรียา (แอดมิน)</div>
         </div>
         <div style="text-align:right;font-size:13.5px">
-          <div>5 ส.ค. 2569 21:14 น.</div>
-          <div class="muted" style="font-size:12.5px">คีย์เข้าระบบ 6 ส.ค. 2569 09:12 น.</div>
+          <div>6 ส.ค. 2569 09:12 น.</div>
+          <div class="muted" style="font-size:12.5px">ลงวันที่สั่งซื้อ 5 ส.ค. 2569 21:14 น.</div>
         </div>
       </div>
       <div class="row" style="align-items:flex-start;border-top:1px solid var(--line);padding-top:12px">
