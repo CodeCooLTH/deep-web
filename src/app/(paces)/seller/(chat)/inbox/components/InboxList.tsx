@@ -1583,6 +1583,7 @@ export default function InboxList({
               salesStatus={row.contactSalesStatus ?? 'UNSPECIFIED'}
               tags={row.contactTags ?? []}
               groups={groups}
+              currentGroupId={row.chatGroupId ?? null}
               onMoveToGroup={(gid) => {
                 handleMoveToGroup(row.id, gid)
                 setCtxMenu(null)

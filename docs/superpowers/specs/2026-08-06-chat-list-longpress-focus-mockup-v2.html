@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>แผงลัดกดค้าง v2 — 2 ทิศทางให้เลือก</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* token ของสกิน Paces (seller/admin) — ปักค่าไว้ในไฟล์เพราะ mockup ต้องเปิดดูได้โดยไม่ต้องรันแอป
+   ของจริงในโค้ดใช้ตัวแปรธีมล้วน (bg-primary / text-default-800 / bg-{semantic}/15) ตาม HR7 */
+:root{
+  --primary:#236dc9;               /* Counter Blue — primary ของ Paces (ม่วงคือของ buyer/Vuexy) */
+  --primary-15:rgba(35,109,201,.13);
+  --primary-ink:#1e3a8a;
+  --success:#02bc9c; --success-15:rgba(2,188,156,.15); --success-ink:#065f46;
+  --warning:#f9bf59; --warning-15:rgba(249,191,89,.22); --warning-ink:#92400e;
+  --danger:#f7577e;  --danger-15:rgba(247,87,126,.15);  --danger-ink:#7f1d1d;
+  --card:#fff; --body:#f6f7fb;
+  --d900:#2f3349; --d800:#4c4c5c; --d700:#6f7285; --d600:#9096a8;
+  --d300:#e4e6ed; --d200:#eef0f5; --d100:#f5f6fa;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--body);color:var(--d900);font-family:'Anuphan',sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5}
+.page{max-width:1500px;margin:0 auto;padding:32px 20px 72px}
+h1{font-size:24px;font-weight:600;margin:0 0 8px}
+h2{font-size:18px;font-weight:600;margin:44px 0 4px;display:flex;align-items:center;gap:10px}
+h2 .pill{font-size:11px;font-weight:600;background:var(--primary-15);color:var(--primary-ink);border-radius:999px;padding:3px 10px}
+.sub{color:var(--d700);margin:0 0 6px;line-height:1.75;max-width:78ch}
+.sub code{background:var(--d200);border-radius:4px;padding:1px 5px;font-size:12px}
+.frames{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start;margin-top:20px}
+.frame{background:var(--card);border:1px solid var(--d300);border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(47,51,73,.09)}
+.frame-cap{font-size:12px;font-weight:600;color:var(--d800);padding:9px 13px;background:var(--d100);border-bottom:1px solid var(--d300);display:flex;justify-content:space-between;gap:14px}
+.frame-cap span{color:var(--d700);font-weight:400}
+.screen{position:relative;overflow:hidden;background:var(--card)}
+.m{width:390px;height:730px}
+.t{width:720px;height:730px}
+.dk{width:460px;height:730px}
+
+/* ── รายการแชท ── */
+.topbar{display:flex;align-items:center;gap:10px;padding:13px 14px;border-bottom:1px dashed var(--d300)}
+.topbar .title{font-weight:600;font-size:15px}
+.tabs{display:flex;gap:4px;padding:0 14px 10px;border-bottom:1px dashed var(--d300)}
+.tab{font-size:13px;padding:6px 12px;border-radius:999px;color:var(--d700)}
+.tab.on{background:var(--primary-15);color:var(--primary);font-weight:600}
+.count{font-size:11px;background:var(--primary);color:#fff;border-radius:999px;padding:1px 6px;margin-inline-start:6px}
+.row{display:flex;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px dashed var(--d300);border-inline-start:2px solid transparent;background:var(--card)}
+.row.pin{border-inline-start-color:var(--warning);background:rgba(246,247,251,.7)}
+.row.active{border-inline-start-color:var(--primary);background:var(--primary-15)}
+.ava{position:relative;width:42px;height:42px;border-radius:999px;background:var(--d200);color:var(--d800);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex:none}
+.ava .ch{position:absolute;inset-inline-end:-2px;bottom:-2px;width:17px;height:17px;border-radius:999px;background:#1877f2;border:2px solid #fff}
+.meta{min-width:0;flex:1}
+.nm{font-weight:600;font-size:14px;display:flex;align-items:center;gap:5px}
+.pv{color:var(--d700);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.chips{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+.chip{font-size:11px;border-radius:4px;padding:1px 6px;background:var(--d200);color:var(--d800)}
+.chip.ok{background:var(--success-15);color:var(--success-ink)}
+.side{text-align:end;flex:none}
+.tm{font-size:11px;color:var(--d700)}
+.unread{display:inline-block;margin-top:6px;font-size:11px;font-weight:600;background:var(--primary);color:#fff;border-radius:999px;padding:1px 7px}
+.pinmark{color:var(--warning);display:inline-flex}
+
+/* ── โหมดเพ่ง ── */
+.overlay{position:absolute;inset:0;z-index:80}
+.scrim{position:absolute;inset:0;background:rgba(47,51,73,.42);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.lifted{position:absolute;background:var(--card);border:1px solid var(--d300);border-radius:8px;box-shadow:0 14px 30px rgba(20,24,40,.28);overflow:hidden}
+.lifted .row{border-bottom:0}
+
+/* ── กล่องแผงลัด (ใช้ร่วมทั้ง 2 ทิศทาง) ── */
+.sheet{position:absolute;background:var(--card);box-shadow:0 -10px 34px rgba(20,24,40,.26)}
+.sheet.bottom{inset-inline:0;bottom:0;border-radius:14px 14px 0 0;padding-bottom:10px}
+.sheet.attached{border:1px solid var(--d300);border-radius:10px;box-shadow:0 14px 32px rgba(20,24,40,.26)}
+.grab{width:36px;height:4px;border-radius:999px;background:var(--d300);margin:8px auto 2px}
+.sheet-head{display:flex;align-items:center;gap:9px;padding:8px 16px 10px}
+.sheet-head .who{font-weight:600;font-size:14px}
+.sheet-head .sub2{font-size:11.5px;color:var(--d700)}
+
+/* แถวไทล์ 4 ปุ่มหลัก */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:2px 12px 12px}
+.tile{background:var(--d100);border:1px solid transparent;border-radius:8px;min-height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:12px;font-weight:500;color:var(--d800);text-align:center;line-height:1.25}
+.tile svg{width:20px;height:20px}
+.tile.on{background:var(--primary-15);border-color:rgba(35,109,201,.3);color:var(--primary-ink)}
+.i-warn{color:#b8860b}.i-ok{color:var(--success-ink)}.i-neu{color:var(--d700)}.i-dgr{color:var(--danger-ink)}
+
+.grp{padding:0 16px 12px}
+.grp-l{font-size:11.5px;font-weight:600;color:var(--d700);margin:0 0 7px}
+.seg{display:flex;background:var(--d100);border-radius:8px;padding:3px;gap:3px}
+.seg > div{flex:1;min-height:38px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;border-radius:6px;color:var(--d800)}
+.seg > div.on{background:var(--card);box-shadow:0 1px 3px rgba(47,51,73,.14);font-weight:600}
+.seg > div.on.good{color:var(--success-ink)}
+.pillrow{display:flex;gap:6px;flex-wrap:wrap}
+.pillbtn{min-height:38px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-radius:999px;background:var(--d100);color:var(--d800);font-size:13px}
+.pillbtn.on{background:var(--primary-15);color:var(--primary-ink);font-weight:600}
+.pillbtn.ghost{background:transparent;border:1px dashed var(--d300);color:var(--d700)}
+.pillbtn svg{width:15px;height:15px}
+.tagpill{min-height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 8px 0 11px;border-radius:999px;background:var(--primary-15);color:var(--primary-ink);font-size:12.5px}
+.tagpill svg{width:14px;height:14px;opacity:.75}
+.divide{height:1px;background:var(--d300);margin:2px 16px 10px}
+.toggle-row{display:flex;align-items:center;gap:11px;min-height:48px;padding:0 16px;color:var(--d800)}
+.toggle-row svg{width:18px;height:18px;color:var(--d700);flex:none}
+.toggle-row .lbl{flex:1;font-size:13.5px}
+.sw{width:40px;height:23px;border-radius:999px;background:var(--d300);position:relative;flex:none}
+.sw::after{content:'';position:absolute;top:2.5px;inset-inline-start:2.5px;width:18px;height:18px;border-radius:999px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.sw.on{background:var(--primary)}
+.sw.on::after{inset-inline-start:19.5px}
+.hint{font-size:11.5px;color:var(--warning-ink);background:var(--warning-15);border-radius:6px;padding:6px 10px;margin:0 16px 10px}
+
+.note{position:absolute;z-index:90;font-size:11px;font-weight:600;color:#fff;background:#191d2e;border-radius:6px;padding:4px 9px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.verdict{margin-top:14px;background:var(--card);border:1px solid var(--d300);border-radius:10px;padding:16px 18px}
+.verdict h3{margin:0 0 8px;font-size:14px;font-weight:600}
+.verdict ul{margin:0;padding-inline-start:19px;color:var(--d800);line-height:1.9}
+.bad{color:var(--danger-ink);font-weight:600}
+.good{color:var(--success-ink);font-weight:600}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>แผงลัดกดค้าง — เวอร์ชันใหม่ 2 ทิศทาง</h1>
+  <p class="sub">เนื้อในเหมือนกันทั้งสองทิศทาง ต่างกันแค่ <b>ที่วาง</b>. ทั้งคู่แก้ปัญหาเดียวกันของเวอร์ชันแรก: ดรอปดาวน์กว้าง 208px ยาว 8 บล็อกลอยอยู่กลางฉากเบลอ ทุกแถวหน้าตาเท่ากันหมด ตาไม่รู้จะเกาะตรงไหน และบนจอ 390px มันใช้ความกว้างแค่ครึ่งเดียวแต่ยาวเกือบเต็มจอ</p>
+  <p class="sub">สิ่งที่เปลี่ยน: <b>4 คำสั่งที่ใช้บ่อยที่สุดกลายเป็นไทล์ 4 ช่องเรียงแถวเดียว</b> (ตาจับได้ในครั้งเดียว ไม่ต้องอ่านทีละบรรทัด) · <b>สถานะการขายเป็น segmented</b> เห็นค่าปัจจุบันและเปลี่ยนได้ในแตะเดียว จากเดิม 3 บรรทัดที่ต้องอ่านหาเครื่องหมายถูก · <b>กลุ่มกับแท็กเป็นชิป</b> ไม่ใช่รายการยาว · <b>เสียงเป็นสวิตช์</b> เห็นสถานะโดยไม่ต้องอ่านคำว่า "ปิด" หรือ "เปิด" · เส้นคั่นเหลือเส้นเดียว จากเดิม 4 เส้น</p>
+
+  <!-- ════════════ ทิศทาง A ════════════ -->
+  <h2>ทิศทาง A — แผ่นเลื่อนขึ้นจากขอบล่าง <span class="pill">แนะนำ</span></h2>
+  <p class="sub">แถวที่กดค้างถูกยกลอยไว้ <b>ที่เดิม</b> (รู้ว่ากำลังจัดการแชทไหน) แล้วชุดคำสั่งขึ้นมาจากขอบล่างซึ่งเป็นโซนที่นิ้วโป้งเอื้อมถึงจริง — ตรงกับที่ user บอกว่า "บน-ล่าง": แถวอยู่บน คำสั่งอยู่ล่าง. ได้ความกว้างเต็มจอ ไทล์จึงใหญ่พอ ชิปไม่ต้องตัดบรรทัด และตำแหน่งคงที่เสมอไม่ว่าจะกดแถวไหน</p>
+  <div class="frames">
+
+    <!-- A · mobile -->
+    <div class="frame">
+      <div class="frame-cap">A · Mobile 390 <span>กดค้างแถวที่ปักหมุดไว้</span></div>
+      <div class="screen m">
+        <div class="topbar"><div class="title">กล่องข้อความ</div></div>
+        <div class="tabs"><div class="tab on">ข้อความ<span class="count">7</span></div><div class="tab">ความคิดเห็น</div></div>
+        <div class="row pin"><div class="ava">SO<span class="ch"></span></div><div class="meta"><div class="nm"><span class="pinmark"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/></svg></span>Sekson Oonnom</div><div class="pv">ดีจ้า สนใจตัวนี้ครับ ยังมีของไหม</div><div class="chips"><span class="chip ok">สนใจ</span><span class="chip">ลูกค้าเก่า</span></div></div><div class="side"><div class="tm">21:45</div><span class="unread">2</span></div></div>
+        <div class="row"><div class="ava">ณฐ<span class="ch"></span></div><div class="meta"><div class="nm">ณัฐพล ทองดี</div><div class="pv">ส่งเลขพัสดุให้หน่อยครับ</div></div><div class="side"><div class="tm">21:02</div></div></div>
+        <div class="row"><div class="ava">ปว<span class="ch"></span></div><div class="meta"><div class="nm">ปวีณา แสงทอง</div><div class="pv">โอนแล้วนะคะ</div></div><div class="side"><div class="tm">20:31</div></div></div>
+        <div class="row"><div class="ava">TK</div><div class="meta"><div class="nm">Thanakit W.</div><div class="pv">รบกวนเช็คสต็อกให้หน่อยครับ</div></div><div class="side"><div class="tm">19:58</div></div></div>
+        <div class="row"><div class="ava">มน<span class="ch"></span></div><div class="meta"><div class="nm">มนัสนันท์ ก.</div><div class="pv">ขอบคุณค่ะ</div></div><div class="side"><div class="tm">18:20</div></div></div>
+        <div class="row"><div class="ava">อธ<span class="ch"></span></div><div class="meta"><div class="nm">อธิชา พรม</div><div class="pv">พรุ่งนี้รับของได้ไหมคะ</div></div><div class="side"><div class="tm">17:44</div></div></div>
+
+        <div class="overlay">
+          <div class="scrim"></div>
+          <div class="lifted" style="top:88px;left:0;width:390px">
+            <div class="row pin"><div class="ava">SO<span class="ch"></span></div><div class="meta"><div class="nm"><span class="pinmark"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/></svg></span>Sekson Oonnom</div><div class="pv">ดีจ้า สนใจตัวนี้ครับ ยังมีของไหม</div><div class="chips"><span class="chip ok">สนใจ</span><span class="chip">ลูกค้าเก่า</span></div></div><div class="side"><div class="tm">21:45</div><span class="unread">2</span></div></div>
+          </div>
+          <div class="note" style="top:96px;left:236px">แถวที่กด — ยกไว้ที่เดิม</div>
+
+          <div class="sheet bottom" style="height:430px">
+            <div class="grab"></div>
+            <div class="tiles">
+              <div class="tile on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/><path d="m3 3 18 18"/></svg>เลิกปักหมุด</div>
+              <div class="tile"><svg class="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>ปิดงาน</div>
+              <div class="tile"><svg class="i-neu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M16.7 16.7A9.5 9.5 0 0 1 12 18c-5 0-9-6-9-6a16 16 0 0 1 4.3-4.7m3.4-1.1A9.5 9.5 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-1.9 2.6"/><path d="m3 3 18 18"/></svg>ซ่อน</div>
+              <div class="tile"><svg class="i-dgr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8.7 3h6.6L21 8.7v6.6L15.3 21H8.7L3 15.3V8.7z"/><path d="M12 8v4m0 4h.01"/></svg>สแปม</div>
+            </div>
+
+            <div class="grp">
+              <p class="grp-l">สถานะการขาย</p>
+              <div class="seg">
+                <div>ยังไม่ระบุ</div>
+                <div class="on good"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 5 5L20 7"/></svg>สนใจ</div>
+                <div>ไม่สนใจ</div>
+              </div>
+            </div>
+
+            <div class="grp">
+              <p class="grp-l">กลุ่ม</p>
+              <div class="pillrow">
+                <span class="pillbtn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>ลูกค้าประจำ</span>
+                <span class="pillbtn">รอโอน</span>
+                <span class="pillbtn">ทักมาใหม่</span>
+              </div>
+            </div>
+
+            <div class="grp">
+              <p class="grp-l">แท็ก</p>
+              <div class="pillrow">
+                <span class="tagpill">ลูกค้าเก่า <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+                <span class="tagpill">สนใจรุ่นใหม่ <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+                <span class="pillbtn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>เพิ่มแท็ก</span>
+              </div>
+            </div>
+
+            <div class="divide"></div>
+            <div class="toggle-row">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg>
+              <span class="lbl">เสียงแจ้งเตือนของแชทนี้</span>
+              <span class="sw on"></span>
+            </div>
+          </div>
+          <div class="note" style="top:316px;left:120px">คำสั่งอยู่โซนที่นิ้วโป้งถึง</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- A · tablet -->
+    <div class="frame">
+      <div class="frame-cap">A · Tablet 720 <span>แผ่นกว้างขึ้น ไทล์ยังเป็นแถวเดียว</span></div>
+      <div class="screen t">
+        <div class="topbar"><div class="title">กล่องข้อความ</div></div>
+        <div class="tabs"><div class="tab on">ข้อความ<span class="count">7</span></div><div class="tab">ความคิดเห็น</div></div>
+        <div class="row"><div class="ava">SO<span class="ch"></span></div><div class="meta"><div class="nm">Sekson Oonnom</div><div class="pv">ดีจ้า สนใจตัวนี้ครับ ยังมีของไหม</div></div><div class="side"><div class="tm">21:45</div><span class="unread">2</span></div></div>
+        <div class="row"><div class="ava">ณฐ<span class="ch"></span></div><div class="meta"><div class="nm">ณัฐพล ทองดี</div><div class="pv">ส่งเลขพัสดุให้หน่อยครับ</div></div><div class="side"><div class="tm">21:02</div></div></div>
+        <div class="row"><div class="ava">ปว<span class="ch"></span></div><div class="meta"><div class="nm">ปวีณา แสงทอง</div><div class="pv">โอนแล้วนะคะ</div></div><div class="side"><div class="tm">20:31</div></div></div>
+        <div class="row"><div class="ava">TK</div><div class="meta"><div class="nm">Thanakit W.</div><div class="pv">รบกวนเช็คสต็อกให้หน่อยครับ</div></div><div class="side"><div class="tm">19:58</div></div></div>
+        <div class="row"><div class="ava">มน<span class="ch"></span></div><div class="meta"><div class="nm">มนัสนันท์ ก.</div><div class="pv">ขอบคุณค่ะ</div></div><div class="side"><div class="tm">18:20</div></div></div>
+        <div class="row"><div class="ava">อธ<span class="ch"></span></div><div class="meta"><div class="nm">อธิชา พรม</div><div class="pv">พรุ่งนี้รับของได้ไหมคะ</div></div><div class="side"><div class="tm">17:44</div></div></div>
+        <div class="row"><div class="ava">วร<span class="ch"></span></div><div class="meta"><div class="nm">วรรณา อินทร์</div><div class="pv">สั่ง 2 ชิ้นได้ไหมคะ</div></div><div class="side"><div class="tm">16:12</div></div></div>
+
+        <div class="overlay">
+          <div class="scrim"></div>
+          <div class="lifted" style="top:158px;left:0;width:720px">
+            <div class="row"><div class="ava">ปว<span class="ch"></span></div><div class="meta"><div class="nm">ปวีณา แสงทอง</div><div class="pv">โอนแล้วนะคะ</div></div><div class="side"><div class="tm">20:31</div></div></div>
+          </div>
+          <div class="note" style="top:166px;left:420px">แถวที่กด</div>
+
+          <div class="sheet bottom" style="height:398px;inset-inline:0">
+            <div class="grab"></div>
+            <div class="tiles" style="padding-inline:16px">
+              <div class="tile"><svg class="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/></svg>ปักหมุด</div>
+              <div class="tile"><svg class="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>ปิดงาน</div>
+              <div class="tile"><svg class="i-neu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M16.7 16.7A9.5 9.5 0 0 1 12 18c-5 0-9-6-9-6a16 16 0 0 1 4.3-4.7m3.4-1.1A9.5 9.5 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-1.9 2.6"/><path d="m3 3 18 18"/></svg>ซ่อน</div>
+              <div class="tile"><svg class="i-dgr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8.7 3h6.6L21 8.7v6.6L15.3 21H8.7L3 15.3V8.7z"/><path d="M12 8v4m0 4h.01"/></svg>สแปม</div>
+            </div>
+            <div class="grp"><p class="grp-l">สถานะการขาย</p><div class="seg"><div class="on">ยังไม่ระบุ</div><div>สนใจ</div><div>ไม่สนใจ</div></div></div>
+            <div class="grp"><p class="grp-l">กลุ่ม</p><div class="pillrow"><span class="pillbtn">ลูกค้าประจำ</span><span class="pillbtn">รอโอน</span><span class="pillbtn">ทักมาใหม่</span><span class="pillbtn ghost">ไม่อยู่ในกลุ่ม</span></div></div>
+            <div class="grp"><p class="grp-l">แท็ก</p><div class="pillrow"><span class="pillbtn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>เพิ่มแท็ก</span></div></div>
+            <div class="divide"></div>
+            <div class="toggle-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg><span class="lbl">เสียงแจ้งเตือนของแชทนี้</span><span class="sw"></span></div>
+            <div class="hint">ตอนนี้ปิดเสียงทั้งแอปอยู่ — ตั้งค่านี้จะยังไม่มีผล</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- A · desktop (คลิกขวา ไม่เบลอ) -->
+    <div class="frame">
+      <div class="frame-cap">Desktop · คลิกขวา <span>ภาษาเดียวกัน ไม่เบลอ ไม่ยกแถว</span></div>
+      <div class="screen dk">
+        <div class="topbar"><div class="title">กล่องข้อความ</div></div>
+        <div class="tabs"><div class="tab on">ข้อความ<span class="count">7</span></div><div class="tab">ความคิดเห็น</div></div>
+        <div class="row active"><div class="ava">SO<span class="ch"></span></div><div class="meta"><div class="nm">Sekson Oonnom</div><div class="pv">ดีจ้า สนใจตัวนี้ครับ ยังมีของไหม</div></div><div class="side"><div class="tm">21:45</div></div></div>
+        <div class="row"><div class="ava">ณฐ<span class="ch"></span></div><div class="meta"><div class="nm">ณัฐพล ทองดี</div><div class="pv">ส่งเลขพัสดุให้หน่อยครับ</div></div><div class="side"><div class="tm">21:02</div></div></div>
+        <div class="row"><div class="ava">ปว<span class="ch"></span></div><div class="meta"><div class="nm">ปวีณา แสงทอง</div><div class="pv">โอนแล้วนะคะ</div></div><div class="side"><div class="tm">20:31</div></div></div>
+        <div class="row"><div class="ava">TK</div><div class="meta"><div class="nm">Thanakit W.</div><div class="pv">รบกวนเช็คสต็อกให้หน่อยครับ</div></div><div class="side"><div class="tm">19:58</div></div></div>
+        <div class="row"><div class="ava">มน<span class="ch"></span></div><div class="meta"><div class="nm">มนัสนันท์ ก.</div><div class="pv">ขอบคุณค่ะ</div></div><div class="side"><div class="tm">18:20</div></div></div>
+        <div class="row"><div class="ava">อธ<span class="ch"></span></div><div class="meta"><div class="nm">อธิชา พรม</div><div class="pv">พรุ่งนี้รับของได้ไหมคะ</div></div><div class="side"><div class="tm">17:44</div></div></div>
+
+        <div class="sheet attached" style="top:206px;left:120px;width:296px">
+          <div class="tiles" style="padding:12px 12px 10px">
+            <div class="tile" style="min-height:56px;font-size:11px"><svg class="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/></svg>ปักหมุด</div>
+            <div class="tile" style="min-height:56px;font-size:11px"><svg class="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>ปิดงาน</div>
+            <div class="tile" style="min-height:56px;font-size:11px"><svg class="i-neu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M16.7 16.7A9.5 9.5 0 0 1 12 18c-5 0-9-6-9-6a16 16 0 0 1 4.3-4.7m3.4-1.1A9.5 9.5 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-1.9 2.6"/><path d="m3 3 18 18"/></svg>ซ่อน</div>
+            <div class="tile" style="min-height:56px;font-size:11px"><svg class="i-dgr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8.7 3h6.6L21 8.7v6.6L15.3 21H8.7L3 15.3V8.7z"/><path d="M12 8v4m0 4h.01"/></svg>สแปม</div>
+          </div>
+          <div class="grp" style="padding:0 12px 10px"><p class="grp-l">สถานะการขาย</p><div class="seg"><div class="on">ยังไม่ระบุ</div><div>สนใจ</div><div>ไม่สนใจ</div></div></div>
+          <div class="grp" style="padding:0 12px 10px"><p class="grp-l">กลุ่ม</p><div class="pillrow"><span class="pillbtn" style="min-height:32px;font-size:12px">ลูกค้าประจำ</span><span class="pillbtn" style="min-height:32px;font-size:12px">รอโอน</span></div></div>
+          <div class="grp" style="padding:0 12px 10px"><p class="grp-l">แท็ก</p><div class="pillrow"><span class="pillbtn ghost" style="min-height:32px;font-size:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>เพิ่มแท็ก</span></div></div>
+          <div class="divide" style="margin-inline:12px"></div>
+          <div class="toggle-row" style="min-height:42px;padding:0 12px 8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg><span class="lbl" style="font-size:13px">เสียงแจ้งเตือน</span><span class="sw on"></span></div>
+        </div>
+        <div class="note" style="top:214px;left:424px">เกาะเคอร์เซอร์</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ ทิศทาง B ════════════ -->
+  <h2>ทิศทาง B — การ์ดเกาะใต้แถวที่กด</h2>
+  <p class="sub">เหมือน A ทุกอย่างยกเว้นที่วาง: การ์ดเกาะ<b>ใต้แถวที่กดค้าง</b> (พลิกขึ้นเหนือแถวเมื่อที่ไม่พอ) แบบเดียวกับเมนูกดค้างในเธรดแชทที่มีอยู่แล้ว ข้อดีคือความเชื่อมโยงระหว่าง "แถวนี้" กับ "คำสั่งชุดนี้" ชัดที่สุด ข้อเสียคือตำแหน่งย้ายไปมาตามแถวที่กด และถ้ากดแถวบน ๆ คำสั่งจะไปโผล่ครึ่งบนของจอซึ่งนิ้วโป้งเอื้อมยากบนมือถือจอใหญ่</p>
+  <div class="frames">
+    <div class="frame">
+      <div class="frame-cap">B · Mobile 390 <span>การ์ดเกาะใต้แถว เว้นขอบจอ 12px</span></div>
+      <div class="screen m">
+        <div class="topbar"><div class="title">กล่องข้อความ</div></div>
+        <div class="tabs"><div class="tab on">ข้อความ<span class="count">7</span></div><div class="tab">ความคิดเห็น</div></div>
+        <div class="row pin"><div class="ava">SO<span class="ch"></span></div><div class="meta"><div class="nm">Sekson Oonnom</div><div class="pv">ดีจ้า สนใจตัวนี้ครับ ยังมีของไหม</div></div><div class="side"><div class="tm">21:45</div><span class="unread">2</span></div></div>
+        <div class="row"><div class="ava">ณฐ<span class="ch"></span></div><div class="meta"><div class="nm">ณัฐพล ทองดี</div><div class="pv">ส่งเลขพัสดุให้หน่อยครับ</div></div><div class="side"><div class="tm">21:02</div></div></div>
+        <div class="row"><div class="ava">ปว<span class="ch"></span></div><div class="meta"><div class="nm">ปวีณา แสงทอง</div><div class="pv">โอนแล้วนะคะ</div></div><div class="side"><div class="tm">20:31</div></div></div>
+        <div class="row"><div class="ava">TK</div><div class="meta"><div class="nm">Thanakit W.</div><div class="pv">รบกวนเช็คสต็อกให้หน่อยครับ</div></div><div class="side"><div class="tm">19:58</div></div></div>
+        <div class="row"><div class="ava">มน<span class="ch"></span></div><div class="meta"><div class="nm">มนัสนันท์ ก.</div><div class="pv">ขอบคุณค่ะ</div></div><div class="side"><div class="tm">18:20</div></div></div>
+        <div class="row"><div class="ava">อธ<span class="ch"></span></div><div class="meta"><div class="nm">อธิชา พรม</div><div class="pv">พรุ่งนี้รับของได้ไหมคะ</div></div><div class="side"><div class="tm">17:44</div></div></div>
+
+        <div class="overlay">
+          <div class="scrim"></div>
+          <div class="lifted" style="top:152px;left:0;width:390px">
+            <div class="row"><div class="ava">ณฐ<span class="ch"></span></div><div class="meta"><div class="nm">ณัฐพล ทองดี</div><div class="pv">ส่งเลขพัสดุให้หน่อยครับ</div></div><div class="side"><div class="tm">21:02</div></div></div>
+          </div>
+          <div class="sheet attached" style="top:238px;inset-inline:12px">
+            <div class="tiles">
+              <div class="tile"><svg class="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/></svg>ปักหมุด</div>
+              <div class="tile"><svg class="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>ปิดงาน</div>
+              <div class="tile"><svg class="i-neu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M16.7 16.7A9.5 9.5 0 0 1 12 18c-5 0-9-6-9-6a16 16 0 0 1 4.3-4.7m3.4-1.1A9.5 9.5 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-1.9 2.6"/><path d="m3 3 18 18"/></svg>ซ่อน</div>
+              <div class="tile"><svg class="i-dgr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8.7 3h6.6L21 8.7v6.6L15.3 21H8.7L3 15.3V8.7z"/><path d="M12 8v4m0 4h.01"/></svg>สแปม</div>
+            </div>
+            <div class="grp"><p class="grp-l">สถานะการขาย</p><div class="seg"><div class="on">ยังไม่ระบุ</div><div>สนใจ</div><div>ไม่สนใจ</div></div></div>
+            <div class="grp"><p class="grp-l">กลุ่ม</p><div class="pillrow"><span class="pillbtn">ลูกค้าประจำ</span><span class="pillbtn">รอโอน</span><span class="pillbtn ghost">ไม่อยู่ในกลุ่ม</span></div></div>
+            <div class="grp"><p class="grp-l">แท็ก</p><div class="pillrow"><span class="pillbtn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>เพิ่มแท็ก</span></div></div>
+            <div class="divide"></div>
+            <div class="toggle-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg><span class="lbl">เสียงแจ้งเตือนของแชทนี้</span><span class="sw on"></span></div>
+          </div>
+          <div class="note" style="top:246px;left:250px">เกาะใต้แถว</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="frame-cap">B · Mobile 390 <span>กดแถวล่างสุด → พลิกขึ้นเหนือแถว</span></div>
+      <div class="screen m">
+        <div class="topbar"><div class="title">กล่องข้อความ</div></div>
+        <div class="tabs"><div class="tab on">ข้อความ<span class="count">7</span></div><div class="tab">ความคิดเห็น</div></div>
+        <div class="row"><div class="ava">SO<span class="ch"></span></div><div class="meta"><div class="nm">Sekson Oonnom</div><div class="pv">ดีจ้า สนใจตัวนี้ครับ</div></div><div class="side"><div class="tm">21:45</div></div></div>
+        <div class="row"><div class="ava">ณฐ<span class="ch"></span></div><div class="meta"><div class="nm">ณัฐพล ทองดี</div><div class="pv">ส่งเลขพัสดุให้หน่อยครับ</div></div><div class="side"><div class="tm">21:02</div></div></div>
+        <div class="row"><div class="ava">ปว<span class="ch"></span></div><div class="meta"><div class="nm">ปวีณา แสงทอง</div><div class="pv">โอนแล้วนะคะ</div></div><div class="side"><div class="tm">20:31</div></div></div>
+        <div class="row"><div class="ava">TK</div><div class="meta"><div class="nm">Thanakit W.</div><div class="pv">รบกวนเช็คสต็อกให้หน่อยครับ</div></div><div class="side"><div class="tm">19:58</div></div></div>
+        <div class="row"><div class="ava">มน<span class="ch"></span></div><div class="meta"><div class="nm">มนัสนันท์ ก.</div><div class="pv">ขอบคุณค่ะ</div></div><div class="side"><div class="tm">18:20</div></div></div>
+        <div class="row"><div class="ava">อธ<span class="ch"></span></div><div class="meta"><div class="nm">อธิชา พรม</div><div class="pv">พรุ่งนี้รับของได้ไหมคะ</div></div><div class="side"><div class="tm">17:44</div></div></div>
+        <div class="row"><div class="ava">วร<span class="ch"></span></div><div class="meta"><div class="nm">วรรณา อินทร์</div><div class="pv">สั่ง 2 ชิ้นได้ไหมคะ</div></div><div class="side"><div class="tm">16:12</div></div></div>
+
+        <div class="overlay">
+          <div class="scrim"></div>
+          <div class="lifted" style="top:626px;left:0;width:390px">
+            <div class="row"><div class="ava">วร<span class="ch"></span></div><div class="meta"><div class="nm">วรรณา อินทร์</div><div class="pv">สั่ง 2 ชิ้นได้ไหมคะ</div></div><div class="side"><div class="tm">16:12</div></div></div>
+          </div>
+          <div class="sheet attached" style="bottom:118px;inset-inline:12px">
+            <div class="tiles">
+              <div class="tile"><svg class="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/></svg>ปักหมุด</div>
+              <div class="tile"><svg class="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>ปิดงาน</div>
+              <div class="tile"><svg class="i-neu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M16.7 16.7A9.5 9.5 0 0 1 12 18c-5 0-9-6-9-6a16 16 0 0 1 4.3-4.7m3.4-1.1A9.5 9.5 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-1.9 2.6"/><path d="m3 3 18 18"/></svg>ซ่อน</div>
+              <div class="tile"><svg class="i-dgr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8.7 3h6.6L21 8.7v6.6L15.3 21H8.7L3 15.3V8.7z"/><path d="M12 8v4m0 4h.01"/></svg>สแปม</div>
+            </div>
+            <div class="grp"><p class="grp-l">สถานะการขาย</p><div class="seg"><div>ยังไม่ระบุ</div><div>สนใจ</div><div class="on">ไม่สนใจ</div></div></div>
+            <div class="grp"><p class="grp-l">กลุ่ม</p><div class="pillrow"><span class="pillbtn">ลูกค้าประจำ</span><span class="pillbtn on">รอโอน</span></div></div>
+            <div class="grp"><p class="grp-l">แท็ก</p><div class="pillrow"><span class="tagpill">รอสต็อก <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg></span><span class="pillbtn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>เพิ่มแท็ก</span></div></div>
+            <div class="divide"></div>
+            <div class="toggle-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg><span class="lbl">เสียงแจ้งเตือนของแชทนี้</span><span class="sw"></span></div>
+          </div>
+          <div class="note" style="bottom:134px;left:250px">ที่ใต้ไม่พอ → พลิกขึ้น</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="verdict">
+    <h3>สรุปข้อต่างที่ต้องเลือก</h3>
+    <ul>
+      <li><b>A (แผ่นล่าง)</b> — <span class="good">ตำแหน่งคงที่ทุกครั้ง</span> · อยู่ในระยะนิ้วโป้ง · กว้างเต็มจอ ชิปไม่ตัดบรรทัด · ใช้ pattern เดียวกับ <code>CustomerPanelSheet</code> ที่มีอยู่แล้วในโปรเจกต์ · <span class="bad">เชื่อมโยงกับแถวอ่อนกว่า</span> (ต้องอาศัยแถวที่ยกลอยเป็นตัวบอกว่าจัดการแชทไหน)</li>
+      <li><b>B (เกาะแถว)</b> — <span class="good">ความเชื่อมโยงกับแถวชัดที่สุด</span> · เป็นภาษาเดียวกับเมนูกดค้างในเธรดแชทที่มีอยู่แล้ว · <span class="bad">ตำแหน่งเด้งไปมาตามแถวที่กด</span> · กดแถวบน ๆ แล้วคำสั่งไปอยู่ครึ่งบนของจอ นิ้วโป้งเอื้อมยาก · แคบกว่า 24px จากขอบจอ</li>
+    </ul>
+    <p class="sub" style="margin:12px 0 0">ทั้งสองแบบยังคง: เบลอฉากหลัง · ยกแถวที่กดขึ้นมา · ทุกเป้ากด ≥44px · สี Paces ล้วน (ไม่มีม่วง Vuexy) · ไม่มี emoji ไอคอนวาดทั้งหมด · เนื้อในชุดเดียวกับที่คลิกขวาบนเดสก์ท็อปเห็น</p>
+  </div>
+</div>
+</body>
+</html>
