@@ -55,6 +55,17 @@ describe("assembleCompareResult", () => {
     expect(r.failed).toEqual([{ courierCode: "A", courierName: "Flash Thunder" }]);
   });
 
+  it("total_price 0 = ขนส่งไม่รองรับเส้นทาง ไม่ใช่ส่งฟรี — เข้า failed", () => {
+    // เคสจริง prod 2026-08-06: Fuze Post ตอบ 0 บาท breakdown ว่างหมด แล้วได้ badge
+    // "ถูกที่สุด" พร้อมปุ่มทึบ — ร้านกดเลือกไปจะไปเจอปัญหาตอนเปิดพัสดุจริง
+    const r = assembleCompareResult(couriers.slice(0, 2), [
+      ok(price({ total_price: 0, price: 0 })),
+      ok(price({ total_price: 29 })),
+    ]);
+    expect(r.rows.map((x) => x.courierCode)).toEqual(["B"]);
+    expect(r.failed).toEqual([{ courierCode: "A", courierName: "Flash Thunder" }]);
+  });
+
   it("field ประกอบราคา: ไม่ส่ง/ศูนย์ → null (ช่องแสดง '—'), ส่งมา → ตัวเลข", () => {
     const r = assembleCompareResult(couriers.slice(0, 2), [
       ok(
