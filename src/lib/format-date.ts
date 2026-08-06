@@ -284,3 +284,45 @@ export function formatRelativeDayTime(input: Date | string | number | null | und
   const beShort = String(Number(p.year) + BE_OFFSET).slice(-2) // ปี พ.ศ. 2 หลัก
   return `${dayNoPad} ${monthAbbr} ${beShort} ${hm}`
 }
+
+/**
+ * "2026-08-06" — คีย์ของ "วัน" ตามปฏิทินไทย (ค.ศ. ไม่ใช่ พ.ศ.)
+ *
+ * [สำคัญ] นี่คือ **คีย์สำหรับจัดกลุ่ม/เทียบ ไม่ใช่ค่าแสดงผล** — ห้ามเอาไปโชว์ผู้ใช้
+ * (ผู้ใช้เห็นปีต้องเป็น พ.ศ. เสมอ ใช้ formatDateTH/formatDateTimeTH แทน)
+ *
+ * ทำไมต้องมี: โค้ดหลายที่เคยตัดวันด้วย `toISOString().slice(0,10)` ซึ่งเป็นวัน **UTC**
+ * ออเดอร์เวลา 00:00–07:00 น. ไทย จึงตกไปนับเป็นของวันก่อนหน้า — เพี้ยนเงียบ ๆ และเพี้ยน
+ * ไม่ตรงกับ dashboard/P&L ที่คิดเวลาไทยถูกอยู่แล้ว (feature 00033 §5.3)
+ */
+export function thaiDayKey(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return ''
+  const p = partsInBangkok(d)
+  return `${p.year}-${p.month}-${p.day}`
+}
+
+/**
+ * ป้ายวันที่สั่งซื้อสำหรับแถวสรุปในฟอร์ม (feature 00033)
+ *
+ * ใช้คำสัมพัทธ์เฉพาะ "วันนี้/เมื่อวาน" — คนอ่านผ่านแล้วรู้ทันทีว่าปกติหรือย้อนหลัง
+ * โดยไม่ต้องเทียบวันที่ในหัว. เก่ากว่านั้นหรืออยู่ในอนาคต = วันที่เต็มเป็น พ.ศ.
+ * (อนาคตห้ามเป็น "วันนี้" เด็ดขาด — ผู้ขายต้องเห็นว่าตัวเองลงวันล่วงหน้าอยู่)
+ */
+export function formatOrderDateLabel(
+  input: Date | string | number | null | undefined,
+  nowInput: Date | string | number = new Date(),
+): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const now = toValidDate(nowInput) ?? new Date()
+
+  const key = thaiDayKey(d)
+  const todayKey = thaiDayKey(now)
+  const yesterdayKey = thaiDayKey(new Date(now.getTime() - 24 * 60 * 60 * 1000))
+  const time = `${formatTimeHM(d)} น.`
+
+  if (key === todayKey) return `วันนี้ ${time}`
+  if (key === yesterdayKey) return `เมื่อวาน ${time}`
+  return `${formatDateTH(d)} ${time}`
+}
