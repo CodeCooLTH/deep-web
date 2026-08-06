@@ -8,6 +8,7 @@ import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
 import { deriveShippingStage } from "@/lib/order-stage";
+import { isCODPayment } from "@/lib/order-display";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
 import {
@@ -913,6 +914,106 @@ export async function setCodReceived(
       : { codReceivedAt: new Date(), codReceivedByUserId: actorUserId },
     select: { id: true, codReceivedAt: true },
   });
+}
+
+/**
+ * settleCodFromCarrier — ขนส่งโอนเงินเก็บปลายทางเข้าร้านแล้ว (BR-ISHIP-45..48, 2026-08-06)
+ *
+ * เรียกจากรอบ sync ของ iShip เมื่อพบ `settlement_at` ครั้งแรกของพัสดุใบหนึ่ง
+ * ผู้เรียกเป็นคน "จอง" สิทธิ์ประมวลผลด้วยการเขียน OrderShipment.codSettledAt แบบมีเงื่อนไข
+ * มาแล้ว — ที่นี่จึงไม่ต้องกันซ้ำอีกชั้น
+ *
+ * ทำไมกล้ายืนยันแทนผู้ซื้อ (กลับกฎ BR-ISHIP-41 เดิม, user เคาะ 2026-08-06):
+ * COD ที่ขนส่งโอนเงินแล้วคือห่วงโซ่หลักฐานครบสามท่อน — ส่งถึง → ผู้ซื้อจ่ายเงินสดจริง →
+ * ขนส่งโอนเข้าบัญชีร้าน ยืนยันโดยบุคคลที่สามที่ไม่มีส่วนได้เสียกับคะแนนของร้าน
+ * แข็งแรงกว่าปุ่มที่ผู้ซื้อกด (ปุ่มไม่มีเงินค้ำ ใครถือลิงก์ก็กดได้) และการปลอมเส้นทางนี้
+ * ต้องจ่ายค่าส่ง + ค่าธรรมเนียม COD จริงทุกใบ
+ *
+ * คืน true เมื่อคำสั่งซื้อถูกยืนยันอัตโนมัติจริงในครั้งนี้
+ */
+export async function settleCodFromCarrier(input: {
+  orderId: string;
+  /** เวลาที่ขนส่งแจ้งว่าเงินเข้า (แปลงเขตเวลาแล้ว) */
+  settledAt: Date;
+  /** ยอด COD ที่ขนส่งแจ้ง — ใช้แสดงในไทม์ไลน์ */
+  codAmount: number;
+}): Promise<boolean> {
+  const order = await prisma.order.findUnique({
+    where: { id: input.orderId },
+    select: {
+      id: true,
+      status: true,
+      paymentMethod: true,
+      codReceivedAt: true,
+      auctionId: true,
+      buyerUserId: true,
+      publicToken: true,
+      shop: { select: { id: true, userId: true, kind: true } },
+    },
+  });
+  if (!order) return false;
+  // ใบที่ไม่ใช่เก็บเงินปลายทางไม่มีเงินให้ขนส่งโอน — settlement_at ที่มาพร้อมใบพวกนี้
+  // เป็นเรื่องของพัสดุฝั่ง iShip ไม่ใช่ของคำสั่งซื้อเรา (BR-ISHIP-45 ข้อ ก)
+  if (!isCODPayment(order.paymentMethod)) return false;
+
+  await prisma.$transaction(async (tx) => {
+    // ไม่ทับค่าที่ร้านกดไว้ก่อน (BR-ISHIP-48) — ใครมาก่อนได้ก่อน
+    if (!order.codReceivedAt) {
+      await tx.order.update({
+        where: { id: order.id },
+        // codReceivedByUserId เว้น null โดยเจตนา = "ระบบ" ตามที่หน้าจอตีความอยู่แล้ว
+        data: { codReceivedAt: input.settledAt, codReceivedByUserId: null },
+      });
+    }
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "COD_SETTLED",
+      actorUserId: null,
+      occurredAt: input.settledAt,
+      meta: { amount: input.codAmount },
+    });
+  });
+
+  // conditional update — ยกเลิกแล้วห้ามปลุกกลับ (BR-ISHIP-46) และผู้ซื้อ/ร้านที่กดยืนยัน
+  // ไปเสี้ยววินาทีก่อนต้องไม่ถูกเขียนทับ (count=0 = มีคนอื่นทำไปแล้ว ไม่ใช่ความผิดพลาด)
+  const advanced = await prisma.order.updateMany({
+    where: { id: order.id, status: { in: ["PENDING", "SHIPPED"] } },
+    data: { status: "CONFIRMED" },
+  });
+  if (advanced.count === 0) return false;
+
+  await recordOrderEvent(prisma, {
+    orderId: order.id,
+    type: "SYSTEM_CONFIRMED",
+    actorUserId: null,
+    occurredAt: input.settledAt,
+  });
+
+  // recalc ชุดเดียวกับ confirmOrder เป๊ะ — best-effort ตาม pattern เดิม (ล้มแล้วไม่ย้อนสถานะ
+  // เพราะข้อมูลหลักบันทึกแล้ว) BR-ISHIP-44: ไม่มีสูตรพิเศษสำหรับใบที่ระบบยืนยันเอง
+  try {
+    if (order.shop.kind === "BUSINESS") {
+      await evaluateSellerBadgesForShop(order.shop);
+    } else {
+      await evaluateBadges(order.shop.userId);
+    }
+  } catch (err) {
+    console.error(
+      `[order] post-auto-confirm recalc ล้มเหลวสำหรับ shop owner ${order.shop.userId}; order ${order.publicToken} persisted`,
+      err,
+    );
+  }
+  if (order.buyerUserId && order.auctionId) {
+    try {
+      await evaluateBadges(order.buyerUserId, "BUYER");
+    } catch (err) {
+      console.error(
+        `[order] post-auto-confirm buyer badge eval ล้มเหลวสำหรับ buyer ${order.buyerUserId}; order ${order.publicToken} persisted`,
+        err,
+      );
+    }
+  }
+  return true;
 }
 
 export async function getOrdersByShop(shopId: string, status?: string) {

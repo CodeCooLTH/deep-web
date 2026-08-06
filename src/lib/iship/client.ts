@@ -321,6 +321,23 @@ export interface IShipOrderRow {
   status_name?: string;
   status_desc?: string;
   updated_at?: string;
+  /**
+   * วันเวลาที่เงินเก็บปลายทางเข้าระบบร้าน = คำว่า "เงินเข้าระบบ" บนหน้าจอ iShip
+   * (ยืนยันกับพัสดุจริง TH160390J7DJ1I 2026-08-06) — มาคู่กับ status 12 payment_success
+   *
+   * [ระวัง] รูปแบบ "YYYY-MM-DD HH:mm:ss" เวลาไทยไม่มี timezone suffix ซึ่ง **ต่างจาก**
+   * `updated_at`/`created_at` ในออบเจ็กต์เดียวกันที่เป็น ISO UTC — ต้องแปลงด้วย
+   * parseCarrierTimestamp เท่านั้น ส่งเข้า new Date() ตรง ๆ จะเพี้ยนไป 7 ชั่วโมง
+   *
+   * ไม่มีใน /api/traces (trace หยุดที่ delivered) — ห้ามไปหาจากที่นั่น
+   */
+  settlement_at?: string | null;
+  /** ยอดเก็บปลายทางเป็น string ("590.00") — "0.00" เมื่อไม่ใช่ COD */
+  cod_amount?: string | number | null;
+  /** ค่าธรรมเนียมที่ขนส่งหักจากยอด COD ("12.63") */
+  cod_fee?: string | number | null;
+  /** เวลาที่ส่งถึงผู้รับ — มาก่อน settlement_at เสมอ (ตัวอย่างจริงห่างกัน ~33 ชม.) */
+  delivered_at?: string | null;
 }
 
 /**

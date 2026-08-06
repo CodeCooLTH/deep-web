@@ -8,7 +8,7 @@
 // (ไม่ใช่หวังว่าจะไม่เผลอใส่) — ดู ConnectionView / SettingsView / ShipmentView
 
 import { prisma } from "@/lib/prisma";
-import { createOrder } from "@/services/order.service";
+import { createOrder, settleCodFromCarrier } from "@/services/order.service";
 import { recordOrderEvent } from "@/services/order-event.service";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
@@ -17,6 +17,8 @@ import {
   carrierStatusCodeFromId,
   describeCarrierStatus,
   impliesDispatched,
+  parseCarrierTimestamp,
+  readCodSettlement,
 } from "@/lib/iship/status";
 import {
   diffReceiverAddress,
@@ -1191,32 +1193,8 @@ export async function getLabelPdfForOrders(
 
 // ─── ประวัติการเดินทาง ──────────────────────────────────────────────────────
 
-/**
- * parseCarrierTimestamp — เวลาจาก traces ของ iShip เป็น "เวลาไทย" ที่ไม่มีโซนเวลาติดมา
- *
- * รูปแบบที่ได้จริงคือ `"2026-08-04 15:36:18"` เดิมโค้ดทำ `new Date(s.replace(" ", "T"))`
- * ซึ่ง JS ตีความสตริงแบบไม่มีโซนว่าเป็น "เวลาท้องถิ่นของเครื่อง" — บน Vercel เครื่องเป็น UTC
- * ผลคือเวลาไทยถูกบันทึกเป็น UTC ตรง ๆ = **ทุกเหตุการณ์เลื่อนไปข้างหน้า 7 ชั่วโมง**
- *
- * หลักฐานจากฐาน prod (พัสดุ TH460290DA197B, 2026-08-04): แถวสุดท้ายมี `occurredAt`
- * 15:36:18Z แต่ `createdAt` (เวลาที่เราบันทึกเอง) เป็น 13:10:57Z — เท่ากับบันทึกเหตุการณ์
- * ที่ "ยังไม่เกิด" ล่วงหน้า 2 ชั่วโมงครึ่ง และเวลาเดียวกันนี้ฝั่ง query_orders (ซึ่งส่ง ISO
- * พร้อมโซนมา จึงถูกต้อง) เก็บไว้เป็น 08:36:18Z — ห่างกัน 7 ชั่วโมงพอดี
- *
- * ผลกระทบที่มองเห็น: ไทม์ไลน์ในหน้าออเดอร์โชว์เวลาอนาคต และเวลาจาก 2 endpoint
- * เทียบกันไม่ได้ทั้งที่พูดถึงนาทีเดียวกัน
- *
- * ตรึง +07:00 ตรง ๆ (ไม่ใช่ timezone ของเครื่อง) เพราะ iShip เป็นผู้ให้บริการไทยที่ส่งเวลาไทยเสมอ
- * — ค่าที่ขึ้นกับเครื่องจะทำให้ dev กับ prod ได้ผลไม่ตรงกันอีก ซึ่งคือรากของบั๊กนี้พอดี
- */
-function parseCarrierTimestamp(raw: string): Date | null {
-  if (!raw) return null;
-  // มีโซนเวลาติดมาแล้ว (Z หรือ ±hh:mm) → เชื่อตามนั้น ไม่ยัด +07 ทับ
-  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw.trim());
-  const iso = raw.trim().replace(" ", "T");
-  const d = new Date(hasZone ? iso : `${iso}+07:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+// parseCarrierTimestamp ย้ายไป lib/iship/status.ts แล้ว (2026-08-06) — ตัวแปลงเดียวกันนี้
+// ถูกใช้ทั้งกับ traces และกับ settlement_at ของ COD จึงต้องอยู่ในโมดูล pure ที่เทสได้
 
 /**
  * advanceOrderOnCarrierMove — ขนส่งรับของไปแล้ว → ขยับคำสั่งซื้อเป็น "จัดส่งแล้ว" อัตโนมัติ
@@ -1562,6 +1540,36 @@ function isoDate(d: Date): string {
  *
  * คืนจำนวนแถวที่สถานะเปลี่ยนจริง (0 = ไม่มีอะไรเปลี่ยน หรือยังไม่ถึงรอบ)
  */
+/**
+ * settleCodIfPaid — เห็น `settlement_at` ครั้งแรกของพัสดุใบหนึ่ง → บันทึกว่าเงินเข้าแล้ว
+ *
+ * แบ่งหน้าที่: ที่นี่ตัดสินเรื่อง "พัสดุ" (เชื่อค่าจาก iShip ได้ไหม + จองสิทธิ์ประมวลผล)
+ * ส่วนเรื่อง "คำสั่งซื้อ" (เป็น COD ไหม ยืนยันได้ไหม คิดคะแนนใหม่) อยู่ที่ order.service
+ *
+ * การจองสิทธิ์ใช้ conditional update บน codSettledAt — sync สองรอบที่ทับกัน (ร้านเปิด
+ * หลายแท็บ) จะมีแค่รอบเดียวที่ count>0 อีกรอบเห็น 0 แล้วถอยออกไปเงียบ ๆ ไม่บันทึกซ้ำ
+ *
+ * คืน true เมื่อคำสั่งซื้อถูกยืนยันอัตโนมัติจริง (ไม่ใช่แค่บันทึกวันเงินเข้า)
+ */
+async function settleCodIfPaid(
+  shipment: { id: string; orderId: string; codSettledAt: Date | null },
+  row: iship.IShipOrderRow,
+): Promise<boolean> {
+  if (shipment.codSettledAt) return false; // เคยประมวลผลไปแล้ว
+
+  const settlement = readCodSettlement(row);
+  if (!settlement) return false;
+  const { settledAt, codAmount } = settlement;
+
+  const claimed = await prisma.orderShipment.updateMany({
+    where: { id: shipment.id, codSettledAt: null },
+    data: { codSettledAt: settledAt },
+  });
+  if (claimed.count === 0) return false;
+
+  return settleCodFromCarrier({ orderId: shipment.orderId, settledAt, codAmount });
+}
+
 export async function syncShipmentStatuses(
   shopId: string,
   opts?: { force?: boolean },
@@ -1579,6 +1587,11 @@ export async function syncShipmentStatuses(
   }
 
   // พัสดุที่ยังต้องติดตาม — จบแล้ว (ส่งถึง/คืนสำเร็จ/หมดอายุ) ไม่ต้องถามซ้ำอีก
+  //
+  // ยกเว้นใบ COD ที่ยังไม่ได้เงิน (BR-ISHIP-49, 2026-08-06): เงินเก็บปลายทางเข้าหลัง
+  // `delivered` เสมอ — ใบตัวอย่างจริง TH160390J7DJ1I ส่งถึง 04 ส.ค. 09:27 แต่เงินเข้า
+  // 05 ส.ค. 19:00 (ห่างกัน ~33 ชม.) เงื่อนไขเดิมตัดใบนั้นออกจากรายการติดตามไปตั้งแต่วัน
+  // ที่ส่งถึง = ไม่มีวันเห็นเหตุการณ์เงินเข้าเลยสักใบ ฟีเจอร์ปิดงานอัตโนมัติจึงตายตั้งแต่ต้น
   const tracking = await prisma.orderShipment.findMany({
     where: {
       shopId,
@@ -1587,9 +1600,18 @@ export async function syncShipmentStatuses(
       OR: [
         { carrierStatus: null },
         { carrierStatus: { notIn: ["delivered", "return_success", "is_expired", "close"] } },
+        // ส่งถึงแล้วแต่เป็นใบเก็บเงินปลายทางที่ยังไม่ได้รับแจ้งว่าโอนเงิน → ยังต้องถามต่อ
+        // (มี codSettledAt แล้ว = จบจริง หลุดออกจากชุดนี้เอง)
+        { codSettledAt: null, codAmount: { gt: 0 } },
       ],
     },
-    select: { id: true, trackingNo: true, carrierStatus: true, orderId: true },
+    select: {
+      id: true,
+      trackingNo: true,
+      carrierStatus: true,
+      orderId: true,
+      codSettledAt: true,
+    },
   });
   if (tracking.length === 0) {
     await prisma.shopShippingAccount.update({
@@ -1620,28 +1642,34 @@ export async function syncShipmentStatuses(
     const row = byTrack.get(s.trackingNo!);
     if (!row) continue; // พัสดุที่เก่ากว่าช่วงที่ขอ — ปล่อยไว้ ไม่เดาสถานะแทนขนส่ง
     const code = carrierStatusCodeFromId(row.status);
-    if (!code || code === s.carrierStatus) continue;
 
-    const changedAt = row.updated_at ? new Date(row.updated_at) : new Date();
+    if (code && code !== s.carrierStatus) {
+      const changedAt = row.updated_at ? new Date(row.updated_at) : new Date();
 
-    await prisma.orderShipment.update({
-      where: { id: s.id },
-      data: {
-        carrierStatus: code,
-        carrierStatusText: describeCarrierStatus(code).text,
-        // ใช้เวลาที่ iShip บอกว่าสถานะเปลี่ยน ไม่ใช่เวลาที่เราดึงมา — ไม่งั้นทุกใบจะมีเวลา
-        // เท่ากันหมดตามรอบ sync แล้วเรียงลำดับเหตุการณ์ไม่ได้
-        carrierStatusAt: changedAt,
-        // พัสดุถูกยกเลิกที่ฝั่ง iShip (ร้านไปกดที่หลังบ้านเขาเอง หรือขนส่งยกเลิกให้) —
-        // แถวของเราต้องตามความจริง ไม่ใช่ค้างเป็น CREATED แล้วโชว์ป้าย "สร้างพัสดุแล้ว"
-        // ให้ร้านเข้าใจผิดว่าของยังเดินอยู่ (เจอกับพัสดุจริง 1 ใบตอนทดสอบ 2026-07-31)
-        ...(code === "cancelled"
-          ? { status: "CANCELLED", cancelledAt: changedAt }
-          : {}),
-      },
-    });
-    await advanceOrderOnCarrierMove(s.orderId, code);
-    changed += 1;
+      await prisma.orderShipment.update({
+        where: { id: s.id },
+        data: {
+          carrierStatus: code,
+          carrierStatusText: describeCarrierStatus(code).text,
+          // ใช้เวลาที่ iShip บอกว่าสถานะเปลี่ยน ไม่ใช่เวลาที่เราดึงมา — ไม่งั้นทุกใบจะมีเวลา
+          // เท่ากันหมดตามรอบ sync แล้วเรียงลำดับเหตุการณ์ไม่ได้
+          carrierStatusAt: changedAt,
+          // พัสดุถูกยกเลิกที่ฝั่ง iShip (ร้านไปกดที่หลังบ้านเขาเอง หรือขนส่งยกเลิกให้) —
+          // แถวของเราต้องตามความจริง ไม่ใช่ค้างเป็น CREATED แล้วโชว์ป้าย "สร้างพัสดุแล้ว"
+          // ให้ร้านเข้าใจผิดว่าของยังเดินอยู่ (เจอกับพัสดุจริง 1 ใบตอนทดสอบ 2026-07-31)
+          ...(code === "cancelled"
+            ? { status: "CANCELLED", cancelledAt: changedAt }
+            : {}),
+        },
+      });
+      await advanceOrderOnCarrierMove(s.orderId, code);
+      changed += 1;
+    }
+
+    // แยกจากบล็อกข้างบนโดยเจตนา — ห้ามผูกกับ "สถานะเปลี่ยน" เพราะพัสดุที่ carrierStatus
+    // เป็น payment_success อยู่แล้วตั้งแต่ก่อนมีฟีเจอร์นี้จะไม่มีวันเข้าเงื่อนไขนั้นอีก
+    // แล้วเงินที่เข้าไปแล้วจะไม่ถูกบันทึกตลอดกาล
+    if (await settleCodIfPaid(s, row)) changed += 1;
   }
 
   await prisma.shopShippingAccount.update({

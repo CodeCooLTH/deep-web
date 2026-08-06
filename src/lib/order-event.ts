@@ -5,7 +5,7 @@
 //
 // pure module — ห้าม import prisma/server-only (ใช้ทั้งฝั่ง server เขียน event และ client เรนเดอร์)
 
-/** 9 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
+/** 11 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
 export const ORDER_EVENT_TYPES = [
   'ORDER_CREATED',
   'ORDER_EDITED',
@@ -16,6 +16,8 @@ export const ORDER_EVENT_TYPES = [
   'SHIPMENT_LINKED',
   'SMS_LINK_SENT',
   'BUYER_CONFIRMED',
+  'COD_SETTLED',
+  'SYSTEM_CONFIRMED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -40,6 +42,11 @@ export const ORDER_EVENT_META: Record<
   SHIPMENT_LINKED: { label: 'ผูกพัสดุที่มีอยู่แล้ว', icon: 'link', tone: 'neutral' },
   SMS_LINK_SENT: { label: 'ส่งลิงก์ทาง SMS', icon: 'message-forward', tone: 'neutral' },
   BUYER_CONFIRMED: { label: 'ผู้ซื้อยืนยันรับของ', icon: 'circle-check', tone: 'success' },
+  // เขียวได้ทั้งคู่: เงินเข้าจริงและคำสั่งซื้อจบจริง = ข้อเท็จจริงที่ตรวจสอบได้ ไม่ใช่การเดา
+  // แยกจาก BUYER_CONFIRMED โดยเจตนา (BR-ISHIP-47) — ไทม์ไลน์ต้องตอบได้ว่าใครเป็นคนยืนยัน
+  // ถ้าใช้ BUYER_CONFIRMED แทนจะกลายเป็นบันทึกว่าผู้ซื้อกด ทั้งที่ผู้ซื้อไม่ได้แตะอะไรเลย
+  COD_SETTLED: { label: 'ขนส่งโอนเงินเก็บปลายทางแล้ว', icon: 'coin', tone: 'success' },
+  SYSTEM_CONFIRMED: { label: 'ระบบยืนยันคำสั่งซื้ออัตโนมัติ', icon: 'circle-check', tone: 'success' },
 }
 
 /**
@@ -85,6 +92,8 @@ export type OrderEventMeta = {
   changedCount?: number
   /** แถวนี้เกิดจาก backfill ย้อนหลัง ไม่ใช่บันทึกสด — ใช้บอกผู้ใช้ว่าข้อมูลอาจไม่ครบ */
   backfilled?: boolean
+  /** ยอดเงินบาท (COD_SETTLED) — ยอดที่ขนส่งแจ้งว่าโอนเข้าร้าน */
+  amount?: number
 }
 
 export type OrderEventView = {
@@ -111,6 +120,13 @@ export function describeOrderEvent(e: Pick<OrderEventView, 'type' | 'meta'>): st
       return e.meta.courierName ? `ขนส่ง: ${e.meta.courierName}` : null
     case 'ORDER_EDITED':
       return e.meta.changedCount ? `แก้ไข ${e.meta.changedCount} รายการ` : null
+    case 'COD_SETTLED':
+      return typeof e.meta.amount === 'number'
+        ? `฿${e.meta.amount.toLocaleString('th-TH')}`
+        : null
+    case 'SYSTEM_CONFIRMED':
+      // บอกเหตุผลเสมอ ไม่ใช่แค่ "ระบบยืนยัน" ลอย ๆ — ร้านต้องตรวจสอบย้อนหลังได้ว่าทำไม
+      return 'ขนส่งยืนยันว่าเก็บเงินปลายทางและโอนเข้าร้านแล้ว'
     case 'ORDER_CANCELLED':
       // ไม่รู้ตัวคนแต่รู้ฝั่ง — บอกเท่าที่รู้จริง ดีกว่าเว้นว่างให้เดาเอง
       if (!e.meta.actorNameSnapshot && e.meta.initiatorRole) {
