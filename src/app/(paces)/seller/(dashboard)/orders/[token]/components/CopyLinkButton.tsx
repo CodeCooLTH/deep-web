@@ -23,6 +23,13 @@ interface CopyButtonProps {
   iconOnly?: boolean
   /** class เพิ่มเติมบนปุ่ม */
   className?: string
+  /**
+   * ข้อความ toast ตอนคัดลอกสำเร็จ — ไม่ส่ง = "คัดลอกลิงก์แล้ว" (พฤติกรรมเดิม)
+   *
+   * ปุ่มนี้ถูกเอาไปคัดลอก "เลขออเดอร์" และ "เลขพัสดุ" ด้วยแล้ว (2026-08-06) การเด้งว่า
+   * คัดลอก *ลิงก์* ทั้งที่ในคลิปบอร์ดเป็นเลขพัสดุ = บอกผิดว่าผู้ใช้ได้อะไรไป
+   */
+  successMessage?: string
   /** แสดง URL preview bar ด้านซ้ายปุ่ม (default: false) */
   showPreview?: boolean
 }
@@ -33,6 +40,7 @@ export default function CopyLinkButton({
   iconOnly = false,
   className = '',
   showPreview = false,
+  successMessage = 'คัดลอกลิงก์แล้ว',
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
 
@@ -56,7 +64,7 @@ export default function CopyLinkButton({
 
     try {
       await writeText()
-      pacesToast.success('คัดลอกลิงก์แล้ว')
+      pacesToast.success(successMessage)
       setCopied(true)
       // D7: คืน icon กลับหลัง 1.2s
       setTimeout(() => setCopied(false), 1200)

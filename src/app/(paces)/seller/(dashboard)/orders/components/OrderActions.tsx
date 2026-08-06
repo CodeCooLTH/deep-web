@@ -54,19 +54,42 @@ export default function OrderActions({ order, onCancelRequest, variant, orderNou
   // ดู=ตัวแรก (rounded-e-none), copy=ตัวสุดท้าย (rounded-s-none), กลาง rounded-none
   // กริด: ปุ่มไม่เชื่อมกันแล้ว (คนละแถว) จึงมีขอบมนของตัวเองทุกใบ ไม่ใช้ -ms-px/rounded-*-none
   if (variant === 'table-grid') {
-    return (
-      <div className="grid grid-cols-3 gap-1.5">
-        <Link href={`/orders/${order.publicToken}`} aria-label="ดูรายละเอียด" className={ICON_BTN}>
-          <Icon icon="eye" className="text-base" />
+    /**
+     * button group แบบตาราง — ปุ่มชิดกัน มีเส้นคั่นบาง ๆ อยู่ในกรอบมนอันเดียว
+     * (user ส่งภาพตัวอย่างมา 2026-08-06)
+     *
+     * วิธี: ให้กล่องนอกเป็นสีเส้น แล้วเปิดช่องว่างระหว่างช่อง 1px (`gap-px`) — สีของกล่อง
+     * จะโผล่ออกมาเป็นเส้นคั่นเอง ปุ่มข้างในทาสีขาวทับ · ทำแบบนี้เพราะ Tailwind ไม่มี
+     * variant "ตัวสุดท้ายของแถว" ให้ตัดขอบทีละใบ และจำนวนปุ่มไม่คงที่ (แก้ไขได้เฉพาะ
+     * PENDING, SMS เฉพาะที่ยังไม่จบ) การไล่ขอบด้วยมือจะพังทันทีที่จำนวนเปลี่ยน
+     *
+     * จำนวนคอลัมน์ปรับตามจำนวนปุ่มจริง: ตรึง 3 คอลัมน์แล้วเจอ 4 ปุ่มจะได้ 3+1 ตัวเดียว
+     * ห้อยบรรทัดล่าง ดูเหมือนของหลุด (user เจอบน prod 2026-08-06)
+     */
+    const cell = 'btn btn-icon rounded-none border-0 bg-white text-default-700 hover:bg-default-100'
+    const buttons = [
+      <Link key="view" href={`/orders/${order.publicToken}`} aria-label="ดูรายละเอียด" className={cell}>
+        <Icon icon="eye" className="text-base" />
+      </Link>,
+      canEdit ? (
+        <Link key="edit" href={`/orders/${order.publicToken}/edit`} aria-label="แก้ไข" className={cell}>
+          <Icon icon="pencil" className="text-base" />
         </Link>
-        {canEdit && (
-          <Link href={`/orders/${order.publicToken}/edit`} aria-label="แก้ไข" className={ICON_BTN}>
-            <Icon icon="pencil" className="text-base" />
-          </Link>
-        )}
-        {!isTerminal && <SendSmsButton publicToken={order.publicToken} iconOnly />}
-        <QrCodeButton order={order} />
-        <CopyLinkButton value={url} label="คัดลอกลิงก์" iconOnly />
+      ) : null,
+      !isTerminal ? (
+        <SendSmsButton key="sms" publicToken={order.publicToken} iconOnly className="rounded-none border-0 bg-white" />
+      ) : null,
+      <QrCodeButton key="qr" order={order} className="rounded-none border-0 bg-white" />,
+      <CopyLinkButton key="copy" value={url} label="คัดลอกลิงก์" iconOnly className="rounded-none border-0 bg-white" />,
+    ].filter(Boolean)
+
+    return (
+      <div
+        className={`bg-default-300 border-default-300 grid w-fit gap-px overflow-hidden rounded-lg border ${
+          buttons.length <= 4 ? 'grid-cols-2' : 'grid-cols-3'
+        }`}
+      >
+        {buttons}
       </div>
     )
   }

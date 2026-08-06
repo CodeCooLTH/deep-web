@@ -39,7 +39,7 @@ import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/comp
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderSourceLogo from './OrderSourceLogo'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
-import { SHIPPING_STAGE_LABEL, resolveOrderStatusBadge } from '@/lib/order-stage'
+import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
 import OrderActions from './OrderActions'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
@@ -355,8 +355,15 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
                   </p>
                   {/* ห้าม font-mono (Anuphan ไม่มี mono จะ fallback หลุดธีม) — tabular-nums พอ */}
                   {s!.trackingNo && (
-                    <p className="mb-0 select-all text-xs font-semibold tabular-nums text-default-700">
-                      {s!.trackingNo}
+                    <p className="mb-0 flex items-center gap-1 text-xs font-semibold tabular-nums text-default-700">
+                      <span className="select-all">{s!.trackingNo}</span>
+                      <CopyLinkButton
+                        value={s!.trackingNo}
+                        label="คัดลอกเลขพัสดุ"
+                        successMessage="คัดลอกเลขพัสดุแล้ว"
+                        iconOnly
+                        className="btn-sm border-none bg-transparent p-0 text-default-400 hover:bg-transparent hover:text-default-800"
+                      />
                     </p>
                   )}
                 </>
@@ -425,16 +432,13 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       meta: { cellClassName: 'min-w-40 align-top' },
       cell: ({ row }) => {
         const o = row.original
-        if (o.status === 'CANCELLED') {
-          const cfg = resolveOrderStatusBadge(o.status, o.shippingStage)
-          return (
-            <span className={cn('badge whitespace-nowrap text-sm', cfg.cls)}>
-              <Icon icon={cfg.icon} className="text-sm" aria-hidden="true" />
-              {cfg.label}
-            </span>
-          )
-        }
-        const steps: { label: string; done: boolean }[] = [
+        const cancelled = o.status === 'CANCELLED'
+        // ใบที่ยกเลิกใช้เช็กลิสต์ชุดเดียวกับใบอื่น (user สั่ง 2026-08-06: "มันต้องเหมือน
+        // สถานะอื่น ๆ") — เดิมเป็นป้ายเดี่ยวซึ่งอ่านเป็นคนละภาษากับทั้งคอลัมน์
+        // เพิ่มบรรทัดแรกว่ายกเลิกแล้ว ส่วนที่เหลือค้างเป็น "ไม่เกิดขึ้น" ซึ่งตรงความจริง:
+        // ใบที่ยกเลิกไม่มีทางได้คำยืนยันจากผู้ซื้ออีก
+        const steps: { label: string; done: boolean; danger?: boolean }[] = [
+          ...(cancelled ? [{ label: 'ยกเลิกคำสั่งซื้อ', done: true, danger: true }] : []),
           { label: 'ยืนยันการจัดส่ง', done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
           ...(isCODPayment(o.paymentMethod)
             ? [{ label: 'รับเงินปลายทาง', done: Boolean(o.codReceivedAtISO) }]
@@ -448,11 +452,15 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
                 key={s.label}
                 className={cn(
                   'flex items-center gap-1.5 text-xs',
-                  s.done ? 'font-medium text-success-ink' : 'text-default-400',
+                  s.danger
+                    ? 'font-medium text-danger-ink'
+                    : s.done
+                      ? 'font-medium text-success-ink'
+                      : 'text-default-400',
                 )}
               >
                 <Icon
-                  icon={s.done ? 'circle-check-filled' : 'x'}
+                  icon={s.danger ? 'circle-x' : s.done ? 'circle-check-filled' : 'x'}
                   className="shrink-0 text-sm"
                   aria-hidden="true"
                 />
@@ -637,6 +645,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
             <CopyLinkButton
               value={formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
               label="คัดลอกเลขออเดอร์"
+              successMessage="คัดลอกเลขออเดอร์แล้ว"
               iconOnly
               className="btn-sm border-none bg-transparent text-default-400 hover:bg-default-200 hover:text-default-800"
             />
