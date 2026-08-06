@@ -4,9 +4,10 @@ import { authOptions } from "@/lib/auth";
 import * as v from "valibot";
 import { CreateOrderSchema, OrderAppointmentSchema } from "@/lib/validations";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
-import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError } from "@/services/order.service";
+import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError, OrderDateOutOfWindowError } from "@/services/order.service";
 import { OutOfStockError } from "@/services/inventory-stock.service";
 import { requireActiveShop } from "@/lib/shop-context";
+import { ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "@/lib/order-date-window";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -102,6 +103,11 @@ export async function POST(request: NextRequest) {
         { error: `สินค้าหมดสต็อก: ${e.productNames.join(", ")}` },
         { status: 400 },
       );
+    }
+    // feature 00033 — วันที่นอกช่วงที่ยอมรับ (ด่านที่สองต่อจาก Valibot; caller ฝั่ง server
+    // ที่เรียก createOrder ตรง ๆ ไม่ผ่าน schema จึงมาโผล่ที่นี่ได้)
+    if (e instanceof OrderDateOutOfWindowError) {
+      return NextResponse.json({ error: ORDER_DATE_OUT_OF_WINDOW_MESSAGE }, { status: 400 });
     }
     console.error("[POST /api/orders] createOrder failed", e);
     return NextResponse.json({ error: "Order creation failed" }, { status: 500 });

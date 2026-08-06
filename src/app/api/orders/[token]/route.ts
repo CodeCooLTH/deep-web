@@ -11,7 +11,9 @@ import {
   OrderNotEditableError,
   ProductNotInShopError,
   ShippingAddressRequiredError,
+  OrderDateOutOfWindowError,
 } from "@/services/order.service";
+import { ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "@/lib/order-date-window";
 
 // GET/PATCH /api/orders/[token] — โหลด/แก้ไขคำสั่งซื้อ (user request 2026-07-25: แก้ใน modal จากแชท)
 // seller-only: ต้องเป็นเจ้าของ/สมาชิกร้านที่ active (scope shopId ใน WHERE — กัน IDOR)
@@ -100,6 +102,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     if (e instanceof Error && e.name === "OutOfStockError") {
       return NextResponse.json({ error: "สินค้าบางรายการสต็อกไม่พอ" }, { status: 400 });
+    }
+    if (e instanceof OrderDateOutOfWindowError) {
+      return NextResponse.json({ error: ORDER_DATE_OUT_OF_WINDOW_MESSAGE }, { status: 400 });
     }
     console.error("[PATCH /api/orders/[token]]", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "แก้ไขคำสั่งซื้อไม่สำเร็จ กรุณาลองใหม่" }, { status: 500 });
