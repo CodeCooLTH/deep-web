@@ -72,6 +72,7 @@ import Icon from '@/components/wrappers/Icon'
 import AutoReplyTag from './AutoReplyTag'
 import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
 import ThreadStatusBar, { type ThreadStatusItem } from './ThreadStatusBar'
+import OrderProgressBar from './OrderProgressBar'
 import { pacesToast } from '@/lib/paces-toast'
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 import Link from 'next/link'
@@ -1457,6 +1458,18 @@ export default function ChatThread({
           ส่งไม่ได้เลย > ส่งได้แบบมีเงื่อนไข > บอทเงียบ > โหมดทดสอบ
           ตัวแรกคือตัวที่โชว์ตอนยุบ ที่เหลือนับเป็น +N */}
       <ThreadStatusBar items={threadStatuses} />
+
+      {/* แถบสถานะออเดอร์ (Order Progress 2026-08-05) — อยู่ใต้แถบสถานะห้องเสมอ (alert ชนะ
+          progress) · เฉพาะ <1280px เพราะจอ xl มี CustomerPanel เห็นการ์ด+timeline อยู่แล้ว */}
+      {customerPanelData && (
+        <OrderProgressBar
+          orders={customerPanelData.orders}
+          conversationId={conversationId}
+          customerName={buyerName}
+          channel={channel}
+          customerAvatar={buyerAvatar}
+        />
+      )}
 
       {/* scroll body — plain div + ref (ไม่ SimpleBar ตาม spec, ต้อง programmatic scroll) */}
       {/* overscroll-contain (user report prod 2026-07-23: "เวลา scroll มันไปถึง fixed ด้านบนเลย

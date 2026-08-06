@@ -65,8 +65,21 @@ export type CustomerPanelOrder = {
   checkOut: string | null
   // รายการสินค้า (user 2026-07-25: การ์ด right panel แสดงเหมือนในแชท — ชื่อ/จำนวน/ราคา/รูป)
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
-  /** พัสดุ iShip ที่ยังใช้งานอยู่ (feature 00022) — null = ยังไม่เปิดพัสดุ */
-  shipment?: { trackingNo: string | null; courierName: string | null } | null
+  /** พัสดุ iShip ที่ยังใช้งานอยู่ (feature 00022) — null = ยังไม่เปิดพัสดุ
+   *  status/carrierStatus/courierCode เพิ่ม 2026-08-05 (Order Progress): ให้ stepper 4 ขั้น +
+   *  โลโก้ขนส่ง render ได้จาก data ที่มากับลิสต์ ไม่ต้องยิง API ต่อใบ */
+  shipment?: {
+    trackingNo: string | null
+    courierName: string | null
+    courierCode: string | null
+    status: string
+    carrierStatus: string | null
+  } | null
+  /** วิธีชำระ + เวลากดรับเงิน COD — ให้ deriveShippingStage แยก AWAITING_COD ได้ (Order Progress) */
+  paymentMethod?: string | null
+  codReceivedAt?: string | null
+  /** Order.updatedAt ISO — ให้การ์ดเรียก deriveOrderStage แบบปิด age-decay (ชิปไม่หมดอายุ) */
+  statusAt?: string
 }
 
 export type CustomerPanelData = {
@@ -323,6 +336,11 @@ function OrderCard({
         totalAmount: o.totalAmount,
         items: o.items,
         shipment: o.shipment ?? null,
+        // Order Progress (2026-08-05) — section พัสดุในการ์ดใช้ตัดสิน stepper/ชิป/notice COD
+        fulfillmentMode: o.fulfillmentMode,
+        paymentMethod: o.paymentMethod,
+        codReceivedAt: o.codReceivedAt,
+        statusAt: o.statusAt,
       }}
       onEdit={openEdit}
       className="w-full"

@@ -993,21 +993,27 @@ export async function getOrdersByCustomer(
     select: {
       id: true,
       publicToken: true,
+      orderNo: true,
       status: true,
       fulfillmentMode: true,
       totalAmount: true,
       createdAt: true,
+      updatedAt: true,
       checkIn: true,
       checkOut: true,
+      // Order Progress (2026-08-05) — ให้แถบสถานะในแชทแยก AWAITING_COD ได้
+      paymentMethod: true,
+      codReceivedAt: true,
       // การ์ด right panel แสดงเหมือนในแชท (user 2026-07-25): ชื่อ/จำนวน/ราคา/รูปสินค้า
       items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
       // feature 00022 — พอรู้ว่ามีพัสดุแล้วหรือยัง ปุ่มบนการ์ดจะได้บอกล่วงหน้าว่ากดแล้วเจออะไร
       // เอามาพร้อมออเดอร์ ไม่ใช่ให้การ์ดแต่ละใบยิง API ถามเอง (ลิสต์ 20 ใบ = 20 คำขอ)
+      // status/carrierStatus/courierCode เพิ่ม 2026-08-05: ให้ stepper + โลโก้ในการ์ด render ได้
       shipments: {
         where: { status: { not: "CANCELLED" } },
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { trackingNo: true, courierName: true },
+        select: { trackingNo: true, courierName: true, courierCode: true, status: true, carrierStatus: true },
       },
     },
   });
@@ -1018,12 +1024,16 @@ export async function getOrdersByCustomer(
     items: items.map((o) => ({
       id: o.id,
       token: o.publicToken,
+      orderNo: o.orderNo,
       status: o.status,
       fulfillmentMode: o.fulfillmentMode,
       totalAmount: o.totalAmount.toString(),
       createdAt: o.createdAt.toISOString(),
+      statusAt: o.updatedAt.toISOString(),
       checkIn: o.checkIn ? o.checkIn.toISOString() : null,
       checkOut: o.checkOut ? o.checkOut.toISOString() : null,
+      paymentMethod: o.paymentMethod,
+      codReceivedAt: o.codReceivedAt ? o.codReceivedAt.toISOString() : null,
       items: o.items.map((it) => ({
         name: it.name,
         qty: it.qty,
@@ -1034,6 +1044,9 @@ export async function getOrdersByCustomer(
         ? {
             trackingNo: o.shipments[0].trackingNo,
             courierName: o.shipments[0].courierName,
+            courierCode: o.shipments[0].courierCode,
+            status: o.shipments[0].status,
+            carrierStatus: o.shipments[0].carrierStatus,
           }
         : null,
     })),
