@@ -457,21 +457,20 @@ export async function getProductsByShop(
 /**
  * สินค้าขายดีของร้าน (หลังบ้าน: dashboard + หน้า POS)
  *
- * status: "CONFIRMED" เพิ่มเข้ามา 2026-07-30 — เดิม**ไม่กรองสถานะเลย** จึงนับ PENDING กับ
- * CANCELLED เป็นยอดขายด้วย ตัวเลข "ขายแล้ว N ชิ้น" ที่ร้านเห็นจึงสูงกว่าความจริงมาก
- * (ตอนพบ ระบบมี PENDING 48 · CONFIRMED 17 · CANCELLED 5 — เกินไปเกือบ 3 เท่า) และอันดับ
- * ขายดีก็เพี้ยนตามเพราะเรียงด้วยผลรวมที่ผิด สินค้าที่มีคนสร้างออเดอร์ทิ้งไว้เยอะแต่ไม่มีใคร
- * ซื้อจริงจะขึ้นนำสินค้าที่ขายได้จริง — ซึ่งทำให้ร้านตัดสินใจสต็อกผิด
+ * เกณฑ์นับ (user เคาะ 2026-08-06): **ทุกสถานะยกเว้น CANCELLED** (= PENDING+SHIPPED+CONFIRMED)
+ * — ร้านที่ขายผ่านแชท ผู้ซื้อแทบไม่กลับมากดยืนยันรับของ (เคสจริง: ร้านธนภัทร์ SHIPPED 23 ใบ
+ * CONFIRMED 0) ถ้านับเฉพาะ CONFIRMED ฝั่งหลังร้านจะว่างตลอดทั้งที่ขายจริงต่อเนื่อง
  *
- * ใช้เกณฑ์เดียวกับที่เหลือทั้งระบบ (Revenue/P&L และยอดบนหน้าร้านสาธารณะ) = CONFIRMED เท่านั้น
- * เพื่อไม่ให้มีคำว่า "ขายแล้ว" สองความหมายในโปรดักต์เดียว
- *
- * ผลที่ต้องรู้: ตัวเลขในหน้าร้านจะลดลงจากเดิม นั่นคือสิ่งที่ถูก ไม่ใช่ของหาย
+ * ประวัติ: 2026-07-30 เคยแก้จาก "ไม่กรองเลย" → CONFIRMED เท่านั้น เพราะตัวเลขโป่งเกือบ 3 เท่า;
+ * รอบนี้ผ่อนกลับมาที่ not-CANCELLED **เฉพาะฝั่งหลังร้าน** และ UI เปลี่ยนคำจาก "ขายแล้ว" →
+ * "สั่งซื้อแล้ว" เพื่อไม่ให้คำเดียวมีสองความหมาย — คำว่า "ขายแล้ว" (CONFIRMED-only) ยังใช้อยู่ที่
+ * หน้าสาธารณะ /u /b (getConfirmedOrderCountByProduct ข้างล่าง) + ProductsListing (totalSold)
+ * ซึ่ง**ไม่ได้เปลี่ยน**ตามรอบนี้ — ห้ามลามเกณฑ์นี้ไปหน้าสาธารณะ (ร้านปั่นยอดโชว์ผู้ซื้อได้)
  */
 export async function getBestSellerProducts(shopId: string, take = 8) {
   const grouped = await prisma.orderItem.groupBy({
     by: ["productId"],
-    where: { productId: { not: null }, order: { shopId, status: "CONFIRMED" } },
+    where: { productId: { not: null }, order: { shopId, status: { not: "CANCELLED" } } },
     _sum: { qty: true },
     orderBy: { _sum: { qty: "desc" } },
     take,

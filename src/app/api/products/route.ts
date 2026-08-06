@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const soldById = new Map(best.map((p) => [p.id, p.soldCount]));
     const ranked = products.filter((p) => rank.has(p.id)).sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
     const rest = products.filter((p) => !rank.has(p.id));
-    // แนบ soldCount ("ขายแล้ว X ชิ้น") ให้ UI แสดงแบบเดียวกับ BestSellerStrip บน command center
+    // แนบ soldCount ("สั่งซื้อแล้ว X ชิ้น" — นับทุกสถานะยกเว้น CANCELLED) ให้ UI แสดงแบบเดียวกับ BestSellerStrip บน command center
     return NextResponse.json(
       [...ranked, ...rest].map((p) => ({ ...serializeProduct(p), soldCount: soldById.get(p.id) ?? 0 })),
     );
