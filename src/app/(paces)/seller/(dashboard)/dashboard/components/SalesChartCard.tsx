@@ -41,6 +41,18 @@ type Period = 'today' | 'month'
 /** หมุดกลางบนแกน x — ทุก 5 วัน (หัวเดือน/ท้ายเดือน/วันนี้ เติมให้ใน axisAnchorDays) */
 const AXIS_ANCHOR_DAYS = [5, 10, 15, 20, 25]
 
+/** ความยาวหน้าต่างของแท็บ "วันนี้" — ต้องตรงกับ RECENT_DAYS ใน dashboard.service.ts */
+const RECENT_DAYS = 14
+
+/**
+ * ตำแหน่งที่โชว์ป้ายวันบนกราฟ 14 วัน — แท่งครบ 14 แต่ป้ายเหลือ 5 จุด
+ *
+ * 14 ช่องบนการ์ด ~330px = ช่องละ ~23px ส่วนเลข 2 หลักที่ 10px กว้าง ~13px ใส่ครบก็พอได้
+ * แต่ตัวแรกมีชื่อเดือนติดมาด้วย ("24 ก.ค." ~40px) จะไปเบียดตัวที่สอง — เว้นระยะ 3-4 ช่อง
+ * ทั้งแถวจึงอ่านง่ายกว่า และ index 13 ต้องอยู่ในชุดเสมอเพราะเป็นป้าย "วันนี้"
+ */
+const TODAY_AXIS_ANCHOR_INDEXES = [0, 4, 7, 10, RECENT_DAYS - 1]
+
 /**
  * วันที่ที่จะโชว์ตัวเลขบนแกน x — แท่งยังครบทุกวันเหมือนเดิม โชว์ป้ายเฉพาะหมุด
  *
@@ -68,8 +80,14 @@ export default function SalesChartCard({ initialSeries }: Props) {
 
   const {
     labels, confirmedValues, unconfirmedValues, orderCounts, total,
-    prevTotalToDate, futureFromIndex, last7Days, last7Labels,
+    prevTotalToDate, futureFromIndex, last14Confirmed, last14Unconfirmed, last14Labels,
   } = initialSeries
+
+  /** ยอดรวมรายวันของหน้าต่าง 14 วัน (ซ้อน 2 ก้อน) — ใช้คิดค่าเฉลี่ยและเช็คว่ามีข้อมูลพอวาดไหม */
+  const last14Totals =
+    last14Confirmed && last14Unconfirmed && last14Confirmed.length === RECENT_DAYS
+      ? last14Confirmed.map((v, i) => v + (last14Unconfirmed[i] ?? 0))
+      : null
 
   const bucketCount = labels.length
   // futureFromIndex = getUTCDate() ของวันนี้ (≥1 เสมอ) เมื่อกำลังดูเดือนปัจจุบัน
@@ -85,16 +103,17 @@ export default function SalesChartCard({ initialSeries }: Props) {
   const legendOrderCount = orderCounts.reduce((s, v) => s + v, 0)
   const todayOrderCount = orderCounts[todayIndex] ?? 0
 
-  /** ค่าเฉลี่ยของ 7 แท่งที่วาดจริง (รวมวันนี้) — ตัวเลขต้องตรงกับเส้นประบนกราฟเป๊ะ
-   *  ถ้าใช้ค่าเฉลี่ย 6 วันก่อนแทน เส้นที่เห็นกับ % ที่อ่านจะเป็นคนละตัว */
-  const avg7 = last7Days && last7Days.length === 7
-    ? last7Days.reduce((s, v) => s + v, 0) / 7
+  /** ค่าเฉลี่ยของ 14 แท่งที่วาดจริง (รวมวันนี้) — ตัวเลขต้องตรงกับเส้นประบนกราฟเป๊ะ
+   *  ถ้าใช้ค่าเฉลี่ย 13 วันก่อนแทน เส้นที่เห็นกับ % ที่อ่านจะเป็นคนละตัว
+   *  เฉลี่ยจาก "ยอดรวมรายวัน" (ยืนยันแล้ว+รอยืนยัน) ให้เทียบกับ heroValue ซึ่งก็รวมทั้งสองก้อน */
+  const avgRecent = last14Totals
+    ? last14Totals.reduce((s, v) => s + v, 0) / RECENT_DAYS
     : null
 
   // pctChangeVsPrev คืน null เมื่อฐาน ≤ 0 (หารไม่ได้/อ่านกลับหัว) → ซ่อน badge ทั้งก้อน
-  const chgRaw = isToday ? pctChangeVsPrev(heroValue, avg7) : pctChangeVsPrev(total, prevTotalToDate)
+  const chgRaw = isToday ? pctChangeVsPrev(heroValue, avgRecent) : pctChangeVsPrev(total, prevTotalToDate)
   const chg = chgRaw != null ? Math.round(chgRaw) : null
-  const compareWord = isToday ? 'จากค่าเฉลี่ย 7 วัน' : 'จากเดือนก่อน'
+  const compareWord = isToday ? `จากค่าเฉลี่ย ${RECENT_DAYS} วัน` : 'จากเดือนก่อน'
 
   /**
    * วันในอนาคตส่งเป็น `null` ไม่ใช่ตัดทิ้ง — ApexCharts ไม่วาดอะไรให้ null แต่ยังนับเป็น category
@@ -104,7 +123,13 @@ export default function SalesChartCard({ initialSeries }: Props) {
   const maskFuture = (arr: number[]) => arr.map((v, i) => (i < futureFromIndex ? v : null))
 
   // วันนี้ = ป้ายคำ ไม่ใช่เลขวันที่ — คนอ่านหาตัวเองเจอเร็วกว่าไล่นับวันที่
-  const todayLabels = last7Labels ? [...last7Labels.slice(0, 6), 'วันนี้'] : []
+  const todayLabels = last14Labels ? [...last14Labels.slice(0, RECENT_DAYS - 1), 'วันนี้'] : []
+  /** ป้ายที่จะโชว์จริง — เทียบด้วย "ค่าของ label" ไม่ใช่ index เพราะ formatter ของ ApexCharts
+   *  ได้ค่า category มา ไม่ได้ index ที่เชื่อถือได้ (ชุดเดียวกับที่โหมดเดือนใช้อยู่)
+   *  14 วันติดกันบวก 'วันนี้' ไม่มีทางซ้ำค่ากัน จึงใช้ค่าเป็นกุญแจได้ปลอดภัย */
+  const todayAnchorLabels = new Set(
+    TODAY_AXIS_ANCHOR_INDEXES.map((i) => todayLabels[i]).filter(Boolean),
+  )
   const anchorDays = axisAnchorDays(bucketCount, futureFromIndex)
 
   /**
@@ -131,7 +156,12 @@ export default function SalesChartCard({ initialSeries }: Props) {
     { name: 'รอยืนยัน', type: 'column', data: maskFuture(unconfirmedValues) },
     { name: 'คำสั่งซื้อ', type: 'line', data: maskFuture(orderCounts) },
   ]
-  const todaySeries = [{ name: 'ยอดขาย', data: last7Days ?? [] }]
+  /** ซ้อน 2 ก้อนเหมือนกราฟเดือนเป๊ะ — ชื่อ/ลำดับ/สีต้องตรงกัน ไม่งั้นสลับแท็บแล้วสีเดียวกัน
+   *  หมายถึงคนละสถานะ (แถว legend ใต้เลขฮีโร่เป็นตัวเดียวกันทั้งสองโหมด ไม่ได้เปลี่ยนตามแท็บ) */
+  const todaySeries = [
+    { name: 'ยืนยันแล้ว', data: last14Confirmed ?? [] },
+    { name: 'รอยืนยัน', data: last14Unconfirmed ?? [] },
+  ]
 
   const axisLabelStyle = { fontSize: '10px', colors: getColor('default-700') }
 
@@ -239,10 +269,15 @@ export default function SalesChartCard({ initialSeries }: Props) {
     /** สูง 168 เท่าโหมดเดือนเป๊ะ ๆ — user สั่ง 2026-08-05 ("ความสูง card มันขยับ อยากให้เท่ากับเดือนนี้เสมอ")
      *  เดิม 104 การ์ดจึงเตี้ยลง 64px ตอนกดแท็บ "วันนี้" แล้วเนื้อหาใต้การ์ดกระโดดตาม */
     // zoom/selection ปิดด้วยเหตุผลเดียวกับโหมดเดือน (ดูคอมเมนต์ใน getMonthOptions)
-    chart: { type: 'bar', height: 168, toolbar: { show: false }, zoom: { enabled: false }, selection: { enabled: false }, parentHeightOffset: 0 },
-    // distributed = ระบายสีรายแท่ง (ซีรีส์เดียว) เพื่อเน้นวันนี้ให้เข้มกว่าอีก 6 วัน
-    plotOptions: { bar: { columnWidth: '58%', borderRadius: 2, distributed: true } },
-    colors: [...Array(6).fill(getColor('success', 0.28)), getColor('success')],
+    chart: { type: 'bar', height: 168, stacked: true, toolbar: { show: false }, zoom: { enabled: false }, selection: { enabled: false }, parentHeightOffset: 0 },
+    /** columnWidth 58% → 76%: แท่งเพิ่มจาก 7 เป็น 14 ช่องละ ~23px ถ้าคง 58% จะได้แท่งกว้าง ~13px
+     *  ซึ่งบางเกินกว่าจะเห็นรอยต่อของสองสีที่ซ้อนกัน (จุดประสงค์ทั้งหมดของรอบนี้) */
+    plotOptions: { bar: { columnWidth: '76%', borderRadius: 1 } },
+    /** เลิกใช้ distributed แล้ว — มันระบายสี "รายแท่งของซีรีส์เดียว" ซึ่งใช้ร่วมกับแท่งซ้อน
+     *  2 ซีรีส์ไม่ได้ (สีจะไปตามลำดับแท่ง ไม่ใช่ตามสถานะ) ผลข้างเคียงที่ยอมรับ: แท่ง "วันนี้"
+     *  ไม่ได้เข้มกว่าเพื่อนอีกต่อไป — ป้าย "วันนี้" ใต้แกน x ยังชี้ตำแหน่งอยู่
+     *  สีชุดเดียวกับกราฟเดือน: เขียว = ยืนยันแล้ว, เหลือง = รอยืนยัน */
+    colors: [getColor('success'), getColor('warning')],
     stroke: { show: false },
     dataLabels: { enabled: false },
     legend: { show: false },
@@ -250,7 +285,14 @@ export default function SalesChartCard({ initialSeries }: Props) {
       categories: todayLabels,
       axisBorder: { show: false },
       axisTicks: { show: false },
-      labels: { style: axisLabelStyle },
+      labels: {
+        style: axisLabelStyle,
+        rotate: 0,
+        rotateAlways: false,
+        hideOverlappingLabels: false,
+        trim: false,
+        formatter: (v: string) => (todayAnchorLabels.has(v) ? v : ''),
+      },
     },
     yaxis: { show: false },
     grid: {
@@ -263,16 +305,16 @@ export default function SalesChartCard({ initialSeries }: Props) {
     },
     /** เส้นค่าเฉลี่ย = "เส้นที่ควรทำให้ถึง" — คำตอบของคำถามที่ผู้ขายถามจริงว่าวันนี้ดีกว่าปกติไหม
      *  ซึ่งกราฟทั้งเดือนตอบไม่ได้ (ไม่มีเส้นอ้างอิงให้เทียบ) */
-    annotations: avg7 != null && avg7 > 0
+    annotations: avgRecent != null && avgRecent > 0
       ? {
           yaxis: [{
-            y: avg7,
+            y: avgRecent,
             borderColor: getColor('warning-ink'),
             strokeDashArray: 4,
             /** ป้ายอยู่ซ้ายและลอยเหนือเส้น — เดิมชิดขวาแล้วไปทับแท่ง "วันนี้" ซึ่งเป็นแท่งที่ตั้งใจ
              *  ให้เด่นที่สุด (สีเข้มกว่าอีก 6 แท่ง) พบตอนดูของจริงบน prod 2026-08-04 */
             label: {
-              text: `เฉลี่ย ${formatNumberNoSymbol(Math.round(avg7))}`,
+              text: `เฉลี่ย ${formatNumberNoSymbol(Math.round(avgRecent))}`,
               position: 'left',
               textAnchor: 'start',
               offsetY: -6,
@@ -389,7 +431,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
                 จะถูกทิ้งเงียบ ๆ โดยไม่มี error: 2026-08-05 ตั้ง height 168 ใน options แต่ prop ยังค้าง
                 104 กราฟจึงเรนเดอร์ 104 ทั้งที่โค้ดอ่านแล้วเหมือนสูง 168 (ป้ายวันหมุน -60° กิน ~40px
                 เหลือพื้นที่วาด ~55px แท่งวันที่ยอดน้อยเตี้ยกว่า 1px = หายไปทั้งแท่ง) */}
-            {isToday && last7Days ? (
+            {isToday && last14Totals ? (
               <ApexChart key="today" getOptions={getTodayOptions} series={todaySeries} type="bar" height={168} />
             ) : (
               <ApexChart key="month" getOptions={getMonthOptions} series={monthSeries} type="line" height={168} />
