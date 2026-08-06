@@ -83,7 +83,11 @@ select[multiple] option {
 .form-radio,
 .form-checkbox {
     @apply size-4.5 rounded appearance-none bg-center bg-no-repeat;
-    @apply shrink-0 border border-default-300 bg-transparent ring-offset-white focus-visible:outline-none;
+    /* ขอบของ checkbox/radio ที่ยังไม่ถูกติ๊ก คือ "สิ่งเดียว" ที่บอกว่ามีตัวควบคุมอยู่ตรงนั้น
+     * WCAG 1.4.11 จึงบังคับ 3:1 — เดิม border-default-300 (#e7e9eb) ได้ 1.22:1 = แทบมองไม่เห็น
+     * (user รายงานจากหน้าจอจริง 2026-08-06 "สี checkbox จืดจางมาก" — ปัญหามีมาก่อนการปรับ ramp)
+     * default-400 ให้ 4.95:1 · ไม่สร้าง token ใหม่เพราะ ramp ไม่มีขั้นระหว่าง 300 (1.22) กับ 400 */
+    @apply shrink-0 border border-default-400 bg-transparent ring-offset-white focus-visible:outline-none;
     @apply focus-visible:ring-2 focus-visible:ring-inherit focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-90;
     @apply aria-invalid:border-danger/60 aria-invalid:ring-danger/10;
     @apply cursor-pointer checked:border-inherit focus:ring-0 focus:ring-offset-0;
@@ -91,7 +95,9 @@ select[multiple] option {
 }
 
 .form-checkbox-light {
-    @apply bg-light/90! border-light/90!;
+    /* modifier นี้เดิมทับขอบด้วย border-light/90 (#f0f3f8) = 1.11:1 ซึ่งจางกว่าตัวฐานอีก
+     * เจตนาของ -light คือ "พื้นอ่อน" ไม่ใช่ "ขอบหาย" → คงพื้นไว้ ปล่อยขอบให้เป็นของตัวฐาน */
+    @apply bg-light/90!;
     box-shadow: inset 0 1px 2px rgba(var(--color-dark), 0.05);
 }
 

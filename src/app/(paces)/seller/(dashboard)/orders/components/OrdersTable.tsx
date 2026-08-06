@@ -265,16 +265,22 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
         }
         const line = (it: OrderItemRow) => (
           <div key={it.id} className="flex gap-3">
+            {/* ring บนรูปจริง: สินค้าที่ถ่ายพื้นขาวจะไม่มีขอบเลยบนการ์ดขาว รูปกับพื้นกลืนกัน
+                (docs/conventions/user-supplied-image-assets.md) · /40 = 1.72:1 เส้นบางที่เห็นแต่ไม่แย่งสายตา
+                — ramp ไม่มีขั้นระหว่าง 300 (1.22 จางเกิน) กับ 400 (4.95 แรงเกินสำหรับขอบรูป)
+                จึงใช้ opacity modifier บน token ตาม pattern เดิมของโปรเจกต์ (bg-primary/15) */}
             {it.imageUrl ? (
               <Image
                 src={it.imageUrl}
                 alt={it.name}
                 width={56}
                 height={56}
-                className="size-14 shrink-0 rounded-lg object-cover"
+                className="ring-default-400/40 size-14 shrink-0 rounded-lg object-cover ring-1"
               />
             ) : (
-              <span className="bg-default-100 text-default-400 flex size-14 shrink-0 items-center justify-center rounded-lg">
+              /* เดิม bg-default-100 (#f6f7fb) = สีเดียวกับพื้นเพจเป๊ะ และแถวนี้อยู่บนการ์ดขาว
+                 → กล่องได้ 1.07:1 มองไม่เห็นว่ามีกล่อง เห็นแต่ไอคอนลอย (user รายงาน 2026-08-06) */
+              <span className="bg-default-200 text-default-400 ring-default-400/40 flex size-14 shrink-0 items-center justify-center rounded-lg ring-1">
                 <Icon icon="package" className="text-xl" />
               </span>
             )}
