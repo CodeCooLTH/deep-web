@@ -43,12 +43,15 @@ interface Props {
 }
 
 /**
- * หน้าหลังบ้าน iShip ที่ร้านไปเติมเงิน — ตัวเดียวกับ base URL ของ API (ยืนยันใน 00022/API.md)
+ * หน้าเข้าสู่ระบบของ iShip — ตั้งใจชี้หน้าแรก ไม่ใช่ `/wallet/topup` (user ยืนยัน 2026-08-06)
+ *
+ * ลิงก์ลึกเข้าไปที่หน้าเติมเงินตรง ๆ เข้าไม่ถึง: ร้านต้องล็อกอินที่หน้าแรกก่อนเสมอ
+ * ลิงก์ที่พาไปแล้วเจอหน้าที่เข้าไม่ได้ แย่กว่าลิงก์ที่พาไปหน้าแรกแล้วให้เดินต่อเอง
  *
  * hardcode ที่นี่โดยเจตนา: `ISHIP_BASE_URL` เป็น env ฝั่งเซิร์ฟเวอร์ (ไว้สลับไประบบทดสอบ)
  * ส่วนลิงก์นี้คือ "ที่ที่ร้านไปเติมเงินจริง" ซึ่งเป็นของ production เสมอ ไม่ควรผูกกัน
  */
-const ISHIP_CONSOLE_URL = 'https://app.iship.cloud'
+const ISHIP_TOPUP_URL = 'https://app.iship.cloud/'
 
 async function readError(res: Response): Promise<string> {
   try {
@@ -257,13 +260,13 @@ export default function ShipmentStatusView({
                 ยอดที่เปิดพัสดุได้จริง = เงินคงเหลือ − เครดิตที่ถูกกันไว้ (iShip กันไว้สำรองค่าส่งของพัสดุที่ยังไม่เคลียร์สถานะ)
               </p>
               <a
-                href={ISHIP_CONSOLE_URL}
+                href={ISHIP_TOPUP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-sm inline-flex items-center gap-1.5 bg-danger text-white"
               >
                 <Icon icon="tabler:external-link" className="text-base" aria-hidden="true" />
-                ไปเติมเงินที่ iShip
+                เข้าระบบ iShip เพื่อเติมเงิน
               </a>
             </div>
           </div>
