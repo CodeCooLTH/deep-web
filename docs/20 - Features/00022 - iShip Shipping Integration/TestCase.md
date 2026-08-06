@@ -908,3 +908,16 @@ npx playwright test e2e/iship-*.spec.ts
 | E8-6 | หน้าจอเมื่อเครดิตไม่พอ | shipment FAILED + `lastErrorCode=INSUFFICIENT_BALANCE` | กล่อง alert + ปุ่ม "เข้าระบบ iShip เพื่อเติมเงิน" (แท็บใหม่ → `app.iship.cloud/`) · ปุ่มลองใหม่เป็นปุ่มรอง · สปินเนอร์มองเห็นบนพื้นอ่อน | ⬜ browser |
 | E8-7 | error สาเหตุอื่น | `lastErrorCode=ADDRESS_INVALID` | หน้าตาเดิมทุกอย่าง (บรรทัดเดียว + ปุ่มลองใหม่เป็นปุ่มหลัก) | ⬜ browser |
 | E8-8 | `REJECTED_BY_CARRIER` | iShip ตอบ "กรุณากรอก สีสินค้า" | ข้อความบนจอมีรายละเอียดดิบต่อท้าย ไม่ใช่ประโยคกลาง ๆ อย่างเดียว | ⬜ |
+
+### สถานะพัสดุต้องตรงกับหน้าจอ iShip (BR-ISHIP-68/69, FR-ISHIP-075 — เพิ่ม 2026-08-06)
+
+อัตโนมัติแล้ว: `src/lib/iship/unlinked.test.ts` (E9-4)
+
+| # | เคส | ข้อมูลตั้งต้น | คาดหวัง | สถานะ |
+|---|-----|---------------|---------|-------|
+| E9-1 | เปิดพัสดุ SPX ใหม่ แล้ว hover ดูไทม์ไลน์ทันที | trace แถวเดียว `picked_up` / "ผู้ส่งกำลังเตรียมพัสดุ" · `get_order` = `order_success` | `carrierStatus` = `order_success` · ไทม์ไลน์อยู่จุดที่ 1 ("สร้างพัสดุ") · ชิป = "รอรับเข้า" ตรงกับหน้าจอ iShip | ⬜ browser |
+| E9-2 | ออเดอร์ต้องไม่ถูกดันเป็น "จัดส่งแล้ว" เอง | ต่อจาก E9-1 · `Order.status` = PENDING | ยัง PENDING · หน้า `/o/{token}` ฝั่งผู้ซื้อไม่ขึ้น "จัดส่งแล้ว" | ⬜ browser |
+| E9-3 | ขนส่งเข้ารับจริง | `get_order` = `picked_up` (id 2) | `carrierStatus` = `picked_up` · ไทม์ไลน์ขยับ · ออเดอร์ PENDING → SHIPPED อัตโนมัติตามเดิม | ⬜ browser |
+| E9-4 | `parseParcelRow` อ่านเวลาอัปเดตล่าสุด | `updated_at` ISO มีโซน / `updated` เวลาไทยไม่มีโซน / ไม่มีเลย | ได้ ISO ถูกต้องทั้งสองรูป · ไม่มี = `null` (ห้ามเดาเป็น "เมื่อกี้") | ✅ unit |
+| E9-5 | `get_order` ยิงไม่ผ่านตอน hover | traces สำเร็จ แต่ `get_order` timeout | ไทม์ไลน์ยังขึ้นครบ · `carrierStatus` คงค่าเดิม **ห้าม** เปลี่ยนเป็นค่าจาก trace | ⬜ |
+| E9-6 | ไม่มีการสลับค่าไปมา | hover ดูใบเดิมซ้ำ คร่อมรอบ `syncShipmentStatuses` (15 นาที) | `carrierStatus` คงเดิมตลอด ไม่สลับ `order_success` ↔ `picked_up` | ⬜ browser |
