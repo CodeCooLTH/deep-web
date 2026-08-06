@@ -85,6 +85,15 @@ export type OrderRow = {
   buyerPhone: string | null
   /** วิธีชำระเงิน (code) — map ผ่าน PAYMENT_LABELS/PAYMENT_ICONS */
   paymentMethod: string | null
+  /**
+   * ปลายทางแบบย่อ "ตำบล อำเภอ จังหวัด" (2026-08-06 — ตารางแบบแถวจัดกลุ่ม)
+   *
+   * ไม่รวมบ้านเลขที่โดยเจตนา: หน้านี้อยู่ใต้ client layout ทุก field จะถูก serialize
+   * เข้า flight payload (feedback_rsc_pii_neutralize_at_source) — ระดับตำบลพอให้ร้าน
+   * กวาดตาดูว่าส่งไปทางไหน ส่วนที่อยู่เต็มดูได้ในหน้ารายละเอียด
+   * null = ยังไม่มีที่อยู่ (ออเดอร์ที่ยังกรอกไม่ครบ / ไม่ใช่ออเดอร์ที่ต้องส่งของ)
+   */
+  shipTo: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */
   items: OrderItemRow[]
 }

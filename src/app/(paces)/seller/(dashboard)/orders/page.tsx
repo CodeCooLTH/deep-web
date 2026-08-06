@@ -161,6 +161,15 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller โทรลูกค้าตัวเองได้ (user decision 2026-06-15)
     // PII note: เปิดเบอร์จริงเข้า flight ของ seller (เจ้าของออเดอร์) — ต้อง security review ก่อน prod
     buyerPhone: o.buyerContact ?? null,
+    // ปลายทางย่อ — ตัดบ้านเลขที่ทิ้งโดยเจตนา (ดูเหตุผลที่ OrderRow.shipTo)
+    shipTo: (() => {
+      const a = o.shippingAddress as Record<string, unknown> | null
+      if (!a) return null
+      const parts = [a.subdistrict, a.district, a.province]
+        .map((v) => (typeof v === 'string' ? v.trim() : ''))
+        .filter((v) => v !== '')
+      return parts.length > 0 ? parts.join(' ') : null
+    })(),
     paymentMethod: o.paymentMethod ?? null,
     // F2: map OrderItem → OrderItemRow; imageUrl = /api/files/{images[0]} ถ้า product มีรูป
     // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary
