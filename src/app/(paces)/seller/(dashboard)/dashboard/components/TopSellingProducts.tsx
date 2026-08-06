@@ -25,7 +25,7 @@ export interface BestSellerProduct {
   name: string
   price: number
   image: string | null
-  /** จำนวนขายรวม (sum qty) ของออเดอร์ที่ยืนยันแล้ว */
+  /** จำนวนสั่งซื้อรวม (sum qty) ของออเดอร์ทุกสถานะยกเว้น CANCELLED (PENDING+SHIPPED+CONFIRMED) */
   soldCount: number
 }
 
@@ -50,20 +50,23 @@ const TopSellingProducts = ({ products }: Props) => {
 
       <div className="card-body p-0">
         {products.length === 0 ? (
-          // ร้านใหม่/ยังไม่มีใบที่ยืนยัน — บอกเกณฑ์ให้ชัดว่าทำไมยังว่าง ไม่ใช่แค่ "ไม่มีข้อมูล"
+          // ร้านใหม่/ยังไม่มีคำสั่งซื้อเข้ามาเลย — บอกเกณฑ์ให้ชัดว่าทำไมยังว่าง ไม่ใช่แค่ "ไม่มีข้อมูล"
           <div className="flex flex-col items-center justify-center gap-2 py-10 px-4 text-center">
             <span className="flex items-center justify-center rounded-full bg-default-100 text-default-400 size-12">
               <Icon icon="package" className="text-2xl" />
             </span>
             <p className="text-sm font-semibold">ยังไม่มีสินค้าขายดี</p>
-            <p className="text-xs text-default-500">อันดับจะขึ้นเมื่อมีคำสั่งซื้อที่ยืนยันแล้ว</p>
+            <p className="text-xs text-default-500">อันดับจะขึ้นทันทีที่มีคำสั่งซื้อเข้ามา ไม่ต้องรอยืนยัน</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="table w-full">
               <thead>
                 <tr>
-                  {['สินค้า', 'ราคา', 'ขายได้', 'รายได้'].map((h, i) => (
+                  {/* "สั่งซื้อ"/"ยอดสั่งซื้อ" นับ PENDING+SHIPPED+CONFIRMED (ไม่รวม CANCELLED) — ต่างจาก
+                      "รายได้" ใน KPI card/SalesReport/expenses ที่นับเฉพาะ CONFIRMED เท่านั้น ห้ามเปลี่ยน
+                      กลับเป็น "รายได้"/"ขายแล้ว" ที่นี่ (ดูเหตุผลที่ product.service.ts getBestSellerProducts) */}
+                  {['สินค้า', 'ราคา', 'สั่งซื้อ', 'ยอดสั่งซื้อ'].map((h, i) => (
                     <th
                       key={h}
                       className={`text-default-500 px-4 py-3 text-sm font-medium ${i === 0 ? 'text-start' : 'text-end'}`}

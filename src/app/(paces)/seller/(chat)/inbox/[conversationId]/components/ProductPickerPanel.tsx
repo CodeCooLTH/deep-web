@@ -33,7 +33,7 @@ type PickerProduct = {
   isActive: boolean
   /** null = ร้านไม่ได้ track สต็อก (ไม่มี Inventory add-on หรือไม่ได้เปิด track ต่อสินค้า) */
   stockQty: number | null
-  /** จำนวนขายรวม — มาจาก `?sort=best` (0 = ยังไม่เคยขาย) */
+  /** จำนวนสั่งซื้อรวม (ไม่รวม CANCELLED) — มาจาก `?sort=best` (0 = ยังไม่เคยมีคนสั่งซื้อ) */
   soldCount?: number
 }
 
@@ -271,7 +271,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
                       ) : (
                         <p className="text-default-700 mt-1 flex items-center gap-1 truncate text-2xs">
                           <Icon icon="package" className="size-3 shrink-0" />
-                          ขายแล้ว {(p.soldCount ?? 0).toLocaleString('th-TH')} ชิ้น
+                          สั่งซื้อแล้ว {(p.soldCount ?? 0).toLocaleString('th-TH')} ชิ้น
                         </p>
                       )}
                     </div>
