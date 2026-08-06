@@ -29,6 +29,7 @@ import type { AppointmentGranularity } from '@/lib/appointments'
 import QuickForm from './QuickForm'
 import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 import { toDatetimeLocalValue } from './OrderDateRow'
+import { resolveEditedOrderedAtPayload } from '@/lib/order-date-window'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -641,6 +642,21 @@ export default function OrderCreateForm({
         )
       : {}
     const hasShippingData = Object.keys(cleanShipping).length > 0
+
+    // feature 00033 (I-7, re-review #2 ทางเลือก ก) — payload ของ createdAt เฉพาะโหมดแก้ไข
+    // (editOrderToken) คำนวณนอก object literal ของ body เพราะต้องใช้ const (ประกาศในนี้ไม่ได้
+    // เป็น syntax error) ปุ่ม "ตอนนี้" ใน OrderDateRow เคลียร์ orderedAt กลับเป็น undefined
+    // (shouldDirty: true) แล้วยุบแถวไปโชว์ label "วันนี้ HH:mm" ทันที เดิมเงื่อนไข
+    // `dirtyFields.orderedAt && values.orderedAt` เป็นเท็จตอนกดปุ่มนี้ (values.orderedAt ว่าง)
+    // จึงไม่ส่ง createdAt เลย — จอบอกว่า "ตอนนี้" แต่ DB ไม่ขยับ (จอโกหก). แยก logic ไป
+    // resolveEditedOrderedAtPayload (pure function เทสได้โดยไม่ต้อง render ฟอร์ม) เพื่อครอบ
+    // ทั้ง 3 กรณี: ไม่ dirty / dirty+มีค่า / dirty+ไม่มีค่า (กดปุ่ม "ตอนนี้")
+    const editedOrderedAtPayload = resolveEditedOrderedAtPayload(
+      !!dirtyFields.orderedAt,
+      values.orderedAt,
+      Date.now(),
+    )
+
     const body = {
       type: derivedType,
       items: items.map((item) => ({
@@ -669,19 +685,15 @@ export default function OrderCreateForm({
       // โหมดแก้ไข (editOrderToken): reset() ด้านบนเติม orderedAt จาก order เดิมเสมอ (defaultValues)
       // ถ้าเช็คแค่ "มีค่า" จะส่ง createdAt ไปทุกครั้งที่กดบันทึก แม้ผู้ใช้ไม่เคยแตะแถววันที่เลย —
       // พังสองทาง: (1) ออเดอร์เก่ากว่า 90 วันแก้ไม่ได้อีกเลย (2) createdAt เขียนทับ + orderNo
-      // recompute + ORDER_DATE_CHANGED ปลอมทุกครั้ง (toDatetimeLocalValue ตัดเหลือระดับนาที แต่
-      // service เทียบระดับ ms — createdAt จาก now() ไม่เคยมีวินาที/มิลลิวินาทีเป็นศูนย์ เงื่อนไข
-      // "เปลี่ยนไหม" จึงเป็นจริงเสมอ). ต้องเช็ค dirtyFields.orderedAt — ส่งเฉพาะเมื่อผู้ใช้เปลี่ยน
-      // ค่าจริงในแถว (พิมพ์ในช่อง datetime-local ผ่าน field.onChange ของ Controller)
+      // recompute + ORDER_DATE_CHANGED ปลอมทุกครั้ง. ต้องเช็ค dirtyFields.orderedAt — ส่งเฉพาะเมื่อ
+      // ผู้ใช้แตะแถววันที่จริง (editedOrderedAtPayload คำนวณไว้ด้านบน — ครอบเคส "ตอนนี้" ด้วย)
       //
       // โหมดสร้างใหม่ (ไม่มี editOrderToken): orderedAt มาจาก defaultValues เสมอ (prefillCreatedAt
       // จากแชท หรือ undefined) ไม่ใช่จากการพิมพ์ของผู้ใช้ — dirtyFields จึงมองว่า "ไม่ dirty" ทั้งที่
       // ต้องส่งค่านี้ไป API ปกติ (เวลาข้อความในแชท = วันที่สั่งซื้อจริง). เส้นนี้จึงแยกจาก edit mode
       // ส่งเมื่อมีค่าเสมอ (ไม่เช็ค dirty) — พฤติกรรมเดิมทุกประการ
       ...(editOrderToken
-        ? dirtyFields.orderedAt && values.orderedAt
-          ? { createdAt: new Date(values.orderedAt).toISOString() }
-          : {}
+        ? editedOrderedAtPayload
         : values.orderedAt
           ? { createdAt: new Date(values.orderedAt).toISOString() }
           : {}),

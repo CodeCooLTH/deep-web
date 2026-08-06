@@ -45,3 +45,26 @@ export function isOrderDateInWindow(valueMs: number, nowMs: number): boolean {
 export function orderDateRejectReason(valueMs: number, nowMs: number): string | null {
   return isOrderDateInWindow(valueMs, nowMs) ? null : ORDER_DATE_OUT_OF_WINDOW_MESSAGE
 }
+
+/**
+ * โหมดแก้ไขคำสั่งซื้อ — payload ของ createdAt ที่จะส่งไป API (feature 00033 re-review #2, I-7)
+ *
+ * ปุ่ม "ตอนนี้" ใน OrderDateRow เรียก setValue('orderedAt', undefined, { shouldDirty: true })
+ * แล้วยุบแถวไปโชว์ label "วันนี้ HH:mm" ทันที (formatOrderDateLabel(now)) — แต่ orderedAtLocalValue
+ * เป็น undefined ด้วย เดิม caller เช็คแค่ `dirty && value` (truthy ทั้งคู่) จึงไม่ส่งอะไรเลยตอนกด
+ * ปุ่มนี้: จอบอกว่า "ตอนนี้" แต่ DB ไม่ขยับ (จอโกหก) ฟังก์ชันนี้แยก 3 กรณีให้ตรงกับสิ่งที่จอสื่อ:
+ *   - ไม่ dirty เลย                              → ไม่ส่งคีย์ (ไม่แตะวันที่เดิม)
+ *   - dirty + มีค่า (พิมพ์ใน datetime-local)      → ส่งค่าที่พิมพ์
+ *   - dirty + ไม่มีค่า (กดปุ่ม "ตอนนี้" แล้วยุบ)   → ส่งเวลาปัจจุบันจริง (nowMs) ไม่ใช่งดส่ง
+ *
+ * รับ nowMs เป็นพารามิเตอร์ (ไม่เรียก Date.now() ข้างใน) ตาม pattern เดียวกับฟังก์ชันอื่นในไฟล์นี้ — เทสได้โดยไม่ต้อง mock เวลา
+ */
+export function resolveEditedOrderedAtPayload(
+  dirty: boolean,
+  orderedAtLocalValue: string | undefined,
+  nowMs: number,
+): { createdAt: string } | Record<string, never> {
+  if (!dirty) return {}
+  if (orderedAtLocalValue) return { createdAt: new Date(orderedAtLocalValue).toISOString() }
+  return { createdAt: new Date(nowMs).toISOString() }
+}

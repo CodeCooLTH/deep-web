@@ -527,7 +527,7 @@ export async function updateOrder(
         buyerName: true, paymentMethod: true, salesChannel: true, internalNote: true,
         discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
         createdAt: true, publicToken: true,
-        items: { select: { productId: true, name: true, qty: true, price: true } },
+        items: { select: { productId: true, name: true, description: true, qty: true, price: true } },
       },
     });
     if (!existing) throw new OrderNotFoundError();
@@ -616,7 +616,13 @@ export async function updateOrder(
     }
 
     // feature 00033 — เปลี่ยนวันที่คำสั่งซื้อ
-    if (orderCreatedAt && orderCreatedAt.getTime() !== existing.createdAt.getTime()) {
+    // I-6 (re-review #2) — เทียบระดับ "นาที" ไม่ใช่มิลลิวินาที เพราะ UI ส่งค่าจาก
+    // datetime-local ที่ตัดวินาที/มิลลิวินาทีทิ้งเสมอ แต่ existing.createdAt (จาก now() ตอนสร้าง
+    // ออเดอร์) แทบไม่เคยลงท้ายด้วยวินาที/มิลลิวินาทีเป็นศูนย์พอดี — ถ้าเทียบระดับ ms ตรง ๆ
+    // caller ที่ echo createdAt เดิมกลับมา (ไม่ผ่าน dirtyFields gate แบบฟอร์มปัจจุบัน เช่น
+    // แอปมือถือ/client ใหม่ในอนาคต) จะเห็นว่า "ต่างกัน" ทั้งที่ผู้ใช้ไม่ได้ตั้งใจเปลี่ยนวันที่เลย
+    const toMinuteMs = (d: Date) => Math.floor(d.getTime() / 60_000) * 60_000;
+    if (orderCreatedAt && toMinuteMs(orderCreatedAt) !== toMinuteMs(existing.createdAt)) {
       // เลขออเดอร์คิดจากปี/เดือนของ createdAt — ต้อง recompute พร้อมกันในทรานแซกชันเดียว
       // ไม่งั้นคอลัมน์ orderNo ค้างเดือนเก่า ขณะที่หน้าจอคำนวณสดแล้วโชว์เดือนใหม่
       // → ผู้ใช้ค้นด้วยเลขที่เห็นบนจอแล้วไม่เจอ (@@index([orderNo]))
@@ -656,8 +662,22 @@ export async function updateOrder(
     };
     const strEq = (a: string | null | undefined, b: string | null | undefined) =>
       (a ?? null) === (b ?? null);
-    const itemKey = (items: { name: string; qty: number; price: number | Prisma.Decimal }[]) =>
-      JSON.stringify(items.map((i) => [i.name.trim(), i.qty, Number(i.price)]));
+    // I-5 (feature 00033 re-review #1) — itemKey เดิมเทียบแค่ name/qty/price ทำให้แก้
+    // "รายละเอียดสินค้า" (description) หรือสลับ productId (ที่ name/qty/price เท่ากันพอดี)
+    // แล้ว changedCount = 0 → ไม่มี ORDER_EDITED เลย ทั้งที่ผู้ซื้อเห็นการเปลี่ยนแปลงจริง
+    // ต้องครอบทั้ง description และ productId ด้วย
+    const itemKey = (
+      items: {
+        name: string;
+        qty: number;
+        price: number | Prisma.Decimal;
+        description?: string | null;
+        productId?: string | null;
+      }[],
+    ) =>
+      JSON.stringify(
+        items.map((i) => [i.name.trim(), i.qty, Number(i.price), i.description ?? null, i.productId ?? null]),
+      );
     const changedCount = [
       strEq(existing.type, data.type),
       numEq(existing.totalAmount, totalAmount),

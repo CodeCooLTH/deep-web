@@ -227,4 +227,77 @@ describe('วันที่คำสั่งซื้อย้อนหลั�
     // createdAt เก่ายังอยู่ครบ — ไม่ถูกแตะเลยเพราะไม่ได้ส่ง createdAt มาด้วย
     expect(row?.createdAt.getTime()).toBe(old.getTime())
   })
+
+  // I-5 (re-review #1) — itemKey เดิมเทียบแค่ name/qty/price เท่ากันพอดี ทำให้แก้ description
+  // (รายละเอียดสินค้า) แล้ว changedCount = 0 → ไม่มี ORDER_EDITED เลย ทั้งที่ผู้ซื้อเห็นการ
+  // เปลี่ยนแปลงจริง — เทสนี้ยืนยันว่า description ที่เปลี่ยนต้องถูกนับเป็นการแก้ไข
+  it('แก้เฉพาะ description ของ item (name/qty/price เท่าเดิมทุกตัว) — ต้องมี ORDER_EDITED', async () => {
+    const created = await createOrder(shopId, {
+      items: [{ name: 'แก้วน้ำ', qty: 1, price: 120, description: 'สีขาว' }],
+      type: 'DIGITAL',
+      buyerContact: '0899990007',
+    })
+
+    const updated = await updateOrder(
+      shopId,
+      created.publicToken,
+      {
+        items: [{ name: 'แก้วน้ำ', qty: 1, price: 120, description: 'สีฟ้า' }], // แก้เฉพาะ description
+        type: 'DIGITAL',
+        buyerContact: '0899990007',
+      },
+      null,
+    )
+    expect(updated.id).toBe(created.id)
+
+    const event = await prisma.orderEvent.findFirst({
+      where: { orderId: created.id, type: 'ORDER_EDITED' },
+      select: { meta: true },
+    })
+    expect(event).toBeTruthy()
+    expect((event!.meta as { changedCount?: number }).changedCount).toBeGreaterThan(0)
+  })
+
+  // I-6 (re-review #2) — service เคยเทียบ createdAt ระดับมิลลิวินาที แต่ UI ตัดเหลือระดับนาที
+  // เสมอ (datetime-local) เทสนี้จำลอง caller ที่ echo createdAt กลับมาต่างแค่ระดับวินาที (ไม่ผ่าน
+  // dirtyFields gate ของฟอร์มปัจจุบัน) — ต้องไม่เกิด ORDER_DATE_CHANGED และ createdAt ต้องไม่ขยับ
+  it('createdAt ที่ส่งมาต่างจากเดิมแค่ระดับวินาที (นาทีเดียวกัน) — ไม่เกิด ORDER_DATE_CHANGED, createdAt ไม่ขยับ', async () => {
+    const created = await createOrder(shopId, {
+      items: [{ name: 'ปากกา', qty: 1, price: 20 }],
+      type: 'DIGITAL',
+      buyerContact: '0899990008',
+    })
+
+    // ต่างจาก createdAt เดิมแค่ระดับวินาที แต่ "นาทีเดียวกัน" เสมอ — คำนวณจาก offset ภายในนาที
+    // เดียวกันของ createdAt เดิม (+30s วนภายในนาที ไม่ใช่บวกตรง ๆ ที่อาจข้ามนาทีถ้าวินาทีเดิม ≥30)
+    const flooredMinuteMs = Math.floor(created.createdAt.getTime() / 60_000) * 60_000
+    const withinMinuteOffsetMs = created.createdAt.getTime() - flooredMinuteMs
+    const almostSame = new Date(flooredMinuteMs + ((withinMinuteOffsetMs + 30_000) % 60_000))
+    expect(almostSame.getTime()).not.toBe(created.createdAt.getTime())
+
+    const updated = await updateOrder(
+      shopId,
+      created.publicToken,
+      {
+        items: [{ name: 'ปากกา', qty: 1, price: 20 }],
+        type: 'DIGITAL',
+        buyerContact: '0899990008',
+        createdAt: almostSame,
+      },
+      null,
+    )
+    expect(updated.id).toBe(created.id)
+
+    const row = await prisma.order.findUnique({
+      where: { id: created.id },
+      select: { createdAt: true },
+    })
+    // createdAt ไม่ขยับเลย — ยังเป็นค่าเดิมเป๊ะ ไม่ใช่ almostSame
+    expect(row?.createdAt.getTime()).toBe(created.createdAt.getTime())
+
+    const dateChangedEvent = await prisma.orderEvent.findFirst({
+      where: { orderId: created.id, type: 'ORDER_DATE_CHANGED' },
+    })
+    expect(dateChangedEvent).toBeNull()
+  })
 })
