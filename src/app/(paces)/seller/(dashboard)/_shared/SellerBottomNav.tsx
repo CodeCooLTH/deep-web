@@ -139,16 +139,31 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [open])
 
-  // focus trap — focus action แรกเมื่อ open; คืน focus center button เมื่อปิด
+  /**
+   * ทำไมต้องมี hasOpenedRef: effect ที่ผูกกับ [open] **รันตอน mount ด้วย** ซึ่งตอนนั้น
+   * open === false → เข้า else → `centerButtonRef.current?.focus()` แปลว่าปุ่ม [+] ถูก
+   * โฟกัสด้วยโปรแกรมทุกครั้งที่โหลดหน้า ทั้งที่ผู้ใช้ไม่ได้แตะอะไรเลย
+   *
+   * โฟกัสที่มาจากโปรแกรม (ไม่ใช่จากนิ้ว/เมาส์) เข้าเงื่อนไข :focus-visible ของเบราว์เซอร์
+   * → วาดกรอบโฟกัสมาตรฐานรอบปุ่มค้างไว้ = กรอบสี่เหลี่ยมรอบปุ่ม [+] ที่ user รายงาน
+   * (ไม่มี CSS ของเราวาดกรอบนี้ — grep ทั้ง src/assets/css แล้วไม่มี rule focus บนปุ่มนี้
+   *  มันคือ UA default ที่โผล่เพราะเราไปสั่ง .focus() เอง)
+   *
+   * เจตนาเดิมคือ "คืนโฟกัสกลับปุ่มเมื่อปิดเมนู" ซึ่งถูกต้องตาม a11y แต่ต้องเกิดเฉพาะตอน
+   * **ปิดของจริง** ไม่ใช่ตอน mount — ธงนี้จึงแยกสองกรณีนั้นออกจากกัน
+   */
+  const hasOpenedRef = useRef(false)
+
+  // focus trap — focus action แรกเมื่อ open; คืน focus center button เมื่อปิด (เฉพาะที่เคยเปิดมาก่อน)
   useEffect(() => {
     if (open) {
+      hasOpenedRef.current = true
       const timer = setTimeout(() => {
         firstActionRef.current?.focus()
       }, 50)
       return () => clearTimeout(timer)
-    } else {
-      centerButtonRef.current?.focus()
     }
+    if (hasOpenedRef.current) centerButtonRef.current?.focus()
   }, [open])
 
   function closeSpeedDial() {
