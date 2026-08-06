@@ -5,7 +5,9 @@
 //
 // pure module — ห้าม import prisma/server-only (ใช้ทั้งฝั่ง server เขียน event และ client เรนเดอร์)
 
-/** 12 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
+import { formatDateTimeTH } from './format-date'
+
+/** 13 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
 export const ORDER_EVENT_TYPES = [
   'ORDER_CREATED',
   'ORDER_EDITED',
@@ -19,6 +21,7 @@ export const ORDER_EVENT_TYPES = [
   'COD_SETTLED',
   'SYSTEM_CONFIRMED',
   'PAYMENT_METHOD_SYNCED',
+  'ORDER_DATE_CHANGED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -50,6 +53,8 @@ export const ORDER_EVENT_META: Record<
   SYSTEM_CONFIRMED: { label: 'ระบบยืนยันคำสั่งซื้ออัตโนมัติ', icon: 'circle-check', tone: 'success' },
   // neutral ไม่ใช่ success — นี่คือการแก้ข้อมูลให้ตรงความจริง ไม่ใช่ความสำเร็จของธุรกรรม
   PAYMENT_METHOD_SYNCED: { label: 'ปรับวิธีชำระเงินตามพัสดุ', icon: 'coin', tone: 'neutral' },
+  // feature 00033 — เลื่อนวันที่คำสั่งซื้อ = ย้ายยอดข้ามงวด ผู้ตรวจสอบต้องเห็นแยกจาก ORDER_EDITED
+  ORDER_DATE_CHANGED: { label: 'เปลี่ยนวันที่คำสั่งซื้อ', icon: 'calendar-event', tone: 'neutral' },
 }
 
 /**
@@ -99,6 +104,12 @@ export type OrderEventMeta = {
   amount?: number
   /** วิธีชำระเงินเดิมก่อนถูกปรับ (PAYMENT_METHOD_SYNCED) — null = ไม่เคยระบุไว้ */
   paymentFrom?: string | null
+  /** feature 00033 — วันที่สั่งซื้อที่ผู้ขายระบุ ใส่เฉพาะตอนที่ต่างจากเวลาจริงที่กด (ORDER_CREATED) */
+  orderedAt?: string
+  /** feature 00033 — วันที่สั่งซื้อเดิมก่อนแก้ (ORDER_DATE_CHANGED) */
+  orderedAtFrom?: string
+  /** feature 00033 — วันที่สั่งซื้อใหม่หลังแก้ (ORDER_DATE_CHANGED) */
+  orderedAtTo?: string
 }
 
 export type OrderEventView = {
@@ -117,6 +128,13 @@ export type OrderEventView = {
  */
 export function describeOrderEvent(e: Pick<OrderEventView, 'type' | 'meta'>): string | null {
   switch (e.type) {
+    case 'ORDER_CREATED':
+      // บรรทัดรองโผล่เฉพาะออเดอร์ที่ลงวันที่ย้อนหลัง/ล่วงหน้า — ออเดอร์ปกติไม่มี meta.orderedAt
+      return e.meta.orderedAt ? `ลงวันที่สั่งซื้อ ${formatDateTimeTH(e.meta.orderedAt)}` : null
+    case 'ORDER_DATE_CHANGED':
+      return e.meta.orderedAtFrom && e.meta.orderedAtTo
+        ? `${formatDateTimeTH(e.meta.orderedAtFrom)} → ${formatDateTimeTH(e.meta.orderedAtTo)}`
+        : null
     case 'TRACKING_ADDED':
       return e.meta.provider ? `ขนส่ง: ${e.meta.provider}` : null
     case 'SHIPMENT_CREATED':
