@@ -26,9 +26,14 @@ interface Props {
   /** ความกว้าง panel (px) — ใช้ clamp ขอบจอ */
   width?: number
   className?: string
+  /**
+   * เรียกตอน panel เปิด — ให้ผู้เรียกโหลดข้อมูลแบบ lazy ได้ (เช่นยิงถามสถานะพัสดุจาก iShip)
+   * ผู้เรียกเป็นคนกันยิงซ้ำเอง ตัวนี้เรียกทุกครั้งที่เมาส์เข้า
+   */
+  onOpen?: () => void
 }
 
-export default function HoverPanel({ trigger, children, width = 320, className }: Props) {
+export default function HoverPanel({ trigger, children, width = 320, className, onOpen }: Props) {
   const anchorRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number; below: boolean } | null>(null)
 
@@ -39,6 +44,7 @@ export default function HoverPanel({ trigger, children, width = 320, className }
     // ที่ว่างเหนือ trigger ไม่พอ (แถวบนสุดของจอ) → เปิดลงล่างแทน
     const below = r.top < 340
     setPos({ top: below ? r.bottom + 8 : r.top - 8, left, below })
+    onOpen?.()
   }
 
   return (

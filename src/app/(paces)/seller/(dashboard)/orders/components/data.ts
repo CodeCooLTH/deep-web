@@ -48,6 +48,8 @@ export type OrderRow = {
    * user สั่ง 2026-08-04: กดจากไทล์เข้ามาแล้วต้องเห็นเลขพัสดุชัด ๆ ว่าเจ้าไหน เปิดผ่านอะไร
    */
   shipment?: {
+    /** OrderShipment.id — null = พัสดุที่ร้านแจ้งเลขเอง (ไม่มี traces ให้ถาม iShip) */
+    id: string | null
     trackingNo: string | null
     courierCode: string | null
     courierName: string | null

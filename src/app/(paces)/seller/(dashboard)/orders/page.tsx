@@ -157,6 +157,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // ให้พัสดุ iShip ชนะเมื่อมีทั้งคู่ เพราะเป็นใบที่ระบบติดตามสถานะขนส่งให้จริง
     shipment: o.shipments?.[0]
       ? {
+          id: o.shipments[0].id ?? null,
           trackingNo: o.shipments[0].trackingNo ?? null,
           courierCode: o.shipments[0].courierCode ?? null,
           courierName: o.shipments[0].courierName ?? null,
@@ -167,6 +168,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             trackingNo: o.shipmentTracking.trackingNo ?? null,
             courierCode: null,
             courierName: o.shipmentTracking.provider ?? null,
+            // ร้านแจ้งเลขเอง — ไม่มีแถว OrderShipment จึงไม่มี id ให้ถาม traces
+            id: null,
             provider: 'MANUAL',
           }
         : null,

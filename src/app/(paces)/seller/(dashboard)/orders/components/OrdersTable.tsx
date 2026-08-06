@@ -37,6 +37,7 @@ import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderItemRow, type OrderRow } from 
 import { formatOrderNo } from '@/lib/order-no'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
+import ShipmentHoverCard from './ShipmentHoverCard'
 import OrderSourceLogo from './OrderSourceLogo'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
@@ -333,7 +334,15 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
             )}
             <div className="border-default-200 mt-2 border-t border-dashed pt-2">
               {hasCourier ? (
-                <>
+                /* hover ที่บล็อกนี้ = การ์ดสถานะพัสดุเต็ม + ยิงถาม iShip สด (user สั่ง 2026-08-06) */
+                <ShipmentHoverCard
+                  stage={row.original.shippingStage}
+                  shipmentId={s!.provider === 'ISHIP' ? (s!.id ?? null) : null}
+                  trackingNo={s!.trackingNo}
+                  courierName={s!.courierName ?? s!.courierCode}
+                  logoUrl={logo}
+                  courierInitials={courierInitials(s!.courierName, s!.courierCode)}
+                >
                   <p className="mb-0 flex items-center gap-1.5 text-xs text-default-500">
                     จัดส่งโดย
                     {logo ? (
@@ -366,7 +375,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
                       />
                     </p>
                   )}
-                </>
+                </ShipmentHoverCard>
               ) : (
                 <p className="mb-0 text-xs text-default-400">ยังไม่ได้เปิดพัสดุ</p>
               )}
@@ -668,10 +677,10 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
                 {row.original.conversationId && (
                   <Link
                     href={`/inbox/${row.original.conversationId}`}
-                    className="btn btn-sm bg-default-100 text-default-800 hover:bg-default-200"
+                    className="text-primary hover:text-primary/80 inline-flex items-center gap-1 text-xs font-medium hover:underline"
                   >
                     <Icon icon="message-circle" className="text-sm" aria-hidden="true" />
-                    เปิดแชท
+                    เปิดข้อความสนทนา
                   </Link>
                 )}
                 <span className="inline-flex items-center gap-1.5 text-xs text-default-500">
