@@ -45,41 +45,95 @@ export default function MiniShipmentTimeline({ stage, hasShipment, cancelled }: 
   }
 
   const problem = stage === 'PROBLEM'
-  const ariaLabel = problem
-    ? 'สถานะพัสดุ: พัสดุมีปัญหา'
-    : `สถานะพัสดุ: ${SHIPMENT_STAGES[Math.min(cur, SHIPMENT_STAGES.length - 1)].label}`
+  const currentLabel = problem
+    ? 'พัสดุมีปัญหา'
+    : SHIPMENT_STAGES[Math.min(cur, SHIPMENT_STAGES.length - 1)].label
+  const ariaLabel = `สถานะพัสดุ: ${currentLabel}`
+
+  const dot = (i: number, size: 'sm' | 'lg') => {
+    const reached = i <= cur
+    const isCurrent = i === cur
+    return (
+      <span
+        className={cn(
+          'flex shrink-0 items-center justify-center rounded-full',
+          size === 'sm' ? 'size-6' : 'size-8',
+          problem && isCurrent
+            ? 'bg-danger text-white'
+            : isCurrent
+              ? 'bg-primary text-white'
+              : reached
+                ? 'bg-success text-white'
+                : 'bg-default-100 text-default-500',
+        )}
+      >
+        <Icon
+          icon={SHIPMENT_STAGES[i].icon}
+          className={size === 'sm' ? 'text-xs' : 'text-base'}
+          aria-hidden="true"
+        />
+      </span>
+    )
+  }
 
   return (
-    <div className="flex items-center" role="img" aria-label={ariaLabel}>
-      {SHIPMENT_STAGES.map((s, i) => {
-        const reached = i <= cur
-        const isCurrent = i === cur
-        return (
-          <Fragment key={s.label}>
-            {i > 0 && (
-              <span
-                className={cn('h-0.5 w-2 shrink-0', reached ? 'bg-success' : 'bg-default-200')}
-              />
-            )}
-            {/* title ต่อจุด — ไม่มีข้อความบนจอ ผู้ใช้เมาส์ hover อ่านชื่อขั้นได้ */}
-            <span
-              title={s.label}
-              className={cn(
-                'flex size-6 shrink-0 items-center justify-center rounded-full',
-                problem && isCurrent
-                  ? 'bg-danger text-white'
-                  : isCurrent
-                    ? 'bg-primary text-white'
-                    : reached
-                      ? 'bg-success text-white'
-                      : 'bg-default-100 text-default-500',
+    // group-hover ขึ้น panel เต็ม (user 2026-08-06) — CSS ล้วน ไม่มี JS state:
+    // touch ไม่มี hover ก็แค่ไม่ขึ้น (มือถือมี title ต่อจุดอยู่แล้ว)
+    <div className="group relative inline-flex items-center" role="img" aria-label={ariaLabel}>
+      {SHIPMENT_STAGES.map((s, i) => (
+        <Fragment key={s.label}>
+          {i > 0 && (
+            <span className={cn('h-0.5 w-2 shrink-0', i <= cur ? 'bg-success' : 'bg-default-200')} />
+          )}
+          <span title={s.label}>{dot(i, 'sm')}</span>
+        </Fragment>
+      ))}
+
+      {/* panel เต็มตอน hover — stepper ทรงเดียวกับการ์ดการจัดส่ง (ShippingCard) ย่อกว้าง 288px
+          ยึด absolute กับตัว timeline (บทเรียน popover: ยึดที่ตัว trigger ไม่ใช่แถว) เปิดขึ้นบน
+          กันชนขอบล่างของกล่อง scroll ตาราง */}
+      <div className="border-default-200 bg-card pointer-events-none invisible absolute bottom-full start-0 z-30 mb-2 w-72 rounded-lg border p-3 opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100">
+        <p className={cn('mb-2 text-xs font-semibold', problem ? 'text-danger-ink' : 'text-default-900')}>
+          {currentLabel}
+        </p>
+        <div className="flex items-center">
+          {SHIPMENT_STAGES.map((s, i) => (
+            <Fragment key={s.label}>
+              {i > 0 && (
+                <span
+                  className={cn('h-0.5 flex-1', i <= cur ? 'bg-success' : 'bg-default-200')}
+                />
               )}
-            >
-              <Icon icon={s.icon} className="text-xs" aria-hidden="true" />
-            </span>
-          </Fragment>
-        )
-      })}
+              {dot(i, 'lg')}
+            </Fragment>
+          ))}
+        </div>
+        <div className="mt-1.5 flex items-start">
+          {SHIPMENT_STAGES.map((s, i) => {
+            const isLast = i === SHIPMENT_STAGES.length - 1
+            return (
+              <Fragment key={s.label}>
+                {i > 0 && <span className="flex-1" />}
+                <span
+                  className={cn(
+                    'flex w-8 shrink-0',
+                    i === 0 ? 'justify-start' : isLast ? 'justify-end' : 'justify-center',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'text-2xs leading-tight whitespace-nowrap',
+                      i === cur ? 'text-default-900 font-semibold' : 'text-default-700',
+                    )}
+                  >
+                    {s.label}
+                  </span>
+                </span>
+              </Fragment>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
