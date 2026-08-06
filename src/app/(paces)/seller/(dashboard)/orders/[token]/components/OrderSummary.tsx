@@ -27,6 +27,7 @@ import { formatOrderNo } from '@/lib/order-no'
 import { ORDER_STATUS_META, getPaymentBadge } from '@/lib/order-display'
 import type { OrderStatus } from '@/lib/order-display'
 import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/SalesChannelBadge'
+import OrderSourceLogo from '../../components/OrderSourceLogo'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
 import type { OrderActionSet } from './order-action-set'
 import {
@@ -42,6 +43,8 @@ export type OrderSummaryProps = {
   status: string
   createdAtISO: string
   salesChannel: string | null
+  /** รูปเพจที่ลูกค้าทักมา — null = ใช้โลโก้แพลตฟอร์มเดิม (user 2026-08-06) */
+  pageLogoUrl?: string | null
   buyerLabel: string
   /** รูปโปรไฟล์ผู้ซื้อ (URL สาธารณะ ไม่ใช่ PII) — null = ยังไม่ลงทะเบียน/ไม่มีรูป */
   buyerAvatar: string | null
@@ -69,6 +72,7 @@ export default function OrderSummary({
   status,
   createdAtISO,
   salesChannel,
+  pageLogoUrl = null,
   buyerLabel,
   buyerAvatar,
   internalNote,
@@ -110,13 +114,21 @@ export default function OrderSummary({
         <div className="flex min-w-0 items-start gap-3.5">
           {/* ไทล์ช่องทางการขาย — โลโก้เต็มสี่เหลี่ยม (user สั่ง 2026-08-05)
               ช่องทางเป็น null (ออเดอร์เก่าก่อนมี field นี้) → OTHER เพื่อไม่ให้เลย์เอาต์กระโดด */}
-          <span
-            aria-label={`ขายผ่าน ${channelLabel}`}
-            className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl"
-            title={`ขายผ่าน ${channelLabel}`}
-          >
-            <SalesChannelLogo channel={salesChannel || 'OTHER'} className="size-full rounded-xl" size={48} />
-          </span>
+          {pageLogoUrl ? (
+            /* รูปเพจที่ลูกค้าทักมา + badge แพลตฟอร์มห้อยมุม (user 2026-08-06) —
+               component เดียวกับคอลัมน์ "ที่มา" ในลิสต์ (fallback chain เพจ→แพลตฟอร์ม→icon) */
+            <span aria-label={`ขายผ่าน ${channelLabel}`} className="shrink-0">
+              <OrderSourceLogo logoUrl={pageLogoUrl} channel={salesChannel} size="lg" />
+            </span>
+          ) : (
+            <span
+              aria-label={`ขายผ่าน ${channelLabel}`}
+              className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+              title={`ขายผ่าน ${channelLabel}`}
+            >
+              <SalesChannelLogo channel={salesChannel || 'OTHER'} className="size-full rounded-xl" size={48} />
+            </span>
+          )}
 
           <div className="min-w-0">
             {/* เลขคำสั่งซื้อ — ห้าม font-mono (Anuphan ไม่มี mono จะ fallback Courier หลุดธีม) */}

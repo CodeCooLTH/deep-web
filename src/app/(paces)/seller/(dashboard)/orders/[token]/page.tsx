@@ -34,6 +34,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
+import { prisma } from '@/lib/prisma'
 import { getOrderForShop } from '@/services/order.service'
 import { getShipmentPanel } from '@/services/iship.service'
 import { toShipmentContextJson } from '@/lib/iship/context'
@@ -82,6 +83,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   if (!active) redirect('/orders')
   const shop = active.shop
+
+  // รูปเพจของร้าน (หัวหน้า order detail — user 2026-08-06): Order เก็บแค่ salesChannel
+  // ไม่รู้เพจ → ชี้รูปเพจได้เฉพาะร้านที่เชื่อมเพจ MESSENGER ACTIVE เพจเดียว (เหมือนหน้า orders list)
+  const fbChannels = await prisma.shopChannel.findMany({
+    where: { shopId: shop.id, provider: 'MESSENGER', status: 'ACTIVE' },
+    select: { avatarUrl: true },
+  })
+  const fbPageAvatar = fbChannels.length === 1 ? fbChannels[0].avatarUrl : null
   // feature 00030 — คลังคำผันตามประเภทกิจการ ใช้ทั้ง h1/breadcrumb และส่งลง client components
   const vocab = resolveOrderVocab(shop.vertical)
 
@@ -221,6 +230,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         fulfillmentMode={order.fulfillmentMode}
         isFromAuction={Boolean(order.auctionId)}
         salesChannel={order.salesChannel ?? null}
+        pageLogoUrl={order.salesChannel === 'FACEBOOK' ? fbPageAvatar : null}
         buyerLabel={buyerLabel}
         totalAmount={Number(order.totalAmount)}
         paymentMethod={order.paymentMethod ?? null}

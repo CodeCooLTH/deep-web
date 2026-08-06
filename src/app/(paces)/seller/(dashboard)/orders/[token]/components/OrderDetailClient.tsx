@@ -85,6 +85,8 @@ export interface OrderDetailClientProps {
   isFromAuction: boolean
   /** ช่องทางการขายของออเดอร์ — ส่งต่อให้ StatusHero โชว์โลโก้แบรนด์ในแถวหัว */
   salesChannel: string | null
+  /** รูปเพจที่ลูกค้าทักมา — ส่งต่อให้ OrderSummary (user 2026-08-06) */
+  pageLogoUrl?: string | null
   /** ชื่อผู้ซื้อที่ resolve แล้วฝั่ง server — ส่งต่อให้ StatusHero ตรง ๆ */
   buyerLabel: string
   totalAmount: number
@@ -138,6 +140,7 @@ export default function OrderDetailClient({
   fulfillmentMode,
   isFromAuction,
   salesChannel,
+  pageLogoUrl = null,
   buyerLabel,
   totalAmount,
   paymentMethod,
@@ -378,6 +381,7 @@ export default function OrderDetailClient({
             paymentMethod={paymentMethod}
             publicToken={publicToken}
             salesChannel={salesChannel}
+            pageLogoUrl={pageLogoUrl}
             slipFileId={slipFileId}
             status={status}
             totalAmount={totalAmount}

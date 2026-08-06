@@ -26,10 +26,18 @@ interface Props {
   logoUrl: string | null
   /** STOREFRONT | FACEBOOK | LINE | TIKTOK | OTHER | null */
   channel: string | null
+  /** sm = แถวตาราง (32px) · lg = หัวหน้า order detail (48px — user 2026-08-06) */
+  size?: 'sm' | 'lg'
   className?: string
 }
 
-export default function OrderSourceLogo({ logoUrl, channel, className }: Props) {
+const SIZE = {
+  sm: { avatar: 'size-8', badge: 'size-3.5', icon: 'text-base' },
+  lg: { avatar: 'size-12', badge: 'size-4.5', icon: 'text-xl' },
+} as const
+
+export default function OrderSourceLogo({ logoUrl, channel, size = 'sm', className }: Props) {
+  const sz = SIZE[size]
   // แยก failed ราย src — รูปเพจโหลดพัง (URL ฝั่ง Meta หมดอายุได้) ต้องตกไปโลโก้แพลตฟอร์มต่อ
   const [pageFailed, setPageFailed] = useState(false)
   const [platformFailed, setPlatformFailed] = useState(false)
@@ -45,7 +53,7 @@ export default function OrderSourceLogo({ logoUrl, channel, className }: Props) 
           src={pageSrc}
           alt={label}
           /* ring กันรูปเพจพื้นขาวกลืนกับพื้นการ์ด (convention user-supplied-image-assets) */
-          className="ring-default-200 size-8 rounded-full object-cover ring-1"
+          className={`ring-default-200 ${sz.avatar} rounded-full object-cover ring-1`}
           onError={() => setPageFailed(true)}
         />
         {/* badge แพลตฟอร์มมุมขวาล่างของรูปเพจ (user 2026-08-06) — pattern เดียวกับ
@@ -55,7 +63,7 @@ export default function OrderSourceLogo({ logoUrl, channel, className }: Props) 
           <img
             src={platformSrc}
             alt=""
-            className="ring-card bg-card absolute -bottom-0.5 -end-0.5 size-3.5 rounded-full ring-2"
+            className={`ring-card bg-card absolute -bottom-0.5 -end-0.5 ${sz.badge} rounded-full ring-2`}
             onError={() => setPlatformFailed(true)}
           />
         )}
@@ -70,7 +78,7 @@ export default function OrderSourceLogo({ logoUrl, channel, className }: Props) 
         src={platformSrc}
         alt={label}
         title={label}
-        className={cn('size-8 shrink-0 rounded-full object-contain', className)}
+        className={cn(sz.avatar, 'shrink-0 rounded-full object-contain', className)}
         onError={() => setPlatformFailed(true)}
       />
     )
@@ -80,11 +88,11 @@ export default function OrderSourceLogo({ logoUrl, channel, className }: Props) 
     <span
       title={label}
       className={cn(
-        'bg-default-100 text-default-600 flex size-8 shrink-0 items-center justify-center rounded-full',
+        `bg-default-100 text-default-600 flex ${sz.avatar} shrink-0 items-center justify-center rounded-full`,
         className,
       )}
     >
-      <Icon icon={`tabler:${channel ? (SALES_CHANNEL_ICONS[channel] ?? 'world') : 'world'}`} className="text-base" aria-label={label} />
+      <Icon icon={`tabler:${channel ? (SALES_CHANNEL_ICONS[channel] ?? 'world') : 'world'}`} className={sz.icon} aria-label={label} />
     </span>
   )
 }
