@@ -28,7 +28,12 @@
 import { useId, useState, useRef, useEffect } from 'react'
 import { Controller, type Control, type UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
-import { orderDateWindow, orderDateRejectReason, isOrderDateInWindow } from '@/lib/order-date-window'
+import {
+  orderDateWindow,
+  orderDateRejectReason,
+  isOrderDateInWindow,
+  ORDER_BACKDATE_DAYS,
+} from '@/lib/order-date-window'
 import { formatOrderDateLabel, formatDateTH } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import type { FormValues } from './OrderCreateForm'
@@ -123,7 +128,7 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                 <button
                   ref={changeButtonRef}
                   type="button"
-                  aria-label={`เปลี่ยนวันที่สั่งซื้อ (ตอนนี้ ${currentLabel})`}
+                  aria-label={`เปลี่ยนวันที่สั่งซื้อ ค่าปัจจุบันคือ ${currentLabel}`}
                   className="btn min-h-11 text-primary hover:bg-primary hover:text-white"
                   onClick={() => setEditing(true)}
                 >
@@ -184,7 +189,7 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                     setEditing(false)
                   }}
                 >
-                  ตอนนี้
+                  ใช้เวลาปัจจุบัน
                 </button>
               </div>
               {rejectReason && (
@@ -209,7 +214,7 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
       {messageTooOld && (
         <p className="mt-1.5 flex items-center gap-1 text-xs text-warning-ink">
           <Icon icon="alert-triangle" className="size-3.5 shrink-0" />
-          ข้อความเก่าเกินกำหนด — ใช้เวลาปัจจุบัน
+          ข้อความนี้เก่ากว่า {ORDER_BACKDATE_DAYS} วัน จึงใช้เวลาปัจจุบันแทน
         </p>
       )}
     </div>

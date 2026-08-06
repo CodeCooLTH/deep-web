@@ -52,9 +52,21 @@ describe('orderDateRejectReason', () => {
     expect(orderDateRejectReason(NOW, NOW)).toBeNull()
   })
 
-  it('ค่าที่ใช้ไม่ได้ → ข้อความไทยที่บอกทั้งสองขอบ', () => {
+  // impeccable clarify 2026-08-06 — ข้อความเปลี่ยนจาก "บอกกฎ" (90/7 วัน) เป็น "บอกวันที่จริงที่เลือกได้"
+  // ผู้ใช้ที่กรอกผิดต้องการรู้ว่ากรอกอะไรถึงจะผ่าน ไม่ใช่ต้องนับวันเอาเองจากวันนี้
+  it('ค่าที่ใช้ไม่ได้ → บอกวันที่จริงของขอบทั้งสองด้าน ไม่ใช่บอกกฎเป็นจำนวนวัน', () => {
     const reason = orderDateRejectReason(NOW - 100 * DAY, NOW)
-    expect(reason).toContain('90')
-    expect(reason).toContain('7')
+    // NOW = 6 ส.ค. 2026 → ขอบล่าง 8 พ.ค. 2569 · ขอบบน 13 ส.ค. 2569 (พ.ศ. เสมอ)
+    expect(reason).toContain('พ.ค.')
+    expect(reason).toContain('ส.ค.')
+    expect(reason).toContain('2569')
+    // ต้องไม่หลุดกลับไปเป็นการบอกกฎ
+    expect(reason).not.toContain('90 วัน')
+  })
+
+  it('ขอบเลื่อนตาม nowMs — ข้อความไม่ใช่ค่าคงที่', () => {
+    const a = orderDateRejectReason(NOW - 100 * DAY, NOW)
+    const b = orderDateRejectReason(NOW - 100 * DAY, NOW + 30 * DAY)
+    expect(a).not.toBe(b)
   })
 })

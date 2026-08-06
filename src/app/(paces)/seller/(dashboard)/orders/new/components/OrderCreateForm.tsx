@@ -739,7 +739,9 @@ export default function OrderCreateForm({
           editOrderToken
             ? 'บันทึกการแก้ไขแล้ว'
             : isBackdated
-              ? `บันทึกแล้ว ลงวันที่ ${formatDateTimeTH(orderedDate!)} — อยู่ในรายการย้อนหลัง`
+              // "อยู่ในรายการย้อนหลัง" (copy เดิม) อ่านได้ว่า "ถูกเก็บเข้าประวัติ" ซึ่งไม่ใช่เรื่องเดียวกัน
+              // สิ่งที่ต้องบอกคือ "หาไม่เจอบนสุดนะ เพราะรายการเรียงตามวันที่" (impeccable clarify 2026-08-06)
+              ? `บันทึกแล้ว ลงวันที่ ${formatDateTimeTH(orderedDate!)} — รายการเรียงตามวันที่ จึงไม่อยู่บนสุด`
               : `${vocab.createLabel}แล้ว แชร์ลิงก์ให้ลูกค้า`,
         )
       }

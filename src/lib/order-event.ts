@@ -132,8 +132,10 @@ export function describeOrderEvent(e: Pick<OrderEventView, 'type' | 'meta'>): st
       // บรรทัดรองโผล่เฉพาะออเดอร์ที่ลงวันที่ย้อนหลัง/ล่วงหน้า — ออเดอร์ปกติไม่มี meta.orderedAt
       return e.meta.orderedAt ? `ลงวันที่สั่งซื้อ ${formatDateTimeTH(e.meta.orderedAt)}` : null
     case 'ORDER_DATE_CHANGED':
+      // มีคำว่า "จาก/เป็น" ไม่ใช่ลูกศรเปล่า — ลูกศรอย่างเดียวให้ผู้อ่านเดาทิศเอง และ screen reader
+      // อ่านไม่ออกว่ามันแปลว่าอะไร (impeccable clarify 2026-08-06)
       return e.meta.orderedAtFrom && e.meta.orderedAtTo
-        ? `${formatDateTimeTH(e.meta.orderedAtFrom)} → ${formatDateTimeTH(e.meta.orderedAtTo)}`
+        ? `จาก ${formatDateTimeTH(e.meta.orderedAtFrom)} เป็น ${formatDateTimeTH(e.meta.orderedAtTo)}`
         : null
     case 'TRACKING_ADDED':
       return e.meta.provider ? `ขนส่ง: ${e.meta.provider}` : null
