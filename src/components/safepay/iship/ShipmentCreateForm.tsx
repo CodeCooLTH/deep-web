@@ -669,7 +669,10 @@ export default function ShipmentCreateForm({
           <input
             id="shp-weight"
             type="number"
-            step="0.1"
+            /* step="any" ไม่ใช่ "0.1": step ยึดกริดจาก min=0.01 ทำให้ 2 กก. ตกร่อง
+               (ค่าที่ยอมรับกลายเป็น 1.91, 2.01 — user เจอจริง 2026-08-06) ช่วงเลข
+               คุมที่ Valibot ฝั่ง API อยู่แล้ว */
+            step="any"
             min="0.01"
             className="form-input"
             value={weight}

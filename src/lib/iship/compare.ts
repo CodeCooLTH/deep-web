@@ -54,7 +54,9 @@ export function assembleCompareResult(
   couriers.forEach((c, i) => {
     const s = settled[i];
     const total = s?.status === "fulfilled" ? Number(s.value.total_price) : Number.NaN;
-    if (s?.status !== "fulfilled" || !Number.isFinite(total)) {
+    // total ≤ 0 = ขนส่งไม่มีราคาให้เส้นทางนี้ (ไม่รองรับ) ไม่ใช่ส่งฟรี — เคสจริง
+    // prod 2026-08-06: Fuze Post ตอบ 0 แล้วชนะ "ถูกที่สุด" ทั้งที่ใช้ส่งจริงไม่ได้
+    if (s?.status !== "fulfilled" || !Number.isFinite(total) || total <= 0) {
       failed.push({ courierCode: c.code, courierName: c.name });
       return;
     }

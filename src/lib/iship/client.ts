@@ -171,6 +171,20 @@ function unwrap<T>(body: unknown, httpStatus: number, token: string): T {
         ? env.msg
         : undefined;
 
+  // payload เปล่าไม่มี envelope — /api/v2/check-price คืน object ตรง ๆ
+  // ({courier_code, price, total_price, …} ยืนยันจาก prod 2026-08-05) ตีความ
+  // "ไม่มี status" เป็นล้มเหลวไม่ได้: ทำให้ราคาทุกคำขอกลายเป็น UPSTREAM_ERROR
+  // http=200 message ว่าง ทั้งที่คำตอบสำเร็จ. เงื่อนไข: ไม่มี key ของ envelope
+  // เลยสักตัว (status/success/data) และไม่มีข้อความ error (message/msg) ปนมา
+  if (
+    !("status" in env) &&
+    !("success" in env) &&
+    !("data" in env) &&
+    rawMessage === undefined
+  ) {
+    return body as T;
+  }
+
   // status: true | 1 = สำเร็จ, false | 0 | undefined = ล้มเหลว
   // v2 บาง endpoint (เช่น /api/v2/boxes) ใช้ชื่อ success แทน status — ต้องรับทั้งสองชื่อ
   const ok = env.status === true || env.status === 1 || env.success === true;

@@ -16,7 +16,7 @@
  *       ShippingActivity.tsx (card + card-header + card-body) — โครงการ์ดเดียวกับพี่น้องในหน้านี้
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
@@ -207,15 +207,20 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
             เลขที่ร้านพิมพ์เอง เรารู้แค่ว่า "ร้านบอกว่าส่งแล้ว" จะวาดแถบความคืบหน้าไม่ได้ */}
         {progress && (
           <>
-            <ol className="mt-5 grid list-none grid-cols-4 ps-0">
-              {SHIPMENT_STAGES.map((s, i) => {
-                const reached = i <= progress.stage
-                const isLast = i === SHIPMENT_STAGES.length - 1
-                return (
-                  <li className="flex flex-col items-center gap-1.5" key={s.label}>
-                    <div className="flex w-full items-center">
-                      {/* ครึ่งซ้ายของจุดแรกและครึ่งขวาของจุดสุดท้ายต้องโปร่ง ไม่งั้นแถบยื่นเลยปลายทั้งสองข้าง */}
-                      <span className={cn('h-0.5 flex-1', i === 0 ? 'bg-transparent' : reached ? 'bg-success' : 'bg-default-200')} />
+            {/* จุดแรก/สุดท้ายชิดขอบ content เท่าแนวโลโก้ (user 2026-08-06) — เดิมเป็น
+                grid 4 คอลัมน์ที่จุดอยู่กลางคอลัมน์ ทำให้ทั้งแถบดูหดเข้ามาจากขอบทั้งสองข้าง
+                แถวจุด: จุด/เส้น flex-1 สลับกัน · แถวป้าย: โครงเดียวกัน (กล่อง w-8 ต่อจุด)
+                ให้ป้ายกึ่งกลางใต้จุดของตัวเองเป๊ะ — ป้ายแรกชิดซ้าย ป้ายสุดท้ายชิดขวา
+                กันตัวหนังสือล้นออกนอกการ์ด */}
+            <div className="mt-5">
+              <div className="flex items-center">
+                {SHIPMENT_STAGES.map((s, i) => {
+                  const reached = i <= progress.stage
+                  return (
+                    <Fragment key={s.label}>
+                      {i > 0 && (
+                        <span className={cn('h-0.5 flex-1', reached ? 'bg-success' : 'bg-default-200')} />
+                      )}
                       <span
                         className={cn(
                           'flex size-8 shrink-0 items-center justify-center rounded-full',
@@ -228,20 +233,36 @@ export default function ShippingCard({ iship, manual, onOpenDetail }: ShippingCa
                       >
                         <Icon icon={s.icon} className="text-base" aria-hidden="true" />
                       </span>
-                      <span className={cn('h-0.5 flex-1', isLast ? 'bg-transparent' : i < progress.stage ? 'bg-success' : 'bg-default-200')} />
-                    </div>
-                    <span
-                      className={cn(
-                        'text-2xs text-center leading-tight',
-                        i === progress.stage ? 'text-default-900 font-semibold' : 'text-default-700',
-                      )}
-                    >
-                      {isLast ? (progress.lastLabel ?? s.label) : s.label}
-                    </span>
-                  </li>
-                )
-              })}
-            </ol>
+                    </Fragment>
+                  )
+                })}
+              </div>
+              <div className="mt-1.5 flex items-start">
+                {SHIPMENT_STAGES.map((s, i) => {
+                  const isLast = i === SHIPMENT_STAGES.length - 1
+                  return (
+                    <Fragment key={s.label}>
+                      {i > 0 && <span className="flex-1" />}
+                      <span
+                        className={cn(
+                          'flex w-8 shrink-0',
+                          i === 0 ? 'justify-start' : isLast ? 'justify-end' : 'justify-center',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'text-2xs leading-tight whitespace-nowrap',
+                            i === progress.stage ? 'text-default-900 font-semibold' : 'text-default-700',
+                          )}
+                        >
+                          {isLast ? (progress.lastLabel ?? s.label) : s.label}
+                        </span>
+                      </span>
+                    </Fragment>
+                  )
+                })}
+              </div>
+            </div>
 
             {progress.notice && (
               <p className="bg-warning/15 text-default-800 mt-4 mb-0 flex items-start gap-2 rounded-lg px-3 py-2 text-xs">

@@ -113,9 +113,21 @@ export function getOrderActionSet(input: GetOrderActionSetInput): OrderActionSet
      * กรณีนั้น sendSms ยังเป็น primary เหมือนเดิม เพราะไม่มี action อื่นเหลือให้เป็นปุ่มหลัก
      * (ปล่อยว่างแล้วแถบจะเหลือแค่ปุ่ม ⋮ อันเดียว)
      */
-    const primary = hasShipping ? ACTIONS.reportTracking : ACTIONS.sendSms
+    /**
+     * PENDING + มีพัสดุ iShip แล้ว = เปิดพัสดุไปแล้วแต่ขนส่งยังไม่เข้ารับ (ออเดอร์ยังไม่ขยับ
+     * เป็น SHIPPED จนกว่าขนส่งจะสแกนจริง) — ปุ่ม "แจ้งเลขพัสดุ" จะโกหกว่ายังไม่มีเลข
+     * (user เจอจริง 2026-08-06) กดแล้วโมดัลก็เปิดหน้าสถานะอยู่แล้ว → label ต้องตรงกับ
+     * สิ่งที่จะเห็น: "สถานะพัสดุ" + มีคัดลอกเลขให้ใน ⋮ เหมือนสถานะที่มีเลขแล้วตัวอื่น
+     */
+    const hasIshipParcel = hasShipping && shipmentSource === 'ISHIP'
+    const primary = hasIshipParcel
+      ? { ...ACTIONS.reportTracking, label: 'สถานะพัสดุ' }
+      : hasShipping
+        ? ACTIONS.reportTracking
+        : ACTIONS.sendSms
 
     const menu: ActionItem[] = []
+    if (hasIshipParcel) menu.push(ACTIONS.copyTracking)
     if (hasShipping) menu.push(ACTIONS.sendSms)
     menu.push(ACTIONS.copyLink)
     if (hasShipping) menu.push(ACTIONS.copyAddress)

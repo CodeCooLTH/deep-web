@@ -72,23 +72,7 @@ export default function PriceCompareSheet({
   const [state, setState] = useState<SheetState>({ kind: 'idle' })
   /** key ของผลที่ถืออยู่ — input เปลี่ยน (แก้ที่อยู่/ขนาด) ค่อยยิงใหม่ */
   const [loadedKey, setLoadedKey] = useState('')
-  /** md เท่านั้น: การ์ดที่กาง breakdown อยู่ — mobile/desktop โชว์เสมอ */
-  const [expanded, setExpanded] = useState<string | null>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
-
-  /**
-   * ช่วง md (accordion ทำงานจริง) — ใช้ตัดสินว่า header การ์ดเป็นปุ่มกาง/ยุบ หรือเป็น
-   * div เฉย ๆ: ประกาศ aria-expanded ทุก breakpoint ทั้งที่ mobile/desktop กางตายตัว
-   * = screen reader ได้ยิน "collapsed" บนเนื้อหาที่กางอยู่ (phantom affordance)
-   */
-  const [isMd, setIsMd] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px) and (max-width: 1023.98px)')
-    const sync = () => setIsMd(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
 
   const inputKey = useMemo(
     () =>
@@ -140,7 +124,6 @@ export default function PriceCompareSheet({
   useEffect(() => {
     if (!open || loadedKey === inputKey) return
     setLoadedKey(inputKey)
-    setExpanded(null)
     void load()
     // load อ่านค่าจาก input ปัจจุบันซึ่ง inputKey ครอบอยู่แล้ว
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,7 +188,11 @@ export default function PriceCompareSheet({
         : ''
 
   return (
-    <div className={open ? undefined : 'hidden'}>
+    /* @container: layout ของ sheet ตัดสินจากความกว้าง "กล่องจริง" ไม่ใช่ viewport —
+       component นี้อยู่ได้ทั้ง modal 672px และแผงแชทแคบ ~450px บนจอ desktop
+       (เหตุ prod 2026-08-06: แผงแชทโดน layout แถวเดสก์ท็อปจน text ทับกันหมด)
+       precedent: ProductGrid ใน POS (อนุมัติ 2026-08-01) */
+    <div className={`@container ${open ? '' : 'hidden'}`}>
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {liveMessage}
       </div>
@@ -216,32 +203,38 @@ export default function PriceCompareSheet({
           type="button"
           onClick={onClose}
           aria-label="กลับไปยังฟอร์มเปิดพัสดุ"
-          className="btn btn-icon min-h-11 min-w-11 shrink-0 text-default-700 hover:bg-default-100 md:hidden"
+          className="btn btn-icon min-h-11 min-w-11 shrink-0 text-default-700 hover:bg-default-100 @2xl:hidden"
         >
           <Icon icon="tabler:chevron-left" className="text-xl" aria-hidden="true" />
         </button>
-        <h6 ref={headingRef} tabIndex={-1} className="mb-0 text-base font-semibold text-default-900">
+        {/* outline-none: focus ด้วยโปรแกรมตอนเปิด sheet — กรอบ ring บนหัวข้อไม่สื่ออะไร
+            (เห็นจริงในแผงแชท 2026-08-06) screen reader ยังอ่านปกติ */}
+        <h6
+          ref={headingRef}
+          tabIndex={-1}
+          className="mb-0 text-base font-semibold text-default-900 outline-none"
+        >
           เปรียบเทียบราคาขนส่ง
         </h6>
-        <p className="mb-0 hidden min-w-0 truncate text-sm text-default-700 md:block">
+        <p className="mb-0 hidden min-w-0 truncate text-sm text-default-700 @2xl:block">
           {destinationLabel} · {parcelLabel}
         </p>
         <button
           type="button"
           onClick={onClose}
           aria-label="ปิดหน้าต่างเปรียบเทียบราคา"
-          className="btn btn-icon ms-auto hidden min-h-11 min-w-11 shrink-0 text-default-700 hover:bg-default-100 md:flex"
+          className="btn btn-icon ms-auto hidden min-h-11 min-w-11 shrink-0 text-default-700 hover:bg-default-100 @2xl:flex"
         >
           <Icon icon="tabler:x" className="text-xl" aria-hidden="true" />
         </button>
       </div>
 
-      {/* ── ปลายทาง (mobile) + คำเตือนราคาประมาณการ ── */}
-      <div className="border-b border-default-200 p-4 md:py-2.5">
-        <p className="mb-0 text-sm text-default-700 md:hidden">
+      {/* ── ปลายทาง (กล่องแคบ) + คำเตือนราคาประมาณการ ── */}
+      <div className="border-b border-default-200 p-4 @2xl:py-2.5">
+        <p className="mb-0 text-sm text-default-700 @2xl:hidden">
           {destinationLabel} · {parcelLabel}
         </p>
-        <p className="mb-0 flex items-start gap-1.5 text-xs text-warning-ink md:mt-0 max-md:mt-1.5">
+        <p className="mb-0 mt-1.5 flex items-start gap-1.5 text-xs text-warning-ink @2xl:mt-0">
           <Icon icon="tabler:alert-triangle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
           <span>
             ราคาประมาณการ — ค่าจริงอาจต่างถ้าน้ำหนัก/ขนาดที่ชั่งไม่ตรง
@@ -338,23 +331,18 @@ export default function PriceCompareSheet({
       )}
 
       {state.kind === 'data' && rows.length > 0 && (
-        <div className="flex flex-col gap-3 p-4 md:grid md:grid-cols-2 lg:flex lg:flex-col">
+        <div className="flex flex-col gap-3 p-4">
           {rows.map((row, i) => (
             <CourierCard
               key={row.courierCode}
               row={row}
               cheapest={i === 0}
               fastest={row.courierCode === fastestCode}
-              isMd={isMd}
-              expanded={expanded === row.courierCode}
-              onToggle={() =>
-                setExpanded((cur) => (cur === row.courierCode ? null : row.courierCode))
-              }
               onPick={() => onPick(row.courierCode)}
             />
           ))}
           {failed.length > 0 && (
-            <p className="mb-0 text-xs text-default-700 md:col-span-2">
+            <p className="mb-0 text-xs text-default-700">
               ประเมินไม่ได้ {failed.length} ขนส่ง: {failed.map((f) => f.courierName).join(', ')} —
               ขนส่งไม่ตอบกลับ{' '}
               {/* ต้องเป็นปุ่มที่ยิงจริง — ผลถูก cache ตาม inputKey การปิดแล้วกดเทียบราคาซ้ำ
@@ -378,18 +366,11 @@ function CourierCard({
   row,
   cheapest,
   fastest,
-  isMd,
-  expanded,
-  onToggle,
   onPick,
 }: {
   row: CompareRow
   cheapest: boolean
   fastest: boolean
-  /** อยู่ช่วง md จริง — header เป็นปุ่มกาง/ยุบเฉพาะช่วงนี้ (ช่วงอื่น breakdown กางตายตัว) */
-  isMd: boolean
-  expanded: boolean
-  onToggle: () => void
   onPick: () => void
 }) {
   const logo = courierLogoUrl(row.courierCode, row.courierName)
@@ -425,43 +406,26 @@ function CourierCard({
           </span>
         )}
       </span>
-      <span className="ms-auto text-lg font-bold tabular-nums text-default-900 lg:hidden">
+      <span className="ms-auto text-lg font-bold tabular-nums text-default-900 @2xl:hidden">
         ฿{row.totalPrice.toLocaleString('th-TH')}
       </span>
     </>
   )
 
-  const headerCls = 'flex w-full items-center gap-2.5 text-start lg:w-56 lg:shrink-0'
-
   return (
+    /* layout ตามความกว้างกล่องจริง (@container ประกาศที่ root ของ sheet):
+       กล่องแคบ (แผงแชท/มือถือ) = การ์ดซ้อนแนวตั้ง · กล่อง ≥672px (@2xl) = แถวเต็ม */
     <div
-      className={`rounded-lg border p-3 lg:flex lg:items-center lg:gap-3 ${
+      className={`rounded-lg border p-3 @2xl:flex @2xl:items-center @2xl:gap-3 ${
         cheapest ? 'border-primary' : 'border-default-300'
       }`}
     >
-      {/* หัวการ์ด — เป็นปุ่มเฉพาะช่วง md ที่ accordion ทำงานจริง: ประกาศ aria-expanded
-          ทุก breakpoint ทั้งที่กางตายตัว = screen reader ได้ยิน "collapsed" บนของที่กางอยู่ */}
-      {isMd ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          aria-controls={`bd-${row.courierCode}`}
-          className={headerCls}
-        >
-          {headerInner}
-        </button>
-      ) : (
-        <div className={headerCls}>{headerInner}</div>
-      )}
+      <div className="flex w-full items-center gap-2.5 text-start @2xl:w-56 @2xl:shrink-0">
+        {headerInner}
+      </div>
 
-      {/* breakdown 3 ช่อง — md ยุบไว้หลังแตะการ์ด (จอแคบ 2 คอลัมน์ไม่พอ), mobile/desktop โชว์เสมอ */}
-      <div
-        id={`bd-${row.courierCode}`}
-        className={`mt-2.5 grid grid-cols-3 gap-2 border-t border-dashed border-default-300 pt-2.5 text-center lg:mt-0 lg:flex-1 lg:border-t-0 lg:pt-0 ${
-          expanded ? '' : 'md:hidden lg:grid'
-        }`}
-      >
+      {/* breakdown 3 ช่อง — โชว์เสมอทุกขนาดกล่อง */}
+      <div className="mt-2.5 grid grid-cols-3 gap-2 border-t border-dashed border-default-300 pt-2.5 text-center @2xl:mt-0 @2xl:flex-1 @2xl:border-t-0 @2xl:pt-0">
         <div>
           <p className="mb-0 text-xs text-default-700">ค่าส่ง</p>
           <p className="mb-0 text-sm font-medium tabular-nums text-default-900">
@@ -482,7 +446,7 @@ function CourierCard({
         </div>
       </div>
 
-      <p className="mb-0 hidden w-16 text-end text-lg font-bold tabular-nums text-default-900 lg:block">
+      <p className="mb-0 hidden w-16 text-end text-lg font-bold tabular-nums text-default-900 @2xl:block">
         ฿{row.totalPrice.toLocaleString('th-TH')}
       </p>
 
@@ -490,7 +454,7 @@ function CourierCard({
         type="button"
         onClick={onPick}
         aria-label={`ใช้ขนส่ง ${row.courierName} ราคา ${row.totalPrice.toLocaleString('th-TH')} บาท`}
-        className={`btn mt-2.5 w-full py-3 lg:mt-0 lg:w-auto lg:shrink-0 lg:px-5 ${
+        className={`btn mt-2.5 w-full py-3 @2xl:mt-0 @2xl:w-auto @2xl:shrink-0 @2xl:px-5 ${
           cheapest
             ? 'bg-primary text-white hover:bg-primary-hover'
             : 'border border-primary text-primary hover:bg-primary hover:text-white'
