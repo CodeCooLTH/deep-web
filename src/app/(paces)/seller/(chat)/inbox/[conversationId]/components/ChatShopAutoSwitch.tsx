@@ -22,9 +22,10 @@
  *   landingPath = เธรดเดิม เพื่อให้ผู้ใช้ไปถึงที่ที่กด noti มาจริง ๆ ไม่ใช่ /inbox เปล่า
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import ShopSwitchOverlay from '@/components/paces/ShopSwitchOverlay'
+import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 
 type Props = {
@@ -63,11 +64,43 @@ export default function ChatShopAutoSwitch({ conversationId, shopId, shopName, l
   }, [switchShop, shopId, shopName, kind, logo])
 
   /**
-   * overlay ค้างไว้เสมอ ไม่ผูกกับ `switching` — ไม่มีสถานะ "ว่าง" ให้เห็น
+   * ตรวจจับ "สลับไม่สำเร็จ" — จำเป็นเพราะ useShopSwitcher ไม่มี error state ให้อ่าน
+   *
+   * พฤติกรรมของ hook: สำเร็จ = `switching` ค้าง true จน browser unload หน้า (ไม่เคยกลับเป็น
+   * false) · ล้มเหลว (403 / เน็ตหลุด / 500) = เด้ง pacesToast แล้วตั้ง `switching` กลับเป็น false
+   * → "เคยเป็น true แล้วกลับเป็น false" จึงแปลว่าล้มเหลวเสมอ
+   *
+   * 🛑 ถ้าไม่ดักเคสนี้ overlay จะค้างตลอดไป ผู้ใช้ติดอยู่หน้าสปินเนอร์ ออกไปไหนไม่ได้เลย
+   * (บั๊กที่เจอตอน self-review — เดิม hardcode show={true} ไว้)
+   */
+  const [failed, setFailed] = useState(false)
+  const sawSwitching = useRef(false)
+  useEffect(() => {
+    if (switching) {
+      sawSwitching.current = true
+      return
+    }
+    if (sawSwitching.current) setFailed(true)
+  }, [switching])
+
+  // ล้มเหลว → คืนหน้า error ปกติของแชท ให้ผู้ใช้กด "ลองใหม่" กลับ /inbox ได้
+  // (toast บอกสาเหตุไปแล้วโดย useShopSwitcher — ที่นี่รับผิดชอบแค่ "ไม่ให้ค้าง")
+  if (failed) {
+    return (
+      <SellerErrorState
+        title="เปิดแชทนี้ไม่สำเร็จ"
+        message={`ข้อความนี้อยู่ในร้าน "${shopName}" แต่สลับร้านให้อัตโนมัติไม่สำเร็จ ลองสลับร้านเองแล้วเปิดใหม่อีกครั้ง`}
+        retryHref="/inbox"
+      />
+    )
+  }
+
+  /**
+   * ระหว่างสลับ — overlay ค้างไว้ ไม่ผูกกับ `switching` ตรง ๆ
    *
    * switching เป็น false อยู่เสี้ยววินาทีแรกก่อน effect จะรัน ถ้าผูกกับมันตรง ๆ ผู้ใช้จะเห็น
-   * จอเปล่าแวบหนึ่งแล้วค่อยมี overlay ซึ่งดูเหมือนแอปกระตุก — component นี้ render ก็ต่อเมื่อ
-   * "กำลังจะสลับแน่นอน" อยู่แล้ว จึง show ค้างจนหน้าถูก unload ด้วย hard-navigate
+   * จอเปล่าแวบหนึ่งแล้วค่อยมี overlay ซึ่งดูเหมือนแอปกระตุก — ตรงนี้มาถึงได้ก็ต่อเมื่อ
+   * "ยังไม่ล้มเหลว" (เคสล้มเหลว return ไปแล้วด้านบน) จึง show ค้างจนหน้าถูก unload
    *
    * label เขียนเองแทน default ("กำลังสลับบัญชี…") — ผู้ใช้ไม่ได้ตั้งใจสลับร้าน เขาแค่กด
    * แจ้งเตือน ต้องบอกว่าทำไมจู่ ๆ ถึงสลับให้ ไม่งั้นจะงงว่าระบบทำอะไรอยู่
