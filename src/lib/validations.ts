@@ -20,6 +20,7 @@ import {
 import { isStrongPassword } from "@/lib/password";
 import { isValidSlugFormat } from "@/lib/shop-slug";
 import { EXPENSE_CATEGORIES } from "@/lib/expense";
+import { orderDateRejectReason, ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "./order-date-window";
 
 export const SendOtpSchema = v.object({
   contact: v.pipe(v.string(), v.minLength(1), v.maxLength(20)),
@@ -289,6 +290,18 @@ export const MarkNotificationReadSchema = v.object({
   id: v.optional(v.pipe(v.string(), v.uuid())),
 })
 
+// เวลาส่งเป็น ISO-8601 ที่มี offset เสมอ — การไม่มี offset ทำให้ตีความเวลาเพี้ยนข้ามเขตเวลา
+// [สำคัญ] ต้องประกาศ *เหนือ* schema ทุกตัวที่ใช้มัน: const ไม่ hoist และ v.object() ประเมิน
+// ตอนโหลดโมดูล — วางไว้ท้ายไฟล์เมื่อไหร่ ทั้งแอปจะล่มด้วย TDZ ReferenceError ตอน import
+// ผู้ใช้: CreateOrderSchema.createdAt (00033), OrderAppointmentSchema.start/end (00024)
+const IsoDateTimeWithOffset = v.pipe(
+  v.string(),
+  v.regex(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/,
+    "ต้องเป็นเวลารูปแบบ ISO-8601 พร้อมเขตเวลา",
+  ),
+)
+
 export const CreateOrderSchema = v.object({
   items: v.pipe(
     v.array(v.object({
@@ -330,6 +343,22 @@ export const CreateOrderSchema = v.object({
   // feature 00018 (user 2026-07-24): สร้างจากเธรดแชท → ผูก ExternalContact กับ Customer ทันที
   // ownership ตรวจซ้ำที่ service (WHERE {id, shopId}) — client ปลอม id ร้านอื่นมาก็ผูกไม่ได้
   conversationId: v.optional(v.pipe(v.string(), v.uuid())),
+  /**
+   * feature 00033 — วันที่/เวลาที่ลูกค้าสั่ง (ไม่ใช่เวลาที่คีย์เข้าระบบ)
+   *
+   * ไม่ส่งมา = เส้นทางเดิมทุกประการ Order.createdAt ได้ @default(now()) เหมือนเดิม
+   * ด่านนี้เป็นด่านแรก — service ตรวจซ้ำอีกชั้นเสมอ (client ปลอม body ข้ามด่านนี้ไม่ได้
+   * แต่ caller ฝั่ง server ที่เรียก createOrder ตรง ๆ ไม่ผ่าน schema นี้)
+   */
+  createdAt: v.optional(
+    v.pipe(
+      IsoDateTimeWithOffset,
+      v.check(
+        (iso) => orderDateRejectReason(new Date(iso).getTime(), Date.now()) === null,
+        ORDER_DATE_OUT_OF_WINDOW_MESSAGE,
+      ),
+    ),
+  ),
 });
 
 // ClaimOrderSchema — feature 00015 (Order Claim & Forced Login) API.md §4.3
@@ -1469,16 +1498,6 @@ export const ConversationAutoReplyPatchSchema = v.object({
 })
 
 // ── feature 00024 Service Appointment Booking ────────────────────────────────
-
-// เวลานัดส่งเป็น ISO-8601 ที่มี offset เสมอ (ต่างจากการจองบ้านพักที่เป็นวันล้วน)
-// บริการละเอียดระดับนาที การไม่มี offset ทำให้ตีความเวลาเพี้ยนข้ามเขตเวลา (BR-RSV-40)
-const IsoDateTimeWithOffset = v.pipe(
-  v.string(),
-  v.regex(
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/,
-    "ต้องเป็นเวลารูปแบบ ISO-8601 พร้อมเขตเวลา",
-  ),
-)
 
 // จำนวนคิวที่รับพร้อมกัน — จำนวนเต็มตั้งแต่ 1 (BR-RSV-06)
 const CapacityInt = v.pipe(
