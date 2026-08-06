@@ -829,34 +829,23 @@ git commit -m "feat(00033): แก้วันที่คำสั่งซื�
 > บทเรียน `feedback_service_error_route_mapping`: error ใหม่ที่ไม่มี route-catch = 500 ตัวเปล่าให้ผู้ใช้
 > **ต้องครอบทั้งสอง route** — ขาดตัวใดตัวหนึ่งคือครึ่งเดียว
 
-- [ ] **Step 1: แปลง ISO เป็น Date ก่อนส่งเข้า service — ทั้ง 2 route**
+- [ ] **Step 1: ไม่ต้องแปลง ISO เป็น Date ที่ route — ยืนยันว่าไม่มีอะไรต้องแก้**
 
-`parsed.output.createdAt` เป็น **string** แต่ service รับ `Date` — ใน `POST /api/orders` แก้บรรทัดที่เรียก `createOrder`:
+> 🛑 **ขั้นนี้เปลี่ยนจากแผนฉบับแรก (controller ตัดสิน 2026-08-06 หลัง Task 6)**
+> แผนเดิมให้ destructure `createdAt` ออกมาแปลงเป็น `Date` ที่ route
+> แต่ Task 6 พบว่า Valibot ผลิต **ISO string** และ route ทั้งสอง spread `parsed.output` เข้า service ตรง ๆ อยู่แล้ว
+> จึงประกาศพารามิเตอร์เป็น `Date | string` แล้ว **normalize ในตัว service** (จุดเดียว ทั้ง `createOrder` และ `updateOrder` ใช้ตรรกะเดียวกัน)
+> การแปลงซ้ำที่ route จะกลายเป็นนิยามที่สองของกฎเดียวกัน — สิ่งที่ฟีเจอร์นี้ตั้งใจหลีกเลี่ยงตั้งแต่ §4
 
-```ts
-    const createdByUserId = (session.user as { id?: string }).id ?? null;
-    // feature 00033 — schema รับเป็น ISO string, service รับ Date
-    const { createdAt: createdAtIso, ...rest } = parsed.output;
-    const order = await createOrder(shop.id, {
-      ...rest,
-      ...(createdAtIso ? { createdAt: new Date(createdAtIso) } : {}),
-      appointment,
-      createdByUserId,
-    });
+ยืนยันด้วยการอ่านโค้ด ไม่ต้องแก้อะไร:
+
+```bash
+rg -n "createOrder\(shop\.id" src/app/api/orders/route.ts
+rg -n "updateOrder\(ctx\.shopId" "src/app/api/orders/[token]/route.ts"
 ```
 
-ใน `PATCH /api/orders/[token]` แก้บรรทัดที่เรียก `updateOrder`:
-
-```ts
-    const actorUserId = (session as { user?: { id?: string } }).user?.id ?? null;
-    const { createdAt: createdAtIso, ...rest } = parsed.output;
-    const order = await updateOrder(
-      ctx.shopId,
-      token,
-      { ...rest, ...(createdAtIso ? { createdAt: new Date(createdAtIso) } : {}) },
-      actorUserId,
-    );
-```
+ทั้งสองบรรทัดต้องยัง spread `parsed.output` เหมือนเดิม — `createdAt` ไหลเข้า service เองผ่าน spread
+ถ้าพบว่า route ตัดคีย์ที่ไม่รู้จักทิ้งก่อนส่ง (เช่น pick ทีละ field) **ตรงนั้นคือจุดที่ต้องเพิ่ม `createdAt` เข้าไป** ให้รายงานกลับ
 
 - [ ] **Step 2: เพิ่ม catch ใน `POST /api/orders`**
 
