@@ -1366,19 +1366,26 @@ export default function ChatThread({
           </span>
         )}
 
-        {/* ข้อมูลลูกค้า — ปุ่มมีป้ายกำกับที่หัวเธรด สำหรับช่วงที่คอลัมน์ขวายังไม่โผล่ (<1280px)
+        {/* ข้อมูลลูกค้า — ปุ่มที่หัวเธรด สำหรับช่วงที่คอลัมน์ขวายังไม่โผล่ (<1280px)
             user report 2026-08-01 (iPad Pro): "เปิดข้อมูลลูกค้าไม่ได้" ทั้งที่ปุ่มมีอยู่แล้ว —
             ของเดิมเป็นไอคอนเปล่าไม่มีข้อความ อยู่มุมขวาสุดของแถบเครื่องมือเหนือช่องพิมพ์ ซึ่งล่างสุด
             ของจอและไม่มีใครมองหาข้อมูลลูกค้าตรงนั้น. ที่ ≥1280px ไม่ต้องมี เพราะแผงอยู่ข้าง ๆ แล้ว
-            (breakpoint ต้องตรงกับ xl:block ของคอลัมน์ขวาใน page.tsx เสมอ) */}
+            (breakpoint ต้องตรงกับ xl:block ของคอลัมน์ขวาใน page.tsx เสมอ)
+
+            2026-08-06 user สั่ง "ใน Mobile ย้ายปุ่มเปิดข้อมูลลูกค้า จาก mini bar ด้านล่าง ไปไว้ด้านบนขวา"
+            → ปุ่มตัวเดียวกันนี้โผล่ตั้งแต่จอเล็กสุดแล้ว (ของเดิม md:inline-flex) และไอคอนเปล่าใน
+            แถบเครื่องมือถูกถอดทิ้ง — ไม่ให้มีปุ่มเดียวกัน 2 ที่บนจอเดียว
+            <768px ยุบเหลือไอคอน: หัวเธรดมีชื่อลูกค้า+ชิปช่องทาง+นับถอยหลังอยู่แล้ว ป้ายเต็มจะดันชื่อ
+            จนถูกตัด. มุมขวาบนเป็นตำแหน่งที่คนมองหาข้อมูลคู่สนทนาอยู่แล้ว (ต่างจากแถบล่างที่เคยหาไม่เจอ) */}
         <button
           type="button"
           onClick={() => setSheetOpen(true)}
           title="ข้อมูลลูกค้า"
-          className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100 ms-auto hidden shrink-0 items-center gap-1 md:inline-flex xl:hidden"
+          aria-label="ข้อมูลลูกค้า"
+          className="btn btn-sm border-default-300 text-default-700 hover:bg-default-100 ms-auto inline-flex shrink-0 items-center gap-1 xl:hidden"
         >
           <Icon icon="user-circle" className="text-base" />
-          <span>ข้อมูลลูกค้า</span>
+          <span className="hidden md:inline">ข้อมูลลูกค้า</span>
         </button>
 
         {/* ปิดเสียงเฉพาะเธรดนี้ (user สั่ง 2026-07-23) — ซ่อนเมื่อปิดเสียงระดับแอปอยู่แล้ว เพราะปุ่ม
@@ -2326,11 +2333,10 @@ export default function ChatThread({
             <Icon icon="sparkles" className="text-lg" />
           </button>
 
-          {/* feature 00018 T5 — ทางเข้า Customer Panel แบบ sheet สำหรับ **มือถือ** (<768px) เท่านั้น
-              ตั้งแต่ 768px ขึ้นไปใช้ปุ่มมีป้ายกำกับ "ข้อมูลลูกค้า" ที่หัวเธรดแทน (หาเจอง่ายกว่ามาก —
-              user report 2026-08-01) และตั้งแต่ 1280px ขึ้นไปเป็นคอลัมน์ขวาจริง (ดู page.tsx)
-              ไอคอนเปล่าตรงนี้จึงเหลือไว้เฉพาะจอที่แคบจนหัวเธรดใส่ปุ่มมีข้อความไม่ไหว
-              ms-auto: ดันไปชิดขวาสุดของแถวเครื่องมือ — คนละกลุ่มกับปุ่มแต่งข้อความ 3 ตัวทางซ้าย */}
+          {/* feature 00018 T5 — ทางเข้า Customer Panel ของมือถือ **ย้ายขึ้นหัวเธรดแล้ว** (user สั่ง
+              2026-08-06) ไอคอนคนที่เคยอยู่ท้ายแถวนี้จึงถูกถอดออก ไม่ใช่ซ่อนด้วย breakpoint —
+              ปุ่มเดียวกัน 2 ที่บนจอเดียวคือสิ่งที่ทำให้แถบนี้แน่นโดยไม่ได้อะไรเพิ่ม
+              ms-auto ย้ายไปอยู่ที่ปุ่มสร้างออเดอร์ (ตัวสุดท้ายของแถวแล้ว) */}
           {/* สร้างออเดอร์ — มือถือเท่านั้น (user สั่ง 2026-08-04 "อยากให้กดสร้าง order ใน chat ไว ๆ")
               ตั้งแต่ 768px ขึ้นไปมีปุ่มมีป้าย "ข้อมูลลูกค้า" ที่หัวเธรด และ ≥1280px มีแผงขวาที่มี CTA
               อยู่แล้ว — ใส่ที่นี่ด้วยจะกลายเป็นปุ่มซ้ำ 2 ที่บนจอเดียว
@@ -2352,15 +2358,6 @@ export default function ChatThread({
           >
             <Icon icon={VERTICAL_CTA[customerPanelData.vertical].icon} className="text-lg" />
             {VERTICAL_CTA[customerPanelData.vertical].label}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            aria-label="ข้อมูลลูกค้า"
-            className="btn btn-icon text-default-600 hover:bg-default-100 shrink-0 md:hidden"
-          >
-            <Icon icon="user-circle" className="text-lg" />
           </button>
         </div>
 
