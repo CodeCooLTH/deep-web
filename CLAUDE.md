@@ -246,6 +246,14 @@ theme/
   - ผ่าน impeccable ครบ 4 คำสั่ง (critique 22/40 · clarify · audit 17/20 · optimize) — **ทั้ง 7 ปัญหาที่เจอ หลุด `tsc`/`build`/detector/grep gate ทั้งหมด** รวมถึง `btn-ghost` ที่ไม่มีอยู่จริงในธีม, คอนทราสต์ตก 4 จุดที่ใช้ token ถูกกฎ, และ `focus:outline-none` ที่ไม่มีตัวแทน
   - **carry:** browser QA 75 เคส (user รับไปกดเองบน prod 2026-08-06) · E2E Playwright · P2 จาก critique 3 ข้อ (ปุ่มเขียนทับโดยไม่ถาม · ปี พ.ศ. บนป้าย vs ค.ศ. ใน native picker · ลำดับชั้น 4 บรรทัดตอนขยาย)
 
+- **2026-08-06 (รอบเย็น): iShip — "ลองใหม่" ที่ไม่ลองอะไรใหม่ / ชิปโกหก / เครดิตไม่พอ — DEPLOYED PROD** (`ec3ade1c` `b6cf5243` `bc33dc34` `61ffea08`; สเปก `docs/20 - Features/00022 …/SRS.md` §18 + `TestCase.md` E8 · retro `docs/retro/2026-08-06-iship-retry-and-credit-retrospective.md`)
+  - 🛑 **`retryShipment()` ต้องอ่านที่อยู่จาก `Order.shippingAddress` ใหม่ทุกครั้ง** — `receiverSnapshot` คือบันทึกว่า "ยิงอะไรออกไป" ไม่ใช่แหล่งความจริง. เดิมอัปเดต snapshot เฉพาะตอนมี `receiverPatch` แนบมา แต่ `createShipment()` ที่เจอใบ FAILED เรียก retry โดยไม่ส่ง patch/override ต่อ → **เขียนที่อยู่ใหม่ลงออเดอร์แล้วยิงที่อยู่เก่าออกไป** ร้านแก้กี่รอบก็ไม่มีผล (`DP256908869471CB`). กติกาทั่วไป: ปุ่ม "ลองใหม่" ที่อ่านจาก snapshot เดิม = replay ไม่ใช่ retry
+  - 🛑 **นิยาม "ออเดอร์นี้มีพัสดุแล้ว" = `OrderShipment.status='CREATED' AND isDryRun=false` ที่เดียวทั้งระบบ** — LATERAL join ใน `order-stage.service.ts` เคยใช้ `<> 'CANCELLED'` จึงนับใบ FAILED ด้วย แล้วแถวในกล่องแชทขึ้นชิป "สร้างพัสดุแล้ว" ทั้งที่ไม่มีเลขพัสดุ (`DP256908A896B1BE`). คอมเมนต์เตือนเรื่องนี้อยู่ที่ **ฟังก์ชันที่คำนวณ** (`order-stage.ts`) แต่บั๊กอยู่ที่ **query ที่ป้อนข้อมูลเข้าไป** คนละไฟล์ — กติกาที่ใช้ร่วมหลายที่ต้องบังคับที่จุดดึงข้อมูล ไม่ใช่คอมเมนต์เตือนใจ
+  - 🛑 **regex คัดแยก error ไทยให้จับ "คำนาม" ไม่ใช่ "รูปปฏิเสธ"** — `เครดิต.*ไม่พอ` ไม่ match `"เครดิตไม่เพียงพอ"` (ไม่มีสตริง `ไม่พอ` อยู่เลย) → เงินไม่พอกลายเป็น `UPSTREAM_ERROR` ที่ **retryable** → จอเชิญให้กดวน 3-4 ครั้งทั้งที่ไม่มีทางสำเร็จ. การจัดประเภทผิดให้เป็น retryable อันตรายกว่าปกติเพราะมันสั่งให้ผู้ใช้ทำสิ่งที่ไร้ผลซ้ำ ๆ
+  - **เครดิต iShip:** ยอดที่เปิดพัสดุได้ = เงินคงเหลือ − **เครดิตที่ถูกกันไว้** (สำรองค่าส่งของพัสดุที่ยังไม่เคลียร์สถานะ) หน้าแรก iShip โชว์ยอดรวม ร้านจึงเห็นว่ายังมีเงินทั้งที่เปิดไม่ได้ · **ไม่มี endpoint อ่านยอดเครดิต** รู้ได้ตอนถูกปฏิเสธเท่านั้น · ลิงก์เติมเงินต้องเป็นหน้าแรก `https://app.iship.cloud/` (`/wallet/topup` เข้าตรงไม่ได้)
+  - `toShipmentView` ส่งข้อความดิบเข้า `IShipError` แล้ว — ข้อยกเว้นของ `REJECTED_BY_CARRIER` (ต่อท้ายรายละเอียดจากขนส่ง) **ไม่เคยทำงานเลยตั้งแต่วันแรก** เพราะสร้าง error จาก code เปล่า
+  - **carry:** `orders/[token]/page.tsx` แก้ `hasShipment` แล้วแต่ยังไม่ commit (ไฟล์มีงานของอีก session ค้าง) · ปุ่ม "ลองใหม่" ยังไม่อ่าน `IShipError.retryable` (ต้องผ่าน ux gate) · browser QA E8-4/E8-6/E8-7
+
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 
 @AGENTS.md

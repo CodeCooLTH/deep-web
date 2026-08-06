@@ -13,7 +13,35 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]",
 
 ---
 
-## 0. อัปเดตล่าสุด 2026-08-05 — ส่วนขยาย "เปรียบเทียบราคาขนส่งทุกเจ้า"
+## 0. อัปเดตล่าสุด 2026-08-06 (รอบเย็น) — ลองใหม่ / นิยาม "มีพัสดุ" / เครดิตไม่พอ
+
+**DEPLOYED PRODUCTION** — `ec3ade1c` · `b6cf5243` · `bc33dc34` · `61ffea08`
+(สเปกเต็ม: `SRS.md` §18 · เคสทดสอบ: `TestCase.md` หัวข้อ E8 · retro:
+`docs/retro/2026-08-06-iship-retry-and-credit-retrospective.md`)
+
+user ส่งภาพ error มา 1 ใบ แล้วสืบจากฐาน prod เจอ 3 บั๊กคนละชั้น:
+
+1. **แก้ที่อยู่แล้วกดลองใหม่ไม่มีผล** (`DP256908869471CB`) — `createShipment()` เจอใบ FAILED
+   แล้วเด้งไป `retryShipment()` โดยไม่ส่ง `receiverPatch`/`override` ต่อ → snapshot ไม่ถูกอัปเดต
+   → ยิงที่อยู่ชุดเก่าซ้ำ **แก้: retry อ่านที่อยู่จากออเดอร์ใหม่ทุกครั้ง** (BR-ISHIP-63/64)
+2. **ชิปขึ้น "สร้างพัสดุแล้ว" ทั้งที่ไม่มีเลขพัสดุ** (`DP256908A896B1BE`) — LATERAL join ใน
+   `order-stage.service.ts` ใช้ `status <> 'CANCELLED'` นับใบ FAILED ด้วย **แก้: ใช้นิยามเดียว
+   ทั้งระบบ `CREATED` + ไม่ dry-run** (BR-ISHIP-65)
+3. **เครดิต iShip หมดแต่จอบอกว่าระบบขัดข้อง** — `เครดิต.*ไม่พอ` ไม่ match `"เครดิตไม่เพียงพอ"`
+   → `UPSTREAM_ERROR` (retryable) ร้านกดวน 3-4 ครั้ง **แก้: จับคำนาม `เครดิต` + กล่องเตือนเด่น
+   พร้อมปุ่มไปเติมเงิน** (BR-ISHIP-66, FR-ISHIP-074)
+
+**สิ่งที่ต้องรู้เรื่องเครดิต iShip:** ยอดที่เปิดพัสดุได้ = เงินคงเหลือ − **เครดิตที่ถูกกันไว้**
+(กันสำรองค่าส่งของพัสดุที่ยังไม่เคลียร์สถานะ — ของจริงเจอ 435 ฿) เราไม่มี endpoint อ่านยอดเครดิต
+จึงรู้ได้ทางเดียวคือตอนยิง `create_order` แล้วโดนปฏิเสธ · ลิงก์เติมเงินต้องเป็นหน้าแรก
+`https://app.iship.cloud/` (ลิงก์ลึก `/wallet/topup` เข้าตรงไม่ได้ ต้องล็อกอินก่อน)
+
+**carry:** `orders/[token]/page.tsx` แก้ `hasShipment` แล้วแต่ยังไม่ commit (ไฟล์มีงานของอีก
+session ค้าง) · ปุ่ม "ลองใหม่" ยังไม่อ่าน `IShipError.retryable` (ต้องผ่าน ux gate) · browser QA E8
+
+---
+
+## 0.1 อัปเดต 2026-08-05 — ส่วนขยาย "เปรียบเทียบราคาขนส่งทุกเจ้า"
 
 **DEPLOYED PRODUCTION** — merge `7dfc7cb4` (2026-08-05) หลัง `0b067517` (§1/§9 ด้านล่างยังเป็น
 snapshot ของเวอร์ชันแรก 2026-07-26 — ไม่ได้อัปเดตตามการ deploy รอบ 2026-08-01/2026-08-05 ทุกจุด
@@ -267,4 +295,8 @@ cd <worktree ที่มี .env.local> && set -a && . ./.env.local && set +a
 | `6f0da506` | `assembleCompareResult` — รวม/เรียงผลเทียบราคาหลายขนส่ง (pure + tests) |
 | `4d48985e` | `compareShippingPrices` — fan-out check-price ทุกขนส่งของร้านในคำขอเดียว |
 | `e2018f5c` | `POST /api/seller/iship/price/compare` — endpoint เทียบราคาทุกขนส่ง |
-| `7dfc7cb4` | **merge → main (deploy prod ล่าสุด) — รวม UI `PriceCompareSheet` + wiring ใน `ShipmentCreateForm`** |
+| `7dfc7cb4` | merge → main — รวม UI `PriceCompareSheet` + wiring ใน `ShipmentCreateForm` |
+| `ec3ade1c` | retry อ่านที่อยู่จากออเดอร์ใหม่ทุกครั้ง + ส่ง `override` ต่อ (BR-ISHIP-63/64) |
+| `b6cf5243` | นิยาม "มีพัสดุ" = CREATED + ไม่ dry-run · `เครดิตไม่เพียงพอ` → `INSUFFICIENT_BALANCE` (BR-ISHIP-65/66) |
+| `bc33dc34` | กล่องเตือนเครดิตไม่พอ + ปุ่มไปเติมเงิน (FR-ISHIP-074) |
+| `61ffea08` | **ลิงก์เติมเงินชี้หน้าล็อกอิน iShip (deploy prod ล่าสุด)** |
