@@ -420,6 +420,7 @@ function toShipmentView(s: {
   labelPrintCount: number;
   isDryRun: boolean;
   lastErrorCode: string | null;
+  lastErrorMessage: string | null;
   weight: unknown;
   width: number | null;
   length: number | null;
@@ -433,8 +434,16 @@ function toShipmentView(s: {
     weight: s.weight == null ? null : Number(s.weight),
     codAmount: Number(s.codAmount ?? 0),
     // ข้อความที่แสดงต่อผู้ใช้มาจาก error code ของเรา ไม่ใช่ lastErrorMessage ที่เป็นข้อความดิบ
+    //
+    // ต้องส่งข้อความดิบเข้าไปด้วย ไม่ใช่สร้าง IShipError เปล่า ๆ: REJECTED_BY_CARRIER มี
+    // ข้อยกเว้นที่ตั้งใจไว้ให้ต่อท้ายรายละเอียดจากขนส่ง ("กรุณากรอก สีสินค้า …") ซึ่งคือ
+    // "สิ่งที่ร้านต้องแก้" — ไม่ส่งเข้าไป ข้อยกเว้นนั้นก็ไม่เคยทำงานสักครั้ง ร้านเห็นแต่
+    // ประโยคกลาง ๆ แล้วกดลองใหม่วนไปโดยไม่มีทางรู้ว่าขาดอะไร (ตัวกรองอยู่ใน IShipError
+    // อยู่แล้ว — code อื่นไม่เปิดเผยข้อความดิบ)
     lastErrorMessage: s.lastErrorCode
-      ? new IShipError(s.lastErrorCode as never).userMessage
+      ? new IShipError(s.lastErrorCode as never, {
+          upstreamMessage: s.lastErrorMessage ?? undefined,
+        }).userMessage
       : null,
   };
 }
@@ -475,6 +484,9 @@ const SHIPMENT_SELECT = {
   labelPrintCount: true,
   isDryRun: true,
   lastErrorCode: true,
+  // ข้อความดิบ — ไม่ได้ส่งออกตรง ๆ ใช้เป็นวัตถุดิบให้ IShipError ตัดสินว่าจะเปิดเผยไหม
+  // (เปิดเฉพาะ REJECTED_BY_CARRIER ตามข้อยกเว้นเดียวของ BR-ISHIP §6.4)
+  lastErrorMessage: true,
   weight: true,
   width: true,
   length: true,
@@ -787,11 +799,22 @@ export async function createShipment(
     select: SHIPMENT_SELECT,
   });
   if (active) {
-    if (active.status === "FAILED") return retryShipment(shopId, userId, active.id);
-    throw new IShipServiceError(
-      "SHIPMENT_EXISTS",
-      "คำสั่งซื้อนี้มีพัสดุที่ยังใช้งานอยู่แล้ว",
-    );
+    if (active.status !== "FAILED") {
+      throw new IShipServiceError(
+        "SHIPMENT_EXISTS",
+        "คำสั่งซื้อนี้มีพัสดุที่ยังใช้งานอยู่แล้ว",
+      );
+    }
+    // ใบเดิมล้มอยู่ → นี่คือการกด "แก้ข้อมูลแล้วลองใหม่" จากฟอร์มเดียวกัน
+    // ค่าที่ร้านเพิ่งกรอก (ขนส่ง/น้ำหนัก/ขนาด/COD/ตัวเลือก) ต้องมีผลจริง ไม่ใช่ถูกทิ้งเงียบ ๆ
+    // แล้วยิงค่าชุดเดิมซ้ำ — ที่อยู่ถูกเขียนกลับเข้าออเดอร์ไปแล้วที่ด้านบน และ retryShipment
+    // อ่านที่อยู่จากออเดอร์ใหม่ทุกครั้ง จึงไม่ต้องส่ง receiverPatch ต่อ
+    const paymentNotice =
+      override?.codAmount !== undefined
+        ? await syncOrderPaymentToParcel(orderId, override.codAmount, userId)
+        : undefined;
+    const view = await retryShipment(shopId, userId, active.id, undefined, override);
+    return paymentNotice === undefined ? view : { ...view, paymentNotice };
   }
 
   // attemptGroup = จำนวนใบที่เคยยกเลิกไปแล้ว + 1 (BR-ISHIP-26)
@@ -887,11 +910,23 @@ export async function retryShipment(
   userId: string,
   shipmentId: string,
   receiverPatch?: ReceiverPatch,
+  override?: ShipmentOverride,
 ): Promise<ShipmentView> {
   const { token } = await loadAccount(shopId);
   const existing = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId },
-    select: { id: true, status: true, orderId: true },
+    select: {
+      id: true,
+      status: true,
+      orderId: true,
+      courierCode: true,
+      categoryId: true,
+      weight: true,
+      width: true,
+      length: true,
+      height: true,
+      optionsSnapshot: true,
+    },
   });
   if (!existing) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
   if (existing.status !== "FAILED") {
@@ -901,20 +936,68 @@ export async function retryShipment(
     );
   }
   // ใบที่ล้มเพราะที่อยู่ไม่ผ่าน — ร้านแก้แล้วกดลองใหม่ได้ในที่เดียว
-  // ต้องอัปเดต snapshot ของใบเดิมด้วย ไม่งั้นจะยิงค่าที่อยู่ชุดเก่าซ้ำแล้วล้มเหมือนเดิม
   if (receiverPatch) {
     await applyReceiverPatch(shopId, existing.orderId, receiverPatch);
-    const order = await prisma.order.findFirstOrThrow({
-      where: { id: existing.orderId, shopId },
-      select: { buyerName: true, buyerContact: true, shippingAddress: true },
-    });
+  }
+
+  // อ่านที่อยู่จากออเดอร์ใหม่ "ทุกครั้ง" ที่ลองใหม่ ไม่ใช่เฉพาะตอนมี receiverPatch แนบมา
+  //
+  // เหตุผล: ออเดอร์คือแหล่งความจริงของที่อยู่ (ดู applyReceiverPatch) ส่วน snapshot มีไว้
+  // บันทึกว่า "ยิงอะไรออกไป" — พอลองใหม่ = กำลังจะยิงใหม่ ค่าที่ถูกต้องคือค่าปัจจุบันของออเดอร์
+  //
+  // เคสจริง prod 2026-08-06 (DP256908869471CB): ร้านแก้ที่อยู่ที่สะกดผิดผ่านฟอร์มสร้างพัสดุ
+  // → createShipment เขียนที่อยู่ใหม่ลงออเดอร์แล้วเด้งมา retry โดยไม่ส่ง receiverPatch ต่อ
+  // → เงื่อนไขเดิมข้ามการอัปเดต snapshot → ยิงที่อยู่ชุดเก่าซ้ำ ล้มด้วยข้อความเดิมทุกครั้ง
+  // ร้านติดลูปแก้เท่าไรก็ไม่มีผล เพราะสิ่งที่ส่งออกไปไม่เคยเปลี่ยน
+  const order = await prisma.order.findFirstOrThrow({
+    where: { id: existing.orderId, shopId },
+    select: { buyerName: true, buyerContact: true, shippingAddress: true },
+  });
+  await prisma.orderShipment.update({
+    where: { id: shipmentId },
+    data: {
+      receiverSnapshot: {
+        name: order.buyerName,
+        phone: order.buyerContact,
+        ...((order.shippingAddress as DeepAddress | null) ?? {}),
+      } as object,
+    },
+  });
+
+  // ค่าพัสดุที่ร้านกรอกใหม่มาพร้อมการลองใหม่ — เขียนทับ "เฉพาะช่องที่ส่งมา"
+  // ห้าม fallback ไปค่าตั้งต้นของร้านสำหรับช่องที่ไม่ได้ส่ง เพราะใบนี้อาจถูกเปิดด้วยค่าที่
+  // ไม่ใช่ค่าตั้งต้นมาตั้งแต่แรก การเติมค่าตั้งต้นจะเป็นการแอบเปลี่ยนสิ่งที่ร้านไม่ได้แตะ
+  if (override) {
+    const merged = {
+      courierCode: override.courierCode ?? existing.courierCode,
+      categoryId: override.categoryId ?? existing.categoryId,
+      weight: override.weight ?? (existing.weight == null ? null : Number(existing.weight)),
+      width: override.width ?? existing.width,
+      length: override.length ?? existing.length,
+      height: override.height ?? existing.height,
+    };
+    const missing = findMissingParcelFields(merged);
+    if (missing.length > 0) {
+      throw new IShipServiceError(
+        "INCOMPLETE_DATA",
+        `ยังตั้งค่าพัสดุไม่ครบ — ขาด ${missing.join(", ")} (ตั้งได้ที่หน้าตั้งค่าการจัดส่ง)`,
+        missing,
+      );
+    }
+    const snapshot = (existing.optionsSnapshot ?? {}) as Record<string, unknown>;
     await prisma.orderShipment.update({
       where: { id: shipmentId },
       data: {
-        receiverSnapshot: {
-          name: order.buyerName,
-          phone: order.buyerContact,
-          ...((order.shippingAddress as DeepAddress | null) ?? {}),
+        ...merged,
+        // ชื่อขนส่งต้องตามรหัสที่เปลี่ยน ไม่งั้นจอจะโชว์ชื่อเจ้าเก่าคู่กับพัสดุของเจ้าใหม่
+        ...(merged.courierCode !== existing.courierCode
+          ? { courierName: await resolveCourierName(shopId, merged.courierCode) }
+          : {}),
+        ...(override.codAmount !== undefined ? { codAmount: override.codAmount } : {}),
+        optionsSnapshot: {
+          ...snapshot,
+          ...(override.options ?? {}),
+          ...(override.remark !== undefined ? { remark: override.remark } : {}),
         } as object,
       },
     });
