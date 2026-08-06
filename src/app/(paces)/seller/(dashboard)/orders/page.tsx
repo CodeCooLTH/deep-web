@@ -109,6 +109,46 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   })
   const fbPageAvatar = fbChannels.length === 1 ? fbChannels[0].avatarUrl : null
 
+  // ห้องแชทของแต่ละออเดอร์ (ปุ่ม "เปิดแชท" บนแถบหัว — user สั่ง 2026-08-06)
+  // Order ไม่มี FK ไปห้องแชท → ต่อผ่านลูกค้า 2 เส้น: ExternalContact (แชทจากเพจ) และ
+  // buyerUserId (แชทในระบบ) · ยิงเป็นชุดเดียวด้วย `in` ไม่วนต่อแถว
+  const customerIds = [...new Set(rawOrders.map((o: any) => o.customerId).filter(Boolean))] as string[]
+  const buyerUserIds = [...new Set(rawOrders.map((o: any) => o.buyerUserId).filter(Boolean))] as string[]
+  const convRows =
+    customerIds.length > 0 || buyerUserIds.length > 0
+      ? await prisma.conversation.findMany({
+          where: {
+            shopId: shop.id,
+            OR: [
+              ...(customerIds.length > 0
+                ? [{ externalContact: { customerId: { in: customerIds } } }]
+                : []),
+              ...(buyerUserIds.length > 0 ? [{ buyerUserId: { in: buyerUserIds } }] : []),
+            ],
+          },
+          select: { id: true, buyerUserId: true, externalContactId: true },
+          orderBy: { lastMessageAt: 'desc' },
+        })
+      : []
+  // ห้องล่าสุดชนะเมื่อมีหลายห้องต่อลูกค้าหนึ่งคน (orderBy updatedAt desc + ไม่เขียนทับคีย์เดิม)
+  const convByCustomer = new Map<string, string>()
+  const convByBuyer = new Map<string, string>()
+  // ต้องรู้ว่า ExternalContact ใบไหนผูกกับลูกค้าคนไหน — query แยกเพราะ relation filter
+  // ข้างบนกรองได้แต่ select ผ่าน relation ไม่ได้ในคำสั่งเดียว
+  const contactRows =
+    convRows.length > 0
+      ? await prisma.externalContact.findMany({
+          where: { id: { in: convRows.map((c) => c.externalContactId).filter(Boolean) as string[] } },
+          select: { id: true, customerId: true },
+        })
+      : []
+  const customerByContact = new Map(contactRows.map((r) => [r.id, r.customerId]))
+  for (const c of convRows) {
+    const cid = c.externalContactId ? customerByContact.get(c.externalContactId) : null
+    if (cid && !convByCustomer.has(cid)) convByCustomer.set(cid, c.id)
+    if (c.buyerUserId && !convByBuyer.has(c.buyerUserId)) convByBuyer.set(c.buyerUserId, c.id)
+  }
+
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
     sourceLogoUrl: o.salesChannel === 'FACEBOOK' ? fbPageAvatar : null,
     // เลขพัสดุมาได้ 2 ทางและเก็บคนละตาราง — ต้องอ่านทั้งคู่ ไม่งั้นออเดอร์ที่ร้าน "ส่งเอง"
@@ -177,6 +217,10 @@ export default async function OrdersPage({ searchParams }: PageProps) {
       return Object.values(shape).some(Boolean) ? shape : null
     })(),
     codReceivedAtISO: o.codReceivedAt ? new Date(o.codReceivedAt).toISOString() : null,
+    conversationId:
+      (o.customerId ? convByCustomer.get(o.customerId) : undefined) ??
+      (o.buyerUserId ? convByBuyer.get(o.buyerUserId) : undefined) ??
+      null,
     paymentMethod: o.paymentMethod ?? null,
     // F2: map OrderItem → OrderItemRow; imageUrl = /api/files/{images[0]} ถ้า product มีรูป
     // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary

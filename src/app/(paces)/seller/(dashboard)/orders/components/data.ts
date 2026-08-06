@@ -103,6 +103,14 @@ export type OrderRow = {
     province: string | null
     postcode: string | null
   } | null
+  /**
+   * ห้องแชทของลูกค้ารายนี้ (null = ไม่มี/หาไม่เจอ) — ใช้ทำปุ่ม "เปิดแชท" บนแถบหัว
+   *
+   * Order ไม่ได้เก็บว่ามาจากห้องไหนโดยตรง (ไม่มี FK) — resolve ที่ server ผ่าน
+   * Order.customerId → ExternalContact.customerId → Conversation หรือทาง
+   * Order.buyerUserId → Conversation.buyerUserId สำหรับแชทในระบบ
+   */
+  conversationId: string | null
   /** ร้านได้รับเงินเก็บปลายทางแล้วเมื่อไร (null = ยังไม่ได้รับ) — ใช้ทำเช็กลิสต์สถานะ */
   codReceivedAtISO: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */

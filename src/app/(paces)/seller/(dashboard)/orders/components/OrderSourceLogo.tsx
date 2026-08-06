@@ -27,11 +27,12 @@ interface Props {
   /** STOREFRONT | FACEBOOK | LINE | TIKTOK | OTHER | null */
   channel: string | null
   /** sm = แถวตาราง (32px) · lg = หัวหน้า order detail (48px — user 2026-08-06) */
-  size?: 'sm' | 'lg'
+  size?: 'xs' | 'sm' | 'lg'
   className?: string
 }
 
 const SIZE = {
+  xs: { avatar: 'size-6', badge: 'size-3', icon: 'text-sm' },
   sm: { avatar: 'size-8', badge: 'size-3.5', icon: 'text-base' },
   lg: { avatar: 'size-12', badge: 'size-4.5', icon: 'text-xl' },
 } as const

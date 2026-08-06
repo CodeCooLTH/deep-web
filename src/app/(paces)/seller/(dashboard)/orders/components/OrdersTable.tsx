@@ -230,13 +230,13 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
               <Image
                 src={it.imageUrl}
                 alt={it.name}
-                width={44}
-                height={44}
-                className="size-11 shrink-0 rounded-lg object-cover"
+                width={56}
+                height={56}
+                className="size-14 shrink-0 rounded-lg object-cover"
               />
             ) : (
-              <span className="bg-default-100 text-default-400 flex size-11 shrink-0 items-center justify-center rounded-lg">
-                <Icon icon="package" className="text-lg" />
+              <span className="bg-default-100 text-default-400 flex size-14 shrink-0 items-center justify-center rounded-lg">
+                <Icon icon="package" className="text-xl" />
               </span>
             )}
             <div className="min-w-0">
@@ -622,43 +622,64 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
         table={table}
         emptyMessage="ไม่พบออเดอร์"
         groupRow={(row) => (
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <input
-              type="checkbox"
-              className="form-checkbox form-checkbox-light size-4.5"
-              checked={row.getIsSelected()}
-              onChange={row.getToggleSelectedHandler()}
-              aria-label="เลือกออเดอร์นี้"
-            />
-            {/* ลำดับตามที่ user สั่ง: [รูปเพจ+badge แพลตฟอร์ม] [เลขออเดอร์] [คัดลอก] … [วันที่] */}
-            <OrderSourceLogo
-              logoUrl={row.original.sourceLogoUrl ?? null}
-              channel={row.original.salesChannel}
-            />
-            <Link
-              href={`/orders/${row.original.publicToken}`}
-              className="text-sm font-bold tabular-nums text-primary hover:underline"
-            >
-              {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
-            </Link>
-            {/* คัดลอก "เลขออเดอร์" ไม่ใช่ลิงก์ — ลิงก์ผู้ซื้อมีปุ่มของตัวเองในชุดดำเนินการแล้ว */}
-            <CopyLinkButton
-              value={formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
-              label="คัดลอกเลขออเดอร์"
-              successMessage="คัดลอกเลขออเดอร์แล้ว"
-              iconOnly
-              className="btn-sm border-none bg-transparent text-default-400 hover:bg-default-200 hover:text-default-800"
-            />
-            {row.original.isFromAuction && (
-              <span className="badge bg-warning/15 text-warning-ink inline-flex items-center gap-0.5" title="จากการประมูล">
-                <Icon icon="gavel" className="size-3" />
-                ประมูล
-              </span>
-            )}
-            <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-default-500">
-              <Icon icon="calendar" className="text-sm" aria-hidden="true" />
-              {formatDateTime(row.original.createdAtISO)}
+          /* w-11 = ความกว้างคอลัมน์ checkbox เป๊ะ ๆ (วัดจริงบน prod = 44px) — ทำให้ขอบซ้าย
+             ของโลโก้เพจตรงแนวกับรูปสินค้าในแถวล่างพอดี (user สั่ง 2026-08-06)
+             ต้องเป็นกล่องแยกที่ไม่มี gap ตามหลัง ไม่ใช่ item ธรรมดาใน flex gap-x เพราะ
+             gap จะบวกเพิ่มแล้วเลยแนวไป */
+          <div className="flex items-center">
+            <span className="flex w-11 shrink-0 items-center">
+              <input
+                type="checkbox"
+                className="form-checkbox form-checkbox-light size-4.5"
+                checked={row.getIsSelected()}
+                onChange={row.getToggleSelectedHandler()}
+                aria-label="เลือกออเดอร์นี้"
+              />
             </span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
+              {/* ลำดับตามที่ user สั่ง: [รูปเพจ+badge แพลตฟอร์ม] [เลขออเดอร์] [คัดลอก] … */}
+              <OrderSourceLogo
+                logoUrl={row.original.sourceLogoUrl ?? null}
+                channel={row.original.salesChannel}
+                size="xs"
+              />
+              <Link
+                href={`/orders/${row.original.publicToken}`}
+                className="text-sm font-bold tabular-nums text-primary hover:underline"
+              >
+                {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+              </Link>
+              {/* คัดลอก "เลขออเดอร์" ไม่ใช่ลิงก์ — ลิงก์ผู้ซื้อมีปุ่มของตัวเองในชุดดำเนินการแล้ว */}
+              <CopyLinkButton
+                value={formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+                label="คัดลอกเลขออเดอร์"
+                successMessage="คัดลอกเลขออเดอร์แล้ว"
+                iconOnly
+                className="btn-sm border-none bg-transparent text-default-400 hover:bg-default-200 hover:text-default-800"
+              />
+              {row.original.isFromAuction && (
+                <span className="badge bg-warning/15 text-warning-ink inline-flex items-center gap-0.5" title="จากการประมูล">
+                  <Icon icon="gavel" className="size-3" />
+                  ประมูล
+                </span>
+              )}
+              <span className="ms-auto inline-flex items-center gap-3">
+                {/* เปิดแชท — เฉพาะออเดอร์ที่หาห้องแชทของลูกค้าเจอ (ดู OrderRow.conversationId) */}
+                {row.original.conversationId && (
+                  <Link
+                    href={`/inbox/${row.original.conversationId}`}
+                    className="btn btn-sm bg-default-100 text-default-800 hover:bg-default-200"
+                  >
+                    <Icon icon="message-circle" className="text-sm" aria-hidden="true" />
+                    เปิดแชท
+                  </Link>
+                )}
+                <span className="inline-flex items-center gap-1.5 text-xs text-default-500">
+                  <Icon icon="calendar" className="text-sm" aria-hidden="true" />
+                  {formatDateTime(row.original.createdAtISO)}
+                </span>
+              </span>
+            </div>
           </div>
         )}
       />
