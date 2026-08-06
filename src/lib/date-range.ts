@@ -2,7 +2,7 @@
  * date-range.ts — pure date-math สำหรับ Expense & Cost Tracking (feature 00016)
  * SSOT: docs/20 - Features/00016 - Expense & Cost Tracking/SDS.md §4.0 (copy เป๊ะ)
  *
- * 🛑 Dual Boundary Design (TD-002): `Order.createdAt` เป็น timestamptz (event-time จริง) ต้อง shift
+ * [สำคัญ] Dual Boundary Design (TD-002): `Order.createdAt` เป็น timestamptz (event-time จริง) ต้อง shift
  * เข้า Thai TZ ก่อน bucket (`orderRange`) แต่ `Expense.expenseDate` เป็น TIMESTAMP(3) ที่ WRITE ถูก
  * normalize เป็น UTC-midnight-of-calendar-date เสมอ (`parseIsoDateToUtcMidnight`) — query ฝั่งนี้ต้องใช้
  * `dateOnlyUtc` (UTC midnight ไม่ shift TZ) ให้ boundary ตรงกับค่าที่เขียนพอดี ไม่ off-by-one
@@ -16,7 +16,7 @@ export interface ResolvedDateRange {
   /** สำหรับ query field timestamptz (Order.createdAt) — ต้อง shift เข้า Thai TZ ก่อน bucket */
   orderRange: { gte: Date; lt: Date }
   /** สำหรับ query field Expense.expenseDate (TIMESTAMP(3) ตาม DATABASE.md — ไม่ใช่ @db.Date)
-   *  🛑 expenseDate ต้องถูก NORMALIZE เป็น UTC-midnight-of-calendar-date เสมอตอน WRITE
+   *  [สำคัญ] expenseDate ต้องถูก NORMALIZE เป็น UTC-midnight-of-calendar-date เสมอตอน WRITE
    *  (parseIsoDateToUtcMidnight) — ห้ามเก็บ time component. boundary นี้ใช้ dateOnlyUtc (UTC midnight
    *  ไม่ shift TZ) ให้ match กับค่าที่เขียน — ถ้า write เก็บ time จะ off-by-one ทันที */
   expenseRange: { gte: Date; lt: Date }
@@ -39,7 +39,11 @@ function shiftBack(r: { gte: Date; lt: Date }): { gte: Date; lt: Date } {
   return { gte: new Date(r.gte.getTime() - span), lt: new Date(r.gte.getTime()) }
 }
 
-function thaiMidnightUtc(y: number, m0: number, d: number): Date {
+/**
+ * เที่ยงคืนของวันตามปฏิทินไทย แสดงเป็น UTC instant
+ * export ให้หน้าอื่นใช้ได้ (feature 00033 §5.3) — ห้ามให้แต่ละหน้าคำนวณ offset เอง
+ */
+export function thaiMidnightUtc(y: number, m0: number, d: number): Date {
   return new Date(Date.UTC(y, m0, d) - TZ_OFFSET_MS)
 }
 function dateOnlyUtc(y: number, m0: number, d: number): Date {

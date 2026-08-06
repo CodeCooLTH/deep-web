@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma'
 import { getOrdersByShop } from '@/services/order.service'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { requireActiveShop } from '@/lib/shop-context'
+import { thaiDayKey } from '@/lib/format-date'
 import { getConnection } from '@/services/iship.service'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -184,28 +185,25 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   }))
 
   // คำนวณ sparkline trend + changePct ต่อ status
-  // ใช้ YYYY-MM-DD string ตัด timezone ให้ consistent (server timezone = UTC ตามค่า default Next.js/Vercel)
-  const toDateStr = (iso: string) => iso.slice(0, 10) // 'YYYY-MM-DD'
+  // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ไม่ใช่ UTC (ออเดอร์ 00:00–07:00 น. เคยตกไปวันก่อนหน้า)
+  const toDateStr = (iso: string) => thaiDayKey(iso)
 
   const now = new Date()
+  const DAY_MS = 24 * 60 * 60 * 1000
 
   // หน้าต่าง trend = 30 วัน (ขยายจาก 7 วัน — ร้านออเดอร์น้อย 7 วันทำให้ sparkline โล่ง + badge แกว่ง)
   const WINDOW = 30
 
   // สร้าง array ของ 30 วันล่าสุด (index 0 = วันเก่าสุด, index 29 = วันนี้)
-  const lastDays = Array.from({ length: WINDOW }, (_, i) => {
-    const d = new Date(now)
-    d.setUTCDate(d.getUTCDate() - (WINDOW - 1 - i))
-    return d.toISOString().slice(0, 10)
-  })
+  // เดินถอยหลังทีละ 24 ชม.บน UTC instant แล้วตัดวันด้วย thaiDayKey — ห้ามใช้ setUTCDate
+  // (นั่นคือ UTC calendar day ไม่ใช่ปฏิทินไทย) ต้องเป็นคีย์รูปแบบเดียวกับ toDateStr() ด้านบน
+  const lastDays = Array.from({ length: WINDOW }, (_, i) =>
+    thaiDayKey(new Date(now.getTime() - (WINDOW - 1 - i) * DAY_MS)),
+  )
 
   // 30 วันก่อนหน้า (index 0 = วันที่ -59, index 29 = วันที่ -30) สำหรับเทียบ changePct
-  const prevStart = new Date(now)
-  prevStart.setUTCDate(prevStart.getUTCDate() - (WINDOW * 2 - 1))
-  const prevEnd = new Date(now)
-  prevEnd.setUTCDate(prevEnd.getUTCDate() - WINDOW)
-  const prevStartStr = prevStart.toISOString().slice(0, 10)
-  const prevEndStr   = prevEnd.toISOString().slice(0, 10)
+  const prevStartStr = thaiDayKey(new Date(now.getTime() - (WINDOW * 2 - 1) * DAY_MS))
+  const prevEndStr = thaiDayKey(new Date(now.getTime() - WINDOW * DAY_MS))
 
   type StatusKey = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
 

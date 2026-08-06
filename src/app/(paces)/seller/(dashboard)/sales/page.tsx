@@ -7,13 +7,15 @@
  * ข้อมูลทั้งหมดมาจาก real orders ของ shop — ไม่มี Paces demo series ใด ๆ ใน runtime.
  */
 import PageBreadcrumb from '@/components/PageBreadcrumb'
-import { formatDate } from '@/lib/format-date'
+import { formatDate, thaiDayKey } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
 import { listExpenses } from '@/services/expense.service'
 import { groupExpensesByCategory } from '@/lib/expense'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { requireActiveShop } from '@/lib/shop-context'
+// feature 00033 §5.3 — เที่ยงคืนตามปฏิทินไทย (ไม่ใช่ของ server ซึ่งเป็น UTC) ใช้ตัวเดียวกับ date-range.ts
+import { thaiMidnightUtc } from '@/lib/date-range'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -41,16 +43,17 @@ function monthRange(): { from: Date; to: Date } {
   return { from, to }
 }
 
-/** Iterate every day between from..to (inclusive) as YYYY-MM-DD strings */
-function eachDay(from: Date, to: Date): string[] {
+/**
+ * สร้างรายการวันตามปฏิทินไทย จาก from (เที่ยงคืนไทย, รวม) ถึง toExcl (เที่ยงคืนไทย, ไม่รวม)
+ * feature 00033 §5.3 — เดินทีละ 24 ชม.บน UTC instant แล้วแปลงเป็นคีย์ด้วย thaiDayKey เท่านั้น
+ * ห้ามใช้ setDate/setHours (local time ของ server = UTC บน Vercel) ไม่งั้นคีย์จะไม่ตรงกับ
+ * thaiDayKey ที่ใช้ bucket ข้อมูลด้านล่าง → กราฟกลายเป็น 0 ทั้งแถบแบบเงียบ ๆ
+ */
+function eachDay(from: Date, toExcl: Date): string[] {
+  const DAY_MS = 24 * 60 * 60 * 1000
   const days: string[] = []
-  const cur = new Date(from)
-  cur.setHours(0, 0, 0, 0)
-  const end = new Date(to)
-  end.setHours(23, 59, 59, 999)
-  while (cur.getTime() <= end.getTime()) {
-    days.push(cur.toISOString().slice(0, 10))
-    cur.setDate(cur.getDate() + 1)
+  for (let t = from.getTime(); t < toExcl.getTime(); t += DAY_MS) {
+    days.push(thaiDayKey(new Date(t)))
   }
   return days
 }
@@ -71,9 +74,13 @@ export default async function SalesPage({
   const shop = active.shop
 
   const { from: defFrom, to: defTo } = monthRange()
-  const from = parseDate(fromStr, defFrom)
-  const to = parseDate(toStr, defTo)
-  to.setHours(23, 59, 59, 999)
+  const fromLocal = parseDate(fromStr, defFrom)
+  const toLocal = parseDate(toStr, defTo)
+  // feature 00033 §5.3 — ขอบวันต้องเป็นเที่ยงคืน "เวลาไทย" ไม่ใช่ของ server (ซึ่งเป็น UTC บน Vercel)
+  // เดิม to.setHours(23,59,59,999) = 23:59 UTC = 06:59 น. ของวันถัดไปตามเวลาไทย
+  // → ออเดอร์เช้ามืดของวันถัดไปถูกนับเข้าช่วงนี้ ส่วนออเดอร์เที่ยงคืนถึงเช้าของวันแรกหลุดออก
+  const from = thaiMidnightUtc(fromLocal.getFullYear(), fromLocal.getMonth(), fromLocal.getDate())
+  const toExcl = thaiMidnightUtc(toLocal.getFullYear(), toLocal.getMonth(), toLocal.getDate() + 1)
 
   /**
    * ค่าใช้จ่าย (feature 00016) มี gate สิทธิ์ของตัวเอง — หน้านี้ไม่มี. ไม่ผ่าน gate = ไม่ query
@@ -89,7 +96,7 @@ export default async function SalesPage({
    * getOrdersByShop ดึงออเดอร์ทั้งหมดอยู่แล้วแล้วค่อยกรองในหน่วยความจำ → คิดช่วงก่อนหน้าได้ฟรี
    * ไม่มี query เพิ่ม ส่วนค่าใช้จ่ายแค่ขยายช่วงของ query เดิมให้คลุมทั้งสองช่วง
    */
-  const spanMs = to.getTime() - from.getTime()
+  const spanMs = toExcl.getTime() - from.getTime()
   const prevFrom = new Date(from.getTime() - spanMs)
 
   const [allOrders, expensesInRange] = await Promise.all([
@@ -98,10 +105,11 @@ export default async function SalesPage({
       ? // expenseDate เก็บเป็น UTC-midnight ของวันตามปฏิทิน (ไม่ shift TZ) — boundary จึงต่างจาก
         // order.createdAt ที่เป็น timestamptz. ดู "Dual Boundary Design" ใน src/lib/date-range.ts
         // ดึงคลุมช่วงก่อนหน้าด้วย (ยาวเท่ากัน ต่อเนื่องกัน) เพื่อคิด %เปลี่ยนแปลง — ยังเป็น query เดียว
+        // ใช้ fromLocal/toLocal (ปฏิทินดิบ ไม่ shift) ไม่ใช่ from/toExcl (shift เข้าเที่ยงคืนไทยแล้ว)
         listExpenses(shop.id, {
           range: {
-            gte: new Date(Date.UTC(from.getFullYear(), from.getMonth(), from.getDate()) - spanMs),
-            lt: new Date(Date.UTC(to.getFullYear(), to.getMonth(), to.getDate() + 1)),
+            gte: new Date(Date.UTC(fromLocal.getFullYear(), fromLocal.getMonth(), fromLocal.getDate()) - spanMs),
+            lt: new Date(Date.UTC(toLocal.getFullYear(), toLocal.getMonth(), toLocal.getDate() + 1)),
           },
         })
       : Promise.resolve([]),
@@ -112,7 +120,7 @@ export default async function SalesPage({
 
   const inRange = allOrders.filter((o: OrderItem) => {
     const t = new Date(o.createdAt).getTime()
-    return t >= from.getTime() && t <= to.getTime()
+    return t >= from.getTime() && t < toExcl.getTime()
   })
   const inPrevRange = allOrders.filter((o: OrderItem) => {
     const t = new Date(o.createdAt).getTime()
@@ -144,7 +152,9 @@ export default async function SalesPage({
   const cogsPerDay: Record<string, number> = {}
 
   for (const o of inRange) {
-    const day = new Date(o.createdAt).toISOString().slice(0, 10)
+    // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ต้องเป็นคีย์รูปแบบเดียวกับที่ eachDay() สร้าง
+    // ไม่งั้นค่าใน map นี้จะไม่ตรงกับวันที่ eachDay ไล่มา แล้วกราฟกลายเป็น 0 ทั้งแถบโดยไม่มี error
+    const day = thaiDayKey(o.createdAt)
     ordersPerDay[day] = (ordersPerDay[day] ?? 0) + 1
     if (o.status === 'CONFIRMED') {
       completedPerDay[day] = (completedPerDay[day] ?? 0) + 1
@@ -167,12 +177,15 @@ export default async function SalesPage({
     const t = new Date(e.expenseDate).getTime()
     if (t < from.getTime()) { prevExpenseTotal += Number(e.amount); continue }  // ช่วงก่อนหน้า
     currentExpenses.push(e)
+    // ข้อยกเว้นที่ตั้งใจ (feature 00033 §5.3 step 5): expenseDate ถูก normalize เป็น
+    // UTC-midnight-of-calendar-date ตอน WRITE อยู่แล้ว (Dual Boundary Design, date-range.ts) —
+    // ไม่ใช่ event-time ที่ต้อง shift เข้า thai TZ เหมือน order.createdAt ห้ามเปลี่ยนเป็น thaiDayKey
     const day = new Date(e.expenseDate).toISOString().slice(0, 10)
     expensePerDay[day] = (expensePerDay[day] ?? 0) + Number(e.amount)
   }
 
   // Zero-fill every day in range
-  const days = eachDay(from, to)
+  const days = eachDay(from, toExcl)
   const daily: DailyRow[] = days.map((date) => {
     const orders = ordersPerDay[date] ?? 0
     const completed = completedPerDay[date] ?? 0
@@ -229,7 +242,8 @@ export default async function SalesPage({
       {/* เลิกใช้ single-card ครอบทั้งหน้า — SalesChart render การ์ดสรุปแยกใบเองแล้ว (แบบหน้าสินค้า)
           ถ้ายังครอบอยู่จะกลายเป็นการ์ดซ้อนการ์ด ซึ่ง DESIGN.md §anti-slop ห้าม */}
       <div className="mb-1.25 flex flex-wrap items-center justify-end gap-3">
-        <SalesDateRange from={from.toISOString().slice(0, 10)} to={to.toISOString().slice(0, 10)} />
+        {/* ใช้ fromLocal/toLocal (วันที่ตามที่เลือกจริง ไม่ shift) — from/toExcl ใช้เฉพาะกรอง order เท่านั้น */}
+        <SalesDateRange from={thaiDayKey(fromLocal)} to={thaiDayKey(toLocal)} />
       </div>
 
       <SalesChart daily={daily} summary={summary} />
