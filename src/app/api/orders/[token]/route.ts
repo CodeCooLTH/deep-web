@@ -37,7 +37,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const order = await prisma.order.findFirst({
     where: { publicToken: token, shopId: ctx.shopId },
     select: {
-      publicToken: true, status: true, type: true,
+      publicToken: true, status: true, type: true, createdAt: true,
       buyerName: true, buyerContact: true, paymentMethod: true, salesChannel: true,
       internalNote: true, discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
       items: { select: { productId: true, name: true, description: true, qty: true, price: true } },
@@ -50,6 +50,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       token: order.publicToken,
       status: order.status,
       type: order.type,
+      // feature 00033 — วันที่สั่งซื้อเดิม ให้หน้าแก้ไขโหลดเข้าฟอร์ม (select เพิ่มด้านบนแล้ว
+      // แต่ response เดิมสร้างจาก object literal ไม่ spread จึงต้องแปะ field นี้ด้วย ไม่งั้นไม่ถึง client)
+      createdAt: order.createdAt,
       buyerName: order.buyerName,
       buyerContact: order.buyerContact,
       paymentMethod: order.paymentMethod,

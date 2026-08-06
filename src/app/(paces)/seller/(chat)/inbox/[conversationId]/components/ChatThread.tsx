@@ -986,6 +986,8 @@ export default function ChatThread({
             channel,
             customerAvatar: buyerAvatar,
             prefillText: m.body!,
+            // feature 00033 — เวลาของข้อความนี้ ใช้เป็นวันที่สั่งซื้อ (ตัดสินอยู่ในหน้าต่าง/เก่าเกินที่ DraftOrderProvider)
+            messageCreatedAt: new Date(m.createdAt).toISOString(),
           }),
       })
     }
@@ -1804,6 +1806,8 @@ export default function ChatThread({
                               channel,
                               customerAvatar: buyerAvatar,
                               prefillText: m.body!,
+                              // feature 00033 — เวลาของข้อความนี้ ใช้เป็นวันที่สั่งซื้อ
+                              messageCreatedAt: new Date(m.createdAt).toISOString(),
                             })
                           }
                         />
