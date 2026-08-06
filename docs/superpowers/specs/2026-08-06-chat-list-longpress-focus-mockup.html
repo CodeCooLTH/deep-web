@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>กดค้างบนแถวรายการแชท = แผงลัดโหมดเพ่ง — mockup 2026-08-06</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token โดยประมาณของ Paces (ของจริงใช้ตัวแปรธีม ไม่ใช่ hex ในไฟล์ UI — HR7)
+      ไฟล์นี้เป็น mockup แบบ standalone จึงต้องปักค่าไว้เองเพื่อให้เปิดดูได้โดยไม่ต้องรันแอป ── */
+:root{
+  --primary:#236dc9;            /* Paces primary — น้ำเงิน (ม่วง #7367F0 = ของ buyer/Vuexy เท่านั้น) */
+  --primary-soft:rgba(35,109,201,.10);
+  --success:#28c76f;            /* Verified-Means-Green */
+  --warning:#ff9f43;
+  --danger:#ea5455;
+  --card:#fff;
+  --body:#f4f6fa;
+  --d900:#2f3349; --d800:#4b5675; --d700:#7b8299; --d600:#9aa1b4;
+  --d300:#e4e6ed; --d200:#eef0f5; --d100:#f5f6fa;
+  --radius:.5rem;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--body);color:var(--d900);font-family:'Anuphan',sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1400px;margin:0 auto;padding:32px 20px 64px}
+h1{font-size:22px;font-weight:700;margin:0 0 6px}
+.sub{color:var(--d700);font-size:14px;margin:0 0 4px;line-height:1.7}
+.sub code{background:var(--d200);border-radius:4px;padding:1px 5px;font-size:12px}
+.frames{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin-top:28px}
+.frame{background:var(--card);border:1px solid var(--d300);border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(47,51,73,.08)}
+.frame-cap{font-size:12px;font-weight:600;color:var(--d800);padding:8px 12px;background:var(--d100);border-bottom:1px solid var(--d300);display:flex;justify-content:space-between;gap:12px}
+.frame-cap span{color:var(--d700);font-weight:400}
+.screen{position:relative;overflow:hidden;background:var(--card)}
+.m{width:390px;height:720px}
+.t{width:768px;height:720px}
+.dk{width:520px;height:720px}
+
+/* ── หัวรายการ ── */
+.topbar{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px dashed var(--d300)}
+.topbar .title{font-weight:600;font-size:15px}
+.tabs{display:flex;gap:4px;padding:0 14px 10px;border-bottom:1px dashed var(--d300)}
+.tab{font-size:13px;padding:6px 12px;border-radius:999px;color:var(--d700)}
+.tab.on{background:var(--primary-soft);color:var(--primary);font-weight:600}
+.count{font-size:11px;background:var(--primary);color:#fff;border-radius:999px;padding:1px 6px;margin-inline-start:6px}
+
+/* ── แถวแชท ── */
+.list{display:flex;flex-direction:column}
+.row{display:flex;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px dashed var(--d300);border-inline-start:2px solid transparent;background:var(--card)}
+.row.pin{border-inline-start-color:var(--warning);background:rgba(244,246,250,.6)}
+.row.active{border-inline-start-color:var(--primary);background:var(--primary-soft)}
+.ava{position:relative;width:42px;height:42px;border-radius:999px;background:var(--d200);color:var(--d800);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex:none}
+.ava .ch{position:absolute;inset-inline-end:-2px;bottom:-2px;width:17px;height:17px;border-radius:999px;background:#1877f2;border:2px solid #fff}
+.meta{min-width:0;flex:1}
+.nm{font-weight:600;font-size:14px;display:flex;align-items:center;gap:5px}
+.pv{color:var(--d700);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.chips{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+.chip{font-size:10.5px;border-radius:4px;padding:1px 6px;background:var(--d200);color:var(--d800)}
+.chip.ok{background:rgba(40,199,111,.14);color:#1f9d57}
+.chip.pr{background:var(--primary-soft);color:var(--primary)}
+.side{text-align:end;flex:none}
+.tm{font-size:11px;color:var(--d700)}
+.unread{display:inline-block;margin-top:6px;font-size:11px;font-weight:600;background:var(--primary);color:#fff;border-radius:999px;padding:1px 7px}
+.star{color:var(--warning);font-size:12px}
+
+/* ── โหมดเพ่ง ── */
+.overlay{position:absolute;inset:0;z-index:80}
+.scrim{position:absolute;inset:0;background:rgba(47,51,73,.40);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.lifted{position:absolute;background:var(--card);border:1px solid var(--d300);border-radius:var(--radius);box-shadow:0 12px 28px rgba(47,51,73,.22);overflow:hidden}
+.lifted .row{border-bottom:0}
+
+/* ── แผงลัด ── */
+.panel{position:absolute;width:208px;max-height:384px;overflow:auto;background:var(--card);border:1px solid var(--d300);border-radius:var(--radius);box-shadow:0 12px 28px rgba(47,51,73,.22);padding:4px 0}
+.item{display:flex;align-items:center;gap:10px;padding:0 12px;min-height:44px;font-size:13.5px;color:var(--d800)}
+.item:hover{background:var(--d100)}
+.item.desk{min-height:34px}          /* เดสก์ท็อป (คลิกขวา) คงความหนาแน่นเดิม ไม่ดันเป็น 44px */
+.item .ic{width:16px;height:16px;flex:none;color:var(--d700)}
+.sec{font-size:10.5px;font-weight:600;color:var(--d700);padding:8px 12px 4px}
+.hr{height:1px;background:var(--d300);margin:4px 0;border:0}
+.tagline{display:flex;gap:4px;flex-wrap:wrap;padding:0 12px 6px}
+.tag{font-size:10.5px;background:var(--primary-soft);color:var(--primary);border-radius:4px;padding:1px 6px;display:inline-flex;gap:4px;align-items:center}
+.taginput{margin:2px 12px 8px;border:1px solid var(--d300);border-radius:6px;padding:7px 9px;font-size:12px;color:var(--d600)}
+.check{color:var(--success)}
+.muted{font-size:10.5px;color:var(--d700);padding:0 12px 6px}
+
+/* ป้ายอธิบายในภาพ */
+.note{position:absolute;z-index:90;font-size:11px;font-weight:600;color:#fff;background:var(--d900);border-radius:6px;padding:4px 8px;box-shadow:0 4px 10px rgba(0,0,0,.25)}
+.note::after{content:'';position:absolute;width:0;height:0}
+.legend{margin-top:26px;font-size:13px;color:var(--d800);line-height:1.9}
+.legend b{color:var(--d900)}
+.legend ol{margin:8px 0 0;padding-inline-start:20px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>กดค้างบนแถวรายการแชท → แผงลัดโหมดเพ่ง</h1>
+  <p class="sub">ของจริงที่ขึ้น prod แล้ว <code>c8b44759</code> — <code>InboxList.tsx</code> + <code>ChatContextMenu.tsx</code> (anchor <code>row</code>) ภาพนี้วาดตามค่าที่ใช้จริง: เมนูกว้าง <code>w-52</code> (208px) สูงสุด <code>max-h-96</code> ฉากเบลอ <code>bg-default-900/40 backdrop-blur-sm</code> ระยะแถว↔เมนู 12px กันชนขอบจอ 8px</p>
+  <p class="sub">ทั้ง 3 จอใช้ <b>แผงเดียวกัน</b> ต่างกันแค่ทางเข้าและการวาง: มือถือ/แท็บเล็ต = กดค้าง → เบลอ+ยกแถว · เดสก์ท็อป = คลิกขวา → เมนูเกาะเคอร์เซอร์ ไม่เบลอ (เมาส์ยังต้องใช้รายการรอบ ๆ ได้)</p>
+
+  <div class="frames">
+
+    <!-- ═══════════ MOBILE 390 — กดค้าง (เมนูอยู่ "ใต้" แถว) ═══════════ -->
+    <div class="frame">
+      <div class="frame-cap">Mobile · 390×720 <span>กดค้างแถวบน → เมนูกางใต้แถว</span></div>
+      <div class="screen m">
+        <div class="topbar"><div class="title">กล่องข้อความ</div></div>
+        <div class="tabs"><div class="tab on">ข้อความ<span class="count">7</span></div><div class="tab">ความคิดเห็น</div></div>
+        <div class="list">
+          <div class="row pin" id="m-target">
+            <div class="ava">SO<span class="ch"></span></div>
+            <div class="meta">
+              <div class="nm"><span class="star">★</span>Sekson Oonnom</div>
+              <div class="pv">ดีจ้า สนใจตัวนี้ครับ ยังมีของไหม</div>
+              <div class="chips"><span class="chip ok">สนใจ</span><span class="chip">ลูกค้าเก่า</span></div>
+            </div>
+            <div class="side"><div class="tm">21:45</div><span class="unread">2</span></div>
+          </div>
+          <div class="row"><div class="ava">ณฐ<span class="ch"></span></div><div class="meta"><div class="nm">ณัฐพล ทองดี</div><div class="pv">ส่งเลขพัสดุให้หน่อยครับ</div></div><div class="side"><div class="tm">21:02</div></div></div>
+          <div class="row"><div class="ava">ปว<span class="ch"></span></div><div class="meta"><div class="nm">ปวีณา แสงทอง</div><div class="pv">โอนแล้วนะคะ</div><div class="chips"><span class="chip pr">ร้านหลัก</span></div></div><div class="side"><div class="tm">20:31</div></div></div>
+          <div class="row"><div class="ava">TK</div><div class="meta"><div class="nm">Thanakit W.</div><div class="pv">รบกวนเช็คสต็อกให้หน่อยครับ</div></div><div class="side"><div class="tm">19:58</div></div></div>
+          <div class="row"><div class="ava">มน<span class="ch"></span></div><div class="meta"><div class="nm">มนัสนันท์ ก.</div><div class="pv">ขอบคุณค่ะ</div></div><div class="side"><div class="tm">18:20</div></div></div>
+          <div class="row"><div class="ava">อธ<span class="ch"></span></div><div class="meta"><div class="nm">อธิชา พรม</div><div class="pv">พรุ่งนี้รับของได้ไหมคะ</div></div><div class="side"><div class="tm">17:44</div></div></div>
+        </div>
+
+        <!-- โหมดเพ่ง -->
+        <div class="overlay">
+          <div class="scrim"></div>
+          <!-- แถวที่กด: โคลนวางทับตำแหน่งเดิมเป๊ะ ไม่ซูม (แถวกว้างเต็มจอ ซูมแล้วขอบล้นออกนอกจอ) -->
+          <div class="lifted" style="top:88px;left:0;width:390px">
+            <div class="row pin">
+              <div class="ava">SO<span class="ch"></span></div>
+              <div class="meta">
+                <div class="nm"><span class="star">★</span>Sekson Oonnom</div>
+                <div class="pv">ดีจ้า สนใจตัวนี้ครับ ยังมีของไหม</div>
+                <div class="chips"><span class="chip ok">สนใจ</span><span class="chip">ลูกค้าเก่า</span></div>
+              </div>
+              <div class="side"><div class="tm">21:45</div><span class="unread">2</span></div>
+            </div>
+          </div>
+          <div class="note" style="top:96px;left:214px">แถวที่กดค้าง — ยกลอยไว้ที่เดิม</div>
+
+          <!-- เมนู: ใต้แถว 12px ชิดขอบซ้ายเดียวกับแถว -->
+          <div class="panel" style="top:196px;left:8px">
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/></svg>เลิกปักหมุด</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>ปิดงาน</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M16.7 16.7A9.5 9.5 0 0 1 12 18c-5 0-9-6-9-6a16 16 0 0 1 4.3-4.7m3.4-1.1A9.5 9.5 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-1.9 2.6"/><path d="m3 3 18 18"/></svg>ซ่อน</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8.7 3h6.6L21 8.7v6.6L15.3 21H8.7L3 15.3V8.7z"/><path d="M12 8v4m0 4h.01"/></svg>ย้ายเข้าสแปม</div>
+            <hr class="hr">
+            <div class="sec">สถานะการขาย</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0"><path d="m5 12 5 5L20 7"/></svg>ยังไม่ระบุ</div>
+            <div class="item"><svg class="ic check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 5 5L20 7"/></svg><span style="color:#1f9d57">สนใจ</span></div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0"><path d="m5 12 5 5L20 7"/></svg>ไม่สนใจ</div>
+            <hr class="hr">
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg>ปิดเสียงแชทนี้</div>
+            <hr class="hr">
+            <div class="sec">ย้ายไปกลุ่ม</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>ลูกค้าประจำ</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>รอโอน</div>
+            <div class="item" style="color:var(--d700)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m3 3 18 18"/></svg>เอาออกจากกลุ่ม</div>
+            <hr class="hr">
+            <div class="sec">แท็ก</div>
+            <div class="tagline"><span class="tag">ลูกค้าเก่า ✕</span><span class="tag">สนใจรุ่นใหม่ ✕</span></div>
+            <div class="taginput">เพิ่มแท็ก…</div>
+          </div>
+          <div class="note" style="top:206px;left:224px">แผงลัด — กางใต้แถว<br>ห่าง 12px</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ TABLET 768 — แถวอยู่ล่างจอ เมนูพลิกขึ้น "เหนือ" แถว ═══════════ -->
+    <div class="frame">
+      <div class="frame-cap">Tablet · 768×720 <span>กดค้างแถวล่างสุด → เมนูพลิกขึ้นเหนือแถว</span></div>
+      <div class="screen t">
+        <div class="topbar"><div class="title">กล่องข้อความ</div></div>
+        <div class="tabs"><div class="tab on">ข้อความ<span class="count">7</span></div><div class="tab">ความคิดเห็น</div></div>
+        <div class="list">
+          <div class="row"><div class="ava">SO<span class="ch"></span></div><div class="meta"><div class="nm">Sekson Oonnom</div><div class="pv">ดีจ้า สนใจตัวนี้ครับ ยังมีของไหม</div></div><div class="side"><div class="tm">21:45</div><span class="unread">2</span></div></div>
+          <div class="row"><div class="ava">ณฐ<span class="ch"></span></div><div class="meta"><div class="nm">ณัฐพล ทองดี</div><div class="pv">ส่งเลขพัสดุให้หน่อยครับ</div></div><div class="side"><div class="tm">21:02</div></div></div>
+          <div class="row"><div class="ava">ปว<span class="ch"></span></div><div class="meta"><div class="nm">ปวีณา แสงทอง</div><div class="pv">โอนแล้วนะคะ</div></div><div class="side"><div class="tm">20:31</div></div></div>
+          <div class="row"><div class="ava">TK</div><div class="meta"><div class="nm">Thanakit W.</div><div class="pv">รบกวนเช็คสต็อกให้หน่อยครับ</div></div><div class="side"><div class="tm">19:58</div></div></div>
+          <div class="row"><div class="ava">มน<span class="ch"></span></div><div class="meta"><div class="nm">มนัสนันท์ ก.</div><div class="pv">ขอบคุณค่ะ</div></div><div class="side"><div class="tm">18:20</div></div></div>
+          <div class="row"><div class="ava">อธ<span class="ch"></span></div><div class="meta"><div class="nm">อธิชา พรม</div><div class="pv">พรุ่งนี้รับของได้ไหมคะ</div></div><div class="side"><div class="tm">17:44</div></div></div>
+          <div class="row"><div class="ava">วร<span class="ch"></span></div><div class="meta"><div class="nm">วรรณา อินทร์</div><div class="pv">สั่ง 2 ชิ้นได้ไหมคะ</div></div><div class="side"><div class="tm">16:12</div></div></div>
+          <div class="row" id="t-target"><div class="ava">ธน<span class="ch"></span></div><div class="meta"><div class="nm">ธนกฤต ศรี</div><div class="pv">ยังไม่ได้รับของเลยครับ</div><div class="chips"><span class="chip">ติดตาม</span></div></div><div class="side"><div class="tm">15:03</div></div></div>
+        </div>
+
+        <div class="overlay">
+          <div class="scrim"></div>
+          <div class="lifted" style="top:596px;left:0;width:768px">
+            <div class="row"><div class="ava">ธน<span class="ch"></span></div><div class="meta"><div class="nm">ธนกฤต ศรี</div><div class="pv">ยังไม่ได้รับของเลยครับ</div><div class="chips"><span class="chip">ติดตาม</span></div></div><div class="side"><div class="tm">15:03</div></div></div>
+          </div>
+          <div class="note" style="top:604px;left:250px">แถวที่กดค้าง (แถวล่างสุด)</div>
+
+          <!-- ที่ใต้แถวไม่พอ → เมนูพลิกไปอยู่เหนือแถว 12px -->
+          <div class="panel" style="bottom:136px;left:8px">
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/></svg>ปักหมุด</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>ปิดงาน</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M16.7 16.7A9.5 9.5 0 0 1 12 18c-5 0-9-6-9-6a16 16 0 0 1 4.3-4.7m3.4-1.1A9.5 9.5 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-1.9 2.6"/><path d="m3 3 18 18"/></svg>ซ่อน</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8.7 3h6.6L21 8.7v6.6L15.3 21H8.7L3 15.3V8.7z"/><path d="M12 8v4m0 4h.01"/></svg>ย้ายเข้าสแปม</div>
+            <hr class="hr">
+            <div class="sec">สถานะการขาย</div>
+            <div class="item"><svg class="ic check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 5 5L20 7"/></svg>ยังไม่ระบุ</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0"><path d="m5 12 5 5L20 7"/></svg><span style="color:#1f9d57">สนใจ</span></div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0"><path d="m5 12 5 5L20 7"/></svg>ไม่สนใจ</div>
+            <hr class="hr">
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg>ปิดเสียงแชทนี้</div>
+            <div class="muted">ตอนนี้ปิดเสียงทั้งแอปอยู่ — ตั้งค่านี้จะยังไม่มีผล</div>
+            <hr class="hr">
+            <div class="sec">ย้ายไปกลุ่ม</div>
+            <div class="item"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>ลูกค้าประจำ</div>
+            <div class="item" style="color:var(--d700)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m3 3 18 18"/></svg>เอาออกจากกลุ่ม</div>
+            <hr class="hr">
+            <div class="sec">แท็ก</div>
+            <div class="taginput">เพิ่มแท็ก…</div>
+          </div>
+          <div class="note" style="bottom:150px;left:224px">ใต้แถวไม่พอ → พลิกขึ้นเหนือแถว</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ DESKTOP — คลิกขวา (ไม่เบลอ) ═══════════ -->
+    <div class="frame">
+      <div class="frame-cap">Desktop (คอลัมน์รายการใน Chat Rail) <span>คลิกขวา → เมนูเกาะเคอร์เซอร์ ไม่เบลอ</span></div>
+      <div class="screen dk">
+        <div class="topbar"><div class="title">กล่องข้อความ</div></div>
+        <div class="tabs"><div class="tab on">ข้อความ<span class="count">7</span></div><div class="tab">ความคิดเห็น</div></div>
+        <div class="list">
+          <div class="row active"><div class="ava">SO<span class="ch"></span></div><div class="meta"><div class="nm">Sekson Oonnom</div><div class="pv">ดีจ้า สนใจตัวนี้ครับ ยังมีของไหม</div></div><div class="side"><div class="tm">21:45</div></div></div>
+          <div class="row"><div class="ava">ณฐ<span class="ch"></span></div><div class="meta"><div class="nm">ณัฐพล ทองดี</div><div class="pv">ส่งเลขพัสดุให้หน่อยครับ</div></div><div class="side"><div class="tm">21:02</div></div></div>
+          <div class="row"><div class="ava">ปว<span class="ch"></span></div><div class="meta"><div class="nm">ปวีณา แสงทอง</div><div class="pv">โอนแล้วนะคะ</div></div><div class="side"><div class="tm">20:31</div></div></div>
+          <div class="row"><div class="ava">TK</div><div class="meta"><div class="nm">Thanakit W.</div><div class="pv">รบกวนเช็คสต็อกให้หน่อยครับ</div></div><div class="side"><div class="tm">19:58</div></div></div>
+          <div class="row"><div class="ava">มน<span class="ch"></span></div><div class="meta"><div class="nm">มนัสนันท์ ก.</div><div class="pv">ขอบคุณค่ะ</div></div><div class="side"><div class="tm">18:20</div></div></div>
+          <div class="row"><div class="ava">อธ<span class="ch"></span></div><div class="meta"><div class="nm">อธิชา พรม</div><div class="pv">พรุ่งนี้รับของได้ไหมคะ</div></div><div class="side"><div class="tm">17:44</div></div></div>
+        </div>
+        <!-- ไม่มี scrim: เมาส์ยังต้องเห็น/ใช้รายการรอบ ๆ ได้ และแถวก็ไม่ถูกยก -->
+        <div class="panel" style="top:214px;left:150px">
+          <div class="item desk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 17.75 5.83 21l1.18-6.88-5-4.87 6.91-1L12 2l3.08 6.26 6.91 1-5 4.87L18.17 21z"/></svg>ปักหมุด</div>
+          <div class="item desk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg>ปิดงาน</div>
+          <div class="item desk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M16.7 16.7A9.5 9.5 0 0 1 12 18c-5 0-9-6-9-6a16 16 0 0 1 4.3-4.7m3.4-1.1A9.5 9.5 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-1.9 2.6"/><path d="m3 3 18 18"/></svg>ซ่อน</div>
+          <div class="item desk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8.7 3h6.6L21 8.7v6.6L15.3 21H8.7L3 15.3V8.7z"/><path d="M12 8v4m0 4h.01"/></svg>ย้ายเข้าสแปม</div>
+          <hr class="hr">
+          <div class="sec">สถานะการขาย</div>
+          <div class="item desk"><svg class="ic check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 5 5L20 7"/></svg>ยังไม่ระบุ</div>
+          <div class="item desk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0"><path d="m5 12 5 5L20 7"/></svg><span style="color:#1f9d57">สนใจ</span></div>
+          <div class="item desk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0"><path d="m5 12 5 5L20 7"/></svg>ไม่สนใจ</div>
+          <hr class="hr">
+          <div class="item desk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/></svg>ปิดเสียงแชทนี้</div>
+          <hr class="hr">
+          <div class="sec">ย้ายไปกลุ่ม</div>
+          <div class="item desk"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>ลูกค้าประจำ</div>
+          <hr class="hr">
+          <div class="sec">แท็ก</div>
+          <div class="taginput">เพิ่มแท็ก…</div>
+        </div>
+        <div class="note" style="top:222px;left:366px">ไม่เบลอ · ไม่ยกแถว</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <b>ลำดับในแผง (บน → ล่าง)</b>
+    <ol>
+      <li>ปักหมุด / เลิกปักหมุด</li>
+      <li>ปิดงาน / เปิดบทสนทนาใหม่</li>
+      <li>ซ่อน / เลิกซ่อน</li>
+      <li>ย้ายเข้าสแปม / ไม่ใช่สแปม</li>
+      <li><b>สถานะการขาย</b> — ยังไม่ระบุ · สนใจ · ไม่สนใจ <i>(เฉพาะช่องทางนอก: FB/LINE/IG)</i></li>
+      <li>ปิดเสียงแชทนี้ / เปิดเสียงแชทนี้ (+ บรรทัดเตือนถ้าปิดเสียงทั้งแอปอยู่)</li>
+      <li><b>ย้ายไปกลุ่ม</b> — รายชื่อกลุ่ม + เอาออกจากกลุ่ม <i>(เฉพาะช่องทางนอก)</i></li>
+      <li><b>แท็ก</b> — ชิปแท็กปัจจุบัน (กด ✕ ลบ) + ช่องเพิ่มแท็ก <i>(เฉพาะช่องทางนอก)</i></li>
+    </ol>
+    เธรด DEEP (แชทในแอปเรา) เห็นเฉพาะข้อ 1–4 และ 6 — ไม่มีฟิลด์ CRM ในฐาน<br>
+    รายการที่ยาวเกิน <b>max-h-96</b> เลื่อนในแผงได้ (นี่คือเหตุผลที่ <code>touch-none</code> ต้องอยู่ที่ฉากเบลอ ไม่ใช่ที่ตัวครอบ overlay)
+  </div>
+</div>
+</body>
+</html>
