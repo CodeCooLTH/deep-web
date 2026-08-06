@@ -137,6 +137,20 @@ export const ORDER_STATUS_META: Record<
   CANCELLED: { label: 'ยกเลิก', cls: 'bg-danger/15 text-danger-ink', icon: 'circle-x', tone: 'danger' },
 }
 
+/**
+ * แถบสีซ้ายการ์ดออเดอร์บนมือถือ — คีย์เป็น "tone" ไม่ใช่ "status"
+ *
+ * เดิม OrderCard ทำ map ของตัวเองที่คีย์ตาม status ตรง ๆ ซึ่งพังทันทีที่ป้ายเริ่ม derive
+ * จากสถานะพัสดุด้วย (resolveOrderStatusBadge): ใบ COD ที่ส่งถึงแล้วจะได้ป้ายเหลือง
+ * "รอเงิน COD" แต่แถบซ้ายยังฟ้าตาม status=SHIPPED = การ์ดใบเดียวมีสองสีที่ขัดกันเอง
+ */
+export const ORDER_STATUS_TONE_BORDER: Record<OrderStatusTone, string> = {
+  warning: 'border-warning',
+  info: 'border-info',
+  success: 'border-success',
+  danger: 'border-danger',
+}
+
 // Palette tokens ตาม spec §2 — ห้ามแก้ค่าสีที่นี่โดยไม่ sync กับ mockup
 const PALETTE = {
   pend: { bg: '#FEF3E2', text: '#92400E', dot: '#D97706' },

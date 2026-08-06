@@ -148,6 +148,53 @@ export const SellerOrderCardSkeleton = () => (
 )
 
 /**
+ * SellerProductCardSkeleton — mimic การ์ดสินค้า (mobile card layout, ProductCard.tsx)
+ * ใช้ใน /seller/products/loading.tsx คู่กับ SellerTableSkeleton (mirror hidden lg:block / lg:hidden)
+ *
+ * โครงสร้าง mirror ProductCard.tsx: รูปเหลี่ยม(size-14) + 2 บรรทัด(ชื่อ+ประเภท) ซ้าย, ราคา+badge ขวา,
+ * เส้นประคั่น, แถวท้าย: ข้อความสั้น + แถวปุ่ม 3 ปุ่ม
+ */
+const ProductCard = () => (
+  <div className="card">
+    <div className="card-body space-y-2.5 !py-3 !px-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <PulseBar className="size-14 shrink-0 rounded-lg" />
+          <div className="min-w-0 space-y-1.5">
+            <PulseBar className="h-3.5 w-32" />
+            <PulseBar className="h-3 w-20" />
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <PulseBar className="h-4 w-14" />
+          <PulseBar className="h-5 w-16 rounded-full" />
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 border-t border-dashed border-default-200 pt-2.5">
+        <PulseBar className="h-3 w-24" />
+        <div className="flex items-center gap-1.5">
+          <PulseBar className="h-11 w-11 rounded-lg" />
+          <PulseBar className="h-11 w-11 rounded-lg" />
+          <PulseBar className="h-11 w-11 rounded-lg" />
+        </div>
+      </div>
+    </div>
+  </div>
+)
+
+/**
+ * SellerProductCardSkeleton — render 4 การ์ดสินค้า placeholder ใน space-y-3 (ตรงกับ ProductCard list)
+ */
+export const SellerProductCardSkeleton = () => (
+  <div className="space-y-3">
+    <span className="sr-only">กำลังโหลด...</span>
+    {Array.from({ length: 4 }).map((_, i) => (
+      <ProductCard key={i} />
+    ))}
+  </div>
+)
+
+/**
  * SellerInboxSkeleton — mimic ContactList row (feat 00011 Deep Chat, S-11)
  * ใช้ใน /inbox/loading.tsx — mirror layout หน้าจริง: card > divide-y row (avatar + 2 line + time)
  */

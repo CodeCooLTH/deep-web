@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — วันที่สั่งซื้อย้อนหลัง (00033)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── tokens: ตรงกับ (paces) จริง — primary น้ำเงิน #236dc9 ไม่ใช่ม่วง Vuexy (Hard Rule 7) ── */
+  :root{
+    --primary:#236dc9; --primary-soft:rgba(35,109,201,.12);
+    --ink:#2F2B3D; --ink-70:rgba(47,43,61,.7); --ink-40:rgba(47,43,61,.4);
+    --line:rgba(47,43,61,.12);
+    --green:#28C76F; --green-ink:#18804A; --green-soft:rgba(40,199,111,.15);
+    --amber:#FF9F43; --amber-ink:#8a4f00; --amber-soft:rgba(255,159,67,.15);
+    --bg:#f6f7fb; --card:#fff; --radius:.5rem;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:Anuphan,system-ui,sans-serif;font-size:15px;line-height:1.6}
+  .page{max-width:1400px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:24px;font-weight:700;margin:0 0 4px}
+  .sub{color:var(--ink-70);font-size:14px;margin:0 0 28px}
+  h2{font-size:17px;font-weight:600;margin:40px 0 6px;padding-top:20px;border-top:1px solid var(--line)}
+  h2 .no{color:var(--primary)}
+  .note{color:var(--ink-70);font-size:13.5px;margin:0 0 18px;max-width:74ch}
+  .frames{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .frame{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+         box-shadow:0 2px 10px rgba(47,43,61,.06)}
+  .frame > figcaption{font-size:12px;font-weight:600;color:var(--ink-70);
+         padding:8px 12px;border-bottom:1px solid var(--line);background:#fafafc;
+         display:flex;justify-content:space-between}
+  .w-mobile{width:390px} .w-tablet{width:520px} .w-desktop{width:100%;max-width:820px}
+  .pad{padding:16px}
+
+  /* ── Paces primitives ── */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
+  .card-header{padding:12px 14px;border-bottom:1px solid var(--line);font-weight:600;font-size:14.5px}
+  .card-body{padding:14px}
+  .form-label{display:block;font-size:13px;font-weight:500;color:var(--ink-70);margin-bottom:6px}
+  .form-input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius);
+              font:inherit;font-size:14.5px;color:var(--ink);background:#fff}
+  .form-input:focus{outline:2px solid var(--primary-soft);border-color:var(--primary)}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);
+       border:1px solid transparent;font:inherit;font-size:14px;font-weight:500;cursor:pointer;min-height:38px}
+  .btn-soft{background:var(--primary-soft);color:var(--primary)}
+  .btn-ghost{background:transparent;color:var(--primary);padding:7px 10px}
+  .btn-primary{background:var(--primary);color:#fff}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;
+         font-size:12.5px;font-weight:500;line-height:1.5}
+  .badge-info{background:var(--primary-soft);color:var(--primary)}
+  .badge-warn{background:var(--amber-soft);color:var(--amber-ink)}
+  .hint{font-size:12.5px;color:var(--ink-70);margin-top:6px}
+  .muted{color:var(--ink-70)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .ico{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;
+       stroke-linecap:round;stroke-linejoin:round}
+
+  /* ── สถานะของ control ── */
+  .state{border:1px dashed var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+  .state:last-child{margin-bottom:0}
+  .state-tag{font-size:11.5px;font-weight:600;letter-spacing:.02em;color:var(--ink-40);
+             text-transform:uppercase;margin-bottom:8px}
+  .dateline{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .dateline .val{display:flex;align-items:center;gap:8px;font-size:14.5px}
+  .pick{display:flex;gap:8px;align-items:center}
+  .pick .form-input{flex:1}
+
+  /* ── ชิ้นประกอบฟอร์มจำลอง (ของจริงมาจาก OrderCreateForm) ── */
+  .fake{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;
+        color:var(--ink-40);font-size:13.5px;background:#fcfcfd}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .grid2{display:grid;grid-template-columns:1.6fr 1fr;gap:16px}
+  .totals{display:flex;justify-content:space-between;font-weight:600;font-size:15px;
+          padding-top:10px;border-top:1px solid var(--line);margin-top:4px}
+  .thread{background:#f2f3f7;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .bub{max-width:82%;padding:9px 12px;border-radius:14px;font-size:14px;background:#fff;
+       border:1px solid var(--line)}
+  .bub .t{display:block;font-size:11.5px;color:var(--ink-40);margin-top:4px}
+  .bub.me{align-self:flex-end;background:var(--primary);color:#fff;border-color:transparent}
+  .bub.me .t{color:rgba(255,255,255,.75)}
+  .toast{display:flex;gap:9px;align-items:flex-start;background:#fff;border:1px solid var(--line);
+         border-left:3px solid var(--green);border-radius:var(--radius);padding:11px 13px;
+         box-shadow:0 4px 14px rgba(47,43,61,.1);font-size:14px;max-width:400px}
+  .toast .ico{color:var(--green-ink);margin-top:2px}
+  .err{border-color:var(--amber)!important}
+  .err-msg{font-size:12.5px;color:var(--amber-ink);margin-top:6px;display:flex;gap:5px;align-items:center}
+  ul.k{margin:0 0 18px;padding-left:20px;color:var(--ink-70);font-size:13.5px;max-width:78ch}
+  ul.k li{margin-bottom:3px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+       background:rgba(47,43,61,.06);padding:1px 5px;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>วันที่สั่งซื้อย้อนหลัง — Mockup</h1>
+<p class="sub">feature 00033 · 2026-08-06 · seller (paces) · คู่กับ <code>2026-08-06-backdated-order-date-design.md</code></p>
+<ul class="k">
+  <li>สี primary = <code>#236dc9</code> (น้ำเงิน Paces) — ไม่ใช่ม่วง <code>#7367F0</code> ซึ่งเป็นของ buyer/Vuexy</li>
+  <li>ไอคอนทุกตัวเป็น SVG แทน tabler icon จริง (<code>@iconify/react</code>) — ไม่มี emoji ที่ไหนเลย</li>
+  <li>วันที่ทุกจุดเป็น พ.ศ. ตาม <code>formatDateTimeTH</code> · ข้อมูลตัวอย่างเป็นทรงเดียวกับของจริง</li>
+</ul>
+
+<!-- ═══════════ 1. control 3 สถานะ ═══════════ -->
+<h2><span class="no">1.</span> ช่อง “วันที่สั่งซื้อ” — 3 สถานะ</h2>
+<p class="note">ค่าตั้งต้นยุบไว้เป็นแถวอ่านอย่างเดียว (D-7) เพราะ ~95% ของการคีย์คือ “ตอนนี้” —
+ช่องกรอกที่โผล่ตลอดเวลาเพิ่มภาระสายตาให้ทุกคนเพื่อคนส่วนน้อย</p>
+
+<div class="frames">
+  <figure class="frame w-tablet" style="margin:0">
+    <figcaption><span>สถานะของ control</span><span>ใช้ร่วมทุกจอ</span></figcaption>
+    <div class="pad">
+
+      <div class="state">
+        <div class="state-tag">A · ค่าตั้งต้น (ยุบไว้)</div>
+        <span class="form-label">วันที่สั่งซื้อ</span>
+        <div class="dateline">
+          <span class="val">
+            <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+            วันนี้ 09:12 น.
+          </span>
+          <button class="btn btn-ghost">เปลี่ยน</button>
+        </div>
+      </div>
+
+      <div class="state">
+        <div class="state-tag">B · กำลังแก้</div>
+        <span class="form-label">วันที่สั่งซื้อ</span>
+        <div class="pick">
+          <input class="form-input" type="datetime-local" value="2026-08-05T21:14">
+          <button class="btn btn-soft">ตอนนี้</button>
+        </div>
+        <p class="hint">ย้อนหลังได้ถึง 8 พ.ค. 2569 · ล่วงหน้าได้ถึง 13 ส.ค. 2569</p>
+      </div>
+
+      <div class="state">
+        <div class="state-tag">C · นอกช่วงที่ยอมรับ</div>
+        <span class="form-label">วันที่สั่งซื้อ</span>
+        <div class="pick">
+          <input class="form-input err" type="datetime-local" value="2025-08-05T21:14">
+          <button class="btn btn-soft">ตอนนี้</button>
+        </div>
+        <p class="err-msg">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+          วันที่คำสั่งซื้อต้องอยู่ระหว่าง 90 วันย้อนหลังถึง 7 วันล่วงหน้า
+        </p>
+      </div>
+
+    </div>
+  </figure>
+</div>
+
+<!-- ═══════════ 2. desktop ═══════════ -->
+<h2><span class="no">2.</span> เดสก์ท็อป POS — <code>OrderCreateForm.tsx</code></h2>
+<p class="note">แถววันที่วางอยู่ในการ์ดสรุปฝั่งขวา ต่อจากช่องทางขาย/การชำระเงิน — กลุ่มเดียวกันเชิงความหมาย
+(“ออเดอร์นี้มาจากไหน จ่ายยังไง เมื่อไหร่”) ไม่ปนกับรายการสินค้า</p>
+
+<div class="frames">
+  <figure class="frame w-desktop" style="margin:0">
+    <figcaption><span>Desktop ≥ 1024px</span><span>seller/orders/new</span></figcaption>
+    <div class="pad">
+      <div class="grid2">
+        <div class="stack">
+          <div class="fake" style="height:38px;line-height:1.3">ค้นหาสินค้า…</div>
+          <div class="card">
+            <div class="card-header">รายการสินค้า</div>
+            <div class="card-body stack">
+              <div class="row"><span>เสื้อยืดคอกลม สีดำ · ไซซ์ M</span><span>2 × ฿390</span></div>
+              <div class="row"><span>ถุงเท้าข้อสั้น (แพ็ก 3)</span><span>1 × ฿150</span></div>
+              <div class="totals"><span>ยอดรวม</span><span>฿930.00</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <div class="card-header">สรุปคำสั่งซื้อ</div>
+            <div class="card-body stack">
+              <div>
+                <span class="form-label">ช่องทางขาย</span>
+                <div class="fake">Facebook</div>
+              </div>
+              <div>
+                <span class="form-label">การชำระเงิน</span>
+                <div class="fake">โอนเงิน</div>
+              </div>
+
+              <div>
+                <span class="form-label">วันที่สั่งซื้อ</span>
+                <div class="dateline">
+                  <span class="val">
+                    <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+                    วันนี้ 09:12 น.
+                  </span>
+                  <button class="btn btn-ghost">เปลี่ยน</button>
+                </div>
+              </div>
+
+              <button class="btn btn-primary" style="justify-content:center;margin-top:4px">สร้างคำสั่งซื้อ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<!-- ═══════════ 3. mobile + tablet ═══════════ -->
+<h2><span class="no">3.</span> มือถือ &amp; แท็บเล็ต — <code>QuickForm.tsx</code></h2>
+<p class="note">layout เดียวกัน คนละความกว้าง — บนแท็บเล็ตแถววันที่มีที่พอให้ค่ากับปุ่มอยู่บรรทัดเดียวกันเสมอ
+ส่วนมือถือปุ่ม “เปลี่ยน” ยังคง tap target ≥ 44px</p>
+
+<div class="frames">
+  <figure class="frame w-mobile" style="margin:0">
+    <figcaption><span>Mobile 390px</span><span>QuickForm</span></figcaption>
+    <div class="pad">
+      <div class="card">
+        <div class="card-header">สรุป</div>
+        <div class="card-body stack">
+          <div class="row"><span class="muted">ยอดรวม</span><strong>฿930.00</strong></div>
+          <div>
+            <span class="form-label">วันที่สั่งซื้อ</span>
+            <div class="dateline">
+              <span class="val">
+                <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+                เมื่อวาน 21:14 น.
+              </span>
+              <button class="btn btn-ghost" style="min-height:44px">เปลี่ยน</button>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="justify-content:center;min-height:46px">สร้างคำสั่งซื้อ</button>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="frame w-tablet" style="margin:0">
+    <figcaption><span>Tablet 768–1023px</span><span>QuickForm</span></figcaption>
+    <div class="pad">
+      <div class="card">
+        <div class="card-header">สรุป</div>
+        <div class="card-body stack">
+          <div class="row"><span class="muted">ยอดรวม</span><strong>฿930.00</strong></div>
+          <div>
+            <span class="form-label">วันที่สั่งซื้อ</span>
+            <div class="pick">
+              <input class="form-input" type="datetime-local" value="2026-08-05T21:14">
+              <button class="btn btn-soft">ตอนนี้</button>
+            </div>
+            <p class="hint">ย้อนหลังได้ถึง 8 พ.ค. 2569</p>
+          </div>
+          <button class="btn btn-primary" style="justify-content:center">สร้างคำสั่งซื้อ</button>
+        </div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<!-- ═══════════ 4. chat ═══════════ -->
+<h2><span class="no">4.</span> สร้างจากข้อความในแชท — auto-fill</h2>
+<p class="note">ผู้ขายกดค้างบนข้อความที่ลูกค้าสรุปออเดอร์ไว้เมื่อคืน → draft เปิดขึ้นพร้อมเวลาของข้อความนั้น
+<code>m.createdAt</code> มีอยู่ในมือแล้วทั้งสองทางเข้า (<code>ChatThread.tsx:982</code> มือถือ / <code>:1788</code> เดสก์ท็อป)
+แค่ปัจจุบันถูกทิ้งตอนเรียก <code>openDraft</code></p>
+
+<div class="frames">
+  <figure class="frame w-mobile" style="margin:0">
+    <figcaption><span>ต้นทาง — เธรดแชท</span><span>เมื่อคืน</span></figcaption>
+    <div class="thread">
+      <div class="bub">สวัสดีค่ะ สนใจเสื้อยืดสีดำ<span class="t">21:09 น.</span></div>
+      <div class="bub">เอาเสื้อยืดคอกลม ดำ M 2 ตัว<br>กับถุงเท้าแพ็ก 3 อีก 1 แพ็กค่ะ<span class="t">21:14 น.</span></div>
+      <div class="bub me">รับทราบค่ะ เดี๋ยวสรุปยอดให้นะคะ<span class="t">21:16 น.</span></div>
+    </div>
+  </figure>
+
+  <figure class="frame w-tablet" style="margin:0">
+    <figcaption><span>draft ที่เปิดขึ้น — เช้าวันรุ่งขึ้น 09:12</span><span>DraftOrderProvider</span></figcaption>
+    <div class="pad stack">
+
+      <div class="card">
+        <div class="card-body stack">
+          <div>
+            <span class="form-label">วันที่สั่งซื้อ</span>
+            <div class="dateline">
+              <span class="val">
+                <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+                5 ส.ค. 2569 21:14 น.
+              </span>
+              <button class="btn btn-ghost">เปลี่ยน</button>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span class="badge badge-info">
+                <svg class="ico" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                ใช้เวลาจากข้อความ
+              </span>
+              <button class="btn btn-ghost" style="font-size:13px;padding:2px 6px;min-height:auto">ใช้เวลาตอนนี้แทน</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="state-tag" style="margin-bottom:6px">กรณีข้อความเก่ากว่า 90 วัน</div>
+          <div class="dateline">
+            <span class="val">
+              <svg class="ico" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+              วันนี้ 09:12 น.
+            </span>
+            <button class="btn btn-ghost">เปลี่ยน</button>
+          </div>
+          <div style="margin-top:8px">
+            <span class="badge badge-warn">
+              <svg class="ico" viewBox="0 0 24 24" style="width:14px;height:14px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+              ข้อความเก่าเกิน 90 วัน — ใช้เวลาปัจจุบัน
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </figure>
+</div>
+
+<!-- ═══════════ 5. หลังบันทึก ═══════════ -->
+<h2><span class="no">5.</span> หลังบันทึก — toast ที่บอกว่าออเดอร์ไปอยู่ไหน</h2>
+<p class="note">รายการออเดอร์ keyset ด้วย <code>createdAt DESC</code> ออเดอร์ที่ลงวันที่ย้อนหลังจึงไม่โผล่หัวรายการ
+ถ้าไม่บอก คนคีย์จะหาไม่เจอแล้วคีย์ซ้ำ · toast นี้ขึ้นเฉพาะเมื่อวันที่ที่เลือก ≠ วันนี้ตามเวลาไทย</p>
+
+<div class="frames">
+  <div class="toast">
+    <svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+    <span>บันทึกแล้ว · ลงวันที่ <strong>5 ส.ค. 2569 21:14 น.</strong><br>
+      <span class="muted" style="font-size:13px">อยู่ในรายการย้อนหลัง ไม่ใช่หัวรายการ</span></span>
+  </div>
+</div>
+
+<!-- ═══════════ 6. activity log ═══════════ -->
+<h2><span class="no">6.</span> ประวัติคำสั่งซื้อ (feature 00031) — ความจริงไม่หาย</h2>
+<p class="note"><strong><code>occurredAt</code> ของทุก event = เวลาจริงที่กดเสมอ ไม่ย้อนตามวันที่ที่กรอก</strong> —
+ประวัติคือหลักฐานว่าใครทำอะไรเมื่อไหร่ ถ้าย้อนตามค่าที่ผู้ใช้กรอกได้ก็ไม่ใช่หลักฐานอีกต่อไป ·
+วันที่สั่งซื้อเก็บใน <code>meta.orderedAt</code> แล้วแสดงเป็นบรรทัดรอง ·
+การเลื่อนวันที่ย้ายยอดข้ามงวด จึงเป็นเหตุการณ์แยกชนิด <code>ORDER_DATE_CHANGED</code>
+ไม่ยุบรวมกับ <code>ORDER_EDITED</code></p>
+
+<div class="frames">
+  <figure class="frame w-desktop" style="margin:0">
+    <figcaption><span>ประวัติคำสั่งซื้อ</span><span>DP256908A3F19C2B</span></figcaption>
+    <div class="pad stack">
+      <div class="row" style="align-items:flex-start">
+        <div>
+          <strong>สร้างคำสั่งซื้อ</strong>
+          <div class="muted" style="font-size:13.5px">โดย ปรียา (แอดมิน)</div>
+        </div>
+        <div style="text-align:right;font-size:13.5px">
+          <div>6 ส.ค. 2569 09:12 น.</div>
+          <div class="muted" style="font-size:12.5px">ลงวันที่สั่งซื้อ 5 ส.ค. 2569 21:14 น.</div>
+        </div>
+      </div>
+      <div class="row" style="align-items:flex-start;border-top:1px solid var(--line);padding-top:12px">
+        <div>
+          <strong>เปลี่ยนวันที่คำสั่งซื้อ</strong>
+          <div class="muted" style="font-size:13.5px">28 ก.ค. 2569 → 5 ส.ค. 2569</div>
+        </div>
+        <div style="text-align:right;font-size:13.5px">6 ส.ค. 2569 09:20 น.</div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<p class="note" style="margin-top:32px;padding-top:18px;border-top:1px solid var(--line)">
+  หมายเหตุ: mockup นี้เป็น <em>เจตนา</em> ของ UI ไม่ใช่ spec สุดท้าย —
+  งาน frontend ทุกชิ้นต้องผ่าน <code>safepay-ux</code> Design Spec ก่อนเขียนโค้ด (Hard Rule 8)
+  และ markup จริงต้อง copy จาก theme file ที่ระบุใน spec §9.2 (Hard Rule 1)
+</p>
+
+</div>
+</body>
+</html>

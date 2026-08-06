@@ -26,6 +26,8 @@ import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/ord
 import type { AppointmentGranularity } from '@/lib/appointments'
 import ShipmentDraftPanel from './ShipmentDraftPanel'
 import type { IShipCreateMode } from '@/lib/iship/after-order-create'
+// feature 00033 — ตัดสินว่าเวลาข้อความที่กดสร้างออเดอร์อยู่ในช่วงที่ยอมรับไหม (SSOT เดียวกับ OrderDateRow)
+import { isOrderDateInWindow } from '@/lib/order-date-window'
 
 type Channel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | string
 
@@ -59,6 +61,15 @@ export type OpenDraftInput = {
    * ตามพฤติกรรมเดิม **ไม่ทับค่าที่ร้านพิมพ์ไว้** — ทับได้คือทำข้อมูลที่กรอกมาแล้วหาย
    */
   prefillText?: string
+  /**
+   * feature 00033 — เวลาของข้อความที่กดสร้างออเดอร์ (ISO string)
+   *
+   * ใช้เป็น "วันที่สั่งซื้อ" ให้เลย: ลูกค้าพิมพ์สรุปออเดอร์ไว้เมื่อคืน แอดมินมาคีย์เช้าวันรุ่งขึ้น
+   * ยอดต้องตกคืนที่สั่ง ไม่ใช่เช้าที่คีย์
+   *
+   * มีผลเฉพาะตอนสร้างร่างใหม่ เหมือน prefillText — ร่างที่เปิดค้างอยู่แล้วไม่ถูกทับ
+   */
+  messageCreatedAt?: string
 }
 
 type ChatDraft = {
@@ -72,6 +83,8 @@ type ChatDraft = {
   shipmentOrderToken: string | null
   /** ข้อความที่จะให้ฟอร์มกระจายตอน mount (null = ไม่มี) */
   prefillText: string | null
+  /** feature 00033 — เวลาของข้อความต้นทาง (null = ไม่มีข้อความต้นทาง ไม่ใช่ "เก่าเกินไป") */
+  messageCreatedAt: string | null
   state: 'expanded' | 'minimized'
 }
 
@@ -222,6 +235,7 @@ export default function DraftOrderProvider({
         editOrderToken: editToken,
         shipmentOrderToken: shipmentToken,
         prefillText: input.prefillText ?? null,
+        messageCreatedAt: input.messageCreatedAt ?? null,
         state: 'expanded',
       }
       return [...prev.map((d) => (d.state === 'expanded' ? { ...d, state: 'minimized' as const } : d)), next]
@@ -334,7 +348,12 @@ export default function DraftOrderProvider({
                 orderToken={d.shipmentOrderToken}
                 onDone={() => handleShipmentDone(d)}
               />
-            ) : (
+            ) : (() => {
+              // feature 00033 — คำนวณครั้งเดียวเก็บเป็นตัวแปรเดียว ห้ามคำนวณสองรอบให้หลุดจากกัน
+              // messageCreatedAt === null = ไม่มีข้อความต้นทาง (ต้องแยกจาก "มีแต่เก่าเกิน")
+              const msgMs = d.messageCreatedAt ? new Date(d.messageCreatedAt).getTime() : null
+              const msgInWindow = msgMs != null && isOrderDateInWindow(msgMs, Date.now())
+              return (
               <OrderCreateForm
               vocab={vocab}
                 shopId={shopId}
@@ -352,9 +371,12 @@ export default function DraftOrderProvider({
                 serviceResources={serviceResources}
                 appointmentGranularity={appointmentGranularity}
                 onSuccess={() => handleSuccess(d)}
+                prefillCreatedAt={msgInWindow ? d.messageCreatedAt ?? undefined : undefined}
+                prefillCreatedAtTooOld={msgMs != null && !msgInWindow}
                 compact
               />
-            )}
+              )
+            })()}
           </div>
         </div>
       ))}

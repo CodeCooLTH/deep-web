@@ -286,3 +286,78 @@ export function isProblemCarrierStatus(code?: string | null): boolean {
   if (!code) return false;
   return (PROBLEM_CARRIER_STATUSES as readonly string[]).includes(code);
 }
+
+// ─── เวลาและการโอนเงิน COD (ส่วนขยาย 2026-08-06) ─────────────────────────────
+
+/**
+ * parseCarrierTimestamp — เวลาจาก iShip เป็น "เวลาไทย" ที่ไม่มีโซนเวลาติดมา
+ *
+ * รูปแบบที่ได้จริงคือ `"2026-08-04 15:36:18"` เดิมโค้ดทำ `new Date(s.replace(" ", "T"))`
+ * ซึ่ง JS ตีความสตริงแบบไม่มีโซนว่าเป็น "เวลาท้องถิ่นของเครื่อง" — บน Vercel เครื่องเป็น UTC
+ * ผลคือเวลาไทยถูกบันทึกเป็น UTC ตรง ๆ = **ทุกเหตุการณ์เลื่อนไปข้างหน้า 7 ชั่วโมง**
+ *
+ * หลักฐานจากฐาน prod (พัสดุ TH460290DA197B, 2026-08-04): แถวสุดท้ายมี `occurredAt`
+ * 15:36:18Z แต่ `createdAt` (เวลาที่เราบันทึกเอง) เป็น 13:10:57Z — เท่ากับบันทึกเหตุการณ์
+ * ที่ "ยังไม่เกิด" ล่วงหน้า 2 ชั่วโมงครึ่ง และเวลาเดียวกันนี้ฝั่ง query_orders (ซึ่งส่ง ISO
+ * พร้อมโซนมา จึงถูกต้อง) เก็บไว้เป็น 08:36:18Z — ห่างกัน 7 ชั่วโมงพอดี
+ *
+ * ตรึง +07:00 ตรง ๆ (ไม่ใช่ timezone ของเครื่อง) เพราะ iShip เป็นผู้ให้บริการไทยที่ส่งเวลาไทยเสมอ
+ * — ค่าที่ขึ้นกับเครื่องจะทำให้ dev กับ prod ได้ผลไม่ตรงกันอีก ซึ่งคือรากของบั๊กนี้พอดี
+ *
+ * ย้ายมาจาก iship.service.ts (2026-08-06) เพราะ payload เดียวกันปนสองรูปแบบอยู่:
+ * `settlement_at`/`delivered_at` ไม่มีโซน ส่วน `created_at`/`updated_at` เป็น ISO UTC
+ * ตัวแปลงจึงต้องอยู่ที่เดียวและเทสได้โดยไม่ต้องมีฐานข้อมูล
+ */
+export function parseCarrierTimestamp(raw: string): Date | null {
+  if (!raw) return null;
+  // มีโซนเวลาติดมาแล้ว (Z หรือ ±hh:mm) → เชื่อตามนั้น ไม่ยัด +07 ทับ
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw.trim());
+  const iso = raw.trim().replace(" ", "T");
+  const d = new Date(hasZone ? iso : `${iso}+07:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * readCodSettlement — อ่าน "เงินเก็บปลายทางเข้าร้านแล้ว" ออกจากแถวของ iShip
+ *
+ * null = ยังไม่ควรบันทึกอะไร (ไม่ใช่ความผิดพลาด) — แยกการ *ตัดสินใจ* ออกจากการ *เขียนฐาน*
+ * เพื่อให้เงื่อนไขทั้งชุดเทสได้โดยไม่ต้องมี Prisma
+ *
+ * ─── ทำไมต้องดู "สถานะ" ไม่ใช่แค่ "มีวันที่โอน" ──────────────────────────────
+ *
+ * [สำคัญ] `settlement_at` เพียงลำพัง **ไม่ได้แปลว่าเงินเข้าแล้ว** — iShip เติมค่านี้ตั้งแต่ตอน
+ * พัสดุส่งถึงในฐานะ *วันนัดโอน* (= `delivered_at` + 24 ชม. เป๊ะ ๆ) แล้วค่อยเปลี่ยนเป็น
+ * เวลารอบโอนจริงเมื่อโอนเสร็จ
+ *
+ * วัดจากบัญชีจริงบน prod (2026-08-06, 115 แถวใน 6 วัน):
+ *   - 20 แถวมี `settlement_at` ทั้งที่สถานะยังเป็น 3 "จัดส่งแล้ว" = เงินยังไม่เข้า
+ *   - 11 แถวในนั้นมีวันนัดโอนเป็น **วันพรุ่งนี้**
+ *   - แถวที่สถานะ 12 แล้วมี `settlement_at` ครบทุกแถว (ไม่มีข้อยกเว้น)
+ * เกณฑ์ที่ใช้ `settlement_at` อย่างเดียวจึงยืนยันคำสั่งซื้อ 9 ใบทั้งที่ยังไม่ได้เงินสักบาท
+ * (จับได้ตอน dry-run ก่อนขึ้น prod — ถ้าปล่อยไป ร้านจะเห็นออเดอร์ปิดเองโดยเงินยังไม่เข้า)
+ *
+ * `payment_success` จึงเป็นตัวตัดสิน ส่วน `settlement_at` เป็นตัวบอก *เวลา* ที่จะบันทึก
+ * ทั้งคู่ต้องมาด้วยกัน
+ *
+ * เงื่อนไขที่ต้องผ่านครบ (BR-ISHIP-45 ข้อ ค):
+ *   - สถานะพัสดุ = `payment_success` (id 12)
+ *   - `settlement_at` แปลงเป็นเวลาได้
+ *   - `cod_amount` มากกว่าศูนย์ — ยอด 0 แปลว่าใบนี้ไม่ได้เก็บเงินปลายทาง ต่อให้มีวันที่มา
+ *     ก็ไม่ใช่เงินของคำสั่งซื้อนี้ (ห้ามตีความว่า "ได้เงินแล้ว ฿0")
+ *
+ * ความเสี่ยงที่ยอมรับ: ใบที่เดินต่อไปเป็น `cod_refund` (id 14) หลังจากโอนแล้วจะถูก
+ * ยืนยันไปก่อนหน้านั้น — เป็นการคืนเงินภายหลัง ไม่ใช่การที่เงินไม่เคยเข้า
+ */
+export function readCodSettlement(row: {
+  status?: number | null;
+  settlement_at?: string | null;
+  cod_amount?: string | number | null;
+}): { settledAt: Date; codAmount: number } | null {
+  if (carrierStatusCodeFromId(row.status ?? -1) !== "payment_success") return null;
+  if (!row.settlement_at) return null;
+  const codAmount = Number(row.cod_amount ?? 0);
+  if (!Number.isFinite(codAmount) || codAmount <= 0) return null;
+  const settledAt = parseCarrierTimestamp(row.settlement_at);
+  if (!settledAt) return null;
+  return { settledAt, codAmount };
+}

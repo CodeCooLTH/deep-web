@@ -24,9 +24,11 @@ import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
-import { ORDER_STATUS_META, getPaymentBadge } from '@/lib/order-display'
+import { getPaymentBadge } from '@/lib/order-display'
+import { resolveOrderStatusBadge, type ShippingStageKey } from '@/lib/order-stage'
 import type { OrderStatus } from '@/lib/order-display'
 import { SalesChannelLogo, getSalesChannelDisplay } from '@/components/safepay/SalesChannelBadge'
+import OrderSourceLogo from '../../components/OrderSourceLogo'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
 import type { OrderActionSet } from './order-action-set'
 import {
@@ -40,8 +42,12 @@ import {
 export type OrderSummaryProps = {
   publicToken: string
   status: string
+  /** กองงานตามสถานะพัสดุ — undefined = ร้านที่ไม่ใช่ ONLINE_SALES (ป้ายกลับไปใช้ status ล้วน) */
+  shippingStage?: ShippingStageKey
   createdAtISO: string
   salesChannel: string | null
+  /** รูปเพจที่ลูกค้าทักมา — null = ใช้โลโก้แพลตฟอร์มเดิม (user 2026-08-06) */
+  pageLogoUrl?: string | null
   buyerLabel: string
   /** รูปโปรไฟล์ผู้ซื้อ (URL สาธารณะ ไม่ใช่ PII) — null = ยังไม่ลงทะเบียน/ไม่มีรูป */
   buyerAvatar: string | null
@@ -67,8 +73,10 @@ export type OrderSummaryProps = {
 export default function OrderSummary({
   publicToken,
   status,
+  shippingStage,
   createdAtISO,
   salesChannel,
+  pageLogoUrl = null,
   buyerLabel,
   buyerAvatar,
   internalNote,
@@ -85,11 +93,9 @@ export default function OrderSummary({
   onAction,
   orderNoun = 'คำสั่งซื้อ',
 }: OrderSummaryProps) {
-  const meta = ORDER_STATUS_META[status] ?? {
-    label: status,
-    cls: 'bg-default-100 text-default-800',
-    icon: 'clock',
-  }
+  // ป้ายหัวต้องรวมสถานะพัสดุด้วย ไม่ใช่อ่าน status ดิบ — ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่ได้
+  // กดรับเงิน เดิมขึ้น "กำลังจัดส่ง" ขัดกับการ์ด "เก็บเงินปลายทาง" ที่อยู่ขวามือในหน้าเดียวกัน
+  const meta = resolveOrderStatusBadge(status, shippingStage)
   const paymentBadge = getPaymentBadge(status, paymentMethod, slipFileId)
   const channelLabel = getSalesChannelDisplay(salesChannel || 'OTHER').label
 
@@ -110,13 +116,21 @@ export default function OrderSummary({
         <div className="flex min-w-0 items-start gap-3.5">
           {/* ไทล์ช่องทางการขาย — โลโก้เต็มสี่เหลี่ยม (user สั่ง 2026-08-05)
               ช่องทางเป็น null (ออเดอร์เก่าก่อนมี field นี้) → OTHER เพื่อไม่ให้เลย์เอาต์กระโดด */}
-          <span
-            aria-label={`ขายผ่าน ${channelLabel}`}
-            className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl"
-            title={`ขายผ่าน ${channelLabel}`}
-          >
-            <SalesChannelLogo channel={salesChannel || 'OTHER'} className="size-full rounded-xl" size={48} />
-          </span>
+          {pageLogoUrl ? (
+            /* รูปเพจที่ลูกค้าทักมา + badge แพลตฟอร์มห้อยมุม (user 2026-08-06) —
+               component เดียวกับคอลัมน์ "ที่มา" ในลิสต์ (fallback chain เพจ→แพลตฟอร์ม→icon) */
+            <span aria-label={`ขายผ่าน ${channelLabel}`} className="shrink-0">
+              <OrderSourceLogo logoUrl={pageLogoUrl} channel={salesChannel} size="lg" />
+            </span>
+          ) : (
+            <span
+              aria-label={`ขายผ่าน ${channelLabel}`}
+              className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+              title={`ขายผ่าน ${channelLabel}`}
+            >
+              <SalesChannelLogo channel={salesChannel || 'OTHER'} className="size-full rounded-xl" size={48} />
+            </span>
+          )}
 
           <div className="min-w-0">
             {/* เลขคำสั่งซื้อ — ห้าม font-mono (Anuphan ไม่มี mono จะ fallback Courier หลุดธีม) */}

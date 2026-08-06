@@ -1,67 +1,57 @@
 /**
- * ProductsListing — ตาราง listing สินค้าของ seller
+ * ProductsListing — orchestrator: seller product list (desktop table + mobile card view)
+ *
+ * v11 rewrite (2026-08-06): มือถือย้ายจาก mobileCard เดิม (แถวใน `.card` แม่ใบใหญ่ผ่าน DataTable)
+ * → การ์ดแยกใบแบบเดียวกับ /orders (user ชี้เองว่า "ใช้งานง่าย") เพราะปุ่ม 3 ปุ่มเดิมกินความกว้าง
+ * เกือบครึ่งจอจนชื่อสินค้าถูกตัด และปุ่มลบสีแดงเด่นกว่าปุ่มหลัก (ลำดับชั้นกลับด้าน)
+ *
+ * โครง:
+ *   - desktop (≥lg): ProductsTable (แยกไฟล์ — ตาราง useReactTable เดิมทั้งชุด ไม่เปลี่ยน logic)
+ *   - mobile/tablet (<lg): sticky header (back/search/filter/bell/+เพิ่มสินค้า) + แถวชิปสถานะนับจำนวน
+ *     + ProductCard list พร้อม lazy-load (IntersectionObserver, PAGE=8, ไม่มี pagination)
+ *   - filter modal: full-screen เลือกเฉพาะ "ประเภทสินค้า" (สถานะอยู่บนชิปแล้ว ไม่ซ้ำในโมดัล)
+ *
+ * state ที่นี่ (data/pinState) เป็น single source ให้ทั้ง ProductsTable + ProductCard ใช้ร่วมกัน —
+ * handlePinChange / handleActiveToggle / handleDeleteRequest ทั้งหมดอยู่ที่นี่ที่เดียว ไม่ให้
+ * มือถือ/เดสก์ท็อปมีทางแก้ข้อมูลคนละชุด
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(products)/products/components/ProductsListing.tsx
- * เปลี่ยน:
- *   - columns: name, type, price, status (isActive), totalSold, rating, createdAt, actions
- *     (ตัด sku/category/stock/orders/reviews rating inline; เพิ่ม createdAt column)
- *   - data comes from server (props) — ไม่ใช้ productData mock
- *   - filter by type (PHYSICAL/DIGITAL/SERVICE/SUBSCRIPTION) แทน category
- *   - delete ผ่าน API route แทน local state
- *   - filterFns: {} ใส่ใน useReactTable options ตาม constraint
- *   - Select wrapper แทน native select (ทำแล้วตาม original SafePay version)
- *   - UI copy ภาษาไทย
- *   - T10 (v10): mobile toolbar (search pill + filter chips + ปุ่มเพิ่มสินค้า) + re-skin mobileCard
- *     (icon Solar duotone, thumb 62px, badge status ตาม spec §7, isActive chip filter)
- *   - feature 00013 Pin Products: คอลัมน์ "ปักหมุด" (ระหว่างสถานะ↔ขายแล้ว) + PinToggleButton
- *     ใน mobileCard trailing action + badge indicator "ปักหมุด n/m" (desktop card-header + mobile Row 0)
+ * Mobile header/chips/filter-modal structural template:
+ *   src/app/(paces)/seller/(dashboard)/orders/components/OrdersList.tsx
+ *   (ก็อป header layout back/search/filter/bell + full-bleed wrapper + filter modal pattern)
  */
 
 'use client'
 
-import Rating from '@/components/Rating'
-import { formatDateTime } from '@/lib/format-date'
-import DataTable from '@/components/table/DataTable'
-import DeleteConfirmationModal from '@/components/table/DeleteConfirmationModal'
-import TablePagination from '@/components/table/TablePagination'
-import Select from '@/components/wrappers/Select'
 import Icon from '@/components/wrappers/Icon'
-import { cn } from '@/utils/helpers'
-import {
-  ColumnDef,
-  ColumnFiltersState,
-  createColumnHelper,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  Row as TableRow,
-  SortingState,
-  useReactTable,
-} from '@tanstack/react-table'
 import Link from 'next/link'
-import Image from 'next/image'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { cn } from '@/utils/helpers'
 import { pacesToast } from '@/lib/paces-toast'
-import PinToggleButton, { type PinChangeResult } from './PinToggleButton'
-import type { ProductRow } from './data'
+import { pacesConfirm } from '@/lib/paces-swal'
+import { PRODUCT_TYPE_LABELS, type ProductRow } from './data'
+import { type PinChangeResult } from './PinToggleButton'
+import ProductCard from './ProductCard'
+import ProductsTable from './ProductsTable'
+import SellerEmptyState from '../../_shared/SellerEmptyState'
 
-const TYPE_LABELS: Record<ProductRow['type'], string> = {
-  PHYSICAL: 'สินค้าจับต้องได้',
-  DIGITAL: 'ดิจิทัล',
-  SERVICE: 'บริการ',
-  SUBSCRIPTION: 'สมาชิก/รอบ',
-}
+const PAGE = 8 // จำนวนต่อรอบ lazy-load (มือถือ)
 
-const TYPE_COLORS: Record<ProductRow['type'], string> = {
-  PHYSICAL: 'bg-primary/10 text-primary',
-  DIGITAL: 'bg-info/10 text-info',
-  SERVICE: 'bg-success/10 text-success',
-  SUBSCRIPTION: 'bg-warning/10 text-warning',
-}
+const STATUS_CHIPS: { key: 'all' | 'active' | 'inactive'; label: string }[] = [
+  { key: 'all', label: 'ทั้งหมด' },
+  { key: 'active', label: 'เปิดขาย' },
+  { key: 'inactive', label: 'ปิดการขาย' },
+]
 
-const columnHelper = createColumnHelper<ProductRow>()
+// ตัวเลือกในโมดัลตัวกรอง — ใช้ PRODUCT_TYPE_LABELS SSOT เดียวกับตาราง/การ์ด (data.ts)
+const TYPE_OPTIONS = [
+  { value: '', label: 'ทุกประเภท' },
+  { value: 'PHYSICAL', label: PRODUCT_TYPE_LABELS.PHYSICAL },
+  { value: 'DIGITAL', label: PRODUCT_TYPE_LABELS.DIGITAL },
+  { value: 'SERVICE', label: PRODUCT_TYPE_LABELS.SERVICE },
+  { value: 'SUBSCRIPTION', label: PRODUCT_TYPE_LABELS.SUBSCRIPTION },
+]
 
 type Props = {
   products: ProductRow[]
@@ -73,14 +63,17 @@ type Props = {
 const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
   const router = useRouter()
   const [data, setData] = useState<ProductRow[]>(() => [...products])
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  // feature 00013 Pin Products — useState seed ครั้งเดียวจาก props เหมือน `data` ข้างบน (pattern เดียวกับ handleDelete)
   const [pinState, setPinState] = useState({ pinSlots, pinnedCount })
 
+  // ─── mobile toolbar state ──────────────────────────────────────────────────
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [activeChip, setActiveChip] = useState<'all' | 'active' | 'inactive'>('all')
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(PAGE)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
+  // ─── pin toggle (feature 00013 — เดิมอยู่ที่นี่แล้ว) ────────────────────────
   const handlePinChange = (result: PinChangeResult) => {
     setData((prev) =>
       prev.map((p) => (p.id === result.productId ? { ...p, pinnedAt: result.pinnedAt } : p)),
@@ -88,453 +81,338 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
     setPinState({ pinSlots: result.pinSlots, pinnedCount: result.pinnedCount })
   }
 
-  const columns: ColumnDef<ProductRow, any>[] = [
-    columnHelper.accessor('name', {
-      header: 'สินค้า',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-3">
-          <div className="me-1 size-9 shrink-0">
-            {row.original.image ? (
-              <Image
-                src={row.original.image}
-                alt={row.original.name}
-                width={36}
-                height={36}
-                className="rounded object-cover size-9"
-              />
-            ) : (
-              <div className="bg-default-100 rounded size-9 flex items-center justify-center">
-                <Icon icon="package" className="size-5 text-default-300" />
-              </div>
-            )}
-          </div>
-          <div>
-            <h5 className="mb-0.5">
-              <Link href={`/products/${row.original.id}`} className="hover:text-primary font-medium">
-                {row.original.name}
-              </Link>
-            </h5>
-            <p className="text-default-400 text-2xs line-clamp-1 max-w-[180px]">
-              {row.original.description || '—'}
-            </p>
-          </div>
-        </div>
-      ),
-    }),
-    columnHelper.accessor('type', {
-      header: 'ประเภท',
-      filterFn: 'equalsString',
-      enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span className={cn('badge py-0 font-semibold text-2xs', TYPE_COLORS[row.original.type])}>
-          {TYPE_LABELS[row.original.type]}
-        </span>
-      ),
-    }),
-    columnHelper.accessor('price', {
-      header: 'ราคา',
-      enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span>฿{new Intl.NumberFormat('th-TH').format(row.original.price)}</span>
-      ),
-    }),
-    columnHelper.accessor('isActive', {
-      header: 'สถานะ',
-      // T10: เพิ่ม filterFn 'equals' + enableColumnFilter เพื่อให้ mobile chip filter ทำงานได้
-      // (boolean column ต้องใช้ 'equals' ไม่ใช่ 'equalsString')
-      filterFn: 'equals',
-      enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span
-          className={cn(
-            'badge py-0 font-semibold text-2xs',
-            row.original.isActive ? 'bg-success/10 text-success' : 'bg-default-200 text-default-700',
-          )}
-        >
-          {row.original.isActive ? 'เปิดขาย' : 'ซ่อน'}
-        </span>
-      ),
-    }),
-    columnHelper.accessor('pinnedAt', {
-      header: 'ปักหมุด',
-      cell: ({ row }) => (
-        <PinToggleButton
-          productId={row.original.id}
-          pinnedAt={row.original.pinnedAt}
-          isActive={row.original.isActive}
-          pinSlots={pinState.pinSlots}
-          pinnedCount={pinState.pinnedCount}
-          onChange={handlePinChange}
-        />
-      ),
-    }),
-    columnHelper.accessor('totalSold', {
-      header: 'ขายแล้ว',
-      cell: ({ row }) => <span>{new Intl.NumberFormat('th-TH').format(row.original.totalSold)}</span>,
-    }),
-    columnHelper.accessor('rating', {
-      header: 'เรตติ้ง',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1">
-          <Rating rating={row.original.rating} />
-          <span className="ms-1 text-default-400 text-xs">({row.original.reviews})</span>
-        </div>
-      ),
-    }),
-    columnHelper.accessor('createdAt', {
-      header: 'วันที่เพิ่ม',
-      cell: ({ row }) => {
-        // createdAt เป็น ISO string ที่แปลงแล้วที่ server boundary — รวม date+time ใน cell เดียว
-        return <span>{formatDateTime(row.original.createdAt)}</span>
-      },
-    }),
-    {
-      id: 'action',
-      header: () => <div className="text-center mx-auto">การจัดการ</div>,
-      cell: ({ row }: { row: TableRow<ProductRow> }) => (
-        <div className="flex justify-center gap-1.5">
-          <Link
-            href={`/products/${row.original.id}`}
-            className="btn btn-icon btn-sm border border-default-300 text-default-800 hover:border-default-400"
-          >
-            <Icon icon="eye" className="text-base" />
-          </Link>
-          <Link
-            href={`/products/${row.original.id}/edit`}
-            className="btn btn-icon btn-sm border border-default-300 text-default-800 hover:border-default-400"
-          >
-            <Icon icon="pencil" className="text-base" />
-          </Link>
-          <button
-            type="button"
-            className="btn btn-icon btn-sm border border-default-300 text-default-800 hover:border-default-400"
-            onClick={() => {
-              'use no memo'
-              setDeletingId(row.original.id)
-            }}
-            data-hs-overlay="#confirm-delete-modal"
-            suppressHydrationWarning
-          >
-            <Icon icon="trash" className="text-base" />
-          </button>
-        </div>
-      ),
-    },
-  ]
+  /**
+   * เปิด/ปิดการขาย — optimistic update
+   *
+   * หมายเหตุสำคัญ: product.service.ts:351 มี business rule เดิมอยู่แล้ว (BR-PIN-11 auto-unpin):
+   * `if (data.isActive === false) scalarUpdate.pinnedAt = null` แต่ PATCH /api/products/[id]
+   * ตอบด้วย serializeProduct() ซึ่งไม่มี field pinnedAt เลย — client ไม่มีทางรู้จาก response
+   * ว่า pin หลุดไปแล้ว ต้องคำนวณ pinnedAt/pinnedCount เองในจังหวะเดียวกับ isActive
+   * ไม่งั้นการ์ดจะค้างไอคอนปักหมุด + badge "ปักหมุด n/m" ผิดจนกว่าจะรีโหลดหน้า
+   */
+  const handleActiveToggle = async (productId: string, nextIsActive: boolean) => {
+    const target = data.find((p) => p.id === productId)
+    if (!target) return
+    const prevIsActive = target.isActive
+    const prevPinnedAt = target.pinnedAt
+    const willAutoUnpin = !nextIsActive && prevPinnedAt !== null
 
-  const table = useReactTable({
-    data,
-    columns,
-    state: { sorting, globalFilter, columnFilters, pagination },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
-    onColumnFiltersChange: setColumnFilters,
-    onPaginationChange: setPagination,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: 'includesString',
-    filterFns: {},
-    enableColumnFilters: true,
-    enableRowSelection: false,
-  })
+    setData((prev) =>
+      prev.map((p) =>
+        p.id === productId
+          ? { ...p, isActive: nextIsActive, pinnedAt: willAutoUnpin ? null : p.pinnedAt }
+          : p,
+      ),
+    )
+    if (willAutoUnpin) setPinState((s) => ({ ...s, pinnedCount: Math.max(0, s.pinnedCount - 1) }))
 
-  const pageIndex = table.getState().pagination.pageIndex
-  const pageSize = table.getState().pagination.pageSize
-  const totalItems = table.getFilteredRowModel().rows.length
-  const start = pageIndex * pageSize + 1
-  const end = Math.min(start + pageSize - 1, totalItems)
-
-  const handleDelete = async () => {
-    const id = deletingId
-    if (!id) return
     try {
-      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('ลบไม่สำเร็จ')
-      setData((prev) => prev.filter((p) => p.id !== id))
-      setDeletingId(null)
-      setPagination({ ...pagination, pageIndex: 0 })
-      pacesToast.success('ลบสินค้าเรียบร้อย')
+      const res = await fetch(`/api/products/${productId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: nextIsActive }),
+      })
+      if (!res.ok) throw new Error('toggle failed')
+      pacesToast.success(nextIsActive ? 'เปิดขายแล้ว' : 'ปิดการขายแล้ว')
       router.refresh()
     } catch {
-      pacesToast.error('เกิดข้อผิดพลาด ลบสินค้าไม่สำเร็จ')
-    } finally {
-      window.HSOverlay?.close('#confirm-delete-modal')
+      // rollback ทั้ง isActive + pinnedAt (+ pinnedCount ถ้า optimistic auto-unpin ไปแล้ว)
+      setData((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, isActive: prevIsActive, pinnedAt: prevPinnedAt } : p)),
+      )
+      if (willAutoUnpin) setPinState((s) => ({ ...s, pinnedCount: s.pinnedCount + 1 }))
+      pacesToast.error(nextIsActive ? 'เปิดขายไม่สำเร็จ กรุณาลองใหม่' : 'ปิดการขายไม่สำเร็จ กรุณาลองใหม่')
     }
   }
 
-  const TYPE_OPTIONS = [
-    { value: 'All', label: 'ทุกประเภท' },
-    { value: 'PHYSICAL', label: 'สินค้าจับต้องได้' },
-    { value: 'DIGITAL', label: 'ดิจิทัล' },
-    { value: 'SERVICE', label: 'บริการ' },
-    { value: 'SUBSCRIPTION', label: 'สมาชิก/รอบ' },
-  ]
-  const currentTypeFilter = (table.getColumn('type')?.getFilterValue() as string) ?? 'All'
-
-  // HR7: isActive chip filter state — ใช้ 3 ค่า (all/active/inactive)
-  // "สินค้าหมด" ไม่มี field จริงใน ProductRow (ไม่มี stockQty) → ไม่เพิ่ม chip
-  const [activeChip, setActiveChip] = useState<'all' | 'active' | 'inactive'>('all')
-
-  const handleChipChange = (chip: 'all' | 'active' | 'inactive') => {
-    setActiveChip(chip)
-    if (chip === 'all') {
-      table.getColumn('isActive')?.setFilterValue(undefined)
-    } else {
-      table.getColumn('isActive')?.setFilterValue(chip === 'active')
+  // ─── delete (Swal confirm) — ใช้ร่วมกันทั้ง ⋮ มือถือ (ProductCardMenu) และปุ่มลบตารางเดสก์ท็อป ───
+  const handleDeleteRequest = async (productId: string) => {
+    const ok = await pacesConfirm.danger('ลบสินค้านี้?', 'สินค้าจะถูกลบถาวร · ย้อนกลับไม่ได้', {
+      confirmButtonText: 'ลบสินค้า',
+    })
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/products/${productId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        pacesToast.error(errBody?.error ?? 'ลบสินค้าไม่สำเร็จ')
+        return
+      }
+      setData((prev) => prev.filter((p) => p.id !== productId))
+      pacesToast.success('ลบสินค้าแล้ว')
+      router.refresh()
+    } catch {
+      pacesToast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     }
   }
 
-  const MOBILE_STATUS_CHIPS = [
-    { key: 'all' as const, label: 'ทั้งหมด' },
-    { key: 'active' as const, label: 'เปิดขาย' },
-    { key: 'inactive' as const, label: 'ปิดการขาย' },
-  ]
+  // ─── ตัวนับชิป — มาจาก data ทั้งชุดเสมอ ไม่ผูกกับคำค้น (เหมือน StageChips ของ /orders) ───────
+  const allCount = data.length
+  const activeCount = useMemo(() => data.filter((p) => p.isActive).length, [data])
+  const inactiveCount = allCount - activeCount
+  const chipCount: Record<'all' | 'active' | 'inactive', number> = {
+    all: allCount,
+    active: activeCount,
+    inactive: inactiveCount,
+  }
+
+  // ─── filter pipeline (มือถือ) ────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    let list = data
+    if (activeChip === 'active') list = list.filter((p) => p.isActive)
+    else if (activeChip === 'inactive') list = list.filter((p) => !p.isActive)
+    if (typeFilter) list = list.filter((p) => p.type === typeFilter)
+    if (search.trim()) {
+      const q = search.toLowerCase().trim()
+      list = list.filter((p) => p.name.toLowerCase().includes(q))
+    }
+    return list
+  }, [data, activeChip, typeFilter, search])
+
+  // reset lazy-load เมื่อ filter/search/chip เปลี่ยน
+  useEffect(() => {
+    setVisibleCount(PAGE)
+  }, [activeChip, typeFilter, search])
+
+  const visible = filtered.slice(0, visibleCount)
+  const hasMore = visibleCount < filtered.length
+
+  useEffect(() => {
+    if (!hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) setVisibleCount((c) => c + PAGE)
+      },
+      { rootMargin: '200px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasMore, filtered.length])
+
+  // จุดแดงบนปุ่มตัวกรอง — เฉพาะแกนที่ไม่ได้อยู่บนแถวชิป (สถานะอยู่บนชิปแล้ว ไม่นับซ้ำ)
+  const activeFilterCount = typeFilter ? 1 : 0
+
+  // empty state — แยก 3 สาเหตุ (ไม่มีสินค้าเลย / กรองชิปแล้วไม่เจอ / ค้นหาไม่เจอ)
+  const emptyState =
+    data.length === 0
+      ? { title: 'ยังไม่มีสินค้าในร้าน', showCta: true }
+      : search.trim() !== '' && filtered.length === 0
+        ? { title: 'ไม่พบสินค้าที่ค้นหา', showCta: false }
+        : filtered.length === 0
+          ? { title: 'ไม่มีสินค้าในสถานะนี้', showCta: false }
+          : null
 
   return (
-    <div className="card">
-      {/* ===== Mobile toolbar (ซ่อนบน md ขึ้นไป) ===== */}
-      {/* HR7: mobile toolbar แยกจาก desktop card-header เพื่อ re-skin ตาม spec §7
-          ไม่มี Paces layout token สำหรับ mobile-specific toolbar — ใช้ flex + overflow-x-auto */}
-      <div className="lg:hidden px-4 pt-3 pb-2 space-y-2.5">
-        {/* Row 0: badge indicator "ปักหมุด n/m" (feature 00013 Pin Products) */}
-        <div className="flex items-center">
-          <span className="badge bg-primary/15 text-primary inline-flex items-center gap-1">
-            <Icon icon="tabler:pin-filled" className="size-3.5" />
-            ปักหมุด {pinState.pinnedCount}/{pinState.pinSlots}
-          </span>
-        </div>
-        {/* Row 1: search pill + ปุ่มเพิ่มสินค้า */}
-        <div className="flex items-center gap-2">
-          {/* search pill — icon solar:magnifer-linear ตาม spec §7 */}
-          <div className="relative flex-1">
-            <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-default-400">
-              <Icon icon="solar:magnifer-linear" className="size-4" />
-            </span>
-            <input
-              value={globalFilter ?? ''}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              type="text"
-              className="form-input pl-9 rounded-full text-sm w-full"
-              placeholder="ค้นหาสินค้า..."
-            />
-          </div>
-          {/* ปุ่มเพิ่มสินค้า mobile: btn btn-sm bg-primary text-white + icon solar:add-square-bold-duotone */}
-          <Link
-            href="/products/new"
-            /* min-h-11 (44px): mobile tap-target ≥44px — btn-sm สูง ~31px ไม่พอ (HR7 arbitrary: ไม่มี touch-min token) */
-            className="btn btn-sm bg-primary text-white hover:bg-primary-hover shrink-0 flex items-center gap-1.5 min-h-11 rounded-full"
+    <>
+      {/* ─── Desktop (≥lg): ตารางแบบ Paces theme ─────────────────────────────── */}
+      <div className="hidden lg:block">
+        <ProductsTable
+          products={data}
+          pinSlots={pinState.pinSlots}
+          pinnedCount={pinState.pinnedCount}
+          onPinChange={handlePinChange}
+          onDeleteRequest={handleDeleteRequest}
+        />
+      </div>
+
+      {/* ─── Mobile/Tablet (<lg): การ์ดแยกใบ ─────────────────────────────────── */}
+      <div className="lg:hidden">
+        {/* phone: full-bleed (-mx-4 หักล้าง shell padding); tablet+ (md): center + max-width
+            marker .products-fullbleed = CSS :has() scope (safepay-overrides.css) */}
+        <div className="products-fullbleed -mx-4 md:mx-auto md:max-w-2xl">
+          {/* pt = 1.5rem + safe-area: หน้านี้ full-bleed ไม่มี header ของ layout (SellerMobileHeader
+              คืน null สำหรับ /products) และ sticky top-0 → ต้องเว้น status bar เอง (pattern เดียวกับ
+              /orders — viewportFit:'cover' ตั้งแต่ 2026-08-06) */}
+          <div
+            data-products-header
+            className="sticky top-0 z-30 bg-card px-2 pt-[calc(1.5rem+env(safe-area-inset-top))]" /* carve-out: safe-area ไม่มี token */
           >
-            <Icon icon="solar:add-square-bold-duotone" className="size-4" />
-            <span className="sm:hidden">เพิ่ม</span>
-            <span className="hidden sm:inline">เพิ่มสินค้า</span>
-          </Link>
-        </div>
-        {/* Row 2: filter chips เลื่อนแนวนอน (overflow-x-auto ตาม spec §7 + HR7 comment) */}
-        {/* HR7: overflow-x-auto + whitespace-nowrap = Tailwind utility — Paces ไม่มี horizontal scroll token; no-scrollbar = safepay-overrides.css */}
-        <div className="overflow-x-auto whitespace-nowrap -mx-4 px-4 no-scrollbar">
-          <div className="inline-flex gap-2">
-            {MOBILE_STATUS_CHIPS.map((chip) => (
-              <button
-                key={chip.key}
-                type="button"
-                onClick={() => handleChipChange(chip.key)}
-                className={cn(
-                  'badge text-xs font-medium px-3 py-1 rounded-full cursor-pointer border',
-                  activeChip === chip.key
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-default-100 text-default-500 border-transparent',
-                )}
+            <div className="flex items-center gap-2">
+              {/* back → /dashboard */}
+              <Link
+                href="/dashboard"
+                aria-label="ย้อนกลับ"
+                className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-default-700"
               >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+                <Icon icon="arrow-left" className="text-xl" />
+              </Link>
 
-      {/* ===== Desktop card-header (ซ่อนบน mobile — ไม่แตะ desktop logic) ===== */}
-      <div className="card-header hidden lg:flex">
-        <div className="flex gap-2.5">
-          <div className="input-icon-group">
-            <Icon icon="search" className="input-icon" />
-            <input
-              value={globalFilter ?? ''}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              type="text"
-              className="form-input"
-              placeholder="ค้นหาชื่อสินค้า..."
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5 md:flex-nowrap">
-          <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center md:gap-3">
-            <span className="font-semibold">กรอง:</span>
-            <div className="input-icon-group w-full">
-              <Icon icon="tag" className="input-icon" />
-              <Select
-                className="form-select"
-                classNamePrefix="react-select"
-                isSearchable={false}
-                options={TYPE_OPTIONS}
-                value={TYPE_OPTIONS.find((o) => o.value === currentTypeFilter) ?? TYPE_OPTIONS[0]}
-                onChange={(opt: any) =>
-                  table.getColumn('type')?.setFilterValue(opt?.value === 'All' ? undefined : opt?.value)
-                }
-              />
-            </div>
-          </div>
-          <div>
-            <select
-              className="form-select"
-              value={table.getState().pagination.pageSize}
-              onChange={(e) => table.setPageSize(Number(e.target.value))}
-            >
-              {[5, 8, 10, 15, 20].map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* badge indicator "ปักหมุด n/m" (feature 00013 Pin Products) — ก่อนปุ่มเพิ่มสินค้า */}
-          <span className="badge bg-primary/15 text-primary inline-flex items-center gap-1">
-            <Icon icon="tabler:pin-filled" className="size-3.5" />
-            ปักหมุด {pinState.pinnedCount}/{pinState.pinSlots}
-          </span>
-          <Link href="/products/new" className="btn bg-primary text-white hover:bg-primary-hover">
-            <Icon icon="plus" />
-            เพิ่มสินค้า
-          </Link>
-        </div>
-      </div>
+              {/* search — pill สีขาว */}
+              <div className="relative flex-1">
+                <Icon
+                  icon="solar:magnifer-linear"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-default-400"
+                />
+                <input
+                  type="text"
+                  className="form-input w-full rounded-full bg-white !pl-9"
+                  placeholder="ค้นหาสินค้า..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
 
-      <DataTable<ProductRow>
-        table={table}
-        emptyMessage="ไม่พบสินค้า"
-        mobileCard={(row) => {
-          const p = row.original
-          const priceStr = `฿${new Intl.NumberFormat('th-TH').format(p.price)}`
-          return (
-            <div className="flex items-center gap-3 px-4 py-3.5">
-              {/* leading: รูปสินค้า 62px (HR7: size-[62px] = arbitrary เพราะ Paces ไม่มี token ขนาดนี้; spec §7 กำหนด 62px) */}
-              <div className="size-[62px] shrink-0">
-                {p.image ? (
-                  <Image
-                    src={p.image}
-                    alt={p.name}
-                    width={62}
-                    height={62}
-                    className="size-[62px] rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="size-[62px] rounded-lg bg-default-100 flex items-center justify-center">
-                    {/* icon solar duotone แทน package Tabler ตาม spec §7 + หลักการ §3 */}
-                    <Icon icon="solar:box-bold-duotone" className="size-7 text-default-300" />
-                  </div>
+              {/* filter → full modal */}
+              <button
+                type="button"
+                onClick={() => setFilterOpen(true)}
+                aria-label="ตัวกรอง"
+                className="relative inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-default-300 text-default-700"
+              >
+                <Icon icon="adjustments-horizontal" className="text-lg" />
+                {activeFilterCount > 0 && (
+                  <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-primary ring-2 ring-body-bg" />
                 )}
-              </div>
+              </button>
 
-              {/* main: ชื่อ (link → detail) + ราคา (text-primary font-bold ตาม spec §7) + badge สถานะ */}
-              <div className="min-w-0 flex-1">
-                <Link
-                  href={`/products/${p.id}`}
-                  className="text-sm font-medium text-ink hover:text-primary block truncate"
-                >
-                  {p.name}
-                </Link>
-                {/* ราคา text-primary font-bold ตาม spec §7 */}
-                <p className="text-sm font-bold text-primary mt-0.5">{priceStr}</p>
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  <span className={cn('badge py-0 text-2xs font-semibold leading-tight', TYPE_COLORS[p.type])}>
-                    {TYPE_LABELS[p.type]}
-                  </span>
-                  {/* badge สถานะ: เปิดขาย bg-success/15 text-success / ปิดการขาย bg-default-100 text-default-500 ตาม spec §7 */}
-                  <span className={cn(
-                    'badge py-0 text-2xs font-semibold leading-tight',
-                    p.isActive ? 'bg-success/15 text-success' : 'bg-default-100 text-default-500',
-                  )}>
-                    {p.isActive ? 'เปิดขาย' : 'ปิดการขาย'}
-                  </span>
-                </div>
-              </div>
+              {/* bell → /notifications */}
+              <Link
+                href="/notifications"
+                aria-label="การแจ้งเตือน"
+                className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-default-700"
+              >
+                <Icon icon="bell" className="text-xl" />
+              </Link>
 
-              {/* trailing: ขายแล้ว + action icons */}
-              <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
-                <p className="text-xs text-default-400 leading-tight whitespace-nowrap">
-                  ขายแล้ว {new Intl.NumberFormat('th-TH').format(p.totalSold)}
-                </p>
-                {/* action: ปักหมุด (feature 00013) / แก้ไข (solar:pen-2-linear ตาม spec §7) / ลบ — touch ≥44px */}
-                <div className="flex items-center gap-1.5">
-                  <PinToggleButton
-                    productId={p.id}
-                    pinnedAt={p.pinnedAt}
-                    isActive={p.isActive}
-                    pinSlots={pinState.pinSlots}
-                    pinnedCount={pinState.pinnedCount}
-                    onChange={handlePinChange}
-                    variant="mobile"
-                  />
-                  <Link
-                    href={`/products/${p.id}/edit`}
-                    className="btn btn-icon border border-default-300 text-default-800 hover:border-default-400 !size-11 min-h-0"
-                    aria-label="แก้ไขสินค้า"
-                  >
-                    {/* icon solar:pen-2-linear แทน pencil Tabler ตาม spec §7 */}
-                    <Icon icon="solar:pen-2-linear" className="text-base" />
-                  </Link>
+              {/* เพิ่มสินค้า — ปุ่ม filled สีน้ำเงินตัวเดียวในหัวหน้า (One Voice); full-screen mode
+                  ซ่อน SellerBottomNav ทั้งก้อน → FAB หายไปด้วย ถ้าไม่มีปุ่มนี้จะสร้างสินค้าไม่ได้เลยบนมือถือ */}
+              <Link
+                href="/products/new"
+                aria-label="เพิ่มสินค้า"
+                className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-white"
+              >
+                <Icon icon="plus" className="text-xl" />
+              </Link>
+            </div>
+
+            {/* แถวชิป — badge ปักหมุด (non-interactive) + ชิปสถานะ 3 อัน มีตัวเลขนับทุกอัน */}
+            <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"> {/* HR7: ซ่อน scrollbar ไม่มี Paces token */}
+              <span className="badge bg-primary/15 text-primary inline-flex shrink-0 items-center gap-1">
+                <Icon icon="tabler:pin-filled" className="size-3.5" />
+                ปักหมุด {pinState.pinnedCount}/{pinState.pinSlots}
+              </span>
+              {STATUS_CHIPS.map((chip) => {
+                const active = activeChip === chip.key
+                const count = chipCount[chip.key]
+                return (
                   <button
+                    key={chip.key}
                     type="button"
-                    className="btn btn-icon border border-default-300 text-default-800 hover:border-default-400 !size-11 min-h-0"
-                    onClick={() => {
-                      'use no memo'
-                      setDeletingId(p.id)
-                    }}
-                    data-hs-overlay="#confirm-delete-modal"
-                    suppressHydrationWarning
-                    aria-label="ลบสินค้า"
+                    onClick={() => setActiveChip(active ? 'all' : chip.key)}
+                    aria-pressed={active}
+                    className={cn(
+                      'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
+                      'rounded-full px-3.5 py-1.5 text-xs font-medium',
+                      active ? 'bg-primary text-white' : 'bg-default-100 text-default-500',
+                    )}
                   >
-                    {/* ไม่มี solar trash duotone variant ที่ชัดเจนพอสำหรับ destructive action — ใช้ solar:trash-bin-2-bold-duotone */}
-                    <Icon icon="solar:trash-bin-2-bold-duotone" className="text-base text-danger" />
+                    {chip.label}
+                    {count > 0 && <span className="ms-1 font-bold tabular-nums">{count}</span>}
                   </button>
-                </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ─── Product cards + lazy-load ──────────────────────────────────── */}
+          {emptyState ? (
+            <div className="card mt-3">
+              <div className="card-body">
+                <SellerEmptyState
+                  compact
+                  icon="tabler:package-off"
+                  title={emptyState.title}
+                  action={emptyState.showCta ? { label: '+ เพิ่มสินค้าแรก', href: '/products/new' } : undefined}
+                />
               </div>
             </div>
-          )
-        }}
-      />
+          ) : (
+            <div className="mt-3 space-y-3">
+              {visible.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  pinSlots={pinState.pinSlots}
+                  pinnedCount={pinState.pinnedCount}
+                  onPinChange={handlePinChange}
+                  onActiveToggle={handleActiveToggle}
+                  onDeleteRequest={handleDeleteRequest}
+                />
+              ))}
 
-      {table.getRowModel().rows.length > 0 && (
-        <div className="card-footer">
-          <TablePagination
-            totalItems={totalItems}
-            start={start}
-            end={end}
-            itemsName="สินค้า"
-            showInfo
-            previousPage={table.previousPage}
-            canPreviousPage={table.getCanPreviousPage()}
-            pageCount={table.getPageCount()}
-            pageIndex={table.getState().pagination.pageIndex}
-            setPageIndex={table.setPageIndex}
-            nextPage={table.nextPage}
-            canNextPage={table.getCanNextPage()}
-          />
+              {hasMore && (
+                <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-4 text-xs text-default-500">
+                  <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  กำลังโหลด...
+                </div>
+              )}
+              {!hasMore && filtered.length > PAGE && (
+                <p className="py-3 text-center text-xs text-default-400">ครบทุกสินค้าแล้ว ({filtered.length})</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ─── Filter modal (full screen) — ประเภทสินค้าเท่านั้น (สถานะอยู่บนชิปแล้ว) ────────── */}
+      {filterOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-card" role="dialog" aria-modal="true" aria-label="ตัวกรอง">
+          <div className="flex items-center gap-3 border-b border-default-200 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setFilterOpen(false)}
+              aria-label="ปิด"
+              className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-default-700"
+            >
+              <Icon icon="x" className="text-xl" />
+            </button>
+            <span className="text-lg font-semibold text-default-900">ตัวกรอง</span>
+          </div>
+
+          <div className="flex-1 overflow-auto p-4">
+            <p className="mb-2 text-sm font-medium text-default-900">ประเภทสินค้า</p>
+            <div className="space-y-1">
+              {TYPE_OPTIONS.map((opt) => {
+                const active = typeFilter === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setTypeFilter(opt.value)}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
+                      active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
+                    )}
+                  >
+                    {opt.label}
+                    {active && <Icon icon="check" className="text-base" />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="flex gap-2 border-t border-default-200 p-4">
+            <button
+              type="button"
+              onClick={() => setTypeFilter('')}
+              className="btn flex-1 border-default-300 text-default-700"
+            >
+              ล้างตัวกรอง
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterOpen(false)}
+              className="btn flex-1 bg-primary text-white hover:bg-primary-hover"
+            >
+              ดูผลลัพธ์
+            </button>
+          </div>
         </div>
       )}
-
-      <DeleteConfirmationModal
-        onConfirm={handleDelete}
-        selectedCount={deletingId ? 1 : 0}
-        itemName="สินค้า"
-        modalTitle="ยืนยันการลบ"
-        confirmButtonText="ลบ"
-        cancelButtonText="ยกเลิก"
-      />
-    </div>
+    </>
   )
 }
 

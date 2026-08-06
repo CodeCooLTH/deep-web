@@ -14,10 +14,12 @@
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { useForm, useFieldArray, useWatch } from 'react-hook-form'
+import { useForm, useFieldArray, useWatch, useFormState } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
 import type { OrderVocab } from '@/lib/seller-menu'
 import { runAfterOrderCreate, type IShipCreateMode } from '@/lib/iship/after-order-create'
+// feature 00033 — ตัวเดียวกับ SSOT ที่ /orders?stage= ใช้กรอง ห้ามคำนวณ "วันไหน" ซ้ำที่นี่
+import { thaiDayKey, formatDateTimeTH } from '@/lib/format-date'
 import * as Yup from 'yup'
 import ProductGrid from './ProductGrid'
 import CartPanel from './CartPanel'
@@ -26,6 +28,8 @@ import AppointmentBlock, { type ServiceResourceOption } from './AppointmentBlock
 import type { AppointmentGranularity } from '@/lib/appointments'
 import QuickForm from './QuickForm'
 import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
+import { toDatetimeLocalValue } from './OrderDateRow'
+import { resolveEditedOrderedAtPayload, orderDateRejectReason } from '@/lib/order-date-window'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,6 +97,10 @@ interface Props {
   serviceResources?: ServiceResourceOption[]
   /** feature 00024 FR-RSV-13 — ร้านรับนัดเป็นรายวัน (DAY) หรือระบุช่วงเวลา (TIME) */
   appointmentGranularity?: AppointmentGranularity
+  /** feature 00033 — เวลาของข้อความในแชทที่กดสร้างออเดอร์ (ISO string) ใช้เป็นวันที่สั่งซื้อ */
+  prefillCreatedAt?: string
+  /** feature 00033 — เวลาข้อความต้นทางเก่ากว่าเพดานย้อนหลัง จึงไม่ได้เติมให้ (โชว์ชิปบอกเหตุผลใน OrderDateRow) */
+  prefillCreatedAtTooOld?: boolean
 }
 
 // ─── ItemsController — helper set ที่ OrderCreateForm (form owner) ส่งเป็น prop ให้ POS components ──
@@ -139,6 +147,9 @@ export interface FormValues {
     endTime?: string       // "HH:mm"
     depositAmount?: number | null
   }
+  /** feature 00033 — วันที่สั่งซื้อเป็นค่า datetime-local ("YYYY-MM-DDTHH:mm" เวลาเครื่อง)
+   *  undefined = ใช้เวลาปัจจุบัน (ไม่ส่งฟิลด์ไป API เลย → เส้นทางเดิมทุกประการ) */
+  orderedAt?: string
 }
 
 // ─── itemSchema — ใช้ใน Yup schema + ยืม pattern ของ OrderCreateForm เดิม ────
@@ -197,6 +208,17 @@ const schema = Yup.object({
     .transform((v) => (isNaN(v) ? undefined : v))
     .nullable()
     .optional(),
+  // feature 00033 (impeccable polish) — เดิมไม่มีกฎช่องนี้เลย: แถววันที่ขึ้นแดงอยู่แต่ปุ่มบันทึก
+  // ยังกดได้ แล้วไปตายที่ API เป็น 400 ซึ่งเด้งเป็นชีตเต็มจอห่างจากช่องที่ผิด ผู้ใช้ต้องเดาเองว่า
+  // ปัญหาอยู่ตรงไหน. ตรวจด้วย orderDateRejectReason ตัวเดียวกับที่ช่องกรอกและ service ใช้ —
+  // ห้ามเขียนกฎ 90/7 ซ้ำที่นี่ (ไม่งั้นกฎเดียวมี 3 นิยาม ซึ่งเป็นบั๊กที่ SSOT ตัวนี้ตั้งใจกันตั้งแต่แรก)
+  orderedAt: Yup.string()
+    .optional()
+    .test('order-date-window', (value, ctx) => {
+      if (!value) return true
+      const reason = orderDateRejectReason(new Date(value).getTime(), Date.now())
+      return reason ? ctx.createError({ message: reason }) : true
+    }),
   shippingAddress: Yup.object({
     line1: Yup.string().optional(),
     subdistrict: Yup.string().optional(),
@@ -245,6 +267,8 @@ export default function OrderCreateForm({
   serviceResourcesEnabled = false,
   serviceResources = [],
   appointmentGranularity = 'DAY',
+  prefillCreatedAt,
+  prefillCreatedAtTooOld = false,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -283,8 +307,17 @@ export default function OrderCreateForm({
         postcode: '',
         note: '',
       },
+      // feature 00033 — เวลาข้อความในแชท (ถ้ามี) เป็นวันที่สั่งซื้อเริ่มต้น
+      orderedAt: prefillCreatedAt ? toDatetimeLocalValue(new Date(prefillCreatedAt)) : undefined,
     },
   })
+
+  // impeccable optimize 2026-08-06 — เดิม destructure `dirtyFields` ออกจาก formState ของ useForm
+  // ซึ่ง RHF ห่อด้วย Proxy: การอ่าน key = การ subscribe (ยืนยันจาก dist — getter เซ็ต
+  // `_proxyFormState[key]`) ผลคือฟอร์ม 916 บรรทัดนี้ re-render ทุกครั้งที่ "ฟิลด์ไหนก็ได้"
+  // ถูกแก้ครั้งแรก ทั้งที่ค่านี้ถูกอ่านแค่ใน onSubmit ซึ่งไม่ต้องการ reactivity เลย
+  // useFormState({ name }) จำกัด subscription ให้เหลือฟิลด์เดียว
+  const { dirtyFields } = useFormState({ control, name: 'orderedAt' })
 
   // ── แก้ไขคำสั่งซื้อ (user 2026-07-25): โหลดข้อมูล order เดิมเข้าฟอร์ม (reset) เมื่อมี editOrderToken ──
   // editLoaded กันไม่ให้ effect "แถวเปล่ารอเสมอ" เติมแถวก่อน prefill เสร็จ (แล้ว reset ทับ)
@@ -322,6 +355,8 @@ export default function OrderCreateForm({
             postcode: o.shippingAddress?.postcode ?? '',
             note: o.shippingAddress?.note ?? '',
           },
+          // feature 00033 — โหลดวันที่สั่งซื้อเดิมเข้าฟอร์ม (ยุบไว้ ไม่ auto-open)
+          orderedAt: o.createdAt ? toDatetimeLocalValue(new Date(o.createdAt)) : undefined,
         })
       } catch {
         if (!cancelled) setSubmitError(`โหลดข้อมูล${vocab.noun}ไม่สำเร็จ`)
@@ -625,6 +660,21 @@ export default function OrderCreateForm({
         )
       : {}
     const hasShippingData = Object.keys(cleanShipping).length > 0
+
+    // feature 00033 (I-7, re-review #2 ทางเลือก ก) — payload ของ createdAt เฉพาะโหมดแก้ไข
+    // (editOrderToken) คำนวณนอก object literal ของ body เพราะต้องใช้ const (ประกาศในนี้ไม่ได้
+    // เป็น syntax error) ปุ่ม "ตอนนี้" ใน OrderDateRow เคลียร์ orderedAt กลับเป็น undefined
+    // (shouldDirty: true) แล้วยุบแถวไปโชว์ label "วันนี้ HH:mm" ทันที เดิมเงื่อนไข
+    // `dirtyFields.orderedAt && values.orderedAt` เป็นเท็จตอนกดปุ่มนี้ (values.orderedAt ว่าง)
+    // จึงไม่ส่ง createdAt เลย — จอบอกว่า "ตอนนี้" แต่ DB ไม่ขยับ (จอโกหก). แยก logic ไป
+    // resolveEditedOrderedAtPayload (pure function เทสได้โดยไม่ต้อง render ฟอร์ม) เพื่อครอบ
+    // ทั้ง 3 กรณี: ไม่ dirty / dirty+มีค่า / dirty+ไม่มีค่า (กดปุ่ม "ตอนนี้")
+    const editedOrderedAtPayload = resolveEditedOrderedAtPayload(
+      !!dirtyFields.orderedAt,
+      values.orderedAt,
+      Date.now(),
+    )
+
     const body = {
       type: derivedType,
       items: items.map((item) => ({
@@ -647,6 +697,24 @@ export default function OrderCreateForm({
       ...(appointmentPayload ? { appointment: appointmentPayload } : {}),
       // feature 00018 (user 2026-07-24): สร้างจากแชท → ผูก ExternalContact กับ Customer ทันที
       ...(conversationId ? { conversationId } : {}),
+      // feature 00033 (C-1/C-2, 2026-08-06) — datetime-local เป็นเวลาเครื่อง แปลงเป็น ISO พร้อม offset (Z) ก่อนส่ง
+      // ไม่มีค่า = ไม่ส่งคีย์เลย → เส้นทางเดิมทุกประการ (95% ของการคีย์)
+      //
+      // โหมดแก้ไข (editOrderToken): reset() ด้านบนเติม orderedAt จาก order เดิมเสมอ (defaultValues)
+      // ถ้าเช็คแค่ "มีค่า" จะส่ง createdAt ไปทุกครั้งที่กดบันทึก แม้ผู้ใช้ไม่เคยแตะแถววันที่เลย —
+      // พังสองทาง: (1) ออเดอร์เก่ากว่า 90 วันแก้ไม่ได้อีกเลย (2) createdAt เขียนทับ + orderNo
+      // recompute + ORDER_DATE_CHANGED ปลอมทุกครั้ง. ต้องเช็ค dirtyFields.orderedAt — ส่งเฉพาะเมื่อ
+      // ผู้ใช้แตะแถววันที่จริง (editedOrderedAtPayload คำนวณไว้ด้านบน — ครอบเคส "ตอนนี้" ด้วย)
+      //
+      // โหมดสร้างใหม่ (ไม่มี editOrderToken): orderedAt มาจาก defaultValues เสมอ (prefillCreatedAt
+      // จากแชท หรือ undefined) ไม่ใช่จากการพิมพ์ของผู้ใช้ — dirtyFields จึงมองว่า "ไม่ dirty" ทั้งที่
+      // ต้องส่งค่านี้ไป API ปกติ (เวลาข้อความในแชท = วันที่สั่งซื้อจริง). เส้นนี้จึงแยกจาก edit mode
+      // ส่งเมื่อมีค่าเสมอ (ไม่เช็ค dirty) — พฤติกรรมเดิมทุกประการ
+      ...(editOrderToken
+        ? editedOrderedAtPayload
+        : values.orderedAt
+          ? { createdAt: new Date(values.orderedAt).toISOString() }
+          : {}),
     }
 
     // full-bleed sheet: โชว์ "กำลังสร้างคำสั่งซื้อ" ตั้งแต่เริ่มยิง POST (block ทั้งจอ กันกดซ้ำ)
@@ -679,7 +747,24 @@ export default function OrderCreateForm({
       // toast เฉพาะ desktop POS (≥ lg) — mobile ไม่ต้อง (redirect ไปหน้าออเดอร์อยู่แล้ว, toast ซ้ำซ้อน; user req)
       const isDesktop =
         typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
-      if (isDesktop) {
+      // feature 00033 — ออเดอร์ที่ลงวันที่ย้อนหลังไม่โผล่หัวรายการ (keyset createdAt DESC)
+      // ถ้าไม่บอก คนคีย์จะหาไม่เจอแล้วคีย์ซ้ำ
+      const orderedDate = values.orderedAt ? new Date(values.orderedAt) : null
+      const isBackdated = orderedDate ? thaiDayKey(orderedDate) !== thaiDayKey(new Date()) : false
+
+      // impeccable polish — ข้อความนี้ต้องขึ้นบนมือถือด้วย ไม่ใช่เฉพาะเดสก์ท็อป
+      // กฎเดิม "มือถือไม่ต้อง toast เพราะ redirect อยู่แล้ว" ใช้กับข้อความที่บอกว่า "สำเร็จ"
+      // อันนี้ไม่ได้บอกว่าสำเร็จ แต่บอกว่า "ของไปอยู่ไหน" — และ PRODUCT.md ระบุว่าผู้ขาย
+      // ทำงานบนมือถือเป็นหลัก มาตรการกันคีย์ซ้ำจึงหายไปจากแพลตฟอร์มที่ปัญหาเกิดจริงพอดี
+      if (!editOrderToken && isBackdated) {
+        pacesToast.success(
+          `บันทึกแล้ว ลงวันที่ ${formatDateTimeTH(orderedDate!)} — รายการเรียงตามวันที่ จึงไม่อยู่บนสุด`,
+        )
+      }
+
+      // เดสก์ท็อปเท่านั้น: ข้อความ "สำเร็จ" ทั่วไป — มือถือไม่ต้องเพราะ redirect ไปหน้าออเดอร์อยู่แล้ว
+      // (เคสลงวันที่ย้อนหลังยิงไปแล้วข้างบนทั้งสองแพลตฟอร์ม จึงต้องกันไม่ให้เดสก์ท็อปยิงซ้ำ)
+      if (isDesktop && !isBackdated) {
         // โหมดแก้ไข (PATCH) ไม่ได้สร้างลิงก์ใหม่ — copy เดิมชวนให้ "แชร์ลิงก์" ผิดบริบท
         pacesToast.success(
           editOrderToken ? 'บันทึกการแก้ไขแล้ว' : `${vocab.createLabel}แล้ว แชร์ลิงก์ให้ลูกค้า`,
@@ -797,6 +882,9 @@ export default function OrderCreateForm({
           total={barTotal}
           appointmentBlock={renderAppointmentBlock('m', 'card')}
           compact={compact}
+          orderDateFromMessage={!!prefillCreatedAt}
+          orderDateMessageTooOld={prefillCreatedAtTooOld}
+          orderDateLabel={vocab.dateLabel}
         />
       </div>
 
@@ -824,6 +912,9 @@ export default function OrderCreateForm({
             setValue={setValue}
             appointmentBlock={renderAppointmentBlock('d', 'embedded')}
             appointmentPrefilledDate={appointmentPrefilledDate}
+            orderDateFromMessage={!!prefillCreatedAt}
+            orderDateMessageTooOld={prefillCreatedAtTooOld}
+            orderDateLabel={vocab.dateLabel}
           />
         </div>
       </div>

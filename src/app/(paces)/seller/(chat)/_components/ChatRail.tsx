@@ -141,9 +141,21 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
     // แก้เชิงโครงสร้างแทนการใส่ sticky ซ้อน: แท็บคือ "โหมดของทั้งคอลัมน์" ไม่ใช่หัวของรายการ —
     // sticky 2 ชั้นที่ top-0 เท่ากันจะทับกันเอง ต้องมานั่งชดเชยความสูงกันไปมา
     <div className="flex h-full min-h-0 flex-col">
+      {/* `!h-full` บน scrollable node — bug fix 2026-08-06 (user report: "เวลา filter chat น้อย ๆ
+          เปิดตัวกรองแล้วเพี้ยน"): SimpleBar เขียน `height: auto` ลง `.simplebar-content-wrapper`
+          เองทุกครั้งที่คิดว่าคอนเทนเนอร์เป็น auto-height (simplebar-core `recalculate()` —
+          `isHeightAuto = heightAutoObserverEl.offsetHeight <= 1` ซึ่งเป็นจริงเสมอที่นี่ เพราะ
+          `.simplebar-wrapper` ใช้ `height: inherit` แล้วรับค่า `auto` มาจาก root ที่สูงด้วย flex-1
+          ไม่ใช่ด้วย property `height`) → กล่อง scroll หดเท่า "ความสูงของการ์ดรายการ" เป๊ะ ๆ
+          พอรายการแชทสั้น (กรองแล้วเหลือไม่กี่ห้อง) popover ตัวกรองที่เป็น absolute ในหัวการ์ด
+          จึงถูก `overflow` ของกล่องนี้ตัดตรงขอบล่างการ์ด — เห็นแค่หัวแผงกับชิปครึ่งใบ ปุ่ม
+          "ใช้ตัวกรอง" หายไปทั้งแถบ. รายการยาว ๆ ไม่มีอาการเพราะเส้นตัดไปอยู่ต่ำกว่าจอ
+          `height: 100%` (ของ `.simplebar-offset` ที่ absolute inset เต็มคอลัมน์) คือค่าที่ SimpleBar
+          ใช้เองในโหมดปกติอยู่แล้ว + `max-height: 100%` เดิมยังอยู่ → รายการยาวยังเลื่อนเหมือนเดิม
+          ต้อง `!` เพราะต้องชนะ inline style ที่ SimpleBar เขียนทับทุกรอบ recalculate */}
       <SimpleBar
         className="min-h-0 flex-1"
-        scrollableNodeProps={{ className: 'overscroll-contain' }}
+        scrollableNodeProps={{ className: 'overscroll-contain !h-full' }}
       >
       {loading ? (
         <div className="px-4 pt-4 pb-4">

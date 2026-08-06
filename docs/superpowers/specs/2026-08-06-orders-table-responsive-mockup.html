@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Mockup — ตารางคำสั่งซื้อ responsive (2026-08-06)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* token ยกมาจาก .impeccable/design.json + Paces semantic ที่ใช้จริงในโปรเจกต์
+     (bg-{semantic}/15 + text-{semantic}-ink) — ห้ามแก้ค่าที่นี่โดยไม่ sync กับของจริง */
+  :root{
+    --primary:#236dc9; --ink:#1f1a24;
+    --default-900:#2b2b3c; --default-800:#41415a; --default-700:#5a5a72;
+    --default-500:#8b8b9e; --default-400:#a3a3b5; --default-300:#c9c9d4;
+    --default-200:#e5e5ec; --default-100:#f2f2f7; --white:#fff;
+    --warning:#ff9f43; --warning-ink:#8a4b00;
+    --info:#00bad1; --info-ink:#0a5a66;
+    --success:#28c76f; --success-ink:#0f5c33;
+    --danger:#ea5455; --danger-ink:#8b1f20;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eef0f4;font-family:Anuphan,system-ui,sans-serif;color:var(--default-900)}
+  .page{max-width:1120px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:24px;font-weight:700;margin:0 0 6px}
+  .lede{color:var(--default-700);font-size:14px;margin:0 0 28px;line-height:1.65}
+  h2{font-size:17px;font-weight:600;margin:36px 0 4px;display:flex;align-items:center;gap:10px}
+  h2 .w{font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--default-100);color:var(--default-700)}
+  .note{font-size:13px;color:var(--default-700);margin:0 0 12px;line-height:1.6}
+
+  /* กล่องจำลองจอ — ตัวเลขความกว้างมาจากการวัดจริงบนเครื่อง user 2026-08-06 */
+  .screen{background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(31,26,36,.10),0 8px 24px rgba(31,26,36,.06);overflow:hidden;margin-bottom:8px}
+  .screen-bar{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--default-200);background:var(--default-100)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .screen-bar .u{margin-left:8px;font-size:11px;color:var(--default-500)}
+  .viewport{overflow-x:auto}
+  .frame{display:flex;min-width:max-content}
+  .side{width:245px;flex:0 0 245px;background:#1b1b2b;color:#9aa0b5;padding:14px 12px;font-size:12px}
+  .side .brand{color:#fff;font-weight:700;font-size:14px;margin-bottom:14px}
+  .side ul{list-style:none;margin:0;padding:0}
+  .side li{padding:6px 8px;border-radius:6px;margin-bottom:2px}
+  .side li.on{background:rgba(255,255,255,.10);color:#fff}
+  .content{padding:20px;flex:1 1 auto;min-width:0}
+
+  table{border-collapse:collapse;width:100%;font-size:14px;table-layout:auto}
+  th{font-size:12px;font-weight:600;color:var(--default-700);text-align:left;padding:10px 8px;border-bottom:1px solid var(--default-200);white-space:nowrap}
+  td{padding:10px 8px;border-bottom:1px solid var(--default-200);vertical-align:middle}
+  .rowh{font-size:11px;color:var(--default-500);margin:6px 0 0}
+
+  .cust{display:flex;align-items:center;gap:8px}
+  .av{width:30px;height:30px;border-radius:50%;background:var(--default-100);flex:0 0 30px}
+  .nm{font-weight:500;font-size:14px;line-height:1.25}
+  .sub{font-size:12px;color:var(--default-400)}
+  .prod{display:flex;align-items:center;gap:9px}
+  .thumb{width:34px;height:34px;border-radius:8px;background:var(--default-100);flex:0 0 34px}
+  .pname{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+  .cour{display:flex;align-items:center;gap:8px}
+  .clogo{width:26px;height:26px;border-radius:8px;background:#ffde17;flex:0 0 26px}
+  .track{font-size:12px;color:var(--default-500);font-weight:500;font-variant-numeric:tabular-nums}
+  .badge{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:2px 8px;font-size:14px;font-weight:600;white-space:nowrap}
+  .b-warn{background:color-mix(in srgb,var(--warning) 15%,transparent);color:var(--warning-ink)}
+  .b-info{background:color-mix(in srgb,var(--info) 15%,transparent);color:var(--info-ink)}
+  .b-ok{background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success-ink)}
+  .acts{display:flex;gap:4px}
+  .ico{width:13px;height:13px;border-radius:3px;background:currentColor;opacity:.55;display:inline-block}
+  .ib{width:30px;height:30px;border-radius:8px;border:1px solid var(--default-200);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--default-500)}
+  .tl{display:flex;align-items:center;gap:3px}
+  .tl i{width:14px;height:14px;border-radius:50%;background:var(--default-200);display:block}
+  .tl i.on{background:var(--primary)}
+  .tl s{width:12px;height:2px;background:var(--default-200);display:block}
+  .money{font-weight:600;white-space:nowrap}
+  .pay{display:inline-flex;align-items:center;gap:5px;color:var(--default-700);font-size:14px}
+  .dt{font-size:14px;color:var(--default-700)}
+
+  /* ── โหมด "ก่อนแก้": จำลองการบีบจนตัดบรรทัด (ของจริงวัดได้ 88px/แถว) ── */
+  .before table{table-layout:fixed}
+  .before .w-pay{width:74px}
+  .before .w-date{width:80px}
+  .before .w-prod{width:107px}
+  .before .pay,.before .dt{white-space:normal;word-break:break-all}
+  .before td{vertical-align:top}
+
+  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+  .tag{font-size:11px;padding:3px 9px;border-radius:999px;font-weight:600}
+  .t-p1{background:color-mix(in srgb,var(--primary) 15%,transparent);color:#123f77}
+  .t-p2{background:color-mix(in srgb,var(--info) 15%,transparent);color:var(--info-ink)}
+  .t-p3{background:var(--default-100);color:var(--default-700)}
+  .cut{opacity:.34}
+
+  .measure{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0 0;background:var(--white);border-radius:10px;overflow:hidden}
+  .measure th{background:var(--default-100);border-bottom:1px solid var(--default-200)}
+  .measure td{border-bottom:1px solid var(--default-200);padding:8px}
+  .bad{color:var(--danger-ink);font-weight:600}
+  .good{color:var(--success-ink);font-weight:600}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>ตารางคำสั่งซื้อ — แก้อาการเพี้ยนบนจอที่ไม่กว้างพอ</h1>
+<p class="lede"><b>หมายเหตุ:</b> ช่องสี่เหลี่ยมเล็กในป้ายสถานะ = ตำแหน่ง icon จริง (tabler) · ตัวอักษรในปุ่มจัดการ = ตำแหน่งปุ่มไอคอน — mockup ไม่ใส่ emoji ตามกฎห้าม emoji ใน UI<br><br>
+  วัดของจริงจากเครื่อง user (prod, 2026-08-06) ด้วย CDP — ไม่ใช่ตัวเลขประมาณ<br>
+  แถบข้างกินคงที่ <b>285px</b> ทุกความกว้าง · ตาราง <b>12 คอลัมน์</b> · ความสูงแถวปกติควรเป็น 67px
+</p>
+
+<table class="measure">
+  <tr><th>viewport</th><th>พื้นที่ตาราง</th><th>ความสูงแถว</th><th>อาการ</th></tr>
+  <tr><td>1024</td><td>739px</td><td class="bad">88px</td><td class="bad">ตัดบรรทัดหนัก</td></tr>
+  <tr><td>1280</td><td>995px</td><td class="bad">88px</td><td class="bad">ตัดบรรทัด</td></tr>
+  <tr><td>1440</td><td>1155px</td><td class="bad">88px</td><td class="bad">ตัดบรรทัด</td></tr>
+  <tr><td>1536</td><td>1251px</td><td class="bad">88px</td><td class="bad">ตัดบรรทัด</td></tr>
+  <tr><td>1800</td><td>1515px</td><td class="bad">88px</td><td class="bad">ตัดบรรทัด (จอที่ user ส่งภาพมา)</td></tr>
+  <tr><td>1920</td><td>1635px</td><td class="good">67px</td><td class="good">ปกติ</td></tr>
+</table>
+<p class="note" style="margin-top:10px">
+  ความกว้างคอลัมน์จริงที่วัดได้ที่ 1800: ที่มา 36 · เลขออเดอร์ 159 · ลูกค้า 195 · <b>สินค้า 107</b> ·
+  ยอดรวม 54 · <b>การชำระเงิน 74</b> · ขนส่ง 146 · เลขพัสดุ 141 · พัสดุ 140 · <b>วันที่ 80</b> ·
+  สถานะ 128 · <b>จัดการ 209</b><br>
+  สามช่องตัวหนาคือช่องที่ถูกบีบจนตัดบรรทัด ส่วน "จัดการ" กินพื้นที่มากที่สุดในตาราง
+</p>
+
+<!-- ═══════════════ ก่อนแก้ ═══════════════ -->
+<h2>ก่อนแก้ <span class="w">viewport 1800 · พื้นที่ตาราง 1515px</span></h2>
+<p class="note">ยัด 12 คอลัมน์ลงในพื้นที่ที่ไม่พอ เบราว์เซอร์จึงตัดกลางคำ (ภาษาไทยไม่มีช่องว่างระหว่างคำ) — แถวสูง 88px</p>
+<div class="screen before">
+  <div class="screen-bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="u">seller.deepthailand.app/orders</span></div>
+  <div class="viewport"><div class="frame" style="width:1800px">
+    <div class="side"><div class="brand">Deep</div><ul><li>ภาพรวมร้านค้า</li><li class="on">คำสั่งซื้อ</li><li>สินค้า</li><li>ลูกค้า</li></ul></div>
+    <div class="content">
+      <table>
+        <thead><tr>
+          <th style="width:36px">ที่มา</th><th style="width:159px">เลขออเดอร์</th><th style="width:195px">ลูกค้า</th>
+          <th class="w-prod">สินค้า</th><th style="width:54px">ยอดรวม</th><th class="w-pay">การชำระเงิน</th>
+          <th style="width:146px">ขนส่ง</th><th style="width:141px">เลขพัสดุ</th><th style="width:140px">พัสดุ</th>
+          <th class="w-date">วันที่/เวลา</th><th style="width:128px">สถานะ</th><th style="width:209px">จัดการ</th>
+        </tr></thead>
+        <tbody><tr>
+          <td><span class="av" style="width:26px;height:26px"></span></td>
+          <td style="color:var(--primary);font-weight:500">DP25690823A70A6F</td>
+          <td><div class="cust"><span class="av"></span><div><div class="nm">พรานไพร</div><div class="sub">0622904962</div></div></div></td>
+          <td><div class="prod"><span class="thumb"></span><span class="pname">โช๊คหลัง…</span></div></td>
+          <td class="money">฿360</td>
+          <td><span class="pay">เก็บปลายทาง</span></td>
+          <td><div class="cour"><span class="clogo"></span><span>Flash Thunder</span></div></td>
+          <td><span class="track">TH590990YB714A</span></td>
+          <td><span class="tl"><i class="on"></i><s></s><i></i><s></s><i></i><s></s><i></i></span></td>
+          <td><span class="dt">2569-08-06 09:10:29</span></td>
+          <td><span class="badge b-warn">รอดำเนินการ</span></td>
+          <td><div class="acts"><span class="ib">i</span><span class="ib">/</span><span class="ib">:</span><span class="ib">#</span><span class="ib">+</span></div></td>
+        </tr></tbody>
+      </table>
+      <p class="rowh">ความสูงแถวจริง 88px — "เก็บ/ปลาย/ทาง" และ "2569-08-/06/09:10:29" ถูกตัด 3 บรรทัด</p>
+    </div>
+  </div></div>
+</div>
+
+<!-- ═══════════════ หลังแก้ ═══════════════ -->
+<h2 style="margin-top:44px">หลังแก้ — คอลัมน์โผล่เป็นชั้นตามพื้นที่ที่มีจริง</h2>
+<p class="note">
+  จัดลำดับจากงานจริงของร้าน (เปิดพัสดุ → ตามเลขพัสดุ → ทวงเงิน COD) แล้วให้ชั้นที่สำคัญน้อยกว่าถอยออกเมื่อพื้นที่ไม่พอ<br>
+  <b>ขนส่ง + เลขพัสดุ ยุบเป็นคอลัมน์เดียว "การจัดส่ง"</b> (2 บรรทัดในเซลล์เดียว แบบเดียวกับคอลัมน์ "ลูกค้า") — สองอย่างนี้ถูกอ่านคู่กันเสมอ แยกคอลัมน์คือกิน 287px โดยไม่ได้อะไรกลับมา
+</p>
+<div class="legend">
+  <span class="tag t-p1">P1 มีเสมอ · เลขออเดอร์ / ลูกค้า / สินค้า / ยอดรวม / สถานะ / จัดการ</span>
+  <span class="tag t-p2">P2 ตั้งแต่ 1536 · การจัดส่ง / พัสดุ</span>
+  <span class="tag t-p3">P3 ตั้งแต่ 1880 · ที่มา / การชำระเงิน / วันที่</span>
+</div>
+
+<h2 style="margin-top:26px">≥1880 — ครบทุกคอลัมน์ <span class="w">พื้นที่ตาราง ~1595px</span></h2>
+<div class="screen">
+  <div class="screen-bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="u">viewport 1880</span></div>
+  <div class="viewport"><div class="frame" style="width:1880px">
+    <div class="side"><div class="brand">Deep</div><ul><li>ภาพรวมร้านค้า</li><li class="on">คำสั่งซื้อ</li><li>สินค้า</li><li>ลูกค้า</li></ul></div>
+    <div class="content">
+      <table>
+        <thead><tr>
+          <th>ที่มา</th><th>เลขออเดอร์</th><th>ลูกค้า</th><th>สินค้า</th><th>ยอดรวม</th>
+          <th>การชำระเงิน</th><th>การจัดส่ง</th><th>พัสดุ</th><th>วันที่/เวลา</th><th>สถานะ</th><th>จัดการ</th>
+        </tr></thead>
+        <tbody>
+        <tr>
+          <td><span class="av" style="width:26px;height:26px"></span></td>
+          <td style="color:var(--primary);font-weight:500;white-space:nowrap">DP25690823A70A6F</td>
+          <td style="min-width:144px"><div class="cust"><span class="av"></span><div><div class="nm">พรานไพร</div><div class="sub">0622904962</div></div></div></td>
+          <td style="min-width:160px"><div class="prod"><span class="thumb"></span><span class="pname">โช๊คหลังคู่ สีดำ</span></div></td>
+          <td class="money">฿360</td>
+          <td style="white-space:nowrap"><span class="pay">เก็บปลายทาง</span></td>
+          <td style="min-width:160px;white-space:nowrap"><div class="cour"><span class="clogo"></span><div><div style="font-size:14px">Flash Thunder</div><div class="track">TH590990YB714A</div></div></div></td>
+          <td><span class="tl"><i class="on"></i><s></s><i></i><s></s><i></i><s></s><i></i></span></td>
+          <td style="white-space:nowrap"><span class="dt">2569-08-06 09:10:29</span></td>
+          <td><span class="badge b-warn"><span class="ico"></span>รอดำเนินการ</span></td>
+          <td><div class="acts"><span class="ib">i</span><span class="ib">/</span><span class="ib">:</span><span class="ib">#</span><span class="ib">+</span></div></td>
+        </tr>
+        <tr>
+          <td><span class="av" style="width:26px;height:26px"></span></td>
+          <td style="color:var(--primary);font-weight:500;white-space:nowrap">DP2569081B95B9A8</td>
+          <td><div class="cust"><span class="av"></span><div><div class="nm">วีระ คอระอุด</div><div class="sub">0896293641</div></div></div></td>
+          <td><div class="prod"><span class="thumb"></span><span class="pname">โช๊คหน้าคู่ แดง</span></div></td>
+          <td class="money">฿590</td>
+          <td style="white-space:nowrap"><span class="pay">เก็บปลายทาง</span></td>
+          <td style="white-space:nowrap"><div class="cour"><span class="clogo" style="background:#e03a3e"></span><div><div style="font-size:14px">KEX Express</div><div class="track">ISX620432DQGO</div></div></div></td>
+          <td><span class="tl"><i class="on"></i><s></s><i class="on"></i><s></s><i></i><s></s><i></i></span></td>
+          <td style="white-space:nowrap"><span class="dt">2569-08-05 19:15:35</span></td>
+          <td><span class="badge b-info"><span class="ico"></span>กำลังจัดส่ง</span></td>
+          <td><div class="acts"><span class="ib">i</span><span class="ib">/</span><span class="ib">:</span><span class="ib">#</span><span class="ib">+</span></div></td>
+        </tr>
+        </tbody>
+      </table>
+      <p class="rowh">ทุกช่องอยู่บรรทัดเดียว · แถว ~62px</p>
+    </div>
+  </div></div>
+</div>
+
+<h2 style="margin-top:36px">1536–1879 — ซ่อน ที่มา / การชำระเงิน / วันที่ <span class="w">พื้นที่ตาราง 1251px</span></h2>
+<p class="note">สามคอลัมน์ที่ถอยออกไปโผล่ใน hover panel ของคอลัมน์ "สินค้า" ที่มีอยู่แล้ว — ไม่ได้หายไปจริง</p>
+<div class="screen">
+  <div class="screen-bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="u">viewport 1536</span></div>
+  <div class="viewport"><div class="frame" style="width:1536px">
+    <div class="side"><div class="brand">Deep</div><ul><li>ภาพรวมร้านค้า</li><li class="on">คำสั่งซื้อ</li><li>สินค้า</li><li>ลูกค้า</li></ul></div>
+    <div class="content">
+      <table>
+        <thead><tr>
+          <th class="cut" style="text-decoration:line-through">ที่มา</th><th>เลขออเดอร์</th><th>ลูกค้า</th><th>สินค้า</th><th>ยอดรวม</th>
+          <th class="cut" style="text-decoration:line-through">ชำระเงิน</th><th>การจัดส่ง</th><th>พัสดุ</th>
+          <th class="cut" style="text-decoration:line-through">วันที่</th><th>สถานะ</th><th>จัดการ</th>
+        </tr></thead>
+        <tbody><tr>
+          <td class="cut">—</td>
+          <td style="color:var(--primary);font-weight:500;white-space:nowrap">DP25690823A70A6F</td>
+          <td style="min-width:144px"><div class="cust"><span class="av"></span><div><div class="nm">พรานไพร</div><div class="sub">0622904962</div></div></div></td>
+          <td style="min-width:160px"><div class="prod"><span class="thumb"></span><span class="pname">โช๊คหลังคู่ สีดำ</span></div></td>
+          <td class="money">฿360</td>
+          <td class="cut">—</td>
+          <td style="min-width:160px;white-space:nowrap"><div class="cour"><span class="clogo"></span><div><div style="font-size:14px">Flash Thunder</div><div class="track">TH590990YB714A</div></div></div></td>
+          <td><span class="tl"><i class="on"></i><s></s><i></i><s></s><i></i><s></s><i></i></span></td>
+          <td class="cut">—</td>
+          <td><span class="badge b-warn"><span class="ico"></span>รอดำเนินการ</span></td>
+          <td><div class="acts"><span class="ib">i</span><span class="ib">/</span><span class="ib">:</span><span class="ib">#</span><span class="ib">+</span></div></td>
+        </tr></tbody>
+      </table>
+      <p class="rowh">คอลัมน์ที่จางคือคอลัมน์ที่ถูกซ่อนจริง (วาดไว้ให้เห็นว่าอันไหนหาย) · แถว ~62px</p>
+    </div>
+  </div></div>
+</div>
+
+<h2 style="margin-top:36px">1280–1535 — เหลือเฉพาะชั้น P1 <span class="w">พื้นที่ตาราง 995px</span></h2>
+<p class="note">"การจัดส่ง" กับ "พัสดุ" ถอยออกด้วย — ที่ความกว้างนี้ยัดเข้าไปแล้วชื่อสินค้าจะเหลือ 6-7 ตัวอักษรอีก</p>
+<div class="screen">
+  <div class="screen-bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="u">viewport 1280</span></div>
+  <div class="viewport"><div class="frame" style="width:1280px">
+    <div class="side"><div class="brand">Deep</div><ul><li>ภาพรวมร้านค้า</li><li class="on">คำสั่งซื้อ</li><li>สินค้า</li><li>ลูกค้า</li></ul></div>
+    <div class="content">
+      <table>
+        <thead><tr>
+          <th>เลขออเดอร์</th><th>ลูกค้า</th><th>สินค้า</th><th>ยอดรวม</th><th>สถานะ</th><th>จัดการ</th>
+        </tr></thead>
+        <tbody><tr>
+          <td style="color:var(--primary);font-weight:500;white-space:nowrap">DP25690823A70A6F</td>
+          <td style="min-width:144px"><div class="cust"><span class="av"></span><div><div class="nm">พรานไพร</div><div class="sub">0622904962</div></div></div></td>
+          <td style="min-width:160px"><div class="prod"><span class="thumb"></span><span class="pname">โช๊คหลังคู่ สีดำ ของแท้</span></div></td>
+          <td class="money">฿360</td>
+          <td><span class="badge b-warn"><span class="ico"></span>รอดำเนินการ</span></td>
+          <td><div class="acts"><span class="ib">i</span><span class="ib">/</span><span class="ib">:</span><span class="ib">#</span><span class="ib">+</span></div></td>
+        </tr></tbody>
+      </table>
+      <p class="rowh">ชื่อสินค้าได้พื้นที่คืนเต็ม ๆ · แถว ~62px</p>
+    </div>
+  </div></div>
+</div>
+
+<h2 style="margin-top:36px">&lt;1280 — การ์ด (ของเดิม ไม่แตะ)</h2>
+<p class="note">
+  ตอนนี้สลับที่ <b>1024</b> ซึ่งเหลือพื้นที่แค่ 739px = พังหนักที่สุด · ข้อเสนอคือเลื่อนจุดสลับขึ้นเป็น 1280
+  ให้ช่วง 1024–1279 ได้การ์ดที่ออกแบบมาสำหรับพื้นที่แคบอยู่แล้ว<br>
+  <b>ต้องแก้คู่กัน:</b> ปุ่ม "สร้างคำสั่งซื้อ"/"ดึงจาก iShip" ใน <code>OrdersList.tsx</code> ผูก <code>lg:</code> ไว้แยกจากกล่อง
+  ถ้าเลื่อนแค่กล่องจะได้การ์ดมือถือโผล่คู่ปุ่มเดสก์ท็อปในจอเดียวกัน
+</p>
+<div class="screen" style="max-width:420px">
+  <div class="screen-bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="u">viewport 1024 → การ์ด</span></div>
+  <div style="padding:14px;background:var(--default-100)">
+    <div style="background:#fff;border-radius:10px;border-left:3px solid var(--warning);padding:12px;box-shadow:0 1px 3px rgba(31,26,36,.08)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="cust"><span class="av"></span><div><div class="nm">พรานไพร</div><div class="sub">0622904962 · เก็บปลายทาง</div></div></div>
+        <div style="text-align:right"><div style="font-size:11px;color:var(--default-500);font-weight:600">A70A6F</div><span class="badge b-warn" style="border-radius:999px;margin-top:4px"><span class="ico"></span>รอดำเนินการ</span></div>
+      </div>
+      <div style="border-top:1px dashed var(--default-200);margin-top:10px;padding-top:10px" class="prod"><span class="thumb"></span><span class="pname">โช๊คหลังคู่ สีดำ</span><span class="money" style="margin-left:auto">฿360</span></div>
+      <div style="border-top:1px dashed var(--default-200);margin-top:10px;padding-top:10px;display:flex;align-items:center;gap:8px">
+        <span class="clogo"></span><span style="font-size:13px">Flash Thunder</span><span class="track">TH590990YB714A</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 style="margin-top:44px">สิ่งที่ยังไม่ได้ทำ และอยากให้เคาะ</h2>
+<p class="note">
+  <b>คอลัมน์ "จัดการ" กิน 209px = มากที่สุดในตาราง</b> (ปุ่มไอคอน 5 ปุ่มเรียงกัน) — ถ้ายอมให้ยุบเป็นปุ่มหลัก 1 + เมนู ⋮
+  ที่ช่วง 1280–1535 จะได้พื้นที่คืนราว 140px พอให้ "การจัดส่ง" กลับมาได้ตั้งแต่ 1280<br>
+  แต่เคยเคาะไว้เมื่อ 2026-06-15 ว่าตารางเดสก์ท็อปห้ามมี ⋮ ต้องเป็นปุ่มชัดเรียงกัน — เลยไม่แตะเอง รอคุณตัดสิน
+</p>
+
+</div>
+</body>
+</html>

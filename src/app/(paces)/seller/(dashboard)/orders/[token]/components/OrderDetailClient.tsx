@@ -31,6 +31,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import type { OrderStatus } from '@/lib/order-display'
+import type { ShippingStageKey } from '@/lib/order-stage'
 import type { OrderVocab } from '@/lib/seller-menu'
 import type { ShipmentContextJson } from '@/lib/iship/context'
 import OrderActionBar from '@/components/safepay/OrderActionBar'
@@ -79,12 +80,20 @@ export interface OrderDetailClientProps {
   publicToken: string
   shortCode: string | null
   status: string
+  /**
+   * กองงานตามสถานะพัสดุ (deriveShippingStage ที่ server) — ป้ายหัวหน้าต้องรวมค่านี้เข้ากับ
+   * status ไม่งั้นใบ COD ที่ส่งถึงแล้วแต่ยังไม่ได้เงินจะขึ้น "กำลังจัดส่ง" ทั้งที่ของถึงแล้ว
+   * undefined = ร้านที่ไม่ใช่ ONLINE_SALES (ไม่มีพัสดุให้ไล่)
+   */
+  shippingStage?: ShippingStageKey
   type: string
   createdAtISO: string
   fulfillmentMode: string
   isFromAuction: boolean
   /** ช่องทางการขายของออเดอร์ — ส่งต่อให้ StatusHero โชว์โลโก้แบรนด์ในแถวหัว */
   salesChannel: string | null
+  /** รูปเพจที่ลูกค้าทักมา — ส่งต่อให้ OrderSummary (user 2026-08-06) */
+  pageLogoUrl?: string | null
   /** ชื่อผู้ซื้อที่ resolve แล้วฝั่ง server — ส่งต่อให้ StatusHero ตรง ๆ */
   buyerLabel: string
   totalAmount: number
@@ -133,11 +142,13 @@ export default function OrderDetailClient({
   publicToken,
   shortCode,
   status,
+  shippingStage,
   type,
   createdAtISO,
   fulfillmentMode,
   isFromAuction,
   salesChannel,
+  pageLogoUrl = null,
   buyerLabel,
   totalAmount,
   paymentMethod,
@@ -378,8 +389,10 @@ export default function OrderDetailClient({
             paymentMethod={paymentMethod}
             publicToken={publicToken}
             salesChannel={salesChannel}
+            pageLogoUrl={pageLogoUrl}
             slipFileId={slipFileId}
             status={status}
+            shippingStage={shippingStage}
             totalAmount={totalAmount}
             vatAmount={vatAmount}
             vatRate={vatRate}

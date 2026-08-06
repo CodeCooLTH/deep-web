@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { toastPaymentNotice } from '@/components/safepay/iship/payment-notice-toast'
 import SenderIncompleteNotice from '@/components/safepay/iship/SenderIncompleteNotice'
 import ShipmentCreateForm, { type Courier } from '@/components/safepay/iship/ShipmentCreateForm'
 import ShipmentLinkPanel from '@/components/safepay/iship/ShipmentLinkPanel'
@@ -113,14 +114,18 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
         setForceForm(false)
         return
       }
-      pacesToast.success('สร้างพัสดุและแจ้งเลขติดตามแล้ว')
+      // แผงกำลังจะถูกปิด → toast คือหลักฐานเดียวที่เหลือ ต้องคงคำยืนยันสำเร็จไว้ในประโยคเดียวกัน
+      if (!toastPaymentNotice(shipment.paymentNotice, 'สร้างพัสดุและแจ้งเลขติดตามแล้ว'))
+        pacesToast.success('สร้างพัสดุและแจ้งเลขติดตามแล้ว')
       onDone()
       return
     }
 
     // ไม่ได้ติ๊กแจ้ง — ต้องอยู่ที่หน้าสถานะต่อ ไม่ใช่ปิดแผงทิ้ง
     // เพราะปุ่ม "แจ้งเลขในแชท" อยู่ในนั้น ปิดไปแล้วร้านจะไม่มีทางกดส่งเองได้จากตรงนี้
-    pacesToast.success(`สร้างพัสดุแล้ว (${shipment.trackingNo})`)
+    // อยู่หน้าสถานะต่อ → เลขพัสดุอยู่ตัวใหญ่กลางจอแล้ว ไม่ต้องย้ำใน toast ถ้ามีเรื่องเงินต้องบอก
+    if (!toastPaymentNotice(shipment.paymentNotice))
+      pacesToast.success(`สร้างพัสดุแล้ว (${shipment.trackingNo})`)
     setCtx((c) => (c ? { ...c, shipment } : c))
     setForceForm(false)
   }

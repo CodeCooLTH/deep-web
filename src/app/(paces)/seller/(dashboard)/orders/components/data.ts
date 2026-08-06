@@ -48,6 +48,8 @@ export type OrderRow = {
    * user สั่ง 2026-08-04: กดจากไทล์เข้ามาแล้วต้องเห็นเลขพัสดุชัด ๆ ว่าเจ้าไหน เปิดผ่านอะไร
    */
   shipment?: {
+    /** OrderShipment.id — null = พัสดุที่ร้านแจ้งเลขเอง (ไม่มี traces ให้ถาม iShip) */
+    id: string | null
     trackingNo: string | null
     courierCode: string | null
     courierName: string | null
@@ -71,6 +73,13 @@ export type OrderRow = {
   buyerAvatar: string | null
   /** ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER) → icon ผ่าน SALES_CHANNEL_ICONS */
   salesChannel: string | null
+  /**
+   * รูปเพจที่ลูกค้าทักมา (ShopChannel.avatarUrl) — null = ไม่รู้เพจ ให้ UI ตกไปใช้
+   * โลโก้แพลตฟอร์มแทน (user สั่ง 2026-08-06: คอลัมน์ที่มาของออเดอร์)
+   * ตอนนี้เติมได้เฉพาะออเดอร์ FACEBOOK ของร้านที่เชื่อมเพจ ACTIVE เพจเดียว —
+   * Order ไม่ได้เก็บว่ามาจากเพจไหน (มีแค่ salesChannel) ร้านหลายเพจจึงชี้เพจไม่ได้
+   */
+  sourceLogoUrl?: string | null
   /** true = order เกิดจากการชนะประมูล (มี auctionId) — แสดง badge ค้อนประมูล */
   isFromAuction: boolean
   /** เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller เป็นเจ้าของออเดอร์/ลูกค้าตัวเอง
@@ -78,6 +87,42 @@ export type OrderRow = {
   buyerPhone: string | null
   /** วิธีชำระเงิน (code) — map ผ่าน PAYMENT_LABELS/PAYMENT_ICONS */
   paymentMethod: string | null
+  /**
+   * ปลายทางแยกเป็นส่วน ๆ (2026-08-06 — user สั่งให้รหัสไปรษณีย์อยู่บรรทัดล่างสุดเสมอ
+   * "จะได้ก้อบง่าย ๆ") — ประกอบเป็นบรรทัดที่ฝั่งจอ ไม่ใช่ต่อสตริงมาจาก server เพราะ
+   * การขึ้นบรรทัดเป็นเรื่องของการแสดงผล ไม่ใช่ของข้อมูล
+   *
+   * PII: หน้านี้อยู่ใต้ client layout ทุก field ถูก serialize เข้า flight payload ของทุกแถว
+   * ที่โหลดมา (feedback_rsc_pii_neutralize_at_source) — user เคาะ 2026-08-06 ให้แสดงที่อยู่
+   * เต็มเพราะร้านใช้จ่าหน้าซองจริง ผู้ที่เห็นคือเจ้าของออเดอร์เท่านั้น
+   * null ทั้งก้อน = ยังไม่มีที่อยู่
+   */
+  shipTo: {
+    /** บ้านเลขที่/อาคาร */
+    line1: string | null
+    /** หมู่/ตำบล/อำเภอ รวมบรรทัดเดียว */
+    locality: string | null
+    province: string | null
+    postcode: string | null
+  } | null
+  /**
+   * ประวัติของลูกค้ารายนี้กับร้าน (null = ออเดอร์ที่ยังไม่ผูก Customer — ลูกค้าไม่มีเบอร์)
+   *
+   * นับจาก Order ทั้งหมดของลูกค้าคนนี้ในร้านนี้ รวมใบปัจจุบันด้วย — "สั่งครั้งที่ 3"
+   * อ่านง่ายกว่า "เคยสั่ง 2 ครั้ง" เวลามองจากแถวของใบใดใบหนึ่ง
+   * cancelled ใช้ตัดสินใจจริงตอนจะเปิดพัสดุ COD (ลูกค้าที่ยกเลิกบ่อย = ค่าส่งเสียเปล่า)
+   */
+  customerStats: { orders: number; cancelled: number } | null
+  /**
+   * ห้องแชทของลูกค้ารายนี้ (null = ไม่มี/หาไม่เจอ) — ใช้ทำปุ่ม "เปิดแชท" บนแถบหัว
+   *
+   * Order ไม่ได้เก็บว่ามาจากห้องไหนโดยตรง (ไม่มี FK) — resolve ที่ server ผ่าน
+   * Order.customerId → ExternalContact.customerId → Conversation หรือทาง
+   * Order.buyerUserId → Conversation.buyerUserId สำหรับแชทในระบบ
+   */
+  conversationId: string | null
+  /** ร้านได้รับเงินเก็บปลายทางแล้วเมื่อไร (null = ยังไม่ได้รับ) — ใช้ทำเช็กลิสต์สถานะ */
+  codReceivedAtISO: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */
   items: OrderItemRow[]
 }
@@ -105,5 +150,6 @@ export type OrderStatCardData = {
   title: string                                              // 'รอดำเนินการ' ฯลฯ
   status: 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
   totalCount: number                                         // ยอดรวมทั้งหมดของ status (headline h3)
-  changePct: number                                          // %, +/-/0 (30วันล่าสุด vs 30วันก่อนหน้า)
+  changePct: number                                          // %, +/-/0 (30วันล่าสุด vs 30วันก่อนหน้า)  /** จำนวนใน 30 วันล่าสุด — บรรทัดล่างของการ์ด (โครงเดียวกับ ProductStats) */
+  recentCount: number
 }

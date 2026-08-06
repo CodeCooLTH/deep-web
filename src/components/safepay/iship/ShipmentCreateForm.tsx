@@ -19,6 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
+import { toastPaymentNotice } from './payment-notice-toast'
 import { ISHIP_CATEGORIES, findMissingReceiverFields } from '@/lib/iship/mapping'
 import type { MissingReceiverField, SenderAddress } from '@/lib/iship/mapping'
 import type {
@@ -431,8 +432,14 @@ export default function ShipmentCreateForm({
       }
 
       const body = (await res.json()) as ShipmentViewJson
-      if (body.status === 'CREATED') pacesToast.success('สร้างพัสดุสำเร็จ')
-      else pacesToast.error(body.lastErrorMessage ?? 'สร้างพัสดุไม่สำเร็จ')
+      if (body.status === 'CREATED') {
+        // มีเรื่องวิธีชำระเงินต้องบอก = ยิงใบนั้นแทน "สร้างพัสดุสำเร็จ" ไม่ซ้อนกัน
+        // (ความสำเร็จพิสูจน์จากจอสถานะที่กำลังจะสลับไปอยู่แล้ว)
+        if (!toastPaymentNotice(body.paymentNotice)) pacesToast.success('สร้างพัสดุสำเร็จ')
+      } else {
+        // สร้างไม่สำเร็จ: ไม่ยิง paymentNotice ซ้อน error — แถบในหน้าสถานะแสดงให้แล้ว
+        pacesToast.error(body.lastErrorMessage ?? 'สร้างพัสดุไม่สำเร็จ')
+      }
       onCreated(body)
     } catch {
       pacesToast.error('สร้างพัสดุไม่สำเร็จ กรุณาลองใหม่')

@@ -8,8 +8,10 @@ import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
 import { deriveShippingStage } from "@/lib/order-stage";
+import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
+import { orderDateRejectReason } from "@/lib/order-date-window";
 import {
   attachAppointmentInTx,
   computeAppointmentDeposit,
@@ -58,6 +60,18 @@ export class ShippingAddressRequiredError extends Error {
 // custom item เพราะ productId ผิด shop คือ malicious/malformed input ชัดเจน — UI จริงไม่เคยส่งแบบนี้)
 export class ProductNotInShopError extends Error {
   constructor() { super("PRODUCT_NOT_IN_SHOP"); this.name = "ProductNotInShopError"; }
+}
+
+/**
+ * feature 00033 — วันที่คำสั่งซื้อที่ส่งมาอยู่นอกช่วง 90 วันย้อนหลัง / 7 วันล่วงหน้า
+ * ตรวจที่ service ด้วย ไม่ใช่เชื่อ Valibot อย่างเดียว: caller ฝั่ง server (เช่น iShip import)
+ * เรียก createOrder ตรง ๆ ไม่ผ่าน schema ของ route
+ */
+export class OrderDateOutOfWindowError extends Error {
+  constructor() {
+    super("ORDER_DATE_OUT_OF_WINDOW")
+    this.name = "OrderDateOutOfWindowError"
+  }
 }
 
 // charset เดียวกับ sms-code.service (ตัด 0/O/1/I) — 8 ตัว = 32^8 ≈ 1.1e12 (40-bit)
@@ -111,12 +125,40 @@ export async function createOrder(shopId: string, data: {
    * หน้า "ประวัติคำสั่งซื้อ" อ่านค่านี้ NULL แล้วแสดงคำว่า "ระบบ"
    */
   createdByUserId?: string | null;
+  /**
+   * feature 00033 — วันที่/เวลาที่ลูกค้าสั่ง (ไม่ใช่เวลาที่คีย์เข้าระบบ)
+   *
+   * ไม่ส่งมา = เส้นทางเดิมทุกประการ (คอลัมน์ได้ @default(now()) ของ Postgres)
+   * ส่งมา = ทับ createdAt ซึ่งพา "เลขออเดอร์" (formatOrderNo คิดจากปี/เดือนของค่านี้)
+   * และ "ลำดับในรายการ" (keyset createdAt DESC) ไปด้วยทั้งชุด — ตั้งใจตามมติ D-1
+   *
+   * รับ `Date | string` (ไม่ใช่แค่ Date): CreateOrderSchema (Task 5) ส่ง ISO string ออกจาก
+   * Valibot parse แล้ว route ยัง spread `parsed.output` ตรง ๆ เข้าฟังก์ชันนี้ (route/updateOrder
+   * เดินสายจริงเป็นงาน Task 8 — ที่นี่กันพังไว้ก่อนด้วยการ normalize เป็น Date ตัวเดียวข้างล่าง)
+   */
+  createdAt?: Date | string;
 }) {
   // feature 00024 — ตรวจตัวกั้นฟีเจอร์ + โหลดทรัพยากร "ก่อน" เปิด transaction
   // ทำนอก tx เพราะเป็นการอ่านล้วนและอาจโยน 403/404 ซึ่งไม่ควรกินรอบ retry ของ shortCode
   const appointmentResource = data.appointment
     ? await resolveResourceForOrder(shopId, data.appointment.resourceId)
     : null;
+
+  // feature 00033 — เวลาจริงที่ "มีคนกดสร้าง" จับไว้ครั้งเดียวตั้งแต่ต้น
+  // ใช้กับ OrderEvent.occurredAt เสมอ ห้ามใช้ order.createdAt ซึ่งย้อนหลังได้แล้ว
+  const keyedInAt = new Date();
+
+  // normalize เป็น Date ตัวเดียว — data.createdAt รับได้ทั้ง Date (caller ภายในระบบ) และ
+  // ISO string (ผ่าน Valibot parse จาก route) ใช้ตัวแปรนี้แทน data.createdAt ตลอดฟังก์ชัน
+  const orderCreatedAt =
+    data.createdAt instanceof Date ? data.createdAt : data.createdAt ? new Date(data.createdAt) : undefined;
+
+  if (orderCreatedAt) {
+    const ms = orderCreatedAt.getTime();
+    if (orderDateRejectReason(ms, keyedInAt.getTime()) !== null) {
+      throw new OrderDateOutOfWindowError();
+    }
+  }
 
   // ปัดเศษ 2 ตำแหน่งเพื่อไม่ให้เกิด float tail ก่อนส่งเข้า Decimal(12,2) column
   // (เช่น 0.1+0.2 = 0.30000000000000004 → ปัด → 0.30)
@@ -223,6 +265,8 @@ export async function createOrder(shopId: string, data: {
     shippingAddress: data.shippingAddress ?? undefined,
     // ไม่ส่งมา = ระบบออกออเดอร์เอง เก็บ NULL (ห้าม fallback เป็นเจ้าของร้าน — จะกลายเป็นบันทึกเท็จ)
     createdByUserId: data.createdByUserId ?? undefined,
+    // ไม่ส่งมา = undefined → Prisma ไม่ใส่คอลัมน์นี้ใน INSERT → @default(now()) ทำงานตามเดิม
+    createdAt: orderCreatedAt ?? undefined,
   };
 
   // [!] TD-001 (SDS §3.5): retry loop ต้องครอบ $transaction ทั้งก้อน ไม่ใช่อยู่ข้างในเดียว
@@ -322,11 +366,21 @@ export async function createOrder(shopId: string, data: {
 
         // feature 00031 — ประวัติคำสั่งซื้อ: เขียนใน tx เดียวกับการสร้างเสมอ
         // actor = คนที่กดสร้าง (null = ระบบออกเอง — ห้าม fallback เป็นเจ้าของร้าน)
+        //
+        // feature 00033 — occurredAt = "เวลาที่มีคนกดสร้าง" ไม่ใช่ "วันที่ลูกค้าสั่ง"
+        // เดิมส่ง order.createdAt ซึ่งบังเอิญถูกเพราะสองค่านี้เคยเท่ากันเสมอ. ประวัติคือหลักฐาน
+        // ว่าใครทำอะไรเมื่อไหร่ — ย้อนตามค่าที่ผู้ใช้กรอกได้เมื่อไหร่ ก็เลิกเป็นหลักฐานเมื่อนั้น
+        // ลงวันที่เอง = ค่าที่ส่งมาต่างจากเวลาที่กด (ไม่ส่งมาเลย = ไม่ใช่การลงย้อนหลัง)
+        const isBackdated =
+          !!orderCreatedAt && orderCreatedAt.getTime() !== keyedInAt.getTime();
+
         await recordOrderEvent(tx, {
           orderId: order.id,
           type: "ORDER_CREATED",
           actorUserId: data.createdByUserId ?? null,
-          occurredAt: order.createdAt,
+          occurredAt: keyedInAt,
+          // ใส่ orderedAt เฉพาะออเดอร์ที่ลงวันที่เอง — ออเดอร์ปกติ meta ว่างเหมือนเดิมทุกประการ
+          ...(isBackdated ? { meta: { orderedAt: order.createdAt.toISOString() } } : {}),
         });
 
         // feature 00018 (user request 2026-07-24) — ผูกเธรดแชทเข้ากับ Customer ทันทีเมื่อสร้างจากแชท
@@ -420,6 +474,21 @@ export async function updateOrder(
   // feature 00031 — คนที่กดแก้ไข (optional เพื่อไม่ให้ผู้เรียกเดิมพัง; ไม่ส่ง = "ระบบ")
   actorUserId?: string | null,
 ) {
+  // feature 00033 — เวลาจริงที่กดแก้ (ใช้กับ occurredAt ของ event ทุกตัวในรอบนี้)
+  const editedAt = new Date();
+
+  // normalize เป็น Date ตัวเดียว — เหมือน createOrder เป๊ะ: data.createdAt รับได้ทั้ง Date
+  // (caller ภายในระบบ) และ ISO string (ผ่าน Valibot parse จาก route)
+  const orderCreatedAt =
+    data.createdAt instanceof Date ? data.createdAt : data.createdAt ? new Date(data.createdAt) : undefined;
+
+  if (orderCreatedAt) {
+    const ms = orderCreatedAt.getTime();
+    if (orderDateRejectReason(ms, editedAt.getTime()) !== null) {
+      throw new OrderDateOutOfWindowError();
+    }
+  }
+
   const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
   const subtotal = round2(data.items.reduce((sum, item) => sum + item.qty * item.price, 0));
   const totalAmount = round2(subtotal - (data.discount ?? 0) + (data.vatAmount ?? 0));
@@ -457,7 +526,8 @@ export async function updateOrder(
         id: true, status: true, type: true, totalAmount: true, buyerContact: true,
         buyerName: true, paymentMethod: true, salesChannel: true, internalNote: true,
         discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
-        items: { select: { productId: true, name: true, qty: true, price: true } },
+        createdAt: true, publicToken: true,
+        items: { select: { productId: true, name: true, description: true, qty: true, price: true } },
       },
     });
     if (!existing) throw new OrderNotFoundError();
@@ -545,6 +615,44 @@ export async function updateOrder(
       });
     }
 
+    // feature 00033 — เปลี่ยนวันที่คำสั่งซื้อ
+    // I-6 (re-review #2) — เทียบระดับ "นาที" ไม่ใช่มิลลิวินาที เพราะ UI ส่งค่าจาก
+    // datetime-local ที่ตัดวินาที/มิลลิวินาทีทิ้งเสมอ แต่ existing.createdAt (จาก now() ตอนสร้าง
+    // ออเดอร์) แทบไม่เคยลงท้ายด้วยวินาที/มิลลิวินาทีเป็นศูนย์พอดี — ถ้าเทียบระดับ ms ตรง ๆ
+    // caller ที่ echo createdAt เดิมกลับมา (ไม่ผ่าน dirtyFields gate แบบฟอร์มปัจจุบัน เช่น
+    // แอปมือถือ/client ใหม่ในอนาคต) จะเห็นว่า "ต่างกัน" ทั้งที่ผู้ใช้ไม่ได้ตั้งใจเปลี่ยนวันที่เลย
+    const toMinuteMs = (d: Date) => Math.floor(d.getTime() / 60_000) * 60_000;
+    if (orderCreatedAt && toMinuteMs(orderCreatedAt) !== toMinuteMs(existing.createdAt)) {
+      // เลขออเดอร์คิดจากปี/เดือนของ createdAt — ต้อง recompute พร้อมกันในทรานแซกชันเดียว
+      // ไม่งั้นคอลัมน์ orderNo ค้างเดือนเก่า ขณะที่หน้าจอคำนวณสดแล้วโชว์เดือนใหม่
+      // → ผู้ใช้ค้นด้วยเลขที่เห็นบนจอแล้วไม่เจอ (@@index([orderNo]))
+      const recomputedOrderNo = formatOrderNo(existing.publicToken, orderCreatedAt);
+      await tx.order.update({
+        where: { id: existing.id },
+        data: {
+          createdAt: orderCreatedAt,
+          orderNo: recomputedOrderNo,
+        },
+      });
+      // I-3 (2026-08-06) — `order` ถูก select ไว้ "ก่อน" update นี้ (บรรทัดด้านบน) จึงยังถือ
+      // createdAt/orderNo เก่าอยู่ในหน่วยความจำ ถ้าไม่ sync กลับ ค่าที่ return ให้ route (แล้ว
+      // PATCH ตอบกลับ client) จะเป็นค่าเก่าทั้งที่ DB อัปเดตแล้ว — mutate object เดิม ไม่ refetch
+      order.createdAt = orderCreatedAt;
+      order.orderNo = recomputedOrderNo;
+
+      // occurredAt = เวลาจริงที่กดแก้ ไม่ใช่วันที่ใหม่ที่กรอก (Global Constraint)
+      await recordOrderEvent(tx, {
+        orderId: existing.id,
+        type: "ORDER_DATE_CHANGED",
+        actorUserId: actorUserId ?? null,
+        occurredAt: editedAt,
+        meta: {
+          orderedAtFrom: existing.createdAt.toISOString(),
+          orderedAtTo: orderCreatedAt.toISOString(),
+        },
+      });
+    }
+
     // 9) feature 00031 — ORDER_EDITED ใน tx เดียวกัน. changedCount นับจากค่าที่ต่างจริง
     // (เทียบ scalar ต่อ field + รายการสินค้าเป็น 1 หน่วย) — ไม่ส่งค่าจริงเข้า meta (กัน PII)
     const numEq = (a: Prisma.Decimal | number | null | undefined, b: number | null | undefined) => {
@@ -554,8 +662,22 @@ export async function updateOrder(
     };
     const strEq = (a: string | null | undefined, b: string | null | undefined) =>
       (a ?? null) === (b ?? null);
-    const itemKey = (items: { name: string; qty: number; price: number | Prisma.Decimal }[]) =>
-      JSON.stringify(items.map((i) => [i.name.trim(), i.qty, Number(i.price)]));
+    // I-5 (feature 00033 re-review #1) — itemKey เดิมเทียบแค่ name/qty/price ทำให้แก้
+    // "รายละเอียดสินค้า" (description) หรือสลับ productId (ที่ name/qty/price เท่ากันพอดี)
+    // แล้ว changedCount = 0 → ไม่มี ORDER_EDITED เลย ทั้งที่ผู้ซื้อเห็นการเปลี่ยนแปลงจริง
+    // ต้องครอบทั้ง description และ productId ด้วย
+    const itemKey = (
+      items: {
+        name: string;
+        qty: number;
+        price: number | Prisma.Decimal;
+        description?: string | null;
+        productId?: string | null;
+      }[],
+    ) =>
+      JSON.stringify(
+        items.map((i) => [i.name.trim(), i.qty, Number(i.price), i.description ?? null, i.productId ?? null]),
+      );
     const changedCount = [
       strEq(existing.type, data.type),
       numEq(existing.totalAmount, totalAmount),
@@ -570,12 +692,18 @@ export async function updateOrder(
       JSON.stringify(existing.shippingAddress ?? null) === JSON.stringify(data.shippingAddress ?? null),
       itemKey(existing.items) === itemKey(data.items),
     ].filter((same) => !same).length;
-    await recordOrderEvent(tx, {
-      orderId: order.id,
-      type: "ORDER_EDITED",
-      actorUserId: actorUserId ?? null,
-      meta: changedCount > 0 ? { changedCount } : {},
-    });
+    // I-4 (2026-08-06) — แก้เฉพาะวันที่อย่างเดียว (ฟิลด์อื่นเหมือนเดิมทุกตัว) ทำให้ changedCount = 0
+    // ถ้ายังเขียน ORDER_EDITED อยู่ ไทม์ไลน์จะขึ้น "แก้ไขคำสั่งซื้อ" ลอย ๆ ซ้อนกับ ORDER_DATE_CHANGED
+    // ที่เพิ่งบันทึกไปด้านบน โดยไม่มีบรรทัดรองบอกว่าแก้อะไร — ข้ามการเขียน event นี้ไปเลยเมื่อไม่มี
+    // อะไรเปลี่ยนจริงนอกจากวันที่
+    if (changedCount > 0) {
+      await recordOrderEvent(tx, {
+        orderId: order.id,
+        type: "ORDER_EDITED",
+        actorUserId: actorUserId ?? null,
+        meta: { changedCount },
+      });
+    }
 
     return order;
   });
@@ -915,6 +1043,150 @@ export async function setCodReceived(
   });
 }
 
+/**
+ * settleCodFromCarrier — ขนส่งโอนเงินเก็บปลายทางเข้าร้านแล้ว (BR-ISHIP-45..48, 2026-08-06)
+ *
+ * เรียกจากรอบ sync ของ iShip เมื่อพบ `settlement_at` ครั้งแรกของพัสดุใบหนึ่ง
+ * ผู้เรียกเป็นคน "จอง" สิทธิ์ประมวลผลด้วยการเขียน OrderShipment.codSettledAt แบบมีเงื่อนไข
+ * มาแล้ว — ที่นี่จึงไม่ต้องกันซ้ำอีกชั้น
+ *
+ * ทำไมกล้ายืนยันแทนผู้ซื้อ (กลับกฎ BR-ISHIP-41 เดิม, user เคาะ 2026-08-06):
+ * COD ที่ขนส่งโอนเงินแล้วคือห่วงโซ่หลักฐานครบสามท่อน — ส่งถึง → ผู้ซื้อจ่ายเงินสดจริง →
+ * ขนส่งโอนเข้าบัญชีร้าน ยืนยันโดยบุคคลที่สามที่ไม่มีส่วนได้เสียกับคะแนนของร้าน
+ * แข็งแรงกว่าปุ่มที่ผู้ซื้อกด (ปุ่มไม่มีเงินค้ำ ใครถือลิงก์ก็กดได้) และการปลอมเส้นทางนี้
+ * ต้องจ่ายค่าส่ง + ค่าธรรมเนียม COD จริงทุกใบ
+ *
+ * คืน true เมื่อคำสั่งซื้อถูกยืนยันอัตโนมัติจริงในครั้งนี้
+ */
+export async function settleCodFromCarrier(input: {
+  orderId: string;
+  /** เวลาที่ขนส่งแจ้งว่าเงินเข้า (แปลงเขตเวลาแล้ว) */
+  settledAt: Date;
+  /** ยอด COD ที่ขนส่งแจ้ง — ใช้แสดงในไทม์ไลน์ */
+  codAmount: number;
+}): Promise<boolean> {
+  const order = await prisma.order.findUnique({
+    where: { id: input.orderId },
+    select: {
+      id: true,
+      status: true,
+      paymentMethod: true,
+      codReceivedAt: true,
+      auctionId: true,
+      buyerUserId: true,
+      publicToken: true,
+      shop: { select: { id: true, userId: true, kind: true } },
+    },
+  });
+  if (!order) return false;
+  // ไม่ตรวจ order.paymentMethod ที่นี่โดยเจตนา (user เคาะ 2026-08-06): ผู้เรียกพิสูจน์มาแล้ว
+  // ว่า **พัสดุ** ใบนี้เก็บเงินปลายทางจริงและขนส่งโอนเงินแล้ว ซึ่งเป็นหลักฐานที่แข็งแรงกว่า
+  // ข้อความที่ร้านพิมพ์ไว้ในช่องวิธีชำระเงิน (พบค่าจริงบน prod ทั้ง COD/CASH/TRANSFER/
+  // "พร้อมเพย์ 081-xxx") — ใบ TH140290UGSM3H เก็บเงินปลายทาง ฿360 จริงแต่บันทึกเป็น "CASH"
+  // ถ้ากรองด้วย paymentMethod ใบแบบนี้จะไม่มีวันถูกปิดงานให้เลย
+  //
+  // ทางกันไม่ให้พลาดฝั่งต้นทางอยู่ที่ resolvePaymentSync (lib/iship/payment-sync.ts)
+  // ซึ่งปรับ paymentMethod ให้ตรงพัสดุตั้งแต่ตอนเปิด/ผูกพัสดุแล้ว
+
+  await prisma.$transaction(async (tx) => {
+    // ไม่ทับค่าที่ร้านกดไว้ก่อน (BR-ISHIP-48) — ใครมาก่อนได้ก่อน
+    if (!order.codReceivedAt) {
+      await tx.order.update({
+        where: { id: order.id },
+        // codReceivedByUserId เว้น null โดยเจตนา = "ระบบ" ตามที่หน้าจอตีความอยู่แล้ว
+        data: { codReceivedAt: input.settledAt, codReceivedByUserId: null },
+      });
+    }
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "COD_SETTLED",
+      actorUserId: null,
+      occurredAt: input.settledAt,
+      meta: { amount: input.codAmount },
+    });
+  });
+
+  // conditional update — ยกเลิกแล้วห้ามปลุกกลับ (BR-ISHIP-46) และผู้ซื้อ/ร้านที่กดยืนยัน
+  // ไปเสี้ยววินาทีก่อนต้องไม่ถูกเขียนทับ (count=0 = มีคนอื่นทำไปแล้ว ไม่ใช่ความผิดพลาด)
+  const advanced = await prisma.order.updateMany({
+    where: { id: order.id, status: { in: ["PENDING", "SHIPPED"] } },
+    data: { status: "CONFIRMED" },
+  });
+  if (advanced.count === 0) return false;
+
+  await recordOrderEvent(prisma, {
+    orderId: order.id,
+    type: "SYSTEM_CONFIRMED",
+    actorUserId: null,
+    occurredAt: input.settledAt,
+  });
+
+  // recalc ชุดเดียวกับ confirmOrder เป๊ะ — best-effort ตาม pattern เดิม (ล้มแล้วไม่ย้อนสถานะ
+  // เพราะข้อมูลหลักบันทึกแล้ว) BR-ISHIP-44: ไม่มีสูตรพิเศษสำหรับใบที่ระบบยืนยันเอง
+  try {
+    if (order.shop.kind === "BUSINESS") {
+      await evaluateSellerBadgesForShop(order.shop);
+    } else {
+      await evaluateBadges(order.shop.userId);
+    }
+  } catch (err) {
+    console.error(
+      `[order] post-auto-confirm recalc ล้มเหลวสำหรับ shop owner ${order.shop.userId}; order ${order.publicToken} persisted`,
+      err,
+    );
+  }
+  if (order.buyerUserId && order.auctionId) {
+    try {
+      await evaluateBadges(order.buyerUserId, "BUYER");
+    } catch (err) {
+      console.error(
+        `[order] post-auto-confirm buyer badge eval ล้มเหลวสำหรับ buyer ${order.buyerUserId}; order ${order.publicToken} persisted`,
+        err,
+      );
+    }
+  }
+  return true;
+}
+
+/**
+ * syncOrderPaymentToParcel — ให้วิธีชำระเงินของคำสั่งซื้อตรงกับพัสดุที่เปิดจริง
+ *
+ * user สั่ง 2026-08-06: "ถ้าเลือกเปิดพัสดุ iShip เป็น COD แต่คำสั่งซื้อไม่ใช่ COD
+ * ก็แจ้งเตือนเปลี่ยนให้เลย สะดวก"
+ *
+ * คืนข้อความที่ต้องบอกร้าน (null = ไม่มีอะไรต้องบอก) — ผู้เรียกเป็นคนตัดสินว่าจะแสดงยังไง
+ * ตัวตัดสินใจอยู่ใน resolvePaymentSync ซึ่ง pure และเทสแยกได้
+ */
+export async function syncOrderPaymentToParcel(
+  orderId: string,
+  parcelCodAmount: number,
+  actorUserId: string | null,
+): Promise<{ kind: "changed" | "warning"; message: string } | null> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, paymentMethod: true },
+  });
+  if (!order) return null;
+
+  const decision = resolvePaymentSync({
+    orderPaymentMethod: order.paymentMethod,
+    parcelCodAmount,
+  });
+  if (decision.action === "NONE") return null;
+  if (decision.action === "WARN_NO_COD") return { kind: "warning", message: decision.message };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({ where: { id: order.id }, data: { paymentMethod: "COD" } });
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "PAYMENT_METHOD_SYNCED",
+      actorUserId,
+      meta: { amount: decision.codAmount, paymentFrom: decision.from },
+    });
+  });
+  return { kind: "changed", message: decision.message };
+}
+
 export async function getOrdersByShop(shopId: string, status?: string) {
   return prisma.order.findMany({
     where: { shopId, ...(status ? { status } : {}) },
@@ -934,6 +1206,10 @@ export async function getOrdersByShop(shopId: string, status?: string) {
         orderBy: { createdAt: "desc" },
         take: 1,
         select: {
+          // id: ต้องมี ไม่งั้นหน้ารายการยิงถามสถานะจาก iShip ไม่ได้ (ต้องใช้ใน
+          // /api/seller/iship/shipments/[id]/traces) — เคยลืมแล้วการ์ด hover ขึ้นแต่
+          // ส่วน "การเดินทางล่าสุด" หายทั้งหมดโดยไม่มี error (user เจอ 2026-08-06)
+          id: true,
           carrierStatus: true,
           // 2 ช่องนี้ซ้ำกับ where ด้านบนโดยตั้งใจ — countsAsRevenue() (lib/order-revenue.ts) ตรวจ
           // เงื่อนไขเองอีกชั้นเพื่อให้ผลตรงกับ revenueOrderWhere เป๊ะ ไม่ต้องเชื่อว่า caller กรองมาแล้ว

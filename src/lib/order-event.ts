@@ -5,7 +5,9 @@
 //
 // pure module — ห้าม import prisma/server-only (ใช้ทั้งฝั่ง server เขียน event และ client เรนเดอร์)
 
-/** 9 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
+import { formatDateTimeTH } from './format-date'
+
+/** 13 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
 export const ORDER_EVENT_TYPES = [
   'ORDER_CREATED',
   'ORDER_EDITED',
@@ -16,6 +18,10 @@ export const ORDER_EVENT_TYPES = [
   'SHIPMENT_LINKED',
   'SMS_LINK_SENT',
   'BUYER_CONFIRMED',
+  'COD_SETTLED',
+  'SYSTEM_CONFIRMED',
+  'PAYMENT_METHOD_SYNCED',
+  'ORDER_DATE_CHANGED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -40,6 +46,15 @@ export const ORDER_EVENT_META: Record<
   SHIPMENT_LINKED: { label: 'ผูกพัสดุที่มีอยู่แล้ว', icon: 'link', tone: 'neutral' },
   SMS_LINK_SENT: { label: 'ส่งลิงก์ทาง SMS', icon: 'message-forward', tone: 'neutral' },
   BUYER_CONFIRMED: { label: 'ผู้ซื้อยืนยันรับของ', icon: 'circle-check', tone: 'success' },
+  // เขียวได้ทั้งคู่: เงินเข้าจริงและคำสั่งซื้อจบจริง = ข้อเท็จจริงที่ตรวจสอบได้ ไม่ใช่การเดา
+  // แยกจาก BUYER_CONFIRMED โดยเจตนา (BR-ISHIP-47) — ไทม์ไลน์ต้องตอบได้ว่าใครเป็นคนยืนยัน
+  // ถ้าใช้ BUYER_CONFIRMED แทนจะกลายเป็นบันทึกว่าผู้ซื้อกด ทั้งที่ผู้ซื้อไม่ได้แตะอะไรเลย
+  COD_SETTLED: { label: 'ขนส่งโอนเงินเก็บปลายทางแล้ว', icon: 'coin', tone: 'success' },
+  SYSTEM_CONFIRMED: { label: 'ระบบยืนยันคำสั่งซื้ออัตโนมัติ', icon: 'circle-check', tone: 'success' },
+  // neutral ไม่ใช่ success — นี่คือการแก้ข้อมูลให้ตรงความจริง ไม่ใช่ความสำเร็จของธุรกรรม
+  PAYMENT_METHOD_SYNCED: { label: 'ปรับวิธีชำระเงินตามพัสดุ', icon: 'coin', tone: 'neutral' },
+  // feature 00033 — เลื่อนวันที่คำสั่งซื้อ = ย้ายยอดข้ามงวด ผู้ตรวจสอบต้องเห็นแยกจาก ORDER_EDITED
+  ORDER_DATE_CHANGED: { label: 'เปลี่ยนวันที่คำสั่งซื้อ', icon: 'calendar-event', tone: 'neutral' },
 }
 
 /**
@@ -85,6 +100,16 @@ export type OrderEventMeta = {
   changedCount?: number
   /** แถวนี้เกิดจาก backfill ย้อนหลัง ไม่ใช่บันทึกสด — ใช้บอกผู้ใช้ว่าข้อมูลอาจไม่ครบ */
   backfilled?: boolean
+  /** ยอดเงินบาท (COD_SETTLED / PAYMENT_METHOD_SYNCED) */
+  amount?: number
+  /** วิธีชำระเงินเดิมก่อนถูกปรับ (PAYMENT_METHOD_SYNCED) — null = ไม่เคยระบุไว้ */
+  paymentFrom?: string | null
+  /** feature 00033 — วันที่สั่งซื้อที่ผู้ขายระบุ ใส่เฉพาะตอนที่ต่างจากเวลาจริงที่กด (ORDER_CREATED) */
+  orderedAt?: string
+  /** feature 00033 — วันที่สั่งซื้อเดิมก่อนแก้ (ORDER_DATE_CHANGED) */
+  orderedAtFrom?: string
+  /** feature 00033 — วันที่สั่งซื้อใหม่หลังแก้ (ORDER_DATE_CHANGED) */
+  orderedAtTo?: string
 }
 
 export type OrderEventView = {
@@ -103,6 +128,15 @@ export type OrderEventView = {
  */
 export function describeOrderEvent(e: Pick<OrderEventView, 'type' | 'meta'>): string | null {
   switch (e.type) {
+    case 'ORDER_CREATED':
+      // บรรทัดรองโผล่เฉพาะออเดอร์ที่ลงวันที่ย้อนหลัง/ล่วงหน้า — ออเดอร์ปกติไม่มี meta.orderedAt
+      return e.meta.orderedAt ? `ลงวันที่สั่งซื้อ ${formatDateTimeTH(e.meta.orderedAt)}` : null
+    case 'ORDER_DATE_CHANGED':
+      // มีคำว่า "จาก/เป็น" ไม่ใช่ลูกศรเปล่า — ลูกศรอย่างเดียวให้ผู้อ่านเดาทิศเอง และ screen reader
+      // อ่านไม่ออกว่ามันแปลว่าอะไร (impeccable clarify 2026-08-06)
+      return e.meta.orderedAtFrom && e.meta.orderedAtTo
+        ? `จาก ${formatDateTimeTH(e.meta.orderedAtFrom)} เป็น ${formatDateTimeTH(e.meta.orderedAtTo)}`
+        : null
     case 'TRACKING_ADDED':
       return e.meta.provider ? `ขนส่ง: ${e.meta.provider}` : null
     case 'SHIPMENT_CREATED':
@@ -111,6 +145,18 @@ export function describeOrderEvent(e: Pick<OrderEventView, 'type' | 'meta'>): st
       return e.meta.courierName ? `ขนส่ง: ${e.meta.courierName}` : null
     case 'ORDER_EDITED':
       return e.meta.changedCount ? `แก้ไข ${e.meta.changedCount} รายการ` : null
+    case 'COD_SETTLED':
+      return typeof e.meta.amount === 'number'
+        ? `฿${e.meta.amount.toLocaleString('th-TH')}`
+        : null
+    case 'SYSTEM_CONFIRMED':
+      // บอกเหตุผลเสมอ ไม่ใช่แค่ "ระบบยืนยัน" ลอย ๆ — ร้านต้องตรวจสอบย้อนหลังได้ว่าทำไม
+      return 'ขนส่งยืนยันว่าเก็บเงินปลายทางและโอนเข้าร้านแล้ว'
+    case 'PAYMENT_METHOD_SYNCED':
+      // บอกทั้งค่าเดิมและเหตุผล — ร้านต้องเห็นว่าอะไรถูกเปลี่ยนไปจากที่ตัวเองกรอกไว้
+      return e.meta.paymentFrom
+        ? `จาก "${e.meta.paymentFrom}" เป็นเก็บเงินปลายทาง ตามยอดบนพัสดุ`
+        : 'ตั้งเป็นเก็บเงินปลายทาง ตามยอดบนพัสดุ'
     case 'ORDER_CANCELLED':
       // ไม่รู้ตัวคนแต่รู้ฝั่ง — บอกเท่าที่รู้จริง ดีกว่าเว้นว่างให้เดาเอง
       if (!e.meta.actorNameSnapshot && e.meta.initiatorRole) {

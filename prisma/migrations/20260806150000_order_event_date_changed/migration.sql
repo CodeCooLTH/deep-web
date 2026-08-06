@@ -1,0 +1,75 @@
+-- feature 00033 — เพิ่มชนิดเหตุการณ์ ORDER_DATE_CHANGED (เลื่อนวันที่คำสั่งซื้อ)
+--
+-- 🛑 ทำไม migration นี้ไม่ hardcode รายชื่อค่า และทำไม timestamp เป็น 150000 ไม่ใช่ 120000
+--
+-- CHECK `OrderEvent_type_check` เป็น unmanaged SQL (Prisma DSL ประกาศไม่ได้) ทุก branch ที่เพิ่ม
+-- ชนิดเหตุการณ์ใหม่จึงต้องเขียน migration เอง และที่ผ่านมาทุกตัวเขียนแบบ DROP แล้ว ADD ด้วย
+-- "รายชื่อเต็มที่ตัวเองรู้จัก" ซึ่งพังทันทีเมื่อมีมากกว่าหนึ่ง branch ทำพร้อมกัน:
+-- ตัวที่รันทีหลังจะลบค่าของตัวที่รันก่อนทิ้งโดยไม่มีใครรู้ (ไม่ error ไม่มี test จับ —
+-- จะไปโผล่เป็น insert ล้มตอน runtime บนฐานจริงเท่านั้น)
+--
+-- เกิดขึ้นจริงแล้วบนฐาน dev 2026-08-06: ไฟล์นี้เคยชื่อ 20260806120000 ซึ่งชนกับ
+-- 20260806120000_order_shipment_cod_settled (branch feat/i-ship-integrate) พอดีตัว
+-- แล้ว 20260806140000_order_event_payment_synced ตามมาอีก — ทั้งคู่ hardcode รายชื่อที่ไม่มี
+-- ORDER_DATE_CHANGED ค่าของเราจึงถูกลบทิ้งทั้งที่ migration รันสำเร็จครบ
+--
+-- แก้ 2 ชั้น:
+--   1. timestamp เลื่อนไป 150000 ให้รัน "ทีหลัง" ทั้งสองตัวนั้น
+--   2. SQL อ่านรายชื่อที่มีอยู่จริงจาก pg_constraint แล้ว "ต่อท้าย" ค่าของเรา แทนการ hardcode
+--      → ไม่ว่า branch ไหนจะ merge เข้ามาก่อน/หลัง ค่าของทุกฝ่ายอยู่ครบเสมอ และรันซ้ำได้ (idempotent)
+--
+-- ห้าม `prisma db pull` / `migrate dev` เด็ดขาด — introspect ไม่เห็น CHECK นี้ แล้วจะสร้าง migration ที่ DROP ทิ้ง
+
+-- I-2 (2026-08-06) — แก้ 3 จุดจาก final review:
+--   1. regex '[A-Z_]+' ขยายเป็น '[A-Za-z0-9_]+' — ตัวเดิมจับไม่ได้ถ้าวันหนึ่งมี event type ที่มี
+--      ตัวเลข/ตัวพิมพ์เล็ก (เช่น SLA_L2_BREACH) → ค่านั้นหายจาก constraint ใหม่โดยไม่มีใครรู้
+--      (failure mode เดียวกับที่ migration นี้ถูกเขียนมาแก้พอดี)
+--   2. เพิ่ม sanity check เทียบจำนวนค่าที่ regex จับได้กับจำนวนคู่ quote ในนิยามเดิม — ไม่ตรง
+--      ให้ RAISE EXCEPTION ทันที (ล้มเสียงดังดีกว่าลบค่าทิ้งเงียบ ๆ แล้ว ALTER TABLE ทับไปเลย)
+--   3. เพิ่ม conrelid = '"OrderEvent"'::regclass กันหยิบ constraint ชื่อซ้ำข้าม schema/ตารางอื่น
+DO $$
+DECLARE
+  def           text;
+  vals          text;
+  matched_count int;
+  quote_count   int;
+BEGIN
+  SELECT pg_get_constraintdef(oid) INTO def
+  FROM pg_constraint
+  WHERE conname = 'OrderEvent_type_check'
+    AND conrelid = '"OrderEvent"'::regclass;
+
+  IF def IS NULL THEN
+    -- ฐานที่ยังไม่มี constraint (เช่นฐานสร้างใหม่ที่ migration ของ branch อื่นยังไม่รัน)
+    -- ใส่รายชื่อของ branch นี้ไปก่อน — ตัวที่มาทีหลังจะต่อท้ายเอง
+    ALTER TABLE "OrderEvent" ADD CONSTRAINT "OrderEvent_type_check" CHECK ("type" IN (
+      'ORDER_CREATED', 'ORDER_EDITED', 'ORDER_CANCELLED', 'TRACKING_ADDED',
+      'SHIPMENT_CREATED', 'SHIPMENT_CANCELLED', 'SHIPMENT_LINKED', 'SMS_LINK_SENT',
+      'BUYER_CONFIRMED', 'ORDER_DATE_CHANGED'
+    )) NOT VALID;
+    ALTER TABLE "OrderEvent" VALIDATE CONSTRAINT "OrderEvent_type_check";
+
+  ELSIF position('ORDER_DATE_CHANGED' IN def) = 0 THEN
+    -- มี constraint อยู่แล้วแต่ยังไม่มีค่าของเรา — ดึงรายชื่อเดิมออกมาแล้วต่อท้าย
+    SELECT string_agg(quote_literal(m[1]), ', '), count(*)
+    INTO vals, matched_count
+    FROM regexp_matches(def, '''([A-Za-z0-9_]+)''', 'g') AS m;
+
+    -- sanity check: จำนวนค่าที่จับได้ต้องคูณ 2 แล้วเท่ากับจำนวน quote (') ใน def เป๊ะ — ไม่ตรง
+    -- แปลว่ามี literal ที่ regex จับไม่ครบ (มีอักขระนอกช่วง [A-Za-z0-9_]) ต้องหยุดทันที
+    quote_count := regexp_count(def, '''');
+    IF matched_count IS NULL OR matched_count * 2 <> quote_count THEN
+      RAISE EXCEPTION
+        'OrderEvent_type_check: regex จับค่าได้ % รายการ แต่พบ quote ในนิยามเดิม % ตัว (ต้องเป็น %*2) — def=%',
+        matched_count, quote_count, matched_count, def;
+    END IF;
+
+    ALTER TABLE "OrderEvent" DROP CONSTRAINT "OrderEvent_type_check";
+    EXECUTE format(
+      'ALTER TABLE "OrderEvent" ADD CONSTRAINT "OrderEvent_type_check" CHECK ("type" = ANY (ARRAY[%s, ''ORDER_DATE_CHANGED'']::text[])) NOT VALID',
+      vals
+    );
+    ALTER TABLE "OrderEvent" VALIDATE CONSTRAINT "OrderEvent_type_check";
+  END IF;
+  -- มีค่าอยู่แล้ว = ไม่ทำอะไร (รันซ้ำได้)
+END $$;

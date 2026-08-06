@@ -42,6 +42,17 @@ interface Props {
   onEditRequest?: () => void
 }
 
+/**
+ * หน้าเข้าสู่ระบบของ iShip — ตั้งใจชี้หน้าแรก ไม่ใช่ `/wallet/topup` (user ยืนยัน 2026-08-06)
+ *
+ * ลิงก์ลึกเข้าไปที่หน้าเติมเงินตรง ๆ เข้าไม่ถึง: ร้านต้องล็อกอินที่หน้าแรกก่อนเสมอ
+ * ลิงก์ที่พาไปแล้วเจอหน้าที่เข้าไม่ได้ แย่กว่าลิงก์ที่พาไปหน้าแรกแล้วให้เดินต่อเอง
+ *
+ * hardcode ที่นี่โดยเจตนา: `ISHIP_BASE_URL` เป็น env ฝั่งเซิร์ฟเวอร์ (ไว้สลับไประบบทดสอบ)
+ * ส่วนลิงก์นี้คือ "ที่ที่ร้านไปเติมเงินจริง" ซึ่งเป็นของ production เสมอ ไม่ควรผูกกัน
+ */
+const ISHIP_TOPUP_URL = 'https://app.iship.cloud/'
+
 async function readError(res: Response): Promise<string> {
   try {
     const body = (await res.json()) as { error?: { message?: string } }
@@ -225,12 +236,46 @@ export default function ShipmentStatusView({
 
   // ── สร้างไม่สำเร็จ — ไม่แสดง kv/timeline เพราะยังไม่มีพัสดุจริงให้ติดตาม
   if (shipment.status === 'FAILED') {
+    /**
+     * เครดิต iShip ไม่พอ = ร้านต้องออกไปทำอะไรที่อื่นก่อน กดลองใหม่ตรงนี้กี่ครั้งก็ได้ผลเดิม
+     * (เคสจริง prod 2026-08-06: ร้านกดไป 3 และ 4 ครั้งติดกันเพราะจอบอกแค่ว่า "ลองใหม่")
+     * จึงยกขึ้นเป็นกล่องเต็มพร้อมทางออก แทนที่จะเป็นข้อความบรรทัดเดียวเท่ากับ error อื่น
+     */
+    const needsTopUp = shipment.lastErrorCode === 'INSUFFICIENT_BALANCE'
     return (
       <div className="flex flex-col gap-3 p-4">
-        <p className="mb-0 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2.5 text-sm text-danger-ink">
-          <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-          <span>{shipment.lastErrorMessage ?? 'สร้างพัสดุไม่สำเร็จ'}</span>
-        </p>
+        {needsTopUp ? (
+          <div className="flex gap-3 rounded-lg bg-danger/15 p-4 text-danger-ink" role="alert">
+            <Icon icon="tabler:wallet" className="mt-0.5 size-8 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <h4 className="mb-1 text-base font-semibold text-danger-ink">
+                เครดิต iShip ไม่พอ — ต้องเติมเงินก่อน
+              </h4>
+              <p className="mb-2 text-sm">
+                {shipment.lastErrorMessage ?? 'ยอดเงินในบัญชี iShip ไม่พอสำหรับเปิดพัสดุ'}
+              </p>
+              {/* ที่มาของความสับสนที่เจอจริง: หน้าแรกของ iShip โชว์ยอดรวม แต่ยอดที่เปิดพัสดุได้
+                  ถูกหักด้วย "เครดิตที่ถูกกันไว้" ของพัสดุที่ยังไม่เคลียร์สถานะอยู่ */}
+              <p className="mb-3 text-xs">
+                ยอดที่เปิดพัสดุได้จริง = เงินคงเหลือ − เครดิตที่ถูกกันไว้ (iShip กันไว้สำรองค่าส่งของพัสดุที่ยังไม่เคลียร์สถานะ)
+              </p>
+              <a
+                href={ISHIP_TOPUP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-sm inline-flex items-center gap-1.5 bg-danger text-white"
+              >
+                <Icon icon="tabler:external-link" className="text-base" aria-hidden="true" />
+                เข้าระบบ iShip เพื่อเติมเงิน
+              </a>
+            </div>
+          </div>
+        ) : (
+          <p className="mb-0 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2.5 text-sm text-danger-ink">
+            <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+            <span>{shipment.lastErrorMessage ?? 'สร้างพัสดุไม่สำเร็จ'}</span>
+          </p>
+        )}
         <p className="mb-0 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2.5 text-sm text-info-ink">
           <Icon icon="tabler:info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
           <span>
@@ -238,14 +283,25 @@ export default function ShipmentStatusView({
             ระบบจะคืนใบเดิมให้
           </span>
         </p>
+        {/* เครดิตไม่พอ = ปุ่มนี้ไม่ใช่ทางออก ลดเป็นปุ่มรอง ให้ "ไปเติมเงิน" เป็นการกระทำหลักแทน
+            (ยังต้องมีอยู่ เพราะเติมเงินเสร็จแล้วร้านกลับมากดต่อจากตรงนี้ได้เลย) */}
         <button
           type="button"
           onClick={handleRetry}
           disabled={busy}
-          className="btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60"
+          className={
+            needsTopUp
+              ? 'btn inline-flex w-full items-center justify-center gap-2 border border-default-300 p-3 text-default-700 disabled:opacity-60'
+              : 'btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60'
+          }
         >
           {busy ? (
-            <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            // สปินเนอร์ต้องเปลี่ยนสีตามปุ่มด้วย — ขาวบนปุ่มรองพื้นอ่อน = มองไม่เห็นว่ากำลังทำงาน
+            <span
+              className={`inline-block size-4 animate-spin rounded-full border-2 border-t-transparent ${
+                needsTopUp ? 'border-default-400' : 'border-white'
+              }`}
+            />
           ) : (
             <Icon icon="tabler:refresh" className="text-base" aria-hidden="true" />
           )}
@@ -277,6 +333,26 @@ export default function ShipmentStatusView({
       {/* ความคืบหน้า 4 ขั้น — บนสุดเหนือเลขติดตาม เพราะเป็นสิ่งที่ร้านอยากรู้ก่อน (user 2026-07-29)
           อ่านจาก prop ตรง ๆ ไม่รอ /traces จึงเห็นทันทีที่เปิด ไม่มีจังหวะว่างให้ต้องรอ */}
       <section className="border-b-8 border-default-100 p-4">
+        {/* เรื่องวิธีชำระเงินที่เพิ่งเกิดตอนกดสร้าง/ผูก (ส่วนขยาย 2026-08-06) — อยู่เหนือ
+            ป้ายโหมดทดสอบเพราะเป็นสิ่งที่ "เพิ่งเปลี่ยนเดี๋ยวนี้" ส่วนป้ายทดสอบเป็นสถานะคงที่
+            ค่านี้ไม่ถูกเก็บลงฐาน (ไม่อยู่ใน SHIPMENT_SELECT) — เห็นได้เฉพาะรอบที่สร้าง/ผูก
+            เท่านั้น รีเฟรชแล้วหาย รอยถาวรอยู่ในไทม์ไลน์ (PAYMENT_METHOD_SYNCED) แทน
+            โครง markup + icon ยกมาจากบล็อก progress.notice ในไฟล์เดียวกันทั้งดุ้น */}
+        {shipment.paymentNotice && (
+          <p
+            className={`mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
+              NOTICE_BOX[shipment.paymentNotice.kind === 'changed' ? 'info' : 'warning']
+            }`}
+          >
+            <Icon
+              icon="tabler:alert-circle"
+              className="mt-0.5 shrink-0 text-base"
+              aria-hidden="true"
+            />
+            <span>{shipment.paymentNotice.message}</span>
+          </p>
+        )}
+
         {shipment.isDryRun && (
           <p className="mb-3 flex items-center gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning-ink">
             <Icon icon="tabler:flask" className="shrink-0 text-base" aria-hidden="true" />

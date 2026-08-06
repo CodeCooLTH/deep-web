@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>Mockup — ตารางคำสั่งซื้อแบบแถวจัดกลุ่ม (2026-08-06)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* token = ของจริงในโปรเจกต์ (Paces semantic + .impeccable/design.json)
+     ห้ามแก้ค่าที่นี่โดยไม่ sync กับ src/assets/css/config/_root.css */
+  :root{
+    --primary:#236dc9; --primary-ink:#123f77;
+    --default-900:#2b2b3c; --default-800:#41415a; --default-700:#5a5a72;
+    --default-500:#8b8b9e; --default-400:#a3a3b5; --default-300:#c9c9d4;
+    --default-200:#e5e5ec; --default-100:#f2f2f7; --white:#fff;
+    --warning:#ff9f43; --warning-ink:#8a4b00;
+    --info:#00bad1;    --info-ink:#0a5a66;
+    --success:#28c76f; --success-ink:#0f5c33;
+    --danger:#ea5455;  --danger-ink:#8b1f20;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eef0f4;font-family:Anuphan,system-ui,sans-serif;color:var(--default-900)}
+  .page{max-width:1180px;margin:0 auto;padding:32px 20px 90px}
+  h1{font-size:24px;font-weight:700;margin:0 0 8px}
+  .lede{color:var(--default-700);font-size:14px;margin:0 0 24px;line-height:1.7}
+  h2{font-size:17px;font-weight:600;margin:38px 0 6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  h2 .w{font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--default-100);color:var(--default-700)}
+  .note{font-size:13px;color:var(--default-700);margin:0 0 14px;line-height:1.65}
+  code{background:var(--default-100);padding:1px 5px;border-radius:4px;font-size:12px}
+
+  .screen{background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(31,26,36,.10),0 8px 24px rgba(31,26,36,.06);overflow:hidden;margin-bottom:10px}
+  .screen-bar{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--default-200);background:var(--default-100)}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .screen-bar .u{margin-left:8px;font-size:11px;color:var(--default-500)}
+  .viewport{overflow-x:auto}
+  .frame{display:flex;min-width:max-content}
+  .side{width:245px;flex:0 0 245px;background:#1b1b2b;color:#9aa0b5;padding:14px 12px;font-size:12px}
+  .side .brand{color:#fff;font-weight:700;font-size:14px;margin-bottom:14px}
+  .side ul{list-style:none;margin:0;padding:0}
+  .side li{padding:6px 8px;border-radius:6px;margin-bottom:2px}
+  .side li.on{background:rgba(255,255,255,.10);color:#fff}
+  .content{padding:18px;flex:1 1 auto;min-width:0}
+
+  /* ── ตารางแบบแถวจัดกลุ่ม ─────────────────────────────────────────────── */
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  thead th{font-size:12px;font-weight:600;color:var(--default-700);text-align:left;padding:8px 10px;white-space:nowrap;border-bottom:1px solid var(--default-200)}
+
+  /* แถวหัวกลุ่ม = "ใบนี้คือใบไหน มาจากไหน เมื่อไร" — ข้อมูลระดับใบ ไม่ใช่ระดับคอลัมน์ */
+  tr.grp td{background:var(--default-100);padding:7px 10px;border-top:1px solid var(--default-200)}
+  .grp-in{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .ono{font-weight:600;font-size:13px;color:var(--primary);font-variant-numeric:tabular-nums}
+  .src{display:inline-flex;align-items:center;gap:6px}
+  .pglogo{width:22px;height:22px;border-radius:50%;background:#c8341f;position:relative;flex:0 0 22px}
+  .pglogo b{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;border-radius:50%;background:#1877f2;border:2px solid var(--white)}
+  .pgname{font-size:12px;color:var(--default-700)}
+  .grp-right{margin-left:auto;display:flex;align-items:center;gap:14px;font-size:12px;color:var(--default-500)}
+
+  tr.body td{padding:12px 10px;border-bottom:1px solid var(--default-200);vertical-align:top}
+
+  .prod{display:flex;gap:10px}
+  .thumb{width:44px;height:44px;border-radius:8px;background:var(--default-100);flex:0 0 44px}
+  .pname{font-size:14px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .pmeta{font-size:12px;color:var(--default-500);margin-top:2px}
+  .more{font-size:12px;color:var(--primary);margin-top:3px}
+
+  .nm{font-weight:600;font-size:14px;line-height:1.3}
+  .ph{font-size:12px;color:var(--default-500);font-variant-numeric:tabular-nums}
+  .addr{font-size:12px;color:var(--default-700);line-height:1.55;margin-top:5px}
+
+  .ship{display:flex;align-items:center;gap:8px}
+  .clogo{width:26px;height:26px;border-radius:7px;background:#ffde17;flex:0 0 26px;border:1px solid var(--default-200)}
+  .cname{font-size:13px;color:var(--default-800);font-weight:500}
+  .track{font-size:12px;color:var(--default-700);font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+  .tl{display:flex;align-items:center;gap:3px;margin-top:7px}
+  .tl i{width:13px;height:13px;border-radius:50%;background:var(--default-200);display:block}
+  .tl i.on{background:var(--primary)}
+  .tl s{width:14px;height:2px;background:var(--default-200);display:block}
+
+  .pay{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--default-800)}
+  .total{font-size:16px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums}
+  .cod{font-size:12px;color:var(--warning-ink);font-weight:600;margin-top:2px}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:3px 9px;font-size:14px;font-weight:600;white-space:nowrap}
+  .b-warn{background:color-mix(in srgb,var(--warning) 15%,transparent);color:var(--warning-ink)}
+  .b-info{background:color-mix(in srgb,var(--info) 15%,transparent);color:var(--info-ink)}
+  .b-ok{background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success-ink)}
+  .ico{width:13px;height:13px;border-radius:3px;background:currentColor;opacity:.6;display:inline-block;flex:0 0 13px}
+  .substat{font-size:12px;color:var(--default-500);margin-top:6px;display:flex;align-items:center;gap:5px}
+
+  /* ปุ่มจัดการเป็นกริด 2 แถว — ของเดิมเรียงแถวเดียวกิน 209px กริดเหลือ ~96px
+     ปุ่มยังเห็นครบทุกตัว ไม่ต้องมีเมนู ⋮ (กฎ 2026-06-15 ยังอยู่ครบ) */
+  .acts{display:grid;grid-template-columns:repeat(3,30px);gap:5px}
+  .ib{width:30px;height:30px;border-radius:8px;border:1px solid var(--default-200);display:flex;align-items:center;justify-content:center;color:var(--default-500);background:var(--white)}
+  .ib .ico{opacity:.7}
+  .ib.danger{border-color:color-mix(in srgb,var(--danger) 35%,transparent);color:var(--danger)}
+
+  .w-tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success-ink)}
+  .measure{width:100%;border-collapse:collapse;font-size:13px;background:var(--white);border-radius:10px;overflow:hidden;margin:8px 0 0}
+  .measure th{background:var(--default-100);border-bottom:1px solid var(--default-200);padding:8px}
+  .measure td{border-bottom:1px solid var(--default-200);padding:8px}
+  .bad{color:var(--danger-ink);font-weight:600}
+  .good{color:var(--success-ink);font-weight:600}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>ตารางคำสั่งซื้อ — แบบแถวจัดกลุ่ม</h1>
+<p class="lede">
+  ทำตามแนวที่คุณส่งมา: <b>1 คำสั่งซื้อ = 1 บล็อก</b> มีแถบหัวบอกว่าใบไหน/มาจากไหน/เมื่อไร แล้วแถวเนื้อหาข้างล่างเหลือคอลัมน์อ้วน ๆ ไม่กี่ช่อง<br>
+  แทนที่จะสู้กับการตัดบรรทัด เราใช้แนวตั้งอย่างตั้งใจ — ข้อมูลที่เดิมเบียดกัน 12 ช่องผอม ย้ายมาเรียงในแนวตั้งของช่องที่กว้างพอ<br>
+  <span style="color:var(--default-500)">กล่องสี่เหลี่ยมเล็ก = ตำแหน่ง icon จริง (tabler) — mockup ไม่ใส่ emoji ตามกฎ</span>
+</p>
+
+<table class="measure">
+  <tr><th>วิธีที่ลอง</th><th>ผลที่วัดได้จริงบน prod</th></tr>
+  <tr><td>ของเดิม 12 คอลัมน์</td><td class="bad">แถวสูง 88px ตัดกลางคำทุกความกว้างจนถึง 1800</td></tr>
+  <tr><td>ใส่ <code>nowrap</code> อย่างเดียว</td><td class="bad">ตารางกว้าง 1691px → scroll แนวนอนทุกความกว้างจนถึง 1800 (= แบบ iShip ที่ใช้ยาก)</td></tr>
+  <tr><td>ซ่อนคอลัมน์เป็นชั้น</td><td>แถว 66px ได้ แต่ต้องซ่อน "ที่มา" ด้วยซึ่งคุณไม่อยากให้หาย</td></tr>
+  <tr><td><b>แถวจัดกลุ่ม (แบบนี้)</b></td><td class="good">เหลือ 7 ช่อง · ที่มา/วันที่ ขึ้นแถบหัว เห็นตลอด · ไม่ scroll · ไม่ตัดกลางคำ</td></tr>
+</table>
+
+<!-- ═══════════ 1536 ═══════════ -->
+<h2 style="margin-top:34px">viewport 1536 <span class="w">พื้นที่ตาราง 1251px</span> <span class="w-tag">ทุกช่องอยู่ครบ</span></h2>
+<div class="screen">
+  <div class="screen-bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="u">seller.deepthailand.app/orders</span></div>
+  <div class="viewport"><div class="frame" style="width:1536px">
+    <div class="side"><div class="brand">Deep</div><ul><li>ภาพรวมร้านค้า</li><li class="on">คำสั่งซื้อ</li><li>สินค้า</li><li>ลูกค้า</li></ul></div>
+    <div class="content">
+      <table>
+        <thead><tr>
+          <th style="width:34px"></th>
+          <th style="width:250px">รายการสินค้า</th>
+          <th style="width:230px">ลูกค้า / ที่อยู่จัดส่ง</th>
+          <th style="width:200px">การจัดส่ง</th>
+          <th style="width:150px">การชำระเงิน</th>
+          <th style="width:170px">สถานะ</th>
+          <th style="width:110px">จัดการ</th>
+        </tr></thead>
+        <tbody>
+
+        <!-- ใบที่ 1 — COD รอดำเนินการ -->
+        <tr class="grp"><td colspan="7"><div class="grp-in">
+          <input type="checkbox">
+          <span class="ono">DP25690823A70A6F</span>
+          <span class="ico" style="opacity:.35"></span>
+          <span class="src"><span class="pglogo"><b></b></span><span class="pgname">ธนภัทร์ อะไหล่มอเตอร์ไซค์ · Facebook</span></span>
+          <span class="grp-right"><span class="ico"></span>2569-08-06 09:10:29</span>
+        </div></td></tr>
+        <tr class="body">
+          <td></td>
+          <td><div class="prod"><span class="thumb"></span><div>
+            <div class="pname">โช๊คหลังคู่ สีดำ ของแท้ ยาว 320 มม.</div>
+            <div class="pmeta">x2 · ฿180 ต่อชิ้น</div>
+            <div class="more">+2 รายการ</div>
+          </div></div></td>
+          <td>
+            <div class="nm">พรานไพร</div>
+            <div class="ph">0622904962</div>
+            <div class="addr">1/ม.14 เชียงทอง วังเจ้า ตาก 63180</div>
+          </td>
+          <td>
+            <div class="ship"><span class="clogo"></span><div>
+              <div class="cname">Flash Thunder</div>
+              <div class="track">TH590990YB714A</div>
+            </div></div>
+            <span class="tl"><i class="on"></i><s></s><i></i><s></s><i></i><s></s><i></i></span>
+          </td>
+          <td>
+            <div class="pay"><span class="ico"></span>เก็บเงินปลายทาง</div>
+            <div class="total">฿360</div>
+            <div class="cod">ยังไม่ได้รับเงิน</div>
+          </td>
+          <td>
+            <span class="badge b-warn"><span class="ico"></span>รอดำเนินการ</span>
+            <div class="substat"><span class="ico"></span>ขนส่งยังไม่เข้ารับพัสดุ</div>
+          </td>
+          <td><div class="acts">
+            <span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span>
+            <span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span><span class="ib danger"><span class="ico"></span></span>
+          </div></td>
+        </tr>
+
+        <!-- ใบที่ 2 — กำลังจัดส่ง -->
+        <tr class="grp"><td colspan="7"><div class="grp-in">
+          <input type="checkbox">
+          <span class="ono">DP2569081B95B9A8</span>
+          <span class="ico" style="opacity:.35"></span>
+          <span class="src"><span class="pglogo"><b></b></span><span class="pgname">ธนภัทร์ อะไหล่มอเตอร์ไซค์ · Facebook</span></span>
+          <span class="grp-right"><span class="ico"></span>2569-08-05 19:15:35</span>
+        </div></td></tr>
+        <tr class="body">
+          <td></td>
+          <td><div class="prod"><span class="thumb"></span><div>
+            <div class="pname">โช๊คหน้าคู่ สีแดง</div>
+            <div class="pmeta">x1 · ฿590</div>
+          </div></div></td>
+          <td>
+            <div class="nm">วีระ คอระอุด</div>
+            <div class="ph">0896293641</div>
+            <div class="addr">64/6 บ้านสำโรงเกียรติ บักดอง ขุนหาญ ศรีสะเกษ 33150</div>
+          </td>
+          <td>
+            <div class="ship"><span class="clogo" style="background:#e03a3e"></span><div>
+              <div class="cname">KEX Express</div>
+              <div class="track">ISX620432DQGO</div>
+            </div></div>
+            <span class="tl"><i class="on"></i><s></s><i class="on"></i><s></s><i></i><s></s><i></i></span>
+          </td>
+          <td>
+            <div class="pay"><span class="ico"></span>เก็บเงินปลายทาง</div>
+            <div class="total">฿590</div>
+            <div class="cod">ยังไม่ได้รับเงิน</div>
+          </td>
+          <td>
+            <span class="badge b-info"><span class="ico"></span>กำลังจัดส่ง</span>
+            <div class="substat"><span class="ico"></span>ถึงสาขาปลายทางแล้ว</div>
+          </td>
+          <td><div class="acts">
+            <span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span>
+            <span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span><span class="ib danger"><span class="ico"></span></span>
+          </div></td>
+        </tr>
+
+        <!-- ใบที่ 3 — สำเร็จ (ระบบยืนยันเอง) -->
+        <tr class="grp"><td colspan="7"><div class="grp-in">
+          <input type="checkbox">
+          <span class="ono">DP25690853C0FA9B</span>
+          <span class="ico" style="opacity:.35"></span>
+          <span class="src"><span class="pglogo" style="background:#00b900"><b style="background:#06c755"></b></span><span class="pgname">ร้านอะไหล่ · LINE</span></span>
+          <span class="grp-right"><span class="ico"></span>2569-08-04 09:27:42</span>
+        </div></td></tr>
+        <tr class="body">
+          <td></td>
+          <td><div class="prod"><span class="thumb"></span><div>
+            <div class="pname">ผ้าเบรกหน้า เวฟ 110i</div>
+            <div class="pmeta">x2 · ฿299</div>
+          </div></div></td>
+          <td>
+            <div class="nm">สรศักดิ์</div>
+            <div class="ph">0993397365</div>
+            <div class="addr">165/24 บางพลีใหญ่ บางพลี สมุทรปราการ 10540</div>
+          </td>
+          <td>
+            <div class="ship"><span class="clogo"></span><div>
+              <div class="cname">Flash Thunder</div>
+              <div class="track">TH160390J7DJ1I</div>
+            </div></div>
+            <span class="tl"><i class="on"></i><s></s><i class="on"></i><s></s><i class="on"></i><s></s><i class="on"></i></span>
+          </td>
+          <td>
+            <div class="pay"><span class="ico"></span>เก็บเงินปลายทาง</div>
+            <div class="total">฿598</div>
+            <div class="cod" style="color:var(--success-ink)">ขนส่งโอนเงินแล้ว</div>
+          </td>
+          <td>
+            <span class="badge b-ok"><span class="ico"></span>สำเร็จ</span>
+            <div class="substat"><span class="ico"></span>ระบบยืนยันอัตโนมัติ</div>
+          </td>
+          <td><div class="acts">
+            <span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span>
+            <span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span>
+          </div></td>
+        </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </div></div>
+</div>
+
+<!-- ═══════════ 1280 ═══════════ -->
+<h2 style="margin-top:38px">viewport 1280 <span class="w">พื้นที่ตาราง 995px</span> <span class="w-tag">ยังครบ 7 ช่อง</span></h2>
+<p class="note">ที่อยู่ย่อเหลือ "ตำบล อำเภอ จังหวัด" (ตัดบ้านเลขที่) และรายการสินค้าเหลือบรรทัดเดียว — ที่เหลือเหมือนกันหมด</p>
+<div class="screen">
+  <div class="screen-bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="u">viewport 1280</span></div>
+  <div class="viewport"><div class="frame" style="width:1280px">
+    <div class="side"><div class="brand">Deep</div><ul><li>ภาพรวมร้านค้า</li><li class="on">คำสั่งซื้อ</li><li>สินค้า</li><li>ลูกค้า</li></ul></div>
+    <div class="content">
+      <table>
+        <thead><tr>
+          <th style="width:30px"></th><th style="width:200px">รายการสินค้า</th><th style="width:180px">ลูกค้า / ที่อยู่</th>
+          <th style="width:170px">การจัดส่ง</th><th style="width:130px">การชำระเงิน</th><th style="width:150px">สถานะ</th><th style="width:106px">จัดการ</th>
+        </tr></thead>
+        <tbody>
+        <tr class="grp"><td colspan="7"><div class="grp-in">
+          <input type="checkbox"><span class="ono">DP25690823A70A6F</span><span class="ico" style="opacity:.35"></span>
+          <span class="src"><span class="pglogo"><b></b></span><span class="pgname">ธนภัทร์ฯ · Facebook</span></span>
+          <span class="grp-right"><span class="ico"></span>2569-08-06 09:10</span>
+        </div></td></tr>
+        <tr class="body">
+          <td></td>
+          <td><div class="prod"><span class="thumb"></span><div><div class="pname">โช๊คหลังคู่ สีดำ ของแท้</div><div class="pmeta">x2 · ฿180</div><div class="more">+2 รายการ</div></div></div></td>
+          <td><div class="nm">พรานไพร</div><div class="ph">0622904962</div><div class="addr">เชียงทอง วังเจ้า ตาก</div></td>
+          <td><div class="ship"><span class="clogo"></span><div><div class="cname">Flash Thunder</div><div class="track">TH590990YB714A</div></div></div>
+              <span class="tl"><i class="on"></i><s></s><i></i><s></s><i></i><s></s><i></i></span></td>
+          <td><div class="pay"><span class="ico"></span>เก็บปลายทาง</div><div class="total">฿360</div><div class="cod">ยังไม่ได้เงิน</div></td>
+          <td><span class="badge b-warn"><span class="ico"></span>รอดำเนินการ</span><div class="substat"><span class="ico"></span>ยังไม่เข้ารับ</div></td>
+          <td><div class="acts">
+            <span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span>
+            <span class="ib"><span class="ico"></span></span><span class="ib"><span class="ico"></span></span><span class="ib danger"><span class="ico"></span></span>
+          </div></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div></div>
+</div>
+
+<h2 style="margin-top:38px">อะไรเปลี่ยนบ้าง</h2>
+<table class="measure">
+  <tr><th style="width:170px">เดิม</th><th>ใหม่</th></tr>
+  <tr><td>คอลัมน์ "ที่มา" 36px</td><td class="good">ย้ายขึ้นแถบหัว พร้อม<b>ชื่อเพจ</b>เต็ม ๆ + badge แพลตฟอร์ม — เห็นชัดกว่าเดิม ไม่ใช่แค่โลโก้จิ๋ว</td></tr>
+  <tr><td>คอลัมน์ "เลขออเดอร์" 159px</td><td>ย้ายขึ้นแถบหัว (เป็นชื่อของทั้งบล็อก ไม่ใช่ค่าในช่อง)</td></tr>
+  <tr><td>คอลัมน์ "วันที่/เวลา" 80px (ตัด 3 บรรทัด)</td><td>ย้ายไปมุมขวาแถบหัว บรรทัดเดียวเสมอ</td></tr>
+  <tr><td>"ขนส่ง" + "เลขพัสดุ" + "พัสดุ" = 427px</td><td>ยุบเป็น "การจัดส่ง" ช่องเดียว 200px (โลโก้+ชื่อ / เลขพัสดุ / timeline เรียงลงมา)</td></tr>
+  <tr><td>"การชำระเงิน" 74px (ตัด 3 บรรทัด) + "ยอดรวม" 54px</td><td>รวมเป็นช่องเดียว — วิธีจ่าย / ยอด / สถานะเงิน COD อยู่ด้วยกันเพราะเป็นเรื่องเดียวกัน</td></tr>
+  <tr><td>"จัดการ" 209px (ปุ่มเรียงแถวเดียว)</td><td class="good">กริด 3×2 เหลือ ~106px — <b>ปุ่มยังเห็นครบทุกตัว ไม่ต้องมีเมนู ⋮</b> (กฎ 2026-06-15 ยังอยู่)</td></tr>
+  <tr><td>"สินค้า" ถูกบีบเหลือ 107px</td><td>200-250px + ชื่อได้ 2 บรรทัด + บอกจำนวน/ราคาต่อชิ้น</td></tr>
+  <tr><td>ที่อยู่ผู้รับ ไม่มีในตารางเลย</td><td class="good">เห็นได้เลย (ต้องเปิดเข้าไปดูทีละใบในของเดิม)</td></tr>
+</table>
+
+<h2 style="margin-top:34px">ข้อควรรู้ก่อนเคาะ</h2>
+<p class="note">
+  <b>1. แถวสูงขึ้นต่อใบ</b> — จาก 66px เป็นราว 130px (หัวกลุ่ม 34 + เนื้อหา 96) เห็นออเดอร์ต่อจอน้อยลงประมาณครึ่ง
+  แลกกับการเห็นข้อมูลต่อใบมากขึ้นมาก (ที่อยู่ + สถานะย่อย + จำนวน/ราคาต่อชิ้น ที่เดิมไม่มีเลย)
+  ถ้าอยากได้ทั้งสองอย่าง เพิ่มปุ่มสลับ "หนาแน่น / สบายตา" ได้ แต่เป็นงานเพิ่ม<br>
+  <b>2. การเรียงลำดับ (sort)</b> — คอลัมน์ที่ย้ายขึ้นแถบหัว (วันที่/เลขออเดอร์) จะกดหัวตารางเรียงไม่ได้แล้ว
+  ต้องย้ายไปเป็นตัวเลือกใน toolbar แทน<br>
+  <b>3. เลือกหลายรายการ</b> — checkbox ย้ายไปอยู่แถบหัวกลุ่ม (ตามแบบที่คุณส่งมา) ยังใช้ได้เหมือนเดิม<br>
+  <b>4. มือถือ</b> — ไม่แตะ ยังเป็นการ์ดเดิม
+</p>
+
+</div>
+</body>
+</html>

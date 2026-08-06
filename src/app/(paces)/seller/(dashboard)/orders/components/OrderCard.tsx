@@ -30,25 +30,22 @@ import {
   type OrderRow,
 } from './data'
 import BuyerAvatar from './BuyerAvatar'
+import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderActions from './OrderActions'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
-import { ORDER_STATUS_META } from '@/lib/order-display'
+import { ORDER_STATUS_TONE_BORDER } from '@/lib/order-display'
+import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
 // ── status badge — อ่านจาก SSOT ตัวเดียวกับตารางเดสก์ท็อปและหน้ารายละเอียด (lib/order-display.ts)
 //    เดิมประกาศเองที่นี่ ทำให้ CANCELLED เป็นเทา (bg-default-100) ขณะที่ตารางเป็นแดง ทั้งที่
 //    DESIGN.md กำหนด Error Coral ให้ "ยกเลิก" ตรงตัว — และได้ text-{semantic}-ink ที่ผ่าน AA มาด้วย
-const STATUS_CONFIG = ORDER_STATUS_META
-
 // ── แถบสีซ้ายการ์ดตามสถานะ — pattern เดียวกับ theme "card border-{color} border-s-3"
 //    (.card ไม่มี border เอง มีแต่ shadow → border-{color} ให้สี, border-s-3 ให้เฉพาะซ้ายกว้าง 3px)
 //    Base: theme/paces/Admin/TS/src/app/(admin)/ui/cards/page.tsx (`card border-primary border-s-3`)
-//    สีต้องตรงกับ tone ของ badge ในการ์ดใบเดียวกันเสมอ (SSOT = ORDER_STATUS_META[...].tone)
-const STATUS_STRIP: Record<string, string> = {
-  PENDING:   'border-warning',
-  SHIPPED:   'border-info',
-  CONFIRMED: 'border-success',
-  CANCELLED: 'border-danger',
-}
+//
+//    2026-08-06: เลิกคีย์ตาม status แล้วคีย์ตาม tone ที่ป้ายคืนมา — ตั้งแต่ป้ายเริ่มรวม
+//    สถานะพัสดุเข้ามาด้วย ใบ COD ที่ส่งถึงแล้วจะได้ป้ายเหลือง "รอเงิน COD" ถ้าแถบยังคีย์
+//    ตาม status=SHIPPED มันจะฟ้า = การ์ดใบเดียวมีสองสีที่ขัดกันเอง
 
 // ── โลโก้ช่องทางสีจริง (self-host public/) — เฉพาะช่องทางที่มีไฟล์; ที่เหลือ fallback tabler mono ──
 const CHANNEL_LOGO: Record<string, string> = {
@@ -57,20 +54,25 @@ const CHANNEL_LOGO: Record<string, string> = {
   // INSTAGRAM: '/images/logos/instagram.svg', // asset พร้อมถ้าเพิ่ม IG เป็นช่องทางภายหลัง (ยังไม่มีใน enum)
 }
 
-// ช่องทางการขาย: โลโก้สีจริง(ถ้ามี) fallback → tabler mono icon (STOREFRONT/TIKTOK/OTHER)
-function ChannelBadge({ channel }: { channel: string }) {
-  const [failed, setFailed] = useState(false)
+// ช่องทางการขาย: รูปเพจที่ทักมา(ถ้ารู้) → โลโก้สีแพลตฟอร์ม → tabler mono icon
+// (รูปเพจ: user สั่ง 2026-08-06 "mobile ด้วย" — sourceLogoUrl มาจาก page.tsx)
+function ChannelBadge({ channel, pageLogoUrl }: { channel: string; pageLogoUrl?: string | null }) {
+  // แยก failed ราย src — รูปเพจโหลดพัง (URL ของ Meta หมดอายุได้) ต้องตกไปโลโก้แพลตฟอร์มต่อ
+  // ไม่ใช่ข้ามไป icon เลย
+  const [pageFailed, setPageFailed] = useState(false)
+  const [platformFailed, setPlatformFailed] = useState(false)
   const label = SALES_CHANNEL_LABELS[channel] ?? channel
-  const logo = CHANNEL_LOGO[channel]
-  if (logo && !failed) {
+  const pageSrc = !pageFailed && pageLogoUrl ? pageLogoUrl : null
+  const logo = pageSrc ?? (!platformFailed ? CHANNEL_LOGO[channel] : undefined)
+  if (logo) {
     return (
       <span className="inline-flex items-center gap-1 text-default-700">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={logo}
           alt=""
-          className="size-3.5 rounded-sm"
-          onError={() => setFailed(true)}
+          className={pageSrc ? 'size-3.5 rounded-full object-cover' : 'size-3.5 rounded-sm'}
+          onError={() => (pageSrc ? setPageFailed(true) : setPlatformFailed(true))}
         />
         {label}
       </span>
@@ -127,8 +129,8 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
   const itemCount = order.items.length
   const visibleItems = expanded ? order.items : order.items.slice(0, 1)
 
-  const statusCfg = STATUS_CONFIG[order.status] ?? { label: order.status, cls: 'bg-default-100 text-default-500' }
-  const strip = STATUS_STRIP[order.status] ?? 'border-default-300'
+  const statusCfg = resolveOrderStatusBadge(order.status, order.shippingStage)
+  const strip = ORDER_STATUS_TONE_BORDER[statusCfg.tone] ?? 'border-default-300'
   const hasChannel = Boolean(order.salesChannel && SALES_CHANNEL_LABELS[order.salesChannel])
   // null = ยังไม่มีไฟล์โลโก้ของขนส่งเจ้านี้ → ตกไปใช้ตัวย่อ (ดู lib/iship/courier.ts)
   const courierLogo = courierLogoUrl(order.shipment?.courierCode, order.shipment?.courierName)
@@ -165,7 +167,12 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
               </p>
               {/* meta: ช่องทาง(โลโก้สี) · วิธีชำระ — แทนเบอร์โทรเดิม */}
               <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-default-500">
-                {hasChannel && <ChannelBadge channel={order.salesChannel as string} />}
+                {hasChannel && (
+                  <ChannelBadge
+                    channel={order.salesChannel as string}
+                    pageLogoUrl={order.sourceLogoUrl ?? null}
+                  />
+                )}
                 {hasChannel && hasPayment && <span className="text-default-300">·</span>}
                 {hasPayment && (
                   <span className="inline-flex items-center gap-1">
@@ -190,7 +197,12 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
           <div className="flex shrink-0 flex-col items-end gap-1">
             {/* ห้าม font-mono: Anuphan ไม่มี glyph mono → fallback Courier ผิดธีม (HR feedback) */}
             <span className="text-2xs font-semibold text-default-500">{displayId}</span>
-            <span className={`badge rounded-full ${statusCfg.cls}`}>{statusCfg.label}</span>
+            {/* icon มาจาก SSOT เดียวกับตารางเดสก์ท็อป — ป้ายใบเดียวกันต้องหน้าตาเหมือนกันทุกจอ
+                (ไฟล์นี้ import Icon จาก @iconify/react ตรง ๆ ไม่ผ่าน wrapper จึงต้องเติม tabler: เอง) */}
+            <span className={`badge rounded-full ${statusCfg.cls}`}>
+              <Icon icon={`tabler:${statusCfg.icon}`} aria-hidden="true" />
+              {statusCfg.label}
+            </span>
           </div>
         </div>
 
@@ -277,6 +289,18 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
             <span className="ms-auto truncate text-xs font-semibold tabular-nums text-default-900">
               {order.shipment.trackingNo}
             </span>
+          </div>
+        )}
+
+        {/* mini timeline สถานะพัสดุ (icon ล้วน — user สั่ง 2026-08-06 "mobile ด้วย")
+            เงื่อนไขเดียวกับบรรทัดพัสดุข้างบน: มีเลขจริงค่อยขึ้น ไม่วาดแถบเทาลอย ๆ */}
+        {order.shipment?.trackingNo && order.status !== 'CANCELLED' && order.shippingStage && (
+          <div className="mt-2">
+            <MiniShipmentTimeline
+              stage={order.shippingStage}
+              hasShipment
+              cancelled={false}
+            />
           </div>
         )}
 

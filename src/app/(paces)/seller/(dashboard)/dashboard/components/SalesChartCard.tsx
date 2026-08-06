@@ -165,6 +165,32 @@ export default function SalesChartCard({ initialSeries }: Props) {
 
   const axisLabelStyle = { fontSize: '10px', colors: getColor('default-700') }
 
+  /**
+   * จุดบนเส้นที่จะติดป้ายจำนวนคำสั่งซื้อ (user สั่ง 2026-08-06: "อยากให้แสดงจำนวนคำสั่งซื้อ ตรง point ใน line")
+   *
+   * ไม่ติดทุกจุด เพราะ ApexCharts ไม่ซ่อน dataLabels ที่ทับกันเองให้ (ต่างจากป้ายแกน x ที่มี
+   * hideOverlappingLabels) — 31 ช่องบนการ์ด ~330px = ช่องละ ~10.6px ส่วนเลข 2 หลักที่ 9px
+   * กว้าง ~11px ป้ายจึงชนกันทันทีถ้าเดือนนั้นขายเกือบทุกวัน (ตัวเลขชุดเดียวกับที่ axisAnchorDays ใช้)
+   * กติกา 2 ชั้น:
+   *   1) ติดเฉพาะวันที่ "มีออเดอร์จริง" — 0 ใบไม่มีอะไรต้องบอก และเลข 0 เรียงพรืดตามแนวพื้น
+   *      จะกลบจุดที่มีของ
+   *   2) เว้นระยะขั้นต่ำเป็น "จำนวนช่อง" ไม่ใช่จำกัดจำนวนป้ายรวม — เดือนที่ขายติดกัน 14 วันแรก
+   *      ป้ายจะชนกันเองแม้จำนวนรวมยังน้อย (นับป้ายรวมอย่างเดียวจึงกันไม่ได้จริง)
+   * เดือนที่ถูกเว้นบางวันไป ตัวเลขเป๊ะทุกวันยังอยู่ในชีตเต็มจอที่กดการ์ดเข้าไป
+   */
+  const maxOrderCount = orderCounts.reduce((m, v) => Math.max(m, v), 0)
+  const MIN_LABEL_GAP = bucketCount > 20 ? 2 : 1
+  const labeledPoints = (() => {
+    const keep = new Set<number>()
+    let last = -Infinity
+    orderCounts.forEach((v, i) => {
+      if (v <= 0 || i >= futureFromIndex || i - last < MIN_LABEL_GAP) return
+      keep.add(i)
+      last = i
+    })
+    return keep
+  })()
+
   const getMonthOptions = (): ApexOptions => ({
     // สูงขึ้นจาก 104 → 168 และแท่งกว้างขึ้นจาก 70% → 92% (user: "ความสูงมันสูงได้อีก
     // bar แต่ละอัน ... กว้างอีกจะได้เด่นขึ้น") — แท่งซ้อนอ่านเป็นก้อนเดียวชัดขึ้นมาก
@@ -197,7 +223,21 @@ export default function SalesChartCard({ initialSeries }: Props) {
      */
     stroke: { show: true, width: [0, 0, 2], curve: 'straight', colors: ['transparent', 'transparent', getColor('primary')] },
     markers: { size: 2, strokeWidth: 0, colors: [getColor('primary')] },
-    dataLabels: { enabled: false },
+    /** ป้ายจำนวนใบเหนือจุดบนเส้น — เฉพาะซีรีส์ที่ 2 (เส้น "คำสั่งซื้อ") ไม่ใช่บนแท่งเงิน
+     *  สีเดียวกับเส้น (primary) เพื่อให้อ่านออกว่าเลขนี้เป็นของเส้น ไม่ใช่ของแท่งที่อยู่ใต้มัน
+     *  background/dropShadow ปิด: กล่องขาวรอบเลขจะไปบังแท่งที่อยู่หลัง */
+    dataLabels: {
+      enabled: true,
+      enabledOnSeries: [2],
+      offsetY: -4,
+      background: { enabled: false },
+      dropShadow: { enabled: false },
+      // 10px = ขั้นเดียวกับป้ายแกน x/ป้าย annotation ของกราฟนี้ (ไม่สร้างขั้นใหม่นอก DESIGN.md)
+      style: { fontSize: '10px', fontWeight: 600, colors: [getColor('primary')] },
+      // คืน '' = ไม่วาดป้ายจุดนั้น (วันในอนาคตเป็น null จึงไม่เข้าเงื่อนไข typeof === 'number' อยู่แล้ว)
+      formatter: (val: string | number | number[], opts?: { dataPointIndex?: number }) =>
+        typeof val === 'number' && labeledPoints.has(opts?.dataPointIndex ?? -1) ? String(val) : '',
+    },
     legend: { show: false },
     xaxis: {
       categories: labels,
@@ -227,7 +267,15 @@ export default function SalesChartCard({ initialSeries }: Props) {
     yaxis: [
       { show: false, tickAmount: 2, seriesName: 'ยืนยันแล้ว' },
       { show: false, tickAmount: 2, seriesName: 'ยืนยันแล้ว' },
-      { show: false, opposite: true, seriesName: 'คำสั่งซื้อ', min: 0 },
+      /** max เผื่อหัว 30% ตั้งแต่มีป้ายตัวเลขบนจุด (2026-08-06): ป้ายอยู่ "เหนือ" จุด ถ้าจุดสูงสุด
+       *  แตะเพดานกราฟพอดี ป้ายของวันที่ขายดีที่สุด — ใบที่คนอยากอ่านที่สุด — จะถูกขอบบนตัดหาย */
+      {
+        show: false,
+        opposite: true,
+        seriesName: 'คำสั่งซื้อ',
+        min: 0,
+        max: maxOrderCount > 0 ? Math.ceil(maxOrderCount * 1.3) : undefined,
+      },
     ],
     grid: {
       show: true,

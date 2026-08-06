@@ -12,9 +12,11 @@
  */
 
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { getOrdersByShop } from '@/services/order.service'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { requireActiveShop } from '@/lib/shop-context'
+import { thaiDayKey } from '@/lib/format-date'
 import { getConnection } from '@/services/iship.service'
 import Icon from '@/components/wrappers/Icon'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
@@ -97,13 +99,84 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // กองงานตามสถานะพัสดุ — ต้องมาจาก deriveShippingStage ตัวเดียวกับที่ตัวนับบน Command Center ใช้
   // ไม่งั้นกดไทล์ที่บอก 5 แล้วเข้ามาเจอ 4 ใบ (ดูคอมเมนต์ที่ตัวฟังก์ชันใน lib/order-stage.ts)
   const isOnlineSales = shop.vertical === 'ONLINE_SALES'
+
+  // รูปเพจของร้าน (คอลัมน์ "ที่มา" — user สั่ง 2026-08-06): Order เก็บแค่ salesChannel
+  // ไม่ได้เก็บว่ามาจากเพจไหน → ชี้รูปเพจได้เฉพาะร้านที่เชื่อมเพจ MESSENGER ACTIVE เพจเดียว
+  // (หลายเพจ = กำกวม ห้ามเดา ใช้โลโก้แพลตฟอร์มแทน)
+  const fbChannels = await prisma.shopChannel.findMany({
+    where: { shopId: shop.id, provider: 'MESSENGER', status: 'ACTIVE' },
+    select: { avatarUrl: true },
+  })
+  const fbPageAvatar = fbChannels.length === 1 ? fbChannels[0].avatarUrl : null
+
+  // ห้องแชทของแต่ละออเดอร์ (ปุ่ม "เปิดแชท" บนแถบหัว — user สั่ง 2026-08-06)
+  // Order ไม่มี FK ไปห้องแชท → ต่อผ่านลูกค้า 2 เส้น: ExternalContact (แชทจากเพจ) และ
+  // buyerUserId (แชทในระบบ) · ยิงเป็นชุดเดียวด้วย `in` ไม่วนต่อแถว
+  const customerIds = [...new Set(rawOrders.map((o: any) => o.customerId).filter(Boolean))] as string[]
+  const buyerUserIds = [...new Set(rawOrders.map((o: any) => o.buyerUserId).filter(Boolean))] as string[]
+  const convRows =
+    customerIds.length > 0 || buyerUserIds.length > 0
+      ? await prisma.conversation.findMany({
+          where: {
+            shopId: shop.id,
+            OR: [
+              ...(customerIds.length > 0
+                ? [{ externalContact: { customerId: { in: customerIds } } }]
+                : []),
+              ...(buyerUserIds.length > 0 ? [{ buyerUserId: { in: buyerUserIds } }] : []),
+            ],
+          },
+          select: { id: true, buyerUserId: true, externalContactId: true },
+          orderBy: { lastMessageAt: 'desc' },
+        })
+      : []
+  // ห้องล่าสุดชนะเมื่อมีหลายห้องต่อลูกค้าหนึ่งคน (orderBy updatedAt desc + ไม่เขียนทับคีย์เดิม)
+  const convByCustomer = new Map<string, string>()
+  const convByBuyer = new Map<string, string>()
+  // ต้องรู้ว่า ExternalContact ใบไหนผูกกับลูกค้าคนไหน — query แยกเพราะ relation filter
+  // ข้างบนกรองได้แต่ select ผ่าน relation ไม่ได้ในคำสั่งเดียว
+  const contactRows =
+    convRows.length > 0
+      ? await prisma.externalContact.findMany({
+          where: { id: { in: convRows.map((c) => c.externalContactId).filter(Boolean) as string[] } },
+          select: { id: true, customerId: true },
+        })
+      : []
+  const customerByContact = new Map(contactRows.map((r) => [r.id, r.customerId]))
+  for (const c of convRows) {
+    const cid = c.externalContactId ? customerByContact.get(c.externalContactId) : null
+    if (cid && !convByCustomer.has(cid)) convByCustomer.set(cid, c.id)
+    if (c.buyerUserId && !convByBuyer.has(c.buyerUserId)) convByBuyer.set(c.buyerUserId, c.id)
+  }
+
+  // ประวัติลูกค้าต่อร้าน — groupBy ครั้งเดียวสำหรับลูกค้าทุกคนในหน้านี้ ไม่วนต่อแถว
+  // (ใช้ index Order_customerId_status_idx ที่มีอยู่แล้ว)
+  const custStatRows =
+    customerIds.length > 0
+      ? await prisma.order.groupBy({
+          by: ['customerId', 'status'],
+          where: { shopId: shop.id, customerId: { in: customerIds } },
+          _count: { _all: true },
+        })
+      : []
+  const statByCustomer = new Map<string, { orders: number; cancelled: number }>()
+  for (const r of custStatRows) {
+    if (!r.customerId) continue
+    const cur = statByCustomer.get(r.customerId) ?? { orders: 0, cancelled: 0 }
+    cur.orders += r._count._all
+    if (r.status === 'CANCELLED') cur.cancelled += r._count._all
+    statByCustomer.set(r.customerId, cur)
+  }
+
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
+    sourceLogoUrl: o.salesChannel === 'FACEBOOK' ? fbPageAvatar : null,
     // เลขพัสดุมาได้ 2 ทางและเก็บคนละตาราง — ต้องอ่านทั้งคู่ ไม่งั้นออเดอร์ที่ร้าน "ส่งเอง"
     // (ShipmentTracking: provider = ชื่อขนส่งที่ผู้ขายเลือก, ไม่มีรหัส) จะไม่ขึ้นเลขพัสดุเลย
     // ทั้งที่มีเลขอยู่ — เจอตอน user ส่งภาพหน้าจอ "แจ้งเลขพัสดุ" มาให้ดู 2026-08-04
     // ให้พัสดุ iShip ชนะเมื่อมีทั้งคู่ เพราะเป็นใบที่ระบบติดตามสถานะขนส่งให้จริง
     shipment: o.shipments?.[0]
       ? {
+          id: o.shipments[0].id ?? null,
           trackingNo: o.shipments[0].trackingNo ?? null,
           courierCode: o.shipments[0].courierCode ?? null,
           courierName: o.shipments[0].courierName ?? null,
@@ -114,6 +187,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
             trackingNo: o.shipmentTracking.trackingNo ?? null,
             courierCode: null,
             courierName: o.shipmentTracking.provider ?? null,
+            // ร้านแจ้งเลขเอง — ไม่มีแถว OrderShipment จึงไม่มี id ให้ถาม traces
+            id: null,
             provider: 'MANUAL',
           }
         : null,
@@ -148,6 +223,27 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller โทรลูกค้าตัวเองได้ (user decision 2026-06-15)
     // PII note: เปิดเบอร์จริงเข้า flight ของ seller (เจ้าของออเดอร์) — ต้อง security review ก่อน prod
     buyerPhone: o.buyerContact ?? null,
+    // ปลายทางแยกส่วน — ประกอบบรรทัดที่ฝั่งจอ (ดูเหตุผล + หมายเหตุ PII ที่ OrderRow.shipTo)
+    shipTo: (() => {
+      const a = o.shippingAddress as Record<string, unknown> | null
+      if (!a) return null
+      const str = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null)
+      const locality = [str(a.subdistrict), str(a.district)].filter(Boolean).join(' ') || null
+      const shape = {
+        line1: str(a.line1),
+        locality,
+        province: str(a.province),
+        postcode: str(a.postcode),
+      }
+      // ไม่มีอะไรเลยสักช่อง = ถือว่าไม่มีที่อยู่ (อย่าคืนก้อนที่ทุกช่องเป็น null ให้จอไปเช็กเอง)
+      return Object.values(shape).some(Boolean) ? shape : null
+    })(),
+    codReceivedAtISO: o.codReceivedAt ? new Date(o.codReceivedAt).toISOString() : null,
+    customerStats: o.customerId ? (statByCustomer.get(o.customerId) ?? null) : null,
+    conversationId:
+      (o.customerId ? convByCustomer.get(o.customerId) : undefined) ??
+      (o.buyerUserId ? convByBuyer.get(o.buyerUserId) : undefined) ??
+      null,
     paymentMethod: o.paymentMethod ?? null,
     // F2: map OrderItem → OrderItemRow; imageUrl = /api/files/{images[0]} ถ้า product มีรูป
     // Decimal.price → Number เพื่อกัน serialization error ที่ RSC boundary
@@ -172,28 +268,25 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   }))
 
   // คำนวณ sparkline trend + changePct ต่อ status
-  // ใช้ YYYY-MM-DD string ตัด timezone ให้ consistent (server timezone = UTC ตามค่า default Next.js/Vercel)
-  const toDateStr = (iso: string) => iso.slice(0, 10) // 'YYYY-MM-DD'
+  // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ไม่ใช่ UTC (ออเดอร์ 00:00–07:00 น. เคยตกไปวันก่อนหน้า)
+  const toDateStr = (iso: string) => thaiDayKey(iso)
 
   const now = new Date()
+  const DAY_MS = 24 * 60 * 60 * 1000
 
   // หน้าต่าง trend = 30 วัน (ขยายจาก 7 วัน — ร้านออเดอร์น้อย 7 วันทำให้ sparkline โล่ง + badge แกว่ง)
   const WINDOW = 30
 
   // สร้าง array ของ 30 วันล่าสุด (index 0 = วันเก่าสุด, index 29 = วันนี้)
-  const lastDays = Array.from({ length: WINDOW }, (_, i) => {
-    const d = new Date(now)
-    d.setUTCDate(d.getUTCDate() - (WINDOW - 1 - i))
-    return d.toISOString().slice(0, 10)
-  })
+  // เดินถอยหลังทีละ 24 ชม.บน UTC instant แล้วตัดวันด้วย thaiDayKey — ห้ามใช้ setUTCDate
+  // (นั่นคือ UTC calendar day ไม่ใช่ปฏิทินไทย) ต้องเป็นคีย์รูปแบบเดียวกับ toDateStr() ด้านบน
+  const lastDays = Array.from({ length: WINDOW }, (_, i) =>
+    thaiDayKey(new Date(now.getTime() - (WINDOW - 1 - i) * DAY_MS)),
+  )
 
   // 30 วันก่อนหน้า (index 0 = วันที่ -59, index 29 = วันที่ -30) สำหรับเทียบ changePct
-  const prevStart = new Date(now)
-  prevStart.setUTCDate(prevStart.getUTCDate() - (WINDOW * 2 - 1))
-  const prevEnd = new Date(now)
-  prevEnd.setUTCDate(prevEnd.getUTCDate() - WINDOW)
-  const prevStartStr = prevStart.toISOString().slice(0, 10)
-  const prevEndStr   = prevEnd.toISOString().slice(0, 10)
+  const prevStartStr = thaiDayKey(new Date(now.getTime() - (WINDOW * 2 - 1) * DAY_MS))
+  const prevEndStr = thaiDayKey(new Date(now.getTime() - WINDOW * DAY_MS))
 
   type StatusKey = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
 
@@ -222,12 +315,25 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         ? current > 0 ? 100 : 0
         : Math.round(((current - prev) / prev) * 100)
 
-    return { title, status, totalCount, changePct }
+    return { title, status, totalCount, changePct, recentCount: current }
   }
 
+  /**
+   * ชื่อการ์ดต้องไม่ชนกับคำของ "กองงานพัสดุ" (SHIPPING_STAGE_LABEL) เพราะอยู่จอเดียวกัน
+   *
+   * เดิมใบที่สองชื่อ "กำลังจัดส่ง" เท่ากับชิปพัสดุเป๊ะ แต่คนละเลข (การ์ดนับ status=SHIPPED
+   * ทั้งหมด = รวมใบที่ส่งถึงแล้ว ส่วนชิปนับเฉพาะที่ยังวิ่งอยู่จริง) — จอเดียวขึ้น 4 กับ 1
+   * ด้วยคำเดียวกัน อ่านยังไงก็เหมือนตัวเลขผิด
+   *
+   * "ส่งแล้ว" = การกระทำของร้านจบแล้ว (ของออกไปแล้ว ไม่ว่าตอนนี้จะถึงหรือยัง) — user เลือก
+   * 2026-08-06 จาก 3 ตัวเลือก. สั้นพอที่จะไม่ถูกอ่านสลับกับป้าย "ส่งถึงแล้ว" บนแถวข้างล่าง
+   * (คำยาวใกล้กันอย่าง "ส่งของแล้ว" ต่างกันพยางค์เดียว กวาดตาผ่าน ๆ แล้วสลับกันได้)
+   *
+   * ไม่แตะ ORDER_STATUS_META — ดรอปดาวน์ตัวกรองกับป้ายบนแถวยังคงคำเดิมทุกตัวอักษร
+   */
   const orderStatData: OrderStatCardData[] = [
     buildStatCard('รอดำเนินการ', 'PENDING'),
-    buildStatCard('กำลังจัดส่ง', 'SHIPPED'),
+    buildStatCard('ส่งแล้ว',     'SHIPPED'),
     buildStatCard('สำเร็จแล้ว',  'CONFIRMED'),
     buildStatCard('ยกเลิก',      'CANCELLED'),
   ]

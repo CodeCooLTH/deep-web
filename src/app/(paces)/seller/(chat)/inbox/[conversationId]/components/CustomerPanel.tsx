@@ -40,7 +40,7 @@ import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { relativeTimeTh } from '@/lib/relative-time-th'
 import { ORDER_VOCAB, resolveOrderVocab } from '@/lib/seller-menu'
-import { ORDER_STATUS_META, type OrderStatus } from '@/lib/order-display'
+import { type OrderStatus } from '@/lib/order-display'
 import type { ShopVertical } from '@/lib/lodging'
 // import ข้ามกลุ่มโฟลเดอร์ตาม precedent ใน OrderActionBar.tsx — reuse ⋮ + SSOT ของ action
 // เดียวกับหน้า order detail แทนประดิษฐ์ dropdown/เงื่อนไขสถานะใหม่ (sibling-surface-parity)
@@ -346,15 +346,11 @@ function OrderCard({
       className="w-full"
       footer={
         o.status === 'CANCELLED' ? (
-          // CANCELLED — แทนแถวปุ่มทั้งหมดด้วย badge นิ่ง (ส่งเข้าแชท/สร้างพัสดุกับออเดอร์ที่ยกเลิก
-          // แล้ว = กดแล้วพัง) ครอบทั้งใบที่เพิ่งกดยกเลิกและใบที่ถูกยกเลิกมาก่อนแล้วตั้งแต่โหลด
-          // badge จาก ORDER_STATUS_META — SSOT เดียวกับ StatusHero/inbox list
-          <div className="border-default-200 border-t p-2">
-            <span className={`badge ${ORDER_STATUS_META.CANCELLED.cls} gap-1`}>
-              <Icon icon={ORDER_STATUS_META.CANCELLED.icon} className="size-3.5" />
-              {ORDER_STATUS_META.CANCELLED.label}
-            </span>
-          </div>
+          // CANCELLED — ไม่มี footer เลย (ปุ่มส่งเข้าแชท/สร้างพัสดุกับใบที่ยกเลิกแล้ว = กดแล้วพัง)
+          // เดิมแทนด้วย badge "ยกเลิก" แต่ตั้งแต่การ์ดมี Order Progress (2026-08-05) ชิป
+          // "ยกเลิกแล้ว" ขึ้นในตัวการ์ดอยู่แล้ว badge ที่ footer เลยกลายเป็นสถานะเบิ้ลสองป้าย
+          // (user report 2026-08-06 "มันเบิ้ล")
+          undefined
         ) : (
           <div className="border-default-200 flex gap-2 border-t p-2">
             <button

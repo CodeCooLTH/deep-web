@@ -8,7 +8,11 @@
 // (ไม่ใช่หวังว่าจะไม่เผลอใส่) — ดู ConnectionView / SettingsView / ShipmentView
 
 import { prisma } from "@/lib/prisma";
-import { createOrder } from "@/services/order.service";
+import {
+  createOrder,
+  settleCodFromCarrier,
+  syncOrderPaymentToParcel,
+} from "@/services/order.service";
 import { recordOrderEvent } from "@/services/order-event.service";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
@@ -17,6 +21,8 @@ import {
   carrierStatusCodeFromId,
   describeCarrierStatus,
   impliesDispatched,
+  parseCarrierTimestamp,
+  readCodSettlement,
 } from "@/lib/iship/status";
 import {
   diffReceiverAddress,
@@ -114,6 +120,14 @@ export interface ShipmentView {
   height: number | null;
   codAmount: number;
   createdAt: Date;
+  /**
+   * ข้อความที่ต้องบอกร้านทันทีหลังเปิด/ผูกพัสดุ เมื่อวิธีชำระเงินของคำสั่งซื้อกับพัสดุ
+   * ไม่ตรงกัน (ส่วนขยาย 2026-08-06) — `changed` = ระบบแก้ให้แล้ว, `warning` = ร้านต้องไปแก้เอง
+   *
+   * ไม่เก็บลงฐาน: เป็นข้อความสำหรับ "ครั้งนี้" เท่านั้น รอยถาวรอยู่ในไทม์ไลน์
+   * (PAYMENT_METHOD_SYNCED) แล้ว
+   */
+  paymentNotice?: { kind: "changed" | "warning"; message: string } | null;
 }
 
 // ─── helper ภายใน ───────────────────────────────────────────────────────────
@@ -406,6 +420,7 @@ function toShipmentView(s: {
   labelPrintCount: number;
   isDryRun: boolean;
   lastErrorCode: string | null;
+  lastErrorMessage: string | null;
   weight: unknown;
   width: number | null;
   length: number | null;
@@ -419,8 +434,16 @@ function toShipmentView(s: {
     weight: s.weight == null ? null : Number(s.weight),
     codAmount: Number(s.codAmount ?? 0),
     // ข้อความที่แสดงต่อผู้ใช้มาจาก error code ของเรา ไม่ใช่ lastErrorMessage ที่เป็นข้อความดิบ
+    //
+    // ต้องส่งข้อความดิบเข้าไปด้วย ไม่ใช่สร้าง IShipError เปล่า ๆ: REJECTED_BY_CARRIER มี
+    // ข้อยกเว้นที่ตั้งใจไว้ให้ต่อท้ายรายละเอียดจากขนส่ง ("กรุณากรอก สีสินค้า …") ซึ่งคือ
+    // "สิ่งที่ร้านต้องแก้" — ไม่ส่งเข้าไป ข้อยกเว้นนั้นก็ไม่เคยทำงานสักครั้ง ร้านเห็นแต่
+    // ประโยคกลาง ๆ แล้วกดลองใหม่วนไปโดยไม่มีทางรู้ว่าขาดอะไร (ตัวกรองอยู่ใน IShipError
+    // อยู่แล้ว — code อื่นไม่เปิดเผยข้อความดิบ)
     lastErrorMessage: s.lastErrorCode
-      ? new IShipError(s.lastErrorCode as never).userMessage
+      ? new IShipError(s.lastErrorCode as never, {
+          upstreamMessage: s.lastErrorMessage ?? undefined,
+        }).userMessage
       : null,
   };
 }
@@ -461,6 +484,9 @@ const SHIPMENT_SELECT = {
   labelPrintCount: true,
   isDryRun: true,
   lastErrorCode: true,
+  // ข้อความดิบ — ไม่ได้ส่งออกตรง ๆ ใช้เป็นวัตถุดิบให้ IShipError ตัดสินว่าจะเปิดเผยไหม
+  // (เปิดเฉพาะ REJECTED_BY_CARRIER ตามข้อยกเว้นเดียวของ BR-ISHIP §6.4)
+  lastErrorMessage: true,
   weight: true,
   width: true,
   length: true,
@@ -773,11 +799,22 @@ export async function createShipment(
     select: SHIPMENT_SELECT,
   });
   if (active) {
-    if (active.status === "FAILED") return retryShipment(shopId, userId, active.id);
-    throw new IShipServiceError(
-      "SHIPMENT_EXISTS",
-      "คำสั่งซื้อนี้มีพัสดุที่ยังใช้งานอยู่แล้ว",
-    );
+    if (active.status !== "FAILED") {
+      throw new IShipServiceError(
+        "SHIPMENT_EXISTS",
+        "คำสั่งซื้อนี้มีพัสดุที่ยังใช้งานอยู่แล้ว",
+      );
+    }
+    // ใบเดิมล้มอยู่ → นี่คือการกด "แก้ข้อมูลแล้วลองใหม่" จากฟอร์มเดียวกัน
+    // ค่าที่ร้านเพิ่งกรอก (ขนส่ง/น้ำหนัก/ขนาด/COD/ตัวเลือก) ต้องมีผลจริง ไม่ใช่ถูกทิ้งเงียบ ๆ
+    // แล้วยิงค่าชุดเดิมซ้ำ — ที่อยู่ถูกเขียนกลับเข้าออเดอร์ไปแล้วที่ด้านบน และ retryShipment
+    // อ่านที่อยู่จากออเดอร์ใหม่ทุกครั้ง จึงไม่ต้องส่ง receiverPatch ต่อ
+    const paymentNotice =
+      override?.codAmount !== undefined
+        ? await syncOrderPaymentToParcel(orderId, override.codAmount, userId)
+        : undefined;
+    const view = await retryShipment(shopId, userId, active.id, undefined, override);
+    return paymentNotice === undefined ? view : { ...view, paymentNotice };
   }
 
   // attemptGroup = จำนวนใบที่เคยยกเลิกไปแล้ว + 1 (BR-ISHIP-26)
@@ -854,7 +891,13 @@ export async function createShipment(
     select: SHIPMENT_SELECT,
   });
 
-  return dispatchShipment(shopId, shipment.id, token);
+  // ปรับวิธีชำระเงินของคำสั่งซื้อให้ตรงกับพัสดุที่กำลังจะเปิด (user สั่ง 2026-08-06)
+  // ทำ "ก่อน" ยิงไป iShip โดยเจตนา: ถ้ายิงล้ม ใบยังอยู่ในสถานะ FAILED ให้ retry ได้ แต่
+  // ข้อเท็จจริงที่ว่า "ร้านตั้งใจเก็บเงินปลายทาง" เกิดขึ้นแล้วตั้งแต่ตอนกดสร้าง
+  const paymentNotice = await syncOrderPaymentToParcel(orderId, codAmount, userId);
+
+  const view = await dispatchShipment(shopId, shipment.id, token);
+  return { ...view, paymentNotice };
 }
 
 /**
@@ -867,11 +910,23 @@ export async function retryShipment(
   userId: string,
   shipmentId: string,
   receiverPatch?: ReceiverPatch,
+  override?: ShipmentOverride,
 ): Promise<ShipmentView> {
   const { token } = await loadAccount(shopId);
   const existing = await prisma.orderShipment.findFirst({
     where: { id: shipmentId, shopId },
-    select: { id: true, status: true, orderId: true },
+    select: {
+      id: true,
+      status: true,
+      orderId: true,
+      courierCode: true,
+      categoryId: true,
+      weight: true,
+      width: true,
+      length: true,
+      height: true,
+      optionsSnapshot: true,
+    },
   });
   if (!existing) throw new IShipServiceError("NOT_FOUND", "ไม่พบพัสดุนี้");
   if (existing.status !== "FAILED") {
@@ -881,20 +936,68 @@ export async function retryShipment(
     );
   }
   // ใบที่ล้มเพราะที่อยู่ไม่ผ่าน — ร้านแก้แล้วกดลองใหม่ได้ในที่เดียว
-  // ต้องอัปเดต snapshot ของใบเดิมด้วย ไม่งั้นจะยิงค่าที่อยู่ชุดเก่าซ้ำแล้วล้มเหมือนเดิม
   if (receiverPatch) {
     await applyReceiverPatch(shopId, existing.orderId, receiverPatch);
-    const order = await prisma.order.findFirstOrThrow({
-      where: { id: existing.orderId, shopId },
-      select: { buyerName: true, buyerContact: true, shippingAddress: true },
-    });
+  }
+
+  // อ่านที่อยู่จากออเดอร์ใหม่ "ทุกครั้ง" ที่ลองใหม่ ไม่ใช่เฉพาะตอนมี receiverPatch แนบมา
+  //
+  // เหตุผล: ออเดอร์คือแหล่งความจริงของที่อยู่ (ดู applyReceiverPatch) ส่วน snapshot มีไว้
+  // บันทึกว่า "ยิงอะไรออกไป" — พอลองใหม่ = กำลังจะยิงใหม่ ค่าที่ถูกต้องคือค่าปัจจุบันของออเดอร์
+  //
+  // เคสจริง prod 2026-08-06 (DP256908869471CB): ร้านแก้ที่อยู่ที่สะกดผิดผ่านฟอร์มสร้างพัสดุ
+  // → createShipment เขียนที่อยู่ใหม่ลงออเดอร์แล้วเด้งมา retry โดยไม่ส่ง receiverPatch ต่อ
+  // → เงื่อนไขเดิมข้ามการอัปเดต snapshot → ยิงที่อยู่ชุดเก่าซ้ำ ล้มด้วยข้อความเดิมทุกครั้ง
+  // ร้านติดลูปแก้เท่าไรก็ไม่มีผล เพราะสิ่งที่ส่งออกไปไม่เคยเปลี่ยน
+  const order = await prisma.order.findFirstOrThrow({
+    where: { id: existing.orderId, shopId },
+    select: { buyerName: true, buyerContact: true, shippingAddress: true },
+  });
+  await prisma.orderShipment.update({
+    where: { id: shipmentId },
+    data: {
+      receiverSnapshot: {
+        name: order.buyerName,
+        phone: order.buyerContact,
+        ...((order.shippingAddress as DeepAddress | null) ?? {}),
+      } as object,
+    },
+  });
+
+  // ค่าพัสดุที่ร้านกรอกใหม่มาพร้อมการลองใหม่ — เขียนทับ "เฉพาะช่องที่ส่งมา"
+  // ห้าม fallback ไปค่าตั้งต้นของร้านสำหรับช่องที่ไม่ได้ส่ง เพราะใบนี้อาจถูกเปิดด้วยค่าที่
+  // ไม่ใช่ค่าตั้งต้นมาตั้งแต่แรก การเติมค่าตั้งต้นจะเป็นการแอบเปลี่ยนสิ่งที่ร้านไม่ได้แตะ
+  if (override) {
+    const merged = {
+      courierCode: override.courierCode ?? existing.courierCode,
+      categoryId: override.categoryId ?? existing.categoryId,
+      weight: override.weight ?? (existing.weight == null ? null : Number(existing.weight)),
+      width: override.width ?? existing.width,
+      length: override.length ?? existing.length,
+      height: override.height ?? existing.height,
+    };
+    const missing = findMissingParcelFields(merged);
+    if (missing.length > 0) {
+      throw new IShipServiceError(
+        "INCOMPLETE_DATA",
+        `ยังตั้งค่าพัสดุไม่ครบ — ขาด ${missing.join(", ")} (ตั้งได้ที่หน้าตั้งค่าการจัดส่ง)`,
+        missing,
+      );
+    }
+    const snapshot = (existing.optionsSnapshot ?? {}) as Record<string, unknown>;
     await prisma.orderShipment.update({
       where: { id: shipmentId },
       data: {
-        receiverSnapshot: {
-          name: order.buyerName,
-          phone: order.buyerContact,
-          ...((order.shippingAddress as DeepAddress | null) ?? {}),
+        ...merged,
+        // ชื่อขนส่งต้องตามรหัสที่เปลี่ยน ไม่งั้นจอจะโชว์ชื่อเจ้าเก่าคู่กับพัสดุของเจ้าใหม่
+        ...(merged.courierCode !== existing.courierCode
+          ? { courierName: await resolveCourierName(shopId, merged.courierCode) }
+          : {}),
+        ...(override.codAmount !== undefined ? { codAmount: override.codAmount } : {}),
+        optionsSnapshot: {
+          ...snapshot,
+          ...(override.options ?? {}),
+          ...(override.remark !== undefined ? { remark: override.remark } : {}),
         } as object,
       },
     });
@@ -1191,32 +1294,8 @@ export async function getLabelPdfForOrders(
 
 // ─── ประวัติการเดินทาง ──────────────────────────────────────────────────────
 
-/**
- * parseCarrierTimestamp — เวลาจาก traces ของ iShip เป็น "เวลาไทย" ที่ไม่มีโซนเวลาติดมา
- *
- * รูปแบบที่ได้จริงคือ `"2026-08-04 15:36:18"` เดิมโค้ดทำ `new Date(s.replace(" ", "T"))`
- * ซึ่ง JS ตีความสตริงแบบไม่มีโซนว่าเป็น "เวลาท้องถิ่นของเครื่อง" — บน Vercel เครื่องเป็น UTC
- * ผลคือเวลาไทยถูกบันทึกเป็น UTC ตรง ๆ = **ทุกเหตุการณ์เลื่อนไปข้างหน้า 7 ชั่วโมง**
- *
- * หลักฐานจากฐาน prod (พัสดุ TH460290DA197B, 2026-08-04): แถวสุดท้ายมี `occurredAt`
- * 15:36:18Z แต่ `createdAt` (เวลาที่เราบันทึกเอง) เป็น 13:10:57Z — เท่ากับบันทึกเหตุการณ์
- * ที่ "ยังไม่เกิด" ล่วงหน้า 2 ชั่วโมงครึ่ง และเวลาเดียวกันนี้ฝั่ง query_orders (ซึ่งส่ง ISO
- * พร้อมโซนมา จึงถูกต้อง) เก็บไว้เป็น 08:36:18Z — ห่างกัน 7 ชั่วโมงพอดี
- *
- * ผลกระทบที่มองเห็น: ไทม์ไลน์ในหน้าออเดอร์โชว์เวลาอนาคต และเวลาจาก 2 endpoint
- * เทียบกันไม่ได้ทั้งที่พูดถึงนาทีเดียวกัน
- *
- * ตรึง +07:00 ตรง ๆ (ไม่ใช่ timezone ของเครื่อง) เพราะ iShip เป็นผู้ให้บริการไทยที่ส่งเวลาไทยเสมอ
- * — ค่าที่ขึ้นกับเครื่องจะทำให้ dev กับ prod ได้ผลไม่ตรงกันอีก ซึ่งคือรากของบั๊กนี้พอดี
- */
-function parseCarrierTimestamp(raw: string): Date | null {
-  if (!raw) return null;
-  // มีโซนเวลาติดมาแล้ว (Z หรือ ±hh:mm) → เชื่อตามนั้น ไม่ยัด +07 ทับ
-  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(raw.trim());
-  const iso = raw.trim().replace(" ", "T");
-  const d = new Date(hasZone ? iso : `${iso}+07:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+// parseCarrierTimestamp ย้ายไป lib/iship/status.ts แล้ว (2026-08-06) — ตัวแปลงเดียวกันนี้
+// ถูกใช้ทั้งกับ traces และกับ settlement_at ของ COD จึงต้องอยู่ในโมดูล pure ที่เทสได้
 
 /**
  * advanceOrderOnCarrierMove — ขนส่งรับของไปแล้ว → ขยับคำสั่งซื้อเป็น "จัดส่งแล้ว" อัตโนมัติ
@@ -1562,6 +1641,36 @@ function isoDate(d: Date): string {
  *
  * คืนจำนวนแถวที่สถานะเปลี่ยนจริง (0 = ไม่มีอะไรเปลี่ยน หรือยังไม่ถึงรอบ)
  */
+/**
+ * settleCodIfPaid — เห็น `settlement_at` ครั้งแรกของพัสดุใบหนึ่ง → บันทึกว่าเงินเข้าแล้ว
+ *
+ * แบ่งหน้าที่: ที่นี่ตัดสินเรื่อง "พัสดุ" (เชื่อค่าจาก iShip ได้ไหม + จองสิทธิ์ประมวลผล)
+ * ส่วนเรื่อง "คำสั่งซื้อ" (เป็น COD ไหม ยืนยันได้ไหม คิดคะแนนใหม่) อยู่ที่ order.service
+ *
+ * การจองสิทธิ์ใช้ conditional update บน codSettledAt — sync สองรอบที่ทับกัน (ร้านเปิด
+ * หลายแท็บ) จะมีแค่รอบเดียวที่ count>0 อีกรอบเห็น 0 แล้วถอยออกไปเงียบ ๆ ไม่บันทึกซ้ำ
+ *
+ * คืน true เมื่อคำสั่งซื้อถูกยืนยันอัตโนมัติจริง (ไม่ใช่แค่บันทึกวันเงินเข้า)
+ */
+async function settleCodIfPaid(
+  shipment: { id: string; orderId: string; codSettledAt: Date | null },
+  row: iship.IShipOrderRow,
+): Promise<boolean> {
+  if (shipment.codSettledAt) return false; // เคยประมวลผลไปแล้ว
+
+  const settlement = readCodSettlement(row);
+  if (!settlement) return false;
+  const { settledAt, codAmount } = settlement;
+
+  const claimed = await prisma.orderShipment.updateMany({
+    where: { id: shipment.id, codSettledAt: null },
+    data: { codSettledAt: settledAt },
+  });
+  if (claimed.count === 0) return false;
+
+  return settleCodFromCarrier({ orderId: shipment.orderId, settledAt, codAmount });
+}
+
 export async function syncShipmentStatuses(
   shopId: string,
   opts?: { force?: boolean },
@@ -1579,6 +1688,11 @@ export async function syncShipmentStatuses(
   }
 
   // พัสดุที่ยังต้องติดตาม — จบแล้ว (ส่งถึง/คืนสำเร็จ/หมดอายุ) ไม่ต้องถามซ้ำอีก
+  //
+  // ยกเว้นใบ COD ที่ยังไม่ได้เงิน (BR-ISHIP-49, 2026-08-06): เงินเก็บปลายทางเข้าหลัง
+  // `delivered` เสมอ — ใบตัวอย่างจริง TH160390J7DJ1I ส่งถึง 04 ส.ค. 09:27 แต่เงินเข้า
+  // 05 ส.ค. 19:00 (ห่างกัน ~33 ชม.) เงื่อนไขเดิมตัดใบนั้นออกจากรายการติดตามไปตั้งแต่วัน
+  // ที่ส่งถึง = ไม่มีวันเห็นเหตุการณ์เงินเข้าเลยสักใบ ฟีเจอร์ปิดงานอัตโนมัติจึงตายตั้งแต่ต้น
   const tracking = await prisma.orderShipment.findMany({
     where: {
       shopId,
@@ -1587,9 +1701,24 @@ export async function syncShipmentStatuses(
       OR: [
         { carrierStatus: null },
         { carrierStatus: { notIn: ["delivered", "return_success", "is_expired", "close"] } },
+        // ส่งถึงแล้วแต่เป็นใบเก็บเงินปลายทางที่ยังไม่ได้รับแจ้งว่าโอนเงิน → ยังต้องถามต่อ
+        // (มี codSettledAt แล้ว = จบจริง หลุดออกจากชุดนี้เอง)
+        // ตัดปลายทางที่ไม่มีวันมีเงินเข้าออก (ตีกลับ/หมดอายุ/ยกเลิก) ไม่งั้นใบพวกนี้จะค้าง
+        // อยู่ในชุดที่ดึงมาทุกรอบตลอดไป — ไม่เปลืองคำขอ iShip แต่เปลืองแถวที่ query ฐานทุกครั้ง
+        {
+          codSettledAt: null,
+          codAmount: { gt: 0 },
+          carrierStatus: { notIn: ["return_success", "is_expired", "close", "cancelled"] },
+        },
       ],
     },
-    select: { id: true, trackingNo: true, carrierStatus: true, orderId: true },
+    select: {
+      id: true,
+      trackingNo: true,
+      carrierStatus: true,
+      orderId: true,
+      codSettledAt: true,
+    },
   });
   if (tracking.length === 0) {
     await prisma.shopShippingAccount.update({
@@ -1620,28 +1749,34 @@ export async function syncShipmentStatuses(
     const row = byTrack.get(s.trackingNo!);
     if (!row) continue; // พัสดุที่เก่ากว่าช่วงที่ขอ — ปล่อยไว้ ไม่เดาสถานะแทนขนส่ง
     const code = carrierStatusCodeFromId(row.status);
-    if (!code || code === s.carrierStatus) continue;
 
-    const changedAt = row.updated_at ? new Date(row.updated_at) : new Date();
+    if (code && code !== s.carrierStatus) {
+      const changedAt = row.updated_at ? new Date(row.updated_at) : new Date();
 
-    await prisma.orderShipment.update({
-      where: { id: s.id },
-      data: {
-        carrierStatus: code,
-        carrierStatusText: describeCarrierStatus(code).text,
-        // ใช้เวลาที่ iShip บอกว่าสถานะเปลี่ยน ไม่ใช่เวลาที่เราดึงมา — ไม่งั้นทุกใบจะมีเวลา
-        // เท่ากันหมดตามรอบ sync แล้วเรียงลำดับเหตุการณ์ไม่ได้
-        carrierStatusAt: changedAt,
-        // พัสดุถูกยกเลิกที่ฝั่ง iShip (ร้านไปกดที่หลังบ้านเขาเอง หรือขนส่งยกเลิกให้) —
-        // แถวของเราต้องตามความจริง ไม่ใช่ค้างเป็น CREATED แล้วโชว์ป้าย "สร้างพัสดุแล้ว"
-        // ให้ร้านเข้าใจผิดว่าของยังเดินอยู่ (เจอกับพัสดุจริง 1 ใบตอนทดสอบ 2026-07-31)
-        ...(code === "cancelled"
-          ? { status: "CANCELLED", cancelledAt: changedAt }
-          : {}),
-      },
-    });
-    await advanceOrderOnCarrierMove(s.orderId, code);
-    changed += 1;
+      await prisma.orderShipment.update({
+        where: { id: s.id },
+        data: {
+          carrierStatus: code,
+          carrierStatusText: describeCarrierStatus(code).text,
+          // ใช้เวลาที่ iShip บอกว่าสถานะเปลี่ยน ไม่ใช่เวลาที่เราดึงมา — ไม่งั้นทุกใบจะมีเวลา
+          // เท่ากันหมดตามรอบ sync แล้วเรียงลำดับเหตุการณ์ไม่ได้
+          carrierStatusAt: changedAt,
+          // พัสดุถูกยกเลิกที่ฝั่ง iShip (ร้านไปกดที่หลังบ้านเขาเอง หรือขนส่งยกเลิกให้) —
+          // แถวของเราต้องตามความจริง ไม่ใช่ค้างเป็น CREATED แล้วโชว์ป้าย "สร้างพัสดุแล้ว"
+          // ให้ร้านเข้าใจผิดว่าของยังเดินอยู่ (เจอกับพัสดุจริง 1 ใบตอนทดสอบ 2026-07-31)
+          ...(code === "cancelled"
+            ? { status: "CANCELLED", cancelledAt: changedAt }
+            : {}),
+        },
+      });
+      await advanceOrderOnCarrierMove(s.orderId, code);
+      changed += 1;
+    }
+
+    // แยกจากบล็อกข้างบนโดยเจตนา — ห้ามผูกกับ "สถานะเปลี่ยน" เพราะพัสดุที่ carrierStatus
+    // เป็น payment_success อยู่แล้วตั้งแต่ก่อนมีฟีเจอร์นี้จะไม่มีวันเข้าเงื่อนไขนั้นอีก
+    // แล้วเงินที่เข้าไปแล้วจะไม่ถูกบันทึกตลอดกาล
+    if (await settleCodIfPaid(s, row)) changed += 1;
   }
 
   await prisma.shopShippingAccount.update({
@@ -2108,11 +2243,15 @@ export async function linkShipment(
 
   await advanceOrderIfDispatched(order, parcel);
 
+  // ใบที่ผูกย้อนหลังคือจุดที่ข้อมูลสองฝั่งไม่ตรงกันบ่อยที่สุด — ร้านเปิดพัสดุแบบเก็บเงิน
+  // ปลายทางบนเว็บ iShip แล้วมาบันทึกคำสั่งซื้อในระบบเราทีหลังโดยไม่ได้ติ๊ก COD
+  const paymentNotice = await syncOrderPaymentToParcel(orderId, parcel.codAmount, userId);
+
   const row = await prisma.orderShipment.findUniqueOrThrow({
     where: { id: created.id },
     select: SHIPMENT_SELECT,
   });
-  return toShipmentView(row);
+  return { ...toShipmentView(row), paymentNotice };
 }
 
 /**

@@ -53,6 +53,7 @@
 | **Order Create** | `[ยกเลิก] [บันทึกออเดอร์]` | — | summary panel = recap ล้วน ไม่มีปุ่ม |
 | **Order Edit** | `[ยกเลิก] [บันทึกการแก้ไข]` | — | guard banner มีลิงก์ "ดูรายละเอียด" (ไม่ใช่ปุ่ม action-bar) |
 | **Order Detail** | `[⋯] [บันทึกการจัดส่ง]` (primary ผันตาม state) | `แก้ไขออเดอร์` · — · `ยกเลิกออเดอร์` (แดง) | buyer-link card มีปุ่ม "คัดลอกลิงก์" = inline utility (ไม่ใช่ action หน้า) |
+| **Product List** (มือถือ 2026-08-06) | *full-screen* — `[+]` icon ขวาสุดของ sticky header (ดู §5.1); เดสก์ท็อป = `[+ เพิ่มสินค้า]` ใน `card-header` | per-card `⋯` (ดูรายละเอียด · — · เปิด/ปิดการขาย · — · ลบสินค้า[แดง+Swal]) | primary ต่อการ์ด = **แก้ไข** (filled น้ำเงิน icon-only) · ปักหมุด = outline · **ห้ามมีปุ่มลบบนการ์ด** |
 
 ### Detail — primary ผันตาม order state
 | สถานะ | Primary (ขวาสุด) | Overflow `⋯` |
@@ -91,6 +92,16 @@
 
 - Action-bar ยัง sticky (fullscreen = top; dashboard = top ใต้ topbar) — **ปุ่มไม่ย้ายตำแหน่ง ไม่ยุบเป็น bottom bar**
 - ถ้าปุ่มล้น: secondary ยุบเป็น icon-only ก่อน, primary คงข้อความเสมอ, overflow `⋯` คงเดิม
+
+### 5.1 🛑 หน้า full-screen ซ่อน bottom nav → action ที่อยู่ใน FAB หายไปด้วย
+
+`SellerBottomNav.tsx` **`return null` ทั้งก้อน** สำหรับ path ที่เป็น full-screen (`/orders`, `/orders/<token>`, `/products`) — และ **FAB "สร้าง" อยู่ข้างในตัวนั้น** ดังนั้นทุก action ใน `buildFabActions` (สร้างหมวดหมู่ · สร้างสินค้า · สร้างออเดอร์) **หายไปพร้อมกันทั้งชุด** บนหน้าที่ full-screen
+
+กฎ: **หน้าไหนเข้าโหมด full-screen ต้องหาที่ใหม่ให้ action ที่เคยพึ่ง FAB ในคอมมิตเดียวกัน** — ตำแหน่งมาตรฐานคือ **ปุ่มไอคอนขวาสุดของ sticky header** (`size-11 rounded-lg bg-primary text-white`, ไอคอน `plus`, `aria-label` = คำสร้างของหน้านั้น) และเป็น **ปุ่ม filled สีน้ำเงินปุ่มเดียวในหัวหน้า** (back/filter/bell เป็น icon เปล่า `text-default-700`)
+
+เหตุการณ์จริง 2026-08-06: `/orders` เขียนคอมเมนต์ไว้เหนือปุ่มสร้างว่า *"desktop เท่านั้น (มือถือใช้ FAB ใน bottom nav)"* — เจตนาถูก แต่ **ไม่มีใครไล่ดูว่า nav ตัวนั้นยัง render อยู่ไหมในหน้านี้** ผลคือ **สร้างออเดอร์จากหน้า `/orders` บนมือถือทำไม่ได้เลย** และไม่มีอะไรฟ้อง (tsc/build/grep ถูกหมด ปุ่มมีอยู่จริงในโค้ด แค่ `hidden` บนมือถือ และตัวสำรองไม่ได้ถูก render) เพิ่งเจอตอนทำ `/products` ให้ full-screen แบบเดียวกันแล้วถามว่า "แล้วปุ่มเพิ่มไปอยู่ไหน"
+
+**บทเรียนที่กว้างกว่านั้น: คอมเมนต์ที่อ้างถึง component อื่น ("อันนี้ไม่ต้องมีเพราะ X มีให้แล้ว") ไม่ใช่หลักฐานว่า X ยังทำงานอยู่ในบริบทนี้ — ต้องเปิด X อ่านเงื่อนไข render จริง** (ดู memory `feedback_verify_scope_before_claiming_exists`)
 
 ---
 

@@ -3,6 +3,7 @@
 import { cn } from '@/utils/helpers'
 import { flexRender, Row, Table as TableType } from '@tanstack/react-table'
 import clsx from 'clsx'
+import { Fragment } from 'react'
 import Icon from '../wrappers/Icon'
 
 type DataTableProps<TData> = {
@@ -37,9 +38,21 @@ type DataTableProps<TData> = {
    *   mobileCard={(row) => <MyCard data={row.original} />}
    */
   mobileCard?: (row: Row<TData>) => React.ReactNode
+
+  /**
+   * Opt-in แถวหัวกลุ่ม — render `<tr>` เพิ่มอีกหนึ่งแถวเหนือแถวข้อมูลของทุก row
+   * โดยกิน colSpan เต็มความกว้าง (ผู้เรียกได้พื้นที่แนวนอนทั้งแถวไปจัดเอง)
+   *
+   * ทำไมต้องมี: ตารางที่มีคอลัมน์เยอะเกินกว่าจะพอดีจอ (seller /orders มี 12 คอลัมน์
+   * ต้องการ 1691px แต่จอจริงให้พื้นที่แค่ ~1250px) แก้ด้วยการย้ายข้อมูล "ระดับใบ"
+   * (เลขออเดอร์ / ที่มา / วันที่) ขึ้นไปอยู่แถบหัวแทนที่จะเบียดเป็นคอลัมน์ผอม ๆ
+   *
+   * ไม่ส่ง → behavior เดิมเป๊ะ (backward-compatible 100%) เหมือน mobileCard
+   */
+  groupRow?: (row: Row<TData>) => React.ReactNode
 }
 
-const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard }: DataTableProps<TData>) => {
+const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow }: DataTableProps<TData>) => {
   'use no memo'
   const columns = table.getAllColumns()
   const rows = table.getRowModel().rows
@@ -72,13 +85,24 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
         <tbody>
           {rows?.length ? (
             rows.map((row) => (
-              <tr key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <td suppressHydrationWarning key={cell.id} className={cn((cell.column.columnDef.meta as { cellClassName?: string } | undefined)?.cellClassName)}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
+              <Fragment key={row.id}>
+                {/* แถบหัวกลุ่ม — !border-b-0 เพื่อให้หัวกับเนื้อหาอ่านเป็นบล็อกเดียวกัน
+                    ไม่ใช่สองแถวที่บังเอิญอยู่ติดกัน (เส้นคั่นเหลือเฉพาะท้ายบล็อก) */}
+                {groupRow && (
+                  <tr className="!border-b-0">
+                    <td colSpan={row.getVisibleCells().length} className="bg-default-100/70 !py-2">
+                      {groupRow(row)}
+                    </td>
+                  </tr>
+                )}
+                <tr>
+                  {row.getVisibleCells().map((cell) => (
+                    <td suppressHydrationWarning key={cell.id} className={cn((cell.column.columnDef.meta as { cellClassName?: string } | undefined)?.cellClassName)}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              </Fragment>
             ))
           ) : (
             <tr>

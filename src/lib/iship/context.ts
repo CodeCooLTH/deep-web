@@ -104,6 +104,13 @@ export interface ShipmentViewJson {
   height: number | null;
   codAmount: number;
   createdAt: string;
+  /**
+   * ข้อความเรื่องวิธีชำระเงินที่ต้องบอกร้านทันทีหลังเปิด/ผูกพัสดุ (ส่วนขยาย 2026-08-06)
+   *   changed — พัสดุเก็บเงินปลายทางแต่คำสั่งซื้อไม่ได้บอก ระบบแก้ให้แล้ว
+   *   warning — คำสั่งซื้อบอกว่าเก็บปลายทางแต่พัสดุไม่ได้เปิดแบบนั้น ร้านต้องไปแก้เอง
+   * มีเฉพาะในคำตอบของการสร้าง/ผูกครั้งนั้น — ไม่ได้เก็บลงฐาน
+   */
+  paymentNotice?: { kind: "changed" | "warning"; message: string } | null;
 }
 
 /** รูปที่ service คืน — Date ยังเป็น Date */

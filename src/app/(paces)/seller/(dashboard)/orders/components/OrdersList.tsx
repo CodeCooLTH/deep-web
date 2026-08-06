@@ -349,17 +349,22 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
     <>
       {/* ─── Desktop (≥lg): DataTable แบบ Paces theme ──────────────────────── */}
       <div className="hidden lg:block">
-        {/* ชิปสถานะพัสดุอยู่นอกการ์ดตาราง เพราะเป็นการ "เลือกกองงาน" ก่อนจะมากรองย่อยด้วย
-            dropdown ในแถบเครื่องมือของตาราง — และเป็นตัวกรองตัวเดียวที่ผูกกับ URL (แชร์ลิงก์ได้) */}
-        {hasStageAxis && (
-          <StageChips
-            stage={stage}
-            counts={stageCounts}
-            onSelect={handleStageChip}
-            className="mb-base flex-wrap"
-          />
-        )}
-        <OrdersTable orders={stageFiltered} ishipEnabled={ishipEnabled} vocab={vocab} />
+        {/* แถบชิปพัสดุ desktop ถูกย้ายเป็น dropdown "พัสดุ" ใน toolbar ของตาราง
+            (user 2026-08-06) — state/ตัวนับยังอยู่ที่นี่ symbol เดียวกับชิปมือถือ */}
+        <OrdersTable
+          orders={stageFiltered}
+          ishipEnabled={ishipEnabled}
+          vocab={vocab}
+          stageFilter={
+            hasStageAxis
+              ? {
+                  value: stage,
+                  counts: stageCounts,
+                  onChange: (v) => pushQuery({ stage: v }),
+                }
+              : undefined
+          }
+        />
       </div>
 
       {/* ─── Mobile/Tablet (<lg): card layout เดิม (ห้ามแตะ logic ข้างใน) ─── */}
@@ -438,7 +443,19 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
             ดึงจาก iShip
           </button>
 
-          {/* สร้างออเดอร์ — desktop เท่านั้น (มือถือใช้ FAB ใน bottom nav) */}
+          {/* สร้างออเดอร์ (มือถือ) — ปุ่ม filled สีน้ำเงินตัวเดียวในหัวหน้า
+              หน้านี้ full-screen จึงซ่อน SellerBottomNav ทั้งก้อน → FAB หายไปด้วย
+              คอมเมนต์เดิมเขียนว่า "มือถือใช้ FAB ใน bottom nav" ซึ่งไม่จริงมาตลอด:
+              สร้างออเดอร์จากหน้านี้บนมือถือทำไม่ได้เลย (พบ 2026-08-06 ตอนทำหน้า /products) */}
+          <Link
+            href="/orders/new"
+            aria-label={vocab.createLabel}
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-white lg:hidden"
+          >
+            <Icon icon="plus" className="text-xl" />
+          </Link>
+
+          {/* สร้างออเดอร์ — เดสก์ท็อป (มีข้อความกำกับ) */}
           <Link
             href="/orders/new"
             className="btn hidden shrink-0 bg-primary text-white hover:bg-primary-hover lg:inline-flex"

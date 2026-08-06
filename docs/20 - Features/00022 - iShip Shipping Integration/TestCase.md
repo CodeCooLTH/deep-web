@@ -861,3 +861,50 @@ npx playwright test e2e/iship-*.spec.ts
 | M-18 | มือถือ 375px | breakdown 3 ช่องแผ่ใต้การ์ด ปุ่มเต็มความกว้าง หัว sheet มีปุ่มย้อนกลับด้านซ้าย |
 | M-19 | tablet (768–1023px) | breakdown ยุบไว้ กดหัวการ์ดเพื่อกางดู (accordion, `aria-expanded` ตรงสถานะจริง) |
 | M-20 | desktop (≥1024px) | breakdown แผ่เป็นคอลัมน์ในแถวเดียว ไม่ต้องกด |
+
+---
+
+## ส่วนขยาย 2026-08-06 — ปิดงาน COD อัตโนมัติ
+
+| # | เคส | ข้อมูลตั้งต้น | คาดหวัง | อ้างกฎ |
+|---|-----|---------------|---------|--------|
+| E6-1 | เงินเข้าครั้งแรก | ใบ COD, `status=SHIPPED`, `codReceivedAt=null`, iShip ส่ง `settlement_at` | `codSettledAt` ถูกเขียน · `codReceivedAt` = เวลาที่ iShip แจ้ง · `codReceivedByUserId=null` · `status=CONFIRMED` · มี event `COD_SETTLED` + `SYSTEM_CONFIRMED` | BR-ISHIP-45/47 |
+| E6-2 | รอบ sync ซ้ำ | ใบเดียวกับ E6-1 ที่ประมวลผลไปแล้ว | ไม่เขียนอะไรเพิ่ม ไม่เกิด event ซ้ำ | idempotent |
+| E6-3 | ร้านกดไปก่อนแล้ว | `codReceivedAt` มีค่าจากร้าน (มี `codReceivedByUserId`) | `codReceivedAt`/ผู้กดเดิม **ไม่ถูกทับ** · `codSettledAt` ยังถูกเขียน · ยัง auto-confirm ได้ถ้ายังไม่ CONFIRMED | BR-ISHIP-48 |
+| E6-4 | ใบที่ยกเลิกแล้ว | `status=CANCELLED` + iShip ส่ง `settlement_at` | สถานะคงเป็น `CANCELLED` · ไม่มี `SYSTEM_CONFIRMED` | BR-ISHIP-46 |
+| E6-5 | ไม่ใช่ COD | `paymentMethod=TRANSFER`, `cod_amount="0.00"` | ไม่แตะ `codReceivedAt` · ไม่ auto-confirm | BR-ISHIP-45(ก) |
+| E6-6 | ผู้ซื้อกดยืนยันไปก่อน | `status=CONFIRMED` อยู่แล้ว | ไม่เกิด `SYSTEM_CONFIRMED` ซ้ำ · `codSettledAt` ยังถูกเขียน (เป็นข้อเท็จจริงคนละเรื่อง) | — |
+| E6-7 | ยังติดตามพัสดุที่ส่งถึงแล้ว | ใบ COD `carrierStatus=delivered`, `codSettledAt=null` | ยังอยู่ในชุดที่ sync ถาม iShip รอบถัดไป | BR-ISHIP-49 |
+| E6-8 | เลิกติดตามเมื่อจบจริง | ใบ COD ที่มี `codSettledAt` แล้ว | ไม่ถูกถามอีก | BR-ISHIP-49 |
+| E6-9a | ส่งถึงแล้วแต่ยังไม่โอน | สถานะพัสดุ `3` + `settlement_at` เป็นวันพรุ่งนี้ (นัดโอน) | ไม่เขียนอะไรเลย · ไม่ auto-confirm — **เคสนี้คือบั๊กที่ dry-run จับได้ 2026-08-06** | BR-ISHIP-45.1 |
+| E6-9 | เขตเวลา | `settlement_at="2026-08-05 19:00:00"` | เก็บลงฐานแล้วอ่านกลับเป็น 5 ส.ค. 19:00 เวลาไทย ไม่ใช่ 02:00 ของวันถัดไป | SRS §18.1 |
+| E6-10 | Trust Score | ใบที่ auto-confirm สำเร็จ | คะแนน/badge ถูกคำนวณใหม่ด้วยเส้นทางเดียวกับผู้ซื้อกดยืนยัน | BR-ISHIP-44 |
+
+### ปรับวิธีชำระเงินตามพัสดุ (BR-ISHIP-51..54)
+
+| # | เคส | ข้อมูลตั้งต้น | คาดหวัง |
+|---|-----|---------------|---------|
+| E7-1 | พัสดุ COD / คำสั่งซื้อไม่ใช่ | `paymentMethod='CASH'`, พัสดุ `codAmount=360` | `paymentMethod` เป็น `COD` · event `PAYMENT_METHOD_SYNCED` (meta `paymentFrom='CASH'`, `amount=360`) · toast `info` · แถบในหน้าสถานะ |
+| E7-2 | ไม่เคยระบุวิธีชำระ | `paymentMethod=null`, พัสดุ `codAmount=590` | เหมือน E7-1 แต่ `paymentFrom=null` |
+| E7-3 | คำสั่งซื้อ COD / พัสดุไม่ COD | `paymentMethod='COD'`, พัสดุ `codAmount=0` | **ไม่แก้อะไรเลย** · toast `warning` · แถบสีเตือน |
+| E7-4 | ตรงกันอยู่แล้ว | ทั้งคู่ COD หรือทั้งคู่ไม่ COD | ไม่มี toast พิเศษ (ขึ้น "สร้างพัสดุสำเร็จ" ตามเดิม) ไม่มีแถบ |
+| E7-5 | ข้อความไทยที่ร้านพิมพ์เอง | `paymentMethod='เก็บเงินปลายทาง'` | ถือว่าเป็น COD (ไม่เทียบ enum เป๊ะ) |
+| E7-6 | ยอดขยะ | พัสดุ `codAmount=NaN` หรือติดลบ | ถือว่าไม่ใช่ COD — ห้ามแก้คำสั่งซื้อจากค่าขยะ |
+| E7-7 | สร้างพัสดุล้มเหลว | ยิง iShip ไม่ผ่าน แต่ตั้ง COD ไว้ | `paymentMethod` ยังถูกปรับ (เกิดตอนกดสร้าง) · ไม่ยิง toast ซ้อน error · แถบยังขึ้นในหน้าสถานะ |
+| E7-8 | แชท: ติ๊กแจ้งเลข + ส่งสำเร็จ | แผงปิดทันที | toast ต้องมีทั้งคำยืนยันสำเร็จและข้อความเรื่องเงินในใบเดียว |
+
+### ลองใหม่ / นิยาม "มีพัสดุ" / เครดิตไม่พอ (BR-ISHIP-63..67, FR-ISHIP-074 — เพิ่ม 2026-08-06)
+
+อัตโนมัติแล้ว: `src/services/__tests__/iship-shipment-retry.test.ts` (E8-1, E8-2) ·
+`src/lib/iship/errors.test.ts` (E8-5)
+
+| # | เคส | ข้อมูลตั้งต้น | คาดหวัง | สถานะ |
+|---|-----|---------------|---------|-------|
+| E8-1 | ลองใหม่โดยไม่แนบ patch หลังที่อยู่ในออเดอร์ถูกแก้ | snapshot = `ช้างซาย/กาญจดิษ/สุราษฐานี` · ออเดอร์ = `ช้างซ้าย/กาญจนดิษฐ์/สุราษฎร์ธานี` | payload ที่ยิงมี `dst_district=ช้างซ้าย`, `dst_amphure=กาญจนดิษฐ์`, `dst_province=สุราษฎร์ธานี` | ✅ unit |
+| E8-2 | กด "แก้ข้อมูลแล้วลองใหม่" ทับใบ FAILED โดยเปลี่ยนขนส่ง/น้ำหนัก/หมายเหตุ | ใบเดิม `FlashExpressA` 4.01 กก. · ฟอร์มส่ง `KerryExpress` 2 กก. "ห้ามโยน" | payload ใช้ค่าใหม่ทั้ง 3 ช่อง (ไม่ใช่ค่าเดิม) | ✅ unit |
+| E8-3 | ช่องที่ไม่ได้ส่งมาใน override | ส่งเฉพาะ `courierCode` | ช่องอื่นคงค่าเดิมของใบนั้น **ห้าม** ตกไปใช้ค่าตั้งต้นของร้าน | ⬜ |
+| E8-4 | ใบ FAILED ในกล่องแชท | ออเดอร์มี `OrderShipment` เดียว status=FAILED | ชิปแถวต้องเป็น "สั่งซื้อแล้ว" ไม่ใช่ "สร้างพัสดุแล้ว" · ไทล์ = "รอเลขพัสดุ" | ⬜ browser |
+| E8-5 | iShip ตอบ `"เครดิตไม่เพียงพอ"` | — | `classifyUpstream` = `INSUFFICIENT_BALANCE` (ไม่ใช่ `UPSTREAM_ERROR`) · `retryable=false` | ✅ unit |
+| E8-6 | หน้าจอเมื่อเครดิตไม่พอ | shipment FAILED + `lastErrorCode=INSUFFICIENT_BALANCE` | กล่อง alert + ปุ่ม "เข้าระบบ iShip เพื่อเติมเงิน" (แท็บใหม่ → `app.iship.cloud/`) · ปุ่มลองใหม่เป็นปุ่มรอง · สปินเนอร์มองเห็นบนพื้นอ่อน | ⬜ browser |
+| E8-7 | error สาเหตุอื่น | `lastErrorCode=ADDRESS_INVALID` | หน้าตาเดิมทุกอย่าง (บรรทัดเดียว + ปุ่มลองใหม่เป็นปุ่มหลัก) | ⬜ browser |
+| E8-8 | `REJECTED_BY_CARRIER` | iShip ตอบ "กรุณากรอก สีสินค้า" | ข้อความบนจอมีรายละเอียดดิบต่อท้าย ไม่ใช่ประโยคกลาง ๆ อย่างเดียว | ⬜ |

@@ -40,10 +40,11 @@ const SellerMobileHeader = ({ orderLabel }: Props) => {
   // v8: /dashboard มี SellerHeader (น้ำเงิน) ของตัวเองใน CommandCenter (page content)
   // → layout topbar คืน null กัน header ซ้อน 2 อัน
   // /orders: หน้าเป็นเจ้าของ header เอง (search + filter + bell ใน OrdersList) → คืน null เช่นกัน
-  // safe-area (2026-08-06, viewportFit:'cover'): 2 หน้านี้ไม่มี header ของ layout แต่เนื้อหา
-  // เริ่มที่ขอบบนจอพอดี — /orders มี header sticky ของตัวเองที่รับ inset ไปแล้ว (OrdersList.tsx)
+  // /products: เหมือน /orders (2026-08-06) — sticky header ของตัวเองใน ProductsListing
+  // safe-area (2026-08-06, viewportFit:'cover'): หน้าเหล่านี้ไม่มี header ของ layout แต่เนื้อหา
+  // เริ่มที่ขอบบนจอพอดี — /orders, /products มี header sticky ของตัวเองที่รับ inset ไปแล้ว
   // ส่วน /dashboard เป็นการ์ด hero ลอย ๆ ไม่มีใครรับ → คืน spacer สูงเท่า inset แทน null
-  if (pathname === '/orders') {
+  if (pathname === '/orders' || pathname === '/products') {
     return null
   }
   if (pathname === '/dashboard') {
