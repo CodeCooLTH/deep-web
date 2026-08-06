@@ -138,3 +138,41 @@ describe("deriveShippingStage — พัสดุจบเส้นทางแ�
     expect(deriveShippingStage({ status: "PENDING", carrierStatus: "in_transit", hasShipment: true })).toBe("SHIPPING");
   });
 });
+
+// เคสที่ 3 ที่ต้องกันไม่ให้กลับมา: ปลายทางที่ "ไกลกว่า delivered" ถูกลืม
+// (user เจอบน prod 2026-08-06 — TH069306110878 ได้เงิน COD แล้วแต่แถบอยู่จุดแรก)
+describe("payment_success = ปลายทาง ไม่ใช่ระหว่างทาง", () => {
+  const shipped = {
+    status: "SHIPPED",
+    carrierStatus: "payment_success",
+    hasShipment: true,
+    paymentMethod: "COD",
+  };
+
+  it("ได้เงิน COD แล้ว → DONE ไม่ใช่ AWAITING_PICKUP (ไทม์ไลน์ห้ามถอยกลับจุดแรก)", () => {
+    expect(deriveShippingStage({ ...shipped, codReceivedAt: new Date(NOW) })).toBe("DONE");
+  });
+
+  it("ขนส่งบอกว่าเงินเข้าแล้ว แต่เรายังไม่ได้บันทึก → AWAITING_COD (ยังต้องตามเรื่องเงิน)", () => {
+    expect(deriveShippingStage({ ...shipped, codReceivedAt: null })).toBe("AWAITING_COD");
+  });
+
+  it("ป้ายในรายการแชท = จัดส่งสำเร็จ ไม่ใช่ 'สร้างพัสดุแล้ว'", () => {
+    const r = deriveOrderStage(
+      { ...base, status: "CONFIRMED", carrierStatus: "payment_success" },
+      NOW,
+    );
+    expect(r?.key).toBe("DELIVERED");
+  });
+
+  it("close (id 99 ปิดงาน) จบเส้นทางแล้วเช่นกัน — ห้ามค้างเป็น 'รอรับเข้า'", () => {
+    expect(
+      deriveShippingStage({
+        status: "SHIPPED",
+        carrierStatus: "close",
+        hasShipment: true,
+        paymentMethod: "TRANSFER",
+      }),
+    ).toBe("DONE");
+  });
+});

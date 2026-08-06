@@ -14,7 +14,12 @@
  *     เข้ามาก็แทนที่ใบที่ยกเลิกไปเอง ไม่ต้องมีเงื่อนไขพิเศษ)
  */
 
-import { isInTransitCarrierStatus, isProblemCarrierStatus } from './iship/status'
+import {
+  isDeliveredCarrierStatus,
+  isInTransitCarrierStatus,
+  isProblemCarrierStatus,
+  isTerminalCarrierStatus,
+} from './iship/status'
 // นิยาม "เก็บเงินปลายทาง" ตัวเดียวกับที่หน้าออเดอร์/ป้ายชำระเงินใช้ — ห้ามเขียน regex ซ้ำที่นี่
 // ไม่งั้นไทล์กับป้ายบนจอเดียวกันจะตัดสินคนละแบบเมื่อร้านพิมพ์วิธีชำระเป็นข้อความอิสระ
 import { ORDER_STATUS_META, isCODPayment as isCodPayment, type OrderStatusTone } from './order-display'
@@ -105,8 +110,15 @@ export interface ShippingStageInput {
   codReceivedAt?: Date | string | null
 }
 
-/** carrierStatus ที่แปลว่าจบเส้นทางแล้ว ไม่ต้องตามต่อ */
-const TERMINAL_CARRIER = ['delivered', 'return_success', 'is_expired', 'cancelled']
+/**
+ * "จบเส้นทางแล้ว" ใช้ isTerminalCarrierStatus จาก lib/iship/status.ts — เดิมที่นี่มี
+ * const TERMINAL_CARRIER เขียนรายชื่อไว้เอง แล้วมันหลุด `payment_success` (เงิน COD เข้าแล้ว
+ * = ปลายทางที่ไกลกว่า delivered ด้วยซ้ำ) ทำให้ใบที่จบงานแล้วตกไปเป็น AWAITING_PICKUP
+ * "รอรับเข้า" ซึ่งพาไทม์ไลน์ถอยกลับไปจุดแรก (user เจอบน prod 2026-08-06 TH069306110878)
+ *
+ * รายชื่อที่ถูกคัดลอกมาเขียนซ้ำจะไม่มีวันถูกแก้พร้อมกันทั้งสองที่ — ตัวตัดสินจึงต้องมีตัวเดียว
+ * และอยู่ติดกับตารางสถานะที่นิยาม `terminal` เอาไว้อยู่แล้ว
+ */
 
 export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
   // ยกเลิกทั้งใบ = ไม่ใช่งานค้าง ไม่ว่าพัสดุจะอยู่สถานะไหน
@@ -115,7 +127,7 @@ export function deriveShippingStage(o: ShippingStageInput): ShippingStageKey {
   if (o.hasShipment) {
     // ลำดับเดียวกับ deriveOrderStage: ปัญหามาก่อน แล้วค่อยดูปลายทาง/ระหว่างทาง
     if (isProblemCarrierStatus(o.carrierStatus)) return 'PROBLEM'
-    if (o.carrierStatus && TERMINAL_CARRIER.includes(o.carrierStatus)) {
+    if (isTerminalCarrierStatus(o.carrierStatus)) {
       // [สำคัญ] พัสดุจบเส้นทางแล้ว ≠ งานของร้านจบแล้ว — เดิมคืน 'DONE' ตรงนี้เลย ทำให้ออเดอร์
       // ที่ขนส่งส่งถึงแล้วแต่ร้านยังไม่ได้เงินปลายทาง หายไปจากทุกไทล์ทันที (DP2569085F97153B)
       //
@@ -294,7 +306,9 @@ export function deriveOrderStage(
     // กลับกลืนหายไปกับพัสดุปกติ (user report 2026-07-31)
     if (isProblemCarrierStatus(order.carrierStatus)) {
       key = 'PARCEL_PROBLEM'
-    } else if (order.carrierStatus === 'delivered') {
+      // ถึงมือผู้รับแล้ว = delivered หรือไกลกว่านั้น (payment_success = เงิน COD เข้าแล้ว)
+      // เดิมเทียบ === 'delivered' ตรง ๆ ใบ COD ที่ได้เงินแล้วจึงตกไปเป็น "สร้างพัสดุแล้ว"
+    } else if (isDeliveredCarrierStatus(order.carrierStatus)) {
       if (age > DELIVERED_VISIBLE_MS) return null
       key = 'DELIVERED'
     } else if (
