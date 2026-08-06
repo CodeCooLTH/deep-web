@@ -944,9 +944,9 @@ export default function KeywordEditorClient({ canEdit, keyword, overlaps, channe
              ยังบอกว่าแก้อะไรไปบ้าง (ช่วยตอนแก้หลายจุดพร้อมกัน) — ต่างจาก reference ตรงนี้
              fade เข้าใช้ starting:opacity-0 (Tailwind 4 = @starting-style) เพราะ Paces ไม่มี
              keyframe เข้า/ออกให้ใช้ และห้ามเขียน CSS ใหม่
-             bottom-20 บนจอ <lg กัน SellerBottomNav (fixed 64px) ทับ ── */}
+             bottom-22 บนจอ <lg กัน SellerBottomNav (fixed 72px — h-18 ตั้งแต่ 2026-08-06) ทับ ── */}
       {canEdit && dirty.length > 0 && (
-        <div className="card sticky bottom-20 lg:bottom-4 z-10 mt-4 opacity-100 transition-opacity duration-200 starting:opacity-0">
+        <div className="card sticky bottom-22 lg:bottom-4 z-10 mt-4 opacity-100 transition-opacity duration-200 starting:opacity-0">
           <div className="card-body flex flex-wrap items-center justify-between gap-3 py-3">
             <span className="text-default-600 text-sm">
               {`แก้ไข ${dirty.length} อย่าง: ${dirty.join(', ')}`}

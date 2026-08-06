@@ -180,7 +180,7 @@
       { "name": "sidenav-width", "value": "245px", "purpose": "sidebar ฝั่ง Paces; condensed 200px, icon-only 75px." },
       { "name": "spacing-base", "value": "20px", "purpose": "หน่วยฐาน gutter/padding ของ chrome ฝั่ง Paces — เหตุผลที่ padding การ์ดฝั่งนั้นเป็น 20 ไม่ใช่ 24." },
       { "name": "mobile-gutter", "value": "16px", "purpose": "padding-inline บังคับของ .seller-mobile-shell ต่ำกว่า 1024px." },
-      { "name": "bottom-nav-clearance", "value": "calc(5rem + env(safe-area-inset-bottom))", "purpose": "พื้นที่ล่างที่ต้องเว้นให้ SellerBottomNav (fixed 64px) + safe-area iPhone." },
+      { "name": "bottom-nav-clearance", "value": "calc(5.5rem + env(safe-area-inset-bottom))", "purpose": "พื้นที่ล่างที่ต้องเว้นให้ SellerBottomNav (fixed 72px, h-18 ตั้งแต่ 2026-08-06) + safe-area iPhone." },
       { "name": "profile-column", "value": "640px", "purpose": "max-width ของการ์ดโปรไฟล์สาธารณะคอลัมน์เดียว." }
     ]
   },

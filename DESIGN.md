@@ -247,7 +247,7 @@ ramp ด้านบนเป็น ramp ของ "ข้อความ" — �
 - ซ่อน `.app-menu` (sidebar) และ `.app-header` (topbar เดิม) แล้วแทนด้วย `SellerMobileHeader` + bottom nav
 - ล้าง `margin-inline-start` ที่ตั้งไว้เผื่อ sidebar
 - บังคับ `padding-inline: 1rem` (16px) สม่ำเสมอทุกหน้า
-- กัน bottom nav (fixed, 64px) ทับคอนเทนต์ด้วย `padding-bottom: calc(5rem + env(safe-area-inset-bottom))`
+- กัน bottom nav (fixed, 72px — h-18 ตั้งแต่ 2026-08-06) ทับคอนเทนต์ด้วย `padding-bottom: calc(5.5rem + env(safe-area-inset-bottom))`
 
 ตั้งแต่ 1024px ขึ้นไป: sidebar `--sidenav-width: 245px` (condensed 200 / icon-only 75), topbar `--topbar-height: 65px`, gutter กลับเป็น `px-5` (20px) ตาม `--spacing-base: 20px`.
 

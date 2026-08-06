@@ -123,8 +123,9 @@ html[data-text-scale="xl"] {
   /* T5 จะถอด px-4 ออกจาก section ย่อย เพื่อป้องกัน double padding                         */
   .seller-mobile-shell .page-content main { padding-inline: 1rem !important; }
 
-  /* CC-v6 T1: เว้นพื้นล่างกัน SellerBottomNav (fixed, 64px) ทับ content + เผื่อ safe-area iPhone */
-  .seller-mobile-shell .page-content main { padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important; }
+  /* CC-v6 T1: เว้นพื้นล่างกัน SellerBottomNav (fixed, 72px — h-18 ตั้งแต่ 2026-08-06) ทับ content
+     + เผื่อ safe-area iPhone. 5.5rem = nav 72px + ช่องหายใจ 16px */
+  .seller-mobile-shell .page-content main { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important; }
 
   /* ─── CC-v8.2 authentic-Paces: คืนหน้าตา Paces แท้ให้ .card ───
      ยกเลิก override CC-v8/v8.1 เดิม (radius 18px + เงาลอยหนา + ลบเส้นประ card-header
