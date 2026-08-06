@@ -921,3 +921,16 @@ npx playwright test e2e/iship-*.spec.ts
 | E9-4 | `parseParcelRow` อ่านเวลาอัปเดตล่าสุด | `updated_at` ISO มีโซน / `updated` เวลาไทยไม่มีโซน / ไม่มีเลย | ได้ ISO ถูกต้องทั้งสองรูป · ไม่มี = `null` (ห้ามเดาเป็น "เมื่อกี้") | ✅ unit |
 | E9-5 | `get_order` ยิงไม่ผ่านตอน hover | traces สำเร็จ แต่ `get_order` timeout | ไทม์ไลน์ยังขึ้นครบ · `carrierStatus` คงค่าเดิม **ห้าม** เปลี่ยนเป็นค่าจาก trace | ⬜ |
 | E9-6 | ไม่มีการสลับค่าไปมา | hover ดูใบเดิมซ้ำ คร่อมรอบ `syncShipmentStatuses` (15 นาที) | `carrierStatus` คงเดิมตลอด ไม่สลับ `order_success` ↔ `picked_up` | ⬜ browser |
+
+### ปลายทางที่ไกลกว่า delivered (BR-ISHIP-70..72 — เพิ่ม 2026-08-06)
+
+อัตโนมัติแล้ว: `src/lib/order-stage.test.ts` (E10-1..E10-4)
+
+| # | เคส | ข้อมูลตั้งต้น | คาดหวัง | สถานะ |
+|---|-----|---------------|---------|-------|
+| E10-1 | ใบ COD ที่ได้เงินแล้ว | `carrierStatus=payment_success` · `codReceivedAt` มีค่า | `deriveShippingStage` = `DONE` · แถบ 4 จุดเขียวครบ · ไม่ใช่ "รอรับเข้า" | ✅ unit |
+| E10-2 | ขนส่งบอกเงินเข้าแต่เรายังไม่บันทึก | `payment_success` · `codReceivedAt=null` | `AWAITING_COD` (ยังต้องตามเรื่องเงิน) | ✅ unit |
+| E10-3 | ป้ายในรายการแชท | `payment_success` · ออเดอร์ CONFIRMED | ป้าย = "จัดส่งสำเร็จ" ไม่ใช่ "สร้างพัสดุแล้ว" | ✅ unit |
+| E10-4 | `close` (id 99) | `carrierStatus=close` · โอนล่วงหน้า | `DONE` · แถบ stage 3 สีเทา (`diverted`) ป้ายจุดท้าย "ปิดงานแล้ว" **ไม่ใช่สีเขียว** | ✅ unit |
+| E10-5 | การ์ด hover ของใบที่ได้เงินแล้ว | `TH069306110878` บน prod | แถบชี้จุดสุดท้าย + รายการเดินทางด้านล่างสอดคล้องกัน (ไม่ขัดกันในการ์ดใบเดียว) | ⬜ browser |
+| E10-6 | stepper ใหญ่ในหน้าคำสั่งซื้อ | ใบเดียวกัน | `describeProgress` ให้ stage 3 tone delivered — ต้องตรงกับ mini timeline บนแถว | ⬜ browser |

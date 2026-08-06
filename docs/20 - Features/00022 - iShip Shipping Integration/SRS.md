@@ -841,3 +841,56 @@ iShip ตอบว่า `"เครดิตไม่เพียงพอ"` �
 
 **ไม่ลบแถว `ShipmentEvent` ที่เป็นต้นเหตุ** — มันเป็นเหตุการณ์ที่ iShip ส่งมาจริง ถูกต้องในฐานะ
 *ประวัติ* ปัญหาอยู่ที่เราเคยเอามันไปใช้เป็น *สถานะ* ซึ่งแก้ที่โค้ดไปแล้ว
+
+---
+
+## 20. แก้ 2026-08-06 (รอบสี่) — `payment_success` หายจากตารางแมปทุกตัวพร้อมกัน
+
+### BR-ISHIP-70 — `payment_success` (id 12) เป็น **ปลายทาง** ไม่ใช่ระหว่างทาง
+
+เงินเก็บปลายทางเข้าร้านเกิด **หลัง** `delivered` เสมอ (ของจริงห่างกัน ~33 ชม. — §18.1)
+`payment_success` จึงเป็นปลายทางที่ *ไกลกว่า* `delivered` ไม่ใช่สถานะระหว่างทาง
+
+**เคสจริง (user report 2026-08-06, `TH069306110878`):** ออเดอร์ `CONFIRMED` เงินเข้าตั้งแต่
+4 ส.ค. รายการ "การเดินทางล่าสุด" ในการ์ด hover ขึ้นครบถึง "อยู่ระหว่างขนส่ง" แต่แถบ 4 จุด
+ชี้จุดแรก "สร้างพัสดุ" — **การ์ดใบเดียวพูดขัดกันเอง**
+
+ค่าเดียวนี้หายไปจาก **4 ตาราง/เงื่อนไขพร้อมกัน** ซึ่งเป็นเหตุผลที่อาการดูรุนแรงกว่าที่ควร:
+
+| จุด | ผลที่เกิด |
+|-----|-----------|
+| `CARRIER_STATUS.payment_success.terminal = false` | ทุกที่ที่ถาม "จบหรือยัง" ตอบว่ายัง |
+| `TERMINAL_CARRIER` ใน `order-stage.ts` (รายชื่อคัดลอกมาเขียนซ้ำ) | `deriveShippingStage` → `AWAITING_PICKUP` "รอรับเข้า" → `CURRENT_INDEX` = 0 |
+| `STAGE_OF` ใน `describeProgress` | `?? 0` → stepper ใหญ่ในการ์ดการจัดส่งถอยไปจุดแรกด้วย |
+| `deriveOrderStage` เทียบ `=== 'delivered'` ตรง ๆ | ป้ายในรายการแชท = "สร้างพัสดุแล้ว" |
+
+### BR-ISHIP-71 — "จบเส้นทาง" กับ "ถึงมือผู้รับ" เป็นคนละชุด
+
+| ชุด | สมาชิก | ใช้ทำอะไร |
+|-----|--------|-----------|
+| `isTerminalCarrierStatus()` | อ่านจากคอลัมน์ `terminal` ในตาราง `CARRIER_STATUS` โดยตรง — `delivered` `payment_success` `return_success` `is_expired` `cancelled` `close` | เลิกตามต่อ / `deriveShippingStage` เข้าสาขาปลายทาง |
+| `DELIVERED_CARRIER_STATUSES` | `delivered` `payment_success` เท่านั้น | มีสิทธิ์ทำให้แถบเป็น **สีเขียว** (Verified-Means-Green) |
+
+terminal รวมปลายทางที่ *ไม่สำเร็จ* ด้วย — ตีกลับ/หมดอายุ/ยกเลิก/ปิดงาน ห้ามได้สีเขียว
+
+**ลบ `const TERMINAL_CARRIER` ใน `order-stage.ts` ทิ้ง** — รายชื่อที่ถูกคัดลอกไปเขียนซ้ำสองที่
+ไม่มีวันถูกแก้พร้อมกัน (รอบนี้พิสูจน์แล้ว: ตาราง `CARRIER_STATUS` มีคอลัมน์ `terminal` อยู่แล้ว
+แต่ไม่มีใครอ่าน) ตัวตัดสินต้องอยู่ติดกับตารางที่นิยามข้อมูลนั้น
+
+### BR-ISHIP-72 — `close` (id 99) ต้องมีในตารางสถานะ
+
+`close` อยู่ใน `STATUS_ID_TO_CODE` มาตั้งแต่แรกแต่ไม่เคยมีใน `CARRIER_STATUS` — ถ้ามาจริง
+`describeCarrierStatus` จะคืน fallback "อยู่ระหว่างดำเนินการ" = พัสดุที่ปิดงานแล้วขึ้นว่ายังเดินอยู่
+
+ให้ `terminal: true` (ตรงกับที่ `syncShipmentStatuses` ตัด `close` ออกจากชุดติดตามอยู่แล้ว)
+แต่ **ไม่อยู่ใน `DELIVERED_CARRIER_STATUSES`** เพราะยังไม่เคยเจอค่านี้ในข้อมูลจริงสักแถว
+(ตรวจ prod 2026-08-06) — พิสูจน์ไม่ได้ว่า "ปิดงาน" แปลว่าสำเร็จ ห้ามเดาให้เป็นสีเขียว
+`describeProgress` ให้ stage 3 tone `diverted` + `lastLabel` "ปิดงานแล้ว"
+
+### Traceability
+
+| ข้อ | ไฟล์ | เทส |
+|-----|------|-----|
+| BR-ISHIP-70 | `lib/iship/status.ts` (`CARRIER_STATUS`, `STAGE_OF`) · `lib/order-stage.ts` | `order-stage.test.ts` "payment_success = ปลายทาง ไม่ใช่ระหว่างทาง" |
+| BR-ISHIP-71 | `lib/iship/status.ts` (`isTerminalCarrierStatus`, `DELIVERED_CARRIER_STATUSES`) | เดียวกัน |
+| BR-ISHIP-72 | `lib/iship/status.ts` (`CARRIER_STATUS.close`) | เดียวกัน (เคส close → DONE) |
