@@ -197,7 +197,12 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
           <div className="flex shrink-0 flex-col items-end gap-1">
             {/* ห้าม font-mono: Anuphan ไม่มี glyph mono → fallback Courier ผิดธีม (HR feedback) */}
             <span className="text-2xs font-semibold text-default-500">{displayId}</span>
-            <span className={`badge rounded-full ${statusCfg.cls}`}>{statusCfg.label}</span>
+            {/* icon มาจาก SSOT เดียวกับตารางเดสก์ท็อป — ป้ายใบเดียวกันต้องหน้าตาเหมือนกันทุกจอ
+                (ไฟล์นี้ import Icon จาก @iconify/react ตรง ๆ ไม่ผ่าน wrapper จึงต้องเติม tabler: เอง) */}
+            <span className={`badge rounded-full ${statusCfg.cls}`}>
+              <Icon icon={`tabler:${statusCfg.icon}`} aria-hidden="true" />
+              {statusCfg.label}
+            </span>
           </div>
         </div>
 

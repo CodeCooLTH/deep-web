@@ -315,7 +315,10 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
               <span className="text-default-900 min-w-0 truncate text-sm font-semibold">
                 {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
               </span>
-              <span className={`badge ms-auto shrink-0 ${cfg.cls}`}>{cfg.label}</span>
+              <span className={`badge ms-auto shrink-0 ${cfg.cls}`}>
+                <Icon icon={cfg.icon} aria-hidden="true" />
+                {cfg.label}
+              </span>
             </div>
             <div className="px-3 pt-2">
               <p className="text-default-700 mb-0 flex items-center gap-1.5 text-xs">
@@ -466,7 +469,17 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       meta: { headerClassName: 'w-px whitespace-nowrap', cellClassName: 'w-px whitespace-nowrap' },
       cell: ({ row }) => {
         const cfg = resolveOrderStatusBadge(row.original.status, row.original.shippingStage)
-        return <span className={cn('badge whitespace-nowrap', cfg.cls)}>{cfg.label}</span>
+        // text-sm: `.badge` เป็น text-[0.75em] อิงพ่อ → ในเซลล์ตารางเหลือ ~10.5px เล็กกว่า
+        // ทุกคอลัมน์ข้างเคียง (ยอดรวม/การชำระเงิน/วันที่ ตั้ง text-sm ไว้เอง) — user บอกว่า
+        // "ตัวเล็กไป ไม่เด่น" (2026-08-06). utility layer ชนะ component layer จึง override ได้
+        // ตรง ๆ ไม่ต้องแก้ _badge.css (ซึ่งจะลาก badge ทุกใบทั้งระบบไปด้วย)
+        // icon: มีอยู่ใน SSOT (resolveOrderStatusBadge) มาตลอดแต่ไม่เคยถูกวาด — ไม่ได้เดาเลือกใหม่
+        return (
+          <span className={cn('badge whitespace-nowrap text-sm', cfg.cls)}>
+            <Icon icon={cfg.icon} className="text-sm" aria-hidden="true" />
+            {cfg.label}
+          </span>
+        )
       },
     }),
 
