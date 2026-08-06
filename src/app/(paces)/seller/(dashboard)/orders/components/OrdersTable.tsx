@@ -36,6 +36,9 @@ import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import { PAYMENT_LABELS, PAYMENT_ICONS, SALES_CHANNEL_ICONS, SALES_CHANNEL_LABELS, type OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import BuyerAvatar from './BuyerAvatar'
+import MiniShipmentTimeline from './MiniShipmentTimeline'
+import OrderSourceLogo from './OrderSourceLogo'
+import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import OrderActions from './OrderActions'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
@@ -58,14 +61,6 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'All', label: 'ทั้งหมด' },
   ...Object.entries(ORDER_STATUS_META).map(([value, meta]) => ({ value, label: meta.label })),
 ]
-
-// ─── order type label ─────────────────────────────────────────────────────────
-const TYPE_LABEL: Record<string, string> = {
-  PHYSICAL:     'สินค้า',
-  DIGITAL:      'ดิจิทัล',
-  SERVICE:      'บริการ',
-  SUBSCRIPTION: 'สมัครสมาชิก',
-}
 
 // ─── date range filter (adapt จาก theme dateRangeFilterFn) ───────────────────
 const dateRangeFilterFn: FilterFn<OrderRow> = (row, _columnId, selectedRange) => {
@@ -175,6 +170,20 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
       enableColumnFilter: false,
     },
 
+    // ─ ที่มา (โลโก้เพจ/แพลตฟอร์ม — user สั่ง 2026-08-06) ─
+    {
+      id: 'source',
+      header: 'ที่มา',
+      enableSorting: false,
+      enableColumnFilter: false,
+      cell: ({ row }: { row: TableRow<OrderRow> }) => (
+        <OrderSourceLogo
+          logoUrl={row.original.sourceLogoUrl ?? null}
+          channel={row.original.salesChannel}
+        />
+      ),
+    },
+
     // ─ เลขออเดอร์ ─
     columnHelper.accessor('id', {
       header: 'เลขออเดอร์',
@@ -265,18 +274,6 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
       },
     }),
 
-    // ─ ประเภท ─
-    columnHelper.accessor('orderType', {
-      header: 'ประเภท',
-      filterFn: 'equalsString',
-      enableColumnFilter: true,
-      cell: ({ row }) => (
-        <span className="text-sm text-default-700">
-          {TYPE_LABEL[row.original.orderType] ?? row.original.orderType}
-        </span>
-      ),
-    }),
-
     // ─ ยอดรวม ─
     columnHelper.accessor('total', {
       header: 'ยอดรวม',
@@ -301,6 +298,70 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
         )
       },
     }),
+
+    // ─ ขนส่ง (โลโก้+ชื่อ — user สั่ง 2026-08-06; เลขพัสดุอ่านจาก 2 ตารางแล้วที่ page.tsx) ─
+    {
+      id: 'courier',
+      header: 'ขนส่ง',
+      enableSorting: false,
+      enableColumnFilter: false,
+      cell: ({ row }: { row: TableRow<OrderRow> }) => {
+        const s = row.original.shipment
+        if (!s || (!s.courierName && !s.courierCode)) {
+          return <span className="text-sm text-default-400">—</span>
+        }
+        const logo = courierLogoUrl(s.courierCode, s.courierName)
+        return (
+          <span className="inline-flex items-center gap-2">
+            {logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logo}
+                alt=""
+                /* object-contain + ring: โลโก้ 2:1 (Fuze) ห้ามครอป, พื้นขาวต้องมีขอบ (pattern OrderCard) */
+                className="ring-default-200 size-7 shrink-0 rounded-lg bg-white object-contain ring-1"
+              />
+            ) : (
+              <span className="bg-default-100 text-default-700 flex size-7 shrink-0 items-center justify-center rounded-lg text-2xs font-bold">
+                {courierInitials(s.courierName, s.courierCode)}
+              </span>
+            )}
+            <span className="max-w-32 truncate text-sm text-default-700">
+              {s.courierName ?? s.courierCode}
+            </span>
+          </span>
+        )
+      },
+    },
+
+    // ─ เลขพัสดุ ─
+    {
+      id: 'trackingNo',
+      header: 'เลขพัสดุ',
+      enableSorting: false,
+      enableColumnFilter: false,
+      cell: ({ row }: { row: TableRow<OrderRow> }) => {
+        const t = row.original.shipment?.trackingNo
+        if (!t) return <span className="text-sm text-default-400">—</span>
+        // ห้าม font-mono (Anuphan ไม่มี mono จะ fallback หลุดธีม) — tabular-nums พอ
+        return <span className="text-sm font-medium tabular-nums text-default-900">{t}</span>
+      },
+    },
+
+    // ─ สถานะพัสดุ (mini timeline icon ล้วน — user สั่ง 2026-08-06) ─
+    {
+      id: 'shippingTimeline',
+      header: 'พัสดุ',
+      enableSorting: false,
+      enableColumnFilter: false,
+      cell: ({ row }: { row: TableRow<OrderRow> }) => (
+        <MiniShipmentTimeline
+          stage={row.original.shippingStage}
+          hasShipment={Boolean(row.original.shipment?.trackingNo)}
+          cancelled={row.original.status === 'CANCELLED'}
+        />
+      ),
+    },
 
     // ─ วันที่/เวลา ─
     columnHelper.accessor('createdAtISO', {
@@ -404,24 +465,6 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab }: Pro
             options={STATUS_FILTER_OPTIONS}
             onChange={(v) => {
               table.getColumn('status')?.setFilterValue(v === 'All' ? undefined : v)
-              setPagination((p) => ({ ...p, pageIndex: 0 }))
-            }}
-          />
-
-          {/* ประเภท */}
-          <FilterDropdown
-            icon="package"
-            defaultLabel="ประเภท"
-            resetValue="All"
-            value={(table.getColumn('orderType')?.getFilterValue() as string) ?? 'All'}
-            options={[
-              { value: 'All', label: 'ทั้งหมด' },
-              { value: 'PHYSICAL', label: 'สินค้า' },
-              { value: 'DIGITAL', label: 'ดิจิทัล' },
-              { value: 'SERVICE', label: 'บริการ' },
-            ]}
-            onChange={(v) => {
-              table.getColumn('orderType')?.setFilterValue(v === 'All' ? undefined : v)
               setPagination((p) => ({ ...p, pageIndex: 0 }))
             }}
           />

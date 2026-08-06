@@ -12,6 +12,7 @@
  */
 
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { getOrdersByShop } from '@/services/order.service'
 import { deriveShippingStage } from '@/lib/order-stage'
 import { requireActiveShop } from '@/lib/shop-context'
@@ -97,7 +98,18 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // กองงานตามสถานะพัสดุ — ต้องมาจาก deriveShippingStage ตัวเดียวกับที่ตัวนับบน Command Center ใช้
   // ไม่งั้นกดไทล์ที่บอก 5 แล้วเข้ามาเจอ 4 ใบ (ดูคอมเมนต์ที่ตัวฟังก์ชันใน lib/order-stage.ts)
   const isOnlineSales = shop.vertical === 'ONLINE_SALES'
+
+  // รูปเพจของร้าน (คอลัมน์ "ที่มา" — user สั่ง 2026-08-06): Order เก็บแค่ salesChannel
+  // ไม่ได้เก็บว่ามาจากเพจไหน → ชี้รูปเพจได้เฉพาะร้านที่เชื่อมเพจ MESSENGER ACTIVE เพจเดียว
+  // (หลายเพจ = กำกวม ห้ามเดา ใช้โลโก้แพลตฟอร์มแทน)
+  const fbChannels = await prisma.shopChannel.findMany({
+    where: { shopId: shop.id, provider: 'MESSENGER', status: 'ACTIVE' },
+    select: { avatarUrl: true },
+  })
+  const fbPageAvatar = fbChannels.length === 1 ? fbChannels[0].avatarUrl : null
+
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
+    sourceLogoUrl: o.salesChannel === 'FACEBOOK' ? fbPageAvatar : null,
     // เลขพัสดุมาได้ 2 ทางและเก็บคนละตาราง — ต้องอ่านทั้งคู่ ไม่งั้นออเดอร์ที่ร้าน "ส่งเอง"
     // (ShipmentTracking: provider = ชื่อขนส่งที่ผู้ขายเลือก, ไม่มีรหัส) จะไม่ขึ้นเลขพัสดุเลย
     // ทั้งที่มีเลขอยู่ — เจอตอน user ส่งภาพหน้าจอ "แจ้งเลขพัสดุ" มาให้ดู 2026-08-04

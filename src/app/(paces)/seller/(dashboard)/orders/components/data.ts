@@ -71,6 +71,13 @@ export type OrderRow = {
   buyerAvatar: string | null
   /** ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER) → icon ผ่าน SALES_CHANNEL_ICONS */
   salesChannel: string | null
+  /**
+   * รูปเพจที่ลูกค้าทักมา (ShopChannel.avatarUrl) — null = ไม่รู้เพจ ให้ UI ตกไปใช้
+   * โลโก้แพลตฟอร์มแทน (user สั่ง 2026-08-06: คอลัมน์ที่มาของออเดอร์)
+   * ตอนนี้เติมได้เฉพาะออเดอร์ FACEBOOK ของร้านที่เชื่อมเพจ ACTIVE เพจเดียว —
+   * Order ไม่ได้เก็บว่ามาจากเพจไหน (มีแค่ salesChannel) ร้านหลายเพจจึงชี้เพจไม่ได้
+   */
+  sourceLogoUrl?: string | null
   /** true = order เกิดจากการชนะประมูล (มี auctionId) — แสดง badge ค้อนประมูล */
   isFromAuction: boolean
   /** เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller เป็นเจ้าของออเดอร์/ลูกค้าตัวเอง
