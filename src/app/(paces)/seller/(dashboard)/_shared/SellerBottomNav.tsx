@@ -31,7 +31,7 @@ import { useEffect, useRef, useState } from 'react'
 
 // ─── FAB_ACTIONS — reuse ตรงจาก CreateFab (href verified จากไฟล์นั้น) ────────
 // short path ไม่มี /seller prefix ตาม Paces routing convention
-// ลำดับ array: pills render ผ่าน flex-col ที่ bottom-20 (เหนือ FAB) → index 0 อยู่บนสุด,
+// ลำดับ array: pills render ผ่าน flex-col ที่ bottom-22 (เหนือ FAB) → index 0 อยู่บนสุด,
 // index สุดท้ายอยู่ล่างสุด = ใกล้ปุ่ม FAB ที่สุด. ดังนั้น 'สร้างออเดอร์' (index 2, action หลัก
 // ตาม PRD S-3) เป็น pill ล่างสุด/ใกล้นิ้วสุด — อ่านจาก FAB ขึ้นบน = ออเดอร์→สินค้า→หมวดหมู่
 // ตรงกับ scope acceptance S-7 (ห้ามสลับลำดับ array โดยไม่ดูทิศ flex-col)
@@ -179,7 +179,7 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
 
       {/* Speed-dial action pills — แสดงเหนือ center button เมื่อ open */}
       {open && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-3 pb-2">
+        <div className="fixed bottom-22 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-3 pb-2">
           {fabActions.map((action, index) => (
             <SpeedDialAction
               key={action.href}
@@ -200,7 +200,10 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
       */}
       <nav
         className={[
-          'fixed bottom-0 left-0 right-0 z-30 h-16 bg-white',
+          /* h-18 (72px): เพิ่มจาก h-16 ตาม user 2026-08-06 "มันเล็กไป" — ขยับ 4 จุดพ่วงตามกัน:
+             speed-dial bottom-22, main padding-bottom 5.5rem (safepay-overrides.css),
+             FAB top-[-30px] + label mt 30px, KeywordEditorClient footer bottom-22 */
+          'fixed bottom-0 left-0 right-0 z-30 h-18 bg-white',
           'border-t border-default-200',
           /* arbitrary: nav drop-shadow — Paces ไม่มี token shadow ด้านบน (shadow-md ลงล่าง) */
           'shadow-[0_-4px_16px_-6px_rgba(47,43,61,0.10)]',
@@ -263,7 +266,7 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
         {/* ช่อง 3: [+] สร้าง — center raised button + speed-dial */}
         {/*
           relative cell เพื่อให้ absolute button ยกตัวออกมาได้
-          touch target ≥44px: button 54px + grid cell สูง 64px = ผ่าน
+          touch target ≥44px: button 54px + grid cell สูง 72px = ผ่าน
         */}
         <div className="relative flex flex-col items-center">
           <button
@@ -273,8 +276,10 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
             aria-expanded={open}
             aria-label={open ? 'ปิดเมนูสร้าง' : 'เปิดเมนูสร้าง'}
             className={[
-              /* arbitrary: raised FAB ขนาด/ตำแหน่ง — Paces ไม่มี token สำหรับ center raised button */
-              'absolute top-[-26px] left-1/2 -translate-x-1/2',
+              /* arbitrary: raised FAB ขนาด/ตำแหน่ง — Paces ไม่มี token สำหรับ center raised button
+                 -30px (เดิม -26): แถบสูงขึ้น 8px → จุดกึ่งกลาง cell เลื่อนลง 4px ต้องชดเชยเพื่อให้
+                 FAB โผล่พ้นขอบบนแถบเท่าเดิม */
+              'absolute top-[-30px] left-1/2 -translate-x-1/2',
               'w-[54px] h-[54px]',
               /* arbitrary: FAB border ring 3px ขาว — ไม่มี Paces border-width token > 2px */
               'rounded-full bg-primary text-white flex items-center justify-center border-[3px] border-white',
@@ -287,10 +292,10 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
                 size-6.5 = 26px: FAB hero icon ใหญ่กว่าไอคอนใน nav เล็กน้อย (text-2xl=24) */}
             <Icon icon={open ? 'x' : 'plus'} className="size-6.5" />
           </button>
-          {/* label ใต้ปุ่ม — arbitrary marginTop 34px ชดเชย absolute FAB ที่ยกขึ้น (top-[-26px]+h-54) — ไม่มี token แทน */}
+          {/* label ใต้ปุ่ม — arbitrary marginTop 30px ชดเชย absolute FAB ที่ยกขึ้น (top-[-30px]+h-54) — ไม่มี token แทน */}
           <span
             className="text-xs font-medium text-default-500"
-            style={{ marginTop: '34px' }}
+            style={{ marginTop: '30px' }}
           >
             สร้าง
           </span>
