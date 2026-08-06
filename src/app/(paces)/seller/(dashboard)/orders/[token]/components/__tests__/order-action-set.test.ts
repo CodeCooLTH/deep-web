@@ -29,6 +29,14 @@ describe('getOrderActionSet — matrix ตาม design §3', () => {
     expect(keys(r.menu)).toEqual(['send-sms', 'copy-link', 'copy-address', 'edit-order', 'cancel-order'])
   })
 
+  // เคสจริง prod 2026-08-06: เปิดพัสดุ iShip แล้ว (ขนส่งยังไม่เข้ารับ → ออเดอร์ยัง PENDING
+  // โดย design) แต่ปุ่มหลักยังเขียน "แจ้งเลขพัสดุ" ทั้งที่มีเลขแทรคแล้ว — ต้องเป็นปุ่มดูสถานะ
+  it('PENDING + ISHIP (เปิดพัสดุแล้ว รอขนส่งเข้ารับ) → primary=สถานะพัสดุ + มีคัดลอกเลขใน ⋮', () => {
+    const r = getOrderActionSet({ status: 'PENDING', fulfillmentMode: 'SHIPPED', shipmentSource: 'ISHIP' })
+    expect(r.primary).toEqual({ key: 'report-tracking', label: 'สถานะพัสดุ', icon: 'truck' })
+    expect(keys(r.menu)).toEqual(['copy-tracking', 'send-sms', 'copy-link', 'copy-address', 'edit-order', 'cancel-order'])
+  })
+
   it('SHIPPED + MANUAL → primary=null, ghost=[คัดลอกลิงก์,แก้ไขเลขพัสดุ], menu=[คัดลอกเลขพัสดุ,คัดลอกที่อยู่,ยกเลิก]', () => {
     const r = getOrderActionSet({ status: 'SHIPPED', fulfillmentMode: 'SHIPPED', shipmentSource: 'MANUAL' })
     expect(r.primary).toBeNull()
