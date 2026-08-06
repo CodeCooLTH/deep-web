@@ -1651,17 +1651,20 @@ export default function ChatThread({
                   )
                 }
                 const m = row.m
-                // เหตุการณ์การโทร — การ์ดกลางจอ ไม่ใช่บับเบิล (2026-08-03)
+                // เหตุการณ์การโทร — การ์ดชิดขวา (user สั่ง 2026-08-06 "ต้องชิดขวา")
                 //
-                // ทำไมไม่ทำเป็นบับเบิล: ข้อมูลจริงจาก Meta คือ senderRole='SHOP' เสมอ **แม้เป็นสายที่
-                // ลูกค้าโทรเข้ามา** ถ้า render ชิดขวาเป็นบับเบิลสีร้าน = โกหกว่าร้านพิมพ์ข้อความนี้เอง
-                // ใช้ pattern เดียวกับ date divider ด้านบน (กึ่งกลาง ไม่มี avatar) เพราะมันคือ log
-                // ของระบบ ไม่ใช่บทสนทนา — และไม่มีปุ่ม "โทรกลับ" เพราะเรายังโทรกลับไม่ได้จริง
-                // (Calling API ต้อง subscribe webhook `calls` + รัน WebRTC เอง) ปุ่มที่กดไม่ได้ = UI โกหก
+                // เดิมวางกึ่งกลางแบบ date divider ด้วยเหตุผลว่า Meta ส่ง senderRole='SHOP' มาทุกสาย
+                // **แม้เป็นสายที่ลูกค้าโทรเข้า** การชิดขวาจึงอาจสื่อผิดว่าร้านเป็นคนโทร. user ตัดสินใจ
+                // เอาชิดขวา (ตรงกับที่ Messenger วางเอง) — จึงคง "หน้าตาการ์ดระบบ" ไว้เหมือนเดิม
+                // (พื้น default-100 ไม่ใช่ bg-primary ของบับเบิลร้าน, ไม่มี avatar/สถานะส่ง) เพื่อไม่ให้
+                // อ่านเป็นข้อความที่ร้านพิมพ์เอง ย้ายแค่ตำแหน่ง ไม่เปลี่ยนความหมาย
+                // ยังไม่มีปุ่ม "โทรกลับ" เพราะเรายังโทรกลับไม่ได้จริง (Calling API ต้อง subscribe
+                // webhook `calls` + รัน WebRTC เอง) ปุ่มที่กดไม่ได้ = UI โกหก
                 if (m.type === 'CALL') {
                   const missed = m.body === 'Missed call'
                   return (
-                    <div key={m.id} className="my-4 flex justify-center">
+                    // my-5 + justify-end = แนวเดียวกับแถวบับเบิลฝั่งร้าน (บรรทัด ~1848) ให้ขอบขวาตรงกัน
+                    <div key={m.id} className="my-5 flex justify-end">
                       <div className="bg-default-100 flex max-w-xs items-center gap-2.5 rounded-lg px-3.5 py-2.5">
                         <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-full">
                           <Icon icon="phone-off" className="text-lg" />
