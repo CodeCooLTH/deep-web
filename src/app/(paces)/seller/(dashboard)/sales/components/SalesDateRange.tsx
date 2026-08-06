@@ -12,6 +12,7 @@ import Flatpickr from '@/components/wrappers/Flatpickr'
 import Icon from '@/components/wrappers/Icon'
 import { useRouter } from 'next/navigation'
 import { useRef } from 'react'
+import { thaiDayKey } from '@/lib/format-date'
 
 type Props = {
   from: string // YYYY-MM-DD
@@ -24,8 +25,10 @@ const SalesDateRange = ({ from, to }: Props) => {
 
   const handleChange = (selectedDates: Date[]) => {
     if (selectedDates.length === 2) {
-      const f = selectedDates[0].toISOString().slice(0, 10)
-      const t = selectedDates[1].toISOString().slice(0, 10)
+      // ใช้ thaiDayKey แทน toISOString().slice(0,10) — Flatpickr คืน Date เที่ยงคืนตาม local time
+      // ของเบราว์เซอร์ผู้ขาย (เวลาไทย) ถ้าแปลงผ่าน UTC จะตกไปเป็นวันก่อนหน้า
+      const f = thaiDayKey(selectedDates[0])
+      const t = thaiDayKey(selectedDates[1])
       router.push(`?from=${f}&to=${t}`)
     }
   }
