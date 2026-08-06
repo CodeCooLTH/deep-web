@@ -8,7 +8,11 @@
 // (ไม่ใช่หวังว่าจะไม่เผลอใส่) — ดู ConnectionView / SettingsView / ShipmentView
 
 import { prisma } from "@/lib/prisma";
-import { createOrder, settleCodFromCarrier } from "@/services/order.service";
+import {
+  createOrder,
+  settleCodFromCarrier,
+  syncOrderPaymentToParcel,
+} from "@/services/order.service";
 import { recordOrderEvent } from "@/services/order-event.service";
 import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import * as iship from "@/lib/iship/client";
@@ -116,6 +120,14 @@ export interface ShipmentView {
   height: number | null;
   codAmount: number;
   createdAt: Date;
+  /**
+   * ข้อความที่ต้องบอกร้านทันทีหลังเปิด/ผูกพัสดุ เมื่อวิธีชำระเงินของคำสั่งซื้อกับพัสดุ
+   * ไม่ตรงกัน (ส่วนขยาย 2026-08-06) — `changed` = ระบบแก้ให้แล้ว, `warning` = ร้านต้องไปแก้เอง
+   *
+   * ไม่เก็บลงฐาน: เป็นข้อความสำหรับ "ครั้งนี้" เท่านั้น รอยถาวรอยู่ในไทม์ไลน์
+   * (PAYMENT_METHOD_SYNCED) แล้ว
+   */
+  paymentNotice?: { kind: "changed" | "warning"; message: string } | null;
 }
 
 // ─── helper ภายใน ───────────────────────────────────────────────────────────
@@ -856,7 +868,13 @@ export async function createShipment(
     select: SHIPMENT_SELECT,
   });
 
-  return dispatchShipment(shopId, shipment.id, token);
+  // ปรับวิธีชำระเงินของคำสั่งซื้อให้ตรงกับพัสดุที่กำลังจะเปิด (user สั่ง 2026-08-06)
+  // ทำ "ก่อน" ยิงไป iShip โดยเจตนา: ถ้ายิงล้ม ใบยังอยู่ในสถานะ FAILED ให้ retry ได้ แต่
+  // ข้อเท็จจริงที่ว่า "ร้านตั้งใจเก็บเงินปลายทาง" เกิดขึ้นแล้วตั้งแต่ตอนกดสร้าง
+  const paymentNotice = await syncOrderPaymentToParcel(orderId, codAmount, userId);
+
+  const view = await dispatchShipment(shopId, shipment.id, token);
+  return { ...view, paymentNotice };
 }
 
 /**
@@ -2142,11 +2160,15 @@ export async function linkShipment(
 
   await advanceOrderIfDispatched(order, parcel);
 
+  // ใบที่ผูกย้อนหลังคือจุดที่ข้อมูลสองฝั่งไม่ตรงกันบ่อยที่สุด — ร้านเปิดพัสดุแบบเก็บเงิน
+  // ปลายทางบนเว็บ iShip แล้วมาบันทึกคำสั่งซื้อในระบบเราทีหลังโดยไม่ได้ติ๊ก COD
+  const paymentNotice = await syncOrderPaymentToParcel(orderId, parcel.codAmount, userId);
+
   const row = await prisma.orderShipment.findUniqueOrThrow({
     where: { id: created.id },
     select: SHIPMENT_SELECT,
   });
-  return toShipmentView(row);
+  return { ...toShipmentView(row), paymentNotice };
 }
 
 /**

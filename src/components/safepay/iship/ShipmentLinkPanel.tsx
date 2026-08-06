@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
+import { toastPaymentNotice } from './payment-notice-toast'
 import { describeCarrierStatus } from '@/lib/iship/status'
 import { formatDayMonthTimeTH } from '@/lib/format-date'
 import { matchesQuery } from '@/lib/iship/unlinked'
@@ -205,7 +206,8 @@ export default function ShipmentLinkPanel({
         return
       }
       const body = (await res.json()) as ShipmentViewJson
-      pacesToast.success('ผูกพัสดุสำเร็จ')
+      // เรื่องวิธีชำระเงินสำคัญกว่าคำว่า "สำเร็จ" — ยิงใบเดียว ไม่ซ้อน (ux gate 2026-08-06)
+      if (!toastPaymentNotice(body.paymentNotice)) pacesToast.success('ผูกพัสดุสำเร็จ')
       onLinked?.(body)
     } catch {
       pacesToast.error('ผูกพัสดุไม่สำเร็จ กรุณาลองใหม่')

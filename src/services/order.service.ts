@@ -8,7 +8,7 @@ import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
 import { deriveShippingStage } from "@/lib/order-stage";
-import { isCODPayment } from "@/lib/order-display";
+import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
 import {
@@ -952,9 +952,14 @@ export async function settleCodFromCarrier(input: {
     },
   });
   if (!order) return false;
-  // ใบที่ไม่ใช่เก็บเงินปลายทางไม่มีเงินให้ขนส่งโอน — settlement_at ที่มาพร้อมใบพวกนี้
-  // เป็นเรื่องของพัสดุฝั่ง iShip ไม่ใช่ของคำสั่งซื้อเรา (BR-ISHIP-45 ข้อ ก)
-  if (!isCODPayment(order.paymentMethod)) return false;
+  // ไม่ตรวจ order.paymentMethod ที่นี่โดยเจตนา (user เคาะ 2026-08-06): ผู้เรียกพิสูจน์มาแล้ว
+  // ว่า **พัสดุ** ใบนี้เก็บเงินปลายทางจริงและขนส่งโอนเงินแล้ว ซึ่งเป็นหลักฐานที่แข็งแรงกว่า
+  // ข้อความที่ร้านพิมพ์ไว้ในช่องวิธีชำระเงิน (พบค่าจริงบน prod ทั้ง COD/CASH/TRANSFER/
+  // "พร้อมเพย์ 081-xxx") — ใบ TH140290UGSM3H เก็บเงินปลายทาง ฿360 จริงแต่บันทึกเป็น "CASH"
+  // ถ้ากรองด้วย paymentMethod ใบแบบนี้จะไม่มีวันถูกปิดงานให้เลย
+  //
+  // ทางกันไม่ให้พลาดฝั่งต้นทางอยู่ที่ resolvePaymentSync (lib/iship/payment-sync.ts)
+  // ซึ่งปรับ paymentMethod ให้ตรงพัสดุตั้งแต่ตอนเปิด/ผูกพัสดุแล้ว
 
   await prisma.$transaction(async (tx) => {
     // ไม่ทับค่าที่ร้านกดไว้ก่อน (BR-ISHIP-48) — ใครมาก่อนได้ก่อน
@@ -1014,6 +1019,45 @@ export async function settleCodFromCarrier(input: {
     }
   }
   return true;
+}
+
+/**
+ * syncOrderPaymentToParcel — ให้วิธีชำระเงินของคำสั่งซื้อตรงกับพัสดุที่เปิดจริง
+ *
+ * user สั่ง 2026-08-06: "ถ้าเลือกเปิดพัสดุ iShip เป็น COD แต่คำสั่งซื้อไม่ใช่ COD
+ * ก็แจ้งเตือนเปลี่ยนให้เลย สะดวก"
+ *
+ * คืนข้อความที่ต้องบอกร้าน (null = ไม่มีอะไรต้องบอก) — ผู้เรียกเป็นคนตัดสินว่าจะแสดงยังไง
+ * ตัวตัดสินใจอยู่ใน resolvePaymentSync ซึ่ง pure และเทสแยกได้
+ */
+export async function syncOrderPaymentToParcel(
+  orderId: string,
+  parcelCodAmount: number,
+  actorUserId: string | null,
+): Promise<{ kind: "changed" | "warning"; message: string } | null> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, paymentMethod: true },
+  });
+  if (!order) return null;
+
+  const decision = resolvePaymentSync({
+    orderPaymentMethod: order.paymentMethod,
+    parcelCodAmount,
+  });
+  if (decision.action === "NONE") return null;
+  if (decision.action === "WARN_NO_COD") return { kind: "warning", message: decision.message };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({ where: { id: order.id }, data: { paymentMethod: "COD" } });
+    await recordOrderEvent(tx, {
+      orderId: order.id,
+      type: "PAYMENT_METHOD_SYNCED",
+      actorUserId,
+      meta: { amount: decision.codAmount, paymentFrom: decision.from },
+    });
+  });
+  return { kind: "changed", message: decision.message };
 }
 
 export async function getOrdersByShop(shopId: string, status?: string) {

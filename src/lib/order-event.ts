@@ -5,7 +5,7 @@
 //
 // pure module — ห้าม import prisma/server-only (ใช้ทั้งฝั่ง server เขียน event และ client เรนเดอร์)
 
-/** 11 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
+/** 12 ประเภทเหตุการณ์ — ต้องตรงกับ CHECK constraint `OrderEvent_type_check` ในฐานข้อมูลเป๊ะ */
 export const ORDER_EVENT_TYPES = [
   'ORDER_CREATED',
   'ORDER_EDITED',
@@ -18,6 +18,7 @@ export const ORDER_EVENT_TYPES = [
   'BUYER_CONFIRMED',
   'COD_SETTLED',
   'SYSTEM_CONFIRMED',
+  'PAYMENT_METHOD_SYNCED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -47,6 +48,8 @@ export const ORDER_EVENT_META: Record<
   // ถ้าใช้ BUYER_CONFIRMED แทนจะกลายเป็นบันทึกว่าผู้ซื้อกด ทั้งที่ผู้ซื้อไม่ได้แตะอะไรเลย
   COD_SETTLED: { label: 'ขนส่งโอนเงินเก็บปลายทางแล้ว', icon: 'coin', tone: 'success' },
   SYSTEM_CONFIRMED: { label: 'ระบบยืนยันคำสั่งซื้ออัตโนมัติ', icon: 'circle-check', tone: 'success' },
+  // neutral ไม่ใช่ success — นี่คือการแก้ข้อมูลให้ตรงความจริง ไม่ใช่ความสำเร็จของธุรกรรม
+  PAYMENT_METHOD_SYNCED: { label: 'ปรับวิธีชำระเงินตามพัสดุ', icon: 'coin', tone: 'neutral' },
 }
 
 /**
@@ -92,8 +95,10 @@ export type OrderEventMeta = {
   changedCount?: number
   /** แถวนี้เกิดจาก backfill ย้อนหลัง ไม่ใช่บันทึกสด — ใช้บอกผู้ใช้ว่าข้อมูลอาจไม่ครบ */
   backfilled?: boolean
-  /** ยอดเงินบาท (COD_SETTLED) — ยอดที่ขนส่งแจ้งว่าโอนเข้าร้าน */
+  /** ยอดเงินบาท (COD_SETTLED / PAYMENT_METHOD_SYNCED) */
   amount?: number
+  /** วิธีชำระเงินเดิมก่อนถูกปรับ (PAYMENT_METHOD_SYNCED) — null = ไม่เคยระบุไว้ */
+  paymentFrom?: string | null
 }
 
 export type OrderEventView = {
@@ -127,6 +132,11 @@ export function describeOrderEvent(e: Pick<OrderEventView, 'type' | 'meta'>): st
     case 'SYSTEM_CONFIRMED':
       // บอกเหตุผลเสมอ ไม่ใช่แค่ "ระบบยืนยัน" ลอย ๆ — ร้านต้องตรวจสอบย้อนหลังได้ว่าทำไม
       return 'ขนส่งยืนยันว่าเก็บเงินปลายทางและโอนเข้าร้านแล้ว'
+    case 'PAYMENT_METHOD_SYNCED':
+      // บอกทั้งค่าเดิมและเหตุผล — ร้านต้องเห็นว่าอะไรถูกเปลี่ยนไปจากที่ตัวเองกรอกไว้
+      return e.meta.paymentFrom
+        ? `จาก "${e.meta.paymentFrom}" เป็นเก็บเงินปลายทาง ตามยอดบนพัสดุ`
+        : 'ตั้งเป็นเก็บเงินปลายทาง ตามยอดบนพัสดุ'
     case 'ORDER_CANCELLED':
       // ไม่รู้ตัวคนแต่รู้ฝั่ง — บอกเท่าที่รู้จริง ดีกว่าเว้นว่างให้เดาเอง
       if (!e.meta.actorNameSnapshot && e.meta.initiatorRole) {

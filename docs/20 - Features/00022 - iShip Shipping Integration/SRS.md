@@ -671,3 +671,25 @@ response ที่เรารู้จัก ถ้ายิงจริงแ�
 | FR-ISHIP-071 | BR-ISHIP-45/46/48 | `src/services/iship.service.ts` (`settleCodFromCarrier`), `src/services/order.service.ts` |
 | FR-ISHIP-072 | BR-ISHIP-47 | `src/lib/order-event.ts` |
 | — | — | `src/lib/iship/client.ts` (`IShipOrderRow` เพิ่ม `settlement_at`/`cod_amount`) |
+
+### 18.7 FR-ISHIP-073 — ปรับวิธีชำระเงินของคำสั่งซื้อตามพัสดุ
+
+> อ้างอิง BRD §13.6 (BR-ISHIP-51..54)
+
+**ตัวตัดสินใจ:** `resolvePaymentSync()` ใน `src/lib/iship/payment-sync.ts` (pure — เทสได้โดยไม่ต้องมีฐาน) รับ `{ orderPaymentMethod, parcelCodAmount }` คืน 1 ใน 3:
+
+| ผล | เงื่อนไข | สิ่งที่เกิด |
+|----|----------|-------------|
+| `SET_COD` | พัสดุ COD + คำสั่งซื้อไม่ใช่ COD | เขียน `Order.paymentMethod = "COD"` + event `PAYMENT_METHOD_SYNCED` (meta: `amount`, `paymentFrom`) + คืนข้อความชนิด `changed` |
+| `WARN_NO_COD` | คำสั่งซื้อ COD + พัสดุไม่ COD | **ไม่แก้อะไร** คืนข้อความชนิด `warning` |
+| `NONE` | ตรงกัน | ไม่ทำอะไร |
+
+**จุดเรียก (2 แห่ง):** `createShipment()` เรียก**ก่อน**ยิงไป iShip — ถ้ายิงล้ม ใบยัง retry ได้ แต่ข้อเท็จจริงที่ว่าร้านตั้งใจเก็บเงินปลายทางเกิดขึ้นแล้วตั้งแต่กดสร้าง · `linkParcelToOrder()` เรียกหลังผูกสำเร็จ (ใบที่ผูกย้อนหลังคือจุดที่ข้อมูลสองฝั่งไม่ตรงกันบ่อยที่สุด)
+
+**การส่งกลับหน้าจอ:** `ShipmentView.paymentNotice` (`{ kind: 'changed' | 'warning', message }`) — **ไม่เก็บลงฐาน** ไม่อยู่ใน `SHIPMENT_SELECT` เห็นได้เฉพาะคำตอบของการสร้าง/ผูกครั้งนั้น รีเฟรชแล้วหาย รอยถาวรอยู่ในไทม์ไลน์แทน
+
+**การแสดงผล (ux gate 2026-08-06):**
+- toast ทุกเส้นทาง (`toastPaymentNotice()` ใน `src/components/safepay/iship/payment-notice-toast.ts`) — `changed` = `pacesToast.info`, `warning` = `pacesToast.warning`, `duration` 6000ms (ยาวกว่าปกติเพราะเป็นข้อมูลเงิน) **ยิงแทน toast "สำเร็จ" ไม่ซ้อนกัน** ยกเว้นเส้นทางที่แผงถูกปิดทิ้งทันที (แชท: ติ๊กแจ้งเลข + ส่งสำเร็จ) ซึ่งต้องคงคำยืนยันสำเร็จไว้ในประโยคเดียวกันเพราะ toast คือหลักฐานเดียวที่เหลือ
+- แถบค้างใน `ShipmentStatusView` เหนือป้ายโหมดทดสอบ ใช้ `NOTICE_BOX` + `tabler:alert-circle` ชุดเดียวกับบล็อก `progress.notice` ในไฟล์เดียวกัน
+
+**ผลต่อ FR-ISHIP-071:** `settleCodFromCarrier()` **เลิกตรวจ `Order.paymentMethod`** (BR-ISHIP-54) — ผู้เรียกพิสูจน์มาแล้วว่าพัสดุเก็บเงินปลายทางจริงและขนส่งโอนแล้ว ทางกันพลาดฝั่งต้นทางคือ FR-ISHIP-073 นี้

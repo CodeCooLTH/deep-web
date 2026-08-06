@@ -277,6 +277,26 @@ export default function ShipmentStatusView({
       {/* ความคืบหน้า 4 ขั้น — บนสุดเหนือเลขติดตาม เพราะเป็นสิ่งที่ร้านอยากรู้ก่อน (user 2026-07-29)
           อ่านจาก prop ตรง ๆ ไม่รอ /traces จึงเห็นทันทีที่เปิด ไม่มีจังหวะว่างให้ต้องรอ */}
       <section className="border-b-8 border-default-100 p-4">
+        {/* เรื่องวิธีชำระเงินที่เพิ่งเกิดตอนกดสร้าง/ผูก (ส่วนขยาย 2026-08-06) — อยู่เหนือ
+            ป้ายโหมดทดสอบเพราะเป็นสิ่งที่ "เพิ่งเปลี่ยนเดี๋ยวนี้" ส่วนป้ายทดสอบเป็นสถานะคงที่
+            ค่านี้ไม่ถูกเก็บลงฐาน (ไม่อยู่ใน SHIPMENT_SELECT) — เห็นได้เฉพาะรอบที่สร้าง/ผูก
+            เท่านั้น รีเฟรชแล้วหาย รอยถาวรอยู่ในไทม์ไลน์ (PAYMENT_METHOD_SYNCED) แทน
+            โครง markup + icon ยกมาจากบล็อก progress.notice ในไฟล์เดียวกันทั้งดุ้น */}
+        {shipment.paymentNotice && (
+          <p
+            className={`mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
+              NOTICE_BOX[shipment.paymentNotice.kind === 'changed' ? 'info' : 'warning']
+            }`}
+          >
+            <Icon
+              icon="tabler:alert-circle"
+              className="mt-0.5 shrink-0 text-base"
+              aria-hidden="true"
+            />
+            <span>{shipment.paymentNotice.message}</span>
+          </p>
+        )}
+
         {shipment.isDryRun && (
           <p className="mb-3 flex items-center gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning-ink">
             <Icon icon="tabler:flask" className="shrink-0 text-base" aria-hidden="true" />
