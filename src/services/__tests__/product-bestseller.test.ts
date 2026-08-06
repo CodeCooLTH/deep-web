@@ -42,7 +42,7 @@ describe('getBestSellerProducts', () => {
     expect(prisma.orderItem.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({
         by: ['productId'],
-        where: { productId: { not: null }, order: { shopId: 'shopX', status: 'CONFIRMED' } },
+        where: { productId: { not: null }, order: { shopId: 'shopX', status: { not: 'CANCELLED' } } },
         _sum: { qty: true },
         orderBy: { _sum: { qty: 'desc' } },
         take: 5,
@@ -54,21 +54,25 @@ describe('getBestSellerProducts', () => {
   })
 
   /**
-   * status: 'CONFIRMED' เพิ่มเข้ามา 2026-07-30 — เดิมไม่กรองสถานะเลย จึงนับ PENDING กับ
-   * CANCELLED เป็นยอดขายด้วย ทำให้ตัวเลข "ขายแล้ว N ชิ้น" ที่ร้านเห็นสูงกว่าความจริงมาก และ
-   * อันดับขายดีเพี้ยน — สินค้าที่มีคนสร้างออเดอร์ทิ้งไว้เยอะแต่ไม่มีใครซื้อจริงจะขึ้นนำ ซึ่งทำให้
-   * ร้านตัดสินใจสต็อกผิด เทสนี้ล็อกเจตนาไว้ ไม่ให้ใครถอดตัวกรองออกโดยไม่รู้ตัว
+   * เกณฑ์ผ่าน 2 รอบ อย่าวนกลับ:
+   * 1. เดิมไม่กรองสถานะเลย → นับ CANCELLED เป็นยอดขายด้วย ตัวเลขจึงสูงกว่าจริง
+   * 2. 2026-07-30 กรองเหลือ `status: 'CONFIRMED'` → แกว่งไปอีกทาง: หลังร้านนับยอดเฉพาะออเดอร์
+   *    ที่ผู้ซื้อกดยืนยันปลายทางแล้ว ซึ่งของที่ส่งไปแล้วแต่ยังไม่มีใครกดยืนยันหายจากอันดับหมด
+   * 3. 2026-08-06 (commit 9687fde3) เกณฑ์ปัจจุบัน = `status: { not: 'CANCELLED' }` — "ขายดี"
+   *    ของหลังร้านนับตั้งแต่ *สร้างออเดอร์* เพราะคนขายใช้ตัวเลขนี้ตัดสินใจสต็อก ซึ่งต้องรู้ตั้งแต่
+   *    ของออกจากร้าน ไม่ใช่รอปลายทางกดยืนยัน
+   * เทสนี้ล็อกข้อ 3 ไว้ ไม่ให้ใครเปลี่ยนตัวกรองโดยไม่รู้ว่าเคยแกว่งมาแล้ว 2 รอบ
    */
-  it('นับเฉพาะออเดอร์ที่ผู้ซื้อยืนยันแล้ว — PENDING/CANCELLED ต้องไม่ถูกนับเป็นยอดขาย', async () => {
+  it('ไม่นับออเดอร์ที่ยกเลิก — PENDING/SHIPPED/CONFIRMED นับหมด (เกณฑ์หลังร้าน)', async () => {
     vi.mocked(prisma.orderItem.groupBy).mockResolvedValue([{ productId: 'p1', _sum: { qty: 2 } }] as never)
     vi.mocked(prisma.product.findMany).mockResolvedValue([{ id: 'p1' }] as never)
 
     await getBestSellerProducts('shopX')
 
     const where = vi.mocked(prisma.orderItem.groupBy).mock.calls[0][0].where as {
-      order: { status?: string }
+      order: { status?: { not?: string } }
     }
-    expect(where.order.status).toBe('CONFIRMED')
+    expect(where.order.status).toEqual({ not: 'CANCELLED' })
   })
 
   it('product ที่ถูกปิด (isActive=false) หลุดจาก findMany → ไม่อยู่ในผลลัพธ์ (คงลำดับที่เหลือ)', async () => {
