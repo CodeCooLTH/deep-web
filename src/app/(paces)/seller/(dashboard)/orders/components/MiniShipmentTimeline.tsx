@@ -37,9 +37,16 @@ interface Props {
   hasShipment: boolean
   /** ออเดอร์ยกเลิกแล้ว — ไม่วาด timeline (สถานะพัสดุไม่ใช่สาระของใบนั้นอีก) */
   cancelled?: boolean
+  /**
+   * true = วาดแค่จุด ไม่เปิด panel ของตัวเอง
+   *
+   * ใช้เมื่อถูกวางอยู่ใน hover card ที่ใหญ่กว่าแล้ว (ShipmentHoverCard) — ไม่งั้นเอาเมาส์
+   * ไปวางตรงจุดจะได้ panel เล็กของตัวเองแทนการ์ดเต็มของพ่อ = สองอันแย่งกันบนจอเดียว
+   */
+  plain?: boolean
 }
 
-export default function MiniShipmentTimeline({ stage, hasShipment, cancelled }: Props) {
+export default function MiniShipmentTimeline({ stage, hasShipment, cancelled, plain }: Props) {
   const cur = stage != null ? CURRENT_INDEX[stage] : null
   if (cur == null || !hasShipment || cancelled) {
     return <span className="text-default-400 text-sm">—</span>
@@ -77,26 +84,29 @@ export default function MiniShipmentTimeline({ stage, hasShipment, cancelled }: 
     )
   }
 
+  const dots = (
+    <div className="flex items-center" role="img" aria-label={ariaLabel}>
+      {SHIPMENT_STAGES.map((s, i) => (
+        <Fragment key={s.label}>
+          {i > 0 && (
+            <span className={cn('h-0.5 w-2 shrink-0', i <= cur ? 'bg-success' : 'bg-default-200')} />
+          )}
+          {/* plain = ไม่ใส่ title รายจุด ปล่อยให้การ์ดเต็มของพ่อเป็นคนอธิบาย */}
+          {plain ? dot(i, 'sm') : <span title={s.label}>{dot(i, 'sm')}</span>}
+        </Fragment>
+      ))}
+    </div>
+  )
+
+  if (plain) return dots
+
   return (
     // hover ขึ้น panel เต็มผ่าน HoverPanel (portal ระดับ body — cell อยู่ใน .table-wrapper
     // overflow-auto, absolute ใน cell โดน clip; touch ไม่มี hover ก็แค่ไม่ขึ้น มี title ต่อจุดแล้ว)
     <HoverPanel
       width={288}
       className="inline-flex items-center"
-      trigger={
-        <div className="flex items-center" role="img" aria-label={ariaLabel}>
-          {SHIPMENT_STAGES.map((s, i) => (
-            <Fragment key={s.label}>
-              {i > 0 && (
-                <span
-                  className={cn('h-0.5 w-2 shrink-0', i <= cur ? 'bg-success' : 'bg-default-200')}
-                />
-              )}
-              <span title={s.label}>{dot(i, 'sm')}</span>
-            </Fragment>
-          ))}
-        </div>
-      }
+      trigger={dots}
     >
       {/* stepper เต็ม ทรงเดียวกับการ์ดการจัดส่ง (ShippingCard) ย่อส่วน */}
       <div className="p-3">

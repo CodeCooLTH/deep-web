@@ -393,17 +393,21 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
                       />
                     </p>
                   )}
+                  {/* ไทม์ไลน์อยู่ในการ์ดเดียวกับชื่อขนส่ง — user ทักว่า "order เดียวกัน hover
+                      ได้ 2 ที่" เพราะเดิมมันอยู่นอกการ์ดแล้วเปิด panel เล็กของตัวเอง
+                      plain = วาดแค่จุด ปล่อยให้การ์ดเต็มเป็นคนอธิบาย */}
+                  <div className="mt-1.5">
+                    <MiniShipmentTimeline
+                      stage={row.original.shippingStage}
+                      hasShipment={Boolean(s!.trackingNo)}
+                      cancelled={row.original.status === 'CANCELLED'}
+                      plain
+                    />
+                  </div>
                 </ShipmentHoverCard>
               ) : (
                 <p className="mb-0 text-xs text-default-400">ยังไม่ได้เปิดพัสดุ</p>
               )}
-              <div className="mt-1.5">
-                <MiniShipmentTimeline
-                  stage={row.original.shippingStage}
-                  hasShipment={Boolean(s?.trackingNo)}
-                  cancelled={row.original.status === 'CANCELLED'}
-                />
-              </div>
             </div>
           </>
         )
@@ -649,12 +653,14 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
         table={table}
         emptyMessage="ไม่พบออเดอร์"
         groupRow={(row) => (
-          /* w-11 = ความกว้างคอลัมน์ checkbox เป๊ะ ๆ (วัดจริงบน prod = 44px) — ทำให้ขอบซ้าย
-             ของโลโก้เพจตรงแนวกับรูปสินค้าในแถวล่างพอดี (user สั่ง 2026-08-06)
+          /* w-9 (36px) ไม่ใช่ w-11: คอลัมน์ checkbox กว้าง 44px ก็จริง แต่ td ของแถบหัว
+             มี padding-left 18px ขณะที่ช่องสินค้ามี 10px — ต่างกัน 8px พอดี (วัดจริงบน
+             prod: โลโก้ 327 / รูปสินค้า 319) เอา 44-8 = 36 จึงตรงแนวทั้งรูปสินค้าและ
+             หัวคอลัมน์ "รายการสินค้า" (user สั่ง 2026-08-06)
              ต้องเป็นกล่องแยกที่ไม่มี gap ตามหลัง ไม่ใช่ item ธรรมดาใน flex gap-x เพราะ
-             gap จะบวกเพิ่มแล้วเลยแนวไป */
+             gap จะบวกเพิ่มแล้วเลยแนวไปอีก */
           <div className="flex items-center">
-            <span className="flex w-11 shrink-0 items-center">
+            <span className="flex w-9 shrink-0 items-center">
               <input
                 type="checkbox"
                 className="form-checkbox form-checkbox-light size-4.5"
