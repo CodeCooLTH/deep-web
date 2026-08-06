@@ -848,7 +848,13 @@ export default function InboxList({
           {/* ชิป "พัสดุมีปัญหา" (feature 00022) — ตัวเลขมีความหมายแม้ยังไม่ได้กรอง
               (บอกว่ามีกี่เคสรอจัดการ) ต่างจากตัวกรองอื่นที่ซ่อนในดรอปดาวน์ได้
               ซ่อนทั้งก้อนเมื่อไม่มีปัญหา — ชิปที่ขึ้น 0 คือปุ่มที่กดแล้วไม่มีอะไรให้ดู
-              soft ตอนปกติ / ทึบตอนกำลังกรอง: ระดับจัดจ้านสูงสุดเกิดเฉพาะตอนผู้ใช้เลือกเอง */}
+              soft ตอนปกติ / ทึบตอนกำลังกรอง: ระดับจัดจ้านสูงสุดเกิดเฉพาะตอนผู้ใช้เลือกเอง
+
+              2026-08-06 (user เลือกทาง A จาก mockup): ใช้ `btn btn-sm` + เส้นขอบ ตัวเดียวกับปุ่ม
+              "ตัวกรอง" ข้าง ๆ และตัวเลขเป็น badge วงกลมเหมือน activeCount ของปุ่มนั้นเป๊ะ ๆ
+              เดิมเป็น `badge` คนละ primitive จึงต่างกันพร้อมกัน 5 อย่าง (สูง/ตัวอักษร/ไอคอน/ขอบ/
+              วิธีแสดงตัวเลข) แล้วอ่านเป็นของคนละชุด — ตอนนี้เหลือต่างกันแค่ "สี" ซึ่งคือสิ่งเดียว
+              ที่ควรต่าง (แดง = เร่ง) */}
           {hasShipping && problemCount > 0 && (
             <button
               type="button"
@@ -865,14 +871,21 @@ export default function InboxList({
                   ? 'กำลังกรองเฉพาะพัสดุมีปัญหา — กดเพื่อดูทั้งหมด'
                   : `กรองเฉพาะพัสดุมีปัญหา (${problemCount} บทสนทนา)`
               }
-              className={`badge text-2xs inline-flex items-center gap-1 py-2 ${
+              className={`btn btn-sm inline-flex items-center gap-2 border ${
                 filter.shipment === 'problem'
-                  ? 'bg-danger text-white'
-                  : 'bg-danger/15 text-danger'
+                  ? 'bg-danger border-danger text-white'
+                  : 'bg-card border-danger text-danger'
               }`}
             >
-              <Icon icon="alert-triangle" width={12} height={12} />
-              พัสดุมีปัญหา {problemCount > 99 ? '99+' : problemCount}
+              <Icon icon="alert-triangle" className="size-4" />
+              พัสดุมีปัญหา
+              <span
+                className={`badge text-2xs rounded-full px-1.5 ${
+                  filter.shipment === 'problem' ? 'bg-white/25 text-white' : 'bg-danger text-white'
+                }`}
+              >
+                {problemCount > 99 ? '99+' : problemCount}
+              </span>
             </button>
           )}
 

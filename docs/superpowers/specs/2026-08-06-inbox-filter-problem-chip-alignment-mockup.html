@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mockup — จัดปุ่ม "ตัวกรอง" + ชิป "พัสดุมีปัญหา" ให้ไปทางเดียวกัน</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── token จริงจาก src/assets/css/config/_root.css (skin default) ── */
+  :root{
+    --color-primary:#236dc9;
+    --color-danger:#f7577e;
+    --color-card:#fff;
+    --color-default-100:#f6f7fb;
+    --color-default-200:#eef2f7;
+    --color-default-300:#e7e9eb;
+    --color-default-500:#8b95a5;
+    --color-default-800:#343a40;
+    --color-default-900:#212529;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Anuphan',sans-serif;background:#eef1f6;color:var(--color-default-900);padding:32px 20px 80px;line-height:1.5}
+  h1{font-size:20px;font-weight:700;margin-bottom:4px}
+  .sub{font-size:13px;color:var(--color-default-500);margin-bottom:28px}
+  h2{font-size:15px;font-weight:600;margin:0 0 2px}
+  .note{font-size:12.5px;color:var(--color-default-500);margin-bottom:12px;max-width:760px}
+  section{background:#fff;border:1px solid var(--color-default-300);border-radius:12px;padding:18px;margin-bottom:20px}
+  section.baseline{background:#fbfbfd;border-style:dashed}
+  .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:4px;vertical-align:middle;margin-left:8px}
+  .tag.now{background:var(--color-default-200);color:var(--color-default-500)}
+  .tag.rec{background:rgba(35,109,201,.12);color:var(--color-primary)}
+
+  /* ── frame จำลองความกว้างจริง 3 แบบ ── */
+  .frames{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:14px}
+  .frame{border:1px solid var(--color-default-300);border-radius:10px;overflow:hidden;background:var(--color-card)}
+  .frame-cap{font-size:10.5px;font-weight:600;color:var(--color-default-500);background:var(--color-default-100);
+             border-bottom:1px solid var(--color-default-300);padding:5px 10px}
+  .rail{width:320px}      /* Chat Rail เดสก์ท็อป */
+  .mobile{width:390px}    /* มือถือ iPhone */
+  .desk{width:520px}      /* แถวหัวรายการฝั่งกว้าง */
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px}
+
+  /* ── primitive ตาม _buttons.css / _badge.css ของ Paces ── */
+  .btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+       border-radius:.25rem;border:1px solid transparent;padding:7px 16px;font-size:14px;font-weight:500;
+       cursor:pointer;transition:all .15s;font-family:inherit;background:none}
+  .btn-sm{padding:5px 12px;font-size:12px}
+  .bg-card{background:var(--color-card)}
+  .b-default{border-color:var(--color-default-300);color:var(--color-default-800)}
+  .b-primary{border-color:var(--color-primary);color:var(--color-primary)}
+  .b-danger{border-color:var(--color-danger);color:var(--color-danger)}
+  .fill-danger{background:var(--color-danger);border-color:var(--color-danger);color:#fff}
+  .fill-primary{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+  .soft-danger{background:color-mix(in srgb,var(--color-danger) 15%,transparent);color:var(--color-danger);border-color:transparent}
+  .soft-default{background:var(--color-default-100);color:var(--color-default-800);border-color:transparent}
+
+  .badge{display:inline-flex;align-items:center;justify-content:center;gap:4px;border-radius:.25rem;
+         padding:.15em .5em;font-size:.75em;font-weight:600}
+  .badge.pill{border-radius:9999px;padding:.15em .75em}
+  .count-dot{display:inline-flex;align-items:center;justify-content:center;border-radius:9999px;
+             padding:1px 6px;font-size:10px;font-weight:600;line-height:1.4}
+  .dot-primary{background:var(--color-primary);color:#fff}
+  .dot-danger{background:var(--color-danger);color:#fff}
+  .dot-on-fill{background:rgba(255,255,255,.28);color:#fff}
+  .text-2xs{font-size:10px}
+  .pill-full{border-radius:9999px}
+  svg{flex:none}
+
+  /* แถบเทียบขนาดจริง */
+  .measure{margin-top:14px;font-size:11.5px;color:var(--color-default-500);display:flex;gap:18px;flex-wrap:wrap}
+  .measure b{color:var(--color-default-800);font-weight:600}
+  .states{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px dashed var(--color-default-300)}
+  .states .lbl{font-size:11px;color:var(--color-default-500);width:96px;flex:none}
+  .verdict{margin-top:14px;font-size:12.5px;padding:10px 12px;border-radius:8px;background:var(--color-default-100);color:var(--color-default-800)}
+  .verdict.good{background:rgba(35,109,201,.08)}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--color-default-200);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<h1>ปุ่ม "ตัวกรอง" + ชิป "พัสดุมีปัญหา" — จัดให้ไปทางเดียวกัน</h1>
+<div class="sub">
+  แถวหัวรายการแชท · <code>InboxList.tsx</code> + <code>InboxFilterPanel.tsx</code> · skin default (primary #236dc9 / danger #f7577e)
+</div>
+
+<!-- ══════════ ของปัจจุบัน ══════════ -->
+<section class="baseline">
+  <h2>ตอนนี้<span class="tag now">ปัจจุบัน</span></h2>
+  <div class="note">
+    คนละ primitive กันคนละตัว: ซ้ายเป็น <code>btn btn-sm</code> (มีขอบ · 12px · ไอคอน 16 · เลขเป็น badge วงกลม)
+    ขวาเป็น <code>badge py-2 text-2xs</code> (พื้นทึบอ่อน ไม่มีขอบ · 10px · ไอคอน 12 · เลขลอยติดข้อความ) →
+    ต่างกัน 5 อย่างพร้อมกัน จึงอ่านเป็นของคนละชุด
+  </div>
+  <div class="frames">
+    <div class="frame rail">
+      <div class="frame-cap">Chat Rail · 320px</div>
+      <div class="bar">
+        <button class="btn btn-sm bg-card b-default">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          ตัวกรอง
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <span class="badge soft-danger text-2xs" style="padding-top:8px;padding-bottom:8px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+          พัสดุมีปัญหา 1
+        </span>
+      </div>
+    </div>
+    <div class="frame mobile">
+      <div class="frame-cap">มือถือ · 390px</div>
+      <div class="bar">
+        <button class="btn btn-sm bg-card b-default">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          ตัวกรอง
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <span class="badge soft-danger text-2xs" style="padding-top:8px;padding-bottom:8px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+          พัสดุมีปัญหา 1
+        </span>
+      </div>
+    </div>
+  </div>
+  <div class="measure">
+    <span>สูง <b>30px vs 31px</b> (ไม่ตรง)</span><span>ตัวอักษร <b>12 vs 10</b></span>
+    <span>ไอคอน <b>16 vs 12</b></span><span>ขอบ <b>มี vs ไม่มี</b></span><span>ตัวเลข <b>badge vs ข้อความ</b></span>
+  </div>
+</section>
+
+<!-- ══════════ A ══════════ -->
+<section>
+  <h2>ทาง A — ทั้งคู่เป็น "ปุ่มเส้นขอบ" ชุดเดียวกัน<span class="tag rec">แนะนำ</span></h2>
+  <div class="note">
+    ยกชิปแดงขึ้นมาใช้ <code>btn btn-sm</code> ตัวเดียวกับปุ่มตัวกรอง แล้วให้สีแดงอยู่ที่ <b>เส้นขอบ + ตัวอักษร</b> แทนพื้น
+    และ <b>เลขเป็น badge วงกลม</b> เหมือนตัวนับของปุ่มตัวกรองเป๊ะ ๆ →
+    ทั้งแถวเป็นภาษาเดียว ต่างกันแค่ "สี" ซึ่งคือสิ่งเดียวที่ควรต่าง (แดง = เร่ง)
+    ตอนกดกรองอยู่จึงค่อยทึบเต็ม — จัดจ้านสุดเกิดตอนผู้ใช้เลือกเอง (คงเจตนาเดิมในคอมเมนต์โค้ด)
+  </div>
+  <div class="frames">
+    <div class="frame rail">
+      <div class="frame-cap">Chat Rail · 320px</div>
+      <div class="bar">
+        <button class="btn btn-sm bg-card b-default">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          ตัวกรอง
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="btn btn-sm bg-card b-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+          พัสดุมีปัญหา
+          <span class="count-dot dot-danger">1</span>
+        </button>
+      </div>
+    </div>
+    <div class="frame mobile">
+      <div class="frame-cap">มือถือ · 390px</div>
+      <div class="bar">
+        <button class="btn btn-sm bg-card b-default">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          ตัวกรอง
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="btn btn-sm bg-card b-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+          พัสดุมีปัญหา
+          <span class="count-dot dot-danger">1</span>
+        </button>
+      </div>
+    </div>
+    <div class="frame desk">
+      <div class="frame-cap">แถวกว้าง · 520px (มีตัวกรองติดอยู่ 2 ตัว)</div>
+      <div class="bar">
+        <button class="btn btn-sm bg-card b-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          ตัวกรอง
+          <span class="count-dot dot-primary">2</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="btn btn-sm bg-card b-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+          พัสดุมีปัญหา
+          <span class="count-dot dot-danger">1</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="states">
+    <span class="lbl">กำลังกรองอยู่</span>
+    <button class="btn btn-sm b-primary fill-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+      ตัวกรอง <span class="count-dot dot-on-fill">2</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m18 15-6-6-6 6"/></svg>
+    </button>
+    <button class="btn btn-sm fill-danger">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+      พัสดุมีปัญหา <span class="count-dot dot-on-fill">1</span>
+    </button>
+    <span style="font-size:11.5px;color:var(--color-default-500)">← ทั้งคู่ทึบเต็มด้วยกฎเดียวกัน</span>
+  </div>
+  <div class="measure">
+    <span>สูง <b>30px ทั้งคู่</b></span><span>ตัวอักษร <b>12 ทั้งคู่</b></span>
+    <span>ไอคอน <b>16 ทั้งคู่</b></span><span>ตัวเลข <b>badge วงกลม ทั้งคู่</b></span>
+  </div>
+  <div class="verdict good">
+    <b>ได้:</b> เข้ากับ Impeccable (One Voice — ที่รกตาถอยเป็นพื้นหลัง สีจัดจ้านเกิดตอนถูกเลือก) และ tap target ขึ้นเป็น 30px เท่ากัน
+    <b>เสีย:</b> "พัสดุมีปัญหา" เด่นน้อยลงกว่าเดิมนิดหนึ่ง — แต่แดง + ไอคอนสามเหลี่ยมยังแยกออกจากแถวชัด
+  </div>
+</section>
+
+<!-- ══════════ B ══════════ -->
+<section>
+  <h2>ทาง B — ทั้งคู่เป็น pill พื้นนุ่ม (ไม่มีขอบ)</h2>
+  <div class="note">
+    ไปทางกลับกัน: ดึงปุ่มตัวกรองลงมาเป็น pill พื้นเทาแบบเดียวกับชิปแดง ทั้งแถวกลมมนเป็นชุด "ชิป" ล้วน
+  </div>
+  <div class="frames">
+    <div class="frame rail">
+      <div class="frame-cap">Chat Rail · 320px</div>
+      <div class="bar">
+        <button class="btn btn-sm soft-default pill-full">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          ตัวกรอง
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="btn btn-sm soft-danger pill-full">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+          พัสดุมีปัญหา <span class="count-dot dot-danger">1</span>
+        </button>
+      </div>
+    </div>
+    <div class="frame mobile">
+      <div class="frame-cap">มือถือ · 390px</div>
+      <div class="bar">
+        <button class="btn btn-sm soft-default pill-full">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          ตัวกรอง
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="btn btn-sm soft-danger pill-full">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+          พัสดุมีปัญหา <span class="count-dot dot-danger">1</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="verdict">
+    <b>ได้:</b> นุ่มตา ทั้งแถวเป็นชุดเดียวชัดเจน &nbsp;
+    <b>เสีย:</b> ปุ่มตัวกรองเสีย affordance ของ "ปุ่มที่กดแล้วเปิด popover" — Paces ใช้ <code>btn</code> เส้นขอบเป็นภาษาของปุ่มเปิดเมนู
+    (คอมเมนต์ในโค้ดระบุว่า "ปุ่มเส้นขอบสี = ของเด่นชิ้นเดียวในส่วนหัว" ตาม mockup V1 ที่อนุมัติไว้) → ทางนี้ล้มการตัดสินใจเดิม
+  </div>
+</section>
+
+<!-- ══════════ C ══════════ -->
+<section>
+  <h2>ทาง C — คงสีชมพูทึบไว้ แค่จูนขนาดให้ตรง (แก้น้อยสุด)</h2>
+  <div class="note">
+    ไม่แตะภาษาสี แค่ทำให้ชิปแดงสูงเท่ากัน · ตัวอักษร 12 · ไอคอน 16 · มุมเท่ากัน · เลขเป็น badge วงกลม
+  </div>
+  <div class="frames">
+    <div class="frame rail">
+      <div class="frame-cap">Chat Rail · 320px</div>
+      <div class="bar">
+        <button class="btn btn-sm bg-card b-default">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          ตัวกรอง
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="btn btn-sm soft-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+          พัสดุมีปัญหา <span class="count-dot dot-danger">1</span>
+        </button>
+      </div>
+    </div>
+    <div class="frame mobile">
+      <div class="frame-cap">มือถือ · 390px</div>
+      <div class="bar">
+        <button class="btn btn-sm bg-card b-default">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M15 6h5M4 12h5M11 12h9M4 18h13M19 18h1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          ตัวกรอง
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="btn btn-sm soft-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4m0 4h.01M10.24 3.957 1.995 18a2 2 0 0 0 1.7 3h16.61a2 2 0 0 0 1.7-3L13.76 3.957a2 2 0 0 0-3.52 0"/></svg>
+          พัสดุมีปัญหา <span class="count-dot dot-danger">1</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="verdict">
+    <b>ได้:</b> แก้น้อยสุด ความเด่นของ "พัสดุมีปัญหา" คงเดิมเป๊ะ &nbsp;
+    <b>เสีย:</b> ยังต่างกันที่ "มีขอบ/ไม่มีขอบ" อยู่ดี — ขนาดตรงแล้วแต่ยังไม่ใช่ชุดเดียวกันเต็มตัว
+  </div>
+</section>
+
+</body>
+</html>
