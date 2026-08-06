@@ -33,15 +33,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
-import {
-  PAYMENT_LABELS,
-  PAYMENT_ICONS,
-  SALES_CHANNEL_LABELS,
-  type OrderItemRow,
-  type OrderRow,
-} from './data'
+import { PAYMENT_LABELS, PAYMENT_ICONS, type OrderItemRow, type OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import BuyerAvatar from './BuyerAvatar'
+import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 import HoverPanel from './HoverPanel'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderSourceLogo from './OrderSourceLogo'
@@ -320,31 +315,27 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       },
     }),
 
-    // ─ ลูกค้า / ที่อยู่จัดส่ง ─
-    // ที่อยู่เพิ่งโผล่ในตารางรอบนี้ (เดิมต้องเปิดเข้าไปดูทีละใบ) — ระดับตำบลเท่านั้น
+    // ─ ที่อยู่จัดส่ง ─
+    // ชื่อลูกค้าย้ายขึ้นแถบหัวกลุ่มแล้ว (user 2026-08-06) ที่นี่จึงเหลือเบอร์ + ปลายทาง
+    // ไม่ซ้ำกับหัวกลุ่ม — ข้อมูลเดียวกันโผล่สองที่ในแถวเดียวคือการกินพื้นที่เปล่า
+    // ที่อยู่เพิ่งโผล่ในตารางรอบนี้ (เดิมต้องเปิดเข้าไปดูทีละใบ) ระดับตำบลเท่านั้น —
     // ดูเหตุผลเรื่อง PII ที่ OrderRow.shipTo
     columnHelper.accessor('buyerName', {
-      header: 'ลูกค้า / ที่อยู่จัดส่ง',
-      meta: { cellClassName: 'min-w-48 align-top' },
-      cell: ({ row }) => {
-        const displayName = row.original.buyerName ?? row.original.buyerUsername ?? 'ลูกค้าทั่วไป'
-        return (
-          <>
-            <p className="mb-0 flex items-center gap-1 text-sm font-semibold text-default-900">
-              {row.original.buyerUsername && (
-                <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
-              )}
-              <span className="truncate">{displayName}</span>
-            </p>
-            <p className="mb-0 text-xs tabular-nums text-default-500">
-              {row.original.buyerPhone ?? row.original.buyer}
-            </p>
-            {row.original.shipTo && (
-              <p className="mb-0 mt-1 text-xs leading-relaxed text-default-700">{row.original.shipTo}</p>
-            )}
-          </>
-        )
-      },
+      header: 'ที่อยู่จัดส่ง',
+      meta: { cellClassName: 'min-w-44 align-top' },
+      cell: ({ row }) => (
+        <>
+          <p className="mb-0 inline-flex items-center gap-1.5 text-sm tabular-nums text-default-800">
+            <Icon icon="phone" className="text-sm text-default-500" aria-hidden="true" />
+            {row.original.buyerPhone ?? row.original.buyer}
+          </p>
+          {row.original.shipTo ? (
+            <p className="mb-0 mt-1 text-xs leading-relaxed text-default-700">{row.original.shipTo}</p>
+          ) : (
+            <p className="mb-0 mt-1 text-xs text-default-400">ยังไม่มีที่อยู่</p>
+          )}
+        </>
+      ),
     }),
 
     // ─ การจัดส่ง (ขนส่ง + เลขพัสดุ + ไทม์ไลน์ เรียงลงมาในช่องเดียว) ─
@@ -620,46 +611,64 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       <DataTable<OrderRow>
         table={table}
         emptyMessage="ไม่พบออเดอร์"
-        groupRow={(row) => (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <input
-              type="checkbox"
-              className="form-checkbox form-checkbox-light size-4.5"
-              checked={row.getIsSelected()}
-              onChange={row.getToggleSelectedHandler()}
-              aria-label="เลือกออเดอร์นี้"
-            />
-            <Link
-              href={`/orders/${row.original.publicToken}`}
-              className="text-sm font-semibold tabular-nums text-primary hover:underline"
-            >
-              {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
-            </Link>
-            {row.original.isFromAuction && (
-              <span className="badge bg-warning/15 text-warning-ink inline-flex items-center gap-0.5" title="จากการประมูล">
-                <Icon icon="gavel" className="size-3" />
-                ประมูล
-              </span>
-            )}
-            {/* ที่มา — user ยืนยัน 2026-08-06 ว่าต้องเห็นตลอด ห้ามซ่อนตามความกว้าง
-                ตรงนี้ได้พื้นที่มากกว่าตอนเป็นคอลัมน์ 36px จึงใส่ชื่อช่องทางกำกับได้ด้วย */}
-            <span className="inline-flex items-center gap-2">
+        groupRow={(row) => {
+          const displayName =
+            row.original.buyerName ?? row.original.buyerUsername ?? 'ลูกค้าทั่วไป'
+          return (
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+              <input
+                type="checkbox"
+                className="form-checkbox form-checkbox-light size-4.5"
+                checked={row.getIsSelected()}
+                onChange={row.getToggleSelectedHandler()}
+                aria-label="เลือกออเดอร์นี้"
+              />
+              {/* ลำดับตามที่ user สั่ง 2026-08-06:
+                  [รูปเพจ+badge แพลตฟอร์ม] [เลขออเดอร์] [คัดลอก] [รูปลูกค้า] [ชื่อลูกค้า]
+                  "ที่มา" ต้องมาก่อนเลขออเดอร์ — user ยืนยันว่าต้องเห็นตลอดว่ามาจากเพจไหน */}
               <OrderSourceLogo
                 logoUrl={row.original.sourceLogoUrl ?? null}
                 channel={row.original.salesChannel}
               />
-              {row.original.salesChannel && (
-                <span className="text-xs text-default-700">
-                  {SALES_CHANNEL_LABELS[row.original.salesChannel] ?? row.original.salesChannel}
+              <Link
+                href={`/orders/${row.original.publicToken}`}
+                className="text-sm font-semibold tabular-nums text-primary hover:underline"
+              >
+                {formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+              </Link>
+              {/* คัดลอก "เลขออเดอร์" ไม่ใช่ลิงก์ — ปุ่มคัดลอกลิงก์ของผู้ซื้ออยู่ในชุดจัดการแล้ว */}
+              <CopyLinkButton
+                value={formatOrderNo(row.original.publicToken, row.original.createdAtISO)}
+                label="คัดลอกเลขออเดอร์"
+                iconOnly
+                className="btn-sm border-none bg-transparent text-default-400 hover:bg-default-200 hover:text-default-800"
+              />
+              {row.original.isFromAuction && (
+                <span className="badge bg-warning/15 text-warning-ink inline-flex items-center gap-0.5" title="จากการประมูล">
+                  <Icon icon="gavel" className="size-3" />
+                  ประมูล
                 </span>
               )}
-            </span>
-            <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-default-500">
-              <Icon icon="calendar" className="text-sm" aria-hidden="true" />
-              {formatDateTime(row.original.createdAtISO)}
-            </span>
-          </div>
-        )}
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <BuyerAvatar
+                  src={row.original.buyerAvatar}
+                  name={displayName}
+                  className="size-6 shrink-0"
+                />
+                <span className="flex min-w-0 items-center gap-1 text-sm font-medium text-default-800">
+                  {row.original.buyerUsername && (
+                    <Icon icon="rosette-discount-check-filled" className="shrink-0 text-sm text-primary" />
+                  )}
+                  <span className="truncate">{displayName}</span>
+                </span>
+              </span>
+              <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-default-500">
+                <Icon icon="calendar" className="text-sm" aria-hidden="true" />
+                {formatDateTime(row.original.createdAtISO)}
+              </span>
+            </div>
+          )
+        }}
       />
 
       {/* ─── pagination ──────────────────────────────────────────────────────── */}
