@@ -142,6 +142,7 @@
 | FR-6.11 | **วิธีชำระเงิน (paymentMethod) ต้อง persist ใน Order** — seller เลือก/บันทึกตอนสร้าง order; แสดงทั้ง order detail (seller) และหน้า buyer link. วิธีที่ต้องแนบสลิป (เช่น โอนเงิน/พร้อมเพย์) vs ไม่ต้อง (เช่น COD/เงินสด) ควบคุมโดย `requiresSlip` flag ตาม `paymentMethod` | Must |
 | FR-6.12 | **Payment slip upload โดย buyer** — buyer ที่ผ่าน phone-unlock แนบสลิปการชำระเงินได้ที่ `/o/{token}` (optional; แสดงปุ่มเฉพาะ PENDING + `paymentMethod` ที่ `requiresSlip=true`); seller ตรวจสลิปได้ใน order detail ฝั่ง seller. 1 order = 1 slip (ถ้าแนบซ้ำ = replace) | Must |
 | FR-6.13 | **Buyer cancel เฉพาะ PENDING** — buyer ที่ผ่าน phone-unlock สามารถยกเลิก order ได้เฉพาะสถานะ `PENDING`; เมื่อ status = `SHIPPED` ปุ่มยกเลิกหาย เหลือแต่ปุ่มยืนยันรับของ; `CONFIRMED`/`CANCELLED` = terminal. guard ทั้ง UI + API. `cancelInitiator='buyer'` ไม่กระทบ Zero Complaint | Must |
+| FR-6.14 | **เลือกวันที่คำสั่งซื้อย้อนหลัง (feature 00033)** — seller ระบุ `Order.createdAt` เองได้ตอนสร้าง/แก้ไข order (ย้อนหลัง 90 วัน / ล่วงหน้า 7 วัน) ค่านี้กำหนดเลขออเดอร์ (`orderNo`), ลำดับรายการ, และยอดขายทุกหน้าที่นับตามวันที่. เวลาจริงที่กดสร้าง/แก้ไขไม่ถูกบิดเบือนตาม — บันทึกแยกใน `OrderEvent.occurredAt` เสมอ (ดู §6.2, §8.1b) รายละเอียดเต็ม: `docs/20 - Features/00033 - Backdated Order Date/` | Must |
 
 ### FR-7: Review
 
@@ -404,6 +405,7 @@ Order (1) ──────── (N) OrderItem
 Order (1) ──────── (0..1) ShipmentTracking
 Order (1) ──────── (0..1) Review
 Order (1) ──────── (N) SmsCode
+Order (1) ──────── (N) OrderEvent [Activity Log — insert-only]
 
 SellerWallet (1) ── (N) WalletTransaction
 ```
@@ -521,6 +523,7 @@ SellerWallet (1) ── (N) WalletTransaction
 |-------|------|---------|
 | `publicToken` | String `@unique` UUID | ใช้ใน URL `/o/{token}` |
 | `shopId` | String FK → Shop | เจ้าของออเดอร์ |
+| `createdAt` | DateTime `@default(now())` | 🛑 **feature 00033 — คือ "วันที่/เวลาที่ลูกค้าสั่ง" ไม่ใช่แค่เวลาที่แถวถูกสร้าง** ผู้ขายระบุเองได้ผ่าน `createdAt` ใน `CreateOrderSchema` (ทั้งตอนสร้างและแก้ไข) ย้อนหลังได้สูงสุด 90 วัน / ล่วงหน้าได้ 7 วัน (SSOT ของช่วง: `src/lib/order-date-window.ts`) ไม่ส่งมา = ค่าเริ่มต้นเดิมทุกประการ. ค่านี้พา `orderNo` (`formatOrderNo` คิดปี/เดือนจากค่านี้), keyset pagination ของรายการออเดอร์ และยอดขายทุกหน้าไปด้วยทั้งชุด. เวลาจริงที่กดสร้าง/แก้ไข **ไม่เก็บที่นี่** — อยู่ใน `OrderEvent.occurredAt` (ดู §6.2 OrderEvent) |
 | `buyerUserId` | String? FK → User | null = buyer ยังไม่สมัคร |
 | `buyerContact` | String? | phone/email ของ buyer — PII; RC-6 lock ตอน SMS send |
 | `type` | String default `"PHYSICAL"` | inherit จาก product type |
@@ -551,6 +554,22 @@ SellerWallet (1) ── (N) WalletTransaction
 | `description` | String? | snapshot คำอธิบาย |
 | `qty` | Int | ≥1 |
 | `price` | Decimal(12,2) | snapshot ราคา ≥0.01 |
+
+#### OrderEvent (`prisma/schema.prisma:2721`)
+
+> Activity Log ระดับออเดอร์ ("ใครทำอะไรกับออเดอร์นี้เมื่อไหร่") — คนละคำถามกับ `Order.status`. **insert-only** ไม่มี UPDATE/DELETE ผ่าน application code (หลักฐานข้อพิพาท). รายละเอียดเต็ม: `docs/20 - Features/00033 - Backdated Order Date/`
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `orderId` | String FK → Order | cascade delete |
+| `type` | String | **13 ค่า** — ดู §8.1b (SSOT: `src/lib/order-event.ts::ORDER_EVENT_TYPES`) |
+| `actorUserId` | String? FK → User | `SetNull` เมื่อลบ user — ห้าม fallback เป็นเจ้าของร้าน |
+| `meta` | Json default `{}` | โครงต่างกันตาม `type` — **ห้ามมี PII ผู้ซื้อดิบ** (เบอร์/อีเมล/ที่อยู่) เด็ดขาด |
+| `occurredAt` | DateTime (ไม่มี default) | 🛑 **เวลาจริงที่เหตุการณ์เกิด เสมอ — ห้ามย้อนตามวันที่ที่ผู้ใช้กรอก** (เช่น `Order.createdAt` ที่ backdate ได้ตาม feature 00033). วันที่สั่งซื้อที่ผู้ขายเลือกอยู่ใน `meta.orderedAt`/`orderedAtFrom`/`orderedAtTo` เท่านั้น — ประวัติคือหลักฐาน |
+| `seq` | Int `@unique @default(autoincrement())` | tie-break ลำดับเมื่อ `occurredAt` ชนกันเป๊ะ (ห้ามใช้ `id` — uuid v4 สุ่ม) |
+| `createdAt` | DateTime `@default(now())` | เวลาที่แถวถูกบันทึก — แยกจาก `occurredAt` |
+
+**🛑 CHECK constraint `OrderEvent_type_check` เป็น unmanaged SQL** (Prisma DSL ประกาศ CHECK ไม่ได้) — ห้าม `prisma db pull`/`migrate dev` เด็ดขาด (introspect ไม่เห็น CHECK นี้ แล้วจะสร้าง migration ที่ DROP ทิ้ง). **ใครเพิ่ม event type ใหม่ ต้องเขียน migration แบบอ่านรายชื่อเดิมจาก `pg_constraint` แล้วต่อท้าย** ห้าม hardcode รายชื่อเต็มทับของเดิม — มี branch คู่ขนานเคยรันพร้อมกันแล้ว DROP+ADD ของอีกฝ่ายลบค่าทิ้งเงียบ ๆ มาแล้วจริง (ดู `prisma/migrations/20260806150000_order_event_date_changed/`)
 
 #### ShipmentTracking (`prisma/schema.prisma:196`)
 
@@ -692,7 +711,8 @@ SellerWallet (1) ── (N) WalletTransaction
 | Method | Path | Auth | Purpose | Service |
 |--------|------|------|---------|---------|
 | GET | `/api/orders` | Buyer/Seller | ดู order list — `?role=buyer` สำหรับ buyer, default = seller | `order.service` |
-| POST | `/api/orders` | Seller | สร้าง order → คืน `publicToken` | `order.service` |
+| POST | `/api/orders` | Seller | สร้าง order → คืน `publicToken` — body: `CreateOrderSchema` (มี `createdAt` optional, feature 00033) | `order.service` |
+| PATCH | `/api/orders/[token]` | Seller-owner | แก้ไข order เต็มรูป — body เดียวกับ POST (`CreateOrderSchema`) | `order.service` |
 | GET | `/api/orders/customers` | Seller | autocomplete ลูกค้าเดิม `?q=<term>` (≥2 chars) | — |
 | POST | `/api/orders/[token]/unlock` | Guest | phone-unlock — ตรวจเบอร์ตรงกับ order | `order.service` |
 | POST | `/api/orders/[token]/confirm` | Guest/Buyer | ยืนยัน order (Path A: SMS cookie; Path B: phone parity) | `order.service` |
@@ -784,6 +804,26 @@ SellerWallet (1) ── (N) WalletTransaction
 | `SHIPPED` | seller ใส่ tracking แล้ว (SHIPPED เท่านั้น) | ไม่ |
 | `CONFIRMED` | buyer ยืนยัน — นับ trust/badge | ✅ |
 | `CANCELLED` | ยกเลิกก่อน CONFIRMED | ✅ |
+
+### 8.1b OrderEvent Type (`src/lib/order-event.ts::ORDER_EVENT_TYPES`)
+
+> **13 ค่า** — CHECK constraint `OrderEvent_type_check` (unmanaged SQL) ต้องตรงกับรายการนี้เป๊ะ ดู §6.2 OrderEvent
+
+| ค่า | ความหมาย |
+|-----|---------|
+| `ORDER_CREATED` | สร้างคำสั่งซื้อ |
+| `ORDER_EDITED` | แก้ไขคำสั่งซื้อ |
+| `ORDER_CANCELLED` | ยกเลิกคำสั่งซื้อ |
+| `TRACKING_ADDED` | แจ้งเลขพัสดุ (manual) |
+| `SHIPMENT_CREATED` | เปิดพัสดุกับขนส่ง (iShip) |
+| `SHIPMENT_CANCELLED` | ยกเลิกพัสดุ |
+| `SHIPMENT_LINKED` | ผูกพัสดุที่มีอยู่แล้ว |
+| `SMS_LINK_SENT` | ส่งลิงก์ทาง SMS |
+| `BUYER_CONFIRMED` | ผู้ซื้อยืนยันรับของ |
+| `COD_SETTLED` | ขนส่งโอนเงินเก็บปลายทางแล้ว |
+| `SYSTEM_CONFIRMED` | ระบบยืนยันคำสั่งซื้ออัตโนมัติ |
+| `PAYMENT_METHOD_SYNCED` | ปรับวิธีชำระเงินตามพัสดุ |
+| `ORDER_DATE_CHANGED` | **feature 00033** — เปลี่ยนวันที่คำสั่งซื้อ (เลื่อนยอดข้ามงวด) |
 
 ### 8.2 Product Type / Capability
 
@@ -1019,6 +1059,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `vatRate` | number ≥0 ≤1 — decimal fraction (0.07 = 7%) (optional) |
 | `vatAmount` | number ≥0 (optional) |
 | `shippingAddress` | object `{line1?, subdistrict?, district?, province?, postcode?, note?}` (optional) — **required ที่ service layer เมื่อ fulfillmentMode=SHIPPED** (line1+province+postcode ต้องมี) → 400 `ShippingAddressRequiredError` |
+| `createdAt` | ISO-8601 **พร้อม offset** (regex บังคับ `Z` หรือ `±HH:MM` ท้ายค่า — เวลาไม่มี offset ตีความเพี้ยนข้ามเขตเวลา) (optional). ต้องอยู่ในช่วง 90 วันย้อนหลัง–7 วันล่วงหน้าจากเวลาปัจจุบัน มิฉะนั้น → 400 `OrderDateOutOfWindowError` (`ORDER_DATE_OUT_OF_WINDOW_MESSAGE`). ตรวจซ้ำที่ service (`createOrder`/`updateOrder`) เป็นด่านที่สอง เผื่อ caller ฝั่ง server ที่เรียกตรง ไม่ผ่าน schema — **feature 00033** |
 
 ### 10.5 Review
 
@@ -1080,5 +1121,5 @@ SellerWallet (1) ── (N) WalletTransaction
 
 ---
 
-_เอกสาร SRS นี้ sync กับโค้ดจริง ณ 2026-06-17. เมื่อ schema/API/validation เปลี่ยน ให้อัปเดต section ที่เกี่ยวข้องทันที._
+_เอกสาร SRS นี้ sync กับโค้ดจริง ณ 2026-08-06 (feature 00033 — Backdated Order Date). เมื่อ schema/API/validation เปลี่ยน ให้อัปเดต section ที่เกี่ยวข้องทันที._
 _ลิงก์กลับ: `docs/PRD.md` (product-level)_
