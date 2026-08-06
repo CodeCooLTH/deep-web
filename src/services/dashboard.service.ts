@@ -55,14 +55,19 @@ export interface SalesSeries {
   /** index ตั้งแต่นี้ไป = อนาคต (เกินวันนี้/เดือนนี้) → UI ทำแท่งจาง; = labels.length ถ้าช่วงเป็นอดีตทั้งหมด */
   futureFromIndex: number
   /**
-   * ยอดขายราย **วัน** ของ 7 วันล่าสุดนับถึงวันนี้ (index 6 = วันนี้) — ข้ามเดือนได้
-   * มีเฉพาะเมื่อกำลังดู "เดือนปัจจุบันแบบรายวัน" เท่านั้น (ช่วงอื่น "7 วันล่าสุด" ไม่มีความหมาย)
+   * ยอดขายราย **วัน** ของ 14 วันล่าสุดนับถึงวันนี้ (index 13 = วันนี้) — ข้ามเดือนได้
+   * มีเฉพาะเมื่อกำลังดู "เดือนปัจจุบันแบบรายวัน" เท่านั้น (ช่วงอื่น "14 วันล่าสุด" ไม่มีความหมาย)
    *
    * ไม่ต้อง query เพิ่ม: คิวรีเดิมครอบ prevGte..lt (2 เดือน) อยู่แล้ว ต้นเดือนจึงดึงวันของเดือนก่อนได้
+   * — 13 วันย้อนหลังจากวันที่ 1 ยังตกอยู่ในเดือนก่อนเสมอ (เดือนสั้นสุด 28 วัน) ไม่มีทางหลุดกรอบคิวรี
+   *
+   * แยก 2 ก้อนตามนิยาม countsAsRevenue เดียวกับกราฟเดือน เพื่อให้แท่งซ้อนได้ —
+   * ยอดรวมของวันหนึ่ง = confirmed[i] + unconfirmed[i] (เดิมเก็บเป็นก้อนเดียวจึงซ้อนไม่ได้)
    */
-  last7Days?: number[]
-  /** label ของ last7Days — "29 ก.ค." เมื่อขึ้นเดือนใหม่/ตัวแรก, "30" สำหรับวันถัดไปในเดือนเดียวกัน */
-  last7Labels?: string[]
+  last14Confirmed?: number[]
+  last14Unconfirmed?: number[]
+  /** label ของ 14 วันล่าสุด — "24 ก.ค." เมื่อขึ้นเดือนใหม่/ตัวแรก, "25" สำหรับวันถัดไปในเดือนเดียวกัน */
+  last14Labels?: string[]
   /* ── ค่าใช้จ่าย (feature 00016) — มีเฉพาะเมื่อ caller ส่ง includeFinance=true คือผ่าน gate สิทธิ์แล้ว
         undefined ทั้งชุด = ไม่มีสิทธิ์ดู UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ────────────────────── */
   /** ค่าใช้จ่ายที่บันทึกต่อ bucket (บาท) */
@@ -184,27 +189,34 @@ export async function getSalesSeries(
   let prevTotalToDate = 0
 
   /**
-   * 7 วันล่าสุด — เตรียมขอบเขตเป็น "UTC instant ของเที่ยงคืนไทย" เพื่อให้หาร 86400000 ได้ตรง ๆ
+   * 14 วันล่าสุด — เตรียมขอบเขตเป็น "UTC instant ของเที่ยงคืนไทย" เพื่อให้หาร 86400000 ได้ตรง ๆ
    * (tz ไทยเป็น offset คงที่ ไม่มี DST ขอบวันจึงห่างกัน 24 ชม.เป๊ะเสมอ)
-   * มีเฉพาะตอนดูเดือนปัจจุบันแบบรายวัน — ช่วงอื่น "7 วันล่าสุด" เทียบกับอะไรไม่ได้
+   * มีเฉพาะตอนดูเดือนปัจจุบันแบบรายวัน — ช่วงอื่น "14 วันล่าสุด" เทียบกับอะไรไม่ได้
    */
   const isCurrentDaily =
     mode === 'daily' && period.year === nowYear && (period.month ?? 1) - 1 === nowMonth0
   const DAY_MS = 24 * 60 * 60 * 1000
+  const RECENT_DAYS = 14
   const todayStartMs = isCurrentDaily
     ? Date.UTC(nowYear, nowMonth0, thaiNow.getUTCDate()) - TZ_OFFSET_MS
     : 0
-  const sevenStartMs = todayStartMs - 6 * DAY_MS
-  const last7Days = isCurrentDaily ? new Array<number>(7).fill(0) : undefined
+  const recentStartMs = todayStartMs - (RECENT_DAYS - 1) * DAY_MS
+  const last14Confirmed = isCurrentDaily ? new Array<number>(RECENT_DAYS).fill(0) : undefined
+  const last14Unconfirmed = isCurrentDaily ? new Array<number>(RECENT_DAYS).fill(0) : undefined
 
   for (const r of rows) {
     const amt = Number(r.totalAmount) // Prisma Decimal → number
     const created = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt)
 
-    // นับแยกจากบล็อกช่วงปัจจุบัน/ก่อนหน้าด้านล่าง เพราะหน้าต่าง 7 วันคาบเกี่ยวสองเดือนได้
-    if (last7Days) {
-      const off = Math.floor((created.getTime() - sevenStartMs) / DAY_MS)
-      if (off >= 0 && off < 7) last7Days[off] += amt
+    // นับแยกจากบล็อกช่วงปัจจุบัน/ก่อนหน้าด้านล่าง เพราะหน้าต่าง 14 วันคาบเกี่ยวสองเดือนได้
+    if (last14Confirmed && last14Unconfirmed) {
+      const off = Math.floor((created.getTime() - recentStartMs) / DAY_MS)
+      // ใช้ countsAsRevenue ตัวเดียวกับกราฟเดือน — ถ้าแยกนิยามกัน สองกราฟบนการ์ดใบเดียวกัน
+      // จะบอกว่าออเดอร์เดียวกันอยู่คนละก้อน
+      if (off >= 0 && off < RECENT_DAYS) {
+        if (countsAsRevenue(r)) last14Confirmed[off] += amt
+        else last14Unconfirmed[off] += amt
+      }
     }
 
     if (created >= gte && created < lt) {
@@ -237,10 +249,10 @@ export async function getSalesSeries(
     }
   }
 
-  /** label ของ 7 วันล่าสุด — ใส่ชื่อเดือนเฉพาะตัวแรกกับวันที่ข้ามเดือน (ที่เหลือรกโดยไม่ได้ข้อมูลเพิ่ม) */
-  const last7Labels = last7Days
-    ? Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(sevenStartMs + i * DAY_MS + TZ_OFFSET_MS)
+  /** label ของ 14 วันล่าสุด — ใส่ชื่อเดือนเฉพาะตัวแรกกับวันที่ข้ามเดือน (ที่เหลือรกโดยไม่ได้ข้อมูลเพิ่ม) */
+  const last14Labels = last14Confirmed
+    ? Array.from({ length: RECENT_DAYS }, (_, i) => {
+        const d = new Date(recentStartMs + i * DAY_MS + TZ_OFFSET_MS)
         const day = d.getUTCDate()
         return i === 0 || day === 1 ? `${day} ${THAI_MONTHS_ABBR[d.getUTCMonth()]}` : String(day)
       })
@@ -249,7 +261,9 @@ export async function getSalesSeries(
   const base = {
     labels, values, confirmedValues, unconfirmedValues, orderCounts,
     total, prevTotal, prevTotalToDate, futureFromIndex,
-    ...(last7Days ? { last7Days, last7Labels } : {}),
+    ...(last14Confirmed && last14Unconfirmed
+      ? { last14Confirmed, last14Unconfirmed, last14Labels }
+      : {}),
   }
   if (!includeFinance) return base
 

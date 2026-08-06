@@ -111,10 +111,12 @@ export type SalesSeries = {
   prevTotalToDate: number
   /** index ตั้งแต่นี้ไป = อนาคต (เกินวันนี้/เดือนนี้) → UI ทำแท่งจาง */
   futureFromIndex: number
-  /** ยอดขายรายวัน 7 วันล่าสุด (index 6 = วันนี้) — มีเฉพาะตอนดูเดือนปัจจุบันแบบรายวัน */
-  last7Days?: number[]
-  /** label ของ last7Days */
-  last7Labels?: string[]
+  /** ยอดขายรายวัน 14 วันล่าสุด แยกตามสถานะเพื่อทำแท่งซ้อน (index 13 = วันนี้)
+   *  — มีเฉพาะตอนดูเดือนปัจจุบันแบบรายวัน; ยอดรวมของวัน = confirmed[i] + unconfirmed[i] */
+  last14Confirmed?: number[]
+  last14Unconfirmed?: number[]
+  /** label ของ 14 วันล่าสุด */
+  last14Labels?: string[]
   /* ค่าใช้จ่าย (feature 00016) — undefined = ร้านนี้ไม่ผ่าน gate สิทธิ์ค่าใช้จ่าย
      UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "ไม่มีค่าใช้จ่าย" */
   expenseValues?: number[]
