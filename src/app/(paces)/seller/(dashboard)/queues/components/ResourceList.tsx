@@ -42,7 +42,8 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
   // Verified-Means-Green: เขียว = "พร้อมรับนัดจริง"
   // ปิดใช้งานใช้สีกลาง ไม่ใช่ danger — เป็นการตัดสินใจปกติของเจ้าของ ไม่ใช่ error
   return isActive ? (
-    <span className="badge bg-success/15 text-success">ใช้งานอยู่</span>
+    // -ink = เฉดเขียวเดิม เข้มขึ้นให้ผ่านคอนทราสต์บนพื้น /15 (หนี้ 00024 ข้อ 4)
+    <span className="badge bg-success/15 text-success-ink">ใช้งานอยู่</span>
   ) : (
     <span className="badge bg-default-200 text-default-600">ปิดใช้งาน</span>
   )

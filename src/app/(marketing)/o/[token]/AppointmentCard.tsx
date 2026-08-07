@@ -222,9 +222,11 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
             </Typography>
           ) : showConfirm || showReschedule ? (
             <div className="flex flex-col gap-2">
-              {/* ยืนยันแล้ว → ไม่มีปุ่มยืนยันอีก แต่บอกให้เห็นว่ายืนยันไปเมื่อไร */}
+              {/* ยืนยันแล้ว → ไม่มีปุ่มยืนยันอีก แต่บอกให้เห็นว่ายืนยันไปเมื่อไร
+                  success.dark ไม่ใช่ .main — เขียวสด #28C76F บนพื้นการ์ดขาวได้ราว 2.4:1
+                  เฉดเดียวกัน แค่เข้มขึ้นให้อ่านออก (หนี้ 00024 ข้อ 4) */}
               {state.status === 'CONFIRMED_BY_BUYER' && (
-                <Typography variant="body2" color="success.main">
+                <Typography variant="body2" color="success.dark">
                   คุณยืนยันนัดนี้แล้ว
                   {state.buyerConfirmedAt
                     ? ` เมื่อ ${formatDateTimeTH(state.buyerConfirmedAt)}`

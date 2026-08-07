@@ -370,11 +370,11 @@ export default function AppointmentBlock({
                 ) : busyFailed ? (
                   <span className="text-default-400">ตรวจสอบคิวไม่สำเร็จ กรอกต่อได้ตามปกติ</span>
                 ) : bookedNow !== null && bookedNow >= selected.capacity ? (
-                  <span className="text-warning">
+                  <span className="text-warning-ink">
                     เต็มแล้ว {bookedNow} จาก {selected.capacity} คิว {byDay ? 'ในวันนี้' : 'ในช่วงเวลานี้'} — เลือก{byDay ? 'วัน' : 'เวลา'}อื่นหรือบันทึกไว้ก่อนก็ได้ ระบบจะแจ้งถ้าจองไม่ได้จริง
                   </span>
                 ) : bookedNow !== null ? (
-                  <span className="text-info">
+                  <span className="text-info-ink">
                     จองแล้ว {bookedNow} จาก {selected.capacity} คิว {byDay ? 'ในวันนี้' : 'ในช่วงเวลานี้'}
                   </span>
                 ) : null}
