@@ -112,7 +112,14 @@ export default function ShipmentHoverCard({
   }
 
   return (
-    <HoverPanel width={340} onOpen={load} trigger={<div>{children}</div>}>
+    <HoverPanel
+      width={340}
+      onOpen={load}
+      /* w-fit: cell คอลัมน์ที่อยู่กว้างกว่าบล็อกนี้มาก ถ้าปล่อยเป็น block เต็ม cell
+         ที่ว่างขวามือก็เปิด panel ด้วย = "hover ห่างมาก ๆ ก็ขึ้น" (user เจอ 2026-08-07) */
+      className="w-fit"
+      trigger={<div>{children}</div>}
+    >
       <div className="p-3.5">
         {/* หัว: โลโก้ + ชื่อขนส่ง + เลขพัสดุ + คัดลอก */}
         <div className="flex items-start gap-2.5">
