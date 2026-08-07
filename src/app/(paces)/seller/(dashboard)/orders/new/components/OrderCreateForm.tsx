@@ -279,6 +279,21 @@ export default function OrderCreateForm({
 }: Props) {
   // ร้านนี้ส่งของไหม — ตัวเดียวกับที่ createOrder ใช้ตัดสิน (SSOT: lib/shipping-address-status)
   const shipsGoods = shopShipsGoods(shopVertical)
+
+  /**
+   * ร้านคิวงานไม่เอาวันที่จากข้อความในแชท — ใช้เวลาปัจจุบันเสมอ (user สั่ง 2026-08-07)
+   *
+   * feature 00033 เติมวันจากเวลาข้อความเพราะโจทย์ของ "ร้านขายออนไลน์" คือลูกค้าสรุปออเดอร์ไว้
+   * เมื่อคืน แอดมินคีย์เช้าวันรุ่งขึ้น ยอดต้องตกคืนที่สั่ง. ร้านคิวงานตรงข้าม — ลูกค้าทักมาถามราคา
+   * เมื่อสัปดาห์ก่อนแล้วขับรถมาวันนี้ บิลต้องเป็นวันนี้ ไม่ใช่วันที่ทัก. การเติมค่าจากข้อความ
+   * ยังทำให้ OrderDateRow เปิดโหมดแก้ไขค้างไว้ (useState(!!fromMessage)) ร้านจึงเห็นชิป
+   * "เมื่อวาน/2 วันก่อน" แทนที่จะเห็นค่านิ่ง ๆ พร้อมปุ่ม "เปลี่ยน" ตามที่ user ต้องการ
+   *
+   * ตัดที่ทางเข้าจุดเดียว ไม่ไปแก้ OrderDateRow — component นั้นถูกใช้โดยทุก vertical
+   */
+  const usesMessageDate = shopVertical !== 'SERVICE_QUEUE'
+  const effectivePrefillCreatedAt = usesMessageDate ? prefillCreatedAt : undefined
+  const effectivePrefillTooOld = usesMessageDate ? prefillCreatedAtTooOld : false
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -317,7 +332,7 @@ export default function OrderCreateForm({
         note: '',
       },
       // feature 00033 — เวลาข้อความในแชท (ถ้ามี) เป็นวันที่สั่งซื้อเริ่มต้น
-      orderedAt: prefillCreatedAt ? toDatetimeLocalValue(new Date(prefillCreatedAt)) : undefined,
+      orderedAt: effectivePrefillCreatedAt ? toDatetimeLocalValue(new Date(effectivePrefillCreatedAt)) : undefined,
     },
   })
 
@@ -894,8 +909,8 @@ export default function OrderCreateForm({
           total={barTotal}
           appointmentBlock={renderAppointmentBlock('m', 'card')}
           compact={compact}
-          orderDateFromMessage={!!prefillCreatedAt}
-          orderDateMessageTooOld={prefillCreatedAtTooOld}
+          orderDateFromMessage={!!effectivePrefillCreatedAt}
+          orderDateMessageTooOld={effectivePrefillTooOld}
           orderDateLabel={vocab.dateLabel}
         />
       </div>
@@ -925,8 +940,8 @@ export default function OrderCreateForm({
             setValue={setValue}
             appointmentBlock={renderAppointmentBlock('d', 'embedded')}
             appointmentPrefilledDate={appointmentPrefilledDate}
-            orderDateFromMessage={!!prefillCreatedAt}
-            orderDateMessageTooOld={prefillCreatedAtTooOld}
+            orderDateFromMessage={!!effectivePrefillCreatedAt}
+            orderDateMessageTooOld={effectivePrefillTooOld}
             orderDateLabel={vocab.dateLabel}
           />
         </div>
