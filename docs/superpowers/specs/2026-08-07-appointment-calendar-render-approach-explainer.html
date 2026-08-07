@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ทำไมยังใช้ FullCalendar ไม่สลับไป Flatpickr — ปฏิทินเลือกวันนัด 2026-08-07</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* token คัดจาก src/assets/css/config/_root.css ตรง ๆ (สกิน Paces) ห้ามเดาสีเอง */
+:root{
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;
+  background:#e9ecf3;color:var(--color-body-color);font-size:14px;line-height:1.6;
+  padding:32px 20px 80px;
+}
+.wrap{max-width:1120px;margin:0 auto}
+h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.sub{margin-top:6px;max-width:80ch}
+.meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+
+.panel{background:#fff;border-radius:10px;padding:20px 22px;margin-top:24px}
+.panel > h2{font-size:16px;font-weight:600;color:var(--color-default-900);margin-bottom:4px}
+.panel > .lead{font-size:13px;color:var(--color-default-500);margin-bottom:16px;max-width:82ch}
+
+/* ── verdict ── */
+.verdict ul{margin:10px 0 0 18px}
+.verdict li{margin-bottom:7px}
+
+/* ── ตัวสาธิต ── */
+.controls{
+  display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  padding:12px 14px;background:var(--color-default-100);border-radius:8px;margin-bottom:18px
+}
+.controls .label{font-size:12px;font-weight:600;color:var(--color-default-700);margin-right:4px}
+button{font-family:inherit;cursor:pointer}
+.btn{
+  border:0;border-radius:6px;background:var(--color-primary);color:#fff;
+  font-size:13px;font-weight:500;padding:8px 14px;
+}
+.btn:hover{background:var(--color-primary-hover)}
+.btn.ghost{
+  background:transparent;border:1px solid var(--color-default-300);color:var(--color-default-800)
+}
+.btn.ghost:hover{background:var(--color-default-100)}
+.btn.warn{background:var(--color-warning);color:var(--color-warning-ink)}
+
+.rack{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:820px){.rack{grid-template-columns:1fr}}
+
+.side{border:1px solid var(--color-default-300);border-radius:10px;overflow:hidden}
+.side > header{padding:12px 14px;border-bottom:1px solid var(--color-default-300)}
+.side > header h3{font-size:14px;font-weight:600;color:var(--color-default-900)}
+.side > header p{font-size:12px;color:var(--color-default-500);margin-top:2px}
+.side.now > header{background:rgba(2,188,156,.10)}
+.side.alt > header{background:rgba(249,191,89,.14)}
+.side .body{padding:12px}
+
+.dow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 2px 6px}
+.dow span{text-align:center;font-size:11px;font-weight:600;color:var(--color-default-400)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cell{
+  position:relative;height:44px;border-radius:8px;border:0;background:transparent;
+  font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;color:var(--color-default-800)
+}
+.cell .n{font-size:13px;font-weight:500;line-height:1}
+.cell .dot{width:5px;height:5px;border-radius:9999px;background:transparent}
+.cell.some .dot{background:var(--color-warning)}
+.cell.full .n{visibility:hidden}
+.cell.full .dot{display:none}
+.cell.full::before,.cell.full::after{
+  content:"";position:absolute;left:50%;top:50%;
+  width:16px;height:2.5px;border-radius:2px;background:var(--color-danger)
+}
+.cell.full::before{transform:translate(-50%,-50%) rotate(45deg)}
+.cell.full::after{transform:translate(-50%,-50%) rotate(-45deg)}
+.cell.out{color:var(--color-default-400);opacity:.55}
+
+.status{
+  margin-top:12px;padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.5;
+  background:var(--color-default-100);color:var(--color-default-700);min-height:58px
+}
+.status b{color:var(--color-default-900)}
+.status.bad{background:rgba(247,87,126,.12);color:var(--color-danger-ink)}
+.status.good{background:rgba(2,188,156,.12);color:var(--color-success-ink)}
+
+.log{
+  margin-top:10px;font-size:11px;color:var(--color-default-500);
+  max-height:96px;overflow:auto;border-top:1px dashed var(--color-default-300);padding-top:8px
+}
+.log div{padding:1px 0}
+.log .hit{color:var(--color-default-900);font-weight:600}
+
+/* ── ตาราง trade-off ── */
+table{border-collapse:collapse;width:100%;margin-top:12px;font-size:13px}
+th,td{border:1px solid var(--color-default-300);padding:9px 11px;text-align:start;vertical-align:top}
+th{background:var(--color-default-100);font-weight:600;color:var(--color-default-900);font-size:12px}
+td.yes{color:var(--color-success-ink)}
+td.no{color:var(--color-danger-ink)}
+.foot{margin-top:26px;font-size:12px;color:var(--color-default-500)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>“ต่างกันยังไง” — FullCalendar (ที่ใช้อยู่) vs Flatpickr (ที่ ux เสนอ)</h1>
+<p class="sub">
+  คำตอบสั้นที่สุด: <strong>หน้าตาบนจอเหมือนกันทั้งคู่</strong> ทำให้ตรง mockup ได้ทั้งสองทาง
+  ที่ต่างกันคือ <strong>“ใครเป็นคนวาดจุดเหลือง/กากบาทลงในช่องวัน”</strong> —
+  ซึ่งจะไปโผล่เป็นบั๊กก็ต่อเมื่อ <strong>ข้อมูลนัดมาถึงหลังจากปฏิทินถูกวาดไปแล้ว</strong>
+  (ซึ่งคือทุกครั้ง เพราะปฏิทินขึ้นก่อน แล้วค่อย fetch)
+</p>
+<p class="meta">
+  ประกอบการตัดสินใจของคอมมิต <code>e1dd6493</code> ·
+  ของจริง: <code>src/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet.tsx</code>
+</p>
+
+<!-- ══════════════ ตัวสาธิต ══════════════ -->
+<div class="panel">
+  <h2>กดลองเอง — ทั้งสองฝั่งเริ่มจากปฏิทินเปล่าเหมือนกัน</h2>
+  <p class="lead">
+    ลำดับเหตุการณ์จริงในหน้าเลือกวันนัด: (1) ชีตเปิด → ปฏิทินวาดทันทีทั้งที่ยังไม่มีข้อมูล
+    (2) <code>GET /api/shops/current/appointments</code> ตอบกลับมาอีก ~300ms
+    (3) ผู้ขายเปลี่ยนคิวงานในฟอร์ม → ข้อมูลชุดใหม่มาอีกรอบ
+    <br>กดปุ่มไล่ตามลำดับแล้วดูว่าฝั่งไหน “ตามข้อมูลทัน”
+  </p>
+
+  <div class="controls">
+    <span class="label">จำลองเหตุการณ์:</span>
+    <button class="btn" id="btn-load">1 · ข้อมูลนัดมาถึง (3 วันมีคิว, 1 วันเต็ม)</button>
+    <button class="btn warn" id="btn-switch">2 · ผู้ขายเปลี่ยนคิวงาน (ข้อมูลชุดใหม่)</button>
+    <button class="btn ghost" id="btn-reset">รีเซ็ต</button>
+  </div>
+
+  <div class="rack">
+
+    <!-- ฝั่งที่ใช้อยู่ -->
+    <section class="side now">
+      <header>
+        <h3>แบบที่ใช้อยู่ตอนนี้ — FullCalendar + React วาดช่องวันเอง</h3>
+        <p><code>dayCellContent</code> คืน JSX · React วาดใหม่ทุกครั้งที่ state เปลี่ยน</p>
+      </header>
+      <div class="body">
+        <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+        <div class="grid" id="grid-react"></div>
+        <div class="status good" id="status-react"></div>
+        <div class="log" id="log-react"></div>
+      </div>
+    </section>
+
+    <!-- ฝั่งที่ ux เสนอ -->
+    <section class="side alt">
+      <header>
+        <h3>แบบ Flatpickr — lib วาดช่องวัน แล้วเราไปแปะทีหลัง</h3>
+        <p><code>onDayCreate</code> ยิงตอน “สร้างช่อง” เท่านั้น · ข้อมูลมาทีหลังต้องสั่ง <code>redraw()</code> เอง</p>
+      </header>
+      <div class="body">
+        <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+        <div class="grid" id="grid-fp"></div>
+        <div class="status" id="status-fp"></div>
+        <div class="log" id="log-fp"></div>
+        <div style="margin-top:10px">
+          <button class="btn ghost" id="btn-redraw">สั่ง redraw() เอง →</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ══════════════ สรุปเป็นคำ ══════════════ -->
+<div class="panel verdict">
+  <h2>สิ่งที่ตัวสาธิตข้างบนกำลังบอก</h2>
+  <ul>
+    <li>
+      <strong>ฝั่งซ้ายไม่มีขั้นตอนให้ลืม</strong> — จุดเหลือง/กากบาทเป็น “ผลลัพธ์ของข้อมูล”
+      ข้อมูลเปลี่ยนเมื่อไหร่ภาพเปลี่ยนตาม ไม่ต้องมีใครสั่ง
+    </li>
+    <li>
+      <strong>ฝั่งขวาต้องจำสั่ง <code>redraw()</code> ทุกจุดที่ข้อมูลเปลี่ยน</strong>
+      ในหน้าจริงมี 3 จุด (fetch เสร็จ · เปลี่ยนคิวงาน · เปลี่ยนเดือนแล้ว fetch ชุดใหม่)
+      ลืมจุดใดจุดหนึ่ง = ปฏิทินโชว์ความว่างของคิวงานอันเก่า <strong>โดยไม่มีอะไรฟ้อง</strong>
+      — เป็นคลาสบั๊กที่โปรเจกต์นี้เจอมาแล้วหลายรอบ (บั๊กที่แก้ล่าสุดในคอมมิต <code>9003ce12</code>
+      ก็คือเรื่องนี้เป๊ะ: ปฏิทินโหลดความว่างของคิวงานผิดตัวตอนกดการ์ดครั้งแรก)
+    </li>
+    <li>
+      <strong>สิ่งที่ Flatpickr ให้ฟรีจริง</strong> ก็มี: ช่องวันเป็นปุ่มกลม ๆ ไม่มีเส้นตาราง +
+      ชื่อวันย่อไทย (“อา จ อ พ พฤ ศ ส”) มากับตัว lib — แต่ทั้งสองอย่างนี้ในฝั่งซ้าย
+      จบไปแล้วด้วย CSS 8 บรรทัดกับอาเรย์ 7 ช่อง ซึ่งเขียนครั้งเดียวไม่มีทางลืมทีหลัง
+    </li>
+    <li>
+      <strong>สิ่งที่เสียถ้าย้าย</strong>: ต้องคำนวณช่วง 42 วันที่มองเห็นเอง (FullCalendar ส่ง
+      <code>datesSet</code> ให้อยู่แล้ว), ต้องปิดหัวเรื่องของ Flatpickr เพราะเราวาด พ.ศ. เอง,
+      และหน้า <code>/queues</code> ยังใช้ FullCalendar อยู่ดี → มีปฏิทิน 2 กลไกให้ดูแลแทนที่จะเป็นชุดเดียว
+    </li>
+  </ul>
+</div>
+
+<div class="panel">
+  <h2>ตารางเทียบตรง ๆ</h2>
+  <table>
+    <thead>
+      <tr><th style="width:34%">หัวข้อ</th><th style="width:33%">FullCalendar (ที่ทำไปแล้ว)</th><th style="width:33%">Flatpickr (ทางที่ไม่เลือก)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>หน้าตาตรง mockup</td><td class="yes">ได้</td><td class="yes">ได้</td></tr>
+      <tr><td>ช่องวันอัปเดตเองเมื่อข้อมูลมาถึง</td><td class="yes">ได้ — React วาดใหม่ให้</td><td class="no">ต้องสั่ง <code>redraw()</code> เองทุกจุด</td></tr>
+      <tr><td>ช่องกลม ไม่มีเส้นตาราง</td><td>CSS 8 บรรทัด (เขียนแล้ว)</td><td class="yes">มีมาให้</td></tr>
+      <tr><td>ชื่อวันย่อไทย</td><td>อาเรย์ 7 ช่อง (เขียนแล้ว)</td><td class="yes">มีใน locale ของ lib</td></tr>
+      <tr><td>ช่วงวันที่ต้องโหลดข้อมูล</td><td class="yes"><code>datesSet</code> ส่งช่วงมาให้</td><td class="no">คำนวณ 42 วันเอง</td></tr>
+      <tr><td>จำนวนกลไกปฏิทินที่ต้องดูแล</td><td class="yes">1 (ชุดเดียวกับ /queues)</td><td class="no">2</td></tr>
+      <tr><td>ขนาดการแก้</td><td class="yes">แก้ในไฟล์เดิม</td><td class="no">เขียนชั้น render ใหม่ทั้งก้อน</td></tr>
+    </tbody>
+  </table>
+  <p class="foot">
+    สรุป: ทางที่ ux เสนอ “ได้หน้าตาง่ายกว่า” จริง แต่แลกด้วยการย้ายความถูกต้องของข้อมูล
+    มาอยู่บนความทรงจำของคนเขียนโค้ด — ซึ่งเป็นด้านที่โปรเจกต์นี้พลาดบ่อยกว่าเรื่องหน้าตา
+  </p>
+</div>
+
+</div>
+
+<script>
+/* ── ข้อมูลจำลอง: คีย์ = วันที่ในเดือน ── */
+const CAPACITY = 2;
+const DATA_A = { 4:1, 7:1, 8:2, 13:1 };            // ชุดแรก (คิวงาน "ติดตั้งไฟหน้า")
+const DATA_B = { 3:2, 11:1, 12:2, 19:1, 20:1 };    // ชุดที่สอง (หลังเปลี่ยนคิวงาน)
+
+/* เดือน ส.ค. 2569 — เริ่มวันเสาร์ ตรงกับ mockup */
+const LEAD_OUT = [26,27,28,29,30,31];
+const DAYS = 31;
+
+/* ══ ฝั่งซ้าย: state → วาดใหม่ทั้งกริดทุกครั้ง (แบบเดียวกับ React dayCellContent) ══ */
+let stateReact = null;
+function renderReact() {
+  const grid = document.getElementById('grid-react');
+  grid.innerHTML = '';
+  LEAD_OUT.forEach(n => grid.appendChild(makeCell(n, null, true)));
+  for (let d = 1; d <= DAYS; d++) {
+    grid.appendChild(makeCell(d, stateReact ? (stateReact[d] || 0) : 0, false));
+  }
+}
+function makeCell(n, used, out) {
+  const b = document.createElement('button');
+  b.className = 'cell' + (out ? ' out' : '');
+  if (!out && used > 0) b.classList.add(used >= CAPACITY ? 'full' : 'some');
+  b.innerHTML = '<span class="n">' + n + '</span><span class="dot"></span>';
+  return b;
+}
+
+/* ══ ฝั่งขวา: กริดถูก "สร้าง" แล้วแปะของตอนสร้างเท่านั้น (แบบ flatpickr onDayCreate) ══ */
+let stateFp = null;      // ข้อมูลล่าสุดที่แอปรู้
+let paintedFp = null;    // ข้อมูล ณ ตอนที่กริดถูกสร้างครั้งล่าสุด
+function buildFp() {
+  const grid = document.getElementById('grid-fp');
+  grid.innerHTML = '';
+  paintedFp = stateFp;   // onDayCreate อ่านค่า ณ วินาทีที่สร้างช่อง
+  LEAD_OUT.forEach(n => grid.appendChild(makeCell(n, null, true)));
+  for (let d = 1; d <= DAYS; d++) {
+    grid.appendChild(makeCell(d, paintedFp ? (paintedFp[d] || 0) : 0, false));
+  }
+}
+
+/* ── ข้อความสถานะ + log ── */
+function log(id, text, hit) {
+  const el = document.getElementById(id);
+  const row = document.createElement('div');
+  if (hit) row.className = 'hit';
+  row.textContent = text;
+  el.appendChild(row);
+  el.scrollTop = el.scrollHeight;
+}
+function paintStatus() {
+  const sr = document.getElementById('status-react');
+  sr.className = 'status good';
+  sr.innerHTML = stateReact
+    ? '<b>ตรงกับข้อมูลล่าสุด</b><br>ไม่มีขั้นตอนพิเศษให้ทำ — จุด/กากบาทคือผลลัพธ์ของ state โดยตรง'
+    : '<b>ยังไม่มีข้อมูล</b><br>ปฏิทินขึ้นก่อนเสมอ แล้วค่อยรอ fetch';
+
+  const sf = document.getElementById('status-fp');
+  const stale = stateFp !== paintedFp;
+  sf.className = 'status' + (stale ? ' bad' : (stateFp ? ' good' : ''));
+  if (stale) {
+    sf.innerHTML = '<b>ภาพไม่ตรงกับข้อมูล</b><br>แอปรู้ข้อมูลใหม่แล้ว แต่ช่องวันยังเป็นของรอบก่อน '
+      + 'เพราะ <code>onDayCreate</code> ไม่ได้ยิงอีก — ต้องมีใครสั่ง <code>redraw()</code>';
+  } else {
+    sf.innerHTML = stateFp
+      ? '<b>ตรงกับข้อมูลล่าสุด</b><br>…เพราะเพิ่งสั่ง redraw() ไป ไม่ใช่เพราะมันตามเอง'
+      : '<b>ยังไม่มีข้อมูล</b><br>ปฏิทินขึ้นก่อนเสมอ แล้วค่อยรอ fetch';
+  }
+}
+
+function reset() {
+  stateReact = null; stateFp = null;
+  document.getElementById('log-react').innerHTML = '';
+  document.getElementById('log-fp').innerHTML = '';
+  renderReact(); buildFp(); paintStatus();
+}
+
+document.getElementById('btn-load').onclick = () => {
+  stateReact = DATA_A; stateFp = DATA_A;
+  renderReact();                                   // React: state เปลี่ยน = วาดใหม่อัตโนมัติ
+  log('log-react', 'setItems(...) → วาดช่องวันใหม่ทั้งกริด', true);
+  log('log-fp', 'setItems(...) → กริดเดิมยังอยู่ ไม่มีอะไรเกิดขึ้น');
+  paintStatus();
+};
+document.getElementById('btn-switch').onclick = () => {
+  stateReact = DATA_B; stateFp = DATA_B;
+  renderReact();
+  log('log-react', 'resourceId เปลี่ยน → วาดช่องวันใหม่ทั้งกริด', true);
+  log('log-fp', 'resourceId เปลี่ยน → กริดเดิมยังอยู่ ไม่มีอะไรเกิดขึ้น');
+  paintStatus();
+};
+document.getElementById('btn-redraw').onclick = () => {
+  buildFp();
+  log('log-fp', 'redraw() → สร้างช่องใหม่ทั้งหมด แล้ว onDayCreate ถึงจะยิง', true);
+  paintStatus();
+};
+document.getElementById('btn-reset').onclick = reset;
+
+reset();
+</script>
+</body>
+</html>
