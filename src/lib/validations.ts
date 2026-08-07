@@ -18,6 +18,7 @@ import {
   MAX_ROOM_GUESTS,
 } from "@/lib/lodging";
 import { isStrongPassword } from "@/lib/password";
+import { PROFILE_TAB_KEYS } from "@/lib/profile-tab-keys";
 import { isValidSlugFormat } from "@/lib/shop-slug";
 import { EXPENSE_CATEGORIES } from "@/lib/expense";
 import { orderDateRejectReason, ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "./order-date-window";
@@ -1588,3 +1589,55 @@ export const OrderAppointmentSchema = v.object({
   // เพดาน "ไม่เกินยอดรวม" บังคับที่ service เพราะต้องรู้ totalAmount ก่อน (BR-RSV-47)
   depositAmount: v.optional(DecimalString),
 })
+
+// ── Shop Page Builder (feature 00035) — ดู API.md §4 ของโมดูลนี้ (contract ห้ามเปลี่ยนชื่อ/ชนิด) ──
+
+// GET .../library — query: ?q=&cursor=&take= (API.md §4.1)
+export const BuilderLibraryQuerySchema = v.object({
+  q: v.optional(v.pipe(v.string(), v.maxLength(200))),
+  // offset-based cursor เป็น string ของตัวเลขล้วน (service ทำ Number(cursor) เอง) — ปฏิเสธค่าที่ไม่ใช่ตัวเลข
+  // ตรง ๆ แทนปล่อยให้ตกไป fallback 0 เงียบ ๆ (client ควรได้ 400 ถ้าส่งค่าผิดรูป ไม่ใช่ได้หน้าแรกเงียบ ๆ)
+  cursor: v.optional(v.pipe(v.string(), v.regex(/^\d+$/, "cursor ต้องเป็นตัวเลข"))),
+  take: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(50))),
+});
+
+// POST .../facebook-posts/mirror (API.md §4.2)
+export const MirrorFacebookPostSchema = v.object({
+  facebookPostId: v.pipe(v.string(), v.uuid()),
+});
+
+// PUT /page-builder — บันทึกผังทั้งชุด (API.md §4.3)
+//
+// tabOrder: ค่าที่ไม่ใช่ 1 ใน 7 tab key ถูกกรองทิ้งเงียบ ๆ ด้วย transform (ไม่ reject ทั้ง request)
+// — mirror ปรัชญาเดียวกับ Shop.categories/Shop.salesChannels ที่ validate แบบ allow-list เงียบ
+// reuse PROFILE_TAB_KEYS จาก src/lib/profile-tab-keys.ts เป็น SSOT เดียว ไม่ hardcode ซ้ำที่นี่
+// (กัน drift — เพิ่ม/ลบ tab key ต้องแก้ที่เดียว)
+const ShopPageBlockSchema = v.variant("type", [
+  v.object({
+    type: v.literal("BADGE_HIGHLIGHT"),
+    badgeIds: v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.maxLength(4)),
+  }),
+  v.object({
+    type: v.literal("FACEBOOK_POST"),
+    facebookPostId: v.pipe(v.string(), v.uuid()),
+  }),
+]);
+
+export const SaveShopPageLayoutSchema = v.object({
+  tabOrder: v.pipe(
+    v.array(v.string()),
+    v.maxLength(PROFILE_TAB_KEYS.length),
+    v.transform((arr) =>
+      arr.filter((k): k is (typeof PROFILE_TAB_KEYS)[number] =>
+        (PROFILE_TAB_KEYS as readonly string[]).includes(k),
+      ),
+    ),
+  ),
+  // เพดานกันส่ง array มหาศาล (โพสต์ปกติไม่ถึงหลักสิบ) — เพดานจำนวนเหรียญ/โพสต์ซ้ำเช็คที่ service (TFR-007)
+  blocks: v.pipe(v.array(ShopPageBlockSchema), v.maxLength(200)),
+});
+
+// PATCH .../publish (API.md §4.4)
+export const SetShopPagePublishedSchema = v.object({
+  isPublished: v.boolean(),
+});
