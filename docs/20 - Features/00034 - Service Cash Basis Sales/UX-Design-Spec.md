@@ -115,7 +115,11 @@ related: ["[[PRD]]", "[[BRD]]", "[[SDS]]"]
 - **Base (checkbox primitive):** `theme/paces/Admin/TS/src/app/(admin)/form/elements/components/ChecksRadioSwitches.tsx` (`<input type="checkbox" className="form-checkbox" />` + `<label>`)
 - **In-app precedent:** `src/app/(paces)/seller/(dashboard)/settings/ShippingSettingsRow.tsx:989-993`
 
-### Layout (แทรกหลังบรรทัด helper text เดิม ~บรรทัด 398-402)
+### Layout (แทรกหลังบรรทัด helper text เดิม — บล็อก "มัดจำ (FR-RSV-12)" ~บรรทัด 480-505 ณ `8c1e6ff6`)
+
+> ⚠️ **เลขบรรทัดขยับแล้ว 1 รอบ** — ux สำรวจตอนบล็อกนี้อยู่ที่ ~377 แล้ว main เดินไป 18 commit
+> (`06419483` เลือกคิวงานเป็นการ์ด, `8efde649` ปฏิทินเต็มจอ) ดันลงมาที่ ~480
+> **ให้ยึด marker คอมเมนต์ `{/* ── มัดจำ (FR-RSV-12) ── */}` ไม่ใช่เลขบรรทัด**
 
 ```
 มัดจำที่เก็บ
