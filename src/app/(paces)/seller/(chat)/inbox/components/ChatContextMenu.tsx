@@ -53,7 +53,7 @@ export type ChatRowAnchor =
  * เปลือกของแผ่นคำสั่ง (โหมดเพ่ง) — แยกออกมาเป็นค่าคงที่เพราะต้องมีคอมเมนต์ carve-out กำกับ
  * "บรรทัดที่ใช้ค่า arbitrary จริง" ตาม HR7 ซึ่งเขียนแทรกกลาง template literal ใน JSX ไม่ได้
  */
-const SHEET_SHELL = 'bg-card relative max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl pt-2 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-lg' // HR7 carve-out: Paces ไม่มี token viewport-height/safe-area — precedent CustomerPanelSheet.tsx/OrderQrSheet.tsx บรรทัดเดียวกัน
+const SHEET_SHELL = 'bg-card relative max-h-[85dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl pt-2 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-lg' // HR7 carve-out: Paces ไม่มี token viewport-height/safe-area — precedent CustomerPanelSheet.tsx/OrderQrSheet.tsx บรรทัดเดียวกัน
 
 /**
  * ระยะแถว↔แผ่นคำสั่ง (user สั่ง 2026-08-06 รอบสอง: "ขยับ chat ขึ้นไปด้านบนให้หน่อย เด่น ๆ")
@@ -203,6 +203,33 @@ export default function ChatContextMenu({
     const ro = new ResizeObserver(() => setViewportTick((t) => t + 1))
     ro.observe(el)
     return () => ro.disconnect()
+  }, [row])
+
+  /**
+   * ล็อกหน้าข้างหลังไม่ให้เลื่อน/เด้งขณะเปิดโหมดเพ่ง (user report 2026-08-07 พร้อมภาพ: "พอกดขึ้นมา
+   * มัน pull หรือ เลื่อนจอได้เฉยเลย" — ฉากเบลอถูกดันลงมาจนเห็นแถบขาวเหนือหัวแชท)
+   *
+   * `touch-none` ที่ฉากเบลอกันได้เฉพาะนิ้วที่แตะ "ฉากเบลอ" — นิ้วที่ลากอยู่ใน **แผ่นคำสั่ง** ไม่ถูกกัน
+   * และเพราะแผ่นถูก portal ไป document.body บรรพบุรุษที่รับ scroll ต่อจึงเป็น document เอง ไม่ใช่
+   * คอลัมน์รายการแชท (ที่มี overscroll-contain อยู่แล้ว) → เลื่อนทั้งหน้า/rubber-band ทันทีที่แผ่นยัง
+   * ไม่ล้น 85dvh ซึ่งเป็นกรณีปกติ. overscroll-contain ที่ SHEET_SHELL ตัด chain เส้นนี้
+   *
+   * ที่ยังต้องล็อกระดับเอกสารซ้ำอีกชั้น: iOS เด้งเอกสาร (rubber-band) ได้แม้หน้าไม่มีอะไรให้เลื่อน
+   * ตัดด้วย overscroll-behavior-y ที่ <html> — คนละกลไกกับ chaining จึงต้องสั่งแยก
+   * เฉพาะโหมดเพ่ง (มือถือ) เท่านั้น: โหมด point (คลิกขวาเดสก์ท็อป) ตั้งใจให้เลื่อนแล้ว "ปิดเมนู"
+   */
+  useEffect(() => {
+    if (!row) return
+    const { body } = document
+    const html = document.documentElement
+    const prevOverflow = body.style.overflow
+    const prevOverscroll = html.style.overscrollBehaviorY
+    body.style.overflow = 'hidden'
+    html.style.overscrollBehaviorY = 'none'
+    return () => {
+      body.style.overflow = prevOverflow
+      html.style.overscrollBehaviorY = prevOverscroll
+    }
   }, [row])
 
   useEffect(() => {
@@ -446,7 +473,7 @@ export default function ChatContextMenu({
         ref={ref}
         role="menu"
         style={{ top: pointTop, left: pointLeft }}
-        className="border-default-300 bg-card fixed z-50 max-h-96 w-74 overflow-y-auto rounded-lg border py-3 shadow-lg"
+        className="border-default-300 bg-card fixed z-50 max-h-96 w-74 overflow-y-auto overscroll-contain rounded-lg border py-3 shadow-lg"
       >
         {body}
       </div>,
