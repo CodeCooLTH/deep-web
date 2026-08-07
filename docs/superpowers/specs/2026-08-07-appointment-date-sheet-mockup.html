@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — ปฏิทินเลือกวันนัด (AppointmentDateSheet) 2026-08-07</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงของสกิน Paces: คัดมาจาก src/assets/css/config/_root.css ตรง ๆ ห้ามเดาสีเอง ── */
+:root{
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-info:#5bc3e1;    --color-info-ink:#1e40af;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;
+  background:#e9ecf3;color:var(--color-body-color);
+  font-size:14px;line-height:1.5;padding:32px 20px 64px;
+}
+.page-head{max-width:1400px;margin:0 auto 32px}
+.page-head h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.page-head p{margin-top:6px;max-width:78ch}
+.page-head .meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{
+  max-width:1400px;margin:0 auto 28px;background:#fff;border-radius:8px;padding:16px 18px;
+  border-left:3px solid var(--color-primary);
+}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}
+.note li{margin-bottom:6px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+
+.rack{max-width:1400px;margin:0 auto;display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap}
+.device{flex:0 0 auto}
+.device>figcaption{
+  font-size:12px;font-weight:600;color:var(--color-default-700);
+  margin-bottom:10px;letter-spacing:.2px
+}
+.device>figcaption span{font-weight:400;color:var(--color-default-500)}
+.frame{
+  background:var(--color-card);border-radius:14px;overflow:hidden;
+  box-shadow:0 12px 28px rgba(47,43,61,.14);display:flex;flex-direction:column;
+}
+.m .frame{width:390px;height:800px}
+.t .frame{width:768px;height:760px}
+.d .frame{width:900px;height:640px}
+
+/* ── แถบหัว sheet (คงของเดิม: ปุ่มย้อนกลับ + ไอคอน + ชื่อคิวงาน) ── */
+.sheet-head{
+  display:flex;align-items:center;gap:10px;padding:14px 16px;
+  border-bottom:1px solid var(--color-default-300);flex-shrink:0
+}
+.icon-btn{
+  width:36px;height:36px;border-radius:8px;border:0;background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--color-default-700);flex-shrink:0
+}
+.icon-btn:hover{background:var(--color-default-100)}
+.sheet-head .badge-ico{
+  width:36px;height:36px;border-radius:8px;background:rgba(35,109,201,.15);
+  display:flex;align-items:center;justify-content:center;color:var(--color-primary);flex-shrink:0
+}
+.sheet-head h3{font-size:16px;font-weight:600;color:var(--color-default-900);line-height:1.3}
+.sheet-head p{font-size:12px;color:var(--color-default-500)}
+
+/* ── แถบเดือน ── */
+.month-bar{
+  display:flex;align-items:center;gap:8px;padding:10px 12px;flex-shrink:0
+}
+.month-bar .title{
+  flex:1;text-align:center;font-size:15px;font-weight:600;color:var(--color-default-900)
+}
+.chip-today{
+  border:1px solid var(--color-default-300);background:transparent;border-radius:9999px;
+  padding:5px 12px;font-size:12px;font-weight:500;color:var(--color-default-700);
+  cursor:pointer;font-family:inherit;flex-shrink:0
+}
+.chip-today:hover{background:var(--color-default-100)}
+
+/* ── ตารางปฏิทิน ── */
+.dow{
+  display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px 6px;flex-shrink:0
+}
+.dow span{
+  text-align:center;font-size:var(--text-2xs);font-weight:600;color:var(--color-default-400)
+}
+.grid{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:0 8px;flex-shrink:0
+}
+.cell{
+  position:relative;border:0;background:transparent;font-family:inherit;cursor:pointer;
+  border-radius:8px;padding:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:3px;color:var(--color-default-800);
+}
+.m .cell{height:46px}
+.t .cell,.d .cell{height:52px}
+.cell .n{font-size:14px;font-weight:500;line-height:1}
+.cell:hover{background:var(--color-default-100)}
+.cell.out{color:var(--color-default-400);opacity:.55}
+.cell.out .dot{opacity:.4}
+/* จุดสถานะแทนตัวหนังสือ "1 คิว" ที่ซ้ำกันทุกช่องจนอ่านไม่ได้ความ */
+.dot{width:5px;height:5px;border-radius:9999px;background:transparent}
+.cell.some .dot{background:var(--color-warning)}
+/* วันเต็ม = กากบาทแทนเลขวัน (user สั่ง 2026-08-07 พร้อมภาพอ้างอิง)
+   "เต็ม" เป็นสถานะที่ต้องเห็นแล้วข้ามทันที ไม่ใช่ข้อมูลที่ต้องตีความจากจุดสีเล็ก ๆ
+   ของจริงต้องใช้ <Icon icon="x"> (tabler) ไม่ใช่อักขระ emoji ตาม HR12 — ที่นี่วาดด้วย CSS
+   เพื่อไม่ต้องแก้ทุกช่องใน mockup แต่ทรง/น้ำหนักเส้นตั้งให้ตรงกับ tabler:x
+   เลขวันยังอยู่ใน DOM (visibility:hidden ไม่ใช่ display:none) — screen reader
+   และ aria-label ต้องยังอ่านวันที่ได้ ไม่งั้นคนที่ไม่เห็นจอจะไม่รู้ว่าช่องนี้คือวันไหน */
+.cell.full .n{visibility:hidden}
+.cell.full .dot{display:none}
+.cell.full::before,.cell.full::after{
+  content:"";position:absolute;left:50%;top:50%;
+  width:17px;height:2.5px;border-radius:2px;background:var(--color-danger)
+}
+.cell.full::before{transform:translate(-50%,-50%) rotate(45deg)}
+.cell.full::after{transform:translate(-50%,-50%) rotate(-45deg)}
+.cell.full.out::before,.cell.full.out::after{opacity:.45}
+.cell.today{box-shadow:inset 0 0 0 1.5px var(--color-default-300)}
+.cell.sel{background:var(--color-primary);color:#fff}
+.cell.sel .n{color:#fff;font-weight:600}
+.cell.sel .dot{background:rgba(255,255,255,.85)}
+.cell.sel:hover{background:var(--color-primary-hover)}
+/* เลือกอยู่ + เต็ม — เกิดจริงเพราะวันเต็มยังจิ้มดูรายการได้ (แค่กดยืนยันไม่ได้)
+   กากบาทต้องกลับเป็นขาวบนพื้น primary ไม่งั้นชมพูบนน้ำเงินอ่านไม่ออก */
+.cell.sel.full::before,.cell.sel.full::after{background:#fff}
+.cell[disabled]{cursor:not-allowed;opacity:.4}
+
+.legend{
+  display:flex;gap:14px;justify-content:center;align-items:center;
+  padding:10px 12px 12px;font-size:var(--text-2xs);color:var(--color-default-500);flex-shrink:0
+}
+.legend i{
+  width:5px;height:5px;border-radius:9999px;display:inline-block;margin-right:5px;vertical-align:1px
+}
+/* swatch ของ "เต็ม" ต้องเป็นกากบาทเหมือนที่เห็นในช่องจริง ไม่ใช่จุดสี —
+   legend ที่แสดงสัญลักษณ์คนละตัวกับของจริงคือ legend ที่อธิบายผิด */
+.legend i.x-mark{
+  position:relative;width:11px;height:11px;border-radius:0;vertical-align:-2px;margin-right:6px
+}
+.legend i.x-mark::before,.legend i.x-mark::after{
+  content:"";position:absolute;left:50%;top:50%;
+  width:11px;height:2px;border-radius:2px;background:var(--color-danger)
+}
+.legend i.x-mark::before{transform:translate(-50%,-50%) rotate(45deg)}
+.legend i.x-mark::after{transform:translate(-50%,-50%) rotate(-45deg)}
+
+/* ── ครึ่งล่าง: รายการของวันที่จิ้ม ── */
+.list-wrap{
+  flex:1;min-height:0;display:flex;flex-direction:column;
+  border-top:1px solid var(--color-default-300);background:var(--color-default-100)
+}
+.list-head{
+  display:flex;align-items:baseline;gap:8px;padding:12px 16px 8px;flex-shrink:0
+}
+.list-head h4{font-size:14px;font-weight:600;color:var(--color-default-900)}
+.list-head .count{font-size:12px;color:var(--color-default-500);margin-left:auto}
+.list{flex:1;min-height:0;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
+.row{
+  background:var(--color-card);border-radius:8px;padding:11px 12px;
+  display:flex;align-items:flex-start;gap:11px
+}
+.row .time{
+  flex-shrink:0;width:52px;font-size:13px;font-weight:600;color:var(--color-default-900);
+  font-variant-numeric:tabular-nums;line-height:1.35
+}
+.row .time small{display:block;font-size:11px;font-weight:400;color:var(--color-default-500)}
+.row .who{flex:1;min-width:0}
+.row .who .nm{
+  font-size:13px;font-weight:500;color:var(--color-default-900);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.row .who .no{font-size:11px;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.badge{
+  flex-shrink:0;border-radius:9999px;padding:3px 9px;font-size:var(--text-2xs);font-weight:600;
+  white-space:nowrap
+}
+/* map สีสถานะยกมาจาก AppointmentCalendar.tsx:70-97 ทั้งชุด ห้ามคิดใหม่ —
+   สถานะเดียวกันต้องสีเดียวกันทั้งปฏิทินคิวและที่นี่ (คำเดียวกัน = ของเดียวกัน) */
+.b-sched{background:rgba(249,191,89,.15);color:var(--color-warning-ink)}  /* SCHEDULED */
+.b-conf {background:rgba(2,188,156,.15);color:var(--color-success-ink)}   /* CONFIRMED_BY_BUYER */
+.b-resch{background:rgba(91,195,225,.15);color:var(--color-info-ink)}     /* RESCHEDULE_REQUESTED */
+.b-done {background:var(--color-default-200);color:var(--color-default-700)} /* COMPLETED */
+
+.empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;text-align:center;padding:20px;color:var(--color-default-500)
+}
+/* เทากลาง ไม่ใช่เขียว — Verified-Means-Green สงวนเขียวไว้กับ "ยืนยันแล้วจริง" (CONFIRMED_BY_BUYER)
+   "วันว่าง" เป็นข่าวดีก็จริง แต่ไม่ใช่สัญญาณ trust ใช้เขียวแล้วสัญญาณความเชื่อใจจะเฟ้อ */
+.empty .ring{
+  width:44px;height:44px;border-radius:9999px;background:var(--color-default-200);
+  display:flex;align-items:center;justify-content:center;color:var(--color-default-500)
+}
+.empty strong{font-size:13px;font-weight:600;color:var(--color-default-800)}
+.empty span{font-size:12px}
+
+/* ── แถบยืนยันติดขอบล่าง ── */
+.footbar{
+  flex-shrink:0;border-top:1px solid var(--color-default-300);background:var(--color-card);
+  padding:12px 16px;display:flex;align-items:center;gap:12px
+}
+.footbar .pick{flex:1;min-width:0}
+.footbar .pick small{display:block;font-size:11px;color:var(--color-default-500)}
+.footbar .pick strong{font-size:14px;font-weight:600;color:var(--color-default-900)}
+.btn-primary{
+  border:0;border-radius:6px;background:var(--color-primary);color:#fff;font-family:inherit;
+  font-size:14px;font-weight:500;padding:0 18px;height:47px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;flex-shrink:0
+}
+.btn-primary:hover{background:var(--color-primary-hover)}
+.btn-primary[disabled]{opacity:.5;cursor:not-allowed}
+
+/* ── เดสก์ท็อป: ปฏิทินซ้าย / รายการขวา ── */
+.split{flex:1;min-height:0;display:flex}
+.split>.cal{
+  flex:0 0 480px;display:flex;flex-direction:column;
+  border-right:1px solid var(--color-default-300)
+}
+.split>.list-wrap{border-top:0}
+/* Tablet 768 ยังอยู่ "ใต้" breakpoint เส้นเดียวของ seller mobile shell (lg = 1024, ดู DESIGN.md
+   §Seller mobile shell) จึงต้องได้ทรงเดียวกับมือถือ ไม่ใช่แตก 2 คอลัมน์ที่ 768 */
+.t .split{flex-direction:column}
+.t .split>.cal{flex:0 0 auto;border-right:0}
+.t .split>.list-wrap{border-top:1px solid var(--color-default-300)}
+
+svg{display:block}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Mockup — ปฏิทินเลือกวันนัด (AppointmentDateSheet)</h1>
+  <p>โครงตามที่ user สั่ง 2026-08-07: มือถือ = <strong>ปฏิทินครึ่งบน / รายการครึ่งล่าง</strong>, จิ้มวันเพื่อดูรายการของวันนั้น, ปุ่มยืนยันติดขอบล่าง. สีทุกค่าคัดจาก <code>src/assets/css/config/_root.css</code> ของสกิน Paces ตรง ๆ — ไม่มีสีที่เดาเอง</p>
+  <p class="meta">แทนที่ <code>src/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet.tsx</code> (คอมมิต 8efde649) · ข้อมูลตัวอย่างเป็นทรงเดียวกับที่ <code>GET /api/shops/current/appointments</code> คืนจริง</p>
+</div>
+
+<div class="note">
+  <h2>3 อย่างที่เปลี่ยนจากของเดิม และเหตุผล</h2>
+  <ul>
+    <li><strong>ตัดตัวหนังสือ “1 คิว” ออกจากทุกช่อง</strong> — ของเดิมเขียนคำเดียวกันซ้ำ 35 ช่องจนไม่เหลือความหมาย แถมกินความสูงจนปฏิทินยาวเต็มจอ ไม่มีที่ให้รายการ. เหลือ 3 สถานะที่แยกกันด้วย<strong>รูปร่าง ไม่ใช่ด้วยสีอย่างเดียว</strong>: <strong>ว่าง</strong> = เลขวันเปล่า · <strong>มีคิวแล้ว</strong> = เลขวัน + จุดเหลือง · <strong>เต็ม</strong> = <strong>กากบาทแทนเลขวัน</strong> (user สั่ง 2026-08-07 พร้อมภาพอ้างอิง) — วันที่จองไม่ได้จึงข้ามได้ตั้งแต่กวาดตา ไม่ต้องเพ่งจุดเล็ก ๆ และคนตาบอดสียังแยกออกเพราะรูปร่างต่างกัน. เฉดสีคงของ legend เดิมเป๊ะ ไม่สลับเฉด · ของจริงใช้ <code>&lt;Icon icon="x"&gt;</code> ของ tabler ไม่ใช่ emoji (HR12) และเลขวันยังอยู่ใน DOM (<code>visibility:hidden</code>) ให้ screen reader อ่านวันที่ได้</li>
+    <li><strong>รายการครึ่งล่างใช้ของที่มีอยู่แล้ว ไม่ต้องแตะ backend</strong> — <code>GET /api/shops/current/appointments?from&amp;to&amp;resourceId</code> คืน <code>orderNo · buyerName · start · end · appointmentStatus</code> ครบอยู่แล้ว และ select ของมันกันเบอร์/อีเมลไว้ตั้งแต่ใน service (<code>appointment.service.ts:487</code>) ส่วน endpoint ที่ sheet เดิมเรียก (<code>availability</code>) คืนแค่ <code>{capacity, busy:[{start,end}]}</code> ไม่มีชื่อคน — จะโชว์รายการต้องสลับมาใช้ตัวนี้</li>
+    <li><strong>ปุ่มล่างเขียนว่า “ยืนยันวันนัด” ไม่ใช่ “เลือกวันนี้”</strong> — คำว่า “วันนี้” ถูกใช้ไปแล้วบนหัวปฏิทินในความหมาย “กระโดดไปวันปัจจุบัน” ถ้าปุ่มล่างเขียน “เลือกวันนี้” สองคำนี้จะอยู่จอเดียวกันแล้วอ่านสลับกันได้ทันที. วันที่ที่กำลังจะยืนยันอยู่ในข้อความข้าง ๆ ปุ่มแล้ว (“วันที่เลือก · ศุกร์ 8 ส.ค. 2569”) ปุ่มจึงไม่ต้องแบกวันที่เอง — ถ้าอยากให้ปุ่มพูดวันที่ด้วยบอกได้ครับ</li>
+  </ul>
+</div>
+
+<div class="rack">
+
+<!-- ══════════════════ MOBILE 390 ══════════════════ -->
+<figure class="device m">
+  <figcaption>Mobile · 390 × 800 <span>— ปฏิทินบน / รายการล่าง / ปุ่มติดขอบล่าง</span></figcaption>
+  <div class="frame">
+
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="ย้อนกลับ">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <span class="badge-ico">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+      </span>
+      <div>
+        <h3>เลือกวันนัด</h3>
+        <p>ติดตั้งไฟหน้า · รับได้ 2 คิว/วัน</p>
+      </div>
+    </div>
+
+    <div class="month-bar">
+      <button class="icon-btn" aria-label="เดือนก่อนหน้า">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <span class="title">ส.ค. 2569</span>
+      <button class="chip-today">วันนี้</button>
+      <button class="icon-btn" aria-label="เดือนถัดไป">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+
+    <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+
+    <div class="grid">
+      <button class="cell out" disabled><span class="n">26</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">27</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">28</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">29</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">30</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">31</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">1</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">2</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">3</span><span class="dot"></span></button>
+      <button class="cell some"><span class="n">4</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">5</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">6</span><span class="dot"></span></button>
+      <button class="cell today some"><span class="n">7</span><span class="dot"></span></button>
+      <button class="cell sel full"><span class="n">8</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">9</span><span class="dot"></span></button>
+      <button class="cell full"><span class="n">10</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">11</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">12</span><span class="dot"></span></button>
+      <button class="cell some"><span class="n">13</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">14</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">15</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">16</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">17</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">18</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">19</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">20</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">21</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">22</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">23</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">24</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">25</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">26</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">27</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">28</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">29</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">30</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">31</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">1</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">2</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">3</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">4</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">5</span><span class="dot"></span></button>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--color-warning)"></i>มีคิวแล้ว</span>
+      <span><i class="x-mark"></i>เต็ม</span>
+      <span><i style="box-shadow:inset 0 0 0 1.5px var(--color-default-300);width:9px;height:9px;vertical-align:-1px"></i>วันนี้</span>
+    </div>
+
+    <div class="list-wrap">
+      <div class="list-head">
+        <h4>ศุกร์ 8 ส.ค. 2569</h4>
+        <span class="count">จองแล้ว 2 จาก 2 คิว</span>
+      </div>
+      <div class="list">
+        <div class="row">
+          <span class="time">09:00<small>– 10:30</small></span>
+          <span class="who">
+            <span class="nm">วสันต์ จันทร์คำ</span>
+            <span class="no">#25690800012</span>
+          </span>
+          <span class="badge b-conf">ลูกค้ายืนยันแล้ว</span>
+        </div>
+        <div class="row">
+          <span class="time">13:00<small>– 14:30</small></span>
+          <span class="who">
+            <span class="nm">ธนกฤต แสงทอง</span>
+            <span class="no">#25690800014</span>
+          </span>
+          <span class="badge b-sched">นัดแล้ว</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footbar">
+      <span class="pick">
+        <small>วันที่เลือก</small>
+        <strong>ศุกร์ 8 ส.ค. 2569</strong>
+      </span>
+      <button class="btn-primary" disabled>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
+        เต็มแล้ว
+      </button>
+    </div>
+
+  </div>
+</figure>
+
+<!-- ══════════════════ MOBILE — วันว่าง (สถานะที่พบบ่อยสุด) ══════════════════ -->
+<figure class="device m">
+  <figcaption>Mobile · วันที่ยังไม่มีคิว <span>— empty state ที่เป็นข่าวดี ไม่ใช่ความล้มเหลว</span></figcaption>
+  <div class="frame">
+
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="ย้อนกลับ">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <span class="badge-ico">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+      </span>
+      <div>
+        <h3>เลือกวันนัด</h3>
+        <p>ติดตั้งไฟหน้า · รับได้ 2 คิว/วัน</p>
+      </div>
+    </div>
+
+    <div class="month-bar">
+      <button class="icon-btn" aria-label="เดือนก่อนหน้า">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <span class="title">ส.ค. 2569</span>
+      <button class="chip-today">วันนี้</button>
+      <button class="icon-btn" aria-label="เดือนถัดไป">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+
+    <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+
+    <div class="grid">
+      <button class="cell out" disabled><span class="n">26</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">27</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">28</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">29</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">30</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">31</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">1</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">2</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">3</span><span class="dot"></span></button>
+      <button class="cell some"><span class="n">4</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">5</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">6</span><span class="dot"></span></button>
+      <button class="cell today some"><span class="n">7</span><span class="dot"></span></button>
+      <button class="cell full"><span class="n">8</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">9</span><span class="dot"></span></button>
+      <button class="cell full"><span class="n">10</span><span class="dot"></span></button>
+      <button class="cell sel"><span class="n">11</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">12</span><span class="dot"></span></button>
+      <button class="cell some"><span class="n">13</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">14</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">15</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">16</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">17</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">18</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">19</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">20</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">21</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">22</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">23</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">24</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">25</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">26</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">27</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">28</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">29</span><span class="dot"></span></button>
+
+      <button class="cell"><span class="n">30</span><span class="dot"></span></button>
+      <button class="cell"><span class="n">31</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">1</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">2</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">3</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">4</span><span class="dot"></span></button>
+      <button class="cell out" disabled><span class="n">5</span><span class="dot"></span></button>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--color-warning)"></i>มีคิวแล้ว</span>
+      <span><i class="x-mark"></i>เต็ม</span>
+      <span><i style="box-shadow:inset 0 0 0 1.5px var(--color-default-300);width:9px;height:9px;vertical-align:-1px"></i>วันนี้</span>
+    </div>
+
+    <div class="list-wrap">
+      <div class="list-head">
+        <h4>จันทร์ 11 ส.ค. 2569</h4>
+        <span class="count">ว่างทั้ง 2 คิว</span>
+      </div>
+      <div class="empty">
+        <span class="ring">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16M9 16h6"/></svg>
+        </span>
+        <strong>ยังไม่มีคิววันนี้</strong>
+        <span>นัดลูกค้าเข้ามาได้ทั้งวัน</span>
+      </div>
+    </div>
+
+    <div class="footbar">
+      <span class="pick">
+        <small>วันที่เลือก</small>
+        <strong>จันทร์ 11 ส.ค. 2569</strong>
+      </span>
+      <button class="btn-primary">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
+        ยืนยันวันนัด
+      </button>
+    </div>
+
+  </div>
+</figure>
+
+<!-- ══════════════════ TABLET 768 ══════════════════ -->
+<figure class="device t">
+  <figcaption>Tablet · 768 × 760 <span>— ยังเป็นทรงเดียวกับมือถือ (seller shell แตกที่ lg 1024 เท่านั้น)</span></figcaption>
+  <div class="frame">
+
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="ย้อนกลับ">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <span class="badge-ico">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+      </span>
+      <div>
+        <h3>เลือกวันนัด</h3>
+        <p>ติดตั้งไฟหน้า · รับได้ 2 คิว/วัน</p>
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="cal">
+        <div class="month-bar">
+          <button class="icon-btn" aria-label="เดือนก่อนหน้า">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+          </button>
+          <span class="title">ส.ค. 2569</span>
+          <button class="chip-today">วันนี้</button>
+          <button class="icon-btn" aria-label="เดือนถัดไป">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="dow"><span>อาทิตย์</span><span>จันทร์</span><span>อังคาร</span><span>พุธ</span><span>พฤหัส</span><span>ศุกร์</span><span>เสาร์</span></div>
+        <div class="grid">
+          <button class="cell out" disabled><span class="n">26</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">27</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">28</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">29</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">30</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">31</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">1</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">2</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">3</span><span class="dot"></span></button>
+          <button class="cell some"><span class="n">4</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">5</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">6</span><span class="dot"></span></button>
+          <button class="cell today some"><span class="n">7</span><span class="dot"></span></button>
+          <button class="cell sel"><span class="n">8</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">9</span><span class="dot"></span></button>
+          <button class="cell full"><span class="n">10</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">11</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">12</span><span class="dot"></span></button>
+          <button class="cell some"><span class="n">13</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">14</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">15</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">16</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">17</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">18</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">19</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">20</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">21</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">22</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">23</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">24</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">25</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">26</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">27</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">28</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">29</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">30</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">31</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">1</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">2</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">3</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">4</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">5</span><span class="dot"></span></button>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--color-warning)"></i>มีคิวแล้ว</span>
+          <span><i class="x-mark"></i>เต็ม</span>
+          <span><i style="box-shadow:inset 0 0 0 1.5px var(--color-default-300);width:9px;height:9px;vertical-align:-1px"></i>วันนี้</span>
+        </div>
+      </div>
+
+      <div class="list-wrap">
+        <div class="list-head">
+          <h4>ศุกร์ 8 ส.ค. 2569</h4>
+          <span class="count">จองแล้ว 2 จาก 2 คิว</span>
+        </div>
+        <div class="list">
+          <div class="row">
+            <span class="time">09:00<small>– 10:30</small></span>
+            <span class="who"><span class="nm">วสันต์ จันทร์คำ</span><span class="no">#25690800012</span></span>
+            <span class="badge b-conf">ลูกค้ายืนยันแล้ว</span>
+          </div>
+          <div class="row">
+            <span class="time">13:00<small>– 14:30</small></span>
+            <span class="who"><span class="nm">ธนกฤต แสงทอง</span><span class="no">#25690800014</span></span>
+            <span class="badge b-sched">นัดแล้ว</span>
+          </div>
+        </div>
+        <div class="footbar">
+          <span class="pick"><small>วันที่เลือก</small><strong>ศุกร์ 8 ส.ค. 2569</strong></span>
+          <button class="btn-primary" disabled>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
+            เต็มแล้ว
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</figure>
+
+<!-- ══════════════════ DESKTOP ══════════════════ -->
+<figure class="device d">
+  <figcaption>Desktop · 900 × 640 <span>— ทรงเดียวกับ tablet ปฏิทินกว้างขึ้น รายการยาวขึ้น (วันที่คิวเยอะ)</span></figcaption>
+  <div class="frame">
+
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="ปิด">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+      <span class="badge-ico">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+      </span>
+      <div>
+        <h3>เลือกวันนัด</h3>
+        <p>ล้างแอร์รถยนต์ · รับได้ 4 คิว/วัน</p>
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="cal">
+        <div class="month-bar">
+          <button class="icon-btn" aria-label="เดือนก่อนหน้า">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+          </button>
+          <span class="title">ส.ค. 2569</span>
+          <button class="chip-today">วันนี้</button>
+          <button class="icon-btn" aria-label="เดือนถัดไป">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="dow"><span>อาทิตย์</span><span>จันทร์</span><span>อังคาร</span><span>พุธ</span><span>พฤหัส</span><span>ศุกร์</span><span>เสาร์</span></div>
+        <div class="grid">
+          <button class="cell out" disabled><span class="n">26</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">27</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">28</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">29</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">30</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">31</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">1</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">2</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">3</span><span class="dot"></span></button>
+          <button class="cell some"><span class="n">4</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">5</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">6</span><span class="dot"></span></button>
+          <button class="cell today sel some"><span class="n">7</span><span class="dot"></span></button>
+          <button class="cell full"><span class="n">8</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">9</span><span class="dot"></span></button>
+          <button class="cell full"><span class="n">10</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">11</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">12</span><span class="dot"></span></button>
+          <button class="cell some"><span class="n">13</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">14</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">15</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">16</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">17</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">18</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">19</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">20</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">21</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">22</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">23</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">24</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">25</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">26</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">27</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">28</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">29</span><span class="dot"></span></button>
+
+          <button class="cell"><span class="n">30</span><span class="dot"></span></button>
+          <button class="cell"><span class="n">31</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">1</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">2</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">3</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">4</span><span class="dot"></span></button>
+          <button class="cell out" disabled><span class="n">5</span><span class="dot"></span></button>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--color-warning)"></i>มีคิวแล้ว</span>
+          <span><i class="x-mark"></i>เต็ม</span>
+          <span><i style="box-shadow:inset 0 0 0 1.5px var(--color-default-300);width:9px;height:9px;vertical-align:-1px"></i>วันนี้</span>
+        </div>
+      </div>
+
+      <div class="list-wrap">
+        <div class="list-head">
+          <h4>ศุกร์ 7 ส.ค. 2569 · วันนี้</h4>
+          <span class="count">จองแล้ว 3 จาก 4 คิว</span>
+        </div>
+        <div class="list">
+          <div class="row">
+            <span class="time">09:00<small>– 10:00</small></span>
+            <span class="who"><span class="nm">วสันต์ จันทร์คำ</span><span class="no">#25690800009</span></span>
+            <span class="badge b-done">ให้บริการแล้ว</span>
+          </div>
+          <div class="row">
+            <span class="time">11:00<small>– 12:00</small></span>
+            <span class="who"><span class="nm">ธนกฤต แสงทอง</span><span class="no">#25690800011</span></span>
+            <span class="badge b-conf">ลูกค้ายืนยันแล้ว</span>
+          </div>
+          <div class="row">
+            <span class="time">15:30<small>– 16:30</small></span>
+            <span class="who"><span class="nm">ปรียานุช ทองดีเลิศประเสริฐศรี</span><span class="no">#25690800013</span></span>
+            <span class="badge b-resch">ลูกค้าขอเลื่อน</span>
+          </div>
+        </div>
+        <div class="footbar">
+          <span class="pick"><small>วันที่เลือก</small><strong>ศุกร์ 7 ส.ค. 2569</strong></span>
+          <button class="btn-primary">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
+            ยืนยันวันนัด
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</figure>
+
+</div>
+</body>
+</html>

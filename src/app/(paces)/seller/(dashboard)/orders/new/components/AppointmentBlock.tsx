@@ -236,24 +236,94 @@ export default function AppointmentBlock({
           </div>
         )}
 
-        {/* คิวงาน — field ที่ bind RHF ต้องเป็น form-select ไม่ใช่ hs-dropdown */}
+        {/* คิวงาน — การ์ดจิ้มได้แทน form-select (user สั่ง 2026-08-07: "อยากให้เป็น Card
+            รายการที่เข้านัดได้ จะได้จิ้มง่าย ๆ และเมื่อจิ้มแล้วก็ให้ auto open modal ปฏิทินเลย")
+            Base (ภาษาการออกแบบ): ./ProductGrid.tsx — การ์ด role=button + ring-2 ring-primary
+              เมื่อถูกเลือก; และ dashboard/components/BestSellerStrip.tsx สำหรับ idiom
+              "เหลือรายการเดียว = เต็มแถว ไม่ใช่การ์ดแคบลอยมุมซ้าย"
+
+            ยกมาแค่ *ภาษาการออกแบบ* ไม่ใช่ทรง: ตัดรูป/ราคา/badge สต็อกทิ้งทั้งหมด เพราะ
+            ServiceResourceOption ไม่มี field รูปให้แสดง (การ์ดที่มีกล่องรูปเทาว่างคือบทเรียน
+            ที่ BestSellerStrip บันทึกไว้แล้ว) และ **ไม่ทำเป็นแถบเลื่อนแนวนอนแบบ BestSellerStrip**
+            เพราะอันนั้นเป็น carousel โปรโมชัน แต่อันนี้เป็นฟิลด์ฟอร์ม — ซ่อนคิวงานไว้นอกจอ
+            แล้วผู้ขายอาจไม่รู้ว่ามีช่างคนอื่นว่างอยู่
+
+            grid-cols-2 คงที่ ห้ามผูก viewport breakpoint: บล็อกนี้ mount พร้อมกัน 2 ใบ
+            (QuickForm มือถือ / CartPanel accordion เดสก์ท็อป ~400px) sm:/md: จะทำให้ใบใน
+            accordion แคบแตกคอลัมน์ตามความกว้างจอ ไม่ใช่ตามความกว้างกล่องจริง */}
         <div>
-          <label htmlFor={`${idPrefix}-appt-resource`} className="form-label">รับนัดโดย</label>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span id={`${idPrefix}-appt-resource-label`} className="form-label mb-0">รับนัดโดย</span>
+            {/* ทางออกจาก "ตั้งวันนัดแล้ว" กลับไป "ไม่ตั้งวันนัด" — แทน <option value=""> เดิม
+                ที่หายไปพร้อม dropdown. ต้องเป็นปุ่มแยกที่อยู่ตำแหน่งเดิมเสมอ ไม่ใช่ให้จิ้ม
+                การ์ดที่เลือกอยู่แล้วเพื่อ deselect เพราะ tap นั้นถูกใช้เปิดปฏิทินแก้วันไปแล้ว
+                (tap เดียวทำ 2 อย่างตามสถานะ = เดาไม่ถูกว่าจะได้อะไร) */}
+            {selected && (
+              <button
+                type="button"
+                onClick={() => {
+                  setValue('appointment.resourceId', undefined)
+                  setValue('appointment.date', undefined)
+                  setValue('appointment.startTime', undefined)
+                  setValue('appointment.endTime', undefined)
+                  setValue('appointment.depositAmount', null)
+                }}
+                className="btn btn-sm text-default-500 hover:text-danger"
+              >
+                <Icon icon="x" className="size-4" />
+                ล้างวันนัด
+              </button>
+            )}
+          </div>
           <Controller
             control={control}
             name="appointment.resourceId"
             render={({ field }) => (
-              <select id={`${idPrefix}-appt-resource`} className="form-select" {...field} value={field.value ?? ''}>
-                {/* เดิมเขียน "(ออเดอร์ปกติ)" — บล็อกนี้ขึ้นเฉพาะร้าน SERVICE_QUEUE ซึ่งเรียกของตัวเองว่า
-                    "การเข้ารับบริการ" ไม่ใช่ "ออเดอร์" (ORDER_VOCAB) การอธิบายด้วยคำของอีก vertical
-                    ทำให้จอเดียวมีสองชื่อเรียกของสิ่งเดียวกัน — ตัดวงเล็บทิ้ง ตัวเลือกอธิบายตัวเองอยู่แล้ว */}
-                <option value="">ไม่ตั้งวันนัด</option>
-                {resources.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} · รับพร้อมกัน {r.capacity} คิว
-                  </option>
-                ))}
-              </select>
+              <div
+                role="group"
+                aria-labelledby={`${idPrefix}-appt-resource-label`}
+                className={resources.length === 1 ? 'grid gap-2' : 'grid grid-cols-2 gap-2'}
+              >
+                {resources.map((r) => {
+                  const active = field.value === r.id
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      aria-pressed={active}
+                      aria-label={
+                        active
+                          ? `${r.name} เลือกอยู่ แตะเพื่อแก้วันนัด`
+                          : `เลือก ${r.name} รับพร้อมกัน ${r.capacity} คิว`
+                      }
+                      onClick={() => {
+                        // จิ้มการ์ดที่เลือกอยู่แล้ว = เปิดปฏิทินแก้วัน (ไม่ deselect — ดูคอมเมนต์ปุ่มล้าง)
+                        if (!active) field.onChange(r.id)
+                        // เปิดปฏิทินทันทีในจังหวะเดียวกับที่เลือก ไม่รอ effect
+                        // (user สั่ง: "เมื่อจิ้มแล้ว ก็ให้ auto open modal ปฏิทินเลย")
+                        setDateSheetOpen(true)
+                      }}
+                      className={`flex min-h-16 items-center gap-2.5 rounded-lg border p-3 text-left transition-colors ${
+                        active
+                          ? 'border-primary ring-primary bg-primary/5 ring-2'
+                          : 'border-default-200 hover:border-default-300'
+                      }`}
+                    >
+                      <span
+                        className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
+                          active ? 'bg-primary/15 text-primary' : 'bg-default-100 text-default-500'
+                        }`}
+                      >
+                        <Icon icon="users" className="size-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="text-dark block truncate text-sm font-medium">{r.name}</span>
+                        <span className="text-default-500 block text-xs">รับพร้อมกัน {r.capacity} คิว</span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
             )}
           />
         </div>
@@ -427,6 +497,8 @@ export default function AppointmentBlock({
         open={dateSheetOpen}
         resourceId={value.resourceId}
         resourceName={selected?.name}
+        // ความจุมาจาก resource ที่เลือกอยู่แล้วในฟอร์ม — sheet ไม่ต้องไปถาม API ซ้ำ
+        resourceCapacity={selected?.capacity}
         value={value.date}
         onSelect={(d) => setValue('appointment.date', d)}
         onClose={() => setDateSheetOpen(false)}
