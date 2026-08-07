@@ -115,13 +115,28 @@ export default function AddressSearchSheet({ open, current, onSelect, onClose }:
 
   return (
     <>
-      {/* HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) */}
-      <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label="เลือกที่อยู่">
+      {/* HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token)
+          pt safe-area: เต็มจอจริงตั้งแต่เปิด viewportFit:'cover' (2026-08-06) → หัวแผ่นต้องเว้น
+          status bar เอง (CustomerSearchSheet ทำไว้แล้ว ใบนี้ตกสำรวจ — ios-safe-area.md) */}
+      <div
+        className="fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)]" /* carve-out: safe-area ไม่มี token */
+        role="dialog"
+        aria-label="เลือกที่อยู่"
+      >
         <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
-          <button type="button" onClick={onClose} aria-label="ย้อนกลับ" className="shrink-0 text-default-500">
+          {/* หัวแผ่นชุดเดียวกับ CustomerSearchSheet / AppointmentDateSheet (3 ชีตของฟอร์มเดียวกัน)
+              — แก้ที่ไหนแก้ให้ครบทั้งสาม */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="ย้อนกลับ"
+            className="btn btn-icon text-default-800 hover:bg-default-100 shrink-0"
+          >
             <Icon icon="chevron-left" className="size-6" />
           </button>
-          <Icon icon="map-pin" className="size-5 text-primary" />
+          <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded">
+            <Icon icon="map-pin" className="size-5" />
+          </span>
           <h3 className="text-base font-semibold text-dark">เลือกที่อยู่</h3>
         </div>
         <div className="shrink-0 px-4 pt-3">

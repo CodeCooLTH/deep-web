@@ -89,10 +89,20 @@ export default function CustomerSearchSheet({ open, initialQuery = '', onSelect,
        status bar เอง (ขอบล่างมี pb-[env(...)] ที่ scroller อยู่แล้ว) */
     <div className="fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)]" role="dialog" aria-label="ค้นหาลูกค้า"> {/* carve-out: safe-area ไม่มี token */}
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
-        <button type="button" onClick={onClose} aria-label="ย้อนกลับ" className="shrink-0 text-default-500">
+        {/* ปุ่มย้อนกลับ/ไอคอนหัวแผ่นของ 3 ชีตที่เปิดจากฟอร์มสร้างออเดอร์ (ที่นี่ ·
+            AddressSearchSheet · AppointmentDateSheet) ต้องเหมือนกันทั้งชุด — แก้ที่ไหนแก้ให้ครบ
+            btn-icon = พื้นที่แตะ 37px ตามธีม (เดิมเป็น <button> เปล่าที่แตะได้แค่เท่าไอคอน 24px) */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="ย้อนกลับ"
+          className="btn btn-icon text-default-800 hover:bg-default-100 shrink-0"
+        >
           <Icon icon="chevron-left" className="size-6" />
         </button>
-        <Icon icon="user-search" className="size-5 text-primary" />
+        <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded">
+          <Icon icon="user-search" className="size-5" />
+        </span>
         <h3 className="text-base font-semibold text-dark">ค้นหา / เพิ่มลูกค้า</h3>
       </div>
       <div className="shrink-0 px-4 pt-3">

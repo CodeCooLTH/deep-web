@@ -265,15 +265,27 @@ export default function AppointmentDateSheet({
 
   return (
     /* HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — ชุดเดียวกับ
-       AddressSearchSheet ที่เปิดจากฟอร์มเดียวกัน */
-    <div className="fixed inset-0 z-80 flex flex-col bg-card" role="dialog" aria-label="เลือกวันนัด">
+       AddressSearchSheet ที่เปิดจากฟอร์มเดียวกัน
+       pt safe-area: เต็มจอจริงตั้งแต่เปิด viewportFit:'cover' (2026-08-06) → หัวแผ่นต้องเว้น
+       status bar เอง ไม่งั้นปุ่มย้อนกลับไปนอนใต้นาฬิกา/แบตเตอรี่ (CustomerSearchSheet ทำไว้แล้ว
+       แต่ชีตนี้กับ AddressSearchSheet ตกสำรวจ — docs/conventions/ios-safe-area.md) */
+    <div
+      className="fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)]" /* carve-out: safe-area ไม่มี token */
+      role="dialog"
+      aria-label="เลือกวันนัด"
+    >
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
-        <button type="button" onClick={onClose} aria-label="ย้อนกลับ" className="shrink-0 text-default-500">
+        {/* หัวแผ่นชุดเดียวกับ CustomerSearchSheet / AddressSearchSheet (3 ชีตของฟอร์มเดียวกัน)
+            — แก้ที่ไหนแก้ให้ครบทั้งสาม */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="ย้อนกลับ"
+          className="btn btn-icon text-default-800 hover:bg-default-100 shrink-0"
+        >
           <Icon icon="chevron-left" className="size-6" />
         </button>
-        {/* ไอคอนในกรอบพื้นอ่อนตาม mockup — idiom `bg-{semantic}/15` ของ Paces (HR7)
-            หมายเหตุ: AddressSearchSheet ที่เปิดจากฟอร์มเดียวกันยังเป็นไอคอนเปล่า ๆ อยู่
-            ถ้าจะให้พี่น้องเหมือนกันต้องไล่แก้อีกใบด้วย (ยังไม่ทำในรอบนี้) */}
+        {/* ไอคอนในกรอบพื้นอ่อนตาม mockup — idiom `bg-{semantic}/15` ของ Paces (HR7) */}
         <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded">
           <Icon icon="calendar-event" className="size-5" />
         </span>
