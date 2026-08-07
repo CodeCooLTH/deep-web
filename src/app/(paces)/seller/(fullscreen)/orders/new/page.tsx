@@ -153,7 +153,7 @@ export default async function NewOrderPage() {
         backHref="/orders"
       />
       {/* Form body — Paces order-add card pattern */}
-      <OrderCreateForm vocab={vocab} shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
+      <OrderCreateForm vocab={vocab} shopVertical={shop.vertical} shopId={shop.id} catalog={catalog} bestSellers={bestSellers} formId={FORM_ID} inventoryEnabled={inventoryEnabled} ishipCreateMode={ishipCreateMode} serviceResourcesEnabled={serviceResourcesEnabled} serviceResources={serviceResources} appointmentGranularity={shop.appointmentGranularity as AppointmentGranularity} />
     </>
   )
 }

@@ -33,6 +33,8 @@ interface Props {
   control: Control<FormValues>
   errors: FieldErrors<FormValues>
   setValue: UseFormSetValue<FormValues>
+  /** ร้านนี้ส่งของไหม — รายการพิมพ์เอง (ไม่มี productId) นับเป็น "ต้องจัดส่ง" เฉพาะร้านที่ส่งของ */
+  shipsGoods?: boolean
   catalog: CatalogProduct[]
   bestSellers: CatalogProduct[]
   itemsCtl: ItemsController
@@ -70,6 +72,7 @@ export default function QuickForm({
   orderDateFromMessage,
   orderDateMessageTooOld,
   orderDateLabel,
+  shipsGoods = true,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
 
@@ -81,10 +84,10 @@ export default function QuickForm({
     () =>
       salesChannel !== 'STOREFRONT' &&
       watchedItems.some((i) => {
-        if (!i?.productId) return true
+        if (!i?.productId) return shipsGoods
         return catalog.find((p) => p.id === i.productId)?.fulfillmentMode === 'SHIPPED'
       }),
-    [watchedItems, catalog, salesChannel],
+    [watchedItems, catalog, salesChannel, shipsGoods],
   )
 
   // compact (โมดัลในแชท): ไม่ bleed ขอบ (ไม่มี fullscreen layout p-4/p-8 ให้หักล้าง) + padding คงที่ px-4

@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { getLocalityStatus } from './shipping-address-status'
+import { getLocalityStatus, shopShipsGoods } from './shipping-address-status'
+
+describe('shopShipsGoods — รายการพิมพ์เองแปลว่าต้องจัดส่งไหม (user 2026-08-07)', () => {
+  it('ONLINE_SALES ส่งของ', () => expect(shopShipsGoods('ONLINE_SALES')).toBe(true))
+  it('SERVICE_QUEUE ไม่ส่งของ — ลูกค้ามาที่ร้าน', () => expect(shopShipsGoods('SERVICE_QUEUE')).toBe(false))
+  it('LODGING ไม่ส่งของ — ผู้เข้าพักมาที่ที่พัก', () => expect(shopShipsGoods('LODGING')).toBe(false))
+
+  // fail-safe ไปทางที่เข้มกว่า: ค่าที่ไม่รู้จักต้องยังบังคับที่อยู่ ไม่ใช่ปล่อยผ่านเงียบ ๆ
+  it.each([undefined, null, '', 'SOMETHING_NEW'])('ค่าที่ไม่รู้จัก (%s) → ถือว่าส่งของ', (v) => {
+    expect(shopShipsGoods(v)).toBe(true)
+  })
+})
 
 describe('getLocalityStatus — สถานะที่อยู่จัดส่งบนหน้าจอ', () => {
   it('ฟอร์มว่างสนิท + ยังไม่กดบันทึก → empty (ห้ามขึ้นแดงตั้งแต่ยังไม่กรอกอะไร)', () => {

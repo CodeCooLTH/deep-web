@@ -30,6 +30,7 @@ import QuickForm from './QuickForm'
 import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 import { toDatetimeLocalValue } from './OrderDateRow'
 import { resolveEditedOrderedAtPayload, orderDateRejectReason } from '@/lib/order-date-window'
+import { shopShipsGoods } from '@/lib/shipping-address-status'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -52,6 +53,11 @@ export interface CatalogProduct {
 interface Props {
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — คำนวณที่ RSC */
   vocab: OrderVocab
+  /**
+   * ประเภทกิจการของร้าน — ใช้ตัดสินว่า "รายการพิมพ์เอง" แปลว่าต้องจัดส่งไหม (shopShipsGoods)
+   * ไม่ส่งมา = ถือว่าร้านส่งของ (พฤติกรรมเดิม) — fail-safe ทางที่เข้มกว่า
+   */
+  shopVertical?: string
   shopId: string
   catalog: CatalogProduct[]
   /** สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน quick create ProductPickerSheet (< lg) */
@@ -250,6 +256,7 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 export default function OrderCreateForm({
   vocab,
+  shopVertical,
   shopId: _shopId,
   catalog,
   bestSellers = [],
@@ -270,6 +277,8 @@ export default function OrderCreateForm({
   prefillCreatedAt,
   prefillCreatedAtTooOld = false,
 }: Props) {
+  // ร้านนี้ส่งของไหม — ตัวเดียวกับที่ createOrder ใช้ตัดสิน (SSOT: lib/shipping-address-status)
+  const shipsGoods = shopShipsGoods(shopVertical)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -573,10 +582,12 @@ export default function OrderCreateForm({
 
     // ── needsShipping: มี item ที่ fulfillmentMode === 'SHIPPED' หรือ custom item ──
     // ยกเว้นช่องทาง "หน้าร้าน" (STOREFRONT) — รับสินค้าที่ร้าน ไม่ต้องมีที่อยู่จัดส่ง
+    // รายการพิมพ์เอง (ไม่มี productId) = ต้องจัดส่ง เฉพาะร้านที่ส่งของ — ร้านคิวงาน/บ้านพัก
+    // พิมพ์รายการเองเป็นเรื่องปกติ ไม่ได้แปลว่ามีพัสดุ (user 2026-08-07, ดู shopShipsGoods)
     const needsShipping =
       values.salesChannel !== 'STOREFRONT' &&
       items.some((item) => {
-        if (!item.productId) return true
+        if (!item.productId) return shipsGoods
         return catalog.find((p) => p.id === item.productId)?.fulfillmentMode === 'SHIPPED'
       })
 
@@ -869,6 +880,7 @@ export default function OrderCreateForm({
       <div className={compact ? '' : 'lg:hidden'}>
         <QuickForm
           orderNoun={vocab.noun}
+          shipsGoods={shipsGoods}
           prefillParseText={prefillParseText}
           control={control}
           errors={errors}
@@ -903,6 +915,7 @@ export default function OrderCreateForm({
         <div className="lg:h-full">
           <CartPanel
             orderNoun={vocab.noun}
+            shipsGoods={shipsGoods}
             control={control}
             catalog={catalog}
             itemsCtl={itemsCtl}

@@ -191,6 +191,8 @@ type ProviderProps = {
   inventoryEnabled: boolean
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — layout เป็นคนคำนวณ */
   vocab: OrderVocab
+  /** ประเภทกิจการดิบ — ฟอร์มใช้ตัดสินว่า "รายการพิมพ์เอง" ต้องมีที่อยู่จัดส่งไหม (shopShipsGoods) */
+  shopVertical?: string
   /** feature 00024 — ร้านนี้ใช้ระบบนัดหมายได้ไหม (SERVICE_QUEUE เท่านั้น); false = ฟอร์มไม่ render บล็อกวันนัด */
   serviceResourcesEnabled?: boolean
   /** ทรัพยากรบริการที่เปิดใช้งาน (ช่าง/ช่องบริการ) — ว่าง = ไม่มีอะไรให้จอง บล็อกไม่ขึ้น */
@@ -206,6 +208,7 @@ export default function DraftOrderProvider({
   bestSellers,
   inventoryEnabled,
   vocab,
+  shopVertical,
   serviceResourcesEnabled = false,
   serviceResources = [],
   appointmentGranularity = 'DAY',
@@ -443,6 +446,7 @@ export default function DraftOrderProvider({
               return (
               <OrderCreateForm
               vocab={vocab}
+                shopVertical={shopVertical}
                 shopId={shopId}
                 catalog={catalog}
                 bestSellers={bestSellers}

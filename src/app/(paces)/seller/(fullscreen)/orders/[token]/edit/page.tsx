@@ -164,6 +164,7 @@ export default async function EditOrderPage({ params }: PageProps) {
       />
       <OrderCreateForm
         vocab={vocab}
+        shopVertical={shop.vertical}
         shopId={shop.id}
         catalog={catalog}
         bestSellers={bestSellers}

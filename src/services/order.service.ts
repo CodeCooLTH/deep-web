@@ -8,6 +8,7 @@ import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
 import { isCancelReason } from "@/lib/lodging";
 import { deriveShippingStage } from "@/lib/order-stage";
+import { shopShipsGoods } from "@/lib/shipping-address-status";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
@@ -178,11 +179,26 @@ export async function createOrder(shopId: string, data: {
 
   let fulfillmentMode = "NO_SHIPPING";
 
+  /**
+   * ร้านนี้ส่งของไหม (user เคาะ 2026-08-07) — ตัดสินว่า "รายการพิมพ์เอง" แปลว่าต้องจัดส่งหรือเปล่า
+   *
+   * query เอง ไม่รับเป็น parameter: นี่คือ **ตัวกั้น** ไม่ใช่ค่าตั้งต้น — caller มีหลายทาง
+   * (route ของ POS, โมดัลในแชท, iShip import) ถ้าปล่อยให้แต่ละที่ส่งมาเอง วันที่มีคนลืมส่ง
+   * ร้านบริการจะกลับไปโดนบังคับที่อยู่อีกโดยไม่มีอะไรฟ้อง. lookup ด้วย PK ราคาถูกมาก
+   */
+  const shopRow = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: { vertical: true },
+  });
+  const shipsGoods = shopShipsGoods(shopRow?.vertical);
+
   // ตรวจ item ที่ไม่มี productId (พิมพ์เอง) ก่อน — ถ้า order.type=PHYSICAL → SHIPPED
+  // ร้านที่ไม่ส่งของ (คิวงาน/บ้านพัก) ข้ามข้อนี้: งานบริการพิมพ์รายการเองเป็นเรื่องปกติ
+  // ไม่ได้แปลว่ามีพัสดุให้ส่ง (ดู shopShipsGoods)
   const hasManualPhysicalItem = data.items.some(
     (i) => !i.productId && data.type === "PHYSICAL",
   );
-  if (hasManualPhysicalItem) {
+  if (hasManualPhysicalItem && shipsGoods) {
     fulfillmentMode = "SHIPPED";
   }
 

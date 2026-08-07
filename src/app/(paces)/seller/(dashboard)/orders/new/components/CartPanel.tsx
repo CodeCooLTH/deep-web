@@ -46,6 +46,8 @@ interface Props {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<any>
+  /** ร้านนี้ส่งของไหม — รายการพิมพ์เอง (ไม่มี productId) นับเป็น "ต้องจัดส่ง" เฉพาะร้านที่ส่งของ */
+  shipsGoods?: boolean
   catalog: CatalogProduct[]
   itemsCtl: ItemsController
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -88,6 +90,7 @@ export default function CartPanel({
   orderDateFromMessage,
   orderDateMessageTooOld,
   orderDateLabel,
+  shipsGoods = true,
 }: Props) {
   const items = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' }) as string | undefined
@@ -158,10 +161,10 @@ export default function CartPanel({
     () =>
       salesChannel !== 'STOREFRONT' &&
       items.some((i) => {
-        if (!i.productId) return true
+        if (!i.productId) return shipsGoods
         return catalog.find((p) => p.id === i.productId)?.fulfillmentMode === 'SHIPPED'
       }),
-    [items, catalog, salesChannel],
+    [items, catalog, salesChannel, shipsGoods],
   )
 
   // ── Summary math (LOCKED — copy จาก OrderSummaryPanel) ──

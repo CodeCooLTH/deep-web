@@ -193,6 +193,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       bestSellers={bestSellers}
       inventoryEnabled={inventoryEnabled}
       vocab={resolveOrderVocab(shopVertical)}
+      shopVertical={shopVertical}
       serviceResourcesEnabled={serviceResourcesEnabled}
       serviceResources={serviceResources}
       appointmentGranularity={appointmentGranularity}
