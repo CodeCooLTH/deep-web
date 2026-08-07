@@ -94,8 +94,6 @@ export interface OrderDetailClientProps {
   salesChannel: string | null
   /** รูปเพจที่ลูกค้าทักมา — ส่งต่อให้ OrderSummary (user 2026-08-06) */
   pageLogoUrl?: string | null
-  /** ชื่อผู้ซื้อที่ resolve แล้วฝั่ง server — ส่งต่อให้ StatusHero ตรง ๆ */
-  buyerLabel: string
   totalAmount: number
   paymentMethod: string | null
   slipFileId: string | null
@@ -113,7 +111,6 @@ export interface OrderDetailClientProps {
 
   /** ออเดอร์เก็บเงินปลายทางที่ร้านยังไม่ได้กดว่าได้เงิน → มีปุ่ม "ได้รับเงินปลายทางแล้ว" */
   isCodUnpaid: boolean
-  buyerAvatar: string | null
   internalNote: string | null
 
   // ── OrderSummary (การ์ดหัวตามโครงธีม: หัว + ปุ่ม + ตารางสินค้า + ยอดรวม) ──────
@@ -149,7 +146,6 @@ export default function OrderDetailClient({
   isFromAuction,
   salesChannel,
   pageLogoUrl = null,
-  buyerLabel,
   totalAmount,
   paymentMethod,
   slipFileId,
@@ -160,7 +156,6 @@ export default function OrderDetailClient({
   provider,
   addressText,
   isCodUnpaid,
-  buyerAvatar,
   internalNote,
   items,
   discount,
@@ -376,8 +371,6 @@ export default function OrderDetailClient({
         <div className="space-y-base lg:col-span-3">
           <OrderSummary
             actionSet={actionSet}
-            buyerAvatar={buyerAvatar}
-            buyerLabel={buyerLabel}
             createdAtISO={createdAtISO}
             internalNote={internalNote}
             isCod={isCod}

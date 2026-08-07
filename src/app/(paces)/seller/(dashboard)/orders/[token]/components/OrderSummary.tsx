@@ -19,7 +19,6 @@
  *     บนพื้น `/15` — ตก AA ทุกจุด เปลี่ยนเป็น `-700`/`-ink` (badge มาจาก SSOT ที่แก้ไว้แล้ว)
  */
 
-import Image from 'next/image'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { formatDateTimeTH } from '@/lib/format-date'
@@ -48,9 +47,6 @@ export type OrderSummaryProps = {
   salesChannel: string | null
   /** รูปเพจที่ลูกค้าทักมา — null = ใช้โลโก้แพลตฟอร์มเดิม (user 2026-08-06) */
   pageLogoUrl?: string | null
-  buyerLabel: string
-  /** รูปโปรไฟล์ผู้ซื้อ (URL สาธารณะ ไม่ใช่ PII) — null = ยังไม่ลงทะเบียน/ไม่มีรูป */
-  buyerAvatar: string | null
   /** หมายเหตุที่ร้านพิมพ์ไว้ตอนสร้างออเดอร์ — เห็นเฉพาะร้าน ผู้ซื้อไม่เห็น */
   internalNote: string | null
   /** true = เก็บเงินปลายทาง → ไม่ต้องมี badge วิธีชำระที่หัว เพราะมีการ์ดของตัวเองอยู่ขวามือ */
@@ -77,8 +73,6 @@ export default function OrderSummary({
   createdAtISO,
   salesChannel,
   pageLogoUrl = null,
-  buyerLabel,
-  buyerAvatar,
   internalNote,
   isCod,
   paymentMethod,
@@ -137,17 +131,9 @@ export default function OrderSummary({
             <h2 className="text-default-900 mb-1.25 flex items-center text-lg font-bold">
               {formatOrderNo(publicToken, createdAtISO)}
             </h2>
-            {/* รูปผู้ซื้อคู่ชื่อ — user 2026-08-05 "ตรงไหนมี Profile แสดงผลได้ ให้แสดงด้วย" */}
-            <p className="text-default-700 mb-2.5 flex items-center gap-1.5 text-sm">
-              {buyerAvatar ? (
-                <Image alt="" className="size-5 shrink-0 rounded-full object-cover" height={20} src={buyerAvatar} width={20} />
-              ) : (
-                <span className="bg-default-200 text-default-700 flex size-5 shrink-0 items-center justify-center rounded-full text-2xs font-semibold">
-                  {buyerLabel.trim().charAt(0).toUpperCase() || '?'}
-                </span>
-              )}
-              <span className="truncate">{buyerLabel}</span>
-            </p>
+            {/* ไม่มีชื่อผู้ซื้อตรงนี้แล้ว (user บอก 2026-08-06 ว่าซ้ำ) — การ์ด "ผู้ซื้อ" ขวามือ
+                เป็นเจ้าของข้อมูลคนซื้อ (รูป+ชื่อ+ที่มาของชื่อ+เบอร์+จำนวนครั้งที่สั่ง) หัวการ์ดนี้
+                ตอบคำถามคนละชุด: ใบไหน · มาจากช่องทางไหน · เมื่อไร · สถานะอะไร (= โครงเดิมของธีม) */}
             <p className="text-default-700 mb-3.5 flex items-center gap-1 text-xs">
               <Icon icon="calendar" className="align-middle" aria-hidden="true" />
               {formatDateTimeTH(createdAtISO)}
