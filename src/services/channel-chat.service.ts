@@ -365,6 +365,11 @@ function backfillPreview(c: BackfillContent): string {
     FILE: '[ไฟล์แนบ]',
   }
   if (c.imageUrl) return short[c.type] ?? '[ไฟล์แนบ]'
+  // การ์ดจาก Facebook ใช้ label สั้นตัวเดียวกับฝั่ง webhook (SHORT_PREVIEW_BY_ATTTYPE.template)
+  // ไม่ใช่ตัดเนื้อหาจริง 100 ตัวอักษร — list ต้องสั้นเสมอเหมือนรูป/วิดีโอ (user report 2026-07-25:
+  // placeholder ยาวไปโผล่ใน list) เนื้อหาจริงของการ์ดเก็บไว้ให้เห็นตอนเปิดเธรด ไม่ใช่ตอนกวาดสายตา
+  // คำต้องตรงกับฝั่ง webhook เป๊ะ ๆ — concept เดียวกันต้องอ่านได้เป็นคำเดียวกันทั้ง 2 ทางเข้า
+  if (c.body?.startsWith(CARD_PREFIX)) return '[ข้อความจากระบบ]'
   return (c.body ?? SYNCED_EMPTY_TEXT).slice(0, 100)
 }
 
