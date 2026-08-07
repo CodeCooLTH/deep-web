@@ -268,11 +268,46 @@ describe('ingestInboundMessage', () => {
       expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toBe('[มีการโทรด้วยเสียง]')
     })
 
-    it('icon-template ที่ title ไม่รู้จัก (เช่น Video call ในอนาคต) → ตกกลับเป็นข้อความธรรมดา ไม่เดาเป็น CALL', async () => {
+    it('icon-template ที่ title ไม่รู้จัก (เช่น Video call ในอนาคต) → ไม่เดาเป็น CALL แต่ต้องเป็น "การ์ด" ไม่ใช่บับเบิลสีร้าน', async () => {
       await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: callEvent('Video call') })
       const data = db.chatMessage.create.mock.calls[0]![0].data
+      // เจตนาเดิมของเทสนี้ (ห้ามเดาเป็น CALL) ยังบังคับอยู่ — เปลี่ยนแค่ body
       expect(data.type).toBe('TEXT')
-      expect(data.body).toBe('Video call')
+      // 2026-08-07: เดิมเก็บ title ดิบ ("Video call") ซึ่งขึ้นเป็นบับเบิลสีร้าน = ดูเหมือนแอดมิน
+      // พิมพ์เอง (บั๊กจริงบน prod 63 แถว เช่น "฿360.00 order") — การ์ดต้องมีคำนำหน้าเสมอ
+      expect(data.body).toBe('[การ์ดจาก Facebook] Video call — Call again')
+    })
+
+    // bug จริง prod 2026-08-07 (user report + screenshot): การ์ดคำขอชำระเงินขึ้นเป็นบับเบิลสีร้าน
+    // payload คัดลอกจาก ChatMessage.rawMessage บน prod
+    it('การ์ดคำขอชำระเงิน → บรรทัดระบบ + preview สั้น (ไม่ใช่เนื้อหาการ์ดยาว ๆ)', async () => {
+      await ingestInboundMessage({
+        provider: 'MESSENGER',
+        pageExternalId: 'PAGE1',
+        event: {
+          sender: { id: 'PAGE1' },
+          recipient: { id: 'PSID_1' },
+          timestamp: 1750000000000,
+          message: {
+            mid: 'mid.card.pay',
+            is_echo: true,
+            attachments: [
+              {
+                type: 'template',
+                payload: {
+                  template_type: 'generic',
+                  elements: [
+                    { title: '฿360.00 order', subtitle: 'Waiting for payment', buttons: [{ title: 'Attach bank slip' }] },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      })
+      const data = db.chatMessage.create.mock.calls[0]![0].data
+      expect(data.body).toBe('[การ์ดจาก Facebook] ฿360.00 order — Waiting for payment')
+      expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toBe('[ข้อความจากระบบ]')
     })
 
     it('attachment ที่ไม่ใช่รูป (วิดีโอ/เสียง/ไฟล์) → เก็บ placeholder ให้ seller รู้ว่ามีไฟล์แนบ', async () => {

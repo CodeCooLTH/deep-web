@@ -94,3 +94,22 @@ describe('การ์ดจาก Facebook ที่มีเนื้อหา
     expect(parseMetaSystemNotice('[ด่วน] ของหมดแล้วนะคะ')).toBeNull()
   })
 })
+
+// 2026-08-07 รอบสอง — บรรทัดที่ Meta ส่งมาเป็น message เปล่า ๆ ในนามลูกค้า (user report + screenshot)
+describe('บรรทัดระบบที่ Meta ส่งในนามลูกค้า', () => {
+  it.each([
+    'Pakasit sent a ฿15,000.00 payment.',
+    'Supot sent a ฿360.00 payment.',
+    'มาลาตรี sent a payment.',
+    'เชื่อมต่อบัญชีธนาคารของคุณเพื่อตรวจสอบความถูกต้องของสลิป',
+  ])('“%s” → บรรทัดระบบ', (line) => {
+    expect(parseMetaSystemNotice(line)).not.toBeNull()
+  })
+
+  it.each([
+    'ลูกค้าโอนแล้วนะครับ payment ไปแล้ว',
+    'ผมยังไม่ได้ sent a payment ให้เลย ขอเวลาแป๊บ',
+  ])('ข้อความที่คนพิมพ์เองต้องไม่ถูกจับ: “%s”', (line) => {
+    expect(parseMetaSystemNotice(line)).toBeNull()
+  })
+})

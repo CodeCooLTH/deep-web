@@ -39,6 +39,43 @@ function cardText(a: { title: string | null; subtitle: string | null }): string 
 
 type Outcome = 'card' | 'text' | 'media' | 'still-empty' | 'graph-null' | 'no-token'
 
+/** โหมดสำรวจสื่อ: ไม่เขียนอะไรทั้งสิ้น แค่รายงานว่าถ้าจะ mirror ต้องโหลดอะไรบ้าง */
+const MEDIA_SURVEY = process.argv.includes('--media')
+
+// ล้อ allow-list ของ mirrorRemoteImage (S-1) — โฮสต์นอกรายการนี้ mirror ไม่ได้อยู่แล้ว
+const ALLOWED_EXACT = new Set(['graph.facebook.com', 'fbcdn.net', 'cdninstagram.com', 'fbsbx.com'])
+const ALLOWED_SUFFIX = ['.fbcdn.net', '.cdninstagram.com', '.fbsbx.com']
+function hostAllowed(u: string): boolean {
+  try {
+    const h = new URL(u)
+    if (h.protocol !== 'https:') return false
+    const n = h.hostname.toLowerCase()
+    return ALLOWED_EXACT.has(n) || ALLOWED_SUFFIX.some((s) => n.endsWith(s))
+  } catch {
+    return false
+  }
+}
+
+/** เช็คว่า URL ยังโหลดได้จริงไหม โดย**ไม่ดาวน์โหลดทั้งไฟล์** — ขอ byte เดียว */
+async function probeUrl(u: string): Promise<{ ok: boolean; status: number; bytes: number | null }> {
+  try {
+    const res = await fetch(u, { headers: { Range: 'bytes=0-0' }, signal: AbortSignal.timeout(15000) })
+    const cr = res.headers.get('content-range') // "bytes 0-0/184288"
+    const total = cr?.split('/')[1]
+    return {
+      ok: res.ok,
+      status: res.status,
+      bytes: total && /^\d+$/.test(total) ? Number(total) : Number(res.headers.get('content-length') ?? '') || null,
+    }
+  } catch {
+    return { ok: false, status: 0, bytes: null }
+  }
+}
+
+function mb(n: number): string {
+  return `${(n / 1024 / 1024).toFixed(2)} MB`
+}
+
 async function main() {
   const rows = await prisma.chatMessage.findMany({
     where: { body: PLACEHOLDER, externalMessageId: { not: null } },
@@ -60,6 +97,15 @@ async function main() {
   }
   const samples: string[] = []
   const updates: Array<{ id: string; body: string }> = []
+  const mediaRows: Array<{
+    kind: string
+    mime: string | null
+    host: string
+    allowed: boolean
+    reachable: boolean
+    status: number
+    bytes: number | null
+  }> = []
 
   for (let i = 0; i < rows.length; i += BATCH) {
     await Promise.all(
@@ -79,7 +125,21 @@ async function main() {
         if (media) {
           // รอบนี้ไม่แตะ storage — รายงานไว้ให้ตัดสินแยก
           tally.media++
-          if (samples.length < 25) samples.push(`  [สื่อ]  ${media.kind} ${media.mimeType ?? ''}`)
+          if (MEDIA_SURVEY) {
+            const allowed = hostAllowed(media.mediaUrl!)
+            const probe = allowed ? await probeUrl(media.mediaUrl!) : { ok: false, status: -1, bytes: null }
+            mediaRows.push({
+              kind: media.kind,
+              mime: media.mimeType,
+              host: new URL(media.mediaUrl!).hostname,
+              allowed,
+              reachable: probe.ok,
+              status: probe.status,
+              bytes: probe.bytes ?? media.size,
+            })
+          } else if (samples.length < 25) {
+            samples.push(`  [สื่อ]  ${media.kind} ${media.mimeType ?? ''}`)
+          }
           return
         }
 
@@ -95,6 +155,38 @@ async function main() {
       }),
     )
     if ((i / BATCH) % 10 === 0) console.log(`  …ตรวจแล้ว ${Math.min(i + BATCH, rows.length)}/${rows.length}`)
+  }
+
+  if (MEDIA_SURVEY) {
+    const byKind = new Map<string, { n: number; bytes: number }>()
+    let unknownSize = 0
+    for (const m of mediaRows) {
+      const k = `${m.kind} / ${m.mime ?? 'ไม่ระบุ'}`
+      const cur = byKind.get(k) ?? { n: 0, bytes: 0 }
+      cur.n++
+      if (m.bytes) cur.bytes += m.bytes
+      else unknownSize++
+      byKind.set(k, cur)
+    }
+    console.log(`\nสำรวจสื่อ ${mediaRows.length} แถว (ไม่ได้ดาวน์โหลดไฟล์ — ขอแค่ byte แรกเพื่อดูขนาด)\n`)
+    console.log('แยกตามชนิด:')
+    ;[...byKind.entries()]
+      .sort((a, b) => b[1].n - a[1].n)
+      .forEach(([k, v]) => console.log(`  ${String(v.n).padStart(3)} × ${k.padEnd(24)} รวม ${mb(v.bytes)}`))
+
+    const total = mediaRows.reduce((s, m) => s + (m.bytes ?? 0), 0)
+    const biggest = Math.max(0, ...mediaRows.map((m) => m.bytes ?? 0))
+    console.log('\nสถานะการโหลด:')
+    console.log(`  โฮสต์อยู่ใน allow-list   ${mediaRows.filter((m) => m.allowed).length}/${mediaRows.length}`)
+    console.log(`  ยังโหลดได้จริง (200/206) ${mediaRows.filter((m) => m.reachable).length}/${mediaRows.length}`)
+    console.log(`  โฮสต์ที่เจอ              ${[...new Set(mediaRows.map((m) => m.host))].join(', ')}`)
+    const bad = mediaRows.filter((m) => !m.reachable)
+    if (bad.length) console.log(`  โหลดไม่ได้: ${bad.map((m) => `HTTP ${m.status}`).join(', ')}`)
+    console.log(`\n  ขนาดรวมที่จะเขียนลง storage  ${mb(total)}`)
+    console.log(`  ไฟล์ใหญ่สุด                 ${mb(biggest)}${biggest > 25 * 1024 * 1024 ? '  (เกินเพดาน 25MB → จะถูกข้าม)' : ''}`)
+    if (unknownSize) console.log(`  ไม่รู้ขนาด ${unknownSize} ไฟล์`)
+    console.log('\nโหมดสำรวจ — ไม่มีอะไรถูกเขียนทั้งฐานและ storage')
+    return
   }
 
   // นับข้อความที่ไม่ซ้ำ — ตรวจง่ายกว่าไล่ดูตัวอย่างสุ่ม ว่ามีข้อความแปลกปลอมหลุดเข้ามาไหม

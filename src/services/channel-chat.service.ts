@@ -513,10 +513,36 @@ type AttPayloadStructured = {
   template_type?: string
   order_number?: string
   summary?: { total_cost?: number }
-  elements?: { title?: string }[]
+  elements?: {
+    title?: string
+    // subtitle/buttons/image_url: หลักฐานว่า element นี้เป็น "การ์ด" จริง ไม่ใช่ข้อความที่ห่อ template
+    // ไว้เฉย ๆ — ดู isRealCard() ว่าใช้ตัดสินอะไร (เดิมโค้ดอ่านแค่ title แล้วโยนที่เหลือทิ้งทั้งหมด)
+    subtitle?: string
+    image_url?: string
+    buttons?: { title?: string; url?: string; type?: string }[]
+  }[]
   coordinates?: { lat: number; long: number }
 }
-function composeStructuredText(attType: string | undefined, payload: AttPayloadStructured | undefined): string | null {
+
+/**
+ * "การ์ดจริง" ต่างจาก "ข้อความที่บังเอิญมาในรูป template" ตรงที่มีของประกอบมากกว่าหัวข้อ
+ *
+ * ทำไมต้องแยก (หลักฐานจาก prod 2026-08-07): ข้อความทักทายของเพจเข้ามาได้ **2 ทาง** — บางครั้งเป็น
+ * `message.text` ธรรมดา (พร้อม is_echo) บางครั้งพ่วง attachment template มาด้วย เนื้อหาเดียวกันเป๊ะ
+ * ถ้าใส่คำนำหน้า `[การ์ดจาก Facebook]` ให้ทุก template ข้อความเดียวกันจะแสดงคนละแบบสลับไปมา
+ * ขึ้นกับว่า Meta ส่งมาทางไหนในวันนั้น — ผู้ขายอ่านแล้วงงกว่าเดิม
+ *
+ * การ์ดที่มี subtitle/ปุ่ม/รูป คือของที่ Business Suite วาดเป็นการ์ดจริง (คำขอชำระเงิน, การ์ดโฆษณา,
+ * การ์ดชวนโทร) — พวกนี้ต้องเป็นบรรทัดระบบ ไม่ใช่บับเบิลสีร้าน
+ */
+function isRealCard(el: { subtitle?: string; image_url?: string; buttons?: unknown[] } | undefined): boolean {
+  if (!el) return false
+  return !!el.subtitle?.trim() || !!el.image_url || (Array.isArray(el.buttons) && el.buttons.length > 0)
+}
+export function composeStructuredText(
+  attType: string | undefined,
+  payload: AttPayloadStructured | undefined,
+): string | null {
   if (!attType || !payload) return null
   if (attType === 'location' && payload.coordinates) {
     const { lat, long } = payload.coordinates
@@ -532,11 +558,20 @@ function composeStructuredText(attType: string | undefined, payload: AttPayloadS
     }
     // button template (คำขอชำระเงิน/ดูออเดอร์) มี text สรุปในตัว เช่น "You requested ฿590..."
     if (payload.text && payload.text.trim().length > 0) return payload.text
-    // generic/carousel → ชื่อรายการแรก + จำนวนที่เหลือ
+    // generic/carousel/icon-template → ชื่อรายการแรก + จำนวนที่เหลือ
     const els = payload.elements
     if (els && els.length > 0 && els[0]?.title) {
+      const el = els[0]
       const more = els.length > 1 ? ` และอีก ${els.length - 1} รายการ` : ''
-      return `${els[0].title}${more}`
+      // การ์ดจริง → คำนำหน้า + subtitle ด้วย (bug จริง prod: "฿360.00 order" ขึ้นเป็นบับเบิลสีร้าน
+      // เหมือนแอดมินพิมพ์เอง 63 แถว และ subtitle "Waiting for payment" ถูกโยนทิ้งทั้งที่มีมาในมือ)
+      // ปุ่มบนการ์ด (`buttons[].title` เช่น "Attach bank slip") ไม่เอามาแสดง — เรากดแทนลูกค้าไม่ได้
+      // การเขียนชื่อปุ่มลงไปคือการโฆษณาสิ่งที่กดไม่ได้
+      if (isRealCard(el)) {
+        const sub = el.subtitle?.trim() ? ` — ${el.subtitle.replace(/\s+/g, ' ').trim()}` : ''
+        return `${CARD_PREFIX} ${el.title!.replace(/\s+/g, ' ').trim()}${sub}${more}`
+      }
+      return `${el.title}${more}`
     }
   }
   return null
@@ -708,9 +743,21 @@ export async function ingestInboundMessage(params: {
   const callTitle = attType === 'template' && firstAttachment?.payload?.template_type === 'icon-template'
     ? firstAttachment.payload.elements?.[0]?.title?.trim()
     : undefined
-  // รู้จักเฉพาะ 2 ค่าที่ยืนยันจากข้อมูลจริงบน prod — ค่าอื่น (เช่น "Video call" ในอนาคต) ตกกลับไป
-  // เป็นข้อความธรรมดาเหมือนเดิม ไม่เดาแล้ววาดการ์ดผิดชนิด
-  const isCallEvent = callTitle === 'Missed call' || callTitle === 'Audio call'
+  // ระยะเวลาสายบน subtitle ของ icon-template ("14 sec", "2 min 51 sec") — payload จริงบน prod
+  //
+  // ทำไมต้องดูอันนี้ ไม่ดูแค่ title: **Meta แปลข้อความบนการ์ดตามภาษาของ "ลูกค้า" ไม่ใช่ภาษาเพจ**
+  // (ยืนยันแล้ว 2026-08-07: เจอการ์ดเป็นเขมร `ហៅទូរសព្ទ` และไทย `ส่งคำขอโทรแล้ว` ปนกับอังกฤษในเพจเดียว)
+  // การผูก logic กับสตริงอังกฤษจึงพังทันทีที่ลูกค้าตั้งภาษาอื่น — สายที่คุยจริงจะหลุดไปเป็นข้อความดิบ
+  // ส่วน "มีระยะเวลา" เป็นโครงสร้าง ไม่ใช่ถ้อยคำ: สายที่รับแล้วเท่านั้นที่มีความยาว
+  const callSubtitle = attType === 'template' && firstAttachment?.payload?.template_type === 'icon-template'
+    ? firstAttachment.payload.elements?.[0]?.subtitle?.trim()
+    : undefined
+  const hasCallDuration = !!callSubtitle && /\d/.test(callSubtitle) && /\b(sec|min|hr|hour|วิ|นาที|ชม)/i.test(callSubtitle)
+
+  // "สายที่เกิดขึ้นจริง" เท่านั้นที่เป็น type='CALL' — `Call request sent` / `ส่งคำขอโทรแล้ว` คือ
+  // **การ์ดชวนให้โทร** ไม่ใช่สาย ถ้าเหมารวมเป็น CALL จะขึ้นการ์ด "มีการโทรด้วยเสียง" ทั้งที่ไม่มีใครโทร
+  // พวกนั้นตกไปเป็นการ์ดตามปกติ (มี subtitle/ปุ่ม → ได้คำนำหน้า `[การ์ดจาก Facebook]`)
+  const isCallEvent = callTitle === 'Missed call' || callTitle === 'Audio call' || hasCallDuration
 
   const type = isCallEvent
     ? 'CALL'
@@ -753,7 +800,18 @@ export async function ingestInboundMessage(params: {
     })
   }
   // ลำดับข้อความที่จะแสดง: text จริง > ลิงก์แชร์ > ข้อความสรุปที่ประกอบเอง (template/location) > Graph render
-  const displayText = hasText ? text : isLink ? linkText : (structuredText ?? renderedText)
+  //
+  // ข้อยกเว้น type='CALL': เก็บ `title` ดิบไว้ ห้ามใส่คำนำหน้า `[การ์ดจาก Facebook]`
+  // เพราะฝั่ง render อ่าน `body === 'Missed call'` เพื่อแยก "สายที่ไม่ได้รับ" ออกจาก "มีการโทรด้วยเสียง"
+  // (ChatThread.tsx ~1700) ถ้าใส่คำนำหน้าไป สายที่ไม่ได้รับจะกลายเป็น "มีการโทรด้วยเสียง" ทุกใบเงียบ ๆ
+  // — การ์ดโทรมี subtitle ("Call again"/"14 sec") จึงเข้าเงื่อนไข isRealCard() เต็ม ๆ ถ้าไม่กันตรงนี้
+  const displayText = isCallEvent
+    ? (callTitle ?? structuredText)
+    : hasText
+      ? text
+      : isLink
+        ? linkText
+        : (structuredText ?? renderedText)
   const hasDisplayText = !!displayText && displayText.trim().length > 0
   // placeholder เฉพาะชนิด (I-5, user 2026-07-24) — ไม่ใช่ "[ไฟล์แนบ]" รวมทุกชนิด. ใช้เมื่อไม่มี text จริง
   // และดึงข้อความ render จาก Graph ไม่ได้ (offline/หมดเวลา) — อย่างน้อยบอกชนิดให้ถูก. sticker/reel/ig_reel/
@@ -829,7 +887,12 @@ export async function ingestInboundMessage(params: {
       : '[มีการโทรด้วยเสียง]'
     : mirroredFileId
     ? (previewByType[type] ?? '[ไฟล์แนบ]')
-    : hasDisplayText
+    : // การ์ดของ Meta → label สั้นตัวเดียวกับ SHORT_PREVIEW_BY_ATTTYPE.template ไม่ใช่เนื้อหาจริง
+      // ตัด 100 ตัวอักษร (บทเรียน user report 2026-07-25: placeholder ยาวไปโผล่ในรายการแชท)
+      // ต้องมาก่อนสาขา hasDisplayText เพราะการ์ดมี displayText เสมอหลังแก้ 2026-08-07
+      displayText?.startsWith(CARD_PREFIX)
+      ? '[ข้อความจากระบบ]'
+      : hasDisplayText
       ? displayText!.slice(0, 100)
       : hasAttachment
         ? ((attType && SHORT_PREVIEW_BY_ATTTYPE[attType]) ?? '[ไฟล์แนบ]')
