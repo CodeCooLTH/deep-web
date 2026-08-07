@@ -545,7 +545,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `status` | String default `"PENDING"` | state machine: `PENDING` / `SHIPPED` / `CONFIRMED` / `CANCELLED` |
 | `fulfillmentMode` | String default `"SHIPPED"` | `SHIPPED` / `NO_SHIPPING` — **ship guard ตรวจ field นี้** |
 | `cancelInitiator` | String? | `"seller"` / `"buyer"` — เก็บเมื่อ CANCELLED (ดู §2 Zero Complaint) |
-| `shippingAddress` | Json? | shape: `{line1, subdistrict, district, province, postcode, note}` — required เมื่อ fulfillmentMode=SHIPPED |
+| `shippingAddress` | Json? | shape: `{line1, subdistrict, district, province, postcode, note}` — required เมื่อ fulfillmentMode=SHIPPED. 🛑 **`subdistrict`=ตำบล/แขวง · `district`=อำเภอ/เขต** (คู่นี้สลับกันแล้วไม่มีอะไรฟ้อง — ค่าที่ผิดยังเป็นสตริงไทยที่ดูถูกต้อง) และคู่ ตำบล+อำเภอ+จังหวัด+รหัสไปรษณีย์ **ต้องมีอยู่จริงใน `public/data/iship-address.json`** ไม่งั้นเปิดพัสดุ iShip ไม่ผ่าน (`ADDRESS_INVALID`) — ไฟล์นั้นเขียน กทม. ว่า `"กรุงเทพ"` และไม่มีอำเภอชื่อ `"เมือง"` เดี่ยว ๆ เลย มีแต่ `"เมืองสมุทรปราการ"`. ดู `docs/conventions/external-payload-schema.md` §5 |
 | `paymentMethod` | String? | Phase B — วิธีชำระเงิน (FR-6.11) |
 | `salesChannel` | String? | Phase B — ช่องทางขาย |
 | `internalNote` | String? `@db.Text` | Phase B — note ภายใน seller |
