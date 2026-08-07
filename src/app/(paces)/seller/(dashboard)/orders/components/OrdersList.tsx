@@ -546,7 +546,10 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
           )}
         </div>
       )}
-      <ListBusyOverlay busy={busy.busy} />
+      {/* bg-body-bg ทับ bg-card ที่เป็นค่าตั้งต้น (twMerge — ตัวหลังชนะ): ฝั่งมือถือรายการเป็น
+          การ์ดแยกใบวางบนพื้นเพจ ไม่ได้อยู่ในการ์ดใบใหญ่แบบตารางเดสก์ท็อป ถ้าใช้พื้นขาวของการ์ด
+          จะกลายเป็นแผ่นขาวแปะทับพื้นเพจ เห็นเป็นกล่องประหลาดแทนที่จะเป็น "ที่ว่างที่รอของ" */}
+      <ListBusyOverlay busy={busy.busy} className="bg-body-bg" />
       </div>{/* /relative — พื้นที่ผลลัพธ์ + แผงโหลด */}
       </div>{/* /full-bleed wrapper */}
       </div>{/* /lg:hidden mobile wrapper */}

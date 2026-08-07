@@ -91,20 +91,24 @@ export default function ListBusyOverlay({ busy, label = 'กำลังโห�
       aria-hidden={!busy}
       className={cn(
         'absolute inset-0 z-20 flex items-start justify-center transition-opacity duration-150',
-        // bg-card/75 = พื้นการ์ดโปร่ง 75% — ยังเห็นเค้าโครงรายการเดิมอยู่ข้างหลัง ทำให้รู้ว่า
-        // "ของเดิมกำลังถูกแทน" ไม่ใช่ "หน้าว่างแล้ว"
-        'bg-card/75',
+        // bg-card ทึบเต็ม ไม่ใช่ /75 (user สั่ง 2026-08-07: "ไม่ให้เห็นด้านล่างเลย") — รายการเก่า
+        // ที่มองทะลุเห็นระหว่างโหลดคือข้อมูลที่กำลังจะไม่จริงแล้ว การเห็นครึ่ง ๆ ชวนให้อ่านต่อ
+        // สีเดียวกับ .card ที่ครอบอยู่ ตัวแผงจึงอ่านเป็น "การ์ดใบเดิมที่ยังว่างอยู่" ไม่ใช่ฉากทับ
+        'bg-card',
         busy ? 'opacity-100' : 'pointer-events-none opacity-0',
         className,
       )}
     >
       {/* mt-16 = ตำแหน่งตั้งต้น ใต้แถบเครื่องมือ/ชิปพอดี — จุดที่สายตาอยู่หลังกดกรอง
           sticky top-28 = เมื่อผู้ใช้เลื่อนลงไปไกลแล้วกดกรองจากหัวสติกกี้ ตัวสปินเนอร์ต้องยังอยู่ในจอ
-          ไม่ใช่ค้างอยู่บนสุดของรายการซึ่งเลื่อนพ้นตาไปแล้ว (เห็นแต่ฝ้าโปร่งเฉย ๆ = ไม่รู้ว่าโหลดอยู่) */}
+          ไม่ใช่ค้างอยู่บนสุดของรายการซึ่งเลื่อนพ้นตาไปแล้ว (เห็นแต่พื้นเปล่า = ไม่รู้ว่าโหลดอยู่)
+
+          ไม่มีพื้น/เงาเป็นกล่องของตัวเองแล้ว: พื้นแผงทึบเป็น bg-card อยู่แล้ว กล่องสีเดียวกัน
+          ซ้อนทับกันจะเหลือแต่เงาลอย ๆ ที่ไม่ได้ล้อมอะไร */}
       <span
         role="status"
         aria-live="polite"
-        className="sticky top-28 mt-16 inline-flex items-center gap-2 rounded-lg bg-card px-4 py-2.5 text-sm font-medium text-default-700 shadow"
+        className="sticky top-28 mt-16 inline-flex items-center gap-2 text-sm font-medium text-default-700"
       >
         <span
           className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent"
