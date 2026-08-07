@@ -42,7 +42,7 @@ import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { resolveOrderVocab } from '@/lib/seller-menu'
-import { resolveBuyerDisplayName, isCODPayment } from '@/lib/order-display'
+import { isCODPayment } from '@/lib/order-display'
 import { deriveShippingStage } from '@/lib/order-stage'
 import OrderDetailClient from './components/OrderDetailClient'
 import ShippingActivity from './components/ShippingActivity'
@@ -158,15 +158,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // เบอร์ผู้ซื้อ — ส่งเต็มไปแสดง (user decision 2026-07-30) พร้อมทำเป็นลิงก์ tel: ให้กดโทรได้
   const buyerContact: string | null = order.buyerContact ?? null
 
-  // resolve ฝั่ง server แล้วส่งเป็นสตริงเดียว — ไม่ส่ง field ผู้ซื้อดิบข้าม client boundary
-  // เกินจำเป็น (หน้า (paces) อยู่ใต้ client layout, Next serialize ทุก prop ลง flight payload)
-  const buyerLabel = resolveBuyerDisplayName({
-    buyerDisplayName: order.buyer?.displayName ?? null,
-    buyerUsername: order.buyer?.username ?? null,
-    buyerName: order.buyerName ?? null,
-    hasContact: Boolean(buyerContact)
-  })
-
   // Phase B: shippingAddress เป็น Json (Prisma คืน object แล้ว) — render card เฉพาะเมื่อมีค่าจริง
   const rawAddr = order.shippingAddress
   const shippingAddr: ShippingAddressData | null =
@@ -251,7 +242,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
         isFromAuction={Boolean(order.auctionId)}
         salesChannel={order.salesChannel ?? null}
         pageLogoUrl={order.salesChannel === 'FACEBOOK' ? fbPageAvatar : null}
-        buyerLabel={buyerLabel}
         totalAmount={Number(order.totalAmount)}
         paymentMethod={order.paymentMethod ?? null}
         slipFileId={order.slipFileId ?? null}
@@ -262,7 +252,6 @@ export default async function OrderDetailPage({ params }: PageProps) {
         provider={shippingInfo?.courier ?? null}
         addressText={addressText}
         isCodUnpaid={isCODPayment(order.paymentMethod) && !order.codReceivedAt}
-        buyerAvatar={order.buyer?.avatar ?? null}
         internalNote={order.internalNote ?? null}
         items={(order.items ?? []).map((item: any) => {
           const rawImages = Array.isArray(item.product?.images) ? item.product.images : []
