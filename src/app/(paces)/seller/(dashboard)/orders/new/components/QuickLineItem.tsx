@@ -47,6 +47,12 @@ export default function QuickLineItem({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const itemErrors = (errors?.items as any)?.[index]
+  /**
+   * error ระดับ array ("ต้องมีสินค้าอย่างน้อย 1 รายการ") — ทาสีเฉพาะแถวที่ยังว่าง
+   * เพื่อชี้ว่าต้องกลับมาแตะตรงไหน (แถวที่กรอกแล้วไม่ใช่ปัญหา ห้ามทาแดงไปด้วย)
+   */
+  const itemsRootError =
+    typeof (errors?.items as { message?: string })?.message === 'string' && !item.name?.trim()
   const qty = Number(qtyField.value) || 0
   const price = Number(priceField.value) || 0
   const hasProduct = Boolean(item.name?.trim())
@@ -61,7 +67,11 @@ export default function QuickLineItem({
       {hasProduct ? (
         <ProductThumb src={catalogProduct?.image ?? null} alt={item.name} className="size-14 rounded-lg" iconClassName="size-6" />
       ) : (
-        <span className="inline-flex size-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-default-300 bg-default-50 text-default-300">
+        <span
+          className={`inline-flex size-14 shrink-0 items-center justify-center rounded-lg border border-dashed ${
+            itemsRootError ? 'border-danger bg-danger/5 text-danger' : 'border-default-300 bg-default-50 text-default-300'
+          }`}
+        >
           <Icon icon="package" className="size-6" />
         </span>
       )}
@@ -70,15 +80,37 @@ export default function QuickLineItem({
         {/* top: ชื่อ (tap→picker) + รายละเอียด · trash มุมขวา */}
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
+            {/* แถวว่าง = กล่องมีขอบ + ไอคอนค้นหา/ลูกศร ให้อ่านออกว่า "แตะได้" (user report
+                2026-08-07: ข้อความเทาจางอ่านเป็น placeholder ไม่มีใครรู้ว่าต้องแตะ แล้วเลยไป
+                ติดปุ่มบันทึกที่กดไม่ได้) — ทรงเดียวกับช่องเลือกสินค้าฝั่งเดสก์ท็อป (ProductCombobox)
+                min-h-11 = 44px: ของเดิม px-1.5 py-1 สูงจริงราว 24px ต่ำกว่าเกณฑ์นิ้วสัมผัส
+                แถวที่เลือกสินค้าแล้วยังเป็นข้อความเปล่าเหมือนเดิม ไม่ต้องมีกรอบ (ไม่ใช่ช่องว่างรอกรอก) */}
             <button
               type="button"
               onClick={(e) => {
                 e.currentTarget.blur()
                 onOpenPicker()
               }}
-              className={`w-full truncate rounded-md px-1.5 py-1 text-start text-sm font-semibold hover:bg-default-100 ${hasProduct ? 'text-dark' : 'text-default-400'}`}
+              aria-label={item.name ? `แก้ไขสินค้า ${item.name}` : 'แตะเลือกสินค้า'}
+              aria-invalid={itemsRootError || undefined}
+              aria-describedby={itemsRootError ? 'order-items-error' : undefined}
+              className={
+                hasProduct
+                  ? 'w-full truncate rounded-md px-1.5 py-1 text-start text-sm font-semibold text-dark hover:bg-default-100'
+                  : `flex min-h-11 w-full items-center gap-2 rounded-lg border px-3 text-start text-sm font-medium hover:bg-default-50 ${
+                      itemsRootError ? 'is-invalid text-danger' : 'border-default-300 text-default-500'
+                    }`
+              }
             >
-              {item.name || 'พิมพ์ชื่อ/SKU หรือแตะเลือกสินค้า'}
+              {hasProduct ? (
+                item.name
+              ) : (
+                <>
+                  <Icon icon="search" className={`size-4 shrink-0 ${itemsRootError ? 'text-danger' : 'text-default-400'}`} />
+                  <span className="min-w-0 flex-1 truncate">แตะเลือกสินค้า หรือค้นด้วยชื่อ/SKU</span>
+                  <Icon icon="chevron-right" className={`size-4 shrink-0 ${itemsRootError ? 'text-danger' : 'text-default-400'}`} />
+                </>
+              )}
             </button>
             <input
               type="text"

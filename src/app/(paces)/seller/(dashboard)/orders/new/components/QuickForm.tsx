@@ -92,6 +92,12 @@ export default function QuickForm({
 
   // compact (โมดัลในแชท): ไม่ bleed ขอบ (ไม่มี fullscreen layout p-4/p-8 ให้หักล้าง) + padding คงที่ px-4
   // (ไม่ใช้ md:px-8 ที่อิง viewport เพราะโมดัลแคบแต่ viewport กว้าง จะได้ padding เดสก์ท็อปผิด — user report 2026-07-24)
+  /** error ระดับ array ของ items ("ต้องมีสินค้าอย่างน้อย 1 รายการ") — ใช้ 2 ที่: ป้ายหัวข้อ + ข้อความใต้รายการ */
+  const itemsRootErrorMsg =
+    typeof (errors.items as { message?: string })?.message === 'string'
+      ? (errors.items as { message?: string }).message
+      : null
+
   const rootCls = compact ? '' : '-mx-4 md:-mx-8'
   const secX = compact ? 'px-4' : 'px-4 md:px-8'
   return (
@@ -125,11 +131,13 @@ export default function QuickForm({
       </section>
 
       {/* SECTION 3: สินค้า — ไม่มีปุ่มพิมพ์เอง: แถวเปล่ารอเสมออยู่แล้ว (spreadsheet pattern, จัดการที่ OrderCreateForm) */}
-      <section className={`border-b-8 border-default-100 ${secX} py-4`}>
+      <section id="order-items-section" className={`border-b-8 border-default-100 ${secX} py-4`}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-bold text-dark">
             <Icon icon="package" className="size-5 text-primary" />
             สินค้า
+            {/* ป้าย "ต้องแก้" คำเดียวกับที่บล็อกลูกค้า/ที่อยู่ใช้อยู่แล้ว — คำเดียวกัน = ของเดียวกัน */}
+            {itemsRootErrorMsg && <span className="badge bg-danger/15 text-danger">ต้องแก้</span>}
           </h2>
         </div>
         <div>
@@ -147,8 +155,10 @@ export default function QuickForm({
             />
           ))}
         </div>
-        {typeof (errors.items as { message?: string })?.message === 'string' && (
-          <p className="mt-1.5 text-xs text-danger">{(errors.items as { message?: string }).message}</p>
+        {itemsRootErrorMsg && (
+          <p id="order-items-error" className="mt-1.5 text-xs text-danger">
+            {itemsRootErrorMsg}
+          </p>
         )}
       </section>
 

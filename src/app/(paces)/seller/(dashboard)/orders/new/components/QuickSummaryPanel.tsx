@@ -35,17 +35,19 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
   const vatAmount = vatRate > 0 ? Math.round((subtotal - discount) * (vatRate / 100) * 100) / 100 : 0
 
   /**
-   * guard ต้องเท่ากับฝั่งเดสก์ท็อป (CartPanel) — เดิมปุ่มนี้ไม่มี disabled เลย
-   * ทำให้ guard ของอีกฝั่งแทบไม่มีความหมาย เพราะทั้งคู่อยู่ใน DOM พร้อมกันเสมอ
-   * predicate ตรงกับ Yup transform (OrderCreateForm.tsx:167-169) — ห้ามเขียนกฎซ้ำ
+   * ปุ่มบันทึก "กดได้เสมอ" — ไม่ผูก disabled กับความครบของฟอร์ม (user report prod 2026-08-07:
+   * "ปุ่มบันทึกกดไม่ได้ มัน disabled ตลอด")
+   *
+   * เดิมปิดปุ่มเมื่อยังไม่มีรายการสินค้า ซึ่งกลายเป็นทางตัน: ผู้ใช้ที่ยังไม่รู้ว่าต้องแตะแถว
+   * สินค้าก่อน จะเห็นปุ่มหลักสีจางกดไม่ได้ โดยไม่มีอะไรบอกว่าขาดอะไร — และข้อความ
+   * "ต้องมีสินค้าอย่างน้อย 1 รายการ" ที่ render ไว้แล้วทั้ง 2 ฝั่ง (QuickForm/CartPanel)
+   * ไม่มีทางถูกเห็นเลย เพราะมันเกิดตอน validate ซึ่งต้องกด submit ก่อน
+   *
+   * ฟิลด์บังคับอื่นทุกตัวในฟอร์มนี้ (ชื่อ/เบอร์ลูกค้า/ที่อยู่จัดส่ง) ใช้แพตเทิร์น validate-แล้ว-บอก
+   * อยู่แล้ว (toast + ช่องแดง + accordion กางเอง) — items เป็นตัวเดียวที่ทำต่างออกไป
+   *
+   * กดซ้ำรัว ๆ ไม่ต้องกัน: SubmitStatusSheet เป็น overlay เต็มจอทันทีที่เริ่มส่ง
    */
-  const items = (useWatch({ control, name: 'items' }) ?? []) as {
-    productId?: string | null
-    name?: string
-  }[]
-  const filledCount = items.filter(
-    (it) => it?.productId != null || (it?.name ?? '').toString().trim() !== '',
-  ).length
 
   return (
     <div
@@ -86,7 +88,6 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
       <button
         type="submit"
         form={formId}
-        disabled={filledCount === 0}
         className="btn inline-flex min-h-11 w-full items-center justify-center gap-2 bg-primary font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
       >
         <Icon icon="device-floppy" className="text-lg" />

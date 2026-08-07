@@ -877,6 +877,12 @@ export default function OrderCreateForm({
         // ใช้ได้เฉพาะ field ที่ผูกด้วย register() ซึ่ง spread name ให้ (ที่อยู่จัดส่ง/ส่วนลด/VAT)
         // ส่วน buyerName/buyerContact ผูกด้วย useController แบบ destructure จึงไม่มี name —
         // ตรงนั้นพึ่ง toast + accordion ที่กางเองแทน
+        // items เป็น error ระดับ array ไม่มี element ไหนถือ name="items" → querySelector หาไม่เจอ
+        // แล้วเงียบไปเฉย ๆ ต้องเล็งที่ section แทน (ตั้งแต่เลิกปิดปุ่มบันทึก นี่เป็นเส้นทางที่เกิดจริง)
+        if (formErrors.items) {
+          document.getElementById('order-items-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          return
+        }
         const first = Object.keys(formErrors)[0]
         if (first) {
           document.querySelector(`[name="${first}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })

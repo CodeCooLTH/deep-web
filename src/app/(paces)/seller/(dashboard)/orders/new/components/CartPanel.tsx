@@ -225,6 +225,9 @@ export default function CartPanel({
   const customerHasError = !!errors?.buyerName || !!errors?.buyerContact
   const customerOpen = openKey === 'customer' || customerHasError
 
+  /** ตะกร้าว่างตอนกดบันทึก — ข้อความ error มีอยู่แล้วที่ footer แต่ตัวตะกร้าเองไม่เคยบอกว่ามันคือจุดที่ผิด */
+  const itemsHasError = typeof (errors?.items as { message?: string })?.message === 'string'
+
   /** ป้ายบนหัว accordion ที่มี error — ใช้ primitive เดียวกับ badge "จำเป็น" ด้านล่าง */
   const errorBadge = (
     <span className="badge bg-danger/15 text-danger">ต้องแก้</span>
@@ -243,6 +246,7 @@ export default function CartPanel({
         <Icon icon="shopping-cart" className="size-5 text-primary" />
         <h4 className="card-title font-semibold text-dark">ตะกร้า</h4>
         <span className="badge rounded-full bg-primary/15 text-primary">{count}</span>
+        {itemsHasError && errorBadge}
       </div>
 
       {/* scrollable middle — desktop: lines+accordion scroll ในนี้ (header/footer pinned) */}
@@ -250,9 +254,15 @@ export default function CartPanel({
       {/* lines — table-like (header row เฉพาะ desktop; rows มี divider เอง) */}
       <div className="p-3">
         {count === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-center text-default-400">
-            <Icon icon="basket-off" className="size-10 opacity-50" />
-            <p className="text-sm font-medium text-default-700">ยังไม่มีรายการสินค้า</p>
+          <div
+            className={`flex flex-col items-center gap-2 py-8 text-center ${
+              itemsHasError ? 'text-danger' : 'text-default-400'
+            }`}
+          >
+            <Icon icon="basket-off" className={itemsHasError ? 'size-10' : 'size-10 opacity-50'} />
+            <p className={`text-sm font-medium ${itemsHasError ? 'text-danger' : 'text-default-700'}`}>
+              ยังไม่มีรายการสินค้า
+            </p>
             <p className="text-xs">แตะสินค้าด้านซ้ายเพื่อเพิ่มลงตะกร้า</p>
           </div>
         ) : (
@@ -579,7 +589,6 @@ export default function CartPanel({
         <button
           type="submit"
           form={formId}
-          disabled={count === 0}
           className="btn min-h-11 w-full bg-primary font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
         >
           บันทึก{orderNoun}
