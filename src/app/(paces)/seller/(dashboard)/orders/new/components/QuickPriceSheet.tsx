@@ -14,15 +14,20 @@ interface Props {
   open: boolean
   price: number
   name?: string
+  /** จำนวนของบรรทัดนี้ — ใช้คำนวณยอดรวมสด ๆ ระหว่างแก้ราคา (ไม่งั้นต้องคูณในหัว) */
+  qty?: number
+  /** หน่วยนับ (ชิ้น/ครั้ง/คืน) */
+  unitLabel?: string
   onApply: (price: number) => void
   onClose: () => void
 }
 
 const clamp2 = (n: number) => Math.max(0, Math.round((Number(n) || 0) * 100) / 100)
+// focus-visible:ring — ชิปวันที่ในฟอร์มเดียวกันมีอยู่แล้ว ปุ่มชุดนี้เคยตกหล่น (critique minor)
 const stepBtn =
-  'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-default-300 px-2.5 text-sm font-semibold text-primary'
+  'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-default-300 px-2.5 text-sm font-semibold text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
 
-export default function QuickPriceSheet({ open, price, name, onApply, onClose }: Props) {
+export default function QuickPriceSheet({ open, price, name, qty = 1, unitLabel = 'ชิ้น', onApply, onClose }: Props) {
   /**
    * ตรึง scroll หน้าข้างหลังระหว่างเปิด — sheet ประกอบเองด้วย React state ไม่ได้ล็อกฟรีแบบ
    * hs-overlay (docs/conventions/overlay-scroll-lock.md) · ต้องเรียกก่อน `if (!open) return null`
@@ -94,6 +99,19 @@ export default function QuickPriceSheet({ open, price, name, onApply, onClose }:
             </button>
             <button type="button" onClick={() => step(10)} className={stepBtn}>+10</button>
           </div>
+
+          {/* ยอดรวมบรรทัดสด ๆ — คนที่กำลังต่อรองให้ลงตัวที่ "ยอดรวม" ไม่ควรต้องคูณในหัว
+              (ชีตนี้เคยโชว์แต่ราคาต่อหน่วย — critique: working memory) */}
+          {qty > 1 && (
+            <p className="mb-3 flex items-center justify-between text-sm">
+              <span className="text-default-500">
+                {qty} {unitLabel} × {clamp2(Number(raw) || 0).toLocaleString('th-TH')}
+              </span>
+              <span className="font-bold text-default-900 tabular-nums">
+                ฿{(clamp2(Number(raw) || 0) * qty).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+              </span>
+            </p>
+          )}
 
           <button
             type="button"

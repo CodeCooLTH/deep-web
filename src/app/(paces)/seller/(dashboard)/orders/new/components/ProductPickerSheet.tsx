@@ -128,7 +128,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, product
             <>
               {/* Impeccable: ตัด tracking-wide + ตัวพิมพ์ใหญ่บังคับเดิม — สระ/วรรณยุกต์ไทยหลุดจากพยัญชนะเมื่อ
                   tracking กว้าง และคลาสเดิมไม่มีผลกับอักษรไทยอยู่แล้ว (เหมือน 18 จุดที่แก้ไปแล้วใน Phase A) */}
-              <p className="mb-2 text-2xs font-bold text-default-400">{productNoun}ยอดนิยม</p>
+              <p className="mb-2 text-sm font-semibold text-default-700">{productNoun}ยอดนิยม</p>
               <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
                 {bestSellers.map((p) => (
                   <button
@@ -171,7 +171,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, product
           {!s && catalog.length > 0 && (
             <>
               {/* Impeccable: ตัด tracking-wide + ตัวพิมพ์ใหญ่บังคับเดิม (เหตุผลเดียวกับ label "สินค้าขายดี" ด้านบน) */}
-              <p className="mb-1 text-2xs font-bold text-default-400">{productNoun}ทั้งหมด</p>
+              <p className="mb-1 text-sm font-semibold text-default-700">{productNoun}ทั้งหมด</p>
               <div className="divide-y divide-default-100">{catalog.slice(0, visibleCount).map(productRow)}</div>
               {visibleCount < catalog.length && (
                 <p className="py-3 text-center text-xs text-default-400">เลื่อนเพื่อดูเพิ่ม…</p>
