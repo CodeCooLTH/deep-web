@@ -182,3 +182,61 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/**
+ * .appt-date-sheet — ปฏิทิน "เลือกวันนัด" ในฟอร์มสร้างออเดอร์
+ * (src/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet.tsx)
+ * ทรงตาม mockup ที่ user อนุมัติ: docs/superpowers/specs/2026-08-07-appointment-date-sheet-mockup.html
+ *
+ * ทำไมต้องเป็นสโคปคนละตัวกับ .appointment-calendar: หน้า /queues เป็น "ปฏิทินงาน" (ช่องใหญ่
+ * มีป้ายนัดอยู่ในช่อง เส้นตารางช่วยกวาดสายตา) ส่วนที่นี่เป็น "ตัวเลือกวัน" ที่ต้องกินแค่ครึ่งบน
+ * ของจอ เหลืออีกครึ่งให้รายการนัดของวันที่จิ้ม — คนละหน้าที่ จึงคนละทรง
+ *
+ * 3 อย่างที่ FullCalendar ยัดมาให้เป็นค่าเริ่มต้นและเป็นเหตุผลทั้งหมดที่ของจริงไม่เหมือน mockup
+ * (ยืนยันจาก CSS ใน node_modules/@fullcalendar/{core,daygrid}/index.global.js):
+ *   1. `.fc-theme-standard td/th{border:1px solid}` → เส้นตารางครบทุกช่อง
+ *   2. `.fc-daygrid-day-frame{min-height:100%}` + กล่อง `.fc-daygrid-day-events` ที่ว่างเปล่า
+ *      → แถวสูงตามเนื้อหาไม่จำกัด ปฏิทินยาวจนรายการข้างล่างถูกบีบจนอ่านไม่ได้
+ *   3. `.fc-daygrid-day-top{flex-direction:row-reverse}` → เลขวันไปอยู่มุมขวาบนเสมอ
+ *      (`items-center` ที่เขียนใน dayCellContent จึง center อยู่แค่ในกล่องเล็ก ๆ ที่มุมนั้น)
+ * ทั้งสามเป็น DOM ของ lib ที่ className ของ component เอื้อมไม่ถึง จึงต้องปิดที่นี่
+ *
+ * IMPORTANT: **สถานะของช่องวันไม่ได้อยู่ในไฟล์นี้** (ว่าง/มีคิว/เต็ม/วันนี้/เลือกอยู่/นอกเดือน)
+ * ทั้งหมดอยู่ใน dayCellContent เป็น Tailwind class เพราะมันต้องเปลี่ยนตามข้อมูลที่โหลดมาแบบ
+ * async — ไฟล์นี้ทำอย่างเดียวคือ "รื้อทรงตารางออก" ห้ามย้ายสีสถานะมาไว้ที่นี่
+ */
+.appt-date-sheet .fc {
+    /* วันนี้: FullCalendar ย้อมพื้นเหลืองอุ่นเป็นค่าเริ่มต้น (ขัด Cool Mist — บั๊กเดียวกับที่
+       .appointment-calendar เคยแก้ไปแล้ว แต่การแก้นั้นสโคปด้วยคลาสของมันเอง จึงไม่ตามมาที่นี่)
+       mockup ใช้เส้นขอบบาง ๆ รอบช่องแทน ซึ่งวาดอยู่ใน dayCellContent */
+    --fc-today-bg-color: transparent;
+}
+.appt-date-sheet .fc-theme-standard .fc-scrollgrid,
+.appt-date-sheet .fc-theme-standard td,
+.appt-date-sheet .fc-theme-standard th {
+    border: 0;
+}
+/* หัวคอลัมน์วัน — ตัวเล็กสุดของธีม สีจาง ไม่ใช่ลิงก์สีเข้มขนาดปกติ */
+.appt-date-sheet .fc .fc-col-header-cell-cushion {
+    @apply text-default-400 text-2xs block w-full px-0 py-1.5 text-center font-semibold;
+}
+/* ช่องวัน: ให้ปุ่มที่วาดใน dayCellContent เป็นตัวกำหนดขนาดเอง ไม่ใช่ตาราง */
+.appt-date-sheet .fc .fc-daygrid-day-frame {
+    min-height: 0;
+    padding: 1px; /* = ระยะห่างระหว่างช่อง 2px ของ mockup (1px ต่อฝั่ง) */
+}
+.appt-date-sheet .fc .fc-daygrid-day-top {
+    display: block;
+}
+.appt-date-sheet .fc .fc-daygrid-day-number {
+    @apply block w-full p-0;
+}
+/* ปฏิทินนี้ไม่มี event เลย (ใช้จุด/กากบาทบอกสถานะแทน) กล่องพวกนี้จึงมีแต่ความสูงเปล่า ๆ */
+.appt-date-sheet .fc .fc-daygrid-day-events,
+.appt-date-sheet .fc .fc-daygrid-day-bottom {
+    display: none;
+}
+/* วันนอกเดือนหรี่ที่ระดับ component แทน — opacity .3 ของ lib จางจนอ่านเลขไม่ออกบนจอมือถือ */
+.appt-date-sheet .fc .fc-day-other .fc-daygrid-day-top {
+    opacity: 1;
+}

@@ -98,6 +98,10 @@ interface Props {
 
 const FOOTBAR_HEIGHT = 'h-[calc(4.5rem+env(safe-area-inset-bottom))]' // HR7 carve-out: Paces ไม่มี token ของ safe-area และ box-sizing border-box ทำให้การใส่ padding เฉย ๆ ไม่ดันความสูงให้โตขึ้น (docs/conventions/ios-safe-area.md)
 
+/** หัวคอลัมน์วัน — index = getDay() (0 = อาทิตย์ ตรงกับ firstDay={0} ของปฏิทิน) */
+const DOW_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
+const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์']
+
 /** "YYYY-MM-DD" ตามเวลาเครื่อง (ตรงกับที่ AppointmentBlock ใช้เก็บค่า ห้ามใช้ toISOString ที่เป็น UTC) */
 function localDateKey(d: Date): string {
   const m = `${d.getMonth() + 1}`.padStart(2, '0')
@@ -244,6 +248,9 @@ export default function AppointmentDateSheet({
    * การกันไม่ให้เลือกจริงย้ายไปอยู่ที่ปุ่มยืนยันล่าง (disabled) แทน
    */
   const onDateClick = useCallback((arg: DateClickArg) => {
+    // วันของเดือนข้างเคียงที่ปฏิทินเอามาเติมแถวให้เต็ม (mockup ทำเป็น disabled) — จิ้มแล้ว
+    // หัวรายการข้างล่างจะพูดถึงวันที่ไม่ได้อยู่ในเดือนตรงหน้า อ่านแล้วสับสนว่าเลือกอะไรอยู่
+    if (arg.dayEl.classList.contains('fc-day-other')) return
     setPendingDate(localDateKey(arg.date))
   }, [])
 
@@ -264,29 +271,63 @@ export default function AppointmentDateSheet({
         <button type="button" onClick={onClose} aria-label="ย้อนกลับ" className="shrink-0 text-default-500">
           <Icon icon="chevron-left" className="size-6" />
         </button>
-        <Icon icon="calendar-event" className="size-5 text-primary" />
+        {/* ไอคอนในกรอบพื้นอ่อนตาม mockup — idiom `bg-{semantic}/15` ของ Paces (HR7)
+            หมายเหตุ: AddressSearchSheet ที่เปิดจากฟอร์มเดียวกันยังเป็นไอคอนเปล่า ๆ อยู่
+            ถ้าจะให้พี่น้องเหมือนกันต้องไล่แก้อีกใบด้วย (ยังไม่ทำในรอบนี้) */}
+        <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded">
+          <Icon icon="calendar-event" className="size-5" />
+        </span>
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-base font-semibold text-dark">เลือกวันนัด</h3>
-          {resourceName && <p className="truncate text-xs text-default-500">{resourceName}</p>}
+          {/* mockup โชว์ความจุต่อวันไว้ตรงนี้ด้วย — ผู้ขายจะได้รู้ตั้งแต่ต้นว่า "เต็ม" ของคิวนี้
+              คือกี่งาน โดยไม่ต้องจิ้มวันแล้วไปอ่านตัวเลขที่หัวรายการ */}
+          {(resourceName || (capacity != null && capacity > 0)) && (
+            <p className="truncate text-xs text-default-500">
+              {[resourceName, capacity != null && capacity > 0 ? `รับได้ ${capacity} คิว/วัน` : null]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* หัวเรื่องเดือน + ปุ่มเลื่อน — วาดเองเพราะต้องเป็น พ.ศ. (ดูหมายเหตุหัวไฟล์) */}
+      {/* หัวเรื่องเดือน + ปุ่มเลื่อน — วาดเองเพราะต้องเป็น พ.ศ. (ดูหมายเหตุหัวไฟล์)
+          IMPORTANT: `btn-soft-default`/`btn-soft-primary` ที่เคยเขียนไว้ตรงนี้ **ไม่มีอยู่จริงในธีม**
+          (grep ทั้ง src/assets/css + theme/paces = 0 — บทเรียนเดียวกับ `btn-ghost` ใน 00033)
+          ปุ่มทั้งสามจึงเป็น `.btn` เปล่า ๆ ไม่มีพื้น ไม่มีขอบ อ่านเป็นตัวหนังสือลอย ๆ บนจอจริง
+          ชุดที่ใช้ตอนนี้ยกมาจาก theme/paces/Admin/TS/src ตรง ๆ (combo ที่ธีมใช้ซ้ำหลักสิบครั้ง) */}
       <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
-        <button type="button" onClick={goPrev} aria-label="เดือนก่อนหน้า" className="btn btn-sm btn-soft-default">
+        <button
+          type="button"
+          onClick={goPrev}
+          aria-label="เดือนก่อนหน้า"
+          className="btn btn-icon text-default-800 hover:bg-default-100"
+        >
           <Icon icon="chevron-left" className="size-4" />
         </button>
-        <div className="flex min-w-0 items-center gap-2">
-          <h4 className="truncate text-sm font-semibold text-dark">
+        {/* ชื่อเดือนอยู่กลางแถบตาม mockup — ต้อง flex-1 ไม่งั้นมันจะถูกดันไปชิดปุ่มซ้าย */}
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
+          <h4 className="truncate text-base font-semibold text-dark">
             {viewStart ? formatMonthYearTH(viewStart) : ''}
           </h4>
           {loading && <Icon icon="loader-2" className="size-4 animate-spin text-default-400" />}
         </div>
         <div className="flex items-center gap-1.5">
-          <button type="button" onClick={goToday} className="btn btn-sm btn-soft-primary">
+          {/* กลาง ๆ ไม่ใช่ primary — น้ำเงินบนจอนี้สงวนไว้กับ "วันที่กำลังเลือก" กับปุ่มยืนยันล่าง
+              (One Voice) ปุ่มนี้แค่พาไปเดือนปัจจุบัน ไม่ใช่การตัดสินใจของหน้าจอ */}
+          <button
+            type="button"
+            onClick={goToday}
+            className="btn btn-sm border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 rounded-full border"
+          >
             วันนี้
           </button>
-          <button type="button" onClick={goNext} aria-label="เดือนถัดไป" className="btn btn-sm btn-soft-default">
+          <button
+            type="button"
+            onClick={goNext}
+            aria-label="เดือนถัดไป"
+            className="btn btn-icon text-default-800 hover:bg-default-100"
+          >
             <Icon icon="chevron-right" className="size-4" />
           </button>
         </div>
@@ -294,7 +335,7 @@ export default function AppointmentDateSheet({
 
       {/* คำอธิบายสัญลักษณ์ — ย้ายขึ้นมาชิดปฏิทินที่มันอธิบาย (เดิมเป็นแถบแยกที่ก้นจอ กิน ~52px
           ซึ่งตอนนี้เป็นที่ของรายการแล้ว) "ว่าง" ไม่ต้องมี swatch เพราะมันคือช่องที่ไม่มีอะไรเลย */}
-      <div className="text-default-600 flex shrink-0 items-center justify-center gap-4 px-4 pb-2 text-xs">
+      <div className="text-default-600 text-2xs flex shrink-0 items-center justify-center gap-4 px-4 pb-2">
         <span className="inline-flex items-center gap-1.5">
           <span className="bg-warning size-1.5 rounded-full" aria-hidden="true" />
           มีคิวแล้ว
@@ -302,6 +343,12 @@ export default function AppointmentDateSheet({
         <span className="inline-flex items-center gap-1.5">
           <Icon icon="x" className="text-danger size-3.5" aria-hidden="true" />
           เต็ม
+        </span>
+        {/* swatch ต้องเป็นสัญลักษณ์ตัวเดียวกับที่เห็นในช่องจริง (เส้นขอบ ไม่ใช่จุดสี)
+            — legend ที่แสดงคนละสัญลักษณ์กับของจริงคือ legend ที่อธิบายผิด */}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="border-default-300 size-2.5 rounded-full border" aria-hidden="true" />
+          วันนี้
         </span>
       </div>
 
@@ -313,7 +360,10 @@ export default function AppointmentDateSheet({
       {/* ไม่ใช้ shrink-0 กับปฏิทิน: FullCalendar height="auto" ยืดตามจำนวนแถวของเดือน (6 แถว
           ในบางเดือน) ถ้าห้ามหดแล้วเดือนนั้นสูงเกินพื้นที่ รายการข้างล่างจะถูกบีบเหลือศูนย์
           — ให้ปฏิทินหดแล้วเลื่อนในตัวเองแทน ส่วนรายการมี min-h กันไว้อีกชั้น */}
-      <div className="min-h-0 overflow-y-auto overscroll-contain px-2 pb-2 lg:basis-3/5 lg:border-e lg:border-default-200">
+      {/* appt-date-sheet = สโคป CSS ที่รื้อทรงตารางของ FullCalendar ออก (เส้นขอบทุกช่อง /
+          แถวสูงไม่จำกัด / เลขวันชิดขวาบน) — ดูเหตุผลเต็มที่ src/assets/css/plugins/_calendar.css
+          ขาดคลาสนี้เมื่อไหร่ ปฏิทินจะกลับไปเป็นตารางดิบทันที */}
+      <div className="appt-date-sheet min-h-0 overflow-y-auto overscroll-contain px-2 pb-2 lg:basis-3/5 lg:border-e lg:border-default-200">
         <FullCalendar
           ref={calRef}
           plugins={[dayGridPlugin, interactionPlugin]}
@@ -328,39 +378,66 @@ export default function AppointmentDateSheet({
           datesSet={onDatesSet}
           dateClick={onDateClick}
           /**
-           * ย้อมช่องวันตามความว่าง — ชุดสีเดียวกับ AppointmentCalendar ในหน้า /queues
-           * (เต็ม = danger, ใกล้เต็ม = warning) ผู้ขายจะได้อ่านปฏิทินสองที่ด้วยกติกาเดียว
-           * เต็ม: cursor-not-allowed ด้วย เพราะกดไปก็ไม่มีผล (dateClick กันไว้อีกชั้น)
+           * หัวคอลัมน์ย่อบนมือถือ เต็มตั้งแต่ 768 ขึ้นไป (ตาม mockup ทั้งสองเฟรม)
+           * ต้องเขียนเองเพราะ locale th ของ FullCalendar ให้ชื่อเต็มเสมอในมุมมองเดือน
+           * — ที่ 390px ชื่อเต็ม 7 คอลัมน์ล้นจนคอลัมน์เบียดกัน
+           * สลับด้วย CSS (md:hidden) ไม่ใช่ JS เพราะชีตนี้ fixed inset-0 = กว้างเท่าวิวพอร์ตเสมอ
            */
-          /* เหลือแค่ไฮไลต์วันที่กำลังดู — พื้นย้อมเหลือง/ชมพูทั้งช่องถูกถอดออก เพราะตอนนี้
-             จุดเหลืองกับกากบาทบอกสถานะอยู่แล้ว ย้อมซ้ำอีกชั้นทำให้ปฏิทินอ่านยากขึ้นเปล่า ๆ */
-          dayCellClassNames={(arg) => (pendingDate === localDateKey(arg.date) ? ['bg-primary/15'] : [])}
+          dayHeaderContent={(arg) => (
+            <>
+              <span className="md:hidden">{DOW_SHORT[arg.date.getDay()]}</span>
+              <span className="hidden md:inline">{DOW_FULL[arg.date.getDay()]}</span>
+            </>
+          )}
           dayCellContent={(arg) => {
             const key = localDateKey(arg.date)
             const used = countByDay.get(key) ?? 0
             const full = capacity != null && capacity > 0 && used >= capacity
+            const selected = pendingDate === key
             /**
-             * วันเต็ม = กากบาทแทนเลขวัน (user สั่ง 2026-08-07 พร้อมภาพอ้างอิง)
+             * ทั้งช่องคือ "ปุ่มกลม ๆ" ใบเดียว — ขนาด/พื้น/ขอบอยู่ที่ div นี้ ไม่ใช่ที่ td ของตาราง
+             * (td ของ FullCalendar อยู่ในตาราง border-collapse จึงมนมุมไม่ได้จริง และ
+             * dayCellClassNames เอื้อมไปได้แค่ td) — ดู .appt-date-sheet ใน _calendar.css
              *
-             * เดิมทุกช่องมีบรรทัด "N คิว"/"เต็ม" ซึ่งซ้ำกันเกือบทั้งเดือนจนอ่านไม่ได้ความ
-             * และกินความสูงจนไม่เหลือที่ให้รายการด้านล่าง. 3 สถานะแยกกันด้วย **รูปร่าง**
-             * ไม่ใช่ด้วยสีอย่างเดียว — คนตาบอดสีจึงยังแยกออก
+             * สถานะทั้งหมดอยู่ตรงนี้ที่เดียวเพื่อให้มันอัปเดตเองเมื่อข้อมูลนัดโหลดมาทีหลัง
+             * (ปฏิทินถูกวาดก่อน fetch เสร็จเสมอ)
              *
+             * วันเต็ม = กากบาทแทนเลขวัน (user สั่ง 2026-08-07 พร้อมภาพอ้างอิง) — 3 สถานะ
+             * แยกกันด้วย **รูปร่าง** ไม่ใช่ด้วยสีอย่างเดียว คนตาบอดสีจึงยังแยกออก
              * เลขวันต้องยังอยู่ใน DOM (sr-only) ไม่งั้นคนใช้ screen reader จะได้ยินแต่
              * "กากบาท" เรียงกันทั้งเดือนโดยไม่รู้ว่าช่องไหนคือวันที่เท่าไหร่
              */
+            const tone = selected
+              ? 'bg-primary text-white'
+              : arg.isOther
+                ? 'text-default-400 opacity-55'
+                : arg.isToday
+                  ? 'text-default-800 border-default-300 hover:bg-default-100 border'
+                  : 'text-default-800 hover:bg-default-100'
             return (
-              <div className="flex flex-col items-center gap-0.5 py-1">
+              <div
+                className={`flex min-h-11.5 w-full flex-col items-center justify-center gap-1 rounded-lg md:min-h-13 ${tone}`}
+              >
                 {full ? (
                   <>
                     <span className="sr-only">{arg.dayNumberText} เต็ม</span>
-                    <Icon icon="x" className="text-danger size-5" aria-hidden="true" />
+                    {/* บนพื้น primary ของวันที่เลือกอยู่ กากบาทชมพูอ่านไม่ออก ต้องกลับเป็นขาว */}
+                    <Icon
+                      icon="x"
+                      className={`size-5 ${selected ? 'text-white' : 'text-danger'}`}
+                      aria-hidden="true"
+                    />
                   </>
                 ) : (
                   <>
-                    <span className="text-sm">{arg.dayNumberText}</span>
+                    <span className={`text-sm leading-none ${selected ? 'font-semibold' : 'font-medium'}`}>
+                      {arg.dayNumberText}
+                    </span>
+                    {/* จุดว่างโปร่งใสยังต้องอยู่ ไม่งั้นเลขวันของช่องที่มีคิวกับไม่มีคิวจะไม่ตรงแนวกัน */}
                     <span
-                      className={`size-1.5 rounded-full ${used > 0 ? 'bg-warning' : 'bg-transparent'}`}
+                      className={`size-1.5 rounded-full ${
+                        used > 0 ? (selected ? 'bg-white' : 'bg-warning') : 'bg-transparent'
+                      }`}
                       aria-hidden="true"
                     />
                   </>
@@ -454,7 +531,10 @@ export default function AppointmentDateSheet({
             onSelect(pendingDate)
             onClose()
           }}
-          className="btn bg-primary hover:bg-primary-hover min-h-11 w-full text-white disabled:opacity-50"
+          /* combo หลักของปุ่ม CTA เต็มความกว้างในธีม Paces (theme/paces/Admin/TS/src ใช้ซ้ำ 27 ที่)
+             ไม่ต้องมี disabled:opacity-50 เอง — `button:disabled` ใน custom/_buttons.css
+             ให้ opacity-50 + cursor-not-allowed อยู่แล้วทั้งระบบ */
+          className="btn bg-primary hover:bg-primary-hover min-h-11 w-full py-3 font-semibold text-white"
         >
           {pendingFull
             ? 'วันนี้เต็มแล้ว — เลือกวันอื่น'
