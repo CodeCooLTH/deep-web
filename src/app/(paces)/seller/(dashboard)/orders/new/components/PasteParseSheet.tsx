@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Icon from '@/components/wrappers/Icon'
 import { parseOrderMessage, type ParsedOrderMessage } from '@/lib/parse-order-message'
 
@@ -22,6 +23,12 @@ interface Props {
 }
 
 export default function PasteParseSheet({ open, onApply, onClose, initialText }: Props) {
+  /**
+   * ตรึง scroll หน้าข้างหลังระหว่างเปิด — sheet ประกอบเองด้วย React state ไม่ได้ล็อกฟรีแบบ
+   * hs-overlay (docs/conventions/overlay-scroll-lock.md) · ต้องเรียกก่อน `if (!open) return null`
+   */
+  useLockBodyScroll(open)
+
   const [text, setText] = useState(initialText ?? '')
   // ขอ AI ช่วยอ่านที่อยู่ (opt-in — ร้านต้องกดเอง ดูเหตุผลที่ปุ่มด้านล่าง)
   const [aiLoading, setAiLoading] = useState(false)
@@ -71,16 +78,15 @@ export default function PasteParseSheet({ open, onApply, onClose, initialText }:
     <>
       {/* dim z-70 / sheet z-80 (reuse pattern QuickPriceSheet) */}
       <div className="fixed inset-0 z-70 bg-dark/40" onClick={handleDimClose} aria-hidden="true" />
-      {/* HR7: fixed inset-x-0 bottom-0 + h-[50dvh] = viewport-lock (Paces ไม่มี token) — sheet สูงครึ่งจอ */}
       <div
-        className="fixed inset-x-0 bottom-0 z-80 flex h-[50dvh] flex-col rounded-t-2xl border-t border-default-300 bg-card"
+        className={'fixed inset-x-0 bottom-0 z-80 flex h-[50dvh] flex-col rounded-t-2xl border-t border-default-300 bg-card' /* HR7: inset-x-0 bottom-0 + h-[50dvh] = viewport-lock, Paces ไม่มี token — sheet สูงครึ่งจอ */}
         role="dialog"
         aria-label="วางข้อความจากแชท"
       >
         <div className="flex shrink-0 justify-center pt-3 pb-1">
           <span className="h-1 w-10 rounded-full bg-default-300" aria-hidden="true" />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col px-5 pt-1 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className={'flex min-h-0 flex-1 flex-col px-5 pt-1 pb-[calc(1rem+env(safe-area-inset-bottom))]' /* carve-out: safe-area ไม่มี token */}>
           <h3 className="shrink-0 text-base font-semibold text-dark">วางข้อความจากแชท</h3>
           <p className="mt-0.5 mb-3 shrink-0 text-xs text-default-400">ระบบแยก ชื่อ / เบอร์ / ที่อยู่ ให้อัตโนมัติ (ตรวจแล้วแก้ได้)</p>
 

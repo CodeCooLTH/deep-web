@@ -11,6 +11,7 @@
 
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useState } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 interface SlipViewerProps {
   slipFileId: string
@@ -22,20 +23,23 @@ export default function SlipViewer({ slipFileId }: SlipViewerProps) {
 
   const src = `/api/files/${slipFileId}`
 
+  /**
+   * ล็อก scroll ย้ายมาใช้ useLockBodyScroll — ของเดิมที่เขียนเองสั่งแค่ `body overflow:hidden`
+   * ซึ่ง **iOS Safari เอาไม่อยู่** ต้องสั่งที่ `<html>` ด้วย และการเด้งเอกสาร (rubber-band)
+   * เป็นคนละกลไกกับ scroll chaining ต้องสั่ง overscroll-behavior-y แยกอีกตัว
+   * (docs/conventions/overlay-scroll-lock.md) · hook ยังนับซ้อนให้ด้วย กรณี lightbox ซ้อน overlay อื่น
+   */
+  useLockBodyScroll(showFull)
+
   // overlay นี้เป็น lightbox ที่เขียนเอง (ไม่ใช่ Swal) — เดิมปิดได้ทางเดียวคือคลิก
-  // ผู้ใช้คีย์บอร์ดจึงติดค้าง. ผูก Escape + ล็อก scroll ของ body ระหว่างเปิด
+  // ผู้ใช้คีย์บอร์ดจึงติดค้าง. ผูก Escape ไว้
   useEffect(() => {
     if (!showFull) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setShowFull(false)
     }
     document.addEventListener('keydown', onKey)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prevOverflow
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [showFull])
 
   if (errored) {

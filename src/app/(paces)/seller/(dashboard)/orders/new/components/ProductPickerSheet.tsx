@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Icon from '@/components/wrappers/Icon'
 import ProductThumb from './ProductThumb'
 import type { CatalogProduct } from './OrderCreateForm'
@@ -25,6 +26,13 @@ interface Props {
 }
 
 export default function ProductPickerSheet({ open, catalog, bestSellers, onPick, onCustom, onClose }: Props) {
+  /**
+   * ตรึง scroll หน้าข้างหลังระหว่างเปิด — sheet นี้ประกอบเองด้วย React state (ดูคอมเมนต์หัวไฟล์
+   * ว่าทำไมไม่ใช้ Preline) จึงไม่ได้ล็อกฟรีแบบ hs-overlay · docs/conventions/overlay-scroll-lock.md
+   * ต้องเรียก **ก่อน** `if (!open) return null` ข้างล่าง ไม่งั้นผิด rules of hooks
+   */
+  useLockBodyScroll(open)
+
   const [q, setQ] = useState('')
   const [visibleCount, setVisibleCount] = useState(10) // lazy-load: เริ่ม 10, เลื่อน→+10
   const inputRef = useRef<HTMLInputElement>(null)
@@ -154,7 +162,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
 
         <div
           onScroll={handleScroll}
-          className="min-h-0 flex-1 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
         >
           {/* สินค้าทั้งหมด (ยังไม่พิมพ์) — โชว์ 10 รายการ + lazy-load เมื่อเลื่อน */}
           {!s && catalog.length > 0 && (

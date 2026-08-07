@@ -25,6 +25,7 @@ import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 import { Controller, useForm } from 'react-hook-form'
 import { useCallback, useEffect, useState } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import * as Yup from 'yup'
 import VerticalTaxonomyPicker, { VERTICAL_LOCK_NOTICE } from '@/components/safepay/VerticalTaxonomyPicker'
 import Icon from '@/components/wrappers/Icon'
@@ -129,6 +130,13 @@ const VERTICAL_SUMMARY: Record<string, string> = {
 export default function BusinessCreateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter()
   const { update } = useSession()
+
+  /**
+   * ตรึง scroll หน้าข้างหลังระหว่างเปิด — โมดัลประกอบเองด้วย React state ไม่ได้ล็อกฟรีแบบ
+   * hs-overlay (docs/conventions/overlay-scroll-lock.md) · ต้องเรียกก่อน `if (!open) return null`
+   */
+  useLockBodyScroll(open)
+
   const [stepIdx, setStepIdx] = useState(0)
   const [logoUploading, setLogoUploading] = useState(false)
   const [slugState, setSlugState] = useState<'idle' | 'checking' | 'ok' | 'taken' | 'invalid'>('idle')
@@ -398,7 +406,7 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
               เลือก h-100 (400px) เพราะขั้นตรวจทาน (399px) ซึ่งเป็นจังหวะตัดสินใจสุดท้ายพอดีไม่ต้องเลื่อน
               ขั้น 1 (กริดหมวด 25 ชิป) เลื่อนภายในเอา — ยอมให้ขั้นเดียวเลื่อน ดีกว่ากล่องเต้นทุกขั้น
               max-h-full กันจอเตี้ยกว่านั้นไม่ให้ล้นออกนอกจอ */}
-          <div className="card-body h-100 max-h-full min-h-0 shrink overflow-y-auto">
+          <div className="card-body h-100 max-h-full min-h-0 shrink overflow-y-auto overscroll-contain">
             {stepKey === 'info' && (
               <>
                 <p className="text-default-900 mb-1 text-xl font-semibold">ธุรกิจนี้ชื่ออะไร</p>

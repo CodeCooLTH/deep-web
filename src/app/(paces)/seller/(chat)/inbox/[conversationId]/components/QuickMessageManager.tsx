@@ -29,6 +29,7 @@
  * ข้อความสำเร็จรูปผูกระดับร้าน — ทุกคนในร้านเห็น/แก้ชุดเดียวกัน (ผลตัดสินผู้ใช้ 2026-07-23)
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Icon from '@/components/wrappers/Icon'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
@@ -82,6 +83,14 @@ export default function QuickMessageManager({
   onClose,
   onChanged,
 }: Props) {
+  /**
+   * overlay เต็มจอที่ประกอบเองด้วย React state (คอมเมนต์หัวไฟล์อธิบายไว้แล้วว่าทำไมไม่ใช้
+   * Preline) จึงต้องตรึง scroll เอง — docs/conventions/overlay-scroll-lock.md
+   * true ตายตัวได้เพราะ parent (QuickMessageBar) mount ใต้ `{managerOpen && ...}`
+   * ตัว component จึงมีตัวตนเฉพาะตอนเปิดอยู่แล้ว
+   */
+  useLockBodyScroll(true)
+
   const [editingId, setEditingId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('')
@@ -462,7 +471,7 @@ export default function QuickMessageManager({
               </div>
             </div>
 
-            <div className="min-h-0 grow overflow-y-auto">
+            <div className="min-h-0 grow overflow-y-auto overscroll-contain">
               {loading ? (
                 <div className="p-4" role="status" aria-label="กำลังโหลด">
                   {[0, 1, 2, 3, 4].map((i) => (
@@ -690,7 +699,7 @@ export default function QuickMessageManager({
         ) : (
           /* ══════════ หน้าฟอร์ม (เต็มโมดัล) ══════════ */
           <>
-            <div className="min-h-0 grow overflow-y-auto p-4">
+            <div className="min-h-0 grow overflow-y-auto overscroll-contain p-4">
               <div className="mb-3 sm:flex sm:gap-3">
                 <div className="mb-3 sm:mb-0 sm:flex-1">
                   <label className="form-label" htmlFor="qm-title">

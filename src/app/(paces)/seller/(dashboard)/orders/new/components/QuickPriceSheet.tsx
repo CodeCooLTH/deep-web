@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Icon from '@/components/wrappers/Icon'
 
 interface Props {
@@ -22,6 +23,12 @@ const stepBtn =
   'inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-default-300 px-2.5 text-sm font-semibold text-primary'
 
 export default function QuickPriceSheet({ open, price, name, onApply, onClose }: Props) {
+  /**
+   * ตรึง scroll หน้าข้างหลังระหว่างเปิด — sheet ประกอบเองด้วย React state ไม่ได้ล็อกฟรีแบบ
+   * hs-overlay (docs/conventions/overlay-scroll-lock.md) · ต้องเรียกก่อน `if (!open) return null`
+   */
+  useLockBodyScroll(open)
+
   // เก็บเป็น string เพื่อคุมการพิมพ์เอง — bind number ทำให้ leading zero ค้าง (React number-input quirk: 0360)
   // sanitize: เก็บเฉพาะเลข/จุด + ตัด 0 นำหน้าถ้ามีเลขตาม (0360→360) แต่คง 0.5
   const [raw, setRaw] = useState('')
@@ -53,16 +60,15 @@ export default function QuickPriceSheet({ open, price, name, onApply, onClose }:
     <>
       {/* dim: z-70 (ต่ำกว่า sheet z-80, สูงกว่า (fullscreen) layout z-50 + footer z-40) */}
       <div className="fixed inset-0 z-70 bg-dark/40" onClick={onClose} aria-hidden="true" />
-      {/* HR7: fixed inset-x-0 bottom-0 = viewport-lock (Paces ไม่มี token; precedent AccountSwitcherSheet) */}
       <div
-        className="fixed inset-x-0 bottom-0 z-80 rounded-t-2xl border-t border-default-300 bg-card"
+        className={'fixed inset-x-0 bottom-0 z-80 rounded-t-2xl border-t border-default-300 bg-card' /* HR7: inset-x-0 bottom-0 = viewport-lock, Paces ไม่มี token (precedent AccountSwitcherSheet) */}
         role="dialog"
         aria-label="แก้ราคา"
       >
         <div className="flex justify-center pt-3 pb-1">
           <span className="h-1 w-10 rounded-full bg-default-300" aria-hidden="true" />
         </div>
-        <div className="px-5 pt-1 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className={'px-5 pt-1 pb-[calc(1rem+env(safe-area-inset-bottom))]' /* carve-out: safe-area ไม่มี token */}>
           <h3 className="text-base font-semibold text-dark">แก้ราคา</h3>
           {name && <p className="mt-0.5 mb-4 truncate text-xs text-default-400">{name} · ราคาต่อหน่วย</p>}
 

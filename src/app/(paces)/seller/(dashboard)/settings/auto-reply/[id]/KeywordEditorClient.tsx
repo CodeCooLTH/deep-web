@@ -19,6 +19,7 @@
  * toast = pacesToast เท่านั้น (Hard Rule 9)
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
@@ -1019,6 +1020,13 @@ function ExceptionSheet({
   onCreated: (r: Rule[]) => void
   onUpdated: (r: Rule) => void
 }) {
+  /**
+   * overlay เต็มจอที่ประกอบเองด้วย React state จึงต้องตรึง scroll เอง
+   * (docs/conventions/overlay-scroll-lock.md) — true ตายตัวได้เพราะ parent mount ใต้
+   * `{sheetOpen && <ExceptionSheet ... />}` ตัว component มีตัวตนเฉพาะตอนเปิดอยู่แล้ว
+   */
+  useLockBodyScroll(true)
+
   // derive จาก prop ไม่ต้องมี state `mode` แยก — state ซ้อนที่ต้อง sync เองคือที่มาของบั๊ก
   const isEdit = rule !== null
   /**
@@ -1216,7 +1224,7 @@ function ExceptionSheet({
           </button>
         </div>
 
-        <div className="card-body flex-1 overflow-y-auto">
+        <div className="card-body flex-1 overflow-y-auto overscroll-contain">
           <p className="text-default-600 mb-3 text-sm">ใช้คำตอบนี้เมื่อลูกค้า…</p>
 
           {/* เพจ */}

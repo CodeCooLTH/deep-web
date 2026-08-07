@@ -26,6 +26,7 @@
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/utils/helpers'
 import { pacesToast } from '@/lib/paces-toast'
@@ -71,6 +72,13 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
   const [activeChip, setActiveChip] = useState<'all' | 'active' | 'inactive'>('all')
   const [filterOpen, setFilterOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE)
+
+  /**
+   * โมดัลตัวกรองข้างล่างเป็น overlay เต็มจอที่ประกอบเองด้วย React state จึงต้องตรึง scroll เอง
+   * (docs/conventions/overlay-scroll-lock.md) — ส่ง filterOpen ไม่ใช่ true ตายตัว เพราะ
+   * component นี้ถูก render ค้างไว้ตลอด ไม่ได้ mount เฉพาะตอนเปิด
+   */
+  useLockBodyScroll(filterOpen)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   // ─── pin toggle (feature 00013 — เดิมอยู่ที่นี่แล้ว) ────────────────────────
@@ -371,7 +379,9 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
             <span className="text-lg font-semibold text-default-900">ตัวกรอง</span>
           </div>
 
-          <div className="flex-1 overflow-auto p-4">
+          {/* overscroll-contain: กล่อง scroll ในโมดัลที่เนื้อหายังไม่ล้นก็ chain ออกไปเลื่อนหน้า
+              ข้างหลังได้ (บั๊กชัดที่สุดตอนเนื้อหาสั้น ซึ่งเป็นกรณีปกติของโมดัลนี้) */}
+          <div className="flex-1 overflow-auto overscroll-contain p-4">
             <p className="mb-2 text-sm font-medium text-default-900">ประเภทสินค้า</p>
             <div className="space-y-1">
               {TYPE_OPTIONS.map((opt) => {

@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
@@ -56,6 +57,14 @@ export default function BusinessDangerZone({
   const router = useRouter()
   const { update } = useSession()
   const [open, setOpen] = useState(false)
+
+  /**
+   * ตรึง scroll หน้าข้างหลังระหว่างเปิด — โมดัลยืนยันลบประกอบเองด้วย React state ไม่ได้ล็อกฟรี
+   * แบบ hs-overlay (docs/conventions/overlay-scroll-lock.md) · component render ค้างไว้ตลอด
+   * จึงส่ง open ไม่ใช่ true
+   */
+  useLockBodyScroll(open)
+
   const [confirmText, setConfirmText] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -157,7 +166,7 @@ export default function BusinessDangerZone({
               </button>
             </div>
 
-            <div className="card-body overflow-y-auto">
+            <div className="card-body overflow-y-auto overscroll-contain">
               <ul className="mb-4 space-y-2">
                 {CONSEQUENCES.map((c) => (
                   <li key={c.text} className="text-default-700 flex items-start gap-2 text-sm">
