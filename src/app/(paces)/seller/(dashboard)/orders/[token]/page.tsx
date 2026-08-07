@@ -212,7 +212,11 @@ export default async function OrderDetailPage({ params }: PageProps) {
       ? deriveShippingStage({
           status: order.status,
           carrierStatus: shipmentPanel?.shipment?.carrierStatus ?? null,
-          hasShipment: Boolean(shipmentPanel?.shipment),
+          // "มีพัสดุ" ต้องหมายถึงใบที่เปิดสำเร็จจริงเท่านั้น (นิยามเดียวกับ getShippingStageCounts) —
+          // ใบที่ยิงไม่ผ่าน (FAILED) ยังต้องอยู่กอง "รอเลขพัสดุ" ไม่ใช่ "รอรับเข้า" เพราะยังไม่มี
+          // อะไรให้ขนส่งมารับ (user เจอบน prod 2026-08-06: DP256908A896B1BE)
+          hasShipment:
+            shipmentPanel?.shipment?.status === 'CREATED' && !shipmentPanel.shipment.isDryRun,
           paymentMethod: order.paymentMethod ?? null,
           codReceivedAt: order.codReceivedAt ?? null,
         })
