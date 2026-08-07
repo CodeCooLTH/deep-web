@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — กล่องแชทรวมหลายร้าน (00037)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงจาก src/assets/css/config/_root.css (light) ──────────────
+   ห้ามแก้ค่าเหล่านี้ให้ต่างจากของจริง — mockup ที่ใช้สีมั่วจะพา dev ไปผิดทาง */
+:root{
+  --primary:#236dc9;
+  --body-bg:#f6f7fb;
+  --card:#ffffff;
+  --light:#eef2f7;
+  --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb;
+  --d500:#58626b; --d700:#40454a; --d900:#313a46;
+  --success:#28c76f; --warning:#f5a623; --danger:#e0464b;
+  --fb:#0866ff; --ig:#d62976;
+  --radius:.5rem;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,system-ui,sans-serif;background:#e9ecf3;color:var(--d900);padding:32px 20px 80px;line-height:1.5}
+h1{font-size:22px;font-weight:700;margin-bottom:4px}
+.sub{color:var(--d500);font-size:13px;margin-bottom:28px}
+h2{font-size:16px;font-weight:600;margin:36px 0 4px;padding-top:20px;border-top:1px solid #d5dae4}
+h2 .num{color:var(--primary)}
+.note{font-size:12px;color:var(--d500);margin-bottom:14px;max-width:900px}
+.note b{color:var(--d700)}
+.row{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.frame{background:var(--card);border-radius:14px;box-shadow:0 6px 24px rgba(49,58,70,.13);overflow:hidden;position:relative}
+.cap{font-size:11px;font-weight:600;color:var(--d500);margin-bottom:6px;letter-spacing:.02em}
+.w320{width:320px}.w375{width:375px}.w768{width:768px}.w1200{width:1200px}
+.screen{background:var(--body-bg);height:100%}
+
+/* chrome ร่วม */
+.chat-header{display:flex;align-items:center;gap:12px;padding:0 16px;height:56px;background:var(--card);border-bottom:1px solid var(--d200)}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:700;display:grid;place-items:center;flex:none}
+.search{flex:1;min-width:0;height:34px;border-radius:999px;background:var(--light);display:flex;align-items:center;gap:6px;padding:0 12px;color:var(--d500);font-size:13px}
+.iconbtn{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:var(--d500);flex:none}
+.avatar-btn{position:relative;flex:none}
+.av{border-radius:50%;background:var(--light);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--d700);overflow:hidden}
+.av-32{width:32px;height:32px}.av-36{width:36px;height:36px}.av-40{width:40px;height:40px}
+.badge-corner{position:absolute;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;box-shadow:0 0 0 2px var(--card);font-size:8px;font-weight:700}
+.b-br{right:-2px;bottom:-2px}
+.b-tl{left:-2px;top:-2px}
+.b-shop{background:rgba(35,109,201,.12);color:var(--primary)}
+.b-fb{background:var(--fb);color:#fff}
+.b-ig{background:var(--ig);color:#fff}
+.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--d200);font-size:13px}
+.tabs div{flex:1;text-align:center;padding:11px 0;color:var(--d500)}
+.tabs div.on{color:var(--primary);font-weight:600;box-shadow:inset 0 -2px 0 var(--primary)}
+
+/* dropdown */
+.dd{width:288px;background:var(--card);border-radius:12px;box-shadow:0 12px 32px rgba(49,58,70,.2);padding:8px;border:1px solid var(--d200)}
+.dd-label{font-size:12px;color:var(--d700);padding:12px 8px 4px}
+.seg{display:flex;gap:4px;background:var(--light);border-radius:var(--radius);padding:4px}
+.seg div{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;padding:7px 4px;border-radius:6px;color:var(--d500)}
+.seg div.on{background:var(--card);color:var(--d900);font-weight:600;box-shadow:0 1px 2px rgba(49,58,70,.12)}
+.hr{height:1px;background:var(--d200);margin:8px 0}
+.active-box{border:1.5px solid var(--primary);background:rgba(35,109,201,.05);border-radius:10px;padding:10px;display:flex;gap:10px;align-items:center}
+.dd-item{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px;font-size:13px}
+.chip{font-size:10px;padding:2px 7px;border-radius:999px;background:rgba(35,109,201,.12);color:var(--primary);font-weight:600}
+.chip-gray{background:var(--light);color:var(--d500)}
+
+/* list */
+.toolbar{background:var(--card);border-bottom:1px solid var(--d200);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.segtabs{display:flex;gap:4px;background:var(--light);border-radius:var(--radius);padding:3px}
+.segtabs span{flex:1;text-align:center;font-size:12px;padding:5px 0;border-radius:6px;color:var(--d500)}
+.segtabs span.on{background:var(--card);color:var(--d900);font-weight:600;box-shadow:0 1px 2px rgba(49,58,70,.1)}
+.tbrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font-size:12px;padding:6px 11px;border-radius:var(--radius);display:inline-flex;align-items:center;gap:5px;font-weight:500}
+.btn-light{background:var(--light);color:var(--d700)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-ghost{color:var(--d500)}
+.spacer{flex:1}
+.conv{display:flex;gap:11px;padding:12px;background:var(--card);border-bottom:1px solid var(--d200);align-items:flex-start}
+.conv .nm{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv .pv{font-size:12px;color:var(--d500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv .tm{font-size:11px;color:var(--d500);flex:none;text-align:right}
+.unread{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:999px;background:var(--primary);color:#fff;font-size:10px;font-weight:700;padding:0 5px;margin-top:5px}
+
+/* thread */
+.th-head{display:flex;align-items:center;gap:10px;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--d200);flex-wrap:nowrap}
+.ctx-bar{display:flex;align-items:center;gap:6px;padding:6px 16px;background:rgba(35,109,201,.05);border-bottom:1px solid var(--d200);font-size:12px;color:var(--primary)}
+.ctx-bar b{font-weight:600}
+.status-bar{padding:6px 16px;background:#fff8ec;border-bottom:1px solid var(--d200);font-size:11.5px;color:#8a6415}
+.bubbles{padding:14px;display:flex;flex-direction:column;gap:8px;background:var(--body-bg);min-height:120px}
+.bb{max-width:74%;padding:8px 12px;border-radius:14px;font-size:13px}
+.bb.them{background:var(--card);border:1px solid var(--d200);align-self:flex-start;border-bottom-left-radius:4px}
+.bb.me{background:var(--primary);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.composer{display:flex;gap:8px;align-items:center;padding:10px 14px;background:var(--card);border-top:1px solid var(--d200)}
+.composer .inp{flex:1;height:36px;border-radius:999px;background:var(--light);display:flex;align-items:center;padding:0 14px;font-size:13px;color:var(--d500)}
+
+/* modal */
+.modal{width:384px;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 16px 40px rgba(49,58,70,.24)}
+.modal-hd{background:var(--primary);color:#fff;padding:10px 14px;display:flex;gap:10px;align-items:center}
+.modal-hd .t1{font-size:13.5px;font-weight:600}
+.modal-hd .t2{font-size:11px;opacity:.85;display:flex;align-items:center;gap:4px}
+.modal-bd{padding:16px}
+.sk{background:var(--d300);border-radius:5px;display:block;animation:p 1.6s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.45}}
+.err{text-align:center;padding:26px 16px}
+.err .ic{width:40px;height:40px;border-radius:50%;background:rgba(224,70,75,.1);color:var(--danger);display:grid;place-items:center;margin:0 auto 10px}
+
+/* desktop */
+.desk{display:flex;height:520px}
+.rail{width:344px;border-right:1px solid var(--d200);background:var(--card);display:flex;flex-direction:column;flex:none}
+.mid{flex:1;min-width:0;display:flex;flex-direction:column}
+.panel{width:300px;border-left:1px solid var(--d200);background:var(--card);flex:none;padding:14px;font-size:12px;color:var(--d500)}
+.panel h4{font-size:13px;color:var(--d900);margin-bottom:8px}
+
+.cmp{display:flex;gap:16px;flex-wrap:wrap}
+.cmp>div{flex:1;min-width:260px}
+.cmp .tag{font-size:11px;font-weight:600;margin-bottom:6px;color:var(--d500)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:11.5px;color:var(--d500);margin:10px 0 18px}
+.legend span{display:flex;align-items:center;gap:6px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+svg{display:block}
+</style>
+</head>
+<body>
+
+<h1>กล่องแชทรวมหลายร้าน — Mockup</h1>
+<div class="sub">feature 00037 · 2026-08-07 · อิง <code>2026-08-07-unified-multi-shop-chat-inbox-ux-spec.md</code> (มติ Q-1..Q-3 ปิดแล้ว) · สีทุกค่าดึงจาก <code>src/assets/css/config/_root.css</code> ของจริง</div>
+
+<div class="legend">
+  <span><i class="dot" style="background:rgba(35,109,201,.12);box-shadow:0 0 0 2px #fff,0 0 0 3px var(--d300)"></i> badge ร้าน = มุมบนซ้าย</span>
+  <span><i class="dot" style="background:var(--fb)"></i> badge ช่องทาง = มุมล่างขวา (ของเดิม)</span>
+  <span><i class="dot" style="background:var(--primary)"></i> primary #236dc9 (ไม่ใช่ม่วง Vuexy)</span>
+</div>
+
+<!-- ═══════════ 1 ═══════════ -->
+<h2><span class="num">1.</span> สวิตช์โหมด — อยู่ใน dropdown ของปุ่ม avatar (มติ Q-1)</h2>
+<div class="note">
+ปุ่ม avatar ในหัวแชท <b>ไม่เพิ่มความกว้าง</b> — สัญญาณโหมดคือไอคอนบน badge มุมล่างขวาที่เปลี่ยนจาก chevron เป็นตาราง.
+เหตุผลที่ไม่ทำ pill ลอยในหัวแชท: ที่ 320px หัวแชทเหลือ <b>~140px ให้ช่องค้นหา</b> เท่านั้น (ux spec §0).
+segment แสดงเฉพาะเมื่อ <code>hasBusinessMembership</code> — ร้านเดียวไม่เห็นสวิตช์เลย
+</div>
+<div class="row">
+  <div>
+    <div class="cap">MOBILE 375 — หัวแชท (โหมด SINGLE)</div>
+    <div class="frame w375"><div class="screen">
+      <div class="chat-header">
+        <div class="logo">D</div>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="7"/><path d="m21 21-6-6"/></svg>ค้นหา</div>
+        <div class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 8a5 5 0 0 1 0 8"/><path d="M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5z"/></svg></div>
+        <div class="avatar-btn">
+          <div class="av av-32">TN</div>
+          <span class="badge-corner b-br" style="background:var(--d300);color:var(--d700)"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg></span>
+        </div>
+      </div>
+      <div style="padding:14px;font-size:12px;color:var(--d500)">↑ ไอคอน chevron = โหมดร้านเดียว</div>
+    </div></div>
+  </div>
+
+  <div>
+    <div class="cap">MOBILE 375 — หัวแชท (โหมด UNIFIED)</div>
+    <div class="frame w375"><div class="screen">
+      <div class="chat-header">
+        <div class="logo">D</div>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="7"/><path d="m21 21-6-6"/></svg>ค้นหา</div>
+        <div class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 8a5 5 0 0 1 0 8"/><path d="M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5z"/></svg></div>
+        <div class="avatar-btn">
+          <div class="av av-32">TN</div>
+          <span class="badge-corner b-br" style="background:var(--primary);color:#fff"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+        </div>
+      </div>
+      <div style="padding:14px;font-size:12px;color:var(--d500)">↑ ไอคอนตาราง = กำลังรวมทุกร้าน</div>
+    </div></div>
+  </div>
+
+  <div>
+    <div class="cap">DROPDOWN (288px · เปิดจากปุ่มเดียวกันทุกจอ)</div>
+    <div class="dd">
+      <div class="dd-label">มุมมองกล่องข้อความ</div>
+      <div class="seg">
+        <div class="on"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>ร้านทั้งหมด</div>
+        <div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l2-3h10l2 3M4 10v11M20 10v11M9 21v-6h6v6"/></svg>ร้านนี้</div>
+      </div>
+      <div class="hr"></div>
+      <div class="active-box">
+        <div class="av av-36" style="background:rgba(35,109,201,.12);color:var(--primary)">ธน</div>
+        <div><div style="font-size:13.5px;font-weight:600">ธนภัทร อะไหล่มอเตอร์ไซค์</div><div style="font-size:11.5px;color:var(--d500)">เจ้าของ</div></div>
+      </div>
+      <div class="dd-label">สลับบัญชี</div>
+      <div class="dd-item"><div class="av av-32">SO</div><span style="flex:1">Sekson Oonnom</span><span class="chip chip-gray">ส่วนตัว</span></div>
+      <div class="dd-item"><div class="av av-32">BT</div><span style="flex:1">BT Premium — สุขสวัสดิ์</span><span class="chip">เจ้าของ</span></div>
+      <div class="dd-item"><div class="av av-32">BT</div><span style="flex:1">BT Premium — คลอง 4</span><span class="chip">เจ้าของ</span></div>
+      <div class="hr"></div>
+      <div class="dd-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>กลับหน้าหลัก</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 2 ═══════════ -->
+<h2><span class="num">2.</span> แถวในรายการ — badge ร้านมุมบนซ้าย + ปุ่ม "สร้างใหม่"</h2>
+<div class="note">
+<b>โหมด SINGLE ต้องไม่เปลี่ยนแม้แต่พิกเซลเดียว</b> — badge ร้าน render แบบ conditional เท่านั้น.
+badge ร้านมิเรอร์ตำแหน่งของ <code>ChannelBadgeOverlay</code> ไปมุมตรงข้าม → ผู้ใช้เรียนภาษาภาพเดียว: <b>ล่างขวา = ช่องทาง · บนซ้าย = ร้าน</b>.
+ไม่มีโลโก้ร้าน → <code>bg-primary/10</code> + ตัวอักษรย่อ ทุกร้านสีเดียวกัน (มติ Q-2 — ไม่สุ่มสี)
+</div>
+<div class="cmp">
+  <div>
+    <div class="tag">โหมด SINGLE — ของเดิม ห้ามแตะ</div>
+    <div class="frame w375"><div class="screen">
+      <div class="toolbar">
+        <div class="segtabs"><span class="on">ทั้งหมด</span><span>Messenger</span><span>IG</span><span>Deep</span></div>
+        <div class="tbrow">
+          <span class="btn btn-light"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง</span>
+          <span class="spacer"></span>
+          <span class="btn btn-primary"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>สร้างคำสั่งซื้อ</span>
+        </div>
+      </div>
+      <div class="conv">
+        <div style="position:relative;flex:none"><div class="av av-40">สม</div><span class="badge-corner b-br b-fb">f</span></div>
+        <div style="flex:1;min-width:0"><div class="nm">สมชาย ใจดี</div><div class="pv">คุณ: ขอบคุณครับ</div></div>
+        <div class="tm">12:04<br><span class="unread">2</span></div>
+      </div>
+      <div class="conv">
+        <div style="position:relative;flex:none"><div class="av av-40">มาลี</div><span class="badge-corner b-br b-ig">ig</span></div>
+        <div style="flex:1;min-width:0"><div class="nm">มาลี สวยงาม</div><div class="pv">สนใจตัวนี้ค่ะ ราคาเท่าไหร่</div></div>
+        <div class="tm">11:47</div>
+      </div>
+    </div></div>
+  </div>
+
+  <div>
+    <div class="tag">โหมด UNIFIED — เพิ่ม badge ร้าน + ปุ่มใช้คำกลาง</div>
+    <div class="frame w375"><div class="screen">
+      <div class="toolbar">
+        <div class="segtabs"><span class="on">ทั้งหมด</span><span>Messenger</span><span>IG</span><span>Deep</span></div>
+        <div class="tbrow">
+          <span class="btn btn-light"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>ตัวกรอง</span>
+          <span class="spacer"></span>
+          <span class="btn btn-primary"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>สร้างใหม่</span>
+        </div>
+      </div>
+      <div class="conv">
+        <div style="position:relative;flex:none"><div class="av av-40">สม</div><span class="badge-corner b-tl b-shop">ธน</span><span class="badge-corner b-br b-fb">f</span></div>
+        <div style="flex:1;min-width:0"><div class="nm">สมชาย ใจดี</div><div class="pv">คุณ: ขอบคุณครับ</div></div>
+        <div class="tm">12:04<br><span class="unread">2</span></div>
+      </div>
+      <div class="conv">
+        <div style="position:relative;flex:none"><div class="av av-40">มาลี</div><span class="badge-corner b-tl b-shop">BT</span><span class="badge-corner b-br b-ig">ig</span></div>
+        <div style="flex:1;min-width:0"><div class="nm">มาลี สวยงาม</div><div class="pv">คิวว่างวันเสาร์ไหมคะ</div></div>
+        <div class="tm">11:47</div>
+      </div>
+      <div class="conv">
+        <div style="position:relative;flex:none"><div class="av av-40">ก</div><span class="badge-corner b-tl b-shop">BT</span><span class="badge-corner b-br b-fb">f</span></div>
+        <div style="flex:1;min-width:0"><div class="nm">เกียรติศักดิ์</div><div class="pv">รับรถวันไหนครับ</div></div>
+        <div class="tm">10:12</div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════ 3 ═══════════ -->
+<h2><span class="num">3.</span> ตัวกรอง "เพจ" จัดกลุ่มตามร้าน + แท็บกลุ่มที่ชี้ทาง</h2>
+<div class="note">
+แท็บกลุ่มใช้ไม่ได้เมื่อ scope ครอบหลายร้าน (ชื่อกลุ่มซ้ำข้ามร้านได้ — <code>@@unique([shopId, name])</code>)
+แต่ <b>ห้ามให้ปุ่มตายเงียบ</b>: ปุ่มยังกดได้ กดแล้วเปิดตัวกรองเพจให้เลย ไม่ใช่ dead-end
+</div>
+<div class="row">
+  <div>
+    <div class="cap">ตัวกรองเพจ — โหมด UNIFIED</div>
+    <div class="dd" style="width:260px">
+      <div class="dd-item" style="font-weight:600"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.6"><path d="m5 12 5 5L20 7"/></svg>ทุกเพจ</div>
+      <div class="dd-label">ธนภัทร อะไหล่มอเตอร์ไซค์</div>
+      <div class="dd-item"><div class="av av-32" style="position:relative"><span style="font-size:10px">ธน</span></div><span>ธนภัทร อะไหล่ฯ</span></div>
+      <div class="dd-label">BT Premium — สุขสวัสดิ์</div>
+      <div class="dd-item"><div class="av av-32"><span style="font-size:10px">BT</span></div><span>BT สุขสวัสดิ์</span></div>
+      <div class="dd-label">BT Premium — คลอง 4</div>
+      <div class="dd-item"><div class="av av-32"><span style="font-size:10px">BT</span></div><span>BT คลอง 4</span></div>
+    </div>
+  </div>
+  <div>
+    <div class="cap">แท็บกลุ่ม — 2 สถานะ</div>
+    <div class="frame w375"><div class="screen" style="padding:14px;display:flex;flex-direction:column;gap:18px">
+      <div>
+        <div style="font-size:11px;color:var(--d500);margin-bottom:6px">กรองเหลือร้านเดียว → ปกติ</div>
+        <div class="tbrow">
+          <span class="btn btn-light">ทั้งหมด</span><span class="btn btn-ghost">ปิดงาน</span><span class="btn btn-ghost">สแปม</span>
+          <span class="btn btn-light"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>กลุ่ม 3</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--d500);margin-bottom:6px">ครอบหลายร้าน → ชี้ทาง (ยังกดได้)</div>
+        <div class="tbrow">
+          <span class="btn btn-light">ทั้งหมด</span><span class="btn btn-ghost">ปิดงาน</span><span class="btn btn-ghost">สแปม</span>
+          <span class="btn" style="color:var(--d500);background:transparent;border:1px dashed var(--d300)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>เลือกเพจเพื่อดูกลุ่ม</span>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════ 4 ═══════════ -->
+<h2><span class="num">4.</span> หัวเธรด — badge ร้าน + แถบบริบท (display-only ตามมติ Q-3)</h2>
+<div class="note">
+<b>ห้ามเบียดของเข้าแถว <code>.card-header</code> เดิม</b> — ที่ 320px เหลือ ~90px ให้ชื่อลูกค้า และ header เพิ่งถูกลดความสูง 79→61px
+เมื่อ 2026-08-07. แถบบริบทจึงเป็น <b>แถวเต็มความกว้างของตัวเอง</b> (pattern เดียวกับแบนเนอร์โฆษณาที่ไฟล์นั้นมีอยู่แล้ว)
+วางไว้ <b>เหนือ</b> ThreadStatusBar เพราะเป็นข้อมูล "ต้องรู้ก่อนพิมพ์" ไม่ใช่ "เฝ้าดู"
+</div>
+<div class="cmp">
+  <div>
+    <div class="tag">MOBILE 320 — ร้าน ONLINE_SALES</div>
+    <div class="frame w320"><div class="screen">
+      <div class="th-head">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--d500)" stroke-width="2" style="flex:none"><path d="M15 6l-6 6 6 6"/></svg>
+        <div style="position:relative;flex:none"><div class="av av-36">สม</div><span class="badge-corner b-tl b-shop">ธน</span><span class="badge-corner b-br b-fb">f</span></div>
+        <div style="flex:1;min-width:0;overflow:hidden"><div class="nm" style="font-size:13px">สมชาย ใจดี</div></div>
+        <div class="iconbtn" style="width:28px;height:28px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></div>
+        <div class="iconbtn" style="width:28px;height:28px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20h4"/></svg></div>
+      </div>
+      <div class="ctx-bar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none"><path d="M3 21h18M3 10h18M5 6l2-3h10l2 3M4 10v11M20 10v11M9 21v-6h6v6"/></svg>
+        กำลังตอบในนามร้าน <b>ธนภัทร อะไหล่ฯ</b>
+      </div>
+      <div class="status-bar">เหลือเวลาตอบ 18 ชม.</div>
+      <div class="bubbles">
+        <div class="bb them">มีอะไหล่รุ่นนี้ไหมครับ</div>
+        <div class="bb me">มีครับ ราคา 450 บาท</div>
+      </div>
+      <div class="composer">
+        <div class="inp">พิมพ์ข้อความ…</div>
+        <span class="btn btn-primary">ส่ง</span>
+      </div>
+    </div></div>
+  </div>
+
+  <div>
+    <div class="tag">MOBILE 320 — ร้าน SERVICE_QUEUE (จอเดียวกัน คนละ vertical)</div>
+    <div class="frame w320"><div class="screen">
+      <div class="th-head">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--d500)" stroke-width="2" style="flex:none"><path d="M15 6l-6 6 6 6"/></svg>
+        <div style="position:relative;flex:none"><div class="av av-36">มาลี</div><span class="badge-corner b-tl b-shop">BT</span><span class="badge-corner b-br b-ig">ig</span></div>
+        <div style="flex:1;min-width:0;overflow:hidden"><div class="nm" style="font-size:13px">มาลี สวยงาม</div></div>
+        <div class="iconbtn" style="width:28px;height:28px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></div>
+        <div class="iconbtn" style="width:28px;height:28px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20h4"/></svg></div>
+      </div>
+      <div class="ctx-bar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none"><path d="M3 21h18M3 10h18M5 6l2-3h10l2 3M4 10v11M20 10v11M9 21v-6h6v6"/></svg>
+        กำลังตอบในนามร้าน <b>BT Premium — คลอง 4</b>
+      </div>
+      <div class="bubbles">
+        <div class="bb them">คิวว่างวันเสาร์ไหมคะ</div>
+        <div class="bb me">ว่างครับ รอบ 10:00 กับ 14:00</div>
+      </div>
+      <div class="composer">
+        <div class="inp">พิมพ์ข้อความ…</div>
+        <span class="btn btn-primary">ส่ง</span>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════ 5 ═══════════ -->
+<h2><span class="num">5.</span> โมดัลสร้างรายการ — skeleton / error / ป้ายร้านล็อก</h2>
+<div class="note">
+มติ D-5: <b>ปุ่มกดได้เสมอ ไม่ disable</b> โมดัลเปิดแล้วโชว์ skeleton ข้างใน (ไม่ใช่ spinner กลางจอ).
+<b>สำคัญ:</b> เงื่อนไข render ฟอร์มคือ <code>contextLoaded === true</code> <b>ไม่ใช่ <code>catalog.length > 0</code></b> —
+ร้านที่ไม่มีสินค้าจริงต้องเปิดฟอร์มได้ ต่างจาก "ยังโหลดไม่เสร็จ" (แคตตาล็อกว่าง = โกหกว่าร้านนี้ไม่มีสินค้า).
+ป้ายร้านในหัวโมดัลเมื่อเปิดจากในเธรด = <b>ข้อความล้วน ไม่มี chevron</b> (ล็อก เลือกไม่ได้)
+</div>
+<div class="row">
+  <div>
+    <div class="cap">กำลังโหลด context ของร้าน</div>
+    <div class="modal">
+      <div class="modal-hd">
+        <div class="av av-32" style="background:rgba(255,255,255,.2);color:#fff">สม</div>
+        <div style="flex:1"><div class="t1">งานใหม่ · สมชาย ใจดี</div>
+          <div class="t2">Messenger · <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l2-3h10l2 3M4 10v11M20 10v11M9 21v-6h6v6"/></svg> ธนภัทร อะไหล่ฯ</div>
+        </div>
+        <div style="opacity:.8"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+      </div>
+      <div class="modal-bd">
+        <span class="sk" style="width:38%;height:11px;margin-bottom:9px"></span>
+        <span class="sk" style="width:100%;height:34px;margin-bottom:16px"></span>
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <div style="flex:1"><span class="sk" style="width:52%;height:11px;margin-bottom:9px"></span><span class="sk" style="width:100%;height:34px"></span></div>
+          <div style="flex:1"><span class="sk" style="width:52%;height:11px;margin-bottom:9px"></span><span class="sk" style="width:100%;height:34px"></span></div>
+        </div>
+        <span class="sk" style="width:30%;height:11px;margin-bottom:9px"></span>
+        <span class="sk" style="width:100%;height:34px;margin-bottom:20px"></span>
+        <span class="sk" style="width:100%;height:38px;border-radius:8px"></span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="cap">โหลดล้มเหลว — retry จริง ไม่ใช่บอกให้รีเฟรชหน้า</div>
+    <div class="modal">
+      <div class="modal-hd">
+        <div class="av av-32" style="background:rgba(255,255,255,.2);color:#fff">สม</div>
+        <div style="flex:1"><div class="t1">งานใหม่ · สมชาย ใจดี</div>
+          <div class="t2">Messenger · <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l2-3h10l2 3M4 10v11M20 10v11M9 21v-6h6v6"/></svg> ธนภัทร อะไหล่ฯ</div>
+        </div>
+        <div style="opacity:.8"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+      </div>
+      <div class="err">
+        <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg></div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">โหลดข้อมูลร้านไม่สำเร็จ</div>
+        <div style="font-size:12px;color:var(--d500);margin-bottom:14px">ลองใหม่อีกครั้ง หรือปิดหน้าต่างแล้วเปิดใหม่</div>
+        <span class="btn btn-primary">ลองใหม่</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="cap">กดสร้างจากหน้ารายการ (ไม่มีเธรด) → เลือกร้านก่อน</div>
+    <div class="dd" style="width:270px">
+      <div class="dd-label" style="padding-top:6px">เลือกร้านที่จะสร้างคำสั่งซื้อ</div>
+      <div class="dd-item" style="background:rgba(35,109,201,.06)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.6" style="flex:none"><path d="m5 12 5 5L20 7"/></svg>
+        <div class="av av-32" style="background:rgba(35,109,201,.12);color:var(--primary);font-size:10px">ธน</div>
+        <span style="flex:1;font-size:12.5px">ธนภัทร อะไหล่ฯ</span><span class="chip">ร้านที่ใช้งานอยู่</span>
+      </div>
+      <div class="dd-item"><span style="width:15px"></span><div class="av av-32" style="font-size:10px">BT</div><span style="flex:1;font-size:12.5px">BT Premium — สุขสวัสดิ์</span></div>
+      <div class="dd-item"><span style="width:15px"></span><div class="av av-32" style="font-size:10px">BT</div><span style="flex:1;font-size:12.5px">BT Premium — คลอง 4</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 6 ═══════════ -->
+<h2><span class="num">6.</span> TABLET 768 — rail ยังไม่โผล่ (rail เริ่มที่ ≥1024)</h2>
+<div class="note">ที่ 768–1023 หน้ารายการยังเป็นคอลัมน์เดียวเต็มความกว้าง เหมือนมือถือแต่แถวโปร่งกว่า — badge ร้านและปุ่มสร้างวางเหมือนกันทุกประการ</div>
+<div class="frame w768"><div class="screen">
+  <div class="chat-header">
+    <div class="logo">D</div>
+    <div class="search" style="max-width:340px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="7"/><path d="m21 21-6-6"/></svg>ค้นหา</div>
+    <div class="spacer"></div>
+    <div class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 8a5 5 0 0 1 0 8"/><path d="M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5z"/></svg></div>
+    <div class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 0 18 9 9 0 0 1 0-18"/></svg></div>
+    <div class="iconbtn" style="font-size:13px;font-weight:600">Aa</div>
+    <div class="avatar-btn"><div class="av av-32">TN</div><span class="badge-corner b-br" style="background:var(--primary);color:#fff"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span></div>
+  </div>
+  <div class="tabs"><div class="on">ข้อความ</div><div>ความคิดเห็น</div></div>
+  <div class="toolbar">
+    <div class="segtabs" style="max-width:420px"><span class="on">ทั้งหมด</span><span>Messenger</span><span>IG</span><span>Deep</span></div>
+    <div class="tbrow">
+      <span class="btn btn-light">ตัวกรอง</span>
+      <span class="btn btn-light">ทุกเพจ</span>
+      <span class="btn" style="color:var(--d500);background:transparent;border:1px dashed var(--d300)">เลือกเพจเพื่อดูกลุ่ม</span>
+      <span class="spacer"></span>
+      <span class="btn btn-primary">＋ สร้างใหม่</span>
+    </div>
+  </div>
+  <div class="conv">
+    <div style="position:relative;flex:none"><div class="av av-40">สม</div><span class="badge-corner b-tl b-shop">ธน</span><span class="badge-corner b-br b-fb">f</span></div>
+    <div style="flex:1;min-width:0"><div class="nm">สมชาย ใจดี</div><div class="pv">คุณ: ขอบคุณครับ</div></div>
+    <div class="tm">12:04<br><span class="unread">2</span></div>
+  </div>
+  <div class="conv">
+    <div style="position:relative;flex:none"><div class="av av-40">มาลี</div><span class="badge-corner b-tl b-shop">BT</span><span class="badge-corner b-br b-ig">ig</span></div>
+    <div style="flex:1;min-width:0"><div class="nm">มาลี สวยงาม</div><div class="pv">คิวว่างวันเสาร์ไหมคะ</div></div>
+    <div class="tm">11:47</div>
+  </div>
+</div></div>
+
+<!-- ═══════════ 7 ═══════════ -->
+<h2><span class="num">7.</span> DESKTOP ≥1024 — rail + เธรด + แผงลูกค้า</h2>
+<div class="note">rail (344px) แสดง badge ร้านทุกแถว · คอลัมน์กลางมีแถบบริบทร้านใต้หัวเธรด · โครง 3 คอลัมน์เดิม ไม่มีคอลัมน์ใหม่</div>
+<div class="frame w1200"><div class="screen">
+  <div class="chat-header">
+    <div class="logo">D</div>
+    <div class="search" style="max-width:420px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="7"/><path d="m21 21-6-6"/></svg>ค้นหา</div>
+    <div class="spacer"></div>
+    <div class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 8a5 5 0 0 1 0 8"/><path d="M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5z"/></svg></div>
+    <div class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 0 18 9 9 0 0 1 0-18"/></svg></div>
+    <div class="iconbtn" style="font-size:13px;font-weight:600">Aa</div>
+    <div class="avatar-btn"><div class="av av-32">TN</div><span class="badge-corner b-br" style="background:var(--primary);color:#fff"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span></div>
+  </div>
+  <div class="tabs"><div class="on">ข้อความ <span class="unread" style="margin:0 0 0 4px">5</span></div><div>ความคิดเห็น</div></div>
+  <div class="desk">
+    <div class="rail">
+      <div class="toolbar">
+        <div class="segtabs"><span class="on">ทั้งหมด</span><span>MSG</span><span>IG</span><span>Deep</span></div>
+        <div class="tbrow">
+          <span class="btn btn-light">ตัวกรอง</span>
+          <span class="spacer"></span>
+          <span class="btn btn-primary">＋ สร้างใหม่</span>
+        </div>
+      </div>
+      <div class="conv" style="background:rgba(35,109,201,.06)">
+        <div style="position:relative;flex:none"><div class="av av-40">สม</div><span class="badge-corner b-tl b-shop">ธน</span><span class="badge-corner b-br b-fb">f</span></div>
+        <div style="flex:1;min-width:0"><div class="nm">สมชาย ใจดี</div><div class="pv">คุณ: ขอบคุณครับ</div></div>
+        <div class="tm">12:04<br><span class="unread">2</span></div>
+      </div>
+      <div class="conv">
+        <div style="position:relative;flex:none"><div class="av av-40">มาลี</div><span class="badge-corner b-tl b-shop">BT</span><span class="badge-corner b-br b-ig">ig</span></div>
+        <div style="flex:1;min-width:0"><div class="nm">มาลี สวยงาม</div><div class="pv">คิวว่างวันเสาร์ไหมคะ</div></div>
+        <div class="tm">11:47</div>
+      </div>
+      <div class="conv">
+        <div style="position:relative;flex:none"><div class="av av-40">ก</div><span class="badge-corner b-tl b-shop">BT</span><span class="badge-corner b-br b-fb">f</span></div>
+        <div style="flex:1;min-width:0"><div class="nm">เกียรติศักดิ์</div><div class="pv">รับรถวันไหนครับ</div></div>
+        <div class="tm">10:12</div>
+      </div>
+    </div>
+    <div class="mid">
+      <div class="th-head">
+        <div style="position:relative;flex:none"><div class="av av-36">สม</div><span class="badge-corner b-tl b-shop">ธน</span><span class="badge-corner b-br b-fb">f</span></div>
+        <div style="flex:1;min-width:0"><div class="nm">สมชาย ใจดี</div><div style="font-size:11px;color:var(--d500)">ธนภัทร อะไหล่ฯ · Messenger</div></div>
+        <span class="btn btn-light">ข้อมูลลูกค้า</span>
+        <div class="iconbtn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20h4"/></svg></div>
+      </div>
+      <div class="ctx-bar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none"><path d="M3 21h18M3 10h18M5 6l2-3h10l2 3M4 10v11M20 10v11M9 21v-6h6v6"/></svg>
+        กำลังตอบในนามร้าน <b>ธนภัทร อะไหล่มอเตอร์ไซค์</b>
+      </div>
+      <div class="status-bar">เหลือเวลาตอบ 18 ชม.</div>
+      <div class="bubbles" style="flex:1">
+        <div class="bb them">มีอะไหล่รุ่นนี้ไหมครับ</div>
+        <div class="bb me">มีครับ ราคา 450 บาท</div>
+        <div class="bb them">เอา 2 ชิ้นครับ</div>
+      </div>
+      <div class="composer">
+        <div class="iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div class="inp">พิมพ์ข้อความ…</div>
+        <span class="btn btn-primary">ส่ง</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h4>ข้อมูลลูกค้า</h4>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+        <div style="position:relative"><div class="av av-40">สม</div><span class="badge-corner b-tl b-shop">ธน</span></div>
+        <div><div style="font-size:13px;font-weight:600;color:var(--d900)">สมชาย ใจดี</div><div>ลูกค้าเก่า · 4 ออเดอร์</div></div>
+      </div>
+      <div class="hr"></div>
+      <div style="margin-top:10px">แท็ก · โน้ต · ที่อยู่ · ประวัติออเดอร์</div>
+    </div>
+  </div>
+</div></div>
+
+<h2><span class="num">8.</span> สิ่งที่ mockup นี้ยืนยันไม่ได้</h2>
+<div class="note">
+mockup เป็น HTML ล้วน ไม่ใช่ Paces จริง — สิ่งที่ต้องพิสูจน์ตอน implement เท่านั้น:
+<b>(1)</b> badge มุมบนซ้ายไม่ถูก <code>overflow</code> ของแถวตัดหัว
+<b>(2)</b> ที่ 320px จริง ชื่อลูกค้าในหัวเธรดยังไม่ตกบรรทัด (<code>.card-header</code> เป็น <code>flex-wrap</code> โดยกำเนิด — ต้อง <code>flex-nowrap</code>)
+<b>(3)</b> shop picker popover ไม่ถูกกล่อง scroll ของ rail ตัด (<code>scroll-container-clips-popovers.md</code>)
+<b>(4)</b> โมดัลที่ประกอบเองต้องมี <code>useLockBodyScroll</code> + <code>overscroll-contain</code>
+</div>
+
+</body>
+</html>
