@@ -64,10 +64,13 @@ export const sellerMenuItems: MenuItemType[] = [
       { url: '/inventory', slug: 'seller:inventory', label: 'จัดการสต็อก', icon: 'archive' },
       // feature 00024/00028 — เห็นเฉพาะร้าน vertical=SERVICE_QUEUE (กรองด้วย applyVerticalMenu
       // ด้านล่าง — เดิมต้องเช็ค kind คู่กันด้วย ตอนนี้เหลือเงื่อนไข vertical เดียวพอ)
-      // icon 'armchair' user เลือกเอง 2026-07-31 (verified มีจริง — ใช้อยู่แล้วในโปรเจกต์)
+      // icon เปลี่ยน armchair → user-cog 2026-08-07 (user เคาะ, feature 00036): 'armchair'
+      // อ่านเป็น "ที่นั่ง/เตียง" ซึ่งตรงกับสปา/คลินิก แต่คิวงานส่วนใหญ่คือ "ช่างที่รับงาน"
+      // เปลี่ยนพร้อมกันทุกที่ที่หมายถึงคิวงาน (เมนู, รายการคิวงาน, onboarding, หน้า orders)
+      // ไม่แตะไอคอนของ "บริการ" ฝั่งโปรไฟล์สาธารณะ — คนละคอนเซปต์ (สิ่งที่ขาย ไม่ใช่คนที่ทำ)
       // ป้าย "คิวงาน" มาจาก user โดยตรง — คำเดิม "ทรัพยากร" อ่านแล้วไม่เข้าใจ
       // ลูกค้ากลุ่มแรกคือร้านตกแต่งไฟหน้ารถ ซึ่งเรียกหน่วยที่รับงานพร้อมกันว่า "คิวงาน"
-      { url: '/queues', slug: 'seller:queues', label: 'คิวงาน', icon: 'armchair' },
+      { url: '/queues', slug: 'seller:queues', label: 'คิวงาน', icon: 'user-cog' },
       // feature 00017 — เห็นเฉพาะร้าน vertical=LODGING (กรองด้วย applyVerticalMenu ด้านล่าง)
       // icon 'building-cottage' verified มีจริงใน tabler (api.iconify.design/tabler.json → found);
       // เลือกแทน 'bed' เพราะ "ห้องพัก" = หน่วยที่ให้จอง ซึ่งอาจเป็นทั้งหลัง ไม่ใช่แค่ห้องนอน

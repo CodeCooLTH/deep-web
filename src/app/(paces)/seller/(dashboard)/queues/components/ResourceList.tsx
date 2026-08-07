@@ -166,7 +166,7 @@ export default function ResourceList({ resources }: Props) {
       <div className="card">
         <div className="card-body flex flex-col items-center justify-center gap-3 py-12 text-center">
           <div className="bg-default-100 flex size-14 items-center justify-center rounded-full">
-            <Icon icon="tabler:armchair" className="text-default-400 size-7" />
+            <Icon icon="tabler:user-cog" className="text-default-400 size-7" />
           </div>
           <div>
             <h5 className="text-default-800 font-medium">เริ่มต้นด้วยการเพิ่มคิวงาน</h5>

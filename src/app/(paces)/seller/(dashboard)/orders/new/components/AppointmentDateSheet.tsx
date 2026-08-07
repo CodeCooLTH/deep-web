@@ -46,20 +46,18 @@ import { pacesToast } from '@/lib/paces-toast'
 import { formatMonthYearTH, formatWeekdayDateTH, formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { isAllDayAppointment, APPOINTMENT_STATUS_LABEL, type AppointmentStatus } from '@/lib/appointments'
+import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 
 /**
  * สีป้ายสถานะ — ยกมาจาก queues/components/AppointmentCalendar.tsx (STATUS_DOT) ทั้งชุด
- * ห้ามคิดใหม่: สถานะเดียวกันต้องหน้าตาเหมือนกันทั้งปฏิทินคิวและที่นี่ ไม่งั้นผู้ขายต้องจำ
- * สองชุด. "ลูกค้ายืนยันแล้ว" เป็นเขียวได้เพราะเป็นการยืนยันจริงของลูกค้า (Verified-Means-Green)
- * ใช้ตระกูล -ink บนพื้น /15 ตามกติกาคอนทราสต์ของธีม (DESIGN.md)
+ * ห้ามคิดใหม่: สถานะเดียวกันต้องหน้าตาเหมือนกันทั้งปฏิทินคิวและที่นี่ ไม่งั้นผู้ขายต้องจำสองชุด
+ *
+ * 2026-08-07 (feature 00036): ชุดสีถูกยกขึ้นเป็น SSOT ที่ src/lib/appointment-stage.ts แล้ว —
+ * ไฟล์นี้เคยประกาศ map ของตัวเองเป็นที่ที่ **สาม** และเพี้ยนไปแล้วจริง 2 ช่อง
+ * (CONFIRMED_BY_BUYER เขียว / COMPLETED เทา) หลังจาก user เคาะให้สลับเป็น primary/success
+ * เพราะเขียวต้องอยู่กับสิ่งที่เกิดขึ้นแล้วเท่านั้น — คำเตือน "ห้ามคิดใหม่" ข้างบนกันไม่ได้
+ * เพราะมันเตือนคนอ่าน ไม่ได้บังคับโค้ด จึงเลิกประกาศซ้ำแล้ว import แทน
  */
-const STATUS_BADGE: Record<AppointmentStatus, string> = {
-  SCHEDULED: 'bg-warning/15 text-warning-ink',
-  CONFIRMED_BY_BUYER: 'bg-success/15 text-success-ink',
-  RESCHEDULE_REQUESTED: 'bg-info/15 text-info-ink',
-  COMPLETED: 'bg-default-200 text-default-700',
-  NO_SHOW: 'bg-danger/15 text-danger-ink',
-}
 
 /**
  * 1 นัด = 1 แถว (ทรงเดียวกับที่ listAppointments คืน — มิเรอร์จาก AppointmentCalendar.tsx:49-57
@@ -92,6 +90,11 @@ interface Props {
   resourceCapacity?: number
   /** ค่าที่เลือกอยู่ "YYYY-MM-DD" */
   value?: string
+  /**
+   * ออเดอร์ที่กำลังเลื่อนนัดอยู่ (feature 00036) — กรองนัดของใบนี้ออกจากตัวนับความว่าง
+   * ไม่ส่ง = โหมดตั้งนัดใหม่ตอนสร้างออเดอร์ (พฤติกรรมเดิม ไม่มีอะไรให้กรอง)
+   */
+  excludeOrderToken?: string
   onSelect: (date: string) => void
   onClose: () => void
 }
@@ -115,6 +118,7 @@ export default function AppointmentDateSheet({
   resourceName,
   resourceCapacity,
   value,
+  excludeOrderToken,
   onSelect,
   onClose,
 }: Props) {
@@ -195,10 +199,17 @@ export default function AppointmentDateSheet({
     if (r) void loadRange(r.from, r.to)
   }, [resourceId, loadRange])
 
-  /** นัดของแต่ละวัน — 1 นัดที่คร่อมหลายวันต้องโผล่ทุกวันที่มันกิน ไม่ใช่เฉพาะวันเริ่ม */
+  /**
+   * นัดของแต่ละวัน — 1 นัดที่คร่อมหลายวันต้องโผล่ทุกวันที่มันกิน ไม่ใช่เฉพาะวันเริ่ม
+   *
+   * excludeOrderToken (feature 00036): ตอน "เลื่อนนัด" ใบที่กำลังเลื่อนอยู่ต้องไม่ถูกนับเป็น
+   * คิวที่ถูกจองแล้วของตัวเอง ไม่งั้นวันเดิมจะขึ้นเต็ม/ใกล้เต็มปลอม ๆ แล้วผู้ขายกดวันเดิมไม่ได้
+   * ทั้งที่ระบบจะปล่อยผ่าน (server ปลดที่นั่งเดิมคืนในทรานแซกชันเดียวกัน)
+   */
   const itemsByDay = useMemo(() => {
     const map = new Map<string, AppointmentItem[]>()
     for (const it of items) {
+      if (excludeOrderToken && it.orderToken === excludeOrderToken) continue
       const start = new Date(it.start)
       const end = new Date(it.end)
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue
@@ -212,7 +223,7 @@ export default function AppointmentDateSheet({
       }
     }
     return map
-  }, [items])
+  }, [items, excludeOrderToken])
 
   const countByDay = useMemo(() => {
     const map = new Map<string, number>()
@@ -518,7 +529,9 @@ export default function AppointmentDateSheet({
                         <span className="text-default-500 block text-xs tabular-nums">#{it.orderNo}</span>
                       )}
                     </span>
-                    <span className={`badge shrink-0 ${STATUS_BADGE[status] ?? STATUS_BADGE.SCHEDULED}`}>
+                    <span
+                      className={`badge shrink-0 ${(APPOINTMENT_STAGE_META[status] ?? APPOINTMENT_STAGE_META.SCHEDULED).cls}`}
+                    >
                       {APPOINTMENT_STATUS_LABEL[status] ?? APPOINTMENT_STATUS_LABEL.SCHEDULED}
                     </span>
                   </li>

@@ -22,7 +22,13 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
-import { formatDateTH, formatDateTimeTH, formatDayMonthTimeTH } from '@/lib/format-date'
+import {
+  formatDateTH,
+  formatDateTimeTH,
+  formatDayMonthTimeRangeTH,
+  formatDayMonthTimeTH,
+} from '@/lib/format-date'
+import RescheduleAppointmentSheet from './RescheduleAppointmentSheet'
 import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 import { isTerminalAppointmentStatus, type AppointmentStatus } from '@/lib/appointments'
 
@@ -30,9 +36,20 @@ type Props = {
   publicToken: string
   /** ISO — ผู้เรียกต้องไม่ render การ์ดนี้เลยถ้าไม่มีช่วงเวลา (เงื่อนไขเดียวกับที่ service ตอบ 404) */
   startISO: string
+  /** ISO — null = ข้อมูลเก่าที่ไม่มี serviceEnd (แสดงเวลาเริ่มอย่างเดียว) */
+  endISO: string | null
   allDay: boolean
   resourceName: string | null
+  /** id ของคิวงานที่รับงานนี้ — ใช้ pre-select ในแผงเลื่อนนัด */
+  resourceId: string | null
   stage: AppointmentStatus
+  /**
+   * เลื่อนมาแล้วกี่ครั้ง (นับจาก AppointmentReschedule) — แสดงเฉพาะ > 0
+   * ค่าปกติของนัดส่วนใหญ่คือ 0 การโชว์ "เลื่อนมาแล้ว 0 ครั้ง" ทุกใบคือ noise
+   */
+  rescheduleCount: number
+  /** เหตุผลที่ลูกค้าขอเลื่อน (Order.rescheduleRequestNote) — null = ขอเลื่อนโดยไม่ระบุเหตุผล */
+  rescheduleRequestNote: string | null
   /**
    * ชื่อลูกค้าสำหรับข้อความยืนยัน — กดผิดใบแล้วย้อนไม่ได้ ต้องระบุให้ชัดว่ากำลังปิดผลของใคร
    * null = ใบที่ไม่รู้ชื่อ (ผู้ซื้อ guest ที่ร้านไม่ได้กรอกชื่อ) → ตัดวลีชื่อออกจากประโยคทั้งก้อน
@@ -43,16 +60,23 @@ type Props = {
 export default function AppointmentCard({
   publicToken,
   startISO,
+  endISO,
   allDay,
   resourceName,
+  resourceId,
   stage,
+  rescheduleCount,
+  rescheduleRequestNote,
   buyerLabel,
 }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState<'COMPLETED' | 'NO_SHOW' | null>(null)
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
 
   const meta = APPOINTMENT_STAGE_META[stage]
   const terminal = isTerminalAppointmentStatus(stage)
+  /** ลูกค้าขอเลื่อนแล้วรออยู่ — การ์ดต้องชี้ทางแก้ ไม่ใช่แค่ติดป้ายบอกว่ามีปัญหา */
+  const awaitingReschedule = stage === 'RESCHEDULE_REQUESTED'
 
   /**
    * ยังไม่ถึงเวลานัด = ปิดผลไม่ได้ (BR-RSV-34) — server บังคับด้วย 409 อยู่แล้ว ที่นี่สะท้อน
@@ -140,7 +164,14 @@ export default function AppointmentCard({
   }
 
   return (
-    <div className="card">
+    <div
+      className={cn(
+        'card',
+        // แถบซ้าย info = "ลูกค้ารออยู่" — สถานะเดียวในชุดนี้ที่ต้องการการลงมือของร้าน
+        // ใช้สีเดียวกับป้ายสถานะของมันเอง (APPOINTMENT_STAGE_META.RESCHEDULE_REQUESTED)
+        awaitingReschedule && 'border-info border-s-3',
+      )}
+    >
       <div className="card-header flex items-center justify-between gap-2">
         <h4 className="card-title">การนัดหมาย</h4>
         <span
@@ -164,8 +195,13 @@ export default function AppointmentCard({
               </span>
               <span className="text-default-800 text-sm font-medium">
                 <span className="sr-only">วันเวลานัด </span>
-                {/* นัดทั้งวันไม่มีเวลาให้แสดง — โชว์ 00:00 คือการกุข้อมูลที่ผู้ใช้ไม่ได้กรอก */}
-                {allDay ? `${formatDateTH(startISO)} · ทั้งวัน` : formatDayMonthTimeTH(startISO)}
+                {/* นัดทั้งวันไม่มีเวลาให้แสดง — โชว์ 00:00 คือการกุข้อมูลที่ผู้ใช้ไม่ได้กรอก
+                    ที่เหลือแสดงช่วงเต็ม (งาน D) — คอลัมน์ข้างมีที่ว่างมากที่สุดใน 3 surface */}
+                {allDay
+                  ? `${formatDateTH(startISO)} · ทั้งวัน`
+                  : endISO
+                    ? formatDayMonthTimeRangeTH(startISO, endISO)
+                    : formatDayMonthTimeTH(startISO)}
               </span>
             </div>
           </li>
@@ -173,7 +209,7 @@ export default function AppointmentCard({
             <li>
               <div className="flex items-center gap-2.5">
                 <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
-                  <Icon icon="armchair" className="text-sm" aria-hidden="true" />
+                  <Icon icon="user-cog" className="text-sm" aria-hidden="true" />
                 </span>
                 <span className="text-default-700 truncate text-sm">
                   <span className="sr-only">คิวงาน </span>
@@ -187,8 +223,41 @@ export default function AppointmentCard({
         {/* ปุ่มปิดผล — หายทั้งคู่เมื่อนัดจบแล้ว (terminal) เหลือแค่ป้ายสถานะบนหัวการ์ด
             สองปุ่มน้ำหนักเท่ากันโดยตั้งใจ: ผลลัพธ์ทั้งสองทางเกิดจริงพอ ๆ กันในธุรกิจ
             การชู "ให้บริการแล้ว" เป็น primary จะอ่านเป็นระบบชี้นำว่าอยากได้คำตอบไหน */}
+        {/* ข้อความที่ลูกค้าฝากไว้ตอนขอเลื่อน — เป็นข้อมูลที่ตัดทิ้งไม่ได้ จึง wrap ไม่ truncate */}
+        {awaitingReschedule && (
+          <div className="bg-info/10 border-info/30 mt-4 rounded-lg border p-3">
+            <p className="text-default-800 mb-0 text-xs">
+              {rescheduleRequestNote ? (
+                <>
+                  ลูกค้าขอเลื่อน:{' '}
+                  <span className="text-default-700">&ldquo;{rescheduleRequestNote}&rdquo;</span>
+                </>
+              ) : (
+                'ลูกค้าขอเลื่อนนัด โดยไม่ได้ระบุเหตุผล'
+              )}
+            </p>
+          </div>
+        )}
+
+        {rescheduleCount > 0 && (
+          <p className="text-default-500 mb-0 mt-2 text-xs">เลื่อนมาแล้ว {rescheduleCount} ครั้ง</p>
+        )}
+
         {!terminal && (
           <div className="border-default-200 mt-4 border-t border-dashed pt-4">
+            {/* เลื่อนนัดอยู่บนสุดเพราะก่อนถึงเวลานัด ปุ่มปิดผลถูกปิดอยู่ — ตัวนี้เป็น action
+                เดียวที่กดได้จริง · น้ำหนัก tonal ไม่ใช่ outline semantic เพราะเบากว่าการปิดผล
+                (เลื่อนซ้ำได้ ปิดผลย้อนไม่ได้) และไม่ใช่ primary เพราะ primary สงวนให้ action
+                หลักของทั้งหน้า ไม่ใช่ของการ์ดย่อย
+                ไม่ผูกกับ notStarted — service ไม่ได้ห้ามเลื่อนนัดที่เลยเวลาแล้ว (ต่างจากปิดผล) */}
+            <button
+              type="button"
+              onClick={() => setRescheduleOpen(true)}
+              className="btn bg-default-100 text-default-800 hover:bg-default-200 mb-3 min-h-11 w-full"
+            >
+              <Icon icon="calendar-repeat" className="text-sm" aria-hidden="true" />
+              {awaitingReschedule ? 'เลือกเวลาใหม่ให้ลูกค้า' : 'เลื่อนนัด'}
+            </button>
             {/* gap-3 + min-h-11 (44px) ไม่ใช่ค่าตั้งต้นของ .btn (36px, gap-2): ปุ่มสองตัวนี้
                 ย้อนกลับไม่ได้ทั้งคู่และให้ผลตรงข้ามกัน — กดพลาดปุ่มข้าง ๆ คือกดผลที่ตรงข้าม
                 โดยไม่มีทางแก้ ผู้ใช้กลุ่มเป้าหมายถือมือถือมือเดียวกลางร้าน (design.json
@@ -231,6 +300,17 @@ export default function AppointmentCard({
           </div>
         )}
       </div>
+
+      <RescheduleAppointmentSheet
+        open={rescheduleOpen}
+        publicToken={publicToken}
+        startISO={startISO}
+        endISO={endISO}
+        allDay={allDay}
+        resourceId={resourceId}
+        rescheduleRequestNote={rescheduleRequestNote}
+        onClose={() => setRescheduleOpen(false)}
+      />
     </div>
   )
 }

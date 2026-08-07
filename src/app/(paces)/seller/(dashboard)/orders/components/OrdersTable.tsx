@@ -13,7 +13,12 @@ import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import type { OrderVocab } from '@/lib/seller-menu'
-import { formatDateTH, formatDateTime, formatDayMonthTimeTH } from '@/lib/format-date'
+import {
+  formatDateTH,
+  formatDateTime,
+  formatDayMonthTimeRangeTH,
+  formatDayMonthTimeTH,
+} from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import {
   ColumnFiltersState,
@@ -528,12 +533,18 @@ export default function OrdersTable({
         return (
           <>
             <p className="mb-0 text-xs font-medium text-default-800">
-              {/* นัดทั้งวันไม่มีเวลาให้แสดง — การโชว์ 00:00 คือการกุข้อมูลที่ผู้ใช้ไม่ได้กรอก */}
-              {a.allDay ? `${formatDateTH(a.startISO)} · ทั้งวัน` : formatDayMonthTimeTH(a.startISO)}
+              {/* นัดทั้งวันไม่มีเวลาให้แสดง — การโชว์ 00:00 คือการกุข้อมูลที่ผู้ใช้ไม่ได้กรอก
+                  ที่เหลือแสดงช่วงเต็ม (feature 00036 งาน D): ร้านคิวงานวางแผนเป็น "09:00–10:30"
+                  ไม่ใช่ "09:00" · ใบเก่าที่ไม่มี serviceEnd ตกกลับไปแสดงเวลาเริ่มอย่างเดียว */}
+              {a.allDay
+                ? `${formatDateTH(a.startISO)} · ทั้งวัน`
+                : a.endISO
+                  ? formatDayMonthTimeRangeTH(a.startISO, a.endISO)
+                  : formatDayMonthTimeTH(a.startISO)}
             </p>
             {a.resourceName && (
               <p className="mb-0 mt-0.5 flex items-center gap-1 text-xs text-default-500">
-                <Icon icon="armchair" className="shrink-0 text-sm" aria-hidden="true" />
+                <Icon icon="user-cog" className="shrink-0 text-sm" aria-hidden="true" />
                 <span className="truncate">{a.resourceName}</span>
               </p>
             )}
@@ -802,6 +813,17 @@ export default function OrdersTable({
               value={appointmentFilter.value ?? 'All'}
               options={[
                 { value: 'All', label: 'ทั้งหมด' },
+                /* ลำดับ + คำ + ตัวเลข ต้องตรงกับชิปมือถือใน OrdersList เป๊ะ (symbol เดียว)
+                   badge เทากลาง ไม่ใช่สี semantic — "ไม่มีนัด" เป็นคนละหมวดกับ 5 สถานะ
+                   ที่เป็นจุดบนเส้นทางของนัด ไม่ใช่ขั้นหนึ่งในนั้น */
+                {
+                  value: 'NONE',
+                  label: 'ไม่มีนัด',
+                  badge: {
+                    label: appointmentFilter.counts.NONE ?? 0,
+                    className: 'bg-default-100 text-default-700',
+                  },
+                },
                 ...APPOINTMENT_STAGE_KEYS.map((key) => ({
                   value: key,
                   label: APPOINTMENT_STAGE_META[key].label,

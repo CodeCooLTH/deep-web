@@ -217,6 +217,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
           const end = o.serviceEnd ? new Date(o.serviceEnd) : null
           return {
             startISO: start.toISOString(),
+            endISO: end ? end.toISOString() : null,
             // ตัดสินจากช่วงเวลาที่บันทึกไว้จริงของแถวนี้ ไม่ใช่จากโหมดปัจจุบันของร้าน (BR-RSV-57)
             allDay: end ? isAllDayAppointment(start, end) : false,
             resourceName: o.serviceResource?.name ?? null,

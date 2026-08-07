@@ -117,6 +117,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // ตัวเลขจริงของลูกค้ารายนี้กับร้านนี้ (scope shopId เสมอ) — เติมการ์ด "ผู้ซื้อ" ที่ user บอกว่าข้อมูลน้อย
   const customerSummary = await getCustomerSummary(order.customerId ?? null, shop.id)
 
+  /**
+   * เลื่อนมาแล้วกี่ครั้ง (feature 00036) — query เฉพาะใบที่มีนัดจริงเท่านั้น ไม่ยิงให้ทุกใบ
+   * นับจากตาราง AppointmentReschedule ที่ service เขียนสะสมทุกครั้งที่เลื่อน (BR-RSV-30)
+   * ownership มาแล้วจาก getOrderForShop ด้านบน (order.id ถูก scope ด้วย shopId ตั้งแต่ต้นทาง)
+   */
+  const rescheduleCount = order.serviceStart
+    ? await prisma.appointmentReschedule.count({ where: { orderId: order.id } })
+    : 0
+
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
   const createdAtISO = (order.createdAt as Date).toISOString()
@@ -319,12 +328,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
               <AppointmentCard
                 publicToken={order.publicToken}
                 startISO={new Date(order.serviceStart).toISOString()}
+                endISO={order.serviceEnd ? new Date(order.serviceEnd).toISOString() : null}
                 allDay={
                   order.serviceEnd
                     ? isAllDayAppointment(new Date(order.serviceStart), new Date(order.serviceEnd))
                     : false
                 }
                 resourceName={order.serviceResource?.name ?? null}
+                resourceId={order.serviceResourceId ?? null}
+                rescheduleCount={rescheduleCount}
+                rescheduleRequestNote={order.rescheduleRequestNote ?? null}
                 stage={
                   deriveAppointmentStage({
                     serviceStart: order.serviceStart,

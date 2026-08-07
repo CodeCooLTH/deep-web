@@ -67,6 +67,12 @@ export type OrderRow = {
   appointment?: {
     /** ISO string — client format ด้วย lib/format-date เท่านั้น */
     startISO: string
+    /**
+     * เวลาสิ้นสุด (feature 00036 งาน D) — null = ข้อมูลเก่าที่ไม่มี serviceEnd
+     * ร้านคิวงานวางแผนเป็นช่วง ("09:00–10:30") ไม่ใช่จุดเริ่ม จึงต้องส่งมาด้วย
+     * ไม่ใช้เมื่อ allDay=true (นัดทั้งวันไม่มีช่วงเวลาให้แสดงจริง)
+     */
+    endISO: string | null
     /** นัดกินทั้งวันพอดีไหม — ตัดสินที่ server ด้วย isAllDayAppointment จากข้อมูลของแถวนั้น
      *  (ไม่ใช่จากโหมดปัจจุบันของร้าน — BR-RSV-57) */
     allDay: boolean

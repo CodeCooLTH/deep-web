@@ -211,7 +211,7 @@ export default function OnboardingPage() {
     step === 'address'
       ? { icon: 'map-pin', heading: 'ตั้งที่อยู่ร้าน', subtitle: ADDRESS_SUBTITLE[vertical ?? DEFAULT_SHOP_VERTICAL] }
       : step === 'product' && vertical === 'SERVICE_QUEUE'
-        ? { icon: 'armchair', heading: 'สร้างคิวงานแรกของคุณ', subtitle: 'เพิ่มคิวงานที่รับได้ เพื่อเริ่มนัดลูกค้า' }
+        ? { icon: 'user-cog', heading: 'สร้างคิวงานแรกของคุณ', subtitle: 'เพิ่มคิวงานที่รับได้ เพื่อเริ่มนัดลูกค้า' }
         : step === 'product'
           ? { icon: 'package', heading: 'สร้างสินค้าแรกของคุณ', subtitle: 'เพิ่มสินค้าชิ้นแรกเพื่อให้ลูกค้าเห็นร้าน' }
           : STEP_META[step]
@@ -300,7 +300,7 @@ export default function OnboardingPage() {
             <div>
               <label className="form-label">ชื่อคิวงาน</label>
               <div className="input-icon-group">
-                <Icon icon="armchair" className="input-icon" />
+                <Icon icon="user-cog" className="input-icon" />
                 <input className="form-input" placeholder="เช่น หมอนวด A" value={qName} onChange={(e) => setQName(e.target.value)} />
               </div>
             </div>

@@ -175,6 +175,49 @@ export function formatTimeHM(input: Date | string | number | null | undefined): 
 }
 
 /**
+ * "09:00–10:30" — ช่วงเวลาในวันเดียว (feature 00036)
+ *
+ * มีไว้เพราะงานที่เป็น "ช่วง" (นัดคิวงาน) ถูกเขียนเป็น `${formatTimeHM(a)}–${formatTimeHM(b)}`
+ * ด้วยมือมาแล้วที่ AppointmentBlock — พอมีที่ที่สองก็ต้องยกขึ้นมาเป็นฟังก์ชัน ไม่งั้นอีกหน่อย
+ * ขีดคั่นจะเพี้ยนกัน (ที่หนึ่ง en dash ที่หนึ่ง hyphen) โดยไม่มีใครสังเกต
+ *
+ * ใช้ en dash (–) ไม่ใช่ hyphen (-) ตามแบบช่วงตัวเลขในภาษาไทย และตรงกับที่เขียนไว้เดิม
+ */
+export function formatTimeRangeHM(
+  start: Date | string | number | null | undefined,
+  end: Date | string | number | null | undefined,
+): string {
+  const s = toValidDate(start)
+  const e = toValidDate(end)
+  if (!s || !e) return '—'
+  const ps = partsInBangkok(s)
+  const pe = partsInBangkok(e)
+  return `${ps.hour}:${ps.minute}–${pe.hour}:${pe.minute}`
+}
+
+/**
+ * "1 ส.ค. 09:00–10:30" — วันที่ย่อ + ช่วงเวลา (feature 00036)
+ *
+ * คู่กับ formatDayMonthTimeTH ที่คืนจุดเดียว — ใช้กับงานที่ผู้ใช้วางแผนเป็นช่วง (นัดคิวงาน)
+ * ผู้เรียกต้องเช็คเองว่านัดนั้นเป็น "ทั้งวัน" หรือไม่ก่อน (isAllDayAppointment) เพราะนัดทั้งวัน
+ * ไม่มีช่วงเวลาให้แสดงจริง การโชว์ 00:00–00:00 คือการกุข้อมูลที่ผู้ใช้ไม่ได้กรอก
+ *
+ * ข้ามวัน (end < start ในเชิงวัน) ไม่รองรับโดยตั้งใจ — คิวงานเป็นงานภายในวันเดียว
+ * ถ้าวันหนึ่งมีเคสข้ามวันจริง ต้องเพิ่มฟังก์ชันใหม่ ไม่ใช่ให้ตัวนี้เดาแทน
+ */
+export function formatDayMonthTimeRangeTH(
+  start: Date | string | number | null | undefined,
+  end: Date | string | number | null | undefined,
+): string {
+  const s = toValidDate(start)
+  const e = toValidDate(end)
+  if (!s || !e) return '—'
+  const ps = partsInBangkok(s)
+  const monthIdx = Number(ps.month) - 1
+  return `${Number(ps.day)} ${THAI_MONTHS_ABBR[monthIdx] ?? '—'} ${formatTimeRangeHM(s, e)}`
+}
+
+/**
  * "จันทร์ 4 ส.ค. 2569" — วันในสัปดาห์ + วันที่ย่อ (พ.ศ., timezone ไทย)
  *
  * ใช้เป็นหัวข้อของ "วันที่กำลังดูอยู่" ในปฏิทินคิว (feature 00024) ซึ่งต้องอ่านออกทันที

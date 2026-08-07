@@ -167,7 +167,15 @@ export default function OrdersList({
    * ร้านหนึ่งมีแกนเสริมได้แกนเดียว (พัสดุ หรือ นัดหมาย) จึงไม่ต้องกันสองพารามิเตอร์ชนกัน
    */
   const apptParam = searchParams.get('appt')
-  const appt = isAppointmentStatus(apptParam) ? apptParam : null
+  /**
+   * 'NONE' = ใบที่ไม่มีนัด (walk-in) — sentinel ที่ไม่ใช่ AppointmentStatus จริง จึง parse ที่นี่
+   * ไม่ใช่ยัดเข้า isAppointmentStatus ซึ่งเป็น SSOT ของ 5 สถานะจริงในโดเมนนัดหมาย
+   *
+   * มีอยู่เพราะชิป "ทั้งหมด" นับทุกใบ แต่ชิปที่เหลือนับเฉพาะใบที่มีนัด — จอเดียวจึงเคยโชว์
+   * "ทั้งหมด 120 · นัดแล้ว 1" แล้วไม่มีทางกดหา 119 ใบที่เหลือ ทั้งที่ตารางเขียนคำว่า
+   * "ไม่มีนัด" ให้เห็นอยู่ (ผู้ใช้เห็นคำแต่กรองไม่ได้ = เลขที่บวกไม่ลงตัวโดยไม่มีทางออก)
+   */
+  const appt = apptParam === 'NONE' || isAppointmentStatus(apptParam) ? apptParam : null
   const [search,      setSearch]      = useState('')
   const [typeFilter,  setTypeFilter]  = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
@@ -285,6 +293,13 @@ export default function OrdersList({
   )
 
   /**
+   * ใบที่ไม่มีนัด — นับจากเงื่อนไขเดียวกับที่ตัวกรองใช้ (`!o.appointment`) เพื่อให้เลขบนชิป
+   * กับจำนวนแถวตรงกันเสมอ · `appointment` เป็น undefined เมื่อร้านไม่มีแกนนี้ ซึ่งกรณีนั้น
+   * ทั้งชิปและตัวกรองจะไม่ถูก render อยู่แล้ว ตัวเลขนี้จึงไม่มีใครอ่าน
+   */
+  const noAppointmentCount = useMemo(() => orders.filter((o) => !o.appointment).length, [orders])
+
+  /**
    * ร้าน walk-in ล้วนไม่มีนัดสักใบ → ไม่มีแกนนี้เลย (AC-8.2) — ไม่ใช่แกนที่มีอยู่แต่ทุกกองเป็น 0
    * เงื่อนไข `|| appt !== null` มีไว้กันหน้าค้างเปล่า: ถ้าเข้ามาด้วยลิงก์ที่กรองอยู่แล้วจนไม่เหลือ
    * แถวไหนมีนัด แกนต้องยังอยู่ให้กดออกได้ (ตรรกะเดียวกับ hasStageAxis)
@@ -317,6 +332,16 @@ export default function OrdersList({
             count: orders.length,
             active: appt === null,
             select: () => pushQuery({ appt: null }),
+          },
+          /* วางถัดจาก "ทั้งหมด" ไม่ใช่ท้ายสุด — "ไม่มีนัด" ไม่ใช่จุดบนเส้นทางของนัด
+             (นัดแล้ว→ยืนยัน→จบ) ถ้าอยู่ท้ายจะอ่านเป็นขั้นถัดจาก "ไม่มาตามนัด"
+             และในร้านจริงมันคือกองที่ใหญ่ที่สุด ควรอยู่ใกล้ "ทั้งหมด" ที่สุด */
+          {
+            key: 'NONE',
+            label: 'ไม่มีนัด',
+            count: noAppointmentCount,
+            active: appt === 'NONE',
+            select: () => pushQuery({ appt: 'NONE' }),
           },
           ...APPOINTMENT_STAGE_KEYS.map((k) => ({
             key: k,
@@ -359,7 +384,9 @@ export default function OrdersList({
   const stageFiltered = useMemo(() => {
     let list = orders
     if (stage) list = list.filter((o) => o.shippingStage === stage)
-    if (appt) list = list.filter((o) => o.appointment?.stage === appt)
+    // 'NONE' กรองด้วยเงื่อนไขเดียวกับที่ noAppointmentCount นับ — ห้ามเขียนคนละแบบ
+    if (appt === 'NONE') list = list.filter((o) => !o.appointment)
+    else if (appt) list = list.filter((o) => o.appointment?.stage === appt)
     return list
   }, [orders, stage, appt])
 
@@ -469,7 +496,9 @@ export default function OrdersList({
             hasAppointmentAxis
               ? {
                   value: appt,
-                  counts: apptCounts,
+                  // ยัด NONE เข้า counts ก้อนเดียวกับ 5 สถานะจริง เพื่อให้ดรอปดาวน์เดสก์ท็อป
+                  // อ่านตัวเลขจากที่เดียวกับชิปมือถือ (symbol เดียว — sibling-surface-parity)
+                  counts: { ...apptCounts, NONE: noAppointmentCount },
                   onChange: (v) => pushQuery({ appt: v }),
                 }
               : undefined
