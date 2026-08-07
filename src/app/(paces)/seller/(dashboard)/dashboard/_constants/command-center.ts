@@ -19,9 +19,6 @@ export type { ActivityItem }
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
 export type { BusinessPackageStatusApp, BusinessPackageTier }
 
-// ─── คำที่ผันตามประเภทกิจการ (SSOT = src/lib/seller-menu.ts) ──────────────────
-import type { ProductVocab } from '@/lib/seller-menu'
-
 // ─── PromoBanner ─────────────────────────────────────────────────────────────
 // Phase 2: Promo model + admin CRUD + dynamic banner ค่อยเพิ่ม
 export type PromoBanner = {
@@ -63,13 +60,15 @@ export type CommandCenterData = {
   appointmentTodayCount?: number
 
   /**
-   * คำเรียก order ของร้านนี้ (ORDER_VOCAB.noun) + คำฝั่งสินค้า (PRODUCT_VOCAB)
+   * คำเรียก order ของร้านนี้ (ORDER_VOCAB.noun) — resolve ที่ page.tsx แล้วส่งเป็น "สตริง"
    *
-   * resolve ที่ page.tsx ที่เดียวแล้วส่งลงมา — ห้ามให้ component ปลายทาง resolve เอง เพราะ
-   * ตัวที่เป็น client component ('use client') จะต้องดึง shop.vertical เข้ามาเองซึ่งไม่มีให้
+   * IMPORTANT: ส่งได้เพราะเป็นสตริง. **ห้ามส่ง `ProductVocab` ทั้งก้อนลงมาแบบเดียวกัน** —
+   * มันมีช่อง `soldLine` เป็นฟังก์ชัน ซึ่ง serialize ข้ามเส้น server→client ไม่ได้ แล้วทั้งหน้า
+   * throw ตอน render (พังจริงบน prod 2026-08-07). ฝั่งสินค้าจึงส่ง `shopVertical` เป็นสตริง
+   * แล้วให้ปลายทางเรียก resolveProductVocab เอง
    */
   orderNoun?: string
-  productVocab?: ProductVocab
+  shopVertical?: string
 
   /** ตัดออก 2026-08-04 — "กิจกรรมล่าสุด" ถูกถอดจากหน้าแรก (user: "ดูยาก เอาออก")
    *  ยังคง re-export type ActivityItem ไว้ข้างบน เพราะ /notifications ใช้อยู่ */

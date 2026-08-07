@@ -63,7 +63,9 @@ export default function CommandCenter({ data }: Props) {
       />
 
       {/* สินค้าขายดี — จิ้ม→สร้างออเดอร์พร้อมสินค้านั้น (feature Quick Create); ว่าง→ไม่ render */}
-      <BestSellerStrip products={data.bestSellers ?? []} vocab={data.productVocab} />
+      {/* ส่ง vertical เป็นสตริง ไม่ใช่ ProductVocab ทั้งก้อน — ในนั้นมีฟังก์ชันที่ข้ามเส้น
+          server→client ไม่ได้ (BestSellerStrip เป็น 'use client') */}
+      <BestSellerStrip products={data.bestSellers ?? []} vertical={data.shopVertical} />
 
       {/* เมนูลัด — รายการมาจากสิทธิ์จริงของผู้ใช้ + ที่เขาเลือกเอง (feature 00027)
           shortcut ว่าง = ไม่ผ่าน gate ร้าน (เช่น session หลุด) → ซ่อนการ์ดไปเลย ไม่โชว์การ์ดเปล่า */}

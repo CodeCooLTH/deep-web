@@ -25,7 +25,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
-import { PRODUCT_VOCAB, type ProductVocab } from '@/lib/seller-menu'
+import { resolveProductVocab } from '@/lib/seller-menu'
 import ProductThumb from '../../orders/new/components/ProductThumb'
 
 const formatThb = (n: number) =>
@@ -43,15 +43,21 @@ interface Product {
 interface Props {
   products: Product[]
   /**
-   * คำฝั่งสินค้าที่ผันตามประเภทกิจการ (PRODUCT_VOCAB) — default = ชุด ONLINE_SALES
+   * ประเภทกิจการของร้าน — resolve เป็นคำที่นี่ ไม่ใช่รับ ProductVocab สำเร็จรูปมาจาก server
+   *
+   * IMPORTANT: นี่คือ client component — `ProductVocab` มีช่อง `soldLine` เป็น **ฟังก์ชัน** ซึ่ง React
+   * serialize ข้ามเส้น server→client ไม่ได้ — ส่งมาทั้งก้อนแล้วทั้งหน้า throw ตอน render
+   * (พังจริงบน prod 2026-08-07; `tsc` และ `next build` มองไม่เห็นเพราะหน้านี้เป็น dynamic
+   * จึงไม่ถูก render ตอนบิลด์). สตริงเดี่ยว ๆ อย่าง orderNoun ส่งได้ปกติ — ปัญหาอยู่ที่ฟังก์ชัน
    *
    * ร้านคิวงานขาย "บริการ" ที่นับเป็น "ครั้ง" ไม่ใช่ "ชิ้น" — soldLine จึงเป็นทั้งประโยค
    * ไม่ใช่ verb+unit ให้ที่นี่ต่อเอง (ประโยคไทยผันไม่เท่ากันทุก vertical)
    */
-  vocab?: ProductVocab
+  vertical?: string
 }
 
-export default function BestSellerStrip({ products, vocab = PRODUCT_VOCAB.ONLINE_SALES }: Props) {
+export default function BestSellerStrip({ products, vertical }: Props) {
+  const vocab = resolveProductVocab(vertical ?? 'ONLINE_SALES')
   const router = useRouter()
   if (!products.length) return null
 

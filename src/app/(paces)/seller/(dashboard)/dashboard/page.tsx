@@ -36,7 +36,7 @@ import { getOrdersByShop, getOrderStatusCounts, getShippingStageCounts } from '@
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { getBestSellerProducts } from '@/services/product.service'
 // คำที่ผันตามประเภทกิจการ (ORDER_VOCAB/PRODUCT_VOCAB) — SSOT เดียวของทั้งระบบ
-import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 // นัดวันนี้ (feature 00024) — ตัวกั้น + ตัวนับ สำหรับไทล์ที่ 2 ของ OrderStatusBand
 import { canUseAppointments } from '@/lib/appointments'
 import { getTodayAppointmentCount } from '@/services/appointment.service'
@@ -148,7 +148,9 @@ export default async function SellerDashboardPage() {
   // คำที่ผันตามประเภทกิจการ — resolve ที่นี่ที่เดียวแล้วส่งลง CommandCenter
   // ประกาศไว้ชั้นนอกเพราะ `shop` เป็น block-scoped อยู่ใน try ด้านล่าง แต่ต้องใช้ตอน render
   let orderNoun = resolveOrderVocab('ONLINE_SALES').noun
-  let productVocab = resolveProductVocab('ONLINE_SALES')
+  // ส่ง vertical ดิบลงไปให้ BestSellerStrip ('use client') resolve เอง — ProductVocab มีฟังก์ชัน
+  // อยู่ข้างใน ส่งทั้งก้อนข้ามเส้น server→client ไม่ได้ (พังจริงบน prod 2026-08-07)
+  let shopVertical = 'ONLINE_SALES'
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
   let walletBalance = 0
   // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=; fallback []
@@ -201,7 +203,7 @@ export default async function SellerDashboardPage() {
       if (shop) {
         // คำเรียก order/สินค้า ผันตามประเภทกิจการ — ต้องอยู่ก่อนทุก branch ที่ใช้ shop.vertical
         orderNoun = resolveOrderVocab(shop.vertical).noun
-        productVocab = resolveProductVocab(shop.vertical)
+        shopVertical = shop.vertical
 
         packageCanManage = active?.role === 'OWNER'
         try {
@@ -491,9 +493,9 @@ export default async function SellerDashboardPage() {
             shippingStageCounts,
             // ร้านคิวงาน: ไทล์ที่ 2 = "นัดวันนี้" แทน "กำลังจัดส่ง" (user เคาะ 2026-08-07)
             appointmentTodayCount,
-            // คำที่ผันตามประเภทกิจการ (SSOT = src/lib/seller-menu.ts)
+            // คำที่ผันตามประเภทกิจการ (SSOT = src/lib/seller-menu.ts) — ส่งได้เฉพาะสตริง
             orderNoun,
-            productVocab,
+            shopVertical,
             promoBanner: PROMO_BANNER,
             // v8: header card + wallet (S-6/S-8)
             walletBalance,
