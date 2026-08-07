@@ -249,7 +249,11 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
 
       {/* เบอร์ — พิมพ์ (หรือ paste) → debounce → เปิด sheet ค้นหา/เพิ่มลูกค้า (รวมกรณีเปลี่ยนเบอร์หลังเลือกแล้ว) */}
       <div className="mb-2.5">
-        <label htmlFor="cq-buyer-contact" className="form-label">เบอร์โทร</label>
+        {/* เบอร์โทร = required เสมอไม่มีเงื่อนไข (CreateOrderSchema.buyerContact ไม่ใช่ v.optional)
+            ส่วนชื่อลูกค้าเป็น v.optional จริง จึงไม่ติดดาว — ห้ามติดให้ครบ ๆ เอาสวย */}
+        <label htmlFor="cq-buyer-contact" className="form-label">
+          เบอร์โทร<span className="ms-0.5 text-danger">*</span>
+        </label>
         <input
           id="cq-buyer-contact"
           type="text"
@@ -284,7 +288,14 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
             </div>
           )}
           <div className="mb-2.5">
-            <label htmlFor="cq-addr-line1" className="form-label">บ้านเลขที่ / หมู่ / ถนน</label>
+            {/* ดาวแดงต้องผูกกับ needsShipping ไม่ใช่ติดตายตัว — บล็อกที่อยู่ฝั่งมือถือโผล่ตาม
+                showAddress (channel !== STOREFRONT) ซึ่งกว้างกว่าเงื่อนไขที่บังคับกรอกจริง
+                (เดสก์ท็อป CartPanel.tsx:380 ครอบทั้งบล็อกด้วย needsShipping อยู่แล้ว จึงติดดาวตายตัวได้)
+                ช่องที่ติดดาวตรงกับ SSOT lib/shipping-address-status.ts เป๊ะ: line1 + จังหวัด + รหัสไปรษณีย์
+                ตำบล/อำเภอ ไม่บล็อกการบันทึก จึงไม่ติดดาว (ตรงกับ CartPanel.tsx:428/432) */}
+            <label htmlFor="cq-addr-line1" className="form-label">
+              บ้านเลขที่ / หมู่ / ถนน{needsShipping && <span className="ms-0.5 text-danger">*</span>}
+            </label>
             <input
               id="cq-addr-line1"
               type="text"
@@ -302,7 +313,12 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
           <div>
             {/* control เป็น <button> ไม่ใช่ input — <label htmlFor> ผูกกับปุ่มไม่ได้ตามสเปก HTML
                 จึงใช้ aria-labelledby ชี้กลับมาที่ label แทน */}
-            <span id="cq-locality-label" className="form-label block">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์</span>
+            {/* ป้ายรวม 4 ช่องที่ requiredness ไม่เท่ากัน (จังหวัด+รหัสไปรษณีย์ บังคับ / ตำบล+อำเภอ ไม่บังคับ)
+                control เป็นปุ่มเดียวไม่ใช่ 4 input จึงติดดาวได้แค่ระดับกลุ่ม — "ในกลุ่มนี้มีของบังคับอยู่"
+                ส่วนที่ว่าขาดช่องไหนเป๊ะ ๆ ให้ inline error ข้างล่าง (localityStatus.missingRequired) เป็นคนบอก */}
+            <span id="cq-locality-label" className="form-label block">
+              ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์{needsShipping && <span className="ms-0.5 text-danger">*</span>}
+            </span>
             <button
               type="button"
               aria-labelledby="cq-locality-label"

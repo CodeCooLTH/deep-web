@@ -171,9 +171,15 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                         // ไม่ใส่ ring-offset — ค่าตั้งต้นของ offset color คือขาว ซึ่งบนการ์ดโหมดมืด
                         // จะกลายเป็นวงขาวคาดรอบชิป และผมยืนยันด้วยตาไม่ได้ในรอบนี้ (dev server ไม่ขึ้น)
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                        active ? 'bg-primary text-white' : 'bg-default-100 text-default-800',
+                        // user report 2026-08-07: "pill เมื่อวาน/2 วันก่อน ไม่เด่น"
+                        // ต้นทาง StageChips เป็น *ตัวกรอง* — เทาแปลว่า "ยังไม่ได้กรองด้วยอันนี้"
+                        // ชิปชุดนี้เป็น *ปุ่มลงมือ* (แตะแล้วค่าเปลี่ยนทันที) ยืมสีของ filter มาใช้จึงอ่าน
+                        // เหมือนป้ายสถานะ/ปุ่มที่ถูกปิด ทั้งที่มันคือทางลัดหลักของฟีเจอร์นี้ทั้งฟีเจอร์
+                        // soft-primary ไม่ใช่ solid — solid สงวนไว้ให้ปุ่มบันทึกของฟอร์ม (One Voice)
+                        active ? 'bg-primary text-white' : 'bg-primary/15 text-primary hover:bg-primary hover:text-white',
                       )}
                     >
+                      <Icon icon="history" className="size-3.5" />
                       {label}
                     </button>
                   )
@@ -184,7 +190,14 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                   ref={inputRef}
                   id={inputId}
                   type="datetime-local"
-                  className={`form-input flex-1${rejectReason ? ' is-invalid' : ''}`}
+                  // form-input-lg + h-11.75 บนปุ่ม = สูงเท่ากันเป๊ะ (user report 2026-08-07 "ไม่เท่ากัน")
+                  // .form-input ล็อก h-9.25 (37px) ตายตัวและไม่ได้ห่อ @layer จึงชนะ utility ที่แปะเพิ่ม
+                  // ขณะที่ปุ่มถูกดันเป็น 44px ด้วย min-h-11 (tap target) → ต่างกัน 7px
+                  // ยกความสูงให้เท่ากันที่ 47px แทนการลดปุ่มลง เพราะ 47 > 44 ยังผ่าน tap target
+                  // Base: theme/paces/Admin/TS/src/app/(admin)/pages/search-results/page.tsx:23-24
+                  //       (form-input-lg คู่กับปุ่มในแถวเดียวกัน) — ยืมเฉพาะความสูง ไม่ยืม btn-lg เต็มรูป
+                  //       เพราะ text-lg/px-5 จะทำให้ปุ่มกว้างขึ้นจนเบียด input ในโมดัลแชท 384px
+                  className={`form-input form-input-lg flex-1${rejectReason ? ' is-invalid' : ''}`}
                   value={field.value ?? toDatetimeLocalValue(now)}
                   min={toDatetimeLocalValue(new Date(minMs))}
                   max={toDatetimeLocalValue(new Date(maxMs))}
@@ -194,7 +207,8 @@ export default function OrderDateRow({ control, setValue, fromMessage, messageTo
                 />
                 <button
                   type="button"
-                  className="btn min-h-11 bg-primary/15 text-primary-ink"
+                  // h-11.75 (47px) แทน min-h-11 — ต้องเท่า .form-input-lg ข้าง ๆ เป๊ะ ไม่ใช่แค่ "อย่างน้อย"
+                  className="btn h-11.75 bg-primary/15 text-primary-ink"
                   onClick={() => {
                     // shouldDirty: true — นี่คือการแก้ไขของผู้ใช้จริง (ล้างวันที่ย้อนหลังกลับไปใช้
                     // "ตอนนี้") ไม่ใช่ค่า default ต้องนับเป็น dirty เหมือน field.onChange (C-1/C-2)
