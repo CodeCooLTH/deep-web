@@ -60,6 +60,89 @@ describe('getSalesSeries — daily', () => {
   })
 })
 
+/**
+ * คอลัมน์ "รอเงิน COD" ในชีตยอดขาย (user สั่ง 2026-08-07) — นิยามต้องเป็นตัวเดียวกับไทล์หน้าแรก
+ * คือ deriveShippingStage(...) === 'AWAITING_COD': ของถึงปลายทางแล้ว + เป็นการเก็บเงินปลายทาง
+ * + ร้านยังไม่กดว่าได้รับเงิน. ถ้าใครแก้ให้ "ทุกใบ COD ที่ยังไม่ได้เงิน" เทสชุดนี้ต้องแดง
+ */
+describe('getSalesSeries — รอเงิน COD ต่อวัน', () => {
+  const activeShipment = (carrierStatus: string) => [
+    { status: 'CREATED', isDryRun: false, carrierStatus, createdAt: thaiNoon(2026, 3, 5) },
+  ]
+
+  it('ใบ COD ที่ส่งถึงแล้วแต่ร้านยังไม่กดรับเงิน → เข้า codPendingValues ของวันนั้น', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 900,
+        createdAt: thaiNoon(2026, 3, 5),
+        status: 'SHIPPED',
+        paymentMethod: 'COD',
+        codReceivedAt: null,
+        shipments: activeShipment('delivered'),
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 })
+
+    expect(res.codPendingValues[4]).toBe(900) // วันที่ 5 (index 4)
+    // ยังนับเป็นยอดขายของวันเดิมด้วย — คอลัมน์นี้เป็นส่วนย่อยของยอดขาย ไม่ใช่ก้อนใหม่
+    expect(res.values[4]).toBe(900)
+  })
+
+  it('กดรับเงินแล้ว / ไม่ใช่ COD / ของยังไม่ถึง → ไม่นับ', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 100,
+        createdAt: thaiNoon(2026, 3, 5),
+        status: 'SHIPPED',
+        paymentMethod: 'COD',
+        codReceivedAt: thaiNoon(2026, 3, 6), // ร้านกดรับเงินแล้ว
+        shipments: activeShipment('delivered'),
+      },
+      {
+        totalAmount: 200,
+        createdAt: thaiNoon(2026, 3, 5),
+        status: 'SHIPPED',
+        paymentMethod: 'โอนเงิน',
+        codReceivedAt: null,
+        shipments: activeShipment('delivered'),
+      },
+      {
+        totalAmount: 300,
+        createdAt: thaiNoon(2026, 3, 5),
+        status: 'SHIPPED',
+        paymentMethod: 'COD',
+        codReceivedAt: null,
+        shipments: activeShipment('in_transit'), // ยังไม่ถึงปลายทาง
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 })
+
+    expect(res.codPendingValues[4]).toBe(0)
+  })
+
+  it('พัสดุทดสอบ (isDryRun) ไม่ทำให้ใบนั้นถูกนับเป็นรอเงิน COD', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 400,
+        createdAt: thaiNoon(2026, 3, 7),
+        status: 'SHIPPED',
+        paymentMethod: 'เก็บเงินปลายทาง',
+        codReceivedAt: null,
+        shipments: [
+          { status: 'CREATED', isDryRun: true, carrierStatus: 'delivered', createdAt: thaiNoon(2026, 3, 7) },
+        ],
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 })
+
+    // ไม่มีพัสดุ active → status SHIPPED = "กำลังจัดส่ง" ไม่ใช่ "รอเงิน COD"
+    expect(res.codPendingValues[6]).toBe(0)
+  })
+})
+
 describe('getSalesSeries — monthly', () => {
   it('12 bucket, labels เดือนไทย, bucket ตามเดือน', async () => {
     findMany.mockResolvedValue([

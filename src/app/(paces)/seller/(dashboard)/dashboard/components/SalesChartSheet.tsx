@@ -19,6 +19,16 @@
  * - ต้นทุนสินค้า + ค่าใช้จ่าย ยุบเป็น "เงินออก" ก้อนเดียว เพื่อให้ ยืนยันแล้ว − เงินออก = hero ลบตามได้จริง
  *   (สูตรเดิมที่เขียนเป็นประโยคอ้าง "ต้นทุนสินค้า" ซึ่งไม่เคยโผล่บนจอ ผู้ใช้ตรวจตามไม่ได้)
  * - %เทียบใช้ prevTotalToDate ไม่ใช่ prevTotal (เดิมเอาเดือนนี้ 4 วันไปหารกับเดือนก่อน 31 วัน)
+ *
+ * ── v3 2026-08-07 (user สั่งไล่ทีละข้อจากภาพหน้าจอ) ──────────────────────────
+ * - กราฟใช้ทรงเดียวกับการ์ดยอดขายหน้าแรก (SalesChartCard): แท่งกว้าง 92% + เส้นจำนวนคำสั่งซื้อ
+ *   บนแกนขวา + เส้นประ "วันนี้" + ไม่มีตัวเลขแกน y (ตัวเลขเป๊ะอยู่ในตารางข้างล่างซึ่งตอนนี้ครบทุกช่อง)
+ * - [สำคัญ] สูตรกำไรบนหน้านี้ = **ยอดขาย − ค่าใช้จ่าย** (user เคาะ 2026-08-07 หลังเห็นทั้งสองทางเลือก)
+ *   ต่างจาก `netProfit` ของ service (ยืนยันแล้ว − ต้นทุนสินค้า − ค่าใช้จ่าย) ที่หน้า /expenses
+ *   กับการ์ด P&L ใช้อยู่ — ตั้งใจให้ต่าง เพื่อให้ทุกแถวในตารางบวกกันแล้วเท่ากับตัวเลขใหญ่ด้านบนพอดี
+ *   โดยผู้ขายไม่ต้องรู้จักคำว่า "ต้นทุนสินค้า" ซึ่งไม่เคยโผล่บนจอนี้เลย
+ *   ผลข้างเคียงที่รับไว้แล้ว: เลข "กำไร" ที่นี่กับที่ /expenses ไม่เท่ากันเมื่อร้านตั้งต้นทุนสินค้าไว้
+ * - แถบสรุปเรียงเป็นสมการตามลำดับที่ user สั่ง: รอยืนยัน + ยืนยันแล้ว − ค่าใช้จ่าย = ตัวเลขใหญ่
  */
 import { useState, useEffect, useRef } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -28,6 +38,7 @@ import { formatMonthYearTH } from '@/lib/format-date'
 import { formatNumberNoSymbol, pctChangeVsPrev } from '@/lib/format-money'
 import type { ApexOptions } from 'apexcharts'
 import type { SalesSeries } from '../_constants/command-center'
+import { axisAnchorDays } from './sales-chart-axis'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 
 type Mode = 'daily' | 'monthly'
@@ -37,52 +48,50 @@ type Props = {
   onClose: () => void
 }
 
-// เดือนไทยแบบย่อ — local ใช้แค่ subLabel ช่วงวันของโหมดรายวัน (ห้ามแตะ src/lib/format-date.ts)
-const THAI_MONTHS_SHORT = [
-  'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-  'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
-]
-
-/** ตัวเลขบนแกน y — ย่อหลักพัน/ล้าน ไม่งั้น "1,234,567" กินความกว้างจนแท่งเหลือนิดเดียว
- *  local ของไฟล์นี้เท่านั้น ไม่ใช่นโยบายแสดงเงินทั่วไป (ตัวเลขที่ต้องอ่านเป๊ะอยู่ในตารางข้างล่าง) */
-const formatAxisTick = (n: number): string => {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')} ล้าน`
-  if (n >= 1_000) return `${Math.round(n / 1_000)} พัน`
-  return formatNumberNoSymbol(n)
-}
-
-/** เงินออกต่อ bucket = ต้นทุนสินค้า + ค่าใช้จ่าย — รวมเป็นก้อนเดียวเพื่อให้สมการบนหน้าจอลบกันได้จริง
- *  (กำไรสุทธิ = ยืนยันแล้ว − ต้นทุนสินค้า − ค่าใช้จ่าย มี 3 พจน์ แต่แถบสรุปมีแค่ 3 ช่องซึ่งช่องที่ 3
- *  เป็นของ "รอยืนยัน" อยู่แล้ว จึงยุบสองพจน์หลังเป็นก้อนเดียว) */
-export const moneyOutValues = (series: SalesSeries): number[] | null =>
-  series.expenseValues
-    ? series.expenseValues.map((e, i) => e + (series.cogsValues?.[i] ?? 0))
-    : null
-
 /**
- * สร้าง ApexOptions จาก SalesSeries จริง — bar chart แท่ง stacked:
- * ยืนยันแล้ว = เขียว (success), รอยืนยัน = เหลือง (warning), เงินออก = แดง (chart-beta)
+ * สร้าง ApexOptions จาก SalesSeries จริง — ทรงเดียวกับการ์ดยอดขายบนหน้าแรก (user สั่ง 2026-08-07
+ * ว่า "ปรับ bar ให้เหมือน SalesChart" = การ์ดใบนั้น):
+ *   ยืนยันแล้ว = เขียว (success) · รอยืนยัน = เหลือง (warning) · ค่าใช้จ่าย = แดง (chart-beta)
+ *   · คำสั่งซื้อ = เส้นน้ำเงิน (primary) บนแกนขวา
+ *
+ * ทำไมค่าใช้จ่ายอยู่คนละ `group`: ถ้า stack รวมกับยอดขาย ความสูงรวมจะถูกอ่านว่า "ยอดขาย"
+ * ทั้งที่ครึ่งหนึ่งเป็นเงินที่จ่ายออก — ApexCharts จะวางเป็นแท่งแยกข้างกันแทน
  */
 export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOptions => {
-  const { labels, confirmedValues, unconfirmedValues } = series
+  const { labels, confirmedValues, unconfirmedValues, orderCounts, expenseValues, futureFromIndex } = series
   const isDaily = mode === 'daily'
-  // null = ไม่มีสิทธิ์ดูข้อมูลการเงิน (feature 00016) → ไม่มีแท่งเงินออกเลย
-  const outValues = moneyOutValues(series)
-  const showExpense = outValues != null
+  // undefined = ไม่มีสิทธิ์ดูข้อมูลการเงิน (feature 00016) → ไม่มีแท่งค่าใช้จ่ายเลย
+  const showExpense = expenseValues != null
+  const bucketCount = labels.length
+
+  /**
+   * bucket ในอนาคตส่งเป็น `null` ไม่ใช่ตัดทิ้ง — ApexCharts ไม่วาดอะไรให้ null แต่ยังนับเป็น
+   * category แกน x จึงยาวเท่าจำนวนวันของเดือนเสมอ (ชุดเดียวกับการ์ดหน้าแรก ซึ่ง user ยืนยัน
+   * 2026-08-04 ว่าแสดงทั้งเดือนถูกแล้ว — เคย .slice() ตัดทิ้งจริงแล้วพัง)
+   */
+  const maskFuture = (arr: number[]) => arr.map((v, i) => (i < futureFromIndex ? v : null))
+
+  /** ป้ายวันบนแกน x โหมดรายวัน — โชว์เฉพาะหมุด (กติกาเดียวกับการ์ด ดู sales-chart-axis.ts)
+   *  โหมดรายเดือนมี 12 ป้ายเดือนไทยอยู่แล้ว โชว์ครบไม่ต้องคัด */
+  const anchorDays = axisAnchorDays(bucketCount, futureFromIndex)
+
+  /** วันนี้/เดือนนี้อยู่ตำแหน่งไหน — ใช้ปักเส้นประคั่นช่วงที่ยังมาไม่ถึง
+   *  futureFromIndex === bucketCount = ช่วงนั้นจบไปแล้ว → ไม่ปักเส้น (ไม่มีที่ว่างให้ต้องอธิบาย) */
+  const todayLabel = futureFromIndex < bucketCount ? labels[futureFromIndex - 1] : null
 
   return {
-    /**
-     * ยอดขาย (ยืนยันแล้ว+ยังไม่ยืนยัน) stack กันได้เพราะเป็นเงินก้อนเดียวกันคนละสถานะ
-     * แต่ค่าใช้จ่ายอยู่คนละ `group` — ApexCharts จะวางเป็นแท่งแยกข้างกัน ไม่ต่อยอดขึ้นไป
-     * ถ้า stack รวมกัน ความสูงรวมจะถูกอ่านว่า "ยอดขาย" ทั้งที่ครึ่งหนึ่งเป็นเงินที่จ่ายออก
-     */
     series: [
-      { name: 'ยืนยันแล้ว', group: 'sales', data: confirmedValues },
-      { name: 'รอยืนยัน', group: 'sales', data: unconfirmedValues },
-      ...(showExpense ? [{ name: 'เงินออก', group: 'cost', data: outValues }] : []),
+      { name: 'ยืนยันแล้ว', type: 'column', group: 'sales', data: maskFuture(confirmedValues) },
+      { name: 'รอยืนยัน', type: 'column', group: 'sales', data: maskFuture(unconfirmedValues) },
+      ...(showExpense
+        ? [{ name: 'ค่าใช้จ่าย', type: 'column', group: 'cost', data: maskFuture(expenseValues) }]
+        : []),
+      /** เส้น = จำนวนคำสั่งซื้อ คนละหน่วยกับแท่ง (ใบ vs บาท) จึงต้องมีแกน y ที่สอง ไม่งั้นเส้นจะแบน
+       *  ติดพื้นเพราะเลขหลักหน่วยเทียบกับหลักพัน · `stackOnlyBar` กันไม่ให้ Apex เอาเส้นไปซ้อนยอดสะสม */
+      { name: 'คำสั่งซื้อ', type: 'line', data: maskFuture(orderCounts) },
     ],
     chart: {
-      type: 'bar', height: 220, stacked: true, toolbar: { show: false },
+      type: 'line', height: 220, stacked: true, stackOnlyBar: true, toolbar: { show: false },
       /** ปิด drag-to-zoom — toolbar:false ซ่อนแค่ปุ่ม ไม่ได้ปิดพฤติกรรมลาก: จิ้มลากบนมือถือ
        *  แล้วเกิดกล่อง selection ฟ้าค้างบนกราฟ (user รายงาน 2026-08-05 บน SalesChartCard —
        *  ชีตใช้กราฟตระกูลเดียวกันจึงปิดพร้อมกัน) · selection:false เป็นกันเหนียว */
@@ -92,38 +101,53 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
       // หาไม่เจอใน JSX (ไม่มี margin ตัวไหนสร้างมัน)
       parentHeightOffset: 0,
     },
-    plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
+    // 92% + มุมโค้ง 1 = ทรงของการ์ดหน้าแรก — แท่งซ้อนอ่านเป็นก้อนเดียวชัดกว่า 55% เดิมมาก
+    plotOptions: { bar: { columnWidth: '92%', borderRadius: 1 } },
     // legend ของ Apex ถูกแทนด้วยแถบสรุปเหนือกราฟ (จุดสี = ซีรีส์ 1:1 พร้อมยอดรวม) — ของเดิม
     // 3 label ไทยตัดเป็น 2 บรรทัดบนจอ 390 และบอกได้แค่ "สีนี้ชื่ออะไร" ทั้งที่แถบบอกตัวเลขด้วย
     legend: { show: false },
     dataLabels: { enabled: false },
     /** เขียว = ยืนยันแล้ว (ตรงกับ OrderStatusBand ที่ทา CONFIRMED เป็น text-success — เดิมที่นี่ใช้
-     *  น้ำเงิน สถานะเดียวกันจึงมีสองสีในแอปเดียว), เหลือง = รอยืนยัน, แดง = เงินออก — token ทั้งหมด */
+     *  น้ำเงิน สถานะเดียวกันจึงมีสองสีในแอปเดียว), เหลือง = รอยืนยัน, แดง = ค่าใช้จ่าย — token ทั้งหมด */
     colors: showExpense
-      ? [getColor('success'), getColor('warning'), getColor('chart-beta')]
-      : [getColor('success'), getColor('warning')],
-    /** เหลือง #f9bf59 บนพื้นขาวได้คอนทราสต์ ~1.8:1 ต่ำกว่าเกณฑ์กราฟิก 3:1 — เติมขอบเข้มขึ้น
-     *  ในตระกูลสีเดิม (warning-ink) ห้ามสลับเฉด (docs/conventions/contrast-fix-keeps-hue.md) */
+      ? [getColor('success'), getColor('warning'), getColor('chart-beta'), getColor('primary')]
+      : [getColor('success'), getColor('warning'), getColor('primary')],
+    /**
+     * ไม่มีขอบทั้งแท่ง (user เคาะ 2026-08-05 บนการ์ด: "รอยืนยันมีขอบ ยืนยันแล้วไม่มี ทำให้ดูต่างกัน")
+     * ตัวสุดท้าย = ความหนาเส้นจำนวนคำสั่งซื้อ
+     */
     stroke: showExpense
-      ? { show: true, width: [0, 1, 0], colors: ['transparent', getColor('warning-ink'), 'transparent'] }
-      : { show: true, width: [0, 1], colors: ['transparent', getColor('warning-ink')] },
+      ? { show: true, width: [0, 0, 0, 2], curve: 'straight', colors: ['transparent', 'transparent', 'transparent', getColor('primary')] }
+      : { show: true, width: [0, 0, 2], curve: 'straight', colors: ['transparent', 'transparent', getColor('primary')] },
+    markers: { size: 2, strokeWidth: 0, colors: [getColor('primary')] },
     xaxis: {
       categories: labels,
       axisBorder: { show: false },
       axisTicks: { show: false },
-      // รายวัน: ~7 label กระจาย (ApexCharts thin เอง — formatter รับ index ไม่ได้ในแกน category);
-      // รายเดือน: 12 เดือนพอดี โชว์ครบ. hideOverlappingLabels กันชนกันบนจอแคบ
-      tickAmount: isDaily ? 7 : undefined,
-      labels: { hideOverlappingLabels: true, style: { fontSize: '10px', colors: getColor('default-700') } },
+      labels: {
+        style: { fontSize: '10px', colors: getColor('default-700') },
+        rotate: 0,
+        rotateAlways: false,
+        // คุมป้ายเองทั้งหมดผ่าน formatter — ปล่อยให้ Apex ตัดเองจะเดาไม่ได้ว่าจะเหลือวันไหน
+        hideOverlappingLabels: false,
+        trim: false,
+        formatter: (v: string) => (isDaily ? (anchorDays.has(Number(v)) ? v : '') : v),
+      },
     },
-    /** เปิดแกน y + เส้นสเกล — เดิมปิดทั้งคู่ ผู้ใช้จึงอ่านไม่ออกเลยว่าแท่งไหนเท่ากับกี่บาท
-     *  (ต้องแตะทีละแท่งที่กว้าง ~7px ถึงจะเห็น tooltip) และพื้นที่ว่างของวันที่ยังไม่ถึงอ่านเป็น
-     *  "กราฟพัง" แทนที่จะเป็น "สเกลของเดือนที่ยังเดินไม่ครบ" */
-    yaxis: {
-      min: 0,
-      tickAmount: 3,
-      labels: { formatter: formatAxisTick, style: { fontSize: '10px', colors: getColor('default-700') } },
-    },
+    /**
+     * ไม่โชว์ตัวเลขแกน y — กินความกว้างจาก 31 แท่งที่แคบอยู่แล้ว เส้นสเกลอย่างเดียวพอ (ทรงการ์ด)
+     * ตัวเลขที่ต้องอ่านเป๊ะอยู่ในตารางข้างล่าง ซึ่ง v3 เติมจนครบทุกช่องแล้ว (คำสั่งซื้อ/ยอดขาย/
+     * ค่าใช้จ่าย/กำไร/รอเงิน COD) — เดิมตารางมีแค่ 2 คอลัมน์ แกน y จึงยังต้องทำหน้าที่นั้นแทน
+     *
+     * แท่งทุกตัวต้องผูก seriesName เดียวกันเพื่อใช้สเกลร่วมกัน (หน่วยบาทเหมือนกัน)
+     * แกนสุดท้ายเป็นของเส้นคำสั่งซื้อ (หน่วย "ใบ") จึงแยกสเกล
+     */
+    yaxis: [
+      { show: false, tickAmount: 3, seriesName: 'ยืนยันแล้ว' },
+      { show: false, tickAmount: 3, seriesName: 'ยืนยันแล้ว' },
+      ...(showExpense ? [{ show: false, tickAmount: 3, seriesName: 'ยืนยันแล้ว' }] : []),
+      { show: false, opposite: true, seriesName: 'คำสั่งซื้อ', min: 0 },
+    ],
     grid: {
       show: true,
       borderColor: getColor('chart-border-color'),
@@ -132,23 +156,44 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
       yaxis: { lines: { show: true } },
       padding: { top: 0, right: 4, bottom: 0, left: 4 },
     },
-    // custom tooltip: แยก ยืนยันแล้ว / รอยืนยัน / เงินออก (จุดสีจาก token — ไม่ hardcode hex)
+    /** เส้นประคั่นตรงวันนี้ — เปลี่ยนความหมายของที่ว่างฝั่งขวาจาก "ขายไม่ได้" เป็น "ยังมาไม่ถึง"
+     *  (ชุดเดียวกับการ์ดหน้าแรก user เลือก 2026-08-05) */
+    annotations: todayLabel
+      ? {
+          xaxis: [{
+            x: todayLabel,
+            borderColor: getColor('default-400'),
+            strokeDashArray: 3,
+            label: {
+              text: isDaily ? 'วันนี้' : 'เดือนนี้',
+              position: 'top',
+              orientation: 'horizontal',
+              offsetY: -4,
+              borderWidth: 0,
+              style: { background: 'transparent', color: getColor('default-700'), fontSize: '10px' },
+            },
+          }],
+        }
+      : undefined,
+    /** custom tooltip — ตัวเดียวที่บอกตัวเลขของแท่งได้หลังปิดแกน y (การ์ดหน้าแรกปิด tooltip
+     *  เพราะทั้งการ์ดเป็นปุ่ม แต่ชีตนี้ไม่ใช่ปุ่ม แตะดูค่าได้เต็มที่) จุดสีจาก token ไม่ hardcode hex */
     tooltip: {
       shared: true,
       intersect: false,
       custom: ({ series, dataPointIndex, w }: { series: number[][]; dataPointIndex: number; w: { globals: { labels: string[] } } }) => {
         const conf = Number(series?.[0]?.[dataPointIndex] ?? 0)
         const unconf = Number(series?.[1]?.[dataPointIndex] ?? 0)
-        const out = showExpense ? Number(series?.[2]?.[dataPointIndex] ?? 0) : null
+        const exp = showExpense ? Number(series?.[2]?.[dataPointIndex] ?? 0) : null
+        const orders = Number(series?.[showExpense ? 3 : 2]?.[dataPointIndex] ?? 0)
         const label = w?.globals?.labels?.[dataPointIndex] ?? ''
         const dot = (c: string) =>
           `<span style="display:inline-block;width:8px;height:8px;border-radius:9999px;background:${c};margin-right:6px"></span>`
         return (
           `<div style="padding:6px 10px;font-size:12px;line-height:1.6">` +
-          `<div style="font-weight:600;margin-bottom:2px">${label}</div>` +
+          `<div style="font-weight:600;margin-bottom:2px">${label} · ${formatNumberNoSymbol(orders)} คำสั่งซื้อ</div>` +
           `<div>${dot(getColor('success'))}ยืนยันแล้ว ${formatNumberNoSymbol(conf)}</div>` +
           `<div>${dot(getColor('warning'))}รอยืนยัน ${formatNumberNoSymbol(unconf)}</div>` +
-          (out != null ? `<div>${dot(getColor('chart-beta'))}เงินออก ${formatNumberNoSymbol(out)}</div>` : '') +
+          (exp != null ? `<div>${dot(getColor('chart-beta'))}ค่าใช้จ่าย ${formatNumberNoSymbol(exp)}</div>` : '') +
           `<div style="font-weight:600;margin-top:4px">ยอดขายรวม ${formatNumberNoSymbol(conf + unconf)}</div>` +
           `</div>`
         )
@@ -270,36 +315,45 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   const chg = chgRaw != null ? Math.round(chgRaw) : null
   const confirmedTotal = series.confirmedValues.reduce((s, v) => s + v, 0)
   const unconfirmedTotal = series.total - confirmedTotal
-  // ไม่ผ่าน gate สิทธิ์ → ไม่มีเงินออก/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ 0
+  // ไม่ผ่าน gate สิทธิ์ → ไม่มีค่าใช้จ่าย/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ 0
   const hasFinance = series.totalExpense != null
-  // เงินออก = ต้นทุนสินค้า + ค่าใช้จ่าย — ต้องเป็นก้อนเดียวกับที่กราฟวาด ไม่งั้นแถบสรุปกับกราฟขัดกัน
-  const moneyOutTotal = (series.totalCogs ?? 0) + (series.totalExpense ?? 0)
-  const netProfit = series.netProfit ?? 0
-  const heroValue = hasFinance ? netProfit : series.total
-  const heroTone = !hasFinance ? 'text-dark' : netProfit >= 0 ? 'text-success-ink' : 'text-danger-ink'
+  const expenseTotal = series.totalExpense ?? 0
+  /**
+   * กำไร = ยอดขายทั้งหมด (ยืนยันแล้ว + รอยืนยัน) − ค่าใช้จ่าย — user เคาะสูตรนี้เอง 2026-08-07
+   * ต้องเป็นสูตรเดียวกับคอลัมน์ "กำไร" ในตารางข้างล่างเป๊ะ ๆ ไม่งั้นแถวทั้งเดือนบวกกันแล้วไม่ได้
+   * ตัวเลขนี้ ซึ่งเป็นเหตุผลทั้งหมดที่ user เลือกสูตรนี้แทน netProfit ของ service
+   * (ดูหมายเหตุ v3 หัวไฟล์ — ที่นี่ไม่หักต้นทุนสินค้า ต่างจาก /expenses โดยตั้งใจ)
+   */
+  const profit = series.total - expenseTotal
+  const heroValue = hasFinance ? profit : series.total
+  const heroTone = !hasFinance ? 'text-dark' : profit >= 0 ? 'text-success-ink' : 'text-danger-ink'
 
   const periodLabel =
     mode === 'daily'
       ? formatMonthYearTH(new Date(Date.UTC(year, month - 1, 15)))
       : `ปี ${year + 543}`
 
-  const periodWord = mode === 'daily' ? 'เดือน' : 'ปี'
   const compareWord = mode === 'daily' ? 'เดือนก่อน' : 'ปีก่อน'
 
   const isEmpty = !loading && !error && series.total === 0
 
-  // แสดงเฉพาะ bucket ที่มีความเคลื่อนไหวจริง — เดือนที่ขายจริง 3 วันไม่ควรต้องเลื่อนผ่าน "฿0" อีก 28 แถว
-  const monthAbbr = THAI_MONTHS_SHORT[month - 1]
-  const outValuesRow = moneyOutValues(series)
+  // แสดงเฉพาะ bucket ที่มีความเคลื่อนไหวจริง — เดือนที่ขายจริง 3 วันไม่ควรต้องเลื่อนผ่าน "0" อีก 28 แถว
   const detailRows = series.labels
     .map((label, i) => ({
-      label: mode === 'daily' ? `${label} ${monthAbbr}` : label,
+      // วันที่โชว์เลขล้วน "1, 2, 3" (user สั่ง 2026-08-07) — ชื่อเดือนอยู่บนหัวชีตบรรทัดเดียวกันอยู่แล้ว
+      label,
+      orders: series.orderCounts[i] ?? 0,
       value: series.values[i] ?? 0,
-      // เงินออกรวมต้นทุนสินค้าด้วย ไม่ใช่แค่ค่าใช้จ่าย — ไม่งั้นวันที่ขายได้แต่ยังไม่ได้คีย์ค่าใช้จ่าย
-      // จะหายไปจากตารางทั้งที่มีต้นทุนจริงให้แสดง
-      out: outValuesRow?.[i] ?? 0,
+      expense: series.expenseValues?.[i] ?? 0,
+      codPending: series.codPendingValues?.[i] ?? 0,
     }))
-    .filter((r) => r.value > 0 || r.out > 0)
+    .filter((r) => r.orders > 0 || r.value > 0 || r.expense > 0 || r.codPending > 0)
+    // วันล่าสุดอยู่บนสุดเสมอ (user สั่ง 2026-08-07) — สิ่งที่ผู้ขายอยากรู้ตอนเปิดคือ "วันนี้เป็นไง"
+    // ไม่ใช่ต้องเลื่อนผ่านทั้งเดือนไปหาแถวล่างสุด
+    .reverse()
+
+  /** "(ถ้ามี)" ของคอลัมน์ COD — ร้านที่ไม่ได้เก็บเงินปลายทางไม่ควรเห็นคอลัมน์ว่างทั้งคอลัมน์ */
+  const showCod = detailRows.some((r) => r.codPending > 0)
 
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — pattern เดียวกับ AddressSearchSheet
@@ -363,11 +417,12 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
           </div>
 
           {/* HERO = กำไร/ขาดทุนของช่วงนี้ (ร้านที่ไม่ผ่าน gate สิทธิ์ = ยอดขายแทน)
-              ไม่มี ฿ และไม่มีคำนำหน้าอย่าง "ขาดทุนสุทธิ" — user สั่งตรง ๆ ว่าแค่ตัวเลขพอ
-              (2026-08-04) ทิศทางสื่อด้วยเครื่องหมายลบ + สี ส่วน "มันคือตัวเลขอะไร" อธิบายด้วย
-              แถบสมการที่วางชิดอยู่ข้างล่างทันที: ยืนยันแล้ว − เงินออก = ตัวเลขนี้เป๊ะ */}
+              ไม่มี ฿ — user สั่งตรง ๆ ว่าแค่ตัวเลขพอ (2026-08-04) ทิศทางสื่อด้วยเครื่องหมายลบ + สี
+              ป้ายบอก "มันคือตัวเลขอะไร" ตรง ๆ ว่า "กำไร/ขาดทุน" (user สั่ง 2026-08-07 — เดิมเขียนว่า
+              "ทั้งเดือน" ซึ่งบอกแค่ *ช่วงเวลา* ทั้งที่ช่วงเวลาอยู่บนหัวบรรทัดถัดขึ้นไปแล้ว
+              ตัวเลขจึงไม่มีอะไรบอกเลยว่าเป็นเงินอะไร) ส่วนที่มาของมันอ่านได้จากแถบสมการข้างล่างทันที */}
           <div className="mb-3 text-center">
-            <p className="text-xs text-default-700">ทั้ง{periodWord}</p>
+            <p className="text-xs text-default-700">{hasFinance ? 'กำไร/ขาดทุน' : 'ยอดขาย'}</p>
             <p className={`text-3xl font-bold tabular-nums ${heroTone}`}>{formatNumberNoSymbol(heroValue)}</p>
             {chg != null && (
               <p className="mt-0.5 flex items-center justify-center gap-1 text-sm text-default-700">
@@ -387,20 +442,20 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
           </div>
 
           {/* แถบนี้ทำสามหน้าที่: legend ของกราฟ (จุดสี = ซีรีส์ 1:1) + ยอดรวมของแต่ละซีรีส์ +
-              **สมการที่ตรวจสอบตามได้** — ยืนยันแล้ว − เงินออก = ตัวเลข hero ด้านบนพอดี
-              จึงต้องเรียงให้สองช่องนั้นติดกันแล้วคั่นด้วยเครื่องหมายลบจริง ไม่ใช่คำอธิบาย
-              เดิมเขียนสูตรเป็นประโยคยาวใต้ hero แต่สูตรนั้นอ้าง "ต้นทุนสินค้า" ที่ไม่เคยโผล่บนจอเลย
-              (service คำนวณแล้วทิ้ง) ผู้ใช้จึงตรวจตามไม่ได้ — ตอนนี้ยุบต้นทุนเข้า "เงินออก" แล้ว
-              สีตรง token กราฟเป๊ะ: bg-success=success, bg-warning=warning, bg-danger=chart-beta */}
+              **สมการที่ตรวจสอบตามได้** — รอยืนยัน + ยืนยันแล้ว − ค่าใช้จ่าย = ตัวเลข hero ด้านบนพอดี
+              ลำดับช่องมาจาก user โดยตรง (2026-08-07) และบังเอิญอ่านเป็นสมการได้ครบพอดี จึงคั่นด้วย
+              เครื่องหมาย + / − จริง ไม่ใช่คำอธิบาย — ผู้ขายเอานิ้วไล่บวกลบตามได้เองทั้งแถว
+              สีตรง token กราฟเป๊ะ: bg-warning=warning, bg-success=success, bg-danger=chart-beta */}
           <div className="mb-4 flex items-stretch border-y border-dashed border-default-300">
+            <LegendCell color="bg-warning" label="รอยืนยัน" value={unconfirmedTotal} />
+            <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">+</span>
             <LegendCell color="bg-success" label="ยืนยันแล้ว" value={confirmedTotal} />
             {hasFinance && (
               <>
                 <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">−</span>
-                <LegendCell color="bg-danger" label="เงินออก" value={moneyOutTotal} />
+                <LegendCell color="bg-danger" label="ค่าใช้จ่าย" value={expenseTotal} />
               </>
             )}
-            <LegendCell color="bg-warning" label="รอยืนยัน" value={unconfirmedTotal} />
           </div>
 
           {error ? (
@@ -416,39 +471,77 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
           ) : isEmpty ? (
             <SellerEmptyState compact icon="chart-bar-off" title="ยังไม่มียอดขายในช่วงนี้" />
           ) : (
+            /* type="line" ไม่ใช่ "bar" — กราฟผสม (แท่ง + เส้นจำนวนคำสั่งซื้อ) ต้องประกาศเป็น line
+               แล้วให้แต่ละ series บอก type ของตัวเอง (ชุดเดียวกับการ์ดหน้าแรก)
+               prop ชนะค่าใน options เสมอใน ApexChart wrapper — ถ้าลืมแก้ตรงนี้ chart.type ใน
+               options จะถูกทิ้งเงียบ ๆ โดยไม่มี error (บทเรียน 2026-08-05 เรื่อง height) */
             <ApexChart
               getOptions={() => buildSalesChartOptions(series, mode)}
               series={buildSalesChartOptions(series, mode).series}
-              type="bar"
+              type="line"
               height={220}
             />
           )}
 
-          {/* หัวคอลัมน์ครั้งเดียว แทนการพิมพ์คำว่า "ค่าใช้จ่าย"/"สุทธิ" ซ้ำในทุกแถว (เดือนละสูงสุด 62 คำ)
-              "สุทธิรายวัน" ถูกตัด — อนุมานได้จากสองคอลัมน์ที่อยู่ข้างกัน และยอดรวมอยู่ที่ hero แล้ว */}
+          {/* หัวคอลัมน์ครั้งเดียว แทนการพิมพ์ชื่อคอลัมน์ซ้ำในทุกแถว (เดือนละสูงสุด 155 คำ)
+              คอลัมน์ตามที่ user สั่ง 2026-08-07: วันที่ · คำสั่งซื้อ · ยอดขาย · ค่าใช้จ่าย · กำไร · รอเงิน COD
+
+              overflow-x-auto + w-max: 6 คอลัมน์บนจอ 390px กว้างเกินอยู่ราว 60px เฉพาะตอนมีคอลัมน์ COD
+              — ให้เลื่อนแนวนอนแทนการบีบตัวเลขจนอ่านไม่ออก/ตัดคำ. `min-w-full` ทำให้ตอนไม่มี COD
+              (หรือบนแท็บเล็ต) แถวยังกว้างเต็มกรอบเหมือนเดิม ไม่หดมากองซ้าย และหัวตารางเลื่อนไป
+              พร้อมแถวข้อมูลเพราะอยู่ในกล่องที่เลื่อนกล่องเดียวกัน */}
           {!loading && !error && !isEmpty && detailRows.length > 0 && (
-            <div className="mt-5">
-              <div className="flex items-center gap-3 border-b border-default-200 py-2 text-xs text-default-700">
-                <span className="flex-1">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
-                <span className="w-24 text-end">ยอดขาย</span>
-                {hasFinance && <span className="w-24 text-end">เงินออก</span>}
-              </div>
-              <div className="divide-y divide-default-100">
-                {detailRows.map((r) => (
-                  <div key={r.label} className="flex items-center gap-3 py-2.5 text-sm">
-                    <span className="flex-1 text-default-800">{r.label}</span>
-                    <span className="w-24 text-end font-semibold text-dark tabular-nums">
-                      {formatNumberNoSymbol(r.value)}
-                    </span>
-                    {hasFinance && (
-                      <span
-                        className={`w-24 text-end font-semibold tabular-nums ${r.out > 0 ? 'text-danger-ink' : 'text-default-700'}`}
-                      >
-                        {r.out > 0 ? formatNumberNoSymbol(r.out) : '—'}
-                      </span>
-                    )}
-                  </div>
-                ))}
+            <div className="mt-5 overflow-x-auto">
+              <div className="w-max min-w-full">
+                <div className="flex items-center gap-2 border-b border-default-200 py-2 text-xs text-default-700">
+                  <span className="w-10 shrink-0">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
+                  <span className="w-14 shrink-0 text-end">คำสั่งซื้อ</span>
+                  <span className="w-20 shrink-0 text-end">ยอดขาย</span>
+                  {hasFinance && <span className="w-20 shrink-0 text-end">ค่าใช้จ่าย</span>}
+                  {hasFinance && <span className="w-20 shrink-0 text-end">กำไร</span>}
+                  {showCod && <span className="w-20 shrink-0 text-end">รอเงิน COD</span>}
+                </div>
+                <div className="divide-y divide-default-100">
+                  {detailRows.map((r) => {
+                    // สูตรเดียวกับ hero เป๊ะ — ทุกแถวบวกกันแล้วต้องได้ตัวเลขใหญ่ด้านบน
+                    const rowProfit = r.value - r.expense
+                    return (
+                      <div key={r.label} className="flex items-center gap-2 py-2.5 text-xs">
+                        <span className="w-10 shrink-0 text-default-800">{r.label}</span>
+                        <span className="w-14 shrink-0 text-end text-default-800 tabular-nums">
+                          {r.orders > 0 ? formatNumberNoSymbol(r.orders) : '—'}
+                        </span>
+                        <span className="w-20 shrink-0 text-end font-semibold text-dark tabular-nums">
+                          {formatNumberNoSymbol(r.value)}
+                        </span>
+                        {hasFinance && (
+                          <span
+                            className={`w-20 shrink-0 text-end font-semibold tabular-nums ${r.expense > 0 ? 'text-danger-ink' : 'text-default-700'}`}
+                          >
+                            {r.expense > 0 ? formatNumberNoSymbol(r.expense) : '—'}
+                          </span>
+                        )}
+                        {hasFinance && (
+                          /* ระบายสีเฉพาะตอนขาดทุน — ถ้าทาเขียวทุกแถวที่เป็นบวก ทั้งตารางจะเขียวจน
+                             แถวที่ติดลบไม่เด่นขึ้นมาเลย (และเขียวในระบบนี้สงวนไว้ให้ "ยืนยันแล้ว") */
+                          <span
+                            className={`w-20 shrink-0 text-end font-semibold tabular-nums ${rowProfit < 0 ? 'text-danger-ink' : 'text-dark'}`}
+                          >
+                            {formatNumberNoSymbol(rowProfit)}
+                          </span>
+                        )}
+                        {showCod && (
+                          /* warning = สีเดียวกับป้าย/ไทล์ "รอเงิน COD" ทั้งระบบ (STAGE_BADGE_OVERRIDE) */
+                          <span
+                            className={`w-20 shrink-0 text-end font-semibold tabular-nums ${r.codPending > 0 ? 'text-warning-ink' : 'text-default-700'}`}
+                          >
+                            {r.codPending > 0 ? formatNumberNoSymbol(r.codPending) : '—'}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}

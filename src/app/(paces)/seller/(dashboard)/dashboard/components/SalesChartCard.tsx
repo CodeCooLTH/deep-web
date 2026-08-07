@@ -27,6 +27,9 @@ import { getColor } from '@/utils/helpers'
 import type { ApexOptions } from 'apexcharts'
 import { formatNumberNoSymbol, pctChangeVsPrev } from '@/lib/format-money'
 import type { SalesSeries } from '../_constants/command-center'
+// กติกาป้ายวันบนแกน x อยู่ในไฟล์กลาง — ชีตเต็มจอใช้ชุดเดียวกัน (ย้ายออกมาเพราะไฟล์นี้ import ชีต
+// อยู่แล้ว ถ้าชีตย้อนมา import จากที่นี่จะเป็น circular import)
+import { axisAnchorDays } from './sales-chart-axis'
 import SalesChartSheet from './SalesChartSheet'
 
 type Props = {
@@ -37,9 +40,6 @@ type Props = {
 /** ช่วงที่การ์ดโชว์ — ตั้งชื่อ Period แยกจาก Mode ('daily'|'monthly') ของชีตโดยตั้งใจ:
  *  ชีต = granularity ที่เลื่อนข้ามเดือน/ปีได้ · การ์ด = snapshot คงที่ 2 อัน เลื่อนไม่ได้ */
 type Period = 'today' | 'month'
-
-/** หมุดกลางบนแกน x — ทุก 5 วัน (หัวเดือน/ท้ายเดือน/วันนี้ เติมให้ใน axisAnchorDays) */
-const AXIS_ANCHOR_DAYS = [5, 10, 15, 20, 25]
 
 /** ความยาวหน้าต่างของแท็บ "วันนี้" — ต้องตรงกับ RECENT_DAYS ใน dashboard.service.ts */
 const RECENT_DAYS = 14
@@ -52,25 +52,6 @@ const RECENT_DAYS = 14
  * ทั้งแถวจึงอ่านง่ายกว่า และ index 13 ต้องอยู่ในชุดเสมอเพราะเป็นป้าย "วันนี้"
  */
 const TODAY_AXIS_ANCHOR_INDEXES = [0, 4, 7, 10, RECENT_DAYS - 1]
-
-/**
- * วันที่ที่จะโชว์ตัวเลขบนแกน x — แท่งยังครบทุกวันเหมือนเดิม โชว์ป้ายเฉพาะหมุด
- *
- * ทำไมไม่โชว์ครบ 31 ตัว: เคยลองแล้ว (2026-08-05) ต้องหมุน -60° + ย่อเหลือ 9px ถึงจะไม่ทับกัน
- * ผลคืออ่านไม่ออกต้องเอียงคอ และป้ายเอียงกินความสูงราว 40px จากกราฟ 104px จนแท่งวันที่ยอดน้อย
- * เตี้ยกว่า 1px = หายไปทั้งแท่งทั้งที่มีออเดอร์จริง (user: "ตรงตัวเลขวันที่ ... มันดูยากมาก")
- *
- * กติกาหมุด: หัวเดือน + ท้ายเดือนเสมอ (ปักกรอบของช่วง) + ทุก 5 วัน + วันนี้
- * หมุดกลางที่อยู่ใกล้วันนี้ไม่ถึง 3 วันถูกตัดทิ้ง แล้วให้วันนี้ยืนแทน — 31 ช่องบนการ์ด ~330px
- * = ช่องละ ~10.6px ส่วนเลข 2 หลักที่ 10px กว้าง ~13px จึงต้องห่างกัน ≥3 ช่องถึงจะไม่เบียด
- * (ไล่เทสครบเดือน 28/30/31 วัน × วันนี้ต้นถึงปลายเดือน: ระยะห่างน้อยสุดที่เกิดขึ้นได้ = 3 ช่อง)
- */
-function axisAnchorDays(bucketCount: number, today: number): Set<number> {
-  const mid = AXIS_ANCHOR_DAYS.filter((d) => d < bucketCount && Math.abs(d - today) >= 3)
-  // วันนี้ที่ชิดหัว/ท้ายเดือนไม่ต้องเติม — ป้ายหัวเดือน/ท้ายเดือนยืนแทนอยู่แล้ว
-  const withToday = Math.abs(today - 1) >= 3 && Math.abs(today - bucketCount) >= 3 ? [today] : []
-  return new Set([1, bucketCount, ...mid, ...withToday])
-}
 
 export default function SalesChartCard({ initialSeries }: Props) {
   const [open, setOpen] = useState(false)

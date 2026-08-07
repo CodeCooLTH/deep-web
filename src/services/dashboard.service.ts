@@ -8,6 +8,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { countsAsRevenue } from '@/lib/order-revenue'
+import { deriveShippingStage } from '@/lib/order-stage'
 import { canonicalProvince, isKnownProvince } from '@/lib/parse-order-message'
 
 // เดือนไทยแบบย่อ — label แกน x โหมดรายเดือน
@@ -20,6 +21,33 @@ const THAI_MONTHS_ABBR = [
 const TZ_OFFSET_MS = 7 * 60 * 60 * 1000
 
 export type SalesSeriesMode = 'daily' | 'monthly'
+
+/**
+ * แปลงแถวออเดอร์ที่ query มาเป็น input ของ deriveShippingStage — "พัสดุที่นับ" ต้องเป็นใบ
+ * active ล่าสุด (status='CREATED', ไม่ใช่ dry-run ตาม BR-ISHIP-60/61) เหมือน getShippingStageCounts
+ * เป๊ะ ๆ ไม่งั้นเงิน COD ที่ชีตบอกกับไทล์หน้าแรกจะนับคนละใบ
+ *
+ * กรอง/เรียงที่นี่แทนที่จะทำใน query เพราะ query เดียวกันนี้ป้อน countsAsRevenue ด้วย
+ * ซึ่งต้องเห็นพัสดุครบทุกใบ (มันเช็ค .some() เอง) — take:1 ใน query จะเปลี่ยนนิยามยอดขายไปเงียบ ๆ
+ */
+type StageRow = {
+  status: string
+  paymentMethod?: string | null
+  codReceivedAt?: Date | string | null
+  shipments?: { status: string; isDryRun: boolean; carrierStatus: string | null; createdAt: Date }[] | null
+}
+const toShippingStageInput = (r: StageRow) => {
+  const active = (r.shipments ?? [])
+    .filter((s) => s.status === 'CREATED' && !s.isDryRun)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+  return {
+    status: r.status,
+    carrierStatus: active[0]?.carrierStatus ?? null,
+    hasShipment: active.length > 0,
+    paymentMethod: r.paymentMethod ?? null,
+    codReceivedAt: r.codReceivedAt ?? null,
+  }
+}
 
 export interface SalesSeries {
   /** label แกน x — daily: "1".."N"; monthly: "ม.ค.".."ธ.ค." */
@@ -38,6 +66,17 @@ export interface SalesSeries {
    * ถ้าดูแต่ความสูงของแท่ง
    */
   orderCounts: number[]
+  /**
+   * ยอดเงินของออเดอร์ที่ยังอยู่กอง "รอเงิน COD" ต่อ bucket (บาท) — user สั่ง 2026-08-07
+   *
+   * นิยามผูกกับ `deriveShippingStage(...) === 'AWAITING_COD'` ตัวเดียวกับไทล์บน Command Center
+   * และชิปกรองในหน้า /orders (user เลือกเอง 2026-08-07) — ห้ามเขียนเงื่อนไข COD ใหม่ที่นี่
+   * ไม่งั้นตัวเลขบนชีตยอดขายกับไทล์หน้าแรกจะพูดคนละเรื่องเรื่องเงินก้อนเดียวกัน
+   *
+   * เป็น "ส่วนย่อยของยอดขายวันนั้น" ไม่ใช่ก้อนใหม่: ใบ COD ที่ส่งถึงแล้วนับเป็นยอดขายไปแล้ว
+   * (countsAsRevenue) คอลัมน์นี้ตอบว่าเงินก้อนไหนในยอดนั้นยังไม่เข้ามือร้าน
+   */
+  codPendingValues: number[]
   /** ยอดรวมทั้งช่วง */
   total: number
   /** ยอดรวมช่วงก่อนหน้า (เดือนก่อน / ปีก่อน) — ใช้คำนวณ %เทียบ */
@@ -162,9 +201,18 @@ export async function getSalesSeries(
         totalAmount: true,
         createdAt: true,
         status: true,
+        // ไทล์ "รอเงิน COD" ต้องรู้ว่าใบนี้เก็บเงินปลายทางไหม และร้านกดว่าได้เงินแล้วหรือยัง
+        // (ชุดเดียวกับที่ getShippingStageCounts ส่งเข้า deriveShippingStage — ขาดช่องใดช่องหนึ่ง
+        //  แล้วตัวเลขบนชีตกับไทล์หน้าแรกจะไม่ตรงกันทั้งที่เรียกฟังก์ชันเดียวกัน)
+        paymentMethod: true,
+        codReceivedAt: true,
         // ต้องรู้ว่าขนส่งรับของไปแล้วหรือยัง — เกณฑ์ "นับเป็นยอดขาย" ไม่ได้ดูแค่ status
-        // (SSOT: lib/order-revenue.ts) select แคบ ๆ 3 คอลัมน์ ไม่ให้ payload บวม
-        shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
+        // (SSOT: lib/order-revenue.ts) select แคบ ๆ ไม่ให้ payload บวม
+        // createdAt: ใช้หา "พัสดุ active ใบล่าสุด" ให้ deriveShippingStage — ที่นี่กรอง/เรียงใน TS
+        // ไม่ใช่ใน query เพราะ countsAsRevenue ต้องเห็นพัสดุทุกใบ (มันเช็ค .some() เอง)
+        shipments: {
+          select: { status: true, isDryRun: true, carrierStatus: true, createdAt: true },
+        },
         // ต้นทุนสินค้า — จำเป็นต่อ "กำไรสุทธิ" ให้ได้สูตรเดียวกับการ์ด P&L ใน /expenses
         // (ถ้าใช้ ยอดยืนยันแล้ว − ค่าใช้จ่าย เฉย ๆ ตัวเลขจะไม่ตรงกับอีกสองหน้า)
         ...(includeFinance ? { items: { select: { cost: true, qty: true } } } : {}),
@@ -182,6 +230,7 @@ export async function getSalesSeries(
   const confirmedValues = new Array<number>(bucketCount).fill(0)
   const unconfirmedValues = new Array<number>(bucketCount).fill(0)
   const orderCounts = new Array<number>(bucketCount).fill(0)
+  const codPendingValues = new Array<number>(bucketCount).fill(0)
   const cogsValues = new Array<number>(bucketCount).fill(0)
   const expenseValues = new Array<number>(bucketCount).fill(0)
   let total = 0
@@ -235,6 +284,12 @@ export async function getSalesSeries(
             cogsValues[idx] += Number(item.cost) * item.qty
           }
         } else unconfirmedValues[idx] += amt
+
+        // "รอเงิน COD" ของวันนั้น — ยอดเต็มของใบที่ยังอยู่กองนี้ (ไม่ใช่ codAmount ของพัสดุ
+        // เพราะใบที่ร้านแจ้งเลขเองไม่มีแถว OrderShipment ให้อ่าน แต่ก็ยังเป็นเงินที่รอเก็บอยู่ดี)
+        if (deriveShippingStage(toShippingStageInput(r)) === 'AWAITING_COD') {
+          codPendingValues[idx] += amt
+        }
       }
       total += amt
     } else if (created >= prevGte && created < gte) {
@@ -259,7 +314,7 @@ export async function getSalesSeries(
     : undefined
 
   const base = {
-    labels, values, confirmedValues, unconfirmedValues, orderCounts,
+    labels, values, confirmedValues, unconfirmedValues, orderCounts, codPendingValues,
     total, prevTotal, prevTotalToDate, futureFromIndex,
     ...(last14Confirmed && last14Unconfirmed
       ? { last14Confirmed, last14Unconfirmed, last14Labels }
