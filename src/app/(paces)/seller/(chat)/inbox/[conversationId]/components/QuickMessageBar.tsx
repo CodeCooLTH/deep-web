@@ -263,12 +263,30 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
 
   return (
     <>
-      {/* แผงเต็มพื้นที่ข้อความ (user สั่ง 2026-07-31 "เต็มช่องแชทไปเลย") — วางทับลิสต์ข้อความ
-          ที่ยัง mount อยู่ ตำแหน่ง scroll ของแชทจึงไม่รีเซ็ตตอนปิดแผง */}
-      {/* z-40: ต้องสูงกว่าทุกอย่างที่ลอยอยู่ในพื้นที่ข้อความ ไม่งั้นทะลุขึ้นมาบนแผง —
+      {/* มือถือ/แท็บเล็ต (<lg): แผงเต็มพื้นที่ข้อความ (user สั่ง 2026-07-31 "เต็มช่องแชทไปเลย") —
+          วางทับลิสต์ข้อความที่ยัง mount อยู่ ตำแหน่ง scroll ของแชทจึงไม่รีเซ็ตตอนปิดแผง
+          เดสก์ท็อป (>=lg, user สั่ง 2026-08-06): เป็น **โมดัลกลางจอ** แทน — จอกว้างการ์ดกระจาย
+          เต็มความกว้างแชทแล้วอ่านลำบาก และแผงกินพื้นที่มากกว่าที่เนื้อหาต้องการ. โครงโมดัลชุด
+          เดียวกับ QuickMessageManager ที่เปิดต่อจากแผงนี้ (Base: theme/paces/Admin/TS/src/app/
+          (admin)/ui/modals/page.tsx block "Full Screen Below lg") — backdrop มืด + คลิกนอกการ์ดปิด
+          z-40 (มือถือ): ต้องสูงกว่าทุกอย่างที่ลอยอยู่ในพื้นที่ข้อความ ไม่งั้นทะลุขึ้นมาบนแผง —
           ป้าย DeepBot ของ AutoReplyTag เป็น z-20 และ tooltip ของมัน z-30 (user เจอ 2026-07-31)
-          ยังต่ำกว่าโมดัลจัดการ (z-90) ตามเดิม */}
-      <div className="bg-card absolute inset-0 z-40 flex flex-col">
+          z-80 (เดสก์ท็อป): ต่ำกว่าโมดัลจัดการ (z-90) ที่เปิดทับแผงนี้ได้ */}
+      {/* backdrop ของโมดัล — เดสก์ท็อปเท่านั้น (ใต้ lg แผงเต็มพื้นที่แชทอยู่แล้ว ไม่มีฉากหลังให้มืด)
+          คลิกนอกการ์ด = ปิด ชุดเดียวกับโมดัลจัดการ */}
+      <div
+        className="fixed inset-0 z-80 hidden bg-black/50 lg:block"
+        aria-hidden="true"
+        onMouseDown={onClose}
+      />
+      {/* ความสูงคงที่ lg:h-176 (44rem) ชุดเดียวกับโมดัลจัดการ ไม่ใช่ h-auto — ไม่งั้นโมดัลหด/ยืดตาม
+          จำนวนการ์ดทุกครั้งที่พิมพ์ค้นหาแล้วเนื้อหาเด้งกวนตา; max-h-full กันล้นบนจอเตี้ย
+          จัดกึ่งกลางด้วย inset-0 + m-auto (ไม่ใช่ translate) — ไม่ต้องมี wrapper ซ้อนอีกชั้น */}
+      <div
+        className="bg-card absolute inset-0 z-40 flex flex-col lg:fixed lg:z-80 lg:m-auto lg:h-176 lg:max-h-full lg:w-full lg:max-w-5xl lg:rounded-lg lg:shadow-lg"
+        role="dialog"
+        aria-label="ข้อความสำเร็จรูป"
+      >
         {/* header — โครงเดียวกับแผง AI (ชื่อ+ไอคอนซ้าย, action ขวา) */}
         <div className="border-default-300 flex items-center justify-between gap-2 border-b border-dashed px-4 py-2.5 sm:px-6">
           <span className="text-primary flex items-center gap-2 text-sm font-semibold">
