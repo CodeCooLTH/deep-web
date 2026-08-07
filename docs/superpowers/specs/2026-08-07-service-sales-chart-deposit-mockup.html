@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup — กราฟยอดขายร้านบริการ (มัดจำ / เสร็จสิ้น / วันเข้ารับบริการ)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
+<style>
+  :root{
+    --primary:#236dc9; --success:#02bc9c; --warning:#f9bf59; --danger:#f7577e;
+    --dark:#313a46; --d400:#627189; --d700:#40454a; --d800:#343a40; --d100:#f6f7fb;
+    --chart-border:#ecf4fc; --warning-ink:#92400e; --success-ink:#065f46; --danger-ink:#7f1d1d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Anuphan,sans-serif;background:#eef1f6;color:var(--dark);padding:28px 20px 60px}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--d400);font-size:13px;margin:0 0 8px;max-width:900px;line-height:1.6}
+  .badge{display:inline-block;background:#dcfce7;color:var(--success-ink);font-size:11px;font-weight:700;
+         padding:3px 9px;border-radius:20px;margin-bottom:20px}
+  .row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .col{width:390px}
+  .cap{font-size:13px;font-weight:700;margin:0 0 2px}
+  .capnote{font-size:12px;color:var(--d400);margin:0 0 10px;line-height:1.55;min-height:36px}
+  .phone{width:390px;background:#f3f5f9;border:1px solid #dfe4ec;border-radius:20px;padding:10px}
+  .card{background:#fff;border:1px solid #eaecf1;border-radius:10px;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+  .card-body{padding:16px}
+  .hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+  .ttl{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700}
+  .ttl svg{width:16px;height:16px;color:var(--primary)}
+  .pills{display:flex;gap:2px;background:var(--d100);border-radius:8px;padding:2px}
+  .pill{border:0;background:transparent;color:var(--d700);font-family:inherit;font-size:12px;font-weight:500;
+        padding:8px 12px;border-radius:6px;cursor:pointer}
+  .pill.on{background:#fff;color:var(--primary);box-shadow:0 1px 2px rgba(16,24,40,.08)}
+  .hero{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .hero b{font-size:36px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+  .chev{color:#9aa4b2}
+  .chg{font-size:14px;font-weight:600;color:var(--success-ink);display:flex;align-items:center;gap:2px;margin:-2px 0 0}
+  .chg span{font-weight:400;color:var(--d700)}
+  .lgd{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--d700);margin:8px 0 6px}
+  .lgd i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}
+  .lgd em{font-style:normal;font-weight:600;color:var(--d800)}
+  .gh{width:9px;height:9px;display:inline-block;border-radius:2px;flex:0 0 auto}
+  .gh.up{border:1.5px solid var(--primary);
+         background:repeating-linear-gradient(45deg,rgba(35,109,201,.35) 0 2px,transparent 2px 4px)}
+  .gh.od{border:1.5px solid var(--danger);
+         background:repeating-linear-gradient(45deg,rgba(247,87,126,.35) 0 2px,transparent 2px 4px)}
+  .note{font-size:12px;line-height:1.75;color:var(--d700);background:#fff;border:1px solid #eaecf1;border-radius:10px;
+        padding:16px 18px;margin-top:26px;max-width:1240px}
+  .note h2{font-size:14px;margin:0 0 10px}
+  .note ul{margin:0 0 14px;padding-left:18px}
+  .note code{background:var(--d100);padding:1px 5px;border-radius:4px;font-size:11px}
+  table{border-collapse:collapse;font-size:12px;margin:6px 0 14px;width:100%;max-width:900px}
+  th,td{border:1px solid #e5e8ee;padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--d100);font-weight:700}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<h1>กราฟยอดขาย — ร้านประเภท “สินค้าและบริการ” (SERVICE_QUEUE)</h1>
+<p class="sub">
+  ตัวอย่างข้อมูล: BT Premium เดือน ส.ค. 2569 · วันนี้ = 7 ·
+  <b>แท่งทึบ = เงินเข้ามือร้านแล้ว</b> (นับในเลขฮีโร่) · <b>แท่งลายทาง = เงินที่ยังไม่เข้า</b> (ไม่นับ)
+</p>
+<span class="badge">แบบที่เคาะแล้ว — แท่งโปร่งลายทาง + นัดค้างเป็นสีแดง</span>
+
+<div class="row">
+
+  <div class="col">
+    <p class="cap">แท็บ “เดือนนี้”</p>
+    <p class="capnote">แท่งทึบหยุดที่วันนี้ · แท่งลายทางน้ำเงินคือนัดที่ยังไม่ถึงวัน · แท่งลายทางแดง (วันที่ 4) คือนัดที่เลยวันมาแล้วแต่ยังไม่กดเสร็จสิ้น</p>
+    <div class="phone">
+      <div class="card"><div class="card-body">
+        <div class="hdr">
+          <div class="ttl">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg>
+            ยอดขาย
+          </div>
+          <div class="pills"><button class="pill">วันนี้</button><button class="pill on">เดือนนี้</button></div>
+        </div>
+        <div class="hero"><b>8,300</b><span class="chev">›</span></div>
+        <div class="chg">▲ 12% <span>จากเดือนก่อน</span></div>
+        <div class="lgd">
+          <span><i style="background:var(--warning)"></i> มัดจำ <em>3,100</em></span>
+          <span><i style="background:var(--success)"></i> เสร็จสิ้น <em>5,200</em></span>
+          <span><span class="gh up"></span> วันเข้ารับบริการ <em>18,000</em></span>
+          <span><span class="gh od"></span> เลยวันนัด <em>900</em></span>
+        </div>
+        <div id="chartMonth"></div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="col">
+    <p class="cap">แท็บ “วันนี้” (ย้อนหลัง 14 วัน)</p>
+    <p class="capnote">2 สีล้วนตามที่เคาะ — หน้าต่างนี้พูดเรื่องเงินที่ได้จริงอย่างเดียว ไม่มีแท่งลายทางแม้แต่นัดค้าง</p>
+    <div class="phone">
+      <div class="card"><div class="card-body">
+        <div class="hdr">
+          <div class="ttl">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2"/></svg>
+            ยอดขาย
+          </div>
+          <div class="pills"><button class="pill on">วันนี้</button><button class="pill">เดือนนี้</button></div>
+        </div>
+        <div class="hero"><b>2,300</b><span class="chev">›</span></div>
+        <div class="chg">▲ 31% <span>จากค่าเฉลี่ย 14 วัน</span></div>
+        <div class="lgd">
+          <span><i style="background:var(--warning)"></i> มัดจำ <em>800</em></span>
+          <span><i style="background:var(--success)"></i> เสร็จสิ้น <em>1,500</em></span>
+        </div>
+        <div id="chartToday"></div>
+      </div></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="note">
+  <h2>นิยามที่กราฟนี้ใช้ (SERVICE_QUEUE เท่านั้น — vertical อื่นไม่แตะ)</h2>
+  <table>
+    <tr><th style="width:150px">ชั้น</th><th style="width:300px">ยอด</th><th>ลงตะกร้าวันไหน</th></tr>
+    <tr>
+      <td><span class="sw" style="background:var(--warning)"></span><b>มัดจำ</b></td>
+      <td><code>Σ depositAmount</code> เฉพาะใบที่ <code>depositReceivedAt != null</code></td>
+      <td>วันของ <code>depositReceivedAt</code> — วันที่เงินเข้าจริง</td>
+    </tr>
+    <tr>
+      <td><span class="sw" style="background:var(--success)"></span><b>เสร็จสิ้น</b></td>
+      <td><code>Σ (totalAmount − มัดจำที่รับแล้ว)</code></td>
+      <td>มีนัด → วัน <code>serviceStart</code> เมื่อ <code>appointmentStatus = COMPLETED</code><br>
+          ไม่มีนัด → วัน <code>createdAt</code></td>
+    </tr>
+    <tr>
+      <td><span class="sw gh up"></span><b>วันเข้ารับบริการ</b></td>
+      <td><code>Σ (totalAmount − มัดจำที่รับแล้ว)</code> ของนัดที่ยังไม่ COMPLETED / NO_SHOW</td>
+      <td>วัน <code>serviceStart</code> · <b>≥ วันนี้</b></td>
+    </tr>
+    <tr>
+      <td><span class="sw gh od"></span><b>เลยวันนัด</b></td>
+      <td>สูตรเดียวกัน</td>
+      <td>วัน <code>serviceStart</code> · <b>&lt; วันนี้</b> = ค้างต้องตามเก็บ</td>
+    </tr>
+  </table>
+
+  <ul>
+    <li><b>เลขฮีโร่ 8,300</b> = มัดจำ 3,100 + เสร็จสิ้น 5,200 — เงินเข้ามือจริงเท่านั้น ไม่รวม 18,900 ที่รออยู่</li>
+    <li><b>ไม่มีการนับซ้ำ</b> — เงินก้อนเดียวลงได้ตะกร้าเดียว: มัดจำลงวันรับมัดจำ ส่วนที่เหลือลงวันปิดงาน</li>
+    <li><b><code>NO_SHOW</code> หายจากกราฟเอง</b> ไม่ต้องเขียนกฎเพิ่ม — มัดจำที่ริบไว้ยังนับอยู่ (เข้าไปแล้วตั้งแต่วันรับ) ส่วนที่เหลือไม่เคยถูกนับ แท่งลายทางหายไป</li>
+    <li>วันที่มีทั้งเงินเข้าและนัดค้างในวันเดียวกัน แท่งจะ<b>ซ้อนกัน</b> — ความสูงทั้งแท่ง = มูลค่างานของวันนั้น ส่วนที่ลายทางคือส่วนที่ยังไม่ได้รับ</li>
+    <li>เส้น “จำนวนการเข้ารับบริการ” (นับใบ) ของเดิมถูกแทนที่ — ตัวนับใบยังอยู่ในชีตเต็มจอ</li>
+  </ul>
+
+  <h2>งานที่พ่วงมาด้วย (ไม่ใช่แค่แก้กราฟ)</h2>
+  <ul>
+    <li><b>คอลัมน์ใหม่ <code>Order.depositReceivedAt</code></b> — ตอนสร้างงานมี checkbox “รับเงินมัดจำแล้ว” ติ๊กมาจากโรงงาน (กรณีปกติคือรับมัดจำหน้าร้านตอนจอง) · ปลดติ๊กได้ แล้วค่อยกด “รับมัดจำแล้ว” ทีหลังในหน้างาน</li>
+    <li><b>ปุ่ม “เสร็จสิ้น / ไม่มาตามนัด”</b> — service + API มีครบตั้งแต่ feature 00024 แต่<b>ไม่มีหน้าจอไหนเรียกเลย</b> (grep ทั้ง repo = 0) ถ้าไม่ทำ แท่งเขียวจะเป็น 0 ตลอดกาล · ตำแหน่งปุ่มต้องผ่าน safepay-ux ตาม Hard Rule 8</li>
+    <li><b>หน้า <code>/sales</code></b> เปลี่ยนนิยามตามด้วย · <b>กำไรขาดทุน <code>/expenses</code></b> ไม่แตะรอบนี้</li>
+  </ul>
+</div>
+
+<script>
+const C={primary:'#236dc9',success:'#02bc9c',warning:'#f9bf59',danger:'#f7577e',d400:'#627189',d700:'#40454a',border:'#ecf4fc'};
+const DAYS=31, TODAY=7;
+const labels=Array.from({length:DAYS},(_,i)=>String(i+1));
+const z=n=>Array(n).fill(0);
+
+// ── ตะกร้าทั้ง 4 ชั้น (ยาว 31 วัน) ──────────────────────────────────
+// มัดจำ — ลงวันที่ depositReceivedAt
+const deposit  =[300,0,500,0,1000,500,800,...z(24)];
+// เสร็จสิ้น — ส่วนที่เหลือ ลงวันนัดที่กดเสร็จแล้ว (วันที่ 2 = งานที่รับมัดจำไว้เดือนก่อน)
+const done     =[0,1200,0,0,2500,0,1500,...z(24)];
+// รอวันนัด — serviceStart ≥ วันนี้
+const upcoming =[...z(8),3200,0,0,4500,0,0,2800,0,0,0,0,6000,0,0,0,0,0,1500,...z(5)];
+// เลยวันนัด — serviceStart < วันนี้ แต่ยังไม่กดเสร็จสิ้น
+const overdue  =[0,0,0,900,...z(27)];
+
+const base={
+  chart:{type:'bar',height:168,stacked:true,toolbar:{show:false},zoom:{enabled:false},
+         parentHeightOffset:0,animations:{enabled:false}},
+  plotOptions:{bar:{columnWidth:'92%',borderRadius:1}},
+  dataLabels:{enabled:false}, legend:{show:false}, tooltip:{enabled:false},
+  yaxis:{show:false,min:0},
+  grid:{show:true,borderColor:C.border,strokeDashArray:4,xaxis:{lines:{show:false}},yaxis:{lines:{show:true}},
+    padding:{top:0,right:0,bottom:0,left:0}},
+};
+
+// ── เดือนนี้ ─────────────────────────────────────────────────────────
+new ApexCharts(document.querySelector('#chartMonth'),{...base,
+  series:[
+    {name:'มัดจำ',data:deposit},
+    {name:'เสร็จสิ้น',data:done},
+    {name:'วันเข้ารับบริการ',data:upcoming},
+    {name:'เลยวันนัด',data:overdue},
+  ],
+  colors:[C.warning,C.success,C.primary,C.danger],
+  stroke:{show:true,width:[0,0,1.5,1.5],colors:['transparent','transparent',C.primary,C.danger]},
+  fill:{type:['solid','solid','pattern','pattern'],opacity:[1,1,.28,.28],
+    pattern:{style:'slantedLines',width:5,height:5,strokeWidth:1.5}},
+  xaxis:{categories:labels,axisBorder:{show:false},axisTicks:{show:false},
+    labels:{style:{fontSize:'10px',colors:C.d700,fontFamily:'Anuphan'},rotate:0,rotateAlways:false,
+      hideOverlappingLabels:false,trim:false,
+      formatter:v=>[1,7,10,15,20,25,31].includes(Number(v))?String(v):''}},
+  annotations:{xaxis:[{x:String(TODAY),borderColor:C.d400,strokeDashArray:3,
+    label:{text:'วันนี้',position:'top',orientation:'horizontal',offsetY:-4,borderWidth:0,
+      style:{background:'transparent',color:C.d700,fontSize:'10px',fontFamily:'Anuphan'}}}]},
+}).render();
+
+// ── วันนี้ (14 วันย้อนหลัง) — 2 สีล้วน ────────────────────────────────
+const d14=['25 ก.ค.','26','27','28','29','30','31','1 ส.ค.','2','3','4','5','6','วันนี้'];
+new ApexCharts(document.querySelector('#chartToday'),{...base,
+  plotOptions:{bar:{columnWidth:'76%',borderRadius:1}},
+  series:[
+    {name:'มัดจำ',   data:[0,400,0,0,600,0,300,300,0,500,0,1000,500,800]},
+    {name:'เสร็จสิ้น',data:[900,0,0,1800,0,0,0,0,1200,0,0,2500,0,1500]},
+  ],
+  colors:[C.warning,C.success],
+  stroke:{show:false},
+  xaxis:{categories:d14,axisBorder:{show:false},axisTicks:{show:false},
+    labels:{style:{fontSize:'10px',colors:C.d700,fontFamily:'Anuphan'},rotate:0,rotateAlways:false,
+      hideOverlappingLabels:false,trim:false,
+      formatter:v=>['25 ก.ค.','29','1 ส.ค.','4','วันนี้'].includes(v)?v:''}},
+}).render();
+</script>
+</body>
+</html>
