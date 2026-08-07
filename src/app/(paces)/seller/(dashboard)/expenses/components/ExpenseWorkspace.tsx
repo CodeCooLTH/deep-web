@@ -53,6 +53,8 @@ type Props = {
   initialReport: PnlReport
   initialExpenses: SerializedExpense[]
   hasAnyExpenseEver: boolean
+  /** ชื่อของ "ใบ" ที่เอามาเฉลี่ย/นับ ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */
+  orderNoun?: string
 }
 
 export default function ExpenseWorkspace({
@@ -61,6 +63,7 @@ export default function ExpenseWorkspace({
   initialReport,
   initialExpenses,
   hasAnyExpenseEver,
+  orderNoun = 'ออเดอร์',
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -196,7 +199,7 @@ export default function ExpenseWorkspace({
         </div>
       )}
 
-      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={RANGE_LABEL[range]} />
+      <PnlReportCard report={report} expenses={expenses} loading={loading} rangeLabel={RANGE_LABEL[range]} orderNoun={orderNoun} />
 
       {expenses.length > 0 && (
         <ExpenseBreakdownCard

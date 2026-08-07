@@ -5,7 +5,8 @@
  *            ไม่ต้องมี client state → RSC ป้องกัน PII รั่วเข้า client bundle
  *
  * T7 rewrite: v7 arbitrary/hex → Paces primitive (.card .card-header timeline)
- *   - ลบ: rounded-[14px], shadow-[...], text-[NNpx], rgba(...), #hex ทั้งหมด
+ *   - ลบ arbitrary value ทั้งหมด (มุมโค้งพิกเซลตายตัว, เงาที่เขียนเอง, ขนาดตัวอักษรเป็น px, สี rgba/hex)
+ *     — เขียนเป็นคำแทนไวยากรณ์จริง เพราะ theme-guard สแกนไฟล์แล้วจับตัวอย่างในคอมเมนต์นี้เป็นการละเมิด
  *   - ใช้: card/card-header/card-title, size-7.5/rounded-full, after:border-dashed,
  *           bg-{semantic}/text-{semantic}, text-sm/text-xs/text-default-500
  *   - คง: data logic (items, formatDistanceToNow th), empty state, ACTIVITY_STYLE map
@@ -64,10 +65,12 @@ const ACTIVITY_STYLE: Record<ActivityItem['type'], ActivityStyle> = {
 // ─── Props ────────────────────────────────────────────────────────────────────
 type Props = {
   items: ActivityItem[]
+  /** ปุ่ม/ประโยคชวนสร้างรายการแรก ผันตามประเภทกิจการ (ORDER_VOCAB.createLabel) */
+  createLabel?: string
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const RecentActivityFeed = ({ items }: Props) => {
+const RecentActivityFeed = ({ items, createLabel = 'สร้างออเดอร์' }: Props) => {
   return (
     <div className="card">
       {/* card-header: title ซ้าย + "ดูทั้งหมด ›" ขวา */}
@@ -88,7 +91,7 @@ const RecentActivityFeed = ({ items }: Props) => {
               <Icon icon="shopping-cart-plus" className="text-4xl" />
             </span>
             <div className="text-center space-y-1">
-              <p className="text-sm font-semibold">สร้างออเดอร์แรกเลย</p>
+              <p className="text-sm font-semibold">{createLabel}แรกเลย</p>
               <p className="text-xs text-default-500">กิจกรรมจะปรากฏที่นี่เมื่อคุณเริ่มใช้งาน</p>
             </div>
             {/* NF-4: min-height 44px → h-11 = 44px ผ่าน touch target
@@ -97,7 +100,7 @@ const RecentActivityFeed = ({ items }: Props) => {
               href="/orders/new"
               className="btn bg-primary text-white hover:bg-primary-hover text-sm font-semibold h-11 px-5 rounded-lg inline-flex items-center justify-center active:scale-95 transition-transform"
             >
-              สร้างออเดอร์
+              {createLabel}
             </Link>
           </div>
         ) : (

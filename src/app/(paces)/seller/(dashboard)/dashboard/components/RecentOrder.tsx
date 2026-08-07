@@ -37,7 +37,7 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: 'ยกเลิก',
 }
 
-const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
+const RecentOrder = ({ orders = [], orderNoun = 'ออเดอร์' }: { orders?: OrderType[]; /** ชื่อของสิ่งที่แถวในตารางนี้เป็น ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */ orderNoun?: string }) => {
   const [data] = useState<OrderType[]>(orders)
   const [sorting, setSorting] = useState<SortingState>([])
   const [pagination, setPagination] = useState({
@@ -136,7 +136,7 @@ const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
     <div className="card h-full">
       <div className="card-header">
         <h4 className="card-title">
-          ออเดอร์ล่าสุด
+          {orderNoun}ล่าสุด
         </h4>
         <div>
           <button className="btn btn-sm border-default-300 hover:border-default-400 font-semibold me-1">
@@ -153,11 +153,11 @@ const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
           <SellerEmptyState
             compact
             icon="shopping-cart-off"
-            title="ยังไม่มีออเดอร์"
-            description="เมื่อมีออเดอร์เข้ามา จะแสดงที่นี่"
+            title={`ยังไม่มี${orderNoun}`}
+            description={`เมื่อมี${orderNoun}เข้ามา จะแสดงที่นี่`}
           />
         ) : (
-          <DataTable<OrderType> table={table} emptyMessage="ไม่พบออเดอร์" className="table-centered table-hover" />
+          <DataTable<OrderType> table={table} emptyMessage={`ไม่พบ${orderNoun}`} className="table-centered table-hover" />
         )}
       </div>
       {data.length > 0 && (
@@ -166,7 +166,7 @@ const RecentOrder = ({ orders = [] }: { orders?: OrderType[] }) => {
             totalItems={totalItems}
             start={start}
             end={end}
-            itemsName="ออเดอร์"
+            itemsName={orderNoun}
             showInfo
             previousPage={table.previousPage}
             canPreviousPage={table.getCanPreviousPage()}

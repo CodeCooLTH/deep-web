@@ -147,7 +147,9 @@ export default async function SellerDashboardPage() {
   let appointmentTodayCount: number | undefined
   // คำที่ผันตามประเภทกิจการ — resolve ที่นี่ที่เดียวแล้วส่งลง CommandCenter
   // ประกาศไว้ชั้นนอกเพราะ `shop` เป็น block-scoped อยู่ใน try ด้านล่าง แต่ต้องใช้ตอน render
-  let orderNoun = resolveOrderVocab('ONLINE_SALES').noun
+  // ทั้งก้อนเป็นสตริงล้วน จึงส่งข้ามเส้น server→client ได้ (ต่างจาก ProductVocab ที่มีฟังก์ชัน)
+  let orderVocab = resolveOrderVocab('ONLINE_SALES')
+  let orderNoun = orderVocab.noun
   // ส่ง vertical ดิบลงไปให้ BestSellerStrip ('use client') resolve เอง — ProductVocab มีฟังก์ชัน
   // อยู่ข้างใน ส่งทั้งก้อนข้ามเส้น server→client ไม่ได้ (พังจริงบน prod 2026-08-07)
   let shopVertical = 'ONLINE_SALES'
@@ -202,7 +204,8 @@ export default async function SellerDashboardPage() {
       // (เจ้าของร้าน) ไม่ใช่ session user; inner try/catch เพื่อไม่ให้ล้มลาม block นี้ทั้งก้อน
       if (shop) {
         // คำเรียก order/สินค้า ผันตามประเภทกิจการ — ต้องอยู่ก่อนทุก branch ที่ใช้ shop.vertical
-        orderNoun = resolveOrderVocab(shop.vertical).noun
+        orderVocab = resolveOrderVocab(shop.vertical)
+        orderNoun = orderVocab.noun
         shopVertical = shop.vertical
 
         packageCanManage = active?.role === 'OWNER'
@@ -587,10 +590,10 @@ export default async function SellerDashboardPage() {
             หลังการ์ดถูกถอดออกจากมือถือ 2026-08-04 — รอบนี้เอากลับมาใช้ตัวเดิม ไม่สร้างใหม่ซ้อน */}
         <div className="grid xl:grid-cols-12 grid-cols-1 gap-base">
           <div className="xl:col-span-5">
-            <RecentOrder orders={recentOrders} />
+            <RecentOrder orders={recentOrders} orderNoun={orderNoun} />
           </div>
           <div className="xl:col-span-7">
-            <RecentActivityFeed items={recentActivity} />
+            <RecentActivityFeed items={recentActivity} createLabel={orderVocab.createLabel} />
           </div>
         </div>
 

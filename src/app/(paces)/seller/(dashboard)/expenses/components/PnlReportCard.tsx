@@ -23,7 +23,13 @@ import type { SerializedExpense } from '@/services/expense.service'
 import type { PnlReport } from '@/services/pnl.service'
 import PacesStatCard from '../../_shared/PacesStatCard'
 
-const CALC_NOTE = `คิดจากออเดอร์ที่ลูกค้ายืนยันรับของแล้วเท่านั้น · ${NET_PROFIT_FORMULA}`
+/**
+ * "ยืนยันแล้ว" ไม่ใช่ "ยืนยันรับของแล้ว" (2026-08-07) — ร้านคิวงาน/บ้านพักไม่มีของให้รับ
+ * คำนี้ถูกกับทุก vertical จึงไม่ต้องแตกประโยคเป็นชุด ๆ และไม่ต้องมีสาขาที่เทียบสตริง
+ * (ตรรกะ `noun === 'ออเดอร์' ? A : B` จะเงียบเมื่อมีประเภทร้านที่สี่ — บทเรียน 00028)
+ */
+const calcNote = (orderNoun: string) =>
+  `คิดจาก${orderNoun}ที่ลูกค้ายืนยันแล้วเท่านั้น · ${NET_PROFIT_FORMULA}`
 
 type Props = {
   report: PnlReport
@@ -32,9 +38,11 @@ type Props = {
   loading?: boolean
   /** ข้อความช่วงเวลาสั้น ๆ ต่อท้ายหัวข้อการ์ดแรก เช่น "30 วันล่าสุด" */
   rangeLabel: string
+  /** ชื่อของ "ใบ" ที่นับ/เฉลี่ย ผันตามประเภทกิจการ (ORDER_VOCAB.noun) */
+  orderNoun?: string
 }
 
-export default function PnlReportCard({ report, expenses, loading = false, rangeLabel }: Props) {
+export default function PnlReportCard({ report, expenses, loading = false, rangeLabel, orderNoun = 'ออเดอร์' }: Props) {
   const profit = profitDisplay(report.netProfit)
   const topCategory = groupExpensesByCategory(expenses)[0]
   const pct = (v: number) => `${v.toFixed(1)}%`
@@ -51,7 +59,7 @@ export default function PnlReportCard({ report, expenses, loading = false, range
         icon={profit.positive ? 'trending-up' : 'trending-down'}
         iconClass={profit.positive ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink'}
         title={`${profit.label} · ${rangeLabel}`}
-        note={CALC_NOTE}
+        note={calcNote(orderNoun)}
         text={profit.text}
         valueClass={profit.toneClass}
         changePercent={pctChangeVsPrev(report.netProfit, report.prevNetProfit)}
@@ -67,8 +75,8 @@ export default function PnlReportCard({ report, expenses, loading = false, range
         valueClass="text-success-ink"
         changePercent={pctChangeVsPrev(report.revenue, report.prevRevenue)}
         bulletClass="text-success"
-        metric="จากออเดอร์สำเร็จ"
-        metricValue={`${report.orderCount.toLocaleString('th-TH')} ออเดอร์`}
+        metric={`จาก${orderNoun}สำเร็จ`}
+        metricValue={`${report.orderCount.toLocaleString('th-TH')} ${orderNoun}`}
       />
       <PacesStatCard
         icon="package"
@@ -80,8 +88,8 @@ export default function PnlReportCard({ report, expenses, loading = false, range
         changePercent={pctChangeVsPrev(report.cogs, report.prevCogs, true)}
         changeHint="เทียบช่วงก่อนหน้า — ต้นทุนลดลงคือดีขึ้น"
         bulletClass="text-default-700"
-        metric="เฉลี่ยต่อออเดอร์"
-        metricValue={report.orderCount > 0 ? formatBaht(report.cogs / report.orderCount) : 'ยังไม่มีออเดอร์'}
+        metric={`เฉลี่ยต่อ${orderNoun}`}
+        metricValue={report.orderCount > 0 ? formatBaht(report.cogs / report.orderCount) : `ยังไม่มี${orderNoun}`}
       />
       <PacesStatCard
         icon="calculator"
