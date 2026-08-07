@@ -599,10 +599,15 @@ export default function OrderCreateForm({
     // ยกเว้นช่องทาง "หน้าร้าน" (STOREFRONT) — รับสินค้าที่ร้าน ไม่ต้องมีที่อยู่จัดส่ง
     // รายการพิมพ์เอง (ไม่มี productId) = ต้องจัดส่ง เฉพาะร้านที่ส่งของ — ร้านคิวงาน/บ้านพัก
     // พิมพ์รายการเองเป็นเรื่องปกติ ไม่ได้แปลว่ามีพัสดุ (user 2026-08-07, ดู shopShipsGoods)
+    // shipsGoods กั้นทั้งก้อน ไม่ใช่เฉพาะรายการพิมพ์เอง (user report 2026-08-07 รอบสอง):
+    // สินค้าในแคตตาล็อกของร้านบริการติดธง SHIPPED ค้างได้จริง (ร้านที่เปลี่ยนประเภททีหลัง +
+    // สินค้าที่ Quick-Create สร้างให้เอง) ธงบนสินค้าจึงไม่ใช่หลักฐานว่าร้านนี้ส่งของ
+    // เกณฑ์ต้องตรงกับ createOrder เป๊ะ ๆ ไม่งั้นฟอร์มบล็อกในสิ่งที่ server ไม่ได้บังคับ
     const needsShipping =
+      shipsGoods &&
       values.salesChannel !== 'STOREFRONT' &&
       items.some((item) => {
-        if (!item.productId) return shipsGoods
+        if (!item.productId) return true
         return catalog.find((p) => p.id === item.productId)?.fulfillmentMode === 'SHIPPED'
       })
 

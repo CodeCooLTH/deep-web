@@ -219,7 +219,14 @@ export async function createOrder(shopId: string, data: {
 
   // ตรวจ product จริงจาก DB — ถ้ามี product ใดที่ fulfillmentMode=SHIPPED → SHIPPED
   // (ถึงจุดนี้ productIds ทุกตัวเป็นของ shopId นี้แล้ว — ผ่าน ownership validation ด้านบน)
-  if (fulfillmentMode !== "SHIPPED" && productIds.length > 0) {
+  //
+  // shipsGoods กั้นข้อนี้ด้วย (user report 2026-08-07 รอบสอง): ร้านที่ไม่ส่งของมีสินค้าที่ติดธง
+  // SHIPPED ค้างอยู่ในแคตตาล็อกได้จริง — ร้านที่เคยเป็น ONLINE_SALES แล้วเปลี่ยนประเภททีหลัง
+  // (BT Premium 2026-08-05) และสินค้าที่ Quick-Create สร้างให้อัตโนมัติจากรายการพิมพ์เอง ซึ่ง
+  // เขียน SHIPPED ตรง ๆ จาก order.type=PHYSICAL. ธงบนสินค้าจึงไม่ใช่หลักฐานว่า "ร้านนี้ส่งของ"
+  // ถ้ากันเฉพาะรายการพิมพ์เอง (แพตช์รอบเช้า) ที่อยู่จะกลับมาบังคับทันทีที่ร้านเลือกสินค้าตัวเดิม
+  // จากแคตตาล็อกในครั้งถัดไป — ซึ่งคือสิ่งที่เกิดขึ้นจริง
+  if (shipsGoods && fulfillmentMode !== "SHIPPED" && productIds.length > 0) {
     const shippedProduct = await prisma.product.findFirst({
       where: { id: { in: productIds }, shopId, fulfillmentMode: "SHIPPED" },
       select: { id: true },
@@ -322,7 +329,11 @@ export async function createOrder(shopId: string, data: {
                   name,
                   price: item.price,
                   type: data.type,
-                  fulfillmentMode: data.type === "PHYSICAL" ? "SHIPPED" : "NO_SHIPPING",
+                  // ร้านที่ไม่ส่งของต้องไม่ผลิตสินค้าที่ติดธง SHIPPED ไว้ในแคตตาล็อกตัวเอง —
+                  // ไม่งั้นออเดอร์ใบถัดไปที่หยิบสินค้าตัวนี้จะกลับไปบังคับที่อยู่ทั้งที่ทั้งร้าน
+                  // ไม่มีการจัดส่งเลย (ทางนี้เขียนเองไม่ผ่าน resolveFulfillmentMode มาแต่แรก
+                  // จึงรอดจากการล็อกของ BR-BKU-13 มาตลอด — user report 2026-08-07)
+                  fulfillmentMode: shipsGoods && data.type === "PHYSICAL" ? "SHIPPED" : "NO_SHIPPING",
                   ...(item.description ? { description: item.description } : {}),
                 },
                 select: { id: true },
@@ -511,9 +522,14 @@ export async function updateOrder(
 
   const productIds = data.items.map((i) => i.productId).filter((id): id is string => !!id);
 
-  // fulfillmentMode (เหมือน createOrder)
+  // fulfillmentMode (เหมือน createOrder — รวมด่าน shopShipsGoods ทั้ง 2 ชั้น)
+  // แก้ไขออเดอร์เดิมเคยไม่มีด่านนี้เลย: ร้านบริการที่กด "แก้ไข" ใบที่สร้างผ่านมาแล้วจะโดนบังคับ
+  // ที่อยู่ใหม่ทุกครั้ง ทั้งที่ตอนสร้างไม่ต้องกรอก (กฎเดียวกันต้องอยู่ครบทุกทางเข้าที่เขียน Order)
+  const shopRowForShipping = await prisma.shop.findUnique({ where: { id: shopId }, select: { vertical: true } });
+  const shipsGoods = shopShipsGoods(shopRowForShipping?.vertical);
+
   let fulfillmentMode = "NO_SHIPPING";
-  if (data.items.some((i) => !i.productId && data.type === "PHYSICAL")) fulfillmentMode = "SHIPPED";
+  if (shipsGoods && data.items.some((i) => !i.productId && data.type === "PHYSICAL")) fulfillmentMode = "SHIPPED";
 
   // ownership ของ productId (read-only, นอก tx)
   if (productIds.length > 0) {
@@ -521,7 +537,7 @@ export async function updateOrder(
     const ownedIds = new Set(owned.map((p) => p.id));
     if (productIds.some((id) => !ownedIds.has(id))) throw new ProductNotInShopError();
   }
-  if (fulfillmentMode !== "SHIPPED" && productIds.length > 0) {
+  if (shipsGoods && fulfillmentMode !== "SHIPPED" && productIds.length > 0) {
     const shipped = await prisma.product.findFirst({
       where: { id: { in: productIds }, shopId, fulfillmentMode: "SHIPPED" },
       select: { id: true },
@@ -570,7 +586,8 @@ export async function updateOrder(
       const pid = found?.id ?? (await tx.product.create({
         data: {
           shopId, name, price: item.price, type: data.type,
-          fulfillmentMode: data.type === "PHYSICAL" ? "SHIPPED" : "NO_SHIPPING",
+          // ร้านที่ไม่ส่งของห้ามผลิตสินค้าติดธง SHIPPED (เหตุผลเดียวกับ createOrder ด้านบน)
+          fulfillmentMode: shipsGoods && data.type === "PHYSICAL" ? "SHIPPED" : "NO_SHIPPING",
           ...(item.description ? { description: item.description } : {}),
         },
         select: { id: true },
