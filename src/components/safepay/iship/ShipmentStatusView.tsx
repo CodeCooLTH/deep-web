@@ -16,6 +16,7 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTime, formatRelativeDayTime } from '@/lib/format-date'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
+import { classifyRetryUX } from '@/lib/iship/errors'
 import { TONE_BADGE, NOTICE_BOX } from './tone'
 import {
   SHIPMENT_STAGES,
@@ -275,104 +276,8 @@ export default function ShipmentStatusView({
     void loadTraces({ silent: true })
   }, [shipment.trackingNo, loadTraces])
 
-  // ── สร้างไม่สำเร็จ — ไม่แสดง kv/timeline เพราะยังไม่มีพัสดุจริงให้ติดตาม
-  if (shipment.status === 'FAILED') {
-    /**
-     * เครดิต iShip ไม่พอ = ร้านต้องออกไปทำอะไรที่อื่นก่อน กดลองใหม่ตรงนี้กี่ครั้งก็ได้ผลเดิม
-     * (เคสจริง prod 2026-08-06: ร้านกดไป 3 และ 4 ครั้งติดกันเพราะจอบอกแค่ว่า "ลองใหม่")
-     * จึงยกขึ้นเป็นกล่องเต็มพร้อมทางออก แทนที่จะเป็นข้อความบรรทัดเดียวเท่ากับ error อื่น
-     */
-    const needsTopUp = shipment.lastErrorCode === 'INSUFFICIENT_BALANCE'
-    return (
-      <div className="flex flex-col gap-3 p-4">
-        {needsTopUp ? (
-          <div className="flex gap-3 rounded-lg bg-danger/15 p-4 text-danger-ink" role="alert">
-            <Icon icon="tabler:wallet" className="mt-0.5 size-8 shrink-0" aria-hidden="true" />
-            <div className="min-w-0">
-              <h4 className="mb-1 text-base font-semibold text-danger-ink">
-                เครดิต iShip ไม่พอ — ต้องเติมเงินก่อน
-              </h4>
-              <p className="mb-2 text-sm">
-                {shipment.lastErrorMessage ?? 'ยอดเงินในบัญชี iShip ไม่พอสำหรับเปิดพัสดุ'}
-              </p>
-              {/* ที่มาของความสับสนที่เจอจริง: หน้าแรกของ iShip โชว์ยอดรวม แต่ยอดที่เปิดพัสดุได้
-                  ถูกหักด้วย "เครดิตที่ถูกกันไว้" ของพัสดุที่ยังไม่เคลียร์สถานะอยู่ */}
-              <p className="mb-3 text-xs">
-                ยอดที่เปิดพัสดุได้จริง = เงินคงเหลือ − เครดิตที่ถูกกันไว้ (iShip กันไว้สำรองค่าส่งของพัสดุที่ยังไม่เคลียร์สถานะ)
-              </p>
-              <a
-                href={ISHIP_TOPUP_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-sm inline-flex items-center gap-1.5 bg-danger text-white"
-              >
-                <Icon icon="tabler:external-link" className="text-base" aria-hidden="true" />
-                เข้าระบบ iShip เพื่อเติมเงิน
-              </a>
-            </div>
-          </div>
-        ) : (
-          <p className="mb-0 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2.5 text-sm text-danger-ink">
-            <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-            <span>{shipment.lastErrorMessage ?? 'สร้างพัสดุไม่สำเร็จ'}</span>
-          </p>
-        )}
-        <p className="mb-0 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2.5 text-sm text-info-ink">
-          <Icon icon="tabler:info-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-          <span>
-            ลองใหม่จะใช้คีย์เดิม ไม่เปิดพัสดุใบที่สอง — ถ้าครั้งก่อนเปิดสำเร็จแล้วแต่คำตอบหาย
-            ระบบจะคืนใบเดิมให้
-          </span>
-        </p>
-        {/* เครดิตไม่พอ = ปุ่มนี้ไม่ใช่ทางออก ลดเป็นปุ่มรอง ให้ "ไปเติมเงิน" เป็นการกระทำหลักแทน
-            (ยังต้องมีอยู่ เพราะเติมเงินเสร็จแล้วร้านกลับมากดต่อจากตรงนี้ได้เลย) */}
-        <button
-          type="button"
-          onClick={handleRetry}
-          disabled={busy}
-          className={
-            needsTopUp
-              ? 'btn inline-flex w-full items-center justify-center gap-2 border border-default-300 p-3 text-default-700 disabled:opacity-60'
-              : 'btn inline-flex w-full items-center justify-center gap-2 bg-primary p-3 text-white hover:bg-primary-hover disabled:opacity-60'
-          }
-        >
-          {busy ? (
-            // สปินเนอร์ต้องเปลี่ยนสีตามปุ่มด้วย — ขาวบนปุ่มรองพื้นอ่อน = มองไม่เห็นว่ากำลังทำงาน
-            <span
-              className={`inline-block size-4 animate-spin rounded-full border-2 border-t-transparent ${
-                needsTopUp ? 'border-default-400' : 'border-white'
-              }`}
-            />
-          ) : (
-            <Icon icon="tabler:refresh" className="text-base" aria-hidden="true" />
-          )}
-          ลองใหม่
-        </button>
-        {onEditRequest && (
-          <button
-            type="button"
-            onClick={onEditRequest}
-            disabled={busy}
-            className="btn inline-flex w-full items-center justify-center gap-2 border border-default-300 py-2.5 text-default-700 disabled:opacity-60"
-          >
-            <Icon icon="tabler:edit" className="text-base" aria-hidden="true" />
-            แก้ข้อมูลแล้วลองใหม่
-          </button>
-        )}
-      </div>
-    )
-  }
-
-
-  // สถานะจากขนส่งสำคัญกว่าสถานะฝั่งเรา — ถ้ายังไม่มีค่อยใช้ของเรา (เพิ่งสร้าง ขนส่งยังไม่อัปเดต)
-  const badge = shipment.carrierStatus
-    ? describeCarrierStatus(shipment.carrierStatus)
-    : describeShipmentStatus(shipment.status)
-  const badgeText = shipment.carrierStatusText ?? badge.text
-
   const logo = courierLogoUrl(shipment.courierCode, shipment.courierName)
   const courierLabel = shipment.courierName ?? shipment.courierCode ?? 'ขนส่ง'
-  const shownTraces = traces ? (showAllTraces ? traces : traces.slice(0, TRACE_PREVIEW)) : []
   const addressLines = receiver
     ? [
         receiver.line1,
@@ -380,6 +285,218 @@ export default function ShipmentStatusView({
         [receiver.province, receiver.postcode].filter(Boolean).join(' '),
       ].filter((l): l is string => Boolean(l && l.trim()))
     : []
+
+  // ── สร้างไม่สำเร็จ — ไม่แสดง kv/timeline เพราะยังไม่มีพัสดุจริงให้ติดตาม
+  if (shipment.status === 'FAILED') {
+    /**
+     * ปุ่มไหนได้สีทึบ ตัดสินจากชนิดของ error ไม่ใช่ตำแหน่งตายตัว (classifyRetryUX ใน lib/iship/errors.ts)
+     *
+     * เดิมปุ่ม "ลองใหม่" เป็นปุ่มทึบเต็มความกว้างเสมอ ไม่ว่า error นั้นจะกดซ้ำแล้วมีโอกาสผ่านหรือไม่ —
+     * จอจึงเชิญให้ร้านกดสิ่งที่ไม่มีวันสำเร็จ (เคสจริง prod 2026-08-06 กด 3-4 ครั้งติดเพราะเครดิตไม่พอ
+     * และ 2026-08-07 ที่อยู่ไม่ผ่านการตรวจสอบ) การจัดหมวดผิดฝั่ง "ชวนให้กด" แพงกว่าฝั่งตรงข้ามเสมอ
+     *
+     * ปุ่มที่ถูกลดตำแหน่ง **ไม่หายไป** — แค่เป็น outline เพราะ classifyUpstream เตือนตัวเองว่า
+     * การแยกชนิดจากข้อความพลาดได้ ถ้าซ่อนปุ่มแล้วจัดหมวดผิด = ร้านออกจากทางตันไม่ได้เลย
+     */
+    const kind = classifyRetryUX(shipment.lastErrorCode)
+    /**
+     * ปุ่มทึบมีได้ใบเดียวต่อจอ และต้องเป็นใบที่แก้ปัญหาได้จริง — คำนวณเป็นค่าเดียว
+     * ไม่ใช่ boolean แยกใบ เพราะรอบก่อนแยกเป็น `retryIsPrimary` แล้วเคสเครดิตไม่พอหลุด:
+     * retry ถูกลดเป็นปุ่มรองถูกต้อง แต่ "แก้ข้อมูล" ขึ้นเป็นปุ่มทึบเต็มความกว้างแทน
+     * ทั้งที่แก้ที่อยู่ไม่ได้ช่วยอะไรเลยเมื่อเงินไม่พอ (บั๊กเดิมย้ายเจ้าภาพ ไม่ได้หายไป)
+     */
+    const primaryAction: 'retry' | 'edit' | 'topup' =
+      kind === 'balance' ? 'topup' : kind === 'fix-data' && onEditRequest ? 'edit' : 'retry'
+
+    const PRIMARY_TONE = 'bg-primary text-white hover:bg-primary-hover'
+    // ปุ่มรองเป็น ghost ไม่ใช่ outline — outline หน้าตาเหมือนปุ่ม "ปิด" ของเปลือกโมดัลเป๊ะ
+    // แล้วบนมือถือมันวางซ้อนกันในแนวตั้ง = ใบที่เสียเงินได้กับใบที่แค่ปิดจอแยกไม่ออก
+    const GHOST_TONE = 'text-default-700 hover:bg-default-100'
+
+    const spinner = (light: boolean) => (
+      // สปินเนอร์ต้องเปลี่ยนสีตามปุ่มด้วย — ขาวบนปุ่มรองพื้นอ่อน = มองไม่เห็นว่ากำลังทำงาน
+      <span
+        className={`inline-block size-4 animate-spin rounded-full border-2 border-t-transparent ${
+          light ? 'border-white' : 'border-default-400'
+        }`}
+      />
+    )
+
+    const retryButton = (
+      <button
+        type="button"
+        onClick={handleRetry}
+        disabled={busy}
+        className={`btn inline-flex items-center justify-center gap-2 p-3 disabled:opacity-60 @2xl:flex-1 ${
+          primaryAction === 'retry' ? PRIMARY_TONE : GHOST_TONE
+        }`}
+      >
+        {busy ? (
+          spinner(primaryAction === 'retry')
+        ) : (
+          <Icon icon="tabler:refresh" className="text-base" aria-hidden="true" />
+        )}
+        {/* ป้ายต้องเปลี่ยนตอนกำลังทำงาน — ถ้าล้มเหลวซ้ำ ข้อความ error เป็นสตริงเดิม จอจึงนิ่งสนิท
+            และคนอ่านหน้าจอไม่ได้ยินอะไรเลยว่าการกดนั้นเกิดขึ้นจริงและจบไปแล้ว */}
+        {busy ? 'กำลังลองใหม่…' : 'ลองใหม่'}
+      </button>
+    )
+    const editButton = onEditRequest ? (
+      <button
+        type="button"
+        onClick={onEditRequest}
+        disabled={busy}
+        className={`btn inline-flex items-center justify-center gap-2 p-3 disabled:opacity-60 @2xl:flex-1 ${
+          primaryAction === 'edit' ? PRIMARY_TONE : GHOST_TONE
+        }`}
+      >
+        <Icon icon="tabler:edit" className="text-base" aria-hidden="true" />
+        {/* คำนามของงานจริง ไม่ใช่ "ข้อมูล" ลอย ๆ — เคสที่พาเข้ามาหน้านี้คือที่อยู่/ขนส่งไม่ผ่าน */}
+        แก้ที่อยู่หรือขนส่ง
+      </button>
+    ) : null
+
+    return (
+      <div className="@container flex flex-col">
+        {/* บริบทว่า "ใบไหน ของขนส่งไหน ส่งให้ใคร" — เดิมจอนี้มีแต่ข้อความ error ลอย ๆ
+            ใช้โครงเดียวกับหัวเรื่องของสถานะสำเร็จ (โลโก้ size-11 + badge + บรรทัดรอง) */}
+        <section className="border-b-8 border-default-100 p-4">
+          <div className="flex items-start gap-3">
+            {logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logo}
+                // alt ว่างโดยตั้งใจ: ชื่อขนส่งเป็นข้อความอยู่ติดกันแล้ว ใส่ alt ซ้ำ = คนอ่านหน้าจอ
+                // ได้ยินชื่อขนส่งสองรอบ (โลโก้ตรงนี้เป็นภาพประกอบ ไม่ได้แบกข้อมูลเพิ่ม)
+                alt=""
+                className="ring-default-200 size-11 shrink-0 rounded-lg object-contain ring-1"
+              />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg text-sm font-bold"
+              >
+                {courierInitials(shipment.courierName, shipment.courierCode)}
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="mb-0 flex items-center gap-2">
+                <span className="truncate text-base font-bold text-default-900">{courierLabel}</span>
+                <span className={TONE_BADGE.danger}>ไม่สำเร็จ</span>
+              </p>
+              {/* "สร้างเมื่อ" ไม่ใช่ "พยายามเมื่อ": การกดลองใหม่ใช้แถวเดิม (คีย์เดิม) createdAt
+                  จึงเป็นเวลาของครั้งแรกเสมอ ไม่ใช่ครั้งล่าสุด — เขียนตามสิ่งที่ค่านั้นเป็นจริง */}
+              <p className="text-default-700 mb-0 mt-1 text-xs">
+                {[
+                  receiver?.name ? `ส่งถึง ${receiver.name}` : null,
+                  `สร้างเมื่อ ${formatRelativeDayTime(new Date(shipment.createdAt))}`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-3 p-4">
+          {kind === 'balance' ? (
+            <div className="flex gap-3 rounded-lg bg-danger/15 p-4 text-danger-ink" role="alert">
+              <Icon icon="tabler:wallet" className="mt-0.5 size-8 shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                {/* ตัด "— ต้องเติมเงินก่อน" ท้ายหัวข้อออก เพราะปุ่มข้างล่างพูดคำนั้นอยู่แล้ว */}
+                <h4 className="mb-1 text-base font-semibold text-danger-ink">เครดิต iShip ไม่พอ</h4>
+                <p className="mb-2 text-sm">
+                  {shipment.lastErrorMessage ?? 'ยอดเงินในบัญชี iShip ไม่พอสำหรับเปิดพัสดุ'}
+                </p>
+                {/* ที่มาของความสับสนที่เจอจริง: หน้าแรกของ iShip โชว์ยอดรวม แต่ยอดที่เปิดพัสดุได้
+                    ถูกหักด้วย "เครดิตที่ถูกกันไว้" ของพัสดุที่ยังไม่เคลียร์สถานะอยู่ */}
+                <p className="mb-3 text-xs">
+                  ยอดที่เปิดพัสดุได้จริง = เงินคงเหลือ − เครดิตที่ถูกกันไว้ (iShip กันไว้สำรองค่าส่งของพัสดุที่ยังไม่เคลียร์สถานะ)
+                </p>
+                {/* พื้นการ์ดแดงบอกว่า "นี่คือปัญหา" ส่วนปุ่มบอกว่า "นี่คือทางแก้" — ทางแก้ไม่ใช่
+                    การกระทำอันตราย จึงเป็น primary ไม่ใช่ danger (เดิมเป็น bg-danger)
+                    เต็มความกว้าง + p-3: นี่คือปุ่มทึบใบเดียวของจอในเคสนี้ จะเป็น btn-sm สูง 28px
+                    ไม่ได้ (ต่ำกว่าเกณฑ์แตะ 44px และเล็กกว่าปุ่มที่แก้ปัญหาไม่ได้ซึ่งอยู่ข้างล่าง) */}
+                <a
+                  href={ISHIP_TOPUP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn inline-flex w-full items-center justify-center gap-1.5 bg-primary p-3 text-white hover:bg-primary-hover"
+                >
+                  <Icon icon="tabler:external-link" className="text-base" aria-hidden="true" />
+                  เข้าระบบ iShip เพื่อเติมเงิน
+                </a>
+              </div>
+            </div>
+          ) : (
+            <p
+              className="mb-0 flex items-start gap-2 rounded-lg bg-danger/15 px-3 py-2.5 text-sm text-danger-ink"
+              role="alert"
+            >
+              <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+              {/* ห้าม truncate/line-clamp: ข้อความของ REJECTED_BY_CARRIER ต่อรายละเอียดดิบจากขนส่ง
+                  ท้ายประโยค ซึ่งคือ "สิ่งที่ต้องแก้" ตัดทิ้งแล้วร้านจะไม่รู้ว่าต้องแก้อะไร */}
+              <span>
+                {shipment.lastErrorMessage ??
+                  (kind === 'fix-data'
+                    ? 'สร้างพัสดุไม่สำเร็จ ต้องแก้ข้อมูลก่อนลองใหม่'
+                    : 'สร้างพัสดุไม่สำเร็จ กรุณาลองใหม่')}
+              </span>
+            </p>
+          )}
+
+          {/* จอที่บอกว่า "ที่อยู่ไม่ผ่านการตรวจสอบ" ต้องแสดงที่อยู่ให้เห็นตรงนั้น ไม่งั้นร้านต้อง
+              จำข้อความ error ข้ามไปเทียบเองที่ฟอร์ม (recall ไม่ใช่ recognition) — ข้อมูลชุดนี้
+              ถูกส่งเข้ามาแล้ว ไม่ต้องยิง API เพิ่ม และหน้าสถานะสำเร็จก็แสดงบล็อกนี้อยู่แล้ว */}
+          {primaryAction === 'edit' && addressLines.length > 0 && (
+            <div className="rounded-lg border border-default-200 p-3">
+              <p className="text-default-500 mb-1 text-xs">ที่อยู่ที่ส่งไปให้ขนส่งตรวจ</p>
+              <p className="mb-0 text-sm text-default-900">{addressLines.join(' ')}</p>
+            </div>
+          )}
+
+          {/* มือถือ/แผงแชทเรียงตั้ง · จอกว้าง ≥672px เรียงแนวนอน — วัดจากกล่องไม่ใช่ viewport
+              เพราะโมดัลนี้เปิดได้ทั้งในหน้าออเดอร์ (672px) และแผงแชทที่แคบกว่ามากบนจอเดียวกัน
+              (@2xl = breakpoint เดียวกับ PriceCompareSheet ซึ่งเป็นโมดัลพี่น้องในโฟลเดอร์นี้)
+              ปุ่มหลักมาก่อนใน DOM เสมอ — เรียงตามชนิด error แล้วปุ่มจะสลับข้าง/สลับบนล่างทุกครั้ง
+              ที่ error เปลี่ยนชนิด ซึ่งเป็นจอที่ร้านกดซ้ำ ๆ ตำแหน่งจึงต้องนิ่ง */}
+          <div className="flex flex-col gap-2 @2xl:flex-row @2xl:items-stretch">
+            {primaryAction === 'edit' ? (
+              <>
+                {editButton}
+                {retryButton}
+              </>
+            ) : (
+              <>
+                {retryButton}
+                {editButton}
+              </>
+            )}
+          </div>
+
+          {/* เดิมเป็นกล่อง info สีฟ้าเต็มบรรทัด ซึ่งแย่งน้ำหนักกับ error จริงทั้งที่เป็นข้อความคงที่
+              — ลดเป็นคำอธิบายใต้ปุ่ม แล้วผูกกับชนิดของ error ด้วย: ประโยคนี้อยู่ตำแหน่ง "คำพูด
+              สุดท้ายก่อนตัดสินใจ" ถ้าเขียน "กดลองใหม่ได้เรื่อย ๆ" เหมือนกันหมด มันจะกลายเป็นคำเชิญ
+              ให้กดสิ่งที่ไม่มีวันผ่าน ซึ่งคือพฤติกรรมที่งานรอบนี้ตั้งใจจะเลิก */}
+          <p className="mb-0 text-xs text-default-600">
+            {kind === 'balance'
+              ? 'กดลองใหม่ได้หลังเติมเงินแล้ว — ระบบใช้คำสั่งเดิม ไม่เปิดพัสดุซ้อน'
+              : kind === 'fix-data'
+                ? 'กดลองใหม่ตอนนี้จะได้ผลเดิม จนกว่าจะแก้ตามที่ขนส่งแจ้ง'
+                : 'กดซ้ำได้ ระบบใช้คำสั่งเดิมเสมอ ไม่เปิดพัสดุซ้อน'}
+          </p>
+        </section>
+      </div>
+    )
+  }
+
+  // สถานะจากขนส่งสำคัญกว่าสถานะฝั่งเรา — ถ้ายังไม่มีค่อยใช้ของเรา (เพิ่งสร้าง ขนส่งยังไม่อัปเดต)
+  const badge = shipment.carrierStatus
+    ? describeCarrierStatus(shipment.carrierStatus)
+    : describeShipmentStatus(shipment.status)
+  const badgeText = shipment.carrierStatusText ?? badge.text
+
+  const shownTraces = traces ? (showAllTraces ? traces : traces.slice(0, TRACE_PREVIEW)) : []
   const hasReceiver = Boolean(receiver && (receiver.name || receiver.phone || addressLines.length > 0))
   const itemCount = items?.reduce((n, it) => n + it.qty, 0) ?? 0
 

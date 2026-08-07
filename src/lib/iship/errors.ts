@@ -90,6 +90,37 @@ export class IShipError extends Error {
 }
 
 /**
+ * classifyRetryUX — "หน้าจอควรเชียร์ให้ร้านทำอะไรก่อน" เมื่อพัสดุใบนี้ FAILED
+ *
+ * อยู่ไฟล์เดียวกับ IShipError.retryable โดยเจตนา: เกณฑ์ "กดซ้ำแล้วมีโอกาสผ่านไหม" ต้องมี
+ * ที่มาที่เดียว ถ้าปล่อยให้ component ตัดสินเองจะ drift จาก getter ข้างบนทันทีที่มีคนเพิ่ม code ใหม่
+ *
+ * รับ string ไม่ใช่ IShipErrorCode เพราะฝั่งหน้าจออ่านจาก `OrderShipment.lastErrorCode`
+ * ซึ่งเป็นคอลัมน์ String — ค่าที่ไม่รู้จัก (รวม null) ตกเป็น "retry" ตามพฤติกรรมเดิม
+ * ไม่ใช่ไปบล็อกร้าน เพราะ classifyUpstream เตือนตัวเองไว้ว่า keyword matching พลาดได้
+ */
+export type RetryUXKind = "retry" | "fix-data" | "balance";
+
+export function classifyRetryUX(code: string | null | undefined): RetryUXKind {
+  if (code === "INSUFFICIENT_BALANCE") return "balance";
+  // กดกี่ครั้งก็ได้ผลเดิมจนกว่าจะแก้ข้อมูล/แก้การเชื่อมต่อ — allow-list ไม่ใช่ deny-list
+  //
+  // COURIER_UNAVAILABLE อยู่ในนี้ทั้งที่ `retryable` ข้างบนบอกว่า true โดยเจตนา: สองตัวนี้
+  // ตอบคนละคำถาม — `retryable` = "ยิงซ้ำแล้วระบบอาจตอบต่างเดิมไหม" ส่วนตัวนี้ = "ควรเชียร์ให้
+  // ร้านทำอะไรก่อน" และข้อความที่ร้านเห็นสั่งตรง ๆ ว่า "กรุณาเลือกขนส่งเจ้าอื่น" ซึ่งทำได้ที่ฟอร์ม
+  // เท่านั้น การชูปุ่ม "ลองใหม่" ในเคสนี้คือการชวนให้ยิงขนส่งเจ้าเดิมซ้ำสวนคำแนะนำของตัวเอง
+  if (
+    code === "ADDRESS_INVALID" ||
+    code === "REJECTED_BY_CARRIER" ||
+    code === "TOKEN_INVALID" ||
+    code === "COURIER_UNAVAILABLE"
+  ) {
+    return "fix-data";
+  }
+  return "retry";
+}
+
+/**
  * redactToken — ตัด token ออกจากข้อความก่อนเขียน log/DB
  *
  * ข้อควรระวัง: BR-ISHIP-12: token ห้ามโผล่ใน log ทุกกรณี. ข้อความ error จาก fetch/upstream
