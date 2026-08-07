@@ -25,7 +25,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
-import { resolveProductVocab } from '@/lib/seller-menu'
+import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
 import ProductThumb from '../../orders/new/components/ProductThumb'
 
 const formatThb = (n: number) =>
@@ -58,6 +58,9 @@ interface Props {
 
 export default function BestSellerStrip({ products, vertical }: Props) {
   const vocab = resolveProductVocab(vertical ?? 'ONLINE_SALES')
+  // aria-label ของปุ่มพูดถึงปลายทาง (/orders/new) จึงใช้คำฝั่ง order ไม่ใช่คำฝั่งสินค้า —
+  // เดิม hardcode "ออเดอร์ใหม่" ซึ่งเป็นคำที่ไม่มีอยู่ในหน้าจอนี้เลยสำหรับทุก vertical (00030 D-2)
+  const orderNoun = resolveOrderVocab(vertical ?? 'ONLINE_SALES').noun
   const router = useRouter()
   if (!products.length) return null
 
@@ -90,16 +93,26 @@ export default function BestSellerStrip({ products, vertical }: Props) {
               key={p.id}
               type="button"
               onClick={() => router.push(`/orders/new?product=${p.id}`)}
-              aria-label={`${p.name} ${formatThb(p.price)} ${vocab.soldLine(String(p.soldCount))} — เพิ่มลงออเดอร์ใหม่`}
-              className={`${single ? 'w-full' : 'w-28 shrink-0 snap-start'} overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95`}
+              aria-label={`${p.name} ${formatThb(p.price)} ${vocab.soldLine(String(p.soldCount))} — เพิ่มลง${orderNoun}ใหม่`}
+              className={`${single ? 'flex w-full items-center gap-3 p-2.5' : 'w-28 shrink-0 snap-start overflow-hidden'} rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95`}
             >
               {/* ProductThumb: สัดส่วนคุมที่กรอบ ไม่ใช่ที่ <img> (img เป็น replaced element มี intrinsic
                   ratio ของตัวเอง สั่งทับตรง ๆ ไม่มีผล) + มี fallback ตอนรูปโหลดไม่ขึ้น (onError) ซึ่ง
-                  <img> ดิบที่เคยเขียนไว้ตรงนี้ไม่มี — รูปเสียแล้วได้ไอคอนรูปแตกของเบราว์เซอร์ */}
-              <ProductThumb src={p.image} alt={p.name} className="aspect-video w-full" iconClassName="size-8" />
-              <div className="p-2">
-                {/* min-h-8 = จอง 2 บรรทัดของ text-xs เสมอ → ราคาของทุกใบอยู่ระดับเดียวกัน */}
-                <p className="line-clamp-2 min-h-8 text-xs font-medium text-dark">{p.name}</p>
+                  <img> ดิบที่เคยเขียนไว้ตรงนี้ไม่มี — รูปเสียแล้วได้ไอคอนรูปแตกของเบราว์เซอร์
+                  ใบเดียว = รูปกล่องเล็กคงที่ ไม่ใช่ aspect-video: การ์ดกว้างเต็มแถว (430px) คูณ 16:9
+                  ได้กรอบสูง ~240px ซึ่งร้านที่ยังไม่ใส่รูปจะได้กล่องเทาเปล่าที่ใหญ่ที่สุดในหน้าจอ
+                  เพื่อโชว์ข้อความ 3 บรรทัด (user รายงาน 2026-08-07) */}
+              <ProductThumb
+                src={p.image}
+                alt={p.name}
+                icon={vocab.soldIcon}
+                className={single ? 'size-16 shrink-0 rounded-lg' : 'aspect-video w-full'}
+                iconClassName={single ? 'size-7' : 'size-8'}
+              />
+              <div className={single ? 'min-w-0 flex-1' : 'p-2'}>
+                {/* min-h-8 = จอง 2 บรรทัดของ text-xs เสมอ → ราคาของทุกใบอยู่ระดับเดียวกัน
+                    ใบเดียวไม่ต้องจอง (ไม่มีใบข้างเคียงให้เรียงระดับด้วย) และใช้ text-sm ได้เพราะมีที่เหลือ */}
+                <p className={`line-clamp-2 font-medium text-dark ${single ? 'text-sm' : 'min-h-8 text-xs'}`}>{p.name}</p>
                 <p className="mt-0.5 truncate text-sm font-bold text-primary">{formatThb(p.price)}</p>
                 {/* จำนวนสั่งซื้อ (ไม่รวมออเดอร์ที่ยกเลิก) — ลำดับซ้าย→ขวา = ขายดีสุดก่อน */}
                 <p className="mt-1 flex items-center gap-1 truncate text-2xs text-default-400">

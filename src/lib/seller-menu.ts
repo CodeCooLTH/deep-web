@@ -436,6 +436,17 @@ export type ProductVocab = {
   soldIcon: string
   /** ประโยคยอดขายเต็มบรรทัด — รับจำนวนที่ format แล้ว */
   soldLine: (formattedCount: string) => string
+  /** empty state ของบล็อกขายดี (เดสก์ท็อป) — หัวข้อ + บรรทัดบอกเกณฑ์ */
+  emptyTitle: string
+  /**
+   * บรรทัดบอกเกณฑ์ใน empty state — เก็บเป็นประโยคเต็มต่อ vertical ไม่ใช่ต่อ `ORDER_VOCAB.noun` เข้าไป
+   * เพราะประโยคนี้มีทั้งกริยาและตัวเชื่อม ("...ที่มี{X}เข้ามา") ซึ่งอ่านไม่เหมือนกันทุกคำ
+   */
+  emptyHint: string
+  /** หัวคอลัมน์ตารางเดสก์ท็อป — ชื่อสิ่งของ / จำนวน / ยอดเงินรวมของจำนวนนั้น */
+  itemColLabel: string
+  countColLabel: string
+  amountColLabel: string
 }
 
 export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
@@ -444,6 +455,11 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     viewAllLabel: 'ดูสินค้าทั้งหมด',
     soldIcon: 'package',
     soldLine: (n) => `สั่งซื้อแล้ว ${n} ชิ้น`,
+    emptyTitle: 'ยังไม่มีสินค้าขายดี',
+    emptyHint: 'อันดับจะขึ้นทันทีที่มีคำสั่งซื้อเข้ามา ไม่ต้องรอยืนยัน',
+    itemColLabel: 'สินค้า',
+    countColLabel: 'สั่งซื้อ',
+    amountColLabel: 'ยอดสั่งซื้อ',
   },
   SERVICE_QUEUE: {
     // "ขายดี" ใช้กับงานบริการแล้วฟังเป็นของที่ขายเป็นชิ้น — "ยอดนิยม" ตรงกว่า
@@ -452,12 +468,22 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     soldIcon: 'tool',
     // หน่วยเป็น "ครั้ง" ไม่ใช่ "ชิ้น" — งานบริการนับเป็นครั้งที่เข้ารับ
     soldLine: (n) => `ใช้บริการแล้ว ${n} ครั้ง`,
+    emptyTitle: 'ยังไม่มีบริการยอดนิยม',
+    emptyHint: 'อันดับจะขึ้นทันทีที่มีการเข้ารับบริการเข้ามา ไม่ต้องรอยืนยัน',
+    itemColLabel: 'บริการ',
+    countColLabel: 'ใช้บริการ',
+    amountColLabel: 'ยอดใช้บริการ',
   },
   LODGING: {
     bestSellerTitle: 'ห้องพักยอดนิยม',
     viewAllLabel: 'ดูห้องพักทั้งหมด',
     soldIcon: 'bed',
     soldLine: (n) => `เข้าพักแล้ว ${n} ครั้ง`,
+    emptyTitle: 'ยังไม่มีห้องพักยอดนิยม',
+    emptyHint: 'อันดับจะขึ้นทันทีที่มีบิลเข้าพักเข้ามา ไม่ต้องรอยืนยัน',
+    itemColLabel: 'ห้องพัก',
+    countColLabel: 'เข้าพัก',
+    amountColLabel: 'ยอดเข้าพัก',
   },
 }
 

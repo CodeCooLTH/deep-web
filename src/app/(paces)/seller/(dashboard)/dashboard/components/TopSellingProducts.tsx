@@ -16,6 +16,8 @@
 
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
+import { resolveProductVocab } from '@/lib/seller-menu'
+import ProductThumb from '../../orders/new/components/ProductThumb'
 
 const formatThb = (n: number) =>
   new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
@@ -31,20 +33,30 @@ export interface BestSellerProduct {
 
 type Props = {
   products: BestSellerProduct[]
+  /**
+   * ประเภทกิจการของร้าน — resolve คำที่นี่ ไม่ใช่รับ ProductVocab สำเร็จรูปมา
+   *
+   * component นี้เป็น RSC จึงส่ง object ที่มีฟังก์ชันได้จริง แต่ยึดรูปแบบเดียวกับ BestSellerStrip
+   * (client) ไว้ เพื่อไม่ให้วันหนึ่งมีคนเติม 'use client' ที่ไฟล์นี้แล้วทั้งหน้าล้มเงียบ ๆ —
+   * เคสจริงที่เกิดกับ BestSellerStrip บน prod 2026-08-07
+   */
+  vertical?: string
 }
 
-const TopSellingProducts = ({ products }: Props) => {
+const TopSellingProducts = ({ products, vertical }: Props) => {
+  const vocab = resolveProductVocab(vertical ?? 'ONLINE_SALES')
+
   return (
     <div className="card h-full">
       <div className="card-header">
         <div className="flex items-center gap-2">
-          <h4 className="card-title">สินค้าขายดี</h4>
+          <h4 className="card-title">{vocab.bestSellerTitle}</h4>
           {/* ป้ายช่วงเวลาแบบเดียวกับโดนัท/แผนที่ — การ์ดนี้เป็นยอดสะสมตลอดชีพ ไม่ตาม filter
               วันนี้/เดือนนี้ ของหน้า ถ้าไม่บอก ผู้ใช้ที่เพิ่งกด "วันนี้" จะอ่าน soldCount เป็นยอดวันนี้ */}
           <span className="badge bg-default-100 text-default-700 text-xs">ตลอดชีพ</span>
         </div>
         <Link href="/products" className="text-primary text-sm">
-          ดูสินค้าทั้งหมด ›
+          {vocab.viewAllLabel} ›
         </Link>
       </div>
 
@@ -53,10 +65,10 @@ const TopSellingProducts = ({ products }: Props) => {
           // ร้านใหม่/ยังไม่มีคำสั่งซื้อเข้ามาเลย — บอกเกณฑ์ให้ชัดว่าทำไมยังว่าง ไม่ใช่แค่ "ไม่มีข้อมูล"
           <div className="flex flex-col items-center justify-center gap-2 py-10 px-4 text-center">
             <span className="flex items-center justify-center rounded-full bg-default-100 text-default-400 size-12">
-              <Icon icon="package" className="text-2xl" />
+              <Icon icon={vocab.soldIcon} className="text-2xl" />
             </span>
-            <p className="text-sm font-semibold">ยังไม่มีสินค้าขายดี</p>
-            <p className="text-xs text-default-500">อันดับจะขึ้นทันทีที่มีคำสั่งซื้อเข้ามา ไม่ต้องรอยืนยัน</p>
+            <p className="text-sm font-semibold">{vocab.emptyTitle}</p>
+            <p className="text-xs text-default-500">{vocab.emptyHint}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -66,7 +78,7 @@ const TopSellingProducts = ({ products }: Props) => {
                   {/* "สั่งซื้อ"/"ยอดสั่งซื้อ" นับ PENDING+SHIPPED+CONFIRMED (ไม่รวม CANCELLED) — ต่างจาก
                       "รายได้" ใน KPI card/SalesReport/expenses ที่นับเฉพาะ CONFIRMED เท่านั้น ห้ามเปลี่ยน
                       กลับเป็น "รายได้"/"ขายแล้ว" ที่นี่ (ดูเหตุผลที่ product.service.ts getBestSellerProducts) */}
-                  {['สินค้า', 'ราคา', 'สั่งซื้อ', 'ยอดสั่งซื้อ'].map((h, i) => (
+                  {[vocab.itemColLabel, 'ราคา', vocab.countColLabel, vocab.amountColLabel].map((h, i) => (
                     <th
                       key={h}
                       className={`text-default-500 px-4 py-3 text-sm font-medium ${i === 0 ? 'text-start' : 'text-end'}`}
@@ -81,18 +93,17 @@ const TopSellingProducts = ({ products }: Props) => {
                   <tr key={p.id}>
                     <td className="px-4 py-3">
                       <Link href={`/orders/new?product=${p.id}`} className="flex items-center gap-3 group">
-                        {p.image ? (
-                          // กรอบเป็นตัวคุมสัดส่วน ไม่ใช่ <img> — img มี intrinsic ratio ของตัวเอง
-                          // สั่งสัดส่วนที่ตัวมันตรง ๆ ไม่มีผล (บทเรียนเดียวกับ BestSellerStrip)
-                          <span className="relative block size-10 shrink-0 overflow-hidden rounded bg-default-100">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={p.image} alt={p.name} className="absolute inset-0 size-full object-cover" />
-                          </span>
-                        ) : (
-                          <span className="flex size-10 shrink-0 items-center justify-center rounded bg-default-100 text-default-300">
-                            <Icon icon="package" className="text-lg" />
-                          </span>
-                        )}
+                        {/* ใช้ ProductThumb ตัวเดียวกับมือถือ (2026-08-07) แทนแท็กรูปดิบ + สาขา
+                            placeholder ที่เขียนเองซ้ำ: ของเดิมไม่มี onError เลย รูปที่โหลดไม่ขึ้น
+                            จึงได้ไอคอนรูปแตกของเบราว์เซอร์ ขณะที่มือถือตกลงไปที่ไอคอนสวย ๆ
+                            และไอคอนสำรองยังผันตามประเภทร้านให้ด้วย (ร้านบริการไม่ควรได้กล่องพัสดุ) */}
+                        <ProductThumb
+                          src={p.image}
+                          alt={p.name}
+                          icon={vocab.soldIcon}
+                          className="size-10 shrink-0 rounded"
+                          iconClassName="text-lg"
+                        />
                         <span className="line-clamp-2 text-sm font-medium group-hover:text-primary transition-colors">
                           {p.name}
                         </span>

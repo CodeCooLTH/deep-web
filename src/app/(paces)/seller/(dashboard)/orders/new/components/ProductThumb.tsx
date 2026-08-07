@@ -15,9 +15,14 @@ interface Props {
   /** utility ขนาด/รูปทรง เช่น 'size-11 rounded-lg' | 'aspect-square w-full' */
   className: string
   iconClassName?: string
+  /**
+   * ไอคอนสำรองเมื่อไม่มีรูป — default 'package' (กล่องพัสดุ) ซึ่งถูกสำหรับร้านขายของ
+   * แต่ร้านบริการ/บ้านพักไม่ได้ส่งของ ให้ส่งไอคอนของ vertical นั้นมาแทน (PRODUCT_VOCAB.soldIcon)
+   */
+  icon?: string
 }
 
-const ProductThumb = ({ src, alt = '', className, iconClassName = 'size-1/2' }: Props) => {
+const ProductThumb = ({ src, alt = '', className, iconClassName = 'size-1/2', icon = 'package' }: Props) => {
   const [failed, setFailed] = useState(false)
 
   if (src && !failed) {
@@ -29,7 +34,7 @@ const ProductThumb = ({ src, alt = '', className, iconClassName = 'size-1/2' }: 
 
   return (
     <span className={`${className} bg-default-100 text-default-400 inline-flex items-center justify-center shrink-0`}>
-      <Icon icon="package" className={iconClassName} />
+      <Icon icon={icon} className={iconClassName} />
     </span>
   )
 }

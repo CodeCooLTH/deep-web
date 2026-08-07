@@ -565,13 +565,21 @@ export default async function SellerDashboardPage() {
             เดิมชุดนี้เป็น lg:hidden ทำให้เดสก์ท็อปไม่มีทางเข้าตัวกรองสถานะพัสดุเลย ต้องพิมพ์ ?stage= เอง
             อยู่แถวนี้เพราะเป็น "งานค้างวันนี้" — ต้องอยู่เหนือกราฟที่เป็นข้อมูลย้อนหลัง */}
         <div className="mb-base">
-          <OrderStatusBand counts={orderStatusCounts} shipping={shippingStageCounts} />
+          {/* prop ชุดเดียวกับมือถือทุกตัว — จอเดียวกันคนละ breakpoint ต้องพูดคำเดียวกัน
+              (2026-08-07: เดิมบล็อกนี้ไม่ได้รับ orderNoun/appointmentToday จึงยังเขียน
+              "คำสั่งซื้อ"/"กำลังจัดส่ง" ให้ร้านบริการอยู่ ขณะที่มือถือเปลี่ยนไปแล้ว) */}
+          <OrderStatusBand
+            counts={orderStatusCounts}
+            shipping={shippingStageCounts}
+            appointmentToday={appointmentTodayCount}
+            orderNoun={orderNoun}
+          />
         </div>
 
         {/* แถว 3: SalesReport | สินค้าขายดี — ครึ่งต่อครึ่ง (theme วางคู่กันแบบนี้เหมือนกัน) */}
         <div className="grid xl:grid-cols-2 grid-cols-1 gap-base mb-base">
           <SalesReport series={salesSeries} summary={salesSummary} />
-          <TopSellingProducts products={bestSellers} />
+          <TopSellingProducts products={bestSellers} vertical={shopVertical} />
         </div>
 
         {/* แถว 4: ออเดอร์ล่าสุด (5) | กิจกรรมล่าสุด (7)
