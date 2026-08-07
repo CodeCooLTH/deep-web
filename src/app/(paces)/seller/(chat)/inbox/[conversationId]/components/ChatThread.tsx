@@ -758,7 +758,14 @@ export default function ChatThread({
   // แตะการ์ดคำสั่งซื้อในแชท → เปิดโมดัลแก้ไข (user 2026-07-25: เหมือนแตะการ์ดใน right panel)
   const { openDraft, vocab } = useDraftOrders()
   const openEditOrder = (token: string) =>
-    openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar, editOrderToken: token })
+    openDraft({
+      conversationId,
+      customerName: buyerName,
+      channel,
+      customerAvatar: buyerAvatar,
+      pageAvatarUrl: channelAvatarUrl,
+      editOrderToken: token,
+    })
   /**
    * สร้างออเดอร์จากในแชทได้ในแตะเดียว (user สั่ง 2026-08-04 "อยากให้กดสร้าง order ใน chat ไว ๆ")
    *
@@ -767,7 +774,7 @@ export default function ChatThread({
    * payload เดียวกับ CTA ในแผงลูกค้าเป๊ะ — เปิดโมดัลพับได้ ไม่ navigate ออกจากแชท
    */
   const startCreateOrder = () =>
-    openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar })
+    openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar, pageAvatarUrl: channelAvatarUrl })
   const [sheetOpen, setSheetOpen] = useState(false)
   // user request 2026-07-25 — กดไอคอนตะกร้าใน inbox (?panel=orders) บนจอเล็ก (<1024px) → เด้ง sheet
   // ข้อมูลลูกค้า (แท็บออเดอร์เปิดเองใน CustomerPanelBody). เดสก์ท็อปมี panel persistent ไม่ต้องเปิด sheet
@@ -985,6 +992,7 @@ export default function ChatThread({
             customerName: buyerName,
             channel,
             customerAvatar: buyerAvatar,
+            pageAvatarUrl: channelAvatarUrl,
             prefillText: m.body!,
             // feature 00033 — เวลาของข้อความนี้ ใช้เป็นวันที่สั่งซื้อ (ตัดสินอยู่ในหน้าต่าง/เก่าเกินที่ DraftOrderProvider)
             messageCreatedAt: new Date(m.createdAt).toISOString(),
@@ -1477,6 +1485,7 @@ export default function ChatThread({
           customerName={buyerName}
           channel={channel}
           customerAvatar={buyerAvatar}
+          pageAvatarUrl={channelAvatarUrl}
         />
       )}
 
@@ -1815,6 +1824,7 @@ export default function ChatThread({
                               customerName: buyerName,
                               channel,
                               customerAvatar: buyerAvatar,
+                              pageAvatarUrl: channelAvatarUrl,
                               prefillText: m.body!,
                               // feature 00033 — เวลาของข้อความนี้ ใช้เป็นวันที่สั่งซื้อ
                               messageCreatedAt: new Date(m.createdAt).toISOString(),

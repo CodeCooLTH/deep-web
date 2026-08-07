@@ -377,6 +377,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     avatar: buyerAvatar, // user report 2026-07-24: right panel ไม่มีรูป — ส่งชุดเดียวกับ ChatThread header
     channel: conversation.channel,
     channelName,
+    channelAvatarUrl,
     vertical,
     customer: linkedCustomer ? { id: linkedCustomer.id, phoneMasked: maskPhone(linkedCustomer.phone) } : null,
     customerStats,

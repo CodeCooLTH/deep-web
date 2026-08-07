@@ -47,6 +47,12 @@ export type OpenDraftInput = {
   channel: Channel
   /** รูปโปรไฟล์ลูกค้า (http URL หรือ storage fileId) — โชว์ใน chip ตอนพับ (user request 2026-07-24) */
   customerAvatar?: string | null
+  /**
+   * รูปเพจที่เธรดนี้ผูกอยู่ (ShopChannel.avatarUrl) — user สั่ง 2026-08-07: "ถ้า page มี logo
+   * ให้ใช้ logo page แทน" กติกาเดียวกับ badge ในรายการแชท/หัวเธรดที่ทำไว้ตั้งแต่ 2026-07-23
+   * (ร้านหลายเพจแยกออกทันทีว่าร่างใบนี้เป็นของเพจไหน) ไม่ส่ง/โหลดไม่ขึ้น → ถอยไปโลโก้ช่องทางเอง
+   */
+  pageAvatarUrl?: string | null
   /** แก้ไขคำสั่งซื้อเดิม (user 2026-07-25) — มีค่า = โหลด order นี้เข้าฟอร์ม + submit PATCH; ไม่มี = สร้างใหม่ */
   editOrderToken?: string | null
   /** default 'ORDER' — 'SHIPMENT' ต้องมี shipmentOrderToken ด้วย */
@@ -79,6 +85,8 @@ type ChatDraft = {
   customerName: string
   customerAvatar: string | null
   channel: string
+  /** รูปเพจที่เธรดนี้ผูกอยู่ (ShopChannel.avatarUrl) — badge มุม avatar ใช้แทนโลโก้ช่องทาง */
+  pageAvatarUrl: string | null
   editOrderToken: string | null // null = สร้างใหม่; มีค่า = แก้ไขออเดอร์นั้น
   shipmentOrderToken: string | null
   /** ข้อความที่จะให้ฟอร์มกระจายตอน mount (null = ไม่มี) */
@@ -103,20 +111,47 @@ function draftTitle(d: Pick<ChatDraft, 'kind' | 'editOrderToken'>, vocab: OrderV
 }
 
 /** avatar เล็กของลูกค้า + ไอคอนช่องทาง (chip/หัวโมดัล) — src เดียวกับ ChatAvatar (http URL / fileId / initials) */
-function DraftAvatar({ avatar, name, channel }: { avatar: string | null; name: string; channel: string }) {
+function DraftAvatar({
+  avatar,
+  name,
+  channel,
+  pageAvatarUrl,
+  onSolid = false,
+}: {
+  avatar: string | null
+  name: string
+  channel: string
+  pageAvatarUrl: string | null
+  /**
+   * avatar ตัวนี้วางอยู่บนพื้น bg-primary ทึบ (แถบหัวหน้าต่าง) ไม่ใช่พื้นการ์ด
+   *
+   * สำคัญเฉพาะตอน fallback เป็นตัวอักษรย่อ ซึ่งเกิดจริงบ่อยกับ Messenger (Meta ไม่ให้
+   * profile_pic จนกว่าจะผ่าน App Review) — หมึกสีน้ำเงินบนพื้นน้ำเงินทึบแทบมองไม่เห็น
+   * บนพื้นทึบจึงใช้คู่ขาวโปร่ง ชุดเดียวกับปุ่มย่อ/ปิดในแถบเดียวกัน (hover:bg-white/15)
+   */
+  onSolid?: boolean
+}) {
   const [failed, setFailed] = useState(false)
   const src = avatar ? (avatar.startsWith('http') ? avatar : `/api/files/${avatar}`) : null
   return (
     <span className="relative shrink-0">
       {!src || failed ? (
-        <span className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-full text-xs font-semibold">
+        <span
+          className={`flex size-9 items-center justify-center rounded-full text-xs font-semibold ${
+            onSolid ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary-ink'
+          }`}
+        >
           {generateInitials(name) || '?'}
         </span>
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={name} className="bg-default-100 size-9 rounded-full object-cover" onError={() => setFailed(true)} />
       )}
-      {channel !== 'DEEP' && <ChannelBadgeOverlay channel={channel} size="sm" />}
+      {/* รูปเพจก่อน โลโก้ช่องทางเป็นตัวสำรอง — ChannelBadgeOverlay ถอยเองเมื่อ URL ของ Meta หมดอายุ
+          ไม่ส่ง size = md (size-4) ตัวเดียวกับ InboxList/CustomerPanel: ขนาด badge ที่นี่เคยเป็น sm
+          ซึ่ง "เกือบเหมือนแต่ไม่เท่า" พี่น้อง และรูปเพจต้องดูออกว่าเป็นเพจไหนตั้งแต่ขนาดเล็ก
+          (avatar ที่นี่เล็กกว่ารายการแชท size-9 vs size-10 เพราะเป็นชิป/แถบหัวหน้าต่างที่แคบกว่า) */}
+      {channel !== 'DEEP' && <ChannelBadgeOverlay channel={channel} imageUrl={pageAvatarUrl} />}
     </span>
   )
 }
@@ -231,6 +266,7 @@ export default function DraftOrderProvider({
         conversationId: input.conversationId,
         customerName: input.customerName,
         customerAvatar: input.customerAvatar ?? null,
+        pageAvatarUrl: input.pageAvatarUrl ?? null,
         channel: input.channel,
         editOrderToken: editToken,
         shipmentOrderToken: shipmentToken,
@@ -364,7 +400,7 @@ export default function DraftOrderProvider({
         >
           {/* title-bar สีทึบ (ไม่ใช่ .card-header ขาว+dashed มาตรฐาน — เป็นแถบหัวหน้าต่าง action) */}
           <div className="bg-primary flex items-center gap-3 px-4 py-3 text-white">
-            <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
+            <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} pageAvatarUrl={d.pageAvatarUrl} onSolid />
             <div className="min-w-0 flex-1">
               <p className="mb-0 truncate text-sm font-semibold">
                 {draftTitle(d, vocab)} · {d.customerName}
@@ -447,27 +483,41 @@ export default function DraftOrderProvider({
           {minimized.map((d) => {
             // chip ของ "แชทที่กำลังเปิดอยู่" ต้องแยกออกจากตัวอื่นให้เห็น (user request 2026-08-07):
             // ย่อหลายใบแล้ว chip เรียงกันหน้าตาเหมือนกันหมด ตาไม่รู้ว่าใบไหนของห้องที่อ่านอยู่
-            // ขอบ primary + ป้าย "แชทนี้" — ป้ายเป็นตัวหนังสือ ไม่ใช่แค่สี เพราะสีอย่างเดียว
-            // ไม่ผ่านสำหรับคนตาบอดสี และ chip ตัวอื่นก็มีขอบเทาอยู่แล้ว (ต่างกันแค่เฉด)
+            //
+            // ป้าย "แชทนี้" ถูกถอดออกตามที่ user สั่ง (2026-08-07 รอบสอง) — ชิปสั้น ๆ มีป้ายต่อท้าย
+            // แล้วชื่อลูกค้าโดนบีบจนอ่านไม่ออก เปลี่ยนเป็นพื้นหลัง primary/15 ทั้งใบแทน
+            // ซึ่งเห็นชัดกว่าตอนกวาดตาผ่าน dock (ต่างกันทั้งใบ ไม่ใช่ต่างที่ขอบเส้นเดียว)
+            // aria-current แทนตัวหนังสือที่หายไป — screen reader ยังบอกได้ว่าใบไหนคือห้องที่เปิดอยู่
             const here = d.conversationId === currentConversationId
             return (
             <div
               key={d.id}
-              className={`bg-card pointer-events-auto flex items-center gap-2 rounded-full border py-2 ps-3 pe-2 shadow-lg ${
-                here ? 'border-primary ring-primary/25 ring-2' : 'border-default-300'
+              className={`pointer-events-auto flex items-center gap-2 rounded-full border py-2 ps-3 pe-2 shadow-lg ${
+                here ? 'bg-primary/15 border-primary ring-primary/25 ring-2' : 'bg-card border-default-300'
               }`}
             >
-              <button type="button" onClick={() => expand(d.id)} className="flex min-w-0 items-center gap-2">
-                <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
+              <button
+                type="button"
+                // กดชิปแล้วพาไปห้องแชทของร่างนั้นด้วย (user request 2026-08-07)
+                //
+                // ไม่ใช่แค่ความสะดวก: การย่ออัตโนมัติด้านบนทำงานตอน "เปลี่ยนห้อง" เท่านั้น ถ้าขยายชิป
+                // ของลูกค้า A ทิ้งไว้ขณะยืนอยู่ในห้องของ B หน้าต่างจะค้างเปิดคร่อมเธรดผิดคนได้เลย
+                // (deps ของ effect ไม่เปลี่ยน จึงไม่มีใครย่อให้) — อาการเดียวกับที่ effect นั้นตั้งใจกัน
+                // คือปุ่มในหน้าต่างส่งข้อความเข้าห้อง A ขณะตาอ่านบทสนทนาของ B
+                //
+                // เช็ค here ก่อน: อยู่ห้องเดียวกันอยู่แล้วการ push ซ้ำมีแต่จะทำให้เธรดโหลดใหม่เปล่า ๆ
+                onClick={() => {
+                  expand(d.id)
+                  if (!here) router.push(`/inbox/${d.conversationId}`)
+                }}
+                aria-current={here ? 'true' : undefined}
+                className="flex min-w-0 items-center gap-2"
+              >
+                <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} pageAvatarUrl={d.pageAvatarUrl} />
                 <span className="flex min-w-0 flex-col text-start">
                   <span className="text-default-700 text-2xs">{draftTitle(d, vocab)}</span>
                   <span className="text-default-800 truncate text-sm font-medium">{d.customerName}</span>
                 </span>
-                {here && (
-                  <span className="bg-primary/15 text-primary-ink text-2xs shrink-0 rounded-full px-2 py-0.5 font-semibold">
-                    แชทนี้
-                  </span>
-                )}
               </button>
               <button
                 type="button"

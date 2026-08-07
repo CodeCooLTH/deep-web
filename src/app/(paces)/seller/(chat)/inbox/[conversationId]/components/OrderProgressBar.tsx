@@ -28,12 +28,15 @@ export default function OrderProgressBar({
   customerName,
   channel,
   customerAvatar,
+  pageAvatarUrl,
 }: {
   orders: CustomerPanelOrder[]
   conversationId: string
   customerName: string
   channel: string
   customerAvatar: string | null
+  /** รูปเพจของเธรด — badge มุม avatar ในหน้าต่าง/ชิปที่ย่อไว้ (user สั่ง 2026-08-07) */
+  pageAvatarUrl: string | null
 }) {
   const [open, setOpen] = useState(false)
   const { openDraft } = useDraftOrders()
@@ -55,6 +58,7 @@ export default function OrderProgressBar({
       customerName,
       channel,
       customerAvatar,
+      pageAvatarUrl,
       kind: 'SHIPMENT',
       shipmentOrderToken: token,
     })

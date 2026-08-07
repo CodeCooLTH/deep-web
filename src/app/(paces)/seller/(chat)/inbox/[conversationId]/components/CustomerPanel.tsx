@@ -92,6 +92,9 @@ export type CustomerPanelData = {
   channel: string // 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
   /** ชื่อเพจที่เธรดผูกอยู่ — badge แสดงชื่อเพจแทนชื่อช่องทาง (ให้ตรงกับ header เธรด) null = Deep */
   channelName: string | null
+  /** รูปเพจที่เธรดผูกอยู่ (ShopChannel.avatarUrl) — badge มุม avatar ของหน้าต่างร่าง/ชิปที่ย่อไว้
+   *  (user สั่ง 2026-08-07 "ถ้า page มี logo ให้ใช้ logo page แทน") null = Deep/เพจไม่มีรูป */
+  channelAvatarUrl: string | null
   vertical: ShopVertical
   /** null = ยังไม่ผูก Customer — phoneMasked ผ่าน maskPhone() มาแล้วเสมอ (ห้ามส่งเบอร์เต็ม) */
   customer: { id: string; phoneMasked: string } | null
@@ -202,6 +205,7 @@ function OrderCard({
   contactName,
   channel,
   customerAvatar,
+  pageAvatarUrl,
   vertical,
   onCancelled,
 }: {
@@ -210,6 +214,7 @@ function OrderCard({
   contactName: string
   channel: string
   customerAvatar: string | null
+  pageAvatarUrl: string | null
   vertical: ShopVertical
   /** แจ้ง OrdersList อัปเดต status ใน local state — ไม่ router.refresh() เพราะจะรบกวน
    *  scroll/​state ของห้องแชทที่เปิดค้างอยู่ (pattern เดียวกับ CRM section ในไฟล์นี้) */
@@ -283,6 +288,7 @@ function OrderCard({
       customerName: contactName,
       channel,
       customerAvatar,
+      pageAvatarUrl,
       kind: 'SHIPMENT',
       shipmentOrderToken: o.token,
     })
@@ -290,7 +296,7 @@ function OrderCard({
 
   // แตะการ์ด → เปิดโมดัลแก้ไขคำสั่งซื้อ (user 2026-07-25: ไม่เปิด tab ใหม่ ให้แก้ในโมดัลเดิม ไม่ต้องสลับจอ)
   function openEdit() {
-    openDraft({ conversationId, customerName: contactName, channel, customerAvatar, editOrderToken: o.token })
+    openDraft({ conversationId, customerName: contactName, channel, customerAvatar, pageAvatarUrl, editOrderToken: o.token })
   }
 
   async function sendToChat(e: React.MouseEvent) {
@@ -415,6 +421,7 @@ function OrdersList({
   contactName,
   channel,
   customerAvatar,
+  pageAvatarUrl,
   vertical,
 }: {
   conversationId: string
@@ -422,6 +429,7 @@ function OrdersList({
   contactName: string
   channel: string
   customerAvatar: string | null
+  pageAvatarUrl: string | null
   vertical: ShopVertical
 }) {
   const [orders, setOrders] = useState<CustomerPanelOrder[]>(initial)
@@ -465,7 +473,7 @@ function OrdersList({
   return (
     <div className="space-y-2">
       {orders.map((o) => (
-        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} vertical={vertical} onCancelled={markCancelled} />
+        <OrderCard key={o.id} o={o} conversationId={conversationId} contactName={contactName} channel={channel} customerAvatar={customerAvatar} pageAvatarUrl={pageAvatarUrl} vertical={vertical} onCancelled={markCancelled} />
       ))}
       {cursor && (
         <div ref={sentinelRef} className="flex items-center justify-center gap-2 py-3">
@@ -504,6 +512,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
       customerName: data.contactName,
       channel: data.channel,
       customerAvatar: data.avatar,
+      pageAvatarUrl: data.channelAvatarUrl,
     })
   // orderHref ย้ายไป module-level (ใช้ใน OrderCard) — CustomerPanelBody ไม่อ้างตรง ๆ แล้ว
   const uid = useId() // prefix id ของ tab/panel — desktop panel กับ sheet มือถืออยู่ใน DOM พร้อมกันได้
@@ -740,7 +749,7 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           data.orders.length === 0 ? (
             <p className="text-default-700 mb-0 text-sm">{cta.emptyLabel}</p>
           ) : (
-            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} vertical={data.vertical} />
+            <OrdersList conversationId={data.conversationId} initial={data.orders} contactName={data.contactName} channel={data.channel} customerAvatar={data.avatar} pageAvatarUrl={data.channelAvatarUrl} vertical={data.vertical} />
           )
         ) : (
           <p className="text-default-700 mb-0 text-sm">
