@@ -61,11 +61,58 @@ Content-Type: application/json
 
 ---
 
+## 2b. `PATCH /api/orders/{token}/appointment` (รอบ 2 — user สั่ง 2026-08-07)
+
+**สถานะก่อนงานนี้:** เหมือน `outcome` ทุกประการ — endpoint รองรับการเลื่อนนัดมาตั้งแต่ 00024 และ **ลูกค้ากด "ขอเลื่อน" ได้จริง** จากหน้า `/o/{token}` แต่ไม่มี UI ฝั่งร้านเรียกมันเลย สถานะ `RESCHEDULE_REQUESTED` จึงเป็นทางตัน: ลูกค้าขอมาแล้วผู้ขายตอบไม่ได้
+
+**ผู้เรียกใหม่:** `orders/[token]/components/RescheduleAppointmentSheet.tsx`
+
+### Request
+
+```http
+PATCH /api/orders/{publicToken}/appointment
+Content-Type: application/json
+
+{
+  "resourceId": "<cuid>",        // บังคับ — เปลี่ยนคิวงานพร้อมกับเลื่อนเวลาได้
+  "start": "2026-08-09T09:00:00+07:00",
+  "end":   "2026-08-09T10:30:00+07:00",
+  "reason": "ลูกค้าขอเลื่อน"      // ไม่บังคับ ≤500 ตัวอักษร
+}
+```
+
+- validation: `SetAppointmentSchema` · auth: `requireShopMember()`
+- นัดทั้งวันส่ง `00:00` ถึง `00:00` ของวันถัดไป — ตรงกับนิยามที่ `isAllDayAppointment()` ใช้ตัดสิน (ส่ง `23:59` แล้วนัดจะเลิกเป็น "ทั้งวัน" เงียบ ๆ)
+
+### Response
+
+| status | error | ข้อความที่ UI แสดง | UI ทำอะไรต่อ |
+|--------|-------|-------------------|-------------|
+| 200 | — | "เลื่อนนัดแล้ว · ลูกค้าต้องยืนยันนัดใหม่อีกครั้ง" | ปิดแผง + `router.refresh()` |
+| 409 | `APPOINTMENT_SLOT_FULL` | `{message} — เลือกเวลาอื่นหรือคิวงานอื่น` | เปิดแผงค้างให้แก้ต่อ |
+| 409 | `APPOINTMENT_TERMINAL` | "นัดนี้ถูกปิดผลไปแล้ว จึงเลื่อนไม่ได้" | **ปิดแผง + refresh** (แผงไม่มีประโยชน์อีก) |
+| 409 | `RESOURCE_INACTIVE` | "คิวงานนี้ถูกปิดใช้งานแล้ว — เลือกคิวงานอื่น" | เปิดแผงค้าง |
+| 404 | `RESOURCE_NOT_FOUND` | "ไม่พบคิวงานนี้แล้ว — เลือกคิวงานอื่น" | เปิดแผงค้าง |
+| 404 | `APPOINTMENT_NOT_FOUND` | "ไม่พบนัดนี้แล้ว — รีเฟรชหน้าเพื่อดูข้อมูลล่าสุด" | เปิดแผงค้าง |
+| 400 | `INVALID_APPOINTMENT_RANGE` | ใช้ `message` จาก server ตรง ๆ | เปิดแผงค้าง |
+
+🛑 **`APPOINTMENT_PAST` ไม่ถูกโยนจาก endpoint นี้** — ตรวจ `setOrRescheduleAppointment` แล้วไม่มีการเช็คว่าเวลาที่เลื่อนไปเป็นอดีตหรือไม่เลย error class ตัวนั้นมาจาก `requestAppointmentReschedule` ซึ่งเป็น endpoint **ฝั่งลูกค้า** คนละเส้น — ดังนั้นปุ่มเลื่อนนัดฝั่งร้าน**ไม่ผูกกับ `notStarted`** (ต่างจากปุ่มปิดผล) ถ้าธุรกิจอยากห้ามเลื่อนไปอดีต ต้องเพิ่ม guard ที่ service ก่อน ไม่ใช่กันที่ UI
+
+**ผลข้างเคียงที่ต้องบอกผู้ใช้:** `setOrRescheduleAppointment` ล้าง `buyerConfirmedAt` เป็น null ทุกครั้งที่เลื่อนนัดที่มีอยู่แล้ว → ป้ายถอยกลับจาก "ลูกค้ายืนยันแล้ว" เป็น "นัดแล้ว" ถ้าไม่เขียนบอกใน toast ผู้ขายจะอ่านว่าระบบพัง
+
+### Endpoint ที่แผงนี้เรียกอ่านเพิ่ม
+
+| endpoint | ใช้ทำอะไร |
+|----------|----------|
+| `GET /api/shops/current/service-resources?activeOnly=1` | รายชื่อคิวงานให้เลือก (โหลดล้ม → toast error เพราะเลือกไม่ได้ = บันทึกไม่ได้อยู่ดี) |
+| `GET /api/shops/current/appointments` | ผ่าน `AppointmentDateSheet` ที่ใช้ซ้ำ — เพิ่ม prop `excludeOrderToken` กรองนัดของใบที่กำลังเลื่อนออกจากตัวนับความว่าง ไม่งั้นวันเดิมขึ้นเต็มปลอม ๆ |
+
+---
+
 ## 3. Endpoint ที่ **ไม่ได้** ถูกเรียกในรอบนี้ (ตั้งใจ)
 
 | endpoint | ทำไมไม่เรียก |
 |----------|-------------|
-| `PATCH /api/orders/{token}/appointment` (เลื่อนนัด) | ต้องมี date picker + ตรวจ capacity → PRD Out-of-scope #5 · **ผลข้างเคียง: ผู้ขายยังเลื่อนนัดไม่ได้จากที่ไหนเลยทั้งระบบ** สถานะ `RESCHEDULE_REQUESTED` จึงยังเป็นทางตัน |
 | `POST .../appointment/confirm` | เป็นการกระทำของ **ผู้ซื้อ** — มี UI อยู่แล้วที่ `(marketing)/o/[token]/AppointmentCard.tsx` |
 | `POST .../appointment/reschedule-request` | เป็นการกระทำของ **ผู้ซื้อ** เช่นกัน |
 | `GET /api/shops/current/appointments` | ของปฏิทินคิวงาน — หน้า orders ได้ข้อมูลนัดมากับ RSC อยู่แล้ว ไม่ต้องยิงซ้ำ |
