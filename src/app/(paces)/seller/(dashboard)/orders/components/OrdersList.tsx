@@ -334,7 +334,9 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
   // ─── cancel callbacks (Sweet Alerts confirm — Hard Rule safepay-ux #8) ──────────
   const handleCancelRequest = async (token: string) => {
     const order = orders.find((o) => o.publicToken === token)
-    const label = order ? `ออเดอร์ ${formatOrderNo(order.publicToken, order.createdAtISO)}` : 'ออเดอร์นี้'
+    const label = order
+      ? `${vocab.noun} ${formatOrderNo(order.publicToken, order.createdAtISO)}`
+      : `${vocab.noun}นี้`
     const ok = await pacesConfirm.danger(`ยกเลิก${vocab.noun}นี้?`, `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
       confirmButtonText: 'ยืนยันยกเลิก',
       cancelButtonText: 'ไม่ใช่ตอนนี้',
@@ -426,7 +428,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
             <input
               type="text"
               className="form-input w-full rounded-full bg-white !pl-9"
-              placeholder="ค้นหาเลขออเดอร์ / ชื่อลูกค้า / เบอร์"
+              placeholder={`ค้นหาเลข${vocab.noun} / ชื่อลูกค้า / เบอร์`}
               value={search}
               /* setSearch อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer จะพิมพ์
                  ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แทน แล้วหุบเองหลังหยุดพิมพ์ */

@@ -201,7 +201,9 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
   // cancel — OrderActions (centralized) ส่ง token มาขอ; confirm ผ่าน Sweet Alerts (Hard Rule safepay-ux #8)
   const handleCancelRequest = async (token: string) => {
     const o = orders.find((x) => x.publicToken === token)
-    const label = o ? `ออเดอร์ ${formatOrderNo(o.publicToken, o.createdAtISO)}` : 'ออเดอร์นี้'
+    const label = o
+      ? `${vocab.noun} ${formatOrderNo(o.publicToken, o.createdAtISO)}`
+      : `${vocab.noun}นี้`
     const ok = await pacesConfirm.danger(`ยกเลิก${vocab.noun}นี้?`, `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
       confirmButtonText: 'ยืนยันยกเลิก',
       cancelButtonText: 'ไม่ใช่ตอนนี้',
@@ -505,7 +507,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
 
     // ─ ยอดคำสั่งซื้อ ─
     columnHelper.accessor('total', {
-      header: 'ยอดคำสั่งซื้อ',
+      header: `ยอด${vocab.noun}`,
       meta: { headerClassName: 'text-end', cellClassName: 'text-end align-top whitespace-nowrap' },
       cell: ({ row }) => (
         <span className="text-lg font-bold tabular-nums text-default-900">
@@ -532,7 +534,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
         // เพิ่มบรรทัดแรกว่ายกเลิกแล้ว ส่วนที่เหลือค้างเป็น "ไม่เกิดขึ้น" ซึ่งตรงความจริง:
         // ใบที่ยกเลิกไม่มีทางได้คำยืนยันจากผู้ซื้ออีก
         const steps: { label: string; done: boolean; danger?: boolean }[] = [
-          ...(cancelled ? [{ label: 'ยกเลิกคำสั่งซื้อ', done: true, danger: true }] : []),
+          ...(cancelled ? [{ label: `ยกเลิก${vocab.noun}`, done: true, danger: true }] : []),
           { label: 'ยืนยันการจัดส่ง', done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
           ...(isCODPayment(o.paymentMethod)
             ? [{ label: 'รับเงินปลายทาง', done: Boolean(o.codReceivedAtISO) }]
@@ -658,7 +660,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
             <input
               type="text"
               className="form-input"
-              placeholder="ค้นหาออเดอร์..."
+              placeholder={`ค้นหา${vocab.noun}...`}
               value={globalFilter}
               /* setGlobalFilter อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer
                  จะพิมพ์ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แล้วหุบเองหลังหยุดพิมพ์
