@@ -504,66 +504,68 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
           )}
 
           {/* หัวคอลัมน์ครั้งเดียว แทนการพิมพ์ชื่อคอลัมน์ซ้ำในทุกแถว (เดือนละสูงสุด 155 คำ)
-              คอลัมน์ตามที่ user สั่ง 2026-08-07: วันที่ · คำสั่งซื้อ · ยอดขาย · ค่าใช้จ่าย · กำไร · รอเงิน COD
+              คอลัมน์ตามที่ user สั่ง 2026-08-07: วันที่ · คำสั่งซื้อ · ยอดขาย · ค่าใช้จ่าย · กำไร · รอ COD
 
-              overflow-x-auto + w-max: 6 คอลัมน์บนจอ 390px กว้างเกินอยู่ราว 60px เฉพาะตอนมีคอลัมน์ COD
-              — ให้เลื่อนแนวนอนแทนการบีบตัวเลขจนอ่านไม่ออก/ตัดคำ. `min-w-full` ทำให้ตอนไม่มี COD
-              (หรือบนแท็บเล็ต) แถวยังกว้างเต็มกรอบเหมือนเดิม ไม่หดมากองซ้าย และหัวตารางเลื่อนไป
-              พร้อมแถวข้อมูลเพราะอยู่ในกล่องที่เลื่อนกล่องเดียวกัน */}
+              ความกว้างคอลัมน์เงินเป็น flex-1 basis-0 ไม่ใช่ `w-20` ตายตัว (user report 2026-08-07:
+              6 คอลัมน์ล้นจอต้องเลื่อนแนวนอน — w-20 ×4 + w-10 + w-14 + ช่องไฟ = ~456px แต่จอ 390px
+              หัก px-4 ของ sheet แล้วเหลือ ~358px). basis-0 ทำให้ทั้ง 4 คอลัมน์แบ่งที่ว่างเท่า ๆ กัน
+              จึงพอดีจอเสมอไม่ว่าจะโชว์ 4/5/6 คอลัมน์ แทนที่จะพอดีเฉพาะตอนไม่มี COD.
+              `min-w-14` = พื้นที่ขั้นต่ำที่ตัวเลข 6 หลักยังอ่านออก — จอที่แคบกว่านั้นจริง ๆ (SE 320px)
+              ค่อยตกไปเลื่อนแนวนอนตาม overflow-x-auto ที่ยังคงไว้เป็นตาข่ายรับ
+              หัวตารางใช้ชุด class เดียวกับแถวข้อมูลเป๊ะ ไม่งั้นคอลัมน์เลื่อนไม่ตรงกัน
+              หัวคอลัมน์ย่อเป็น "รอ COD" (เดิม "รอเงิน COD") — เป็นป้ายที่ยาวที่สุดและกินที่เกินตัวเลข */}
           {!loading && !error && !isEmpty && detailRows.length > 0 && (
             <div className="mt-5 overflow-x-auto">
-              <div className="w-max min-w-full">
-                <div className="flex items-center gap-2 border-b border-default-200 py-2 text-xs text-default-700">
-                  {/* วันที่/คำสั่งซื้อ กึ่งกลาง (user สั่ง 2026-08-07) — ค่าสั้นความยาวคงที่
-                      ต่างจากคอลัมน์เงินที่ยังชิดขวาเพื่อให้หลักหน่วยตรงกันทั้งคอลัมน์ */}
-                  <span className="w-10 shrink-0 text-center">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
-                  <span className="w-14 shrink-0 text-center">คำสั่งซื้อ</span>
-                  <span className="w-20 shrink-0 text-end">ยอดขาย</span>
-                  {hasFinance && <span className="w-20 shrink-0 text-end">ค่าใช้จ่าย</span>}
-                  {hasFinance && <span className="w-20 shrink-0 text-end">กำไร</span>}
-                  {showCod && <span className="w-20 shrink-0 text-end">รอเงิน COD</span>}
-                </div>
-                <div className="divide-y divide-default-100">
-                  {detailRows.map((r) => {
-                    // สูตรเดียวกับ hero เป๊ะ — ทุกแถวบวกกันแล้วต้องได้ตัวเลขใหญ่ด้านบน
-                    const rowProfit = r.value - r.expense
-                    return (
-                      <div key={r.label} className="flex items-center gap-2 py-2.5 text-xs">
-                        <span className="w-10 shrink-0 text-center text-default-800">{r.label}</span>
-                        <span className="w-14 shrink-0 text-center text-default-800 tabular-nums">
-                          {r.orders > 0 ? formatNumberNoSymbol(r.orders) : '—'}
+              <div className="flex items-center gap-1.5 border-b border-default-200 py-2 text-xs text-default-700">
+                {/* วันที่/คำสั่งซื้อ กึ่งกลาง (user สั่ง 2026-08-07) — ค่าสั้นความยาวคงที่
+                    ต่างจากคอลัมน์เงินที่ยังชิดขวาเพื่อให้หลักหน่วยตรงกันทั้งคอลัมน์ */}
+                <span className="w-8 shrink-0 text-center">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
+                <span className="w-11 shrink-0 text-center">คำสั่งซื้อ</span>
+                <span className="min-w-14 flex-1 basis-0 text-end">ยอดขาย</span>
+                {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ค่าใช้จ่าย</span>}
+                {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">กำไร</span>}
+                {showCod && <span className="min-w-14 flex-1 basis-0 text-end">รอ COD</span>}
+              </div>
+              <div className="divide-y divide-default-100">
+                {detailRows.map((r) => {
+                  // สูตรเดียวกับ hero เป๊ะ — ทุกแถวบวกกันแล้วต้องได้ตัวเลขใหญ่ด้านบน
+                  const rowProfit = r.value - r.expense
+                  return (
+                    <div key={r.label} className="flex items-center gap-1.5 py-2.5 text-xs">
+                      <span className="w-8 shrink-0 text-center text-default-800">{r.label}</span>
+                      <span className="w-11 shrink-0 text-center text-default-800 tabular-nums">
+                        {r.orders > 0 ? formatNumberNoSymbol(r.orders) : '—'}
+                      </span>
+                      <span className="min-w-14 flex-1 basis-0 text-end font-semibold text-dark tabular-nums">
+                        {formatNumberNoSymbol(r.value)}
+                      </span>
+                      {hasFinance && (
+                        <span
+                          className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${r.expense > 0 ? 'text-danger-ink' : 'text-default-700'}`}
+                        >
+                          {r.expense > 0 ? formatNumberNoSymbol(r.expense) : '—'}
                         </span>
-                        <span className="w-20 shrink-0 text-end font-semibold text-dark tabular-nums">
-                          {formatNumberNoSymbol(r.value)}
+                      )}
+                      {hasFinance && (
+                        /* ระบายสีเฉพาะตอนขาดทุน — ถ้าทาเขียวทุกแถวที่เป็นบวก ทั้งตารางจะเขียวจน
+                           แถวที่ติดลบไม่เด่นขึ้นมาเลย (และเขียวในระบบนี้สงวนไว้ให้ "ยืนยันแล้ว") */
+                        <span
+                          className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${rowProfit < 0 ? 'text-danger-ink' : 'text-dark'}`}
+                        >
+                          {formatNumberNoSymbol(rowProfit)}
                         </span>
-                        {hasFinance && (
-                          <span
-                            className={`w-20 shrink-0 text-end font-semibold tabular-nums ${r.expense > 0 ? 'text-danger-ink' : 'text-default-700'}`}
-                          >
-                            {r.expense > 0 ? formatNumberNoSymbol(r.expense) : '—'}
-                          </span>
-                        )}
-                        {hasFinance && (
-                          /* ระบายสีเฉพาะตอนขาดทุน — ถ้าทาเขียวทุกแถวที่เป็นบวก ทั้งตารางจะเขียวจน
-                             แถวที่ติดลบไม่เด่นขึ้นมาเลย (และเขียวในระบบนี้สงวนไว้ให้ "ยืนยันแล้ว") */
-                          <span
-                            className={`w-20 shrink-0 text-end font-semibold tabular-nums ${rowProfit < 0 ? 'text-danger-ink' : 'text-dark'}`}
-                          >
-                            {formatNumberNoSymbol(rowProfit)}
-                          </span>
-                        )}
-                        {showCod && (
-                          /* warning = สีเดียวกับป้าย/ไทล์ "รอเงิน COD" ทั้งระบบ (STAGE_BADGE_OVERRIDE) */
-                          <span
-                            className={`w-20 shrink-0 text-end font-semibold tabular-nums ${r.codPending > 0 ? 'text-warning-ink' : 'text-default-700'}`}
-                          >
-                            {r.codPending > 0 ? formatNumberNoSymbol(r.codPending) : '—'}
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                      )}
+                      {showCod && (
+                        /* warning = สีเดียวกับป้าย/ไทล์ "รอเงิน COD" ทั้งระบบ (STAGE_BADGE_OVERRIDE) */
+                        <span
+                          className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${r.codPending > 0 ? 'text-warning-ink' : 'text-default-700'}`}
+                        >
+                          {r.codPending > 0 ? formatNumberNoSymbol(r.codPending) : '—'}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
