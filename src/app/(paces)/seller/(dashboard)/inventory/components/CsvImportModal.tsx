@@ -32,6 +32,7 @@ import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
 import { parseCsv } from '@/lib/csv'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const MAX_ROWS = 500
@@ -283,6 +284,9 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
   }
 
   // ─── ถ้า modal ถูก controlled ให้ hidden/visible ─────────────────────────────
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
+
   if (!open) return null
 
   return (

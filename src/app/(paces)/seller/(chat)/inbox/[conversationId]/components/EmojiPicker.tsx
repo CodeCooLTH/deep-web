@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // codepoint (ไม่ใช่ตัว emoji) — จัดกลุ่มให้เหมาะกับแชทร้านค้า (ทักทาย/ขอบคุณ/นิ้วโป้ง/หัวใจ/เงิน/ช้อป)
 // export เพื่อให้แผงรีแอ็กชันบนข้อความ (MessageActionBubble) ใช้ชุดเดียวกัน — user สั่ง 2026-08-03
@@ -216,6 +217,9 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
     mq.addEventListener('change', sync)
     return () => mq.removeEventListener('change', sync)
   }, [])
+
+  // โหมด sheet เท่านั้นที่ครอบทั้งจอ → ตรึงหน้าข้างหลัง (โหมด popover เดสก์ท็อปยังต้องเลื่อนหน้าได้)
+  useLockBodyScroll(isSheet)
 
   /** เปิด sheet = ปิดคีย์บอร์ดก่อน — `position:fixed` บน iOS ยึดกับ layout viewport ซึ่ง **ไม่หด**
    *  ตามคีย์บอร์ด แผงจึงไปนอนใต้คีย์บอร์ด (บทเรียน 2026-08-04, docs/conventions ios safe-area/overlay) */

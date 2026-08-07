@@ -23,6 +23,7 @@ import type { BadgeProgress } from '@/types/badge'
 import type { BadgeRarity, RarityTier, BadgePaceEstimate } from '@/services/badge.service'
 import { BadgeImage } from './BadgeImage'
 import { getCategoryLabel } from './_constants/badge-labels'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── Rarity helpers ───────────────────────────────────────────────────────────
 
@@ -214,6 +215,9 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [badge, onClose])
+
+  // ตรึงหน้าข้างหลังเมื่อมีเหรียญถูกเลือก (คอมโพเนนต์ถูก render ค้างไว้เสมอ ไม่ได้ mount ตามการเปิด)
+  useLockBodyScroll(!!badge)
 
   if (!badge) return null
 

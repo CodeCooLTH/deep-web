@@ -49,6 +49,7 @@ import type { ApexOptions } from 'apexcharts'
 import type { SalesSeries } from '../_constants/command-center'
 import { axisAnchorDays } from './sales-chart-axis'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 type Mode = 'daily' | 'monthly'
 
@@ -219,6 +220,9 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
 }
 
 export default function SalesChartSheet({ initialSeries, onClose }: Props) {
+  // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
+  useLockBodyScroll(true)
+
   const now = new Date()
   const nowYear = now.getFullYear()
   const nowMonth = now.getMonth() + 1

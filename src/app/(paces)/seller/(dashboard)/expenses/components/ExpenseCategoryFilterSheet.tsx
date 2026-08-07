@@ -10,8 +10,9 @@
  *
  * Design Spec: docs/superpowers/specs/2026-08-02-expenses-redesign-design-spec.md §4.6
  */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { cn } from '@/utils/helpers'
 import {
   EXPENSE_CATEGORIES,
@@ -35,6 +36,24 @@ export default function ExpenseCategoryFilterSheet({
   onSelect,
   onClose,
 }: Props) {
+  /**
+   * ตรึงหน้าข้างหลัง — แต่ผูกกับเบรกพอยต์จริง ไม่ใช่ `true` เฉย ๆ
+   * แผ่นนี้ซ่อนด้วย CSS (`sm:hidden`) ไม่ได้ unmount: ถ้าเปิดบนมือถือแล้วหมุนจอ/ขยายเป็น ≥640px
+   * การล็อกแบบตายตัวจะเหลือหน้าที่เลื่อนไม่ได้โดยไม่มีแผ่นให้เห็น = แย่กว่าบั๊กเดิม
+   * (idiom เดียวกับ `isSheet` ใน EmojiPicker.tsx ซึ่งสลับโหมดตาม matchMedia เหมือนกัน)
+   */
+  const [isSheetVisible, setIsSheetVisible] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const sync = () => setIsSheetVisible(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+  useLockBodyScroll(isSheetVisible)
+
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()

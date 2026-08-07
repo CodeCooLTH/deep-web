@@ -18,6 +18,7 @@ import Icon from '@/components/wrappers/Icon'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 import type { OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 interface Props {
   order: OrderRow
@@ -27,6 +28,9 @@ interface Props {
 }
 
 export default function OrderQrSheet({ order, url, onClose }: Props) {
+  // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
+  useLockBodyScroll(true)
+
   // ESC ปิด (เหมือนทุก sheet ในแอป)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

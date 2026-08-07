@@ -19,6 +19,7 @@
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
 import { pacesToast } from '@/lib/paces-toast'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 // MAX_FILE_SIZE: copy จาก VerificationForm.tsx (5 MB)
@@ -191,6 +192,9 @@ export default function TopUpRequestModal({ open, onClose, onSuccess }: TopUpReq
       : 'ส่งคำขอ'
 
   // ─── ถ้า modal ถูก controlled ให้ hidden/visible ─────────────────────────
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
+
   if (!open) return null
 
   return (

@@ -34,6 +34,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import SalesChannelPicker from './SalesChannelPicker'
 import CategoryMultiSelect from './CategoryMultiSelect'
 import ProductImageDropzone from './ProductImageDropzone'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── dynamic import สำหรับ MapPicker — ห้าม SSR (Leaflet ต้องการ window) ───────
 const MapPicker = dynamic(() => import('./MapPicker'), { ssr: false })
@@ -559,6 +560,9 @@ export default function OnboardingModal({
       dispatch({ type: 'SET_LOADING', loading: false })
     }
   }
+
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
 
   if (!open) return null
 

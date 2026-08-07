@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 export interface CustomerResult {
   name: string | null
@@ -25,6 +26,9 @@ interface Props {
 }
 
 export default function CustomerSearchSheet({ open, initialQuery = '', onSelect, onUseNew, onClose }: Props) {
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
+
   const [q, setQ] = useState('')
   const [results, setResults] = useState<CustomerResult[]>([])
   const [loading, setLoading] = useState(false)

@@ -34,6 +34,7 @@ import { signOut } from 'next-auth/react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { ACCOUNT_DELETE_ERROR, type DeletionPreflight } from '@/lib/account-deletion'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 /** error code จาก POST /api/account/delete → ข้อความไทย (map ที่เดียว ไม่กระจายใน handler) */
 const DELETE_ERROR_MESSAGE: Record<string, string> = {
@@ -53,6 +54,8 @@ const CONSEQUENCES = [
 
 export default function DeleteAccountCard() {
   const [open, setOpen] = useState(false)
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [preflight, setPreflight] = useState<DeletionPreflight | null>(null)

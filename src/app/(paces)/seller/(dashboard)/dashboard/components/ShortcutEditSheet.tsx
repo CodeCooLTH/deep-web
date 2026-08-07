@@ -21,6 +21,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { getShortcutTileIcon } from '../_constants/shortcut-icons'
 import type { ShortcutStateDto } from '../_constants/command-center'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 type Props = {
   onClose: () => void
@@ -31,6 +32,9 @@ type Props = {
 const ENDPOINT = '/api/shops/current/shortcuts'
 
 export default function ShortcutEditSheet({ onClose, onSync }: Props) {
+  // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
+  useLockBodyScroll(true)
+
   const [state, setState] = useState<ShortcutStateDto | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   /** slug ที่กำลังรอ response — ใช้โชว์ spinner ในแถวนั้นและกันแตะซ้ำ */

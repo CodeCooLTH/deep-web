@@ -36,6 +36,7 @@ import { useRouter } from 'next/navigation'
 import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── Props ──────────────────────────────────────────────────────────────────
 interface ManualAdjustModalProps {
@@ -168,6 +169,9 @@ export default function ManualAdjustModal({
   }
 
   // ─── ถ้า modal ถูก controlled ให้ hidden/visible ───────────────────────────
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
+
   if (!open) return null
 
   return (

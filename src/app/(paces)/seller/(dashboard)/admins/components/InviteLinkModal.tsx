@@ -31,6 +31,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import type { InviteExpiryKey } from '@/lib/invite-link'
 import CopyLinkButton from '../../orders/[token]/components/CopyLinkButton'
 import RowActionDeleteButton from '../../business/[shopId]/invites/components/RowActionDeleteButton'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 export interface InviteLinkRow {
   url: string
@@ -65,6 +66,8 @@ const CREATE_ERROR_MESSAGE: Record<string, string> = {
 export default function InviteLinkModal({ links }: InviteLinkModalProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
   const [expiryKey, setExpiryKey] = useState<InviteExpiryKey>('7d')
   const [creating, setCreating] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')

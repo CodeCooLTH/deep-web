@@ -33,6 +33,7 @@ import {
 import { todayThaiIsoDate, shiftIsoDate } from '@/lib/date-range'
 import { formatDateTH } from '@/lib/format-date'
 import type { SerializedExpense } from '@/services/expense.service'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 const schema = Yup.object({
   category: Yup.string()
@@ -74,6 +75,9 @@ function buildDefaultValues(mode: 'create' | 'edit', editing?: SerializedExpense
 }
 
 export default function ExpenseFormModal({ mode, editing, onClose, onMutated }: Props) {
+  // โมดัลนี้ mount เฉพาะตอนเปิด (ExpenseWorkspace render ใต้ `{modal && …}`) จึงล็อกตลอดอายุของมัน
+  useLockBodyScroll(true)
+
   const dialogRef = useRef<HTMLDivElement>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
   const [deleting, setDeleting] = useState(false)

@@ -30,6 +30,7 @@ import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { CHAT_SOUND_EVENT, isChatSoundMuted, isConversationMuted, setConversationMuted } from '@/lib/chat-sound'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import TagInput from './TagInput'
 import type { RowAction } from './ConversationRowMenu'
 
@@ -214,23 +215,9 @@ export default function ChatContextMenu({
    * คอลัมน์รายการแชท (ที่มี overscroll-contain อยู่แล้ว) → เลื่อนทั้งหน้า/rubber-band ทันทีที่แผ่นยัง
    * ไม่ล้น 85dvh ซึ่งเป็นกรณีปกติ. overscroll-contain ที่ SHEET_SHELL ตัด chain เส้นนี้
    *
-   * ที่ยังต้องล็อกระดับเอกสารซ้ำอีกชั้น: iOS เด้งเอกสาร (rubber-band) ได้แม้หน้าไม่มีอะไรให้เลื่อน
-   * ตัดด้วย overscroll-behavior-y ที่ <html> — คนละกลไกกับ chaining จึงต้องสั่งแยก
-   * เฉพาะโหมดเพ่ง (มือถือ) เท่านั้น: โหมด point (คลิกขวาเดสก์ท็อป) ตั้งใจให้เลื่อนแล้ว "ปิดเมนู"
+   * เฉพาะโหมดเพ่ง (มือถือ): โหมด point (คลิกขวาเดสก์ท็อป) ตั้งใจให้เลื่อนหน้าแล้ว "ปิดเมนู"
    */
-  useEffect(() => {
-    if (!row) return
-    const { body } = document
-    const html = document.documentElement
-    const prevOverflow = body.style.overflow
-    const prevOverscroll = html.style.overscrollBehaviorY
-    body.style.overflow = 'hidden'
-    html.style.overscrollBehaviorY = 'none'
-    return () => {
-      body.style.overflow = prevOverflow
-      html.style.overscrollBehaviorY = prevOverscroll
-    }
-  }, [row])
+  useLockBodyScroll(!!row)
 
   useEffect(() => {
     function onDoc(e: Event) {

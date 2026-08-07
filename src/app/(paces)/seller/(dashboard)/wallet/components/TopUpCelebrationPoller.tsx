@@ -18,6 +18,7 @@
 
 import Icon from '@/components/wrappers/Icon'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 // POLL_MS: poll interval 20s = near-realtime per spec (T24)
@@ -156,6 +157,9 @@ export default function TopUpCelebrationPoller() {
   const itemCount = pendingItems.length
 
   // ─── ไม่ render อะไรถ้า modal ไม่เปิด ─────────────────────────────────
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
+
   if (!open) return null
 
   return (

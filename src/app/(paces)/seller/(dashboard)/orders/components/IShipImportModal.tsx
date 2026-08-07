@@ -17,6 +17,7 @@ import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import ShipmentLinkPanel from '@/components/safepay/iship/ShipmentLinkPanel'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 interface Props {
   open: boolean
@@ -61,6 +62,9 @@ export default function IShipImportModal({ open, onClose }: Props) {
       previouslyFocused.current?.focus()
     }
   }, [open, onClose])
+
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
 
   if (!open) return null
 

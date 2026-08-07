@@ -18,6 +18,7 @@
 
 import { useEffect, useRef } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
@@ -71,6 +72,9 @@ export default function IShipModalShell({
   bodyClassName = 'px-5 py-4',
   children,
 }: Props) {
+  // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
+  useLockBodyScroll(true)
+
   const panelRef = useRef<HTMLDivElement>(null)
   // element ที่โฟกัสอยู่ก่อนเปิดโมดัล — คืนโฟกัสให้ตอนปิด ไม่งั้นคนใช้คีย์บอร์ดถูกดีดไป
   // ต้นหน้าและต้องไล่ Tab กลับมาที่ปุ่มเดิมเอง (WCAG 2.4.3)

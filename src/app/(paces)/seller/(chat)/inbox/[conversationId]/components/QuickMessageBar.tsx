@@ -26,6 +26,7 @@ import Icon from '@/components/wrappers/Icon'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
 import QuickMessageManager, { type QuickMessage } from './QuickMessageManager'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 const CATEGORY_ALL = 'All'
 
@@ -39,6 +40,9 @@ type Props = {
 }
 
 export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
+  // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
+  useLockBodyScroll(true)
+
   const [items, setItems] = useState<QuickMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)

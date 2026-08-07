@@ -16,6 +16,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 interface AddrRecord {
   district: string // ตำบล
@@ -41,6 +42,9 @@ interface Props {
 }
 
 export default function AddressSearchSheet({ open, current, onSelect, onClose }: Props) {
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
+
   const [q, setQ] = useState('')
   const [db, setDb] = useState<AddrRecord[] | null>(ADDR_CACHE)
   const [loading, setLoading] = useState(false)

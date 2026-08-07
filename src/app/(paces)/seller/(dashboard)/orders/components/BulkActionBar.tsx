@@ -33,6 +33,7 @@ import { useEffect, useRef, useState } from 'react'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import type { OrderRow } from './data'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 interface BulkActionBarProps {
   selectedRows: TableRow<OrderRow>[]
@@ -333,6 +334,9 @@ function BulkSmsProgressDialog({ open, eligibleRows, onComplete }: BulkSmsProgre
       pacesToast.warning(`ส่ง SMS สำเร็จ ${sent}/${total} ออเดอร์`)
     }
   }
+
+  // ตรึงหน้าข้างหลังขณะโมดัลเปิด — controlled modal ไม่ได้ของนี้จาก Preline (ดู useLockBodyScroll)
+  useLockBodyScroll(open)
 
   if (!open) return null
 

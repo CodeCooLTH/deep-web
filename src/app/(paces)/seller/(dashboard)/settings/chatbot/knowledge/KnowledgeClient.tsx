@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 export type KnowledgeRow = {
   id: string
@@ -209,6 +210,9 @@ function KnowledgeModal({
   onSaved: () => void
   onDelete?: () => void
 }) {
+  // โมดัลนี้ mount เฉพาะตอนเปิด จึงล็อกตลอดอายุของมัน (ดู useLockBodyScroll)
+  useLockBodyScroll(true)
+
   const [question, setQuestion] = useState(row?.question ?? '')
   const [answer, setAnswer] = useState(row?.answer ?? '')
   const [saving, setSaving] = useState(false)

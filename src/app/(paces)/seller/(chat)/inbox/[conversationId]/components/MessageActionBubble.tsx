@@ -30,6 +30,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { EMOJI_CATEGORIES } from './EmojiPicker'
 
 export type MessageAction = {
@@ -125,6 +126,10 @@ export default function MessageActionBubble({
   const showClone = !!bubble && !showAll
   // นับครั้งที่ "พื้นที่ที่มองเห็นจริง" เปลี่ยน (คีย์บอร์ดขึ้น-ลง / หมุนจอ) → บังคับวัดตำแหน่งใหม่
   const [viewportTick, setViewportTick] = useState(0)
+
+  // ตรึงหน้าข้างหลังเฉพาะโหมดเพ่ง (กดค้างบนมือถือ) — โหมด popover (เดสก์ท็อป) ตั้งใจให้เลื่อนแล้ว
+  // ปิดเมนู. เมนูนี้ portal ไป body บรรพบุรุษที่รับ scroll ต่อจึงเป็น document เอง (ดู useLockBodyScroll)
+  useLockBodyScroll(!!bubble)
 
   // ── คีย์บอร์ดเปิดค้างอยู่ตอนกดค้าง → ปิดมันก่อน (user report 2026-08-04) ──────
   // อาการ: พิมพ์อยู่แล้วกดค้างบนข้อความ คีย์บอร์ดยังกินครึ่งจอล่าง แต่ overlay เป็น position:fixed
@@ -284,7 +289,7 @@ export default function MessageActionBubble({
             </button>
             <span className="text-default-700 text-xs font-semibold">เลือกอิโมจิ</span>
           </div>
-          <div className="max-h-64 overflow-y-auto px-1 pb-1">
+          <div className="max-h-64 overflow-y-auto overscroll-contain px-1 pb-1">
             {EMOJI_CATEGORIES.map((cat) => (
               <div key={cat.key} className="mb-3 last:mb-0">
                 <p className="text-default-700 text-2xs mb-1.5 font-semibold">{cat.label}</p>
