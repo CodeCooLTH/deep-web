@@ -331,7 +331,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                     appointmentStatus: order.appointmentStatus,
                   }) ?? 'SCHEDULED'
                 }
-                buyerLabel={order.buyer?.displayName ?? order.buyerName ?? 'ลูกค้า'}
+                buyerLabel={order.buyer?.displayName ?? order.buyerName ?? null}
               />
             )}
             <ShippingAddressCard
@@ -339,7 +339,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
               fulfillmentMode={order.fulfillmentMode}
               publicToken={order.publicToken}
               shippingAddr={shippingAddr}
-              isServiceOrder={Boolean(order.serviceStart)}
+              /**
+               * สองเงื่อนไข ไม่ใช่เงื่อนไขเดียว (BRD AC-4.1 + บทเรียน feedback_or_rule_guard_every_operand):
+               * `serviceStart` อย่างเดียวครอบเฉพาะใบที่ "มีนัด" แต่ร้านคิวงานครึ่งหนึ่งเป็น walk-in
+               * ที่เปิดบิลหน้างาน (ไม่มีนัดเลย) — ใบพวกนั้นจะยังเจอฟอร์ม "กรอก URL เพื่อส่งมอบ"
+               * ซึ่งเป็นอาการที่ฟีเจอร์นี้ตั้งใจแก้ตั้งแต่แรก · ส่วน `type` อย่างเดียวก็ไม่พอ
+               * เพราะใบที่ type เพี้ยนแต่มีนัดจริงต้องไม่หลุดกลับไปเจอฟอร์มนั้นเหมือนกัน
+               */
+              isServiceOrder={order.type === 'SERVICE' || Boolean(order.serviceStart)}
             />
             {/* ใต้ "ที่อยู่จัดส่ง" (user 2026-08-05) — ของสองอย่างนี้ตอบคำถามเดียวกันว่า
                 "ของไปถึงไหนแล้ว/จะไปที่ไหน" อยู่ติดกันแล้วอ่านต่อเนื่องกว่าแยกคนละคอลัมน์ */}

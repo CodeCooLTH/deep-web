@@ -438,7 +438,11 @@ export default function OrdersList({
    * จนกลายเป็นสัญญาณที่ไม่มีความหมาย
    */
   const activeFilterCount =
-    (typeFilter ? 1 : 0) + (hasStageAxis && localStatus !== 'all' ? 1 : 0)
+    (typeFilter ? 1 : 0) +
+    // เงื่อนไขต้องตรงกับเงื่อนไขที่ render ส่วน "สถานะการขาย" ในโมดัลเป๊ะ (ดูข้างล่าง) —
+    // feature 00036 เปิดให้ร้านคิวงานเห็นส่วนนั้นด้วย แต่ถ้าลืมแก้บรรทัดนี้คู่กัน จะกรองแล้ว
+    // รายการหดจาก 120 เหลือ 3 โดยไม่มีสัญญาณอะไรบนจอเลยว่าเกิดจากตัวกรอง
+    ((hasStageAxis || hasAppointmentAxis) && localStatus !== 'all' ? 1 : 0)
 
   return (
     <>

@@ -16,7 +16,7 @@
  * OrderDetailClient.handleAction เพราะการ์ดกลุ่มนี้ทุกใบจัดการ action ของตัวเองอยู่แล้ว
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
@@ -33,8 +33,11 @@ type Props = {
   allDay: boolean
   resourceName: string | null
   stage: AppointmentStatus
-  /** ชื่อลูกค้าสำหรับข้อความยืนยัน — กดผิดใบแล้วย้อนไม่ได้ ต้องระบุให้ชัดว่ากำลังปิดผลของใคร */
-  buyerLabel: string
+  /**
+   * ชื่อลูกค้าสำหรับข้อความยืนยัน — กดผิดใบแล้วย้อนไม่ได้ ต้องระบุให้ชัดว่ากำลังปิดผลของใคร
+   * null = ใบที่ไม่รู้ชื่อ (ผู้ซื้อ guest ที่ร้านไม่ได้กรอกชื่อ) → ตัดวลีชื่อออกจากประโยคทั้งก้อน
+   */
+  buyerLabel: string | null
 }
 
 export default function AppointmentCard({
@@ -50,27 +53,57 @@ export default function AppointmentCard({
 
   const meta = APPOINTMENT_STAGE_META[stage]
   const terminal = isTerminalAppointmentStatus(stage)
+
   /**
    * ยังไม่ถึงเวลานัด = ปิดผลไม่ได้ (BR-RSV-34) — server บังคับด้วย 409 อยู่แล้ว ที่นี่สะท้อน
    * ล่วงหน้าเพื่อไม่ให้ผู้ใช้ต้องกดเพื่อค้นพบว่าทำไม่ได้ (BR-SOV-05)
    *
-   * คำนวณตอน render ครั้งเดียวพอ ไม่ต้อง tick ทุกวินาที: ถ้าผู้ใช้เปิดหน้าค้างไว้ข้ามเวลานัดจริง
-   * แล้วกด server จะเป็นคนตอบ 409 ให้เอง ซึ่งเรามี error ไทยรออยู่แล้ว
+   * [สำคัญ] ต้องปลดล็อกเองเมื่อถึงเวลา ห้ามคำนวณครั้งเดียวตอน render — พฤติกรรมปกติที่สุดของ
+   * งานนี้คือผู้ขาย "เปิดใบค้างไว้รอลูกค้ามาถึง" ถ้าปุ่มไม่ปลดเอง พอถึงเวลานัดจริงเขาจะเจอปุ่มเทา
+   * ที่กดไม่ได้โดยไม่มี error ไม่มีคำอธิบาย ซึ่งอ่านเป็น "ระบบพัง" ไม่ใช่ "ต้องรีเฟรช"
+   * ตั้ง timer นัดเดียวไปที่ขอบเวลาพอดี (ไม่ tick ทุกวินาที) และ clamp เพดานเพราะ setTimeout
+   * ที่เกิน ~24.8 วัน (int32 ms) จะ overflow แล้วยิงทันที — นัดล่วงหน้าเกินนั้นค่อยว่ากันตอนเปิดใหม่
    */
-  const notStarted = new Date(startISO).getTime() > Date.now()
+  const [notStarted, setNotStarted] = useState(() => new Date(startISO).getTime() > Date.now())
+  useEffect(() => {
+    const msLeft = new Date(startISO).getTime() - Date.now()
+    if (msLeft <= 0) {
+      setNotStarted(false)
+      return
+    }
+    setNotStarted(true)
+    const MAX_TIMEOUT_MS = 24 * 60 * 60 * 1000
+    if (msLeft > MAX_TIMEOUT_MS) return
+    const t = setTimeout(() => setNotStarted(false), msLeft)
+    return () => clearTimeout(t)
+  }, [startISO])
 
   const submit = async (outcome: 'COMPLETED' | 'NO_SHOW') => {
     const whenText = allDay ? formatDateTH(startISO) : formatDateTimeTH(startISO)
+    /**
+     * ชื่อลูกค้าเป็นตัวเลือก ไม่ใช่การเติมคำว่า "ลูกค้า" ลงไปแทน — ประโยค "ให้บริการ ลูกค้า
+     * ตามนัด …" อ่านสะดุดกว่าไม่มีชื่อเลย ใบที่ไม่รู้ชื่อจึงตัดวลีนั้นทิ้งทั้งก้อน
+     */
+    const who = buyerLabel ? `${buyerLabel} ` : ''
+    /**
+     * confirmSemantic ต้องตรงกับสีของปุ่มที่กดมา — ผู้ใช้อ่านสีก่อนอ่านคำ ถ้ากดปุ่มเขียวแล้ว
+     * เจอปุ่มยืนยันน้ำเงินพร้อมไอคอน "?" กล่องจะอ่านเป็น "ถามเฉย ๆ ไม่ซีเรียส" ซึ่งขัดกับคำว่า
+     * "ย้อนกลับไม่ได้" ที่เขียนอยู่บรรทัดล่างพอดี · ทั้งสองทางใช้ icon 'warning' เท่ากันเพราะ
+     * ทั้งคู่เป็น terminal เหมือนกัน ต่างกันแค่ผลลัพธ์ ไม่ใช่ต่างกันที่ความหนัก
+     */
     const ok =
       outcome === 'COMPLETED'
-        ? await pacesConfirm.question(
-            'ทำเครื่องหมายว่าให้บริการแล้ว?',
-            `ให้บริการ ${buyerLabel} ตามนัด ${whenText} แล้ว · ย้อนกลับไม่ได้`,
-            { confirmButtonText: 'ให้บริการแล้ว', cancelButtonText: 'ยังไม่ใช่ตอนนี้' },
-          )
-        : await pacesConfirm.warning(
+        ? await pacesConfirm({
+            confirmSemantic: 'success',
+            icon: 'warning',
+            title: 'ทำเครื่องหมายว่าให้บริการแล้ว?',
+            text: `ให้บริการ ${who}ตามนัด ${whenText} แล้ว · ย้อนกลับไม่ได้`,
+            confirmButtonText: 'ให้บริการแล้ว',
+            cancelButtonText: 'ยังไม่ใช่ตอนนี้',
+          })
+        : await pacesConfirm.danger(
             'บันทึกว่าลูกค้าไม่มาตามนัด?',
-            `${buyerLabel} ไม่มาตามนัด ${whenText} · ย้อนกลับไม่ได้`,
+            `${who}ไม่มาตามนัด ${whenText} · ย้อนกลับไม่ได้`,
             { confirmButtonText: 'ไม่มาตามนัด', cancelButtonText: 'ยังไม่ใช่ตอนนี้' },
           )
     if (!ok) return
@@ -91,8 +124,10 @@ export default function AppointmentCard({
           data.error === 'APPOINTMENT_TERMINAL'
             ? 'นัดนี้ถูกปิดผลไปแล้ว'
             : data.error === 'APPOINTMENT_NOT_STARTED'
-              ? 'ยังไม่ถึงเวลานัด ปิดผลได้เมื่อถึงเวลา'
-              : 'บันทึกผลนัดไม่สำเร็จ กรุณาลองใหม่'
+              ? // บอกเวลาที่ทำได้จริง ไม่ใช่ "ปิดผลได้เมื่อถึงเวลา" ซึ่งวนกลับไปพูดสิ่งเดิม
+                `ยังไม่ถึงเวลานัด — ปิดผลได้ตั้งแต่ ${whenText}`
+              : // 403/404 กดซ้ำก็ไม่ผ่าน การบอก "ลองใหม่" เฉย ๆ จึงส่งคนไปทำสิ่งที่ไม่มีผล
+                'บันทึกผลนัดไม่สำเร็จ — รีเฟรชหน้าแล้วลองอีกครั้ง'
         throw new Error(message)
       }
       pacesToast.success(outcome === 'COMPLETED' ? 'บันทึกว่าให้บริการแล้ว' : 'บันทึกว่าไม่มาตามนัด')
@@ -120,12 +155,15 @@ export default function AppointmentCard({
       </div>
       <div className="card-body">
         <ul className="mb-0 list-none space-y-2.5 p-0">
+          {/* ไอคอนเป็นตัวบอกว่าแต่ละแถวคืออะไร ซึ่งคนที่เพิ่งเคยใช้ครั้งแรกอ่านไม่ออก —
+              เติมป้ายสำหรับ screen reader โดยไม่กินที่บนจอ (คู่ไอคอน+ค่าตามแบบ CustomerDetails) */}
           <li>
             <div className="flex items-center gap-2.5">
               <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
                 <Icon icon="calendar-event" className="text-sm" aria-hidden="true" />
               </span>
               <span className="text-default-800 text-sm font-medium">
+                <span className="sr-only">วันเวลานัด </span>
                 {/* นัดทั้งวันไม่มีเวลาให้แสดง — โชว์ 00:00 คือการกุข้อมูลที่ผู้ใช้ไม่ได้กรอก */}
                 {allDay ? `${formatDateTH(startISO)} · ทั้งวัน` : formatDayMonthTimeTH(startISO)}
               </span>
@@ -137,7 +175,10 @@ export default function AppointmentCard({
                 <span className="btn btn-icon bg-light text-default-800 size-6! rounded-full">
                   <Icon icon="armchair" className="text-sm" aria-hidden="true" />
                 </span>
-                <span className="text-default-700 truncate text-sm">{resourceName}</span>
+                <span className="text-default-700 truncate text-sm">
+                  <span className="sr-only">คิวงาน </span>
+                  {resourceName}
+                </span>
               </div>
             </li>
           )}
@@ -148,12 +189,16 @@ export default function AppointmentCard({
             การชู "ให้บริการแล้ว" เป็น primary จะอ่านเป็นระบบชี้นำว่าอยากได้คำตอบไหน */}
         {!terminal && (
           <div className="border-default-200 mt-4 border-t border-dashed pt-4">
-            <div className="flex flex-col gap-2 sm:flex-row">
+            {/* gap-3 + min-h-11 (44px) ไม่ใช่ค่าตั้งต้นของ .btn (36px, gap-2): ปุ่มสองตัวนี้
+                ย้อนกลับไม่ได้ทั้งคู่และให้ผลตรงข้ามกัน — กดพลาดปุ่มข้าง ๆ คือกดผลที่ตรงข้าม
+                โดยไม่มีทางแก้ ผู้ใช้กลุ่มเป้าหมายถือมือถือมือเดียวกลางร้าน (design.json
+                ประกาศเกณฑ์ tap target ≥44px ไว้เอง) */}
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
                 disabled={notStarted || loading !== null}
                 onClick={() => submit('COMPLETED')}
-                className="btn border-success text-success-ink hover:bg-success/10 w-full sm:flex-1"
+                className="btn border-success text-success-ink hover:bg-success/10 min-h-11 w-full sm:flex-1"
               >
                 <Icon
                   icon={loading === 'COMPLETED' ? 'mdi:loading' : 'circle-check-filled'}
@@ -166,7 +211,7 @@ export default function AppointmentCard({
                 type="button"
                 disabled={notStarted || loading !== null}
                 onClick={() => submit('NO_SHOW')}
-                className="btn border-danger text-danger-ink hover:bg-danger/10 w-full sm:flex-1"
+                className="btn border-danger text-danger-ink hover:bg-danger/10 min-h-11 w-full sm:flex-1"
               >
                 <Icon
                   icon={loading === 'NO_SHOW' ? 'mdi:loading' : 'clock-off'}
@@ -176,8 +221,10 @@ export default function AppointmentCard({
                 ไม่มาตามนัด
               </button>
             </div>
+            {/* ข้อความนี้เป็นข้อมูลที่จำเป็นที่สุดในสถานะนี้ (อธิบายว่าทำไมปุ่มกดไม่ได้) จึงใช้
+                น้ำหนักเดียวกับข้อความปกติ ไม่ใช่ default-500 แบบหมายเหตุประกอบ */}
             {notStarted && (
-              <p className="text-default-500 mb-0 mt-2 text-xs">
+              <p className="text-default-700 mb-0 mt-2 text-xs">
                 ปิดผลได้ตั้งแต่ {allDay ? formatDateTH(startISO) : formatDateTimeTH(startISO)}
               </p>
             )}
