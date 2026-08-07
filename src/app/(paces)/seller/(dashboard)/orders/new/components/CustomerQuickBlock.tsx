@@ -230,9 +230,20 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
 
       {/* ชื่อ */}
       <div className="mb-2.5">
-        <label htmlFor="cq-buyer-name" className="form-label">ชื่อลูกค้า</label>
+        {/* ดาวแดง: ฟอร์มนี้บังคับชื่อจริง (Yup `buyerName.required()` ใน OrderCreateForm) — เดิม
+            ไม่ติดดาวเพราะอ่านจาก CreateOrderSchema ฝั่ง backend ที่เป็น optional แล้วสรุปว่า
+            "ไม่บังคับ" ผลคือจอบอกตรงข้ามกับกฎที่บล็อกการบันทึกจริง (impeccable critique P0
+            2026-08-07; user เคาะให้ "บังคับ" เพราะชื่อมีผลกับการตามหาลูกค้าภายหลัง) */}
+        <label htmlFor="cq-buyer-name" className="form-label">
+          ชื่อลูกค้า<span className="ms-0.5 text-danger">*</span>
+        </label>
+        {/* name + ref ไม่ใช่ของประดับ: onInvalid เลื่อนจอด้วย querySelector([name=...]) และ
+            react-hook-form ย้ายโฟกัสให้เองผ่าน ref — ไม่มีสองอย่างนี้ = กดบันทึกไม่ผ่านแล้วจอ
+            ไม่ขยับเลยทั้งที่ error ขึ้นอยู่สูงกว่าจอไป 2 หน้าจอ (critique P1 2026-08-07) */}
         <input
           id="cq-buyer-name"
+          name="buyerName"
+          ref={nameField.ref}
           type="text"
           placeholder="ชื่อลูกค้า"
           className="form-input"
@@ -250,12 +261,15 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
       {/* เบอร์ — พิมพ์ (หรือ paste) → debounce → เปิด sheet ค้นหา/เพิ่มลูกค้า (รวมกรณีเปลี่ยนเบอร์หลังเลือกแล้ว) */}
       <div className="mb-2.5">
         {/* เบอร์โทร = required เสมอไม่มีเงื่อนไข (CreateOrderSchema.buyerContact ไม่ใช่ v.optional)
-            ส่วนชื่อลูกค้าเป็น v.optional จริง จึงไม่ติดดาว — ห้ามติดให้ครบ ๆ เอาสวย */}
+            ชื่อลูกค้าก็ติดดาวเช่นกัน: backend ปล่อยเป็น optional แต่ **ฟอร์มนี้บังคับ** ผ่าน Yup
+            ดาวจึงต้องสะท้อนกฎที่บล็อกผู้ใช้จริง ไม่ใช่กฎที่หลวมที่สุดในระบบ (แก้ 2026-08-07) */}
         <label htmlFor="cq-buyer-contact" className="form-label">
           เบอร์โทร<span className="ms-0.5 text-danger">*</span>
         </label>
         <input
           id="cq-buyer-contact"
+          name="buyerContact"
+          ref={contactField.ref}
           type="text"
           inputMode="tel"
           autoComplete="off"

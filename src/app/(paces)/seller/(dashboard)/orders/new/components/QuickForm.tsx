@@ -134,7 +134,10 @@ export default function QuickForm({
       </section>
 
       {/* SECTION 3: สินค้า — ไม่มีปุ่มพิมพ์เอง: แถวเปล่ารอเสมออยู่แล้ว (spreadsheet pattern, จัดการที่ OrderCreateForm) */}
-      <section id="order-items-section" className={`border-b-8 border-default-100 ${secX} py-4`}>
+      {/* scroll-mt-24: onInvalid เลื่อนมาที่ section นี้ด้วย block:'start' ซึ่งจะเอาหัวข้อ + ป้าย
+          "ต้องแก้" ไปนอนใต้ FullscreenPageHeader ที่เป็น sticky top-0 สูงราว 90px บนมือถือพอดี —
+          สิ่งที่ถูกบังคือสิ่งที่ toast เพิ่งสั่งให้ไปดู (critique P1 2026-08-07) */}
+      <section id="order-items-section" className={`scroll-mt-24 border-b-8 border-default-100 ${secX} py-4`}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-bold text-dark">
             <Icon icon="package" className="size-5 text-primary" />

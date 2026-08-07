@@ -897,7 +897,8 @@ export default function OrderCreateForm({
         }
       })}
       noValidate
-      className={compact ? '' : 'pb-24 lg:pb-0 scroll-pb-24'}
+      // scroll-pb-24 ถูกย้ายไปที่ <main> ของ (fullscreen)/layout.tsx — scroll-padding มีผลเฉพาะบนกล่องที่เลื่อนจริง
+      className={compact ? '' : 'pb-24 lg:pb-0'}
     >
       {/* Full-bleed status sheet: loading ระหว่าง submit / error + ปุ่มปิดกลับไปแก้ไข */}
       <SubmitStatusSheet
