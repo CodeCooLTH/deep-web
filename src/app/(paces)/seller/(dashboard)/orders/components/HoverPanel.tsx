@@ -37,6 +37,14 @@ interface Props {
   children: ReactNode
   /** ความกว้าง panel (px) — ใช้ clamp ขอบจอ */
   width?: number
+  /**
+   * ความสูงโดยประมาณของ panel (px) — ใช้ตัดสินว่าเปิดลงล่างได้ไหม
+   *
+   * วัดจริงไม่ได้ตอนคำนวณเพราะยังไม่ mount — ผู้เรียกที่รู้ว่า panel ตัวเองสูงกว่าค่าตั้งต้น
+   * ต้องส่งมาเอง ไม่งั้นมันจะเปิดลงล่างแล้วท้าย panel หลุดขอบจอ (ประมาณเกินไว้ = เปิดขึ้นบน
+   * ซึ่งปลอดภัยเสมอ, ประมาณขาด = เนื้อหาท้าย panel ถูกตัดหาย)
+   */
+  estimatedHeight?: number
   className?: string
   /**
    * เรียกตอน panel เปิด — ให้ผู้เรียกโหลดข้อมูลแบบ lazy ได้ (เช่นยิงถามสถานะพัสดุจาก iShip)
@@ -45,7 +53,14 @@ interface Props {
   onOpen?: () => void
 }
 
-export default function HoverPanel({ trigger, children, width = 320, className, onOpen }: Props) {
+export default function HoverPanel({
+  trigger,
+  children,
+  width = 320,
+  estimatedHeight = 320,
+  className,
+  onOpen,
+}: Props) {
   const anchorRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number; below: boolean } | null>(null)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -84,9 +99,7 @@ export default function HoverPanel({ trigger, children, width = 320, className, 
     // ไม่งั้น panel กระโดดไปเกาะเคอร์เซอร์ตำแหน่งใหม่ = ของที่กำลังจะกดเลื่อนหนีมือ
     if (pos) return
     const left = Math.min(Math.max(8, e.clientX - 24), window.innerWidth - width - 8)
-    // 320 = ความสูงโดยประมาณของ panel ที่ยาวที่สุด (การ์ดพัสดุพร้อมไทม์ไลน์+ประวัติ)
-    // ไม่วัดจริงเพราะยังไม่ mount ตอนคำนวณ — ประมาณเกินไว้ดีกว่าเปิดลงล่างแล้วล้นจอ
-    const below = window.innerHeight - e.clientY > 320
+    const below = window.innerHeight - e.clientY > estimatedHeight
     setPos({ top: below ? e.clientY + 16 : e.clientY - 16, left, below })
     onOpen?.()
   }

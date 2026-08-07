@@ -16,15 +16,23 @@ interface CarrierStatusMeta {
   tone: ShipmentTone;
   /** ถึงปลายทางแล้ว (สำเร็จหรือคืนสำเร็จ) — ใช้ตัดสินว่ายังต้องติดตามต่อไหม */
   terminal: boolean;
+  /**
+   * ไอคอน tabler ของสถานะนี้ — ใช้ในไทม์ไลน์ที่แสดงเหตุการณ์รายแถว
+   *
+   * อยู่ในตารางเดียวกับ text/tone เพราะทั้งสามอย่างคือ "หน้าตาของสถานะนี้" ชุดเดียวกัน
+   * แยกไปเป็นตารางที่สองเมื่อไร รหัสใหม่ที่เพิ่มเข้ามาจะได้ข้อความแต่ไม่มีไอคอน
+   * (หรือกลับกัน) โดยไม่มีอะไรฟ้อง — ทุกชื่อตรวจกับ @iconify/json/tabler แล้วว่ามีจริง
+   */
+  icon: string;
 }
 
 const CARRIER_STATUS: Record<string, CarrierStatusMeta> = {
-  order_success: { text: "รอเข้ารับพัสดุ", tone: "primary", terminal: false },
-  picked_up: { text: "พัสดุเข้าระบบ", tone: "info", terminal: false },
-  with_branch: { text: "พัสดุถึงสถานีคัดแยก", tone: "info", terminal: false },
-  in_transit: { text: "อยู่ระหว่างขนส่ง", tone: "info", terminal: false },
-  progress: { text: "อยู่ระหว่างจัดส่ง", tone: "info", terminal: false },
-  delivered: { text: "จัดส่งแล้ว", tone: "success", terminal: true },
+  order_success: { text: "รอเข้ารับพัสดุ", tone: "primary", terminal: false, icon: "package" },
+  picked_up: { text: "พัสดุเข้าระบบ", tone: "info", terminal: false, icon: "package-import" },
+  with_branch: { text: "พัสดุถึงสถานีคัดแยก", tone: "info", terminal: false, icon: "building-warehouse" },
+  in_transit: { text: "อยู่ระหว่างขนส่ง", tone: "info", terminal: false, icon: "truck-delivery" },
+  progress: { text: "อยู่ระหว่างจัดส่ง", tone: "info", terminal: false, icon: "truck-delivery" },
+  delivered: { text: "จัดส่งแล้ว", tone: "success", terminal: true, icon: "circle-check" },
   /**
    * terminal: true (แก้ 2026-08-06) — `payment_success` (id 12) คือ "เงินเก็บปลายทางเข้าร้านแล้ว"
    * ซึ่งเกิด *หลัง* `delivered` เสมอ (ของจริงห่างกัน ~33 ชม.) มันจึงเป็นปลายทางที่ไกลกว่า
@@ -35,15 +43,15 @@ const CARRIER_STATUS: Record<string, CarrierStatusMeta> = {
    * รายการเดินทางข้าง ๆ มันขึ้นครบถึง "อยู่ระหว่างขนส่ง" (user เจอบน prod: TH069306110878
    * ออเดอร์ CONFIRMED + ได้เงินแล้ว แต่แถบอยู่จุดที่ 1)
    */
-  payment_success: { text: "ชำระเงินสำเร็จ", tone: "success", terminal: true },
-  return_success: { text: "ส่งคืนสำเร็จ", tone: "secondary", terminal: true },
-  return: { text: "พัสดุตีกลับ", tone: "warning", terminal: false },
-  issue: { text: "พัสดุมีปัญหา", tone: "danger", terminal: false },
-  cannot_pickup: { text: "ไม่สามารถเข้ารับพัสดุ", tone: "danger", terminal: false },
-  no_courier: { text: "รอเลือกขนส่ง", tone: "warning", terminal: false },
-  cod_refund: { text: "รายการขอเงินคืน", tone: "warning", terminal: false },
-  is_expired: { text: "หมดอายุ", tone: "secondary", terminal: true },
-  cancelled: { text: "ยกเลิก", tone: "secondary", terminal: true },
+  payment_success: { text: "ชำระเงินสำเร็จ", tone: "success", terminal: true, icon: "cash-banknote" },
+  return_success: { text: "ส่งคืนสำเร็จ", tone: "secondary", terminal: true, icon: "arrow-back-up" },
+  return: { text: "พัสดุตีกลับ", tone: "warning", terminal: false, icon: "arrow-back-up" },
+  issue: { text: "พัสดุมีปัญหา", tone: "danger", terminal: false, icon: "alert-triangle" },
+  cannot_pickup: { text: "ไม่สามารถเข้ารับพัสดุ", tone: "danger", terminal: false, icon: "truck-off" },
+  no_courier: { text: "รอเลือกขนส่ง", tone: "warning", terminal: false, icon: "help" },
+  cod_refund: { text: "รายการขอเงินคืน", tone: "warning", terminal: false, icon: "cash-banknote-move-back" },
+  is_expired: { text: "หมดอายุ", tone: "secondary", terminal: true, icon: "clock-exclamation" },
+  cancelled: { text: "ยกเลิก", tone: "secondary", terminal: true, icon: "circle-x" },
   /**
    * id 99 "ปิดงาน" — มีในตาราง STATUS_ID_TO_CODE มาตั้งแต่แรกแต่ไม่เคยมีที่นี่ แปลว่าถ้ามันมาจริง
    * describeCarrierStatus จะคืน "อยู่ระหว่างดำเนินการ" = พัสดุที่จบงานแล้วขึ้นว่ายังเดินอยู่
@@ -52,7 +60,7 @@ const CARRIER_STATUS: Record<string, CarrierStatusMeta> = {
    * อยู่แล้ว) แต่ **ไม่นับเป็น "ส่งถึงแล้ว"** เพราะยังพิสูจน์ไม่ได้ว่า "ปิดงาน" แปลว่าสำเร็จ —
    * ยังไม่เคยเจอค่านี้ในข้อมูลจริงสักแถว (ตรวจ prod 2026-08-06) จึงห้ามเดาให้เป็นสีเขียว
    */
-  close: { text: "ปิดงานแล้ว", tone: "secondary", terminal: true },
+  close: { text: "ปิดงานแล้ว", tone: "secondary", terminal: true, icon: "flag" },
 };
 
 /**
@@ -90,12 +98,14 @@ export function isDeliveredCarrierStatus(code?: string | null): boolean {
  * คืนข้อความกลาง ๆ ที่ยังบอกผู้ใช้ได้ว่ากำลังเกิดอะไรอยู่ ดีกว่าโชว์รหัสดิบ
  */
 export function describeCarrierStatus(code?: string | null): CarrierStatusMeta {
-  if (!code) return { text: "ยังไม่มีข้อมูลสถานะ", tone: "secondary", terminal: false };
+  if (!code)
+    return { text: "ยังไม่มีข้อมูลสถานะ", tone: "secondary", terminal: false, icon: "help" };
   return (
     CARRIER_STATUS[code] ?? {
       text: "อยู่ระหว่างดำเนินการ",
       tone: "info",
       terminal: false,
+      icon: "refresh",
     }
   );
 }

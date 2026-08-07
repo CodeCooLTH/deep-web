@@ -38,3 +38,37 @@ export const NOTICE_BOX: Record<string, string> = {
   danger: 'bg-danger/15 text-danger-ink',
   secondary: 'bg-default-100 text-default-700',
 }
+
+/**
+ * จุดไอคอนในไทม์ไลน์ — 2 ระดับ ใช้แยก "แถวล่าสุด" ออกจาก "แถวประวัติ"
+ *
+ * ต่างกันที่ **ความทึบ+ขนาด** ไม่ใช่เฉดสีใหม่ (docs/conventions/contrast-fix-keeps-hue.md):
+ * สีของแต่ละจุดยังมาจาก tone ของสถานะนั้นเหมือนเดิมทุกแถว เขียวจึงยังผูกกับ delivered/
+ * payment_success เท่านั้นตาม Verified-Means-Green ไม่ใช่ผูกกับคำว่า "ล่าสุด"
+ */
+
+/** แถวล่าสุด — พื้นทึบ ตัวหนังสือขาว */
+export const TONE_DOT_SOLID: Record<string, string> = {
+  primary: 'bg-primary text-white',
+  info: 'bg-info text-white',
+  success: 'bg-success text-white',
+  warning: 'bg-warning text-white',
+  danger: 'bg-danger text-white',
+  /**
+   * secondary ของธีมคือ **ม่วง #7b70ef** (`--color-secondary` ใน _root.css) ซึ่งเป็นสีของ
+   * buyer/Vuexy ไม่ใช่ Paces — จุดทึบสีนั้นกลางหน้า seller จะอ่านเป็นสีแบรนด์อีกตัว
+   * tone นี้หมายถึง "จบแล้วแต่ไม่ใช่ผลที่ต้องการ" (ยกเลิก/หมดอายุ/ตีกลับสำเร็จ/ปิดงาน)
+   * เทากลาง ๆ จึงตรงความหมายกว่า และตรงกับ NOTICE_BOX.secondary ที่ก็เลี่ยงม่วงไปแล้ว
+   */
+  secondary: 'bg-default-500 text-white',
+}
+
+/** แถวประวัติ — พื้น tint + ตัวหนังสือ ink (คู่สีที่วัด AA แล้ว ดูตารางบนหัวไฟล์) */
+export const TONE_DOT_TINT: Record<string, string> = {
+  primary: 'bg-primary/15 text-primary-ink',
+  info: 'bg-info/15 text-info-ink',
+  success: 'bg-success/15 text-success-ink',
+  warning: 'bg-warning/15 text-warning-ink',
+  danger: 'bg-danger/15 text-danger-ink',
+  secondary: 'bg-default-100 text-default-700',
+}
