@@ -27,6 +27,8 @@ import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateF
 interface Props {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ส่งต่อลง QuickSummaryPanel */
   orderNoun?: string
+  /** คำเรียกของที่ร้านขาย ตามประเภทกิจการ (สินค้า/บริการ/ห้องพัก) — SSOT: PRODUCT_VOCAB */
+  productNoun?: string
 
   /** ข้อความจากแชทที่จะให้ section ลูกค้ากระจายให้ตอนเปิดฟอร์ม (user สั่ง 2026-08-04) */
   prefillParseText?: string
@@ -56,6 +58,7 @@ interface Props {
 
 export default function QuickForm({
   orderNoun = 'คำสั่งซื้อ',
+  productNoun = 'สินค้า',
   prefillParseText,
   control,
   errors,
@@ -135,7 +138,7 @@ export default function QuickForm({
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-bold text-dark">
             <Icon icon="package" className="size-5 text-primary" />
-            สินค้า
+            {productNoun}
             {/* ป้าย "ต้องแก้" คำเดียวกับที่บล็อกลูกค้า/ที่อยู่ใช้อยู่แล้ว — คำเดียวกัน = ของเดียวกัน */}
             {itemsRootErrorMsg && <span className="badge bg-danger/15 text-danger">ต้องแก้</span>}
           </h2>
@@ -151,6 +154,7 @@ export default function QuickForm({
               itemsCtl={itemsCtl}
               errors={errors}
               inventoryEnabled={inventoryEnabled}
+              productNoun={productNoun}
               onOpenPicker={() => setPickerIndex(i)}
             />
           ))}
@@ -183,6 +187,7 @@ export default function QuickForm({
         open={pickerIndex !== null}
         catalog={catalog}
         bestSellers={bestSellers}
+        productNoun={productNoun}
         onPick={(p) => {
           if (pickerIndex != null) itemsCtl.setLineProduct(pickerIndex, p)
           setPickerIndex(null)

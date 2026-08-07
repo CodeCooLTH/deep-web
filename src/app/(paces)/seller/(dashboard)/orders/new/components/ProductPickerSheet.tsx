@@ -20,12 +20,14 @@ interface Props {
   open: boolean
   catalog: CatalogProduct[]
   bestSellers: CatalogProduct[]
+  /** คำเรียกของที่ร้านขาย (สินค้า/บริการ/ห้องพัก) — SSOT: PRODUCT_VOCAB */
+  productNoun?: string
   onPick: (p: CatalogProduct) => void
   onCustom: (text: string) => void
   onClose: () => void
 }
 
-export default function ProductPickerSheet({ open, catalog, bestSellers, onPick, onCustom, onClose }: Props) {
+export default function ProductPickerSheet({ open, catalog, bestSellers, productNoun = 'สินค้า', onPick, onCustom, onClose }: Props) {
   /**
    * ตรึง scroll หน้าข้างหลังระหว่างเปิด — sheet นี้ประกอบเองด้วย React state (ดูคอมเมนต์หัวไฟล์
    * ว่าทำไมไม่ใช้ Preline) จึงไม่ได้ล็อกฟรีแบบ hs-overlay · docs/conventions/overlay-scroll-lock.md
@@ -103,14 +105,14 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
       <div
         className={'fixed inset-x-0 bottom-0 z-80 flex h-[75dvh] flex-col rounded-t-2xl border-t border-default-300 bg-card' /* HR7: inset-x-0 bottom-0 + h-[75dvh] = viewport-lock, Paces ไม่มี token — sheet สูงคงที่ list มีที่พอ */}
         role="dialog"
-        aria-label="เลือกสินค้า"
+        aria-label={`เลือก${productNoun}`}
       >
         <div className="flex shrink-0 justify-center pt-3 pb-1">
           <span className="h-1 w-10 rounded-full bg-default-300" aria-hidden="true" />
         </div>
         <div className="shrink-0 px-4 pt-1">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-dark">เลือกสินค้า</h3>
+            <h3 className="text-base font-semibold text-dark">เลือก{productNoun}</h3>
             <button
               type="button"
               onClick={onClose}
@@ -125,7 +127,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
             <>
               {/* Impeccable: ตัด tracking-wide + ตัวพิมพ์ใหญ่บังคับเดิม — สระ/วรรณยุกต์ไทยหลุดจากพยัญชนะเมื่อ
                   tracking กว้าง และคลาสเดิมไม่มีผลกับอักษรไทยอยู่แล้ว (เหมือน 18 จุดที่แก้ไปแล้วใน Phase A) */}
-              <p className="mb-2 text-2xs font-bold text-default-400">สินค้าขายดี</p>
+              <p className="mb-2 text-2xs font-bold text-default-400">{productNoun}ยอดนิยม</p>
               <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
                 {bestSellers.map((p) => (
                   <button
@@ -154,7 +156,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
               type="text"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="ค้นหาชื่อ / SKU…"
+              placeholder={`ค้นหา${productNoun}`}
               className="form-input"
             />
           </div>
@@ -168,7 +170,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
           {!s && catalog.length > 0 && (
             <>
               {/* Impeccable: ตัด tracking-wide + ตัวพิมพ์ใหญ่บังคับเดิม (เหตุผลเดียวกับ label "สินค้าขายดี" ด้านบน) */}
-              <p className="mb-1 text-2xs font-bold text-default-400">สินค้าทั้งหมด</p>
+              <p className="mb-1 text-2xs font-bold text-default-400">{productNoun}ทั้งหมด</p>
               <div className="divide-y divide-default-100">{catalog.slice(0, visibleCount).map(productRow)}</div>
               {visibleCount < catalog.length && (
                 <p className="py-3 text-center text-xs text-default-400">เลื่อนเพื่อดูเพิ่ม…</p>
@@ -176,7 +178,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
             </>
           )}
           {!s && catalog.length === 0 && (
-            <p className="py-6 text-center text-sm text-default-400">ยังไม่มีสินค้าในร้าน — พิมพ์ชื่อเพื่อเพิ่มเอง</p>
+            <p className="py-6 text-center text-sm text-default-400">ยังไม่มี{productNoun}ในร้าน — พิมพ์ชื่อในช่องค้นหาเพื่อเพิ่มเอง</p>
           )}
 
           {/* filtered list (เมื่อพิมพ์ค้นหา) */}
@@ -184,7 +186,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, onPick,
             <div className="divide-y divide-default-100">
               {filtered.map(productRow)}
               {filtered.length === 0 && (
-                <p className="py-3 text-center text-sm text-default-400">ไม่พบสินค้าในร้าน</p>
+                <p className="py-3 text-center text-sm text-default-400">ไม่พบ{productNoun}ที่ค้นหา — พิมพ์ชื่อเพื่อเพิ่มเป็นรายการใหม่ได้</p>
               )}
             </div>
           )}

@@ -43,6 +43,8 @@ type AccKey = 'customer' | 'payment' | 'shipping' | 'appointment' | 'note'
 interface Props {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ไม่ส่ง = คำของ ONLINE_SALES */
   orderNoun?: string
+  /** คำเรียกของที่ร้านขาย (สินค้า/บริการ/ห้องพัก) — SSOT: PRODUCT_VOCAB */
+  productNoun?: string
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<any>
@@ -78,6 +80,7 @@ interface Props {
 
 export default function CartPanel({
   orderNoun = 'คำสั่งซื้อ',
+  productNoun = 'สินค้า',
   control,
   catalog,
   itemsCtl,
@@ -261,16 +264,16 @@ export default function CartPanel({
           >
             <Icon icon="basket-off" className={itemsHasError ? 'size-10' : 'size-10 opacity-50'} />
             <p className={`text-sm font-medium ${itemsHasError ? 'text-danger' : 'text-default-700'}`}>
-              ยังไม่มีรายการสินค้า
+              ยังไม่มีรายการ
             </p>
-            <p className="text-xs">แตะสินค้าด้านซ้ายเพื่อเพิ่มลงตะกร้า</p>
+            <p className="text-xs">เลือก{productNoun}จากรายการด้านซ้ายเพื่อเพิ่มลงตะกร้า</p>
           </div>
         ) : (
           <div>
             {/* header row (desktop) — คอลัมน์ตรงกับ CartLineItem */}
             <div className="hidden items-center gap-x-2 border-b border-default-200 pb-1.5 text-2xs font-semibold text-default-400 lg:flex">
               <span className="w-14 shrink-0" />
-              <span className="min-w-0 flex-1">สินค้า / รายละเอียด</span>
+              <span className="min-w-0 flex-1">{productNoun} / รายละเอียด</span>
               <span className="w-14 shrink-0 text-center">จำนวน</span>
               <span className="w-24 shrink-0 text-center">ราคา</span>
               <span className="w-20 shrink-0 text-right">รวม</span>
@@ -538,7 +541,7 @@ export default function CartPanel({
           <p className="text-sm text-danger">{String(errors.items.message)}</p>
         )}
         <div className="flex items-center justify-between text-sm">
-          <span className="text-default-600">ยอดสินค้า</span>
+          <span className="text-default-600">ยอดรวมรายการ</span>
           <span className="font-medium text-default-700">{formatThb(subtotal)}</span>
         </div>
         <div className="flex items-center justify-between gap-2 text-sm">

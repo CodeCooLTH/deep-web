@@ -20,11 +20,13 @@ interface Props {
   catalog: CatalogProduct[]
   qtyByProduct: (id: string) => number
   inc: (p: CatalogProduct) => void
+  /** คำเรียกของที่ร้านขาย (สินค้า/บริการ/ห้องพัก) — SSOT: PRODUCT_VOCAB */
+  productNoun?: string
   /** ร้านเปิดระบบคลัง → แสดงสต็อกคงเหลือ + กันเพิ่มสินค้าที่หมด */
   inventoryEnabled?: boolean
 }
 
-export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabled = false }: Props) {
+export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabled = false, productNoun = 'สินค้า' }: Props) {
   const [search, setSearch] = useState('')
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -44,7 +46,7 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="ค้นหาสินค้า..."
+          placeholder={`ค้นหา${productNoun}`}
           className="form-input"
         />
       </div>
@@ -52,12 +54,12 @@ export default function ProductGrid({ catalog, qtyByProduct, inc, inventoryEnabl
       {catalog.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-default-400">
           <Icon icon="package" className="size-12 opacity-40" />
-          <p className="text-sm">ยังไม่มีสินค้าในแคตตาล็อก</p>
+          <p className="text-sm">ยังไม่มี{productNoun}ในแคตตาล็อก</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-default-400">
           <Icon icon="search-off" className="size-10 opacity-40" />
-          <p className="text-sm">ไม่พบสินค้าที่ตรงกับ &ldquo;{search}&rdquo;</p>
+          <p className="text-sm">ไม่พบ{productNoun}ที่ตรงกับ &ldquo;{search}&rdquo;</p>
         </div>
       ) : (
         /**

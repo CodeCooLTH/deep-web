@@ -338,6 +338,8 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
                       : 'text-default-400'
                 }`}
               />
+              {/* ป้ายว่าง ๆ บอกสิ่งที่จะได้ ไม่ใช่ท่าที่ต้องทำ — ไอคอนแว่นขยายท้ายแถวบอกอยู่แล้วว่าค้นหาได้
+                  ("แตะเพื่อเลือกที่อยู่ (พิมพ์ค้นหา/เลือก)" เดิมอธิบายวิธีใช้ซ้ำกับสิ่งที่ตาเห็น) */}
               {locality ? (
                 <span className="min-w-0 flex-1 text-sm">
                   <span className="font-semibold text-dark">
@@ -348,7 +350,7 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
                   </span>
                 </span>
               ) : (
-                <span className="flex-1 text-sm text-default-400">แตะเพื่อเลือกที่อยู่ (พิมพ์ค้นหา/เลือก)</span>
+                <span className="flex-1 text-sm text-default-400">เลือกตำบล / อำเภอ / จังหวัด</span>
               )}
               <Icon icon="search" className="size-4 shrink-0 text-default-400" />
             </button>
@@ -356,8 +358,8 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
             {localityStatus.state === 'incomplete' && (
               <p id="cq-locality-err" className="mt-1 text-xs text-danger">
                 {localityStatus.hasAnyData
-                  ? `ยังขาด${localityStatus.missingRequired.join('และ')} — แตะเพื่อเลือกให้ครบก่อนบันทึก`
-                  : 'ยังไม่ได้เลือกที่อยู่ — แตะเพื่อเลือกก่อนบันทึก'}
+                  ? `ยังขาด${localityStatus.missingRequired.join('และ')} — เลือกให้ครบก่อนบันทึก`
+                  : 'ยังไม่ได้เลือกที่อยู่ — เลือกก่อนบันทึก'}
               </p>
             )}
             {/* "บันทึกออเดอร์ได้" → "บันทึกได้เลย": ประโยคนี้ขึ้นได้ในร้านทุกประเภทที่มีสินค้าต้องจัดส่ง

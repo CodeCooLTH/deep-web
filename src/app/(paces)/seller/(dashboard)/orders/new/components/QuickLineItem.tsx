@@ -26,6 +26,8 @@ interface Props {
   itemsCtl: ItemsController
   errors?: FieldErrors<FormValues>
   inventoryEnabled?: boolean
+  /** คำเรียกของที่ร้านขาย (สินค้า/บริการ/ห้องพัก) */
+  productNoun?: string
   /** เปิด ProductPickerSheet ที่ QuickForm สำหรับ line นี้ */
   onOpenPicker: () => void
 }
@@ -38,6 +40,7 @@ export default function QuickLineItem({
   itemsCtl,
   errors,
   inventoryEnabled = false,
+  productNoun = 'สินค้า',
   onOpenPicker,
 }: Props) {
   const [priceOpen, setPriceOpen] = useState(false)
@@ -91,7 +94,7 @@ export default function QuickLineItem({
                 e.currentTarget.blur()
                 onOpenPicker()
               }}
-              aria-label={item.name ? `แก้ไขสินค้า ${item.name}` : 'แตะเลือกสินค้า'}
+              aria-label={item.name ? `แก้ไข${productNoun} ${item.name}` : `เลือก${productNoun}`}
               aria-invalid={itemsRootError || undefined}
               aria-describedby={itemsRootError ? 'order-items-error' : undefined}
               className={
@@ -107,14 +110,16 @@ export default function QuickLineItem({
               ) : (
                 <>
                   <Icon icon="search" className={`size-4 shrink-0 ${itemsRootError ? 'text-danger' : 'text-default-400'}`} />
-                  <span className="min-w-0 flex-1 truncate">แตะเลือกสินค้า หรือค้นด้วยชื่อ/SKU</span>
+                  {/* ไม่ขึ้นต้นด้วย "แตะ": ป้ายบอกสิ่งที่จะได้ ไม่ใช่ท่าที่ต้องทำ — กรอบกับลูกศรบอกอยู่แล้ว
+                      ว่ากดได้ · เลี่ยงคำว่า SKU (ศัพท์เฉพาะ) ใช้ "พิมพ์ชื่อเอง" ที่ตรงกับสิ่งที่แผงทำได้จริง */}
+                  <span className="min-w-0 flex-1 truncate">เลือก{productNoun} หรือพิมพ์ชื่อเอง</span>
                   <Icon icon="chevron-right" className={`size-4 shrink-0 ${itemsRootError ? 'text-danger' : 'text-default-400'}`} />
                 </>
               )}
             </button>
             <input
               type="text"
-              placeholder="รายละเอียดสินค้า"
+              placeholder={`รายละเอียด${productNoun}`}
               value={descField.value ?? ''}
               onChange={descField.onChange}
               onBlur={descField.onBlur}

@@ -31,6 +31,7 @@ import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 import { toDatetimeLocalValue } from './OrderDateRow'
 import { resolveEditedOrderedAtPayload, orderDateRejectReason } from '@/lib/order-date-window'
 import { shopShipsGoods } from '@/lib/shipping-address-status'
+import { resolveProductVocab } from '@/lib/seller-menu'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -162,7 +163,8 @@ export interface FormValues {
 
 const itemSchema = Yup.object({
   productId: Yup.string().optional(),
-  name: Yup.string().min(1, 'กรุณากรอกชื่อสินค้า').required('กรุณากรอกชื่อสินค้า'),
+  // ข้อความ schema อยู่ระดับ module ผันตามร้านไม่ได้ → ใช้คำกลาง "รายการ" ที่จริงกับทุกประเภทร้าน
+  name: Yup.string().min(1, 'กรุณากรอกชื่อรายการ').required('กรุณากรอกชื่อรายการ'),
   description: Yup.string().optional(),
   qty: Yup.number()
     .typeError('กรุณากรอกจำนวน')
@@ -194,7 +196,7 @@ const schema = Yup.object({
         ? value.filter((it) => it?.productId != null || (it?.name ?? '').toString().trim() !== '')
         : value,
     )
-    .min(1, 'ต้องมีสินค้าอย่างน้อย 1 รายการ')
+    .min(1, 'ต้องมีอย่างน้อย 1 รายการ')
     .required(),
   salesChannel: Yup.string()
     .oneOf(['STOREFRONT', 'FACEBOOK', 'LINE', 'TIKTOK', 'OTHER'])
@@ -279,6 +281,12 @@ export default function OrderCreateForm({
 }: Props) {
   // ร้านนี้ส่งของไหม — ตัวเดียวกับที่ createOrder ใช้ตัดสิน (SSOT: lib/shipping-address-status)
   const shipsGoods = shopShipsGoods(shopVertical)
+  /**
+   * คำเรียก "ของที่ร้านขาย" ตามประเภทกิจการ (SSOT: PRODUCT_VOCAB) — ร้านคิวงานเรียก "บริการ"
+   * ร้านบ้านพักเรียก "ห้องพัก". ทั้งฟอร์มนี้เคยเขียน "สินค้า" ตายตัวทุกจุด ทั้งที่หน้าอื่นของ
+   * ร้านเดียวกัน (แดชบอร์ด/เมนู/โปรไฟล์) ผันคำให้แล้ว — คำเดียวกันต้องหมายถึงของเดียวกันทั้งแอป
+   */
+  const productNoun = resolveProductVocab(shopVertical ?? '').itemColLabel
 
   /**
    * ร้านคิวงานไม่เอาวันที่จากข้อความในแชท — ใช้เวลาปัจจุบันเสมอ (user สั่ง 2026-08-07)
@@ -906,6 +914,7 @@ export default function OrderCreateForm({
       <div className={compact ? '' : 'lg:hidden'}>
         <QuickForm
           orderNoun={vocab.noun}
+          productNoun={productNoun}
           shipsGoods={shipsGoods}
           prefillParseText={prefillParseText}
           control={control}
@@ -936,11 +945,12 @@ export default function OrderCreateForm({
         {/* @container = ประกาศ containment ให้ ProductGrid วัดความกว้าง "แพน" แทน viewport
             (ดูเหตุผลเต็มใน ProductGrid.tsx) — จุดเดียวในโปรเจกต์ที่ใช้ utility นี้ */}
         <div className="@container min-w-0 lg:h-full lg:overflow-y-auto">
-          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
+          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} productNoun={productNoun} />
         </div>
         <div className="lg:h-full">
           <CartPanel
             orderNoun={vocab.noun}
+            productNoun={productNoun}
             shipsGoods={shipsGoods}
             control={control}
             catalog={catalog}

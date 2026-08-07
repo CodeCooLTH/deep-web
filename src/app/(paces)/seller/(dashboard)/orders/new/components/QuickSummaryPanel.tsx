@@ -60,7 +60,7 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
       {expanded && (
         <div className="mb-2 space-y-1 border-b border-default-100 pb-2 text-sm">
           <div className="flex justify-between text-default-500">
-            <span>ยอดสินค้า</span>
+            <span>ยอดรวมรายการ</span>
             <span className="tabular-nums">{formatThb(subtotal)}</span>
           </div>
           <div className="flex justify-between text-default-500">
