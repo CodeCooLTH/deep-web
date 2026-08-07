@@ -27,6 +27,7 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import OrdersTable from './OrdersTable'
+import ListBusyOverlay, { useListBusy } from './ListBusyOverlay'
 
 // ─── status tabs ────────────────────────────────────────────────────────────
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
@@ -116,6 +117,13 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
   const router   = useRouter()
   const pathname = usePathname()
 
+  /**
+   * แผงโหลดของหน้านี้ — ตัวเดียวคุมทั้ง 2 breakpoint (มือถือ = การ์ด, เดสก์ท็อป = ตาราง)
+   * เพราะเห็นได้ทีละจอ และตัวกรอง `?stage=` เกิดที่นี่แต่ถูกกดจาก toolbar ของตาราง
+   * ถ้าแยก state สองชุด ฝั่งตารางจะไม่รู้ว่ากำลังรอ RSC payload ใหม่อยู่
+   */
+  const busy = useListBusy()
+
   const [localStatus, setLocalStatus] = useState<string>(activeStatus ?? 'all')
   /**
    * ?stage= — ตัวกรองกองงานตามสถานะพัสดุ มี 2 ทางเข้า: ไทล์ "สถานะคำสั่งซื้อ" บนหน้าแรก
@@ -187,7 +195,9 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
       else next.set(k, v)
     }
     const qs = next.toString()
-    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    // ห่อด้วย run() — ทุกทางที่เปลี่ยน query ของหน้านี้ผ่านฟังก์ชันเดียวนี้ (ชิปมือถือ, ดรอปดาวน์
+    // "พัสดุ" บนเดสก์ท็อป, สถานะการขายในโมดัลตัวกรอง) แผงจึงอยู่ครบทุกทางโดยไม่ต้องไปห่อทีละจุด
+    busy.run(() => router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false }))
   }
 
   // ─── status tab click (sync URL) ───────────────────────────────────────────
@@ -327,7 +337,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
       })
       if (res.ok) {
         pacesToast.success(`ยกเลิก${vocab.noun}แล้ว`)
-        router.refresh()
+        busy.run(() => router.refresh())
       } else {
         const data = await res.json().catch(() => ({}))
         pacesToast.error(typeof data?.error === 'string' ? data.error : `ยกเลิก${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่`)
@@ -355,6 +365,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
           orders={stageFiltered}
           ishipEnabled={ishipEnabled}
           vocab={vocab}
+          busy={busy}
           stageFilter={
             hasStageAxis
               ? {
@@ -406,7 +417,12 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
               className="form-input w-full rounded-full bg-white !pl-9"
               placeholder="ค้นหาเลขออเดอร์ / ชื่อลูกค้า / เบอร์"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              /* setSearch อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer จะพิมพ์
+                 ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แทน แล้วหุบเองหลังหยุดพิมพ์ */
+              onChange={(e) => {
+                setSearch(e.target.value)
+                busy.begin()
+              }}
             />
           </div>
 
@@ -498,6 +514,9 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
       </div>
 
       {/* ─── Order cards + lazy-load ──────────────────────────────────────────── */}
+      {/* relative = กล่องอ้างอิงของแผงโหลด — ครอบเฉพาะพื้นที่ผลลัพธ์ ไม่รวมหัวสติกกี้ข้างบน
+          (ชิป/ช่องค้นหาต้องกดต่อได้ระหว่างโหลด ดูเหตุผลเต็มใน ListBusyOverlay.tsx) */}
+      <div className="relative">
       {visible.length === 0 ? (
         <div className="card mt-3">
           <div className="card-body">
@@ -527,6 +546,8 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
           )}
         </div>
       )}
+      <ListBusyOverlay busy={busy.busy} />
+      </div>{/* /relative — พื้นที่ผลลัพธ์ + แผงโหลด */}
       </div>{/* /full-bleed wrapper */}
       </div>{/* /lg:hidden mobile wrapper */}
 
@@ -586,7 +607,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
                   <button
                     key={opt.value}
                     type="button"
-                    onClick={() => setTypeFilter(opt.value)}
+                    onClick={() => busy.run(() => setTypeFilter(opt.value))}
                     className={cn(
                       'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
                       active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
@@ -604,7 +625,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
             <button
               type="button"
               onClick={() => {
-                setTypeFilter('')
+                busy.run(() => setTypeFilter(''))
                 // ล้างเฉพาะสิ่งที่โมดัลนี้คุม — แถวชิปด้านนอกเป็นการเลือกของผู้ใช้ที่ยังเห็นอยู่
                 // ถ้าล้างไปด้วยจะเหมือนปุ่มนี้แอบไปกดชิปแทนเขา
                 if (hasStageAxis && localStatus !== 'all') handleStatusTab('all')

@@ -48,6 +48,7 @@ import { useRouter } from 'next/navigation'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { ORDER_STATUS_META, isCODPayment } from '@/lib/order-display'
+import ListBusyOverlay, { type ListBusy } from './ListBusyOverlay'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 // อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —
@@ -145,9 +146,14 @@ type Props = {
     counts: Record<string, number>
     onChange: (value: string | null) => void
   }
+  /**
+   * ตัวคุมแผงโหลด — เป็นของ OrdersList เพราะ `?stage=` (ที่ toolbar นี้กด) เป็น server
+   * navigation ที่เกิดขึ้นที่นั่น ตารางจึงต้องใช้ตัวเดียวกัน ไม่ใช่สร้างของตัวเอง
+   */
+  busy: ListBusy
 }
 
-export default function OrdersTable({ orders, ishipEnabled = false, vocab, stageFilter }: Props) {
+export default function OrdersTable({ orders, ishipEnabled = false, vocab, stageFilter, busy }: Props) {
   const router = useRouter()
   const [globalFilter,   setGlobalFilter]   = useState('')
   const [sorting,        setSorting]        = useState<SortingState>([])
@@ -209,7 +215,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
       })
       if (res.ok) {
         pacesToast.success(`ยกเลิก${vocab.noun}แล้ว`)
-        router.refresh()
+        busy.run(() => router.refresh())
       } else {
         const data = await res.json().catch(() => ({}))
         pacesToast.error(typeof data?.error === 'string' ? data.error : `ยกเลิก${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่`)
@@ -593,10 +599,18 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
     state: { sorting, globalFilter, columnFilters, pagination, rowSelection },
     // createdAtISO = คอลัมน์กรองอย่างเดียว ไม่ต้องโผล่เป็นคอลัมน์จริง (วันที่อยู่บนแถบหัวกลุ่ม)
     initialState: { columnVisibility: { createdAtISO: false } },
-    onSortingChange: setSorting,
+    /**
+     * เรียงลำดับ / ตัวกรองคอลัมน์ / เปลี่ยนหน้า+จำนวนแถว ผ่าน callback ของ table ทุกทาง
+     * (หัวคอลัมน์ที่กดเรียง, ทุก FilterDropdown ใน toolbar, ปุ่ม pagination, "แถวละ N")
+     * ห่อที่นี่ที่เดียวจึงครอบได้ครบโดยไม่ต้องไล่ห่อทีละ handler — และจะไม่หลุดเมื่อมีคน
+     * เพิ่มตัวกรองใหม่ทีหลัง
+     *
+     * globalFilter ไม่ห่อ: ช่องค้นหาเป็น controlled input ที่ต้องพิมพ์ลื่น (ดู onChange ข้างล่าง)
+     */
+    onSortingChange: (updater) => busy.run(() => setSorting(updater)),
     onGlobalFilterChange: setGlobalFilter,
-    onColumnFiltersChange: setColumnFilters,
-    onPaginationChange: setPagination,
+    onColumnFiltersChange: (updater) => busy.run(() => setColumnFilters(updater)),
+    onPaginationChange: (updater) => busy.run(() => setPagination(updater)),
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -646,9 +660,13 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
               className="form-input"
               placeholder="ค้นหาออเดอร์..."
               value={globalFilter}
+              /* setGlobalFilter อยู่นอก transition โดยตั้งใจ — controlled input ที่ถูก defer
+                 จะพิมพ์ตามนิ้วไม่ทัน; แผงเปิดด้วย begin() แล้วหุบเองหลังหยุดพิมพ์
+                 (setPagination ผ่าน table.setPageIndex เพื่อให้เข้า onPaginationChange ตัวเดียวกัน) */
               onChange={(e) => {
+                busy.begin()
                 setGlobalFilter(e.target.value)
-                setPagination((p) => ({ ...p, pageIndex: 0 }))
+                table.setPageIndex(0)
               }}
             />
           </div>
@@ -669,7 +687,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
             options={STATUS_FILTER_OPTIONS}
             onChange={(v) => {
               filterColumn('status')?.setFilterValue(v === 'All' ? undefined : v)
-              setPagination((p) => ({ ...p, pageIndex: 0 }))
+              table.setPageIndex(0)
             }}
           />
 
@@ -705,7 +723,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
               options={courierOptions}
               onChange={(v) => {
                 filterColumn('shipTo')?.setFilterValue(v === 'All' ? undefined : v)
-                setPagination((p) => ({ ...p, pageIndex: 0 }))
+                table.setPageIndex(0)
               }}
             />
           )}
@@ -725,7 +743,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
             ]}
             onChange={(v) => {
               filterColumn('createdAtISO')?.setFilterValue(v === 'All' ? undefined : v)
-              setPagination((p) => ({ ...p, pageIndex: 0 }))
+              table.setPageIndex(0)
             }}
           />
 
@@ -748,7 +766,11 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
         </div>
       </div>
 
-      {/* ─── DataTable ───────────────────────────────────────────────────────── */}
+      {/* ─── DataTable + pagination (= พื้นที่ผลลัพธ์) ───────────────────────────
+          relative = กล่องอ้างอิงของแผงโหลด · ครอบถึง footer ด้วยเพราะปุ่มเปลี่ยนหน้าก็เป็น
+          "โหลดข้อมูลใหม่" เหมือนกัน กดซ้อนระหว่างรอไม่ควรทำได้
+          ไม่ครอบ card-header: แถบเครื่องมือต้องกดต่อได้ (ดูเหตุผลเต็มใน ListBusyOverlay.tsx) */}
+      <div className="relative">
       {/* แถบหัวกลุ่มต่อ 1 ใบ — เก็บของที่เป็น "ระดับใบ" ไว้ที่นี่แทนที่จะเบียดเป็นคอลัมน์ผอม
           (เลขออเดอร์ / ที่มา / วันที่) ดูเหตุผลเต็มที่คอมเมนต์เหนือ columns */}
       <DataTable<OrderRow>
@@ -838,6 +860,10 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
           />
         </div>
       )}
+
+      {/* rounded-b-lg: ตอนไม่มีแถว footer ถูกซ่อน ขอบล่างของกล่องนี้จึงเป็นขอบล่างของ .card พอดี */}
+      <ListBusyOverlay busy={busy.busy} className="rounded-b-lg" />
+      </div>{/* /relative — พื้นที่ผลลัพธ์ + แผงโหลด */}
     </div>
 
     {/* bulk action bubble — โผล่เมื่อเลือก checkbox ≥1 (desktop) */}
