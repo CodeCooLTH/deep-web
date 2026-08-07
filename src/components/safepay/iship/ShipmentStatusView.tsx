@@ -804,9 +804,19 @@ export default function ShipmentStatusView({
           </button>
           {menuOpen && (
             // bottom-full: เมนูกางขึ้นบนเสมอ ปุ่มอยู่ขอบล่างของกล่องอยู่แล้ว กางลงจะถูกตัดทิ้ง
+            //
+            // ทิศที่กางออกด้านข้างขึ้นกับว่าปุ่ม ⋯ อยู่ตรงไหนของแถบ ไม่ใช่ค่าคงที่ (user report 2026-08-07
+            // "ปุ่มยกเลิกพัสดุในโมดัลดูพัสดุของแชทเพี้ยน"): ในแชทมี actions ต่อท้าย ปุ่ม ⋯ จึงอยู่กลางแถบ
+            // ของหน้าต่างกว้าง w-96 — กางด้วย end-0 แล้วขอบซ้ายของเมนูเลยขอบหน้าต่างออกไป ~90px
+            // แล้วถูก overflow ของกล่องเลื่อนตัดทิ้ง เหลือเป็นกล่องขาวเปล่า ๆ (ตัวอักษรอยู่ในส่วนที่ถูกตัด)
+            // หน้าคำสั่งซื้อไม่มี actions ปุ่ม ⋯ เป็นตัวขวาสุด กางไปทางขวาถึงจะถูกตัดแทน → สลับตามบริบท
+            // w-max + min-w-44: ความกว้างเท่าเนื้อหา (ชุดเดียวกับ .hs-dropdown-menu ของธีม) กันจอแคบ ๆ
+            // อย่าง iPhone SE ที่ระยะเหลือไม่ถึง w-60
             <div
               role="menu"
-              className="border-default-300 bg-card absolute bottom-full end-0 z-10 mb-2 w-60 rounded-lg border p-1 shadow-lg"
+              className={`border-default-300 bg-card absolute bottom-full z-10 mb-2 w-max min-w-44 rounded-lg border p-1 shadow-lg ${
+                actions ? 'start-0' : 'end-0'
+              }`}
             >
               {shipment.source === 'LINKED' && (
                 <button
