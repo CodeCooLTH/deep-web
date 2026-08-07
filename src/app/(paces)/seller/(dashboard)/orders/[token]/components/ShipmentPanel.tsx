@@ -89,6 +89,9 @@ export default function ShipmentPanel({
       ) : shipment && !forceForm ? (
         <ShipmentStatusView
           shipment={shipment}
+          // ผู้รับ/สินค้ามากับ context ที่หน้านี้โหลดมาแล้ว — ได้ข้อมูลชุดเดียวกับในแชท
+          receiver={context.receiver}
+          items={context.items}
           onCancelled={() => afterChange(null)}
           onRetried={afterChange}
           onEditRequest={() => setForceForm(true)}

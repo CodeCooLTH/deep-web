@@ -12,7 +12,7 @@
  * Base: ไม่มี "dockable modal" primitive ใน Paces — โครง overlay อิง precedent ในโปรเจกต์
  * (CustomerPanelSheet.tsx/OrderQrSheet.tsx: fixed inset + z-80 carve-out HR7, React state ไม่ใช้ Preline)
  */
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
@@ -252,11 +252,33 @@ export default function DraftOrderProvider({
     )
   }, [])
 
+  /**
+   * หน้าต่างไหนกำลังเป็น "อ่านอย่างเดียว" ตอนนี้ (user report 2026-08-07)
+   *
+   * คำถามยืนยันตอนปิดมีเหตุผลเดียวคือ "ข้อมูลที่กรอกไว้จะหาย" — หน้าต่างพัสดุที่เปิดมาดูสถานะ
+   * ไม่มีอะไรให้หายสักอย่าง ถามทุกครั้งจึงเป็นการขวางเปล่า ๆ (ผู้ใช้: "หน้านี้มัน view เฉย ๆ
+   * ไม่ใช่หน้า edit ไม่จำเป็นต้องถาม")
+   *
+   * ต้องให้ตัวแผงเป็นคนบอก ไม่ใช่ตัดสินจาก kind==='SHIPMENT' ที่นี่ — หน้าต่างพัสดุเดียวกัน
+   * สลับเป็น "ฟอร์มเปิดพัสดุ/ผูกใบ" ได้ในตัวมันเอง (forceForm/linkMode) ซึ่งกรอกข้อมูลจริง
+   * และต้องถามเหมือนเดิม
+   *
+   * เก็บใน ref ไม่ใช่ state: ค่านี้ไม่มีผลต่อสิ่งที่วาดบนจอ ถ้าเป็น state ทุกครั้งที่แผงสลับโหมด
+   * จะ re-render ทั้ง Provider (= ฟอร์ม POS ทุกใบที่ mount ค้างไว้) โดยไม่ได้อะไรกลับมา
+   */
+  const viewOnlyRef = useRef<Record<string, boolean>>({})
+  const setViewOnly = useCallback((id: string, v: boolean) => {
+    viewOnlyRef.current[id] = v
+  }, [])
+
   const requestClose = useCallback(async (id: string) => {
-    const ok = await pacesConfirm.danger('ปิดหน้าต่างนี้?', 'ข้อมูลที่กรอกไว้จะหายไป ถ้าอยากเก็บไว้ทำต่อทีหลัง กดย่อ (−) แทน', {
-      confirmButtonText: 'ปิดเลย',
-    })
-    if (!ok) return
+    if (!viewOnlyRef.current[id]) {
+      const ok = await pacesConfirm.danger('ปิดหน้าต่างนี้?', 'ข้อมูลที่กรอกไว้จะหายไป ถ้าอยากเก็บไว้ทำต่อทีหลัง กดย่อ (−) แทน', {
+        confirmButtonText: 'ปิดเลย',
+      })
+      if (!ok) return
+    }
+    delete viewOnlyRef.current[id]
     setDrafts((prev) => prev.filter((d) => d.id !== id))
   }, [])
 
@@ -282,6 +304,34 @@ export default function DraftOrderProvider({
     },
     [pathname, router],
   )
+
+  /**
+   * เธรดที่กำลังเปิดอยู่ตอนนี้ (null = ไม่ได้อยู่ในห้องแชทไหนเลย เช่นแท็บความคิดเห็น/หน้าอื่น)
+   * ใช้ทั้งการย่ออัตโนมัติและการไฮไลต์ chip — คำนวณที่เดียว
+   */
+  const currentConversationId = pathname?.startsWith('/inbox/') ? (pathname.split('/')[2] ?? null) : null
+
+  /**
+   * สลับไปแชทอื่นแล้วหน้าต่างที่ค้างอยู่ต้องย่อเอง (user request 2026-08-07)
+   *
+   * Provider mount ที่ (chat)/layout.tsx จึงไม่ unmount ตอนเปลี่ยนห้อง — หน้าต่างของลูกค้า A
+   * เลยลอยทับเธรดของลูกค้า B ต่อไป ซึ่งอันตรายกว่าน่ารำคาญ: ปุ่ม "แจ้งเลขในแชท" ในหน้าต่างนั้น
+   * ส่งเข้าห้องของ A ขณะที่ตาอ่านบทสนทนาของ B อยู่
+   *
+   * ย่อ ไม่ใช่ปิด — ร่างคำสั่งซื้อที่กรอกค้างไว้ต้องไม่หายเพราะแค่เปลี่ยนห้อง
+   * คืน prev ตัวเดิมเมื่อไม่มีอะไรต้องย่อ ไม่งั้น setState ทุกครั้งที่ path เปลี่ยน = re-render เปล่า
+   */
+  useEffect(() => {
+    setDrafts((prev) =>
+      prev.some((d) => d.state === 'expanded' && d.conversationId !== currentConversationId)
+        ? prev.map((d) =>
+            d.state === 'expanded' && d.conversationId !== currentConversationId
+              ? { ...d, state: 'minimized' as const }
+              : d,
+          )
+        : prev,
+    )
+  }, [currentConversationId])
 
   const expanded = drafts.find((d) => d.state === 'expanded') ?? null
   const minimized = drafts.filter((d) => d.state === 'minimized')
@@ -347,6 +397,7 @@ export default function DraftOrderProvider({
                 conversationId={d.conversationId}
                 orderToken={d.shipmentOrderToken}
                 onDone={() => handleShipmentDone(d)}
+                onViewOnlyChange={(v) => setViewOnly(d.id, v)}
               />
             ) : (() => {
               // feature 00033 — คำนวณครั้งเดียวเก็บเป็นตัวแปรเดียว ห้ามคำนวณสองรอบให้หลุดจากกัน
@@ -393,10 +444,18 @@ export default function DraftOrderProvider({
         //   pointer-events-none ที่ปลอก + auto ที่ชิป: ปลอกกินความกว้างทั้งจอ ถ้าไม่ปิดรับคลิก
         //     มันจะบังแถบพิมพ์ข้อความที่อยู่ใต้มัน
         <div className="pointer-events-none fixed inset-x-4 bottom-4 z-80 flex flex-row-reverse flex-wrap-reverse justify-start gap-2">
-          {minimized.map((d) => (
+          {minimized.map((d) => {
+            // chip ของ "แชทที่กำลังเปิดอยู่" ต้องแยกออกจากตัวอื่นให้เห็น (user request 2026-08-07):
+            // ย่อหลายใบแล้ว chip เรียงกันหน้าตาเหมือนกันหมด ตาไม่รู้ว่าใบไหนของห้องที่อ่านอยู่
+            // ขอบ primary + ป้าย "แชทนี้" — ป้ายเป็นตัวหนังสือ ไม่ใช่แค่สี เพราะสีอย่างเดียว
+            // ไม่ผ่านสำหรับคนตาบอดสี และ chip ตัวอื่นก็มีขอบเทาอยู่แล้ว (ต่างกันแค่เฉด)
+            const here = d.conversationId === currentConversationId
+            return (
             <div
               key={d.id}
-              className="border-default-300 bg-card pointer-events-auto flex items-center gap-2 rounded-full border py-2 ps-3 pe-2 shadow-lg"
+              className={`bg-card pointer-events-auto flex items-center gap-2 rounded-full border py-2 ps-3 pe-2 shadow-lg ${
+                here ? 'border-primary ring-primary/25 ring-2' : 'border-default-300'
+              }`}
             >
               <button type="button" onClick={() => expand(d.id)} className="flex min-w-0 items-center gap-2">
                 <DraftAvatar avatar={d.customerAvatar} name={d.customerName} channel={d.channel} />
@@ -404,6 +463,11 @@ export default function DraftOrderProvider({
                   <span className="text-default-700 text-2xs">{draftTitle(d, vocab)}</span>
                   <span className="text-default-800 truncate text-sm font-medium">{d.customerName}</span>
                 </span>
+                {here && (
+                  <span className="bg-primary/15 text-primary-ink text-2xs shrink-0 rounded-full px-2 py-0.5 font-semibold">
+                    แชทนี้
+                  </span>
+                )}
               </button>
               <button
                 type="button"
@@ -414,7 +478,8 @@ export default function DraftOrderProvider({
                 <Icon icon="x" className="size-4" />
               </button>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </DraftOrderContext.Provider>

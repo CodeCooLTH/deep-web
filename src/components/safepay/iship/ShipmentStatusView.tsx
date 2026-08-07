@@ -10,11 +10,12 @@
  *       ปุ่มพิมพ์ใบปะหน้า/ยกเลิก) + badge จาก theme/paces/Admin/TS/src/app/(admin)/ui/badges
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
-import { formatDateTime } from '@/lib/format-date'
+import { formatDateTime, formatRelativeDayTime } from '@/lib/format-date'
+import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { TONE_BADGE, NOTICE_BOX } from './tone'
 import {
   SHIPMENT_STAGES,
@@ -22,7 +23,7 @@ import {
   describeProgress,
   describeShipmentStatus,
 } from '@/lib/iship/status'
-import type { ShipmentViewJson } from '@/lib/iship/context'
+import type { ReceiverData, ShipmentReviewItem, ShipmentViewJson } from '@/lib/iship/context'
 
 interface TraceEvent {
   status: string
@@ -34,8 +35,20 @@ interface TraceEvent {
 
 interface Props {
   shipment: ShipmentViewJson
-  /** ปุ่มเพิ่มของผู้เรียก (เช่น "แจ้งเลขในแชท") — วางเหนือปุ่มยกเลิก */
+  /**
+   * ปุ่มหลักของผู้เรียก (เช่น "แจ้งเลขในแชท") — อยู่ในแถบล่างที่ปักติดขอบ
+   * ต้องเป็นปุ่มที่กว้างเต็ม container ที่ให้ (ผู้เรียกใส่ w-full เอง)
+   */
   actions?: React.ReactNode
+  /**
+   * ผู้รับของพัสดุใบนี้ (user request 2026-08-07 "ข้อมูลน้อย")
+   *
+   * มากับ ShipmentContextJson ที่ผู้เรียกโหลดอยู่แล้วทั้งสองที่ — ไม่ต้องยิง API เพิ่ม
+   * ไม่ส่ง = ไม่แสดงบล็อกผู้รับ (ไม่ใช่ "ไม่มีผู้รับ")
+   */
+  receiver?: ReceiverData | null
+  /** สินค้าในคำสั่งซื้อ — มากับ context ชุดเดียวกับ receiver */
+  items?: ShipmentReviewItem[]
   onCancelled: () => void
   onRetried: (shipment: ShipmentViewJson) => void
   /** "แก้ข้อมูลแล้วลองใหม่" — ผู้เรียกสลับกลับไปแสดงฟอร์ม */
@@ -89,9 +102,14 @@ function StatRow({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
+/** จำนวนเหตุการณ์ที่โชว์ก่อนกด "ดูทั้งหมด" — 3 พอเล่าเรื่อง "ตอนนี้อยู่ไหน มาจากไหน" */
+const TRACE_PREVIEW = 3
+
 export default function ShipmentStatusView({
   shipment,
   actions,
+  receiver,
+  items,
   onCancelled,
   onRetried,
   onEditRequest,
@@ -99,9 +117,32 @@ export default function ShipmentStatusView({
   const [busy, setBusy] = useState(false)
   const [traces, setTraces] = useState<TraceEvent[] | null>(null)
   const [loadingTraces, setLoadingTraces] = useState(false)
-  // รายละเอียดดิบปิดไว้ก่อน — แถบ 4 ขั้นตอบคำถาม "ถึงไหนแล้ว" ได้ครบ
-  // ส่วนเวลา/สถานที่รายจุดจำเป็นเฉพาะตอนตามของหาย จึงให้กดเปิดเอง
-  const [showRaw, setShowRaw] = useState(false)
+  /**
+   * เดิมการเดินทางทั้งก้อนถูกพับไว้หลังปุ่ม "ดูรายละเอียดการเดินทาง" — user report 2026-08-07
+   * ว่าหน้านี้ "ข้อมูลน้อย" ทั้งที่ของที่ร้านอยากรู้ที่สุด (ตอนนี้พัสดุอยู่ไหน) ถูกซ่อนอยู่พอดี
+   * ตอนนี้โชว์ 3 เหตุการณ์ล่าสุดเสมอ ปุ่มที่เหลือคือ "ดูทั้งหมด" ไม่ใช่ "เปิด/ปิด"
+   */
+  const [showAllTraces, setShowAllTraces] = useState(false)
+  /** ค่าคงที่ของใบนี้ (น้ำหนัก/ขนาด/สร้างเมื่อ/พิมพ์ใบปะหน้า) — อ่านครั้งเดียวก็พอ พับไว้ */
+  const [showSpec, setShowSpec] = useState(false)
+  // เมนู ⋯ ในแถบล่าง — ที่อยู่ใหม่ของการกระทำที่ถอนคืนไม่ได้ (ดูคอมเมนต์ที่แถบล่าง)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDoc = (e: Event) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
 
   const progress = describeProgress(shipment.status, shipment.carrierStatus)
 
@@ -322,33 +363,56 @@ export default function ShipmentStatusView({
     )
   }
 
+
   // สถานะจากขนส่งสำคัญกว่าสถานะฝั่งเรา — ถ้ายังไม่มีค่อยใช้ของเรา (เพิ่งสร้าง ขนส่งยังไม่อัปเดต)
   const badge = shipment.carrierStatus
     ? describeCarrierStatus(shipment.carrierStatus)
     : describeShipmentStatus(shipment.status)
   const badgeText = shipment.carrierStatusText ?? badge.text
 
+  const logo = courierLogoUrl(shipment.courierCode, shipment.courierName)
+  const courierLabel = shipment.courierName ?? shipment.courierCode ?? 'ขนส่ง'
+  const shownTraces = traces ? (showAllTraces ? traces : traces.slice(0, TRACE_PREVIEW)) : []
+  const addressLines = receiver
+    ? [
+        receiver.line1,
+        [receiver.subdistrict, receiver.district].filter(Boolean).join(' '),
+        [receiver.province, receiver.postcode].filter(Boolean).join(' '),
+      ].filter((l): l is string => Boolean(l && l.trim()))
+    : []
+  const hasReceiver = Boolean(receiver && (receiver.name || receiver.phone || addressLines.length > 0))
+  const itemCount = items?.reduce((n, it) => n + it.qty, 0) ?? 0
+
+  /** คัดลอกที่อยู่ทั้งก้อน — ร้านเอาไปวางในระบบอื่น/ส่งต่อให้คนแพ็คของได้ในทีเดียว */
+  async function handleCopyAddress() {
+    if (!receiver) return
+    const text = [receiver.name, receiver.phone, ...addressLines].filter(Boolean).join('\n')
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      pacesToast.success('คัดลอกที่อยู่ผู้รับแล้ว')
+    } catch {
+      pacesToast.warning('คัดลอกอัตโนมัติไม่ได้ กรุณาเลือกและคัดลอกด้วยตัวเอง')
+    }
+  }
+
   return (
     <div className="flex flex-col">
-      {/* ความคืบหน้า 4 ขั้น — บนสุดเหนือเลขติดตาม เพราะเป็นสิ่งที่ร้านอยากรู้ก่อน (user 2026-07-29)
-          อ่านจาก prop ตรง ๆ ไม่รอ /traces จึงเห็นทันทีที่เปิด ไม่มีจังหวะว่างให้ต้องรอ */}
+      {/* ── หัวเรื่อง: ขนส่ง + เลขติดตาม + สถานะ ─────────────────────────────
+          เลขติดตามเป็น "ปุ่มคัดลอก" ในตัวมันเอง (user request 2026-08-07 — เดิมต้องเลื่อนลงไป
+          หาปุ่มคัดลอกที่ล่างสุด) ตัวเลขคือสิ่งที่ตาไปหยุดอยู่แล้ว ปุ่มจึงควรอยู่ตรงนั้น */}
       <section className="border-b-8 border-default-100 p-4">
         {/* เรื่องวิธีชำระเงินที่เพิ่งเกิดตอนกดสร้าง/ผูก (ส่วนขยาย 2026-08-06) — อยู่เหนือ
             ป้ายโหมดทดสอบเพราะเป็นสิ่งที่ "เพิ่งเปลี่ยนเดี๋ยวนี้" ส่วนป้ายทดสอบเป็นสถานะคงที่
             ค่านี้ไม่ถูกเก็บลงฐาน (ไม่อยู่ใน SHIPMENT_SELECT) — เห็นได้เฉพาะรอบที่สร้าง/ผูก
-            เท่านั้น รีเฟรชแล้วหาย รอยถาวรอยู่ในไทม์ไลน์ (PAYMENT_METHOD_SYNCED) แทน
-            โครง markup + icon ยกมาจากบล็อก progress.notice ในไฟล์เดียวกันทั้งดุ้น */}
+            เท่านั้น รีเฟรชแล้วหาย รอยถาวรอยู่ในไทม์ไลน์ (PAYMENT_METHOD_SYNCED) แทน */}
         {shipment.paymentNotice && (
           <p
             className={`mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
               NOTICE_BOX[shipment.paymentNotice.kind === 'changed' ? 'info' : 'warning']
             }`}
           >
-            <Icon
-              icon="tabler:alert-circle"
-              className="mt-0.5 shrink-0 text-base"
-              aria-hidden="true"
-            />
+            <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
             <span>{shipment.paymentNotice.message}</span>
           </p>
         )}
@@ -360,7 +424,69 @@ export default function ShipmentStatusView({
           </p>
         )}
 
-        <ol className="grid list-none grid-cols-4 ps-0">
+        <div className="flex items-start gap-3">
+          {/* โลโก้ขนส่งจาก COURIER_LOGO ที่เดียว (lib/iship/courier.ts) — ไม่มีไฟล์ = ตัวย่อ
+              object-contain + ring: โลโก้พื้นขาวจะกลืนการ์ดขาว (บทเรียนเดียวกับ OrderCard.tsx) */}
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logo}
+              alt={courierLabel}
+              className="ring-default-200 size-11 shrink-0 rounded-lg object-contain ring-1"
+            />
+          ) : (
+            <span className="bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg text-sm font-bold">
+              {courierInitials(shipment.courierName, shipment.courierCode)}
+            </span>
+          )}
+
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={handleCopy}
+              disabled={!shipment.trackingNo}
+              aria-label={shipment.trackingNo ? `คัดลอกเลขติดตาม ${shipment.trackingNo}` : 'ยังไม่มีเลขติดตาม'}
+              className="btn -ms-1 inline-flex max-w-full items-center gap-2 p-1 text-start disabled:opacity-60"
+            >
+              <span className="truncate text-lg font-bold tabular-nums text-default-900">
+                {shipment.trackingNo ?? '—'}
+              </span>
+              {shipment.trackingNo && (
+                <span className="bg-primary/15 text-primary-ink flex size-7 shrink-0 items-center justify-center rounded-lg">
+                  <Icon icon="tabler:copy" className="text-base" aria-hidden="true" />
+                </span>
+              )}
+            </button>
+            <p className="mb-0 mt-1">
+              <span className={TONE_BADGE[badge.tone] ?? TONE_BADGE.secondary}>{badgeText}</span>
+            </p>
+            <p className="text-default-700 mb-0 mt-1.5 text-xs">
+              {courierLabel}
+              {shipment.carrierStatusAt
+                ? ` · อัปเดต ${formatRelativeDayTime(new Date(shipment.carrierStatusAt))}`
+                : ''}
+            </p>
+          </div>
+        </div>
+
+        {(shipment.isOverWeight || shipment.isOverSize) && (
+          <p className="mb-0 mt-3 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning-ink">
+            <Icon icon="tabler:scale" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+            ขนส่งวัด{shipment.isOverWeight ? 'น้ำหนัก' : 'ขนาด'}ได้เกินกว่าที่แจ้งไว้ —
+            ค่าส่งจริงอาจสูงกว่าที่ประเมิน
+          </p>
+        )}
+
+        {/* ใบที่ผูกเข้ามา — บอกที่มาไว้ตรงนี้ ส่วน "ยกเลิกการผูก" ย้ายไปอยู่ในเมนู ⋯ รวมกับ
+            การกระทำที่ถอนคืนยากตัวอื่น (user request 2026-08-07 ข้อ 3) */}
+        {shipment.source === 'LINKED' && (
+          <p className="mb-0 mt-3 flex items-start gap-2 rounded-lg bg-info/15 px-3 py-2 text-xs text-info-ink">
+            <Icon icon="tabler:link" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+            ผูกจาก iShip — พัสดุใบนี้ถูกสร้างไว้ก่อนแล้ว ไม่ได้เปิดจากคำสั่งซื้อนี้
+          </p>
+        )}
+
+        <ol className="mt-4 grid list-none grid-cols-4 ps-0">
           {SHIPMENT_STAGES.map((s, i) => {
             const reached = i <= progress.stage
             const isLast = i === SHIPMENT_STAGES.length - 1
@@ -385,9 +511,7 @@ export default function ShipmentStatusView({
                 </div>
                 <span
                   className={`text-center text-2xs leading-tight ${
-                    i === progress.stage
-                      ? 'font-semibold text-default-900'
-                      : 'text-default-700'
+                    i === progress.stage ? 'font-semibold text-default-900' : 'text-default-700'
                   }`}
                 >
                   {isLast ? (progress.lastLabel ?? s.label) : s.label}
@@ -403,129 +527,31 @@ export default function ShipmentStatusView({
               NOTICE_BOX[progress.notice.tone] ?? NOTICE_BOX.secondary
             }`}
           >
-            <Icon
-              icon="tabler:alert-circle"
-              className="mt-0.5 shrink-0 text-base"
-              aria-hidden="true"
-            />
+            <Icon icon="tabler:alert-circle" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
             <span>{progress.notice.text}</span>
           </p>
         )}
       </section>
 
+      {/* ── การเดินทาง ────────────────────────────────────────────────────── */}
       <section className="border-b-8 border-default-100 p-4">
-        <div className="text-center">
-          <p className="mb-1 text-xs font-semibold tracking-wide text-default-700">เลขติดตามพัสดุ</p>
-          <p className="mb-2 text-xl font-bold tabular-nums text-default-900">
-            {shipment.trackingNo ?? '—'}
-          </p>
-          <span className={TONE_BADGE[badge.tone] ?? TONE_BADGE.secondary}>{badgeText}</span>
-        </div>
-
-        {(shipment.isOverWeight || shipment.isOverSize) && (
-          <p className="mb-0 mt-3 flex items-start gap-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning-ink">
-            <Icon icon="tabler:scale" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-            ขนส่งวัด{shipment.isOverWeight ? 'น้ำหนัก' : 'ขนาด'}ได้เกินกว่าที่แจ้งไว้ —
-            ค่าส่งจริงอาจสูงกว่าที่ประเมิน
-          </p>
-        )}
-
-        {/* ใบที่ผูกเข้ามา: ปุ่มเลิกผูกต้องอยู่ "ตรงนี้" ไม่ใช่ข้างปุ่มยกเลิกพัสดุที่ล่างสุด —
-            แยกตำแหน่ง แยกสี แยกคำถามยืนยัน 3 ชั้น เพราะสองปุ่มนี้ผลต่างกันคนละเรื่อง
-            (เลิกผูก = ย้อนกลับได้ / ยกเลิกพัสดุ = บอกขนส่งให้ยกเลิกของจริง) */}
-        {shipment.source === 'LINKED' && (
-          <div className="mt-3 rounded-lg bg-info/15 p-3">
-            <p className="mb-2 flex items-start gap-2 text-xs text-info-ink">
-              <Icon icon="tabler:link" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
-              ผูกจาก iShip — พัสดุใบนี้ถูกสร้างไว้ก่อนแล้ว ไม่ได้เปิดจากคำสั่งซื้อนี้
-            </p>
-            <button
-              type="button"
-              onClick={handleUnlink}
-              disabled={busy}
-              className="btn inline-flex w-full items-center justify-center gap-1.5 bg-default-100 py-2 text-sm text-default-900 hover:bg-default-200 disabled:opacity-60"
-            >
-              <Icon icon="tabler:unlink" className="text-base" aria-hidden="true" />
-              ยกเลิกการผูก
-            </button>
-          </div>
-        )}
-      </section>
-
-      <section className="border-b-8 border-default-100 p-4">
-        {/* ใบเก่าที่สร้างก่อน 2026-07-29 ไม่มี courierName เก็บไว้ (ตอนนั้นไม่มีโค้ดเขียนค่านี้เลย)
-            fallback เป็นรหัสขนส่งดีกว่าโชว์ "—" ซึ่งดูเหมือนข้อมูลหาย */}
-        <StatRow label="ขนส่ง" value={shipment.courierName ?? shipment.courierCode ?? '—'} />
-        <StatRow label="สร้างเมื่อ" value={formatDateTime(new Date(shipment.createdAt))} />
-        {shipment.carrierStatusAt && (
-          <StatRow
-            label="อัปเดตล่าสุด"
-            value={formatDateTime(new Date(shipment.carrierStatusAt))}
-          />
-        )}
-        {/* ค่าที่ถูกส่งไปจริงตอนเปิดพัสดุ — ร้านตรวจย้อนได้ว่าเปิดใบนี้ด้วยขนาด/น้ำหนักเท่าไร
-            สำคัญเวลาค่าส่งไม่ตรงที่คิด หรือขนส่งชั่งแล้วได้ไม่เท่าที่แจ้ง */}
-        {shipment.weight != null && (
-          <StatRow label="น้ำหนักที่แจ้ง" value={`${shipment.weight} กก.`} />
-        )}
-        {shipment.width != null && shipment.length != null && shipment.height != null && (
-          <StatRow
-            label="ขนาดที่แจ้ง"
-            value={`${shipment.width}×${shipment.length}×${shipment.height} ซม.`}
-          />
-        )}
-        <StatRow
-          label="เก็บเงินปลายทาง"
-          value={
-            shipment.codAmount > 0
-              ? `฿${shipment.codAmount.toLocaleString('th-TH')}`
-              : 'ไม่เก็บ'
-          }
-        />
-        <StatRow
-          label="พิมพ์ใบปะหน้าแล้ว"
-          value={
-            shipment.labelPrintedAt
-              ? `${shipment.labelPrintCount} ครั้ง · ${formatDateTime(new Date(shipment.labelPrintedAt))}`
-              : 'ยังไม่ได้พิมพ์'
-          }
-        />
-      </section>
-
-      <section className="border-b-8 border-default-100 p-4">
-        <div className="flex items-center gap-2">
+        <div className="mb-3 flex items-center gap-2">
+          <h4 className="text-default-700 mb-0 flex-1 text-xs font-semibold">การเดินทางของพัสดุ</h4>
           <button
             type="button"
-            onClick={() => setShowRaw((v) => !v)}
-            aria-expanded={showRaw}
-            className="btn inline-flex items-center gap-1.5 p-0 text-sm text-primary hover:underline"
+            onClick={() => loadTraces()}
+            disabled={loadingTraces}
+            aria-label="โหลดสถานะล่าสุดอีกครั้ง"
+            className="btn btn-icon text-default-700 hover:bg-default-100 disabled:opacity-50"
           >
-            <Icon
-              icon="tabler:chevron-down"
-              className={`text-base transition-transform ${showRaw ? 'rotate-180' : ''}`}
-              aria-hidden="true"
-            />
-            {showRaw ? 'ซ่อนรายละเอียดการเดินทาง' : 'ดูรายละเอียดการเดินทาง'}
+            {loadingTraces ? (
+              <span className="inline-block size-4 animate-spin rounded-full border-2 border-default-400 border-t-transparent" />
+            ) : (
+              <Icon icon="tabler:refresh" className="text-base" />
+            )}
           </button>
-          {showRaw && (
-            <button
-              type="button"
-              onClick={() => loadTraces()}
-              disabled={loadingTraces}
-              aria-label="โหลดสถานะล่าสุดอีกครั้ง"
-              className="btn btn-icon ms-auto text-default-700 hover:bg-default-100 disabled:opacity-50"
-            >
-              {loadingTraces ? (
-                <span className="inline-block size-4 animate-spin rounded-full border-2 border-default-400 border-t-transparent" />
-              ) : (
-                <Icon icon="tabler:refresh" className="text-base" />
-              )}
-            </button>
-          )}
         </div>
 
-        {showRaw && (
-        <div className="mt-3">
         {/* ระหว่างโหลดครั้งแรก — โครงเทาแทนความว่างเปล่า ไม่งั้นดูเหมือนไม่มีข้อมูล */}
         {traces === null && loadingTraces && (
           <div className="flex flex-col gap-2" aria-busy="true">
@@ -534,22 +560,27 @@ export default function ShipmentStatusView({
           </div>
         )}
 
-        {traces && traces.length > 0 && (
-          <ol className="flex flex-col gap-3">
-            {traces.map((t, i) => (
-              <li key={`${t.status}-${t.occurredAt}-${i}`} className="flex gap-2">
-                <Icon
-                  icon="tabler:point-filled"
-                  className="mt-0.5 shrink-0 text-base text-primary"
+        {shownTraces.length > 0 && (
+          <ol className="flex list-none flex-col ps-0">
+            {shownTraces.map((t, i) => (
+              <li key={`${t.status}-${t.occurredAt}-${i}`} className="relative flex gap-3 pb-3 last:pb-0">
+                {/* เส้นต่อระหว่างจุด — ตัวสุดท้ายไม่มี ไม่งั้นเส้นห้อยลงไปในที่ว่าง */}
+                {i < shownTraces.length - 1 && (
+                  <span className="bg-default-200 absolute start-1.5 top-4 bottom-0 w-0.5" aria-hidden="true" />
+                )}
+                <span
+                  className={`relative z-1 mt-1 size-3 shrink-0 rounded-full ${
+                    i === 0 ? 'bg-primary ring-primary/20 ring-3' : 'bg-default-300'
+                  }`}
                   aria-hidden="true"
                 />
                 <div className="min-w-0">
-                  <p className="mb-0 text-sm font-medium text-default-900">
+                  <p className={`mb-0 text-sm font-semibold ${i === 0 ? 'text-primary-ink' : 'text-default-900'}`}>
                     {t.statusText ?? t.status}
                   </p>
-                  {t.statusDesc && <p className="mb-0 text-xs text-default-700">{t.statusDesc}</p>}
-                  <p className="mb-0 text-xs text-default-700">
-                    {formatDateTime(new Date(t.occurredAt))}
+                  {t.statusDesc && <p className="text-default-700 mb-0 text-xs">{t.statusDesc}</p>}
+                  <p className="text-default-700 mb-0 text-xs">
+                    {formatRelativeDayTime(new Date(t.occurredAt))}
                     {t.location ? ` · ${t.location}` : ''}
                   </p>
                 </div>
@@ -558,55 +589,258 @@ export default function ShipmentStatusView({
           </ol>
         )}
 
+        {traces && traces.length > TRACE_PREVIEW && (
+          <button
+            type="button"
+            onClick={() => setShowAllTraces((v) => !v)}
+            aria-expanded={showAllTraces}
+            className="btn text-primary mt-1 inline-flex items-center gap-1.5 p-0 text-sm hover:underline"
+          >
+            <Icon
+              icon="tabler:chevron-down"
+              className={`text-base transition-transform ${showAllTraces ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            />
+            {showAllTraces ? 'ย่อการเดินทาง' : `ดูทั้งหมด ${traces.length} รายการ`}
+          </button>
+        )}
+
         {traces && traces.length === 0 && (
-          <p className="mb-0 text-xs text-default-700">
+          <p className="text-default-700 mb-0 text-xs">
             ยังไม่มีข้อมูลการเดินทาง — ขนส่งจะอัปเดตหลังรับพัสดุเข้าระบบ
           </p>
         )}
 
         {/* ดึงไม่สำเร็จตอนเปิด (เงียบไว้ไม่เด้ง toast) — บอกตรงนี้แทน พร้อมทางกดเอง */}
         {traces === null && !loadingTraces && (
-          <p className="mb-0 text-xs text-default-700">
+          <p className="text-default-700 mb-0 text-xs">
             ยังไม่ได้ข้อมูลการเดินทาง กดปุ่มรีเฟรชด้านบนเพื่อลองใหม่
           </p>
         )}
-        </div>
+      </section>
+
+      {/* ── ผู้รับ (user request 2026-08-07) ────────────────────────────────
+          ข้อมูลชุดนี้ถูกโหลดมาพร้อม context อยู่แล้วทั้งสองที่ที่ใช้ component นี้ แต่ไม่เคย
+          ถูกแสดง — เปิดหน้าต่างพัสดุแล้วตอบไม่ได้เลยว่ากำลังส่งให้ใคร ที่ไหน */}
+      {hasReceiver && receiver && (
+        <section className="border-b-8 border-default-100 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <h4 className="text-default-700 mb-0 flex-1 text-xs font-semibold">ผู้รับ</h4>
+            <button
+              type="button"
+              onClick={handleCopyAddress}
+              className="btn text-primary inline-flex items-center gap-1.5 p-0 text-xs hover:underline"
+            >
+              <Icon icon="tabler:copy" className="text-sm" aria-hidden="true" />
+              คัดลอกที่อยู่
+            </button>
+          </div>
+          {receiver.name && <p className="text-default-900 mb-0 text-sm font-semibold">{receiver.name}</p>}
+          {receiver.phone && (
+            // tel: — บนมือถือคือทางลัดโทรหาลูกค้าตอนของมีปัญหา ซึ่งเป็นเหตุผลหลักที่เปิดหน้านี้
+            <a
+              href={`tel:${receiver.phone}`}
+              className="text-primary mt-0.5 inline-flex min-h-8 items-center gap-1.5 text-sm font-semibold"
+            >
+              <Icon icon="tabler:phone" className="text-base" aria-hidden="true" />
+              {receiver.phone}
+            </a>
+          )}
+          {addressLines.length > 0 && (
+            <p className="text-default-800 mb-0 mt-1 text-sm leading-relaxed">
+              {addressLines.map((l) => (
+                <span key={l} className="block">
+                  {l}
+                </span>
+              ))}
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* ── ในกล่อง + ยอดเก็บปลายทาง ───────────────────────────────────────── */}
+      {(items?.length || shipment.codAmount > 0) && (
+        <section className="border-b-8 border-default-100 p-4">
+          {items && items.length > 0 && (
+            <>
+              <h4 className="text-default-700 mb-2 text-xs font-semibold">
+                ในกล่อง{itemCount > 0 ? ` · ${itemCount} ชิ้น` : ''}
+              </h4>
+              {items.map((it) => (
+                <div
+                  key={it.id}
+                  className="border-default-200 flex items-center gap-3 border-b border-dashed py-2 text-sm last:border-0"
+                >
+                  <span className="min-w-0 flex-1 truncate text-default-900">{it.name}</span>
+                  <span className="text-default-700 shrink-0 text-xs">×{it.qty}</span>
+                  <span className="text-default-900 shrink-0 font-semibold">
+                    ฿{it.price.toLocaleString('th-TH')}
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+          {shipment.codAmount > 0 && (
+            // ยอดที่ต้องเก็บจากลูกค้าปลายทาง = ตัวเลขที่ผิดแล้วเสียเงินจริง จึงเป็นแถบเต็มไม่ใช่แถวตาราง
+            <div className="bg-warning/15 text-warning-ink mt-3 flex items-center justify-between gap-3 rounded-lg px-3 py-2.5">
+              <span className="text-sm">เก็บเงินปลายทาง</span>
+              <span className="text-base font-bold">฿{shipment.codAmount.toLocaleString('th-TH')}</span>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ── รายละเอียดพัสดุ (พับ) ───────────────────────────────────────────
+          ค่าคงที่ที่อ่านครั้งเดียวก็พอ — เดิมกินกลางจอเป็นตาราง 6 บรรทัดตลอดเวลา
+          สรุปย่อ (น้ำหนัก · ขนาด) อยู่บนหัวแถวเลย จะได้ไม่ต้องกดเปิดเพื่อดูสองค่าที่ถามบ่อยสุด */}
+      <section className="border-b-8 border-default-100">
+        <button
+          type="button"
+          onClick={() => setShowSpec((v) => !v)}
+          aria-expanded={showSpec}
+          className="btn flex min-h-12 w-full items-center gap-2 px-4 text-start text-sm text-default-800"
+        >
+          <Icon
+            icon="tabler:chevron-down"
+            className={`text-default-700 text-base transition-transform ${showSpec ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          />
+          <span className="flex-1">รายละเอียดพัสดุ</span>
+          {!showSpec && (
+            <span className="text-default-700 truncate text-xs">
+              {[
+                shipment.weight != null ? `${shipment.weight} กก.` : null,
+                shipment.width != null && shipment.length != null && shipment.height != null
+                  ? `${shipment.width}×${shipment.length}×${shipment.height} ซม.`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          )}
+        </button>
+        {showSpec && (
+          <div className="px-4 pb-4">
+            {/* ค่าที่ถูกส่งไปจริงตอนเปิดพัสดุ — ร้านตรวจย้อนได้ว่าเปิดใบนี้ด้วยขนาด/น้ำหนักเท่าไร
+                สำคัญเวลาค่าส่งไม่ตรงที่คิด หรือขนส่งชั่งแล้วได้ไม่เท่าที่แจ้ง */}
+            <StatRow label="ขนส่ง" value={courierLabel} />
+            <StatRow label="สร้างเมื่อ" value={formatDateTime(new Date(shipment.createdAt))} />
+            {shipment.carrierStatusAt && (
+              <StatRow label="อัปเดตล่าสุด" value={formatDateTime(new Date(shipment.carrierStatusAt))} />
+            )}
+            {shipment.weight != null && <StatRow label="น้ำหนักที่แจ้ง" value={`${shipment.weight} กก.`} />}
+            {shipment.width != null && shipment.length != null && shipment.height != null && (
+              <StatRow
+                label="ขนาดที่แจ้ง"
+                value={`${shipment.width}×${shipment.length}×${shipment.height} ซม.`}
+              />
+            )}
+            <StatRow
+              label="พิมพ์ใบปะหน้าแล้ว"
+              value={
+                shipment.labelPrintedAt
+                  ? `${shipment.labelPrintCount} ครั้ง · ${formatDateTime(new Date(shipment.labelPrintedAt))}`
+                  : 'ยังไม่ได้พิมพ์'
+              }
+            />
+          </div>
         )}
       </section>
 
-      <div className="flex flex-col gap-2 p-4">
-        <div className="grid grid-cols-2 gap-2">
+      {/* ── แถบปุ่มติดขอบล่าง ──────────────────────────────────────────────
+          sticky ไม่ใช่ fixed: ตัวที่เลื่อนคือกล่องของผู้เรียก (หน้าต่างในแชท / โมดัลในหน้า
+          คำสั่งซื้อ) fixed จะไปยึด viewport แล้วลอยอยู่กลางจอในโหมดหน้าต่าง
+
+          "ยกเลิกพัสดุ" ย้ายจากแถบเต็มความกว้างล่างสุดเข้ามาในเมนู ⋯ (user report 2026-08-07:
+          "ปุ่มยกเลิก กดง่ายเกินไป และไม่ mobile friendly") — เดิมมันนั่งอยู่ตรงที่นิ้วโป้งพักพอดี
+          ติดกับปุ่มหลัก ทั้งที่เป็นการกระทำที่ถอนคืนไม่ได้
+          ตรงกับ docs/conventions/seller-action-placement.md: destructive อยู่ใน ⋯ + confirm เท่านั้น
+          (mockup วาดเมนูไว้บนหัวหน้าต่าง แต่หัวนั้นเป็นของ DraftOrderProvider ซึ่งหน้าคำสั่งซื้อ
+          ไม่มี — วางไว้ในแถบนี้แทน ได้ผลเรื่องกันกดพลาดเหมือนกันและใช้ได้ทั้งสองที่) */}
+      <div className="bg-card border-default-300 sticky bottom-0 z-1 flex items-center gap-2 border-t p-3">
+        {actions ? (
           <button
             type="button"
             onClick={handleCopy}
             disabled={!shipment.trackingNo}
-            className="btn inline-flex items-center justify-center gap-1.5 bg-primary/15 py-2.5 text-primary-ink hover:bg-primary/25 disabled:opacity-50"
+            aria-label="คัดลอกเลขติดตาม"
+            className="btn btn-icon bg-primary/15 text-primary-ink hover:bg-primary/25 shrink-0 disabled:opacity-50"
+          >
+            <Icon icon="tabler:copy" className="text-lg" aria-hidden="true" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleCopy}
+            disabled={!shipment.trackingNo}
+            className="btn bg-primary/15 text-primary-ink hover:bg-primary/25 inline-flex flex-1 items-center justify-center gap-1.5 py-2.5 disabled:opacity-50"
           >
             <Icon icon="tabler:copy" className="text-base" aria-hidden="true" />
             คัดลอกเลข
           </button>
-          <a
-            href={`/api/seller/iship/shipments/${shipment.id}/label`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn inline-flex items-center justify-center gap-1.5 bg-primary/15 py-2.5 text-primary-ink hover:bg-primary/25"
+        )}
+
+        <a
+          href={`/api/seller/iship/shipments/${shipment.id}/label`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="พิมพ์ใบปะหน้า"
+          title="พิมพ์ใบปะหน้า"
+          className="btn btn-icon bg-primary/15 text-primary-ink hover:bg-primary/25 shrink-0"
+        >
+          <Icon icon="tabler:printer" className="text-lg" aria-hidden="true" />
+        </a>
+
+        <div ref={menuRef} className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="ตัวเลือกเพิ่มเติมของพัสดุ"
+            className="btn btn-icon text-default-700 hover:bg-default-100"
           >
-            <Icon icon="tabler:printer" className="text-base" aria-hidden="true" />
-            พิมพ์ใบปะหน้า
-          </a>
+            <Icon icon="tabler:dots-vertical" className="text-lg" aria-hidden="true" />
+          </button>
+          {menuOpen && (
+            // bottom-full: เมนูกางขึ้นบนเสมอ ปุ่มอยู่ขอบล่างของกล่องอยู่แล้ว กางลงจะถูกตัดทิ้ง
+            <div
+              role="menu"
+              className="border-default-300 bg-card absolute bottom-full end-0 z-10 mb-2 w-60 rounded-lg border p-1 shadow-lg"
+            >
+              {shipment.source === 'LINKED' && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={busy}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    void handleUnlink()
+                  }}
+                  className="dropdown-item min-h-11 text-sm disabled:opacity-50"
+                >
+                  <Icon icon="tabler:unlink" className="size-4" />
+                  <span>ยกเลิกการผูก</span>
+                </button>
+              )}
+              <button
+                type="button"
+                role="menuitem"
+                disabled={busy}
+                onClick={() => {
+                  setMenuOpen(false)
+                  void handleCancel()
+                }}
+                className="dropdown-item text-danger-ink min-h-11 text-sm disabled:opacity-50"
+              >
+                <Icon icon="tabler:package-off" className="size-4" />
+                <span>ยกเลิกพัสดุ</span>
+              </button>
+            </div>
+          )}
         </div>
 
-        {actions}
-
-        <button
-          type="button"
-          onClick={handleCancel}
-          disabled={busy}
-          className="btn inline-flex items-center justify-center gap-1.5 bg-danger/15 py-2.5 text-danger-ink hover:bg-danger/25 disabled:opacity-50"
-        >
-          <Icon icon="tabler:package-off" className="text-base" aria-hidden="true" />
-          ยกเลิกพัสดุ
-        </button>
+        {actions && <div className="min-w-0 flex-1">{actions}</div>}
       </div>
     </div>
   )

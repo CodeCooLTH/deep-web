@@ -26,16 +26,41 @@ interface Props {
   conversationId: string
   orderToken: string
   onDone: () => void
+  /**
+   * รายงานว่าตอนนี้แผงเป็น "อ่านอย่างเดียว" ไหม — หน้าต่างที่ครอบอยู่ใช้ตัดสินว่าตอนกดปิด
+   * ต้องถามยืนยันหรือไม่ (ดู viewOnlyRef ใน DraftOrderProvider) แผงนี้สลับระหว่างดูสถานะกับ
+   * ฟอร์มเปิด/ผูกพัสดุได้ในตัวเอง ตัวที่รู้ความจริงจึงเป็นแผง ไม่ใช่ผู้เรียก
+   */
+  onViewOnlyChange?: (viewOnly: boolean) => void
 }
 
-/** ข้อความแจ้งเลข — ข้อความธรรมดา ใช้ได้ทุกช่องทาง (Messenger/IG ไม่รองรับการ์ดของเรา) */
-function trackingMessage(trackingNo: string, courierName: string | null): string {
-  return courierName
-    ? `จัดส่งด้วย ${courierName}\nเลขติดตามพัสดุ: ${trackingNo}`
-    : `เลขติดตามพัสดุ: ${trackingNo}`
+/**
+ * หน้าติดตามพัสดุสาธารณะของ iShip (user สั่ง 2026-08-07 ให้แนบไปกับข้อความแจ้งเลข)
+ *
+ * hardcode ที่นี่โดยเจตนา เหตุผลเดียวกับ ISHIP_TOPUP_URL ใน ShipmentStatusView.tsx:
+ * `ISHIP_BASE_URL` เป็น env ฝั่งเซิร์ฟเวอร์ที่ไว้สลับไประบบทดสอบ ส่วนลิงก์นี้คือหน้าที่
+ * **ลูกค้าปลายทาง** จะกดเปิด ต้องเป็น production เสมอ ไม่ควรผูกกับ env นั้น
+ */
+const trackingUrl = (trackingNo: string) =>
+  `https://app.iship.cloud/tracking?track=${encodeURIComponent(trackingNo)}`
+
+/**
+ * ข้อความแจ้งเลข — ข้อความธรรมดา ใช้ได้ทุกช่องทาง (Messenger/IG ไม่รองรับการ์ดของเรา)
+ *
+ * trackingNo = null คือโหมด "ตัวอย่างข้อความ" ก่อนกดสร้าง (ยังไม่มีเลขจริง) — ต้องผ่าน
+ * ฟังก์ชันเดียวกันนี้ ห้ามเขียนข้อความตัวอย่างซ้ำอีกชุดใน JSX เพราะสองชุดจะเพี้ยนจากกัน
+ * ทันทีที่มีใครแก้ข้อความจริงแล้วลืมแก้ตัวอย่าง (ซึ่งเกิดขึ้นแล้วรอบนี้: ตัวอย่างเดิม
+ * เขียนซ้ำไว้ใน JSX จึงไม่มีบรรทัดลิงก์ตามมาให้เอง)
+ */
+function trackingMessage(trackingNo: string | null, courierName: string | null): string {
+  const lines: string[] = []
+  if (courierName) lines.push(`จัดส่งด้วย ${courierName}`)
+  lines.push(`เลขติดตามพัสดุ: ${trackingNo ?? '(จะแสดงหลังสร้างพัสดุสำเร็จ)'}`)
+  lines.push(`ติดตามพัสดุ: ${trackingNo ? trackingUrl(trackingNo) : '(ลิงก์จะแนบให้อัตโนมัติ)'}`)
+  return lines.join('\n')
 }
 
-export default function ShipmentDraftPanel({ conversationId, orderToken, onDone }: Props) {
+export default function ShipmentDraftPanel({ conversationId, orderToken, onDone, onViewOnlyChange }: Props) {
   const [ctx, setCtx] = useState<ShipmentContextJson | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -51,6 +76,16 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
   const [sending, setSending] = useState(false)
 
   const { couriers, error: couriersError } = useIShipCouriers(!!ctx && !ctx.blockedBy)
+
+  /**
+   * "อ่านอย่างเดียว" = กำลังดูสถานะพัสดุที่เปิดไปแล้ว (ไม่มีช่องให้กรอกสักช่อง)
+   * ทางตันเรื่องที่อยู่ผู้ส่ง (blockedBy) ก็นับด้วย — หน้านั้นมีแต่ข้อความบอกให้ไปแก้ที่ตั้งค่า
+   * ส่วน forceForm/linkMode คือฟอร์มจริง ต้องถามก่อนปิดตามเดิม
+   */
+  const viewOnly = Boolean(ctx && (ctx.blockedBy || (ctx.shipment && !forceForm && !linkMode)))
+  useEffect(() => {
+    onViewOnlyChange?.(viewOnly)
+  }, [viewOnly, onViewOnlyChange])
 
   useEffect(() => {
     let alive = true
@@ -188,6 +223,9 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
     return (
       <ShipmentStatusView
         shipment={ctx.shipment}
+        // ผู้รับ/สินค้ามากับ context ที่โหลดไว้แล้ว — ไม่มีคำขอเพิ่ม (user 2026-08-07 "ข้อมูลน้อย")
+        receiver={ctx.receiver}
+        items={ctx.items}
         onCancelled={() => {
           setCtx((c) => (c ? { ...c, shipment: null } : c))
           setForceForm(false)
@@ -199,7 +237,8 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
             type="button"
             onClick={handleNotifyNow}
             disabled={sending || !ctx.shipment.trackingNo}
-            className="btn inline-flex items-center justify-center gap-1.5 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
+            // w-full: ปุ่มนี้ไปนั่งใน flex-1 ของแถบล่างใน ShipmentStatusView ต้องกางเต็มช่องที่ได้
+            className="btn inline-flex w-full items-center justify-center gap-1.5 bg-primary py-2.5 text-white hover:bg-primary-hover disabled:opacity-60"
           >
             {sending ? (
               <span className="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -306,10 +345,10 @@ export default function ShipmentDraftPanel({ conversationId, orderToken, onDone 
               <p className="mb-1 text-xs font-semibold tracking-wide text-default-700">
                 ข้อความที่ลูกค้าจะได้รับ
               </p>
-              {/* ยังไม่มีเลขจริงจนกว่าจะสร้างสำเร็จ — ห้ามโชว์เลขตัวอย่างให้เข้าใจผิด */}
+              {/* ยังไม่มีเลขจริงจนกว่าจะสร้างสำเร็จ — ห้ามโชว์เลขตัวอย่างให้เข้าใจผิด
+                  สร้างจาก trackingMessage ตัวเดียวกับข้อความจริง (ดูคอมเมนต์ที่ฟังก์ชัน) */}
               <p className="mb-0 whitespace-pre-line text-xs text-default-700">
-                {courierName ? `จัดส่งด้วย ${courierName}\n` : ''}
-                เลขติดตามพัสดุ: (จะแสดงหลังสร้างพัสดุสำเร็จ)
+                {trackingMessage(null, courierName)}
               </p>
             </div>
           )}

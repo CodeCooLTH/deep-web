@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>หน้าต่าง "พัสดุ" ในแชท — redesign mockup 2026-08-07</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* token สกิน Paces — ปักค่าในไฟล์เพราะ mockup ต้องเปิดดูได้โดยไม่ต้องรันแอป
+   ของจริงในโค้ดใช้ตัวแปรธีมล้วน (bg-primary / text-default-* / bg-{semantic}/15) ตาม HR7 */
+:root{
+  --primary:#236dc9; --primary-15:rgba(35,109,201,.13); --primary-ink:#1e3a8a; --primary-hover:#1e5dab;
+  --success:#02bc9c; --success-15:rgba(2,188,156,.15); --success-ink:#065f46;
+  --warning:#f9bf59; --warning-15:rgba(249,191,89,.22); --warning-ink:#92400e;
+  --info:#5bc3e1; --info-15:rgba(91,195,225,.18); --info-ink:#1e40af;
+  --danger:#f7577e; --danger-15:rgba(247,87,126,.15); --danger-ink:#7f1d1d;
+  --card:#fff; --body:#f6f7fb;
+  --d900:#2f3349; --d800:#4c4c5c; --d700:#6f7285; --d400:#b4b8c5;
+  --d300:#e4e6ed; --d200:#eef0f5; --d100:#f5f6fa;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--body);color:var(--d900);font-family:'Anuphan',sans-serif;-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5}
+.page{max-width:1560px;margin:0 auto;padding:32px 20px 72px}
+h1{font-size:24px;font-weight:600;margin:0 0 8px}
+h2{font-size:17px;font-weight:600;margin:42px 0 6px}
+.sub{color:var(--d700);margin:0 0 6px;line-height:1.75;max-width:80ch}
+.sub code{background:var(--d200);border-radius:4px;padding:1px 5px;font-size:12px}
+.frames{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start;margin-top:20px}
+.frame{background:var(--card);border:1px solid var(--d300);border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(47,51,73,.09)}
+.frame-cap{font-size:12px;font-weight:600;color:var(--d800);padding:9px 13px;background:var(--d100);border-bottom:1px solid var(--d300);display:flex;justify-content:space-between;gap:14px}
+.frame-cap span{color:var(--d700);font-weight:400}
+.screen{position:relative;overflow:hidden;background:var(--card)}
+
+/* ── หน้าต่างพัสดุ ── */
+.win{display:flex;flex-direction:column;background:var(--card);height:100%}
+.win-head{background:var(--primary);color:#fff;display:flex;align-items:center;gap:10px;padding:10px 12px;flex:none}
+.win-head .ava{width:34px;height:34px;border-radius:999px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;flex:none;position:relative}
+.win-head .ava .ch{position:absolute;inset-inline-end:-2px;bottom:-2px;width:15px;height:15px;border-radius:999px;background:#1877f2;border:2px solid var(--primary)}
+.win-head .t1{font-size:14px;font-weight:600;line-height:1.3}
+.win-head .t2{font-size:11px;color:rgba(255,255,255,.82)}
+.win-head .btns{display:flex;gap:2px;margin-inline-start:auto}
+.win-head .hb{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff}
+.win-head .hb:hover{background:rgba(255,255,255,.16)}
+.win-body{flex:1;overflow:auto;background:var(--body)}
+.sec{background:var(--card);padding:14px 16px;margin-bottom:8px}
+.sec-h{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.sec-h h3{font-size:12px;font-weight:600;color:var(--d700);margin:0;flex:1}
+.linkbtn{font-size:12px;color:var(--primary);display:inline-flex;align-items:center;gap:4px}
+.iconbtn{width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--d700);background:var(--d100)}
+
+/* hero */
+.hero{display:flex;align-items:flex-start;gap:12px}
+.courier{width:44px;height:44px;border-radius:10px;background:var(--d100);display:flex;align-items:center;justify-content:center;flex:none;border:1px solid var(--d300);font-size:10px;font-weight:700;color:var(--d700);text-align:center;line-height:1.1;padding:2px}
+.trk{font-size:20px;font-weight:700;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1.25;display:flex;align-items:center;gap:8px}
+.trk .cp{width:28px;height:28px;border-radius:8px;background:var(--primary-15);color:var(--primary-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;border-radius:999px;padding:3px 10px}
+.b-info{background:var(--info-15);color:var(--info-ink)}
+.b-ok{background:var(--success-15);color:var(--success-ink)}
+.meta{font-size:11.5px;color:var(--d700);margin-top:4px}
+
+/* stepper */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);list-style:none;margin:0;padding:0}
+.steps li{display:flex;flex-direction:column;align-items:center;gap:6px}
+.steps .lane{display:flex;align-items:center;width:100%}
+.steps .ln{height:2px;flex:1}
+.steps .dot{width:30px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none}
+.on .dot{background:var(--primary);color:#fff}.on .ln{background:var(--primary)}
+.off .dot{background:var(--d100);color:var(--d400)}.off .ln{background:var(--d200)}
+.steps .lbl{font-size:10.5px;text-align:center;line-height:1.25;color:var(--d700)}
+.steps li.cur .lbl{font-weight:700;color:var(--d900)}
+
+/* trace */
+.tl{list-style:none;margin:0;padding:0}
+.tl li{display:flex;gap:10px;padding-bottom:12px;position:relative}
+.tl li:last-child{padding-bottom:0}
+.tl li::before{content:'';position:absolute;inset-inline-start:5px;top:16px;bottom:0;width:2px;background:var(--d200)}
+.tl li:last-child::before{display:none}
+.tl .pt{width:12px;height:12px;border-radius:999px;background:var(--d300);margin-top:4px;flex:none;z-index:1}
+.tl li.now .pt{background:var(--primary);box-shadow:0 0 0 3px var(--primary-15)}
+.tl .tx1{font-size:13.5px;font-weight:600}
+.tl li.now .tx1{color:var(--primary-ink)}
+.tl .tx2{font-size:11.5px;color:var(--d700)}
+
+/* ผู้รับ */
+.who{font-size:15px;font-weight:600}
+.addr{font-size:13px;color:var(--d800);line-height:1.65;margin-top:4px}
+.tel{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--primary);font-weight:600;margin-top:2px}
+
+/* items */
+.it{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--d200);font-size:13.5px}
+.it:last-of-type{border-bottom:0}
+.it .q{font-size:12px;color:var(--d700);flex:none}
+.it .p{font-weight:600;flex:none}
+.it .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cod{display:flex;justify-content:space-between;align-items:center;margin-top:10px;background:var(--warning-15);color:var(--warning-ink);border-radius:8px;padding:9px 12px;font-size:13.5px}
+.cod b{font-size:16px}
+
+/* พับ */
+.fold{background:var(--card);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--d800)}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--d200);font-size:13px}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--d700)}
+.kv .v{font-weight:600;text-align:end}
+
+/* action bar */
+.bar{flex:none;background:var(--card);border-top:1px solid var(--d300);padding:10px 12px;display:flex;gap:8px;align-items:center;box-shadow:0 -4px 14px rgba(47,51,73,.06)}
+.bar .ib{width:44px;height:44px;border-radius:10px;background:var(--primary-15);color:var(--primary-ink);display:flex;align-items:center;justify-content:center;flex:none}
+.bar .primary{flex:1;min-height:44px;border-radius:10px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:14.5px}
+
+/* เมนู ⋯ */
+.menu{position:absolute;background:var(--card);border:1px solid var(--d300);border-radius:10px;box-shadow:0 14px 32px rgba(20,24,40,.24);padding:5px;width:216px;z-index:5}
+.mi{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 10px;border-radius:8px;font-size:13.5px;color:var(--d800)}
+.mi.dgr{color:var(--danger-ink)}
+.mi svg{width:17px;height:17px;flex:none}
+.msep{height:1px;background:var(--d300);margin:4px 6px}
+
+/* ฉากแชทหลัง (desktop) */
+.chatbg{position:absolute;inset:0;background:var(--body);display:flex}
+.rail{width:300px;background:var(--card);border-inline-end:1px solid var(--d300);flex:none}
+.rowc{display:flex;gap:10px;align-items:center;padding:11px 12px;border-bottom:1px dashed var(--d300)}
+.rowc.act{background:var(--primary-15);border-inline-start:2px solid var(--primary)}
+.rowc .a{width:36px;height:36px;border-radius:999px;background:var(--d200);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--d800);flex:none}
+.rowc .n{font-size:13px;font-weight:600}
+.rowc .p{font-size:11.5px;color:var(--d700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thread{flex:1;position:relative;background:var(--body)}
+.bub{max-width:62%;border-radius:12px;padding:9px 12px;font-size:13px;margin:10px 14px}
+.bub.me{background:var(--primary);color:#fff;margin-inline-start:auto}
+.bub.you{background:var(--card);border:1px solid var(--d300)}
+
+/* dock chips */
+.dock{position:absolute;inset-inline:14px;bottom:14px;display:flex;flex-direction:row-reverse;flex-wrap:wrap-reverse;gap:8px;justify-content:flex-start}
+.chip{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--d300);border-radius:999px;padding:6px 8px 6px 10px;box-shadow:0 6px 18px rgba(47,51,73,.14)}
+.chip .a{width:32px;height:32px;border-radius:999px;background:var(--d200);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--d800);flex:none;position:relative}
+.chip .k{font-size:10.5px;color:var(--d700);line-height:1.2}
+.chip .nm{font-size:13px;font-weight:600;line-height:1.25}
+.chip.here{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-15),0 6px 18px rgba(47,51,73,.16)}
+.chip .here-tag{font-size:10px;font-weight:700;color:var(--primary-ink);background:var(--primary-15);border-radius:999px;padding:1px 7px;margin-inline-start:2px}
+.chip .x{width:26px;height:26px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:var(--d700);flex:none}
+.note{position:absolute;z-index:9;font-size:11px;font-weight:600;color:#fff;background:#191d2e;border-radius:6px;padding:4px 9px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:14px}
+.cmp>div{background:var(--card);border:1px solid var(--d300);border-radius:10px;padding:14px 16px}
+.cmp h4{margin:0 0 8px;font-size:13px;font-weight:600}
+.cmp ul{margin:0;padding-inline-start:18px;color:var(--d800);line-height:1.85;font-size:13px}
+.bad{color:var(--danger-ink);font-weight:600}
+.good{color:var(--success-ink);font-weight:600}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>หน้าต่าง “พัสดุ” ในแชท — ออกแบบใหม่</h1>
+  <p class="sub">ของเดิมโชว์ 6 บรรทัดข้อมูล (ขนส่ง/สร้างเมื่อ/อัปเดต/น้ำหนัก/ขนาด/COD/พิมพ์ใบปะหน้า) แล้วจบด้วยปุ่ม 4 ปุ่มเรียงลงมา — <b>ไม่มีที่ไหนบอกว่าพัสดุใบนี้ส่งให้ใคร ที่อยู่อะไร ในกล่องมีอะไร</b> ทั้งที่ข้อมูลชุดนั้นถูกโหลดมาแล้วในคำขอเดียวกัน (<code>ShipmentContextJson.receiver</code> / <code>.items</code>) แค่ไม่เคยถูกเอามาแสดง และ “การเดินทาง” ซึ่งเป็นคำถามที่ร้านถามบ่อยที่สุดถูกพับซ่อนไว้หลังปุ่มกด</p>
+  <p class="sub">ปุ่ม <b>ยกเลิกพัสดุ</b> เดิมเป็นแถบเต็มความกว้างอยู่ล่างสุดติดกับ “แจ้งเลขในแชท” — บนมือถือคือปุ่มที่นิ้วโป้งพักอยู่พอดี และมันเป็นการกระทำที่ถอนคืนไม่ได้ ย้ายเข้าเมนู <b>⋯</b> บนหัวหน้าต่างตาม <code>docs/conventions/seller-action-placement.md</code> (destructive อยู่ใน ⋯ + confirm เท่านั้น)</p>
+
+  <div class="frames">
+
+    <!-- ═══════ Mobile ═══════ -->
+    <div class="frame">
+      <div class="frame-cap">Mobile 390 · เต็มจอ <span>แถบปุ่มติดขอบล่าง เนื้อหาเลื่อนใต้มัน</span></div>
+      <div class="screen" style="width:390px;height:820px">
+        <div class="win">
+          <div class="win-head">
+            <span class="ava">สฤ<span class="ch"></span></span>
+            <div style="min-width:0">
+              <div class="t1">พัสดุ · สมฤทธิ์ ใจเปี่ยม</div>
+              <div class="t2">Messenger</div>
+            </div>
+            <div class="btns">
+              <span class="hb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></span>
+              <span class="hb"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg></span>
+              <span class="hb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+            </div>
+          </div>
+
+          <div class="win-body">
+            <!-- HERO -->
+            <div class="sec">
+              <div class="hero">
+                <span class="courier">Flash</span>
+                <div style="min-width:0;flex:1">
+                  <div class="trk">TH7001911B8S0C
+                    <span class="cp"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></span>
+                  </div>
+                  <div style="margin-top:5px"><span class="badge b-info">รอเข้ารับพัสดุ</span></div>
+                  <div class="meta">Flash Thunder · อัปเดตล่าสุด 3 ชม. ที่แล้ว</div>
+                </div>
+              </div>
+
+              <ol class="steps" style="margin-top:14px">
+                <li class="on cur"><div class="lane"><span class="ln" style="background:transparent"></span><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8 12 3 3 8l9 5z"/><path d="M3 8v8l9 5 9-5V8"/></svg></span><span class="ln"></span></div><span class="lbl">สร้างพัสดุ</span></li>
+                <li class="off"><div class="lane"><span class="ln" style="background:var(--d200)"></span><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v10H4z"/><path d="m8 12 3 3 5-6"/></svg></span><span class="ln"></span></div><span class="lbl">รับเข้าระบบแล้ว</span></li>
+                <li class="off"><div class="lane"><span class="ln"></span><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17.5" cy="18" r="1.6"/></svg></span><span class="ln"></span></div><span class="lbl">กำลังจัดส่ง</span></li>
+                <li class="off"><div class="lane"><span class="ln"></span><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg></span><span class="ln" style="background:transparent"></span></div><span class="lbl">จัดส่งสำเร็จ</span></li>
+              </ol>
+            </div>
+
+            <!-- การเดินทาง -->
+            <div class="sec">
+              <div class="sec-h"><h3>การเดินทางของพัสดุ</h3><span class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></span></div>
+              <ol class="tl">
+                <li class="now"><span class="pt"></span><div><div class="tx1">รับเข้าระบบแล้ว</div><div class="tx2">ศูนย์คัดแยกลาดกระบัง</div><div class="tx2">2569-08-07 07:51</div></div></li>
+                <li><span class="pt"></span><div><div class="tx1">สร้างพัสดุ</div><div class="tx2">2569-08-06 23:41</div></div></li>
+              </ol>
+            </div>
+
+            <!-- ผู้รับ -->
+            <div class="sec">
+              <div class="sec-h"><h3>ผู้รับ</h3><span class="linkbtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>คัดลอกที่อยู่</span></div>
+              <div class="who">สมฤทธิ์ ใจเปี่ยม</div>
+              <a class="tel"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1"/></svg>081-234-5678</a>
+              <div class="addr">123/45 หมู่ 2 ซ.สุขสวัสดิ์ 26<br>ต.บางครุ อ.พระประแดง<br>จ.สมุทรปราการ 10130</div>
+            </div>
+
+            <!-- ในกล่อง -->
+            <div class="sec">
+              <div class="sec-h"><h3>ในกล่อง · 3 ชิ้น</h3></div>
+              <div class="it"><span class="n">เสื้อยืดคอกลม สีดำ ไซซ์ L</span><span class="q">×1</span><span class="p">฿290</span></div>
+              <div class="it"><span class="n">ถุงเท้าข้อสั้น แพ็ค 3 คู่</span><span class="q">×2</span><span class="p">฿70</span></div>
+              <div class="cod"><span>เก็บเงินปลายทาง</span><b>฿360</b></div>
+            </div>
+
+            <!-- พับ -->
+            <div class="fold">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--d700)"><path d="m6 9 6 6 6-6"/></svg>
+              รายละเอียดพัสดุ
+              <span style="margin-inline-start:auto;font-size:12px;color:var(--d700)">2.01 กก. · 11×44×8 ซม.</span>
+            </div>
+          </div>
+
+          <div class="bar">
+            <span class="ib"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></span>
+            <span class="ib"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8V3h10v5"/><rect x="4" y="8" width="16" height="7" rx="2"/><path d="M7 15h10v6H7z"/></svg></span>
+            <span class="primary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12 20 4l-7 16-2-7z"/></svg>แจ้งเลขในแชท</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ Mobile — เมนู ⋯ เปิด ═══════ -->
+    <div class="frame">
+      <div class="frame-cap">Mobile 390 · เมนู ⋯ <span>ที่อยู่ใหม่ของการกระทำที่ถอนคืนไม่ได้</span></div>
+      <div class="screen" style="width:390px;height:820px">
+        <div class="win">
+          <div class="win-head">
+            <span class="ava">สฤ<span class="ch"></span></span>
+            <div style="min-width:0"><div class="t1">พัสดุ · สมฤทธิ์ ใจเปี่ยม</div><div class="t2">Messenger</div></div>
+            <div class="btns">
+              <span class="hb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></span>
+              <span class="hb" style="background:rgba(255,255,255,.2)"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg></span>
+              <span class="hb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+            </div>
+          </div>
+          <div class="win-body" style="position:relative">
+            <div class="menu" style="top:8px;inset-inline-end:10px">
+              <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>โหลดสถานะล่าสุด</div>
+              <div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg>เปิดในหน้าคำสั่งซื้อ</div>
+              <div class="msep"></div>
+              <div class="mi dgr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8 12 3 3 8l9 5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="m3 3 18 18"/></svg>ยกเลิกพัสดุ</div>
+            </div>
+            <div class="sec" style="opacity:.45">
+              <div class="hero"><span class="courier">Flash</span><div style="min-width:0;flex:1"><div class="trk">TH7001911B8S0C</div><div style="margin-top:5px"><span class="badge b-info">รอเข้ารับพัสดุ</span></div><div class="meta">Flash Thunder · อัปเดตล่าสุด 3 ชม. ที่แล้ว</div></div></div>
+            </div>
+            <div class="sec" style="opacity:.45"><div class="sec-h"><h3>การเดินทางของพัสดุ</h3></div><ol class="tl"><li class="now"><span class="pt"></span><div><div class="tx1">รับเข้าระบบแล้ว</div><div class="tx2">2569-08-07 07:51</div></div></li></ol></div>
+            <div class="sec" style="opacity:.45"><div class="sec-h"><h3>ผู้รับ</h3></div><div class="who">สมฤทธิ์ ใจเปี่ยม</div><div class="addr">123/45 หมู่ 2 ซ.สุขสวัสดิ์ 26 …</div></div>
+          </div>
+          <div class="bar">
+            <span class="ib"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></span>
+            <span class="ib"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8V3h10v5"/><rect x="4" y="8" width="16" height="7" rx="2"/><path d="M7 15h10v6H7z"/></svg></span>
+            <span class="primary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12 20 4l-7 16-2-7z"/></svg>แจ้งเลขในแชท</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ Desktop ═══════ -->
+    <div class="frame">
+      <div class="frame-cap">Desktop 1280 · หน้าต่างลอยขวา + dock <span>ข้อ 4: ย่ออัตโนมัติ + ไฮไลต์ bubble ของแชทที่เปิดอยู่</span></div>
+      <div class="screen" style="width:1280px;height:820px">
+        <div class="chatbg">
+          <div class="rail">
+            <div class="rowc"><span class="a">สฤ</span><div style="min-width:0"><div class="n">สมฤทธิ์ ใจเปี่ยม</div><div class="p">ขอเลขพัสดุด้วยครับ</div></div></div>
+            <div class="rowc act"><span class="a">CT</span><div style="min-width:0"><div class="n">Chaiwat Thinchai</div><div class="p">คุณพี่ขับรุ่นไหนคะ ให้แอดมินเช็ก…</div></div></div>
+            <div class="rowc"><span class="a">ณฐ</span><div style="min-width:0"><div class="n">ณัฐพล ทองดี</div><div class="p">โอนแล้วนะครับ</div></div></div>
+            <div class="rowc"><span class="a">ปว</span><div style="min-width:0"><div class="n">ปวีณา แสงทอง</div><div class="p">ขอบคุณค่ะ</div></div></div>
+          </div>
+          <div class="thread">
+            <div class="bub you">คุณพี่ขับรุ่นไหนคะ ให้แอดมินเช็กให้</div>
+            <div class="bub me">Wave 110i ครับ</div>
+            <div class="bub you">ได้เลยค่ะ เดี๋ยวเช็กสต็อกให้นะคะ</div>
+
+            <div class="note" style="top:250px;left:24px">กำลังเปิดแชท “Chaiwat” อยู่ — หน้าต่างพัสดุของ “สมฤทธิ์” จึงถูกย่อเองอัตโนมัติ</div>
+
+            <div class="dock">
+              <div class="chip here">
+                <span class="a">CT</span>
+                <div><div class="k">พัสดุ</div><div class="nm">Chaiwat Thinchai</div></div>
+                <span class="here-tag">แชทนี้</span>
+                <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+              </div>
+              <div class="chip">
+                <span class="a">สฤ</span>
+                <div><div class="k">พัสดุ</div><div class="nm">สมฤทธิ์ ใจเปี่ยม</div></div>
+                <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+              </div>
+              <div class="chip">
+                <span class="a">ณฐ</span>
+                <div><div class="k">คำสั่งซื้อใหม่</div><div class="nm">ณัฐพล ทองดี</div></div>
+                <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- หน้าต่างลอยขวา -->
+        <div style="position:absolute;top:16px;bottom:16px;right:16px;width:384px;border-radius:10px;overflow:hidden;box-shadow:0 18px 44px rgba(20,24,40,.26)">
+          <div class="win">
+            <div class="win-head">
+              <span class="ava">CT<span class="ch"></span></span>
+              <div style="min-width:0"><div class="t1">พัสดุ · Chaiwat Thinchai</div><div class="t2">Messenger</div></div>
+              <div class="btns">
+                <span class="hb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></span>
+                <span class="hb"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg></span>
+                <span class="hb"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+              </div>
+            </div>
+            <div class="win-body">
+              <div class="sec">
+                <div class="hero">
+                  <span class="courier">Flash</span>
+                  <div style="min-width:0;flex:1">
+                    <div class="trk">TH7001911B8S0C<span class="cp"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></span></div>
+                    <div style="margin-top:5px"><span class="badge b-ok">กำลังจัดส่ง</span></div>
+                    <div class="meta">Flash Thunder · อัปเดตล่าสุด 25 นาทีที่แล้ว</div>
+                  </div>
+                </div>
+                <ol class="steps" style="margin-top:14px">
+                  <li class="on"><div class="lane"><span class="ln" style="background:transparent"></span><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8 12 3 3 8l9 5z"/><path d="M3 8v8l9 5 9-5V8"/></svg></span><span class="ln"></span></div><span class="lbl">สร้างพัสดุ</span></li>
+                  <li class="on"><div class="lane"><span class="ln"></span><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v10H4z"/><path d="m8 12 3 3 5-6"/></svg></span><span class="ln"></span></div><span class="lbl">รับเข้าระบบแล้ว</span></li>
+                  <li class="on cur"><div class="lane"><span class="ln"></span><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17.5" cy="18" r="1.6"/></svg></span><span class="ln" style="background:var(--d200)"></span></div><span class="lbl">กำลังจัดส่ง</span></li>
+                  <li class="off"><div class="lane"><span class="ln" style="background:var(--d200)"></span><span class="dot"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg></span><span class="ln" style="background:transparent"></span></div><span class="lbl">จัดส่งสำเร็จ</span></li>
+                </ol>
+              </div>
+              <div class="sec">
+                <div class="sec-h"><h3>การเดินทางของพัสดุ</h3><span class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></span></div>
+                <ol class="tl">
+                  <li class="now"><span class="pt"></span><div><div class="tx1">อยู่ระหว่างนำจ่าย</div><div class="tx2">ศูนย์กระจายสินค้าบางนา</div><div class="tx2">2569-08-07 09:20</div></div></li>
+                  <li><span class="pt"></span><div><div class="tx1">รับเข้าระบบแล้ว</div><div class="tx2">2569-08-07 07:51</div></div></li>
+                  <li><span class="pt"></span><div><div class="tx1">สร้างพัสดุ</div><div class="tx2">2569-08-06 23:41</div></div></li>
+                </ol>
+              </div>
+              <div class="sec">
+                <div class="sec-h"><h3>ผู้รับ</h3><span class="linkbtn">คัดลอกที่อยู่</span></div>
+                <div class="who">Chaiwat Thinchai</div>
+                <a class="tel"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1"/></svg>089-555-1122</a>
+                <div class="addr">88/9 ซ.อ่อนนุช 17 แยก 4<br>แขวงสวนหลวง เขตสวนหลวง<br>กรุงเทพมหานคร 10250</div>
+              </div>
+              <div class="sec">
+                <div class="sec-h"><h3>ในกล่อง · 1 ชิ้น</h3></div>
+                <div class="it"><span class="n">โซ่ราวลิ้น Wave 110i แท้ศูนย์</span><span class="q">×1</span><span class="p">฿420</span></div>
+                <div class="cod"><span>เก็บเงินปลายทาง</span><b>฿420</b></div>
+              </div>
+              <div class="fold">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--d700)"><path d="m6 9 6 6 6-6"/></svg>
+                รายละเอียดพัสดุ
+                <span style="margin-inline-start:auto;font-size:12px;color:var(--d700)">0.60 กก. · 20×15×10 ซม.</span>
+              </div>
+            </div>
+            <div class="bar">
+              <span class="ib"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></span>
+              <span class="ib"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 8V3h10v5"/><rect x="4" y="8" width="16" height="7" rx="2"/><path d="M7 15h10v6H7z"/></svg></span>
+              <span class="primary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12 20 4l-7 16-2-7z"/></svg>แจ้งเลขในแชท</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>ข้อ 4 — bubble ที่ย่อไว้: ย่ออัตโนมัติ + ไฮไลต์ว่าใบไหนของแชทนี้</h2>
+  <p class="sub">bubble ที่ย่อแล้วจะไปเรียงอยู่มุมขวาล่าง (เรียงจากขวาไปซ้าย ใบล่าสุดอยู่ใกล้มุมสุด — พฤติกรรมเดียวกับ dock ร่างของ Gmail/Messenger) พอเปิดค้างไว้หลายใบ หน้าตาเหมือนกันหมดจนไม่รู้ว่าใบไหนคือของห้องที่กำลังอ่านอยู่ ตัวที่ตรงกับแชทปัจจุบันจึงได้ <b>ขอบ primary + วงแหวน + ป้าย “แชทนี้”</b> — ใส่ตัวหนังสือด้วยไม่ใช่แค่สี เพราะ chip ตัวอื่นก็มีขอบอยู่แล้ว ต่างกันแค่เฉด และสีอย่างเดียวไม่ผ่านสำหรับคนตาบอดสี</p>
+  <div class="frames">
+
+    <!-- ข้อ 4 · มือถือ -->
+    <div class="frame">
+      <div class="frame-cap">Mobile 390 · bubble ที่ย่อไว้ 3 ใบ <span>ใบของแชทที่เปิดอยู่ = ขอบน้ำเงิน + ป้าย “แชทนี้”</span></div>
+      <div class="screen" style="width:390px;height:560px">
+        <div style="position:absolute;inset:0;background:var(--card)">
+          <div class="rowc"><span class="a">CT</span><div style="min-width:0"><div class="n">Chaiwat Thinchai</div><div class="p">คุณพี่ขับรุ่นไหนคะ ให้แอดมินเช็ก…</div></div></div>
+          <div class="bub you" style="max-width:76%">คุณพี่ขับรุ่นไหนคะ ให้แอดมินเช็กให้</div>
+          <div class="bub me" style="max-width:76%">Wave 110i ครับ</div>
+          <div class="bub you" style="max-width:76%">ได้เลยค่ะ เดี๋ยวเช็กสต็อกให้นะคะ</div>
+        </div>
+
+        <div class="note" style="top:214px;left:16px">อยู่ในห้อง “Chaiwat” → ใบของ “สมฤทธิ์”<br>กับ “ณัฐพล” ถูกย่อเองอัตโนมัติ</div>
+
+        <div class="dock">
+          <div class="chip here">
+            <span class="a">CT</span>
+            <div><div class="k">พัสดุ</div><div class="nm">Chaiwat Thinchai</div></div>
+            <span class="here-tag">แชทนี้</span>
+            <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+          </div>
+          <div class="chip">
+            <span class="a">สฤ</span>
+            <div><div class="k">พัสดุ</div><div class="nm">สมฤทธิ์ ใจเปี่ยม</div></div>
+            <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+          </div>
+          <div class="chip">
+            <span class="a">ณฐ</span>
+            <div><div class="k">คำสั่งซื้อใหม่</div><div class="nm">ณัฐพล ทองดี</div></div>
+            <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ข้อ 4 · ซูมเทียบ chip -->
+    <div class="frame">
+      <div class="frame-cap">เทียบ chip แบบขยาย <span>ต่างกันที่ขอบ + วงแหวน + ป้าย ไม่ใช่แค่สี</span></div>
+      <div class="screen" style="width:420px;height:560px;background:var(--body)">
+        <div style="padding:28px 20px;display:flex;flex-direction:column;gap:26px">
+          <div>
+            <p style="font-size:12px;font-weight:600;color:var(--d700);margin:0 0 10px">ใบของแชทที่กำลังเปิดอยู่</p>
+            <div class="chip here" style="display:inline-flex">
+              <span class="a">CT</span>
+              <div><div class="k">พัสดุ</div><div class="nm">Chaiwat Thinchai</div></div>
+              <span class="here-tag">แชทนี้</span>
+              <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+            </div>
+          </div>
+          <div>
+            <p style="font-size:12px;font-weight:600;color:var(--d700);margin:0 0 10px">ใบของแชทอื่น (ค้างไว้ทำต่อทีหลัง)</p>
+            <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+              <div class="chip" style="display:inline-flex">
+                <span class="a">สฤ</span>
+                <div><div class="k">พัสดุ</div><div class="nm">สมฤทธิ์ ใจเปี่ยม</div></div>
+                <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+              </div>
+              <div class="chip" style="display:inline-flex">
+                <span class="a">ณฐ</span>
+                <div><div class="k">คำสั่งซื้อใหม่</div><div class="nm">ณัฐพล ทองดี</div></div>
+                <span class="x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
+              </div>
+            </div>
+          </div>
+          <div style="background:var(--card);border:1px solid var(--d300);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--d800);line-height:1.8">
+            แถบ dock โผล่<b>เฉพาะตอนไม่มีหน้าต่างไหนขยายอยู่</b> (หน้าต่างที่ขยายกินเกือบเต็มจอบนมือถือ) —
+            สลับห้องแชทเมื่อไหร่ หน้าต่างที่ค้างจะย่อลงมาที่นี่เอง แล้วแถบนี้จะโผล่ทันที<br>
+            <span style="color:var(--d700)">กด chip = ขยายกลับ · กด ✕ = ปิดใบนั้น</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>สรุปสิ่งที่เปลี่ยน</h2>
+  <div class="cmp">
+    <div>
+      <h4>ของเดิม</h4>
+      <ul>
+        <li><span class="bad">ไม่รู้ว่าส่งให้ใคร</span> — ไม่มีชื่อ/เบอร์/ที่อยู่ผู้รับเลย</li>
+        <li><span class="bad">ไม่รู้ว่าในกล่องมีอะไร</span> — ไม่มีรายการสินค้า</li>
+        <li>การเดินทางถูกพับซ่อนหลังปุ่ม “ดูรายละเอียดการเดินทาง”</li>
+        <li>ตาราง 6 บรรทัดค่าคงที่กินพื้นที่กลางจอ ทั้งที่อ่านครั้งเดียวก็พอ</li>
+        <li><span class="bad">ยกเลิกพัสดุเป็นแถบเต็มความกว้างล่างสุด</span> ตรงที่นิ้วโป้งพักพอดี</li>
+        <li>ปุ่ม 4 ตัวเรียงลงมาเท่ากันหมด ไม่มีตัวไหนเป็นการกระทำหลัก</li>
+      </ul>
+    </div>
+    <div>
+      <h4>ของใหม่</h4>
+      <ul>
+        <li><span class="good">ผู้รับเต็มชุด</span> ชื่อ · เบอร์ (กดโทรได้) · ที่อยู่ + ปุ่มคัดลอกที่อยู่</li>
+        <li><span class="good">ในกล่อง</span> รายการสินค้า + จำนวน และยอดเก็บปลายทางเป็นแถบเด่น</li>
+        <li>การเดินทาง <span class="good">เห็นทันที</span> 2–3 เหตุการณ์ล่าสุด ที่เหลือกด “ดูทั้งหมด”</li>
+        <li>ค่าคงที่ (น้ำหนัก/ขนาด/สร้างเมื่อ/พิมพ์ใบปะหน้า) ยุบเป็นแถวพับ พร้อมสรุปย่อบนหัวแถว</li>
+        <li><span class="good">ยกเลิกพัสดุย้ายเข้าเมนู ⋯</span> บนหัวหน้าต่าง + ยังยืนยันก่อนเสมอ</li>
+        <li>แถบปุ่มติดขอบล่าง: <b>แจ้งเลขในแชท</b> เป็นปุ่มหลักตัวเดียว คัดลอก/พิมพ์เป็นไอคอน</li>
+        <li>เลขพัสดุกดคัดลอกได้จากตัวมันเอง ไม่ต้องเลื่อนลงไปหาปุ่ม</li>
+      </ul>
+    </div>
+  </div>
+  <p class="sub" style="margin-top:14px">ข้อมูลผู้รับและรายการสินค้า <b>ไม่ต้องเรียก API เพิ่ม</b> — <code>/api/seller/iship/order-context</code> ส่งมาให้อยู่แล้วในคำขอเดียวกับที่หน้านี้ใช้เปิด (<code>receiver</code>, <code>items</code>, <code>codSuggested</code>) แค่ยังไม่เคยถูกนำมาแสดง</p>
+</div>
+</body>
+</html>
