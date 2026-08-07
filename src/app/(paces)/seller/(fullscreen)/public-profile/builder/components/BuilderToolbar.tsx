@@ -100,14 +100,15 @@ export default function BuilderToolbar({
       saveLabel="บันทึก"
       saveFormId={saveFormId}
       disableSave={saving}
+      toolbarLeading={
+        <div className="input-group max-w-sm">
+          <span className="input-group-text text-2xs">{handlePrefix}</span>
+          <input className="form-input text-sm" value={handle} readOnly aria-label="ลิงก์หน้าร้าน" />
+          <CopyLinkButton value={publicUrl} iconOnly label="คัดลอกลิงก์หน้าร้าน" successMessage="คัดลอกลิงก์หน้าร้านแล้ว" />
+        </div>
+      }
       toolbarExtra={
         <>
-          <div className="input-group max-w-md">
-            <span className="input-group-text text-2xs">{handlePrefix}</span>
-            <input className="form-input text-sm" value={handle} readOnly aria-label="ลิงก์หน้าร้าน" />
-            <CopyLinkButton value={publicUrl} iconOnly label="คัดลอกลิงก์หน้าร้าน" successMessage="คัดลอกลิงก์หน้าร้านแล้ว" />
-          </div>
-
           <label className="text-default-600 flex shrink-0 items-center gap-2 text-sm">
             เผยแพร่หน้าร้าน
             <input

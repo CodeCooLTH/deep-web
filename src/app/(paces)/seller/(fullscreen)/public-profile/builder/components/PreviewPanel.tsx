@@ -17,7 +17,9 @@ import { PROFILE_TAB_LABEL_TH, type PreviewPanelProps } from '../types'
 
 export default function PreviewPanel({ header, draft }: PreviewPanelProps) {
   return (
-    <div className="card flex min-h-0 w-[30%] flex-col"> {/* HR7 carve-out: 30/40/30 ล็อกไว้ตาม SDS §3/mockup — Paces ไม่มี token สัดส่วนคอลัมน์นี้ */}
+    // [สำคัญ] h-full จำเป็น — .card ของ Paces เป็น height:fit-content ชนะ items-stretch
+    // ดู feedback_paces_card_hfit_vs_hfull
+    <div className="card h-full flex min-h-0 w-[30%] flex-col"> {/* HR7 carve-out: 30/40/30 ล็อกไว้ตาม SDS §3/mockup — Paces ไม่มี token สัดส่วนคอลัมน์นี้ */}
       <div className="card-header flex items-center py-3">
         <h4 className="card-title flex-1 text-sm">พรีวิว</h4>
         <span className="badge bg-primary text-2xs text-white">พรีวิว</span>

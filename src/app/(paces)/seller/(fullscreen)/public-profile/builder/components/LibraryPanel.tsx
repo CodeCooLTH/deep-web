@@ -102,7 +102,11 @@ export default function LibraryPanel({
   }
 
   return (
-    <div className="card flex min-h-0 w-[30%] flex-col"> {/* HR7 carve-out: 30/40/30 ล็อกไว้ตาม SDS §3/mockup — Paces ไม่มี token สัดส่วนคอลัมน์นี้ */}
+    // [สำคัญ] ต้องมี h-full — .card ของ Paces ตั้ง height:fit-content ซึ่งชนะ items-stretch ของ flex
+    // parent ทำให้คอลัมน์ยืดไม่เท่ากัน (วัดจริงบน prod: คลังยาว 4308px ทะลุกรอบ overflow:hidden จน
+    // overflow-auto ข้างในไม่ทำงาน / canvas เหลือ 230px จน iframe ยุบเหลือ 150px)
+    // ดู feedback_paces_card_hfit_vs_hfull
+    <div className="card h-full flex min-h-0 w-[30%] flex-col"> {/* HR7 carve-out: 30/40/30 ล็อกไว้ตาม SDS §3/mockup — Paces ไม่มี token สัดส่วนคอลัมน์นี้ */}
       <div className="card-header py-3">
         <h4 className="card-title text-sm">คลัง</h4>
       </div>
@@ -166,18 +170,24 @@ export default function LibraryPanel({
           filteredPosts.map((post) => {
             const added = addedFacebookPostIds.has(post.id)
             return (
-              <div key={post.id} className="border-default-300 mb-2 overflow-hidden rounded-lg border bg-white">
+              // แถวกะทัดรัด (user ทัก 2026-08-07 "ไม่ต้องเป็น card ใหญ่มากก็ได้ ... ควรดูได้หลาย ๆ post
+              // และเลื่อนดูได้ง่าย ๆ") — เดิมเป็นการ์ดรูปเต็มความกว้าง h-20 ทำให้เห็นได้ ~4 โพสต์ต่อจอ
+              // และดันกลุ่ม "แท็บของหน้าร้าน" ที่ลากได้ตกจอไปจนผู้ใช้หาไม่เจอ
+              <div
+                key={post.id}
+                className="border-default-300 mb-1.5 flex items-start gap-2.5 rounded-lg border bg-white p-2"
+              >
                 {post.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- คลังโหลดรูปจาก storage/Meta CDN ภายนอก ไม่ผ่าน next/image config
-                  <img src={post.imageUrl} alt="" className="h-20 w-full object-cover" />
+                  <img src={post.imageUrl} alt="" className="size-12 shrink-0 rounded-md object-cover" />
                 ) : (
-                  <div className="bg-default-200 text-default-400 flex h-20 items-center justify-center">
-                    <Icon icon="photo" className="text-2xl" aria-hidden="true" />
+                  <div className="bg-default-200 text-default-400 flex size-12 shrink-0 items-center justify-center rounded-md">
+                    <Icon icon="photo" className="text-lg" aria-hidden="true" />
                   </div>
                 )}
-                <div className="p-2.5">
-                  <p className="text-default-700 line-clamp-2 text-xs">{post.message ?? '(ไม่มีข้อความ)'}</p>
-                  <div className="text-default-400 text-2xs mt-1.5 flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-default-700 line-clamp-2 text-2xs">{post.message ?? '(ไม่มีข้อความ)'}</p>
+                  <div className="text-default-400 text-2xs mt-1 flex items-center gap-3">
                     <span className="inline-flex items-center gap-1">
                       <Icon icon="heart" className="text-sm" aria-hidden="true" />
                       {post.reactionCount ?? 0}

@@ -152,7 +152,10 @@ export default function CanvasFrame({
   )
 
   return (
-    <div className="card flex min-h-0 flex-1 flex-col">
+    // [สำคัญ] h-full จำเป็น — .card ของ Paces เป็น height:fit-content ชนะ items-stretch ทำให้การ์ดนี้
+    // สูงเท่าเนื้อหา (230px วัดจริงบน prod) แล้ว h-full ของ wrapper iframe ข้างในยุบตาม เหลือ 150px
+    // หน้าร้านเลยไม่ขึ้น ดู feedback_paces_card_hfit_vs_hfull
+    <div className="card h-full flex min-h-0 flex-1 flex-col">
       <div className="card-header flex items-center py-3">
         <h4 className="card-title flex-1 text-sm">จัดหน้าร้าน</h4>
         <span className="text-default-400 text-2xs">ลากเพื่อสลับลำดับ</span>
