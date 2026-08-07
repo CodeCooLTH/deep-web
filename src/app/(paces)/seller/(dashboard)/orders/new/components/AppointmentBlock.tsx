@@ -23,7 +23,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Controller, type Control, type FieldErrors, type UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
-import { formatTimeHM } from '@/lib/format-date'
+import { formatTimeHM, formatDateTH } from '@/lib/format-date'
+import AppointmentDateSheet from './AppointmentDateSheet'
 import type { FormValues } from './OrderCreateForm'
 import type { AppointmentGranularity } from '@/lib/appointments'
 
@@ -132,6 +133,8 @@ export default function AppointmentBlock({
   const endTouched = useRef(false)
 
   const selected = resources.find((r) => r.id === value.resourceId) ?? null
+  /** ปฏิทินเต็มจอเลือกวันนัด (user สั่ง 2026-08-07) */
+  const [dateSheetOpen, setDateSheetOpen] = useState(false)
 
   // ── โหลดคิวที่ถูกจองแล้วของคิวงาน+วันที่เลือก (ครั้งเดียวต่อ resource+วัน) ──
   useEffect(() => {
@@ -260,11 +263,25 @@ export default function AppointmentBlock({
           <>
             <div>
               <label htmlFor={`${idPrefix}-appt-date`} className="form-label">วันที่นัด</label>
+              {/* ปุ่มเปิดปฏิทินเต็มจอแทน <input type="date"> (user สั่ง 2026-08-07) — ช่องเดิม
+                  บอกได้แค่ "วันนี้คือวันอะไร" ผู้ขายต้องเดาเองว่าวันไหนคิวว่างแล้วไปรู้ตอนกด
+                  บันทึกไม่ผ่าน. ปฏิทินย้อมวันที่มีคิว/เต็มให้เห็นทั้งเดือนก่อนเลือก
+                  ยังเป็นปุ่มไม่ใช่ input จริง — ค่าเก็บใน react-hook-form เหมือนเดิมทุกอย่าง */}
               <Controller
                 control={control}
                 name="appointment.date"
                 render={({ field }) => (
-                  <input id={`${idPrefix}-appt-date`} type="date" className="form-input" {...field} value={field.value ?? ''} />
+                  <button
+                    id={`${idPrefix}-appt-date`}
+                    type="button"
+                    onClick={() => setDateSheetOpen(true)}
+                    className="form-input flex w-full items-center justify-between gap-2 text-start"
+                  >
+                    <span className={field.value ? 'text-dark' : 'text-default-400'}>
+                      {field.value ? formatDateTH(`${field.value}T00:00`) : 'เลือกวันนัด'}
+                    </span>
+                    <Icon icon="calendar-event" className="size-4 shrink-0 text-default-400" />
+                  </button>
                 )}
               />
             </div>
@@ -403,6 +420,17 @@ export default function AppointmentBlock({
             </div>
           </>
       )}
+
+      {/* อยู่ใน fields เพื่อให้ render ทั้งสองทาง (การ์ด และ embedded ใน accordion ของ CartPanel)
+          — ตัวชีตเป็น fixed inset-0 อยู่แล้ว ตำแหน่งใน DOM จึงไม่มีผลกับการวาง */}
+      <AppointmentDateSheet
+        open={dateSheetOpen}
+        resourceId={value.resourceId}
+        resourceName={selected?.name}
+        value={value.date}
+        onSelect={(d) => setValue('appointment.date', d)}
+        onClose={() => setDateSheetOpen(false)}
+      />
     </div>
   )
 
