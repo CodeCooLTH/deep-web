@@ -37,7 +37,7 @@ import {
   isAllDayAppointment,
   type AppointmentStatus,
 } from '@/lib/appointments'
-import { formatDateTH, formatDateTimeTH, formatTimeHM } from '@/lib/format-date'
+import { formatDateTH, formatDateTimeTH, formatTimeHM, formatWeekdayDateTH } from '@/lib/format-date'
 
 export type PublicAppointment = {
   resourceName: string
@@ -186,8 +186,11 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
           </div>
 
           <div>
+            {/* มีชื่อวันด้วย ("จันทร์ 12 ส.ค. 2569") — คนที่ต้องมาตามนัดวางแผนจากชื่อวัน
+                ไม่ใช่จากเลขที่ ("12 ส.ค." ต้องเปิดปฏิทินอีกทีถึงจะรู้ว่าติดวันทำงานไหม)
+                หนี้ที่ค้างจาก 00024 ข้อ 4 — การ์ดนี้อ่านเป็น widget ของแอดมิน ไม่ใช่ของลูกค้า */}
             <Typography variant="h6" sx={{ fontWeight: 800 }}>
-              {formatDateTH(start)}
+              {formatWeekdayDateTH(start)}
             </Typography>
             <Typography variant="body1" color="text.primary">
               {allDay
@@ -206,7 +209,9 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
               }}
               title={state.resourceName}
             >
-              {state.resourceName}
+              {/* มี label กำกับ — ชื่อคิวงานลอย ๆ ("ติดตั้งไฟหน้า") ลูกค้าอ่านไม่ออกว่าคืออะไร
+                  ใช้คำเดียวกับป้ายในฟอร์มฝั่งผู้ขาย เพื่อให้สองฝั่งเรียกของเดียวกันด้วยคำเดียวกัน */}
+              รับนัดโดย {state.resourceName}
             </Typography>
           </div>
 

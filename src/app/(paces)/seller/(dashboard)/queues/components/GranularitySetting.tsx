@@ -26,6 +26,15 @@ type Props = { value: AppointmentGranularity }
 export default function GranularitySetting({ value }: Props) {
   const [current, setCurrent] = useState<AppointmentGranularity>(value)
   const [saving, setSaving] = useState(false)
+  /**
+   * เปลี่ยนค่าไปแล้วอย่างน้อยหนึ่งครั้งในหน้านี้ — ใช้ขึ้นบรรทัดยืนยันค้างไว้
+   *
+   * การ์ดนี้ถูกวางอยู่ใน ResourceForm ซึ่งมีปุ่ม "บันทึก/ยกเลิก" ของตัวเองอยู่ด้านล่าง แต่ค่านี้
+   * ยิงคนละ endpoint และบันทึกทันที — กด "ยกเลิก" แล้วมันไม่ย้อน (หนี้ 00024 ข้อ 4)
+   * เดิมกันด้วย "ตำแหน่งการวาง" อย่างเดียว (วางบนสุดให้ห่างจากปุ่ม) ซึ่งกันได้แค่คนที่อ่านลำดับ
+   * ส่วน toast ที่เด้งแล้วหายไม่เหลือหลักฐานตอนที่ผู้ใช้เลื่อนลงไปกดยกเลิก — บรรทัดนี้ค้างอยู่
+   */
+  const [changed, setChanged] = useState(false)
 
   async function change(next: AppointmentGranularity) {
     const prev = current
@@ -43,6 +52,7 @@ export default function GranularitySetting({ value }: Props) {
         pacesToast.error('บันทึกไม่สำเร็จ ลองเลือกอีกครั้ง')
         return
       }
+      setChanged(true)
       pacesToast.success(
         next === 'DAY' ? 'เปลี่ยนเป็นรับนัดรายวันแล้ว' : 'เปลี่ยนเป็นระบุช่วงเวลาแล้ว',
       )
@@ -94,6 +104,13 @@ export default function GranularitySetting({ value }: Props) {
           <p className="text-default-500 mt-1 text-sm">
             เปลี่ยนได้ตลอด นัดที่บันทึกไว้แล้วไม่เปลี่ยนตาม
           </p>
+          {/* ค้างอยู่จนกว่าจะออกจากหน้า ต่างจาก toast ที่หายไปก่อนผู้ใช้เลื่อนลงไปเจอปุ่มยกเลิก
+              text-success-ink: ข้อความยืนยันว่าบันทึกสำเร็จจริง (Verified-Means-Green) */}
+          {changed && (
+            <p className="text-success-ink mt-1 text-sm">
+              บันทึกค่านี้แล้ว — ไม่ขึ้นกับปุ่มบันทึก/ยกเลิกของฟอร์มคิวงานด้านล่าง
+            </p>
+          )}
         </div>
       </div>
     </div>
