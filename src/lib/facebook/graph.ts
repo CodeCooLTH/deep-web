@@ -402,6 +402,40 @@ export async function fetchMessageText(messageId: string, pageToken: string): Pr
 }
 
 /**
+ * ดึงเนื้อหาของข้อความ "รายใบ" จาก mid (2026-08-07)
+ *
+ * ต่างจาก `fetchThreadMessages` ตรงที่ไม่ผูกกับ "50 ข้อความล่าสุดของเธรด" — ใช้กับข้อความเก่า
+ * ที่หลุดหน้าต่างนั้นไปแล้วได้ (เช่น backfill ย้อนหลังแถวที่บันทึกเป็น placeholder ไว้ก่อนหน้า)
+ *
+ * ขอ `attachments` แบบไม่ระบุซับฟิลด์ด้วยเหตุผลเดียวกับ `fetchThreadMessages` — ดู comment ที่นั่น
+ * (`attachments{type}` ทำให้ Graph ตัดข้อมูลทิ้งเงียบ ๆ แล้วคืน HTTP 200)
+ *
+ * คืน null เมื่อ Graph ปฏิเสธ/ข้อความถูกลบ — ผู้เรียกต้องข้ามแถวนั้นไป ไม่ใช่เขียนทับด้วยค่าว่าง
+ */
+export async function fetchMessageContent(
+  messageId: string,
+  pageToken: string,
+): Promise<{ text: string | null; attachments: GraphThreadAttachment[] } | null> {
+  try {
+    const res = await fetch(`${GRAPH_BASE}/${messageId}?fields=message,attachments`, {
+      headers: { Authorization: `Bearer ${pageToken}` },
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!res.ok) return null
+    const json = (await res.json().catch(() => ({}))) as {
+      message?: string
+      attachments?: { data?: Array<Record<string, unknown>> }
+    }
+    return {
+      text: typeof json.message === 'string' && json.message.length > 0 ? json.message : null,
+      attachments: (json.attachments?.data ?? []).map(toThreadAttachment),
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
  * ดึงเนื้อหาโพสต์ของโฆษณา (feature 00018 E5) — ข้อความจริงที่ลูกค้าเห็นในโฆษณา + รูปโพสต์
  *
  * ทำไมต้องมี: `ads_context_data.ad_title` ที่มากับ webhook คือ **ชื่อ ad ที่ร้านตั้งไว้ใน Ads
