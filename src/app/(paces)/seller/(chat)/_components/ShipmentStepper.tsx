@@ -44,59 +44,56 @@ export default function ShipmentStepper({
   shipmentStatus: string
   /** สถานะล่าสุดจากขนส่ง (null = ขนส่งยังไม่อัปเดต) */
   carrierStatus: string | null
-  /** md = ในการ์ดออเดอร์ (dot size-8 เท่าโมดัลพัสดุ) · sm = แถบปักใต้หัวเธรด (dot size-5) */
+  /** md = ในการ์ดออเดอร์ (dot size-7) · sm = แถบสถานะใต้หัวเธรด (dot size-6 เท่าโมดัลพัสดุย่อ) */
   size?: 'md' | 'sm'
   /** แถบปักพื้นที่จำกัด — ปิด notice ได้ (การ์ดเปิดเสมอ) */
   showNotice?: boolean
 }) {
   const progress = describeProgress(shipmentStatus, carrierStatus)
-  const dotCls = size === 'md' ? 'size-7' : 'size-5'
-  const iconCls = size === 'md' ? 'text-base' : 'text-xs'
+  const dotCls = size === 'md' ? 'size-7' : 'size-6'
+  const iconCls = size === 'md' ? 'text-base' : 'text-sm'
 
   return (
     <div>
-      {/* track กางเต็มความกว้าง (user 2026-08-06): จุดแรกชิดซ้ายตรงแนวโลโก้ขนส่ง จุดสุดท้ายชิดขวา
-          ตรงแนวปุ่มคัดลอก — เลิกใช้ grid 4 คอลัมน์แบบเดิมที่วางจุดกลางคอลัมน์แล้วหัว-ท้ายหดเข้ากลาง
-          <li> เป็น display:contents เพื่อคง semantics ของ list แต่ให้ dot/เส้นเป็น flex-sibling ตรง */}
-      <ol className="flex list-none items-center ps-0">
+      {/* grid 4 คอลัมน์ + ป้ายอยู่ใต้จุดของตัวเอง — โครงเดียวกับโมดัลพัสดุเป๊ะ ๆ (Base ของไฟล์นี้)
+          user เทียบสองจอแล้วสั่งให้เหมือนกัน 2026-08-07
+          เคยลองเป็น track กางเต็มความกว้าง + ป้าย justify-between (2026-08-06) แต่ป้ายที่ถูกบีบ
+          ด้วย max-w-14 ตกบรรทัดกลางคำ ("รับเข้าระบบ / แล้ว") ทุกครั้งที่ขั้นนั้นมีชื่อยาว —
+          คอลัมน์เท่ากันให้ที่ป้ายมากกว่าและทำให้ทุกจอวางตัวเหมือนกัน
+          ครึ่งเส้นด้านนอกของจุดหัว-ท้ายต้องโปร่ง ไม่งั้นแถบยื่นเลยจุดปลายออกไปทั้งสองข้าง */}
+      <ol className="grid list-none grid-cols-4 ps-0">
         {SHIPMENT_STAGES.map((s, i) => {
           const reached = i <= progress.stage
           const isLast = i === SHIPMENT_STAGES.length - 1
           return (
-            <li key={s.label} className="contents">
+            <li key={s.label} className="flex flex-col items-center gap-1">
+              <div className="flex w-full items-center">
+                <span
+                  className={`h-0.5 flex-1 ${i === 0 ? 'bg-transparent' : reached ? STAGE_LINE[progress.tone] : 'bg-default-200'}`}
+                />
+                <span
+                  className={`flex ${dotCls} shrink-0 items-center justify-center rounded-full ${
+                    reached ? STAGE_DOT[progress.tone] : 'bg-default-100 text-default-400'
+                  }`}
+                >
+                  <Icon icon={s.icon} className={iconCls} aria-hidden="true" />
+                </span>
+                <span
+                  className={`h-0.5 flex-1 ${isLast ? 'bg-transparent' : i < progress.stage ? STAGE_LINE[progress.tone] : 'bg-default-200'}`}
+                />
+              </div>
+              {/* ห้าม truncate: ป้ายขั้นตอนต้องอ่านครบ ยอมขึ้น 2 บรรทัดดีกว่าเห็นครึ่งคำ */}
               <span
-                className={`flex ${dotCls} shrink-0 items-center justify-center rounded-full ${
-                  reached ? STAGE_DOT[progress.tone] : 'bg-default-100 text-default-400'
+                className={`text-center text-2xs leading-tight ${
+                  i === progress.stage ? 'font-semibold text-default-900' : 'text-default-700'
                 }`}
               >
-                <Icon icon={s.icon} className={iconCls} aria-hidden="true" />
+                {isLast ? (progress.lastLabel ?? s.label) : s.label}
               </span>
-              {!isLast && (
-                <span
-                  className={`h-0.5 flex-1 ${i < progress.stage ? STAGE_LINE[progress.tone] : 'bg-default-200'}`}
-                />
-              )}
             </li>
           )
         })}
       </ol>
-      {/* ป้ายแยกแถวจาก track — แรกชิดซ้าย/ท้ายชิดขวาตามตำแหน่งจุด · max-w-14 + wrap (ห้าม truncate:
-          ป้ายขั้นตอนต้องอ่านครบ ยอมขึ้น 2 บรรทัดดีกว่าเห็นครึ่งคำ) กันชนกันบน bubble w-64 */}
-      <div className="mt-1 flex justify-between gap-1">
-        {SHIPMENT_STAGES.map((s, i) => {
-          const isLast = i === SHIPMENT_STAGES.length - 1
-          return (
-            <span
-              key={s.label}
-              className={`max-w-14 text-2xs leading-tight break-words ${
-                i === 0 ? 'text-start' : isLast ? 'text-end' : 'text-center'
-              } ${i === progress.stage ? 'font-semibold text-default-900' : 'text-default-700'}`}
-            >
-              {isLast ? (progress.lastLabel ?? s.label) : s.label}
-            </span>
-          )
-        })}
-      </div>
 
       {showNotice && progress.notice && (
         <p

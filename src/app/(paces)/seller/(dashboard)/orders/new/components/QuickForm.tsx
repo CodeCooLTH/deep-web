@@ -27,6 +27,12 @@ import type { CatalogProduct, ItemsController, FormValues } from './OrderCreateF
 interface Props {
   /** ชื่อของสิ่งนั้นตามประเภทกิจการ (feature 00030) — ส่งต่อลง QuickSummaryPanel */
   orderNoun?: string
+  /** คำเรียกของที่ร้านขาย ตามประเภทกิจการ (สินค้า/บริการ/ห้องพัก) — SSOT: PRODUCT_VOCAB */
+  productNoun?: string
+  /** ไอคอนแทน 'ของที่ร้านขาย' ตามประเภทกิจการ (package/tool/bed) — SSOT: PRODUCT_VOCAB.soldIcon */
+  productIcon?: string
+  /** หน่วยนับต่อบรรทัด (ชิ้น/ครั้ง/คืน) — SSOT: PRODUCT_VOCAB.unitLabel */
+  unitLabel?: string
 
   /** ข้อความจากแชทที่จะให้ section ลูกค้ากระจายให้ตอนเปิดฟอร์ม (user สั่ง 2026-08-04) */
   prefillParseText?: string
@@ -56,6 +62,9 @@ interface Props {
 
 export default function QuickForm({
   orderNoun = 'คำสั่งซื้อ',
+  productNoun = 'สินค้า',
+  productIcon = 'package',
+  unitLabel = 'ชิ้น',
   prefillParseText,
   control,
   errors,
@@ -92,6 +101,12 @@ export default function QuickForm({
 
   // compact (โมดัลในแชท): ไม่ bleed ขอบ (ไม่มี fullscreen layout p-4/p-8 ให้หักล้าง) + padding คงที่ px-4
   // (ไม่ใช้ md:px-8 ที่อิง viewport เพราะโมดัลแคบแต่ viewport กว้าง จะได้ padding เดสก์ท็อปผิด — user report 2026-07-24)
+  /** error ระดับ array ของ items ("ต้องมีสินค้าอย่างน้อย 1 รายการ") — ใช้ 2 ที่: ป้ายหัวข้อ + ข้อความใต้รายการ */
+  const itemsRootErrorMsg =
+    typeof (errors.items as { message?: string })?.message === 'string'
+      ? (errors.items as { message?: string }).message
+      : null
+
   const rootCls = compact ? '' : '-mx-4 md:-mx-8'
   const secX = compact ? 'px-4' : 'px-4 md:px-8'
   return (
@@ -125,11 +140,16 @@ export default function QuickForm({
       </section>
 
       {/* SECTION 3: สินค้า — ไม่มีปุ่มพิมพ์เอง: แถวเปล่ารอเสมออยู่แล้ว (spreadsheet pattern, จัดการที่ OrderCreateForm) */}
-      <section className={`border-b-8 border-default-100 ${secX} py-4`}>
+      {/* scroll-mt-24: onInvalid เลื่อนมาที่ section นี้ด้วย block:'start' ซึ่งจะเอาหัวข้อ + ป้าย
+          "ต้องแก้" ไปนอนใต้ FullscreenPageHeader ที่เป็น sticky top-0 สูงราว 90px บนมือถือพอดี —
+          สิ่งที่ถูกบังคือสิ่งที่ toast เพิ่งสั่งให้ไปดู (critique P1 2026-08-07) */}
+      <section id="order-items-section" className={`scroll-mt-24 border-b-8 border-default-100 ${secX} py-4`}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-bold text-dark">
-            <Icon icon="package" className="size-5 text-primary" />
-            สินค้า
+            <Icon icon={productIcon} className="size-5 text-primary" />
+            {productNoun}
+            {/* ป้าย "ต้องแก้" คำเดียวกับที่บล็อกลูกค้า/ที่อยู่ใช้อยู่แล้ว — คำเดียวกัน = ของเดียวกัน */}
+            {itemsRootErrorMsg && <span className="badge bg-danger/15 text-danger">ต้องแก้</span>}
           </h2>
         </div>
         <div>
@@ -143,12 +163,17 @@ export default function QuickForm({
               itemsCtl={itemsCtl}
               errors={errors}
               inventoryEnabled={inventoryEnabled}
+              productNoun={productNoun}
+              productIcon={productIcon}
+              unitLabel={unitLabel}
               onOpenPicker={() => setPickerIndex(i)}
             />
           ))}
         </div>
-        {typeof (errors.items as { message?: string })?.message === 'string' && (
-          <p className="mt-1.5 text-xs text-danger">{(errors.items as { message?: string }).message}</p>
+        {itemsRootErrorMsg && (
+          <p id="order-items-error" className="mt-1.5 text-xs text-danger">
+            {itemsRootErrorMsg}
+          </p>
         )}
       </section>
 
@@ -173,6 +198,7 @@ export default function QuickForm({
         open={pickerIndex !== null}
         catalog={catalog}
         bestSellers={bestSellers}
+        productNoun={productNoun}
         onPick={(p) => {
           if (pickerIndex != null) itemsCtl.setLineProduct(pickerIndex, p)
           setPickerIndex(null)

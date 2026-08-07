@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — หัวห้องแชท (ChatThread card-header) 2026-08-07</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงของสกิน Paces: คัดจาก src/assets/css/config/_root.css + _card/_buttons/_badge.css ── */
+:root{
+  --color-primary:#236dc9; --color-warning:#f9bf59;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-500:#58626b; --color-default-700:#40454a; --color-default-900:#313a46;
+  --text-2xs:11px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;color:var(--color-body-color);font-size:14px;line-height:1.5;padding:32px 20px 72px}
+.wrap{max-width:1560px;margin:0 auto}
+h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.sub{margin-top:6px;max-width:86ch}
+.meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;border-left:3px solid var(--color-primary);margin:24px 0}
+.note.warn{border-left-color:var(--color-warning)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}.note li{margin-bottom:5px;font-size:13px}
+code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+table.h{border-collapse:collapse;width:100%;margin-top:10px;font-size:13px;background:#fff;border-radius:8px;overflow:hidden}
+table.h th,table.h td{padding:8px 12px;border-bottom:1px solid var(--color-default-200);text-align:left}
+table.h th{background:var(--color-default-100);font-weight:600;color:var(--color-default-900)}
+table.h td.num{font-variant-numeric:tabular-nums;font-weight:600;color:var(--color-default-900)}
+
+.opt{margin-top:42px}
+.opt>h2{font-size:19px;font-weight:600;color:var(--color-default-900)}
+.opt>h2 .tag{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;margin-left:10px;vertical-align:middle}
+.tag.pick{background:#e3f0ff;color:#1e5dab}
+.tag.safe{background:var(--color-default-200);color:var(--color-default-700)}
+.tag.risk{background:#fdf1dc;color:#9a6a12}
+.opt>p{margin-top:6px;max-width:88ch;font-size:13px}
+.rack{display:flex;gap:30px;align-items:flex-start;flex-wrap:wrap;margin-top:16px}
+figcaption{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:9px}
+figcaption span{font-weight:400;color:var(--color-default-500)}
+.frame{background:var(--color-card);border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(47,43,61,.13)}
+.m .frame{width:390px}.t .frame{width:600px}.d .frame{width:820px}
+
+/* ── หัวเธรด ── */
+.hdr{display:flex;align-items:center;gap:12px;padding:15px 20px;border-bottom:1px dashed var(--color-default-300)}
+.hdr.tight{padding:12px 20px}
+.btn-i{width:37px;height:37px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border:1px solid var(--color-default-300);background:#fff;color:var(--color-default-700);font-size:16px}
+.btn-i.plain{border-color:transparent}
+.btn-l{height:37px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border:1px solid var(--color-default-300);background:#fff;color:var(--color-default-700);font-size:13px;flex:0 0 auto}
+.av{width:36px;height:36px;border-radius:999px;background:#e3ecfa;color:var(--color-primary);font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;position:relative}
+.av .ovl{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:999px;overflow:hidden;box-shadow:0 0 0 2px #fff;background:#fff}
+.av .ovl img{width:100%;height:100%;display:block}
+.grp{display:flex;align-items:center;gap:12px;min-width:0}
+.stack{min-width:0;display:flex;flex-direction:column;justify-content:center}
+.row1{min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.nm{font-size:16px;font-weight:600;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.nm.mb{margin-bottom:5px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--color-default-100);color:var(--color-default-700);border-radius:999px;padding:2px 8px;font-size:var(--text-2xs);min-width:0;flex:0 0 auto}
+.chip img{width:14px;height:14px;flex:0 0 auto}
+.chip s{text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.push{margin-left:auto}
+.cd{color:#a8710f;font-size:13px;display:flex;align-items:center;gap:5px;flex:0 0 auto}
+.body{padding:14px 20px 18px;display:flex;flex-direction:column;gap:9px;background:var(--color-body-bg)}
+.bub{max-width:72%;padding:8px 12px;border-radius:12px;font-size:13px}
+.them{background:#fff;border:1px solid var(--color-default-200);align-self:flex-start}
+.me{background:var(--color-primary);color:#fff;align-self:flex-end}
+.hbar{font-size:11px;font-weight:600;padding:2px 20px;border-bottom:1px solid #fca5a5;background:#fff5f5;color:#b91c1c}
+.hbar.ok{border-bottom-color:#86e0cd;background:#f0fbf8;color:#0b7c66}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>หัวห้องแชท — ออกแบบใหม่ให้ compact</h1>
+<p class="sub">user แจ้ง 2026-08-07: “ไม่ค่อยสวย ไม่ compact เปลืองพื้นที่มาก” · ทุกค่าในหน้านี้คัดจากคลาสจริงและ token ของ Paces (<code>.card-header</code> = <code>py-3.75</code>, <code>.btn.btn-icon</code> = <code>size-9.25</code> 37px, <code>ChatAvatar</code> = <code>size-9</code> 36px) ไม่ได้กะเอา</p>
+<p class="meta">source: <code>src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx</code> (commit <code>eba494ea</code>) · Design Spec โดย safepay-ux</p>
+
+<div class="note">
+  <h2>ตัวการที่ทำให้หัวสูงคืออะไร</h2>
+  <ul>
+    <li>ปุ่มในแถวสูง 37px · avatar 36px — <strong>ทั้งคู่ไม่ใช่ตัวปัญหา</strong></li>
+    <li>กล่องชื่อถูกวางเป็น <strong>2 บรรทัดซ้อนกัน</strong>: ชื่อ 24px + <code>mb-1.25</code> 5px + ชิปเพจ 20px = <strong>49px</strong> ← ตัวนี้ดันความสูงทั้งแถว</li>
+    <li>บวก padding <code>py-3.75</code> อีก 30px → <strong>79px</strong></li>
+    <li>แปลว่า ถ้าเอาชื่อกับชิปมาอยู่บรรทัดเดียวกัน ความสูงจะตกไปอยู่ที่ปุ่ม (37px) ทันที โดยไม่ต้องลดขนาดอะไรเลย</li>
+  </ul>
+</div>
+
+<!-- ═══════════ ก่อน ═══════════ -->
+<div class="opt">
+  <h2>ตอนนี้ <span class="tag safe">79px</span></h2>
+  <p>ชื่อกับชิปเพจซ้อนกัน 2 บรรทัด — ชิปกินความสูงเต็มบรรทัดของตัวเองทั้งที่มีข้อความสั้น ๆ</p>
+  <div class="rack">
+    <figure class="m"><figcaption>Mobile <span>390px</span></figcaption><div class="frame">
+      <div class="hbar">79px</div>
+      <div class="hdr">
+        <div class="grp"><div class="btn-i">&#8592;</div><div class="av">CC</div>
+          <div class="stack"><div class="nm mb">Chot Chotiwit</div>
+            <div class="chip" style="max-width:112px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</s></div>
+          </div></div>
+        <div class="btn-i push">&#9737;</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div></div>
+    </div></figure>
+    <figure class="t"><figcaption>Tablet <span>600px (ในเลย์เอาต์จริงคือคอลัมน์เธรดที่ ~768px)</span></figcaption><div class="frame">
+      <div class="hbar">79px</div>
+      <div class="hdr">
+        <div class="grp"><div class="btn-i">&#8592;</div><div class="av">CC</div>
+          <div class="stack"><div class="nm mb">Chot Chotiwit</div>
+            <div class="chip" style="max-width:192px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</s></div>
+          </div></div>
+        <div class="btn-l push">&#9737; ข้อมูลลูกค้า</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div></div>
+    </div></figure>
+    <figure class="d"><figcaption>Desktop <span>820px · ≥1024 ไม่มีปุ่มย้อนกลับ · ≥1280 ไม่มีปุ่มข้อมูลลูกค้า (มีแผงขวาแล้ว)</span></figcaption><div class="frame">
+      <div class="hbar">79px</div>
+      <div class="hdr">
+        <div class="grp"><div class="av">CC</div>
+          <div class="stack"><div class="nm mb">Chot Chotiwit</div>
+            <div class="chip" style="max-width:224px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</s></div>
+          </div></div>
+        <div class="btn-i plain push">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div></div>
+    </div></figure>
+  </div>
+</div>
+
+<!-- ═══════════ แบบ A ═══════════ -->
+<div class="opt">
+  <h2>แบบ A — ชื่อกับชิปอยู่บรรทัดเดียว <span class="tag safe">67px · −12px</span></h2>
+  <p>เปลี่ยนอย่างเดียว: เลิกซ้อน 2 บรรทัด · <strong>ไม่แตะ padding ของ <code>.card-header</code></strong> จึงยังเท่าหัวการ์ดอื่นทั้งแอปเป๊ะ ๆ ปลอดภัยที่สุด</p>
+  <div class="rack">
+    <figure class="m"><figcaption>Mobile <span>390px</span></figcaption><div class="frame">
+      <div class="hbar ok">67px</div>
+      <div class="hdr">
+        <div class="grp"><div class="btn-i">&#8592;</div><div class="av">CC</div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div>
+            <div class="chip" style="max-width:80px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์ อะไหล่มอเตอร์ไซค์</s></div>
+          </div></div>
+        <div class="btn-i push">&#9737;</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div><div class="bub them">ราคาเท่าไหร่ครับ</div></div>
+    </div></figure>
+    <figure class="t"><figcaption>Tablet <span>600px</span></figcaption><div class="frame">
+      <div class="hbar ok">67px</div>
+      <div class="hdr">
+        <div class="grp"><div class="btn-i">&#8592;</div><div class="av">CC</div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div>
+            <div class="chip" style="max-width:144px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</s></div>
+          </div></div>
+        <div class="btn-l push">&#9737; ข้อมูลลูกค้า</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div><div class="bub them">ราคาเท่าไหร่ครับ</div></div>
+    </div></figure>
+    <figure class="d"><figcaption>Desktop <span>820px</span></figcaption><div class="frame">
+      <div class="hbar ok">67px</div>
+      <div class="hdr">
+        <div class="grp"><div class="av">CC</div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div>
+            <div class="chip" style="max-width:224px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</s></div>
+          </div></div>
+        <div class="btn-i plain push">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div><div class="bub them">ราคาเท่าไหร่ครับ</div></div>
+    </div></figure>
+  </div>
+</div>
+
+<!-- ═══════════ แบบ B ═══════════ -->
+<div class="opt">
+  <h2>แบบ B — A + ลด padding เป็น <code>py-3</code> <span class="tag pick">61px · −18px (ux แนะนำ)</span></h2>
+  <p>เหมือน A แต่บีบระยะบน-ล่างจาก 15px เหลือ 12px — มีที่ใช้จริงในโปรเจกต์แล้ว (<code>LibraryPanel.tsx</code>) แลกกับการที่หัวห้องแชทจะบางกว่าหัวการ์ดอื่นในแอปเล็กน้อย</p>
+  <div class="rack">
+    <figure class="m"><figcaption>Mobile <span>390px</span></figcaption><div class="frame">
+      <div class="hbar ok">61px</div>
+      <div class="hdr tight">
+        <div class="grp"><div class="btn-i">&#8592;</div><div class="av">CC</div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div>
+            <div class="chip" style="max-width:80px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์ อะไหล่มอเตอร์ไซค์</s></div>
+          </div></div>
+        <div class="btn-i push">&#9737;</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div><div class="bub them">ราคาเท่าไหร่ครับ</div></div>
+    </div></figure>
+    <figure class="t"><figcaption>Tablet <span>600px</span></figcaption><div class="frame">
+      <div class="hbar ok">61px</div>
+      <div class="hdr tight">
+        <div class="grp"><div class="btn-i">&#8592;</div><div class="av">CC</div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div>
+            <div class="chip" style="max-width:144px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</s></div>
+          </div></div>
+        <div class="btn-l push">&#9737; ข้อมูลลูกค้า</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div><div class="bub them">ราคาเท่าไหร่ครับ</div></div>
+    </div></figure>
+    <figure class="d"><figcaption>Desktop <span>820px</span></figcaption><div class="frame">
+      <div class="hbar ok">61px</div>
+      <div class="hdr tight">
+        <div class="grp"><div class="av">CC</div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div>
+            <div class="chip" style="max-width:224px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</s></div>
+          </div></div>
+        <div class="btn-i plain push">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div><div class="bub them">ราคาเท่าไหร่ครับ</div></div>
+    </div></figure>
+  </div>
+</div>
+
+<!-- ═══════════ แบบ C ═══════════ -->
+<div class="opt">
+  <h2>แบบ C — ย้ายตราเพจไปติดมุมรูป ตัดชิปข้อความออก <span class="tag risk">61px · แถวโล่งสุด · ต้อง QA เพิ่ม</span></h2>
+  <p>ความสูงเท่า B แต่ <em>แถวสะอาดกว่ามาก</em> — ชื่อลูกค้าเหลือเป็นของชิ้นเดียวบนหัวห้อง ตราเพจไปเกาะมุมรูปแบบเดียวกับในรายการแชท ชื่อเพจเต็มยังอ่านได้จากการชี้ที่รูปและในแผงข้อมูลลูกค้า</p>
+  <div class="note warn" style="margin:14px 0 0">
+    <h2>ข้อควรระวังที่บันทึกไว้ในโค้ด</h2>
+    <ul>
+      <li>2026-08-02 เคยลองใส่ตราช่องทางซ้อนบน avatar ที่หัวเธรด แล้ว user รายงานว่า “ทำไม icon เพจมันซ้อนกัน” เพราะตอนนั้นมีทั้งตราบนรูป<strong>และ</strong>ชิปพร้อมกัน — แบบ C ตัดชิปออก จึงไม่ใช่เงื่อนไขเดิม แต่ยังต้องดูจริงก่อนตัดสิน</li>
+      <li>ร้านที่มีหลายเพจจะแยกเพจด้วย “รูปเล็ก 16px” แทนการอ่านชื่อ — ถ้าเพจใช้โลโก้คล้ายกันจะแยกยากขึ้น</li>
+    </ul>
+  </div>
+  <div class="rack">
+    <figure class="m"><figcaption>Mobile <span>390px</span></figcaption><div class="frame">
+      <div class="hbar ok">61px</div>
+      <div class="hdr tight">
+        <div class="grp"><div class="btn-i">&#8592;</div>
+          <div class="av">CC<span class="ovl"><img src="../../../public/images/logos/facebook.svg" alt=""></span></div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div></div></div>
+        <div class="btn-i push">&#9737;</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div><div class="bub them">ราคาเท่าไหร่ครับ</div></div>
+    </div></figure>
+    <figure class="t"><figcaption>Tablet <span>600px</span></figcaption><div class="frame">
+      <div class="hbar ok">61px</div>
+      <div class="hdr tight">
+        <div class="grp"><div class="btn-i">&#8592;</div>
+          <div class="av">CC<span class="ovl"><img src="../../../public/images/logos/facebook.svg" alt=""></span></div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div></div></div>
+        <div class="btn-l push">&#9737; ข้อมูลลูกค้า</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div><div class="bub them">ราคาเท่าไหร่ครับ</div></div>
+    </div></figure>
+    <figure class="d"><figcaption>Desktop <span>820px — ที่นี่ยังพอมีที่ อาจคงชิปไว้เฉพาะจอกว้างก็ได้</span></figcaption><div class="frame">
+      <div class="hbar ok">61px</div>
+      <div class="hdr tight">
+        <div class="grp">
+          <div class="av">CC<span class="ovl"><img src="../../../public/images/logos/facebook.svg" alt=""></span></div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div>
+            <div class="chip" style="max-width:224px"><s>ธนภักร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</s></div>
+          </div></div>
+        <div class="btn-i plain push">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div><div class="bub me">สวัสดีค่ะ ขอบคุณที่เป็นเพื่อนกับเรา</div><div class="bub them">ราคาเท่าไหร่ครับ</div></div>
+    </div></figure>
+  </div>
+</div>
+
+<!-- ═══════════ เคสชนกัน ═══════════ -->
+<div class="opt">
+  <h2>เคสที่ต้องดูก่อนเคาะ — ตัวนับ 24 ชม. โผล่พร้อมชื่อยาว (390px)</h2>
+  <p>ช่องทาง Facebook/Instagram ที่เหลือเวลาตอบ &lt; 4 ชม. จะมีตัวนับถอยหลังแทรกเข้ามาในแถวเดียวกัน ทั้ง 3 แบบไม่ตกบรรทัด แต่ชื่อ/ชิปจะถูกบีบ</p>
+  <div class="rack">
+    <figure class="m"><figcaption>แบบ B <span>ชิปเหลือไม่กี่ตัวอักษร</span></figcaption><div class="frame">
+      <div class="hdr tight">
+        <div class="grp"><div class="btn-i">&#8592;</div><div class="av">CC</div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div>
+            <div class="chip" style="max-width:44px"><img src="../../../public/images/logos/facebook.svg" alt=""><s>ธนภักร์</s></div>
+          </div></div>
+        <div class="cd push">&#9888; เหลือ 3:12</div>
+        <div class="btn-i">&#9737;</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div></div>
+    </div></figure>
+    <figure class="m"><figcaption>แบบ C <span>ไม่มีชิปให้บีบตั้งแต่แรก</span></figcaption><div class="frame">
+      <div class="hdr tight">
+        <div class="grp"><div class="btn-i">&#8592;</div>
+          <div class="av">CC<span class="ovl"><img src="../../../public/images/logos/facebook.svg" alt=""></span></div>
+          <div class="row1"><div class="nm">Chot Chotiwit</div></div></div>
+        <div class="cd push">&#9888; เหลือ 3:12</div>
+        <div class="btn-i">&#9737;</div><div class="btn-i plain">&#9788;</div>
+      </div>
+      <div class="body"><div class="bub them">เกส</div></div>
+    </div></figure>
+  </div>
+</div>
+
+<div class="note" style="margin-top:40px">
+  <h2>สรุปตัวเลข</h2>
+  <table class="h">
+    <tr><th>แบบ</th><th>ความสูง (ทุกขนาดจอ)</th><th>ลดจากเดิม</th><th>แลกกับอะไร</th></tr>
+    <tr><td>ตอนนี้</td><td class="num">79px</td><td>—</td><td>—</td></tr>
+    <tr><td>A — บรรทัดเดียว</td><td class="num">67px</td><td class="num">−12px (15%)</td><td>ไม่แลกอะไรเลย padding เท่าหัวการ์ดอื่นทั้งแอป</td></tr>
+    <tr><td>B — A + <code>py-3</code></td><td class="num">61px</td><td class="num">−18px (23%)</td><td>หัวห้องแชทบางกว่าหัวการ์ดอื่นในแอป 6px</td></tr>
+    <tr><td>C — ตราบนรูป ไม่มีชิป</td><td class="num">61px</td><td class="num">−18px (23%)</td><td>ชื่อเพจไม่แสดงเป็นข้อความบนมือถือ (ดูจากตราเล็ก/แผงข้อมูลลูกค้าแทน) + เคยมีบั๊กจุดนี้</td></tr>
+  </table>
+  <p style="margin-top:10px;font-size:13px">ต่ำกว่า 61px ไม่ได้ถ้าไม่ลดขนาดปุ่ม — ปุ่ม <code>.btn.btn-icon</code> ของ Paces สูง 37px และเตี้ยกว่าเกณฑ์นิ้วสัมผัส 44px อยู่แล้ว การบีบต่ออีกจะทำให้กดยากขึ้น</p>
+</div>
+
+</div>
+</body>
+</html>

@@ -454,6 +454,12 @@ export type ProductVocab = {
    * เพราะประโยคนี้มีทั้งกริยาและตัวเชื่อม ("...ที่มี{X}เข้ามา") ซึ่งอ่านไม่เหมือนกันทุกคำ
    */
   emptyHint: string
+  /**
+   * หน่วยนับต่อ 1 บรรทัดในบิล — ใช้กับราคาต่อหน่วย ("฿400/ชิ้น" vs "฿400/ครั้ง")
+   * คนละช่องกับ soldLine ซึ่งเป็นประโยคสรุปยอดสะสม: ช่องนี้ต่อท้าย "/" ตรง ๆ จึงต้องเป็นคำนาม
+   * ลักษณนามล้วน ห้ามใส่กริยา
+   */
+  unitLabel: string
   /** หัวคอลัมน์ตารางเดสก์ท็อป — ชื่อสิ่งของ / จำนวน / ยอดเงินรวมของจำนวนนั้น */
   itemColLabel: string
   countColLabel: string
@@ -466,6 +472,7 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     viewAllLabel: 'ดูสินค้าทั้งหมด',
     soldIcon: 'package',
     soldLine: (n) => `สั่งซื้อแล้ว ${n} ชิ้น`,
+    unitLabel: 'ชิ้น',
     emptyTitle: 'ยังไม่มีสินค้าขายดี',
     emptyHint: 'อันดับจะขึ้นทันทีที่มีคำสั่งซื้อเข้ามา ไม่ต้องรอยืนยัน',
     itemColLabel: 'สินค้า',
@@ -479,6 +486,7 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     soldIcon: 'tool',
     // หน่วยเป็น "ครั้ง" ไม่ใช่ "ชิ้น" — งานบริการนับเป็นครั้งที่เข้ารับ
     soldLine: (n) => `ใช้บริการแล้ว ${n} ครั้ง`,
+    unitLabel: 'ครั้ง',
     emptyTitle: 'ยังไม่มีบริการยอดนิยม',
     emptyHint: 'อันดับจะขึ้นทันทีที่มีการเข้ารับบริการเข้ามา ไม่ต้องรอยืนยัน',
     itemColLabel: 'บริการ',
@@ -490,6 +498,8 @@ export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
     viewAllLabel: 'ดูห้องพักทั้งหมด',
     soldIcon: 'bed',
     soldLine: (n) => `เข้าพักแล้ว ${n} ครั้ง`,
+    // บรรทัดในบิลของบ้านพักนับเป็น "คืน" (จำนวน = จำนวนคืนที่พัก) ไม่ใช่ "ครั้ง" แบบยอดสะสม
+    unitLabel: 'คืน',
     emptyTitle: 'ยังไม่มีห้องพักยอดนิยม',
     emptyHint: 'อันดับจะขึ้นทันทีที่มีบิลเข้าพักเข้ามา ไม่ต้องรอยืนยัน',
     itemColLabel: 'ห้องพัก',

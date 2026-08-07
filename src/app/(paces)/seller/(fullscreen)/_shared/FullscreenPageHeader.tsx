@@ -32,11 +32,28 @@ export type FullscreenPageHeaderProps = {
   /** ปลายทางปุ่ม back ตายตัว (เช่น "/orders") — ไม่ส่ง = history-aware (back()/dashboard fallback) */
   backHref?: string
   /**
+   * feature 00035 — ยังไม่บันทึก: กดปุ่มย้อนกลับต้องเด้งยืนยันก่อนออกจากหน้า (เหมือนปุ่ม "ยกเลิก")
+   * ไม่ส่ง/false = พฤติกรรมเดิม (ออกทันที) — caller เดิมทั้งหมดไม่ต้องแก้อะไร
+   */
+  isDirty?: boolean
+  /**
    * feature 00035 — เครื่องมือเพิ่มเติมที่วางระหว่าง title กับปุ่ม Save (desktop เท่านั้น)
    * ใช้กับหน้าที่ toolbar มีของมากกว่า [back][title][save] เช่นตัวจัดหน้าร้าน
    * optional — caller เดิมทั้งหมดไม่ต้องแก้อะไร
    */
   toolbarExtra?: ReactNode
+  /**
+   * feature 00035 — เครื่องมือที่ต้องอยู่ชิดซ้ายถัดจากชื่อหน้า (ก่อนช่องว่าง) ต่างจาก toolbarExtra
+   * ที่ไปกองฝั่งขวาก่อนปุ่ม Save · optional — caller เดิมไม่ต้องแก้
+   */
+  toolbarLeading?: ReactNode
+  /**
+   * feature 00035 (รื้อ canvas 2026-08-07 รอบสอง) — แถวเพิ่มเติมใต้แถวหลัก อยู่ใน sticky wrapper
+   * เดียวกัน (bg-card/shadow เดียวกัน) ใช้กับ DraftDirtyBar ของตัวจัดหน้าร้าน — เดิมแยกเป็น sibling
+   * นอก header คนละกล่องแล้วทับกัน 32px บน prod (คนละ box ที่ "ควรจะ" เรียงต่อกันพอดีแต่ไม่พอดีจริง)
+   * ย้ายเข้ามาเป็นกล่องเดียวกันตัดปัญหาที่ต้นเหตุ · optional — caller เดิมไม่ต้องแก้
+   */
+  belowContent?: ReactNode
   /**
    * @deprecated ไม่ใช้แล้วหลัง M0-a — back button ซ้าย (history-aware) แทน "ยกเลิก" ขวา.
    * ยังรับ prop เพื่อกันพัง caller เดิมที่ยังส่งมา — ไม่ render
@@ -51,7 +68,10 @@ export default function FullscreenPageHeader({
   saveFormId,
   disableSave,
   backHref,
+  isDirty,
   toolbarExtra,
+  toolbarLeading,
+  belowContent,
   // cancelHref ยังรับแต่ไม่ใช้ — deprecated (back button ซ้ายแทน)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   cancelHref: _cancelHref,
@@ -64,12 +84,18 @@ export default function FullscreenPageHeader({
           SellerMobileHeader pattern — แยก navigation (ซ้าย) กับ action (ขวา) ชัดเจน */}
       <div className="flex items-center gap-3">
         {/* Back button ซ้าย — client component (ต้องการ router.push/back()) */}
-        <FullscreenBackButton backHref={backHref} />
+        <FullscreenBackButton backHref={backHref} isDirty={isDirty} />
 
-        {/* Title block — flex-1 min-w-0 truncate กัน overflow บน mobile */}
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold text-dark leading-tight truncate">{title}</h1>
-          {subtitle && <p className="text-default-700 text-sm mt-0.5 truncate">{subtitle}</p>}
+        {/* Title block — flex-1 min-w-0 truncate กัน overflow บน mobile
+            feature 00035: ห่อ title + toolbarLeading ไว้ในกล่อง flex-1 เดียวกัน เพื่อให้เครื่องมือที่
+            ต้องอยู่ "ชิดซ้ายถัดจากชื่อหน้า" (เช่นช่องลิงก์ร้านของตัวจัดหน้าร้าน ตาม mockup) ไม่ถูก
+            flex-1 ของ title ดันไปกองรวมกับปุ่มฝั่งขวา — caller ที่ไม่ส่ง toolbarLeading ได้ layout เดิมเป๊ะ */}
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold text-dark leading-tight truncate">{title}</h1>
+            {subtitle && <p className="text-default-700 text-sm mt-0.5 truncate">{subtitle}</p>}
+          </div>
+          {toolbarLeading ? <div className="hidden shrink-0 items-center gap-2 lg:flex">{toolbarLeading}</div> : null}
         </div>
 
         {/* feature 00035 — ช่องเสียบเครื่องมือเพิ่มเติมระหว่าง title กับ Save (ลิงก์ร้าน+คัดลอก,
@@ -92,6 +118,9 @@ export default function FullscreenPageHeader({
           </button>
         ) : null}
       </div>
+      {/* feature 00035 — แถวเสริมใต้แถวหลัก ยังอยู่ใน sticky wrapper เดียวกัน (ดู comment prop
+          belowContent ด้านบน) — optional จึงไม่กระทบ caller เดิมที่ไม่ส่งมา */}
+      {belowContent}
     </div>
   )
 }

@@ -27,7 +27,6 @@ import { computeCompletionRate } from '@/lib/order-stats'
 // View Imports
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
-import BuilderPreviewBridge from '@views/pages/user-profile/v2/BuilderPreviewBridge'
 import { getShopProfileStats } from '@/services/shop.service'
 import { getShopVideos } from '@/services/shop-video.service'
 import { getShopAvailability } from '@/services/room.service'
@@ -49,21 +48,17 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
-export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const shop = await findShopBySlug(slug)
   if (!shop) return { title: 'ไม่พบร้านค้า' }
-  // feature 00035 (TFR-008) — sync กับ /u/[username]: URL builderDraft=1 ไม่ควรถูก index เลย
-  const { builderDraft } = await searchParams
-  const isBuilderPreviewUrl = builderDraft === '1'
   return {
     title: `${shop.shopName} (@${slug})`,
     description: shop.description ?? `โปรไฟล์ความน่าเชื่อถือของ ${shop.shopName} บน Deep`,
-    ...(isBuilderPreviewUrl ? { robots: { index: false, follow: false } } : {}),
   }
 }
 
-export default async function BusinessShopProfilePage({ params, searchParams }: Props) {
+export default async function BusinessShopProfilePage({ params }: Props) {
   const { slug } = await params
   const shop = await findShopBySlug(slug)
   if (!shop) notFound()
@@ -76,10 +71,6 @@ export default async function BusinessShopProfilePage({ params, searchParams }: 
   // เจ้าของ "หรือทีมงาน" ร้าน (canAccessShop ครอบทั้งสองกรณี BUSINESS admin/staff ด้วย) — คนละตัวกับ
   // isOwnShop (owner เท่านั้น) ที่ใช้คุมปุ่มแชท ไม่ใช่ publish gate
   const canManagePage = viewerId ? await canAccessShop(shop.id, viewerId) : false
-
-  // feature 00035 (TFR-008, SDS TD-003) — sync กับ /u/[username]: โหมด draft เปิดเฉพาะเจ้าของ/ทีมงาน
-  const { builderDraft } = await searchParams
-  const isBuilderDraftMode = builderDraft === '1' && canManagePage
 
   const pageLayout = await getShopPageLayout(shop.id)
 
@@ -241,10 +232,10 @@ export default async function BusinessShopProfilePage({ params, searchParams }: 
         </Alert>
       )}
 
-      {/* feature 00035 — ห่อด้วย BuilderPreviewBridge เฉพาะโหมด draft (sync กับ /u/[username]) */}
-      <BuilderPreviewBridge enabled={isBuilderDraftMode}>
-        <ShopProfile
-          data={{
+      {/* feature 00035 (รื้อ canvas 2026-08-07 รอบสอง) — เดิมห่อด้วย BuilderPreviewBridge เฉพาะโหมด
+          draft (sync กับ /u/[username]) ตัด iframe ออกแล้ว ไม่มี Bridge อีกต่อไป */}
+      <ShopProfile
+        data={{
             hero: {
               shopName: shop.shopName,
               username: slug,
@@ -305,7 +296,6 @@ export default async function BusinessShopProfilePage({ params, searchParams }: 
             blocks: pageBlocks,
           }}
         />
-      </BuilderPreviewBridge>
       {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
       <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
         <NextLink href='/privacy' style={{ textDecoration: 'none' }}>

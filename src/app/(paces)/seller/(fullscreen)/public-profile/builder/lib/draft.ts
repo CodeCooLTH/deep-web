@@ -1,9 +1,11 @@
 /**
- * ตัวจัดหน้าร้าน (feature 00035, Task 7) — pure helper แปลงระหว่าง 3 รูปแบบของ "ผัง":
+ * ตัวจัดหน้าร้าน (feature 00035, Task 7) — pure helper แปลงระหว่าง 2 รูปแบบของ "ผัง":
  *   1) ShopPageBlockView (จาก service — ใช้ตอน SSR initial state ที่ BuilderPage)
- *   2) BuilderDraft (client working state ที่ BuilderClient ถือ — มี field hydrate เต็ม)
- *   3) payload ที่ยิงจริง — SaveShopPageLayoutInput (ไป PUT API, id ล้วน) /
- *      DEEP_BUILDER_DRAFT_STATE payload (ไป Canvas ผ่าน postMessage, shape ล็อกตาม SDS §4.1)
+ *   2) BuilderDraft (client working state ที่ BuilderClient ถือ — มี field hydrate เต็ม) และ
+ *      payload ที่ยิงจริง SaveShopPageLayoutInput (ไป PUT API, id ล้วน)
+ *
+ * รื้อ canvas จาก iframe เป็น Paces-native (2026-08-07) — เลยตัด draftToMessagePayload()
+ * (เดิมแปลง draft → DEEP_BUILDER_DRAFT_STATE payload สำหรับส่งผ่าน postMessage) ออก ไม่มีผู้ใช้แล้ว
  *
  * แยกออกจาก BuilderClient.tsx เพื่อให้อ่าน/ทดสอบง่าย — pure function ล้วน ไม่มี 'use client'
  */
@@ -20,7 +22,6 @@ import type {
   BuilderDraftBadgeBlock,
   BuilderDraftBlock,
   BuilderDraftFacebookPostBlock,
-  DeepBuilderDraftStateMessage,
 } from '../types'
 
 /**
@@ -73,38 +74,6 @@ export function draftToSaveInput(draft: BuilderDraft): SaveShopPageLayoutInput {
       b.type === 'BADGE_HIGHLIGHT'
         ? { type: 'BADGE_HIGHLIGHT' as const, badgeIds: b.badges.map((x) => x.id) }
         : { type: 'FACEBOOK_POST' as const, facebookPostId: b.post.id },
-    ),
-  }
-}
-
-/**
- * draft ปัจจุบัน → payload ของ DEEP_BUILDER_DRAFT_STATE (SDS §4.1 — ห้ามแก้ shape)
- * `icon` ของเหรียญเป็น `string` เสมอในสัญญา postMessage (ต่างจาก BuilderDraftBadge.icon ที่เป็น
- * string|null) — แทน null ด้วย '' ที่จุดแปลงนี้จุดเดียว
- */
-export function draftToMessagePayload(draft: BuilderDraft): DeepBuilderDraftStateMessage['payload'] {
-  return {
-    tabOrder: draft.tabOrder,
-    blocks: draft.blocks.map((b) =>
-      b.type === 'BADGE_HIGHLIGHT'
-        ? {
-            key: b.key,
-            type: 'BADGE_HIGHLIGHT' as const,
-            badges: b.badges.map((x) => ({ id: x.id, name: x.name, icon: x.icon ?? '' })),
-          }
-        : {
-            key: b.key,
-            type: 'FACEBOOK_POST' as const,
-            post: {
-              id: b.post.id,
-              message: b.post.message,
-              imageUrl: b.post.imageUrl,
-              mediaType: b.post.mediaType,
-              reactionCount: b.post.reactionCount,
-              fbCommentCount: b.post.fbCommentCount,
-              shareCount: b.post.shareCount,
-            },
-          },
     ),
   }
 }

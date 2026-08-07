@@ -112,7 +112,12 @@ export default function BadgePickerModal({ open, onClose, badges, initialSelecte
               เลือกได้สูงสุด {MAX_BADGES} ใบ · จัดลำดับได้
             </p>
           </div>
-          <button type="button" onClick={onClose} aria-label="ปิด">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="ปิด"
+            className="btn btn-icon text-default-500 min-h-11 min-w-11" /* audit: เดิม ~20×20 ไม่มี padding เลย */
+          >
             <Icon icon="x" className="text-xl" />
           </button>
         </div>
@@ -137,7 +142,7 @@ export default function BadgePickerModal({ open, onClose, badges, initialSelecte
                       onClick={() => move(index, -1)}
                       disabled={index === 0}
                       aria-label={`ย้าย ${b.name} ขึ้น`}
-                      className="btn btn-icon btn-sm text-default-500 disabled:opacity-30"
+                      className="btn btn-icon text-default-500 min-h-11 min-w-11 disabled:opacity-30"
                     >
                       <Icon icon="chevron-up" className="text-sm" aria-hidden="true" />
                     </button>
@@ -146,7 +151,7 @@ export default function BadgePickerModal({ open, onClose, badges, initialSelecte
                       onClick={() => move(index, 1)}
                       disabled={index === selected.length - 1}
                       aria-label={`ย้าย ${b.name} ลง`}
-                      className="btn btn-icon btn-sm text-default-500 disabled:opacity-30"
+                      className="btn btn-icon text-default-500 min-h-11 min-w-11 disabled:opacity-30"
                     >
                       <Icon icon="chevron-down" className="text-sm" aria-hidden="true" />
                     </button>
@@ -154,7 +159,7 @@ export default function BadgePickerModal({ open, onClose, badges, initialSelecte
                       type="button"
                       onClick={() => removeBadge(b.id)}
                       aria-label={`เอา ${b.name} ออกจากที่เลือก`}
-                      className="btn btn-icon btn-sm text-danger"
+                      className="btn btn-icon text-danger min-h-11 min-w-11"
                     >
                       <Icon icon="x" className="text-sm" aria-hidden="true" />
                     </button>
@@ -195,7 +200,7 @@ export default function BadgePickerModal({ open, onClose, badges, initialSelecte
           {/* badgeIds ฝั่ง backend ไม่มี minLength (Valibot อนุญาต array ว่าง — v.maxLength(4) เท่านั้น)
               แต่บล็อกที่มี 0 เหรียญ = ไม่เหลืออะไรให้ render จริง (PageBlocksSection early-return) —
               กันที่ฝั่งนี้แทนด้วยการปิดปุ่มบันทึก ไม่ให้เกิดบล็อกว่างเปล่าใน draft ตั้งแต่ต้น */}
-          <span className="text-default-400 text-2xs">{selected.length === 0 && 'เลือกอย่างน้อย 1 ใบก่อนบันทึก'}</span>
+          <span className="text-default-400 text-xs">{selected.length === 0 && 'เลือกอย่างน้อย 1 ใบก่อนบันทึก'}</span>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="btn border-default-300 text-default-900 hover:bg-default-50 border">
               ยกเลิก

@@ -11,6 +11,7 @@ import { useState } from 'react'
 import { useController } from 'react-hook-form'
 import type { Control, FieldErrors } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
+import { pacesConfirm } from '@/lib/paces-swal'
 import ProductThumb from './ProductThumb'
 import QuickPriceSheet from './QuickPriceSheet'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
@@ -26,6 +27,12 @@ interface Props {
   itemsCtl: ItemsController
   errors?: FieldErrors<FormValues>
   inventoryEnabled?: boolean
+  /** คำเรียกของที่ร้านขาย (สินค้า/บริการ/ห้องพัก) */
+  productNoun?: string
+  /** ไอคอนแทนของที่ร้านขาย (package/tool/bed) */
+  productIcon?: string
+  /** หน่วยนับต่อบรรทัด (ชิ้น/ครั้ง/คืน) */
+  unitLabel?: string
   /** เปิด ProductPickerSheet ที่ QuickForm สำหรับ line นี้ */
   onOpenPicker: () => void
 }
@@ -38,6 +45,9 @@ export default function QuickLineItem({
   itemsCtl,
   errors,
   inventoryEnabled = false,
+  productNoun = 'สินค้า',
+  productIcon = 'package',
+  unitLabel = 'ชิ้น',
   onOpenPicker,
 }: Props) {
   const [priceOpen, setPriceOpen] = useState(false)
@@ -47,6 +57,12 @@ export default function QuickLineItem({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const itemErrors = (errors?.items as any)?.[index]
+  /**
+   * error ระดับ array ("ต้องมีสินค้าอย่างน้อย 1 รายการ") — ทาสีเฉพาะแถวที่ยังว่าง
+   * เพื่อชี้ว่าต้องกลับมาแตะตรงไหน (แถวที่กรอกแล้วไม่ใช่ปัญหา ห้ามทาแดงไปด้วย)
+   */
+  const itemsRootError =
+    typeof (errors?.items as { message?: string })?.message === 'string' && !item.name?.trim()
   const qty = Number(qtyField.value) || 0
   const price = Number(priceField.value) || 0
   const hasProduct = Boolean(item.name?.trim())
@@ -61,8 +77,12 @@ export default function QuickLineItem({
       {hasProduct ? (
         <ProductThumb src={catalogProduct?.image ?? null} alt={item.name} className="size-14 rounded-lg" iconClassName="size-6" />
       ) : (
-        <span className="inline-flex size-14 shrink-0 items-center justify-center rounded-lg border border-dashed border-default-300 bg-default-50 text-default-300">
-          <Icon icon="package" className="size-6" />
+        <span
+          className={`inline-flex size-14 shrink-0 items-center justify-center rounded-lg border border-dashed ${
+            itemsRootError ? 'border-danger bg-danger/5 text-danger' : 'border-default-300 bg-default-50 text-default-300'
+          }`}
+        >
+          <Icon icon={productIcon} className="size-6" />
         </span>
       )}
 
@@ -70,19 +90,35 @@ export default function QuickLineItem({
         {/* top: ชื่อ (tap→picker) + รายละเอียด · trash มุมขวา */}
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
+            {/**
+             * ทรงเดิม: ข้อความเปล่า ไม่มีกรอบ/ไอคอน (user สั่งคืน 2026-08-07 หลังเห็นของจริง —
+             * กรอบทำให้แถวอ่านเป็นฟอร์มและสูงขึ้น เสียบุคลิก "บรรทัดในสเปรดชีต" ของรายการ)
+             *
+             * แต่ทางตันที่เคยเกิดต้องไม่กลับมา — ปุ่มบันทึกกดได้เสมอแล้ว (ลบ disabled ไปคนละไฟล์)
+             * ตัวแถวจึงไม่ต้องแบกหน้าที่ "สอนว่าต้องแตะตรงนี้" คนเดียวอีก: กดบันทึกตอนยังว่าง
+             * จะได้ toast + ป้าย "ต้องแก้" + ข้อความสีแดงที่ชี้มาที่นี่
+             *
+             * ยังคงไว้จากรอบก่อน: คำผันตามประเภทร้าน (productNoun) และสีแดงตอน validate ไม่ผ่าน
+             * (สีอย่างเดียว ไม่มีกรอบ) · aria-* ให้ screen reader รู้ว่าปุ่มนี้คือจุดที่ผิด
+             */}
             <button
               type="button"
               onClick={(e) => {
                 e.currentTarget.blur()
                 onOpenPicker()
               }}
-              className={`w-full truncate rounded-md px-1.5 py-1 text-start text-sm font-semibold hover:bg-default-100 ${hasProduct ? 'text-dark' : 'text-default-400'}`}
+              aria-label={item.name ? `แก้ไข${productNoun} ${item.name}` : `เลือก${productNoun}`}
+              aria-invalid={itemsRootError || undefined}
+              aria-describedby={itemsRootError ? 'order-items-error' : undefined}
+              className={`w-full truncate rounded-md px-1.5 py-1 text-start text-sm font-semibold hover:bg-default-100 ${
+                hasProduct ? 'text-dark' : itemsRootError ? 'text-danger' : 'text-default-400'
+              }`}
             >
-              {item.name || 'พิมพ์ชื่อ/SKU หรือแตะเลือกสินค้า'}
+              {item.name || `เลือก${productNoun} หรือพิมพ์ชื่อเอง`}
             </button>
             <input
               type="text"
-              placeholder="รายละเอียดสินค้า"
+              placeholder={`รายละเอียด${productNoun}`}
               value={descField.value ?? ''}
               onChange={descField.onChange}
               onBlur={descField.onBlur}
@@ -96,11 +132,26 @@ export default function QuickLineItem({
               </p>
             )}
           </div>
+          {/**
+           * ลบรายการ — เป้ากด 44px และ "ถามก่อนถ้ามีอะไรจะเสีย"
+           *
+           * ของเดิม `p-1` ครอบไอคอน 16px ได้เป้าจริงราว 24px อยู่ห่างช่อง "รายละเอียด" ที่กำลัง
+           * พิมพ์อยู่ไม่กี่พิกเซล และเรียก remove() ทันทีโดยไม่มี confirm/undo — กดพลาดครั้งเดียว
+           * ตอนลูกค้ายืนรอ = ราคาที่เพิ่งคีย์หายโดยไม่มีทางเรียกคืน (impeccable critique P2)
+           *
+           * ถามเฉพาะแถวที่มีของจะเสียจริง (มีชื่อแล้ว) — แถวเปล่าลบทันทีเหมือนเดิม ไม่งั้น
+           * การล้างแถวที่เผลอกดเพิ่มจะกลายเป็น 2 คลิกทุกครั้งโดยไม่ได้กันอะไรเลย
+           * (convention: destructive ในคอนโซลผู้ขายต้องมี confirm — docs/conventions/seller-action-placement.md)
+           */}
           <button
             type="button"
-            onClick={() => itemsCtl.remove(index)}
-            aria-label="ลบรายการ"
-            className="shrink-0 p-1 text-default-300 hover:text-danger"
+            onClick={async () => {
+              if (!hasProduct) return itemsCtl.remove(index)
+              const ok = await pacesConfirm.danger('ลบรายการนี้?', item.name)
+              if (ok) itemsCtl.remove(index)
+            }}
+            aria-label={hasProduct ? `ลบรายการ ${item.name}` : 'ลบรายการ'}
+            className="flex size-11 shrink-0 items-center justify-center rounded-md text-default-300 hover:bg-danger/10 hover:text-danger"
           >
             <Icon icon="trash" className="size-4" />
           </button>
@@ -112,7 +163,7 @@ export default function QuickLineItem({
             <div className="text-base font-bold text-dark tabular-nums">{formatThb(qty * price)}</div>
             {hasProduct && (
               <button type="button" onClick={() => setPriceOpen(true)} className="mt-0.5 text-2xs text-default-400">
-                {formatThb(price)}/ชิ้น · <span className="font-semibold text-primary">แก้ราคา</span>
+                {formatThb(price)}/{unitLabel} · <span className="font-semibold text-primary">แก้ราคา</span>
               </button>
             )}
           </div>

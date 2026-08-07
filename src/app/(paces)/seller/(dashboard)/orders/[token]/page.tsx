@@ -182,6 +182,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // ชนะเพราะเป็น system-generated source of truth
   const shipmentSource: ShipmentSource = shipmentPanel?.shipment ? 'ISHIP' : order.shipmentTracking ? 'MANUAL' : null
 
+  // "มีพัสดุ iShip แล้ว" ต้องใช้นิยามเดียวกับ hasShipment ข้างล่าง (CREATED && !isDryRun) —
+  // ใบที่ยิงไม่ผ่าน (FAILED) ต้องไม่นับ เพราะ ShipmentEntryModal ใช้ค่านี้ซ่อนตัวเลือก "ส่งเอง"
+  // ทั้งแถบ (`showSegmented`) ผลคือร้านที่เปิดพัสดุกับ iShip ไม่ได้ (เครดิตหมด/token เสีย) จะกรอก
+  // เลขพัสดุที่ไปส่งเองมาก็ไม่ได้ด้วย = ทางตันทั้งที่ของส่งไปแล้ว
+  // (บั๊กคลาสเดียวกับนิยาม "ออเดอร์นี้มีพัสดุแล้ว" ที่ปิดไป 2026-08-06 แต่รอดมาที่ call site นี้)
+  const hasLiveIshipShipment =
+    shipmentPanel?.shipment?.status === 'CREATED' && !shipmentPanel.shipment.isDryRun
+
   // ข้อมูลการจัดส่งสำหรับ OrderFactsCard (section 3) + prefill ShipmentEntryModal (mode='edit')
   const shippingInfo: OrderFactsShipping | null =
     shipmentSource === 'ISHIP'
@@ -251,7 +259,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         slipFileId={order.slipFileId ?? null}
         shipmentSource={shipmentSource}
         ishipContext={shipmentPanel ? toShipmentContextJson(shipmentPanel) : null}
-        hasIshipShipment={Boolean(shipmentPanel?.shipment)}
+        hasIshipShipment={hasLiveIshipShipment}
         trackingNo={shippingInfo?.trackingNo ?? null}
         provider={shippingInfo?.courier ?? null}
         addressText={addressText}

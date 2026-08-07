@@ -15,7 +15,13 @@ import {
   type IShipParcel,
 } from "./unlinked";
 
-/** แถวจริงจากเอกสาร iShip แต่แก้ตำบล/อำเภอให้ "ต่างกัน" เพื่อให้เทสมีความหมาย */
+/**
+ * แถวจริงจากเอกสาร iShip แต่เปลี่ยนที่อยู่เป็นคู่ที่ "ยืนยันแล้วว่าอยู่ในไฟล์ที่อยู่ของ iShip"
+ * และตำบลกับอำเภอต่างกัน: กรุงเทพ / เขตสายไหม (อำเภอ) / แขวงออเงิน (ตำบล) / 10220
+ *
+ * ค่าที่ใส่ในสองช่องล่างยึดตาม payload จริงของ prod (get_order 2026-08-07):
+ * ขาเข้า dst_district = อำเภอ, dst_area = ตำบล — กลับด้านกับขาออก ดูหมายเหตุหัว unlinked.ts
+ */
 const rawRow = {
   id: 3480,
   weight: null,
@@ -30,8 +36,8 @@ const rawRow = {
   dst_name: "Diew",
   dst_phone: "0891082095",
   dst_address: " 91/83 ถ.สายไหม",
-  dst_district: "ออเงิน", // ตำบล/แขวง
-  dst_area: "สายไหม", // อำเภอ/เขต
+  dst_district: "สายไหม", // ขาเข้า = อำเภอ/เขต (กลับด้านกับขาออก)
+  dst_area: "ออเงิน", //     ขาเข้า = ตำบล/แขวง
   dst_province: "กรุงเทพ",
   dst_zipcode: "10220",
   cod_amount: "100.00",
@@ -43,20 +49,45 @@ const rawRow = {
 };
 
 describe("parseParcelRow — คู่ตำบล/อำเภอ ขาเข้า (blocker)", () => {
-  it("dst_district เข้าช่องตำบล และ dst_area เข้าช่องอำเภอ ไม่สลับกัน", () => {
+  it("dst_area เข้าช่องตำบล และ dst_district เข้าช่องอำเภอ — กลับด้านกับขาออก", () => {
     const p = parseParcelRow(rawRow)!;
-    expect(p.receiver.subdistrict).toBe("ออเงิน");
-    expect(p.receiver.district).toBe("สายไหม");
+    expect(p.receiver.subdistrict).toBe("ออเงิน"); // แขวง
+    expect(p.receiver.district).toBe("สายไหม"); // เขต
   });
 
-  it("ถ้า iShip ส่ง dst_amphure มาด้วย ให้ชนะ dst_area (ชื่อเดียวกับฝั่งขาออก)", () => {
-    const p = parseParcelRow({
-      ...rawRow,
-      dst_amphure: "บางเขน",
-      dst_area: "สายไหม",
-    })!;
+  it("ถ้า iShip ส่ง dst_amphure มาด้วย ให้ชนะ dst_district ในช่องอำเภอ", () => {
+    const p = parseParcelRow({ ...rawRow, dst_amphure: "บางเขน" })!;
     expect(p.receiver.subdistrict).toBe("ออเงิน");
     expect(p.receiver.district).toBe("บางเขน");
+  });
+
+  /**
+   * เคสจริงที่ทำให้ต้องแก้ไฟล์นี้ (prod 2026-08-07): พัสดุ TH066536981258
+   * ไฟล์ที่อยู่ของ iShip = "สุราษฎร์ธานี, กาญจนดิษฐ์(อำเภอ), ช้างซ้าย(ตำบล), 84160"
+   * ของเดิมแกะกลับหัวจนออเดอร์ถูกบันทึกว่า ต.กาญจนดิษฐ์ อ.ช้างซ้าย ซึ่งไม่มีอยู่จริง
+   */
+  it("payload จริงจาก get_order — ต.ช้างซ้าย อ.กาญจนดิษฐ์ ไม่ใช่กลับกัน", () => {
+    const p = parseParcelRow({
+      ...rawRow,
+      track_no: "TH066536981258",
+      dst_district: "กาญจนดิษฐ์",
+      dst_area: "ช้างซ้าย",
+      dst_province: "สุราษฎร์ธานี",
+      dst_zipcode: "84160",
+    })!;
+    expect(p.receiver.subdistrict).toBe("ช้างซ้าย");
+    expect(p.receiver.district).toBe("กาญจนดิษฐ์");
+  });
+
+  /**
+   * ไม่มี dst_area = รูปของฝั่งขาออก (payload ที่เราประกอบเอง หรือ echo กลับมา)
+   * รูปนั้น dst_district = ตำบล ตาม BR-ISHIP-31 — ห้ามเอากติกาขาเข้าไปทับ
+   */
+  it("ไม่มี dst_area → ถอยไปใช้กติกาขาออก (dst_district = ตำบล)", () => {
+    const { dst_area: _omit, ...noArea } = rawRow;
+    const p = parseParcelRow({ ...noArea, dst_district: "ออเงิน", dst_amphure: "สายไหม" })!;
+    expect(p.receiver.subdistrict).toBe("ออเงิน");
+    expect(p.receiver.district).toBe("สายไหม");
   });
 });
 

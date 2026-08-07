@@ -35,7 +35,6 @@ import AboutOverview, { type AboutData } from '../profile/AboutOverview'
 import { ProfileRightContent } from '../profile'
 import type { SerializedProduct } from '../profile'
 import { applyTabOrder, computeVisibleTabKeys, type ProfileTabKey } from '@/lib/profile-tab-keys'
-import { useBuilderDraftOverride } from './BuilderPreviewBridge'
 
 export type ShopProfileData = {
   hero: ProfileHeroData
@@ -69,12 +68,11 @@ export type ShopProfileData = {
 }
 
 export default function ShopProfile({ data }: { data: ShopProfileData }) {
-  // feature 00035 (BuilderPreviewBridge) — ถ้าอยู่ในโหมด builder draft (ห่อด้วย Bridge จาก page.tsx)
-  // และมี DEEP_BUILDER_DRAFT_STATE เข้ามาแล้ว ใช้ค่านั้นแทน data.tabOrder/data.blocks ที่ SSR ส่งมา
-  // โดยไม่ query ใหม่ — ไม่มี Bridge ห่อ (โหมดปกติ) จะได้ null เสมอ ไม่กระทบ behavior เดิม
-  const draftOverride = useBuilderDraftOverride()
-  const effectiveTabOrder = draftOverride?.tabOrder ?? data.tabOrder ?? []
-  const effectiveBlocks = draftOverride?.blocks ?? data.blocks ?? []
+  // feature 00035 — เดิมอ่านจาก BuilderDraftContext (BuilderPreviewBridge.tsx) เมื่ออยู่ในโหมด
+  // builder draft ผ่าน iframe; รื้อ canvas เป็น Paces-native แล้ว (2026-08-07 รอบสอง) ไม่มี Bridge
+  // ห่ออีกต่อไป — อ่านจาก data.tabOrder/data.blocks (SSR) ตรง ๆ เสมอ
+  const effectiveTabOrder = data.tabOrder ?? []
+  const effectiveBlocks = data.blocks ?? []
 
   const hasItems = data.pinnedProducts.length + data.otherProducts.length > 0
 

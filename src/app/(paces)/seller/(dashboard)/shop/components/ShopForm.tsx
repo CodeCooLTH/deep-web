@@ -126,7 +126,8 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone 
       }
       const data = await res.json()
       setCoverFileId(data.fileId ?? '')
-      pacesToast.success('อัปโหลดภาพหน้าปกแล้ว')
+      // ต้องบอกว่ายังไม่จบ — ไฟล์ขึ้น bucket แล้วก็จริง แต่จะลงฐานตอนกดบันทึกเท่านั้น
+      pacesToast.success('อัปโหลดภาพหน้าปกสำเร็จ — กดบันทึกเพื่อใช้งานรูปนี้')
     } catch {
       pacesToast.error('เกิดข้อผิดพลาดขณะอัปโหลด')
     } finally {
@@ -150,7 +151,7 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone 
       }
       const data = await res.json()
       setLogoFileId(data.fileId ?? '')
-      pacesToast.success('อัปโหลดโลโก้แล้ว')
+      pacesToast.success('อัปโหลดโลโก้สำเร็จ — กดบันทึกเพื่อใช้งานรูปนี้')
     } catch {
       pacesToast.error('เกิดข้อผิดพลาดขณะอัปโหลด')
     } finally {
@@ -499,6 +500,13 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone 
                         )}
                       </div>
                     </div>
+
+                    {/* toast จางหายเองใน 3-4 วิ ใช้เตือนเรื่องที่ต้อง "จำต่อ" ไม่ได้ — ข้อความนี้ค้างจอ
+                        อยู่เหนือแถบปุ่มพอดี ผู้ใช้จึงเห็นทั้งเงื่อนไขและปุ่มบันทึกในสายตาเดียวกัน */}
+                    <p className="text-default-400 mt-4 flex items-center gap-1.5 text-xs">
+                      <Icon icon="info-circle" className="text-sm" />
+                      รูปที่อัปโหลดจะยังไม่มีผลจนกว่าจะกดปุ่ม &quot;บันทึก&quot; ด้านล่าง
+                    </p>
                 </div>
 
                 {/* Navigation: Back / Next / บันทึก — เดสก์ท็อปเท่านั้น
@@ -514,16 +522,22 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone 
                     ย้อนกลับ
                   </button>
 
-                  {dangerZone && activeStep === 2 ? null : activeStep < stepData.length - 1 ? (
+                  {/* เกณฑ์ "ถัดไป หรือ บันทึก" ต้องผูกกับ BASE_STEPS (แท็บที่เป็นฟอร์มจริง — คงที่ 2
+                      เสมอ) ไม่ใช่ stepData ซึ่งยาว 3 เมื่อร้านมีแท็บโซนอันตราย: รอบ 54a736cd ผูกไว้กับ
+                      stepData.length แล้วแท็บ "โลโก้ร้าน" ตกไปได้ปุ่ม "ถัดไป" ส่วนแท็บโซนอันตรายถูก
+                      ตีเป็น null → ร้าน BUSINESS ไม่มีปุ่มบันทึกในหน้าเลยบนเดสก์ท็อป (แถบบันทึกอีกอัน
+                      เป็น lg:hidden) อัปโหลดโลโก้ขึ้น bucket ได้จริงแต่ไม่มีอะไรให้กดเพื่อ PATCH ลงฐาน
+                      = "อัปโหลดโลโก้ไม่ได้" โดยไม่มี error สักตัว (user เจอเอง 2026-08-07) */}
+                  {activeStep < BASE_STEPS.length - 1 ? (
                     <button
                       type="button"
                       className="btn bg-primary text-white hover:bg-primary-hover"
-                      onClick={() => setActiveStep((s) => Math.min(stepData.length - 1, s + 1))}
+                      onClick={() => setActiveStep((s) => Math.min(BASE_STEPS.length - 1, s + 1))}
                     >
                       ถัดไป
                       <Icon icon="arrow-right" />
                     </button>
-                  ) : (
+                  ) : activeStep === BASE_STEPS.length - 1 ? (
                     <button
                       type="submit"
                       disabled={isSubmitting}
@@ -541,6 +555,10 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone 
                         </>
                       )}
                     </button>
+                  ) : (
+                    // แท็บโซนอันตราย: ไม่มีฟิลด์ของฟอร์มนี้เลย ปุ่มลบอยู่ในการ์ดของมันเองพร้อม confirm
+                    // แล้ว — ปุ่ม "บันทึก" ตรงนี้จะสื่อผิดว่ามีอะไรค้างให้บันทึกในแท็บนี้
+                    null
                   )}
                 </div>
 

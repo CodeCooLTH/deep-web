@@ -31,6 +31,7 @@ import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 import { toDatetimeLocalValue } from './OrderDateRow'
 import { resolveEditedOrderedAtPayload, orderDateRejectReason } from '@/lib/order-date-window'
 import { shopShipsGoods } from '@/lib/shipping-address-status'
+import { resolveProductVocab } from '@/lib/seller-menu'
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -162,7 +163,8 @@ export interface FormValues {
 
 const itemSchema = Yup.object({
   productId: Yup.string().optional(),
-  name: Yup.string().min(1, 'กรุณากรอกชื่อสินค้า').required('กรุณากรอกชื่อสินค้า'),
+  // ข้อความ schema อยู่ระดับ module ผันตามร้านไม่ได้ → ใช้คำกลาง "รายการ" ที่จริงกับทุกประเภทร้าน
+  name: Yup.string().min(1, 'กรุณากรอกชื่อรายการ').required('กรุณากรอกชื่อรายการ'),
   description: Yup.string().optional(),
   qty: Yup.number()
     .typeError('กรุณากรอกจำนวน')
@@ -194,7 +196,7 @@ const schema = Yup.object({
         ? value.filter((it) => it?.productId != null || (it?.name ?? '').toString().trim() !== '')
         : value,
     )
-    .min(1, 'ต้องมีสินค้าอย่างน้อย 1 รายการ')
+    .min(1, 'ต้องมีอย่างน้อย 1 รายการ')
     .required(),
   salesChannel: Yup.string()
     .oneOf(['STOREFRONT', 'FACEBOOK', 'LINE', 'TIKTOK', 'OTHER'])
@@ -279,6 +281,13 @@ export default function OrderCreateForm({
 }: Props) {
   // ร้านนี้ส่งของไหม — ตัวเดียวกับที่ createOrder ใช้ตัดสิน (SSOT: lib/shipping-address-status)
   const shipsGoods = shopShipsGoods(shopVertical)
+  /**
+   * คำเรียก "ของที่ร้านขาย" ตามประเภทกิจการ (SSOT: PRODUCT_VOCAB) — ร้านคิวงานเรียก "บริการ"
+   * ร้านบ้านพักเรียก "ห้องพัก". ทั้งฟอร์มนี้เคยเขียน "สินค้า" ตายตัวทุกจุด ทั้งที่หน้าอื่นของ
+   * ร้านเดียวกัน (แดชบอร์ด/เมนู/โปรไฟล์) ผันคำให้แล้ว — คำเดียวกันต้องหมายถึงของเดียวกันทั้งแอป
+   */
+  const productVocab = resolveProductVocab(shopVertical ?? '')
+  const productNoun = productVocab.itemColLabel
 
   /**
    * ร้านคิวงานไม่เอาวันที่จากข้อความในแชท — ใช้เวลาปัจจุบันเสมอ (user สั่ง 2026-08-07)
@@ -877,13 +886,20 @@ export default function OrderCreateForm({
         // ใช้ได้เฉพาะ field ที่ผูกด้วย register() ซึ่ง spread name ให้ (ที่อยู่จัดส่ง/ส่วนลด/VAT)
         // ส่วน buyerName/buyerContact ผูกด้วย useController แบบ destructure จึงไม่มี name —
         // ตรงนั้นพึ่ง toast + accordion ที่กางเองแทน
+        // items เป็น error ระดับ array ไม่มี element ไหนถือ name="items" → querySelector หาไม่เจอ
+        // แล้วเงียบไปเฉย ๆ ต้องเล็งที่ section แทน (ตั้งแต่เลิกปิดปุ่มบันทึก นี่เป็นเส้นทางที่เกิดจริง)
+        if (formErrors.items) {
+          document.getElementById('order-items-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          return
+        }
         const first = Object.keys(formErrors)[0]
         if (first) {
           document.querySelector(`[name="${first}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
       })}
       noValidate
-      className={compact ? '' : 'pb-24 lg:pb-0 scroll-pb-24'}
+      // scroll-pb-24 ถูกย้ายไปที่ <main> ของ (fullscreen)/layout.tsx — scroll-padding มีผลเฉพาะบนกล่องที่เลื่อนจริง
+      className={compact ? '' : 'pb-24 lg:pb-0'}
     >
       {/* Full-bleed status sheet: loading ระหว่าง submit / error + ปุ่มปิดกลับไปแก้ไข */}
       <SubmitStatusSheet
@@ -900,6 +916,9 @@ export default function OrderCreateForm({
       <div className={compact ? '' : 'lg:hidden'}>
         <QuickForm
           orderNoun={vocab.noun}
+          productNoun={productNoun}
+          productIcon={productVocab.soldIcon}
+          unitLabel={productVocab.unitLabel}
           shipsGoods={shipsGoods}
           prefillParseText={prefillParseText}
           control={control}
@@ -930,11 +949,12 @@ export default function OrderCreateForm({
         {/* @container = ประกาศ containment ให้ ProductGrid วัดความกว้าง "แพน" แทน viewport
             (ดูเหตุผลเต็มใน ProductGrid.tsx) — จุดเดียวในโปรเจกต์ที่ใช้ utility นี้ */}
         <div className="@container min-w-0 lg:h-full lg:overflow-y-auto">
-          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} />
+          <ProductGrid catalog={catalog} qtyByProduct={itemsCtl.qtyByProduct} inc={itemsCtl.inc} inventoryEnabled={inventoryEnabled} productNoun={productNoun} />
         </div>
         <div className="lg:h-full">
           <CartPanel
             orderNoun={vocab.noun}
+            productNoun={productNoun}
             shipsGoods={shipsGoods}
             control={control}
             catalog={catalog}

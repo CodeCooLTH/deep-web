@@ -146,11 +146,15 @@ export default function CustomerSelectBlock({ control, errors, variant = 'card',
         <div className="grid gap-4 sm:grid-cols-2">
           {/* ชื่อลูกค้า */}
           <div>
+            {/* ดาวแดงต้องมีทั้ง 2 breakpoint — ฟอร์มบังคับชื่อจริง (Yup) เดสก์ท็อปเคยไม่ติดดาว
+                เหมือนมือถือ ทำให้ผู้ใช้เจอกฎที่จอไม่เคยประกาศ (critique P0 2026-08-07) */}
             <label htmlFor="cust-name" className="form-label">
-              ชื่อลูกค้า
+              ชื่อลูกค้า<span className="ms-0.5 text-danger">*</span>
             </label>
             <input
               id="cust-name"
+              name="buyerName"
+              ref={buyerNameField.ref}
               type="text"
               autoComplete="off"
               placeholder="เช่น สมชาย ใจดี"

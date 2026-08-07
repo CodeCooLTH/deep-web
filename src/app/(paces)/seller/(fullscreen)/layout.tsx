@@ -49,7 +49,9 @@ export default async function FullscreenLayout({ children }: { children: React.R
        รวมพื้นที่ status bar/home indicator → เว้น inset ที่เปลือกชั้นเดียว ข้างในไม่ต้องรู้เรื่อง
        (หัวหน้า FullscreenPageHeader เป็น sticky top-0 ของ main ซึ่งอยู่ใต้ padding นี้แล้ว) */
     <div className="fixed inset-0 z-50 bg-card flex flex-col overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"> {/* carve-out: safe-area ไม่มี token */}
-      <main className="flex-1 overflow-y-auto">
+      {/* scroll-pb-24: กัน element ที่ถูก scrollIntoView ไปนอนใต้แถบล่างที่ fixed อยู่ —
+          ต้องอยู่ที่ "กล่องที่เลื่อน" เท่านั้น เขียนไว้ที่ลูก (เดิมอยู่บน <form>) ไม่มีผลใด ๆ */}
+      <main className="flex-1 overflow-y-auto scroll-pb-24">
         <div className="w-full p-4 md:p-8">{children}</div>
       </main>
     </div>
