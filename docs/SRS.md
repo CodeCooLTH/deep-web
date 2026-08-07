@@ -134,6 +134,7 @@
 | FR-6.3 | **Confirm = phone-unlock** — buyer กรอกเบอร์ให้ตรง → unlock → กดยืนยัน. **ไม่มี OTP confirm** | Must |
 | FR-6.4 | Order status = state machine (ดู §2) | Must |
 | FR-6.5 | **Ship guard = `fulfillmentMode === SHIPPED`** (ไม่ใช่ type===PHYSICAL). `shippingAddress` จำเป็นเมื่อ SHIPPED และ **ต้อง persist** ผ่าน CreateOrderSchema | Must |
+| FR-6.5a | **ร้านที่ไม่ส่งของไม่มีทางได้ออเดอร์ SHIPPED** — `shopShipsGoods(Shop.vertical)` (`src/lib/shipping-address-status.ts`; false เมื่อ `SERVICE_QUEUE`/`LODGING`) กั้นการคำนวณ `fulfillmentMode` **ทั้งก้อน** ทั้งใน `createOrder` และ `updateOrder` — กั้นทั้งเกณฑ์ "รายการพิมพ์เอง + type=PHYSICAL" และเกณฑ์ "มีสินค้าที่ `Product.fulfillmentMode=SHIPPED`". ธงบนสินค้าไม่ใช่หลักฐานว่าร้านส่งของ (ค้างได้จากร้านที่เปลี่ยน vertical ทีหลัง). ผลพ่วง: ร้านกลุ่มนี้ไม่โดนบังคับ `shippingAddress` และ Quick-Create ต้องไม่เขียน `SHIPPED` ลงสินค้าที่สร้างให้อัตโนมัติ. ฟอร์มฝั่งจอ (`OrderCreateForm`) ใช้เกณฑ์เดียวกันเป๊ะ — ช่องที่อยู่ยังแสดงอยู่ กรอกเก็บไว้ได้ แค่ไม่บังคับ | Must |
 | FR-6.6 | NO_SHIPPING (digital/service/subscription) → PENDING แล้วยืนยันได้เลย | Must |
 | FR-6.7 | Snapshot ชื่อ/ราคาลง OrderItem (ไม่ผูกตรง product) | Must |
 | FR-6.8 | **SMS Order Link (paid):** ลิงก์ที่ส่งผ่าน SMS จาก seller ที่ verify แล้ว ฝัง **phone-bound token → buyer ข้าม phone-unlock อัตโนมัติ**; ลิงก์ที่ seller แชร์เอง (manual) ยังต้อง phone-unlock | Must |
