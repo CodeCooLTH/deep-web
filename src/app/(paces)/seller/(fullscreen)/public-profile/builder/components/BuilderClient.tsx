@@ -9,17 +9,32 @@
  * desktop-only gate (SDS TD-007): CSS-only `hidden xl:flex` / `xl:hidden` สลับข้อความอธิบาย
  * กับ workspace 3 คอลัมน์จริง — ไม่ใช้ JS `window.innerWidth` (กัน hydration flash)
  *
+ * รื้อ canvas จาก iframe เป็น Paces-native (2026-08-07, user เคาะ) — เหตุผล: บั๊ก prod ยืนยันซ้ำ
+ * 2 ครั้งว่า BuilderPreviewBridge ไม่ mount เลยเพราะ canManagePage ตัดสินจาก session ของ
+ * deepthailand.app แต่ builder อยู่ seller.deepthailand.app (session แยกตาม subdomain) —
+ * DEEP_BUILDER_BLOCK_RECTS ไม่เคยถูกส่งกลับมาสักครั้ง คอลัมน์กลางค้างไม่อัปเดตตลอด แลกกับ canvas
+ * เป็น "ภาพแทน" ไม่ใช่หน้าจริง 100% (ยอมรับตาม dispatch)
+ *
+ * ลากข้ามคอลัมน์ (คลัง → canvas) ทำได้จริงแล้ว เพราะ document เดียวกัน — DragDropContext เดียว
+ * ต้องเป็น ancestor ร่วมของ LibraryPanel/CanvasFrame ถึงจะลากข้าม Droppable กันได้ (@hello-pangea/dnd)
+ * จึงย้าย state ที่เคยอยู่ใน LibraryPanel เอง (addingPostId, badgePickerOpen) ขึ้นมาไว้ที่นี่ —
+ * ปุ่มบวก (คลิก) และลากวาง ต้องเรียก handler ตัวเดียวกัน ไม่งั้นสถานะ "กำลังเพิ่ม"/โมดัลเปิดค้าง
+ * จะไม่ sync กันระหว่าง 2 ทางเข้า (Product Principle 3 — ปุ่มบวกยังต้องเป็นทางหลักคู่กับการลาก)
+ *
  * Base: docs/superpowers/specs/2026-08-07-00035-builder-mockup-paces.html
  *   หัวข้อ "1 · จอหลัก (Desktop 1440)" (โครง toolbar/dirty-bar/3-column) และหัวข้อ
  *   "2 · มือถือ — สิ่งที่เห็นแทน" การ์ด "เหตุผลที่ตัด" (ข้อความ desktop-only + ทางออก)
  *
- * ความสูงของ workspace: HR7 carve-out — คำนวณจาก viewport เพราะ (fullscreen)/layout.tsx ไม่ได้ตั้ง
- * ความสูงคงที่ให้ children (main เป็น overflow-y-auto เนื้อหาปกติสูงตามเนื้อหา) พื้นที่ 3 คอลัมน์
- * ต้องมีความสูงที่แน่นอนถึงจะ scroll ภายในแต่ละคอลัมน์ได้ตาม mockup (ไม่ใช่ scroll ทั้งหน้า) —
- * ค่าประมาณนี้ (header + dirty-bar + padding เดิมของ (fullscreen)/layout.tsx) ต้องปรับจริงตอน
- * browser QA (ไม่ใช่หน้าที่ developer ตาม CLAUDE.md — ระบุไว้เป็น known-gap ในรายงาน)
+ * ความสูงของ workspace: HR7 carve-out — (fullscreen)/layout.tsx ห่อ children ด้วย
+ * `<div class="w-full p-4 md:p-8">` (padding 4 ด้าน, 32px บน xl) FullscreenPageHeader หักลบ
+ * padding บนของตัวเองด้วย `-mt-* pt-*` (sticky ทึบชนขอบบน) แต่ไม่แตะ padding ล่าง — ความสูง
+ * workspace ที่ถูกต้องจึงหัก "บน + ล่าง" ของ padding นั้นเท่านั้น (2rem+2rem=4rem) ไม่ใช่หักซ้ำรวม
+ * ความสูง header/dirty-bar เข้าไปด้วย (ของเดิม 9rem นับซ้ำ ทำให้เหลือช่องว่างล่าง 112px วัดจริงบน
+ * prod ทั้งที่ควรเหลือแค่ 32px เท่า padding ธรรมชาติ — ดูรายงาน task นี้)
  */
 import { useCallback, useMemo, useState, type FormEvent } from 'react'
+
+import { DragDropContext, type DropResult } from '@hello-pangea/dnd'
 
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -28,11 +43,10 @@ import type { BuilderLibrary, SavedShopPageLayout } from '@/services/shop-page-l
 
 import BuilderToolbar from './BuilderToolbar'
 import CanvasFrame from './CanvasFrame'
-import DraftDirtyBar from './DraftDirtyBar'
 import LibraryPanel from './LibraryPanel'
 import PreviewPanel from './PreviewPanel'
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard'
-import { draftToSaveInput, isSameDraft, reconcileSavedLayout } from '../lib/draft'
+import { draftToSaveInput, isSameDraft, moveToIndex, reconcileSavedLayout } from '../lib/draft'
 import {
   BUILDER_FORM_ID,
   type BuilderDraft,
@@ -49,8 +63,6 @@ export type BuilderClientProps = {
   /** "deepthailand.app/u/" หรือ "deepthailand.app/b/" */
   handlePrefix: string
   handle: string
-  /** absolute URL ข้าม subdomain ของ canvas iframe พร้อม ?builderDraft=1 */
-  canvasSrc: string
   initialDraft: BuilderDraft
   initialIsPublished: boolean
   visibleTabKeys: ProfileTabKey[]
@@ -66,7 +78,6 @@ export default function BuilderClient({
   publicUrl,
   handlePrefix,
   handle,
-  canvasSrc,
   initialDraft,
   initialIsPublished,
   visibleTabKeys,
@@ -76,6 +87,8 @@ export default function BuilderClient({
   const [draft, setDraft] = useState<BuilderDraft>(initialDraft)
   const [savedDraft, setSavedDraft] = useState<BuilderDraft>(initialDraft)
   const [saving, setSaving] = useState(false)
+  const [addingPostId, setAddingPostId] = useState<string | null>(null)
+  const [badgePickerOpen, setBadgePickerOpen] = useState(false)
 
   const isDirty = useMemo(() => !isSameDraft(draft, savedDraft), [draft, savedDraft])
   useUnsavedChangesGuard(isDirty)
@@ -95,7 +108,7 @@ export default function BuilderClient({
 
   const onAddFacebookPostBlock = useCallback((post: BuilderDraftPost) => {
     setDraft((d) => {
-      // กันเพิ่มซ้ำที่ state ด้วย (UI ซ่อนปุ่มบวกไปแล้วเมื่อ "เพิ่มแล้ว" — นี่คือ safety net ชั้นสอง)
+      // กันเพิ่มซ้ำที่ state ด้วย (UI ซ่อนปุ่มบวก/ปิดลากไปแล้วเมื่อ "เพิ่มแล้ว" — นี่คือ safety net ชั้นสอง)
       if (d.blocks.some((b) => b.type === 'FACEBOOK_POST' && b.post.id === post.id)) return d
       const block: BuilderDraftFacebookPostBlock = { key: newClientKey('fb'), type: 'FACEBOOK_POST', post }
       return { ...d, blocks: [...d.blocks, block] }
@@ -133,6 +146,63 @@ export default function BuilderClient({
       }
     },
     [],
+  )
+
+  // ── เพิ่มโพสต์ Facebook — จุดเดียวที่ทั้งปุ่มบวก (คลิก) และลากวางจากคลังเรียกเข้ามา ──────────────
+  const handleAddPost = useCallback(
+    async (postId: string) => {
+      if (addingPostId) return
+      const post = initialLibrary.facebookPosts.find((p) => p.id === postId)
+      if (!post) return
+      if (draft.blocks.some((b) => b.type === 'FACEBOOK_POST' && b.post.id === postId)) return
+      setAddingPostId(postId)
+      try {
+        const result = await mirrorFacebookPost(postId)
+        onAddFacebookPostBlock({
+          id: post.id,
+          message: post.message,
+          imageUrl: result.imageUrl,
+          mediaType: post.mediaType,
+          reactionCount: post.reactionCount,
+          fbCommentCount: post.fbCommentCount,
+          shareCount: post.shareCount,
+          permalink: post.permalink,
+        })
+      } finally {
+        setAddingPostId(null)
+      }
+    },
+    [addingPostId, draft.blocks, initialLibrary.facebookPosts, mirrorFacebookPost, onAddFacebookPostBlock],
+  )
+
+  // ── ลาก — DragDropContext เดียวครอบทั้งคลัง(ซ้าย)กับ canvas(กลาง) ที่ BuilderClient เพราะต้องเป็น
+  // ancestor ร่วม (@hello-pangea/dnd ข้าม Droppable กันได้เฉพาะใน DragDropContext เดียวกัน) —
+  // Base: theme/paces/Admin/TS/src/app/(admin)/apps/crm/pipeline/components/Board.tsx ─────────────
+  const handleDragEnd = useCallback(
+    (result: DropResult) => {
+      const { source, destination, draggableId } = result
+      if (!destination) return // ปล่อยนอกพื้นที่วาง — คืนที่เดิมเอง ไม่ทำอะไร
+
+      // ลากสลับลำดับบล็อกภายใน canvas เอง
+      if (source.droppableId === 'canvas-blocks' && destination.droppableId === 'canvas-blocks') {
+        if (destination.index === source.index) return
+        setDraft((d) => ({ ...d, blocks: moveToIndex(d.blocks, source.index, destination.index) }))
+        return
+      }
+
+      // ลากจากคลัง (ซ้าย) มาวางใน canvas (กลาง) เท่านั้น — ปล่อยที่อื่น (กลับเข้าคลัง/นอกพื้นที่) ไม่ทำอะไร
+      if (destination.droppableId !== 'canvas-blocks') return
+
+      if (draggableId === 'library-badge') {
+        // เดียวกับคลิกปุ่มบวก/"แก้ไข" — เปิดโมดัลให้เลือกเหรียญเสมอ ไม่ auto-pick (Task 8 ตัดสินไว้แล้ว)
+        setBadgePickerOpen(true)
+        return
+      }
+      if (draggableId.startsWith('library-fbpost-')) {
+        void handleAddPost(draggableId.slice('library-fbpost-'.length))
+      }
+    },
+    [handleAddPost],
   )
 
   // ── บันทึก/ยกเลิก ──────────────────────────────────────────────────────────────────────────
@@ -200,7 +270,7 @@ export default function BuilderClient({
       <form
         id={BUILDER_FORM_ID}
         onSubmit={handleSave}
-        className="hidden xl:flex xl:h-[calc(100dvh-9rem)] xl:flex-col xl:overflow-hidden" /* HR7 carve-out: ความสูง workspace คำนวณจาก viewport — (fullscreen)/layout.tsx ไม่ตั้งความสูงคงที่ให้ children, ต้องปรับค่าจริงตอน browser QA */
+        className="hidden xl:flex xl:h-[calc(100dvh-4rem)] xl:flex-col xl:overflow-hidden" /* HR7 carve-out: หัก padding บน+ล่างของ (fullscreen)/layout.tsx (2rem+2rem) เท่านั้น ดู comment หัวไฟล์ */
       >
         <BuilderToolbar
           handlePrefix={handlePrefix}
@@ -209,27 +279,32 @@ export default function BuilderClient({
           initialIsPublished={initialIsPublished}
           saveFormId={BUILDER_FORM_ID}
           saving={saving}
+          isDirty={isDirty}
+          onDiscard={handleDiscard}
         />
 
-        {isDirty && <DraftDirtyBar formId={BUILDER_FORM_ID} saving={saving} onDiscard={handleDiscard} />}
-
         <div className="flex min-h-0 flex-1 items-stretch gap-3 p-3">
-          <LibraryPanel
-            initialLibrary={initialLibrary}
-            visibleTabKeys={visibleTabKeys}
-            draft={draft}
-            onAddBadgeBlock={onAddBadgeBlock}
-            onAddFacebookPostBlock={onAddFacebookPostBlock}
-            onReorderTabs={onReorderTabs}
-            mirrorFacebookPost={mirrorFacebookPost}
-          />
-          <CanvasFrame
-            src={canvasSrc}
-            draft={draft}
-            onReorderBlocks={onReorderBlocks}
-            onReorderTabs={onReorderTabs}
-            onRemoveBlock={onRemoveBlock}
-          />
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <LibraryPanel
+              initialLibrary={initialLibrary}
+              visibleTabKeys={visibleTabKeys}
+              draft={draft}
+              addingPostId={addingPostId}
+              onAddPostClick={handleAddPost}
+              badgePickerOpen={badgePickerOpen}
+              onOpenBadgePicker={() => setBadgePickerOpen(true)}
+              onCloseBadgePicker={() => setBadgePickerOpen(false)}
+              onAddBadgeBlock={onAddBadgeBlock}
+              onReorderTabs={onReorderTabs}
+            />
+            <CanvasFrame
+              draft={draft}
+              header={header}
+              onReorderBlocks={onReorderBlocks}
+              onReorderTabs={onReorderTabs}
+              onRemoveBlock={onRemoveBlock}
+            />
+          </DragDropContext>
           <PreviewPanel header={header} draft={draft} />
         </div>
       </form>

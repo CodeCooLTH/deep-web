@@ -1,12 +1,10 @@
 /**
  * ตัวจัดหน้าร้าน (feature 00035, Task 7) — shared types ระหว่าง BuilderPage/BuilderClient/
- * BuilderToolbar/DraftDirtyBar/LibraryPanel/CanvasFrame/PreviewPanel — Task 8/9 import จากไฟล์นี้
+ * BuilderToolbar/DraftDirtyBar/LibraryPanel/CanvasFrame/PreviewPanel
  *
- * แบ่งเป็น 2 กลุ่ม:
- *   1) postMessage contract (Host <-> Canvas) — ล็อกแล้วโดย Controller (SDS §4.1, SRS TFR-008)
- *      ฝั่ง Canvas (BuilderPreviewBridge.tsx) implement ตามนี้ไปแล้ว — ห้ามแก้ shape เด็ดขาด
- *   2) Draft state ฝั่ง client (BuilderClient ถือ, ไม่มีตาราง DB — DATABASE §6) + prop contract
- *      ของ 3 คอลัมน์ (LibraryPanel/CanvasFrame/PreviewPanel)
+ * รื้อ canvas จาก iframe เป็น Paces-native (2026-08-07, user เคาะ) — postMessage contract เดิม
+ * (DEEP_BUILDER_DRAFT_STATE / DEEP_BUILDER_BLOCK_RECTS) ถูกถอดทิ้งทั้งชุด ไม่มีผู้ใช้แล้ว
+ * (BuilderPreviewBridge.tsx ที่เคยรับฝั่ง Canvas ถูกลบไปแล้วเช่นกัน — ดูรายงาน Task นี้)
  */
 import type { ProfileTabKey } from '@/lib/profile-tab-keys'
 import type { BuilderLibrary } from '@/services/shop-page-layout.service'
@@ -14,42 +12,9 @@ import type { BuilderLibrary } from '@/services/shop-page-layout.service'
 // ── FORM_ID กลาง — FullscreenPageHeader Save button + DraftDirtyBar บันทึก ต้องชี้ id เดียวกัน ──
 export const BUILDER_FORM_ID = 'shop-page-builder-form'
 
-// ── 1) postMessage contract — ล็อกแล้ว ห้ามแก้ shape (SDS §4.1) ─────────────────────────────
+// ── Draft state (client-only — ไม่มีตาราง DB, DATABASE §6) ────────────────────────────────────
 
-export type DeepBuilderBadgeRef = { id: string; name: string; icon: string }
-
-export type DeepBuilderPostRef = {
-  id: string
-  message: string | null
-  imageUrl: string | null
-  mediaType: string | null
-  reactionCount: number | null
-  fbCommentCount: number | null
-  shareCount: number | null
-}
-
-export type DeepBuilderDraftBlockPayload =
-  | { key: string; type: 'BADGE_HIGHLIGHT'; badges: DeepBuilderBadgeRef[] }
-  | { key: string; type: 'FACEBOOK_POST'; post: DeepBuilderPostRef }
-
-export type DeepBuilderDraftStateMessage = {
-  type: 'DEEP_BUILDER_DRAFT_STATE'
-  payload: { tabOrder: string[]; blocks: DeepBuilderDraftBlockPayload[] }
-}
-
-export type DeepBuilderBlockRect = { key: string; top: number; left: number; width: number; height: number }
-
-export type DeepBuilderBlockRectsMessage = {
-  type: 'DEEP_BUILDER_BLOCK_RECTS'
-  payload: { blocks: DeepBuilderBlockRect[]; scrollTop: number; scrollHeight: number }
-}
-
-export type DeepBuilderMessage = DeepBuilderDraftStateMessage | DeepBuilderBlockRectsMessage
-
-// ── 2) Draft state (client-only — ไม่มีตาราง DB, DATABASE §6) ────────────────────────────────
-
-/** เหรียญ 1 ใบภายในบล็อก BADGE_HIGHLIGHT — เก็บ field เต็ม (render ใน library/canvas/preview);
- *  ตอนส่งเข้า postMessage/PUT API จะถูก map ให้เหลือเท่าที่ contract ต้องการเท่านั้น (lib/draft.ts) */
+/** เหรียญ 1 ใบภายในบล็อก BADGE_HIGHLIGHT — เก็บ field เต็ม (render ใน library/canvas) */
 export type BuilderDraftBadge = {
   /** UserBadge.id — ไม่ใช่ Badge.id (DATABASE §3.2) */
   id: string
@@ -75,7 +40,7 @@ export type BuilderDraftPost = {
 
 export type BuilderDraftBadgeBlock = {
   /**
-   * ตัวระบุที่คงที่ตลอดอายุ draft — ใช้เป็น React key, drag-reorder id, และ postMessage `key`
+   * ตัวระบุที่คงที่ตลอดอายุ draft — ใช้เป็น React key + drag-reorder id (@hello-pangea/dnd draggableId)
    * ก่อนบันทึกครั้งแรก = client-generated (crypto.randomUUID()); หลังบันทึกสำเร็จ = ShopPageBlock.id
    * จริงจาก DB (reconcileSavedLayout ใน lib/draft.ts สลับให้)
    */
@@ -109,7 +74,7 @@ export type BuilderDraft = {
   blocks: BuilderDraftBlock[]
 }
 
-// ── 3) prop contract ของ 3 คอลัมน์ — Task 8/9 implement ให้ตรงเป๊ะ ───────────────────────────
+// ── prop contract ของ 3 คอลัมน์ ────────────────────────────────────────────────────────────
 
 export type LibraryPanelProps = {
   /** ผลลัพธ์ GET .../library หน้าแรก (SSR ที่ BuilderPage) — โหลดเพิ่ม/ค้นหาต่อผ่าน client fetch เอง
@@ -120,21 +85,28 @@ export type LibraryPanelProps = {
   visibleTabKeys: ProfileTabKey[]
   /** draft ปัจจุบัน — คำนวณ "เพิ่มแล้ว" (badge block/facebookPostId ที่อยู่ใน blocks แล้ว) + เลขลำดับแท็บ */
   draft: BuilderDraft
-  /** ผู้ขายกดปุ่มบวกที่ "เหรียญตราเด่น" — เพิ่ม/แทนที่บล็อก BADGE_HIGHLIGHT เดียว (มีได้บล็อกเดียว) */
+  /** id ของโพสต์ที่กำลัง mirror อยู่ (ยกขึ้นมาไว้ที่ BuilderClient เพราะ drag-drop ต้องเรียก handler
+   *  เดียวกับปุ่มบวก — คนละ owner ก็ sync สถานะไม่ตรงกัน) */
+  addingPostId: string | null
+  /** กดปุ่มบวกที่แถวโพสต์ — BuilderClient เป็นคนเรียก mirrorFacebookPost ให้เสร็จก่อนเสมอ (TFR-006) */
+  onAddPostClick: (postId: string) => void
+  /** เปิด/ปิดโมดัลเลือกเหรียญ — ยกสถานะขึ้นไปที่ BuilderClient เพราะการลากบล็อกเหรียญจากคลังเข้า canvas
+   *  ต้องเปิดโมดัลเดียวกันนี้ได้เหมือนกดปุ่มบวก */
+  badgePickerOpen: boolean
+  onOpenBadgePicker: () => void
+  onCloseBadgePicker: () => void
+  /** ยืนยันเลือกเหรียญในโมดัล — เพิ่ม/แทนที่บล็อก BADGE_HIGHLIGHT เดียว (มีได้บล็อกเดียว) */
   onAddBadgeBlock: (badges: BuilderDraftBadge[]) => void
-  /** ผู้ขายกดปุ่มบวกที่โพสต์ — เรียก mirrorFacebookPost() ให้เสร็จก่อนเสมอแล้วค่อยเรียกนี้ (TFR-006) */
-  onAddFacebookPostBlock: (post: BuilderDraftPost) => void
   /** ลาก/ปุ่มลูกศรขึ้นลง สลับลำดับแถวแท็บ — ปุ่มลูกศรเป็น keyboard alternative บังคับ (NFR Accessibility) */
   onReorderTabs: (next: ProfileTabKey[]) => void
-  /** mirror รูปโพสต์ก่อนเพิ่ม (TFR-006) — คืน imageUrl ที่ resolve แล้วเสมอ ไม่ throw (fail-open, TD-004) */
-  mirrorFacebookPost: (facebookPostId: string) => Promise<{ mirrored: boolean; imageUrl: string | null }>
 }
 
 export type CanvasFrameProps = {
-  /** absolute URL ข้าม subdomain ของ /u/{username} หรือ /b/{slug} พร้อม ?builderDraft=1 (TFR-008) */
-  src: string
   draft: BuilderDraft
-  /** ลากสลับลำดับบล็อกเหนือแถบแท็บ ภายใน canvas overlay (SDS §4.2 — host-DOM ล้วน ไม่แตะ iframe จนกว่าจะปล่อยมือ) */
+  /** ข้อมูลหัวโปรไฟล์ตรึงบนสุด (ตรึงตายตัว — ไม่มีที่จับลาก ไม่มีปุ่มลบ) */
+  header: PreviewPanelHeaderData
+  /** ลากสลับลำดับบล็อกเหนือแถบแท็บ ภายใน canvas เอง หรือลากจากคลัง (ซ้าย) มาวางที่นี่ — จัดการที่
+   *  BuilderClient (DragDropContext ต้องเป็น ancestor ร่วมของ LibraryPanel กับ CanvasFrame) */
   onReorderBlocks: (next: BuilderDraftBlock[]) => void
   /** ลากสลับลำดับแท็บจากแถบแท็บใน canvas เอง — sync ทิศทางเดียวกับ library panel */
   onReorderTabs: (next: ProfileTabKey[]) => void

@@ -21,6 +21,11 @@
  *
  * ปุ่มคัดลอก — Base: src/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton.tsx
  *   (iconOnly variant — ตรงกับปุ่มไอคอนสี่เหลี่ยมใน mockup)
+ *
+ * รื้อ canvas (2026-08-07 รอบสอง): เพิ่ม isDirty/onDiscard — render DraftDirtyBar ผ่าน
+ * `belowContent` ของ FullscreenPageHeader แทนที่จะเป็น sibling แยกใน BuilderClient.tsx (เดิมทับกัน
+ * 32px บน prod — ดู comment หัวไฟล์ DraftDirtyBar.tsx) และผูก disableSave={saving || !isDirty}
+ * (เดิมกดบันทึกได้ตลอดแม้ไม่มีอะไรเปลี่ยน)
  */
 import { useState } from 'react'
 
@@ -29,6 +34,8 @@ import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import CopyLinkButton from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/CopyLinkButton'
 import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader'
+
+import DraftDirtyBar from './DraftDirtyBar'
 
 export type BuilderToolbarProps = {
   /** "deepthailand.app/u/" หรือ "deepthailand.app/b/" — โชว์เป็น prefix อ่านอย่างเดียวใน input-group */
@@ -40,6 +47,9 @@ export type BuilderToolbarProps = {
   initialIsPublished: boolean
   saveFormId: string
   saving: boolean
+  /** ยังไม่บันทึก — คุมทั้งปุ่ม Save (disable เมื่อไม่ dirty) และ DraftDirtyBar (แสดงเมื่อ dirty) */
+  isDirty: boolean
+  onDiscard: () => void
 }
 
 export default function BuilderToolbar({
@@ -49,6 +59,8 @@ export default function BuilderToolbar({
   initialIsPublished,
   saveFormId,
   saving,
+  isDirty,
+  onDiscard,
 }: BuilderToolbarProps) {
   const [published, setPublished] = useState(initialIsPublished)
   const [publishPending, setPublishPending] = useState(false)
@@ -97,19 +109,22 @@ export default function BuilderToolbar({
     <FullscreenPageHeader
       title="ตัวจัดหน้าร้าน"
       backHref="/public-profile"
+      isDirty={isDirty}
       saveLabel="บันทึก"
       saveFormId={saveFormId}
-      disableSave={saving}
+      disableSave={saving || !isDirty}
       toolbarLeading={
         <div className="input-group max-w-sm">
-          <span className="input-group-text text-2xs">{handlePrefix}</span>
+          <span className="input-group-text text-xs">{handlePrefix}</span>
           <input className="form-input text-sm" value={handle} readOnly aria-label="ลิงก์หน้าร้าน" />
           <CopyLinkButton value={publicUrl} iconOnly label="คัดลอกลิงก์หน้าร้าน" successMessage="คัดลอกลิงก์หน้าร้านแล้ว" />
         </div>
       }
       toolbarExtra={
         <>
-          <label className="text-default-600 flex shrink-0 items-center gap-2 text-sm">
+          {/* min-h-11 ที่ label ทั้งก้อน (ไม่ใช่แค่ switch ตัวเล็ก) — คลิก/แตะที่ข้อความก็สลับสวิตช์ได้
+              อยู่แล้วโดยธรรมชาติของ <label> ห่อ <input>; ขยายพื้นที่แนวตั้งให้ ≥44px ตามด้วย */}
+          <label className="text-default-600 flex min-h-11 shrink-0 items-center gap-2 text-sm">
             เผยแพร่หน้าร้าน
             <input
               type="checkbox"
@@ -125,13 +140,14 @@ export default function BuilderToolbar({
             href={publicUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn border-default-300 text-default-900 hover:bg-default-50 border shrink-0"
+            className="btn border-default-300 text-default-900 hover:bg-default-50 min-h-11 border shrink-0"
           >
             <Icon icon="external-link" className="me-1 text-base" aria-hidden="true" />
             ดูหน้าร้านจริง
           </a>
         </>
       }
+      belowContent={isDirty ? <DraftDirtyBar formId={saveFormId} saving={saving} onDiscard={onDiscard} /> : null}
     />
   )
 }

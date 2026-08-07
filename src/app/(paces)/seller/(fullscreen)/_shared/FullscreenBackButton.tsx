@@ -7,16 +7,23 @@
  *
  * Base: src/app/(paces)/seller/(dashboard)/_shared/SellerMobileHeader.tsx
  *       (back button: w-11 h-11 rounded-xl + history-aware → /dashboard fallback — pattern เดียวกัน)
+ *
+ * feature 00035 (รื้อ canvas 2026-08-07 รอบสอง) — prop `isDirty` optional: ปุ่มนี้เคย router.push()
+ * ตรง ๆ โดยไม่เช็คว่ามีงานที่ยังไม่บันทึกค้างอยู่ (ตัวจัดหน้าร้านมี useUnsavedChangesGuard ดัก
+ * beforeunload/popstate ไว้แล้ว แต่ปุ่มนี้เป็น in-app navigation ไม่ผ่าน guard นั้นเลย — งานหายเงียบ ๆ)
+ * เด้ง pacesConfirm เดียวกับปุ่ม "ยกเลิก" ก่อนออกเมื่อ isDirty=true — ไม่ส่ง/false = พฤติกรรมเดิมเป๊ะ
  */
 'use client'
 
 import { Icon } from '@iconify/react'
 import { useRouter } from 'next/navigation'
 
-export default function FullscreenBackButton({ backHref }: { backHref?: string }) {
+import { pacesConfirm } from '@/lib/paces-swal'
+
+export default function FullscreenBackButton({ backHref, isDirty }: { backHref?: string; isDirty?: boolean }) {
   const router = useRouter()
 
-  const handleBack = () => {
+  const navigateAway = () => {
     // backHref = ปลายทางตายตัว (เช่น orders/new → /orders เสมอ ไม่ใช่ previous)
     if (backHref) {
       router.push(backHref)
@@ -28,6 +35,18 @@ export default function FullscreenBackButton({ backHref }: { backHref?: string }
     } else {
       router.push('/dashboard')
     }
+  }
+
+  const handleBack = async () => {
+    if (isDirty) {
+      const confirmed = await pacesConfirm.warning(
+        'ออกจากหน้านี้โดยไม่บันทึก?',
+        'การเปลี่ยนแปลงที่ยังไม่บันทึกจะหายไปทั้งหมด',
+        { confirmButtonText: 'ออกจากหน้านี้' },
+      )
+      if (!confirmed) return
+    }
+    navigateAway()
   }
 
   return (

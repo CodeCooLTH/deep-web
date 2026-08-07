@@ -5,6 +5,9 @@
  * ครบชุด (layout + blocks + visible tab keys + library หน้าแรก) ส่งลง <BuilderClient> เป็น prop
  * เดียว ไม่มี client-side fetch ซ้ำตอน mount (TFR-001 postcondition)
  *
+ * รื้อ canvas จาก iframe เป็น Paces-native (2026-08-07, user เคาะ) — ไม่มี canvasSrc/?builderDraft=1
+ * ให้ BuilderClient อีกต่อไป (เคยใช้ฝัง iframe ของ /u,/b ในโหมดพรีวิว) ดูรายงาน task นี้สำหรับเหตุผล
+ *
  * Base: src/app/(paces)/seller/(fullscreen)/orders/new/page.tsx (โครง page.tsx ของหน้า fullscreen —
  *   resolve session→requireActiveShop→fallback card เมื่อไม่มี shop)
  * Base: src/app/(paces)/seller/(dashboard)/public-profile/page.tsx (การคำนวณ publicUrl ข้าม
@@ -119,9 +122,6 @@ export default async function ShopPageBuilderPage() {
   }
 
   const publicUrl = `${proto}://${rootHost}/${pathPrefix}/${handle}`
-  // TFR-008/SDS TD-003 — query param มีผลแค่เปิด BuilderPreviewBridge (ฟัง postMessage) ไม่ใช่ประตู
-  // bypass สิทธิ์ใด ๆ (การเห็นเนื้อหาจริงเมื่อ unpublished มาจาก canAccessShop โดยตรงอยู่แล้ว)
-  const canvasSrc = `${publicUrl}?builderDraft=1`
 
   const avatarRaw = active.kind === 'PERSONAL' ? (owner?.avatar ?? null) : shop.logo
   const initialDraft: BuilderDraft = {
@@ -143,7 +143,6 @@ export default async function ShopPageBuilderPage() {
       publicUrl={publicUrl}
       handlePrefix={`${rootHost}/${pathPrefix}/`}
       handle={handle}
-      canvasSrc={canvasSrc}
       initialDraft={initialDraft}
       initialIsPublished={layout.isPublished}
       visibleTabKeys={visibleTabKeys}

@@ -1,15 +1,19 @@
 'use client'
 
 /**
- * PreviewPanel — คอลัมน์ขวา "พรีวิว" ของตัวจัดหน้าร้าน (feature 00035, Task 7)
+ * PreviewPanel — คอลัมน์ขวา "พรีวิว" ของตัวจัดหน้าร้าน (feature 00035)
  *
  * ไม่ใช่ iframe ตัวที่สอง — re-representation แบบ Paces-native จาก draft state ตรง ๆ (SDS TD-009:
  * ไม่ต้อง pixel-perfect กับ Vuexy ไม่ reuse component จาก views/pages/user-profile/** ตรง ๆ)
- * [สำคัญ] เวอร์ชันนี้เป็น "โครง" ที่ครบตาม prop contract แต่ยังเรียบง่าย — Task 9 ปรับแต่งภาพต่อ
  *
  * Base: docs/superpowers/specs/2026-08-07-00035-builder-mockup-paces.html
  *   หัวข้อ "1 · จอหลัก (Desktop 1440)" คอลัมน์ "พรีวิว" (การ์ดขวา, gradient header แบบเดียวกับ
  *   หัวโปรไฟล์จริง, tab strip, block preview grid) — คัดลอกโครง markup มา ผูกกับ props จริงแทน hardcode
+ *
+ * รื้อ canvas (2026-08-07 รอบสอง) — text-2xs → text-xs ทั้งไฟล์ (audit: 11px เป็นเนื้อหาหลักทั้ง
+ * คอลัมน์ ยกขึ้นเป็น text-xs อย่างต่ำตาม PRODUCT.md §Accessibility) หลัง CanvasFrame.tsx เป็น
+ * Paces-native แล้ว คอลัมน์นี้แสดงเนื้อหาใกล้เคียงกันมาก — ประเมินว่ายังจำเป็นไหม รายงานไว้ใน
+ * ผลส่งงาน (ไม่ลบเอง ตาม dispatch)
  */
 import Icon from '@/components/wrappers/Icon'
 
@@ -22,7 +26,7 @@ export default function PreviewPanel({ header, draft }: PreviewPanelProps) {
     <div className="card h-full flex min-h-0 w-[30%] flex-col"> {/* HR7 carve-out: 30/40/30 ล็อกไว้ตาม SDS §3/mockup — Paces ไม่มี token สัดส่วนคอลัมน์นี้ */}
       <div className="card-header flex items-center py-3">
         <h4 className="card-title flex-1 text-sm">พรีวิว</h4>
-        <span className="badge bg-primary text-2xs text-white">พรีวิว</span>
+        <span className="badge bg-primary text-xs text-white">พรีวิว</span>
       </div>
       <div className="bg-default-100 flex min-h-0 flex-1 justify-center overflow-auto p-4">
         <div className="h-fit w-full overflow-hidden rounded-xl bg-white shadow">
@@ -41,19 +45,19 @@ export default function PreviewPanel({ header, draft }: PreviewPanelProps) {
               {header.shopName}
               {header.isVerified && <Icon icon="rosette-discount-check" className="text-success text-base" aria-hidden="true" />}
             </div>
-            <div className="text-default-400 text-2xs text-center">@{header.username}</div>
+            <div className="text-default-400 text-xs text-center">@{header.username}</div>
             <div className="mt-2 flex justify-center gap-4">
               <div className="text-center">
                 <b className="text-default-900 block text-sm">{header.completedOrders ?? '—'}</b>
-                <span className="text-default-400 text-2xs">ออเดอร์</span>
+                <span className="text-default-400 text-xs">ออเดอร์</span>
               </div>
               <div className="text-center">
                 <b className="text-default-900 block text-sm">{header.completionRate != null ? `${header.completionRate}%` : '—'}</b>
-                <span className="text-default-400 text-2xs">สำเร็จ</span>
+                <span className="text-default-400 text-xs">สำเร็จ</span>
               </div>
               <div className="text-center">
                 <b className="text-default-900 block text-sm">{header.avgRating ?? '—'}</b>
-                <span className="text-default-400 text-2xs">รีวิว</span>
+                <span className="text-default-400 text-xs">รีวิว</span>
               </div>
             </div>
           </div>
@@ -65,8 +69,8 @@ export default function PreviewPanel({ header, draft }: PreviewPanelProps) {
                 key={key}
                 className={
                   i === 0
-                    ? 'badge bg-primary text-2xs rounded-full text-white'
-                    : 'badge bg-default-100 text-default-600 text-2xs rounded-full'
+                    ? 'badge bg-primary text-xs rounded-full text-white'
+                    : 'badge bg-default-100 text-default-600 text-xs rounded-full'
                 }
               >
                 {PROFILE_TAB_LABEL_TH[key]}
@@ -76,7 +80,7 @@ export default function PreviewPanel({ header, draft }: PreviewPanelProps) {
 
           {/* บล็อกเหนือแถบแท็บ — ตามลำดับ draft.blocks จริง */}
           {draft.blocks.length === 0 ? (
-            <p className="text-default-400 text-2xs p-3 text-center">ยังไม่มีบล็อกเหนือแถบแท็บ</p>
+            <p className="text-default-400 text-xs p-3 text-center">ยังไม่มีบล็อกเหนือแถบแท็บ</p>
           ) : (
             draft.blocks.map((block) => (
               <div key={block.key} className="border-default-200 border-b p-3">
@@ -87,10 +91,10 @@ export default function PreviewPanel({ header, draft }: PreviewPanelProps) {
                       {block.badges.map((b) => (
                         <span
                           key={b.id}
-                          className="bg-default-100 text-default-600 text-2xs flex items-center gap-1 rounded-full py-0.5 pe-2 ps-0.5"
+                          className="bg-default-100 text-default-600 text-xs flex items-center gap-1 rounded-full py-0.5 pe-2 ps-0.5"
                         >
                           <span className="bg-primary flex size-4.5 items-center justify-center rounded-full text-white"> {/* HR7 carve-out: ขนาด badge icon ตามที่ mockup กำหนด (4.5 = ระหว่าง size token 4/5) */}
-                            <Icon icon="award" className="text-2xs" aria-hidden="true" />
+                            <Icon icon="award" className="text-xs" aria-hidden="true" />
                           </span>
                           {b.name}
                         </span>
@@ -117,7 +121,7 @@ export default function PreviewPanel({ header, draft }: PreviewPanelProps) {
             ))
           )}
 
-          <p className="text-default-400 text-2xs p-3 text-center">
+          <p className="text-default-400 text-xs p-3 text-center">
             แสดงการจัดเรียงล่าสุดของคุณ
             <br />
             ลิงก์ที่แชร์จะยังเป็นเวอร์ชันที่บันทึกแล้ว

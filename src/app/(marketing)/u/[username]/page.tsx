@@ -27,7 +27,6 @@ import { listServiceResources, serializeServiceResource } from '@/services/servi
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
-import BuilderPreviewBridge from '@views/pages/user-profile/v2/BuilderPreviewBridge'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
 
@@ -51,22 +50,17 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
-export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params
   const user = await findByUsername(username)
   if (!user) return { title: 'ไม่พบผู้ใช้' }
-  // feature 00035 (TFR-008) — URL ที่มี builderDraft=1 มีไว้ให้ builder ฝัง iframe เท่านั้น
-  // ไม่มีเหตุผลให้ search engine เก็บ URL รูปแบบนี้ไว้เลย ไม่ว่าใครจะเปิด (noindex ไม่ผูกกับสิทธิ์)
-  const { builderDraft } = await searchParams
-  const isBuilderPreviewUrl = builderDraft === '1'
   return {
     title: `${user.displayName} (@${user.username})`,
     description: user.shop?.description ?? `โปรไฟล์ความน่าเชื่อถือของ ${user.displayName} บน Deep`,
-    ...(isBuilderPreviewUrl ? { robots: { index: false, follow: false } } : {}),
   }
 }
 
-export default async function PublicProfilePage({ params, searchParams }: Props) {
+export default async function PublicProfilePage({ params }: Props) {
   const { username } = await params
   const user = await findByUsername(username)
   if (!user) notFound()
@@ -85,13 +79,6 @@ export default async function PublicProfilePage({ params, searchParams }: Props)
   // เจ้าของ "หรือทีมงาน" ร้าน (canAccessShop ครอบทั้งสองกรณี) ยังต้องเห็นหน้าปกติแม้ปิดเผยแพร่อยู่
   // — คนละตัวกับ isOwnShop (owner เท่านั้น) ที่ใช้คุมปุ่มแชท ไม่ใช่ publish gate
   const canManagePage = user.shop && viewerId ? await canAccessShop(user.shop.id, viewerId) : false
-
-  // feature 00035 (TFR-008, SDS TD-003) — โหมด draft (mount BuilderPreviewBridge ฟัง postMessage)
-  // เปิดเฉพาะเจ้าของ/ทีมงาน — query param เองไม่มีผลด้าน authorization ใด ๆ (TD-003: origin validation
-  // ต่างหากที่กันข้อมูลปลอมอยู่แล้ว) แต่ไม่มีเหตุผลให้ผู้เยี่ยมชมทั่วไปได้ event listener เปล่า ๆ นี้ —
-  // คนอื่นเปิด URL เดียวกันต้องเห็นหน้าปกติเป๊ะ (ไม่มี Bridge ห่อเลย)
-  const { builderDraft } = await searchParams
-  const isBuilderDraftMode = builderDraft === '1' && canManagePage
 
   // ปิดเผยแพร่ + ผู้ดูไม่ใช่เจ้าของ/ทีมงาน → คืน 200 พร้อมหน้า "ปิดการแสดงผลชั่วคราว" ไม่ใช่ notFound()
   // (ร้านนี้มีอยู่จริง แค่ผู้ขายสวิตช์ปิดไว้เอง — คนละเคสกับ !user ด้านบน) ตัดจบก่อน query หนักด้านล่าง
@@ -266,11 +253,10 @@ export default async function PublicProfilePage({ params, searchParams }: Props)
 
       {/* redesign 2026-07-26 (ทิศทาง C) — ใช้ ShopProfile ร่วมกับ /b/[slug]
           ของเดิม (UserProfile) ยังอยู่ในโค้ดเบสจนกว่า user จะรับงาน แล้วค่อยลบทีเดียว */}
-      {/* feature 00035 — ห่อด้วย BuilderPreviewBridge เฉพาะโหมด draft (เจ้าของ/ทีมงานเปิดจาก builder
-          ผ่าน iframe) ผู้เยี่ยมชมทั่วไปไม่มี Bridge ห่อเลยแม้เดา ?builderDraft=1 มาเอง */}
-      <BuilderPreviewBridge enabled={isBuilderDraftMode}>
-        <ShopProfile
-          data={{
+      {/* feature 00035 (รื้อ canvas 2026-08-07 รอบสอง) — เดิมห่อด้วย BuilderPreviewBridge เฉพาะโหมด
+          draft (เจ้าของ/ทีมงานเปิดจาก builder ผ่าน iframe) ตัด iframe ออกแล้ว ไม่มี Bridge อีกต่อไป */}
+      <ShopProfile
+        data={{
             hero: {
               shopName: profileHeader.shopName ?? profileHeader.fullName,
               username: profileHeader.username,
@@ -330,7 +316,6 @@ export default async function PublicProfilePage({ params, searchParams }: Props)
             blocks: pageBlocks,
           }}
         />
-      </BuilderPreviewBridge>
 
       {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
       <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
