@@ -75,10 +75,21 @@ export default function NewKeywordForm() {
         </div>
       </div>
       <div className="card-footer flex items-center justify-end gap-2">
-        <Link href="/settings/auto-reply" className="btn btn-soft-default">
+        {/* IMPORTANT: `btn-soft-default`/`btn-primary` ไม่มีนิยามใน Paces เลย (grep src/assets/css
+            + theme/paces = 0) และ `.btn` เปล่า ๆ ไม่มีพื้นหลัง/ขอบ — ปุ่มสองใบนี้จึงเป็นตัวหนังสือ
+            ลอย ๆ มาตลอด. KeywordEditorClient เคยเจอและบันทึกไว้แล้ว 3 รอบ แต่ไฟล์นี้ตกสำรวจ
+            ชุดที่ใช้ตอนนี้ยกมาจาก theme/paces/Admin/TS/src ตรง ๆ (combo ที่ธีมใช้ซ้ำหลักสิบครั้ง) */}
+        <Link
+          href="/settings/auto-reply"
+          className="btn border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 border"
+        >
           ยกเลิก
         </Link>
-        <button type="submit" className="btn btn-primary" disabled={busy || !name.trim()}>
+        <button
+          type="submit"
+          className="btn bg-primary hover:bg-primary-hover text-white"
+          disabled={busy || !name.trim()}
+        >
           {busy ? (
             <Icon icon="loader-2" className="me-1 animate-spin" aria-hidden="true" />
           ) : (
