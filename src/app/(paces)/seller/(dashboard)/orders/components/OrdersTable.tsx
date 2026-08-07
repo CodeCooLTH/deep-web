@@ -341,14 +341,23 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
               {/* ประวัติกับร้านเป็น icon ท้ายชื่อ ไม่ใช่ป้ายข้อความ (user สั่ง 2026-08-06)
                   ชื่อ icon + เกณฑ์เสี่ยง user เคาะเอง ไม่ได้เดา (HR12)
                   title = คำอธิบายตอนชี้ค้าง — icon ล้วนที่ไม่มีคำอธิบายคือปริศนา */}
+              {/* icon ล้วนสีเทาจมหายไปกับชื่อ (user บอก 2026-08-06 ว่า "ไม่เด่นเลย") →
+                  ใส่พื้นอ่อน bg-{semantic}/15 + หมึกคู่ -ink ตาม idiom badge ของ Paces
+                  ทั้งคู่ทรงเดียวกัน เพราะเป็นชุดเดียวกัน = "ประวัติลูกค้ากับร้าน" */}
               {stats && stats.orders <= 1 && (
-                <span className="inline-flex shrink-0" title="ลูกค้าใหม่ — สั่งครั้งแรกกับร้าน">
-                  <Icon icon="sparkles" className="text-default-400 text-sm" />
+                <span
+                  className="bg-info/15 text-info-ink inline-flex size-5 shrink-0 items-center justify-center rounded-full"
+                  title="ลูกค้าใหม่ — สั่งครั้งแรกกับร้าน"
+                >
+                  <Icon icon="sparkles" className="text-sm" />
                 </span>
               )}
               {stats && stats.cancelled >= 2 && (
-                <span className="inline-flex shrink-0" title={`เคยยกเลิก ${stats.cancelled} ครั้ง`}>
-                  <Icon icon="flag" className="text-warning-ink text-sm" />
+                <span
+                  className="bg-warning/15 text-warning-ink inline-flex size-5 shrink-0 items-center justify-center rounded-full"
+                  title={`เคยยกเลิก ${stats.cancelled} ครั้ง`}
+                >
+                  <Icon icon="flag" className="text-sm" />
                 </span>
               )}
             </p>
