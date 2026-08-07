@@ -20,10 +20,12 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
+import { formatMonthYearTH } from '@/lib/format-date'
 import { toFileUrl } from '@/lib/file-url'
 import { prisma } from '@/lib/prisma'
 import { applyTabOrder, computeVisibleTabKeys } from '@/lib/profile-tab-keys'
 import { requireActiveShop } from '@/lib/shop-context'
+import { getTierGradient, getTierLabel } from '@/lib/trust-tier'
 import Icon from '@/components/wrappers/Icon'
 import { getPinnedProducts } from '@/services/pin.service'
 import { getProductsByShop } from '@/services/product.service'
@@ -40,7 +42,7 @@ import FullscreenPageHeader from '@/app/(paces)/seller/(fullscreen)/_shared/Full
 
 import BuilderClient from './components/BuilderClient'
 import { blockViewToDraftBlock } from './lib/draft'
-import type { BuilderDraft, PreviewPanelHeaderData } from './types'
+import type { BuilderDraft, BuilderHeaderData } from './types'
 
 export const metadata: Metadata = { title: 'ตัวจัดหน้าร้าน' }
 
@@ -65,8 +67,20 @@ export default async function ShopPageBuilderPage() {
   const isServiceQueue = shop.vertical === 'SERVICE_QUEUE'
 
   // ── SSR initial state ครบชุด (TFR-001 postcondition) — query ชุดเดียวกับที่ /u,/b ใช้จริง ──────
-  const [layout, blocks, library, videos, rooms, services, pinnedProducts, otherProducts, stats, owner, verifiedCount] =
-    await Promise.all([
+  const [
+    layout,
+    blocks,
+    library,
+    videos,
+    rooms,
+    services,
+    pinnedProducts,
+    otherProducts,
+    stats,
+    owner,
+    businessBadgeRows,
+    verifiedCount,
+  ] = await Promise.all([
       getShopPageLayout(shop.id),
       listShopPageBlocks(shop.id),
       getBuilderLibrary({ shopId: shop.id, actorUserId: userId }),
@@ -76,10 +90,38 @@ export default async function ShopPageBuilderPage() {
       getPinnedProducts(shop.id),
       getProductsByShop(shop.id, undefined, { excludePinned: true }),
       getShopProfileStats(shop.id),
+      // trustScore/memberSince/เหรียญของ PERSONAL มาจาก User ไม่ใช่ Shop (Shop.trustScore คง 0 เสมอ
+      // สำหรับ kind=PERSONAL — ดู schema.prisma comment) userBadges ไม่กรอง shopId ตั้งใจ sync กับ
+      // findByUsername (/u/[username]/page.tsx) — พฤติกรรมเดิมของหน้าจริง ไม่ใช่ bug ที่ต้องแก้ที่นี่
       active.kind === 'PERSONAL'
-        ? prisma.user.findUnique({ where: { id: shop.userId }, select: { username: true, avatar: true } })
+        ? prisma.user.findUnique({
+            where: { id: shop.userId },
+            select: {
+              username: true,
+              avatar: true,
+              trustScore: true,
+              createdAt: true,
+              userBadges: { include: { badge: true }, orderBy: { earnedAt: 'desc' } },
+            },
+          })
         : Promise.resolve(null),
-      prisma.verificationRecord.count({ where: { userId: shop.userId, status: 'APPROVED' } }),
+      // เหรียญของ BUSINESS อยู่คนละที่ (UserBadge.shopId ตรง ไม่ผ่าน User) — sync กับ findShopBySlug
+      // (/b/[slug]/page.tsx) ที่ include ผ่าน relation shop.badges
+      active.kind === 'BUSINESS'
+        ? prisma.userBadge.findMany({
+            where: { shopId: shop.id },
+            include: { badge: true },
+            orderBy: { earnedAt: 'desc' },
+          })
+        : Promise.resolve([]),
+      // ยืนยันตัวตน — scope ตาม kind เหมือน /u,/b จริง (เดิมโค้ดนี้ hardcode userId เสมอ ทำให้ร้าน
+      // BUSINESS เห็นสถานะยืนยันของ "เจ้าของ" แทนของ "ร้าน" เอง แก้เป็นส่วนหนึ่งของงานนี้ ดูรายงาน task)
+      prisma.verificationRecord.count({
+        where:
+          active.kind === 'PERSONAL'
+            ? { userId: shop.userId, status: 'APPROVED' }
+            : { shopId: shop.id, status: 'APPROVED' },
+      }),
     ])
 
   const visibleTabKeys = computeVisibleTabKeys({
@@ -128,14 +170,37 @@ export default async function ShopPageBuilderPage() {
     tabOrder: orderedTabKeys,
     blocks: blocks.map(blockViewToDraftBlock),
   }
-  const headerData: PreviewPanelHeaderData = {
+
+  // trustScore: PERSONAL ใช้ User.trustScore, BUSINESS ใช้ Shop.trustScore ของตัวเอง (เหมือน /u,/b)
+  const trustScore = active.kind === 'PERSONAL' ? (owner?.trustScore ?? 0) : shop.trustScore
+  // memberSince: PERSONAL = วันที่สมัครบัญชี (User.createdAt), BUSINESS = วันที่เปิดร้าน (Shop.createdAt)
+  const memberSinceDate = active.kind === 'PERSONAL' ? owner?.createdAt : shop.createdAt
+  const memberSince = memberSinceDate ? formatMonthYearTH(memberSinceDate) : ''
+  // FR-4.8 (เหมือน /u,/b): กรอง badge เฉพาะ seller-context (SELLER|ANY) ก่อนขึ้นหัวโปรไฟล์
+  const rawHeroBadges = active.kind === 'PERSONAL' ? (owner?.userBadges ?? []) : businessBadgeRows
+  const heroBadges = rawHeroBadges
+    .filter((ub) => ub.badge.audience === 'SELLER' || ub.badge.audience === 'ANY')
+    .map((ub) => ({ id: ub.id, name: ub.badge.name, nameEN: ub.badge.nameEN, icon: ub.badge.icon ?? null }))
+
+  const headerData: BuilderHeaderData = {
     shopName: shop.shopName,
     username: handle,
     avatarUrl: toFileUrl(avatarRaw),
+    coverImageUrl: toFileUrl(shop.coverImage),
+    tierGradient: getTierGradient(trustScore),
+    trustScore,
+    tierLabel: getTierLabel(trustScore),
     isVerified: verifiedCount > 0,
+    category: shop.category,
+    memberSince,
+    badges: heroBadges,
+    totalBadgeCount: heroBadges.length,
     completedOrders: stats.completedOrders,
+    customerCount: stats.customerCount,
+    repeatCustomerCount: stats.repeatCustomerCount,
     completionRate: stats.completionRate,
-    avgRating: stats.avgRating,
+    isLodging,
+    isServiceQueue,
   }
 
   return (

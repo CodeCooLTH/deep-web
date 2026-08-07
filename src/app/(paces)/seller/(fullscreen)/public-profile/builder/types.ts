@@ -1,10 +1,15 @@
 /**
  * ตัวจัดหน้าร้าน (feature 00035, Task 7) — shared types ระหว่าง BuilderPage/BuilderClient/
- * BuilderToolbar/DraftDirtyBar/LibraryPanel/CanvasFrame/PreviewPanel
+ * BuilderToolbar/DraftDirtyBar/LibraryPanel/CanvasFrame
  *
  * รื้อ canvas จาก iframe เป็น Paces-native (2026-08-07, user เคาะ) — postMessage contract เดิม
  * (DEEP_BUILDER_DRAFT_STATE / DEEP_BUILDER_BLOCK_RECTS) ถูกถอดทิ้งทั้งชุด ไม่มีผู้ใช้แล้ว
  * (BuilderPreviewBridge.tsx ที่เคยรับฝั่ง Canvas ถูกลบไปแล้วเช่นกัน — ดูรายงาน Task นี้)
+ *
+ * รอบสอง (2026-08-07, "canvas ต้องตรงกับหน้าจริง") — ลบคอลัมน์ "พรีวิว" (PreviewPanel.tsx) ทิ้ง
+ * เพราะซ้ำกับ canvas ~90% หลัง canvas เป็น Paces-native แล้ว (critique จับได้ว่าเทาเปล่า 67%)
+ * `PreviewPanelHeaderData` → เปลี่ยนชื่อเป็น `BuilderHeaderData` (ไม่ใช่ของ "พรีวิว" อีกต่อไป — เป็น
+ * ข้อมูลหัวโปรไฟล์ที่ CanvasFrame ใช้วาด) และขยาย field ให้ครบตามที่หน้าร้านจริงมี (ดูรายงาน task นี้)
  */
 import type { ProfileTabKey } from '@/lib/profile-tab-keys'
 import type { BuilderLibrary } from '@/services/shop-page-layout.service'
@@ -104,7 +109,7 @@ export type LibraryPanelProps = {
 export type CanvasFrameProps = {
   draft: BuilderDraft
   /** ข้อมูลหัวโปรไฟล์ตรึงบนสุด (ตรึงตายตัว — ไม่มีที่จับลาก ไม่มีปุ่มลบ) */
-  header: PreviewPanelHeaderData
+  header: BuilderHeaderData
   /** ลากสลับลำดับบล็อกเหนือแถบแท็บ ภายใน canvas เอง หรือลากจากคลัง (ซ้าย) มาวางที่นี่ — จัดการที่
    *  BuilderClient (DragDropContext ต้องเป็น ancestor ร่วมของ LibraryPanel กับ CanvasFrame) */
   onReorderBlocks: (next: BuilderDraftBlock[]) => void
@@ -114,20 +119,39 @@ export type CanvasFrameProps = {
   onRemoveBlock: (key: string) => void
 }
 
-export type PreviewPanelHeaderData = {
+/**
+ * ข้อมูลหัวโปรไฟล์ที่ canvas ต้องวาด — ครบตามที่ ProfileHero.tsx (หน้าร้านจริง /u,/b) แสดงจริง
+ * (2026-08-07 รอบสอง: canvas เดิมขาดหลายฟิลด์ — user เทียบภาพหน้าจอแล้วทักว่าไม่ตรงกัน)
+ *
+ * ไม่ import `ProfileHeroData` จาก ProfileHero.tsx ตรง ๆ (แม้ field เกือบเหมือนกัน) เพราะไฟล์นั้น
+ * เป็น 'use client' ที่พึ่ง MUI + `--mui-palette-*` (Vuexy token) — canvas วาดด้วย Paces primitive
+ * คนละชุด token กัน (HR1: ห้าม import component/value จากธีมอื่นมาใช้ตรง ๆ) รักษา field ให้ตรงกัน
+ * ด้วยมือแทน — Base ของ field ชุดนี้ (SSOT ที่ต้อง sync ด้วยมือ): ProfileHero.tsx::ProfileHeroData
+ */
+export type BuilderHeaderData = {
   shopName: string
   /** username (PERSONAL) หรือ slug (BUSINESS) — ใช้แสดง @handle เฉย ๆ ไม่ใช่ URL เต็ม */
   username: string
   avatarUrl: string | null
+  coverImageUrl: string | null
+  /** ไล่สีตามระดับความน่าเชื่อถือ (getTierGradient) — ใช้เป็นพื้นหลังปกเมื่อไม่มี coverImageUrl */
+  tierGradient: string
+  trustScore: number
+  tierLabel: string
   isVerified: boolean
+  category: string | null
+  /** ว่าง = ไม่แสดงส่วนนี้ในบรรทัดรอง (กันกรณี query ล้มเหลว/ไม่มีวันที่) */
+  memberSince: string
+  /** เหรียญความสำเร็จของร้าน (audience SELLER|ANY) — แถวชิปใต้ชื่อร้าน คนละอันกับบล็อก BADGE_HIGHLIGHT
+   *  ที่ผู้ขายเลือกเพิ่มเองเหนือแถบแท็บ (เหรียญแถวนี้ render เสมอเมื่อมี ไม่ต้องจัดผ่าน builder) */
+  badges: { id: string; name: string; nameEN: string; icon: string | null }[]
+  totalBadgeCount: number
   completedOrders: number | null
+  customerCount: number | null
+  repeatCustomerCount: number | null
   completionRate: number | null
-  avgRating: number | null
-}
-
-export type PreviewPanelProps = {
-  header: PreviewPanelHeaderData
-  draft: BuilderDraft
+  isLodging: boolean
+  isServiceQueue: boolean
 }
 
 // ── label/icon ไทยของแต่ละ tab key ────────────────────────────────────────────────────────

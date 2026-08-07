@@ -7,7 +7,7 @@
  * คง draft ไว้เสมอ ไม่ล้างค่า (Task 7 §4) — ผู้ใช้กดบันทึกซ้ำได้ทันที
  *
  * desktop-only gate (SDS TD-007): CSS-only `hidden xl:flex` / `xl:hidden` สลับข้อความอธิบาย
- * กับ workspace 3 คอลัมน์จริง — ไม่ใช้ JS `window.innerWidth` (กัน hydration flash)
+ * กับ workspace 2 คอลัมน์จริง — ไม่ใช้ JS `window.innerWidth` (กัน hydration flash)
  *
  * รื้อ canvas จาก iframe เป็น Paces-native (2026-08-07, user เคาะ) — เหตุผล: บั๊ก prod ยืนยันซ้ำ
  * 2 ครั้งว่า BuilderPreviewBridge ไม่ mount เลยเพราะ canManagePage ตัดสินจาก session ของ
@@ -21,9 +21,15 @@
  * ปุ่มบวก (คลิก) และลากวาง ต้องเรียก handler ตัวเดียวกัน ไม่งั้นสถานะ "กำลังเพิ่ม"/โมดัลเปิดค้าง
  * จะไม่ sync กันระหว่าง 2 ทางเข้า (Product Principle 3 — ปุ่มบวกยังต้องเป็นทางหลักคู่กับการลาก)
  *
+ * รอบสอง (2026-08-07, "canvas ต้องตรงกับหน้าจริง") — ลบคอลัมน์ "พรีวิว" (ขวา) ทิ้ง: หลัง canvas
+ * เป็น Paces-native แล้วคอลัมน์นั้นแสดงของซ้ำกับ canvas ~90% ต่างแค่ไม่มีเครื่องมือแก้ไข (critique
+ * จับได้ว่าเทาเปล่า 67%) เหลือ 2 คอลัมน์: คลัง 30% + canvas ที่เหลือ (flex-1, ไม่ต้องตั้ง width เอง
+ * เพราะเดิมมีแค่ library ที่ล็อก 30% ไว้ตัวเดียว canvas เป็น flex-1 อยู่แล้วจึงขยายเต็มที่เหลือทันที)
+ *
  * Base: docs/superpowers/specs/2026-08-07-00035-builder-mockup-paces.html
- *   หัวข้อ "1 · จอหลัก (Desktop 1440)" (โครง toolbar/dirty-bar/3-column) และหัวข้อ
- *   "2 · มือถือ — สิ่งที่เห็นแทน" การ์ด "เหตุผลที่ตัด" (ข้อความ desktop-only + ทางออก)
+ *   หัวข้อ "1 · จอหลัก (Desktop 1440)" (โครง toolbar/dirty-bar — คอลัมน์ "พรีวิว" ในหัวข้อนี้ถูกลบ
+ *   ออกจากโค้ดแล้วตามด้านบน) และหัวข้อ "2 · มือถือ — สิ่งที่เห็นแทน" การ์ด "เหตุผลที่ตัด" (ข้อความ
+ *   desktop-only + ทางออก)
  *
  * ความสูงของ workspace: HR7 carve-out — (fullscreen)/layout.tsx ห่อ children ด้วย
  * `<div class="w-full p-4 md:p-8">` (padding 4 ด้าน, 32px บน xl) FullscreenPageHeader หักลบ
@@ -44,7 +50,6 @@ import type { BuilderLibrary, SavedShopPageLayout } from '@/services/shop-page-l
 import BuilderToolbar from './BuilderToolbar'
 import CanvasFrame from './CanvasFrame'
 import LibraryPanel from './LibraryPanel'
-import PreviewPanel from './PreviewPanel'
 import { useUnsavedChangesGuard } from '../hooks/useUnsavedChangesGuard'
 import { draftToSaveInput, isSameDraft, moveToIndex, reconcileSavedLayout } from '../lib/draft'
 import {
@@ -55,7 +60,7 @@ import {
   type BuilderDraftBlock,
   type BuilderDraftFacebookPostBlock,
   type BuilderDraftPost,
-  type PreviewPanelHeaderData,
+  type BuilderHeaderData,
 } from '../types'
 
 export type BuilderClientProps = {
@@ -67,7 +72,7 @@ export type BuilderClientProps = {
   initialIsPublished: boolean
   visibleTabKeys: ProfileTabKey[]
   initialLibrary: BuilderLibrary
-  header: PreviewPanelHeaderData
+  header: BuilderHeaderData
 }
 
 function newClientKey(prefix: string): string {
@@ -266,7 +271,7 @@ export default function BuilderClient({
         </div>
       </div>
 
-      {/* เดสก์ท็อป (>=xl) — workspace 3 คอลัมน์เต็มรูป */}
+      {/* เดสก์ท็อป (>=xl) — workspace 2 คอลัมน์ (คลัง + canvas) เต็มรูป */}
       <form
         id={BUILDER_FORM_ID}
         onSubmit={handleSave}
@@ -305,7 +310,6 @@ export default function BuilderClient({
               onRemoveBlock={onRemoveBlock}
             />
           </DragDropContext>
-          <PreviewPanel header={header} draft={draft} />
         </div>
       </form>
     </>
