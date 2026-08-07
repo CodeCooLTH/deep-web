@@ -266,7 +266,9 @@ export default function AppointmentBlock({
             accordion แคบแตกคอลัมน์ตามความกว้างจอ ไม่ใช่ตามความกว้างกล่องจริง */}
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span id={`${idPrefix}-appt-resource-label`} className="form-label mb-0">รับนัดโดย</span>
+            {/* 'รับนัดโดย' → 'บริการ' (user สั่ง 2026-08-07 ชี้ที่หน้าจอตรง ๆ) — คำเดิมอธิบาย
+                *ความสัมพันธ์* (ใครเป็นคนรับนัด) แต่สิ่งที่ร้านเลือกจริงคือรายการบริการที่ลูกค้าจะเข้ารับ */}
+            <span id={`${idPrefix}-appt-resource-label`} className="form-label mb-0">บริการ</span>
             {/* ทางออกจาก "ตั้งวันนัดแล้ว" กลับไป "ไม่ตั้งวันนัด" — แทน <option value=""> เดิม
                 ที่หายไปพร้อม dropdown. ต้องเป็นปุ่มแยกที่อยู่ตำแหน่งเดิมเสมอ ไม่ใช่ให้จิ้ม
                 การ์ดที่เลือกอยู่แล้วเพื่อ deselect เพราะ tap นั้นถูกใช้เปิดปฏิทินแก้วันไปแล้ว
@@ -300,6 +302,7 @@ export default function AppointmentBlock({
               >
                 {resources.map((r) => {
                   const active = field.value === r.id
+                  const single = resources.length === 1
                   return (
                     <button
                       key={r.id}
@@ -319,22 +322,38 @@ export default function AppointmentBlock({
                         // (user สั่ง: "เมื่อจิ้มแล้ว ก็ให้ auto open modal ปฏิทินเลย")
                         setDateSheetOpen(true)
                       }}
-                      className={`flex min-h-16 items-center gap-2.5 rounded-lg border p-3 text-left transition-colors ${
+                      className={`overflow-hidden rounded-xl border text-left transition-transform duration-150 active:scale-95 ${
+                        single ? 'flex items-center gap-3 p-2.5' : 'flex flex-col'
+                      } ${
                         active
                           ? 'border-primary ring-primary bg-primary/5 ring-2'
                           : 'border-default-200 hover:border-default-300'
                       }`}
                     >
+                      {/* กล่องบนไม่ใช่ "ที่ใส่รูปที่ยังไม่มี" แต่เป็นแผ่นไอคอนที่ตั้งใจ —
+                          ServiceResourceOption ไม่มี field รูปเลย (ต่างจาก Product.image ของ
+                          BestSellerStrip ที่บางใบมีบางใบไม่มี) ถ้าลอกกรอบรูปมาตรง ๆ จะได้กล่องเทา
+                          ว่างทุกใบตลอดกาล. สีของแผ่นนี้บอกสถานะเลือก ไม่ใช่ของตกแต่ง */}
                       <span
-                        className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
-                          active ? 'bg-primary/15 text-primary' : 'bg-default-100 text-default-500'
-                        }`}
+                        className={`flex shrink-0 items-center justify-center ${
+                          single ? 'size-12 rounded-lg' : 'aspect-video w-full'
+                        } ${active ? 'bg-primary/15 text-primary' : 'bg-default-100 text-default-500'}`}
                       >
-                        <Icon icon="users" className="size-4" />
+                        <Icon icon="users" className={single ? 'size-5' : 'size-7'} />
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="text-dark block truncate text-sm font-medium">{r.name}</span>
-                        <span className="text-default-500 block text-xs">รับพร้อมกัน {r.capacity} คิว</span>
+                      {/* min-h-8 = จอง 2 บรรทัดของ text-xs เสมอ → บรรทัด "รับพร้อมกัน" ของทุกใบใน
+                          แถวอยู่ระดับเดียวกัน (idiom เดียวกับ BestSellerStrip); ใบเดียวไม่ต้องจอง */}
+                      <span className={single ? 'min-w-0 flex-1' : 'min-w-0 p-2'}>
+                        <span
+                          className={`text-dark block font-medium ${
+                            single ? 'truncate text-sm' : 'line-clamp-2 min-h-8 text-xs'
+                          }`}
+                        >
+                          {r.name}
+                        </span>
+                        <span className={`text-default-500 mt-0.5 block ${single ? 'text-xs' : 'text-2xs'}`}>
+                          รับพร้อมกัน {r.capacity} คิว
+                        </span>
                       </span>
                     </button>
                   )

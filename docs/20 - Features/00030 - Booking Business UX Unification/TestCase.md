@@ -76,7 +76,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[UX-Copy]]"]
 
 | ID | เคส | ไฟล์เทส | Expected Result | Linked to |
 |----|-----|---------|------------------|-----------|
-| **TC-BKU-B01** | `resolveOrderVocab` คืน 4 ช่องถูกต้องทั้ง 3 vertical | `src/lib/seller-menu.test.ts` | ONLINE_SALES=(คำสั่งซื้อ,คำสั่งซื้อ,สร้างคำสั่งซื้อ,สร้างคำสั่งซื้อ) · SERVICE_QUEUE=(การเข้ารับบริการ,เข้ารับบริการ,สร้างการเข้ารับบริการ,เข้ารับบริการใหม่) · LODGING=(บิลเข้าพัก,บิลเข้าพัก,เปิดบิลเข้าพัก,เปิดบิลเข้าพัก) | BR-BKU-10 |
+| **TC-BKU-B01** | `resolveOrderVocab` คืน 4 ช่องถูกต้องทั้ง 3 vertical | `src/lib/seller-menu.test.ts` | ONLINE_SALES=(คำสั่งซื้อ,คำสั่งซื้อ,สร้างคำสั่งซื้อ,สร้างคำสั่งซื้อ) · SERVICE_QUEUE=(การเข้ารับบริการ,บริการ,สร้างการเข้ารับบริการ,งานใหม่) · LODGING=(บิลเข้าพัก,บิลเข้าพัก,เปิดบิลเข้าพัก,เปิดบิลเข้าพัก) | BR-BKU-10 |
 | **TC-BKU-B02** | vertical ไม่รู้จัก → fail-safe ชุด `ONLINE_SALES` | เดียวกัน | `resolveOrderVocab('SOMETHING_NEW')` = `ORDER_VOCAB.ONLINE_SALES` | BR-BKU-10 |
 | **TC-BKU-B03** | `resolveOrderMenuLabel` = `noun` ชุดเดียวกัน (ห้ามแยกคลังคำ) | เดียวกัน | เท่ากันทุกค่า (3 vertical + ค่าเพี้ยน) | BR-BKU-09/10 |
 | **TC-BKU-B04** | `nounShort` ไม่ยาวกว่า `noun` ทุก vertical | เดียวกัน | ผ่านทุกตัวใน `ORDER_VOCAB` | UX-Copy §8 ข้อ 6 |

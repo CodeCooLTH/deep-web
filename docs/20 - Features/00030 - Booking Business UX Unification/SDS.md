@@ -116,7 +116,7 @@ export type OrderVocab = {
 
 export const ORDER_VOCAB: Record<string, OrderVocab> = {
   ONLINE_SALES:   { noun: 'คำสั่งซื้อ',        nounShort: 'คำสั่งซื้อ',     createLabel: 'สร้างคำสั่งซื้อ',        createLabelShort: 'สร้างคำสั่งซื้อ' },
-  SERVICE_QUEUE:  { noun: 'การเข้ารับบริการ',  nounShort: 'เข้ารับบริการ',  createLabel: 'สร้างการเข้ารับบริการ',  createLabelShort: 'เข้ารับบริการใหม่' },
+  SERVICE_QUEUE:  { noun: 'การเข้ารับบริการ',  nounShort: 'บริการ',         createLabel: 'สร้างการเข้ารับบริการ',  createLabelShort: 'งานใหม่' },
   LODGING:        { noun: 'บิลเข้าพัก',        nounShort: 'บิลเข้าพัก',     createLabel: 'เปิดบิลเข้าพัก',         createLabelShort: 'เปิดบิลเข้าพัก' },
 }
 
