@@ -55,8 +55,11 @@ export type ChatRowAnchor =
  */
 const SHEET_SHELL = 'bg-card relative max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl pt-2 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-lg' // HR7 carve-out: Paces ไม่มี token viewport-height/safe-area — precedent CustomerPanelSheet.tsx/OrderQrSheet.tsx บรรทัดเดียวกัน
 
-/** ระยะแถว↔เมนู — พอให้เห็นว่าเป็นคนละก้อนแต่ยังอ่านว่าเป็นชุดเดียวกัน */
-const GAP = 12
+/**
+ * ระยะแถว↔แผ่นคำสั่ง (user สั่ง 2026-08-06 รอบสอง: "ขยับ chat ขึ้นไปด้านบนให้หน่อย เด่น ๆ")
+ * กว้างกว่าระยะเมนูทั่วไปโดยตั้งใจ — แถวที่ยกลอยต้องอ่านออกว่าเป็น "ของที่ถูกเพ่ง" ไม่ใช่หัวของแผ่น
+ */
+const GAP = 24
 /** กันชนขอบจอ */
 const EDGE = 8
 
@@ -183,6 +186,24 @@ export default function ChatContextMenu({
     const id = requestAnimationFrame(() => setShown(true))
     return () => cancelAnimationFrame(id)
   }, [row, viewportTick])
+
+  /**
+   * แผ่นสูงขึ้น/เตี้ยลงหลังวัดครั้งแรก → ต้องวัดตำแหน่งแถวใหม่ ไม่งั้นแถวไปนอนใต้แผ่น
+   * (user report 2026-08-06 พร้อมภาพ: แถวโดนทับ)
+   *
+   * ที่ทำให้ความสูงเปลี่ยน "หลัง" layout effect แรกและไม่มีอะไรฟ้อง:
+   *   - แถบเตือน "ปิดเสียงทั้งแอปอยู่" ผูกกับ `appMuted` ที่อ่าน localStorage ใน useEffect =
+   *     รันหลัง paint เสมอ → แผ่นสูงขึ้นอีก ~46px หลังคำนวณตำแหน่งแถวไปแล้ว (นี่คือเคสในภาพ)
+   *   - เพิ่ม/ลบแท็กแล้วชิปขึ้นบรรทัดใหม่, ฟอนต์ Anuphan โหลดเสร็จทีหลัง
+   * ผูกกับขนาดจริงของ element แทนการไล่เดา trigger รายตัว — เพิ่มเงื่อนไขใหม่ในแผ่นทีหลังก็ยังถูก
+   */
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !row) return
+    const ro = new ResizeObserver(() => setViewportTick((t) => t + 1))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [row])
 
   useEffect(() => {
     function onDoc(e: Event) {
