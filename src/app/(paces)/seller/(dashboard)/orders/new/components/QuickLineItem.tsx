@@ -83,11 +83,17 @@ export default function QuickLineItem({
         {/* top: ชื่อ (tap→picker) + รายละเอียด · trash มุมขวา */}
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            {/* แถวว่าง = กล่องมีขอบ + ไอคอนค้นหา/ลูกศร ให้อ่านออกว่า "แตะได้" (user report
-                2026-08-07: ข้อความเทาจางอ่านเป็น placeholder ไม่มีใครรู้ว่าต้องแตะ แล้วเลยไป
-                ติดปุ่มบันทึกที่กดไม่ได้) — ทรงเดียวกับช่องเลือกสินค้าฝั่งเดสก์ท็อป (ProductCombobox)
-                min-h-11 = 44px: ของเดิม px-1.5 py-1 สูงจริงราว 24px ต่ำกว่าเกณฑ์นิ้วสัมผัส
-                แถวที่เลือกสินค้าแล้วยังเป็นข้อความเปล่าเหมือนเดิม ไม่ต้องมีกรอบ (ไม่ใช่ช่องว่างรอกรอก) */}
+            {/**
+             * ทรงเดิม: ข้อความเปล่า ไม่มีกรอบ/ไอคอน (user สั่งคืน 2026-08-07 หลังเห็นของจริง —
+             * กรอบทำให้แถวอ่านเป็นฟอร์มและสูงขึ้น เสียบุคลิก "บรรทัดในสเปรดชีต" ของรายการ)
+             *
+             * แต่ทางตันที่เคยเกิดต้องไม่กลับมา — ปุ่มบันทึกกดได้เสมอแล้ว (ลบ disabled ไปคนละไฟล์)
+             * ตัวแถวจึงไม่ต้องแบกหน้าที่ "สอนว่าต้องแตะตรงนี้" คนเดียวอีก: กดบันทึกตอนยังว่าง
+             * จะได้ toast + ป้าย "ต้องแก้" + ข้อความสีแดงที่ชี้มาที่นี่
+             *
+             * ยังคงไว้จากรอบก่อน: คำผันตามประเภทร้าน (productNoun) และสีแดงตอน validate ไม่ผ่าน
+             * (สีอย่างเดียว ไม่มีกรอบ) · aria-* ให้ screen reader รู้ว่าปุ่มนี้คือจุดที่ผิด
+             */}
             <button
               type="button"
               onClick={(e) => {
@@ -97,25 +103,11 @@ export default function QuickLineItem({
               aria-label={item.name ? `แก้ไข${productNoun} ${item.name}` : `เลือก${productNoun}`}
               aria-invalid={itemsRootError || undefined}
               aria-describedby={itemsRootError ? 'order-items-error' : undefined}
-              className={
-                hasProduct
-                  ? 'w-full truncate rounded-md px-1.5 py-1 text-start text-sm font-semibold text-dark hover:bg-default-100'
-                  : `flex min-h-11 w-full items-center gap-2 rounded-lg border px-3 text-start text-sm font-medium hover:bg-default-50 ${
-                      itemsRootError ? 'is-invalid text-danger' : 'border-default-300 text-default-500'
-                    }`
-              }
+              className={`w-full truncate rounded-md px-1.5 py-1 text-start text-sm font-semibold hover:bg-default-100 ${
+                hasProduct ? 'text-dark' : itemsRootError ? 'text-danger' : 'text-default-400'
+              }`}
             >
-              {hasProduct ? (
-                item.name
-              ) : (
-                <>
-                  <Icon icon="search" className={`size-4 shrink-0 ${itemsRootError ? 'text-danger' : 'text-default-400'}`} />
-                  {/* ไม่ขึ้นต้นด้วย "แตะ": ป้ายบอกสิ่งที่จะได้ ไม่ใช่ท่าที่ต้องทำ — กรอบกับลูกศรบอกอยู่แล้ว
-                      ว่ากดได้ · เลี่ยงคำว่า SKU (ศัพท์เฉพาะ) ใช้ "พิมพ์ชื่อเอง" ที่ตรงกับสิ่งที่แผงทำได้จริง */}
-                  <span className="min-w-0 flex-1 truncate">เลือก{productNoun} หรือพิมพ์ชื่อเอง</span>
-                  <Icon icon="chevron-right" className={`size-4 shrink-0 ${itemsRootError ? 'text-danger' : 'text-default-400'}`} />
-                </>
-              )}
+              {item.name || `เลือก${productNoun} หรือพิมพ์ชื่อเอง`}
             </button>
             <input
               type="text"
