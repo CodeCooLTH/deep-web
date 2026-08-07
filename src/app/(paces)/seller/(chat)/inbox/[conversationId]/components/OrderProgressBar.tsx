@@ -105,7 +105,7 @@ export default function OrderProgressBar({
                     </>
                   ) : (
                     <span className="text-default-700 mt-1 block text-2xs">
-                      ยังไม่ได้เปิดพัสดุ — สั่งซื้อเมื่อ {formatDateTime(new Date(o.createdAt))}
+                      ไม่มีหมายเลขพัสดุ — สั่งซื้อเมื่อ {formatDateTime(new Date(o.createdAt))}
                     </span>
                   )}
                 </button>

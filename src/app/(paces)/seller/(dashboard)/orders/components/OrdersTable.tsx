@@ -178,7 +178,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
         ? [
             {
               value: 'NONE',
-              label: 'ยังไม่ได้เปิดพัสดุ',
+              label: 'ไม่มีหมายเลขพัสดุ',
               badge: { label: none, className: 'bg-warning/15 text-warning-ink' },
             },
           ]
@@ -463,7 +463,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
                   </div>
                 </ShipmentHoverCard>
               ) : (
-                <p className="mb-0 text-xs text-default-400">ยังไม่ได้เปิดพัสดุ</p>
+                <p className="mb-0 text-xs text-default-400">ไม่มีหมายเลขพัสดุ</p>
               )}
             </div>
           </>
