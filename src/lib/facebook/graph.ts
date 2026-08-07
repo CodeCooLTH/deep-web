@@ -139,13 +139,63 @@ export async function subscribePageToApp(pageId: string, pageToken: string): Pro
   })
 }
 
+/**
+ * ไฟล์แนบ/การ์ดของข้อความที่ดึงย้อนหลังจาก Graph
+ *
+ * ข้อควรระวัง: message attachment **ไม่มีฟิลด์ `type`** (ต่างจาก webhook payload ที่มี) — ชนิดของมันดูจาก
+ * "คีย์ไหนโผล่มา" เท่านั้น (`generic_template` / `image_data` / `video_data` / `file_url`)
+ * ดู `fetchThreadMessages` ว่าทำไมการขอ `type` ถึงทำให้ข้อมูลหายทั้งก้อน
+ */
+export interface GraphThreadAttachment {
+  /** ชนิดที่อนุมานจากคีย์ที่ Graph คืนมา — ไม่ใช่ค่าที่ Meta ส่งมาตรง ๆ */
+  kind: 'template' | 'image' | 'video' | 'file'
+  /** หัวข้อ/คำบรรยายของการ์ด (generic_template) — null เมื่อเป็นไฟล์แนบธรรมดา */
+  title: string | null
+  subtitle: string | null
+  /** URL ของสื่อ: image_data.url / video_data.url / file_url / media_url ของการ์ด */
+  mediaUrl: string | null
+  /** true เมื่อรูปนี้คือสติกเกอร์ (image_data.render_as_sticker) */
+  isSticker: boolean
+  name: string | null
+  mimeType: string | null
+  /** ขนาดไฟล์ (byte) เท่าที่ Graph บอก — null เมื่อเป็นการ์ดหรือไม่ได้ส่งมา */
+  size: number | null
+}
+
 export interface GraphThreadMessage {
   id: string
   createdTime: Date
   /** id ของผู้ส่ง — เทียบกับ page id เพื่อรู้ว่าเป็นฝั่งร้านหรือลูกค้า */
   fromId: string | null
   text: string | null
-  attachmentTypes: string[]
+  attachments: GraphThreadAttachment[]
+}
+
+/** map แถว attachment ดิบของ Graph → รูปแบบของเรา (ดู comment ของ GraphThreadAttachment) */
+function toThreadAttachment(raw: Record<string, unknown>): GraphThreadAttachment {
+  const tpl = raw.generic_template as { title?: string; subtitle?: string; media_url?: string } | undefined
+  const img = raw.image_data as { url?: string; render_as_sticker?: boolean } | undefined
+  const vid = raw.video_data as { url?: string } | undefined
+  const fileUrl = typeof raw.file_url === 'string' ? raw.file_url : null
+
+  const kind: GraphThreadAttachment['kind'] = tpl
+    ? 'template'
+    : img
+      ? 'image'
+      : vid
+        ? 'video'
+        : 'file'
+
+  return {
+    kind,
+    title: tpl?.title ?? null,
+    subtitle: tpl?.subtitle ?? null,
+    mediaUrl: img?.url ?? vid?.url ?? fileUrl ?? tpl?.media_url ?? null,
+    isSticker: img?.render_as_sticker === true,
+    name: typeof raw.name === 'string' ? raw.name : null,
+    mimeType: typeof raw.mime_type === 'string' ? raw.mime_type : null,
+    size: typeof raw.size === 'number' ? raw.size : null,
+  }
 }
 
 /**
@@ -159,6 +209,15 @@ export interface GraphThreadMessage {
  *
  * ใช้ /me/conversations?user_id= เหมือน getContactProfile (pageToken resolve /me เป็นเพจเจ้าของเอง)
  * — Messenger เท่านั้น: ฝั่ง Instagram endpoint นี้ตอบ error 2207085 (ดู comment ที่ getContactProfile)
+ *
+ * ข้อควรระวังที่ทำให้ข้อมูลหายมาแล้ว (bug จริง prod 2026-07-30 → 08-07, 542 แถว):
+ * ขอ `attachments` **แบบไม่ระบุซับฟิลด์** เท่านั้น อย่าไประบุเอง. ของเดิมขอ `attachments{type}`
+ * ซึ่ง `type` ไม่ใช่ฟิลด์ของ message attachment (มีเฉพาะใน webhook payload) — Graph **ไม่ตอบ error
+ * แต่ตัดคีย์ `attachments` ทิ้งทั้งก้อนแล้วคืน HTTP 200** ผลคือการ์ด/รูปทุกใบที่มาทางนี้กลายเป็น
+ * placeholder "[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]" มาตลอดโดยไม่มีอะไรฟ้อง
+ * (ยืนยันกับเธรดจริง: `attachments{type}` → `{"id":…}` เปล่า ๆ · `attachments` → generic_template
+ * พร้อม title/subtitle/media_url ครบ). ระบุซับฟิลด์เองเสี่ยงพลาดซ้ำคลาสเดิม — ขอเปล่าไว้ปลอดภัยกว่า
+ * และไม่แพงขึ้น เพราะ Graph ตัดฟิลด์ที่ไม่มีข้อมูลออกให้อยู่แล้ว
  */
 export async function fetchThreadMessages(
   contactExternalId: string,
@@ -168,7 +227,7 @@ export async function fetchThreadMessages(
   const json = await graphFetch('/me/conversations', pageToken, {
     query: {
       user_id: contactExternalId,
-      fields: `messages.limit(${limit}){id,created_time,from,message,attachments{type}}`,
+      fields: `messages.limit(${limit}){id,created_time,from,message,attachments}`,
     },
   })
   const threads = (json.data ?? []) as Array<{
@@ -178,14 +237,14 @@ export async function fetchThreadMessages(
 
   return rows.map((r) => {
     const from = r.from as { id?: string } | undefined
-    const atts = (r.attachments as { data?: Array<{ type?: string }> } | undefined)?.data ?? []
+    const atts = (r.attachments as { data?: Array<Record<string, unknown>> } | undefined)?.data ?? []
     return {
       id: String(r.id),
       createdTime: new Date(String(r.created_time)),
       fromId: from?.id ?? null,
       // Graph คืน message เป็น "" (ไม่ใช่ null) เมื่อเป็นการ์ด/template — normalize ให้เป็น null
       text: typeof r.message === 'string' && r.message.length > 0 ? r.message : null,
-      attachmentTypes: atts.map((a) => a.type ?? 'unknown').filter(Boolean),
+      attachments: atts.map(toThreadAttachment),
     }
   })
 }

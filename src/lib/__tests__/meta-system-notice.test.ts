@@ -75,3 +75,22 @@ describe('parseMetaSystemNotice', () => {
     })
   })
 })
+
+// 2026-08-07: backfill ดึงเนื้อหาการ์ดจริงมาได้แล้ว (แทน placeholder เดิม) — ยังต้องเป็นบรรทัดระบบ
+describe('การ์ดจาก Facebook ที่มีเนื้อหาจริง', () => {
+  it('การ์ดปุ่มโทร → บรรทัดระบบ ไม่ใช่บับเบิลสีร้าน', () => {
+    const notice = parseMetaSystemNotice(
+      '[การ์ดจาก Facebook] โทรหา ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง — ส่งข้อความกระตุ้นให้โทรด้วยเสียงแล้ว',
+    )
+    expect(notice).not.toBeNull()
+    expect(notice!.linkLabel).toBeNull()
+  })
+
+  it('การ์ดโฆษณา → บรรทัดระบบ', () => {
+    expect(parseMetaSystemNotice('[การ์ดจาก Facebook] ราคานี้ฟรีปลายทาง — แจ้งรุ่นมอไซที่ใช้อยู่ได้เลย')).not.toBeNull()
+  })
+
+  it('ข้อความจริงของร้านที่ขึ้นต้นด้วยวงเล็บเหลี่ยม ต้องไม่ถูกจับเป็นบรรทัดระบบ', () => {
+    expect(parseMetaSystemNotice('[ด่วน] ของหมดแล้วนะคะ')).toBeNull()
+  })
+})

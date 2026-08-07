@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendStickerMessage, sendImageGridMessage, GraphApiError, type GraphAttachmentType } from '@/lib/facebook/graph'
+import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendStickerMessage, sendImageGridMessage, GraphApiError, type GraphAttachmentType, type GraphThreadMessage, type GraphThreadAttachment } from '@/lib/facebook/graph'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -215,16 +215,17 @@ export async function syncMissingMessagesFromMeta(
     // ข้อความฝั่งร้าน รวมถึงข้อความที่ระบบอัตโนมัติส่งแทนเพจด้วย)
     const pageId = conv.shopChannel.externalId
 
+    // แปลงเนื้อหา (รวม mirror ไฟล์แนบ) ให้เสร็จก่อนเขียน — ต้องใช้ผลชุดเดียวกันทั้งตอน createMany
+    // และตอนอัปเดต preview ด้านล่าง ไม่งั้นสองที่จะเขียนคนละเรื่องกับข้อความเดียวกัน
+    const contents = await resolveBackfillBatch(missing)
+
     // createMany + skipDuplicates — กัน race กับ webhook ที่อาจยิง mid เดียวกันเข้ามาพร้อมกัน
     // (unique constraint จะ throw ถ้าใช้ create ธรรมดา แล้วทั้งชุดจะล้มเพราะข้อความเดียว)
     const result = await prisma.chatMessage.createMany({
-      data: missing.map((m) => ({
+      data: missing.map((m, i) => ({
         conversationId,
         senderRole: m.fromId === pageId ? 'SHOP' : 'BUYER',
-        type: 'TEXT',
-        // ไม่มีข้อความจริง = การ์ด/template ที่ Graph ไม่ให้เนื้อหา — ใช้ placeholder ชุดเดียวกับ
-        // ฝั่ง webhook เพื่อไม่ให้เกิดบับเบิลว่างเปล่า (บทเรียน bubble ว่าง 2026-07-23)
-        body: m.text ?? syncedFallbackText(m.attachmentTypes),
+        ...contents[i]!,
         createdAt: m.createdTime,
         externalMessageId: m.id,
         // ทางเข้าที่สอง: ข้อความที่ webhook ไม่เคยส่งมา แล้วเราไปดึงจาก Graph เอง — ต้นทางคนละแบบ
@@ -236,13 +237,14 @@ export async function syncMissingMessagesFromMeta(
 
     // อัปเดตสรุปเธรดเฉพาะเมื่อมีข้อความที่ "ใหม่กว่า" ที่เราเคยรู้ — ข้อความเก่าที่เพิ่งเติมย้อนหลัง
     // ต้องไม่ไปเปลี่ยน preview/เวลาในรายการแชทให้ดูเหมือนมีความเคลื่อนไหวใหม่
-    const newest = missing.reduce((a, b) => (a.createdTime > b.createdTime ? a : b))
+    const newestIdx = missing.reduce((best, m, i) => (m.createdTime > missing[best]!.createdTime ? i : best), 0)
+    const newest = missing[newestIdx]!
     if (!conv.lastMessageAt || newest.createdTime > conv.lastMessageAt) {
       await prisma.conversation.update({
         where: { id: conversationId },
         data: {
           lastMessageAt: newest.createdTime,
-          lastMessagePreview: newest.text ?? syncedFallbackText(newest.attachmentTypes),
+          lastMessagePreview: backfillPreview(contents[newestIdx]!),
           lastSenderRole: newest.fromId === pageId ? 'SHOP' : 'BUYER',
         },
       })
@@ -263,34 +265,115 @@ export async function syncMissingMessagesFromMeta(
 const SYNCED_EMPTY_TEXT = '[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]'
 
 /**
- * ป้ายบอกชนิดของ "ข้อความที่ Graph ไม่ให้เนื้อหา" ตอน backfill (user report prod 2026-08-04:
- * การ์ดปุ่มโทรของ Facebook ขึ้นเป็น "[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]" ก้อนเดียว
- * ทั้งที่ Graph บอกชนิด attachment มาแล้ว)
+ * แปลงข้อความที่ดึงย้อนหลังจาก Graph → คอลัมน์ของ ChatMessage
  *
- * `fetchThreadMessages` ขอ `attachments{type}` มาอยู่แล้วและคืนเป็น `attachmentTypes` — โค้ดเดิม
- * โยนทิ้งทั้งหมดแล้วเขียน placeholder เดียวกันหมด ผู้ขายจึงแยกไม่ออกว่านั่นคือการ์ดปุ่มโทร,
- * ลิงก์ที่แชร์ หรือรูป
+ * ประวัติที่ต้องรู้ก่อนแก้ (bug จริง prod 2026-07-30 → 08-07, 542 แถว): เดิมที่นี่มีตารางป้าย
+ * `SYNCED_ATTACHMENT_LABEL` ที่แปลง "ชนิด attachment" เป็นข้อความบอกใบ้ เช่น "[การ์ดปุ่มจาก
+ * Facebook เช่น ปุ่มโทร — …]" — **ตารางนั้นไม่เคยถูกใช้เลยสักครั้งตั้งแต่วันแรก** เพราะ
+ * `fetchThreadMessages` ขอฟิลด์ที่ไม่มีอยู่จริง (`attachments{type}`) แล้ว Graph ตัดข้อมูลทิ้งเงียบ ๆ
+ * (ยืนยันจาก rawMessage บน prod: attachment ที่เคยบันทึกได้มีค่า `unknown` 45 ครั้ง ไม่มีค่าอื่นเลย)
  *
- * Graph ให้แค่ "ชนิด" ไม่ให้ payload ของ template (ไม่มี field ให้ขอ) — ป้ายจึงบอกได้เท่าที่รู้จริง
- * ห้ามเดาเนื้อหาการ์ด
+ * พอขอ `attachments` ให้ถูก เราได้ **เนื้อหาจริง** ของการ์ด (title/subtitle) และ url ของรูป/วิดีโอ
+ * จึงไม่ต้องเดาชนิดเพื่อเขียนป้ายอีกต่อไป — เก็บของจริงลงไปตรง ๆ
+ *
+ * ลำดับการตัดสิน: ไฟล์แนบที่ mirror ได้ → ข้อความที่คนพิมพ์ → เนื้อหาการ์ด → placeholder
+ * (placeholder เหลือไว้สำหรับกรณีที่ Meta ไม่ให้อะไรมาจริง ๆ เท่านั้น)
  */
-const SYNCED_ATTACHMENT_LABEL: Record<string, string> = {
-  template: '[การ์ดปุ่มจาก Facebook เช่น ปุ่มโทร — เปิดดูใน Messenger]',
-  fallback: '[ลิงก์ที่แชร์ — เปิดดูใน Messenger]',
-  image: '[รูปภาพ — เปิดดูใน Messenger]',
-  video: '[วิดีโอ — เปิดดูใน Messenger]',
-  audio: '[ข้อความเสียง — เปิดดูใน Messenger]',
-  file: '[ไฟล์แนบ — เปิดดูใน Messenger]',
-  sticker: '[สติกเกอร์ — เปิดดูใน Messenger]',
+interface BackfillContent {
+  type: string
+  body: string | null
+  imageUrl: string | null
+  attachmentName: string | null
+  attachmentSize: number | null
 }
 
-/** ข้อความที่จะเก็บลง body เมื่อ Graph ไม่ให้เนื้อความ — ใช้ชนิด attachment ตัวแรกที่รู้จัก */
-function syncedFallbackText(attachmentTypes: string[]): string {
-  for (const t of attachmentTypes) {
-    const label = SYNCED_ATTACHMENT_LABEL[t]
-    if (label) return label
+/**
+ * ข้อความของการ์ด: หัวข้อ + คำบรรยาย (Meta ส่งมาเป็นคนละฟิลด์ ทั้งคู่อาจว่าง)
+ *
+ * ต้องมีคำนำหน้า `CARD_PREFIX` เสมอ ห้ามคืนเนื้อหาเปล่า ๆ — การ์ดพวกนี้เครื่องมือของ Meta ส่งแทนเพจ
+ * ไม่ใช่คนพิมพ์ ถ้าปล่อยเป็นข้อความเปล่าจะขึ้นเป็นบับเบิลสีร้าน = ดูเหมือนแอดมินพิมพ์ว่า "โทรหา
+ * <ชื่อร้าน>" เอง (บั๊กเดิม user report 2026-07-31 ที่แก้ไปแล้วรอบหนึ่ง — อย่าทำพังซ้ำตอนเอา
+ * เนื้อหาจริงมาใส่). คำนำหน้านี้คือสิ่งที่ `meta-system-notice` ใช้จับให้ไปแสดงเป็นบรรทัดระบบ
+ *
+ * บรรทัดเดียวเท่านั้น: `parseMetaSystemNotice` ตีข้อความหลายบรรทัดเป็น "ไม่ใช่ข้อความระบบ" โดยตั้งใจ
+ */
+export const CARD_PREFIX = '[การ์ดจาก Facebook]'
+
+function cardText(att: GraphThreadAttachment): string | null {
+  const parts = [att.title, att.subtitle]
+    .filter((s): s is string => !!s && s.trim().length > 0)
+    .map((s) => s.replace(/\s+/g, ' ').trim())
+  return parts.length > 0 ? `${CARD_PREFIX} ${parts.join(' — ')}` : null
+}
+
+/** ชนิดของ ChatMessage สำหรับไฟล์แนบที่ mirror สำเร็จ — เสียงแยกจากไฟล์ด้วย mime */
+function mediaChatType(att: GraphThreadAttachment): string {
+  if (att.kind === 'image') return 'IMAGE'
+  if (att.kind === 'video') return 'VIDEO'
+  if (att.mimeType?.startsWith('audio/')) return 'AUDIO'
+  if (att.mimeType?.startsWith('image/')) return 'IMAGE'
+  if (att.mimeType?.startsWith('video/')) return 'VIDEO'
+  return 'FILE'
+}
+
+async function resolveBackfillContent(m: GraphThreadMessage): Promise<BackfillContent> {
+  const base = { type: 'TEXT', body: null, imageUrl: null, attachmentName: null, attachmentSize: null }
+
+  // สื่อจริงที่ดาวน์โหลดได้ — mirror เข้า storage เราเหมือนทาง webhook (URL ของ Meta หมดอายุ)
+  // การ์ด (kind === 'template') ไม่เข้าทางนี้: media_url ของมันอยู่บน www.facebook.com ซึ่ง**ไม่ได้
+  // อยู่ใน allow-list ของ mirrorRemoteImage** (กัน SSRF) — การขยาย allow-list เป็นเรื่องที่ต้องผ่าน
+  // security review แยก ไม่ใช่ผลพลอยได้ของการแก้บั๊กนี้
+  const media = m.attachments.find((a) => a.kind !== 'template' && !!a.mediaUrl)
+  if (media?.mediaUrl) {
+    const fileId = await mirrorRemoteImage(media.mediaUrl)
+    if (fileId) {
+      return {
+        type: mediaChatType(media),
+        // caption ของไฟล์แนบ (ถ้ามี) — ห้ามยัด placeholder ลง body ตอน mirror สำเร็จ
+        body: m.text,
+        imageUrl: fileId,
+        attachmentName: media.name,
+        attachmentSize: media.size,
+      }
+    }
+    // mirror ไม่ผ่าน (หมดอายุ/ใหญ่เกิน/host ไม่อยู่ใน allow-list) — ยังต้องเก็บข้อความไว้
+    return { ...base, body: m.text ?? UNSUPPORTED_ATTACHMENT_TEXT }
   }
-  return SYNCED_EMPTY_TEXT
+
+  if (m.text) return { ...base, body: m.text }
+
+  const card = m.attachments.map(cardText).find((t): t is string => !!t)
+  if (card) return { ...base, body: card }
+
+  return { ...base, body: SYNCED_EMPTY_TEXT }
+}
+
+/**
+ * แปลงทั้งชุดแบบจำกัดคิวละ 4 — ฟังก์ชันนี้ถูกเรียกในเส้นทางของ request (ตอนเปิดเธรด) และแต่ละ
+ * ข้อความอาจต้องดาวน์โหลดไฟล์ ยิงพร้อมกัน 50 ตัวคือทางลัดสู่ timeout ส่วนไล่ทีละตัวก็ช้าเกิน
+ * ตัวเลข 4 ล้อกับ fan-out ของ iShip price compare ที่ใช้อยู่แล้วในโปรเจกต์นี้
+ */
+/**
+ * preview ในรายการแชทต้อง "สั้นเสมอ" — ล้อกับ SHORT_PREVIEW_BY_ATTTYPE ของฝั่ง webhook
+ * (user report 2026-07-25: placeholder ยาวไปโผล่ใน list) การ์ดที่มีเนื้อหาจริงตัดที่ 100 ตัวอักษร
+ */
+function backfillPreview(c: BackfillContent): string {
+  const short: Record<string, string> = {
+    IMAGE: '[รูปภาพ]',
+    VIDEO: '[วิดีโอ]',
+    AUDIO: '[ข้อความเสียง]',
+    FILE: '[ไฟล์แนบ]',
+  }
+  if (c.imageUrl) return short[c.type] ?? '[ไฟล์แนบ]'
+  return (c.body ?? SYNCED_EMPTY_TEXT).slice(0, 100)
+}
+
+async function resolveBackfillBatch(messages: GraphThreadMessage[]): Promise<BackfillContent[]> {
+  const out: BackfillContent[] = []
+  for (let i = 0; i < messages.length; i += 4) {
+    out.push(...(await Promise.all(messages.slice(i, i + 4).map(resolveBackfillContent))))
+  }
+  return out
 }
 /** เว้นระยะก่อน sync เธรดเดิมซ้ำ — ข้อความปกติมาทาง webhook อยู่แล้ว sync เป็นแค่ตาข่ายรับส่วนที่หลุด */
 const SYNC_THROTTLE_MS = 5 * 60 * 1000
