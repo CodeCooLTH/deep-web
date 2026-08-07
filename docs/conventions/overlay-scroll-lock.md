@@ -57,3 +57,44 @@ component re-render (ดู `feedback_filterdropdown_reusable`) คอมเม�
 - **`DraftOrderProvider`** — บนเดสก์ท็อปเป็นหน้าต่าง dock ขวาที่จงใจไม่บล็อกทั้งจอ (user request
   2026-07-24: "ให้อ่านแชทที่อยู่ข้างหลังได้") การตรึง scroll จะขัดเจตนานั้น
 - **overlay ที่ขับด้วย Preline** — ได้จาก `HSOverlay.open()` อยู่แล้ว ใส่ซ้ำไม่ผิดแต่ไม่จำเป็น
+- **แผงโหลดที่ทับเฉพาะพื้นที่ผลลัพธ์** (`ListBusyOverlay` ในหน้า `/orders`) — ไม่ใช่โมดัล ไม่กินทั้งจอ
+  และจงใจให้เลื่อนไปกับหน้า (สปินเนอร์เป็น `sticky`) การตรึงหน้า 350ms ตอนกดกรองจะขวางคนที่
+  กำลังเลื่อนอยู่มากกว่าช่วย — เหตุผลชุดเดียวกับ `DraftOrderProvider`
+
+## รอบเก็บตก 2026-08-07 — ทำไมรอบแรกตกไป 11 ใบ
+
+รอบแรก (`01132960`) ใส่ให้ 21 ใบ แล้วสแกนซ้ำอีกรอบพบว่ายังตกอีก **11 ใบ** (`18bd8de5` + `d9c149b7`)
+
+🛑 **การไล่สำรวจด้วย "ชื่อไฟล์" มองไม่เห็น overlay ที่ไม่มีไฟล์ของตัวเอง** — ใบที่ตกทั้งหมดเป็น
+JSX ก้อนหนึ่งฝังอยู่ท้ายไฟล์ที่ชื่อไม่ได้บอกว่ามีโมดัลอยู่ข้างใน:
+
+| ไฟล์ | overlay ที่ซ่อนอยู่ข้างใน |
+|---|---|
+| `orders/components/OrdersList.tsx` | โมดัลตัวกรองเต็มจอ |
+| `products/components/ProductsListing.tsx` | โมดัลตัวกรองเต็มจอ (ฝาแฝดกันทุกบรรทัด) |
+| `settings/auto-reply/[id]/KeywordEditorClient.tsx` | `ExceptionSheet` |
+| `orders/[token]/components/SlipViewer.tsx` | lightbox ดูสลิป |
+
+**ให้ไล่จาก "รูปร่างของโค้ด" แทน** แล้วค่อยคัดออกเป็นราย ๆ:
+
+```bash
+# ผู้ต้องสงสัยทั้งหมด
+rg -l --glob '*.tsx' 'fixed[^"]*inset-0|inset-0[^"]*fixed|fixed inset-x-0 bottom-0' "src/app/(paces)" src/components | sort > /tmp/a
+rg -l 'useLockBodyScroll' "src/app/(paces)" src/components | sort > /tmp/b
+comm -23 /tmp/a /tmp/b     # ที่เหลือ = ต้องดูทีละใบว่าใช่โมดัลหรือเป็นแถบ action/layout shell
+```
+
+ผลลัพธ์ยังต้องคัดมือ — `fixed inset-x-0 bottom-0` ใช้ทั้งกับ bottom sheet (ต้องล็อก) และแถบปุ่ม
+ติดขอบล่าง (ห้ามล็อก) เหมือนกันทุกตัวอักษร แยกได้จาก `role="dialog"` + มีฉากทึบคู่กันเท่านั้น
+
+🛑 **การล็อกที่เขียนเองแบบ "ดูเหมือนถูก" อันตรายกว่าการไม่ล็อกเลย** — `SlipViewer.tsx` ไม่ได้ไม่มีล็อก
+มันสั่ง `document.body.style.overflow = 'hidden'` เองพร้อม save/restore ครบ แต่ตกท่า iOS ไป 2 อย่าง
+(`<html>` + `overscroll-behavior-y`) การไล่หาด้วยคำถาม *"ใบไหนยังไม่มี `useLockBodyScroll`"* จะเจอมัน
+แต่การไล่หาด้วยคำถาม *"ใบไหนยังไม่ได้ล็อก"* จะข้ามมันไป เพราะมันล็อกแล้วจริง ๆ แค่ไม่พอ
+
+## หมายเหตุเครื่องมือ
+
+`theme-guard.sh` เช็ค carve-out comment ของ HR7 **เฉพาะบรรทัดเดียวกับ class** (`scan_nocomment`
+กรองด้วย `grep -vE '//|/\*'` ต่อบรรทัด) — คอมเมนต์ที่เขียนไว้บรรทัดบนไม่นับ ไฟล์พวกนั้นจึงแดงค้าง
+มาตลอดโดยไม่มีใครเห็น เพราะ hook ยิงเฉพาะตอนมีคนแก้ไฟล์นั้น ท่าที่ผ่านคือ
+`className={'...' /* เหตุผล */}`
