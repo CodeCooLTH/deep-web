@@ -38,11 +38,27 @@ export default async function FullscreenLayout({ children }: { children: React.R
   // ไม่มีร้านของตัวเอง. resolve active shop; ถ้าไม่มีเลย (nobody, ไม่มีทั้ง Personal + membership) → /choose-shop
   const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
   if (!active) redirect('/choose-shop')
-  // D4: active = Business ที่ยังไม่ onboard (ไม่มี slug) → บังคับไป onboarding (หน้า onboarding อยู่ใต้
-  // (dashboard) ไม่ใช่ fullscreen → redirect ข้ามกลุ่มไม่เกิด loop)
-  if (active.kind === 'BUSINESS' && !active.shop.slug) {
-    redirect(`/business/${active.shop.id}/onboarding`)
-  }
+  /**
+   * ถอดกฎ D4 ออก 2026-08-07 (user report จาก prod) — เดิมที่นี่เขียนว่า:
+   *   if (active.kind === 'BUSINESS' && !active.shop.slug) redirect(`/business/${id}/onboarding`)
+   *
+   * กฎนั้นกลายเป็นทางตันสนิทหลังหน้า business onboarding ถูกถอดทิ้งเมื่อ 2026-08-05:
+   * ปลายทางเหลือแค่ตัว redirect ที่เด้งต่อไป /business ซึ่ง **ไม่มีช่องตั้ง slug** และ /shop
+   * ก็ไม่มีเช่นกัน → ร้าน BUSINESS ที่ยังไม่มี slug จึง **สร้างออเดอร์/สินค้า/ประมูลไม่ได้เลย
+   * และไม่มีทางแก้ด้วยตัวเองจากที่ไหนในระบบ** (user เจอเองบน prod: ร้านสาขาของ BT Premium)
+   *
+   * ที่สำคัญกว่าคือกฎนี้ขัดกับ SSOT อยู่แล้ว — resolveOnboardingGate (src/lib/onboarding-gate.ts)
+   * ตั้งใจบังคับ onboarding **เฉพาะตอนยืนอยู่ในร้านส่วนตัว** และเขียนเหตุผลไว้ตรงตัวว่าถ้าไม่ scope
+   * แบบนั้น ผู้ใช้จะ "หลุดจากงานในร้าน BUSINESS ที่ทำค้างอยู่ ออกไม่ได้" ซึ่งคือสิ่งที่เกิดขึ้นจริง
+   * ที่นี่ เพราะไฟล์นี้ถือกฎ slug เป็นของตัวเองอีกชุดแทนที่จะอ่านจาก SSOT
+   *
+   * slug ไม่เกี่ยวกับการสร้างออเดอร์เลย — มันคือ URL ของโปรไฟล์สาธารณะ /b/{slug} เท่านั้น
+   * (grep: order.service.ts และ POST /api/orders ไม่แตะ shop.slug สักบรรทัด) และลิงก์ที่ส่งให้
+   * ผู้ซื้อคือ /o/{token} ซึ่งไม่ใช้ slug
+   *
+   * [สำคัญ] ถ้าจะบังคับ setup อะไรกับร้าน BUSINESS อีกในอนาคต ให้เพิ่มที่ resolveOnboardingGate
+   * ที่เดียว ห้ามเขียนกฎซ้ำที่ layout — กฎที่อยู่คนละที่กับ SSOT จะเพี้ยนเงียบ ๆ แบบนี้อีก
+   */
 
   return (
     /* safe-area (2026-08-06, viewportFit:'cover'): shell นี้ fixed inset-0 = ทับเต็มจอจริง ๆ
