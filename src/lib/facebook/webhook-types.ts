@@ -32,6 +32,18 @@ const AttachmentPayloadSchema = v.object({
         price: v.optional(v.number()),
         currency: v.optional(v.string()),
         image_url: v.optional(v.string()),
+        // buttons: ต้องประกาศถึงจะรอดมาถึง service — Valibot ตัดฟิลด์ที่ไม่ประกาศทิ้งทุกครั้ง
+        // ใช้เป็นหลักฐานว่า element นี้เป็น "การ์ดจริง" (ดู isRealCard ใน channel-chat.service)
+        // ไม่ได้เอา title ของปุ่มไปแสดง — เรากดแทนลูกค้าไม่ได้ (ดู E3.2 ของ EXTENSIONS-2026-08-07)
+        buttons: v.optional(
+          v.array(
+            v.object({
+              title: v.optional(v.string()),
+              url: v.optional(v.string()),
+              type: v.optional(v.string()),
+            }),
+          ),
+        ),
       }),
     ),
   ),
