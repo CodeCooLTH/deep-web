@@ -39,6 +39,19 @@ export interface OrderStatusBandProps {
     AWAITING_COD: number
     PROBLEM: number
   }
+  /**
+   * จำนวนนัดของวันนี้ — ส่งมา = แทนไทล์ที่ 2 ("กำลังจัดส่ง") ด้วย "นัดวันนี้" (user เคาะ 2026-08-07)
+   *
+   * ทำไมแทนที่แทนที่จะเพิ่มช่องที่ 5: ร้าน SERVICE_QUEUE มี fulfillmentMode = NO_SHIPPING จึงไม่มีวัน
+   * เข้าสถานะ SHIPPED เลย (order-display.ts:6) ไทล์นั้นขึ้น 0 ตลอดกาล — ไม่ใช่ไทล์ที่ "ยังไม่มีข้อมูล"
+   * แต่เป็นไทล์ที่ไม่มีความหมายกับร้านประเภทนี้ตั้งแต่แรก
+   *
+   * แกนของมันต่างจากอีก 3 ช่องโดยตั้งใจ (วันที่ ไม่ใช่ Order.status) — เหมือนที่ชุด shipping ใช้แกน
+   * stage: การ์ดนี้ตอบคำถาม "วันนี้ต้องทำอะไร" ไม่ใช่ "ออเดอร์กระจายตามสถานะยังไง"
+   */
+  appointmentToday?: number
+  /** ชื่อของสิ่งที่นับ ผันตาม vertical (ORDER_VOCAB.noun) — default = ชุด ONLINE_SALES */
+  orderNoun?: string
 }
 
 const ICON_SIZE_CLS = 'size-[30px]' // HR7 carve-out: Paces size-* ไม่มี 30px (size-7=28 เล็กไป, size-8=32 ใหญ่ไป) — 30px ตรง mockup .os-ic
@@ -136,7 +149,12 @@ const SHIPPING_STAGES: {
   },
 ]
 
-export default function OrderStatusBand({ counts, shipping }: OrderStatusBandProps) {
+export default function OrderStatusBand({
+  counts,
+  shipping,
+  appointmentToday,
+  orderNoun = 'คำสั่งซื้อ',
+}: OrderStatusBandProps) {
   // ชุด "ของอยู่ไหน" (ร้านขายออนไลน์) หรือชุด "สถานะการขาย" เดิม — เลือกที่ระดับ props ไม่ใช่ในลูป
   const tiles = shipping
     ? SHIPPING_STAGES.map((st) => ({
@@ -154,15 +172,32 @@ export default function OrderStatusBand({ counts, shipping }: OrderStatusBandPro
          */
         href: `/orders?stage=${st.key}`,
       }))
-    : STATUSES.map((st) => ({
-        key: st.key,
-        label: st.label,
-        icon: st.icon,
-        iconClass: st.iconClass,
-        count: counts[st.key],
-        showBadge: st.showBadge,
-        href: `/orders?status=${st.key}`,
-      }))
+    : STATUSES.map((st) =>
+        // ไทล์ที่ 2 ของร้านที่ใช้ระบบนัด = "นัดวันนี้" แทน SHIPPED ที่เข้าไม่ถึงตลอดกาล
+        st.key === 'SHIPPED' && appointmentToday !== undefined
+          ? {
+              key: st.key,
+              label: 'นัดวันนี้',
+              // icon/สี ยกจาก shortcut-icons.ts ('seller:bookings') ไม่ได้เลือกใหม่ — ไอคอนของ
+              // "การนัด" ในโปรเจกต์นี้ถูกตัดสินไว้แล้วที่นั่น (sibling-surface-parity)
+              icon: 'solar:calendar-mark-bold-duotone',
+              iconClass: 'text-info',
+              count: appointmentToday,
+              // เป็นงานของวันนี้ = มี badge เหมือน PENDING (ต่างจาก SHIPPED เดิมที่เป็นยอดสะสม)
+              showBadge: true,
+              // ปฏิทินคิวงาน ไม่ใช่ /orders?status= — ตัวเลขนี้เป็นแกนวันที่ ตัวกรองสถานะรับไม่ได้
+              href: '/queues',
+            }
+          : {
+              key: st.key,
+              label: st.label,
+              icon: st.icon,
+              iconClass: st.iconClass,
+              count: counts[st.key],
+              showBadge: st.showBadge,
+              href: `/orders?status=${st.key}`,
+            },
+      )
 
   return (
     <div className="card">
@@ -173,7 +208,7 @@ export default function OrderStatusBand({ counts, shipping }: OrderStatusBandPro
       <div className="card-header !py-3 flex items-center justify-between">
         <h4 className="card-title flex items-center gap-1.5">
           <Icon icon="tabler:clipboard-list" className="size-4 text-primary" />
-          {shipping ? 'สถานะคำสั่งซื้อ' : 'คำสั่งซื้อ'}
+          {shipping ? `สถานะ${orderNoun}` : orderNoun}
         </h4>
         <Link href="/orders" className="text-primary text-sm font-medium inline-flex items-center gap-0.5">
           ดูทั้งหมด

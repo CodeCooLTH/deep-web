@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isExclusionViolation } from "@/lib/prisma-errors";
+import { thaiMidnightUtc, todayThaiIsoDate } from "@/lib/date-range";
 import {
   APPOINTMENT_ORDER_TYPE,
   APPOINTMENT_STATUS,
@@ -497,4 +498,37 @@ export async function listAppointments(args: {
     appointmentStatus: r.appointmentStatus,
     buyerName: r.buyerName,
   }));
+}
+
+/**
+ * getTodayAppointmentCount — จำนวนนัดของ "วันนี้" สำหรับไทล์บน Command Center (user สั่ง 2026-08-07)
+ *
+ * ทำไมมีอยู่: ไทล์ที่ 2 ของ OrderStatusBand เดิมคือ Order.status='SHIPPED' ซึ่งร้าน SERVICE_QUEUE
+ * ไม่มีวันเข้าถึง (fulfillmentMode = NO_SHIPPING → ไม่มี SHIPPED state ดู order-display.ts) ไทล์นั้น
+ * จึงขึ้น 0 ตลอดกาล กินพื้นที่ 1 ใน 4 ช่องของแถบ "งานค้างวันนี้" ไปเปล่า ๆ
+ *
+ * ขอบเขตวันใช้ปฏิทินไทยผ่าน thaiMidnightUtc — ห้ามตัดวันด้วย UTC (บทเรียน feature 00033: /sales
+ * กับ /orders เคยตัดคนละแบบกับ dashboard แล้วตัวเลขสองหน้าไม่ตรงกัน)
+ *
+ * เกณฑ์ = ช่วงนัด "คาบเกี่ยว" วันนี้ (start < พรุ่งนี้ && end > วันนี้) ชุดเดียวกับ listAppointments
+ * ไม่ใช่ `serviceStart` อยู่ในวันนี้ — โหมด DAY ที่นัดข้ามหลายวันจะหายไปจากวันกลาง ๆ
+ *
+ * นับรวมนัดที่จบไปแล้ววันนี้ (COMPLETED/NO_SHOW) โดยตั้งใจ — ป้ายเขียนว่า "นัดวันนี้" ซึ่งเป็น
+ * ข้อเท็จจริงของทั้งวัน ไม่ใช่ "ที่ยังไม่ได้ทำ" ตัดออกเฉพาะ CANCELLED เหมือน listAppointments
+ */
+export async function getTodayAppointmentCount(shopId: string): Promise<number> {
+  const iso = todayThaiIsoDate();
+  const [y, m, d] = iso.split("-").map(Number);
+  const from = thaiMidnightUtc(y, m - 1, d);
+  const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
+
+  return prisma.order.count({
+    where: {
+      shopId,
+      serviceResourceId: { not: null },
+      status: { not: "CANCELLED" },
+      serviceStart: { lt: to },
+      serviceEnd: { gt: from },
+    },
+  });
 }

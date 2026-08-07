@@ -410,6 +410,61 @@ export function resolveOrderVocab(vertical: string): OrderVocab {
   return ORDER_VOCAB[vertical] ?? ORDER_VOCAB.ONLINE_SALES
 }
 
+/**
+ * PRODUCT_VOCAB — คลังคำของ "ของที่ร้านขาย" ผันตามประเภทกิจการ (user เคาะ 2026-08-07)
+ *
+ * ทำไมต้องมีชุดที่สองแยกจาก ORDER_VOCAB: ORDER_VOCAB ครอบเฉพาะคำฝั่ง order lifecycle
+ * (คำสั่งซื้อ/บิลเข้าพัก) ส่วนบล็อก "สินค้าขายดี" พูดถึงตัวสินค้าและ**หน่วยนับการขาย** ซึ่งเป็น
+ * คนละแกน — ร้านคิวงานขาย "บริการ" ที่นับเป็น "ครั้ง" ไม่ใช่ "ชิ้น". เอาไปยัดเป็นช่องเพิ่มใน
+ * OrderVocab ไม่ได้เพราะ call site ส่วนใหญ่ของ ORDER_VOCAB ไม่รู้จักสินค้าเลย
+ *
+ * ทำไม soldLine เป็นฟังก์ชันไม่ใช่ verb+unit ให้ call site ต่อเอง: บทเรียน
+ * docs/conventions/... (feature 00030) — ประโยคไทยผันไม่เท่ากันทุกช่อง การต่อสตริงที่ call site
+ * ทำให้ได้ประโยคที่ไม่มีคนพูด แล้วไม่มีใครเห็นจนกว่าจะเปิดร้าน vertical นั้นดูเอง
+ *
+ * ค่าที่ไม่รู้จัก → ชุดของ ONLINE_SALES (fail-safe เดียวกับ resolveOrderVocab)
+ *
+ * IMPORTANT: SSOT เดียวของคำเหล่านี้ — ห้ามประกาศคำชุดคู่ขนานที่ไฟล์อื่น (เหตุผลเดียวกับ
+ * ORDER_VOCAB ด้านบน)
+ */
+export type ProductVocab = {
+  /** หัวข้อบล็อก "ขายดี" — BestSellerStrip (มือถือ) + TopSellingProducts (เดสก์ท็อป) */
+  bestSellerTitle: string
+  /** ลิงก์ท้ายหัวข้อ → /products */
+  viewAllLabel: string
+  /** ไอคอนหน้าบรรทัดยอดขายบนการ์ด (ชื่อเปล่า = tabler ตาม Icon wrapper) */
+  soldIcon: string
+  /** ประโยคยอดขายเต็มบรรทัด — รับจำนวนที่ format แล้ว */
+  soldLine: (formattedCount: string) => string
+}
+
+export const PRODUCT_VOCAB: Record<string, ProductVocab> = {
+  ONLINE_SALES: {
+    bestSellerTitle: 'สินค้าขายดี',
+    viewAllLabel: 'ดูสินค้าทั้งหมด',
+    soldIcon: 'package',
+    soldLine: (n) => `สั่งซื้อแล้ว ${n} ชิ้น`,
+  },
+  SERVICE_QUEUE: {
+    // "ขายดี" ใช้กับงานบริการแล้วฟังเป็นของที่ขายเป็นชิ้น — "ยอดนิยม" ตรงกว่า
+    bestSellerTitle: 'บริการยอดนิยม',
+    viewAllLabel: 'ดูบริการทั้งหมด',
+    soldIcon: 'tool',
+    // หน่วยเป็น "ครั้ง" ไม่ใช่ "ชิ้น" — งานบริการนับเป็นครั้งที่เข้ารับ
+    soldLine: (n) => `ใช้บริการแล้ว ${n} ครั้ง`,
+  },
+  LODGING: {
+    bestSellerTitle: 'ห้องพักยอดนิยม',
+    viewAllLabel: 'ดูห้องพักทั้งหมด',
+    soldIcon: 'bed',
+    soldLine: (n) => `เข้าพักแล้ว ${n} ครั้ง`,
+  },
+}
+
+export function resolveProductVocab(vertical: string): ProductVocab {
+  return PRODUCT_VOCAB[vertical] ?? PRODUCT_VOCAB.ONLINE_SALES
+}
+
 /** ป้ายเมนู /orders — wrapper บาง ๆ ของ resolveOrderVocab().noun ที่ call site เดิมยังใช้อยู่ */
 export function resolveOrderMenuLabel(vertical: string): string {
   return resolveOrderVocab(vertical).noun

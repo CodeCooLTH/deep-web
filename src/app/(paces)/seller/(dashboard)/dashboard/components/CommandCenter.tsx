@@ -42,6 +42,7 @@ export default function CommandCenter({ data }: Props) {
         walletBalance={data.walletBalance ?? 0}
         shopSlug={data.shopSlug ?? null}
         orderCount={data.orderCount ?? 0}
+        orderNoun={data.orderNoun}
         reviewCount={data.reviewCount ?? 0}
         avgRating={data.avgRating ?? 0}
         packageStatus={data.packageStatus ?? 'NOT_SUBSCRIBED'}
@@ -49,14 +50,20 @@ export default function CommandCenter({ data }: Props) {
       />
 
       {/* ยอดขาย — การ์ด mini (sparkline + total เดือนนี้) จิ้ม→เปิด full sheet; null=fetch ล้ม→ซ่อนตัวเอง */}
-      <SalesChartCard initialSeries={data.salesSeries ?? null} />
+      <SalesChartCard initialSeries={data.salesSeries ?? null} orderNoun={data.orderNoun} />
 
       {/* คำสั่งซื้อ — ร้านขายออนไลน์ได้ชุด "ของอยู่ไหน" (รอเลขพัสดุ/รอรับเข้า/กำลังจัดส่ง/มีปัญหา)
-          vertical อื่นได้ชุดสถานะการขายเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่) */}
-      <OrderStatusBand counts={data.orderStatusCounts} shipping={data.shippingStageCounts} />
+          vertical อื่นได้ชุดสถานะการขายเดิม (บ้านพัก/คิวงานไม่มีพัสดุให้ไล่)
+          ร้านคิวงานได้ไทล์ที่ 2 เป็น "นัดวันนี้" แทน "กำลังจัดส่ง" ที่เข้าไม่ถึงตลอดกาล */}
+      <OrderStatusBand
+        counts={data.orderStatusCounts}
+        shipping={data.shippingStageCounts}
+        appointmentToday={data.appointmentTodayCount}
+        orderNoun={data.orderNoun}
+      />
 
       {/* สินค้าขายดี — จิ้ม→สร้างออเดอร์พร้อมสินค้านั้น (feature Quick Create); ว่าง→ไม่ render */}
-      <BestSellerStrip products={data.bestSellers ?? []} />
+      <BestSellerStrip products={data.bestSellers ?? []} vocab={data.productVocab} />
 
       {/* เมนูลัด — รายการมาจากสิทธิ์จริงของผู้ใช้ + ที่เขาเลือกเอง (feature 00027)
           shortcut ว่าง = ไม่ผ่าน gate ร้าน (เช่น session หลุด) → ซ่อนการ์ดไปเลย ไม่โชว์การ์ดเปล่า */}

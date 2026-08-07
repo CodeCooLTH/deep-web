@@ -15,6 +15,8 @@ import {
   resolveOrderMenuLabel,
   resolveOrderVocab,
   ORDER_VOCAB,
+  resolveProductVocab,
+  PRODUCT_VOCAB,
   resolveVisibleSellerMenu,
   sellerMenuItems,
 } from './seller-menu'
@@ -109,15 +111,16 @@ describe('applyOrderLabel', () => {
   })
 })
 
-describe('resolveOrderVocab — คลังคำ 4 ช่อง (feature 00030)', () => {
+describe('resolveOrderVocab — คลังคำ 5 ช่อง (feature 00030 + dateLabel จาก 00033)', () => {
   it.each([
-    ['ONLINE_SALES', 'คำสั่งซื้อ', 'คำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'สร้างคำสั่งซื้อ'],
+    ['ONLINE_SALES', 'คำสั่งซื้อ', 'คำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'สร้างคำสั่งซื้อ', 'วันที่สั่งซื้อ'],
     // nounShort ย่อจาก 'เข้ารับบริการ' → 'บริการ' (user เคาะ 2026-08-05) — หัวหน้าต่างโมดัลในแชท
     // และแท็บล่างมือถือประกอบคำจากช่องนี้ ("บริการใหม่" แทน "การเข้ารับบริการใหม่")
-    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'บริการ', 'สร้างการเข้ารับบริการ', 'เข้ารับบริการใหม่'],
-    ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก'],
-  ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort) => {
-    expect(resolveOrderVocab(vertical)).toEqual({ noun, nounShort, createLabel, createLabelShort })
+    // dateLabel ไม่ใช่ "วันที่" + noun — LODGING/SERVICE_QUEUE มีคอลัมน์วันใช้บริการแยกอยู่แล้ว
+    ['SERVICE_QUEUE', 'การเข้ารับบริการ', 'บริการ', 'สร้างการเข้ารับบริการ', 'เข้ารับบริการใหม่', 'วันที่รับงาน'],
+    ['LODGING', 'บิลเข้าพัก', 'บิลเข้าพัก', 'เปิดบิลเข้าพัก', 'เปิดบิลเข้าพัก', 'วันที่เปิดบิล'],
+  ])('%s', (vertical, noun, nounShort, createLabel, createLabelShort, dateLabel) => {
+    expect(resolveOrderVocab(vertical)).toEqual({ noun, nounShort, createLabel, createLabelShort, dateLabel })
   })
 
   it('vertical ที่ไม่รู้จัก → ชุดของ ONLINE_SALES (fail-safe)', () => {
@@ -134,6 +137,34 @@ describe('resolveOrderVocab — คลังคำ 4 ช่อง (feature 00030
     for (const v of Object.keys(ORDER_VOCAB)) {
       const { noun, nounShort } = ORDER_VOCAB[v]
       expect(nounShort.length).toBeLessThanOrEqual(noun.length)
+    }
+  })
+})
+
+describe('resolveProductVocab — คลังคำฝั่งสินค้า (2026-08-07)', () => {
+  it.each([
+    ['ONLINE_SALES', 'สินค้าขายดี', 'ดูสินค้าทั้งหมด', 'สั่งซื้อแล้ว 12 ชิ้น'],
+    // ร้านคิวงานขายบริการ นับเป็น "ครั้ง" ไม่ใช่ "ชิ้น" — และ "ขายดี" ฟังเป็นของที่ขายเป็นชิ้น
+    ['SERVICE_QUEUE', 'บริการยอดนิยม', 'ดูบริการทั้งหมด', 'ใช้บริการแล้ว 12 ครั้ง'],
+    ['LODGING', 'ห้องพักยอดนิยม', 'ดูห้องพักทั้งหมด', 'เข้าพักแล้ว 12 ครั้ง'],
+  ])('%s', (vertical, bestSellerTitle, viewAllLabel, soldLine) => {
+    const v = resolveProductVocab(vertical)
+    expect(v.bestSellerTitle).toBe(bestSellerTitle)
+    expect(v.viewAllLabel).toBe(viewAllLabel)
+    expect(v.soldLine('12')).toBe(soldLine)
+  })
+
+  it('vertical ที่ไม่รู้จัก → ชุดของ ONLINE_SALES (fail-safe เดียวกับ resolveOrderVocab)', () => {
+    expect(resolveProductVocab('SOMETHING_NEW')).toBe(PRODUCT_VOCAB.ONLINE_SALES)
+  })
+
+  it('ทุก vertical ที่ ORDER_VOCAB รู้จัก ต้องมีใน PRODUCT_VOCAB ด้วย — ไม่งั้นร้านนั้นตกไปใช้คำของร้านขายของเงียบ ๆ', () => {
+    expect(Object.keys(PRODUCT_VOCAB).sort()).toEqual(Object.keys(ORDER_VOCAB).sort())
+  })
+
+  it('soldLine ต้องเอาตัวเลขที่ส่งเข้าไปมาใช้จริง — ประโยคที่ลืมแทรกตัวเลขจะดูปกติจนกว่าจะเปิดร้านนั้นดู', () => {
+    for (const v of Object.keys(PRODUCT_VOCAB)) {
+      expect(PRODUCT_VOCAB[v].soldLine('999')).toContain('999')
     }
   })
 })

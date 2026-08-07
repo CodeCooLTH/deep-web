@@ -35,6 +35,11 @@ import { getTrustLevel } from '@/services/trust-score.service'
 import { getOrdersByShop, getOrderStatusCounts, getShippingStageCounts } from '@/services/order.service'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { getBestSellerProducts } from '@/services/product.service'
+// คำที่ผันตามประเภทกิจการ (ORDER_VOCAB/PRODUCT_VOCAB) — SSOT เดียวของทั้งระบบ
+import { resolveOrderVocab, resolveProductVocab } from '@/lib/seller-menu'
+// นัดวันนี้ (feature 00024) — ตัวกั้น + ตัวนับ สำหรับไทล์ที่ 2 ของ OrderStatusBand
+import { canUseAppointments } from '@/lib/appointments'
+import { getTodayAppointmentCount } from '@/services/appointment.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import RecentOrder from './components/RecentOrder'
@@ -138,6 +143,12 @@ export default async function SellerDashboardPage() {
   let orderStatusCounts = { PENDING: 0, SHIPPED: 0, CONFIRMED: 0, CANCELLED: 0 }
   // ตัวนับ "ของอยู่ไหน" — เฉพาะร้านขายออนไลน์ (user สั่ง 2026-08-04); undefined = การ์ดใช้ชุดเดิม
   let shippingStageCounts: { AWAITING_PARCEL: number; AWAITING_PICKUP: number; SHIPPING: number; AWAITING_COD: number; PROBLEM: number } | undefined
+  // จำนวนนัดวันนี้ — เฉพาะร้านที่ใช้ระบบคิวงานได้ (SERVICE_QUEUE); undefined = ไทล์ที่ 2 คงเป็น "กำลังจัดส่ง"
+  let appointmentTodayCount: number | undefined
+  // คำที่ผันตามประเภทกิจการ — resolve ที่นี่ที่เดียวแล้วส่งลง CommandCenter
+  // ประกาศไว้ชั้นนอกเพราะ `shop` เป็น block-scoped อยู่ใน try ด้านล่าง แต่ต้องใช้ตอน render
+  let orderNoun = resolveOrderVocab('ONLINE_SALES').noun
+  let productVocab = resolveProductVocab('ONLINE_SALES')
   // v8: walletBalance สำหรับ WalletCard — fallback 0 ถ้า fetch ล้ม (pattern เดียวกับ getOrderStatusCounts)
   let walletBalance = 0
   // สินค้าขายดี (feature Quick Create) — strip บน command center จิ้ม→/orders/new?product=; fallback []
@@ -188,6 +199,10 @@ export default async function SellerDashboardPage() {
       // แถบแพ็กเกจ (Row 3 มือถือ) — ต้องอยู่หลัง requireActiveShop เพราะ resolve จาก shop.userId
       // (เจ้าของร้าน) ไม่ใช่ session user; inner try/catch เพื่อไม่ให้ล้มลาม block นี้ทั้งก้อน
       if (shop) {
+        // คำเรียก order/สินค้า ผันตามประเภทกิจการ — ต้องอยู่ก่อนทุก branch ที่ใช้ shop.vertical
+        orderNoun = resolveOrderVocab(shop.vertical).noun
+        productVocab = resolveProductVocab(shop.vertical)
+
         packageCanManage = active?.role === 'OWNER'
         try {
           const subscription = await getSubscriptionStatus(shop.userId)
@@ -262,11 +277,13 @@ export default async function SellerDashboardPage() {
 
         // perf: query เหล่านี้ independent → ยิงขนาน (Promise.allSettled) แทน sequential
         // wall time = max(query) ไม่ใช่ผลรวม; allSettled กัน 1 ตัวล้มทำตัวอื่นพัง (คง fallback เดิม)
-        const [statusRes, shippingStageRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes, channelRes, activityRes, provinceRes] =
+        const [statusRes, shippingStageRes, appointmentTodayRes, balanceRes, ordersRes, ratingRes, liveAuctionRes, bestSellerRes, salesSeriesRes, shortcutRes, channelRes, activityRes, provinceRes] =
           await Promise.allSettled([
             getOrderStatusCounts(shop.id),
             // ร้านอื่นไม่ต้องเสีย query — ส่ง null แทน แล้วข้ามผลด้านล่าง
             shop.vertical === 'ONLINE_SALES' ? getShippingStageCounts(shop.id) : Promise.resolve(null),
+            // นัดวันนี้ — เฉพาะร้านที่ผ่านตัวกั้นระบบคิวงาน (BR-RSV-01); ร้านอื่นไม่ต้องเสีย query
+            canUseAppointments(shop) ? getTodayAppointmentCount(shop.id) : Promise.resolve(null),
             getBalance(shop.id),
             // getRecentActivity ถูกถอดออก 2026-08-04 พร้อมการตัด "กิจกรรมล่าสุด" ออกจากหน้าแรก —
             // มันรวม 5 แหล่ง (Order/Review/SMS/TopUp/StockMovement) ที่ไม่มีใครใช้ในหน้านี้แล้ว
@@ -301,6 +318,11 @@ export default async function SellerDashboardPage() {
         // ซึ่งอ่านได้ว่า "ไม่มีงานค้างเลย" ทั้งที่จริงคือเราไม่รู้
         if (shippingStageRes.status === 'fulfilled') shippingStageCounts = shippingStageRes.value ?? undefined
         else console.error('[dashboard] getShippingStageCounts failed', shippingStageRes.reason)
+
+        // ล้ม = ไม่ส่งตัวเลขไป → ไทล์ที่ 2 ตกกลับเป็น "กำลังจัดส่ง" (ซึ่งจะเป็น 0) ดีกว่าโชว์
+        // "นัดวันนี้ 0" ทั้งที่จริง ๆ อาจมีนัดอยู่ — เลข 0 ที่ผิดอันตรายกว่าไทล์ที่ไม่เกี่ยว
+        if (appointmentTodayRes.status === 'fulfilled') appointmentTodayCount = appointmentTodayRes.value ?? undefined
+        else console.error('[dashboard] getTodayAppointmentCount failed', appointmentTodayRes.reason)
 
         // v8: walletBalance — fallback 0 ถ้าล้ม
         if (balanceRes.status === 'fulfilled') walletBalance = balanceRes.value
@@ -467,6 +489,11 @@ export default async function SellerDashboardPage() {
             pendingOrderCount,
             orderStatusCounts,
             shippingStageCounts,
+            // ร้านคิวงาน: ไทล์ที่ 2 = "นัดวันนี้" แทน "กำลังจัดส่ง" (user เคาะ 2026-08-07)
+            appointmentTodayCount,
+            // คำที่ผันตามประเภทกิจการ (SSOT = src/lib/seller-menu.ts)
+            orderNoun,
+            productVocab,
             promoBanner: PROMO_BANNER,
             // v8: header card + wallet (S-6/S-8)
             walletBalance,

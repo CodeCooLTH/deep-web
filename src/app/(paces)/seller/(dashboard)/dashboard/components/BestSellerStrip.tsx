@@ -25,6 +25,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+import { PRODUCT_VOCAB, type ProductVocab } from '@/lib/seller-menu'
 import ProductThumb from '../../orders/new/components/ProductThumb'
 
 const formatThb = (n: number) =>
@@ -41,9 +42,16 @@ interface Product {
 
 interface Props {
   products: Product[]
+  /**
+   * คำฝั่งสินค้าที่ผันตามประเภทกิจการ (PRODUCT_VOCAB) — default = ชุด ONLINE_SALES
+   *
+   * ร้านคิวงานขาย "บริการ" ที่นับเป็น "ครั้ง" ไม่ใช่ "ชิ้น" — soldLine จึงเป็นทั้งประโยค
+   * ไม่ใช่ verb+unit ให้ที่นี่ต่อเอง (ประโยคไทยผันไม่เท่ากันทุก vertical)
+   */
+  vocab?: ProductVocab
 }
 
-export default function BestSellerStrip({ products }: Props) {
+export default function BestSellerStrip({ products, vocab = PRODUCT_VOCAB.ONLINE_SALES }: Props) {
   const router = useRouter()
   if (!products.length) return null
 
@@ -56,11 +64,11 @@ export default function BestSellerStrip({ products }: Props) {
         <h4 className="card-title flex items-center gap-1.5">
           {/* trophy คงสี warning เดิม — สี = ตัวตนของ "ขายดี" ไม่ใช่ icon นำทางแบบพี่น้อง */}
           <Icon icon="trophy" className="size-4 text-warning" />
-          สินค้าขายดี
+          {vocab.bestSellerTitle}
         </h4>
         {/* label เดียวกับปุ่มบน TopSellingProducts (เดสก์ท็อป) — ปลายทางเดียวกัน /products */}
         <Link href="/products" className="text-primary text-sm font-medium inline-flex items-center gap-0.5">
-          ดูสินค้าทั้งหมด
+          {vocab.viewAllLabel}
           <Icon icon="chevron-right" className="size-4" />
         </Link>
       </div>
@@ -76,7 +84,7 @@ export default function BestSellerStrip({ products }: Props) {
               key={p.id}
               type="button"
               onClick={() => router.push(`/orders/new?product=${p.id}`)}
-              aria-label={`${p.name} ${formatThb(p.price)} สั่งซื้อแล้ว ${p.soldCount} ชิ้น — เพิ่มลงออเดอร์ใหม่`}
+              aria-label={`${p.name} ${formatThb(p.price)} ${vocab.soldLine(String(p.soldCount))} — เพิ่มลงออเดอร์ใหม่`}
               className={`${single ? 'w-full' : 'w-28 shrink-0 snap-start'} overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95`}
             >
               {/* ProductThumb: สัดส่วนคุมที่กรอบ ไม่ใช่ที่ <img> (img เป็น replaced element มี intrinsic
@@ -89,8 +97,8 @@ export default function BestSellerStrip({ products }: Props) {
                 <p className="mt-0.5 truncate text-sm font-bold text-primary">{formatThb(p.price)}</p>
                 {/* จำนวนสั่งซื้อ (ไม่รวมออเดอร์ที่ยกเลิก) — ลำดับซ้าย→ขวา = ขายดีสุดก่อน */}
                 <p className="mt-1 flex items-center gap-1 truncate text-2xs text-default-400">
-                  <Icon icon="package" className="size-3 shrink-0" />
-                  สั่งซื้อแล้ว {p.soldCount.toLocaleString('th-TH')} ชิ้น
+                  <Icon icon={vocab.soldIcon} className="size-3 shrink-0" />
+                  {vocab.soldLine(p.soldCount.toLocaleString('th-TH'))}
                 </p>
               </div>
             </button>

@@ -19,6 +19,9 @@ export type { ActivityItem }
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
 export type { BusinessPackageStatusApp, BusinessPackageTier }
 
+// ─── คำที่ผันตามประเภทกิจการ (SSOT = src/lib/seller-menu.ts) ──────────────────
+import type { ProductVocab } from '@/lib/seller-menu'
+
 // ─── PromoBanner ─────────────────────────────────────────────────────────────
 // Phase 2: Promo model + admin CRUD + dynamic banner ค่อยเพิ่ม
 export type PromoBanner = {
@@ -52,6 +55,22 @@ export type CommandCenterData = {
     AWAITING_COD: number
     PROBLEM: number
   }
+  /**
+   * จำนวนนัดของวันนี้ — มีเฉพาะร้านที่ผ่าน canUseAppointments (SERVICE_QUEUE) เท่านั้น
+   * ส่งมา = ไทล์ที่ 2 ของ OrderStatusBand เปลี่ยนจาก "กำลังจัดส่ง" (ที่ร้านประเภทนี้เข้าไม่ถึง
+   * ตลอดกาล) เป็น "นัดวันนี้" — ดูเหตุผลเต็มใน OrderStatusBandProps.appointmentToday
+   */
+  appointmentTodayCount?: number
+
+  /**
+   * คำเรียก order ของร้านนี้ (ORDER_VOCAB.noun) + คำฝั่งสินค้า (PRODUCT_VOCAB)
+   *
+   * resolve ที่ page.tsx ที่เดียวแล้วส่งลงมา — ห้ามให้ component ปลายทาง resolve เอง เพราะ
+   * ตัวที่เป็น client component ('use client') จะต้องดึง shop.vertical เข้ามาเองซึ่งไม่มีให้
+   */
+  orderNoun?: string
+  productVocab?: ProductVocab
+
   /** ตัดออก 2026-08-04 — "กิจกรรมล่าสุด" ถูกถอดจากหน้าแรก (user: "ดูยาก เอาออก")
    *  ยังคง re-export type ActivityItem ไว้ข้างบน เพราะ /notifications ใช้อยู่ */
   promoBanner: PromoBanner | null

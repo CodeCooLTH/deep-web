@@ -35,6 +35,8 @@ import SalesChartSheet from './SalesChartSheet'
 type Props = {
   /** null/undefined = fetch เดือนนี้ล้มตอน SSR → ซ่อนการ์ดทั้งหมด (honest-hide) */
   initialSeries: SalesSeries | null | undefined
+  /** ชื่อของสิ่งที่นับเป็น "ใบ" ผันตาม vertical (ORDER_VOCAB.noun) — default = ชุด ONLINE_SALES */
+  orderNoun?: string
 }
 
 /** ช่วงที่การ์ดโชว์ — ตั้งชื่อ Period แยกจาก Mode ('daily'|'monthly') ของชีตโดยตั้งใจ:
@@ -53,7 +55,7 @@ const RECENT_DAYS = 14
  */
 const TODAY_AXIS_ANCHOR_INDEXES = [0, 4, 7, 10, RECENT_DAYS - 1]
 
-export default function SalesChartCard({ initialSeries }: Props) {
+export default function SalesChartCard({ initialSeries, orderNoun = 'คำสั่งซื้อ' }: Props) {
   const [open, setOpen] = useState(false)
   const [period, setPeriod] = useState<Period>('month')
 
@@ -135,7 +137,9 @@ export default function SalesChartCard({ initialSeries }: Props) {
   const monthSeries = [
     { name: 'ยืนยันแล้ว', type: 'column', data: maskFuture(confirmedValues) },
     { name: 'รอยืนยัน', type: 'column', data: maskFuture(unconfirmedValues) },
-    { name: 'คำสั่งซื้อ', type: 'line', data: maskFuture(orderCounts) },
+    // ชื่อซีรีส์นี้ถูกอ้างซ้ำที่ yaxis[2].seriesName — ต้องมาจากตัวแปรเดียวกัน ไม่งั้นร้านที่ผันคำ
+    // แล้วสองที่ไม่ตรงกัน ApexCharts จะผูกเส้นเข้าแกนผิด (เส้นแบนติดพื้น) โดยไม่มี error
+    { name: orderNoun, type: 'line', data: maskFuture(orderCounts) },
   ]
   /** ซ้อน 2 ก้อนเหมือนกราฟเดือนเป๊ะ — ชื่อ/ลำดับ/สีต้องตรงกัน ไม่งั้นสลับแท็บแล้วสีเดียวกัน
    *  หมายถึงคนละสถานะ (แถว legend ใต้เลขฮีโร่เป็นตัวเดียวกันทั้งสองโหมด ไม่ได้เปลี่ยนตามแท็บ) */
@@ -260,7 +264,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
       {
         show: false,
         opposite: true,
-        seriesName: 'คำสั่งซื้อ',
+        seriesName: orderNoun,
         min: 0,
         max: maxOrderCount > 0 ? Math.ceil(maxOrderCount * (hasStaggeredLabel ? 1.45 : 1.3)) : undefined,
       },
@@ -432,7 +436,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
             type="button"
             onClick={() => setOpen(true)}
             className="block w-full text-start"
-            aria-label={`ยอดขาย${isToday ? 'วันนี้' : 'เดือนนี้'} ${formatNumberNoSymbol(heroValue)} บาท จาก ${isToday ? todayOrderCount : legendOrderCount} คำสั่งซื้อ ยืนยันแล้ว ${formatNumberNoSymbol(legendConfirmed)} บาท รอยืนยัน ${formatNumberNoSymbol(legendUnconfirmed)} บาท กดเพื่อดูรายงานฉบับเต็ม`}
+            aria-label={`ยอดขาย${isToday ? 'วันนี้' : 'เดือนนี้'} ${formatNumberNoSymbol(heroValue)} บาท จาก ${isToday ? todayOrderCount : legendOrderCount} ${orderNoun} ยืนยันแล้ว ${formatNumberNoSymbol(legendConfirmed)} บาท รอยืนยัน ${formatNumberNoSymbol(legendUnconfirmed)} บาท กดเพื่อดูรายงานฉบับเต็ม`}
           >
             <div className="flex items-center justify-between gap-2">
               {/* ไม่มี ฿ และไม่มีคำนำหน้า — user สั่งตรง ๆ ("ไม่ต้อง ฿ มาก็ได้ เพราะเราขายคนไทย",
@@ -472,7 +476,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
               {isToday && (
                 <span className="inline-flex items-center gap-1.5">
                   <Icon icon="receipt-2" className="size-3.5 shrink-0 text-default-500" aria-hidden="true" />
-                  <b className="font-semibold text-default-800">{todayOrderCount}</b> คำสั่งซื้อ
+                  <b className="font-semibold text-default-800">{todayOrderCount}</b> {orderNoun}
                 </span>
               )}
               <span className="inline-flex items-center gap-1.5">
@@ -488,7 +492,7 @@ export default function SalesChartCard({ initialSeries }: Props) {
               {!isToday && (
                 <span className="inline-flex items-center gap-1.5">
                   <span className="bg-primary h-0.5 w-3 shrink-0" aria-hidden="true" />
-                  คำสั่งซื้อ <b className="font-semibold text-default-800">{legendOrderCount}</b>
+                  {orderNoun} <b className="font-semibold text-default-800">{legendOrderCount}</b>
                 </span>
               )}
             </div>

@@ -38,6 +38,13 @@ export interface CompactHeroProps {
   walletBalance: number
   shopSlug: string | null
   orderCount: number
+  /**
+   * ชื่อของสิ่งที่ orderCount นับ ผันตาม vertical (ORDER_VOCAB.noun) — default = ชุด ONLINE_SALES
+   *
+   * ใช้ noun เต็มไม่ใช่ nounShort ทั้งที่ช่องแคบ: คำอยู่ **หลังตัวเลข** ("1 บริการ") ซึ่งอ่านเป็น
+   * "บริการ 1 อย่าง" ไม่ใช่ "งาน 1 ใบ" — กลุ่มสถิตินี้มี truncate รองรับคำยาวอยู่แล้ว
+   */
+  orderNoun?: string
   reviewCount: number
   avgRating: number     // 0–5
   notiCount?: number
@@ -57,6 +64,7 @@ export default function CompactHero({
   walletBalance,
   shopSlug,
   orderCount,
+  orderNoun = 'คำสั่งซื้อ',
   reviewCount,
   avgRating,
   notiCount = 0,
@@ -245,7 +253,7 @@ export default function CompactHero({
               <div className="flex items-center gap-1.5 min-w-0 overflow-hidden whitespace-nowrap">
                 <span>
                   <strong className="text-white font-semibold">{orderCount.toLocaleString('th-TH')}</strong>{' '}
-                  คำสั่งซื้อ
+                  {orderNoun}
                 </span>
                 <span className="opacity-50">·</span>
                 <span>
