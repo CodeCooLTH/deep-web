@@ -135,6 +135,19 @@ export default function AppointmentBlock({
   const selected = resources.find((r) => r.id === value.resourceId) ?? null
   /** ปฏิทินเต็มจอเลือกวันนัด (user สั่ง 2026-08-07) */
   const [dateSheetOpen, setDateSheetOpen] = useState(false)
+  /**
+   * คิวงานที่เพิ่งกดในคลิกนี้ — ใช้ป้อนปฏิทิน**เท่านั้น** ไม่แตะตรรกะอื่นของฟอร์ม
+   *
+   * ปฏิทินถูกสั่งเปิดในคลิกเดียวกับที่เลือกคิวงาน แต่ resourceId/capacity ที่มันได้เดินทาง
+   * มาจาก useWatch ของ OrderCreateForm ซึ่งอัปเดตแบบ async (หลักฐาน lag ของ pattern
+   * เดียวกัน: OrderCreateForm.tsx:456-459 pendingAppend guard) เฟรมแรกจึงอาจได้ค่าเก่า
+   * แล้วปฏิทินโหลดความว่างของคิวผิดตัว หรือไม่โหลดเลย
+   *
+   * ตั้งใจไม่เอาไป fallback ให้ `selected` ด้วย — `selected` เป็นตัวคุมว่าฟิลด์วันที่/เวลา/
+   * มัดจำจะโผล่ไหม ถ้าให้ค่าที่จำไว้เองมามีสิทธิ์ตรงนั้น กด "ล้างวันนัด" แล้วฟิลด์จะไม่ยอมหาย
+   */
+  const [pickedForSheet, setPickedForSheet] = useState<ServiceResourceOption | null>(null)
+  const sheetResource = selected ?? pickedForSheet
 
   // ── โหลดคิวที่ถูกจองแล้วของคิวงาน+วันที่เลือก (ครั้งเดียวต่อ resource+วัน) ──
   useEffect(() => {
@@ -262,6 +275,7 @@ export default function AppointmentBlock({
               <button
                 type="button"
                 onClick={() => {
+                  setPickedForSheet(null)
                   setValue('appointment.resourceId', undefined)
                   setValue('appointment.date', undefined)
                   setValue('appointment.startTime', undefined)
@@ -299,6 +313,8 @@ export default function AppointmentBlock({
                       onClick={() => {
                         // จิ้มการ์ดที่เลือกอยู่แล้ว = เปิดปฏิทินแก้วัน (ไม่ deselect — ดูคอมเมนต์ปุ่มล้าง)
                         if (!active) field.onChange(r.id)
+                        // จำตัวที่เพิ่งกดไว้ป้อนปฏิทิน ไม่รอ useWatch (ดูคอมเมนต์ pickedForSheet)
+                        setPickedForSheet(r)
                         // เปิดปฏิทินทันทีในจังหวะเดียวกับที่เลือก ไม่รอ effect
                         // (user สั่ง: "เมื่อจิ้มแล้ว ก็ให้ auto open modal ปฏิทินเลย")
                         setDateSheetOpen(true)
@@ -495,10 +511,12 @@ export default function AppointmentBlock({
           — ตัวชีตเป็น fixed inset-0 อยู่แล้ว ตำแหน่งใน DOM จึงไม่มีผลกับการวาง */}
       <AppointmentDateSheet
         open={dateSheetOpen}
-        resourceId={value.resourceId}
-        resourceName={selected?.name}
+        // sheetResource ไม่ใช่ selected — ค่าที่เพิ่งกดต้องชนะ useWatch ที่ยังตามไม่ทัน
+        // ไม่งั้นปฏิทินเปิดมาโหลดความว่างของคิวงานตัวเก่า (ดูคอมเมนต์ pickedForSheet)
+        resourceId={sheetResource?.id}
+        resourceName={sheetResource?.name}
         // ความจุมาจาก resource ที่เลือกอยู่แล้วในฟอร์ม — sheet ไม่ต้องไปถาม API ซ้ำ
-        resourceCapacity={selected?.capacity}
+        resourceCapacity={sheetResource?.capacity}
         value={value.date}
         onSelect={(d) => setValue('appointment.date', d)}
         onClose={() => setDateSheetOpen(false)}

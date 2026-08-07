@@ -139,6 +139,16 @@ export default function AppointmentDateSheet({
    * (FullCalendar เรียก datesSet ทุกครั้งที่ re-render ไม่ใช่เฉพาะตอนเปลี่ยนเดือน)
    */
   const loadedRangeRef = useRef<string>('')
+  /**
+   * ช่วงเดือนที่ปฏิทินกำลังแสดงอยู่ — เก็บไว้เพื่อ **ยิงซ้ำได้เองเมื่อคิวงานเปลี่ยน**
+   *
+   * จำเป็นเพราะ resourceId เดินทางมาจาก useWatch ของ OrderCreateForm ซึ่งอัปเดตแบบ async
+   * (มีบั๊กจาก lag นี้มาแล้วที่ OrderCreateForm.tsx:456-459) ขณะที่ชีตถูกสั่งเปิดในคลิกเดียวกัน
+   * → เฟรมแรกที่ FullCalendar mount อาจได้ resourceId เป็นค่าเก่า/undefined แล้ว loadRange
+   * return ออกตั้งแต่ต้นทาง พอค่าที่ถูกต้องมาถึง ถ้าเราแค่ล้าง items ทิ้งโดยไม่ยิงใหม่
+   * ปฏิทินจะขึ้นว่างทั้งเดือนทั้งที่มีนัดจริง จนกว่าผู้ใช้จะกดเปลี่ยนเดือนเอง
+   */
+  const viewRangeRef = useRef<{ from: Date; to: Date } | null>(null)
 
   const loadRange = useCallback(
     async (from: Date, to: Date) => {
@@ -172,11 +182,14 @@ export default function AppointmentDateSheet({
     [resourceId],
   )
 
-  // เปลี่ยนคิวงานระหว่างที่ชีตเปิด = ข้อมูลเดิมใช้ไม่ได้แล้ว
+  // เปลี่ยนคิวงาน (หรือค่าที่ถูกต้องเพิ่งเดินทางมาถึง) = ข้อมูลเดิมใช้ไม่ได้แล้ว
+  // ต้อง **ยิงใหม่ด้วย** ไม่ใช่แค่ล้าง — เหตุผลเต็มอยู่ที่ viewRangeRef ด้านบน
   useEffect(() => {
     loadedRangeRef.current = ''
     setItems([])
-  }, [resourceId])
+    const r = viewRangeRef.current
+    if (r) void loadRange(r.from, r.to)
+  }, [resourceId, loadRange])
 
   /** นัดของแต่ละวัน — 1 นัดที่คร่อมหลายวันต้องโผล่ทุกวันที่มันกิน ไม่ใช่เฉพาะวันเริ่ม */
   const itemsByDay = useMemo(() => {
@@ -217,6 +230,7 @@ export default function AppointmentDateSheet({
   const onDatesSet = useCallback(
     (arg: DatesSetArg) => {
       setViewStart(arg.view.currentStart)
+      viewRangeRef.current = { from: arg.start, to: arg.end }
       void loadRange(arg.start, arg.end)
     },
     [loadRange],

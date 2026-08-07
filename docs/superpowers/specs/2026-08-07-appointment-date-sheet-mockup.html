@@ -212,6 +212,7 @@ body{
 .footbar .pick{flex:1;min-width:0}
 .footbar .pick small{display:block;font-size:11px;color:var(--color-default-500)}
 .footbar .pick strong{font-size:14px;font-weight:600;color:var(--color-default-900)}
+.footbar>.btn-primary{flex:1;justify-content:center}
 .btn-primary{
   border:0;border-radius:6px;background:var(--color-primary);color:#fff;font-family:inherit;
   font-size:14px;font-weight:500;padding:0 18px;height:47px;cursor:pointer;
@@ -249,7 +250,7 @@ svg{display:block}
   <ul>
     <li><strong>ตัดตัวหนังสือ “1 คิว” ออกจากทุกช่อง</strong> — ของเดิมเขียนคำเดียวกันซ้ำ 35 ช่องจนไม่เหลือความหมาย แถมกินความสูงจนปฏิทินยาวเต็มจอ ไม่มีที่ให้รายการ. เหลือ 3 สถานะที่แยกกันด้วย<strong>รูปร่าง ไม่ใช่ด้วยสีอย่างเดียว</strong>: <strong>ว่าง</strong> = เลขวันเปล่า · <strong>มีคิวแล้ว</strong> = เลขวัน + จุดเหลือง · <strong>เต็ม</strong> = <strong>กากบาทแทนเลขวัน</strong> (user สั่ง 2026-08-07 พร้อมภาพอ้างอิง) — วันที่จองไม่ได้จึงข้ามได้ตั้งแต่กวาดตา ไม่ต้องเพ่งจุดเล็ก ๆ และคนตาบอดสียังแยกออกเพราะรูปร่างต่างกัน. เฉดสีคงของ legend เดิมเป๊ะ ไม่สลับเฉด · ของจริงใช้ <code>&lt;Icon icon="x"&gt;</code> ของ tabler ไม่ใช่ emoji (HR12) และเลขวันยังอยู่ใน DOM (<code>visibility:hidden</code>) ให้ screen reader อ่านวันที่ได้</li>
     <li><strong>รายการครึ่งล่างใช้ของที่มีอยู่แล้ว ไม่ต้องแตะ backend</strong> — <code>GET /api/shops/current/appointments?from&amp;to&amp;resourceId</code> คืน <code>orderNo · buyerName · start · end · appointmentStatus</code> ครบอยู่แล้ว และ select ของมันกันเบอร์/อีเมลไว้ตั้งแต่ใน service (<code>appointment.service.ts:487</code>) ส่วน endpoint ที่ sheet เดิมเรียก (<code>availability</code>) คืนแค่ <code>{capacity, busy:[{start,end}]}</code> ไม่มีชื่อคน — จะโชว์รายการต้องสลับมาใช้ตัวนี้</li>
-    <li><strong>ปุ่มล่างเขียนว่า “ยืนยันวันนัด” ไม่ใช่ “เลือกวันนี้”</strong> — คำว่า “วันนี้” ถูกใช้ไปแล้วบนหัวปฏิทินในความหมาย “กระโดดไปวันปัจจุบัน” ถ้าปุ่มล่างเขียน “เลือกวันนี้” สองคำนี้จะอยู่จอเดียวกันแล้วอ่านสลับกันได้ทันที. วันที่ที่กำลังจะยืนยันอยู่ในข้อความข้าง ๆ ปุ่มแล้ว (“วันที่เลือก · ศุกร์ 8 ส.ค. 2569”) ปุ่มจึงไม่ต้องแบกวันที่เอง — ถ้าอยากให้ปุ่มพูดวันที่ด้วยบอกได้ครับ</li>
+    <li><strong>ปุ่มล่างพูดวันที่ออกมาตรง ๆ</strong> (“เลือก 11 ส.ค. 2569”) <strong>ไม่ใช้คำว่า “วันนี้”</strong> — คำนั้นถูกใช้ไปแล้วบนหัวปฏิทินในความหมาย “กระโดดไปวันปัจจุบัน” อยู่จอเดียวกันแล้วอ่านสลับกันได้ทันที. วันเต็มปุ่มจะเทาและเขียนว่า “วันนี้เต็มแล้ว — เลือกวันอื่น” แทนการเด้ง toast ปฏิเสธลอย ๆ</li>
   </ul>
 </div>
 
@@ -368,13 +369,9 @@ svg{display:block}
     </div>
 
     <div class="footbar">
-      <span class="pick">
-        <small>วันที่เลือก</small>
-        <strong>ศุกร์ 8 ส.ค. 2569</strong>
-      </span>
       <button class="btn-primary" disabled>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
-        เต็มแล้ว
+        วันนี้เต็มแล้ว — เลือกวันอื่น
       </button>
     </div>
 
@@ -483,13 +480,9 @@ svg{display:block}
     </div>
 
     <div class="footbar">
-      <span class="pick">
-        <small>วันที่เลือก</small>
-        <strong>จันทร์ 11 ส.ค. 2569</strong>
-      </span>
       <button class="btn-primary">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
-        ยืนยันวันนัด
+        เลือก 11 ส.ค. 2569
       </button>
     </div>
 
@@ -601,10 +594,9 @@ svg{display:block}
           </div>
         </div>
         <div class="footbar">
-          <span class="pick"><small>วันที่เลือก</small><strong>ศุกร์ 8 ส.ค. 2569</strong></span>
           <button class="btn-primary" disabled>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
-            เต็มแล้ว
+            วันนี้เต็มแล้ว — เลือกวันอื่น
           </button>
         </div>
       </div>
@@ -723,10 +715,9 @@ svg{display:block}
           </div>
         </div>
         <div class="footbar">
-          <span class="pick"><small>วันที่เลือก</small><strong>ศุกร์ 7 ส.ค. 2569</strong></span>
           <button class="btn-primary">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>
-            ยืนยันวันนัด
+            เลือก 7 ส.ค. 2569
           </button>
         </div>
       </div>
