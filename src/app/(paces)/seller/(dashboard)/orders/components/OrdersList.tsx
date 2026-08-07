@@ -28,6 +28,7 @@ import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import OrdersTable from './OrdersTable'
 import ListBusyOverlay, { useListBusy } from './ListBusyOverlay'
+import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── status tabs ────────────────────────────────────────────────────────────
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
@@ -145,6 +146,16 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
   // ดึงพัสดุจาก iShip มาสร้างออเดอร์ (ส่วนขยาย feature 00022)
   const [importOpen, setImportOpen] = useState(false)
   const [filterOpen,  setFilterOpen]  = useState(false)
+
+  /**
+   * โมดัลตัวกรองข้างล่างเป็น overlay เต็มจอที่ประกอบเองด้วย React state จึงต้องตรึง scroll เอง
+   * (docs/conventions/overlay-scroll-lock.md) — ตกสำรวจในรอบที่ไล่ใส่ให้ 21 ใบ (01132960)
+   * ส่ง filterOpen ไม่ใช่ true ตายตัว เพราะ component นี้ถูก render ค้างไว้ตลอด ไม่ได้ mount
+   * เฉพาะตอนเปิด · แผงโหลด (ListBusyOverlay) ไม่เข้าข่ายกฎนี้: มันไม่ใช่โมดัล ไม่กินทั้งจอ และ
+   * จงใจให้เลื่อนไปกับหน้า (สปินเนอร์เป็น sticky) การตรึงหน้าไว้ 350ms ตอนกดกรองจะขวางคนที่
+   * กำลังเลื่อนอยู่มากกว่าช่วย
+   */
+  useLockBodyScroll(filterOpen)
 
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
@@ -569,7 +580,9 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
             <span className="text-lg font-semibold text-default-900">ตัวกรอง</span>
           </div>
 
-          <div className="flex-1 overflow-auto p-4">
+          {/* overscroll-contain: กล่อง scroll ในโมดัลที่เนื้อหายังไม่ล้นก็ chain ออกไปเลื่อนหน้า
+              ข้างหลังได้ (บั๊กชัดที่สุดตอนเนื้อหาสั้น ซึ่งเป็นกรณีปกติของโมดัลนี้) */}
+          <div className="flex-1 overflow-auto overscroll-contain p-4">
             {/* สถานะการขาย — เฉพาะร้านขายออนไลน์ ที่แถวชิปถูกใช้ไปกับสถานะพัสดุแล้ว
                 (ร้าน vertical อื่นแกนนี้ยังอยู่บนแถวชิป จึงไม่ต้องมีซ้ำในนี้)
                 แถวหน้าตาเดียวกับประเภทออเดอร์ทุกประการ */}
