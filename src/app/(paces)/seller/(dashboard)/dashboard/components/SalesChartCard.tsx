@@ -165,31 +165,43 @@ export default function SalesChartCard({ initialSeries }: Props) {
 
   const axisLabelStyle = { fontSize: '10px', colors: getColor('default-700') }
 
-  /**
-   * จุดบนเส้นที่จะติดป้ายจำนวนคำสั่งซื้อ (user สั่ง 2026-08-06: "อยากให้แสดงจำนวนคำสั่งซื้อ ตรง point ใน line")
-   *
-   * ไม่ติดทุกจุด เพราะ ApexCharts ไม่ซ่อน dataLabels ที่ทับกันเองให้ (ต่างจากป้ายแกน x ที่มี
-   * hideOverlappingLabels) — 31 ช่องบนการ์ด ~330px = ช่องละ ~10.6px ส่วนเลข 2 หลักที่ 9px
-   * กว้าง ~11px ป้ายจึงชนกันทันทีถ้าเดือนนั้นขายเกือบทุกวัน (ตัวเลขชุดเดียวกับที่ axisAnchorDays ใช้)
-   * กติกา 2 ชั้น:
-   *   1) ติดเฉพาะวันที่ "มีออเดอร์จริง" — 0 ใบไม่มีอะไรต้องบอก และเลข 0 เรียงพรืดตามแนวพื้น
-   *      จะกลบจุดที่มีของ
-   *   2) เว้นระยะขั้นต่ำเป็น "จำนวนช่อง" ไม่ใช่จำกัดจำนวนป้ายรวม — เดือนที่ขายติดกัน 14 วันแรก
-   *      ป้ายจะชนกันเองแม้จำนวนรวมยังน้อย (นับป้ายรวมอย่างเดียวจึงกันไม่ได้จริง)
-   * เดือนที่ถูกเว้นบางวันไป ตัวเลขเป๊ะทุกวันยังอยู่ในชีตเต็มจอที่กดการ์ดเข้าไป
-   */
   const maxOrderCount = orderCounts.reduce((m, v) => Math.max(m, v), 0)
-  const MIN_LABEL_GAP = bucketCount > 20 ? 2 : 1
-  const labeledPoints = (() => {
-    const keep = new Set<number>()
-    let last = -Infinity
+
+  /** ระยะยกป้ายชั้นที่สอง (px) — 11px = สูงกว่ากล่องข้อความ 10px หนึ่งขั้น สองชั้นจึงไม่แตะกัน */
+  const LABEL_TIER_STEP = 11
+
+  /**
+   * ป้ายจำนวนคำสั่งซื้อบนเส้น — ติดครบ "ทุกวันที่ขายได้" ไม่เว้นวันแล้ว (user สั่ง 2026-08-07)
+   *
+   * รอบก่อน (2026-08-06) เว้นระยะขั้นต่ำ 2 ช่องเพราะ 31 ช่องบนการ์ด ~330px = ช่องละ ~10.6px
+   * ส่วนเลข 2 หลักที่ 10px กว้าง ~11px ป้ายของสองวันติดกันจึงเบียดกัน และ ApexCharts ไม่ซ่อน
+   * ป้ายที่ทับกันเองให้ (ต่างจากป้ายแกน x ที่มี hideOverlappingLabels) — แต่ผลข้างเคียงคือวันที่
+   * ขายได้จริงบางวันไม่มีตัวเลขเลย ซึ่งอ่านกำกวมว่า "วันนั้นไม่มีออเดอร์" ทั้งที่แท่งตั้งอยู่ตำตา
+   *
+   * เปลี่ยนวิธีกันชน: ไม่ตัดป้ายทิ้งแล้ว แต่แยก "ระดับความสูง" แทน — วันที่ติดกันสลับสองชั้น
+   * (ชั้น 0 ชิดจุด / ชั้น 1 ยกขึ้นอีก LABEL_TIER_STEP) คนละแนวนอนก็ไม่ทับกันแม้กล่องกว้างเกินช่อง
+   * เว้นช่วง ≥2 วันเมื่อไหร่รีเซ็ตกลับชั้น 0 — เดือนที่ขายห่าง ๆ ป้ายจึงยังเรียงเป็นแนวเดียว
+   * ไม่กระโดดขึ้นลงโดยไม่จำเป็น
+   *
+   * ทั้งสองชั้นอยู่ "เหนือจุด" เสมอ ไม่ห้อยลงข้างล่าง: ใต้จุดคือแท่งเขียว/เหลือง เลขสี primary
+   * บนนั้นทั้งคอนทราสต์ไม่ผ่านและอ่านสับสนว่าเป็นป้ายของแท่ง ไม่ใช่ของเส้น
+   *
+   * ข้อเดิมที่ยังอยู่: ติดเฉพาะวันที่มีออเดอร์จริง — 0 ใบไม่มีอะไรต้องบอก และเลข 0 เรียงพรืด
+   * ตามแนวพื้นจะกลบจุดที่มีของ (user ยืนยัน 2026-08-07 ว่าไม่เอาเลข 0)
+   */
+  const orderCountLabels = (() => {
+    const out: { index: number; tier: 0 | 1 }[] = []
+    let prevIndex = -Infinity
+    let tier: 0 | 1 = 0
     orderCounts.forEach((v, i) => {
-      if (v <= 0 || i >= futureFromIndex || i - last < MIN_LABEL_GAP) return
-      keep.add(i)
-      last = i
+      if (v <= 0 || i >= futureFromIndex) return
+      tier = i - prevIndex === 1 ? ((1 - tier) as 0 | 1) : 0
+      out.push({ index: i, tier })
+      prevIndex = i
     })
-    return keep
+    return out
   })()
+  const hasStaggeredLabel = orderCountLabels.some((p) => p.tier === 1)
 
   const getMonthOptions = (): ApexOptions => ({
     // สูงขึ้นจาก 104 → 168 และแท่งกว้างขึ้นจาก 70% → 92% (user: "ความสูงมันสูงได้อีก
@@ -223,21 +235,14 @@ export default function SalesChartCard({ initialSeries }: Props) {
      */
     stroke: { show: true, width: [0, 0, 2], curve: 'straight', colors: ['transparent', 'transparent', getColor('primary')] },
     markers: { size: 2, strokeWidth: 0, colors: [getColor('primary')] },
-    /** ป้ายจำนวนใบเหนือจุดบนเส้น — เฉพาะซีรีส์ที่ 2 (เส้น "คำสั่งซื้อ") ไม่ใช่บนแท่งเงิน
-     *  สีเดียวกับเส้น (primary) เพื่อให้อ่านออกว่าเลขนี้เป็นของเส้น ไม่ใช่ของแท่งที่อยู่ใต้มัน
-     *  background/dropShadow ปิด: กล่องขาวรอบเลขจะไปบังแท่งที่อยู่หลัง */
-    dataLabels: {
-      enabled: true,
-      enabledOnSeries: [2],
-      offsetY: -4,
-      background: { enabled: false },
-      dropShadow: { enabled: false },
-      // 10px = ขั้นเดียวกับป้ายแกน x/ป้าย annotation ของกราฟนี้ (ไม่สร้างขั้นใหม่นอก DESIGN.md)
-      style: { fontSize: '10px', fontWeight: 600, colors: [getColor('primary')] },
-      // คืน '' = ไม่วาดป้ายจุดนั้น (วันในอนาคตเป็น null จึงไม่เข้าเงื่อนไข typeof === 'number' อยู่แล้ว)
-      formatter: (val: string | number | number[], opts?: { dataPointIndex?: number }) =>
-        typeof val === 'number' && labeledPoints.has(opts?.dataPointIndex ?? -1) ? String(val) : '',
-    },
+    /**
+     * ป้ายจำนวนใบย้ายไปเป็น point annotation แล้ว (ดู annotations.points ข้างล่าง) — dataLabels
+     * ปิดทั้งกราฟ เพราะ `dataLabels.offsetY` ของ ApexCharts เป็นค่าเดียวทั้งกราฟ
+     * (`DataLabels.js:136` — `y = pos.y[q] + dataLabelsConfig.offsetY` อ่านจาก config ตรง ๆ
+     * ไม่มีรูปแบบต่อจุดหรือต่อซีรีส์) จึงทำป้ายสองชั้นไม่ได้ ส่วน point annotation
+     * มี `label.offsetY` แยกรายจุด ซึ่งเป็นสิ่งเดียวที่กติกาสลับชั้นต้องการ
+     */
+    dataLabels: { enabled: false },
     legend: { show: false },
     xaxis: {
       categories: labels,
@@ -268,13 +273,15 @@ export default function SalesChartCard({ initialSeries }: Props) {
       { show: false, tickAmount: 2, seriesName: 'ยืนยันแล้ว' },
       { show: false, tickAmount: 2, seriesName: 'ยืนยันแล้ว' },
       /** max เผื่อหัว 30% ตั้งแต่มีป้ายตัวเลขบนจุด (2026-08-06): ป้ายอยู่ "เหนือ" จุด ถ้าจุดสูงสุด
-       *  แตะเพดานกราฟพอดี ป้ายของวันที่ขายดีที่สุด — ใบที่คนอยากอ่านที่สุด — จะถูกขอบบนตัดหาย */
+       *  แตะเพดานกราฟพอดี ป้ายของวันที่ขายดีที่สุด — ใบที่คนอยากอ่านที่สุด — จะถูกขอบบนตัดหาย
+       *  เผื่อเป็น 45% เมื่อเดือนนั้นมีป้ายชั้นที่สอง (2026-08-07): ป้ายชั้นบนสูงกว่าอีก 11px
+       *  ซึ่งกินพื้นที่หัวกราฟจนเกือบหมดถ้ายังเผื่อแค่ 30% */
       {
         show: false,
         opposite: true,
         seriesName: 'คำสั่งซื้อ',
         min: 0,
-        max: maxOrderCount > 0 ? Math.ceil(maxOrderCount * 1.3) : undefined,
+        max: maxOrderCount > 0 ? Math.ceil(maxOrderCount * (hasStaggeredLabel ? 1.45 : 1.3)) : undefined,
       },
     ],
     grid: {
@@ -292,9 +299,9 @@ export default function SalesChartCard({ initialSeries }: Props) {
      * จาก "ขายไม่ได้" เป็น "ยังมาไม่ถึง" โดยไม่ต้องตัดวันในอนาคตทิ้ง (ซึ่ง user เคาะไว้แล้วว่าไม่เอา:
      * เคย .slice() จริงแล้วพัง วันที่ 2 เหลือ 2 แท่งยืดเต็มการ์ด อ่านไม่ออกว่าเป็นทั้งเดือน)
      */
-    annotations: todayDay
-      ? {
-          xaxis: [{
+    annotations: {
+      xaxis: todayDay
+        ? [{
             x: String(todayDay),
             borderColor: getColor('default-400'),
             strokeDashArray: 3,
@@ -306,9 +313,40 @@ export default function SalesChartCard({ initialSeries }: Props) {
               borderWidth: 0,
               style: { background: 'transparent', color: getColor('default-700'), fontSize: '10px' },
             },
-          }],
-        }
-      : undefined,
+          }]
+        : [],
+      /**
+       * ตัวเลขจำนวนใบเหนือจุดบนเส้น (แทน dataLabels — ดูเหตุผลที่ `dataLabels` ข้างบน)
+       *
+       * yAxisIndex 2 = แกนของซีรีส์ "คำสั่งซื้อ" ต้องระบุให้ตรง ไม่งั้น annotation ไปคิดตำแหน่ง
+       * จากสเกลของแท่ง (หน่วยบาท) แล้วเลขจะไปกองอยู่ก้นกราฟทั้งแถว
+       * marker size/strokeWidth = 0 เพราะจุดจริงวาดโดย `markers` ของซีรีส์อยู่แล้ว
+       * (ปล่อย strokeWidth ไว้ตามค่าตั้งต้น 2 จะได้จุดซ้อนอีกจุดทั้งที่ size 0)
+       * padding 0 รอบทุกด้าน: ค่าตั้งต้นของ ApexCharts มี padding ซ้าย/ขวา 5px ซึ่งกินความกว้าง
+       * กล่องเกินตัวเลขไปเกือบเท่าตัว — บนช่องละ 10.6px ป้ายจะชนกันตั้งแต่ยังไม่ทันสลับชั้น
+       */
+      points: orderCountLabels.map(({ index, tier }) => ({
+        x: labels[index],
+        y: orderCounts[index],
+        yAxisIndex: 2,
+        marker: { size: 0, strokeWidth: 0 },
+        label: {
+          text: String(orderCounts[index]),
+          textAnchor: 'middle',
+          offsetY: -2 - tier * LABEL_TIER_STEP,
+          borderWidth: 0,
+          // 10px = ขั้นเดียวกับป้ายแกน x/ป้าย "วันนี้" ของกราฟนี้ (ไม่สร้างขั้นใหม่นอก DESIGN.md)
+          // สีเดียวกับเส้น (primary) เพื่อให้อ่านออกว่าเลขนี้เป็นของเส้น ไม่ใช่ของแท่งที่อยู่ใต้มัน
+          style: {
+            background: 'transparent',
+            color: getColor('primary'),
+            fontSize: '10px',
+            fontWeight: 600,
+            padding: { left: 0, right: 0, top: 0, bottom: 0 },
+          },
+        },
+      })),
+    },
     // tooltip ปิด — การ์ดทั้งโซนเป็นปุ่มเปิดชีต การมี tooltip แย่งการแตะบนมือถือ (ตัวเลขเป๊ะอยู่ในชีต)
     tooltip: { enabled: false },
   })
