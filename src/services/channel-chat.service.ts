@@ -539,6 +539,37 @@ function isRealCard(el: { subtitle?: string; image_url?: string; buttons?: unkno
   if (!el) return false
   return !!el.subtitle?.trim() || !!el.image_url || (Array.isArray(el.buttons) && el.buttons.length > 0)
 }
+/**
+ * แยก "การ์ดของ Meta ที่เป็นเหตุการณ์โทรจริง" ออกจากการ์ดอื่น ๆ
+ *
+ * export เพราะสคริปต์ backfill ต้องใช้เกณฑ์ **ตัวเดียวกัน** กับที่ ingest ใช้ — ถ้าลอกไปเขียนซ้ำ
+ * วันหนึ่งจะได้แถวเก่ากับแถวใหม่ที่ตัดสินคนละแบบในฐานเดียวกันโดยไม่มีใครรู้
+ *
+ * โครงจริงจาก prod:
+ *   { template_type: "icon-template",
+ *     elements: [{ title: "Audio call", subtitle: "14 sec", buttons:[{title:"Call", url:"…business_call…"}] }] }
+ *
+ * ข้อห้าม: ห้ามตัดสินจาก title ภาษาอังกฤษอย่างเดียว — **Meta แปลข้อความบนการ์ดตามภาษาของ "ลูกค้า"
+ * ไม่ใช่ภาษาเพจ** (ยืนยัน 2026-08-07: เพจเดียวมีการ์ดอังกฤษ 4 เขมร `ហៅទូរសព្ទ` 1 ไทยที่เหลือ)
+ * "มีระยะเวลา" เป็นโครงสร้างไม่ใช่ถ้อยคำ — สายที่รับสายแล้วเท่านั้นที่มีความยาว
+ *
+ * `Call request sent` / `ส่งคำขอโทรแล้ว` = **การ์ดชวนให้โทร ไม่ใช่สาย** ต้องไม่เป็น CALL
+ * ไม่งั้นจะขึ้นการ์ด "มีการโทรด้วยเสียง" ทั้งที่ไม่มีใครโทร
+ */
+export function classifyCallTemplate(
+  attType: string | undefined,
+  payload: AttPayloadStructured | undefined,
+): { isCall: boolean; title: string | undefined } {
+  if (attType !== 'template' || payload?.template_type !== 'icon-template') {
+    return { isCall: false, title: undefined }
+  }
+  const el = payload.elements?.[0]
+  const title = el?.title?.trim()
+  const subtitle = el?.subtitle?.trim()
+  const hasDuration = !!subtitle && /\d/.test(subtitle) && /\b(sec|min|hr|hour|วิ|นาที|ชม)/i.test(subtitle)
+  return { isCall: title === 'Missed call' || title === 'Audio call' || hasDuration, title }
+}
+
 export function composeStructuredText(
   attType: string | undefined,
   payload: AttPayloadStructured | undefined,
@@ -740,24 +771,9 @@ export async function ingestInboundMessage(params: {
   //
   // ติดป้ายเป็น type='CALL' ตั้งแต่ตอน ingest แทนการให้ฝั่ง render ไปเดาจาก body — body เป็น
   // ภาษาอังกฤษของ Meta ซึ่งเปลี่ยนเมื่อไรก็ได้ ถ้าผูก UI กับสตริงนั้นจะพังเงียบ ๆ วันที่ Meta แก้คำ
-  const callTitle = attType === 'template' && firstAttachment?.payload?.template_type === 'icon-template'
-    ? firstAttachment.payload.elements?.[0]?.title?.trim()
-    : undefined
-  // ระยะเวลาสายบน subtitle ของ icon-template ("14 sec", "2 min 51 sec") — payload จริงบน prod
-  //
-  // ทำไมต้องดูอันนี้ ไม่ดูแค่ title: **Meta แปลข้อความบนการ์ดตามภาษาของ "ลูกค้า" ไม่ใช่ภาษาเพจ**
-  // (ยืนยันแล้ว 2026-08-07: เจอการ์ดเป็นเขมร `ហៅទូរសព្ទ` และไทย `ส่งคำขอโทรแล้ว` ปนกับอังกฤษในเพจเดียว)
-  // การผูก logic กับสตริงอังกฤษจึงพังทันทีที่ลูกค้าตั้งภาษาอื่น — สายที่คุยจริงจะหลุดไปเป็นข้อความดิบ
-  // ส่วน "มีระยะเวลา" เป็นโครงสร้าง ไม่ใช่ถ้อยคำ: สายที่รับแล้วเท่านั้นที่มีความยาว
-  const callSubtitle = attType === 'template' && firstAttachment?.payload?.template_type === 'icon-template'
-    ? firstAttachment.payload.elements?.[0]?.subtitle?.trim()
-    : undefined
-  const hasCallDuration = !!callSubtitle && /\d/.test(callSubtitle) && /\b(sec|min|hr|hour|วิ|นาที|ชม)/i.test(callSubtitle)
-
-  // "สายที่เกิดขึ้นจริง" เท่านั้นที่เป็น type='CALL' — `Call request sent` / `ส่งคำขอโทรแล้ว` คือ
-  // **การ์ดชวนให้โทร** ไม่ใช่สาย ถ้าเหมารวมเป็น CALL จะขึ้นการ์ด "มีการโทรด้วยเสียง" ทั้งที่ไม่มีใครโทร
-  // พวกนั้นตกไปเป็นการ์ดตามปกติ (มี subtitle/ปุ่ม → ได้คำนำหน้า `[การ์ดจาก Facebook]`)
-  const isCallEvent = callTitle === 'Missed call' || callTitle === 'Audio call' || hasCallDuration
+  const call = classifyCallTemplate(attType, firstAttachment?.payload)
+  const callTitle = call.title
+  const isCallEvent = call.isCall
 
   const type = isCallEvent
     ? 'CALL'
