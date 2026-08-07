@@ -792,15 +792,6 @@ export default function ChatThread({
   const [emojiOpen, setEmojiOpen] = useState(false)
   /** แผงสติกเกอร์เป็นปุ่มของตัวเอง (user สั่ง 2026-08-04 "อยากให้แยก emoji / sticker เป็น 2 icon") */
   const [stickerOpen, setStickerOpen] = useState(false)
-  /**
-   * เมนู "เครื่องมือเพิ่มเติม" — ทางเข้าเดียวของเครื่องมือรองบนจอ <768px (user report 2026-08-07:
-   * แถบเครื่องมือล้นขอบจอ ปุ่มสร้างออเดอร์ถูกตัดหายครึ่งคำ)
-   *
-   * งบพื้นที่จริงที่ 320px: container หลัง px-4 = 288px, ปุ่มไอคอน 6 ตัว (37px) + gap = 242px
-   * เหลือ 46px ให้ปุ่มสร้างออเดอร์ซึ่งต้องมีข้อความกำกับเสมอ (ไอคอนเปล่าเคยทำให้ user หาปุ่มไม่เจอ
-   * 2026-08-01) — ย่อคำอย่างเดียวจึงแก้ไม่ได้ ต้องลดจำนวนไอคอนที่โชว์ตรง ๆ
-   */
-  const [moreOpen, setMoreOpen] = useState(false)
   const canSendSticker = channel === 'MESSENGER' || channel === 'INSTAGRAM'
   // composer improvement #2/#3 — แผงเหนือช่องพิมพ์ (ข้อความสำเร็จรูป / AI ช่วยร่างคำตอบ)
   // state เดียวคุมทั้งคู่ (user สั่ง 2026-07-23: "ต้องไม่ขึ้นซ้อนกัน เปิดได้ทีละอัน") — เดิมแยก
@@ -2255,7 +2246,14 @@ export default function ChatThread({
               [ แถวปุ่มเครื่องมือ ]
               [ ช่องพิมพ์ ][ ปุ่มส่ง ]
             เดิมทุกอย่างอยู่แถวเดียวกันหมด (ปุ่ม 4 ตัว + input + ส่ง) — บนมือถือ/rail แคบ ๆ ช่องพิมพ์
-            ถูกบีบจนพิมพ์ยาว ๆ ไม่เห็นข้อความตัวเอง แยกแถวแล้วช่องพิมพ์ได้ความกว้างเต็ม */}
+            ถูกบีบจนพิมพ์ยาว ๆ ไม่เห็นข้อความตัวเอง แยกแถวแล้วช่องพิมพ์ได้ความกว้างเต็ม
+
+            งบพื้นที่ที่ 320px: container หลัง px-4 = 288px, ปุ่มไอคอน 6 ตัว (37px) + gap = 242px
+            เหลือ 46px — ไม่พอสำหรับปุ่มสร้างออเดอร์ที่มีข้อความกำกับ. รอบแรก (2026-08-07 บ่าย) แก้
+            ด้วยเมนู "เครื่องมือเพิ่มเติม" ⋯ ที่เก็บ เลือกสินค้า/อิโมจิ/สติกเกอร์/AI ไว้ข้างใน แต่ user
+            ปฏิเสธทันทีที่เห็น ("ไม่ชอบการที่เอา shortcut ไปซ่อนไว้ อยากให้เอาคำว่า สร้างคำสั่งซื้อออกแทน")
+            → เมนูนั้นถูกถอดทิ้งทั้งก้อน เครื่องมือทุกตัวกลับมาเห็นครบทุก breakpoint และปุ่มสร้างออเดอร์
+            ยุบเหลือไอคอน (ตัวสุดท้ายของแถว) — ทางลัดที่หาไม่เจอ แพงกว่าป้ายที่หายไป */}
         <div className="mb-2 flex items-center gap-1">
           {/* ข้อความสำเร็จรูป — ปุ่มสายฟ้าซ้ายสุดตาม ref; กดแล้วแถบ pill ค่อยกางออกด้านบน */}
           <button
@@ -2279,10 +2277,10 @@ export default function ChatThread({
             aria-label="เลือกสินค้า"
             aria-expanded={productOpen}
             title="เลือกสินค้า"
-            // <768px ย้ายเข้าเมนู "เพิ่มเติม" (ดู moreOpen) — ที่ 320px ไอคอน 6 ตัวกินที่จนปุ่ม
-            // สร้างออเดอร์ไม่เหลือที่ยืน. ≥768px ปุ่มสร้างออเดอร์หายไปเอง (md:hidden) แถวจึงว่างพอ
-            // ให้เครื่องมือทุกตัวอยู่ครบเหมือนเดิม — ไม่ลดของที่เดสก์ท็อปเคยกดได้ใน 1 ครั้ง
-            className={`btn btn-icon hover:bg-info/10 hidden shrink-0 md:inline-flex ${productOpen ? 'bg-info/10 text-info' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            // เห็นทุก breakpoint (user สั่ง 2026-08-07 "ไม่ชอบการที่เอา shortcut ไปซ่อนไว้") — เมนู
+            // "เพิ่มเติม" ที่เคยเก็บปุ่มพวกนี้ไว้ <768px ถูกถอดทิ้งแล้ว. ที่ว่างมาจากปุ่มสร้างออเดอร์
+            // ที่ยุบเหลือไอคอนแทน (ดูปุ่มท้ายแถว) ไม่ใช่จากการซ่อนเครื่องมือ
+            className={`btn btn-icon hover:bg-info/10 shrink-0 ${productOpen ? 'bg-info/10 text-info' : 'text-default-600'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="package" className="text-lg" />
           </button>
@@ -2316,9 +2314,9 @@ export default function ChatThread({
 
           {/* composer improvement #1 — ปุ่ม emoji + popover (emoji เป็น Unicode text ธรรมดา ส่งได้ทุก
               ช่องทางรวม Messenger/IG); disabled เฉพาะเมื่อส่งไม่ได้ (window ปิด/token ตาย) */}
-          {/* กล่องนี้เป็น "จุดยึด" ของแผงอิโมจิ/สติกเกอร์ทั้งคู่ และเป็นที่อยู่ของปุ่มเมนูเพิ่มเติม
-              — ตัวกล่องต้องไม่ถูกซ่อนที่ breakpoint ไหนเลย ไม่งั้นแผงที่ยึดกับมันจะหายไปด้วยตอน
-              กดเปิดจากปุ่มเดสก์ท็อป (แผงเป็น absolute ที่ยึด parent ตัวนี้ ไม่ใช่ portal)
+          {/* กล่องนี้เป็น "จุดยึด" ของแผงอิโมจิ/สติกเกอร์ทั้งคู่ — ตัวกล่องต้องไม่ถูกซ่อนที่
+              breakpoint ไหนเลย ไม่งั้นแผงที่ยึดกับมันจะหายไปด้วยตอนกดเปิด (แผงเป็น absolute ที่ยึด
+              parent ตัวนี้ ไม่ใช่ portal)
               แผงอยู่ที่เดียว ไม่ทำ 2 ชุดตาม breakpoint — state เดียวกัน DOM เดียวกัน */}
           <div className="relative shrink-0">
             <button
@@ -2327,74 +2325,11 @@ export default function ChatThread({
               disabled={composerDisabled}
               aria-label="เลือกอิโมจิ"
               aria-expanded={emojiOpen}
-              className={`btn btn-icon text-default-600 hover:bg-default-100 hidden md:inline-flex ${emojiOpen ? 'bg-default-100' : ''} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+              title="เลือกอิโมจิ"
+              className={`btn btn-icon text-default-600 hover:bg-default-100 ${emojiOpen ? 'bg-default-100' : ''} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
             >
               <Icon icon="mood-smile" className="text-lg" />
             </button>
-
-            {/* ปุ่มเมนูเพิ่มเติม — เฉพาะ <768px (เดสก์ท็อปเห็นปุ่มจริงครบทุกตัวอยู่แล้ว)
-                controlled state ไม่ใช่ hs-dropdown ดิบ: แถบนี้ re-render ทุกครั้งที่พิมพ์
-                (pattern เดียวกับ emoji/sticker ในไฟล์นี้) */}
-            <button
-              type="button"
-              onClick={() => setMoreOpen((v) => !v)}
-              disabled={composerDisabled}
-              aria-label="เครื่องมือเพิ่มเติม"
-              aria-expanded={moreOpen}
-              title="เครื่องมือเพิ่มเติม"
-              className={`btn btn-icon text-default-600 hover:bg-default-100 md:hidden ${moreOpen ? 'bg-default-100' : ''} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
-            >
-              <Icon icon="dots" className="text-lg" />
-            </button>
-            {moreOpen && (
-              <>
-                {/* ฉากโปร่งรับ tap นอกเมนู — เมนูนี้ไม่ได้ยึด Preline จึงไม่มีตัวปิดให้ฟรี */}
-                <button type="button" aria-label="ปิดเมนู" onClick={() => setMoreOpen(false)} className="fixed inset-0 z-10 cursor-default" />
-                <div
-                  role="menu"
-                  className="bg-card border-default-200 absolute bottom-full left-0 z-20 mb-2 w-48 rounded-lg border p-1 shadow-lg"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => { togglePanel('product'); setMoreOpen(false) }}
-                    className="hover:bg-default-100 text-default-700 flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-start text-sm"
-                  >
-                    <Icon icon="package" className="text-info text-lg" />
-                    เลือกสินค้า
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => { setEmojiOpen(true); setMoreOpen(false) }}
-                    className="hover:bg-default-100 text-default-700 flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-start text-sm"
-                  >
-                    <Icon icon="mood-smile" className="text-lg" />
-                    อิโมจิ
-                  </button>
-                  {canSendSticker && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => { setStickerOpen(true); setMoreOpen(false) }}
-                      className="hover:bg-default-100 text-default-700 flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-start text-sm"
-                    >
-                      <Icon icon="sticker" className="text-lg" />
-                      สติกเกอร์
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => { togglePanel('ai'); setMoreOpen(false) }}
-                    className="hover:bg-default-100 text-success flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-start text-sm"
-                  >
-                    <Icon icon="sparkles" className="text-lg" />
-                    AI ช่วยร่างคำตอบ
-                  </button>
-                </div>
-              </>
-            )}
 
             {emojiOpen && (
               <EmojiPicker onSelect={(emoji) => setText((prev) => prev + emoji)} onClose={() => setEmojiOpen(false)} />
@@ -2423,7 +2358,8 @@ export default function ChatThread({
               disabled={composerDisabled}
               aria-label="ส่งสติกเกอร์"
               aria-expanded={stickerOpen}
-              className={`btn btn-icon text-default-600 hover:bg-default-100 hidden shrink-0 md:inline-flex ${stickerOpen ? 'bg-default-100' : ''} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+              title="ส่งสติกเกอร์"
+              className={`btn btn-icon text-default-600 hover:bg-default-100 shrink-0 ${stickerOpen ? 'bg-default-100' : ''} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
             >
               <Icon icon="sticker" className="text-lg" />
             </button>
@@ -2437,7 +2373,7 @@ export default function ChatThread({
             aria-label="AI ช่วยร่างคำตอบ"
             aria-expanded={aiOpen}
             title="AI ช่วยร่างคำตอบ"
-            className={`btn btn-icon hover:bg-success/10 hidden shrink-0 md:inline-flex ${aiOpen ? 'bg-success/10 text-success' : 'text-success'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
+            className={`btn btn-icon hover:bg-success/10 shrink-0 ${aiOpen ? 'bg-success/10 text-success' : 'text-success'} ${composerDisabled ? 'pointer-events-none opacity-50' : ''}`}
           >
             <Icon icon="sparkles" className="text-lg" />
           </button>
@@ -2449,26 +2385,25 @@ export default function ChatThread({
           {/* สร้างออเดอร์ — มือถือเท่านั้น (user สั่ง 2026-08-04 "อยากให้กดสร้าง order ใน chat ไว ๆ")
               ตั้งแต่ 768px ขึ้นไปมีปุ่มมีป้าย "ข้อมูลลูกค้า" ที่หัวเธรด และ ≥1280px มีแผงขวาที่มี CTA
               อยู่แล้ว — ใส่ที่นี่ด้วยจะกลายเป็นปุ่มซ้ำ 2 ที่บนจอเดียว
-              **มีป้ายกำกับ ไม่ใช่ไอคอนเปล่า** เพราะบทเรียน 2026-08-01: ไอคอนเปล่าในแถวนี้เคยทำให้
-              user หาปุ่มไม่เจอทั้งที่มีอยู่จริง — และนี่คือปุ่มที่ปิดการขาย ห้ามหาไม่เจอ
               ms-auto ย้ายมาที่ปุ่มนี้ (เดิมอยู่ที่ไอคอนคน) ให้ทั้งคู่เกาะกลุ่มกันชิดขวา
               label/icon อ่านจาก VERTICAL_CTA ตัวเดียวกับแผงลูกค้า — ร้านบ้านพักจะได้ "เปิดการจอง"
               ทั้งสองที่ ไม่ใช่คำคนละคำ */}
           <button
             type="button"
             onClick={startCreateOrder}
-            // ป้ายบนปุ่มย่อเป็นคำสั้น (createLabelShort) — screen reader ต้องได้คำเต็มแทน
+            // ไอคอนเปล่า + tooltip/aria คำเต็ม (user สั่ง 2026-08-07): ที่ 320px แถวนี้มีที่พอสำหรับ
+            // "เครื่องมือทุกตัวเห็นครบ" หรือ "ป้ายบนปุ่มนี้" อย่างใดอย่างหนึ่งเท่านั้น — user เลือก
+            // เอาป้ายออกแทนการซ่อน shortcut ไว้ในเมนู ⋯ (ของที่ซ่อนไว้หาไม่เจอเหมือนกัน แต่แพงกว่า
+            // เพราะกดเพิ่มอีกครั้งทุกครั้ง). ไอคอน cart-plus ยังต่างจากทุกตัวในแถวและติดสี primary
             aria-label={vocab.createLabel}
+            title={vocab.createLabel}
             // สไตล์ต้องเป็นภาษาเดียวกับปุ่มอื่นในแถวนี้ (user report 2026-08-04 "ไม่เข้าพวกเลย"):
             // ทุกตัวคือ `btn btn-icon` พื้นใส สีบอกบทบาท แล้วค่อยติดสีตอน hover/active — AI ใช้
             // text-success, เลือกสินค้าใช้ text-info. ของเดิมเป็นพิลล์ทึบ bg-primary/15 ซึ่งเป็น
             // ภาษาของ "ปุ่มหลักในการ์ด" ไม่ใช่ของแถบเครื่องมือ จึงเด่นผิดที่และดูเป็นของแปลกปลอม
-            // คงข้อความไว้ (ไม่ยุบเป็นไอคอนเปล่า) เพราะเหตุผลเดิม: ไอคอนเปล่าในแถวนี้เคยทำให้
-            // user หาปุ่มไม่เจอมาแล้ว และนี่คือปุ่มที่ปิดการขาย
-            className="btn text-primary hover:bg-primary/10 ms-auto shrink-0 gap-1 text-sm font-medium md:hidden"
+            className="btn btn-icon text-primary hover:bg-primary/10 ms-auto shrink-0 md:hidden"
           >
             <Icon icon={VERTICAL_CTA[customerPanelData.vertical].icon} className="text-lg" />
-            {VERTICAL_CTA[customerPanelData.vertical].label}
           </button>
         </div>
 
