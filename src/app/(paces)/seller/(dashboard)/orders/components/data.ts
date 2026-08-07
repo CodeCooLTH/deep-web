@@ -1,3 +1,4 @@
+import type { AppointmentStatus } from '@/lib/appointments'
 import type { ShippingStageKey } from '@/lib/order-stage'
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/data.ts
@@ -55,6 +56,23 @@ export type OrderRow = {
     courierName: string | null
     /** "ISHIP" | ... — ใช้เลือกไอคอนแพลตฟอร์ม */
     provider: string
+  } | null
+  /**
+   * นัดหมายของใบนี้ (feature 00036) — null = ไม่มีนัด (walk-in) ซึ่งแปลว่า "ไม่อยู่ในแกนนี้"
+   * ไม่ใช่ "อยู่ในกองที่ว่าง"; undefined = ร้านที่ไม่ใช่ SERVICE_QUEUE (ไม่มีแกนนัดเลย)
+   *
+   * คู่ขนานกับ shipment/shippingStage ข้างบนแบบตั้งใจ — ร้านหนึ่งมีแกนเสริมได้แกนเดียว
+   * stage คำนวณที่ server ด้วย deriveAppointmentStage ตัวเดียวกับที่ตัวนับบนชิปใช้ (BR-SOV-06)
+   */
+  appointment?: {
+    /** ISO string — client format ด้วย lib/format-date เท่านั้น */
+    startISO: string
+    /** นัดกินทั้งวันพอดีไหม — ตัดสินที่ server ด้วย isAllDayAppointment จากข้อมูลของแถวนั้น
+     *  (ไม่ใช่จากโหมดปัจจุบันของร้าน — BR-RSV-57) */
+    allDay: boolean
+    /** ชื่อทรัพยากรที่รับงาน — null = นัดที่ resource ถูกถอดออกภายหลัง */
+    resourceName: string | null
+    stage: AppointmentStatus
   } | null
   id: string            // publicToken short (8-char)
   publicToken: string

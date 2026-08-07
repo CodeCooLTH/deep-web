@@ -13,7 +13,7 @@ import DataTable from '@/components/table/DataTable'
 import TablePagination from '@/components/table/TablePagination'
 import Icon from '@/components/wrappers/Icon'
 import type { OrderVocab } from '@/lib/seller-menu'
-import { formatDateTime } from '@/lib/format-date'
+import { formatDateTH, formatDateTime, formatDayMonthTimeTH } from '@/lib/format-date'
 import { cn } from '@/utils/helpers'
 import {
   ColumnFiltersState,
@@ -41,6 +41,7 @@ import ShipmentHoverCard from './ShipmentHoverCard'
 import OrderSourceLogo from './OrderSourceLogo'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
+import { APPOINTMENT_STAGE_KEYS, APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 import OrderActions from './OrderActions'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
@@ -151,9 +152,37 @@ type Props = {
    * navigation ที่เกิดขึ้นที่นั่น ตารางจึงต้องใช้ตัวเดียวกัน ไม่ใช่สร้างของตัวเอง
    */
   busy: ListBusy
+  /**
+   * ร้านนี้มีโดเมนพัสดุไหม (feature 00036 FR-SOV-001) — false = ไม่ประกอบคอลัมน์ "ที่อยู่จัดส่ง"
+   * และไม่แสดงดรอปดาวน์ "ขนส่ง" ที่เกาะคอลัมน์นั้นอยู่
+   *
+   * [สำคัญ] ต้องซ่อนดรอปดาวน์คู่กับคอลัมน์เสมอ ห้ามซ่อนอย่างเดียว — ตัวกรองนั้นเรียก
+   * `filterColumn('shipTo')?.setFilterValue()` ซึ่งเป็น optional chain พอคอลัมน์หายไป
+   * มันจะกลายเป็นปุ่มที่กดได้แต่ไม่เกิดอะไรเลย ไม่มี error ให้เห็น
+   * (บทเรียนเดียวกับตัวกรองช่วงเวลาที่ตายเงียบมาแล้ว — ดูคอมเมนต์ที่คอลัมน์ createdAtISO)
+   */
+  hasShippingAxis?: boolean
+  /**
+   * ตัวกรองสถานะนัดหมาย (?appt= — feature 00036 FR-SOV-008) — แกนที่สองของร้านคิวงาน
+   * โครงเดียวกับ stageFilter ทุกประการ state/ตัวนับอยู่ที่ OrdersList (symbol เดียวกับชิปมือถือ)
+   * undefined = ร้านไม่มีนัดสักใบ ไม่แสดง dropdown
+   */
+  appointmentFilter?: {
+    value: string | null
+    counts: Record<string, number>
+    onChange: (value: string | null) => void
+  }
 }
 
-export default function OrdersTable({ orders, ishipEnabled = false, vocab, stageFilter, busy }: Props) {
+export default function OrdersTable({
+  orders,
+  ishipEnabled = false,
+  vocab,
+  stageFilter,
+  busy,
+  hasShippingAxis = true,
+  appointmentFilter,
+}: Props) {
   const router = useRouter()
   const [globalFilter,   setGlobalFilter]   = useState('')
   const [sorting,        setSorting]        = useState<SortingState>([])
@@ -383,7 +412,7 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
     //   "จะได้ก้อบง่าย ๆ" → select-all ให้คลิกเดียวได้ทั้งก้อนพร้อมวาง
     //   ใต้เส้นประคือบล็อกขนส่ง (ชื่อ/เลขพัสดุ/ไทม์ไลน์) เพราะตอบคำถามชุดเดียวกันว่า
     //   "ของไปไหน ไปยังไง ถึงไหนแล้ว"
-    {
+    ...(!hasShippingAxis ? [] : [{
       id: 'shipTo',
       header: 'ที่อยู่จัดส่ง',
       enableSorting: false,
@@ -477,7 +506,52 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
           </>
         )
       },
-    },
+    }]),
+
+    // ─ นัดหมาย (feature 00036) ─
+    //   แทนที่คอลัมน์ที่อยู่จัดส่งสำหรับร้านคิวงาน: ตอบคำถามชุดเดียวกันของโดเมนนี้ว่า
+    //   "งานนี้นัดเมื่อไหร่ ใครรับ ถึงขั้นไหนแล้ว" · โครงเซลล์ยกจากคอลัมน์ที่อยู่จัดส่ง
+    //   (ข้อความหลายบรรทัด + เส้นประคั่น + บล็อกท้าย) สลับแค่เนื้อหา
+    //   แสดงเมื่อร้านมีนัดจริงเท่านั้น — ตัวชี้วัดตัวเดียวกับที่ชิปมือถือใช้ (appointmentFilter
+    //   จะเป็น undefined เมื่อ hasAppointmentAxis=false ที่ OrdersList)
+    ...(!appointmentFilter ? [] : [{
+      id: 'appointment',
+      header: 'นัดหมาย',
+      enableSorting: false,
+      enableColumnFilter: false,
+      meta: { cellClassName: 'min-w-48 align-top' },
+      cell: ({ row }: { row: TableRow<OrderRow> }) => {
+        const a = row.original.appointment
+        // ไม่มีนัด = ขีดคั่นที่อ่านออกว่าตั้งใจ ไม่ใช่ช่องว่างที่ดูเหมือนข้อมูลหาย (AC-5.2)
+        if (!a) return <span className="text-xs text-default-400">ไม่มีนัด</span>
+        const meta = APPOINTMENT_STAGE_META[a.stage]
+        return (
+          <>
+            <p className="mb-0 text-xs font-medium text-default-800">
+              {/* นัดทั้งวันไม่มีเวลาให้แสดง — การโชว์ 00:00 คือการกุข้อมูลที่ผู้ใช้ไม่ได้กรอก */}
+              {a.allDay ? `${formatDateTH(a.startISO)} · ทั้งวัน` : formatDayMonthTimeTH(a.startISO)}
+            </p>
+            {a.resourceName && (
+              <p className="mb-0 mt-0.5 flex items-center gap-1 text-xs text-default-500">
+                <Icon icon="armchair" className="shrink-0 text-sm" aria-hidden="true" />
+                <span className="truncate">{a.resourceName}</span>
+              </p>
+            )}
+            <div className="border-default-200 mt-2 border-t border-dashed pt-2">
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
+                  meta.cls,
+                )}
+              >
+                <Icon icon={meta.icon} className="shrink-0 text-sm" aria-hidden="true" />
+                {meta.label}
+              </span>
+            </div>
+          </>
+        )
+      },
+    }]),
 
     // ─ การชำระเงิน ─
     columnHelper.accessor('paymentMethod', {
@@ -535,7 +609,10 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
         // ใบที่ยกเลิกไม่มีทางได้คำยืนยันจากผู้ซื้ออีก
         const steps: { label: string; done: boolean; danger?: boolean }[] = [
           ...(cancelled ? [{ label: `ยกเลิก${vocab.noun}`, done: true, danger: true }] : []),
-          { label: 'ยืนยันการจัดส่ง', done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
+          // ผันคำตามประเภทกิจการ (feature 00036 FR-SOV-003) — ร้านบริการ/บ้านพักไม่มีการจัดส่ง
+          // ให้พูดถึง คำมาจาก ORDER_VOCAB ที่เดียว ห้ามต่อสตริงที่นี่ (ต่างจากบรรทัดยกเลิกข้างบน
+          // ที่ต่อได้ เพราะ "ยกเลิก"+noun อ่านเป็นภาษาคนทั้ง 3 ชุด ส่วนช่องนี้ไม่ใช่)
+          { label: vocab.fulfillLabel, done: o.status === 'SHIPPED' || o.status === 'CONFIRMED' },
           ...(isCODPayment(o.paymentMethod)
             ? [{ label: 'รับเงินปลายทาง', done: Boolean(o.codReceivedAtISO) }]
             : []),
@@ -715,8 +792,33 @@ export default function OrdersTable({ orders, ishipEnabled = false, vocab, stage
             />
           )}
 
-          {/* ขนส่ง — ตัวเลือกมาจากออเดอร์จริงของร้าน (user สั่ง 2026-08-06) */}
-          {courierOptions.length > 1 && (
+          {/* สถานะนัด (?appt= URL — state อยู่ที่ OrdersList ตัวเดียวกับชิปมือถือ, feature 00036)
+              โครงยกจากดรอปดาวน์ "พัสดุ" ข้างบนทั้งดุ้น เปลี่ยนแค่แหล่งข้อมูล */}
+          {appointmentFilter && (
+            <FilterDropdown
+              icon="calendar-event"
+              defaultLabel="สถานะนัด"
+              resetValue="All"
+              value={appointmentFilter.value ?? 'All'}
+              options={[
+                { value: 'All', label: 'ทั้งหมด' },
+                ...APPOINTMENT_STAGE_KEYS.map((key) => ({
+                  value: key,
+                  label: APPOINTMENT_STAGE_META[key].label,
+                  badge: {
+                    label: appointmentFilter.counts[key] ?? 0,
+                    className: APPOINTMENT_STAGE_META[key].cls,
+                  },
+                })),
+              ]}
+              onChange={(v) => appointmentFilter.onChange(v === 'All' ? null : v)}
+            />
+          )}
+
+          {/* ขนส่ง — ตัวเลือกมาจากออเดอร์จริงของร้าน (user สั่ง 2026-08-06)
+              hasShippingAxis: ต้องซ่อนคู่กับคอลัมน์ shipTo เสมอ ไม่งั้นกลายเป็นปุ่มที่กดแล้ว
+              ไม่เกิดอะไร (getColumn คืน undefined + optional chain = no-op เงียบ) */}
+          {hasShippingAxis && courierOptions.length > 1 && (
             <FilterDropdown
               icon="truck-delivery"
               defaultLabel="ขนส่ง"

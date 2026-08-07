@@ -32,6 +32,12 @@ import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── status tabs ────────────────────────────────────────────────────────────
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
+import {
+  APPOINTMENT_STAGE_KEYS,
+  APPOINTMENT_STAGE_META,
+  countAppointmentStages,
+  isAppointmentStatus,
+} from '@/lib/appointment-stage'
 import { ORDER_STATUS_META } from '@/lib/order-display'
 
 /** ลำดับชิปสถานะพัสดุ — เรียงตามเส้นทางจริงของพัสดุ ปิดท้ายด้วยกองที่ต้องแก้ */
@@ -112,9 +118,22 @@ type Props = {
   ishipEnabled?: boolean
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — มาจาก RSC ที่รู้จัก shop.vertical ของ request */
   vocab: OrderVocab
+  /**
+   * ร้านนี้มีโดเมนพัสดุไหม (feature 00036 FR-SOV-001) — false = ไม่มีคอลัมน์ที่อยู่จัดส่ง/ขนส่ง
+   *
+   * ตัดสินจาก vertical ที่ RSC ล้วน ไม่ derive จากข้อมูลของแถว: คอลัมน์ที่โผล่/หายตามว่า
+   * "หน้านี้บังเอิญมีใบที่มีพัสดุไหม" จะขยับเองตอน lazy-load ซึ่งอ่านเป็นจอกระตุก (BR-SOV-09)
+   */
+  hasShippingAxis?: boolean
 }
 
-export default function OrdersList({ orders, activeStatus, ishipEnabled = false, vocab }: Props) {
+export default function OrdersList({
+  orders,
+  activeStatus,
+  ishipEnabled = false,
+  vocab,
+  hasShippingAxis = true,
+}: Props) {
   const router   = useRouter()
   const pathname = usePathname()
 
@@ -140,6 +159,15 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
     stageParam && stageParam in SHIPPING_STAGE_LABEL
       ? (stageParam as keyof typeof SHIPPING_STAGE_LABEL)
       : null
+  /**
+   * ?appt= — แกนที่สองของร้านคิวงาน (feature 00036 FR-SOV-008, มติ D-1)
+   *
+   * อ่านจาก URL แบบเดียวกับ ?stage= ทุกประการ (ไม่ mirror เป็น state) เพื่อให้ปุ่ม back และ
+   * ลิงก์จากที่อื่นให้ผลตรงกัน · ค่าที่ไม่รู้จัก = ไม่กรอง (fail-open) ไม่ใช่หน้าว่างเปล่า
+   * ร้านหนึ่งมีแกนเสริมได้แกนเดียว (พัสดุ หรือ นัดหมาย) จึงไม่ต้องกันสองพารามิเตอร์ชนกัน
+   */
+  const apptParam = searchParams.get('appt')
+  const appt = isAppointmentStatus(apptParam) ? apptParam : null
   const [search,      setSearch]      = useState('')
   const [typeFilter,  setTypeFilter]  = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
@@ -193,13 +221,13 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
     tabsRef.current
       ?.querySelector('[data-active="true"]')
       ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
-  }, [localStatus, stage])
+  }, [localStatus, stage, appt])
 
   /**
    * เขียน query ใหม่โดยคงพารามิเตอร์อีกตัวไว้เสมอ — `?status=` (สถานะการขาย) กับ `?stage=`
    * (สถานะพัสดุ) เป็นคนละแกน ใช้พร้อมกันได้ ถ้าเขียนทับกันผู้ใช้จะรู้สึกว่ากดอันหนึ่งแล้วอีกอันหลุด
    */
-  const pushQuery = (patch: { status?: string | null; stage?: string | null }) => {
+  const pushQuery = (patch: { status?: string | null; stage?: string | null; appt?: string | null }) => {
     const next = new URLSearchParams(searchParams.toString())
     for (const [k, v] of Object.entries(patch)) {
       if (v == null) next.delete(k)
@@ -244,7 +272,25 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
   }, [orders])
 
   /** ร้านที่ไม่ใช่ ONLINE_SALES ไม่มีพัสดุให้ไล่ → shippingStage undefined ทุกแถว → ไม่มีแกนนี้ */
-  const hasStageAxis = STAGE_CHIPS.some((k) => (stageCounts[k] ?? 0) > 0) || stage !== null
+  const hasStageAxis =
+    hasShippingAxis && (STAGE_CHIPS.some((k) => (stageCounts[k] ?? 0) > 0) || stage !== null)
+
+  /**
+   * ตัวนับบนชิป/ดรอปดาวน์สถานะนัด — นับจาก `orders` ก้อนเดียวกับที่กรอง ผ่านฟังก์ชันเดียวกัน
+   * (countAppointmentStages รับ stage ที่ derive แล้ว จึงไม่มีทางนับคนละเกณฑ์กับตัวกรอง — BR-SOV-06)
+   */
+  const apptCounts = useMemo(
+    () => countAppointmentStages(orders.map((o) => o.appointment?.stage ?? null)),
+    [orders],
+  )
+
+  /**
+   * ร้าน walk-in ล้วนไม่มีนัดสักใบ → ไม่มีแกนนี้เลย (AC-8.2) — ไม่ใช่แกนที่มีอยู่แต่ทุกกองเป็น 0
+   * เงื่อนไข `|| appt !== null` มีไว้กันหน้าค้างเปล่า: ถ้าเข้ามาด้วยลิงก์ที่กรองอยู่แล้วจนไม่เหลือ
+   * แถวไหนมีนัด แกนต้องยังอยู่ให้กดออกได้ (ตรรกะเดียวกับ hasStageAxis)
+   */
+  const hasAppointmentAxis =
+    APPOINTMENT_STAGE_KEYS.some((k) => apptCounts[k] > 0) || appt !== null
 
   /**
    * ชิปแถวเดียวบนมือถือ — ร้านขายออนไลน์ได้ "สถานะพัสดุ" ร้านอื่นได้ "สถานะการขาย" แบบเดิม
@@ -257,9 +303,30 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
    *
    * แกนที่ถูกแทน (สำเร็จ/ยกเลิก ฯลฯ) ไม่ได้หายไป — ย้ายเข้าโมดัลตัวกรอง ซึ่งเป็นที่ของ
    * "ตัวกรองที่นาน ๆ ใช้ที" ส่วนแถวชิปเป็นที่ของ "กองงานที่สลับดูทุกวัน"
+   *
+   * feature 00036 ขยายเป็น 3 ทาง: ร้านคิวงานที่มีนัดได้ "สถานะนัด" ด้วยเหตุผลชุดเดียวกัน —
+   * มันคือกองงานที่ร้านสลับดูทุกวัน ส่วนสถานะการขายเป็นของที่นาน ๆ ใช้ที
+   * ลำดับ if ไม่สำคัญเชิงตรรกะ (ร้านหนึ่งเข้าเงื่อนไขได้อันเดียว) แต่เขียนเรียงไว้ให้อ่านชัด
    */
   const chipRow: { key: string; label: string; count: number; active: boolean; select: () => void }[] =
-    hasStageAxis
+    hasAppointmentAxis
+      ? [
+          {
+            key: 'all',
+            label: 'ทั้งหมด',
+            count: orders.length,
+            active: appt === null,
+            select: () => pushQuery({ appt: null }),
+          },
+          ...APPOINTMENT_STAGE_KEYS.map((k) => ({
+            key: k,
+            label: APPOINTMENT_STAGE_META[k].label,
+            count: apptCounts[k],
+            active: appt === k,
+            select: () => pushQuery({ appt: k }),
+          })),
+        ]
+      : hasStageAxis
       ? [
           {
             key: 'all',
@@ -285,11 +352,16 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
         }))
 
   // ─── filter pipeline ─────────────────────────────────────────────────────────
-  /** กรองด้วย stage อย่างเดียว — ตารางเดสก์ท็อปมีตัวกรอง status/ประเภท/ค้นหาของตัวเองอยู่แล้ว */
-  const stageFiltered = useMemo(
-    () => (stage ? orders.filter((o) => o.shippingStage === stage) : orders),
-    [orders, stage],
-  )
+  /**
+   * กรองด้วยแกนเสริมอย่างเดียว (พัสดุ หรือ นัดหมาย) — ตารางเดสก์ท็อปมีตัวกรอง status/ประเภท/
+   * ค้นหาของตัวเองอยู่แล้ว · ทั้งสองแกนกรองจาก field เดียวกับที่ตัวนับข้างบนนับ (BR-SOV-06)
+   */
+  const stageFiltered = useMemo(() => {
+    let list = orders
+    if (stage) list = list.filter((o) => o.shippingStage === stage)
+    if (appt) list = list.filter((o) => o.appointment?.stage === appt)
+    return list
+  }, [orders, stage, appt])
 
   const filtered = useMemo(() => {
     let list = stageFiltered
@@ -311,7 +383,7 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
   // reset lazy-load เมื่อ filter/search/status เปลี่ยน
   useEffect(() => {
     setVisibleCount(PAGE)
-  }, [localStatus, typeFilter, search, stage])
+  }, [localStatus, typeFilter, search, stage, appt])
 
   // ─── lazy-load: เพิ่ม visibleCount เมื่อ sentinel เข้า viewport ───────────────
   const visible = filtered.slice(0, visibleCount)
@@ -385,6 +457,16 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
                   value: stage,
                   counts: stageCounts,
                   onChange: (v) => pushQuery({ stage: v }),
+                }
+              : undefined
+          }
+          hasShippingAxis={hasShippingAxis}
+          appointmentFilter={
+            hasAppointmentAxis
+              ? {
+                  value: appt,
+                  counts: apptCounts,
+                  onChange: (v) => pushQuery({ appt: v }),
                 }
               : undefined
           }
@@ -462,15 +544,22 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
           </Link>
 
           {/* ดึงจาก iShip — สำหรับร้านที่เปิดพัสดุบน iShip ก่อนแล้วค่อยมาบันทึกออเดอร์
-              รองเป็นปุ่ม tonal เพราะ "สร้างออเดอร์" ยังเป็น action หลักของหน้านี้ */}
-          <button
-            type="button"
-            onClick={() => setImportOpen(true)}
-            className="btn hidden shrink-0 bg-primary/15 text-primary-ink hover:bg-primary/25 lg:inline-flex"
-          >
-            <Icon icon="package-import" className="text-sm" />
-            ดึงจาก iShip
-          </button>
+              รองเป็นปุ่ม tonal เพราะ "สร้างออเดอร์" ยังเป็น action หลักของหน้านี้
+
+              ishipEnabled: เพิ่ม 2026-08-07 (feature 00036 FR-SOV-002) — ปุ่มนี้ไม่เคยผูกกับ
+              อะไรเลยตั้งแต่วันแรก ร้านคิวงาน/บ้านพักและร้านขายออนไลน์ที่ยังไม่เชื่อม iShip
+              จึงเห็นปุ่มที่เปิดโมดัลนำเข้าพัสดุซึ่งไม่มีทางใช้ได้ (ปุ่มพิมพ์ใบปะหน้าใน
+              BulkActionBar ผูกไว้ถูกอยู่แล้ว — ตัวนี้หลุดไปตัวเดียว) */}
+          {ishipEnabled && (
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="btn hidden shrink-0 bg-primary/15 text-primary-ink hover:bg-primary/25 lg:inline-flex"
+            >
+              <Icon icon="package-import" className="text-sm" />
+              ดึงจาก iShip
+            </button>
+          )}
 
           {/* สร้างออเดอร์ (มือถือ) — ปุ่ม filled สีน้ำเงินตัวเดียวในหัวหน้า
               หน้านี้ full-screen จึงซ่อน SellerBottomNav ทั้งก้อน → FAB หายไปด้วย
@@ -585,10 +674,10 @@ export default function OrdersList({ orders, activeStatus, ishipEnabled = false,
           {/* overscroll-contain: กล่อง scroll ในโมดัลที่เนื้อหายังไม่ล้นก็ chain ออกไปเลื่อนหน้า
               ข้างหลังได้ (บั๊กชัดที่สุดตอนเนื้อหาสั้น ซึ่งเป็นกรณีปกติของโมดัลนี้) */}
           <div className="flex-1 overflow-auto overscroll-contain p-4">
-            {/* สถานะการขาย — เฉพาะร้านขายออนไลน์ ที่แถวชิปถูกใช้ไปกับสถานะพัสดุแล้ว
-                (ร้าน vertical อื่นแกนนี้ยังอยู่บนแถวชิป จึงไม่ต้องมีซ้ำในนี้)
+            {/* สถานะการขาย — เฉพาะร้านที่แถวชิปถูกแกนเสริมยึดไปแล้ว (พัสดุ หรือ นัดหมาย)
+                ร้านที่ไม่มีแกนเสริมเลย แกนนี้ยังอยู่บนแถวชิป จึงไม่ต้องมีซ้ำในนี้
                 แถวหน้าตาเดียวกับประเภทออเดอร์ทุกประการ */}
-            {hasStageAxis && (
+            {(hasStageAxis || hasAppointmentAxis) && (
               <>
                 <p className="mb-2 text-sm font-medium text-default-900">สถานะการขาย</p>
                 <div className="mb-5 space-y-1">

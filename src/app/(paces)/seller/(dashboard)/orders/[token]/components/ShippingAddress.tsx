@@ -29,6 +29,15 @@ export type ShippingAddressCardProps = {
   fulfillmentMode: string
   accessUrl: string | null
   publicToken: string
+  /**
+   * ใบนี้เป็นงานบริการที่มีนัดไหม (feature 00036 FR-SOV-004)
+   *
+   * `fulfillmentMode === 'NO_SHIPPING'` เพียงอย่างเดียวคลุมทั้งสินค้าดิจิทัลและงานบริการไว้
+   * ด้วยกัน — ร้านที่รับติดตั้ง/ตกแต่งจึงเคยได้ฟอร์ม "กรอก URL เพื่อส่งมอบให้ผู้ซื้อ" ซึ่งไม่มี
+   * ทางกรอกอะไรที่สมเหตุสมผล (คอมเมนต์เดิมที่ showAccessUrl เคยแยก PICKUP ออกไปแล้ว
+   * ด้วยเหตุผลชุดเดียวกัน แค่ยังไม่ครอบงานบริการ)
+   */
+  isServiceOrder?: boolean
 }
 
 export default function ShippingAddress({
@@ -36,13 +45,15 @@ export default function ShippingAddress({
   fulfillmentMode,
   accessUrl,
   publicToken,
+  isServiceOrder = false,
 }: ShippingAddressCardProps) {
   const router = useRouter()
   // allow-list ไม่ใช่ deny-list — fulfillmentMode เป็น String ค่าใหม่ในอนาคตต้องไม่หลุดเข้าโหมด
   // "ต้องส่งของ" เองโดยอัตโนมัติ (นี่คือสาเหตุที่ PICKUP เคยหลุดมาแล้วครั้งหนึ่ง)
   const hasShipping = fulfillmentMode === 'SHIPPED'
   // เจตนาเช็ค NO_SHIPPING ตรง ๆ ไม่รวม PICKUP — จองที่พักไม่มีลิงก์ดาวน์โหลดให้ส่งมอบ
-  const showAccessUrl = fulfillmentMode === 'NO_SHIPPING'
+  // และไม่รวมงานบริการที่มีนัดด้วย ด้วยเหตุผลเดียวกัน (การ์ด "การนัดหมาย" เป็นที่ของมันแทน)
+  const showAccessUrl = fulfillmentMode === 'NO_SHIPPING' && !isServiceOrder
 
   const [accessUrlValue, setAccessUrlValue] = useState(accessUrl ?? '')
   const [accessUrlLoading, setAccessUrlLoading] = useState(false)

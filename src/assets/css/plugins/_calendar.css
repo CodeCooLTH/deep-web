@@ -145,8 +145,14 @@
  * ใช้พื้นอ่อน + ตัวอักษร -ink ตาม idiom badge ของ Paces แทนพื้นทึบ+ตัวขาว
  * เพราะขาวบน --color-warning ได้แค่ 1.66:1 ซึ่งยังตก AA อยู่ดี
  *
- * Verified-Means-Green: เขียวสงวนให้ "ลูกค้ายืนยันแล้ว" เท่านั้น
- * ให้บริการแล้ว = จบไปแล้ว ใช้สีกลางหม่น ไม่ใช่สัญญาณ trust ที่ยังมีชีวิต
+ * Verified-Means-Green (แก้ 2026-08-07 feature 00036 — user เคาะ):
+ * เดิมที่นี่ให้เขียวกับ "ลูกค้ายืนยันแล้ว" และให้สีกลางหม่นกับ "ให้บริการแล้ว" ด้วยเหตุผลเชิงพื้นที่
+ * ปฏิทิน (อยากให้นัดที่จบแล้วจางลงบนพื้นเดือน) — แต่นั่นทำให้เขียวไปอยู่กับสิ่งที่ *ยังไม่เกิดขึ้น*
+ * (ลูกค้าบอกว่าจะมา ≠ ลูกค้ามาแล้ว) ซึ่งขัด Verified-Means-Green ตรงตัว และพอหน้า /orders
+ * มีป้ายสถานะนัดชุดเดียวกัน (feature 00036) จอเดียวของผู้ใช้ก็พูดสีคนละภาษาทันที
+ *   ลูกค้ายืนยันแล้ว = primary ("กำลังเดินหน้า" — คำยืนยันของผู้ซื้อ ยังไม่ถึงวันนัดด้วยซ้ำ)
+ *   ให้บริการแล้ว   = success (ข้อเท็จจริงที่ผู้ขายยืนยันเองแล้ว)
+ * SSOT ของชุดสีนี้อยู่ที่ src/lib/appointment-stage.ts — แก้ที่นั่นแล้วต้องแก้ที่นี่ให้ตรงกัน
  * ขอเลื่อน = info เพราะเป็นสถานะเดียวที่ร้านต้องลงมือทำ ต้องแยกจาก "นัดแล้ว" ให้ออก
  */
 .appointment-calendar .fc-event.appt-ev-scheduled {
@@ -155,9 +161,9 @@
     --fc-event-text-color: var(--color-warning-ink);
 }
 .appointment-calendar .fc-event.appt-ev-confirmed {
-    --fc-event-bg-color: color-mix(in srgb, var(--color-success) 20%, white);
-    --fc-event-border-color: var(--color-success);
-    --fc-event-text-color: var(--color-success-ink);
+    --fc-event-bg-color: color-mix(in srgb, var(--color-primary) 20%, white);
+    --fc-event-border-color: var(--color-primary);
+    --fc-event-text-color: var(--color-primary-ink);
 }
 .appointment-calendar .fc-event.appt-ev-reschedule {
     --fc-event-bg-color: color-mix(in srgb, var(--color-info) 20%, white);
@@ -165,9 +171,9 @@
     --fc-event-text-color: var(--color-info-ink);
 }
 .appointment-calendar .fc-event.appt-ev-completed {
-    --fc-event-bg-color: color-mix(in srgb, var(--color-default-500) 18%, white);
-    --fc-event-border-color: var(--color-default-500);
-    --fc-event-text-color: var(--color-default-800);
+    --fc-event-bg-color: color-mix(in srgb, var(--color-success) 20%, white);
+    --fc-event-border-color: var(--color-success);
+    --fc-event-text-color: var(--color-success-ink);
 }
 .appointment-calendar .fc-event.appt-ev-noshow {
     --fc-event-bg-color: color-mix(in srgb, var(--color-danger) 20%, white);

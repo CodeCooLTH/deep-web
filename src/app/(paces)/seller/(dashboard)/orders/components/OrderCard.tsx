@@ -18,7 +18,9 @@
 
 import { Icon } from '@iconify/react'
 import Link from 'next/link'
-import { formatRelativeDayTime } from '@/lib/format-date'
+import { formatDateTH, formatDayMonthTimeTH, formatRelativeDayTime } from '@/lib/format-date'
+import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
+import { cn } from '@/utils/helpers'
 import { formatOrderNo } from '@/lib/order-no'
 import type { OrderVocab } from '@/lib/seller-menu'
 import { useRef, useState } from 'react'
@@ -301,6 +303,42 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
               hasShipment
               cancelled={false}
             />
+          </div>
+        )}
+
+        {/* ── นัดหมาย (feature 00036) — ตำแหน่งเดียวกับบล็อกพัสดุข้างบน เพราะตอบคำถามชุดเดียวกัน
+            ของโดเมนคิวงาน: "งานนี้เมื่อไหร่ ใครรับ ถึงขั้นไหน"
+            ขึ้นเฉพาะใบที่มีนัดจริง — ใบ walk-in ในร้านเดียวกันไม่มีบล็อกนี้เลย ไม่ใช่บล็อกว่าง
+            (AC-6.2 — เกณฑ์เดียวกับที่บรรทัดพัสดุใช้ `shipment?.trackingNo`) */}
+        {order.appointment && (
+          <div className="mt-2.5 flex items-center gap-2 border-t border-dashed border-default-200 pt-2.5">
+            {/* ไฟล์นี้ใช้ Icon ดิบจาก @iconify/react (ไม่ใช่ wrapper) จึงต้องเขียน namespace เอง —
+                ชื่อเปล่าจะได้ไอคอนว่างเปล่าเงียบ ๆ ไม่มี error · ชื่อใน APPOINTMENT_STAGE_META
+                เก็บแบบเปล่าตาม convention ของ wrapper จึงต้องเติม tabler: ที่นี่ */}
+            <Icon icon="tabler:calendar-event" className="shrink-0 text-base text-default-500" aria-hidden="true" />
+            <span className="truncate text-xs font-medium text-default-800">
+              {order.appointment.allDay
+                ? `${formatDateTH(order.appointment.startISO)} · ทั้งวัน`
+                : formatDayMonthTimeTH(order.appointment.startISO)}
+            </span>
+            {order.appointment.resourceName && (
+              <span className="truncate text-xs text-default-500">
+                · {order.appointment.resourceName}
+              </span>
+            )}
+            <span
+              className={cn(
+                'ms-auto inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
+                APPOINTMENT_STAGE_META[order.appointment.stage].cls,
+              )}
+            >
+              <Icon
+                icon={`tabler:${APPOINTMENT_STAGE_META[order.appointment.stage].icon}`}
+                className="shrink-0 text-sm"
+                aria-hidden="true"
+              />
+              {APPOINTMENT_STAGE_META[order.appointment.stage].label}
+            </span>
           </div>
         )}
 

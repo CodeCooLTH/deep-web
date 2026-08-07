@@ -1046,6 +1046,9 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
       // คนที่กดยืนยันรับเงินปลายทาง — การ์ด COD แสดง "รับเมื่อ ... โดย ..." ให้ตามตัวได้ว่าใครกด
       // (กดผิดแล้วใบหลุดจากกอง "รอเงิน COD" เงียบ ๆ ต้องรู้ว่าถามใคร) select แคบเหมือน createdBy
       codReceivedBy: { select: { id: true, displayName: true, username: true } },
+      // ทรัพยากรที่รับงานนัดนี้ (feature 00036) — การ์ด "การนัดหมาย" ต้องบอกว่าใคร/ช่องไหนรับ
+      // select แคบ ๆ เพราะการ์ดใช้แค่ชื่อ; ช่วงเวลา/สถานะเป็น scalar บน Order มาแล้วจาก include
+      serviceResource: { select: { id: true, name: true } },
       shipmentTracking: true,
       review: true,
     },
@@ -1259,6 +1262,9 @@ export async function getOrdersByShop(shopId: string, status?: string) {
       // buyer: registered user ที่ยืนยัน order — ใช้แสดงชื่อลูกค้าใน seller order list
       // คัดลอก select เดียวกับ getOrderForShop (additive — ไม่ break caller เดิม)
       buyer: { select: { id: true, displayName: true, username: true, avatar: true } },
+      // ทรัพยากรที่รับงานนัด (feature 00036) — คอลัมน์/บล็อก "นัดหมาย" ของร้าน SERVICE_QUEUE
+      // ช่วงเวลาและสถานะนัดเป็น scalar บน Order จึงมากับ include อยู่แล้ว ขาดแค่ชื่อทรัพยากร
+      serviceResource: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
   });

@@ -375,6 +375,15 @@ export type OrderVocab = {
    * จึงต้องเป็นคำที่ผูกกับ "การเปิดบิล/รับงาน" ไม่ใช่กับ "การใช้บริการ"
    */
   dateLabel: string
+  /**
+   * ขั้น "ร้านลงมือทำตามที่รับงานมาแล้ว" ในเช็กลิสต์สถานะของตารางรายการ (feature 00036 FR-SOV-003)
+   *
+   * [สำคัญ] ห้ามใช้คำเดียวกับ APPOINTMENT_STATUS_LABEL.COMPLETED ("ให้บริการแล้ว") เด็ดขาด —
+   * สองอย่างนี้ผูกกับคนละคอลัมน์และตัดสินคนละเรื่อง (ช่องนี้ = Order.status, ป้ายนั้น =
+   * Order.appointmentStatus) ถ้าใช้คำเดียวกันเป๊ะ ผู้ใช้จะอ่านเป็นสิ่งเดียวกันแล้วงงว่าทำไม
+   * จอเดียวบอก "ให้บริการแล้ว" ที่หนึ่งติ๊กถูก อีกที่ยังไม่ติ๊ก
+   */
+  fulfillLabel: string
 }
 
 export const ORDER_VOCAB: Record<string, OrderVocab> = {
@@ -384,6 +393,7 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     createLabel: 'สร้างคำสั่งซื้อ',
     createLabelShort: 'สร้างคำสั่งซื้อ',
     dateLabel: 'วันที่สั่งซื้อ',
+    fulfillLabel: 'ยืนยันการจัดส่ง',
   },
   SERVICE_QUEUE: {
     noun: 'การเข้ารับบริการ',
@@ -406,6 +416,12 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
      * ตัดสินใจ — ต่างจากร้านขายออนไลน์ที่ "วันที่สั่งซื้อ" คือวันที่ลูกค้าทัก ซึ่งมักไม่ใช่วันที่คีย์
      */
     dateLabel: 'วันที่สร้าง',
+    /**
+     * "เริ่ม" นำหน้าโดยตั้งใจ เพื่อไม่ให้ชนกับ APPOINTMENT_STATUS_LABEL.COMPLETED ที่เป็น
+     * "ให้บริการแล้ว" เป๊ะ ๆ — ป้ายนั้นผูกกับ Order.appointmentStatus (ผู้ขายกดปิดผลนัด)
+     * ส่วนช่องนี้ผูกกับ Order.status ซึ่งเดินคนละเส้น ใบหนึ่งติ๊กถูกได้โดยที่อีกอันยังไม่ติ๊ก
+     */
+    fulfillLabel: 'เริ่มให้บริการแล้ว',
   },
   LODGING: {
     noun: 'บิลเข้าพัก',
@@ -414,6 +430,9 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     createLabelShort: 'เปิดบิลเข้าพัก',
     // ไม่ใช่ "วันที่เข้าพัก" — นั่นคือ Order.checkIn คนละคอลัมน์
     dateLabel: 'วันที่เปิดบิล',
+    // เลี่ยงคำว่า "เช็คอินแล้ว" ด้วยเหตุผลเดียวกับ dateLabel ข้างบน — ผู้ใช้จะอ่านว่าหมายถึง
+    // คอลัมน์ Order.checkIn ทั้งที่ช่องนี้คือขั้นตอนบนเช็กลิสต์ที่ผูกกับ Order.status
+    fulfillLabel: 'รับเข้าพักแล้ว',
   },
 }
 

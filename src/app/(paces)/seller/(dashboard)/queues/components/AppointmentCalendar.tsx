@@ -63,9 +63,10 @@ const ALL = ''
 /**
  * สีของสถานะนัด — ใช้ token ของ Paces ไม่ hardcode hex
  *
- * Verified-Means-Green: เขียวเฉพาะสถานะที่ "ยืนยันแล้วจริง" (ลูกค้ายืนยัน / ให้บริการแล้ว)
- * สถานะที่ยังไม่นิ่ง (นัดแล้ว / ขอเลื่อน) ใช้ warning ไม่ใช่เขียว เพื่อไม่ให้สัญญาณ trust เฟ้อ
- * ไม่มาตามนัด = danger เพราะเป็นผลลบจริง
+ * Verified-Means-Green (ปรับ 2026-08-07 feature 00036): เขียวสงวนให้ "ให้บริการแล้ว" ตัวเดียว
+ * เพราะเป็นสถานะเดียวที่เป็นข้อเท็จจริงซึ่งเกิดขึ้นแล้ว — "ลูกค้ายืนยันแล้ว" คือคำบอกว่าจะมา
+ * (ยังไม่ถึงวันนัดด้วยซ้ำ) จึงเป็น primary ไม่ใช่เขียว · สถานะที่ยังไม่นิ่ง (นัดแล้ว) ใช้ warning
+ * ไม่มาตามนัด = danger เพราะเป็นผลลบจริง · SSOT ของชุดสี = src/lib/appointment-stage.ts
  */
 const STATUS_CLASS: Record<AppointmentStatus, string> = {
   SCHEDULED: 'appt-ev-scheduled',
@@ -82,9 +83,12 @@ const STATUS_CLASS: Record<AppointmentStatus, string> = {
  */
 const STATUS_DOT: Record<AppointmentStatus, string> = {
   SCHEDULED: 'bg-warning',
-  CONFIRMED_BY_BUYER: 'bg-success',
+  // primary/success สลับกันกับของเดิม 2026-08-07 (feature 00036 — user เคาะ): เขียวต้องอยู่กับ
+  // สิ่งที่เกิดขึ้นแล้วเท่านั้น ไม่ใช่กับคำบอกของผู้ซื้อว่าจะมา — เหตุผลเต็มอยู่ที่ _calendar.css
+  // และ SSOT ของชุดสีอยู่ที่ src/lib/appointment-stage.ts (หน้า /orders ใช้ชุดเดียวกัน)
+  CONFIRMED_BY_BUYER: 'bg-primary',
   RESCHEDULE_REQUESTED: 'bg-info',
-  COMPLETED: 'bg-default-500',
+  COMPLETED: 'bg-success',
   NO_SHOW: 'bg-danger',
 }
 

@@ -15,6 +15,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getOrdersByShop } from '@/services/order.service'
 import { deriveShippingStage } from '@/lib/order-stage'
+import { deriveAppointmentStage } from '@/lib/appointment-stage'
+import { canUseAppointments, isAllDayAppointment } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
 import { thaiDayKey } from '@/lib/format-date'
 import { getConnection } from '@/services/iship.service'
@@ -99,6 +101,9 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // กองงานตามสถานะพัสดุ — ต้องมาจาก deriveShippingStage ตัวเดียวกับที่ตัวนับบน Command Center ใช้
   // ไม่งั้นกดไทล์ที่บอก 5 แล้วเข้ามาเจอ 4 ใบ (ดูคอมเมนต์ที่ตัวฟังก์ชันใน lib/order-stage.ts)
   const isOnlineSales = shop.vertical === 'ONLINE_SALES'
+  // แกน "สถานะนัดหมาย" ของร้านคิวงาน (feature 00036) — คู่ขนานกับแกนพัสดุข้างบน
+  // ร้านหนึ่งมีแกนเสริมได้แกนเดียว จึงไม่มีทางที่สองเงื่อนไขนี้จะจริงพร้อมกัน
+  const isServiceQueue = canUseAppointments(shop)
 
   // รูปเพจของร้าน (คอลัมน์ "ที่มา" — user สั่ง 2026-08-06): Order เก็บแค่ salesChannel
   // ไม่ได้เก็บว่ามาจากเพจไหน → ชี้รูปเพจได้เฉพาะร้านที่เชื่อมเพจ MESSENGER ACTIVE เพจเดียว
@@ -174,24 +179,50 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     // (ShipmentTracking: provider = ชื่อขนส่งที่ผู้ขายเลือก, ไม่มีรหัส) จะไม่ขึ้นเลขพัสดุเลย
     // ทั้งที่มีเลขอยู่ — เจอตอน user ส่งภาพหน้าจอ "แจ้งเลขพัสดุ" มาให้ดู 2026-08-04
     // ให้พัสดุ iShip ชนะเมื่อมีทั้งคู่ เพราะเป็นใบที่ระบบติดตามสถานะขนส่งให้จริง
-    shipment: o.shipments?.[0]
-      ? {
-          id: o.shipments[0].id ?? null,
-          trackingNo: o.shipments[0].trackingNo ?? null,
-          courierCode: o.shipments[0].courierCode ?? null,
-          courierName: o.shipments[0].courierName ?? null,
-          provider: o.shipments[0].provider ?? 'ISHIP',
-        }
-      : o.shipmentTracking
+    // feature 00036: ร้านที่ไม่ใช่ ONLINE_SALES ไม่ส่งข้อมูลพัสดุข้าม RSC boundary เลย
+    // ไม่ใช่แค่ "ไม่ render" — ออเดอร์เก่าของร้านที่เคยเป็นประเภทอื่นยังมีที่อยู่/เลขพัสดุจริงติดอยู่
+    // การส่งมาแล้วซ่อนที่จอเท่ากับ serialize PII ของทุกแถวเข้า flight payload ฟรี ๆ
+    // (feedback_rsc_pii_neutralize_at_source) · หน้ารายละเอียดยังเห็นครบตาม BR-SOV-10
+    shipment: !isOnlineSales
+      ? null
+      : o.shipments?.[0]
         ? {
-            trackingNo: o.shipmentTracking.trackingNo ?? null,
-            courierCode: null,
-            courierName: o.shipmentTracking.provider ?? null,
-            // ร้านแจ้งเลขเอง — ไม่มีแถว OrderShipment จึงไม่มี id ให้ถาม traces
-            id: null,
-            provider: 'MANUAL',
+            id: o.shipments[0].id ?? null,
+            trackingNo: o.shipments[0].trackingNo ?? null,
+            courierCode: o.shipments[0].courierCode ?? null,
+            courierName: o.shipments[0].courierName ?? null,
+            provider: o.shipments[0].provider ?? 'ISHIP',
           }
-        : null,
+        : o.shipmentTracking
+          ? {
+              trackingNo: o.shipmentTracking.trackingNo ?? null,
+              courierCode: null,
+              courierName: o.shipmentTracking.provider ?? null,
+              // ร้านแจ้งเลขเอง — ไม่มีแถว OrderShipment จึงไม่มี id ให้ถาม traces
+              id: null,
+              provider: 'MANUAL',
+            }
+          : null,
+    // นัดหมาย (feature 00036) — undefined = ร้านไม่มีแกนนี้, null = ร้านมีแกนแต่ใบนี้ walk-in
+    // stage มาจาก deriveAppointmentStage ตัวเดียวกับที่ตัวนับบนชิปใช้ (BR-SOV-06)
+    appointment: !isServiceQueue
+      ? undefined
+      : (() => {
+          const stage = deriveAppointmentStage({
+            serviceStart: o.serviceStart,
+            appointmentStatus: o.appointmentStatus,
+          })
+          if (!stage || !o.serviceStart) return null
+          const start = new Date(o.serviceStart)
+          const end = o.serviceEnd ? new Date(o.serviceEnd) : null
+          return {
+            startISO: start.toISOString(),
+            // ตัดสินจากช่วงเวลาที่บันทึกไว้จริงของแถวนี้ ไม่ใช่จากโหมดปัจจุบันของร้าน (BR-RSV-57)
+            allDay: end ? isAllDayAppointment(start, end) : false,
+            resourceName: o.serviceResource?.name ?? null,
+            stage,
+          }
+        })(),
     shippingStage: isOnlineSales
       ? deriveShippingStage({
           status: o.status,
@@ -225,6 +256,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     buyerPhone: o.buyerContact ?? null,
     // ปลายทางแยกส่วน — ประกอบบรรทัดที่ฝั่งจอ (ดูเหตุผล + หมายเหตุ PII ที่ OrderRow.shipTo)
     shipTo: (() => {
+      // ร้านที่ไม่มีการจัดส่งไม่ต้องรู้จักที่อยู่เลยในหน้ารายการ (เหตุผลเดียวกับ shipment ข้างบน)
+      if (!isOnlineSales) return null
       const a = o.shippingAddress as Record<string, unknown> | null
       if (!a) return null
       const str = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null)
@@ -362,7 +395,13 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         ))}
       </div>
 
-      <OrdersList orders={orders} activeStatus={activeStatus} ishipEnabled={ishipEnabled} vocab={vocab} />
+      <OrdersList
+        orders={orders}
+        activeStatus={activeStatus}
+        ishipEnabled={ishipEnabled}
+        vocab={vocab}
+        hasShippingAxis={isOnlineSales}
+      />
     </>
   )
 }

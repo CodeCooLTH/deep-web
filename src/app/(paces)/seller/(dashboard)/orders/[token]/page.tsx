@@ -48,6 +48,9 @@ import OrderDetailClient from './components/OrderDetailClient'
 import ShippingActivity from './components/ShippingActivity'
 import CustomerDetails from './components/CustomerDetails'
 import ShippingAddressCard from './components/ShippingAddress'
+import AppointmentCard from './components/AppointmentCard'
+import { deriveAppointmentStage } from '@/lib/appointment-stage'
+import { isAllDayAppointment } from '@/lib/appointments'
 import BillingDetails from './components/BillingDetails'
 import ShippingCard from './components/ShippingCard'
 import { getOrderEvents } from '@/services/order-event.service'
@@ -307,11 +310,36 @@ export default async function OrderDetailPage({ params }: PageProps) {
         }
         sideCards={
           <>
+            {/* การนัดหมาย (feature 00036) — วางเป็นการ์ดแรกของคอลัมน์ข้าง เพราะสำหรับออเดอร์
+                งานบริการนี่คือสิ่งเดียวในคอลัมน์นี้ที่มี action ให้ทำ (ที่อยู่จัดส่ง/พัสดุจะ
+                return null เกือบทุกครั้ง) · เงื่อนไข render = มี serviceStart เท่านั้น ตรงกับ
+                เงื่อนไขที่ setAppointmentOutcome ใช้ตัดสิน 404 — ไม่ derive จาก vertical/type
+                เพราะสองอย่างนั้นเปลี่ยนได้ภายหลังโดยที่ข้อมูลนัดยังอยู่ */}
+            {order.serviceStart && (
+              <AppointmentCard
+                publicToken={order.publicToken}
+                startISO={new Date(order.serviceStart).toISOString()}
+                allDay={
+                  order.serviceEnd
+                    ? isAllDayAppointment(new Date(order.serviceStart), new Date(order.serviceEnd))
+                    : false
+                }
+                resourceName={order.serviceResource?.name ?? null}
+                stage={
+                  deriveAppointmentStage({
+                    serviceStart: order.serviceStart,
+                    appointmentStatus: order.appointmentStatus,
+                  }) ?? 'SCHEDULED'
+                }
+                buyerLabel={order.buyer?.displayName ?? order.buyerName ?? 'ลูกค้า'}
+              />
+            )}
             <ShippingAddressCard
               accessUrl={order.accessUrl ?? null}
               fulfillmentMode={order.fulfillmentMode}
               publicToken={order.publicToken}
               shippingAddr={shippingAddr}
+              isServiceOrder={Boolean(order.serviceStart)}
             />
             {/* ใต้ "ที่อยู่จัดส่ง" (user 2026-08-05) — ของสองอย่างนี้ตอบคำถามเดียวกันว่า
                 "ของไปถึงไหนแล้ว/จะไปที่ไหน" อยู่ติดกันแล้วอ่านต่อเนื่องกว่าแยกคนละคอลัมน์ */}
