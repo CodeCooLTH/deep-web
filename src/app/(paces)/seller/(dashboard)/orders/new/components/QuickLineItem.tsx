@@ -11,6 +11,7 @@ import { useState } from 'react'
 import { useController } from 'react-hook-form'
 import type { Control, FieldErrors } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
+import { pacesConfirm } from '@/lib/paces-swal'
 import ProductThumb from './ProductThumb'
 import QuickPriceSheet from './QuickPriceSheet'
 import type { CatalogProduct, FormValues, ItemsController } from './OrderCreateForm'
@@ -28,6 +29,10 @@ interface Props {
   inventoryEnabled?: boolean
   /** คำเรียกของที่ร้านขาย (สินค้า/บริการ/ห้องพัก) */
   productNoun?: string
+  /** ไอคอนแทนของที่ร้านขาย (package/tool/bed) */
+  productIcon?: string
+  /** หน่วยนับต่อบรรทัด (ชิ้น/ครั้ง/คืน) */
+  unitLabel?: string
   /** เปิด ProductPickerSheet ที่ QuickForm สำหรับ line นี้ */
   onOpenPicker: () => void
 }
@@ -41,6 +46,8 @@ export default function QuickLineItem({
   errors,
   inventoryEnabled = false,
   productNoun = 'สินค้า',
+  productIcon = 'package',
+  unitLabel = 'ชิ้น',
   onOpenPicker,
 }: Props) {
   const [priceOpen, setPriceOpen] = useState(false)
@@ -75,7 +82,7 @@ export default function QuickLineItem({
             itemsRootError ? 'border-danger bg-danger/5 text-danger' : 'border-default-300 bg-default-50 text-default-300'
           }`}
         >
-          <Icon icon="package" className="size-6" />
+          <Icon icon={productIcon} className="size-6" />
         </span>
       )}
 
@@ -125,11 +132,26 @@ export default function QuickLineItem({
               </p>
             )}
           </div>
+          {/**
+           * ลบรายการ — เป้ากด 44px และ "ถามก่อนถ้ามีอะไรจะเสีย"
+           *
+           * ของเดิม `p-1` ครอบไอคอน 16px ได้เป้าจริงราว 24px อยู่ห่างช่อง "รายละเอียด" ที่กำลัง
+           * พิมพ์อยู่ไม่กี่พิกเซล และเรียก remove() ทันทีโดยไม่มี confirm/undo — กดพลาดครั้งเดียว
+           * ตอนลูกค้ายืนรอ = ราคาที่เพิ่งคีย์หายโดยไม่มีทางเรียกคืน (impeccable critique P2)
+           *
+           * ถามเฉพาะแถวที่มีของจะเสียจริง (มีชื่อแล้ว) — แถวเปล่าลบทันทีเหมือนเดิม ไม่งั้น
+           * การล้างแถวที่เผลอกดเพิ่มจะกลายเป็น 2 คลิกทุกครั้งโดยไม่ได้กันอะไรเลย
+           * (convention: destructive ในคอนโซลผู้ขายต้องมี confirm — docs/conventions/seller-action-placement.md)
+           */}
           <button
             type="button"
-            onClick={() => itemsCtl.remove(index)}
-            aria-label="ลบรายการ"
-            className="shrink-0 p-1 text-default-300 hover:text-danger"
+            onClick={async () => {
+              if (!hasProduct) return itemsCtl.remove(index)
+              const ok = await pacesConfirm.danger('ลบรายการนี้?', item.name)
+              if (ok) itemsCtl.remove(index)
+            }}
+            aria-label={hasProduct ? `ลบรายการ ${item.name}` : 'ลบรายการ'}
+            className="flex size-11 shrink-0 items-center justify-center rounded-md text-default-300 hover:bg-danger/10 hover:text-danger"
           >
             <Icon icon="trash" className="size-4" />
           </button>
@@ -141,7 +163,7 @@ export default function QuickLineItem({
             <div className="text-base font-bold text-dark tabular-nums">{formatThb(qty * price)}</div>
             {hasProduct && (
               <button type="button" onClick={() => setPriceOpen(true)} className="mt-0.5 text-2xs text-default-400">
-                {formatThb(price)}/ชิ้น · <span className="font-semibold text-primary">แก้ราคา</span>
+                {formatThb(price)}/{unitLabel} · <span className="font-semibold text-primary">แก้ราคา</span>
               </button>
             )}
           </div>

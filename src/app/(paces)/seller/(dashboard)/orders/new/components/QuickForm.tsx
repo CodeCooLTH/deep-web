@@ -29,6 +29,10 @@ interface Props {
   orderNoun?: string
   /** คำเรียกของที่ร้านขาย ตามประเภทกิจการ (สินค้า/บริการ/ห้องพัก) — SSOT: PRODUCT_VOCAB */
   productNoun?: string
+  /** ไอคอนแทน 'ของที่ร้านขาย' ตามประเภทกิจการ (package/tool/bed) — SSOT: PRODUCT_VOCAB.soldIcon */
+  productIcon?: string
+  /** หน่วยนับต่อบรรทัด (ชิ้น/ครั้ง/คืน) — SSOT: PRODUCT_VOCAB.unitLabel */
+  unitLabel?: string
 
   /** ข้อความจากแชทที่จะให้ section ลูกค้ากระจายให้ตอนเปิดฟอร์ม (user สั่ง 2026-08-04) */
   prefillParseText?: string
@@ -59,6 +63,8 @@ interface Props {
 export default function QuickForm({
   orderNoun = 'คำสั่งซื้อ',
   productNoun = 'สินค้า',
+  productIcon = 'package',
+  unitLabel = 'ชิ้น',
   prefillParseText,
   control,
   errors,
@@ -140,7 +146,7 @@ export default function QuickForm({
       <section id="order-items-section" className={`scroll-mt-24 border-b-8 border-default-100 ${secX} py-4`}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-bold text-dark">
-            <Icon icon="package" className="size-5 text-primary" />
+            <Icon icon={productIcon} className="size-5 text-primary" />
             {productNoun}
             {/* ป้าย "ต้องแก้" คำเดียวกับที่บล็อกลูกค้า/ที่อยู่ใช้อยู่แล้ว — คำเดียวกัน = ของเดียวกัน */}
             {itemsRootErrorMsg && <span className="badge bg-danger/15 text-danger">ต้องแก้</span>}
@@ -158,6 +164,8 @@ export default function QuickForm({
               errors={errors}
               inventoryEnabled={inventoryEnabled}
               productNoun={productNoun}
+              productIcon={productIcon}
+              unitLabel={unitLabel}
               onOpenPicker={() => setPickerIndex(i)}
             />
           ))}

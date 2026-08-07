@@ -286,7 +286,8 @@ export default function OrderCreateForm({
    * ร้านบ้านพักเรียก "ห้องพัก". ทั้งฟอร์มนี้เคยเขียน "สินค้า" ตายตัวทุกจุด ทั้งที่หน้าอื่นของ
    * ร้านเดียวกัน (แดชบอร์ด/เมนู/โปรไฟล์) ผันคำให้แล้ว — คำเดียวกันต้องหมายถึงของเดียวกันทั้งแอป
    */
-  const productNoun = resolveProductVocab(shopVertical ?? '').itemColLabel
+  const productVocab = resolveProductVocab(shopVertical ?? '')
+  const productNoun = productVocab.itemColLabel
 
   /**
    * ร้านคิวงานไม่เอาวันที่จากข้อความในแชท — ใช้เวลาปัจจุบันเสมอ (user สั่ง 2026-08-07)
@@ -916,6 +917,8 @@ export default function OrderCreateForm({
         <QuickForm
           orderNoun={vocab.noun}
           productNoun={productNoun}
+          productIcon={productVocab.soldIcon}
+          unitLabel={productVocab.unitLabel}
           shipsGoods={shipsGoods}
           prefillParseText={prefillParseText}
           control={control}

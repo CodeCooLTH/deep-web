@@ -90,7 +90,8 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, product
       <ProductThumb src={p.image} alt={p.name} className="size-10 rounded-lg" iconClassName="size-5" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-dark">{p.name}</p>
-        {p.sku && <p className="truncate text-xs text-default-400">SKU: {p.sku}</p>}
+        {/* "รหัส" แทน "SKU": ศัพท์เฉพาะที่กลุ่มผู้ใช้ของเราไม่ต้องรู้จัก และร้านบริการไม่ได้ใช้คำนี้เลย */}
+        {p.sku && <p className="truncate text-xs text-default-400">รหัส {p.sku}</p>}
       </div>
       <span className="shrink-0 text-sm font-semibold text-primary">{formatThb(p.price)}</span>
     </button>
@@ -199,7 +200,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, product
               className="mt-3 flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold text-primary"
             >
               <Icon icon="plus" className="size-4 shrink-0" />
-              <span className="truncate">ใช้ &ldquo;{typed}&rdquo; เป็นสินค้าใหม่</span>
+              <span className="truncate">ใช้ &ldquo;{typed}&rdquo; เป็น{productNoun}ใหม่</span>
             </button>
           )}
         </div>
