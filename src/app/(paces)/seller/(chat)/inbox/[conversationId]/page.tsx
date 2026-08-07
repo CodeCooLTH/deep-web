@@ -88,61 +88,23 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       />
     )
   }
-  // feature 00018 T5: vertical ยังต้อง query แยก (resolveActiveShopContext คืนแค่ shopId/kind/role/
-  // locked ไม่มี vertical) — defensive: ไม่ควรเป็น null จริง (context เพิ่ง verify แถวนี้แล้ว)
-  const shopRow = await prisma.shop.findUnique({ where: { id: activeCtx.shopId }, select: { vertical: true, logo: true } })
-  // feature 00023 — ห้องนี้ถูกเลือกไว้ทดสอบ DeepAI อยู่ไหม (ป้ายบนหัวเธรด)
-  const [chatbotCfg, testThread] = await Promise.all([
-    prisma.autoReplyConfig.findUnique({
-      where: { shopId: activeCtx.shopId },
-      select: { aiChatbotStatus: true },
-    }),
-    prisma.aiChatbotTestThread.findUnique({
-      where: { shopId_conversationId: { shopId: activeCtx.shopId, conversationId } },
-      select: { id: true },
-    }),
-  ])
-  const isChatbotTestThread = chatbotCfg?.aiChatbotStatus === 'TEST' && Boolean(testThread)
-
   /**
-   * ห้องนี้มีบอทตัวไหน "จะตอบ" ไหม ถ้าไม่มีการพัก (feature 00023)
+   * 🛑 หาเธรด "ก่อน" ทุก query อื่นเสมอ — อย่าสลับลำดับ (perf, แก้ 2026-08-07)
    *
-   * WARNING (user report 2026-08-02): แบนเนอร์ "บอทพักตอบห้องนี้อยู่" เคยขึ้นทุกห้องที่มี
-   * คนของร้านพิมพ์ตอบ ทั้งที่ห้องนั้นไม่มีบอทตัวไหนทำงานอยู่เลย — ร้านที่ตั้งทุกอย่างเป็น
-   * โหมดทดสอบและเลือกไว้แค่ไม่กี่ห้อง จึงเห็นแบนเนอร์ในห้องที่ไม่เกี่ยวข้องเต็มไปหมด
-   * การบอกว่า "พัก" สิ่งที่ไม่ได้ทำงานอยู่แล้วคือข้อมูลที่ผิด ไม่ใช่แค่รก
+   * เดิมหน้านี้ยิง query ร้าน/บอท/คีย์เวิร์ด 5 ตัวก่อน แล้วค่อยเช็คว่ามีเธรดไหม — เคสที่กด
+   * notification ของ "อีกร้าน" (เธรดไม่อยู่ในร้านที่ active) จึงเสีย query ทิ้งเปล่าทั้ง 5 ตัว
+   * ทุกครั้ง ทั้งที่ผลลัพธ์คือ redirect ออกไปสลับร้านอยู่ดี
    *
-   * เงื่อนไขตรงกับที่ processJob ใช้จริง: LIVE = ทุกห้อง · TEST = เฉพาะห้องในรายการของตัวเอง
+   * ย้ายขึ้นมาแล้วยัง "เร็วขึ้นในเคสปกติ" ด้วย: เดิมเป็น 3 รอบ round-trip เรียงกัน
+   * (shopRow → Promise.all → Promise.all) ตอนนี้เหลือ 2 (เธรด → Promise.all ก้อนเดียว 5 ตัว)
+   *
+   * ownership scope อยู่ใน WHERE (compound id+shopId) — ไม่ใช่ post-check
+   * feature 00018: buyer เป็น null ได้ (เธรดช่องทางนอก) — include externalContact เพื่อ fallback ชื่อ
+   * T4: channel/lastInboundAt/shopChannel.status สำหรับ 24h banner + token-invalid banner
+   * T5: externalContact.customer (ผูกผ่านช่องทางนอก) + buyerUserId (lookup Customer.userId ฝั่ง DEEP)
    */
-  const [liveKeywordCount, keywordTestThread] = await Promise.all([
-    prisma.autoReplyKeyword.count({ where: { shopId: activeCtx.shopId, status: 'LIVE' } }),
-    prisma.autoReplyKeywordTestThread.findFirst({
-      where: { conversationId, keyword: { shopId: activeCtx.shopId, status: 'TEST' } },
-      select: { id: true },
-    }),
-  ])
-  const botCouldReply =
-    chatbotCfg?.aiChatbotStatus === 'LIVE' ||
-    isChatbotTestThread ||
-    liveKeywordCount > 0 ||
-    Boolean(keywordTestThread)
-  if (!shopRow) {
-    return (
-      <SellerErrorState
-        title="ไม่พบร้านที่กำลังใช้งาน"
-        message="ร้านนี้อาจถูกลบหรือคุณไม่มีสิทธิ์เข้าถึงแล้ว ลองสลับร้านหรือรีเฟรชหน้าใหม่"
-        retryHref="/inbox"
-      />
-    )
-  }
-  const shop = { id: activeCtx.shopId, vertical: shopRow.vertical }
-
-  // ownership scope อยู่ใน WHERE (compound id+shopId) — ไม่ใช่ post-check
-  // feature 00018: buyer เป็น null ได้ (เธรดช่องทางนอก) — include externalContact เพื่อ fallback ชื่อ
-  // T4: channel/lastInboundAt/shopChannel.status สำหรับ 24h banner + token-invalid banner
-  // T5: externalContact.customer (ผูกผ่านช่องทางนอก) + buyerUserId (lookup Customer.userId ฝั่ง DEEP)
   const conversation = await prisma.conversation.findFirst({
-    where: { id: conversationId, shopId: shop.id },
+    where: { id: conversationId, shopId: activeCtx.shopId },
     select: {
       id: true,
       channel: true,
@@ -190,16 +152,12 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
      *
      * ยังปลอดภัยเท่าเดิม: findConversationShopForUser scope สิทธิ์ใน WHERE
      * (shopId ∈ ร้านที่ user เข้าถึงได้) และคืน null เหมือนกันทั้ง "ไม่มี" กับ "ไม่มีสิทธิ์"
-     */
-    /**
+     *
      * 🛑 กันวนไม่รู้จบ: สลับได้รอบเดียวเท่านั้น
-     *
-     * ถ้า session.update() ไม่โปรพาเกตทัน (เน็ตหลุดกลางคัน / JWT ไม่ refresh) รอบถัดไปจะยัง
-     * resolve ได้ร้านเดิม แล้ว render ตัวสลับซ้ำ → เด้งวนไม่จบ ซึ่งแย่กว่าบั๊กเดิมที่อย่างน้อย
-     * ยังหยุดที่หน้า error ให้กดกลับได้
-     *
+     * ถ้า session.update() ไม่โปรพาเกตทัน รอบถัดไปจะยัง resolve ได้ร้านเดิม แล้ว render ตัวสลับ
+     * ซ้ำ → เด้งวนไม่จบ ซึ่งแย่กว่าบั๊กเดิมที่อย่างน้อยยังหยุดที่หน้า error ให้กดกลับได้
      * ChatShopAutoSwitch จึงพากลับมาที่ `?switched=1` เสมอ — เห็นค่านี้แล้วยังไม่เจอเธรด
-     * แปลว่าสลับไม่สำเร็จจริง ให้ตกไปหน้า error ตามปกติ ผู้ใช้กด "ลองใหม่" กลับ /inbox ได้
+     * แปลว่าสลับไม่สำเร็จจริง ให้ตกไปหน้า error ตามปกติ
      */
     const ownerShop = switched
       ? null
@@ -223,6 +181,58 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       <SellerErrorState title="ไม่พบบทสนทนานี้" message="บทสนทนานี้อาจถูกลบ หรือคุณไม่มีสิทธิ์เข้าถึง" retryHref="/inbox" />
     )
   }
+
+  /**
+   * เจอเธรดแล้ว — ยิงข้อมูลประกอบทั้งหมดพร้อมกันรอบเดียว (เดิมแยกเป็น 3 รอบเรียงกัน)
+   *
+   * feature 00018 T5: vertical ต้อง query แยก (resolveActiveShopContext คืนแค่ shopId/kind/role/
+   * locked ไม่มี vertical) — defensive: ไม่ควรเป็น null จริง (context เพิ่ง verify แถวบนแล้ว)
+   * feature 00023: chatbotCfg/testThread = ห้องนี้ถูกเลือกไว้ทดสอบ DeepAI ไหม (ป้ายบนหัวเธรด)
+   */
+  const [shopRow, chatbotCfg, testThread, liveKeywordCount, keywordTestThread] = await Promise.all([
+    prisma.shop.findUnique({ where: { id: activeCtx.shopId }, select: { vertical: true, logo: true } }),
+    prisma.autoReplyConfig.findUnique({
+      where: { shopId: activeCtx.shopId },
+      select: { aiChatbotStatus: true },
+    }),
+    prisma.aiChatbotTestThread.findUnique({
+      where: { shopId_conversationId: { shopId: activeCtx.shopId, conversationId } },
+      select: { id: true },
+    }),
+    prisma.autoReplyKeyword.count({ where: { shopId: activeCtx.shopId, status: 'LIVE' } }),
+    prisma.autoReplyKeywordTestThread.findFirst({
+      where: { conversationId, keyword: { shopId: activeCtx.shopId, status: 'TEST' } },
+      select: { id: true },
+    }),
+  ])
+  const isChatbotTestThread = chatbotCfg?.aiChatbotStatus === 'TEST' && Boolean(testThread)
+
+  /**
+   * ห้องนี้มีบอทตัวไหน "จะตอบ" ไหม ถ้าไม่มีการพัก (feature 00023)
+   *
+   * WARNING (user report 2026-08-02): แบนเนอร์ "บอทพักตอบห้องนี้อยู่" เคยขึ้นทุกห้องที่มี
+   * คนของร้านพิมพ์ตอบ ทั้งที่ห้องนั้นไม่มีบอทตัวไหนทำงานอยู่เลย — ร้านที่ตั้งทุกอย่างเป็น
+   * โหมดทดสอบและเลือกไว้แค่ไม่กี่ห้อง จึงเห็นแบนเนอร์ในห้องที่ไม่เกี่ยวข้องเต็มไปหมด
+   * การบอกว่า "พัก" สิ่งที่ไม่ได้ทำงานอยู่แล้วคือข้อมูลที่ผิด ไม่ใช่แค่รก
+   *
+   * เงื่อนไขตรงกับที่ processJob ใช้จริง: LIVE = ทุกห้อง · TEST = เฉพาะห้องในรายการของตัวเอง
+   */
+  const botCouldReply =
+    chatbotCfg?.aiChatbotStatus === 'LIVE' ||
+    isChatbotTestThread ||
+    liveKeywordCount > 0 ||
+    Boolean(keywordTestThread)
+  if (!shopRow) {
+    return (
+      <SellerErrorState
+        title="ไม่พบร้านที่กำลังใช้งาน"
+        message="ร้านนี้อาจถูกลบหรือคุณไม่มีสิทธิ์เข้าถึงแล้ว ลองสลับร้านหรือรีเฟรชหน้าใหม่"
+        retryHref="/inbox"
+      />
+    )
+  }
+  const shop = { id: activeCtx.shopId, vertical: shopRow.vertical }
+
 
   // feature 00018: buyer เป็น null ได้ (เธรดช่องทางนอก) — fallback ชื่อจาก externalContact แล้วค่อย 'ลูกค้า'
   // (null-safe ขั้นต่ำเท่านั้น — ไม่ทำ UI ใหม่สำหรับช่องทางนอก, งานนั้นอยู่แผนอื่น)

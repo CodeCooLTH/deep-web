@@ -34,6 +34,20 @@ export interface ShopSwitchTarget {
 interface UseShopSwitcherOptions {
   // ปลายทาง hard-navigate หลังสลับสำเร็จ (default /dashboard) — chat ส่ง '/inbox'
   landingPath?: string
+  /**
+   * เวลาขั้นต่ำที่ overlay ต้องค้าง (default 3000) — ตั้งสั้นลงได้เมื่อ "ผู้ใช้ไม่ได้ตั้งใจสลับร้าน"
+   *
+   * 3000 เดิมมีไว้กันจอกระพริบตอนผู้ใช้ "กดสลับร้านเอง" — เขาเพิ่งเลือกร้านจากรายการ ต้องเห็น
+   * ว่ากำลังไปร้านไหนสักพักก่อนจอเปลี่ยน ไม่งั้นเหมือนกดพลาด
+   *
+   * แต่เส้นทางที่สลับให้อัตโนมัติ (กด notification ของอีกร้าน) ตรงข้ามกันเลย — ผู้ใช้ตั้งใจจะ
+   * "อ่านข้อความ" การถ่วง 3 วินาทีทำให้รู้สึกว่าระบบช้า ทั้งที่งานจริงจบตั้งแต่ ~0.3 วินาที
+   * (POST switch-context + session.update) ที่เหลือคือนั่งรอเปล่า ๆ
+   *
+   * ปลอดภัยที่จะสั้น: session.update() เป็น await — cookie ถูกตั้งเรียบร้อยแล้วตอน promise คืนค่า
+   * เวลาที่เกินจากนั้นเป็นเรื่อง "ความรู้สึก" ไม่ใช่ความถูกต้อง
+   */
+  minOverlayMs?: number
 }
 
 function sleep(ms: number) {
@@ -42,6 +56,7 @@ function sleep(ms: number) {
 
 export function useShopSwitcher(options?: UseShopSwitcherOptions) {
   const landingPath = options?.landingPath ?? DASHBOARD_PATH
+  const minOverlayMs = options?.minOverlayMs ?? MIN_OVERLAY_MS
   const { update } = useSession()
   const [switching, setSwitching] = useState(false)
   const [target, setTarget] = useState<ShopSwitchTarget | undefined>(undefined)
@@ -87,14 +102,14 @@ export function useShopSwitcher(options?: UseShopSwitcherOptions) {
       // สำเร็จ — บังคับ overlay ค้างรวมอย่างน้อย 3000ms (นับจากโชว์ overlay) กันกระพริบเร็วเกินไป
       // แล้วให้เวลา session propagate ก่อนหน้า dashboard เริ่ม fetch
       const elapsed = Date.now() - startedAt
-      const remaining = MIN_OVERLAY_MS - elapsed
+      const remaining = minOverlayMs - elapsed
       if (remaining > 0) await sleep(remaining)
 
       // hard-navigate เสมอ (ไม่ใช่ router.refresh) — บังคับ server data ทุกหน้า re-render ใหม่หมด
       // ไม่ setSwitching(false) ตรงนี้ — ปล่อย overlay ค้างจน browser unload หน้านี้จริง
       window.location.href = landingPath
     },
-    [update, landingPath],
+    [update, landingPath, minOverlayMs],
   )
 
   return { switching, target, switchShop }

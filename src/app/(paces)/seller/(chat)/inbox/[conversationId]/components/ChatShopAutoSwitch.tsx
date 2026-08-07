@@ -48,6 +48,15 @@ export default function ChatShopAutoSwitch({ conversationId, shopId, shopName, l
    */
   const { switching, target, switchShop } = useShopSwitcher({
     landingPath: `/inbox/${conversationId}?switched=1`,
+    /**
+     * 800ms แทน default 3000ms — เส้นทางนี้ผู้ใช้ "ไม่ได้ตั้งใจสลับร้าน" เขากดแจ้งเตือนเพื่อ
+     * อ่านข้อความ การถ่วง 3 วินาทีทำให้รู้สึกว่าระบบช้า ทั้งที่งานจริง (POST + session.update)
+     * จบตั้งแต่ ~300ms ที่เหลือคือนั่งรอเปล่า ๆ
+     *
+     * ไม่ตัดเป็น 0: ต้องเหลือเวลาให้ผู้ใช้ "อ่านทัน" ว่าระบบกำลังสลับไปร้านไหน ไม่งั้นจอเปลี่ยน
+     * วูบเดียวแล้วเขาจะงงว่าเมื่อกี้เกิดอะไรขึ้น — 800ms พออ่านชื่อร้านทันและไม่รู้สึกว่ารอ
+     */
+    minOverlayMs: 800,
   })
 
   // กันยิงซ้ำ: useShopSwitcher มี ref กันดับเบิลคลิกอยู่แล้ว แต่ effect อาจรันสองรอบใน
