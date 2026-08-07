@@ -1,27 +1,44 @@
 'use client'
 
 /**
- * LibraryPanel — คอลัมน์ซ้าย "คลัง" ของตัวจัดหน้าร้าน (feature 00035, Task 7)
+ * LibraryPanel — คอลัมน์ซ้าย "คลัง" ของตัวจัดหน้าร้าน (feature 00035, Task 7 โครง + Task 8 badge
+ * picker/drag)
  *
- * [สำคัญ] เวอร์ชันนี้เป็น "โครง" ที่ implement ครบตาม prop contract (types.ts) และใช้งานได้จริง
- * (ค้นหา/เพิ่มบล็อก/สลับลำดับแท็บด้วยปุ่มลูกศร) แต่ตัด drag-and-drop สำหรับสลับลำดับแท็บออก —
- * Task 8 จะเติม drag interaction (mockup มีปุ่ม cursor-grab ประกอบ) ปุ่มลูกศรที่มีอยู่แล้วคือ
- * keyboard-accessible alternative ที่ SRS §6 NFR Accessibility บังคับไว้อยู่แล้ว จึงไม่ใช่ทางตัน
+ * Task 8 เติม 2 เรื่องที่ Task 7 ทิ้งไว้:
+ *   1) badge picker — เดิม handleAddBadges auto-pick 4 ใบแรก ตอนนี้เปิด BadgePickerModal ให้ผู้ขาย
+ *      เลือกเองเป็นรายใบ (ดู BadgePickerModal.tsx)
+ *   2) drag-and-drop สลับลำดับแท็บ — เติมคู่กับปุ่มลูกศรเดิม (ปุ่มลูกศรยังอยู่เป็นทางหลักคู่กัน
+ *      ตาม SRS §6 NFR Accessibility ไม่ใช่ทางสำรองที่ถูกลดชั้นลง)
  *
- * Base: docs/superpowers/specs/2026-08-07-00034-builder-mockup-paces.html
+ * Base (โครง markup เดิม): docs/superpowers/specs/2026-08-07-00035-builder-mockup-paces.html
  *   หัวข้อ "1 · จอหลัก (Desktop 1440)" คอลัมน์ "คลัง" (การ์ดกว้าง 30% ของแถว, input-group ค้นหา,
- *   3 กลุ่ม: "เพิ่มเหนือแถบแท็บได้" / "แท็บของหน้าร้าน" / "ตรึงตายตัว") — คัดลอก markup โครงสร้าง
- *   มาเกือบทั้งหมด ปรับเป็น map จากข้อมูลจริงแทน hardcode
+ *   3 กลุ่ม: "เพิ่มเหนือแถบแท็บได้" / "แท็บของหน้าร้าน" / "ตรึงตายตัว")
+ * Base (กลไกลาก, HR1): theme/paces/Admin/TS/src/app/(admin)/apps/todo/components/Todos.tsx +
+ *   TaskItem.tsx (react-sortablejs) — `<Icon icon="grip-horizontal" className="sort-handle" />`
+ *   ต้นแถว + `sortableOptions.handle: '.sort-handle'` ยกทรงมาเป๊ะ (ปุ่มลูกศรกดได้โดยไม่โดน drag
+ *   hijack เพราะ handle จำกัดเฉพาะไอคอนกริป ไม่ใช่ทั้งแถว) `.sortable-item-ghost`/`.sort-handle`
+ *   เป็นคลาสที่คอมไพล์อยู่ใน app.css อยู่แล้ว (src/assets/css/plugins/_sortablejs.css) ไม่ต้องเพิ่ม CSS ใหม่
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+import { ReactSortable, type Sortable } from 'react-sortablejs'
 
 import Icon from '@/components/wrappers/Icon'
-import { pacesToast } from '@/lib/paces-toast'
+import type { ProfileTabKey } from '@/lib/profile-tab-keys'
 
+import BadgePickerModal from './BadgePickerModal'
 import { moveArrayItem } from '../lib/draft'
 import { PROFILE_TAB_ICON, PROFILE_TAB_LABEL_TH, type LibraryPanelProps } from '../types'
 
 const MAX_BADGES = 4
+
+const tabSortableOptions: Partial<Sortable.Options> = {
+  handle: '.sort-handle',
+  ghostClass: 'sortable-item-ghost',
+  animation: 150,
+  fallbackOnBody: true,
+  swapThreshold: 0.65,
+}
 
 export default function LibraryPanel({
   initialLibrary,
@@ -34,6 +51,7 @@ export default function LibraryPanel({
 }: LibraryPanelProps) {
   const [q, setQ] = useState('')
   const [addingPostId, setAddingPostId] = useState<string | null>(null)
+  const [badgePickerOpen, setBadgePickerOpen] = useState(false)
 
   // ค้นหาฝั่ง client บนหน้าแรกที่ SSR มาให้ก่อน (Task 8 ค่อยต่อ GET .../library ?q=&cursor= สำหรับ
   // ผลลัพธ์ที่เกินหน้าแรก — endpoint รองรับอยู่แล้ว API.md §4.1)
@@ -48,23 +66,14 @@ export default function LibraryPanel({
     draft.blocks.filter((b) => b.type === 'FACEBOOK_POST').map((b) => b.post.id),
   )
 
-  const handleAddBadges = () => {
-    // Task 7 placeholder: หยิบเหรียญ ACHIEVEMENT ล่าสุดสูงสุด 4 ใบอัตโนมัติ — Task 8 แทนที่ด้วย
-    // ตัวเลือกให้ผู้ขายเลือกเองเป็นรายใบ (modal/checklist) ตาม mockup group 1 แถวเหรียญตราเด่น
-    if (initialLibrary.badges.length === 0) {
-      pacesToast.info('ร้านนี้ยังไม่มีเหรียญตรา (ACHIEVEMENT) ให้เลือก')
-      return
-    }
-    onAddBadgeBlock(
-      initialLibrary.badges.slice(0, MAX_BADGES).map((b) => ({
-        id: b.id,
-        badgeId: b.badgeId,
-        name: b.name,
-        nameEN: b.nameEN,
-        icon: b.icon,
-        imageUrl: null,
-      })),
-    )
+  // Task 8 — ลาก/สลับลำดับแถบแท็บ (react-sortablejs ต้องการ item ที่มี field `id`)
+  const [tabItems, setTabItems] = useState<{ id: ProfileTabKey }[]>(() => draft.tabOrder.map((key) => ({ id: key })))
+  useEffect(() => {
+    setTabItems(draft.tabOrder.map((key) => ({ id: key })))
+  }, [draft.tabOrder])
+  const handleTabSortChange = (next: { id: ProfileTabKey }[]) => {
+    setTabItems(next)
+    onReorderTabs(next.map((item) => item.id))
   }
 
   const handleAddPost = async (postId: string) => {
@@ -126,11 +135,19 @@ export default function LibraryPanel({
             <div className="text-default-400 truncate text-2xs">เลือกได้สูงสุด {MAX_BADGES} ใบ · มีได้บล็อกเดียว</div>
           </div>
           {badgeBlock ? (
-            <span className="badge bg-success/15 text-success text-2xs shrink-0">เพิ่มแล้ว</span>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="badge bg-success/15 text-success text-2xs">เพิ่มแล้ว</span>
+              {/* [Task 8] ต่างจาก "เพิ่มแล้ว" ของโพสต์ Facebook (ปุ่มบวกหายไปเลย เพิ่มซ้ำไม่ได้)
+                  — บล็อกเหรียญมีบล็อกเดียว เปลี่ยนใบที่แสดง/ลำดับได้ จึงต้องมีทางแก้ไขต่อ ไม่ใช่ทางตัน
+                  (ทางลบทั้งบล็อกยังอยู่ที่ ⋮ ในคอลัมน์กลาง — CanvasFrame.tsx) */}
+              <button type="button" onClick={() => setBadgePickerOpen(true)} className="text-primary text-2xs font-medium">
+                แก้ไข
+              </button>
+            </div>
           ) : (
             <button
               type="button"
-              onClick={handleAddBadges}
+              onClick={() => setBadgePickerOpen(true)}
               aria-label="เพิ่มเหรียญตราเด่น"
               className="btn btn-icon btn-sm bg-primary shrink-0 rounded-full text-white hover:bg-primary-hover"
             >
@@ -195,40 +212,48 @@ export default function LibraryPanel({
           แท็บของหน้าร้าน
         </div>
         <p className="text-default-400 text-2xs mb-2">
-          สลับลำดับด้วยปุ่มลูกศร (ลากได้ที่แถบแท็บตรงกลาง) — <b className="text-default-600">ปิดหรือเอาออกไม่ได้</b>{' '}
+          ลากที่ไอคอนจับ หรือสลับลำดับด้วยปุ่มลูกศร — <b className="text-default-600">ปิดหรือเอาออกไม่ได้</b>{' '}
           แท็บจะขึ้นเองเมื่อมีข้อมูล
         </p>
-        {draft.tabOrder.map((key, index) => (
-          <div key={key} className="border-default-300 mb-2 flex items-center gap-2.5 rounded-lg border bg-white p-2.5">
-            <span className="bg-default-100 text-default-500 flex size-7 items-center justify-center rounded-md text-2xs font-semibold">
-              {index + 1}
-            </span>
-            <Icon icon={PROFILE_TAB_ICON[key]} className="text-default-400 text-base" aria-hidden="true" />
-            <div className="text-default-900 min-w-0 flex-1 truncate text-sm font-medium">
-              {PROFILE_TAB_LABEL_TH[key]}
-            </div>
-            <div className="flex shrink-0 gap-0.5">
-              <button
-                type="button"
-                onClick={() => handleMoveTab(index, -1)}
-                disabled={index === 0}
-                aria-label={`ย้าย ${PROFILE_TAB_LABEL_TH[key]} ขึ้น`}
-                className="btn btn-icon btn-sm text-default-500 disabled:opacity-30"
-              >
-                <Icon icon="chevron-up" className="text-sm" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleMoveTab(index, 1)}
-                disabled={index === draft.tabOrder.length - 1}
-                aria-label={`ย้าย ${PROFILE_TAB_LABEL_TH[key]} ลง`}
-                className="btn btn-icon btn-sm text-default-500 disabled:opacity-30"
-              >
-                <Icon icon="chevron-down" className="text-sm" />
-              </button>
-            </div>
-          </div>
-        ))}
+        {/* [Task 8] ลาก — Base: theme todo app Todos.tsx/TaskItem.tsx (react-sortablejs, handle: '.sort-handle')
+            ปุ่มลูกศรเดิมยังอยู่คู่กันเป็นทางหลักที่ไม่ได้ถูกลดชั้น (SRS §6 NFR Accessibility) */}
+        <ReactSortable list={tabItems} setList={handleTabSortChange} tag="div" {...tabSortableOptions}>
+          {tabItems.map((item, index) => {
+            const key = item.id
+            return (
+              <div key={key} className="border-default-300 mb-2 flex items-center gap-2.5 rounded-lg border bg-white p-2.5">
+                <Icon icon="grip-vertical" className="sort-handle text-default-400 shrink-0 text-base" aria-hidden="true" />
+                <span className="bg-default-100 text-default-500 flex size-7 items-center justify-center rounded-md text-2xs font-semibold">
+                  {index + 1}
+                </span>
+                <Icon icon={PROFILE_TAB_ICON[key]} className="text-default-400 text-base" aria-hidden="true" />
+                <div className="text-default-900 min-w-0 flex-1 truncate text-sm font-medium">
+                  {PROFILE_TAB_LABEL_TH[key]}
+                </div>
+                <div className="flex shrink-0 gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleMoveTab(index, -1)}
+                    disabled={index === 0}
+                    aria-label={`ย้าย ${PROFILE_TAB_LABEL_TH[key]} ขึ้น`}
+                    className="btn btn-icon btn-sm text-default-500 disabled:opacity-30"
+                  >
+                    <Icon icon="chevron-up" className="text-sm" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMoveTab(index, 1)}
+                    disabled={index === tabItems.length - 1}
+                    aria-label={`ย้าย ${PROFILE_TAB_LABEL_TH[key]} ลง`}
+                    className="btn btn-icon btn-sm text-default-500 disabled:opacity-30"
+                  >
+                    <Icon icon="chevron-down" className="text-sm" />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </ReactSortable>
         {visibleTabKeys.length === 0 && (
           <p className="text-default-400 text-2xs">ร้านนี้ยังไม่มีแท็บที่มีข้อมูล — จะขึ้นเองเมื่อมีข้อมูล</p>
         )}
@@ -250,6 +275,14 @@ export default function LibraryPanel({
           <span className="badge bg-default-100 text-default-600 text-2xs shrink-0">ตรึง</span>
         </div>
       </div>
+
+      <BadgePickerModal
+        open={badgePickerOpen}
+        onClose={() => setBadgePickerOpen(false)}
+        badges={initialLibrary.badges}
+        initialSelected={badgeBlock?.badges ?? []}
+        onConfirm={onAddBadgeBlock}
+      />
     </div>
   )
 }

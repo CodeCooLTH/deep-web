@@ -7,7 +7,7 @@
  * ไม่ต้อง pixel-perfect กับ Vuexy ไม่ reuse component จาก views/pages/user-profile/** ตรง ๆ)
  * [สำคัญ] เวอร์ชันนี้เป็น "โครง" ที่ครบตาม prop contract แต่ยังเรียบง่าย — Task 9 ปรับแต่งภาพต่อ
  *
- * Base: docs/superpowers/specs/2026-08-07-00034-builder-mockup-paces.html
+ * Base: docs/superpowers/specs/2026-08-07-00035-builder-mockup-paces.html
  *   หัวข้อ "1 · จอหลัก (Desktop 1440)" คอลัมน์ "พรีวิว" (การ์ดขวา, gradient header แบบเดียวกับ
  *   หัวโปรไฟล์จริง, tab strip, block preview grid) — คัดลอกโครง markup มา ผูกกับ props จริงแทน hardcode
  */

@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="th"
+  data-layout="vertical" data-sidenav-user="false" data-layout-position="fixed"
+  data-topbar-color="light" data-menu-color="dark" data-theme="light"
+  data-skin="default" data-sidenav-size="on-hover-active" data-layout-width="fluid" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup — ตัวจัดหน้าร้าน (Paces theme จริง) · feature 00034</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- CSS ที่คอมไพล์จาก src/assets/css/app.css ของโปรเจกต์นี้จริง ๆ (Paces + Tailwind 4 + custom layers)
+     ไม่ใช่ CSS ที่เขียนเลียนแบบ — ทุกคลาสด้านล่างคือคลาสเดียวกับที่หน้า seller ใช้อยู่จริง -->
+<link rel="stylesheet" href="./paces-theme.css">
+<style>
+  /* ── CSS เฉพาะไฟล์ mockup เท่านั้น (ไม่ใช่ส่วนหนึ่งของ UI จริง) ──
+     ใช้แค่ 3 เรื่อง: (1) ผูก --font-anuphan ที่ next/font ตั้งให้ตอนรันจริง
+     (2) กรอบจำลองขนาดหน้าจอ (3) เอฟเฟกต์ลากที่เป็น interaction ยังไม่มีใน CSS ธีม */
+  :root{ --font-anuphan:'Anuphan', sans-serif; }
+  body{ font-family:var(--font-anuphan); background:#e3e7ee; }
+  .mk-page{ max-width:1600px; margin:0 auto; padding:32px 24px 100px; }
+  .mk-frame{ border-radius:14px; overflow:hidden; box-shadow:0 8px 28px rgba(49,58,70,.14); display:inline-block; vertical-align:top; background:#fff; }
+  .mk-cap{ background:var(--color-default-900); color:#fff; font-size:12px; padding:7px 12px; display:flex; justify-content:space-between; gap:20px; }
+  .mk-cap span{ opacity:.66 }
+  .mk-w1440{ width:1440px } .mk-w390{ width:390px }
+  .mk-device{ width:376px }
+  /* chrome ของ builder: กรอบไฮไลต์บล็อกตอน hover/เลือก */
+  .mk-blk{ position:relative }
+  .mk-chrome{ position:absolute; inset:0; border:2px solid transparent; pointer-events:none }
+  .mk-blk.is-hover .mk-chrome{ border-color:color-mix(in srgb, var(--color-primary) 45%, transparent); background:color-mix(in srgb, var(--color-primary) 4%, transparent) }
+  .mk-tag{ position:absolute; top:0; left:0; z-index:3 }
+  .mk-tool{ position:absolute; top:5px; right:5px; z-index:3 }
+  /* ghost ตอนลาก — เงาหมึกตาม design.json (--shadow-paces-lg) + เอียงเล็กน้อย */
+  .mk-ghost{ transform:rotate(-1.2deg); box-shadow:0 10px 30px rgba(76,76,92,.20); position:relative; z-index:4 }
+  /* เส้นบอกจุดวาง */
+  .mk-dropline{ position:relative; height:0; margin:0 8px }
+  .mk-dropline::before{ content:""; position:absolute; left:0; right:0; top:-1.5px; height:3px; background:var(--color-primary); border-radius:2px }
+  .mk-dropline::after{ content:""; position:absolute; left:-4px; top:-4.5px; width:9px; height:9px; border-radius:999px; background:#fff; border:3px solid var(--color-primary) }
+  .mk-ico{ width:1em; height:1em; stroke:currentColor; stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; display:block; flex:none }
+  .mk-ico.fill{ fill:currentColor; stroke:none }
+</style>
+</head>
+<body class="antialiased">
+<div class="mk-page">
+
+  <h1 class="text-default-900 text-2xl font-bold">ตัวจัดหน้าร้าน — สร้างด้วยธีม Paces จริง</h1>
+  <p class="text-default-500 mt-1 text-sm">feature 00034 · 2026-08-07 · ทุกคลาสมาจาก <code class="bg-default-200 rounded px-1">src/assets/css/app.css</code> ที่คอมไพล์จากโปรเจกต์นี้</p>
+
+  <div class="card mt-5 mb-10">
+    <div class="card-body text-default-600 text-sm">
+      <p class="mb-2"><b class="text-default-900">CSS ในไฟล์นี้คือของจริง</b> — คอมไพล์ <code class="bg-default-200 rounded px-1">app.css</code> ของโปรเจกต์ออกมาเป็น <code class="bg-default-200 rounded px-1">paces-theme.css</code> (1.1MB) แล้วลิงก์ตรง ๆ · <code class="bg-default-200 rounded px-1">&lt;html&gt;</code> ตั้ง attribute ชุดเดียวกับ <code class="bg-default-200 rounded px-1">src/app/(paces)/layout.tsx</code> ทุกตัว รวม <code class="bg-default-200 rounded px-1">data-skin="default"</code></p>
+      <p class="mb-2"><b class="text-default-900">คลาสที่ใช้เป็นสำนวนเดียวกับโค้ดจริง</b> — <code class="bg-default-200 rounded px-1">card</code> · <code class="bg-default-200 rounded px-1">btn bg-primary text-white hover:bg-primary-hover</code> · <code class="bg-default-200 rounded px-1">badge bg-success/15 text-success</code> · <code class="bg-default-200 rounded px-1">form-switch</code> (ดึงมาจากการนับความถี่ในไฟล์ seller จริง ไม่ได้คิดเอง)</p>
+      <p class="mb-2"><b class="text-default-900">คอลัมน์กลางเรนเดอร์เนื้อหาจริง</b> ไม่ใช่รายการชื่อบล็อก — ผู้ขายเห็นหน้าร้านที่กำลังจัดตรง ๆ มีเครื่องมือลอยทับเมื่อชี้</p>
+      <p class="mb-2"><b class="text-default-900">วิธีเพิ่มบล็อกคือปุ่มบวก ไม่ใช่ลากข้ามคอลัมน์</b> <span class="badge bg-success/15 text-success text-2xs">เคาะแล้ว 2026-08-07</span> — คลังอยู่นอก <code class="bg-default-200 rounded px-1">iframe</code> (Paces) canvas อยู่ใน <code class="bg-default-200 rounded px-1">iframe</code> (Vuexy) และ pointer event ไม่ข้ามขอบ document · แตะปุ่มบวกแล้วบล็อกไปโผล่ท้าย canvas จากนั้น <b class="text-default-900">ลากจัดลำดับได้เต็มที่ภายใน canvas</b> ซึ่งคือคุณค่าหลักของเครื่องมือ</p>
+      <p class="mb-2"><b class="text-default-900">คงโครงแท็บของหน้าร้านไว้</b> <span class="badge bg-success/15 text-success text-2xs">เคาะแล้ว 2026-08-07</span> — สิ่งที่จัดลำดับได้มี 2 อย่างเท่านั้น: <b class="text-default-900">บล็อกเหนือแถบแท็บ</b> (เหรียญตราเด่น · โพสต์จากเพจ) และ <b class="text-default-900">ลำดับแท็บ</b> · ห้องพัก/รีวิว/คลิป ยังเป็นแท็บเหมือนเดิม ปิดหรือเอาออกไม่ได้ · หัวโปรไฟล์ตรึงบนสุดตายตัว</p>
+      <p><b class="text-default-900">เฟสนี้ desktop-only</b> <span class="badge bg-success/15 text-success text-2xs">เคาะแล้ว 2026-08-07</span> — มือถือไม่มีตัวจัดเรียง แต่ต้องไม่เป็นทางตัน ดูหัวข้อ 2</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════ DESKTOP ══════════════════ -->
+  <h2 class="text-default-900 mb-1 text-lg font-semibold">1 · จอหลัก (Desktop 1440)</h2>
+  <p class="text-default-500 mb-4 text-sm">คลัง 30% · พื้นที่จัดหน้า 40% · พรีวิว 30% ตามที่ล็อกไว้</p>
+
+  <div class="mk-frame">
+    <div class="mk-cap">Desktop <span>1440 × 900</span></div>
+    <div class="mk-w1440 bg-default-100 flex" style="height:900px">
+
+      <div class="flex min-w-0 flex-1 flex-col">
+
+        <!-- toolbar -->
+        <div class="border-default-200 flex shrink-0 items-center gap-3 border-b bg-white px-4 py-2.5">
+          <button class="btn btn-icon border-default-300 text-default-700 hover:bg-default-50 border" aria-label="ย้อนกลับ">
+            <svg class="mk-ico text-base" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M5 12l6 6"/><path d="M5 12l6 -6"/></svg>
+          </button>
+          <div class="text-default-900 font-semibold whitespace-nowrap">ตัวจัดหน้าร้าน</div>
+          <div class="input-group max-w-md">
+            <span class="input-group-text text-2xs">deepthailand.app/u/</span>
+            <input class="form-input text-sm" value="bt-premium" readonly>
+            <button class="btn btn-icon border-default-300 text-default-700 hover:bg-default-50 border">
+              <svg class="mk-ico text-base" viewBox="0 0 24 24"><path d="M8 10a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z"/><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"/></svg>
+            </button>
+          </div>
+          <div class="flex-1"></div>
+          <label class="text-default-600 flex items-center gap-2 text-sm">
+            เผยแพร่หน้าร้าน
+            <input type="checkbox" class="form-switch shrink-0" checked>
+          </label>
+          <button class="btn border-default-300 text-default-900 hover:bg-default-50 border">
+            <svg class="mk-ico me-1 text-base" viewBox="0 0 24 24"><path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6"/><path d="M11 13l9 -9"/><path d="M15 4h5v5"/></svg>
+            ดูหน้าร้านจริง
+          </button>
+        </div>
+
+        <!-- dirty bar -->
+        <div class="bg-warning/15 text-warning-ink border-warning/40 flex shrink-0 items-center gap-2 border-b px-4 py-2 text-sm" role="alert">
+          <svg class="mk-ico text-base" viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z"/><path d="M12 16h.01"/></svg>
+          <span class="flex-1">มีการเปลี่ยนแปลงที่ยังไม่บันทึก</span>
+          <button class="btn btn-sm text-warning-ink">ยกเลิก</button>
+          <button class="btn btn-sm bg-primary text-white hover:bg-primary-hover">บันทึก</button>
+        </div>
+
+        <!-- 3 columns -->
+        <div class="flex min-h-0 flex-1 items-stretch gap-3 p-3">
+
+          <!-- ── คลัง ── -->
+          <div class="card flex min-h-0 w-[30%] flex-col">
+            <div class="card-header py-3"><h4 class="card-title text-sm">คลัง</h4></div>
+            <div class="min-h-0 flex-1 overflow-auto p-3.5">
+
+              <div class="input-group mb-3.5">
+                <span class="input-group-text">
+                  <svg class="mk-ico text-base" viewBox="0 0 24 24"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 0 0 -14 0"/><path d="M21 21l-6 -6"/></svg>
+                </span>
+                <input class="form-input text-sm" placeholder="ค้นหาเนื้อหาหรือเหรียญตรา">
+              </div>
+
+              <!-- กลุ่ม 1: ของที่เพิ่มเข้าพื้นที่เหนือแถบแท็บได้จริง (= ShopPageBlock) -->
+              <div class="text-default-600 mb-1 flex items-center gap-1.5 text-xs font-semibold">
+                <svg class="mk-ico" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                เพิ่มเหนือแถบแท็บได้
+              </div>
+              <p class="text-default-400 text-2xs mb-2">แตะปุ่มบวกเพื่อเพิ่ม แล้วลากจัดลำดับในพื้นที่ตรงกลาง</p>
+
+              <div class="border-default-300 mb-2 flex items-center gap-2.5 rounded-lg border bg-white p-2.5">
+                <span class="bg-default-100 text-default-500 flex size-8 items-center justify-center rounded-md">
+                  <svg class="mk-ico text-base" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg>
+                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="text-default-900 truncate text-sm font-medium">เหรียญตราเด่น</div>
+                  <div class="text-default-400 truncate text-2xs">เลือกได้สูงสุด 4 ใบ · มีได้บล็อกเดียว</div>
+                </div>
+                <span class="badge bg-success/15 text-success text-2xs">เพิ่มแล้ว</span>
+              </div>
+
+              <div class="text-default-500 text-2xs mt-3 mb-1.5">โพสต์จากเพจ Facebook · 24 โพสต์</div>
+
+              <div class="border-default-300 mb-2 overflow-hidden rounded-lg border bg-white">
+                <div class="bg-default-200 text-default-400 flex h-20 items-center justify-center">
+                  <span class="bg-default-900/45 flex size-8 items-center justify-center rounded-full text-white">
+                    <svg class="mk-ico fill text-sm" viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg>
+                  </span>
+                </div>
+                <div class="p-2.5">
+                  <p class="text-default-700 line-clamp-2 text-xs">รีวิวจากลูกค้าที่มาพักสุดสัปดาห์ที่ผ่านมา บรรยากาศริมน้ำช่วงเย็นสวยมากครับ</p>
+                  <div class="text-default-400 text-2xs mt-1.5 flex items-center gap-3">
+                    <span class="inline-flex items-center gap-1"><svg class="mk-ico" viewBox="0 0 24 24"><path d="M19.5 12.6l-7.5 7.4l-7.5 -7.4a5 5 0 1 1 7.5 -6.6a5 5 0 1 1 7.5 6.6"/></svg>412</span>
+                    <span class="inline-flex items-center gap-1"><svg class="mk-ico" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg>38</span>
+                    <button class="btn btn-icon btn-sm bg-primary ms-auto rounded-full text-white hover:bg-primary-hover" aria-label="เพิ่มลงหน้าร้าน"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- กลุ่ม 2: แท็บ — จัดลำดับได้ ปิดไม่ได้ -->
+              <div class="text-default-600 mt-5 mb-1 flex items-center gap-1.5 text-xs font-semibold">
+                <svg class="mk-ico" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h13"/></svg>
+                แท็บของหน้าร้าน
+              </div>
+              <p class="text-default-400 text-2xs mb-2">ลากสลับลำดับได้ที่แถบแท็บตรงกลาง — <b class="text-default-600">ปิดหรือเอาออกไม่ได้</b> แท็บจะขึ้นเองเมื่อมีข้อมูล</p>
+              <div class="border-default-300 mb-2 flex items-center gap-2.5 rounded-lg border bg-white p-2.5">
+                <span class="bg-default-100 text-default-500 flex size-7 items-center justify-center rounded-md text-2xs font-semibold">1</span>
+                <div class="text-default-900 min-w-0 flex-1 truncate text-sm font-medium">ปักหมุด</div>
+                
+              </div>
+              <div class="border-default-300 mb-2 flex items-center gap-2.5 rounded-lg border bg-white p-2.5">
+                <span class="bg-default-100 text-default-500 flex size-7 items-center justify-center rounded-md text-2xs font-semibold">2</span>
+                <div class="text-default-900 min-w-0 flex-1 truncate text-sm font-medium">ห้องพัก</div>
+                
+              </div>
+              <div class="border-default-300 mb-2 flex items-center gap-2.5 rounded-lg border bg-white p-2.5">
+                <span class="bg-default-100 text-default-500 flex size-7 items-center justify-center rounded-md text-2xs font-semibold">3</span>
+                <div class="text-default-900 min-w-0 flex-1 truncate text-sm font-medium">ปฏิทินวันว่าง</div>
+                
+              </div>
+              <div class="border-default-300 mb-2 flex items-center gap-2.5 rounded-lg border bg-white p-2.5">
+                <span class="bg-default-100 text-default-500 flex size-7 items-center justify-center rounded-md text-2xs font-semibold">4</span>
+                <div class="text-default-900 min-w-0 flex-1 truncate text-sm font-medium">เกี่ยวกับร้าน</div>
+                
+              </div>
+              <div class="border-default-300 mb-2 flex items-center gap-2.5 rounded-lg border bg-white p-2.5">
+                <span class="bg-default-100 text-default-500 flex size-7 items-center justify-center rounded-md text-2xs font-semibold">5</span>
+                <div class="text-default-900 min-w-0 flex-1 truncate text-sm font-medium">รีวิว</div>
+                <span class="badge bg-default-100 text-default-600 text-2xs">ปิดไม่ได้</span>
+              </div>
+
+              <!-- กลุ่ม 3: ตรึงตายตัว -->
+              <div class="text-default-600 mt-5 mb-1 flex items-center gap-1.5 text-xs font-semibold">
+                <svg class="mk-ico" viewBox="0 0 24 24"><path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/></svg>
+                ตรึงตายตัว
+              </div>
+              <p class="text-default-400 text-2xs mb-2">อยู่บนสุดเสมอ ขยับและซ่อนไม่ได้</p>
+              <div class="border-default-300 bg-default-50 flex items-center gap-2.5 rounded-lg border border-dashed p-2.5">
+                <span class="bg-white text-default-500 flex size-8 items-center justify-center rounded-md">
+                  <svg class="mk-ico text-base" viewBox="0 0 24 24"><path d="M12 3l2 2h3v3l2 2l-2 2v3h-3l-2 2l-2 -2h-3v-3l-2 -2l2 -2v-3h3z"/><path d="M9 12l2 2l4 -4"/></svg>
+                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="text-default-900 truncate text-sm font-medium">คะแนน · ป้ายยืนยันตัวตน · สถิติ</div>
+                  <div class="text-default-400 truncate text-2xs">อยู่ในหัวโปรไฟล์</div>
+                </div>
+                <span class="badge bg-default-100 text-default-600 text-2xs">ตรึง</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── พื้นที่จัดหน้า (WYSIWYG) ── -->
+          <div class="card flex min-h-0 flex-1 flex-col">
+            <div class="card-header flex items-center py-3">
+              <h4 class="card-title flex-1 text-sm">จัดหน้าร้าน</h4>
+              <span class="text-default-400 text-2xs">ลากเพื่อสลับลำดับ</span>
+            </div>
+            <div class="bg-default-100 flex min-h-0 flex-1 justify-center overflow-auto p-4">
+              <div class="mk-device border-default-300 h-fit overflow-hidden rounded-xl border bg-white shadow">
+
+                <!-- ตรึง: หัวโปรไฟล์ -->
+                <div class="mk-blk border-default-200 border-b">
+                  <div class="pb-3">
+                    <div class="h-16" style="background:linear-gradient(120deg,var(--color-primary),var(--color-info))"></div>
+                    <div class="border-default-200 mx-auto -mt-7 flex size-14 items-center justify-center rounded-xl border-4 border-white bg-white shadow">
+                      <svg class="mk-ico text-default-400 text-2xl" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21v-14l8 -4v18"/><path d="M19 21v-10l-6 -4"/></svg>
+                    </div>
+                    <div class="text-default-900 mt-1.5 flex items-center justify-center gap-1 text-sm font-bold">
+                      BT พรีเมี่ยม
+                      <svg class="mk-ico text-success text-base" viewBox="0 0 24 24"><path d="M12 3l2 2h3v3l2 2l-2 2v3h-3l-2 2l-2 -2h-3v-3l-2 -2l2 -2v-3h3z"/><path d="M9 12l2 2l4 -4"/></svg>
+                    </div>
+                    <div class="text-default-400 text-2xs text-center">@bt-premium · บ้านพัก</div>
+                    <div class="mt-2 flex justify-center gap-5">
+                      <div class="text-center"><b class="text-default-900 block text-sm">128</b><span class="text-default-400 text-2xs">ออเดอร์สำเร็จ</span></div>
+                      <div class="text-center"><b class="text-default-900 block text-sm">97%</b><span class="text-default-400 text-2xs">อัตราสำเร็จ</span></div>
+                      <div class="text-center"><b class="text-default-900 block text-sm">4.8</b><span class="text-default-400 text-2xs">รีวิว</span></div>
+                    </div>
+                  </div>
+                  <div class="mk-chrome"></div>
+                  <span class="mk-tag badge bg-default-600 text-2xs inline-flex items-center gap-1 rounded-none rounded-ee-md text-white">
+                    <svg class="mk-ico" viewBox="0 0 24 24"><path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/></svg> หัวโปรไฟล์ · ตรึงบนสุด
+                  </span>
+                </div>
+
+                <!-- บล็อกเหนือแถบแท็บ: เหรียญตราเด่น -->
+                <div class="mk-blk border-default-200 border-b">
+                  <div class="p-3.5">
+                    <div class="text-default-900 mb-2 flex items-center text-xs font-semibold">เหรียญตราของร้าน
+                      <span class="text-primary ms-auto text-2xs font-normal">ดูทั้งหมด 7</span></div>
+                    <div class="flex flex-wrap gap-1.5">
+                      <span class="bg-default-100 text-default-600 text-2xs flex items-center gap-1 rounded-full py-0.5 pe-2 ps-0.5">
+                        <span class="bg-primary flex size-4.5 items-center justify-center rounded-full text-white"><svg class="mk-ico" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"/></svg></span>ร้อยออเดอร์</span>
+                      <span class="bg-default-100 text-default-600 text-2xs flex items-center gap-1 rounded-full py-0.5 pe-2 ps-0.5">
+                        <span class="bg-warning flex size-4.5 items-center justify-center rounded-full text-white"><svg class="mk-ico" viewBox="0 0 24 24"><path d="M13 3l-9 12h7l-1 6l9 -12h-7z"/></svg></span>จัดส่งสายฟ้า</span>
+                      <span class="bg-default-100 text-default-600 text-2xs flex items-center gap-1 rounded-full py-0.5 pe-2 ps-0.5">
+                        <span class="bg-success flex size-4.5 items-center justify-center rounded-full text-white"><svg class="mk-ico" viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4 -3.5 7 -8 8c-4.5 -1 -8 -4 -8 -8v-6z"/></svg></span>ไร้ข้อร้องเรียน</span>
+                      <span class="bg-default-100 text-default-600 text-2xs flex items-center gap-1 rounded-full py-0.5 pe-2 ps-0.5">
+                        <span class="bg-info flex size-4.5 items-center justify-center rounded-full text-white"><svg class="mk-ico" viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1 -10 0z"/></svg></span>ร้านค้าเก่าแก่</span>
+                    </div>
+                  </div>
+                  <div class="mk-chrome"></div>
+                  <span class="mk-tag badge bg-primary text-2xs rounded-none rounded-ee-md text-white">เหรียญตราเด่น</span>
+                  <div class="mk-tool border-default-300 flex gap-0.5 rounded-md border bg-white p-0.5 shadow">
+                    <button class="btn btn-icon btn-sm text-primary cursor-grab"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></button>
+                    <button class="btn btn-icon btn-sm text-default-500"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></button>
+                    <button class="btn btn-icon btn-sm text-default-500"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+                    <button class="btn btn-icon btn-sm text-default-500"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M12 6h.01"/><path d="M12 12h.01"/><path d="M12 18h.01"/></svg></button>
+                  </div>
+                </div>
+
+                <!-- กำลังลาก: โพสต์จากเพจ -->
+                <div class="mk-ghost border-primary overflow-hidden rounded-lg border bg-white">
+                  <div class="p-3.5">
+                    <div class="text-default-900 mb-2 text-xs font-semibold">จากเพจของเรา</div>
+                    <div class="flex gap-2">
+                      <div class="bg-default-200 text-default-400 flex size-[74px] shrink-0 items-center justify-center rounded-md">
+                        <svg class="mk-ico fill text-lg" viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg>
+                      </div>
+                      <div>
+                        <p class="text-default-700 line-clamp-3 text-xs">รีวิวจากลูกค้าที่มาพักสุดสัปดาห์ที่ผ่านมา บรรยากาศริมน้ำช่วงเย็นสวยมากครับ</p>
+                        <div class="text-default-400 text-2xs mt-1 flex gap-2.5">
+                          <span class="inline-flex items-center gap-1"><svg class="mk-ico" viewBox="0 0 24 24"><path d="M19.5 12.6l-7.5 7.4l-7.5 -7.4a5 5 0 1 1 7.5 -6.6a5 5 0 1 1 7.5 6.6"/></svg>412</span>
+                          <span class="inline-flex items-center gap-1"><svg class="mk-ico" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg>38</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <span class="mk-tag badge bg-primary text-2xs inline-flex items-center gap-1 rounded-none rounded-ee-md text-white"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg> กำลังลาก</span>
+                </div>
+
+                <div class="mk-dropline"></div>
+
+                <!-- แถบแท็บ — ลากสลับลำดับแท็บได้ ปิดไม่ได้ -->
+                <div class="mk-blk is-hover bg-default-50 border-default-200 border-b">
+                  <div class="px-3 py-3.5">
+                    <div class="flex gap-1 overflow-hidden">
+                      <span class="badge bg-primary text-2xs inline-flex items-center gap-1 rounded-full text-white"><span class="cursor-grab opacity-70"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></span>ห้องพัก</span>
+                      <span class="badge bg-white text-default-600 border-default-300 text-2xs inline-flex items-center gap-1 rounded-full border"><span class="cursor-grab opacity-50"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></span>รีวิว 63</span>
+                      <span class="badge bg-white text-default-600 border-default-300 text-2xs inline-flex items-center gap-1 rounded-full border"><span class="cursor-grab opacity-50"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></span>ปักหมุด</span>
+                      <span class="badge bg-white text-default-600 border-default-300 text-2xs rounded-full border">เกี่ยวกับร้าน</span>
+                    </div>
+                  </div>
+                  <div class="mk-chrome"></div>
+                  <span class="mk-tag badge bg-primary text-2xs rounded-none rounded-ee-md text-white">แถบแท็บ · ลากสลับลำดับได้</span>
+                </div>
+
+                <!-- เนื้อหาของแท็บที่เลือก — อ่านอย่างเดียว -->
+                <div class="relative">
+                  <div class="p-3.5 opacity-70">
+                    <div class="text-default-900 mb-2 text-xs font-semibold">ห้องพัก 4 ห้อง</div>
+                    <div class="grid grid-cols-2 gap-2">
+                      <div>
+                        <div class="bg-default-200 aspect-[4/3] rounded-md"></div>
+                        <div class="text-default-900 mt-1 truncate text-2xs font-medium">Riverside Villa</div>
+                        <div class="text-primary text-2xs font-semibold">฿3,200 / คืน</div>
+                      </div>
+                      <div>
+                        <div class="bg-default-200 aspect-[4/3] rounded-md"></div>
+                        <div class="text-default-900 mt-1 truncate text-2xs font-medium">Garden House</div>
+                        <div class="text-primary text-2xs font-semibold">฿2,400 / คืน</div>
+                      </div>
+                    </div>
+                  </div>
+                  <span class="mk-tag badge bg-default-400 text-2xs rounded-none rounded-ee-md text-white">เนื้อหาของแท็บที่เลือก · แก้ที่หน้าห้องพัก</span>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+
+          <!-- ── พรีวิว ── -->
+          <div class="card flex min-h-0 w-[30%] flex-col">
+            <div class="card-header flex items-center py-3">
+              <h4 class="card-title flex-1 text-sm">พรีวิว</h4>
+              <div class="flex gap-1">
+                <span class="badge bg-primary text-2xs text-white">พรีวิว</span>
+                <span class="badge bg-default-100 text-default-600 text-2xs">แก้ไขบล็อก</span>
+              </div>
+            </div>
+            <div class="bg-default-100 flex min-h-0 flex-1 justify-center overflow-auto p-4">
+              <div class="h-fit w-full overflow-hidden rounded-xl bg-white shadow">
+                <div class="h-16" style="background:linear-gradient(120deg,var(--color-primary),var(--color-info))"></div>
+                <div class="border-default-200 border-b px-3 pb-3">
+                  <div class="mx-auto -mt-7 flex size-14 items-center justify-center rounded-xl border-4 border-white bg-white shadow">
+                    <svg class="mk-ico text-default-400 text-2xl" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21v-14l8 -4v18"/><path d="M19 21v-10l-6 -4"/></svg>
+                  </div>
+                  <div class="text-default-900 mt-1.5 flex items-center justify-center gap-1 text-sm font-bold">BT พรีเมี่ยม
+                    <svg class="mk-ico text-success text-base" viewBox="0 0 24 24"><path d="M12 3l2 2h3v3l2 2l-2 2v3h-3l-2 2l-2 -2h-3v-3l-2 -2l2 -2v-3h3z"/><path d="M9 12l2 2l4 -4"/></svg>
+                  </div>
+                  <div class="text-default-400 text-2xs text-center">@bt-premium</div>
+                  <div class="mt-2 flex justify-center gap-4">
+                    <div class="text-center"><b class="text-default-900 block text-sm">128</b><span class="text-default-400 text-2xs">ออเดอร์</span></div>
+                    <div class="text-center"><b class="text-default-900 block text-sm">97%</b><span class="text-default-400 text-2xs">สำเร็จ</span></div>
+                    <div class="text-center"><b class="text-default-900 block text-sm">4.8</b><span class="text-default-400 text-2xs">รีวิว</span></div>
+                  </div>
+                  <div class="mt-2 flex justify-center gap-1">
+                    <span class="bg-primary flex size-6 items-center justify-center rounded-full text-white"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"/></svg></span>
+                    <span class="bg-warning flex size-6 items-center justify-center rounded-full text-white"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M13 3l-9 12h7l-1 6l9 -12h-7z"/></svg></span>
+                    <span class="bg-success flex size-6 items-center justify-center rounded-full text-white"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4 -3.5 7 -8 8c-4.5 -1 -8 -4 -8 -8v-6z"/></svg></span>
+                    <span class="bg-info flex size-6 items-center justify-center rounded-full text-white"><svg class="mk-ico text-sm" viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1 -10 0z"/></svg></span>
+                  </div>
+                </div>
+                <div class="border-default-200 flex gap-1 overflow-auto border-b px-2.5 py-2">
+                  <span class="badge bg-primary text-2xs rounded-full text-white">ห้องพัก</span>
+                  <span class="badge bg-default-100 text-default-600 text-2xs rounded-full">รีวิว 63</span>
+                  <span class="badge bg-default-100 text-default-600 text-2xs rounded-full">คลิป</span>
+                  <span class="badge bg-default-100 text-default-600 text-2xs rounded-full">เกี่ยวกับร้าน</span>
+                </div>
+                <div class="border-default-200 border-b p-3">
+                  <div class="text-default-900 mb-2 text-xs font-semibold">จากเพจของเรา</div>
+                  <div class="grid grid-cols-2 gap-2"><div class="bg-default-200 aspect-square rounded-md"></div><div class="bg-default-200 aspect-square rounded-md"></div></div>
+                </div>
+                <div class="border-default-200 border-b p-3">
+                  <div class="text-default-900 mb-2 text-xs font-semibold">ห้องพัก 4 ห้อง</div>
+                  <div class="grid grid-cols-2 gap-2"><div class="bg-default-200 aspect-square rounded-md"></div><div class="bg-default-200 aspect-square rounded-md"></div></div>
+                </div>
+                <p class="text-default-400 text-2xs p-3 text-center">แสดงการจัดเรียงล่าสุดของคุณ<br>ลิงก์ที่แชร์จะยังเป็นเวอร์ชันที่บันทึกแล้ว</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ มือถือ — นอกขอบเขตเฟสนี้ ══════════════════ -->
+  <h2 class="text-default-900 mt-14 mb-1 text-lg font-semibold">2 · มือถือ — สิ่งที่เห็นแทน</h2>
+  <p class="text-default-500 mb-4 text-sm">ตัวจัดเรียงแบบลากวางเป็น <b class="text-default-900">desktop-only ในเฟสนี้</b> (ผู้ใช้ตัดสิน 2026-08-07) — แต่มือถือต้องไม่เป็นทางตัน ส่วนที่ผู้ขายทำได้อยู่แล้วยังต้องทำได้ครบ</p>
+
+  <div class="flex flex-wrap gap-6">
+    <div class="mk-frame">
+      <div class="mk-cap">Mobile <span>390 — ยังทำงานได้ ไม่ใช่หน้าที่กดอะไรไม่ได้</span></div>
+      <div class="mk-w390 bg-default-100 flex flex-col" style="height:680px">
+        <div class="border-default-200 flex shrink-0 items-center gap-3 border-b bg-white px-4 py-3">
+          <svg class="mk-ico text-default-900 text-xl" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M5 12l6 6"/><path d="M5 12l6 -6"/></svg>
+          <div class="text-default-900 flex-1 font-semibold">ตั้งค่าหน้าร้าน</div>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-auto p-3">
+          <div class="card mb-3">
+            <div class="card-header py-3"><h4 class="card-title text-sm">ลิงก์หน้าร้านของคุณ</h4></div>
+            <div class="card-body">
+              <div class="input-group">
+                <span class="input-group-text text-2xs">deepthailand.app/u/</span>
+                <input class="form-input text-sm" value="bt-premium" readonly>
+                <button class="btn btn-icon border-default-300 text-default-700 border">
+                  <svg class="mk-ico text-base" viewBox="0 0 24 24"><path d="M8 10a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z"/><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"/></svg>
+                </button>
+              </div>
+              <button class="btn bg-primary mt-3 w-full min-h-11 text-white hover:bg-primary-hover">
+                <svg class="mk-ico me-1 text-base" viewBox="0 0 24 24"><path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6"/><path d="M11 13l9 -9"/><path d="M15 4h5v5"/></svg>
+                ดูหน้าร้านของฉัน
+              </button>
+            </div>
+          </div>
+
+          <div class="card mb-3">
+            <div class="card-header py-3"><h4 class="card-title text-sm">การมองเห็นหน้าร้าน</h4></div>
+            <div class="card-body">
+              <div class="flex items-start gap-3">
+                <svg class="mk-ico text-default-500 mt-0.5 text-xl" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M3.6 9h16.8"/><path d="M3.6 15h16.8"/><path d="M11.5 3a17 17 0 0 0 0 18"/><path d="M12.5 3a17 17 0 0 1 0 18"/></svg>
+                <div class="min-w-0 flex-1">
+                  <div class="text-default-900 text-sm font-medium">เผยแพร่หน้าร้านสาธารณะ</div>
+                  <div class="text-default-400 text-2xs mt-0.5">ลูกค้าทั่วไปเปิดดูหน้าร้านของคุณได้ตามปกติ</div>
+                </div>
+                <input type="checkbox" class="form-switch shrink-0" checked>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mb-3">
+            <div class="card-header py-3"><h4 class="card-title text-sm">คลิปที่แสดงบนหน้าร้าน</h4></div>
+            <div class="card-body">
+              <div class="grid grid-cols-3 gap-2">
+                <div class="bg-default-200 aspect-[9/16] rounded-md"></div>
+                <div class="bg-default-200 aspect-[9/16] rounded-md"></div>
+                <div class="bg-default-200 aspect-[9/16] rounded-md"></div>
+              </div>
+              <div class="mt-3 flex items-center">
+                <span class="text-default-400 flex-1 text-xs">เลือกแล้ว 3/6</span>
+                <button class="btn btn-sm bg-primary text-white hover:bg-primary-hover">บันทึก</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-info/15 text-info-ink flex items-start gap-2.5 rounded-lg p-3 text-sm" role="alert">
+            <svg class="mk-ico mt-0.5 text-lg" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/><path d="M12 9h.01"/><path d="M11 12h1v4h1"/></svg>
+            <div>
+              <div class="font-medium">จัดเรียงบล็อกบนหน้าร้าน ใช้บนคอมพิวเตอร์</div>
+              <p class="mt-1">การสลับลำดับและเลือกเนื้อหาที่จะโชว์ ต้องใช้พื้นที่จอกว้าง เปิดหน้านี้บนคอมพิวเตอร์เมื่อสะดวก — การตั้งค่าอื่นบนหน้านี้ใช้บนมือถือได้ตามปกติ</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mk-frame" style="max-width:520px">
+      <div class="mk-cap">เหตุผลที่ตัด <span>บันทึกไว้กันลืม</span></div>
+      <div class="card-body text-default-600 space-y-3 bg-white p-5 text-sm">
+        <p><b class="text-default-900">ทำไมถึงยอมตัดมือถือทั้งที่โปรเจกต์นี้ mobile-first</b> — ตัวจัดเรียงต้องเห็นคลัง เนื้อหาที่กำลังจัด และผลลัพธ์พร้อมกัน ซึ่งบีบลงจอ 390px แล้วเหลือทีละอย่าง ทำให้เสียเหตุผลของเครื่องมือไป · เฟสนี้จึงเลือกทำอันเดียวให้ดีก่อน</p>
+        <p><b class="text-default-900">สิ่งที่ห้ามเกิด</b> — ผู้ขายเปิดหน้านี้บนมือถือแล้วเจอ 3 คอลัมน์ที่บีบจนพัง หรือหน้าที่กดอะไรไม่ได้เลย · ทุกอย่างที่เคยทำได้ (ลิงก์ คัดลอก เปิด-ปิดการเผยแพร่ เลือกคลิป) ต้องยังทำได้ครบบนมือถือ ของพวกนี้มีอยู่แล้วในหน้าเดิม ไม่ต้องสร้างใหม่</p>
+        <p><b class="text-default-900">เฟสถัดไป</b> — ถ้าจะรองรับมือถือ ทางที่ ux เสนอไว้คือแท็บสลับ 3 โหมด (คลัง / จัดเรียง / พรีวิว) พร้อมปุ่มลูกศรขึ้น-ลงแทนการลาก เก็บไว้เป็นทางเลือกที่ประเมินไว้แล้ว ไม่ต้องคิดใหม่</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════ STATES ══════════════════ -->
+  <h2 class="text-default-900 mt-14 mb-4 text-lg font-semibold">3 · สถานะของการลากวาง</h2>
+  <div class="grid gap-4" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+
+    <div class="card">
+      <div class="card-header py-2.5"><h4 class="card-title text-xs">ปฏิเสธ — ลากบล็อกล็อกออก</h4></div>
+      <div class="card-body">
+        <div class="border-danger bg-danger/6 flex cursor-not-allowed items-center gap-2.5 rounded-lg border border-dashed p-2.5">
+          <span class="flex size-8 items-center justify-center rounded-md bg-white"><svg class="mk-ico text-default-500 text-base" viewBox="0 0 24 24"><path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/></svg></span>
+          <div class="min-w-0 flex-1">
+            <div class="text-default-900 text-sm font-medium">รีวิวจากลูกค้า</div>
+            <div class="text-danger text-2xs">นำออกจากหน้าร้านไม่ได้</div>
+          </div>
+        </div>
+        <p class="text-default-400 mt-3 text-xs">คลังปฏิเสธตั้งแต่ตอนลากค้าง ไม่ใช่ปล่อยมือแล้วเด้ง error</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header py-2.5"><h4 class="card-title text-xs">เพิ่มแล้ว — กดซ้ำไม่ได้</h4></div>
+      <div class="card-body">
+        <div class="border-default-300 flex items-center gap-2.5 rounded-lg border bg-white p-2.5 opacity-55">
+          <span class="bg-default-100 text-default-500 flex size-8 items-center justify-center rounded-md"><svg class="mk-ico text-base" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21v-14l8 -4v18"/><path d="M19 21v-10l-6 -4"/></svg></span>
+          <div class="min-w-0 flex-1">
+            <div class="text-default-900 text-sm font-medium">ห้องพัก</div>
+            <div class="text-default-400 text-2xs">อยู่ในหน้าร้านแล้ว</div>
+          </div>
+          <span class="badge bg-success/15 text-success text-2xs">เพิ่มแล้ว</span>
+        </div>
+        <p class="text-default-400 mt-3 text-xs">ปุ่มบวกหายไปเลย ไม่ใช่ disabled ที่ยังกดได้แล้วไม่เกิดอะไร</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header py-2.5"><h4 class="card-title text-xs">ยืนยันก่อนนำบล็อกออก</h4></div>
+      <div class="card-body text-center">
+        <div class="bg-danger/15 text-danger mx-auto mb-2.5 flex size-11 items-center justify-center rounded-full">
+          <svg class="mk-ico text-xl" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3h6v3"/></svg>
+        </div>
+        <div class="text-default-900 text-sm font-semibold">นำ "คลิปวิดีโอ" ออกจากหน้าร้าน?</div>
+        <p class="text-default-500 mt-1.5 mb-3 text-xs">ลูกค้าจะไม่เห็นส่วนนี้อีก จนกว่าจะเพิ่มกลับมา</p>
+        <div class="flex gap-2">
+          <button class="btn border-default-300 text-default-900 hover:bg-default-50 flex-1 border">ยกเลิก</button>
+          <button class="btn bg-danger flex-1 text-white">นำออก</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════ GUARDRAIL ══════════════════ -->
+  <h2 class="text-default-900 mt-14 mb-1 text-lg font-semibold">4 · เส้นแบ่งของเหรียญตรา</h2>
+  <p class="text-default-500 mb-4 text-sm"><code class="bg-default-200 rounded px-1">Badge.type</code> ใน <code class="bg-default-200 rounded px-1">prisma/badge-seed-data.ts</code> แยกไว้ให้อยู่แล้ว ไม่ต้องประดิษฐ์กฎใหม่</p>
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div class="card">
+      <div class="card-header"><h4 class="card-title text-sm">type: ACHIEVEMENT — เลือกและจัดลำดับได้อิสระ</h4></div>
+      <div class="card-body">
+        <div class="mb-3 flex flex-wrap gap-1.5">
+          <span class="badge bg-success/15 text-success text-2xs">ร้อยออเดอร์</span>
+          <span class="badge bg-success/15 text-success text-2xs">จัดส่งสายฟ้า</span>
+          <span class="badge bg-success/15 text-success text-2xs">ไร้ข้อร้องเรียน</span>
+          <span class="badge bg-success/15 text-success text-2xs">ร้านค้าเก่าแก่</span>
+          <span class="badge bg-success/15 text-success text-2xs">ขายดีไร้ปัญหา</span>
+          <span class="badge bg-success/15 text-success text-2xs">ส่งไวระดับเทพ</span>
+          <span class="badge bg-success/15 text-success text-2xs">ร้านคะแนนสูง</span>
+        </div>
+        <p class="text-default-600 text-sm"><b class="text-default-900">ทำไมถึงปล่อยได้:</b> เหรียญ achievement ทุกใบเป็นเรื่องดีทั้งหมด <b class="text-default-900">ไม่มี "เหรียญแย่" ให้ซ่อน</b> การเลือกโชว์ 4 จาก 7 จึงเป็นการจัดหน้า ไม่ใช่การปกปิด</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h4 class="card-title text-sm">type: VERIFICATION + สถิติ — ตรึงตายตัว</h4></div>
+      <div class="card-body">
+        <div class="mb-3 flex flex-wrap gap-1.5">
+          <span class="badge bg-danger/15 text-danger text-2xs">ยืนยันครบถ้วน</span>
+          <span class="badge bg-danger/15 text-danger text-2xs">คะแนนความน่าเชื่อถือ</span>
+          <span class="badge bg-danger/15 text-danger text-2xs">ป้ายระดับการยืนยัน</span>
+          <span class="badge bg-danger/15 text-danger text-2xs">ยอดออเดอร์สำเร็จ</span>
+          <span class="badge bg-danger/15 text-danger text-2xs">อัตราสำเร็จ</span>
+          <span class="badge bg-danger/15 text-danger text-2xs">รีวิวจากลูกค้า</span>
+        </div>
+        <p class="text-default-600 text-sm"><b class="text-default-900">ทำไมถึงปล่อยไม่ได้:</b> กลุ่มนี้<b class="text-default-900">มีทั้งด้านดีและด้านแย่</b> ถ้าซ่อนได้ทีละใบ ร้านที่มีปัญหาจะซ่อนเฉพาะตัวที่แย่ แล้วตัวเลขที่เหลือหมดความหมายทั้งชุด · ซ่อนได้ทางเดียวคือปิดทั้งหน้า</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ OPEN ══════════════════ -->
+  <h2 class="text-default-900 mt-14 mb-4 text-lg font-semibold">5 · เรื่องที่ต้องเคาะก่อนลงมือ</h2>
+  <div class="card">
+    <div class="card-body text-default-600 space-y-4 text-sm">
+      <div>
+        <b class="text-default-900">1. canvas ต้องเป็น iframe ของหน้าจริง</b> <span class="badge bg-success/15 text-success text-2xs">เคาะแล้ว 2026-08-07</span><br>
+        หน้าร้านสาธารณะเป็น <b>Vuexy</b> (MUI + <code class="bg-default-200 rounded px-1">--mui-palette-*</code>) แต่ builder เป็น <b>Paces</b> — เอา component หน้าร้านมา render ตรง ๆ ในหน้า Paces ไม่ได้ สีจะหายเงียบ ๆ โดย build ผ่านหมด
+        <div class="mt-2 ps-4">
+          เคยพิจารณาย้ายหน้าร้านไปใช้ Paces เพื่อตัดปมนี้ (ต้นทุนต่ำกว่าที่คิด — MUI เหลือแค่ 9 import และ <code class="bg-default-200 rounded px-1">sx=</code> 5 จุด จาก <code class="bg-default-200 rounded px-1">className=</code> 101 จุด) แต่ <b class="text-default-900">ตัดสินว่าไม่ย้าย</b>: <code class="bg-default-200 rounded px-1">PRODUCT.md:19</code> ระบุ <code class="bg-default-200 rounded px-1">/u/[username]</code> เป็น brand register (Vuexy) เป็นชื่อ path ตรงตัว และยืนยันซ้ำ 2026-08-03 · Product Principle 4 (<code class="bg-default-200 rounded px-1">PRODUCT.md:129</code>) แยกบทบาทไว้ชัด: surface สาธารณะแบกตัวตนแบรนด์ / surface ใช้งานจริงต้อง "หายไปในงาน" · และสี tier สูงสุด ("Deep Star") ใน <code class="bg-default-200 rounded px-1">src/lib/trust-tier.ts</code> ผูกกับ Vuexy primary โดยตรง ย้ายแล้วชนกฎ Paces ทันที
+        </div>
+        <div class="mt-2 ps-4">
+          <b class="text-default-900">ทางที่ใช้:</b> canvas embed <code class="bg-default-200 rounded px-1">iframe</code> ของ route จริงในโหมดพรีวิว แล้วคุยกันด้วย <code class="bg-default-200 rounded px-1">postMessage</code> (เลือกบล็อก → ไฮไลต์ใน iframe · ลากสลับ → ส่ง draft state ใหม่) — เป็น pattern มาตรฐานของ visual editor ทุกเจ้า และ <b class="text-default-900">ตรงกับของจริงมากกว่า</b>การวาดบล็อกเองด้วย token Paces เพราะไม่มีทาง drift · <span class="text-default-400">หมายเหตุ: บล็อกใน canvas ของ mockup นี้จึงเป็นภาพแทน ไม่ใช่สิ่งที่จะ implement ตรง ๆ</span>
+        </div>
+      </div>
+      <div><b class="text-default-900">2. ลำดับที่ลากไปโผล่ที่ไหน</b> — หน้าร้านตอนนี้เป็น <b>แท็บ</b> ไม่ใช่หน้าเลื่อนยาว ต้องเพิ่มคอลัมน์เก็บลำดับ (เช่น <code class="bg-default-200 rounded px-1">Shop.profileLayout</code>) และแก้ <code class="bg-default-200 rounded px-1">ShopProfile.tsx</code> ให้เรียงตามคอลัมน์นั้น</div>
+      <div><b class="text-default-900">3. รูปโพสต์ Facebook หมดอายุได้</b> — <code class="bg-default-200 rounded px-1">FacebookPost.thumbnailUrl</code> เก็บ URL ของ Meta ตรง ๆ ไม่ได้ mirror ลง storage เรา ถ้าเอาไปแปะหน้าร้านถาวรอาจกลายเป็นรูปแตก ต้องตัดสินว่าจะ mirror ตอนกดเพิ่มลงหน้าร้านหรือยอมรับความเสี่ยง</div>
+      <div><b class="text-default-900">4. เหรียญตราโชว์ได้สูงสุดกี่ใบ</b> — mockup ตั้งไว้ 4 ใบ</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

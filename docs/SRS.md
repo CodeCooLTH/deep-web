@@ -179,6 +179,11 @@
 | FR-9.9  | **Verified chip** — แสดงเมื่อ maxVerifyLevel ≥ 1 (สีตาม level: L1=info, L2=success, L3=primary); ไม่มี verification → ซ่อน chip (ไม่แสดง "ยังไม่ยืนยัน") | Must     | **DONE** |
 | FR-9.10 | **Cross-platform stats + On-time/Response time** — แสดงเป็น **placeholder ตัวอย่าง (hardcode)** พร้อมป้าย "ตัวอย่าง" ชัดเจน — **Phase 2:** เชื่อม real cross-platform API + deliveryDeadline tracking จริง | Phase 2 | PLACEHOLDER |
 | FR-9.11 | **Follow + Chat FAB** — ปุ่ม disabled + tooltip "เร็ว ๆ นี้" — **Phase 2:** ต้องมี backend follow system + chat | Phase 2 | DISABLED |
+| FR-9.12 | **ตัวจัดหน้าร้าน (feature 00035)** — ผู้ขาย (OWNER/ADMIN ของร้าน) จัดลำดับแท็บของหน้าโปรไฟล์ตัวเองได้ผ่าน `/public-profile/builder` (`ShopPageLayout.tabOrder`) — จัดได้แค่ **"ลำดับ"** เท่านั้น ปิด/ลบแท็บออกไม่ได้ (BR-PGB-01, D-9) แท็บที่ไม่มีข้อมูลจริงยังไม่ถูก render เหมือนเดิม (`computeVisibleTabKeys`/`applyTabOrder` — `src/lib/profile-tab-keys.ts`) | Must | **DONE** |
+| FR-9.13 | **บล็อกเหนือแถบแท็บ (feature 00035)** — เพิ่มได้ 2 ชนิด: **เหรียญตราเด่น** (`UserBadge` ที่ `Badge.type='ACHIEVEMENT'` เท่านั้น สูงสุด 4 ใบ มีได้ 1 บล็อกต่อร้าน) และ **โพสต์ Facebook รายโพสต์** (มีได้หลายแถว โพสต์เดียวกันเพิ่มซ้ำในร้านเดียวกันไม่ได้) — เก็บใน `ShopPageBlock`; ต้นทางที่ถูกลบ (เหรียญถูกถอด/โพสต์หาย) หลุดออกจากผลลัพธ์เงียบ ๆ ไม่ทำหน้าร้านพัง | Must | **DONE** |
+| FR-9.14 | **สวิตช์เผยแพร่หน้าร้าน (feature 00035)** — `ShopPageLayout.isPublished` ปิดแล้วผู้เยี่ยมชมทั่วไปเห็นหน้า "ปิดการแสดงผลชั่วคราว" (`ProfileUnavailable`, คืน 200 ไม่ใช่ 404) แต่เจ้าของ/ทีมงานร้านยังเห็นหน้าจริงเสมอ (`canAccessShop`); ร้านเดิมทุกร้านที่ไม่เคยตั้งค่านี้ = เผยแพร่โดย default (zero-regression) | Must | **DONE** |
+
+> **feature 00035 (ตัวจัดหน้าร้าน):** รายละเอียดเต็ม `docs/20 - Features/00035 - Shop Page Builder/` (PRD/BRD/SRS/SDS/DATABASE/API/TestCase) — SRS/API/Data Model ที่นี่เป็น summary sync เท่านั้น
 
 ### FR-10: Admin Panel
 
@@ -254,13 +259,16 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Pricing | `/pricing` |
 | Sign-in / Sign-up / Verify OTP | `/auth/sign-in`, `/auth/sign-up`, `/auth/verify-otp` |
 | FB OAuth callback loading page | `/auth/callback/facebook` — Paces spinner รอ session → redirect /dashboard |
-| Public Profile | `/u/{username}` |
+| Public Profile (ร้าน PERSONAL/ทุกคน) | `/u/{username}` |
+| Public Profile (ร้าน BUSINESS) | `/b/{slug}` — component เดียวกับ `/u/{username}` (`ShopProfile.tsx`, feature 00028; entry นี้ sync เข้า SRS พร้อมงาน 00035 เพราะทั้งคู่ใช้ publish gate/draft mode เดียวกัน) |
 | Public Order (UUID) | `/o/{token}` |
 | Public Order (SMS short-code) | `/o/{12-char-code}` → redirect ผ่าน `/api/o/sms/{code}` → `/o/{uuid}` |
 | SMS Link Invalid / Error | `/o/link-invalid` |
 | Privacy Policy | `/privacy` — public, ไม่ต้อง login, static Server Component — Meta App Review (Privacy Policy URL) |
 | Data Deletion Instructions | `/data-deletion` — public, ไม่ต้อง login, static Server Component — Meta App Review (User Data Deletion URL); request via email, ดำเนินการภายใน 30 วัน |
 | Terms of Service | `/terms` — public, ไม่ต้อง login, static Server Component — Meta App Review (Terms of Service URL); ข้อกำหนดการใช้บริการ 10 หัวข้อ |
+
+> **feature 00035 (ตัวจัดหน้าร้าน) — โหมด draft preview:** `/u/{username}?builderDraft=1` และ `/b/{slug}?builderDraft=1` mount `BuilderPreviewBridge` (ฟัง `postMessage` จาก builder iframe) **เฉพาะเมื่อผู้เปิดเป็นเจ้าของ/ทีมงานร้าน** (`canAccessShop`) — query param เองไม่มีผลด้าน authorization ใด ๆ ผู้เยี่ยมชมทั่วไปเดา URL เดียวกันเห็นหน้าปกติเป๊ะ (ไม่มี Bridge ห่อ). `generateMetadata` ใส่ `robots:{index:false,follow:false}` เฉพาะ URL รูปแบบนี้ (ไม่ผูกกับสิทธิ์ — กัน search engine เก็บ URL พรีวิวไว้เฉย ๆ)
 
 ### 3.3 Buyer (`deepthailand.app/...`) — ต้อง login
 
@@ -288,6 +296,7 @@ Account เดียวกัน login/session แยกตาม subdomain (hos
 | Reviews | `/reviews` |
 | Badges & Progress | `/badges` |
 | **เครดิต SMS (wallet)** | **`/wallet`** |
+| **ตัวจัดหน้าร้าน (feature 00035, desktop เท่านั้น — CSS gate ที่ breakpoint `xl`/1280px)** | **`/public-profile/builder`** |
 | Shop Settings | `/shop` |
 | Verification | `/verification` |
 | Auth (sign-in/sign-up/verify-otp/reset-pass/new-pass) | `/auth/*` |
@@ -334,6 +343,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 | NFR-2.5 | Input validation ทุก endpoint — Valibot (API) / Yup (form) |
 | NFR-2.6 | OTP rate limit 3 ครั้ง/10 นาที/เบอร์ |
 | NFR-2.7 | Admin self-review block (verification) — FR-2.6 |
+| NFR-2.8 | **feature 00035** — `BuilderPreviewBridge` (postMessage ระหว่าง builder iframe กับ `/u`,`/b` โหมด draft) ต้องตรวจ `event.origin` ผ่าน `isAllowedOrigin()` (reuse `lib/csrf-origin.ts`) ก่อนรับ/ตอบข้อความทุกครั้ง — ห้าม `targetOrigin: '*'` ทั้งสองทาง |
 
 ### NFR-3: Usability
 
@@ -400,6 +410,9 @@ Shop (1) ──────── (N) Product ── (M:N) Tag
 Shop (1) ──────── (N) Order [as seller]
 Shop (1) ──────── (0..1) SellerWallet
 Shop (1) ──────── (N) TopUpRequest
+Shop (1) ──────── (0..1) ShopPageLayout          [feature 00035]
+Shop (1) ──────── (N) ShopPageBlock              [feature 00035]
+ShopPageBlock (N) ─ (0..1) FacebookPost          [feature 00035 — onDelete Cascade]
 
 Order (1) ──────── (N) OrderItem
 Order (1) ──────── (0..1) ShipmentTracking
@@ -652,6 +665,59 @@ SellerWallet (1) ── (N) WalletTransaction
 
 **Indexes:** `[codeHash]`, `[orderId]`, `[expiresAt]`
 
+#### ShopPageLayout (`prisma/schema.prisma:2705`) — feature 00035
+
+> สวิตช์เผยแพร่ + ลำดับแท็บของหน้าร้านสาธารณะ — 1:1 `Shop`
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `shopId` | String `@unique` FK → Shop | cascade delete — 1 ร้าน 1 ชุดตั้งค่า (pattern เดียวกับ `AutoReplyConfig`) |
+| `isPublished` | Boolean `@default(true)` | สวิตช์เผยแพร่ทั้งหน้า (FR-9.14) — 🛑 default มีผลเฉพาะตอน INSERT แถวใหม่เท่านั้น ร้านที่ยังไม่เคยมีแถวนี้เลย (ไม่มีแถว ≠ ไม่เผยแพร่) ต้อง fallback เป็น `true` ที่ชั้น service เสมอ (`getShopPageLayout`) ห้ามพึ่ง DB default อย่างเดียว |
+| `tabOrder` | String[] `@default([])` | ลำดับ tab key ที่ร้านจัดเอง — เก็บแค่ "ลำดับ" ไม่ใช่ "รายการที่จะแสดง" ค่าที่ถูกต้อง 7 ตัว (SSOT `src/lib/profile-tab-keys.ts::PROFILE_TAB_KEYS`) — ว่าง `[]` = ใช้ลำดับ default ของระบบ; ไม่มี CHECK ที่ DB (validate ที่ Valibot อย่างเดียว มิเรอร์ `Shop.categories`) |
+| `createdAt` / `updatedAt` | DateTime | |
+
+#### ShopPageBlock (`prisma/schema.prisma:2753`) — feature 00035
+
+> บล็อกเหนือแถบแท็บของหน้าร้านสาธารณะ — มี 2 ชนิด: `BADGE_HIGHLIGHT` (เหรียญตราเด่น, ≤1 แถวต่อร้าน) และ `FACEBOOK_POST` (โพสต์ Facebook, หลายแถวได้)
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `shopId` | String FK → Shop | cascade delete |
+| `type` | String | `BADGE_HIGHLIGHT` / `FACEBOOK_POST` — ดู §8.2b |
+| `sortOrder` | Int `@default(0)` | ตำแหน่งในกลุ่มบล็อกของร้านนี้ — เขียนทับเป็น `0..n-1` ทุกครั้งที่บันทึก ไม่มี unique |
+| `badgeIds` | String[] `@default([])` | ใช้เฉพาะ `type=BADGE_HIGHLIGHT` — เก็บ `UserBadge.id` (ไม่ใช่ `Badge.id`) ไม่มี FK จริง (array) ฝั่งอ่านต้อง query `UserBadge` ซ้ำเสมอว่ายังเป็นของร้าน/ผู้ใช้นี้ + `Badge.type='ACHIEVEMENT'` |
+| `facebookPostId` | String? FK → FacebookPost | ใช้เฉพาะ `type=FACEBOOK_POST` — `onDelete: Cascade` (โพสต์ต้นทางหาย → แถวนี้หายไปเงียบ ๆ ไม่เหลือ orphan) |
+| `createdAt` / `updatedAt` | DateTime | |
+
+**🛑 CHECK constraints (unmanaged SQL — ห้าม `prisma db pull`/`migrate dev`):**
+- `ShopPageBlock_type_check` — `type` ∈ `('BADGE_HIGHLIGHT','FACEBOOK_POST')`
+- `ShopPageBlock_type_fields_check` — `type='BADGE_HIGHLIGHT'` ⇒ `facebookPostId IS NULL AND cardinality(badgeIds)<=4`; `type='FACEBOOK_POST'` ⇒ `facebookPostId IS NOT NULL AND cardinality(badgeIds)=0`
+- `ShopPageBlock_sortOrder_non_negative` — `sortOrder >= 0`
+
+**Partial unique indexes (unmanaged SQL — Prisma DSL ประกาศไม่ได้):**
+- `ShopPageBlock_shopId_badgeHighlight_key` — `(shopId) WHERE type='BADGE_HIGHLIGHT'` (เหรียญตราเด่นมีได้แถวเดียวต่อร้าน)
+- `ShopPageBlock_shopId_facebookPostId_key` — `(shopId, facebookPostId) WHERE type='FACEBOOK_POST' AND facebookPostId IS NOT NULL` (โพสต์เดียวกันเพิ่มซ้ำในร้านเดียวกันไม่ได้)
+
+**Indexes:** `[shopId, sortOrder]` (อ่านเรียงตำแหน่ง — public render + builder canvas), `[facebookPostId]` (lookup ย้อนกลับ)
+
+#### FacebookPost (`prisma/schema.prisma:2650`) — feature 00029
+
+> 🛑 **หนี้เดิม:** ตารางนี้มาจาก feature 00029 (แท็บความคิดเห็น Facebook) ที่ยังไม่เคยเขียน SRS/SDS/API/Tests เลย — entry ด้านล่างเป็น**เวอร์ชันย่อ**เพิ่มเข้ามาเพราะ feature 00035 แตะตารางนี้ตรง ๆ (เพิ่ม 2 คอลัมน์ mirror) **`ShopChannel` และ `PageComment` ที่เกี่ยวข้องกันยังไม่มี entry ในเอกสารนี้เลย** — ยังเป็นหนี้ค้าง ไม่ใช่ครบแล้ว
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `shopChannelId` | String FK → ShopChannel | cascade delete (ตารางนี้ยังไม่ได้เขียนใน SRS — ดูหมายเหตุด้านบน) |
+| `externalPostId` | String `@unique` | id ฝั่ง Meta รูปแบบ `"{pageId}_{postNum}"` — กันซ้ำ |
+| `message` / `permalink` / `thumbnailUrl` | String? | เนื้อหา/ลิงก์/รูปปกโพสต์ — `thumbnailUrl` เป็น URL ของ Meta ตรง ๆ (ไม่ mirror) |
+| `createdTime` / `lastCommentAt` | DateTime? | เวลาโพสต์ / เวลาคอมเมนต์ล่าสุด (ตัวหลังใช้เรียงรายการ) |
+| `mediaType` | String? | `video`/`photo`/`album`/`link`/`status` |
+| `reactionCount` / `fbCommentCount` / `shareCount` | Int? | ยอด engagement — `NULL` = ยังไม่เคยดึง ต่างจาก `0` |
+| `statsSyncedAt` | DateTime? | เวลาที่ sync ยอด engagement ล่าสุด |
+| `mirroredFileId` | String? | **feature 00035** — fileId ของ storage ที่ mirror รูปปกแล้ว, เขียนครั้งแรกตอนร้านกด "เพิ่มลงหน้าร้าน" เท่านั้น (ไม่ mirror ทุกโพสต์ที่ดึงมา) `NULL` = ไม่เคยถูกเพิ่มลงหน้าร้านของร้านไหนเลย |
+| `mirroredAt` | DateTime? | **feature 00035** — เวลาที่ mirror สำเร็จ |
+
+**Index:** `[shopChannelId, lastCommentAt]`
+
 ---
 
 ## §7 API Reference
@@ -694,6 +760,18 @@ SellerWallet (1) ── (N) WalletTransaction
 | PATCH | `/api/shops/[id]` | Seller-owner | แก้ข้อมูลร้าน | `shop.service` |
 | GET | `/api/shops/check-slug` | Guest | ตรวจ slug ว่าง/ซ้ำ/reserved → `{available:bool}` | `shop.service` (isSlugAvailable) |
 | POST | `/api/shops/slug` | Seller (authed) | ตั้ง `Shop.slug` (ครั้งแรกเท่านั้น; ถ้ามีแล้ว → 409) | `shop.service` (setShopSlug) |
+
+### 7.3b Shops — ตัวจัดหน้าร้าน (Page Builder, feature 00035)
+
+| Method | Path | Auth | Purpose | Service |
+|--------|------|------|---------|---------|
+| GET | `/api/shops/current/page-builder/library` | Seller (OWNER/ADMIN ของ active shop) | คลังบล็อกที่เพิ่มได้ — เหรียญ `ACHIEVEMENT` ที่ร้าน/ผู้ใช้นี้ได้รับจริง + โพสต์ Facebook ของเพจที่เชื่อมไว้ (ค้นหา `?q=`/แบ่งหน้า `?cursor=&take=`) — ไม่รู้จัก draft state (client คำนวณ "เพิ่มแล้ว" เอง) | `shop-page-layout.service` (`getBuilderLibrary`) |
+| POST | `/api/shops/current/page-builder/facebook-posts/mirror` | Seller (OWNER/ADMIN) | mirror รูปปกโพสต์ 1 โพสต์ลง storage ของเรา — เรียกตอนกด "+" ในคลัง **ก่อน** Save, idempotent, ไม่ persist `ShopPageBlock` ใด ๆ | `shop-page-layout.service` (`mirrorFacebookPostForBuilder`), reuse `mirrorRemoteImage()` (feature 00018) |
+| PUT | `/api/shops/current/page-builder` | Seller (OWNER/ADMIN) | บันทึกผัง — แทนที่ `tabOrder` + `ShopPageBlock` ทั้งชุดของร้านในทรานแซกชันเดียว (ไม่แตะ `isPublished`) | `shop-page-layout.service` (`saveShopPageLayout`) |
+| PATCH | `/api/shops/current/page-builder/publish` | Seller (OWNER/ADMIN) | สลับสถานะเผยแพร่ทั้งหน้า — endpoint เดียวใช้ร่วมทั้ง desktop builder toolbar และ `/public-profile` มือถือ | `shop-page-layout.service` (`setShopPagePublished`) |
+
+> **Auth:** session → `requireActiveShop()` (ไม่มี active shop → `404 NOT_FOUND`) → `canAccessShop()` เป็น defense-in-depth ชั้นสอง (`403 FORBIDDEN`) — ไม่มีเช็ค `role` แยกอีกชั้น เพราะ `ShopMember.role` มีแค่ `OWNER`/`ADMIN` สองค่าเท่านั้นที่มีอยู่จริงในระบบ (ไม่มี STAFF) — `canAccessShop` true ของทั้งคู่พอดีตรงกับ FR-9.12–9.14
+> **Error response shape ต่างจาก endpoint อื่นในเอกสารนี้:** `{error:{code,message,details}}` (ไม่ใช่ flat `{error:"text",code}}`) — error code: `VALIDATION_ERROR`(400) `UNAUTHORIZED`(401) `NOT_FOUND`(404) `FORBIDDEN`(403) `NOT_OWNED`(403, resource ไม่ใช่ของร้านนี้จริง) `CONFLICT`(409, โพสต์ซ้ำในชุดเดียวกัน/ชนกับ partial unique index) — รายละเอียดเต็ม `docs/20 - Features/00035 - Shop Page Builder/API.md` §5
 
 ### 7.4 Products
 
@@ -843,6 +921,15 @@ SellerWallet (1) ── (N) WalletTransaction
 | SERVICE | NO_SHIPPING | ONE_TIME | — |
 | SUBSCRIPTION | NO_SHIPPING | RECURRING | MONTHLY |
 
+### 8.2b ShopPageBlock (feature 00035)
+
+| Enum | ค่า |
+|------|-----|
+| `type` | `BADGE_HIGHLIGHT` / `FACEBOOK_POST` |
+
+**Profile tab keys (SSOT `src/lib/profile-tab-keys.ts::PROFILE_TAB_KEYS`)** — ใช้ทั้งใน `ShopPageLayout.tabOrder` และการตัดสินว่าแท็บไหน render จริงบน `/u`,`/b`:
+`pinned`, `rooms`, `calendar`, `services`, `items`, `about`, `reviews`
+
 ### 8.3 Verification
 
 | Enum | ค่า |
@@ -922,6 +1009,8 @@ SellerWallet (1) ── (N) WalletTransaction
 | seller-credentials rate-limit | 5 attempts/10min/username (in-memory) | `lib/auth.ts` |
 | Shop slug length | 3–30 chars | `src/lib/shop-slug.ts` |
 | Shop category count | 10 categories | `src/lib/shop-categories.ts` |
+| เหรียญตราเด่นสูงสุด (Page Builder) | 4 ใบ/บล็อก | `ShopPageBlock_type_fields_check` (DB) + `SaveShopPageLayoutSchema` (Valibot, `maxLength(4)`) |
+| Profile tab keys | 7 คีย์ | `src/lib/profile-tab-keys.ts::PROFILE_TAB_KEYS` |
 
 ---
 
@@ -956,6 +1045,18 @@ SellerWallet (1) ── (N) WalletTransaction
 | ตั้ง slug (`POST /api/shops/slug`) | — | — | ✅ (ครั้งแรก; หลังตั้งแล้ว = 409) | — |
 | ตรวจ slug (`GET /api/shops/check-slug`) | ✅ | ✅ | ✅ | ✅ |
 | เข้า `/onboarding` | — | — | ✅ (seller authed เท่านั้น) | — |
+
+### 9.2b ตัวจัดหน้าร้าน (Page Builder, feature 00035)
+
+| Operation | Guest | Buyer | Seller — OWNER/ADMIN ของร้าน active | Seller — ไม่ใช่สมาชิกร้านนี้ | Admin |
+|-----------|-------|-------|--------------------------------------|--------------------------------|-------|
+| ดูผลลัพธ์บน `/u`,`/b` (เผยแพร่อยู่) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ดูหน้าที่ปิดเผยแพร่ (`isPublished=false`) | ❌ (`ProfileUnavailable`, HTTP 200) | ❌ | ✅ (`canAccessShop`) | ❌ | ❌ |
+| เปิด `/public-profile/builder` (server page, desktop เท่านั้น) | — | — | ✅ (`requireActiveShop` + slug ต้องมีก่อน) | ❌ redirect | — |
+| `GET .../library` / `POST .../facebook-posts/mirror` / `PUT /page-builder` / `PATCH .../publish` | — | — | ✅ | ❌ `403 FORBIDDEN` | — |
+| โหมด draft preview (`?builderDraft=1`) | เห็นหน้าปกติ (query param ไม่มีผลด้าน authz) | เห็นหน้าปกติ | ✅ mount `BuilderPreviewBridge` | เห็นหน้าปกติ | เห็นหน้าปกติ |
+
+> enforce ทั้ง 2 ชั้น: **server** (`canAccessShop` ทุกฟังก์ชันใน `shop-page-layout.service.ts` เป็นบรรทัดแรกเสมอ) และ **หน้าจอ** (`(fullscreen)` layout guard + `requireActiveShop` ที่ `page.tsx`) — ไม่มี role `STAFF` ในระบบ จึง "OWNER + ShopMember(role=ADMIN)" เทียบเท่ากับ `canAccessShop` ตรง ๆ
 
 ### 9.3 Verification
 
@@ -1022,6 +1123,22 @@ SellerWallet (1) ── (N) WalletTransaction
 | `address` | string ≤200 chars (optional) |
 | `businessType` | picklist: `INDIVIDUAL` / `COMPANY` |
 | `logo` | string ≤200 chars — fileId (optional) |
+
+### 10.2b Shop Page Builder (feature 00035)
+
+| Schema | Field | กฎ |
+|--------|-------|-----|
+| `BuilderLibraryQuerySchema` | `q` | string ≤200 chars (optional) |
+| | `cursor` | string ตัวเลขล้วน — regex `^\d+$` (optional; offset-based, `Number(cursor)` ที่ service) |
+| | `take` | int 1-50 (optional, default 20 ที่ service) |
+| `MirrorFacebookPostSchema` | `facebookPostId` | UUID |
+| `SaveShopPageLayoutSchema` | `tabOrder` | string[] ≤7 items — ค่าที่ไม่ใช่ 1 ใน 7 tab key (§8.2b) **ถูกกรองทิ้งเงียบ ๆ** ด้วย `v.transform` ไม่ reject ทั้ง request |
+| | `blocks` | array ≤200 items — discriminated union ตาม `type` (`v.variant`) |
+| | `blocks[].badgeIds` (เมื่อ `type=BADGE_HIGHLIGHT`) | UUID[] ≤4 |
+| | `blocks[].facebookPostId` (เมื่อ `type=FACEBOOK_POST`) | UUID |
+| `SetShopPagePublishedSchema` | `isPublished` | boolean |
+
+**หมายเหตุ:** เพดาน "เหรียญเกิน 4/มีบล็อกเหรียญเกิน 1 ใบ" ถูก reject ที่ Valibot (`maxLength(4)`) เป็นด่านแรก, ที่ service (`TOO_MANY_BADGE_BLOCKS`) เป็นด่านสอง, และ DB CHECK (`ShopPageBlock_type_fields_check`) เป็นด่านสาม — ความเป็นเจ้าของจริงของ `badgeIds`/`facebookPostId` (`BADGE_NOT_OWNED`/`POST_NOT_OWNED`) ตรวจที่ service เท่านั้น (Valibot ตรวจ shape ไม่ได้ตรวจความเป็นเจ้าของ)
 
 ### 10.3 Product
 
@@ -1121,5 +1238,5 @@ SellerWallet (1) ── (N) WalletTransaction
 
 ---
 
-_เอกสาร SRS นี้ sync กับโค้ดจริง ณ 2026-08-06 (feature 00033 — Backdated Order Date). เมื่อ schema/API/validation เปลี่ยน ให้อัปเดต section ที่เกี่ยวข้องทันที._
+_เอกสาร SRS นี้ sync กับโค้ดจริง ณ 2026-08-07 (feature 00035 — Shop Page Builder ตัวจัดหน้าร้าน; เพิ่ม entry ของ `FacebookPost` แบบย่อครั้งแรก — `ShopChannel`/`PageComment` ยังเป็นหนี้จาก feature 00029). เมื่อ schema/API/validation เปลี่ยน ให้อัปเดต section ที่เกี่ยวข้องทันที._
 _ลิงก์กลับ: `docs/PRD.md` (product-level)_

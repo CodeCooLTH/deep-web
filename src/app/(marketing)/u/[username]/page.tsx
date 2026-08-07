@@ -6,11 +6,13 @@ import NextLink from 'next/link'
 // MUI Imports
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import Alert from '@mui/material/Alert'
 
 // Service Imports
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
+import { canAccessShop } from '@/lib/shop-context'
 import { findByUsername } from '@/services/user.service'
 import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop, getConfirmedOrderCountByProduct } from '@/services/product.service'
@@ -22,7 +24,10 @@ import { toFileUrl } from '@/lib/file-url'
 import { getReviewsByUsername } from '@/services/review.service'
 import { getPublicRooms, getShopAvailability } from '@/services/room.service'
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
+import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
+import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
+import BuilderPreviewBridge from '@views/pages/user-profile/v2/BuilderPreviewBridge'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
 
@@ -41,19 +46,27 @@ import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profil
 // Phase 3 (feature 00013 Pin Products, SDS §4.4): แทน getProductsByShop(shop.id,12) เดี่ยว ด้วย
 // getPinnedProducts(shop.id) + getProductsByShop(shop.id,12,{excludePinned:true}) คู่กัน
 
-type Props = { params: Promise<{ username: string }> }
+type Props = {
+  params: Promise<{ username: string }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { username } = await params
   const user = await findByUsername(username)
   if (!user) return { title: 'ไม่พบผู้ใช้' }
+  // feature 00035 (TFR-008) — URL ที่มี builderDraft=1 มีไว้ให้ builder ฝัง iframe เท่านั้น
+  // ไม่มีเหตุผลให้ search engine เก็บ URL รูปแบบนี้ไว้เลย ไม่ว่าใครจะเปิด (noindex ไม่ผูกกับสิทธิ์)
+  const { builderDraft } = await searchParams
+  const isBuilderPreviewUrl = builderDraft === '1'
   return {
     title: `${user.displayName} (@${user.username})`,
     description: user.shop?.description ?? `โปรไฟล์ความน่าเชื่อถือของ ${user.displayName} บน Deep`,
+    ...(isBuilderPreviewUrl ? { robots: { index: false, follow: false } } : {}),
   }
 }
 
-export default async function PublicProfilePage({ params }: Props) {
+export default async function PublicProfilePage({ params, searchParams }: Props) {
   const { username } = await params
   const user = await findByUsername(username)
   if (!user) notFound()
@@ -64,6 +77,28 @@ export default async function PublicProfilePage({ params }: Props) {
   const viewerId = (session?.user as { id?: string } | undefined)?.id ?? null
   const isOwnShop = viewerId !== null && user.shop?.userId === viewerId
 
+  // feature 00035 (TFR-004) — สวิตช์เผยแพร่หน้าร้าน ไม่มีร้านเลย (บัญชี buyer-only) = ไม่มีแถว
+  // ShopPageLayout เสมอ ใช้ fallback isPublished:true ของ service ตรง ๆ
+  const pageLayout = user.shop
+    ? await getShopPageLayout(user.shop.id)
+    : { isPublished: true, tabOrder: [] as string[] }
+  // เจ้าของ "หรือทีมงาน" ร้าน (canAccessShop ครอบทั้งสองกรณี) ยังต้องเห็นหน้าปกติแม้ปิดเผยแพร่อยู่
+  // — คนละตัวกับ isOwnShop (owner เท่านั้น) ที่ใช้คุมปุ่มแชท ไม่ใช่ publish gate
+  const canManagePage = user.shop && viewerId ? await canAccessShop(user.shop.id, viewerId) : false
+
+  // feature 00035 (TFR-008, SDS TD-003) — โหมด draft (mount BuilderPreviewBridge ฟัง postMessage)
+  // เปิดเฉพาะเจ้าของ/ทีมงาน — query param เองไม่มีผลด้าน authorization ใด ๆ (TD-003: origin validation
+  // ต่างหากที่กันข้อมูลปลอมอยู่แล้ว) แต่ไม่มีเหตุผลให้ผู้เยี่ยมชมทั่วไปได้ event listener เปล่า ๆ นี้ —
+  // คนอื่นเปิด URL เดียวกันต้องเห็นหน้าปกติเป๊ะ (ไม่มี Bridge ห่อเลย)
+  const { builderDraft } = await searchParams
+  const isBuilderDraftMode = builderDraft === '1' && canManagePage
+
+  // ปิดเผยแพร่ + ผู้ดูไม่ใช่เจ้าของ/ทีมงาน → คืน 200 พร้อมหน้า "ปิดการแสดงผลชั่วคราว" ไม่ใช่ notFound()
+  // (ร้านนี้มีอยู่จริง แค่ผู้ขายสวิตช์ปิดไว้เอง — คนละเคสกับ !user ด้านบน) ตัดจบก่อน query หนักด้านล่าง
+  if (!pageLayout.isPublished && !canManagePage) {
+    return <ProfileUnavailable />
+  }
+
   // ทำไม: ตัด getReviewsByUsername ออก — ProfileTab ไม่แสดง RecentReviews อีกแล้ว
   // คง getAvgRatingByUsername + orderStats + products ที่ยังใช้งานอยู่
   // redesign 2026-07-26: สถิติ/ช่องทาง/การกระจายดาว ของหน้าโฉมใหม่ รวมอยู่ใน service เดียว
@@ -71,6 +106,8 @@ export default async function PublicProfilePage({ params }: Props) {
   const profileStats = user.shop ? await getShopProfileStats(user.shop.id) : null
   const recentReviews = await getReviewsByUsername(username, 10)
   const shopVideos = user.shop ? await getShopVideos(user.shop.id) : []
+  // feature 00035 (TFR-005) — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ
+  const pageBlocks = user.shop ? await listShopPageBlocks(user.shop.id) : []
 
   // ประเภทกิจการกำหนดชุดแท็บ (feat 00017 + 00028) — บ้านพักขาย "คืนที่ว่าง" ไม่ใช่ชิ้นสินค้า,
   // สินค้าและบริการมีแท็บ "บริการ" เพิ่มจากคิวงาน (ServiceResource)
@@ -214,67 +251,86 @@ export default async function PublicProfilePage({ params }: Props) {
         background: 'var(--mui-palette-background-paper)',
       }}
     >
+      {/* feature 00035 — เจ้าของ/ทีมงานเห็นหน้าปกติแม้ปิดเผยแพร่อยู่ แต่ต้องรู้ว่าคนอื่นมองไม่เห็น
+          Alert เต็มความกว้าง ไม่มีมุมโค้ง วางบนสุดเหนือ ProfileHero (Base: PhoneVerifyPrompt.tsx ~L260) */}
+      {!pageLayout.isPublished && canManagePage && (
+        <Alert severity='warning' sx={{ borderRadius: 0 }}>
+          <Typography className='font-medium' color='text.primary'>
+            หน้าร้านนี้ปิดการแสดงผลอยู่
+          </Typography>
+          <Typography variant='body2'>
+            ผู้เยี่ยมชมทั่วไปมองไม่เห็นหน้านี้ตอนนี้ — คุณเห็นเพราะเป็นเจ้าของหรือทีมงานร้าน
+          </Typography>
+        </Alert>
+      )}
+
       {/* redesign 2026-07-26 (ทิศทาง C) — ใช้ ShopProfile ร่วมกับ /b/[slug]
           ของเดิม (UserProfile) ยังอยู่ในโค้ดเบสจนกว่า user จะรับงาน แล้วค่อยลบทีเดียว */}
-      <ShopProfile
-        data={{
-          hero: {
-            shopName: profileHeader.shopName ?? profileHeader.fullName,
-            username: profileHeader.username,
-            avatar: toFileUrl(user.shop?.logo) ?? profileHeader.profileImg ?? null,
-            coverImage: toFileUrl(user.shop?.coverImage),
-            tierGradient: getTierGradient(user.trustScore),
-            trustScore: user.trustScore,
-            tierLabel,
-            maxVerifyLevel,
-            category: user.shop?.category ?? null,
-            memberSince: formatMonthYearTH(user.createdAt),
-            badges: sellerContextBadges.map((ub) => ({
-              id: ub.id,
-              name: ub.badge.name,
-              nameEN: ub.badge.nameEN,
-              icon: ub.badge.icon ?? '',
-            })),
-            totalBadgeCount: sellerContextBadges.length,
-            completedOrders: profileStats?.completedOrders ?? null,
-            customerCount: profileStats?.customerCount ?? null,
-            repeatCustomerCount: profileStats?.repeatCustomerCount ?? null,
-            completionRate: profileStats?.completionRate ?? null,
-            canChat: !!user.shop && !isOwnShop,
+      {/* feature 00035 — ห่อด้วย BuilderPreviewBridge เฉพาะโหมด draft (เจ้าของ/ทีมงานเปิดจาก builder
+          ผ่าน iframe) ผู้เยี่ยมชมทั่วไปไม่มี Bridge ห่อเลยแม้เดา ?builderDraft=1 มาเอง */}
+      <BuilderPreviewBridge enabled={isBuilderDraftMode}>
+        <ShopProfile
+          data={{
+            hero: {
+              shopName: profileHeader.shopName ?? profileHeader.fullName,
+              username: profileHeader.username,
+              avatar: toFileUrl(user.shop?.logo) ?? profileHeader.profileImg ?? null,
+              coverImage: toFileUrl(user.shop?.coverImage),
+              tierGradient: getTierGradient(user.trustScore),
+              trustScore: user.trustScore,
+              tierLabel,
+              maxVerifyLevel,
+              category: user.shop?.category ?? null,
+              memberSince: formatMonthYearTH(user.createdAt),
+              badges: sellerContextBadges.map((ub) => ({
+                id: ub.id,
+                name: ub.badge.name,
+                nameEN: ub.badge.nameEN,
+                icon: ub.badge.icon ?? '',
+              })),
+              totalBadgeCount: sellerContextBadges.length,
+              completedOrders: profileStats?.completedOrders ?? null,
+              customerCount: profileStats?.customerCount ?? null,
+              repeatCustomerCount: profileStats?.repeatCustomerCount ?? null,
+              completionRate: profileStats?.completionRate ?? null,
+              canChat: !!user.shop && !isOwnShop,
+              isLodging,
+              isServiceQueue,
+            },
             isLodging,
             isServiceQueue,
-          },
-          isLodging,
-          isServiceQueue,
-          rooms: publicRooms,
-          availability,
-          services: publicServices,
-          pinnedProducts,
-          otherProducts,
-          about: {
-            bio: profileTab.bio,
-            location: profileTab.location,
-            memberSince: profileTab.memberSince,
-            chatResponseRate: profileTab.chatResponseRate,
-            chatMedianResponseSec: profileTab.chatMedianResponseSec,
-            chatResponseSampleSize: profileTab.chatResponseSampleSize,
-          },
-          channels: profileStats?.channels ?? [],
-          videos: shopVideos,
-          reviews: recentReviews.map((r) => ({
-            id: r.id,
-            rating: r.rating,
-            comment: r.comment,
-            createdAtIso: r.createdAt.toISOString(),
-          })),
-          avgRating: profileStats?.avgRating ?? null,
-          reviewCount: profileStats?.reviewCount ?? 0,
-          ratingDistribution: profileStats?.ratingDistribution ?? null,
-          shopId: profileHeader.shopId ?? null,
-          isOwnShop,
-          itemKind: profileTab.itemKind,
-        }}
-      />
+            rooms: publicRooms,
+            availability,
+            services: publicServices,
+            pinnedProducts,
+            otherProducts,
+            about: {
+              bio: profileTab.bio,
+              location: profileTab.location,
+              memberSince: profileTab.memberSince,
+              chatResponseRate: profileTab.chatResponseRate,
+              chatMedianResponseSec: profileTab.chatMedianResponseSec,
+              chatResponseSampleSize: profileTab.chatResponseSampleSize,
+            },
+            channels: profileStats?.channels ?? [],
+            videos: shopVideos,
+            reviews: recentReviews.map((r) => ({
+              id: r.id,
+              rating: r.rating,
+              comment: r.comment,
+              createdAtIso: r.createdAt.toISOString(),
+            })),
+            avgRating: profileStats?.avgRating ?? null,
+            reviewCount: profileStats?.reviewCount ?? 0,
+            ratingDistribution: profileStats?.ratingDistribution ?? null,
+            shopId: profileHeader.shopId ?? null,
+            isOwnShop,
+            itemKind: profileTab.itemKind,
+            tabOrder: pageLayout.tabOrder,
+            blocks: pageBlocks,
+          }}
+        />
+      </BuilderPreviewBridge>
 
       {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
       <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>

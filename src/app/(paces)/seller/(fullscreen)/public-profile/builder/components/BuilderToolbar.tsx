@@ -6,7 +6,7 @@
  * Base: src/app/(paces)/seller/(fullscreen)/_shared/FullscreenPageHeader.tsx (ใช้ prop `toolbarExtra`
  *   ที่เพิ่มไว้แล้วสำหรับฟีเจอร์นี้โดยเฉพาะ — SDS TD-008) — เนื้อหาใน toolbarExtra (input-group ลิงก์
  *   +คัดลอก / สวิตช์เผยแพร่ / ปุ่มดูหน้าร้านจริง) คัดลอก markup จาก:
- *   Base: docs/superpowers/specs/2026-08-07-00034-builder-mockup-paces.html
+ *   Base: docs/superpowers/specs/2026-08-07-00035-builder-mockup-paces.html
  *     หัวข้อ "1 · จอหลัก (Desktop 1440)" แถว toolbar (บรรทัด input-group/switch/ปุ่ม "ดูหน้าร้านจริง")
  *   หมายเหตุ: mockup วาง input-group ชิดซ้ายถัดจาก title เพราะเป็น bespoke header — แต่
  *   FullscreenPageHeader ให้ title เป็น flex-1 เสมอ (D-6/TD-008 บังคับใช้ component เดิมไม่แก้ layout

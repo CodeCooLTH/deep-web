@@ -36,6 +36,27 @@ export function moveArrayItem<T>(arr: readonly T[], index: number, direction: -1
   return next
 }
 
+/**
+ * ย้าย item จาก index ต้นทางไปตำแหน่งปลายทางใดก็ได้ — ใช้ตอน drag-and-drop ของ @hello-pangea/dnd
+ * (CanvasFrame.tsx, Task 8) ซึ่งให้แค่ source/destination index มา ไม่ใช่ array ใหม่ทั้งก้อนแบบที่
+ * react-sortablejs คืนให้ (LibraryPanel.tsx ใช้ setList ตรง ๆ ได้เลย ไม่ต้องผ่านฟังก์ชันนี้)
+ *
+ * วนเรียก moveArrayItem() ทีละสเต็ป (adjacent swap) แทนการ splice ตรง ๆ — ตามเจตนาที่ comment ไว้บน
+ * moveArrayItem แต่แรก ("Task 8 จะเรียกใช้ตัวเดียวกัน... กัน logic สลับตำแหน่งเดินคนละทาง")
+ * ผลลัพธ์เดียวกับ splice เสมอ (พิสูจน์ด้วยตัวอย่าง): ย้าย C(index 2) ไป index 5 ใน [A,B,C,D,E,F]
+ *   splice: ดึง C ออก [A,B,D,E,F] แล้วแทรกที่ 5 -> [A,B,D,E,F,C]
+ *   swap ทีละสเต็ป: swap(2,3)->[A,B,D,C,E,F] swap(3,4)->[A,B,D,E,C,F] swap(4,5)->[A,B,D,E,F,C] ตรงกัน
+ */
+export function moveToIndex<T>(arr: readonly T[], from: number, to: number): T[] {
+  if (from === to) return [...arr]
+  const direction: -1 | 1 = to > from ? 1 : -1
+  let result = [...arr]
+  for (let i = from; i !== to; i += direction) {
+    result = moveArrayItem(result, i, direction)
+  }
+  return result
+}
+
 /** SSR initial blocks (ShopPageBlockView จาก service) → draft block (key = ShopPageBlock.id จริง) */
 export function blockViewToDraftBlock(block: ShopPageBlockView): BuilderDraftBlock {
   if (block.type === 'BADGE_HIGHLIGHT') {

@@ -74,3 +74,6 @@ qa-screenshots/
 # local image paste inbox
 .img-inbox/
 img
+
+# feature 00035 — CSS ที่คอมไพล์จาก app.css เพื่อให้ mockup ใช้ธีมจริง (generated, สร้างใหม่ได้)
+docs/superpowers/specs/paces-theme.css

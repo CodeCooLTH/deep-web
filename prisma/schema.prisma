@@ -293,6 +293,10 @@ model Shop {
   // --- Customizable Shortcuts (feature 00027, additive) ---
   shortcutPreferences SellerShortcutPreference[] // เมนูลัดที่สมาชิกแต่ละคนตั้งไว้สำหรับร้านนี้
 
+  // --- Shop Page Builder (feature 00035, additive) ---
+  pageLayout ShopPageLayout? // สวิตช์เผยแพร่ + ลำดับแท็บของหน้าร้านสาธารณะ (1:1, lazily created ตอนกดบันทึกครั้งแรก)
+  pageBlocks ShopPageBlock[] // บล็อกเหนือแถบแท็บ (เหรียญตราเด่น/โพสต์ Facebook) เรียงตาม sortOrder
+
   // GIN index สำหรับค้น multi-category/sales-channel (เดิมสร้างด้วย raw SQL ใน migration
   // 20260618035221 → prisma มองไม่เห็นเลย auto-gen DROP ทุกครั้ง). ประกาศใน schema ให้ prisma จัดการ
   @@index([categories], type: Gin, map: "Shop_categories_gin_idx")
@@ -2666,10 +2670,117 @@ model FacebookPost {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  channel  ShopChannel   @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
-  comments PageComment[]
+  /// mirroredFileId/mirroredAt (feature 00035 Shop Page Builder, มติ user 2026-08-07 ข้อ 2):
+  /// สำเนารูปปกที่ mirror ลง storage ของเราแล้ว — เขียนครั้งแรกตอนร้านกด "เพิ่มลงหน้าร้าน" เท่านั้น
+  /// (ไม่ mirror ทุกโพสต์ที่ดึงมา — thumbnailUrl ด้านบนยังเป็น URL ของ Meta ตรง ๆ เสมอ ใช้แค่พรีวิว
+  /// ในคลังที่ยังไม่ถูกเพิ่ม ซึ่งหมดอายุได้แต่เป็นความเสี่ยงที่ยอมรับได้เพราะไม่ใช่หน้าสาธารณะถาวร)
+  /// NULL = โพสต์นี้ไม่เคยถูกเพิ่มลงหน้าร้านของร้านไหนเลย — ทน "เพิ่ม-เอาออก-เพิ่มใหม่" โดยไม่ mirror
+  /// ซ้ำ (เช็ค NULL ก่อนเสมอ)
+  /// เก็บเป็น "fileId ของ storage" ไม่ใช่ URL ดิบ — pattern เดียวกับ ChatMessage.imageUrl; ต้องเรียก
+  /// mirrorRemoteImage() ตัวเดียวกับ feature 00018 (src/services/channel-chat.service.ts) ที่มี
+  /// allow-list host ของ Meta CDN + SSRF guard + streaming size cap อยู่แล้ว — ห้ามเขียน mirror
+  /// logic ใหม่ซ้ำ
+  mirroredFileId String?
+  mirroredAt     DateTime?
+
+  channel    ShopChannel     @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  comments   PageComment[]
+  pageBlocks ShopPageBlock[] // NEW (feature 00035) — บล็อกที่ถูกเพิ่มลงหน้าร้าน (ปกติมีอย่างมาก 1 แถวที่ยัง active ต่อร้าน — บังคับด้วย partial unique index ไม่ใช่ Prisma DSL)
 
   @@index([shopChannelId, lastCommentAt])
+}
+
+// ── feature 00035: Shop Page Builder (additive) ─────────────────────────────
+// ตัวจัดหน้าร้าน — ร้านเลือก/จัดลำดับสิ่งที่แสดง "เหนือแถบแท็บ" ของหน้าร้านสาธารณะ (/u/[username],
+// /b/[slug]) บวกลำดับของแท็บ (ProfileTabs) เอง โดยไม่แตะโครงแท็บเดิม (มติ user 2026-08-07 ข้อ 1 —
+// ปฏิเสธข้อเสนอเดิม "แปลงเป็น single-column feed" เพื่อไม่รื้อ IA ที่ผ่าน sign-off 2026-07-26)
+//
+// 🛑 หัวโปรไฟล์ (ProfileHero) ไม่มีแถวของตัวเองในโมเดลนี้เลย — ตรึงบนสุดตายตัวเสมอ (BR-PGB-01, D-9)
+// ไม่ใช่ "ค่าเริ่มต้น" ที่ปรับ/ลบได้ จึงไม่มี "ประเภทบล็อก" สำหรับหัวโปรไฟล์
+//
+// 🛑 "บล็อกโครงหน้า" (ห้องพัก/ปฏิทิน/บริการ/สินค้า) ตาม BRD ฉบับร่างก่อนมติปิด ไม่มีตัวแทนในโมเดลนี้
+// โดยตั้งใจ — หลังมติ 2026-08-07 ข้อ 1 สิ่งเหล่านั้นยังเป็นแท็บอัตโนมัติเหมือนเดิมทุกประการ (ปรากฏเมื่อ
+// มีข้อมูลจริงตาม ShopProfile.tsx) ปรับได้แค่ "ตำแหน่งในลำดับแท็บ" ผ่าน ShopPageLayout.tabOrder
+// เท่านั้น ไม่ใช่ "เพิ่ม/ลบ" ผ่านตารางนี้ — ถ้า SRS/SDS ตีความต่างจากนี้ต้องกลับไปยืนยันกับ user ก่อน
+model ShopPageLayout {
+  id String @id @default(uuid())
+
+  // shopId @unique = 1 ร้าน 1 ชุดตั้งค่า (pattern เดียวกับ AutoReplyConfig/ShopAiSetting) — แยกออก
+  // จาก Shop model เพราะ Shop ถูกอ่านแทบทุก request ในระบบ พกค่าที่ใช้เฉพาะตอนเปิดหน้าร้าน/ตัวจัด
+  // หน้าร้านไปด้วยทุก query เป็นการเปลืองเปล่า (เหตุผลเดียวกับ SDS TD-001 ของ feature 00019)
+  shopId String @unique
+
+  // isPublished: สวิตช์เผยแพร่ทั้งหน้า (FR-PGB-14) — ปิดแล้วคนนอกเข้า /u,/b ไม่เห็นเนื้อหาจริง
+  // แต่เจ้าของร้าน/ทีมงานยังเปิดดูเองได้เสมอ (บังคับที่ service layer ไม่ใช่ DB)
+  // 🛑 default true = ร้านเดิมทุกร้าน "เผยแพร่" อัตโนมัติ (zero-regression, PRD §1.1) — แต่ default
+  // นี้มีผลเฉพาะตอน INSERT แถวใหม่เท่านั้น ร้านที่ "ไม่เคยมีแถวนี้เลย" (ยังไม่เคยเปิดตัวจัดหน้าร้าน)
+  // ต้องอ่านเป็น true ที่ชั้น service เสมอ (fallback ตอน findUnique คืน null) — ห้ามพึ่ง DB default
+  // อย่างเดียวเพราะแถวยังไม่ถูกสร้างจนกว่าร้านจะกดบันทึกตัวจัดหน้าร้านครั้งแรก
+  isPublished Boolean @default(true)
+
+  // tabOrder: ลำดับ tab key ที่ร้านจัดเอง (มติ user 2026-08-07 ข้อ 1) — เก็บเฉพาะ "ลำดับ" ไม่ใช่
+  // "รายการที่จะแสดง": ProfileTabs ยังตัดสินเองว่าแท็บไหนมีข้อมูลจริงถึงจะ render — คอลัมน์นี้ไม่มีทาง
+  // ลบแท็บใดออกได้เลย ตอบโจทย์ guardrail D-9/D-10 โดยไม่ต้องมี column แยกสำหรับ "ล็อก"
+  // ค่าที่ถูกต้อง 7 ตัว (SSOT: TAB_ICON keys ใน src/views/pages/user-profile/v2/ProfileTabs.tsx):
+  // 'pinned' | 'rooms' | 'calendar' | 'services' | 'items' | 'about' | 'reviews'
+  // ว่าง [] = ใช้ลำดับ default ของระบบ (ลำดับเดิมที่ ShopProfile.tsx hardcode อยู่ทุกวันนี้ —
+  // zero-regression) key แปลกปลอม/แท็บที่ยังไม่มีข้อมูลจริงถูก ProfileTabs กรองทิ้งเองตอน render —
+  // ไม่มี CHECK ที่ DB (มิเรอร์ Shop.categories/Shop.salesChannels ที่ validate แค่ชั้น Valibot เหมือนกัน)
+  tabOrder String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+}
+
+// ShopPageBlock — บล็อกที่ร้านเพิ่มเข้า "พื้นที่เหนือแถบแท็บ" ของหน้าร้านสาธารณะ (feature 00035)
+// มี 2 ชนิดเท่านั้นในเฟสนี้:
+//   BADGE_HIGHLIGHT — เหรียญตรา ACHIEVEMENT ที่เลือกเด่น (BR-PGB-06) มีได้แถวเดียวต่อร้าน บรรจุ
+//                     ได้สูงสุด 4 เหรียญ (มติ user 2026-08-07 ข้อ 3) เรียงในตัวผ่าน badgeIds
+//   FACEBOOK_POST   — โพสต์ Facebook 1 โพสต์ต่อ 1 แถว (BR-PGB-05) มีได้หลายแถว
+//
+// 🛑 ทนต่อการที่ต้นทางถูกลบโดยไม่ทำหน้าร้านพัง (BRD §3.6 mindset):
+//   - facebookPostId FK เป็น Cascade: FacebookPost หายไป (channel ถูกลบ/sync ใหม่แล้วโพสต์หายจริง
+//     บน Meta) → แถวนี้หายไปด้วยเงียบ ๆ ไม่ error ไม่เหลือ orphan ให้เจ้าของร้านต้องมาล้างเอง (ตำแหน่ง
+//     sortOrder ของแถวอื่นไม่ต้อง re-index เพราะเรียงจากค่าที่เหลืออยู่เสมอ ไม่ใช่จากเลขลำดับต่อเนื่อง)
+//   - badgeIds ไม่มี FK จริง (เก็บ UserBadge.id ดิบเป็น array) — เพราะ MVP badge ไม่เคยถูกถอด (Core
+//     System 2: "MVP มีแต่ขึ้น (no penalties)") แต่ออกแบบให้ทนล่วงหน้า: ฝั่งอ่านต้อง query UserBadge
+//     ที่ id ตรงกับ array นี้จริง + ยังเป็นของร้าน/ผู้ใช้นี้ + Badge.type='ACHIEVEMENT' เท่านั้น แล้ว
+//     render เฉพาะที่ match — id ที่หายไปเงียบ ๆ หลุดออกจากผลลัพธ์ ไม่ทำให้ query พัง (ไม่ใช้ FK ตรง
+//     เพราะโปรเจกต์นี้ไม่มี trigger ที่ไหนเลย และ multi-value FK ไปยัง junction table ทำไม่ได้ตรง ๆ
+//     ใน Prisma DSL — ดู DATABASE.md §6 สำหรับเหตุผลเต็ม)
+model ShopPageBlock {
+  id     String @id @default(uuid())
+  shopId String
+
+  // type: "BADGE_HIGHLIGHT" | "FACEBOOK_POST" — String + DB CHECK ตาม convention เดิมของโปรเจกต์
+  // (Shop.vertical ฯลฯ) ไม่ใช่ Prisma enum — CHECK เป็น unmanaged SQL ห้าม `prisma db pull`/`migrate dev`
+  type String
+
+  // sortOrder: ตำแหน่งภายในกลุ่ม "บล็อกเหนือแถบแท็บ" ของร้านนี้ — BADGE_HIGHLIGHT กับ FACEBOOK_POST
+  // อยู่ในพื้นที่จัดลำดับเดียวกัน สลับตำแหน่งกันได้ตาม mockup ที่อนุมัติ — เขียนทับเป็น 0..n-1 ทุกครั้ง
+  // ที่บันทึก (pattern เดียวกับ ShopVideo.sortOrder) ไม่มี unique constraint บนคอลัมน์นี้โดยตั้งใจ
+  sortOrder Int @default(0)
+
+  // badgeIds: ลำดับ UserBadge.id ที่เลือกโชว์ — ใช้เฉพาะแถว type=BADGE_HIGHLIGHT เท่านั้น (สูงสุด 4
+  // ใบ, CHECK cardinality<=4 ที่ DB เป็นด่านสอง นอกเหนือจาก Valibot) อ้างอิง UserBadge ไม่ใช่ Badge
+  // เพราะเป็น "เหรียญที่ร้าน/ผู้ใช้นี้ได้รับจริง" ไม่ใช่ประเภทเหรียญเฉย ๆ — ต้องกรอง Badge.type=
+  // 'ACHIEVEMENT' ที่ query เสมอ (VERIFICATION ต้องห้ามเลือกได้แม้ id จะหลุดเข้ามาในอนาคต, D-10)
+  badgeIds String[] @default([])
+
+  // facebookPostId: ใช้เฉพาะแถว type=FACEBOOK_POST — 1 โพสต์เพิ่มได้ครั้งเดียวต่อร้าน (partial
+  // unique index (shopId, facebookPostId) WHERE type='FACEBOOK_POST', unmanaged SQL — ดู migration)
+  facebookPostId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop         Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  facebookPost FacebookPost? @relation(fields: [facebookPostId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, sortOrder], map: "ShopPageBlock_shopId_sortOrder_idx") // อ่านบล็อกของร้านเรียงตำแหน่ง (public profile render + builder canvas load)
+  @@index([facebookPostId], map: "ShopPageBlock_facebookPostId_idx")
 }
 
 /// คอมเมนต์ใต้โพสต์ของเพจ (feature 00029)

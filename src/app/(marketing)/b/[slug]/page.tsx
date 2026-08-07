@@ -6,21 +6,28 @@ import NextLink from 'next/link'
 // MUI Imports
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import Alert from '@mui/material/Alert'
 
 // Service Imports
+import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
+import { authOptions } from '@/lib/auth'
+import { canAccessShop } from '@/lib/shop-context'
 import { findShopBySlug } from '@/services/shop.service'
 import { getAvgRatingByShop } from '@/services/review.service'
 import { getProductsByShop, getConfirmedOrderCountByProduct } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
 import { getPublicRooms, getConfirmedBookingCountByRoom } from '@/services/room.service'
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
+import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { computeCompletionRate } from '@/lib/order-stats'
 
 // View Imports
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
+import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
+import BuilderPreviewBridge from '@views/pages/user-profile/v2/BuilderPreviewBridge'
 import { getShopProfileStats } from '@/services/shop.service'
 import { getShopVideos } from '@/services/shop-video.service'
 import { getShopAvailability } from '@/services/room.service'
@@ -37,22 +44,50 @@ import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profil
 // เพิ่ม verifiedLevels + nextTierInfo (type ProfileHeaderData/ProfileTabData เปลี่ยนร่วมกัน ต้อง sync ทั้ง 2 หน้าเสมอ)
 // Phase 3 (feature 00013 Pin Products): sync กับ /u/[username] — pinnedProducts/otherProducts แทน products เดี่ยว
 
-type Props = { params: Promise<{ slug: string }> }
+type Props = {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params
   const shop = await findShopBySlug(slug)
   if (!shop) return { title: 'ไม่พบร้านค้า' }
+  // feature 00035 (TFR-008) — sync กับ /u/[username]: URL builderDraft=1 ไม่ควรถูก index เลย
+  const { builderDraft } = await searchParams
+  const isBuilderPreviewUrl = builderDraft === '1'
   return {
     title: `${shop.shopName} (@${slug})`,
     description: shop.description ?? `โปรไฟล์ความน่าเชื่อถือของ ${shop.shopName} บน Deep`,
+    ...(isBuilderPreviewUrl ? { robots: { index: false, follow: false } } : {}),
   }
 }
 
-export default async function BusinessShopProfilePage({ params }: Props) {
+export default async function BusinessShopProfilePage({ params, searchParams }: Props) {
   const { slug } = await params
   const shop = await findShopBySlug(slug)
   if (!shop) notFound()
+
+  // feature 00035 (TFR-004) — sync กับ /u/[username]: ต้องรู้ว่า viewer เป็นเจ้าของ/ทีมงานร้านนี้ไหม
+  // ก่อนหน้านี้ isOwnShop hardcode false เสมอ ทำให้ publish gate ด้านล่างทำงานไม่ได้เลย
+  const session = await getServerSession(authOptions)
+  const viewerId = (session?.user as { id?: string } | undefined)?.id ?? null
+  const isOwnShop = viewerId !== null && shop.userId === viewerId
+  // เจ้าของ "หรือทีมงาน" ร้าน (canAccessShop ครอบทั้งสองกรณี BUSINESS admin/staff ด้วย) — คนละตัวกับ
+  // isOwnShop (owner เท่านั้น) ที่ใช้คุมปุ่มแชท ไม่ใช่ publish gate
+  const canManagePage = viewerId ? await canAccessShop(shop.id, viewerId) : false
+
+  // feature 00035 (TFR-008, SDS TD-003) — sync กับ /u/[username]: โหมด draft เปิดเฉพาะเจ้าของ/ทีมงาน
+  const { builderDraft } = await searchParams
+  const isBuilderDraftMode = builderDraft === '1' && canManagePage
+
+  const pageLayout = await getShopPageLayout(shop.id)
+
+  // ปิดเผยแพร่ + ผู้ดูไม่ใช่เจ้าของ/ทีมงาน → คืน 200 พร้อมหน้า "ปิดการแสดงผลชั่วคราว" ไม่ใช่ notFound()
+  // (ร้านนี้มีอยู่จริง แค่ผู้ขายสวิตช์ปิดไว้เอง — คนละเคสกับ !shop ด้านบน) ตัดจบก่อน query หนักด้านล่าง
+  if (!pageLayout.isPublished && !canManagePage) {
+    return <ProfileUnavailable />
+  }
 
   // ทำไม: เทียบ /u/[username] เป๊ะ แต่ scope ที่ shopId ตรง (business shop แยก trust/badge/verification
   // จาก owner user เอง — 00008 Phase 5 P5-1/P5-2/P5-3)
@@ -118,6 +153,8 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   // redesign 2026-07-26 — ใช้แหล่งข้อมูลชุดเดียวกับ /u/[username] ผ่าน ShopProfile
   const profileStats = await getShopProfileStats(shop.id)
   const shopVideos = await getShopVideos(shop.id)
+  // feature 00035 (TFR-005) — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ (sync กับ /u/[username])
+  const pageBlocks = await listShopPageBlocks(shop.id)
   const availability = isLodging ? await getShopAvailability(shop.id, 3) : null
   // รีวิวของร้านนี้ — scope ที่ shopId ตรง ไม่ใช่ผ่าน owner user (business shop แยก trust จาก owner)
   const shopReviews = await prisma.review.findMany({
@@ -191,62 +228,84 @@ export default async function BusinessShopProfilePage({ params }: Props) {
         background: 'var(--mui-palette-background-paper)',
       }}
     >
-      <ShopProfile
-        data={{
-          hero: {
-            shopName: shop.shopName,
-            username: slug,
-            avatar: toFileUrl(shop.logo) ?? shop.user.avatar ?? null,
-            coverImage: toFileUrl(shop.coverImage),
-            tierGradient: getTierGradient(shop.trustScore),
-            trustScore: shop.trustScore,
-            tierLabel,
-            maxVerifyLevel,
-            category: shop.category ?? null,
-            memberSince: formatMonthYearTH(shop.createdAt),
-            badges: businessBadges.map((ub) => ({
-              id: ub.id,
-              name: ub.badge.name,
-              nameEN: ub.badge.nameEN,
-              icon: ub.badge.icon ?? '',
-            })),
-            totalBadgeCount: businessBadges.length,
-            completedOrders: profileStats.completedOrders,
-            customerCount: profileStats.customerCount,
-            repeatCustomerCount: profileStats.repeatCustomerCount,
-            completionRate: profileStats.completionRate,
-            canChat: true,
+      {/* feature 00035 — เจ้าของ/ทีมงานเห็นหน้าปกติแม้ปิดเผยแพร่อยู่ แต่ต้องรู้ว่าคนอื่นมองไม่เห็น
+          Alert เต็มความกว้าง ไม่มีมุมโค้ง วางบนสุดเหนือ ProfileHero (Base: PhoneVerifyPrompt.tsx ~L260) */}
+      {!pageLayout.isPublished && canManagePage && (
+        <Alert severity='warning' sx={{ borderRadius: 0 }}>
+          <Typography className='font-medium' color='text.primary'>
+            หน้าร้านนี้ปิดการแสดงผลอยู่
+          </Typography>
+          <Typography variant='body2'>
+            ผู้เยี่ยมชมทั่วไปมองไม่เห็นหน้านี้ตอนนี้ — คุณเห็นเพราะเป็นเจ้าของหรือทีมงานร้าน
+          </Typography>
+        </Alert>
+      )}
+
+      {/* feature 00035 — ห่อด้วย BuilderPreviewBridge เฉพาะโหมด draft (sync กับ /u/[username]) */}
+      <BuilderPreviewBridge enabled={isBuilderDraftMode}>
+        <ShopProfile
+          data={{
+            hero: {
+              shopName: shop.shopName,
+              username: slug,
+              avatar: toFileUrl(shop.logo) ?? shop.user.avatar ?? null,
+              coverImage: toFileUrl(shop.coverImage),
+              tierGradient: getTierGradient(shop.trustScore),
+              trustScore: shop.trustScore,
+              tierLabel,
+              maxVerifyLevel,
+              category: shop.category ?? null,
+              memberSince: formatMonthYearTH(shop.createdAt),
+              badges: businessBadges.map((ub) => ({
+                id: ub.id,
+                name: ub.badge.name,
+                nameEN: ub.badge.nameEN,
+                icon: ub.badge.icon ?? '',
+              })),
+              totalBadgeCount: businessBadges.length,
+              completedOrders: profileStats.completedOrders,
+              customerCount: profileStats.customerCount,
+              repeatCustomerCount: profileStats.repeatCustomerCount,
+              completionRate: profileStats.completionRate,
+              // feature 00035 — เดิม hardcode true ได้เพราะ isOwnShop ของหน้านี้ hardcode false อยู่แล้ว
+              // พอ Task 4 คำนวณ isOwnShop จริง (เพื่อใช้กับ publish gate) การคง true ไว้จะทำให้เจ้าของ
+              // เห็นปุ่มทักแชทบนหน้าร้านตัวเอง ซึ่งเป็นเคสที่ self-chat guard (feat 00011 B3) กันอยู่
+              // sync กับ /u/[username]:277 ที่เขียนเงื่อนไขนี้ถูกมาตั้งแต่แรก
+              canChat: !isOwnShop,
+              isLodging,
+              isServiceQueue,
+            },
             isLodging,
             isServiceQueue,
-          },
-          isLodging,
-          isServiceQueue,
-          rooms: publicRooms,
-          availability,
-          services: publicServices,
-          pinnedProducts,
-          otherProducts,
-          about: {
-            bio: profileTab.bio,
-            location: profileTab.location,
-            memberSince: profileTab.memberSince,
-          },
-          channels: profileStats.channels,
-          videos: shopVideos,
-          reviews: shopReviews.map((r) => ({
-            id: r.id,
-            rating: r.rating,
-            comment: r.comment,
-            createdAtIso: r.createdAt.toISOString(),
-          })),
-          avgRating: profileStats.avgRating,
-          reviewCount: profileStats.reviewCount,
-          ratingDistribution: profileStats.ratingDistribution,
-          shopId: shop.id,
-          isOwnShop: false,
-          itemKind: profileTab.itemKind,
-        }}
-      />
+            rooms: publicRooms,
+            availability,
+            services: publicServices,
+            pinnedProducts,
+            otherProducts,
+            about: {
+              bio: profileTab.bio,
+              location: profileTab.location,
+              memberSince: profileTab.memberSince,
+            },
+            channels: profileStats.channels,
+            videos: shopVideos,
+            reviews: shopReviews.map((r) => ({
+              id: r.id,
+              rating: r.rating,
+              comment: r.comment,
+              createdAtIso: r.createdAt.toISOString(),
+            })),
+            avgRating: profileStats.avgRating,
+            reviewCount: profileStats.reviewCount,
+            ratingDistribution: profileStats.ratingDistribution,
+            shopId: shop.id,
+            isOwnShop,
+            itemKind: profileTab.itemKind,
+            tabOrder: pageLayout.tabOrder,
+            blocks: pageBlocks,
+          }}
+        />
+      </BuilderPreviewBridge>
       {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
       <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
         <NextLink href='/privacy' style={{ textDecoration: 'none' }}>

@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v2 — ตัวจัดหน้าร้าน (Page Builder) · feature 00034</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#236dc9; --primary-hover:#1f61b4;
+  --success:#02bc9c; --success-ink:#065f46;
+  --info:#5bc3e1;    --info-ink:#1e40af;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --danger:#f7577e;  --danger-ink:#7f1d1d;
+  --d100:#f6f7fb; --d200:#eef2f7; --d300:#e7e9eb;
+  --d400:#627189; --d500:#58626b; --d600:#4a5358; --d900:#313a46;
+  --shadow-lg:0 10px 30px rgba(76,76,92,.20);
+  --r:.5rem;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Anuphan',sans-serif;background:#e3e7ee;color:var(--d900);line-height:1.5;-webkit-font-smoothing:antialiased}
+svg{display:block;flex:none}
+.ico{width:1em;height:1em;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.ico.fill{fill:currentColor;stroke:none}
+
+.doc{max-width:1600px;margin:0 auto;padding:32px 24px 100px}
+h1{font-size:26px;font-weight:700;letter-spacing:-.01em}
+.sub{color:var(--d500);margin-top:6px;font-size:14px}
+.legend{background:#fff;border:1px solid var(--d300);border-radius:12px;padding:16px 18px;margin:20px 0 40px;font-size:13.5px;color:var(--d600)}
+.legend b{color:var(--d900)} .legend code{background:var(--d200);padding:1px 5px;border-radius:4px;font-size:12.5px}
+.sec{margin:52px 0 0}
+.sec>h2{font-size:19px;font-weight:600;margin-bottom:4px}
+.sec>p.note{font-size:13.5px;color:var(--d500);margin-bottom:18px;max-width:80ch}
+.frame{background:#fff;border-radius:14px;box-shadow:0 8px 28px rgba(49,58,70,.14);overflow:hidden;display:inline-block;vertical-align:top}
+.frame>.cap{background:var(--d900);color:#fff;font-size:12px;padding:7px 12px;display:flex;justify-content:space-between;gap:20px}
+.frame>.cap span{opacity:.66}
+.frames{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+
+/* ══════════ app shell ══════════ */
+.app{width:1440px;background:#eef1f6;display:flex;flex-direction:column;height:880px}
+.rail{width:56px;background:var(--d900);flex:none;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+.rail .r{width:40px;height:40px;border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;
+         color:rgba(255,255,255,.55);font-size:8.5px;gap:2px;cursor:pointer}
+.rail .r.act{background:rgba(255,255,255,.12);color:#fff}
+.rail .r .ico{font-size:17px}
+
+/* toolbar */
+.tbar{background:#fff;border-bottom:1px solid var(--d300);padding:.625rem 1rem;display:flex;align-items:center;gap:.875rem;flex:none}
+.tbar .ttl{font-size:15px;font-weight:600;white-space:nowrap}
+.urlchip{display:flex;align-items:center;gap:.5rem;background:var(--d100);border:1px solid var(--d300);
+         border-radius:var(--r);padding:.3rem .3rem .3rem .625rem;font-size:12.5px;color:var(--d600)}
+.urlchip b{color:var(--d900);font-weight:600}
+.tbar .sp{flex:1}
+.swrow{display:flex;align-items:center;gap:.5rem;font-size:13px;color:var(--d600)}
+.sw{position:relative;width:2.5rem;height:1.375rem;border-radius:999px;background:var(--d300);flex:none;cursor:pointer}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:999px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.sw.on{background:var(--primary)} .sw.on::after{left:21px}
+
+/* dirty bar */
+.dirty{background:rgba(249,191,89,.16);border-bottom:1px solid rgba(249,191,89,.5);padding:.5rem 1rem;
+       display:flex;align-items:center;gap:.625rem;font-size:13px;color:var(--warning-ink);flex:none}
+
+/* 3 columns */
+.cols{flex:1;display:flex;gap:12px;padding:12px;min-height:0}
+.pane{background:#fff;border:1px solid var(--d300);border-radius:10px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.pane-l{width:30%} .pane-c{flex:1} .pane-r{width:30%}
+.pane>.ph{padding:.75rem .875rem;border-bottom:1px solid var(--d200);display:flex;align-items:center;gap:.5rem;flex:none}
+.pane>.ph .t{font-size:13.5px;font-weight:600;flex:1}
+.pane>.pb{padding:.875rem;overflow:auto;flex:1;min-height:0}
+
+.search{display:flex;align-items:center;gap:.5rem;background:var(--d100);border:1px solid var(--d300);
+        border-radius:var(--r);padding:.4rem .625rem;font-size:13px;color:var(--d400);margin-bottom:.875rem}
+.grp{font-size:12.5px;font-weight:600;color:var(--d600);margin:1.125rem 0 .5rem;display:flex;align-items:center;gap:.375rem}
+.grp:first-child{margin-top:0}
+.grp .cnt{font-weight:400;color:var(--d400)}
+
+/* palette cards */
+.pc{display:flex;align-items:center;gap:.625rem;border:1px solid var(--d300);border-radius:var(--r);
+    padding:.5rem .625rem;margin-bottom:.5rem;background:#fff}
+.pc .gr{color:var(--d300);cursor:grab;font-size:16px}
+.pc .ic{width:1.875rem;height:1.875rem;border-radius:6px;background:var(--d100);color:var(--d500);
+        display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+.pc .nm{flex:1;min-width:0}
+.pc .nm .n{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc .nm .s{font-size:11.5px;color:var(--d400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc .add{width:1.625rem;height:1.625rem;border-radius:999px;background:var(--primary);color:#fff;border:0;
+         display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
+.pc.locked{background:var(--d100);border-style:dashed}
+.pc.locked .ic{background:#fff}
+.pc.added{opacity:.55}
+.pc.nodata{opacity:.6}
+.bdg{font-size:10.5px;font-weight:500;padding:.1rem .4rem;border-radius:4px;white-space:nowrap}
+.bdg-ok{background:rgba(2,188,156,.16);color:var(--success-ink)}
+.bdg-lock{background:var(--d200);color:var(--d600)}
+.bdg-none{background:transparent;color:var(--d400)}
+
+/* FB content card */
+.fbc{border:1px solid var(--d300);border-radius:var(--r);overflow:hidden;margin-bottom:.5rem;background:#fff}
+.fbc .th{height:88px;background:linear-gradient(135deg,#c8d4e4,#e6ebf2);position:relative;display:flex;align-items:center;justify-content:center;color:#8a99ad}
+.fbc .th .pl{width:34px;height:34px;border-radius:999px;background:rgba(0,0,0,.45);color:#fff;display:flex;align-items:center;justify-content:center}
+.fbc .th .gr{position:absolute;top:6px;left:6px;background:rgba(255,255,255,.92);border-radius:5px;padding:2px;color:var(--d500);cursor:grab}
+.fbc .bd{padding:.5rem .625rem}
+.fbc .msg{font-size:12.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fbc .eng{display:flex;gap:.75rem;margin-top:.375rem;font-size:11px;color:var(--d400)}
+.fbc .eng i{display:flex;align-items:center;gap:.2rem;font-style:normal}
+
+/* badge chip in palette */
+.bchip{display:flex;align-items:center;gap:.5rem;border:1px solid var(--d300);border-radius:999px;
+       padding:.3rem .625rem .3rem .3rem;background:#fff;cursor:grab}
+.bchip .m{width:1.5rem;height:1.5rem;border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none;color:#fff}
+.bchip .n{font-size:12px;font-weight:500;white-space:nowrap}
+.bchips{display:flex;flex-wrap:wrap;gap:.375rem}
+
+/* canvas */
+.canvas{background:var(--d100);flex:1;overflow:auto;padding:1rem;display:flex;justify-content:center;min-height:0}
+.device{width:376px;background:#fff;border-radius:14px;box-shadow:0 4px 18px rgba(49,58,70,.13);
+        border:1px solid var(--d300);overflow:hidden;height:fit-content}
+.blk{border-bottom:1px solid var(--d200);padding:.625rem .75rem;display:flex;align-items:center;gap:.5rem;background:#fff}
+.blk .gr{color:var(--d300);cursor:grab;font-size:16px}
+.blk .ic{width:1.75rem;height:1.75rem;border-radius:6px;background:var(--d100);color:var(--d500);display:flex;align-items:center;justify-content:center;flex:none;font-size:14px}
+.blk .nm{flex:1;font-size:13px;font-weight:500}
+.blk .nm small{display:block;font-weight:400;font-size:11px;color:var(--d400)}
+.blk .arr{display:flex;gap:2px}
+.blk .ib{width:1.75rem;height:1.75rem;border-radius:5px;border:1px solid var(--d300);background:#fff;color:var(--d500);
+         display:flex;align-items:center;justify-content:center;cursor:pointer}
+.blk.pinned{background:var(--d100);border-bottom:2px solid var(--d300)}
+.blk.drag{box-shadow:var(--shadow-lg);transform:rotate(-1.2deg);border-radius:var(--r);border:1px solid var(--primary);position:relative;z-index:2}
+.ph-slot{margin:.375rem .75rem;border:2px dashed var(--primary);border-radius:var(--r);height:44px;background:rgba(35,109,201,.06)}
+.dropzone{margin:.75rem;border:2px dashed var(--d300);border-radius:var(--r);padding:1.25rem .75rem;text-align:center;
+          font-size:12.5px;color:var(--d400)}
+
+/* ══ WYSIWYG canvas — บล็อกเรนเดอร์เนื้อหาจริง มีเครื่องมือลอยทับ ══ */
+.wblk{position:relative;border-bottom:1px solid var(--d200)}
+.wblk:last-child{border-bottom:0}
+.wblk .chrome{position:absolute;inset:0;pointer-events:none;border:2px solid transparent;border-radius:2px}
+.wblk.hover .chrome{border-color:rgba(35,109,201,.45);background:rgba(35,109,201,.04)}
+.wblk.sel .chrome{border-color:var(--primary)}
+.wtag{position:absolute;top:-1px;left:-1px;background:var(--primary);color:#fff;font-size:10.5px;font-weight:500;
+      padding:.1rem .4rem;border-radius:0 0 5px 0;display:flex;align-items:center;gap:.25rem;z-index:3}
+.wtag.lock{background:var(--d600)}
+.wtool{position:absolute;top:5px;right:5px;display:flex;gap:2px;background:#fff;border:1px solid var(--d300);
+       border-radius:6px;padding:2px;box-shadow:0 2px 8px rgba(49,58,70,.16);z-index:3}
+.wtool .b{width:1.5rem;height:1.5rem;border-radius:4px;border:0;background:transparent;color:var(--d500);
+          display:flex;align-items:center;justify-content:center;cursor:pointer}
+.wtool .b.gr{cursor:grab;color:var(--primary)}
+.wtool .lk{display:flex;align-items:center;gap:.2rem;font-size:10.5px;color:var(--d500);padding:0 .3rem}
+.dropline{position:relative;height:0;margin:0 .5rem}
+.dropline::before{content:"";position:absolute;left:0;right:0;top:-1.5px;height:3px;background:var(--primary);border-radius:2px}
+.dropline::after{content:"";position:absolute;left:-4px;top:-4.5px;width:9px;height:9px;border-radius:999px;
+                 background:#fff;border:3px solid var(--primary)}
+.wghost{border:1px solid var(--primary);border-radius:var(--r);box-shadow:var(--shadow-lg);
+        transform:rotate(-1.2deg);background:#fff;overflow:hidden;position:relative;z-index:4}
+
+/* เนื้อหาจริงในบล็อก */
+.w-hero{padding:0 0 .75rem}
+.w-cover{height:70px;background:linear-gradient(120deg,#236dc9,#5bc3e1)}
+.w-av{width:56px;height:56px;border-radius:11px;background:#fff;margin:-28px auto 0;border:3px solid #fff;
+      box-shadow:0 2px 8px rgba(0,0,0,.14);display:flex;align-items:center;justify-content:center;color:var(--d400)}
+.w-nm{font-size:14.5px;font-weight:700;text-align:center;margin-top:.4rem;display:flex;align-items:center;justify-content:center;gap:.25rem}
+.w-hd{font-size:11px;color:var(--d400);text-align:center}
+.w-st{display:flex;justify-content:center;gap:1.125rem;margin-top:.5rem}
+.w-st div{font-size:10px;color:var(--d400);text-align:center} .w-st b{display:block;font-size:13.5px;color:var(--d900)}
+.w-sec{padding:.75rem .875rem}
+.w-h{font-size:12px;font-weight:600;margin-bottom:.5rem;display:flex;align-items:center;gap:.3rem}
+.w-h .more{margin-left:auto;font-size:10.5px;color:var(--primary);font-weight:400}
+.w-bdg{display:flex;gap:.3rem;flex-wrap:wrap}
+.w-bdg .m{display:flex;align-items:center;gap:.25rem;background:var(--d100);border-radius:999px;padding:.2rem .5rem .2rem .2rem;font-size:10.5px;color:var(--d600)}
+.w-bdg .m .d{width:1.125rem;height:1.125rem;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#fff}
+.w-post{display:flex;gap:.5rem}
+.w-post .im{width:74px;height:74px;border-radius:6px;background:linear-gradient(135deg,#c8d4e4,#e6ebf2);flex:none;
+            display:flex;align-items:center;justify-content:center;color:#8a99ad}
+.w-post .tx{font-size:11.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.w-post .en{display:flex;gap:.625rem;margin-top:.3rem;font-size:10px;color:var(--d400)}
+.w-post .en i{display:flex;align-items:center;gap:.15rem;font-style:normal}
+.w-g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.w-g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.w-room .im{aspect-ratio:4/3;border-radius:6px;background:linear-gradient(135deg,#dfe6ef,#f1f4f8)}
+.w-room .n{font-size:11px;font-weight:500;margin-top:.25rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.w-room .p{font-size:11px;color:var(--primary);font-weight:600}
+.w-vid{aspect-ratio:9/16;border-radius:6px;background:linear-gradient(135deg,#d8dfe9,#eef1f6);position:relative;
+       display:flex;align-items:center;justify-content:center;color:#8a99ad}
+.w-rv{display:flex;align-items:center;gap:.75rem}
+.w-rv .sc{font-size:26px;font-weight:700;line-height:1}
+.w-rv .stars{display:flex;gap:1px;color:var(--warning)}
+.w-rv .cnt{font-size:10.5px;color:var(--d400)}
+.w-bar{height:5px;border-radius:999px;background:var(--d200);flex:1;overflow:hidden}
+.w-bar span{display:block;height:100%;background:var(--warning)}
+.w-quote{font-size:11px;color:var(--d600);margin-top:.5rem;padding-top:.5rem;border-top:1px dashed var(--d300);line-height:1.5}
+.w-empty{margin:.75rem;border:2px dashed var(--d300);border-radius:var(--r);padding:1.125rem .75rem;text-align:center;
+         font-size:12px;color:var(--d400)}
+
+/* preview */
+.pv{background:var(--d100);flex:1;overflow:auto;padding:1rem;display:flex;justify-content:center;min-height:0}
+.pvdev{width:340px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 18px rgba(49,58,70,.13);height:fit-content}
+.hero{height:78px;background:linear-gradient(120deg,#236dc9,#5bc3e1)}
+.hbody{padding:0 .875rem 1rem;text-align:center;border-bottom:1px solid var(--d200)}
+.hav{width:62px;height:62px;border-radius:12px;background:#fff;margin:-31px auto 0;border:3px solid #fff;
+     box-shadow:0 2px 8px rgba(0,0,0,.14);display:flex;align-items:center;justify-content:center;color:var(--d400)}
+.hnm{font-size:15px;font-weight:700;margin-top:.5rem;display:flex;align-items:center;justify-content:center;gap:.3rem}
+.hnm .v{color:var(--success)}
+.hh{font-size:11.5px;color:var(--d400)}
+.hst{display:flex;justify-content:center;gap:1.25rem;margin-top:.75rem}
+.hst div{font-size:10.5px;color:var(--d400)} .hst b{display:block;font-size:14px;color:var(--d900)}
+.hbadges{display:flex;justify-content:center;gap:.3rem;margin-top:.625rem}
+.hbadges .m{width:1.5rem;height:1.5rem;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#fff}
+.ptabs{display:flex;gap:.25rem;padding:.5rem .625rem;border-bottom:1px solid var(--d200);overflow:auto}
+.ptab{font-size:11.5px;padding:.25rem .5rem;border-radius:999px;color:var(--d500);white-space:nowrap;background:var(--d100)}
+.ptab.act{background:var(--primary);color:#fff}
+.psec{padding:.75rem .875rem;border-bottom:1px solid var(--d200)}
+.psec .h{font-size:12px;font-weight:600;margin-bottom:.5rem;display:flex;align-items:center;gap:.3rem}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pgrid .c{aspect-ratio:1;background:linear-gradient(135deg,#dfe6ef,#f1f4f8);border-radius:6px}
+.pvnote{font-size:11px;color:var(--d400);text-align:center;padding:.625rem;line-height:1.5}
+
+/* mobile */
+.mob{width:390px;background:var(--d100);display:flex;flex-direction:column;height:800px}
+.mhead{background:#fff;border-bottom:1px solid var(--d200);padding:.75rem 1rem;display:flex;align-items:center;gap:.75rem;flex:none}
+.mhead .t{font-size:15px;font-weight:600;flex:1}
+.segs{display:flex;gap:.25rem;background:#fff;padding:.5rem .75rem;border-bottom:1px solid var(--d200);flex:none}
+.seg{flex:1;text-align:center;font-size:12.5px;padding:.4rem;border-radius:var(--r);color:var(--d500);background:var(--d100)}
+.seg.act{background:var(--primary);color:#fff;font-weight:500}
+.mnav{background:#fff;border-top:1px solid var(--d200);display:flex;justify-content:space-around;padding:.5rem 0 1.25rem;color:var(--d400);flex:none}
+.mnav .it{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px}
+.mnav .it.act{color:var(--primary)}
+.mnav .fab{background:var(--primary);color:#fff;width:2.5rem;height:2.5rem;border-radius:var(--r);display:flex;align-items:center;justify-content:center;margin-top:-12px}
+
+.states{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.st{background:#fff;border:1px solid var(--d300);border-radius:10px;overflow:hidden}
+.st>.h{background:var(--d100);padding:8px 12px;font-size:12px;font-weight:600;color:var(--d600);border-bottom:1px solid var(--d200)}
+.st>.b{padding:14px}
+.tagrow{display:flex;gap:8px;flex-wrap:wrap}
+.tag{font-size:11.5px;padding:3px 9px;border-radius:999px;background:var(--d200);color:var(--d600)}
+.tag.no{background:rgba(247,87,126,.14);color:var(--danger-ink)}
+.tag.yes{background:rgba(2,188,156,.16);color:var(--success-ink)}
+</style>
+</head>
+<body>
+<div class="doc">
+
+<h1>ตัวจัดหน้าร้าน — ลากวางบล็อก เนื้อหา และเหรียญตรา</h1>
+<p class="sub">Mockup v2 · feature 00034 · 2026-08-07 · แทนที่ v1 (<code>…-public-profile-settings-mockup.html</code> ที่เป็นฟอร์มตั้งค่า)</p>
+
+<div class="legend">
+  <b>โครง 30 / 40 / 30 ตามที่คุณล็อกมา</b> + งานฝีมือจาก reference ที่ส่ง: icon rail ซ้ายสุด · พาเลตต์มีช่องค้นหาและแบ่งหมวด · canvas มีกรอบเครื่อง · พาเนลขวาสลับ พรีวิว/แก้ไข<br>
+  <b>ลากได้ 3 ชนิด</b> — <span class="tag">บล็อกโครงหน้า</span> <span class="tag">เนื้อหาจากเพจ Facebook</span> <span class="tag">เหรียญตรา</span> ทุกชนิดมีตารางจริงรองรับแล้ว (<code>FacebookPost</code> · <code>ShopVideo</code> · <code>Badge</code>+<code>UserBadge</code>) ไม่มีอะไรในหน้านี้ที่ backend ยังไม่มีข้อมูล<br>
+  <b>สีทุกค่าจากไฟล์จริง</b> <code>_root.css</code> + <code>.impeccable/design.json</code> · <b>ชื่อเหรียญตราจาก</b> <code>prisma/badge-seed-data.ts</code> ของจริง · ฟอนต์ Anuphan · ไม่มี emoji
+</div>
+
+<!-- ══════════════ Desktop ══════════════ -->
+<section class="sec">
+  <h2>1 · จอหลัก (Desktop 1440)</h2>
+  <p class="note">คอลัมน์กลางคือพระเอก — มีกรอบเครื่องเพื่อให้เห็นว่ากำลังจัดหน้าอะไรอยู่ ไม่ใช่รายการลอย ๆ · ซ้ายคือวัตถุดิบ ขวาคือผลลัพธ์</p>
+
+  <div class="frame">
+    <div class="cap">Desktop <span>1440 × 880</span></div>
+    <div class="app">
+      <div style="display:flex;flex:1;min-height:0">
+
+        <!-- icon rail -->
+        <div class="rail">
+          <div class="r act">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M4 4h6v6h-6z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6h-6z"/><path d="M14 14h6v6h-6z"/></svg>
+            บล็อก
+          </div>
+          <div class="r">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M15 8h.01"/><path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M4 15l4 -4a3 5 0 0 1 3 0l5 5"/><path d="M14 14l1 -1a3 5 0 0 1 3 0l2 2"/></svg>
+            เนื้อหา
+          </div>
+          <div class="r">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg>
+            เหรียญ
+          </div>
+          <div class="r">
+            <svg class="ico" viewBox="0 0 24 24"><path d="M4 6c0 1.7 3.6 3 8 3s8 -1.3 8 -3s-3.6 -3 -8 -3s-8 1.3 -8 3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8 -1.3 8 -3v-6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8 -1.3 8 -3v-6"/></svg>
+            ข้อมูล
+          </div>
+        </div>
+
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+          <!-- toolbar -->
+          <div class="tbar">
+            <div class="ttl">ตัวจัดหน้าร้าน</div>
+            <div class="urlchip">
+              <svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M9 15l6 -6"/><path d="M11 6l.5 -.5a5 5 0 0 1 7 7l-.5 .5"/><path d="M13 18l-.5 .5a5 5 0 0 1 -7 -7l.5 -.5"/></svg>
+              deepthailand.app/u/<b>bt-premium</b>
+              <button class="pc-add" style="width:1.5rem;height:1.5rem;border:0;background:#fff;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--d500);cursor:pointer">
+                <svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M8 10a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z"/><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"/></svg>
+              </button>
+            </div>
+            <div class="sp"></div>
+            <div class="swrow">เผยแพร่หน้าร้าน <div class="sw on"></div></div>
+            <button style="display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--d300);background:#fff;
+                    border-radius:var(--r);padding:.45rem .75rem;font:inherit;font-size:13px;color:var(--d600);cursor:pointer">
+              <svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6"/><path d="M11 13l9 -9"/><path d="M15 4h5v5"/></svg>
+              ดูหน้าร้านจริง
+            </button>
+          </div>
+
+          <!-- dirty bar -->
+          <div class="dirty">
+            <svg class="ico" style="font-size:16px" viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z"/><path d="M12 16h.01"/></svg>
+            <span style="flex:1">มีการเปลี่ยนแปลงที่ยังไม่บันทึก</span>
+            <button style="border:0;background:transparent;font:inherit;font-size:13px;color:var(--warning-ink);cursor:pointer;padding:.25rem .5rem">ยกเลิก</button>
+            <button style="border:0;background:var(--primary);color:#fff;font:inherit;font-size:13px;font-weight:500;
+                    border-radius:var(--r);padding:.35rem .875rem;cursor:pointer">บันทึก</button>
+          </div>
+
+          <!-- 3 columns -->
+          <div class="cols">
+
+            <!-- ── LEFT: palette ── -->
+            <div class="pane pane-l">
+              <div class="ph"><div class="t">คลังบล็อกและเนื้อหา</div></div>
+              <div class="pb">
+                <div class="search">
+                  <svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 0 0 -14 0"/><path d="M21 21l-6 -6"/></svg>
+                  ค้นหาบล็อก เนื้อหา หรือเหรียญตรา
+                </div>
+
+                <div class="grp">
+                  <svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"/><path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/></svg>
+                  สัญญาณความน่าเชื่อถือ <span class="cnt">· อยู่ในหน้าร้านเสมอ</span>
+                </div>
+                <div class="pc locked">
+                  <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg></div>
+                  <div class="nm"><div class="n">คะแนนและป้ายยืนยันตัวตน</div><div class="s">นำออกไม่ได้ ย้ายตำแหน่งไม่ได้</div></div>
+                  <span class="bdg bdg-lock">ตรึง</span>
+                </div>
+                <div class="pc locked">
+                  <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M17.8 19.8l-5.8 -3l-5.8 3l1.1 -6.4l-4.7 -4.6l6.5 -1l2.9 -5.9l2.9 5.9l6.5 1l-4.7 4.6z"/></svg></div>
+                  <div class="nm"><div class="n">รีวิวจากลูกค้า</div><div class="s">ย้ายลำดับได้ แต่นำออกไม่ได้</div></div>
+                  <span class="bdg bdg-lock">ล็อก</span>
+                </div>
+
+                <div class="grp">
+                  <svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M4 4h6v6h-6z"/><path d="M14 4h6v6h-6z"/><path d="M4 14h6v6h-6z"/><path d="M14 14h6v6h-6z"/></svg>
+                  บล็อกโครงหน้า <span class="cnt">· จัดการได้อิสระ</span>
+                </div>
+                <div class="pc">
+                  <svg class="ico gr" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg>
+                  <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21v-14l8 -4v18"/><path d="M19 21v-10l-6 -4"/><path d="M9 9h.01"/><path d="M9 13h.01"/></svg></div>
+                  <div class="nm"><div class="n">ห้องพัก</div><div class="s">4 ห้องที่เปิดขาย</div></div>
+                  <span class="bdg bdg-ok">เพิ่มแล้ว</span>
+                </div>
+                <div class="pc">
+                  <svg class="ico gr" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg>
+                  <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M11 4h2l1 3l-1 3h-2l-1 -3z"/><path d="M4 12h16"/><path d="M6 12v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2v-6"/></svg></div>
+                  <div class="nm"><div class="n">ปฏิทินวันว่าง</div><div class="s">3 เดือนข้างหน้า</div></div>
+                  <button class="add"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+                </div>
+                <div class="pc">
+                  <svg class="ico gr" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg>
+                  <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg></div>
+                  <div class="nm"><div class="n">ช่องทางติดต่อ</div><div class="s">Facebook · Instagram · LINE</div></div>
+                  <button class="add"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+                </div>
+                <div class="pc nodata">
+                  <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M12 21a9 9 0 1 1 0 -18a9 9 0 0 1 0 18"/><path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M9.5 15a3.5 3.5 0 0 0 5 0"/></svg></div>
+                  <div class="nm"><div class="n">สินค้าปักหมุด</div><div class="s">ยังไม่ได้ปักหมุดสินค้าไว้</div></div>
+                  <span class="bdg bdg-none">ยังไม่มีข้อมูล</span>
+                </div>
+
+                <div class="grp">
+                  <svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M15 8h.01"/><path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M4 15l4 -4a3 5 0 0 1 3 0l5 5"/></svg>
+                  เนื้อหาจากเพจ Facebook <span class="cnt">· 24 โพสต์</span>
+                </div>
+
+                <div class="fbc">
+                  <div class="th">
+                    <div class="gr"><svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></div>
+                    <div class="pl"><svg class="ico fill" style="font-size:14px" viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg></div>
+                  </div>
+                  <div class="bd">
+                    <div class="msg">รีวิวจากลูกค้าที่มาพักสุดสัปดาห์ที่ผ่านมา บรรยากาศริมน้ำช่วงเย็นสวยมากครับ</div>
+                    <div class="eng">
+                      <i><svg class="ico" style="font-size:12px" viewBox="0 0 24 24"><path d="M19.5 12.6l-7.5 7.4l-7.5 -7.4a5 5 0 1 1 7.5 -6.6a5 5 0 1 1 7.5 6.6"/></svg>412</i>
+                      <i><svg class="ico" style="font-size:12px" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg>38</i>
+                      <i><svg class="ico" style="font-size:12px" viewBox="0 0 24 24"><path d="M6 12a3 3 0 1 0 0 -0.1"/><path d="M18 6a3 3 0 1 0 0 -0.1"/><path d="M18 18a3 3 0 1 0 0 -0.1"/><path d="M8.7 10.7l6.6 -3.4"/><path d="M8.7 13.3l6.6 3.4"/></svg>19</i>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="fbc">
+                  <div class="th" style="background:linear-gradient(135deg,#d6cfe4,#efeaf5)">
+                    <div class="gr"><svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></div>
+                  </div>
+                  <div class="bd">
+                    <div class="msg">โปรโมชั่นเดือนนี้ จองล่วงหน้า 7 วัน รับส่วนลดทันที 15% พร้อมอาหารเช้าฟรี 2 ท่าน</div>
+                    <div class="eng">
+                      <i><svg class="ico" style="font-size:12px" viewBox="0 0 24 24"><path d="M19.5 12.6l-7.5 7.4l-7.5 -7.4a5 5 0 1 1 7.5 -6.6a5 5 0 1 1 7.5 6.6"/></svg>96</i>
+                      <i><svg class="ico" style="font-size:12px" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg>12</i>
+                      <i><svg class="ico" style="font-size:12px" viewBox="0 0 24 24"><path d="M6 12a3 3 0 1 0 0 -0.1"/><path d="M18 6a3 3 0 1 0 0 -0.1"/><path d="M18 18a3 3 0 1 0 0 -0.1"/><path d="M8.7 10.7l6.6 -3.4"/><path d="M8.7 13.3l6.6 3.4"/></svg>7</i>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grp">
+                  <svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg>
+                  เหรียญตราที่ร้านได้รับ <span class="cnt">· 7 เหรียญ</span>
+                </div>
+                <div class="bchips">
+                  <div class="bchip"><div class="m" style="background:#236dc9"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"/></svg></div><div class="n">ร้อยออเดอร์</div></div>
+                  <div class="bchip"><div class="m" style="background:#f9bf59"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M13 3l-9 12h7l-1 6l9 -12h-7z"/></svg></div><div class="n">จัดส่งสายฟ้า</div></div>
+                  <div class="bchip"><div class="m" style="background:#02bc9c"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4 -3.5 7 -8 8c-4.5 -1 -8 -4 -8 -8v-6z"/></svg></div><div class="n">ไร้ข้อร้องเรียน</div></div>
+                  <div class="bchip" style="opacity:.55"><div class="m" style="background:#5bc3e1"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1 -10 0z"/></svg></div><div class="n">ร้านค้าเก่าแก่</div><span class="bdg bdg-ok">แสดงอยู่</span></div>
+                  <div class="bchip" style="border-style:dashed;background:var(--d100);cursor:default">
+                    <div class="m" style="background:var(--d400)"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M5 12l5 5l9 -9"/></svg></div>
+                    <div class="n">ยืนยันครบถ้วน</div><span class="bdg bdg-lock">ตรึง</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── CENTER: canvas ── -->
+            <div class="pane pane-c">
+              <div class="ph">
+                <div class="t">จัดเรียงหน้าร้าน</div>
+                <span style="font-size:11.5px;color:var(--d400)">ลากเพื่อสลับลำดับ</span>
+              </div>
+              <div class="canvas">
+                <div class="device">
+
+                  <!-- ── บล็อกตรึง: หัวโปรไฟล์ (เนื้อหาจริง) ── -->
+                  <div class="wblk">
+                    <div class="w-hero">
+                      <div class="w-cover"></div>
+                      <div class="w-av"><svg class="ico" style="font-size:24px" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21v-14l8 -4v18"/><path d="M19 21v-10l-6 -4"/></svg></div>
+                      <div class="w-nm">BT พรีเมี่ยม
+                        <svg class="ico" style="font-size:14px;color:var(--success)" viewBox="0 0 24 24"><path d="M12 3l2 2h3v3l2 2l-2 2v3h-3l-2 2l-2 -2h-3v-3l-2 -2l2 -2v-3h3z"/><path d="M9 12l2 2l4 -4"/></svg>
+                      </div>
+                      <div class="w-hd">@bt-premium · บ้านพัก</div>
+                      <div class="w-st">
+                        <div><b>128</b>ออเดอร์สำเร็จ</div>
+                        <div><b>97%</b>อัตราสำเร็จ</div>
+                        <div><b>4.8</b>รีวิว</div>
+                      </div>
+                    </div>
+                    <div class="chrome"></div>
+                    <div class="wtag lock">
+                      <svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/></svg>
+                      คะแนนและป้ายยืนยันตัวตน · ตรึงบนสุด
+                    </div>
+                  </div>
+
+                  <!-- ── เหรียญตราเด่น (เนื้อหาจริง) ── -->
+                  <div class="wblk">
+                    <div class="w-sec">
+                      <div class="w-h">เหรียญตราของร้าน <span class="more">ดูทั้งหมด 7</span></div>
+                      <div class="w-bdg">
+                        <span class="m"><span class="d" style="background:#236dc9"><svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"/></svg></span>ร้อยออเดอร์</span>
+                        <span class="m"><span class="d" style="background:#f9bf59"><svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M13 3l-9 12h7l-1 6l9 -12h-7z"/></svg></span>จัดส่งสายฟ้า</span>
+                        <span class="m"><span class="d" style="background:#02bc9c"><svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4 -3.5 7 -8 8c-4.5 -1 -8 -4 -8 -8v-6z"/></svg></span>ไร้ข้อร้องเรียน</span>
+                        <span class="m"><span class="d" style="background:#5bc3e1"><svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1 -10 0z"/></svg></span>ร้านค้าเก่าแก่</span>
+                      </div>
+                    </div>
+                    <div class="chrome"></div>
+                    <div class="wtool">
+                      <button class="b gr"><svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 6h.01"/><path d="M12 12h.01"/><path d="M12 18h.01"/></svg></button>
+                    </div>
+                  </div>
+
+                  <!-- ── กำลังลาก: โพสต์จากเพจ (ghost) ── -->
+                  <div class="wghost">
+                    <div class="w-sec">
+                      <div class="w-h">จากเพจของเรา</div>
+                      <div class="w-post">
+                        <div class="im"><svg class="ico" style="font-size:18px" viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg></div>
+                        <div>
+                          <div class="tx">รีวิวจากลูกค้าที่มาพักสุดสัปดาห์ที่ผ่านมา บรรยากาศริมน้ำช่วงเย็นสวยมากครับ</div>
+                          <div class="en">
+                            <i><svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M19.5 12.6l-7.5 7.4l-7.5 -7.4a5 5 0 1 1 7.5 -6.6a5 5 0 1 1 7.5 6.6"/></svg>412</i>
+                            <i><svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg>38</i>
+                            <i><svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M6 12a3 3 0 1 0 0 -0.1"/><path d="M18 6a3 3 0 1 0 0 -0.1"/><path d="M18 18a3 3 0 1 0 0 -0.1"/><path d="M8.7 10.7l6.6 -3.4"/><path d="M8.7 13.3l6.6 3.4"/></svg>19</i>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="wtag">
+                      <svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg>
+                      กำลังลาก
+                    </div>
+                  </div>
+
+                  <!-- ── เส้นบอกจุดวาง ── -->
+                  <div class="dropline"></div>
+
+                  <!-- ── ห้องพัก (เนื้อหาจริง) ── -->
+                  <div class="wblk hover">
+                    <div class="w-sec">
+                      <div class="w-h">ห้องพัก 4 ห้อง</div>
+                      <div class="w-g2">
+                        <div class="w-room"><div class="im"></div><div class="n">Riverside Villa</div><div class="p">฿3,200 / คืน</div></div>
+                        <div class="w-room"><div class="im"></div><div class="n">Garden House</div><div class="p">฿2,400 / คืน</div></div>
+                      </div>
+                    </div>
+                    <div class="chrome"></div>
+                    <div class="wtag">ห้องพัก</div>
+                    <div class="wtool">
+                      <button class="b gr"><svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 6h.01"/><path d="M12 12h.01"/><path d="M12 18h.01"/></svg></button>
+                    </div>
+                  </div>
+
+                  <!-- ── รีวิว (ล็อก — มีลูกศร ไม่มีถังขยะ) ── -->
+                  <div class="wblk">
+                    <div class="w-sec">
+                      <div class="w-h">รีวิวจากลูกค้า</div>
+                      <div class="w-rv">
+                        <div style="text-align:center">
+                          <div class="sc">4.8</div>
+                          <div class="stars">
+                            <svg class="ico fill" style="font-size:10px" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg>
+                            <svg class="ico fill" style="font-size:10px" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg>
+                            <svg class="ico fill" style="font-size:10px" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg>
+                            <svg class="ico fill" style="font-size:10px" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg>
+                            <svg class="ico fill" style="font-size:10px" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg>
+                          </div>
+                          <div class="cnt">63 รีวิว</div>
+                        </div>
+                        <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+                          <div style="display:flex;align-items:center;gap:.375rem"><span style="font-size:9.5px;color:var(--d400);width:8px">5</span><div class="w-bar"><span style="width:82%"></span></div></div>
+                          <div style="display:flex;align-items:center;gap:.375rem"><span style="font-size:9.5px;color:var(--d400);width:8px">4</span><div class="w-bar"><span style="width:13%"></span></div></div>
+                          <div style="display:flex;align-items:center;gap:.375rem"><span style="font-size:9.5px;color:var(--d400);width:8px">3</span><div class="w-bar"><span style="width:4%"></span></div></div>
+                          <div style="display:flex;align-items:center;gap:.375rem"><span style="font-size:9.5px;color:var(--d400);width:8px">2</span><div class="w-bar"><span style="width:1%"></span></div></div>
+                        </div>
+                      </div>
+                      <div class="w-quote">"ห้องสะอาดมาก เจ้าของใจดี ตอบแชทไว จะกลับมาอีกแน่นอนค่ะ"</div>
+                    </div>
+                    <div class="chrome"></div>
+                    <div class="wtag lock">
+                      <svg class="ico" style="font-size:11px" viewBox="0 0 24 24"><path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/></svg>
+                      รีวิว · ย้ายได้ นำออกไม่ได้
+                    </div>
+                    <div class="wtool">
+                      <button class="b gr"><svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+                      <span class="lk"><svg class="ico" style="font-size:12px" viewBox="0 0 24 24"><path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/></svg></span>
+                    </div>
+                  </div>
+
+                  <!-- ── คลิปวิดีโอ (เนื้อหาจริง) ── -->
+                  <div class="wblk">
+                    <div class="w-sec">
+                      <div class="w-h">คลิปจากร้าน <span class="more">@bt.premium</span></div>
+                      <div class="w-g3">
+                        <div class="w-vid"><svg class="ico fill" style="font-size:15px" viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg></div>
+                        <div class="w-vid"><svg class="ico fill" style="font-size:15px" viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg></div>
+                        <div class="w-vid"><svg class="ico fill" style="font-size:15px" viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg></div>
+                      </div>
+                    </div>
+                    <div class="chrome"></div>
+                    <div class="wtag">คลิปวิดีโอ</div>
+                    <div class="wtool">
+                      <button class="b gr"><svg class="ico" style="font-size:14px" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></button>
+                      <button class="b"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 6h.01"/><path d="M12 12h.01"/><path d="M12 18h.01"/></svg></button>
+                    </div>
+                  </div>
+
+                  <div class="w-empty">ลากบล็อกหรือเนื้อหาจากคลังด้านซ้ายมาวางตรงนี้<br><span style="font-size:11px">หรือแตะปุ่มบวกที่การ์ดในคลัง</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── RIGHT: preview ── -->
+            <div class="pane pane-r">
+              <div class="ph">
+                <div class="t">พรีวิว</div>
+                <div style="display:flex;gap:.25rem">
+                  <span style="font-size:11.5px;background:var(--primary);color:#fff;padding:.15rem .5rem;border-radius:999px">พรีวิว</span>
+                  <span style="font-size:11.5px;background:var(--d100);color:var(--d500);padding:.15rem .5rem;border-radius:999px">แก้ไขบล็อก</span>
+                </div>
+              </div>
+              <div class="pv">
+                <div class="pvdev">
+                  <div class="hero"></div>
+                  <div class="hbody">
+                    <div class="hav"><svg class="ico" style="font-size:26px" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21v-14l8 -4v18"/><path d="M19 21v-10l-6 -4"/></svg></div>
+                    <div class="hnm">BT พรีเมี่ยม
+                      <svg class="ico v" style="font-size:15px" viewBox="0 0 24 24"><path d="M12 3l2 2h3v3l2 2l-2 2v3h-3l-2 2l-2 -2h-3v-3l-2 -2l2 -2v-3h3z"/><path d="M9 12l2 2l4 -4"/></svg>
+                    </div>
+                    <div class="hh">@bt-premium</div>
+                    <div class="hst">
+                      <div><b>128</b>ออเดอร์สำเร็จ</div>
+                      <div><b>97%</b>อัตราสำเร็จ</div>
+                      <div><b>4.8</b>รีวิว</div>
+                    </div>
+                    <div class="hbadges">
+                      <div class="m" style="background:#236dc9"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"/></svg></div>
+                      <div class="m" style="background:#f9bf59"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M13 3l-9 12h7l-1 6l9 -12h-7z"/></svg></div>
+                      <div class="m" style="background:#02bc9c"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4 -3.5 7 -8 8c-4.5 -1 -8 -4 -8 -8v-6z"/></svg></div>
+                      <div class="m" style="background:#5bc3e1"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1 -10 0z"/></svg></div>
+                    </div>
+                  </div>
+                  <div class="ptabs">
+                    <span class="ptab act">ห้องพัก</span><span class="ptab">รีวิว 63</span><span class="ptab">คลิป</span><span class="ptab">เกี่ยวกับร้าน</span>
+                  </div>
+                  <div class="psec">
+                    <div class="h">จากเพจของเรา</div>
+                    <div class="pgrid"><div class="c"></div><div class="c"></div></div>
+                  </div>
+                  <div class="psec">
+                    <div class="h">ห้องพัก 4 ห้อง</div>
+                    <div class="pgrid"><div class="c"></div><div class="c"></div></div>
+                  </div>
+                  <div class="pvnote">แสดงการจัดเรียงล่าสุดของคุณ<br>ลิงก์ที่แชร์จะยังเป็นเวอร์ชันที่บันทึกแล้ว</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ Mobile / Tablet ══════════════ -->
+<section class="sec">
+  <h2>2 · Tablet และ Mobile</h2>
+  <p class="note">Paces มี breakpoint เดียวที่ 1024px — ต่ำกว่านั้น 3 คอลัมน์อยู่พร้อมกันไม่ได้ จึงยุบเป็นแท็บสลับ 3 โหมด และ <b>ปุ่มลูกศรขึ้น/ลงเป็นทางหลัก ไม่ใช่ทางสำรอง</b> (ลากบนทัชสกรีนยาก และผู้ใช้กลุ่มหลักของโปรเจกต์นี้คือคนที่ใช้มือถืออย่างเดียว)</p>
+  <div class="frames">
+
+    <div class="frame">
+      <div class="cap">Mobile — โหมดจัดเรียง <span>390</span></div>
+      <div class="mob">
+        <div class="mhead">
+          <svg class="ico" style="font-size:20px" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M5 12l6 6"/><path d="M5 12l6-6"/></svg>
+          <div class="t">ตัวจัดหน้าร้าน</div>
+          <svg class="ico" style="font-size:20px;color:var(--d400)" viewBox="0 0 24 24"><path d="M12 6h.01"/><path d="M12 12h.01"/><path d="M12 18h.01"/></svg>
+        </div>
+        <div class="segs"><div class="seg">คลัง</div><div class="seg act">จัดเรียง</div><div class="seg">พรีวิว</div></div>
+        <div class="dirty">
+          <svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z"/><path d="M12 16h.01"/></svg>
+          <span style="flex:1">ยังไม่บันทึก</span>
+          <button style="border:0;background:transparent;font:inherit;font-size:13px;color:var(--warning-ink)">ยกเลิก</button>
+          <button style="border:0;background:var(--primary);color:#fff;font:inherit;font-size:13px;border-radius:var(--r);padding:.35rem .875rem">บันทึก</button>
+        </div>
+        <div style="flex:1;overflow:auto;padding:.75rem;display:flex;flex-direction:column;gap:.5rem">
+          <div class="blk pinned" style="border:1px solid var(--d300);border-radius:var(--r);min-height:3.5rem">
+            <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.9 .9l-4.2 4.1l1 5.8l-5.3 -2.8l-5.3 2.8l1 -5.8l-4.2 -4.1l5.9 -.9z"/></svg></div>
+            <div class="nm">คะแนนและป้ายยืนยันตัวตน<small>ตรึงบนสุดเสมอ</small></div>
+            <span class="bdg bdg-lock">ตรึง</span>
+          </div>
+          <div class="blk" style="border:1px solid var(--d300);border-radius:var(--r);min-height:3.5rem">
+            <svg class="ico gr" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg>
+            <div class="nm">เหรียญตราเด่น<small>4 เหรียญ</small></div>
+            <div class="arr">
+              <div class="ib" style="width:2.25rem;height:2.25rem"><svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></div>
+              <div class="ib" style="width:2.25rem;height:2.25rem"><svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></div>
+              <div class="ib" style="width:2.25rem;height:2.25rem"><svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M12 6h.01"/><path d="M12 12h.01"/><path d="M12 18h.01"/></svg></div>
+            </div>
+          </div>
+          <div class="blk" style="border:1px solid var(--d300);border-radius:var(--r);min-height:3.5rem">
+            <svg class="ico gr" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg>
+            <div class="nm">โพสต์จากเพจ<small>รีวิวจากลูกค้าที่มาพัก…</small></div>
+            <div class="arr">
+              <div class="ib" style="width:2.25rem;height:2.25rem"><svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></div>
+              <div class="ib" style="width:2.25rem;height:2.25rem"><svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></div>
+              <div class="ib" style="width:2.25rem;height:2.25rem"><svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M12 6h.01"/><path d="M12 12h.01"/><path d="M12 18h.01"/></svg></div>
+            </div>
+          </div>
+          <div class="blk" style="border:1px solid var(--d300);border-radius:var(--r);min-height:3.5rem">
+            <svg class="ico gr" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg>
+            <div class="nm">รีวิวจากลูกค้า<small>4.8 จาก 63 รีวิว</small></div>
+            <span class="bdg bdg-lock">ล็อก</span>
+            <div class="arr">
+              <div class="ib" style="width:2.25rem;height:2.25rem"><svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M6 15l6 -6l6 6"/></svg></div>
+              <div class="ib" style="width:2.25rem;height:2.25rem"><svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M6 9l6 6l6 -6"/></svg></div>
+            </div>
+          </div>
+          <div class="dropzone" style="margin:.25rem 0">ลากบล็อกมาวาง หรือกดบวกจากแท็บ "คลัง"</div>
+        </div>
+        <div class="mnav">
+          <div class="it"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/></svg>หน้าหลัก</div>
+          <div class="it"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h6"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg>แชท</div>
+          <div class="it"><div class="fab"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg></div></div>
+          <div class="it"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"/></svg>ออเดอร์</div>
+          <div class="it act"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>เมนู</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame">
+      <div class="cap">Mobile — โหมดคลัง <span>390</span></div>
+      <div class="mob">
+        <div class="mhead">
+          <svg class="ico" style="font-size:20px" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M5 12l6 6"/><path d="M5 12l6-6"/></svg>
+          <div class="t">ตัวจัดหน้าร้าน</div>
+          <svg class="ico" style="font-size:20px;color:var(--d400)" viewBox="0 0 24 24"><path d="M12 6h.01"/><path d="M12 12h.01"/><path d="M12 18h.01"/></svg>
+        </div>
+        <div class="segs"><div class="seg act">คลัง</div><div class="seg">จัดเรียง</div><div class="seg">พรีวิว</div></div>
+        <div style="flex:1;overflow:auto;padding:.75rem">
+          <div class="search">
+            <svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M3 10a7 7 0 1 0 14 0a7 7 0 0 0 -14 0"/><path d="M21 21l-6 -6"/></svg>
+            ค้นหาบล็อก เนื้อหา หรือเหรียญตรา
+          </div>
+          <div class="grp">เหรียญตราที่ร้านได้รับ <span class="cnt">· 7 เหรียญ</span></div>
+          <div class="bchips" style="margin-bottom:.5rem">
+            <div class="bchip"><div class="m" style="background:#236dc9"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"/></svg></div><div class="n">ร้อยออเดอร์</div></div>
+            <div class="bchip"><div class="m" style="background:#f9bf59"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M13 3l-9 12h7l-1 6l9 -12h-7z"/></svg></div><div class="n">จัดส่งสายฟ้า</div></div>
+            <div class="bchip"><div class="m" style="background:#02bc9c"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M12 3l8 4v6c0 4 -3.5 7 -8 8c-4.5 -1 -8 -4 -8 -8v-6z"/></svg></div><div class="n">ไร้ข้อร้องเรียน</div></div>
+            <div class="bchip"><div class="m" style="background:#5bc3e1"><svg class="ico" style="font-size:13px" viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1 -10 0z"/></svg></div><div class="n">ร้านค้าเก่าแก่</div></div>
+          </div>
+          <div class="grp">เนื้อหาจากเพจ Facebook <span class="cnt">· 24 โพสต์</span></div>
+          <div class="fbc">
+            <div class="th"><div class="pl"><svg class="ico fill" style="font-size:14px" viewBox="0 0 24 24"><path d="M7 4v16l13 -8z"/></svg></div></div>
+            <div class="bd">
+              <div class="msg">รีวิวจากลูกค้าที่มาพักสุดสัปดาห์ที่ผ่านมา บรรยากาศริมน้ำช่วงเย็นสวยมากครับ</div>
+              <div class="eng" style="justify-content:space-between;align-items:center">
+                <span style="display:flex;gap:.75rem">
+                  <i><svg class="ico" style="font-size:12px" viewBox="0 0 24 24"><path d="M19.5 12.6l-7.5 7.4l-7.5 -7.4a5 5 0 1 1 7.5 -6.6a5 5 0 1 1 7.5 6.6"/></svg>412</i>
+                  <i><svg class="ico" style="font-size:12px" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg>38</i>
+                </span>
+                <button class="add" style="width:2rem;height:2rem"><svg class="ico" style="font-size:15px" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mnav">
+          <div class="it"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/></svg>หน้าหลัก</div>
+          <div class="it"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h6"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg>แชท</div>
+          <div class="it"><div class="fab"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg></div></div>
+          <div class="it"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9z"/></svg>ออเดอร์</div>
+          <div class="it act"><svg class="ico" style="font-size:19px" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>เมนู</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ states ══════════════ -->
+<section class="sec">
+  <h2>3 · สถานะของการลากวาง</h2>
+  <div class="states">
+
+    <div class="st"><div class="h">กำลังลาก — ghost ยกออกจากระนาบ</div><div class="b">
+      <div class="blk drag" style="border-radius:var(--r)">
+        <svg class="ico gr" style="color:var(--primary)" viewBox="0 0 24 24"><path d="M9 5h.01"/><path d="M9 12h.01"/><path d="M9 19h.01"/><path d="M15 5h.01"/><path d="M15 12h.01"/><path d="M15 19h.01"/></svg>
+        <div class="ic" style="background:rgba(35,109,201,.1);color:var(--primary)"><svg class="ico" viewBox="0 0 24 24"><path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M4 15l4 -4a3 5 0 0 1 3 0l5 5"/></svg></div>
+        <div class="nm">โพสต์จากเพจ</div>
+      </div>
+      <div style="font-size:12px;color:var(--d400);margin-top:.75rem">เงาหมึก <code style="font-size:11px">rgba(76,76,92,.20)</code> + เอียง 1.2 องศา — เงาเพิ่มเมื่อตอบสนอง ไม่ใช่ของตกแต่งถาวร</div>
+    </div></div>
+
+    <div class="st"><div class="h">จุดที่จะวาง — placeholder</div><div class="b">
+      <div class="blk" style="border:1px solid var(--d300);border-radius:var(--r);margin-bottom:.5rem">
+        <div class="nm" style="font-size:12.5px">ห้องพัก</div></div>
+      <div class="ph-slot" style="margin:0 0 .5rem"></div>
+      <div class="blk" style="border:1px solid var(--d300);border-radius:var(--r)">
+        <div class="nm" style="font-size:12.5px">รีวิวจากลูกค้า</div></div>
+    </div></div>
+
+    <div class="st"><div class="h">ปฏิเสธ — ลากบล็อกล็อกออก</div><div class="b">
+      <div class="blk" style="border:1px dashed var(--danger);border-radius:var(--r);background:rgba(247,87,126,.06);cursor:not-allowed">
+        <div class="ic" style="background:#fff"><svg class="ico" viewBox="0 0 24 24"><path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2z"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/></svg></div>
+        <div class="nm">รีวิวจากลูกค้า<small style="color:var(--danger-ink)">นำออกจากหน้าร้านไม่ได้</small></div>
+      </div>
+      <div style="font-size:12px;color:var(--d400);margin-top:.75rem">คลังปฏิเสธตั้งแต่ตอนลากค้าง ไม่ใช่ปล่อยมือแล้วค่อยเด้ง error — ให้รู้สึกว่า "ทำไม่ได้ตั้งแต่ต้น" ไม่ใช่ "ทำแล้วผิด"</div>
+    </div></div>
+
+    <div class="st"><div class="h">เพิ่มแล้ว — กดซ้ำไม่ได้</div><div class="b">
+      <div class="pc added" style="margin:0">
+        <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21v-14l8 -4v18"/><path d="M19 21v-10l-6 -4"/></svg></div>
+        <div class="nm"><div class="n">ห้องพัก</div><div class="s">อยู่ในหน้าร้านแล้ว</div></div>
+        <span class="bdg bdg-ok">เพิ่มแล้ว</span>
+      </div>
+      <div style="font-size:12px;color:var(--d400);margin-top:.75rem">ตัวลากและปุ่มบวกหายไปทั้งคู่ — ไม่ใช่ disabled เงียบ ๆ ที่ยังกดได้แล้วไม่เกิดอะไร</div>
+    </div></div>
+
+    <div class="st"><div class="h">ยังไม่มีข้อมูล</div><div class="b">
+      <div class="pc nodata" style="margin:0">
+        <div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M8 9h8"/><path d="M8 13h5"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z"/></svg></div>
+        <div class="nm"><div class="n">ช่องทางติดต่อ</div><div class="s">ยังไม่ได้เชื่อมเพจ Facebook หรือ Instagram</div></div>
+      </div>
+      <div style="font-size:12px;color:var(--d400);margin-top:.75rem">บอกเหตุผลจริงและทางแก้ ไม่ใช่ "ไม่มีข้อมูล" ลอย ๆ · ใช้สีเทา ไม่ใช่แดง/ส้ม เพราะไม่ใช่ปัญหา แค่ยังไม่มีของ</div>
+    </div></div>
+
+    <div class="st"><div class="h">ยืนยันก่อนนำบล็อกออก</div><div class="b">
+      <div style="border:1px solid var(--d200);border-radius:var(--r);padding:.875rem;text-align:center">
+        <div style="width:40px;height:40px;border-radius:999px;background:rgba(247,87,126,.14);color:var(--danger-ink);
+             display:flex;align-items:center;justify-content:center;margin:0 auto .625rem">
+          <svg class="ico" style="font-size:20px" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3h6v3"/></svg>
+        </div>
+        <div style="font-size:14px;font-weight:600">นำ "คลิปวิดีโอ" ออกจากหน้าร้าน?</div>
+        <p style="font-size:12px;color:var(--d500);margin:.5rem 0 .875rem">ลูกค้าจะไม่เห็นส่วนนี้อีก จนกว่าจะเพิ่มกลับมา</p>
+        <div style="display:flex;gap:.5rem">
+          <button style="flex:1;border:1px solid var(--d300);background:#fff;border-radius:var(--r);padding:.4rem;font:inherit;font-size:13px;color:var(--d600)">ยกเลิก</button>
+          <button style="flex:1;border:0;background:var(--danger);color:#fff;border-radius:var(--r);padding:.4rem;font:inherit;font-size:13px">นำออก</button>
+        </div>
+      </div>
+    </div></div>
+
+  </div>
+</section>
+
+<!-- ══════════════ guardrail ══════════════ -->
+<section class="sec">
+  <h2>4 · เส้นแบ่งของเหรียญตรา — จุดที่ trust guardrail ไม่ขัดกับ drag &amp; drop</h2>
+  <p class="note">ตรวจ <code>prisma/badge-seed-data.ts</code> จริงแล้วพบว่า <code>Badge.type</code> แยกไว้ให้อยู่แล้ว ไม่ต้องประดิษฐ์กฎใหม่</p>
+  <div class="legend" style="margin:0">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div style="font-weight:600;color:var(--d900);margin-bottom:8px">
+          <code>type: "ACHIEVEMENT"</code> — เลือกและจัดลำดับได้อิสระ
+        </div>
+        <div class="tagrow" style="margin-bottom:10px">
+          <span class="tag yes">ร้อยออเดอร์</span><span class="tag yes">จัดส่งสายฟ้า</span><span class="tag yes">ไร้ข้อร้องเรียน</span>
+          <span class="tag yes">ร้านค้าเก่าแก่</span><span class="tag yes">ขายดีไร้ปัญหา</span><span class="tag yes">ส่งไวระดับเทพ</span>
+          <span class="tag yes">ร้านคะแนนสูง</span>
+        </div>
+        <b>ทำไมถึงปล่อยได้:</b> เหรียญ achievement ทุกใบเป็นเรื่องดีทั้งหมด — <b>ไม่มี "เหรียญแย่" ให้ซ่อน</b> การเลือกโชว์ 4 ใบจาก 7 ใบจึงเป็นการจัดหน้า ไม่ใช่การปกปิด และคนดูรู้ได้เสมอว่ากดดูทั้งหมดได้
+      </div>
+      <div>
+        <div style="font-weight:600;color:var(--d900);margin-bottom:8px">
+          <code>type: "VERIFICATION"</code> + สถิติ — ตรึงตายตัว
+        </div>
+        <div class="tagrow" style="margin-bottom:10px">
+          <span class="tag no">ยืนยันครบถ้วน</span><span class="tag no">คะแนนความน่าเชื่อถือ</span><span class="tag no">ป้ายระดับการยืนยัน</span>
+          <span class="tag no">ยอดออเดอร์สำเร็จ</span><span class="tag no">อัตราสำเร็จ</span><span class="tag no">รีวิวจากลูกค้า</span>
+        </div>
+        <b>ทำไมถึงปล่อยไม่ได้:</b> กลุ่มนี้ <b>มีทั้งด้านดีและด้านแย่</b> — ถ้าซ่อนได้ทีละใบ ร้านที่มีปัญหาจะซ่อนเฉพาะตัวที่แย่ แล้วตัวเลขที่เหลือหมดความหมายทั้งชุด · ซ่อนได้ทางเดียวคือปิดทั้งหน้า (เห็นหมด หรือไม่เห็นเลย)
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ ต้องเคาะ ══════════════ -->
+<section class="sec">
+  <h2>5 · เรื่องที่ต้องเคาะก่อนลงมือ (มีผลต่อขนาดงานมาก)</h2>
+  <div class="legend" style="margin:0">
+    <b>1. "ลำดับที่ลาก" ไปโผล่ที่ไหนบนหน้าร้านจริง</b> — หน้าร้านตอนนี้เป็น <b>แท็บ</b> (ปักหมุด/สินค้า/บริการ/ห้องพัก/เกี่ยวกับร้าน/รีวิว) ไม่ใช่หน้าเลื่อนยาวช่องเดียว · ทางที่เสนอ: ลำดับใน canvas = ลำดับแท็บ และ "โพสต์จากเพจ" เป็นบล็อกใหม่ที่แทรกเหนือแท็บได้ · ต้องเพิ่มคอลัมน์เก็บลำดับ (เช่น <code>Shop.profileLayout</code>) และ refactor <code>ShopProfile.tsx</code> ให้เรียงตามคอลัมน์นั้นแทน hardcode<br><br>
+    <b>2. พรีวิว realtime เอาระดับไหน</b> — (ก) <code>postMessage</code> เข้า iframe อัปเดตทันทีขณะลาก งานใหญ่ ต้องแตะ route ฝั่ง <code>(marketing)</code> ด้วย · (ข) reload iframe ด้วย query param หลัง debounce งานเล็กกว่ามาก ช้ากว่านิดเดียว — <b>ผมแนะนำ (ข) สำหรับรอบแรก</b><br><br>
+    <b>3. โพสต์จากเพจดึงมาแสดงบนหน้าร้านสาธารณะได้จริงไหม</b> — <code>FacebookPost.thumbnailUrl</code> เก็บ URL ของ Meta ตรง ๆ ไม่ได้ mirror ลง storage เรา (คอมเมนต์ใน schema เขียนไว้ชัด) รูปพวกนี้ <b>มีวันหมดอายุ</b> ถ้าเอาไปแปะหน้าร้านถาวรอาจกลายเป็นรูปแตกทีหลัง — ต้องตัดสินว่าจะ mirror รูปลง bucket ตอนร้านลากมาวาง หรือยอมรับความเสี่ยง<br><br>
+    <b>4. เหรียญตราเลือกได้สูงสุดกี่ใบ</b> — mockup ตั้งไว้ 4 ใบตามที่พอดีแถวเดียวบนมือถือ
+  </div>
+</section>
+
+</div>
+</body>
+</html>

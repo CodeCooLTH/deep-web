@@ -22,6 +22,7 @@
  * SERVICE_QUEUE ที่มีทั้งแท็บ "บริการ" กับแท็บ "สินค้าและบริการ" วางเคียงกัน — คำเดียวกันสองความหมาย
  */
 import ProfileHero, { type ProfileHeroData } from './ProfileHero'
+import PageBlocksSection, { type PageBlockItem } from './PageBlocksSection'
 import ProfileTabs from './ProfileTabs'
 import PublicRoomList, { type PublicRoom } from './PublicRoomList'
 import PublicServiceList, { type PublicService } from './PublicServiceList'
@@ -33,6 +34,8 @@ import ShopVideos, { type ShopVideoItem } from './ShopVideos'
 import AboutOverview, { type AboutData } from '../profile/AboutOverview'
 import { ProfileRightContent } from '../profile'
 import type { SerializedProduct } from '../profile'
+import { applyTabOrder, computeVisibleTabKeys, type ProfileTabKey } from '@/lib/profile-tab-keys'
+import { useBuilderDraftOverride } from './BuilderPreviewBridge'
 
 export type ShopProfileData = {
   hero: ProfileHeroData
@@ -55,99 +58,109 @@ export type ShopProfileData = {
   shopId: string | null
   isOwnShop: boolean
   itemKind?: 'PRODUCT' | 'ROOM'
+  /**
+   * feature 00035 — ลำดับแท็บที่ผู้ขายจัดไว้ (ShopPageLayout.tabOrder)
+   * ไม่ส่งมา/ว่าง = ใช้ลำดับ default ของระบบ · เป็น "ลำดับ" ไม่ใช่ allow-list: คีย์ที่ไม่ได้ระบุ
+   * ไปต่อท้าย ไม่ได้หายไป (แท็บปิดไม่ได้ — guardrail บังคับใน applyTabOrder)
+   */
+  tabOrder?: readonly string[]
+  /** feature 00035 — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ (listShopPageBlocks) ไม่ส่งมา/ว่าง = ไม่มีบล็อก */
+  blocks?: PageBlockItem[]
 }
 
 export default function ShopProfile({ data }: { data: ShopProfileData }) {
+  // feature 00035 (BuilderPreviewBridge) — ถ้าอยู่ในโหมด builder draft (ห่อด้วย Bridge จาก page.tsx)
+  // และมี DEEP_BUILDER_DRAFT_STATE เข้ามาแล้ว ใช้ค่านั้นแทน data.tabOrder/data.blocks ที่ SSR ส่งมา
+  // โดยไม่ query ใหม่ — ไม่มี Bridge ห่อ (โหมดปกติ) จะได้ null เสมอ ไม่กระทบ behavior เดิม
+  const draftOverride = useBuilderDraftOverride()
+  const effectiveTabOrder = draftOverride?.tabOrder ?? data.tabOrder ?? []
+  const effectiveBlocks = draftOverride?.blocks ?? data.blocks ?? []
+
   const hasItems = data.pinnedProducts.length + data.otherProducts.length > 0
+
+  // feature 00035 (SRS TFR-002/TFR-003) — ตรรกะ "แท็บไหนมีข้อมูลจริง" ย้ายไป src/lib/profile-tab-keys.ts
+  // เพื่อให้หน้า builder ฝั่ง seller รู้ชุดแท็บเดียวกันได้โดยไม่ต้องเขียนเงื่อนไขซ้ำ (กัน drift)
+  // ผลลัพธ์ต้องเหมือนเดิม 100% — นี่คือ refactor ล้วน ไม่ใช่เปลี่ยน behavior
+  const visibleKeys = computeVisibleTabKeys({
+    hasVideos: data.videos.length > 0,
+    isLodging: data.isLodging,
+    hasRooms: data.rooms.length > 0,
+    hasAvailability: data.availability != null,
+    isServiceQueue: data.isServiceQueue,
+    hasServices: data.services.length > 0,
+    hasItems,
+    hasReviews: data.ratingDistribution != null && data.avgRating != null,
+  })
+
+  // label/content ของแต่ละแท็บ — ยกมาจากของเดิมทั้งหมด ไม่แก้ถ้อยคำ
+  const tabContent: Record<ProfileTabKey, { label: string; content: React.ReactNode }> = {
+    // "ปักหมุด" มาก่อนเสมอเมื่อร้านปักคลิปไว้ (user กำหนด 2026-07-26) — คลิปคือสิ่งที่
+    // ร้านตั้งใจให้เห็นก่อนสิ่งอื่น (ลำดับนี้อยู่ใน PROFILE_TAB_KEYS แล้ว)
+    pinned: { label: 'ปักหมุด', content: <ShopVideos items={data.videos} /> },
+    rooms: { label: 'ห้องพัก', content: <PublicRoomList rooms={data.rooms} /> },
+    calendar: {
+      label: 'ปฏิทิน',
+      content: data.availability ? <AvailabilityCalendar data={data.availability} /> : null,
+    },
+    // feature 00028 — แท็บ "บริการ" ของร้านสินค้าและบริการ ไม่มีคิวงานเลย = ไม่สร้างแท็บ
+    // (ไม่ fallback ไปที่อื่น — ตั้งใจตาม UX spec §B edge states)
+    services: { label: 'บริการ', content: <PublicServiceList services={data.services} /> },
+    items: {
+      // feature 00028 — เดิม "สินค้าและบริการ" ชนกับชื่อ vertical ใหม่ เปลี่ยนเป็น "สินค้า"
+      label: 'สินค้า',
+      content: (
+        <ProfileRightContent
+          data={{
+            pinnedProducts: data.pinnedProducts,
+            otherProducts: data.otherProducts,
+            openShopEmptyState: false,
+            itemKind: data.itemKind,
+          }}
+          shopId={data.shopId}
+          isOwnShop={data.isOwnShop}
+        />
+      ),
+    },
+    about: {
+      // ช่องทาง Official อยู่ในแท็บนี้ ไม่แยกเป็นแท็บของตัวเอง — เป็นข้อมูล "ติดต่อร้านนี้
+      // ได้ทางไหน" ซึ่งเป็นเรื่องเดียวกับการแนะนำร้าน และทำให้จำนวนแท็บอยู่ตามที่กำหนด
+      label: 'เกี่ยวกับร้าน',
+      content: (
+        <div className='flex flex-col gap-5'>
+          <AboutOverview data={data.about} />
+          {data.channels.length > 0 && <OfficialChannels channels={data.channels} />}
+        </div>
+      ),
+    },
+    reviews: {
+      // คะแนนอยู่ในป้ายแท็บ ผู้ซื้อเห็นเรตทันทีโดยไม่ต้องกดเข้าไปดู
+      label: `รีวิว ${data.avgRating}`,
+      content:
+        data.ratingDistribution && data.avgRating != null ? (
+          <>
+            <ReviewSummary
+              avgRating={data.avgRating}
+              reviewCount={data.reviewCount}
+              distribution={data.ratingDistribution}
+            />
+            <ReviewList items={data.reviews} />
+          </>
+        ) : null,
+    },
+  }
 
   return (
     <div className='mli-auto max-is-[960px]'>
       <ProfileHero data={{ ...data.hero, shopId: data.shopId }} />
 
+      <PageBlocksSection blocks={effectiveBlocks} />
+
       <ProfileTabs
-        tabs={[
-          // แท็บที่ไม่มีข้อมูลไม่ถูกสร้างเป็นตัวเลือกเลย ไม่ใช่สร้างแล้วโชว์หน้าเปล่า
-          // "ปักหมุด" มาก่อนเสมอเมื่อร้านปักคลิปไว้ (user กำหนด 2026-07-26) — คลิปคือสิ่งที่
-          // ร้านตั้งใจให้เห็นก่อนสิ่งอื่น
-          ...(data.videos.length > 0
-            ? [{ key: 'pinned', label: 'ปักหมุด', content: <ShopVideos items={data.videos} /> }]
-            : []),
-          ...(data.isLodging && data.rooms.length > 0
-            ? [{ key: 'rooms', label: 'ห้องพัก', content: <PublicRoomList rooms={data.rooms} /> }]
-            : []),
-          ...(data.isLodging && data.availability
-            ? [
-                {
-                  key: 'calendar',
-                  label: 'ปฏิทิน',
-                  content: <AvailabilityCalendar data={data.availability} />,
-                },
-              ]
-            : []),
-          // feature 00028 — แท็บ "บริการ" ของร้านสินค้าและบริการ ไม่มีคิวงานเลย = ไม่สร้างแท็บ
-          // (ไม่ fallback ไปที่อื่น — ตั้งใจตาม UX spec §B edge states)
-          ...(data.isServiceQueue && data.services.length > 0
-            ? [
-                {
-                  key: 'services',
-                  label: 'บริการ',
-                  content: <PublicServiceList services={data.services} />,
-                },
-              ]
-            : []),
-          ...(!data.isLodging && hasItems
-            ? [
-                {
-                  key: 'items',
-                  // feature 00028 — เดิม "สินค้าและบริการ" ชนกับชื่อ vertical ใหม่ เปลี่ยนเป็น "สินค้า"
-                  label: 'สินค้า',
-                  content: (
-                    <ProfileRightContent
-                      data={{
-                        pinnedProducts: data.pinnedProducts,
-                        otherProducts: data.otherProducts,
-                        openShopEmptyState: false,
-                        itemKind: data.itemKind,
-                      }}
-                      shopId={data.shopId}
-                      isOwnShop={data.isOwnShop}
-                    />
-                  ),
-                },
-              ]
-            : []),
-          {
-            // ช่องทาง Official อยู่ในแท็บนี้ ไม่แยกเป็นแท็บของตัวเอง — เป็นข้อมูล "ติดต่อร้านนี้
-            // ได้ทางไหน" ซึ่งเป็นเรื่องเดียวกับการแนะนำร้าน และทำให้จำนวนแท็บอยู่ตามที่กำหนด
-            key: 'about',
-            label: 'เกี่ยวกับร้าน',
-            content: (
-              <div className='flex flex-col gap-5'>
-                <AboutOverview data={data.about} />
-                {data.channels.length > 0 && <OfficialChannels channels={data.channels} />}
-              </div>
-            ),
-          },
-          ...(data.ratingDistribution && data.avgRating != null
-            ? [
-                {
-                  key: 'reviews',
-                  // คะแนนอยู่ในป้ายแท็บ ผู้ซื้อเห็นเรตทันทีโดยไม่ต้องกดเข้าไปดู
-                  label: `รีวิว ${data.avgRating}`,
-                  content: (
-                    <>
-                      <ReviewSummary
-                        avgRating={data.avgRating}
-                        reviewCount={data.reviewCount}
-                        distribution={data.ratingDistribution}
-                      />
-                      <ReviewList items={data.reviews} />
-                    </>
-                  ),
-                },
-              ]
-            : []),
-        ]}
+        tabs={applyTabOrder(visibleKeys, effectiveTabOrder).map((key) => ({
+          key,
+          label: tabContent[key].label,
+          content: tabContent[key].content,
+        }))}
       />
     </div>
   )

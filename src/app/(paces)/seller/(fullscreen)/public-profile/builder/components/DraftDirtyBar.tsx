@@ -3,7 +3,7 @@
 /**
  * DraftDirtyBar — แถบ "มีการเปลี่ยนแปลงที่ยังไม่บันทึก" (feature 00035, Task 7)
  *
- * Base: docs/superpowers/specs/2026-08-07-00034-builder-mockup-paces.html
+ * Base: docs/superpowers/specs/2026-08-07-00035-builder-mockup-paces.html
  *   หัวข้อ "1 · จอหลัก (Desktop 1440)" บรรทัด dirty bar (`bg-warning/15 text-warning-ink
  *   border-warning/40 ... role="alert"`) — คัดลอก markup มาเป๊ะ ปรับแค่ผูก state/handler จริง
  *

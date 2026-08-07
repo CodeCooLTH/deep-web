@@ -9,7 +9,7 @@
  * desktop-only gate (SDS TD-007): CSS-only `hidden xl:flex` / `xl:hidden` สลับข้อความอธิบาย
  * กับ workspace 3 คอลัมน์จริง — ไม่ใช้ JS `window.innerWidth` (กัน hydration flash)
  *
- * Base: docs/superpowers/specs/2026-08-07-00034-builder-mockup-paces.html
+ * Base: docs/superpowers/specs/2026-08-07-00035-builder-mockup-paces.html
  *   หัวข้อ "1 · จอหลัก (Desktop 1440)" (โครง toolbar/dirty-bar/3-column) และหัวข้อ
  *   "2 · มือถือ — สิ่งที่เห็นแทน" การ์ด "เหตุผลที่ตัด" (ข้อความ desktop-only + ทางออก)
  *
