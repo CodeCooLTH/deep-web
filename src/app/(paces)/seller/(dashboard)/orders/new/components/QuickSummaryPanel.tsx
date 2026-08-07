@@ -76,6 +76,8 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        aria-label={expanded ? 'ซ่อนรายละเอียดยอด' : 'ดูรายละเอียดยอด'}
         className="mb-2 flex w-full items-center justify-between"
       >
         <span className="text-sm text-default-500">รวมทั้งสิ้น</span>
@@ -88,7 +90,7 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
       <button
         type="submit"
         form={formId}
-        className="btn inline-flex min-h-11 w-full items-center justify-center gap-2 bg-primary font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+        className="btn inline-flex min-h-11 w-full items-center justify-center gap-2 bg-primary font-semibold text-white hover:bg-primary-hover"
       >
         <Icon icon="device-floppy" className="text-lg" />
         บันทึก{orderNoun}

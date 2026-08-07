@@ -59,12 +59,18 @@ export default function MoreOptions({ control }: Props) {
         <input
           id="mo-note"
           type="text"
-          placeholder="โน้ตภายใน (ไม่แสดงให้ลูกค้า)"
+          placeholder="เช่น ลูกค้าขอส่งวันจันทร์"
+          aria-describedby="mo-note-hint"
           className="form-input"
           value={note.value ?? ''}
           onChange={note.onChange}
           onBlur={note.onBlur}
         />
+        {/* คำรับประกันความเป็นส่วนตัวต้องอยู่ตลอด ไม่ใช่ใน placeholder ที่หายทันทีที่พิมพ์ตัวแรก —
+            ผู้ขายที่กำลังจะพิมพ์เรื่องภายในต้องเห็นมันตอนกำลังพิมพ์ ไม่ใช่ตอนช่องยังว่าง */}
+        <p id="mo-note-hint" className="mt-1 text-xs text-default-500">
+          ลูกค้าไม่เห็นข้อความนี้
+        </p>
       </div>
     </div>
   )

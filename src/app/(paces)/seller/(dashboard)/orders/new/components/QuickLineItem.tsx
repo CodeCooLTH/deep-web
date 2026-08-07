@@ -169,20 +169,20 @@ export default function QuickLineItem({
           </div>
           {/* stepper qty ±1 */}
           <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-default-300">
-            <button type="button" onClick={() => setQty(qty - 1)} aria-label="ลดจำนวน" className="inline-flex size-9 items-center justify-center text-primary">
+            <button type="button" onClick={() => setQty(qty - 1)} aria-label={item.name ? `ลดจำนวน ${item.name}` : 'ลดจำนวน'} className="inline-flex size-9 items-center justify-center text-primary">
               <Icon icon="minus" className="size-4" />
             </button>
             <input
               type="number"
               inputMode="numeric"
               min={1}
-              aria-label="จำนวน"
+              aria-label={item.name ? `จำนวน ${item.name}` : 'จำนวน'}
               className="w-10 border-x border-default-200 py-1.5 text-center text-sm font-bold"
               value={qtyField.value ?? 1}
               onChange={(e) => qtyField.onChange(e.target.value === '' ? '' : Number(e.target.value))}
               onBlur={qtyField.onBlur}
             />
-            <button type="button" onClick={() => setQty(qty + 1)} aria-label="เพิ่มจำนวน" className="inline-flex size-9 items-center justify-center text-primary">
+            <button type="button" onClick={() => setQty(qty + 1)} aria-label={item.name ? `เพิ่มจำนวน ${item.name}` : 'เพิ่มจำนวน'} className="inline-flex size-9 items-center justify-center text-primary">
               <Icon icon="plus" className="size-4" />
             </button>
           </div>
@@ -193,6 +193,8 @@ export default function QuickLineItem({
         open={priceOpen}
         price={price}
         name={item.name}
+        qty={qty}
+        unitLabel={unitLabel}
         onApply={(p) => {
           priceField.onChange(p)
           setPriceOpen(false)

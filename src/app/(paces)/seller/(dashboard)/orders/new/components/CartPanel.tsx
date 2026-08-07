@@ -592,7 +592,7 @@ export default function CartPanel({
         <button
           type="submit"
           form={formId}
-          className="btn min-h-11 w-full bg-primary font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+          className="btn min-h-11 w-full bg-primary font-semibold text-white hover:bg-primary-hover"
         >
           บันทึก{orderNoun}
         </button>
