@@ -340,7 +340,7 @@ API) และ browser-driven (UI ปุ่มแมนนวล/หน้าต
 
 ### TC-CR-STA-06: ป้าย "ตอบอัตโนมัติ" ต้องยังอยู่หลังรีเฟรชและหลัง Facebook ส่งข้อมูลชุดเดิมกลับเข้ามา
 
-- **Linked to:** AC-CR-29 / TFR-CR-003 (SDS)
+- **Linked to:** AC-CR-29 / TD-003 (SDS)
 - **Precondition:** คำตอบของบอทถูกสร้างแล้ว (`isAutoReply=true`)
 - **Steps:**
   1. รีเฟรชหน้า — ตรวจป้าย "ตอบอัตโนมัติ" ยังอยู่
@@ -406,7 +406,7 @@ API) และ browser-driven (UI ปุ่มแมนนวล/หน้าต
 
 ### TC-CR-SEC-05: เมนู "ตอบกลับคอมเมนต์" มองเห็นได้ทุก vertical
 
-- **Linked to:** SRS TFR-012 / SDS TFR-CR-005
+- **Linked to:** SRS TFR-012 / SDS TD-005
 - **Precondition:** ร้าน 3 ร้าน — `vertical` เป็น `ONLINE_SALES`, `SERVICE_QUEUE`, `LODGING` ตามลำดับ
 - **Steps:**
   1. login แต่ละร้าน ดูเมนูกลุ่ม CHAT
@@ -450,7 +450,7 @@ API) และ browser-driven (UI ปุ่มแมนนวล/หน้าต
 | AC-CR-29 | TC-CR-STA-06 | Yes |
 | AC-CR-30 | TC-CR-STA-07 | Yes |
 | BRD §6.4 (ความปลอดภัย) | TC-CR-SEC-02, TC-CR-SEC-03, TC-CR-SEC-04 | Yes |
-| SRS TFR-012 / SDS TFR-CR-005 | TC-CR-SEC-05 | Yes |
+| SRS TFR-012 / SDS TD-005 | TC-CR-SEC-05 | Yes |
 
 > ทุก AC ใน [[BRD]] (AC-CR-01..30) ปรากฏในตารางนี้ครบและมี TC อย่างน้อย 1 รายการ
 

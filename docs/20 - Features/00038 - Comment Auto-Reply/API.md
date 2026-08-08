@@ -232,6 +232,14 @@ active shop เรียงตามลำดับเดียวกับห�
 ปุ่มแมนนวล "ทักแชท" — ส่ง private reply 1 คอมเมนต์ ใช้ได้เสมอไม่ว่าสวิตช์อัตโนมัติจะเปิดหรือปิด
 (BR-CR-M3/D-6) เรียก `sendPrivateReplyToComment({trigger:'MANUAL', ...})` ตาม SRS TFR-006/TFR-007
 
+**หมายเหตุ endpoint ปลายทางที่ Graph ชั้นล่างเรียกจริง:** ยิง `POST /me/messages` — **ไม่ใช่**
+`POST /{page-id}/messages` ตามที่เอกสาร Private Replies ของ Meta เขียนไว้ตรง ๆ เหตุผลอยู่ที่
+`src/lib/facebook/graph.ts:522-526` (คอมเมนต์เหนือ `sendTextMessage` ที่ `sendPrivateReplyToComment`
+เกาะ pattern เดียวกัน): `pageToken` resolve `/me` เป็นเพจอยู่แล้ว และ `ShopChannel.externalId` ของ
+ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id — ยิง `externalId` เข้า path ตรง ๆ จะพังทันทีที่เฟส 2
+เปิดใช้ IG (ดูรายละเอียดการตัดสินใจเต็มที่ SDS TD-006) — ซิกเนเจอร์จริงของฟังก์ชันคือ
+`sendPrivateReplyToComment(pageToken, commentExternalId, text)` ไม่มีพารามิเตอร์ `pageId`
+
 **Request**
 
 | ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
@@ -320,7 +328,7 @@ sequenceDiagram
         API-->>Seller: 409 ALREADY_SENT
     else ยังส่งได้
         PRS->>DB: insert CommentReplyLog (pending)
-        PRS->>G: POST /pageId/messages
+        PRS->>G: POST /me/messages
         alt Graph ปฏิเสธ
             G-->>PRS: error
             PRS->>DB: update log (FAILED, errorMessage)
@@ -344,7 +352,7 @@ sequenceDiagram
 |----------|--------------------------|--------|
 | `GET/PATCH /api/shops/comment-reply/config` | Component `api/shops/comment-reply/config` (SDS §3) | FR-CR-01, FR-CR-02, FR-CR-03, FR-CR-04 |
 | `GET /api/shops/comment-reply/logs` | Component `api/shops/comment-reply/logs` (SDS §3) | FR-CR-08 |
-| `POST /api/chat/comments/[commentId]/private-reply` | TFR-CR-001, TFR-CR-004 (SDS §6), Flow 4.1 (SDS §4) | FR-CR-09, FR-CR-10, FR-CR-11 |
+| `POST /api/chat/comments/[commentId]/private-reply` | TD-001, TD-004, TD-006 (SDS §6), Flow 4.1 (SDS §4) | FR-CR-09, FR-CR-10, FR-CR-11 |
 
 ---
 

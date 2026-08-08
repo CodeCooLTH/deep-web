@@ -20,9 +20,9 @@ related: ["[[SDS]]", "[[SRS]]", "[[Feature-Docs-Ownership]]"]
 
 ## 1. Overview
 
-โครงสร้างข้อมูลของโมดูลนี้รองรับ TFR-003 (dispatch/gate), TFR-005/TFR-CR-002 (system actor),
-TFR-006/TFR-CR-001 (private reply core), TFR-CR-003 (`isAutoReply` double-writer guard), และ
-TFR-CR-004 (partial unique index) ใน [[SDS]] — เป็น**การเปลี่ยนแปลง additive ล้วน** ไม่มี `DROP`,
+โครงสร้างข้อมูลของโมดูลนี้รองรับ TFR-003 (dispatch/gate), TFR-005/TD-002 (system actor),
+TFR-006/TD-001 (private reply core), TD-003 (`isAutoReply` double-writer guard), และ
+TD-004 (partial unique index) ใน [[SDS]] — เป็น**การเปลี่ยนแปลง additive ล้วน** ไม่มี `DROP`,
 ไม่มี data migration ของแถวเดิม, ไม่มี backfill
 
 - **เอกสารออกแบบต้นทาง:** [[SDS]] ของโมดูลนี้
@@ -114,7 +114,7 @@ erDiagram
 
 > 🛑 **คอลัมน์นี้มีผู้เขียน 2 ราย** — เราเขียนตอน `replyToComment()` คืน comment id กลับมา (`create`
 > block เท่านั้น) และ webhook เขียนอีกครั้งเมื่อ Meta ส่ง echo ของคอมเมนต์เดียวกันกลับเข้ามา
-> **`ingestFeedComment`'s `update` block ห้ามใส่ `isAutoReply` เข้าไปเด็ดขาด** (ดู SDS TFR-CR-003)
+> **`ingestFeedComment`'s `update` block ห้ามใส่ `isAutoReply` เข้าไปเด็ดขาด** (ดู SDS TD-003)
 > มิฉะนั้นธงจะถูกรีเซ็ตเป็น `false` เงียบ ๆ ทุกครั้งที่ Meta echo กลับมา
 
 ### 3.3 `CommentReplyLog` (PostgreSQL — Supabase) — ตารางใหม่
@@ -252,8 +252,8 @@ erDiagram
 | Table / Collection | SDS Component / Decision | สถานะ |
 |--------------------|--------------------------|-------|
 | `ShopChannel` (ส่วนขยาย) | Component `api/shops/comment-reply/config` (SDS §3) | Draft |
-| `PageComment` (ส่วนขยาย) | TFR-CR-003 (SDS §6) | Draft |
-| `CommentReplyLog` | TFR-CR-004 (SDS §6), Flow 4.1 (SDS §4) | Draft |
+| `PageComment` (ส่วนขยาย) | TD-003 (SDS §6) | Draft |
+| `CommentReplyLog` | TD-004 (SDS §6), Flow 4.1 (SDS §4) | Draft |
 
 ---
 

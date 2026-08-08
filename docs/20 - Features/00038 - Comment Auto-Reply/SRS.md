@@ -154,7 +154,7 @@ flowchart LR
 ### TFR-002: `GET/PATCH /api/shops/comment-reply/config`
 - **Trace to:** FR-CR-01, FR-CR-02, FR-CR-03, FR-CR-04, FR-CR-05 (bullet 6)
 - **คำอธิบายเชิงเทคนิค:** GET คืน array ของ config ต่อเพจ (`select` ระบุคอลัมน์ ห้ามคืน
-  `accessTokenEnc` — ดู TFR-CR-004 ใน SDS). PATCH รับ `shopChannelId` เดียวต่อครั้ง + ฟิลด์ที่จะแก้
+  `accessTokenEnc` — ดู TD-004 ใน SDS). PATCH รับ `shopChannelId` เดียวต่อครั้ง + ฟิลด์ที่จะแก้
   (partial update); validate ที่ Valibot ก่อน: เปิดสวิตช์ (`*Enabled: true`) โดยข้อความ (`*Text`) ว่าง
   หรือ `null` → 400 `VALIDATION_ERROR`. ตรวจว่า `shopChannelId` เป็นของ active shop จริง (join
   `ShopChannel.shopId`) ก่อนเขียนเสมอ
@@ -201,7 +201,7 @@ flowchart LR
 - **Precondition:** `sendPrivateReplyToComment()` ต้องเป็นฟังก์ชันแยก ไม่ผ่าน
   `sendOutboundMessage`'s window gate
 - **Postcondition:** `sendPrivateReplyToComment()` ยิง Graph `POST /{pageId}/messages` ตรง แล้วสร้าง
-  `ChatMessage` เอง (ไม่พึ่ง window state) — รายละเอียดการออกแบบเต็มอยู่ที่ SDS TFR-CR-001
+  `ChatMessage` เอง (ไม่พึ่ง window state) — รายละเอียดการออกแบบเต็มอยู่ที่ SDS TD-001
 - **Error / Edge cases:** ฟังก์ชันใหม่นี้ต้องยังคง**เช็คหน้าต่าง 7 วันของคอมเมนต์เอง** (คนละหน้าต่าง
   กับ 24 ชม. ของแชท) ก่อนยิง — ดู TFR-006
 
@@ -278,9 +278,10 @@ flowchart LR
   `answeredSelf = c.isFromPage || replies.some((r) => r.isFromPage)`) — ต้องย้าย/ขยาย logic นี้ให้ใช้
   `isAutoReply` ของคำตอบลูกแต่ละอัน แต่ query ที่ป้อนข้อมูลให้ client (`getPostComments`,
   `page-comment.service.ts:432`) **ยังไม่ `select` คอลัมน์ `isAutoReply` เลย** ในชุด field ปัจจุบัน
-  (`externalCommentId, parentExternalId, isFromPage, isDeleted, fromName, message, attachmentUrl,
-  createdTime`) — เพิ่มคอลัมน์ schema อย่างเดียวไม่พอ ต้องเพิ่มเข้า `select` ด้วย ไม่งั้นสถานะที่ 3
-  จะไม่มีวันคำนวณถูกแม้ schema พร้อมแล้ว (ดู SDS TFR-CR-005)
+  ของ `CommentRow` (`page-comment.service.ts:417-428`: `id, externalCommentId, parentExternalId,
+  fromName, isFromPage, message, attachmentUrl, createdTime, editedAt, isDeleted,
+  repliedByUserId`) — เพิ่มคอลัมน์ schema อย่างเดียวไม่พอ ต้องเพิ่มเข้า `select` ด้วย ไม่งั้นสถานะที่ 3
+  จะไม่มีวันคำนวณถูกแม้ schema พร้อมแล้ว (ดู SDS TD-005)
 
   ต่อ**คอมเมนต์**: ไม่มีคำตอบเลย = ยังไม่ตอบ; คำตอบทุกอันมี `isAutoReply=true` = บอทตอบแล้ว;
   มีคำตอบอย่างน้อยหนึ่งอันที่ `isAutoReply=false` = คนตอบแล้ว (BR-CR-S1)
@@ -334,7 +335,7 @@ flowchart LR
   (การเพิ่มเข้า `VERTICAL_VISIBLE_SLUGS` โดยไม่เพิ่มเข้า `*_ONLY_SLUGS` ก่อนไม่มีผลอะไรเลย เพราะ
   `hidden` คำนวณจาก `ALL_VERTICAL_SCOPED_SLUGS` เท่านั้น — เพิ่มเข้า `VERTICAL_VISIBLE_SLUGS` เฉย ๆ
   โดยลืมด้าน `ALL_VERTICAL_SCOPED_SLUGS` จะกลายเป็น slug ที่ปรากฏสองที่ไม่ตรงกันและทำให้เข้าใจผิดว่า
-  ถูก gate ทั้งที่ไม่ถูก) — ดูรายละเอียดใน SDS TFR-CR-005
+  ถูก gate ทั้งที่ไม่ถูก) — ดูรายละเอียดใน SDS TD-005
 - **Precondition:** —
 - **Postcondition:** เมนู "ตอบกลับคอมเมนต์" มองเห็นได้ทุก vertical เหมือน "ข้อความ"/"ตอบกลับ
   อัตโนมัติ" ข้างเคียง
