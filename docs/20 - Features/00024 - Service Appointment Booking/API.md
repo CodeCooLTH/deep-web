@@ -205,6 +205,8 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 
 ที่ว่างของทรัพยากรหนึ่งหน่วยในช่วงที่ขอ (TFR-005)
 
+> 🛑 **ตั้งแต่ 2026-08-08 ไม่มี UI ไหนเรียก endpoint นี้แล้ว** — ปฏิทินเลือกวัน+เวลา (`AppointmentDateSheet.tsx`, ทั้งตอนสร้างออเดอร์และตอนเลื่อนนัด) เปลี่ยนไปเรียก §4.5 (`GET /api/shops/current/appointments`) แทน เพราะต้องใช้ชื่อลูกค้า/เลขออเดอร์/สถานะนัดประกอบรายการของวันนั้นด้วย ไม่ใช่แค่ตัวเลขจำนวน — endpoint นี้ **ยังอยู่ในระบบ ไม่ได้ถูกลบ** เผื่อมี consumer อื่นในอนาคต (ดู SDS §3.7)
+
 > 🛑 ผลลัพธ์นี้ใช้ **แสดงผลเท่านั้น** ไม่ใช่กลไกตัดสิน — ตัวตัดสินคือ EXCLUDE constraint ตอนบันทึกจริง ระหว่างที่ผู้ใช้ดูอยู่ อาจมีคนจองแทรกเข้ามาได้เสมอ
 
 **Query:** `resourceId` (บังคับ), `from` (ISO), `to` (ISO) — ทั้งสามตัวบังคับ; `to <= from` = 400
@@ -439,6 +441,25 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 
 ---
 
+### 4.11 การไหลของฟิลด์นัดไปยัง `GET /api/chat/conversations/[id]/orders` (feature 00018, เพิ่ม 2026-08-08)
+
+> 🛑 **endpoint นี้เป็นของ feature 00018 (Facebook Chat) ไม่ใช่ของ 00024** — บันทึกไว้ที่นี่เพราะฟิลด์ที่ไหลออกเป็นฟิลด์ที่ 00024 เป็นเจ้าของ (`Order.serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount`) และ 00018/API.md ของฟีเจอร์นั้นยังไม่ sync การเปลี่ยนแปลงนี้ (นอกขอบเขตของงานที่ทำวันนี้ — ดู "Missing docs" ใน retro)
+
+`getOrdersByCustomer()` (`src/services/order.service.ts`) ป้อนออเดอร์ของลูกค้าคนหนึ่งเข้าห้องแชท (lazy-load ใบที่ 21 ขึ้นไป — 20 ใบแรกมาจาก select ของ `inbox/[conversationId]/page.tsx` โดยตรง) เพิ่ม 4 field เข้า return type และ `select`:
+
+```ts
+serviceStart: string | null    // ISO — null = walk-in ไม่มีนัดผูก
+serviceEnd: string | null
+appointmentStatus: string | null
+depositAmount: string | null   // ทศนิยม 2 ตำแหน่งแบบสตริง เหมือน totalAmount
+```
+
+🛑 **สอง select ต้อง sync ฟิลด์ชุดนี้เสมอ** — `inbox/[conversationId]/page.tsx` (20 ใบแรก) กับ `getOrdersByCustomer()` (ใบที่ 21 ขึ้นไป) ถ้าไม่ sync ออเดอร์ที่โหลดทีหลังจะกลายเป็น walk-in เงียบ ๆ ในสายตาแถบสถานะ (ไม่มี error — แค่ field เป็น `undefined` แล้วถูกอ่านว่า "ไม่มีนัด")
+
+ผู้บริโภคปลายทาง: `chat-service-progress.ts` (SDS §3.10, TFR-014/015) → `OrderProgressBar.tsx` (แถบสถานะออเดอร์ใต้หัวเธรด, มือถือ/แท็บเล็ต)
+
+---
+
 ## 5. Error Code Table
 
 | Code | HTTP | ความหมาย | อ้างอิง |
@@ -517,6 +538,7 @@ sequenceDiagram
 | 4.8 outcome | FR-RSV-09 | TFR-006 |
 | 4.9 confirm | FR-RSV-06 | TFR-006, TFR-008, TFR-009 |
 | 4.10 reschedule-request | FR-RSV-07 | TFR-006, TFR-008 |
+| 4.11 chat orders (cross-feature 00018, เพิ่ม 2026-08-08) | — | TFR-014, TFR-015 |
 
 ---
 
@@ -525,3 +547,4 @@ sequenceDiagram
 - ไม่มี endpoint ใหม่สำหรับ "สร้างออเดอร์พร้อมนัด" — ต่อ payload บนของเดิมเพื่อรักษา zero-regression
 - ฝั่งลูกค้ามีแค่ 2 action (`confirm`, `reschedule-request`) และทั้งคู่อยู่หลังด่านของ feature 00015 ที่ห้ามแก้
 - ข้อห้ามที่ reviewer ต้องตรวจใน response ทุกเส้น: **ไม่มี `serviceSeat`**, **ไม่มีข้อความดิบจาก Postgres**, **ไม่มีเบอร์/อีเมลลูกค้าในปฏิทิน**
+- **ตั้งแต่ 2026-08-08** endpoint availability (§4.4) ไม่มี UI เรียกใช้แล้ว (แทนที่ด้วย §4.5) และฟิลด์นัด 4 ตัวไหลออกไปยัง endpoint ของ feature 00018 (§4.11) — reviewer ที่แก้ชื่อ/นำฟิลด์นัดออกต้องไล่ดู consumer นอกฟีเจอร์นี้ด้วย

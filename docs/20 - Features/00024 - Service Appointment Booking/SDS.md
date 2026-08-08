@@ -53,7 +53,11 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[DATABASE]]", "[[API]]"]
 | `src/app/api/shops/current/appointments/route.ts` | **ใหม่** | API ปฏิทิน |
 | `src/app/api/orders/[token]/appointment/**` | **ใหม่** | API นัด — ทั้งฝั่งร้าน (`PATCH`, `outcome`) และฝั่งลูกค้า (`confirm`, `reschedule-request`) แยกกันด้วย authz ไม่ใช่ด้วยพาธ ตาม precedent `ship` (ร้าน) กับ `confirm` (ลูกค้า) ที่อยู่ใต้ `[token]` เดียวกันอยู่แล้ว |
 | หน้า `/o/[token]` | แก้ | เพิ่มส่วนแสดง/ยืนยันนัด (หลังด่าน 00015) |
-| ฟอร์มสร้างออเดอร์ POS | แก้ | เพิ่มส่วนเลือกวันนัด |
+| ฟอร์มสร้างออเดอร์ POS | แก้ | เพิ่มส่วนเลือกวันนัด — implement จริงคือ `AppointmentBlock.tsx` ดู §3.7 |
+| `orders/new/components/AppointmentDateSheet.tsx` | **ใหม่ (2026-08-07) — สัญญาแก้ 2026-08-08** | ปฏิทินเต็มจอเลือกวัน**และเวลา** — ดู §3.7 (SDS ฉบับร่างแรกไม่เคยพูดถึงไฟล์นี้เลย ทั้งที่เป็น component หลักของ FR-RSV-03/13 ในตอนนี้) |
+| `orders/[token]/components/RescheduleAppointmentSheet.tsx` | แก้ (feature 00036) — เรียก `AppointmentDateSheet` ร่วม | เลื่อนนัดของออเดอร์ที่มีอยู่ — ดู §3.7 |
+| `queues/components/GranularitySetting.tsx` | ย้ายตำแหน่งเรียกใช้ (2026-08-08) | จากฟอร์มทรัพยากร (`ResourceForm`) มาอยู่ท้ายหน้า `/queues` — ดู §3.9 |
+| `src/lib/chat-service-progress.ts` | **ใหม่ (2026-08-08)** | แกนสถานะนัดในห้องแชทของร้าน `SERVICE_QUEUE` — ดู §3.10 (เจ้าของหลักคือแถบสถานะออเดอร์ในแชท ของ feature 00018/00036 — บันทึกไว้ที่นี่เพราะ input ทั้งหมดเป็นฟิลด์ที่ 00024 เป็นเจ้าของ) |
 
 🛑 **ห้ามแตะไฟล์ของ feature 00015** (logic การเข้าถึง `/o/{token}`) — เพิ่มเฉพาะส่วนแสดงผลหลังด่านเท่านั้น
 
@@ -288,6 +292,113 @@ if (blocking) throw new CapacityReductionBlockedError(blocking)
 - ใช้ `formatDateTimeTH` (พ.ศ.)
 - ปุ่ม "ยืนยันนัด" + "ขอเลื่อนนัด" — ยืนยันแล้วปุ่มเปลี่ยนสถานะ ไม่หายไป (กดซ้ำได้แบบ idempotent)
 
+### 3.7 `AppointmentDateSheet` — ปฏิทินเต็มจอเลือกวัน+เวลา (เพิ่ม 2026-08-07, สัญญาแก้ 2026-08-08)
+
+> **เพิ่มเข้าเอกสารนี้ย้อนหลัง 2026-08-08** — SDS ฉบับร่างแรก (§3.5 เดิม) ออกแบบไว้แค่
+> `<input type="date">` ธรรมดา + endpoint `.../availability` คืนตัวเลขไปวางไว้ข้าง ๆ ช่อง
+> implementation จริงต่างไปมาก: ปฏิทิน + รายการนัดของวัน + ช่องเวลา ถูกรวมเป็นชีตเต็มจอเดียว
+> ที่เป็นทั้งจุดเลือกวัน**และ**เวลาของทั้งฟีเจอร์ตอนนี้
+
+**ไฟล์:** `src/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet.tsx`
+**Base:** `queues/components/AppointmentCalendar.tsx` (FullCalendar dayGridMonth) + `./AddressSearchSheet.tsx` (โครง sheet เต็มจอ)
+
+**Props:**
+
+| Prop | Type | บังคับ | หมายเหตุ |
+|------|------|--------|----------|
+| `open` | `boolean` | ✓ | |
+| `resourceId` | `string?` | | คิวงานที่กำลังดูความว่าง — ไม่ส่ง = ไม่โหลดอะไร |
+| `resourceName` | `string?` | | โชว์ในหัวชีต |
+| `resourceCapacity` | `number?` | | ความจุของคิวงาน — sheet ไม่ query ซ้ำ ผู้เรียกมีอยู่แล้วในฟอร์ม |
+| `resourceDurationMinutes` | `number \| null` | | auto-fill เวลาสิ้นสุดจากเวลาเริ่ม (เว้นผู้ใช้พิมพ์เองแล้ว) |
+| `granularity` | `AppointmentGranularity` | **✓ บังคับ ไม่ใช่ optional** | `'DAY'` ซ่อนช่องเวลาทั้งหมด, `'TIME'` โชว์ — ปล่อยเป็น optional จะมีค่าตั้งต้นเงียบ ๆ ที่อาจผิดกับร้าน |
+| `value` / `valueStartTime` / `valueEndTime` | `string?` | | ค่าที่ฟอร์มถืออยู่ตอนเปิดชีต ("YYYY-MM-DD" / "HH:mm") |
+| `excludeOrderToken` | `string?` | | (feature 00036) กันนัดใบที่กำลังเลื่อนอยู่ไม่ให้ถูกนับเป็นคิวที่เต็มของตัวเอง |
+| `onConfirm` | `(r) => void` | ✓ | ดูด้านล่าง — ยิง **ครั้งเดียวตอนกดปุ่มยืนยัน** |
+| `onClose` | `() => void` | ✓ | |
+
+**สัญญา `onConfirm`** — เปลี่ยนจาก `onSelect(date)` เดิมทั้งหมด:
+
+```ts
+onConfirm: (result: {
+  date: string
+  startTime?: string   // undefined เสมอเมื่อ granularity === 'DAY'
+  endTime?: string
+  bookedCount: number  // จำนวนคิวที่ทับกับช่วงที่เพิ่งยืนยัน — แสดงผลเท่านั้น ห้ามใช้ตัดสิน (BR-RSV-18)
+}) => void
+```
+
+จิ้มวัน/พิมพ์เวลา**ใน**ชีตเป็นแค่ preview (`pendingDate`/`pendingStart`/`pendingEnd`) — ค่าจริงในฟอร์ม
+ไม่เปลี่ยนจนกว่าจะกดปุ่มยืนยันท้ายชีต กด `‹` ย้อนกลับ/Escape/ปิดชีตแล้วไม่มีอะไรเปลี่ยน
+
+**ผู้เรียก 2 จุด (contract เดียวกัน คนละ context):**
+
+| ผู้เรียก | `granularity` มาจากไหน | เหตุผล |
+|---------|------------------------|--------|
+| `AppointmentBlock.tsx` (สร้างออเดอร์ใหม่) | `appointmentGranularity` **ของร้าน ณ ปัจจุบัน** | นัดใหม่ต้องตามค่าที่ร้านตั้งไว้ตอนนี้ |
+| `RescheduleAppointmentSheet.tsx` (feature 00036, เลื่อนนัด) | `allDay ? 'DAY' : 'TIME'` ของ **นัดใบนั้นเอง** (BR-RSV-57) | ร้านที่สลับโหมดไปแล้วต้องเลื่อนนัดเก่าได้ในรูปแบบเดิมของนัดนั้น ไม่ใช่ถูกบังคับตามโหมดใหม่ของร้าน |
+
+**ที่มาของข้อมูลนัดในชีต:** ยิง `GET /api/shops/current/appointments?resourceId=&from=&to=` (endpoint เดียวกับปฏิทินหน้า `/queues` — ดู API.md §4.5) แทนที่จะยิง
+`GET /api/shops/current/service-resources/availability` (§4.4) แบบร่างแรก เพราะต้องใช้ชื่อลูกค้า/เลขออเดอร์/สถานะนัดไปแสดงในรายการของวันนั้นด้วย ไม่ใช่แค่ตัวเลขจำนวน
+— 🛑 **ตั้งแต่ 2026-08-08 ไม่มี UI ไหนเรียก endpoint `.../availability` แล้ว** (endpoint ยังอยู่ในระบบ ไม่ได้ถูกลบ เผื่อ consumer อื่นในอนาคต)
+
+**กฎ "เต็ม" แยกตามโหมด (สำคัญ — เคยเป็นจุดพลาดถ้าคิดว่าเกณฑ์เดียวกันใช้ได้ทั้งสองโหมด):**
+
+- โหมด `DAY`: `isFull(day)` นับ **จำนวนนัดทั้งวัน** เทียบ `capacity` — ใช้ย้อมวันในปฏิทิน + ปิดปุ่มยืนยัน
+- โหมด `TIME`: **ห้ามใช้เกณฑ์เดียวกัน** ความจุของโหมดนี้วัดที่ "ช่วงเวลาที่ทับกัน" ไม่ใช่จำนวนนัดทั้งวัน (วันที่มี 10 นัดสั้นกระจายทั้งวันยังว่างช่วงอื่นอยู่เต็มไปหมด) — ใช้ `pendingSlotBookedCount` ที่คำนวณสดจากรายการที่โหลดมาแล้ว (ไม่ยิง API ซ้ำ) เทียบ `capacity` แทน
+- legend "เต็ม" ในปฏิทินจึง render เฉพาะ `granularity==='DAY'` เท่านั้น
+
+**ตัวเลขทั้งหมดในชีต (`bookedCount`, `pendingSlotBookedCount`, "จองแล้ว n จาก m คิว") ใช้แสดงผลเท่านั้น** — ตัวตัดสินจริงยังเป็น EXCLUDE constraint ตอน `POST /api/orders` (§4.1) เหมือนเดิมทุกประการ ระหว่างที่ชีตเปิดค้างอาจมีคนจองแทรกได้เสมอ
+
+**a11y ที่เพิ่มเข้ามา 2026-08-08 (blocker เดิม — ไม่มีใน draft แรก):**
+
+- เลือกวันด้วยคีย์บอร์ดได้ (`onDayKeyDown` ดัก Enter/Space บน div ที่คืนจาก `dayCellContent` — `dateClick` ของ FullCalendar ผูกกับ mouse/touch เท่านั้น ไม่งั้นงานหลักของทั้งจอทำด้วยคีย์บอร์ดไม่ได้เลย, WCAG 2.1.1)
+- `timeIssue` เป็น SSOT เดียวที่ 3 ที่ใช้ร่วม: ป้ายปุ่มยืนยัน, ข้อความใต้ช่องเวลา, `aria-invalid`/`aria-describedby` ของ `<input type="time">` — ห้ามก็อปคำไปเขียนซ้ำที่ใดที่หนึ่ง
+- กล่อง `aria-live="polite"` อยู่ใน DOM ตลอดเวลา (ไม่ใช่โผล่มาพร้อมข้อความ — live region ที่เพิ่งถูกแทรกมักไม่ถูกประกาศ)
+- `role="dialog" aria-modal="true"` + โฟกัสย้ายเข้าปุ่มปิดตอนเปิด + Escape ปิดชีต
+- ปุ่มไอคอนทั้งหมด (ปิด/เลื่อนเดือน/วันนี้) `min-h-11 min-w-11` (44px ตาม PRODUCT.md) — `.btn.btn-icon` เปล่าของธีมได้แค่ 37px
+
+**Layout:** ทุก breakpoint ในไฟล์ใช้ **container query** (`@3xl`/`@5xl`) ไม่ใช่ viewport (`md:`/`lg:`) เพราะชีตนี้เปิดได้จาก 2 บริบทกว้างไม่เท่ากันที่วิวพอร์ตเดียวกัน (เต็มจอที่ `/orders/new` กับกล่อง 384px ในหน้าต่างร่างออเดอร์ของแชท ซึ่งตั้ง `transform-gpu` ทำให้เป็น containing block ของ `fixed`)
+
+### 3.8 helper กลาง `combineDateTime` / `addMinutesToTime` (ย้ายเข้า `src/lib/appointments.ts` เมื่อ 2026-08-08)
+
+เดิมประกาศซ้ำใน `AppointmentBlock.tsx` และ `RescheduleAppointmentSheet.tsx` แยกกัน — ย้ายมาเป็น SSOT เดียว เพราะตอนนี้มีผู้ใช้ 2 ที่ (ฟอร์มใช้คำนวณ "นัดนี้ผ่านไปแล้วไหม" · ชีตปฏิทินใช้เช็คช่วงเวลาทับกัน) ปล่อยให้ต่างคนต่างประกาศจะทำให้วันหนึ่งตัดสิน "เวลาเดียวกัน" ไม่ตรงกัน (Hard Rule 16 — domain term/logic เดียวต้องมีนิยามเดียว)
+
+- `combineDateTime(date, time): Date | null` — รวม `"YYYY-MM-DD"` + `"HH:mm"` เป็น `Date` ตามเวลาเครื่อง
+- `addMinutesToTime(time, minutes): string` — บวกนาทีแล้ววนกลับที่ 24 ชม. (`% 24`) โดยตั้งใจ — คิวที่ยาวข้ามเที่ยงคืนได้เวลาสิ้นสุดที่ "ดูย้อนหลัง" ซึ่งต้องให้ผู้ใช้เห็นแล้วแก้เอง ไม่ใช่ระบบตีความเงียบ ๆ (ตัวกันจริงคือปุ่มยืนยันที่บังคับ end > start)
+
+`AppointmentBlock.tsx` เลิกยิง `/service-resources/availability` เองไปพร้อมการย้ายนี้ — ตัด state `busy`/`loadingBusy`/`busyFailed`, cache `inFlightBusy` (เดิมจำเป็นเพราะบล็อกนี้ mount พร้อมกัน 2 ใบ — มือถือ+เดสก์ท็อป — แล้วยิงซ้ำ), และชิป "คิวที่มีอยู่แล้ววันนี้" (ซึ่งเคยแสดงนัดทั้งวันเป็น `00:00–00:00` — บั๊กที่ user เจอ 2026-08-08 หายไปพร้อมโค้ดที่ทำให้เกิด) ทั้งหมดย้ายเข้าไปอยู่ใน `AppointmentDateSheet` (§3.7)
+
+### 3.9 การตั้งค่า `Shop.appointmentGranularity` — ย้ายตำแหน่ง UI (2026-08-08)
+
+- **เดิม:** การ์ด `<GranularitySetting>` ฝังอยู่ใน `ResourceForm` (`/queues/new`, `/queues/[id]`) — เข้าถึงได้เฉพาะตอนสร้าง/แก้ทรัพยากรทีละตัว
+- **ปัญหา:** ร้านที่ตั้งคิวงานเสร็จแล้วไม่มีเหตุผลย้อนกลับเข้าฟอร์มทรัพยากรอีก จึงหาที่ตั้งค่านี้ไม่เจอ — ร้านจริง (BT) รายงาน 2026-08-08 ว่า "ระบุเวลานัดไม่ได้" ทั้งที่ `appointmentGranularity` ยังเป็นค่าเริ่มต้น `DAY` ของตัวเองอยู่ (ไม่ใช่บั๊ก — แค่หาปุ่มไม่เจอ)
+- **แก้:** ย้ายการ์ด `GranularitySetting` ไปวางท้ายสุดของ `queues/page.tsx` (ใต้ปฏิทิน + รายการทรัพยากร) — endpoint `PATCH /api/shops/current/appointment-settings` (API.md §4.0) ไม่เปลี่ยน, บันทึกทันทีที่เลือกเหมือนเดิม (คนละ endpoint จากฟอร์มอื่นในหน้า จึงไม่มีปุ่ม "บันทึก/ยกเลิก" ผูกกับมัน)
+- เพิ่มกล่องใบ้ (`bg-info/10`) ใน `AppointmentBlock.tsx` เมื่อ `granularity==='DAY'`: **"ร้านนี้รับนัดเป็นรายวัน จึงไม่ต้องกรอกเวลา — เปลี่ยนได้ที่เมนูคิวงาน (ท้ายหน้า)"** — กันไม่ให้ผู้ขายที่เจอฟอร์มไม่มีช่องเวลาสรุปว่า "ระบบทำไม่ได้" ซ้ำอีก
+
+### 3.10 แกนสถานะนัดในห้องแชท — `src/lib/chat-service-progress.ts` (เพิ่ม 2026-08-08)
+
+🛑 **หมายเหตุความเป็นเจ้าของ:** พื้นผิวที่ใช้ไฟล์นี้จริง (แถบสถานะออเดอร์ในห้องแชท `OrderProgressBar.tsx`, แกนคู่ขนาน `chat-order-progress.ts`, `appointment-stage.ts`) เป็นของ feature 00018 (Facebook Chat) / 00036 (Service Order Surface) ที่ยังไม่มี SDS ของตัวเองครบ — บันทึกไว้ที่นี่เพราะ input ทั้งหมดเป็นฟิลด์ที่ **00024 เป็นเจ้าของ** (`Order.serviceStart`/`serviceEnd`/`appointmentStatus`) เมื่อ 00018/00036 sync เอกสารตัวเองแล้ว ให้ cross-link กลับมาที่นี่
+
+**ที่มา (บั๊ก):** ก่อนหน้านี้ห้องแชทรู้จักแกนเดียวคือ "ของอยู่ไหน" (`chat-order-progress.ts` ของแกนขนส่ง) ร้าน `SERVICE_QUEUE` ที่ไม่เคยส่งของเลยจึงถูกตัดสินด้วยเกณฑ์เดียวกัน — ไม่ใช่แค่ป้ายผิด: `filterActiveOrders` ของแกนขนส่งตัดสิน "ยังเป็นงานค้างไหม" ด้วยเงื่อนไขเดียวกัน ออเดอร์บริการจึงไม่มีวันเป็น `DONE` เลย ค้างอยู่ในแถบสถานะตลอดกาลพร้อมป้าย "รอเลขพัสดุ"
+
+**`serviceProgressStage(order): 'SCHEDULED'|'CONFIRMED_BY_BUYER'|'RESCHEDULE_REQUESTED'|'PENDING'|'DONE'`**
+
+- `status==='CANCELLED'` → `DONE` เสมอ ไม่ว่านัดจะอยู่สถานะไหน
+- มี `serviceStart` (มีนัดผูก) → ใช้ `deriveAppointmentStage()` (จาก `appointment-stage.ts`, feature 00036) แล้วยุบ `COMPLETED`/`NO_SHOW` → `DONE`
+- ไม่มี `serviceStart` (**walk-in**) → `status==='CONFIRMED'` → `DONE`, อื่น ๆ → **`PENDING`** — 🛑 **ไม่ใช่ตกหาย** (BR-RSV-04 กำหนดว่า walk-in เดินเส้นทางออเดอร์ปกติทุกอย่าง จึงต้องยังเป็นงานค้างของรายการนี้ด้วย)
+- `COMPLETED`/`NO_SHOW`/`CANCELLED` = หลุดจากรายการงานค้างทันที — **ไม่มีช่วงค้างแสดง** แบบที่แกนขนส่งมี (`DELIVERED_VISIBLE_MS` เป็นกติกาของ `deriveOrderStage` คนละฟังก์ชัน ไม่เกี่ยวกับแกนนี้)
+
+**`filterActiveServiceOrders(orders)`** — คืนเฉพาะใบที่ยัง `!== 'DONE'` — ตัวที่แก้บั๊กจริง (คู่กับ `filterActiveOrders` เดิมของแกนขนส่ง)
+
+**`SERVICE_STAGE_CHIP_META`** — label/สี/ไอคอนต่อกอง **ไม่ตั้งคำ/สีใหม่แม้แต่ช่องเดียว**: ยกจาก `APPOINTMENT_STAGE_META` (00036) สำหรับ `SCHEDULED`/`CONFIRMED_BY_BUYER`/`RESCHEDULE_REQUESTED` และ `ORDER_STATUS_META.PENDING` สำหรับ walk-in (BR-SOV-03)
+
+**ผูกกับ `OrderProgressBar.tsx`:** prop ใหม่ `vertical: ShopVertical` — เมื่อ `'SERVICE_QUEUE'` สลับทั้งตัวกรอง(`active`)/ไอคอน/ป้าย/สี ไปใช้ชุดนี้แทนแกนขนส่ง แต่ละร้านมีแกนเสริมได้แกนเดียว จึงไม่มีทางชนกันบนจอเดียว การ์ดออเดอร์บริการในแถบนี้เป็น **อ่านอย่างเดียว** (ไม่มี `onClick` เปิดหน้าต่างใด ๆ) — `DraftKind` ของระบบมีแค่ `'ORDER' | 'SHIPMENT'` เท่านั้น ยังไม่มีชนิดสำหรับนัด (ดู Known Gap ใน BRD/PRD §11 ของ `docs/PRD.md`)
+
+🛑 **มัดจำในแถบนี้แสดงได้แค่ยอด ไม่ใช่สถานะจ่าย** — ข้อความ "มัดจำที่ตกลงไว้ ฿X" (ไม่ใช่ "มัดจำ" เฉย ๆ ซึ่งอ่านได้ทั้ง "เก็บแล้ว"/"ต้องเก็บ") **ห้ามเป็นสีเขียวและห้ามเป็นขั้นของ timeline** — ระบบไม่มีคอลัมน์ `depositReceivedAt` (BR-RSV-49/50 ตั้งใจไม่กั้นคิวด้วยมัดจำ) ถ้าทำเป็นขั้นที่ติ๊กถูกได้ จะเป็นป้ายที่อ้างสิ่งที่ระบบไม่รู้ (ดู Known Gap)
+
+🛑 **ต้อง sync select กับ `getOrdersByCustomer`:** ฟิลด์ทั้ง 4 ที่ป้อนแกนนี้ (`serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount`) ถูก select จาก **2 จุดที่ต้อง sync กันเสมอ**: `inbox/[conversationId]/page.tsx` (20 ใบแรก) และ `getOrdersByCustomer()` ใน `order.service.ts` (ใบที่ 21 ขึ้นไป, lazy-load) — ไม่ sync แล้วออเดอร์หน้าถัดไปจะกลายเป็น walk-in เงียบ ๆ (ดู §4.11 ของ API.md)
+
 ---
 
 ## 4. Data Flow
@@ -353,6 +464,37 @@ sequenceDiagram
     A-->>B: 200
 ```
 
+### 4.3 UI flow (client-side) — เลือกบริการ → ปฏิทินเปิดเอง → เลือกวัน+เวลา → ยืนยัน → ค่าเข้าฟอร์ม (เพิ่ม 2026-08-07/08)
+
+> เกิดขึ้น**ก่อน** §4.1 เสมอ — เป็นขั้นตอนฝั่ง client ล้วนที่ยังไม่มีการยิง `POST /api/orders` แม้แต่ครั้งเดียว
+> ค่าที่ผู้ใช้เห็น (`bookedCount`) เป็นแค่ display จนกว่าจะกด "บันทึกออเดอร์" ที่ปุ่มท้ายฟอร์ม ซึ่งเดินเข้า §4.1 ต่อ
+
+```mermaid
+sequenceDiagram
+    participant U as แอดมินร้าน
+    participant B as AppointmentBlock (การ์ดเลือกบริการ)
+    participant S as AppointmentDateSheet (ปฏิทินเต็มจอ)
+    participant API as GET /api/shops/current/appointments
+    participant F as react-hook-form (ค่าจริงของฟอร์ม)
+
+    U->>B: จิ้มการ์ดบริการ เช่น "หมอนวด A"
+    B->>B: setPickedForSheet(resource) + setDateSheetOpen(true)
+    B->>S: เปิดชีตทันทีในคลิกเดียวกัน พร้อม resourceId/capacity/durationMinutes/granularity
+    S->>API: โหลดนัดของเดือนที่แสดง (resourceId + from/to)
+    API-->>S: รายการนัด (orderToken/orderNo/start/end/appointmentStatus/buyerName)
+    U->>S: จิ้มวันในปฏิทิน (preview เท่านั้น — ยังไม่แตะฟอร์ม)
+    S-->>U: แสดงรายการนัดของวันนั้น + (โหมด TIME) ช่องเวลา + "จองแล้ว n จาก m คิว"
+    opt โหมด TIME
+        U->>S: กรอกเวลา หรือกดชิปทางลัด "ตั้งเวลาเริ่ม ต่อจากคิวก่อนหน้า"
+        S->>S: คำนวณ pendingSlotBookedCount สดจากรายการที่โหลดมาแล้ว (ไม่ยิง API ซ้ำ)
+    end
+    U->>S: กดปุ่มยืนยันท้ายชีต (disabled จนกว่า timeIssue จะว่าง)
+    S->>F: onConfirm({date, startTime?, endTime?, bookedCount})
+    F->>F: setValue('appointment.date'/'startTime'/'endTime') + setConfirmedBookedCount(bookedCount)
+    S->>B: onClose()
+    Note over F: ยังไม่มีการตรวจจริง — EXCLUDE constraint ตอน POST /api/orders (§4.1) เป็นตัวตัดสินสุดท้าย
+```
+
 ---
 
 ## 5. Integration Points
@@ -365,6 +507,7 @@ sequenceDiagram
 | feature 00014 | `Order.customerId` → นับประวัติการนัดต่อลูกค้า | scope `shopId` เสมอ |
 | Deep Chat | ส่งข้อความแจ้งเตือน | ห้ามให้ความล้มเหลวของแชททำให้ธุรกรรมนัดล้มเหลว |
 | `SellerWallet` | **ไม่เชื่อมเลย** | ห้ามเรียก `sendSms` (TFR-011) |
+| Deep Chat — `OrderProgressBar.tsx` (feature 00018/00036, เพิ่ม 2026-08-08) | อ่าน `serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount` ผ่าน `chat-service-progress.ts` (§3.10) เพื่อไล่แกน "นัดถึงขั้นไหน" ในห้องแชท | select ของ `getOrdersByCustomer` และ `inbox/[conversationId]/page.tsx` ต้อง sync ฟิลด์ชุดนี้เสมอ (ดู API.md §4.11) |
 
 ---
 
@@ -381,6 +524,7 @@ sequenceDiagram
 | D-07 | สร้างออเดอร์กับจัดที่นั่งพร้อมกันไหม | INSERT ครั้งเดียว / **INSERT แล้ว UPDATE** | **สองขั้น** | retry ที่นั่งได้สะอาดโดยไม่ต้องสร้างออเดอร์ใหม่ทั้งใบ |
 | D-08 | บังคับ `type = SERVICE` ที่ DB ไหม | CHECK / **service layer** | **service layer** | ทางเข้าเดียวคือ service เดียวกันอยู่แล้ว การล็อกที่ DB ทำให้แก้ยากโดยไม่ได้ประโยชน์เพิ่ม |
 | D-09 | แจ้งเตือนช่องทางไหน | SMS / **แชทภายใน** | **แชทภายใน** | SMS มีต้นทุน ฿1/ครั้งจากเครดิตร้าน — ต้นทุนแฝงที่ร้านไม่ได้สั่ง |
+| D-10 (2026-08-08) | เลือกวันกับเวลาแยกจอกันไหม | ช่อง `<input type="time">` แยกอยู่นอกปฏิทิน (draft แรก) / **รวมเข้าปฏิทินเดียวกัน** | **รวม** — `AppointmentDateSheet` เดียวคุมทั้งวันและเวลา | user สั่งตรง 2026-08-08 ("อยากให้อยู่ตอนที่เลือกวันเลย… UX ใช้งานยากมาก") — ข้อมูลที่ใช้ตัดสินว่าจะนัดกี่โมง (คิวที่มีอยู่แล้วของวันนั้น) อยู่ในชีตนี้อยู่แล้ว แยกจอเพิ่มรอบตัดสินใจโดยไม่จำเป็น |
 
 ---
 
@@ -392,7 +536,7 @@ sequenceDiagram
 | TFR-002 | `allocateSeat()` §3.2 |
 | TFR-003 | Valibot schema ใน `validations.ts` |
 | TFR-004 | `isExclusionViolation()` + `AppointmentSlotFullError` |
-| TFR-005 | `getResourceAvailability()` |
+| TFR-005 | `getResourceAvailability()` (endpoint ยังอยู่ — ไม่มี UI เรียกแล้วตั้งแต่ 2026-08-08 ดู §3.7) |
 | TFR-006 | `setAppointmentOutcome()` + `TERMINAL_STATUSES` |
 | TFR-007 | `rescheduleAppointment()` §3.3 |
 | TFR-008 | ownership ใน `WHERE` ทุก query |
@@ -400,6 +544,9 @@ sequenceDiagram
 | TFR-010 | mask ที่ server boundary ใน `listAppointments()` |
 | TFR-011 | ไม่มีการเรียก `sendSms` เลย |
 | TFR-012 | `formatDate*` ตาม surface |
+| TFR-013 (เพิ่ม 2026-08-08) | `AppointmentDateSheet.isFull()` (โหมด DAY) vs `pendingSlotBookedCount` (โหมด TIME) §3.7 |
+| TFR-014 (เพิ่ม 2026-08-08) | `chat-service-progress.ts` §3.10 |
+| TFR-015 (เพิ่ม 2026-08-08) | บรรทัดมัดจำใน `OrderProgressBar.tsx` §3.10 |
 
 ---
 
