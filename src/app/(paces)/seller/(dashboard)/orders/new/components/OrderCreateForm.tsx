@@ -49,6 +49,9 @@ export interface CatalogProduct {
   sku?: string | null
   /** Product.stockQty — NULL = untracked (ไม่โชว์สต็อก), number = tracked (โชว์เมื่อ inventoryEnabled) */
   stockQty?: number | null
+  /** Product.cost — null = ยังไม่เคยตั้งต้นทุน (ต่างจาก 0 ที่แปลว่าไม่มีต้นทุนจริง)
+   *  ใช้ prefill ช่องต้นทุนในบิล + ตัดสินคำบนลิงก์ "ยังไม่ตั้งต้นทุน" (FR-EXP-17) */
+  cost?: number | null
 }
 
 interface Props {
@@ -132,7 +135,7 @@ export interface ItemsController {
 export interface FormValues {
   buyerName: string
   buyerContact?: string
-  items: { productId?: string; name: string; description?: string; qty: number; price: number }[]
+  items: { productId?: string; name: string; description?: string; qty: number; price: number; cost?: number | null }[]
   salesChannel?: string        // STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER
   paymentMethod?: string       // CASH|TRANSFER|PROMPTPAY|CARD|COD|OTHER
   internalNote?: string
@@ -367,12 +370,13 @@ export default function OrderCreateForm({
         reset({
           buyerName: o.buyerName ?? '',
           buyerContact: o.buyerContact ?? '',
-          items: (o.items ?? []).map((it: { productId: string | null; name: string; description: string | null; qty: number; price: number }) => ({
+          items: (o.items ?? []).map((it: { productId: string | null; name: string; description: string | null; qty: number; price: number; cost?: number | null }) => ({
             productId: it.productId ?? undefined,
             name: it.name,
             description: it.description ?? '',
             qty: it.qty,
             price: it.price,
+            cost: it.cost ?? null,
           })),
           salesChannel: o.salesChannel ?? 'STOREFRONT',
           paymentMethod: o.paymentMethod ?? 'CASH',
@@ -489,6 +493,9 @@ export default function OrderCreateForm({
       name: product.name,
       description: product.description ?? '',
       price: Number(product.price),
+      // prefill เงียบเหมือน price — ไม่มีป้ายบอกที่มา เพราะถ้าใส่ให้ cost แต่ไม่มีให้ price
+      // จะกลายเป็นความไม่สอดคล้องที่อธิบายไม่ได้ (ux Design Spec)
+      cost: product.cost ?? null,
     })
 
   const setLineCustom = (index: number, name: string) =>
@@ -723,6 +730,9 @@ export default function OrderCreateForm({
         ...(item.description ? { description: item.description } : {}),
         qty: item.qty,
         price: item.price,
+        // ส่ง key เฉพาะตอนกรอกจริง — ไม่กรอก = ไม่ส่ง = fallback ไป Product.cost (FR-EXP-17-AC-01)
+        // ห้ามส่ง null/0 แทนค่าว่าง (0 คือ "ต้นทุนศูนย์บาทจริง" คนละความหมาย)
+        ...(item.cost != null ? { cost: item.cost } : {}),
       })),
       ...(buyerContact ? { buyerContact } : {}),
       ...(buyerName ? { buyerName } : {}),

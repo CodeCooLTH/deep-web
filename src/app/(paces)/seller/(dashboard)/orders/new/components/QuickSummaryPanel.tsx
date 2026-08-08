@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react'
+import { countCostCoverage } from './LineCostField'
 import { useWatch } from 'react-hook-form'
 import type { Control } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
@@ -29,6 +30,8 @@ interface Props {
 }
 
 export default function QuickSummaryPanel({ control, subtotal, total, formId, compact = false, orderNoun = 'คำสั่งซื้อ' }: Props) {
+  const watchedItems = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
+  const costCoverage = countCostCoverage(watchedItems)
   const [expanded, setExpanded] = useState(false)
   const discount = (useWatch({ control, name: 'discount' }) as number | undefined) ?? 0
   const vatRate = (useWatch({ control, name: 'vatRate' }) as number | undefined) ?? 0
@@ -63,6 +66,15 @@ export default function QuickSummaryPanel({ control, subtotal, total, formId, co
             <span>ยอดรวมรายการ</span>
             <span className="tabular-nums">{formatThb(subtotal)}</span>
           </div>
+          {/* อยู่ในบล็อกที่ผู้ใช้กดกางเองเท่านั้น — ไม่รบกวน flow ปิดบิลเร็ว */}
+          {costCoverage.total > 0 && (
+            <div className="flex justify-between text-default-400">
+              <span>ตั้งต้นทุนแล้ว</span>
+              <span className="tabular-nums">
+                {costCoverage.withCost}/{costCoverage.total} รายการ
+              </span>
+            </div>
+          )}
           <div className="flex justify-between text-default-500">
             <span>ส่วนลด</span>
             <span className="tabular-nums">-{formatThb(discount)}</span>

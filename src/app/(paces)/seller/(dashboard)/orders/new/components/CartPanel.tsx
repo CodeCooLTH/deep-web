@@ -15,6 +15,7 @@
  */
 
 import { useMemo, useState, useEffect } from 'react'
+import { countCostCoverage } from './LineCostField'
 import type { ReactNode } from 'react'
 import { useController, useWatch } from 'react-hook-form'
 // feature 00024 — SSOT ของการ format วันที่ (พ.ศ. + ชื่อวัน) ห้าม format เองที่ component
@@ -171,6 +172,7 @@ export default function CartPanel({
   )
 
   // ── Summary math (LOCKED — copy จาก OrderSummaryPanel) ──
+  const costCoverage = countCostCoverage(items)
   const subtotal = useMemo(
     () => items.reduce((s, i) => s + (Number(i?.qty) || 0) * (Number(i?.price) || 0), 0),
     [items],
@@ -544,6 +546,12 @@ export default function CartPanel({
           <span className="text-default-600">ยอดรวมรายการ</span>
           <span className="font-medium text-default-700">{formatThb(subtotal)}</span>
         </div>
+        {/* ความคืบหน้าของต้นทุน — ตัวนับ ไม่ใช่ตัวเลขเงิน (ดู countCostCoverage) */}
+        {costCoverage.total > 0 && (
+          <p className="text-default-400 text-xs tabular-nums">
+            ตั้งต้นทุนแล้ว {costCoverage.withCost}/{costCoverage.total} รายการ
+          </p>
+        )}
         <div className="flex items-center justify-between gap-2 text-sm">
           <span className="text-default-600">ส่วนลด</span>
           <div className="input-group w-28">
