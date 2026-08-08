@@ -44,8 +44,11 @@ serverless เดิมของระบบ SafePay/Deep ผู้บริโ�
 | **Token / Scope** | session ต้องมี `activeShopId`; ทุก endpoint เรียก `canAccessShop(shopId, session.user.id)` เป็น defense-in-depth ชั้นสอง (owner หรือ `ShopMember.role IN ('OWNER','ADMIN')`) |
 | **กรณีไม่ผ่าน** | ไม่มี session → 401 `UNAUTHORIZED`; มี session แต่เข้าถึงร้าน/เพจนี้ไม่ได้ → 403 `FORBIDDEN` |
 
-> 🛑 **`ShopChannel.accessTokenEnc` ห้ามหลุดออกไปหา client ไม่ว่ากรณีใด** — ทุก query ของทั้ง 3
-> endpoint ต้อง `select` ระบุคอลัมน์ ห้ามคืนทั้งแถวของ `ShopChannel`
+> 🛑 **`ShopChannel.accessTokenEnc` ห้ามหลุดออกไปหา client ไม่ว่ากรณีใด** — ทุก query ที่แตะ
+> `ShopChannel` (endpoint ทั้ง 3 + RSC ของหน้าตั้งค่า) ต้อง `select` ระบุคอลัมน์ ห้ามคืนทั้งแถว
+> **ไม่มี `GET /api/shops/comment-reply/config`** — หน้าตั้งค่า (`settings/comment-reply/page.tsx`)
+> อ่านค่าตั้งต้นผ่าน RSC + prisma ตรงตาม convention ของหน้านี้ (ไม่ self-fetch API ของตัวเอง)
+> จึงถอด handler GET ออก (YAGNI, Task 11) — allow-list คอลัมน์เดียวกันยังบังคับใช้ที่ RSC query
 > CSRF/rate-limit: PATCH/POST ทั้งสอง endpoint (config PATCH, private-reply POST) อยู่ใต้
 > `guardApi` (`src/proxy.ts`) เดิมของระบบโดยอัตโนมัติ (ไม่ต้องเพิ่ม config ใหม่ — ดู `docs/SRS.md`
 > §7 หมายเหตุ CSRF/Rate-limit)
@@ -56,66 +59,16 @@ serverless เดิมของระบบ SafePay/Deep ผู้บริโ�
 
 | Method | Path | คำอธิบาย |
 |--------|------|----------|
-| `GET` | `/api/shops/comment-reply/config` | อ่านค่าตั้งค่าการตอบกลับคอมเมนต์ทุกเพจของ active shop |
 | `PATCH` | `/api/shops/comment-reply/config` | บันทึกสวิตช์/ข้อความของเพจเดียว |
 | `GET` | `/api/shops/comment-reply/logs` | ประวัติการตอบ/ข้าม แบ่งหน้า |
 | `POST` | `/api/chat/comments/[commentId]/private-reply` | ปุ่มแมนนวล — ส่งข้อความส่วนตัวถึงคอมเมนต์ 1 อัน |
 
+> ค่าตั้งต้นของสวิตช์+ข้อความทุกเพจ (สิ่งที่ `GET` เดิมเคยคืน) อ่านผ่าน RSC + prisma ตรงที่
+> `settings/comment-reply/page.tsx` ไม่ใช่ endpoint นี้ — ดูหมายเหตุด้านบน
+
 ---
 
 ## 4. Endpoint Detail
-
-### 4.1 `GET /api/shops/comment-reply/config`
-
-คืนรายการ config ของทุก `ShopChannel` (`provider='MESSENGER'`, `status != 'DISCONNECTED'`) ของ
-active shop เรียงตามลำดับเดียวกับหน้าจัดการช่องทาง (`connectedAt`) — ใช้ render การ์ดหนึ่งใบต่อเพจ
-
-**Request**
-
-| ส่วน | ฟิลด์ | ชนิด | บังคับ | คำอธิบาย |
-|------|-------|------|--------|----------|
-| — | — | — | — | ไม่มี parameter — shop derive จาก session เสมอ |
-
-**Response — Success (200)**
-
-| ฟิลด์ | ชนิด | คำอธิบาย |
-|-------|------|----------|
-| `channels` | `array` | รายการ config ต่อเพจ |
-| `channels[].shopChannelId` | `string` (uuid) | id ของ `ShopChannel` |
-| `channels[].name` | `string` | ชื่อเพจ |
-| `channels[].avatarUrl` | `string \| null` | รูปเพจ |
-| `channels[].provider` | `string` | `"MESSENGER"` เสมอในรอบนี้ |
-| `channels[].status` | `string` | `"ACTIVE"` \| `"TOKEN_INVALID"` |
-| `channels[].commentPublicReplyEnabled` | `boolean` | สวิตช์ A |
-| `channels[].commentPublicReplyText` | `string \| null` | ข้อความสวิตช์ A |
-| `channels[].commentPrivateReplyEnabled` | `boolean` | สวิตช์ B |
-| `channels[].commentPrivateReplyText` | `string \| null` | ข้อความสวิตช์ B |
-
-**Response — Error**
-
-- 401 `UNAUTHORIZED` — ไม่มี session
-- 403 `FORBIDDEN` — session มีแต่ไม่ใช่สมาชิกร้าน active
-
-**ตัวอย่าง JSON**
-
-```json
-// Response 200
-{
-  "channels": [
-    {
-      "shopChannelId": "8f0b6e2a-...",
-      "name": "ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง",
-      "avatarUrl": "https://graph.facebook.com/.../picture",
-      "provider": "MESSENGER",
-      "status": "ACTIVE",
-      "commentPublicReplyEnabled": true,
-      "commentPublicReplyText": "ขอบคุณที่สนใจครับ ทักแชทมาได้เลย เดี๋ยวแอดมินเช็กรุ่นให้ครับ",
-      "commentPrivateReplyEnabled": true,
-      "commentPrivateReplyText": "สวัสดีครับ พอดีเห็นคอมเมนต์ในโพสต์ รบกวนแจ้งรุ่นรถกับปีได้เลยครับ"
-    }
-  ]
-}
-```
 
 ### 4.2 `PATCH /api/shops/comment-reply/config`
 
