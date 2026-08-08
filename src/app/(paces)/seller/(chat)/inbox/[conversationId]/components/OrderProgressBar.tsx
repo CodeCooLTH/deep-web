@@ -206,9 +206,15 @@ export default function OrderProgressBar({
                         </div>
                       ) : (
                         /* walk-in — ไม่มีนัดผูก (BR-RSV-04 เดินเส้นทางปกติทุกอย่าง)
-                           เลี่ยงคำว่า "รอ…" เพราะไม่มีอะไรกำลังจะมาถึง มันแค่ไม่มีนัด */
+                           เลี่ยงคำว่า "รอ…" เพราะไม่มีอะไรกำลังจะมาถึง มันแค่ไม่มีนัด
+
+                           "สร้างเมื่อ" ไม่ใช่ "สั่งซื้อเมื่อ" — สาขานี้เป็นของร้าน SERVICE_QUEUE
+                           เท่านั้น และ ORDER_VOCAB.SERVICE_QUEUE.dateLabel ตัดสินไปแล้วว่าคอลัมน์
+                           createdAt ของร้านประเภทนี้เรียกว่า "วันที่สร้าง" (ร้านคิวงานเปิดบิลตอน
+                           ลูกค้ามาถึงหน้าร้าน ไม่มีการ "สั่งซื้อ" มาก่อน) — คำนี้คือสิ่งที่ user
+                           ทักมาตรง ๆ ในคอมมิตนี้ว่าร้านบริการไม่ควรถูกพูดด้วยภาษาการซื้อของ */
                         <p className="text-default-700 mb-0 mt-1 text-2xs">
-                          ไม่มีนัด — สั่งซื้อเมื่อ {formatDateTime(new Date(o.createdAt))}
+                          ไม่มีนัด — สร้างเมื่อ {formatDateTime(new Date(o.createdAt))}
                         </p>
                       )}
                     </>
@@ -271,6 +277,10 @@ export default function OrderProgressBar({
           <button
             type="button"
             onClick={() => setOpen(false)}
+            /* aria-expanded: แถบนี้เป็น disclosure (ยุบ/กาง) แต่เดิมไม่เคยประกาศสถานะเลย
+               ผู้ใช้ screen reader จึงได้ยินแค่ "ปุ่ม ย่อสถานะออเดอร์" โดยไม่รู้ว่าตอนนี้
+               กางอยู่หรือยุบอยู่ และกดแล้วจะได้อะไร (WCAG 4.1.2 Name, Role, Value) */
+            aria-expanded={open}
             className="text-default-700 hover:text-default-700 flex items-center gap-1 text-xs font-medium"
           >
             <Icon icon="chevron-up" className="text-sm" />
@@ -306,6 +316,9 @@ export default function OrderProgressBar({
                   : 'ดูรายละเอียดสถานะออเดอร์'
             }
             title="ดูรายละเอียด"
+            /* คู่กับปุ่ม "ย่อ…" ในสาขากางข้างบน — ปุ่มเดียวกันในเชิงหน้าที่ ต้องประกาศสถานะ
+               เหมือนกัน (WCAG 4.1.2) */
+            aria-expanded={open}
             className="hover:bg-card/50 -m-1 flex shrink-0 items-center rounded p-1"
           >
             <Icon icon="chevron-down" className="text-base" />

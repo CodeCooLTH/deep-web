@@ -240,7 +240,13 @@ export default function AppointmentBlock({
                         // (user สั่ง: "เมื่อจิ้มแล้ว ก็ให้ auto open modal ปฏิทินเลย")
                         setDateSheetOpen(true)
                       }}
-                      className={`overflow-hidden rounded-xl border text-left transition-transform duration-150 active:scale-95 ${
+                      /* motion-reduce: กฎ blanket ใน safepay-overrides.css ย่นเวลา transition
+                         เหลือ 0.12s แต่ **ไม่ได้ยกเลิกการย่อ-ขยายตัวการ์ด** — ผู้ใช้ที่เปิด
+                         "ลดการเคลื่อนไหว" จึงยังเจอการ์ดกระตุกเข้า-ออกทุกครั้งที่แตะ เพียงแต่เร็วขึ้น
+                         ซึ่งอ่านเป็นการกระพริบมากกว่าการตอบสนอง. ปิดทั้งการย่อและ transition
+                         เฉพาะโหมดนี้ — สถานะ "เลือกอยู่" ไม่หายไปด้วยเพราะมันสื่อด้วย
+                         ring/border/พื้นสี ไม่ได้พึ่งการเคลื่อนไหวเลย (PRODUCT.md: prefers-reduced-motion) */
+                      className={`overflow-hidden rounded-xl border text-left transition-transform duration-150 active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100 ${
                         single ? 'flex items-center gap-3 p-2.5' : 'flex flex-col'
                       } ${
                         active
@@ -322,8 +328,10 @@ export default function AppointmentBlock({
               {/* โหมดระบุเวลาแต่ยังกรอกไม่ครบ → บันทึกออเดอร์ไม่ผ่าน (OrderCreateForm ตรวจอยู่แล้ว)
                   บอกตรงนี้ก่อน ดีกว่าปล่อยให้ไปเจอตอนกดบันทึกทั้งฟอร์มซึ่งคนละจังหวะกัน */}
               {!byDay && value.date && !(value.startTime && value.endTime) && (
+                /* ต้องบอกว่า "แตะอะไร" — บรรทัดนี้อยู่ใต้ปุ่ม ผู้อ่านที่กวาดตาลงมาจะไม่รู้ว่า
+                   สิ่งที่ให้แตะคือปุ่มที่เพิ่งผ่านตาไป ไม่ใช่ตัวข้อความนี้เอง */
                 <p className="text-default-500 mt-1 mb-0 text-sm">
-                  แตะเพื่อเลือกเวลาเริ่มและเวลาสิ้นสุด
+                  แตะปุ่มด้านบนเพื่อเลือกเวลาเริ่มและเวลาสิ้นสุด
                 </p>
               )}
             </div>
@@ -336,8 +344,14 @@ export default function AppointmentBlock({
             {byDay && (
               <div className="bg-info/10 text-info-ink flex items-start gap-2 rounded-lg px-3 py-2 text-xs">
                 <Icon icon="info-circle" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                {/* "หน้า คิวงาน" มีวรรคคั่นกลางชื่อเมนู อ่านสะดุดและดูเหมือนพิมพ์ตก — ชื่อเมนู
+                    ในแถบข้างคือ "คิวงาน" คำเดียว จึงเขียนติดกันเป็น "เมนูคิวงาน"
+                    + บอกด้วยว่าอยู่ตรงไหนของหน้า (การ์ดนี้ถูกวางไว้ท้ายสุดของ /queues โดยตั้งใจ)
+                    ไม่งั้นผู้ขายเข้าไปแล้วเห็นปฏิทินเต็มหน้าจอ แล้วสรุปว่าไม่มีที่ให้ตั้ง
+                    + "ไม่ถามเวลา" เปลี่ยนเป็น "ไม่ต้องกรอกเวลา" — พูดจากฝั่งงานของผู้ขาย
+                    ไม่ใช่จากฝั่งระบบที่เป็นคนถาม */}
                 <span>
-                  ร้านนี้ตั้งรับนัดเป็นรายวัน จึงไม่ถามเวลาเริ่ม-สิ้นสุด — เปลี่ยนได้ที่หน้า คิวงาน
+                  ร้านนี้รับนัดเป็นรายวัน จึงไม่ต้องกรอกเวลา — เปลี่ยนได้ที่เมนูคิวงาน (ท้ายหน้า)
                 </span>
               </div>
             )}

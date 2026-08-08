@@ -16,7 +16,7 @@
  *   EXCLUDE constraint ตอนบันทึก (BR-RSV-18) — ระหว่างที่แผงเปิดค้าง อีกเครื่องจองแทรกได้เสมอ
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
@@ -121,6 +121,34 @@ export default function RescheduleAppointmentSheet({
     [resources, pickedResourceId],
   )
 
+  /**
+   * Escape ปิดแผง + ย้ายโฟกัสเข้ามาตอนเปิด — ยกมาจาก AppointmentDateSheet.tsx (ชีตที่แผงนี้
+   * ประกาศตัวเองว่า Base มาจากมัน) ซึ่งได้ทั้งคู่ไปตั้งแต่ impeccable critique รอบก่อน
+   * ส่วนแผงนี้ตกสำรวจ ทั้งที่ประกาศ `aria-modal="true"` เหมือนกันเป๊ะ — และนั่นคือส่วนที่
+   * อันตราย: aria-modal สั่งให้ screen reader ตัดทุกอย่างนอกแผงทิ้ง ถ้าไม่ย้ายโฟกัสเข้ามา
+   * ผู้ใช้ AT จะเหลือโฟกัสค้างอยู่ในบริเวณที่เพิ่งถูกซ่อนไป และไม่มีทางออกที่เป็นมาตรฐาน
+   * (WCAG 2.1.2 No Keyboard Trap / 2.4.3 Focus Order)
+   */
+  const closeBtnRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => closeBtnRef.current?.focus(), 60)
+    return () => clearTimeout(t)
+  }, [open])
+  useEffect(() => {
+    /**
+     * ห้ามฟัง Escape ตอนปฏิทินซ้อนอยู่ข้างบน — ชีตนั้นมี handler ของตัวเองที่ document
+     * เหมือนกัน กด Escape ครั้งเดียวจะปิด **ทั้งสองชั้นพร้อมกัน** แล้วสิ่งที่ผู้ขายกรอกค้าง
+     * ในแผงเลื่อนนัดหายไปทั้งที่เขาแค่ตั้งใจปิดปฏิทิน (Escape เป็นของ dialog ที่อยู่บนสุดเสมอ)
+     */
+    if (!open || dateSheetOpen) return
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onEsc)
+    return () => document.removeEventListener('keydown', onEsc)
+  }, [open, dateSheetOpen, onClose])
+
   /* auto-fill เวลาสิ้นสุดจากความยาวมาตรฐานของคิวงาน ย้ายไปอยู่ใน AppointmentDateSheet แล้ว
      (ส่งผ่าน prop resourceDurationMinutes) — เดิมตรรกะเดียวกันนี้ถูกเขียนไว้ 2 ที่
      คือที่นี่กับ AppointmentBlock ซึ่งเป็นคู่ที่พร้อมจะเพี้ยนจากกัน (HR16) */
@@ -216,11 +244,14 @@ export default function RescheduleAppointmentSheet({
         aria-label="เลื่อนนัด"
       >
         <div className="border-default-200 flex shrink-0 items-center gap-3 border-b px-4 py-3">
+          {/* min-h-11/min-w-11: `.btn.btn-icon` ของธีม = size-9.25 = 37px ต่ำกว่าเกณฑ์ 44px
+              ที่ PRODUCT.md ประกาศ (WCAG 2.5.5) — ปุ่มปิดของชีตพี่น้องแก้ไปแล้ว ตัวนี้ตกสำรวจ */}
           <button
+            ref={closeBtnRef}
             type="button"
             onClick={onClose}
             aria-label="ย้อนกลับ"
-            className="btn btn-icon text-default-800 hover:bg-default-100 shrink-0"
+            className="btn btn-icon text-default-800 hover:bg-default-100 min-h-11 min-w-11 shrink-0"
           >
             <Icon icon="chevron-left" className="size-6" />
           </button>
@@ -268,7 +299,10 @@ export default function RescheduleAppointmentSheet({
                       type="button"
                       aria-pressed={active}
                       onClick={() => setPickedResourceId(r.id)}
-                      className={`flex flex-col overflow-hidden rounded-xl border text-left transition-transform duration-150 active:scale-95 ${
+                      /* motion-reduce: กฎ blanket ใน safepay-overrides.css ย่นเวลา transition
+                         เหลือ 0.12s แต่ไม่ได้ยกเลิกการย่อ-ขยายเอง — ต้องปิดที่ตัวการ์ดเอง
+                         (คู่เดียวกับ AppointmentBlock ซึ่งการ์ดใบนี้ copy มา) */
+                      className={`flex flex-col overflow-hidden rounded-xl border text-left transition-transform duration-150 active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100 ${
                         active
                           ? 'border-primary ring-primary bg-primary/5 ring-2'
                           : 'border-default-200 hover:border-default-300'
@@ -300,7 +334,10 @@ export default function RescheduleAppointmentSheet({
                 → ปิดปฏิทิน → แล้วค่อยกรอกเวลาโดยไม่เห็นคิวของวันนั้นอีกแล้ว
                 หน้าเลื่อนนัดกับหน้าสร้างออเดอร์ต้องทำงานเหมือนกัน (sibling-surface-parity) */}
             <div className="mt-4">
-              <p className="form-label mb-2">วันและเวลาที่นัด</p>
+              {/* นัดทั้งวันไม่มีเวลาให้เลือกเลย (ปฏิทินซ่อนส่วนเลือกเวลาเมื่อ granularity='DAY')
+                  ป้ายที่สัญญาว่าจะได้เลือก "เวลา" ด้วย จึงผิดกับสิ่งที่เกิดขึ้นจริงเมื่อ allDay
+                  — ผันตามนัดใบนี้เหมือนที่ปุ่มด้านล่างทำอยู่แล้ว (BR-RSV-57) */}
+              <p className="form-label mb-2">{allDay ? 'วันที่นัด' : 'วันและเวลาที่นัด'}</p>
               <button
                 type="button"
                 onClick={() => setDateSheetOpen(true)}
@@ -314,15 +351,19 @@ export default function RescheduleAppointmentSheet({
                       : startTime && endTime
                         ? `${formatDateTH(`${date}T00:00`)} · ${startTime}–${endTime}`
                         : formatDateTH(`${date}T00:00`)
-                    : 'เลือกวันและเวลา'}
+                    : allDay
+                      ? 'เลือกวันนัด'
+                      : 'เลือกวันและเวลา'}
                 </span>
                 <Icon icon="calendar-event" className="text-base" aria-hidden="true" />
               </button>
               {/* นัดแบบระบุเวลาที่ยังกรอกไม่ครบ = กดบันทึกไม่ได้ (canSubmit) ต้องบอกว่าทำไม
                   ไม่ใช่ปล่อยให้ปุ่มบันทึกเทาแล้วเดาเอง */}
               {!allDay && date && !(startTime && endTime) && (
+                /* คำเดียวกับฟอร์มสร้างออเดอร์ (AppointmentBlock) — ต้องบอกว่าให้แตะ "ปุ่มด้านบน"
+                   ไม่ใช่ตัวข้อความนี้ (sibling-surface-parity) */
                 <p className="text-default-500 mt-1 mb-0 text-sm">
-                  แตะเพื่อเลือกเวลาเริ่มและเวลาสิ้นสุด
+                  แตะปุ่มด้านบนเพื่อเลือกเวลาเริ่มและเวลาสิ้นสุด
                 </p>
               )}
             </div>
@@ -349,6 +390,10 @@ export default function RescheduleAppointmentSheet({
             type="button"
             onClick={submit}
             disabled={!canSubmit}
+            /* aria-busy: ระหว่างบันทึก ปุ่มเปลี่ยนแค่ "มีสปินเนอร์โผล่มา" ซึ่งเป็นสัญญาณที่
+               มองเห็นอย่างเดียว — ผู้ใช้ screen reader ไม่มีทางรู้ว่ากดติดแล้วหรือยัง
+               ป้ายบนปุ่มยังเขียนว่า "ยืนยันเลื่อนนัด" เหมือนเดิมทุกประการ (WCAG 4.1.3) */
+            aria-busy={saving}
             className="btn bg-primary hover:bg-primary-hover mx-auto min-h-11 w-full max-w-xl justify-center text-white disabled:opacity-60"
           >
             {saving && <Icon icon="mdi:loading" className="animate-spin text-sm" aria-hidden="true" />}
