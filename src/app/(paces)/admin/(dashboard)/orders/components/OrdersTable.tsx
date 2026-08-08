@@ -105,8 +105,8 @@ const OrdersTable = ({ orders, activeStatus }: Props) => {
           const o = row.original
           return (
             <div className="min-w-0">
-              {/* HR7: max-w-[14rem] — คุมความยาวชื่อร้านในคอลัมน์ตาราง กันชื่อยาวดันคอลัมน์อื่น; Paces ไม่มี token max-width ระดับคอลัมน์ */}
-              <div className="text-sm font-medium truncate max-w-[14rem]">
+              {/* HR7: max-w-56 — คุมความยาวชื่อร้านในคอลัมน์ตาราง กันชื่อยาวดันคอลัมน์อื่น; Paces ไม่มี token max-width ระดับคอลัมน์ */}
+              <div className="text-sm font-medium truncate max-w-56">
                 {o.shopName}
               </div>
               {o.sellerUsername && (
@@ -131,8 +131,8 @@ const OrdersTable = ({ orders, activeStatus }: Props) => {
           if (o.buyerDisplayName) {
             return (
               <div className="min-w-0">
-                {/* HR7: max-w-[12rem] — คุมความยาวชื่อผู้ซื้อในคอลัมน์ตาราง (แคบกว่าคอลัมน์ร้านเพราะพื้นที่จำกัดกว่า); Paces ไม่มี token max-width ระดับคอลัมน์ */}
-                <div className="text-sm font-medium truncate max-w-[12rem]">
+                {/* HR7: max-w-48 — คุมความยาวชื่อผู้ซื้อในคอลัมน์ตาราง (แคบกว่าคอลัมน์ร้านเพราะพื้นที่จำกัดกว่า); Paces ไม่มี token max-width ระดับคอลัมน์ */}
+                <div className="text-sm font-medium truncate max-w-48">
                   {o.buyerDisplayName}
                 </div>
                 {o.buyerUsername && (
@@ -162,8 +162,8 @@ const OrdersTable = ({ orders, activeStatus }: Props) => {
             return <span className="text-default-400">—</span>
           }
           return (
-            // HR7: max-w-[16rem] — คุมความยาวชื่อสินค้าในคอลัมน์ตาราง (กว้างสุดใน 3 คอลัมน์เพราะชื่อสินค้ามักยาว); Paces ไม่มี token max-width ระดับคอลัมน์
-            <div className="min-w-0 max-w-[16rem]">
+            // HR7: max-w-64 — คุมความยาวชื่อสินค้าในคอลัมน์ตาราง (กว้างสุดใน 3 คอลัมน์เพราะชื่อสินค้ามักยาว); Paces ไม่มี token max-width ระดับคอลัมน์
+            <div className="min-w-0 max-w-64">
               <div className="text-sm truncate">{o.firstItemName}</div>
               {o.extraItemCount > 0 && (
                 <div className="text-default-400 text-xs">
@@ -346,7 +346,12 @@ const OrdersTable = ({ orders, activeStatus }: Props) => {
                 onClick={() => handleStatusTab(tab.value)}
                 className={cn(
                   'relative inline-flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap',
-                  'border-b-2 transition-colors focus:outline-none',
+                  // ring-inset ไม่ใช่ ring ธรรมดา — แท็บเป็นสี่เหลี่ยมในแถว overflow-x-auto
+                  // (การตั้ง overflow-x ทำให้ overflow-y กลายเป็น auto ตามสเปก CSS) วงแหวนที่
+                  // ยื่นออกนอกกล่องเสี่ยงโดนตัดขอบบน/ล่าง — inset การันตีว่าอยู่ในกล่องตัวเองเสมอ
+                  // ไม่เปลี่ยนสีเส้นใต้แทน เพราะจะชนกับสถานะ active ที่เป็น border-primary อยู่แล้ว
+                  'border-b-2 transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
                   active
                     ? 'text-primary border-primary'
                     : 'text-default-500 border-transparent hover:text-primary hover:border-default-400',
@@ -361,7 +366,7 @@ const OrdersTable = ({ orders, activeStatus }: Props) => {
                 <span>{tab.label}</span>
                 <span
                   className={cn(
-                    'inline-flex items-center justify-center rounded-full text-xs font-semibold leading-none px-2 py-0.5 min-w-[1.25rem]',
+                    'inline-flex items-center justify-center rounded-full text-xs font-semibold leading-none px-2 py-0.5 min-w-5',
                     active
                       ? 'bg-primary text-white'
                       : 'bg-default-100 text-default-700',

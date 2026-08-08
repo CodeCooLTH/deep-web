@@ -311,7 +311,12 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
                     onClick={() => setActiveChip(active ? 'all' : chip.key)}
                     aria-pressed={active}
                     className={cn(
-                      'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
+                      // focus-visible:ring แทน focus:outline-none ลอย ๆ — ธีมไม่มี `.badge:focus`
+                      // มาชดเชย (grep `.badge` ใน src/assets/css แล้วไม่มี :focus เลย)
+                      // ชิปชุดนี้ยกโครงมาจาก OrdersList.tsx ตอนทำหน้าสินค้ามือถือ 2026-08-06
+                      // แล้วพาบั๊กมาด้วย — fix เข้า orders ก่อน ที่นี่ตามทีหลัง (audit รอบ 2)
+                      'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                       'rounded-full px-3.5 py-1.5 text-xs font-medium',
                       active ? 'bg-primary text-white' : 'bg-default-100 text-default-500',
                     )}
