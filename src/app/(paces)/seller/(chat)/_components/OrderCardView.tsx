@@ -14,6 +14,9 @@ import ShipmentStepper from './ShipmentStepper'
 import { courierLogoUrl } from '@/lib/iship/courier'
 import { deriveOrderStage } from '@/lib/order-stage'
 import { orderShippingStage } from '@/lib/chat-order-progress'
+import { APPOINTMENT_STAGE_META, deriveAppointmentStage } from '@/lib/appointment-stage'
+import { isAllDayAppointment } from '@/lib/appointments'
+import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 
 export type OrderCardViewData = {
@@ -34,6 +37,13 @@ export type OrderCardViewData = {
   /** 'SHIPPED' | 'NO_SHIPPING' — NO_SHIPPING = งานไม่มีการส่งของ ไม่แสดง stepper (ห้ามเช็ค Order.type
    *  — ดู src/lib/iship/eligibility.ts) · ไม่ส่งมา (caller เก่า) = ปฏิบัติเหมือน SHIPPED */
   fulfillmentMode?: string
+  /** ช่วงเวลานัด + สถานะนัด (feature 00024) — ไม่ส่งมา/null = ใบนี้ไม่มีนัด (walk-in)
+   *  มีนัด = การ์ดแสดงแกน "นัดถึงขั้นไหน" แทนแกนพัสดุ (user report 2026-08-08) */
+  serviceStart?: string | null
+  serviceEnd?: string | null
+  appointmentStatus?: string | null
+  /** ยอดมัดจำที่ตกลงกันไว้ — ระบบไม่รู้ว่าจ่ายแล้วหรือยัง จึงแสดงได้แค่จำนวน ห้ามทำเป็นสถานะ */
+  depositAmount?: string | null
   paymentMethod?: string | null
   codReceivedAt?: string | null
   /** Order.updatedAt ISO — ใช้เป็น `now` ตอนเรียก deriveOrderStage เพื่อปิด age-decay (ชิปในการ์ด
@@ -70,6 +80,59 @@ function ShipmentSection({ data }: { data: OrderCardViewData }) {
   if (data.status === 'CANCELLED') {
     return (
       <div className="bg-card px-4"><div className="border-default-200 border-t border-dashed py-2.5">{stageChip}</div></div>
+    )
+  }
+
+  /**
+   * ใบที่มีนัด — แสดงแกน "นัดถึงขั้นไหน" แทนสถานะออเดอร์ทั่วไป (2026-08-08)
+   *
+   * ต้องมาก่อนสาขา NO_SHIPPING เดิม เพราะออเดอร์บริการเข้าเงื่อนไขนั้นด้วย แล้วจะได้แค่
+   * ชิปสถานะออเดอร์กว้าง ๆ ทั้งที่ข้อมูลที่ร้านอยากเห็นคือ "นัดวันไหน กี่โมง ถึงขั้นไหนแล้ว"
+   *
+   * ตัดสินจาก "มีข้อมูลนัดส่งมาไหม" ไม่ใช่จาก vertical — สอดคล้องกับที่สาขาข้างล่างตัดสินจาก
+   * fulfillmentMode ไม่ใช่ Order.type (การ์ดนี้ถูกใช้จากหลาย caller ที่รู้ข้อมูลไม่เท่ากัน)
+   */
+  const apptStage = deriveAppointmentStage({
+    serviceStart: data.serviceStart ?? null,
+    appointmentStatus: data.appointmentStatus ?? null,
+  })
+  if (apptStage && data.serviceStart) {
+    const meta = APPOINTMENT_STAGE_META[apptStage]
+    const s = new Date(data.serviceStart)
+    const e = data.serviceEnd ? new Date(data.serviceEnd) : null
+    const when =
+      Number.isNaN(s.getTime())
+        ? null
+        : !e || Number.isNaN(e.getTime())
+          ? formatDateTH(s)
+          : isAllDayAppointment(s, e)
+            ? `${formatDateTH(s)} · ทั้งวัน`
+            : `${formatDateTH(s)} · ${formatTimeHM(s)}–${formatTimeHM(e)}`
+    const deposit = Number(data.depositAmount ?? 0)
+    return (
+      <div className="bg-card px-4">
+        <div className="border-default-200 border-t border-dashed py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-default-700 text-sm">วันเข้าใช้บริการ</span>
+            <span
+              className={`${meta.cls} inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium`}
+            >
+              <Icon icon={meta.icon} className="text-sm" aria-hidden="true" />
+              {meta.label}
+            </span>
+          </div>
+          {when && <p className="text-default-900 mb-0 mt-1 text-sm font-medium">{when}</p>}
+          {/* มัดจำเป็นข้อมูลเฉย ๆ ไม่ใช่สถานะ — ระบบไม่มีคอลัมน์บอกว่าจ่ายแล้วหรือยัง
+              (ห้ามใส่สีเขียว/ไอคอนถูก ไม่งั้นเป็นการยืนยันสิ่งที่เราไม่รู้) */}
+          {/* คำเดียวกับที่การ์ดในแถบสถานะแชทใช้ — ระบบไม่รู้ว่าจ่ายแล้วหรือยัง จึงพูดได้แค่
+              "ตกลงไว้เท่าไหร่" ห้ามใช้คำที่อ่านได้ว่าเป็นใบเสร็จ */}
+          {deposit > 0 && (
+            <p className="text-default-700 mb-0 mt-0.5 text-xs">
+              มัดจำที่ตกลงไว้ ฿{deposit.toLocaleString('th-TH')}
+            </p>
+          )}
+        </div>
+      </div>
     )
   }
 

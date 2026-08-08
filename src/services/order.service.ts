@@ -1297,6 +1297,13 @@ export async function getOrdersByCustomer(
     createdAt: string;
     checkIn: string | null;
     checkOut: string | null;
+    /** feature 00024 — แกนนัดของร้าน SERVICE_QUEUE (null = walk-in ไม่มีนัดผูก)
+     *  ต้องประกาศตรงนี้ด้วย ไม่ใช่แค่ return: ผู้เรียกมองเห็นเฉพาะ field ที่อยู่ใน type นี้
+     *  ถ้าตกหล่น ข้อมูลจะถูกส่งไปจริงแต่ TypeScript บอกว่าไม่มี แล้วไม่มีใครกล้าใช้ */
+    serviceStart: string | null;
+    serviceEnd: string | null;
+    appointmentStatus: string | null;
+    depositAmount: string | null;
     items: { name: string; qty: number; price: string; imageFileId: string | null }[];
     /** พัสดุ iShip ที่ยังใช้งานอยู่ (feature 00022) — null = ยังไม่เปิดพัสดุ */
     shipment: { trackingNo: string | null; courierName: string | null } | null;
@@ -1327,6 +1334,13 @@ export async function getOrdersByCustomer(
       // Order Progress (2026-08-05) — ให้แถบสถานะในแชทแยก AWAITING_COD ได้
       paymentMethod: true,
       codReceivedAt: true,
+      // feature 00024 (2026-08-08) — แกน "นัดถึงขั้นไหน" ของร้าน SERVICE_QUEUE
+      // ต้องตรงกับ select ใน inbox/[conversationId]/page.tsx เสมอ: ชุดนั้นคือ 20 ใบแรก
+      // ส่วนนี่คือใบที่ 21 ขึ้นไป ถ้าไม่ sync กัน ออเดอร์ที่โหลดทีหลังจะกลายเป็น walk-in เงียบ ๆ
+      serviceStart: true,
+      serviceEnd: true,
+      appointmentStatus: true,
+      depositAmount: true,
       // การ์ด right panel แสดงเหมือนในแชท (user 2026-07-25): ชื่อ/จำนวน/ราคา/รูปสินค้า
       items: { select: { name: true, qty: true, price: true, product: { select: { images: true } } } },
       // feature 00022 — พอรู้ว่ามีพัสดุแล้วหรือยัง ปุ่มบนการ์ดจะได้บอกล่วงหน้าว่ากดแล้วเจออะไร
@@ -1355,6 +1369,10 @@ export async function getOrdersByCustomer(
       statusAt: o.updatedAt.toISOString(),
       checkIn: o.checkIn ? o.checkIn.toISOString() : null,
       checkOut: o.checkOut ? o.checkOut.toISOString() : null,
+      serviceStart: o.serviceStart ? o.serviceStart.toISOString() : null,
+      serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
+      appointmentStatus: o.appointmentStatus,
+      depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
       paymentMethod: o.paymentMethod,
       codReceivedAt: o.codReceivedAt ? o.codReceivedAt.toISOString() : null,
       items: o.items.map((it) => ({

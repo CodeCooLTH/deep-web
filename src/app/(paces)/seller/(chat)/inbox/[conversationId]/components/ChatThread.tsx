@@ -1532,6 +1532,8 @@ export default function ChatThread({
       {customerPanelData && (
         <OrderProgressBar
           orders={customerPanelData.orders}
+          // ร้านคิวงานไล่แกน "นัดถึงขั้นไหน" ไม่ใช่ "ของอยู่ไหน" (user report 2026-08-08)
+          vertical={customerPanelData.vertical}
           conversationId={conversationId}
           customerName={buyerName}
           channel={channel}
