@@ -177,9 +177,12 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
    *   · ChatRail ยิง fetch เองใน useEffect ที่ deps = [] จึงไม่โหลดซ้ำ
    * ทั้งคู่ "ถูกต้องอยู่แล้ว" ในบริบทเดิมที่ขอบเขตไม่มีวันเปลี่ยนระหว่างอายุของ component
    *
-   * แก้ด้วย key แทนการ sync prop→state ด้วย useEffect เพราะการเปลี่ยนขอบเขต = "รายการคนละชุด"
-   * ไม่ใช่ "รายการเดิมที่ข้อมูลอัปเดต" — cursor/ตัวกรอง/ตำแหน่ง scroll ที่ค้างอยู่ก็ควรถูกทิ้งไป
-   * พร้อมกันทั้งหมด การ patch ทีละ state จะเหลือของค้างที่นึกไม่ถึงเสมอ
+   * แก้รอบแรกด้วย key ที่บังคับ remount ทั้งก้อน — ได้ผลแต่ล้างตัวกรอง/แท็บ/คำค้นของผู้ใช้ไปด้วย
+   * (ux gate ทักว่าเป็นหนี้) รอบนี้จึงเหลือ key ไว้เฉพาะ **ตัวที่ไม่มี state ของผู้ใช้ให้เสีย**:
+   *   · InboxTabs — ถือแค่ตัวเลข badge
+   *   · CommentsClient — รายการโพสต์ ไม่มีตัวกรองที่ผู้ใช้ตั้งค้างไว้แบบแท็บข้อความ
+   * ส่วน InboxList/ChatRail (ที่ถือตัวกรอง แท็บ คำค้น) เปลี่ยนไปโหลดใหม่เองด้วยตัวกรองเดิม
+   * เมื่อขอบเขตเปลี่ยน — ดู effect `scopeSignature` ใน InboxList.tsx
    */
   const scopeKey = `${scope?.mode ?? 'none'}:${(scope?.shopIds ?? []).join(',')}`
 
@@ -215,7 +218,6 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               "ความคิดเห็น" ไม่ใช่แค่เนื้อข้างใน (bug fix 2026-08-03 user report: แท็บซ้อน 2 ชั้น)
               layout นี้เป็น server component จึงอ่าน pathname เองไม่ได้ */}
           <ChatRailColumn
-            key={scopeKey}
             shopIds={scope?.shopIds ?? []}
             unified={scope?.mode === 'UNIFIED'}
             activeShopId={scope?.activeShopId ?? null}

@@ -276,6 +276,9 @@ export default function InboxList({
   // (ป้ายสถานะออเดอร์ล่าสุดในรายการแชทเคยเขียน "คำสั่งซื้อ" ตายตัว ทั้งที่ร้านบริการ/บ้านพัก
   //  เรียกคนละชื่อ — ตัวเลขและป้ายเดียวกันโผล่หลายที่ต้องมาจากคำชุดเดียวกัน)
   const orderVocab = useOrderVocab()
+  // join เป็น string — array prop สร้างใหม่ทุก render ของ parent ถ้าใช้ตัว array ตรง ๆ เป็น dep
+  // effect จะวิ่งไม่จบ (ใช้ทั้ง effect subscribe realtime และ effect ตอนขอบเขตเปลี่ยน)
+  const shopIdsKey = shopIds.join(',')
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor)
   const [loading, setLoading] = useState(false)
@@ -405,6 +408,31 @@ export default function InboxList({
     fetchList({ append: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของ filter ปัจจุบันอยู่แล้ว
   }, [channelTab, pageFilter, debouncedQuery, filter.status, filter.customerLinked, filter.hidden, filter.readState, filter.spam, filter.tags, filter.shipment, activeGroupId])
+
+  /**
+   * ขอบเขตร้านเปลี่ยน (สลับโหมดรวม↔ร้านเดียว) — โหลดรายการใหม่ "ด้วยตัวกรองเดิม" (ux gate 2026-08-08)
+   *
+   * เดิมใช้ key ที่ parent บังคับ remount ทั้งก้อน ซึ่งเคลียร์รายการได้จริงแต่ล้างตัวกรอง/แท็บ/
+   * คำค้นของผู้ใช้ไปด้วย — การสลับโหมดคือการเปลี่ยน "ดูร้านไหน" ไม่ใช่ "เลิกกรองแบบที่ตั้งไว้"
+   * คนที่กรอง "ยังไม่อ่าน" อยู่แล้วสลับไปดูทุกร้าน ก็ยังอยากเห็นเฉพาะที่ยังไม่อ่านของทุกร้าน
+   *
+   * รีเซ็ตเฉพาะสิ่งที่เป็น "ข้อมูลของขอบเขตเดิม" (รายการ + cursor ซึ่ง fetchList เขียนทับให้เอง)
+   * ส่วนกลุ่มต้องล้างเมื่อ *เข้า* โหมดรวม เพราะ ChatGroup เป็นของรายร้าน — ค้างไว้จะกลายเป็นกรอง
+   * ด้วยกลุ่มของร้านที่ไม่ได้อยู่ในสายตาแล้ว (และ UI ก็ซ่อนปุ่มกลุ่มในโหมดรวม จึงเอาออกเองไม่ได้)
+   */
+  const scopeSignature = `${unified ? 'U' : 'S'}:${shopIdsKey}`
+  const prevScopeRef = useRef(scopeSignature)
+  useEffect(() => {
+    if (prevScopeRef.current === scopeSignature) return
+    prevScopeRef.current = scopeSignature
+    if (unified && activeGroupId !== null) {
+      // setActiveGroupId จะ trigger effect ข้างบนให้ fetch เองอยู่แล้ว ไม่ต้องยิงซ้ำ
+      setActiveGroupId(null)
+      return
+    }
+    fetchList({ append: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchList ผูก closure ของตัวกรองปัจจุบันอยู่แล้ว
+  }, [scopeSignature])
 
   // ชื่อกลุ่มที่เลือกอยู่ — ปุ่มดรอปดาวน์ต้องบอกได้ว่ากรองอะไรอยู่โดยไม่ต้องกดเปิด
   const activeGroupName = activeGroupId ? (groups.find((g) => g.id === activeGroupId)?.name ?? null) : null
@@ -729,7 +757,6 @@ export default function InboxList({
   // feature 00037 — subscribe ทุกร้านในขอบเขต (subscribeShopChat เป็น refcounted singleton
   // ต่อ shopId อยู่แล้ว การเรียกหลายตัวจึงไม่ชน topic กันเอง) join key เป็น string เพื่อไม่ให้
   // array ที่สร้างใหม่ทุก render ทำให้ effect วิ่งซ้ำไม่จบ
-  const shopIdsKey = shopIds.join(',')
   useEffect(() => {
     const ids = shopIdsKey ? shopIdsKey.split(',') : []
     if (ids.length === 0) return

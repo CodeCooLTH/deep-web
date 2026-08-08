@@ -173,9 +173,20 @@ export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SI
               hasBusinessMembership && scopeMode === 'UNIFIED' ? 'bg-primary border-primary' : 'bg-card'
             }`}
           >
+            {/* กำลังบันทึกโหมด → หมุนที่ badge เดิม (ux gate 2026-08-08): ระหว่างรอ PATCH + refresh
+                หน้าจอเดิมค้างนิ่งไม่มีสัญญาณใด ๆ ว่ากำลังทำงาน — ใช้ slot เดิมจึงไม่กินความกว้าง
+                เพิ่มแม้แต่พิกเซลเดียว และครอบทั้งมือถือ/เดสก์ท็อปด้วยจุดเดียว */}
             <Icon
-              icon={hasBusinessMembership && scopeMode === 'UNIFIED' ? 'layout-grid' : 'chevron-down'}
-              className={`size-3 ${hasBusinessMembership && scopeMode === 'UNIFIED' ? 'text-white' : 'text-default-600'}`}
+              icon={
+                savingScope
+                  ? 'loader-2'
+                  : hasBusinessMembership && scopeMode === 'UNIFIED'
+                    ? 'layout-grid'
+                    : 'chevron-down'
+              }
+              className={`size-3 ${savingScope ? 'animate-spin ' : ''}${
+                hasBusinessMembership && scopeMode === 'UNIFIED' ? 'text-white' : 'text-default-600'
+              }`}
             />
           </span>
         </button>
