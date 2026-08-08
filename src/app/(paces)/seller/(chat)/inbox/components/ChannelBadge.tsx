@@ -27,8 +27,14 @@
  */
 import { useState, type CSSProperties } from 'react'
 import Icon from '@/components/wrappers/Icon'
+import { getChannelLabel, resolveChatChannel, type ChatChannel } from '@/lib/chat-channel'
 
-export type ChatChannel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
+/**
+ * ชนิด + ชื่อช่องทางย้ายไปอยู่ `@/lib/chat-channel` (ไฟล์บริสุทธิ์ ไม่มี React) เพราะ push
+ * notification ฝั่ง server ต้องใช้ "คำเดียวกัน" กับที่แสดงในกล่องแชท แต่ import ไฟล์นี้ไม่ได้
+ * (`'use client'` + Icon wrapper) — re-export ไว้ให้ call-site เดิมที่ import จากที่นี่ใช้ต่อได้เหมือนเดิม
+ */
+export { resolveChatChannel, type ChatChannel }
 
 /**
  * ตัวเลือกตัวกรอง "เพจ" — 1 ต่อ ShopChannel ที่เชื่อมไว้ (feat 00018 งาน 2: ย้ายมาจาก InboxList.tsx
@@ -60,7 +66,7 @@ type ChannelDisplay = {
 
 const CHANNEL_DISPLAY: Record<ChatChannel, ChannelDisplay> = {
   DEEP: {
-    label: 'Deep',
+    label: getChannelLabel('DEEP'),
     icon: 'message-circle',
     iconClassName: 'text-primary',
   },
@@ -68,23 +74,18 @@ const CHANNEL_DISPLAY: Record<ChatChannel, ChannelDisplay> = {
     // label ยังเป็น "Messenger" เพราะเป็นชื่อ "ช่องทาง" จริงที่ใช้ในแท็บกรอง/alt — แต่ไอคอนเปลี่ยน
     // จากโลโก้ Messenger เป็นโลโก้ Facebook ตามที่ user สั่ง 2026-07-23: ในมุมของแอดมินร้าน
     // เธรดพวกนี้คือ "คนทักเข้ามาที่เพจ Facebook" ไม่ใช่ "แอป Messenger" โลโก้ f จึงสื่อตรงกว่า
-    label: 'Messenger',
+    label: getChannelLabel('MESSENGER'),
     icon: 'brand-facebook', // fallback ถ้า logoSrc โหลดไม่ได้ (เช่น tabs ที่ยังใช้ Icon)
     logoSrc: '/images/logos/facebook.svg',
   },
   INSTAGRAM: {
-    label: 'Instagram',
+    label: getChannelLabel('INSTAGRAM'),
     icon: 'brand-instagram',
     // โลโก้ทรงกลม (user ส่งภาพมาให้ 2026-07-23) แทนทรงสี่เหลี่ยมมนของ instagram.svg เดิม —
     // ในรายการแชท badge ทุกช่องทางเป็นวงกลม (Messenger/Deep) ทรงสี่เหลี่ยมของ IG จึงเป็นตัวเดียว
     // ที่หลุดจังหวะ. ไล่สี = gradient แบรนด์ชุดเดียวกับไฟล์เดิม ไม่ได้คิดสีขึ้นเอง
     logoSrc: '/images/logos/instagram-circle.svg',
   },
-}
-
-/** ค่าอื่นนอก 3 ค่านี้ (ข้อมูลเพี้ยน/อนาคต) → fallback เป็น DEEP — ห้าม crash */
-export function resolveChatChannel(channel: string): ChatChannel {
-  return channel === 'MESSENGER' || channel === 'INSTAGRAM' ? channel : 'DEEP'
 }
 
 /** export ให้ที่อื่น (เช่น channel tabs ใน InboxList) ใช้ icon/สีชุดเดียวกันได้โดยไม่ต้อง render ทั้ง badge */

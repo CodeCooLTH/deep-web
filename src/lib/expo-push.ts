@@ -2,6 +2,18 @@
 type ExpoMessage = {
   to: string
   title: string
+  /**
+   * บรรทัดกลางระหว่างหัวเรื่องกับเนื้อหา — **iOS เท่านั้น** (Android ไม่มีที่แสดง จะเมินทิ้งเงียบ ๆ)
+   *
+   * มีไว้ตอบคำถาม "ใบนี้มาจากไหน" โดยไม่แย่งพื้นที่ของ title ซึ่งเป็นชื่อผู้ส่ง — ถ้ายัดรวมใน title
+   * ชื่อไทยของทั้งคู่จะยาวเกินเพดานแล้ว `…` ไปลงตรงส่วนที่ผู้ใช้อยากอ่านพอดี (ดู channelLine()
+   * ใน seller-push.service)
+   *
+   * 🛑 วันที่ปล่อยแอป Android ต้องหาทางอื่นให้ข้อมูลนี้ด้วย — ตอนนี้ตาราง PushToken เก็บแค่
+   * userId+token ไม่มี platform จึงแยกรูปแบบข้อความรายเครื่องไม่ได้ และการที่ Android ไม่ error
+   * ไม่ได้แปลว่าไม่มีใครต้องการข้อมูลนี้ มันแค่หายไปเงียบ ๆ
+   */
+  subtitle?: string
   body: string
   data?: Record<string, unknown>
   sound?: 'default'
@@ -33,12 +45,15 @@ export async function sendExpoPush(
   title: string,
   body: string,
   data?: Record<string, unknown>,
+  options?: { subtitle?: string },
 ): Promise<string[]> {
   const valid = tokens.filter((t) => t.startsWith('ExponentPushToken') || t.startsWith('ExpoPushToken'))
   if (valid.length === 0) return []
   const messages: ExpoMessage[] = valid.map((to) => ({
     to,
     title,
+    // undefined ถูก JSON.stringify ตัดทิ้งอยู่แล้ว — ไม่ต้อง spread แบบมีเงื่อนไขให้อ่านยาก
+    subtitle: options?.subtitle,
     body,
     data,
     sound: 'default',

@@ -7,6 +7,7 @@
 // เรียกจาก call-site ที่รู้ว่ามี event จริงเกิดขึ้นแล้วเท่านั้น (webhook / sendMessage) และต้องเรียก
 // แบบ fire-and-forget (after() หรือ void) — push ที่ช้าหรือพังห้ามทำให้ event หลักล้ม
 import { prisma } from '@/lib/prisma'
+import { getChannelLabel } from '@/lib/chat-channel'
 import { pushToUsers } from './app-push.service'
 import { getConversationToastPreview } from './chat.service'
 
@@ -53,6 +54,30 @@ function shouldSkipByThrottle(key: string): boolean {
 }
 
 /**
+ * บรรทัดกลางของ noti — "ช่องทาง · ชื่อเพจ" (เช่น `Messenger · BT Premium`)
+ *
+ * ทำไมต้องมี (user request 2026-08-08): เดิม noti มีแค่ชื่อลูกค้ากับข้อความ ผู้ขายที่ผูกหลายเพจ
+ * หรือถือหลายร้าน จึงดูไม่ออกว่าข้อความนี้เข้ามาทางไหนจนกว่าจะกดเปิด — เป็นปัญหาเดียวกับที่ user
+ * สั่งแก้ในกล่องแชทเมื่อ 2026-07-23 ("คำว่า Messenger ซ้ำกันทุกเธรดจนไม่ให้ข้อมูลอะไร" → ใส่ชื่อ
+ * เพจลงบน ChannelBadge) แค่คนละพื้นผิว
+ *
+ * ทำไมไม่ยัดรวมใน title: title คือชื่อผู้ส่ง ซึ่งเป็นชื่อไทยเต็ม ๆ อยู่แล้ว พอต่อ ` · ชื่อเพจ` เข้าไป
+ * ความยาวรวมเกินเพดานหัวเรื่องของ iOS เกือบทุกใบ แล้ว `…` จะไปลงตรงชื่อเพจพอดี = ตัดทิ้งสิ่งที่
+ * เพิ่มเข้ามาเพื่อจะบอกเสียเอง
+ *
+ * เธรด Deep (ลูกค้าทักผ่านแอป/เว็บของเราเอง) ไม่มี shopChannel → channelName เป็น null
+ * (getConversationToastPreview เข้า if ไม่ได้) เหลือแค่ชื่อช่องทาง — ห้ามปล่อยเป็น `Deep · ` ค้างท้าย
+ *
+ * ชื่อช่องทางดึงจาก getChannelLabel เท่านั้น ห้ามพิมพ์คำเอง (Hard Rule 16) — ไม่งั้น noti กับ
+ * ChannelBadge ในกล่องแชทจะเรียกช่องทางเดียวกันคนละชื่อ
+ */
+export function channelLine(channel: string, channelName: string | null): string {
+  const label = getChannelLabel(channel)
+  const page = channelName?.trim()
+  return page ? `${label} · ${page}` : label
+}
+
+/**
  * ข้อความใหม่จากลูกค้า → เด้ง noti เข้าแอปผู้ขาย
  *
  * ใช้ getConversationToastPreview() ตัวเดียวกับ toast บนเว็บ (ChatToastListener) โดยตั้งใจ —
@@ -83,11 +108,22 @@ export async function pushNewChatMessage(params: {
 
     // pushToUsers (ไม่ใช่วน pushToUser) — ยุบเหลือ 1 query + 1 request ไป exp.host
     // ร้านที่มีพนักงานหลายคนจะได้ noti "พร้อมกัน" ไม่ใช่ไล่ทีละคนห่างกันคนละ ~300ms
-    await pushToUsers(audience, preview.senderName, body, {
-      type: 'chat',
-      url: `/inbox/${params.conversationId}`,
-      conversationId: params.conversationId,
-    })
+    // channel/channelName ใส่ลง data ด้วย ไม่ใช่แค่ subtitle — วันที่แอปอยากใช้ค่าพวกนี้เอง
+    // (จัดกลุ่ม noti ตามเพจ / ทำหน้าตาเอง / รองรับ Android ที่ไม่มี subtitle) จะหยิบได้ทันที
+    // โดยไม่ต้องแก้ฝั่งเว็บซ้ำแล้วรอ deploy อีกรอบ
+    await pushToUsers(
+      audience,
+      preview.senderName,
+      body,
+      {
+        type: 'chat',
+        url: `/inbox/${params.conversationId}`,
+        conversationId: params.conversationId,
+        channel: preview.channel,
+        channelName: preview.channelName,
+      },
+      { subtitle: channelLine(preview.channel, preview.channelName) },
+    )
   } catch (e) {
     console.error('[seller-push] pushNewChatMessage failed', e)
   }

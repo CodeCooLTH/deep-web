@@ -16,6 +16,8 @@ export async function pushToUsers(
   title: string,
   body: string,
   data?: Record<string, unknown>,
+  /** subtitle = บรรทัดกลาง (iOS เท่านั้น) — ดูเหตุผลที่ ExpoMessage.subtitle ใน lib/expo-push */
+  options?: { subtitle?: string },
 ): Promise<void> {
   if (userIds.length === 0) return
   try {
@@ -29,6 +31,7 @@ export async function pushToUsers(
       title,
       body,
       data,
+      options,
     )
     if (invalid.length > 0) {
       await prisma.pushToken.deleteMany({ where: { token: { in: invalid } } })

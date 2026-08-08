@@ -325,6 +325,17 @@ theme/
   - **`API.md` + `UX-Design-Spec.md` ของ 00016 เสียหายทั้งไฟล์บน main มา 6 วัน** (ทุกบรรทัดถูกเติมแถวตารางนำหน้า heading = 0) กู้แล้ว `c177f5a5` — **ไม่มีชั้นไหนในระบบตรวจไฟล์ `.md` เลย** ยังไม่ได้สแกนไฟล์อื่นทั้งรีโป
   - **carry:** browser QA (user ตรวจเอง) · E2E · TestCase TC-EXT-01..13 · ตำแหน่งการ์ดกำไรบนมือถืออยู่ท้ายสุดใต้การ์ดอื่น 5 ใบ · สแกน `.md` ทั้งรีโปหาไฟล์ที่เสียแบบเดียวกัน
 
+- **2026-08-08: แจ้งเตือนเข้าแอปผู้ขาย — ปลายทางถูกร้าน + บอกช่องทาง/เพจ** (docs `docs/20 - Features/00018 …/EXTENSIONS-2026-08-08.md`; ฝั่งเว็บ `90c1dc43` `3ca3ba57` + รอบนี้ · ฝั่งแอป `bb1f27f` ใน deep-mobile-seller)
+  - 🛑 **payload ของ push ไม่มี `shopId` มีแต่ `url: /inbox/{conversationId}`** ขณะที่ ownership guard ของหน้าเธรด scope ด้วย `activeShopId` → ผู้ขาย 2 ร้านที่ผูกคนละเพจ กด noti ของร้าน B ตอน active ร้าน A แล้วขึ้น "ไม่เจอช่องแชทนี้" ทั้งที่มีสิทธิ์เต็ม. **แก้ฝั่ง server ไม่ใช่เติม payload** — `findConversationShopForUser()` (scope สิทธิ์ใน `WHERE` ไม่ใช่ดึงมาเทียบทีหลัง) แล้ว `ChatShopAutoSwitch` สลับให้ + `?switched=1` กันวน (ห้ามเอาออก) · เหตุผลที่ไม่เติม `shopId`: ต้อง build + ส่ง App Store ใหม่ และเครื่องที่ไม่อัปเดตจะพังตลอดไป
+  - 🛑 **`useShopSwitcher` ไม่มี error state ให้อ่าน — "เคยเป็น `switching=true` แล้วกลับเป็น false" = ล้มเหลวเสมอ** (สำเร็จจะค้าง true จน unload) เดิม hardcode `show={true}` ผู้ใช้ติดหน้าสปินเนอร์ออกไปไหนไม่ได้เลยเมื่อสลับล้ม
+  - **perf ~3.8 วิ → ~1.6 วิ**: `minOverlayMs` option (800 แทน default 3000 — 3000 มีไว้กันจอกระพริบตอน "กดสลับร้านเอง" แต่เส้นทางนี้ผู้ใช้แค่อยากอ่านข้อความ) + ย้าย `conversation.findFirst` ขึ้นก่อน `Promise.all` (ตัด 5 query ที่เสียเปล่า)
+  - 🛑 **ฝั่งแอป: ต้องอ่าน launch notification response *หลัง* เช็ค OTA จบเท่านั้น** — `takeLaunchNotificationResponse()` ล้างค่า native ทิ้งหลังอ่าน ถ้าอ่านตอน mount แล้ว `Updates.reloadAsync()` ทำงาน คิวใน JS หายและค่า native ก็ถูกล้างไปแล้ว = ปลายทางหายทั้งสองทาง
+  - **`src/lib/chat-channel.ts` (ใหม่) = SSOT ของ "ชื่อช่องทาง"** (`Deep`/`Messenger`/`Instagram`) — แยกจาก `CHANNEL_DISPLAY` ใน `ChannelBadge.tsx` เพราะไฟล์นั้น `'use client'` + import Icon wrapper ลากเข้า bundle ของ webhook route ไม่ได้ แต่พิมพ์คำเองก็ผิด **Hard Rule 16** (คำต่างกันสองหน้าจอ ไม่มี tsc/build ตัวไหนฟ้อง เพราะเป็นสตริงที่ถูกทั้งคู่)
+  - noti ได้บรรทัดกลาง `Messenger · <ชื่อเพจ>` ผ่าน **`subtitle` ของ Expo Push (iOS-only — ยืนยันจากเอกสาร Expo)** ไม่ยัดรวมใน `title` เพราะชื่อไทยของผู้ส่ง+เพจรวมกันเกินเพดาน แล้ว `…` จะไปลงตรงชื่อเพจพอดี = ตัดทิ้งสิ่งที่เพิ่งเพิ่มเข้ามาเอง · เธรด `DEEP` ไม่มีเพจ → เหลือ `Deep` ล้วน ห้ามมี `· ` ค้างท้าย · **ไม่ใส่ชื่อร้านคู่** (ชื่อเพจแยกได้ครบทุกกรณีที่มีเพจ และ `ShopChannel.name` ≠ `Shop.shopName` ตั้งคนละที่ ใช้แทนกันไม่ได้)
+  - 🛑 **หนี้ Android:** `PushToken` เก็บแค่ `userId`+`token` ไม่มี `platform` → แยกรูปแบบข้อความรายเครื่องไม่ได้ วันปล่อย Android ต้องเพิ่มคอลัมน์ก่อน — Android ไม่ error แต่ข้อมูลหายเงียบ ๆ (ระหว่างนี้ใส่ `channel`/`channelName` ลง `data` ให้แล้ว แอปหยิบไปใช้เองได้โดยไม่ต้องแก้เว็บซ้ำ)
+  - **ไม่มี migration · ไม่มี API route ใหม่ · ไม่ต้อง build/OTA แอป** (push เป็นสิ่งที่ server ส่งไปทั้งก้อน)
+  - **carry:** ทดสอบบนเครื่องจริง (ต้องรอ deploy แล้วให้ลูกค้าทักเข้ามา — ขั้นตอนอยู่ที่ E2.9) · จัดกลุ่ม noti ด้วย `thread-id` ของ iOS ยังไม่ยืนยันว่า Expo เปิดฟิลด์นี้ให้
+
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 
 @AGENTS.md
