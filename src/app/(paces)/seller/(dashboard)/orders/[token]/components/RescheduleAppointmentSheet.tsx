@@ -224,6 +224,7 @@ export default function RescheduleAppointmentSheet({
         /* fixed inset-0 z-80 + pt safe-area = ชุดเดียวกับ AppointmentDateSheet ที่เปิดซ้อนจากที่นี่ */
         className="bg-card fixed inset-0 z-80 flex flex-col pt-[env(safe-area-inset-top)]" /* carve-out: safe-area ไม่มี token */
         role="dialog"
+        aria-modal="true"
         aria-label="เลื่อนนัด"
       >
         <div className="border-default-200 flex shrink-0 items-center gap-3 border-b px-4 py-3">

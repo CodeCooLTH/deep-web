@@ -106,6 +106,7 @@ export default function ProductPickerSheet({ open, catalog, bestSellers, product
       <div
         className={'fixed inset-x-0 bottom-0 z-80 flex h-[75dvh] flex-col rounded-t-2xl border-t border-default-300 bg-card' /* HR7: inset-x-0 bottom-0 + h-[75dvh] = viewport-lock, Paces ไม่มี token — sheet สูงคงที่ list มีที่พอ */}
         role="dialog"
+        aria-modal="true"
         aria-label={`เลือก${productNoun}`}
       >
         <div className="flex shrink-0 justify-center pt-3 pb-1">

@@ -283,6 +283,7 @@ export default function AppointmentDateSheet({
     <div
       className="fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)]" /* carve-out: safe-area ไม่มี token */
       role="dialog"
+      aria-modal="true"
       aria-label="เลือกวันนัด"
     >
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">

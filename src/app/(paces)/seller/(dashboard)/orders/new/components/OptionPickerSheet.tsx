@@ -61,6 +61,7 @@ export default function OptionPickerSheet({
       <div
         className={'fixed inset-x-0 bottom-0 z-80 flex max-h-[85vh] flex-col rounded-t-2xl border-t border-default-300 bg-card' /* HR7: inset-x-0 bottom-0 + max-h-[85vh] = viewport-lock, Paces ไม่มี token (reuse pattern QuickPriceSheet/ProductPickerSheet) */}
         role="dialog"
+        aria-modal="true"
         aria-label={title}
       >
         <div className="flex shrink-0 justify-center pt-3 pb-1">

@@ -68,6 +68,7 @@ export default function QuickPriceSheet({ open, price, name, qty = 1, unitLabel 
       <div
         className={'fixed inset-x-0 bottom-0 z-80 rounded-t-2xl border-t border-default-300 bg-card' /* HR7: inset-x-0 bottom-0 = viewport-lock, Paces ไม่มี token (precedent AccountSwitcherSheet) */}
         role="dialog"
+        aria-modal="true"
         aria-label="แก้ราคา"
       >
         <div className="flex justify-center pt-3 pb-1">
