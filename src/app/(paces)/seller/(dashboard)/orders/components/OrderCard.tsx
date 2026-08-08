@@ -34,6 +34,7 @@ import {
 import BuyerAvatar from './BuyerAvatar'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderActions from './OrderActions'
+import OrderProfitInline from './OrderProfitInline'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { ORDER_STATUS_TONE_BORDER } from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
@@ -211,11 +212,19 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
         {/* ── item: thumb + ชื่อ + qty/ราคา, dashed divider — expand เดิมยังอยู่ ── */}
         <div className="mt-2.5 border-t border-dashed border-default-200 pt-2.5">
           <div className="divide-y divide-dashed divide-default-200">
+            {/* items-start ไม่ใช่ items-center — ราคา/จำนวนเป็นคอลัมน์ขวาแยก (ต่างจากตาราง
+                เดสก์ท็อปที่ราคาซ้อนใต้ชื่อ) พอชื่อยาวหลายบรรทัด center จะดันรูปย่อกับบล็อก
+                ราคาให้ลอยกลางจนหลุดแนว */}
             {visibleItems.map((item) => (
-              <div key={item.id} className="flex items-center gap-2.5 py-2 first:pt-0">
+              <div key={item.id} className="flex items-start gap-2.5 py-2 first:pt-0">
                 <ProductImage src={item.imageUrl ?? undefined} alt={item.name} />
                 <div className="min-w-0 flex-1">
-                  <p className="line-clamp-2 text-xs font-medium text-default-900">{item.name}</p>
+                  {/* ห้าม line-clamp/truncate ที่ชื่อสินค้า (user สั่ง 2026-08-08: "ห้าม ... เด็ดขาด
+                  ต้องแสดงเต็มเสมอ ถ้ายาวก็ขึ้นบรรทัดใหม่") — ชื่อที่ถูกตัดทำให้แยกสินค้า
+                  ที่ชื่อคล้ายกันไม่ออก ("โช๊คหน้า" vs "โช๊คหลัง" ตัดที่ตัวเดียวกัน) ซึ่งเป็น
+                  จอที่ผู้ขายใช้ยืนยันก่อนแพ็กของ · break-words กันชื่อยาวที่ไม่มีวรรคเลย
+                  ล้นกรอบ — OrderItem.name ที่พิมพ์เองตอนสร้างออเดอร์ไม่มีเพดานความยาว */}
+                  <p className="break-words text-xs font-medium text-default-900">{item.name}</p>
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-2xs text-default-400">x{item.qty}</p>
@@ -348,6 +357,9 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
             <span className="text-base font-bold tabular-nums text-default-900">
               ฿{order.total.toLocaleString('th-TH')}
             </span>
+            {/* ลำดับ: ยอดรวม (ใหญ่สุด) → กำไร (รอง) → เวลา (เล็กสุด) — กำไรเกาะติดยอดเพราะเป็น
+                อนุพันธ์ของมัน ส่วนเวลาไม่เกี่ยวกับเงินเลยจึงอยู่ล่างสุด */}
+            <OrderProfitInline profit={order.profit} orderNoun={vocab.noun} />
             <p className="mt-0.5 text-2xs text-default-400">{formatRelativeDayTime(order.createdAtISO)}</p>
           </div>
 

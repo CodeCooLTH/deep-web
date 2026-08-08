@@ -1,4 +1,5 @@
 import type { AppointmentStatus } from '@/lib/appointments'
+import type { OrderProfit } from '@/lib/order-profit'
 import type { ShippingStageKey } from '@/lib/order-stage'
 /**
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/ecommerce/(orders)/orders/components/data.ts
@@ -149,6 +150,16 @@ export type OrderRow = {
   codReceivedAtISO: string | null
   /** F2: รายการสินค้า — map จาก OrderItem + product.images (ถ้ามี) */
   items: OrderItemRow[]
+  /**
+   * กำไรขั้นต้นของใบนี้ (user สั่ง 2026-08-08) — 3 สถานะที่ต่างกันจริง ห้ามยุบรวม:
+   *  - `undefined` (คีย์ไม่มีอยู่เลย) = ผู้ใช้คนนี้ไม่มีสิทธิ์เห็นตัวเลขการเงิน
+   *  - `null` = ใบนี้ยังไม่นับเป็นยอดขาย (countsAsRevenue = false)
+   *  - object = มีตัวเลข (`hasMissingCost` บอกว่าเป็นกำไรจริงหรือแค่เพดานบน)
+   *
+   * server เป็นคนตัดสินสิทธิ์แล้ว omit คีย์ทิ้งตั้งแต่ตอนประกอบแถว — ห้ามส่งตัวเลขมาแล้ว
+   * ให้ฝั่งจอเลือกไม่ render (หน้านี้อยู่ใต้ client layout ทุกค่าลง HTML เสมอ)
+   */
+  profit?: OrderProfit | null
 }
 
 // ช่องทางการขาย → icon (tabler, ผ่าน Icon wrapper) + label ไทย — order list

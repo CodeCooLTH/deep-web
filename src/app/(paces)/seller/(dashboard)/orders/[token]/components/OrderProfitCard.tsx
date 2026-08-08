@@ -25,8 +25,8 @@
  */
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
-import { formatBaht, GROSS_PROFIT_FORMULA } from '@/lib/format-money'
 import type { OrderProfit } from '@/lib/order-profit'
+import { presentOrderProfit, PROFIT_TONE } from '@/lib/order-profit-presentation'
 
 type Props = {
   /** null = ออเดอร์ใบนี้ยังไม่นับเป็นยอดขาย (countsAsRevenue = false) */
@@ -35,96 +35,9 @@ type Props = {
   orderNoun: string
 }
 
-type Presentation = {
-  icon: string
-  label: string
-  amount: string | null
-  note: string
-  tone: 'success' | 'danger' | 'warning' | 'neutral'
-}
-
-const TONE: Record<Presentation['tone'], { plate: string; text: string }> = {
-  success: { plate: 'bg-success/15', text: 'text-success-ink' },
-  danger: { plate: 'bg-danger/15', text: 'text-danger-ink' },
-  warning: { plate: 'bg-warning/15', text: 'text-warning-ink' },
-  neutral: { plate: 'bg-default-100', text: 'text-default-800' },
-}
-
-function present(profit: OrderProfit | null, orderNoun: string): Presentation {
-  // สถานะ ค — ยังไม่นับเป็นยอดขาย: ไม่แสดงตัวเลขเลย ไม่ใช่แสดง 0
-  // (ตัวเลขที่คำนวณตอนนี้อาจกลายเป็นเท็จถ้าออเดอร์ถูกยกเลิกทีหลัง)
-  if (profit === null) {
-    return {
-      icon: 'clock',
-      label: 'ยังไม่นับเป็นยอดขาย',
-      amount: null,
-      note: `กำไรจะคำนวณเมื่อลูกค้ายืนยันรับ${orderNoun}แล้ว`,
-      tone: 'neutral',
-    }
-  }
-
-  const { amount, hasMissingCost } = profit
-
-  // สถานะ ข — ต้นทุนไม่ครบ: ตัวเลขที่ได้คือ "เพดานบน" ไม่ใช่กำไรจริง
-  //
-  // ห้ามใช้เขียวแม้ตัวเลขจะเป็นบวก — Verified-Means-Green: เขียวแปลว่า "ยืนยันแล้ว"
-  // ตัวเลขที่คำนวณจากต้นทุนไม่ครบยังไม่มีสิทธิ์ใช้สีนั้น
-  //
-  // แยก 2 ทิศทางเพราะความแน่นอนต่างกันจริง: ถ้าเพดานบนยังติดลบอยู่ แปลว่าต่อให้ต้นทุน
-  // ที่ยังไม่กรอกเป็นศูนย์ก็ยังขาดทุนแน่นอน = ข่าวร้ายที่ยืนยันแล้ว (danger)
-  // ส่วนเพดานบนที่เป็นบวกยังบอกทิศทางไม่ได้เลย (warning)
-  //
-  // หมายเหตุคำ: วลี "มีสินค้าที่ยังไม่ตั้งต้นทุน" ย้ายไปเป็น badge ที่หัวการ์ดแล้ว
-  // (ซึ่งกดไปแก้ได้จริง) บรรทัดนี้จึงเหลือแต่ผลของมันต่อตัวเลข ไม่พูดซ้ำสองที่
-  if (hasMissingCost) {
-    const negative = amount < 0
-    return {
-      icon: 'alert-triangle',
-      label: negative ? 'ขาดทุนขั้นต้นอย่างน้อย' : 'กำไรขั้นต้นไม่เกิน',
-      amount: formatBaht(amount),
-      note: negative
-        ? 'ยอดขาดทุนจริงอาจมากกว่านี้ · ยังไม่หักค่าใช้จ่ายร้าน'
-        : 'กำไรจริงจะน้อยกว่านี้ · ยังไม่หักค่าใช้จ่ายร้าน',
-      tone: negative ? 'danger' : 'warning',
-    }
-  }
-
-  // สถานะ ง — ขาดทุนจริง (ต้นทุนครบ)
-  if (amount < 0) {
-    return {
-      icon: 'trending-down',
-      label: 'ขาดทุนขั้นต้นจากใบนี้',
-      amount: formatBaht(amount),
-      note: GROSS_PROFIT_FORMULA,
-      tone: 'danger',
-    }
-  }
-
-  // จุดคุ้มทุนพอดี — ไม่ใช่ "ผลบวกที่ยืนยันแล้ว" จึงไม่ใช้เขียว
-  // และลูกศรขึ้นกับค่า 0 เป็นสัญญาณที่ขัดตัวเลขของมันเอง
-  if (amount === 0) {
-    return {
-      icon: 'minus',
-      label: 'เท่าทุนพอดี',
-      amount: formatBaht(0),
-      note: GROSS_PROFIT_FORMULA,
-      tone: 'neutral',
-    }
-  }
-
-  // สถานะ ก — กำไรจริง ต้นทุนครบ (กรณีเดียวที่ได้เขียว)
-  return {
-    icon: 'trending-up',
-    label: 'กำไรขั้นต้นจากใบนี้',
-    amount: formatBaht(amount),
-    note: GROSS_PROFIT_FORMULA,
-    tone: 'success',
-  }
-}
-
 export default function OrderProfitCard({ profit, orderNoun }: Props) {
-  const p = present(profit, orderNoun)
-  const tone = TONE[p.tone]
+  const p = presentOrderProfit(profit, orderNoun)
+  const tone = PROFIT_TONE[p.tone]
 
   return (
     <div className="card">

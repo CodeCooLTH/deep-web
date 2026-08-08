@@ -48,6 +48,7 @@ import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
 import { APPOINTMENT_STAGE_KEYS, APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 import OrderActions from './OrderActions'
+import OrderProfitInline from './OrderProfitInline'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import OrderDateFilterDropdown from './OrderDateFilterDropdown'
@@ -302,7 +303,12 @@ export default function OrdersTable({
               </span>
             )}
             <div className="min-w-0">
-              <p className="mb-0 line-clamp-1 text-sm font-semibold text-default-900">{it.name}</p>
+              {/* ห้าม line-clamp/truncate ที่ชื่อสินค้า (user สั่ง 2026-08-08: "ห้าม ... เด็ดขาด
+                      ต้องแสดงเต็มเสมอ ถ้ายาวก็ขึ้นบรรทัดใหม่") — ชื่อที่ถูกตัดทำให้แยกสินค้า
+                      ที่ชื่อคล้ายกันไม่ออก ("โช๊คหน้า" vs "โช๊คหลัง" ตัดที่ตัวเดียวกัน) ซึ่งเป็น
+                      จอที่ผู้ขายใช้ยืนยันก่อนแพ็กของ · break-words กันชื่อยาวที่ไม่มีวรรคเลย
+                      ล้นกรอบ — OrderItem.name ที่พิมพ์เองตอนสร้างออเดอร์ไม่มีเพดานความยาว */}
+              <p className="mb-0 break-words text-sm font-semibold text-default-900">{it.name}</p>
               {/* ไม่มี SKU ใน OrderItem — บอกราคาต่อชิ้นแทน ซึ่งเป็นข้อมูลที่มีจริง */}
               <p className="mb-0 text-xs text-default-500">
                 ฿{it.price.toLocaleString('th-TH')} ต่อชิ้น
@@ -568,11 +574,19 @@ export default function OrdersTable({
     // ─ ยอดคำสั่งซื้อ ─
     columnHelper.accessor('total', {
       header: `ยอด${vocab.noun}`,
-      meta: { headerClassName: 'text-end', cellClassName: 'text-end align-top whitespace-nowrap' },
+      // whitespace-nowrap ย้ายจาก <td> ลงมาที่ <span> ของยอดเท่านั้น — เดิมอยู่ที่เซลล์ทั้งใบ
+      // ซึ่งจะห้ามบรรทัดกำไรตกบรรทัดไปด้วย ("ขาดทุนขั้นต้นอย่างน้อย ฿90,000" ยาวเกินคอลัมน์
+      // ที่จอ 1024px) แล้วดันคอลัมน์ข้างเคียงแคบลงทั้งตาราง
+      meta: { headerClassName: 'text-end', cellClassName: 'text-end align-top' },
       cell: ({ row }) => (
-        <span className="text-lg font-bold tabular-nums text-default-900">
-          ฿{row.original.total.toLocaleString('th-TH')}
-        </span>
+        <div className="flex flex-col items-end">
+          <span className="whitespace-nowrap text-lg font-bold tabular-nums text-default-900">
+            ฿{row.original.total.toLocaleString('th-TH')}
+          </span>
+          {/* กำไรเป็น text-xs ใต้ยอด text-lg — เล็กกว่าชัดเจน 2 ขั้นโดยตั้งใจ ยอดที่ลูกค้าจ่าย
+              ยังเป็นข้อมูลหลักของคอลัมน์นี้ กำไรเป็นอนุพันธ์ของมัน (total − ต้นทุน) */}
+          <OrderProfitInline profit={row.original.profit} orderNoun={vocab.noun} />
+        </div>
       ),
     }),
 
