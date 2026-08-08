@@ -21,5 +21,8 @@ export function toCatalogProduct(p: any): CatalogProduct {
     sku: p.sku ?? null,
     // stockQty: NULL = untracked (ไม่โชว์สต็อก), number = tracked
     stockQty: p.stockQty ?? null,
+    // cost: Decimal → number ที่ server boundary (ข้ามเส้น RSC ดิบไม่ได้) · null คงเป็น null
+    // ไม่แปลงเป็น 0 — null = "ยังไม่เคยตั้ง" ต่างจาก 0 = "ไม่มีต้นทุนจริง" (FR-EXP-17)
+    cost: p.cost == null ? null : Number(p.cost),
   }
 }

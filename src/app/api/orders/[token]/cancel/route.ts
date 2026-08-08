@@ -63,7 +63,9 @@ export async function POST(
     return NextResponse.json(updated);
   } catch (err: unknown) {
     if (err instanceof CancelReasonRequiredError) {
-      return NextResponse.json({ error: "เลือกเหตุผลก่อนยกเลิกการจอง" }, { status: 400 });
+      // feature 00039 — ข้อความเดิมเขียนว่า "การจอง" เพราะตอนนั้นบังคับเหตุผลเฉพาะ BOOKING
+      // ตอนนี้บังคับทุกประเภทแล้ว จึงต้องเป็นคำกลาง ไม่งั้นร้านขายของจะเห็นคำว่า "การจอง"
+      return NextResponse.json({ error: "เลือกเหตุผลก่อนยกเลิก" }, { status: 400 });
     }
     if (err instanceof InvalidCancelReasonError) {
       return NextResponse.json({ error: "เหตุผลที่เลือกไม่อยู่ในรายการ" }, { status: 400 });

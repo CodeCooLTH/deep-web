@@ -27,6 +27,17 @@ export function isShopVertical(value: string): value is ShopVertical {
   return value in SHOP_VERTICALS
 }
 
+/** normalize ค่า vertical ที่อ่านมาจาก DB (คอลัมน์เป็น String ไม่ใช่ enum) ให้เป็นค่าที่ใช้ได้เสมอ
+ *
+ *  fail-closed: ค่าที่ไม่รู้จัก/null → ONLINE_SALES ตาม BR-SBT-07 ไม่ใช่ throw
+ *  เหตุผล: คอลัมน์นี้มี CHECK ที่ระดับ DB อยู่แล้ว ค่าแปลกจึงแปลว่าฐานถูกแก้นอกทาง —
+ *  การ throw จะทำให้ทั้งหน้าล่ม ส่วนการตกไปค่าตั้งต้นทำให้ยังใช้งานได้และเห็นความผิดปกติ
+ *  (allow-list + fail-closed ตาม docs/conventions/enum-value-removal.md) */
+export function resolveShopVertical(value: string | null | undefined): ShopVertical {
+  if (value && isShopVertical(value)) return value
+  return DEFAULT_SHOP_VERTICAL
+}
+
 /** คำอธิบายใต้ตัวเลือกตอนสร้างธุรกิจ — บอกว่าเลือกแล้วได้ความสามารถอะไร */
 export const SHOP_VERTICAL_HINTS: Record<ShopVertical, string> = {
   ONLINE_SALES: 'ขายสินค้าที่ต้องจัดส่ง มีระบบสต็อก ประมูล และจัดส่งผ่าน iShip',

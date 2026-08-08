@@ -22,6 +22,9 @@ export const ORDER_EVENT_TYPES = [
   'SYSTEM_CONFIRMED',
   'PAYMENT_METHOD_SYNCED',
   'ORDER_DATE_CHANGED',
+  // feature 00039 — ผู้ซื้อทักท้วงว่ายังไม่ได้ของ/ของไม่ตรง (กันระบบปิดงานอัตโนมัติ)
+  'ORDER_DISPUTE_OPENED',
+  'ORDER_DISPUTE_RESOLVED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -55,6 +58,11 @@ export const ORDER_EVENT_META: Record<
   PAYMENT_METHOD_SYNCED: { label: 'ปรับวิธีชำระเงินตามพัสดุ', icon: 'coin', tone: 'neutral' },
   // feature 00033 — เลื่อนวันที่คำสั่งซื้อ = ย้ายยอดข้ามงวด ผู้ตรวจสอบต้องเห็นแยกจาก ORDER_EDITED
   ORDER_DATE_CHANGED: { label: 'เปลี่ยนวันที่คำสั่งซื้อ', icon: 'calendar-event', tone: 'neutral' },
+  // feature 00039 — neutral ทั้งคู่โดยเจตนา ไม่ใช่ danger
+  // การที่ผู้ซื้อทักท้วงไม่ได้แปลว่าร้านผิด และไทม์ไลน์นี้เป็นหลักฐานที่ทั้งสองฝ่ายเห็น
+  // ถ้าระบายแดงตั้งแต่เปิดเรื่อง = ระบบตัดสินไปแล้วก่อนใครตรวจ
+  ORDER_DISPUTE_OPENED: { label: 'ผู้ซื้อแจ้งว่ายังไม่ได้รับของ', icon: 'alert-circle', tone: 'neutral' },
+  ORDER_DISPUTE_RESOLVED: { label: 'ปิดเรื่องที่ผู้ซื้อแจ้งไว้', icon: 'circle-check', tone: 'neutral' },
 }
 
 /**
@@ -110,6 +118,14 @@ export type OrderEventMeta = {
   orderedAtFrom?: string
   /** feature 00033 — วันที่สั่งซื้อใหม่หลังแก้ (ORDER_DATE_CHANGED) */
   orderedAtTo?: string
+  /** feature 00039 — เหตุผลที่ระบบยืนยันให้เอง (SYSTEM_CONFIRMED)
+   *  'AUTO_CONFIRM_DELIVERED' = ส่งถึงแล้วและพ้นระยะทักท้วง · ค่าเดิมที่ไม่ระบุ = COD settled
+   *  แยกด้วย meta ไม่ใช่ด้วยชนิด event เพราะ "เกิดอะไรขึ้น" เหมือนกัน ต่างแค่ "เพราะอะไร" */
+  reason?: string
+  /** feature 00039 — เวลาที่ขนส่งรายงานว่าส่งถึง (SYSTEM_CONFIRMED แบบ AUTO_CONFIRM_DELIVERED) */
+  deliveredAt?: string | null
+  /** feature 00039 — ผลของการปิดข้อพิพาท (ORDER_DISPUTE_RESOLVED) */
+  outcome?: string
 }
 
 export type OrderEventView = {

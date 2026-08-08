@@ -325,6 +325,9 @@ export const CreateOrderSchema = v.object({
       description: v.optional(v.string()),
       qty: v.pipe(v.number(), v.integer(), v.minValue(1)),
       price: v.pipe(v.number(), v.minValue(0.01)),
+      // ราคาทุนรายบรรทัด (FR-EXP-17) — optional เสมอ ห้ามบล็อกการบันทึกออเดอร์ (D-EXT-4)
+      // ไม่ส่ง key = พฤติกรรมเดิม (fallback Product.cost) · ส่ง 0 = ต้นทุนศูนย์บาทจริง
+      cost: v.optional(v.pipe(v.number(), v.minValue(0, "ราคาทุนต้องไม่ต่ำกว่า 0"))),
     })),
     v.minLength(1),
   ),

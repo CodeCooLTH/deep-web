@@ -22,7 +22,6 @@ import { listServiceResources, serializeServiceResource } from '@/services/servi
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { formatMonthYearTH } from '@/lib/format-date'
-import { computeCompletionRate } from '@/lib/order-stats'
 
 // View Imports
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
@@ -82,15 +81,13 @@ export default async function BusinessShopProfilePage({ params }: Props) {
 
   // ทำไม: เทียบ /u/[username] เป๊ะ แต่ scope ที่ shopId ตรง (business shop แยก trust/badge/verification
   // จาก owner user เอง — 00008 Phase 5 P5-1/P5-2/P5-3)
-  const [approvedVerifications, orderStats, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
+  // เดิมมี prisma.order.groupBy({ by:['status'] }) อยู่ในชุดนี้อีกตัว ซึ่งซ้ำกับที่
+  // getShopProfileStats() ยิงอยู่แล้ว (shop.service.ts:245) และผลของมันไปตกที่
+  // profileHeader.completedOrders/.completionRate ที่ไม่มีใคร render — ถอดออกแล้ว (sync กับ /u/[username])
+  const [approvedVerifications, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
     prisma.verificationRecord.findMany({
       where: { shopId: shop.id, status: 'APPROVED' },
       select: { level: true },
-    }),
-    prisma.order.groupBy({
-      by: ['status'],
-      where: { shopId: shop.id },
-      _count: { _all: true },
     }),
     getAvgRatingByShop(shop.id),
     // Phase 3 (feature 00013): pinned + other แยกคิวรี (sync /u/[username])
@@ -106,11 +103,13 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   const tierColor = getTierColor(shop.trustScore)
   const nextTier = getNextTierInfo(shop.trustScore)
 
-  const confirmedCount = orderStats.find((s) => s.status === 'CONFIRMED')?._count._all ?? 0
-  const completedOrders = confirmedCount
-  // Desktop layout redesign: completionRate จาก orderStats ที่ query อยู่แล้ว (ไม่ query ใหม่)
-  const cancelledCount = orderStats.find((s) => s.status === 'CANCELLED')?._count._all ?? 0
-  const completionRate = computeCompletionRate(confirmedCount, cancelledCount)
+  // redesign 2026-07-26 — ใช้แหล่งข้อมูลชุดเดียวกับ /u/[username] ผ่าน ShopProfile
+  // ย้ายขึ้นมาจากด้านล่าง เพราะ completedOrders/completionRate อ่านจากชุดนี้แล้ว ไม่คำนวณสูตรซ้ำเอง
+  // (เดิมเรียก computeCompletionRate() ที่นี่ แล้วผลตกที่ field ที่ไม่มีใคร render ทำให้เกณฑ์
+  //  ขั้นต่ำใน order-stats.ts ไม่เคยมีผลกับหน้าจอจริง — feature 00039 BR-OSM-10)
+  const profileStats = await getShopProfileStats(shop.id)
+  const completedOrders = profileStats.completedOrders ?? 0
+  const completionRate = profileStats.completionRate
 
   const { avgRating, reviewCount } = ratingAgg
 
@@ -141,8 +140,6 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   const rawServices = isServiceQueue ? await listServiceResources(shop.id, { activeOnly: true }) : []
   const publicServices = rawServices.map(serializeServiceResource)
 
-  // redesign 2026-07-26 — ใช้แหล่งข้อมูลชุดเดียวกับ /u/[username] ผ่าน ShopProfile
-  const profileStats = await getShopProfileStats(shop.id)
   const shopVideos = await getShopVideos(shop.id)
   // feature 00035 (TFR-005) — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ (sync กับ /u/[username])
   const pageBlocks = await listShopPageBlocks(shop.id)

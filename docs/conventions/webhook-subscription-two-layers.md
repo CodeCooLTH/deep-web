@@ -26,9 +26,43 @@ Event จาก Meta จะถึง webhook ของเราก็ต่อ�
 |-------|--------|--------|---------------|
 | `message_deliveries` | **ไม่มี** | มี (เพิ่ม 2026-08-05) | สถานะ "ได้รับแล้ว" ที่ทำมาเพื่อแก้ปัญหา user report โดยเฉพาะ **ไม่เคยทำงานเลยสักครั้ง** ตั้งแต่วันแรก |
 | `message_edits` | มี | **ไม่มี** | `ingestMessageEdit` เขียนรอตั้งแต่ 2026-08-03 ไม่เคยถูกเรียก — ตรงกับที่ CLAUDE.md บันทึกเองว่า "โค้ดขึ้นแล้วแต่ยังไม่เคยทดสอบ" แต่ไม่มีใครรู้ว่าสาเหตุคือ subscription |
-| `messaging_handovers` | **ไม่มี** | **ไม่มี** | เธรดที่ Meta Business Agent (AI ของ Meta) ถือสิทธิ์คุมอยู่ **ไม่เข้ากล่องเลย** จนกว่าคนจริงจะกด take over — เราอ่านกล่อง `standby` เป็นตั้งแต่ 2026-08-04 แล้ว แต่ไม่เคยได้ของมาอ่านเพราะไม่ได้ประกาศตัวเป็น secondary receiver |
+| `messaging_handovers` | **ไม่มี** | **ไม่มี** | เธรดที่ Meta Business Agent (AI ของ Meta) ถือสิทธิ์คุมอยู่ **ไม่เข้ากล่องเลย** จนกว่าคนจริงจะกด take over |
 
 สังเกตว่า 2 เคสแรก **ขาดคนละชั้นกัน** — ถ้าตรวจแค่ชั้นเดียวจะเจอแค่ครึ่งเดียวเสมอ
+
+## 🛑 เพิ่ม field ถูกชั้นแล้ว แต่**ผิดตัว** — เคส `standby` (2026-08-08 รอบสอง)
+
+เย็นวันเดียวกัน user รายงานว่าเธรดที่ AI ตอบ **ยังไม่เข้าอยู่ดี** ทั้งที่ `messaging_handovers` ครบทั้งสองชั้นแล้ว
+
+ตรวจซ้ำได้ว่าทั้งสองชั้นครบจริง (อ่านสดจาก Graph ไม่ได้เดา) — แปลว่า **สมมติฐานเดิมผิดเอง ไม่ใช่ทำไม่ครบ**:
+
+| field | หน้าที่จริง |
+|-------|------------|
+| `messaging_handovers` | บอกว่า **สิทธิ์คุมห้องเปลี่ยนมือ** (pass/take/request) — ไม่ได้ขนข้อความมาด้วยเลย |
+| **`standby`** | **ขนข้อความของห้องที่เราไม่ใช่เจ้าของเธรด** (`messages` / `message_reads` / `message_deliveries` / `messaging_postbacks`) |
+
+ทั้งคู่ต้องมีคู่กัน — มีแต่ `messaging_handovers` = รู้ว่า "ตอนนี้ไม่ใช่ตาคุณ" แต่ไม่มีวันเห็นว่าเขาคุยอะไรกัน
+
+**หลักฐานที่ชี้ขาด** (เธรด `b6064da8` บน prod) — เส้นแบ่งอยู่ที่ "ใครถือห้อง" ไม่ใช่ "payload หน้าตายังไง":
+```
+11:36:47  graph-backfill  ลูกค้า: ราคาโช้คหลังเวฟเท่าไหร่      ← ปัดเป็นวินาที = มาจาก Graph
+11:36:48  graph-backfill  Your AI agent will respond.
+11:39:06  graph-backfill  You took over this chat from your AI agent.
+11:39:11.478  webhook     ← กลับมาทันที เพจเดิม เธรดเดิม ลายเซ็นเดิม schema เดิม
+```
+ป้าย `"Your AI agent will respond."` 20 ครั้งล่าสุดบน prod มาทาง `graph-backfill` **ทั้ง 20 ครั้ง** ไม่มี webhook สักครั้ง
+
+### กับดักของรอบนี้
+
+- 🛑 **`list_topics` ของ Meta DevTools MCP ไม่ลิสต์ `standby` ใน topic `page`** (ลิสต์ให้เฉพาะ `instagram` กับ `whatsapp_business_account`) สั่งเพิ่มผ่าน `devtools_webhook_manage` จะโดนตีกลับว่า `Fields not available for topic "page": standby` **ทั้งที่เอกสาร Messenger บอกชัดว่า subscribe ได้** → ต้องยิง `POST /{app-id}/subscriptions` ผ่าน Graph ตรง ๆ ด้วย app token (`{app_id}|{app_secret}`). **ตารางของเครื่องมือไม่ใช่ความจริง — เชื่อเอกสาร + Graph**
+- 🛑 **`POST /{app-id}/subscriptions` เป็น replace ไม่ใช่ append** ต้องส่ง field เดิมครบทุกตัวไปด้วยทุกครั้ง (อ่านด้วย `GET /{app-id}/subscriptions` ก่อนเสมอ) ตกไปตัวเดียว = เลิกรับ field นั้นทั้งระบบเงียบ ๆ
+- ก่อนยิง ให้พิสูจน์ว่า `verify_token` ที่ถืออยู่ตรงกับ prod ด้วยการยิง handshake ใส่ตัวเอง — ถ้าไม่ตรง Meta จะตีคำขอตกทั้งก้อน:
+  ```
+  curl "https://seller.deepthailand.app/api/channels/facebook/webhook?hub.mode=subscribe&hub.verify_token=$VT&hub.challenge=PING123"
+  # ต้องได้ PING123 กลับมา
+  ```
+- **Messenger เลิกใช้ Handover Protocol แล้ว ย้ายไป Conversation Routing** — จึงไม่ต้องแปลกใจที่ `GET /{page-id}/secondary_receivers` ตอบ `(#100) nonexisting field` และ `thread_owner` คืนมาโดยไม่มี `app_id`. **อย่าใช้ผลของ 2 endpoint นี้สรุปว่า "ไม่มีใครถือห้อง"**
+- เอกสารที่ค้นเจอง่ายคือ **Meta Business Agent ฝั่ง WhatsApp** ซึ่งเขียนโครงถูก (`messages` + `standby` + `messaging_handovers`) แต่ไม่ครอบ Messenger — ตัวที่ต้องอ่านคือ `messenger-platform/webhooks/webhook-events/standby`
 
 ## เช็คลิสต์เมื่อเพิ่ม/แก้ field
 

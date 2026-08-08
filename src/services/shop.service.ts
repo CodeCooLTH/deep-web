@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { normalizeSlug, isValidSlugFormat, isReservedSlug } from "@/lib/shop-slug";
 import { getTierScoreRange } from "@/lib/trust-tier";
+import { computeCompletionRate, isRateExcludedCancellation } from "@/lib/order-stats";
 
 export async function createShop(userId: string, data: {
   shopName: string;
@@ -241,11 +242,32 @@ export async function setShopSlug(shopId: string, rawSlug: string) {
  * ทั้งบล็อกแทนการโชว์เลขศูนย์ ตามหลักของระบบที่ไม่แสดงตัวเลขที่ไม่มีความหมาย (PRD 00015 §11.3)
  */
 export async function getShopProfileStats(shopId: string) {
-  const [statusGroups, customerGroups, ratingGroups, channels] = await Promise.all([
+  const [statusGroups, cancelledRows, customerGroups, ratingGroups, channels] = await Promise.all([
     prisma.order.groupBy({
       by: ["status"],
       where: { shopId },
       _count: { _all: true },
+    }),
+    // feature 00039 — ใบที่ยกเลิกพร้อมหลักฐานที่ใช้ตัดสินว่าเป็นความผิดร้านหรือไม่
+    // อยู่ใน Promise.all เดิม ไม่ยิงรอบใหม่ (NFR ประสิทธิภาพ)
+    //
+    // 🛑 select เฉพาะที่ใช้ตัดสิน — ไม่ดึง cancelReason มาด้วยโดยตั้งใจ เพื่อให้อ่านโค้ดแล้ว
+    // เห็นทันทีว่าเหตุผลที่ร้านเลือกไม่มีทางมีอิทธิพลต่อตัวเลข (BR-OSM-05) ถ้าวันหนึ่งมีคน
+    // เพิ่ม cancelReason เข้ามาใน select นี้ ให้ถือเป็นสัญญาณว่ากำลังจะละเมิดกฎ
+    //
+    // shipments กรองด้วย status CREATED + isDryRun=false = นิยาม "พัสดุที่มีอยู่จริง"
+    // ตัวเดียวกับที่ระบบใช้ (ห้ามใช้ status <> 'CANCELLED' ซึ่งนับใบ FAILED ด้วย —
+    // บั๊กที่เคยทำให้แถวในกล่องแชทขึ้นชิป "สร้างพัสดุแล้ว" ทั้งที่ไม่มีเลขพัสดุ)
+    prisma.order.findMany({
+      where: { shopId, status: "CANCELLED" },
+      select: {
+        cancelInitiator: true,
+        shipments: {
+          where: { status: "CREATED", isDryRun: false },
+          select: { carrierStatus: true },
+          take: 1,
+        },
+      },
     }),
     // นับ "ลูกค้า" จาก customerId ที่ผูกกับออเดอร์ของร้านนี้ — ออเดอร์ที่ยังไม่ผูก Customer
     // (ของเก่าก่อน feat 00014) จะไม่ถูกนับ ซึ่งถูกต้องกว่าการเดาจากเบอร์ซ้ำ
@@ -276,7 +298,19 @@ export async function getShopProfileStats(shopId: string) {
 
   const confirmed = statusGroups.find((s) => s.status === "CONFIRMED")?._count._all ?? 0;
   const cancelled = statusGroups.find((s) => s.status === "CANCELLED")?._count._all ?? 0;
-  const settled = confirmed + cancelled;
+
+  // feature 00039 — ใบที่หลุดจากตัวหารเพราะไม่ใช่ความผิดร้าน (BR-OSM-04)
+  const excluded = cancelledRows.filter((o) =>
+    isRateExcludedCancellation({
+      cancelInitiator: o.cancelInitiator,
+      activeShipmentCarrierStatus: o.shipments[0]?.carrierStatus ?? null,
+    }),
+  ).length;
+
+  // 🛑 สูตรอยู่ที่ lib/order-stats.ts ที่เดียว ห้ามคำนวณเองที่นี่อีก (BR-OSM-10)
+  // เดิมบรรทัดถัดไปเป็น `settled > 0 ? Math.round(...) : null` ซึ่งเป็นสำเนาที่ไม่มีเกณฑ์
+  // ขั้นต่ำ ทำให้ร้านที่มีออเดอร์สำเร็จใบเดียวขึ้น "100%" ได้บนหน้าที่คนใช้ตัดสินใจโอนเงิน
+  const rate = computeCompletionRate({ confirmed, cancelled, excluded });
 
   const customerCount = customerGroups.length;
   // "กลับมาซื้อซ้ำ" = ลูกค้าที่ซื้อสำเร็จกับร้านนี้ตั้งแต่ 2 ครั้งขึ้นไป (นับจากชุด CONFIRMED เดียวกัน)
@@ -293,7 +327,13 @@ export async function getShopProfileStats(shopId: string) {
 
   return {
     completedOrders: confirmed > 0 ? confirmed : null,
-    completionRate: settled > 0 ? Math.round((confirmed / settled) * 100) : null,
+    completionRate: rate.rate,
+    /** ฐานที่ใช้คำนวณจริง — UI ต้องแสดงคู่กับ % เสมอ (BR-OSM-07) ผู้ซื้อจะได้บวกตามได้ */
+    completionDenominator: rate.denominator,
+    /** จำนวนใบที่หักออก — UI แสดงเมื่อ > 0 เท่านั้น */
+    completionExcluded: rate.excluded,
+    /** ยังไม่ถึงเกณฑ์ขั้นต่ำ — UI ใช้เลือกข้อความ "ยังสรุปไม่ได้" แทนการซ่อนเงียบ */
+    completionBelowMinSample: rate.belowMinSample,
     customerCount: customerCount > 0 ? customerCount : null,
     repeatCustomerCount: repeatCustomerCount > 0 ? repeatCustomerCount : null,
     avgRating: reviewCount > 0 ? Number((ratingSum / reviewCount).toFixed(1)) : null,

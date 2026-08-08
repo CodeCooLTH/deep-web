@@ -92,6 +92,24 @@ export function isDeliveredCarrierStatus(code?: string | null): boolean {
 }
 
 /**
+ * ปลายทางแบบ "ของกลับมาหาร้าน" — ผู้รับไม่รับ / ติดต่อไม่ได้ / ที่อยู่ใช้ไม่ได้
+ *
+ * feature 00039 ใช้ชุดนี้เป็น *หลักฐาน* ว่าการยกเลิกใบนั้นไม่ใช่ความผิดของร้าน
+ * (BR-OSM-04) — เป็นหนึ่งใน 2 เส้นทางที่ร้านสร้างขึ้นเองไม่ได้ ต่างจากเหตุผล
+ * ที่ร้านเลือกในโมดัลยกเลิกซึ่งไม่มีอำนาจตัดสินตัวเลข (BR-OSM-05)
+ *
+ * "return" = กำลังตีกลับ · "return_success" = ตีกลับถึงร้านแล้ว — นับทั้งคู่
+ * เพราะทั้งสองยืนยันเหมือนกันว่าของไปไม่ถึงมือผู้รับเพราะฝั่งผู้รับ
+ * (order-stage.ts:134-136 จัดสองค่านี้เป็นกองเดียวกันอยู่แล้วด้วยเหตุผลเดียวกัน)
+ */
+export const RETURNED_CARRIER_STATUSES = ["return", "return_success"] as const;
+
+export function isReturnedCarrierStatus(code?: string | null): boolean {
+  if (!code) return false;
+  return (RETURNED_CARRIER_STATUSES as readonly string[]).includes(code);
+}
+
+/**
  * describeCarrierStatus — แปลรหัสสถานะเป็นข้อความ/สี
  *
  * รหัสที่ไม่รู้จัก (ผู้ให้บริการเพิ่มสถานะใหม่) ต้องไม่ทำให้หน้าจอพัง —

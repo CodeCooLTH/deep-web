@@ -1,36 +1,137 @@
-// order-stats.ts — Pure helpers สำหรับสถิติออเดอร์ที่แสดงบนหน้าโปรไฟล์สาธารณะ (/u/[username], /b/[slug])
-// ทำไม: แยกออกมาเป็น pure function เพื่อ unit-test ได้ตรง ๆ — convention เดียวกับ src/lib/order-display.ts
-// (repo ไม่มี component-test infra มีแค่ vitest)
+// order-stats.ts — SSOT ของ "อัตราความสำเร็จ" ทั้งระบบ (feature 00039)
 //
-// Desktop layout redesign (IG-style + trust data): completionRate ใช้ orderStats
-// ที่ query อยู่แล้วใน page.tsx (prisma.order.groupBy by status) — ไม่ query ใหม่
+// 🛑 ห้ามเขียนสูตรนี้ซ้ำที่อื่นเด็ดขาด (BR-OSM-10)
+// ประวัติที่ทำให้ต้องเขียนกฎข้อนี้: สูตรเดียวกันเคยมีอยู่ 3 สำเนา —
+//   - ที่นี่ (มีเกณฑ์ขั้นต่ำ + unit test ครบ) แต่ **ไม่มีหน้าจอไหนเรียกเลย**
+//   - shop.service.ts (ไม่มีเกณฑ์) ← หน้าโปรไฟล์ใช้จริง
+//   - order.service.ts (ไม่มีเกณฑ์) ← หน้าลิงก์คำสั่งซื้อใช้จริง
+// ผลคือเกณฑ์ขั้นต่ำที่เขียนไว้อย่างดีพร้อมเทส "ไม่เคยมีผลกับผู้ใช้จริงเลยสักครั้ง"
+// ร้านที่มีออเดอร์สำเร็จใบเดียวขึ้น "100% อัตราสำเร็จ" ได้ — ซึ่งเป็นเคสที่คอมเมนต์เดิม
+// ของไฟล์นี้เตือนไว้เองว่า "มิจฉาชีพสร้างได้ใน 5 นาที"
+//
+// ทุกอย่างในไฟล์นี้เป็น pure function โดยตั้งใจ — ทดสอบกฎได้โดยไม่ต้อง mock prisma
+
+// นิยาม "พัสดุตีกลับ" อยู่ที่ lib/iship/status.ts ที่เดียว — ห้ามเขียนรายชื่อสถานะซ้ำที่นี่
+// (เคยเกิดกรณีที่นิยาม "มีปัญหา" ถูกเขียนสองที่แล้วไม่ตรงกัน จนตัวกรองกรองแล้วได้ผล
+//  ไม่ตรงกับตัวนับ — order-stage.ts:69 บันทึกบทเรียนนั้นไว้)
+import { isReturnedCarrierStatus } from './iship/status'
 
 /**
- * จำนวนออเดอร์ที่จบแล้วขั้นต่ำ ก่อนจะยอมแสดง % อัตราสำเร็จ
+ * จำนวนคำสั่งซื้อที่ปิดจบขั้นต่ำ (หลังหักใบที่ไม่ใช่ความผิดร้านแล้ว) ก่อนจะยอมแสดง %
  *
- * ทำไมต้องมี: หน้าโปรไฟล์คือหน้าที่คนใช้ตัดสินใจว่าจะโอนเงินให้คนแปลกหน้าไหม
- * ร้านที่มีออเดอร์จบแค่ 1 รายการแล้วสำเร็จ จะได้ "100% สำเร็จ" ซึ่งอ่านเหมือน
- * สถิติที่พิสูจน์แล้ว ทั้งที่ n=1 ไม่ได้พิสูจน์อะไรเลย — มิจฉาชีพสร้างได้ใน 5 นาที
+ * 5 ไม่ใช่ 3 (feature 00039 TD-005): Facebook Marketplace แสดงดาวเมื่อมีรีวิว ≥5
+ * และ Airbnb Guest Favourite ใช้เกณฑ์เดียวกัน — ที่สำคัญกว่านั้นคือตัวหารของเรา
+ * "เล็กลง" จากการหักใบที่ผู้ซื้อไม่รับออก เกณฑ์ 3 เดิมจึงหลวมเกินไปหลังเปลี่ยนสูตร
  *
- * ค่า 3 มาจาก convention ที่โค้ดเบสตั้งไว้แล้ว 2 ที่ (ไม่ได้ตั้งใหม่):
- *   - avgRating: `showRating: reviewCount >= 3` ที่ u/[username]/page.tsx
- *   - chat response rate: sample-gate >= 3 ที่ AboutOverview
- * เดิม completionRate ไม่มี gate = ขัด convention ตัวเอง (Impeccable critique P0-2)
+ * ค่านี้ประกาศที่เดียว — หน้าจอที่ต้องบอกผู้ใช้ว่า "ต้องมีกี่ใบ" ต้องอ่านจากตัวนี้
+ * ห้าม hardcode เลข 5 ในข้อความ
  */
-export const COMPLETION_RATE_MIN_SAMPLE = 3
+export const COMPLETION_RATE_MIN_SAMPLE = 5
+
+/** ระยะเวลาให้ผู้ซื้อทักท้วงหลังขนส่งรายงานว่าส่งถึง ก่อนระบบยืนยันให้เอง (user เคาะ 2026-08-08)
+ *
+ *  7 ไม่ใช่ 3: ผู้รับจำนวนมากให้คนอื่นรับแทนหรืออยู่ต่างจังหวัด 3 วันไม่พอตรวจของ
+ *  7 ไม่ใช่ 14: ระบบแสดงป้าย "จัดส่งสำเร็จ" อยู่ 3 วันแล้วหายไปจากหน้าจอ (order-stage.ts
+ *  DELIVERED_VISIBLE_MS) ถ้าปล่อยถึง 14 วัน ทั้งร้านและผู้ซื้อจะลืมไปแล้วว่ามีใบนี้ค้างอยู่
+ *
+ *  🛑 ค่านี้ต้องอ่านจากที่นี่ที่เดียว — งานเบื้องหลัง หน้าจอผู้ซื้อ และหน้าจอผู้ขาย
+ *  ต้องบอกเวลาตรงกัน ถ้า hardcode แยกกันแล้วแก้ไม่ครบ ผู้ใช้จะเห็นเวลาไม่ตรงกับที่เกิดจริง
+ */
+export const AUTO_CONFIRM_GRACE_DAYS = 7
+export const AUTO_CONFIRM_GRACE_MS = AUTO_CONFIRM_GRACE_DAYS * 24 * 60 * 60 * 1000
 
 /**
- * computeCompletionRate — % ออเดอร์สำเร็จเทียบกับออเดอร์ที่ "จบแล้ว" (สำเร็จ + ยกเลิก) เท่านั้น
- * ไม่รวม PENDING/SHIPPED (ยังไม่จบงาน) เพราะไม่ควรตัดสินอัตราสำเร็จจากออเดอร์ที่ยังไม่ปิด
+ * 🛑 ไม่มี "วันเริ่มนับ" (ต่างจากที่ PRD/BRD ร่างแรกเขียนไว้ — แก้เอกสารตามแล้ว)
  *
- * contract ที่ล็อกแล้ว (ใช้เหมือนกันทั้ง /u/[username] และ /b/[slug]):
- * - ออเดอร์จบ < COMPLETION_RATE_MIN_SAMPLE → คืน null (ข้อมูลยังไม่พอจะสรุป)
- *   ครอบทั้งกรณีตัวหาร 0 (ร้านใหม่) และกรณี n=1,2 ที่ % ยังไม่มีความหมาย
- *   ห้ามคืน 0 เพราะ UI จะแสดง "0%" ทำให้ร้านใหม่ดูแย่ทั้งที่ยังไม่มีข้อมูลจริง
- * - ปัดเศษเป็นจำนวนเต็ม (Math.round)
+ * ตอนร่างเอกสาร เข้าใจว่าต้องมี epoch เพราะระบบไม่เคยเก็บว่า "ใครยกเลิก" มาก่อน
+ * ตรวจโค้ดจริงแล้วไม่จริง — หลักฐานทั้งสองเส้นทางที่ใช้ตัดตัวหาร **มีอยู่ในฐานย้อนหลังแล้ว**
+ *   - Order.cancelInitiator มีมาตั้งแต่ migration 20260516120000 (3 เดือนก่อนหน้า)
+ *   - OrderShipment.carrierStatus มีมาตั้งแต่ feature 00022
+ * สิ่งที่ขาดย้อนหลังคือ cancelReason ซึ่ง **สูตรนี้ไม่ได้ใช้เลยโดยตั้งใจ** (BR-OSM-05)
+ *
+ * ถ้าใส่ epoch ทั้งที่ข้อมูลมี ผลคือทุกร้านจะเสีย % ไปทันทีในวันเปิดใช้ จนกว่าจะสะสม
+ * ออเดอร์ปิดจบใหม่ครบ 5 ใบ — เสียของฟรีโดยไม่ได้ความถูกต้องอะไรกลับมา
+ *
+ * "ไม่ตัดสินย้อนหลัง" จึงถูกรักษาไว้ด้วยกลไกอื่นแทน: ใบเก่าที่ไม่มี cancelInitiator บันทึกไว้
+ * (null) จะ **ไม่ถูกตัดออก** — fail-closed ไม่ใช่เดาให้ประโยชน์ร้าน ดู isRateExcludedCancellation
  */
-export function computeCompletionRate(confirmed: number, cancelled: number): number | null {
-  const total = confirmed + cancelled
-  if (total < COMPLETION_RATE_MIN_SAMPLE) return null
-  return Math.round((confirmed / total) * 100)
+
+export type CompletionRateInput = {
+  /** ออเดอร์ที่สำเร็จ (ตัวเศษ) */
+  confirmed: number
+  /** ออเดอร์ที่ยกเลิกและปิดจบแล้วทั้งหมด */
+  cancelled: number
+  /** ใบที่ยกเลิกโดยไม่ใช่ความผิดร้าน — ต้องเป็นสับเซตของ cancelled */
+  excluded: number
+}
+
+export type CompletionRateResult = {
+  /** null = ข้อมูลยังไม่พอจะสรุป (ไม่ใช่ 0 — ห้ามแสดง 0% เพราะร้านใหม่จะดูแย่ทั้งที่ยังไม่มีข้อมูล) */
+  rate: number | null
+  /** จำนวนใบที่ใช้เป็นฐานคำนวณจริง — UI ต้องแสดงเสมอ (BR-OSM-07) */
+  denominator: number
+  /** จำนวนใบที่ถูกหักออก — UI แสดงเมื่อ > 0 เท่านั้น ("ไม่นับ 0 ใบ" ไม่ให้ข้อมูลอะไร) */
+  excluded: number
+  /** ยังไม่ถึงเกณฑ์ขั้นต่ำ — แยกจาก rate===null เพื่อให้ UI เลือกข้อความได้ตรง */
+  belowMinSample: boolean
+}
+
+/**
+ * computeCompletionRate — % ออเดอร์สำเร็จ เทียบกับออเดอร์ที่ปิดจบและอยู่ในความรับผิดชอบของร้าน
+ *
+ * ตัวหาร = confirmed + cancelled − excluded
+ *
+ * 🛑 เช็คเกณฑ์ขั้นต่ำ "หลังหัก" ไม่ใช่ก่อนหัก — ร้านที่มี confirmed 4 / cancelled 3 ที่ถูกตัดออก
+ * ทั้ง 3 ใบ มีตัวหารจริงแค่ 4 ถ้าเช็คก่อนหัก (7 ใบ) จะผ่านเกณฑ์แล้วแสดง 100% จากฐาน 4 ใบ
+ */
+export function computeCompletionRate(input: CompletionRateInput): CompletionRateResult {
+  const confirmed = Math.max(0, input.confirmed)
+  const cancelled = Math.max(0, input.cancelled)
+  // clamp: excluded เป็นสับเซตของ cancelled เสมอ ถ้าข้อมูลผิดรูปต้องไม่ทำให้ตัวหารติดลบ
+  // (เจอตอนไหน? ยังไม่เจอ — กันไว้เพราะ excluded มาจากคนละคิวรีกับ cancelled
+  //  ถ้าสองคิวรีนั้นเห็นข้อมูลคนละเวลาเสี้ยววินาที ค่าอาจไม่สอดคล้องกันได้)
+  const excluded = Math.min(Math.max(0, input.excluded), cancelled)
+
+  const denominator = confirmed + cancelled - excluded
+
+  if (denominator < COMPLETION_RATE_MIN_SAMPLE) {
+    return { rate: null, denominator, excluded, belowMinSample: true }
+  }
+
+  return {
+    rate: Math.round((confirmed / denominator) * 100),
+    denominator,
+    excluded,
+    belowMinSample: false,
+  }
+}
+
+/** หลักฐานที่ใช้ตัดสินว่าการยกเลิกใบนี้เป็นความผิดร้านหรือไม่
+ *
+ *  สังเกตว่า **ไม่มี cancelReason อยู่ในนี้** — โดยตั้งใจ (BR-OSM-05)
+ *  เหตุผลที่ร้านเลือกถูกเก็บไว้เป็นประวัติให้ร้านและแอดมินใช้ แต่ไม่มีอำนาจตัดสินตัวเลข
+ *  เพราะถ้าให้มีอำนาจ = ให้ร้านให้คะแนนตัวเอง ซึ่งขัดพันธกิจของแพลตฟอร์มโดยตรง
+ *  (Amazon/eBay/Shopee ตัดสินจากเส้นทางที่ถูกใช้เหมือนกันหมด — ดู
+ *   docs/research/2026-08-08-seller-trust-metrics-benchmark.md §2.2)
+ */
+export type CancellationEvidence = {
+  /** ใครเป็นคนกดยกเลิก — "buyer" คือเส้นทางเดียวฝั่งคนที่ระบบเชื่อได้ */
+  cancelInitiator: string | null
+  /** carrierStatus ของพัสดุ "ที่มีอยู่จริง" ของออเดอร์นี้ (status CREATED + ไม่ใช่ dry-run)
+   *  null = ไม่มีพัสดุที่นับได้ — ผู้เรียกต้องกรองมาให้แล้ว ไม่ใช่ส่ง row ดิบมาทั้งหมด */
+  activeShipmentCarrierStatus: string | null
+}
+
+/**
+ * ใบที่ยกเลิกใบนี้ ถูกหักออกจากตัวหารไหม (BR-OSM-04)
+ *
+ * ตัดออกได้ 2 เส้นทางเท่านั้น:
+ *   1. ผู้ซื้อกดยกเลิกเองจากลิงก์ของตัวเอง
+ *   2. ขนส่งรายงานว่าพัสดุถูกตีกลับ (ผู้รับไม่รับ/ติดต่อไม่ได้)
+ *
+ * ทั้งสองทางมีร่วมกันคือ **ร้านสร้างขึ้นเองไม่ได้** — ต่างจากเหตุผลที่ร้านพิมพ์/เลือก
+ */
+export function isRateExcludedCancellation(evidence: CancellationEvidence): boolean {
+  if (evidence.cancelInitiator === 'buyer') return true
+  return isReturnedCarrierStatus(evidence.activeShipmentCarrierStatus)
 }

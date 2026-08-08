@@ -28,7 +28,6 @@ import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layo
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
 import { formatMonthYearTH } from '@/lib/format-date'
-import { computeCompletionRate } from '@/lib/order-stats'
 
 // View Imports
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
@@ -115,18 +114,15 @@ export default async function PublicProfilePage({ params }: Props) {
     imageUrl: r.images[0] ?? null,
   }))
 
-  const [approvedVerifications, orderStats, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
+  // เดิมมี prisma.order.groupBy({ by:['status'] }) อยู่ตรงนี้อีกชุด ซึ่งเป็นคิวรีเดียวกันเป๊ะกับที่
+  // getShopProfileStats() ยิงไปแล้วด้านบน (shop.service.ts:245) = ยิงซ้ำ 2 รอบต่อการโหลด 1 ครั้ง
+  // แล้วผลของชุดที่สองไปตกที่ profileHeader.completedOrders/.completionRate ซึ่งไม่มีใคร render
+  // (ShopProfile อ่านจาก profileStats ทั้งหมด) — ถอดออกแล้ว อ่านจาก profileStats ที่มีอยู่แทน
+  const [approvedVerifications, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
     prisma.verificationRecord.findMany({
       where: { userId: user.id, status: 'APPROVED' },
       select: { level: true },
     }),
-    user.shop
-      ? prisma.order.groupBy({
-          by: ['status'],
-          where: { shopId: user.shop.id },
-          _count: { _all: true },
-        })
-      : Promise.resolve([] as Array<{ status: string; _count: { _all: number } }>),
     // aggregate ทั้งหมด — ใช้แสดง rating บน platforms section
     getAvgRatingByUsername(username),
     // ดึงสินค้าเฉพาะเมื่อมีร้าน (isShop=true) — buyer-only ส่ง [] แทน
@@ -144,11 +140,11 @@ export default async function PublicProfilePage({ params }: Props) {
   const tierColor = getTierColor(user.trustScore)
   const nextTier = getNextTierInfo(user.trustScore)
 
-  const confirmedCount = orderStats.find((s) => s.status === 'CONFIRMED')?._count._all ?? 0
-  const completedOrders = confirmedCount
-  // Desktop layout redesign: completionRate จาก orderStats ที่ query อยู่แล้ว (ไม่ query ใหม่)
-  const cancelledCount = orderStats.find((s) => s.status === 'CANCELLED')?._count._all ?? 0
-  const completionRate = computeCompletionRate(confirmedCount, cancelledCount)
+  // อ่านจาก profileStats ชุดเดียวกับที่ ShopProfile ใช้ — ไม่คำนวณสูตรซ้ำที่นี่อีก
+  // (เดิม page นี้เรียก computeCompletionRate() เองแล้วผลตกที่ field ที่ไม่มีใคร render
+  //  ทำให้เกณฑ์ขั้นต่ำใน order-stats.ts ไม่เคยมีผลกับหน้าจอจริงเลย — feature 00039 BR-OSM-10)
+  const completedOrders = profileStats?.completedOrders ?? 0
+  const completionRate = profileStats?.completionRate ?? null
 
   // avgRating + reviewCount จาก aggregate (ครอบคลุม review ทั้งหมด)
   const { avgRating, reviewCount } = ratingAgg

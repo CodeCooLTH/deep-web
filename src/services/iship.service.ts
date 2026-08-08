@@ -21,6 +21,7 @@ import {
   carrierStatusCodeFromId,
   describeCarrierStatus,
   impliesDispatched,
+  isDeliveredCarrierStatus,
   parseCarrierTimestamp,
   readCodSettlement,
 } from "@/lib/iship/status";
@@ -1577,6 +1578,21 @@ export async function handleStatusWebhook(payload: unknown): Promise<void> {
       carrierPrice: typeof p.price === "number" ? p.price : undefined,
     },
   });
+
+  // feature 00039 (TFR-004) — บันทึกเวลาที่พัสดุถึงมือผู้รับ "ครั้งแรก" แยกจาก carrierStatusAt
+  //
+  // 🛑 updateMany + WHERE deliveredAt IS NULL คือหัวใจ ไม่ใช่การกันพลาด:
+  // ถ้าเขียนทับได้ ใบ COD ที่เดินจาก delivered → payment_success จะได้ deliveredAt ใหม่
+  // ทุกครั้ง แล้วกำหนดปิดอัตโนมัติ 7 วันจะถูกเลื่อนออกไปเรื่อย ๆ จนอาจไม่ปิดเลย
+  // โดยไม่มี type error ไม่มีเทสแดง มีแต่ตัวเลขบนหน้าร้านที่ไม่ขยับ
+  //
+  // แพตเทิร์นเดียวกับ codReceivedAt (order.service.ts) ที่ใช้ "ใครมาก่อนได้ก่อน"
+  if (isDeliveredCarrierStatus(status)) {
+    await prisma.orderShipment.updateMany({
+      where: { id: shipment.id, deliveredAt: null },
+      data: { deliveredAt: occurredAt },
+    });
+  }
 
   await advanceOrderOnCarrierMove(shipment.orderId, status);
 }

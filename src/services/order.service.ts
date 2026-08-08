@@ -6,7 +6,8 @@ import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.se
 import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/inventory-stock.service";
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
-import { isCancelReason } from "@/lib/lodging";
+import { isCancelReason, resolveShopVertical } from "@/lib/lodging";
+import { isValidCancelReason, BUYER_SELF_CANCEL_REASON } from "@/lib/cancel-reasons";
 import { deriveShippingStage } from "@/lib/order-stage";
 import { shopShipsGoods } from "@/lib/shipping-address-status";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
@@ -86,8 +87,54 @@ export function genShortCode(len = 8): string {
   return code;
 }
 
+/**
+ * resolveLineCosts — ต้นทุนของแต่ละบรรทัดในบิล + write-back เข้าสินค้า (FR-EXP-17)
+ *
+ * ใช้ร่วมกันทั้ง createOrder และ updateOrder เพราะสองที่นี้ต้องให้ผลเหมือนกันเสมอ —
+ * เขียนแยกกันเมื่อไหร่ วันหนึ่งจะมีที่ที่ลืมแก้แล้วต้นทุนของบิลที่ "สร้าง" กับที่ "แก้ไข"
+ * จะไม่ตรงกันโดยไม่มีอะไรฟ้อง (คลาสเดียวกับ Hard Rule 16)
+ *
+ * กฎ (D-EXT-6):
+ *  - ค่าที่ผู้ขายพิมพ์ในบรรทัดนั้น **ชนะเสมอ** สำหรับ OrderItem.cost ของใบนี้
+ *    (ทางเลือกอีกทางคือให้ Product.cost เดิมชนะ ซึ่งแปลว่าผู้ขายพิมพ์แล้วค่าหายเงียบ ๆ)
+ *  - write-back เข้า Product.cost **เฉพาะตอนสินค้านั้นยังไม่มีต้นทุน** — กันไม่ให้การเปิดบิล
+ *    ใบเดียวไปเปลี่ยนต้นทุนอ้างอิงของสินค้าที่ตั้งไว้แล้วเงียบ ๆ (D-EXT-5)
+ *  - ไม่กรอก = fallback ไป Product.cost ตามพฤติกรรมเดิมของ FR-EXP-02 ทุกประการ
+ */
+/** ค่าที่เก็บใน OrderItem.cost ได้จริง — Decimal จาก Prisma, number จากที่ผู้ขายพิมพ์, หรือไม่มี */
+type LineCost = Prisma.Decimal | number | null
+
+async function resolveLineCosts(
+  tx: Prisma.TransactionClient,
+  shopId: string,
+  resolvedItems: { productId?: string; cost?: number }[],
+): Promise<Map<string, LineCost>> {
+  const ids = resolvedItems.map((i) => i.productId).filter((id): id is string => !!id);
+  if (ids.length === 0) return new Map();
+
+  // scope ด้วย shopId เสมอ (defense-in-depth) แม้ ownership ถูก validate มาก่อนแล้ว
+  const rows = await tx.product.findMany({
+    where: { id: { in: ids }, shopId },
+    select: { id: true, cost: true },
+  });
+  const costMap = new Map<string, LineCost>(rows.map((p) => [p.id, p.cost]));
+
+  // write-back: เฉพาะสินค้าที่ยังไม่มีต้นทุน และบรรทัดนั้นกรอกมาจริง
+  const backfill = new Map<string, number>();
+  for (const item of resolvedItems) {
+    if (!item.productId || item.cost == null) continue;
+    if (costMap.get(item.productId) != null) continue; // มีต้นทุนแล้ว ห้ามทับ
+    backfill.set(item.productId, item.cost); // บรรทัดหลังชนะถ้าสินค้าเดียวกันซ้ำหลายบรรทัด
+  }
+  for (const [productId, cost] of backfill) {
+    await tx.product.updateMany({ where: { id: productId, shopId, cost: null }, data: { cost } });
+    costMap.set(productId, cost);
+  }
+  return costMap;
+}
+
 export async function createOrder(shopId: string, data: {
-  items: { productId?: string; name: string; description?: string; qty: number; price: number }[];
+  items: { productId?: string; name: string; description?: string; qty: number; price: number; cost?: number }[];
   type: string;
   // Phase B — optional fields เพิ่มใน B0 migration; ทั้งหมด nullable ใน DB
   buyerContact?: string;
@@ -334,6 +381,10 @@ export async function createOrder(shopId: string, data: {
                   // ไม่มีการจัดส่งเลย (ทางนี้เขียนเองไม่ผ่าน resolveFulfillmentMode มาแต่แรก
                   // จึงรอดจากการล็อกของ BR-BKU-13 มาตลอด — user report 2026-08-07)
                   fulfillmentMode: shipsGoods && data.type === "PHYSICAL" ? "SHIPPED" : "NO_SHIPPING",
+                  // ต้นทุนที่ผู้ขายกรอกในบิลติดไปกับสินค้าที่เพิ่งสร้างเลย (FR-EXP-17) —
+                  // ไม่งั้นสินค้าใหม่จะเกิดมาแบบไม่มีต้นทุนเสมอ แล้วบิลใบถัดไปที่หยิบตัวเดิม
+                  // ก็จะไม่มีต้นทุนอีก ทั้งที่ผู้ขายเพิ่งพิมพ์ไปเมื่อกี้
+                  ...(item.cost != null ? { cost: item.cost } : {}),
                   ...(item.description ? { description: item.description } : {}),
                 },
                 select: { id: true },
@@ -347,28 +398,14 @@ export async function createOrder(shopId: string, data: {
             ? await deductStockForOrderItems(tx, resolvedItems) // throw OutOfStockError = rollback attempt นี้
             : new Map<string, { qty: number; resultingQty: number; name: string }>();
 
-        // feat 00016 (TFR-002/TD-003) — cost snapshot: batch query Product.cost ครั้งเดียว
-        // หลัง resolve items ครบ (รวม Quick-Create auto-created product) ก่อน order.create
-        // เพื่อให้ auto-created product ที่ไม่มี cost ตั้งไว้ได้ null จาก costMap โดยธรรมชาติ
-        const costLookupProductIds = resolvedItems
-          .map((item) => item.productId)
-          .filter((id): id is string => !!id);
-        // defense-in-depth: scope ด้วย shopId แม้ pre-validation ข้างบนจะการันตีแล้วว่า
-        // client-supplied productId เป็นของร้านนี้ทั้งหมด (Quick-Create productId ก็เป็นของ
-        // shopId นี้เสมออยู่แล้วเพราะเพิ่ง tx.product.create ด้วย shopId เดียวกัน)
-        const costRows =
-          costLookupProductIds.length > 0
-            ? await tx.product.findMany({
-                where: { id: { in: costLookupProductIds }, shopId },
-                select: { id: true, cost: true },
-              })
-            : [];
-        const costMap = new Map(costRows.map((p) => [p.id, p.cost]));
+        // feat 00016 — cost snapshot + write-back (FR-EXP-17) — ดู resolveLineCosts()
+        const costMap = await resolveLineCosts(tx, shopId, resolvedItems);
 
-        const itemsCreateData = resolvedItems.map((item) => ({
+        const itemsCreateData = resolvedItems.map(({ cost: typedCost, ...item }) => ({
           ...item,
           stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
-          cost: item.productId ? (costMap.get(item.productId) ?? null) : null,
+          // ค่าที่พิมพ์ชนะ แล้วค่อย fallback ไปต้นทุนของสินค้า (D-EXT-6)
+          cost: typedCost ?? (item.productId ? (costMap.get(item.productId) ?? null) : null),
         }));
 
         // feat 00014 — ผูก Customer กลางด้วยเบอร์ (dedup + cross-shop identity); email/ว่าง/เบอร์ผิด → null
@@ -588,6 +625,7 @@ export async function updateOrder(
           shopId, name, price: item.price, type: data.type,
           // ร้านที่ไม่ส่งของห้ามผลิตสินค้าติดธง SHIPPED (เหตุผลเดียวกับ createOrder ด้านบน)
           fulfillmentMode: shipsGoods && data.type === "PHYSICAL" ? "SHIPPED" : "NO_SHIPPING",
+          ...(item.cost != null ? { cost: item.cost } : {}),
           ...(item.description ? { description: item.description } : {}),
         },
         select: { id: true },
@@ -600,16 +638,12 @@ export async function updateOrder(
       ? await deductStockForOrderItems(tx, resolvedItems)
       : new Map<string, { qty: number; resultingQty: number; name: string }>();
 
-    // 5) cost snapshot (เหมือน createOrder)
-    const costIds = resolvedItems.map((i) => i.productId).filter((id): id is string => !!id);
-    const costRows = costIds.length > 0
-      ? await tx.product.findMany({ where: { id: { in: costIds }, shopId }, select: { id: true, cost: true } })
-      : [];
-    const costMap = new Map(costRows.map((p) => [p.id, p.cost]));
-    const itemsCreateData = resolvedItems.map((item) => ({
+    // 5) cost snapshot + write-back — ฟังก์ชันเดียวกับ createOrder (ห้ามเขียนแยก)
+    const costMap = await resolveLineCosts(tx, shopId, resolvedItems);
+    const itemsCreateData = resolvedItems.map(({ cost: typedCost, ...item }) => ({
       ...item,
       stockDeducted: item.productId && deductions.has(item.productId) ? item.qty : null,
-      cost: item.productId ? (costMap.get(item.productId) ?? null) : null,
+      cost: typedCost ?? (item.productId ? (costMap.get(item.productId) ?? null) : null),
     }));
 
     // 6) customer link — relink เฉพาะเมื่อมีเบอร์ (ไม่มีเบอร์ = ไม่แตะ customerId เดิม กัน unlink ไม่ตั้งใจ)
@@ -938,18 +972,31 @@ export async function cancelOrder(
   // feature 00031 — คนที่กดยกเลิก (guest buyer = null เป็นค่าปกติ ไม่ใช่ข้อยกเว้น)
   actorUserId?: string | null,
 ) {
-  const order = await prisma.order.findUnique({ where: { publicToken } });
+  const order = await prisma.order.findUnique({
+    where: { publicToken },
+    // feature 00039 — ต้องรู้ประเภทกิจการเพื่อเลือกชุดเหตุผลที่ถูกต้อง
+    include: { shop: { select: { vertical: true } } },
+  });
   if (!order) throw new Error("Order not found");
 
+  // feature 00039 (FR-OSM-04) — บังคับเหตุผล "ทุกประเภทออเดอร์" ไม่ใช่เฉพาะ BOOKING
+  //
+  // เดิม block นี้ห่อด้วย `if (order.type === 'BOOKING')` ทำให้ออเดอร์ขายของทั่วไปมี
+  // cancelReason เป็น null เสมอ — ระบบจึงตอบร้านไม่ได้เลยว่าใบไหนยกเลิกเพราะอะไร
+  //
+  // 🛑 เหตุผลที่เก็บตรงนี้ "ไม่มีผลต่ออัตราความสำเร็จ" (BR-OSM-05) การตัดออกจากตัวหาร
+  // ตัดสินจาก cancelInitiator + สถานะขนส่งเท่านั้น ดู lib/order-stats.ts
+  const vertical = resolveShopVertical(order.shop?.vertical);
   let cancelReason: string | undefined;
-  if (order.type === "BOOKING") {
-    if (initiator === "buyer") {
-      cancelReason = "BUYER_REQUESTED";
-    } else {
-      if (!reason) throw new CancelReasonRequiredError();
-      if (!isCancelReason(reason)) throw new InvalidCancelReasonError();
-      cancelReason = reason;
-    }
+  if (initiator === "buyer") {
+    // ผู้ซื้อกดเอง = รู้อยู่แล้วว่าใครกด ไม่ต้องถามซ้ำ (pattern เดิมของการจอง)
+    cancelReason = order.type === "BOOKING" ? "BUYER_REQUESTED" : BUYER_SELF_CANCEL_REASON;
+  } else {
+    if (!reason) throw new CancelReasonRequiredError();
+    // การจองยังใช้ validator เดิมของตัวเอง (ชุดค่าและ countsAgainstGuest ยังทำงานอยู่)
+    const ok = order.type === "BOOKING" ? isCancelReason(reason) : isValidCancelReason(vertical, reason);
+    if (!ok) throw new InvalidCancelReasonError();
+    cancelReason = reason;
   }
   // reject cancel หลัง CONFIRMED (terminal สำเร็จ ยกเลิกไม่ได้)
   assertTransition(order.status, "CANCELLED");
@@ -1595,9 +1642,13 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
   ]);
 
   const confirmedCount = orderStats.find((s) => s.status === "CONFIRMED")?._count._all ?? 0;
-  const cancelledCount = orderStats.find((s) => s.status === "CANCELLED")?._count._all ?? 0;
-  const settled = confirmedCount + cancelledCount;
-  const completionRate = settled > 0 ? Math.round((confirmedCount / settled) * 100) : null;
+
+  // feature 00039 — เดิมบรรทัดนี้เป็นสำเนาที่สามของสูตรอัตราสำเร็จ (ไม่มีเกณฑ์ขั้นต่ำ)
+  // ตอนนี้หน้าลิงก์คำสั่งซื้อไม่แสดง % แล้ว (FR-OSM-11) จึงไม่ต้องคำนวณที่นี่เลย
+  // คงคีย์ completionRate ไว้เป็น null เพราะ type OrderLinkShopContext ใช้ร่วมกับหน้าอื่น
+  // 🛑 ถ้าวันหนึ่งต้องเอา % กลับมาที่จอนี้ ให้เรียก computeCompletionRate จาก lib/order-stats
+  //    ห้ามคำนวณเองซ้ำอีก (BR-OSM-10)
+  const completionRate = null;
 
   const maxVerifyLevel = approvedVerifications.length
     ? Math.max(...approvedVerifications.map((v) => v.level))
