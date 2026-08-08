@@ -22,19 +22,29 @@ import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmp
 import CommentsThreadSkeleton from './CommentsThreadSkeleton'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
-import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
+import { ChannelBadgeOverlay, ShopBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
 import CommentsFilterPanel, {
   DEFAULT_COMMENT_SHOW_FILTER,
   type CommentShowFilter,
 } from './CommentsFilterPanel'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 
-export type ChannelOption = { id: string; name: string; provider: string; avatarUrl: string | null }
+export type ChannelOption = {
+  id: string
+  name: string
+  provider: string
+  avatarUrl: string | null
+  /** feature 00037 — ร้านเจ้าของเพจ (ใช้จัดกลุ่มตัวกรองตามร้านในโหมดรวม) */
+  shopId?: string
+  shopName?: string
+}
 
 export type CommentPostItem = {
   id: string
   externalPostId: string
   channel: ChannelOption
+  /** feature 00037 — ร้านเจ้าของโพสต์ (badge บนการ์ดในโหมดรวมหลายร้าน) */
+  shop?: { id: string; name: string }
   message: string | null
   thumbnailUrl: string | null
   permalink: string | null
@@ -136,12 +146,15 @@ function privateReplyWindow(createdTime: string): { text: string; expired: boole
 
 export default function CommentsClient({
   initialPosts,
-  shopId,
+  shopIds,
+  unified = false,
   channels,
 }: {
   initialPosts: CommentPostItem[]
-  /** ใช้ subscribe `comments:shop:{shopId}` — null = ไม่ subscribe (ไม่มีร้าน active) */
-  shopId: string | null
+  /** ร้านที่แท็บนี้ครอบคลุม (feature 00037) — subscribe `comments:shop:{id}` ทุกตัว */
+  shopIds: string[]
+  /** true = โหมดรวมหลายร้าน → การ์ดโพสต์ติด badge ร้าน */
+  unified?: boolean
   /** เพจที่ร้านเชื่อมไว้ — ใช้ทำตัวกรอง (user 2026-08-03: 'มีสิทธิ์ได้มาจากหลาย page ที่เชื่อม') */
   channels: ChannelOption[]
 }) {
@@ -439,9 +452,12 @@ export default function CommentsClient({
   // PageComment ยิง broadcast `comments:shop:{shopId}` แบบ signal-only แล้ว client refetch เอง
   // ดู migration 20260803180000_page_comment_realtime_broadcast
   useEffect(() => {
-    if (!shopId) return
-    return subscribeShopComments(shopId, refreshAll)
-  }, [shopId, refreshAll])
+    if (shopIds.length === 0) return
+    // feature 00037 — คอมเมนต์ใหม่ของทุกร้านในขอบเขตต้องทำให้รายการอัปเดตเอง
+    const offs = shopIds.map((id) => subscribeShopComments(id, refreshAll))
+    return () => offs.forEach((off) => off())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopIds.join(','), refreshAll])
 
   // fallback: realtime หลุด/socket ตาย → ยังตามของใหม่ได้ทุก 60 วิ (ถี่กว่านี้ไม่จำเป็นแล้ว
   // เพราะทางหลักคือ broadcast) — หยุดเมื่อแท็บไม่ได้อยู่หน้าจอ
@@ -984,6 +1000,9 @@ export default function CommentsClient({
                         Facebook เป็นไฟล์ asset อยู่แล้ว (/images/logos/facebook.svg) ไม่ต้อง
                         hardcode สีแบรนด์ซ้ำที่นี่ และหน้าตาตรงกันทั้งสองแท็บโดยอัตโนมัติ */}
                     <ChannelBadgeOverlay channel={p.channel.provider} imageUrl={p.channel.avatarUrl ?? undefined} />
+                    {/* feature 00037 — badge ร้านมุมบนซ้าย ตัวเดียวกับที่ใช้ในแท็บข้อความและ
+                        หัวเธรด (ภาษาภาพชุดเดียว: ล่างขวา=ช่องทาง บนซ้าย=ร้าน) */}
+                    {unified && p.shop && <ShopBadgeOverlay shopName={p.shop.name} />}
                     {isVideoPost(p.mediaType) && (
                       // โพสต์วิดีโอ — บอกตั้งแต่รายการ ไม่ต้องเปิดเข้าไปถึงจะรู้
                       <span className="absolute inset-0 flex items-center justify-center">

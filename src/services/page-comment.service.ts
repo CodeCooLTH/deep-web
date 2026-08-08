@@ -1,5 +1,6 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { canAccessShop } from '@/lib/shop-context'
+import { canAccessShop, assertShopsAccessible } from '@/lib/shop-context'
 import { decryptToken } from '@/lib/token-crypto'
 import { getChannelByExternalId } from '@/services/shop-channel.service'
 import { createCommentReply, fetchPagePosts, fetchPostComments, fetchPostMeta } from '@/lib/facebook/graph'
@@ -243,6 +244,8 @@ export interface CommentPostRow {
   externalPostId: string
   /** เพจที่โพสต์นี้อยู่ — ร้านเชื่อมได้หลายเพจ ต้องบอกให้รู้ว่าคอมเมนต์มาจากเพจไหน (user 2026-08-03) */
   channel: { id: string; name: string; provider: string; avatarUrl: string | null }
+  /** ร้านเจ้าของเพจ (feature 00037) — กล่องแชทรวมหลายร้านต้องบอกได้ว่าโพสต์นี้ของร้านไหน */
+  shop: { id: string; name: string }
   message: string | null
   thumbnailUrl: string | null
   permalink: string | null
@@ -279,7 +282,8 @@ export interface CommentPostRow {
  * ที่แสดงมีจำกัด (25) และตัวเลขที่ผิดเพราะลืมอัปเดต counter แย่กว่า query ที่ช้าขึ้นนิดเดียว
  */
 export async function listCommentPosts(params: {
-  shopId: string
+  /** ร้านที่รายการครอบคลุม (feature 00037) — ความยาว 1 = โหมดเดิม; มาจาก resolveChatScope เท่านั้น */
+  shopIds: string[]
   actorUserId: string
   q?: string
   take?: number
@@ -288,11 +292,12 @@ export async function listCommentPosts(params: {
   /** กรองเฉพาะเพจเดียว (ตัวกรองเหมือนแท็บข้อความ) — ไม่ส่ง = ทุกเพจของร้าน */
   shopChannelId?: string
 }): Promise<CommentPostRow[]> {
-  if (!(await canAccessShop(params.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (params.shopIds.length === 0) return []
+  await assertShopsAccessible(params.shopIds, params.actorUserId)
 
   const channels = await prisma.shopChannel.findMany({
     where: {
-      shopId: params.shopId,
+      shopId: { in: params.shopIds },
       provider: 'MESSENGER',
       ...(params.shopChannelId ? { id: params.shopChannelId } : {}),
     },
@@ -320,7 +325,17 @@ export async function listCommentPosts(params: {
     take: params.take ?? 25,
     skip: params.skip ?? 0,
     include: {
-      channel: { select: { id: true, name: true, provider: true, avatarUrl: true } },
+      // shop มาด้วยเสมอ (feature 00037) — badge ร้านบนการ์ดโพสต์ในโหมดรวม; โหมดร้านเดียว
+      // ไม่ได้ใช้ค่านี้ แต่การ join เพิ่ม 1 ตารางที่ take 25 แถวไม่ใช่ต้นทุนที่ต้องไปทำ 2 ทาง
+      channel: {
+        select: {
+          id: true,
+          name: true,
+          provider: true,
+          avatarUrl: true,
+          shop: { select: { id: true, shopName: true } },
+        },
+      },
       comments: {
         select: {
           externalCommentId: true,
@@ -358,6 +373,7 @@ export async function listCommentPosts(params: {
         provider: p.channel.provider,
         avatarUrl: p.channel.avatarUrl,
       },
+      shop: { id: p.channel.shop.id, name: p.channel.shop.shopName },
       message: p.message,
       thumbnailUrl: p.thumbnailUrl,
       permalink: p.permalink,
@@ -707,11 +723,12 @@ export async function commentOnPost(params: {
  * ใช้ $queryRaw เพราะเงื่อนไข "ไม่มีคอมเมนต์ลูกของเพจอยู่ข้างใต้" เป็น NOT EXISTS ซึ่ง Prisma
  * client API เขียนตรง ๆ ไม่ได้ (ต้องดึงทั้งหมดมานับใน JS = สิ่งที่เรากำลังหนี)
  */
-export async function countUnansweredForShop(params: {
-  shopId: string
+export async function countUnansweredForShops(params: {
+  shopIds: string[]
   actorUserId: string
 }): Promise<number> {
-  if (!(await canAccessShop(params.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (params.shopIds.length === 0) return 0
+  await assertShopsAccessible(params.shopIds, params.actorUserId)
   /**
    * นับ **จำนวนโพสต์** ที่ยังมีคอมเมนต์ค้าง ไม่ใช่จำนวนคอมเมนต์ (user ถาม 2026-08-04 "มันควรเป็น 8 ไหม"
    * ตอนแท็บขึ้น 26 แต่รายการมี 8 แถว)
@@ -726,7 +743,7 @@ export async function countUnansweredForShop(params: {
     SELECT count(DISTINCT c."postId")::bigint AS count
     FROM "PageComment" c
     JOIN "ShopChannel" sc ON sc.id = c."shopChannelId"
-    WHERE sc."shopId" = ${params.shopId}
+    WHERE sc."shopId" IN (${Prisma.join(params.shopIds)})
       AND sc.provider = 'MESSENGER'
       AND c."isFromPage" = false
       AND c."isDeleted" = false

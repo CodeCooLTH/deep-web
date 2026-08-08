@@ -47,7 +47,8 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { resolveChatScope } from '@/lib/chat-scope'
+import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
 import { getWindowState, syncInboundWindowFromMeta, isHumanAgentEnabled } from '@/services/channel-chat.service'
 import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
@@ -76,10 +77,11 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
 
   // bug fix: resolve ร้านที่ active จริง (Personal หรือ Business ตาม session.user.activeShopId,
   // re-verify membership เสมอ) — ห้ามใช้ getShopByUserId (คืน PERSONAL เสมอ, คือบั๊กเดิม)
-  const activeCtx = await resolveActiveShopContext({
+  // feature 00037 — เธรดถูกหาในขอบเขต "ทุกร้านที่ผู้ใช้ดูอยู่" ไม่ใช่แค่ร้าน active
+  const scope = await resolveChatScope({
     user: { id: user.id as string, activeShopId: (user.activeShopId as string | null | undefined) ?? null },
   })
-  if (!activeCtx) {
+  if (!scope) {
     return (
       <SellerErrorState
         title="ไม่พบร้านที่กำลังใช้งาน"
@@ -104,9 +106,13 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
    * T5: externalContact.customer (ผูกผ่านช่องทางนอก) + buyerUserId (lookup Customer.userId ฝั่ง DEEP)
    */
   const conversation = await prisma.conversation.findFirst({
-    where: { id: conversationId, shopId: activeCtx.shopId },
+    // feature 00037 — หาเธรดในขอบเขต "ทุกร้านที่ผู้ใช้กำลังดู" (โหมดร้านเดียว = array ความยาว 1
+    // ผลลัพธ์เท่าเดิม) ownership ยังอยู่ใน WHERE ตั้งแต่คำสั่งแรกเหมือนเดิม ไม่ใช่ post-check
+    where: { id: conversationId, shopId: { in: scope.shopIds } },
+    // shopId ต้องเลือกมาด้วย — ทุกอย่างหลังจากนี้ผูกกับ "ร้านของเธรด" ไม่ใช่ร้านที่ active
     select: {
       id: true,
+      shopId: true, // feature 00037 — แหล่งความจริงของ "เธรดนี้เป็นของร้านไหน"
       channel: true,
       lastInboundAt: true,
       externalReadAt: true, // feature 00018 read receipt — watermark ลูกค้าอ่านถึงเวลานี้
@@ -162,7 +168,9 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     const ownerShop = switched
       ? null
       : await findConversationShopForUser(conversationId, user.id as string)
-    if (ownerShop && ownerShop.shopId !== activeCtx.shopId) {
+    // feature 00037: ในโหมดรวม เส้นนี้แทบไม่ถูกเรียกแล้ว (เธรดของทุกร้านอยู่ในขอบเขตตั้งแต่แรก)
+    // แต่ยังต้องมีอยู่สำหรับโหมดร้านเดียว + ทางเข้าจาก push notification ของแอปมือถือ
+    if (ownerShop && !scope.shopIds.includes(ownerShop.shopId)) {
       return (
         <ChatShopAutoSwitch
           conversationId={conversationId}
@@ -189,19 +197,26 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
    * locked ไม่มี vertical) — defensive: ไม่ควรเป็น null จริง (context เพิ่ง verify แถวบนแล้ว)
    * feature 00023: chatbotCfg/testThread = ห้องนี้ถูกเลือกไว้ทดสอบ DeepAI ไหม (ป้ายบนหัวเธรด)
    */
+  // 🛑 feature 00037 — ทุก query ในก้อนนี้ผูกกับ conversation.shopId (ร้านของเธรด) ไม่ใช่ร้านที่
+  // active. ในกล่องแชทรวม สองค่านี้ไม่ใช่สิ่งเดียวกันอีกต่อไป — ถ้าใช้ร้านที่ active ผู้ใช้จะเห็น
+  // ป้ายบอท/คำเรียกรายการ/โลโก้ ของอีกร้านมาแปะบนเธรดนี้ โดยที่ทุกอย่างดูปกติดี
+  const threadShopId = conversation.shopId
   const [shopRow, chatbotCfg, testThread, liveKeywordCount, keywordTestThread] = await Promise.all([
-    prisma.shop.findUnique({ where: { id: activeCtx.shopId }, select: { vertical: true, logo: true } }),
+    prisma.shop.findUnique({
+      where: { id: threadShopId },
+      select: { vertical: true, logo: true, shopName: true },
+    }),
     prisma.autoReplyConfig.findUnique({
-      where: { shopId: activeCtx.shopId },
+      where: { shopId: threadShopId },
       select: { aiChatbotStatus: true },
     }),
     prisma.aiChatbotTestThread.findUnique({
-      where: { shopId_conversationId: { shopId: activeCtx.shopId, conversationId } },
+      where: { shopId_conversationId: { shopId: threadShopId, conversationId } },
       select: { id: true },
     }),
-    prisma.autoReplyKeyword.count({ where: { shopId: activeCtx.shopId, status: 'LIVE' } }),
+    prisma.autoReplyKeyword.count({ where: { shopId: threadShopId, status: 'LIVE' } }),
     prisma.autoReplyKeywordTestThread.findFirst({
-      where: { conversationId, keyword: { shopId: activeCtx.shopId, status: 'TEST' } },
+      where: { conversationId, keyword: { shopId: threadShopId, status: 'TEST' } },
       select: { id: true },
     }),
   ])
@@ -231,7 +246,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       />
     )
   }
-  const shop = { id: activeCtx.shopId, vertical: shopRow.vertical }
+  const shop = { id: threadShopId!, vertical: shopRow.vertical, name: shopRow.shopName }
 
 
   // feature 00018: buyer เป็น null ได้ (เธรดช่องทางนอก) — fallback ชื่อจาก externalContact แล้วค่อย 'ลูกค้า'
@@ -407,10 +422,16 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     // ถูกบีบจนอ่านยาก; gap-4 แทน gap-1.25 เดิมที่ชิดกันจนสองคอลัมน์ดูติดกันเป็นก้อนเดียว
     // gap ระหว่างคอลัมน์: user สั่งตัดออก 2026-07-23 — คอลัมน์เธรดกับแผงข้อมูลลูกค้าชนกันเป็น
     // ผืนเดียวแบบแอปแชทจริง (เส้นแบ่งมาจากขอบการ์ดเอง ไม่ต้องมีช่องว่างคั่น)
+    // feature 00037 — ThreadShopProvider ฉีด "ร้านของเธรดนี้" ให้ทุก openDraft ที่อยู่ข้างใน
+    // โดยที่ 8 จุดเรียกเดิมไม่ต้องแก้เลย (และจุดที่เพิ่มใหม่ทีหลังก็จะได้ถูกต้องเอง)
+    <ThreadShopProvider shopId={shop.id}>
     <div className="flex h-full">
       <ChatThread
         conversationId={conversation.id}
         shopId={shop.id}
+        // ป้ายร้านบนหัวเธรด — แสดงเฉพาะโหมดรวม (โหมดร้านเดียวหัวเธรดต้องเหมือนเดิม 100%)
+        shopName={scope.mode === 'UNIFIED' ? shop.name : null}
+        shopLogo={shopRow.logo}
         buyerName={buyerDisplayName}
         buyerAvatar={buyerAvatar}
         shopAvatar={shopAvatar}
@@ -456,5 +477,6 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         <CustomerPanel data={customerPanelData} />
       </div>
     </div>
+    </ThreadShopProvider>
   )
 }

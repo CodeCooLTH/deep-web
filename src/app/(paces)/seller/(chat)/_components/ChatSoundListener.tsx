@@ -20,15 +20,20 @@ import { useEffect } from 'react'
 import { subscribeShopChat } from '@/lib/chat-shop-realtime'
 import { playChatBeep } from '@/lib/chat-sound'
 
-export default function ChatSoundListener({ shopId }: { shopId: string | null }) {
+export default function ChatSoundListener({ shopIds }: { shopIds: string[] }) {
   useEffect(() => {
-    if (!shopId) return
+    if (shopIds.length === 0) return
     // ส่ง conversationId ต่อไปด้วย เพื่อให้การ "ปิดเสียงเฉพาะเธรดนี้" ยังมีผลเหมือนตอนอยู่หน้า
     // รายการ ไม่ใช่ว่าพอสลับมาแท็บความคิดเห็นแล้วเธรดที่ปิดเสียงไว้กลับมาดัง
-    return subscribeShopChat(shopId, ({ conversationId }) =>
-      playChatBeep({ shopId, conversationId }),
+    // feature 00037 — เสียงต้องดังจากทุกร้านในขอบเขต ไม่ใช่แค่ร้าน active (ในโหมดรวม ผู้ใช้
+    // กำลังเฝ้าทุกร้านพร้อมกัน) shopId ที่ส่งเข้า playChatBeep ใช้เป็น throttle key รายร้าน
+    const offs = shopIds.map((shopId) =>
+      subscribeShopChat(shopId, ({ conversationId }) => playChatBeep({ shopId, conversationId })),
     )
-  }, [shopId])
+    return () => offs.forEach((off) => off())
+    // key เป็น string — array prop สร้างใหม่ทุก render ของ parent จะทำให้ effect วิ่งซ้ำไม่จบ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopIds.join(',')])
 
   return null
 }

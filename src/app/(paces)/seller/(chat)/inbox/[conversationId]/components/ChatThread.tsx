@@ -105,7 +105,7 @@ import MessageActionBubble, { type MessageAction, type MessageReactionOption } f
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
-import { ChannelBadgeOverlay } from '../../components/ChannelBadge'
+import { ChannelBadgeOverlay, ShopBadgeOverlay } from '../../components/ChannelBadge'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders, useOrderVocab } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
@@ -515,8 +515,15 @@ import { VERTICAL_CTA, type CustomerPanelData } from './CustomerPanel'
 
 type Props = {
   conversationId: string
-  /** ร้านที่ active — ใช้เป็น key throttle เสียงแจ้งเตือนรายร้าน (ต่างร้านไม่แข่งกันดัง, user 2026-07-24) */
+  /** ร้านของเธรดนี้ — key throttle เสียงแจ้งเตือนรายร้าน (ต่างร้านไม่แข่งกันดัง, user 2026-07-24)
+   *  feature 00037: ตอนนี้คือ "ร้านเจ้าของเธรด" ไม่ใช่ "ร้านที่ active" อีกต่อไป (ในโหมดรวมสองอย่างนี้
+   *  ไม่ใช่สิ่งเดียวกัน) — ซึ่งเป็นสิ่งที่ throttle เสียงต้องการอยู่แล้วพอดี */
   shopId: string | null
+  /** ชื่อร้านของเธรด — มีค่า = โหมดรวมหลายร้าน ให้ขึ้นแถบ "กำลังตอบในนามร้าน X"
+   *  null = โหมดร้านเดียว: หัวเธรดต้องเหมือนเดิมทุกพิกเซล ไม่มีแถบ ไม่มี badge (feature 00037) */
+  shopName?: string | null
+  /** โลโก้ร้าน (storage fileId) — badge มุมบนซ้ายของรูปลูกค้าในโหมดรวม */
+  shopLogo?: string | null
   buyerName: string
   buyerAvatar: string | null
   /** feature 00018 (user request 2026-07-23) — รูปฝั่งร้าน (ข้อความ mine): รูปเพจสำหรับช่องทางนอก
@@ -732,6 +739,8 @@ function OrderCardBubble({ card, onEdit }: { card: ChatOrderCard | null; onEdit:
 export default function ChatThread({
   conversationId,
   shopId,
+  shopName = null,
+  shopLogo = null,
   buyerName,
   buyerAvatar,
   shopAvatar,
@@ -1369,6 +1378,10 @@ export default function ChatThread({
           >
             <ChatAvatar avatar={buyerAvatar} name={buyerName} />
             <ChannelBadgeOverlay channel={channel} imageUrl={channelAvatarUrl} />
+            {/* feature 00037 — badge ร้านมุมบนซ้าย (ช่องทางอยู่มุมล่างขวา) zero-width-cost:
+                หัวเธรดที่ 320px เหลือที่ให้ชื่อลูกค้าแค่ ~90px การเติมชิปข้อความตรงนี้จะดัน
+                ชื่อลูกค้าหายไปทั้งหมด (ดู ux spec §0 งบพื้นที่) */}
+            {shopName && <ShopBadgeOverlay shopName={shopName} logo={shopLogo ?? null} />}
           </span>
           {/* ชื่อบรรทัดเดียว — title กันกรณีชื่อยาวถูกตัดจนอ่านไม่ออก (เดิมไม่มีเพราะชื่อมีทั้งบรรทัด) */}
           <h5 className="text-base min-w-0 truncate" title={buyerName}>
@@ -1432,6 +1445,31 @@ export default function ChatThread({
           </button>
         )}
       </div>
+
+      {/**
+        * feature 00037 — แถบ "กำลังตอบในนามร้าน X" (โหมดรวมหลายร้านเท่านั้น)
+        *
+        * ทำไมเป็นแถวของตัวเองไม่ใช่ชิปในหัวเธรด: หัวเธรดเพิ่งถูกลดความสูง 79px→61px และเปลี่ยนเป็น
+        * flex-nowrap เมื่อ 2026-08-07 เพราะชื่อลูกค้า/ชื่อเพจยาวแล้วตกบรรทัด — ที่ 320px เหลือที่ให้
+        * ชื่อลูกค้าราว 90px การเติมชิปข้อความ 60-80px กลับเข้าไปคือการย้อนงานนั้นทันที
+        *
+        * วางไว้ "เหนือ" แบนเนอร์โฆษณาและแถบสถานะบอท เพราะนี่คือข้อมูลที่ต้องรู้ **ก่อนพิมพ์**
+        * (ตอบในนามใคร) ส่วนอีกสองอันเป็นข้อมูล "เฝ้าดู" ระหว่างคุย
+        *
+        * display-only โดยตั้งใจ (มติ Q-3): กดไม่ได้ — บนมือถือ ChatHeader ถูกซ่อนในหน้าเธรดอยู่แล้ว
+        * การทำให้ดูกดได้แล้วพาไปที่ที่เข้าไม่ถึงแย่กว่าไม่ให้กด
+        */}
+      {shopName && (
+        <div
+          className="border-default-200 text-primary bg-primary/5 flex items-center gap-1.5 border-b px-4 py-1.5 text-xs"
+          role="note"
+        >
+          <Icon icon="building-store" className="shrink-0 text-sm" />
+          <span className="min-w-0 truncate">
+            กำลังตอบในนามร้าน <span className="font-semibold">{shopName}</span>
+          </span>
+        </div>
+      )}
 
       {/* feature 00018 E5 — ที่มาจากโฆษณา: รูปโฆษณา + "ตอบกลับจากโฆษณา" + ชื่อโฆษณา (เลิกใช้ badge
           เล็กบนหัวเธรดแบบเดิม ซึ่งชื่อโฆษณายาว ๆ ถูกตัดจนอ่านไม่ออกและไม่เห็นว่าเป็นโฆษณาชิ้นไหน)

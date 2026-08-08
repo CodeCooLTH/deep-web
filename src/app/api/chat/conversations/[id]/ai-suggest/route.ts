@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveConversationShopId } from "@/lib/chat-scope";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from "@/lib/lodging";
 import {
@@ -78,18 +78,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "ใช้ AI ถี่เกินไป กรุณารอสักครู่" }, { status: 429, headers: { "Retry-After": "60" } });
   }
 
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  });
-  if (!activeCtx) {
-    return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
-  }
-
   const { id: rawId } = await params;
   const idCheck = v.safeParse(IdParamSchema, rawId);
   if (!idCheck.success) {
     return NextResponse.json({ error: "รหัสบทสนทนาไม่ถูกต้อง" }, { status: 400 });
   }
+
+  // 🛑 feature 00037 — ร้านมาจาก "เธรด" ไม่ใช่ร้านที่ active. สำคัญเป็นพิเศษกับ route นี้เพราะ
+  // มันอ่านการตั้งค่า AI/สินค้า/โควตา ของร้านไปสร้างคำตอบ — ถ้าใช้ร้านที่ active ในโหมดรวม
+  // ผู้ขายจะได้ร่างคำตอบที่อ้างสินค้าและน้ำเสียงของ "อีกร้าน" มาตอบลูกค้าร้านนี้
+  const resolved = await resolveConversationShopId(
+    { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
+    idCheck.output,
+  );
+  if (!resolved) {
+    return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
+  }
+  const activeCtx = { shopId: resolved.shopId };
 
   // ownership อยู่ใน WHERE {id, shopId} — เธรดไม่ใช่ของร้านที่ active = 404 (ไม่ leak)
   const conversation = await prisma.conversation.findFirst({

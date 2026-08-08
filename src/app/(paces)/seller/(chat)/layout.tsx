@@ -34,7 +34,7 @@ import { authOptions } from '@/lib/auth'
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { ChatSearchProvider } from '@/context/useChatSearchContext'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { resolveChatScope } from '@/lib/chat-scope'
 import { getProductsByShop, getBestSellerProducts } from '@/services/product.service'
 import { isEntitlementActive } from '@/services/inventory-entitlement.service'
 import ChatHeader from './_components/ChatHeader'
@@ -47,6 +47,7 @@ import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new
 // feature 00024 — บล็อกวันเข้าใช้บริการในโมดัลสร้างรายการจากแชท (user request 2026-08-05)
 import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
 import { listServiceResources } from '@/services/service-resource.service'
+import { listChannelsForShops } from '@/services/shop-channel.service'
 import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentBlock'
 
 // map Product → CatalogProduct (เหมือน (fullscreen)/orders/new/page.tsx) — สำหรับโมดัลสร้างคำสั่งซื้อในแชท
@@ -72,9 +73,42 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   // `chat:shop:{shopId}` (bug fix: รายการแชทไม่อัปเดตเมื่อมีข้อความใหม่ — ดู comment หัว InboxList.tsx)
   // fail-soft: resolve ไม่ได้ = null (แค่ไม่มี realtime, list/หน้าอื่นยังทำงานปกติและมี error state
   // ของตัวเองที่ inbox/page.tsx อยู่แล้ว) — ห้าม redirect/throw ที่ layout เพราะจะพังทั้งหน้าแชท
-  const activeCtx = await resolveActiveShopContext({
+  const scope = await resolveChatScope({
     user: { id: user.id, activeShopId: user.activeShopId ?? null },
   })
+
+  // feature 00037 — ข้อมูลร้านในขอบเขต (badge ในแถว/หัวเธรด + ตัวเลือกร้านตอนกดสร้าง) และเพจของ
+  // ทุกร้าน (ตัวกรอง "เพจ" จัดกลุ่มตามร้าน). resolve ที่นี่ที่เดียวแล้วส่งลงเป็น prop — rail เดิม
+  // ยิง /api/channels เอง ซึ่งเป็น endpoint ของ "ร้านที่ active" จึงไม่มีวันเห็นเพจของร้านอื่น
+  let scopeShops: { id: string; name: string; logo: string | null; vertical: string }[] = []
+  let scopeChannels: {
+    id: string
+    provider: string
+    name: string
+    avatarUrl: string | null
+    shopId: string
+    shopName: string
+  }[] = []
+  if (scope) {
+    const [shopRows, channelRows] = await Promise.all([
+      prisma.shop.findMany({
+        where: { id: { in: scope.shopIds } },
+        // vertical มาด้วย — คำเรียกรายการในแถว/หัวเธรดต้องผันตามร้านของเธรดนั้น ไม่ใช่ร้าน active
+        select: { id: true, shopName: true, logo: true, vertical: true },
+        orderBy: { shopName: 'asc' },
+      }),
+      listChannelsForShops(scope.shopIds).catch(() => []),
+    ])
+    scopeShops = shopRows.map((r) => ({ id: r.id, name: r.shopName, logo: r.logo, vertical: r.vertical }))
+    scopeChannels = channelRows.map((c) => ({
+      id: c.id,
+      provider: c.provider,
+      name: c.name,
+      avatarUrl: c.avatarUrl,
+      shopId: c.shopId,
+      shopName: c.shopName,
+    }))
+  }
 
   // catalog สำหรับโมดัลสร้างคำสั่งซื้อในแชท (feature 00018) — fetch ครั้งเดียวที่ layout, แชร์ทุก draft
   // fail-soft: ล้มก็ยังเปิดหน้าแชทได้ (แค่ modal ไม่มีสินค้าให้เลือก จนกว่าจะรีเฟรช)
@@ -96,8 +130,8 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   let serviceResourcesEnabled = false
   let serviceResources: ServiceResourceOption[] = []
   let appointmentGranularity: AppointmentGranularity = 'DAY'
-  if (activeCtx?.shopId) {
-    const shopId = activeCtx.shopId
+  if (scope?.activeShopId) {
+    const shopId = scope.activeShopId
     let shopRow: { vertical: string; appointmentGranularity: string } | null = null
     ;[catalog, bestSellers, inventoryEnabled, hasShipping, shopRow] = await Promise.all([
       getProductsByShop(shopId).then((ps) => ps.map(toCatalog)).catch(() => []),
@@ -115,7 +149,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
 
     // ระบบนัดหมายเปิดให้เฉพาะ vertical=SERVICE_QUEUE (BR-RSV-01) — ร้านอื่นไม่ได้รับทรัพยากรเลย
     // ฟอร์มจึงไม่ render บล็อกวันนัด DOM เหมือนก่อนมีฟีเจอร์นี้ทุกจุด
-    serviceResourcesEnabled = canUseAppointments({ kind: activeCtx.kind, vertical: shopVertical })
+    serviceResourcesEnabled = canUseAppointments({ kind: scope.activeKind, vertical: shopVertical })
     if (serviceResourcesEnabled) {
       appointmentGranularity = (shopRow?.appointmentGranularity as AppointmentGranularity) ?? 'DAY'
       serviceResources = await listServiceResources(shopId, { activeOnly: true })
@@ -150,7 +184,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
          * ทั้งหน้าไม่ใช่แค่คอลัมน์เดียว) และ InboxTabs ดึงตัวเลขเองผ่าน endpoint + cache ระดับโมดูล
          * จึงไม่ต้องส่ง unansweredCount จาก server ของแต่ละหน้าอีก
          */}
-        <InboxTabs shopId={activeCtx?.shopId ?? null} />
+        <InboxTabs shopIds={scope?.shopIds ?? []} />
 
         <div className="flex min-h-0 flex-1">
           {/* rail — desktop เท่านั้น (≥1024px); <1024px ไม่มีเมนูซ้ายให้แทนที่อยู่แล้ว (ตาม design
@@ -164,7 +198,14 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
           {/* คอลัมน์ rail ย้ายไปอยู่ใน ChatRailColumn (client) — ต้องหายทั้งคอลัมน์เมื่ออยู่แท็บ
               "ความคิดเห็น" ไม่ใช่แค่เนื้อข้างใน (bug fix 2026-08-03 user report: แท็บซ้อน 2 ชั้น)
               layout นี้เป็น server component จึงอ่าน pathname เองไม่ได้ */}
-          <ChatRailColumn shopId={activeCtx?.shopId ?? null} hasShipping={hasShipping} />
+          <ChatRailColumn
+            shopIds={scope?.shopIds ?? []}
+            unified={scope?.mode === 'UNIFIED'}
+            activeShopId={scope?.activeShopId ?? null}
+            shops={scopeShops}
+            channels={scopeChannels}
+            hasShipping={hasShipping}
+          />
 
           {/* children: /inbox (empty-state 2 คอลัมน์ desktop / list เต็มจอมือถือ) หรือ
               /inbox/[conversationId] (thread + customer panel) — overflow-y-auto กันเนื้อหา
@@ -185,10 +226,11 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
 
   // ห่อด้วย DraftOrderProvider เมื่อมีร้าน active — โมดัลสร้างคำสั่งซื้อ (feature 00018) ค้างข้ามแชทได้
   // เพราะ provider อยู่เหนือ {children} (route content). ไม่มีร้าน = ไม่ต้องมีโมดัล (ไม่มี catalog/shopId)
-  if (!activeCtx?.shopId) return shell
+  if (!scope?.activeShopId) return shell
   return (
     <DraftOrderProvider
-      shopId={activeCtx.shopId}
+      shopId={scope.activeShopId}
+      shops={scopeShops}
       catalog={catalog}
       bestSellers={bestSellers}
       inventoryEnabled={inventoryEnabled}

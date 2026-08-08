@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveConversationShopId } from "@/lib/chat-scope";
 import { updateConversationState } from "@/services/chat.service";
 import { setConversationGroup } from "@/services/chat-group.service";
 import { ConversationPatchSchema } from "@/lib/validations";
@@ -35,18 +35,23 @@ export async function PATCH(
   }
   const userId = (session.user as { id: string }).id;
 
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  });
-  if (!activeCtx) {
-    return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
-  }
-
   const { id: rawId } = await params;
   const idCheck = v.safeParse(ConversationIdParamSchema, rawId);
   if (!idCheck.success) {
     return NextResponse.json({ error: "รหัสบทสนทนาไม่ถูกต้อง" }, { status: 400 });
   }
+
+  // feature 00037 — ร้านมาจาก "เธรด" ไม่ใช่ร้านที่ active: ในกล่องแชทรวม ผู้ใช้ปักหมุด/ปิดงาน
+  // เธรดของอีกร้านได้ ถ้ายัง scope ด้วยร้าน active การกดจะเงียบไม่มีอะไรเกิดขึ้น (updateMany
+  // count=0) แล้วโยน CONVERSATION_NOT_FOUND_OR_FORBIDDEN ทั้งที่ผู้ใช้มีสิทธิ์เต็ม
+  const resolved = await resolveConversationShopId(
+    { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
+    idCheck.output,
+  );
+  if (!resolved) {
+    return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
+  }
+  const activeCtx = { shopId: resolved.shopId };
 
   const body = await request.json().catch(() => null);
   if (body === null) {

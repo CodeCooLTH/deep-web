@@ -114,6 +114,47 @@ export async function resolveChatScope(session: SessionLike): Promise<ChatScope 
 }
 
 /**
+ * resolveConversationShopId — "เธรดนี้อยู่ร้านไหน" โดย scope สิทธิ์ไว้ใน WHERE ตั้งแต่คำสั่งแรก
+ *
+ * ใช้กับ route ที่ทำงานกับเธรดใดเธรดหนึ่ง (`/api/chat/conversations/[id]/**`) ซึ่งเดิม scope
+ * ด้วยร้านที่ active — พอมีกล่องแชทรวม เธรดที่เปิดอยู่อาจเป็นของอีกร้าน แล้ว route เหล่านั้นจะ
+ * ตอบ 404 ทั้งที่ผู้ใช้มีสิทธิ์เต็ม (อาการเดียวกับบั๊ก push notification เมื่อ 2026-08-06)
+ *
+ * คืน null ทั้งกรณี "ไม่มีเธรดนี้" และ "ไม่มีสิทธิ์" — ผู้เรียกตอบ 404 เหมือนกันทั้งคู่ ไม่ใช่ 403
+ * (403 ยืนยันว่าเธรดนี้มีอยู่จริงในระบบ ซึ่งเป็นการรั่วข้อมูล)
+ */
+export async function resolveConversationShopId(
+  session: SessionLike,
+  conversationId: string,
+): Promise<{ scope: ChatScope; shopId: string } | null> {
+  const scope = await resolveChatScope(session);
+  if (!scope) return null;
+  const row = await prisma.conversation.findFirst({
+    where: { id: conversationId, shopId: { in: scope.shopIds } },
+    select: { shopId: true },
+  });
+  return row ? { scope, shopId: row.shopId } : null;
+}
+
+/**
+ * resolveScopedShopId — ร้านที่ route ระดับ "ตั้งค่ารายร้าน" ควรทำงานด้วย (กลุ่ม/แท็ก/ข้อความด่วน/โควตา AI)
+ *
+ * ของพวกนี้เป็นทรัพยากรของร้าน แต่ถูกใช้ "ในบริบทของเธรด" — client จึงส่ง ?shopId= ของเธรดมา
+ * ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิมทุกประการสำหรับผู้ใช้ร้านเดียว)
+ *
+ * 🛑 ต้อง intersect กับ scope เสมอ: ยิง shopId ที่ไม่มีสิทธิ์ต้องได้ null → ผู้เรียกตอบ 404
+ */
+export async function resolveScopedShopId(
+  session: SessionLike,
+  requestedShopId?: string | null,
+): Promise<{ scope: ChatScope; shopId: string } | null> {
+  const scope = await resolveChatScope(session);
+  if (!scope) return null;
+  if (!requestedShopId) return { scope, shopId: scope.activeShopId };
+  return scope.shopIds.includes(requestedShopId) ? { scope, shopId: requestedShopId } : null;
+}
+
+/**
  * intersectScopedShopIds — ตัดตัวกรองร้าน/เพจที่ client ส่งมาให้อยู่ในขอบเขตเสมอ (BR-UNI-02)
  *
  * 🛑 คืน [] (ผลลัพธ์ว่าง) เมื่อ id ที่ขอมาอยู่นอกขอบเขต — **ห้ามคืน scope.shopIds ทั้งก้อน**

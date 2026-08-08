@@ -13,8 +13,14 @@ import { deriveOrderStage, type OrderStageInput } from '@/lib/order-stage'
  * จึงปิดช่องนั้นไปด้วยในตัว
  */
 
-/** เส้นเชื่อม conversation → Customer: ช่องทางนอกผ่าน ExternalContact.customerId, DEEP ผ่าน Customer.userId */
-type Linkable = { externalContactId: string | null; buyerUserId: string | null }
+/** เส้นเชื่อม conversation → Customer: ช่องทางนอกผ่าน ExternalContact.customerId, DEEP ผ่าน Customer.userId
+ *
+ * shopId (feature 00037) — จำเป็นตั้งแต่มีกล่องแชทรวมหลายร้าน: `Customer` เป็นตารางระดับ **ทั้งระบบ**
+ * (`phone @unique` ไม่ได้ unique ต่อร้าน) ลูกค้าคนเดียวจึงมีออเดอร์ในหลายร้านพร้อมกันได้ ถ้าจับคู่
+ * ป้ายสถานะด้วย customerId อย่างเดียว เธรดของร้าน B จะได้ป้ายจากออเดอร์ของร้าน A มาแปะ — ผิดแบบ
+ * ที่ดูเนียนมาก (ป้ายขึ้นสวยงามและอัปเดตจริง แค่เป็นออเดอร์คนละร้าน)
+ */
+type Linkable = { externalContactId: string | null; buyerUserId: string | null; shopId: string }
 
 async function resolveCustomerIds<T extends Linkable>(items: T[]): Promise<Map<T, string | null>> {
   const externalContactIds = [
@@ -55,6 +61,7 @@ async function resolveCustomerIds<T extends Linkable>(items: T[]): Promise<Map<T
 }
 
 type LatestOrderRow = {
+  shopId: string
   customerId: string
   status: string
   statusAt: Date
@@ -82,10 +89,11 @@ type LatestOrderRow = {
  */
 export async function enrichWithOrderStage<T extends Linkable>(
   items: T[],
-  shopId: string,
+  /** ร้านที่รายการครอบคลุม (feature 00037) — ความยาว 1 = โหมดเดิม */
+  shopIds: string[],
   now: number = Date.now(),
 ): Promise<(T & { orderStage: ReturnType<typeof deriveOrderStage> })[]> {
-  if (items.length === 0) return []
+  if (items.length === 0 || shopIds.length === 0) return items.map((i) => ({ ...i, orderStage: null }))
 
   const customerIdOf = await resolveCustomerIds(items)
   const customerIds = [...new Set([...customerIdOf.values()].filter((x): x is string => x !== null))]
@@ -94,7 +102,10 @@ export async function enrichWithOrderStage<T extends Linkable>(
   }
 
   const rows = await prisma.$queryRaw<LatestOrderRow[]>`
-    SELECT DISTINCT ON (o."customerId")
+    -- DISTINCT ON ต้องมี shopId เป็นคีย์แรกเสมอ (feature 00037) — "ออเดอร์ล่าสุดของลูกค้าคนนี้"
+    -- ต้องแปลว่า "ในร้านนี้" ไม่ใช่ "ในบรรดาทุกร้านที่ฉันดูอยู่" ดู comment ที่ type Linkable
+    SELECT DISTINCT ON (o."shopId", o."customerId")
+      o."shopId"     AS "shopId",
       o."customerId" AS "customerId",
       o."status"     AS "status",
       COALESCE(s."carrierStatusAt", o."updatedAt") AS "statusAt",
@@ -116,14 +127,15 @@ export async function enrichWithOrderStage<T extends Linkable>(
       ORDER BY sh."createdAt" DESC
       LIMIT 1
     ) s ON true
-    WHERE o."shopId" = ${shopId}
+    WHERE o."shopId" IN (${Prisma.join(shopIds)})
       AND o."customerId" IN (${Prisma.join(customerIds)})
-    ORDER BY o."customerId", o."createdAt" DESC
+    ORDER BY o."shopId", o."customerId", o."createdAt" DESC
   `
 
+  // คีย์เป็น "shopId|customerId" ไม่ใช่ customerId เดี่ยว — ดูเหตุผลที่ type Linkable
   const byCustomer = new Map<string, OrderStageInput>(
     rows.map((r) => [
-      r.customerId,
+      `${r.shopId}|${r.customerId}`,
       {
         status: r.status,
         statusAt: r.statusAt,
@@ -137,6 +149,7 @@ export async function enrichWithOrderStage<T extends Linkable>(
 
   return items.map((i) => {
     const cid = customerIdOf.get(i) ?? null
-    return { ...i, orderStage: deriveOrderStage(cid ? byCustomer.get(cid) ?? null : null, now) }
+    const key = cid ? `${i.shopId}|${cid}` : null
+    return { ...i, orderStage: deriveOrderStage(key ? byCustomer.get(key) ?? null : null, now) }
   })
 }

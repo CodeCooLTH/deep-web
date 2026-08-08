@@ -187,12 +187,18 @@ export type ShipmentFilter = 'none' | 'unprinted' | 'printed' | 'problem'
  * คืน id ให้ caller เอาไปกรองด้วย `id: { in: [...] }` — pattern เดียวกับ readState
  */
 export async function conversationIdsByShipmentState(
-  shopId: string,
+  // feature 00037 — รับหลายร้าน (กล่องแชทรวม); โหมดร้านเดียวส่ง array ความยาว 1 ผลลัพธ์เท่าเดิม
+  shopIds: string[],
   state: ShipmentFilter,
 ): Promise<string[]> {
+  if (shopIds.length === 0) return []
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     WITH latest AS (
-      SELECT DISTINCT ON (o."customerId")
+      -- คีย์ต้องมี shopId ด้วย (feature 00037) — Customer เป็นตารางระดับทั้งระบบ ลูกค้าคนเดียว
+      -- มีออเดอร์หลายร้านได้ ถ้า DISTINCT ON แค่ customerId ตัวกรองพัสดุของร้าน B จะตัดสินจาก
+      -- ออเดอร์ล่าสุดของร้าน A (ผลลัพธ์ดูสมเหตุสมผลแต่ผิดร้าน = หาสาเหตุยากมาก)
+      SELECT DISTINCT ON (o."shopId", o."customerId")
+        o."shopId"     AS "shopId",
         o."customerId" AS "customerId",
         s."id"             AS "shipmentId",
         s."labelPrintedAt" AS "labelPrintedAt",
@@ -205,15 +211,16 @@ export async function conversationIdsByShipmentState(
         ORDER BY sh."createdAt" DESC
         LIMIT 1
       ) s ON true
-      WHERE o."shopId" = ${shopId} AND o."customerId" IS NOT NULL
-      ORDER BY o."customerId", o."createdAt" DESC
+      WHERE o."shopId" IN (${Prisma.join(shopIds)}) AND o."customerId" IS NOT NULL
+      ORDER BY o."shopId", o."customerId", o."createdAt" DESC
     )
     SELECT c."id" AS id
     FROM "Conversation" c
     LEFT JOIN "ExternalContact" ec ON ec."id" = c."externalContactId"
     LEFT JOIN "Customer" cu ON cu."userId" = c."buyerUserId"
-    JOIN latest l ON l."customerId" = COALESCE(ec."customerId", cu."id")
-    WHERE c."shopId" = ${shopId}
+    -- จับคู่ทั้ง shopId และ customerId — เธรดของร้านไหนต้องดูออเดอร์ของร้านนั้นเท่านั้น
+    JOIN latest l ON l."customerId" = COALESCE(ec."customerId", cu."id") AND l."shopId" = c."shopId"
+    WHERE c."shopId" IN (${Prisma.join(shopIds)})
       AND ${
         state === 'none'
           ? Prisma.sql`l."shipmentId" IS NULL`
@@ -229,8 +236,14 @@ export async function conversationIdsByShipmentState(
   return rows.map((r) => r.id)
 }
 
-export async function listConversationsForShop(
-  shopId: string,
+export async function listConversationsForShops(
+  /**
+   * shopIds (feature 00037) — ร้านที่รายการครอบคลุม มาจาก resolveChatScope() เท่านั้น
+   * 🛑 ห้ามรับค่านี้จาก query string ของ client โดยตรง (BR-UNI-01) — ตัวกรองร้านที่ผู้ใช้เลือก
+   *    ต้องผ่าน intersectScopedShopIds() ให้อยู่ในขอบเขตก่อนเสมอ
+   * ความยาว 1 = โหมดร้านเดียว ซึ่งให้ผลลัพธ์เท่าเดิมทุกประการกับก่อนมีฟีเจอร์นี้
+   */
+  shopIds: string[],
   opts: {
     cursor?: string
     take?: number
@@ -256,6 +269,9 @@ export async function listConversationsForShop(
 ): Promise<{ items: ConversationSummary[]; nextCursor: string | null }> {
   const status = opts.status ?? 'open'
   const hidden = opts.hidden ?? false
+  // ขอบเขตว่าง (ตัวกรองร้านชี้ไปนอกสิทธิ์ — ดู intersectScopedShopIds) = ไม่มีอะไรให้แสดง
+  // ต้องตัดจบที่นี่ ไม่ใช่ปล่อยให้ `IN ()` ลง SQL
+  if (shopIds.length === 0) return { items: [], nextCursor: null }
 
   // ส่วนที่มี OR ของตัวเอง (q, customerLinked) เก็บแยกเป็น AND-array — กัน key `OR` ชนกันเองถ้า
   // ทั้งคู่ active พร้อมกัน (assign ที่ top-level object เดียวกันจะทับกันเงียบ ๆ แล้วฟิลเตอร์นึงหาย)
@@ -283,7 +299,7 @@ export async function listConversationsForShop(
   // แล้วกรองด้วย id in/notIn (unread=in, read=notIn). ทำเฉพาะเมื่อมีตัวกรอง (default ไม่ query เพิ่ม)
   let readIdFilter: Prisma.ConversationWhereInput | null = null
   if (opts.readState) {
-    const unreadIds = await unreadConversationIdsForShop(shopId)
+    const unreadIds = await unreadConversationIdsForShops(shopIds)
     readIdFilter = opts.readState === 'unread' ? { id: { in: unreadIds } } : { id: { notIn: unreadIds } }
   }
 
@@ -291,13 +307,15 @@ export async function listConversationsForShop(
   // (ดู comment ที่ conversationIdsByShipmentState) จึงดึง id ที่ผ่านเกณฑ์มาก่อนแล้วกรองด้วย id
   // ใส่ใน AND-array ไม่ใช่ top-level เพราะ readIdFilter ก็ใช้คีย์ `id` เหมือนกัน — assign ทับกันเงียบ ๆ
   if (opts.shipment) {
-    const ids = await conversationIdsByShipmentState(shopId, opts.shipment)
+    const ids = await conversationIdsByShipmentState(shopIds, opts.shipment)
     orParts.push({ id: { in: ids } })
   }
 
   return listConversations(
     {
-      shopId,
+      // ร้านเดียวยังใช้ equality เหมือนเดิม — planner ของ Postgres เลือก index ต่างกันเล็กน้อย
+      // ระหว่าง `= $1` กับ `IN ($1)` และโหมดร้านเดียวคือเส้นทางของผู้ใช้ส่วนใหญ่ของระบบ
+      ...(shopIds.length === 1 ? { shopId: shopIds[0] } : { shopId: { in: shopIds } }),
       ...(opts.channel ? { channel: opts.channel } : {}),
       ...(opts.shopChannelId ? { shopChannelId: opts.shopChannelId } : {}),
       ...(opts.chatGroupId ? { chatGroupId: opts.chatGroupId } : {}),
@@ -366,12 +384,13 @@ export async function countUnreadByConversation(conversationIds: string[]): Prom
  * DISTINCT — เธรดหนึ่งมีได้หลายข้อความลูกค้าที่ยังไม่อ่าน คืน id เดียว. วิ่งบน index
  * ChatMessage(conversationId, createdAt) ที่มีอยู่แล้ว (เหมือน countUnreadByConversation)
  */
-export async function unreadConversationIdsForShop(shopId: string): Promise<string[]> {
+export async function unreadConversationIdsForShops(shopIds: string[]): Promise<string[]> {
+  if (shopIds.length === 0) return []
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     SELECT DISTINCT c.id AS id
     FROM "Conversation" c
     JOIN "ChatMessage" m ON m."conversationId" = c.id
-    WHERE c."shopId" = ${shopId}
+    WHERE c."shopId" IN (${Prisma.join(shopIds)})
       AND m."senderRole" = 'BUYER'
       AND c."lastSenderRole" IS DISTINCT FROM 'SHOP'
       AND (c."shopLastReadAt" IS NULL OR m."createdAt" > c."shopLastReadAt")
@@ -390,13 +409,14 @@ export async function unreadConversationIdsForShop(shopId: string): Promise<stri
  * เหตุผลให้ scan สแปมทั้งกอง ร้านที่โดนสแปมถล่มคือเคสที่ต้องระวังที่สุดพอดี. วิ่งบน index
  * ChatMessage(conversationId, createdAt) ที่มีอยู่แล้ว เหมือน unreadConversationIdsForShop
  */
-export async function countUnreadSpamConversations(shopId: string): Promise<number> {
+export async function countUnreadSpamConversations(shopIds: string[]): Promise<number> {
+  if (shopIds.length === 0) return 0
   const rows = await prisma.$queryRaw<{ n: bigint }[]>`
     SELECT count(*)::bigint AS n FROM (
       SELECT DISTINCT c.id
       FROM "Conversation" c
       JOIN "ChatMessage" m ON m."conversationId" = c.id
-      WHERE c."shopId" = ${shopId}
+      WHERE c."shopId" IN (${Prisma.join(shopIds)})
         AND c."isSpam" = true
         AND m."senderRole" = 'BUYER'
         AND c."lastSenderRole" IS DISTINCT FROM 'SHOP'
@@ -420,13 +440,14 @@ export async function countUnreadSpamConversations(shopId: string): Promise<numb
  * ไม่รวมสแปม เพราะแท็บนั้นมี badge ของตัวเองอยู่แล้ว (นับซ้ำ = ตัวเลขบนสุดไม่ตรงกับผลรวมข้างล่าง)
  * LIMIT 100 เหมือนกัน — UI แสดงแค่ 99+ อยู่แล้ว ไม่ต้องนับต่อให้เปลืองฐาน
  */
-export async function countUnreadConversations(shopId: string): Promise<number> {
+export async function countUnreadConversations(shopIds: string[]): Promise<number> {
+  if (shopIds.length === 0) return 0
   const rows = await prisma.$queryRaw<{ n: bigint }[]>`
     SELECT count(*)::bigint AS n FROM (
       SELECT DISTINCT c.id
       FROM "Conversation" c
       JOIN "ChatMessage" m ON m."conversationId" = c.id
-      WHERE c."shopId" = ${shopId}
+      WHERE c."shopId" IN (${Prisma.join(shopIds)})
         AND c."isSpam" = false
         AND m."senderRole" = 'BUYER'
         AND c."lastSenderRole" IS DISTINCT FROM 'SHOP'
@@ -839,7 +860,7 @@ export async function updateConversationState(
 // เดิมใช้ lastSenderRole='BUYER' ระดับห้อง → under-count เคส IG/Messenger ที่ร้านตอบนอก Deep
 // (ดู comment เต็มที่ unreadConversationIdsForShop). reuse ฟังก์ชันเดียวกันเป็น SSOT ของนิยาม "unread"
 export async function getUnreadCountForShop(shopId: string): Promise<number> {
-  const ids = await unreadConversationIdsForShop(shopId)
+  const ids = await unreadConversationIdsForShops([shopId])
   return ids.length
 }
 

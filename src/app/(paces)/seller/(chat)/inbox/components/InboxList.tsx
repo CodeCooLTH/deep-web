@@ -76,7 +76,7 @@ import { useOrderVocab } from '../../_components/DraftOrderProvider'
  * เดียวไม่ตกบรรทัด — Base: ปุ่มวงกลม rounded-full ใช้ token เดียวกับ ChannelBadgeOverlay
  * (ChannelBadge.tsx — bg-light พื้นเฉย/bg-primary/15 พื้น active) ไม่ใช่ arbitrary ใหม่
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
@@ -95,7 +95,16 @@ import { buildChatListParams, DEFAULT_CHAT_FILTER, type ChatFilterState } from '
 import { type RowAction } from './ConversationRowMenu'
 import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
-import { ChannelBadgeOverlay, getChannelDisplay, type ChatChannel, type ChannelFilterOption } from './ChannelBadge'
+import {
+  ChannelBadgeOverlay,
+  ShopBadgeOverlay,
+  getChannelDisplay,
+  type ChatChannel,
+  type ChannelFilterOption,
+} from './ChannelBadge'
+
+/** ร้านในขอบเขตของกล่องแชทรวม (feature 00037) — ใช้ทำ badge ในแถวและตัวเลือกร้านตอนกดสร้าง */
+export type ShopBrief = { id: string; name: string; logo: string | null }
 
 export type ConversationListItem = {
   id: string
@@ -231,9 +240,16 @@ type Props = {
    *  → หัวรายการต้องเกาะใต้แท็บแทนที่จะเกาะขอบบน ไม่งั้นทับกัน. Chat Rail ไม่ต้องใช้ เพราะที่นั่น
    *  แท็บอยู่นอกกล่อง scroll ไปแล้ว (ChatRail.tsx) */
   tabsAbove?: boolean
-  /** ร้านที่ active — ใช้ subscribe realtime `chat:shop:{shopId}`; null = ไม่ subscribe
-   *  (ยัง fallback refresh ตอน focus ได้ปกติ) */
-  shopId?: string | null
+  /** ร้านที่รายการครอบคลุม (feature 00037) — subscribe realtime `chat:shop:{id}` ทุกตัวในรายการ
+   *  ว่าง = ไม่ subscribe (ยัง fallback refresh ตอน focus ได้ปกติ) */
+  shopIds?: string[]
+  /** true = โหมดรวมหลายร้าน — เปิด badge ร้านในแถว, ซ่อนแท็บกลุ่ม, ปุ่มสร้างใช้คำกลาง
+   *  false = พฤติกรรมเดิมทุกประการ (ผู้ใช้ส่วนใหญ่ของระบบอยู่ทางนี้) */
+  unified?: boolean
+  /** ร้านที่ active — ค่าตั้งต้นของปุ่มสร้างเมื่อยังไม่ได้เปิดเธรด (BR-UNI-07: ห้ามใช้ตัดสินขอบเขต) */
+  activeShopId?: string | null
+  /** ข้อมูลร้านสำหรับ badge/ตัวเลือกร้าน — คีย์ด้วย shopId */
+  shops?: ShopBrief[]
 }
 
 export default function InboxList({
@@ -244,12 +260,18 @@ export default function InboxList({
   hasShipping = false,
   railMode = false,
   tabsAbove = false,
-  shopId = null,
+  shopIds = [],
+  unified = false,
+  activeShopId = null,
+  shops = [],
 }: Props) {
   // ชื่อเรียกรายการตามประเภทกิจการ — อ่านจาก DraftOrderProvider ที่ครอบทั้ง (chat) อยู่แล้ว
   // (ป้ายสถานะออเดอร์ล่าสุดในรายการแชทเคยเขียน "คำสั่งซื้อ" ตายตัว ทั้งที่ร้านบริการ/บ้านพัก
   //  เรียกคนละชื่อ — ตัวเลขและป้ายเดียวกันโผล่หลายที่ต้องมาจากคำชุดเดียวกัน)
   const orderVocab = useOrderVocab()
+  // แผนที่ร้าน — badge ในแถวอ่านจากตัวนี้ (ไม่ query เพิ่มต่อแถว) useMemo เพราะ shops เป็น prop
+  // ที่ identity เปลี่ยนทุก render ของ parent
+  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor)
   const [loading, setLoading] = useState(false)
@@ -611,7 +633,9 @@ export default function InboxList({
           // เสียงเดียว โดยข้อความที่ห่างกันพอสมควรยังมีเสียงของตัวเองครบ
           return !before || new Date(it.lastMessageAt).getTime() > new Date(before.lastMessageAt).getTime()
         })
-        if (beepFor) playChatBeep({ shopId, conversationId: beepFor.id })
+        // throttle key เป็นร้านของเธรดนั้นเอง (ไม่ใช่ร้าน active) — ในโหมดรวม ถ้าใช้ key เดียว
+        // ข้อความของ 3 ร้านที่มาพร้อมกันจะได้ยินเสียงเดียว ทั้งที่เป็นคนละร้านคนละเรื่อง
+        if (beepFor) playChatBeep({ shopId: beepFor.shopId, conversationId: beepFor.id })
         // หน้าแรกเรียงล่าสุดก่อนอยู่แล้ว (lastMessageAt desc) — วางไว้บนสุดแล้วต่อด้วยของเก่าที่ไม่ซ้ำ
         return [...data.items, ...prev.filter((p) => !freshIds.has(p.id))]
       })
@@ -698,10 +722,16 @@ export default function InboxList({
     }, 400)
   }, [])
 
+  // feature 00037 — subscribe ทุกร้านในขอบเขต (subscribeShopChat เป็น refcounted singleton
+  // ต่อ shopId อยู่แล้ว การเรียกหลายตัวจึงไม่ชน topic กันเอง) join key เป็น string เพื่อไม่ให้
+  // array ที่สร้างใหม่ทุก render ทำให้ effect วิ่งซ้ำไม่จบ
+  const shopIdsKey = shopIds.join(',')
   useEffect(() => {
-    if (!shopId) return
-    return subscribeShopChat(shopId, scheduleRefresh)
-  }, [shopId, scheduleRefresh])
+    const ids = shopIdsKey ? shopIdsKey.split(',') : []
+    if (ids.length === 0) return
+    const offs = ids.map((id) => subscribeShopChat(id, scheduleRefresh))
+    return () => offs.forEach((off) => off())
+  }, [shopIdsKey, scheduleRefresh])
 
   // fallback: refresh เมื่อ tab กลับมา visible/focus — ครอบ broadcast ที่ไม่มา (ข้อความ senderRole
   // ='SHOP' เช่น echo จากแอป Messenger ของร้าน ซึ่ง trigger ไม่ส่งเข้า channel นี้) + socket หลุดเงียบ
@@ -1243,6 +1273,14 @@ export default function InboxList({
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
+                      {/* feature 00037 — badge ร้านมุมบนซ้าย (มุมล่างขวาเป็นของช่องทาง)
+                          render เฉพาะโหมดรวม: โหมดร้านเดียวต้องไม่มีอะไรเพิ่มบนจอเลย */}
+                      {unified && shopById.get(c.shopId) && (
+                        <ShopBadgeOverlay
+                          shopName={shopById.get(c.shopId)!.name}
+                          logo={shopById.get(c.shopId)!.logo}
+                        />
+                      )}
                       {/* รูปเพจจริงถ้าเพจนั้นมี (user สั่ง 2026-07-23) — หาได้จาก channels prop ที่
                           มี avatarUrl ต่อเพจอยู่แล้ว ไม่ต้องเพิ่ม query ต่อแถว; ไม่มีรูป/ไม่มีเพจ
                           → ChannelBadgeOverlay ถอยไปโลโก้ช่องทางเอง */}

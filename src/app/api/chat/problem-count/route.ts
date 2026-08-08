@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveChatScope } from "@/lib/chat-scope";
 import { conversationIdsByShipmentState } from "@/services/chat.service";
 
 // feature 00022 — จำนวนบทสนทนาที่พัสดุมีปัญหา สำหรับชิปกรองในรายการแชท
@@ -20,7 +20,7 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const userId = (session.user as { id: string }).id;
-  const ctx = await resolveActiveShopContext({
+  const scope = await resolveChatScope({
     user: {
       id: userId,
       activeShopId:
@@ -30,10 +30,11 @@ export async function GET() {
           | undefined) ?? null,
     },
   });
-  if (!ctx) {
+  if (!scope) {
     return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
   }
 
-  const ids = await conversationIdsByShipmentState(ctx.shopId, "problem");
+  // feature 00037 — ชิป "พัสดุมีปัญหา" ต้องนับตามขอบเขตเดียวกับรายการที่ชิปนั้นกรอง
+  const ids = await conversationIdsByShipmentState(scope.shopIds, "problem");
   return NextResponse.json({ count: ids.length }, { headers: NO_STORE_HEADERS });
 }

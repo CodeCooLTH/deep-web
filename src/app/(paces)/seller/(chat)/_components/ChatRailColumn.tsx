@@ -16,12 +16,23 @@
 import { usePathname } from 'next/navigation'
 import ChatRail from './ChatRail'
 import ChatSoundListener from './ChatSoundListener'
+import type { ChannelFilterOption } from '../inbox/components/ChannelBadge'
+import type { ShopBrief } from '../inbox/components/InboxList'
 
 export default function ChatRailColumn({
-  shopId,
+  shopIds,
+  unified,
+  activeShopId,
+  shops,
+  channels,
   hasShipping,
 }: {
-  shopId: string | null
+  /** ร้านที่กล่องข้อความครอบคลุม (feature 00037) — resolve ที่ layout ไม่ใช่ที่ client */
+  shopIds: string[]
+  unified: boolean
+  activeShopId: string | null
+  shops: ShopBrief[]
+  channels: ChannelFilterOption[]
   hasShipping: boolean
 }) {
   const pathname = usePathname()
@@ -29,14 +40,21 @@ export default function ChatRailColumn({
   // หายไปด้วย ทำให้ข้อความใหม่เข้ามาแล้วเงียบสนิททั้งที่ยังอยู่ในกล่องข้อความ (user report
   // 2026-08-04) จึงต้องแขวนตัวฟังเสียงไว้แทน. วางไว้ตรงนี้ไม่ใช่ที่หน้า comments เพราะที่นี่คือจุด
   // เดียวที่ "รู้ว่า rail หายไปเมื่อไหร่" — route ไหนที่ซ่อน rail ในอนาคตก็จะได้เสียงไปด้วยเอง
-  if (pathname?.startsWith('/inbox/comments')) return <ChatSoundListener shopId={shopId} />
+  if (pathname?.startsWith('/inbox/comments')) return <ChatSoundListener shopIds={shopIds} />
 
 
   return (
     // xl:w-96 — เท่ากับ Customer Panel ฝั่งขวา (user request 2026-07-23) ให้ 2 คอลัมน์ข้างเท่ากัน
     // lg:w-80 (320px) สำหรับช่วงแท็บเล็ต 1024-1279 (bug fix 2026-08-01 จาก user report iPad Pro)
     <div className="border-default-200 hidden shrink-0 flex-col border-e lg:flex lg:w-80 xl:w-96">
-      <ChatRail shopId={shopId} hasShipping={hasShipping} />
+      <ChatRail
+        shopIds={shopIds}
+        unified={unified}
+        activeShopId={activeShopId}
+        shops={shops}
+        channels={channels}
+        hasShipping={hasShipping}
+      />
     </div>
   )
 }

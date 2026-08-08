@@ -17,7 +17,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { generateInitials } from '@/utils/helpers'
 import { pacesConfirm } from '@/lib/paces-swal'
-import { ORDER_VOCAB, type OrderVocab } from '@/lib/seller-menu'
+import { ORDER_VOCAB, resolveOrderVocab, type OrderVocab } from '@/lib/seller-menu'
 import { pacesToast } from '@/lib/paces-toast'
 import { getChannelDisplay, ChannelBadgeOverlay } from '../inbox/components/ChannelBadge'
 import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new/components/OrderCreateForm'
@@ -45,6 +45,14 @@ export type OpenDraftInput = {
   conversationId: string
   customerName: string
   channel: Channel
+  /**
+   * ร้านเจ้าของเธรด (feature 00037) — ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิม, ใช้กับทางเข้าที่ไม่มีเธรด)
+   *
+   * 🛑 ค่านี้คือสิ่งที่ตัดสินว่า "รายการนี้จะถูกสร้างเข้าร้านไหน" ทั้งใบ — ทั้งแคตตาล็อกสินค้า
+   * คำเรียกรายการ กฎที่อยู่จัดส่ง และ shopId ที่ส่งไปกับ POST ต้องมาจากค่านี้ค่าเดียว ห้ามผสม
+   * กับ activeShopId เด็ดขาด (BR-UNI-04)
+   */
+  shopId?: string
   /** รูปโปรไฟล์ลูกค้า (http URL หรือ storage fileId) — โชว์ใน chip ตอนพับ (user request 2026-07-24) */
   customerAvatar?: string | null
   /**
@@ -82,6 +90,8 @@ type ChatDraft = {
   id: string
   kind: DraftKind
   conversationId: string
+  /** ร้านเจ้าของร่างใบนี้ (feature 00037) — ตัดสินแคตตาล็อก/คำ/กฎที่อยู่ ทั้งใบ */
+  shopId: string
   customerName: string
   customerAvatar: string | null
   channel: string
@@ -162,13 +172,42 @@ function DraftAvatar({
  * เรียกคนละชื่อ. ตัวเหล่านั้นอยู่ลึกจาก layout หลายชั้นเกินกว่าจะส่ง prop ไล่ลงไปไหว และ Provider
  * ตัวนี้ครอบทั้ง (chat) อยู่แล้วพร้อม vocab ในมือ — เปิดให้ hook เดิมคืนค่าให้จึงถูกกว่าสร้าง context ใหม่
  */
-type DraftOrderContextValue = { openDraft: (input: OpenDraftInput) => void; vocab: OrderVocab }
+type DraftOrderContextValue = {
+  openDraft: (input: OpenDraftInput) => void
+  /** คลังคำของร้านที่ active — ผู้เรียกที่รู้ร้านของตัวเองควรใช้ vocabFor() แทน */
+  vocab: OrderVocab
+  /** คลังคำของร้านที่ระบุ (feature 00037) — รายการแชทรวมหลายร้านต้องเรียกรายการให้ถูกชื่อรายแถว */
+  vocabFor: (shopId: string | null | undefined) => OrderVocab
+}
 const DraftOrderContext = createContext<DraftOrderContextValue | null>(null)
+
+/**
+ * ThreadShopContext — ร้านเจ้าของเธรดที่เปิดอยู่ (feature 00037)
+ *
+ * ทำไมต้องเป็น context ไม่ใช่ prop: `openDraft` ถูกเรียกจาก 8 จุดในคอมโพเนนต์ของเธรด
+ * (ChatThread, CustomerPanel, OrderProgressBar) ซึ่งอยู่ลึกและมี prop เยอะอยู่แล้ว การไล่ส่ง
+ * shopId ลงไปทีละตัวแปลว่า **จุดที่เพิ่มใหม่ทีหลังจะลืมส่งแล้วตกกลับไปใช้ร้านที่ active เงียบ ๆ**
+ * ซึ่งคือบั๊ก "ออเดอร์เข้าร้านผิด" ที่ไม่มีอะไรฟ้อง — ฉีดที่ hook ตัวเดียวจึงครอบทุกจุดทั้งวันนี้
+ * และวันหน้า
+ */
+const ThreadShopContext = createContext<string | null>(null)
+
+export function ThreadShopProvider({ shopId, children }: { shopId: string; children: React.ReactNode }) {
+  return <ThreadShopContext.Provider value={shopId}>{children}</ThreadShopContext.Provider>
+}
 
 export function useDraftOrders(): DraftOrderContextValue {
   const ctx = useContext(DraftOrderContext)
+  const threadShopId = useContext(ThreadShopContext)
   if (!ctx) throw new Error('useDraftOrders ต้องอยู่ภายใต้ <DraftOrderProvider>')
-  return ctx
+  const openDraft = useCallback(
+    (input: OpenDraftInput) =>
+      // input.shopId ที่ส่งมาเองชนะเสมอ (ทางเข้าที่รู้ร้านของตัวเองอยู่แล้ว เช่นตัวเลือกร้าน
+      // ตอนกดสร้างจากหน้ารายการ); ไม่ส่ง = ร้านของเธรดที่กำลังเปิด; ไม่มีเธรด = ร้านที่ active
+      ctx.openDraft(threadShopId ? { shopId: threadShopId, ...input } : input),
+    [ctx, threadShopId],
+  )
+  return { ...ctx, openDraft }
 }
 
 /**
@@ -184,8 +223,105 @@ export function useOrderVocab(): OrderVocab {
   return useContext(DraftOrderContext)?.vocab ?? ORDER_VOCAB.ONLINE_SALES
 }
 
+/** คลังคำตามร้าน (feature 00037) — ไม่มี Provider/ไม่รู้จักร้านนั้น → ชุดคำ ONLINE_SALES (fail-safe เดิม) */
+export function useOrderVocabFor(): (shopId: string | null | undefined) => OrderVocab {
+  const ctx = useContext(DraftOrderContext)
+  return ctx?.vocabFor ?? (() => ORDER_VOCAB.ONLINE_SALES)
+}
+
+/**
+ * ข้อมูลประกอบฟอร์มสร้างรายการของ "ร้านหนึ่ง" (feature 00037)
+ *
+ * 🛑 ทั้งชุดต้องมาจากร้านเดียวกันเสมอ ห้ามผสมข้ามร้านแม้แต่ field เดียว — กฎ "ต้องกรอกที่อยู่
+ * จัดส่งไหม" ตัดสินจาก shopVertical ร่วมกับธง fulfillmentMode ของสินค้าใน catalog ถ้าสองอย่างนี้
+ * มาจากคนละร้าน ร้านบริการจะถูกบังคับกรอกที่อยู่ (คลาสเดียวกับบั๊ก 2026-08-07)
+ */
+type ShopChatContextReady = {
+  status: 'ready'
+  catalog: CatalogProduct[]
+  bestSellers: CatalogProduct[]
+  inventoryEnabled: boolean
+  vocab: OrderVocab
+  shopVertical: string
+  serviceResourcesEnabled: boolean
+  serviceResources: ServiceResourceOption[]
+  appointmentGranularity: AppointmentGranularity
+}
+type ShopChatContext =
+  | ShopChatContextReady
+  | { status: 'loading' }
+  | { status: 'error'; forbidden: boolean }
+
+/**
+ * โครงฟอร์มระหว่างโหลด (D-5) — skeleton ไม่ใช่สปินเนอร์กลางจอ
+ * (craft-floor: "Skeleton states for loading, not spinners in the middle of content")
+ * Base: bg-default-300 animate-pulse ของ SellerCardSkeleton — ประกอบเป็นรูปร่างฟอร์มคร่าว ๆ
+ */
+function DraftFormSkeleton() {
+  const Bar = ({ className }: { className: string }) => (
+    <span className={`bg-default-300 block animate-pulse rounded ${className}`} />
+  )
+  return (
+    <div className="space-y-4 p-4" aria-busy="true" aria-live="polite">
+      <span className="sr-only">กำลังโหลดข้อมูลร้าน</span>
+      <div className="space-y-2">
+        <Bar className="h-3 w-2/5" />
+        <Bar className="h-9 w-full" />
+      </div>
+      <div className="flex gap-3">
+        <div className="flex-1 space-y-2">
+          <Bar className="h-3 w-1/2" />
+          <Bar className="h-9 w-full" />
+        </div>
+        <div className="flex-1 space-y-2">
+          <Bar className="h-3 w-1/2" />
+          <Bar className="h-9 w-full" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Bar className="h-3 w-1/3" />
+        <Bar className="h-9 w-full" />
+      </div>
+      <Bar className="h-10 w-full" />
+    </div>
+  )
+}
+
+/**
+ * โหลดข้อมูลร้านไม่สำเร็จ — ห้ามตกไปเป็นฟอร์มเปล่า (BR-UNI-06)
+ *
+ * แยก 2 ชนิดโดยตั้งใจ: forbidden = ถูกถอดสิทธิ์ระหว่างทาง กดลองใหม่กี่ครั้งก็ไม่มีวันสำเร็จ
+ * จึงต้องไม่มีปุ่มลองใหม่ให้กด (บทเรียนจาก iShip 2026-08-07 — การจัดประเภทผิดให้เป็น retryable
+ * อันตรายกว่าปกติเพราะมันสั่งให้ผู้ใช้ทำสิ่งที่ไร้ผลซ้ำ ๆ)
+ */
+function DraftContextError({ forbidden, onRetry }: { forbidden: boolean; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center px-4 py-8 text-center">
+      <span className="bg-danger/10 text-danger mb-3 flex size-10 items-center justify-center rounded-full">
+        <Icon icon="alert-circle" width={20} height={20} />
+      </span>
+      <p className="text-default-900 text-sm font-semibold">
+        {forbidden ? 'ไม่มีสิทธิ์เข้าถึงร้านนี้แล้ว' : 'โหลดข้อมูลร้านไม่สำเร็จ'}
+      </p>
+      <p className="text-default-500 mt-1 text-xs">
+        {forbidden
+          ? 'สิทธิ์ในร้านนี้อาจถูกถอดไประหว่างที่เปิดหน้าต่างค้างไว้'
+          : 'ลองใหม่อีกครั้ง หรือปิดหน้าต่างแล้วเปิดใหม่'}
+      </p>
+      {!forbidden && (
+        <button type="button" onClick={onRetry} className="btn bg-primary btn-sm mt-4 text-white">
+          ลองใหม่
+        </button>
+      )}
+    </div>
+  )
+}
+
 type ProviderProps = {
+  /** ร้านที่ active — ใช้เป็นค่าตั้งต้นเมื่อเปิดร่างจากทางเข้าที่ไม่มีเธรด และเป็นร้านที่ layout preload ให้ */
   shopId: string
+  /** ร้านทั้งหมดในขอบเขตกล่องข้อความ (feature 00037) — ใช้ผันคำตามร้านของเธรด */
+  shops?: { id: string; name: string; logo: string | null; vertical?: string }[]
   catalog: CatalogProduct[]
   bestSellers: CatalogProduct[]
   inventoryEnabled: boolean
@@ -204,6 +340,7 @@ type ProviderProps = {
 
 export default function DraftOrderProvider({
   shopId,
+  shops = [],
   catalog,
   bestSellers,
   inventoryEnabled,
@@ -215,6 +352,57 @@ export default function DraftOrderProvider({
   children,
 }: ProviderProps) {
   const [drafts, setDrafts] = useState<ChatDraft[]>([])
+
+  /**
+   * ข้อมูลประกอบฟอร์มรายร้าน (feature 00037)
+   *
+   * ร้านที่ active ถูก preload มาจาก layout (RSC) ตั้งแต่แรก — โหมดร้านเดียวจึงไม่มี fetch เพิ่ม
+   * และไม่มี skeleton ให้เห็นเลย (NFR "โหมดเดิมต้องไม่ช้าลง") ร้านอื่นค่อยโหลดตอนเปิดเธรดของร้านนั้น
+   *
+   * เก็บเป็น Map ต่อ shopId ไม่ใช่ค่าเดียว เพราะร่างของหลายร้านเปิดค้างพร้อมกันได้ (ผู้ใช้ตอบ
+   * สลับร้านไปมาแล้วย่อหน้าต่างไว้) — ถ้าเก็บค่าเดียว ร่างที่ย่อไว้จะกลายเป็นของร้านที่โหลดล่าสุด
+   */
+  const [shopCtx, setShopCtx] = useState<Record<string, ShopChatContext>>(() => ({
+    [shopId]: {
+      status: 'ready',
+      catalog,
+      bestSellers,
+      inventoryEnabled,
+      vocab,
+      shopVertical: shopVertical ?? '',
+      serviceResourcesEnabled,
+      serviceResources,
+      appointmentGranularity,
+    },
+  }))
+
+  /** โหลด context ของร้านที่ยังไม่มีในแคช — เรียกตอน "เปิดร่าง" ไม่ใช่ตอนกดปุ่มบันทึก */
+  const ensureShopContext = useCallback((targetShopId: string) => {
+    setShopCtx((prev) => {
+      if (prev[targetShopId] && prev[targetShopId]!.status !== 'error') return prev
+      return { ...prev, [targetShopId]: { status: 'loading' } }
+    })
+    void (async () => {
+      try {
+        const res = await fetch(`/api/chat/shop-context?shopId=${encodeURIComponent(targetShopId)}`, {
+          cache: 'no-store',
+        })
+        if (!res.ok) {
+          // 403 = ถูกถอดสิทธิ์ระหว่างทาง — ข้อความต้องต่างจาก "โหลดไม่สำเร็จ" เพราะกดลองใหม่
+          // กี่ครั้งก็ไม่มีวันสำเร็จ (บทเรียนเดียวกับ classifyRetryUX ของ iShip 2026-08-07)
+          setShopCtx((prev) => ({
+            ...prev,
+            [targetShopId]: { status: 'error', forbidden: res.status === 403 },
+          }))
+          return
+        }
+        const body = (await res.json()) as Omit<ShopChatContextReady, 'status'>
+        setShopCtx((prev) => ({ ...prev, [targetShopId]: { ...body, status: 'ready' } }))
+      } catch {
+        setShopCtx((prev) => ({ ...prev, [targetShopId]: { status: 'error', forbidden: false } }))
+      }
+    })()
+  }, [])
 
   // feature 00022 — โหมดสร้างพัสดุของร้าน
   // ที่นี่เป็น client component จึงถามผ่าน API ครั้งเดียวตอน mount (ต่างจากหน้า POS
@@ -249,10 +437,14 @@ export default function DraftOrderProvider({
     setDrafts((prev) => {
       // dedup: พัสดุ → key ด้วยออเดอร์ที่จะเปิดพัสดุ; แก้ไข → key ด้วย editOrderToken
       // (แก้คนละออเดอร์ = คนละร่าง); สร้างใหม่ → key ด้วย conversationId
+      // dedup ต้องเทียบร้านด้วย (feature 00037) — conversationId ไม่ซ้ำข้ามร้านอยู่แล้ว แต่การ
+      // เขียนเงื่อนไขให้ครบทำให้กติกา "ร่างหนึ่งใบผูกร้านเดียว" อ่านออกจากโค้ดตรงนี้ได้เลย
+      const draftShopId = input.shopId ?? shopId
       const existing = prev.find((d) =>
         kind === 'SHIPMENT'
           ? d.kind === 'SHIPMENT' && d.shipmentOrderToken === shipmentToken
           : d.kind === 'ORDER' &&
+            d.shopId === draftShopId &&
             (editToken
               ? d.editOrderToken === editToken
               : !d.editOrderToken && d.conversationId === input.conversationId),
@@ -266,6 +458,7 @@ export default function DraftOrderProvider({
       const next: ChatDraft = {
         id: (globalThis.crypto?.randomUUID?.() ?? `d${Date.now()}${prev.length}`),
         kind,
+        shopId: input.shopId ?? shopId,
         conversationId: input.conversationId,
         customerName: input.customerName,
         customerAvatar: input.customerAvatar ?? null,
@@ -279,7 +472,28 @@ export default function DraftOrderProvider({
       }
       return [...prev.map((d) => (d.state === 'expanded' ? { ...d, state: 'minimized' as const } : d)), next]
     })
-  }, [])
+  }, [shopId])
+
+  /** ผันคำตามร้าน — ใช้ vertical ที่ layout ส่งมากับรายชื่อร้าน (ไม่ต้องรอโหลด context ของร้านนั้น
+   *  ซึ่งจะทำให้แถวในรายการเปลี่ยนคำหลังโหลดเสร็จ = จอกระพริบ) */
+  const vocabFor = useCallback(
+    (targetShopId: string | null | undefined): OrderVocab => {
+      if (!targetShopId || targetShopId === shopId) return vocab
+      const vertical = shops.find((s) => s.id === targetShopId)?.vertical
+      return vertical ? resolveOrderVocab(vertical) : vocab
+    },
+    [shopId, vocab, shops],
+  )
+
+  /** เปิดร่าง + สั่งโหลด context ของร้านนั้นทันที (ไม่รอให้กดปุ่มบันทึก) — D-5: ปุ่มกดได้เสมอ
+   *  หน้าต่างเปิดขึ้นมาแล้วค่อยโชว์สถานะกำลังโหลดข้างใน */
+  const openDraftWithContext = useCallback(
+    (input: OpenDraftInput) => {
+      ensureShopContext(input.shopId ?? shopId)
+      openDraft(input)
+    },
+    [ensureShopContext, openDraft, shopId],
+  )
 
   const minimize = useCallback((id: string) => {
     setDrafts((prev) => prev.map((d) => (d.id === id ? { ...d, state: 'minimized' } : d)))
@@ -388,7 +602,7 @@ export default function DraftOrderProvider({
   const minimized = drafts.filter((d) => d.state === 'minimized')
 
   return (
-    <DraftOrderContext.Provider value={{ openDraft, vocab }}>
+    <DraftOrderContext.Provider value={{ openDraft: openDraftWithContext, vocab, vocabFor }}>
       {children}
 
       {/* ทุก draft mount ฟอร์มค้างไว้ (hidden เมื่อไม่ได้ขยาย) กันข้อมูลที่กรอกหาย — expanded เห็นทีละ 1 */}
@@ -451,18 +665,32 @@ export default function DraftOrderProvider({
                 onViewOnlyChange={(v) => setViewOnly(d.id, v)}
               />
             ) : (() => {
+              // feature 00037 — ข้อมูลประกอบทั้งชุดมาจาก "ร้านของร่างใบนี้" ไม่ใช่ร้านที่ active
+              const ctx = shopCtx[d.shopId]
+              // 🛑 เงื่อนไขคือ status === 'ready' ไม่ใช่ catalog.length > 0 — ร้านที่ไม่มีสินค้าจริง
+              // ต้องเปิดฟอร์มได้ ต่างจาก "ยังโหลดไม่เสร็จ" (แคตตาล็อกว่างสื่อว่าร้านนี้ไม่มีสินค้า
+              // ซึ่งเป็นข้อมูลผิด ไม่ใช่แค่ยังไม่มา — BR-UNI-06)
+              if (!ctx || ctx.status === 'loading') return <DraftFormSkeleton />
+              if (ctx.status === 'error') {
+                return (
+                  <DraftContextError
+                    forbidden={ctx.forbidden}
+                    onRetry={() => ensureShopContext(d.shopId)}
+                  />
+                )
+              }
               // feature 00033 — คำนวณครั้งเดียวเก็บเป็นตัวแปรเดียว ห้ามคำนวณสองรอบให้หลุดจากกัน
               // messageCreatedAt === null = ไม่มีข้อความต้นทาง (ต้องแยกจาก "มีแต่เก่าเกิน")
               const msgMs = d.messageCreatedAt ? new Date(d.messageCreatedAt).getTime() : null
               const msgInWindow = msgMs != null && isOrderDateInWindow(msgMs, Date.now())
               return (
               <OrderCreateForm
-              vocab={vocab}
-                shopVertical={shopVertical}
-                shopId={shopId}
-                catalog={catalog}
-                bestSellers={bestSellers}
-                inventoryEnabled={inventoryEnabled}
+              vocab={ctx.vocab}
+                shopVertical={ctx.shopVertical}
+                shopId={d.shopId}
+                catalog={ctx.catalog}
+                bestSellers={ctx.bestSellers}
+                inventoryEnabled={ctx.inventoryEnabled}
                 formId={`draft-order-form-${d.id}`}
                 initialBuyerName={d.customerName}
                 initialSalesChannel={chatChannelToSalesChannel(d.channel)}
@@ -470,9 +698,9 @@ export default function DraftOrderProvider({
                 editOrderToken={d.editOrderToken ?? undefined}
                 prefillParseText={d.prefillText ?? undefined}
                 ishipCreateMode={ishipCreateMode}
-                serviceResourcesEnabled={serviceResourcesEnabled}
-                serviceResources={serviceResources}
-                appointmentGranularity={appointmentGranularity}
+                serviceResourcesEnabled={ctx.serviceResourcesEnabled}
+                serviceResources={ctx.serviceResources}
+                appointmentGranularity={ctx.appointmentGranularity}
                 onSuccess={() => handleSuccess(d)}
                 prefillCreatedAt={msgInWindow ? d.messageCreatedAt ?? undefined : undefined}
                 prefillCreatedAtTooOld={msgMs != null && !msgInWindow}

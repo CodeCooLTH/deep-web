@@ -55,6 +55,21 @@ export async function listAccessibleShopIds(userId: string): Promise<string[]> {
   return [...new Set([...owned.map((s) => s.id), ...memberships.map((m) => m.shopId)])];
 }
 
+/** assertShopsAccessible — ตรวจสิทธิ์ "หลายร้านพร้อมกัน" ด้วย query ชุดเดียว (feature 00037)
+ *
+ * ทำไมไม่วน canAccessShop(): เรียกทีละร้าน = 2 query ต่อร้าน ในหน้าที่โหลดทุกครั้งที่เปลี่ยน
+ * ตัวกรอง — ตัวนี้ยิงชุดเดียวจบไม่ว่าจะกี่ร้าน
+ *
+ * เป็น defense-in-depth: shopIds ที่ส่งมาควรมาจาก resolveChatScope อยู่แล้ว (ซึ่ง derive จาก
+ * listAccessibleShopIds ตัวเดียวกันนี้) — ด่านนี้กันกรณีมีคนเผลอส่งค่าจากที่อื่นเข้ามาภายหลัง
+ * ซึ่งเป็นสิ่งที่เกิดขึ้นเสมอเมื่อฟังก์ชันถูก reuse โดยคนที่ไม่ได้อ่าน comment ต้นทาง
+ */
+export async function assertShopsAccessible(shopIds: string[], userId: string): Promise<void> {
+  if (shopIds.length === 0) return
+  const allowed = new Set(await listAccessibleShopIds(userId))
+  if (shopIds.some((id) => !allowed.has(id))) throw new Error('FORBIDDEN')
+}
+
 export interface ActiveShopContext {
   shopId: string;
   kind: "PERSONAL" | "BUSINESS";

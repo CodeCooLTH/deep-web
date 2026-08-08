@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveChatScope } from "@/lib/chat-scope";
 import { countUnreadSpamConversations } from "@/services/chat.service";
 
 // feature 00018 — badge จำนวนสแปมที่ยังไม่อ่านบนแท็บ "สแปม" (user สั่ง 2026-07-31)
@@ -14,14 +14,15 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = (session.user as { id: string }).id;
-  const ctx = await resolveActiveShopContext({
+  const scope = await resolveChatScope({
     user: {
       id: userId,
       activeShopId: ((session.user as { activeShopId?: string | null }).activeShopId as string | null | undefined) ?? null,
     },
   });
-  if (!ctx) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
+  if (!scope) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
 
-  const count = await countUnreadSpamConversations(ctx.shopId);
+  // feature 00037 — นับข้ามร้านตามขอบเขตเดียวกับรายการ ไม่งั้น badge สแปมกับรายการสแปมไม่ตรงกัน
+  const count = await countUnreadSpamConversations(scope.shopIds);
   return NextResponse.json({ count }, { headers: NO_STORE_HEADERS });
 }

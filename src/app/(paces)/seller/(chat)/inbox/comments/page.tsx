@@ -12,9 +12,9 @@ import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { resolveActiveShopContext } from '@/lib/shop-context'
+import { resolveChatScope } from '@/lib/chat-scope'
 import { listCommentPosts, backfillPagePosts } from '@/services/page-comment.service'
-import { listChannels } from '@/services/shop-channel.service'
+import { listChannelsForShops } from '@/services/shop-channel.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import CommentsClient, { type CommentPostItem } from './CommentsClient'
@@ -27,10 +27,11 @@ export default async function CommentsPage() {
   const user = session?.user as { id: string; activeShopId?: string | null } | undefined
   if (!user?.id) redirect('/auth/sign-in')
 
-  const activeCtx = await resolveActiveShopContext({
+  // feature 00037 — แท็บความคิดเห็นรวมทุกร้านตามโหมดเดียวกับแท็บข้อความ (D-4)
+  const scope = await resolveChatScope({
     user: { id: user.id, activeShopId: user.activeShopId ?? null },
   })
-  if (!activeCtx) {
+  if (!scope) {
     return <SellerErrorState title="ไม่พบร้านที่กำลังใช้งาน" message="ลองสลับร้านอีกครั้ง หรือรีเฟรชหน้านี้" />
   }
 
@@ -42,18 +43,30 @@ export default async function CommentsPage() {
    * ของที่ได้เพิ่มจะโผล่เองในรอบ poll/realtime ถัดไปของ CommentsClient ไม่ต้องรีเฟรชมือ
    * ฟังก์ชันไม่ throw และมี throttle ต่อเพจ 10 นาทีในตัว (ดู backfillPagePosts)
    */
+  const backfillShopIds = scope.shopIds
   after(async () => {
-    await backfillPagePosts({ shopId: activeCtx.shopId, actorUserId: user.id })
+    // ทุกร้านในขอบเขต — โหมดรวมต้องดึงโพสต์ย้อนหลังของทุกเพจที่ผู้ใช้กำลังดูอยู่
+    // (throttle ต่อเพจ 10 นาทีอยู่ในตัว backfillPagePosts แล้ว จึงไม่ยิง Graph ถี่ขึ้นจริง)
+    for (const shopId of backfillShopIds) {
+      await backfillPagePosts({ shopId, actorUserId: user.id })
+    }
   })
 
   let posts: CommentPostItem[] = []
   let failed = false
   // เพจที่เชื่อมไว้ — ใช้ทำตัวกรอง (ร้านเชื่อมได้หลายเพจ); v1 ครอบเฉพาะ Facebook
-  const channels = (await listChannels(activeCtx.shopId).catch(() => []))
+  const channels = (await listChannelsForShops(scope.shopIds).catch(() => []))
     .filter((c) => c.provider === 'MESSENGER')
-    .map((c) => ({ id: c.id, name: c.name, provider: c.provider, avatarUrl: c.avatarUrl }))
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      provider: c.provider,
+      avatarUrl: c.avatarUrl,
+      shopId: c.shopId,
+      shopName: c.shopName,
+    }))
   try {
-    const rows = await listCommentPosts({ shopId: activeCtx.shopId, actorUserId: user.id })
+    const rows = await listCommentPosts({ shopIds: scope.shopIds, actorUserId: user.id })
     posts = rows.map((p) => ({
       ...p,
       lastCommentAt: p.lastCommentAt ? p.lastCommentAt.toISOString() : null,
@@ -77,7 +90,12 @@ export default async function CommentsPage() {
           />
         </div>
       ) : (
-        <CommentsClient initialPosts={posts} shopId={activeCtx.shopId} channels={channels} />
+        <CommentsClient
+          initialPosts={posts}
+          shopIds={scope.shopIds}
+          unified={scope.mode === 'UNIFIED'}
+          channels={channels}
+        />
       )}
     </div>
   )

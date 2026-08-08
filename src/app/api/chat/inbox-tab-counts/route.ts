@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveChatScope } from "@/lib/chat-scope";
 import { countUnreadConversations } from "@/services/chat.service";
-import { countUnansweredForShop } from "@/services/page-comment.service";
+import { countUnansweredForShops } from "@/services/page-comment.service";
 
 // feature 00029 — ตัวเลขบน 2 แท็บของกล่องข้อความ: "ข้อความ" (เธรดยังไม่อ่าน) + "ความคิดเห็น"
 // (คอมเมนต์ยังไม่ตอบ) — user สั่ง 2026-08-04
@@ -20,19 +20,21 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = (session.user as { id: string }).id;
-  const ctx = await resolveActiveShopContext({
+  // feature 00037 — ตัวเลขบน 2 แท็บต้องรวมทุกร้านในขอบเขตเมื่อผู้ใช้เปิดโหมดรวม ไม่งั้นผู้ใช้
+  // จะเห็นรายการของ 3 ร้านแต่ badge นับแค่ร้านเดียว (ตัวเลขบนจอเดียวกันไม่ตรงกัน = อ่านว่าระบบพัง)
+  const scope = await resolveChatScope({
     user: {
       id: userId,
       activeShopId:
         ((session.user as { activeShopId?: string | null }).activeShopId as string | null | undefined) ?? null,
     },
   });
-  if (!ctx) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
+  if (!scope) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
 
   // ตัวใดตัวหนึ่งล้มไม่ควรทำให้อีกตัวหายไปจากจอ — badge เป็นข้อมูลเสริม ตกไปเป็น 0 ดีกว่า 500 ทั้งก้อน
   const [unread, unanswered] = await Promise.all([
-    countUnreadConversations(ctx.shopId).catch(() => 0),
-    countUnansweredForShop({ shopId: ctx.shopId, actorUserId: userId }).catch(() => 0),
+    countUnreadConversations(scope.shopIds).catch(() => 0),
+    countUnansweredForShops({ shopIds: scope.shopIds, actorUserId: userId }).catch(() => 0),
   ]);
 
   return NextResponse.json({ unread, unanswered }, { headers: NO_STORE_HEADERS });

@@ -3,7 +3,7 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveConversationShopId } from "@/lib/chat-scope";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/chat/conversations/[id]/customer-prefill — เบอร์ + ที่อยู่ล่าสุดของลูกค้าที่ผูกกับเธรดนี้
@@ -21,14 +21,17 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = (session.user as { id: string }).id;
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  });
-  if (!activeCtx) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
-
   const { id } = await params;
   const idc = v.safeParse(IdParam, id);
   if (!idc.success) return NextResponse.json({ error: "รหัสบทสนทนาไม่ถูกต้อง" }, { status: 400 });
+
+  // feature 00037 — ร้านมาจาก "เธรด" ไม่ใช่ร้านที่ active (กล่องแชทรวมทำให้สองอย่างนี้ต่างกันได้)
+  const resolved = await resolveConversationShopId(
+    { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
+    idc.output,
+  );
+  if (!resolved) return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
+  const activeCtx = { shopId: resolved.shopId };
 
   const conv = await prisma.conversation.findFirst({
     where: { id: idc.output, shopId: activeCtx.shopId },

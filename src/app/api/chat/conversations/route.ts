@@ -3,11 +3,11 @@ import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getSubdomain } from "@/lib/subdomain";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveChatScope, intersectScopedShopIds } from "@/lib/chat-scope";
 import { prisma } from "@/lib/prisma";
 import {
   getOrCreateConversation,
-  listConversationsForShop,
+  listConversationsForShops,
   listConversationsForBuyer,
   countUnreadByConversation,
   type ConversationSummary,
@@ -188,6 +188,8 @@ export async function GET(request: NextRequest) {
       ? searchParams.get("tags")!.split(",").map((t) => t.trim()).filter(Boolean)
       : undefined,
     shipment: searchParams.get("shipment") ?? undefined,
+    // feature 00037 — ตัวกรอง "ร้าน" ในกล่องแชทรวม (ไม่ใช่ขอบเขต ดู comment ที่ schema)
+    shopId: searchParams.get("shopId") ?? undefined,
   };
   const parsed = v.safeParse(ChatConversationsQuerySchema, input);
   if (!parsed.success) {
@@ -199,14 +201,19 @@ export async function GET(request: NextRequest) {
   const subdomain = getSubdomain(host);
 
   if (subdomain === "seller") {
-    // bug fix: resolve ร้านที่ active จริง — ห้าม fallback เงียบ ๆ ไป PERSONAL (นั่นคือบั๊กเดิม)
-    const activeCtx = await resolveActiveShopContext({
+    // feature 00037 — ขอบเขตร้านมาจาก resolveChatScope เท่านั้น (SINGLE = ร้าน active ร้านเดียว
+    // เหมือนเดิมทุกประการ / UNIFIED = ทุกร้านที่ผู้ใช้เข้าถึงได้)
+    // ห้าม fallback เงียบ ๆ ไป PERSONAL เมื่อ resolve ไม่ได้ (นั่นคือบั๊กเดิมก่อน 2026-07)
+    const scope = await resolveChatScope({
       user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
     });
-    if (!activeCtx) {
+    if (!scope) {
       return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
     }
-    const result = await listConversationsForShop(activeCtx.shopId, {
+    // ตัวกรองร้านที่ client ส่งมาต้องถูกตัดให้อยู่ในขอบเขตเสมอ — ยิงรหัสร้านที่ไม่มีสิทธิ์
+    // จะได้ [] แล้ว service คืนรายการว่าง (ไม่ใช่ 403 ที่ยืนยันว่าร้านนั้นมีจริง — BR-UNI-02)
+    const scopedShopIds = intersectScopedShopIds(scope.shopIds, parsed.output.shopId);
+    const result = await listConversationsForShops(scopedShopIds, {
       cursor: parsed.output.cursor,
       take: parsed.output.take,
       channel: parsed.output.channel,
@@ -229,7 +236,7 @@ export async function GET(request: NextRequest) {
     const withUnread = enriched.map((i) => ({ ...i, unreadCount: unreadMap.get(i.id) ?? 0 }));
     // ป้ายขั้นตอนออเดอร์ล่าสุดในแถว (user request 2026-07-29 — แทนชิปตะกร้า+จำนวนเดิมของ 2026-07-25)
     // service กลาง: หน้า inbox โหลดหน้าแรกแบบ RSC ไม่ผ่าน route นี้ ต้องเรียกฟังก์ชันเดียวกันทั้งสองทาง
-    const withStage = await enrichWithOrderStage(withUnread, activeCtx.shopId);
+    const withStage = await enrichWithOrderStage(withUnread, scopedShopIds);
     // ป้าย DeepBot ในแถว (S-20) — อ่าน autoReplyKind ของข้อความล่าสุดจริงของแต่ละเธรด
     // เรียกที่นี่และใน inbox/page.tsx ด้วยฟังก์ชันเดียวกัน ไม่งั้นหน้าแรก (RSC) กับหน้าที่โหลด
     // จากการกรอง (route นี้) จะแสดงไม่เหมือนกัน — บทเรียนเดียวกับ enrichWithOrderStage
@@ -243,12 +250,19 @@ export async function GET(request: NextRequest) {
     //
     // อยู่ใน after() ห้าม await ในเส้นทางตอบ response — หน้ากล่องข้อความต้องไม่ช้าลงเพราะเรื่องนี้
     // และพังแล้วต้องไม่กระทบการโหลดรายการ
-    const sweepShopId = activeCtx.shopId;
+    //
+    // feature 00037: กวาดให้ทุกร้านในขอบเขต ไม่ใช่แค่ร้าน active — ในโหมดรวม ร้านที่ active
+    // ไม่ได้แปลว่าเป็นร้านที่ผู้ใช้กำลังดูอยู่อีกต่อไป ถ้ากวาดแค่ร้านเดียวงานค้างของอีก 2 ร้าน
+    // จะไม่มีวันถูกแตะเลยตราบใดที่ผู้ใช้ยังไม่สลับไปร้านนั้น (ซึ่งคือสิ่งที่ฟีเจอร์นี้ทำให้เขา
+    // ไม่ต้องทำอีกแล้วพอดี) — limit ต่อร้านคงเดิม 5 ไม่ได้เพิ่มภาระต่อรอบแบบก้าวกระโดด
+    const sweepShopIds = scope.shopIds;
     after(async () => {
-      try {
-        await sweepStuckJobs({ shopId: sweepShopId, limit: 5 });
-      } catch (e) {
-        console.error("[chat] sweep งานตอบอัตโนมัติล้มเหลว", e instanceof Error ? e.message : e);
+      for (const sweepShopId of sweepShopIds) {
+        try {
+          await sweepStuckJobs({ shopId: sweepShopId, limit: 5 });
+        } catch (e) {
+          console.error("[chat] sweep งานตอบอัตโนมัติล้มเหลว", e instanceof Error ? e.message : e);
+        }
       }
 
       // ดึงสถานะพัสดุจาก iShip มาเติมป้ายในรายการแชท (feature 00022)
@@ -256,10 +270,12 @@ export async function GET(request: NextRequest) {
       // เกาะจังหวะเดียวกับ sweep ข้างบนด้วยเหตุผลเดียวกัน: cron ของแพลนนี้เป็นรายวัน
       // แต่แอดมินเปิดกล่องข้อความบ่อยกว่านั้นมาก — ตัว service กันความถี่เองไว้ที่ 15 นาที
       // จึงกดรีเฟรชรัว ๆ ก็ไม่ยิง iShip เกินรอบ
-      try {
-        await syncShipmentStatuses(sweepShopId);
-      } catch (e) {
-        console.error("[chat] sync สถานะพัสดุล้มเหลว", e instanceof Error ? e.message : e);
+      for (const sweepShopId of sweepShopIds) {
+        try {
+          await syncShipmentStatuses(sweepShopId);
+        } catch (e) {
+          console.error("[chat] sync สถานะพัสดุล้มเหลว", e instanceof Error ? e.message : e);
+        }
       }
     });
 

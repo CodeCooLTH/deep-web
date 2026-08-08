@@ -47,9 +47,9 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { resolveActiveShopContext } from '@/lib/shop-context'
-import { listConversationsForShop, countUnreadByConversation } from '@/services/chat.service'
-import { listChannels } from '@/services/shop-channel.service'
+import { resolveChatScope } from '@/lib/chat-scope'
+import { listConversationsForShops, countUnreadByConversation } from '@/services/chat.service'
+import { listChannelsForShops } from '@/services/shop-channel.service'
 import { listChatGroups } from '@/services/chat-group.service'
 import { enrichWithOrderStage } from '@/services/order-stage.service'
 import { enrichWithAutoReplyBadge } from '@/services/auto-reply.service'
@@ -65,13 +65,13 @@ export default async function SellerInboxPage() {
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')
 
-  // bug fix: resolve ร้านที่ active จริง (Personal หรือ Business ตาม session.user.activeShopId,
-  // re-verify membership เสมอ) — ห้ามใช้ getShopByUserId (คืน PERSONAL เสมอ, คือบั๊กเดิม)
-  const activeCtx = await resolveActiveShopContext({
+  // feature 00037 — ขอบเขตร้านมาจาก resolveChatScope (SINGLE = ร้าน active ร้านเดียว เหมือนเดิม
+  // ทุกประการ / UNIFIED = ทุกร้านที่ผู้ใช้เข้าถึงได้) ห้ามอ่าน activeShopId ตรง ๆ ในไฟล์นี้อีก
+  const scope = await resolveChatScope({
     user: { id: user.id as string, activeShopId: (user.activeShopId as string | null | undefined) ?? null },
   })
 
-  if (!activeCtx) {
+  if (!scope) {
     // resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → error state ตรง ๆ ห้าม fallback เงียบ ๆ ไป PERSONAL
     return (
       <SellerErrorState
@@ -80,7 +80,9 @@ export default async function SellerInboxPage() {
       />
     )
   }
-  const shop = { id: activeCtx.shopId }
+  // shopIds = ขอบเขตของรายการ; activeShopId ยังต้องรู้ไว้เป็นค่าตั้งต้นของ action ที่ไม่มีเธรด
+  const shopIds = scope.shopIds
+  const isUnified = scope.mode === 'UNIFIED'
 
   // ── channels (ตัวกรอง "เพจ") — fail-closed แยกจาก conversation fetch (pattern pendingCount
   // ของ layout.tsx) ไม่มีเพจก็ยังดู list ได้ปกติ แค่ตัวกรองว่าง ──
@@ -89,30 +91,43 @@ export default async function SellerInboxPage() {
   let channels: ChannelFilterOption[] = []
   let hasAnyChannel = false
   try {
-    const rows = await listChannels(shop.id)
+    // feature 00037 — เพจของทุกร้านในขอบเขต พร้อมชื่อร้านสำหรับหัวข้อกลุ่มใน dropdown
+    const rows = await listChannelsForShops(shopIds)
     hasAnyChannel = rows.length > 0
-    channels = rows.map((c) => ({ id: c.id, provider: c.provider, name: c.name, avatarUrl: c.avatarUrl }))
+    channels = rows.map((c) => ({
+      id: c.id,
+      provider: c.provider,
+      name: c.name,
+      avatarUrl: c.avatarUrl,
+      shopId: c.shopId,
+      shopName: c.shopName,
+    }))
   } catch (e) {
-    console.error('[inbox/page] listChannels failed', e)
+    console.error('[inbox/page] listChannelsForShops failed', e)
   }
 
   // กลุ่ม/แท็บจัดหมวดแชท (feature 00018) — non-fatal (list ยังแสดงได้แม้โหลดกลุ่มพลาด)
+  // feature 00037: กลุ่มเป็นของรายร้าน (ChatGroup มี @@unique([shopId, name]) — ชื่อเดียวกัน
+  // คนละร้านคือคนละของ ยุบรวมไม่ได้) โหมดรวมจึงไม่ดึงกลุ่มมาเลย แล้ว UI แสดงปุ่มชี้ทางแทน
   let groups: { id: string; name: string; sortOrder: number }[] = []
-  try {
-    groups = await listChatGroups(shop.id)
-  } catch (e) {
-    console.error('[inbox/page] listChatGroups failed', e)
+  if (!isUnified) {
+    try {
+      groups = await listChatGroups(shopIds[0])
+    } catch (e) {
+      console.error('[inbox/page] listChatGroups failed', e)
+    }
   }
 
   // ── data fetch (try/catch แยกจาก JSX construction — react-hooks/error-boundaries) ──
   let items: ConversationListItem[] = []
   // ร้านเชื่อม iShip แล้วหรือยัง — ใช้ซ่อนหัวข้อ "พัสดุ" ในตัวกรองสำหรับร้านที่ไม่ได้ใช้
   // ถามจาก DB ที่นี่ (RSC) ไม่ต้องให้ client ยิง API เพิ่มอีกรอบ
-  const shippingAccount = await prisma.shopShippingAccount.findUnique({
-    where: { shopId: shop.id },
-    select: { status: true },
+  // โหมดรวม: ร้านใดร้านหนึ่งเชื่อม iShip ก็พอให้ตัวกรอง "พัสดุ" มีความหมาย (ถ้าต้องเชื่อมครบ
+  // ทุกร้านถึงจะโชว์ ร้านที่ใช้อยู่จริงจะเสียตัวกรองไปเพราะร้านอื่นที่ไม่เกี่ยวยังไม่ได้เชื่อม)
+  const shippingAccountCount = await prisma.shopShippingAccount.count({
+    where: { shopId: { in: shopIds }, status: 'ACTIVE' },
   })
-  const hasShipping = shippingAccount?.status === 'ACTIVE'
+  const hasShipping = shippingAccountCount > 0
 
   let nextCursor: string | null = null
   let loadFailed = false
@@ -121,7 +136,7 @@ export default async function SellerInboxPage() {
     // status ต้องตรงกับ DEFAULT_CHAT_FILTER ของ InboxList เสมอ — รายการที่เห็นตอนเข้าหน้า
     // ครั้งแรกคือชุดนี้ (client ยังไม่ refetch จนกว่าตัวกรองจะเปลี่ยน) ถ้าไม่ตรงกันจะเกิดอาการ
     // "เธรดที่ปิดงานแล้วหายไปตอนเข้าครั้งแรก แต่กดสลับแท็บไปกลับแล้วโผล่" (user report 2026-07-31)
-    const result = await listConversationsForShop(shop.id, { take: 20, status: 'all' })
+    const result = await listConversationsForShops(shopIds, { take: 20, status: 'all' })
 
     // B1 enrich — batch query identity คู่สนทนา (ดู comment หัวไฟล์)
     // เธรดช่องทางนอก (feature 00018) buyerUserId เป็น null → กรองออกก่อน query
@@ -157,12 +172,16 @@ export default async function SellerInboxPage() {
     // ดึงสถานะพัสดุจาก iShip ก่อน enrich (feature 00022) — อยู่ใน after() จึงไม่หน่วงการโหลดหน้า
     // รอบนี้ป้ายอาจยังเป็นค่าเดิม แล้ว safety-poll 20 วิของ InboxList จะพาค่าที่ sync แล้วมาเอง
     // service กันความถี่ไว้ 15 นาที เปิดหน้าถี่แค่ไหนก็ไม่ยิง iShip เกินรอบ
-    const syncShopId = shop.id
+    // feature 00037 — sync ทุกร้านในขอบเขต ไม่ใช่แค่ร้าน active (ในโหมดรวม ร้าน active ไม่ได้
+    // แปลว่าเป็นร้านที่ผู้ใช้กำลังดูอยู่) service กันความถี่เอง 15 นาทีต่อร้านอยู่แล้ว
+    const syncShopIds = shopIds
     after(async () => {
-      try {
-        await syncShipmentStatuses(syncShopId)
-      } catch (e) {
-        console.error('[inbox] sync สถานะพัสดุล้มเหลว', e instanceof Error ? e.message : e)
+      for (const syncShopId of syncShopIds) {
+        try {
+          await syncShipmentStatuses(syncShopId)
+        } catch (e) {
+          console.error('[inbox] sync สถานะพัสดุล้มเหลว', e instanceof Error ? e.message : e)
+        }
       }
     })
 
@@ -170,7 +189,7 @@ export default async function SellerInboxPage() {
     // ใช้ ไม่งั้นหน้าแรกกับหน้าที่โหลดจากการกรองจะแสดงไม่เหมือนกัน (ของเดิม enrich อยู่ใน route ทางเดียว
     // ชิปเลยไม่ขึ้นตอนโหลดหน้าแรก แล้วค่อยโผล่หลัง client refetch)
     const stageMap = new Map(
-      (await enrichWithOrderStage(result.items, shop.id)).map((r) => [r.id, r.orderStage]),
+      (await enrichWithOrderStage(result.items, shopIds)).map((r) => [r.id, r.orderStage]),
     )
 
     // ป้าย DeepBot ในแถว (S-20) — ฟังก์ชันเดียวกับที่ GET /api/chat/conversations ใช้
@@ -229,7 +248,7 @@ export default async function SellerInboxPage() {
     })
     nextCursor = result.nextCursor
   } catch (e) {
-    console.error('[inbox/page] listConversationsForShop failed', e)
+    console.error('[inbox/page] listConversationsForShops failed', e)
     loadFailed = true
   }
 
@@ -264,7 +283,9 @@ export default async function SellerInboxPage() {
           channels={channels}
           initialGroups={groups}
           hasShipping={hasShipping}
-          shopId={shop.id}
+          shopIds={shopIds}
+          unified={isUnified}
+          activeShopId={scope.activeShopId}
           railMode
         />
       </div>

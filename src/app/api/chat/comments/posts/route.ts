@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveChatScope } from "@/lib/chat-scope";
 import { listCommentPosts } from "@/services/page-comment.service";
 
 /**
@@ -18,13 +18,13 @@ export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = (session.user as { id: string }).id;
-  const activeCtx = await resolveActiveShopContext({
+  const scope = await resolveChatScope({
     user: {
       id: userId,
       activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null,
     },
   });
-  if (!activeCtx) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
+  if (!scope) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
 
   try {
     const q = request.nextUrl.searchParams.get("q") ?? undefined;
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const skipRaw = Number(request.nextUrl.searchParams.get("skip") ?? 0);
     const skip = Number.isFinite(skipRaw) && skipRaw > 0 ? Math.min(skipRaw, 500) : 0;
     const items = await listCommentPosts({
-      shopId: activeCtx.shopId,
+      shopIds: scope.shopIds,
       actorUserId: userId,
       q,
       shopChannelId,

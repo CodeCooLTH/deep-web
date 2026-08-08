@@ -8,7 +8,15 @@ const db = vi.hoisted(() => ({
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
 vi.mock('@/services/product.service', () => ({ getProductById: vi.fn() }))
 
-import { listConversationsForShop, listConversationsForBuyer } from '@/services/chat.service'
+import { listConversationsForShops, listConversationsForBuyer } from '@/services/chat.service'
+
+/** feature 00037 — เทสชุดนี้เขียนไว้ตอนที่ service รับ shopId เดี่ยว; ตอนนี้รับ array แล้ว
+ *  ห่อไว้เพื่อให้เคสเดิมทั้งหมดยังพิสูจน์ "โหมดร้านเดียวต้องได้ where เหมือนเดิมเป๊ะ" ต่อไป
+ *  (นั่นคือคุณค่าหลักของเทสชุดนี้หลังฟีเจอร์รวมร้าน — กัน regression ของผู้ใช้ส่วนใหญ่) */
+const listConversationsForShop = (
+  shopId: string,
+  opts?: Parameters<typeof listConversationsForShops>[1],
+) => listConversationsForShops([shopId], opts)
 
 describe('listConversationsForShop — T1 filter/ค้นหา (feature 00018) + S-7 status/hidden/pinned', () => {
   beforeEach(() => {

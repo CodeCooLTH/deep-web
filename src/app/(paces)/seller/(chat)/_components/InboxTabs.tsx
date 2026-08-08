@@ -71,7 +71,7 @@ async function refreshCounts(force = false) {
 
 export default function InboxTabs({
   unansweredCount,
-  shopId = null,
+  shopIds = [],
 }: {
   /** ค่าที่ RSC ของหน้า comments นับมาแล้ว — ใช้เป็นค่าตั้งต้นกัน badge กระพริบตอนเพิ่งเรนเดอร์ */
   unansweredCount?: number
@@ -82,7 +82,8 @@ export default function InboxTabs({
    * trigger ตัวเดียวกับที่รายการแชท/หน้าความคิดเห็นใช้อยู่แล้ว — comment ใน migration
    * 20260803180000 ระบุไว้ตรง ๆ ว่า channel คอมเมนต์มีไว้ให้ "ตัวนับยังไม่ตอบ" อัปเดตด้วย
    */
-  shopId?: string | null
+  /** ร้านที่กล่องข้อความครอบคลุม (feature 00037) — subscribe ทุกตัวเพื่อให้ badge สดทุกร้าน */
+  shopIds?: string[]
 }) {
   const pathname = usePathname()
   // /inbox/[conversationId] ยังถือว่าอยู่แท็บ "ข้อความ" — เทียบ prefix ไม่ใช่ค่าเป๊ะ
@@ -124,14 +125,15 @@ export default function InboxTabs({
   // realtime: ลูกค้าทักมา / คอมเมนต์ใหม่ → badge ขยับทันที (force=true ข้าม throttle เพราะ
   // สัญญาณนี้แปลว่า "ตัวเลขเปลี่ยนแน่แล้ว" ไม่ใช่การเดา)
   useEffect(() => {
-    if (!shopId) return
-    const offChat = subscribeShopChat(shopId, () => void refreshCounts(true))
-    const offComments = subscribeShopComments(shopId, () => void refreshCounts(true))
-    return () => {
-      offChat()
-      offComments()
-    }
-  }, [shopId])
+    if (shopIds.length === 0) return
+    const offs = shopIds.flatMap((id) => [
+      subscribeShopChat(id, () => void refreshCounts(true)),
+      subscribeShopComments(id, () => void refreshCounts(true)),
+    ])
+    return () => offs.forEach((off) => off())
+    // key เป็น string — array prop identity เปลี่ยนทุก render ของ parent
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopIds.join(',')])
 
   return (
     <div

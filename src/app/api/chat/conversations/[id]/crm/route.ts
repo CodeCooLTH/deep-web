@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveConversationShopId } from "@/lib/chat-scope";
 import { getConversationCrm, updateConversationCrm } from "@/services/chat-crm.service";
 import { ChatCrmPatchSchema } from "@/lib/validations";
 
@@ -12,23 +12,29 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-
 
 const IdParamSchema = v.pipe(v.string(), v.uuid());
 
-async function resolveShop() {
+/**
+ * feature 00037 — ร้านที่ใช้ทำงานกับเธรดนี้ = "ร้านเจ้าของเธรด" ไม่ใช่ร้านที่ active
+ * (ในกล่องแชทรวม สองอย่างนี้ไม่ใช่สิ่งเดียวกัน) resolveConversationShopId scope สิทธิ์ใน WHERE
+ * ตั้งแต่คำสั่งแรก และคืน null เหมือนกันทั้ง "ไม่มีเธรด" กับ "ไม่มีสิทธิ์"
+ */
+async function resolveShop(conversationId: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   const userId = (session.user as { id: string }).id;
-  const ctx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  });
-  if (!ctx) return { error: NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 }) };
-  return { shopId: ctx.shopId };
+  const resolved = await resolveConversationShopId(
+    { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
+    conversationId,
+  );
+  if (!resolved) return { error: NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 }) };
+  return { shopId: resolved.shopId };
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await resolveShop();
-  if ("error" in ctx) return ctx.error;
   const { id: rawId } = await params;
   const idCheck = v.safeParse(IdParamSchema, rawId);
   if (!idCheck.success) return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
+  const ctx = await resolveShop(idCheck.output);
+  if ("error" in ctx) return ctx.error;
 
   const crm = await getConversationCrm(idCheck.output, ctx.shopId);
   if (!crm) return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
@@ -36,11 +42,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await resolveShop();
-  if ("error" in ctx) return ctx.error;
   const { id: rawId } = await params;
   const idCheck = v.safeParse(IdParamSchema, rawId);
   if (!idCheck.success) return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
+  const ctx = await resolveShop(idCheck.output);
+  if ("error" in ctx) return ctx.error;
 
   const body = await request.json().catch(() => null);
   if (body === null) return NextResponse.json({ error: "Invalid input" }, { status: 400 });

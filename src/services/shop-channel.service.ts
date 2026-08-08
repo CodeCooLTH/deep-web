@@ -332,6 +332,36 @@ export async function listChannels(shopId: string): Promise<ChannelView[]> {
   })
 }
 
+/** ChannelView + ร้านเจ้าของเพจ — ตัวกรอง "เพจ" ในกล่องแชทรวมต้องจัดกลุ่มตามร้าน (feature 00037) */
+export type ChannelViewWithShop = ChannelView & { shopId: string; shopName: string }
+
+/**
+ * listChannelsForShops — เพจของหลายร้านในคำสั่งเดียว พร้อมชื่อร้านสำหรับหัวข้อกลุ่มใน dropdown
+ *
+ * เรียงตามชื่อร้านก่อนแล้วค่อยเวลาเชื่อม — ผู้ใช้อ่านรายการนี้เป็น "กลุ่มตามร้าน" ถ้าเรียงตาม
+ * createdAt ล้วนเพจของร้านเดียวกันจะกระจายอยู่คนละที่แล้วหัวข้อกลุ่มจะซ้ำหลายรอบ
+ *
+ * 🛑 shopIds ต้องมาจาก resolveChatScope เท่านั้น (BR-UNI-01)
+ */
+export async function listChannelsForShops(shopIds: string[]): Promise<ChannelViewWithShop[]> {
+  if (shopIds.length === 0) return []
+  const rows = await prisma.shopChannel.findMany({
+    where: { shopId: { in: shopIds }, status: { not: 'DISCONNECTED' } },
+    select: {
+      id: true,
+      provider: true,
+      externalId: true,
+      name: true,
+      avatarUrl: true,
+      status: true,
+      shopId: true,
+      shop: { select: { shopName: true } },
+    },
+    orderBy: [{ shop: { shopName: 'asc' } }, { createdAt: 'asc' }],
+  })
+  return rows.map(({ shop, ...c }) => ({ ...c, shopName: shop.shopName }))
+}
+
 // server-only — คืน token ที่ถอดรหัสแล้ว ห้ามเรียกจาก client component
 //
 // webhook เรียกทางนี้เพื่อหา channel จาก pageId ที่ Meta ส่งมา — ต้องได้เฉพาะแถว "ยัง active อยู่"

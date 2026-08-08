@@ -41,6 +41,10 @@ export type ChannelFilterOption = {
   provider: string
   name: string
   avatarUrl: string | null
+  /** feature 00037 — ร้านเจ้าของเพจ ใช้จัดกลุ่มหัวข้อใน PageFilterDropdown เมื่ออยู่โหมดรวมหลายร้าน
+   *  optional เพราะ caller ฝั่ง buyer/หน้าอื่นที่ไม่เกี่ยวกับกล่องแชทรวมไม่จำเป็นต้องส่ง */
+  shopId?: string
+  shopName?: string
 }
 
 type ChannelDisplay = {
@@ -172,6 +176,64 @@ export function ChannelBadge({ channel, size = 'sm', label, imageUrl }: ChannelB
       <span className="truncate">{text}</span>
     </span>
   )
+}
+
+/**
+ * ShopBadgeOverlay — badge "ร้าน" มุม **บนซ้าย** ของ avatar (feature 00037, กล่องแชทรวมหลายร้าน)
+ *
+ * มิเรอร์ ChannelBadgeOverlay ไปมุมตรงข้ามโดยตั้งใจ เพื่อให้ผู้ใช้เรียนภาษาภาพชุดเดียวแล้วใช้ได้
+ * ทั้งรายการแชท หัวเธรด และการ์ดโพสต์ในแท็บความคิดเห็น:
+ *   มุมล่างขวา = ช่องทาง (Messenger/IG/Deep)   ·   มุมบนซ้าย = ร้าน
+ *
+ * ไม่มีโลโก้ร้าน → ตัวอักษรย่อบนพื้น bg-primary/10 (สีเดียวกันทุกร้าน — มติ Q-2 ของ ux spec:
+ * ห้ามสุ่มสีต่อร้านเพราะ Paces ไม่มี palette สุ่มสีที่ registered และเสี่ยงหลุดกฎ One Voice)
+ * ตัวอักษรย่อคือสิ่งที่แยกร้านออกจากกัน ไม่ใช่สี
+ *
+ * ขนาดเท่า ChannelBadgeOverlay เป๊ะ (size-4 + ring-2) — badge สองอันบน avatar เดียวกันที่ขนาด
+ * ต่างกันจะอ่านเป็น "อันหนึ่งสำคัญกว่า" ซึ่งไม่จริง ทั้งคู่เป็นข้อมูลกำกับเท่ากัน
+ *
+ * title + sr-only — badge เป็นภาพเล็กมาก ชื่อร้านเต็มต้องอ่านได้ทั้งด้วยเมาส์และ screen reader
+ */
+export function ShopBadgeOverlay({
+  shopName,
+  logo,
+  size = 'md',
+}: {
+  shopName: string
+  logo?: string | null
+  size?: 'sm' | 'md'
+}) {
+  const dim = size === 'md' ? 'size-4' : 'size-3.5'
+  const src = logo ? (logo.startsWith('http') ? logo : `/api/files/${logo}`) : null
+  return (
+    <span
+      // text-2xs (11px) = token เล็กสุดของ Paces; leading-none จำเป็นเพราะ line-height 1.5 ของ
+      // token จะดันตัวอักษรล้นวงกลม 16px (ไม่ใช้ arbitrary value — HR7)
+      className={`ring-card bg-primary/10 text-primary text-2xs absolute -start-0.5 -top-0.5 flex ${dim} items-center justify-center overflow-hidden rounded-full font-bold leading-none ring-2`}
+      title={shopName}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" className="size-full object-cover" />
+      ) : (
+        generateShopInitial(shopName)
+      )}
+      <span className="sr-only">ร้าน {shopName}</span>
+    </span>
+  )
+}
+
+/** ตัวย่อร้านสำหรับ badge — พื้นที่จริงคือ 16px จึงได้ 1-2 ตัวอักษรเท่านั้น
+ *  ไทยใช้ตัวแรกของคำแรก (ตัดสระ/วรรณยุกต์นำหน้าไม่ได้ในภาษาไทย จึงไม่พยายามฉลาดเกินจำเป็น) */
+function generateShopInitial(name: string): string {
+  const t = name.trim()
+  if (!t) return '?'
+  // ละตินใช้ 2 ตัวจาก 2 คำแรกแบบเดียวกับ generateInitials ของระบบ; ไทยใช้ตัวแรกตัวเดียว
+  if (/^[A-Za-z]/.test(t)) {
+    const words = t.split(/\s+/).filter(Boolean)
+    return (words[0]![0]! + (words[1]?.[0] ?? '')).toUpperCase()
+  }
+  return t[0]!
 }
 
 /**

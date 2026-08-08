@@ -131,6 +131,11 @@ export const UpdateProfileSchema = v.object({
       ),
     ),
   ),
+  // chatScopeMode (feature 00037) — มุมมองกล่องข้อความของผู้ใช้เอง เข้าเกณฑ์ allow-list นี้ได้
+  // เพราะเป็นค่าที่ "ผู้ใช้ตั้งเองได้จริง" ไม่ใช่สิทธิ์/คะแนน/ตัวตน (ต่างจาก isAdmin/trustScore/phone
+  // ที่ห้ามเข้ามาเด็ดขาด ดู comment หัว schema) — picklist กันค่าประหลาดตั้งแต่ขาเขียน ส่วนขาอ่าน
+  // ยังมี normalizeChatScopeMode ป้องกันซ้ำอีกชั้น (แถวเก่า/แถวที่ถูกแก้จากที่อื่น)
+  chatScopeMode: v.optional(v.picklist(["SINGLE", "UNIFIED"])),
 });
 
 export const CreateShopSchema = v.object({
@@ -857,6 +862,10 @@ export const ChatConversationsQuerySchema = v.object({
   tags: v.optional(v.pipe(v.array(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(40))), v.maxLength(20))),
   // user สั่ง 2026-07-31 — สถานะพัสดุของออเดอร์ล่าสุด (เฉพาะร้านที่เชื่อม iShip)
   shipment: v.optional(v.picklist(['none', 'unprinted', 'printed', 'problem'])),
+  // feature 00037 — กรองเฉพาะร้านเดียวในกล่องแชทรวม
+  // 🛑 ค่านี้ไม่ใช่ "ขอบเขต" แต่เป็น "ตัวกรองภายในขอบเขต" — route ต้องเอาไปผ่าน
+  //    intersectScopedShopIds() กับ scope ที่ระบบคำนวณเองเสมอ ห้ามส่งเข้า service ตรง ๆ (BR-UNI-01/02)
+  shopId: v.optional(v.pipe(v.string(), v.uuid())),
 });
 
 export const MarkChatReadSchema = v.object({}); // empty body — conversationId มาจาก path param, role derive จาก subdomain/ownership

@@ -37,32 +37,46 @@ import { useEffect, useState } from 'react'
 import { SimpleBar } from '@/components/wrappers/SimpleBar'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import { SellerInboxSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
-import InboxList, { type ConversationListItem, type ChannelFilterOption, type ChatGroupTab } from '../inbox/components/InboxList'
+import InboxList, {
+  type ConversationListItem,
+  type ChannelFilterOption,
+  type ChatGroupTab,
+  type ShopBrief,
+} from '../inbox/components/InboxList'
 import { buildChatListParams, DEFAULT_CHAT_FILTER } from '../inbox/components/chat-list-query'
 
 // feat 00018 งาน 2: เก็บ field ดิบ (provider/name/avatarUrl) แทน label สำเร็จรูป — ตรงกับ
 // ChannelView ที่ GET /api/channels คืนมาอยู่แล้ว (allow-list ที่ shop-channel.service.ts)
-type ChannelsApiResponse = {
-  items: { id: string; provider: string; name: string; avatarUrl: string | null }[]
-}
 type ConversationsApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
 
 type Props = {
-  /** ร้านที่ active (resolve ที่ (chat)/layout.tsx) — ส่งต่อให้ InboxList ใช้ subscribe realtime
-   *  `chat:shop:{shopId}`; null = resolve ไม่ได้ (ไม่มีร้าน/หลุดสิทธิ์) → ไม่ subscribe เฉย ๆ */
-  shopId: string | null
+  /** ร้านที่กล่องข้อความครอบคลุม (feature 00037, resolve ที่ (chat)/layout.tsx) — ส่งต่อให้
+   *  InboxList subscribe realtime `chat:shop:{id}` ทุกตัว; ว่าง = resolve ไม่ได้ → ไม่ subscribe */
+  shopIds: string[]
+  unified: boolean
+  activeShopId: string | null
+  shops: ShopBrief[]
+  /** เพจของทุกร้านในขอบเขต — มาจาก layout (RSC) แทนที่ rail จะยิง /api/channels เอง ซึ่งเป็น
+   *  endpoint ของ "ร้านที่ active" (การตั้งค่าเพจ) จึงไม่เคยเห็นเพจของร้านอื่นในโหมดรวมเลย */
+  channels: ChannelFilterOption[]
   /** ร้านเชื่อม iShip แล้วหรือยัง — ส่งต่อให้ InboxList ใช้ตัดสินว่าจะโชว์หัวข้อ "พัสดุ" ในตัวกรอง
    *  รับจาก layout.tsx (RSC ถาม DB อยู่แล้ว) แทนที่จะให้ rail ยิง /api/seller/iship/connection เอง —
    *  ประหยัดหนึ่ง round-trip และถูกต้องตั้งแต่ render แรก ไม่มีจังหวะที่ตัวกรองกะพริบหาย */
   hasShipping?: boolean
 }
 
-export default function ChatRail({ shopId, hasShipping = false }: Props) {
+export default function ChatRail({
+  shopIds,
+  unified,
+  activeShopId,
+  shops,
+  channels,
+  hasShipping = false,
+}: Props) {
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [items, setItems] = useState<ConversationListItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [channels, setChannels] = useState<ChannelFilterOption[]>([])
   const [groups, setGroups] = useState<ChatGroupTab[]>([])
 
   useEffect(() => {
@@ -72,33 +86,22 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
       setLoading(true)
       setLoadFailed(false)
       try {
-        // endpoint แยกกัน — ตัวกรอง "เพจ"/กลุ่ม ไม่ควรทำให้ list ล่มถ้าโหลดไม่สำเร็จ
-        let channelOptions: ChannelFilterOption[] = []
-        try {
-          const channelsRes = await fetch('/api/channels')
-          if (channelsRes.ok) {
-            const channelsData: ChannelsApiResponse = await channelsRes.json()
-            channelOptions = channelsData.items.map((c) => ({
-              id: c.id,
-              provider: c.provider,
-              name: c.name,
-              avatarUrl: c.avatarUrl,
-            }))
-          }
-        } catch (e) {
-          console.error('[ChatRail] load channels failed', e)
-        }
+        // channels ไม่ fetch เองแล้ว — มาจาก layout เป็น prop (ดู comment ที่ Props.channels)
 
-        // กลุ่ม/แท็บจัดหมวดแชท (feature 00018) — non-fatal เหมือน channels
+        // กลุ่ม/แท็บจัดหมวดแชท (feature 00018) — non-fatal
+        // โหมดรวมหลายร้านไม่ดึงกลุ่ม: ChatGroup เป็นของรายร้าน ชื่อซ้ำข้ามร้านได้ (@@unique([shopId,name]))
+        // รวมกันแล้วผู้ใช้แยกไม่ออกว่ากลุ่ม "รอโอน" อันไหนของร้านไหน — UI แสดงปุ่มชี้ทางแทน
         let groupOptions: ChatGroupTab[] = []
-        try {
-          const groupsRes = await fetch('/api/chat/groups')
-          if (groupsRes.ok) {
-            const groupsData: { items: ChatGroupTab[] } = await groupsRes.json()
-            groupOptions = groupsData.items
+        if (!unified) {
+          try {
+            const groupsRes = await fetch('/api/chat/groups')
+            if (groupsRes.ok) {
+              const groupsData: { items: ChatGroupTab[] } = await groupsRes.json()
+              groupOptions = groupsData.items
+            }
+          } catch (e) {
+            console.error('[ChatRail] load groups failed', e)
           }
-        } catch (e) {
-          console.error('[ChatRail] load groups failed', e)
         }
 
         // bug fix (user report 2026-08-01): เดิมยิง '?take=20' เปล่า ๆ → backend ตกไป
@@ -112,7 +115,6 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
         const conversationsData: ConversationsApiResponse = await conversationsRes.json()
 
         if (cancelled) return
-        setChannels(channelOptions)
         setGroups(groupOptions)
         setItems(conversationsData.items)
         setNextCursor(conversationsData.nextCursor)
@@ -175,7 +177,18 @@ export default function ChatRail({ shopId, hasShipping = false }: Props) {
           />
         </div>
       ) : (
-        <InboxList initialItems={items} initialNextCursor={nextCursor} channels={channels} initialGroups={groups} shopId={shopId} hasShipping={hasShipping} railMode />
+        <InboxList
+          initialItems={items}
+          initialNextCursor={nextCursor}
+          channels={channels}
+          initialGroups={groups}
+          shopIds={shopIds}
+          unified={unified}
+          activeShopId={activeShopId}
+          shops={shops}
+          hasShipping={hasShipping}
+          railMode
+        />
       )}
       </SimpleBar>
     </div>

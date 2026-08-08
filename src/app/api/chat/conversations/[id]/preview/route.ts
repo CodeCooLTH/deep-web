@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as v from "valibot";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveConversationShopId } from "@/lib/chat-scope";
 import { getConversationToastPreview } from "@/services/chat.service";
 
 // per-user authenticated data — ห้าม shared cache (CDN/carrier proxy) เก็บ/serve ทับข้าม user
@@ -32,21 +32,22 @@ export async function GET(
   }
   const userId = (session.user as { id: string }).id;
 
-  const activeCtx = await resolveActiveShopContext({
-    user: {
-      id: userId,
-      activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null,
-    },
-  });
-  if (!activeCtx) {
-    return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
-  }
-
   const { id: rawId } = await params;
   const idCheck = v.safeParse(ConversationIdParamSchema, rawId);
   if (!idCheck.success) {
     return NextResponse.json({ error: "รหัสบทสนทนาไม่ถูกต้อง" }, { status: 400 });
   }
+
+  // feature 00037 — ร้านมาจาก "เธรด" ไม่ใช่ร้านที่ active: toast "มีข้อความใหม่" ของอีกร้าน
+  // ต้องเปิดพรีวิวได้ด้วยในโหมดรวม ไม่งั้นเสียงดังแต่กดดูไม่ได้
+  const resolved = await resolveConversationShopId(
+    { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
+    idCheck.output,
+  );
+  if (!resolved) {
+    return NextResponse.json({ error: "ไม่พบบทสนทนานี้" }, { status: 404 });
+  }
+  const activeCtx = { shopId: resolved.shopId };
 
   try {
     const preview = await getConversationToastPreview(idCheck.output, activeCtx.shopId);

@@ -47,7 +47,7 @@ export async function findByUsername(username: string) {
   return { ...rest, shop: shops[0] ?? null };
 }
 
-// updateProfile — แก้ได้เฉพาะ 3 field ที่เจ้าของบัญชีตั้งเองได้
+// updateProfile — แก้ได้เฉพาะ field ที่เจ้าของบัญชีตั้งเองได้
 //
 // pick ทีละ field แทนการส่ง `data` ต่อทั้งก้อน = ชั้นกันที่สอง (ชั้นแรกคือ UpdateProfileSchema ที่
 // route parse): ถ้าวันหลังมี caller ใหม่ลืม parse ก่อนเรียก field แปลกปลอม (isAdmin/trustScore/
@@ -57,7 +57,13 @@ export async function findByUsername(username: string) {
 // undefined = ไม่แตะ field นั้น (Prisma ข้ามให้เอง) ต่างจาก null ของ avatar ที่แปลว่า "ลบรูป"
 export async function updateProfile(
   userId: string,
-  data: { displayName?: string; username?: string; avatar?: string | null },
+  data: {
+    displayName?: string
+    username?: string
+    avatar?: string | null
+    /** feature 00037 — มุมมองกล่องข้อความ "SINGLE" | "UNIFIED" */
+    chatScopeMode?: string
+  },
 ) {
   return prisma.user.update({
     where: { id: userId },
@@ -65,6 +71,7 @@ export async function updateProfile(
       displayName: data.displayName,
       username: data.username,
       avatar: data.avatar,
+      chatScopeMode: data.chatScopeMode,
     },
     select: {
       id: true,
@@ -75,6 +82,7 @@ export async function updateProfile(
       email: true,
       trustScore: true,
       isShop: true,
+      chatScopeMode: true,
     },
   });
 }
