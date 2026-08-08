@@ -43,13 +43,16 @@ export type PrivateReplySkipReason =
  *
  * ลำดับการตรวจ (เป็นส่วนหนึ่งของความถูกต้อง — อย่าสลับ):
  *   1. หาคอมเมนต์ + โพสต์ + ช่องทาง → ไม่พบ = COMMENT_NOT_FOUND
- *   2. ข้อความว่าง = EMPTY_TEXT
- *   3. เคยส่งสำเร็จไปแล้ว = ALREADY_SENT (เช็คก่อนสิทธิ์ — Meta ให้ส่งได้ครั้งเดียวต่อคอมเมนต์
- *      ไม่ว่าใครเป็นคนกด ผลลัพธ์ปลายทางเหมือนกันไม่ว่าจะเช็คสิทธิ์ก่อนหรือหลัง)
- *   4. trigger==='MANUAL' → ต้องผ่าน canAccessShop ไม่งั้น FORBIDDEN (AUTO ข้าม — system actor,
- *      shopId มาจากแถวในฐานเท่านั้น ไม่รับจากพารามิเตอร์)
- *   5. เพจไม่ ACTIVE = CHANNEL_INACTIVE
- *   6. เกินหน้าต่าง 7 วัน = WINDOW_EXPIRED
+ *   2. ข้อความว่าง = EMPTY_TEXT (input ของผู้เรียกเอง ไม่รั่วอะไร)
+ *   3. trigger==='MANUAL' → ต้องผ่าน canAccessShop ไม่งั้น FORBIDDEN (AUTO ข้าม — system actor,
+ *      shopId มาจากแถวในฐานเท่านั้น ไม่รับจากพารามิเตอร์) — 🛑 ต้องมาก่อนทุกด่านที่เปิดเผยสถานะ
+ *      ของคอมเมนต์ (WINDOW_EXPIRED/ALREADY_SENT) เพราะ reason ถูกแมปเป็น HTTP code คนละตัวใน
+ *      Task 6 (ALREADY_SENT→400, FORBIDDEN→403) — คนไม่มีสิทธิ์ในร้านที่เดา commentId ไปเรื่อย ๆ
+ *      ต้องไม่สามารถอ่านจากรหัสตอบกลับได้ว่าคอมเมนต์ไหนถูกทักไปแล้วบ้าง (SRS §7.14: 403 ต้องไม่
+ *      ยืนยันว่าทรัพยากรนั้น "มีจริง"/มีสถานะอะไร)
+ *   4. เพจไม่ ACTIVE = CHANNEL_INACTIVE
+ *   5. เกินหน้าต่าง 7 วัน = WINDOW_EXPIRED
+ *   6. เคยส่งสำเร็จไปแล้ว = ALREADY_SENT
  *   7. ถอดโทเคน → ยิง Graph (ล้มเหลว = SEND_FAILED บันทึก error ไม่ throw ซ้ำ)
  *   8. สำเร็จ: upsert contact/conversation/message + log ในทรานแซกชันเดียว (ห้ามตั้ง lastInboundAt)
  */
@@ -76,13 +79,9 @@ export async function sendPrivateReplyToCommentById(params: {
 
   const channel = comment.post.channel
 
-  // ALREADY_SENT ก่อน FORBIDDEN โดยตั้งใจ: ทั้งสองผลลัพธ์คือ "ส่งไม่ได้" เหมือนกัน การเช็คว่า
-  // "เคยส่งไปแล้วหรือยัง" ก่อนไม่ทำให้รั่วข้อมูลอะไรเพิ่มจากที่ endpoint ก็ตอบเหมือนกันอยู่แล้ว
-  const alreadySent = await prisma.commentReplyLog.findFirst({
-    where: { commentId: comment.id, privateReplyStatus: 'SENT' },
-  })
-  if (alreadySent) return { sent: false, reason: 'ALREADY_SENT' }
-
+  // FORBIDDEN ต้องมาก่อน WINDOW_EXPIRED/ALREADY_SENT เสมอ — ด่านสิทธิ์ต้องกันก่อนด่านที่เปิดเผย
+  // สถานะของคอมเมนต์ ไม่งั้นคนนอกร้านเดา commentId แล้วอ่านสถานะร้านอื่นจาก reason ที่คืนออกไปได้
+  // (ดู docstring ด้านบน + SRS §7.14)
   if (params.trigger === 'MANUAL') {
     if (!params.actorUserId || !(await canAccessShop(channel.shopId, params.actorUserId))) {
       return { sent: false, reason: 'FORBIDDEN' }
@@ -95,6 +94,11 @@ export async function sendPrivateReplyToCommentById(params: {
   if (!isWithinPrivateReplyWindow(comment.createdTime)) {
     return { sent: false, reason: 'WINDOW_EXPIRED' }
   }
+
+  const alreadySent = await prisma.commentReplyLog.findFirst({
+    where: { commentId: comment.id, privateReplyStatus: 'SENT' },
+  })
+  if (alreadySent) return { sent: false, reason: 'ALREADY_SENT' }
 
   const resolved = await resolveChannelToken(channel.id)
   if (!resolved) return { sent: false, reason: 'CHANNEL_INACTIVE' }

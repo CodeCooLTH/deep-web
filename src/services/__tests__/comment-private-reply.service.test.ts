@@ -23,20 +23,35 @@ describe('isWithinPrivateReplyWindow', () => {
 
 import { vi, beforeEach } from 'vitest'
 
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
+// Fix round 1 — mock ตัวเองเป็น db เดียวกันทั้ง prisma.xxx และ $transaction(tx): $transaction ของจริง
+// ส่ง TransactionClient ที่มี method ชุดเดียวกับ prisma ธรรมดาเข้าไปให้ callback; mock เดิมที่ยิง
+// fn({}) เฉย ๆ ทำให้เส้นทาง "ส่งสำเร็จ" ที่เรียก tx.externalContact.upsert(...) พังทันที (tx={}
+// ไม่มี property ไหนเลย) — ต้องให้ tx === ตัว mock เดียวกับ prisma
+vi.mock('@/lib/prisma', () => {
+  const db: Record<string, unknown> = {
     pageComment: { findUnique: vi.fn() },
     commentReplyLog: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     shopChannel: { findUnique: vi.fn() },
     externalContact: { upsert: vi.fn() },
     conversation: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     chatMessage: { create: vi.fn() },
-    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({})),
-  },
-}))
+  }
+  db.$transaction = vi.fn(async (fn: (tx: unknown) => unknown) => fn(db))
+  return { prisma: db }
+})
 vi.mock('@/lib/facebook/graph', () => ({ sendPrivateReplyToComment: vi.fn() }))
+// canAccessShop เดิมเรียก prisma.shop.findUnique จริง (shop-context.ts) ซึ่งไม่ได้อยู่ใน mock ของ
+// '@/lib/prisma' ข้างบน (ไม่มี key `shop`) — mock ที่ boundary ของ shop-context ตรง ๆ แทน ชัดเจนกว่า
+// การพยายามเติม key `shop` ให้ครบใน mock ของ prisma (ยังต้องคุมค่า userId เทียบ actorUserId เองอยู่ดี)
+vi.mock('@/lib/shop-context', () => ({ canAccessShop: vi.fn() }))
+// resolveChannelToken (ของจริง) เรียก decryptToken() ซึ่งอ่าน CHANNEL_TOKEN_KEY จาก env — เวิร์กทรีนี้
+// ไม่มี .env จึง throw เสมอ (CHANNEL_TOKEN_KEY_MISSING) mock ที่ boundary ของโมดูลแทน เพื่อทดสอบ
+// เส้นทาง "ส่งสำเร็จ"/SEND_FAILED ได้จริง โดยไม่ผูกกับสถานะ env ของเครื่องที่รันเทส
+vi.mock('@/services/page-comment.service', () => ({ resolveChannelToken: vi.fn() }))
 
 import { prisma } from '@/lib/prisma'
+import { canAccessShop } from '@/lib/shop-context'
+import { resolveChannelToken } from '@/services/page-comment.service'
 import { sendPrivateReplyToComment } from '@/lib/facebook/graph'
 import { sendPrivateReplyToCommentById } from '@/services/comment-private-reply.service'
 
@@ -60,6 +75,8 @@ function okComment(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(null as never)
+  // ค่าเริ่มต้น: ผ่านสิทธิ์เสมอ — เทสที่อยากลอง FORBIDDEN ต้อง override เป็น false เอง
+  vi.mocked(canAccessShop).mockResolvedValue(true)
 })
 
 describe('sendPrivateReplyToCommentById — เงื่อนไขที่ต้องไม่ส่ง', () => {
@@ -105,5 +122,88 @@ describe('sendPrivateReplyToCommentById — เงื่อนไขที่ต
     const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'u1' })
     expect(r).toMatchObject({ sent: false, reason: 'ALREADY_SENT' })
     expect(graphSend).not.toHaveBeenCalled()
+  })
+
+  // Fix round 1 — coordinator สั่งเพิ่ม: พิสูจน์ว่า FORBIDDEN ต้องมาก่อน ALREADY_SENT เสมอ
+  // ไม่งั้นคนนอกร้านเดา commentId แล้วอ่านจาก reason ได้ว่าคอมเมนต์ของร้านอื่นถูกทักไปแล้วหรือยัง
+  // (SRS §7.14 — 403 ต้องไม่ยืนยันว่าทรัพยากรนั้นมีสถานะอะไร)
+  it('ไม่มีสิทธิ์ + เคยทักแล้ว -> FORBIDDEN ไม่ใช่ ALREADY_SENT (ห้ามรั่วสถานะให้คนนอกร้าน)', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(canAccessShop).mockResolvedValue(false)
+    vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue({ id: 'log-1', privateReplyStatus: 'SENT' } as never)
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'MANUAL', actorUserId: 'outsider' })
+    expect(r).toMatchObject({ sent: false, reason: 'FORBIDDEN' })
+    expect(graphSend).not.toHaveBeenCalled()
+    // ยืนยันเพิ่มว่าไม่มีการ query สถานะ "เคยส่งแล้วหรือยัง" เลยด้วยซ้ำ — ตัดที่ด่านสิทธิ์ก่อนถึง
+    // ด่านที่จะเปิดเผยสถานะได้
+    expect(prisma.commentReplyLog.findFirst).not.toHaveBeenCalled()
+  })
+})
+
+describe('sendPrivateReplyToCommentById — เส้นทางที่ยิง Graph จริง', () => {
+  it('ส่งสำเร็จ -> คืน sent:true พร้อม conversationId/messageId, เรียก Graph ด้วย (token, externalCommentId, text) ไม่มี pageId, ChatMessage ได้ senderRole=SHOP/externalMessageId ตรง, และไม่ตั้ง lastInboundAt', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
+    graphSend.mockResolvedValue({ recipientId: 'psid-real-1', messageId: 'mid-999' })
+    vi.mocked(prisma.externalContact.upsert).mockResolvedValue({ id: 'contact-1' } as never)
+    vi.mocked(prisma.conversation.findUnique).mockResolvedValue(null as never)
+    vi.mocked(prisma.conversation.create).mockResolvedValue({ id: 'conv-1' } as never)
+    vi.mocked(prisma.chatMessage.create).mockResolvedValue({ id: 'msg-1' } as never)
+    vi.mocked(prisma.conversation.update).mockResolvedValue({ id: 'conv-1' } as never)
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'สวัสดีครับ', trigger: 'MANUAL', actorUserId: 'u1' })
+
+    expect(r).toMatchObject({ sent: true, conversationId: 'conv-1', messageId: 'mid-999' })
+
+    // เรียก Graph ด้วย signature (pageToken, commentExternalId, text) เท่านั้น — ไม่มี pageId
+    expect(graphSend).toHaveBeenCalledWith('page-token-xyz', '123_456', 'สวัสดีครับ')
+    expect(graphSend.mock.calls[0]).toHaveLength(3)
+
+    // ExternalContact upsert ใช้ recipientId จาก Graph ไม่ใช่ comment.fromExternalId
+    expect(prisma.externalContact.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopChannelId_externalUserId: { shopChannelId: 'ch-1', externalUserId: 'psid-real-1' } },
+      }),
+    )
+
+    // ChatMessage: senderRole SHOP + externalMessageId = message_id ที่ Meta คืน
+    expect(prisma.chatMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        conversationId: 'conv-1',
+        senderRole: 'SHOP',
+        type: 'TEXT',
+        body: 'สวัสดีครับ',
+        externalMessageId: 'mid-999',
+      }),
+    })
+
+    // 🛑 ต้องไม่มีคีย์ lastInboundAt ใน conversation.update เลย — ถ้าใครเผลอเติมทีหลังจะไม่มี
+    // อะไรฟ้อง ยกเว้น assertion นี้ (ห้องเป็นฝ่ายเราเริ่ม ไม่ใช่ลูกค้า ตั้งเองเท่ากับโกหกว่าลูกค้าตอบแล้ว)
+    const updateArg = vi.mocked(prisma.conversation.update).mock.calls[0]![0] as { data: Record<string, unknown> }
+    expect(updateArg.data).not.toHaveProperty('lastInboundAt')
+    expect(updateArg.data).toMatchObject({ lastSenderRole: 'SHOP' })
+
+    // log สำเร็จถูกบันทึกเป็น SENT ผูก conversationId
+    expect(prisma.commentReplyLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ privateReplyStatus: 'SENT', conversationId: 'conv-1', trigger: 'MANUAL' }),
+    })
+  })
+
+  it('Graph โยน error -> คืน SEND_FAILED พร้อม error และไม่สร้าง Conversation/ChatMessage ค้างไว้', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
+    graphSend.mockRejectedValue(new Error('upstream 400: something failed'))
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(r).toMatchObject({ sent: false, reason: 'SEND_FAILED', error: 'upstream 400: something failed' })
+    expect(prisma.externalContact.upsert).not.toHaveBeenCalled()
+    expect(prisma.conversation.create).not.toHaveBeenCalled()
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled()
+
+    // ยัง log ความล้มเหลวไว้เป็น FAILED (ไม่ throw ทิ้งเงียบ ๆ)
+    expect(prisma.commentReplyLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ privateReplyStatus: 'FAILED', errorMessage: 'upstream 400: something failed' }),
+    })
   })
 })
