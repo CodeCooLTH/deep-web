@@ -57,14 +57,40 @@ export const MESSENGER_SUBSCRIBED_FIELDS = [
    * ให้ตอบแชทแทน → **เธรดนั้นไม่เข้ากล่องของเราเลยแม้แต่ห้องเดียว** จนกว่าคนจริงจะกด
    * "ตอบกลับด้วยตัวเอง" ใน Business Suite ถึงจะไหลเข้ามา
    *
-   * นั่นคือลายเซ็นของ Handover Protocol: ตอน Meta AI ถือสิทธิ์คุมห้อง แอปอื่นเป็น secondary
-   * receiver ซึ่งต้องประกาศตัวผ่าน field นี้ ไม่งั้น Meta ไม่ส่งอะไรมาให้เลย — เราอ่านกล่อง
-   * `standby` เป็นตั้งแต่ 2026-08-04 แล้ว (แก้เคส IG) แต่ไม่เคยได้ของมาอ่านเพราะไม่ได้ subscribe
-   * ตัวที่ทำให้ Meta ส่งมา
+   * field นี้บอกแค่ "สิทธิ์คุมห้องเปลี่ยนมือแล้ว" (pass/take/request) — **ไม่ได้ขนข้อความมาด้วย**
+   * ตัวที่ขนข้อความคือ `standby` ข้างล่าง ต้องมีคู่กันเสมอ
    *
-   * ระดับแอปเพิ่มให้แล้วผ่าน Meta DevTools MCP (2026-08-08) — ระดับเพจต้องมาทางนี้
+   * ระดับแอปเพิ่มให้แล้วผ่าน Meta DevTools MCP (2026-08-08)
    */
   'messaging_handovers',
+  /**
+   * standby — ข้อความของห้องที่ **เราไม่ใช่เจ้าของเธรด** (2026-08-08 รอบสอง)
+   *
+   * 🛑 นี่คือตัวจริงที่ขาดมาตลอด ไม่ใช่ `messaging_handovers`. เอกสาร Meta เขียนตรงตัว:
+   * "this callback will occur when a message has been sent to your page, but your application
+   * is not the current thread owner. Instead of delivering the callback through the normal
+   * messaging channel, the events will be delivered to standby channel."
+   * (developers.facebook.com/documentation/business-messaging/messenger-platform/webhooks/
+   *  webhook-events/standby — ขน messages / message_reads / message_deliveries /
+   *  messaging_postbacks; postback ที่มาทางนี้ไม่มี payload)
+   *
+   * อาการจริงบน prod: ร้านเปิด "AI from Meta" ให้ตอบแชท → **เธรดนั้นเงียบสนิททั้งห้อง** ไม่ใช่แค่
+   * ข้อความของ AI ที่หาย ข้อความที่ "ลูกค้าพิมพ์เอง" ก็ไม่มาด้วย จนกว่าคนจะกดรับเรื่องต่อ พิสูจน์กับ
+   * เธรด b6064da8: ทุกบรรทัดก่อน "You took over this chat from your AI agent." มาทาง graph-backfill
+   * ล้วน ๆ (ปัดเป็นวินาที) แล้ววินาทีที่ 11:39:11 หลังคนกดรับ webhook กลับมาทันทีพร้อม millisecond
+   *
+   * 🛑 ทำไมถึงพลาดมาสองรอบ: `list_topics` ของ Meta DevTools MCP **ไม่ลิสต์ `standby` ใน topic
+   * `page`** (ลิสต์ให้เฉพาะ `instagram`) สั่งเพิ่มผ่าน MCP จะโดนตีกลับว่า "Fields not available
+   * for topic page" ทั้งที่เอกสารบอกว่ามี — ต้องยิง `POST /{app-id}/subscriptions` ผ่าน Graph ตรง ๆ
+   * ด้วย app token. **ตารางของเครื่องมือไม่ใช่ความจริง ให้เชื่อเอกสาร + Graph**
+   *
+   * 🛑 POST /subscriptions เป็น replace ไม่ใช่ append — ต้องส่ง field เดิมครบทุกตัวไปด้วย
+   * ทุกครั้ง ตกไปตัวเดียวคือเลิกรับ field นั้นทั้งระบบเงียบ ๆ
+   *
+   * ฝั่งรับพร้อมอยู่แล้วตั้งแต่ 2026-08-04 (`EntrySchema.standby` + extractMessagingEventsWithRaw
+   * ที่ทำไว้ตอนแก้เคส IG) — ขาดแค่การบอก Meta ให้ส่งมา
+   */
+  'standby',
 ] as const
 
 // scope ที่ขอตอนเชื่อม Page — business_management เป็น dependency บังคับของ
