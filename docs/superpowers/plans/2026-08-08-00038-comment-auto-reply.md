@@ -322,8 +322,8 @@ git commit -m "feat(00038): schema + migration ตอบกลับคอมเ
 
 ```ts
 // graph.ts
+// ใช้ /me/messages ภายใน (pageToken resolve เป็นเพจเอง) จึงไม่รับ pageId — ดู Step 3
 export async function sendPrivateReplyToComment(
-  pageId: string,
   pageToken: string,
   commentExternalId: string,
   text: string,
@@ -399,15 +399,20 @@ Expected: FAIL — `Failed to resolve import "@/services/comment-private-reply.s
  * 🛑 ข้อจำกัดที่แก้ไม่ได้: ส่งได้ **ครั้งเดียวต่อคอมเมนต์** และภายใน **7 วัน** นับจากเวลาคอมเมนต์
  * ยิงพลาด = เสียสิทธิ์ของคอมเมนต์นั้นถาวร จึงห้ามเรียกฟังก์ชันนี้ซ้ำแบบ retry อัตโนมัติ
  *
+ * ใช้ /me/messages ไม่ใช่ /{page-id}/messages ตามที่เอกสาร Meta เขียน — ด้วยเหตุผลเดียวกับ
+ * sendTextMessage (graph.ts:524): pageToken resolve /me เป็นเพจให้อยู่แล้ว และ
+ * ShopChannel.externalId ของช่องทาง IG เก็บ **IG account id ไม่ใช่ Page id** การยิง externalId
+ * เข้า path ตรง ๆ จะได้ "(#3) Application does not have the capability" ทันทีที่เฟส 2 เปิด IG
+ * รอบนี้เป็น FB อย่างเดียวจึงยังไม่พัง แต่นี่คือกับดักที่วางไว้รอ ไม่ใช่เรื่องที่ค่อยแก้ทีหลัง
+ *
  * หมายเหตุ: ใช้ pages_messaging ที่มีใน CONNECT_SCOPES อยู่แล้ว — ไม่ต้องให้ร้านเชื่อมเพจใหม่
  */
 export async function sendPrivateReplyToComment(
-  pageId: string,
   pageToken: string,
   commentExternalId: string,
   text: string,
 ): Promise<{ recipientId: string; messageId: string }> {
-  const json = await graphFetch(`/${encodeURIComponent(pageId)}/messages`, pageToken, {
+  const json = await graphFetch('/me/messages', pageToken, {
     method: 'POST',
     body: {
       recipient: { comment_id: commentExternalId },
@@ -570,7 +575,7 @@ Expected: 4 เคสแรกเขียว (pure function) · 5 เคสใ�
 5. `!isWithinPrivateReplyWindow(comment.createdTime)` = `WINDOW_EXPIRED`
 6. `prisma.commentReplyLog.findFirst({ where: { commentId, privateReplyStatus: 'SENT' } })` เจอ = `ALREADY_SENT`
 7. `resolveChannelToken(channel.id)` → ถอดโทเคน (ยก helper จาก `page-comment.service.ts:22` มาเป็น export ร่วม หรือ import ตรง)
-8. เรียก `sendPrivateReplyToComment(pageId, token, comment.externalCommentId, text)` — จับ error → `SEND_FAILED` พร้อม `errorMessage`
+8. เรียก `sendPrivateReplyToComment(token, comment.externalCommentId, text)` — จับ error → `SEND_FAILED` พร้อม `errorMessage` (ไม่ต้องส่ง pageId — ฟังก์ชันใช้ `/me/messages`)
 9. สำเร็จ: `upsert ExternalContact` (`shopChannelId_externalUserId`) → `conversation` (findUnique ตาม `shopChannelId_externalContactId` ไม่พบก็ create ด้วย `channel: 'MESSENGER'`) → `chatMessage.create` (`senderRole: 'SHOP'`, `externalMessageId: messageId`, `body: text`, `type: 'TEXT'`) → `conversation.update` (`lastMessageAt`, `lastMessagePreview`, `lastSenderRole: 'SHOP'`) ทั้งหมดในทรานแซกชันเดียว
 10. เขียน/อัปเดต `CommentReplyLog` (`privateReplyStatus`, `conversationId`)
 
