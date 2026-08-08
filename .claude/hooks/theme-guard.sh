@@ -81,7 +81,13 @@ fi
 if command -v perl >/dev/null 2>&1; then
   # high emoji plane + regional-flag + variation-selector-16 + emoji ตัวฮิตนอก carve-out.
   # เลี่ยง carve-out HR12 (dingbat สีเดียวที่อนุญาต ★☆✓✗♡▾ = 2605/2606/2713/2717/2661/25BE) — ไม่จับ range กว้าง 2600-27BF.
-  m=$(perl -CSD -ne 'print "$.:$_" if /[\x{1F000}-\x{1FAFF}\x{1F1E6}-\x{1F1FF}\x{FE0F}]|[\x{2705}\x{274C}\x{2B50}\x{26A1}\x{2764}\x{2B55}\x{2757}\x{2753}\x{2728}\x{1F004}]/' "$file" 2>/dev/null || true)
+  #
+  # ข้ามบรรทัดคอมเมนต์ (// หรือ /*) — CLAUDE.md carve-out "code comment marker" ไว้ตั้งแต่ต้น
+  # แต่ด่านนี้ไม่เคย implement มัน ผลคือ 🛑/⚠️ ที่ใช้ขึ้นต้นคอมเมนต์อธิบายกฎอยู่ทั่วรีโป ทำให้
+  # ไฟล์นั้นแดงทุกครั้งที่มีใครแก้บรรทัดไหนก็ตามในไฟล์ แม้ไม่ได้แตะ emoji เลย — คนแก้จึงต้อง
+  # เลือกระหว่าง "ลบคอมเมนต์เตือนของคนก่อนหน้า" กับ "ปิด hook" ซึ่งแย่ทั้งคู่
+  # (CLAUDE.md บันทึกอาการนี้ไว้เองเมื่อ 2026-08-07 พร้อมระบุว่าแก้ได้ด้วยการใช้ scan_nocomment)
+  m=$(perl -CSD -ne 'next if m{^\s*(//|/\*|\*)}; print "$.:$_" if /[\x{1F000}-\x{1FAFF}\x{1F1E6}-\x{1F1FF}\x{FE0F}]|[\x{2705}\x{274C}\x{2B50}\x{26A1}\x{2764}\x{2B55}\x{2757}\x{2753}\x{2728}\x{1F004}]/' "$file" 2>/dev/null || true)
   [ -n "$m" ] && add "[HR12] emoji ใน UI — ใช้ icon จริง (@iconify/react tabler names) แทน. จุดที่ควรมี icon แต่ไม่รู้ตัวไหน = ถาม user ก่อน:
 $m"
 fi
