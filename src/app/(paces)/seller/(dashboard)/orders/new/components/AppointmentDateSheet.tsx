@@ -14,8 +14,13 @@
  * วันไหนคิวว่าง แล้วไปรู้ตอนกดบันทึกไม่ผ่าน — ข้อมูลความว่างมีอยู่แล้วใน API แค่ไม่เคยถูก
  * เอามาแสดงเป็นภาพรวมเดือน
  *
- * โครง 2 ชั้น (user สั่ง 2026-08-07): มือถือ = ปฏิทินบน / รายการนัดของวันที่จิ้มอยู่ล่าง /
- * ปุ่มยืนยันติดขอบล่าง · เดสก์ท็อป (lg) = ปฏิทินซ้าย / รายการขวา
+ * โครง 2 ชั้น (user สั่ง 2026-08-07): กล่องแคบ = ปฏิทินบน / รายการนัดของวันที่จิ้มอยู่ล่าง /
+ * ปุ่มยืนยันติดขอบล่าง · กล่องกว้าง (≥1024px) = ปฏิทินซ้าย / รายการขวา
+ *
+ * IMPORTANT: ทุก breakpoint ในไฟล์นี้เป็น **container query** (`@3xl`/`@5xl`) ไม่ใช่ viewport
+ * (`md`/`lg`) — ชีตนี้เปิดได้จาก 2 บริบทที่กว้างไม่เท่ากันทั้งที่วิวพอร์ตเดียวกัน: เต็มจอที่
+ * /orders/new และกล่อง 384px ในหน้าต่างร่างออเดอร์ของหน้าแชท เหตุผลเต็มอยู่ที่ `@container`
+ * บน div หัวแผ่นด้านล่าง — ห้ามเปลี่ยนกลับเป็น md:/lg: (บั๊ก user report 2026-08-08)
  *
  * IMPORTANT: จิ้มวัน = **preview เท่านั้น** ค่าจริงในฟอร์มเปลี่ยนตอนกดปุ่มยืนยันล่าง — ต่างจาก
  *   พฤติกรรมเดิม (จิ้ม = เลือกแล้วปิดทันที) ที่ทำให้ "จิ้มเพื่อดูรายการ" เป็นไปไม่ได้เลย
@@ -45,7 +50,14 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatMonthYearTH, formatWeekdayDateTH, formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
-import { isAllDayAppointment, APPOINTMENT_STATUS_LABEL, type AppointmentStatus } from '@/lib/appointments'
+import {
+  isAllDayAppointment,
+  combineDateTime,
+  addMinutesToTime,
+  APPOINTMENT_STATUS_LABEL,
+  type AppointmentStatus,
+  type AppointmentGranularity,
+} from '@/lib/appointments'
 import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 
 /**
@@ -88,14 +100,48 @@ interface Props {
    * (endpoint appointments ไม่ได้คืน capacity มาให้เหมือน availability เดิม)
    */
   resourceCapacity?: number
+  /**
+   * ระยะเวลามาตรฐานของคิวงาน (นาที) — auto-fill เวลาสิ้นสุดให้เมื่อผู้ใช้เลือกเวลาเริ่ม
+   * null/ไม่ส่ง = ไม่ auto-fill (ผู้ใช้กรอกเองทั้งคู่) ไม่ใช่ข้อผิดพลาด
+   */
+  resourceDurationMinutes?: number | null
+  /**
+   * ร้านนี้รับนัดแบบไหน (FR-RSV-13) — **บังคับ** ไม่ใช่ optional
+   *
+   * ผู้เรียกรู้ค่านี้เสมออยู่แล้ว และการปล่อยให้ optional แปลว่ามีค่าตั้งต้นเงียบ ๆ ที่อาจ
+   * ผิดกับร้าน ซึ่งจะทำให้ชีตซ่อน/โชว์ส่วนเลือกเวลาผิดโดยไม่มีอะไรฟ้อง
+   */
+  granularity: AppointmentGranularity
   /** ค่าที่เลือกอยู่ "YYYY-MM-DD" */
   value?: string
+  /** ค่าเวลาที่เลือกอยู่ "HH:mm" — มีความหมายเฉพาะเมื่อ granularity === 'TIME' */
+  valueStartTime?: string
+  valueEndTime?: string
   /**
    * ออเดอร์ที่กำลังเลื่อนนัดอยู่ (feature 00036) — กรองนัดของใบนี้ออกจากตัวนับความว่าง
    * ไม่ส่ง = โหมดตั้งนัดใหม่ตอนสร้างออเดอร์ (พฤติกรรมเดิม ไม่มีอะไรให้กรอง)
    */
   excludeOrderToken?: string
-  onSelect: (date: string) => void
+  /**
+   * ยิงครั้งเดียวตอนกดปุ่มยืนยันเท่านั้น (แทน onSelect เดิมที่ส่งแต่วันที่)
+   *
+   * พฤติกรรม preview ไม่เปลี่ยน: จิ้มวัน/พิมพ์เวลาในชีตยังไม่แตะค่าจริงในฟอร์มเลย
+   * จนกว่าจะกดยืนยัน — กด ‹ ย้อนกลับ = ไม่มีอะไรเปลี่ยน
+   */
+  onConfirm: (result: {
+    date: string
+    /** undefined เสมอเมื่อ granularity === 'DAY' */
+    startTime?: string
+    endTime?: string
+    /**
+     * จำนวนคิวที่ทับกับช่วงที่เพิ่งยืนยัน (DAY = ทั้งวัน · TIME = เฉพาะช่วงเวลานั้น)
+     * ส่งกลับให้ฟอร์มแสดงผลต่อ **โดยไม่ต้องยิง availability ซ้ำ**
+     *
+     * IMPORTANT: แสดงผลเท่านั้น ห้ามใช้ตัดสินว่าจองได้/ไม่ได้ (BR-RSV-18) — ระหว่างที่
+     * ผู้ใช้กรอกต่อ มีคนจองแทรกได้เสมอ ตัวตัดสินจริงคือ EXCLUDE constraint ตอน POST
+     */
+    bookedCount: number
+  }) => void
   onClose: () => void
 }
 
@@ -117,12 +163,17 @@ export default function AppointmentDateSheet({
   resourceId,
   resourceName,
   resourceCapacity,
+  resourceDurationMinutes,
+  granularity,
   value,
+  valueStartTime,
+  valueEndTime,
   excludeOrderToken,
-  onSelect,
+  onConfirm,
   onClose,
 }: Props) {
   useLockBodyScroll(open)
+  const byDay = granularity === 'DAY'
 
   const calRef = useRef<FullCalendar>(null)
   const capacity = resourceCapacity ?? null
@@ -136,10 +187,50 @@ export default function AppointmentDateSheet({
    * → กด ‹ ย้อนกลับ = ไม่มีอะไรเปลี่ยน แม้จะเคยจิ้มดูวันอื่นไปแล้ว
    */
   const [pendingDate, setPendingDate] = useState<string | undefined>(value)
+  /**
+   * เวลาที่กำลังกรอกอยู่ — preview เหมือน pendingDate ทุกประการ (ค่าจริงเปลี่ยนตอนกดยืนยัน)
+   *
+   * ย้ายมาจากช่อง <input type="time"> คู่ที่เคยอยู่นอกชีตในฟอร์ม (user สั่ง 2026-08-08:
+   * "อยากให้อยู่ตอนที่เลือกวันเลย (ใน Calendar) ทำไมต้องออกมาอยู่ข้างนอก") — ข้อมูลที่ใช้
+   * ตัดสินว่าจะนัดกี่โมง (คิวที่มีอยู่แล้วของวันนั้น) อยู่ในชีตนี้ ไม่ใช่ในฟอร์ม
+   */
+  const [pendingStart, setPendingStart] = useState<string>(valueStartTime ?? '')
+  const [pendingEnd, setPendingEnd] = useState<string>(valueEndTime ?? '')
+  // ผู้ใช้พิมพ์เวลาสิ้นสุดเองแล้วหรือยัง — ถ้าเคย ห้าม auto-fill ทับ (ยกกติกามาจากฟอร์มเดิม)
+  const endTouched = useRef(false)
   // เปิดชีตใหม่ทุกครั้งต้องเริ่มจากค่าที่ฟอร์มถืออยู่ ไม่ใช่ค่าที่ค้างจากการเปิดครั้งก่อน
   useEffect(() => {
-    if (open) setPendingDate(value)
-  }, [open, value])
+    if (!open) return
+    setPendingDate(value)
+    setPendingStart(valueStartTime ?? '')
+    setPendingEnd(valueEndTime ?? '')
+    // ค่าที่ฟอร์มถืออยู่ = ผู้ใช้เคยตั้งเวลาสิ้นสุดไว้แล้ว จึงห้าม auto-fill ทับตอนเปิดซ้ำ
+    endTouched.current = !!valueEndTime
+  }, [open, value, valueStartTime, valueEndTime])
+  /**
+   * Escape ปิดชีต + ย้ายโฟกัสเข้ามาตอนเปิด — ยกมาจาก AddressSearchSheet.tsx:72-87
+   *
+   * ไฟล์นี้เขียนไว้เองว่า "หัวแผ่นชุดเดียวกับ CustomerSearchSheet / AddressSearchSheet
+   * (3 ชีตของฟอร์มเดียวกัน) — แก้ที่ไหนแก้ให้ครบทั้งสาม" แล้วเป็นชีตเดียวที่ไม่มีทั้งคู่
+   *
+   * IMPORTANT: จำเป็นกว่าสองชีตนั้นด้วยซ้ำ เพราะชีตนี้ประกาศ aria-modal="true" ซึ่งสั่งให้
+   * screen reader ปิดทุกอย่างนอกชีต — ถ้าไม่ย้ายโฟกัสเข้ามา ผู้ใช้ AT จะถูกทิ้งไว้กับ
+   * โฟกัสที่อยู่หลังชีตในบริเวณที่ถูกซ่อนไปแล้ว และไม่มีทางออกที่เป็นมาตรฐาน
+   */
+  const closeBtnRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => closeBtnRef.current?.focus(), 60)
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [open, onClose])
+
   /** เดือนที่กำลังมองอยู่ — วาดหัวเรื่อง พ.ศ. เอง (FullCalendar ให้มาเป็น ค.ศ.) */
   const [viewStart, setViewStart] = useState<Date | null>(null)
   /**
@@ -237,9 +328,18 @@ export default function AppointmentDateSheet({
     return [...(itemsByDay.get(pendingDate) ?? [])].sort((a, b) => a.start.localeCompare(b.start))
   }, [itemsByDay, pendingDate])
 
+  /**
+   * วันนี้เต็มไหม — **โหมดรายวันเท่านั้น**
+   *
+   * IMPORTANT: โหมดระบุช่วงเวลาห้ามใช้เกณฑ์นี้ เพราะความจุของมันวัดกันที่ "ช่วงเวลาที่ทับกัน"
+   * ไม่ใช่ "จำนวนนัดทั้งวัน" — วันที่มี 10 นัดสั้น ๆ กระจายกันทั้งวันยังว่างเวลาอื่นอยู่เต็มไปหมด
+   * ถ้าเอา day-count มาตัดสินจะขึ้น "เต็ม" หลอกแล้วกันผู้ขายออกจากวันที่จองได้จริง
+   * (ตัวนับของโหมดเวลาอยู่ที่ pendingSlotBookedCount ด้านล่าง)
+   */
   const isFull = useCallback(
-    (key: string) => capacity != null && capacity > 0 && (countByDay.get(key) ?? 0) >= capacity,
-    [capacity, countByDay],
+    (key: string) =>
+      byDay && capacity != null && capacity > 0 && (countByDay.get(key) ?? 0) >= capacity,
+    [byDay, capacity, countByDay],
   )
 
   const onDatesSet = useCallback(
@@ -268,6 +368,91 @@ export default function AppointmentDateSheet({
   const pendingFull = pendingDate ? isFull(pendingDate) : false
   const pendingCount = pendingDate ? (countByDay.get(pendingDate) ?? 0) : 0
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // ส่วนของโหมด "ระบุช่วงเวลา" — คำนวณสดจาก dayItems ที่โหลดมาแล้ว ไม่ยิง API เพิ่ม
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** จำนวนคิวที่ทับกับช่วงที่กำลังกรอก — เกณฑ์ overlap เดียวกับที่ฟอร์มเคยใช้ (bookedNow เดิม) */
+  const pendingSlotBookedCount = useMemo(() => {
+    if (!pendingDate) return 0
+    // โหมดรายวัน: ทั้งวันคือช่วงเดียว → จำนวนนัดของวันนั้นตรง ๆ
+    if (byDay) return pendingCount
+    const start = combineDateTime(pendingDate, pendingStart)
+    if (!start) return 0
+    // ยังไม่กรอกเวลาสิ้นสุด → นับที่ "จุดเริ่ม" ไปก่อน (เหมือนพฤติกรรมเดิมของฟอร์ม)
+    const end = combineDateTime(pendingDate, pendingEnd) ?? start
+    const s = start.getTime()
+    const e = Math.max(end.getTime(), s + 1)
+    return dayItems.filter((it) => {
+      const bs = new Date(it.start).getTime()
+      const be = new Date(it.end).getTime()
+      return bs < e && s < be
+    }).length
+  }, [byDay, dayItems, pendingCount, pendingDate, pendingEnd, pendingStart])
+
+  /** ช่วงเวลาที่กรอกอยู่เต็มแล้วไหม (โหมดเวลาเท่านั้น — โหมดรายวันใช้ pendingFull) */
+  const pendingSlotFull =
+    !byDay && !!pendingStart && capacity != null && capacity > 0 && pendingSlotBookedCount >= capacity
+
+  /**
+   * เวลาที่คิวก่อนหน้าเลิก — ใช้เป็นทางลัด "ต่อจากคิวก่อนหน้า"
+   *
+   * ข้อมูลนี้อยู่ตรงหน้าผู้ใช้อยู่แล้ว (รายการนัดของวันนั้น) แต่เดิมกดใช้ไม่ได้ ต้องอ่านแล้ว
+   * ไปพิมพ์เองในช่องที่อยู่คนละที่ — ชิปนี้ทำให้มันกดได้ ไม่ใช่การเพิ่มขั้นตอน
+   * (วันที่ยังไม่มีนัด = ไม่มีชิป ตกไปพิมพ์เองเหมือนเดิม ไม่มีอะไรแย่ลง)
+   *
+   * ต้องเช็คว่า end อยู่ "วันเดียวกับที่กำลังเลือก" ด้วย — นัดที่คร่อมเที่ยงคืนมาจากวันก่อนหน้า
+   * จะทำให้ชิปเสนอเวลาของวันผิด
+   */
+  const suggestedStart = useMemo(() => {
+    if (byDay || dayItems.length === 0 || !pendingDate) return null
+    let latest: Date | null = null
+    for (const it of dayItems) {
+      const e = new Date(it.end)
+      if (Number.isNaN(e.getTime())) continue
+      if (localDateKey(e) !== pendingDate) continue
+      if (!latest || e.getTime() > latest.getTime()) latest = e
+    }
+    if (!latest) return null
+    return `${`${latest.getHours()}`.padStart(2, '0')}:${`${latest.getMinutes()}`.padStart(2, '0')}`
+  }, [byDay, dayItems, pendingDate])
+
+  /** เติมเวลาเริ่ม + auto-fill เวลาสิ้นสุดจากระยะเวลามาตรฐาน (เว้นแต่ผู้ใช้พิมพ์เองไปแล้ว) */
+  const applyStart = useCallback(
+    (v: string) => {
+      setPendingStart(v)
+      if (v && resourceDurationMinutes && !endTouched.current) {
+        setPendingEnd(addMinutesToTime(v, resourceDurationMinutes))
+      }
+    },
+    [resourceDurationMinutes],
+  )
+
+  /**
+   * ปุ่มยืนยันกดได้ไหม + จะเขียนว่าอะไร — รวมไว้ที่เดียวเพื่อไม่ให้ข้อความกับเงื่อนไขเพี้ยนจากกัน
+   *
+   * โหมดเวลาบังคับให้ครบทั้งเริ่มและสิ้นสุดก่อนยืนยัน — ไม่ใช่กฎใหม่: OrderCreateForm
+   * บล็อกการบันทึกออเดอร์ด้วยเงื่อนไขเดียวกันนี้อยู่แล้ว เดิมผู้ใช้แค่ไปเจอมันทีหลัง
+   * คนละจังหวะคนละบริบท ย้ายมาเช็คตรงนี้ = ปิดลูปการตัดสินใจจบในที่เดียวตามที่ user ขอ
+   */
+  const confirmState = useMemo((): { label: string; disabled: boolean } => {
+    if (!pendingDate) return { label: 'แตะวันในปฏิทินก่อน', disabled: true }
+    const dateLabel = formatDateTH(new Date(`${pendingDate}T00:00`))
+    if (byDay) {
+      if (pendingFull) return { label: 'วันนี้เต็มแล้ว — เลือกวันอื่น', disabled: true }
+      // ใช้กริยา "ยืนยัน" ทั้งสองโหมด — ปุ่มเดียวกัน การกระทำเดียวกัน (ผูกค่าเข้าฟอร์มแล้วปิด)
+      // คำว่า "เลือก" ทำให้อ่านเหมือนยังอยู่ในขั้นสำรวจ ทั้งที่กดแล้วมีผลจริง
+      return { label: `ยืนยัน ${dateLabel}`, disabled: false }
+    }
+    if (!pendingStart) return { label: 'เลือกเวลาเริ่มก่อน', disabled: true }
+    if (!pendingEnd) return { label: 'เลือกเวลาสิ้นสุดก่อน', disabled: true }
+    if (pendingEnd <= pendingStart) {
+      return { label: 'เวลาสิ้นสุดต้องหลังเวลาเริ่ม', disabled: true }
+    }
+    if (pendingSlotFull) return { label: 'ช่วงเวลานี้เต็มแล้ว — เลือกเวลาอื่น', disabled: true }
+    return { label: `ยืนยัน ${dateLabel} · ${pendingStart}–${pendingEnd}`, disabled: false }
+  }, [byDay, pendingDate, pendingEnd, pendingFull, pendingSlotFull, pendingStart])
+
   const goPrev = () => calRef.current?.getApi().prev()
   const goNext = () => calRef.current?.getApi().next()
   const goToday = () => calRef.current?.getApi().today()
@@ -281,7 +466,17 @@ export default function AppointmentDateSheet({
        status bar เอง ไม่งั้นปุ่มย้อนกลับไปนอนใต้นาฬิกา/แบตเตอรี่ (CustomerSearchSheet ทำไว้แล้ว
        แต่ชีตนี้กับ AddressSearchSheet ตกสำรวจ — docs/conventions/ios-safe-area.md) */
     <div
-      className="fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)]" /* carve-out: safe-area ไม่มี token */
+      /* @container: layout ข้างในตัดสินจากความกว้าง "กล่องจริง" ไม่ใช่วิวพอร์ต
+         `fixed inset-0` ไม่ได้แปลว่าเต็มจอเสมอ — ancestor ที่มี transform เป็น containing block
+         ของ fixed descendant และหน้าต่างร่างออเดอร์ในแชทตั้ง transform-gpu ไว้โดยตั้งใจ
+         (DraftOrderProvider.tsx:624-632) ชีตนี้จึงถูกขังในกล่อง lg:w-96 = 384px บนเดสก์ท็อป
+         ขณะที่ breakpoint แบบวิวพอร์ตยังอ่าน ~1400px → สั่งทรง "จอกว้าง" ให้กล่องแคบ
+         (เลขวันซ้อนกัน ชื่อวันไทยถูกตัดเป็นตัวอักษรทีละตัว — user report 2026-08-08)
+         precedent: src/components/safepay/iship/PriceCompareSheet.tsx:191-195 (บั๊กคลาสเดียวกัน
+         บริบทเดียวกัน) · @3xl=768px / @5xl=1024px = เลขเดียวกับ md/lg ของธีมเป๊ะ
+         (ยืนยันแล้วว่าโปรเจกต์ไม่ได้ override ตัวแปรสเกล container หรือ breakpoint
+         ใน src/assets/css จึงใช้สเกลมาตรฐานของ Tailwind v4 ตรง ๆ) */
+      className="@container fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)]" /* carve-out: safe-area ไม่มี token */
       role="dialog"
       aria-modal="true"
       aria-label="เลือกวันนัด"
@@ -289,13 +484,18 @@ export default function AppointmentDateSheet({
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
         {/* หัวแผ่นชุดเดียวกับ CustomerSearchSheet / AddressSearchSheet (3 ชีตของฟอร์มเดียวกัน)
             — แก้ที่ไหนแก้ให้ครบทั้งสาม */}
+        {/* ไอคอน x ไม่ใช่ chevron-left — ปุ่ม "เดือนก่อนหน้า" อยู่ต่ำลงไปแค่ ~60px และเคยใช้
+            chevron เหมือนกันเป๊ะ ต่างกันแค่ขนาด ทั้งที่ผลของสองปุ่มนี้ต่างกันสุดขั้ว
+            (ทิ้งงานที่กรอกค้าง vs เลื่อนเดือน) — ระยะเท่านี้บนมือถือคือ misclick ที่รอเกิด
+            min-h-11/min-w-11 = 44px ตาม PRODUCT.md (btn-icon เปล่า ๆ ได้ 37px) */}
         <button
+          ref={closeBtnRef}
           type="button"
           onClick={onClose}
-          aria-label="ย้อนกลับ"
-          className="btn btn-icon text-default-800 hover:bg-default-100 shrink-0"
+          aria-label="ปิด"
+          className="btn btn-icon text-default-800 hover:bg-default-100 min-h-11 min-w-11 shrink-0"
         >
-          <Icon icon="chevron-left" className="size-6" />
+          <Icon icon="x" className="size-6" />
         </button>
         {/* ไอคอนในกรอบพื้นอ่อนตาม mockup — idiom `bg-{semantic}/15` ของ Paces (HR7) */}
         <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded">
@@ -364,10 +564,15 @@ export default function AppointmentDateSheet({
           <span className="bg-warning size-1.5 rounded-full" aria-hidden="true" />
           มีคิวแล้ว
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Icon icon="x" className="text-danger size-3.5" aria-hidden="true" />
-          เต็ม
-        </span>
+        {/* "เต็ม" มีความหมายเฉพาะโหมดรายวัน — โหมดระบุช่วงเวลาไม่มีเครื่องหมายนี้ในปฏิทินเลย
+            (ความจุวัดกันที่ช่วงเวลาทับกัน ไม่ใช่จำนวนนัดทั้งวัน — ดู isFull)
+            legend ที่อธิบายสัญลักษณ์ซึ่งไม่มีวันโผล่ คือ legend ที่สอนผิด */}
+        {byDay && (
+          <span className="inline-flex items-center gap-1.5">
+            <Icon icon="x" className="text-danger size-3.5" aria-hidden="true" />
+            เต็ม
+          </span>
+        )}
         {/* swatch ต้องเป็นสัญลักษณ์ตัวเดียวกับที่เห็นในช่องจริง (เส้นขอบ ไม่ใช่จุดสี)
             — legend ที่แสดงคนละสัญลักษณ์กับของจริงคือ legend ที่อธิบายผิด */}
         <span className="inline-flex items-center gap-1.5">
@@ -376,18 +581,29 @@ export default function AppointmentDateSheet({
         </span>
       </div>
 
-      {/* มือถือ = ปฏิทินบน / รายการล่าง · เดสก์ท็อป = ปฏิทินซ้าย / รายการขวา (user สั่ง 2026-08-07)
-          lg (1024) คือ breakpoint เส้นเดียวของ seller shell — แท็บเล็ต 768 ยังได้ทรงมือถือ
-          ใช้ viewport breakpoint ได้ตรง ๆ ที่นี่ (ต่างจากการ์ดใน AppointmentBlock) เพราะชีตนี้
-          เป็น fixed inset-0 เต็มวิวพอร์ตเสมอ ความกว้างจอ = ความกว้างจริงของมัน */}
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      {/* กล่องแคบ = ปฏิทินบน / รายการล่าง · กล่องกว้าง = ปฏิทินซ้าย / รายการขวา (user สั่ง 2026-08-07)
+          @5xl (1024) คือเส้นเดียวกับ lg ของ seller shell — แท็บเล็ต 768 ยังได้ทรงเรียงลง
+          IMPORTANT: วัดจาก **กล่อง** ไม่ใช่วิวพอร์ต (ดูเหตุผลที่ @container บนหัวแผ่น) —
+          เดิมเขียนไว้ว่า "ชีตนี้ fixed inset-0 เต็มวิวพอร์ตเสมอ" ซึ่งเป็นสมมติฐานที่ผิด
+          และทำให้ชีตพังจริงเมื่อเปิดจากหน้าแชท */}
+      {/* กล่องแคบ = เลื่อนเป็นคอลัมน์เดียว (ปฏิทิน → คิวของวันนั้น → เลือกเวลา) ปุ่มยืนยันตรึงล่าง
+          กล่องกว้าง = สองคอลัมน์ที่ต่างคนต่างเลื่อนในตัวเอง
+
+          IMPORTANT: ห้ามให้ 3 ส่วนแย่งความสูงกันในกล่องแคบ — ตอนโหมดระบุเวลา ส่วนเลือกเวลา
+          (~198px, shrink-0) กับหัวรายการ กินพื้นที่จนรายการคิวของวันนั้นเหลือ 0px พอดี
+          ซึ่งฆ่าเหตุผลทั้งหมดของการย้ายช่องเวลาเข้ามา (ย้ายมาเพื่อให้เห็นคิวขณะเลือกเวลา
+          แล้วคิวดันหายไป = กลับไปเดาเวลาเหมือนก่อนแก้ โดยที่จอดู "ครบ" ทุกอย่าง)
+          ให้เลื่อนแทนการบีบ: ไม่มีชิ้นไหนถูกครูดจนหาย และทุกอย่างยังไปถึงได้ */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain @5xl:flex-row @5xl:overflow-hidden">
       {/* ไม่ใช้ shrink-0 กับปฏิทิน: FullCalendar height="auto" ยืดตามจำนวนแถวของเดือน (6 แถว
           ในบางเดือน) ถ้าห้ามหดแล้วเดือนนั้นสูงเกินพื้นที่ รายการข้างล่างจะถูกบีบเหลือศูนย์
           — ให้ปฏิทินหดแล้วเลื่อนในตัวเองแทน ส่วนรายการมี min-h กันไว้อีกชั้น */}
       {/* appt-date-sheet = สโคป CSS ที่รื้อทรงตารางของ FullCalendar ออก (เส้นขอบทุกช่อง /
           แถวสูงไม่จำกัด / เลขวันชิดขวาบน) — ดูเหตุผลเต็มที่ src/assets/css/plugins/_calendar.css
           ขาดคลาสนี้เมื่อไหร่ ปฏิทินจะกลับไปเป็นตารางดิบทันที */}
-      <div className="appt-date-sheet min-h-0 overflow-y-auto overscroll-contain px-2 pb-2 lg:basis-3/5 lg:border-e lg:border-default-200">
+      {/* กล่องแคบ: ปฏิทินสูงตามเนื้อหา แล้วให้คอลัมน์แม่เลื่อน (ไม่ซ้อน scroll สองชั้น)
+          กล่องกว้าง: กลับไปเลื่อนในตัวเองเหมือนเดิม เพราะอยู่คู่กับคอลัมน์รายการ */}
+      <div className="appt-date-sheet shrink-0 px-2 pb-2 @5xl:min-h-0 @5xl:shrink @5xl:overflow-y-auto @5xl:overscroll-contain @5xl:basis-3/5 @5xl:border-e @5xl:border-default-200">
         <FullCalendar
           ref={calRef}
           plugins={[dayGridPlugin, interactionPlugin]}
@@ -402,15 +618,17 @@ export default function AppointmentDateSheet({
           datesSet={onDatesSet}
           dateClick={onDateClick}
           /**
-           * หัวคอลัมน์ย่อบนมือถือ เต็มตั้งแต่ 768 ขึ้นไป (ตาม mockup ทั้งสองเฟรม)
+           * หัวคอลัมน์ย่อเมื่อกล่องแคบ เต็มตั้งแต่กล่องกว้าง 768 ขึ้นไป (ตาม mockup ทั้งสองเฟรม)
            * ต้องเขียนเองเพราะ locale th ของ FullCalendar ให้ชื่อเต็มเสมอในมุมมองเดือน
            * — ที่ 390px ชื่อเต็ม 7 คอลัมน์ล้นจนคอลัมน์เบียดกัน
-           * สลับด้วย CSS (md:hidden) ไม่ใช่ JS เพราะชีตนี้ fixed inset-0 = กว้างเท่าวิวพอร์ตเสมอ
+           * สลับด้วย CSS (@3xl:) ไม่ใช่ JS — และต้องเป็น container query ไม่ใช่ md: เพราะกล่อง
+           * ในหน้าแชทกว้าง 384px ขณะที่วิวพอร์ตกว้าง ~1400px (ดูเหตุผลเต็มที่ @container หัวแผ่น)
+           * นี่คือจุดที่อาการหนักสุด: ชื่อวันเต็มถูกยัดลงคอลัมน์ ~30px แล้วตัดเป็นตัวอักษรทีละตัว
            */
           dayHeaderContent={(arg) => (
             <>
-              <span className="md:hidden">{DOW_SHORT[arg.date.getDay()]}</span>
-              <span className="hidden md:inline">{DOW_FULL[arg.date.getDay()]}</span>
+              <span className="@3xl:hidden">{DOW_SHORT[arg.date.getDay()]}</span>
+              <span className="hidden @3xl:inline">{DOW_FULL[arg.date.getDay()]}</span>
             </>
           )}
           dayCellContent={(arg) => {
@@ -440,7 +658,7 @@ export default function AppointmentDateSheet({
                   : 'text-default-800 hover:bg-default-100'
             return (
               <div
-                className={`flex min-h-11.5 w-full flex-col items-center justify-center gap-1 rounded-lg md:min-h-13 ${tone}`}
+                className={`flex min-h-11.5 w-full flex-col items-center justify-center gap-1 rounded-lg @3xl:min-h-13 ${tone}`}
               >
                 {full ? (
                   <>
@@ -475,16 +693,32 @@ export default function AppointmentDateSheet({
       {/* ── รายการนัดของวันที่กำลังดู (user สั่ง 2026-08-07: "จิ้มวันแต่ละวันเพื่อดูรายการได้") ── */}
       {/* min-h-40 = พื้นที่ขั้นต่ำที่รายการต้องได้เสมอ (flex-1 basis 0 อย่างเดียวไม่การันตี
           อะไรเลยเมื่อพื้นที่ติดลบ — ปฏิทินจะกินหมดแล้วรายการหายไปทั้งก้อน) */}
-      <div className="border-default-200 bg-default-100 flex min-h-40 flex-1 flex-col border-t lg:min-h-0 lg:basis-2/5 lg:border-t-0">
+      <div className="border-default-200 bg-default-100 flex flex-col border-t @5xl:min-h-0 @5xl:flex-1 @5xl:basis-2/5 @5xl:border-t-0">
         <div className="flex shrink-0 items-baseline gap-2 px-4 pt-3 pb-2">
           <h4 className="text-dark text-sm font-semibold">
             {pendingDate ? formatWeekdayDateTH(new Date(`${pendingDate}T00:00`)) : 'แตะวันในปฏิทิน'}
           </h4>
-          {pendingDate && capacity != null && capacity > 0 && (
-            <span className={`ms-auto text-xs ${pendingFull ? 'text-warning-ink' : 'text-default-500'}`}>
-              จองแล้ว {pendingCount} จาก {capacity} คิว
-            </span>
-          )}
+          {/* ตัวหาร (capacity) มีความหมายเฉพาะโหมดรายวัน ซึ่ง "ทั้งวัน" คือช่วงเดียว —
+              โหมดระบุช่วงเวลาเอา day-count มาหารด้วย capacity ไม่ได้ เพราะนัดสั้น ๆ ที่กระจาย
+              กันทั้งวันจะได้เลขเกินความจุทันที (ร้าน capacity 2 ที่มี 8 นัดจะขึ้น "จองแล้ว 8
+              จาก 2 คิว" ซึ่งอ่านไม่รู้เรื่อง) และมันจะขัดกับบรรทัด "จองแล้ว n จาก m คิว
+              ในช่วงเวลานี้" ที่อยู่ห่างลงไปไม่ถึงจอเดียวกัน — คนละเลขบนจอเดียว (HR16)
+              โหมดเวลาจึงบอกจำนวนดิบอย่างเดียว ตัวหารไปอยู่กับช่วงเวลาที่ใช้ตัวหารได้จริง */}
+          {pendingDate &&
+            (byDay
+              ? capacity != null &&
+                capacity > 0 && (
+                  <span
+                    className={`ms-auto text-xs ${pendingFull ? 'text-warning-ink' : 'text-default-500'}`}
+                  >
+                    จองแล้ว {pendingCount} จาก {capacity} คิว
+                  </span>
+                )
+              : pendingCount > 0 && (
+                  <span className="text-default-500 ms-auto text-xs">
+                    มี {pendingCount} คิวในวันนี้
+                  </span>
+                ))}
         </div>
 
         {dayItems.length === 0 ? (
@@ -496,10 +730,15 @@ export default function AppointmentDateSheet({
               <Icon icon="calendar-check" className="size-5" />
             </span>
             <p className="text-default-800 text-sm font-semibold">ว่างทั้งวัน</p>
-            <p className="text-default-500 text-xs">ยังไม่มีใครจองคิวนี้ — เลือกวันนี้ได้เลย</p>
+            {/* เลี่ยงคำว่า "วันนี้" — บนจอเดียวกันมีปุ่ม "วันนี้" ที่แปลว่ากระโดดไปวันปัจจุบัน
+                (คำเตือนเรื่องนี้เขียนไว้แล้วที่แถบยืนยันล่าง แต่บรรทัดนี้ตกสำรวจ)
+                และในโหมดระบุเวลา ยังเลือกวันอย่างเดียวแล้วยืนยันไม่ได้ ต้องกรอกเวลาก่อน */}
+            <p className="text-default-500 text-xs">
+              {byDay ? 'ยังไม่มีใครจองคิวนี้ — เลือกวันนี้ได้เลย' : 'ยังไม่มีใครจองคิวนี้ — เลือกเวลาได้ตามสะดวก'}
+            </p>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3">
+          <div className="px-3 pb-3 @5xl:min-h-0 @5xl:flex-1 @5xl:overflow-y-auto @5xl:overscroll-contain">
             <ul className="flex flex-col gap-2">
               {dayItems.map((it) => {
                 const start = new Date(it.start)
@@ -541,6 +780,77 @@ export default function AppointmentDateSheet({
             </ul>
           </div>
         )}
+
+        {/* ── เลือกเวลา (โหมดระบุช่วงเวลาเท่านั้น) ──
+            user สั่ง 2026-08-08: "อยากให้อยู่ตอนที่เลือกวันเลย (ใน Calendar) ทำไมต้องออกมา
+            อยู่ข้างนอก UX ใช้งานยากมาก" — เดิมต้องกดยืนยันวัน ปิดชีต แล้วไปกรอกเวลาในฟอร์ม
+            ซึ่งเป็นคนละบริบทกับตอนที่เพิ่งดูคิวว่างอยู่ วางไว้ "ใต้รายการนัดของวันนั้น"
+            โดยตั้งใจ เพราะรายการนั้นคือข้อมูลที่ใช้ตัดสินว่าจะนัดกี่โมง — อ่านแล้วกรอกต่อได้เลย
+            shrink-0: ห้ามให้ส่วนนี้ถูกบีบหายเมื่อรายการนัดยาว (รายการมี overflow ของตัวเองแล้ว) */}
+        {!byDay && pendingDate && (
+          <div className="border-default-200 shrink-0 border-t border-dashed px-4 pt-3 pb-3">
+            <p className="form-label mb-2">เลือกเวลา</p>
+
+            {/* ทางลัดจากข้อมูลที่อยู่ตรงหน้าอยู่แล้ว — ไม่ใช่ขั้นตอนบังคับ วันที่ยังว่างจะไม่มีชิปนี้
+                combo ปุ่มเดียวกับ "วันนี้" บนหัวแถบเดือนของไฟล์นี้ (ไม่ใช่คลาสใหม่) */}
+            {/* นี่คือทางลัดหลักของทั้งงานนี้ (กดครั้งเดียวได้ทั้งเวลาเริ่มและสิ้นสุด) จึงต้องเป็น
+                ปุ่มเต็มความกว้าง min-h-11 ไม่ใช่ชิปเล็ก 30px — ของที่ตัดสินใจแทนผู้ใช้ได้เร็วที่สุด
+                ห้ามเป็นของที่กดยากที่สุดในจอ (PRODUCT.md: tap target ≥44px) */}
+            {suggestedStart && suggestedStart !== pendingStart && (
+              <button
+                type="button"
+                onClick={() => applyStart(suggestedStart)}
+                className="btn border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 mb-3 min-h-11 w-full justify-start gap-2 rounded-lg border"
+              >
+                <Icon icon="arrow-narrow-right" className="size-4 shrink-0" aria-hidden="true" />
+                ต่อจากคิวก่อนหน้า {suggestedStart}
+              </button>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="appt-sheet-start" className="form-label">
+                  เวลาเริ่ม
+                </label>
+                <input
+                  id="appt-sheet-start"
+                  type="time"
+                  className="form-input"
+                  value={pendingStart}
+                  onChange={(e) => applyStart(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="appt-sheet-end" className="form-label">
+                  เวลาสิ้นสุด
+                </label>
+                <input
+                  id="appt-sheet-end"
+                  type="time"
+                  className="form-input"
+                  min={pendingStart || undefined}
+                  value={pendingEnd}
+                  onChange={(e) => {
+                    endTouched.current = true
+                    setPendingEnd(e.target.value)
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* ตัวนับของ "ช่วงเวลา" ไม่ใช่ของทั้งวัน — แสดงผลเท่านั้น ไม่ใช่คำตัดสิน (BR-RSV-18)
+                ตัวที่กันจริงคือปุ่มยืนยันล่าง ซึ่ง disabled เมื่อช่วงนี้เต็ม */}
+            {pendingStart && capacity != null && capacity > 0 && (
+              <p
+                className={`mt-2 mb-0 text-sm ${
+                  pendingSlotFull ? 'text-warning-ink' : 'text-default-500'
+                }`}
+              >
+                จองแล้ว {pendingSlotBookedCount} จาก {capacity} คิว ในช่วงเวลานี้
+              </p>
+            )}
+          </div>
+        )}
       </div>
       </div>
 
@@ -551,10 +861,16 @@ export default function AppointmentDateSheet({
       <div className={`border-default-200 bg-card flex shrink-0 items-start gap-3 border-t px-4 pt-3 ${FOOTBAR_HEIGHT}`}>
         <button
           type="button"
-          disabled={!pendingDate || pendingFull}
+          disabled={confirmState.disabled}
           onClick={() => {
-            if (!pendingDate || pendingFull) return
-            onSelect(pendingDate)
+            if (confirmState.disabled || !pendingDate) return
+            onConfirm({
+              date: pendingDate,
+              // โหมดรายวันไม่มีเวลา — ส่ง undefined ไม่ใช่สตริงว่าง เพื่อให้ผู้เรียกล้างค่าเดิมได้ชัด
+              startTime: byDay ? undefined : pendingStart,
+              endTime: byDay ? undefined : pendingEnd,
+              bookedCount: pendingSlotBookedCount,
+            })
             onClose()
           }}
           /* combo หลักของปุ่ม CTA เต็มความกว้างในธีม Paces (theme/paces/Admin/TS/src ใช้ซ้ำ 27 ที่)
@@ -562,11 +878,7 @@ export default function AppointmentDateSheet({
              ให้ opacity-50 + cursor-not-allowed อยู่แล้วทั้งระบบ */
           className="btn bg-primary hover:bg-primary-hover min-h-11 w-full py-3 font-semibold text-white"
         >
-          {pendingFull
-            ? 'วันนี้เต็มแล้ว — เลือกวันอื่น'
-            : pendingDate
-              ? `เลือก ${formatDateTH(new Date(`${pendingDate}T00:00`))}`
-              : 'แตะวันในปฏิทินก่อน'}
+          {confirmState.label}
         </button>
       </div>
     </div>

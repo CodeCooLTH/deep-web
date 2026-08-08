@@ -20,13 +20,13 @@
  * IMPORTANT: คำว่า "ที่นั่ง" (serviceSeat) เป็นกลไกภายใน ห้ามโผล่ในหน้าจอ
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Controller, type Control, type FieldErrors, type UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
-import { formatTimeHM, formatDateTH } from '@/lib/format-date'
+import { formatDateTH } from '@/lib/format-date'
 import AppointmentDateSheet from './AppointmentDateSheet'
 import type { FormValues } from './OrderCreateForm'
-import type { AppointmentGranularity } from '@/lib/appointments'
+import { combineDateTime, type AppointmentGranularity } from '@/lib/appointments'
 
 export type ServiceResourceOption = {
   id: string
@@ -68,9 +68,6 @@ type Props = {
   }
 }
 
-/** ช่วงเวลาที่ถูกจองแล้วของคิวงาน+วันนั้น (API.md §4.4 — 1 แถวต่อ 1 นัด ไม่ได้ aggregate) */
-type BusySlot = { start: string; end: string }
-
 /** "YYYY-MM-DD" ของวันนี้ตามเครื่องผู้ใช้ — ห้ามใช้ toISOString() เพราะจะเพี้ยนเป็น UTC */
 function todayLocalDate(): string {
   const d = new Date()
@@ -79,40 +76,13 @@ function todayLocalDate(): string {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
-/** รวม "YYYY-MM-DD" + "HH:mm" เป็น Date ตามเวลาเครื่อง (ผู้ใช้คิดเป็นเวลาไทยอยู่แล้ว) */
-function combine(date: string, time: string): Date | null {
-  if (!date || !time) return null
-  const d = new Date(`${date}T${time}`)
-  return isNaN(d.getTime()) ? null : d
-}
-
-/** บวกนาทีแล้วคืนเป็น "HH:mm" */
-function addMinutes(time: string, minutes: number): string {
-  const [h, m] = time.split(':').map(Number)
-  if (Number.isNaN(h) || Number.isNaN(m)) return ''
-  const total = h * 60 + m + minutes
-  const hh = `${Math.floor((total / 60) % 24)}`.padStart(2, '0')
-  const mm = `${total % 60}`.padStart(2, '0')
-  return `${hh}:${mm}`
-}
-
-/**
- * บล็อกนี้ mount พร้อมกันสองใบ (QuickForm มือถือ / CartPanel เดสก์ท็อป — สลับด้วย CSS)
- * ถ้าปล่อยไว้ ทุกครั้งที่เปลี่ยนคิวงานหรือวันจะยิง availability ซ้ำสองรอบ
- * จึงแชร์ promise ที่กำลังบินอยู่ของ URL เดียวกัน แล้วทิ้งทันทีที่จบ
- * (ไม่ใช่ cache ผลลัพธ์ — ยังต้องได้คิวสดทุกครั้งที่ผู้ใช้เปลี่ยนค่า)
- */
-const inFlightBusy = new Map<string, Promise<unknown>>()
-
-function fetchBusy(url: string): Promise<any> {
-  const hit = inFlightBusy.get(url)
-  if (hit) return hit
-  const p = fetch(url, { cache: 'no-store' })
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('failed'))))
-    .finally(() => inFlightBusy.delete(url))
-  inFlightBusy.set(url, p)
-  return p
-}
+/* 2026-08-08 — การดึงคิวว่าง (availability) กับช่องกรอกเวลาถูกย้ายเข้าไปอยู่ใน
+   AppointmentDateSheet ทั้งหมด ตามที่ user สั่งให้เลือกเวลาในปฏิทินที่เดียว
+   ที่หายไปจากไฟล์นี้พร้อมกัน: state busy/loadingBusy/busyFailed, cache inFlightBusy
+   (เคยจำเป็นเพราะบล็อกนี้ mount พร้อมกัน 2 ใบแล้วยิงซ้ำ — ตอนนี้ไม่มีใครยิงแล้ว),
+   memo bookedNow, ชิป "คิวที่มีอยู่แล้ววันนี้" (ซึ่งแสดงนัดทั้งวันเป็น 00:00–00:00 — บั๊กที่
+   user เจอ 2026-08-08 หายไปพร้อมโค้ดที่ทำให้เกิด) และ helper combine/addMinutes
+   ที่ย้ายไปเป็น combineDateTime/addMinutesToTime ใน src/lib/appointments.ts */
 
 export default function AppointmentBlock({
   control,
@@ -126,11 +96,12 @@ export default function AppointmentBlock({
   value,
 }: Props) {
   const byDay = granularity === 'DAY'
-  const [busy, setBusy] = useState<BusySlot[]>([])
-  const [loadingBusy, setLoadingBusy] = useState(false)
-  const [busyFailed, setBusyFailed] = useState(false)
-  // จำว่าผู้ใช้เคยพิมพ์เวลาสิ้นสุดเองหรือยัง — ถ้าเคย ห้าม auto-fill ทับ
-  const endTouched = useRef(false)
+  /**
+   * จำนวนคิวที่ทับกับช่วงที่ผู้ใช้เพิ่งยืนยันในปฏิทิน — ชีตส่งกลับมาให้ ไม่ต้องยิง API ซ้ำ
+   * null = ยังไม่เคยยืนยันในเซสชันนี้ (เช่น เพิ่งเปิดฟอร์มแก้ไขออเดอร์เก่า) → ไม่แสดงบรรทัดนั้น
+   * แสดงผลเท่านั้น ห้ามใช้ตัดสินว่าจองได้/ไม่ได้ (BR-RSV-18)
+   */
+  const [confirmedBookedCount, setConfirmedBookedCount] = useState<number | null>(null)
 
   const selected = resources.find((r) => r.id === value.resourceId) ?? null
   /** ปฏิทินเต็มจอเลือกวันนัด (user สั่ง 2026-08-07) */
@@ -149,59 +120,6 @@ export default function AppointmentBlock({
   const [pickedForSheet, setPickedForSheet] = useState<ServiceResourceOption | null>(null)
   const sheetResource = selected ?? pickedForSheet
 
-  // ── โหลดคิวที่ถูกจองแล้วของคิวงาน+วันที่เลือก (ครั้งเดียวต่อ resource+วัน) ──
-  useEffect(() => {
-    if (!value.resourceId || !value.date) {
-      setBusy([])
-      return
-    }
-    let cancelled = false
-    const from = new Date(`${value.date}T00:00`)
-    const to = new Date(from.getTime() + 86_400_000)
-    setLoadingBusy(true)
-    setBusyFailed(false)
-    fetchBusy(
-      `/api/shops/current/service-resources/availability?resourceId=${value.resourceId}&from=${from.toISOString()}&to=${to.toISOString()}`,
-    )
-      .then((d) => {
-        if (cancelled) return
-        setBusy(Array.isArray(d?.busy) ? d.busy : [])
-      })
-      .catch(() => {
-        if (!cancelled) setBusyFailed(true)
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingBusy(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [value.resourceId, value.date])
-
-  // ── จำนวนคิวที่ถูกจองแล้ว ณ เวลาเริ่มที่เลือก (คำนวณสด ไม่ fetch ใหม่) ──
-  const bookedNow = useMemo(() => {
-    if (!value.date) return null
-    // โหมดรายวัน: นับนัดที่คาบเกี่ยวกับวันนั้นทั้งวัน (ไม่มีเวลาเริ่มให้อ้างอิง)
-    if (byDay) {
-      const dayStart = new Date(`${value.date}T00:00`).getTime()
-      const dayEnd = dayStart + 86_400_000
-      return busy.filter((b) => {
-        const bs = new Date(b.start).getTime()
-        const be = new Date(b.end).getTime()
-        return bs < dayEnd && dayStart < be
-      }).length
-    }
-    if (!value.startTime) return null
-    const start = combine(value.date, value.startTime)
-    if (!start) return null
-    const t = start.getTime()
-    return busy.filter((b) => {
-      const bs = new Date(b.start).getTime()
-      const be = new Date(b.end).getTime()
-      return bs <= t && t < be
-    }).length
-  }, [busy, byDay, value.date, value.startTime])
-
   // ── มัดจำตั้งต้นจากคิวงาน (BR-RSV-46/47) — ผู้ใช้แก้ทับได้ ──
   const suggestedDeposit = useMemo(() => {
     if (!selected) return 0
@@ -211,10 +129,9 @@ export default function AppointmentBlock({
     return Math.min(Math.round(raw * 100) / 100, total)
   }, [selected, total])
 
-  // เลือกคิวงานใหม่ → เติมค่าตั้งต้นให้ครบ แล้วเปิดโอกาส auto-fill เวลาสิ้นสุดอีกครั้ง
+  // เลือกคิวงานใหม่ → เติมค่าตั้งต้นให้ครบ
   useEffect(() => {
     if (!value.resourceId) return
-    endTouched.current = false
     if (!value.date) setValue('appointment.date', todayLocalDate())
     setValue('appointment.depositAmount', suggestedDeposit)
     // ตั้งใจ dep แค่ resourceId — ไม่ให้ยอดมัดจำถูกเขียนทับทุกครั้งที่ยอดรวมขยับ
@@ -226,7 +143,7 @@ export default function AppointmentBlock({
     if (!value.date) return false
     // โหมดรายวัน: นับว่าย้อนหลังเมื่อ "ทั้งวันนั้น" ผ่านไปแล้ว ไม่ใช่เทียบนาที
     if (byDay) return new Date(`${value.date}T00:00`).getTime() + 86_400_000 <= Date.now()
-    const start = value.startTime ? combine(value.date, value.startTime) : null
+    const start = value.startTime ? combineDateTime(value.date, value.startTime) : null
     return start ? start.getTime() < Date.now() : false
   }, [byDay, value.date, value.startTime])
 
@@ -278,6 +195,7 @@ export default function AppointmentBlock({
                 type="button"
                 onClick={() => {
                   setPickedForSheet(null)
+                  setConfirmedBookedCount(null)
                   setValue('appointment.resourceId', undefined)
                   setValue('appointment.date', undefined)
                   setValue('appointment.startTime', undefined)
@@ -367,11 +285,17 @@ export default function AppointmentBlock({
         {selected && (
           <>
             <div>
-              <label htmlFor={`${idPrefix}-appt-date`} className="form-label">วันที่นัด</label>
+              <label htmlFor={`${idPrefix}-appt-date`} className="form-label">
+                {byDay ? 'วันที่นัด' : 'วันและเวลาที่นัด'}
+              </label>
               {/* ปุ่มเปิดปฏิทินเต็มจอแทน <input type="date"> (user สั่ง 2026-08-07) — ช่องเดิม
                   บอกได้แค่ "วันนี้คือวันอะไร" ผู้ขายต้องเดาเองว่าวันไหนคิวว่างแล้วไปรู้ตอนกด
                   บันทึกไม่ผ่าน. ปฏิทินย้อมวันที่มีคิว/เต็มให้เห็นทั้งเดือนก่อนเลือก
-                  ยังเป็นปุ่มไม่ใช่ input จริง — ค่าเก็บใน react-hook-form เหมือนเดิมทุกอย่าง */}
+                  ยังเป็นปุ่มไม่ใช่ input จริง — ค่าเก็บใน react-hook-form เหมือนเดิมทุกอย่าง
+
+                  2026-08-08: ปุ่มนี้คุม **ทั้งวันและเวลา** แล้ว (user สั่ง: เลือกเวลาต้องอยู่ใน
+                  ปฏิทิน ไม่ใช่เด้งออกมากรอกข้างนอก) ช่อง <input type="time"> คู่ที่เคยอยู่ใต้
+                  ปุ่มนี้ถูกย้ายเข้าไปอยู่ใต้รายการคิวของวันนั้นในชีตแทน */}
               <Controller
                 control={control}
                 name="appointment.date"
@@ -383,106 +307,62 @@ export default function AppointmentBlock({
                     className="form-input flex w-full items-center justify-between gap-2 text-start"
                   >
                     <span className={field.value ? 'text-dark' : 'text-default-400'}>
-                      {field.value ? formatDateTH(`${field.value}T00:00`) : 'เลือกวันนัด'}
+                      {!field.value
+                        ? byDay
+                          ? 'เลือกวันนัด'
+                          : 'เลือกวันและเวลา'
+                        : byDay || !value.startTime || !value.endTime
+                          ? formatDateTH(`${field.value}T00:00`)
+                          : `${formatDateTH(`${field.value}T00:00`)} · ${value.startTime}–${value.endTime}`}
                     </span>
                     <Icon icon="calendar-event" className="size-4 shrink-0 text-default-400" />
                   </button>
                 )}
               />
+              {/* โหมดระบุเวลาแต่ยังกรอกไม่ครบ → บันทึกออเดอร์ไม่ผ่าน (OrderCreateForm ตรวจอยู่แล้ว)
+                  บอกตรงนี้ก่อน ดีกว่าปล่อยให้ไปเจอตอนกดบันทึกทั้งฟอร์มซึ่งคนละจังหวะกัน */}
+              {!byDay && value.date && !(value.startTime && value.endTime) && (
+                <p className="text-default-500 mt-1 mb-0 text-sm">
+                  แตะเพื่อเลือกเวลาเริ่มและเวลาสิ้นสุด
+                </p>
+              )}
             </div>
 
-            {/* คิวที่มีอยู่แล้วในวันนั้น — ช่วยให้เลือกเวลาได้โดยไม่ต้องเดา */}
-            {!byDay && busy.length > 0 && (
-              <div>
-                <p className="text-default-500 mb-1.5 text-sm">คิวที่มีอยู่แล้ววันนี้</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {busy.map((b, i) => (
-                    <span key={`${b.start}-${i}`} className="badge bg-default-100 text-default-600">
-                      {formatTimeHM(b.start)}–{formatTimeHM(b.end)}
-                    </span>
-                  ))}
-                </div>
+            {/* โหมดรายวันไม่ถามเวลาโดยตั้งใจ — ต้องบอก ไม่ใช่ให้ช่องเวลาหายไปเฉย ๆ
+                (ร้าน BT รายงาน 2026-08-08 ว่า "ไม่มีให้ระบุเวลา" ทั้งที่เป็นค่าตั้งค่าของร้านเอง
+                ที่ตั้งไว้เป็นรายวัน — ความเงียบตรงนี้อ่านเป็น "ระบบทำไม่ได้")
+                ใช้ info ไม่ใช่ warning: นี่คือการตั้งค่าที่ตั้งใจ ไม่ใช่สิ่งผิดปกติที่ต้องรีบแก้
+                Base: ./CustomerQuickBlock.tsx:200-205 (กล่องบอกข้อมูลชุดเดียวกันในฟอร์มนี้) */}
+            {byDay && (
+              <div className="bg-info/10 text-info-ink flex items-start gap-2 rounded-lg px-3 py-2 text-xs">
+                <Icon icon="info-circle" className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span>
+                  ร้านนี้ตั้งรับนัดเป็นรายวัน จึงไม่ถามเวลาเริ่ม-สิ้นสุด — เปลี่ยนได้ที่หน้า คิวงาน
+                </span>
               </div>
             )}
 
-            {!byDay && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor={`${idPrefix}-appt-start`} className="form-label">เวลาเริ่ม</label>
-                <Controller
-                  control={control}
-                  name="appointment.startTime"
-                  render={({ field }) => (
-                    <input
-                      id={`${idPrefix}-appt-start`}
-                      type="time"
-                      className="form-input"
-                      {...field}
-                      value={field.value ?? ''}
-                      onChange={(e) => {
-                        field.onChange(e)
-                        // auto-fill เวลาสิ้นสุดจากระยะเวลามาตรฐาน เว้นแต่ผู้ใช้พิมพ์เองไปแล้ว
-                        if (
-                          selected.durationMinutes &&
-                          !endTouched.current &&
-                          e.target.value
-                        ) {
-                          setValue(
-                            'appointment.endTime',
-                            addMinutes(e.target.value, selected.durationMinutes),
-                          )
-                        }
-                      }}
-                    />
-                  )}
-                />
-              </div>
-              <div>
-                <label htmlFor={`${idPrefix}-appt-end`} className="form-label">เวลาสิ้นสุด</label>
-                <Controller
-                  control={control}
-                  name="appointment.endTime"
-                  render={({ field }) => (
-                    <input
-                      id={`${idPrefix}-appt-end`}
-                      type="time"
-                      className="form-input"
-                      min={value.startTime ?? undefined}
-                      {...field}
-                      value={field.value ?? ''}
-                      onChange={(e) => {
-                        endTouched.current = true
-                        field.onChange(e)
-                      }}
-                    />
-                  )}
-                />
-              </div>
-            </div>
-            )}
             {errors.appointment?.endTime && (
               <p className="text-danger text-sm">{errors.appointment.endTime.message}</p>
             )}
 
-            {/* ตัวเลขคิวสด — แสดงผลอย่างเดียว ไม่บล็อกการบันทึก */}
-            {(byDay ? !!value.date : !!value.startTime) && (
+            {/* ตัวเลขคิว ณ ตอนที่กดยืนยันในปฏิทิน — แสดงผลอย่างเดียว ไม่บล็อกการบันทึก
+                (BR-RSV-18) ไม่ยิง availability เองแล้ว ค่านี้ติดมากับ onConfirm ของชีต
+                ซึ่งคำนวณจากรายการนัดชุดเดียวกับที่ผู้ใช้เพิ่งเห็นกับตา — เลขบนจอสองที่
+                จึงมาจากแหล่งเดียวกันเสมอ ไม่มีทางบอกไม่ตรงกัน */}
+            {confirmedBookedCount !== null && (
               <div className="text-sm">
-                {loadingBusy ? (
-                  <span className="text-default-400 inline-flex items-center gap-1.5">
-                    <Icon icon="tabler:loader-2" className="size-4 animate-spin" />
-                    กำลังตรวจสอบคิว
-                  </span>
-                ) : busyFailed ? (
-                  <span className="text-default-400">ตรวจสอบคิวไม่สำเร็จ กรอกต่อได้ตามปกติ</span>
-                ) : bookedNow !== null && bookedNow >= selected.capacity ? (
+                {confirmedBookedCount >= selected.capacity ? (
                   <span className="text-warning-ink">
-                    เต็มแล้ว {bookedNow} จาก {selected.capacity} คิว {byDay ? 'ในวันนี้' : 'ในช่วงเวลานี้'} — เลือก{byDay ? 'วัน' : 'เวลา'}อื่นหรือบันทึกไว้ก่อนก็ได้ ระบบจะแจ้งถ้าจองไม่ได้จริง
+                    เต็มแล้ว {confirmedBookedCount} จาก {selected.capacity} คิว{' '}
+                    {byDay ? 'ในวันนี้' : 'ในช่วงเวลานี้'} — บันทึกไว้ก่อนก็ได้ ระบบจะแจ้งถ้าจองไม่ได้จริง
                   </span>
-                ) : bookedNow !== null ? (
+                ) : (
                   <span className="text-info-ink">
-                    จองแล้ว {bookedNow} จาก {selected.capacity} คิว {byDay ? 'ในวันนี้' : 'ในช่วงเวลานี้'}
+                    จองแล้ว {confirmedBookedCount} จาก {selected.capacity} คิว{' '}
+                    {byDay ? 'ในวันนี้' : 'ในช่วงเวลานี้'}
                   </span>
-                ) : null}
+                )}
               </div>
             )}
 
@@ -536,8 +416,18 @@ export default function AppointmentBlock({
         resourceName={sheetResource?.name}
         // ความจุมาจาก resource ที่เลือกอยู่แล้วในฟอร์ม — sheet ไม่ต้องไปถาม API ซ้ำ
         resourceCapacity={sheetResource?.capacity}
+        // ระยะเวลามาตรฐาน → ชีต auto-fill เวลาสิ้นสุดให้เอง (ตรรกะย้ายไปอยู่ที่นั่นแล้ว)
+        resourceDurationMinutes={sheetResource?.durationMinutes}
+        granularity={granularity}
         value={value.date}
-        onSelect={(d) => setValue('appointment.date', d)}
+        valueStartTime={value.startTime}
+        valueEndTime={value.endTime}
+        onConfirm={(r) => {
+          setValue('appointment.date', r.date)
+          setValue('appointment.startTime', r.startTime)
+          setValue('appointment.endTime', r.endTime)
+          setConfirmedBookedCount(r.bookedCount)
+        }}
         onClose={() => setDateSheetOpen(false)}
       />
     </div>
