@@ -91,6 +91,9 @@ export async function ingestFeedComment(params: {
     where: { externalCommentId: val.comment_id },
     create: data,
     // verb=edited/edit → ทับข้อความเดิม + ประทับเวลาที่แก้ (UI ขึ้นป้าย "แก้ไขแล้ว")
+    // 🛑 update block นี้ห้ามมี isAutoReply — Meta ส่ง echo ของคำตอบที่บอทเขียนกลับเข้ามา
+    // ผ่านทางนี้ ถ้าเขียนทับด้วยค่า default ธงจะถูกรีเซ็ตแล้วป้าย "ตอบอัตโนมัติ" หายไปเอง
+    // (คอลัมน์ที่มีผู้เขียน 2 ราย — docs/conventions/external-payload-schema.md)
     update: {
       message: data.message,
       attachmentUrl: data.attachmentUrl,
@@ -614,7 +617,15 @@ export async function backfillPostComments(postId: string): Promise<{ added: num
 export async function replyToComment(params: {
   commentId: string
   message: string
-  actorUserId: string
+  /**
+   * null = เส้นทางระบบ (feature 00038 ตอบอัตโนมัติ) — ไม่มี user จริงให้เช็ค canAccessShop
+   *
+   * WARNING: นี่ไม่ใช่ flag ข้าม authz แต่เป็นการ **ย้ายคำถาม** แบบเดียวกับ systemShopId ของ
+   * sendOutboundMessage (00023 TD-005): shopId ที่ใช้ตัดสินมาจากแถวในฐาน
+   * (PageComment → FacebookPost → ShopChannel) เท่านั้น ไม่เคยมาจาก caller
+   * caller ที่ถือ commentId จากที่อื่นมาเดา ๆ จึงยิงข้ามร้านไม่ได้
+   */
+  actorUserId: string | null
   /** รูปที่แนบไปกับคำตอบ (user สั่ง 2026-08-03) — fileId จาก /api/chat/upload ตัวเดียวกับแชท */
   fileId?: string | null
 }): Promise<{ id: string }> {
@@ -623,7 +634,9 @@ export async function replyToComment(params: {
     include: { post: { include: { channel: { select: { id: true, shopId: true, externalId: true } } } } },
   })
   if (!target) throw new Error('COMMENT_NOT_FOUND')
-  if (!(await canAccessShop(target.post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (params.actorUserId !== null) {
+    if (!(await canAccessShop(target.post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  }
   if (target.isDeleted) throw new Error('COMMENT_DELETED')
 
   const auth = await resolveChannelToken(target.shopChannelId)
@@ -657,8 +670,16 @@ export async function replyToComment(params: {
       attachmentUrl: params.fileId ? `/api/files/${params.fileId}` : null,
       createdTime: new Date(),
       repliedByUserId: params.actorUserId,
+      // ระบบเป็นผู้เขียน = ติดธงไว้ให้หน้าจอแยกสถานะที่ 3 ได้ (feature 00038)
+      isAutoReply: params.actorUserId === null,
     },
-    update: { message: params.message || null, repliedByUserId: params.actorUserId },
+    update: {
+      message: params.message || null,
+      repliedByUserId: params.actorUserId,
+      // 🛑 ห้ามใส่ isAutoReply ใน update ของ ingestFeedComment — แต่ที่นี่ใส่ได้และต้องใส่
+      // เพราะนี่คือ "เราเป็นคนเขียน" ไม่ใช่ echo ที่ Meta ส่งกลับมา
+      isAutoReply: params.actorUserId === null,
+    },
   })
 
   await prisma.facebookPost.update({
