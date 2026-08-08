@@ -132,7 +132,13 @@ export function ChannelsClient({ initialChannels }: ChannelsClientProps) {
       if (body?.failed > 0) {
         pacesToast.warning(`ซิงก์สำเร็จ ${body.ok} เพจ · ไม่สำเร็จ ${body.failed} เพจ (ลองเชื่อมเพจนั้นใหม่)`)
       } else {
-        pacesToast.success(`ซิงก์การแจ้งเตือนสำเร็จ ${body?.ok ?? 0} เพจ`)
+        // บอกจำนวนร้านด้วย (2026-08-08) — ปุ่มนี้ครอบ "ทุกร้านที่คุณเข้าถึงได้" แล้ว ไม่ใช่ร้านเดียว
+        // ถ้าไม่บอก ผู้ใช้หลายร้านจะยังเข้าใจว่าต้องสลับร้านไปกดซ้ำอยู่ดี
+        pacesToast.success(
+          body?.shops > 1
+            ? `ซิงก์การแจ้งเตือนสำเร็จ ${body?.ok ?? 0} เพจ จาก ${body.shops} ร้าน`
+            : `ซิงก์การแจ้งเตือนสำเร็จ ${body?.ok ?? 0} เพจ`,
+        )
       }
     } catch {
       pacesToast.error('ซิงก์ไม่สำเร็จ กรุณาลองใหม่')

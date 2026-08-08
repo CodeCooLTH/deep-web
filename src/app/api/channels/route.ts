@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { resolveActiveShopContext } from "@/lib/shop-context";
+import { resolveActiveShopContext, listAccessibleShopIds } from "@/lib/shop-context";
 import { listChannels, resubscribeShopChannels } from "@/services/shop-channel.service";
 
 // T1 (feature 00018): list ช่องทาง (ShopChannel) ของร้าน — ใช้โดย Chat Rail filter "เพจ" +
@@ -56,7 +56,17 @@ export async function GET() {
  * จะไม่ได้รับ event นั้นเลยตลอดไป ทั้งที่ webhook handler ฝั่งเรารองรับแล้ว. เดิมทางแก้เดียวคือ
  * ถอดเพจแล้วเชื่อมใหม่ผ่าน OAuth ทั้งชุด — หนักเกินเหตุสำหรับการเรียก API เดียวที่ Meta idempotent
  *
- * ไม่รับ body ใด ๆ (ไม่มีอะไรให้ตั้งค่า) — ทำกับ "ร้านที่ active ของผู้เรียก" เท่านั้น
+ * ไม่รับ body ใด ๆ (ไม่มีอะไรให้ตั้งค่า)
+ *
+ * ขอบเขต (แก้ 2026-08-08): ซิงก์ **ทุกร้านที่ผู้เรียกเข้าถึงได้** ไม่ใช่แค่ร้านที่ active
+ *
+ * ทำไมถึงเปลี่ยน: เดิมเจ้าของหลายร้านต้องสลับร้านแล้วกดปุ่มซ้ำทีละร้าน ซึ่งเป็นงานที่ไม่มีใครรู้ว่า
+ * ต้องทำ (ปุ่มไม่ได้บอกว่ามันทำแค่ร้านเดียว) และพอลืมร้านใดร้านหนึ่ง เพจนั้นก็เงียบต่อไปโดยไม่มี
+ * อะไรฟ้อง — อาการเดียวกับที่เพิ่งเจอ 2026-08-08 (Meta AI ตอบแล้วเธรดไม่เข้าระบบ เพราะเพจไม่เคย
+ * subscribe messaging_handovers)
+ *
+ * ปลอดภัยที่จะทำทุกร้าน: Meta idempotent (เรียกซ้ำได้ไม่กระทบข้อความ/การเชื่อมต่อเดิม) และผู้ใช้
+ * ทำสิ่งนี้กับทุกร้านได้อยู่แล้วด้วยการสลับร้านไปกด — เปลี่ยนแค่จำนวนคลิก ไม่ได้เปลี่ยนสิทธิ์
  */
 export async function POST() {
   const session = await getServerSession(authOptions);
@@ -65,18 +75,29 @@ export async function POST() {
   }
   const userId = (session.user as { id: string }).id;
 
-  const activeCtx = await resolveActiveShopContext({
-    user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
-  });
-  if (!activeCtx) {
+  const shopIds = await listAccessibleShopIds(userId);
+  if (shopIds.length === 0) {
     return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
   }
 
   try {
-    const result = await resubscribeShopChannels(activeCtx.shopId);
-    return NextResponse.json(result, { headers: NO_STORE_HEADERS });
+    let ok = 0;
+    let failed = 0;
+    for (const shopId of shopIds) {
+      // ร้านหนึ่งล้มต้องไม่ทำให้ร้านที่เหลือไม่ถูกซิงก์ — ตัวฟังก์ชันนับ ok/failed รายเพจให้อยู่แล้ว
+      // แต่ throw ได้ถ้าถามฐานไม่ผ่าน จึงกันเป็นรายร้านอีกชั้น
+      try {
+        const r = await resubscribeShopChannels(shopId);
+        ok += r.ok;
+        failed += r.failed;
+      } catch (e) {
+        failed += 1;
+        console.error("[POST /api/channels] shopId:", shopId, e instanceof Error ? e.message : e);
+      }
+    }
+    return NextResponse.json({ ok, failed, shops: shopIds.length }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
-    console.error("[POST /api/channels] shopId:", activeCtx.shopId, e instanceof Error ? e.message : e);
+    console.error("[POST /api/channels]", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
   }
 }
