@@ -174,6 +174,35 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 | **TC-I07** | 🛑 ตัดสิน "สวย/เป็นแบรนด์ไหม" | browser QA + `/impeccable critique` | ไม่ใช่แค่ render ผ่าน | `feedback_visual_quality_gate` |
 | **TC-I08** | copy/error message ผ่าน | `/impeccable clarify` | ข้อความเข้าใจง่าย ไม่ใช่ศัพท์เทคนิค | Hard Rule 8 |
 
+### 2.10 กลุ่ม J — `AppointmentDateSheet` a11y (เพิ่ม 2026-08-08, ยังไม่รัน)
+
+| ID | เคส | ขั้นตอน | ผลที่คาดหวัง | อ้างอิง |
+|----|-----|---------|--------------|---------|
+| **TC-J01** | เลือกวันด้วยคีย์บอร์ด | Tab ไปที่ช่องวัน → Enter/Space | `pendingDate` เปลี่ยน เหมือนคลิกเมาส์ทุกประการ (ไม่ยืนยัน/ปิดชีต) | WCAG 2.1.1, SDS §3.7 |
+| **TC-J02** | กรอกเวลาผิด (end ≤ start) | โหมด TIME กรอกเวลาสิ้นสุด ≤ เวลาเริ่ม | ข้อความ "เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม" ขึ้นใต้ช่อง + `aria-invalid=true` + ปุ่มยืนยัน disabled พร้อมป้ายเดียวกัน | WCAG 3.3.1/3.3.3 |
+| **TC-J03** | live region ประกาศข้อความ | screen reader (VoiceOver/NVDA) เปิดชีตแล้วกรอกเวลาผิด | ได้ยินข้อความ error โดยไม่ต้องย้ายโฟกัส (`aria-live="polite"`) | WCAG 4.1.3 |
+| **TC-J04** | Escape ปิดชีต | เปิดชีตแล้วกด Esc | ชีตปิด ค่า preview ที่ยังไม่ยืนยันหายไป (ฟอร์มไม่เปลี่ยน) | SDS §3.7 |
+| **TC-J05** | โฟกัสย้ายเข้าชีตตอนเปิด | เปิดชีตด้วยคีย์บอร์ด | โฟกัสอยู่ที่ปุ่มปิดภายใน ~60ms | WCAG 2.4.3 |
+| **TC-J06** | tap target ปุ่มเลื่อนเดือน/วันนี้/ปิด ≥44px | วัดขนาดจริงบนมือถือ | ทุกปุ่ม `min-h-11 min-w-11` | PRODUCT.md, WCAG 2.5.5 |
+| **TC-J07** | `RescheduleAppointmentSheet` ใช้ `granularity` ของนัดเดิม | ร้านสลับ `appointmentGranularity` เป็น TIME แล้วเปิดเลื่อนนัดเก่าที่บันทึกไว้ตอนโหมด DAY | ชีตเปิดเป็นโหมด `DAY` (ตามนัดใบนั้น) ไม่ใช่ TIME ตามค่าปัจจุบันของร้าน | BR-RSV-57 |
+
+### 2.11 กลุ่ม K — แกนสถานะนัดในห้องแชท (`chat-service-progress.ts`, เพิ่ม 2026-08-08)
+
+| ID | เคส | ผลที่คาดหวัง | อ้างอิง |
+|----|-----|--------------|---------|
+| **TC-K01** | Unit: ยกเลิกออเดอร์ที่มีนัด | `serviceProgressStage` คืน `DONE` ไม่ว่านัดจะอยู่สถานะไหน | TFR-014 — **ผ่านแล้ว** (`src/lib/__tests__/chat-service-progress.test.ts`) |
+| **TC-K02** | Unit: มีนัดแต่ไม่มี `appointmentStatus` | คืน `SCHEDULED` (ค่าตั้งต้นเดียวกับปฏิทินคิวงาน) | TFR-014 — **ผ่านแล้ว** |
+| **TC-K03** | Unit: `COMPLETED`/`NO_SHOW` | คืน `DONE` — หลุดจากรายการงานค้าง | TFR-014 — **ผ่านแล้ว** |
+| **TC-K04** | 🛑 Unit: walk-in ที่ยังเปิดอยู่ (ไม่มี `serviceStart`) | คืน `PENDING` **ไม่ใช่ตกหาย** (BR-RSV-04) | TFR-014 — **ผ่านแล้ว** |
+| **TC-K05** | Unit: walk-in ที่ปิดการขายแล้ว (`status='CONFIRMED'`) | คืน `DONE` | TFR-014 — **ผ่านแล้ว** |
+| **TC-K06** | 🛑 Unit: filter ใบที่จบแล้วต้องหลุดจริง ไม่ใช่แค่เปลี่ยนป้าย | `filterActiveServiceOrders` คัดใบ `DONE` ออกทั้งหมด (สะท้อนบั๊กจริงที่เจอ 2026-08-08) | TFR-014 — **ผ่านแล้ว** |
+| **TC-K07** | Unit: ป้ายไม่ตั้งคำใหม่ | `SERVICE_STAGE_CHIP_META.*.label` ตรงกับ `APPOINTMENT_STATUS_LABEL` ทุกตัว | BR-SOV-03 — **ผ่านแล้ว** |
+| **TC-K08** | Unit: ไม่มีกองงานค้างช่องไหนเขียว | ทุก `cls` ใน `SERVICE_STAGE_CHIP_META` ไม่มีคำว่า `success` | Verified-Means-Green — **ผ่านแล้ว** |
+| **TC-K09** | 🛑 E2E/browser: ร้าน `SERVICE_QUEUE` เปิดห้องแชทที่มีออเดอร์ walk-in ค้าง | แถบสถานะขึ้น "รอดำเนินการ" (PENDING) ไม่ใช่ "รอเลขพัสดุ" | ยังไม่รัน |
+| **TC-K10** | 🛑 E2E/browser: ออเดอร์บริการใบที่ 21 ของลูกค้าเดียวกัน (lazy-load) | ยังแสดงแกนนัดถูกต้อง ไม่กลายเป็น walk-in | API.md §4.11 — sync select — ยังไม่รัน |
+| **TC-K11** | 🛑 E2E/browser: มัดจำ > 0 | ขึ้น "มัดจำที่ตกลงไว้ ฿X" สีไม่ใช่เขียว ไม่มี checkmark | TFR-015 — ยังไม่รัน |
+| **TC-K12** | 🛑 E2E/browser: การ์ดออเดอร์บริการในแถบที่กางออก | ไม่มี stretched-link/onClick ใด ๆ (อ่านอย่างเดียว) | Known Gap — DraftKind ยังไม่มี — ยังไม่รัน |
+
 ---
 
 ## 3. Traceability Matrix
@@ -211,6 +240,9 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 | BR-RSV-36 | TC-G04 |
 | BR-RSV-38 | TC-H01 |
 | BR-RSV-41 | TC-D09 |
+| BR-RSV-04 (walk-in ในห้องแชท, เพิ่ม 2026-08-08) | TC-K04, TC-K09 |
+| BR-RSV-49/50 (มัดจำในห้องแชท, เพิ่ม 2026-08-08) | TC-K11 |
+| BR-RSV-57 (granularity ของนัดใบนั้น ไม่ใช่ของร้าน, เพิ่ม 2026-08-08) | TC-J07 |
 
 ---
 
@@ -243,6 +275,9 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 | **TC-A05 ยิงพร้อมกันจริง (หลังแก้)** | 2026-07-31 | ✅ **ผ่าน 6/6 เช็ค · เสถียร 4 รอบติด** | ความจุ 8 ยิง 12 → สำเร็จ 8, 409 = 4, error อื่น 0, ที่นั่ง 1–8 ไม่ซ้ำ ยืนยันจากแถวจริงใน DB. ทดสอบภาระหนักเพิ่ม: 40 ยิงบนคิว 8 → 8/32 ✅ · 60 ยิงบนคิว 20 → 20/40 ✅ (ไม่มี timeout กลับมา) |
 | E2E (Playwright) | — | ยังไม่รัน | รอ browser QA |
 | Visual QA | — | ยังไม่รัน | — |
+| Unit (Vitest) — แกนสถานะแชท | 2026-08-08 | ✅ **ผ่าน 9/9** | `src/lib/__tests__/chat-service-progress.test.ts` ครอบ TC-K01…K08 (`serviceProgressStage`, `filterActiveServiceOrders`, `SERVICE_STAGE_CHIP_META`) — ฟังก์ชันบริสุทธิ์ไม่แตะ DB |
+| `AppointmentDateSheet` a11y (TC-J01…J07) | — | ยังไม่รัน | โค้ดขึ้นแล้ว (keyboard select, `aria-invalid`/live region, Escape, tap target ≥44px) แต่ยังไม่เคยทดสอบจริงด้วย screen reader |
+| แกนสถานะแชทบน browser จริง (TC-K09…K12) | — | ยังไม่รัน | Unit ครอบ logic แล้ว แต่ยังไม่เคยเปิดห้องแชทจริงมาดูผล |
 
 ### 5.1 บั๊กที่ TC-A05 จับได้ และการแก้ (2026-07-31)
 
@@ -272,3 +307,4 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 - เทสที่สำคัญที่สุดคือ **TC-A05 (ยิงพร้อมกัน 12 ครั้งบนความจุ 8)** — เป็นด่านเดียวที่จับการ implement ความจุผิดวิธีได้
 - กลุ่ม G (zero-regression) ต้องผ่านครบก่อน merge เพราะฟีเจอร์นี้เพิ่มฟิลด์ลงตาราง `Order` ที่ทั้งระบบใช้ร่วมกัน
 - กลุ่ม H ตรวจสิ่งที่มองไม่เห็นจาก UI: ต้นทุน SMS แฝง, กลไกภายในที่หลุดออก API, PII ใน flight payload, และ constraint ของฟีเจอร์อื่นที่อาจถูกลบพร้อม migration
+- **กลุ่ม J/K (เพิ่ม 2026-08-08):** J ครอบ a11y ของ `AppointmentDateSheet` ที่กลายเป็นจุดเดียวที่เลือกได้ทั้งวันและเวลา — ยังไม่เคยทดสอบด้วย screen reader จริง. K ครอบแกนสถานะนัดในห้องแชท (`chat-service-progress.ts`) — logic level ผ่าน Vitest 9/9 แล้ว แต่ยังไม่เคยยืนยันบน browser จริงสักครั้ง (TC-K09…K12)

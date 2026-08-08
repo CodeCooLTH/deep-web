@@ -222,6 +222,32 @@ flowchart TD
 - ฝั่งลูกค้า (`(marketing)/**`) ใช้ `formatDateTH`/`formatDateTimeTH`/`formatTimeHM`
 - 🛑 ห้ามเรียก `toLocaleDateString`/`Intl.DateTimeFormat` เองที่ไหนก็ตาม
 
+### TFR-013 — "เต็ม" มีความหมายเฉพาะโหมดรายวัน (เพิ่ม 2026-08-08)
+
+**มาจาก:** FR-RSV-13, BR-RSV-18/18.1, `AppointmentDateSheet.tsx` (SDS §3.7)
+
+- โหมด `DAY` (`Shop.appointmentGranularity==='DAY'`): "เต็ม" นับจาก **จำนวนนัดทั้งวัน** เทียบ `capacity` — ใช้ย้อมวันในปฏิทินและปิดปุ่มยืนยันของวันนั้น
+- โหมด `TIME`: 🛑 **ห้ามใช้เกณฑ์เดียวกัน** — ความจุของโหมดนี้วัดกันที่ "ช่วงเวลาที่ทับกัน" ไม่ใช่จำนวนนัดทั้งวัน (วันที่มีนัดสั้นกระจายทั้งวันสิบรายการยังว่างช่วงอื่นอยู่เต็มไปหมด) ต้องนับเฉพาะช่วงที่ทับกับช่วงเวลาที่กำลังกรอกอยู่
+- legend/เครื่องหมาย "เต็ม" ที่แสดงบนปฏิทิน render เฉพาะโหมด `DAY` เท่านั้น — โหมด `TIME` ไม่มีเครื่องหมายนี้ในปฏิทิน (ตัวนับอยู่ที่บรรทัดใต้ช่องเวลาแทน)
+- ตัวเลขทั้งหมดนี้ยังเป็น **แสดงผลเท่านั้น** — ไม่เปลี่ยนตัวตัดสินจริงจาก TFR-002 (EXCLUDE constraint)
+
+### TFR-014 — แกนสถานะนัดในห้องแชทของร้าน `SERVICE_QUEUE` (เพิ่ม 2026-08-08)
+
+**มาจาก:** BR-RSV-04, `src/lib/chat-service-progress.ts` (SDS §3.10) — ownership ของพื้นผิวที่ใช้จริงอยู่ที่ feature 00018/00036
+
+- ห้องแชทของร้าน `Shop.vertical==='SERVICE_QUEUE'` ต้องไล่แกน "นัดถึงขั้นไหน" แทนแกนขนส่ง ("ของอยู่ไหน") ที่ร้านอื่นใช้ — implement ผ่าน `serviceProgressStage()`/`filterActiveServiceOrders()`
+- walk-in (ออเดอร์ที่ไม่มี `serviceStart`) ที่ยัง `status !== 'CONFIRMED'/'CANCELLED'` ต้องอยู่ในกอง `PENDING` เสมอ — 🛑 **ห้ามตกหายจากรายการงานค้าง** (BR-RSV-04: walk-in เดินเส้นทางออเดอร์ปกติทุกอย่าง)
+- `COMPLETED`/`NO_SHOW`/`CANCELLED` ต้องหลุดออกจากรายการงานค้างทันที ไม่มีช่วง "ค้างแสดง" แบบที่แกนขนส่งมี (`DELIVERED_VISIBLE_MS` ไม่ใช้กับแกนนี้)
+- ป้าย/สี/ไอคอนต้องมาจาก `APPOINTMENT_STATUS_LABEL`/`APPOINTMENT_STAGE_META`/`ORDER_STATUS_META` ที่มีอยู่แล้วเท่านั้น — ห้ามตั้งคำ/สีใหม่ (BR-SOV-03)
+- 🛑 ฟิลด์ที่ป้อนแกนนี้ (`serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount`) ต้องถูก select **ตรงกันทุกจุด** ที่คืนออเดอร์ของเธรดเข้าห้องแชท (ดู §5 ด้านล่าง + API.md §4.11) — ไม่ sync แล้วออเดอร์ที่โหลดทีหลัง (lazy-load) จะกลายเป็น walk-in เงียบ ๆ
+
+### TFR-015 — มัดจำในห้องแชทแสดงได้แค่ยอด ไม่ใช่สถานะจ่าย (เพิ่ม 2026-08-08)
+
+**มาจาก:** BR-RSV-49, BR-RSV-50
+
+- ทุก surface ที่แสดงมัดจำของนัด (รวมแถบสถานะในห้องแชท) ต้องเขียนว่า **"มัดจำที่ตกลงไว้ ฿X"** ไม่ใช่ "มัดจำ ฿X" เฉย ๆ ซึ่งอ่านกำกวมได้ทั้ง "เก็บแล้ว"/"ต้องเก็บ"
+- 🛑 **ห้ามใช้สีเขียว (success) และห้ามทำเป็นขั้นของ timeline** — ระบบไม่มีคอลัมน์บอกว่ามัดจำถูกจ่ายแล้วหรือยัง (ไม่มี `depositReceivedAt`) การทำเป็นขั้นที่ติ๊กถูกได้จะเป็นป้ายที่อ้างสิ่งที่ระบบไม่รู้จริง
+
 ---
 
 ## 4. ข้อกำหนดส่วนต่อประสาน (Interface Specification)
@@ -243,6 +269,10 @@ flowchart TD
 
 การสร้างนัดพร้อมออเดอร์ใช้ **endpoint สร้างออเดอร์เดิม** โดยเพิ่มฟิลด์นัดใน payload (ไม่สร้าง endpoint ใหม่)
 
+🛑 **ตั้งแต่ 2026-08-08 ไม่มี UI ไหนเรียก `GET .../service-resources/availability` แล้ว** — `AppointmentDateSheet.tsx` (ปฏิทินเลือกวัน+เวลาในฟอร์มสร้างออเดอร์และในหน้าเลื่อนนัด) เปลี่ยนไปเรียก `GET /api/shops/current/appointments` แทน เพราะต้องใช้ชื่อลูกค้า/เลขออเดอร์/สถานะนัดประกอบรายการของวันนั้นด้วย ไม่ใช่แค่ตัวเลขจำนวน — endpoint เดิมยังอยู่ในระบบ ไม่ได้ถูกลบ (ดู SDS §3.7, API.md §4.4)
+
+🛑 **ฟิลด์นัด 4 ตัว (`serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount`) ไหลออกไปนอกขอบเขตเดิมของฟีเจอร์นี้แล้ว** ตั้งแต่ 2026-08-08 — ถูก select เพิ่มใน `getOrdersByCustomer()` (`src/services/order.service.ts`, feature 00018) เพื่อป้อนแกนสถานะนัดในห้องแชท (`chat-service-progress.ts`, ดู TFR-014) ดู API.md §4.11
+
 ---
 
 ## 5. ข้อกำหนดด้านข้อมูล (Data Requirements)
@@ -257,6 +287,7 @@ flowchart TD
 | constraint หลัก | `Order_service_seat_no_overlap` (EXCLUDE, unmanaged SQL) |
 | migration | เขียนมือ + `migrate deploy` เท่านั้น — **ห้าม `migrate dev`/`db pull`** |
 | หลัง migrate | ต้อง restart dev server |
+| consumer ข้ามฟีเจอร์ (เพิ่ม 2026-08-08) | `serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount` ถูก select โดย `getOrdersByCustomer()` (feature 00018) นอกเหนือจาก service ของฟีเจอร์นี้เอง — เปลี่ยนชื่อ/นำฟิลด์เหล่านี้ออกต้องไล่ดู consumer นี้ด้วย ไม่ใช่แค่ `appointment.service.ts` |
 
 ---
 
@@ -325,6 +356,8 @@ flowchart TD
 | FR-RSV-09 | TFR-006 | `appointmentStatus` | `POST .../appointment/outcome` |
 | FR-RSV-10 | TFR-006 | `WHERE status <> 'CANCELLED'` ใน EXCLUDE | endpoint ยกเลิกออเดอร์เดิม |
 | FR-RSV-11 | TFR-008, TFR-010 | `AppointmentReschedule` + `Order.customerId` | หน้ารายละเอียดลูกค้า (00014) |
+| FR-RSV-13 (เพิ่มแถวนี้ 2026-08-08 — เดิมตกหล่นจาก matrix ทั้งที่มีใน BRD) | TFR-013 | `Shop.appointmentGranularity` | `PATCH /api/shops/current/appointment-settings` |
+| — (cross-feature 00018/00036, เพิ่ม 2026-08-08) | TFR-014, TFR-015 | `serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount` บน `Order` | `GET /api/chat/conversations/[id]/orders` (ดู API.md §4.11) |
 
 ---
 

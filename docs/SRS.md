@@ -557,8 +557,11 @@ SellerWallet (1) ── (N) WalletTransaction
 | `vatAmount` | Decimal(12,2)? | Phase B — ≥0 |
 | `slipFileId` | String? | Phase 2 OOS-1 — fileId ของสลิปโอนเงิน; null = ยังไม่แนบ |
 | `accessUrl` | String? | Phase 2 OOS-2 — URL ส่งมอบ digital order |
+| `serviceResourceId` / `serviceSeat` / `serviceStart` / `serviceEnd` / `appointmentStatus` / `buyerConfirmedAt` / `rescheduleRequestNote` / `depositAmount` | nullable ทั้งหมด | **feature 00024 (Service Appointment Booking)** — ฟิลด์นัดหมายบริการ (ร้าน `Shop.vertical='SERVICE_QUEUE'` เท่านั้น; NULL เสมอสำหรับร้านอื่น) ยังไม่เคย sync เข้าเอกสารนี้มาก่อน (หนี้เดิม — รายละเอียดเต็ม: constraint EXCLUDE `Order_service_seat_no_overlap`, state machine ของ `appointmentStatus`, กฎมัดจำ อยู่ที่ `docs/20 - Features/00024 - Service Appointment Booking/{SRS,DATABASE}.md`). 🛑 ตั้งแต่ 2026-08-08: `serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount` ถูก select เพิ่มใน `getOrdersByCustomer()` (`src/services/order.service.ts`) **และ** `inbox/[conversationId]/page.tsx` เพื่อป้อนแกนสถานะนัดในห้องแชท (`src/lib/chat-service-progress.ts` — ดูด้านล่าง) — สอง select ต้อง sync ฟิลด์ชุดนี้เสมอ ไม่งั้นออเดอร์ที่โหลดทีหลัง (lazy-load) จะกลายเป็น walk-in เงียบ ๆ |
 
 **Index:** `[slipFileId]` — รองรับ `/api/files` order-slip gate
+
+**`src/lib/chat-service-progress.ts` (ใหม่ 2026-08-08, feature 00024/00018/00036):** adapter pure module ที่แปล `serviceStart`/`serviceEnd`/`appointmentStatus`/`Order.status` เป็นแกน "นัดถึงขั้นไหน" สำหรับแถบสถานะออเดอร์ในห้องแชทของร้าน `SERVICE_QUEUE` (คู่ขนานกับ `chat-order-progress.ts` ของแกนขนส่งที่ร้านอื่นใช้) — walk-in (ไม่มี `serviceStart`) ที่ยังไม่ปิดการขาย = `PENDING` เสมอ, `COMPLETED`/`NO_SHOW`/`CANCELLED` = หลุดจากรายการงานค้างทันที
 
 #### OrderItem (`prisma/schema.prisma:183`)
 
@@ -908,6 +911,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | นอกขอบเขต = ไม่มีอยู่ | คืนผลว่างหรือ 404 **ไม่ใช่ 403** (403 ยืนยันว่าทรัพยากรนั้นมีจริง) |
 | งานที่ผูกกับเธรด | ใช้ `resolveConversationShopId()` แล้วอ่านทุกอย่างจาก `conversation.shopId` — ไม่ใช่ `activeShopId` (ตั้งแต่ feature 00037 สองค่านี้ไม่ใช่สิ่งเดียวกัน) |
 | `DISTINCT ON` ที่เกี่ยวกับ `Customer` | ต้องมี `shopId` เป็นคีย์แรกเสมอ — `Customer` เป็นตารางระดับทั้งระบบ (`phone @unique`) ลูกค้าคนเดียวมีออเดอร์หลายร้านได้ |
+| ฟิลด์นัด (feature 00024, เพิ่ม 2026-08-08) | `GET /api/chat/conversations/[id]/orders` (service `getOrdersByCustomer`) คืน `serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount` เพิ่มเข้ามา — ต้อง sync กับ select ของ `inbox/[conversationId]/page.tsx` เสมอ (ดู §6.2 Order) |
 
 ---
 
