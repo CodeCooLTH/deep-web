@@ -32,6 +32,7 @@
  */
 
 import { getServerSession } from 'next-auth'
+import { resolveShopVertical } from '@/lib/lodging'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
@@ -275,6 +276,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
       <OrderDetailClient
         vocab={vocab}
+        vertical={resolveShopVertical(shop.vertical)}
         hasDeductedStock={hasDeductedStock}
         publicToken={order.publicToken}
         shortCode={order.shortCode ?? null}

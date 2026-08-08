@@ -51,7 +51,8 @@ import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import OrderCardView from '../../../_components/OrderCardView'
 import { pacesToast } from '@/lib/paces-toast'
-import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
+import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 
 export type CustomerPanelOrder = {
   id: string
@@ -260,15 +261,24 @@ function OrderCard({
   // "สินค้าจะถูกคืนเข้าสต็อก" ออกโดยตั้งใจ: การ์ดนี้ไม่รู้ hasDeductedStock ห้ามพูดเกินจริง (00030 D-1)
   async function handleCancelOrder() {
     if (cancelling) return
-    const ok = await pacesConfirm.danger(
-      `ยกเลิก${noun}นี้?`,
-      'ลิงก์ที่ส่งให้ลูกค้าจะใช้ไม่ได้ · ย้อนกลับไม่ได้',
-      { confirmButtonText: 'ยืนยันยกเลิก', cancelButtonText: 'ไม่ใช่ตอนนี้' },
-    )
-    if (!ok) return
+    // feature 00039 — บังคับเลือกเหตุผล (API คืน 400 ถ้าไม่ส่ง)
+    // จุดนี้ตกสำรวจในสเปกของ ux (ระบุไว้ 2 จุดเรียก แต่จริง ๆ มี 3) — เจอตอนไล่ rg เอง
+    const reason = await pacesConfirmWithReason({
+      title: `ยกเลิก${noun}นี้?`,
+      html: 'ลิงก์ที่ส่งให้ลูกค้าจะใช้ไม่ได้ · ย้อนกลับไม่ได้<div class="text-xs text-default-500 mt-2">เหตุผลที่เลือกเก็บไว้เป็นบันทึกประวัติ ไม่มีผลต่ออัตราความสำเร็จของร้าน</div>',
+      options: CANCEL_REASONS_BY_VERTICAL[vertical],
+      validationMessage: `เลือกเหตุผลก่อนยกเลิก${noun}`,
+      confirmButtonText: 'ยืนยันยกเลิก',
+      cancelButtonText: 'ไม่ใช่ตอนนี้',
+    })
+    if (!reason) return
     setCancelling(true)
     try {
-      const res = await fetch(`/api/orders/${o.token}/cancel`, { method: 'POST' })
+      const res = await fetch(`/api/orders/${o.token}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         throw new Error((d as { error?: string }).error || `ยกเลิก${noun}ไม่สำเร็จ ลองใหม่อีกครั้ง`)

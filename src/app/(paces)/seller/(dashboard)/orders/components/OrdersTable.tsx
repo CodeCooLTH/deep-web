@@ -54,7 +54,9 @@ import FilterDropdown from '@/components/safepay/FilterDropdown'
 import OrderDateFilterDropdown from './OrderDateFilterDropdown'
 import { isSpecificDay, matchesOrderDateFilter } from '@/lib/order-date-filter'
 import { useRouter } from 'next/navigation'
-import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
+import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
+import type { ShopVertical } from '@/lib/lodging'
 import { pacesToast } from '@/lib/paces-toast'
 import { ORDER_STATUS_META, isCODPayment } from '@/lib/order-display'
 import ListBusyOverlay, { type ListBusy } from './ListBusyOverlay'
@@ -118,6 +120,8 @@ type Props = {
   ishipEnabled?: boolean
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — ส่งต่อมาจาก OrdersList ที่รับมาจาก RSC */
   vocab: OrderVocab
+  /** ประเภทกิจการของร้าน (feature 00039) — ใช้เลือกชุดเหตุผลตอนยกเลิก */
+  vertical: ShopVertical
   /**
    * ตัวกรองกองงานพัสดุ (?stage= — user 2026-08-06 ย้ายจากแถบชิปมาเป็น dropdown ใน toolbar)
    * state/ตัวนับอยู่ที่ OrdersList (symbol เดียวกับชิปมือถือ — sibling-surface-parity)
@@ -159,6 +163,7 @@ export default function OrdersTable({
   orders,
   ishipEnabled = false,
   vocab,
+  vertical,
   stageFilter,
   busy,
   hasShippingAxis = true,
@@ -214,16 +219,21 @@ export default function OrdersTable({
     const label = o
       ? `${vocab.noun} ${formatOrderNo(o.publicToken, o.createdAtISO)}`
       : `${vocab.noun}นี้`
-    const ok = await pacesConfirm.danger(`ยกเลิก${vocab.noun}นี้?`, `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
+    // feature 00039 — บังคับเลือกเหตุผล (API คืน 400 ถ้าไม่ส่ง)
+    const reason = await pacesConfirmWithReason({
+      title: `ยกเลิก${vocab.noun}นี้?`,
+      html: `${label} จะถูกปิด · ย้อนกลับไม่ได้<div class="text-xs text-default-500 mt-2">เหตุผลที่เลือกเก็บไว้เป็นบันทึกประวัติ ไม่มีผลต่ออัตราความสำเร็จของร้าน</div>`,
+      options: CANCEL_REASONS_BY_VERTICAL[vertical],
+      validationMessage: `เลือกเหตุผลก่อนยกเลิก${vocab.noun}`,
       confirmButtonText: 'ยืนยันยกเลิก',
       cancelButtonText: 'ไม่ใช่ตอนนี้',
     })
-    if (!ok) return
+    if (!reason) return
     try {
       const res = await fetch(`/api/orders/${token}/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ reason }),
       })
       if (res.ok) {
         pacesToast.success(`ยกเลิก${vocab.noun}แล้ว`)

@@ -28,7 +28,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { pacesToast } from '@/lib/paces-toast'
-import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
+import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
+import type { ShopVertical } from '@/lib/lodging'
 import { resolveBuyerBaseUrl } from '@/lib/buyer-url'
 import type { OrderStatus } from '@/lib/order-display'
 import type { ShippingStageKey } from '@/lib/order-stage'
@@ -71,6 +73,9 @@ function smsErrorMessage(status: number, orderNoun: string): string {
 export interface OrderDetailClientProps {
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — คำนวณที่ RSC ที่รู้จัก shop.vertical */
   vocab: OrderVocab
+  /** ประเภทกิจการของร้านเจ้าของออเดอร์ (feature 00039) — ใช้เลือกชุดเหตุผลตอนยกเลิก
+   *  ต้องมาจากออเดอร์ ไม่ใช่จาก context ของ user ที่กด (ทีมงานสลับร้านได้) */
+  vertical: ShopVertical
   /**
    * ออเดอร์นี้เคยตัดสต็อกจริงไหม (มี OrderItem.stockDeducted != null อย่างน้อย 1 รายการ)
    * ใช้ตัดสินว่ากล่องยืนยันยกเลิกพูดเรื่องคืนสต็อกได้หรือไม่ — ห้าม derive จาก vertical
@@ -137,6 +142,7 @@ export interface OrderDetailClientProps {
 
 export default function OrderDetailClient({
   vocab,
+  vertical,
   hasDeductedStock,
   publicToken,
   shortCode,
@@ -258,14 +264,24 @@ export default function OrderDetailClient({
     const cancelDetail = hasDeductedStock
       ? `สินค้าจะถูกคืนเข้าสต็อก · ${linkClause}`
       : linkClause
-    const ok = await pacesConfirm.danger(
-      `ยกเลิก${vocab.noun}นี้?`,
-      cancelDetail,
-      { confirmButtonText: 'ยืนยันยกเลิก', cancelButtonText: 'ไม่ใช่ตอนนี้' },
-    )
-    if (!ok) return
+    // feature 00039 — บังคับเลือกเหตุผล (API คืน 400 ถ้าไม่ส่ง)
+    // เหตุผลเก็บเป็นประวัติเท่านั้น ไม่มีผลต่ออัตราความสำเร็จ — บอกผู้ใช้ตรง ๆ ในโมดัล
+    // เพื่อไม่ให้ร้านเข้าใจผิดว่าเลือกคำไหนแล้วตัวเลขจะดีขึ้น
+    const reason = await pacesConfirmWithReason({
+      title: `ยกเลิก${vocab.noun}นี้?`,
+      html: `${cancelDetail}<div class="text-xs text-default-500 mt-2">เหตุผลที่เลือกเก็บไว้เป็นบันทึกประวัติ ไม่มีผลต่ออัตราความสำเร็จของร้าน</div>`,
+      options: CANCEL_REASONS_BY_VERTICAL[vertical],
+      validationMessage: `เลือกเหตุผลก่อนยกเลิก${vocab.noun}`,
+      confirmButtonText: 'ยืนยันยกเลิก',
+      cancelButtonText: 'ไม่ใช่ตอนนี้',
+    })
+    if (!reason) return
     try {
-      const res = await fetch(`/api/orders/${publicToken}/cancel`, { method: 'POST' })
+      const res = await fetch(`/api/orders/${publicToken}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error((data as { error?: string }).error || `ยกเลิก${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่`)

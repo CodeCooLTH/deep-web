@@ -12,6 +12,7 @@
  */
 
 import { authOptions } from '@/lib/auth'
+import { resolveShopVertical } from '@/lib/lodging'
 import { prisma } from '@/lib/prisma'
 import { getOrdersByShop } from '@/services/order.service'
 import { deriveShippingStage } from '@/lib/order-stage'
@@ -430,6 +431,7 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         activeStatus={activeStatus}
         ishipEnabled={ishipEnabled}
         vocab={vocab}
+        vertical={resolveShopVertical(shop.vertical)}
         hasShippingAxis={isOnlineSales}
       />
     </>

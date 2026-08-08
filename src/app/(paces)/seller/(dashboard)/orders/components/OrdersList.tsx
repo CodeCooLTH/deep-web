@@ -23,7 +23,9 @@ import type { OrderRow } from './data'
 import { formatOrderNo } from '@/lib/order-no'
 import OrderCard from './OrderCard'
 import IShipImportModal from './IShipImportModal'
-import { pacesConfirm } from '@/lib/paces-swal'
+import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
+import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
+import type { ShopVertical } from '@/lib/lodging'
 import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import OrdersTable from './OrdersTable'
@@ -69,6 +71,8 @@ type Props = {
   ishipEnabled?: boolean
   /** คลังคำผันตามประเภทกิจการ (feature 00030) — มาจาก RSC ที่รู้จัก shop.vertical ของ request */
   vocab: OrderVocab
+  /** ประเภทกิจการของร้าน (feature 00039) — ใช้เลือกชุดเหตุผลตอนยกเลิก */
+  vertical: ShopVertical
   /**
    * ร้านนี้มีโดเมนพัสดุไหม (feature 00036 FR-SOV-001) — false = ไม่มีคอลัมน์ที่อยู่จัดส่ง/ขนส่ง
    *
@@ -83,6 +87,7 @@ export default function OrdersList({
   activeStatus,
   ishipEnabled = false,
   vocab,
+  vertical,
   hasShippingAxis = true,
 }: Props) {
   const router   = useRouter()
@@ -395,16 +400,21 @@ export default function OrdersList({
     const label = order
       ? `${vocab.noun} ${formatOrderNo(order.publicToken, order.createdAtISO)}`
       : `${vocab.noun}นี้`
-    const ok = await pacesConfirm.danger(`ยกเลิก${vocab.noun}นี้?`, `${label} จะถูกปิด · ย้อนกลับไม่ได้`, {
+    // feature 00039 — บังคับเลือกเหตุผล (API คืน 400 ถ้าไม่ส่ง)
+    const reason = await pacesConfirmWithReason({
+      title: `ยกเลิก${vocab.noun}นี้?`,
+      html: `${label} จะถูกปิด · ย้อนกลับไม่ได้<div class="text-xs text-default-500 mt-2">เหตุผลที่เลือกเก็บไว้เป็นบันทึกประวัติ ไม่มีผลต่ออัตราความสำเร็จของร้าน</div>`,
+      options: CANCEL_REASONS_BY_VERTICAL[vertical],
+      validationMessage: `เลือกเหตุผลก่อนยกเลิก${vocab.noun}`,
       confirmButtonText: 'ยืนยันยกเลิก',
       cancelButtonText: 'ไม่ใช่ตอนนี้',
     })
-    if (!ok) return
+    if (!reason) return
     try {
       const res = await fetch(`/api/orders/${token}/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ reason }),
       })
       if (res.ok) {
         pacesToast.success(`ยกเลิก${vocab.noun}แล้ว`)
@@ -443,6 +453,7 @@ export default function OrdersList({
           orders={stageFiltered}
           ishipEnabled={ishipEnabled}
           vocab={vocab}
+          vertical={vertical}
           busy={busy}
           stageFilter={
             hasStageAxis

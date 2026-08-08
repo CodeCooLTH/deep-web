@@ -114,6 +114,54 @@ export const pacesAlert = async (options: PacesAlertOptions): Promise<void> => {
   })
 }
 
+/**
+ * pacesConfirmWithReason — confirm ที่บังคับให้เลือกเหตุผลก่อนยืนยัน (feature 00039)
+ *
+ * ทำไมไม่ใช้ pacesConfirm ธรรมดา: helper นั้นคืนแค่ boolean รับ input ไม่ได้
+ * และการขยาย signature ของมันให้รองรับ generic input จะทำให้ API ซับซ้อนขึ้นเพื่อ use-case เดียว
+ * จึงแยกเป็นฟังก์ชันของตัวเอง แต่ **ใช้ class ปุ่มชุดเดียวกัน** (CONFIRM_BTN/CANCEL_BTN)
+ * เพื่อไม่ให้โมดัลนี้หน้าตาต่างจากโมดัลอื่นในระบบ
+ *
+ * Base: theme/paces/Admin/TS/src/app/(admin)/plugins/sweet-alerts/components/SweetAlerts.tsx
+ *   + pattern ที่ใช้จริงอยู่แล้วใน bookings/[token]/components/BookingDetail.tsx (input:'select')
+ *
+ * คืน string = เหตุผลที่เลือก · null = ผู้ใช้กดยกเลิก
+ */
+export const pacesConfirmWithReason = async (options: {
+  title: string
+  html?: string
+  options: readonly { value: string; label: string }[]
+  placeholder?: string
+  validationMessage: string
+  confirmButtonText?: string
+  cancelButtonText?: string
+}): Promise<string | null> => {
+  const Swal = await loadSwal()
+  const inputOptions = options.options.reduce<Record<string, string>>((acc, o) => {
+    acc[o.value] = o.label
+    return acc
+  }, {})
+
+  const result = await Swal.fire({
+    buttonsStyling: false,
+    allowOutsideClick: false,
+    icon: 'warning',
+    title: options.title,
+    html: options.html,
+    input: 'select',
+    inputOptions,
+    inputPlaceholder: options.placeholder ?? 'เลือกเหตุผล',
+    // บังคับเลือกก่อน — ไม่ปิดโมดัล ไม่ยิง request ถ้ายังไม่เลือก
+    inputValidator: (value) => (value ? undefined : options.validationMessage),
+    showCancelButton: true,
+    confirmButtonText: options.confirmButtonText ?? 'ยืนยัน',
+    cancelButtonText: options.cancelButtonText ?? 'ไม่ใช่ตอนนี้',
+    customClass: { confirmButton: CONFIRM_BTN.danger, cancelButton: CANCEL_BTN },
+  })
+
+  return result.isConfirmed && typeof result.value === 'string' ? result.value : null
+}
+
 export const pacesConfirm: PacesConfirmFn = Object.assign(base, {
   danger: (title: string, text?: string, opts?: Partial<PacesConfirmOptions>) =>
     base({ confirmSemantic: 'danger', icon: 'warning', ...opts, title, text }),
