@@ -328,6 +328,13 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           updatedAt: true,
           checkIn: true,
           checkOut: true,
+          // feature 00024 — แกน "นัดถึงขั้นไหน" ของร้าน SERVICE_QUEUE (2026-08-08)
+          // ต้อง sync กับ getOrdersByCustomer ที่ lazy-load ต่อจากชุดนี้ ไม่งั้นออเดอร์ใบที่ 21
+          // ขึ้นไปจะขาดข้อมูลนัดแล้วตกไปแสดงเป็น walk-in เงียบ ๆ
+          serviceStart: true,
+          serviceEnd: true,
+          appointmentStatus: true,
+          depositAmount: true,
           // Order Progress (2026-08-05) — AWAITING_COD ต้องรู้วิธีชำระ + เวลากดรับเงิน
           paymentMethod: true,
           codReceivedAt: true,
@@ -356,6 +363,10 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     statusAt: o.updatedAt.toISOString(),
     checkIn: o.checkIn ? o.checkIn.toISOString() : null,
     checkOut: o.checkOut ? o.checkOut.toISOString() : null,
+    serviceStart: o.serviceStart ? o.serviceStart.toISOString() : null,
+    serviceEnd: o.serviceEnd ? o.serviceEnd.toISOString() : null,
+    appointmentStatus: o.appointmentStatus,
+    depositAmount: o.depositAmount ? o.depositAmount.toFixed(2) : null,
     paymentMethod: o.paymentMethod,
     codReceivedAt: o.codReceivedAt ? o.codReceivedAt.toISOString() : null,
     items: o.items.map((it) => ({

@@ -63,6 +63,16 @@ export type CustomerPanelOrder = {
   createdAt: string // ISO
   checkIn: string | null // ISO date — เฉพาะออเดอร์ vertical=LODGING (type=BOOKING)
   checkOut: string | null
+  /** ช่วงเวลาเข้าใช้บริการ (feature 00024) — เฉพาะออเดอร์ที่มีนัด null = walk-in
+   *  เพิ่ม 2026-08-08: ห้องแชทต้องไล่แกน "นัดถึงขั้นไหน" ได้ ไม่ใช่แกนขนส่งอย่างเดียว */
+  serviceStart?: string | null // ISO
+  serviceEnd?: string | null // ISO
+  /** SCHEDULED | CONFIRMED_BY_BUYER | RESCHEDULE_REQUESTED | COMPLETED | NO_SHOW */
+  appointmentStatus?: string | null
+  /** ยอดมัดจำที่ตกลงกันไว้ "300.00" — snapshot ตอนสร้าง ไม่ใช่สูตรสด (BR-RSV-46/47)
+   *  IMPORTANT: ระบบ**ไม่มี**ข้อมูลว่าจ่ายแล้วหรือยัง (ไม่มีคอลัมน์ depositReceivedAt)
+   *  ห้ามแสดงเป็นสถานะ/ขั้นที่สื่อว่า "เสร็จแล้ว" — แสดงได้แค่จำนวนเงินที่ตกลงกัน */
+  depositAmount?: string | null
   // รายการสินค้า (user 2026-07-25: การ์ด right panel แสดงเหมือนในแชท — ชื่อ/จำนวน/ราคา/รูป)
   items: { name: string; qty: number; price: string; imageFileId: string | null }[]
   /** พัสดุ iShip ที่ยังใช้งานอยู่ (feature 00022) — null = ยังไม่เปิดพัสดุ
@@ -347,6 +357,13 @@ function OrderCard({
         paymentMethod: o.paymentMethod,
         codReceivedAt: o.codReceivedAt,
         statusAt: o.statusAt,
+        // feature 00024 (2026-08-08) — ให้การ์ดแสดงวันนัด/มัดจำแทนสถานะกว้าง ๆ
+        // ขาด 4 ค่านี้เมื่อไหร่ การ์ดจะตกไปสาขา NO_SHIPPING แล้วขึ้นแค่ "สถานะ: สั่งซื้อแล้ว"
+        // โดยไม่มีอะไรฟ้อง (ทุก prop เป็น optional — tsc/build เขียวหมด)
+        serviceStart: o.serviceStart,
+        serviceEnd: o.serviceEnd,
+        appointmentStatus: o.appointmentStatus,
+        depositAmount: o.depositAmount,
       }}
       onEdit={openEdit}
       className="w-full"
@@ -370,7 +387,14 @@ function OrderCard({
               ส่งเข้าแชท
             </button>
             {/* feature 00022 — เปิดหน้าต่างพัสดุในห้องนี้เลย ไม่ต้องสลับหน้า
-                คำบนปุ่มบอกล่วงหน้าว่ากดแล้วเจอฟอร์มหรือเจอเลขติดตาม */}
+                คำบนปุ่มบอกล่วงหน้าว่ากดแล้วเจอฟอร์มหรือเจอเลขติดตาม
+
+                2026-08-08: ปุ่มนี้เคยโผล่ **ทุกร้านทุกประเภท** โดยไม่มีเงื่อนไขอะไรเลย —
+                ร้านบริการและบ้านพักที่ไม่มีวันส่งของก็เห็น "สร้างพัสดุ" ค้างอยู่ตลอด
+                กั้นด้วย fulfillmentMode ไม่ใช่ vertical เพราะ resolveFulfillmentMode คือ SSOT
+                ของ "ใบนี้ต้องส่งของไหม" (มติ 2026-08-07) — และกันเผื่อสินค้าดิจิทัลของร้าน
+                ขายออนไลน์ไปด้วยในตัว ซึ่งมีปัญหาเดียวกันมาตลอดโดยไม่มีใครรายงาน */}
+            {o.fulfillmentMode !== 'NO_SHIPPING' && (
             <button
               type="button"
               onClick={openShipment}
@@ -381,6 +405,7 @@ function OrderCard({
               <Icon icon="truck-delivery" className="text-sm" />
               {hasShipment ? 'ดูพัสดุ' : 'สร้างพัสดุ'}
             </button>
+            )}
             {/* ⋮ ยกเลิก (user 2026-08-05) — PENDING/SHIPPED เท่านั้น (cancelItems ว่าง →
                 OrderOverflowMenu คืน null เอง). กางขึ้นเพราะ OrderCardView ครอบ overflow-hidden
                 — เมนูที่กางลงพ้นขอบล่างการ์ดจะโดนตัดหาย ส่วนกางขึ้นทับเนื้อการ์ดซึ่งอยู่ในขอบเขต.
