@@ -59,9 +59,18 @@ export default async function ShopPageBuilderPage() {
 
   const shop = active.shop
 
-  // (fullscreen)/layout.tsx เช็คเฉพาะ BUSINESS ที่ไม่มี slug (redirect ไป /business/{id}/onboarding)
-  // — เช็คนี้ครอบทุก kind ตาม TFR-001 ตรง ๆ (PERSONAL ที่หลุด onboarding มาได้ด้วย edge case ใด ๆ)
-  if (!shop.slug) redirect('/onboarding')
+  /**
+   * ถอด `if (!shop.slug) redirect('/onboarding')` ออก 2026-08-07
+   *
+   * ปลายทางนั้นใช้ไม่ได้กับร้าน BUSINESS: `resolveOnboardingGate` ตัดสิน needsOnboarding จาก
+   * slug ของ **ร้านส่วนตัว** เท่านั้น ร้าน BUSINESS จึงได้ `needsOnboarding=false` เสมอ แล้ว
+   * proxy.ts:188-190 จะเด้ง /onboarding กลับ /dashboard ทันที → ผู้ใช้กด "ตัวจัดหน้าร้าน"
+   * แล้วไปโผล่หน้าแรกเฉย ๆ โดยไม่มีคำอธิบายว่าทำไม
+   *
+   * ไม่ต้องมี guard ตรงนี้เลย เพราะข้างล่างมี fallback ที่ถูกต้องอยู่แล้ว: `handle` เป็น null
+   * เมื่อไม่มี slug → ตกเข้า block `!handle` ที่แสดงการ์ด "ร้านยังไม่มีลิงก์หน้าร้าน" พร้อมปุ่ม
+   * ไป /shop ซึ่งตอนนี้มีที่ตั้ง slug จริงแล้ว — บอกสาเหตุและทางแก้ ดีกว่าเด้งทิ้ง
+   */
 
   const isLodging = shop.vertical === 'LODGING'
   const isServiceQueue = shop.vertical === 'SERVICE_QUEUE'

@@ -18,6 +18,11 @@ export interface QuotaBusinessItem {
   shopName: string
   role: 'OWNER' | 'ADMIN'
   locked: boolean
+  /**
+   * ร้านนี้มี URL หน้าร้านสาธารณะแล้วหรือยัง (2026-08-07) — false = ยังไม่มีหน้าร้านให้ลูกค้าเปิด
+   * เตือนตั้งแต่หน้ารายการเพื่อไม่ต้องคลิกเข้าไปทีละร้านถึงจะรู้ · ไม่บล็อกอะไรทั้งสิ้น
+   */
+  hasSlug: boolean
 }
 
 export interface QuotaUsageCardProps {
@@ -103,6 +108,11 @@ export default function QuotaUsageCard({ ownedCount, maxBusinesses, businesses, 
                     {b.role === 'OWNER' ? 'เจ้าของ' : 'ผู้ดูแล'}
                   </span>
                   {b.locked && <span className="badge bg-danger/15 text-danger">ถูกล็อก</span>}
+                  {/* warning ไม่ใช่ danger — ร้านยังใช้งานอื่นได้ปกติ แค่ยังไม่มีหน้าร้านสาธารณะ
+                      และห้ามเป็นเขียวเด็ดขาด (ไม่ใช่สิ่งที่ยืนยันแล้ว — Verified-Means-Green) */}
+                  {!b.hasSlug && (
+                    <span className="badge bg-warning/15 text-warning-ink">ยังไม่มีลิงก์หน้าร้าน</span>
+                  )}
                 </div>
                 <SwitchAndManageButton shopId={b.shopId} shopName={b.shopName} />
               </div>

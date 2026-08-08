@@ -9,6 +9,7 @@
  * Strip: breadcrumb subtitle เปลี่ยนเป็นไทย, header icon คงไว้จาก version เดิม
  */
 
+import { headers } from 'next/headers'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
@@ -67,6 +68,21 @@ export default async function ShopSettingsPage() {
   }
 
   const isExisting = !!shop
+
+  /**
+   * URL หน้าร้านสาธารณะ (feature: ที่ตั้ง slug 2026-08-07) — คำนวณที่ server เพราะต้องข้าม
+   * subdomain: หน้านี้อยู่ seller.* แต่หน้าร้านอยู่โดเมนหลัก
+   * pattern เดียวกับ (dashboard)/public-profile/page.tsx:54-74 เป๊ะ — ห้ามให้ 2 หน้านี้คำนวณ
+   * เส้นทางคนละแบบ ไม่งั้นลิงก์ที่ผู้ใช้คัดลอกจาก 2 ที่จะไม่ตรงกัน
+   *
+   * PERSONAL ใช้ /u/{username} ซึ่งไม่ได้มาจาก slug จึงไม่มีอะไรให้ตั้งที่นี่ — การ์ด slug
+   * จึงโผล่เฉพาะ BUSINESS (ร้านส่วนตัวตั้ง slug ผ่าน /onboarding ที่บังคับอยู่แล้ว)
+   */
+  const host = (await headers()).get('host') ?? ''
+  const rootHost = host.replace(/^seller\./, '')
+  const proto = host.startsWith('localhost') || host.includes('.local') ? 'http' : 'https'
+  const shopPublicUrl =
+    shopKind === 'BUSINESS' && shop?.slug ? `${proto}://${rootHost}/b/${shop.slug}` : null
   const pageSubtext = isExisting
     ? `เปิดร้านเมื่อ ${formatDateTime(shop.createdAt)} — ${formatShopAge(shop.createdAt)}`
     : 'ตั้งค่าร้านค้าของคุณเพื่อเริ่มรับออเดอร์และสร้าง Trust Score'
@@ -90,6 +106,13 @@ export default async function ShopSettingsPage() {
         shop={shop}
         isExisting={isExisting}
         ageText={isExisting ? formatShopAge(shop.createdAt) : null}
+        /* ที่ตั้ง URL หน้าร้าน — ส่งเฉพาะ BUSINESS ที่มีร้านจริง (ดูเหตุผลที่ shopPublicUrl)
+           slug ที่ยังไม่ตั้ง = null → การ์ดขึ้นเป็นสถานะ "ยังไม่ตั้ง" ให้กรอกได้ทันที */
+        slugSetup={
+          shopKind === 'BUSINESS' && isExisting
+            ? { slug: shop.slug ?? null, publicUrl: shopPublicUrl, publicOrigin: rootHost }
+            : undefined
+        }
         /* โซนอันตรายเป็นแท็บใน ShopForm ไม่ใช่การ์ดแยกท้ายหน้า (user ทัก 2026-08-05)
            ส่งเฉพาะ BUSINESS + OWNER + มีร้านจริง — ร้านส่วนตัวลบไม่ได้ (ลบบัญชีอยู่ /account)
            และผู้ดูแลที่ถูกเชิญไม่ใช่เจ้าของ จึงไม่มีสิทธิ์ลบร้านของคนอื่น */

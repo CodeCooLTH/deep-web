@@ -224,7 +224,8 @@ export default async function SubscriptionsPage() {
       where: { userId: ownerId, shop: { kind: 'BUSINESS', deletedAt: null } },
       select: {
         role: true,
-        shop: { select: { id: true, shopName: true, packageLockedAt: true, createdAt: true } },
+        // slug — badge "ยังไม่มีลิงก์หน้าร้าน" (2026-08-07) ต้องตรงกับ /business ที่ใช้การ์ดเดียวกัน
+        shop: { select: { id: true, shopName: true, packageLockedAt: true, createdAt: true, slug: true } },
       },
       orderBy: { shop: { createdAt: 'asc' } },
     })
@@ -233,6 +234,7 @@ export default async function SubscriptionsPage() {
       shopName: m.shop.shopName,
       role: m.role as 'OWNER' | 'ADMIN',
       locked: m.shop.packageLockedAt !== null,
+      hasSlug: m.shop.slug !== null,
     }))
   } catch {
     businesses = []

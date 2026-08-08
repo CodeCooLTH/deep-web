@@ -17,6 +17,7 @@
 
 import { yupResolver } from '@hookform/resolvers/yup'
 import { useRouter } from 'next/navigation'
+import ShopSlugField from './ShopSlugField'
 import BusinessDangerZone from './BusinessDangerZone'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -69,6 +70,17 @@ interface ShopFormProps {
    * ของคนละหน้า และหัวข้อ h5 w-full ที่ออกแบบมาสำหรับหน้าแคบ /account ยืดเต็มจอจนดูหลุด
    */
   dangerZone?: { shopId: string; shopName: string; retentionDays: number }
+  /**
+   * ที่ตั้ง URL หน้าร้านสาธารณะ (2026-08-07) — undefined = ไม่มีบล็อกนี้เลย
+   *
+   * ส่งมาเฉพาะร้าน BUSINESS: ร้านส่วนตัวใช้ /u/{username} ซึ่งไม่ได้มาจาก slug จึงไม่มีอะไร
+   * ให้ตั้งที่นี่ (และ /onboarding บังคับตั้งให้อยู่แล้วก่อนเข้าระบบได้)
+   *
+   * ทำไมเป็นบล็อกใน step 1 ไม่ใช่ step ใหม่ของ stepper: BASE_STEPS.length ผูกกับ logic ปุ่ม
+   * "ถัดไป/บันทึก" แน่นมาก การเพิ่ม step เพื่อ field เดียวเสี่ยงกว่าที่ได้ — และ slug ก็เป็น
+   * "ข้อมูลร้าน" อยู่แล้วโดยความหมาย
+   */
+  slugSetup?: { slug: string | null; publicUrl: string | null; publicOrigin: string }
 }
 
 // ข้อมูล step ที่เก็บไว้ใน SafePay MVP (2 step จาก 12 step ของ theme)
@@ -77,7 +89,7 @@ const BASE_STEPS = [
   { icon: 'photo', title: 'โลโก้ร้าน', subtitle: 'อัปโหลดภาพ' },
 ]
 
-export default function ShopForm({ shop, isExisting, ageText = null, dangerZone }: ShopFormProps) {
+export default function ShopForm({ shop, isExisting, ageText = null, dangerZone, slugSetup }: ShopFormProps) {
   const router = useRouter()
 
   // แท็บที่ 3 โผล่เฉพาะร้านที่ลบได้ — ประกอบใน component เพราะขึ้นกับ prop
@@ -299,6 +311,18 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone 
                     </div>
                     <p className="font-semibold">ข้อมูลร้าน</p>
                   </div>
+
+                  {/* URL หน้าร้าน — บนสุดของ step เพราะเป็นสิ่งเดียวในหน้านี้ที่ "ยังทำไม่ได้เลย"
+                      ถ้ายังไม่ตั้ง (ที่เหลือแก้ทีหลังได้ตลอด) · โผล่เฉพาะร้าน BUSINESS
+                      อยู่นอกเงื่อนไข lg:hidden ของหัวข้อกลุ่มด้านบน — เป็นเนื้อหาของ step
+                      ไม่ใช่หัวข้อมือถือ จึงต้องเห็นทั้ง 2 breakpoint */}
+                  {slugSetup && (
+                    <ShopSlugField
+                      initialSlug={slugSetup.slug}
+                      publicUrl={slugSetup.publicUrl}
+                      publicOrigin={slugSetup.publicOrigin}
+                    />
+                  )}
                     <div className="col-span-1 mb-5 grid lg:grid-cols-2 gap-base">
                       {/* ชื่อร้าน */}
                       <div>
