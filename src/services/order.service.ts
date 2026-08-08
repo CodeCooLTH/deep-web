@@ -6,7 +6,8 @@ import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.se
 import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/inventory-stock.service";
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
-import { isCancelReason } from "@/lib/lodging";
+import { isCancelReason, resolveShopVertical } from "@/lib/lodging";
+import { isValidCancelReason, BUYER_SELF_CANCEL_REASON } from "@/lib/cancel-reasons";
 import { deriveShippingStage } from "@/lib/order-stage";
 import { shopShipsGoods } from "@/lib/shipping-address-status";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
@@ -971,18 +972,31 @@ export async function cancelOrder(
   // feature 00031 — คนที่กดยกเลิก (guest buyer = null เป็นค่าปกติ ไม่ใช่ข้อยกเว้น)
   actorUserId?: string | null,
 ) {
-  const order = await prisma.order.findUnique({ where: { publicToken } });
+  const order = await prisma.order.findUnique({
+    where: { publicToken },
+    // feature 00039 — ต้องรู้ประเภทกิจการเพื่อเลือกชุดเหตุผลที่ถูกต้อง
+    include: { shop: { select: { vertical: true } } },
+  });
   if (!order) throw new Error("Order not found");
 
+  // feature 00039 (FR-OSM-04) — บังคับเหตุผล "ทุกประเภทออเดอร์" ไม่ใช่เฉพาะ BOOKING
+  //
+  // เดิม block นี้ห่อด้วย `if (order.type === 'BOOKING')` ทำให้ออเดอร์ขายของทั่วไปมี
+  // cancelReason เป็น null เสมอ — ระบบจึงตอบร้านไม่ได้เลยว่าใบไหนยกเลิกเพราะอะไร
+  //
+  // 🛑 เหตุผลที่เก็บตรงนี้ "ไม่มีผลต่ออัตราความสำเร็จ" (BR-OSM-05) การตัดออกจากตัวหาร
+  // ตัดสินจาก cancelInitiator + สถานะขนส่งเท่านั้น ดู lib/order-stats.ts
+  const vertical = resolveShopVertical(order.shop?.vertical);
   let cancelReason: string | undefined;
-  if (order.type === "BOOKING") {
-    if (initiator === "buyer") {
-      cancelReason = "BUYER_REQUESTED";
-    } else {
-      if (!reason) throw new CancelReasonRequiredError();
-      if (!isCancelReason(reason)) throw new InvalidCancelReasonError();
-      cancelReason = reason;
-    }
+  if (initiator === "buyer") {
+    // ผู้ซื้อกดเอง = รู้อยู่แล้วว่าใครกด ไม่ต้องถามซ้ำ (pattern เดิมของการจอง)
+    cancelReason = order.type === "BOOKING" ? "BUYER_REQUESTED" : BUYER_SELF_CANCEL_REASON;
+  } else {
+    if (!reason) throw new CancelReasonRequiredError();
+    // การจองยังใช้ validator เดิมของตัวเอง (ชุดค่าและ countsAgainstGuest ยังทำงานอยู่)
+    const ok = order.type === "BOOKING" ? isCancelReason(reason) : isValidCancelReason(vertical, reason);
+    if (!ok) throw new InvalidCancelReasonError();
+    cancelReason = reason;
   }
   // reject cancel หลัง CONFIRMED (terminal สำเร็จ ยกเลิกไม่ได้)
   assertTransition(order.status, "CANCELLED");
@@ -1610,9 +1624,13 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
   ]);
 
   const confirmedCount = orderStats.find((s) => s.status === "CONFIRMED")?._count._all ?? 0;
-  const cancelledCount = orderStats.find((s) => s.status === "CANCELLED")?._count._all ?? 0;
-  const settled = confirmedCount + cancelledCount;
-  const completionRate = settled > 0 ? Math.round((confirmedCount / settled) * 100) : null;
+
+  // feature 00039 — เดิมบรรทัดนี้เป็นสำเนาที่สามของสูตรอัตราสำเร็จ (ไม่มีเกณฑ์ขั้นต่ำ)
+  // ตอนนี้หน้าลิงก์คำสั่งซื้อไม่แสดง % แล้ว (FR-OSM-11) จึงไม่ต้องคำนวณที่นี่เลย
+  // คงคีย์ completionRate ไว้เป็น null เพราะ type OrderLinkShopContext ใช้ร่วมกับหน้าอื่น
+  // 🛑 ถ้าวันหนึ่งต้องเอา % กลับมาที่จอนี้ ให้เรียก computeCompletionRate จาก lib/order-stats
+  //    ห้ามคำนวณเองซ้ำอีก (BR-OSM-10)
+  const completionRate = null;
 
   const maxVerifyLevel = approvedVerifications.length
     ? Math.max(...approvedVerifications.map((v) => v.level))

@@ -645,8 +645,20 @@ model Order {
   totalAmount     Decimal  @db.Decimal(12, 2)
   status          String   @default("PENDING")
   fulfillmentMode String   @default("SHIPPED")
+  /// ใครกดยกเลิก: "seller" | "buyer"
+  /// 🛑 feature 00039 — ค่านี้กลายเป็น *หลักฐาน* ที่ใช้ตัดสินว่าการยกเลิกใบนี้เข้าตัวหาร
+  /// ของอัตราความสำเร็จหรือไม่ (BR-OSM-04) เดิมแทบไม่มีใครอ่าน ตอนนี้มีผลต่อตัวเลขสาธารณะ
+  /// ห้ามตั้งค่านี้จากที่อื่นนอกจากจุดที่รู้แน่ว่าใครเป็นคนกดจริง
   cancelInitiator String?
   shippingAddress Json?
+
+  /// ผู้ซื้อทักท้วงว่ายังไม่ได้ของ / ของไม่ตรง — feature 00039
+  /// ไม่ null และ disputeResolvedAt ยังเป็น null = "มีข้อพิพาทค้าง" → ห้ามปิดอัตโนมัติ (BR-OSM-03)
+  /// จงใจไม่สร้างตารางข้อพิพาท: PRD กันระบบข้อพิพาทเต็มรูปไว้ใน Out of Scope
+  /// ที่ต้องการจริงคือธงกันการปิดอัตโนมัติ — ใช้เวลา 2 ช่องแทน boolean เพื่อรู้ด้วยว่าเปิด/ปิดเมื่อไร
+  disputeOpenedAt   DateTime?
+  disputeResolvedAt DateTime?
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1881,6 +1893,17 @@ model OrderShipment {
   carrierStatusText String? // ข้อความไทยที่แสดงต่อผู้ใช้
   carrierStatusAt   DateTime?
 
+  /// วันเวลาที่พัสดุ "ถึงมือผู้รับครั้งแรก" — feature 00039
+  ///
+  /// 🛑 เขียนครั้งเดียวเท่านั้น ห้ามอัปเดตทับ (conditional update: WHERE deliveredAt IS NULL)
+  ///
+  /// ทำไมไม่ใช้ carrierStatusAt ที่มีอยู่แล้ว: ค่านั้นคือ "เวลาของสถานะล่าสุด" ซึ่งถูกเขียนทับ
+  /// ทุกครั้งที่สถานะขยับ ใบ COD ที่เดินต่อจาก delivered ไป payment_success (สถานะที่ไกลกว่า
+  /// delivered — ดู lib/order-stage.ts:309) จะทำให้ carrierStatusAt กลายเป็นเวลาที่เงินเข้า
+  /// ไม่ใช่เวลาที่ของถึง → ถ้าเอาไปจับ 7 วัน กำหนดปิดจะถูกเลื่อนออกทุกครั้งที่มี webhook ใหม่
+  /// และอาจไม่ปิดเลย โดยไม่มีอะไรฟ้อง (ไม่มี type error ไม่มีเทสแดง มีแต่ตัวเลขที่ไม่ขยับ)
+  deliveredAt       DateTime?
+
   /// วันเวลาที่ iShip แจ้งว่าเงินเก็บปลายทางเข้าระบบร้านแล้ว (`settlement_at`) — NULL = ยังไม่แจ้ง
   ///
   /// ทำไมต้องมีทั้งที่ Order.codReceivedAt มีอยู่แล้ว: สองช่องตอบคนละคำถาม
@@ -2846,7 +2869,10 @@ model OrderEvent {
   id      String @id @default(uuid())
   orderId String
 
-  // type: 9 ค่าคงที่ (ดู src/lib/order-event.ts) — String + DB CHECK ไม่ใช่ Prisma enum ตาม
+  // type: 15 ค่าคงที่ (ดู src/lib/order-event.ts — ORDER_EVENT_TYPES คือรายชื่อจริง)
+  // 🛑 คอมเมนต์บรรทัดนี้เคยเขียน "9 ค่า" ค้างไว้ตั้งแต่ตอนมี 13 ค่าแล้ว (หนี้จาก 00033)
+  //    ถ้าเพิ่มชนิดใหม่แล้วไม่แก้ตัวเลขตรงนี้ คนอ่านจะเชื่อคอมเมนต์แล้วเขียน migration ผิด
+  // String + DB CHECK ไม่ใช่ Prisma enum ตาม
   // convention ปัจจุบันของโปรเจกต์ (Shop.vertical ฯลฯ) บวกเหตุผลเฉพาะของตารางนี้: มันเป็น
   // insert-only แถวที่เขียน type ผิดจากบั๊กจะแก้ไม่ได้อีกเลยตลอดชีพตาราง จึงคุ้มที่จะมี CHECK
   // ที่ระดับ DB เป็นด่านสอง ไม่ใช่เชื่อ validation ฝั่ง server อย่างเดียว
