@@ -333,9 +333,9 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
   const statusBadge = (status: RowStatus) => {
     switch (status) {
       case 'OK':
-        return { label: 'สำเร็จ', cls: 'bg-success/15 text-success' }
+        return { label: 'สำเร็จ', cls: 'bg-success/15 text-success-ink' }
       case 'ERROR':
-        return { label: 'ล้มเหลว', cls: 'bg-danger/15 text-danger' }
+        return { label: 'ล้มเหลว', cls: 'bg-danger/15 text-danger-ink' }
       default:
         return { label: 'รอนำเข้า', cls: 'bg-default-100 text-default-600' }
     }
@@ -387,7 +387,7 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
               <div
                 role="alert"
                 aria-live="polite"
-                className="flex items-start gap-2 rounded-md bg-danger/10 border border-danger/30 p-3 text-sm text-danger"
+                className="flex items-start gap-2 rounded-md bg-danger/10 border border-danger/30 p-3 text-sm text-danger-ink"
               >
                 <Icon icon="alert-circle" className="shrink-0 text-base mt-0.5" />
                 <span>{parseError}</span>
@@ -410,7 +410,7 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
                   {fileName || 'คลิกเพื่อเลือกไฟล์ .csv'}
                 </span>
                 {fileName && !parseError && (
-                  <Icon icon="circle-check" className="size-4 text-success shrink-0" />
+                  <Icon icon="circle-check" className="text-success-ink size-4 shrink-0" />
                 )}
                 <input
                   ref={fileInputRef}
@@ -446,7 +446,7 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
               <div
                 role="alert"
                 aria-live="polite"
-                className="flex items-start gap-2 rounded-md bg-warning/10 border border-warning/30 p-3 text-sm text-warning"
+                className="flex items-start gap-2 rounded-md bg-warning/10 border border-warning/30 p-3 text-sm text-warning-ink"
               >
                 <Icon icon="alert-triangle" className="shrink-0 text-base mt-0.5" />
                 <span>ไฟล์มีมากกว่า 500 แถว ระบบจะนำเข้าเฉพาะ 500 แถวแรกเท่านั้น</span>
@@ -519,7 +519,7 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
                           <td className="px-3 py-2">
                             <span className={cn('badge', meta.cls)}>{meta.label}</span>
                             {r.status === 'ERROR' && r.error && (
-                              <p className="mt-0.5 text-xs text-danger">{r.error}</p>
+                              <p className="text-danger-ink mt-0.5 text-xs">{r.error}</p>
                             )}
                           </td>
                         </tr>

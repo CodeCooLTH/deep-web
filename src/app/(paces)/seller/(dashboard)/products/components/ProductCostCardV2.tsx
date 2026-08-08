@@ -79,7 +79,7 @@ export default function ProductCostCardV2({ register, errors, watch }: ProductCo
         />
       </div>
       {errors.cost && (
-        <p id="v2-cost-error" className="text-danger mt-1 text-sm">
+        <p id="v2-cost-error" className="text-danger-ink mt-1 text-sm">
           {errors.cost.message}
         </p>
       )}

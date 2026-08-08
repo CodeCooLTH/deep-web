@@ -71,7 +71,7 @@ const ProductsTable = ({ products, pinSlots, pinnedCount, onPinChange, onDeleteR
               />
             ) : (
               <div className="bg-default-100 rounded size-9 flex items-center justify-center">
-                <Icon icon="package" className="size-5 text-default-300" />
+                <Icon icon="package" className="size-5 text-default-300" aria-hidden="true" />
               </div>
             )}
           </div>
@@ -308,7 +308,7 @@ const ProductsTable = ({ products, pinSlots, pinnedCount, onPinChange, onDeleteR
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {/* badge indicator "ปักหมุด n/m" (feature 00013 Pin Products) — ก่อนปุ่มเพิ่มสินค้า */}
-          <span className="badge bg-primary/15 text-primary inline-flex items-center gap-1">
+          <span className="badge bg-primary/15 text-primary-ink inline-flex items-center gap-1">
             <Icon icon="tabler:pin-filled" className="size-3.5" />
             ปักหมุด {pinnedCount}/{pinSlots}
           </span>
