@@ -20,7 +20,11 @@ import type { FeedChange } from '@/lib/facebook/webhook-types'
 /** จำนวนคอมเมนต์ต่อหน้าเวลาเปิดโพสต์ (BRD Q-2) */
 const COMMENTS_PAGE_SIZE = 30
 
-async function resolveChannelToken(shopChannelId: string): Promise<{ token: string; pageId: string } | null> {
+/**
+ * export ให้ comment-private-reply.service.ts ใช้ร่วม (feature 00038) — พฤติกรรมเดิมทุกประการ
+ * (คืน null เมื่อ status !== 'ACTIVE' หรือ decrypt token ไม่ผ่าน) ไม่ได้แก้ logic เพียงเปิด export
+ */
+export async function resolveChannelToken(shopChannelId: string): Promise<{ token: string; pageId: string } | null> {
   const channel = await prisma.shopChannel.findUnique({
     where: { id: shopChannelId },
     select: { accessTokenEnc: true, externalId: true, status: true },

@@ -760,6 +760,43 @@ export async function createCommentReply(
   return typeof json.id === 'string' ? json.id : ''
 }
 
+/**
+ * ทักแชทส่วนตัวจากคอมเมนต์ (Private Replies, ยิง /me/messages) — feature 00038
+ *
+ * contract ล็อกจากเอกสาร Meta "Private Replies" ก่อนเขียนโค้ด ไม่ได้เดา:
+ *   POST /{PAGE_ID}/messages
+ *   { recipient: { comment_id: "<COMMENT_ID>" }, message: { text: "..." } }
+ *   → { recipient_id: "<PSID>", message_id: "<MID>" }
+ *
+ * 🛑 ข้อจำกัดที่แก้ไม่ได้: ส่งได้ **ครั้งเดียวต่อคอมเมนต์** และภายใน **7 วัน** นับจากเวลาคอมเมนต์
+ * ยิงพลาด = เสียสิทธิ์ของคอมเมนต์นั้นถาวร จึงห้ามเรียกฟังก์ชันนี้ซ้ำแบบ retry อัตโนมัติ
+ *
+ * ใช้ /me/messages ไม่ใช่ /{page-id}/messages ตามที่เอกสาร Meta เขียน — ด้วยเหตุผลเดียวกับ
+ * sendTextMessage (graph.ts:524): pageToken resolve /me เป็นเพจให้อยู่แล้ว และ
+ * ShopChannel.externalId ของช่องทาง IG เก็บ **IG account id ไม่ใช่ Page id** การยิง externalId
+ * เข้า path ตรง ๆ จะได้ "(#3) Application does not have the capability" ทันทีที่เฟส 2 เปิด IG
+ * รอบนี้เป็น FB อย่างเดียวจึงยังไม่พัง แต่นี่คือกับดักที่วางไว้รอ ไม่ใช่เรื่องที่ค่อยแก้ทีหลัง
+ *
+ * หมายเหตุ: ใช้ pages_messaging ที่มีใน CONNECT_SCOPES อยู่แล้ว — ไม่ต้องให้ร้านเชื่อมเพจใหม่
+ */
+export async function sendPrivateReplyToComment(
+  pageToken: string,
+  commentExternalId: string,
+  text: string,
+): Promise<{ recipientId: string; messageId: string }> {
+  const json = await graphFetch('/me/messages', pageToken, {
+    method: 'POST',
+    body: {
+      recipient: { comment_id: commentExternalId },
+      message: { text },
+    },
+  })
+  return {
+    recipientId: typeof json.recipient_id === 'string' ? json.recipient_id : '',
+    messageId: typeof json.message_id === 'string' ? json.message_id : '',
+  }
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // สติกเกอร์ (Sticker API) — user สั่ง 2026-08-04 "channel ที่เป็น facebook รองรับ sticker ด้วย"
 //
