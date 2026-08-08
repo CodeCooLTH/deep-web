@@ -75,7 +75,7 @@
 
 **Interfaces:**
 - Consumes: PRD `BR-CR-01..23` · BRD `FR-CR-01..14` / `AC-CR-01..30` (มีอยู่แล้ว)
-- Produces: รหัส `TFR-xxx` (SDS) และ `TC-CR-xxx` (TestCase) ที่ task อื่นอ้างถึงในคอมเมนต์โค้ด
+- Produces: รหัส `TFR-xxx` (SRS) · `TD-xxx` (SDS) · `TC-CR-xxx` (TestCase) ที่ task อื่นอ้างถึงในคอมเมนต์โค้ด
 
 - [ ] **Step 1: อ่าน template ทั้ง 5 ไฟล์**
 
@@ -95,11 +95,11 @@ ls "docs/99 - Rules/Feature-Templates/"
 
 - [ ] **Step 4: เขียน SRS.md + SDS.md**
 
-SRS = FR ฉบับเต็มพร้อม acceptance/edge · SDS = TFR (technical decision) โดยอย่างน้อยต้องมี:
-- `TFR-CR-001` ทำไมไม่ reuse `sendOutboundMessage` (window guard — ดู File Structure)
-- `TFR-CR-002` system actor path ของ `replyToComment`
-- `TFR-CR-003` `isAutoReply` มีผู้เขียน 2 ราย ห้าม webhook เขียนทับ
-- `TFR-CR-004` partial unique index แทน composite unique ธรรมดา
+SRS = FR ฉบับเต็มพร้อม acceptance/edge (ใช้รหัส `TFR-xxx`) · SDS = technical decision **ใช้รหัส `TD-xxx` ตาม precedent ของ 00030/00033/00035 ไม่ใช่ `TFR-`** โดยอย่างน้อยต้องมี:
+- `TD-001` ทำไมไม่ reuse `sendOutboundMessage` (window guard — ดู File Structure)
+- `TD-002` system actor path ของ `replyToComment`
+- `TD-003` `isAutoReply` มีผู้เขียน 2 ราย ห้าม webhook เขียนทับ
+- `TD-004` partial unique index แทน composite unique ธรรมดา
 
 - [ ] **Step 5: เขียน TestCase.md**
 
@@ -252,7 +252,7 @@ CREATE INDEX "CommentReplyLog_shopChannelId_createdAt_idx"
   ON "CommentReplyLog"("shopChannelId", "createdAt");
 CREATE INDEX "CommentReplyLog_commentId_idx" ON "CommentReplyLog"("commentId");
 
--- 🛑 กันซ้ำ 2 ระดับที่เป็นคนละกฎกัน — ดู SDS TFR-CR-004
+-- 🛑 กันซ้ำ 2 ระดับที่เป็นคนละกฎกัน — ดู SDS TD-004
 --
 -- AUTO = "1 ครั้ง/คน/โพสต์" เป็นกฎของ Deep ไว้กันไม่ให้เพจร้านดูเป็นสแปม
 -- MANUAL = "1 ครั้ง/คอมเมนต์" เป็นเพดานของ Meta (private reply ส่งได้ครั้งเดียวต่อคอมเมนต์)
