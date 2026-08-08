@@ -114,6 +114,14 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
   // แถวที่ผ่าน client-validate แล้ว (มี stockQty ไม่ null) — จำนวนนี้คือ "X แถว" บนปุ่มนำเข้า
   const validRows = rows.filter((r) => r.stockQty !== null)
 
+  // ขนาดของผลลัพธ์ที่กู้ไม่ได้ ต้องมองเห็นก่อนกด ไม่ใช่ไปเจอทีหลัง (impeccable critique P1)
+  //
+  // preview อยู่ใน max-h-96 — ไฟล์ 480 แถวไม่มีใครเลื่อนดูจนจบ ความจริงรายแถวจึงมีอยู่แต่ไม่ถูกอ่าน
+  // และ banner กฎกันได้เฉพาะคนที่อ่านก่อนกรอก ไม่ได้กันคนที่กรอกไฟล์มาแล้วด้วยความเข้าใจผิด
+  // (พฤติกรรมปกติคือใส่ 0 ในช่องที่ไม่รู้ ไม่ใช่เว้นว่าง)
+  const costSetRows = validRows.filter((r) => r.cost !== undefined)
+  const costZeroRows = costSetRows.filter((r) => r.cost === 0)
+
   // ─── ปิด modal + reset state ทั้งหมด ───────────────────────────────────────
   const handleClose = () => {
     if (isImporting) return
@@ -180,9 +188,14 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
         // ต้นทุน: cell ว่าง = ไม่แตะค่าเดิม (ไม่ใช่ 0) — ต่างจาก stockQty ที่บังคับทุกแถว
         // รับทศนิยมได้ (ต่างจาก stockQty ที่ต้องเป็นจำนวนเต็ม) เพราะราคาทุนมีสตางค์ได้จริง
         const costRaw = idxCost >= 0 ? (r[idxCost] ?? '').trim() : ''
-        const costNum = Number(costRaw)
-        const costOmitted = costRaw === ''
-        const costValid = costOmitted || (Number.isFinite(costNum) && costNum >= 0)
+        // Excel ภาษาไทยใส่ตัวคั่นหลักพันให้เองตอนเซฟ CSV — "1,200" จึงเป็นค่าที่พบบ่อยที่สุด
+        // ในไฟล์จริง ไม่ใช่ค่าผิดปกติ. ไทยไม่ใช้ "," เป็นจุดทศนิยม การตัดทิ้งจึงไม่กำกวม
+        // (ผู้ใช้บางส่วนพิมพ์ "฿" หรือเว้นวรรคมาด้วย — รับให้หมดดีกว่าปฏิเสธแล้วให้ไปแก้ไฟล์)
+        const costCleaned = costRaw.replace(/[,\s฿]/g, '')
+        const costNum = Number(costCleaned)
+        const costOmitted = costCleaned === ''
+        const costIsNumber = costOmitted || Number.isFinite(costNum)
+        const costValid = costOmitted || (costIsNumber && costNum >= 0)
         const rowValid = productId !== '' && qtyValid && costValid
 
         return {
@@ -197,12 +210,17 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
           // ถูกปฏิเสธเป็น 400 (เหมือน stockQty ติดลบ) การบอกตั้งแต่ตอน preview ว่าแถวไหน
           // ผิดจึงมีประโยชน์กว่าให้กดแล้วเจอข้อความรวม ๆ ว่าไฟล์ใช้ไม่ได้
           status: rowValid ? 'PENDING' : 'ERROR',
+          // แยก "ไม่ใช่ตัวเลข" ออกจาก "ติดลบ" — เดิมยุบเป็นข้อความเดียวว่าติดลบ ทำให้ค่าที่
+          // parse ไม่ได้ (เช่น "n/a") ได้ข้อความให้ไปหาเครื่องหมายลบในเซลล์ที่ไม่มีเครื่องหมายลบ
+          // ข้อความ "ต้องไม่ต่ำกว่า 0" ตรงกับที่ server ตอบกลับด้วย (FR-EXP-16-AC-03)
           error: !rowValid
             ? productId === ''
               ? 'ไม่พบรหัสสินค้า (productId)'
               : !qtyValid
                 ? 'จำนวนสต็อกไม่ถูกต้อง'
-                : 'ต้นทุนติดลบไม่ได้'
+                : !costIsNumber
+                  ? 'ต้นทุนต้องเป็นตัวเลข'
+                  : 'ราคาทุนต้องไม่ต่ำกว่า 0'
             : undefined,
         }
       })
@@ -224,11 +242,19 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
       buttonsStyling: false,
       icon: 'warning',
       title: `ยืนยันนำเข้าสต็อก ${validRows.length} แถว?`,
+      // บอก "จะเปลี่ยนกี่รายการ" ไม่ใช่ "จะนำเข้ากี่แถว" — สองอย่างนี้ต่างกันมาก
+      // และเลข ฿0 แยกเป็นประโยคของตัวเองเพราะเป็นกรณีเดียวที่กู้กลับไม่ได้
       text: hasCostColumn
-        ? 'การนำเข้าจะแทนที่จำนวนสต็อกปัจจุบันของสินค้าที่ตรงกัน และตั้งต้นทุนใหม่ตามไฟล์ (ช่องว่าง = ไม่แก้ไขต้นทุนเดิม) — ตรวจสอบให้แน่ใจ'
+        ? `จะแทนที่จำนวนสต็อกของสินค้าที่ตรงกัน และตั้งต้นทุนใหม่ ${costSetRows.length} รายการ` +
+          (costZeroRows.length > 0
+            ? ` — ในนั้นมี ${costZeroRows.length} รายการที่จะถูกตั้งเป็น ฿0`
+            : ' (ที่เหลือไม่ถูกแก้ไข)')
         : 'การนำเข้าจะแทนที่จำนวนสต็อกปัจจุบันของสินค้าที่ตรงกัน — ตรวจสอบให้แน่ใจ',
       showCancelButton: true,
-      confirmButtonText: `นำเข้า ${validRows.length} แถว`,
+      confirmButtonText:
+        costZeroRows.length > 0
+          ? `นำเข้า และตั้งต้นทุน ฿0 ให้ ${costZeroRows.length} รายการ`
+          : `นำเข้า ${validRows.length} แถว`,
       cancelButtonText: 'ยกเลิก',
       showLoaderOnConfirm: true,
       allowOutsideClick: () => !Swal.isLoading(),
@@ -428,6 +454,23 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
             )}
 
             {/* ─── Preview table — plain <table>, ไม่ TanStack (UX-Design-Spec #4) ─────────── */}
+            {/* สรุปผลกระทบต่อ "ต้นทุน" เหนือตาราง — ตัวเลขที่ต้องเห็นแม้ไม่เลื่อนดู preview จนจบ */}
+            {rows.length > 0 && hasCostColumn && (
+              <div className="text-default-600 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                <span>
+                  ตั้งต้นทุนใหม่ <strong className="text-default-800">{costSetRows.length}</strong> ·
+                  ไม่แก้ไข{' '}
+                  <strong className="text-default-800">{validRows.length - costSetRows.length}</strong>
+                </span>
+                {costZeroRows.length > 0 && (
+                  <span className="text-danger-ink inline-flex items-center gap-1">
+                    <Icon icon="alert-triangle" className="size-3.5 shrink-0" aria-hidden="true" />
+                    ตั้งต้นทุนเป็น ฿0 จำนวน {costZeroRows.length} รายการ
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* overflow-x-auto จำเป็นตั้งแต่เพิ่มคอลัมน์ที่ 5 (ต้นทุน) — ที่ความกว้างโมดัล
                 บนมือถือ (~280px) ห้าคอลัมน์ล้นแน่นอน */}
             {rows.length > 0 && (

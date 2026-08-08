@@ -54,7 +54,9 @@ export default function ProductCostCardV2({ register, errors, watch }: ProductCo
           <span
             className={`badge text-2xs font-semibold ${isLoss ? 'bg-danger/15 text-danger-ink' : 'bg-success/15 text-success-ink'}`}
           >
-            มาร์จิ้น {marginPercent.toLocaleString('th-TH', { maximumFractionDigits: 1 })}%
+            {/* "มาร์จิ้น" เป็นศัพท์ต่างประเทศตัวเดียวในฟีเจอร์นี้ที่ผู้ขายกลุ่มเป้าหมายไม่ได้ใช้
+                — การ์ดใบเดียวกันพูด "กำไรต่อชิ้น" เป็นภาษาไทยธรรมดาอยู่แล้วบรรทัดถัดไป */}
+            กำไร {marginPercent.toLocaleString('th-TH', { maximumFractionDigits: 1 })}%
           </span>
         )}
       </div>
@@ -86,7 +88,9 @@ export default function ProductCostCardV2({ register, errors, watch }: ProductCo
         // ใช้ formatBaht ตาม SSOT ของเงินบาทฝั่ง seller (src/lib/format-money.ts) — ทศนิยมโผล่
         // เฉพาะเมื่อมีสตางค์จริง และ **ไม่มีเครื่องหมายลบชน ฿** ทิศทางสื่อด้วยคำ ("ขาดทุนต่อชิ้น")
         <p className="text-default-700 mt-1 text-xs">
-          {marginAmount < 0 ? 'ขาดทุนต่อชิ้น' : 'กำไรต่อชิ้น'} {formatBaht(marginAmount)}
+          {marginAmount < 0
+            ? `ขายต่ำกว่าทุน ${formatBaht(marginAmount)} ต่อชิ้น`
+            : `กำไรต่อชิ้น ${formatBaht(marginAmount)}`}
         </p>
       ) : (
         // empty state ต้องสอนว่ากรอกแล้วได้อะไร ไม่ใช่ปล่อยว่าง (operate.md)

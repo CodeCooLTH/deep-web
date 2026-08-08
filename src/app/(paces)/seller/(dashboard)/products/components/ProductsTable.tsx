@@ -116,7 +116,7 @@ const ProductsTable = ({ products, pinSlots, pinnedCount, onPinChange, onDeleteR
       header: () => (
         <span className="flex flex-col leading-tight">
           <span>ต้นทุน</span>
-          <span className="text-default-400 text-2xs font-normal">มาร์จิ้น</span>
+          <span className="text-default-400 text-2xs font-normal">กำไร %</span>
         </span>
       ),
       enableColumnFilter: false,

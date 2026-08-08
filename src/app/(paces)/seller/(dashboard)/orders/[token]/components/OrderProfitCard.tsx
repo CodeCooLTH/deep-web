@@ -20,7 +20,7 @@
  * ลง HTML เสมอ (feedback_rsc_pii_neutralize_at_source)
  */
 import Icon from '@/components/wrappers/Icon'
-import { formatBaht } from '@/lib/format-money'
+import { formatBaht, GROSS_PROFIT_FORMULA } from '@/lib/format-money'
 import type { OrderProfit } from '@/lib/order-profit'
 
 type Props = {
@@ -72,11 +72,13 @@ function present(profit: OrderProfit | null, orderNoun: string): Presentation {
     const negative = amount < 0
     return {
       icon: 'alert-triangle',
-      label: negative ? 'ขาดทุนอย่างน้อย' : 'กำไรขั้นสูงโดยประมาณ',
+      // "ขั้นสูง" ถูกตัดทิ้ง — ในภาษาไทยบนหน้าจอมันแปลว่า advanced ไม่ใช่ "มากที่สุดที่เป็นไปได้"
+      // (ที่อื่นในแอปก็ใช้ในความหมายนั้น) ใช้ "ไม่เกิน"/"อย่างน้อย" ซึ่งบอกขอบเขตตรง ๆ แทน
+      label: negative ? 'ขาดทุนขั้นต้นอย่างน้อย' : 'กำไรขั้นต้นไม่เกิน',
       amount: formatBaht(amount),
       note: negative
-        ? 'มีสินค้าที่ยังไม่ตั้งต้นทุน — ยอดขาดทุนจริงอาจมากกว่านี้'
-        : 'มีสินค้าที่ยังไม่ตั้งต้นทุน — ตัวเลขจริงจะต่ำกว่านี้',
+        ? 'มีสินค้าที่ยังไม่ตั้งต้นทุน — ยอดขาดทุนจริงอาจมากกว่านี้ และยังไม่หักค่าใช้จ่ายร้าน'
+        : 'มีสินค้าที่ยังไม่ตั้งต้นทุน — กำไรจริงจะน้อยกว่านี้ และยังไม่หักค่าใช้จ่ายร้าน',
       tone: negative ? 'danger' : 'warning',
     }
   }
@@ -85,9 +87,9 @@ function present(profit: OrderProfit | null, orderNoun: string): Presentation {
   if (amount < 0) {
     return {
       icon: 'trending-down',
-      label: 'ขาดทุนจากใบนี้',
+      label: 'ขาดทุนขั้นต้นจากใบนี้',
       amount: formatBaht(amount),
-      note: 'ยอดรวม − ต้นทุนสินค้า',
+      note: GROSS_PROFIT_FORMULA,
       tone: 'danger',
     }
   }
@@ -95,10 +97,11 @@ function present(profit: OrderProfit | null, orderNoun: string): Presentation {
   // จุดคุ้มทุนพอดี — ไม่ใช่ "ผลบวกที่ยืนยันแล้ว" จึงไม่ใช้เขียว
   if (amount === 0) {
     return {
-      icon: 'trending-up',
+      // ลูกศรขึ้นกับค่า 0 เป็นสัญญาณที่ขัดตัวเลขของมันเอง
+      icon: 'minus',
       label: 'เท่าทุนพอดี',
       amount: formatBaht(0),
-      note: 'ยอดรวม − ต้นทุนสินค้า',
+      note: GROSS_PROFIT_FORMULA,
       tone: 'neutral',
     }
   }
@@ -106,9 +109,9 @@ function present(profit: OrderProfit | null, orderNoun: string): Presentation {
   // สถานะ ก — กำไรจริง ต้นทุนครบ (กรณีเดียวที่ได้เขียว)
   return {
     icon: 'trending-up',
-    label: 'กำไรจากใบนี้',
+    label: 'กำไรขั้นต้นจากใบนี้',
     amount: formatBaht(amount),
-    note: 'ยอดรวม − ต้นทุนสินค้า',
+    note: GROSS_PROFIT_FORMULA,
     tone: 'success',
   }
 }
@@ -129,7 +132,10 @@ export default function OrderProfitCard({ profit, orderNoun }: Props) {
             {p.amount !== null && (
               <p className={`text-lg font-bold ${tone.text}`}>{p.amount}</p>
             )}
-            <p className="text-default-700 mt-0.5 text-2xs">{p.note}</p>
+            {/* text-xs ไม่ใช่ text-2xs — DESIGN.md สงวน 11px (dense-overlay) ไว้ให้ข้อความ
+                บนพื้นภาพเท่านั้น และบรรทัดนี้คือบรรทัดที่บอกว่าตัวเลขข้างบนเชื่อได้แค่ไหน
+                มันจึงห้ามเป็นของที่เล็กที่สุดในการ์ด */}
+            <p className="text-default-700 mt-0.5 text-xs">{p.note}</p>
           </div>
         </div>
       </div>
