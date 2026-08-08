@@ -7,18 +7,28 @@ vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 const { channelLine } = await import('@/services/seller-push.service')
 
 /**
- * channelLine = บรรทัดกลางของ push notification (iOS subtitle) ที่ตอบว่า "ข้อความนี้เข้ามาทางไหน"
+ * channelLine = บรรทัดกลางของ push notification (iOS subtitle) ที่ตอบว่า "ข้อความนี้เข้ามาทางเพจไหน"
  * user request 2026-08-08 — ต่อยอดจากที่เคยสั่งให้ใส่ชื่อเพจใน ChannelBadge เมื่อ 2026-07-23
  */
 describe('channelLine', () => {
-  it('มีเพจ → "ช่องทาง · ชื่อเพจ"', () => {
-    expect(channelLine('MESSENGER', 'BT Premium')).toBe('Messenger · BT Premium')
-    expect(channelLine('INSTAGRAM', 'bt.premium')).toBe('Instagram · bt.premium')
+  it('มีเพจ → ชื่อเพจล้วน', () => {
+    expect(channelLine('MESSENGER', 'BT Premium')).toBe('BT Premium')
+    expect(channelLine('INSTAGRAM', 'bt.premium')).toBe('bt.premium')
   })
 
-  it('เธรด Deep (ไม่มีเพจ) → เหลือชื่อช่องทางล้วน ห้ามมี " · " ค้างท้าย', () => {
+  it('[blocker] ห้ามมีชื่อช่องทางนำหน้าชื่อเพจ', () => {
+    // เคยส่ง "Messenger · BT Premium…" ขึ้น prod แล้วถูกทักจากเครื่องจริงวันเดียวกัน
+    // ("ทำไมมันมี Messenger มาด้านหน้า เสียพื้นที่") — 12 ตัวอักษรแรกดันชื่อเพจจนโดนตัด
+    // ซึ่งหางของชื่อเพจคือที่ที่เพจของร้านเดียวกันต่างกัน แดงเมื่อไหร่ห้าม merge
+    const line = channelLine('MESSENGER', 'BT Premium Auto Xenon คลองสวน')
+    expect(line.startsWith('Messenger')).toBe(false)
+    expect(line).not.toContain('·')
+    expect(line).toBe('BT Premium Auto Xenon คลองสวน')
+  })
+
+  it('เธรด Deep (ไม่มีเพจ) → ถอยไปใช้ชื่อช่องทาง ห้ามคืนสตริงว่าง', () => {
     // ลูกค้าที่ทักผ่านแอป/เว็บของเราเองไม่มี shopChannel → getConversationToastPreview คืน
-    // channelName เป็น null; ถ้าต่อสตริงดื้อ ๆ ผู้ใช้จะเห็น "Deep · " ซึ่งดูเหมือนข้อมูลโหลดไม่ครบ
+    // channelName เป็น null; บรรทัดว่างจะทำให้ iOS ดันเนื้อหาขึ้นชิดหัวเรื่อง = noti สองแบบสลับกัน
     expect(channelLine('DEEP', null)).toBe('Deep')
   })
 
@@ -29,10 +39,11 @@ describe('channelLine', () => {
   })
 
   it('ตัดช่องว่างหัว-ท้ายของชื่อเพจ', () => {
-    expect(channelLine('MESSENGER', '  BT Premium  ')).toBe('Messenger · BT Premium')
+    expect(channelLine('MESSENGER', '  BT Premium  ')).toBe('BT Premium')
   })
 
   it('ช่องทางที่ไม่รู้จักไม่ทำให้บรรทัดพัง', () => {
-    expect(channelLine('LINE', 'ร้านบีที')).toBe('Deep · ร้านบีที')
+    expect(channelLine('LINE', 'ร้านบีที')).toBe('ร้านบีที')
+    expect(channelLine('LINE', null)).toBe('Deep')
   })
 })
