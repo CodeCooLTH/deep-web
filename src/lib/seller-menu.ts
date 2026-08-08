@@ -112,6 +112,10 @@ export const sellerMenuItems: MenuItemType[] = [
     children: [
       { url: '/inbox', slug: 'seller:inbox', label: 'ข้อความ', icon: 'message-circle' },
       { url: '/settings/auto-reply', slug: 'seller:settings-auto-reply', label: 'ตอบกลับอัตโนมัติ', icon: 'message-bolt' },
+      // feature 00038 (Task 10) — เมนูต้องเห็นได้ทุก vertical: ห้ามใส่ slug นี้เข้า *_ONLY_SLUGS/
+      // SHARED_PRODUCT_SLUGS ใด ๆ ทั้งสิ้น (ไม่อยู่ใน array ใด = ไม่ถูกซ่อนโดย applyVerticalMenu —
+      // ยืนยันแบบเดียวกับ seller:inbox ที่ไม่ปรากฏใน array พวกนี้เลย)
+      { url: '/settings/comment-reply', slug: 'seller:settings-comment-reply', label: 'ตอบกลับคอมเมนต์', icon: 'message-reply' },
       { url: '/settings/chatbot', slug: 'seller:settings-chatbot', label: 'ผู้ช่วยอัตโนมัติ', icon: 'robot' },
     ],
   },
