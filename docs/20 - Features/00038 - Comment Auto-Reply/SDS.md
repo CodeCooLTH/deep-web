@@ -40,7 +40,7 @@ related: ["[[SRS]]", "[[BRD]]", "[[PRD]]", "[[Feature-Docs-Ownership]]"]
 | [[BRD]] ของโมดูลนี้ | ที่มาของ Functional Requirements / AC |
 | [[PRD]] ของโมดูลนี้ | ที่มาของเป้าหมายธุรกิจและ KPI |
 | `docs/superpowers/specs/2026-08-08-00038-comment-auto-reply-design.md` | design spec ต้นทาง — SDS นี้แตกรายละเอียดเทคนิคจากหัวข้อ §4-§10 ของไฟล์นั้น |
-| `docs/20 - Features/00023 - Deep Chat-Bot Assistant/SDS.md` (TD-005) | แพตเทิร์น system actor ที่ TFR-CR-002 ยืมมาปรับใช้ |
+| `docs/20 - Features/00023 - Deep Chat-Bot Assistant/SDS.md` (TD-005) | แพตเทิร์น system actor ที่ TD-002 ยืมมาปรับใช้ |
 
 ---
 
@@ -76,7 +76,7 @@ graph TD
     PrivSvc --> DB
     ChatSvc --> DB
     PageSvc -. POST /commentId/comments .-> Graph
-    PrivSvc -. POST /pageId/messages .-> Graph
+    PrivSvc -. POST /me/messages .-> Graph
 ```
 
 ### 2.2 มุมมองการ Deploy
@@ -93,7 +93,7 @@ graph TD
 | **`comment-auto-reply.service.ts`** | ตัวตัดสินเดียว — รับ `commentId` ที่มาจาก webhook สด ไล่ตรวจ gate 9 ข้อ แล้ว orchestrate public reply + private reply ตามสวิตช์ | `src/services/` → PostgreSQL ผ่าน `page-comment.service`/`comment-private-reply.service` |
 | **`comment-private-reply.service.ts`** | หน้าที่เดียว — ส่ง private reply 1 ครั้ง (ทั้ง AUTO/MANUAL ผ่านฟังก์ชันเดียวกัน) พร้อมกันซ้ำ+บันทึก log | `src/services/` → Meta Graph API, PostgreSQL |
 | **`page-comment.service.ts`** (แก้) | `replyToComment` รับ system actor; `getPostComments`/`countUnansweredForShop` คำนวณ 3 สถานะ; `ingestFeedComment` คืนผลใหม่ + ไม่ทับ `isAutoReply` | `src/services/` (มีอยู่แล้ว feature 00029) |
-| **`channel-chat.service.ts`** (ไม่แก้ — จุดที่ `comment-private-reply` เกาะ pattern) | ให้ pattern upsert contact/conversation ที่ต้องเลียนแบบ (ไม่เรียกตรง — ดู TFR-CR-001) | `src/services/` (feature 00018) |
+| **`channel-chat.service.ts`** (ไม่แก้ — จุดที่ `comment-private-reply` เกาะ pattern) | ให้ pattern upsert contact/conversation ที่ต้องเลียนแบบ (ไม่เรียกตรง — ดู TD-001) | `src/services/` (feature 00018) |
 | **`api/shops/comment-reply/config/route.ts`** (ใหม่) | GET/PATCH สวิตช์+ข้อความต่อเพจ | `src/app/api/` |
 | **`api/shops/comment-reply/logs/route.ts`** (ใหม่) | GET ประวัติแบ่งหน้า | `src/app/api/` |
 | **`api/chat/comments/[commentId]/private-reply/route.ts`** (ใหม่) | ปุ่มแมนนวล | `src/app/api/` |
@@ -136,7 +136,7 @@ sequenceDiagram
     alt สวิตช์ B เปิด และยังไม่เกิน 7 วัน
         AS->>PRS: sendPrivateReplyToComment({trigger:'AUTO', actorUserId:null})
         PRS->>DB: insert CommentReplyLog (partial unique กันซ้ำ — P2002 = มีคนทำไปแล้ว)
-        PRS->>G: POST /pageId/messages {recipient:{comment_id}}
+        PRS->>G: POST /me/messages {recipient:{comment_id}}
         G-->>PRS: recipient_id (PSID), message_id
         PRS->>DB: upsert ExternalContact → find/create Conversation → insert ChatMessage(SHOP)
         PRS->>DB: update CommentReplyLog (SENT, conversationId)
@@ -158,7 +158,7 @@ sequenceDiagram
   - **ข้อยกเว้น (BR-CR-A5):** ถ้า public reply ล้มเหลว แต่สวิตช์ B เปิดอยู่ — ยังต้องพยายามยิง
     private reply ต่อ (ไม่ผูกกันแบบ all-or-nothing)
 - **สองเธรดวิ่งพร้อมกัน (Meta ส่ง event ซ้ำ):** partial unique index (AUTO/MANUAL แยกกัน — ดู
-  TFR-CR-004) เป็นชั้นตัดสินจริง ทั้งสองเธรด `findFirst` เจอ log เดิมได้ก่อน short-circuit (เร็ว) หรือ
+  TD-004) เป็นชั้นตัดสินจริง ทั้งสองเธรด `findFirst` เจอ log เดิมได้ก่อน short-circuit (เร็ว) หรือ
   ถ้าแข่งกันถึงชั้น `create` พร้อมกัน — ตัวที่แพ้ได้ `P2002` ซึ่งตีความว่า "มีคนทำไปแล้ว" ไม่ใช่ error
 
 ---
@@ -168,7 +168,7 @@ sequenceDiagram
 | จุดเชื่อม | ประเภท | Protocol / Contract | ความเสี่ยงเมื่อล่ม |
 |-----------|--------|----------------------|---------------------|
 | **Meta Graph API `POST /{comment-id}/comments`** | 3rd-party | REST/JSON (มีอยู่แล้ว `createCommentReply` — `src/lib/facebook/graph.ts:742`) | public reply ล้มเหลวรายคอมเมนต์ — ไม่กระทบ webhook หรือ private reply |
-| **Meta Graph API `POST /{page-id}/messages`** (private reply) | 3rd-party | REST/JSON — body `{recipient:{comment_id}, message:{text}}` → `{recipient_id, message_id}` (ใหม่ — ต้องเพิ่มฟังก์ชันใน `src/lib/facebook/graph.ts`) | private reply ล้มเหลวรายคอมเมนต์ — บันทึก log ให้ร้านลองด้วยปุ่มแมนนวล |
+| **Meta Graph API `POST /me/messages`** (private reply — เอกสาร Meta เขียน `/{page-id}/messages` แต่เราเรียก `/me/messages` แทน ดู TD-006) | 3rd-party | REST/JSON — body `{recipient:{comment_id}, message:{text}}` → `{recipient_id, message_id}` (ใหม่ — ต้องเพิ่มฟังก์ชันใน `src/lib/facebook/graph.ts`) | private reply ล้มเหลวรายคอมเมนต์ — บันทึก log ให้ร้านลองด้วยปุ่มแมนนวล |
 | **`channel-chat.service.ts`** (internal, pattern เดียวกัน ไม่ import ตรง) | internal | ต้อง upsert `ExternalContact`/`Conversation`/`ChatMessage` ด้วยคีย์เดียวกับที่ `ingestInboundMessage` ใช้ | ห้องแชทขาด denormalized field ถ้า pattern ไม่ตรงกัน — 00037 `resolveChatScope` จะหาห้องนี้ไม่เจอ |
 | **`page-comment.service.ts`** (internal) | internal | `replyToComment`, `getPostComments`, `countUnansweredForShop` | schema/behavior เปลี่ยนที่นั่นกระทบ query ที่นี่โดยตรง (ไฟล์เดียวกัน) |
 
@@ -181,7 +181,7 @@ sequenceDiagram
 
 ## 6. Technical Decisions
 
-### TFR-CR-001: ทำไมไม่ reuse `sendOutboundMessage`
+### TD-001: ทำไมไม่ reuse `sendOutboundMessage`
 - **ตัดสินใจ:** `sendPrivateReplyToComment()` เป็นฟังก์ชันแยกใน `comment-private-reply.service.ts`
   ไม่เรียก `channel-chat.service.ts::sendOutboundMessage()` — implement การยิง Graph +
   upsert contact/conversation/message ของตัวเอง โดยเลียนแบบคีย์ upsert เดียวกับ
@@ -204,7 +204,7 @@ sequenceDiagram
   ใหม่ (ไม่ใช่ zero-cost). ต่อ consistency — ต้องตรวจสอบเองว่าคีย์ upsert ตรงกับที่
   `ingestInboundMessage` ใช้ ไม่มี compiler บังคับ (ดู mitigation ใน §8 SRS)
 
-### TFR-CR-002: system actor path ของ `replyToComment`
+### TD-002: system actor path ของ `replyToComment`
 - **ตัดสินใจ:** ขยาย `replyToComment(params: {..., actorUserId: string | null})` — เมื่อ
   `actorUserId === null` ข้าม `canAccessShop()` แต่ derive `shopId`/`pageId` จากแถวข้อมูล
   (`PageComment → FacebookPost → ShopChannel`) เสมอ ไม่รับจาก parameter อื่นของ caller
@@ -220,7 +220,7 @@ sequenceDiagram
   เชิง runtime — caller เดิมที่ส่ง `string` ยังผ่าน) ทุก call site ที่มีอยู่ต้องยัง compile ผ่านโดยไม่
   ต้องแก้ (TypeScript union กว้างขึ้นเท่านั้น)
 
-### TFR-CR-003: `isAutoReply` มีผู้เขียน 2 ราย — ห้าม webhook เขียนทับ
+### TD-003: `isAutoReply` มีผู้เขียน 2 ราย — ห้าม webhook เขียนทับ
 - **ตัดสินใจ:** `ingestFeedComment`'s `update` block (`page-comment.service.ts:89-96`) **ห้ามใส่**
   `isAutoReply` เข้าไปในชุด field ที่ทับ — คงคอลัมน์นี้ไว้เฉพาะ `create` block ของ `replyToComment`
   เท่านั้นที่เขียนได้
@@ -239,7 +239,7 @@ sequenceDiagram
 - **ผลกระทบ:** ต่อ QA — ต้องมี test case ที่จำลอง webhook echo ของคำตอบบอทเข้ามาซ้ำ แล้วยืนยันว่า
   `isAutoReply` ยังเป็น `true` (AC-CR-29)
 
-### TFR-CR-004: partial unique index แทน composite unique ธรรมดา
+### TD-004: partial unique index แทน composite unique ธรรมดา
 - **ตัดสินใจ:** `CommentReplyLog` มี partial unique index 2 ตัว แยกตาม `trigger`:
   `UNIQUE (shopChannelId, postId, fromExternalId) WHERE trigger='AUTO'` และ
   `UNIQUE (commentId) WHERE trigger='MANUAL'` — ไม่ใช้ `@@unique` ธรรมดาตัวเดียวครอบทั้งตาราง
@@ -257,7 +257,7 @@ sequenceDiagram
   ต่อ service — `sendPrivateReplyToComment` และ `comment-auto-reply.service` ต้องแยกชัดว่ากำลังสร้าง
   log แถวไหนด้วย `trigger` อะไร ก่อน insert เสมอ (ไม่มี default ที่เดาได้)
 
-### TFR-CR-005: `seller-menu.ts` — ต้อง**ไม่**เพิ่ม slug ใหม่เข้า vertical-only array ใด ๆ
+### TD-005: `seller-menu.ts` — ต้อง**ไม่**เพิ่ม slug ใหม่เข้า vertical-only array ใด ๆ
 - **ตัดสินใจ:** `{ url:'/settings/comment-reply', slug:'seller:settings-comment-reply', ... }` เพิ่ม
   เข้า children ของกลุ่ม CHAT เฉย ๆ — **ห้าม**เพิ่ม slug นี้เข้า `ONLINE_SALES_ONLY_SLUGS` /
   `SERVICE_QUEUE_ONLY_SLUGS` / `LODGING_ONLY_SLUGS` / `SHARED_PRODUCT_SLUGS` หรือ array ใดใน
@@ -282,6 +282,25 @@ sequenceDiagram
   `SHARED_PRODUCT_SLUGS` เลยสักที่ (ตรงข้ามกับ grep gate ปกติที่มักตรวจว่า "มี" — ที่นี่ต้องตรวจว่า
   "ไม่มี")
 
+### TD-006: private reply เรียก `POST /me/messages` ไม่ใช่ `POST /{page-id}/messages` ตามที่เอกสาร Meta เขียน
+- **ตัดสินใจ:** `sendPrivateReplyToComment(pageToken, commentExternalId, text)` ใน
+  `src/lib/facebook/graph.ts` เรียก Graph endpoint `POST /me/messages` — ไม่มีพารามิเตอร์ `pageId`
+  ในซิกเนเจอร์ (รับแค่ `pageToken`, `commentExternalId`, `text`) แม้เอกสาร Private Replies ของ Meta
+  จะเขียน path เป็น `POST /{PAGE_ID}/messages` ตรง ๆ ก็ตาม
+- **เหตุผล:** ยึดรูปแบบเดียวกับ `sendTextMessage` ที่มีอยู่แล้วในไฟล์เดียวกัน
+  (`src/lib/facebook/graph.ts:522-526`) ซึ่งเลือก `/me/messages` โดยเจตนา ด้วยเหตุผล 2 ข้อ: (1)
+  `pageToken` resolve `/me` เป็นเพจที่ token นั้นสังกัดให้อยู่แล้ว ไม่ต้องส่ง id ซ้ำ (2)
+  `ShopChannel.externalId` ของช่องทาง **IG** เก็บ **IG account id ไม่ใช่ Page id** — ถ้ายิง
+  `externalId` เข้า path ตรง ๆ ตามเอกสาร Meta จะได้ `(#3) Application does not have the capability`
+  ทันทีที่เฟส 2 เปิดใช้ IG (รอบนี้ทำเฉพาะ FB จึงยังไม่พัง แต่เป็นกับดักที่วางรอถ้าใช้ `/{page-id}/messages`
+  ตรง ๆ)
+- **ทางเลือกที่ตัดทิ้ง:** ใช้ `/{page-id}/messages` ตามเอกสาร Meta ตรงตัว — ตัดทิ้งเพราะใช้ได้เฉพาะ
+  FB ตอนนี้ แต่จะพังทันทีที่ IG private reply เปิดใช้ในเฟสถัดไป โดยไม่มีอะไรเตือนล่วงหน้า (error โผล่
+  เฉพาะตอนรันจริงกับ IG token) — เสียเวลาแก้ซ้ำภายหลังทั้งที่มี pattern ที่ถูกต้องอยู่แล้วในไฟล์เดียวกัน
+- **ผลกระทบ:** ต่อ DEV — เขียน `sendPrivateReplyToComment` ตาม signature `(pageToken,
+  commentExternalId, text)` เท่านั้น ห้ามเพิ่ม parameter `pageId`/`pageExternalId` เข้าไปแล้วใช้แทน
+  `/me/`. ต่อ QA — ไม่มี test case ใหม่ที่ต้องเพิ่มในรอบนี้ (ครอบด้วย mock ของ `graphFetch` เดิม)
+
 ---
 
 ## 7. Traceability
@@ -291,16 +310,16 @@ sequenceDiagram
 | TFR-001 | Component `settings/comment-reply/` (§3) | Draft |
 | TFR-002 | Component `api/shops/comment-reply/config` (§3) | Draft |
 | TFR-003 | Flow 4.1, Component `comment-auto-reply.service` (§3) | Draft |
-| TFR-004 | TFR-CR-001 (§6) | Draft |
-| TFR-005 | TFR-CR-002 (§6) | Draft |
-| TFR-006 | Flow 4.1 ขั้น 1-9, Integration Points (§5) | Draft |
+| TFR-004 | TD-001 (§6) | Draft |
+| TFR-005 | TD-002 (§6) | Draft |
+| TFR-006 | Flow 4.1 ขั้น 1-9, Integration Points (§5), TD-006 (§6) | Draft |
 | TFR-007 | Component `api/chat/comments/[commentId]/private-reply` (§3) | Draft |
 | TFR-008 | Component `api/shops/comment-reply/logs` (§3) | Draft |
 | TFR-009 | (ไม่มี TD แยก — implement ตรงใน `page-comment.service.ts`, ดู SRS TFR-009 โดยตรง) | Draft |
 | TFR-010 | (ไม่ต้องแก้ query เดิม — ดู SRS TFR-010) | Draft |
 | TFR-011 | Flow 4.1 ขั้น 8 (`shopLastReadAt=now()`) | Draft |
-| TFR-012 | TFR-CR-005 (§6) | Draft |
-| NFR — Idempotency | TFR-CR-004 (§6) | Draft |
+| TFR-012 | TD-005 (§6) | Draft |
+| NFR — Idempotency | TD-004 (§6) | Draft |
 | NFR — Reliability | Flow 4.2 (§4) | Draft |
 
 ---
