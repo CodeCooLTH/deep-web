@@ -34,10 +34,15 @@ export async function POST(req: NextRequest) {
   const parsed = v.safeParse(Body, await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'token ไม่ถูกต้อง' }, { status: 400 })
 
+  // platform: แอปส่งมาให้ตั้งแต่วันแรกแต่เคยโยนทิ้งเพราะไม่มีคอลัมน์รองรับ (เพิ่มแล้ว
+  // migration 20260808150000) — จำเป็นเพราะ subtitle ของ Expo Push ใช้ได้เฉพาะ iOS
+  // `?? undefined` ไม่ใช่ null: แอปเวอร์ชันเก่าที่ไม่ส่งค่ามา ต้อง "ไม่แตะคอลัมน์" ไม่ใช่ล้างค่า
+  // ที่เคยบันทึกไว้ทิ้ง (เครื่องเดิมยิงซ้ำทุก 5 นาที ถ้าเขียน null ทับจะลบของดีทิ้งทุกรอบ)
+  const platform = parsed.output.platform ?? undefined
   await prisma.pushToken.upsert({
     where: { token: parsed.output.token },
-    update: { userId },
-    create: { userId, token: parsed.output.token },
+    update: { userId, platform },
+    create: { userId, token: parsed.output.token, platform },
   })
 
   return NextResponse.json({ ok: true })

@@ -74,6 +74,7 @@ model User {
   watchList     WatchList[]    @relation("UserWatches")
   notifications Notification[] @relation("UserNotifications")
   pushTokens    PushToken[]    @relation("UserPushTokens")
+  shopNotificationPrefs ShopNotificationPref[] @relation("UserShopNotificationPrefs")
   bidReactions  BidReaction[]  @relation("UserBidReactions")
 
   // --- Deep Stock Pro (feature 00009) ---
@@ -273,6 +274,7 @@ model Shop {
   inventoryEntitlement InventoryEntitlement?
   stockMovements       StockMovement[] // Deep Stock Pro (feature 00009) — denormalized scope
   members              ShopMember[] // NEW (feature 00008)
+  notificationPrefs    ShopNotificationPref[] @relation("ShopNotificationPrefs")
   invites              ShopInvite[] // NEW (feature 00008)
   inviteLinks          ShopInviteLink[] // NEW (feature 00012) — reusable staff invite link
   videos               ShopVideo[] // คลิปที่ร้านเลือกโชว์บนหน้าร้านสาธารณะ (2026-07-26)
@@ -1273,11 +1275,46 @@ model PushToken {
   userId    String
   // Expo push token (ExponentPushToken[...]) — unique กัน register ซ้ำ
   token     String   @unique
+  // platform: "ios" | "android" — /api/seller/push-token รับค่านี้จากแอปมาตั้งแต่วันแรกแต่เคย
+  // โยนทิ้งเพราะไม่มีคอลัมน์รองรับ. จำเป็นเพราะ Expo Push มีฟิลด์ที่ใช้ได้เฉพาะ iOS (subtitle)
+  // — ถ้าแยกเครื่องไม่ได้ ก็ประกอบข้อความให้เหมาะกับแต่ละแพลตฟอร์มไม่ได้ (ดู lib/expo-push.ts)
+  // nullable เพราะแถวเดิมที่ลงทะเบียนก่อนคอลัมน์นี้จะไม่มีค่า — ห้ามเดาว่าเป็น ios
+  platform  String?
   createdAt DateTime @default(now())
 
   user User @relation("UserPushTokens", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// ShopNotificationPref — "ฉันอยากรับแจ้งเตือนของร้านไหนบ้าง" (user สั่ง 2026-08-08: "ตั้งค่าทีละร้านได้")
+///
+/// 🛑 ไม่มีแถว = เปิด (opt-out) เก็บเฉพาะตอนผู้ใช้กดปิด — ผู้ใช้เดิมทุกคนจึงไม่ต้อง backfill
+/// และร้านที่สร้างใหม่ได้ noti ทันทีโดยไม่ต้องมีใครไปสร้างแถวรอไว้ให้ (ถ้าออกแบบเป็น opt-in
+/// ร้านใหม่จะเงียบสนิทจนกว่าจะมีคนไปกดเปิด ซึ่งไม่มีอะไรบอกให้เขารู้ว่าต้องไปกด)
+///
+/// ทำไมไม่เก็บที่ ShopMember: แถว ShopMember ถูกสร้างเฉพาะร้าน BUSINESS (business-shop.service.ts)
+/// — เจ้าของร้าน PERSONAL ไม่มีแถวเลย จะตั้งค่าไม่ได้ทั้งกลุ่ม
+///
+/// ทำไมผูกกับ (user, shop) ไม่ใช่ shop เดี่ยว ๆ: นี่คือความชอบของ "คน" ไม่ใช่การตั้งค่าของร้าน
+/// พนักงานสองคนในร้านเดียวกันตั้งไม่เหมือนกันได้
+model ShopNotificationPref {
+  id     String @id @default(uuid())
+  userId String
+  shopId String
+  /// แจ้งเตือน "ข้อความใหม่จากลูกค้า" — ตั้งชื่อเจาะจงชนิดตั้งแต่แรก ไม่ใช่ `enabled` รวม
+  /// เพราะวันที่มี noti ชนิดอื่น (ออเดอร์ใหม่ / พัสดุมีปัญหา) จะเพิ่มคอลัมน์ใหม่ได้เลย
+  /// ไม่ต้องเปลี่ยนความหมายของค่าที่ผู้ใช้เคยตั้งไว้ (คนที่เคยปิด "แชท" จะได้ไม่โดนปิดของอื่นตามไปด้วย)
+  chatEnabled Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation("UserShopNotificationPrefs", fields: [userId], references: [id], onDelete: Cascade)
+  shop Shop @relation("ShopNotificationPrefs", fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shopId])
+  // shopAudience() ถามว่า "ในร้านนี้ ใครปิดแชทไว้บ้าง" — index ตรงกับรูป query นั้น
+  @@index([shopId, chatEnabled], map: "ShopNotificationPref_shopId_chatEnabled_idx")
 }
 
 model Notification {

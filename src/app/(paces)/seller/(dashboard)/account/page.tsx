@@ -19,9 +19,11 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import type { Metadata } from 'next'
+import { listShopNotificationPrefs } from '@/services/notification-pref.service'
 import { ConnectedAccountsClient } from './components/ConnectedAccountsClient'
 import ProfileForm from './components/ProfileForm'
 import DeleteAccountCard from './components/DeleteAccountCard'
+import NotificationPrefsCard from './components/NotificationPrefsCard'
 
 export const metadata: Metadata = { title: 'ข้อมูลส่วนตัว' }
 
@@ -30,13 +32,16 @@ export default async function AccountPage() {
   const sessionUser = (session as { user?: { id: string } } | null)?.user
   if (!sessionUser) return null
 
-  const [accounts, dbUser] = await Promise.all([
+  const [accounts, dbUser, notificationShops] = await Promise.all([
     // select เฉพาะ provider — กันส่ง providerAccountId/accessToken เข้า RSC flight
     prisma.authAccount.findMany({ where: { userId: sessionUser.id }, select: { provider: true } }),
     prisma.user.findUnique({
       where: { id: sessionUser.id },
       select: { displayName: true, username: true, avatar: true, email: true, phone: true, passwordHash: true },
     }),
+    // ร้านทั้งหมดที่ผู้ใช้เข้าถึงได้ + สถานะแจ้งเตือนของแต่ละร้าน — ผูกกับ session.user.id
+    // ไม่ใช่ activeShopId (เส้นแบ่งของหน้านี้ ดู comment หัวไฟล์)
+    listShopNotificationPrefs(sessionUser.id),
   ])
   if (!dbUser) return null
 
@@ -115,6 +120,13 @@ export default async function AccountPage() {
             hasPhone={dbUser.phone != null}
           />
         </div>
+
+        {/* การแจ้งเตือน — วางก่อน "ลบบัญชี" เสมอ: ลบบัญชีเป็น destructive ต้องอยู่ท้ายสุดของหน้า
+            (ถ้าแทรกการ์ดอื่นต่อจากมัน ปุ่มลบจะไปนอนกลางหน้าแล้วโดนกดพลาดง่ายขึ้น)
+
+            แสดงทุก breakpoint ไม่ซ่อนบนเดสก์ท็อป — คนที่เผลอปิดร้านหนึ่งไว้จากมือถือ ต้องเปิดกลับ
+            จากคอมได้ ถ้าซ่อนไว้เขาจะหาไม่เจอแล้วสรุปว่าแจ้งเตือนของร้านนั้นพัง */}
+        <NotificationPrefsCard shops={notificationShops} />
 
         {/* ลบบัญชี — ท้ายสุดของหน้าเสมอ (App Store Guideline 5.1.1(v) บังคับให้มีในแอป)
             ทำไมอยู่หน้านี้ ไม่ใช่ /shop: ลบบัญชีคือลบ "ตัวคน" ไม่ใช่ลบร้าน จึงเข้าพวกกับ
