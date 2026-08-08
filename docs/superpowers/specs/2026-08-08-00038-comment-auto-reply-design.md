@@ -269,8 +269,12 @@ sendPrivateReplyToComment({ commentId, text, trigger, actorUserId? })
 > **รอ user ยืนยันไอคอน** — เสนอ `tabler-message-reply` (เพื่อนบ้านคือ `message-circle` /
 > `message-bolt` / `robot`) ตามกฎห้ามเดาไอคอนเอง (`docs/conventions/no-emoji-use-icons.md`)
 
-เมนูนี้ต้องเข้า `VERTICAL_VISIBLE_SLUGS` ของทุก vertical ที่เห็นเมนู "ข้อความ" อยู่แล้ว —
-`seller-menu.ts` เป็น **allow-list + fail-closed** (00028) ลืมใส่ = เมนูหายเงียบ
+🛑 **ห้ามใส่ slug นี้ลงใน array ใด ๆ ของ vertical gating** (แก้ 2026-08-08 — ฉบับแรกของเอกสารนี้
+เขียนกลับด้าน): `applyVerticalMenu` (`seller-menu.ts:339`) ซ่อนเฉพาะ slug ที่อยู่ใน
+`ALL_VERTICAL_SCOPED_SLUGS` (= `LODGING_ONLY_SLUGS` + `ONLINE_SALES_ONLY_SLUGS` +
+`SERVICE_QUEUE_ONLY_SLUGS` + `SHARED_PRODUCT_SLUGS`) **slug ที่ไม่อยู่ในนั้นเลยเห็นได้ทุก vertical
+โดยอัตโนมัติ** — `seller:inbox` เองก็ไม่ปรากฏใน array ไหนเลย เมนูนี้ต้องเห็นทุก vertical
+จึงต้องไม่แตะ array พวกนี้ การใส่เข้าไปคือการซ่อนเมนูจาก vertical อื่น ซึ่งตรงข้ามกับเจตนา
 
 ### 9.2 หน้าตั้งค่า
 
