@@ -50,9 +50,14 @@ export default function OrderProfitInline({ profit, orderNoun }: Props) {
 
   return (
     <p
+      // role="img" ไม่ใช่ <p> เปล่า — aria-label ใช้ได้เฉพาะกับ role ที่รองรับ "ชื่อจากผู้เขียน"
+      // ซึ่ง role=paragraph (ค่าปริยายของ <p>) ไม่รองรับ ถ้าไม่ประกาศ role ที่นี่ screen reader
+      // ที่ทำตามสเปกจะทิ้ง aria-label แล้วอ่านเนื้อในแทน ซึ่ง aria-hidden ไว้หมด = เงียบสนิท
+      // (ทรงเดียวกับ MiniShipmentTimeline.tsx ในโฟลเดอร์นี้ที่ทำถูกอยู่แล้ว)
+      role="img"
       className={`mt-0.5 flex items-center gap-1 text-xs font-medium ${tone.text}`}
       // note = ประโยคเต็มที่บอกว่าตัวเลขนี้เชื่อได้แค่ไหน — ในเซลล์แคบ ๆ ไม่มีที่ให้พิมพ์เต็ม
-      // จึงยัดใส่ title (เมาส์) + aria-label (screen reader ได้ยินเสมอ แม้บนมือถือที่ไม่มี hover)
+      // title ใช้ได้เฉพาะคนที่มีเมาส์ (มือถือไม่มี hover) จึงต้องมี aria-label คู่เสมอ ไม่ใช่แทนกัน
       title={p.note}
       aria-label={`${p.label}${showAmount ? ` ${p.amount}` : ''} · ${p.note}`}
     >

@@ -122,7 +122,11 @@ export default function QuickLineItem({
               value={descField.value ?? ''}
               onChange={descField.onChange}
               onBlur={descField.onBlur}
-              className="w-full rounded-md border border-transparent px-1.5 py-0.5 text-xs text-default-500 focus:border-default-300 focus:bg-white focus:outline-none"
+              /* focus:border-default-400 ไม่ใช่ -300 — ช่องนี้ขอบโปร่งใสตอนพัก ขอบที่โผล่ตอน
+                 โฟกัสจึงเป็น "ตัวบอกโฟกัส" ตัวเดียวที่มี (focus:bg-white บนการ์ดขาวแทบไม่เห็น)
+                 WCAG 1.4.11 บังคับ 3:1 แต่ default-300 = 1.22:1 ส่วน default-400 = 4.95:1
+                 — ตัวเลขชุดเดียวกับที่โปรเจกต์วัดไว้เองแล้วแก้ให้ .form-checkbox (_forms.css:96) */
+              className="w-full rounded-md border border-transparent px-1.5 py-0.5 text-xs text-default-500 focus:border-default-400 focus:bg-white focus:outline-none"
             />
             {itemErrors?.name && <p className="mt-0.5 px-1.5 text-xs text-danger">{itemErrors.name.message}</p>}
             {overStock && (
