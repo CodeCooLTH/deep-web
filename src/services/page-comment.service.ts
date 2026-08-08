@@ -254,6 +254,39 @@ export async function backfillPagePosts(params: {
   return result
 }
 
+/**
+ * สถานะการตอบของคอมเมนต์/โพสต์ (feature 00038 BR-CR-S1/S2) — 3 ชั้น แทนที่ boolean คู่เดิม
+ * ที่ overlap กันได้ (unanswered/done) ซึ่งเป็นต้นเหตุของบั๊ก "ตัวเลขไม่ตรงกัน" มาแล้วในหน้านี้
+ */
+export type CommentAnswerState = 'UNANSWERED' | 'BOT_ANSWERED' | 'HUMAN_ANSWERED'
+
+/**
+ * สถานะของคอมเมนต์ 1 อัน ตัดสินจากคำตอบของเพจที่อยู่ใต้มัน (feature 00038 BR-CR-S1)
+ *
+ * 🛑 ฟังก์ชันนี้ต้องเป็นทางเดียวที่ตัดสินสถานะ — ทั้งตัวนับบน badge, ตัวเลขบนชิป และตัวกรอง
+ * ที่ใช้จริง ต้องผ่านตัวนี้ จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" พร้อมกันมาแล้วเพราะคำนวณคนละที่
+ * (docs/conventions/sibling-surface-parity.md)
+ */
+export function deriveCommentState(
+  replies: Array<{ isFromPage: boolean; isAutoReply: boolean }>,
+): CommentAnswerState {
+  const pageReplies = replies.filter((r) => r.isFromPage)
+  if (pageReplies.length === 0) return 'UNANSWERED'
+  return pageReplies.some((r) => !r.isAutoReply) ? 'HUMAN_ANSWERED' : 'BOT_ANSWERED'
+}
+
+/**
+ * สถานะของโพสต์ = ตัวที่แย่ที่สุดในบรรดาคอมเมนต์ของมัน (BR-CR-S2)
+ *
+ * ต้องเป็นแบบนี้เพื่อให้ 3 กลุ่มไม่ทับกันและรวมกันได้เท่ายอดทั้งหมด (AC-CR-27)
+ * โพสต์ที่ไม่มีคอมเมนต์ของลูกค้าเลยถือว่าไม่มีอะไรค้าง จึงต้องไม่ไปโผล่ใน "ยังไม่ตอบ"
+ */
+export function derivePostState(commentStates: CommentAnswerState[]): CommentAnswerState {
+  if (commentStates.includes('UNANSWERED')) return 'UNANSWERED'
+  if (commentStates.includes('BOT_ANSWERED')) return 'BOT_ANSWERED'
+  return 'HUMAN_ANSWERED'
+}
+
 export interface CommentPostRow {
   id: string
   externalPostId: string
@@ -267,6 +300,11 @@ export interface CommentPostRow {
   lastCommentAt: Date | null
   commentCount: number
   unansweredCount: number
+  /**
+   * สถานะรวมของโพสต์ (feature 00038 BR-CR-S2) — ตัวที่แย่ที่สุดในบรรดาคอมเมนต์ของโพสต์ชนะ
+   * ตัดสินจาก derivePostState() ตัวเดียวกับที่ badge แถวโพสต์และตัวนับบนแท็บใช้ (BR-CR-S4)
+   */
+  postStatus: CommentAnswerState
   /**
    * เวลาของคอมเมนต์ลูกค้าที่ยังไม่ถูกตอบ **ที่เก่าที่สุดในกลุ่มที่ยังทักแชทได้** (null = ไม่มีอันไหน
    * ที่ยังทักได้ — ตอบครบแล้ว หรือของที่ค้างอยู่พ้น 7 วันไปหมดแล้ว)
@@ -296,6 +334,19 @@ export interface CommentPostRow {
  * คอมเมนต์ของเพจเองไม่ถูกนับ เพราะเพจไม่ต้องตอบตัวเอง) — คำนวณสด ไม่ denormalize เพราะจำนวนโพสต์
  * ที่แสดงมีจำกัด (25) และตัวเลขที่ผิดเพราะลืมอัปเดต counter แย่กว่า query ที่ช้าขึ้นนิดเดียว
  */
+/** จำนวนโพสต์ต่อสถานะ ณ ชุดที่ query รอบนี้ดึงมา (feature 00038 BR-CR-S4)
+ *
+ * 🛑 ต้องคำนวณจากอาร์เรย์ post ชุดเดียวกับที่ filter ด้วย `state` ก่อนตัด — ถ้าคำนวณด้วย SQL COUNT
+ * แยกอีกชุดแล้วเอามาวางคู่กับผลที่ filter ด้วย TS อีกที ตัวเลขจะไม่ตรงกันได้เมื่อสองฝั่งนิยาม
+ * "นับอะไร" ต่างกันแม้นิดเดียว (บทเรียน Command Center 2026-08-04: กดเลข 5 เข้าไปเจอ 4)
+ */
+export interface CommentPostCounts {
+  all: number
+  unanswered: number
+  botAnswered: number
+  humanAnswered: number
+}
+
 export async function listCommentPosts(params: {
   /** ร้านที่รายการครอบคลุม (feature 00037) — ความยาว 1 = โหมดเดิม; มาจาก resolveChatScope เท่านั้น */
   shopIds: string[]
@@ -306,8 +357,15 @@ export async function listCommentPosts(params: {
   skip?: number
   /** กรองเฉพาะเพจเดียว (ตัวกรองเหมือนแท็บข้อความ) — ไม่ส่ง = ทุกเพจของร้าน */
   shopChannelId?: string
-}): Promise<CommentPostRow[]> {
-  if (params.shopIds.length === 0) return []
+  /**
+   * แท็บสถานะ (feature 00038 UX-Design-Spec §3.2) — 'ALL' = ไม่กรอง (ค่าตั้งต้น)
+   * กรอง**หลัง**คำนวณ postStatus ของทุกโพสต์ในชุดที่ query มาแล้ว ไม่ใช่กรองที่ SQL WHERE
+   * เพราะ postStatus เป็นค่า derived ไม่ใช่คอลัมน์ในฐาน (ตัดสินจาก derivePostState เท่านั้น)
+   */
+  state?: 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN'
+}): Promise<{ posts: CommentPostRow[]; counts: CommentPostCounts }> {
+  const EMPTY_COUNTS: CommentPostCounts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
+  if (params.shopIds.length === 0) return { posts: [], counts: EMPTY_COUNTS }
   await assertShopsAccessible(params.shopIds, params.actorUserId)
 
   const channels = await prisma.shopChannel.findMany({
@@ -318,7 +376,7 @@ export async function listCommentPosts(params: {
     },
     select: { id: true },
   })
-  if (channels.length === 0) return []
+  if (channels.length === 0) return { posts: [], counts: EMPTY_COUNTS }
   const channelIds = channels.map((c) => c.id)
 
   const q = params.q?.trim()
@@ -361,6 +419,8 @@ export async function listCommentPosts(params: {
           message: true,
           attachmentUrl: true,
           createdTime: true,
+          // feature 00038 — ต้องมีเพื่อแยก BOT_ANSWERED ออกจาก HUMAN_ANSWERED ใน deriveCommentState
+          isAutoReply: true,
         },
       },
     },
@@ -370,12 +430,19 @@ export async function listCommentPosts(params: {
   // คิดครั้งเดียวนอกลูป (ทุกแถวใช้เส้นเดียวกัน) — ค่าคงที่อยู่ที่ UI ด้วย (privateReplyWindow)
   const dmWindowStart = Date.now() - 7 * 24 * 60 * 60 * 1000
 
-  return posts.map((p) => {
-    const answered = new Set(
-      p.comments.filter((c) => c.isFromPage && c.parentExternalId).map((c) => c.parentExternalId!),
-    )
+  const mapped: CommentPostRow[] = posts.map((p) => {
     const customerComments = p.comments.filter((c) => !c.isFromPage && !c.isDeleted)
-    const unanswered = customerComments.filter((c) => !answered.has(c.externalCommentId))
+    // สถานะต่อคอมเมนต์ — ตัดสินจาก deriveCommentState() ตัวเดียวกับที่เธรด/ตัวนับอื่นใช้ (BR-CR-S4)
+    // ไม่ใช่เซตที่คำนวณเองแยกทาง (ของเดิมนับ "มี isFromPage reply ใด ๆ" = answered ซึ่งปน
+    // คำตอบของบอทเข้ากับคำตอบของคนไว้ด้วยกัน — นี่คือบั๊กที่ทำให้ "ยังไม่ตอบ" หายไปเมื่อเปิดบอท)
+    const commentStates = customerComments.map((c) =>
+      deriveCommentState(
+        p.comments
+          .filter((r) => r.parentExternalId === c.externalCommentId)
+          .map((r) => ({ isFromPage: r.isFromPage, isAutoReply: r.isAutoReply })),
+      ),
+    )
+    const unanswered = customerComments.filter((_, i) => commentStates[i] === 'UNANSWERED')
     const last = [...p.comments]
       .filter((c) => !c.isFromPage)
       .sort((a, b) => b.createdTime.getTime() - a.createdTime.getTime())[0]
@@ -410,8 +477,37 @@ export async function listCommentPosts(params: {
         .reduce<Date | null>((oldest, c) => (oldest === null || c.createdTime < oldest ? c.createdTime : oldest), null),
       lastCommenterName: last?.fromName ?? null,
       lastCommentText: last ? (last.message ?? (last.attachmentUrl ? '[รูปภาพ]' : null)) : null,
+      // feature 00038 BR-CR-S2 — ตัวที่แย่ที่สุดในบรรดาคอมเมนต์ของโพสต์ชนะ; ไม่มีคอมเมนต์ลูกค้าเลย
+      // = HUMAN_ANSWERED (ไม่มีอะไรค้าง) เพราะ derivePostState([]) คืนค่านั้นเสมอ
+      postStatus: derivePostState(commentStates),
     }
   })
+
+  // ตัวนับ 4 กลุ่ม (feature 00038 BR-CR-S4) — คำนวณจาก postStatus ของ `mapped` ชุดเดียวกับที่
+  // filter ด้วย params.state ด้านล่าง ไม่ใช่ query SQL COUNT แยกอีกชุด: ตัวเลขบนแท็บ/badge/
+  // ตัวกรองต้องมาจาก symbol เดียวเสมอ (docs/conventions/sibling-surface-parity.md)
+  const counts: CommentPostCounts = mapped.reduce(
+    (acc, row) => {
+      acc.all += 1
+      if (row.postStatus === 'UNANSWERED') acc.unanswered += 1
+      else if (row.postStatus === 'BOT_ANSWERED') acc.botAnswered += 1
+      else acc.humanAnswered += 1
+      return acc
+    },
+    { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 },
+  )
+
+  const wantedState: CommentAnswerState | null =
+    params.state === 'UNANSWERED'
+      ? 'UNANSWERED'
+      : params.state === 'BOT'
+        ? 'BOT_ANSWERED'
+        : params.state === 'HUMAN'
+          ? 'HUMAN_ANSWERED'
+          : null
+  const filtered = wantedState ? mapped.filter((p) => p.postStatus === wantedState) : mapped
+
+  return { posts: filtered, counts }
 }
 
 /** ยอด engagement เก่าได้ — รีเฟรชตอนเปิดโพสต์ ไม่เกินทุก 5 นาทีต่อโพสต์ (เหมือน backfill) */
@@ -464,6 +560,8 @@ export interface CommentRow {
    */
   privateReplySentAt: Date | null
   privateReplyConversationId: string | null
+  /** feature 00038 Task 9 — ป้าย "ตอบอัตโนมัติ" บนบับเบิลของบอท (ตัดสินสถานะผ่าน deriveCommentState) */
+  isAutoReply: boolean
 }
 
 /** คอมเมนต์ทั้งหมดของโพสต์ (เก่า→ใหม่) + เติมของเก่าจาก Graph ถ้ายังไม่เคยดึง */
@@ -573,6 +671,7 @@ export async function getPostComments(params: {
       repliedByUserId: c.repliedByUserId,
       privateReplySentAt: privateReplyByCommentId.get(c.id)?.createdAt ?? null,
       privateReplyConversationId: privateReplyByCommentId.get(c.id)?.conversationId ?? null,
+      isAutoReply: c.isAutoReply,
     })),
   }
 }
@@ -806,6 +905,7 @@ export async function countUnansweredForShops(params: {
         SELECT 1 FROM "PageComment" r
         WHERE r."parentExternalId" = c."externalCommentId"
           AND r."isFromPage" = true
+          AND r."isAutoReply" = false   -- feature 00038: คำตอบของบอทไม่ทำให้หายจากคิว
       )
   `
   return Number(rows[0]?.count ?? 0)
