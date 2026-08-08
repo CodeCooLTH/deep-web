@@ -1540,21 +1540,27 @@ cat "src/app/(paces)/seller/(dashboard)/settings/auto-reply/AutoReplyListing.tsx
       { url: '/settings/comment-reply', slug: 'seller:settings-comment-reply', label: 'ตอบกลับคอมเมนต์', icon: 'message-reply' },
 ```
 
-- [ ] **Step 6: 🛑 เพิ่ม slug เข้า allow-list ของทุก vertical**
+- [ ] **Step 6: 🛑 ห้ามเพิ่ม slug เข้า array ใด ๆ ของ vertical gating**
 
 ```bash
-grep -n "VERTICAL_VISIBLE_SLUGS" -A 40 src/lib/seller-menu.ts
+grep -n "_ONLY_SLUGS\|SHARED_PRODUCT_SLUGS\|VERTICAL_VISIBLE_SLUGS\|ALL_VERTICAL_SCOPED_SLUGS" -A 6 src/lib/seller-menu.ts
 ```
 
-เพิ่ม `'seller:settings-comment-reply'` เข้าทุก vertical ที่มี `'seller:inbox'` อยู่แล้ว — **`seller-menu.ts` เป็น allow-list + fail-closed (00028) ลืมใส่ = เมนูหายเงียบ ไม่มี error ไม่มีอะไรฟ้อง**
+อ่านให้เข้าใจก่อนทำอะไร — **กลไกจริงตรงข้ามกับที่เข้าใจกันบ่อย** (ผู้เขียนแผนเองก็เข้าใจผิดในรอบแรก):
 
-- [ ] **Step 7: ยืนยันว่าเมนูโผล่จริงในทุก vertical**
+`applyVerticalMenu` ซ่อนเมนูจาก `ALL_VERTICAL_SCOPED_SLUGS` เท่านั้น (`seller-menu.ts:339`) ซึ่งประกอบจาก `LODGING_ONLY_SLUGS` + `ONLINE_SALES_ONLY_SLUGS` + `SERVICE_QUEUE_ONLY_SLUGS` + `SHARED_PRODUCT_SLUGS` — **slug ที่ไม่อยู่ในลิสต์เหล่านี้เลยจะเห็นได้ทุก vertical โดยอัตโนมัติ** ยืนยันได้จาก `seller:inbox` ที่ไม่ปรากฏใน array ไหนเลย (`grep -n "seller:inbox" src/lib/seller-menu.ts` เจอเฉพาะจุดนิยามเมนู กับจุดแปะ badge)
+
+เมนู "ตอบกลับคอมเมนต์" ต้องเห็นได้ทุก vertical → **ไม่ต้องแตะ array พวกนี้เลยสักตัว** การใส่เข้าไปใน `*_ONLY_SLUGS` จะทำให้เมนูถูกซ่อนจาก vertical อื่นทันที ซึ่งเป็นบั๊กที่ตรงข้ามกับเจตนา
+
+- [ ] **Step 7: ยืนยันว่าเมนูไม่ถูก vertical gating แตะ**
 
 ```bash
-grep -c "seller:settings-comment-reply" src/lib/seller-menu.ts
+grep -n "seller:settings-comment-reply" src/lib/seller-menu.ts
 ```
 
-Expected: จำนวน = 1 (นิยามเมนู) + จำนวน vertical ที่เห็นเมนู "ข้อความ" — นับจำนวน `'seller:inbox'` ใน `VERTICAL_VISIBLE_SLUGS` มาเทียบ ตัวเลขต้องเท่ากัน
+Expected: **1 บรรทัดเท่านั้น** — จุดนิยามเมนูในกลุ่ม CHAT ถ้าเจอมากกว่า 1 แปลว่ามีคนไปใส่ใน array gating แล้ว ต้องเอาออก
+
+ยืนยันเพิ่มด้วยว่าเมนูรอดจริงทั้ง 3 vertical โดยไล่ตรรกะ: slug ไม่อยู่ใน `ALL_VERTICAL_SCOPED_SLUGS` → ไม่เข้า `hidden` → ไม่ถูกกรองออก
 
 - [ ] **Step 8: grep gate**
 
