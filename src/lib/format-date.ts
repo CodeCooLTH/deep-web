@@ -175,6 +175,23 @@ export function formatTimeHM(input: Date | string | number | null | undefined): 
 }
 
 /**
+ * "1 ส.ค." — วันที่ย่อไม่มีปีไม่มีเวลา (ป้ายบนปุ่มตัวกรองที่แคบ, 2026-08-08)
+ *
+ * ไม่มีปีโดยตั้งใจ — ปุ่มตัวกรองในแถบเครื่องมืออยู่ข้าง ๆ ป้ายอื่นที่ก็ไม่มีปี ("วันนี้",
+ * "7 วันที่ผ่านมา") และที่ 320px ปุ่มมีที่จำกัดมาก · ผลลัพธ์จริงในตาราง/การ์ดข้างล่างแสดง
+ * วันที่เต็มเป็น พ.ศ. อยู่แล้ว ผู้ใช้จึงตรวจสอบปีได้จากที่นั่น
+ *
+ * [สำคัญ] ห้ามใช้ thaiDayKey() แทนฟังก์ชันนี้เพื่อโชว์ผู้ใช้ — ตัวนั้นเป็นคีย์ ค.ศ.
+ */
+export function formatDayMonthTH(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const p = partsInBangkok(d)
+  const monthIdx = Number(p.month) - 1
+  return `${Number(p.day)} ${THAI_MONTHS_ABBR[monthIdx] ?? '—'}`
+}
+
+/**
  * "09:00–10:30" — ช่วงเวลาในวันเดียว (feature 00036)
  *
  * มีไว้เพราะงานที่เป็น "ช่วง" (นัดคิวงาน) ถูกเขียนเป็น `${formatTimeHM(a)}–${formatTimeHM(b)}`

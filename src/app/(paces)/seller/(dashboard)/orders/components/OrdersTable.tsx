@@ -50,6 +50,8 @@ import { APPOINTMENT_STAGE_KEYS, APPOINTMENT_STAGE_META } from '@/lib/appointmen
 import OrderActions from './OrderActions'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
+import OrderDateFilterDropdown from './OrderDateFilterDropdown'
+import { isSpecificDay, matchesOrderDateFilter } from '@/lib/order-date-filter'
 import { useRouter } from 'next/navigation'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -94,38 +96,11 @@ const STAGE_BADGE_CLS: Record<(typeof STAGE_FILTER_KEYS)[number], string> = {
   PROBLEM: 'bg-danger/15 text-danger-ink',
 }
 
-// ─── date range filter (adapt จาก theme dateRangeFilterFn) ───────────────────
-const dateRangeFilterFn: FilterFn<OrderRow> = (row, _columnId, selectedRange) => {
-  if (!selectedRange || selectedRange === 'All') return true
-  const iso = row.original.createdAtISO
-  if (!iso) return false
-  const cellDate = new Date(iso)
-  if (isNaN(cellDate.getTime())) return false
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const endOfToday   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-  switch (selectedRange) {
-    case 'Today':
-      return cellDate >= startOfToday && cellDate < endOfToday
-    case 'Last 7 Days': {
-      const s = new Date(now); s.setDate(now.getDate() - 7)
-      return cellDate >= s && cellDate < endOfToday
-    }
-    case 'Last 30 Days': {
-      const s = new Date(now); s.setDate(now.getDate() - 30)
-      return cellDate >= s && cellDate < endOfToday
-    }
-    case 'This Year': {
-      const s = new Date(now.getFullYear(), 0, 1)
-      const e = new Date(now.getFullYear() + 1, 0, 1)
-      return cellDate >= s && cellDate < e
-    }
-    default:
-      return true
-  }
-}
-
-
+// ─── date range filter — ตรรกะอยู่ที่ src/lib/order-date-filter.ts (SSOT ร่วมกับโมดัลมือถือ) ───
+// เดิมเขียนไว้ที่ไฟล์นี้ที่เดียว แปลว่ามือถือไม่มีตัวกรองช่วงเวลาเลย · และตัดวันด้วย
+// new Date() ของเครื่องแทน thaiDayKey (บังเอิญตรงเพราะเครื่องในไทยตั้ง tz ไทย)
+const dateRangeFilterFn: FilterFn<OrderRow> = (row, _columnId, selectedRange) =>
+  matchesOrderDateFilter(row.original.createdAtISO, (selectedRange as string) ?? 'All')
 
 /** ชื่อขนส่งที่ใช้เป็นคีย์ตัวกรอง — null = ใบที่ยังไม่ได้เปิดพัสดุ */
 function courierKeyOf(o: OrderRow): string | null {
@@ -720,6 +695,9 @@ export default function OrdersTable({
    * โดยไม่มี error ให้เห็นเลย (เกิดจริงกับ 'createdAtISO' — ตัวกรองช่วงเวลาไม่ทำงาน
    * ตั้งแต่ 2026-08-06 จนผู้ใช้มาเจอเอง) จึงให้มันดังตอน dev แทนที่จะเงียบ
    */
+  /** ค่าตัวกรองช่วงเวลาที่ใช้อยู่ — อ่านผ่าน filterColumn เพื่อให้เตือนดังถ้าคอลัมน์หาย */
+  const dateFilterValue = (table.getColumn('createdAtISO')?.getFilterValue() as string) ?? 'All'
+
   const filterColumn = (id: string) => {
     const column = table.getColumn(id)
     if (!column && process.env.NODE_ENV !== 'production') {
@@ -854,19 +832,10 @@ export default function OrdersTable({
             />
           )}
 
-          {/* ช่วงเวลา */}
-          <FilterDropdown
-            icon="calendar"
-            defaultLabel="ช่วงเวลา"
-            resetValue="All"
+          {/* ช่วงเวลา — ตัวเดียวในแถบนี้ที่ไม่ใช่ FilterDropdown เพราะมีโหมดเลือกวันเจาะจง
+              (ดูเหตุผลที่หัวไฟล์ OrderDateFilterDropdown ว่าทำไมไม่ยัดเข้า FilterDropdown) */}
+          <OrderDateFilterDropdown
             value={(filterColumn('createdAtISO')?.getFilterValue() as string) ?? 'All'}
-            options={[
-              { value: 'All', label: 'ทั้งหมด' },
-              { value: 'Today', label: 'วันนี้' },
-              { value: 'Last 7 Days', label: '7 วันที่ผ่านมา' },
-              { value: 'Last 30 Days', label: '30 วันที่ผ่านมา' },
-              { value: 'This Year', label: 'ปีนี้' },
-            ]}
             onChange={(v) => {
               filterColumn('createdAtISO')?.setFilterValue(v === 'All' ? undefined : v)
               table.setPageIndex(0)
@@ -901,7 +870,13 @@ export default function OrdersTable({
           (เลขออเดอร์ / ที่มา / วันที่) ดูเหตุผลเต็มที่คอมเมนต์เหนือ columns */}
       <DataTable<OrderRow>
         table={table}
-        emptyMessage="ไม่พบออเดอร์"
+        /* บอกด้วยว่ากรองวันไหนอยู่ — "ไม่พบออเดอร์" เฉย ๆ ทำให้แยกไม่ออกว่า "วันนั้นไม่มีจริง"
+           หรือ "ตัวกรองค้างอยู่" ซึ่งเป็นสองสถานการณ์ที่ต้องทำคนละอย่าง */
+        emptyMessage={
+          isSpecificDay(dateFilterValue)
+            ? `ไม่พบออเดอร์วันที่ ${formatDateTH(`${dateFilterValue}T00:00:00+07:00`)}`
+            : 'ไม่พบออเดอร์'
+        }
         groupRow={(row) => (
           /* w-9 (36px) ไม่ใช่ w-11: คอลัมน์ checkbox กว้าง 44px ก็จริง แต่ td ของแถบหัว
              มี padding-left 18px ขณะที่ช่องสินค้ามี 10px — ต่างกัน 8px พอดี (วัดจริงบน

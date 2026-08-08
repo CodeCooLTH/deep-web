@@ -39,6 +39,8 @@ import {
   isAppointmentStatus,
 } from '@/lib/appointment-stage'
 import { ORDER_STATUS_META } from '@/lib/order-display'
+import { ORDER_DATE_PRESETS, isSpecificDay, matchesOrderDateFilter } from '@/lib/order-date-filter'
+import { formatDateTH } from '@/lib/format-date'
 
 /** ลำดับชิปสถานะพัสดุ — เรียงตามเส้นทางจริงของพัสดุ ปิดท้ายด้วยกองที่ต้องแก้ */
 const STAGE_CHIPS = ['AWAITING_PARCEL', 'AWAITING_PICKUP', 'SHIPPING', 'AWAITING_COD', 'PROBLEM'] as const
@@ -176,6 +178,12 @@ export default function OrdersList({
    * "ไม่มีนัด" ให้เห็นอยู่ (ผู้ใช้เห็นคำแต่กรองไม่ได้ = เลขที่บวกไม่ลงตัวโดยไม่มีทางออก)
    */
   const appt = apptParam === 'NONE' || isAppointmentStatus(apptParam) ? apptParam : null
+  /**
+   * ตัวกรองช่วงเวลาของมือถือ (2026-08-08) — โมดัลนี้ไม่เคยมีตัวกรองวันที่เลย มีแต่ฝั่ง
+   * เดสก์ท็อป แปลว่าผู้ใช้มือถือเข้าไม่ถึงแกนนี้มาตลอด · ค่าเดียวกับที่เดสก์ท็อปใช้
+   * ('All' | preset | 'YYYY-MM-DD') และกรองด้วยฟังก์ชันตัวเดียวกัน (SSOT)
+   */
+  const [dateFilter, setDateFilter] = useState('All')
   const [search,      setSearch]      = useState('')
   const [typeFilter,  setTypeFilter]  = useState('')
   const [visibleCount, setVisibleCount] = useState(PAGE)
@@ -394,6 +402,8 @@ export default function OrdersList({
     let list = stageFiltered
     if (localStatus !== 'all') list = list.filter((o) => o.status === localStatus)
     if (typeFilter) list = list.filter((o) => o.orderType === typeFilter)
+    if (dateFilter !== 'All')
+      list = list.filter((o) => matchesOrderDateFilter(o.createdAtISO, dateFilter))
     if (search.trim()) {
       const q = search.toLowerCase().trim()
       list = list.filter(
@@ -405,12 +415,12 @@ export default function OrdersList({
       )
     }
     return list
-  }, [stageFiltered, localStatus, typeFilter, search])
+  }, [stageFiltered, localStatus, typeFilter, search, dateFilter])
 
   // reset lazy-load เมื่อ filter/search/status เปลี่ยน
   useEffect(() => {
     setVisibleCount(PAGE)
-  }, [localStatus, typeFilter, search, stage, appt])
+  }, [localStatus, typeFilter, search, stage, appt, dateFilter])
 
   // ─── lazy-load: เพิ่ม visibleCount เมื่อ sentinel เข้า viewport ───────────────
   const visible = filtered.slice(0, visibleCount)
@@ -466,6 +476,9 @@ export default function OrdersList({
    */
   const activeFilterCount =
     (typeFilter ? 1 : 0) +
+    // ช่วงเวลาอยู่ในโมดัลอย่างเดียว (ไม่มีบนแถวชิป) จึงต้องนับ ไม่งั้นกรองวันแล้วรายการหด
+    // โดยไม่มีสัญญาณอะไรบนจอเลย
+    (dateFilter !== 'All' ? 1 : 0) +
     // เงื่อนไขต้องตรงกับเงื่อนไขที่ render ส่วน "สถานะการขาย" ในโมดัลเป๊ะ (ดูข้างล่าง) —
     // feature 00036 เปิดให้ร้านคิวงานเห็นส่วนนั้นด้วย แต่ถ้าลืมแก้บรรทัดนี้คู่กัน จะกรองแล้ว
     // รายการหดจาก 120 เหลือ 3 โดยไม่มีสัญญาณอะไรบนจอเลยว่าเกิดจากตัวกรอง
@@ -658,7 +671,11 @@ export default function OrdersList({
             <SellerEmptyState
               compact
               icon="shopping-cart-off"
-              title={`ไม่มี${vocab.noun}ในสถานะนี้`}
+              title={
+                isSpecificDay(dateFilter)
+                  ? `ไม่มี${vocab.noun}วันที่ ${formatDateTH(`${dateFilter}T00:00:00+07:00`)}`
+                  : `ไม่มี${vocab.noun}ในสถานะนี้`
+              }
               action={{ label: `+ ${vocab.createLabel}แรก`, href: '/orders/new' }}
             />
           </div>
@@ -759,13 +776,80 @@ export default function OrdersList({
                 )
               })}
             </div>
+
+            {/* ช่วงเวลา — section ใหม่ 2026-08-08 (user สั่ง "เพิ่ม filter ให้ระบุวันที่ได้")
+                มือถือไม่เคยมีตัวกรองนี้เลย มีแต่ฝั่งเดสก์ท็อป · โครงปุ่มยกจาก "ประเภทออเดอร์"
+                ข้างบนทุกคลาส เพื่อให้ 3 section ในโมดัลเดียวกันอ่านเป็นชุดเดียว */}
+            <p className="mt-5 mb-2 text-sm font-medium text-default-900">ช่วงเวลา</p>
+            <div className="space-y-1">
+              {Object.entries(ORDER_DATE_PRESETS).map(([key, label]) => {
+                const active = dateFilter === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => busy.run(() => setDateFilter(key))}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm transition-colors',
+                      active ? 'border-primary bg-primary/5 text-primary' : 'border-default-200 text-default-700',
+                    )}
+                  >
+                    {label}
+                    {active && <Icon icon="check" className="text-base" />}
+                  </button>
+                )
+              })}
+
+              {/* เลือกวันเจาะจง — ช่องขยายอยู่ในหน้าเดิม ไม่เปิดชีตซ้อนชีต (โมดัลนี้เป็น
+                  fixed inset-0 อยู่แล้ว ซ้อนอีกชั้นทำให้ scroll-lock ยุ่งและไม่มี precedent)
+                  native picker เปิดที่ระดับ OS จึงไม่มีทางโดนกล่อง scroll ของโมดัลตัด */}
+              <div
+                className={cn(
+                  'rounded-lg border px-4 py-3 transition-colors',
+                  isSpecificDay(dateFilter)
+                    ? 'border-primary bg-primary/5'
+                    : 'border-default-200',
+                )}
+              >
+                <label
+                  htmlFor="orders-date-filter"
+                  className={cn(
+                    'mb-2 block text-sm',
+                    isSpecificDay(dateFilter) ? 'text-primary' : 'text-default-700',
+                  )}
+                >
+                  เลือกวันที่
+                </label>
+                <div className="input-icon-group">
+                  <Icon icon="calendar-search" className="input-icon" />
+                  <input
+                    id="orders-date-filter"
+                    type="date"
+                    className="form-input"
+                    value={isSpecificDay(dateFilter) ? dateFilter : ''}
+                    onChange={(e) => {
+                      // ว่าง = ผู้ใช้กดล้างค่าในตัว picker → กลับไป "ทั้งหมด" ไม่ใช่ค้างสถานะกำกวม
+                      busy.run(() => setDateFilter(e.target.value || 'All'))
+                    }}
+                  />
+                </div>
+                {isSpecificDay(dateFilter) && (
+                  <p className="text-default-500 mb-0 mt-2 text-xs">
+                    กรองเฉพาะวันที่ {formatDateTH(`${dateFilter}T00:00:00+07:00`)}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-2 border-t border-default-200 p-4">
             <button
               type="button"
               onClick={() => {
-                busy.run(() => setTypeFilter(''))
+                busy.run(() => {
+                  setTypeFilter('')
+                  setDateFilter('All')
+                })
                 // ล้างเฉพาะสิ่งที่โมดัลนี้คุม — แถวชิปด้านนอกเป็นการเลือกของผู้ใช้ที่ยังเห็นอยู่
                 // ถ้าล้างไปด้วยจะเหมือนปุ่มนี้แอบไปกดชิปแทนเขา
                 if (hasStageAxis && localStatus !== 'all') handleStatusTab('all')
