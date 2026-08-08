@@ -22,7 +22,7 @@ import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmp
 import CommentsThreadSkeleton from './CommentsThreadSkeleton'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
-import { ChannelBadgeOverlay, ShopBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
+import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
 import CommentsFilterPanel, {
   DEFAULT_COMMENT_SHOW_FILTER,
   type CommentShowFilter,
@@ -147,14 +147,11 @@ function privateReplyWindow(createdTime: string): { text: string; expired: boole
 export default function CommentsClient({
   initialPosts,
   shopIds,
-  unified = false,
   channels,
 }: {
   initialPosts: CommentPostItem[]
   /** ร้านที่แท็บนี้ครอบคลุม (feature 00037) — subscribe `comments:shop:{id}` ทุกตัว */
   shopIds: string[]
-  /** true = โหมดรวมหลายร้าน → การ์ดโพสต์ติด badge ร้าน */
-  unified?: boolean
   /** เพจที่ร้านเชื่อมไว้ — ใช้ทำตัวกรอง (user 2026-08-03: 'มีสิทธิ์ได้มาจากหลาย page ที่เชื่อม') */
   channels: ChannelOption[]
 }) {
@@ -1000,9 +997,6 @@ export default function CommentsClient({
                         Facebook เป็นไฟล์ asset อยู่แล้ว (/images/logos/facebook.svg) ไม่ต้อง
                         hardcode สีแบรนด์ซ้ำที่นี่ และหน้าตาตรงกันทั้งสองแท็บโดยอัตโนมัติ */}
                     <ChannelBadgeOverlay channel={p.channel.provider} imageUrl={p.channel.avatarUrl ?? undefined} />
-                    {/* feature 00037 — badge ร้านมุมบนซ้าย ตัวเดียวกับที่ใช้ในแท็บข้อความและ
-                        หัวเธรด (ภาษาภาพชุดเดียว: ล่างขวา=ช่องทาง บนซ้าย=ร้าน) */}
-                    {unified && p.shop && <ShopBadgeOverlay shopName={p.shop.name} />}
                     {isVideoPost(p.mediaType) && (
                       // โพสต์วิดีโอ — บอกตั้งแต่รายการ ไม่ต้องเปิดเข้าไปถึงจะรู้
                       <span className="absolute inset-0 flex items-center justify-center">

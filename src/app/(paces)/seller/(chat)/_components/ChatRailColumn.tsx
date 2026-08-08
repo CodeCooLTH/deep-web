@@ -17,13 +17,11 @@ import { usePathname } from 'next/navigation'
 import ChatRail from './ChatRail'
 import ChatSoundListener from './ChatSoundListener'
 import type { ChannelFilterOption } from '../inbox/components/ChannelBadge'
-import type { ShopBrief } from '../inbox/components/InboxList'
 
 export default function ChatRailColumn({
   shopIds,
   unified,
   activeShopId,
-  shops,
   channels,
   hasShipping,
 }: {
@@ -31,7 +29,6 @@ export default function ChatRailColumn({
   shopIds: string[]
   unified: boolean
   activeShopId: string | null
-  shops: ShopBrief[]
   channels: ChannelFilterOption[]
   hasShipping: boolean
 }) {
@@ -51,7 +48,6 @@ export default function ChatRailColumn({
         shopIds={shopIds}
         unified={unified}
         activeShopId={activeShopId}
-        shops={shops}
         channels={channels}
         hasShipping={hasShipping}
       />

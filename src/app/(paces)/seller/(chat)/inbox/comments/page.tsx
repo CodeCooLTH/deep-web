@@ -90,10 +90,11 @@ export default async function CommentsPage() {
           />
         </div>
       ) : (
+        // key: ขอบเขตเปลี่ยน = รายการโพสต์คนละชุด (ดู comment scopeKey ที่ (chat)/layout.tsx)
         <CommentsClient
+          key={`${scope.mode}:${scope.shopIds.join(',')}`}
           initialPosts={posts}
           shopIds={scope.shopIds}
-          unified={scope.mode === 'UNIFIED'}
           channels={channels}
         />
       )}

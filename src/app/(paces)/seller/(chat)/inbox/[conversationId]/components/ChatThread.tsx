@@ -105,7 +105,7 @@ import MessageActionBubble, { type MessageAction, type MessageReactionOption } f
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
-import { ChannelBadgeOverlay, ShopBadgeOverlay } from '../../components/ChannelBadge'
+import { ChannelBadgeOverlay } from '../../components/ChannelBadge'
 import OrderCardView from '../../../_components/OrderCardView'
 import { useDraftOrders, useOrderVocab } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
@@ -1378,10 +1378,6 @@ export default function ChatThread({
           >
             <ChatAvatar avatar={buyerAvatar} name={buyerName} />
             <ChannelBadgeOverlay channel={channel} imageUrl={channelAvatarUrl} />
-            {/* feature 00037 — badge ร้านมุมบนซ้าย (ช่องทางอยู่มุมล่างขวา) zero-width-cost:
-                หัวเธรดที่ 320px เหลือที่ให้ชื่อลูกค้าแค่ ~90px การเติมชิปข้อความตรงนี้จะดัน
-                ชื่อลูกค้าหายไปทั้งหมด (ดู ux spec §0 งบพื้นที่) */}
-            {shopName && <ShopBadgeOverlay shopName={shopName} logo={shopLogo ?? null} />}
           </span>
           {/* ชื่อบรรทัดเดียว — title กันกรณีชื่อยาวถูกตัดจนอ่านไม่ออก (เดิมไม่มีเพราะชื่อมีทั้งบรรทัด) */}
           <h5 className="text-base min-w-0 truncate" title={buyerName}>

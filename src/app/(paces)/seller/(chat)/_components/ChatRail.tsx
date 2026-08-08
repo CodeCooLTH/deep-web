@@ -41,7 +41,6 @@ import InboxList, {
   type ConversationListItem,
   type ChannelFilterOption,
   type ChatGroupTab,
-  type ShopBrief,
 } from '../inbox/components/InboxList'
 import { buildChatListParams, DEFAULT_CHAT_FILTER } from '../inbox/components/chat-list-query'
 
@@ -55,7 +54,6 @@ type Props = {
   shopIds: string[]
   unified: boolean
   activeShopId: string | null
-  shops: ShopBrief[]
   /** เพจของทุกร้านในขอบเขต — มาจาก layout (RSC) แทนที่ rail จะยิง /api/channels เอง ซึ่งเป็น
    *  endpoint ของ "ร้านที่ active" (การตั้งค่าเพจ) จึงไม่เคยเห็นเพจของร้านอื่นในโหมดรวมเลย */
   channels: ChannelFilterOption[]
@@ -69,7 +67,6 @@ export default function ChatRail({
   shopIds,
   unified,
   activeShopId,
-  shops,
   channels,
   hasShipping = false,
 }: Props) {
@@ -185,7 +182,6 @@ export default function ChatRail({
           shopIds={shopIds}
           unified={unified}
           activeShopId={activeShopId}
-          shops={shops}
           hasShipping={hasShipping}
           railMode
         />

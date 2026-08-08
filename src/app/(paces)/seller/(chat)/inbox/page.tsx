@@ -277,7 +277,10 @@ export default async function SellerInboxPage() {
           → InboxList ต้องอ่านจาก context ไม่ render ช่องของตัวเอง ไม่งั้นมือถือเห็นช่องค้นหาซ้ำ 2 อัน
           (user เจอจริงบน prod) — prop ชื่อ railMode คงเดิม แต่ความหมายตอนนี้ = "ค้นหาอยู่ที่ header" */}
       <div className="lg:hidden">
+        {/* key: ขอบเขตเปลี่ยน = รายการคนละชุด ต้อง remount ไม่ใช่รอให้ state เดิมอัปเดตเอง
+            (bug fix 2026-08-08 — เหตุผลเต็มอยู่ที่ comment scopeKey ใน (chat)/layout.tsx) */}
         <InboxList
+          key={`${scope.mode}:${shopIds.join(',')}`}
           initialItems={items}
           initialNextCursor={nextCursor}
           channels={channels}

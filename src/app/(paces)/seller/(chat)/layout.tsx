@@ -167,6 +167,22 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     }
   }
 
+  /**
+   * scopeKey (bug fix 2026-08-08, user report prod) — สลับ "ร้านทั้งหมด" → "ร้านนี้" แล้วเธรดของ
+   * ร้านอื่นยังค้างอยู่ในรายการจนกว่าจะรีเฟรชเอง
+   *
+   * ต้นเหตุ: `router.refresh()` พา RSC payload ชุดใหม่มาจริง (ขอบเขตถูกต้องแล้ว) แต่ client
+   * component ที่ถือรายการไว้ใน state ไม่ได้อ่าน prop ใหม่ —
+   *   · InboxList เก็บ `useState(initialItems)` ซึ่งอ่าน prop แค่ตอน mount
+   *   · ChatRail ยิง fetch เองใน useEffect ที่ deps = [] จึงไม่โหลดซ้ำ
+   * ทั้งคู่ "ถูกต้องอยู่แล้ว" ในบริบทเดิมที่ขอบเขตไม่มีวันเปลี่ยนระหว่างอายุของ component
+   *
+   * แก้ด้วย key แทนการ sync prop→state ด้วย useEffect เพราะการเปลี่ยนขอบเขต = "รายการคนละชุด"
+   * ไม่ใช่ "รายการเดิมที่ข้อมูลอัปเดต" — cursor/ตัวกรอง/ตำแหน่ง scroll ที่ค้างอยู่ก็ควรถูกทิ้งไป
+   * พร้อมกันทั้งหมด การ patch ทีละ state จะเหลือของค้างที่นึกไม่ถึงเสมอ
+   */
+  const scopeKey = `${scope?.mode ?? 'none'}:${(scope?.shopIds ?? []).join(',')}`
+
   const shell = (
     <ChatSearchProvider>
       <div className="chat-shell flex h-dvh flex-col overflow-hidden bg-card">
@@ -184,7 +200,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
          * ทั้งหน้าไม่ใช่แค่คอลัมน์เดียว) และ InboxTabs ดึงตัวเลขเองผ่าน endpoint + cache ระดับโมดูล
          * จึงไม่ต้องส่ง unansweredCount จาก server ของแต่ละหน้าอีก
          */}
-        <InboxTabs shopIds={scope?.shopIds ?? []} />
+        <InboxTabs key={scopeKey} shopIds={scope?.shopIds ?? []} />
 
         <div className="flex min-h-0 flex-1">
           {/* rail — desktop เท่านั้น (≥1024px); <1024px ไม่มีเมนูซ้ายให้แทนที่อยู่แล้ว (ตาม design
@@ -199,10 +215,10 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
               "ความคิดเห็น" ไม่ใช่แค่เนื้อข้างใน (bug fix 2026-08-03 user report: แท็บซ้อน 2 ชั้น)
               layout นี้เป็น server component จึงอ่าน pathname เองไม่ได้ */}
           <ChatRailColumn
+            key={scopeKey}
             shopIds={scope?.shopIds ?? []}
             unified={scope?.mode === 'UNIFIED'}
             activeShopId={scope?.activeShopId ?? null}
-            shops={scopeShops}
             channels={scopeChannels}
             hasShipping={hasShipping}
           />

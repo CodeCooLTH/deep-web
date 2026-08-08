@@ -76,7 +76,7 @@ import { useOrderVocab } from '../../_components/DraftOrderProvider'
  * เดียวไม่ตกบรรทัด — Base: ปุ่มวงกลม rounded-full ใช้ token เดียวกับ ChannelBadgeOverlay
  * (ChannelBadge.tsx — bg-light พื้นเฉย/bg-primary/15 พื้น active) ไม่ใช่ arbitrary ใหม่
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
@@ -97,7 +97,6 @@ import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
 import {
   ChannelBadgeOverlay,
-  ShopBadgeOverlay,
   getChannelDisplay,
   type ChatChannel,
   type ChannelFilterOption,
@@ -248,8 +247,6 @@ type Props = {
   unified?: boolean
   /** ร้านที่ active — ค่าตั้งต้นของปุ่มสร้างเมื่อยังไม่ได้เปิดเธรด (BR-UNI-07: ห้ามใช้ตัดสินขอบเขต) */
   activeShopId?: string | null
-  /** ข้อมูลร้านสำหรับ badge/ตัวเลือกร้าน — คีย์ด้วย shopId */
-  shops?: ShopBrief[]
 }
 
 export default function InboxList({
@@ -263,15 +260,11 @@ export default function InboxList({
   shopIds = [],
   unified = false,
   activeShopId = null,
-  shops = [],
 }: Props) {
   // ชื่อเรียกรายการตามประเภทกิจการ — อ่านจาก DraftOrderProvider ที่ครอบทั้ง (chat) อยู่แล้ว
   // (ป้ายสถานะออเดอร์ล่าสุดในรายการแชทเคยเขียน "คำสั่งซื้อ" ตายตัว ทั้งที่ร้านบริการ/บ้านพัก
   //  เรียกคนละชื่อ — ตัวเลขและป้ายเดียวกันโผล่หลายที่ต้องมาจากคำชุดเดียวกัน)
   const orderVocab = useOrderVocab()
-  // แผนที่ร้าน — badge ในแถวอ่านจากตัวนี้ (ไม่ query เพิ่มต่อแถว) useMemo เพราะ shops เป็น prop
-  // ที่ identity เปลี่ยนทุก render ของ parent
-  const shopById = useMemo(() => new Map(shops.map((s) => [s.id, s])), [shops])
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor)
   const [loading, setLoading] = useState(false)
@@ -1291,14 +1284,6 @@ export default function InboxList({
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
-                      {/* feature 00037 — badge ร้านมุมบนซ้าย (มุมล่างขวาเป็นของช่องทาง)
-                          render เฉพาะโหมดรวม: โหมดร้านเดียวต้องไม่มีอะไรเพิ่มบนจอเลย */}
-                      {unified && shopById.get(c.shopId) && (
-                        <ShopBadgeOverlay
-                          shopName={shopById.get(c.shopId)!.name}
-                          logo={shopById.get(c.shopId)!.logo}
-                        />
-                      )}
                       {/* รูปเพจจริงถ้าเพจนั้นมี (user สั่ง 2026-07-23) — หาได้จาก channels prop ที่
                           มี avatarUrl ต่อเพจอยู่แล้ว ไม่ต้องเพิ่ม query ต่อแถว; ไม่มีรูป/ไม่มีเพจ
                           → ChannelBadgeOverlay ถอยไปโลโก้ช่องทางเอง */}
