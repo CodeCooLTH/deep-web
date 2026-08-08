@@ -27,11 +27,11 @@ import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/utils/helpers'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
-import { PRODUCT_TYPE_LABELS, type ProductRow } from './data'
+import { PRODUCT_TYPE_LABELS, isMissingCost, type ProductRow } from './data'
 import { type PinChangeResult } from './PinToggleButton'
 import ProductCard from './ProductCard'
 import ProductsTable from './ProductsTable'
@@ -63,6 +63,7 @@ type Props = {
 
 const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [data, setData] = useState<ProductRow[]>(() => [...products])
   const [pinState, setPinState] = useState({ pinSlots, pinnedCount })
 
@@ -70,6 +71,15 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [activeChip, setActiveChip] = useState<'all' | 'active' | 'inactive'>('all')
+  // ตัวกรอง "ยังไม่ตั้งต้นทุน" เป็น **คนละแกน** กับชิปสถานะขาย (all/active/inactive) จึงเป็น
+  // state แยก ไม่ใช่สมาชิกตัวที่ 4 ของ STATUS_CHIPS — ถ้ายัดรวมกัน การกดอันนี้จะล้างตัวกรอง
+  // สถานะขายทิ้งโดยที่ผู้ใช้ไม่ได้สั่ง
+  //
+  // ค่าเริ่มต้นอ่านจาก ?cost=missing เพื่อรับ deep-link จาก badge "ต้นทุนไม่ครบ" บนการ์ดกำไร
+  // ในหน้ารายละเอียดออเดอร์ — ทำให้คำเตือนที่นั่นมีปลายทางจริง ไม่ใช่ป้ายที่กดอะไรไม่ได้
+  const [costMissingOnly, setCostMissingOnly] = useState(
+    () => searchParams.get('cost') === 'missing',
+  )
   const [filterOpen, setFilterOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE)
 
@@ -163,6 +173,9 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
     active: activeCount,
     inactive: inactiveCount,
   }
+  // นับจากก้อนดิบทั้งร้านเหมือนตัวนับอื่นในไฟล์นี้ — ไม่ผูกกับคำค้น/ชิปสถานะ เพราะคำถามคือ
+  // "ทั้งร้านยังเหลือกี่ตัวที่ยังไม่ตั้งต้นทุน" ไม่ใช่ "ในผลลัพธ์ที่กรองอยู่ตอนนี้เหลือกี่ตัว"
+  const missingCostCount = useMemo(() => data.filter(isMissingCost).length, [data])
 
   // ─── filter pipeline (มือถือ) ────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -170,17 +183,18 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
     if (activeChip === 'active') list = list.filter((p) => p.isActive)
     else if (activeChip === 'inactive') list = list.filter((p) => !p.isActive)
     if (typeFilter) list = list.filter((p) => p.type === typeFilter)
+    if (costMissingOnly) list = list.filter(isMissingCost)
     if (search.trim()) {
       const q = search.toLowerCase().trim()
       list = list.filter((p) => p.name.toLowerCase().includes(q))
     }
     return list
-  }, [data, activeChip, typeFilter, search])
+  }, [data, activeChip, typeFilter, costMissingOnly, search])
 
   // reset lazy-load เมื่อ filter/search/chip เปลี่ยน
   useEffect(() => {
     setVisibleCount(PAGE)
-  }, [activeChip, typeFilter, search])
+  }, [activeChip, typeFilter, costMissingOnly, search])
 
   const visible = filtered.slice(0, visibleCount)
   const hasMore = visibleCount < filtered.length
@@ -208,8 +222,13 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
       ? { title: 'ยังไม่มีสินค้าในร้าน', showCta: true }
       : search.trim() !== '' && filtered.length === 0
         ? { title: 'ไม่พบสินค้าที่ค้นหา', showCta: false }
-        : filtered.length === 0
-          ? { title: 'ไม่มีสินค้าในสถานะนี้', showCta: false }
+        : // กรอง "ยังไม่ตั้งต้นทุน" แล้วไม่เหลืออะไร = ข่าวดี ไม่ใช่ทางตัน — ต้องพูดให้ตรง
+          // ไม่ใช่ "ไม่มีสินค้าในสถานะนี้" ซึ่งอ่านเหมือนกรองพลาด (คำค้นชนะเสมอ เพราะผู้ใช้
+          // เพิ่งพิมพ์ ควรตอบเรื่องที่เพิ่งทำล่าสุดก่อน จึงอยู่หลังเงื่อนไข search ด้านบน)
+          costMissingOnly && filtered.length === 0
+          ? { title: 'ตั้งต้นทุนครบทุกสินค้าแล้ว', showCta: false }
+          : filtered.length === 0
+            ? { title: 'ไม่มีสินค้าในสถานะนี้', showCta: false }
           : null
 
   return (
@@ -217,6 +236,7 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
       {/* ─── Desktop (≥lg): ตารางแบบ Paces theme ─────────────────────────────── */}
       <div className="hidden lg:block">
         <ProductsTable
+          initialCostMissing={costMissingOnly}
           products={data}
           pinSlots={pinState.pinSlots}
           pinnedCount={pinState.pinnedCount}
@@ -301,6 +321,29 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
                 <Icon icon="tabler:pin-filled" className="size-3.5" />
                 ปักหมุด {pinState.pinnedCount}/{pinState.pinSlots}
               </span>
+              {/* แกนที่สอง: ไอคอนนำหน้าเหมือนชิป "ปักหมุด" ด้านบน เพื่อบอกด้วยสายตาว่านี่ไม่ใช่
+                  สมาชิกของกลุ่ม tab สถานะขาย — ไฟล์นี้สร้าง precedent นั้นไว้แล้ว
+                  idle ใช้ warning เมื่อยังมีของค้าง เพื่อให้เห็นว่ามีงานรอโดยไม่ต้องกดก่อน */}
+              <button
+                type="button"
+                onClick={() => setCostMissingOnly((v) => !v)}
+                aria-pressed={costMissingOnly}
+                className={cn(
+                  'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
+                  'inline-flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium',
+                  costMissingOnly
+                    ? 'bg-primary text-white'
+                    : missingCostCount > 0
+                      ? 'bg-warning/15 text-warning-ink'
+                      : 'bg-default-100 text-default-500',
+                )}
+              >
+                <Icon icon="calculator" className="size-3.5" aria-hidden="true" />
+                ยังไม่ตั้งต้นทุน
+                {missingCostCount > 0 && (
+                  <span className="ms-1 font-bold tabular-nums">{missingCostCount}</span>
+                )}
+              </button>
               {STATUS_CHIPS.map((chip) => {
                 const active = activeChip === chip.key
                 const count = chipCount[chip.key]

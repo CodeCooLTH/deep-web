@@ -36,7 +36,7 @@ import {
 import Link from 'next/link'
 import Image from 'next/image'
 import { useState } from 'react'
-import { PRODUCT_TYPE_LABELS, type ProductRow } from './data'
+import { PRODUCT_TYPE_LABELS, isMissingCost, type ProductRow } from './data'
 import PinToggleButton, { type PinChangeResult } from './PinToggleButton'
 
 const columnHelper = createColumnHelper<ProductRow>()
@@ -47,12 +47,25 @@ type Props = {
   pinnedCount: number
   onPinChange: (result: PinChangeResult) => void
   onDeleteRequest: (productId: string) => void
+  /** มาจาก ?cost=missing (deep-link จาก badge "ต้นทุนไม่ครบ" บนการ์ดกำไรของหน้าออเดอร์) */
+  initialCostMissing?: boolean
 }
 
-const ProductsTable = ({ products, pinSlots, pinnedCount, onPinChange, onDeleteRequest }: Props) => {
+const ProductsTable = ({
+  products,
+  pinSlots,
+  pinnedCount,
+  onPinChange,
+  onDeleteRequest,
+  initialCostMissing = false,
+}: Props) => {
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
+    // seed จาก deep-link ตอน mount — ถ้าไปตั้งใน useEffect ตารางจะ render ชุดเต็มแวบหนึ่งก่อน
+    // แล้วค่อยหด ซึ่งอ่านเป็นการกระตุก ไม่ใช่การกรอง
+    initialCostMissing ? [{ id: 'cost', value: 'missing' }] : [],
+  )
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
 
   const columns: ColumnDef<ProductRow, any>[] = [
@@ -119,7 +132,11 @@ const ProductsTable = ({ products, pinSlots, pinnedCount, onPinChange, onDeleteR
           <span className="text-default-400 text-2xs font-normal">กำไร %</span>
         </span>
       ),
-      enableColumnFilter: false,
+      // เปิดกรองไว้ — critique/persona Alex ชี้ว่า "ตัวไหนยังไม่ตั้งต้นทุน" คือคำถามเดียว
+      // ที่ฟีเจอร์นี้สร้างขึ้น แล้วเดิมตอบไม่ได้เลย ร้าน 300 สินค้าต้องเปิดทีละหน้าหรือ
+      // export ไป Excel = ผลักงานหลักของฟีเจอร์ออกไปนอกระบบ
+      enableColumnFilter: true,
+      filterFn: (row, _id, value) => (value === 'missing' ? isMissingCost(row.original) : true),
       cell: ({ row }) => {
         const { cost, price } = row.original
         const margin = productMargin({ price, cost })
@@ -260,6 +277,15 @@ const ProductsTable = ({ products, pinSlots, pinnedCount, onPinChange, onDeleteR
   ]
   const currentTypeFilter = (table.getColumn('type')?.getFilterValue() as string) ?? 'All'
 
+  // นับจาก products ทั้งก้อน (ไม่ใช่แถวที่กรองแล้ว) ให้ตรงกับตัวนับบนชิปมือถือ — ทั้งคู่
+  // ตอบคำถามเดียวกันว่า "ทั้งร้านเหลือกี่ตัว" จึงต้องได้เลขเดียวกันเสมอ
+  const missingCostCount = products.filter(isMissingCost).length
+  const COST_OPTIONS = [
+    { value: 'All', label: 'ต้นทุน: ทั้งหมด' },
+    { value: 'missing', label: `ยังไม่ตั้งต้นทุน${missingCostCount > 0 ? ` (${missingCostCount})` : ''}` },
+  ]
+  const currentCostFilter = (table.getColumn('cost')?.getFilterValue() as string) ?? 'All'
+
   return (
     <div className="card">
       <div className="card-header">
@@ -288,6 +314,19 @@ const ProductsTable = ({ products, pinSlots, pinnedCount, onPinChange, onDeleteR
                 value={TYPE_OPTIONS.find((o) => o.value === currentTypeFilter) ?? TYPE_OPTIONS[0]}
                 onChange={(opt: any) =>
                   table.getColumn('type')?.setFilterValue(opt?.value === 'All' ? undefined : opt?.value)
+                }
+              />
+            </div>
+            <div className="input-icon-group w-full">
+              <Icon icon="calculator" className="input-icon" />
+              <Select
+                className="form-select"
+                classNamePrefix="react-select"
+                isSearchable={false}
+                options={COST_OPTIONS}
+                value={COST_OPTIONS.find((o) => o.value === currentCostFilter) ?? COST_OPTIONS[0]}
+                onChange={(opt: any) =>
+                  table.getColumn('cost')?.setFilterValue(opt?.value === 'All' ? undefined : opt?.value)
                 }
               />
             </div>
