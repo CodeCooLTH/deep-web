@@ -33,8 +33,11 @@
 - **ห้าม subagent แตะ git** — ห้าม `checkout`/`pull`/`merge`/`push` (push main = migrate prod)
 - **คำสั่งมาตรฐาน:**
   - type-check: `node node_modules/typescript/lib/tsc.js --noEmit`
-  - test ทั้งชุด: `npm test -- run`
-  - test ไฟล์เดียว: `npm test -- run <path>`
+  - test ทั้งชุด: `npx vitest run`
+  - test ไฟล์เดียว: `npx vitest run <path>`
+  - 🛑 **ห้ามใช้ `npm test`** — script นั้นคือ `dotenv -e .env -- npx vitest` แต่เวิร์กทรีนี้
+    **ไม่มีไฟล์ `.env`** (มีแต่ `.env.example`) จะล้มทันทีก่อนถึง vitest ด้วยซ้ำ
+    เทสของงานนี้ mock `@/lib/prisma` ทั้งหมด จึงไม่ต้องพึ่ง env เลย
   - build: ตัดสินด้วย **exit code** เท่านั้น ห้ามอ่านข้อความ `✓ Compiled` แล้วสรุปว่าผ่าน
 
 ---
@@ -378,7 +381,7 @@ describe('isWithinPrivateReplyWindow', () => {
 - [ ] **Step 2: รันเทสให้เห็นว่าแดง**
 
 ```bash
-npm test -- run src/services/__tests__/comment-private-reply.service.test.ts
+npx vitest run src/services/__tests__/comment-private-reply.service.test.ts
 ```
 
 Expected: FAIL — `Failed to resolve import "@/services/comment-private-reply.service"`
@@ -458,7 +461,7 @@ export function isWithinPrivateReplyWindow(commentCreatedTime: Date, now: Date =
 - [ ] **Step 5: รันเทสให้เขียว**
 
 ```bash
-npm test -- run src/services/__tests__/comment-private-reply.service.test.ts
+npx vitest run src/services/__tests__/comment-private-reply.service.test.ts
 ```
 
 Expected: PASS ทั้ง 4 เคส
@@ -559,7 +562,7 @@ describe('sendPrivateReplyToCommentById — เงื่อนไขที่ต
 - [ ] **Step 7: รันเทสให้เห็นว่าแดง**
 
 ```bash
-npm test -- run src/services/__tests__/comment-private-reply.service.test.ts
+npx vitest run src/services/__tests__/comment-private-reply.service.test.ts
 ```
 
 Expected: 4 เคสแรกเขียว (pure function) · 5 เคสใหม่ FAIL เพราะ `sendPrivateReplyToCommentById is not a function`
@@ -574,7 +577,7 @@ Expected: 4 เคสแรกเขียว (pure function) · 5 เคสใ�
 4. `channel.status !== 'ACTIVE'` = `CHANNEL_INACTIVE`
 5. `!isWithinPrivateReplyWindow(comment.createdTime)` = `WINDOW_EXPIRED`
 6. `prisma.commentReplyLog.findFirst({ where: { commentId, privateReplyStatus: 'SENT' } })` เจอ = `ALREADY_SENT`
-7. `resolveChannelToken(channel.id)` → ถอดโทเคน (ยก helper จาก `page-comment.service.ts:22` มาเป็น export ร่วม หรือ import ตรง)
+7. `resolveChannelToken(channel.id)` → ถอดโทเคน (ยก helper จาก `page-comment.service.ts:23` มาเป็น export ร่วม หรือ import ตรง)
 8. เรียก `sendPrivateReplyToComment(token, comment.externalCommentId, text)` — จับ error → `SEND_FAILED` พร้อม `errorMessage` (ไม่ต้องส่ง pageId — ฟังก์ชันใช้ `/me/messages`)
 9. สำเร็จ: `upsert ExternalContact` (`shopChannelId_externalUserId`) → `conversation` (findUnique ตาม `shopChannelId_externalContactId` ไม่พบก็ create ด้วย `channel: 'MESSENGER'`) → `chatMessage.create` (`senderRole: 'SHOP'`, `externalMessageId: messageId`, `body: text`, `type: 'TEXT'`) → `conversation.update` (`lastMessageAt`, `lastMessagePreview`, `lastSenderRole: 'SHOP'`) ทั้งหมดในทรานแซกชันเดียว
 10. เขียน/อัปเดต `CommentReplyLog` (`privateReplyStatus`, `conversationId`)
@@ -584,7 +587,7 @@ Expected: 4 เคสแรกเขียว (pure function) · 5 เคสใ�
 - [ ] **Step 9: รันเทสให้เขียวทั้งไฟล์**
 
 ```bash
-npm test -- run src/services/__tests__/comment-private-reply.service.test.ts
+npx vitest run src/services/__tests__/comment-private-reply.service.test.ts
 ```
 
 Expected: PASS ทั้ง 9 เคส
@@ -731,7 +734,7 @@ describe('evaluateCommentGate', () => {
 - [ ] **Step 2: รันเทสให้เห็นว่าแดง**
 
 ```bash
-npm test -- run src/services/__tests__/comment-auto-reply.service.test.ts
+npx vitest run src/services/__tests__/comment-auto-reply.service.test.ts
 ```
 
 Expected: FAIL — `Failed to resolve import`
@@ -765,7 +768,7 @@ export function evaluateCommentGate(input: {
 - [ ] **Step 4: รันเทสให้เขียว**
 
 ```bash
-npm test -- run src/services/__tests__/comment-auto-reply.service.test.ts
+npx vitest run src/services/__tests__/comment-auto-reply.service.test.ts
 ```
 
 Expected: PASS ทั้ง 12 เคส
@@ -991,7 +994,7 @@ describe('processCommentAutoReply', () => {
 - [ ] **Step 9: รันเทสทั้งชุด + type-check**
 
 ```bash
-npm test -- run src/services/__tests__/comment-auto-reply.service.test.ts
+npx vitest run src/services/__tests__/comment-auto-reply.service.test.ts
 node node_modules/typescript/lib/tsc.js --noEmit
 ```
 
@@ -1023,6 +1026,15 @@ git commit -m "feat(00038): ด่านคัดกรอง 8 ข้อ + ต�
 - Consumes: `processCommentAutoReply(commentId)` (Task 4) · `ingestFeedComment()` (มีอยู่แล้ว)
 - Produces: ไม่มี export ใหม่
 
+> 📖 **อ่านก่อนเริ่ม: `docs/conventions/webhook-subscription-two-layers.md`** (convention ใหม่
+> 2026-08-08 จาก commit `00496e2e`) — การ subscribe webhook ของ Meta มี **2 ชั้น** (ระดับแอปใน
+> App Dashboard + ระดับเพจผ่าน `subscribed_apps`) ขาดชั้นไหนก็เงียบเหมือนกัน และ "ไม่มี event
+> เข้ามา" หน้าตาเหมือน "ไม่มีอะไรเกิดขึ้น" ทุกประการ
+>
+> งานนี้ **ไม่ได้เพิ่ม field ใหม่** (ใช้ `feed` ที่ subscribe อยู่แล้วตั้งแต่ 00029) จึงไม่ต้องแตะ
+> ทั้งสองชั้น — แต่ถ้าระหว่างทดสอบพบว่าคอมเมนต์ไม่เข้า **ห้ามสรุปว่าโค้ดเราผิด** ให้ไปตรวจ 2 ชั้นนั้น
+> ก่อนตามที่ convention บอก
+
 - [ ] **Step 1: ให้ `ingestFeedComment` คืน id ของคอมเมนต์ที่เพิ่งบันทึก**
 
 ใน `src/services/page-comment.service.ts` เปลี่ยน return type จาก `Promise<void>` เป็น:
@@ -1050,7 +1062,7 @@ Expected: เรียกจาก webhook route ที่เดียว — �
 
 - [ ] **Step 3: เก็บ commentId ใน feed loop**
 
-แก้ `src/app/api/channels/facebook/webhook/route.ts` — เพิ่มตัวแปรเหนือ loop (ข้าง ๆ `pendingConversationIds` บรรทัด 125):
+แก้ `src/app/api/channels/facebook/webhook/route.ts` — เพิ่มตัวแปรเหนือ loop (ข้าง ๆ `pendingConversationIds` บรรทัด 125 (ตัวแปร pendingConversationIds)):
 
 ```ts
   // คอมเมนต์ที่เพิ่งเข้ามาสด — สั่งตอบอัตโนมัติใน after() หลังตอบ 200 ให้ Meta แล้ว (feature 00038)
@@ -1255,7 +1267,7 @@ git commit -m "docs(00038): UX Design Spec ผ่าน ux gate (HR8)"
 ## Task 8: ปุ่ม "ทักแชท" ในแท็บความคิดเห็น
 
 **Files:**
-- Modify: `src/app/(paces)/seller/(chat)/inbox/comments/CommentsClient.tsx:1563-1585`
+- Modify: `src/app/(paces)/seller/(chat)/inbox/comments/CommentsClient.tsx:1587-1609`
 - Create: `src/app/(paces)/seller/(chat)/inbox/comments/PrivateReplyModal.tsx`
 
 **Interfaces:**
@@ -1265,7 +1277,7 @@ git commit -m "docs(00038): UX Design Spec ผ่าน ux gate (HR8)"
 - [ ] **Step 1: อ่านโค้ดเดิมก่อนแก้**
 
 ```bash
-sed -n '1555,1595p' "src/app/(paces)/seller/(chat)/inbox/comments/CommentsClient.tsx"
+sed -n '1580,1620p' "src/app/(paces)/seller/(chat)/inbox/comments/CommentsClient.tsx"
 ```
 
 ตรงนี้คือป้ายนับถอยหลังปัจจุบัน พร้อมคอมเมนต์ที่เขียนยอมรับไว้เองว่า "ทักแชท" ยังไม่ใช่ปุ่มกดได้ — **ลบคอมเมนต์นั้นออกเมื่อทำเสร็จ** ไม่งั้นจะกลายเป็นคอมเมนต์ที่โกหก
@@ -1339,7 +1351,7 @@ Base: src/app/(paces)/seller/(chat)/inbox/comments/CommentsClient.tsx (โคร
 ## Task 9: สถานะ 3 ชั้น + ชิปกรอง
 
 **Files:**
-- Modify: `src/services/page-comment.service.ts` (`countUnansweredForShop`, `listCommentPosts`, `getPostComments`)
+- Modify: `src/services/page-comment.service.ts` (`countUnansweredForShops`, `listCommentPosts`, `getPostComments`)
 - Modify: `src/app/(paces)/seller/(chat)/inbox/comments/CommentsClient.tsx`
 - Test: `src/services/__tests__/comment-reply-status.test.ts`
 
@@ -1409,7 +1421,7 @@ describe('derivePostState — ตัวที่แย่ที่สุดช�
 - [ ] **Step 2: รันให้เห็นว่าแดง**
 
 ```bash
-npm test -- run src/services/__tests__/comment-reply-status.test.ts
+npx vitest run src/services/__tests__/comment-reply-status.test.ts
 ```
 
 Expected: FAIL — `deriveCommentState is not a function`
@@ -1450,14 +1462,20 @@ export function derivePostState(commentStates: CommentAnswerState[]): CommentAns
 - [ ] **Step 4: รันให้เขียว**
 
 ```bash
-npm test -- run src/services/__tests__/comment-reply-status.test.ts
+npx vitest run src/services/__tests__/comment-reply-status.test.ts
 ```
 
 Expected: PASS ทั้ง 8 เคส
 
-- [ ] **Step 5: แก้ `countUnansweredForShop` ให้ไม่นับคำตอบของบอท**
+- [ ] **Step 5: แก้ `countUnansweredForShops` ให้ไม่นับคำตอบของบอท**
 
-ใน raw query ที่มีอยู่ (`page-comment.service.ts:723`) เปลี่ยน `NOT EXISTS` ให้เช็ค `r."isAutoReply" = false` ด้วย:
+> ⚠️ ฟังก์ชันนี้เปลี่ยนชื่อและ signature ไปแล้วจาก feature 00037 (กล่องแชทรวมหลายร้าน) —
+> เดิม `countUnansweredForShop({ shopId })` ตอนนี้เป็น **`countUnansweredForShops({ shopIds: string[], actorUserId })`**
+> และใช้ `assertShopsAccessible()` แทน `canAccessShop()` · ผู้เรียกจริงคือ
+> `src/app/api/chat/inbox-tab-counts/route.ts:37` ซึ่งส่ง `scope.shopIds` จาก `resolveChatScope()`
+> **ห้ามย้อนกลับไปเป็นเอกพจน์** และห้ามอ่าน `activeShopId` ในเส้นทางนี้ (docs/SRS.md §7.14)
+
+ใน raw query ที่มีอยู่ (`page-comment.service.ts:739`) เปลี่ยน `NOT EXISTS` ให้เช็ค `r."isAutoReply" = false` ด้วย:
 
 ```sql
       AND NOT EXISTS (
@@ -1485,7 +1503,7 @@ Expected: PASS ทั้ง 8 เคส
 - [ ] **Step 9: ยืนยันว่าตัวเลขตรงกัน**
 
 ```bash
-npm test -- run src/services/__tests__/comment-reply-status.test.ts
+npx vitest run src/services/__tests__/comment-reply-status.test.ts
 node node_modules/typescript/lib/tsc.js --noEmit
 ```
 
@@ -1623,7 +1641,7 @@ Base: src/app/(paces)/seller/(dashboard)/settings/auto-reply/{page,AutoReplyList
 - [ ] **Step 3: รันเทสทั้งชุด**
 
 ```bash
-npm test -- run
+npx vitest run
 ```
 
 Expected: เทสของ 00038 เขียวทั้งหมด
