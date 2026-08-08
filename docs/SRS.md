@@ -414,6 +414,8 @@ Shop (1) ──────── (N) TopUpRequest
 Shop (1) ──────── (0..1) ShopPageLayout          [feature 00035]
 Shop (1) ──────── (N) ShopPageBlock              [feature 00035]
 ShopPageBlock (N) ─ (0..1) FacebookPost          [feature 00035 — onDelete Cascade]
+ShopChannel (1) ─── (N) CommentReplyLog          [feature 00038 — onDelete Cascade]
+PageComment (1) ─── (0..1) CommentReplyLog       [feature 00038 — commentId, onDelete Cascade]
 
 Order (1) ──────── (N) OrderItem
 Order (1) ──────── (0..1) ShipmentTracking
@@ -724,6 +726,54 @@ SellerWallet (1) ── (N) WalletTransaction
 
 **Index:** `[shopChannelId, lastCommentAt]`
 
+#### ShopChannel (`prisma/schema.prisma:1294`) — เวอร์ชันย่อ (feature 00038)
+
+> 🛑 **หนี้เดิม:** ตารางเต็มยังไม่มี entry ในเอกสารนี้ (มาจาก feature 00018 — ยังไม่เคยเขียน
+> SRS/SDS/API/Tests) ด้านล่างคือ**เฉพาะ 4 คอลัมน์ใหม่**ที่ feature 00038 เพิ่มเข้ามา ไม่ใช่ตารางเต็ม
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `commentPublicReplyEnabled` | Boolean default `false` | สวิตช์ "ตอบใต้คอมเมนต์" ต่อเพจ |
+| `commentPublicReplyText` | String? `@db.Text` | ข้อความสวิตช์ A — เปิดสวิตช์แล้วข้อความว่างไม่ได้ (บังคับที่ Valibot) |
+| `commentPrivateReplyEnabled` | Boolean default `false` | สวิตช์ "ทักแชทส่วนตัว" ต่อเพจ — แยกอิสระจากสวิตช์ A |
+| `commentPrivateReplyText` | String? `@db.Text` | ข้อความสวิตช์ B |
+
+> 🛑 `ShopChannel` มี `accessTokenEnc` อยู่แถวเดียวกัน — query ที่คืนคอลัมน์ 4 ตัวนี้ให้ client
+> ต้อง `select` ระบุคอลัมน์เสมอ ห้ามคืนทั้งแถว
+
+#### PageComment (`prisma/schema.prisma:2790`) — เวอร์ชันย่อ (feature 00038)
+
+> 🛑 **หนี้เดิม:** ตารางเต็มยังไม่มี entry ในเอกสารนี้ (มาจาก feature 00029) ด้านล่างคือ**เฉพาะ
+> คอลัมน์ใหม่**ที่ feature 00038 เพิ่มเข้ามา
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `isAutoReply` | Boolean default `false` | คำตอบใต้คอมเมนต์นี้ถูกเขียนโดยระบบตอบอัตโนมัติ (ไม่ใช่คนในทีมร้าน) — ใช้แยกสถานะที่ 3 "บอทตอบแล้ว". 🛑 **มีผู้เขียน 2 ราย** (เราเขียนตอน `replyToComment()` / webhook เขียนอีกครั้งตอน Meta echo กลับมา) — `ingestFeedComment`'s `update` block **ห้ามใส่คอลัมน์นี้เด็ดขาด** ไม่งั้นธงถูกรีเซ็ตเป็น `false` เงียบ ๆ ทุกครั้งที่ Meta echo (`docs/conventions/external-payload-schema.md`) |
+
+#### CommentReplyLog (ใหม่ — feature 00038)
+
+> ประวัติทุกครั้งที่ระบบตัดสินใจเกี่ยวกับคอมเมนต์หนึ่งอัน (ตอบหรือข้าม) ทั้งโหมดอัตโนมัติและแมนนวล —
+> มิเรอร์ `AutoReplyLog` (feature 00023) และทำหน้าที่กันซ้ำในตัวผ่าน partial unique index
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `shopChannelId` | String FK → ShopChannel | cascade delete |
+| `postId` | String | อ้างอิง `FacebookPost.id` — ไม่ประกาศ FK จริง (log อยู่รอดแม้โพสต์ถูกลบ) |
+| `commentId` | String FK → PageComment | คอมเมนต์ต้นเหตุ — cascade delete |
+| `fromExternalId` | String? | ผู้คอมเมนต์ (PSID) — `NULL` = payload ไม่ส่ง `from` มา |
+| `trigger` | String | `"AUTO"` / `"MANUAL"` |
+| `actorUserId` | String? | `MANUAL` = คนที่กด · `AUTO` = `NULL` เสมอ |
+| `publicReplyStatus` / `privateReplyStatus` | String? | `"SENT"` / `"SKIPPED"` / `"FAILED"` |
+| `skipReason` | String? | รหัสเหตุผลที่ข้าม — ดู `docs/20 - Features/00038 - Comment Auto-Reply/DATABASE.md` §3.4 |
+| `errorMessage` | String? `@db.Text` | ข้อความ error ดิบจาก Graph เมื่อ `FAILED` |
+| `conversationId` | String? | ห้องที่เกิดจาก private reply (ถ้าสำเร็จ) |
+
+**🛑 Partial unique indexes (unmanaged SQL — Prisma DSL ประกาศไม่ได้ — ห้าม `prisma db pull`/`migrate dev`):**
+- `(shopChannelId, postId, fromExternalId) WHERE trigger='AUTO'` — กันซ้ำโหมดอัตโนมัติ "1 ครั้ง/คน/โพสต์" (กฎของ Deep เอง กันบอทดูเป็นสแปม)
+- `(commentId) WHERE trigger='MANUAL'` — กันซ้ำโหมดแมนนวล "1 ครั้ง/คอมเมนต์" (เพดานจริงของ Facebook) — **แยกจากกฎ AUTO โดยตั้งใจ** ถ้าใช้ index เดียวครอบทั้งคู่ คนที่คอมเมนต์ 2 ครั้งบนโพสต์เดียวกันจะถูกร้านทักด้วยมือได้แค่ครั้งเดียวทั้งที่ Meta อนุญาต 2 ครั้ง
+
+**Indexes:** `[shopChannelId, createdAt]`, `[commentId]`
+
 ---
 
 ## §7 API Reference
@@ -926,6 +976,21 @@ SellerWallet (1) ── (N) WalletTransaction
 | `DISTINCT ON` ที่เกี่ยวกับ `Customer` | ต้องมี `shopId` เป็นคีย์แรกเสมอ — `Customer` เป็นตารางระดับทั้งระบบ (`phone @unique`) ลูกค้าคนเดียวมีออเดอร์หลายร้านได้ |
 | ฟิลด์นัด (feature 00024, เพิ่ม 2026-08-08) | `GET /api/chat/conversations/[id]/orders` (service `getOrdersByCustomer`) คืน `serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount` เพิ่มเข้ามา — ต้อง sync กับ select ของ `inbox/[conversationId]/page.tsx` เสมอ (ดู §6.2 Order) |
 
+### 7.15 Comment Auto-Reply (feature 00038)
+
+| Method | Path | Auth | Purpose | Service |
+|--------|------|------|---------|---------|
+| GET | `/api/shops/comment-reply/config` | Seller (canAccessShop) | อ่านสวิตช์+ข้อความตอบกลับคอมเมนต์ทุกเพจของ active shop | `comment-auto-reply.service` |
+| PATCH | `/api/shops/comment-reply/config` | Seller (canAccessShop) | บันทึกสวิตช์/ข้อความของเพจเดียว — เปิดสวิตช์โดยข้อความว่างไม่ได้; เพจ `TOKEN_INVALID` เปิดสวิตช์ไม่ได้ (409) | `comment-auto-reply.service` |
+| GET | `/api/shops/comment-reply/logs` | Seller (canAccessShop) | ประวัติการตอบ/ข้าม แบ่งหน้า (`?shopChannelId=&cursor=&take=`) | `comment-auto-reply.service` |
+| POST | `/api/chat/comments/[commentId]/private-reply` | Seller (canAccessShop ผ่าน comment→post→channel→shop) | ปุ่มแมนนวล "ทักแชท" — ใช้ได้เสมอไม่ขึ้นกับสวิตช์อัตโนมัติ; กันซ้ำด้วย partial unique index ระดับคอมเมนต์ (409 `ALREADY_SENT`/`WINDOW_EXPIRED`) | `comment-private-reply.service` |
+
+> รายละเอียดเต็ม (error code ครบ, sequence diagram): `docs/20 - Features/00038 - Comment Auto-Reply/API.md`
+
+> 🛑 หมวดนี้อยู่ใต้กติกาขอบเขตของ §7.14 ด้วย — `/api/chat/comments/[commentId]/private-reply`
+> ต้อง resolve ร้านจาก `comment → post → channel → shop` ไม่ใช่จาก `activeShopId`
+> (ตั้งแต่ feature 00037 สองค่านี้ไม่ใช่สิ่งเดียวกัน)
+
 ---
 
 ## §8 Enums & Constants
@@ -987,6 +1052,15 @@ SellerWallet (1) ── (N) WalletTransaction
 
 **Profile tab keys (SSOT `src/lib/profile-tab-keys.ts::PROFILE_TAB_KEYS`)** — ใช้ทั้งใน `ShopPageLayout.tabOrder` และการตัดสินว่าแท็บไหน render จริงบน `/u`,`/b`:
 `pinned`, `rooms`, `calendar`, `services`, `items`, `about`, `reviews`
+
+### 8.2c Comment Auto-Reply (feature 00038)
+
+| Enum | ค่า |
+|------|-----|
+| `CommentReplyLog.trigger` | `AUTO` (ระบบ) / `MANUAL` (คนกด) |
+| `CommentReplyLog.publicReplyStatus` / `privateReplyStatus` | `SENT` / `SKIPPED` / `FAILED` (`NULL` = ยังไม่ตัดสิน/ไม่เกี่ยวข้อง) |
+| `CommentReplyLog.skipReason` | `FROM_PAGE` / `NOT_TOP_LEVEL` / `COMMENT_DELETED` / `NO_SENDER_ID` / `CHANNEL_INACTIVE` / `DISABLED` / `ALREADY_HANDLED` / `HUMAN_ANSWERED` / `WINDOW_EXPIRED` |
+| สถานะ 3 ชั้นของคอมเมนต์ (คำนวณ ไม่ใช่คอลัมน์) | "ยังไม่ตอบ" / "บอทตอบแล้ว" / "คนตอบแล้ว" — ดู `docs/20 - Features/00038 - Comment Auto-Reply/SRS.md` TFR-009 |
 
 ### 8.3 Verification
 
@@ -1116,6 +1190,15 @@ SellerWallet (1) ── (N) WalletTransaction
 
 > enforce ทั้ง 2 ชั้น: **server** (`canAccessShop` ทุกฟังก์ชันใน `shop-page-layout.service.ts` เป็นบรรทัดแรกเสมอ) และ **หน้าจอ** (`(fullscreen)` layout guard + `requireActiveShop` ที่ `page.tsx`) — ไม่มี role `STAFF` ในระบบ จึง "OWNER + ShopMember(role=ADMIN)" เทียบเท่ากับ `canAccessShop` ตรง ๆ
 
+### 9.2c Comment Auto-Reply (feature 00038)
+
+| Operation | Guest | Buyer | Seller — สมาชิกร้านของเพจนี้ | Seller — ไม่ใช่สมาชิกร้านนี้ | Admin |
+|-----------|-------|-------|-------------------------------|--------------------------------|-------|
+| `GET/PATCH /api/shops/comment-reply/config` | — | — | ✅ (`canAccessShop`) | ❌ (shop derive จาก session — ไม่เห็นข้อมูลร้านอื่นเลย) | — |
+| `GET /api/shops/comment-reply/logs` | — | — | ✅ | ❌ | — |
+| `POST /api/chat/comments/[commentId]/private-reply` | — | — | ✅ (ownership ผ่าน `comment→post→channel→shop`) | ❌ `403 FORBIDDEN` | — |
+| ปุ่ม "ทักแชท" ใช้ได้แม้ปิดสวิตช์อัตโนมัติ | — | — | ✅ (ไม่ผูกกับสวิตช์เลย) | — | — |
+
 ### 9.3 Verification
 
 | Operation | Guest | Buyer/Seller | Admin |
@@ -1212,6 +1295,18 @@ SellerWallet (1) ── (N) WalletTransaction
 | `SetShopPagePublishedSchema` | `isPublished` | boolean |
 
 **หมายเหตุ:** เพดาน "เหรียญเกิน 4/มีบล็อกเหรียญเกิน 1 ใบ" ถูก reject ที่ Valibot (`maxLength(4)`) เป็นด่านแรก, ที่ service (`TOO_MANY_BADGE_BLOCKS`) เป็นด่านสอง, และ DB CHECK (`ShopPageBlock_type_fields_check`) เป็นด่านสาม — ความเป็นเจ้าของจริงของ `badgeIds`/`facebookPostId` (`BADGE_NOT_OWNED`/`POST_NOT_OWNED`) ตรวจที่ service เท่านั้น (Valibot ตรวจ shape ไม่ได้ตรวจความเป็นเจ้าของ)
+
+### 10.2c Comment Auto-Reply (feature 00038)
+
+| Schema | Field | กฎ |
+|--------|-------|-----|
+| `PatchCommentReplyConfigSchema` | `shopChannelId` | UUID |
+| | `commentPublicReplyEnabled` / `commentPrivateReplyEnabled` | boolean (optional) |
+| | `commentPublicReplyText` / `commentPrivateReplyText` | string ≤1000 chars, nullable (optional) — **เปิดสวิตช์ที่เกี่ยวข้องแล้วข้อความว่าง/`null` = reject ที่ service เป็นด่านสอง** (Valibot ตรวจ shape เดี่ยว ๆ เท่านั้น ตรวจ "สวิตช์คู่กับข้อความ" ไม่ได้เพราะเป็น partial update) |
+| `SendPrivateReplySchema` | `message` | string 1-1000 chars |
+| `CommentReplyLogQuerySchema` | `shopChannelId` | UUID (optional) |
+| | `cursor` | string ตัวเลขล้วน — regex `^\d+$` (optional) |
+| | `take` | int 1-50 (optional, default 20) |
 
 ### 10.3 Product
 
@@ -1323,5 +1418,11 @@ SellerWallet (1) ── (N) WalletTransaction
 
 ---
 
-_เอกสาร SRS นี้ sync กับโค้ดจริง ณ 2026-08-07 (feature 00035 — Shop Page Builder ตัวจัดหน้าร้าน; เพิ่ม entry ของ `FacebookPost` แบบย่อครั้งแรก — `ShopChannel`/`PageComment` ยังเป็นหนี้จาก feature 00029). เมื่อ schema/API/validation เปลี่ยน ให้อัปเดต section ที่เกี่ยวข้องทันที._
+_เอกสาร SRS นี้ sync กับโค้ดจริง ณ 2026-08-08 (feature 00038 — ตอบกลับคอมเมนต์ (Comment Auto-Reply
+& Private Reply); เพิ่ม model `CommentReplyLog` + entry เวอร์ชันย่อของ `ShopChannel`/`PageComment`
+ครั้งแรก (เฉพาะคอลัมน์ที่ feature 00038 เพิ่ม — ตารางเต็มยังเป็นหนี้จาก feature 00018/00029 ตามเดิม)
++ 3 endpoint ใหม่ (GET/PATCH config นับเป็น 1 endpoint คู่, logs, private-reply) + enum/validation
+ที่เกี่ยวข้อง). ก่อนหน้านี้ 2026-08-07 (feature 00035 — Shop Page
+Builder ตัวจัดหน้าร้าน; เพิ่ม entry ของ `FacebookPost` แบบย่อครั้งแรก). เมื่อ schema/API/validation
+เปลี่ยน ให้อัปเดต section ที่เกี่ยวข้องทันที._
 _ลิงก์กลับ: `docs/PRD.md` (product-level)_
