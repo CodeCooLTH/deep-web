@@ -255,6 +255,11 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               customerCount: profileStats.customerCount,
               repeatCustomerCount: profileStats.repeatCustomerCount,
               completionRate: profileStats.completionRate,
+              // feature 00039 — ตัวหาร/ใบที่หักออก ต้องส่งไปคู่กับ % เสมอ (BR-OSM-07)
+              // และ belowMinSample ให้ UI แสดงข้อความ "ยังสรุปไม่ได้" แทนการหายเงียบ
+              completionDenominator: profileStats?.completionDenominator ?? 0,
+              completionExcluded: profileStats?.completionExcluded ?? 0,
+              completionBelowMinSample: profileStats?.completionBelowMinSample ?? false,
               // feature 00035 — เดิม hardcode true ได้เพราะ isOwnShop ของหน้านี้ hardcode false อยู่แล้ว
               // พอ Task 4 คำนวณ isOwnShop จริง (เพื่อใช้กับ publish gate) การคง true ไว้จะทำให้เจ้าของ
               // เห็นปุ่มทักแชทบนหน้าร้านตัวเอง ซึ่งเป็นเคสที่ self-chat guard (feat 00011 B3) กันอยู่

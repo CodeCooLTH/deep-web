@@ -29,6 +29,9 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 
 import { badgeIconName } from '@/lib/badge-icons'
+// เกณฑ์ขั้นต่ำอ่านจาก SSOT — ห้าม hardcode เลขในข้อความ ไม่งั้นวันที่เกณฑ์เปลี่ยน
+// หน้าจอจะบอกตัวเลขที่ไม่ตรงกับที่ระบบใช้จริง
+import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
 
 export type HeroBadge = { id: string; name: string; nameEN: string; icon: string }
 
@@ -49,6 +52,13 @@ export type ProfileHeroData = {
   customerCount: number | null
   repeatCustomerCount: number | null
   completionRate: number | null
+  /** feature 00039 — ฐานที่ใช้คำนวณจริง (BR-OSM-07) ต้องแสดงคู่กับ % เสมอ ผู้ซื้อจะได้บวกตามได้
+   *  เดิมหน้าจอโชว์แต่ % แล้วเขียนว่า "จากออเดอร์ทั้งหมด" ซึ่งไม่ตรงกับตัวหารจริง */
+  completionDenominator?: number
+  /** จำนวนใบที่หักออกเพราะไม่ใช่ความผิดร้าน — แสดงเมื่อ > 0 เท่านั้น */
+  completionExcluded?: number
+  /** ตัวหารยังไม่ถึงเกณฑ์ขั้นต่ำ — ต้องแสดงข้อความอธิบาย ไม่ใช่ซ่อนเงียบ ๆ */
+  completionBelowMinSample?: boolean
   canChat: boolean
   /** ปลายทางของปุ่มแชท — null เมื่อยังไม่มีร้าน (ปุ่มจะไม่ถูก render) */
   shopId?: string | null
@@ -59,24 +69,32 @@ export type ProfileHeroData = {
 }
 
 /** คำเรียกตัวเลขตามประเภทกิจการ — เปลี่ยนแค่คำ ไม่เปลี่ยนวิธีนับ */
+/* feature 00039 — rateCaption เลิกใช้คำว่า "ทั้งหมด" ทุกชุด
+   ตัวหารไม่เคยรวมใบที่ยังไม่ปิดจบ (รอชำระ/กำลังส่ง) และตอนนี้ยังหักใบที่ผู้ซื้อไม่รับออกอีก
+   คำว่า "ทั้งหมด" จึงเป็นคำที่พูดเกินจริงบนหน้าที่ขายความโปร่งใสเป็นจุดยืน
+   จำนวนจริงอยู่ในบรรทัดตัวหารใต้ % แล้ว ป้ายบรรทัดบนจึงบอกแค่ว่ามันคืออะไร */
 const STAT_LABELS = {
   general: {
     orders: 'ออเดอร์',
     customers: 'จำนวนลูกค้า',
     repeat: 'ลูกค้าใช้บริการซ้ำ',
-    rateCaption: 'อัตราความสำเร็จจากออเดอร์ทั้งหมดบน Deep',
+    rateCaption: 'อัตราความสำเร็จของออเดอร์บน Deep',
+    /** ลักษณนามที่ใช้กับ "จำนวนใบที่ปิดจบ" — ต่างกันตามโดเมน ไม่ใช่แทนคำนามเฉย ๆ */
+    unitLabel: 'ใบ',
   },
   lodging: {
     orders: 'การเข้าพัก',
     customers: 'จำนวนลูกค้า',
     repeat: 'ลูกค้าใช้บริการซ้ำ',
-    rateCaption: 'อัตราความสำเร็จจากการเข้าพักทั้งหมดบน Deep',
+    rateCaption: 'อัตราความสำเร็จของการเข้าพักบน Deep',
+    unitLabel: 'ครั้ง',
   },
   serviceQueue: {
     orders: 'นัดหมาย',
     customers: 'จำนวนลูกค้า',
     repeat: 'ลูกค้าใช้บริการซ้ำ',
-    rateCaption: 'อัตราความสำเร็จจากนัดหมายทั้งหมดบน Deep',
+    rateCaption: 'อัตราความสำเร็จของนัดหมายบน Deep',
+    unitLabel: 'งาน',
   },
 } as const
 
@@ -220,19 +238,43 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
              ใช้ Verified Ink #18804A ไม่ใช่ #28C76F (DESIGN.md §2 "สองโทน") — เขียวหลักบนพื้นขาว
              ได้ contrast แค่ 2.21:1 ตกเกณฑ์แม้กับตัวใหญ่ ตัวเลขที่สำคัญที่สุดในหน้าจึงเป็นตัวที่
              ผู้สูงวัยอ่านยากที่สุดพอดี ซึ่งขัดกับกลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้ ── */}
-      {data.completionRate != null && (
-        <div className='flex items-baseline gap-2.5 pli-5 plb-3.5 border-bs'>
-          <span
-            className='text-[32px] font-extrabold tabular-nums leading-none'
-            style={{ color: '#18804A', letterSpacing: '-0.03em' }}
-          >
-            {`${data.completionRate}%`}
-          </span>
-          <Typography variant='body2' color='text.secondary'>
-            {L.rateCaption}
+      {/* feature 00039 — บล็อกนี้ต้อง "ไม่หายไปเงียบ ๆ" เมื่อยังสรุปไม่ได้
+          ร้านที่เคยเห็น % แล้ววันหนึ่งมันหายไปโดยไม่มีคำอธิบาย จะอ่านเป็นหน้าพัง/มีอะไรถูกซ่อน
+          ซึ่งอันตรายกว่าการบอกตรง ๆ ว่าข้อมูลยังไม่พอ — บนหน้าที่ทั้งหน้ามีไว้สร้างความเชื่อใจ */}
+      {data.completionRate != null ? (
+        <div className='pli-5 plb-3.5 border-bs'>
+          <div className='flex items-baseline gap-2.5'>
+            <span
+              className='text-[32px] font-extrabold tabular-nums leading-none'
+              style={{ color: '#18804A', letterSpacing: '-0.03em' }}
+            >
+              {`${data.completionRate}%`}
+            </span>
+            <Typography variant='body2' color='text.secondary'>
+              {L.rateCaption}
+            </Typography>
+          </div>
+          {/* กางตัวหารให้เห็น (BR-OSM-07) — % ที่คำนวณย้อนกลับไม่ได้คือสิ่งที่ผู้ซื้อไม่เชื่อ
+              ไม่แสดง "ไม่นับ 0 ใบ" เพราะประโยคนั้นไม่ให้ข้อมูลอะไรเลย */}
+          {data.completionDenominator != null && (
+            <Typography variant='caption' color='text.secondary' className='block mbs-1 tabular-nums'>
+              {`จาก ${data.completionDenominator} ${L.unitLabel}ที่ปิดจบ`}
+              {data.completionExcluded ? ` · ไม่นับ ${data.completionExcluded} ${L.unitLabel}ที่ผู้ซื้อไม่รับของ` : ''}
+            </Typography>
+          )}
+        </div>
+      ) : data.completionBelowMinSample ? (
+        /* น้ำเสียงเป็นกลาง ไม่ใช้สีเตือน/ผิดพลาด — นี่ไม่ใช่ปัญหาของร้าน แค่ข้อมูลยังไม่พอ
+           และบอกเงื่อนไขที่จะทำให้ตัวเลขปรากฏ ไม่ใช่บอกแค่ว่าไม่มี */
+        <div className='pli-5 plb-3.5 border-bs'>
+          <Typography variant='body2' color='text.primary'>
+            ยังสรุปอัตราความสำเร็จไม่ได้
+          </Typography>
+          <Typography variant='caption' color='text.secondary' className='block mbs-0.5'>
+            {`ต้องมี${L.unitLabel}ที่ปิดจบอย่างน้อย ${COMPLETION_RATE_MIN_SAMPLE} ${L.unitLabel} (ไม่นับ${L.unitLabel}ที่ผู้ซื้อไม่รับของ)`}
           </Typography>
         </div>
-      )}
+      ) : null}
 
       {/* ปุ่มแชท — เดิมไม่มีทั้ง onClick และ href คือกดแล้วไม่เกิดอะไรขึ้นเลย ต่อปลายทางให้แล้ว
           ยังไม่ล็อกอิน → พาไปหน้าเข้าสู่ระบบพร้อม callbackUrl กลับมาที่ห้องแชทเดิม
