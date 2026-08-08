@@ -38,6 +38,19 @@ model User {
   deletedReason      String?
   purgedAt           DateTime?
 
+  // chatScopeMode (feature 00037) — มุมมองกล่องข้อความของ "คนคนนี้": "SINGLE" | "UNIFIED"
+  //   SINGLE  = เห็นเฉพาะแชทของร้านที่ active อยู่ (พฤติกรรมเดิมทั้งหมดก่อน 00037)
+  //   UNIFIED = เห็นแชทของทุกร้านที่คนนี้เข้าถึงได้ (เจ้าของ + ที่ถูกเชิญ) รวมในรายการเดียว
+  //
+  // เก็บที่ User ไม่ใช่ที่ Shop เพราะเป็น "วิธีทำงานของคน" ไม่ใช่ "การตั้งค่าของร้าน" — คนคนเดียว
+  // สลับไปร้านไหนก็อยากได้มุมมองแบบเดิมของตัวเอง (D-3)
+  //
+  // String ไม่ใช่ enum ตาม convention เดิมของโปรเจกต์ (Order.status/Product.type/ShopMember.role)
+  // — validate ที่ Valibot ชั้น API; ค่าที่ไม่รู้จักถูกตีเป็น SINGLE (fail-closed, ดู lib/chat-scope.ts)
+  //
+  // 🛑 ห้ามใส่ CHECK constraint รายชื่อค่าให้คอลัมน์นี้ (docs/conventions/migration-check-constraint-additive.md)
+  chatScopeMode      String    @default("SINGLE")
+
   authAccounts           AuthAccount[]
   mobileAuthTickets      MobileAuthTicket[]
   shops                  Shop[] // Phase 2 cutover (feature 00008 §4/§6.3) — เดิมเป็น `shop Shop?` (1:1); ตอนนี้ 1 user มีได้หลาย Shop (PERSONAL 1 แถว unique partial + BUSINESS หลายแถว) ใช้ .find(kind==='PERSONAL')/.filter ตามต้องการที่ caller

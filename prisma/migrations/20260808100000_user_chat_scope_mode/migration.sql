@@ -1,0 +1,13 @@
+-- feature 00037 — กล่องแชทรวมหลายร้าน
+--
+-- chatScopeMode: มุมมองกล่องข้อความของผู้ใช้คนนั้น "SINGLE" | "UNIFIED"
+--   SINGLE  = เห็นเฉพาะแชทของร้านที่ active (พฤติกรรมเดิมทั้งหมดก่อนฟีเจอร์นี้)
+--   UNIFIED = เห็นแชทของทุกร้านที่ผู้ใช้เข้าถึงได้ รวมในรายการเดียว
+--
+-- DEFAULT 'SINGLE' ทำให้แถวเดิมทุกแถวได้ค่าที่แปลว่า "เหมือนเดิม" ทันที — ไม่ต้อง backfill
+-- และไม่มีช่วงเวลาที่ผู้ใช้เดิมเห็นพฤติกรรมใหม่โดยไม่ได้เลือกเอง
+--
+-- 🛑 ไม่มี CHECK constraint รายชื่อค่าโดยตั้งใจ — docs/conventions/migration-check-constraint-additive.md
+--    (migration ที่แก้ CHECK แบบรายชื่อเคยลบค่าของกันเองเงียบ ๆ เมื่อสอง branch แก้พร้อมกัน)
+--    ค่าที่ไม่รู้จักถูกกันที่ Valibot ขาเขียน และถูกตีเป็น SINGLE ขาอ่าน (fail-closed)
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "chatScopeMode" TEXT NOT NULL DEFAULT 'SINGLE';
