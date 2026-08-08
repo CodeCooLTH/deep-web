@@ -1146,7 +1146,7 @@ git commit -m "feat(00038): ต่อสาย webhook feed -> ตอบคอ�
 **Interfaces:**
 - Consumes: `sendPrivateReplyToCommentById()` (Task 3)
 - Produces:
-  - `POST /api/chat/comments/{commentId}/private-reply` body `{ message: string }` → `200 { conversationId, messageId }` · `400 { error: <PrivateReplySkipReason> }` · `403` · `404`
+  - `POST /api/chat/comments/{commentId}/private-reply` — 🛑 **ยึด `API.md` เป็น contract ห้ามยึดบรรทัดนี้** (แผนฉบับแรกเขียน status ผิด แก้ 2026-08-08): state conflict ทั้งหมดเป็น **409** ไม่ใช่ 400
   - `GET /api/shops/comment-reply/config` → `{ channels: Array<{ id, name, avatarUrl, provider, status, publicEnabled, publicText, privateEnabled, privateText }> }`
   - `PATCH /api/shops/comment-reply/config` body `{ shopChannelId, publicEnabled, publicText, privateEnabled, privateText }` → `200 { ok: true }`
   - `GET /api/shops/comment-reply/logs?shopChannelId=&take=` → `{ logs: Array<{ id, createdAt, fromName, postMessage, publicReplyStatus, privateReplyStatus, skipReason, conversationId }> }`
@@ -1192,8 +1192,12 @@ map ผลลัพธ์เป็น HTTP:
 |---|---|
 | `COMMENT_NOT_FOUND` | 404 |
 | `FORBIDDEN` | 403 |
-| `ALREADY_SENT` · `WINDOW_EXPIRED` · `EMPTY_TEXT` · `CHANNEL_INACTIVE` | 400 |
-| `SEND_FAILED` | 502 |
+| `ALREADY_SENT` · `WINDOW_EXPIRED` · `CHANNEL_NOT_ACTIVE` | **409** (state conflict — ไม่ใช่ 400 ที่แปลว่า "คำขอผิดรูป") |
+| `EMPTY_TEXT` → `VALIDATION_ERROR` | 400 |
+| `SEND_FAILED` → `UPSTREAM_ERROR` | 502 |
+
+> 🛑 **`API.md` คือ contract ที่ freeze แล้ว** — ถ้าตารางนี้ขัดกับ `API.md` ให้ยึด `API.md` เสมอ
+> และ `UX-Design-Spec.md` §2.2 (ตาราง error → toast) อิง 409 อยู่แล้ว Task 8 ต้องตรงกับสองไฟล์นั้น
 
 ทุก route ต้องมี `export const dynamic = 'force-dynamic'` + header `Cache-Control: private, no-store` ตามกติกา API ที่ผูกกับ session
 
