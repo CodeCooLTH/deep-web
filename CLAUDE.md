@@ -325,6 +325,13 @@ theme/
   - **`API.md` + `UX-Design-Spec.md` ของ 00016 เสียหายทั้งไฟล์บน main มา 6 วัน** (ทุกบรรทัดถูกเติมแถวตารางนำหน้า heading = 0) กู้แล้ว `c177f5a5` — **ไม่มีชั้นไหนในระบบตรวจไฟล์ `.md` เลย** ยังไม่ได้สแกนไฟล์อื่นทั้งรีโป
   - **carry:** browser QA (user ตรวจเอง) · E2E · TestCase TC-EXT-01..13 · ตำแหน่งการ์ดกำไรบนมือถืออยู่ท้ายสุดใต้การ์ดอื่น 5 ใบ · สแกน `.md` ทั้งรีโปหาไฟล์ที่เสียแบบเดียวกัน
 
+- **2026-08-08 (feature 00038): ตอบกลับคอมเมนต์ (Comment Auto-Reply & Private Reply) — 10 tasks ผ่าน SDD full-review** (`9129f224..ef4a78c2` ฟีเจอร์หลัก → `2ed8ed5f` ถอด GET config ไม่มีใครเรียก; docs 7/7 ที่ `docs/20 - Features/00038 - Comment Auto-Reply/` · retro `docs/retro/2026-08-08-feature-00038-comment-auto-reply-retrospective.md`)
+  - สวิตช์ตอบกลับคอมเมนต์ Facebook อัตโนมัติต่อเพจ (สาธารณะ + ส่งข้อความส่วนตัว) + ปุ่มแมนนวล "ทักแชท" ใช้ core เดียวกัน + หน้าประวัติ + สถานะ 3 ชั้น (ยังไม่ตอบ/บอทตอบแล้ว/คนตอบแล้ว) 53 เทสเขียว, tsc 0
+  - 🛑 **5 บั๊ก Critical ถูก reviewer จับก่อนขึ้น prod ทั้งที่ tsc/เทส/grep ของ implementer เองผ่านหมด** — ด่านกันซ้ำต้นฟังก์ชันใช้คนละคีย์กับตอนเขียน log (คอมเมนต์ที่สองของคนเดิมลอดยิง Graph ซ้ำ) · ไม่มี error boundary หลัง Graph สำเร็จ (DB ล้ม = สิทธิ์ Meta หายถาวรเงียบ ๆ) · ไม่จับ P2002 + จองแถวหลังยิง Graph · **การกันซ้ำสองชั้นจากคนละ task ฆ่ากันเอง** (Task 4 จองแถว AUTO ก่อน Task 3 เห็นแถวนั้นเองแล้วคืน `ALREADY_SENT` — private auto-reply ไม่ยิงออกสักครั้ง) · SQL `countUnansweredForShops` ขัด AC-CR-25 (โพสต์ที่บอทเคลียร์หมดค้าง badge ตลอดกาล)
+  - **บทเรียนหลัก: 4 ใน 5 Critical มีต้นเหตุจากแผนที่ controller เขียนเอง ไม่ใช่จาก implementer** — แผนละเอียดมากไม่ได้แปลว่าถูก แค่ทำให้ผิดได้เร็วขึ้น · **เทสที่ mock เพื่อนบ้านทิ้งทั้งตัวเขียวตลอดไม่ว่าเพื่อนบ้านทำอะไร** — ต้องมีเทสอย่างน้อย 1 ตัวที่ไม่ mock แล้วยืนยัน Graph ถูกเรียกจริง · partial unique index พิสูจน์ถูกที่ชั้น DB (7 เคส) แต่โค้ดใช้ find-then-update จึงไม่เคยมีโอกาสทำงานเป็นตัวกันชน
+  - ก่อนเริ่ม Task 2 พบ branch ตามหลัง `origin/main` 37 คอมมิต + 6/7 ไฟล์ถูกแก้ไปแล้วบน main (ชน 00037) — rebase ก่อนเริ่มกันเขียนทับงานคนอื่นได้จริง
+  - **carry:** `CardAvatar` ซ้ำกับ `PageAvatar` (ควรรวมเป็น `size='lg'`) · `countUnansweredForShops` batch scope vs badge global scope (fast-follow, ไม่ critical) · impeccable critique/clarify · browser QA · 5 minor deferred (`isUniqueConstraintError` string-match, dangling TD ref ใน SRS, `resolveChannelToken` error รายละเอียดหาย, webhook `verb=edited` DB round-trip เกิน, `logs` `postMessage` ไม่ตัดสั้น)
+
 Safety checkpoint: `git checkout pre-paces-wipe` restores the pre-2026-04-13 state.
 
 @AGENTS.md
