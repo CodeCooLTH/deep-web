@@ -61,17 +61,27 @@ export function evaluateCommentGate(input: {
  *
  * ลำดับ:
  *  1. โหลด comment + post + channel (รวม 4 คอลัมน์ตั้งค่า) — ไม่พบ = return เงียบ
- *  2. query hasAutoLogForPerson (เคยตอบคนนี้บนโพสต์นี้อัตโนมัติไปแล้วไหม)
- *  3. query hasHumanReply (คนในทีมตอบคอมเมนต์นี้ไปแล้วไหม — บอทต้องหลีกทางให้คน)
- *  4. evaluateCommentGate — ไม่ผ่าน → บันทึก CommentReplyLog(trigger=AUTO, skipReason) แล้ว return
+ *  2. เช็คด่านที่ตัดสินได้โดยไม่ต้องแตะ DB ก่อน (evaluateCommentGate โดยส่ง
+ *     hasAutoLogForPerson/hasHumanReply = false ไปก่อน — ด่านอื่นทั้งหมดไม่ขึ้นกับสองค่านี้)
+ *     ไม่ผ่าน → บันทึก skip แล้ว return ทันที **ไม่ query DB เพิ่มเลย** (I2 fix round 1: เดิม query
+ *     hasAutoLogForPerson/hasHumanReply ก่อนด่านเสมอ แม้แต่คอมเมนต์ที่ไม่มี fromExternalId ซึ่งโดน
+ *     ตัดที่ NO_SENDER_ID อยู่แล้ว — เสีย round-trip เปล่า ๆ ทุก event ที่ไม่มี from)
+ *  3. ผ่านด่านที่ไม่ต้องแตะ DB แล้ว → query hasAutoLogForPerson (เคยตอบคนนี้บนโพสต์นี้อัตโนมัติ
+ *     ไปแล้วไหม) + hasHumanReply (คนในทีมตอบคอมเมนต์นี้ไปแล้วไหม — บอทต้องหลีกทางให้คน)
+ *  4. evaluateCommentGate อีกครั้งด้วยค่าจริงจากข้อ 3 — ไม่ผ่าน → บันทึก skip แล้ว return
  *  5. จอง slot ด้วย CommentReplyLog.create (trigger=AUTO) **ก่อนยิงตัวส่งใด ๆ** — partial unique
  *     index (shopChannelId, postId, fromExternalId) WHERE trigger='AUTO' กันซ้ำข้ามเธรด/ข้าม request
  *     ซ้ำจาก Meta retry ของ webhook เดียวกัน ดัก P2002 = อีกเธรดชนะไปแล้ว ไม่ใช่ error
- *     (ฝั่ง private reply มี sendPrivateReplyToCommentById จัดการกันซ้ำของตัวเองอยู่แล้ว — แต่ฝั่ง
- *     public reply ไม่มีใครกัน แถวที่จองตรงนี้คือด่านกันซ้ำเดียวของ public reply)
+ *     (ฝั่ง private reply ไม่มีด่านกันซ้ำของตัวเองแล้วในเส้นทางนี้ — ดูข้อ 7)
  *  6. สวิตช์ public เปิด → replyToComment(actorUserId: null) — จับ error แยก อัปเดต publicReplyStatus
- *  7. สวิตช์ private เปิด → sendPrivateReplyToCommentById(trigger: 'AUTO') — อัปเดต privateReplyStatus
- *     + conversationId — ข้อ 6 ล้มเหลวไม่หยุดข้อ 7 (BR-CR-A5: สองอย่างนี้ไม่ผูกกันแบบ all-or-nothing)
+ *  7. สวิตช์ private เปิด → sendPrivateReplyToCommentById(trigger: 'AUTO', reservedLogId: logId) —
+ *     **ต้องส่ง reservedLogId เป็นแถวเดียวกับที่จองไว้ในข้อ 5 เสมอ** ไม่งั้น sendPrivateReplyToCommentById
+ *     จะ findFirst เจอแถวที่เพิ่งจองไปเอง แล้ว trigger==='AUTO' จะ trip ALREADY_SENT ทุกครั้ง = ไม่ยิง
+ *     Graph เลยสักครั้ง (Fix round 1 — บั๊กจริงที่ reviewer จับได้ 2026-08-08) — อัปเดต
+ *     privateReplyStatus + conversationId ต่อจากผลที่ callee เขียนไว้แล้ว (บาง early-return path
+ *     ของ callee เช่น CHANNEL_INACTIVE/WINDOW_EXPIRED ไม่เคยแตะแถวนี้เลย โค้ดข้างล่างจึงยังต้องเขียน
+ *     เอง — ดู docstring parameter reservedLogId ใน comment-private-reply.service.ts) ข้อ 6
+ *     ล้มเหลวไม่หยุดข้อ 7 (BR-CR-A5: สองอย่างนี้ไม่ผูกกันแบบ all-or-nothing)
  *
  * 🛑 ฟังก์ชันนี้ห้าม throw ออกไปทุกกรณี — ผู้เรียกคือ after() ของ webhook route ซึ่ง throw ไม่ได้
  * (Meta จะ retry ทั้ง batch)
@@ -103,6 +113,48 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
 
     const channel = comment.post.channel
 
+    const gateInputWithoutDbFlags = {
+      isFromPage: comment.isFromPage,
+      parentExternalId: comment.parentExternalId,
+      isDeleted: comment.isDeleted,
+      fromExternalId: comment.fromExternalId,
+      channelStatus: channel.status,
+      publicEnabled: channel.commentPublicReplyEnabled,
+      publicText: channel.commentPublicReplyText,
+      privateEnabled: channel.commentPrivateReplyEnabled,
+      privateText: channel.commentPrivateReplyText,
+    }
+
+    const recordSkip = async (reason: CommentSkipReason) => {
+      try {
+        await prisma.commentReplyLog.create({
+          data: {
+            shopChannelId: channel.id,
+            postId: comment.postId,
+            commentId: comment.id,
+            fromExternalId: comment.fromExternalId,
+            trigger: 'AUTO',
+            skipReason: reason,
+          },
+        })
+      } catch (err) {
+        // อีกเธรดชนะจอง slot ไปแล้ว (P2002) — ไม่ใช่ error ต้องจัดการ
+        if (!isUniqueConstraintError(err)) throw err
+      }
+    }
+
+    // ด่านที่ไม่ต้องแตะ DB ก่อน — ยังไม่รู้ hasAutoLogForPerson/hasHumanReply จริง ใส่ false ไปก่อน
+    // (ด่านอื่นทั้งหมดไม่ขึ้นกับสองค่านี้ ผลจึงยังถูกต้องแม้จะยังไม่ query)
+    const cheapGate = evaluateCommentGate({
+      ...gateInputWithoutDbFlags,
+      hasAutoLogForPerson: false,
+      hasHumanReply: false,
+    })
+    if (!cheapGate.pass) {
+      await recordSkip(cheapGate.reason)
+      return
+    }
+
     const [autoLog, humanReply] = await Promise.all([
       prisma.commentReplyLog.findFirst({
         where: {
@@ -122,35 +174,13 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
     ])
 
     const gate = evaluateCommentGate({
-      isFromPage: comment.isFromPage,
-      parentExternalId: comment.parentExternalId,
-      isDeleted: comment.isDeleted,
-      fromExternalId: comment.fromExternalId,
-      channelStatus: channel.status,
-      publicEnabled: channel.commentPublicReplyEnabled,
-      publicText: channel.commentPublicReplyText,
-      privateEnabled: channel.commentPrivateReplyEnabled,
-      privateText: channel.commentPrivateReplyText,
+      ...gateInputWithoutDbFlags,
       hasAutoLogForPerson: !!autoLog,
       hasHumanReply: !!humanReply,
     })
 
     if (!gate.pass) {
-      try {
-        await prisma.commentReplyLog.create({
-          data: {
-            shopChannelId: channel.id,
-            postId: comment.postId,
-            commentId: comment.id,
-            fromExternalId: comment.fromExternalId,
-            trigger: 'AUTO',
-            skipReason: gate.reason,
-          },
-        })
-      } catch (err) {
-        // อีกเธรดชนะจอง slot ไปแล้ว (P2002) — ไม่ใช่ error ต้องจัดการ
-        if (!isUniqueConstraintError(err)) throw err
-      }
+      await recordSkip(gate.reason)
       return
     }
 
@@ -198,10 +228,13 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
 
     // ข้อ public ล้มเหลวไม่หยุดตรงนี้ (BR-CR-A5) — สองช่องทางไม่ผูกกันแบบ all-or-nothing
     if (privateOn) {
+      // 🛑 ต้องส่ง reservedLogId เป็นแถวเดียวกับที่จองไว้ข้างบนเสมอ — ไม่งั้น callee จะเห็นแถวนั้น
+      // ผ่าน findFirst ของตัวเองแล้ว trip ALREADY_SENT ทันที (Fix round 1, ดู docstring บนฟังก์ชันนี้)
       const result = await sendPrivateReplyToCommentById({
         commentId: comment.id,
         text: channel.commentPrivateReplyText as string,
         trigger: 'AUTO',
+        reservedLogId: logId,
       })
       if (result.sent) {
         await prisma.commentReplyLog.update({

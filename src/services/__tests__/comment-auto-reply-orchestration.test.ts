@@ -75,6 +75,19 @@ describe('processCommentAutoReply', () => {
     )
   })
 
+  // Fix round 1 — ต้องส่ง reservedLogId เป็นแถวเดียวกับที่ processCommentAutoReply จองไว้เอง
+  // (logCreate mock คืน { id: 'log-1' }) ไม่งั้น sendPrivateReplyToCommentById จะ findFirst เจอแถว
+  // นั้นแล้ว trip ALREADY_SENT ทันทีทุกครั้ง = private auto-reply ไม่ยิง Graph เลยสักครั้ง
+  it('ส่ง reservedLogId เป็น id ของแถวที่จองไว้เข้า sendPrivateReplyToCommentById เสมอ', async () => {
+    logCreate.mockResolvedValue({ id: 'log-reserved-123' } as never)
+
+    await processCommentAutoReply('cmt-1')
+
+    expect(privateReply).toHaveBeenCalledWith(
+      expect.objectContaining({ reservedLogId: 'log-reserved-123' }),
+    )
+  })
+
   it('ตอบใต้คอมเมนต์ล้มเหลว -> ยังทักแชทต่อ (BR-CR-A5 ไม่ผูกกันแบบ all-or-nothing)', async () => {
     publicReply.mockRejectedValue(new Error('(#200) Permissions error'))
 

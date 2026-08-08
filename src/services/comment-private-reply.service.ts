@@ -97,6 +97,11 @@ function isUniqueConstraintError(err: unknown): boolean {
  *          แถวคืนมาลองใหม่ — count===0 = อีกเธรดคว้าไปแล้ว → ALREADY_SENT (หลักเดียวกับ
  *          claimJob ของ auto-reply.service.ts / atomic deduct ของ wallet.service — ห้าม
  *          findFirst แล้วค่อย update เด็ดขาด)
+ *      🛑 **ข้ามข้อนี้ทั้งข้อถ้า `params.reservedLogId` มีค่า** — เจ้าของแถวคือผู้เรียก
+ *      (processCommentAutoReply จองแถวเดียวกันไว้แล้วก่อนเรียกมาที่นี่ เพื่อกันซ้ำฝั่ง public
+ *      reply ด้วย) ไม่งั้น dedupeWhere() จะ `findFirst` เจอแถวที่ผู้เรียกเพิ่งจองไปเอง แล้ว
+ *      `trigger==='AUTO'` จะ trip เป็น ALREADY_SENT ทุกครั้ง = private auto-reply ไม่ยิง Graph
+ *      เลยสักครั้ง (Fix round 1 — reviewer จับได้ 2026-08-08, ยืนยันจริงจาก coordinator)
  *   7. ถอดโทเคน → ยิง Graph นอกทรานแซกชันเสมอ (ห้าม network call อยู่ในทรานแซกชัน) ล้มเหลว =
  *      update แถวที่จองไว้เป็น FAILED แล้วคืน SEND_FAILED
  *   8. Graph สำเร็จ: **update log เป็น SENT ทันทีเป็นคำสั่งเดี่ยว ๆ ก่อนทำอย่างอื่น** — ข้อความ
@@ -114,6 +119,19 @@ export async function sendPrivateReplyToCommentById(params: {
   text: string
   trigger: 'AUTO' | 'MANUAL'
   actorUserId?: string | null
+  /**
+   * id ของแถว CommentReplyLog ที่ **ผู้เรียกจองไว้แล้ว** (processCommentAutoReply เป็นคนจอง)
+   *
+   * 🛑 มีไว้เพราะเส้นทาง AUTO จองแถวก่อนเพื่อกันซ้ำฝั่ง public reply ด้วย ถ้าไม่บอกกัน
+   * ฟังก์ชันนี้จะเห็นแถวนั้นแล้วตีความว่า "ส่งไปแล้ว" คืน ALREADY_SENT ทันที = ไม่ยิงเลยสักครั้ง
+   * (บั๊กจริงที่ reviewer จับได้ 2026-08-08)
+   *
+   * มีค่า  = ข้ามด่านกันซ้ำและขั้นจองทั้งหมด (ทั้ง findFirst/create/updateMany) ใช้ id นี้เป็น
+   *          เป้าหมายของทุกคำสั่ง update ที่บันทึกผลแทน — ด่านอื่นทั้งหมด (COMMENT_NOT_FOUND,
+   *          EMPTY_TEXT, FORBIDDEN, CHANNEL_INACTIVE, WINDOW_EXPIRED) ยังทำงานตามปกติ
+   * ไม่มีค่า = พฤติกรรมเดิมทุกประการ (ปุ่มแมนนวลใช้ทางนี้ — เจ้าของแถวคือฟังก์ชันนี้เอง)
+   */
+  reservedLogId?: string
 }): Promise<PrivateReplyResult> {
   try {
     const comment = await prisma.pageComment.findUnique({
@@ -149,58 +167,64 @@ export async function sendPrivateReplyToCommentById(params: {
       return { sent: false, reason: 'WINDOW_EXPIRED' }
     }
 
-    const dedupeArgs = {
-      trigger: params.trigger,
-      commentId: comment.id,
-      shopChannelId: channel.id,
-      postId: comment.postId,
-      fromExternalId: comment.fromExternalId,
-    }
-    const where = dedupeWhere(dedupeArgs)
-    const existing = await prisma.commentReplyLog.findFirst({ where })
-
-    if (existing) {
-      if (existing.privateReplyStatus === 'SENT') return { sent: false, reason: 'ALREADY_SENT' }
-      // AUTO ที่มีแถวอยู่แล้วไม่ว่าสถานะไหน (FAILED หรือกำลังส่งอยู่/null) = หยุด ไม่ลองซ้ำเอง
-      if (params.trigger === 'AUTO') return { sent: false, reason: 'ALREADY_SENT' }
-    }
-
     // จองแถว: privateReplyStatus=null แปลว่า "กำลังส่ง" — ผูก reservedLogId ไว้อัปเดตต่อ
     let reservedLogId: string
-    if (!existing) {
-      try {
-        const created = await prisma.commentReplyLog.create({
-          data: {
-            shopChannelId: channel.id,
-            postId: comment.postId,
-            commentId: comment.id,
-            fromExternalId: comment.fromExternalId,
-            trigger: params.trigger,
-            actorUserId: params.trigger === 'MANUAL' ? (params.actorUserId ?? null) : null,
-            privateReplyStatus: null,
-          },
-          select: { id: true },
-        })
-        reservedLogId = created.id
-      } catch (err) {
-        // สองคำขอพร้อมกันชนกันตอน create — ผู้แพ้ (ชน P2002) ถือว่า "อีกฝั่งกำลังจัดการอยู่แล้ว"
-        if (isUniqueConstraintError(err)) return { sent: false, reason: 'ALREADY_SENT' }
-        throw err
-      }
+    if (params.reservedLogId) {
+      // เจ้าของแถวคือผู้เรียก (processCommentAutoReply จองไว้แล้วก่อนเรียกมาที่นี่) — ข้ามด่าน
+      // กันซ้ำ + ขั้นจอง/claim ทั้งหมด (ดู docstring parameter ด้านบน ทำไมข้ามได้/ทำไมต้องข้าม)
+      reservedLogId = params.reservedLogId
     } else {
-      // ถึงตรงนี้ได้แค่กรณี trigger==='MANUAL' && existing.privateReplyStatus !== 'SENT'
-      // (AUTO ที่มี existing return ไปแล้วด้านบน) — claim แบบ conditional updateMany เท่านั้น
-      // ห้าม findFirst แล้วค่อย update (หลักเดียวกับ claimJob/atomic deduct)
-      const { count } = await prisma.commentReplyLog.updateMany({
-        where: { id: existing.id, privateReplyStatus: 'FAILED' },
-        data: {
-          privateReplyStatus: null,
-          errorMessage: null,
-          actorUserId: params.trigger === 'MANUAL' ? (params.actorUserId ?? null) : null,
-        },
-      })
-      if (count === 0) return { sent: false, reason: 'ALREADY_SENT' }
-      reservedLogId = existing.id
+      const dedupeArgs = {
+        trigger: params.trigger,
+        commentId: comment.id,
+        shopChannelId: channel.id,
+        postId: comment.postId,
+        fromExternalId: comment.fromExternalId,
+      }
+      const where = dedupeWhere(dedupeArgs)
+      const existing = await prisma.commentReplyLog.findFirst({ where })
+
+      if (existing) {
+        if (existing.privateReplyStatus === 'SENT') return { sent: false, reason: 'ALREADY_SENT' }
+        // AUTO ที่มีแถวอยู่แล้วไม่ว่าสถานะไหน (FAILED หรือกำลังส่งอยู่/null) = หยุด ไม่ลองซ้ำเอง
+        if (params.trigger === 'AUTO') return { sent: false, reason: 'ALREADY_SENT' }
+      }
+
+      if (!existing) {
+        try {
+          const created = await prisma.commentReplyLog.create({
+            data: {
+              shopChannelId: channel.id,
+              postId: comment.postId,
+              commentId: comment.id,
+              fromExternalId: comment.fromExternalId,
+              trigger: params.trigger,
+              actorUserId: params.trigger === 'MANUAL' ? (params.actorUserId ?? null) : null,
+              privateReplyStatus: null,
+            },
+            select: { id: true },
+          })
+          reservedLogId = created.id
+        } catch (err) {
+          // สองคำขอพร้อมกันชนกันตอน create — ผู้แพ้ (ชน P2002) ถือว่า "อีกฝั่งกำลังจัดการอยู่แล้ว"
+          if (isUniqueConstraintError(err)) return { sent: false, reason: 'ALREADY_SENT' }
+          throw err
+        }
+      } else {
+        // ถึงตรงนี้ได้แค่กรณี trigger==='MANUAL' && existing.privateReplyStatus !== 'SENT'
+        // (AUTO ที่มี existing return ไปแล้วด้านบน) — claim แบบ conditional updateMany เท่านั้น
+        // ห้าม findFirst แล้วค่อย update (หลักเดียวกับ claimJob/atomic deduct)
+        const { count } = await prisma.commentReplyLog.updateMany({
+          where: { id: existing.id, privateReplyStatus: 'FAILED' },
+          data: {
+            privateReplyStatus: null,
+            errorMessage: null,
+            actorUserId: params.trigger === 'MANUAL' ? (params.actorUserId ?? null) : null,
+          },
+        })
+        if (count === 0) return { sent: false, reason: 'ALREADY_SENT' }
+        reservedLogId = existing.id
+      }
     }
 
     const resolved = await resolveChannelToken(channel.id)
