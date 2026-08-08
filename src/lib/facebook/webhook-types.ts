@@ -150,6 +150,36 @@ const MessagingEventSchema = v.object({
       num_edit: v.optional(v.union([v.number(), v.string()])),
     }),
   ),
+  /**
+   * Handover Protocol (messaging_handovers) — 2026-08-08
+   *
+   * 🛑 ทำไมถึงต้องมี (user report prod): ร้านเปิด Meta Business Agent ให้ AI ตอบแชท → เธรดนั้น
+   * **ไม่เข้ากล่องเราเลยแม้แต่ห้องเดียว** จนกว่าคนจริงจะกด "ตอบกลับด้วยตัวเอง" ใน Business Suite
+   * ตอน AI ถือสิทธิ์คุมห้อง เราเป็น secondary receiver ซึ่งต้องประกาศตัวด้วย field นี้ Meta ถึงจะ
+   * ส่งของมาให้ (เราอ่านกล่อง standby เป็นตั้งแต่ 2026-08-04 แล้ว แต่ไม่เคยได้ของมาอ่าน)
+   *
+   * ทุก field optional ตาม external-payload-schema.md — โครงของ 3 event นี้ต่างกันเล็กน้อยและ
+   * Meta ไม่ได้ส่งครบทุกครั้ง ประกาศบังคับเมื่อไหร่คือตี event ตกทั้งก้อนเงียบ ๆ เมื่อนั้น
+   */
+  pass_thread_control: v.optional(
+    v.object({
+      new_owner_app_id: v.optional(v.union([v.string(), v.number()])),
+      previous_owner_app_id: v.optional(v.union([v.string(), v.number()])),
+      metadata: v.optional(v.string()),
+    }),
+  ),
+  take_thread_control: v.optional(
+    v.object({
+      previous_owner_app_id: v.optional(v.union([v.string(), v.number()])),
+      metadata: v.optional(v.string()),
+    }),
+  ),
+  request_thread_control: v.optional(
+    v.object({
+      requested_owner_app_id: v.optional(v.union([v.string(), v.number()])),
+      metadata: v.optional(v.string()),
+    }),
+  ),
 })
 
 

@@ -232,6 +232,35 @@ export async function POST(request: NextRequest) {
           reactorExternalId: event.sender.id,
           timestamp: event.timestamp,
         })
+      } else if (event.pass_thread_control || event.take_thread_control || event.request_thread_control) {
+        /**
+         * Handover Protocol (2026-08-08) — สิทธิ์คุมห้องเปลี่ยนมือ
+         *
+         * ยังไม่ทำอะไรกับข้อมูลนอกจาก log: เป้าหมายของรอบนี้คือ "ให้ Meta ยอมส่งของมาให้เรา"
+         * ซึ่งเกิดจากการ subscribe field นี้ ไม่ใช่จากการประมวลผล event
+         *
+         * 🛑 ห้าม take_thread_control อัตโนมัติเด็ดขาด — ร้านตั้งใจให้ Meta AI ตอบอยู่ การแย่ง
+         * สิทธิ์คืนเงียบ ๆ คือการปิด AI ที่เขาเปิดไว้เองโดยไม่บอก (และจะทำให้ AI หยุดตอบทันที)
+         * เราแค่ต้อง "เห็น" บทสนทนา ซึ่งไม่ต้องใช้สิทธิ์คุมห้อง
+         */
+        console.log(
+          '[fb-handover]',
+          JSON.stringify({
+            provider,
+            pageId,
+            kind: event.pass_thread_control
+              ? 'pass'
+              : event.take_thread_control
+                ? 'take'
+                : 'request',
+            newOwnerAppId: event.pass_thread_control?.new_owner_app_id ?? null,
+            previousOwnerAppId:
+              event.pass_thread_control?.previous_owner_app_id ??
+              event.take_thread_control?.previous_owner_app_id ??
+              null,
+            standby: standby ?? false,
+          }),
+        )
       } else {
         const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event, rawEvent })
 

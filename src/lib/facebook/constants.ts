@@ -42,6 +42,29 @@ export const MESSENGER_SUBSCRIBED_FIELDS = [
   // มาที่ entry.changes ไม่ใช่ entry.messaging — ดู extractFeedChanges ใน webhook-types
   // เพจที่เชื่อมไว้ก่อนหน้านี้ถูกเติม field นี้ให้แล้วผ่าน Graph (ไม่ต้องเชื่อมใหม่)
   'feed',
+  /**
+   * message_edits — ลูกค้าแก้ข้อความที่ส่งไปแล้ว (2026-08-08)
+   *
+   * โค้ดฝั่งรับ (`ingestMessageEdit`) เขียนรออยู่ตั้งแต่ 2026-08-03 แต่ไม่เคยมีใครบอกเพจให้ส่ง
+   * field นี้มา — ระดับแอปมีอยู่แล้ว ระดับเพจไม่มี ผลคือฟีเจอร์นี้ไม่เคยทำงานเลยสักครั้ง
+   * (ตรงกับที่ CLAUDE.md บันทึกไว้เองว่า "โค้ดขึ้นแล้วแต่ยังไม่เคยทดสอบ")
+   */
+  'message_edits',
+  /**
+   * messaging_handovers — pass/take/request thread control (Handover Protocol) 2026-08-08
+   *
+   * 🛑 ทำไมถึงจำเป็น (user report prod 2026-08-08): ร้านเปิด "Meta Business Agent" (AI ของ Meta)
+   * ให้ตอบแชทแทน → **เธรดนั้นไม่เข้ากล่องของเราเลยแม้แต่ห้องเดียว** จนกว่าคนจริงจะกด
+   * "ตอบกลับด้วยตัวเอง" ใน Business Suite ถึงจะไหลเข้ามา
+   *
+   * นั่นคือลายเซ็นของ Handover Protocol: ตอน Meta AI ถือสิทธิ์คุมห้อง แอปอื่นเป็น secondary
+   * receiver ซึ่งต้องประกาศตัวผ่าน field นี้ ไม่งั้น Meta ไม่ส่งอะไรมาให้เลย — เราอ่านกล่อง
+   * `standby` เป็นตั้งแต่ 2026-08-04 แล้ว (แก้เคส IG) แต่ไม่เคยได้ของมาอ่านเพราะไม่ได้ subscribe
+   * ตัวที่ทำให้ Meta ส่งมา
+   *
+   * ระดับแอปเพิ่มให้แล้วผ่าน Meta DevTools MCP (2026-08-08) — ระดับเพจต้องมาทางนี้
+   */
+  'messaging_handovers',
 ] as const
 
 // scope ที่ขอตอนเชื่อม Page — business_management เป็น dependency บังคับของ
