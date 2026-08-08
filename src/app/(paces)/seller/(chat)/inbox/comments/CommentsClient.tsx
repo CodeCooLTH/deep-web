@@ -744,6 +744,14 @@ export default function CommentsClient({
    * คอมเมนต์มาใช้ซ้ำ เพราะคนละความหมาย (ทักแชทคือข้อความส่วนตัว ไม่มีใครเห็นนอกจากคนที่ทัก)
    * ใช้ Swal `text` (ไม่ใช่ `html`) เพราะชื่อผู้คอมเมนต์มาจาก Facebook โดยตรง — ปลอดภัยกว่าไม่ต้องเขียน
    * escapeHtml เอง ผลลัพธ์ที่เห็นเหมือนกันเพราะข้อความไม่มี markup อยู่แล้ว
+   *
+   * fix wave 00038 (Impeccable critique #4) — เดิมยัดขอบเขต+ความย้อนไม่ได้+ทางออกไว้ประโยคเดียวใน
+   * `text` ตัวไม่หนาไม่มีสี คำเตือนที่สำคัญที่สุด ("กดพลาดแล้วแก้ไม่ได้") จมกลางประโยคจนคนกวาดตาอ่านข้าม
+   * แยกออกมา: `text` เหลือแค่ขอบเขต/ผู้รับ (ยังใช้ `name` จาก Facebook ได้ปลอดภัยเพราะ `text` เป็น
+   * textContent ไม่ใช่ innerHTML) ส่วน `footer` ถือประโยคความย้อนไม่ได้ **ต้องเป็นสตริงคงที่ล้วน
+   * ห้ามมี comment.fromName หรือค่าอื่นจาก Facebook ปนแม้แต่นิดเดียว** เพราะ SweetAlert2 render
+   * footer เป็น HTML (`footer?: string | HTMLElement`) ไม่ใช่ textContent แบบ `text` — ใส่ข้อมูลจาก
+   * ผู้ใช้ที่นี่จะเปิดช่อง XSS ทันที ใช้ customClass.footer เน้นหนัก/สี danger แทน inline markup
    */
   async function openPrivateReplyModal(comment: CommentItem) {
     const Swal = (await import('sweetalert2')).default
@@ -752,7 +760,9 @@ export default function CommentsClient({
     const name = comment.fromName ?? 'ผู้ใช้ Facebook'
     const result = await Swal.fire({
       title: comment.fromName ? `ทักแชทถึง ${comment.fromName}` : 'ทักแชทส่วนตัว',
-      text: `ข้อความนี้ส่งถึงเฉพาะ ${name} เป็นการส่วนตัว คนอื่นที่ดูโพสต์จะไม่เห็น — ส่งได้ครั้งเดียว กดพลาดแล้วแก้ไม่ได้ และคุยต่อได้เมื่อเขาตอบกลับเข้ามา`,
+      text: `ข้อความนี้ส่งถึงเฉพาะ ${name} เป็นการส่วนตัว คนอื่นที่ดูโพสต์จะไม่เห็น และคุยต่อได้เมื่อเขาตอบกลับเข้ามา`,
+      // สตริงคงที่ล้วน ไม่มีตัวแปรจากผู้ใช้/Facebook ปนอยู่เลย — ปลอดภัยแม้ footer จะ render เป็น HTML
+      footer: 'ส่งได้ครั้งเดียวเท่านั้น กดพลาดแล้วแก้ไม่ได้',
       input: 'textarea',
       inputValue: defaultText,
       inputPlaceholder: 'พิมพ์ข้อความส่วนตัว...',
@@ -761,7 +771,11 @@ export default function CommentsClient({
       buttonsStyling: false,
       confirmButtonText: 'ส่งข้อความ',
       cancelButtonText: 'ยกเลิก',
-      customClass: { confirmButton: PRIVATE_REPLY_CONFIRM_BTN, cancelButton: PRIVATE_REPLY_CANCEL_BTN },
+      customClass: {
+        confirmButton: PRIVATE_REPLY_CONFIRM_BTN,
+        cancelButton: PRIVATE_REPLY_CANCEL_BTN,
+        footer: 'text-danger-ink font-semibold',
+      },
       inputValidator: (value: string) => {
         const trimmed = value.trim()
         if (!trimmed) return 'พิมพ์ข้อความก่อนส่ง'
@@ -1786,7 +1800,7 @@ function CommentBubble({
         </div>
 
         {/* เวลา + ปุ่มตอบ อยู่นอกบับเบิล ตัวเล็กสีจาง — จังหวะเดียวกับ Facebook */}
-        <div className="text-default-700 mt-0.5 flex items-center gap-3 ps-3 text-xs">
+        <div className="text-default-700 mt-0.5 flex flex-wrap items-center gap-3 ps-3 text-xs">
           <span title={formatDateTimeTH(c.createdTime)}>{formatTimeHM(c.createdTime)}</span>
           {c.editedAt && <span>แก้ไขแล้ว</span>}
           {answered && !c.isFromPage && (
