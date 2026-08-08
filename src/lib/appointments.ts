@@ -106,6 +106,35 @@ export function isAllDayAppointment(start: Date, end: Date): boolean {
   return s % DAY_MS === 0 && e % DAY_MS === 0 && e - s === DAY_MS;
 }
 
+/**
+ * รวม "YYYY-MM-DD" + "HH:mm" เป็น Date ตามเวลาเครื่อง (ผู้ใช้คิดเป็นเวลาไทยอยู่แล้ว)
+ *
+ * ย้ายมาจาก AppointmentBlock.tsx เมื่อ 2026-08-08 ตอนย้ายการเลือกเวลาเข้าไปในปฏิทิน —
+ * ตอนนี้มีผู้ใช้ 2 ที่ (ฟอร์มใช้คำนวณ "นัดนี้ผ่านไปแล้วไหม" · ชีตปฏิทินใช้เช็คช่วงเวลาทับกัน)
+ * ถ้าปล่อยให้ต่างคนต่างประกาศ วันหนึ่งจะตัดสิน "เวลาเดียวกัน" ไม่ตรงกัน (HR16)
+ */
+export function combineDateTime(date: string, time: string): Date | null {
+  if (!date || !time) return null;
+  const d = new Date(`${date}T${time}`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * บวกนาทีเข้ากับ "HH:mm" แล้วคืนเป็น "HH:mm" — ใช้ auto-fill เวลาสิ้นสุดจากระยะเวลามาตรฐาน
+ *
+ * IMPORTANT: วนกลับที่ 24 ชม. (`% 24`) โดยตั้งใจ — คิวที่ยาวข้ามเที่ยงคืนจะได้เวลาสิ้นสุดที่
+ * "ดูเหมือนย้อนหลัง" ซึ่งเป็นค่าตั้งต้นที่ผู้ใช้ต้องเห็นแล้วแก้เอง ไม่ใช่ค่าที่ระบบเงียบ ๆ
+ * ตีความให้ (ตัวที่กันจริงคือปุ่มยืนยันที่บังคับให้เวลาสิ้นสุดอยู่หลังเวลาเริ่ม)
+ */
+export function addMinutesToTime(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return "";
+  const total = h * 60 + m + minutes;
+  const hh = `${Math.floor((total / 60) % 24)}`.padStart(2, "0");
+  const mm = `${total % 60}`.padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 /** ป้ายภาษาไทยของสถานะนัด — ใช้ร่วมกันทุก surface เพื่อไม่ให้คำเรียกเพี้ยนกัน */
 export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
   SCHEDULED: "นัดแล้ว",

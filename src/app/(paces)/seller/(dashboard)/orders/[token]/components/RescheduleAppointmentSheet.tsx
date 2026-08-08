@@ -16,7 +16,7 @@
  *   EXCLUDE constraint ตอนบันทึก (BR-RSV-18) — ระหว่างที่แผงเปิดค้าง อีกเครื่องจองแทรกได้เสมอ
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
@@ -121,21 +121,9 @@ export default function RescheduleAppointmentSheet({
     [resources, pickedResourceId],
   )
 
-  /**
-   * เติมเวลาสิ้นสุดให้อัตโนมัติจากความยาวมาตรฐานของคิวงาน — พฤติกรรมเดียวกับฟอร์มสร้างออเดอร์
-   * ผู้ขายแก้ทับได้เสมอ (เป็นค่าเริ่มต้น ไม่ใช่ค่าบังคับ)
-   */
-  const applyStartTime = useCallback(
-    (v: string) => {
-      setStartTime(v)
-      const mins = picked?.durationMinutes
-      if (!v || !mins || mins <= 0) return
-      const base = new Date(`${date || localDateKey(new Date())}T${v}`)
-      if (Number.isNaN(base.getTime())) return
-      setEndTime(localTimeHM(new Date(base.getTime() + mins * 60_000)))
-    },
-    [picked, date],
-  )
+  /* auto-fill เวลาสิ้นสุดจากความยาวมาตรฐานของคิวงาน ย้ายไปอยู่ใน AppointmentDateSheet แล้ว
+     (ส่งผ่าน prop resourceDurationMinutes) — เดิมตรรกะเดียวกันนี้ถูกเขียนไว้ 2 ที่
+     คือที่นี่กับ AppointmentBlock ซึ่งเป็นคู่ที่พร้อมจะเพี้ยนจากกัน (HR16) */
 
   const canSubmit =
     !saving && !!pickedResourceId && !!date && (allDay || (!!startTime && !!endTime))
@@ -307,48 +295,37 @@ export default function RescheduleAppointmentSheet({
               </div>
             )}
 
+            {/* ปุ่มเดียวคุมทั้งวันและเวลา — ช่องเวลาย้ายเข้าไปอยู่ในปฏิทินแล้ว (user สั่ง 2026-08-08)
+                เดิมที่นี่มีช่อง <input type="time"> คู่หนึ่งอยู่ข้างนอก ทำให้ผู้ขายต้องเลือกวันในปฏิทิน
+                → ปิดปฏิทิน → แล้วค่อยกรอกเวลาโดยไม่เห็นคิวของวันนั้นอีกแล้ว
+                หน้าเลื่อนนัดกับหน้าสร้างออเดอร์ต้องทำงานเหมือนกัน (sibling-surface-parity) */}
             <div className="mt-4">
-              <p className="form-label mb-2">วันที่นัด</p>
+              <p className="form-label mb-2">วันและเวลาที่นัด</p>
               <button
                 type="button"
                 onClick={() => setDateSheetOpen(true)}
                 disabled={!pickedResourceId}
                 className="btn border-default-300 text-default-800 hover:bg-default-50 min-h-11 w-full justify-between disabled:opacity-60"
               >
-                <span>{date ? formatDateTH(`${date}T00:00`) : 'เลือกวันที่'}</span>
+                <span>
+                  {date
+                    ? allDay
+                      ? `${formatDateTH(`${date}T00:00`)} · ทั้งวัน`
+                      : startTime && endTime
+                        ? `${formatDateTH(`${date}T00:00`)} · ${startTime}–${endTime}`
+                        : formatDateTH(`${date}T00:00`)
+                    : 'เลือกวันและเวลา'}
+                </span>
                 <Icon icon="calendar-event" className="text-base" aria-hidden="true" />
               </button>
+              {/* นัดแบบระบุเวลาที่ยังกรอกไม่ครบ = กดบันทึกไม่ได้ (canSubmit) ต้องบอกว่าทำไม
+                  ไม่ใช่ปล่อยให้ปุ่มบันทึกเทาแล้วเดาเอง */}
+              {!allDay && date && !(startTime && endTime) && (
+                <p className="text-default-500 mt-1 mb-0 text-sm">
+                  แตะเพื่อเลือกเวลาเริ่มและเวลาสิ้นสุด
+                </p>
+              )}
             </div>
-
-            {/* นัดทั้งวันไม่มีช่วงเวลาให้กรอก — โชว์ช่องเวลาแล้วปล่อยว่างจะกลายเป็นฟอร์มที่กรอกไม่จบ */}
-            {!allDay && (
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="reschedule-start" className="form-label">
-                    เวลาเริ่ม
-                  </label>
-                  <input
-                    id="reschedule-start"
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => applyStartTime(e.target.value)}
-                    className="form-input"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="reschedule-end" className="form-label">
-                    เวลาสิ้นสุด
-                  </label>
-                  <input
-                    id="reschedule-end"
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="form-input"
-                  />
-                </div>
-              </div>
-            )}
 
             <div className="mt-4">
               <label htmlFor="reschedule-reason" className="form-label">
@@ -382,15 +359,26 @@ export default function RescheduleAppointmentSheet({
 
       {/* excludeOrderToken: นัดใบที่กำลังเลื่อนต้องไม่ถูกนับเป็นคิวที่เต็มของตัวเอง
           ไม่งั้นวันเดิมจะขึ้นเต็มปลอม ๆ แล้วกดเลือกวันเดิม (เปลี่ยนแค่เวลา) ไม่ได้ */}
+      {/* granularity ของ *นัดใบนี้* ไม่ใช่ของร้าน ณ ปัจจุบัน (BR-RSV-57) — ร้านที่สลับโหมด
+          ไปแล้วต้องเลื่อนนัดเก่าได้ในรูปแบบเดิมของนัดนั้น ไม่ใช่ถูกบังคับตามโหมดใหม่ */}
       <AppointmentDateSheet
         open={dateSheetOpen}
         resourceId={pickedResourceId ?? undefined}
         resourceName={picked?.name}
         resourceCapacity={picked?.capacity}
+        resourceDurationMinutes={picked?.durationMinutes}
+        granularity={allDay ? 'DAY' : 'TIME'}
         value={date || undefined}
+        valueStartTime={startTime || undefined}
+        valueEndTime={endTime || undefined}
         excludeOrderToken={publicToken}
-        onSelect={(d) => {
-          setDate(d)
+        onConfirm={(r) => {
+          setDate(r.date)
+          // นัดทั้งวันไม่มีเวลาให้เก็บ — submit() คำนวณ 00:00→00:00+1วัน เองอยู่แล้ว
+          if (!allDay) {
+            setStartTime(r.startTime ?? '')
+            setEndTime(r.endTime ?? '')
+          }
           setDateSheetOpen(false)
         }}
         onClose={() => setDateSheetOpen(false)}

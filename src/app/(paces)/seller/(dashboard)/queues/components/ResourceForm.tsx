@@ -24,8 +24,6 @@ import { pacesToast } from '@/lib/paces-toast'
 import { APPOINTMENT_DEPOSIT_MODES } from '@/lib/appointments'
 import { formatDateTime } from '@/lib/format-date'
 import type { SerializedServiceResource } from '@/services/service-resource.service'
-import type { AppointmentGranularity } from '@/lib/appointments'
-import GranularitySetting from './GranularitySetting'
 
 /** ยอดสมมติในกล่องตัวอย่าง — 1,000 บาท อ่านง่ายและคิดเปอร์เซ็นต์ในใจได้ทันที */
 const PREVIEW_TOTAL = 1000
@@ -67,14 +65,12 @@ type FormValues = Yup.InferType<typeof schema>
 
 type Props = {
   resource?: SerializedServiceResource
-  /** FR-RSV-13 — ค่าปัจจุบันของร้าน ส่งเข้าการ์ด "การรับนัด" ที่อยู่ท้ายฟอร์ม */
-  granularity: AppointmentGranularity
 }
 
 /** รายละเอียดของนัดที่ทำให้ลดจำนวนคิวไม่ได้ (409 CAPACITY_REDUCTION_BLOCKED) */
 type BlockedBy = { orderNo: string | null; start: string; end: string }
 
-export default function ResourceForm({ resource, granularity }: Props) {
+export default function ResourceForm({ resource }: Props) {
   const router = useRouter()
   const isEdit = !!resource
   const [blockedBy, setBlockedBy] = useState<BlockedBy | null>(null)
@@ -165,14 +161,11 @@ export default function ResourceForm({ resource, granularity }: Props) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
-      {/* การรับนัด — ตั้งค่าระดับร้าน วางไว้ในฟอร์มคิวงานตามที่ user สั่ง 2026-07-31
-          ("ตั้งค่าคิวงาน ให้อยู่ตอนสร้างคิวงาน") เพราะเป็นค่าที่ตั้งครั้งเดียวตอนเริ่มใช้
-
-          IMPORTANT: วางไว้ "บนสุด" ไม่ใช่เหนือปุ่มบันทึก — การ์ดนี้บันทึกทันทีที่เลือก
-          คนละ endpoint กับฟอร์ม ถ้าอยู่ติดปุ่มบันทึกจะชวนให้เข้าใจว่าต้องกดบันทึกก่อน
-          และกด "ยกเลิก" แล้วค่าที่เปลี่ยนไปจะไม่ย้อนกลับ (impeccable critique P2 2026-07-31)
-          อยู่บนสุดยังอ่านเป็นลำดับถูกด้วย: ตั้งว่ารับนัดแบบไหน → แล้วค่อยตั้งคิวงาน */}
-      <GranularitySetting value={granularity} />
+      {/* การรับนัด (รายวัน/ระบุช่วงเวลา) ย้ายออกไปอยู่ท้ายหน้า /queues แล้ว (2026-08-08)
+          — มันเป็นค่าระดับ **ร้าน** ไม่ใช่ของคิวงานใบใดใบหนึ่ง และการฝังไว้ที่นี่แปลว่า
+          ร้านที่ตั้งคิวงานเสร็จแล้วจะหาไม่เจออีกเลย (ร้าน BT รายงานจริง: สรุปว่าระบบระบุ
+          เวลานัดไม่ได้ ทั้งที่แค่ยังไม่ได้สลับโหมด) ผลพลอยได้: ฟอร์มนี้เหลือปุ่มบันทึก/ยกเลิก
+          ชุดเดียวที่คุมทุกอย่างในหน้าจริง ๆ แล้ว ไม่มีการ์ดที่บันทึกทันทีปนอยู่ให้สับสน */}
 
       {/* ── ข้อมูลคิวงาน ── */}
       <div className="card">

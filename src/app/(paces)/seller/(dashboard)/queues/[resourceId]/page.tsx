@@ -13,7 +13,7 @@ import { notFound } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
-import { canUseAppointments, type AppointmentGranularity, ServiceResourceNotFoundError } from '@/lib/appointments'
+import { canUseAppointments, ServiceResourceNotFoundError } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
 import {
   getServiceResource,
@@ -50,7 +50,7 @@ export default async function EditServiceResourcePage({
     <>
       <PageBreadcrumb title={resource.name} subtitle="คิวงาน" />
       {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary */}
-      <ResourceForm granularity={(active.shop.appointmentGranularity as AppointmentGranularity) ?? 'DAY'} resource={serializeServiceResource(resource)} />
+      <ResourceForm resource={serializeServiceResource(resource)} />
     </>
   )
 }
