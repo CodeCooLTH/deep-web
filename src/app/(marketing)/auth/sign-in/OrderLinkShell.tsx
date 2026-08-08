@@ -24,6 +24,7 @@ import Typography from '@mui/material/Typography'
 
 import { formatDateTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
+import { getTierGradient } from '@/lib/trust-tier'
 
 export type OrderLinkShopContext = {
   publicToken: string
@@ -34,6 +35,9 @@ export type OrderLinkShopContext = {
   logo: string | null
   coverImage: string | null
   shopCreatedAtIso: string
+  /** ใช้เลือกไล่สีปกเมื่อร้านไม่มี cover จริง — service คืนค่านี้มาตั้งแต่แรกแต่ type เดิมไม่มี
+   *  ช่องรับ ค่าจึงตกหายที่ขอบนี้มาตลอด (พบตอน ux review 2026-08-08) */
+  trustScore: number
   maxVerifyLevel: number
   completedOrders: number | null
   completionRate: number | null
@@ -75,7 +79,6 @@ export default function OrderLinkShell({
 }) {
   const badge = verifyBadge(ctx.maxVerifyLevel)
   const hasStats = ctx.completedOrders != null || ctx.avgRating != null
-  const bg = ctx.coverImage ?? ctx.logo
 
   return (
     <div className='flex min-bs-[100dvh] justify-center bg-[var(--mui-palette-background-paper)]'>
@@ -95,17 +98,20 @@ export default function OrderLinkShell({
             compact ? 'min-bs-[132px]' : 'min-bs-[240px]'
           }`}
         >
-          {bg ? (
+          {/* ไม่มี cover จริง → ใช้ไล่สีตามระดับความน่าเชื่อถือ ไม่ใช่โลโก้ที่ถูกเบลอ
+              เดิมเป็น `logo` + `scale-125 blur-2xl saturate-150` ซึ่งดัน "สีอะไรก็ได้ที่ร้าน
+              อัปโหลดมา" ให้อิ่มขึ้นอีก 50% โดยไม่มีการควบคุมเฉด — โลโก้โทนแดงจึงกลายเป็น
+              พื้นหลังสีเลือดที่อ่านเป็นคำเตือน บนจอที่ทั้งจอมีไว้สร้างความเชื่อใจก่อนโอนเงิน
+              getTierGradient คือ SSOT ที่อีก 3 หน้าใช้เป็น fallback cover อยู่แล้ว
+              (/u/[username], /b/[slug], public-profile builder) — ที่นี่เป็นที่เดียวที่แตกแถว */}
+          {ctx.coverImage ? (
             <ShopImg
-              src={bg}
+              src={ctx.coverImage}
               alt=''
-              className={`absolute inset-0 is-full bs-full object-cover ${
-                // ไม่มี cover จริง → ใช้ logo ขยายเบลอ ให้ได้พื้นหลังที่ยังเป็นสีของร้านเอง
-                ctx.coverImage ? '' : 'scale-125 blur-2xl saturate-150'
-              }`}
+              className='absolute inset-0 is-full bs-full object-cover'
             />
           ) : (
-            <div className='absolute inset-0 bg-primary' />
+            <div className='absolute inset-0' style={{ background: getTierGradient(ctx.trustScore) }} />
           )}
           <div
             className='absolute inset-0'
@@ -152,21 +158,23 @@ export default function OrderLinkShell({
                     จาก {ctx.reviewCount} รีวิว
                   </div>
                 )}
-                {ctx.completionRate != null && (
-                  <div>
-                    <div className='text-lg font-extrabold tabular-nums'>{ctx.completionRate}%</div>
-                    อัตราสำเร็จ
-                  </div>
-                )}
+                {/* จงใจไม่แสดง "อัตราสำเร็จ" บนจอนี้ (feature 00039 FR-OSM-11) — ต่างจากหน้า
+                    โปรไฟล์ร้านที่ยังแสดง เหตุผล: จอนี้เข้าถึงผ่าน in-app browser ของแอปแชท
+                    เหลือพื้นที่แนวตั้งจริงราว 712px และผู้อ่านยังไม่รู้จักแพลตฟอร์มเลย จึงตรวจสอบ
+                    ตัวเลขไม่ได้อยู่ดี — ตัวเลขที่ตรวจสอบไม่ได้ไม่ช่วยสร้างความเชื่อใจ แต่กินที่ CTA
+                    (ผลสำรวจ 14 แพลตฟอร์ม: ไม่มีมาร์เก็ตเพลสเจ้าใดโชว์ %นี้ต่อผู้ซื้อเลย —
+                     docs/research/2026-08-08-seller-trust-metrics-benchmark.md)
+                    ctx.completionRate ยังถูกส่งมาอยู่ เพราะหน้าอื่นที่ใช้ type เดียวกันยังใช้ */}
               </div>
             )}
           </div>
         </div>
 
         {/* ── SHEET ────────────────────────────────────────────── */}
+        {/* เดิมมีขีดจับ (drag handle) อยู่กลางบนของแผ่นนี้ — ถอดออกแล้ว เพราะแผ่นนี้ลากไม่ได้จริง
+            และไม่มีอะไรอยู่ใต้มันให้เผย เป็น affordance ที่สัญญาสิ่งที่ทำไม่ได้ บนจอที่ผู้ใช้กำลัง
+            ตัดสินว่าหน้านี้ของจริงหรือของปลอม */}
         <div className='relative -mbs-6 rounded-t-[22px] bg-[var(--mui-palette-background-paper)] p-5 pbe-6 flex-1'>
-          <div className='is-[38px] bs-1 rounded bg-[var(--mui-palette-divider)] mli-auto mbe-3' />
-
           {!compact && (
             <>
               {badge && (
@@ -195,7 +203,11 @@ export default function OrderLinkShell({
                       </span>
                       <span className='min-is-0'>
                         <span className='block text-[13px] font-semibold truncate'>{ch.name}</span>
-                        <Typography component='span' variant='caption' color='text.disabled' className='block text-[10.5px]'>
+                        {/* text.secondary ไม่ใช่ text.disabled — ink ที่ 0.4 ได้คอนทราสต์ ~2.3:1
+                            ตก AA (4.5:1) ส่วน 0.7 ได้ ~5.2:1 ผ่าน. นี่คือ "ชนิดของช่องทาง"
+                            ซึ่งเป็นข้อมูลจริง ไม่ใช่สถานะปิดใช้งาน จึงไม่ควรอยู่ชั้น disabled
+                            (แก้ความเข้ม ไม่แตะเฉด ตาม docs/conventions/contrast-fix-keeps-hue.md) */}
+                        <Typography component='span' variant='caption' color='text.secondary' className='block text-[10.5px]'>
                           {ch.provider === 'INSTAGRAM' ? 'Instagram' : 'Facebook Page'}
                         </Typography>
                       </span>
@@ -225,14 +237,18 @@ export default function OrderLinkShell({
               )}
 
               <div className='flex justify-between items-baseline'>
-                <Typography variant='body2' color='text.disabled'>
+                <Typography variant='body2' color='text.secondary'>
                   ยอดที่ต้องชำระ
                 </Typography>
-                <span className='text-[29px] font-extrabold tabular-nums' style={{ letterSpacing: '-0.03em' }}>
+                {/* 32px = ขั้น "metric" ที่ DESIGN.md ประกาศไว้สำหรับตัวเลขที่ทำหน้าที่เป็นภาพ
+                    (เดิม 29px ไม่มีอยู่ในบันไดใดเลย ทั้งของ Vuexy และของ DESIGN.md) */}
+                <span className='text-[32px] font-extrabold tabular-nums' style={{ letterSpacing: '-0.01em' }}>
                   {`฿${ctx.totalAmount.toLocaleString('th-TH')}`}
                 </span>
               </div>
-              <Typography variant='caption' color='text.disabled' className='block mbe-3 tabular-nums'>
+              {/* เลขคำสั่งซื้อ + วันที่ = หลักฐานว่าลิงก์นี้ตรงกับใบที่ร้านคุยไว้ในแชท เป็นสิ่งที่
+                  ผู้ซื้อต้องเอาไปเทียบจริง จึงต้องอ่านออก — เดิมเป็นตัวอักษรที่จางที่สุดในจอ */}
+              <Typography variant='caption' color='text.secondary' className='block mbe-3 tabular-nums'>
                 {`${formatOrderNo(ctx.publicToken, ctx.createdAtIso)} · ${formatDateTH(ctx.createdAtIso)}`}
               </Typography>
             </>

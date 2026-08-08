@@ -155,7 +155,11 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
           </span>
         </div>
 
-        <Typography variant='caption' color='text.disabled' className='block mbs-1'>
+        {/* text.secondary ไม่ใช่ text.disabled — ink ที่ 0.4 ได้คอนทราสต์ ~2.3:1 ตก AA (4.5:1)
+            ส่วน 0.7 ได้ ~5.2:1 ผ่าน. บรรทัดนี้คือชื่อผู้ใช้/หมวด/วันเปิดร้าน = ข้อมูลจริงที่ผู้ซื้อ
+            ใช้ยืนยันว่ามาถูกร้าน ไม่ใช่สถานะปิดใช้งาน จึงไม่ควรอยู่ชั้น disabled
+            แก้ความเข้มอย่างเดียว ไม่แตะเฉด (docs/conventions/contrast-fix-keeps-hue.md) */}
+        <Typography variant='caption' color='text.secondary' className='block mbs-1'>
           {[`@${data.username}`, data.category, `เปิดร้านตั้งแต่ ${data.memberSince}`]
             .filter(Boolean)
             .join(' · ')}
@@ -201,7 +205,9 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
               <div className='text-[22px] font-extrabold tabular-nums leading-tight' style={{ letterSpacing: '-0.025em' }}>
                 {s.value}
               </div>
-              <Typography variant='caption' color='text.disabled'>
+              {/* ป้ายใต้ตัวเลข = สิ่งที่บอกว่าตัวเลขนั้นแปลว่าอะไร ถ้าอ่านไม่ออกตัวเลขก็ไร้ความหมาย
+                  เดิม text.disabled ตก AA เช่นเดียวกับบรรทัด meta ด้านบน */}
+              <Typography variant='caption' color='text.secondary'>
                 {s.label}
               </Typography>
             </div>

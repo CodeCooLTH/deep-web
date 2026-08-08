@@ -353,9 +353,11 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
             </div>
 
       {/* บรรทัดความปลอดภัย — วางติดปุ่มโดยตั้งใจ เพราะจุดที่ผู้ใช้ลังเลคือตอนกำลังจะกด
-          ไม่ใช่ตอนอ่านหัวหน้า (ดู research 2026-07-25 เรื่อง trust signal placement) */}
+          ไม่ใช่ตอนอ่านหัวหน้า (ดู research 2026-07-25 เรื่อง trust signal placement)
+          text.secondary ไม่ใช่ text.disabled — ประโยคนี้มีหน้าที่ "ลดความกลัวก่อนกดปุ่ม"
+          แต่เดิมเป็นตัวอักษรที่จางที่สุดในจอ (ink 0.4 ≈ 2.3:1 ตก AA) คือขัดกับงานของตัวเอง */}
       {orderContext && loginMode === 'channels' && (
-        <Typography variant='caption' color='text.disabled' className='block text-center mbs-3'>
+        <Typography variant='caption' color='text.secondary' className='block text-center mbs-3'>
           ใช้ยืนยันว่าคุณเป็นเจ้าของคำสั่งซื้อเท่านั้น
         </Typography>
       )}

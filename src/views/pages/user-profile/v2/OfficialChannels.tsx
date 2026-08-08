@@ -86,7 +86,9 @@ export default function OfficialChannels({ channels }: { channels: OfficialChann
             <ChannelAvatar src={c.avatarUrl} bg={meta.bg} icon={meta.icon} />
             <span className='min-is-0 flex-1'>
               <span className='block text-sm font-semibold truncate'>{c.name}</span>
-              <Typography component='span' variant='caption' color='text.disabled' className='block'>
+              {/* text.secondary ไม่ใช่ text.disabled — ชนิดของช่องทาง (Facebook Page/Instagram)
+                  คือส่วนหนึ่งของหลักฐาน ไม่ใช่ของประดับ ink 0.4 ตก AA (~2.3:1) */}
+              <Typography component='span' variant='caption' color='text.secondary' className='block'>
                 {meta.label}
               </Typography>
             </span>
