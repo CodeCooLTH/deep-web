@@ -15,6 +15,7 @@
  * โหลดรูปจากโดเมนภายนอกทั้งชุด จึงเลี่ยงไปก่อนใน v1
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatTimeHM, formatDateTimeTH, formatChatListTime, formatDateTH } from '@/lib/format-date'
@@ -37,6 +38,8 @@ export type ChannelOption = {
   /** feature 00037 — ร้านเจ้าของเพจ (ใช้จัดกลุ่มตัวกรองตามร้านในโหมดรวม) */
   shopId?: string
   shopName?: string
+  /** feature 00038 Task 8 — prefill กล่องยืนยัน "ทักแชท" ด้วยข้อความสวิตช์ B ของเพจนี้ */
+  commentPrivateReplyText?: string | null
 }
 
 export type CommentPostItem = {
@@ -73,6 +76,9 @@ type CommentItem = {
   editedAt: string | null
   isDeleted: boolean
   repliedByUserId: string | null
+  /** feature 00038 Task 8 — มาจาก CommentReplyLog ที่ privateReplyStatus='SENT' ของ commentId นี้เอง */
+  privateReplySentAt: string | null
+  privateReplyConversationId: string | null
 }
 
 type ThreadData = {
@@ -144,6 +150,31 @@ function privateReplyWindow(createdTime: string): { text: string; expired: boole
   return { text: `คงเหลือ ${parts.join(' ')}`, expired: false }
 }
 
+/**
+ * feature 00038 Task 8 — ปุ่ม "ทักแชท" 4 สถานะ (UX-Design-Spec §2.2)
+ *
+ * "ทักแล้วหรือยัง" ต้องดูจาก **แถวของ commentId นี้เอง** (c.privateReplySentAt จาก server-side
+ * join กับ CommentReplyLog) ไม่ใช่คีย์คน+โพสต์แบบ AUTO — คนคอมเมนต์ 2 ครั้งบนโพสต์เดียวกัน
+ * ทักด้วยมือได้ทั้ง 2 อัน (Meta ผูกสิทธิ์กับคอมเมนต์ ไม่ใช่คน)
+ *
+ * หน้าต่างหมดเวลาใช้ privateReplyWindow() ตัวเดียวกับที่ countdown ในไฟล์นี้ใช้อยู่แล้ว (ค่าคงที่
+ * PRIVATE_REPLY_WINDOW_MS = 7 วันเท่ากับ service ฝั่ง backend) — ไม่คำนวณ window ซ้ำอีกชุด
+ */
+type PrivateReplyState = 'SENT' | 'SENDING' | 'EXPIRED' | 'AVAILABLE'
+
+function resolvePrivateReplyState(c: CommentItem, sendingId: string | null): PrivateReplyState {
+  if (c.privateReplySentAt) return 'SENT'
+  if (sendingId === c.id) return 'SENDING'
+  if (privateReplyWindow(c.createdTime).expired) return 'EXPIRED'
+  return 'AVAILABLE'
+}
+
+// customClass ของโมดัลยืนยัน "ทักแชท" — ค่าเดียวกับ CONFIRM_BTN.primary/CANCEL_BTN ใน
+// src/lib/paces-swal.ts (const พวกนั้นไม่ได้ export จากไฟล์นั้น จึงคัดลอกค่ามาแทนที่จะขยาย public
+// surface ของ helper กลางซึ่งอยู่นอกขอบเขตไฟล์ที่ task นี้แตะได้) — token ของ Paces ล้วน (HR7)
+const PRIVATE_REPLY_CONFIRM_BTN = 'btn bg-primary text-white hover:bg-primary-hover mt-2 me-2'
+const PRIVATE_REPLY_CANCEL_BTN = 'btn bg-light hover:text-default-800 mt-2'
+
 export default function CommentsClient({
   initialPosts,
   shopIds,
@@ -189,6 +220,9 @@ export default function CommentsClient({
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null)
   const [replyText, setReplyText] = useState('')
   const [sending, setSending] = useState(false)
+  // feature 00038 Task 8 — commentId ที่กำลังส่ง private reply อยู่ (null = ไม่มี) ใช้ derive
+  // สถานะปุ่ม SENDING ผ่าน resolvePrivateReplyState() เดียวกันทั้งไฟล์
+  const [sendingPrivateReplyId, setSendingPrivateReplyId] = useState<string | null>(null)
   // แนบรูปในคำตอบ (user สั่ง 2026-08-03) — เอกสาร Meta: comment รับ `attachment_url` ได้
   // ใช้ท่าเดียวกับแชท: อัปขึ้น storage ของเราก่อน แล้ว server ค่อยทำ presigned URL ให้ Meta ดึง
   const [pendingFile, setPendingFile] = useState<{ fileId: string; previewUrl: string } | null>(null)
@@ -592,6 +626,113 @@ export default function CommentsClient({
       pacesToast.error('ตอบความคิดเห็นไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
     } finally {
       setSending(false)
+    }
+  }
+
+  /**
+   * feature 00038 Task 8 — ยิง POST /api/chat/comments/{commentId}/private-reply แล้ว sync สถานะ
+   * ปุ่มตามตาราง error mapping ของ UX-Design-Spec §2.2 / API.md §4.4/§5 (contract ที่ freeze แล้ว)
+   *
+   * 200: optimistic — เอา conversationId จาก response ใส่ state ทันที ไม่รีเฟรชทั้งหน้า (AC-CR-19)
+   *   บทเรียนหน้าสินค้า 2026-08-06: response ที่ไม่มี field นั้น ≠ field นั้นไม่เปลี่ยน — ที่นี่ตรงข้าม
+   *   response "มี" conversationId ให้แล้ว การไม่เอาไปใส่ state คือบั๊กเดียวกันในทางกลับกัน
+   * 409 ALREADY_SENT: ไม่ใช่ความผิดผู้ใช้ (toast info ไม่ใช่ error) — response ไม่มี conversationId
+   *   มาด้วย จึง refetch เธรดแบบเงียบเพื่อได้ค่าจริงจาก server แทนการเดา
+   * ที่เหลือ (WINDOW_EXPIRED/CHANNEL_NOT_ACTIVE/UPSTREAM_ERROR/VALIDATION_ERROR): แค่เคลียร์
+   * sendingPrivateReplyId แล้วปล่อยให้ resolvePrivateReplyState derive สถานะใหม่เอง — c.privateReplySentAt
+   * ยังเป็น null เหมือนเดิม จึงตกไป EXPIRED (ถ้าหน้าต่างหมดจริง) หรือ AVAILABLE (กรณีอื่น) โดยอัตโนมัติ
+   * ไม่ต้องมี state พิเศษแยก
+   */
+  const PRIVATE_REPLY_ERROR_TEXT: Record<string, string> = {
+    WINDOW_EXPIRED: 'เกิน 7 วันแล้ว ทักแชทไม่ได้อีก',
+    CHANNEL_NOT_ACTIVE: 'เพจนี้เชื่อมต่อไม่อยู่แล้ว ต้องเชื่อมต่อใหม่ก่อน',
+    UPSTREAM_ERROR: 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง',
+    VALIDATION_ERROR: 'พิมพ์ข้อความก่อนส่ง',
+  }
+
+  async function sendPrivateReply(comment: CommentItem, message: string) {
+    setSendingPrivateReplyId(comment.id)
+    try {
+      const res = await fetch(`/api/chat/comments/${comment.id}/private-reply`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message }),
+      })
+      const body = (await res.json().catch(() => null)) as
+        | { conversationId: string; sentAt: string }
+        | { error?: string; code?: string }
+        | null
+
+      if (res.ok && body && 'conversationId' in body) {
+        pacesToast.success('ส่งข้อความสำเร็จ — เกิดห้องแชทใหม่แล้ว')
+        setThread((prev) =>
+          prev
+            ? {
+                ...prev,
+                comments: prev.comments.map((row) =>
+                  row.id === comment.id
+                    ? { ...row, privateReplySentAt: body.sentAt, privateReplyConversationId: body.conversationId }
+                    : row,
+                ),
+              }
+            : prev,
+        )
+        return
+      }
+
+      const code = body && 'code' in body ? body.code : undefined
+      if (code === 'ALREADY_SENT') {
+        pacesToast.info('คอมเมนต์นี้ถูกทักไปแล้ว')
+        if (selectedId) void loadThread(selectedId, { silent: true })
+        return
+      }
+      pacesToast.error((code && PRIVATE_REPLY_ERROR_TEXT[code]) ?? 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } catch {
+      pacesToast.error('ส่งไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } finally {
+      setSendingPrivateReplyId(null)
+    }
+  }
+
+  /**
+   * feature 00038 Task 8 — โมดัลยืนยันก่อนทักแชท (UX-Design-Spec §2.1/§2.3): ขยายการใช้ Swal ด้วย
+   * input:'textarea' แทนการประดิษฐ์ controlled-div modal เอง — Preline/Swal ล็อก scroll ให้เองแล้ว
+   * (docs/conventions/overlay-scroll-lock.md ไม่มีผลกับเส้นทางนี้)
+   *
+   * โหลด sweetalert2 แบบ lazy เหมือน src/lib/paces-swal.ts (Impeccable optimize 2026-08-04) —
+   * หน้านี้โหลดโมดัลนี้เมื่อกดปุ่มเท่านั้น ไม่ใช่ทุกครั้งที่เข้าหน้า
+   *
+   * คำเตือนในนี้เขียนใหม่ทั้งหมดตาม FR-CR-10 — ห้ามยกคำเตือน "คอมเมนต์นี้เป็นสาธารณะ" ของช่องตอบ
+   * คอมเมนต์มาใช้ซ้ำ เพราะคนละความหมาย (ทักแชทคือข้อความส่วนตัว ไม่มีใครเห็นนอกจากคนที่ทัก)
+   * ใช้ Swal `text` (ไม่ใช่ `html`) เพราะชื่อผู้คอมเมนต์มาจาก Facebook โดยตรง — ปลอดภัยกว่าไม่ต้องเขียน
+   * escapeHtml เอง ผลลัพธ์ที่เห็นเหมือนกันเพราะข้อความไม่มี markup อยู่แล้ว
+   */
+  async function openPrivateReplyModal(comment: CommentItem) {
+    const Swal = (await import('sweetalert2')).default
+    const defaultText =
+      channels.find((ch) => ch.id === selectedPost?.channel.id)?.commentPrivateReplyText ?? ''
+    const name = comment.fromName ?? 'ผู้ใช้ Facebook'
+    const result = await Swal.fire({
+      title: comment.fromName ? `ทักแชทถึง ${comment.fromName}` : 'ทักแชทส่วนตัว',
+      text: `ข้อความนี้ส่งถึงเฉพาะ ${name} เป็นการส่วนตัว คนอื่นที่ดูโพสต์จะไม่เห็น — ส่งได้ครั้งเดียว กดพลาดแล้วแก้ไม่ได้ และคุยต่อได้เมื่อเขาตอบกลับเข้ามา`,
+      input: 'textarea',
+      inputValue: defaultText,
+      inputPlaceholder: 'พิมพ์ข้อความส่วนตัว...',
+      inputAttributes: { maxlength: '1000' },
+      showCancelButton: true,
+      buttonsStyling: false,
+      confirmButtonText: 'ส่งข้อความ',
+      cancelButtonText: 'ยกเลิก',
+      customClass: { confirmButton: PRIVATE_REPLY_CONFIRM_BTN, cancelButton: PRIVATE_REPLY_CANCEL_BTN },
+      inputValidator: (value: string) => {
+        const trimmed = value.trim()
+        if (!trimmed) return 'พิมพ์ข้อความก่อนส่ง'
+        if (trimmed.length > 1000) return 'ยาวเกิน 1,000 ตัวอักษร'
+        return undefined
+      },
+    })
+    if (result.isConfirmed && typeof result.value === 'string') {
+      void sendPrivateReply(comment, result.value.trim())
     }
   }
 
@@ -1412,6 +1553,8 @@ export default function CommentsClient({
                       answered={answered}
                       active={replyTo?.id === comment.id}
                       onReply={() => setReplyTo(comment)}
+                      privateReplySendingId={sendingPrivateReplyId}
+                      onOpenPrivateReply={openPrivateReplyModal}
                     />
                     {replies.length > 0 && (
                       // ย่อหน้าเฉย ๆ แบบ Facebook — เส้นตั้งของเดิมทำให้อ่านเป็น "บล็อกโค้ด" มากกว่าบทสนทนา
@@ -1424,6 +1567,8 @@ export default function CommentsClient({
                             isReply
                             active={replyTo?.id === r.id}
                             onReply={() => setReplyTo(r)}
+                            privateReplySendingId={sendingPrivateReplyId}
+                            onOpenPrivateReply={openPrivateReplyModal}
                           />
                         ))}
                       </div>
@@ -1466,6 +1611,8 @@ function CommentBubble({
   isReply = false,
   answered = false,
   active = false,
+  privateReplySendingId = null,
+  onOpenPrivateReply,
 }: {
   c: CommentItem
   channel?: { name: string; avatarUrl: string | null; provider: string }
@@ -1475,6 +1622,10 @@ function CommentBubble({
   answered?: boolean
   /** คอมเมนต์ที่ช่องพิมพ์กำลังจ่อตอบอยู่ (user สั่ง 2026-08-04 "ใส่สีฟ้าอ่อน ๆ พื้นหลังให้ด้วย") */
   active?: boolean
+  /** feature 00038 Task 8 — commentId ที่กำลังส่ง private reply อยู่ (derive สถานะ SENDING) */
+  privateReplySendingId?: string | null
+  /** feature 00038 Task 8 — เปิดโมดัลยืนยันทักแชท */
+  onOpenPrivateReply: (c: CommentItem) => void
 }) {
   /**
    * โครงตามภาพ Facebook จริงที่ user ส่งมา 2026-08-03 ("ต้องดูรู้เรื่องกว่านี้ ตอนนี้มันดูยาก แยกยาก"):
@@ -1497,6 +1648,10 @@ function CommentBubble({
   const avatarSize = isReply ? 'size-7' : 'size-8'
 
   const chatWindow = c.isFromPage || c.isDeleted ? null : privateReplyWindow(c.createdTime)
+  // feature 00038 Task 8 — ปุ่มไม่ render เลยเมื่อ isFromPage/isDeleted (UX-Design-Spec §2.5) เหมือน
+  // เดิม; ไม่ผูกกับสวิตช์อัตโนมัติ (D-6/BR-CR-15) — render เสมอไม่ว่าสวิตช์ B จะเปิดหรือปิด
+  const privateReplyState =
+    c.isFromPage || c.isDeleted ? null : resolvePrivateReplyState(c, privateReplySendingId)
 
   /**
    * กดที่แถวคอมเมนต์ = เตรียมช่องตอบให้เลย (user สั่ง 2026-08-04: "ยังไม่ auto reply เวลากดเข้า
@@ -1584,25 +1739,63 @@ function CommentBubble({
               ตอบ
             </button>
           )}
-          {/* นาฬิกาถอยหลังหน้าต่างทักแชทส่วนตัว (user สั่ง 2026-08-04 พร้อมรูปแบบที่ต้องการ:
-              `ตอบ  ทักแชท [คงเหลือ 6 วัน 14 ชั่วโมง 34 นาที]` ป้ายสีแดง) — Meta ให้ทักแชทจาก
+          {/* ปุ่ม "ทักแชท" 4 สถานะ (feature 00038 Task 8, UX-Design-Spec §2) — Meta ให้ทักแชทจาก
               คอมเมนต์ได้ภายใน 7 วันนับจากเวลาที่ลูกค้าคอมเมนต์ พ้นแล้วทักไม่ได้อีกเลย ผู้ขายต้อง
-              เห็นตัวเลขตอนกำลังตัดสินใจ ไม่ใช่ไปรู้ตอนกดแล้วโดน Meta ปฏิเสธ
-
-              รูปแบบตาม Business Suite ที่ user ชี้: `Like Reply Hide See Chat (6 วัน ...)` —
-              **หมดเวลาแล้วหายไปทั้งอัน** ไม่ใช่ขึ้นว่า "หมดเวลา" ค้างไว้ เพราะตัวเลือกที่เลือกไม่ได้
-              แล้วไม่ควรกินที่ในแถวเครื่องมือ (เหลือ ตอบ อย่างเดียวคือคำตอบที่ถูกของสถานะนั้น)
-
-              "ทักแชท" ยังไม่ใช่ปุ่มกดได้ — การทักแชทจริงต้องใช้ Private Replies ของ Meta ซึ่งยัง
-              ไม่ได้ทำฝั่ง backend จึงจงใจไม่ทำให้ดูกดได้ (ปุ่มที่กดแล้วไม่เกิดอะไรแย่กว่าไม่มีปุ่ม) */}
-          {chatWindow && !chatWindow.expired && (
-            <span
-              className="inline-flex items-center gap-1"
-              title={`ทักแชทส่วนตัวได้ภายใน 7 วันนับจากเวลาคอมเมนต์ (${formatDateTimeTH(c.createdTime)})`}
+              เห็นตัวเลขตอนกำลังตัดสินใจ ไม่ใช่ไปรู้ตอนกดแล้วโดน Meta ปฏิเสธ (มาจากคอมเมนต์เดิม
+              ก่อนหน้านี้ ตอนนี้ปุ่มกดได้จริงแล้ว ปิดหนี้ที่ค้างจาก feature 00029) */}
+          {privateReplyState === 'AVAILABLE' && (
+            <>
+              <button
+                type="button"
+                onClick={() => onOpenPrivateReply(c)}
+                className="btn btn-sm border-default-300 text-default-800 hover:border-default-400 inline-flex items-center gap-1 border"
+              >
+                <Icon icon="message-reply" className="text-sm" />
+                ทักแชท
+              </button>
+              {chatWindow && (
+                <span
+                  className="text-danger-ink font-semibold"
+                  title={`ทักแชทส่วนตัวได้ภายใน 7 วันนับจากเวลาคอมเมนต์ (${formatDateTimeTH(c.createdTime)})`}
+                >
+                  {chatWindow.text}
+                </span>
+              )}
+            </>
+          )}
+          {privateReplyState === 'SENDING' && (
+            <button
+              type="button"
+              disabled
+              className="btn btn-sm bg-default-200 text-default-500 inline-flex items-center gap-1 cursor-not-allowed"
             >
-              <span className="font-medium">ทักแชท</span>
-              <span className="text-danger-ink font-semibold">({chatWindow.text})</span>
-            </span>
+              <span className="border-default-500 size-3 inline-block animate-spin rounded-full border-2 border-t-transparent" />
+              กำลังส่ง...
+            </button>
+          )}
+          {privateReplyState === 'SENT' && (
+            <>
+              <button
+                type="button"
+                disabled
+                className="btn btn-sm border-default-300 text-default-400 cursor-not-allowed border"
+              >
+                ทักแล้ว · {formatTimeHM(c.privateReplySentAt)}
+              </button>
+              {c.privateReplyConversationId && (
+                <Link href={`/inbox/${c.privateReplyConversationId}`} className="font-medium hover:underline">
+                  เปิดห้องแชท
+                </Link>
+              )}
+            </>
+          )}
+          {privateReplyState === 'EXPIRED' && (
+            <>
+              <button type="button" disabled className="btn btn-sm bg-default-200 text-default-400 cursor-not-allowed">
+                หมดเวลาทักแชท
+              </button>
+              <span className="text-default-500 text-xs">เกิน 7 วันแล้ว Facebook ไม่ให้ทักส่วนตัวอีก</span>
+            </>
           )}
         </div>
       </div>

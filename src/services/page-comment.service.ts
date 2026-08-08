@@ -457,6 +457,13 @@ export interface CommentRow {
   editedAt: Date | null
   isDeleted: boolean
   repliedByUserId: string | null
+  /**
+   * feature 00038 Task 8 — ปุ่ม "ทักแชท" กดได้จริง: สถานะ "ทักแล้ว" ต้องมาจากแถว log ของ
+   * commentId นี้เอง (ไม่ใช่คีย์คน+โพสต์ — คนละกฎกับ AUTO ดู CommentReplyLog_manual_once_per_comment)
+   * null = ยังไม่เคยทักสำเร็จ ไม่ว่าจาก trigger AUTO หรือ MANUAL
+   */
+  privateReplySentAt: Date | null
+  privateReplyConversationId: string | null
 }
 
 /** คอมเมนต์ทั้งหมดของโพสต์ (เก่า→ใหม่) + เติมของเก่าจาก Graph ถ้ายังไม่เคยดึง */
@@ -522,6 +529,19 @@ export async function getPostComments(params: {
     }
   }
 
+  /**
+   * feature 00038 Task 8 — join CommentReplyLog เพื่อรู้ว่าคอมเมนต์ไหน "ทักแชทสำเร็จแล้ว" โดยไม่ให้
+   * client ยิง API เพิ่มต่อแถว (UX spec §2.2) partial unique index กันไว้แล้วว่า trigger='MANUAL'
+   * ได้แค่ 1 แถวต่อ commentId และ service ชั้น sendPrivateReplyToComment เช็คว่ามี log สำเร็จของ
+   * commentId นี้จาก trigger ใดก็ได้ก่อนเสมอ (API.md §4.4) — ต่อ commentId จึงมีได้อย่างมาก 1 แถวที่
+   * privateReplyStatus='SENT' ไม่ต้องกังวลเรื่องเลือกแถวไหนตอนชนกัน
+   */
+  const privateReplyLogs = await prisma.commentReplyLog.findMany({
+    where: { commentId: { in: comments.map((c) => c.id) }, privateReplyStatus: 'SENT' },
+    select: { commentId: true, createdAt: true, conversationId: true },
+  })
+  const privateReplyByCommentId = new Map(privateReplyLogs.map((l) => [l.commentId, l]))
+
   return {
     post: {
       id: post.id,
@@ -551,6 +571,8 @@ export async function getPostComments(params: {
       editedAt: c.editedAt,
       isDeleted: c.isDeleted,
       repliedByUserId: c.repliedByUserId,
+      privateReplySentAt: privateReplyByCommentId.get(c.id)?.createdAt ?? null,
+      privateReplyConversationId: privateReplyByCommentId.get(c.id)?.conversationId ?? null,
     })),
   }
 }
