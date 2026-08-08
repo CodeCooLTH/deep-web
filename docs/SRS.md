@@ -523,7 +523,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `billingPeriod` | String? | `MONTHLY` / `YEARLY` / `CUSTOM` |
 | `billingPeriodDays` | Int? | กรณี `CUSTOM` billing (1-365) |
 | `isActive` | Boolean default true | กรอง product grid public profile |
-| `cost` | Decimal(12,2)? | **ราคาทุน** (feature 00016) — nullable/opt-in, `CHECK(cost IS NULL OR cost >= 0)`. snapshot ลง `OrderItem.cost` ตอนสร้างออเดอร์ทุกครั้ง → **แก้ค่านี้ทีหลังไม่มีผลย้อนหลัง**. ตั้งแต่ 2026-08-07 **ไม่มี gate ของแพ็กเกจแล้ว** ทุกร้านกรอกได้ (D-EXT-1) |
+| `cost` | Decimal(12,2)? | **ราคาทุน** (feature 00016) — nullable/opt-in, `CHECK(cost IS NULL OR cost >= 0)`. snapshot ลง `OrderItem.cost` ตอนสร้างออเดอร์ทุกครั้ง → **แก้ค่านี้ทีหลังไม่มีผลย้อนหลัง** (ข้อยกเว้นครั้งเดียว: migration `20260808210000_backfill_order_item_cost` เติมค่าเข้า `OrderItem.cost` ที่ยังเป็น NULL — เติมเฉพาะช่องว่าง ไม่ทับของเดิม ดู §7.13). ตั้งแต่ 2026-08-07 **ไม่มี gate ของแพ็กเกจแล้ว** ทุกร้านกรอกได้ (D-EXT-1) |
 | `tags` | Tag[] | M:N relation — upsert โดย server ตามชื่อ tag |
 
 #### Tag (`prisma/schema.prisma:135`)
@@ -887,6 +887,19 @@ SellerWallet (1) ── (N) WalletTransaction
 | GET | `/api/expenses/report` | Seller (`GRANTED`) | รายงาน P&L + `expenses[]` + `prevNetProfit` | `pnl.service` |
 | PATCH | `/api/business/shops/[shopId]/finance-visibility` | **Seller-owner เท่านั้น** | toggle `staffCanViewFinance` | `expense.service` |
 | GET | `/api/seller/sales-series` | Seller | ยอดขายรายวัน + field การเงินเมื่อ `GRANTED` | `dashboard.service` |
+
+**🛑 COGS ใน `sales-series` มี 2 ชุด และจะไม่มีวันเท่ากัน (HR16 — วางติดกันใน `dashboard.service.ts`):**
+
+| field | นับต้นทุนของออเดอร์ชุดไหน | คู่กับ | ใครใช้ |
+|---|---|---|---|
+| `cogsValues` / `totalCogs` | **ทุกใบ** ใน bucket (รวมใบรอยืนยัน) | `values` (ยอดขาย) | ชีต "ยอดขายและกำไร" (`SalesChartSheet`) |
+| `cogsConfirmedValues` | เฉพาะใบที่ผ่าน `revenueOrderWhere` | `confirmedValues` | `netProfitValues` — สูตรเดียวกับการ์ด P&L / `/expenses` |
+
+หยิบผิดชุด = คอลัมน์บนหน้าจอลบกันแล้วไม่ลงตัว (ตัวตั้งกับตัวลบมาจากออเดอร์คนละชุด)
+
+**สูตรกำไรบนชีต "ยอดขายและกำไร" (2026-08-08, user เคาะ):** `ยอดขาย − (ต้นทุนสินค้า + ค่าใช้จ่าย)`
+— **ตั้งใจให้ต่างจาก `netProfit` ของ `pnl.service`** ซึ่งลบออกจาก "ยอดที่ยืนยันแล้ว" ไม่ใช่ "ยอดขายทั้งหมด"
+สองหน้าจึงให้ตัวเลขไม่เท่ากันเมื่อร้านมีใบรอยืนยันค้างอยู่ · invariant ของชีต: ทุกแถวในตารางบวกกันต้องเท่ากับเลขใหญ่ด้านบนเป๊ะ
 
 **สูตร P&L (`pnl.service.ts` — SSOT ห้ามคิดใหม่ที่อื่น):**
 `Revenue − COGS = กำไรขั้นต้น` → `− ค่าใช้จ่าย = กำไรสุทธิ`

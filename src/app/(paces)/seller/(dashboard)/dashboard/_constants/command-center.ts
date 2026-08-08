@@ -141,8 +141,15 @@ export type SalesSeries = {
      UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "ไม่มีค่าใช้จ่าย" */
   expenseValues?: number[]
   netProfitValues?: number[]
-  /** ต้นทุนสินค้า (COGS) ต่อ bucket — ชีตรวมกับ expenseValues เป็น "เงินออก" ให้สมการลบกันได้จริง */
+  /**
+   * 🛑 COGS มีสองชุดและไม่เท่ากัน (นิยามเต็มอยู่ที่ SSOT — dashboard.service.ts):
+   *   cogsValues          = ต้นทุนของ **ทุกออเดอร์** ใน bucket → คู่กับ `values` (ยอดขาย)
+   *   cogsConfirmedValues = ต้นทุนเฉพาะใบที่นับเป็นรายได้แล้ว → คู่กับ `confirmedValues` (สูตร P&L)
+   * ชีต "ยอดขายและกำไร" ใช้ตัวแรก เพราะมันลบออกจากคอลัมน์ "ยอดขาย" ซึ่งรวมใบรอยืนยัน
+   */
   cogsValues?: number[]
+  cogsConfirmedValues?: number[]
+  /** ต้นทุนสินค้ารวมทั้งช่วง (ชุดทุกออเดอร์ — คู่กับ `total`) */
   totalCogs?: number
   totalExpense?: number
   netProfit?: number
