@@ -20,7 +20,8 @@
 'use client'
 
 import Icon from '@/components/wrappers/Icon'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import FilterDropdownShell from './FilterDropdownShell'
 
 export interface FilterOptionBadge {
   /** ตัวเลขท้าย option (เช่น จำนวนออเดอร์ต่อกองงาน) */
@@ -62,91 +63,59 @@ export default function FilterDropdown({
   defaultLabel,
   resetValue,
   align = 'left',
-  className = '',
+  className = ''
 }: FilterDropdownProps) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (!open) return
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [open])
-
-  const selected = options.find((o) => o.value === value)
+  const selected = options.find(o => o.value === value)
   // active = มี resetValue และ value ไม่ใช่ค่า default
   const isActive = resetValue !== undefined && value !== resetValue
   // label บนปุ่ม: default state → defaultLabel; มีค่า/ไม่มี resetValue → label ของ option
-  const triggerLabel =
-    !isActive && defaultLabel !== undefined ? defaultLabel : (selected?.label ?? defaultLabel ?? '')
+  const triggerLabel = !isActive && defaultLabel !== undefined ? defaultLabel : (selected?.label ?? defaultLabel ?? '')
 
   return (
-    <div className="relative inline-flex" ref={ref}>
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((p) => !p)}
-        className={`btn text-nowrap ${
-          isActive ? 'bg-primary/15 text-primary hover:bg-primary hover:text-white' : 'bg-light text-dark'
-        } ${className}`.trim()}
-      >
-        {icon && <Icon icon={icon} className="text-base" />}
-        {triggerLabel}
-        <Icon
-          icon="chevron-down"
-          className={`size-4 transition-transform ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {open && (
-        <div
-          className={`absolute top-full z-30 mt-1 min-w-44 rounded border border-default-300 bg-card p-1 shadow-lg ${
-            align === 'right' ? 'end-0' : 'start-0'
-          }`}
-          role="menu"
-          aria-orientation="vertical"
-        >
-          {options.map((opt) => {
-            const active = opt.value === value
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                role="menuitem"
-                className={`dropdown-item ${active ? 'active' : ''}`}
-                onClick={() => {
-                  onChange(opt.value)
-                  setOpen(false)
-                }}
-              >
-                {/* check icon ซ้ายเมื่อ active; spacer กว้างเท่ากันเมื่อไม่ active เพื่อ align text */}
-                {active ? (
-                  <Icon icon="check" className="size-4 shrink-0 text-primary" />
-                ) : (
-                  <span className="size-4 shrink-0" aria-hidden="true" />
-                )}
-                <span className="min-w-0 flex-1 truncate text-start">{opt.label}</span>
-                {opt.badge != null && (
-                  <span className={`badge ms-2 shrink-0 tabular-nums ${opt.badge.className}`}>
-                    {opt.badge.label}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
+    <FilterDropdownShell
+      isActive={isActive}
+      open={open}
+      onOpenChange={setOpen}
+      align={align}
+      className={className}
+      triggerContent={
+        <>
+          {icon && <Icon icon={icon} className='text-base' />}
+          {triggerLabel}
+        </>
+      }
+    >
+      {/* role อยู่ที่นี่ ไม่ใช่ที่เปลือก — เนื้อหาของ component นี้เป็น menuitem ล้วน */}
+      <div role='menu' aria-orientation='vertical'>
+        {options.map(opt => {
+          const active = opt.value === value
+          return (
+            <button
+              key={opt.value}
+              type='button'
+              role='menuitem'
+              className={`dropdown-item ${active ? 'active' : ''}`}
+              onClick={() => {
+                onChange(opt.value)
+                setOpen(false)
+              }}
+            >
+              {/* check icon ซ้ายเมื่อ active; spacer กว้างเท่ากันเมื่อไม่ active เพื่อ align text */}
+              {active ? (
+                <Icon icon='check' className='size-4 shrink-0 text-primary' />
+              ) : (
+                <span className='size-4 shrink-0' aria-hidden='true' />
+              )}
+              <span className='min-w-0 flex-1 truncate text-start'>{opt.label}</span>
+              {opt.badge != null && (
+                <span className={`badge ms-2 shrink-0 tabular-nums ${opt.badge.className}`}>{opt.badge.label}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </FilterDropdownShell>
   )
 }

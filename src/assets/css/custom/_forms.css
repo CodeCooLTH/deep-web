@@ -1,7 +1,15 @@
 /* _forms.css */
 
+/* h-11 lg:h-9.25 (44px มือถือ / 37px เดสก์ท็อป) — impeccable audit P2-3
+ * PRODUCT.md ประกาศ tap target ≥44px เป็น AA baseline ของตัวเอง และ "ผู้ขายทำงานบนมือถือ
+ * เป็นหลัก" แต่ค่าเดิม 37px ต่ำกว่าเกณฑ์นั้นทุกจอ
+ * ไม่ดัน 44px บนเดสก์ท็อปด้วย เพราะคอนโซลผู้ขายเป็น Operate surface ที่ความหนาแน่นมีค่า
+ * และเกณฑ์ 44px มีเหตุผลจาก "นิ้วโป้ง" ซึ่งไม่ใช่บริบทของเมาส์
+ * 1024px = เส้นเดียวกับ seller mobile shell ที่ระบบใช้อยู่แล้ว ไม่ใช่เลขใหม่
+ * [สำคัญ] .form-select ต้องเปลี่ยนคู่กันเสมอ ไม่งั้น select เตี้ยกว่า input ในฟอร์มเดียวกัน
+ * และ .choices__inner (safepay-overrides.css) ที่ hardcode ค่านี้ไว้ให้ match ก็ต้องตามด้วย */
 .form-input {
-    @apply text-body-color placeholder:text-default-400 block h-9.25 w-full rounded border py-0 text-sm outline-0 transition-all;
+    @apply text-body-color placeholder:text-default-400 block h-11 lg:h-9.25 w-full rounded border py-0 text-sm outline-0 transition-all;
     @apply hover:border-default-500! focus:border-default-500! focus-visible:border-default-500 focus:outline-0 focus-visible:ring-0 focus-visible:outline-none;
     @apply aria-invalid:border-danger/60 aria-invalid:ring-danger/10;
     transition-property: color, box-shadow;
@@ -61,7 +69,8 @@
 }
 
 .form-select {
-    @apply bg-card border-default-300 text-body-color placeholder:text-body-color block h-9.25 w-full rounded border py-0 text-sm outline-0 transition-all;
+    /* h-11 lg:h-9.25 — ต้องตรงกับ .form-input เสมอ (ดูเหตุผลที่ .form-input) */
+    @apply bg-card border-default-300 text-body-color placeholder:text-body-color block h-11 lg:h-9.25 w-full rounded border py-0 text-sm outline-0 transition-all;
     @apply hover:border-default-500 focus:border-default-500 focus-visible:border-default-500 focus:outline-0 focus-visible:ring-0 focus-visible:outline-none;
     @apply disabled:cursor-not-allowed disabled:opacity-70;
     @apply [[readonly]]:text-body-color [[readonly]]:cursor-not-allowed;

@@ -243,9 +243,17 @@ html[data-theme="dark"] .chat-header-logo {
 .choices[data-type*="select-one"] .choices__inner {
   display: flex !important;
   align-items: center !important;
-  min-height: 2.3125rem !important; /* = .form-input h-9.25 (37px) */
-  height: 2.3125rem !important;
+  /* ตามความสูงของ .form-input ทั้งสอง breakpoint (audit P2-3) — ไลบรารีให้มา 44px อยู่แล้ว
+     ค่า 37px คือการย่อลงมาเองเพื่อ match เดสก์ท็อป ตอนนี้ย่อเฉพาะ >=1024px */
+  min-height: 2.75rem !important; /* = .form-input h-11 (44px) มือถือ */
+  height: 2.75rem !important;
   padding: 0 2.25rem 0 0.75rem !important; /* py-0 · ps-3 (px-3) · pe-9 เผื่อ chevron */
+}
+@media (min-width: 1024px) {
+  .choices[data-type*="select-one"] .choices__inner {
+    min-height: 2.3125rem !important; /* = .form-input lg:h-9.25 (37px) */
+    height: 2.3125rem !important;
+  }
 }
 .choices[data-type*="select-one"].is-focused .choices__inner,
 .choices[data-type*="select-one"].is-open .choices__inner {
@@ -283,6 +291,22 @@ html[data-theme="dark"] .chat-header-logo {
     animation-iteration-count: 1 !important;
     transition-duration: 0.12s !important;
     scroll-behavior: auto !important;
+  }
+
+  /**
+   * ข้อยกเว้น: .animate-spin สื่อ "กำลังรอระบบ" ไม่ใช่การตกแต่ง (impeccable audit P2-2)
+   *
+   * กฎ blanket ข้างบนตั้ง animation-duration: 0.01ms กับ * ทั้งหมด ซึ่งทำให้สปินเนอร์ทุกตัว
+   * ในระบบ (ใช้อยู่ 88 ไฟล์ ทั้ง (paces) และ (marketing)) หยุดนิ่ง — ผู้ใช้ที่เปิด "ลดการ
+   * เคลื่อนไหว" จึงไม่เหลือสัญญาณเลยว่าระบบกำลังทำงานหรือค้าง ทั้งที่หลายจุดสปินเนอร์คือ
+   * feedback เดียวที่มีระหว่างรอ API
+   *
+   * สปินเนอร์เล็ก ๆ ที่หมุนอยู่กับที่ไม่ใช่ต้นเหตุอาการเวียนหัวแบบ parallax/shine ที่กฎนี้
+   * ตั้งใจกัน — ยกเว้นเฉพาะคลาสนี้คลาสเดียว ของตกแต่งอื่นยังหยุดตามเดิมทุกตัว
+   */
+  .animate-spin {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
   }
 }
 

@@ -62,57 +62,6 @@ const TYPE_OPTIONS = [
 
 const PAGE = 8 // จำนวนต่อรอบ lazy-load
 
-/**
- * StageChips — แถวชิป "สถานะพัสดุ" ใช้ร่วมกันทั้งมือถือและเดสก์ท็อป
- *
- * render 2 ที่ (ในหัวสติกกี้ของมือถือ / เหนือการ์ดตารางบนเดสก์ท็อป) แต่ตัวนับกับ handler มาจาก
- * ที่เดียวใน OrdersList — ห้ามให้สองจอนับกันเอง (บทเรียน docs/conventions/sibling-surface-parity.md
- * "ตัวเลขเดียวกันที่โผล่ >1 ที่ ต้องมาจาก symbol เดียว")
- *
- * สไตล์ชิปลอกจากแถว STATUS_TABS ในไฟล์เดียวกันทุกคลาส — ต่างกันแค่มีป้ายนำหน้าและกากบาทบนชิปที่เลือก
- * เพราะ 2 แถวนี้เป็นคนละแกน ถ้าหน้าตาเหมือนกันเป๊ะผู้ใช้จะอ่านเป็นแถวเดียวที่ตัดบรรทัด
- */
-function StageChips({
-  stage,
-  counts,
-  onSelect,
-  className,
-}: {
-  stage: string | null
-  counts: Record<string, number>
-  onSelect: (value: string) => void
-  className?: string
-}) {
-  return (
-    <div className={cn('flex items-center gap-2', className)}>
-      <span className="shrink-0 text-xs font-medium text-default-500">พัสดุ:</span>
-      {STAGE_CHIPS.map((key) => {
-        const active = stage === key
-        const count = counts[key] ?? 0
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onSelect(key)}
-            aria-pressed={active}
-            className={cn(
-              'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
-              // HR7: rounded-full ไม่ใช่ .badge default radius — ตามชิป STATUS_TABS ที่อยู่แถวบน
-              'rounded-full px-3.5 py-1.5 text-xs font-medium',
-              active ? 'bg-primary text-white' : 'bg-default-100 text-default-500',
-            )}
-          >
-            {SHIPPING_STAGE_LABEL[key]}
-            {count > 0 && <span className="ms-1 font-bold tabular-nums">{count}</span>}
-            {/* กากบาทบอกทางออก — ชิปที่เลือกอยู่กดซ้ำเพื่อล้าง ซึ่งเดาเองไม่ได้ถ้าไม่มีสัญลักษณ์ */}
-            {active && <Icon icon="x" className="ms-1 text-sm" />}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 type Props = {
   orders: OrderRow[]
   activeStatus: string
@@ -644,7 +593,14 @@ export default function OrdersList({
               data-active={chip.active}
               onClick={chip.select}
               className={cn(
-                'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
+                // focus-visible:ring แทน focus:outline-none ลอย ๆ — ธีมไม่มี `.badge:focus` มาชดเชย
+                // (grep `.badge` ใน src/assets/css แล้วไม่มี :focus เลย) ปิด outline เฉย ๆ
+                // = คนใช้คีย์บอร์ด Tab ผ่านทั้งแถวโดยไม่รู้ว่าอยู่ชิปไหน (WCAG 2.4.7)
+                // ท่าเดียวกับ OrderDateRow.tsx:173 / ProductGrid.tsx:107 / QuickPriceSheet.tsx:28
+                // ไม่ใส่ ring-offset โดยตั้งใจ — offset color ค่าเริ่มต้นเป็นขาว จะกลายเป็นวงขาว
+                // คาดรอบชิปบนการ์ดโหมดมืด (Paces มี dark toggle จริงที่ topbar)
+                'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                 // HR7: rounded-full ไม่ใช่ Paces .badge default radius แต่ตาม mockup v10 chip style
                 'rounded-full px-3.5 py-1.5 text-xs font-medium',
                 chip.active
