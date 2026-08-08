@@ -203,7 +203,7 @@ API) และ browser-driven (UI ปุ่มแมนนวล/หน้าต
 ### TC-CR-AUTO-10: ส่งไม่สำเร็จ → มีบันทึกพร้อมเหตุผล และไม่ยิงซ้ำเอง
 
 - **Linked to:** AC-CR-16 / BR-CR-14, BR-CR-A6
-- **Precondition:** เพจเปิดสวิตช์ B; จำลอง Graph API ปฏิเสธคำขอ `POST /pageId/messages` (เช่น token
+- **Precondition:** เพจเปิดสวิตช์ B; จำลอง Graph API ปฏิเสธคำขอ `POST /me/messages` (เช่น token
   หมดอายุระหว่างทาง หรือ mock 4xx)
 - **Steps:**
   1. ลูกค้าคอมเมนต์ระดับบน

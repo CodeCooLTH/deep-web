@@ -71,7 +71,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]", "[[00029 - Faceboo
 | คำ/ตัวย่อ | ความหมายเชิงเทคนิค |
 |-----------|----------|
 | **public reply** | คำตอบที่เพจโพสต์ใต้คอมเมนต์ผ่าน Graph endpoint `POST /{comment-id}/comments` — สร้างแถว `PageComment` ใหม่ (`repliedByUserId` หรือ `isAutoReply=true`) |
-| **private reply** | ข้อความส่วนตัวที่ส่งผ่าน Graph endpoint `POST /{page-id}/messages` body `recipient:{comment_id}` — สร้าง/ต่อ `Conversation` ช่องทาง MESSENGER |
+| **private reply** | ข้อความส่วนตัวที่ส่งผ่าน Graph endpoint `POST /me/messages` (ไม่ใช่ `/{page-id}/messages` ตามที่เอกสาร Meta เขียน — เหตุผลดู [[SDS]] TD-006) body `recipient:{comment_id}` — สร้าง/ต่อ `Conversation` ช่องทาง MESSENGER |
 | **system actor** | เส้นทางเรียกฟังก์ชันที่ `actorUserId = null` เพราะไม่มี user คนกด (เรียกจาก `after()` ของ webhook) — cross-check ownership จากแถวข้อมูลแทน `canAccessShop` |
 | **gate / ด่านคัดกรอง** | เงื่อนไข 9 ข้อ (FR-CR-05) ที่คอมเมนต์ต้องผ่านทั้งหมดก่อนระบบจะตอบอัตโนมัติ |
 | **PSID** | Page-Scoped ID — id ของผู้ใช้ Messenger ที่ผูกกับเพจนี้เท่านั้น (`ExternalContact.externalUserId`) |
@@ -102,7 +102,7 @@ flowchart LR
     WH -- after() dispatch --> AutoSvc
     AutoSvc --> PageSvc
     AutoSvc --> PrivSvc
-    PrivSvc -- POST /pageId/messages --> Meta
+    PrivSvc -- POST /me/messages --> Meta
     PageSvc -- POST /commentId/comments --> Meta
     PrivSvc --> ChatSvc
     Seller --> CFG
@@ -200,7 +200,7 @@ flowchart LR
   ที่ Meta อนุญาตให้เปิดห้อง**ใหม่**จากคอมเมนต์ได้โดยเฉพาะ (คนละ policy surface ของ Meta)
 - **Precondition:** `sendPrivateReplyToComment()` ต้องเป็นฟังก์ชันแยก ไม่ผ่าน
   `sendOutboundMessage`'s window gate
-- **Postcondition:** `sendPrivateReplyToComment()` ยิง Graph `POST /{pageId}/messages` ตรง แล้วสร้าง
+- **Postcondition:** `sendPrivateReplyToComment()` ยิง Graph `POST /me/messages` ตรง แล้วสร้าง
   `ChatMessage` เอง (ไม่พึ่ง window state) — รายละเอียดการออกแบบเต็มอยู่ที่ SDS TD-001
 - **Error / Edge cases:** ฟังก์ชันใหม่นี้ต้องยังคง**เช็คหน้าต่าง 7 วันของคอมเมนต์เอง** (คนละหน้าต่าง
   กับ 24 ชม. ของแชท) ก่อนยิง — ดู TFR-006
@@ -228,7 +228,7 @@ flowchart LR
   3. เช็คหน้าต่าง 7 วันจาก `comment.createdTime` (ใช้ค่าคงที่เดียวกับที่มีอยู่แล้วใน
      `page-comment.service.ts:341` และ `CommentsClient.tsx:115` — ห้าม hardcode ตัวเลขซ้ำที่ 3)
   4. เช็ค/สร้างแถว `CommentReplyLog` ก่อน (unique index เป็นตัวกันซ้ำจริง — ดู DATABASE.md §4)
-  5. ยิง Graph `POST /{pageId}/messages` body `{recipient:{comment_id}, message:{text}}`
+  5. ยิง Graph `POST /me/messages` body `{recipient:{comment_id}, message:{text}}`
   6. ได้ `recipient_id` (PSID) + `message_id` กลับมา
   7. upsert `ExternalContact(shopChannelId, externalUserId=recipient_id)` → find/create
      `Conversation(channel='MESSENGER', shopChannelId, externalContactId)` → insert `ChatMessage`
@@ -395,7 +395,7 @@ sequenceDiagram
     alt สวิตช์ B เปิด และยังไม่เกิน 7 วัน
         AS->>PRS: sendPrivateReplyToComment(trigger=AUTO)
         PRS->>DB: insert CommentReplyLog (กันซ้ำ)
-        PRS->>Graph: POST /pageId/messages
+        PRS->>Graph: POST /me/messages
         Graph-->>PRS: recipient_id, message_id
         PRS->>DB: upsert ExternalContact/Conversation/ChatMessage
         PRS->>DB: update CommentReplyLog (SENT, conversationId)
