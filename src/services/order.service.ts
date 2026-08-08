@@ -1049,6 +1049,14 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
       // ทรัพยากรที่รับงานนัดนี้ (feature 00036) — การ์ด "การนัดหมาย" ต้องบอกว่าใคร/ช่องไหนรับ
       // select แคบ ๆ เพราะการ์ดใช้แค่ชื่อ; ช่วงเวลา/สถานะเป็น scalar บน Order มาแล้วจาก include
       serviceResource: { select: { id: true, name: true } },
+      // shipments — 3 field แคบ ๆ พอให้ countsAsRevenue() ตัดสินได้ว่าใบนี้นับเป็นยอดขายแล้วหรือยัง
+      // (feature 00016 ส่วนขยาย FR-EXP-14) ห้ามใช้ shipmentPanel.shipment ที่หน้าโหลดอยู่แล้ว
+      // ตัดสินแทน — นั่นคือใบ active ใบเดียว ส่วน revenueOrderWhere พิจารณา shipments ทั้งหมด
+      // สองอันจะแยกจากกันวันที่ออเดอร์มีพัสดุมากกว่าหนึ่งใบ
+      //
+      // select แคบไว้โดยตั้งใจ: หน้านี้อยู่ใต้ client layout ทุก field ที่ include
+      // ถูก serialize เข้า flight payload เสมอ
+      shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
       shipmentTracking: true,
       review: true,
     },

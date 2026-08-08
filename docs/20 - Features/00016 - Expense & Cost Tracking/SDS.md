@@ -546,7 +546,7 @@ flowchart TD
 | `OrderProfitRow` (ใหม่) | `orders/[token]/components/` | แถว/การ์ดกำไร — 4 สถานะตาม FR-EXP-14 (ตำแหน่งและรูปร่างรอ `safepay-ux`) |
 | `productMargin()` (ใหม่) | `src/lib/product-margin.ts` หรือรวมใน `order-profit.ts` | pure — `(price−cost)/price×100`, คืน `null` เมื่อ `cost==null \|\| price<=0` |
 | `buildBreakdown()` (เดิม) | `orders/[token]/components/order-detail-shared.tsx:76` | **ไม่แก้** — breakdown เดิมเป็นยอดที่ลูกค้าจ่าย ไม่มี gate สิทธิ์ ส่วนกำไรมี gate → รวมเข้าไปจะทำให้ฟังก์ชันบริสุทธิ์ตัวนี้ต้องรู้เรื่อง session |
-| `OrderFactsItem` (เดิม) | ไฟล์เดียวกัน `:33` | เพิ่ม field `cost: unknown` |
+| `OrderFactsItem` (เดิม) | ไฟล์เดียวกัน `:33` | **ไม่แก้ — ตัดสินใจกลับตอน implement (2026-08-08)** ร่างแรกจะเพิ่ม `cost` เข้า type นี้ แต่ type นี้คือของที่ถูกส่งข้ามเส้นไป client การเพิ่ม `cost` เข้าไปคือการยัดต้นทุนรายชิ้นลง flight payload ของทุกคนที่เปิดออเดอร์ได้ ซึ่งขัดกับ FR-EXP-14-AC-04 ที่เพิ่งเขียนเอง — คำนวณกำไรจบที่ RSC แล้วส่งเฉพาะผลลัพธ์ที่ประกอบเป็นการ์ดแล้ว |
 
 ### 8.6.3 ลำดับ commit ที่แนะนำ (atomic boundary)
 

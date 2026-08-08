@@ -125,6 +125,8 @@ export interface OrderDetailClientProps {
   shippingActivity: React.ReactNode
   /** การ์ดผู้ซื้อ — แยกจาก sideCards เพราะการ์ด COD ต้องแทรก "หลังผู้ซื้อ ก่อนที่อยู่" */
   customerCard: React.ReactNode
+  /** การ์ดกำไรของใบนี้ — null เมื่อผู้ใช้ไม่มีสิทธิ์ดูข้อมูลการเงิน (ตัดสินที่ RSC ไม่ใช่ที่นี่) */
+  profitCard?: React.ReactNode
   sideCards: React.ReactNode
   /** ISO — มีค่า = ร้านยืนยันรับเงินปลายทางแล้ว (null = ยังไม่ได้รับ / ไม่ใช่ออเดอร์ COD) */
   codReceivedAtISO: string | null
@@ -164,6 +166,7 @@ export default function OrderDetailClient({
   orderNoun,
   shippingActivity,
   customerCard,
+  profitCard,
   sideCards,
   codReceivedAtISO,
   codReceivedByLabel,
@@ -404,6 +407,9 @@ export default function OrderDetailClient({
               totalAmount={totalAmount}
             />
           )}
+          {/* กำไรอยู่ในกลุ่ม "ข้อมูลการเงินของใบนี้" ต่อจาก COD — ไม่ใช่แถวในการ์ดสรุปยอด
+              เพราะยอดที่ลูกค้าจ่ายกับกำไรที่ร้านได้หน้าตาเหมือนกันจนอ่านสลับกันได้ */}
+          {profitCard}
           {sideCards}
         </div>
       </div>

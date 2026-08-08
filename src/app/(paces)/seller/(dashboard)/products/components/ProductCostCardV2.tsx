@@ -23,6 +23,7 @@
  */
 
 import type { UseFormRegister, FieldErrors, UseFormWatch } from 'react-hook-form'
+import { formatBaht } from '@/lib/format-money'
 import { productMargin } from '@/lib/order-profit'
 import type { ProductFormV2Values } from './ProductFormV2.types'
 
@@ -82,12 +83,10 @@ export default function ProductCostCardV2({ register, errors, watch }: ProductCo
       )}
 
       {marginAmount !== null ? (
+        // ใช้ formatBaht ตาม SSOT ของเงินบาทฝั่ง seller (src/lib/format-money.ts) — ทศนิยมโผล่
+        // เฉพาะเมื่อมีสตางค์จริง และ **ไม่มีเครื่องหมายลบชน ฿** ทิศทางสื่อด้วยคำ ("ขาดทุนต่อชิ้น")
         <p className="text-default-700 mt-1 text-xs">
-          กำไรต่อชิ้น {marginAmount < 0 ? '-' : ''}฿
-          {Math.abs(marginAmount).toLocaleString('th-TH', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
+          {marginAmount < 0 ? 'ขาดทุนต่อชิ้น' : 'กำไรต่อชิ้น'} {formatBaht(marginAmount)}
         </p>
       ) : (
         // empty state ต้องสอนว่ากรอกแล้วได้อะไร ไม่ใช่ปล่อยว่าง (operate.md)

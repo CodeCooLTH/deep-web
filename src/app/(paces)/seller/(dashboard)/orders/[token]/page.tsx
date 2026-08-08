@@ -59,6 +59,10 @@ import type { ShippingAddressData, OrderFactsShipping } from './components/order
 import OrderReviewCard from './components/OrderReviewCard'
 import type { OrderReviewData } from './components/OrderReviewCard'
 import type { ShipmentSource } from './components/order-action-set'
+import OrderProfitCard from './components/OrderProfitCard'
+import { resolveExpenseAccess } from '@/services/expense-access.service'
+import { countsAsRevenue } from '@/lib/order-revenue'
+import { computeOrderProfit } from '@/lib/order-profit'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ (constant ไม่รู้จัก shop ของ request)
@@ -125,6 +129,22 @@ export default async function OrderDetailPage({ params }: PageProps) {
   const rescheduleCount = order.serviceStart
     ? await prisma.appointmentReschedule.count({ where: { orderId: order.id } })
     : 0
+
+  // กำไรรายออเดอร์ (feature 00016 ส่วนขยาย FR-EXP-14)
+  //
+  // [สำคัญ] เช็คสิทธิ์ก่อนคำนวณเสมอ แล้วส่ง "การ์ดที่ประกอบเสร็จแล้วหรือ null" ลงไป —
+  // ไม่ใช่ส่งตัวเลขลงไปให้ client เลือกไม่แสดง หน้านี้อยู่ใต้ client layout ทุกค่าที่ข้ามเส้น
+  // ถูก serialize ลง HTML เสมอ staff ที่เจ้าของร้านปิดสิทธิ์การเงินไว้จึงต้องไม่มีตัวเลขนี้
+  // อยู่ในหน้าเลยแม้แต่ใน view-source (FR-EXP-14-AC-04)
+  const expenseAccess = await resolveExpenseAccess(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+  )
+  const canSeeProfit = expenseAccess.kind === 'GRANTED'
+  // countsAsRevenue ต้องได้ shipments มาด้วย — getOrderForShop include ไว้แล้ว (select แคบ 3 field)
+  const orderProfit =
+    canSeeProfit && countsAsRevenue(order)
+      ? computeOrderProfit({ totalAmount: order.totalAmount, items: order.items })
+      : null
 
   // แปลง Date → ISO string ก่อนส่งข้ามขอบเขต RSC → component
   // เพื่อหลีกเลี่ยง "Cannot serialize Date" error ของ Next.js
@@ -316,6 +336,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
               shippingAddr
             }}
           />
+        }
+        profitCard={
+          canSeeProfit ? <OrderProfitCard profit={orderProfit} orderNoun={vocab.noun} /> : null
         }
         sideCards={
           <>
