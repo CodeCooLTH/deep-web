@@ -60,6 +60,7 @@ import type { ShopVertical } from '@/lib/lodging'
 import { pacesToast } from '@/lib/paces-toast'
 import { ORDER_STATUS_META, isCODPayment } from '@/lib/order-display'
 import ListBusyOverlay, { type ListBusy } from './ListBusyOverlay'
+import { profitColumnCaption } from '@/lib/order-profit-presentation'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 // อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —
@@ -583,7 +584,10 @@ export default function OrdersTable({
 
     // ─ ยอดคำสั่งซื้อ ─
     columnHelper.accessor('total', {
-      header: `ยอด${vocab.noun}`,
+      // หัวคอลัมน์บอกเองว่า "กำไร" ในคอลัมน์นี้คือกำไร**ขั้นต้น** (HR16 — คนละตัวกับกำไรสุทธิ
+      // ที่ /sales ผู้ขายที่บวกเลขรายใบทั้งเดือนแล้วเทียบจะได้ไม่ตรง) บอกครั้งเดียวต่อหน้า
+      // เพราะ user สั่งห้ามมีคำต่อแถว — สตริงเดียวกับแคปชั่นมือถือใน OrdersList
+      header: profitColumnCaption(vocab.noun),
       // whitespace-nowrap ย้ายจาก <td> ลงมาที่ <span> ของยอดเท่านั้น — เดิมอยู่ที่เซลล์ทั้งใบ
       // ซึ่งจะห้ามบรรทัดกำไรตกบรรทัดไปด้วย ("ขาดทุนขั้นต้นอย่างน้อย ฿90,000" ยาวเกินคอลัมน์
       // ที่จอ 1024px) แล้วดันคอลัมน์ข้างเคียงแคบลงทั้งตาราง
