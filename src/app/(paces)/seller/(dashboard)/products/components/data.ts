@@ -4,6 +4,9 @@ export type ProductRow = {
   description: string
   image: string
   price: number
+  /** ราคาทุน (feature 00016) — null = ยังไม่เคยตั้ง ซึ่งต่างจาก 0 ที่แปลว่า "ไม่มีต้นทุนจริง"
+   *  UI ต้องแสดง null เป็น "—" ห้ามเป็น ฿0/0% (FR-EXP-15-AC-02) */
+  cost: number | null
   type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE' | 'SUBSCRIPTION'
   isActive: boolean
   totalSold: number

@@ -19,6 +19,8 @@ import TablePagination from '@/components/table/TablePagination'
 import Select from '@/components/wrappers/Select'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
+import { formatBaht } from '@/lib/format-money'
+import { productMargin } from '@/lib/order-profit'
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -103,6 +105,48 @@ const ProductsTable = ({ products, pinSlots, pinnedCount, onPinChange, onDeleteR
       cell: ({ row }) => (
         <span>฿{new Intl.NumberFormat('th-TH').format(row.original.price)}</span>
       ),
+    }),
+    // ต้นทุน + มาร์จิ้น รวมเป็นคอลัมน์เดียว 2 บรรทัด (ux Design Spec S3)
+    //
+    // ทำไมไม่แยก 2 คอลัมน์ตามตัวอักษรของ AC: ตารางนี้กว้าง ~1,254px ตั้งแต่ก่อนเพิ่มฟีเจอร์นี้
+    // ซึ่งล้นพื้นที่ content ที่ 1366px อยู่แล้ว (มี overflow-x-auto มาแต่ธีม) แยก 2 คอลัมน์
+    // กิน ~150-180px รวมเป็นคอลัมน์เดียวกิน ~110px — และตารางนี้มี precedent อยู่แล้วคือ
+    // คอลัมน์ "สินค้า" ที่รวมชื่อ+คำอธิบายไว้ 2 บรรทัดในเซลล์เดียว จึงไม่ใช่ pattern ใหม่
+    columnHelper.accessor('cost', {
+      header: () => (
+        <span className="flex flex-col leading-tight">
+          <span>ต้นทุน</span>
+          <span className="text-default-400 text-2xs font-normal">มาร์จิ้น</span>
+        </span>
+      ),
+      enableColumnFilter: false,
+      cell: ({ row }) => {
+        const { cost, price } = row.original
+        const margin = productMargin({ price, cost })
+        // cost = null คือ "ยังไม่รู้ต้นทุน" ไม่ใช่ "ต้นทุน 0" — แสดง — ครั้งเดียวไม่ใช่ 2 บรรทัด
+        // เพราะไม่มีอะไรให้อ่านสองชั้น (FR-EXP-15-AC-02)
+        if (cost === null) return <span className="text-default-400">—</span>
+        const isLoss = margin !== null && margin < 0
+        return (
+          <span className="flex flex-col leading-tight">
+            <span className="text-default-700 tabular-nums">{formatBaht(cost)}</span>
+            <span
+              className={`text-2xs tabular-nums ${isLoss ? 'text-danger-ink' : 'text-default-500'}`}
+            >
+              {margin === null ? (
+                '—'
+              ) : (
+                <>
+                  {isLoss && (
+                    <Icon icon="alert-triangle" className="me-0.5 inline size-3" aria-hidden="true" />
+                  )}
+                  {margin.toLocaleString('th-TH', { maximumFractionDigits: 1 })}%
+                </>
+              )}
+            </span>
+          </span>
+        )
+      },
     }),
     columnHelper.accessor('isActive', {
       header: 'สถานะ',

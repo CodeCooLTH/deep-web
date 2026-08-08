@@ -23,6 +23,8 @@
 import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
+import { formatBaht } from '@/lib/format-money'
+import { productMargin } from '@/lib/order-profit'
 import { PRODUCT_TYPE_ICONS, PRODUCT_TYPE_LABELS, type ProductRow } from './data'
 import PinToggleButton, { type PinChangeResult } from './PinToggleButton'
 import ProductCardMenu from './ProductCardMenu'
@@ -106,6 +108,28 @@ export default function ProductCard({
             <span className="text-sm font-bold tabular-nums text-default-900">
               ฿{product.price.toLocaleString('th-TH')}
             </span>
+            {/* ต้นทุน/มาร์จิ้น (ux Design Spec S3) — บรรทัดเดียวกะทัดรัดในกรอบเดิม ไม่เพิ่มชั้นการ์ด
+                ความสูงการ์ดถูกกำหนดโดยรูป size-14 (56px) อยู่แล้ว บรรทัดนี้จึงอยู่ในโควตาที่เหลือ
+                คงบรรทัดไว้เสมอแม้ไม่มีข้อมูล เพื่อให้จังหวะการ์ดทุกใบเท่ากัน
+                ใช้คำย่อ "ทุน" เพราะที่ 320px คำเต็มดันแถวขวาล้นออกนอกจอ (คำเต็มยังใช้ในตาราง) */}
+            {(() => {
+              const margin = productMargin({ price: product.price, cost: product.cost })
+              const isLoss = margin !== null && margin < 0
+              if (product.cost === null) {
+                return <span className="text-2xs text-default-400">—</span>
+              }
+              return (
+                <span
+                  className={`text-2xs tabular-nums ${isLoss ? 'text-danger-ink' : 'text-default-500'}`}
+                >
+                  {isLoss && (
+                    <Icon icon="alert-triangle" className="me-0.5 inline size-3" aria-hidden="true" />
+                  )}
+                  ทุน {formatBaht(product.cost)}
+                  {margin !== null && ` · ${margin.toLocaleString('th-TH', { maximumFractionDigits: 1 })}%`}
+                </span>
+              )
+            })()}
             <span
               className={`badge rounded-full ${
                 product.isActive ? 'bg-success/15 text-success-ink' : 'bg-default-100 text-default-500'

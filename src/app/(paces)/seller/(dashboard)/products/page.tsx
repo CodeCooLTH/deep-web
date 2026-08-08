@@ -100,6 +100,8 @@ export default async function ProductsPage() {
         ? (String(p.images[0]).startsWith('http') ? String(p.images[0]) : `/api/files/${p.images[0]}`)
         : '',
       price: Number(p.price ?? 0),
+      // Decimal → number ที่ server boundary (ข้ามเส้น RSC ดิบไม่ได้); null คงเป็น null ไม่แปลงเป็น 0
+      cost: p.cost == null ? null : Number(p.cost),
       type: (p.type as ProductRow['type']) ?? 'PHYSICAL',
       isActive: p.isActive ?? true,
       totalSold,
