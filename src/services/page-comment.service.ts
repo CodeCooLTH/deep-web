@@ -42,18 +42,24 @@ export async function resolveChannelToken(shopChannelId: string): Promise<{ toke
  *
  * ไม่ throw: webhook ต้องตอบ 200 ให้ Meta เสมอ (กติกาเดิมของ route) — ล้มเหลวก็แค่ไม่มีคอมเมนต์นั้น
  * ไม่ใช่ทั้ง batch พัง. คอมเมนต์ที่หายยังตามเก็บได้ทีหลังด้วย backfill ตอนเปิดโพสต์
+ *
+ * คืน id ของคอมเมนต์ที่บันทึก (feature 00038 — caller เอาไปสั่งตอบอัตโนมัติใน after())
+ * null = ไม่ได้บันทึก (ไม่ใช่คอมเมนต์ / ไม่พบเพจ / เป็น verb=remove)
+ *
+ * 🛑 คืนเฉพาะกรณี **webhook สด** เท่านั้น — backfillPostComments() ต้องไม่เดินผ่านทางนี้
+ * ไม่งั้นคอมเมนต์เก่าเป็นร้อยจะถูกยิงย้อนหลังพร้อมกัน (BR-CR-12 / AC-CR-14)
  */
 export async function ingestFeedComment(params: {
   pageExternalId: string
   change: FeedChange
   /** payload ดิบก่อน parse — เหตุผลเดียวกับ ChatMessage.rawMessage (บทเรียน 2026-08-03) */
   rawChange?: unknown
-}): Promise<void> {
+}): Promise<string | null> {
   const val = params.change.value
-  if (!val || val.item !== 'comment' || !val.comment_id || !val.post_id) return
+  if (!val || val.item !== 'comment' || !val.comment_id || !val.post_id) return null
 
   const channel = await getChannelByExternalId('MESSENGER', params.pageExternalId)
-  if (!channel) return
+  if (!channel) return null
 
   // ลบคอมเมนต์ — ทำเครื่องหมาย ไม่ลบแถว (BR-CMT-04 เก็บเป็นหลักฐานว่าเคยมีคนถามอะไร)
   if (val.verb === 'remove') {
@@ -61,11 +67,11 @@ export async function ingestFeedComment(params: {
       where: { externalCommentId: val.comment_id, shopChannelId: channel.id },
       data: { isDeleted: true },
     })
-    return
+    return null
   }
 
   const post = await ensurePost(channel.id, val.post_id)
-  if (!post) return
+  if (!post) return null
 
   const createdTime = val.created_time ? new Date(val.created_time * 1000) : new Date()
   // parent_id ที่เท่ากับ post_id = คอมเมนต์ระดับบน (ยืนยันจาก payload จริง: reply จะได้ comment id
@@ -87,7 +93,7 @@ export async function ingestFeedComment(params: {
     rawPayload: toJson(params.rawChange ?? params.change),
   }
 
-  await prisma.pageComment.upsert({
+  const saved = await prisma.pageComment.upsert({
     where: { externalCommentId: val.comment_id },
     create: data,
     // verb=edited/edit → ทับข้อความเดิม + ประทับเวลาที่แก้ (UI ขึ้นป้าย "แก้ไขแล้ว")
@@ -110,6 +116,8 @@ export async function ingestFeedComment(params: {
     where: { id: post.id, OR: [{ lastCommentAt: null }, { lastCommentAt: { lt: createdTime } }] },
     data: { lastCommentAt: createdTime },
   })
+
+  return saved.id
 }
 
 function toJson(value: unknown) {

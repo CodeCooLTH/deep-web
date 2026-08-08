@@ -8,6 +8,7 @@ import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDelivery
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
 import { ingestFeedComment } from '@/services/page-comment.service'
+import { processCommentAutoReply } from '@/services/comment-auto-reply.service'
 
 // Webhook ของ Messenger + Instagram (feature 00018)
 //
@@ -62,14 +63,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 })
   }
 
-  // ชั่วคราว (2026-08-03) — สืบว่า Meta ส่ง message_edits มาในรูปแบบไหนกันแน่
-  //
-  // ทำไมต้อง log "ก่อน" parse: Valibot ตัด field ที่เราไม่ได้ประกาศทิ้งทั้งหมด และ rawMessage
-  // ที่เราเก็บลงฐานก็คือ payload **หลัง** parse แล้ว — field แปลกหน้าที่ Meta ส่งมาจึงมองไม่เห็น
-  // จากทั้ง log และฐาน (พบ 2026-08-03 ตอนไล่ว่าทำไมแก้ข้อความแล้วเธรดไม่ขยับ)
-  //
-  // log เฉพาะ "ชื่อ field" ไม่แตะเนื้อหา — พอบอกได้ว่า event ที่เข้ามามีอะไรบ้างจริง ๆ
-  // ถอดออกเมื่อได้คำตอบแล้ว
   const rawJson: unknown = (() => {
     try {
       return JSON.parse(rawBody || '{}')
@@ -77,21 +70,6 @@ export async function POST(request: NextRequest) {
       return {}
     }
   })()
-
-  try {
-    const probe = rawJson as {
-      entry?: Array<{ messaging?: Array<Record<string, unknown>>; changes?: Array<{ field?: string }> }>
-    }
-    for (const e of probe.entry ?? []) {
-      for (const ev of e.messaging ?? []) {
-        const msg = (ev.message ?? {}) as Record<string, unknown>
-        console.log('[fb-raw-evt]', JSON.stringify({ evt: Object.keys(ev), msg: Object.keys(msg) }))
-      }
-      for (const c of e.changes ?? []) console.log('[fb-raw-chg]', c.field)
-    }
-  } catch {
-    // probe เท่านั้น — พังก็ปล่อยผ่าน ห้ามทำให้ webhook ล้ม
-  }
 
   const parsed = v.safeParse(WebhookBodySchema, rawJson)
   if (!parsed.success) {
@@ -124,6 +102,9 @@ export async function POST(request: NextRequest) {
   // เธรดที่มีงานตอบอัตโนมัติรอ — ประมวลผลใน after() หลังตอบ 200 ให้ Meta แล้ว (feature 00023)
   const pendingConversationIds = new Set<string>()
 
+  // คอมเมนต์ที่เพิ่งเข้ามาสด — สั่งตอบอัตโนมัติใน after() หลังตอบ 200 ให้ Meta แล้ว (feature 00038)
+  const pendingCommentIds: string[] = []
+
   // ── feed: คอมเมนต์/โพสต์บนหน้าเพจ (user สั่ง 2026-08-03 "อยากรับ facebook comment") ──
   //
   // ชั่วคราว — ยังไม่มีโมเดลเก็บคอมเมนต์ (รอ PRD/BRD ตาม Hard Rule 11) ระยะนี้แค่ log
@@ -135,9 +116,12 @@ export async function POST(request: NextRequest) {
     const val = change.value ?? {}
     // เก็บคอมเมนต์ลงฐานจริง (feature 00029) — ไม่ throw: webhook ต้องตอบ 200 เสมอ
     if (val.item === 'comment') {
-      await ingestFeedComment({ pageExternalId: pageId, change, rawChange: change }).catch((e) =>
-        console.error('[fb-feed] เก็บคอมเมนต์ไม่สำเร็จ', e instanceof Error ? e.message : e),
-      )
+      const savedId = await ingestFeedComment({ pageExternalId: pageId, change, rawChange: change }).catch((e) => {
+        console.error('[fb-feed] เก็บคอมเมนต์ไม่สำเร็จ', e instanceof Error ? e.message : e)
+        return null
+      })
+      // มีคอมเมนต์ที่เพิ่งบันทึกจริง (ไม่ใช่ null จาก verb=remove/ไม่พบเพจ/error) — คิวไว้ตอบอัตโนมัติ
+      if (savedId) pendingCommentIds.push(savedId)
     }
     console.log(
       '[fb-feed]',
@@ -378,6 +362,20 @@ export async function POST(request: NextRequest) {
         } catch (e) {
           console.error('[fb-webhook] auto-reply ล้มเหลว', conversationId, e instanceof Error ? e.message : e)
         }
+      }
+    })
+  }
+
+  // feature 00038 — ตอบกลับคอมเมนต์ ต้องอยู่หลังตอบ 200 ให้ Meta แล้วเช่นกัน
+  // ทำทีละอันเรียงกัน ไม่ใช่ Promise.all: คอมเมนต์ใน batch เดียวมักเป็นของคนเดียวกัน
+  // การยิงขนานทำให้ทั้งคู่อ่าน log ไม่เจอพร้อมกันแล้วไปชน unique index ทีหลัง
+  // ซึ่งเปลืองสิทธิ์เรียก Graph โดยเปล่าประโยชน์
+  if (pendingCommentIds.length > 0) {
+    after(async () => {
+      for (const commentId of pendingCommentIds) {
+        await processCommentAutoReply(commentId).catch((e) =>
+          console.error('[fb-feed] ตอบคอมเมนต์อัตโนมัติล้มเหลว', commentId, e instanceof Error ? e.message : e),
+        )
       }
     })
   }
