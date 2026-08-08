@@ -134,6 +134,40 @@ stateDiagram-v2
 
 ---
 
+## 5b. ตัวกรองช่วงเวลา — เลือกวันเจาะจงได้ + มือถือมีเป็นครั้งแรก (`032d7913`)
+
+> user สั่ง: "เพิ่ม filter ให้ระบุวันที่ได้ เช่นวันที่ 1 สิงหา ได้"
+
+**SSOT:** `src/lib/order-date-filter.ts` — `ORDER_DATE_PRESETS`, `isSpecificDay()`,
+`matchesOrderDateFilter(createdAtISO, filter, now?)` + เทส 11 เคส
+
+🛑 **เดิมตรรกะนี้เขียนอยู่ใน `OrdersTable.tsx` ที่เดียว แปลว่าผู้ใช้มือถือเข้าไม่ถึงแกนนี้
+มาตลอด** — โมดัลตัวกรองมือถือไม่เคยมีตัวกรองวันที่เลย (พบตอนไปเพิ่มฟีเจอร์ ไม่ใช่มีคนรายงาน)
+
+| ค่า `filter` | ความหมาย |
+|---|---|
+| `'All'` | ไม่กรอง |
+| preset (`'Today'`/`'This Week'`/…) | ช่วงเวลาสัมพัทธ์ |
+| `'YYYY-MM-DD'` | วันเจาะจง (`isSpecificDay()` เป็นตัวแยกจาก preset) |
+
+**ตัดวันด้วย `thaiDayKey()` ไม่ใช่ `new Date()` ของเครื่อง** — ของเดิมบังเอิญตรงเพราะเครื่อง
+dev ตั้ง tz ไทย 🛑 `thaiDayKey` คืน **ค.ศ.** (`2026-08-01`) เป็น **คีย์สำหรับเทียบ ไม่ใช่ค่าแสดงผล**
+ป้ายบนปุ่ม/ในเมนูต้องเป็น **พ.ศ.** เสมอผ่าน `formatDayMonthTH`/`formatDateTH`
+
+**UI:** `orders/components/OrderDateFilterDropdown.tsx` (2 โหมด: รายการ preset / เลือกวัน)
+ประกอบจาก `src/components/safepay/FilterDropdownShell.tsx` ที่สกัดออกมาในรอบเดียวกัน
+— เปลือกดรอปดาวน์ (trigger + แผง + click-outside + Escape) เคยถูกก็อปทั้งดุ้น ~60 บรรทัด
+
+🛑 **shell ไม่ยัด `role` ให้เอง** — ผู้เรียกประกาศเองว่าเนื้อในเป็นอะไร (`FilterDropdown` =
+`role="menu"` ล้วน · `OrderDateFilterDropdown` มีโหมดที่เป็น `role="group"` เพราะข้างในเป็น input)
+
+**ใช้ `<input type="date">` ไม่ใช่ Flatpickr** — ปฏิทินป๊อปของ Flatpickr เป็น element ในหน้า
+เสี่ยงโดน `overflow` ของแผง dropdown ตัด (คลาสบั๊กที่มี convention เขียนไว้แล้ว)
+ส่วน native picker เปิดที่ระดับ OS ตัดไม่ได้ · ข้อแลก: chrome ของ native แสดงปี ค.ศ.
+(ข้อจำกัดของ browser — Flatpickr ที่ `/sales`,`/expenses` ก็แสดง ค.ศ. เหมือนกัน ไม่ใช่ regression ใหม่)
+
+---
+
 ## 6. NFR ที่บังคับในโค้ด
 
 | รหัส | ข้อกำหนด | ที่บังคับ |
