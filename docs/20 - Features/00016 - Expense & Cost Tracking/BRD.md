@@ -516,8 +516,87 @@ erDiagram
 
 **ผลลัพธ์ที่คาดหวัง:**
 - Seller เห็นกำไรจริงของร้านได้ในหน้าเดียว ไม่ต้องคำนวณนอกระบบ
-- เพิ่มมูลค่าให้ Business Package โดยไม่ต้องเพิ่ม billing flow ใหม่
-- ข้อมูลการเงินปลอดภัย — default owner-only เสมอ จนกว่า owner จะเลือกเปิดเอง
+- ~~เพิ่มมูลค่าให้ Business Package โดยไม่ต้องเพิ่ม billing flow ใหม่~~ — **ยกเลิกโดย D-EXT-1 (§11.1)** ฟีเจอร์นี้ไม่ใช่ perk ของ Business Package อีกต่อไป
+- ข้อมูลการเงินปลอดภัย — default owner-only เสมอ จนกว่า owner จะเลือกเปิดเอง **⚠️ จริงเฉพาะกับ Expense CRUD / P&L report / 3 surface หน้ายอดขาย — ไม่จริงกับ `Product.cost` ดู KG-EXT-01 (§11.2)**
+
+---
+
+## 11. ส่วนขยาย 2026-08-07 — เปิดฟรี + ต้นทุนรายออเดอร์/รายสินค้า
+
+### 11.1 Decision Log (ล็อกแล้วโดย user — ห้าม re-litigate)
+
+| # | เรื่อง | Decision | เหตุผล / สิ่งที่แลกไป |
+|---|---|---|---|
+| **D-EXT-1** | Business Package gate | **ถอดออกทั้งชุด** — `Product.cost`, `/expenses`, P&L report, กำไรบน 3 surface หน้ายอดขาย (เดิม FR-EXP-12) เข้าถึงได้ฟรีทุกร้าน ไม่ต้องสมัครแพ็กเกจ | **กลับทิศจาก D-4 และ D-8 ของ PRD เดิม** — D-4 เดิม "รวมใน Business Package ไม่คิดเงินแยก… gate ด้วย `getSubscriptionStatus`" และ D-8 เดิม "ทุก tier ที่จ่ายเงินปลดล็อกเท่ากัน" **ทั้งสองข้อไม่มีความหมายอีกต่อไปสำหรับฟีเจอร์นี้** เพราะไม่มี gate ให้ tier ใดปลดล็อก. **ยังกลับทิศ D-9 ด้วย** ("ช่อง cost แสดงเสมอแต่ disabled+badge อัปเกรด") — ช่อง cost เปลี่ยนเป็น **enabled เสมอ ไม่มี badge**. Controller ทักท้วงแล้วว่านี่คือการถอดจุดขายหลักของ Business Package (GROWTH ฿159/เดือนขึ้นไป) และ **user ยืนยันรับผลกระทบนี้แล้ว** |
+| **D-EXT-2** | สิทธิ์ staff ต่อ `Product.cost` | **ไม่แก้ในรอบนี้** — ทุก ShopMember ที่เข้าฟอร์มแก้ไขสินค้าได้ ยังเห็น/แก้ `Product.cost` ได้เสมอ ไม่ผูกกับ `staffCanViewFinance` ("สิทธิ์เดี๋ยวมาว่ากันทีหลัง" — คำ user ตรงตัว) | ต้องบันทึกเป็น **Known Gap ที่มีชื่อ** (§11.2) เพราะเมื่อถอด paywall แล้ว (D-EXT-1) ความเสี่ยงนี้ขยายวงจาก "เฉพาะร้านที่จ่ายเงิน" เป็น "ทุกร้านที่มี staff ทันที" — ไม่ใช่ความเสี่ยงเดิมที่ขนาดเท่าเดิม |
+| **D-EXT-3** | จุดแสดงผลใหม่ | เพิ่ม **3 จุด**: (ก) กำไรรายออเดอร์ที่ order detail (FR-EXP-14), (ข) ต้นทุน/มาร์จิ้นในรายการสินค้า ทั้งตารางเดสก์ท็อปและการ์ดมือถือ (FR-EXP-15), (ค) ช่อง `cost` ใน CSV bulk import (FR-EXP-16) | ปิด gap ที่ Scope Audit พบว่า "มีแต่รายงานรวม ไม่มีรายละเอียดที่คนขายมองหาจริงตอนใช้งานประจำวัน" |
+
+### 11.2 Business Rules ที่ถูกยกเลิก/แก้ไข
+
+| รหัสเดิม | ข้อความเดิม | สถานะใหม่ |
+|---|---|---|
+| FR-EXP-11 (ทั้งข้อ) + AC-01..04 | Gate ด้วย `getSubscriptionStatus(ownerId).status==='ACTIVE'` | **ยกเลิกทั้งข้อ** — superseded โดย FR-EXP-13 (PRD ส่วนขยาย) |
+| §8.4 "Gate ด้วย Business Package ACTIVE (ทุก tier ที่จ่ายเงิน) — ไม่ ACTIVE = ไม่เห็นข้อมูลจริงใด ๆ" | **ลบเงื่อนไขนี้ออก** — ที่เหลือของ §8.4 (Owner เห็นเสมอ, Admin เห็นเมื่อ `staffCanViewFinance=true`) **ยังใช้ได้เหมือนเดิมทุกประการ** |
+| §4.1 "Bundled Paid Add-on — Gate ด้วย Business Package ACTIVE … ไม่มี billing แยก" | **แก้เป็น:** "Free Feature — ไม่มี gate ใด ๆ ผูกกับ subscription/billing ทั้งสิ้น" |
+| §9.2 D-9 (ช่อง cost disabled + badge เมื่อไม่มี package) | **ยกเลิก** — field enabled เสมอ ไม่มี badge "อัปเกรดเป็น Business" |
+
+> 🛑 **KG-EXT-01 — `Product.cost` ไม่ถูกครอบด้วย `staffCanViewFinance` toggle**
+> §3.6 ของเอกสารนี้ประกาศว่า "ข้อมูลการเงินคือความลับทางธุรกิจระดับสูงสุด… default ปิดเสมอ owner ต้อง opt-in เอง" — ประกาศนี้ **เป็นจริงเฉพาะกับ Expense CRUD / P&L report / 3 surface หน้ายอดขาย** (ยังผ่าน `resolveExpenseAccess()` เดิม) **แต่ไม่เป็นจริงกับ `Product.cost`**: ช่องราคาทุนในฟอร์มสินค้าเปิดให้ ShopMember ทุก role ที่แก้ไขสินค้าได้เห็น/แก้ได้เสมอ ไม่ว่า owner จะเปิด toggle หรือไม่.
+> **ก่อน D-EXT-1** ความเสี่ยงนี้จำกัดอยู่แค่ร้านที่จ่ายเงิน (staff ของร้านที่ไม่จ่ายไม่เห็นช่องนี้เลยเพราะ disabled) — **หลัง D-EXT-1 ขยายเป็นทุกร้านที่มี staff ทันที**. user รับทราบและเลือก defer การแก้ไปก่อน. สิทธิ์ staff ที่ละเอียดกว่านี้ (เห็นต้นทุนได้ แต่ไม่เห็น Expense) เป็น Phase 2 — ตรงกับ Out of Scope เดิม §7.1 "RBAC granular กว่า Owner/Admin toggle เดียว"
+
+### 11.3 Acceptance Criteria (Given/When/Then)
+
+**FR-EXP-13: ถอด Business Package gate**
+
+- `[FR-EXP-13-AC-01]` **Given** owner ของร้านไม่มี `BusinessPackageSubscription` เลย **When** เปิดฟอร์มแก้ไข/สร้างสินค้า **Then** ช่อง "ราคาทุน" กรอกได้ทันที ไม่มี badge ไม่ disabled
+- `[FR-EXP-13-AC-02]` **Given** subscription เป็น `LOCKED_RENEWAL_FAILED` หรือ shop ถูก `packageLockedAt` ล็อกจากโควตาเกิน **When** owner (หรือ admin ที่ toggle เปิด) เข้า `/expenses` **Then** เข้าถึงได้ปกติ ไม่ขึ้น locked/upsell state ใด ๆ
+- `[FR-EXP-13-AC-03]` **Given** role=ADMIN ของ Business shop ที่ `staffCanViewFinance=false` (default) **When** เข้า `/expenses` **Then** **ยังคงเห็น locked state "ยังไม่ได้รับสิทธิ์" เหมือนเดิมทุกประการ** — D-EXT-1 ไม่แตะเงื่อนไขนี้ (กัน regression ที่จะทำให้การถอด paywall กลายเป็นการถอด access control ทั้งหมดโดยไม่ตั้งใจ)
+- `[FR-EXP-13-AC-04]` เมนู sidebar "ค่าใช้จ่าย" ไม่มี badge "อัปเกรด" อีกต่อไปในทุกกรณี — คงพฤติกรรมซ่อนเมนูสนิทเมื่อ `STAFF_NOT_ALLOWED`/`NO_SHOP` เหมือนเดิม
+
+**FR-EXP-14: กำไรรายออเดอร์**
+
+- `[FR-EXP-14-AC-01]` **Given** ออเดอร์ที่นับเป็นยอดขายแล้ว และทุกรายการมี `OrderItem.cost` ไม่ null **When** ผู้ใช้ที่ `resolveExpenseAccess`=GRANTED เปิด order detail **Then** เห็นกำไรของใบนั้น = `totalAmount − Σ(cost×qty)` ไม่มีคำเตือน
+- `[FR-EXP-14-AC-02]` **Given** ออเดอร์เดียวกันแต่มี item ≥1 ตัวที่ `cost=null` **When** เปิด order detail **Then** **ห้ามแสดงตัวเลขกำไรเปล่า ๆ** — ต้องมีป้ายกำกับชัดเจน (เช่น "กำไรขั้นต่ำโดยประมาณ — มีสินค้าที่ยังไม่ตั้งต้นทุน") หรือแสดง "—" พร้อมลิงก์ไปตั้งต้นทุน (visual รอ `safepay-ux`) — ต้องเป็น **ธงระดับใบ** แยกต่างหาก ไม่ reuse `hasMissingCost` ของ `PnlReport` ซึ่งเป็นธงของทั้งช่วงเวลา
+- `[FR-EXP-14-AC-03]` **Given** ออเดอร์ที่ไม่เข้าเงื่อนไข `countsAsRevenue` (PENDING/CANCELLED/SHIPPED ที่ยังไม่ยืนยันรับของ) **When** เปิด order detail **Then** แสดงป้าย "ยังไม่นับเป็นยอดขาย" แทนตัวเลขกำไร — ไม่คำนวณกำไรที่อาจกลายเป็นเท็จถ้าออเดอร์ถูกยกเลิกทีหลัง
+- `[FR-EXP-14-AC-04]` **Given** ผู้ใช้ที่ `resolveExpenseAccess` ≠ GRANTED **When** เปิด order detail ใบเดียวกัน **Then** **ไม่เห็นบรรทัด/การ์ดกำไรเลย** (ไม่ query ด้วยซ้ำ) แม้จะเห็นรายการสินค้า+ราคาขายตามสิทธิ์ order detail ปกติ — กำไรผูก access เดียวกับ P&L ไม่ใช่สิทธิ์ดูออเดอร์
+- `[FR-EXP-14-AC-05]` สินค้าที่ `cost > price` (ขายขาดทุน) → กำไรติดลบแสดงตรงไปตรงมา ไม่ clamp เป็น 0 ใช้ tone danger — ไม่ใช่ error
+
+**FR-EXP-15: ต้นทุน/มาร์จิ้นในรายการสินค้า**
+
+- `[FR-EXP-15-AC-01]` **Given** สินค้าที่มี `cost` ไม่ null **When** เปิด `/products` เดสก์ท็อป **Then** ตารางมีคอลัมน์ "ต้นทุน" (บาท) และ "มาร์จิ้น" (%) = `(price−cost)/price×100`
+- `[FR-EXP-15-AC-02]` **Given** สินค้าที่ `cost=null` **When** เปิดตาราง/การ์ด **Then** แสดง "—" ไม่ใช่ `฿0`/`0%` (กันสื่อความหมายผิดว่าต้นทุนเป็นศูนย์จริง)
+- `[FR-EXP-15-AC-03]` **Given** viewport มือถือ **When** เปิด `/products` **Then** การ์ดแสดงต้นทุน/มาร์จิ้นเนื้อหาเดียวกับตาราง ต่างแค่ layout (ตำแหน่งตามที่ `safepay-ux` ออกแบบ)
+- `[FR-EXP-15-AC-04]` ร้าน `SERVICE_QUEUE` เปิด `/products` → หัวคอลัมน์ "ต้นทุน" **ไม่ผัน** ตาม vertical (เป็นคำนามล้วน ไม่มีกริยา/ลักษณนามที่ต้องผัน) แต่ **ป้ายที่อ้างถึงตัวสิ่งของ** (เช่น คำเตือน missing-cost ที่ `ExpenseWorkspace`) ต้องใช้ `resolveProductVocab(vertical).itemColLabel` แทน hardcode คำว่า "สินค้า" — ปิด gap เดิมที่แถบเตือนของ `/expenses` เขียน "มีสินค้าที่ยังไม่ได้ใส่ต้นทุน" ทั้งที่ร้านคิวงานควรเห็นคำว่า "บริการ"
+- `[FR-EXP-15-AC-05]` ร้าน `LODGING` **ไม่มี** เมนู `/products` อยู่แล้ว (`applyVerticalMenu`) — FR นี้ไม่มีผล ไม่ต้องทำอะไรเพิ่ม
+
+**FR-EXP-16: CSV Import cost**
+
+- `[FR-EXP-16-AC-01]` **Given** แถว CSV ที่ cell `cost` ว่างเปล่า **When** import **Then** `Product.cost` เดิม **ไม่ถูกแตะ** (เสมือนไม่ส่ง key นี้มาเลย)
+- `[FR-EXP-16-AC-02]` **Given** cell `cost` = `0` **When** import **Then** `Product.cost` ถูกตั้งเป็น `0` จริง — ยึด pattern `undefined`(ไม่แตะ)/`number`(ตั้งค่า) เดียวกับ `PATCH /api/products/[id]` ไม่ใช่ pattern ของ `stockQty` ที่บังคับทุกแถวต้องมีค่า
+- `[FR-EXP-16-AC-03]` **Given** `cost` ติดลบ **When** import **Then** แถวนั้น error (`status:'ERROR'`) ไม่กระทบแถวอื่นในไฟล์เดียวกัน (row isolation เดิมของ `importStockFromCsvRows`)
+- `[FR-EXP-16-AC-04]` การ import ยังต้องผ่าน `isProActive(shop.id)` เหมือนเดิม — **D-EXT-1 ไม่ถอด gate นี้** เพราะเป็นคนละ subscription จาก Business Package
+
+### 11.4 Edge Cases (คำตอบที่ล็อกแล้ว — QA ใช้เขียน TestCase ได้ตรง)
+
+| Edge case | คำตอบ |
+|---|---|
+| ออเดอร์มี item บางตัว `cost=null` | FR-EXP-14-AC-02 — ห้ามโชว์ตัวเลขเปล่า ๆ ต้องมีธงระดับใบแยกจาก `hasMissingCost` ของรายงานรวม |
+| ออเดอร์ยกเลิก / ยังไม่ยืนยันรับของ | FR-EXP-14-AC-03 — ไม่คำนวณกำไร ใช้ `countsAsRevenue`/`revenueOrderWhere` เป็น SSOT ตัวเดิม ไม่สร้างนิยามใหม่ |
+| สินค้า `cost > price` (ขาดทุน) | FR-EXP-14-AC-05 / FR-EXP-15 — แสดงติดลบตรงไปตรงมา ไม่ clamp |
+| Vertical SERVICE_QUEUE / LODGING | FR-EXP-15-AC-04/05 — SERVICE_QUEUE ใช้ `PRODUCT_VOCAB.itemColLabel` แทนคำว่า "สินค้า"; LODGING ไม่เกี่ยวเลย (`Room` ≠ `Product` และไม่มีเมนู) |
+| CSV: cell ว่าง vs `0` | FR-EXP-16-AC-01/02 — ว่าง=ไม่แตะ, `0`=ตั้งศูนย์จริง (ยืนยันกับ `undefined`/`number` pattern ของ `product.service.ts` แล้ว) CSV ไม่รองรับ "ล้างค่ากลับเป็น null" (ไม่มี use case ผ่านไฟล์นำเข้า) |
+| ร้านที่เคยจ่าย Business Package ได้อะไรคืน | **ไม่มี migration/refund ทางวิศวกรรม** — ไม่เปลี่ยน schema, row `BusinessPackageSubscription` เดิมยังอยู่ครบและยังให้ perk อื่นต่อ (ดู §11.5) เรื่องสื่อสาร/ชดเชยลูกค้าเป็นการตัดสินใจธุรกิจนอกขอบเขตเอกสารนี้ — user รับทราบตาม D-EXT-1 |
+
+### 11.5 ผลกระทบต่อ Business Package — เหลืออะไรให้ขาย
+
+| Perk ที่ยังคงเป็น paid-only | ที่มา |
+|---|---|
+| เปิด Business shop ได้มากกว่า 1 ร้าน (`maxBusinesses`) | `src/lib/business-package.ts` |
+| เชิญ staff/admin เกิน 1 คนต่อร้าน (`maxAdminsPerBusiness`) | เดียวกัน |
+| โควตา AI-suggest ไม่จำกัดต่อวัน | `src/services/ai-suggest-quota.service.ts` |
+| Inventory Add-on PRO (CSV import ฯลฯ) — **คนละแพ็กเกจ ไม่เกี่ยวกับ Business Package** | `src/services/inventory-entitlement.service.ts` |
+
+**สรุป:** การถอด gate ทำให้ Business Package สูญเสียจุดขาย "เห็นกำไรจริง" ซึ่งเป็นข้อความหลักในหน้า upsell เดิม (`ExpenseLockedCard`: "ปลดล็อกได้ด้วย Business Package") แต่ยังไม่ทำให้แพ็กเกจไร้ค่า เพราะ multi-shop / multi-staff / AI quota ยังผูกอยู่
 
 ---
 
@@ -525,4 +604,4 @@ erDiagram
 สำหรับความต้องการทางธุรกิจระดับภาพรวม/personas/KPI ดู [[PRD]] ของโมดูลนี้
 สำหรับ technical specification (architecture/API/data/NFR) ดู [[SRS]] ของโมดูลนี้
 
-**สถานะ implement (อัปเดต 2026-08-02):** FR-EXP-01..11 (core) + FR-EXP-12 (กำไรบนหน้ายอดขาย, §2.5) **deployed แล้ว** บน branch `feature/expenses` — ดู SRS.md §10 สำหรับรายละเอียดเชิงเทคนิคของ FR-EXP-12
+**สถานะ implement (อัปเดต 2026-08-07):** FR-EXP-01..11 (core) + FR-EXP-12 (กำไรบนหน้ายอดขาย, §2.5) **deployed แล้ว**; **ส่วนขยาย D-EXT-1..3 / FR-EXP-13..16 (§11) อยู่ระหว่าง implement** บน branch `feature/product-cost` — ดู SRS.md §10 สำหรับรายละเอียดเชิงเทคนิคของ FR-EXP-12

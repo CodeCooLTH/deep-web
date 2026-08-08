@@ -522,6 +522,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `billingPeriod` | String? | `MONTHLY` / `YEARLY` / `CUSTOM` |
 | `billingPeriodDays` | Int? | กรณี `CUSTOM` billing (1-365) |
 | `isActive` | Boolean default true | กรอง product grid public profile |
+| `cost` | Decimal(12,2)? | **ราคาทุน** (feature 00016) — nullable/opt-in, `CHECK(cost IS NULL OR cost >= 0)`. snapshot ลง `OrderItem.cost` ตอนสร้างออเดอร์ทุกครั้ง → **แก้ค่านี้ทีหลังไม่มีผลย้อนหลัง**. ตั้งแต่ 2026-08-07 **ไม่มี gate ของแพ็กเกจแล้ว** ทุกร้านกรอกได้ (D-EXT-1) |
 | `tags` | Tag[] | M:N relation — upsert โดย server ตามชื่อ tag |
 
 #### Tag (`prisma/schema.prisma:135`)
@@ -869,6 +870,31 @@ SellerWallet (1) ── (N) WalletTransaction
 | POST | `/api/admin/topups/[id]/approve` | Admin | approve — RC-7 self-block ที่ route | `topup.service` |
 | POST | `/api/admin/topups/[id]/reject` | Admin | reject + reason (≤500 chars) | `topup.service` |
 
+### 7.13 Expenses & Cost — กำไรขาดทุน (feature 00016)
+
+> 🛑 ทั้งหมวดนี้ **เปิดฟรีทุกร้านตั้งแต่ 2026-08-07** (D-EXT-1) — เดิมต้องมี Business Package ที่ ACTIVE
+> gate ที่ยังเหลือคือ **สิทธิ์คน** เท่านั้น: owner เห็นเสมอ · staff (ShopMember ADMIN) เห็นเมื่อ `Shop.staffCanViewFinance = true` (default `false`)
+> จุดตัดสินสิทธิ์เดียวของทั้งหมวด = `resolveExpenseAccess()` (`src/services/expense-access.service.ts`) คืน `GRANTED` / `NO_SHOP` / `STAFF_NOT_ALLOWED`
+
+| Method | Path | Auth | Purpose | Service |
+|--------|------|------|---------|---------|
+| POST | `/api/expenses` | Seller (`GRANTED`) | บันทึกค่าใช้จ่าย | `expense.service` |
+| GET | `/api/expenses` | Seller (`GRANTED`) | รายการค่าใช้จ่าย | `expense.service` |
+| PATCH | `/api/expenses/[id]` | Seller (`GRANTED`) | แก้ค่าใช้จ่าย | `expense.service` |
+| DELETE | `/api/expenses/[id]` | Seller (`GRANTED`) | ลบค่าใช้จ่าย | `expense.service` |
+| GET | `/api/expenses/report` | Seller (`GRANTED`) | รายงาน P&L + `expenses[]` + `prevNetProfit` | `pnl.service` |
+| PATCH | `/api/business/shops/[shopId]/finance-visibility` | **Seller-owner เท่านั้น** | toggle `staffCanViewFinance` | `expense.service` |
+| GET | `/api/seller/sales-series` | Seller | ยอดขายรายวัน + field การเงินเมื่อ `GRANTED` | `dashboard.service` |
+
+**สูตร P&L (`pnl.service.ts` — SSOT ห้ามคิดใหม่ที่อื่น):**
+`Revenue − COGS = กำไรขั้นต้น` → `− ค่าใช้จ่าย = กำไรสุทธิ`
+- Revenue/COGS นับเฉพาะออเดอร์ที่ผ่าน `revenueOrderWhere` (`src/lib/order-revenue.ts`) — **ห้ามเขียน `status: 'CONFIRMED'` เองซ้ำ**
+- `OrderItem.cost == null` ถูก **ข้าม** ไม่ใช่นับเป็น 0 → COGS ต่ำกว่าจริง กำไรที่ได้เป็น**เพดานบน** จึงต้องมีธง `hasMissingCost` กำกับบนหน้าจอเสมอ
+
+**กำไรรายออเดอร์ (2026-08-07):** คำนวณใน RSC ของ `/orders/[token]` **ไม่มี endpoint แยก** (จุดบังคับสิทธิ์จุดเดียว) — ต้องส่ง `null` ออกจาก server เมื่อไม่ `GRANTED` ห้ามคำนวณแล้วซ่อนที่ client
+
+**CSV ต้นทุน (Inventory Add-on):** `POST /api/inventory/csv/import` + `GET /api/inventory/csv/export` รับ/คืนคอลัมน์ `cost` — cell ว่าง = ไม่แตะค่าเดิม, `0` = ตั้งศูนย์จริง. gate ของสองเส้นนี้คือ `isProActive` + `requireOnlineSalesVertical` (**คนละ subscription จาก Business Package — D-EXT-1 ไม่ถอด**) และครอบเฉพาะสินค้า `PHYSICAL` + `isActive`
+
 ---
 
 ## §8 Enums & Constants
@@ -1099,6 +1125,21 @@ SellerWallet (1) ── (N) WalletTransaction
 
 **Admin privilege:** ตั้งผ่าน `User.isAdmin=true` ใน DB seed เท่านั้น — ไม่มี self-service elevation
 
+### 9.7 Finance / Cost (feature 00016 — อัปเดต 2026-08-07)
+
+| Operation | Seller-owner | Staff (ShopMember ADMIN) + `staffCanViewFinance=true` | Staff + toggle ปิด (default) |
+|---|---|---|---|
+| `/expenses` — CRUD ค่าใช้จ่าย + รายงาน P&L | ✅ | ✅ | ❌ locked "ยังไม่ได้รับสิทธิ์" |
+| กำไรสุทธิบน 3 surface หน้ายอดขาย | ✅ | ✅ | ❌ |
+| **กำไรรายออเดอร์ (`/orders/[token]`)** | ✅ | ✅ | ❌ **ต้องไม่อยู่ใน flight payload ด้วย** ไม่ใช่แค่ไม่ render |
+| toggle `staffCanViewFinance` | ✅ เท่านั้น | ❌ | ❌ |
+| ตั้ง `Product.cost` ในฟอร์มสินค้า | ✅ | ✅ | ⚠️ **✅ (KG-EXT-01)** |
+| เห็นต้นทุน/มาร์จิ้นในรายการสินค้า | ✅ | ✅ | ⚠️ **✅ (ตามหลัง KG-EXT-01 โดยตั้งใจ)** |
+
+⚠️ **KG-EXT-01 — ช่องว่างที่รู้ตัวและเลือกไว้ก่อน (D-EXT-2):** `staffCanViewFinance` **ไม่ครอบ `Product.cost`** — `isCostEditAllowed()` ไม่เคยเช็ค role/toggle เลย (คอมเมนต์ในโค้ดยอมรับเอง) หลังเปิดฟรี 2026-08-07 ความเสี่ยงนี้ขยายจาก "เฉพาะร้านที่จ่ายเงิน" เป็น **ทุกร้านที่มี staff** — user รับทราบและเลือก defer ไว้ก่อน รายละเอียดที่ BRD ของ 00016 §11.2
+
+🛑 **ไม่มี gate ของ subscription ในหมวดนี้อีกแล้ว** — ถ้าเจอโค้ดที่เรียก `getSubscriptionStatus()` แล้วบล็อกการเข้าถึงต้นทุน/P&L แปลว่าตกหล่นจากรอบ D-EXT-1 ให้ถอด. `getSubscriptionStatus()` ที่เรียกจาก **AI quota / โควตาหลายร้าน / หน้าจัดการแพ็กเกจ** เป็นคนละเรื่อง — ห้ามแตะ
+
 ---
 
 ## §10 Validation Rules
@@ -1157,6 +1198,18 @@ SellerWallet (1) ── (N) WalletTransaction
 | `billingMode` | picklist: `ONE_TIME` / `RECURRING` (optional) |
 | `billingPeriod` | picklist: `MONTHLY` / `YEARLY` / `CUSTOM` — nullable (optional) |
 | `billingPeriodDays` | int 1-365 — nullable (optional) |
+| `cost` | number ≥0 — **optional/nullable** (ราคาทุน feature 00016) · `undefined` = ไม่แตะค่าเดิม · `null` = ล้างค่า · `≥0` = ตั้งค่า · ไม่มี gate ของแพ็กเกจแล้ว (D-EXT-1 2026-08-07) |
+
+### 10.3b CSV Import — สต็อก + ต้นทุน (`CsvImportRowSchema`, Inventory Add-on PRO)
+
+| Field | กฎ |
+|-------|-----|
+| `productId` | UUID — ต้องเป็นสินค้าของร้านตัวเอง และ `type='PHYSICAL'` (ไม่งั้นแถวนั้น `PRODUCT_NOT_PHYSICAL`) |
+| `stockQty` | int ≥0 — **required ทุกแถว** |
+| `cost` | number ≥0 — **optional** · ไม่ส่ง key = ไม่แตะ `Product.cost` เดิม · `0` = ตั้งศูนย์จริง · ติดลบ = แถวนั้น ERROR |
+| ทั้งไฟล์ | ≤500 แถวต่อครั้ง · per-row isolation (แถวหนึ่งพังไม่ rollback แถวอื่น) · HTTP 200 เสมอเมื่อผ่าน validation ระดับ body |
+
+🛑 client **ห้ามแปลง cell ว่างเป็น `0`** — `0` แปลว่า "ต้นทุนศูนย์บาทจริง" ถ้าแปลงผิด การ export→import โดยไม่แก้อะไรจะล้างต้นทุนทั้งไฟล์
 
 ### 10.4 Order
 

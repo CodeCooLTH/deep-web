@@ -423,6 +423,73 @@ flowchart TD
 
 ---
 
+## ส่วนขยาย 2026-08-07 — เปิดฟรี + ต้นทุนรายออเดอร์/รายสินค้า
+
+> เกิดจาก Scope Audit ที่ Controller สั่งตรวจ 00016 เทียบกับ request "พัฒนาระบบต้นทุนสินค้า" ของ user
+> (2026-08-07) — พบว่าฟีเจอร์มีอยู่แล้วครบตาม PRD/BRD เดิม แต่ **ถูกล็อกหลัง Business Package
+> จ่ายเงิน** ทำให้ร้านทั่วไปเข้าใจว่าไม่มีฟีเจอร์นี้ + พบ 3 จุดที่ยังไม่มีการมองเห็นผล (visibility gap)
+> user เคาะมติ D-EXT-1..3 แล้ว (ล็อกแล้ว — ดู BRD §11 สำหรับ decision log เต็ม)
+
+### Goal
+
+ให้ทุกร้าน (ไม่ต้องจ่ายเงิน) เห็นต้นทุน/กำไรของธุรกิจตัวเองได้ครบ 3 จุดที่คนขายมองหาจริง: ตอนดูออเดอร์ทีละใบ, ตอนดูรายการสินค้าทั้งชุด, และตอนนำเข้าสินค้าจำนวนมากผ่าน CSV — ไม่ใช่แค่รายงานรวมที่หน้า `/expenses` เท่านั้น
+
+### User Stories (ต่อ gap)
+
+| ID | User Story | Priority | Acceptance Criteria |
+|----|-----------|----------|---------------------|
+| S-EXP-10 | ในฐานะ Seller ทุกร้าน (ไม่ต้องมี Business Package) ฉันต้องการตั้งต้นทุนสินค้าและดูรายงานกำไร-ขาดทุนได้ฟรี | Must | ช่อง "ราคาทุน" กรอกได้เสมอ ไม่มี badge/disabled; `/expenses` เข้าได้โดยไม่ต้องสมัครแพ็กเกจ |
+| S-EXP-11 | ในฐานะ Seller ฉันต้องการเห็นกำไรของออเดอร์แต่ละใบตอนเปิดดูรายละเอียด ไม่ใช่แค่ยอดรวมทั้งเดือน | Must | หน้า order detail มีบรรทัด/การ์ดกำไรของใบนั้น พร้อมป้ายเตือนถ้าต้นทุนไม่ครบ |
+| S-EXP-12 | ในฐานะ Seller ฉันต้องการเห็นต้นทุน/กำไรต่อชิ้นตอนไล่ดูรายการสินค้าทั้งร้าน โดยไม่ต้องเปิดฟอร์มแก้ไขทีละชิ้น | Should | ตาราง `/products` (เดสก์ท็อป) และการ์ด (มือถือ) มีคอลัมน์/บรรทัดต้นทุน+มาร์จิ้น% |
+| S-EXP-13 | ในฐานะ Seller ที่มีสินค้าจำนวนมาก ฉันต้องการตั้งต้นทุนพร้อมกันหลายชิ้นผ่าน CSV แทนการกรอกทีละชิ้น | Should | CSV import (Inventory Add-on) มีคอลัมน์ `cost` เพิ่มจาก `stockQty` เดิม |
+
+### Functional Requirements (ต่อจาก FR-EXP-01..12 เดิม)
+
+**FR-EXP-13: ถอด Business Package gate ออกจากต้นทุนสินค้า+P&L ทั้งชุด**
+ทุกร้าน (owner ที่ไม่มี Business Package, package LOCKED, หรือ ACTIVE ก็ตาม) เข้าถึง `Product.cost`/`/expenses`/รายงาน P&L/กำไรบน 3 surface หน้ายอดขาย (เดิม FR-EXP-12) ได้เหมือนกันหมด — **superseded FR-EXP-11 เดิมทั้งข้อ** (FR-EXP-11 คงไว้ในเอกสารเพื่อ audit trail แต่ไม่มีผลบังคับใช้อีกต่อไป) สิทธิ์ owner-vs-admin (`staffCanViewFinance` toggle) **ยังคงอยู่เหมือนเดิมทุกประการ** — สิ่งที่ถอดคือเงื่อนไข "ต้องจ่ายเงินก่อน" เท่านั้น ไม่ใช่ถอดเงื่อนไข "ต้องเป็น owner หรือ staff ที่ได้รับอนุญาต"
+
+Priority: Must — acceptance: ดู BRD §11.3
+
+**FR-EXP-14: กำไรรายออเดอร์ (Order-level Profit)**
+หน้า order detail (`/orders/[token]`) แสดงกำไรของออเดอร์ใบนั้น (`Revenue ใบนี้ − COGS ใบนี้`) เฉพาะออเดอร์ที่นับเป็นยอดขายแล้ว (นิยามเดียวกับ `countsAsRevenue`/`revenueOrderWhere` ใน `src/lib/order-revenue.ts` ที่ dashboard/P&L ใช้อยู่) — ออเดอร์ที่ยังไม่นับยอดขายไม่แสดงตัวเลขกำไร แสดงป้าย "ยังไม่นับเป็นยอดขาย" แทน ผูก access gate เดียวกับ P&L report (`resolveExpenseAccess` = GRANTED) — ไม่ผูกกับ paywall (FR-EXP-13)
+
+Priority: Must — acceptance: ดู BRD §11.3
+
+**FR-EXP-15: ต้นทุน/มาร์จิ้นในรายการสินค้า**
+หน้า `/products` ทั้งตารางเดสก์ท็อปและการ์ดมือถือ แสดง `Product.cost` (ถ้ามี) + มาร์จิ้น % (`(price−cost)/price`) ต่อสินค้า — ใช้ค่าเดียวกับที่ฟอร์มแก้ไขสินค้าใช้อยู่แล้ว ไม่มี access gate เพิ่มเติมเหนือสิทธิ์เข้าหน้า `/products` เดิม (เหตุผล: เป็น field เดียวกับที่ฟอร์มแก้ไขเปิดให้ทุก ShopMember เห็น/แก้ได้อยู่แล้วตาม D-EXT-2 — การเพิ่ม gate เฉพาะหน้ารายการจะสร้างความไม่สอดคล้องใหม่)
+
+Priority: Should — acceptance: ดู BRD §11.3
+
+**FR-EXP-16: ช่อง `cost` ใน CSV Bulk Import**
+`POST /api/inventory/csv/import` รับคอลัมน์ `cost` เพิ่มจาก `stockQty` เดิม — แถวที่ cell ว่าง = ไม่แตะ `Product.cost` เดิม, แถวที่มีค่า (รวม `0`) = ตั้งค่าใหม่ ยังคงอยู่ใต้ gate เดิมของ Inventory Add-on PRO tier (`isProActive`) — **gate นี้ไม่เกี่ยวกับ Business Package และ FR-EXP-13 ไม่ถอด**
+
+Priority: Should — acceptance: ดู BRD §11.3
+
+### Non-Functional Requirements
+
+- อ้าง NFR เดิมของ 00016 (SRS §6): correctness ของสูตร P&L ต้องคงเดิม 100% แม้ถอด gate
+- **NFR-EXT-1 (ใหม่):** การถอด gate ต้องไม่เพิ่ม query ใหม่ที่กระทบ perf — `resolveExpenseAccess()` ที่ตัดการเรียก `getSubscriptionStatus()` ออกจะ**เร็วขึ้น** (query น้อยลง 1 ครั้งต่อ request) ไม่ใช่ช้าลง
+
+### Out of Scope
+
+| หัวข้อ | สถานะ |
+|---|---|
+| Allocate ค่าส่ง/ค่าใช้จ่าย (Expense) ลงรายออเดอร์ | **ยังไม่ทำ** — Expense ยังเป็น period-level ตาม D-10 เดิม ไม่เปลี่ยน |
+| ต้นทุนของ `Room` (LODGING vertical) | **นอกขอบเขต** — `Room` เป็นคนละ model จาก `Product` ไม่มีคอลัมน์ `cost` และร้าน LODGING ไม่มีเมนู `/products` ให้เข้าถึงอยู่แล้ว (แยก vertical menu) ถ้าต้องการ = feature ใหม่ |
+| แก้ KG-EXT-01 (`staffCanViewFinance` ไม่ครอบ `Product.cost`) | **Deferred ตาม D-EXT-2** — ดู BRD §11.2 |
+| Export/รายงานแถว CSV ที่นำเข้า cost ไม่สำเร็จ | ใช้ response `results[]` เดิมของ endpoint (ตาม pattern `stockQty`) ไม่เพิ่ม UI ใหม่ |
+| Refund/สื่อสารกับ subscriber เดิมของ Business Package เรื่องถอด perk | Out of Scope ทางวิศวกรรม — เป็นการตัดสินใจธุรกิจ/การตลาดที่ user รับทราบผลกระทบแล้ว (BRD §11.1) ไม่มี migration ทาง DB ที่ต้องทำ |
+
+### Success Metrics (เพิ่มจากเดิม)
+
+| Metric | เป้าหมาย |
+|---|---|
+| Cost Coverage Rate (เดิม) | เปลี่ยนฐานอ้างอิง — วัดทุกร้านแทนเฉพาะร้านที่มี Business Package (ตัวเลขที่สูงขึ้นมาจากกลุ่มตัวอย่างใหญ่ขึ้น ไม่ใช่ signal คุณภาพเดิม — ห้ามเทียบข้ามเส้นแบ่งวันเปิดฟรี) |
+| **Order-Detail Profit View Rate (ใหม่)** | % ของ order detail page view ที่เห็นกำไรรายใบ (ไม่ใช่ป้าย "ยังไม่นับยอดขาย") — เก็บ baseline หลัง launch 30 วัน |
+| **CSV Cost Import Adoption (ใหม่)** | % ของ CSV import request ที่มีอย่างน้อย 1 แถวส่ง `cost` มา — เก็บเป็น baseline |
+
+---
+
 ## ขั้นถัดไป (Next Steps)
 
 เอกสารนี้และ [[BRD]] คู่กันเป็น deliverable ของ mode **PRD/BRD** ตาม Hard Rule 11 (Documentation-First) — **ยังไม่ implement code ใด ๆ** จนกว่าเอกสารทั้งสองผ่าน user review ขั้นถัดไปตามลำดับ ownership ใน [[Feature-Docs-Ownership]]:

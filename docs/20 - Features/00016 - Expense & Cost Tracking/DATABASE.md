@@ -526,6 +526,25 @@ npx dotenv -e .env.local -- npx prisma migrate deploy
 
 ---
 
+## 8.5 ส่วนขยาย 2026-08-07 — **ไม่มี migration**
+
+ส่วนขยาย D-EXT-1..3 (เปิดฟรี + กำไรรายออเดอร์ + ต้นทุนในรายการสินค้า + CSV `cost`) **ไม่แตะ schema เลยแม้แต่คอลัมน์เดียว** — ยืนยันด้วย `prisma/schema.prisma`:
+
+| สิ่งที่ส่วนขยายต้องใช้ | มีอยู่แล้วจาก migration | บรรทัด |
+|---|---|---|
+| `Product.cost Decimal(12,2)?` + `CHECK(cost IS NULL OR cost >= 0)` | `20260708000000_add_expense_cost_tracking_schema` | `schema.prisma:592` |
+| `OrderItem.cost Decimal(12,2)?` + CHECK เดียวกัน | migration เดียวกัน | `schema.prisma:823` |
+| `Shop.staffCanViewFinance` | migration เดียวกัน | — |
+
+งานทั้งหมดอยู่ที่ **service / route / UI** ล้วน:
+- ถอด gate = ลบโค้ด TypeScript ไม่ใช่ลบ constraint (constraint ที่มีเป็นกฎ **ข้อมูล** — `cost >= 0` ยังต้องอยู่)
+- กำไรรายออเดอร์ = คำนวณจากคอลัมน์เดิม ไม่เก็บผลลัพธ์ลงฐาน (ค่าที่ derive ได้ห้ามเก็บซ้ำ — จะเพี้ยนทันทีที่มีใครแก้ `OrderItem.cost` ผ่านทางอื่น)
+- CSV `cost` = เขียนคอลัมน์เดิมผ่าน `updateMany` ที่มีอยู่แล้ว
+
+🛑 **`safepay-database` ไม่ต้องออก migration ใด ๆ ในรอบนี้** — ถ้ามีใครเสนอ migration ให้ตรวจก่อนว่ากำลังจะเก็บค่าที่ derive ได้ลงฐานหรือเปล่า
+
+---
+
 ## 9. สรุป (Summary)
 
 **Migration ทั้งหมดเป็น additive-only — ปลอดภัยต่อ prod/dev DB ที่แชร์กัน:**

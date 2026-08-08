@@ -446,7 +446,117 @@ erDiagram
 
 ---
 
-## 11. สรุป (Summary)
+## 11. Extension — ส่วนขยาย 2026-08-07 (เปิดฟรี + ต้นทุนรายออเดอร์/รายสินค้า)
+
+> requirement ต้นทาง: PRD `## ส่วนขยาย 2026-08-07` (FR-EXP-13..16) + BRD `## 11.` (D-EXT-1..3, AC 17 ข้อ)
+> **ไม่มี migration ในส่วนขยายนี้** — `Product.cost`/`OrderItem.cost` มีอยู่แล้วตั้งแต่ `20260708000000_add_expense_cost_tracking_schema` (ยืนยันกับ `prisma/schema.prisma:592` และ `:823`) งานทั้งหมดอยู่ที่ service/route/UI ล้วน
+
+### 12.1 TFR-017 — ถอด Business Package gate (FR-EXP-13)
+
+**เส้นแบ่งที่ห้ามข้าม** — งานนี้คือการ *ถอด guard* ซึ่งอันตรายกว่างานเพิ่มฟีเจอร์ เพราะถอดเกินไปหนึ่งบรรทัดคือ access control หายโดย `tsc`/build ยังเขียวหมด
+
+| ถอด (billing concept) | ห้ามแตะ (access control) |
+|---|---|
+| `getSubscriptionStatus()` ที่ถูกเรียกจาก `resolveExpenseAccess()` | `active.role === 'OWNER'` → GRANTED |
+| `active.locked` (มาจาก `Shop.packageLockedAt` ล้วน — `src/lib/shop-context.ts`) | `active.shop.staffCanViewFinance` → `STAFF_NOT_ALLOWED` |
+| `isCostEditAllowed()` ทั้งฟังก์ชัน + call site ทั้ง 4 จุด | `requireActiveShop(session)` → `NO_SHOP` |
+| variant `'PACKAGE_LOCKED'` ใน type `ExpenseAccessDecision` | `isProActive()` ของ Inventory Add-on (คนละ subscription) |
+| — | `getSubscriptionStatus()` ที่ถูกเรียกจากฟีเจอร์อื่น (AI quota / multi-shop / หน้าจัดการแพ็กเกจ) |
+
+**สถานะปลายทางของ `resolveExpenseAccess()`** — เหลือ 3 variant: `GRANTED` / `NO_SHOP` / `STAFF_NOT_ALLOWED`
+การลบ variant ที่ 4 ออกจาก union ทำให้ TypeScript **บังคับ** ให้ทุก call site ที่ยัง branch บน `'PACKAGE_LOCKED'` พังตอนคอมไพล์ — ใช้ `tsc` เป็นตัวไล่จับ call site แทนการ grep ด้วยตา (นี่คือเหตุผลที่ต้องลบ variant จริง ไม่ใช่ปล่อยไว้แล้วไม่มีใครคืนค่านั้น)
+
+**ผลข้างเคียงเชิงบวก (NFR-EXT-1):** `resolveExpenseAccess()` ยิง query น้อยลง 1 ครั้งต่อ request (ไม่ต้องอ่าน subscription อีก)
+
+### 12.2 TFR-018 — กำไรรายออเดอร์ (FR-EXP-14)
+
+**นิยาม (ต้อง implement ตามนี้เป๊ะ ห้ามคิดสูตรใหม่):**
+
+```
+profit(order) = Number(order.totalAmount) − Σ over items where cost != null ( Number(item.cost) × item.qty )
+hasMissingCost(order) = items.some(i => i.cost == null)
+```
+
+- ใช้ `round2()` สูตรเดียวกับ `pnl.service.ts:33` (`Math.round((n + Number.EPSILON) * 100) / 100`) — ห้ามใช้ `toFixed`
+- 🛑 **item ที่ `cost == null` ถูก "ข้าม" ไม่ใช่ "นับเป็น 0"** — พฤติกรรมเดียวกับ `sumOrders()` ใน `pnl.service.ts:46`. ผลคือ COGS ต่ำกว่าจริง → **กำไรที่ได้เป็นเพดานบน ไม่ใช่ค่าจริง** นี่คือเหตุผลที่ AC บังคับให้มีป้ายกำกับ (FR-EXP-14-AC-02) ไม่ใช่เรื่องความสวยงาม
+- **ธงระดับใบต้องเป็นคนละ field กับ `PnlReport.hasMissingCost`** (อันนั้นเป็นธงของทั้งช่วงเวลา) — ตั้งชื่อ `orderHasMissingCost` เพื่อไม่ให้ใครหยิบผิดตัว
+
+**เกณฑ์ "นับเป็นยอดขายแล้ว":** ใช้ `countsAsRevenue()` จาก `src/lib/order-revenue.ts:61` เท่านั้น — **ห้ามเขียน `status === 'CONFIRMED'` เองซ้ำ** (คอมเมนต์บนไฟล์นั้นเตือนไว้แล้วว่าถ้าเขียนซ้ำ วันหนึ่งกราฟยอดขายกับรายงานกำไรบนจอเดียวกันจะให้ตัวเลขคนละตัวโดยไม่มีอะไรฟ้อง)
+
+🛑 **ข้อบังคับด้าน data fetching:** `countsAsRevenue()` ต้องการ `shipments: { status, isDryRun, carrierStatus }[]` แต่ **`getOrderForShop()` ปัจจุบันไม่ได้ include `shipments` เลย** (มีแต่ `shipmentTracking` ซึ่งเป็นเลขพัสดุที่ร้านกรอกเอง คนละตาราง) → ต้องเพิ่ม
+```ts
+shipments: { select: { status: true, isDryRun: true, carrierStatus: true } }
+```
+เข้า `include` ของ `getOrderForShop` — **select แคบเท่านี้เท่านั้น** (หน้านี้อยู่ใต้ client layout ทุก field ที่ include ถูก serialize เข้า flight payload เสมอ)
+**ห้ามใช้ `shipmentPanel.shipment` ที่หน้าโหลดอยู่แล้วมาตัดสินแทน** — นั่นคือใบ active ใบเดียว ส่วน `revenueOrderWhere` พิจารณา `shipments.some(...)` ทั้งหมด สองอันจะแยกจากกันวันที่ออเดอร์มีพัสดุมากกว่าหนึ่งใบ
+
+**Authorization:** คำนวณและส่งค่าออกจาก server ก็ต่อเมื่อ `resolveExpenseAccess(session).kind === 'GRANTED'` เท่านั้น
+🛑 ไม่ใช่ "คำนวณแล้วซ่อนด้วย CSS" — staff ที่ไม่มีสิทธิ์ต้อง **ไม่ได้รับตัวเลขใน flight payload เลย** (`feedback_rsc_pii_neutralize_at_source`): prop ต้องเป็น `null`/absent ไม่ใช่ตัวเลขที่ component เลือกไม่ render
+
+### 12.3 TFR-019 — มาร์จิ้นรายสินค้า (FR-EXP-15)
+
+```
+margin%(product) = cost == null || price <= 0  ?  null  :  round2((price − cost) / price × 100)
+```
+- `price <= 0` → `null` (กันหารศูนย์ และสินค้าราคา 0 ไม่มีมาร์จิ้นที่ให้ความหมายได้)
+- `cost == null` → `null` → UI แสดง `"—"` **ห้ามแสดง `฿0`/`0%`** (FR-EXP-15-AC-02)
+- `cost > price` → ค่าติดลบ ส่งออกไปตรง ๆ ไม่ clamp
+- `Product.cost` เป็น `Decimal` → ต้อง `Number()` ที่ server ก่อนส่งข้ามเส้น RSC (`feedback_rsc_props_must_be_serializable`)
+
+**คำบนหน้าจอตาม vertical:** ข้อความที่อ้างถึง *ตัวสิ่งของ* (คำเตือน missing-cost) ต้องใช้ `resolveProductVocab(shop.vertical).itemColLabel` จาก `src/lib/seller-menu.ts` แทน hardcode `"สินค้า"` — **แต่คำว่า "ต้นทุน"/"มาร์จิ้น" ไม่ผัน** (คำนามล้วน ไม่มีกริยา/ลักษณนามโดเมน — ต่างจาก `ORDER_VOCAB.createLabel` ที่ต้องผันทั้งประโยค)
+
+### 12.4 TFR-020 — CSV import `cost` (FR-EXP-16)
+
+`CsvImportRowSchema` (`src/lib/validations.ts:257`) ปัจจุบัน:
+```ts
+{ productId: uuid, stockQty: integer ≥ 0 }   // ทั้งสอง required
+```
+เพิ่มเป็น:
+```ts
+{ productId: uuid, stockQty: integer ≥ 0, cost: optional(number ≥ 0) }
+```
+- `cost` **absent** (cell ว่าง → client ไม่ใส่ key) = ไม่แตะ `Product.cost` เดิม
+- `cost: 0` = ตั้งเป็นศูนย์จริง
+- `cost < 0` = แถวนั้น `status:'ERROR'` (row isolation เดิมของ `importStockFromCsvRows` — try/catch ต่อแถว)
+- **ไม่รองรับ "ล้างค่ากลับเป็น null" ผ่าน CSV** (ไม่มี use case ผ่านไฟล์นำเข้า และ cell ว่างถูกจองความหมายว่า "ไม่แตะ" ไปแล้ว)
+- เขียน `Product.cost` ใน `tx` เดียวกับ `stockQty` — รวมเข้า `updateMany` ที่มีอยู่แล้ว (compare-and-swap บน `stockQty` เดิมยังทำงานเหมือนเดิม)
+- `exportStockToCsv()` ต้องเพิ่มคอลัมน์ `cost` ใน header + แถว ไม่งั้น export→แก้→import จะล้างค่าที่ไม่ได้ตั้งใจล้าง (round-trip ต้องปิด)
+
+🛑 **ข้อจำกัดที่สืบทอดมา ต้องบันทึกไว้ไม่ใช่แก้เงียบ ๆ:** ทางเข้า CSV นี้ครอบเฉพาะสินค้า **`type === 'PHYSICAL'` และ `isActive === true`** เท่านั้น (`exportStockToCsv` กรองไว้ที่ query, `importStockFromCsvRows` โยน `PRODUCT_NOT_PHYSICAL`) และยังต้องผ่าน `isProActive` + `requireOnlineSalesVertical` เหมือนเดิม → **สินค้า DIGITAL/SERVICE/SUBSCRIPTION ตั้งต้นทุนผ่าน CSV ไม่ได้** ต้องใช้ฟอร์มรายชิ้น. เป็นข้อจำกัดที่ยอมรับในรอบนี้ (การทำให้ `stockQty` เป็น optional เพื่อรองรับแถว cost-only เปลี่ยนสัญญาของ CSV ทั้งไฟล์ = งานคนละก้อน)
+
+### 12.5 Authorization Matrix หลังส่วนขยาย
+
+| Surface | Owner | Admin + `staffCanViewFinance=true` | Admin + toggle ปิด | ไม่มีแพ็กเกจ |
+|---|---|---|---|---|
+| `/expenses` (CRUD + P&L) | เห็น | เห็น | **locked "ยังไม่ได้รับสิทธิ์"** | **เห็น** (เปลี่ยนจากเดิมที่ถูกบล็อก) |
+| กำไรบน 3 surface หน้ายอดขาย | เห็น | เห็น | ไม่เห็น | **เห็น** (เปลี่ยน) |
+| **กำไรรายออเดอร์ (ใหม่)** | เห็น | เห็น | **ไม่เห็น + ไม่อยู่ใน payload** | เห็น |
+| ช่อง "ราคาทุน" ในฟอร์มสินค้า | แก้ได้ | แก้ได้ | **แก้ได้** ⚠️ KG-EXT-01 | **แก้ได้** (เปลี่ยน) |
+| **ต้นทุน/มาร์จิ้นในรายการสินค้า (ใหม่)** | เห็น | เห็น | **เห็น** ⚠️ ตามหลัง KG-EXT-01 โดยตั้งใจ | เห็น |
+| CSV import/export `cost` | ต้อง `isProActive` + `ONLINE_SALES` | เดียวกัน | เดียวกัน | เดียวกัน (ไม่เกี่ยวกับ Business Package) |
+
+⚠️ สองแถวที่ทำเครื่องหมายคือ **KG-EXT-01** (BRD §11.2) — เป็นความไม่สอดคล้องที่ *รู้ตัวและเลือกไว้ก่อน* ตาม D-EXT-2 ไม่ใช่ของหลุด. เหตุผลที่แถว "รายการสินค้า" ตามหลัง: ถ้าใส่ gate เฉพาะหน้ารายการทั้งที่ฟอร์มแก้ไขเปิดอยู่ จะได้ระบบที่ซ่อนตัวเลขในตารางแต่เปิดให้กดเข้าไปดูค่าเดียวกันได้ในสองคลิก = ความปลอดภัยหลอก ๆ ที่ทำให้คนเข้าใจผิดว่ากันแล้ว
+
+### 12.6 Test scenario ที่ QA ต้องครอบ (trace กลับ AC)
+
+| # | Scenario | AC |
+|---|---|---|
+| T1 | ร้านไม่มี subscription → ช่องราคาทุนกรอกได้ / `/expenses` เข้าได้ | 13-AC-01/02 |
+| T2 | **AC เชิงลบ** — Admin ที่ `staffCanViewFinance=false` ต้องยัง locked อยู่ (กันถอด gate เกิน) | 13-AC-03 |
+| T3 | เมนู sidebar ไม่มี badge "อัปเกรด" ในทุกสถานะ | 13-AC-04 |
+| T4 | ออเดอร์ต้นทุนครบ → ตัวเลขกำไรถูกต้อง (คำนวณมือเทียบ) | 14-AC-01 |
+| T5 | ออเดอร์มี item cost=null → มีป้ายกำกับ ไม่ใช่ตัวเลขเปล่า | 14-AC-02 |
+| T6 | ออเดอร์ PENDING/CANCELLED → ป้าย "ยังไม่นับเป็นยอดขาย" | 14-AC-03 |
+| T7 | **AC เชิงลบ** — staff ที่ toggle ปิด: ตรวจ **flight payload/HTML** ว่าไม่มีตัวเลขกำไรเลย (ไม่ใช่แค่ตาไม่เห็น) | 14-AC-04 |
+| T8 | สินค้า cost > price → กำไร/มาร์จิ้นติดลบ tone danger | 14-AC-05, 15 |
+| T9 | `cost=null` ในตาราง/การ์ด → "—" ไม่ใช่ `฿0`/`0%` | 15-AC-02 |
+| T10 | ร้าน SERVICE_QUEUE → คำเตือนใช้คำว่า "บริการ" | 15-AC-04 |
+| T11 | CSV: cell ว่าง / `0` / ติดลบ → ไม่แตะ / ตั้ง 0 / ERROR รายแถว | 16-AC-01/02/03 |
+| T12 | CSV round-trip: export → import โดยไม่แก้ → `cost` ต้องไม่เปลี่ยน | 16 (round-trip) |
+
+---
+
+## 12. สรุป (Summary)
 
 เอกสาร SRS นี้กำหนดข้อกำหนดเชิงเทคนิคของ **Expense & Cost Tracking** ครอบคลุม data model เพิ่มเติมแบบ additive ล้วน (`Product.cost`/`OrderItem.cost`/`Expense`/`Shop.staffCanViewFinance`), cost-snapshot logic ที่ `createOrder`, P&L calculation (`pnl.service.ts`) ด้วย dual date-boundary strategy, และที่สำคัญที่สุดคือ **ปิด open item เรื่อง ownerId resolution ของ BUSINESS shop** ด้วยหลักฐานโค้ดจริง (`Shop.userId` ใช้ได้ตรงทั้ง 2 kind ไม่ต้องผ่าน `ShopMember(role=OWNER)`)
 

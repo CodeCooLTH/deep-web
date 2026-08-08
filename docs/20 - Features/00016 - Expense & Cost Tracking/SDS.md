@@ -513,6 +513,66 @@ flowchart LR
 
 ---
 
+## 8.6 Extension — ส่วนขยาย 2026-08-07 (เปิดฟรี + ต้นทุนรายออเดอร์/รายสินค้า)
+
+> spec ต้นทาง: SRS §11 (TFR-017..020) · requirement: PRD `ส่วนขยาย 2026-08-07` / BRD §11
+> **ไม่มี schema เปลี่ยน** — งานอยู่ที่ service/route/UI ล้วน
+
+### 8.6.1 Data flow — กำไรรายออเดอร์ (TFR-018)
+
+```mermaid
+flowchart TD
+    A["/orders/[token]/page.tsx (RSC)"] --> B["getOrderForShop(token, shopId)<br/>+ include shipments{status,isDryRun,carrierStatus}"]
+    A --> C["resolveExpenseAccess(session)"]
+    C -->|"kind !== 'GRANTED'"| D["profit = null<br/>ไม่คำนวณ ไม่ส่งอะไรออก"]
+    C -->|"kind === 'GRANTED'"| E["countsAsRevenue(order)<br/>lib/order-revenue.ts"]
+    E -->|false| F["profit = null<br/>reason = 'NOT_REVENUE'"]
+    E -->|true| G["computeOrderProfit(order)"]
+    G --> H["profit: number<br/>orderHasMissingCost: boolean"]
+    D --> I["prop: orderProfit = null"]
+    F --> I
+    H --> J["prop: orderProfit = { amount, hasMissingCost }"]
+    I --> K["OrderSummary (client)"]
+    J --> K
+```
+
+🛑 **จุดตายของ flow นี้อยู่ที่ลูกศร `kind !== 'GRANTED'` → `prop = null`** ไม่ใช่ที่ component — หน้านี้อยู่ใต้ client layout ทุก field ที่ข้ามเส้นถูก serialize เข้า flight payload เสมอ ถ้าคำนวณแล้วปล่อยให้ component เลือกไม่ render ตัวเลขจะยังอยู่ใน HTML ให้เปิด view-source อ่านได้ (`feedback_rsc_pii_neutralize_at_source`)
+
+### 8.6.2 Component design
+
+| ชิ้น | ที่อยู่ | หน้าที่ |
+|---|---|---|
+| `computeOrderProfit()` (ใหม่) | `src/lib/order-profit.ts` (ไฟล์ใหม่) | **pure function** — รับ `{ totalAmount, items[] }` คืน `{ amount, hasMissingCost }` ไม่แตะ prisma/session เลย เพื่อให้เขียน unit test ตรงสูตรได้โดยไม่ต้อง mock DB (บทเรียน 00016 เดิม: แยก calculation core ออกจาก access core) |
+| `OrderProfitRow` (ใหม่) | `orders/[token]/components/` | แถว/การ์ดกำไร — 4 สถานะตาม FR-EXP-14 (ตำแหน่งและรูปร่างรอ `safepay-ux`) |
+| `productMargin()` (ใหม่) | `src/lib/product-margin.ts` หรือรวมใน `order-profit.ts` | pure — `(price−cost)/price×100`, คืน `null` เมื่อ `cost==null \|\| price<=0` |
+| `buildBreakdown()` (เดิม) | `orders/[token]/components/order-detail-shared.tsx:76` | **ไม่แก้** — breakdown เดิมเป็นยอดที่ลูกค้าจ่าย ไม่มี gate สิทธิ์ ส่วนกำไรมี gate → รวมเข้าไปจะทำให้ฟังก์ชันบริสุทธิ์ตัวนี้ต้องรู้เรื่อง session |
+| `OrderFactsItem` (เดิม) | ไฟล์เดียวกัน `:33` | เพิ่ม field `cost: unknown` |
+
+### 8.6.3 ลำดับ commit ที่แนะนำ (atomic boundary)
+
+| # | ขอบเขต | เหตุผลที่แยก |
+|---|---|---|
+| C1 | ถอด gate ฝั่ง service/API (`expense-access.service.ts` + 2 product route) | เป็นการถอด guard ล้วน ๆ — ต้อง review/revert ได้เป็นก้อนเดียวโดยไม่มี UI ปน |
+| C2 | ถอด badge/disabled ฝั่ง UI (`ProductCostCardV2`, `ProductFormV2`, `seller-menu`, `ExpenseLockedCard`, `expenses/page`) | ตามหลัง C1 เพราะ type `ExpenseAccessDecision` เปลี่ยนแล้ว `tsc` จะชี้จุดที่ต้องแก้ให้เอง |
+| C3 | `lib/order-profit.ts` + unit test | pure function มาก่อนผู้ใช้เสมอ |
+| C4 | กำไรรายออเดอร์ (page + OrderSummary + `getOrderForShop` include) | ต้องมี C3 ก่อน |
+| C5 | ต้นทุน/มาร์จิ้นใน `/products` (table + card + data mapping) | อิสระจาก C4 |
+| C6 | CSV `cost` (validations + service + export header + modal) | อิสระจากทุกตัวข้างบน |
+
+**C1 ต้องมาก่อนเสมอ** — ถ้าทำ UI ก่อน จะมีช่วงที่ปุ่มเปิดให้กรอกต้นทุนแล้วแต่ API ยังตอบ 403 อยู่
+
+### 8.6.4 ข้อบังคับ serialization
+
+| ค่า | ชนิดใน DB | ต้องแปลงเป็นอะไรก่อนข้ามเส้น RSC |
+|---|---|---|
+| `Product.cost` | `Decimal(12,2)` | `number \| null` ผ่าน `Number()` |
+| `OrderItem.cost` | `Decimal(12,2)` | ไม่ส่งดิบ — ส่งเฉพาะผลลัพธ์ `orderProfit.amount` เป็น `number` |
+| `margin%` | คำนวณ | `number \| null` |
+
+`Decimal` ของ Prisma เป็น class instance — ส่งข้ามเส้นแล้วล้มทั้งหน้าโดย `tsc`/build จับไม่ได้ถ้าหน้าเป็น dynamic (`feedback_rsc_props_must_be_serializable`)
+
+---
+
 ## 9. สรุป (Summary)
 
 SDS นี้ออกแบบ Expense & Cost Tracking ด้วย access-decision core (`resolveExpenseAccess`) แยกจาก calculation core (`getPnlReport`) และ date-boundary core (`resolveDateRange`) — ทั้ง 3 เป็น pure/testable ให้มากที่สุด ลดความเสี่ยง bug จากการปนกันระหว่าง auth logic กับ business calculation. Cost snapshot เพิ่มเข้า `createOrder()` แบบ additive เดียวกับที่ `price` เคยทำมา ไม่กระทบ retry-loop/Quick-Create/stock-deduct เดิม

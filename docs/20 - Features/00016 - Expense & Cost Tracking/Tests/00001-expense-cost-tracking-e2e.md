@@ -1425,6 +1425,155 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]", "[[PRD]]"]
 
 ---
 
+### หมวด H — ส่วนขยาย 2026-08-07 (เปิดฟรี + กำไรรายออเดอร์ + มาร์จิ้น + CSV cost)
+
+> 🛑 หมวดนี้มี **test เชิงลบ 2 ตัว (TC-EXT-02, TC-EXT-07) ที่สำคัญกว่าตัวอื่นทั้งหมด** — งานรอบนี้คือการ *ถอด guard* ถอดเกินไปหนึ่งบรรทัดคือ access control หายโดย `tsc`/build ยังเขียว ไม่มีอะไรฟ้อง สอง case นี้คือด่านเดียวที่จับได้
+
+---
+
+#### TC-EXT-01: ร้านที่ไม่มี Business Package ตั้งต้นทุน + เข้า `/expenses` ได้
+
+- **Linked to:** `[FR-EXP-13-AC-01]` `[FR-EXP-13-AC-02]`
+- **Precondition:** seed shop ที่ owner **ไม่มี** `BusinessPackageSubscription` เลย + อีกร้านที่ `status='LOCKED_RENEWAL_FAILED'` + อีกร้านที่ `Shop.packageLockedAt` ไม่ null
+- **ประเภท:** E2E Playwright + API integration
+- **Steps:**
+  1. login เป็น owner ของแต่ละร้าน → เปิดฟอร์มแก้ไขสินค้า → ตรวจช่อง "ราคาทุน"
+  2. กรอก `cost=120` → บันทึก → query DB
+  3. เปิด `/expenses`
+- **Expected Result:** ช่องราคาทุน **enabled ไม่มี badge "อัปเกรดเป็น Business"** ทั้ง 3 ร้าน; `product.cost = 120.00`; `/expenses` แสดงรายงานปกติ ไม่มีหน้า locked/upsell
+
+---
+
+#### TC-EXT-02: 🛑 **เชิงลบ** — staff ที่ `staffCanViewFinance=false` ต้องยังถูกบล็อกเหมือนเดิม
+
+- **Linked to:** `[FR-EXP-13-AC-03]`
+- **Precondition:** Business shop ที่ `staffCanViewFinance=false` (default) + `ShopMember(role='ADMIN')` 1 คน + owner **ไม่มี** Business Package (เพื่อพิสูจน์ว่าการถอด paywall ไม่ได้พาการถอด access control ไปด้วย)
+- **ประเภท:** E2E Playwright + API integration
+- **Steps:**
+  1. login เป็น staff → เปิด `/expenses`
+  2. ยิง `GET /api/expenses/report` ตรงด้วย session ของ staff
+  3. ตรวจเมนู sidebar
+- **Expected Result:** เห็นหน้า locked **"ยังไม่ได้รับสิทธิ์"** (ไม่ใช่หน้ารายงาน และไม่ใช่ upsell แพ็กเกจ); API ตอบ 403; เมนู "ค่าใช้จ่าย" ถูกซ่อน
+- **หมายเหตุ:** ถ้าเคสนี้กลายเป็นเขียวผิดทาง (staff เข้าได้) แปลว่า D-EXT-1 ถอดเลยเส้นไปแล้ว — **ถือเป็น blocker ห้าม merge**
+
+---
+
+#### TC-EXT-03: ไม่มี badge "อัปเกรด" หลงเหลือในทุกสถานะ
+
+- **Linked to:** `[FR-EXP-13-AC-04]`
+- **ประเภท:** E2E Playwright (visual) + grep gate
+- **Steps:**
+  1. เปิด sidebar ด้วยบัญชี owner ทั้ง 3 แบบใน TC-EXT-01
+  2. `rg -n "COST_REQUIRES_BUSINESS_PACKAGE|PACKAGE_LOCKED|อัปเกรดเป็น Business" src/`
+- **Expected Result:** ไม่มี badge "อัปเกรด" บนเมนู "ค่าใช้จ่าย" เลย; grep คืน **0 ผลลัพธ์** (ยกเว้นในเอกสาร/คอมเมนต์ที่อ้างถึงกฎ)
+
+---
+
+#### TC-EXT-04: กำไรรายออเดอร์ถูกต้องเมื่อต้นทุนครบ
+
+- **Linked to:** `[FR-EXP-14-AC-01]`
+- **Precondition:** ออเดอร์ `CONFIRMED` มี 2 รายการ: (A) `price=300 qty=2 cost=180`, (B) `price=150 qty=1 cost=90`; `totalAmount=750`
+- **ประเภท:** unit (`lib/order-profit.ts`) + E2E
+- **Steps:** เปิด `/orders/[token]` ด้วย owner
+- **Expected Result:** กำไร = `750 − (180×2 + 90×1) = 300.00` แสดงตรงกับที่คำนวณมือ; **ไม่มี**ป้ายเตือนต้นทุนไม่ครบ
+
+---
+
+#### TC-EXT-05: ออเดอร์ที่มีรายการ `cost=null` — ห้ามโชว์ตัวเลขเปล่า ๆ
+
+- **Linked to:** `[FR-EXP-14-AC-02]`
+- **Precondition:** ออเดอร์ `CONFIRMED` มี 2 รายการ ตัวหนึ่ง `cost=null` (เช่นสินค้าที่ Quick-Create ตอนสร้างออเดอร์)
+- **ประเภท:** unit + E2E
+- **Steps:** เปิด order detail
+- **Expected Result:** `orderHasMissingCost = true`; หน้าจอแสดง**ป้ายกำกับ**ว่าตัวเลขไม่ครบ (หรือ "—" พร้อมทางไปตั้งต้นทุน) — **ห้ามแสดงตัวเลขกำไรลอย ๆ โดยไม่มีคำกำกับ** เพราะค่าที่ได้เป็นเพดานบน (COGS ต่ำกว่าจริง) ไม่ใช่กำไรจริง
+
+---
+
+#### TC-EXT-06: ออเดอร์ที่ยังไม่นับเป็นยอดขาย
+
+- **Linked to:** `[FR-EXP-14-AC-03]`
+- **Precondition:** ออเดอร์ 4 ใบ — `PENDING`, `CANCELLED`, `SHIPPED` ที่ไม่มี `OrderShipment`, `SHIPPED` ที่มี shipment แต่ `carrierStatus` ยังไม่อยู่ใน `REVENUE_CARRIER_STATUSES`
+- **ประเภท:** unit + E2E
+- **Steps:** เปิด order detail ทั้ง 4 ใบ
+- **Expected Result:** ทั้ง 4 ใบแสดงป้าย **"ยังไม่นับเป็นยอดขาย"** ไม่มีตัวเลขกำไร; ผลต้องตรงกับ `countsAsRevenue()` ทุกใบ (เทียบด้วย unit test ตรง ๆ อย่าเชื่อหน้าจออย่างเดียว)
+
+---
+
+#### TC-EXT-07: 🛑 **เชิงลบ** — staff ที่ไม่มีสิทธิ์ต้องไม่ได้รับตัวเลขกำไรใน payload
+
+- **Linked to:** `[FR-EXP-14-AC-04]`
+- **Precondition:** เดียวกับ TC-EXT-02 + ออเดอร์ที่มีกำไรคำนวณได้จริง
+- **ประเภท:** E2E + **ตรวจ HTML/flight payload ดิบ**
+- **Steps:**
+  1. login เป็น staff (toggle ปิด) → เปิด `/orders/[token]`
+  2. ดึง HTML ทั้งหน้า แล้วค้นหาตัวเลขกำไรที่คาดไว้ (เช่น `300`) และคำว่า "กำไร" ใน flight payload
+- **Expected Result:** ไม่เห็นการ์ด/แถวกำไรบนจอ **และ** ค้นในซอร์สแล้ว**ไม่พบตัวเลขนั้นเลย**
+- **หมายเหตุ:** "ตาไม่เห็น" ไม่ใช่ผ่าน — หน้านี้อยู่ใต้ client layout ทุก prop ที่ข้ามเส้นถูก serialize ลง HTML เสมอ ต้องพิสูจน์จากซอร์สดิบเท่านั้น
+
+---
+
+#### TC-EXT-08: ขายขาดทุน — กำไร/มาร์จิ้นติดลบ
+
+- **Linked to:** `[FR-EXP-14-AC-05]` `[FR-EXP-15]`
+- **Precondition:** สินค้าที่ `cost=200 price=150`; ออเดอร์ `CONFIRMED` ที่ใช้สินค้านี้
+- **ประเภท:** unit + E2E visual
+- **Steps:** เปิด order detail + `/products`
+- **Expected Result:** กำไรติดลบแสดงตรงไปตรงมา **ไม่ clamp เป็น 0** ไม่ใช่ error; มาร์จิ้น = `-33.33%`; ใช้ tone danger ตาม Design Spec
+
+---
+
+#### TC-EXT-09: สินค้าที่ยังไม่ตั้งต้นทุน — "—" ไม่ใช่ `฿0`/`0%`
+
+- **Linked to:** `[FR-EXP-15-AC-02]`
+- **Precondition:** สินค้า `cost=null` และสินค้า `price=0`
+- **ประเภท:** unit (`productMargin()`) + E2E ทั้งเดสก์ท็อปและมือถือ
+- **Expected Result:** ทั้งตารางและการ์ดแสดง `"—"` ทั้งช่องต้นทุนและมาร์จิ้น; `productMargin()` คืน `null` ทั้ง 2 กรณี (รวมกรณี `price<=0` ที่ต้องไม่หารศูนย์)
+
+---
+
+#### TC-EXT-10: ร้านคิวงาน (`SERVICE_QUEUE`) ต้องเห็นคำว่า "บริการ"
+
+- **Linked to:** `[FR-EXP-15-AC-04]`
+- **Precondition:** shop `vertical='SERVICE_QUEUE'` ที่มีรายการยังไม่ตั้งต้นทุน
+- **ประเภท:** E2E + grep
+- **Steps:** เปิด `/expenses` ดูแถบเตือนต้นทุนไม่ครบ
+- **Expected Result:** ข้อความใช้คำจาก `resolveProductVocab(vertical).itemColLabel` (เช่น "มีบริการที่ยังไม่ได้ใส่ต้นทุน") **ไม่ hardcode "สินค้า"**; แต่คำว่า "ต้นทุน"/"มาร์จิ้น" **ไม่ผัน** เหมือนกันทุก vertical
+
+---
+
+#### TC-EXT-11: CSV `cost` — ว่าง / `0` / ติดลบ
+
+- **Linked to:** `[FR-EXP-16-AC-01]` `[FR-EXP-16-AC-02]` `[FR-EXP-16-AC-03]`
+- **Precondition:** shop `ONLINE_SALES` + Inventory Add-on **PRO** active; สินค้า PHYSICAL 3 ชิ้นที่มี `cost` เดิม = `50`
+- **ประเภท:** API integration + DB verify
+- **Steps:** ยิง `POST /api/inventory/csv/import` ด้วย 3 แถว — แถว 1 ไม่ส่ง key `cost`, แถว 2 ส่ง `cost: 0`, แถว 3 ส่ง `cost: -5`
+- **Expected Result:** HTTP 200; แถว 1 `status:'OK'` และ `cost` ยังเป็น `50` (**ไม่ถูกแตะ**); แถว 2 `status:'OK'` และ `cost = 0`; แถว 3 `status:'ERROR'` และ `cost` ยังเป็น `50` (ไม่กระทบแถวอื่น)
+
+---
+
+#### TC-EXT-12: CSV round-trip ต้องปิดวง
+
+- **Linked to:** `[FR-EXP-16]` (round-trip)
+- **Precondition:** สินค้า PHYSICAL 5 ชิ้น — 2 ชิ้นมี `cost`, 2 ชิ้น `cost=null`, 1 ชิ้น `cost=0`
+- **ประเภท:** API integration + DB verify
+- **Steps:**
+  1. `GET /api/inventory/csv/export` → เก็บไฟล์ไว้
+  2. import ไฟล์เดิมกลับ **โดยไม่แก้อะไรเลย**
+  3. เทียบ `cost` ทั้ง 5 ชิ้นก่อน/หลัง
+- **Expected Result:** ค่าทั้ง 5 ชิ้น**ไม่เปลี่ยนแม้แต่ตัวเดียว** — โดยเฉพาะ 2 ชิ้นที่เป็น `null` ต้องไม่กลายเป็น `0` (ถ้ากลายเป็น 0 แปลว่า client แปลง cell ว่างเป็น `0` ซึ่งจะล้างต้นทุนทั้งไฟล์ของร้านจริง)
+
+---
+
+#### TC-EXT-13: gate ของ Inventory Add-on ต้องไม่ถูกถอดไปด้วย
+
+- **Linked to:** `[FR-EXP-16-AC-04]`
+- **Precondition:** shop ที่ Inventory Add-on **ไม่ใช่ PRO** และ shop ที่ `vertical != 'ONLINE_SALES'`
+- **ประเภท:** API integration
+- **Steps:** ยิง `POST /api/inventory/csv/import`
+- **Expected Result:** 403 `INVENTORY_NOT_PRO` / ถูกบล็อกด้วย vertical guard ตามเดิม — **D-EXT-1 ไม่ถอด gate นี้** (คนละ subscription จาก Business Package)
+
+---
+
 ## 3. Traceability Matrix
 
 | FR/AC ใน [[BRD]] | Test Case | ครอบคลุมหรือไม่ |
