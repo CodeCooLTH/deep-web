@@ -27,10 +27,11 @@ import { vi, beforeEach } from 'vitest'
 // ส่ง TransactionClient ที่มี method ชุดเดียวกับ prisma ธรรมดาเข้าไปให้ callback; mock เดิมที่ยิง
 // fn({}) เฉย ๆ ทำให้เส้นทาง "ส่งสำเร็จ" ที่เรียก tx.externalContact.upsert(...) พังทันที (tx={}
 // ไม่มี property ไหนเลย) — ต้องให้ tx === ตัว mock เดียวกับ prisma
+// Fix round 2 — เพิ่ม commentReplyLog.updateMany (ใช้ claim แถว MANUAL ที่ FAILED แบบ conditional)
 vi.mock('@/lib/prisma', () => {
   const db: Record<string, unknown> = {
     pageComment: { findUnique: vi.fn() },
-    commentReplyLog: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+    commentReplyLog: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     shopChannel: { findUnique: vi.fn() },
     externalContact: { upsert: vi.fn() },
     conversation: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
@@ -72,9 +73,24 @@ function okComment(over: Record<string, unknown> = {}) {
   }
 }
 
+/** ตั้งค่าเริ่มต้นของ mock ที่ทำให้เดินไปถึงเส้นทาง "ยิง Graph สำเร็จ" ได้ครบวงจร — เทสที่อยาก
+ *  ทดสอบจุดใดจุดหนึ่งแค่ override ทับตัวที่สนใจ */
+function mockFullSuccessChain() {
+  vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
+  graphSend.mockResolvedValue({ recipientId: 'psid-real-1', messageId: 'mid-999' })
+  vi.mocked(prisma.externalContact.upsert).mockResolvedValue({ id: 'contact-1' } as never)
+  vi.mocked(prisma.conversation.findUnique).mockResolvedValue(null as never)
+  vi.mocked(prisma.conversation.create).mockResolvedValue({ id: 'conv-1' } as never)
+  vi.mocked(prisma.chatMessage.create).mockResolvedValue({ id: 'msg-1' } as never)
+  vi.mocked(prisma.conversation.update).mockResolvedValue({ id: 'conv-1' } as never)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(null as never)
+  vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-default' } as never)
+  vi.mocked(prisma.commentReplyLog.update).mockResolvedValue({} as never)
+  vi.mocked(prisma.commentReplyLog.updateMany).mockResolvedValue({ count: 1 } as never)
   // ค่าเริ่มต้น: ผ่านสิทธิ์เสมอ — เทสที่อยากลอง FORBIDDEN ต้อง override เป็น false เอง
   vi.mocked(canAccessShop).mockResolvedValue(true)
 })
@@ -143,13 +159,8 @@ describe('sendPrivateReplyToCommentById — เงื่อนไขที่ต
 describe('sendPrivateReplyToCommentById — เส้นทางที่ยิง Graph จริง', () => {
   it('ส่งสำเร็จ -> คืน sent:true พร้อม conversationId/messageId, เรียก Graph ด้วย (token, externalCommentId, text) ไม่มี pageId, ChatMessage ได้ senderRole=SHOP/externalMessageId ตรง, และไม่ตั้ง lastInboundAt', async () => {
     findComment.mockResolvedValue(okComment() as never)
-    vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
-    graphSend.mockResolvedValue({ recipientId: 'psid-real-1', messageId: 'mid-999' })
-    vi.mocked(prisma.externalContact.upsert).mockResolvedValue({ id: 'contact-1' } as never)
-    vi.mocked(prisma.conversation.findUnique).mockResolvedValue(null as never)
-    vi.mocked(prisma.conversation.create).mockResolvedValue({ id: 'conv-1' } as never)
-    vi.mocked(prisma.chatMessage.create).mockResolvedValue({ id: 'msg-1' } as never)
-    vi.mocked(prisma.conversation.update).mockResolvedValue({ id: 'conv-1' } as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    mockFullSuccessChain()
 
     const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'สวัสดีครับ', trigger: 'MANUAL', actorUserId: 'u1' })
 
@@ -183,14 +194,20 @@ describe('sendPrivateReplyToCommentById — เส้นทางที่ยิ
     expect(updateArg.data).not.toHaveProperty('lastInboundAt')
     expect(updateArg.data).toMatchObject({ lastSenderRole: 'SHOP' })
 
-    // log สำเร็จถูกบันทึกเป็น SENT ผูก conversationId
+    // log ถูกจองก่อน (privateReplyStatus:null) แล้วอัปเดตเป็น SENT ทันทีหลัง Graph สำเร็จ — ก่อน
+    // การอัปเดต conversationId รอบสุดท้าย
     expect(prisma.commentReplyLog.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ privateReplyStatus: 'SENT', conversationId: 'conv-1', trigger: 'MANUAL' }),
+      data: expect.objectContaining({ privateReplyStatus: null, trigger: 'MANUAL' }),
+      select: { id: true },
     })
+    const updateCalls = vi.mocked(prisma.commentReplyLog.update).mock.calls
+    expect(updateCalls[0]![0]).toMatchObject({ where: { id: 'log-new' }, data: { privateReplyStatus: 'SENT' } })
+    expect(updateCalls[1]![0]).toMatchObject({ where: { id: 'log-new' }, data: { conversationId: 'conv-1' } })
   })
 
   it('Graph โยน error -> คืน SEND_FAILED พร้อม error และไม่สร้าง Conversation/ChatMessage ค้างไว้', async () => {
     findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
     vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
     graphSend.mockRejectedValue(new Error('upstream 400: something failed'))
 
@@ -201,9 +218,135 @@ describe('sendPrivateReplyToCommentById — เส้นทางที่ยิ
     expect(prisma.conversation.create).not.toHaveBeenCalled()
     expect(prisma.chatMessage.create).not.toHaveBeenCalled()
 
-    // ยัง log ความล้มเหลวไว้เป็น FAILED (ไม่ throw ทิ้งเงียบ ๆ)
-    expect(prisma.commentReplyLog.create).toHaveBeenCalledWith({
+    // แถวที่จองไว้ (privateReplyStatus:null ตอน create) ถูกอัปเดตเป็น FAILED (ไม่ throw ทิ้งเงียบ ๆ)
+    expect(prisma.commentReplyLog.update).toHaveBeenCalledWith({
+      where: { id: 'log-new' },
       data: expect.objectContaining({ privateReplyStatus: 'FAILED', errorMessage: 'upstream 400: something failed' }),
     })
+  })
+})
+
+// Fix round 2 — reviewer พบ 3 Critical: (C2) ด่านกันซ้ำใช้คนละคีย์กับตอนเขียนจริงของ AUTO ทำให้
+// คนเดิมคอมเมนต์ใบที่สองบนโพสต์เดิมลอดไปยิง Graph ซ้ำได้ (C3) ไม่มีการจับ P2002 + จองแถวเกิด
+// "หลัง" ยิง Graph ทำให้สองเธรดพร้อมกันยิงได้ทั้งคู่ (C1) $transaction ของเส้นทางสำเร็จไม่มี
+// try/catch ทั้งที่สัญญาว่าไม่ throw — DB ล้มหลัง Graph สำเร็จ = ข้อความถึงลูกค้าแล้วแต่ไม่มี log SENT
+describe('sendPrivateReplyToCommentById — Fix round 2: dedupe คีย์เดียวกัน + จองก่อนยิง + ไม่ throw', () => {
+  it('AUTO คนเดิม โพสต์เดิม คอมเมนต์คนละใบ -> ALREADY_SENT และ Graph ถูกเรียก 0 ครั้ง (C2)', async () => {
+    // คอมเมนต์ใบที่สอง (id ต่างจากที่เคยส่งไปแล้ว) ของคนเดิมบนโพสต์เดิม
+    findComment.mockResolvedValue(okComment({ id: 'cmt-2', externalCommentId: '123_789' }) as never)
+    // มี log ของ AUTO อยู่แล้วจากคอมเมนต์ใบแรก (คีย์ AUTO ไม่ผูกกับ commentId) — สถานะ SENT
+    vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(
+      { id: 'log-first-comment', privateReplyStatus: 'SENT' } as never,
+    )
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-2', text: 'hi', trigger: 'AUTO' })
+    expect(r).toMatchObject({ sent: false, reason: 'ALREADY_SENT' })
+    expect(graphSend).not.toHaveBeenCalled()
+    // ด่านต้องหาด้วยคีย์ AUTO (shopChannelId/postId/fromExternalId) ไม่ใช่ commentId ของใบที่สอง
+    expect(prisma.commentReplyLog.findFirst).toHaveBeenCalledWith({
+      where: { trigger: 'AUTO', shopChannelId: 'ch-1', postId: 'post-1', fromExternalId: 'psid-1' },
+    })
+  })
+
+  it('AUTO ที่มีแถวเดิมสถานะ FAILED -> ALREADY_SENT (ไม่ลองซ้ำเอง, BR-CR-A6)', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(
+      { id: 'log-1', privateReplyStatus: 'FAILED' } as never,
+    )
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+    expect(r).toMatchObject({ sent: false, reason: 'ALREADY_SENT' })
+    expect(graphSend).not.toHaveBeenCalled()
+    // ไม่พยายาม claim ด้วย updateMany เลย — AUTO ไม่มีสิทธิ์ลองซ้ำ
+    expect(prisma.commentReplyLog.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('MANUAL ที่มีแถวเดิม FAILED -> จองสำเร็จ (updateMany count:1) แล้วยิง Graph ได้ (คนกดลองใหม่)', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(
+      { id: 'log-1', privateReplyStatus: 'FAILED' } as never,
+    )
+    vi.mocked(prisma.commentReplyLog.updateMany).mockResolvedValue({ count: 1 } as never)
+    mockFullSuccessChain()
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'ลองใหม่', trigger: 'MANUAL', actorUserId: 'u1' })
+
+    expect(r).toMatchObject({ sent: true })
+    expect(graphSend).toHaveBeenCalledTimes(1)
+    // conditional updateMany ต้องมีเงื่อนไข privateReplyStatus:'FAILED' ใน where เสมอ (claim atomic)
+    expect(prisma.commentReplyLog.updateMany).toHaveBeenCalledWith({
+      where: { id: 'log-1', privateReplyStatus: 'FAILED' },
+      data: expect.objectContaining({ privateReplyStatus: null }),
+    })
+    // ไม่ต้อง create แถวใหม่ — claim แถวเดิมกลับมาใช้
+    expect(prisma.commentReplyLog.create).not.toHaveBeenCalled()
+  })
+
+  it('MANUAL claim ไม่สำเร็จ (updateMany count:0, อีกเธรดคว้าไปแล้ว) -> ALREADY_SENT และ Graph 0 ครั้ง', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(
+      { id: 'log-1', privateReplyStatus: 'FAILED' } as never,
+    )
+    vi.mocked(prisma.commentReplyLog.updateMany).mockResolvedValue({ count: 0 } as never)
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'ลองใหม่', trigger: 'MANUAL', actorUserId: 'u1' })
+
+    expect(r).toMatchObject({ sent: false, reason: 'ALREADY_SENT' })
+    expect(graphSend).not.toHaveBeenCalled()
+  })
+
+  it('create แถวจองใหม่ชน P2002 (สองคำขอพร้อมกัน) -> ALREADY_SENT และ Graph 0 ครั้ง (C3)', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(null as never)
+    vi.mocked(prisma.commentReplyLog.create).mockRejectedValue(
+      new Error('Unique constraint failed on the fields: (`commentId`) — P2002'),
+    )
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(r).toMatchObject({ sent: false, reason: 'ALREADY_SENT' })
+    expect(graphSend).not.toHaveBeenCalled()
+  })
+
+  it('Graph สำเร็จแต่ transaction สร้างห้องแชทโยน error -> คืน sent:true, conversationId:null, และ log ถูก update เป็น SENT ไปก่อนแล้ว (C1)', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    vi.mocked(resolveChannelToken).mockResolvedValue({ token: 'page-token-xyz', pageId: 'page-1' })
+    graphSend.mockResolvedValue({ recipientId: 'psid-real-1', messageId: 'mid-999' })
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(new Error('DB ล้มระหว่างสร้างห้องแชท'))
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(r).toMatchObject({ sent: true, conversationId: null, messageId: 'mid-999' })
+
+    // ต้องเคย update เป็น SENT มาก่อนแล้ว (ไม่ได้แปลว่า "ไม่ได้ส่ง") + เคย update errorMessage ของ
+    // ความล้มเหลวตอนสร้างห้องแชทด้วย (คนละคำสั่งกัน)
+    const updateCalls = vi.mocked(prisma.commentReplyLog.update).mock.calls
+    const sentCallIdx = updateCalls.findIndex((c) => (c[0] as { data: { privateReplyStatus?: string } }).data.privateReplyStatus === 'SENT')
+    expect(sentCallIdx).toBeGreaterThanOrEqual(0)
+    const roomFailCallIdx = updateCalls.findIndex((c) =>
+      String((c[0] as { data: { errorMessage?: string } }).data.errorMessage ?? '').includes('บันทึกห้องแชทไม่สำเร็จ'),
+    )
+    expect(roomFailCallIdx).toBeGreaterThanOrEqual(0)
+
+    // 🛑 update SENT ต้องเกิดก่อนที่จะเรียก $transaction เสมอ — ข้อเท็จจริง "ส่งสำเร็จแล้ว" ต้อง
+    // คงทนก่อนงานที่ยังล้มได้ (สร้างห้องแชท) ไม่ใช่ผูกติดกับความสำเร็จของมัน
+    const sentInvocationOrder = vi.mocked(prisma.commentReplyLog.update).mock.invocationCallOrder[sentCallIdx]!
+    const txInvocationOrder = vi.mocked(prisma.$transaction).mock.invocationCallOrder[0]!
+    expect(sentInvocationOrder).toBeLessThan(txInvocationOrder)
+  })
+
+  it('Graph สำเร็จ (เส้นทางปกติ) -> commentReplyLog.update(SENT) ถูกเรียกก่อน $transaction เสมอ (call order)', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    mockFullSuccessChain()
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(r).toMatchObject({ sent: true })
+    const updateCalls = vi.mocked(prisma.commentReplyLog.update).mock.calls
+    const sentCallIdx = updateCalls.findIndex((c) => (c[0] as { data: { privateReplyStatus?: string } }).data.privateReplyStatus === 'SENT')
+    expect(sentCallIdx).toBeGreaterThanOrEqual(0)
+    const sentInvocationOrder = vi.mocked(prisma.commentReplyLog.update).mock.invocationCallOrder[sentCallIdx]!
+    const txInvocationOrder = vi.mocked(prisma.$transaction).mock.invocationCallOrder[0]!
+    expect(sentInvocationOrder).toBeLessThan(txInvocationOrder)
   })
 })
