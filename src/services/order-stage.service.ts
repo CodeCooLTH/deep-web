@@ -69,6 +69,8 @@ type LatestOrderRow = {
   labelPrintCount: number | null
   carrierStatus: string | null
   hasShipment: boolean
+  serviceStart: Date | null
+  appointmentStatus: string | null
 }
 
 /**
@@ -108,6 +110,10 @@ export async function enrichWithOrderStage<T extends Linkable>(
       o."shopId"     AS "shopId",
       o."customerId" AS "customerId",
       o."status"     AS "status",
+      -- นัดหมาย (feature 00024/00036) — ป้ายของร้านคิวงานพูดเรื่อง "นัดวันไหน" แทน "สั่งซื้อแล้ว"
+      -- serviceStart คือตัวนิยามว่าใบนี้เป็นนัด (ไม่ได้ดูจาก Shop.vertical) ดู appointmentFace()
+      o."serviceStart"      AS "serviceStart",
+      o."appointmentStatus" AS "appointmentStatus",
       COALESCE(s."carrierStatusAt", o."updatedAt") AS "statusAt",
       s."labelPrintedAt"  AS "labelPrintedAt",
       s."labelPrintCount" AS "labelPrintCount",
@@ -143,6 +149,8 @@ export async function enrichWithOrderStage<T extends Linkable>(
         labelPrintCount: r.labelPrintCount,
         carrierStatus: r.carrierStatus,
         hasShipment: r.hasShipment,
+        serviceStart: r.serviceStart,
+        appointmentStatus: r.appointmentStatus,
       },
     ]),
   )

@@ -1473,10 +1473,15 @@ export default function InboxList({
                               if (e.key === 'Enter' || e.key === ' ') openOrders(e)
                             }}
                             aria-label={`${orderVocab.noun}ล่าสุด: ${stageLabel} — ดูรายการ${orderVocab.noun}`}
-                            className={`badge ${c.orderStage.cls} text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 focus-visible:outline-none focus-visible:ring-2`}
+                            title={stageLabel}
+                            className={`badge ${c.orderStage.cls} text-2xs mt-1 inline-flex w-fit max-w-52 shrink-0 cursor-pointer items-center gap-1 focus-visible:outline-none focus-visible:ring-2`}
                           >
                             <Icon icon={c.orderStage.icon} width={13} height={13} className="shrink-0" />
-                            {stageLabel}
+                            {/* ป้ายนัด ("นัด 16 ส.ค. 69") ยาวกว่าคำสถานะเดิมพอสมควร และ rail แคบสุดที่
+                                320px — เพดาน+truncate กันไม่ให้ชิปดันแถวสูงขึ้นทั้งรายการ ข้อความเต็ม
+                                ยังอ่านได้จาก title (hover) และ aria-label (screen reader) ซึ่งรับค่า
+                                เต็มเสมอ ไม่ได้ถูก CSS ตัด — precedent เดียวกับชิป ad_id ด้านบน */}
+                            <span className="truncate">{stageLabel}</span>
                           </span>
                         )
                       })()}

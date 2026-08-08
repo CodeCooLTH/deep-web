@@ -166,4 +166,66 @@ describe('deriveOrderStage', () => {
     const s = deriveOrderStage({ ...base, statusAt: hoursAgo(1).toISOString() }, NOW)
     expect(s?.label).toBe('สั่งซื้อแล้ว')
   })
+
+  // ── ออเดอร์นัดหมาย (ร้านคิวงาน) — user request 2026-08-08 ───────────────────
+  // ป้ายต้องพูดเรื่องนัด ไม่ใช่ "สั่งซื้อแล้ว" ซึ่งไม่ได้บอกสิ่งที่ร้านต้องรู้ระหว่างคุยแชท
+  describe('ออเดอร์ที่เป็นนัดหมาย', () => {
+    // 16 ส.ค. 2026 09:00 เวลาไทย (= 02:00Z) — ตรงกับตัวอย่างที่ user ให้มา "16 ส.ค. 69"
+    const serviceStart = new Date('2026-08-16T02:00:00Z')
+
+    it('นัดที่ยังไม่ถูกยืนยัน → "นัด 16 ส.ค. 69" + สีของ SCHEDULED', () => {
+      const s = deriveOrderStage({ ...base, serviceStart, appointmentStatus: 'SCHEDULED' }, NOW)
+      expect(s?.label).toBe('นัด 16 ส.ค. 69')
+      expect(s?.cls).toBe('bg-warning/15 text-warning-ink')
+      expect(s?.icon).toBe('calendar-event')
+      // key ต้องไม่เปลี่ยน — โค้ดอื่นยัง switch บนค่านี้อยู่ เปลี่ยนแค่หน้าตา
+      expect(s?.key).toBe('ORDERED')
+    })
+
+    it('appointmentStatus ว่าง (แถวเก่า) → ถือเป็น SCHEDULED ตาม default เดียวกับปฏิทิน', () => {
+      const s = deriveOrderStage({ ...base, serviceStart, appointmentStatus: null }, NOW)
+      expect(s?.label).toBe('นัด 16 ส.ค. 69')
+    })
+
+    it('ลูกค้ายืนยันแล้ว → ยังโชว์วันนัด แต่เปลี่ยนสีเป็น primary (ไม่ใช่เขียว)', () => {
+      const s = deriveOrderStage({ ...base, serviceStart, appointmentStatus: 'CONFIRMED_BY_BUYER' }, NOW)
+      expect(s?.label).toBe('นัด 16 ส.ค. 69')
+      // Verified-Means-Green: เขียวสงวนไว้กับสิ่งที่ "เกิดขึ้นแล้ว" — นี่แค่ลูกค้าบอกว่าจะมา
+      expect(s?.cls).toBe('bg-primary/15 text-primary-ink')
+    })
+
+    it.each([
+      ['RESCHEDULE_REQUESTED', 'ลูกค้าขอเลื่อน'],
+      ['NO_SHOW', 'ไม่มาตามนัด'],
+      ['COMPLETED', 'ให้บริการแล้ว'],
+    ])('นัดที่ไม่ได้เดินตามแผน (%s) → โชว์คำสถานะแทนวันที่', (appointmentStatus, label) => {
+      // setAppointmentOutcome ไม่แตะ Order.status (BR-RSV-33) ป้ายจึงค้างที่ ORDERED เสมอ —
+      // ถ้ายังโชว์วันที่ นัดที่จบ/ถูกขอเลื่อนไปแล้วจะอ่านเหมือนนัดที่ยังรออยู่ตลอดไป
+      const s = deriveOrderStage({ ...base, serviceStart, appointmentStatus }, NOW)
+      expect(s?.label).toBe(label)
+    })
+
+    it('ยกเลิกทั้งใบ → "ยกเลิกแล้ว" ชนะข้อมูลนัด (ความจริงระดับออเดอร์อยู่เหนือรายละเอียดนัด)', () => {
+      const s = deriveOrderStage(
+        { ...base, status: 'CANCELLED', serviceStart, appointmentStatus: 'SCHEDULED' },
+        NOW,
+      )
+      expect(s?.label).toBe('ยกเลิกแล้ว')
+    })
+
+    it('ออเดอร์ที่ไม่มี serviceStart → คำเดิมทุกประการ (ร้านขายของไม่ได้รับผลกระทบ)', () => {
+      expect(deriveOrderStage({ ...base, serviceStart: null }, NOW)?.label).toBe('สั่งซื้อแล้ว')
+    })
+
+    it('serviceStart เป็น ISO string (ข้าม RSC boundary) ก็ยังได้วันเดียวกัน', () => {
+      const s = deriveOrderStage({ ...base, serviceStart: serviceStart.toISOString() }, NOW)
+      expect(s?.label).toBe('นัด 16 ส.ค. 69')
+    })
+
+    it('นัดหัวค่ำที่ข้ามวันเมื่อคิดเป็น UTC → ต้องได้วันตามเวลาไทย ไม่ใช่วันของ UTC', () => {
+      // 16 ส.ค. 23:30 ไทย = 16:30Z ของวันเดียวกัน แต่ 17 ส.ค. 00:30 ไทย = 17:30Z วันที่ 16
+      const s = deriveOrderStage({ ...base, serviceStart: new Date('2026-08-16T17:30:00Z') }, NOW)
+      expect(s?.label).toBe('นัด 17 ส.ค. 69')
+    })
+  })
 })

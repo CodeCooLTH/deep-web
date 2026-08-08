@@ -192,6 +192,25 @@ export function formatDayMonthTH(input: Date | string | number | null | undefine
 }
 
 /**
+ * "16 ส.ค. 69" — วัน + เดือนย่อ + ปี พ.ศ. **2 หลัก** (timezone ไทย, ไม่มีเวลา)
+ *
+ * มีไว้สำหรับป้ายในรายการที่แคบมากแต่ยังต้องบอกปี — เคสจริงคือชิป "นัด ..." ในแถวกล่องแชท
+ * (rail ~320px) ซึ่งนัดอาจอยู่ข้ามปีได้จริง (จองล่วงหน้าปลายปี) จะตัดปีทิ้งแบบ formatDayMonthTH
+ * ไม่ได้ แต่ปีเต็ม "2569" ก็กินที่ 2 ตัวอักษรโดยไม่เพิ่มข้อมูล — ผู้ใช้ไทยอ่าน "69" ออกอยู่แล้ว
+ *
+ * [สำคัญ] 2 หลักคือ พ.ศ. ไม่ใช่ ค.ศ. — "69" = 2569 ไม่ใช่ 1969/2069 (ตัดจากปีที่บวก 543 แล้ว)
+ * ที่อื่นที่ต้องการปีเต็มให้ใช้ formatDateTH ตามเดิม
+ */
+export function formatDayMonthShortYearTH(input: Date | string | number | null | undefined): string {
+  const d = toValidDate(input)
+  if (!d) return '—'
+  const p = partsInBangkok(d)
+  const monthIdx = Number(p.month) - 1
+  const beYear = String(Number(p.year) + BE_OFFSET).slice(-2)
+  return `${Number(p.day)} ${THAI_MONTHS_ABBR[monthIdx] ?? '—'} ${beYear}`
+}
+
+/**
  * "09:00–10:30" — ช่วงเวลาในวันเดียว (feature 00036)
  *
  * มีไว้เพราะงานที่เป็น "ช่วง" (นัดคิวงาน) ถูกเขียนเป็น `${formatTimeHM(a)}–${formatTimeHM(b)}`

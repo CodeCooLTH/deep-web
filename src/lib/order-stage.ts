@@ -14,6 +14,9 @@
  *     เข้ามาก็แทนที่ใบที่ยกเลิกไปเอง ไม่ต้องมีเงื่อนไขพิเศษ)
  */
 
+import { APPOINTMENT_STAGE_META, deriveAppointmentStage } from './appointment-stage'
+import { APPOINTMENT_STATUS } from './appointments'
+import { formatDayMonthShortYearTH } from './format-date'
 import {
   isDeliveredCarrierStatus,
   isInTransitCarrierStatus,
@@ -250,6 +253,14 @@ export interface OrderStageInput {
   labelPrintCount?: number | null
   /** มีพัสดุที่ยัง active อยู่หรือไม่ — ตัวตัดสินว่าจะอ่านสถานะจาก "พัสดุ" หรือจาก "ออเดอร์" */
   hasShipment?: boolean
+  /**
+   * Order.serviceStart — **ตัวนิยามว่า "ใบนี้เป็นนัดหมาย"** (เกณฑ์เดียวกับ deriveAppointmentStage)
+   * ไม่ใช่ Shop.vertical: ธงของร้านเป็นภาพนิ่งที่เปลี่ยนทีหลังได้ ส่วนช่วงเวลาที่นัดไว้เป็นของ
+   * ตัวออเดอร์เอง (docs/conventions/stored-flag-vs-owner-truth.md)
+   */
+  serviceStart?: Date | string | null
+  /** Order.appointmentStatus — null/ค่าที่ไม่รู้จัก = SCHEDULED ตาม default เดียวกับปฏิทิน */
+  appointmentStatus?: string | null
 }
 
 export interface OrderStageResult {
@@ -339,7 +350,46 @@ export function deriveOrderStage(
 
   return {
     key,
-    ...ORDER_STAGE_META[key],
+    ...(appointmentFace(key, order) ?? ORDER_STAGE_META[key]),
     ...(printCount > 0 ? { printCount } : {}),
+  }
+}
+
+/**
+ * appointmentFace — ออเดอร์ที่เป็น "นัดหมาย" พูดเรื่องนัด ไม่ใช่พูดว่า "สั่งซื้อแล้ว"
+ * (user request 2026-08-08 บนแถวกล่องแชทของร้านคิวงาน)
+ *
+ * คืน null = ไม่ใช่นัด/ไม่ใช่ขั้นที่ควรแทนที่ → ผู้เรียกใช้ ORDER_STAGE_META ตามเดิม
+ *
+ * แทนที่เฉพาะขั้น ORDERED ขั้นเดียว ด้วยเหตุผลเดียวกับที่ resolveOrderStatusBadge ไม่ override
+ * CANCELLED/CONFIRMED: สองอันนั้นเป็นความจริงระดับออเดอร์ (ยกเลิกทั้งใบ / ผู้ซื้อยืนยันแล้ว)
+ * ซึ่งอยู่เหนือรายละเอียดของนัด. ขั้นพัสดุก็ไม่แตะ เพราะออเดอร์นัดไม่มีพัสดุอยู่แล้ว
+ *
+ * [สำคัญ] key ยังเป็น 'ORDERED' เหมือนเดิม — เปลี่ยนแค่ "หน้าตา" (label/cls/icon) ไม่ใช่ตัวตน
+ * ที่โค้ดอื่น switch อยู่ ถ้าเพิ่ม key ใหม่ ทุกที่ที่รับ OrderStageKey จะต้องแก้ตามโดยไม่จำเป็น
+ *
+ * ทำไมนัดที่ "ขอเลื่อน/ไม่มา/ให้บริการแล้ว" ต้องโชว์คำสถานะแทนวันที่ (user เคาะ 2026-08-08):
+ * setAppointmentOutcome ไม่แตะ Order.status เลย (BR-RSV-33) ป้ายจึงค้างที่ ORDERED ตลอด —
+ * ถ้าโชว์วันที่อย่างเดียว นัดที่จบไปแล้ว/ถูกขอเลื่อนจะยังอ่านว่า "นัดวันนั้น" ค้างอยู่ตลอดไป
+ * ซึ่งเป็นข้อมูลเก่าที่ดูเหมือนข้อมูลสด
+ */
+function appointmentFace(
+  key: OrderStageKey,
+  order: OrderStageInput,
+): { label: string; cls: string; icon: string } | null {
+  if (key !== 'ORDERED') return null
+  const stage = deriveAppointmentStage({
+    serviceStart: order.serviceStart,
+    appointmentStatus: order.appointmentStatus,
+  })
+  if (!stage) return null
+
+  const meta = APPOINTMENT_STAGE_META[stage]
+  // นัดที่ยังเดินตามแผน → สิ่งที่ร้านต้องรู้ระหว่างคุยคือ "นัดวันไหน" ไม่ใช่ชื่อสถานะ
+  // (สถานะยังสื่อผ่านสีของชิปอยู่: รอลูกค้ายืนยัน = เหลือง, ลูกค้ายืนยันแล้ว = น้ำเงิน)
+  const onTrack = stage === APPOINTMENT_STATUS.SCHEDULED || stage === APPOINTMENT_STATUS.CONFIRMED_BY_BUYER
+  return {
+    ...meta,
+    label: onTrack ? `นัด ${formatDayMonthShortYearTH(order.serviceStart)}` : meta.label,
   }
 }
