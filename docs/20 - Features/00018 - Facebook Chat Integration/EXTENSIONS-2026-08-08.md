@@ -386,3 +386,107 @@ React hydrate — การ์ดที่อ่านค่าครั้ง�
 6. เปิดหน้าเดียวกันบนเบราว์เซอร์เดสก์ท็อป → **ต้องไม่มีแถบเตือน** (สวิตช์ยังใช้ได้ปกติ)
 
 **สถานะ:** ยังไม่ได้ทดสอบบนเครื่องจริงสักข้อ — ต้องรอ deploy เว็บ + OTA แอปก่อน
+
+---
+
+# ส่วนขยาย 2026-08-08 (รอบค่ำ) — เธรดที่ Meta AI ถือสิทธิ์คุมอยู่
+
+> user report: "แชทบางอันไม่เข้าระบบ เพราะระบบ AI Agent ของ Meta" พร้อมเธรดตัวอย่าง
+> `4de6ccf1-dad2-4194-9905-d9d202d863be` (เพจ ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง)
+
+## 1. ต้นเหตุ — ขาด webhook field `standby` มาตั้งแต่วันแรก
+
+รอบเช้าวันเดียวกันเพิ่ม `messaging_handovers` ครบทั้งสองชั้นไปแล้ว แต่ผู้ใช้รายงานตอนเย็นว่า
+**ยังไม่เข้าอยู่ดี** — ตรวจซ้ำแล้วทั้งสองชั้นครบจริง (อ่านสดจาก Graph) แปลว่า**สมมติฐานเดิมผิดเอง
+ไม่ใช่ทำไม่ครบ**
+
+| field | หน้าที่จริง |
+|-------|------------|
+| `messaging_handovers` | บอกว่า**สิทธิ์คุมห้องเปลี่ยนมือ** (pass/take/request) — ไม่ได้ขนข้อความมาด้วย |
+| **`standby`** | **ขนข้อความของห้องที่เราไม่ใช่เจ้าของเธรด** (`messages` / `message_reads` / `message_deliveries` / `messaging_postbacks`) |
+
+`page` topic ไม่เคยมี `standby` เลย (ฝั่ง `instagram` มีตั้งแต่ 2026-08-04 — นั่นคือเหตุผลที่เคส IG
+หายแต่ Messenger ไม่หาย) เพิ่มครบทั้ง 2 ชั้นแล้ว 2026-08-08
+
+**หลักฐานชี้ขาด** — เธรด `b6064da8` เส้นแบ่งอยู่ที่ "ใครถือห้อง" ไม่ใช่รูปร่าง payload:
+
+```
+11:36:47  graph-backfill  ลูกค้า: ราคาโช้คหลังเวฟเท่าไหร่
+11:36:48  graph-backfill  Your AI agent will respond.
+11:39:06  graph-backfill  You took over this chat from your AI agent.
+11:39:11.478  webhook     <- กลับมาทันทีพร้อม millisecond
+```
+
+ป้าย `Your AI agent will respond.` 20 ครั้งล่าสุดบน prod มาทาง `graph-backfill` **ทั้ง 20 ครั้ง**
+
+**ยืนยันหลังแก้** (เธรด `4de6ccf1`):
+```
+13:45:39.539  BUYER  webhook  viaStandby=true  "ดีจ้า"
+13:45:46.814  SHOP   webhook  viaStandby=true  (AI ตอบ)
+```
+
+## 2. ข้อจำกัดที่พิสูจน์กับ Graph API แล้ว — ห้ามออกแบบสวนทาง
+
+| endpoint | ผลจริง |
+|---|---|
+| `take_thread_control` | `(#27) Take thread control is not supported when Conversation Routing is not enabled.` |
+| `release_thread_control` | `(#100) Only the current thread owner can release thread control` |
+| `pass_thread_control` | `(#100) Cannot pass thread control since the calling app is not the thread owner` |
+
+- **แอปเราไม่เคยเป็นเจ้าของเธรด** แม้ตอนที่คนกด take over ใน Business Suite แล้ว — เจ้าของคือ
+  **Page Inbox (`263902037430900`)**
+- **Meta ไม่ยิง `messaging_handovers` สำหรับการสลับกับ AI ของตัวเอง** (ตาราง `ChatHandoverEvent`
+  ว่างเปล่าแม้ผู้ใช้กด Respond yourself / Turn on AI responses แล้ว) ⇒ **ไม่มีทางรู้ app id ของ
+  Meta AI** ⇒ ปุ่ม "เปิด AI กลับ" ทำในแอปเราไม่ได้ ต้องเป็นลิงก์ออกไป Business Suite
+- Messenger เลิกใช้ Handover Protocol แล้ว → **Conversation Routing** จึงไม่แปลกที่
+  `secondary_receivers` ตอบ `(#100) nonexisting field` และ `thread_owner` ไม่มี `app_id`
+
+## 3. Data model
+
+- `ChatMessage.viaStandby: Boolean @default(false)` — แถวนี้มาตอนเราไม่ใช่เจ้าของเธรด
+  🛑 **เก็บที่ "ข้อความ" ไม่ใช่ธงสถานะบน `Conversation` โดยตั้งใจ** — สถานะปัจจุบัน derive จาก
+  แถวล่าสุด ธงที่เก็บแยกจะค้างทันทีที่มีทางเข้าใหม่ที่ลืมอัปเดต
+  (`docs/conventions/stored-flag-vs-owner-truth.md`)
+- ตาราง `ChatHandoverEvent` — payload ดิบของ `messaging_handovers` (ตารางหลักฐาน ไม่ผูก FK เพื่อให้
+  เก็บได้แม้เพจไม่มีร้านเชื่อม). **ผลการทดลอง: ว่างเปล่า** = Meta ไม่ส่ง event ให้เคส AI
+- migration `20260808200000_chat_standby_handover` (additive ล้วน)
+
+## 4. UI (ผ่าน `safepay-ux` gate)
+
+| ชิ้น | พฤติกรรม |
+|---|---|
+| Composer replacement block | เมื่อ AI ถือห้อง → แทนที่**ทั้งแถบเครื่องมือ + textarea** (ไม่ใช่ dim) ด้วยกล่อง `info` + ปุ่ม "ตอบเอง" |
+| โมดัลยืนยัน | `pacesConfirm.question` — **ไม่ยิง API ใด ๆ** เป็น client gate ล้วน |
+| Manual-override strip | หลังยืนยัน → แถบ `info` "กำลังตอบเองแทน AI ของ Meta" + ลิงก์ Business Suite |
+| ชิปข้อความระบบไทย | `parseMetaAiHandoffNotice()` แปล 4 สตริง exact-match |
+
+**เหตุผลที่ซ่อนทั้งแถบไม่ใช่ dim:** `tokenInvalid` (dim เดิม) = "ระบบพัง รอแก้" · เคสนี้ = "มีคนอื่น
+กำลังทำงานแทนอยู่" คนละชนิดกัน ถ้าโชว์ปุ่ม 6 ปุ่มที่กดไม่ได้ ผู้ใช้จะอ่านเป็น "ระบบพัง"
+
+**copy ห้ามบอกว่า "AI จะหยุดตอบ"** — เราสั่ง Meta ไม่ได้จริง (ดู §2) โมดัลจึงพูดเฉพาะสิ่งที่แอปเรา
+ทำได้ (ปลดล็อกให้พิมพ์) + ชี้ทางที่แน่นอน 100% (Business Suite)
+
+### 4 สตริงจาก Meta (query ตรงจากฐาน prod 2026-08-08 — ห้ามเดา)
+
+| อังกฤษ (exact) | ไทย | ลิงก์ |
+|---|---|---|
+| `Your AI agent will respond.` | เอเจนต์ AI ของ Meta เริ่มตอบแทนคุณในแชทนี้แล้ว | ไม่มี |
+| `You took over this chat from your AI agent.` | คุณเข้ามาดูแลแชทนี้แทนเอเจนต์ AI | มี |
+| `Your AI agent transferred this chat to you. Teach your AI so it can respond next time.` | เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล — สอน AI เพิ่มเพื่อให้ตอบเองได้ครั้งหน้า | มี |
+| `Your AI agent transferred this chat to you because your customer is ready to buy.` | เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล เพราะลูกค้าพร้อมสั่งซื้อแล้ว | มี |
+
+🛑 คำแปลแถวที่ 2 คือคำที่ **Meta ใช้เองใน Business Suite ภาษาไทย** (ยืนยันจาก screenshot) ห้ามเปลี่ยน
+🛑 ตอนออกแบบเดาสตริงที่ 4 ว่าลงท้าย "ลูกค้าขอคุยกับคน" **ของจริงคือ "ready to buy"** — คนละความหมาย
+กันคนละเรื่อง จับได้เพราะ query ฐานก่อนเขียน
+
+## 5. Known gaps
+
+- **ปุ่ม "เปิด AI กลับ" ในแอปเราทำไม่ได้** — เป็นลิงก์ไป `https://business.facebook.com/latest/inbox/all`
+  (ยังไม่ยืนยันรูปแบบ deep link ต่อเพจ — ห้ามเดา query string ตาม `external-payload-schema.md`)
+- **ยังไม่ยืนยันว่าส่งข้อความผ่านไหมตอน AI ถือห้อง** — ถ้าไม่ผ่าน ต้องเพิ่ม rule ใน
+  `src/lib/chat-send-failure.ts` เมื่อรู้ error code จริง (ห้ามเขียนคำแปลเดาล่วงหน้า)
+- **ไม่มีป้ายบนบับเบิลว่า "Meta AI ตอบ"** — นอกขอบเขตรอบนี้ ถ้าจะทำต้องเลือกไอคอนที่ไม่ชนกับ
+  `robot` (DeepBot) และ `sparkles` (DeepAI) ที่ถูกจับจองความหมายไปแล้ว
+- **ทาง B ที่ยังไม่ทำ:** เปิด Conversation Routing บนเพจจะปลดล็อก take/pass/release ครบ แต่เปลี่ยน
+  พฤติกรรม routing ของทั้งเพจ — ไม่แตะ เพราะเป็นเพจที่ร้านใช้ขายจริง
+- browser QA (user ตรวจเอง)

@@ -158,6 +158,10 @@ export type ChatMessageView = {
    *  ผลต่อ UI: ข้อความยืนยันตอน "ยกเลิก" ต้องไม่พูดว่า "ลูกค้าไม่เคยได้รับ" (อาจเป็นเท็จ)
    *  และ refetch จะ reconcile บับเบิลนี้กับแถวจริงด้วย fileId (ดู reconcileIdsRef) */
   _ambiguous?: boolean
+  /** feature "Meta AI ถือสิทธิ์คุมเธรด" (2026-08-08) — true = ข้อความนี้เข้ามาตอน Meta AI ถือสิทธิ์
+   *  คุมเธรด (มาจากกล่อง standby ของ webhook) GET .../messages คืนคอลัมน์นี้มาอยู่แล้ว (findMany
+   *  ไม่มี select, spread ...m) ประกาศ type เพิ่มเท่านั้นเหมือน deliveryStatus/externalMessageId ข้างบน */
+  viaStandby?: boolean | null
 }
 
 type MessagesApiResponse = {

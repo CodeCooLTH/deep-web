@@ -101,3 +101,48 @@ export function parseMetaSystemNotice(body: string | null | undefined): MetaSyst
 
   return { text: text.trim(), linkLabel, url }
 }
+
+/**
+ * parseMetaAiHandoffNotice — ข้อความ "ระบบ" ที่ Meta แทรกเวลาสิทธิ์คุมเธรดสลับมือระหว่าง
+ * เอเจนต์ AI ↔ คน (feature "เธรดที่ Meta AI ถือสิทธิ์คุมอยู่" 2026-08-08)
+ *
+ * สตริงต้นทาง 4 ค่านี้ query มาจากฐาน prod ตรงตัว (2026-08-08) — ห้ามเดา ห้ามย่อ. ถ้า Meta
+ * เพิ่มสตริงใหม่ที่ไม่อยู่ในลิสต์นี้ ฟังก์ชันคืน null แล้วข้อความนั้นจะตกไปเป็นบับเบิลอังกฤษ
+ * ตามปกติ (fail-soft ไม่พัง) เหมือน parseMetaSystemNotice
+ *
+ * คำแปลแถวที่ 2 ("คุณเข้ามาดูแลแชทนี้แทนเอเจนต์ AI") คือคำที่ Meta ใช้เองใน Business Suite
+ * ภาษาไทย (user ยืนยันจาก screenshot) — ห้ามเปลี่ยนถ้อยคำ
+ *
+ * รูปร่าง MetaSystemNotice เดียวกับ parseMetaSystemNotice เพื่อให้ JSX render จุดเดียวกัน
+ * ใน ChatThread.tsx ใช้ได้กับทั้งคู่โดยไม่ต้องแก้ (linkLabel/url = null เมื่อไม่มีลิงก์)
+ */
+const AI_HANDOFF_NOTICES: { en: string; th: string; hasLink: boolean }[] = [
+  // AI เปิดอยู่แล้ว ไม่มีอะไรให้ "เปิดกลับ" จึงไม่มีลิงก์
+  { en: 'Your AI agent will respond.', th: 'เอเจนต์ AI ของ Meta เริ่มตอบแทนคุณในแชทนี้แล้ว', hasLink: false },
+  { en: 'You took over this chat from your AI agent.', th: 'คุณเข้ามาดูแลแชทนี้แทนเอเจนต์ AI', hasLink: true },
+  {
+    en: 'Your AI agent transferred this chat to you. Teach your AI so it can respond next time.',
+    th: 'เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล — สอน AI เพิ่มเพื่อให้ตอบเองได้ครั้งหน้า',
+    hasLink: true,
+  },
+  {
+    en: 'Your AI agent transferred this chat to you because your customer is ready to buy.',
+    th: 'เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล เพราะลูกค้าพร้อมสั่งซื้อแล้ว',
+    hasLink: true,
+  },
+]
+
+const AI_HANDOFF_LINK_LABEL = 'เปิด AI กลับใน Business Suite'
+const AI_HANDOFF_LINK_URL = 'https://business.facebook.com/latest/inbox/all'
+
+export function parseMetaAiHandoffNotice(body: string | null | undefined): MetaSystemNotice | null {
+  if (!body) return null
+  const line = body.trim()
+  const hit = AI_HANDOFF_NOTICES.find((n) => n.en === line)
+  if (!hit) return null
+  return {
+    text: hit.th,
+    linkLabel: hit.hasLink ? AI_HANDOFF_LINK_LABEL : null,
+    url: hit.hasLink ? AI_HANDOFF_LINK_URL : null,
+  }
+}
