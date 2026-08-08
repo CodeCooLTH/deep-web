@@ -522,8 +522,6 @@ type Props = {
   /** ชื่อร้านของเธรด — มีค่า = โหมดรวมหลายร้าน ให้ขึ้นแถบ "กำลังตอบในนามร้าน X"
    *  null = โหมดร้านเดียว: หัวเธรดต้องเหมือนเดิมทุกพิกเซล ไม่มีแถบ ไม่มี badge (feature 00037) */
   shopName?: string | null
-  /** โลโก้ร้าน (storage fileId) — badge มุมบนซ้ายของรูปลูกค้าในโหมดรวม */
-  shopLogo?: string | null
   buyerName: string
   buyerAvatar: string | null
   /** feature 00018 (user request 2026-07-23) — รูปฝั่งร้าน (ข้อความ mine): รูปเพจสำหรับช่องทางนอก
@@ -740,7 +738,6 @@ export default function ChatThread({
   conversationId,
   shopId,
   shopName = null,
-  shopLogo = null,
   buyerName,
   buyerAvatar,
   shopAvatar,

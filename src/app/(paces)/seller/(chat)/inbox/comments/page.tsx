@@ -95,6 +95,7 @@ export default async function CommentsPage() {
           key={`${scope.mode}:${scope.shopIds.join(',')}`}
           initialPosts={posts}
           shopIds={scope.shopIds}
+          unified={scope.mode === 'UNIFIED'}
           channels={channels}
         />
       )}

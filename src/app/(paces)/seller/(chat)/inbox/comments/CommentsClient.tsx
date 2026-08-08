@@ -147,11 +147,14 @@ function privateReplyWindow(createdTime: string): { text: string; expired: boole
 export default function CommentsClient({
   initialPosts,
   shopIds,
+  unified = false,
   channels,
 }: {
   initialPosts: CommentPostItem[]
   /** ร้านที่แท็บนี้ครอบคลุม (feature 00037) — subscribe `comments:shop:{id}` ทุกตัว */
   shopIds: string[]
+  /** true = โหมดรวมหลายร้าน → การ์ดโพสต์บอกชื่อร้านเจ้าของโพสต์ (ข้อความ ไม่ใช่ badge รูป) */
+  unified?: boolean
   /** เพจที่ร้านเชื่อมไว้ — ใช้ทำตัวกรอง (user 2026-08-03: 'มีสิทธิ์ได้มาจากหลาย page ที่เชื่อม') */
   channels: ChannelOption[]
 }) {
@@ -1017,6 +1020,14 @@ export default function CommentsClient({
                     </span>
                     {/* บรรทัดที่ 2 = "ลูกค้าถามอะไร" ไม่ใช่ตัวเลขที่ตัดสินใจอะไรไม่ได้ (critique P1)
                         แบบเดียวกับ preview ข้อความล่าสุดในแท็บข้อความ */}
+                    {/* ชื่อร้านเจ้าของโพสต์ (feature 00037) — เฉพาะโหมดรวม; ข้อความไม่ใช่ badge รูป
+                        ด้วยเหตุผลเดียวกับแถวในแท็บข้อความ (รูปเพจซ้ำกันได้ระหว่างสาขา) */}
+                    {unified && p.shop && (
+                      <span className="text-default-500 text-2xs mt-0.5 flex items-center gap-0.5 truncate">
+                        <Icon icon="building-store" className="size-3 shrink-0" />
+                        <span className="truncate">{p.shop.name}</span>
+                      </span>
+                    )}
                     <span className="text-default-700 mt-0.5 block truncate text-2xs">
                       {p.lastCommentText
                         ? `${p.lastCommenterName ?? 'ผู้ใช้ Facebook'}: ${p.lastCommentText}`

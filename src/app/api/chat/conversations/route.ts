@@ -41,6 +41,31 @@ type ConversationWithCounterparty = ConversationSummary & {
   contactSalesStatus: string;
 };
 
+/**
+ * enrichWithShopIdentity — เติม `shop: {id,name}` ให้แถวของ seller (feature 00037)
+ *
+ * มิเรอร์ enrichWithShopCounterparty (buyer branch) แต่คนละความหมาย: ฝั่ง buyer "ร้าน" คือคู่สนทนา
+ * ส่วนฝั่ง seller "ร้าน" คือ *ตัวเราเอง* ที่กำลังตอบในนามนั้น — จึงเป็นคนละ field ไม่ reuse กัน
+ * (ถ้ายัดลง counterparty จะกลายเป็นว่าฝั่ง seller คู่สนทนาคือร้านตัวเอง ซึ่งผิดความหมาย)
+ *
+ * ไม่แตะ ConversationSummary (FROZEN CONTRACT) — enrichment แยกเหมือน counterparty/orderStage
+ */
+async function enrichWithShopIdentity<T extends { shopId: string }>(
+  items: T[],
+  shopIds: string[],
+): Promise<(T & { shop: { id: string; name: string } | null })[]> {
+  if (items.length === 0) return [];
+  const shops = await prisma.shop.findMany({
+    where: { id: { in: shopIds } },
+    select: { id: true, shopName: true },
+  });
+  const byId = new Map(shops.map((s) => [s.id, s]));
+  return items.map((i) => {
+    const shop = byId.get(i.shopId);
+    return { ...i, shop: shop ? { id: shop.id, name: shop.shopName } : null };
+  });
+}
+
 async function enrichWithShopCounterparty(
   items: ConversationSummary[],
 ): Promise<ConversationWithCounterparty[]> {
@@ -236,7 +261,22 @@ export async function GET(request: NextRequest) {
     const withUnread = enriched.map((i) => ({ ...i, unreadCount: unreadMap.get(i.id) ?? 0 }));
     // ป้ายขั้นตอนออเดอร์ล่าสุดในแถว (user request 2026-07-29 — แทนชิปตะกร้า+จำนวนเดิมของ 2026-07-25)
     // service กลาง: หน้า inbox โหลดหน้าแรกแบบ RSC ไม่ผ่าน route นี้ ต้องเรียกฟังก์ชันเดียวกันทั้งสองทาง
-    const withStage = await enrichWithOrderStage(withUnread, scopedShopIds);
+    /**
+     * feature 00037 (แก้รอบ 2026-08-08 หลัง ux gate) — ป้ายชื่อร้านในแถว
+     *
+     * รอบแรกใช้ badge รูปมุมบนซ้ายของ avatar แล้ว user เจอบน prod ว่าซ้ำกับรูปเพจมุมล่างขวา
+     * (ร้านตั้งโลโก้เพจเป็นโลโก้ร้าน = ปกติ) พอถอด badge ออก แถวก็ไม่เหลือตัวบอกร้านเลยสักตัว
+     * ซึ่งทำให้ AC-04-1 หลุดทั้งเส้น — ไม่ใช่แค่บาง edge case:
+     *   · เธรด DEEP วาดไอคอนเดียวกัน 100% ทุกร้าน (ค่าคงที่ ไม่ใช่ "อาจซ้ำ")
+     *   · เพจที่ Meta ไม่ให้รูป → ถอยไปโลโก้ Facebook เปล่า ๆ เหมือนกันทุกร้าน
+     *   · เชนสาขา (persona หลักของฟีเจอร์นี้เอง) ตั้งรูปเพจเหมือนกันทุกสาขา
+     * ทางแก้จึงต้องเป็น "ข้อความ" ไม่ใช่ภาพ — ภาพซ้ำกันได้ ข้อความไม่ซ้ำโดยไม่ตั้งใจ
+     *
+     * ยิงเฉพาะตอนขอบเขต > 1 ร้าน: โหมดร้านเดียวไม่ต้องเสีย query นี้เลย
+     */
+    const withShop =
+      scopedShopIds.length > 1 ? await enrichWithShopIdentity(withUnread, scopedShopIds) : withUnread;
+    const withStage = await enrichWithOrderStage(withShop, scopedShopIds);
     // ป้าย DeepBot ในแถว (S-20) — อ่าน autoReplyKind ของข้อความล่าสุดจริงของแต่ละเธรด
     // เรียกที่นี่และใน inbox/page.tsx ด้วยฟังก์ชันเดียวกัน ไม่งั้นหน้าแรก (RSC) กับหน้าที่โหลด
     // จากการกรอง (route นี้) จะแสดงไม่เหมือนกัน — บทเรียนเดียวกับ enrichWithOrderStage

@@ -188,6 +188,22 @@ export default async function SellerInboxPage() {
     // ป้ายขั้นตอนออเดอร์ล่าสุด (user request 2026-07-29) — service เดียวกับที่ GET /api/chat/conversations
     // ใช้ ไม่งั้นหน้าแรกกับหน้าที่โหลดจากการกรองจะแสดงไม่เหมือนกัน (ของเดิม enrich อยู่ใน route ทางเดียว
     // ชิปเลยไม่ขึ้นตอนโหลดหน้าแรก แล้วค่อยโผล่หลัง client refetch)
+    /**
+     * ป้ายชื่อร้านในแถว (feature 00037) — ต้องทำ "ทั้งสองทาง" เหมือน stageMap/autoReplyBadge:
+     * หน้าแรกมาจาก RSC ตัวนี้ ส่วนการกรอง/เลื่อนโหลดมาจาก GET /api/chat/conversations
+     * ถ้า enrich ทางเดียว ป้ายจะไม่ขึ้นตอนเข้าหน้าครั้งแรกแล้วค่อยโผล่หลัง refetch = ดูเหมือนบั๊ก
+     */
+    const shopNameById = isUnified
+      ? new Map(
+          (
+            await prisma.shop.findMany({
+              where: { id: { in: shopIds } },
+              select: { id: true, shopName: true },
+            })
+          ).map((r) => [r.id, r.shopName]),
+        )
+      : new Map<string, string>()
+
     const stageMap = new Map(
       (await enrichWithOrderStage(result.items, shopIds)).map((r) => [r.id, r.orderStage]),
     )
@@ -240,6 +256,7 @@ export default async function SellerInboxPage() {
         unreadCount: unreadMap.get(c.id) ?? 0,
         // feature 00018 E5 — ชิป `ad_id.…` ในแถว (ร้านดูได้ว่าโฆษณาไหนพาลูกค้าคนนี้มา)
         referralAdId: c.referralAdId,
+        shop: shopNameById.has(c.shopId) ? { id: c.shopId, name: shopNameById.get(c.shopId)! } : null,
         orderStage: stageMap.get(c.id) ?? null,
         // S-20 — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
         lastMessageAutoReplyKind: autoReplyBadgeMap.get(c.id)?.kind ?? null,

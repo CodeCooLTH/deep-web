@@ -431,7 +431,6 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         shopId={shop.id}
         // ป้ายร้านบนหัวเธรด — แสดงเฉพาะโหมดรวม (โหมดร้านเดียวหัวเธรดต้องเหมือนเดิม 100%)
         shopName={scope.mode === 'UNIFIED' ? shop.name : null}
-        shopLogo={shopRow.logo}
         buyerName={buyerDisplayName}
         buyerAvatar={buyerAvatar}
         shopAvatar={shopAvatar}
