@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mockup เต็มหน้า — โปรไฟล์ร้านสาธารณะ /u/[username]</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   Mockup เต็มหน้า: /u/[username] + /b/[slug] (ShopProfile.tsx ตัวเดียวกัน)
+   surface = buyer → Vuexy
+
+   รอบนี้ = ฉบับหลัง safepay-ux gate (Hard Rule 8)
+   ux ตัดสินให้ใช้ **hybrid A+D** ไม่ใช่แบบใดแบบหนึ่งใน 4 แบบรอบก่อน:
+     · จาก A — คงชิปคะแนน/tier + แถวช่องทางเต็มความกว้าง
+     · จาก D — ตัวเลขใหญ่ก้อนเดียว (%) + caption กางตัวหาร
+     · แก้จุดที่ทั้งคู่พลาด — "17" กับ "94%" ต้องไม่ใหญ่เท่ากัน
+       (craft-floor.md ห้าม hero-metric ซ้ำสองก้อน) และ D ทำชิปคะแนนหายไปเฉย ๆ
+
+   Base (Hard Rule 1):
+     theme/vuexy/.../views/pages/user-profile/UserProfileHeader.tsx
+     theme/vuexy/.../@core/theme/{colorSchemes,typography,customShadows,spacing,index}.ts
+   โครงหน้าอ้างของจริง: ShopProfile.tsx · ProfileTabs.tsx · profile/index.tsx
+     · AboutOverview.tsx · ReviewSummary.tsx · OfficialChannels.tsx
+
+   ⚠️ @container ในไฟล์นี้ใช้จำลองอุปกรณ์ในเอกสารเท่านั้น — ห้าม copy ค่า 700px
+      ลงโค้ดจริง (ไม่ตรง breakpoint ของระบบ) ให้แปลเป็น min-[768px]: ตอน implement
+   ═══════════════════════════════════════════════════════════════ */
+:root{
+  --mui-mainColorChannels-light:47 43 61;
+  --mui-palette-primary-main:#7367F0;
+  --mui-palette-primary-mainChannel:115 103 240;
+  --mui-palette-success-main:#28C76F;
+  --mui-palette-success-mainChannel:40 199 111;
+  --mui-palette-warning-main:#FF9F43;
+  --mui-palette-text-primary:rgb(var(--mui-mainColorChannels-light) / .9);
+  --mui-palette-text-secondary:rgb(var(--mui-mainColorChannels-light) / .7);
+  --mui-palette-text-disabled:rgb(var(--mui-mainColorChannels-light) / .4);
+  --mui-palette-divider:rgb(var(--mui-mainColorChannels-light) / .12);
+  --mui-palette-action-hover:rgb(var(--mui-mainColorChannels-light) / .06);
+  --mui-palette-action-selected:rgb(var(--mui-mainColorChannels-light) / .08);
+  --mui-palette-background-default:#F8F7FA;
+  --mui-palette-background-paper:#FFFFFF;
+  --mui-shape-borderRadius:6px;
+  --mui-shape-customBorderRadius-lg:10px;
+  --mui-customShadows-xs:0px 1px 6px rgb(var(--mui-mainColorChannels-light) / .1);
+  --mui-customShadows-md:0px 3px 12px rgb(var(--mui-mainColorChannels-light) / .14);
+  --sp-2:.5rem;--sp-3:.75rem;--sp-4:1rem;--sp-5:1.25rem;--sp-6:1.5rem;
+  /* DESIGN.md §2 "สองโทน" — success.main บนพื้นขาว 2.21:1 ตกเกณฑ์ ตัวอักษรจึงใช้คู่ ink */
+  --verified-ink:#18804A;
+  --fixture-shop-logo:#B02A2A;              /* สีโลโก้ที่ร้านอัปโหลดเอง ไม่ใช่ token ระบบ */
+  --brand-facebook:#1877F2;                  /* carve-out Hard Rule 6 (OfficialChannels.tsx:33) */
+  --brand-instagram:linear-gradient(45deg,#f09433,#dc2743,#bc1888);
+  --tier-cover:linear-gradient(135deg,#9b98a8 0%,#bdbbc7 55%,#dedce4 100%); /* trust-tier.ts:142 */
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--mui-palette-background-default);
+  color:var(--mui-palette-text-primary);
+  font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;
+  font-size:.9375rem;line-height:1.46667}
+
+/* type ramp = typography.ts ∩ DESIGN.md + metric/dense ที่ DESIGN.md ประกาศเพิ่ม
+   metric = 32/22/20px w800 tabular-nums "อยู่นอก ramp ข้อความโดยตั้งใจ"
+   (.impeccable/design.json → extensions.typographyMeta.metric) */
+.t-h3{font-size:1.75rem;font-weight:500;line-height:1.5}
+.t-h5{font-size:1.125rem;font-weight:500;line-height:1.5556}
+.t-h6{font-size:.9375rem;font-weight:500;line-height:1.46667}
+.t-body1{font-size:.9375rem;line-height:1.46667}
+.t-body2{font-size:.8125rem;line-height:1.53846154}
+.t-caption{font-size:.8125rem;line-height:1.38462;letter-spacing:.4px}
+.m-lg{font-size:32px;font-weight:800;line-height:1.2;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.m-md{font-size:22px;font-weight:800;line-height:1.2;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.t-dense{font-size:11px;font-weight:600;line-height:1.4}
+.c-sec{color:var(--mui-palette-text-secondary)}
+.c-dis{color:var(--mui-palette-text-disabled)}
+.num{font-variant-numeric:tabular-nums}
+.fw-600{font-weight:600}
+
+/* ── แถบควบคุมเอกสาร ─────────────────────────────────────── */
+.bar{position:sticky;top:0;z-index:30;background:var(--mui-palette-background-default);
+  border-bottom:1px solid var(--mui-palette-divider);padding:var(--sp-3) var(--sp-5);
+  display:flex;gap:var(--sp-5);align-items:center;flex-wrap:wrap}
+.grp{display:flex;gap:var(--sp-2);align-items:center}
+.seg{display:inline-flex;background:var(--mui-palette-background-paper);
+  border:1px solid var(--mui-palette-divider);border-radius:999px;padding:3px}
+.seg button{font:inherit;font-size:.8125rem;font-weight:500;border:0;background:transparent;
+  color:var(--mui-palette-text-secondary);padding:.375rem .875rem;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--mui-palette-primary-main);color:#fff}
+.doc{padding:var(--sp-4) var(--sp-5) 0;max-width:88ch}
+
+/* ── กรอบอุปกรณ์ ─────────────────────────────────────────── */
+.stage{padding:var(--sp-5);display:flex;justify-content:center}
+.frame{container-type:inline-size;background:var(--mui-palette-background-paper);
+  border-radius:var(--mui-shape-borderRadius);box-shadow:var(--mui-customShadows-md);overflow:hidden}
+body[data-view=mobile] .frame{width:390px}
+body[data-view=tablet] .frame{width:768px}
+body[data-view=desktop] .frame{width:1120px}
+.page{max-width:960px;margin-inline:auto}   /* ShopProfile.tsx:151 */
+
+/* ── หัวโปรไฟล์ ──────────────────────────────────────────── */
+.cover{height:104px;background:var(--tier-cover)}
+.idbody{padding:0 var(--sp-5) var(--sp-4);text-align:center}
+.ava{width:80px;height:80px;border-radius:50%;
+  border:5px solid var(--mui-palette-background-paper);margin:-42px auto var(--sp-3);
+  background:var(--fixture-shop-logo);color:#fff;display:flex;align-items:center;justify-content:center;
+  font-size:1.75rem;font-weight:500}
+.rowc{display:flex;gap:var(--sp-2);align-items:center;justify-content:center;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:.25rem;border-radius:999px;padding:.25rem .625rem;
+  font-size:.8125rem;line-height:1.53846154;font-weight:500;
+  background:var(--mui-palette-action-selected);color:var(--mui-palette-text-primary)}
+.chip--outlined{background:transparent;border:1px solid var(--mui-palette-divider);
+  color:var(--mui-palette-text-secondary)}
+/* ปุ่ม ⓘ ต้องมี hit-area ≥44px (PRODUCT.md) — MUI IconButton size=small ให้ 34px ไม่พอ */
+.info{display:inline-flex;align-items:center;justify-content:center;
+  width:44px;height:44px;margin:-14px -12px -14px -4px;border:0;background:transparent;
+  color:var(--mui-palette-text-secondary);cursor:pointer}
+.div-t{border-top:1px solid var(--mui-palette-divider)}
+.sect{padding:var(--sp-4) var(--sp-5)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;width:100%;
+  min-height:50px;border:0;border-radius:var(--mui-shape-borderRadius);
+  background:var(--mui-palette-primary-main);color:#fff;font:inherit;font-size:.9375rem;
+  font-weight:500;cursor:pointer;box-shadow:var(--mui-customShadows-xs)}
+.btnwrap{max-width:100%}
+
+/* แถวช่องทาง — OfficialChannels.tsx ตามเดิม: list แนวตั้งเดียวทุก breakpoint
+   (ux สั่งห้ามทำ 2 คอลัมน์ เพราะต้องไปแก้ตรรกะเส้นคั่นภายใน component) */
+.ch{display:flex;align-items:center;gap:var(--sp-3);padding:.625rem 0;
+  border-bottom:1px solid var(--mui-palette-divider);text-decoration:none;color:inherit}
+.ch:last-child{border-bottom:0}
+.ch__ava{width:38px;height:38px;border-radius:var(--mui-shape-customBorderRadius-lg);flex:0 0 auto;
+  position:relative;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600}
+.ch__tick{position:absolute;inset-block-end:-2px;inset-inline-end:-2px;width:16px;height:16px;
+  border-radius:50%;background:var(--mui-palette-success-main);
+  border:2px solid var(--mui-palette-background-paper);display:flex;align-items:center;justify-content:center}
+.ch__txt{min-width:0;flex:1}
+.ch__name{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch__sub{display:block;color:var(--mui-palette-text-secondary);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.ch__go{flex:0 0 auto;color:var(--mui-palette-primary-main);font-weight:500;
+  display:inline-flex;align-items:center;gap:.25rem}
+
+/* ── แถบแท็บ (ProfileTabs.tsx) ───────────────────────────── */
+.tabs{display:flex;gap:var(--sp-6);border-bottom:1px solid var(--mui-palette-divider);
+  overflow-x:auto;padding-inline:var(--sp-5)}
+.tabs button{position:relative;padding:var(--sp-3) 0;min-height:44px;font:inherit;
+  font-size:.9375rem;font-weight:600;white-space:nowrap;background:transparent;border:0;cursor:pointer;
+  color:var(--mui-palette-text-disabled);display:inline-flex;align-items:center;gap:.375rem}
+.tabs button[aria-selected=true]{color:var(--mui-palette-text-primary)}
+.tabs button[aria-selected=true]::after{content:'';position:absolute;inset-inline:0;bottom:-1px;
+  height:2.5px;border-radius:2px;background:var(--mui-palette-primary-main)}
+.panel{padding:var(--sp-4) var(--sp-5) var(--sp-6)}
+.panel[hidden]{display:none}
+
+/* ── กริดสินค้า (profile/index.tsx) ──────────────────────── */
+.sec-title{margin:0 0 var(--sp-3)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-3)}
+.pcard{text-decoration:none;color:inherit;display:block}
+.pcard__img{aspect-ratio:1/1;border-radius:var(--mui-shape-borderRadius);
+  background:var(--mui-palette-action-hover);display:flex;align-items:center;justify-content:center;
+  color:var(--mui-palette-text-disabled);margin-bottom:.375rem}
+.pcard__n{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pcard__p{font-weight:600;margin-top:.125rem}
+
+/* ── เกี่ยวกับร้าน (AboutOverview.tsx) ───────────────────── */
+.about-rows{display:flex;flex-direction:column;gap:var(--sp-2);color:var(--mui-palette-text-secondary)}
+.about-rows div{display:flex;align-items:center;gap:var(--sp-2)}
+
+/* ── รีวิว (ReviewSummary.tsx + ReviewList.tsx) ──────────── */
+.rsum{display:flex;align-items:center;gap:var(--sp-5);padding-bottom:var(--sp-4);
+  border-bottom:1px solid var(--mui-palette-divider);margin-bottom:var(--sp-4)}
+.rsum__avg{text-align:center;flex:0 0 auto;min-width:92px}
+.stars{display:flex;justify-content:center;gap:2px;color:var(--mui-palette-warning-main);margin-top:.25rem}
+.rbars{flex:1;min-width:0;display:flex;flex-direction:column;gap:.375rem}
+.rbar{display:flex;align-items:center;gap:var(--sp-2)}
+.rbar__t{flex:1;height:7px;border-radius:4px;background:var(--mui-palette-action-hover);overflow:hidden}
+.rbar__f{display:block;height:100%;border-radius:4px;background:var(--mui-palette-warning-main)}
+.rev{padding:var(--sp-3) 0;border-bottom:1px solid var(--mui-palette-divider)}
+.rev:last-child{border-bottom:0}
+
+/* ── โมดัลเหตุผลยกเลิก (ฝั่ง seller — schematic) ─────────── */
+.swal{max-width:400px;margin:0 auto;background:var(--mui-palette-background-paper);
+  border-radius:var(--mui-shape-customBorderRadius-lg);box-shadow:var(--mui-customShadows-md);
+  padding:var(--sp-6);text-align:center}
+.swal__ico{width:56px;height:56px;border-radius:50%;margin:0 auto var(--sp-3);
+  border:3px solid var(--mui-palette-warning-main);color:var(--mui-palette-warning-main);
+  display:flex;align-items:center;justify-content:center}
+.swal select{width:100%;margin:var(--sp-4) 0;padding:.625rem .75rem;font:inherit;font-size:.9375rem;
+  border:1px solid var(--mui-palette-divider);border-radius:var(--mui-shape-borderRadius);
+  background:var(--mui-palette-background-paper);color:var(--mui-palette-text-primary)}
+.swal__acts{display:flex;flex-direction:column;gap:var(--sp-2)}
+.swal__acts button{min-height:44px;border:0;border-radius:var(--mui-shape-borderRadius);
+  font:inherit;font-size:.9375rem;font-weight:500;cursor:pointer}
+.btn-danger{background:#FF4C51;color:#fff}
+.btn-light{background:var(--mui-palette-action-hover);color:var(--mui-palette-text-primary)}
+
+@container (min-width:700px){
+  .cover{height:160px}
+  .ava{width:104px;height:104px;margin-top:-56px}
+  .grid{grid-template-columns:repeat(5,1fr)}
+  .btnwrap{max-width:320px;margin-inline:auto}
+}
+
+/* สลับ before/after + สลับสถานะตัวอย่าง */
+body[data-hero=now] #heroNew,body[data-hero=new] #heroNow{display:none}
+body[data-state=normal] .st-low,body[data-state=low] .st-normal{display:none}
+</style>
+</head>
+<body data-view="mobile" data-hero="new" data-state="normal">
+
+<div class="bar">
+  <span class="grp"><span class="t-body2 c-sec fw-600">ขนาดจอ</span>
+    <span class="seg" id="segView">
+      <button data-v="mobile" aria-pressed="true">Mobile 390</button>
+      <button data-v="tablet" aria-pressed="false">Tablet 768</button>
+      <button data-v="desktop" aria-pressed="false">Desktop 1120</button>
+    </span></span>
+  <span class="grp"><span class="t-body2 c-sec fw-600">หัวโปรไฟล์</span>
+    <span class="seg" id="segHero">
+      <button data-h="new" aria-pressed="true">ที่เสนอ (ผ่าน ux แล้ว)</button>
+      <button data-h="now" aria-pressed="false">ของบน prod ตอนนี้</button>
+    </span></span>
+  <span class="grp"><span class="t-body2 c-sec fw-600">สถานะข้อมูล</span>
+    <span class="seg" id="segState">
+      <button data-s="normal" aria-pressed="true">มีข้อมูลพอ</button>
+      <button data-s="low" aria-pressed="false">ปิดจบ &lt; 3 ใบ</button>
+    </span></span>
+</div>
+
+<div class="doc">
+  <p class="t-body2 c-sec" style="margin:0">
+    หน้าเต็มของ <b>/u/[username]</b> (และ <b>/b/[slug]</b> ที่ใช้ <code>ShopProfile.tsx</code> ตัวเดียวกัน) — แท็บกดได้จริง.
+    หัวโปรไฟล์ที่เสนอเป็น <b>hybrid A+D</b> ตามที่ <code>safepay-ux</code> ตัดสิน ไม่ใช่แบบใดแบบหนึ่งใน 4 แบบรอบก่อน
+    (เหตุผลอยู่ท้ายหน้า). ข้อมูลเป็นของร้านจริงจาก prod ยกเว้นอัตราสำเร็จที่คิดตามกติกาใหม่ และแท็บรีวิวที่ใส่ตัวอย่างไว้ให้เห็นโครง
+    — ของจริงร้านนี้ยังไม่มีรีวิว แท็บจะไม่ถูก render เลย (<code>ShopProfile.tsx:90</code>)
+  </p>
+</div>
+
+<div class="stage"><div class="frame"><div class="page">
+
+<!-- ══════════ หัวโปรไฟล์: ที่เสนอ ══════════ -->
+<section id="heroNew">
+  <div class="cover"></div>
+  <div class="idbody">
+    <div class="ava">ธ</div>
+    <h1 class="t-h5" style="margin:0">ธนภัทร อะไหล่มอเตอร์ไซค์</h1>
+    <div class="rowc" style="margin-top:.375rem">
+      <span class="chip"><span class="num">13</span><span class="c-sec">/ 100</span>
+        <button class="info" type="button" title="คำนวณจากการยืนยันตัวตน ประวัติคำสั่งซื้อจริง รีวิว และระยะเวลาที่เปิดร้าน" aria-label="คะแนนความน่าเชื่อถือคำนวณจากอะไร">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        </button></span>
+      <span class="chip chip--outlined">Deep Classic</span>
+    </div>
+    <!-- แก้ P1: เดิมเป็น text.disabled (ink .4 ≈ 2.7:1 ตก AA) → text.secondary -->
+    <p class="t-caption c-sec" style="margin:.375rem 0 0">@tanapathardware · อะไหล่ยานยนต์ · เปิดร้านตั้งแต่ ก.ค. 2569</p>
+  </div>
+
+  <div class="sect div-t rowc" style="justify-content:center">
+    <span class="chip">เริ่มมีลูกค้า</span><span class="chip">เปิดหน้าร้าน</span><span class="chip">สมาชิกผู้ก่อตั้ง 2026</span>
+  </div>
+
+  <!-- 2 ตัวเลข แต่คนละน้ำหนัก: 22px ink / 32px Verified Ink — ไม่ใช่ 32 เท่ากันสองก้อน -->
+  <div class="sect div-t">
+    <span class="m-md" style="display:block">17</span>
+    <span class="t-body2 c-sec">คำสั่งซื้อสำเร็จ</span>
+  </div>
+
+  <div class="sect div-t st-normal">
+    <div style="display:flex;align-items:baseline;gap:var(--sp-3);flex-wrap:wrap">
+      <span class="m-lg" style="color:var(--verified-ink)">94%</span>
+      <span class="t-h6">อัตราสำเร็จ</span>
+    </div>
+    <p class="t-body2 c-sec" style="margin:.375rem 0 0">จาก 18 ใบที่ปิดจบ · ไม่นับ 3 ใบที่ผู้ซื้อไม่รับของ</p>
+  </div>
+
+  <!-- สถานะ n<3: คงตำแหน่ง section ไว้ ไม่หายเงียบ · เป็นกลาง ไม่ใช้ warning/error -->
+  <div class="sect div-t st-low">
+    <p class="t-body1" style="margin:0">ยังสรุปอัตราสำเร็จไม่ได้</p>
+    <p class="t-body2 c-sec" style="margin:.25rem 0 0">ต้องมีคำสั่งซื้อที่ปิดจบอย่างน้อย 3 ใบ (ไม่นับใบที่ผู้ซื้อไม่รับของ)</p>
+  </div>
+
+  <div class="sect div-t">
+    <p class="t-body2 c-sec" style="margin:0 0 var(--sp-2)">ช่องทางเหล่านี้ยืนยันแล้วว่าเป็นของร้านนี้จริง ผ่านการเข้าสู่ระบบกับแพลตฟอร์มโดยตรง</p>
+    <a class="ch" href="#">
+      <span class="ch__ava" style="background:var(--brand-facebook)">ธ
+        <span class="ch__tick"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></span>
+      <span class="ch__txt"><span class="ch__name t-body1">ธนภัทร อะไหล่มอเตอร์ไซค์ สายซิ่ง</span>
+        <span class="ch__sub t-caption">Facebook Page</span></span>
+      <span class="ch__go t-body2">เปิด<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg></span></a>
+    <a class="ch" href="#">
+      <span class="ch__ava" style="background:var(--brand-instagram)">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>
+        <span class="ch__tick"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></span>
+      <span class="ch__txt"><span class="ch__name t-body1">ธนภัทร อะไหล่มอเตอร์ไซค์ สายซิ่ง</span>
+        <span class="ch__sub t-caption">Instagram</span></span>
+      <span class="ch__go t-body2">เปิด<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/></svg></span></a>
+  </div>
+
+  <div class="sect div-t"><div class="btnwrap"><button class="btn">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 01-11.6 7.1L3 21l1.9-6.4A8 8 0 1121 12z"/></svg>
+    แชทกับร้าน</button></div></div>
+</section>
+
+<!-- ══════════ หัวโปรไฟล์: ของบน prod ตอนนี้ ══════════ -->
+<section id="heroNow">
+  <div class="cover"></div>
+  <div class="idbody">
+    <div class="ava">ธ</div>
+    <h1 class="t-h5" style="margin:0">ธนภัทร อะไหล่มอเตอร์ไซค์</h1>
+    <div class="rowc" style="margin-top:.375rem">
+      <span class="chip" style="background:var(--mui-palette-text-primary);color:#fff;font-weight:800">13</span>
+      <span class="chip">Deep Classic</span>
+    </div>
+    <p class="t-caption c-dis" style="margin:.375rem 0 0">@tanapathardware · general · เปิดร้านตั้งแต่ ก.ค. 2569</p>
+  </div>
+  <div class="sect rowc" style="padding-top:0">
+    <span class="chip">เริ่มมีลูกค้า</span><span class="chip">เปิดหน้าร้าน</span><span class="chip">สมาชิกผู้ก่อตั้ง 2026</span>
+  </div>
+  <div class="sect div-t" style="display:flex;justify-content:space-around;text-align:center">
+    <div><span class="m-md" style="display:block">17</span><span class="t-caption c-dis">ออเดอร์</span></div>
+    <div><span class="m-md" style="display:block">17</span><span class="t-caption c-dis">จำนวนลูกค้า</span></div>
+    <div><span class="m-md" style="display:block">0</span><span class="t-caption c-dis">ลูกค้าใช้บริการซ้ำ</span></div>
+  </div>
+  <div class="sect div-t" style="display:flex;align-items:baseline;gap:var(--sp-3)">
+    <span class="m-lg" style="color:var(--verified-ink)">81%</span>
+    <span class="t-body1 c-sec">อัตราความสำเร็จจากออเดอร์ทั้งหมดบน Deep</span>
+  </div>
+  <div class="sect div-t"><div class="btnwrap"><button class="btn">แชทกับร้าน</button></div></div>
+</section>
+
+<!-- ══════════ แถบแท็บ ══════════ -->
+<div class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-p="0">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>สินค้า</button>
+  <button role="tab" aria-selected="false" data-p="1">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>เกี่ยวกับร้าน</button>
+  <button role="tab" aria-selected="false" data-p="2">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>รีวิว 4.8</button>
+</div>
+
+<!-- ── แท็บ 1: สินค้า ── -->
+<div class="panel" role="tabpanel" data-p="0">
+  <h2 class="t-h6 sec-title">สินค้าปักหมุด</h2>
+  <div class="grid" style="margin-bottom:var(--sp-6)">
+    <a class="pcard" href="#"><span class="pcard__img"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/></svg></span>
+      <span class="pcard__n t-body2">โช้คอัพหลัง YSS สีแดง</span><span class="pcard__p t-body2 num">฿2,850</span>
+      <span class="t-caption c-sec num" style="display:block">ขายแล้ว 4 คำสั่งซื้อ</span></a>
+    <a class="pcard" href="#"><span class="pcard__img"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/></svg></span>
+      <span class="pcard__n t-body2">ชุดสีเวฟ 125 ลายพิเศษ</span><span class="pcard__p t-body2 num">฿1,290</span>
+      <span class="t-caption c-sec num" style="display:block">ขายแล้ว 2 คำสั่งซื้อ</span></a>
+    <a class="pcard" href="#"><span class="pcard__img"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/></svg></span>
+      <span class="pcard__n t-body2">ท่อสูตร แต่งซิ่ง</span><span class="pcard__p t-body2 num">฿3,600</span></a>
+  </div>
+  <h2 class="t-h6 sec-title">สินค้าทั้งหมด</h2>
+  <div class="grid">
+    <a class="pcard" href="#"><span class="pcard__img"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/></svg></span>
+      <span class="pcard__n t-body2">กระจกมองข้าง ทรงสั้น</span><span class="pcard__p t-body2 num">฿450</span>
+      <span class="t-caption c-sec num" style="display:block">ขายแล้ว 6 คำสั่งซื้อ</span></a>
+    <a class="pcard" href="#"><span class="pcard__img"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/></svg></span>
+      <span class="pcard__n t-body2">น้ำมันเครื่อง สังเคราะห์แท้ 1 ลิตร</span><span class="pcard__p t-body2 num">฿320</span>
+      <span class="t-caption c-sec num" style="display:block">ขายแล้ว 3 คำสั่งซื้อ</span></a>
+    <a class="pcard" href="#"><span class="pcard__img"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/></svg></span>
+      <span class="pcard__n t-body2">ผ้าเบรกหน้า</span><span class="pcard__p t-body2 num">฿280</span></a>
+    <a class="pcard" href="#"><span class="pcard__img"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/></svg></span>
+      <span class="pcard__n t-body2">โซ่ราวลิ้น</span><span class="pcard__p t-body2 num">฿520</span></a>
+    <a class="pcard" href="#"><span class="pcard__img"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/></svg></span>
+      <span class="pcard__n t-body2">ไฟหน้า LED</span><span class="pcard__p t-body2 num">฿890</span>
+      <span class="t-caption c-sec num" style="display:block">ขายแล้ว 2 คำสั่งซื้อ</span></a>
+  </div>
+</div>
+
+<!-- ── แท็บ 2: เกี่ยวกับร้าน ── -->
+<div class="panel" role="tabpanel" data-p="1" hidden>
+  <p class="t-body1" style="margin:0 0 var(--sp-3)">
+    ร้านอะไหล่มอเตอร์ไซค์ครบวงจร ของแท้ทุกชิ้น ส่งไว จัดส่งทั่วประเทศ สอบถามได้ตลอดครับ
+  </p>
+  <div class="about-rows t-body2">
+    <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6-7-11a7 7 0 1114 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+      อ.เมือง จ.สุราษฎร์ธานี</div>
+    <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
+      เข้าร่วม ก.ค. 2569</div>
+    <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 01-11.6 7.1L3 21l1.9-6.4A8 8 0 1121 12z"/></svg>
+      ตอบกลับ <b style="color:var(--mui-palette-text-primary)">98%</b> · ตอบเฉลี่ย <b style="color:var(--mui-palette-text-primary)">~7 นาที</b></div>
+    <!-- แถวใหม่: ย้าย repeatCustomerCount มาที่นี่ แสดงเฉพาะเมื่อ customerCount>=3 && repeat>0
+         (ไม่โชว์ "0" — convention เดียวกับ sample-gate ของ rating/response rate) -->
+    <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0113.6-5.7L21 9M20 12a8 8 0 01-13.6 5.7L3 15"/><path d="M21 4v5h-5M3 20v-5h5"/></svg>
+      ลูกค้าเก่ากลับมาซื้อซ้ำ <b style="color:var(--mui-palette-text-primary)">4</b> ราย</div>
+  </div>
+  <p class="t-caption c-sec" style="margin:var(--sp-4) 0 0">
+    บล็อก "ช่องทาง Official" ที่เคยอยู่แท็บนี้ถูกย้ายขึ้นหัวโปรไฟล์แล้ว — ไม่ render ซ้ำที่นี่อีก
+    (<code>ShopProfile.tsx:129</code> ต้องถอดออก)
+  </p>
+</div>
+
+<!-- ── แท็บ 3: รีวิว ── -->
+<div class="panel" role="tabpanel" data-p="2" hidden>
+  <div class="rsum">
+    <div class="rsum__avg">
+      <div class="m-lg">4.8</div>
+      <div class="stars">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+      </div>
+      <p class="t-caption c-sec num" style="margin:.25rem 0 0">จาก 9 รีวิว</p>
+    </div>
+    <div class="rbars">
+      <div class="rbar"><span class="t-caption c-sec num">5</span><span class="rbar__t"><span class="rbar__f" style="width:100%"></span></span><span class="t-caption c-sec num">8</span></div>
+      <div class="rbar"><span class="t-caption c-sec num">4</span><span class="rbar__t"><span class="rbar__f" style="width:13%"></span></span><span class="t-caption c-sec num">1</span></div>
+      <div class="rbar"><span class="t-caption c-sec num">3</span><span class="rbar__t"><span class="rbar__f" style="width:0"></span></span><span class="t-caption c-sec num">0</span></div>
+      <div class="rbar"><span class="t-caption c-sec num">2</span><span class="rbar__t"><span class="rbar__f" style="width:0"></span></span><span class="t-caption c-sec num">0</span></div>
+      <div class="rbar"><span class="t-caption c-sec num">1</span><span class="rbar__t"><span class="rbar__f" style="width:0"></span></span><span class="t-caption c-sec num">0</span></div>
+    </div>
+  </div>
+  <div class="rev">
+    <div class="stars" style="justify-content:flex-start;margin:0 0 .25rem">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+    </div>
+    <p class="t-body2" style="margin:0">ของแท้ ส่งไวมาก สั่งเช้าได้บ่ายเลย จะกลับมาซื้ออีกครับ</p>
+    <p class="t-caption c-sec" style="margin:.25rem 0 0">05 ส.ค. 2569</p>
+  </div>
+  <div class="rev">
+    <div class="stars" style="justify-content:flex-start;margin:0 0 .25rem">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" opacity=".35"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.3 1.3 6.3L12 17l-5.6 3 1.3-6.3L3 9.4l6.4-.8z"/></svg>
+    </div>
+    <p class="t-body2" style="margin:0">ของดีครับ แต่รอของนานไปนิด เพราะรอสินค้าเข้า</p>
+    <p class="t-caption c-sec" style="margin:.25rem 0 0">28 ก.ค. 2569</p>
+  </div>
+</div>
+
+</div></div></div>
+
+<!-- ══════════ ส่วนที่ต้องทำเพิ่มฝั่ง seller ══════════ -->
+<div class="doc">
+  <h2 class="t-h5" style="margin:var(--sp-6) 0 var(--sp-2)">ตัวที่ทำให้ 94% เป็นไปได้ — โมดัลถามเหตุผลตอนร้านกดยกเลิก</h2>
+  <p class="t-body2 c-sec" style="margin:0 0 var(--sp-4)">
+    อยู่ฝั่ง seller (Paces) ไม่ใช่หน้านี้ แต่ถ้าไม่มีตัวนี้ อัตราสำเร็จใหม่คำนวณไม่ได้เลย —
+    ปัจจุบัน <code>OrderDetailClient.tsx:241</code> เรียก <code>pacesConfirm.danger()</code> ธรรมดา ไม่มีช่องเก็บเหตุผล
+    ขณะที่ service (<code>order.service.ts:945</code>) และ route (<code>cancel/route.ts:58</code>) รองรับ <code>reason</code> อยู่แล้ว
+    — <b>Base: <code>BookingDetail.tsx:161-207</code></b> ซึ่งทำ Swal + <code>input:'select'</code> ไว้แล้วสำหรับการจอง
+  </p>
+</div>
+<div class="stage"><div class="swal">
+  <div class="swal__ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+  <p class="t-h5" style="margin:0">ยกเลิกคำสั่งซื้อนี้?</p>
+  <p class="t-body2 c-sec" style="margin:.375rem 0 0">สต็อกที่ตัดไปแล้วจะถูกคืนกลับ และลิงก์ที่ส่งให้ลูกค้าจะใช้ไม่ได้อีก</p>
+  <select>
+    <option>เลือกเหตุผล</option>
+    <option>ลูกค้าไม่โอนเงิน</option>
+    <option>ลูกค้าขอยกเลิก</option>
+    <option>สินค้ามีปัญหา หรือเหตุผลของร้าน</option>
+    <option>ตกลงกันได้</option>
+  </select>
+  <div class="swal__acts">
+    <button class="btn-danger">ยืนยันยกเลิก</button>
+    <button class="btn-light">ไม่ใช่ตอนนี้</button>
+  </div>
+</div></div>
+<div class="doc">
+  <p class="t-body2 c-sec" style="margin:var(--sp-3) 0 0">
+    2 ตัวเลือกแรก = <b>ไม่นับเข้าตัวหาร</b> · 2 ตัวหลัง = นับ. ชุดคำต้องแยกตาม <code>Shop.vertical</code>
+    (ร้านคิวงานใช้ "ลูกค้าไม่มาตามนัด" ไม่ใช่ "ไม่โอนเงิน") และ <b>ห้ามยืมชื่อ flag <code>countsAgainstGuest</code>
+    จาก <code>lodging.ts:149</code> มาใช้ตรง ๆ</b> เพราะความหมายกลับด้านกัน (อันนั้น = นับเข้าประวัติผู้จอง)
+  </p>
+</div>
+
+<!-- ══════════ สรุปการตัดสินใจ ══════════ -->
+<div class="doc" style="padding-bottom:4rem">
+  <h2 class="t-h5" style="margin:var(--sp-6) 0 var(--sp-3)">ทำไมเป็น hybrid ไม่ใช่ A/B/C/D ตรง ๆ</h2>
+  <ul class="t-body2 c-sec" style="margin:0;padding-inline-start:1.25rem;display:grid;gap:.5rem">
+    <li><b>A</b> — โครงถูก แต่ทำ "17" กับ "94%" ใหญ่ 32px เท่ากันทั้งคู่ = hero-metric ซ้ำสองก้อน ไม่มีจุดโฟกัสเดียว</li>
+    <li><b>B</b> — ยุบช่องทางเป็นชิป ซึ่งเป็น markup ใหม่ที่ไม่มีใน <code>OfficialChannels.tsx</code> ขัดคำสั่ง "ใช้ซ้ำ ไม่ต้องออกแบบใหม่"</li>
+    <li><b>C</b> — ลำดับชั้นตัวเลขดีสุด แต่ไม่มีช่องทางในหัวโปรไฟล์เลย ขัดคำสั่งข้อที่สั่งมาตรง ๆ</li>
+    <li><b>D</b> — ลำดับชั้นถูก caption กางตัวหารดีสุด แต่ <b>ทำชิปคะแนน/tier หายไปทั้งก้อน</b> โดยไม่มีเหตุผล</li>
+    <li><b>ที่ใช้จริง</b> — identity + ช่องทางแบบ A · ตัวเลขใหญ่ก้อนเดียว + caption แบบ D ·
+      "17" ลดเป็น 22px (metric scale ของ DESIGN.md คือ 32/22/20 อยู่แล้ว) ให้ยังเป็นตัวเลขที่กวาดตาเห็น
+      แต่ไม่แย่งโฟกัสกับ %</li>
+  </ul>
+
+  <h2 class="t-h5" style="margin:var(--sp-6) 0 var(--sp-3)">แก้อะไรอีกในรอบนี้</h2>
+  <ul class="t-body2 c-sec" style="margin:0;padding-inline-start:1.25rem;display:grid;gap:.5rem">
+    <li><b>คอนทราสต์</b> — <code>text.disabled</code> (ink .4 ≈ 2.7:1 <b>ตก AA</b>) ถูกใช้กับข้อมูลจริงที่ไม่ใช่สถานะปิดใช้งาน
+      ที่ <code>ProfileHero.tsx:158,204</code> และ <code>OfficialChannels.tsx:89</code> → เปลี่ยนเป็น <code>text.secondary</code>
+      (อาการเดียวกันมีที่ <code>OrderLinkShell.tsx:228,235</code> ด้วย — คนละหน้า ยังไม่แก้รอบนี้)</li>
+    <li><b>คะแนนมีสเกล</b> — "13" → "13 / 100" + ปุ่ม ⓘ อธิบายที่มา (hit-area ต้อง 44px จริง —
+      <code>IconButton size="small"</code> ของ MUI ให้แค่ 34px ไม่ผ่าน)</li>
+    <li><b>ป้ายเลิกโกหก</b> — "จากออเดอร์ทั้งหมดบน Deep" → "จาก N ใบที่ปิดจบ · ไม่นับ M ใบที่ผู้ซื้อไม่รับของ"
+      (ถ้า M = 0 ให้ตัดประโยคหลังทิ้ง ไม่เขียน "ไม่นับ 0 ใบ")</li>
+    <li><b>ช่องทางขึ้นหัวโปรไฟล์ + ถอดออกจากแท็บ</b> — ใช้ <code>OfficialChannels.tsx</code> ทั้งก้อนไม่แก้
+      คงเป็นรายการแนวตั้งเดียวทุกจอ (2 คอลัมน์ต้องไปแก้ตรรกะเส้นคั่นภายใน = ผิดเงื่อนไข "ใช้ซ้ำ")</li>
+    <li><b>ถอด "จำนวนลูกค้า" ทิ้ง</b> — ซ้ำกับจำนวนออเดอร์เกือบทุกเคส · <b>"ซื้อซ้ำ" ย้ายไปแท็บเกี่ยวกับร้าน</b>
+      แสดงเฉพาะเมื่อ <code>customerCount ≥ 3 && repeat &gt; 0</code> (ไม่โชว์ "0")</li>
+    <li><b>เดสก์ท็อปไม่แยก 2 คอลัมน์</b> — DESIGN.md ประกาศ "การ์ดคอลัมน์เดียวสไตล์ Instagram" เป็น signature
+      ที่ sign-off แล้ว และ sidebar-stats คือหน้าตา dashboard ซึ่งอยู่ใน anti-reference ของ PRODUCT.md</li>
+  </ul>
+
+  <h2 class="t-h5" style="margin:var(--sp-6) 0 var(--sp-3)">ต้องให้ user เคาะ</h2>
+  <ol class="t-body2 c-sec" style="margin:0;padding-inline-start:1.25rem;display:grid;gap:.5rem">
+    <li><b>ออเดอร์ที่ยกเลิกไปแล้วก่อนมีฟีเจอร์นี้</b> (ไม่มี <code>cancelReason</code> เลย) — นับเข้าตัวหารทั้งหมดแบบเดิม
+      หรือตัดออกทั้งหมดแบบ "ไม่รู้ = ไม่นับ"</li>
+    <li><b>ชุดคำเหตุผลยกเลิก</b> 4 ตัวเลือกข้างบนใช้คำนี้ได้ไหม และแยกชุดตาม vertical อย่างที่เสนอไหม</li>
+    <li><b>ยังโชว์ "13 / 100" ไหม</b> — ทางเลือกที่แรงกว่าคือเหลือแค่ชิป "Deep Classic" ไม่โชว์เลขดิบ
+      แล้วให้ออเดอร์/% เป็นตัวพูดแทน (ปกเทาเกรด D ที่แปลว่า "ยังไม่มีข้อมูล" วางเหนือหลักฐานจริง 17 ใบ
+      เป็นความขัดแย้งที่ผู้ซื้ออ่านแล้วสับสน)</li>
+    <li><b>เกณฑ์ขั้นต่ำยังเป็น 3 ใบไหม</b> — หลังหักใบที่ผู้ซื้อไม่รับออก ตัวหารเล็กลง อาจต้องสูงกว่า 3</li>
+    <li><b>ถอด "จำนวนลูกค้า" ออกจากสายตาผู้ซื้อถาวร</b> — เปลี่ยนสิ่งที่เปิดเผยสู่สาธารณะ ไม่ใช่แค่ย้ายที่</li>
+  </ol>
+</div>
+
+<script>
+document.querySelectorAll('#segView button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#segView button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))
+  document.body.dataset.view=b.dataset.v}))
+document.querySelectorAll('#segHero button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#segHero button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))
+  document.body.dataset.hero=b.dataset.h}))
+document.querySelectorAll('#segState button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#segState button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)))
+  document.body.dataset.state=b.dataset.s}))
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',String(x===b)))
+  document.querySelectorAll('.panel').forEach(p=>{p.hidden=p.dataset.p!==b.dataset.p})}))
+</script>
+</body>
+</html>
