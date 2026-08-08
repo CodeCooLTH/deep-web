@@ -329,7 +329,11 @@ const ProductsListing = ({ products, pinSlots, pinnedCount }: Props) => {
                 onClick={() => setCostMissingOnly((v) => !v)}
                 aria-pressed={costMissingOnly}
                 className={cn(
-                  'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors focus:outline-none',
+                  // focus-visible:ring เหมือนชิปสถานะด้านล่าง — ธีมไม่มี `.badge:focus` มาชดเชย
+                  // (แก้เข้ามาที่ชิปชุดนั้นแล้วใน 052981b3 audit รอบ 2) ชิปนี้เขียนขึ้นคู่ขนาน
+                  // จากแพตเทิร์นก่อนแก้ ถ้าไม่ตามจะเป็นการเอาบั๊กเดิมกลับเข้ามาในปุ่มที่นั่งติดกัน
+                  'badge shrink-0 cursor-pointer whitespace-nowrap transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                   'inline-flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium',
                   costMissingOnly
                     ? 'bg-primary text-white'
