@@ -221,12 +221,16 @@ model Shop {
 
   // --- Expense & Cost Tracking (feature 00016, additive) ---
   // staffCanViewFinance: toggle owner เปิด/ปิดให้ ShopMember(role=ADMIN) เห็นข้อมูล Expense/P&L ของร้านนี้
-  // default false เสมอ (FR-EXP-10-AC-01, BR §3.6 — "ข้อมูลการเงินคือความลับทางธุรกิจระดับสูงสุด")
+  // 🛑 default **true** ตั้งแต่ 2026-08-08 (user สั่ง "เปิดหมด" — กลับทิศจาก FR-EXP-10-AC-01 เดิม
+  // ที่ตั้งไว้ false ตาม BR §3.6 "ข้อมูลการเงินคือความลับทางธุรกิจระดับสูงสุด")
+  // เหตุผล: ทีมงานที่ดูออเดอร์อยู่แล้วต้องเห็นต้นทุน/กำไรเพื่อทำงาน การตั้ง default ปิดแปลว่า
+  // ทุกร้านต้องรู้ว่ามีสวิตช์นี้อยู่ก่อนถึงจะใช้ได้ ซึ่งไม่มีใครรู้ → ฟีเจอร์ตายเงียบ ๆ ทั้งฟีเจอร์
+  // **สวิตช์ยังอยู่ครบ** — owner ปิดรายร้านได้เหมือนเดิมที่ /business/[shopId]/invites
   // มีผลจริงเฉพาะ BUSINESS shop ในทางปฏิบัติ (PERSONAL shop ไม่มี ShopMember(ADMIN) อื่นอยู่แล้ว —
   // 1 user = owner คนเดียว) แต่ประกาศไว้ทุกแถวเพื่อความสม่ำเสมอของ schema (PRD §4.2)
-  // 🛑 ไม่ใช่ authorization gate เอง — แค่ data flag; service layer ต้องเช็ค role+toggle+package
+  // 🛑 ไม่ใช่ authorization gate เอง — แค่ data flag; service layer ต้องเช็ค role+toggle
   // ครบทุกครั้ง (ดู SRS สำหรับ authorization logic เต็ม)
-  staffCanViewFinance Boolean @default(false)
+  staffCanViewFinance Boolean @default(true)
   // --- feature 00017: Lodging Vertical (Phase 1) → ขยายเป็น 3 ค่าโดย feature 00028 ---
   // vertical (ป้ายบนจอ "ประเภทร้านค้า") มี 3 ค่าเท่านั้น:
   //   "ONLINE_SALES"  (ขายออนไลน์)      — ขายสินค้าที่ต้องจัดส่ง มีสต็อก/ประมูล/iShip

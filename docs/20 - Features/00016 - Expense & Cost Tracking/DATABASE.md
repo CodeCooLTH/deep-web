@@ -38,7 +38,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
 |-------|----------------|--------|
 | `Product` | เพิ่ม `cost Decimal(12,2)?` — ราคาทุนปัจจุบัน, nullable/opt-in | Additive |
 | `OrderItem` | เพิ่ม `cost Decimal(12,2)?` — snapshot ต้นทุน ณ วันขาย (pattern เดียวกับ `price`) + **เพิ่ม `@@index([orderId])`** (FK ที่ไม่เคยมี index เลยตั้งแต่ init migration — debt เดิมที่ feature นี้ต้องแก้เพื่อให้ COGS query ไม่ scan เต็มตาราง) | Additive |
-| `Shop` | เพิ่ม `staffCanViewFinance Boolean @default(false)` — toggle owner เปิด/ปิดให้ ShopMember(ADMIN) เห็นการเงิน | Additive |
+| `Shop` | เพิ่ม `staffCanViewFinance Boolean @default(false)` — toggle owner เปิด/ปิดให้ ShopMember(ADMIN) เห็นการเงิน · **default เปลี่ยนเป็น `true` เมื่อ 2026-08-08** (migration `20260808220000`) | Additive |
 | `Expense` (ใหม่) | model ใหม่เต็มรูป — ค่าใช้จ่ายดำเนินธุรกิจ 1 รายการต่อ 1 แถว ผูก `shopId` | New |
 | `Order` | **ไม่มี column ใหม่** แต่เพิ่ม `@@index([shopId, status, createdAt])` — composite index ที่ยังไม่เคยมี รองรับทั้ง P&L Revenue query ของฟีเจอร์นี้ และ `dashboard.service.ts` เดิมที่ query pattern เดียวกันอยู่แล้วแต่ไม่มี index รองรับ (ดู §4.2) | Index-only |
 | `User` | เพิ่ม back-relation `createdExpenses Expense[]` (Prisma-managed, ไม่มีคอลัมน์จริงฝั่งนี้) | Additive (relation only) |
@@ -69,7 +69,7 @@ erDiagram
         string id PK
         string userId FK "owner-at-creation (unchanged)"
         string kind "PERSONAL/BUSINESS (feature 00008, unchanged)"
-        boolean staffCanViewFinance "NEW default false — owner toggle ให้ ADMIN เห็นการเงิน"
+        boolean staffCanViewFinance "default true ตั้งแต่ 2026-08-08 — owner toggle ให้ ADMIN เห็นการเงิน"
     }
     Product {
         string id PK
@@ -205,7 +205,7 @@ model OrderItem {
 
 | Column | Type | Null | Default | Key | เหตุผล |
 |--------|------|------|---------|-----|--------|
-| `staffCanViewFinance` | `BOOLEAN` | NO | `false` | — | Toggle ระดับร้านที่ owner เปิด/ปิดให้ `ShopMember(role=ADMIN)` เห็นข้อมูล Expense/P&L (FR-EXP-10) default ปิดเสมอเพื่อความปลอดภัย (BR §3.6) |
+| `staffCanViewFinance` | `BOOLEAN` | NO | **`true`** (เดิม `false` — เปลี่ยน 2026-08-08 โดย migration `20260808220000`) | — | Toggle ระดับร้านที่ owner เปิด/ปิดให้ `ShopMember(role=ADMIN)` เห็นข้อมูล Expense/P&L (FR-EXP-10). เดิม default ปิดเสมอตาม BR §3.6 แต่ผลจริงคือ 12/12 ร้านไม่มีใครเปิดเพราะไม่รู้ว่ามีสวิตช์ → user สั่งเปิดเป็นค่าเริ่มต้น (BRD FR-EXP-10-AC-01b) **สวิตช์ยังอยู่ owner ปิดรายร้านได้** |
 
 ```prisma
 model Shop {
@@ -223,7 +223,7 @@ model Shop {
   // 1 user = owner คนเดียว) แต่ประกาศไว้ทุกแถวเพื่อความสม่ำเสมอของ schema (PRD §4.2)
   // 🛑 ไม่ใช่ authorization gate เอง — แค่ data flag; service layer ต้องเช็ค role+toggle+package
   // ครบทุกครั้ง (ดู SRS สำหรับ authorization logic เต็ม)
-  staffCanViewFinance Boolean @default(false)
+  staffCanViewFinance Boolean @default(true) // เดิม false — เปลี่ยน 2026-08-08 (ดูแถวในตาราง §3.3)
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

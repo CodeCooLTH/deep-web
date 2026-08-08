@@ -104,7 +104,7 @@ export default function FinanceVisibilityToggle({ shopId, initial, locked }: Fin
           />
         </div>
         <p className="text-default-400 mt-1 text-xs">
-          รายงานกำไร-ขาดทุนและรายการค่าใช้จ่ายของร้าน — เริ่มต้นปิด
+          ราคาทุน รายงานกำไร-ขาดทุน และรายการค่าใช้จ่ายของร้าน — เริ่มต้นเปิด ปิดได้ที่นี่
         </p>
       </div>
     </div>

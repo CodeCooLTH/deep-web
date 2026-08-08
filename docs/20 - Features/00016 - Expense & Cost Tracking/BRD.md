@@ -225,10 +225,13 @@ flowchart TD
 > ในฐานะ Owner ฉันต้องการเลือกเองว่าจะให้พนักงาน (ShopMember role=ADMIN) เห็นข้อมูลการเงินของร้านได้หรือไม่ เพื่อควบคุมความลับทางธุรกิจของตัวเอง
 
 **Acceptance Criteria:**
-- [ ] `[FR-EXP-10-AC-01]` **Given** Shop ใหม่ถูกสร้าง (ไม่ว่า kind ใด) **When** ตรวจค่าเริ่มต้น **Then** `Shop.staffCanViewFinance = false` เสมอ
+- [ ] ~~`[FR-EXP-10-AC-01]` **Given** Shop ใหม่ถูกสร้าง (ไม่ว่า kind ใด) **When** ตรวจค่าเริ่มต้น **Then** `Shop.staffCanViewFinance = false` เสมอ~~ **กลับทิศ 2026-08-08 → `[FR-EXP-10-AC-01b]` ค่าเริ่มต้นคือ `true`** (user สั่ง "เปิดหมด")
+
+> **ทำไมกลับทิศ (2026-08-08):** ตั้ง default false มา 1 เดือน ผลคือ **12/12 ร้านบน prod ไม่มีร้านไหนเปิดเลยสักร้าน** — ไม่ใช่เพราะทุกคนตั้งใจปิด แต่เพราะสวิตช์อยู่ในหน้าจัดการพนักงานซึ่งไม่มีใครรู้ว่ามี ผู้ดูแล 9 คนที่ทำงานกับออเดอร์ทุกวันจึงมองไม่เห็นต้นทุน/กำไรมาตลอด. BR §3.6 ("ข้อมูลการเงินคือความลับทางธุรกิจระดับสูงสุด") ยังใช้กับ **คนนอกร้าน** เหมือนเดิม — สิ่งที่เปลี่ยนคือสมมติฐานว่า ShopMember(ADMIN) ซึ่ง owner เชิญเข้ามาเองนับเป็นคนใน. **สวิตช์ไม่ได้ถูกถอด** owner ยังปิดรายร้านได้และ `resolveExpenseAccess()` ยัง fail-closed ตามเดิม (AC-02..AC-05 ไม่เปลี่ยน) · migration `20260808220000_finance_visible_to_staff_by_default`
+
 - [ ] `[FR-EXP-10-AC-02]` **Given** owner เปิด toggle "ให้พนักงานเห็นข้อมูลการเงิน" **When** ยืนยัน **Then** `Shop.staffCanViewFinance = true` — เฉพาะ owner เท่านั้นที่แก้ค่านี้ได้ (ไม่ใช่ admin)
 - [ ] `[FR-EXP-10-AC-03]` **Given** `staffCanViewFinance = true` **When** `ShopMember(role=ADMIN)` ของ shop นั้น login และเปิดเมนู **Then** เห็นเมนู `/expenses` และเข้าถึงข้อมูลได้เท่ากับ owner (membership-based access ตาม MVP feature 00008)
-- [ ] `[FR-EXP-10-AC-04]` **Given** `staffCanViewFinance = false` (default) **When** `ShopMember(role=ADMIN)` เปิดเมนู **Then** **ไม่เห็นเมนู/route `/expenses` เลย** — เข้า URL ตรง ๆ ก็ต้องถูกปฏิเสธ (403) ไม่ใช่แค่ UI ซ่อนปุ่ม
+- [ ] `[FR-EXP-10-AC-04]` **Given** `staffCanViewFinance = false` (owner ปิดเอง — ไม่ใช่ค่าเริ่มต้นอีกแล้วตั้งแต่ 2026-08-08) **When** `ShopMember(role=ADMIN)` เปิดเมนู **Then** **ไม่เห็นเมนู/route `/expenses` เลย** — เข้า URL ตรง ๆ ก็ต้องถูกปฏิเสธ (403) ไม่ใช่แค่ UI ซ่อนปุ่ม
 - [ ] `[FR-EXP-10-AC-05]` Toggle นี้เป็นค่าต่อ `Shop` (ต่อร้าน) — owner ที่มีหลาย Business shop ต้องตั้งแยกทีละร้าน ไม่มี global toggle รวม
 
 #### FR-EXP-11: Gate การเข้าถึงด้วย Business Package (Bundled Paid Add-on)

@@ -64,7 +64,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
 | **Access Gate (Expense)** | ขั้นตอนตัดสินสิทธิ์เข้าถึง Expense/P&L ที่ทำใน `resolveExpenseAccess()` (`expense-access.service.ts`) |
 | **ownerId** | `Shop.userId` — เจ้าของร้านตัวจริงตอนสร้าง (immutable) ใช้เป็นคีย์ของ `getSubscriptionStatus()` เสมอ **ไม่ว่า shop จะเป็น PERSONAL หรือ BUSINESS** (ดู TFR-009 สำหรับหลักฐาน) |
 | **Fixed Category** | หมวดค่าใช้จ่าย 7 ค่าคงที่ (RENT/PACKAGING/ADVERTISING/SHIPPING/SALARY/UTILITIES/OTHER) เก็บเป็น `String` (ไม่ใช่ Prisma `enum`) |
-| **staffCanViewFinance** | `Shop.staffCanViewFinance: Boolean` (default false) — toggle ระดับร้านที่ owner เปิด/ปิดให้ `ShopMember(role=ADMIN)` เห็นข้อมูลการเงิน |
+| **staffCanViewFinance** | `Shop.staffCanViewFinance: Boolean` (**default `true` ตั้งแต่ 2026-08-08** — เดิม `false`, ดู BRD FR-EXP-10-AC-01b) — toggle ระดับร้านที่ owner เปิด/ปิดให้ `ShopMember(role=ADMIN)` เห็นข้อมูลการเงิน |
 
 ---
 
@@ -195,9 +195,9 @@ flowchart LR
 
 ### TFR-010: Toggle `staffCanViewFinance` + Admin Branch
 - **Trace to:** FR-EXP-10
-- **คำอธิบายเชิงเทคนิค:** เพิ่ม `Shop.staffCanViewFinance: Boolean @default(false)` (additive) `PATCH /api/business/shops/[shopId]/finance-visibility` (route ใหม่, owner-only — mirror guard ของ `api/business/shops/[shopId]/onboarding/route.ts`: query shop ด้วย `shopId` param, เช็ค `shop.kind === 'BUSINESS'` + `shop.userId === session.user.id` มิฉะนั้น `403 NOT_OWNER`) รับ body `{ staffCanViewFinance: boolean }` → `prisma.shop.update`. ใน `resolveExpenseAccess()` — เมื่อ `active.role === 'ADMIN'` (คืนมาจาก `requireActiveShop` ที่ query `ShopMember.role` จริงอยู่แล้ว) ต้องเช็ค `active.shop.staffCanViewFinance === true` มิฉะนั้นคืน `{ kind: 'STAFF_NOT_ALLOWED' }`
+- **คำอธิบายเชิงเทคนิค:** เพิ่ม `Shop.staffCanViewFinance: Boolean @default(true)` (additive · เดิม `@default(false)` เปลี่ยนโดย migration `20260808220000` เมื่อ 2026-08-08) `PATCH /api/business/shops/[shopId]/finance-visibility` (route ใหม่, owner-only — mirror guard ของ `api/business/shops/[shopId]/onboarding/route.ts`: query shop ด้วย `shopId` param, เช็ค `shop.kind === 'BUSINESS'` + `shop.userId === session.user.id` มิฉะนั้น `403 NOT_OWNER`) รับ body `{ staffCanViewFinance: boolean }` → `prisma.shop.update`. ใน `resolveExpenseAccess()` — เมื่อ `active.role === 'ADMIN'` (คืนมาจาก `requireActiveShop` ที่ query `ShopMember.role` จริงอยู่แล้ว) ต้องเช็ค `active.shop.staffCanViewFinance === true` มิฉะนั้นคืน `{ kind: 'STAFF_NOT_ALLOWED' }`
 - **Precondition:** เฉพาะ owner เท่านั้นที่เรียก toggle endpoint สำเร็จ (ไม่มี endpoint ให้ admin แก้ค่านี้เอง)
-- **Postcondition:** Shop ใหม่ทุกแถว (`ensurePersonalShop`/`createBusinessShop`) ได้ `staffCanViewFinance = false` จาก column default โดยอัตโนมัติ ไม่ต้องแก้ 2 ฟังก์ชันนี้เลย (AC-01)
+- **Postcondition:** Shop ใหม่ทุกแถว (`ensurePersonalShop`/`createBusinessShop`) ได้ `staffCanViewFinance` จาก column default โดยอัตโนมัติ ไม่ต้องแก้ 2 ฟังก์ชันนี้เลย — **ค่านั้นคือ `true` ตั้งแต่ 2026-08-08** (เดิม `false` ตาม AC-01 ซึ่งถูกแทนด้วย AC-01b)
 - **Error/Edge cases:** `STAFF_NOT_ALLOWED` ต้อง map เป็น `403` ที่ route **และ** หน้า `/expenses` (RSC) ต้อง **ไม่ render เมนู/ลิงก์** ไปหน้านี้เลยเมื่อ resolve ได้ผลนี้ (AC-04 "มองไม่เห็นเมนู/route เลย" — เป็นความรับผิดชอบของ sidebar/menu config ที่ safepay-ux ต้องออกแบบให้เช็ค role+toggle ก่อน render item เมนู "ค่าใช้จ่าย" — noted เป็น open item ให้ safepay-ux ใน §10)
 
 ### TFR-011: Business Package ACTIVE Gate (+ Shop-Lock Defense-in-Depth)
@@ -261,7 +261,7 @@ sequenceDiagram
 
 | Entity | Field ใหม่ | ประเภท | อ่าน/เขียน |
 |--------|-----------|--------|-----------|
-| **Shop** | `staffCanViewFinance` | `Boolean @default(false)` | อ่าน (access gate) + เขียน (toggle endpoint, owner-only) |
+| **Shop** | `staffCanViewFinance` | `Boolean @default(true)` (เดิม `false` — เปลี่ยน 2026-08-08) | อ่าน (access gate) + เขียน (toggle endpoint, owner-only) |
 | **Product** | `cost` | `Decimal(12,2)?` | อ่าน (order snapshot, product form) + เขียน (product create/update, gate ด้วย `isCostEditAllowed`) |
 | **OrderItem** | `cost` | `Decimal(12,2)?` | เขียนครั้งเดียวตอนสร้าง (`createOrder`), อ่านอย่างเดียวหลังจากนั้น (immutable) |
 | **Expense** (ใหม่) | ทั้ง model | — | CRUD เต็มรูป scoped ด้วย `shopId` |
@@ -298,7 +298,7 @@ erDiagram
     Shop {
         string id PK
         string userId "owner-at-creation, immutable — ownerId ของทั้ง PERSONAL/BUSINESS"
-        boolean staffCanViewFinance "NEW default false"
+        boolean staffCanViewFinance "default true (2026-08-08)"
     }
     Product {
         string id PK

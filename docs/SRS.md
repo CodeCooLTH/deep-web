@@ -875,7 +875,7 @@ SellerWallet (1) ── (N) WalletTransaction
 ### 7.13 Expenses & Cost — กำไรขาดทุน (feature 00016)
 
 > 🛑 ทั้งหมวดนี้ **เปิดฟรีทุกร้านตั้งแต่ 2026-08-07** (D-EXT-1) — เดิมต้องมี Business Package ที่ ACTIVE
-> gate ที่ยังเหลือคือ **สิทธิ์คน** เท่านั้น: owner เห็นเสมอ · staff (ShopMember ADMIN) เห็นเมื่อ `Shop.staffCanViewFinance = true` (default `false`)
+> gate ที่ยังเหลือคือ **สิทธิ์คน** เท่านั้น: owner เห็นเสมอ · staff (ShopMember ADMIN) เห็นเมื่อ `Shop.staffCanViewFinance = true` — **default เปลี่ยนเป็น `true` เมื่อ 2026-08-08** (user สั่ง "เปิดหมด"; migration `20260808220000` เปลี่ยนทั้ง DEFAULT และแถวเดิมทั้ง 12 ร้าน) กลไกยังเหมือนเดิมทุกบรรทัด — owner ปิดรายร้านได้ และ `resolveExpenseAccess()` ยัง fail-closed เมื่อปิด
 > จุดตัดสินสิทธิ์เดียวของทั้งหมวด = `resolveExpenseAccess()` (`src/services/expense-access.service.ts`) คืน `GRANTED` / `NO_SHOP` / `STAFF_NOT_ALLOWED`
 
 | Method | Path | Auth | Purpose | Service |
@@ -1152,9 +1152,9 @@ SellerWallet (1) ── (N) WalletTransaction
 
 **Admin privilege:** ตั้งผ่าน `User.isAdmin=true` ใน DB seed เท่านั้น — ไม่มี self-service elevation
 
-### 9.7 Finance / Cost (feature 00016 — อัปเดต 2026-08-07)
+### 9.7 Finance / Cost (feature 00016 — อัปเดต 2026-08-08)
 
-| Operation | Seller-owner | Staff (ShopMember ADMIN) + `staffCanViewFinance=true` | Staff + toggle ปิด (default) |
+| Operation | Seller-owner | Staff (ShopMember ADMIN) + `staffCanViewFinance=true` (**ค่าเริ่มต้นตั้งแต่ 2026-08-08**) | Staff + toggle ปิด (owner ปิดเอง) |
 |---|---|---|---|
 | `/expenses` — CRUD ค่าใช้จ่าย + รายงาน P&L | ✅ | ✅ | ❌ locked "ยังไม่ได้รับสิทธิ์" |
 | กำไรสุทธิบน 3 surface หน้ายอดขาย | ✅ | ✅ | ❌ |
