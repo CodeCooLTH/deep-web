@@ -10,7 +10,6 @@ import {
 } from "@/services/product.service";
 import { prisma } from "@/lib/prisma";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
-import { isCostEditAllowed } from "@/services/expense-access.service";
 import { canAccessShop } from "@/lib/shop-context";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -57,13 +56,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
   }
 
-  // cost — Expense & Cost Tracking (feature 00016): guard เฉพาะเมื่อ caller ส่ง field นี้มา
-  // (membership check ผ่านไปแล้วด้านบน — isCostEditAllowed เช็คแค่ package ACTIVE)
-  if (parsed.output.cost !== undefined) {
-    if (!(await isCostEditAllowed(product.shop))) {
-      return NextResponse.json({ error: "COST_REQUIRES_BUSINESS_PACKAGE" }, { status: 403 });
-    }
-  }
+  // cost — ไม่มี guard แล้ว (D-EXT-1 2026-08-07): ราคาทุนเปิดฟรีทุกร้าน
+  // membership check ด้านบนคือด่านที่จำเป็นจริง ส่วนด่านเดิมเช็คแค่สถานะการจ่ายเงินของแพ็กเกจ
 
   // feature 00030 (BR-BKU-13) — ส่ง vertical ให้ service ล็อก NO_SHIPPING ของร้าน SERVICE_QUEUE
   // product.shop โหลดมาแล้วด้านบน (ownership check) จึงไม่มี query เพิ่ม

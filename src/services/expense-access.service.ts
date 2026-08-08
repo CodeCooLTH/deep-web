@@ -3,12 +3,21 @@
  * SSOT: docs/20 - Features/00016 - Expense & Cost Tracking/SDS.md §4.1 (copy เป๊ะ)
  */
 import { requireActiveShop, type ActiveShop } from '@/lib/shop-context'
-import { getSubscriptionStatus } from '@/services/business-package.service'
 
+/**
+ * [D-EXT-1 · 2026-08-07] ถอด Business Package gate ออกทั้งชุด — ต้นทุน/กำไร-ขาดทุน
+ * เปิดฟรีทุกร้าน ไม่มีเงื่อนไข "จ่ายเงินแล้วหรือยัง" อีกต่อไป
+ *
+ * สิ่งที่ถอดคือ **billing** เท่านั้น — `getSubscriptionStatus()` และ `active.locked`
+ * (ซึ่งมาจาก Shop.packageLockedAt ล้วน ๆ = quota/ต่ออายุไม่ผ่าน ไม่ใช่เรื่องความปลอดภัย)
+ *
+ * สิ่งที่ **ห้ามถอด** และยังทำงานเหมือนเดิมทุกบรรทัดข้างล่างนี้: owner เห็นเสมอ ·
+ * staff เห็นเมื่อ `staffCanViewFinance = true` (default false) — ถ้าวันใดวันหนึ่ง
+ * `STAFF_NOT_ALLOWED` หายไปจากฟังก์ชันนี้ แปลว่าถอดเลยเส้นไปแล้ว ไม่ใช่ทำต่อจากงานนี้
+ */
 export type ExpenseAccessDecision =
   | { kind: 'GRANTED'; shop: ActiveShop['shop']; role: 'OWNER' | 'ADMIN' }
   | { kind: 'NO_SHOP' }
-  | { kind: 'PACKAGE_LOCKED' }
   | { kind: 'STAFF_NOT_ALLOWED' }
 
 export async function resolveExpenseAccess(
@@ -17,24 +26,8 @@ export async function resolveExpenseAccess(
   const active = await requireActiveShop(session)
   if (!active) return { kind: 'NO_SHOP' }
 
-  // shop-level lock (quota/renewal-fail) — ต้องเช็คก่อน/คู่กับ subscription status เพราะ shop เดียว
-  // อาจถูกล็อกด้วย QUOTA_EXCEEDED_ADMIN_COUNT ได้ทั้งที่ subscription ของ owner ยัง ACTIVE (SRS TFR-011)
-  if (active.locked) return { kind: 'PACKAGE_LOCKED' }
-
-  // ownerId ของทั้ง PERSONAL และ BUSINESS shop = Shop.userId เสมอ (SRS TFR-009 — grounded)
-  const sub = await getSubscriptionStatus(active.shop.userId)
-  if (!sub || sub.status !== 'ACTIVE') return { kind: 'PACKAGE_LOCKED' }
-
   if (active.role === 'OWNER') return { kind: 'GRANTED', shop: active.shop, role: 'OWNER' }
 
   if (!active.shop.staffCanViewFinance) return { kind: 'STAFF_NOT_ALLOWED' }
   return { kind: 'GRANTED', shop: active.shop, role: 'ADMIN' }
-}
-
-/** isCostEditAllowed — gate field Product.cost (FR-EXP-01-AC-05/D-9)
- *  ไม่เช็ค role/toggle เพราะ authz การแก้ product เป็นของ endpoint เดิมอยู่แล้ว (owner ของ product) —
- *  เช็คแค่ "package ของ owner ร้าน ACTIVE หรือไม่" */
-export async function isCostEditAllowed(shop: { userId: string }): Promise<boolean> {
-  const sub = await getSubscriptionStatus(shop.userId)
-  return sub?.status === 'ACTIVE'
 }

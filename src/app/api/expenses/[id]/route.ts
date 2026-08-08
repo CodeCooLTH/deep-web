@@ -14,7 +14,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
   if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "PACKAGE_LOCKED" || decision.kind === "STAFF_NOT_ALLOWED") {
+  if (decision.kind === "STAFF_NOT_ALLOWED") {
     return NextResponse.json({ error: decision.kind }, { status: 403 });
   }
 
@@ -47,7 +47,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const decision = await resolveExpenseAccess(session as unknown as { user: { id: string; activeShopId?: string | null } });
   if (decision.kind === "NO_SHOP") return NextResponse.json({ error: "No shop" }, { status: 404 });
-  if (decision.kind === "PACKAGE_LOCKED" || decision.kind === "STAFF_NOT_ALLOWED") {
+  if (decision.kind === "STAFF_NOT_ALLOWED") {
     return NextResponse.json({ error: decision.kind }, { status: 403 });
   }
 

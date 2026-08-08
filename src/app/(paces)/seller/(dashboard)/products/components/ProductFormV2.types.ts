@@ -36,6 +36,6 @@ export type ProductFormV2Values = {
   // แสดงเฉพาะ tracked (stockQty !== null) && isProActive (ดู ProductStockCardV2)
   lowStockThreshold: number | null;
   // cost — Expense & Cost Tracking (feature 00016): null=ไม่ตั้งราคาทุน, ≥0=ตั้งค่า
-  // field แสดงเสมอ, กรอกได้เฉพาะ costEditAllowed (ดู ProductCostCardV2)
+  // field แสดงและกรอกได้เสมอทุกร้าน (D-EXT-1 2026-08-07 — เดิม gate ด้วย Business Package)
   cost: number | null;
 };

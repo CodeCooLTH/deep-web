@@ -5,53 +5,43 @@
  *   (card shell `px-3 py-2.5` — in-project, ไม่มี 1:1 theme equivalent)
  * Base: src/app/(paces)/seller/(dashboard)/business/[shopId]/onboarding/components/BusinessOnboardingWizard.tsx:364-378
  *   (input-group ฿ pattern — `<div className="input-group"><span className="input-group-text">฿</span><input className="form-input"></div>`)
- * Base: src/app/(paces)/seller/(dashboard)/inventory/page.tsx:170-181
- *   (badge `bg-primary/15 text-primary inline-flex items-center gap-1` + icon lock pattern)
- * Base: src/app/(paces)/seller/(dashboard)/products/components/ProductStockCardV2.tsx:110-119
- *   (upsell hint — icon lock + text-default-400 + ลิงก์ font-bold underline — ตรงเป๊ะ)
+ * Base: theme/paces/Admin/TS/src/app/(admin)/ui/badges/page.tsx
+ *   (soft badge `bg-{semantic}/15 text-{semantic}-ink` — แทนที่ badge lock เดิมที่ถูกถอด)
  *
- * Domain component — ไม่มี 1:1 Paces theme equivalent (ระบุไว้แล้วใน
- * UX-Design-Spec.md §B Theme Source Mapping)
+ * Domain component — ไม่มี 1:1 Paces theme equivalent
  *
- * costEditAllowed (feature 00016 Expense & Cost Tracking, D-9):
- *   false → field disabled + badge upsell "อัปเกรดเป็น Business" + hint ลิงก์ /business
- *   true  → field ปกติ + margin display คำนวณ client-side จาก watch('price')/watch('cost')
- *   field แสดงเสมอ ไม่ซ่อนแบบ lowStockThreshold (ต่าง PRO-gate pattern — user ยืนยันแล้ว)
+ * [D-EXT-1 · 2026-08-07] ถอด Business Package gate: prop `costEditAllowed` ถูกลบทั้งสาย
+ * พร้อมของที่ผูกกับมันทั้งหมด (field disabled, badge "อัปเกรดเป็น Business", hint + ลิงก์ /business)
+ *
+ * ช่องว่างที่หัวการ์ดซึ่งเคยเป็น badge upsell **ไม่ปล่อยว่าง** — ใส่ badge มาร์จิ้นสดแทน
+ * (ux Design Spec S2): เดิมสถานะ "ไม่มี badge" เจอเฉพาะร้านที่จ่ายเงินซึ่งเป็นส่วนน้อย
+ * พอเปิดฟรีมันกลายเป็นสถานะที่ทุกร้านเจอ 100% พื้นที่ตรงนั้นจึงควรมีความหมายจริง
+ *
+ * ย้าย "สัญญาณสี" ไปอยู่ที่ badge ที่เดียว — บรรทัดกำไรต่อชิ้นด้านล่างเปลี่ยนเป็น neutral
+ * (เดิมเป็น text-success/text-danger) เพื่อไม่ให้การ์ดเล็กใบเดียวมีของสีแข่งกัน 2 จุด
+ * และแก้คอนทราสต์ไปด้วย: `text-success`/`text-danger` ดิบบนพื้นขาวตกเกณฑ์ AA อยู่แล้ว
  */
 
 import type { UseFormRegister, FieldErrors, UseFormWatch } from 'react-hook-form'
-import Icon from '@/components/wrappers/Icon'
-import Link from 'next/link'
+import { productMargin } from '@/lib/order-profit'
 import type { ProductFormV2Values } from './ProductFormV2.types'
 
 interface ProductCostCardV2Props {
   register: UseFormRegister<ProductFormV2Values>
   errors: FieldErrors<ProductFormV2Values>
   watch: UseFormWatch<ProductFormV2Values>
-  // costEditAllowed — Expense & Cost Tracking (feature 00016): gate จาก isCostEditAllowed(shop)
-  // resolve ที่ RSC parent (new-v2/page.tsx / [id]/edit/page.tsx) mirror isProActive
-  costEditAllowed: boolean
 }
 
-export default function ProductCostCardV2({
-  register,
-  errors,
-  watch,
-  costEditAllowed,
-}: ProductCostCardV2Props) {
+export default function ProductCostCardV2({ register, errors, watch }: ProductCostCardV2Props) {
   const price = watch('price')
   const cost = watch('cost')
 
-  // margin คำนวณ client-side only (ไม่ยิง API) — แสดงเมื่อกรอกครบทั้ง price+cost
-  const hasMargin =
-    costEditAllowed &&
-    typeof price === 'number' &&
-    !Number.isNaN(price) &&
-    price > 0 &&
-    typeof cost === 'number' &&
-    !Number.isNaN(cost)
-  const marginAmount = hasMargin ? price - cost : 0
-  const marginPercent = hasMargin ? (marginAmount / price) * 100 : 0
+  // คำนวณ client-side ล้วน ไม่ยิง API — ใช้ฟังก์ชันเดียวกับที่หน้ารายการสินค้าใช้ (src/lib/order-profit.ts)
+  // เพื่อให้ตัวเลขในฟอร์มกับในตารางมาจากสูตรเดียวกันเสมอ
+  const marginPercent = productMargin({ price, cost })
+  const marginAmount =
+    marginPercent === null ? null : Number(price) - Number(cost)
+  const isLoss = marginPercent !== null && marginPercent < 0
 
   return (
     <div className="px-3 py-2.5">
@@ -59,10 +49,11 @@ export default function ProductCostCardV2({
         <label htmlFor="v2-cost" className="text-dark text-sm font-medium">
           ราคาทุน
         </label>
-        {!costEditAllowed && (
-          <span className="badge bg-primary/15 text-primary inline-flex items-center gap-1">
-            <Icon icon="lock" className="size-3.5" aria-hidden="true" />
-            อัปเกรดเป็น Business
+        {marginPercent !== null && (
+          <span
+            className={`badge text-2xs font-semibold ${isLoss ? 'bg-danger/15 text-danger-ink' : 'bg-success/15 text-success-ink'}`}
+          >
+            มาร์จิ้น {marginPercent.toLocaleString('th-TH', { maximumFractionDigits: 1 })}%
           </span>
         )}
       </div>
@@ -77,7 +68,6 @@ export default function ProductCostCardV2({
           inputMode="decimal"
           className="form-input"
           placeholder="0.00"
-          disabled={!costEditAllowed}
           aria-describedby={errors.cost ? 'v2-cost-error' : undefined}
           {...register('cost', {
             // ว่าง → submit null (ไม่ตั้งราคาทุน); มีค่า → number
@@ -91,23 +81,17 @@ export default function ProductCostCardV2({
         </p>
       )}
 
-      {costEditAllowed && hasMargin && (
-        <p className={`mt-1 text-xs font-medium ${marginAmount > 0 ? 'text-success' : 'text-danger'}`}>
-          กำไรต่อชิ้น: ฿{marginAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (
-          {marginPercent.toLocaleString('th-TH', { maximumFractionDigits: 0 })}%)
+      {marginAmount !== null ? (
+        <p className="text-default-700 mt-1 text-xs">
+          กำไรต่อชิ้น {marginAmount < 0 ? '-' : ''}฿
+          {Math.abs(marginAmount).toLocaleString('th-TH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
         </p>
-      )}
-
-      {!costEditAllowed && (
-        <p className="text-default-400 mt-1 flex items-center gap-1.5 text-xs">
-          <Icon icon="lock" className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>
-            ราคาทุนเป็นฟีเจอร์ Business Package —{' '}
-            <Link href="/business" className="text-primary font-bold underline hover:no-underline">
-              อัปเกรดเพื่อดูกำไรต่อสินค้า →
-            </Link>
-          </span>
-        </p>
+      ) : (
+        // empty state ต้องสอนว่ากรอกแล้วได้อะไร ไม่ใช่ปล่อยว่าง (operate.md)
+        <p className="text-default-400 mt-1 text-xs">กรอกราคาทุนเพื่อดูกำไรต่อชิ้นอัตโนมัติ</p>
       )}
     </div>
   )

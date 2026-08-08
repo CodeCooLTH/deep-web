@@ -261,8 +261,10 @@ export function applyStaffMenu(
  * applyInventoryGate (badge upsell) ตาม UX-Design-Spec.md §A "เมนู sidebar ... conditional render"
  *
  * - GRANTED → แสดงปกติ ไม่มี badge
- * - PACKAGE_LOCKED → แสดงพร้อม badge "อัปเกรด" (ไม่ disabled — คลิกได้ เข้าไปเห็น upsell card เอง)
  * - STAFF_NOT_ALLOWED หรือ NO_SHOP → กรอง child ออกจาก items ทั้งหมด (ซ่อนสนิท — AC-04 "มองไม่เห็นเมนูเลย")
+ *
+ * [D-EXT-1 · 2026-08-07] สาขา PACKAGE_LOCKED (badge "อัปเกรด") ถูกลบทิ้ง — ไม่มีสถานะ
+ * "ยังไม่จ่ายเงิน" อีกต่อไป เมนูนี้จึงเหลือแค่ 2 ทาง: เห็นปกติ หรือไม่เห็นเลยเพราะไม่มีสิทธิ์
  *
  * หมายเหตุ: นี่คือ UX hint เท่านั้น — enforcement จริงอยู่ที่ resolveExpenseAccess() ใน ExpensesPage (fail-closed)
  */
@@ -274,16 +276,6 @@ export function applyExpenseMenu(
     return items.map((group) => !group.children ? group : {
       ...group,
       children: group.children.filter((child) => child.slug !== 'seller:expenses'),
-    })
-  }
-
-  if (decision.kind === 'PACKAGE_LOCKED') {
-    const badge = { className: 'bg-primary', text: 'อัปเกรด' }
-    return items.map((group) => !group.children ? group : {
-      ...group,
-      children: group.children.map((child) =>
-        child.slug === 'seller:expenses' ? { ...child, badge } : child,
-      ),
     })
   }
 

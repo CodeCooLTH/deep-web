@@ -11,7 +11,6 @@ import {
 } from "@/services/product.service";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
 import { requireActiveShop } from "@/lib/shop-context";
-import { isCostEditAllowed } from "@/services/expense-access.service";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -80,13 +79,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // cost — Expense & Cost Tracking (feature 00016): guard เฉพาะเมื่อ caller ส่ง field นี้มา
-  // (ownership check ผ่านไปแล้วโดย requireActiveShop ด้านบน — isCostEditAllowed เช็คแค่ package ACTIVE)
-  if (parsed.output.cost !== undefined) {
-    if (!(await isCostEditAllowed(shop))) {
-      return NextResponse.json({ error: "COST_REQUIRES_BUSINESS_PACKAGE" }, { status: 403 });
-    }
-  }
+  // cost — ไม่มี guard แล้ว (D-EXT-1 2026-08-07): ราคาทุนเปิดฟรีทุกร้าน
+  // ownership ของสินค้ามาจาก requireActiveShop ด้านบนอยู่แล้ว ซึ่งเป็นด่านที่จำเป็นจริง
+  // ส่วนด่านเดิม (isCostEditAllowed) เช็คแค่ว่า owner จ่ายค่าแพ็กเกจหรือยัง = billing ล้วน
 
   // feature 00028 (BR-SBT-22) — ส่ง shopVertical เข้า service ให้ override fulfillmentMode default
   const product = await createProduct(shop.id, { ...parsed.output, shopVertical: shop.vertical });

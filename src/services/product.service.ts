@@ -120,7 +120,8 @@ export interface SerializedProduct {
   stockQty: number | null;
   // lowStockThreshold — Deep Stock Pro (feature 00009): null=ไม่ตั้ง alert, N>=0=ตั้งค่า
   lowStockThreshold: number | null;
-  // cost — Expense & Cost Tracking (feature 00016): null=ไม่ตั้งราคาทุน, N>=0=ตั้งค่า (gate ด้วย isCostEditAllowed ที่ route)
+  // cost — Expense & Cost Tracking (feature 00016): null=ไม่ตั้งราคาทุน, N>=0=ตั้งค่า
+  // (ไม่มี gate ของแพ็กเกจแล้ว — D-EXT-1 2026-08-07 เปิดฟรีทุกร้าน)
   cost: number | null;
 }
 
@@ -182,7 +183,8 @@ export interface CreateProductInput {
   stockQty?: number | null;
   // lowStockThreshold — Deep Stock Pro (feature 00009): undefined=ไม่แตะ, null=ไม่ตั้ง alert, ≥0=ตั้งค่า
   lowStockThreshold?: number | null;
-  // cost — Expense & Cost Tracking (feature 00016): undefined=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า (gate ที่ route ด้วย isCostEditAllowed)
+  // cost — Expense & Cost Tracking (feature 00016): undefined=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า
+  // (ไม่มี gate ของแพ็กเกจแล้ว — D-EXT-1 2026-08-07)
   cost?: number | null;
   // shopVertical — feature 00028 (BR-SBT-22, SDS TD-004): caller ส่ง shop.vertical ที่มีอยู่แล้ว
   // ในมือหลัง guard มาให้ override default ของ fulfillmentMode — ห้าม service query Shop เอง
@@ -309,7 +311,8 @@ export interface UpdateProductInput {
   stockQty?: number | null;
   // lowStockThreshold — Deep Stock Pro (feature 00009): omit=ไม่แตะ, null=ไม่ตั้ง alert, ≥0=ตั้งค่า
   lowStockThreshold?: number | null;
-  // cost — Expense & Cost Tracking (feature 00016): omit=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า (gate ที่ route ด้วย isCostEditAllowed)
+  // cost — Expense & Cost Tracking (feature 00016): omit=ไม่แตะ, null=ล้างค่า, ≥0=ตั้งค่า
+  // (ไม่มี gate ของแพ็กเกจแล้ว — D-EXT-1 2026-08-07)
   cost?: number | null;
   /**
    * shopVertical — feature 00030 (BR-BKU-13): mirror ของ CreateProductInput

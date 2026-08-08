@@ -71,11 +71,11 @@ export default async function ExpensesPage({
     )
   }
 
-  if (decision.kind === 'PACKAGE_LOCKED' || decision.kind === 'STAFF_NOT_ALLOWED') {
+  if (decision.kind === 'STAFF_NOT_ALLOWED') {
     return (
       <>
         <PageBreadcrumb title="ค่าใช้จ่าย" trail={[{ label: 'ธุรกิจ' }]} />
-        <ExpenseLockedCard variant={decision.kind} />
+        <ExpenseLockedCard />
       </>
     )
   }

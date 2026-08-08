@@ -21,7 +21,6 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { requireActiveShop } from '@/lib/shop-context'
 import { isEntitlementActive, isProActive } from '@/services/inventory-entitlement.service'
-import { isCostEditAllowed } from '@/services/expense-access.service'
 import { prisma } from '@/lib/prisma'
 import { serializeProduct } from '@/services/product.service'
 import { redirect, notFound } from 'next/navigation'
@@ -111,7 +110,6 @@ export default async function EditProductPage({ params }: PageProps) {
   const proActive = await isProActive(shop.id).catch(() => false)
   // Expense & Cost Tracking (feature 00016 Unit 5B) — gate field cost ใน ProductCostCardV2
   // fail-closed เหมือน entitlementActive/proActive ด้านบน
-  const costEditAllowed = await isCostEditAllowed(shop).catch(() => false)
 
   return (
     <>
@@ -139,7 +137,6 @@ export default async function EditProductPage({ params }: PageProps) {
         formId={FORM_ID}
         entitlementActive={entitlementActive}
         isProActive={proActive}
-        costEditAllowed={costEditAllowed}
       />
     </>
   )
