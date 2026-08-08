@@ -441,6 +441,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `isAdmin` | Boolean default false | ตั้งผ่าน DB seed เท่านั้น |
 | `passwordHash` | String? | bcryptjs hash — ใช้กับ seller-credentials login + admin login; buyer ไม่มี (no email+password) |
 | `createdAt` | DateTime | วันสมัคร — ใช้คำนวณ Age component trust score |
+| `chatScopeMode` | String default `"SINGLE"` | **feature 00037** — มุมมองกล่องข้อความของผู้ใช้คนนี้: `"SINGLE"` = เห็นเฉพาะแชทของร้านที่ active (พฤติกรรมเดิมทั้งหมด) · `"UNIFIED"` = เห็นแชทของทุกร้านที่เข้าถึงได้รวมในรายการเดียว. เก็บที่ `User` ไม่ใช่ `Shop` เพราะเป็น "วิธีทำงานของคน" ไม่ใช่ "การตั้งค่าของร้าน". **ไม่มี CHECK constraint โดยตั้งใจ** (ดู `docs/conventions/migration-check-constraint-additive.md`) — ด่านอยู่ที่ Valibot ขาเขียนกับ `normalizeChatScopeMode()` ขาอ่าน (ค่าที่ไม่รู้จัก → `SINGLE`) |
 
 **Relations:** `shop`, `authAccounts`, `verifications`, `userBadges`, `trustScoreHistory`, `ordersAsBuyer`, `reviewsGiven`, `verificationsReviewed`, `topUpRequestsReviewed`
 
@@ -742,6 +743,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | Method | Path | Auth | Purpose | Service |
 |--------|------|------|---------|---------|
 | GET | `/api/users/me` | Buyer/Seller | ดึง profile ตัวเอง (session-scoped) | `user.service` |
+| PATCH | `/api/users/me` | Buyer/Seller | แก้ profile ตัวเอง — **allow-list `UpdateProfileSchema` เท่านั้น** (`displayName`/`username`/`avatar`/`chatScopeMode`) ห้ามเพิ่ม field ที่ผู้ใช้ไม่ควรตั้งเอง (เคยมีช่องยิง `{"isAdmin":true}`) | `user.service` |
 | GET | `/api/users/check-username` | Guest | ตรวจว่า username ว่างหรือไม่ | `user.service` |
 | GET | `/api/users/check-phone` | Guest | ตรวจว่าเบอร์มีบัญชีแล้วหรือไม่ → `{available:bool}` — rate-limit guardApi | `user.service` |
 
@@ -894,6 +896,18 @@ SellerWallet (1) ── (N) WalletTransaction
 **กำไรรายออเดอร์ (2026-08-07):** คำนวณใน RSC ของ `/orders/[token]` **ไม่มี endpoint แยก** (จุดบังคับสิทธิ์จุดเดียว) — ต้องส่ง `null` ออกจาก server เมื่อไม่ `GRANTED` ห้ามคำนวณแล้วซ่อนที่ client
 
 **CSV ต้นทุน (Inventory Add-on):** `POST /api/inventory/csv/import` + `GET /api/inventory/csv/export` รับ/คืนคอลัมน์ `cost` — cell ว่าง = ไม่แตะค่าเดิม, `0` = ตั้งศูนย์จริง. gate ของสองเส้นนี้คือ `isProActive` + `requireOnlineSalesVertical` (**คนละ subscription จาก Business Package — D-EXT-1 ไม่ถอด**) และครอบเฉพาะสินค้า `PHYSICAL` + `isActive`
+
+### 7.14 Chat (`/api/chat/**`) — ขอบเขตร้าน
+
+รายการ endpoint เต็มอยู่ที่ feature docs (00011/00018/00019/00023/00029/00037) — ที่นี่บันทึกเฉพาะ **กติกาขอบเขต** ที่ทุก endpoint ในกลุ่มนี้ต้องรักษา เพราะเป็นเรื่องความปลอดภัยข้ามฟีเจอร์:
+
+| กติกา | รายละเอียด |
+|-------|-----------|
+| SSOT ของขอบเขต | `resolveChatScope()` (`src/lib/chat-scope.ts`) เท่านั้น — 🛑 **ห้ามไฟล์ใต้ `src/app/api/chat/**` และ `src/app/(paces)/seller/(chat)/**` เรียก `resolveActiveShopContext`/`requireActiveShop` ตรง ๆ** (ยกเว้น `api/channels/**` = ตั้งค่าเพจ ต้องอยู่ในบริบทร้านเดียวโดยตั้งใจ) |
+| ขอบเขตมาจาก server | ห้ามรับรายชื่อร้านจาก client; `?shopId=` เป็น **ตัวกรองภายในขอบเขต** ต้องผ่าน `intersectScopedShopIds()` / `resolveScopedShopId()` เสมอ |
+| นอกขอบเขต = ไม่มีอยู่ | คืนผลว่างหรือ 404 **ไม่ใช่ 403** (403 ยืนยันว่าทรัพยากรนั้นมีจริง) |
+| งานที่ผูกกับเธรด | ใช้ `resolveConversationShopId()` แล้วอ่านทุกอย่างจาก `conversation.shopId` — ไม่ใช่ `activeShopId` (ตั้งแต่ feature 00037 สองค่านี้ไม่ใช่สิ่งเดียวกัน) |
+| `DISTINCT ON` ที่เกี่ยวกับ `Customer` | ต้องมี `shopId` เป็นคีย์แรกเสมอ — `Customer` เป็นตารางระดับทั้งระบบ (`phone @unique`) ลูกค้าคนเดียวมีออเดอร์หลายร้านได้ |
 
 ---
 
