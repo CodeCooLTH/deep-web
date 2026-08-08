@@ -32,6 +32,7 @@ import Swal from 'sweetalert2'
 import { pacesToast } from '@/lib/paces-toast'
 import { cn } from '@/utils/helpers'
 import { parseCsv } from '@/lib/csv'
+import { formatBaht } from '@/lib/format-money'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -51,6 +52,11 @@ interface PreviewRow {
   productId: string
   productName: string // จากคอลัมน์ "name" ถ้ามีในไฟล์ (export มีให้) ไม่งั้น fallback เป็น productId
   stockQty: number | null // null = parse/validate ไม่ผ่าน → ไม่ถูกส่งเข้า API
+  /** ราคาทุนจากไฟล์ (feature 00016 ส่วนขยาย)
+   *  undefined = cell ว่าง/ไม่มีคอลัมน์นี้ → **ไม่ส่ง key ไป API** = ไม่แตะต้นทุนเดิม
+   *  number    = ตั้งค่าใหม่ (รวม 0 ที่แปลว่า "ต้นทุนศูนย์บาทจริง")
+   *  ห้ามแปลง cell ว่างเป็น 0 เด็ดขาด — export แล้ว import กลับโดยไม่แก้อะไรจะล้างต้นทุนทั้งร้าน */
+  cost?: number
   status: RowStatus
   error?: string // ข้อความไทย — ทั้ง client-validate error และ error จาก API หลัง import
 }
@@ -99,6 +105,8 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
   const [rows, setRows] = useState<PreviewRow[]>([])
   const [parseError, setParseError] = useState<string>('')
   const [overCap, setOverCap] = useState(false)
+  // ไฟล์เทมเพลตเก่า (ก่อน 2026-08-08) ไม่มีคอลัมน์ cost — ข้อความยืนยันจึงไม่ควรพูดถึงต้นทุน
+  const [hasCostColumn, setHasCostColumn] = useState(false)
   const [imported, setImported] = useState(false) // true หลังยิง import ผ่าน (แม้มีบาง แถว error)
   const [isImporting, setIsImporting] = useState(false)
   const [summary, setSummary] = useState<{ ok: number; err: number } | null>(null)
@@ -151,6 +159,8 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
       const idxProductId = header.indexOf('productid')
       const idxStockQty = header.indexOf('stockqty')
       const idxName = header.indexOf('name') // optional — export มีให้เพื่อแสดงชื่อสินค้าใน preview
+      const idxCost = header.indexOf('cost') // optional — ไฟล์เทมเพลตเก่า (ก่อน 2026-08-08) ไม่มีคอลัมน์นี้
+      setHasCostColumn(idxCost >= 0)
 
       if (idxProductId === -1 || idxStockQty === -1) {
         setParseError('ไฟล์ไม่ถูกต้อง — ต้องมีคอลัมน์ productId และ stockQty')
@@ -166,19 +176,33 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
         const name = idxName >= 0 ? (r[idxName] ?? '').trim() : ''
         const qtyNum = Number(qtyRaw)
         const qtyValid = qtyRaw !== '' && Number.isInteger(qtyNum) && qtyNum >= 0
-        const rowValid = productId !== '' && qtyValid
+
+        // ต้นทุน: cell ว่าง = ไม่แตะค่าเดิม (ไม่ใช่ 0) — ต่างจาก stockQty ที่บังคับทุกแถว
+        // รับทศนิยมได้ (ต่างจาก stockQty ที่ต้องเป็นจำนวนเต็ม) เพราะราคาทุนมีสตางค์ได้จริง
+        const costRaw = idxCost >= 0 ? (r[idxCost] ?? '').trim() : ''
+        const costNum = Number(costRaw)
+        const costOmitted = costRaw === ''
+        const costValid = costOmitted || (Number.isFinite(costNum) && costNum >= 0)
+        const rowValid = productId !== '' && qtyValid && costValid
 
         return {
           rowIndex: i + 1,
           productId,
           productName: name || productId || `แถวที่ ${i + 1}`,
           stockQty: rowValid ? qtyNum : null,
+          cost: rowValid && !costOmitted ? costNum : undefined,
           // แถว invalid ตั้งแต่ parse client → ทำเครื่องหมาย ERROR ทันที ไม่ต้องรอ import
+          //
+          // ต้นทุนติดลบถูกจับที่นี่ก่อนถึง API โดยตั้งใจ: ฝั่ง server มันจะทำให้ทั้งไฟล์
+          // ถูกปฏิเสธเป็น 400 (เหมือน stockQty ติดลบ) การบอกตั้งแต่ตอน preview ว่าแถวไหน
+          // ผิดจึงมีประโยชน์กว่าให้กดแล้วเจอข้อความรวม ๆ ว่าไฟล์ใช้ไม่ได้
           status: rowValid ? 'PENDING' : 'ERROR',
           error: !rowValid
             ? productId === ''
               ? 'ไม่พบรหัสสินค้า (productId)'
-              : 'จำนวนสต็อกไม่ถูกต้อง'
+              : !qtyValid
+                ? 'จำนวนสต็อกไม่ถูกต้อง'
+                : 'ต้นทุนติดลบไม่ได้'
             : undefined,
         }
       })
@@ -200,7 +224,9 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
       buttonsStyling: false,
       icon: 'warning',
       title: `ยืนยันนำเข้าสต็อก ${validRows.length} แถว?`,
-      text: 'การนำเข้าจะแทนที่จำนวนสต็อกปัจจุบันของสินค้าที่ตรงกัน — ตรวจสอบให้แน่ใจ',
+      text: hasCostColumn
+        ? 'การนำเข้าจะแทนที่จำนวนสต็อกปัจจุบันของสินค้าที่ตรงกัน และตั้งต้นทุนใหม่ตามไฟล์ (ช่องว่าง = ไม่แก้ไขต้นทุนเดิม) — ตรวจสอบให้แน่ใจ'
+        : 'การนำเข้าจะแทนที่จำนวนสต็อกปัจจุบันของสินค้าที่ตรงกัน — ตรวจสอบให้แน่ใจ',
       showCancelButton: true,
       confirmButtonText: `นำเข้า ${validRows.length} แถว`,
       cancelButtonText: 'ยกเลิก',
@@ -217,7 +243,13 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              rows: validRows.map((r) => ({ productId: r.productId, stockQty: r.stockQty })),
+              // ส่ง key `cost` เฉพาะแถวที่ไฟล์ระบุมาจริง — แถวที่ cell ว่างต้องไม่มี key นี้เลย
+              // ไม่ใช่ส่ง null/0 (นั่นคือ "ล้างค่า"/"ตั้งศูนย์" ซึ่งเป็นคนละความหมาย)
+              rows: validRows.map((r) => ({
+                productId: r.productId,
+                stockQty: r.stockQty,
+                ...(r.cost === undefined ? {} : { cost: r.cost }),
+              })),
             }),
           })
           const data = await res.json().catch(() => ({}))
@@ -304,7 +336,7 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
     >
       {/* modal กว้างกว่า TopUpRequestModal (lg:max-w-2xl แทน lg:max-w-lg) เพราะต้องมีที่พอสำหรับ
           ตาราง preview 4 คอลัมน์ — ไม่ใช่ arbitrary value, ยังอยู่ใน Tailwind scale มาตรฐาน */}
-      <div className="ease-in-out transition-all duration-200 lg:max-w-2xl md:max-w-lg md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center">
+      <div className={'ease-in-out transition-all duration-200 lg:max-w-2xl md:max-w-lg md:w-full w-[calc(100%-24px)] m-3 md:mx-auto flex items-center' /* HR7 carve-out: เปลือกโมดัลที่ใช้ร่วมกัน 8 ไฟล์ (Base: TopUpRequestModal) — Paces ไม่มี token สำหรับ "เต็มจอลบขอบคงที่ 24px" */}>
         <div className="w-full flex flex-col card pointer-events-auto">
           {/* ─── Header ─────────────────────────────────────────────────────── */}
           <div className="card-header p-5">
@@ -369,6 +401,18 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
               >
                 ดาวน์โหลดเทมเพลต (ไฟล์สต็อกปัจจุบัน) →
               </a>
+              {/* กฎที่ไม่มีใครเดาเองได้ ต้องอ่านก่อนเลือกไฟล์ ไม่ใช่หลังกด — กรอก 0 ทั้งคอลัมน์
+                  เพราะเข้าใจผิด = ล้างต้นทุนทั้งร้าน กู้ไม่ได้ จึงแสดงถาวรไม่ผูกกับการเลือกไฟล์
+                  โทนเทากลาง ไม่ใช่ warning เพราะเป็นคำอธิบายวิธีใช้ ไม่ใช่คำเตือนว่ามีอะไรผิด */}
+              <div className="bg-default-50 border-default-200 text-default-600 mt-2 flex items-start gap-2 rounded-md border p-2.5 text-xs">
+                <Icon icon="info-circle" className="text-default-400 mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span>
+                  คอลัมน์ <strong className="text-default-800">cost</strong> (ต้นทุน):
+                  เว้นว่าง = <strong className="text-default-800">ไม่แก้ไข</strong>ต้นทุนเดิม ·
+                  ใส่ <strong className="text-default-800">0</strong> = ตั้งต้นทุนเป็น{' '}
+                  <strong className="text-default-800">0 บาทจริง</strong>
+                </span>
+              </div>
             </div>
 
             {/* ─── Warning banner เกิน 500 แถว ────────────────────────────────────── */}
@@ -384,8 +428,10 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
             )}
 
             {/* ─── Preview table — plain <table>, ไม่ TanStack (UX-Design-Spec #4) ─────────── */}
+            {/* overflow-x-auto จำเป็นตั้งแต่เพิ่มคอลัมน์ที่ 5 (ต้นทุน) — ที่ความกว้างโมดัล
+                บนมือถือ (~280px) ห้าคอลัมน์ล้นแน่นอน */}
             {rows.length > 0 && (
-              <div className="max-h-96 overflow-y-auto rounded-lg border border-default-200">
+              <div className="max-h-96 overflow-x-auto overflow-y-auto rounded-lg border border-default-200">
                 <table className="min-w-full divide-y divide-default-200 text-sm">
                   <thead className="bg-default-50 sticky top-0">
                     <tr>
@@ -397,6 +443,9 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
                       </th>
                       <th className="text-default-500 px-3 py-2 text-start text-xs font-semibold uppercase">
                         สต็อกใหม่
+                      </th>
+                      <th className="text-default-500 px-3 py-2 text-start text-xs font-semibold uppercase">
+                        ต้นทุน
                       </th>
                       <th className="text-default-500 px-3 py-2 text-start text-xs font-semibold uppercase">
                         สถานะ
@@ -414,6 +463,15 @@ export default function CsvImportModal({ open, onClose, onSuccess }: CsvImportMo
                           </td>
                           <td className="px-3 py-2 tabular-nums text-default-700">
                             {r.stockQty ?? '—'}
+                          </td>
+                          {/* "ไม่แก้ไข" ต้องอ่านออกว่าไม่ใช่ค่าตัวเลข จึงใช้สีจาง ส่วน ฿0 เป็นค่าจริง
+                              ที่กำลังจะถูกตั้ง ต้องเข้มเท่าตัวเลขอื่น ไม่งั้นสองอย่างนี้ดูเหมือนกัน */}
+                          <td className="px-3 py-2 tabular-nums">
+                            {r.cost === undefined ? (
+                              <span className="text-default-400">ไม่แก้ไข</span>
+                            ) : (
+                              <span className="text-default-800">{formatBaht(r.cost)}</span>
+                            )}
                           </td>
                           <td className="px-3 py-2">
                             <span className={cn('badge', meta.cls)}>{meta.label}</span>
