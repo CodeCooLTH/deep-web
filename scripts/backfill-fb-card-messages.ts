@@ -21,10 +21,22 @@
 import { PrismaClient } from '@prisma/client'
 import { fetchMessageContent } from '../src/lib/facebook/graph'
 import { decryptToken } from '../src/lib/token-crypto'
+import { isCallCard, mirrorRemoteImage, CARD_PREFIX } from '../src/services/channel-chat.service'
 
 const PLACEHOLDER = '[ข้อความจากระบบของ Facebook — เปิดดูใน Messenger]'
-const CARD_PREFIX = '[การ์ดจาก Facebook]'
 const BATCH = 4
+
+/**
+ * แถวเก่าที่ Meta ส่งการ์ดมาก่อนวันที่เปิดคอลัมน์ `rawMessage` (2026-08-03) — ประกอบใหม่จากฐาน
+ * เราไม่ได้เพราะไม่มี payload เก็บไว้ ต้องยิง Graph ถามด้วย mid เอา
+ * ค่าพวกนี้มาจากการ query prod จริง ไม่ได้เดา (ดู EXTENSIONS-2026-08-07 E3.1)
+ */
+const LEGACY_TITLES = ['Audio call', 'Missed call', 'Call request sent', 'Transfer requested', 'ส่งคำขอโทรแล้ว']
+// ยังไม่เสร็จ: `--legacy` ยัง **ทำไม่เสร็จ** (user สั่งพักงาน 2026-08-07 แล้วเปลี่ยนไปงานอื่น) — dry-run ดูได้
+// แต่ยังขาด 2 อย่างที่ตกลงกันไว้: (1) เลื่อนสายจริงเป็น type='CALL' ด้วย isCallCard()
+// (2) mirror รูป 64 ใบเข้า storage. ปิดทาง --apply ไว้ก่อน ไม่งั้นจะเขียนครึ่ง ๆ กลาง ๆ ลง prod
+// แล้วรอบต่อไปแยกไม่ออกว่าแถวไหนผ่านมือแล้ว
+const LEGACY = process.argv.includes('--legacy')
 
 const prisma = new PrismaClient()
 const APPLY = process.argv.includes('--apply')
@@ -78,11 +90,20 @@ function mb(n: number): string {
 
 async function main() {
   const rows = await prisma.chatMessage.findMany({
-    where: { body: PLACEHOLDER, externalMessageId: { not: null } },
+    where: {
+      externalMessageId: { not: null },
+      ...(LEGACY
+        ? // แถวที่การ์ดถูกเก็บเป็น "ข้อความดิบ" (title ของ Meta) — ต่างจาก placeholder ตรงที่
+          // มันไม่ได้ว่าง แต่ก็ไม่ได้บอกว่ามาจากการ์ด จึงขึ้นเป็นบับเบิลเหมือนคนพิมพ์เอง
+          { OR: [{ body: { startsWith: '฿' } }, { body: { in: LEGACY_TITLES } }] }
+        : { body: PLACEHOLDER }),
+    },
     select: {
       id: true,
       externalMessageId: true,
       createdAt: true,
+      body: true,
+      type: true,
       conversation: {
         select: { id: true, shopChannel: { select: { accessTokenEnc: true, status: true } } },
       },
@@ -96,7 +117,7 @@ async function main() {
     card: 0, text: 0, media: 0, 'still-empty': 0, 'graph-null': 0, 'no-token': 0,
   }
   const samples: string[] = []
-  const updates: Array<{ id: string; body: string }> = []
+  const updates: Array<{ id: string; body: string | null; type?: string; imageUrl?: string; name?: string | null; size?: number | null }> = []
   const mediaRows: Array<{
     kind: string
     mime: string | null
@@ -191,7 +212,11 @@ async function main() {
 
   // นับข้อความที่ไม่ซ้ำ — ตรวจง่ายกว่าไล่ดูตัวอย่างสุ่ม ว่ามีข้อความแปลกปลอมหลุดเข้ามาไหม
   const byBody = new Map<string, number>()
-  updates.forEach((u) => byBody.set(u.body, (byBody.get(u.body) ?? 0) + 1))
+  // body เป็น null ได้เมื่อเป็นไฟล์แนบที่ mirror สำเร็จ (เนื้อหาอยู่ที่ imageUrl ไม่ใช่ข้อความ)
+  updates.forEach((u) => {
+    const k = u.body ?? '(ไฟล์แนบ — ไม่มีข้อความ)'
+    byBody.set(k, (byBody.get(k) ?? 0) + 1)
+  })
   console.log(`\nข้อความที่จะเขียน (ไม่ซ้ำ ${byBody.size} แบบ):`)
   ;[...byBody.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -209,6 +234,10 @@ async function main() {
   console.log(`  ไม่มี token ที่ใช้ได้     ${tally['no-token']}`)
   console.log(`  → จะอัปเดตทั้งหมด ${updates.length} แถว`)
 
+  if (LEGACY && APPLY) {
+    console.log('\n--legacy ยังทำไม่เสร็จ (ดู comment หัวไฟล์) — ปิดทางเขียนจริงไว้ก่อน ไม่มีอะไรถูกเขียน')
+    return
+  }
   if (!APPLY) {
     console.log('\nDRY-RUN — ไม่มีอะไรถูกเขียน. ใส่ --apply เพื่อเขียนจริง')
     return

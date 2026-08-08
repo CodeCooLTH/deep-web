@@ -565,9 +565,17 @@ export function classifyCallTemplate(
   }
   const el = payload.elements?.[0]
   const title = el?.title?.trim()
-  const subtitle = el?.subtitle?.trim()
+  return { isCall: isCallCard(title, el?.subtitle?.trim()), title }
+}
+
+/**
+ * แกนของเกณฑ์ "สายจริง" แยกออกมาเพื่อให้ **ฝั่ง Graph ใช้ได้ด้วย** — Graph คืนการ์ดเป็น
+ * `generic_template` ไม่มี `template_type: 'icon-template'` ให้ดู (คนละโครงกับ webhook)
+ * ถ้าไม่แยกออกมา สคริปต์ backfill จะต้องลอกเกณฑ์ไปเขียนซ้ำแล้วรอวันที่มันเลื่อนออกจากกัน
+ */
+export function isCallCard(title: string | undefined, subtitle: string | undefined): boolean {
   const hasDuration = !!subtitle && /\d/.test(subtitle) && /\b(sec|min|hr|hour|วิ|นาที|ชม)/i.test(subtitle)
-  return { isCall: title === 'Missed call' || title === 'Audio call' || hasDuration, title }
+  return title === 'Missed call' || title === 'Audio call' || hasDuration
 }
 
 export function composeStructuredText(
