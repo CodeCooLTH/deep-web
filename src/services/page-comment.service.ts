@@ -893,6 +893,19 @@ export async function countUnansweredForShops(params: {
    * (รอบก่อนผมเปลี่ยนเป็นนับคอมเมนต์เพราะ user บอกว่าเลข 24/5/3,7,3,8,3 ดูขัดกัน — ตอนนั้นแถวยังมี
    *  วงกลมตัวเลขต่อโพสต์อยู่ พอถอดวงกลมออกตามที่สั่งทีหลัง เลขจำนวนคอมเมนต์ก็ไม่มีอะไรบนจอให้อ้างอิง)
    */
+  /**
+   * feature 00038 Fix round 1 — ตั้งใจ "ไม่" แยกบอท/คนในเงื่อนไข NOT EXISTS ด้านล่างนี้ (ย้อนกลับ
+   * `AND r."isAutoReply" = false` ที่ Task 9 เติมเข้ามาตามบรีฟ ซึ่งบรีฟผิด ขัดกับ BRD ที่ user
+   * อนุมัติแล้ว): AC-CR-25 เขียนตรง ๆ ว่า "บอทตอบทุกคอมเมนต์ในโพสต์ → ตัวเลขบนแท็บ 'ความคิดเห็น'
+   * ต้องไม่นับโพสต์นั้น" และ BR-CR-S1 นิยาม "ยังไม่ตอบ" = ไม่มีคำตอบของเพจเลย (ไม่ว่าบอทหรือคน)
+   * เติมเงื่อนไข isAutoReply เข้ามาจะทำให้โพสต์ที่บอทเคลียร์หมดแล้วค้างอยู่ใน badge นี้ตลอดกาล
+   * ผิด AC-CR-25 และตัวนับไร้ความหมาย (เตือนซ้ำไม่มีวันหายแม้บอทตอบครบ)
+   *
+   * การแยกบอท/คนเป็นหน้าที่ของชิปกรอง 4 ตัว ("บอทตอบแล้ว" vs "คนตอบแล้ว") ซึ่งตัดสินด้วย
+   * derivePostState()/deriveCommentState() ใน listCommentPosts() แยกต่างหาก ไม่ใช่ badge รวมตัวนี้
+   * — badge นี้ตอบคำถามคนละข้อ: "โพสต์นี้ยังต้องการความสนใจของคนไหม" (รวม UNANSWERED +
+   * BOT_ANSWERED) ไม่ใช่ "โพสต์นี้อยู่กลุ่มไหนใน 3 กลุ่ม"
+   */
   const rows = await prisma.$queryRaw<Array<{ count: bigint }>>`
     SELECT count(DISTINCT c."postId")::bigint AS count
     FROM "PageComment" c
@@ -905,7 +918,6 @@ export async function countUnansweredForShops(params: {
         SELECT 1 FROM "PageComment" r
         WHERE r."parentExternalId" = c."externalCommentId"
           AND r."isFromPage" = true
-          AND r."isAutoReply" = false   -- feature 00038: คำตอบของบอทไม่ทำให้หายจากคิว
       )
   `
   return Number(rows[0]?.count ?? 0)
