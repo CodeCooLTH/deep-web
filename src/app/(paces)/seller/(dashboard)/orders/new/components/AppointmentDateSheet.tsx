@@ -365,6 +365,28 @@ export default function AppointmentDateSheet({
     setPendingDate(localDateKey(arg.date))
   }, [])
 
+  /**
+   * เลือกวันด้วยคีย์บอร์ด (Enter / Space) — ทางเข้าที่ **สอง** ของการเลือกวัน
+   *
+   * ทำไมต้องมี: `dateClick` ของ FullCalendar ผูกกับ mousedown/touch เท่านั้น และช่องวันถูก
+   * เรนเดอร์เป็น `<td role="gridcell">` ที่ไม่มี tabindex — งานหลักของทั้งจอนี้ (เลือกวัน)
+   * จึงทำด้วยคีย์บอร์ดไม่ได้เลย 100% ทั้งที่ทุกอย่างที่เหลือ (ปิด/เลื่อนเดือน/กรอกเวลา/ยืนยัน)
+   * ทำได้ครบ (WCAG 2.1.1 Keyboard — ระดับ A)
+   *
+   * ห้ามรื้อ FullCalendar เพื่อแก้เรื่องนี้: ตัวที่ทำให้กดได้คือ `<div>` ชั้นนอกที่เราคืนจาก
+   * dayCellContent ซึ่ง lib วางไว้ใน `<a class="fc-daygrid-day-number">` ที่ไม่มี href
+   * (navLinks ปิดอยู่ = ไม่ใช่ element ที่ interactive) จึงไม่เกิด nested interactive
+   *
+   * เรียก setPendingDate ตัวเดียวกับ onDateClick — สองทางเข้าต้องได้ผลเดียวกันเสมอ
+   * (จิ้ม/กดปุ่ม = preview ไม่ยืนยัน ไม่ปิดชีต)
+   */
+  const onDayKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>, key: string) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    // Space บน div ที่ไม่ใช่ปุ่มจริงจะเลื่อนหน้าเป็นค่าเริ่มต้น — ต้องกันไว้
+    e.preventDefault()
+    setPendingDate(key)
+  }, [])
+
   const pendingFull = pendingDate ? isFull(pendingDate) : false
   const pendingCount = pendingDate ? (countByDay.get(pendingDate) ?? 0) : 0
 
@@ -435,23 +457,54 @@ export default function AppointmentDateSheet({
    * บล็อกการบันทึกออเดอร์ด้วยเงื่อนไขเดียวกันนี้อยู่แล้ว เดิมผู้ใช้แค่ไปเจอมันทีหลัง
    * คนละจังหวะคนละบริบท ย้ายมาเช็คตรงนี้ = ปิดลูปการตัดสินใจจบในที่เดียวตามที่ user ขอ
    */
+  /**
+   * ปัญหาของช่องเวลา ณ ตอนนี้ — SSOT เดียวที่ **3 ที่** ใช้ร่วมกัน (HR16):
+   *   1) ป้ายบนปุ่มยืนยัน  2) ข้อความใต้ช่องเวลา  3) aria-invalid/aria-describedby ของ input
+   *
+   * ทำไมต้องสกัดออกมา: เดิมข้อความเหล่านี้อยู่ในปุ่มยืนยันซึ่ง `disabled` — element ที่
+   * disabled หลุด tab order และไม่มี live region ผู้ใช้ screen reader จึงกรอกเวลาผิดแล้ว
+   * **ไม่มีอะไรบอกเลยว่าผิดตรงไหน** (WCAG 3.3.1 Error Identification / 3.3.3 Error Suggestion)
+   * ย้ายข้อความมาผูกกับช่องที่ผิดจริง แล้วให้ปุ่มอ่านจากตัวเดียวกัน — ห้ามก็อปคำไปเขียนซ้ำ
+   * ไม่งั้นสองที่จะเพี้ยนจากกันทันทีที่มีคนแก้ที่เดียว
+   *
+   * `invalid` แยกจาก "ยังกรอกไม่ครบ": ช่องว่างที่ยังไม่ถูกแตะไม่ควรถูกประกาศว่า "ผิด"
+   * (aria-invalid บนช่องเปล่าตั้งแต่แรกคือเสียงรบกวน) — บอกด้วย aria-required + คำอธิบายพอ
+   */
+  const timeIssue = useMemo(():
+    | { message: string; field: 'start' | 'end'; invalid: boolean }
+    | null => {
+    if (byDay || !pendingDate) return null
+    if (!pendingStart) return { message: 'เลือกเวลาเริ่มก่อน', field: 'start', invalid: false }
+    if (!pendingEnd) return { message: 'เลือกเวลาสิ้นสุดก่อน', field: 'end', invalid: false }
+    if (pendingEnd <= pendingStart) {
+      // คำเดียวกับ toast ของหน้าเลื่อนนัด (RescheduleAppointmentSheet.submit) — กฎเดียวกัน
+      // ต้องได้ยินเป็นประโยคเดียวกันไม่ว่าจะไปเจอมันจากทางไหน
+      return { message: 'เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม', field: 'end', invalid: true }
+    }
+    if (pendingSlotFull) {
+      return { message: 'ช่วงเวลานี้เต็มแล้ว — เลือกเวลาอื่น', field: 'start', invalid: true }
+    }
+    return null
+  }, [byDay, pendingDate, pendingEnd, pendingSlotFull, pendingStart])
+
+  const TIME_ISSUE_ID = 'appt-sheet-time-issue'
+
   const confirmState = useMemo((): { label: string; disabled: boolean } => {
     if (!pendingDate) return { label: 'แตะวันในปฏิทินก่อน', disabled: true }
     const dateLabel = formatDateTH(new Date(`${pendingDate}T00:00`))
     if (byDay) {
-      if (pendingFull) return { label: 'วันนี้เต็มแล้ว — เลือกวันอื่น', disabled: true }
+      // พูดวันที่ออกมาตรง ๆ ไม่ใช้คำว่า "วันนี้" — จอนี้มีปุ่ม "วันนี้" ที่แปลว่ากระโดดไป
+      // วันปัจจุบัน (กติกาเดียวกับที่เขียนไว้ที่แถบยืนยันล่าง) และผู้ขายที่จิ้มดูหลายวัน
+      // ติด ๆ กันต้องรู้ว่าใบไหนเต็ม ไม่ใช่ "วันนี้" ลอย ๆ
+      if (pendingFull) return { label: `${dateLabel} เต็มแล้ว — เลือกวันอื่น`, disabled: true }
       // ใช้กริยา "ยืนยัน" ทั้งสองโหมด — ปุ่มเดียวกัน การกระทำเดียวกัน (ผูกค่าเข้าฟอร์มแล้วปิด)
       // คำว่า "เลือก" ทำให้อ่านเหมือนยังอยู่ในขั้นสำรวจ ทั้งที่กดแล้วมีผลจริง
       return { label: `ยืนยัน ${dateLabel}`, disabled: false }
     }
-    if (!pendingStart) return { label: 'เลือกเวลาเริ่มก่อน', disabled: true }
-    if (!pendingEnd) return { label: 'เลือกเวลาสิ้นสุดก่อน', disabled: true }
-    if (pendingEnd <= pendingStart) {
-      return { label: 'เวลาสิ้นสุดต้องหลังเวลาเริ่ม', disabled: true }
-    }
-    if (pendingSlotFull) return { label: 'ช่วงเวลานี้เต็มแล้ว — เลือกเวลาอื่น', disabled: true }
+    // ป้ายปุ่มอ่านจาก timeIssue ตัวเดียวกับที่ผูกอยู่กับช่องเวลา (ดูคอมเมนต์ของ timeIssue)
+    if (timeIssue) return { label: timeIssue.message, disabled: true }
     return { label: `ยืนยัน ${dateLabel} · ${pendingStart}–${pendingEnd}`, disabled: false }
-  }, [byDay, pendingDate, pendingEnd, pendingFull, pendingSlotFull, pendingStart])
+  }, [byDay, pendingDate, pendingEnd, pendingFull, pendingStart, timeIssue])
 
   const goPrev = () => calRef.current?.getApi().prev()
   const goNext = () => calRef.current?.getApi().next()
@@ -479,7 +532,10 @@ export default function AppointmentDateSheet({
       className="@container fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)]" /* carve-out: safe-area ไม่มี token */
       role="dialog"
       aria-modal="true"
-      aria-label="เลือกวันนัด"
+      /* ชื่อชีตต้องเป็นคำเดียวกับปุ่มที่เปิดมัน (AppointmentBlock/RescheduleAppointmentSheet
+         เขียนว่า "เลือกวันและเวลา" ในโหมดระบุเวลา) — ตั้งแต่ 2026-08-08 ชีตนี้เป็นที่เลือก
+         "เวลา" ด้วย ชื่อที่พูดถึงแต่วันจึงทำให้ผู้ขายกดปิดไปหาช่องเวลาที่อื่น */
+      aria-label={byDay ? 'เลือกวันนัด' : 'เลือกวันและเวลา'}
     >
       <div className="flex shrink-0 items-center gap-3 border-b border-default-200 px-4 py-3">
         {/* หัวแผ่นชุดเดียวกับ CustomerSearchSheet / AddressSearchSheet (3 ชีตของฟอร์มเดียวกัน)
@@ -502,12 +558,26 @@ export default function AppointmentDateSheet({
           <Icon icon="calendar-event" className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-semibold text-dark">เลือกวันนัด</h3>
+          {/* คำเดียวกับ aria-label ด้านบนและกับปุ่มที่เปิดชีตนี้ — ห้ามให้สามที่นี้พูดคนละคำ */}
+          <h3 className="truncate text-base font-semibold text-dark">
+            {byDay ? 'เลือกวันนัด' : 'เลือกวันและเวลา'}
+          </h3>
           {/* mockup โชว์ความจุต่อวันไว้ตรงนี้ด้วย — ผู้ขายจะได้รู้ตั้งแต่ต้นว่า "เต็ม" ของคิวนี้
               คือกี่งาน โดยไม่ต้องจิ้มวันแล้วไปอ่านตัวเลขที่หัวรายการ */}
           {(resourceName || (capacity != null && capacity > 0)) && (
             <p className="truncate text-xs text-default-500">
-              {[resourceName, capacity != null && capacity > 0 ? `รับได้ ${capacity} คิว/วัน` : null]
+              {/* "คิว/วัน" ถูกเฉพาะโหมดรายวัน — โหมดระบุช่วงเวลา ความจุนี้วัดกันที่ "ช่วงเวลาที่ทับกัน"
+                  (ดู isFull) ร้าน capacity 2 รับได้ทั้งวันหลายสิบคิว การเขียน "รับได้ 2 คิว/วัน"
+                  ไว้หัวจอจึงขัดกับบรรทัด "จองแล้ว n จาก m คิว ในช่วงเวลานี้" ที่อยู่จอเดียวกัน (HR16)
+                  คำโหมดเวลายกมาจากการ์ดเลือกบริการใน AppointmentBlock ("รับพร้อมกัน n คิว") ตรง ๆ */}
+              {[
+                resourceName,
+                capacity != null && capacity > 0
+                  ? byDay
+                    ? `รับได้ ${capacity} คิว/วัน`
+                    : `รับพร้อมกัน ${capacity} คิว`
+                  : null,
+              ]
                 .filter(Boolean)
                 .join(' · ')}
             </p>
@@ -520,12 +590,18 @@ export default function AppointmentDateSheet({
           (grep ทั้ง src/assets/css + theme/paces = 0 — บทเรียนเดียวกับ `btn-ghost` ใน 00033)
           ปุ่มทั้งสามจึงเป็น `.btn` เปล่า ๆ ไม่มีพื้น ไม่มีขอบ อ่านเป็นตัวหนังสือลอย ๆ บนจอจริง
           ชุดที่ใช้ตอนนี้ยกมาจาก theme/paces/Admin/TS/src ตรง ๆ (combo ที่ธีมใช้ซ้ำหลักสิบครั้ง) */}
+      {/* min-h-11/min-w-11 บนปุ่มไอคอนทั้งสาม: `.btn.btn-icon` ของธีม = `size-9.25` = 37px
+          ซึ่งต่ำกว่าเกณฑ์ 44px ที่ PRODUCT.md ประกาศไว้สำหรับกลุ่ม digital-literacy ต่ำ/ผู้สูงวัย
+          (WCAG 2.5.5 Target Size) — ปุ่มปิดบนหัวแผ่นแก้ไปแล้วรอบก่อน แต่ปุ่มเลื่อนเดือนกับ
+          ปุ่ม "วันนี้" ซึ่งอยู่ห่างลงมา 60px ตกสำรวจ ทั้งที่เป็นแถวเดียวกันในสายตาผู้ใช้
+          ใช้ min-h/min-w ไม่ใช่ size-11 เพราะ `.btn[class*="size-"]` บังคับ padding:0 อยู่แล้ว
+          และ min-* ชนะ h/w ของ btn-icon ได้โดยไม่ต้องแก้ธีม (ท่าเดียวกับปุ่มปิดด้านบน) */}
       <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
         <button
           type="button"
           onClick={goPrev}
           aria-label="เดือนก่อนหน้า"
-          className="btn btn-icon text-default-800 hover:bg-default-100"
+          className="btn btn-icon text-default-800 hover:bg-default-100 min-h-11 min-w-11"
         >
           <Icon icon="chevron-left" className="size-4" />
         </button>
@@ -542,7 +618,7 @@ export default function AppointmentDateSheet({
           <button
             type="button"
             onClick={goToday}
-            className="btn btn-sm border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 rounded-full border"
+            className="btn btn-sm border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 min-h-11 rounded-full border px-4"
           >
             วันนี้
           </button>
@@ -550,7 +626,7 @@ export default function AppointmentDateSheet({
             type="button"
             onClick={goNext}
             aria-label="เดือนถัดไป"
-            className="btn btn-icon text-default-800 hover:bg-default-100"
+            className="btn btn-icon text-default-800 hover:bg-default-100 min-h-11 min-w-11"
           >
             <Icon icon="chevron-right" className="size-4" />
           </button>
@@ -634,7 +710,12 @@ export default function AppointmentDateSheet({
           dayCellContent={(arg) => {
             const key = localDateKey(arg.date)
             const used = countByDay.get(key) ?? 0
-            const full = capacity != null && capacity > 0 && used >= capacity
+            /* ต้องใช้ isFull() ตัวเดียวกับที่ปุ่มยืนยันใช้ ห้ามคำนวณเองซ้ำ — เดิมบรรทัดนี้
+               ไม่ดู byDay ทำให้โหมดระบุช่วงเวลาวาดกากบาท "เต็ม" บนวันที่มีนัดครบ capacity
+               ทั้งที่ (ก) legend ซ่อนสัญลักษณ์นั้นไปแล้วในโหมดนี้ → กากบาทไม่มีคำอธิบาย
+               (ข) เกณฑ์นับทั้งวันไม่มีความหมายในโหมดเวลา (ร้านรับพร้อมกัน 2 คิวที่มีนัดสั้น ๆ
+               8 นัดกระจายทั้งวัน ยังว่างอีกเยอะ) — เหตุผลเต็มอยู่ที่ isFull */
+            const full = isFull(key)
             const selected = pendingDate === key
             /**
              * ทั้งช่องคือ "ปุ่มกลม ๆ" ใบเดียว — ขนาด/พื้น/ขอบอยู่ที่ div นี้ ไม่ใช่ที่ td ของตาราง
@@ -656,9 +737,49 @@ export default function AppointmentDateSheet({
                 : arg.isToday
                   ? 'text-default-800 border-default-300 hover:bg-default-100 border'
                   : 'text-default-800 hover:bg-default-100'
+            /**
+             * ช่องของเดือนข้างเคียงไม่รับโฟกัส — `onDateClick` กันมันไว้แล้วด้วย `fc-day-other`
+             * ถ้าปล่อยให้ tab ไปหยุดได้ จะกลายเป็นจุดที่กดแล้วไม่มีอะไรเกิดขึ้น (WCAG 2.4.3)
+             * และเพิ่มจุดแวะให้คีย์บอร์ดอีก 7-14 จุดต่อเดือนโดยไม่ได้อะไรกลับมา
+             */
+            const pickable = !arg.isOther
+            /**
+             * ป้ายเสียงต่อช่องวัน — เดิมมี sr-only เฉพาะกรณี "เต็ม" เท่านั้น ช่องปกติจึงได้ยิน
+             * แค่เลขวันลอย ๆ ("8") ไม่รู้ว่าเดือนอะไร มีคิวอยู่แล้วกี่งาน หรือกำลังเลือกอยู่ไหม
+             * ประกอบจาก formatDateTH (พ.ศ. ตาม docs/conventions/date-format.md) ไม่ใช่ต่อสตริงเอง
+             *
+             * ตัวหาร (capacity) พูดเฉพาะโหมดรายวัน ด้วยเหตุผลเดียวกับที่หัวรายการทำ —
+             * โหมดระบุช่วงเวลาเอา day-count มาหารด้วยความจุไม่ได้ (ดู isFull) พูดจำนวนดิบพอ
+             */
+            const dayLabel = pickable
+              ? [
+                  formatDateTH(arg.date),
+                  full
+                    ? 'เต็มแล้ว'
+                    : used > 0
+                      ? byDay && capacity != null && capacity > 0
+                        ? `จองแล้ว ${used} จาก ${capacity} คิว`
+                        : `มี ${used} คิว`
+                      : 'ยังไม่มีคิว',
+                  arg.isToday ? 'วันนี้' : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : undefined
             return (
               <div
-                className={`flex min-h-11.5 w-full flex-col items-center justify-center gap-1 rounded-lg @3xl:min-h-13 ${tone}`}
+                /* role/tabIndex/onKeyDown = ทางเข้าคีย์บอร์ดของงานหลักในจอนี้ (ดู onDayKeyDown)
+                   aria-pressed บอกว่า "วันนี้คือวันที่กำลังดูอยู่" ซึ่งเป็นสถานะสลับได้ ไม่ใช่
+                   การนำทาง — ตรงกับที่การ์ดเลือกบริการใน AppointmentBlock ใช้อยู่แล้ว
+                   focus-visible ชุด ring: idiom เดียวกับทั้ง (paces) (ProductGrid/OrdersList)
+                   ring-offset-1 จำเป็นเพราะช่องที่เลือกอยู่พื้นเป็น bg-primary — ring สีเดียวกัน
+                   บนพื้นสีเดียวกันคือขอบโฟกัสที่มองไม่เห็น (WCAG 2.4.7) */
+                role={pickable ? 'button' : undefined}
+                tabIndex={pickable ? 0 : undefined}
+                aria-pressed={pickable ? selected : undefined}
+                aria-label={dayLabel}
+                onKeyDown={pickable ? (e) => onDayKeyDown(e, key) : undefined}
+                className={`flex min-h-11.5 w-full flex-col items-center justify-center gap-1 rounded-lg focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none @3xl:min-h-13 ${tone}`}
               >
                 {full ? (
                   <>
@@ -694,7 +815,11 @@ export default function AppointmentDateSheet({
       {/* min-h-40 = พื้นที่ขั้นต่ำที่รายการต้องได้เสมอ (flex-1 basis 0 อย่างเดียวไม่การันตี
           อะไรเลยเมื่อพื้นที่ติดลบ — ปฏิทินจะกินหมดแล้วรายการหายไปทั้งก้อน) */}
       <div className="border-default-200 bg-default-100 flex flex-col border-t @5xl:min-h-0 @5xl:flex-1 @5xl:basis-2/5 @5xl:border-t-0">
-        <div className="flex shrink-0 items-baseline gap-2 px-4 pt-3 pb-2">
+        {/* aria-live/atomic: การเลือกวันเปลี่ยนแค่ "รายการข้างล่าง" ซึ่งอยู่คนละที่กับมือ/โฟกัส
+            ผู้ใช้ screen reader ที่เพิ่งกด Enter บนช่องวันจึงไม่มีทางรู้ผลของสิ่งที่เพิ่งทำเลย
+            (WCAG 4.1.3 Status Messages) — atomic=true เพื่อให้ได้ยินทั้งวันที่ + จำนวนคิว
+            เป็นประโยคเดียว ไม่ใช่ได้ยินเฉพาะตัวเลขที่เปลี่ยน */}
+        <div className="flex shrink-0 items-baseline gap-2 px-4 pt-3 pb-2" aria-live="polite" aria-atomic="true">
           <h4 className="text-dark text-sm font-semibold">
             {pendingDate ? formatWeekdayDateTH(new Date(`${pendingDate}T00:00`)) : 'แตะวันในปฏิทิน'}
           </h4>
@@ -715,8 +840,12 @@ export default function AppointmentDateSheet({
                   </span>
                 )
               : pendingCount > 0 && (
+                  /* "ในวันนี้" อ่านได้ว่า today ทั้งที่หมายถึง "วันที่จิ้มอยู่" — และจอนี้มีปุ่ม
+                     "วันนี้" ที่แปลว่ากระโดดไปวันปัจจุบันอยู่ห่างไม่ถึงจอเดียว (คำเตือนเดียวกับ
+                     ที่เขียนไว้ที่แถบยืนยันล่าง) ขึ้นต้นด้วย "ทั้งวัน" แทน ได้ทั้งความชัดและ
+                     ความต่างจากบรรทัด "…ในช่วงเวลานี้" ที่อยู่ใต้ช่องเวลา */
                   <span className="text-default-500 ms-auto text-xs">
-                    มี {pendingCount} คิวในวันนี้
+                    ทั้งวันมี {pendingCount} คิว
                   </span>
                 ))}
         </div>
@@ -732,9 +861,12 @@ export default function AppointmentDateSheet({
             <p className="text-default-800 text-sm font-semibold">ว่างทั้งวัน</p>
             {/* เลี่ยงคำว่า "วันนี้" — บนจอเดียวกันมีปุ่ม "วันนี้" ที่แปลว่ากระโดดไปวันปัจจุบัน
                 (คำเตือนเรื่องนี้เขียนไว้แล้วที่แถบยืนยันล่าง แต่บรรทัดนี้ตกสำรวจ)
-                และในโหมดระบุเวลา ยังเลือกวันอย่างเดียวแล้วยืนยันไม่ได้ ต้องกรอกเวลาก่อน */}
+                และในโหมดระบุเวลา ยังเลือกวันอย่างเดียวแล้วยืนยันไม่ได้ ต้องกรอกเวลาก่อน
+                2026-08-08 (clarify): สาขารายวันยังเขียนว่า "เลือกวันนี้ได้เลย" อยู่ ทั้งที่
+                คอมเมนต์ข้างบนประกาศว่าเลี่ยงคำนี้ — แก้ให้ตรงกับที่ประกาศไว้ และไม่ชี้ไปที่ปุ่ม
+                ใดปุ่มหนึ่ง เพราะกล่องนี้ขึ้นตั้งแต่ตอนที่ยังไม่ได้จิ้มวันด้วย (ปุ่มยืนยันยัง disabled) */}
             <p className="text-default-500 text-xs">
-              {byDay ? 'ยังไม่มีใครจองคิวนี้ — เลือกวันนี้ได้เลย' : 'ยังไม่มีใครจองคิวนี้ — เลือกเวลาได้ตามสะดวก'}
+              {byDay ? 'ยังไม่มีใครจองคิวนี้ — จองได้เลย' : 'ยังไม่มีใครจองคิวนี้ — เลือกเวลาได้ตามสะดวก'}
             </p>
           </div>
         ) : (
@@ -802,8 +934,11 @@ export default function AppointmentDateSheet({
                 onClick={() => applyStart(suggestedStart)}
                 className="btn border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 mb-3 min-h-11 w-full justify-start gap-2 rounded-lg border"
               >
+                {/* ป้ายต้องบอก "กดแล้วได้อะไร" ไม่ใช่บอกแค่ข้อเท็จจริง — "ต่อจากคิวก่อนหน้า 15:30"
+                    อ่านได้เป็นป้ายบอกข้อมูลเฉย ๆ (คลาสเดียวกับปุ่ม "ทักแชท" ที่กลายเป็นป้ายบอกเวลา)
+                    ขึ้นต้นด้วยกริยา + ค่าที่จะถูกเติม แล้วต่อด้วยเหตุผลที่เสนอเวลานี้ */}
                 <Icon icon="arrow-narrow-right" className="size-4 shrink-0" aria-hidden="true" />
-                ต่อจากคิวก่อนหน้า {suggestedStart}
+                ตั้งเวลาเริ่ม {suggestedStart} ต่อจากคิวก่อนหน้า
               </button>
             )}
 
@@ -812,10 +947,17 @@ export default function AppointmentDateSheet({
                 <label htmlFor="appt-sheet-start" className="form-label">
                   เวลาเริ่ม
                 </label>
+                {/* aria-required: ทั้งคู่บังคับกรอกในโหมดนี้ (ปุ่มยืนยัน disabled จนกว่าจะครบ)
+                    แต่ไม่มี `required` จริงเพราะไม่ได้อยู่ใน <form> ที่ submit
+                    aria-invalid เฉพาะตอน "ค่าที่กรอกผิดจริง" ไม่ใช่ตอนยังว่าง (ดู timeIssue)
+                    aria-describedby ชี้ไปที่ข้อความใต้ช่อง ซึ่งเป็น live region ด้วย */}
                 <input
                   id="appt-sheet-start"
                   type="time"
                   className="form-input"
+                  aria-required
+                  aria-invalid={timeIssue?.field === 'start' && timeIssue.invalid ? true : undefined}
+                  aria-describedby={timeIssue ? TIME_ISSUE_ID : undefined}
                   value={pendingStart}
                   onChange={(e) => applyStart(e.target.value)}
                 />
@@ -829,6 +971,9 @@ export default function AppointmentDateSheet({
                   type="time"
                   className="form-input"
                   min={pendingStart || undefined}
+                  aria-required
+                  aria-invalid={timeIssue?.field === 'end' && timeIssue.invalid ? true : undefined}
+                  aria-describedby={timeIssue ? TIME_ISSUE_ID : undefined}
                   value={pendingEnd}
                   onChange={(e) => {
                     endTouched.current = true
@@ -836,6 +981,25 @@ export default function AppointmentDateSheet({
                   }}
                 />
               </div>
+            </div>
+
+            {/* กล่อง live region ต้องอยู่ใน DOM **ตลอดเวลา** ไม่ใช่โผล่มาพร้อมข้อความ —
+                live region ที่เพิ่งถูกแทรกเข้ามาในเฟรมเดียวกับเนื้อหา มักไม่ถูกประกาศเลย
+                จึงเป็น div ว่างที่มี aria-live ค้างไว้ แล้วให้ <p> ข้างในโผล่/หายแทน
+                polite ไม่ใช่ assertive: ผู้ใช้กำลังพิมพ์เวลาอยู่ ไม่ควรถูกขัดกลางคัน
+                น้ำเสียงแยกตาม invalid — "ยังกรอกไม่ครบ" เป็นคำแนะนำ (เทา) ไม่ใช่ความผิดพลาด
+                (แดง) ที่ต้องตกใจ ทั้งที่ผู้ใช้แค่ยังพิมพ์ไม่เสร็จ */}
+            <div aria-live="polite">
+              {timeIssue && (
+                <p
+                  id={TIME_ISSUE_ID}
+                  className={`mt-2 mb-0 text-sm ${
+                    timeIssue.invalid ? 'text-danger' : 'text-default-500'
+                  }`}
+                >
+                  {timeIssue.message}
+                </p>
+              )}
             </div>
 
             {/* ตัวนับของ "ช่วงเวลา" ไม่ใช่ของทั้งวัน — แสดงผลเท่านั้น ไม่ใช่คำตัดสิน (BR-RSV-18)
