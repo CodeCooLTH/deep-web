@@ -15,6 +15,7 @@ import { authOptions } from '@/lib/auth'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { listCommentPosts, backfillPagePosts } from '@/services/page-comment.service'
 import { listChannelsForShops } from '@/services/shop-channel.service'
+import { prisma } from '@/lib/prisma'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import CommentsClient, { type CommentPostItem } from './CommentsClient'
@@ -55,16 +56,32 @@ export default async function CommentsPage() {
   let posts: CommentPostItem[] = []
   let failed = false
   // เพจที่เชื่อมไว้ — ใช้ทำตัวกรอง (ร้านเชื่อมได้หลายเพจ); v1 ครอบเฉพาะ Facebook
-  const channels = (await listChannelsForShops(scope.shopIds).catch(() => []))
-    .filter((c) => c.provider === 'MESSENGER')
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      provider: c.provider,
-      avatarUrl: c.avatarUrl,
-      shopId: c.shopId,
-      shopName: c.shopName,
-    }))
+  const channelsRaw = (await listChannelsForShops(scope.shopIds).catch(() => [])).filter(
+    (c) => c.provider === 'MESSENGER',
+  )
+  /**
+   * feature 00038 Task 8 — prefill กล่องทักแชทด้วยข้อความสวิตช์ B ของเพจนั้น (ChannelOption ต้อง
+   * พ่วง commentPrivateReplyText) listChannelsForShops ไม่ได้ select คอลัมน์นี้ (เป็นของฟีเจอร์ที่
+   * เพิ่งมาทีหลัง และ service กลางนั้นอยู่นอกขอบเขตไฟล์ที่ task นี้แตะได้) จึง query เสริมสั้น ๆ
+   * แทนที่จะแก้ signature ของ service กลางซึ่งมีผู้ใช้อื่นอยู่แล้ว
+   */
+  const privateTextByChannelId = new Map(
+    (
+      await prisma.shopChannel.findMany({
+        where: { id: { in: channelsRaw.map((c) => c.id) } },
+        select: { id: true, commentPrivateReplyText: true },
+      })
+    ).map((c) => [c.id, c.commentPrivateReplyText] as const),
+  )
+  const channels = channelsRaw.map((c) => ({
+    id: c.id,
+    name: c.name,
+    provider: c.provider,
+    avatarUrl: c.avatarUrl,
+    shopId: c.shopId,
+    shopName: c.shopName,
+    commentPrivateReplyText: privateTextByChannelId.get(c.id) ?? null,
+  }))
   try {
     const rows = await listCommentPosts({ shopIds: scope.shopIds, actorUserId: user.id })
     posts = rows.map((p) => ({
