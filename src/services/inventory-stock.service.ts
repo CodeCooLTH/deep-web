@@ -209,12 +209,20 @@ export async function getStockMovementHistory(
 export async function exportStockToCsv(shopId: string): Promise<string> {
   const products = await prisma.product.findMany({
     where: { shopId, type: 'PHYSICAL', isActive: true },
-    select: { id: true, sku: true, name: true, stockQty: true },
+    select: { id: true, sku: true, name: true, stockQty: true, cost: true },
     orderBy: { name: 'asc' },
   })
   const rows = [
-    ['productId', 'sku', 'name', 'stockQty'],
-    ...products.map((p) => [p.id, p.sku ?? '', p.name, p.stockQty === null ? '' : String(p.stockQty)]),
+    ['productId', 'sku', 'name', 'stockQty', 'cost'],
+    ...products.map((p) => [
+      p.id,
+      p.sku ?? '',
+      p.name,
+      p.stockQty === null ? '' : String(p.stockQty),
+      // cost ที่เป็น null ต้องออกมาเป็น "ช่องว่าง" ไม่ใช่ "0" — ไม่งั้นการ export แล้ว import
+      // กลับโดยไม่แก้อะไรเลยจะตั้งต้นทุนของทุกสินค้าที่ยังไม่เคยตั้งให้เป็นศูนย์บาท (TC-EXT-12)
+      p.cost === null ? '' : String(p.cost),
+    ]),
   ]
   return stringifyCsv(rows)
 }
@@ -227,11 +235,11 @@ export type CsvImportRowResult =
 export async function importStockFromCsvRows(
   shopId: string,
   actorUserId: string,
-  rows: { productId: string; stockQty: number }[],
+  rows: { productId: string; stockQty: number; cost?: number }[],
 ): Promise<{ totalRows: number; successCount: number; errorCount: number; results: CsvImportRowResult[] }> {
   const results: CsvImportRowResult[] = []
   for (let i = 0; i < rows.length; i++) {
-    const { productId, stockQty: newQty } = rows[i]
+    const { productId, stockQty: newQty, cost } = rows[i]
     try {
       const result = await prisma.$transaction(async (tx) => {
         const product = await tx.product.findUnique({
@@ -243,9 +251,15 @@ export async function importStockFromCsvRows(
         const oldQty = product.stockQty
         const delta = newQty - (oldQty ?? 0)
         // compare-and-swap บน snapshot เดิม — กัน concurrent modification (เช่น order deduct ระหว่าง import)
+        //
+        // ราคาทุน (feature 00016 ส่วนขยาย 2026-08-07): เขียนเฉพาะตอนที่ไฟล์ "ส่ง cost มาจริง"
+        // — `undefined` แปลว่า cell ว่าง = ไม่แตะค่าเดิม ซึ่งต่างจาก `0` ที่แปลว่าตั้งเป็นศูนย์บาท
+        // การใช้ spread แบบมีเงื่อนไขจึงจำเป็น ถ้าเขียน `data: { stockQty, cost }` ตรง ๆ Prisma
+        // จะเห็น undefined แล้วข้ามให้เองก็จริง แต่เจตนาจะอ่านไม่ออกและพังทันทีที่มีใครเผลอ
+        // แปลง cell ว่างเป็น null ที่ฝั่ง client
         const updated = await tx.product.updateMany({
           where: { id: productId, stockQty: oldQty },
-          data: { stockQty: newQty },
+          data: { stockQty: newQty, ...(cost === undefined ? {} : { cost }) },
         })
         if (updated.count === 0) throw new Error('CONCURRENT_MODIFICATION')
         if (delta !== 0) {

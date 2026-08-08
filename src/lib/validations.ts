@@ -257,6 +257,15 @@ export const ManualStockAdjustSchema = v.object({
 export const CsvImportRowSchema = v.object({
   productId: v.pipe(v.string(), v.uuid()),
   stockQty: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  // ราคาทุน (feature 00016 ส่วนขยาย 2026-08-07) — optional โดยตั้งใจ:
+  // ไม่ส่ง key = "ไม่แตะค่าเดิม" · ส่ง 0 = "ตั้งเป็นศูนย์บาทจริง" สองอย่างนี้ต่างกันสิ้นเชิง
+  // client จึงห้ามแปลง cell ว่างเป็น 0 (ไม่งั้น export→import โดยไม่แก้อะไร = ล้างต้นทุนทั้งร้าน)
+  //
+  // ค่าติดลบตกที่นี่ = 400 ทั้งไฟล์ ไม่ใช่ error รายแถว — จงใจให้เหมือน stockQty ที่อยู่บรรทัดบน:
+  // ตัวเลขที่ผิดรูปคือ "ไฟล์ผิด" ส่วน error รายแถว (PRODUCT_NOT_FOUND/NOT_PHYSICAL/
+  // CONCURRENT_MODIFICATION) สงวนไว้ให้เงื่อนไขทางธุรกิจที่รู้ได้ตอนแตะ DB เท่านั้น
+  // การมีสองกฎในโมดัลเดียวกันสับสนกว่า และการปฏิเสธทั้งไฟล์ทำให้ร้านรู้แน่ว่าสถานะยังไม่เปลี่ยน
+  cost: v.optional(v.pipe(v.number(), v.minValue(0, "ราคาทุนต้องไม่ต่ำกว่า 0"))),
 });
 
 export const CsvImportSchema = v.object({

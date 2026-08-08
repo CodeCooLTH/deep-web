@@ -573,7 +573,8 @@ erDiagram
 
 - `[FR-EXP-16-AC-01]` **Given** แถว CSV ที่ cell `cost` ว่างเปล่า **When** import **Then** `Product.cost` เดิม **ไม่ถูกแตะ** (เสมือนไม่ส่ง key นี้มาเลย)
 - `[FR-EXP-16-AC-02]` **Given** cell `cost` = `0` **When** import **Then** `Product.cost` ถูกตั้งเป็น `0` จริง — ยึด pattern `undefined`(ไม่แตะ)/`number`(ตั้งค่า) เดียวกับ `PATCH /api/products/[id]` ไม่ใช่ pattern ของ `stockQty` ที่บังคับทุกแถวต้องมีค่า
-- `[FR-EXP-16-AC-03]` **Given** `cost` ติดลบ **When** import **Then** แถวนั้น error (`status:'ERROR'`) ไม่กระทบแถวอื่นในไฟล์เดียวกัน (row isolation เดิมของ `importStockFromCsvRows`)
+- `[FR-EXP-16-AC-03]` **Given** `cost` ติดลบอย่างน้อย 1 แถว **When** import **Then** **ไฟล์ถูกปฏิเสธทั้งใบ** (400 + ข้อความ "ราคาทุนต้องไม่ต่ำกว่า 0") และ **ไม่มีแถวไหนถูกเขียนลงฐานเลย** — ร้านแก้ไฟล์แล้วนำเข้าใหม่ได้โดยไม่ต้องไล่ดูว่าแถวไหนเข้าไปแล้ว
+  > แก้จากร่างแรก (2026-08-08 ตอน implement): ร่างแรกกำหนดเป็น error รายแถว แต่ `stockQty` ติดลบใน schema เดียวกันเป็น 400 ทั้งไฟล์อยู่แล้ว — ถ้าต้นทุนเป็นรายแถวจะได้สองกฎในโมดัลเดียวกันสำหรับ "กรอกเลขติดลบ" ซึ่งอธิบายให้ผู้ใช้ไม่ได้
 - `[FR-EXP-16-AC-04]` การ import ยังต้องผ่าน `isProActive(shop.id)` เหมือนเดิม — **D-EXT-1 ไม่ถอด gate นี้** เพราะเป็นคนละ subscription จาก Business Package
 
 ### 11.4 Edge Cases (คำตอบที่ล็อกแล้ว — QA ใช้เขียน TestCase ได้ตรง)
@@ -585,6 +586,7 @@ erDiagram
 | สินค้า `cost > price` (ขาดทุน) | FR-EXP-14-AC-05 / FR-EXP-15 — แสดงติดลบตรงไปตรงมา ไม่ clamp |
 | Vertical SERVICE_QUEUE / LODGING | FR-EXP-15-AC-04/05 — SERVICE_QUEUE ใช้ `PRODUCT_VOCAB.itemColLabel` แทนคำว่า "สินค้า"; LODGING ไม่เกี่ยวเลย (`Room` ≠ `Product` และไม่มีเมนู) |
 | CSV: cell ว่าง vs `0` | FR-EXP-16-AC-01/02 — ว่าง=ไม่แตะ, `0`=ตั้งศูนย์จริง (ยืนยันกับ `undefined`/`number` pattern ของ `product.service.ts` แล้ว) CSV ไม่รองรับ "ล้างค่ากลับเป็น null" (ไม่มี use case ผ่านไฟล์นำเข้า) |
+| CSV: `cost` ติดลบ | FR-EXP-16-AC-03 — **ปฏิเสธทั้งไฟล์ (400)** ไม่ใช่ error รายแถว ให้เหมือน `stockQty` ที่อยู่ใน schema เดียวกัน |
 | ร้านที่เคยจ่าย Business Package ได้อะไรคืน | **ไม่มี migration/refund ทางวิศวกรรม** — ไม่เปลี่ยน schema, row `BusinessPackageSubscription` เดิมยังอยู่ครบและยังให้ perk อื่นต่อ (ดู §11.5) เรื่องสื่อสาร/ชดเชยลูกค้าเป็นการตัดสินใจธุรกิจนอกขอบเขตเอกสารนี้ — user รับทราบตาม D-EXT-1 |
 
 ### 11.5 ผลกระทบต่อ Business Package — เหลืออะไรให้ขาย

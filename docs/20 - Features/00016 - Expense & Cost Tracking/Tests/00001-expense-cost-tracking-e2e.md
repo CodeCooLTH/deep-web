@@ -1546,8 +1546,12 @@ related: ["[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]", "[[PRD]]"]
 - **Linked to:** `[FR-EXP-16-AC-01]` `[FR-EXP-16-AC-02]` `[FR-EXP-16-AC-03]`
 - **Precondition:** shop `ONLINE_SALES` + Inventory Add-on **PRO** active; สินค้า PHYSICAL 3 ชิ้นที่มี `cost` เดิม = `50`
 - **ประเภท:** API integration + DB verify
-- **Steps:** ยิง `POST /api/inventory/csv/import` ด้วย 3 แถว — แถว 1 ไม่ส่ง key `cost`, แถว 2 ส่ง `cost: 0`, แถว 3 ส่ง `cost: -5`
-- **Expected Result:** HTTP 200; แถว 1 `status:'OK'` และ `cost` ยังเป็น `50` (**ไม่ถูกแตะ**); แถว 2 `status:'OK'` และ `cost = 0`; แถว 3 `status:'ERROR'` และ `cost` ยังเป็น `50` (ไม่กระทบแถวอื่น)
+- **Steps:**
+  1. ยิง `POST /api/inventory/csv/import` ด้วย 2 แถว — แถว 1 ไม่ส่ง key `cost`, แถว 2 ส่ง `cost: 0`
+  2. ยิงคำขอ**แยกอีกครั้ง** ด้วย 2 แถวเดิม + แถวที่ 3 ที่ `cost: -5`
+- **Expected Result:**
+  - รอบที่ 1: HTTP 200; แถว 1 `status:'OK'` และ `cost` ยังเป็น `50` (**ไม่ถูกแตะ**); แถว 2 `status:'OK'` และ `cost = 0`
+  - รอบที่ 2: **HTTP 400** ข้อความ "ราคาทุนต้องไม่ต่ำกว่า 0" และ **ไม่มีแถวไหนถูกเขียนลงฐานเลย** (ตรวจ DB ว่าค่าทุกตัวเท่ากับหลังรอบที่ 1 เป๊ะ) — เลขติดลบตกที่ Valibot ระดับ body เหมือน `stockQty` ติดลบ ไม่ใช่ error รายแถว
 
 ---
 

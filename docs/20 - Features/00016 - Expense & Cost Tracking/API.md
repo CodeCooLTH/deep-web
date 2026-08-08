@@ -421,11 +421,13 @@ export const CsvImportRowSchema = v.object({
 |---|---|---|
 | cell ว่าง | **ไม่ใส่ key `cost`** | ไม่แตะค่าเดิม |
 | `0` | `"cost": 0` | ตั้งเป็น `0` จริง |
-| ติดลบ | `"cost": -5` | แถวนั้น `status:'ERROR'` (row isolation) — ไม่กระทบแถวอื่น |
+| ติดลบ | `"cost": -5` | **400 ทั้ง request** — `{"error":"ราคาทุนต้องไม่ต่ำกว่า 0"}` ไม่มีแถวไหนถูกเขียนลงฐานเลย |
 
 🛑 client **ห้ามส่ง `cost: null` หรือ `cost: 0` แทน cell ว่าง** — `0` ถูกจองความหมายว่า "ต้นทุนศูนย์บาทจริง" ไปแล้ว ถ้าแปลง cell ว่างเป็น `0` การ export→import โดยไม่แก้อะไรจะล้างต้นทุนทั้งไฟล์เป็นศูนย์
 
-**Response** — โครงเดิมทุกประการ (`{ totalRows, successCount, errorCount, results[] }`) ไม่มี field ใหม่ · error รายแถวเพิ่ม `COST_NEGATIVE` เข้าไปในชุดเดิม (`PRODUCT_NOT_FOUND` / `PRODUCT_NOT_PHYSICAL` / `CONCURRENT_MODIFICATION`) · HTTP ยัง 200 เสมอเมื่อผ่าน validation ระดับ body
+**Response** — โครงเดิมทุกประการ (`{ totalRows, successCount, errorCount, results[] }`) **ไม่มี field ใหม่ และไม่มี error code รายแถวเพิ่ม** · ชุด error รายแถวยังเป็น `PRODUCT_NOT_FOUND` / `PRODUCT_NOT_PHYSICAL` / `CONCURRENT_MODIFICATION` เท่าเดิม · HTTP ยัง 200 เสมอเมื่อผ่าน validation ระดับ body
+
+> `cost` ติดลบไม่มี error รายแถวโดยตั้งใจ — ตกที่ Valibot เป็น 400 ทั้ง request เหมือน `stockQty` ติดลบที่อยู่ใน schema เดียวกัน (เหตุผลเต็มที่ SRS §11.4 TFR-020) การมีสองกฎในโมดัลเดียวกันสำหรับ "ตัวเลขติดลบ" อธิบายให้ผู้ใช้เข้าใจไม่ได้
 
 ### 7.5.3 `GET /api/inventory/csv/export` — เพิ่มคอลัมน์ `cost`
 
