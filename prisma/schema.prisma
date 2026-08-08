@@ -1585,6 +1585,18 @@ model ChatMessage {
   // ไม่ backfill ย้อนหลัง (payload เดิมไม่มีให้แล้ว) — เก็บเฉพาะที่ได้รับตั้งแต่นี้เป็นต้นไป
   rawMessage        Json?
 
+  // viaStandby — แถวนี้มาจากกล่อง `standby` ของ Meta = **ตอนนั้นเราไม่ใช่เจ้าของเธรด** (2026-08-08)
+  //
+  // ที่มา: ร้านเปิด "AI from Meta" ให้ตอบแชท → Meta ส่ง event ของห้องนั้นมาคนละกล่องกับ `messaging`
+  // เพื่อบอกว่า "ตอนนี้ไม่ใช่ตาคุณ" (ดู docs/conventions/webhook-subscription-two-layers.md)
+  //
+  // 🛑 เก็บที่ "ข้อความ" ไม่ใช่ธงสถานะบน Conversation โดยตั้งใจ — สถานะปัจจุบันให้ derive จากแถว
+  // ล่าสุดเสมอ ธงที่เก็บแยกจะค้างทันทีที่มีทางเข้าใหม่ที่ลืมอัปเดต (stored-flag-vs-owner-truth.md)
+  //
+  // false = มาทาง `messaging` ตามปกติ (เราถือห้อง) หรือเป็นแถวก่อนฟีเจอร์นี้ — ไม่ backfill ย้อนหลัง
+  // เพราะข้อมูลเดิมไม่มีให้แยกแล้ว (ของเก่าที่ AI ตอบเข้ามาทาง graph-backfill ทั้งหมด)
+  viaStandby        Boolean @default(false)
+
   // --- feature 00023 (additive) ---
   // null = คนส่ง | "AUTO" = ระบบตอบ | "AUTO_TEST" = ระบบตอบขณะอยู่ในโหมดทดสอบ
   // 🛑 คอลัมน์นี้คือสิ่งที่ทำให้ BR-AR-22 บังคับได้: "พนักงานตอบ" = senderRole='SHOP' AND autoReplyKind IS NULL
@@ -2913,4 +2925,57 @@ model OrderEvent {
   @@index([orderId, occurredAt, seq])
   // ไม่ใช่ product query — ไว้กัน full table scan ตอนลบบัญชีพนักงาน (onDelete SetNull ต้องหาแถวลูก)
   @@index([actorUserId])
+}
+
+/**
+ * ChatHandoverEvent — บันทึกดิบของ webhook field `messaging_handovers` (2026-08-08)
+ *
+ * 🛑 ทำไมต้องมีตาราง ไม่ใช่แค่ console.log: เดิม webhook route log event พวกนี้แล้วทิ้ง แต่ Vercel
+ * plan ที่ใช้อยู่ **ดึง runtime log ย้อนหลังไม่ได้เลย** (ลอง /v1/deployments/{id}/runtime-logs และ
+ * /v2/.../events แล้ว 404/คืนแต่ build log) — พอต้องสืบว่า "Meta ส่งอะไรมาบ้าง" จึงตอบไม่ได้สักครั้ง
+ * ทั้งที่โค้ดรับถูกทุกบรรทัด นี่คือรอบที่ 3 ของอาการ "webhook เงียบแล้วเดากันเอง" ในสัปดาห์เดียว
+ *
+ * สิ่งที่ต้องได้จากตารางนี้เป็นอย่างแรก: **app id ของ Meta AI** ซึ่งไม่มีในเอกสารสาธารณะ
+ * (เอกสารให้มาแค่ Page Inbox 263902037430900 / IG Inbox 1217981644879628) แต่จำเป็นต่อ
+ * `pass_thread_control` เพื่อ "เปิด AI กลับ" จากในแอปเรา — รู้ได้ทางเดียวคืออ่านจาก payload จริง
+ * ตอนผู้ขายกดสลับใน Business Suite (external-payload-schema.md: ห้ามแมปจากการเดา)
+ *
+ * ไม่ผูก FK กับ Conversation/ShopChannel โดยตั้งใจ — เป็นตารางหลักฐาน ต้องเก็บได้แม้ event มาจาก
+ * เพจที่ไม่มีร้านไหนเชื่อม (เคส NO_CHANNEL) ไม่งั้นจะทิ้งของที่ต้องการสืบพอดี
+ */
+model ChatHandoverEvent {
+  id String @id @default(uuid())
+
+  /** "MESSENGER" | "INSTAGRAM" — object ของ webhook body */
+  provider String
+  /** Page ID (หรือ IG Business Account ID) จาก entry.id */
+  pageExternalId String
+  /** PSID ของลูกค้าที่เกี่ยวข้อง (sender.id) — null ได้ เพราะ app_roles ไม่ผูกกับคนคนเดียว */
+  contactExternalId String?
+
+  /** "pass" | "take" | "request" | "app_roles" */
+  kind String
+
+  // app id ทั้งสามช่องเป็น String — Meta ส่งมาเป็น number บ้าง string บ้างในเอกสารเดียวกัน
+  // (เห็น pattern นี้กับ field อื่นมาแล้ว) normalize เป็น string ตอนเขียนเสมอ
+  previousOwnerAppId  String?
+  newOwnerAppId       String?
+  requestedOwnerAppId String?
+  /** metadata ที่ผู้เรียกแนบมา (เราไม่ได้เป็นคนตั้ง — ของฝั่งที่สลับสิทธิ์) */
+  metadata String?
+
+  /** true = event นี้มาจากกล่อง standby (ตอนนั้นเราไม่ใช่เจ้าของเธรด) */
+  viaStandby Boolean @default(false)
+
+  /** payload ดิบ **ก่อน** Valibot — Valibot ตัด field ที่เราไม่ได้ประกาศทิ้งหมด เก็บตัวที่ถูกตัดแล้วจะสืบอะไรไม่ได้เลย */
+  raw Json?
+
+  /** event.timestamp ของ Meta (ไม่ใช่เวลาที่เราเขียนแถว) */
+  occurredAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  // สืบรายเพจเรียงใหม่→เก่า = query เดียวที่ตารางนี้ต้องรองรับจริง
+  @@index([pageExternalId, createdAt])
+  // หา event ของลูกค้ารายหนึ่ง (ใช้ตอน UI ถามว่า "ใครถือห้องนี้อยู่")
+  @@index([contactExternalId, createdAt])
 }

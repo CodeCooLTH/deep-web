@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEventsWithRaw, extractFeedChanges } from '@/lib/facebook/webhook-types'
-import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDeliveryEvent, ingestReactionEvent, ingestMessageEdit } from '@/services/channel-chat.service'
+import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDeliveryEvent, ingestReactionEvent, ingestMessageEdit, ingestHandoverEvent } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
 import { ingestFeedComment } from '@/services/page-comment.service'
@@ -236,13 +236,34 @@ export async function POST(request: NextRequest) {
         /**
          * Handover Protocol (2026-08-08) — สิทธิ์คุมห้องเปลี่ยนมือ
          *
-         * ยังไม่ทำอะไรกับข้อมูลนอกจาก log: เป้าหมายของรอบนี้คือ "ให้ Meta ยอมส่งของมาให้เรา"
-         * ซึ่งเกิดจากการ subscribe field นี้ ไม่ใช่จากการประมวลผล event
-         *
          * 🛑 ห้าม take_thread_control อัตโนมัติเด็ดขาด — ร้านตั้งใจให้ Meta AI ตอบอยู่ การแย่ง
          * สิทธิ์คืนเงียบ ๆ คือการปิด AI ที่เขาเปิดไว้เองโดยไม่บอก (และจะทำให้ AI หยุดตอบทันที)
          * เราแค่ต้อง "เห็น" บทสนทนา ซึ่งไม่ต้องใช้สิทธิ์คุมห้อง
+         *
+         * เก็บลงตาราง ChatHandoverEvent ด้วย ไม่ใช่แค่ log — Vercel plan นี้ query runtime log
+         * ย้อนหลังไม่ได้ และสิ่งที่ต้องได้จาก event พวกนี้คือ **app id ของ Meta AI** ที่ไม่มีใน
+         * เอกสารสาธารณะ (ต้องใช้ตอนทำปุ่ม "เปิด AI กลับ") ดูเหตุผลเต็มที่ ingestHandoverEvent
          */
+        await ingestHandoverEvent({
+          provider,
+          pageExternalId: pageId,
+          contactExternalId: event.sender?.id ?? null,
+          kind: event.pass_thread_control ? 'pass' : event.take_thread_control ? 'take' : 'request',
+          previousOwnerAppId:
+            event.pass_thread_control?.previous_owner_app_id ??
+            event.take_thread_control?.previous_owner_app_id ??
+            null,
+          newOwnerAppId: event.pass_thread_control?.new_owner_app_id ?? null,
+          requestedOwnerAppId: event.request_thread_control?.requested_owner_app_id ?? null,
+          metadata:
+            event.pass_thread_control?.metadata ??
+            event.take_thread_control?.metadata ??
+            event.request_thread_control?.metadata ??
+            null,
+          standby,
+          rawEvent,
+          timestamp: event.timestamp ?? null,
+        })
         console.log(
           '[fb-handover]',
           JSON.stringify({
@@ -262,7 +283,7 @@ export async function POST(request: NextRequest) {
           }),
         )
       } else {
-        const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event, rawEvent })
+        const ingested = await ingestInboundMessage({ provider, pageExternalId: pageId, event, rawEvent, standby })
 
         // NO_CHANNEL = Meta ส่งข้อความของเพจที่ไม่มีร้านไหนในฐานเราเชื่อมอยู่ (หรือถอดไปแล้ว)
         // — subscription อยู่ฝั่ง Meta ไม่ได้อยู่ในฐานเรา เพจที่ยัง subscribe ค้างจึงยิงเข้ามาต่อ

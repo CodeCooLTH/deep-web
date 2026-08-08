@@ -622,6 +622,12 @@ export async function ingestInboundMessage(params: {
   event: MessagingEvent
   /** event ดิบก่อน Valibot parse (2026-08-03) — เก็บลง rawMessage แทนตัวที่ถูกตัด field ทิ้งแล้ว */
   rawEvent?: unknown
+  /**
+   * event นี้มาจากกล่อง `standby` = **ตอนนั้นเราไม่ใช่เจ้าของเธรด** (2026-08-08)
+   * เดิม webhook route รู้ค่านี้แต่ log แล้วทิ้ง ไม่เคยส่งเข้ามา — หน้าจอจึงบอกผู้ขายไม่ได้ว่า
+   * "Meta AI กำลังตอบห้องนี้อยู่" ทั้งที่ข้อมูลผ่านมือเราทุกครั้ง
+   */
+  standby?: boolean
 }): Promise<{
   status: IngestStatus
   conversationId?: string
@@ -957,6 +963,7 @@ export async function ingestInboundMessage(params: {
         // เพราะสิ่งที่จะต้องใช้สืบคือ "field ที่เรายังไม่รู้จัก" ตัดตอนเก็บ = ตัดคำตอบทิ้ง
         // อ่านไม่ได้จาก query ปกติ (global omit ที่ lib/prisma.ts)
         rawMessage: toRawMessage(params.provider, params.rawEvent ?? event),
+        viaStandby: params.standby === true,
       },
     })
 
@@ -976,6 +983,7 @@ export async function ingestInboundMessage(params: {
           // event เดียวกับแถวหลัก (Meta ส่งหลายไฟล์มาใน event เดียว) — เก็บซ้ำเพื่อให้ทุกแถว
           // สืบต้นทางของตัวเองได้โดยไม่ต้องไปไล่หาแถวพี่
           rawMessage: toRawMessage(params.provider, params.rawEvent ?? event),
+          viaStandby: params.standby === true,
         },
       })
     }
@@ -1160,6 +1168,64 @@ export async function ingestDeliveryEvent(params: {
     },
     data: { externalDeliveredAt: deliveredAt },
   })
+}
+
+/**
+ * ingestHandoverEvent — เก็บ event ของ `messaging_handovers` ลงตารางหลักฐาน (2026-08-08)
+ *
+ * 🛑 ทำไมต้องเขียนลงฐาน ทั้งที่ยังไม่มีใครใช้ค่านี้: เราต้องการ **app id ของ Meta AI** ซึ่งไม่มี
+ * ในเอกสารสาธารณะเลย (Meta ให้มาแค่ Page Inbox 263902037430900 / IG Inbox 1217981644879628)
+ * แต่จำเป็นต่อ `pass_thread_control` ถ้าจะให้ผู้ขาย "เปิด AI กลับ" จากในแอปเรา — ทางเดียวที่รู้ได้
+ * คืออ่านจาก `previous_owner_app_id` / `new_owner_app_id` ของ event จริงตอนผู้ขายกดสลับใน
+ * Business Suite. เดาเลขเองแล้วยิงคือความผิดคลาสเดียวกับที่ทำให้ 23 ออเดอร์บันทึกตำบล/อำเภอสลับกัน
+ * (docs/conventions/external-payload-schema.md)
+ *
+ * เดิม webhook route แค่ `console.log('[fb-handover]')` ซึ่ง **อ่านย้อนหลังไม่ได้** — Vercel plan
+ * ที่ใช้อยู่ไม่เปิด API ให้ query runtime log (ยืนยันแล้ว: /v1/deployments/{id}/runtime-logs 404,
+ * /v2/.../events คืนแต่ build log) ผลคือทุกครั้งที่สงสัยว่า "Meta ส่งอะไรมาบ้าง" ต้องเดาเอาเอง
+ *
+ * ห้าม throw: เป็นข้อมูลสืบสวน ไม่ใช่เส้นทางหลัก พังแล้วต้องไม่ทำให้ Meta retry ทั้ง batch
+ * (เหตุผลเดียวกับ ingestAdReferral) — ไม่ผูก FK จึงเก็บได้แม้เพจนั้นไม่มีร้านไหนเชื่อม
+ */
+export async function ingestHandoverEvent(params: {
+  provider: string
+  pageExternalId: string
+  contactExternalId?: string | null
+  kind: 'pass' | 'take' | 'request'
+  previousOwnerAppId?: string | number | null
+  newOwnerAppId?: string | number | null
+  requestedOwnerAppId?: string | number | null
+  metadata?: string | null
+  standby?: boolean
+  /** event ดิบก่อน Valibot — Valibot ตัด field ที่ไม่ได้ประกาศทิ้ง เก็บตัวที่ถูกตัดแล้วจะสืบไม่ได้ */
+  rawEvent?: unknown
+  /** event.timestamp (ms) ของ Meta */
+  timestamp?: number | null
+}): Promise<void> {
+  // Meta ส่ง app id มาเป็น number บ้าง string บ้าง (เอกสารเดียวกันเขียนไม่ตรงกัน) — normalize
+  // ตอนเขียนทีเดียว ไม่ปล่อยให้ฝั่งอ่านไปเทียบ `===` กับชนิดที่เดาเอง
+  const asId = (v: string | number | null | undefined): string | null =>
+    v === null || v === undefined ? null : String(v)
+
+  try {
+    await prisma.chatHandoverEvent.create({
+      data: {
+        provider: params.provider,
+        pageExternalId: params.pageExternalId,
+        contactExternalId: params.contactExternalId ?? null,
+        kind: params.kind,
+        previousOwnerAppId: asId(params.previousOwnerAppId),
+        newOwnerAppId: asId(params.newOwnerAppId),
+        requestedOwnerAppId: asId(params.requestedOwnerAppId),
+        metadata: params.metadata ?? null,
+        viaStandby: params.standby === true,
+        raw: toRawMessage(params.provider, params.rawEvent ?? null),
+        occurredAt: typeof params.timestamp === 'number' ? new Date(params.timestamp) : null,
+      },
+    })
+  } catch (e) {
+    console.error('[fb-handover] เก็บ event ไม่สำเร็จ', e instanceof Error ? e.message : e)
+  }
 }
 
 // reaction (feature 00018 Phase 2, message_reactions) — react/unreact บนข้อความ mid หนึ่ง
