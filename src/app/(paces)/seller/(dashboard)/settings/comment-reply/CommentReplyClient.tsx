@@ -239,7 +239,13 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
               type="checkbox"
               className="form-switch shrink-0"
               checked={publicEnabled}
-              onChange={(e) => setPublicEnabled(e.target.checked)}
+              onChange={(e) => {
+                const next = e.target.checked
+                setPublicEnabled(next)
+                // ปิดสวิตช์ → textarea กลายเป็น disabled แก้ไม่ได้ทันที error ที่ค้างจากตอนเปิดจึงต้อง
+                // เคลียร์ไปด้วย ไม่งั้นขอบแดง/ข้อความ "กรอกข้อความก่อนเปิดใช้งาน" ค้างอยู่บนช่องที่พิมพ์ไม่ได้แล้ว
+                if (!next) setPublicError(null)
+              }}
               disabled={cardLocked}
               aria-label="เปิดใช้งานตอบใต้คอมเมนต์"
             />
@@ -285,7 +291,12 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
               type="checkbox"
               className="form-switch shrink-0"
               checked={privateEnabled}
-              onChange={(e) => setPrivateEnabled(e.target.checked)}
+              onChange={(e) => {
+                const next = e.target.checked
+                setPrivateEnabled(next)
+                // เหตุผลเดียวกับสวิตช์ A — ปิดแล้ว textarea disabled แก้ error ที่ค้างเองไม่ได้
+                if (!next) setPrivateError(null)
+              }}
               disabled={cardLocked}
               aria-label="เปิดใช้งานทักแชทส่วนตัวต่อ"
             />
@@ -378,24 +389,33 @@ function ReplyStatusBadge({
   status,
   conversationId,
   skipReasonText,
+  revealSkipReason = false,
 }: {
   kind: 'public' | 'private'
   status: string | null
   conversationId: string | null
   skipReasonText: string | null
+  /** `title="..."` ไม่ทำงานบนทัชสกรีน (ไม่มี hover) — LogRowMobile ส่ง true เพื่อ render เหตุผลที่
+      "ข้าม" เป็นข้อความเล็กมองเห็นได้จริงใต้ badge แทน ส่วนเดสก์ท็อป (LogRowDesktop) มีเมาส์ hover
+      ได้อยู่แล้ว จึงปล่อย default false คง title ไว้เหมือนเดิม ไม่ต้องเปลืองพื้นที่ตาราง */
+  revealSkipReason?: boolean
 }) {
   if (!status) return <span className="text-default-300 text-xs">—</span>
   const meta = REPLY_STATUS_META[status] ?? REPLY_STATUS_META.SKIPPED
+  const showReasonText = revealSkipReason && status === 'SKIPPED' && Boolean(skipReasonText)
   return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
-      <span className={`badge text-2xs ${meta.className}`} title={status === 'SKIPPED' ? (skipReasonText ?? undefined) : undefined}>
-        {meta.label}
+    <span className="inline-flex flex-col items-start gap-0.5">
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <span className={`badge text-2xs ${meta.className}`} title={status === 'SKIPPED' ? (skipReasonText ?? undefined) : undefined}>
+          {meta.label}
+        </span>
+        {kind === 'private' && status === 'SENT' && conversationId && (
+          <Link href={`/inbox/${conversationId}`} className="text-primary text-xs font-medium hover:underline">
+            เปิดห้อง
+          </Link>
+        )}
       </span>
-      {kind === 'private' && status === 'SENT' && conversationId && (
-        <Link href={`/inbox/${conversationId}`} className="text-primary text-xs font-medium hover:underline">
-          เปิดห้อง
-        </Link>
-      )}
+      {showReasonText && <span className="text-default-500 text-2xs">{skipReasonText}</span>}
     </span>
   )
 }
@@ -408,13 +428,20 @@ function LogRowMobile({ log }: { log: CommentReplyLogRow }) {
         <span className="text-default-400"> · </span>
         <span className="text-default-600">{log.commenterName ?? 'ไม่ทราบชื่อ'}</span>
       </p>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <ReplyStatusBadge kind="public" status={log.publicReplyStatus} conversationId={null} skipReasonText={log.skipReasonText} />
+      <div className="mt-1.5 flex flex-wrap items-start gap-3">
+        <ReplyStatusBadge
+          kind="public"
+          status={log.publicReplyStatus}
+          conversationId={null}
+          skipReasonText={log.skipReasonText}
+          revealSkipReason
+        />
         <ReplyStatusBadge
           kind="private"
           status={log.privateReplyStatus}
           conversationId={log.conversationId}
           skipReasonText={log.skipReasonText}
+          revealSkipReason
         />
       </div>
     </div>
