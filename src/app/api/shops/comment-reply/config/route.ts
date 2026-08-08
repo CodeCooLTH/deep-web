@@ -7,8 +7,8 @@ import { resolveActiveShopContext } from "@/lib/shop-context";
 import { CommentReplyConfigSchema } from "@/lib/validations";
 
 /**
- * GET/PATCH /api/shops/comment-reply/config — ตั้งค่าการตอบกลับคอมเมนต์ต่อเพจ (feature 00038)
- * API.md §4.1-4.2
+ * PATCH /api/shops/comment-reply/config — บันทึกการตั้งค่าตอบกลับคอมเมนต์ของเพจเดียว (feature 00038)
+ * API.md §4.2
  *
  * shopId derive จาก active shop ของ session เท่านั้น (resolveActiveShopContext re-verify
  * membership ทุกครั้ง — pattern เดียวกับ src/app/api/shops/ai-settings/route.ts) ไม่ใช่
@@ -18,6 +18,10 @@ import { CommentReplyConfigSchema } from "@/lib/validations";
  *
  * 🛑 ShopChannel.accessTokenEnc อยู่แถวเดียวกับคอลัมน์ตั้งค่ากลุ่มนี้ — ทุก query ที่ส่งค่าออกไป
  * หา client ต้อง select ระบุคอลัมน์เสมอ ห้ามคืนทั้งแถว
+ *
+ * ไม่มี GET — หน้าตั้งค่า (`settings/comment-reply/page.tsx`) อ่านค่าตั้งต้นผ่าน RSC + prisma
+ * ตรงตาม convention ของหน้านี้ (ไม่ self-fetch API ของตัวเอง) จึงถอด handler GET ออก (YAGNI,
+ * feature 00038 Task 11) — ไม่มี client เรียก GET เส้นนี้เลย
  */
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
@@ -48,44 +52,6 @@ async function requireShopId(): Promise<{ shopId: string } | { error: NextRespon
     };
   }
   return { shopId: ctx.shopId };
-}
-
-export async function GET() {
-  const ctx = await requireShopId();
-  if ("error" in ctx) return ctx.error;
-
-  const channels = await prisma.shopChannel.findMany({
-    where: { shopId: ctx.shopId, provider: "MESSENGER", status: { not: "DISCONNECTED" } },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      name: true,
-      avatarUrl: true,
-      provider: true,
-      status: true,
-      commentPublicReplyEnabled: true,
-      commentPublicReplyText: true,
-      commentPrivateReplyEnabled: true,
-      commentPrivateReplyText: true,
-    },
-  });
-
-  return NextResponse.json(
-    {
-      channels: channels.map((c) => ({
-        shopChannelId: c.id,
-        name: c.name,
-        avatarUrl: c.avatarUrl,
-        provider: c.provider,
-        status: c.status,
-        commentPublicReplyEnabled: c.commentPublicReplyEnabled,
-        commentPublicReplyText: c.commentPublicReplyText,
-        commentPrivateReplyEnabled: c.commentPrivateReplyEnabled,
-        commentPrivateReplyText: c.commentPrivateReplyText,
-      })),
-    },
-    { headers: NO_STORE_HEADERS },
-  );
 }
 
 export async function PATCH(request: NextRequest) {

@@ -980,10 +980,13 @@ SellerWallet (1) ── (N) WalletTransaction
 
 | Method | Path | Auth | Purpose | Service |
 |--------|------|------|---------|---------|
-| GET | `/api/shops/comment-reply/config` | Seller (canAccessShop) | อ่านสวิตช์+ข้อความตอบกลับคอมเมนต์ทุกเพจของ active shop | `comment-auto-reply.service` |
 | PATCH | `/api/shops/comment-reply/config` | Seller (canAccessShop) | บันทึกสวิตช์/ข้อความของเพจเดียว — เปิดสวิตช์โดยข้อความว่างไม่ได้; เพจ `TOKEN_INVALID` เปิดสวิตช์ไม่ได้ (409) | `comment-auto-reply.service` |
 | GET | `/api/shops/comment-reply/logs` | Seller (canAccessShop) | ประวัติการตอบ/ข้าม แบ่งหน้า (`?shopChannelId=&cursor=&take=`) | `comment-auto-reply.service` |
 | POST | `/api/chat/comments/[commentId]/private-reply` | Seller (canAccessShop ผ่าน comment→post→channel→shop) | ปุ่มแมนนวล "ทักแชท" — ใช้ได้เสมอไม่ขึ้นกับสวิตช์อัตโนมัติ; กันซ้ำด้วย partial unique index ระดับคอมเมนต์ (409 `ALREADY_SENT`/`WINDOW_EXPIRED`) | `comment-private-reply.service` |
+
+> ไม่มี `GET /api/shops/comment-reply/config` — ค่าตั้งต้นของสวิตช์+ข้อความทุกเพจอ่านผ่าน RSC +
+> prisma ตรงที่ `settings/comment-reply/page.tsx` (ไม่ self-fetch API ของตัวเอง) ถอด handler
+> GET ออกแล้ว (YAGNI, Task 11 — ไม่มี client เรียกเลย)
 
 > รายละเอียดเต็ม (error code ครบ, sequence diagram): `docs/20 - Features/00038 - Comment Auto-Reply/API.md`
 
@@ -1194,7 +1197,7 @@ SellerWallet (1) ── (N) WalletTransaction
 
 | Operation | Guest | Buyer | Seller — สมาชิกร้านของเพจนี้ | Seller — ไม่ใช่สมาชิกร้านนี้ | Admin |
 |-----------|-------|-------|-------------------------------|--------------------------------|-------|
-| `GET/PATCH /api/shops/comment-reply/config` | — | — | ✅ (`canAccessShop`) | ❌ (shop derive จาก session — ไม่เห็นข้อมูลร้านอื่นเลย) | — |
+| `PATCH /api/shops/comment-reply/config` | — | — | ✅ (`canAccessShop`) | ❌ (shop derive จาก session — ไม่เห็นข้อมูลร้านอื่นเลย) | — |
 | `GET /api/shops/comment-reply/logs` | — | — | ✅ | ❌ | — |
 | `POST /api/chat/comments/[commentId]/private-reply` | — | — | ✅ (ownership ผ่าน `comment→post→channel→shop`) | ❌ `403 FORBIDDEN` | — |
 | ปุ่ม "ทักแชท" ใช้ได้แม้ปิดสวิตช์อัตโนมัติ | — | — | ✅ (ไม่ผูกกับสวิตช์เลย) | — | — |
