@@ -29,6 +29,7 @@
  * ข้อความสำเร็จรูปผูกระดับร้าน — ทุกคนในร้านเห็น/แก้ชุดเดียวกัน (ผลตัดสินผู้ใช้ 2026-07-23)
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useThreadShopId } from '../../../_components/DraftOrderProvider'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Icon from '@/components/wrappers/Icon'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
@@ -83,6 +84,7 @@ export default function QuickMessageManager({
   onClose,
   onChanged,
 }: Props) {
+  const threadShopId = useThreadShopId()
   /**
    * overlay เต็มจอที่ประกอบเองด้วย React state (คอมเมนต์หัวไฟล์อธิบายไว้แล้วว่าทำไมไม่ใช้
    * Preline) จึงต้องตรึง scroll เอง — docs/conventions/overlay-scroll-lock.md
@@ -324,7 +326,7 @@ export default function QuickMessageManager({
     async (next: QuickMessage[]) => {
       setLocalItems(next)
       try {
-        const res = await fetch('/api/chat/quick-messages', {
+        const res = await fetch(`/api/chat/quick-messages${threadShopId ? `?shopId=${threadShopId}` : ''}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ orderedIds: next.map((x) => x.id) }),

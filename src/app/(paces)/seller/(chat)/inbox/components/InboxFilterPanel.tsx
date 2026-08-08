@@ -18,7 +18,7 @@
  * 4. หัวข้อที่ไม่มีความหมายกับร้านนั้นจะไม่แสดง: "เพจ" (ร้านเพจเดียว), "พัสดุ" (ไม่ได้เชื่อม iShip)
  */
 import Icon from '@/components/wrappers/Icon'
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { ChannelBadgeOverlay, type ChannelFilterOption } from './ChannelBadge'
 import { PageAvatar } from './PageFilterDropdown'
 
@@ -221,22 +221,30 @@ export default function InboxFilterPanel({
             {showPages && (
               <Section title="เพจ">
                 <Chip on={draftPage === ''} label="ทุกเพจ" onClick={() => setDraftPage('')} />
-                {pageOptions.map((p) => (
+                {pageOptions.map((p, i) => (
                   // ชื่อเพจอย่างเดียวไม่พอ — ร้านที่ตั้งชื่อเพจ Facebook กับ Instagram เหมือนกัน
                   // จะเห็นชิปสองอันข้อความเดียวกันเป๊ะ เลือกไม่ถูก (user report 2026-07-31)
                   // จึงเติมรูปเพจ + โลโก้ช่องทางมุมล่างขวา ชุดเดียวกับที่ใช้ในรายการแชท
-                  <Chip
-                    key={p.id}
-                    on={draftPage === p.id}
-                    label={p.name}
-                    onClick={() => setDraftPage(p.id)}
-                    leading={
-                      <span className="relative block shrink-0">
-                        <PageAvatar avatarUrl={p.avatarUrl} name={p.name} size="sm" />
-                        <ChannelBadgeOverlay channel={p.provider} size="sm" />
-                      </span>
-                    }
-                  />
+                  <Fragment key={p.id}>
+                    {/* feature 00037 — คั่นด้วยชื่อร้านเมื่อชิปกลุ่มถัดไปเป็นของอีกร้าน
+                        (รายการเรียงตามชื่อร้านมาแล้วจาก listChannelsForShops) โหมดร้านเดียวไม่มี
+                        shopName ส่งมา จึงไม่โผล่อะไรเลย — ตัวกรองเดิมหน้าตาเหมือนเดิมเป๊ะ
+                        `basis-full` ดันให้ขึ้นบรรทัดใหม่ในกล่อง flex-wrap ของ Section */}
+                    {p.shopName && (i === 0 || pageOptions[i - 1]?.shopId !== p.shopId) && (
+                      <span className="text-default-700 basis-full text-xs">{p.shopName}</span>
+                    )}
+                    <Chip
+                      on={draftPage === p.id}
+                      label={p.name}
+                      onClick={() => setDraftPage(p.id)}
+                      leading={
+                        <span className="relative block shrink-0">
+                          <PageAvatar avatarUrl={p.avatarUrl} name={p.name} size="sm" />
+                          <ChannelBadgeOverlay channel={p.provider} size="sm" />
+                        </span>
+                      }
+                    />
+                  </Fragment>
                 ))}
               </Section>
             )}

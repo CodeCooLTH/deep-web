@@ -22,6 +22,7 @@
  * การเปิดแผงคุมจาก ChatThread ด้วย state เดียว (activePanel) → เปิดได้ทีละแผงเท่านั้น ไม่ซ้อนกัน
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useThreadShopId } from '../../../_components/DraftOrderProvider'
 import Icon from '@/components/wrappers/Icon'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
@@ -40,6 +41,7 @@ type Props = {
 }
 
 export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
+  const threadShopId = useThreadShopId()
   // overlay นี้ mount เฉพาะตอนเปิด จึงตรึงหน้าข้างหลังตลอดอายุของมัน (ดู useLockBodyScroll)
   useLockBodyScroll(true)
 
@@ -53,7 +55,8 @@ export default function QuickMessageBar({ onPick, disabled, onClose }: Props) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/chat/quick-messages', { cache: 'no-store' })
+      // feature 00037 — ข้อความด่วนเป็นของรายร้าน ต้องเป็นชุดของร้านเจ้าของเธรด
+      const res = await fetch(`/api/chat/quick-messages${threadShopId ? `?shopId=${threadShopId}` : ''}`, { cache: 'no-store' })
       if (!res.ok) throw new Error('failed')
       const data: { items: QuickMessage[] } = await res.json()
       setItems(data.items)

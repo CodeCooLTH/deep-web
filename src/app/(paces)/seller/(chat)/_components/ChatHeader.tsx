@@ -40,7 +40,13 @@ import TextScaleToggler from '@/layouts/components/TopBar/components/TextScaleTo
 import ThemeDropdown from '@/layouts/components/TopBar/components/ThemeDropdown'
 import { CHAT_SOUND_EVENT, isChatSoundMuted, primeChatSound, setChatSoundMuted } from '@/lib/chat-sound'
 
-export default function ChatHeader() {
+export default function ChatHeader({
+  /** โหมดมุมมองกล่องข้อความของผู้ใช้ (feature 00037) — resolve ที่ layout (server) ส่งลงมา
+   *  ไม่ให้ client ยิงถามเอง: ค่านี้ต้องตรงกับขอบเขตที่ server ใช้ query รายการอยู่แล้วเป๊ะ ๆ */
+  chatScopeMode = 'SINGLE',
+}: {
+  chatScopeMode?: 'SINGLE' | 'UNIFIED'
+}) {
   // มือถือ/แท็บเล็ต (<1024px) ตอนเปิดอ่านแชท: ซ่อน header นี้ให้เธรดกินเต็มจอแบบแอปแชทจริง
   // (user request 2026-07-23 "เหมือน Facebook ที่จะไม่มี logo แล้ว") — จอเล็กเป็น drill-down
   // list→thread เต็มจอ พื้นที่มีค่ามาก โลโก้/ช่องค้นหา/ปุ่มกลับหน้าหลักไม่มีประโยชน์ในหน้าเธรด
@@ -114,7 +120,7 @@ export default function ChatHeader() {
             ("ฝากย้าย icon ร้าน ไปไว้ขวาสุดให้หน่อย") เดิมอยู่ก่อนกลุ่มไอคอนระบบ (เสียง/ธีม/ขนาด
             ตัวอักษร) ซึ่งทำให้รูปร้านที่เป็นสีจัดที่สุดในแถบไปแทรกกลางกลุ่มไอคอนสีเทา
             ขวาสุด = ตำแหน่งที่ทุกแอปวางเมนูบัญชี/พื้นที่ทำงาน (earned familiarity) */}
-        <ChatShopSwitcher />
+        <ChatShopSwitcher chatScopeMode={chatScopeMode} />
       </div>
     </header>
   )

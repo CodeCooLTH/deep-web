@@ -26,6 +26,7 @@ import Icon from '@/components/wrappers/Icon'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { pacesToast } from '@/lib/paces-toast'
 import { useShopSwitcher } from '@/hooks/useShopSwitcher'
 
@@ -56,7 +57,20 @@ type SessionUser = {
   activeShopLogo?: string | null
 }
 
-export default function ChatShopSwitcher() {
+/**
+ * feature 00037 — สวิตช์ "มุมมองกล่องข้อความ" อยู่ในเมนูนี้ ไม่ใช่ปุ่มใหม่ในหัวแชท
+ *
+ * เหตุผล (ux spec §0 กางเลขจากโค้ดจริง): ที่ 320px หัวแชทเหลือที่ให้ช่องค้นหาราว 140px หลังหัก
+ * โลโก้+ปุ่มเสียง+ปุ่มนี้ — เติมปุ่มใหม่อีก 44px จะเหลือ ~92px ซึ่งเริ่มฝืน และเป็นการย้อนบั๊ก
+ * แถบเครื่องมือล้นขอบจอที่เพิ่งแก้เมื่อ 2026-08-07
+ *
+ * เงื่อนไขแสดง = hasBusinessMembership ตัวเดิมที่ไฟล์นี้คำนวณอยู่แล้ว ซึ่งตรงกับ requirement
+ * "ผู้ใช้ร้านเดียวต้องไม่เห็นสวิตช์เลย" พอดี — ไม่ต้อง query อะไรเพิ่ม
+ *
+ * 🛑 ไม่แตะ switchShop()/activeShopId เด็ดขาด — คนละ action คนละ endpoint (BR-UNI-07):
+ * การเปลี่ยนมุมมองห้ามเปลี่ยนร้านที่กำลังใช้งานของทั้งแอป
+ */
+export default function ChatShopSwitcher({ chatScopeMode }: { chatScopeMode: 'SINGLE' | 'UNIFIED' }) {
   const { data: session } = useSession()
   const user = session?.user as SessionUser | undefined
 
@@ -71,6 +85,37 @@ export default function ChatShopSwitcher() {
   const activeRoleLabel = isBusiness ? (user?.activeShopRole === 'ADMIN' ? 'ผู้ดูแล' : 'เจ้าของ') : 'ส่วนตัว'
 
   const [context, setContext] = useState<BusinessContextResponse | null>(null)
+
+  // โหมดมุมมอง — optimistic: สลับ segment ทันทีไม่รอ response (การกดสวิตช์ที่หน่วงคือสิ่งที่
+  // ผู้ใช้อ่านว่า "กดไม่ติด" แล้วกดซ้ำ) ล้มเหลว → เด้งกลับค่าเดิม + แจ้งเตือน
+  const router = useRouter()
+  const [scopeMode, setScopeMode] = useState<'SINGLE' | 'UNIFIED'>(chatScopeMode)
+  const [savingScope, setSavingScope] = useState(false)
+  // prop เปลี่ยนเมื่อ server re-render (เช่นกดสลับจากอีกแท็บ) — sync ตาม ไม่งั้นค่าค้าง
+  useEffect(() => setScopeMode(chatScopeMode), [chatScopeMode])
+
+  const changeScopeMode = async (next: 'SINGLE' | 'UNIFIED') => {
+    if (savingScope || next === scopeMode) return
+    const before = scopeMode
+    setScopeMode(next)
+    setSavingScope(true)
+    try {
+      const res = await fetch('/api/users/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatScopeMode: next }),
+      })
+      if (!res.ok) throw new Error('save failed')
+      // refresh ไม่ใช่ hard-navigate — ขอบเขตถูก resolve ฝั่ง server ทุกหน้าของกล่องข้อความ
+      // การ refresh จึงพารายการ/แท็บ/rail มาใหม่ครบโดยไม่ปิด dropdown และไม่กระพริบทั้งหน้า
+      router.refresh()
+    } catch {
+      setScopeMode(before)
+      pacesToast.error('เปลี่ยนมุมมองไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } finally {
+      setSavingScope(false)
+    }
+  }
   // สลับแล้วกลับมาที่แชท (ไม่ใช่ /dashboard) — แชทของร้านใหม่โหลดตามทันทีหลัง hard-navigate
   const { switching, target, switchShop } = useShopSwitcher({ landingPath: '/inbox' })
 
@@ -114,15 +159,62 @@ export default function ChatShopSwitcher() {
           className="hs-dropdown-toggle relative inline-flex size-11 shrink-0 cursor-pointer items-center justify-center"
           aria-haspopup="menu"
           aria-expanded="false"
-          aria-label="สลับร้าน"
+          aria-label={
+            hasBusinessMembership && scopeMode === 'UNIFIED'
+              ? 'สลับร้าน — ขณะนี้ดูข้อความรวมทุกร้าน'
+              : `สลับร้าน — ขณะนี้ดูข้อความร้าน ${activeName}`
+          }
         >
           <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />
-          <span className="border-default-300 bg-card absolute end-0.5 bottom-0.5 inline-flex size-4 items-center justify-center rounded-full border">
-            <Icon icon="chevron-down" className="text-default-600 size-3" />
+          {/* badge เดิมของปุ่ม — เปลี่ยน "ไอคอนใน slot เดิม" ไม่ได้เพิ่มความกว้าง header เลย
+              (chevron = ร้านเดียว / ตาราง = กำลังรวมทุกร้าน) เป็นสัญญาณโหมดที่เห็นตลอดเวลา */}
+          <span
+            className={`border-default-300 absolute end-0.5 bottom-0.5 inline-flex size-4 items-center justify-center rounded-full border ${
+              hasBusinessMembership && scopeMode === 'UNIFIED' ? 'bg-primary border-primary' : 'bg-card'
+            }`}
+          >
+            <Icon
+              icon={hasBusinessMembership && scopeMode === 'UNIFIED' ? 'layout-grid' : 'chevron-down'}
+              className={`size-3 ${hasBusinessMembership && scopeMode === 'UNIFIED' ? 'text-white' : 'text-default-600'}`}
+            />
           </span>
         </button>
 
         <div className="hs-dropdown-menu min-w-72 p-2" role="menu" aria-orientation="vertical">
+          {/* มุมมองกล่องข้อความ (feature 00037) — เฉพาะผู้ใช้ที่มีมากกว่า 1 ร้าน
+              Base: segmented tabs ของ InboxList.tsx (bg-light p-1 / active = bg-card shadow-sm) */}
+          {hasBusinessMembership && (
+            <>
+              <div className="px-2 pt-1 pb-1">
+                <span className="text-default-700 text-xs">มุมมองกล่องข้อความ</span>
+              </div>
+              <div className="bg-light mb-2 flex gap-1 rounded-lg p-1" role="group" aria-label="มุมมองกล่องข้อความ">
+                {(
+                  [
+                    { key: 'UNIFIED' as const, label: 'ร้านทั้งหมด', icon: 'layout-grid' },
+                    { key: 'SINGLE' as const, label: 'ร้านนี้', icon: 'building-store' },
+                  ]
+                ).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => void changeScopeMode(opt.key)}
+                    aria-pressed={scopeMode === opt.key}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs ${
+                      scopeMode === opt.key
+                        ? 'bg-card text-default-900 font-semibold shadow-sm'
+                        : 'text-default-500'
+                    }`}
+                  >
+                    <Icon icon={opt.icon} className="size-3.5 shrink-0" />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div className="border-default-200 mb-2 border-t" />
+            </>
+          )}
+
           {/* active account — กล่องไฮไลต์บนสุด (จาก session, ไม่รอ fetch) */}
           <div className="border-primary bg-primary/5 flex items-center gap-3 rounded-lg border px-3 py-2.5">
             <AccountAvatar src={activeLogo} kind={isBusiness ? 'business' : 'personal'} className="size-9" />

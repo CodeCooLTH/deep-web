@@ -25,6 +25,7 @@
  * ซึ่ง render เฉพาะตอน !isPaidPlan)
  */
 import { useCallback, useEffect, useState } from 'react'
+import { useThreadShopId } from '../../../_components/DraftOrderProvider'
 import Link from 'next/link'
 import Swal from 'sweetalert2'
 import { formatTokensCompact, type UsageCost } from '@/lib/ai-pricing'
@@ -63,6 +64,7 @@ const GENERIC_RETRY_MESSAGE = 'ขอคำแนะนำไม่สำเร�
 type Phase = 'loading' | 'quota-error' | 'suggest-error' | 'credit-prompt' | 'credit-block' | 'success'
 
 export default function AiSuggestPanel({ conversationId, onPick, onClose }: Props) {
+  const threadShopId = useThreadShopId()
   const [phase, setPhase] = useState<Phase>('loading')
   const [quota, setQuota] = useState<AiQuotaStatus | null>(null)
   const [quotaError, setQuotaError] = useState<string | null>(null)
@@ -107,7 +109,8 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
     setPhase('loading')
     setQuotaError(null)
     try {
-      const res = await fetch('/api/chat/ai-quota')
+      // feature 00037 — โควตา AI เป็นของรายร้าน ต้องถามของ 'ร้านเจ้าของเธรด' ไม่ใช่ร้าน active
+      const res = await fetch(`/api/chat/ai-quota${threadShopId ? `?shopId=${threadShopId}` : ''}`)
       const data = await res.json().catch(() => null)
       if (!res.ok) {
         setQuotaError(data?.error ?? GENERIC_RETRY_MESSAGE)

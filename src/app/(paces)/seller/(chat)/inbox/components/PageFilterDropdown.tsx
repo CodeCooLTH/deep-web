@@ -39,6 +39,7 @@ type Props = {
    *  (bug: เดิมต่างคนต่างถือ state เปิดพร้อมกันแล้วทับกันเอง) */
   open: boolean
   onOpenChange: (open: boolean) => void
+  showShopGroups?: boolean
 }
 
 /** avatar เพจ — รูปจริง (ShopChannel.avatarUrl) + fallback ตัวอักษรแรกของชื่อเพจเมื่อไม่มีรูป/โหลดพัง
@@ -74,7 +75,15 @@ export function PageAvatar({
   )
 }
 
-export default function PageFilterDropdown({ value, options, onChange, open, onOpenChange }: Props) {
+export default function PageFilterDropdown({
+  value,
+  options,
+  onChange,
+  open,
+  onOpenChange,
+  /** feature 00037 — โหมดรวมหลายร้าน: แทรกหัวข้อชื่อร้านคั่นกลุ่มเพจ (โหมดร้านเดียวไม่แสดง) */
+  showShopGroups = false,
+}: Props) {
   const [search, setSearch] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -196,12 +205,28 @@ export default function PageFilterDropdown({ value, options, onChange, open, onO
             {filtered.length === 0 ? (
               <p className="text-default-700 px-3 py-4 text-center text-xs">ไม่พบเพจที่ค้นหา</p>
             ) : (
-              filtered.map((c) => {
+              filtered.map((c, i) => {
                 const display = getChannelDisplay(c.provider)
                 const active = value === c.id
+                /**
+                 * หัวข้อกลุ่มตามร้าน (feature 00037) — โผล่เมื่อ "ร้านของเพจนี้ต่างจากเพจก่อนหน้า"
+                 * เท่านั้น (รายการถูกเรียงตามชื่อร้านมาแล้วจาก listChannelsForShops) จึงได้หัวข้อ
+                 * ละครั้งต่อร้านโดยไม่ต้อง groupBy ให้เสีย identity ของ index
+                 *
+                 * โหมดร้านเดียว: ทุกแถวมี shopId เดียวกัน → หัวข้อโผล่ครั้งเดียวซึ่งไม่มีประโยชน์
+                 * จึงกันด้วย showShopGroups (ผู้ใช้ส่วนใหญ่ของระบบต้องเห็นรายการเหมือนเดิมเป๊ะ)
+                 * Base: label "สลับบัญชี" ของ ChatShopSwitcher.tsx
+                 */
+                const showHeader =
+                  showShopGroups && c.shopName && (i === 0 || filtered[i - 1]?.shopId !== c.shopId)
                 return (
+                  <div key={c.id}>
+                  {showHeader && (
+                    <div className="px-2 pt-3 pb-1">
+                      <span className="text-default-700 text-xs">{c.shopName}</span>
+                    </div>
+                  )}
                   <button
-                    key={c.id}
                     type="button"
                     role="menuitemradio"
                     aria-checked={active}
@@ -231,6 +256,7 @@ export default function PageFilterDropdown({ value, options, onChange, open, onO
                       </span>
                     </span>
                   </button>
+                  </div>
                 )
               })
             )}

@@ -10,8 +10,11 @@ vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 // ทำไม vi.hoisted: vi.mock ถูก hoist ขึ้นบนสุดของไฟล์ก่อน const declaration ปกติ — ถ้าประกาศ
 // prismaMock ด้วย const ธรรมดาแล้วอ้างใน factory จะชน TDZ (ReferenceError)
 const prismaMock = vi.hoisted(() => ({
-  shop: { findUnique: vi.fn(), findFirst: vi.fn() },
-  shopMember: { findUnique: vi.fn() },
+  shop: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
+  shopMember: { findUnique: vi.fn(), findMany: vi.fn() },
+  // feature 00037 — resolveChatScope อ่านโหมดมุมมองจาก User และหาร้านของเธรดจาก Conversation
+  user: { findUnique: vi.fn() },
+  conversation: { findFirst: vi.fn() },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 
@@ -41,6 +44,10 @@ function params() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // ค่าตั้งต้นของทุกเคส: ผู้ใช้อยู่โหมดร้านเดียว (พฤติกรรมเดิมก่อน feature 00037) และเธรดที่ขอ
+  // เป็นของร้านที่ resolve ได้ — เคสที่ต้องการทดสอบอย่างอื่นค่อย override เอง
+  prismaMock.user.findUnique.mockResolvedValue({ chatScopeMode: 'SINGLE' })
+  prismaMock.conversation.findFirst.mockResolvedValue({ shopId: SHOP_A_PERSONAL })
 })
 
 describe('PATCH /api/chat/conversations/[id]', () => {
@@ -57,6 +64,38 @@ describe('PATCH /api/chat/conversations/[id]', () => {
     const res = await PATCH(req({ action: 'pin' }), params())
     expect(res.status).toBe(404)
     expect(updateConversationStateMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * feature 00037 — เธรดไม่ได้อยู่ในขอบเขตที่ผู้ใช้ดูอยู่ (ร้านอื่นที่ไม่มีสิทธิ์) → 404 ตั้งแต่ก่อน
+   * แตะ service เลย. ต้องเป็น 404 ไม่ใช่ 403 เพราะ 403 = ยืนยันว่าเธรดนี้มีอยู่จริงในระบบ
+   */
+  it('เธรดอยู่นอกขอบเขตของผู้ใช้ → 404 และไม่เรียก service เลย', async () => {
+    ;(getServerSession as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { id: USER_ID, activeShopId: null } })
+    prismaMock.shop.findFirst.mockResolvedValue({ id: SHOP_A_PERSONAL })
+    prismaMock.conversation.findFirst.mockResolvedValue(null)
+    const res = await PATCH(req({ action: 'pin' }), params())
+    expect(res.status).toBe(404)
+    expect(updateConversationStateMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * feature 00037 — โหมดรวม: เธรดของ "อีกร้าน" ที่ผู้ใช้มีสิทธิ์ ต้องปักหมุด/ปิดงานได้ และต้องใช้
+   * shopId ของ *เธรด* ไม่ใช่ของร้านที่ active (ก่อนหน้านี้จะเงียบไม่มีอะไรเกิดขึ้นแล้วขึ้น 404)
+   */
+  it('โหมดรวม: เธรดของอีกร้านในขอบเขต → ใช้ shopId ของเธรด ไม่ใช่ร้านที่ active', async () => {
+    const OTHER_SHOP = 'shop-c-business'
+    ;(getServerSession as ReturnType<typeof vi.fn>).mockResolvedValue({ user: { id: USER_ID, activeShopId: null } })
+    prismaMock.user.findUnique.mockResolvedValue({ chatScopeMode: 'UNIFIED' })
+    prismaMock.shop.findFirst.mockResolvedValue({ id: SHOP_A_PERSONAL })
+    prismaMock.shop.findMany.mockResolvedValue([{ id: SHOP_A_PERSONAL }, { id: OTHER_SHOP }])
+    prismaMock.shopMember.findMany.mockResolvedValue([])
+    prismaMock.conversation.findFirst.mockResolvedValue({ shopId: OTHER_SHOP })
+    updateConversationStateMock.mockResolvedValue(undefined)
+
+    const res = await PATCH(req({ action: 'pin' }), params())
+    expect(res.status).toBe(200)
+    expect(updateConversationStateMock).toHaveBeenCalledWith(CONV_ID, OTHER_SHOP, 'pin')
   })
 
   it("action ไม่ถูกต้อง (ไม่อยู่ใน picklist) → 400 ไม่เรียก service", async () => {
@@ -113,6 +152,7 @@ describe('PATCH /api/chat/conversations/[id]', () => {
       packageLockedAt: null, packageLockReason: null, deletedAt: null,
     })
     prismaMock.shopMember.findUnique.mockResolvedValue({ role: 'ADMIN' })
+    prismaMock.conversation.findFirst.mockResolvedValue({ shopId: SHOP_B_BUSINESS })
     updateConversationStateMock.mockResolvedValue(undefined)
 
     const res = await PATCH(req({ action: 'resolve' }), params())

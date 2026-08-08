@@ -1007,6 +1007,23 @@ export default function InboxList({
                 ต้นเหตุคือจำนวนกลุ่มไม่จำกัดแต่พื้นที่จำกัด — เรียงเป็นแท็บยังไงก็ล้นวันหนึ่ง
                 ปุ่มเดียว + ตัวเลขบอกจำนวน จึงกว้างคงที่เสมอไม่ว่าจะมีกี่กลุ่ม และบอกได้ด้วยว่ามีกี่อัน */}
             <span className="bg-default-300 ms-auto h-4 w-px shrink-0" aria-hidden="true" />
+            {/**
+              * feature 00037 — โหมดรวมหลายร้าน: กลุ่มเป็นของรายร้าน (ChatGroup มี
+              * @@unique([shopId, name]) — กลุ่มชื่อ "รอโอน" ของร้าน A กับ B คือคนละของ ยุบรวมกัน
+              * ไม่ได้) ปุ่มจึงเปลี่ยนเป็น "ชี้ทาง" แทน **ห้ามหายเงียบ ๆ หรือ disable เป็นปุ่มเทา**
+              * กดแล้วเปิดตัวกรองให้เลย = ลัดไปทำสิ่งที่ผู้ใช้ต้องทำอยู่ดี ไม่ใช่ dead-end
+              */}
+            {unified ? (
+              <button
+                type="button"
+                onClick={() => setOpenPanel(openPanel === 'filter' ? null : 'filter')}
+                aria-label="เลือกเพจก่อนเพื่อดูกลุ่มที่ตั้งไว้ — กดเพื่อเลือกเพจ"
+                className="text-default-500 -mb-px flex shrink-0 items-center gap-1 border-b-2 border-transparent px-0 py-1.5 text-sm text-nowrap"
+              >
+                <Icon icon="folder" width={14} height={14} className="shrink-0" />
+                เลือกเพจเพื่อดูกลุ่ม
+              </button>
+            ) : (
             <div className="relative shrink-0">
               <button
                 type="button"
@@ -1124,6 +1141,7 @@ export default function InboxList({
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>

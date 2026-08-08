@@ -196,6 +196,12 @@ export function ThreadShopProvider({ shopId, children }: { shopId: string; child
   return <ThreadShopContext.Provider value={shopId}>{children}</ThreadShopContext.Provider>
 }
 
+/** ร้านของเธรดที่เปิดอยู่ (feature 00037) — null = ไม่ได้อยู่ในเธรด (หน้ารายการ)
+ *  ใช้ต่อท้าย query ของ API ที่เป็นทรัพยากรรายร้าน (ข้อความด่วน/โควตา AI/แท็ก) ให้ตรงร้าน */
+export function useThreadShopId(): string | null {
+  return useContext(ThreadShopContext)
+}
+
 export function useDraftOrders(): DraftOrderContextValue {
   const ctx = useContext(DraftOrderContext)
   const threadShopId = useContext(ThreadShopContext)

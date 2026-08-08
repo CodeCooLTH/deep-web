@@ -170,7 +170,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   const shell = (
     <ChatSearchProvider>
       <div className="chat-shell flex h-dvh flex-col overflow-hidden bg-card">
-        <ChatHeader />
+        <ChatHeader chatScopeMode={scope?.storedMode ?? 'SINGLE'} />
 
         {/**
          * แถบแท็บ ข้อความ/ความคิดเห็น — **พาดเต็มความกว้างเหนือทุกคอลัมน์** (user เลือกเอง

@@ -8,9 +8,12 @@ import { prisma } from '@/lib/prisma'
 export type SalesStatus = 'UNSPECIFIED' | 'INTERESTED' | 'NOT_INTERESTED'
 
 /** getShopTags — รวม tag ทั้งหมดที่เคยใช้ในร้าน (distinct) สำหรับ autocomplete ตอนเพิ่ม tag */
-export async function getShopTags(shopId: string): Promise<string[]> {
+export async function getShopTags(shopIds: string[]): Promise<string[]> {
+  if (shopIds.length === 0) return []
   const contacts = await prisma.externalContact.findMany({
-    where: { channel: { shopId } },
+    // feature 00037 — โหมดรวมหลายร้าน: ตัวกรองแท็กต้องครอบทุกร้านที่ผู้ใช้กำลังดู ไม่งั้นแท็ก
+    // ของร้านอื่นจะไม่มีในรายการให้เลือกเลยทั้งที่เธรดที่ติดแท็กนั้นโผล่อยู่ตรงหน้า
+    where: { channel: { shopId: { in: shopIds } } },
     select: { tags: true },
   })
   const set = new Set<string>()
