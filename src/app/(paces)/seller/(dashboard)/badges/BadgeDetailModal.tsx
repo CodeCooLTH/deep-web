@@ -22,8 +22,9 @@ import Icon from '@/components/wrappers/Icon'
 import type { BadgeProgress } from '@/types/badge'
 import type { BadgeRarity, RarityTier, BadgePaceEstimate } from '@/services/badge.service'
 import { BadgeImage } from './BadgeImage'
-import { getCategoryLabel } from './_constants/badge-labels'
+import { getCategoryLabel, displayProgressPct } from './_constants/badge-labels'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import { BADGE_SCORE_EFFECT_TEXT } from '@/lib/badge-score-rule'
 
 // ─── Rarity helpers ───────────────────────────────────────────────────────────
 
@@ -37,12 +38,22 @@ function rarityLabel(tier: RarityTier): string {
   }
 }
 
-/** โทนสี soft badge ตาม rarity tier — token เท่านั้น ไม่มี gradient/hex ลอย (Impeccable S-A2) */
+/**
+ * โทนสี soft badge ตาม rarity tier — token เท่านั้น ไม่มี gradient/hex ลอย (Impeccable S-A2)
+ *
+ * 🛑 พื้น `{semantic}/15` ต้องคู่กับ `text-{semantic}-ink` เสมอ ไม่ใช่ `text-{semantic}`
+ * (DESIGN.md §2 "สองโทน: สีเป็นพื้น vs สีเป็นหมึก") — เดิมใช้ตัวหลังทำให้ป้าย "หายากมาก"
+ * ซึ่งเป็นรางวัลที่น่าภูมิใจที่สุดในหน้า เป็นตัวที่อ่านยากที่สุดในหน้า (1.48:1 ต้องการ 4.5:1)
+ * token `-ink` กลับด้านให้เองใน dark mode แล้ว (`_root.css:194-198`) จึงถูกทั้งสองโหมด
+ *
+ * RARE ยังค้าง: `--color-secondary-ink` **ไม่มีในธีม** (grep = 0) แก้ด้วยการสลับ token ไม่ได้
+ * ต้องตัดสินระดับ design system ก่อน — ห้ามสลับเฉดเอง (contrast-fix-keeps-hue.md)
+ */
 const RARITY_TONE: Record<RarityTier, string> = {
   COMMON: 'bg-default-200 text-default-700',
-  UNCOMMON: 'bg-info/15 text-info',
+  UNCOMMON: 'bg-info/15 text-info-ink',
   RARE: 'bg-secondary/15 text-secondary',
-  LEGENDARY: 'bg-warning/15 text-warning',
+  LEGENDARY: 'bg-warning/15 text-warning-ink',
 }
 
 // ─── Subtitle template ────────────────────────────────────────────────────────
@@ -68,7 +79,9 @@ function buildSubtitle(criteria: unknown, rarityData: BadgeRarity | null): strin
     case 'PERFECT_RATING': return `รักษาคะแนนรีวิว 5 ดาว อย่างน้อย ${num('minReviews')} ครั้ง${rarityPct}`
     case 'HIGH_RATING': return `รักษาคะแนนรีวิวเฉลี่ย ≥${num('minRating')} ดาว${rarityPct}`
     case 'ZERO_COMPLAINT': return `ปิด ${num('minOrders')} ออเดอร์โดยไม่มีการยกเลิก${rarityPct}`
-    case 'VETERAN': return `เปิดร้านต่อเนื่องครบ ${num('minDays')} วัน${rarityPct}`
+    // เกณฑ์จริงคือ user.createdAt ของเจ้าของร้าน ไม่ใช่ "ร้านเปิดต่อเนื่อง" (ร้านหยุดขายก็ยังนับ)
+    // — พูดเป็นข้อเท็จจริงจึงถูกทั้งตอน owner และตอนพนักงาน (role ADMIN) เปิดดู
+    case 'VETERAN': return `เจ้าของร้านใช้งาน Deep ต่อเนื่องครบ ${num('minDays')} วัน${rarityPct}`
     case 'FAST_SHIPPING': return `จัดส่งเฉลี่ยภายใน ${num('maxHours')} ชั่วโมง${rarityPct}`
     case 'FULL_VERIFICATION': return `ยืนยันตัวตนครบทุกระดับ (L1 + L2 + L3)${rarityPct}`
     case 'UNIQUE_REVIEWERS': return `ได้รับรีวิวจากลูกค้าไม่ซ้ำกัน ${num('count')} ราย${rarityPct}`
@@ -222,8 +235,13 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
   if (!badge) return null
 
   const categoryLabel = getCategoryLabel(badge.badge.criteria)
-  const pct = Math.round(badge.progressRatio * 100)
-  const barColor = badge.progressRatio >= 0.7 ? 'bg-warning' : 'bg-primary'
+  const pct = displayProgressPct(badge.progressRatio, badge.earned)
+  // 🛑 เดิม `ratio>=0.7 ? bg-warning : bg-primary` — ผิด 2 ชั้นพร้อมกัน:
+  // (1) ความหมาย: ในระบบนี้ amber = เตือน/รอดำเนินการ ทุกที่ ⇒ "ยิ่งใกล้สำเร็จยิ่งเป็นสีเตือน"
+  // (2) คอนทราสต์: bg-warning บน track bg-default-200 = 1.48:1 ต้องการ 3:1 (WCAG 1.4.11
+  //     graphical object) ⇒ สถานะ "เกือบได้แล้ว" คือสถานะที่มองเห็นยากที่สุด — กลับหัวจากเจตนา
+  // bg-primary = 4.55:1 ผ่าน และให้ "ความยาวแถบ" สื่อความใกล้แทนสี
+  const barColor = 'bg-primary'
   const tips = buildTips(badge.badge.criteria)
   const cta = buildCta(badge.badge.criteria, badge.earned)
 
@@ -264,7 +282,7 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="badge-modal-title"
-          className="w-full max-w-3xl max-h-[92vh] flex flex-col card pointer-events-auto overflow-hidden"
+          className={'w-full max-w-3xl max-h-[92vh] flex flex-col card pointer-events-auto overflow-hidden' /* HR7 carve-out: max-h-[92vh] — Paces ไม่มี token เพดานความสูงแบบอิง viewport สำหรับโมดัล */}
         >
           {/* ── Header (จาก AddCategoryModal pattern) ──────────────────────── */}
           <div className="card-header p-5 shrink-0">
@@ -290,11 +308,11 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
                   className="relative z-10"
                 >
                   {/* md: 200px, mobile: 140px */}
-                  <div className="size-[140px] md:size-[200px]">
+                  <div className={'size-[140px] md:size-[200px]' /* HR7 carve-out: เหรียญเป็น pixel art (BadgeImage ตั้ง imageRendering:pixelated) ต้องล็อกพิกเซลจำนวนเต็ม — token rem ของ Paces ให้ค่าเศษเมื่อ root font ไม่ใช่ 16px แล้วรูปเบลอ */}>
                     <BadgeImage
                       nameEN={badge.badge.nameEN}
                       imageUrl={badge.badge.imageUrl}
-                      sizeClass="size-[140px] md:size-[200px]"
+                      sizeClass={'size-[140px] md:size-[200px]' /* HR7 carve-out: ต้องตรงกับกล่องแม่บรรทัดบน (pixel art) */}
                       className={badge.earned ? '' : 'grayscale opacity-60'}
                     />
                   </div>
@@ -341,8 +359,9 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
                 </p>
 
                 {/* ── earned status chip ────────────────────────────────────── */}
+                {/* -ink คู่กับพื้น /10 — text-success ตรง ๆ ได้ 2.20:1 ตกเกณฑ์ AA */}
                 {badge.earned && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-success/10 text-success">
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-success/10 text-success-ink">
                     <IconifyIcon icon="tabler-check" />
                     ได้รับแล้ว
                   </span>
@@ -438,16 +457,16 @@ export function BadgeDetailModal({ badge, onClose }: BadgeDetailModalProps) {
                 >
                   <IconifyIcon
                     icon="tabler-shield-check"
-                    className={`text-2xl shrink-0 mt-0.5 ${badge.earned ? 'text-success' : 'text-default-400'}`}
+                    className={`text-2xl shrink-0 mt-0.5 ${badge.earned ? 'text-success-ink' : 'text-default-400'}`}
                   />
                   <div>
-                    <p className={`text-sm font-bold ${badge.earned ? 'text-success' : 'text-default-700'}`}>
+                    <p className={`text-sm font-bold ${badge.earned ? 'text-success-ink' : 'text-default-700'}`}>
                       {badge.earned ? 'รางวัลที่ได้รับ' : 'รางวัลที่จะได้รับ'}
                     </p>
                     <p className="text-xs text-default-500 mt-0.5">
                       {badge.earned
-                        ? 'badge นี้ปรากฏบนโปรไฟล์สาธารณะของคุณ และ Trust Score เพิ่มขึ้น 10%'
-                        : 'ปลดล็อกแล้ว badge จะปรากฏบนโปรไฟล์สาธารณะ และ Trust Score เพิ่มขึ้น 10%'}
+                        ? `แสดงบนหน้าร้านสาธารณะ และ${BADGE_SCORE_EFFECT_TEXT}`
+                        : `ปลดล็อกแล้วจะแสดงบนหน้าร้านสาธารณะ และ${BADGE_SCORE_EFFECT_TEXT}`}
                     </p>
                   </div>
                 </div>

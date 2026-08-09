@@ -13,7 +13,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getBadgeProgress, getBadgePaceEstimate } from '@/services/badge.service'
+import { getBadgeProgress, getBadgePaceEstimate, toBadgeScope } from '@/services/badge.service'
+import { requireActiveShop } from '@/lib/shop-context'
 
 export async function GET(
   _req: NextRequest,
@@ -32,8 +33,13 @@ export async function GET(
   }
 
   try {
+    // 🛑 scope ด้วยร้านที่เปิดอยู่ ไม่ใช่ userId เปล่า ๆ — ต้องเป็นชุดเดียวกับหน้า /badges ที่เรียก
+    // endpoint นี้ ไม่งั้น "อีกกี่วันจะได้" จะคำนวณจากออเดอร์ของร้านส่วนตัวคนละร้านกับที่แสดงอยู่
+    const active = await requireActiveShop(session as { user?: { id?: string | null; activeShopId?: string | null } | null })
+    const scope = toBadgeScope(active, userId)
+
     // หา BadgeProgress สำหรับ badge นี้โดยเฉพาะ
-    const allProgress = await getBadgeProgress(userId, 'SELLER')
+    const allProgress = await getBadgeProgress(scope.ownerUserId, 'SELLER', scope.shop)
     const badgeProgress = allProgress.find((bp) => bp.badge.id === badgeId)
 
     if (!badgeProgress) {
@@ -44,7 +50,7 @@ export async function GET(
       })
     }
 
-    const estimate = await getBadgePaceEstimate(userId, badgeProgress)
+    const estimate = await getBadgePaceEstimate(scope.ownerUserId, badgeProgress, scope.shop)
     return NextResponse.json(estimate)
   } catch (err) {
     console.error('[api/badges/estimate] error', badgeId, err)

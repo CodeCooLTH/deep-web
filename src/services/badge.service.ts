@@ -728,6 +728,45 @@ export async function evaluateSignupYearBadge(userId: string, opts?: { notify?: 
   }
 }
 
+// ─── Badge scope resolver (SSOT ของ "เหรียญชุดนี้เป็นของใคร") ─────────────────
+
+export interface BadgeScope {
+  /** user ที่ใช้กับเกณฑ์ระดับบุคคล (VETERAN/SIGNUP_YEAR) = **เจ้าของร้าน** ไม่ใช่คนที่เปิดหน้าอยู่ */
+  ownerUserId: string
+  /** shop context ที่ใช้กับเกณฑ์ระดับร้าน; null = ไม่มีร้าน (เกณฑ์ผูกร้านเป็น 0 ทั้งชุด) */
+  shop: BadgeShopContext | null
+}
+
+/**
+ * toBadgeScope — แปลง active shop context เป็น scope ที่ getBadgeProgress/getBadgePaceEstimate ต้องการ
+ *
+ * 🛑 ทำไมต้องมีตัวนี้ (บั๊ก prod 2026-08-09): ฝั่ง **เขียน** มอบเหรียญของร้าน BUSINESS ด้วย
+ * `UserBadge.shopId = shop.id` (order.service `evaluateSellerBadgesForShop`) แต่ฝั่ง **อ่าน** ทั้ง 4 จุด
+ * เรียก `getBadgeProgress(session.user.id, 'SELLER')` เปล่า ๆ ซึ่งตกไป `getShopForUser()` = ร้าน
+ * PERSONAL เสมอ → query `where { userId, shopId: null }` → **เหรียญของร้าน BUSINESS ไม่เคยถูกดึงมาเลย**
+ * และตัวนับ order/review ก็ไปนับร้านส่วนตัวที่ว่างเปล่า ผู้ขายจึงได้ noti "ได้รับ Badge ใหม่" แล้วเปิดหน้า
+ * มาไม่เจออะไรเพิ่ม (`notifyBadgeEarned` รับแค่ userId ไม่มี shop scope จึงเด้งทุกใบ)
+ *
+ * เป็นฟังก์ชันบริสุทธิ์ (ไม่ยิง DB) — caller ที่ resolve `requireActiveShop` ไว้แล้วส่งต่อได้เลย
+ * ไม่ต้อง query ซ้ำ. เพิ่ม surface ใหม่ที่อ่าน badge ต้องผ่านตัวนี้ ห้าม derive scope เองซ้ำ
+ *
+ * ownerUserId ยึด `shop.userId` ไม่ใช่ session user เพราะตอน award ก็ยึดเจ้าของร้าน —
+ * พนักงาน (ShopMember role ADMIN) ที่เปิดหน้านี้ต้องเห็นเกณฑ์อายุบัญชีของ "เจ้าของร้าน"
+ * ให้ตรงกับที่ระบบใช้ตัดสินจริง ไม่ใช่ของตัวเอง
+ */
+export function toBadgeScope(
+  // structural — `ActiveShop` จาก shop-context.ts เข้าได้ตรง ๆ โดยไม่ต้อง import (กัน import cycle)
+  active: { shop: { id: string; userId: string }; kind: 'PERSONAL' | 'BUSINESS' } | null,
+  /** ใช้เมื่อไม่มี active shop เท่านั้น — เกณฑ์ผูกร้านจะเป็น 0 ทั้งชุดอยู่แล้ว */
+  fallbackUserId: string,
+): BadgeScope {
+  if (!active) return { ownerUserId: fallbackUserId, shop: null }
+  return {
+    ownerUserId: active.shop.userId,
+    shop: { id: active.shop.id, userId: active.shop.userId, kind: active.kind },
+  }
+}
+
 // ─── getBadgeProgress (new export, Batch 3 Badge Process pages) ───────────────
 
 /**
@@ -804,7 +843,12 @@ export async function getBadgeProgress(
               const { reviewCount, avg } = await checkPerfectRating(shop, criteria)
               // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
               const threshold = criteria.minReviews
-              progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
+              // 🛑 เกณฑ์นี้มี 2 มิติ (จำนวนรีวิว + ค่าเฉลี่ย) — คิดจากมิติเดียวทำให้แถบเต็ม 100%
+              // คู่กับป้าย "เรตติ้งปัจจุบัน 4.30 (ต้องการ 5.0)" คือแถบบอกว่าเสร็จ ตัวหนังสือบอกว่าไม่
+              // ใช้ค่าต่ำสุดของสองมิติ = มิติที่ยังห่างที่สุดเป็นตัวกำหนดความคืบหน้า
+              const countRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
+              const avgRatio = Math.min(avg / 5.0, 1)
+              progressRatio = Math.min(countRatio, avgRatio)
               if (reviewCount < criteria.minReviews) {
                 progressLabel = `อีก ${criteria.minReviews - reviewCount} รีวิว`
               } else {
@@ -820,7 +864,10 @@ export async function getBadgeProgress(
               const { reviewCount, avg } = await checkHighRating(shop, criteria)
               // U1 item 2: guard divide-by-zero เมื่อ criteria.minReviews <= 0
               const threshold = criteria.minReviews
-              progressRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
+              // เกณฑ์ 2 มิติ เหมือน PERFECT_RATING — ดูเหตุผลที่นั่น
+              const countRatio = threshold > 0 ? Math.min(reviewCount / threshold, 1) : 0
+              const avgRatio = criteria.minRating > 0 ? Math.min(avg / criteria.minRating, 1) : 0
+              progressRatio = Math.min(countRatio, avgRatio)
               if (reviewCount < criteria.minReviews) {
                 progressLabel = `อีก ${criteria.minReviews - reviewCount} รีวิว`
               } else {
@@ -840,6 +887,10 @@ export async function getBadgeProgress(
                 progressLabel = `อีก ${criteria.minOrders - completed} ออเดอร์`
               } else if (cancelled > 0) {
                 progressLabel = `มี ${cancelled} ออเดอร์ที่ยกเลิก`
+              } else {
+                // 🛑 เคสนี้เคยตกทุก branch → progressLabel = null → การ์ดใช้ fallback "ยังไม่เริ่ม"
+                // ทับแถบ 100% (ครบเงื่อนไขทุกข้อแล้วแต่จอบอกว่ายังไม่ได้เริ่ม)
+                progressLabel = 'ครบเงื่อนไขแล้ว — รอระบบมอบรางวัล'
               }
             }
             break
@@ -894,7 +945,9 @@ export async function getBadgeProgress(
             if (!earned) {
               const { met } = await checkSignupYear(userId, criteria)
               progressRatio = met ? 1 : 0
-              progressLabel = met ? `สมัครปี ${criteria.year} แล้ว` : `badge พิเศษปี ${criteria.year}`
+              // "เจ้าของร้าน" ไม่ใช่ "คุณ": หน้านี้เปิดได้ทั้ง owner และพนักงาน (role ADMIN)
+              // ส่วนเกณฑ์คิดจาก createdAt ของเจ้าของร้านเสมอ — พูดเป็นข้อเท็จจริงจึงถูกทั้งสองฝั่ง
+              progressLabel = met ? `เจ้าของร้านสมัครปี ${criteria.year} แล้ว` : `badge พิเศษปี ${criteria.year}`
             }
             break
           }
@@ -926,6 +979,10 @@ export async function getBadgeProgress(
         console.error('[badge] getBadgeProgress handler error', badge.nameEN, err)
       }
 
+      // หมายเหตุ: progressRatio ตรงนี้เก็บ "ความจริง" ไว้ (ถึง 1 ได้แม้ยังไม่ earned) เพราะ
+      // getBadgePaceEstimate คิด remaining จากค่านี้ — ถ้า cap ตรงนี้ ตัวที่ครบเกณฑ์แล้วจะกลาย
+      // เป็น "อีก N วัน" ทั้งที่ไม่เหลืออะไรต้องทำ. การ cap เพื่อ "ไม่ให้แถบเต็มในกล่องที่ยัง
+      // ล็อกอยู่" เป็นเรื่องของการแสดงผล → ทำที่ displayProgressPct() ใน badge-labels.ts
       return { badge, earned, progressLabel, progressRatio }
     }),
   )

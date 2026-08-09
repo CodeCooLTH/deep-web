@@ -14,7 +14,7 @@ import { useState } from 'react'
 import type { BadgeProgress } from '@/types/badge'
 import { BadgeImage } from './BadgeImage'
 import { BadgeDetailModal } from './BadgeDetailModal'
-import { getCategoryLabel } from './_constants/badge-labels'
+import { getCategoryLabel, displayProgressPct } from './_constants/badge-labels'
 
 type BadgeGridProps = {
   earned: BadgeProgress[]
@@ -34,7 +34,7 @@ export function BadgeGrid({ earned, locked }: BadgeGridProps) {
           {/* header row — count pill + divider line (จาก products-grid page header pattern) */}
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-base font-bold text-default-800 shrink-0">ได้รับแล้ว</h2>
-            <span className="bg-default-800 text-white text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
+            <span className="bg-default-800 text-default-50 text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
               {earned.length}
             </span>
             <div className="flex-1 h-px bg-default-200" />
@@ -61,7 +61,7 @@ export function BadgeGrid({ earned, locked }: BadgeGridProps) {
         <section>
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-base font-bold text-default-800 shrink-0">ยังล็อกอยู่</h2>
-            <span className="bg-default-800 text-white text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
+            <span className="bg-default-800 text-default-50 text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
               {locked.length}
             </span>
             <div className="flex-1 h-px bg-default-200" />
@@ -126,11 +126,11 @@ function EarnedCard({ item, onClick }: CardProps) {
       className="p-3 text-center rounded-lg bg-default-50 hover:bg-default-100 transition-colors cursor-pointer"
     >
       {/* art wrapper — 72px ตาม spec */}
-      <div className="size-[72px] mx-auto mb-2 relative">
+      <div className={'size-[72px] mx-auto mb-2 relative' /* HR7 carve-out: เหรียญเป็น pixel art (BadgeImage ตั้ง imageRendering:pixelated) ต้องล็อกพิกเซลจำนวนเต็ม — token rem ให้ค่าเศษเมื่อ root font ไม่ใช่ 16px แล้วรูปเบลอ */}>
         <BadgeImage
           nameEN={item.badge.nameEN}
           imageUrl={item.badge.imageUrl}
-          sizeClass="size-[72px]"
+          sizeClass={'size-[72px]' /* HR7 carve-out: ต้องตรงกับกล่องแม่ (pixel art) */}
         />
       </div>
 
@@ -141,7 +141,7 @@ function EarnedCard({ item, onClick }: CardProps) {
         </p>
       )}
 
-      <h3 className="text-[13px] font-bold text-default-800 mb-1 leading-snug">
+      <h3 className="text-xs font-bold text-default-800 mb-1 leading-snug">
         {item.badge.name}
       </h3>
       <p className="text-xs text-default-500">ได้รับแล้ว</p>
@@ -153,14 +153,16 @@ function EarnedCard({ item, onClick }: CardProps) {
  * LockedCard — badge card สำหรับ badge ที่ยังไม่ได้รับ
  * shell: bg-default-50, ไม่มี hover-lift (spec ระบุชัด)
  * grayscale + opacity-70 บน BadgeImage
- * progress bar: spec สี warning ≥70%, primary <70%
+ * progress bar: bg-primary เส้นเดียว (เดิมสลับเป็น warning ที่ ≥70% — ดูเหตุผลที่ barColor)
  * คลิก/keyboard → เปิด modal รายละเอียด + วิธีปลดล็อก
  */
 function LockedCard({ item, onClick }: CardProps) {
   const categoryLabel = getCategoryLabel(item.badge.criteria)
-  const pct = Math.round(item.progressRatio * 100)
-  // ทำไม threshold 0.7: spec กำหนด progressRatio>=0.7 → bg-warning else bg-primary
-  const barColor = item.progressRatio >= 0.7 ? 'bg-warning' : 'bg-primary'
+  const pct = displayProgressPct(item.progressRatio, item.earned)
+  // 🛑 เดิม threshold 0.7 → bg-warning: ผิดทั้งความหมาย (amber = เตือน/รอดำเนินการ ทุกที่ในระบบ
+  // ⇒ ยิ่งใกล้สำเร็จยิ่งดูเหมือนมีปัญหา) และคอนทราสต์ (bg-warning บน track = 1.48:1 ต้องการ 3:1
+  // ตาม WCAG 1.4.11 ⇒ สถานะ "เกือบได้แล้ว" มองเห็นยากที่สุด). bg-primary = 4.55:1
+  const barColor = 'bg-primary'
 
   return (
     <div
@@ -177,11 +179,11 @@ function LockedCard({ item, onClick }: CardProps) {
       className="p-3 text-center rounded-lg bg-default-50 opacity-75 hover:opacity-100 hover:bg-default-100 transition-all cursor-pointer"
     >
       {/* art wrapper — grayscale บอกสถานะ locked */}
-      <div className="size-[72px] mx-auto mb-2">
+      <div className={'size-[72px] mx-auto mb-2' /* HR7 carve-out: เหรียญเป็น pixel art (BadgeImage ตั้ง imageRendering:pixelated) ต้องล็อกพิกเซลจำนวนเต็ม — token rem ให้ค่าเศษเมื่อ root font ไม่ใช่ 16px แล้วรูปเบลอ */}>
         <BadgeImage
           nameEN={item.badge.nameEN}
           imageUrl={item.badge.imageUrl}
-          sizeClass="size-[72px]"
+          sizeClass={'size-[72px]' /* HR7 carve-out: ต้องตรงกับกล่องแม่ (pixel art) */}
           className="grayscale opacity-60"
         />
       </div>
@@ -193,7 +195,7 @@ function LockedCard({ item, onClick }: CardProps) {
         </p>
       )}
 
-      <h3 className="text-[13px] font-bold text-default-500 mb-1 leading-snug">
+      <h3 className="text-xs font-bold text-default-500 mb-1 leading-snug">
         {item.badge.name}
       </h3>
 

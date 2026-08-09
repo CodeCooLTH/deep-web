@@ -21,6 +21,8 @@ import type { BadgeProgress } from '@/types/badge'
 // cross-feature import — BadgeImage ต้องการ useState (onError) จึง extract แยกไฟล์;
 // ไม่ duplicate ไว้ใน dashboard เพราะเป็น pattern เดียวกันทุกประการ (perf debt ยอมรับ)
 import { BadgeImage } from '../../badges/BadgeImage'
+// SSOT ของ % บนแถบ — ต้องเป็นตัวเดียวกับหน้า /badges ไม่งั้นการ์ดนี้กับหน้าเต็มโชว์เลขคนละตัว
+import { displayProgressPct } from '../../badges/_constants/badge-labels'
 import { useRouter } from 'next/navigation'
 
 export type AchievementLevelProps = {
@@ -76,7 +78,7 @@ export default function AchievementLevel({
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <div className={cn('text-xs font-bold leading-none', levelColor)}>{level}</div>
-            <div className="text-default-400 text-[9px] tabular-nums">
+            <div className={'text-default-400 text-[9px] tabular-nums' /* HR7 carve-out: ขั้นเล็กสุดของธีมคือ text-2xs (11px) ซึ่งดันบรรทัดนี้ชนขอบวงในของ ring size-14 (56px − stroke 8px ทั้งสองด้าน) ที่ซ้อนอยู่ใต้ตัวอักษรระดับ 13px แล้ว */}>
               <CountUp start={0} end={score} duration={1} decimals={0} />
             </div>
           </div>
@@ -90,7 +92,7 @@ export default function AchievementLevel({
           {/* section header — count pill + divider (copy pattern จาก BadgeGrid.tsx บรรทัด ~35-41) */}
           <div className="flex items-center gap-3 mb-3">
             <h5 className="text-sm font-bold text-default-800 shrink-0">ได้รับแล้ว</h5>
-            <span className="bg-default-800 text-white text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
+            <span className="bg-default-800 text-default-50 text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
               {earnedBadges.length}
             </span>
             <div className="flex-1 h-px bg-default-200" />
@@ -129,7 +131,7 @@ export default function AchievementLevel({
           {/* section header — count pill + divider (copy pattern จาก BadgeGrid.tsx) */}
           <div className="flex items-center gap-3 mb-3">
             <h5 className="text-sm font-bold text-default-800 shrink-0">ใกล้ได้รับ</h5>
-            <span className="bg-default-800 text-white text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
+            <span className="bg-default-800 text-default-50 text-xs font-bold rounded-full px-2.5 py-0.5 shrink-0">
               {topInProgress.length}
             </span>
             <div className="flex-1 h-px bg-default-200" />
@@ -142,9 +144,10 @@ export default function AchievementLevel({
           ) : (
             <div className="space-y-3">
               {topInProgress.map((item) => {
-                const pct = Math.round(item.progressRatio * 100)
-                // threshold 0.7 ตาม spec: progressRatio>=0.7 → bg-warning else bg-primary
-                const barColor = item.progressRatio >= 0.7 ? 'bg-warning' : 'bg-primary'
+                const pct = displayProgressPct(item.progressRatio, item.earned)
+                // เหตุผลเดียวกับ BadgeGrid.tsx: bg-warning บน track = 1.48:1 (ต้องการ 3:1) และ
+                // amber ในระบบนี้แปลว่า "เตือน" ⇒ ยิ่งใกล้สำเร็จยิ่งดูเหมือนมีปัญหา
+                const barColor = 'bg-primary'
                 return (
                   <div key={item.badge.id}>
                     <div className="flex items-center gap-2 mb-1">

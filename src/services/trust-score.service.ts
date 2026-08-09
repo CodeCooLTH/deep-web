@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { BADGE_SCORE_MAX, BADGE_SCORE_PER_BADGE } from "@/lib/badge-score-rule";
 
 export type TrustLevel = "A+" | "A" | "B+" | "B" | "C" | "D";
 
@@ -94,7 +95,9 @@ async function calcBadgeScore(scope: TrustScope): Promise<number> {
   // personal trust score; business scope นับตรงจาก shopId (แยกจาก owner)
   const where = scope.kind === "personal" ? { userId: scope.userId, shopId: null } : { shopId: scope.shopId };
   const count = await prisma.userBadge.count({ where });
-  return Math.min(10, count);
+  // ตัวเลขมาจาก badge-score-rule.ts ตัวเดียวกับที่ BadgeDetailModal ใช้เขียนประโยคบนจอ
+  // (HR16 — เคยหลุดคนละทิศ: จอสัญญา "เพิ่มขึ้น 10%" ขณะที่ของจริงคือ 1 คะแนน เพดาน 10)
+  return Math.min(BADGE_SCORE_MAX, count * BADGE_SCORE_PER_BADGE);
 }
 
 export async function recalculateTrustScore(userId: string): Promise<number> {

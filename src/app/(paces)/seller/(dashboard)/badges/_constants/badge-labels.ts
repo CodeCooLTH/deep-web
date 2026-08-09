@@ -98,3 +98,24 @@ export function criteriaToText(criteria: unknown): string {
       return 'ทำตามเงื่อนไขของรางวัลนี้'
   }
 }
+
+/**
+ * displayProgressPct — % ที่แสดงบนแถบความคืบหน้า (SSOT ของทั้ง 3 surface ที่วาดแถบนี้:
+ * BadgeGrid.LockedCard · BadgeDetailModal · AchievementLevel บนแดชบอร์ด)
+ *
+ * 🛑 ทำไมไม่ใช่ `Math.round(ratio * 100)` ตรง ๆ: เกณฑ์หลายตัวมีเงื่อนไขที่ ratio สะท้อนไม่ได้
+ * (VETERAN ครบอายุแล้วแต่ยังต้องมีออเดอร์ใน 30 วัน · FIRST_ORDER/ZERO_COMPLAINT ที่ครบแล้ว
+ * แต่รอ evaluator รอบถัดไป) ⇒ แถบเต็ม 100% ไปนั่งอยู่ในกล่อง "ยังล็อกอยู่" ซึ่งผู้ขายอ่านว่า
+ * "ระบบค้าง" ไม่ใช่ "เกือบแล้ว" แล้วรีเฟรชซ้ำ/ทักแชท
+ *
+ * cap ที่ 95% เหลือช่องว่างที่มองเห็นได้ แล้วปล่อยให้ progressLabel เป็นคนอธิบายส่วนที่เหลือ
+ * (impeccable critique 2026-08-09 P1)
+ *
+ * ห้าม cap ที่ `getBadgeProgress` เพราะ `getBadgePaceEstimate` คิด remaining จาก ratio ตัวจริง —
+ * cap ที่นั่นจะทำให้ badge ที่ครบเกณฑ์แล้วขึ้นว่า "อีก N วัน" ทั้งที่ไม่เหลืออะไรต้องทำ
+ */
+export function displayProgressPct(progressRatio: number, earned: boolean): number {
+  const pct = Math.round(progressRatio * 100)
+  if (earned) return pct
+  return Math.min(pct, 95)
+}

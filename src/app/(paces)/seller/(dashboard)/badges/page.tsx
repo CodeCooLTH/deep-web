@@ -19,7 +19,8 @@
 
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getBadgeProgress } from '@/services/badge.service'
+import { getBadgeProgress, toBadgeScope } from '@/services/badge.service'
+import { requireActiveShop } from '@/lib/shop-context'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import type { Metadata } from 'next'
 import type { BadgeProgress } from '@/types/badge'
@@ -41,7 +42,12 @@ export default async function BadgesPage() {
 
   let items: BadgeProgress[] = []
   try {
-    items = await getBadgeProgress(user.id, 'SELLER')
+    // 🛑 ต้อง scope ด้วย "ร้านที่เปิดอยู่" ไม่ใช่ user.id เปล่า ๆ — เหรียญของร้าน BUSINESS เก็บที่
+    // UserBadge.shopId ส่วน getBadgeProgress ที่ไม่ส่ง shopOverride จะตกไปร้าน PERSONAL เสมอ
+    // (บั๊ก prod 2026-08-09: ผู้ขายได้ noti แต่หน้านี้ว่าง) — ดู toBadgeScope
+    const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
+    const scope = toBadgeScope(active, user.id)
+    items = await getBadgeProgress(scope.ownerUserId, 'SELLER', scope.shop)
   } catch {
     items = []
   }
@@ -55,7 +61,9 @@ export default async function BadgesPage() {
 
   return (
     <>
-      <PageBreadcrumb title="ความสำเร็จ" trail={[{ label: 'ภาพรวม' }]} />
+      {/* "ของร้านค้า" ให้ตรงกับ metadata.title ของไฟล์เดียวกัน + บอกกรอบอ้างอิงว่าเลขชุดนี้เป็นของ
+          ร้านที่เปิดอยู่ ไม่ใช่ของตัวบุคคล (ux gate 2026-08-09) */}
+      <PageBreadcrumb title="ความสำเร็จของร้านค้า" trail={[{ label: 'ภาพรวม' }]} />
 
       {/* BadgeGrid: client island รับผิดชอบ render card + modal state */}
       <BadgeGrid earned={earned} locked={locked} />

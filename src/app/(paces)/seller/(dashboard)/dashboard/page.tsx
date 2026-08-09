@@ -47,7 +47,7 @@ import SalesReport from './components/SalesReport'
 import StatisticCard from './components/StatisticCard'
 import UserCard from './components/UserCard'
 import AchievementLevel from './components/AchievementLevel'
-import { getBadgeProgress } from '@/services/badge.service'
+import { getBadgeProgress, toBadgeScope } from '@/services/badge.service'
 import type { BadgeProgress } from '@/types/badge'
 import type { StatType } from './components/StatisticCard'
 import type { SalesSeriesPoint, SalesSummary } from './components/SalesReport'
@@ -190,15 +190,31 @@ export default async function SellerDashboardPage() {
     levelColor = LEVEL_COLOR[level] ?? 'text-primary'
 
     try {
-      // perf: getBadgeProgress ต้องการแค่ user.id (ไม่ขึ้นกับ shop) — kick off
-      // ขนานตั้งแต่ต้น ให้ทับซ้อนกับ shop.findUnique + getOrdersByShop + JS processing
-      // (wall time = max(badge, shop+orders) แทนผลรวม sequential)
-      const progressPromise = getBadgeProgress(user.id, 'SELLER')
-
       // ดึง active shop (Personal หรือ Business ตาม session.activeShopId) — id/shopName/logo/slug ทุก
       // downstream query (orders/balance/activity/rating/liveAuction) ต้อง scope ด้วย active shop.id นี้
       const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } })
       const shop = active?.shop ?? null
+
+      // 🛑 คะแนนบนการ์ด "ระดับความสำเร็จ" ต้องเป็นของร้านที่เปิดอยู่ ไม่ใช่ของคนที่ล็อกอิน
+      // เหรียญของร้าน BUSINESS เขียนคะแนนลง `Shop.trustScore` (recalculateShopTrustScore) แต่
+      // วงนี้อ่าน `user.trustScore` มาตลอด ⇒ ร้าน BUSINESS ปลดล็อกเหรียญแล้ว **ไม่มีตัวเลขไหน
+      // บนแดชบอร์ดขยับเลย** — คลาสเดียวกับบั๊กรายการเหรียญที่แก้ไปในคอมมิตเดียวกันนี้ แค่ย้าย
+      // จาก "รายการ" มาอยู่ที่ "คะแนน" (impeccable critique 2026-08-09 P0)
+      // PERSONAL คงเดิม: `Shop.trustScore` ของร้านส่วนตัวเป็น 0 เสมอตามดีไซน์ (ดู schema.prisma)
+      // แพตเทิร์นเดียวกับ public-profile/builder/page.tsx:184
+      if (active?.kind === 'BUSINESS') {
+        score = shop?.trustScore ?? 0
+        level = getTrustLevel(score)
+        levelColor = LEVEL_COLOR[level] ?? 'text-primary'
+      }
+
+      // 🛑 badge ต้อง scope ด้วยร้านที่เปิดอยู่ จึง kick off **หลัง** requireActiveShop ไม่ใช่ก่อน
+      // (เดิมคอมเมนต์ตรงนี้เขียนว่า "ต้องการแค่ user.id ไม่ขึ้นกับ shop" ซึ่งผิด — เหรียญของร้าน
+      // BUSINESS เก็บที่ UserBadge.shopId ทำให้แดชบอร์ดโชว์ของร้านส่วนตัวที่ว่างเปล่ามาตลอด)
+      // perf: ยังขนานกับ getOrdersByShop + JS processing ที่ตามมาทั้งชุด เสียแค่ทับซ้อนกับ
+      // requireActiveShop เอง (query เดียว) — แลกกับตัวเลขที่ถูกร้าน
+      const badgeScope = toBadgeScope(active, user.id)
+      const progressPromise = getBadgeProgress(badgeScope.ownerUserId, 'SELLER', badgeScope.shop)
 
       // แถบแพ็กเกจ (Row 3 มือถือ) — ต้องอยู่หลัง requireActiveShop เพราะ resolve จาก shop.userId
       // (เจ้าของร้าน) ไม่ใช่ session user; inner try/catch เพื่อไม่ให้ล้มลาม block นี้ทั้งก้อน
