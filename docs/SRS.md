@@ -975,6 +975,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | งานที่ผูกกับเธรด | ใช้ `resolveConversationShopId()` แล้วอ่านทุกอย่างจาก `conversation.shopId` — ไม่ใช่ `activeShopId` (ตั้งแต่ feature 00037 สองค่านี้ไม่ใช่สิ่งเดียวกัน) |
 | `DISTINCT ON` ที่เกี่ยวกับ `Customer` | ต้องมี `shopId` เป็นคีย์แรกเสมอ — `Customer` เป็นตารางระดับทั้งระบบ (`phone @unique`) ลูกค้าคนเดียวมีออเดอร์หลายร้านได้ |
 | ฟิลด์นัด (feature 00024, เพิ่ม 2026-08-08) | `GET /api/chat/conversations/[id]/orders` (service `getOrdersByCustomer`) คืน `serviceStart`/`serviceEnd`/`appointmentStatus`/`depositAmount` เพิ่มเข้ามา — ต้อง sync กับ select ของ `inbox/[conversationId]/page.tsx` เสมอ (ดู §6.2 Order) |
+| การ์ดคำขอชำระเงินของ Meta (feature 00018, สัญญาแก้ 2026-08-09) | `parseMetaOrderCard(body)` (`src/lib/meta-order-card.ts`, pure module) แปลงข้อความ `ChatMessage.body` ที่ Meta ส่งมา (`"[การ์ดจาก Facebook] ฿N order — <status>"` หรือรูปเก่าไม่มีคำนำหน้า/สถานะ) เป็น `{ amount, status: string \| null }` — `status` เป็นคำอังกฤษดิบของ Meta ห้ามแปลไทย/จำแนกสี, `null` = ไม่รู้สถานะ. ผู้เรียก: `ChatThread.tsx` (render `MetaOrderCardBubble`, ต้องเช็คก่อน `parseMetaSystemNotice` เสมอ — ทั้งสองจับคำนำหน้าเดียวกันได้), `channel-chat.service.ts` (preview รายการแชท ทั้งเส้น webhook และ backfill) — รายละเอียดเต็มดู `docs/20 - Features/00018 - Facebook Chat Integration/EXTENSIONS-2026-08-09.md` |
 
 ### 7.15 Comment Auto-Reply (feature 00038)
 
