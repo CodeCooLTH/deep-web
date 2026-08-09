@@ -1404,7 +1404,11 @@ export default function AppointmentDateSheet({
             )}
 
             {/* ── ชิปเวลาเริ่ม ── ครึ่งแรกของ "จบใน 2 แตะ"
-                จุดเตือนใช้สัญลักษณ์เดียวกับ legend ปฏิทิน ("มีคิวแล้ว") ไม่ใช่สีใหม่ */}
+                🛑 สัญลักษณ์ "เต็ม" ของชิป **ไม่ใช่ตัวเดียวกับจุดในปฏิทิน** — จุดในปฏิทินคือ
+                `used > 0` (มีคิวบ้าง) ส่วนชิปคือ `overlap >= capacity` (เต็ม) คนละความหมายกัน
+                คอมเมนต์เดิมตรงนี้เขียนว่า "ใช้สัญลักษณ์เดียวกับ legend ปฏิทิน" ซึ่งผิด และทำให้
+                สองสถานะที่ต่างกันหน้าตาเหมือนกันเป๊ะ. ปฏิทินสื่อ "เต็ม" ด้วยกากบาทแทนเลขวัน
+                ชิปจึงใช้ พื้น+ตัวหนังสือ warning-ink + ไอคอนสามเหลี่ยม = ภาษาเดียวกัน */}
             {timeSlots.length > 0 && (
               <div className="mb-3">
                 {/* กริดกว้างขึ้นตามกล่อง: 4 คอลัมน์ที่กล่องแคบ (ชิป ~78px อ่านออกที่ 320px)
@@ -1446,7 +1450,11 @@ export default function AppointmentDateSheet({
                         tabIndex={active || (!pendingStart && i === 0) ? 0 : -1}
                         data-slot-index={i}
                         aria-pressed={active}
-                        aria-label={`เวลาเริ่ม ${s.start}${s.busy ? ' มีคิวแล้ว' : ''}${s.past ? ' เลยเวลาไปแล้ว' : ''}`}
+                        /* "เต็มแล้ว" ไม่ใช่ "มีคิวแล้ว" — `s.busy` คือ overlap >= capacity (เต็ม)
+                           ไม่ใช่ used > 0 (มีคิวบ้าง) ซึ่งเป็นเงื่อนไขของจุดในปฏิทิน
+                           คำเดิมพูดผิดความหมายมาตั้งแต่ต้น ผู้ใช้ screen reader จึงได้ยินว่า
+                           "มีคิวแล้ว" ในช่วงที่จริง ๆ เต็ม แล้วเลือกไปโดยไม่รู้ว่ากำลังจองทับ */
+                        aria-label={`เวลาเริ่ม ${s.start}${s.busy ? ' ช่วงนี้เต็มแล้ว' : ''}${s.past ? ' เลยเวลาไปแล้ว' : ''}`}
                         /* 🛑 text-primary-ink ไม่ใช่ text-primary บนพื้น /15 (DESIGN.md + critique P1)
                            primary บนพื้น primary/15 วัดได้ 4.17:1 (บนการ์ด) และ 3.91:1 (บนพื้นเทา)
                            ตก AA ที่ 14px semibold ซึ่งต้องการ 4.5 — primary-ink บนพื้นเดียวกันได้
@@ -1462,18 +1470,30 @@ export default function AppointmentDateSheet({
                         className={`btn relative min-h-11 justify-center rounded-lg border px-1 text-sm tabular-nums ${
                           active
                             ? 'border-primary bg-primary/15 text-primary-ink font-semibold'
-                            : s.past
-                              ? 'border-default-200 text-default-500 hover:border-default-400 hover:bg-default-50'
-                              : 'border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50'
+                            : s.busy
+                              ? /* เต็ม: พื้น warning/15 + ตัวหนังสือ warning-ink (6.2–6.6:1)
+                                   ตัวแบกความหมายคือ "สีตัวหนังสือ" ซึ่งวัดด้วยเกณฑ์ข้อความ 4.5:1
+                                   และผ่าน — ต่างจากจุด 6px เดิมที่ได้ 1.55:1 (ตกเกณฑ์ non-text 3:1)
+                                   ยังกดได้ตามเดิม (BR-RSV-18) แค่เห็นชัดขึ้นว่ากำลังจะจองทับ */
+                                'border-warning bg-warning/15 text-warning-ink hover:bg-warning/25'
+                              : s.past
+                                ? 'border-default-200 text-default-500 hover:border-default-400 hover:bg-default-50'
+                                : 'border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50'
                         }`}
                       >
                         {s.start}
                         {/* ไม่ disable ปุ่มที่ชนคิว — BR-RSV-18 เลขบนจอไม่ใช่คำตัดสิน (ข้อมูลอาจ
                             เก่าระหว่างเปิดค้าง) ตัวตัดสินจริงคือ EXCLUDE constraint ตอนบันทึก
                             การปิดปุ่มจากข้อมูลฝั่ง client จะบล็อกช่วงที่จริง ๆ ยังจองได้ */}
+                        {/* 🛑 ไอคอน ไม่ใช่จุดสี — WCAG 1.4.1 ห้ามสื่อความหมายด้วยสีอย่างเดียว
+                            ปฏิทินแก้เรื่องเดียวกันนี้ด้วยการเปลี่ยน "รูปร่าง" (กากบาทแทนเลขวัน)
+                            สำหรับวันที่เต็ม ชิปจึงต้องพูดภาษาเดียวกัน: มีทั้งสี (พื้น+ตัวหนังสือ)
+                            และรูปร่าง (ไอคอน) ไม่ใช่จุดกลมสีเหลืองที่ตาบอดสีแยกไม่ออกจากจุดของ
+                            "มีคิวแล้ว" ในปฏิทิน ทั้งที่สองอย่างนี้คนละความหมายกัน */}
                         {s.busy && (
-                          <span
-                            className="bg-warning absolute end-1 top-1 size-1.5 rounded-full"
+                          <Icon
+                            icon="alert-triangle-filled"
+                            className="absolute end-0.5 top-0.5 size-3"
                             aria-hidden="true"
                           />
                         )}
