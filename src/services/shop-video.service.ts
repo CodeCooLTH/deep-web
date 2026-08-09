@@ -11,6 +11,10 @@
  * TikTok/YouTube เสียบเพิ่มภายหลังได้โดยไม่ต้องแก้ตาราง
  */
 import { prisma } from "@/lib/prisma";
+import { toFileUrl } from "@/lib/file-url";
+// ห้ามเขียน mirror logic ใหม่ซ้ำ — ตัวนี้มี allow-list host ของ Meta CDN (กัน SSRF) + streaming
+// size cap พร้อมอยู่แล้ว (feature 00018) มติเดียวกับที่ feature 00035 ยึดตอน mirror รูปโพสต์
+import { mirrorRemoteImage } from "@/services/channel-chat.service";
 import { decryptToken } from "@/lib/token-crypto";
 import { GRAPH_BASE } from "@/lib/facebook/constants";
 import { parseVideoUrl } from "@/lib/shop-video";
@@ -257,9 +261,15 @@ async function fetchIgUsername(igUserId: string, token: string): Promise<string 
   }
 }
 
-/** คลิปที่ร้านเลือกไว้แล้ว — ใช้ทั้งหน้าตั้งค่าและหน้าร้านสาธารณะ */
+/**
+ * คลิปที่ร้านเลือกไว้แล้ว — ใช้ทั้งหน้าตั้งค่าและหน้าร้านสาธารณะ
+ *
+ * 🛑 `thumbnailUrl` ที่คืนออกไปคือค่าที่ resolve แล้ว (mirroredFileId ชนะ URL ของ Meta เสมอ) —
+ * ผู้เรียกห้ามคิด fallback เองซ้ำ กติกาเดียวกับ listShopPageBlocks ที่ทำไว้ให้บล็อกโพสต์ FB
+ * URL ดิบของ fbcdn/cdninstagram มีอายุจำกัด ถ้าปล่อยให้ UI อ่านตรง ๆ วันหนึ่งกริดจะว่างเงียบ ๆ
+ */
 export async function getShopVideos(shopId: string) {
-  return prisma.shopVideo.findMany({
+  const rows = await prisma.shopVideo.findMany({
     where: { shopId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     select: {
@@ -268,6 +278,7 @@ export async function getShopVideos(shopId: string) {
       videoId: true,
       caption: true,
       thumbnailUrl: true,
+      mirroredFileId: true,
       accountName: true,
       likeCount: true,
       commentCount: true,
@@ -275,6 +286,11 @@ export async function getShopVideos(shopId: string) {
       sortOrder: true,
     },
   });
+
+  return rows.map(({ mirroredFileId, ...v }) => ({
+    ...v,
+    thumbnailUrl: toFileUrl(mirroredFileId) ?? v.thumbnailUrl,
+  }));
 }
 
 /**
@@ -301,16 +317,59 @@ export async function replaceShopVideos(
 ) {
   const capped = items.slice(0, MAX_SHOP_VIDEOS);
 
+  // สำเนาที่เคย mirror ไว้แล้วของชุดเดิม — คีย์ด้วย provider+videoId ตัวเดียวกับ @@unique ของตาราง
+  // ฟังก์ชันนี้ลบทั้งชุดแล้วสร้างใหม่ ถ้าไม่หิ้วค่านี้ข้ามไป คลิปใบเดิมจะถูก mirror ซ้ำทุกครั้งที่ร้าน
+  // กดบันทึก (แค่สลับลำดับก็นับ) = ไฟล์ขยะในสตอเรจกองใหม่ทุกรอบ
+  const existing = await prisma.shopVideo.findMany({
+    where: { shopId },
+    select: { provider: true, videoId: true, mirroredFileId: true, mirroredAt: true },
+  });
+  const mirroredByKey = new Map(
+    existing
+      .filter((v) => v.mirroredFileId)
+      .map((v) => [`${v.provider}:${v.videoId}`, v] as const),
+  );
+
+  // 🛑 mirror อยู่ "นอก" ทรานแซกชันโดยตั้งใจ — แต่ละใบยิง fetch ออกไปที่ CDN ของ Meta ซึ่งรอได้
+  // ถึง 10 วินาที (MIRROR_FETCH_TIMEOUT_MS) เอาไปไว้ในทรานแซกชันคือถือ connection ค้างไว้
+  // ตลอดเวลานั้นคูณจำนวนคลิป
+  //
+  // mirror ล้มไม่ block การบันทึก (แนวเดียวกับ mirrorFacebookPostForBuilder TD-004) — แถวยังถูก
+  // สร้างพร้อม thumbnailUrl ของ Meta เป็น fallback ชั่วคราว แต่ต้องมีร่องรอยใน log เสมอ
+  // ไม่งั้นจะกลายเป็นความล้มเหลวเงียบซ้อนความล้มเหลวเงียบ
+  const prepared = await Promise.all(
+    capped.map(async (it) => {
+      const prev = mirroredByKey.get(`${it.provider}:${it.videoId}`);
+      if (prev?.mirroredFileId) {
+        return { ...it, mirroredFileId: prev.mirroredFileId, mirroredAt: prev.mirroredAt };
+      }
+      if (!it.thumbnailUrl) return { ...it, mirroredFileId: null, mirroredAt: null };
+
+      const fileId = await mirrorRemoteImage(it.thumbnailUrl);
+      if (!fileId) {
+        console.error("[shop-video] mirror รูปปกคลิปไม่สำเร็จ", {
+          shopId,
+          provider: it.provider,
+          videoId: it.videoId,
+        });
+        return { ...it, mirroredFileId: null, mirroredAt: null };
+      }
+      return { ...it, mirroredFileId: fileId, mirroredAt: new Date() };
+    }),
+  );
+
   await prisma.$transaction(async (tx) => {
     await tx.shopVideo.deleteMany({ where: { shopId } });
-    if (capped.length === 0) return;
+    if (prepared.length === 0) return;
     await tx.shopVideo.createMany({
-      data: capped.map((it, i) => ({
+      data: prepared.map((it, i) => ({
         shopId,
         provider: it.provider,
         videoId: it.videoId,
         caption: it.caption ?? null,
         thumbnailUrl: it.thumbnailUrl ?? null,
+        mirroredFileId: it.mirroredFileId,
+        mirroredAt: it.mirroredAt,
         accountName: it.accountName ?? null,
         likeCount: it.likeCount ?? null,
         commentCount: it.commentCount ?? null,
