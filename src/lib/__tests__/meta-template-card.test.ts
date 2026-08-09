@@ -122,12 +122,18 @@ describe('extractGenericCards — carousel elements[] จาก Facebook generic
     ])
   })
 
-  it('ไม่มี image_url (แต่มี subtitle จึงยังเป็นการ์ดจริง) → imageUrl เป็น null ไม่ใช่ throw', () => {
+  // แก้ 2026-08-09: เดิมเทสนี้ยืนยันว่า "ไม่มี image_url ก็ยังเป็นการ์ด" ซึ่งกลายเป็นบั๊ก —
+  // การ์ดคำขอชำระเงิน/ขอโทรกลับใช้ generic template เหมือนกันแต่ไม่มีรูป (ดูเคส [blocker] ท้ายไฟล์)
+  // เคสที่ imageUrl เป็น null อย่างถูกต้องคือ "ใบนี้ไม่มีรูป แต่ใบอื่นในชุดเดียวกันมี"
+  it('ใบที่ไม่มี image_url ในชุดที่ใบอื่นมีรูป → imageUrl เป็น null ไม่ใช่ throw', () => {
     const out = extractGenericCards('template', {
       template_type: 'generic',
-      elements: [{ title: 'สินค้า ก', subtitle: 'ราคา 100.-' }],
+      elements: [
+        { title: 'สินค้า ก', subtitle: 'ราคา 100.-' },
+        { title: 'สินค้า ข', subtitle: 'ราคา 200.-', image_url: 'https://scontent.xx.fbcdn.net/b.png' },
+      ],
     })
-    expect(out).toEqual([{ title: 'สินค้า ก', subtitle: 'ราคา 100.-', imageUrl: null }])
+    expect(out?.[0]).toEqual({ title: 'สินค้า ก', subtitle: 'ราคา 100.-', imageUrl: null })
   })
 
   it('subtitle ว่าง (แต่มี image_url จึงยังเป็นการ์ดจริง) → subtitle เป็น null ไม่ใช่สตริงว่าง', () => {
@@ -142,6 +148,8 @@ describe('extractGenericCards — carousel elements[] จาก Facebook generic
     const elements = Array.from({ length: 12 }, (_, i) => ({
       title: `สินค้า ${i + 1}`,
       subtitle: 'มีของ',
+      // ต้องมีรูปด้วย ไม่งั้นถูกตีเป็น "ไม่ใช่การ์ดสินค้า" แล้วคืน null ก่อนถึงเรื่องเพดาน 10 ใบ
+      image_url: `https://scontent.xx.fbcdn.net/${i}.png`,
     }))
     const out = extractGenericCards('template', { template_type: 'generic', elements })
     expect(out).toHaveLength(10)
@@ -162,5 +170,46 @@ describe('extractGenericCards — carousel elements[] จาก Facebook generic
   it('attType ไม่ใช่ template หรือไม่มี payload → คืน null', () => {
     expect(extractGenericCards('image', PROD_2_CARD_PAYLOAD)).toBeNull()
     expect(extractGenericCards('template', undefined)).toBeNull()
+  })
+
+  /**
+   * 🛑 เคสที่ dry-run ของ backfill จับได้ (2026-08-09) — payload จริงจากฐาน prod
+   *
+   * `template_type: 'generic'` ไม่ได้แปลว่าเป็นการ์ดสินค้า Meta ใช้โครงเดียวกันกับการ์ดคำขอ
+   * ชำระเงิน/ขอโทรกลับด้วย. บนฐาน prod: generic ที่ไม่มี image_url 54 ใบ เป็น "฿360.00 order" /
+   * "Transfer requested" / "Call request sent" ล้วน ๆ ไม่มีสินค้าปนสักใบ
+   *
+   * ถ้าไม่กั้น การ์ดคำขอชำระเงินจะกลายเป็นการ์ดที่มีกล่องรูปเทาว่างเปล่า แทนบรรทัดระบบเดิม
+   */
+  it('[blocker] generic template ที่ไม่มี image_url สักใบ → null (การ์ดคำขอชำระเงิน ไม่ใช่สินค้า)', () => {
+    expect(
+      extractGenericCards('template', {
+        template_type: 'generic',
+        elements: [{ title: '฿720.00 order', subtitle: 'Waiting for payment' }],
+      }),
+    ).toBeNull()
+  })
+
+  it('[blocker] การ์ดขอโทรกลับ (generic, ไม่มีรูป) → null เช่นกัน', () => {
+    expect(
+      extractGenericCards('template', {
+        template_type: 'generic',
+        elements: [
+          { title: 'ส่งคำขอโทรแล้ว', subtitle: 'หากยอมรับ คุณจะสามารถโทรหาผู้ใช้รายนี้ได้ภายใน 7 วันถัดจากนี้' },
+        ],
+      }),
+    ).toBeNull()
+  })
+
+  it('มีรูปแค่ใบเดียวใน 2 ใบ → ยังนับเป็นการ์ดสินค้า (อีกใบได้ placeholder)', () => {
+    const out = extractGenericCards('template', {
+      template_type: 'generic',
+      elements: [
+        { title: 'มีรูป', subtitle: 'x', image_url: 'https://scontent.xx.fbcdn.net/a.png' },
+        { title: 'ไม่มีรูป', subtitle: 'y' },
+      ],
+    })
+    expect(out).toHaveLength(2)
+    expect(out?.[1]?.imageUrl).toBeNull()
   })
 })

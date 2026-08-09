@@ -606,6 +606,21 @@ export function extractGenericCards(
   if (!els || els.length === 0) return null
   const real = els.filter((el) => isRealCard(el))
   if (real.length === 0) return null
+  /**
+   * 🛑 ต้องมีอย่างน้อย 1 ใบที่มี `image_url` ถึงจะนับว่าเป็น "การ์ดสินค้า"
+   *
+   * `template_type: 'generic'` ไม่ได้แปลว่าเป็นสินค้า — Meta ใช้โครงเดียวกันกับการ์ดคำขอชำระเงิน
+   * และการ์ดขอโทรกลับด้วย. ยืนยันกับฐาน prod (2026-08-09 ตอนรัน backfill แบบ dry-run):
+   * generic template ที่ **ไม่มี** image_url 54 ใบ เป็น `฿360.00 order` / `Transfer requested` /
+   * `Call request sent` ล้วน ๆ ไม่มีสินค้าปนสักใบ ส่วนการ์ดสินค้าจริงมี image_url ครบทุกใบ
+   *
+   * ถ้าไม่กั้น การ์ดคำขอชำระเงินจะกลายเป็นการ์ดที่มี "กล่องรูปเทาว่างเปล่า" แทนบรรทัดระบบสะอาด ๆ
+   * แบบเดิม — แย่ลงกว่าเดิมชัดเจน (ของพวกนี้ไม่มีรูปตั้งแต่ต้นทาง ไม่ใช่ mirror ล้มเหลว)
+   *
+   * ไม่มีรูปเลย → คืน null → ตกไปใช้ `body` (บรรทัดสรุป) เหมือนเดิมทุกประการ
+   * ส่วนเคส "mirror ล้มเหลว" ยังได้ placeholder ถูกต้อง เพราะตอนนั้น image_url **มี** แต่โหลดไม่ผ่าน
+   */
+  if (!real.some((el) => el.image_url)) return null
   return real.slice(0, MAX_GENERIC_CARDS).map((el) => ({
     title: el.title?.trim() || null,
     subtitle: el.subtitle?.trim() || null,
