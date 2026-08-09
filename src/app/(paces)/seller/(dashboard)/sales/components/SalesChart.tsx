@@ -21,6 +21,8 @@ import { getColor } from '@/utils/helpers'
 import { formatBaht, profitDisplay, NET_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
 import { EXPENSE_CATEGORY_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
 import PacesStatCard from '../../_shared/PacesStatCard'
+import Link from 'next/link'
+import Icon from '@/components/wrappers/Icon'
 import { useCallback } from 'react'
 import type { DailyRow, SummaryData } from './data'
 
@@ -77,8 +79,32 @@ const SalesChart = ({ daily, summary }: Props) => {
     [daily, showFinance],
   )
 
+  const pendingShipments = showFinance ? (summary.pendingShipmentCount ?? 0) : 0
+
   return (
     <div>
+      {/* แถบเตือน "ยังไม่รู้ค่าส่งจริง" — โครง/tone คัดลอกจากแถบต้นทุนขาดใน ExpenseWorkspace.tsx:183-199
+          (ปัญหาชนิดเดียวกัน: ตัวเลขที่แสดงเป็นเพดานบนเพราะข้อมูลบางส่วนยังไม่มา)
+
+          ไม่มีปุ่ม "แก้ไข" ต่างจากแถบต้นทุนขาด — ร้านทำอะไรให้ขนส่งแจ้งราคาเร็วขึ้นไม่ได้
+          ปุ่มที่สั่งทำในสิ่งที่ทำไม่ได้แย่กว่าไม่มีปุ่ม เหลือแค่ลิงก์ "ดู" */}
+      {pendingShipments > 0 && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="border-warning/20 bg-warning/10 text-warning-ink mb-1.25 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm font-medium"
+        >
+          <span className="flex items-start gap-2">
+            <Icon icon="alert-triangle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+            กำไรที่แสดงอาจสูงกว่าจริง — {pendingShipments.toLocaleString('th-TH')} ใบยังไม่รู้ค่าส่งจริง
+            (ขนส่งยังไม่แจ้งราคา)
+          </span>
+          <Link href="/orders?stage=AWAITING_PICKUP" className="font-semibold underline">
+            ดูออเดอร์ที่รอรับเข้า →
+          </Link>
+        </div>
+      )}
+
       {/* การ์ดสรุป — โครง 3 แถวของธีม ผ่าน PacesStatCard ที่ใช้ร่วมกับ /expenses
           เดิมเป็น SummaryCard ที่เขียนซ้ำในไฟล์นี้เองและมีแค่ 2 แถว (ไม่มี badge ไม่มีแถวล่าง) */}
       <div className={`mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 ${showFinance ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-4'}`}>
@@ -138,11 +164,23 @@ const SalesChart = ({ daily, summary }: Props) => {
               changePercent={pctChangeVsPrev(summary.totalExpense ?? 0, summary.prevExpense ?? null, true)}
               changeHint="เทียบช่วงก่อนหน้า — ค่าใช้จ่ายลดลงคือดีขึ้น"
               bulletClass="text-danger"
-              metric="หมวดที่จ่ายมากสุด"
+              note="ค่าใช้จ่าย = ค่าส่งจริงจากขนส่ง + รายการที่ร้านบันทึกเอง"
+              /*
+               * แถวล่างของการ์ดมีได้บรรทัดเดียว (การ์ดทั้งแถวต้องสูงเท่ากัน) จึงใช้ "ลำดับความสำคัญ"
+               * แทนการโชว์คู่: ค่าส่งจริงมาก่อนเพราะเป็นเลขที่มีอยู่จริงทุกวัน ส่วน "หมวดที่จ่ายมากสุด"
+               * เป็นไทล์ที่ขึ้น "ยังไม่มีรายการ" ตลอดกาลสำหรับทุกร้าน (ตาราง Expense ว่างทั้งฐาน)
+               * — เปลี่ยนสิ่งที่นับ ดีกว่าเปลี่ยนป้ายของช่องที่ตายแล้ว
+               *
+               * ร้านที่ไม่ได้ใช้ iShip เลย (SERVICE_QUEUE/LODGING) จะได้ 0 เสมอแล้วถอยกลับไปใช้ของเดิม
+               * โดยไม่ต้องเช็ค Shop.vertical เพิ่ม
+               */
+              metric={(summary.totalShippingCost ?? 0) > 0 ? 'ในนี้เป็นค่าส่งจริง (iShip)' : 'หมวดที่จ่ายมากสุด'}
               metricValue={
-                summary.topExpenseCategory
-                  ? EXPENSE_CATEGORY_LABEL_TH[summary.topExpenseCategory as ExpenseCategory]
-                  : 'ยังไม่มีรายการ'
+                (summary.totalShippingCost ?? 0) > 0
+                  ? formatBaht(summary.totalShippingCost ?? 0)
+                  : summary.topExpenseCategory
+                    ? EXPENSE_CATEGORY_LABEL_TH[summary.topExpenseCategory as ExpenseCategory]
+                    : 'ยังไม่มีรายการ'
               }
             />
             <PacesStatCard

@@ -1311,6 +1311,10 @@ export async function getOrdersByShop(shopId: string, status?: string) {
           courierCode: true,
           courierName: true,
           provider: true,
+          // ต้นทุนจริงของการจัดส่ง (D-EXT-10, 2026-08-09) — หน้า /sales รวมสองช่องนี้เป็น
+          // "ค่าใช้จ่าย" รายวัน. null = iShip ยังไม่คิดเงิน (ขนส่งยังไม่เข้ารับ) **ไม่ใช่ ฿0**
+          carrierPrice: true,
+          codFee: true,
         },
       },
       review: true,

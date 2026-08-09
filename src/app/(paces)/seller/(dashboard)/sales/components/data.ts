@@ -19,6 +19,16 @@ export type DailyRow = {
   expense?: number
   /** กำไรสุทธิของวันนั้น = revenue − COGS − expense (สูตรเดียวกับการ์ด P&L ใน /expenses) */
   netProfit?: number
+  /** ส่วนของ `expense` ที่มาจากค่าส่งจริง+ค่าธรรมเนียม COD ของ iShip (D-EXT-10/11, 2026-08-09)
+   *
+   *  🛑 เป็น **ส่วนย่อยของ `expense` ไม่ใช่ยอดที่ต้องเอาไปบวกเพิ่ม** — `expense` รวมมันไว้แล้ว
+   *  ถ้าใครเผลอบวกซ้ำจะได้ค่าใช้จ่ายเกินจริงโดยที่ tsc ไม่ฟ้อง (ตัวเลขถูกชนิดทั้งคู่) */
+  shippingCost?: number
+  /** จำนวนพัสดุของวันนั้นที่ยังไม่รู้ค่าส่งจริง (ขนส่งยังไม่เข้ารับ iShip จึงยังไม่คิดเงิน)
+   *
+   *  > 0 = ตัวเลขกำไรของแถวนี้เป็น **เพดานบน** ต้องมีป้ายกำกับ ห้ามแสดงเงียบ ๆ
+   *  และห้ามแสดงค่าใช้จ่ายเป็น ฿0.00 เพราะ 0 อ่านว่า "ส่งฟรี" ไม่ใช่ "ยังไม่รู้" */
+  pendingShipmentCount?: number
 }
 
 export type SummaryData = {
@@ -44,4 +54,8 @@ export type SummaryData = {
   prevExpense?: number
   /** หมวดที่จ่ายมากสุดในช่วง — undefined = ไม่มีสิทธิ์ดู หรือไม่มีรายการ */
   topExpenseCategory?: string
+  /** ส่วนของ `totalExpense` ที่เป็นค่าส่งจริง+ค่าธรรมเนียม COD จาก iShip — ดู DailyRow.shippingCost */
+  totalShippingCost?: number
+  /** จำนวนพัสดุทั้งช่วงที่ยังไม่รู้ค่าส่งจริง — > 0 = ต้องขึ้นแถบเตือนว่ากำไรอาจสูงกว่าจริง */
+  pendingShipmentCount?: number
 }

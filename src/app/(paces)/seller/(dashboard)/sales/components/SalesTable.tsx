@@ -66,14 +66,61 @@ const financeColumns = [
   columnHelper.accessor('expense', {
     header: 'ค่าใช้จ่าย',
     enableColumnFilter: false,
-    cell: ({ getValue }) => <span className="text-danger-ink">{formatBaht(getValue() ?? 0)}</span>,
+    /**
+     * 2 บรรทัด: ยอดรวมของวัน + ส่วนที่เป็นค่าส่งจริงจาก iShip
+     *
+     * 🛑 บรรทัดล่างเป็น **ส่วนย่อยของบรรทัดบน ไม่ใช่ยอดที่ต้องบวกเพิ่ม** — คำว่า "รวม" ในข้อความ
+     * ต้องอ่านว่า "ในนั้นรวมค่าส่งอยู่ด้วย" ไม่ใช่ "ยอดรวมค่าส่ง"
+     *
+     * ห้ามแสดง "฿0.00" เมื่อวันนั้นมีพัสดุที่ยังไม่รู้ค่าส่ง — 0 อ่านว่า "ส่งฟรี" ไม่ใช่ "ยังไม่รู้"
+     * (กติกาเดียวกับ order-profit-presentation.ts ที่เลือกไม่แสดงตัวเลขเลยเมื่อคำนวณไม่ได้)
+     */
+    cell: ({ row }) => {
+      const expense = row.original.expense ?? 0
+      const shipping = row.original.shippingCost ?? 0
+      const pending = row.original.pendingShipmentCount ?? 0
+      if (expense === 0 && pending > 0) {
+        return (
+          <span className="text-warning-ink text-nowrap">
+            รอรับเข้า {pending.toLocaleString('th-TH')} ใบ
+          </span>
+        )
+      }
+      return (
+        <span className="flex flex-col">
+          <span className="text-danger-ink">{formatBaht(expense)}</span>
+          {shipping > 0 && (
+            <span className="text-default-500 text-2xs text-nowrap">
+              ↳ รวมค่าส่งจริง {formatBaht(shipping)}
+            </span>
+          )}
+        </span>
+      )
+    },
   }),
   columnHelper.accessor('netProfit', {
     header: 'กำไรสุทธิ',
     enableColumnFilter: false,
-    cell: ({ getValue }) => {
-      const v = getValue() ?? 0
-      return <span className={`font-semibold ${v >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>{formatBaht(v)}</span>
+    cell: ({ row }) => {
+      const v = row.original.netProfit ?? 0
+      const pending = row.original.pendingShipmentCount ?? 0
+      return (
+        <span className="inline-flex items-center gap-1">
+          {/* วันที่ยังมีพัสดุรอรับเข้า = ตัวเลขนี้เป็นเพดานบน ต้องมีป้ายกำกับ ไม่ใช่แสดงเงียบ ๆ
+              ใช้ไอคอนเตือนแทนการเปลี่ยนสีตัวเลข เพราะสิ่งที่ไม่ชัวร์คือ "ครบไหม" ไม่ใช่ "บวกหรือลบ" */}
+          {pending > 0 && (
+            <Icon
+              icon="alert-triangle"
+              className="text-warning-ink size-3.5 shrink-0"
+              role="img"
+              aria-label="ยังไม่รวมค่าส่งของออเดอร์ที่ขนส่งยังไม่แจ้งราคา — ตัวเลขนี้อาจสูงกว่าจริง"
+            />
+          )}
+          <span className={`font-semibold ${v >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>
+            {formatBaht(v)}
+          </span>
+        </span>
+      )
     },
   }),
 ]

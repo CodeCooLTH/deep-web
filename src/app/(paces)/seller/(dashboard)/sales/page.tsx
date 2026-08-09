@@ -156,6 +156,18 @@ export default async function SalesPage({
   }
   const prevWindow = sumWindow(inPrevRange)
 
+  /**
+   * ค่าส่งจริงของ "ช่วงก่อนหน้า" — ต้องนับด้วยเกณฑ์เดียวกับช่วงปัจจุบันเป๊ะ (CONFIRMED + พัสดุ active
+   * ที่รู้ราคาแล้ว) ไม่งั้น badge %เปลี่ยนแปลงบนการ์ดค่าใช้จ่ายจะเทียบของคนละชนิดกัน: ตัวตั้งรวมค่าส่ง
+   * ตัวเทียบไม่รวม → ขึ้นเป็น "เพิ่มขึ้นมหาศาล" ทุกร้านในวันที่ deploy ทั้งที่ไม่มีใครจ่ายเพิ่มสักบาท
+   */
+  const prevShippingTotal = inPrevRange.reduce((sum: number, o: OrderItem) => {
+    if (o.status !== 'CONFIRMED') return sum
+    const sp = o.shipments?.[0]
+    if (!sp || sp.carrierPrice == null) return sum
+    return sum + Number(sp.carrierPrice) + Number(sp.codFee ?? 0)
+  }, 0)
+
   // Build bucket maps
   const ordersPerDay: Record<string, number> = {}
   const completedPerDay: Record<string, number> = {}
@@ -167,6 +179,10 @@ export default async function SalesPage({
   // COGS ต่อวัน — ต้องคิดด้วยถึงจะได้ "กำไรสุทธิ" สูตรเดียวกับการ์ด P&L ใน /expenses
   // (revenue − COGS − expense) ถ้าใช้แค่ revenue − expense ตัวเลขสองหน้าจะไม่ตรงกัน
   const cogsPerDay: Record<string, number> = {}
+  /** ค่าส่งจริง+ค่าธรรมเนียม COD ต่อวัน — ส่วนหนึ่งของ "ค่าใช้จ่าย" ไม่ใช่ต้นทุนสินค้า (D-EXT-10) */
+  const shippingCostPerDay: Record<string, number> = {}
+  /** พัสดุที่ยังไม่รู้ค่าส่งจริงต่อวัน — ทำให้กำไรของวันนั้นเป็นเพดานบน ต้องมีป้ายกำกับ */
+  const pendingShipmentPerDay: Record<string, number> = {}
 
   for (const o of inRange) {
     // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ต้องเป็นคีย์รูปแบบเดียวกับที่ eachDay() สร้าง
@@ -180,6 +196,27 @@ export default async function SalesPage({
         // cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ "ต้นทุน 0" — ข้ามไป (การ์ด P&L เตือนเรื่องนี้อยู่แล้ว)
         if (item.cost == null) continue
         cogsPerDay[day] = (cogsPerDay[day] ?? 0) + Number(item.cost) * item.qty
+      }
+      /**
+       * ค่าส่งจริง + ค่าธรรมเนียม COD จาก iShip = **ค่าใช้จ่าย** (D-EXT-10) ไม่ใช่ต้นทุนสินค้า
+       * จึงไม่เข้า `cogsPerDay` แต่ไปรวมกับ `expensePerDay` ด้านล่าง
+       *
+       * 🛑 นับเฉพาะออเดอร์ที่ CONFIRMED เหมือน COGS โดยตั้งใจ — ต้องเป็น **แถวชุดเดียวกับตัวตั้ง**
+       * ไม่งั้นแถวรายวันจะหักค่าส่งของออเดอร์ที่ยังไม่ถูกนับเป็นยอดขาย แล้วกำไรของวันนั้นต่ำกว่าจริง
+       * (บทเรียน `feedback_subtrahend_must_match_minuend_scope`) — ค่าส่งของใบที่ยังไม่ยืนยันจะโผล่
+       * เองในวันที่ลูกค้ากดยืนยัน เพราะ bucket ยึด "วันที่สั่งซื้อ" ตัวเดียวกัน ไม่หายไปไหน
+       *
+       * `carrierPrice == null` = ขนส่งยังไม่เข้ารับ iShip จึงยังไม่คิดเงิน — นับเป็น "ยังไม่รู้"
+       * ห้ามตีเป็น 0 (จะอ่านว่าส่งฟรี) และ `codFee` แยกก้อนกับค่าส่ง ไม่ทับซ้อนกัน
+       */
+      const shipment = o.shipments?.[0]
+      if (shipment) {
+        if (shipment.carrierPrice == null) {
+          pendingShipmentPerDay[day] = (pendingShipmentPerDay[day] ?? 0) + 1
+        } else {
+          shippingCostPerDay[day] =
+            (shippingCostPerDay[day] ?? 0) + Number(shipment.carrierPrice) + Number(shipment.codFee ?? 0)
+        }
       }
     } else if (o.status !== 'CANCELLED') {
       // PENDING/SHIPPED = ขายได้แล้วแต่ยังไม่ถูกนับเป็นรายได้ (ตรงนิยามเดียวกับ getSalesSeries)
@@ -211,11 +248,18 @@ export default async function SalesPage({
     const label = formatDate(date)
     const unconfirmedRevenue = unconfirmedPerDay[date] ?? 0
     if (!canSeeFinance) return { date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder }
-    const expense = expensePerDay[date] ?? 0
+    // ค่าใช้จ่ายของวัน = ที่ร้านบันทึกเอง + ค่าส่งจริงจาก iShip (สองแหล่ง ห้ามให้แหล่งใดเขียนทับอีกแหล่ง
+    // — BR-EXP-18-05) ร้านที่พิมพ์ค่าส่งเองในหมวด "ค่าขนส่ง" ด้วยจะเห็นยอดซ้อน ซึ่งยังไม่มีทาง dedupe
+    // อัตโนมัติได้ (ตอนนี้ตาราง Expense ว่างทั้งฐาน จึงยังไม่เกิดจริง — ดู Open Question ใน PRD)
+    const shippingCost = shippingCostPerDay[date] ?? 0
+    const expense = (expensePerDay[date] ?? 0) + shippingCost
+    const pendingShipmentCount = pendingShipmentPerDay[date] ?? 0
     return {
       date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder,
       expense,
       netProfit: revenue - (cogsPerDay[date] ?? 0) - expense,
+      shippingCost,
+      pendingShipmentCount,
     }
   })
 
@@ -245,7 +289,9 @@ export default async function SalesPage({
     ...(canSeeFinance && {
       totalExpense: daily.reduce((s, d) => s + (d.expense ?? 0), 0),
       netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
-      prevExpense: prevExpenseTotal,
+      prevExpense: prevExpenseTotal + prevShippingTotal,
+      totalShippingCost: daily.reduce((s, d) => s + (d.shippingCost ?? 0), 0),
+      pendingShipmentCount: daily.reduce((s, d) => s + (d.pendingShipmentCount ?? 0), 0),
       topExpenseCategory: groupExpensesByCategory(
         currentExpenses.map((e) => ({ category: e.category, amount: Number(e.amount) })),
       )[0]?.category,
