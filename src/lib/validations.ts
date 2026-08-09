@@ -1708,3 +1708,37 @@ export const SaveShopPageLayoutSchema = v.object({
 export const SetShopPagePublishedSchema = v.object({
   isPublished: v.boolean(),
 });
+
+// ── feature 00025 — LINE OA Chat Integration (S-5) ───────────────────────────
+// POST /api/channels/line/connect (API.md §4.2) — channelSecret เป็น hex 32 ตัวเสมอตามสเปก LINE
+// Developers Console (Channel secret คือ MD5-length hex string) ส่วน channelAccessToken เป็น JWT/opaque
+// ยาวไม่ตายตัว (ตัวอย่างจริงยาวหลักร้อย) — กำหนดเพดานกว้างพอไม่ปฏิเสธของจริงแต่กันวางผิดช่อง
+export const LineConnectSchema = v.object({
+  channelSecret: v.pipe(
+    v.string(),
+    v.trim(),
+    v.regex(/^[0-9a-fA-F]{32}$/, "รูปแบบ Channel secret ไม่ถูกต้อง (ต้องเป็นตัวอักษร 32 ตัว)"),
+  ),
+  channelAccessToken: v.pipe(
+    v.string(),
+    v.trim(),
+    v.minLength(1, "กรุณากรอก Channel access token"),
+    v.maxLength(512, "Channel access token ยาวเกินกว่าที่ระบบรองรับ"),
+  ),
+});
+
+// PATCH /api/channels/line/[channelId] (API.md §4.3) — ส่งเฉพาะฟิลด์ที่ต้องการแก้ ทั้งคู่ optional
+// แต่ต้องมาคู่กันเสมอ (verify กับ LINE ใหม่ต้องใช้ทั้ง secret+token) — บังคับคู่ที่ route ไม่ใช่ schema
+// เพราะ Valibot union/partial ที่บังคับ "มีอย่างใดอย่างหนึ่งแล้วต้องมีอีกตัว" อ่านยากกว่าเช็คตรง ๆ
+export const LinePatchSchema = v.object({
+  channelSecret: v.optional(
+    v.pipe(
+      v.string(),
+      v.trim(),
+      v.regex(/^[0-9a-fA-F]{32}$/, "รูปแบบ Channel secret ไม่ถูกต้อง (ต้องเป็นตัวอักษร 32 ตัว)"),
+    ),
+  ),
+  channelAccessToken: v.optional(
+    v.pipe(v.string(), v.trim(), v.minLength(1, "กรุณากรอก Channel access token"), v.maxLength(512)),
+  ),
+});

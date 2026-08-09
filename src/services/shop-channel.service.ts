@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { encryptToken, decryptToken } from '@/lib/token-crypto'
 import {
@@ -7,6 +8,7 @@ import {
   getInstagramAccountIdForPage,
   type PageInfo,
 } from '@/lib/facebook/graph'
+import { lineApiRequest, LineApiError } from '@/lib/line/client'
 
 // จัดการช่องทางที่ร้านผูกไว้ (feature 00018)
 // กติกาสำคัญ: accessTokenEnc ห้ามออกจากไฟล์นี้ในรูป plaintext ยกเว้นผ่าน
@@ -419,4 +421,242 @@ export async function resubscribeShopChannels(shopId: string): Promise<{ ok: num
 
 export async function markChannelTokenInvalid(channelId: string): Promise<void> {
   await prisma.shopChannel.update({ where: { id: channelId }, data: { status: 'TOKEN_INVALID' } })
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// feature 00025 (S-5) — LINE OA connect/patch. เขียนแยกส่วนจาก MESSENGER/INSTAGRAM
+// ด้านบนทั้งหมด (ไม่แก้ฟังก์ชันเดิมสักบรรทัด) — provider='LINE' ไม่เคยเดินผ่าน upsertChannel()
+// ที่ออกแบบไว้เฉพาะคู่ MESSENGER+INSTAGRAM (สร้าง IG พ่วงอัตโนมัติ, subscribe ผ่าน Graph ฯลฯ)
+// ══════════════════════════════════════════════════════════════════════════
+
+export type LineServiceErrorCode =
+  | 'TOKEN_INVALID'
+  | 'LINE_UNAVAILABLE'
+  | 'LINE_ACCOUNT_MISMATCH'
+  | 'CHANNEL_TAKEN'
+  | 'CHANNEL_NOT_FOUND_OR_FORBIDDEN'
+
+/** error ของชั้น service สำหรับ LINE — route (S-5) แมป code นี้เป็น HTTP + ข้อความไทยตาม API.md §5
+ *  (feedback_service_error_route_mapping: ทุก error ใหม่ต้องมี route catch ครอบ ไม่งั้นกลายเป็น 500 เงียบ) */
+export class LineChannelServiceError extends Error {
+  readonly code: LineServiceErrorCode
+  /** เฉพาะ CHANNEL_TAKEN — ชื่อร้านที่ถือ externalId นี้อยู่ ให้ข้อความบอก user ได้ตรง ๆ */
+  readonly shopName?: string | null
+
+  constructor(code: LineServiceErrorCode, shopName?: string | null) {
+    super(`LineChannelServiceError(${code})`)
+    this.name = 'LineChannelServiceError'
+    this.code = code
+    this.shopName = shopName
+  }
+}
+
+export interface LineBotInfo {
+  /** userId ของ OA จาก LINE — ต้องมาจากคำตอบของ LINE เท่านั้น ห้ามให้ client ส่งมาเอง (BR-LINE-02) */
+  externalId: string
+  basicId: string
+  displayName: string
+  pictureUrl: string | null
+  /** 'chat' | 'bot' — ไม่ใช่ 'bot' ต้องขึ้น warning CHAT_MODE_NOT_BOT (ไม่บล็อกการเชื่อม) */
+  chatMode: string
+}
+
+/**
+ * verifyLineBotInfo — ยิง `GET /v2/bot/info` เพื่อพิสูจน์ว่า channel access token ใช้ได้จริง
+ * ก่อนเขียนแถวใด ๆ ลง DB (TC-02: token ผิด → ห้ามบันทึกอะไรเลย)
+ *
+ * mapping error: LineApiError.kind มาจาก HTTP status ที่ LINE ตอบ — 401/403 (TOKEN_INVALID) และ
+ * 429/5xx/timeout (LINE_UNAVAILABLE) มีความหมายชัดเจนอยู่แล้ว ส่วน 'UNKNOWN' (สถานะอื่นที่ไม่คาดคิด
+ * จาก endpoint ที่ไม่รับ query/body ใด ๆ) จัดเป็น TOKEN_INVALID เช่นกัน — เพราะให้คำแนะนำที่ทำอะไรได้
+ * จริง (แก้ token) ดีกว่าคำแนะนำ "ลองใหม่" ที่ไม่มีทางช่วยถ้าที่มาไม่ใช่ปัญหาฝั่ง LINE จริง ๆ
+ */
+export async function verifyLineBotInfo(channelAccessToken: string): Promise<LineBotInfo> {
+  let json: Record<string, unknown>
+  try {
+    json = await lineApiRequest('/v2/bot/info', channelAccessToken)
+  } catch (e) {
+    if (e instanceof LineApiError && e.kind === 'LINE_UNAVAILABLE') {
+      throw new LineChannelServiceError('LINE_UNAVAILABLE')
+    }
+    // TOKEN_INVALID หรือ UNKNOWN — ทั้งคู่ตกเป็น TOKEN_INVALID (เหตุผลด้าน comment บนฟังก์ชัน)
+    throw new LineChannelServiceError('TOKEN_INVALID')
+  }
+
+  const externalId = typeof json.userId === 'string' ? json.userId : ''
+  const basicId = typeof json.basicId === 'string' ? json.basicId : ''
+  // LINE ตอบ 200 แต่ไม่มีฟิลด์บังคับ — ไม่เคยพบจริงกับ token ที่ถูกต้อง แต่ต้อง fail-closed แทนเขียน
+  // แถวที่ externalId ว่างเปล่าลง DB (จะไปชนกันเองทุกร้านที่เจอเคสนี้ผ่าน partial unique index)
+  if (!externalId || !basicId) {
+    throw new LineChannelServiceError('TOKEN_INVALID')
+  }
+
+  return {
+    externalId,
+    basicId,
+    displayName: typeof json.displayName === 'string' ? json.displayName : 'LINE Official Account',
+    pictureUrl: typeof json.pictureUrl === 'string' ? json.pictureUrl : null,
+    chatMode: typeof json.chatMode === 'string' ? json.chatMode : 'bot',
+  }
+}
+
+export interface LineChannelView extends ChannelView {
+  provider: 'LINE'
+  basicId: string | null
+}
+
+function toLineChannelView(row: {
+  id: string
+  provider: string
+  externalId: string
+  name: string
+  avatarUrl: string | null
+  status: string
+  basicId: string | null
+}): LineChannelView {
+  return {
+    id: row.id,
+    provider: 'LINE',
+    externalId: row.externalId,
+    name: row.name,
+    avatarUrl: row.avatarUrl,
+    status: row.status,
+    basicId: row.basicId,
+  }
+}
+
+/**
+ * createLineChannel — เขียนแถว ShopChannel(provider='LINE') หลัง verify ผ่านแล้วเท่านั้น
+ *
+ * pattern เดียวกับ upsertChannel ของ Messenger (บรรทัดด้านบนของไฟล์นี้): เช็ค "active อยู่กับร้านอื่น
+ * ไหม" ก่อนเขียน (ให้ error message มี shopName ทันทีโดยไม่ต้องพึ่ง P2002) + reuse แถวเดิมของร้านนี้เอง
+ * ถ้ามี (reconnect หลัง TOKEN_INVALID/DISCONNECTED — กัน Conversation เก่ากลายเป็น orphan เหมือนบั๊ก
+ * prod 2026-07-23 ของ Messenger) แล้วยัง catch P2002 ซ้ำอีกชั้นกันเคส race ระหว่าง findFirst กับ
+ * create/update (ตาม scope baseline S-5: "P2002 → CHANNEL_TAKEN 409")
+ */
+export async function createLineChannel(params: {
+  shopId: string
+  userId: string
+  botInfo: LineBotInfo
+  channelSecret: string
+  channelAccessToken: string
+}): Promise<LineChannelView> {
+  const { shopId, userId, botInfo, channelSecret, channelAccessToken } = params
+
+  const activeElsewhere = await prisma.shopChannel.findFirst({
+    where: {
+      provider: 'LINE',
+      externalId: botInfo.externalId,
+      status: { not: 'DISCONNECTED' },
+      shopId: { not: shopId },
+    },
+    select: { shop: { select: { shopName: true } } },
+  })
+  if (activeElsewhere) {
+    throw new LineChannelServiceError('CHANNEL_TAKEN', activeElsewhere.shop?.shopName ?? null)
+  }
+
+  const ownRows = await prisma.shopChannel.findMany({
+    where: { provider: 'LINE', externalId: botInfo.externalId, shopId },
+    select: { id: true, _count: { select: { contacts: true } } },
+  })
+  ownRows.sort((a, b) => b._count.contacts - a._count.contacts)
+  const canonical = ownRows[0]
+
+  const data = {
+    status: 'ACTIVE' as const,
+    name: botInfo.displayName,
+    avatarUrl: botInfo.pictureUrl,
+    basicId: botInfo.basicId,
+    channelSecretEnc: encryptToken(channelSecret),
+    accessTokenEnc: encryptToken(channelAccessToken),
+    connectedByUserId: userId,
+  }
+
+  try {
+    const row = canonical
+      ? await prisma.shopChannel.update({ where: { id: canonical.id }, data })
+      : await prisma.shopChannel.create({
+          data: { shopId, provider: 'LINE', externalId: botInfo.externalId, ...data },
+        })
+    return toLineChannelView(row)
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      const row = await prisma.shopChannel.findFirst({
+        where: { provider: 'LINE', externalId: botInfo.externalId, status: { not: 'DISCONNECTED' } },
+        select: { shop: { select: { shopName: true } } },
+      })
+      throw new LineChannelServiceError('CHANNEL_TAKEN', row?.shop?.shopName ?? null)
+    }
+    throw e
+  }
+}
+
+/**
+ * connectLineChannel — จุดเดียวที่ route `POST /api/channels/line/connect` เรียก
+ * (verify → สร้างแถว → คำนวณ warnings) รวมไว้ที่นี่ให้ route เหลือแค่ authz/validation (thin route,
+ * ตาม pattern ของ connectPages/disconnectChannel เดิมในไฟล์นี้)
+ */
+export async function connectLineChannel(params: {
+  shopId: string
+  userId: string
+  channelSecret: string
+  channelAccessToken: string
+}): Promise<{ channel: LineChannelView; warnings: string[] }> {
+  const botInfo = await verifyLineBotInfo(params.channelAccessToken)
+  const channel = await createLineChannel({
+    shopId: params.shopId,
+    userId: params.userId,
+    botInfo,
+    channelSecret: params.channelSecret,
+    channelAccessToken: params.channelAccessToken,
+  })
+  const warnings = botInfo.chatMode !== 'bot' ? ['CHAT_MODE_NOT_BOT'] : []
+  return { channel, warnings }
+}
+
+/**
+ * updateLineChannelCredentials — `PATCH /api/channels/line/[channelId]` (กู้คืนจาก TOKEN_INVALID
+ * หรือหมุน channel secret) ownership guard = findFirst({id, shopId, provider:'LINE'}) ก่อนเขียนเสมอ
+ * (ไม่ trust channelId จาก path param เพียงอย่างเดียว — IDOR)
+ *
+ * verify กับ LINE ใหม่ **เฉพาะตอนส่ง channelAccessToken มา** (channelSecret เพียว ๆ ไม่มีทางเรียก
+ * LINE API ใดพิสูจน์ความถูกต้องได้ — HMAC secret ใช้ตรวจลายเซ็น webhook ที่เราคำนวณเอง ไม่ใช่ค่าที่ LINE
+ * มี endpoint ให้ตรวจสอบ) userId ที่ได้ต้องตรงกับ externalId เดิมเป๊ะ ไม่งั้นแปลว่าเผลอวาง credential
+ * ของ OA อื่นทับ (BR-LINE ป้องกันร้านผูก OA ผิดบัญชีเงียบ ๆ)
+ */
+export async function updateLineChannelCredentials(params: {
+  channelId: string
+  shopId: string
+  channelSecret?: string
+  channelAccessToken?: string
+}): Promise<{ channel: LineChannelView; warnings: string[] }> {
+  const { channelId, shopId, channelSecret, channelAccessToken } = params
+
+  const existing = await prisma.shopChannel.findFirst({
+    where: { id: channelId, shopId, provider: 'LINE' },
+    select: { id: true, externalId: true },
+  })
+  if (!existing) throw new LineChannelServiceError('CHANNEL_NOT_FOUND_OR_FORBIDDEN')
+
+  const data: Prisma.ShopChannelUpdateInput = {}
+  let warnings: string[] = []
+
+  if (channelAccessToken) {
+    const botInfo = await verifyLineBotInfo(channelAccessToken)
+    if (botInfo.externalId !== existing.externalId) {
+      throw new LineChannelServiceError('LINE_ACCOUNT_MISMATCH')
+    }
+    data.accessTokenEnc = encryptToken(channelAccessToken)
+    data.basicId = botInfo.basicId
+    data.name = botInfo.displayName
+    data.avatarUrl = botInfo.pictureUrl
+    data.status = 'ACTIVE' // กู้คืนจาก TOKEN_INVALID สำเร็จ (TC-23)
+    warnings = botInfo.chatMode !== 'bot' ? ['CHAT_MODE_NOT_BOT'] : []
+  }
+  if (channelSecret) {
+    data.channelSecretEnc = encryptToken(channelSecret)
+  }
+
+  const row = await prisma.shopChannel.update({ where: { id: channelId }, data })
+  return { channel: toLineChannelView(row), warnings }
 }
