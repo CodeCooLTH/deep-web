@@ -183,8 +183,14 @@ const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM', 'LI
 
 // feature 00018 CRM — badge สถานะการขายในแถว (UNSPECIFIED ไม่โชว์). ต้องตรงกับ CustomerCrmSection
 const SALES_STATUS_META: Record<string, { label: string; cls: string }> = {
-  INTERESTED: { label: 'สนใจ', cls: 'bg-success/15 text-success' },
-  NOT_INTERESTED: { label: 'ไม่สนใจ', cls: 'bg-default-200 text-default-600' },
+  // 🛑 "สนใจ" เคยเป็นเขียว (bg-success/15 text-success) — เปลี่ยนเป็น info 2026-08-09 ด้วย 2 เหตุผล
+  // ที่แยกกันคนละเรื่อง: (1) Verified-Means-Green — เขียวสงวนไว้กับ "ยืนยันแล้ว/สำเร็จ" เท่านั้น
+  // "สนใจ" คือความตั้งใจของลูกค้าที่ยังไม่ได้ยืนยันอะไรเลยและพลิกกลับได้ทุกเมื่อ ใช้เขียวทำให้
+  // สัญญาณความเชื่อใจเฟ้อ ซึ่งอันตรายเป็นพิเศษกับ product ที่ขายความน่าเชื่อถือ
+  // (2) คอนทราสต์ — text-success บนพื้น /15 วัดได้ 2.11:1 (src/lib/order-stage.ts:44) ตก AA ที่ 11px
+  // ต้องใช้คู่ -ink เสมอเมื่อวางตัวหนังสือบนพื้น semantic แบบโปร่ง
+  INTERESTED: { label: 'สนใจ', cls: 'bg-info/15 text-info-ink' },
+  NOT_INTERESTED: { label: 'ไม่สนใจ', cls: 'bg-default-200 text-default-700' },
 }
 
 /** จำนวนข้อความที่ยังไม่ได้อ่านของแถวนี้ (0 = อ่านแล้ว → ไม่ขึ้น badge, ตัวหนังสือเทา)
@@ -993,7 +999,7 @@ export default function InboxList({
               "ตัวกรอง" ไม่ได้โชว์ค่าที่เลือกบนหน้าปุ่ม chip จึงยังจำเป็น */}
           {/* ชิปสถานะ/สแปม ถูกถอดออก 2026-07-31 — แท็บในแถวล่างแสดงอยู่แล้ว ถ้าโชว์ทั้งคู่จะซ้ำซ้อน */}
           {filter.customerLinked !== 'all' && (
-            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+            <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
               {filter.customerLinked === 'linked' ? 'ผูกลูกค้าแล้ว' : 'ยังไม่ผูกลูกค้า'}
               <button type="button" onClick={() => setFilter((f) => ({ ...f, customerLinked: 'all' }))} aria-label="ล้างตัวกรองผูกลูกค้า" className="inline-flex items-center">
                 <Icon icon="x" width={12} height={12} />
@@ -1001,7 +1007,7 @@ export default function InboxList({
             </span>
           )}
           {filter.hidden && (
-            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+            <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
               กำลังดูที่ซ่อนอยู่
               <button type="button" onClick={() => setFilter((f) => ({ ...f, hidden: false }))} aria-label="เลิกดูที่ซ่อนอยู่" className="inline-flex items-center">
                 <Icon icon="x" width={12} height={12} />
@@ -1282,7 +1288,13 @@ export default function InboxList({
                       type="button"
                       onClick={() => handleRowAction(c.id, isResolved ? 'reopen' : 'resolve')}
                       disabled={actioningId === c.id}
-                      className="bg-success text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50"
+                      // 🛑 เขียวเฉพาะทิศ "ปิดงาน" — เดิมใช้ bg-success ทั้งสองทิศ ทำให้สีเดียวหมายถึง
+                      // สองอย่างที่ตรงข้ามกัน (ปิดงาน vs เปิดใหม่) และผิดกฎ Verified-Means-Green
+                      // ที่สงวนเขียวไว้กับ "สำเร็จ/ยืนยันแล้ว" — "เปิดใหม่" คือการย้อนสถานะสำเร็จ
+                      // ไม่ใช่การทำให้สำเร็จ (impeccable critique 2026-08-09)
+                      className={`text-2xs flex flex-1 flex-col items-center justify-center gap-0.5 text-white disabled:opacity-50 ${
+                        isResolved ? 'bg-default-500' : 'bg-success'
+                      }`}
                     >
                       <Icon icon={isResolved ? 'arrow-back-up' : 'circle-check'} width={18} height={18} />
                       {isResolved ? 'เปิดใหม่' : 'ปิดงาน'}
@@ -1414,8 +1426,16 @@ export default function InboxList({
                           เพราะเป็นเรื่องคอนทราสต์ให้อ่านออก ไม่ใช่เรื่องขนาด และตอนนี้บรรทัดนี้
                           เป็นตัวหลักที่บอกสถานะอ่าน (ชื่อเข้มเสมอแล้ว) */}
                       <span
-                        className={`block max-w-52 truncate text-2xs ${
-                          unread ? 'text-default-800 font-semibold' : 'text-default-700'
+                        // 🛑 text-xs (13px) ไม่ใช่ text-2xs (11px) — impeccable critique 2026-08-09:
+                        // ทั้งแถวเคยมีขนาดตัวอักษรแค่ 2 ระดับห่างกัน 1.18 เท่า และ "ข้อความล่าสุด"
+                        // ใช้ขนาดเดียวกับชิป ad_id เป๊ะ ลำดับชั้นจึงเหลือแค่ weight+สีเทา ซึ่งถูกใช้
+                        // ไปกับสถานะอ่าน/ยังไม่อ่านหมดแล้ว (user: "ความเด่นชัดของข้อความหายไปเลย")
+                        // 🛑 ลบ max-w-52 (208px คงที่) — ตั้งมาให้พอดี rail เดสก์ท็อป 320px แต่มือถือ
+                        // drill-down กินเต็มจอ ทำให้ทิ้งที่ว่าง 88px/แถวบนจอ 430px และ 426px บนแท็บเล็ต
+                        // ขณะที่ข้อความถูกตัดตั้งแต่คำที่ 5 — ซึ่งคือจุดที่คำทักทายจบพอดี ข้อมูลที่ใช้
+                        // ตัดสินใจอยู่หลังจุดตัด · min-w-0 ที่ ancestor ทำให้ truncate ทำงานอยู่แล้ว
+                        className={`block truncate text-xs ${
+                          unread ? 'text-default-900 font-medium' : 'text-default-700'
                         }`}
                       >
                         {/* user request 2026-08-01: ป้าย DeepBot/DeepAI เคยแทนที่คำว่า "คุณ: " ตรงนี้
@@ -1434,7 +1454,7 @@ export default function InboxList({
                           เธรด DEEP ไม่มีบัญชีให้อ้าง → ใช้ "แอป Deep" (ไม่ใช่ "Deep" เฉย ๆ กันสับสน
                           กับชื่อแบรนด์) · เพจถูกถอดไปแล้วแต่เธรดเก่ายังอยู่ → ถอยไปชื่อแพลตฟอร์ม */}
                       {duplicatedProviders.has(resolveChatChannel(c.channel)) && (
-                        <span className="text-default-500 mt-0.5 flex min-w-0 max-w-52 items-center gap-1 text-2xs">
+                        <span className="text-default-500 mt-0.5 flex min-w-0 items-center gap-1 text-2xs">
                           <ChannelMark
                             channel={c.channel}
                             imageUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
@@ -1456,7 +1476,7 @@ export default function InboxList({
                           {/* DeepBot/DeepAI — ย้ายมาจากหน้าบรรทัด preview (user 2026-08-01) ให้เป็น
                               ป้ายระดับเดียวกับแท็ก/สถานะขาย ไม่แย่งสายตาจากชื่อลูกค้าอีกต่อไป */}
                           {c.lastSenderRole === 'SHOP' && c.lastMessageAutoReplyKind && (
-                            <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+                            <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
                               <Icon icon="robot" width={12} height={12} className="shrink-0" aria-hidden="true" />
                               {c.lastMessageIsAiEnhanced ? 'DeepAI' : 'DeepBot'}
                             </span>
@@ -1477,11 +1497,17 @@ export default function InboxList({
                               <span className="truncate">ad_id.{c.referralAdId}</span>
                             </span>
                           )}
-                          {contactTags.slice(0, 2).map((t) => (
-                            <span key={t} className="badge bg-primary/15 text-primary text-2xs">{t}</span>
+                          {/* 🛑 โชว์แท็กใบเดียว ไม่ใช่ 2 (impeccable critique 2026-08-09) — แถวชิงพื้นที่
+                              กันได้ถึง 6 ใบ (บอท/สถานะขาย/ad_id/แท็ก×2/+N) แล้ว flex-wrap ไม่มีเพดาน
+                              ทำให้ความสูงแถวต่างกันได้ 2.4 เท่า (64px→153px) ในรายการเดียวกัน จนกวาด
+                              สายตาเป็นจังหวะไม่ได้ · ลดเหลือ 1 ใบทำให้เคสส่วนใหญ่จบใน 1 บรรทัด
+                              แท็กที่เหลือยังนับรวมใน +N และดูครบได้ที่แผงลูกค้า/เมนูคลิกขวา
+                              แท็กผู้ใช้พิมพ์เองยาวได้ไม่จำกัด จึงต้อง max-w-28 + truncate กันดันแถว */}
+                          {contactTags.slice(0, 1).map((t) => (
+                            <span key={t} className="badge bg-primary/15 text-primary-ink text-2xs max-w-28 truncate" title={t}>{t}</span>
                           ))}
-                          {contactTags.length > 2 && (
-                            <span className="badge bg-default-100 text-default-700 text-2xs">+{contactTags.length - 2}</span>
+                          {contactTags.length > 1 && (
+                            <span className="badge bg-default-100 text-default-700 text-2xs">+{contactTags.length - 1}</span>
                           )}
                         </span>
                       )}
@@ -1515,7 +1541,7 @@ export default function InboxList({
                             }}
                             aria-label={`${orderVocab.noun}ล่าสุด: ${stageLabel} — ดูรายการ${orderVocab.noun}`}
                             title={stageLabel}
-                            className={`badge ${c.orderStage.cls} text-2xs mt-1 inline-flex w-fit max-w-52 shrink-0 cursor-pointer items-center gap-1 focus-visible:outline-none focus-visible:ring-2`}
+                            className={`badge ${c.orderStage.cls} text-2xs mt-1 inline-flex w-fit shrink-0 cursor-pointer items-center gap-1 focus-visible:outline-none focus-visible:ring-2`}
                           >
                             <Icon icon={c.orderStage.icon} width={13} height={13} className="shrink-0" />
                             {/* ป้ายนัด ("นัด 16 ส.ค. 69") ยาวกว่าคำสถานะเดิมพอสมควร และ rail แคบสุดที่
@@ -1556,7 +1582,7 @@ export default function InboxList({
                         */}
                       {c.shop && (
                         <span
-                          className="text-default-500 text-2xs flex max-w-14 items-center justify-end gap-0.5 truncate"
+                          className="text-default-500 text-2xs flex max-w-24 items-center justify-end gap-0.5 truncate"
                           title={`ร้าน ${c.shop.name}`}
                         >
                           <Icon icon="building-store" className="size-3 shrink-0" />

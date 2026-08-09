@@ -52,7 +52,10 @@ export type OrderStageKey =
 export const ORDER_STAGE_META: Record<OrderStageKey, { label: string; cls: string; icon: string }> = {
   // พัสดุไม่ได้เดินหน้าตามปกติและมีคนต้องลงมือทำอะไร — ขั้นเดียวที่ "แย่งความสนใจ" ได้
   // ป้ายบอกแค่ว่ามีปัญหา ไม่แยกคำต่อสถานะ เพราะ rail แชทแคบและร้านต้องเปิดดูรายละเอียดอยู่ดี
-  PARCEL_PROBLEM: { label: 'พัสดุมีปัญหา', cls: 'bg-danger/15 text-danger', icon: 'alert-triangle' },
+  // 🛑 text-danger-ink ไม่ใช่ text-danger — ค่าที่วัดไว้เองข้างบนบอกว่า text-danger บนพื้น /15
+  // ได้ 2.68:1 (ตก AA) ส่วน -ink ได้ 8.47:1 · นี่เป็นค่าเดียวใน 8 ค่าของตารางนี้ที่หลุด pattern
+  // (อีก 7 ค่าใช้ -ink ครบ) — impeccable critique 2026-08-09 จับได้ ไม่มี gate อัตโนมัติตัวไหนเห็น
+  PARCEL_PROBLEM: { label: 'พัสดุมีปัญหา', cls: 'bg-danger/15 text-danger-ink', icon: 'alert-triangle' },
   ORDERED: { label: 'สั่งซื้อแล้ว', cls: 'bg-primary/15 text-primary-ink', icon: 'shopping-cart' },
   PARCEL_CREATED: { label: 'สร้างพัสดุแล้ว', cls: 'bg-primary/15 text-primary-ink', icon: 'package' },
   LABEL_PRINTED: { label: 'พิมพ์เอกสารแล้ว', cls: 'bg-warning/15 text-warning-ink', icon: 'printer' },
