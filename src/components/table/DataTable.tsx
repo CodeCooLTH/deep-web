@@ -50,9 +50,24 @@ type DataTableProps<TData> = {
    * ไม่ส่ง → behavior เดิมเป๊ะ (backward-compatible 100%) เหมือน mobileCard
    */
   groupRow?: (row: Row<TData>) => React.ReactNode
+
+  /**
+   * Opt-in คลิกทั้งแถวบนเดสก์ท็อป — คู่กับ `mobileCard` ที่ทั้งการ์ดกดได้อยู่แล้ว
+   *
+   * ทำไมต้องมี: ตารางที่การ์ดมือถือกดได้ทั้งใบ แต่เดสก์ท็อปเข้าได้ทางเดียวคือปุ่มไอคอน 30px
+   * ในคอลัมน์สุดท้าย = object เดียวกันแต่ interaction คนละแบบตาม breakpoint ซึ่งผู้ใช้ที่สลับ
+   * อุปกรณ์ต้องมาเรียนรู้ใหม่ (impeccable critique 2026-08-09 P2)
+   *
+   * ปุ่มไอคอนยังอยู่ในฐานะ affordance ที่มองเห็นได้ — คลิกทั้งแถวเป็นทางลัด ไม่ใช่ทางเดียว
+   * คลิกที่ปุ่ม/ลิงก์/อินพุตข้างในถูกข้ามให้เอง (ตัวมันมี handler ของตัวเองอยู่แล้ว) และการ
+   * ลากคัดลอกข้อความในแถวไม่นับเป็นคลิก
+   *
+   * ไม่ส่ง → behavior เดิมเป๊ะ (backward-compatible 100%) เหมือน mobileCard/groupRow
+   */
+  onRowClick?: (row: Row<TData>) => void
 }
 
-const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow }: DataTableProps<TData>) => {
+const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing found.', showHeaders = true, mobileCard, groupRow, onRowClick }: DataTableProps<TData>) => {
   'use no memo'
   // visible ไม่ใช่ all — ตารางที่มีคอลัมน์ซ่อน (เช่น OrdersTable ที่เก็บ createdAtISO ไว้ให้
   // ตัวกรองเกาะอย่างเดียว) จะได้ colSpan ของแถว empty เกินจำนวนคอลัมน์จริงไป 1
@@ -97,7 +112,22 @@ const DataTable = <TData,>({ table, className = '', emptyMessage = 'Nothing foun
                     </td>
                   </tr>
                 )}
-                <tr>
+                <tr
+                  className={onRowClick ? 'cursor-pointer' : undefined}
+                  onClick={
+                    onRowClick
+                      ? (e) => {
+                          // ลากคัดลอกข้อความในแถวต้องไม่ถูกตีเป็นคลิก (click ยิงหลัง drag-select
+                          // ที่จบในอิลิเมนต์เดียวกันเสมอ) — แพตเทิร์นเดียวกับแถวคอมเมนต์ใน
+                          // CommentsClient.tsx
+                          if (!window.getSelection()?.isCollapsed) return
+                          // ของที่มี handler ของตัวเองอยู่แล้ว ปล่อยให้มันทำงานไป อย่าสั่งซ้ำ
+                          if ((e.target as HTMLElement).closest('button, a, input, select, textarea, label')) return
+                          onRowClick(row)
+                        }
+                      : undefined
+                  }
+                >
                   {row.getVisibleCells().map((cell) => (
                     <td suppressHydrationWarning key={cell.id} className={cn((cell.column.columnDef.meta as { cellClassName?: string } | undefined)?.cellClassName)}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

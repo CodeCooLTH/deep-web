@@ -57,6 +57,11 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 import { PageAvatar } from '@/app/(paces)/seller/(chat)/inbox/components/PageFilterDropdown'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
+import {
+  LOG_STATUS_FILTER_OPTIONS,
+  parseLogStatusFilter,
+  type CommentReplyLogStatusFilter,
+} from '@/lib/comment-reply-log-status'
 
 /** ต้องตรงกับ Valibot CommentReplyConfigSchema (src/lib/validations.ts) — maxLength(1000) ทั้งคู่ */
 const REPLY_MAX = 1000
@@ -198,7 +203,7 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
         </div>
         <span
           className={`badge inline-flex shrink-0 items-center gap-1 ${
-            isTokenInvalid ? 'bg-danger/15 text-danger' : 'bg-success/15 text-success'
+            isTokenInvalid ? 'bg-danger/15 text-danger-ink' : 'bg-success/15 text-success-ink'
           }`}
         >
           <Icon icon={isTokenInvalid ? 'alert-triangle' : 'check'} className="text-xs" aria-hidden="true" />
@@ -208,12 +213,12 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
 
       <div className="card-body max-w-2xl space-y-6">
         {isTokenInvalid && (
-          <div className="bg-danger/15 text-danger flex flex-wrap items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <div className="bg-danger/15 text-danger-ink flex flex-wrap items-start gap-2 rounded-lg px-3 py-2 text-sm">
             <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
             <span className="min-w-0 flex-1">โทเคนของเพจนี้หมดอายุ ต้องเชื่อมต่อใหม่ก่อนถึงจะตั้งค่าได้</span>
             <a
               href="/api/channels/facebook/connect"
-              className="btn btn-sm bg-danger/15 text-danger hover:bg-danger/25 inline-flex shrink-0 items-center gap-1.5"
+              className="btn btn-sm bg-danger/15 text-danger-ink hover:bg-danger/25 inline-flex shrink-0 items-center gap-1.5"
             >
               <Icon icon="refresh" className="text-sm" aria-hidden="true" />
               เชื่อมต่อใหม่
@@ -376,9 +381,9 @@ function InstagramComingSoonCard({ channel }: { channel: InstagramChannel }) {
 }
 
 const REPLY_STATUS_META: Record<string, { label: string; className: string }> = {
-  SENT: { label: 'ส่งแล้ว', className: 'bg-success/15 text-success' },
+  SENT: { label: 'ส่งแล้ว', className: 'bg-success/15 text-success-ink' },
   SKIPPED: { label: 'ข้าม', className: 'bg-default-200 text-default-700' },
-  FAILED: { label: 'ไม่สำเร็จ', className: 'bg-danger/15 text-danger' },
+  FAILED: { label: 'ไม่สำเร็จ', className: 'bg-danger/15 text-danger-ink' },
 }
 
 /** badge สถานะต่อรายการ (public/private) — "เปิดห้อง" ผูกกับ private เท่านั้น (สวิตช์ B สร้างห้องแชท) */
@@ -497,6 +502,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
   const [logs, setLogs] = useState<CommentReplyLogRow[]>(initialLogs.logs)
   const [total, setTotal] = useState(initialLogs.total)
   const [filterChannelId, setFilterChannelId] = useState('')
+  const [filterStatus, setFilterStatus] = useState<CommentReplyLogStatusFilter>('ALL')
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: DEFAULT_PAGE_SIZE })
   const [loading, setLoading] = useState(false)
   // หน้าแรกมากับ RSC อยู่แล้ว (initialLogs) — effect ด้านล่างต้อง fetch เฉพาะตอน filter/page
@@ -509,10 +515,18 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
     ...channels.map((c) => ({ value: c.shopChannelId, label: `เพจ: ${c.name}` })),
   ]
 
-  async function fetchLogsPage(channelId: string, pageIndex: number, pageSize: number): Promise<LogsPage> {
+  async function fetchLogsPage(
+    channelId: string,
+    pageIndex: number,
+    pageSize: number,
+    status: CommentReplyLogStatusFilter,
+  ): Promise<LogsPage> {
     // cursor = offset ดิบ; pageIndex*pageSize คือ offset ของหน้าที่ต้องการ (API.md §4.3 ไม่เปลี่ยน)
     const params = new URLSearchParams({ cursor: String(pageIndex * pageSize), take: String(pageSize) })
     if (channelId) params.set('shopChannelId', channelId)
+    // กรองที่ server เท่านั้น — `total` (ใช้คำนวณจำนวนหน้า) มาจาก server ถ้ากรองที่ client
+    // เลขหน้าจะไม่ตรงกับแถวที่เห็น ซึ่งเป็นคลาสเดียวกับบั๊กตัวนับในหน้าคอมเมนต์
+    if (status !== 'ALL') params.set('status', status)
     const res = await fetch(`/api/shops/comment-reply/logs?${params.toString()}`, { cache: 'no-store' })
     if (!res.ok) throw new Error('โหลดประวัติไม่สำเร็จ')
     return res.json()
@@ -525,7 +539,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
     }
     let cancelled = false
     setLoading(true)
-    fetchLogsPage(filterChannelId, pagination.pageIndex, pagination.pageSize)
+    fetchLogsPage(filterChannelId, pagination.pageIndex, pagination.pageSize, filterStatus)
       .then((data) => {
         if (cancelled) return
         setLogs(data.logs)
@@ -543,11 +557,15 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterChannelId, pagination.pageIndex, pagination.pageSize])
+  }, [filterChannelId, filterStatus, pagination.pageIndex, pagination.pageSize])
 
   // เปลี่ยน filter หรือ page-size → reset pageIndex=0 เสมอ (Edge states)
   function handleFilterChange(channelId: string) {
     setFilterChannelId(channelId)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  function handleStatusChange(next: string) {
+    setFilterStatus(parseLogStatusFilter(next))
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
   function handlePageSizeChange(size: number) {
@@ -639,7 +657,9 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
   // Edge states: "0 log → ซ่อน toolbar+pagination ทั้งคู่" — หมายถึงร้านนี้ไม่เคยมีประวัติเลย
   // (ไม่ใช่แค่ตัวกรองปัจจุบันว่าง) ตัดสินจาก total ตอนไม่ได้กรอง ไม่งั้นกรองแล้วว่างจะซ่อน
   // FilterDropdown ไปด้วย ผู้ใช้สลับกลับ "ทุกเพจ" ไม่ได้
-  const isTrulyEmpty = total === 0 && filterChannelId === ''
+  // "ว่างจริง" = ยังไม่เคยมีประวัติเลย ไม่ใช่ "กรองแล้วไม่เจอ" — ถ้าซ่อน toolbar ตอนกรองแล้วว่าง
+  // ผู้ใช้จะปลดตัวกรองไม่ได้ ติดอยู่กับหน้าว่างตลอดไป
+  const isTrulyEmpty = total === 0 && filterChannelId === '' && filterStatus === 'ALL'
 
   return (
     <div className="card">
@@ -657,6 +677,18 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
                 align="right"
               />
             )}
+            {/* ตัวกรองสถานะ — พี่น้อง AutoReplyListing.tsx มีมาตั้งแต่แรก ที่นี่เพิ่งเติม
+                (sibling-surface-parity.md: ยกโครงตารางมาแล้วแต่ข้ามพฤติกรรม ซึ่งเป็นสิ่งที่ user
+                ทักจริง ๆ) แถวส่วนใหญ่ที่นี่เป็น "ข้าม" และแถวที่เปิดตารางมาหาคือ "ไม่สำเร็จ" */}
+            <FilterDropdown
+              icon="circle-check"
+              value={filterStatus}
+              options={LOG_STATUS_FILTER_OPTIONS}
+              onChange={handleStatusChange}
+              resetValue="ALL"
+              align="right"
+            />
+
             {/* hidden lg:block — เหมือนพี่น้อง AutoReplyListing.tsx (จำนวนต่อหน้าไม่ใช่ control หลักบนมือถือ) */}
             <div className="hidden w-20 lg:block">
               <ChoiceSelect
@@ -685,7 +717,8 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
         <div className={loading ? 'pointer-events-none opacity-50' : undefined}>
           <DataTable<CommentReplyLogRow>
             table={table}
-            emptyMessage="ไม่พบประวัติของเพจนี้"
+            emptyMessage="ไม่พบประวัติตามตัวกรองนี้"
+            onRowClick={(row) => openDetailModal(row.original)}
             mobileCard={(row) => {
               const log = row.original
               return (

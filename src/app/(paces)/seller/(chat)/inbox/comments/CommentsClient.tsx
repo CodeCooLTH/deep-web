@@ -148,10 +148,29 @@ const PRIVATE_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
  * — เอาหน่วยเต็มทั้ง 3 ระดับ ไม่ย่อเหลือ "6 วัน" เฉย ๆ เพราะคนต้องใช้ตัดสินใจว่า "วันนี้ยังทันไหม"
  * ตัดหน่วยบนที่เป็นศูนย์ทิ้ง (เหลือไม่ถึงวันไม่ต้องขึ้น "0 วัน") แต่ไม่ตัดหน่วยล่าง
  */
-function privateReplyWindow(createdTime: string): { text: string; expired: boolean } {
+/**
+ * เกณฑ์ "ใกล้หมดเวลาแล้วจริง" — ต่ำกว่า 24 ชม. คือช่วงที่ผู้ขายยังทันทำอะไรได้ในวันเดียว
+ * เหนือกว่านั้นเป็นแค่ข้อมูล ไม่ใช่เรื่องด่วน
+ *
+ * 🛑 มีที่เดียวเท่านั้น — เดิมเส้นตายเดียวกันถูกทาสีคนละแบบสองที่: badge บนแถวโพสต์เป็น warning
+ * แต่ข้อความในเธรดเป็น danger **ตั้งแต่เหลือ 6 วัน 20 ชั่วโมง** ถ้าแดงตั้งแต่ยังเหลือเกือบสัปดาห์
+ * แดงก็เลิกแปลว่า "ทำเดี๋ยวนี้" แล้วเคสด่วนจริง (เหลือ 2 ชม.) ไม่มีที่ให้ยกระดับไปอีก
+ * (impeccable critique 2026-08-09 P2 · HR16 — ข้อมูลเดียวต้องมีการนำเสนอชุดเดียว)
+ */
+const PRIVATE_REPLY_URGENT_MS = 24 * 60 * 60 * 1000
+
+/** โทนสีของเส้นตายทักแชท — ใช้ค่านี้ทุกที่ที่แสดงเวลาคงเหลือ ห้ามเลือกสีเองที่ call site */
+type PrivateReplyTone = 'danger' | 'warning'
+
+function privateReplyWindow(createdTime: string): {
+  text: string
+  expired: boolean
+  tone: PrivateReplyTone
+} {
   const left = new Date(createdTime).getTime() + PRIVATE_REPLY_WINDOW_MS - Date.now()
-  if (!Number.isFinite(left)) return { text: '', expired: false }
-  if (left <= 0) return { text: 'หมดเวลาทักแชท', expired: true }
+  if (!Number.isFinite(left)) return { text: '', expired: false, tone: 'warning' }
+  if (left <= 0) return { text: 'หมดเวลาทักแชท', expired: true, tone: 'danger' }
+  const tone: PrivateReplyTone = left <= PRIVATE_REPLY_URGENT_MS ? 'danger' : 'warning'
   const days = Math.floor(left / 86_400_000)
   const hours = Math.floor((left % 86_400_000) / 3_600_000)
   const minutes = Math.floor((left % 3_600_000) / 60_000)
@@ -160,7 +179,7 @@ function privateReplyWindow(createdTime: string): { text: string; expired: boole
     days > 0 || hours > 0 ? `${hours} ชั่วโมง` : '',
     `${minutes} นาที`,
   ].filter(Boolean)
-  return { text: `คงเหลือ ${parts.join(' ')}`, expired: false }
+  return { text: `คงเหลือ ${parts.join(' ')}`, expired: false, tone }
 }
 
 /**
@@ -867,36 +886,10 @@ export default function CommentsClient({
    * และเลิกเขียน `disabled:opacity-60` ทับ default ของธีม (`_buttons.css` = opacity-50 อยู่แล้ว
    * ซึ่งจางกว่า — ของเดิมจึงดูเหมือนยังกดได้)
    */
-  const composerIcons = (
-    <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => void pickFile(e.target.files?.[0] ?? null)}
-      />
-      <button
-        type="button"
-        onClick={() => setEmojiOpen((v) => !v)}
-        aria-label="เลือกอิโมจิ"
-        aria-expanded={emojiOpen}
-        className="hover:bg-default-200 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-full"
-      >
-        <Icon icon="mood-smile" className="text-xl" />
-      </button>
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploading || sending}
-        aria-label="แนบรูปในคำตอบ"
-        className="hover:bg-default-200 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-full"
-      >
-        <Icon icon={uploading ? 'loader-2' : 'camera'} className={`text-xl ${uploading ? 'animate-spin' : ''}`} />
-      </button>
-    </>
-  )
-
+  // ลบ `composerIcons` ออกแล้ว (impeccable critique 2026-08-09) — เป็น dead code ที่ grep เจอ
+  // ที่เดียวคือนิยามของตัวเอง และข้างในมี `<input ref={fileInputRef}>` **ตัวที่สอง** ถ้าใครเผลอ
+  // render มันขึ้นมา input สองตัวจะแชร์ ref เดียวกันแล้วตัวที่ mount ทีหลังชนะเงียบ ๆ — ปุ่มแนบรูป
+  // จะเปิด input ที่ไม่ได้อยู่ในจอ. ไอคอนชุดที่ใช้จริงอยู่ใน renderComposer() ข้างล่างแล้ว
   const renderComposer = (inline: boolean) => (
     <div className={inline ? '' : 'w-full p-3'}>
       {/* บรรทัด "ตอบใคร" — บรรทัดข้อความเดียว ไม่ใช่การ์ดมีขอบ
@@ -1116,7 +1109,7 @@ export default function CommentsClient({
             {/* ชิปบอกว่ากำลังกรองเพจไหนอยู่ + กดกากบาทล้างได้ (Base: active-filter chips ของ
                 InboxList.tsx:867-882) — ปุ่มตัวกรองไม่ได้โชว์ชื่อเพจบนหน้าปุ่ม ชิปจึงจำเป็น */}
             {channelId && (
-              <span className="badge bg-primary/15 text-primary text-2xs inline-flex items-center gap-1">
+              <span className="badge bg-primary/15 text-primary-ink text-2xs inline-flex items-center gap-1">
                 {channels.find((c) => c.id === channelId)?.name ?? 'เพจที่เลือก'}
                 <button
                   type="button"
@@ -1215,12 +1208,12 @@ export default function CommentsClient({
                   ทั้งที่กรองอยู่ ทำให้เข้าใจผิดว่าระบบพัง (critique P1)
                   ต้องครอบแท็บช่องทางด้วย: กด IG/Deep ที่ยังไม่มีคอมเมนต์ไหลเข้าเลย ต้องได้คำอธิบาย
                   ว่าไม่มี "ตามตัวกรอง" ไม่ใช่ "ยังไม่มีความคิดเห็น" ลอย ๆ ซึ่งอ่านเหมือนระบบพัง */}
-              {channelId || channelTab !== 'ALL' ? (
+              {channelId || channelTab !== 'ALL' || show.postStatus !== 'ALL' || show.shopComments ? (
                 <SellerEmptyState
                   compact
                   icon="search-off"
                   title="ไม่พบความคิดเห็นตามตัวกรอง"
-                  description="ลองเปลี่ยนช่องทาง/เพจ หรือล้างตัวกรองเพื่อดูทั้งหมด"
+                  description="ลองเปลี่ยนช่องทาง/เพจ/สถานะ หรือล้างตัวกรองเพื่อดูทั้งหมด"
                 />
               ) : (
                 <SellerEmptyState
@@ -1230,13 +1223,18 @@ export default function CommentsClient({
                   description="เมื่อมีคนคอมเมนต์ใต้โพสต์ของเพจ จะแสดงที่นี่"
                 />
               )}
-              {(channelId || channelTab !== 'ALL') && (
+              {/* 🛑 ปุ่มนี้ต้องล้าง **ทุกแกนที่กรองอยู่** ไม่ใช่แค่แกนที่บังเอิญอยู่ใกล้ตา —
+                  เดิมล้างแค่ช่องทาง/เพจ ทิ้ง show.postStatus กับ show.shopComments ไว้ ผู้ใช้จึงกด
+                  "ล้างตัวกรอง" แล้วรายการยังว่างอยู่เหมือนเดิม ซึ่งอ่านได้อย่างเดียวว่าระบบพัง
+                  (impeccable critique 2026-08-09) เงื่อนไขที่โชว์ปุ่มก็ต้องครอบทุกแกนด้วยเช่นกัน */}
+              {(channelId || channelTab !== 'ALL' || show.postStatus !== 'ALL' || show.shopComments) && (
                 <div className="mt-3 flex justify-center">
                   <button
                     type="button"
                     onClick={() => {
                       setChannelTab('ALL')
                       setChannelId(null)
+                      setShow((s) => ({ ...s, postStatus: 'ALL', shopComments: false }))
                     }}
                     className="btn bg-default-100 text-default-800 hover:bg-default-200 min-h-11"
                   >
@@ -1319,7 +1317,7 @@ export default function CommentsClient({
                          สนใจ/DEV มาเทียบ) ชุดเดียวกับชิปแท็กในรายการแชท: badge + พื้นจาง 15%
                          ป้ายเวลาแยกใบเพราะเป็นข้อมูลคนละเรื่อง (สถานะงาน vs เส้นตายของ Meta) */
                       <span className="mt-1 flex flex-wrap items-center gap-1">
-                        <span className="badge bg-danger/15 text-danger text-2xs inline-flex items-center gap-1">
+                        <span className="badge bg-danger/15 text-danger-ink text-2xs inline-flex items-center gap-1">
                           <Icon icon="alert-circle" width={11} height={11} className="shrink-0" />
                           ยังไม่ตอบ
                         </span>
@@ -1329,7 +1327,15 @@ export default function CommentsClient({
                             เดิมบรรทัดนี้อ่าน oldestUnansweredAt ที่เป็น "เก่าสุดทั้งกอง" จึงขึ้น
                             "หมดเวลาทักแชท" ทุกแถวทั้งที่ในเธรดยังเหลือ 6 วัน — แก้ที่ service แล้ว */}
                         {p.oldestUnansweredAt ? (
-                          <span className="badge bg-warning/15 text-warning-ink text-2xs inline-flex max-w-full items-center gap-1">
+                          // โทนมาจาก privateReplyWindow() ตัวเดียว — badge นี้กับข้อความในเธรด
+                          // ต้องเปลี่ยนสีพร้อมกันเสมอ (HR16)
+                          <span
+                            className={`badge text-2xs inline-flex max-w-full items-center gap-1 ${
+                              privateReplyWindow(p.oldestUnansweredAt).tone === 'danger'
+                                ? 'bg-danger/15 text-danger-ink'
+                                : 'bg-warning/15 text-warning-ink'
+                            }`}
+                          >
                             <Icon icon="clock" width={11} height={11} className="shrink-0" />
                             <span className="truncate">
                               ทักแชทได้อีก {privateReplyWindow(p.oldestUnansweredAt).text.replace('คงเหลือ ', '')}
@@ -1674,7 +1680,7 @@ export default function CommentsClient({
                       onClick={() => setUnansweredOnly(!unansweredOnly)}
                       aria-pressed={unansweredOnly}
                       className={`badge text-2xs inline-flex min-h-9 items-center gap-1 px-3 ${
-                        unansweredOnly ? 'bg-danger text-white' : 'bg-danger/15 text-danger'
+                        unansweredOnly ? 'bg-danger text-white' : 'bg-danger/15 text-danger-ink'
                       }`}
                     >
                       <Icon icon="alert-circle" width={12} height={12} />
@@ -1930,8 +1936,10 @@ function CommentBubble({
                 ทักแชท
               </button>
               {chatWindow && (
+                // สีเดียวกับ badge บนแถวโพสต์เสมอ (privateReplyWindow().tone) — เดิมตรงนี้ hardcode
+                // danger จึงแดงตั้งแต่ยังเหลือเกือบ 7 วัน
                 <span
-                  className="text-danger-ink font-semibold"
+                  className={chatWindow.tone === 'danger' ? 'text-danger-ink font-semibold' : 'text-warning-ink font-medium'}
                   title={`ทักแชทส่วนตัวได้ภายใน 7 วันนับจากเวลาคอมเมนต์ (${formatDateTimeTH(c.createdTime)})`}
                 >
                   {chatWindow.text}
@@ -1949,29 +1957,44 @@ function CommentBubble({
               กำลังส่ง...
             </button>
           )}
+          {/* 🛑 SENT/EXPIRED เป็น **badge ไม่ใช่ปุ่ม** — ทั้งคู่ไม่มีวันกดได้: "ทักแล้ว" คือ
+              ข้อเท็จจริงในอดีต ส่วน "หมดเวลา" คือสภาพถาวร. เดิมเป็น <button disabled> ทั้งคู่
+              ทำให้เธรดที่จัดการครบแล้วเต็มไปด้วยปุ่มเทาที่ตายแล้ว = อ่านว่า "ถูกห้าม" แทนที่จะเป็น
+              "เสร็จแล้ว" · และ disabled ถอดมันออกจากลำดับคีย์บอร์ด/interactive tree ของ screen
+              reader ด้วย ทั้งที่เวลาที่ทักไปแล้วมีอยู่แค่ตรงนี้ที่เดียว
+              (impeccable critique 2026-08-09 P2) */}
           {privateReplyState === 'SENT' && (
             <>
-              <button
-                type="button"
-                disabled
-                className="btn btn-sm border-default-300 text-default-400 cursor-not-allowed border"
+              {/* เขียวถูกต้องที่นี่ตาม Verified-Means-Green: มนุษย์เป็นคนกดส่งและ Meta รับแล้วจริง
+                  (ต่างจาก "บอทตอบแล้ว" ซึ่งยังไม่มีคนยืนยัน จึงเป็นเหลือง) */}
+              <span
+                className="badge bg-success/15 text-success-ink text-2xs inline-flex items-center gap-1"
+                title={`ทักแชทส่วนตัวไปแล้วเมื่อ ${formatDateTimeTH(c.privateReplySentAt)}`}
               >
+                <Icon icon="circle-check" width={11} height={11} className="shrink-0" />
                 ทักแล้ว · {commentTimeLabel(c.privateReplySentAt)}
-              </button>
+              </span>
               {c.privateReplyConversationId && (
-                <Link href={`/inbox/${c.privateReplyConversationId}`} className="font-medium hover:underline">
+                // ขั้นถัดไปหลังทักสำเร็จ ต้องไม่ใช่สิ่งที่มองเห็นยากที่สุดบนแถว — เดิมเป็นข้อความ
+                // ขีดเส้นใต้ 12px ที่แยกไม่ออกจากปุ่ม "ตอบ" ข้าง ๆ
+                <Link
+                  href={`/inbox/${c.privateReplyConversationId}`}
+                  className="btn btn-sm border-default-300 text-default-800 hover:border-default-400 inline-flex items-center gap-1 border"
+                >
+                  <Icon icon="message-2" className="text-sm" />
                   เปิดห้องแชท
                 </Link>
               )}
             </>
           )}
           {privateReplyState === 'EXPIRED' && (
-            <>
-              <button type="button" disabled className="btn btn-sm bg-default-200 text-default-400 cursor-not-allowed">
-                หมดเวลาทักแชท
-              </button>
-              <span className="text-default-500 text-xs">เกิน 7 วันแล้ว Facebook ไม่ให้ทักส่วนตัวอีก</span>
-            </>
+            <span
+              className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1"
+              title="Facebook ให้ทักแชทส่วนตัวจากคอมเมนต์ได้ภายใน 7 วันเท่านั้น — ตอบสาธารณะใต้คอมเมนต์ยังทำได้ตลอด"
+            >
+              <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
+              หมดเวลาทักแชท
+            </span>
           )}
         </div>
       </div>

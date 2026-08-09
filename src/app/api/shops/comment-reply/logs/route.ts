@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveActiveShopContext } from "@/lib/shop-context";
 import { CommentReplyLogsQuerySchema } from "@/lib/validations";
+import { logStatusWhere, parseLogStatusFilter } from "@/lib/comment-reply-log-status";
 
 /**
  * GET /api/shops/comment-reply/logs — ประวัติการตอบ/ข้ามคอมเมนต์ (feature 00038) — API.md §4.3
@@ -94,9 +95,13 @@ export async function GET(request: NextRequest) {
 
   // UX-Design-Spec ฉบับแก้ครั้งที่ 2 (2026-08-09): เปลี่ยนจาก "โหลดเพิ่ม" (hasMore, ดึงเกิน 1
   // แถว) เป็น TablePagination เลขหน้าจริง — ต้องรู้จำนวนรวมทั้งหมด ไม่ใช่แค่ "มีต่อไหม"
+  // ตัวกรองสถานะ (critique 2026-08-09 P2) — แถวส่วนใหญ่ในตารางนี้เป็น SKIPPED และแถวที่ผู้ขาย
+  // เปิดตารางมาหาคือ FAILED; ไม่มีตัวกรองเลยแปลว่าต้องเปิดทีละหน้าไปเรื่อย ๆ
+  const status = parseLogStatusFilter(searchParams.get("status"));
   const where = {
     channel: { shopId: ctx.shopId },
     ...(shopChannelIdFilter ? { shopChannelId: shopChannelIdFilter } : {}),
+    ...logStatusWhere(status),
   };
   const [rows, total] = await Promise.all([
     prisma.commentReplyLog.findMany({
