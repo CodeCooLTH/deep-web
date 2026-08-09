@@ -843,6 +843,16 @@ export default function InboxList({
    * เลยเพราะ badge บอกไปแล้วว่าคนละแพลตฟอร์ม (user รายงานเองว่า "มันเยอะ" หลังเห็นของจริง)
    * บทเรียน: เกณฑ์ต้องผูกกับ "สิ่งที่ยังกำกวมอยู่จริง" ไม่ใช่ "มีของหลายชิ้นไหม"
    */
+  /**
+   * มีบัญชีนอกเดียวทั้งขอบเขต → badge มุม avatar ใช้ **รูปเพจ/รูป LINE OA จริง** แทนโลโก้แพลตฟอร์ม
+   * (user สั่ง 2026-08-09)
+   *
+   * เหตุผลเดียวกับกติกาอื่นในแถวนี้ทั้งหมด — ไม่แสดงสิ่งที่ไม่ให้ข้อมูล: ร้านที่มีเพจ Facebook
+   * เพจเดียว ทุกแถวเป็น Facebook อยู่แล้ว โลโก้ f ซ้ำ 28 แถวจึงบอกอะไรไม่ได้เลย ขณะที่รูปเพจ
+   * อย่างน้อยเป็นตราของร้านเอง · พอมี ≥2 บัญชี โลโก้แพลตฟอร์มกลับมามีความหมายทันที (แยกช่องทาง)
+   * จึงสลับกลับ — ดู `preferChannelLogo` ที่จุด render
+   */
+  const singleChannelScope = channels.length <= 1
   const duplicatedProviders = new Set(
     channels
       .map((c) => resolveChatChannel(c.provider))
@@ -1364,7 +1374,14 @@ export default function InboxList({
                           เหมือนกันเป๊ะทุกแถว แยกไม่ออกแม้แต่ว่าคนละแพลตฟอร์ม (user เจอเองบน prod)
                           "บัญชีไหน" ย้ายไปตอบด้วยบรรทัดที่มาข้างล่างแทน — ตรงกับบทเรียนที่จดไว้เอง
                           ในไฟล์นี้ (คอมเมนต์ของ prop `shop`): ภาพซ้ำกันได้โดยไม่ตั้งใจ ข้อความไม่ซ้ำ */}
-                      <ChannelBadgeOverlay channel={c.channel} />
+                      <ChannelBadgeOverlay
+                        channel={c.channel}
+                        imageUrl={
+                          singleChannelScope && c.shopChannelId
+                            ? (channelAvatarById.get(c.shopChannelId) ?? null)
+                            : null
+                        }
+                      />
                     </span>
                     {/* ชื่อลูกค้า "เข้มเสมอ" ทั้งอ่านแล้ว/ยังไม่อ่าน (user report 2026-07-30: "จางไปดูยาก")
                         เดิมอ่านแล้ว = text-default-600 font-medium → ใช้ความจางของ *ชื่อ* มาบอกสถานะอ่าน

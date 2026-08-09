@@ -14,7 +14,18 @@
  * ตามเดิม — ที่นี่รับผิดชอบเฉพาะสิ่งที่ทั้ง server และ client ใช้ร่วมกันได้จริง
  */
 
-export type ChatChannel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | 'LINE'
+/**
+ * รายชื่อช่องทางทั้งหมด — **แหล่งเดียวของความจริง** ทั้งฝั่ง type และฝั่ง runtime
+ *
+ * 🛑 ทำไมต้องมีทั้ง tuple และ type: การประกาศ type เพียว ๆ ทำให้ `tsc` บังคับ key ครบใน
+ * `Record<ChatChannel,…>` ได้จริง **แต่ไม่ช่วยอะไรเลยกับ list ของ string ที่ validator ใช้ตอน
+ * runtime** — ตอนเพิ่ม 'LINE' เข้า type (2026-08-09) `v.picklist(['DEEP','MESSENGER','INSTAGRAM'])`
+ * ใน validations.ts ไม่ถูกแตะ tsc เขียวสนิท แล้วผู้ใช้กดแท็บ LINE ได้ 400 Bad Request บน
+ * production. ประกาศ tuple แล้ว derive type ออกมา = เพิ่มค่าใหม่ที่เดียวได้ทั้งสองฝั่ง
+ */
+export const CHAT_CHANNELS = ['DEEP', 'MESSENGER', 'INSTAGRAM', 'LINE'] as const
+
+export type ChatChannel = (typeof CHAT_CHANNELS)[number]
 
 /** ค่าอื่นนอก 4 ค่านี้ (ข้อมูลเพี้ยน/ช่องทางในอนาคต) → fallback เป็น DEEP — ห้าม crash */
 export function resolveChatChannel(channel: string): ChatChannel {

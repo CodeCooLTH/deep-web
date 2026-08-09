@@ -8,6 +8,7 @@ import {
 // isHttpUrl — ใช้ logic เดียวกับ render layer (S-10) เพื่อ validate accessUrl (S-3)
 import { isHttpUrl } from "@/lib/order-display";
 import { SHOP_CATEGORY_KEYS } from "@/lib/shop-categories";
+import { CHAT_CHANNELS } from "@/lib/chat-channel";
 import {
   SHOP_VERTICAL_KEYS,
   CANCEL_REASON_KEYS,
@@ -850,7 +851,10 @@ export const ChatMessagesQuerySchema = v.object({
 export const ChatConversationsQuerySchema = v.object({
   cursor: v.optional(v.string()), // ISO datetime ของ lastMessageAt แถวสุดท้ายที่เห็น
   take: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(50)), 20),
-  channel: v.optional(v.picklist(['DEEP', 'MESSENGER', 'INSTAGRAM'])),
+  // 🛑 อ้าง CHAT_CHANNELS ห้ามพิมพ์ list ซ้ำที่นี่ — เดิมเป็น ['DEEP','MESSENGER','INSTAGRAM']
+  // เขียนตายตัว พอเพิ่ม 'LINE' เข้า type ChatChannel (2026-08-09) ที่นี่ไม่ถูกแตะ tsc เขียวสนิท
+  // แล้วผู้ใช้กดแท็บ LINE ได้ 400 Bad Request บน production (type ไม่ผูกกับ validator ตอน runtime)
+  channel: v.optional(v.picklist(CHAT_CHANNELS)),
   shopChannelId: v.optional(v.pipe(v.string(), v.uuid())),
   q: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200))),
   // S-7 (ตัวกรองแชท) — seller เท่านั้น (buyer branch ไม่ใช้). hidden แปลงเป็น boolean ที่ route แล้ว
