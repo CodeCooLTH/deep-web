@@ -66,7 +66,14 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
 
   useEffect(() => {
     previouslyFocused.current = document.activeElement as HTMLElement | null
-    dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)[0]?.focus()
+    // 🛑 โฟกัสไปที่ **ช่องพิมพ์** ไม่ใช่ "ตัวแรกที่โฟกัสได้"
+    //
+    // ตัวแรกใน DOM คือปุ่ม "ปิด" ที่หัวโมดัล — ผู้ใช้คีย์บอร์ดที่เปิดฟอร์มมาเพื่อพิมพ์จะลงที่ปุ่ม
+    // ยกเลิกแทน (กด Enter = ปิดโมดัล ไม่ใช่เริ่มพิมพ์) และผู้ใช้เมาส์ก็เห็นคำเตือนสีแดงเหนือช่อง
+    // ที่ยังไม่มีเคอร์เซอร์อยู่ในนั้น. โมดัลนี้มีเจตนาเดียวคือ "พิมพ์แล้วส่ง" จุดเริ่มจึงต้องเป็น
+    // textarea เสมอ (impeccable critique 2026-08-09 — persona Sam)
+    const textarea = dialogRef.current?.querySelector<HTMLElement>('#privateReplyText')
+    ;(textarea ?? dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)[0])?.focus()
 
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {

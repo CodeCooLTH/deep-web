@@ -714,7 +714,12 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
         </div>
       ) : (
         // dim ตารางระหว่างโหลดหน้าใหม่ (Edge states) — ไม่ล้างข้อมูลเดิมทิ้งระหว่างรอ
-        <div className={loading ? 'pointer-events-none opacity-50' : undefined}>
+        // aria-busy + live region: ก่อนหน้านี้ตารางสลับเนื้อหาเงียบสนิทสำหรับผู้ใช้ที่มองไม่เห็น
+        // (dim + pointer-events-none เป็นสัญญาณทางสายตาล้วน)
+        <div className={loading ? 'pointer-events-none opacity-50' : undefined} aria-busy={loading || undefined}>
+          <span className="sr-only" role="status" aria-live="polite">
+            {loading ? 'กำลังโหลดประวัติ' : `แสดง ${logs.length} จาก ${total} รายการ`}
+          </span>
           <DataTable<CommentReplyLogRow>
             table={table}
             emptyMessage="ไม่พบประวัติตามตัวกรองนี้"

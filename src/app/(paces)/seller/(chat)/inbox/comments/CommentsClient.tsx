@@ -985,16 +985,21 @@ export default function CommentsClient({
               onClick={() => setEmojiOpen((v) => !v)}
               aria-label="เลือกอิโมจิ"
               aria-expanded={emojiOpen}
+              // aria-expanded ที่ไม่บอกว่า "ขยายอะไร" ทำให้ AT ประกาศสถานะลอย ๆ โดยผู้ใช้หา
+              // แผงที่เปิดขึ้นมาไม่เจอ — ต้องชี้ไปที่กล่องของแผงเสมอ
+              aria-controls="commentEmojiPicker"
               className="hover:bg-default-200 text-default-700 flex size-9 items-center justify-center rounded-full"
             >
               <Icon icon="mood-smile" className="text-lg" />
             </button>
             {emojiOpen && (
-              <EmojiPicker
-                align="right"
-                onSelect={(emoji) => setReplyText((prev) => prev + emoji)}
-                onClose={() => setEmojiOpen(false)}
-              />
+              <div id="commentEmojiPicker">
+                <EmojiPicker
+                  align="right"
+                  onSelect={(emoji) => setReplyText((prev) => prev + emoji)}
+                  onClose={() => setEmojiOpen(false)}
+                />
+              </div>
             )}
           </div>
           <button
@@ -1058,8 +1063,13 @@ export default function CommentsClient({
             ความ "เหมือน" ของสองหน้านี้อยู่ที่กล่องหัว ไม่ใช่แค่ตัวปุ่มแต่ละอัน */}
         <div className="card-header sticky top-0 z-10 flex flex-col items-stretch gap-3 border-dashed bg-card">
           <div className="relative flex flex-wrap items-center gap-1.5">
-            <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="tablist" aria-label="ตัวกรองช่องทาง">
-              {(['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM'] as const).map((tab) => {
+            {/* 🛑 `radiogroup` ไม่ใช่ `tablist` — แถวนี้เป็น "ตัวกรองที่เลือกได้ทีละอัน" ไม่ได้สลับ
+                หน้าจอ. `tablist` สัญญากับ screen reader ว่ามี `tabpanel` ที่มันคุมอยู่ ซึ่งแถวนี้
+                ไม่มี (panel ที่แท้จริงถูกคุมโดยแท็บสถานะข้างล่าง) AT จะประกาศ "tab 1 of 4" แล้ว
+                หา panel ไม่เจอ · radiogroup + aria-checked ตรงกับสิ่งที่มันเป็นจริง และได้กติกา
+                ลูกศรซ้าย/ขวามาด้วย (impeccable critique 2026-08-09 — persona Sam + Alex) */}
+            <div className="bg-light flex w-full items-center gap-0.5 rounded-lg p-1" role="radiogroup" aria-label="ตัวกรองช่องทาง">
+              {(['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM'] as const).map((tab, idx, arr) => {
                 const active = channelTab === tab
                 const display = tab === 'ALL' ? null : getChannelDisplay(tab)
                 const label = tab === 'ALL' ? 'ทั้งหมด' : display!.label
@@ -1067,8 +1077,20 @@ export default function CommentsClient({
                   <button
                     key={tab}
                     type="button"
-                    role="tab"
-                    aria-selected={active}
+                    role="radio"
+                    aria-checked={active}
+                    // roving tabindex: Tab เข้ามาหยุดจุดเดียว แล้วเดินด้วยลูกศร — ไม่ใช่กด Tab
+                    // ผ่านทีละ 4 ปุ่มทุกครั้งที่จะข้ามแถวนี้ไป
+                    tabIndex={active ? 0 : -1}
+                    onKeyDown={(e) => {
+                      const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+                      if (!dir) return
+                      e.preventDefault()
+                      const next = arr[(idx + dir + arr.length) % arr.length]!
+                      setChannelTab(next)
+                      const group = e.currentTarget.parentElement
+                      group?.querySelectorAll<HTMLElement>('[role="radio"]')[arr.indexOf(next)]?.focus()
+                    }}
                     title={label}
                     aria-label={tab === 'ALL' ? 'ทั้งหมด' : `กรองเฉพาะช่องทาง ${label}`}
                     onClick={() => setChannelTab(tab)}
@@ -1162,14 +1184,28 @@ export default function CommentsClient({
             { key: 'UNANSWERED', label: 'ยังไม่ตอบ', icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered },
             { key: 'BOT', label: 'บอทตอบ', icon: 'robot', badgeClass: 'bg-warning text-white', count: counts.botAnswered },
             { key: 'HUMAN', label: 'คนตอบ', icon: 'circle-check', badgeClass: 'bg-success text-white', count: counts.humanAnswered },
-          ] as const).map((t) => {
+          ] as const).map((t, idx, arr) => {
             const on = postTab === t.key
             return (
               <button
                 key={t.key}
                 type="button"
                 role="tab"
+                id={`commentPostTab-${t.key}`}
+                // แท็บชุดนี้คุมรายการโพสต์ข้างล่างจริง ๆ จึงเป็น tablist ได้ (ต่างจากพิลล์ช่องทาง
+                // ที่เป็นแค่ตัวกรอง) — ต้องชี้ไปที่ panel ให้ครบ ไม่งั้น AT ประกาศว่ามีแท็บแล้ว
+                // หา panel ที่มันคุมไม่เจอ
+                aria-controls="commentPostListPanel"
                 aria-selected={on}
+                tabIndex={on ? 0 : -1}
+                onKeyDown={(e) => {
+                  const dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+                  if (!dir) return
+                  e.preventDefault()
+                  const next = arr[(idx + dir + arr.length) % arr.length]!
+                  setPostTab(next.key)
+                  document.getElementById(`commentPostTab-${next.key}`)?.focus()
+                }}
                 onClick={() => setPostTab(t.key)}
                 className={`-mb-px flex shrink-0 items-center gap-1 border-b-2 px-0 py-1.5 text-sm text-nowrap ${
                   on ? 'border-primary text-primary font-semibold' : 'text-default-600 border-transparent font-medium'
@@ -1201,7 +1237,15 @@ export default function CommentsClient({
         </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {/* panel ที่แท็บสถานะข้างบนคุมอยู่ — id นี้ถูกอ้างด้วย aria-controls ของทุกแท็บ
+            aria-busy บอก screen reader ว่าเนื้อหากำลังเปลี่ยน (ก่อนหน้านี้รายการสลับเงียบสนิท) */}
+        <div
+          id="commentPostListPanel"
+          role="tabpanel"
+          aria-labelledby={`commentPostTab-${postTab}`}
+          aria-busy={loadingMore || undefined}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        >
           {visiblePosts.length === 0 ? (
             <div className="p-4">
               {/* แยกกรณี "กรองแล้วไม่เจอ" ออกจาก "ยังไม่มีเลย" — ของเดิมบอกว่าไม่มีความคิดเห็น
@@ -1625,7 +1669,31 @@ export default function CommentsClient({
             {isNarrow && (
               <div
                 role="separator"
-                aria-label="ลากเพื่อปรับความสูงของรายการความคิดเห็น"
+                aria-label="ปรับความสูงของรายการความคิดเห็น"
+                // 🛑 `separator` ที่ปรับค่าได้ต้องโฟกัสได้ + มีค่าให้ AT อ่าน + เดินด้วยลูกศรได้
+                // เดิมมีแต่ pointer handler จึงประกาศตัวว่า "ปรับได้" กับ screen reader แล้วผู้ใช้
+                // คีย์บอร์ดแตะไม่ได้เลย — สัญญาที่ทำไม่ได้แย่กว่าไม่สัญญา
+                // (impeccable critique 2026-08-09 — persona Sam)
+                tabIndex={0}
+                aria-orientation="horizontal"
+                aria-valuenow={mobilePanelH ?? Math.round(window.innerHeight * 0.45)}
+                aria-valuemin={clampPanelH(0)}
+                aria-valuemax={clampPanelH(Number.MAX_SAFE_INTEGER)}
+                onKeyDown={(e) => {
+                  // ขึ้น = สูงขึ้น (ทิศเดียวกับการลาก) · ก้าวละ 24px, Home/End ไปสุดทาง
+                  const cur = mobilePanelH ?? Math.round(window.innerHeight * 0.45)
+                  const step =
+                    e.key === 'ArrowUp' ? 24 : e.key === 'ArrowDown' ? -24 : 0
+                  if (step) {
+                    e.preventDefault()
+                    setMobilePanelH(clampPanelH(cur + step))
+                    return
+                  }
+                  if (e.key === 'Home' || e.key === 'End') {
+                    e.preventDefault()
+                    setMobilePanelH(clampPanelH(e.key === 'Home' ? 0 : window.innerHeight))
+                  }
+                }}
                 onPointerDown={(e) => {
                   e.currentTarget.setPointerCapture(e.pointerId)
                   dragRef.current = { startY: e.clientY, startH: mobilePanelH ?? Math.round(window.innerHeight * 0.45) }

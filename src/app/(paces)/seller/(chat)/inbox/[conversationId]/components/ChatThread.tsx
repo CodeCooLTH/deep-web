@@ -2571,14 +2571,18 @@ export default function ChatThread({
               ไม่ใส่ accept เลยโดยตั้งใจ (ไม่ใช่ accept แบบ wildcard) — Safari บางเวอร์ชันตีความ
               wildcard แล้วซ่อนไฟล์บางชนิดในกล่องเลือก. กฎว่าอะไรส่งได้อยู่ที่ lib/chat-attachment.ts
               ซึ่งบังคับทั้งฝั่ง client (ก่อนอัปโหลด) และ /api/chat/upload (ตัวจริง) */}
+          {/* 🛑 ชื่อสำหรับ AT ต้องอยู่บน `<input>` ไม่ใช่บน `<label>` — `<label>` ไม่มี role ของ
+              ตัวเอง กลไกปกติของมันคือ "ตั้งชื่อให้ control ที่มันครอบ" ไม่ใช่ตั้งชื่อตัวเอง และ
+              label ใบนี้ไม่มีข้อความข้างในเลย (มีแต่ไอคอน) ตัว input จึงเคยไม่มีชื่อ
+              — docs/conventions/aria-name-requires-supporting-role.md */}
           <label
             className={`btn btn-icon text-default-600 hover:bg-default-100 shrink-0 ${attachDisabled || composerDisabled ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
-            aria-label={attachDisabled ? 'ยังไม่รองรับการแนบไฟล์ในช่องทางนี้' : 'แนบไฟล์'}
             title="แนบไฟล์ (เลือกหลายไฟล์พร้อมกันได้)"
           >
             <input
               type="file"
               multiple
+              aria-label={attachDisabled ? 'ยังไม่รองรับการแนบไฟล์ในช่องทางนี้' : 'แนบไฟล์'}
               className="hidden"
               onChange={handleFileChange}
               disabled={attachDisabled || composerDisabled || uploading || sending}
