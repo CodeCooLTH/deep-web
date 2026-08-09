@@ -316,6 +316,69 @@ describe('sendPrivateReplyToCommentById — Fix round 2: dedupe คีย์เ�
     expect(graphSend).not.toHaveBeenCalled()
   })
 
+  // หนี้ #2 (retro 00038): isUniqueConstraintError ต้องจับได้ทั้ง 2 รูป — รูปหลัก (`.code`, ตรงกับ
+  // PrismaClientKnownRequestError จริง) และรูป fallback (message ล้วน, error ถูก wrap/serialize มา)
+  it('create แถวจองใหม่ชน P2002 ที่ error object มี `.code` ตรง ๆ (ไม่พึ่ง message) -> ALREADY_SENT', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(null as never)
+    // จำลอง PrismaClientKnownRequestError จริง — มี .code แต่ message ไม่มีคำว่า "P2002"/
+    // "Unique constraint" เลย (พิสูจน์ว่า path หลักไม่ได้พึ่ง string matching)
+    const prismaLikeError = Object.assign(new Error('Invalid `prisma.commentReplyLog.create()` invocation'), {
+      code: 'P2002',
+      meta: { target: ['commentId'] },
+    })
+    vi.mocked(prisma.commentReplyLog.create).mockRejectedValue(prismaLikeError)
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(r).toMatchObject({ sent: false, reason: 'ALREADY_SENT' })
+    expect(graphSend).not.toHaveBeenCalled()
+  })
+
+  it('create แถวจองใหม่ชนกับ error ที่มีแต่ message (ไม่มี `.code`, fallback) -> ALREADY_SENT', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(null as never)
+    // error ที่ถูก serialize/wrap มาจนเหลือแค่ message (ไม่มี .code) — ต้องยังจับได้ผ่าน fallback
+    vi.mocked(prisma.commentReplyLog.create).mockRejectedValue('Unique constraint failed — P2002')
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(r).toMatchObject({ sent: false, reason: 'ALREADY_SENT' })
+    expect(graphSend).not.toHaveBeenCalled()
+  })
+
+  it('create แถวจองใหม่ชน error อื่นที่ไม่ใช่ unique constraint -> rethrow เข้า catch นอกสุด (SEND_FAILED) ไม่ตีเป็น ALREADY_SENT', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.findFirst).mockResolvedValue(null as never)
+    vi.mocked(prisma.commentReplyLog.create).mockRejectedValue(new Error('connection timeout'))
+
+    // ฟังก์ชันห้าม throw ออกไปทุกกรณี (ห่อ try/catch ชั้นนอกสุด) — error อื่นที่ไม่ใช่ unique
+    // constraint ต้องหลุดไปเข้า catch นอกสุดแล้วคืน SEND_FAILED ไม่ใช่ ALREADY_SENT
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(r).toMatchObject({ sent: false, reason: 'SEND_FAILED', error: 'connection timeout' })
+    expect(graphSend).not.toHaveBeenCalled()
+  })
+
+  // หนี้ #3 (retro 00038): resolveChannelToken คืน null ต้องคืน error ที่เจาะจง
+  // ('CHANNEL_TOKEN_UNAVAILABLE') ไปด้วย ไม่ใช่แค่ reason ทั่วไป ('CHANNEL_INACTIVE') — ผู้เรียกฝั่ง
+  // AUTO (comment-auto-reply.service.ts) เขียน errorMessage ด้วย `result.error ?? result.reason`
+  // ถ้าไม่มี error รายละเอียดจะหายไปกลายเป็น CHANNEL_INACTIVE เฉย ๆ ตอนสืบ
+  it('resolveChannelToken คืน null -> reason ยังเป็น CHANNEL_INACTIVE เหมือนเดิม แต่มี error เจาะจง CHANNEL_TOKEN_UNAVAILABLE ด้วย', async () => {
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    vi.mocked(resolveChannelToken).mockResolvedValue(null)
+
+    const r = await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'hi', trigger: 'AUTO' })
+
+    expect(r).toMatchObject({ sent: false, reason: 'CHANNEL_INACTIVE', error: 'CHANNEL_TOKEN_UNAVAILABLE' })
+    expect(graphSend).not.toHaveBeenCalled()
+    expect(prisma.commentReplyLog.update).toHaveBeenCalledWith({
+      where: { id: 'log-new' },
+      data: { privateReplyStatus: 'FAILED', errorMessage: 'CHANNEL_TOKEN_UNAVAILABLE' },
+    })
+  })
+
   it('Graph สำเร็จแต่ transaction สร้างห้องแชทโยน error -> คืน sent:true, conversationId:null, และ log ถูก update เป็น SENT ไปก่อนแล้ว (C1)', async () => {
     findComment.mockResolvedValue(okComment() as never)
     vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)

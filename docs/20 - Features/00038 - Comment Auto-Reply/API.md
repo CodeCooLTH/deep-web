@@ -144,7 +144,7 @@ serverless เดิมของระบบ SafePay/Deep ผู้บริโ�
 | `logs[].id` | `string` | id ของ `CommentReplyLog` |
 | `logs[].createdAt` | `string` (ISO-8601) | เวลาที่ตัดสินใจ |
 | `logs[].commenterName` | `string \| null` | ชื่อผู้คอมเมนต์ (จาก `PageComment.fromName`) |
-| `logs[].postMessage` | `string \| null` | ข้อความโพสต์ (ตัดสั้น) |
+| `logs[].postMessage` | `string \| null` | ข้อความโพสต์ (ตัดสั้นไม่เกิน 120 ตัวอักษร ต่อท้ายด้วย `…` ถ้ายาวกว่านั้น) |
 | `logs[].trigger` | `string` | `"AUTO"` \| `"MANUAL"` |
 | `logs[].publicReplyStatus` | `string \| null` | `"SENT"` \| `"SKIPPED"` \| `"FAILED"` \| `null` |
 | `logs[].privateReplyStatus` | `string \| null` | เหมือนกัน |

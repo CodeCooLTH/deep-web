@@ -20,6 +20,10 @@
  *   cursor list)
  * Base (ตัวกรองเพจในประวัติ): src/components/safepay/FilterDropdown.tsx
  * Base (empty state): src/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState.tsx
+ * Base (avatar เพจ + provider overlay ขนาด lg): `PageAvatar` (inbox/components/PageFilterDropdown.tsx,
+ *   size='lg') + `ChannelBadgeOverlay` (inbox/components/ChannelBadge.tsx) — เดิมมี local avatar
+ *   component ในไฟล์นี้ที่ทำซ้ำตรรกะเดียวกัน (หนี้ feature 00038 #1) แก้แล้วโดยขยาย `PageAvatar`
+ *   ด้วย size='lg' แทนสร้างใหม่
  *
  * แต่ละการ์ดถือ state ของตัวเองแยกกันสมบูรณ์ (AC-CR-04) — ไม่มี form state รวมทั้งหน้า เพราะ
  * PATCH ยิงทีละเพจ (API §4.2 รับ shopChannelId เดี่ยว) แก้เพจ A ต้องไม่กระทบเพจ B
@@ -32,8 +36,8 @@ import Icon from '@/components/wrappers/Icon'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatDateTimeTH } from '@/lib/format-date'
-import { generateInitials } from '@/utils/helpers'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
+import { PageAvatar } from '@/app/(paces)/seller/(chat)/inbox/components/PageFilterDropdown'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 
 /** ต้องตรงกับ Valibot CommentReplyConfigSchema (src/lib/validations.ts) — maxLength(1000) ทั้งคู่ */
@@ -82,38 +86,6 @@ export default function CommentReplyClient({ channels, instagramChannel, initial
       {instagramChannel && <InstagramComingSoonCard channel={instagramChannel} />}
       <CommentReplyHistoryCard channels={channels} initialLogs={initialLogs} />
     </div>
-  )
-}
-
-/**
- * CardAvatar — เพจ + provider overlay ขนาด lg (size-10) ตาม UX-Design-Spec §1.3
- *
- * เจตนาของสเปกคือ import `PageAvatar` (inbox/components/PageFilterDropdown.tsx) แล้ว extend
- * prop `size='lg'` — แต่ไฟล์นั้นอยู่นอกขอบเขตที่ Task 10 นี้แก้ได้ (มี implementer อีกตัวทำงาน
- * พร้อมกันในกลุ่มเมนู CHAT เดียวกัน เสี่ยงชนกัน — ดู allow-list ของ task brief) จึง reproduce
- * ตรรกะเดียวกัน (รูปจริง + fallback ตัวอักษรแรก) ที่ size-10 ในไฟล์นี้แทน ใช้คู่กับ
- * `ChannelBadgeOverlay` (ChannelBadge.tsx) ตัวเดียวกับที่ inbox ใช้ — ตัวตนแบรนด์ยังเป็นภาพเดียวกัน
- */
-function CardAvatar({ name, avatarUrl, channel }: { name: string; avatarUrl: string | null; channel: 'MESSENGER' | 'INSTAGRAM' }) {
-  const [failed, setFailed] = useState(false)
-  return (
-    <span className="relative shrink-0">
-      {!avatarUrl || failed ? (
-        <span className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-full text-sm font-semibold">
-          {generateInitials(name) || '?'}
-        </span>
-      ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={avatarUrl}
-          alt={name}
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="bg-default-100 size-10 rounded-full object-cover"
-        />
-      )}
-      <ChannelBadgeOverlay channel={channel} imageUrl={avatarUrl} />
-    </span>
   )
 }
 
@@ -196,7 +168,10 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
   return (
     <div className="card">
       <div className="card-header flex items-center gap-3">
-        <CardAvatar name={channel.name} avatarUrl={channel.avatarUrl} channel="MESSENGER" />
+        <span className="relative shrink-0">
+          <PageAvatar avatarUrl={channel.avatarUrl} name={channel.name} size="lg" />
+          <ChannelBadgeOverlay channel="MESSENGER" imageUrl={channel.avatarUrl} />
+        </span>
         <div className="min-w-0 flex-1">
           <p className="text-default-800 truncate text-sm font-semibold">{channel.name}</p>
           <p className="text-default-400 text-xs">Facebook Page</p>
@@ -361,7 +336,10 @@ function InstagramComingSoonCard({ channel }: { channel: InstagramChannel }) {
   return (
     <div className="card">
       <div className="card-header flex items-center gap-3">
-        <CardAvatar name={channel.name} avatarUrl={channel.avatarUrl} channel="INSTAGRAM" />
+        <span className="relative shrink-0">
+          <PageAvatar avatarUrl={channel.avatarUrl} name={channel.name} size="lg" />
+          <ChannelBadgeOverlay channel="INSTAGRAM" imageUrl={channel.avatarUrl} />
+        </span>
         <div className="min-w-0 flex-1">
           <p className="text-default-800 truncate text-sm font-semibold">{channel.name}</p>
           <p className="text-default-400 text-xs">Instagram</p>

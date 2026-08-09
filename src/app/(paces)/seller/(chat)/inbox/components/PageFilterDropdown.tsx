@@ -52,13 +52,18 @@ export function PageAvatar({
 }: {
   avatarUrl: string | null
   name: string
-  size?: 'sm' | 'md'
+  /** 'lg' (size-10) เพิ่มเข้ามาสำหรับการ์ดตั้งค่าตอบกลับคอมเมนต์ (feature 00038 หนี้ #1) — แทนที่
+   *  local avatar component ที่เคย reproduce ตรรกะเดียวกัน (fallback initials/onError) ไว้แยกไฟล์
+   *  เพราะตอนสร้างมี agent อีกตัวทำงานในไฟล์นี้พร้อมกัน เลี่ยงชนกันไว้ก่อน — ไม่กระทบพฤติกรรม
+   *  'sm'/'md' เดิม (dim/text ของสองขนาดนั้นค่าเท่าเดิมทุกจุด) */
+  size?: 'sm' | 'md' | 'lg'
 }) {
   const [failed, setFailed] = useState(false)
-  const dim = size === 'sm' ? 'size-6' : 'size-8'
+  const dim = size === 'sm' ? 'size-6' : size === 'lg' ? 'size-10' : 'size-8'
+  const textSize = size === 'lg' ? 'text-sm' : 'text-2xs'
   if (!avatarUrl || failed) {
     return (
-      <span className={`bg-primary/10 text-primary flex ${dim} shrink-0 items-center justify-center rounded-full text-2xs font-semibold`}>
+      <span className={`bg-primary/10 text-primary flex ${dim} shrink-0 items-center justify-center rounded-full ${textSize} font-semibold`}>
         {generateInitials(name) || '?'}
       </span>
     )

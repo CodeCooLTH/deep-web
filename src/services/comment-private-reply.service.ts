@@ -67,8 +67,18 @@ function dedupeWhere(args: {
       }
 }
 
-/** P2002 (unique constraint) ของ Prisma — pattern เดียวกับ auto-reply.service.ts::enqueueAutoReplyJob */
+/**
+ * P2002 (unique constraint) ของ Prisma — เช็ค `.code` ตรง ๆ เป็นทางหลัก (PrismaClientKnownRequestError
+ * มี `.code === 'P2002'` อยู่แล้ว ไม่ต้องพึ่ง message) แล้วคง string matching ไว้เป็น fallback กันกรณี
+ * error ถูก wrap/serialize ระหว่างทางจนไม่เหลือ `.code` (เช่น โยนผ่าน JSON หรือ error boundary อื่น
+ * ที่ clone แค่ message) — พิสูจน์แล้วกับฐานจริงว่า string matching ใช้ได้ (probe 00038: partial
+ * unique index ทั้ง 2 ตัวโยน error ที่ message มีคำว่า "Unique constraint" เสมอ) แต่เปราะกว่าที่ควร
+ * เพราะ message เปลี่ยนได้ตาม Prisma version — `.code` เป็นสัญญาที่ Prisma คงไว้ข้ามเวอร์ชัน
+ */
 function isUniqueConstraintError(err: unknown): boolean {
+  if (typeof err === 'object' && err !== null && 'code' in err && (err as { code?: unknown }).code === 'P2002') {
+    return true
+  }
   const msg = err instanceof Error ? err.message : String(err)
   return msg.includes('P2002') || msg.includes('Unique constraint')
 }
@@ -229,11 +239,17 @@ export async function sendPrivateReplyToCommentById(params: {
 
     const resolved = await resolveChannelToken(channel.id)
     if (!resolved) {
+      // หนี้ #3 (retro 00038): ต้องคืน `error` ที่เจาะจงไปด้วย ไม่ใช่แค่บันทึกไว้ที่ log เฉย ๆ —
+      // เส้นทาง AUTO (comment-auto-reply.service.ts) เขียน errorMessage ทับอีกครั้งด้วย
+      // `result.error ?? result.reason` เมื่อ error ไม่มีค่า มันตกไปใช้ reason ('CHANNEL_INACTIVE'
+      // ทั่วไป) ทับข้อความเจาะจงที่เพิ่งเขียนไปบรรทัดบน — "เพจไม่ ACTIVE" กับ "ถอดรหัสโทเคนไม่ผ่าน"
+      // เป็นคนละปัญหาคนละทางแก้ ต้องแยกให้ออกตอนสืบ. `reason` ยังเป็น 'CHANNEL_INACTIVE' เหมือนเดิม
+      // เสมอ (ห้ามเปลี่ยน — API.md/route.ts map เป็น 409 CHANNEL_NOT_ACTIVE ตาม contract เดิม)
       await prisma.commentReplyLog.update({
         where: { id: reservedLogId },
         data: { privateReplyStatus: 'FAILED', errorMessage: 'CHANNEL_TOKEN_UNAVAILABLE' },
       })
-      return { sent: false, reason: 'CHANNEL_INACTIVE' }
+      return { sent: false, reason: 'CHANNEL_INACTIVE', error: 'CHANNEL_TOKEN_UNAVAILABLE' }
     }
 
     // ยิง Graph นอกทรานแซกชันเสมอ — network call ห้ามอยู่ในทรานแซกชัน DB

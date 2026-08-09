@@ -154,7 +154,9 @@ flowchart LR
 ### TFR-002: `GET/PATCH /api/shops/comment-reply/config`
 - **Trace to:** FR-CR-01, FR-CR-02, FR-CR-03, FR-CR-04, FR-CR-05 (bullet 6)
 - **คำอธิบายเชิงเทคนิค:** GET คืน array ของ config ต่อเพจ (`select` ระบุคอลัมน์ ห้ามคืน
-  `accessTokenEnc` — ดู TD-004 ใน SDS). PATCH รับ `shopChannelId` เดียวต่อครั้ง + ฟิลด์ที่จะแก้
+  `accessTokenEnc` — คอลัมน์นี้อยู่แถวเดียวกับ 4 คอลัมน์ config ที่ต้องคืน ดู API.md §2 "ห้ามหลุด
+  ออกไปหา client ไม่ว่ากรณีใด"; TD-004 ใน SDS.md คือ partial unique index คนละเรื่องกัน — อย่าอ้างผิด).
+  PATCH รับ `shopChannelId` เดียวต่อครั้ง + ฟิลด์ที่จะแก้
   (partial update); validate ที่ Valibot ก่อน: เปิดสวิตช์ (`*Enabled: true`) โดยข้อความ (`*Text`) ว่าง
   หรือ `null` → 400 `VALIDATION_ERROR`. ตรวจว่า `shopChannelId` เป็นของ active shop จริง (join
   `ShopChannel.shopId`) ก่อนเขียนเสมอ
