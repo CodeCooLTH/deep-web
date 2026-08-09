@@ -8,6 +8,7 @@
 // (ไม่ใช่หวังว่าจะไม่เผลอใส่) — ดู ConnectionView / SettingsView / ShipmentView
 
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import {
   createOrder,
   settleCodFromCarrier,
@@ -24,6 +25,7 @@ import {
   isDeliveredCarrierStatus,
   parseCarrierTimestamp,
   readCodSettlement,
+  readCarrierCharges,
 } from "@/lib/iship/status";
 import {
   diffReceiverAddress,
@@ -1706,6 +1708,51 @@ async function settleCodIfPaid(
   return settleCodFromCarrier({ orderId: shipment.orderId, settledAt, codAmount });
 }
 
+/**
+ * captureCarrierCharges — บันทึกต้นทุนจริงของการจัดส่ง (ค่าส่ง/น้ำหนักชั่งจริง/ค่าธรรมเนียม COD)
+ *
+ * ทำไมถึงเขียนที่นี่แทนที่จะเป็น webhook: `handleStatusWebhook()` เป็นจุดเดียวที่เคยเขียน
+ * `carrierPrice` แต่ route ของมันตอบ 404 ทุกคำขอเพราะ `ISHIP_WEBHOOK_SECRET` ไม่ถูกตั้งบน
+ * production (ยืนยัน 2026-08-09: prod มีพัสดุ active 140 ใบ `carrierStatus` เต็มทั้ง 140 แต่
+ * `carrierPrice` ว่างทั้ง 140) — ข้อมูลชุดเดียวกันนี้อยู่ใน `query_orders` ที่เราดึงอยู่แล้ว
+ * จึงไม่ต้องเปิด webhook และไม่เพิ่มคำขอใหม่แม้แต่คำขอเดียว
+ *
+ * เขียนเฉพาะเมื่อค่าเปลี่ยนจริง — ไม่งั้นทุกใบจะถูก UPDATE ทุก 15 นาทีตลอดไปโดยไม่มีอะไรต่างขึ้น
+ * และตัวนับ `changed` ที่ผู้เรียกใช้ตัดสินใจจะพองจนไม่มีความหมาย
+ *
+ * ค่าที่อ่านไม่ได้ (null) **ไม่เขียนทับของเดิม** — "iShip ไม่ส่งมารอบนี้" ไม่เท่ากับ "ค่านั้นถูกลบ"
+ * (บทเรียนคอลัมน์ที่มีผู้เขียนสองรายจากงานแชท 2026-08-04: รีแอ็กชันโผล่ 1 วิแล้วหายเพราะเขียน
+ * null ทับตอนที่ payload แค่ไม่ได้พูดถึงมัน)
+ */
+async function captureCarrierCharges(
+  shipment: {
+    id: string;
+    carrierPrice: Prisma.Decimal | null;
+    actualWeight: Prisma.Decimal | null;
+    codFee: Prisma.Decimal | null;
+  },
+  row: iship.IShipOrderRow,
+): Promise<boolean> {
+  const next = readCarrierCharges(row);
+
+  const differs = (incoming: number | null, current: Prisma.Decimal | null): boolean =>
+    incoming !== null && (current === null || Number(current) !== incoming);
+
+  const data: {
+    carrierPrice?: number;
+    actualWeight?: number;
+    codFee?: number;
+  } = {};
+  if (differs(next.carrierPrice, shipment.carrierPrice)) data.carrierPrice = next.carrierPrice!;
+  if (differs(next.actualWeight, shipment.actualWeight)) data.actualWeight = next.actualWeight!;
+  if (differs(next.codFee, shipment.codFee)) data.codFee = next.codFee!;
+
+  if (Object.keys(data).length === 0) return false;
+
+  await prisma.orderShipment.update({ where: { id: shipment.id }, data });
+  return true;
+}
+
 export async function syncShipmentStatuses(
   shopId: string,
   opts?: { force?: boolean },
@@ -1753,6 +1800,10 @@ export async function syncShipmentStatuses(
       carrierStatus: true,
       orderId: true,
       codSettledAt: true,
+      // ต้นทุนจริง — ดึงค่าเดิมมาด้วยเพื่อเทียบก่อนเขียน (ดู captureCarrierCharges)
+      carrierPrice: true,
+      actualWeight: true,
+      codFee: true,
     },
   });
   if (tracking.length === 0) {
@@ -1812,6 +1863,17 @@ export async function syncShipmentStatuses(
     // เป็น payment_success อยู่แล้วตั้งแต่ก่อนมีฟีเจอร์นี้จะไม่มีวันเข้าเงื่อนไขนั้นอีก
     // แล้วเงินที่เข้าไปแล้วจะไม่ถูกบันทึกตลอดกาล
     if (await settleCodIfPaid(s, row)) changed += 1;
+
+    // เหตุผลเดียวกันเป๊ะกับบรรทัดบน: ต้นทุนค่าส่งต้องอ่านทุกรอบที่เห็นแถว ไม่ใช่เฉพาะตอนสถานะขยับ
+    //
+    // และต้องอยู่ในลูปนี้ *เท่านั้น* ไม่ใช่ที่ createShipment เพราะค่าส่งจริงยังไม่เกิดตอนเปิดพัสดุ —
+    // มันมาหลังขนส่งเข้ารับแล้วชั่งน้ำหนักจริง (ข้อมูลจริง 2026-08-09: 92/151 ใบชั่งได้หนักกว่าที่ร้าน
+    // แจ้ง = ราคาตอนกดสร้างใช้แทนกันไม่ได้)
+    //
+    // 🛑 ข้อจำกัดที่ต้องรู้: ชุด `tracking` ข้างบน **ตัดใบที่จบแล้วออก** (delivered/return_success/
+    // is_expired/close ที่เคลียร์เงินแล้ว) ใบที่จบไปก่อนฟีเจอร์นี้ขึ้นจึงไม่มีวันเข้าลูปนี้เลย —
+    // ต้องพึ่ง scripts/backfill-shipment-charges.ts ครั้งเดียว ไม่ใช่รอ sync เก็บให้เอง
+    if (await captureCarrierCharges(s, row)) changed += 1;
   }
 
   await prisma.shopShippingAccount.update({

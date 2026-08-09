@@ -432,6 +432,54 @@ export function parseCarrierTimestamp(raw: string): Date | null {
  * ความเสี่ยงที่ยอมรับ: ใบที่เดินต่อไปเป็น `cod_refund` (id 14) หลังจากโอนแล้วจะถูก
  * ยืนยันไปก่อนหน้านั้น — เป็นการคืนเงินภายหลัง ไม่ใช่การที่เงินไม่เคยเข้า
  */
+/**
+ * readCarrierCharges — อ่าน "เงินที่ขนส่งคิดจริง" ออกจากแถวของ iShip
+ *
+ * แยกการ *ตัดสิน* ออกจากการ *เขียนฐาน* ด้วยเหตุผลเดียวกับ readCodSettlement — เงื่อนไข
+ * ทั้งชุดเทสได้โดยไม่ต้องมี Prisma
+ *
+ * ─── ทำไมต้องอ่านจาก `discount_price` ───────────────────────────────────────
+ *
+ * 🛑 **`discount_price` ไม่ใช่ส่วนลด — มันคือค่าส่งที่ถูกหักจากเครดิตร้านจริง** และเป็นฟิลด์เดียว
+ * ในทั้ง payload ขาเข้าที่บอกค่าส่งได้ (`price`/`total_price` ไม่มีทั้งใน query_orders และ
+ * get_order — มีเฉพาะใน payload ของ webhook ที่ไม่เคยเปิดใช้บน prod)
+ *
+ * พิสูจน์กับบัญชีจริง 2026-08-09: ยิง check-price ที่ `actual_weight` + ขนาดจริงรายใบแล้วเทียบกับ
+ * ค่านี้ → ตรงกัน 55/56 ใบ ส่วนใบที่ 56 (`TH066536981258`) ค่านี้ = 38 ขณะที่ quote ที่ 4.13 กก.
+ * ได้ 41 แต่ quote ที่ 4.0 กก. ได้ 38 พอดี = iShip คิดตามน้ำหนักที่บันทึกไว้ ณ ตอนนั้น
+ * ⇒ ห้ามคำนวณย้อนหลังด้วย check-price เด็ดขาด จะได้ราคาวันที่ยิง ไม่ใช่เงินที่ถูกหักจริง
+ *
+ * ─── กติกาของ 0 ต่างกันในสองฟิลด์ โดยตั้งใจ ─────────────────────────────────
+ *
+ * `carrierPrice` / `actualWeight`: ค่า ≤ 0 = **"ยังไม่รู้"** คืน null ไม่ใช่บันทึกเลข 0 — พัสดุที่มีอยู่จริง
+ * ไม่มีทางค่าส่ง 0 บาทหรือหนัก 0 กก. การบันทึก 0 ลงไปจะกลายเป็น "ต้นทุนค่าส่งฟรี" ในสูตรกำไร
+ * (คลาสเดียวกับที่ `total_price <= 0` ของ check-price เคยทำให้ Fuze Post ชนะ "ถูกที่สุด" ด้วยราคา ฿0)
+ *
+ * `codFee`: 0 = **ค่าจริง** ไม่ใช่ "ไม่รู้" — พัสดุที่ไม่ใช่ COD มีค่าธรรมเนียม 0 บาทจริง ๆ
+ * แยกจากกรณีที่ iShip ไม่ส่งฟิลด์นี้มาเลย (undefined → null)
+ */
+export function readCarrierCharges(row: {
+  discount_price?: string | number | null;
+  actual_weight?: string | number | null;
+  cod_fee?: string | number | null;
+}): { carrierPrice: number | null; actualWeight: number | null; codFee: number | null } {
+  const positive = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const nonNegative = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  return {
+    carrierPrice: positive(row.discount_price),
+    actualWeight: positive(row.actual_weight),
+    codFee: nonNegative(row.cod_fee),
+  };
+}
+
 export function readCodSettlement(row: {
   status?: number | null;
   settlement_at?: string | null;
