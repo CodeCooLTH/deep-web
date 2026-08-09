@@ -1386,7 +1386,7 @@ export default function ChatThread({
         </Link>
       ),
       detail: (
-        <div className="bg-danger/15 text-danger flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+        <div className="bg-danger/15 text-danger-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="alert-circle" className="mt-0.5 shrink-0 text-lg" />
           <span>
             การเชื่อมต่อกับเพจนี้มีปัญหา — ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่{' '}
@@ -1424,7 +1424,7 @@ export default function ChatThread({
           ? 'เกิน 24 ชั่วโมงแล้ว — ตอบเองได้ ห้ามส่งโปรโมชัน'
           : 'เกินเวลาที่ Meta ให้ตอบ — อาจส่งไม่สำเร็จ',
       detail: (
-        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info' : 'bg-warning/15 text-warning'}`}>
+        <div className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${soft ? 'bg-info/15 text-info-ink' : 'bg-warning/15 text-warning-ink'}`}>
           <Icon icon={soft ? 'info-circle' : 'alert-triangle'} className="mt-0.5 shrink-0 text-lg" />
           <span>
             {neverInbound ? (
@@ -1489,7 +1489,7 @@ export default function ChatThread({
         </Link>
       ),
       detail: (
-        <div className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+        <div className="bg-info/15 text-info-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="flask" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
           <span className="min-w-0 flex-1">
             ห้องนี้กำลังใช้ทดสอบ DeepAI

@@ -31,6 +31,7 @@ import CommentsThreadSkeleton from './CommentsThreadSkeleton'
 import PrivateReplyModal from './PrivateReplyModal'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
+import { visibleTopLevelComments } from '@/lib/comment-tree-visibility'
 import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
 import CommentsFilterPanel, {
   DEFAULT_COMMENT_SHOW_FILTER,
@@ -654,10 +655,15 @@ export default function CommentsClient({
       arr.push(c)
       children.set(c.parentExternalId, arr)
     }
-    const tops = list
-      .filter((c) => !c.parentExternalId)
-      // คอมเมนต์ระดับบนของร้านเอง: ซ่อนเป็นค่าตั้งต้น (ดู showShopComments)
-      .filter((c) => showShopComments || !c.isFromPage)
+    // 🛑 กฎ "top-level อันไหนควรอยู่ในเธรด" อยู่ที่ `src/lib/comment-tree-visibility.ts` ไม่ใช่ที่นี่
+    //
+    // สกัดออกไปเพราะมันเคยผิดเงียบ ๆ: เดิมตัดคอมเมนต์ระดับบนของเพจทิ้งทั้งกิ่ง แต่ `replies` อ่าน
+    // จาก children.get() ของ top-level ที่ **เหลืออยู่** เท่านั้น → ลูกค้าที่มาตอบใต้คอมเมนต์ของเพจ
+    // หายไปทั้งจากหน้าจอและจากชิป "ยังไม่ตอบ N" ขณะที่ service นับคอมเมนต์ลูกค้าทุกชั้น
+    // ผลคือแถวซ้ายขึ้น "ยังไม่ตอบ 1" แต่เปิดเข้าไปเจอเธรดว่าง — และคำถามนั้นตอบไม่ได้เลย
+    //
+    // เครื่องมือนี้สร้างเคสนี้เอง: กดส่งที่แถบล่างตอนยังไม่เลือกจะตอบใคร = คอมเมนต์ระดับบนของเพจ
+    const tops = visibleTopLevelComments(list, showShopComments)
     const newestFirst = [...tops].sort(
       (a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime(),
     )
@@ -860,7 +866,25 @@ export default function CommentsClient({
    */
   const visiblePosts = postsByChannel
 
-  const selectedPost = posts.find((p) => p.id === selectedId) ?? null
+  /**
+   * 🛑 โพสต์ที่เปิดอยู่ต้องไม่หายไปจากแผงขวาเพียงเพราะมันหลุดจาก **รายการที่ถูกกรอง**
+   *
+   * เคสที่เกิดจริงและเกิดบ่อยที่สุด คือ "ตอบสำเร็จ": ผู้ขายอยู่แท็บ "ยังไม่ตอบ" → ตอบคอมเมนต์
+   * ค้างอันสุดท้ายของโพสต์ → คำตอบเข้า DB → trigger ยิง realtime → refreshAll() ดึงรายการใหม่ที่
+   * ไม่มีโพสต์นั้นแล้ว (postStatus ขยับเป็น HUMAN_ANSWERED) → เธรดที่กำลังอ่านอยู่หายไปต่อหน้า
+   * ภายในไม่กี่วินาทีหลังกดส่ง
+   *
+   * นอกจากเป็นทางตันบนมือถือแล้ว (ดู P0 ที่แผงขวา) มันยังผิดในเชิงงานด้วย — ผู้ขายเพิ่งตอบเสร็จ
+   * เขาควรได้อยู่ในเธรดนั้นต่อเพื่อเห็นว่าคำตอบขึ้นแล้ว ไม่ใช่ถูกเตะออกเพราะทำงานสำเร็จ
+   * (คิวงานที่กลืนหลักฐานว่างานเสร็จ — impeccable critique รอบ 2)
+   *
+   * snapshot ถูกล้างเมื่อผู้ใช้กดออกเอง (selectedId = null) เท่านั้น
+   */
+  const selectedPostRef = useRef<CommentPostItem | null>(null)
+  const foundPost = posts.find((p) => p.id === selectedId) ?? null
+  if (foundPost) selectedPostRef.current = foundPost
+  else if (!selectedId) selectedPostRef.current = null
+  const selectedPost = selectedId ? (foundPost ?? selectedPostRef.current) : null
 
   /**
    * ช่องพิมพ์ตัวเดียว เรนเดอร์ได้ 2 ที่ (user สั่ง 2026-08-04 พร้อมภาพ Business Suite)
@@ -1435,6 +1459,24 @@ export default function CommentsClient({
 
       {/* ── โพสต์ + ความคิดเห็น ─────────────────────────────────── */}
       <div className={`min-w-0 flex-1 flex-col ${selectedId ? 'flex' : 'hidden lg:flex'}`}>
+        {/* 🛑 ปุ่มย้อนกลับต้องอยู่ **นอก** ternary — ไม่ว่าสถานะภายในจะเป็นอะไร ทางออกต้องมีเสมอ
+            เดิมปุ่มนี้อยู่ในกิ่ง `selectedPost` truthy อย่างเดียว พอ selectedId มีค่าแต่หาโพสต์
+            ไม่เจอ (โพสต์หลุดจากรายการหลัง refresh) บนจอ <1024px คอลัมน์ซ้ายถูก hidden ไปแล้ว
+            และกิ่งที่ render คือกิ่งที่ไม่มีปุ่ม → ออกจากหน้าจอไม่ได้เลยนอกจากกด back ของเบราว์เซอร์
+            (impeccable critique รอบ 2 · P0) */}
+        {selectedId && !selectedPost && (
+          <div className="border-default-200 flex shrink-0 items-center gap-3 border-b px-3 py-2 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              aria-label="กลับไปรายการโพสต์"
+              className="hover:bg-default-100 text-default-700 flex size-11 shrink-0 items-center justify-center rounded-lg"
+            >
+              <Icon icon="arrow-left" className="text-lg" />
+            </button>
+            <span className="text-default-800 text-sm font-medium">รายการความคิดเห็น</span>
+          </div>
+        )}
         {!selectedPost ? (
           /* คำและโครงคู่กับคอลัมน์กลางของ /inbox ตอนยังไม่เลือกเธรด (page.tsx:283-289 —
              `card flex h-full min-w-0 flex-1 items-center justify-center` + EmptyState compact)

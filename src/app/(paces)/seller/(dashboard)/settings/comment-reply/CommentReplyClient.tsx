@@ -267,13 +267,13 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
               <Icon icon="info-circle" className="text-sm" aria-hidden="true" />
               คนอื่นที่เข้ามาดูโพสต์จะเห็นข้อความนี้ — หลีกเลี่ยงข้อความที่ดูเป็นสแปม
             </span>
-            <span className={`shrink-0 text-2xs ${publicOverLimit ? 'text-danger font-semibold' : 'text-default-400'}`}>
+            <span className={`shrink-0 text-2xs ${publicOverLimit ? 'text-danger-ink font-semibold' : 'text-default-400'}`}>
               {publicText.length.toLocaleString()}/{REPLY_MAX.toLocaleString()}
             </span>
           </div>
-          {publicError && <p className="text-danger mt-1 text-xs">{publicError}</p>}
+          {publicError && <p className="text-danger-ink mt-1 text-xs">{publicError}</p>}
           {publicOverLimit && (
-            <p className="text-danger mt-1 text-xs">ยาวเกิน 1,000 ตัวอักษร กรุณาตัดให้สั้นลงก่อนบันทึก</p>
+            <p className="text-danger-ink mt-1 text-xs">ยาวเกิน 1,000 ตัวอักษร กรุณาตัดให้สั้นลงก่อนบันทึก</p>
           )}
         </div>
 
@@ -317,9 +317,9 @@ function CommentReplyCard({ channel }: { channel: CommentReplyChannel }) {
             <Icon icon="info-circle" className="text-sm" aria-hidden="true" />
             Facebook ให้ทักได้ครั้งเดียวต่อคอมเมนต์ และภายใน 7 วัน · คุยต่อได้เมื่อลูกค้าตอบกลับ
           </p>
-          {privateError && <p className="text-danger mt-1 text-xs">{privateError}</p>}
+          {privateError && <p className="text-danger-ink mt-1 text-xs">{privateError}</p>}
           {privateOverLimit && (
-            <p className="text-danger mt-1 text-xs">ยาวเกิน 1,000 ตัวอักษร กรุณาตัดให้สั้นลงก่อนบันทึก</p>
+            <p className="text-danger-ink mt-1 text-xs">ยาวเกิน 1,000 ตัวอักษร กรุณาตัดให้สั้นลงก่อนบันทึก</p>
           )}
         </div>
       </div>

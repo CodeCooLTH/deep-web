@@ -114,11 +114,14 @@ Base: theme `SingleButtonDropdowns` (§3) + click-outside จาก `OrderCardMe
 - variants: `table-striped` / `table-hover` / `table-bordered` / `table-borderless` / `table-sm`
 - DataTable (TanStack): `theme/paces/.../apps/ecommerce/(orders)/orders/components/OrdersList.tsx` + `@/components/table/DataTable`
 - checkbox select: `form-checkbox form-checkbox-light size-4.5`
-- badge ใน cell: `<span className="badge bg-success/15 text-success">สำเร็จ</span>`
+- badge ใน cell: `<span className="badge bg-success/15 text-success-ink">สำเร็จ</span>`
 
 ## 6. Badge — `_badge.css`
 - ค่า: `rounded` (4px), `px-[0.5em] py-[0.15em]`, `text-[0.75em]`, `font-semibold`
-- solid: `badge bg-{color} text-white`; **soft (ใช้บ่อยสุด): `badge bg-{color}/15 text-{color}`**; outline: `badge border-{color} text-{color} border`
+- solid: `badge bg-{color} text-white`; **soft (ใช้บ่อยสุด): `badge bg-{color}/15 text-{color}-ink`**; outline: `badge border-{color} text-{color} border`
+- 🛑 **soft ต้องเป็น `text-{color}-ink` เสมอ ห้าม `text-{color}`** — สีเต็มบนพื้นจาง 15% ตกเกณฑ์คอนทราสต์ทุกโทน (`text-warning` บน `bg-warning/15` = **1.53:1** · `text-success` = 2.3:1) token `-ink` มีครบ 4 โทนที่ `src/assets/css/config/_root.css` พร้อมค่าที่วัดแล้วใน `docs/qa/2026-07-31-ink-token-contrast.md`
+  บรรทัดนี้เคยเขียนว่า `text-{color}` แล้วเป็นต้นทางจริงของคู่สีที่ตกเกณฑ์ซ้ำ ๆ — impeccable critique จับเรื่องนี้ 3 รอบ ทุกรอบแก้ที่ call site แล้วมันกลับมา เพราะ dev คนถัดไปเปิดเอกสารหน้านี้ก่อนเขียนโค้ด (แก้ 2026-08-09)
+- `text-{color}` เปล่า ๆ ใช้ได้เฉพาะบนพื้น **ขาว/การ์ด** (ลิงก์, สถานะ active) ไม่ใช่บนพื้นสีจาง
 - pill: เพิ่ม `rounded-full`; label (squared): `badge badge-label`; fixed: `badge size-4 rounded-full bg-danger text-white`
 
 ## 7. Card — `_card.css`

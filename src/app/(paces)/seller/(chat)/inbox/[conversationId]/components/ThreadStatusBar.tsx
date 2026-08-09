@@ -38,9 +38,11 @@ export interface ThreadStatusItem {
 
 /** class ของกล่อง/ข้อความตามโทน — เขียนเต็มคำ ไม่ประกอบสตริง เพราะ Tailwind สแกนแบบ static */
 const TONE_CLS: Record<ThreadStatusTone, string> = {
-  danger: 'bg-danger/15 text-danger',
-  warning: 'bg-warning/15 text-warning',
-  info: 'bg-info/15 text-info',
+  // 🛑 ต้องเป็น -ink เสมอ: สีเต็มบนพื้นจาง 15% ตกเกณฑ์ทุกโทน (warning = 1.53:1)
+  // แถบนี้ยุบเป็นค่าตั้งต้น = บรรทัดเดียวที่ผู้ขายเห็นก่อนกาง ต้องอ่านออกที่สุด
+  danger: 'bg-danger/15 text-danger-ink',
+  warning: 'bg-warning/15 text-warning-ink',
+  info: 'bg-info/15 text-info-ink',
 }
 
 export default function ThreadStatusBar({ items }: { items: ThreadStatusItem[] }) {
