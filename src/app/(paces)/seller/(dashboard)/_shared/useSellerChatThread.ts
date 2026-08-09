@@ -105,6 +105,14 @@ export type ChatMessageView = {
   createdAt: string
   productCard?: ChatProductCard | null
   orderCard?: ChatOrderCard | null
+  /**
+   * การ์ดสินค้าแบบ carousel จาก Facebook (generic template elements[], 2026-08-09) — เฉพาะ type=TEXT
+   * ที่ body ขึ้นต้นด้วย CARD_PREFIX. GET คืนคอลัมน์นี้มาอยู่แล้ว (getMessages ใช้ findMany ไม่มี
+   * select) — ประกาศ type เพิ่มเท่านั้น เหมือน externalMessageId/deliveryStatus ด้านบน/ล่าง
+   * null/undefined/array ว่าง = ไม่ใช่การ์ด generic template หรือเป็นข้อความเก่าก่อนฟีเจอร์นี้
+   * (ต้องแสดงเป็นบรรทัดระบบเดิมทุกประการ — ดู parseMetaSystemNotice)
+   */
+  cards?: { title: string | null; subtitle: string | null; imageFileId: string | null }[] | null
   // extension #3 Scam-link Detection (FR-SCAM-03/04) — API GET/POST enrich ต่อข้อความ TEXT เท่านั้น
   // (S-30 chat.service.ts ChatMessageView) ใช้แสดง warning banner ในบับเบิล ไม่ block ส่ง
   flaggedScam?: boolean

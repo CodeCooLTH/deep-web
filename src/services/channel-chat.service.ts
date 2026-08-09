@@ -539,6 +539,46 @@ function isRealCard(el: { subtitle?: string; image_url?: string; buttons?: unkno
   if (!el) return false
   return !!el.subtitle?.trim() || !!el.image_url || (Array.isArray(el.buttons) && el.buttons.length > 0)
 }
+
+/**
+ * "การ์ดสินค้าแบบ carousel จาก Facebook" (2026-08-09) — ChatMessage.cards
+ *
+ * composeStructuredText() ยุบ elements[] ทั้งชุดเหลือแค่ข้อความสรุปบรรทัดเดียว (การ์ดแรก + "และอีก
+ * N รายการ") ทิ้ง image_url และ element ที่ 2 เป็นต้นไปหมด — ฟังก์ชันนี้สกัดโครงสร้างเต็มออกมาแยก
+ * ต่างหาก (pure — ไม่ยิง network) ให้ ingestInboundMessage เอาไป mirror รูปแล้วเก็บลงคอลัมน์ `cards`
+ * โดย `body` (ข้อความสรุป) ยังคงเดิมทุกประการ — ปุ่ม "คัดลอกข้อความ"/"ตอบกลับ" ในเธรดผูกกับ body
+ *
+ * ครอบเฉพาะ generic template (attachment.type='template', payload.template_type='generic') — carousel
+ * สินค้าที่ Business Suite/Meta Commerce ส่งมาเป็นรูปแบบนี้เท่านั้น ไม่ครอบ receipt/icon-template
+ * (การ์ดโทร ดู classifyCallTemplate)/button template ซึ่งมีความหมายอื่น
+ *
+ * เพดาน 10 ใบ = ข้อจำกัดของ generic template เอง (Meta ไม่ส่งเกิน 10 elements ต่อการ์ดอยู่แล้ว —
+ * ตัดป้องกันไว้เผื่อ payload ผิดปกติ ไม่ให้การ์ดยาวเกินจอ)
+ */
+export interface GenericCardElement {
+  title: string | null
+  subtitle: string | null
+  imageUrl: string | null
+}
+
+const MAX_GENERIC_CARDS = 10
+
+export function extractGenericCards(
+  attType: string | undefined,
+  payload: AttPayloadStructured | undefined,
+): GenericCardElement[] | null {
+  if (attType !== 'template' || payload?.template_type !== 'generic') return null
+  const els = payload.elements
+  if (!els || els.length === 0) return null
+  const real = els.filter((el) => isRealCard(el))
+  if (real.length === 0) return null
+  return real.slice(0, MAX_GENERIC_CARDS).map((el) => ({
+    title: el.title?.trim() || null,
+    subtitle: el.subtitle?.trim() || null,
+    imageUrl: el.image_url ?? null,
+  }))
+}
+
 /**
  * แยก "การ์ดของ Meta ที่เป็นเหตุการณ์โทรจริง" ออกจากการ์ดอื่น ๆ
  *
@@ -777,6 +817,24 @@ export async function ingestInboundMessage(params: {
     if (fid) extraMedia.push({ fileId: fid, type: MEDIA_TYPE[t] })
   }
 
+  // การ์ดสินค้าแบบ carousel จาก Facebook (generic template, 2026-08-09) — mirror รูปทุกใบ "นอก
+  // transaction" เหมือน extraMedia ด้านบน (network call ในทรานแซกชันถือ lock DB นานเกินไป)
+  // image_url ของ Meta หมดอายุใน ~4 วัน (ยืนยันจาก payload จริง prod: `oe=` param) — เก็บ URL ดิบไว้
+  // การ์ดเธรดเก่าจะกลายเป็นรูปแตกทั้งหมดภายในสัปดาห์เดียว
+  const genericCardElements = extractGenericCards(attType, firstAttachment?.payload)
+  const cards: { title: string | null; subtitle: string | null; imageFileId: string | null }[] | null =
+    genericCardElements
+      ? await Promise.all(
+          genericCardElements.map(async (el) => ({
+            title: el.title,
+            subtitle: el.subtitle,
+            // mirror ล้มเหลว (URL หมดอายุ/host ไม่อยู่ allow-list) → null ห้าม throw ทั้งข้อความ —
+            // การ์ดยังต้องขึ้นได้โดยไม่มีรูป (placeholder icon ฝั่ง UI)
+            imageFileId: el.imageUrl ? await mirrorRemoteImage(el.imageUrl) : null,
+          })),
+        )
+      : null
+
   // เหตุการณ์การโทร (2026-08-03) — Meta ส่งมาทาง webhook `messages` ปกติ ไม่ใช่ field `calls`
   // เป็น attachment template ชนิด `icon-template`:
   //   { template_type: "icon-template",
@@ -964,6 +1022,10 @@ export async function ingestInboundMessage(params: {
         // อ่านไม่ได้จาก query ปกติ (global omit ที่ lib/prisma.ts)
         rawMessage: toRawMessage(params.provider, params.rawEvent ?? event),
         viaStandby: params.standby === true,
+        // การ์ดสินค้าแบบ carousel จาก Facebook (2026-08-09) — mirror เสร็จแล้วนอก transaction
+        // ด้านบน; ไม่มี = ข้อความนี้ไม่ใช่ generic template card (undefined → Prisma ไม่เซ็ตคอลัมน์
+        // ปล่อยเป็น NULL ตาม default ของคอลัมน์ใหม่)
+        ...(cards ? { cards: cards as Prisma.InputJsonValue } : {}),
       },
     })
 

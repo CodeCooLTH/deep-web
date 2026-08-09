@@ -1636,6 +1636,20 @@ model ChatMessage {
   // ไม่ backfill ย้อนหลัง (payload เดิมไม่มีให้แล้ว) — เก็บเฉพาะที่ได้รับตั้งแต่นี้เป็นต้นไป
   rawMessage        Json?
 
+  // cards — การ์ดสินค้าแบบ carousel จาก Facebook (generic template, 2026-08-09)
+  //
+  // Meta ส่ง generic template เป็น `elements[]` หลายใบ (title/subtitle/image_url ต่อใบ) แต่ ingest
+  // ยุบเหลือข้อความสรุปบรรทัดเดียวลง `body` เสมอ (ดู CARD_PREFIX/composeStructuredText ใน
+  // channel-chat.service.ts) — คอลัมน์นี้เก็บโครงเต็มที่ UI ต้องใช้จริง (title/subtitle/imageFileId
+  // ที่ mirror เข้า storage เราแล้ว ไม่ใช่ image_url ดิบของ Meta ที่หมดอายุใน ~4 วัน)
+  //
+  // 🛑 ทำไมไม่อ่านจาก `rawMessage` แทน: rawMessage ถูก global omit ที่ src/lib/prisma.ts โดยตั้งใจ
+  // (กัน payload ดิบบวมเข้าทุก query ปกติ) — ดึงมา render ทุก request ที่เปิดเธรดไม่ได้
+  //
+  // null = ข้อความก่อนฟีเจอร์นี้ / ไม่ใช่การ์ด generic template / การ์ดที่ไม่มี element จริง
+  // shape: { title: string|null; subtitle: string|null; imageFileId: string|null }[]
+  cards             Json?
+
   // viaStandby — แถวนี้มาจากกล่อง `standby` ของ Meta = **ตอนนั้นเราไม่ใช่เจ้าของเธรด** (2026-08-08)
   //
   // ที่มา: ร้านเปิด "AI from Meta" ให้ตอบแชท → Meta ส่ง event ของห้องนั้นมาคนละกล่องกับ `messaging`

@@ -1,0 +1,16 @@
+-- ChatMessage.cards — การ์ดสินค้าแบบ carousel จาก Facebook (generic template, elements[])
+--
+-- ทำไม (2026-08-09): payload ของ Meta ที่ Business Suite ส่งเป็น generic template มี elements[]
+-- หลายใบ (title/subtitle/image_url ต่อใบ) แต่ ingest เดิมยุบเหลือข้อความสรุปบรรทัดเดียวลง `body`
+-- (การ์ดแรก + "และอีก N รายการ") ทิ้ง image_url และ element ที่ 2 เป็นต้นไปทั้งหมด
+--
+-- ทำไมไม่อ่านจาก `rawMessage` แทน: rawMessage ถูก global omit ที่ src/lib/prisma.ts โดยตั้งใจ
+-- (กัน payload ดิบบวมเข้าทุก query ปกติ) — ดึงมา render ทุกครั้งที่เปิดเธรดไม่ได้ ต้องมีคอลัมน์
+-- ของตัวเองที่เก็บเฉพาะ field ที่ render ใช้จริง (title/subtitle/imageFileId ที่ mirror แล้ว)
+--
+-- nullable, ไม่มี default, ไม่มี CHECK (additive ล้วน กันชนกับ migration ของ branch อื่นบนตารางเดียวกัน
+-- — ดู docs/conventions/migration-check-constraint-additive.md) — ADD COLUMN แบบนี้เป็น
+-- metadata-only ใน PostgreSQL 11+ ไม่ rewrite ตาราง ไม่ล็อกนาน
+--
+-- null = ข้อความก่อนฟีเจอร์นี้ / ไม่ใช่การ์ด generic template / เป็นการ์ดที่ไม่มี element จริง
+ALTER TABLE "ChatMessage" ADD COLUMN IF NOT EXISTS "cards" JSONB;

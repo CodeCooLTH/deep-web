@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { composeStructuredText, CARD_PREFIX } from '@/services/channel-chat.service'
+import { composeStructuredText, extractGenericCards, CARD_PREFIX } from '@/services/channel-chat.service'
 import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
 
 /**
@@ -76,5 +76,91 @@ describe('composeStructuredText — การ์ดจาก Meta', () => {
   it('template ที่ Meta ส่งมาเปล่า ๆ (ไม่มี payload) → null ให้ผู้เรียกตกไป placeholder', () => {
     expect(composeStructuredText('template', undefined)).toBeNull()
     expect(composeStructuredText('template', { template_type: 'generic' })).toBeNull()
+  })
+})
+
+/**
+ * extractGenericCards — "การ์ดสินค้าแบบ carousel จาก Facebook" (ChatMessage.cards, 2026-08-09)
+ *
+ * payload ด้านล่างคัดลอกตรงจากฐาน prod (2026-08-09) — attachment จริงที่ทำให้เกิดปัญหา:
+ * `[การ์ดจาก Facebook] โช๊คหลังเวฟ 100/110 — ความยาว 320 มม. ราคา 360.- และอีก 1 รายการ`
+ * (image_url และ element ที่ 2 ถูกยุบทิ้งไปโดย composeStructuredText ทั้งคู่)
+ */
+const PROD_2_CARD_PAYLOAD = {
+  template_type: 'generic',
+  sharable: false,
+  elements: [
+    {
+      title: 'โช๊คหลังเวฟ 100/110',
+      subtitle: 'ความยาว 320 มม. ราคา 360.-',
+      image_url: 'https://scontent-sea5-1.xx.fbcdn.net/…png?…oe=6A7DB816',
+      buttons: [{ type: 'postback', title: 'ดูรูปเพิ่มเติม', payload: '…' }],
+    },
+    {
+      title: 'โช๊คหลังเวฟ 125',
+      subtitle: 'ความยาว 335 มม. ราคา 360.-',
+      image_url: '…',
+      buttons: [{ type: 'postback', title: 'ดูรูปเพิ่มเติม', payload: '…' }],
+    },
+  ],
+}
+
+describe('extractGenericCards — carousel elements[] จาก Facebook generic template', () => {
+  it('2 elements ครบ (payload จริง prod 2026-08-09) → title/subtitle/imageUrl ครบทั้งคู่ ตามลำดับเดิม', () => {
+    const out = extractGenericCards('template', PROD_2_CARD_PAYLOAD)
+    expect(out).toEqual([
+      {
+        title: 'โช๊คหลังเวฟ 100/110',
+        subtitle: 'ความยาว 320 มม. ราคา 360.-',
+        imageUrl: 'https://scontent-sea5-1.xx.fbcdn.net/…png?…oe=6A7DB816',
+      },
+      {
+        title: 'โช๊คหลังเวฟ 125',
+        subtitle: 'ความยาว 335 มม. ราคา 360.-',
+        imageUrl: '…',
+      },
+    ])
+  })
+
+  it('ไม่มี image_url (แต่มี subtitle จึงยังเป็นการ์ดจริง) → imageUrl เป็น null ไม่ใช่ throw', () => {
+    const out = extractGenericCards('template', {
+      template_type: 'generic',
+      elements: [{ title: 'สินค้า ก', subtitle: 'ราคา 100.-' }],
+    })
+    expect(out).toEqual([{ title: 'สินค้า ก', subtitle: 'ราคา 100.-', imageUrl: null }])
+  })
+
+  it('subtitle ว่าง (แต่มี image_url จึงยังเป็นการ์ดจริง) → subtitle เป็น null ไม่ใช่สตริงว่าง', () => {
+    const out = extractGenericCards('template', {
+      template_type: 'generic',
+      elements: [{ title: 'สินค้า ข', subtitle: '', image_url: 'https://scontent.xx.fbcdn.net/x.png' }],
+    })
+    expect(out).toEqual([{ title: 'สินค้า ข', subtitle: null, imageUrl: 'https://scontent.xx.fbcdn.net/x.png' }])
+  })
+
+  it('เกิน 10 ใบ → ตัดเหลือ 10 ใบแรกเท่านั้น (เพดานของ generic template)', () => {
+    const elements = Array.from({ length: 12 }, (_, i) => ({
+      title: `สินค้า ${i + 1}`,
+      subtitle: 'มีของ',
+    }))
+    const out = extractGenericCards('template', { template_type: 'generic', elements })
+    expect(out).toHaveLength(10)
+    expect(out?.[0]?.title).toBe('สินค้า 1')
+    expect(out?.[9]?.title).toBe('สินค้า 10')
+  })
+
+  it('ไม่ใช่ generic template (icon-template/receipt) → คืน null', () => {
+    expect(
+      extractGenericCards('template', {
+        template_type: 'icon-template',
+        elements: [{ title: 'Missed call', subtitle: 'Call again' }],
+      }),
+    ).toBeNull()
+    expect(extractGenericCards('template', { template_type: 'receipt', order_number: 'A1' })).toBeNull()
+  })
+
+  it('attType ไม่ใช่ template หรือไม่มี payload → คืน null', () => {
+    expect(extractGenericCards('image', PROD_2_CARD_PAYLOAD)).toBeNull()
+    expect(extractGenericCards('template', undefined)).toBeNull()
   })
 })

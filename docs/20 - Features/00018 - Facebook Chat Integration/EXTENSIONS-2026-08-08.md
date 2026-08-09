@@ -490,3 +490,59 @@ React hydrate — การ์ดที่อ่านค่าครั้ง�
 - **ทาง B ที่ยังไม่ทำ:** เปิด Conversation Routing บนเพจจะปลดล็อก take/pass/release ครบ แต่เปลี่ยน
   พฤติกรรม routing ของทั้งเพจ — ไม่แตะ เพราะเป็นเพจที่ร้านใช้ขายจริง
 - browser QA (user ตรวจเอง)
+
+---
+
+# ส่วนขยาย 2026-08-09 — การ์ดสินค้า carousel จาก Facebook ในเธรด
+
+> user เห็นข้อความ `[การ์ดจาก Facebook] โช๊คหลังเวฟ 100/110 — ความยาว 320 มม. ราคา 360.- และอีก 1 รายการ`
+> แล้วส่ง screenshot ฝั่ง Messenger มาถามว่า "มันคืออันนี้เราทำได้ไหม"
+
+## payload ที่ได้จริง (query จากฐาน prod ก่อนออกแบบ — ไม่ได้เดา)
+
+```json
+{ "type":"template", "payload": { "template_type":"generic", "elements":[
+  { "title":"โช๊คหลังเวฟ 100/110", "subtitle":"ความยาว 320 มม. ราคา 360.-",
+    "image_url":"https://…fbcdn.net/…png?…oe=6A7DB816",
+    "buttons":[{ "type":"postback", "title":"ดูรูปเพิ่มเติม", "payload":"…" }] }, … ] } }
+```
+มีครบทุกชิ้นที่ต้องใช้วาดการ์ด — เดิม `composeStructuredText()` ยุบเหลือข้อความบรรทัดเดียวแล้วทิ้ง
+`image_url` กับ element ที่ 2+ ทั้งหมด
+
+## 🛑 3 ข้อจำกัดที่ตัดสินก่อนลงมือ
+
+1. **รูป fbcdn หมดอายุ** — ถอด `oe=6A7DB816` = 13/08/2026 (≈4 วันจากวันที่ได้รับ) วาดจาก URL ตรง ๆ
+   = การ์ดในเธรดเก่ากลายเป็นรูปแตกทั้งหมดภายในสัปดาห์เดียว → **mirror ตอน ingest** (`mirrorRemoteImage`,
+   นอก transaction ตาม pattern `extraMedia`) cap 10 ใบ · mirror ล้ม → `imageFileId: null` ไม่ throw
+2. **ปุ่มบนการ์ดกดไม่ได้** — เป็น `postback` ที่ออกแบบให้ **ลูกค้า** กด ฝั่งผู้ขายกดแทนไม่ได้
+   **ไม่ render เลย** (มติเดิมมีเทสคุมอยู่แล้วที่ `meta-template-card.test.ts`) และไม่เขียน caption
+   อธิบายว่า "มีปุ่มแต่กดไม่ได้" ด้วย
+3. **`rawMessage` ถูก global omit** ที่ `src/lib/prisma.ts` โดยตั้งใจ (กัน payload บวม) ดึงมา render
+   ทุก request ไม่ได้ → คอลัมน์ใหม่ `ChatMessage.cards Json?` เก็บโครงย่อ
+   (`{title, subtitle, imageFileId}[]`) migration `20260809100000_chat_message_generic_cards` (additive)
+
+## UI (ผ่าน ux gate)
+
+- **ป้ายที่มา** `การ์ดจาก Facebook · N รายการ` (ใช้คำเดียวกับ `CARD_PREFIX` เดิม — HR16)
+- **การ์ด bare ไม่ใช่บับเบิลสีร้าน** (เข้า `bareImage` คู่กับ `metaOrder`) — เครื่องมือของ Meta เป็นคนส่ง
+  ไม่ใช่แอดมินพิมพ์
+- **แถวเลื่อน plain Tailwind** (`flex snap-x snap-mandatory overflow-x-auto`) ไม่ใช่ `hs-carousel`
+  ของ Preline — JS-init พังกับเธรดที่ re-render ถี่ (คลาสเดียวกับ `hs-dropdown`) และ `hs-carousel`
+  ออกแบบมาสำหรับ hero banner ทีละสไลด์
+- **`w-44` ต่อใบ ไม่ใช่ `w-52`** — ux กางเลขงบพื้นที่จริงแล้ว จุดบีบอยู่ที่ **1280px** (rail 384 +
+  CustomerPanel 384 + sidenav 245 → เนื้อบับเบิลเหลือ ~217px) `w-52` เหลือ peek 9px = มองไม่เห็นว่า
+  เลื่อนได้ · `w-44` เหลือ 41px **peek คือ affordance จริง ป้ายข้อความเป็นแค่ตัวสำรอง**
+- **`object-contain` ไม่ใช่ `object-cover`** — รูปเป็นภาพโฆษณาที่มีตัวหนังสือ (สเปก/ราคา) ฝังในรูป
+  `cover` จะครอปทิ้ง (`user-supplied-image-assets.md`) พื้น `bg-default-100` ทำ letterbox
+- **ห้าม `bg-primary`/`text-primary` ในการ์ดนี้** (One Voice) — ต่างจาก `ProductCardBubble` ของเราเอง
+  ที่มี "ดูสินค้า" สีน้ำเงินเพราะกดได้จริง ความต่างนี้คือสิ่งที่บอกผู้ขายว่าการ์ดไหนกดได้
+- **Lightbox:** `slideIndexByMessageId` เดิมคีย์ด้วย `messageId` เดียว (สมมติ 1 ข้อความ = 1 รูป)
+  carousel มีหลายรูปต่อข้อความ → ขยายคีย์เป็น `${messageId}:${elementIndex}` ไม่งั้นเปิดผิดใบ
+- **คง `body` เดิมไว้** — ปุ่มคัดลอก/ตอบกลับผูกกับ `m.body` ถ้า null ปุ่มหายเงียบ ๆ
+
+## Known gaps
+
+- **เธรดเก่าไม่ backfill** — ข้อความก่อนหน้ายังเป็นบรรทัดสรุปเดิม และ**รูปเก่าหมดอายุไปแล้ว**
+  ดึงกลับไม่ได้แม้จะยิง Graph ใหม่
+- ยังไม่ได้ทดสอบกับการ์ดที่มี element เกิน 2 ใบบนของจริง (เจอจริงแค่ 2)
+- browser QA (user ตรวจเอง)

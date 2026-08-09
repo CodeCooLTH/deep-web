@@ -219,6 +219,81 @@ function MetaOrderCardBubble({ amount }: { amount: string }) {
 }
 
 /**
+ * MetaGenericCardCarousel — การ์ดสินค้าแบบ carousel จาก Facebook (generic template elements[],
+ * ChatMessage.cards, 2026-08-09)
+ *
+ * เดิม elements[] ถูกยุบเหลือข้อความสรุปบรรทัดเดียวลง body เท่านั้น (ดู CARD_PREFIX/
+ * composeStructuredText ใน channel-chat.service.ts) — ตอนนี้เก็บ title/subtitle/imageFileId ของ
+ * ทุกใบไว้แล้ว (mirror รูปแล้วนอก transaction ตอน ingest) จึงแสดงเป็นแถวเลื่อนได้จริง
+ *
+ * plain Tailwind scroll แทน hs-carousel ของ Preline ตั้งใจ — Preline JS-init พังกับเธรดที่
+ * re-render ถี่ (คลาสเดียวกับ hs-dropdown) และ hs-carousel ออกแบบมาสำหรับ hero banner ทีละสไลด์
+ * ไม่ใช่แถวการ์ดแบบนี้
+ *
+ * ห้าม render buttons[] — เป็น postback ที่ออกแบบให้ "ลูกค้า" กด เรากดแทนไม่ได้ (มติเดิม ดู
+ * meta-template-card.test.ts) และห้าม bg-primary/text-primary ในการ์ดนี้ (One Voice) — ต่างจาก
+ * ProductCardBubble ของเราเองที่มี "ดูสินค้า" สีน้ำเงินเพราะกดได้จริง ความต่างนี้คือสิ่งที่บอก
+ * ผู้ขายว่าการ์ดไหนกดได้/ไม่ได้
+ */
+function MetaGenericCardCarousel({
+  cards,
+  messageId,
+  onOpenImage,
+}: {
+  cards: { title: string | null; subtitle: string | null; imageFileId: string | null }[]
+  messageId: string
+  onOpenImage: (elementIndex: number) => void
+}) {
+  return (
+    <div>
+      {/* ป้ายที่มา — ยกตำแหน่ง/ขนาดจาก reply-quote caption ที่มีอยู่แล้วในไฟล์นี้ (mb-1 flex justify-end + text-2xs) */}
+      <div className="mb-1 flex justify-end">
+        <span className="text-default-700 flex items-center gap-1 text-2xs">
+          <Icon icon="brand-facebook" className="text-xs" />
+          {`การ์ดจาก Facebook${cards.length > 1 ? ` · ${cards.length} รายการ` : ''}`}
+        </span>
+      </div>
+      <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
+        {cards.map((c, i) => (
+          <div key={`${messageId}-${i}`} className="bg-light w-44 shrink-0 snap-start overflow-hidden rounded-lg">
+            <div className="bg-default-100 aspect-video w-full overflow-hidden">
+              {c.imageFileId ? (
+                // ปุ่มเปิด Lightbox (pattern เดียวกับ ChatImageMessage) — object-contain ไม่ใช่
+                // object-cover เพราะรูปมีตัวหนังสือ (สเปก/ราคา) ฝังอยู่ในรูป cover จะครอปทิ้ง
+                <button
+                  type="button"
+                  onClick={() => onOpenImage(i)}
+                  aria-label="ดูรูปเต็มจอ"
+                  className="block size-full cursor-zoom-in"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={mediaSrc(c.imageFileId)}
+                    alt={c.title ?? 'รูปสินค้า'}
+                    className="size-full object-contain"
+                  />
+                </button>
+              ) : (
+                // ไม่มีรูป (mirror ล้มเหลว/ไม่มี image_url มา) — placeholder เฉย ๆ ห้ามมี
+                // onClick/cursor-zoom-in (ไม่สร้าง affordance ปลอมว่ากดแล้วมีอะไรให้ดู)
+                <div className="text-default-700 flex size-full items-center justify-center">
+                  <Icon icon="photo-off" className="text-xl" />
+                </div>
+              )}
+            </div>
+            <div className="p-2.5">
+              <p className="text-default-800 mb-0.5 line-clamp-2 text-xs font-semibold">{c.title}</p>
+              {/* subtitle ว่าง = ไม่ render บรรทัดนี้เลย ไม่ใช่เว้นที่ว่าง */}
+              {c.subtitle && <p className="text-default-600 mb-0 line-clamp-2 text-2xs">{c.subtitle}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
  * สติกเกอร์/อีโมจิเข้ามาเป็นข้อความชนิด IMAGE เหมือนรูปทั่วไป (ingest จัด attachment type
  * 'sticker' เป็น 'IMAGE') และเราไม่ได้เก็บตัวแยกไว้ใน DB เลย — ปุ่มบันทึกจึงไปโผล่บนสติกเกอร์
  * ด้วย ซึ่งไม่มีใครอยากบันทึก (user report 2026-07-31)
@@ -1245,6 +1320,21 @@ export default function ChatThread({
         download: { url, filename: m.imageUrl.split('/').filter(Boolean).pop() || 'image' },
       })
     }
+    // การ์ดสินค้าแบบ carousel จาก Facebook (2026-08-09) — หลายรูปต่อ 1 ข้อความ คีย์ด้วย
+    // `${messageId}:${elementIndex}` ไม่ใช่ messageId เดียว (สมมติเดิมของ map นี้คือ 1 ข้อความ = 1
+    // รูป) ไม่งั้นคลิกใบที่ 2 เป็นต้นไปแล้วเปิด Lightbox ผิดใบ/ทับใบแรก
+    if (m.cards && m.cards.length > 0) {
+      m.cards.forEach((c, i) => {
+        const fileId = c.imageFileId
+        if (!fileId) return
+        slideIndexByMessageId.set(`${m.id}:${i}`, imageSlides.length)
+        const url = mediaSrc(fileId)
+        imageSlides.push({
+          src: url,
+          download: { url, filename: fileId.split('/').filter(Boolean).pop() || 'image' },
+        })
+      })
+    }
   }
 
   // ── สถานะห้อง (user report 2026-08-02: alert box ซ้อนกันรกจอ) ───────────────────────
@@ -1948,8 +2038,15 @@ export default function ChatThread({
                 // เพิ่ม parseMetaAiHandoffNotice (feature "Meta AI ถือสิทธิ์คุมเธรด" 2026-08-08) —
                 // ข้อความสลับสิทธิ์คุมเธรด AI↔คน คนละชุดสตริงกับ parseMetaSystemNotice เดิม แต่
                 // shape MetaSystemNotice เดียวกัน JSX ด้านล่างจึง render ได้โดยไม่ต้องแก้
+                // การ์ดสินค้าแบบ carousel (m.cards) ก็ขึ้นต้น body ด้วย CARD_PREFIX เหมือนกัน (คงไว้
+                // ตามสเปก — ปุ่มคัดลอก/ตอบกลับผูกกับ body) แต่ต้อง**ไม่**ตกไปเป็นบรรทัดระบบกลางจอ
+                // แบบเดิมอีกต่อไป — ต้องแสดงเป็นการ์ดเลื่อนในบับเบิลปกติ (ชิดขวา/ซ้ายตามผู้ส่งจริง)
+                // เธรดเก่าที่ไม่มี cards ยังตกไปทางเดิมทุกประการ (ไม่มีอะไรเปลี่ยนสำหรับแถวเก่า)
+                const hasGenericCards = !!m.cards && m.cards.length > 0
                 const systemNotice =
-                  m.type === 'TEXT' ? (parseMetaSystemNotice(m.body) ?? parseMetaAiHandoffNotice(m.body)) : null
+                  m.type === 'TEXT' && !hasGenericCards
+                    ? (parseMetaSystemNotice(m.body) ?? parseMetaAiHandoffNotice(m.body))
+                    : null
                 if (systemNotice) {
                   return (
                     <div key={m.id} className="my-5 px-4 text-center">
@@ -2031,9 +2128,13 @@ export default function ChatThread({
                         // ORDER = การ์ด self-contained เช่นกัน (มีกรอบ/สีในตัว) → ไม่ต้องกรอบ bubble ครอบ
                         // การ์ดคำขอชำระเงินของ Meta มาเป็น TEXT "฿400.00 order" — self-contained เหมือน ORDER
                         const metaOrder = m.type === 'TEXT' ? parseMetaOrderCard(m.body) : null
+                        // การ์ดสินค้าแบบ carousel จาก Facebook (2026-08-09) — self-contained เหมือน
+                        // ORDER/metaOrder (มีกรอบ/สีในตัวการ์ดแต่ละใบแล้ว) ไม่ต้องกรอบ bubble ครอบซ้ำ
+                        const genericCards = hasGenericCards ? m.cards! : null
                         const bareImage =
                           m.type === 'ORDER' ||
                           !!metaOrder ||
+                          !!genericCards ||
                           ((m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body)
                         return (
                           <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary text-white' : 'bg-light'}`}>
@@ -2041,6 +2142,12 @@ export default function ChatThread({
                           <OrderCardBubble card={m.orderCard ?? null} onEdit={openEditOrder} />
                         ) : metaOrder ? (
                           <MetaOrderCardBubble amount={metaOrder.amount} />
+                        ) : genericCards ? (
+                          <MetaGenericCardCarousel
+                            cards={genericCards}
+                            messageId={m.id}
+                            onOpenImage={(i) => setLightboxIndex(slideIndexByMessageId.get(`${m.id}:${i}`) ?? -1)}
+                          />
                         ) : m.type === 'PRODUCT' ? (
                           <ProductCardBubble card={m.productCard ?? null} username={shopUsername} thumbSize="size-14" />
                         ) : (
