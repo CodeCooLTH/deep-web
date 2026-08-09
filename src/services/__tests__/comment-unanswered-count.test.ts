@@ -47,13 +47,36 @@ import { Prisma } from '@prisma/client'
 import { countUnansweredForShops } from '@/services/page-comment.service'
 
 /**
- * ตัด substring ของเงื่อนไข CASE ... WHEN NOT EXISTS (...) THEN 'UNANSWERED' ออกมาเดี่ยว ๆ — ต้อง
- * เจาะจงที่ branch นี้ ไม่ใช่ทั้ง SQL เพราะ query รูปแบบใหม่มี isAutoReply ปรากฏจริงในอีก 2 branch
- * (HUMAN_ANSWERED/BOT_ANSWERED) ซึ่งถูกต้องแล้ว — AC-CR-25 ห้ามเฉพาะ branch ที่ตัดสิน UNANSWERED
+ * แยก CASE เป็นคู่ ๆ `{ predicate, result }` ตามลำดับที่ Postgres จะประเมินจริง
+ *
+ * 🛑 เขียนใหม่ 2026-08-09 ให้ผูกกับ **ความหมาย** ไม่ใช่รูปร่างของสตริง — เวอร์ชันก่อนหน้าตัด
+ * substring ด้วย `sql.indexOf('WHEN NOT EXISTS (')` แล้วแดงทันทีที่ CASE ถูกเรียงใหม่ (ย้าย
+ * UNANSWERED ไปเป็น ELSE) ทั้งที่กฎที่มันตั้งใจปกป้องไม่ได้เปลี่ยนเลยสักข้อ — บทเรียนเดียวกับ
+ * retro 2026-08-09 P11 ("เทสที่ผูกกับตำแหน่งแตกเพราะการเพิ่มที่ไม่เกี่ยวกัน")
  */
-function extractUnansweredBranch(sql: string): string {
-  const start = sql.indexOf('WHEN NOT EXISTS (')
-  const end = sql.indexOf("THEN 'UNANSWERED'")
+function caseBranches(sql: string): Array<{ predicate: string; result: string }> {
+  const out: Array<{ predicate: string; result: string }> = []
+  const re = /WHEN([\s\S]*?)THEN\s+'([A-Z_]+)'/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(sql)) !== null) out.push({ predicate: m[1]!, result: m[2]! })
+  return out
+}
+
+/** branch แรกที่ให้ผลลัพธ์ตามที่ขอ (ลำดับใน CASE = ลำดับที่ Postgres ประเมิน) */
+function firstBranchFor(sql: string, result: string) {
+  return caseBranches(sql).find((b) => b.result === result)
+}
+
+/**
+ * เฉพาะ CASE **ระดับคอมเมนต์** (CTE `customer_comments`) — ต้องตัดออกมาก่อนเสมอ
+ *
+ * SQL นี้มี CASE สองชั้น: ชั้นคอมเมนต์ (ตัวที่กฎทั้งหมดพูดถึง) และชั้นโพสต์ (`post_states`
+ * ที่รวบด้วย bool_or แบบ "แย่สุดชนะ") ชั้นโพสต์มี `THEN 'UNANSWERED'` แบบเชิงบวกซึ่ง**ถูกต้อง
+ * แล้ว** — ถ้าไม่ตัด scope ก่อน เทสจะไปจับตัวนั้นแล้วแดงโดยไม่มีอะไรผิดจริง
+ */
+function commentCaseSql(sql: string): string {
+  const start = sql.indexOf('customer_comments AS (')
+  const end = sql.indexOf('post_states AS (')
   expect(start).toBeGreaterThanOrEqual(0)
   expect(end).toBeGreaterThan(start)
   return sql.slice(start, end)
@@ -65,11 +88,39 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
     capturedValues = []
   })
 
-  it('เงื่อนไขที่ตัดสิน UNANSWERED ไม่มี isAutoReply เลย (AC-CR-25: บอทตอบครบทั้งโพสต์ต้องหายจาก badge นี้)', async () => {
+  it('[blocker] คอมเมนต์ที่บอทตอบสาธารณะแล้ว ต้องหลุดจาก UNANSWERED — branch ที่ดักไว้ต้องไม่มี isAutoReply (AC-CR-25)', async () => {
     await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
-    const sql = (capturedStrings ?? []).join('')
-    const unansweredBranch = extractUnansweredBranch(sql)
-    expect(unansweredBranch).not.toContain('isAutoReply')
+    const sql = commentCaseSql((capturedStrings ?? []).join(''))
+    // กฎที่ปกป้อง: "มีคำตอบของเพจอยู่ข้างใต้ ไม่ว่าบอทหรือคนเขียน = ไม่ใช่ยังไม่ตอบ"
+    // ในโครง CASE ปัจจุบัน ตัวที่ดักเคส "บอทตอบล้วน" คือ branch ที่ให้ผล BOT_ANSWERED
+    // ซึ่งต้องเช็คแค่ isFromPage เปล่า ๆ — ถ้ามีใครเติม isAutoReply เข้าไป เคสนั้นจะร่วงไป
+    // เป็น UNANSWERED แล้ว badge จะไม่มีวันลดลงเมื่อบอทตอบครบทั้งโพสต์
+    const botBranch = firstBranchFor(sql, 'BOT_ANSWERED')
+    expect(botBranch).toBeDefined()
+    expect(botBranch!.predicate).toContain('isFromPage')
+    expect(botBranch!.predicate).not.toContain('isAutoReply')
+  })
+
+  it('[blocker] UNANSWERED ต้องเป็นทางออกสุดท้ายของ CASE ไม่ใช่ branch ที่ match เอง', async () => {
+    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
+    const sql = commentCaseSql((capturedStrings ?? []).join(''))
+    // ถ้าใครเปลี่ยนกลับไปเป็น `WHEN ... THEN 'UNANSWERED'` แปลว่ามีเงื่อนไข "เชิงบวก" ที่ตัดสินว่า
+    // ยังไม่ตอบ ซึ่งจะต้องไปไล่ปิดทุกเคสที่ไม่ใช่เองทีละอัน (นั่นคือรูปแบบที่พลาดมาแล้ว 2 รอบ)
+    expect(sql).toContain("ELSE 'UNANSWERED'")
+    expect(caseBranches(sql).some((b) => b.result === 'UNANSWERED')).toBe(false)
+  })
+
+  it('[blocker] คอมเมนต์ที่ทักแชทส่วนตัวสำเร็จแล้ว ต้องหลุดจาก UNANSWERED (user report 2026-08-09)', async () => {
+    await countUnansweredForShops({ shopIds: ['shop-1'], actorUserId: 'user-1' })
+    const sql = commentCaseSql((capturedStrings ?? []).join(''))
+    // ต้องมี branch ที่อ่าน CommentReplyLog ก่อนตกไป ELSE ไม่งั้นคอมเมนต์ที่ถูกดึงเข้าห้องแชท
+    // จะค้างในคิว "ยังไม่ตอบ" ตลอดไป (คิวไม่มีวันลดลงแม้งานจบในกล่องข้อความแล้ว)
+    const logBranches = caseBranches(sql).filter((b) => b.predicate.includes('CommentReplyLog'))
+    expect(logBranches.length).toBeGreaterThan(0)
+    // 🛑 ทุก branch ที่อ่าน log ต้องบังคับ privateReplyStatus = 'SENT' เป๊ะ —
+    // 'SKIPPED'/'FAILED' คือ "มีแถวแต่ไม่ได้ทัก" ถ้าเช็คแค่ว่ามีแถว คอมเมนต์ที่ทักไม่สำเร็จจะ
+    // หายจากคิวทั้งที่ยังไม่มีใครคุยกับลูกค้าเลย (อันตรายกว่าบั๊กเดิม)
+    for (const b of logBranches) expect(b.predicate).toContain("\"privateReplyStatus\" = 'SENT'")
   })
 
   it('ยังเช็ค isFromPage = true ในเงื่อนไข NOT EXISTS (ต้องมีคำตอบของเพจอยู่ข้างใต้ถึงนับว่าตอบแล้ว)', async () => {

@@ -326,10 +326,35 @@ export type CommentAnswerState = 'UNANSWERED' | 'BOT_ANSWERED' | 'HUMAN_ANSWERED
  */
 export function deriveCommentState(
   replies: Array<{ isFromPage: boolean; isAutoReply: boolean }>,
+  /**
+   * trigger ของ private reply ที่ **ส่งสำเร็จแล้ว** ของคอมเมนต์ใบนี้ (null = ยังไม่เคยทักแชท)
+   * ต้องมาจาก `CommentReplyLog.privateReplyStatus = 'SENT'` เท่านั้น — 'SKIPPED'/'FAILED' ห้ามนับ
+   * (มีแถวใน log ≠ ทักสำเร็จ)
+   */
+  privateReplyTrigger: 'AUTO' | 'MANUAL' | null = null,
 ): CommentAnswerState {
   const pageReplies = replies.filter((r) => r.isFromPage)
-  if (pageReplies.length === 0) return 'UNANSWERED'
-  return pageReplies.some((r) => !r.isAutoReply) ? 'HUMAN_ANSWERED' : 'BOT_ANSWERED'
+  if (pageReplies.length > 0) {
+    return pageReplies.some((r) => !r.isAutoReply) ? 'HUMAN_ANSWERED' : 'BOT_ANSWERED'
+  }
+  /**
+   * 🛑 ทักแชทส่วนตัวไปแล้ว = ไม่ใช่ "ยังไม่ตอบ" อีกต่อไป (user report 2026-08-09)
+   *
+   * เดิมสถานะนี้ดูแค่ "มีคำตอบสาธารณะใต้คอมเมนต์ไหม" — คอมเมนต์ที่บอททักแชทไปแล้ว ลูกค้าเข้าห้อง
+   * แล้ว กำลังคุยกันอยู่ในกล่องข้อความ **ยังนั่งค้างในคิว "ยังไม่ตอบ" ตลอดไป** เพราะไม่มีใครไป
+   * ตอบใต้คอมเมนต์สาธารณะด้วย คิวนี้จึงไม่มีวันลดลงเองแม้งานถูกทำจนจบในอีกหน้าจอหนึ่ง
+   * (และป้าย "ทักแชทได้อีก N วัน" ก็เดินนับถอยหลังต่อบนแถวที่ทักไปแล้ว เพราะ `oldestUnansweredAt`
+   * มาจากนิยามเดียวกันนี้)
+   *
+   * ไม่เพิ่มค่าที่ 4 ในเอนัม (user สั่ง 2026-08-09 "ไม่ต้องเพิ่มเยอะ") — ให้ตกเข้าสถานะที่มีอยู่แล้ว
+   * ตามว่า **ใครเป็นคนทัก**: บอททัก → BOT_ANSWERED · คนกดทักเอง → HUMAN_ANSWERED ซึ่งตรงกับ
+   * ความหมายเดิมของสองค่านั้นพอดี ("งานกลาง ยังไม่มีคนยืนยัน" vs "คนจัดการแล้ว")
+   *
+   * 🛑 คำตอบสาธารณะยังชนะเสมอ (เช็คก่อนบล็อกนี้) — คอมเมนต์ที่มีทั้งคำตอบใต้โพสต์และทักแชทแล้ว
+   * ต้องอ่านจากคำตอบสาธารณะ ไม่ใช่จาก trigger ของ log
+   */
+  if (privateReplyTrigger) return privateReplyTrigger === 'MANUAL' ? 'HUMAN_ANSWERED' : 'BOT_ANSWERED'
+  return 'UNANSWERED'
 }
 
 /**
@@ -472,16 +497,31 @@ export async function countCommentPostStatesByShop(params: {
     customer_comments AS (
       SELECT
         c."postId",
+        -- WARNING: ลำดับ WHEN ต้องตรงกับ deriveCommentState() ใน TS บรรทัดต่อบรรทัด — สองอันนี้ตอบคำถาม
+        -- เดียวกันคนละภาษา ถ้าเรียงต่างกันเมื่อไหร่ "ตัวเลขบนแท็บ" กับ "รายการใต้มัน" จะหลุดกันทันที
+        -- โดยไม่มีอะไรฟ้อง (จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" มาแล้ว)
         CASE
-          WHEN NOT EXISTS (
-            SELECT 1 FROM "PageComment" r
-            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true
-          ) THEN 'UNANSWERED'
+          -- 1) คำตอบสาธารณะชนะเสมอ และคำตอบของคนชนะคำตอบของบอท
           WHEN EXISTS (
             SELECT 1 FROM "PageComment" r
             WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true AND r."isAutoReply" = false
           ) THEN 'HUMAN_ANSWERED'
-          ELSE 'BOT_ANSWERED'
+          WHEN EXISTS (
+            SELECT 1 FROM "PageComment" r
+            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true
+          ) THEN 'BOT_ANSWERED'
+          -- 2) ไม่มีคำตอบสาธารณะ แต่ทักแชทส่วนตัวสำเร็จแล้ว → ไม่ใช่ "ยังไม่ตอบ" (user 2026-08-09)
+          --    เกาะ trigger ว่าใครเป็นคนทัก และต้อง privateReplyStatus='SENT' เป๊ะ
+          --    ('SKIPPED'/'FAILED' คือมีแถวแต่ไม่ได้ทัก ห้ามนับ)
+          WHEN EXISTS (
+            SELECT 1 FROM "CommentReplyLog" l
+            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT' AND l."trigger" = 'MANUAL'
+          ) THEN 'HUMAN_ANSWERED'
+          WHEN EXISTS (
+            SELECT 1 FROM "CommentReplyLog" l
+            WHERE l."commentId" = c."id" AND l."privateReplyStatus" = 'SENT'
+          ) THEN 'BOT_ANSWERED'
+          ELSE 'UNANSWERED'
         END AS state
       FROM "PageComment" c
       WHERE c."shopChannelId" IN (SELECT id FROM scoped_channels)
@@ -607,6 +647,9 @@ export async function listCommentPosts(params: {
       },
       comments: {
         select: {
+          // ต้องมี id เพราะ `CommentReplyLog.commentId` อ้าง `PageComment.id` ไม่ใช่ externalCommentId
+          // (ใช้จับคู่ "คอมเมนต์ใบนี้ทักแชทไปแล้วหรือยัง" ด้านล่าง)
+          id: true,
           externalCommentId: true,
           parentExternalId: true,
           isFromPage: true,
@@ -626,6 +669,25 @@ export async function listCommentPosts(params: {
   // คิดครั้งเดียวนอกลูป (ทุกแถวใช้เส้นเดียวกัน) — ค่าคงที่อยู่ที่ UI ด้วย (privateReplyWindow)
   const dmWindowStart = Date.now() - 7 * 24 * 60 * 60 * 1000
 
+  /**
+   * "คอมเมนต์ใบไหนทักแชทสำเร็จแล้ว และใครเป็นคนทัก" — batch เดียวครอบทุกโพสต์ในหน้านี้ กัน N+1
+   *
+   * ต้องมีเพราะ `deriveCommentState()` ใช้ค่านี้ตัดสินว่ายังนับเป็น "ยังไม่ตอบ" อยู่ไหม
+   * (user report 2026-08-09: คอมเมนต์ที่ถูกดึงเข้าห้องแชทแล้วยังค้างในคิว)
+   * เงื่อนไข `privateReplyStatus='SENT'` ต้องเป๊ะ — มีแถวใน log ไม่ได้แปลว่าทักสำเร็จ
+   */
+  const commentIds = posts.flatMap((p) => p.comments.map((c) => c.id))
+  const sentPrivateReplies =
+    commentIds.length > 0
+      ? await prisma.commentReplyLog.findMany({
+          where: { commentId: { in: commentIds }, privateReplyStatus: 'SENT' },
+          select: { commentId: true, trigger: true },
+        })
+      : []
+  const privateReplyTriggerByCommentId = new Map(
+    sentPrivateReplies.map((l) => [l.commentId, l.trigger === 'MANUAL' ? ('MANUAL' as const) : ('AUTO' as const)]),
+  )
+
   const mapped: CommentPostRow[] = posts.map((p) => {
     const customerComments = p.comments.filter((c) => !c.isFromPage && !c.isDeleted)
     // สถานะต่อคอมเมนต์ — ตัดสินจาก deriveCommentState() ตัวเดียวกับที่เธรด/ตัวนับอื่นใช้ (BR-CR-S4)
@@ -636,6 +698,7 @@ export async function listCommentPosts(params: {
         p.comments
           .filter((r) => r.parentExternalId === c.externalCommentId)
           .map((r) => ({ isFromPage: r.isFromPage, isAutoReply: r.isAutoReply })),
+        privateReplyTriggerByCommentId.get(c.id) ?? null,
       ),
     )
     const unanswered = customerComments.filter((_, i) => commentStates[i] === 'UNANSWERED')

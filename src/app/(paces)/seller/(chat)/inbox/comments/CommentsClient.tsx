@@ -753,16 +753,32 @@ export default function CommentsClient({
       // คำตอบใต้แต่ละอันยังเก่า→ใหม่ตามเดิม เพราะข้างในนั้นคือบทสนทนา อ่านกลับหัวไม่รู้เรื่อง
       .map((c) => {
         const replies = children.get(c.externalCommentId) ?? []
-        const answeredSelf = c.isFromPage || replies.some((r) => r.isFromPage)
+        /**
+         * "จัดการแล้ว" — เกณฑ์ของ **คิวยังไม่ตอบ** ต้องตรงกับ `deriveCommentState()` ฝั่ง server
+         * คือมีคำตอบสาธารณะใต้มัน **หรือ** ทักแชทส่วนตัวสำเร็จแล้ว (user report 2026-08-09)
+         */
+        const isHandled = (x: CommentItem) =>
+          x.isFromPage ||
+          !!x.privateReplySentAt ||
+          list.some((r) => r.isFromPage && r.parentExternalId === x.externalCommentId)
+        /**
+         * 🛑 คนละตัวกับ isHandled และห้ามยุบรวมกัน — ตัวนี้คือ "มีคำตอบให้คนอื่นเห็นบนโพสต์แล้ว"
+         * ใช้กับป้ายเขียว "ตอบแล้ว" ใต้บับเบิลเท่านั้น
+         *
+         * ถ้าปล่อยให้ป้ายนั้นอ่านจาก isHandled คอมเมนต์ที่ทักแชทอย่างเดียวจะขึ้น "ตอบแล้ว" สีเขียว
+         * ทั้งที่ไม่มีคำตอบสาธารณะสักอัน = ย้ายบั๊กที่กำลังแก้ไปโผล่อีกจุดในหน้าเดียวกัน และผิด
+         * Verified-Means-Green (เขียวสงวนให้สิ่งที่ยืนยันได้จริง ไม่ใช่สิ่งที่เราอ้างว่าทำแล้ว)
+         */
+        const publiclyAnswered = c.isFromPage || replies.some((r) => r.isFromPage)
         // ลูกค้าที่มาตอบใต้คอมเมนต์อื่นก็ยังเป็น "คำถามที่รอคำตอบ" — ฝั่งรายการนับรวมมาตลอด
         // ถ้าตรงนี้นับเฉพาะคอมเมนต์ระดับบน ตัวเลข 2 ที่จะไม่ตรงกัน (user report 2026-08-03:
         // "ซ้ายบอก 8 แต่ใน panel บอก 7") — ใช้นิยามเดียวกันทั้งคู่: คอมเมนต์ของลูกค้าที่ยังไม่มี
         // คำตอบของเพจอยู่ข้างใต้ ไม่ว่าอยู่ชั้นไหน
         const unansweredReplies = replies.filter(
-          (r) => !r.isFromPage && !r.isDeleted && !list.some((x) => x.isFromPage && x.parentExternalId === r.externalCommentId),
+          (r) => !r.isFromPage && !r.isDeleted && !isHandled(r),
         ).length
-        const unansweredHere = (!c.isFromPage && !c.isDeleted && !answeredSelf ? 1 : 0) + unansweredReplies
-        return { comment: c, replies, answered: unansweredHere === 0, unansweredHere }
+        const unansweredHere = (!c.isFromPage && !c.isDeleted && !isHandled(c) ? 1 : 0) + unansweredReplies
+        return { comment: c, replies, answered: unansweredHere === 0, unansweredHere, publiclyAnswered }
       })
   }, [thread, commentOrder, showShopComments])
 
@@ -881,6 +897,11 @@ export default function CommentsClient({
               }
             : prev,
         )
+        // ตั้งแต่ 2026-08-09 การทักแชทมีผลกับ **คอลัมน์ซ้าย** ด้วย (คอมเมนต์ที่ทักแล้วหลุดจากคิว
+        // "ยังไม่ตอบ") — patch เฉพาะ thread เหมือนเดิมจะทำให้ผู้ขายกดเสร็จแล้วเห็นแถวซ้ายยังขึ้น
+        // "ยังไม่ตอบ" ค้างอยู่ได้ถึง 1 นาทีจนกว่า poll รอบถัดไปจะมา ซึ่งอ่านเหมือนกดไม่ติด
+        // ใช้ refreshPosts ตัวเดิม ไม่คำนวณ postStatus ใหม่ที่ client (กติกาอยู่ที่ server ที่เดียว)
+        void refreshPosts(channelId, show.postStatus, channelTab)
         return true
       }
 
@@ -1263,14 +1284,14 @@ export default function CommentsClient({
             // ป้ายกลาง (ไม่ใช่ semantic color) — แท็บ "ทั้งหมด" ไม่ใช่สถานะงาน จึงไม่ควรมีสีแดง/เหลือง/
             // เขียวเหมือน 3 แท็บที่เหลือ (user report prod: ไม่มีเลขคู่กับมีเลขปนกัน ดูเหมือนโหลดไม่ครบ)
             { key: 'ALL', label: 'ทั้งหมด', icon: null, badgeClass: 'bg-default-200 text-default-700', count: counts.all },
-            // ยังไม่ตอบ = แดง (ยังไม่มีใครแตะ) · บอทตอบ = เหลือง (งานกลาง ยังไม่มีคนยืนยัน —
-            // ห้ามเขียว แม้ฟังดู positive, Verified-Means-Green สงวนเขียวให้สถานะที่คนยืนยันแล้ว
-            // เท่านั้น) · คนตอบ = เขียว (จบงานจริง)
-            // ป้ายแท็บย่อ "บอทตอบ"/"คนตอบ" (ตัด "แล้ว") ต่างจากป้ายเต็มบนแถวโพสต์/บับเบิลตั้งใจ —
-            // แท็บแข่งพื้นที่กัน 4 อันในบรรทัดเดียวบนมือถือ จุดอื่นไม่แข่งพื้นที่จึงคงคำเต็มไว้
+            // ยังไม่ตอบ = แดง (ยังไม่มีใครแตะ)
+            //
+            // เหลือ 2 แท็บ (user สั่ง 2026-08-09 "tab ด้านบน ให้มีแค่ 2 tab พอ คือ ทั้งหมด ยังไม่ตอบ")
+            // — เดิมมี "บอทตอบ"/"คนตอบ" ด้วย ซึ่งเป็นการแบ่งที่ตอบคำถามว่า "ใครเป็นคนตอบ" ไม่ใช่
+            // "เหลืออะไรต้องทำ" ผู้ขายเปิดหน้านี้เพื่อเคลียร์คิว ไม่ได้มาแยกแยะว่าใครตอบ
+            // สถานะทั้งสองยังมีอยู่ครบฝั่งข้อมูล (ป้ายบนแถวโพสต์ + ตัวกรอง `?state=` ที่ server)
+            // ถอดแค่แท็บออก ไม่ได้ถอดความหมาย
             { key: 'UNANSWERED', label: 'ยังไม่ตอบ', icon: 'alert-circle', badgeClass: 'bg-danger text-white', count: counts.unanswered },
-            { key: 'BOT', label: 'บอทตอบ', icon: 'robot', badgeClass: 'bg-warning text-white', count: counts.botAnswered },
-            { key: 'HUMAN', label: 'คนตอบ', icon: 'circle-check', badgeClass: 'bg-success text-white', count: counts.humanAnswered },
           ] as const).map((t, idx, arr) => {
             const on = postTab === t.key
             return (
@@ -1891,12 +1912,12 @@ export default function CommentsClient({
               ) : visibleTree.length === 0 ? (
                 <SellerEmptyState compact icon="message-circle" title="ยังไม่มีความคิดเห็นในโพสต์นี้" />
               ) : (
-                visibleTree.map(({ comment, replies, answered }) => (
+                visibleTree.map(({ comment, replies, publiclyAnswered }) => (
                   <div key={comment.id} className="mb-5">
                     <CommentBubble
                       c={comment}
                       channel={thread?.channel}
-                      answered={answered}
+                      publiclyAnswered={publiclyAnswered}
                       active={replyTo?.id === comment.id}
                       onReply={() => setReplyTo(comment)}
                       privateReplySendingId={sendingPrivateReplyId}
@@ -1970,7 +1991,7 @@ function CommentBubble({
   channel,
   onReply,
   isReply = false,
-  answered = false,
+  publiclyAnswered = false,
   active = false,
   privateReplySendingId = null,
   onOpenPrivateReply,
@@ -1979,8 +2000,14 @@ function CommentBubble({
   channel?: { name: string; avatarUrl: string | null; provider: string }
   onReply: () => void
   isReply?: boolean
-  /** มีคำตอบของเพจอยู่ข้างใต้แล้ว — ไม่งั้นผู้ขายต้องจำเองว่าตอบอันไหนไปแล้ว (critique P1) */
-  answered?: boolean
+  /**
+   * มีคำตอบ **สาธารณะ** ของเพจอยู่ข้างใต้แล้ว — ไม่งั้นผู้ขายต้องจำเองว่าตอบอันไหนไปแล้ว (critique P1)
+   *
+   * 🛑 ห้ามเปลี่ยนไปรับค่า "จัดการแล้ว" (ซึ่งนับการทักแชทด้วย) — ป้ายนี้เป็นสีเขียวและพูดว่า
+   * "ตอบแล้ว" ซึ่งคนอ่านเข้าใจว่ามีคำตอบให้คนอื่นเห็นบนโพสต์ การให้การทักแชทส่วนตัวจุดป้ายนี้
+   * ติดคือคำโกหก (Verified-Means-Green) — คิว "ยังไม่ตอบ" ใช้เกณฑ์คนละตัวโดยตั้งใจ
+   */
+  publiclyAnswered?: boolean
   /** คอมเมนต์ที่ช่องพิมพ์กำลังจ่อตอบอยู่ (user สั่ง 2026-08-04 "ใส่สีฟ้าอ่อน ๆ พื้นหลังให้ด้วย") */
   active?: boolean
   /** feature 00038 Task 8 — commentId ที่กำลังส่ง private reply อยู่ (derive สถานะ SENDING) */
@@ -2108,7 +2135,7 @@ function CommentBubble({
         <div className="text-default-700 mt-0.5 flex flex-wrap items-center gap-3 ps-3 text-xs">
           <span title={formatDateTimeTH(c.createdTime)}>{commentTimeLabel(c.createdTime)}</span>
           {c.editedAt && <span>แก้ไขแล้ว</span>}
-          {answered && !c.isFromPage && (
+          {publiclyAnswered && !c.isFromPage && (
             <span className="text-success-ink inline-flex items-center gap-0.5">
               <Icon icon="circle-check" className="text-sm" />
               ตอบแล้ว
