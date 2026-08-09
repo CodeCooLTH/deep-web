@@ -350,6 +350,43 @@ export default function CommentsClient({
    */
   const focusReplyOnLoad = useRef(false)
 
+  /**
+   * feature 00038 หนี้ #2 — แถบแท็บสถานะ 4 ตัวเลื่อนแนวนอนบนมือถือ (overflow-x-auto ด้านล่าง) โดยไม่มี
+   * สัญญาณว่ายังเลื่อนต่อได้อีก ผู้ใช้ digital-literacy ต่ำอาจไม่รู้ว่าแท็บ "คนตอบแล้ว" ซ่อนอยู่ทางขวา
+   * (ของเดิมมี 2 แท็บพอดีจอ ขยายเป็น 4 ทำให้ล้นง่ายกว่าเดิมมาก) — เติม edge fade ที่ขอบซ้าย/ขวาเฉพาะ
+   * ตอนยังเลื่อนไปทางนั้นได้จริง (ไม่ใช่ fade ค้างตลอดกาลไม่ว่าจะเลื่อนสุดหรือยัง) วัดด้วย scrollLeft/
+   * scrollWidth ของกล่อง ไม่ใช้ arbitrary Tailwind value (HR7) — โปรเจกต์นี้ไม่มี pattern edge-fade
+   * มาก่อน (grep `overflow-x-auto` ทั้ง repo แล้ว) จึงสร้างด้วย token สี `card`/`transparent` ที่มีอยู่แล้ว
+   */
+  const statusTabScrollRef = useRef<HTMLDivElement>(null)
+  const [statusTabFade, setStatusTabFade] = useState({ left: false, right: false })
+
+  const updateStatusTabFade = useCallback(() => {
+    const el = statusTabScrollRef.current
+    if (!el) return
+    setStatusTabFade({
+      left: el.scrollLeft > 1,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
+    })
+  }, [])
+
+  useEffect(() => {
+    const el = statusTabScrollRef.current
+    if (!el) return
+    updateStatusTabFade()
+    // ResizeObserver จับได้ทั้งการเปลี่ยนขนาดจอและความกว้างเนื้อหาในกล่องเอง (pattern เดียวกับ
+    // playerBoxRef ด้านบน) — ผูกครั้งเดียวตอน mount พอ ไม่ต้องผูกใหม่ทุกครั้งที่ counts เปลี่ยน
+    const ro = new ResizeObserver(updateStatusTabFade)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [updateStatusTabFade])
+
+  // ตัวเลข badge เปลี่ยนจำนวนหลักได้ (เช่น 9 -> 99+) ซึ่งเปลี่ยนความกว้างเนื้อหาโดยไม่มี event resize
+  // ให้ ResizeObserver จับเสมอในบางเบราว์เซอร์ — สั่งวัดซ้ำตรง ๆ เมื่อ counts เปลี่ยนกันไว้อีกชั้น
+  useEffect(() => {
+    updateStatusTabFade()
+  }, [counts, updateStatusTabFade])
+
   const refreshPosts = useCallback(async (ch: string | null, state: CommentShowFilter['postStatus']) => {
     try {
       const params = new URLSearchParams()
@@ -359,11 +396,14 @@ export default function CommentsClient({
       const qs = params.toString()
       const res = await fetch(`/api/chat/comments/posts${qs ? `?${qs}` : ''}`)
       if (!res.ok) return
-      const data = (await res.json()) as { posts: CommentPostItem[]; counts: CommentPostCounts }
+      const data = (await res.json()) as { posts: CommentPostItem[]; counts: CommentPostCounts; rawCount: number }
       setPosts(data.posts)
+      // counts เป็น global ทั้งร้านแล้ว (feature 00038 หนี้ #1) — set ตรง ๆ ไม่บวกสะสม
       setCounts(data.counts)
-      rawFetchedRef.current = data.counts.all
-      setHasMore(data.counts.all >= 25)
+      // rawCount = จำนวนโพสต์ดิบที่ query รอบนี้ได้มา (ก่อนกรอง state) ใช้แค่คำนวณ skip/hasMore
+      // ของหน้าถัดไป คนละความหมายกับ counts.all ซึ่งเป็นตัวเลขแสดงผลทั้งร้านแล้ว
+      rawFetchedRef.current = data.rawCount
+      setHasMore(data.rawCount >= 25)
     } catch {
       // โหลดไม่สำเร็จ = คงรายการเดิมไว้ ไม่ต้องรบกวนผู้ใช้
     }
@@ -389,21 +429,18 @@ export default function CommentsClient({
       if (show.postStatus !== 'ALL') params.set('state', show.postStatus)
       const res = await fetch(`/api/chat/comments/posts?${params.toString()}`)
       if (!res.ok) return
-      const data = (await res.json()) as { posts: CommentPostItem[]; counts: CommentPostCounts }
+      const data = (await res.json()) as { posts: CommentPostItem[]; counts: CommentPostCounts; rawCount: number }
       // กันซ้ำด้วย id — poll/realtime อาจแทรกโพสต์ใหม่เข้ามาระหว่างที่กำลังโหลดหน้าถัดไป
       setPosts((prev) => {
         const seen = new Set(prev.map((p) => p.id))
         return [...prev, ...data.posts.filter((p) => !seen.has(p.id))]
       })
-      // counts สะสม: ยอดทั้งชุดที่โหลดมาแล้ว = ของเดิม + ของหน้าใหม่ (batch นี้ยังไม่เคยรวมมาก่อน)
-      setCounts((prev) => ({
-        all: prev.all + data.counts.all,
-        unanswered: prev.unanswered + data.counts.unanswered,
-        botAnswered: prev.botAnswered + data.counts.botAnswered,
-        humanAnswered: prev.humanAnswered + data.counts.humanAnswered,
-      }))
-      rawFetchedRef.current += data.counts.all
-      setHasMore(data.counts.all >= 25)
+      // counts เป็น global ทั้งร้านอยู่แล้ว (feature 00038 หนี้ #1) — set ตรง ๆ ไม่บวกสะสมกับของเดิม
+      // (เดิมบวก prev+ผลของ batch นี้ ซึ่งถูกต้องตอน counts ยังเป็น batch scope แต่ตอนนี้ counts
+      // ที่ server ส่งมาคือทั้งร้านอยู่แล้วในทุกการเรียก บวกซ้ำจะทำให้ตัวเลขพุ่งเกินจริงทุกครั้งที่เลื่อน)
+      setCounts(data.counts)
+      rawFetchedRef.current += data.rawCount
+      setHasMore(data.rawCount >= 25)
     } finally {
       setLoadingMore(false)
     }
@@ -799,7 +836,8 @@ export default function CommentsClient({
    * ที่ได้กลับมาจึงตรงกับ show.postStatus อยู่แล้วเสมอ ไม่ต้อง filter ซ้ำที่ client อีกชั้น
    * (ของเดิม visiblePosts filter ด้วย show.unanswered/done เป็นการกรองซ้ำบน client — ตอนนี้เลิกทำ
    * เพราะ state ไม่ใช่ boolean คู่ที่ overlap กันได้แล้ว server เป็นคนตัดสินขั้นเดียวจบ)
-   * ตัวนับบนแท็บทั้ง 4 มาจาก `counts` ที่ server คำนวณคู่กับ `posts` ชุดเดียวกันเสมอ (BR-CR-S4)
+   * ตัวนับบนแท็บทั้ง 4 มาจาก `counts` ที่ server คำนวณแบบทั้งร้าน (feature 00038 หนี้ #1) — ไม่ผูกกับ
+   * ขนาดของ `posts` ที่โหลดมาแล้วอีกต่อไป จึงตรงกับ badge บน tab "ความคิดเห็น" เสมอ (BR-CR-S4)
    */
   const visiblePosts = postsByChannel
 
@@ -1081,13 +1119,23 @@ export default function CommentsClient({
             feature 00038 UX-Design-Spec §3.2 — ขยาย 2 → 4 ตัว (ทั้งหมด/ยังไม่ตอบ/บอทตอบแล้ว/
             คนตอบแล้ว) คงโครง underline-tab เดิมเป๊ะ ไม่ใช่ pill ใหม่ตามที่ mockup วาด (HR6: layout
             ตามธีมปัจจุบัน ไม่ใช่ asset ดิบของ mockup) — เพิ่ม overflow-x-auto ให้แถวเลื่อนแนวนอนได้
-            บนมือถือ (390px ไม่พอให้ 4 แท็บ + ตัวเลขอยู่ในบรรทัดเดียวแบบไม่ตัดคำ) */}
+            บนมือถือ (390px ไม่พอให้ 4 แท็บ + ตัวเลขอยู่ในบรรทัดเดียวแบบไม่ตัดคำ) + edge fade บอกว่า
+            ยังเลื่อนต่อได้อีก (หนี้ #2 — ดู statusTabFade ด้านบน) */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <div
-            className="border-default-200 flex min-w-0 flex-1 items-center gap-3 overflow-x-auto border-b"
-            role="tablist"
-            aria-label="สถานะการตอบ"
-          >
+          <div className="relative min-w-0 flex-1">
+            {statusTabFade.left && (
+              <div
+                aria-hidden="true"
+                className="from-card pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-linear-to-r to-transparent"
+              />
+            )}
+            <div
+              ref={statusTabScrollRef}
+              onScroll={updateStatusTabFade}
+              className="border-default-200 flex min-w-0 items-center gap-3 overflow-x-auto border-b"
+              role="tablist"
+              aria-label="สถานะการตอบ"
+            >
           {([
             { key: 'ALL', label: 'ทั้งหมด', icon: null, badgeClass: null, count: counts.all },
             // ยังไม่ตอบ = แดง (ยังไม่มีใครแตะ) · บอทตอบแล้ว = เหลือง (งานกลาง ยังไม่มีคนยืนยัน —
@@ -1111,9 +1159,9 @@ export default function CommentsClient({
               >
                 {t.icon && <Icon icon={t.icon} width={14} height={14} className="shrink-0" />}
                 {t.label}
-                {/* ตัวนับมาจาก `counts` ที่ server คำนวณคู่กับ `posts` ชุดเดียวกันเสมอ (BR-CR-S4)
-                    ไม่คำนวณซ้ำที่ client — จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" พร้อมกันมาแล้วเพราะ
-                    คำนวณคนละที่ ตัดที่ 99+ เหมือน badge ยังไม่อ่านของแท็บข้อความ */}
+                {/* ตัวนับมาจาก `counts` ที่ server คำนวณแบบทั้งร้าน (feature 00038 หนี้ #1) ไม่คำนวณ
+                    ซ้ำที่ client และไม่บวกสะสมตอน lazy-load — จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8"
+                    พร้อมกันมาแล้วเพราะคำนวณคนละที่ ตัดที่ 99+ เหมือน badge ยังไม่อ่านของแท็บข้อความ */}
                 {t.badgeClass && t.count > 0 && (
                   <span
                     className={`${t.badgeClass} text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold text-white`}
@@ -1124,6 +1172,13 @@ export default function CommentsClient({
               </button>
             )
           })}
+            </div>
+            {statusTabFade.right && (
+              <div
+                aria-hidden="true"
+                className="from-card pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-linear-to-l to-transparent"
+              />
+            )}
           </div>
         </div>
         </div>

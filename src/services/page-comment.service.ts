@@ -44,7 +44,8 @@ export async function resolveChannelToken(shopChannelId: string): Promise<{ toke
  * ไม่ใช่ทั้ง batch พัง. คอมเมนต์ที่หายยังตามเก็บได้ทีหลังด้วย backfill ตอนเปิดโพสต์
  *
  * คืน id ของคอมเมนต์ที่บันทึก (feature 00038 — caller เอาไปสั่งตอบอัตโนมัติใน after())
- * null = ไม่ได้บันทึก (ไม่ใช่คอมเมนต์ / ไม่พบเพจ / เป็น verb=remove)
+ * null = ไม่ได้บันทึก หรือบันทึกแล้วแต่ไม่ควร trigger การตอบอัตโนมัติ — ได้แก่ ไม่ใช่คอมเมนต์ /
+ * ไม่พบเพจ / เป็น verb=remove / เป็น verb=edited หรือ edit (หนี้ #3, ดูคอมเมนต์ก่อน return ท้ายฟังก์ชัน)
  *
  * 🛑 คืนเฉพาะกรณี **webhook สด** เท่านั้น — backfillPostComments() ต้องไม่เดินผ่านทางนี้
  * ไม่งั้นคอมเมนต์เก่าเป็นร้อยจะถูกยิงย้อนหลังพร้อมกัน (BR-CR-12 / AC-CR-14)
@@ -116,6 +117,12 @@ export async function ingestFeedComment(params: {
     where: { id: post.id, OR: [{ lastCommentAt: null }, { lastCommentAt: { lt: createdTime } }] },
     data: { lastCommentAt: createdTime },
   })
+
+  // feature 00038 หนี้ #3 — คอมเมนต์ที่ถูกแก้ไข (ไม่ใช่คอมเมนต์ใหม่) ไม่ควร trigger การตอบอัตโนมัติซ้ำ
+  // ข้อความก็ถูกบันทึก/อัปเดตไปแล้วด้านบนตามปกติ แค่ไม่ส่ง id กลับให้ caller เอาไปยิง
+  // processCommentAutoReply — เดิมคืน id เสมอ ทำให้ลูกค้าแก้คอมเมนต์กี่ครั้งก็เรียกซ้ำทุกครั้ง
+  // (ปลอดภัยเพราะด่าน ALREADY_HANDLED ใน orchestration กันไว้อีกชั้น แต่เสีย DB round-trip เปล่า ๆ)
+  if (val.verb === 'edited' || val.verb === 'edit') return null
 
   return saved.id
 }
@@ -334,17 +341,115 @@ export interface CommentPostRow {
  * คอมเมนต์ของเพจเองไม่ถูกนับ เพราะเพจไม่ต้องตอบตัวเอง) — คำนวณสด ไม่ denormalize เพราะจำนวนโพสต์
  * ที่แสดงมีจำกัด (25) และตัวเลขที่ผิดเพราะลืมอัปเดต counter แย่กว่า query ที่ช้าขึ้นนิดเดียว
  */
-/** จำนวนโพสต์ต่อสถานะ ณ ชุดที่ query รอบนี้ดึงมา (feature 00038 BR-CR-S4)
+/** จำนวนโพสต์ต่อสถานะ — **ทั้งร้าน ไม่ใช่แค่ batch ที่กำลังแสดงผล** (feature 00038 หนี้ #1)
  *
- * 🛑 ต้องคำนวณจากอาร์เรย์ post ชุดเดียวกับที่ filter ด้วย `state` ก่อนตัด — ถ้าคำนวณด้วย SQL COUNT
- * แยกอีกชุดแล้วเอามาวางคู่กับผลที่ filter ด้วย TS อีกที ตัวเลขจะไม่ตรงกันได้เมื่อสองฝั่งนิยาม
- * "นับอะไร" ต่างกันแม้นิดเดียว (บทเรียน Command Center 2026-08-04: กดเลข 5 เข้าไปเจอ 4)
+ * 🛑 ของเดิมคำนวณจากอาร์เรย์ post ของ batch เดียว (take:25) แล้ว client บวกสะสมตอน lazy-load —
+ * ตัวเลขบนแท็บในหน้านี้จึงไม่ตรงกับ badge บนแท็บ "ความคิดเห็น" (`countUnansweredForShops`) ซึ่งนับ
+ * ทั้งร้านมาตั้งแต่แรก ทั้งที่ตอบคำถามเดียวกัน — คำนวณผ่าน `countCommentPostStatesByShop()` ตัวเดียว
+ * ที่ทั้งสองฝั่งเรียกร่วมกัน เพื่อให้ตรงกันโดยโครงสร้าง ไม่ใช่แค่ตั้งใจให้ตรง
  */
 export interface CommentPostCounts {
   all: number
   unanswered: number
   botAnswered: number
   humanAnswered: number
+}
+
+const EMPTY_COMMENT_POST_COUNTS: CommentPostCounts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
+
+/**
+ * นับจำนวนโพสต์แยกตาม postStatus 3 กลุ่ม + ทั้งหมด แบบ **ทั้งร้าน** (ไม่ตัด take/skip) — ใช้นิยาม
+ * เดียวกับ `deriveCommentState()`/`derivePostState()` เป๊ะ ไม่ใช่เกณฑ์ใหม่:
+ *   - คอมเมนต์ลูกค้า "ยังไม่ตอบ" = ไม่มี PageComment ที่ parentExternalId ชี้กลับมาและ isFromPage=true
+ *     เลย (เงื่อนไขเดียวกับที่ countUnansweredForShops ใช้แต่ไหนแต่ไรมา — ไม่แตะ)
+ *   - "คนตอบแล้ว" = มีคำตอบที่ isAutoReply=false อย่างน้อย 1 อัน
+ *   - ที่เหลือ (มีคำตอบแต่เป็นบอทล้วน) = "บอทตอบแล้ว"
+ *   - โพสต์ = สถานะที่แย่ที่สุดในบรรดาคอมเมนต์ของมัน (BR-CR-S2); ไม่มีคอมเมนต์ลูกค้าเลย = "คนตอบแล้ว"
+ *     (derivePostState([]) คืนค่านั้นเสมอ)
+ *
+ * 🛑 `countUnansweredForShops()` ด้านล่างเรียกฟังก์ชันนี้ตัวเดียวกัน (ไม่ได้เขียน SQL อีกชุดที่
+ * "น่าจะตรงกัน") — badge บนแท็บ "ความคิดเห็น" (นับทั้งร้าน) กับ `counts.unanswered` ของหน้านี้จึง
+ * ตรงกันเสมอโดยโครงสร้าง (จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" มาแล้วเพราะคำนวณคนละที่ —
+ * docs/conventions/sibling-surface-parity.md) ดูเทสพิสูจน์ที่ comment-post-counts.test.ts
+ */
+export async function countCommentPostStatesByShop(params: {
+  shopIds: string[]
+  /** กรองเฉพาะเพจเดียว (ตัวกรองเดียวกับ listCommentPosts) — ไม่ส่ง = ทุกเพจของร้าน */
+  shopChannelId?: string
+  /** ค้นหาเดียวกับ listCommentPosts — ต้อง trim แล้วก่อนส่งเข้ามา (caller รับผิดชอบ) */
+  q?: string
+}): Promise<CommentPostCounts> {
+  if (params.shopIds.length === 0) return EMPTY_COMMENT_POST_COUNTS
+
+  const channelFilter = params.shopChannelId ? Prisma.sql`AND sc.id = ${params.shopChannelId}` : Prisma.empty
+  const searchFilter = params.q
+    ? Prisma.sql`AND (
+        p.message ILIKE ${'%' + params.q + '%'}
+        OR EXISTS (SELECT 1 FROM "PageComment" qc WHERE qc."postId" = p.id AND qc.message ILIKE ${'%' + params.q + '%'})
+        OR EXISTS (SELECT 1 FROM "PageComment" qc WHERE qc."postId" = p.id AND qc."fromName" ILIKE ${'%' + params.q + '%'})
+      )`
+    : Prisma.empty
+
+  const rows = await prisma.$queryRaw<
+    Array<{ all: bigint; unanswered: bigint; botAnswered: bigint; humanAnswered: bigint }>
+  >`
+    WITH scoped_channels AS (
+      SELECT sc.id FROM "ShopChannel" sc
+      WHERE sc."shopId" IN (${Prisma.join(params.shopIds)})
+        AND sc.provider = 'MESSENGER'
+        ${channelFilter}
+    ),
+    customer_comments AS (
+      SELECT
+        c."postId",
+        CASE
+          WHEN NOT EXISTS (
+            SELECT 1 FROM "PageComment" r
+            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true
+          ) THEN 'UNANSWERED'
+          WHEN EXISTS (
+            SELECT 1 FROM "PageComment" r
+            WHERE r."parentExternalId" = c."externalCommentId" AND r."isFromPage" = true AND r."isAutoReply" = false
+          ) THEN 'HUMAN_ANSWERED'
+          ELSE 'BOT_ANSWERED'
+        END AS state
+      FROM "PageComment" c
+      WHERE c."shopChannelId" IN (SELECT id FROM scoped_channels)
+        AND c."isFromPage" = false
+        AND c."isDeleted" = false
+    ),
+    post_states AS (
+      SELECT
+        p.id AS "postId",
+        COALESCE(
+          (
+            SELECT CASE
+              WHEN bool_or(cs.state = 'UNANSWERED') THEN 'UNANSWERED'
+              WHEN bool_or(cs.state = 'BOT_ANSWERED') THEN 'BOT_ANSWERED'
+              ELSE 'HUMAN_ANSWERED'
+            END
+            FROM customer_comments cs WHERE cs."postId" = p."id"
+          ),
+          'HUMAN_ANSWERED'
+        ) AS state
+      FROM "FacebookPost" p
+      WHERE p."shopChannelId" IN (SELECT id FROM scoped_channels)
+        ${searchFilter}
+    )
+    SELECT
+      count(*)::bigint AS "all",
+      count(*) FILTER (WHERE state = 'UNANSWERED')::bigint AS "unanswered",
+      count(*) FILTER (WHERE state = 'BOT_ANSWERED')::bigint AS "botAnswered",
+      count(*) FILTER (WHERE state = 'HUMAN_ANSWERED')::bigint AS "humanAnswered"
+    FROM post_states
+  `
+  const row = rows[0]
+  return {
+    all: Number(row?.all ?? 0),
+    unanswered: Number(row?.unanswered ?? 0),
+    botAnswered: Number(row?.botAnswered ?? 0),
+    humanAnswered: Number(row?.humanAnswered ?? 0),
+  }
 }
 
 export async function listCommentPosts(params: {
@@ -363,9 +468,18 @@ export async function listCommentPosts(params: {
    * เพราะ postStatus เป็นค่า derived ไม่ใช่คอลัมน์ในฐาน (ตัดสินจาก derivePostState เท่านั้น)
    */
   state?: 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN'
-}): Promise<{ posts: CommentPostRow[]; counts: CommentPostCounts }> {
-  const EMPTY_COUNTS: CommentPostCounts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
-  if (params.shopIds.length === 0) return { posts: [], counts: EMPTY_COUNTS }
+}): Promise<{
+  posts: CommentPostRow[]
+  /** ทั้งร้าน (feature 00038 หนี้ #1) — มาจาก countCommentPostStatesByShop() ไม่ใช่ batch นี้ */
+  counts: CommentPostCounts
+  /**
+   * จำนวนโพสต์ดิบที่ query ชุดนี้ดึงมาได้ (ก่อนกรองด้วย `state`) — ใช้คำนวณ `skip` ของหน้าถัดไป/
+   * `hasMore` ที่ client เท่านั้น **ห้ามเอาไปแสดงเป็นตัวเลข** (นั่นคือหน้าที่ของ `counts.all` ซึ่งเป็น
+   * global แล้ว) เดิมสองความหมายนี้ถูกยำรวมกันเป็น `counts.all` ตัวเดียว ทำให้แยกไม่ออกว่าใช้ทำอะไร
+   */
+  rawCount: number
+}> {
+  if (params.shopIds.length === 0) return { posts: [], counts: EMPTY_COMMENT_POST_COUNTS, rawCount: 0 }
   await assertShopsAccessible(params.shopIds, params.actorUserId)
 
   const channels = await prisma.shopChannel.findMany({
@@ -376,7 +490,7 @@ export async function listCommentPosts(params: {
     },
     select: { id: true },
   })
-  if (channels.length === 0) return { posts: [], counts: EMPTY_COUNTS }
+  if (channels.length === 0) return { posts: [], counts: EMPTY_COMMENT_POST_COUNTS, rawCount: 0 }
   const channelIds = channels.map((c) => c.id)
 
   const q = params.q?.trim()
@@ -483,19 +597,14 @@ export async function listCommentPosts(params: {
     }
   })
 
-  // ตัวนับ 4 กลุ่ม (feature 00038 BR-CR-S4) — คำนวณจาก postStatus ของ `mapped` ชุดเดียวกับที่
-  // filter ด้วย params.state ด้านล่าง ไม่ใช่ query SQL COUNT แยกอีกชุด: ตัวเลขบนแท็บ/badge/
-  // ตัวกรองต้องมาจาก symbol เดียวเสมอ (docs/conventions/sibling-surface-parity.md)
-  const counts: CommentPostCounts = mapped.reduce(
-    (acc, row) => {
-      acc.all += 1
-      if (row.postStatus === 'UNANSWERED') acc.unanswered += 1
-      else if (row.postStatus === 'BOT_ANSWERED') acc.botAnswered += 1
-      else acc.humanAnswered += 1
-      return acc
-    },
-    { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 },
-  )
+  // ตัวนับ 4 กลุ่ม (feature 00038 หนี้ #1) — ทั้งร้าน ไม่ใช่แค่ batch นี้ (`mapped` คือแค่ 25 แถวที่
+  // query รอบนี้ดึงมา) เรียกฟังก์ชันเดียวกับที่ countUnansweredForShops() ใช้ เพื่อให้ badge บนแท็บ
+  // "ความคิดเห็น" กับตัวเลขบนแท็บในหน้านี้ตรงกันโดยโครงสร้าง (BR-CR-S4)
+  const counts = await countCommentPostStatesByShop({
+    shopIds: params.shopIds,
+    shopChannelId: params.shopChannelId,
+    q,
+  })
 
   const wantedState: CommentAnswerState | null =
     params.state === 'UNANSWERED'
@@ -507,7 +616,7 @@ export async function listCommentPosts(params: {
           : null
   const filtered = wantedState ? mapped.filter((p) => p.postStatus === wantedState) : mapped
 
-  return { posts: filtered, counts }
+  return { posts: filtered, counts, rawCount: mapped.length }
 }
 
 /** ยอด engagement เก่าได้ — รีเฟรชตอนเปิดโพสต์ ไม่เกินทุก 5 นาทีต่อโพสต์ (เหมือน backfill) */
@@ -892,33 +1001,19 @@ export async function countUnansweredForShops(params: {
    * หน่วยเดียวกัน คือ "มีกี่รายการในลิสต์ที่ต้องจัดการ" และตรงกับจำนวนแถวที่ผู้ใช้เห็นจริง
    * (รอบก่อนผมเปลี่ยนเป็นนับคอมเมนต์เพราะ user บอกว่าเลข 24/5/3,7,3,8,3 ดูขัดกัน — ตอนนั้นแถวยังมี
    *  วงกลมตัวเลขต่อโพสต์อยู่ พอถอดวงกลมออกตามที่สั่งทีหลัง เลขจำนวนคอมเมนต์ก็ไม่มีอะไรบนจอให้อ้างอิง)
-   */
-  /**
-   * feature 00038 Fix round 1 — ตั้งใจ "ไม่" แยกบอท/คนในเงื่อนไข NOT EXISTS ด้านล่างนี้ (ย้อนกลับ
+   *
+   * feature 00038 Fix round 1 — ตั้งใจ "ไม่" แยกบอท/คนในนิยาม "ยังไม่ตอบ" (ย้อนกลับ
    * `AND r."isAutoReply" = false` ที่ Task 9 เติมเข้ามาตามบรีฟ ซึ่งบรีฟผิด ขัดกับ BRD ที่ user
    * อนุมัติแล้ว): AC-CR-25 เขียนตรง ๆ ว่า "บอทตอบทุกคอมเมนต์ในโพสต์ → ตัวเลขบนแท็บ 'ความคิดเห็น'
    * ต้องไม่นับโพสต์นั้น" และ BR-CR-S1 นิยาม "ยังไม่ตอบ" = ไม่มีคำตอบของเพจเลย (ไม่ว่าบอทหรือคน)
    * เติมเงื่อนไข isAutoReply เข้ามาจะทำให้โพสต์ที่บอทเคลียร์หมดแล้วค้างอยู่ใน badge นี้ตลอดกาล
    * ผิด AC-CR-25 และตัวนับไร้ความหมาย (เตือนซ้ำไม่มีวันหายแม้บอทตอบครบ)
    *
-   * การแยกบอท/คนเป็นหน้าที่ของชิปกรอง 4 ตัว ("บอทตอบแล้ว" vs "คนตอบแล้ว") ซึ่งตัดสินด้วย
-   * derivePostState()/deriveCommentState() ใน listCommentPosts() แยกต่างหาก ไม่ใช่ badge รวมตัวนี้
-   * — badge นี้ตอบคำถามคนละข้อ: "โพสต์นี้ยังต้องการความสนใจของคนไหม" (รวม UNANSWERED +
-   * BOT_ANSWERED) ไม่ใช่ "โพสต์นี้อยู่กลุ่มไหนใน 3 กลุ่ม"
+   * feature 00038 หนี้ #1 — เดิมฟังก์ชันนี้มี $queryRaw ของตัวเอง แยกจาก counts ที่ listCommentPosts
+   * คำนวณ (ซึ่งตอนนั้นเป็น batch scope ≤25 โพสต์อยู่แล้ว) สอง query ที่ "น่าจะตรงกัน" นี้คือความเสี่ยง
+   * — เปลี่ยนมาเรียก countCommentPostStatesByShop() ตัวเดียวกับที่ listCommentPosts ใช้แทน ไม่มี
+   * shopChannelId/q filter (บาดจ์นี้ไม่รู้จักตัวกรองพวกนั้น) จึงเท่ากับนับทั้งร้านเสมอ
    */
-  const rows = await prisma.$queryRaw<Array<{ count: bigint }>>`
-    SELECT count(DISTINCT c."postId")::bigint AS count
-    FROM "PageComment" c
-    JOIN "ShopChannel" sc ON sc.id = c."shopChannelId"
-    WHERE sc."shopId" IN (${Prisma.join(params.shopIds)})
-      AND sc.provider = 'MESSENGER'
-      AND c."isFromPage" = false
-      AND c."isDeleted" = false
-      AND NOT EXISTS (
-        SELECT 1 FROM "PageComment" r
-        WHERE r."parentExternalId" = c."externalCommentId"
-          AND r."isFromPage" = true
-      )
-  `
-  return Number(rows[0]?.count ?? 0)
+  const counts = await countCommentPostStatesByShop({ shopIds: params.shopIds })
+  return counts.unanswered
 }

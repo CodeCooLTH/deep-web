@@ -13,8 +13,10 @@ import { listCommentPosts } from "@/services/page-comment.service";
  *
  * per-user authenticated data — ห้าม shared cache (เหตุผลเดียวกับ chat/groups)
  *
- * response: { posts, counts } — เปลี่ยนจาก { items } เดิม (feature 00038 Task 9) เพราะตัวนับ 4 กลุ่ม
- * ต้องมาจาก symbol เดียวกับที่ filter รายการ (BR-CR-S4) — ดู listCommentPosts()
+ * response: { posts, counts, rawCount } — เปลี่ยนจาก { items } เดิม (feature 00038 Task 9) เพราะ
+ * ตัวนับ 4 กลุ่ม ต้องมาจาก symbol เดียวกับที่ filter รายการ (BR-CR-S4) — ดู listCommentPosts()
+ * `counts` = ทั้งร้าน (feature 00038 หนี้ #1) · `rawCount` = จำนวนโพสต์ดิบที่ query รอบนี้ได้มา
+ * (ก่อนกรองด้วย `state`) ใช้คำนวณ skip/hasMore ของหน้าถัดไปที่ client เท่านั้น ไม่ใช่ตัวเลขแสดงผล
  */
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
     const stateRaw = request.nextUrl.searchParams.get("state");
     const state: "ALL" | "UNANSWERED" | "BOT" | "HUMAN" =
       stateRaw === "UNANSWERED" || stateRaw === "BOT" || stateRaw === "HUMAN" ? stateRaw : "ALL";
-    const { posts, counts } = await listCommentPosts({
+    const { posts, counts, rawCount } = await listCommentPosts({
       shopIds: scope.shopIds,
       actorUserId: userId,
       q,
@@ -49,7 +51,7 @@ export async function GET(request: NextRequest) {
       skip,
       state,
     });
-    return NextResponse.json({ posts, counts }, { headers: NO_STORE_HEADERS });
+    return NextResponse.json({ posts, counts, rawCount }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "FORBIDDEN") return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });
