@@ -12,6 +12,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     order: { findMany: vi.fn() },
+    // includeFinance=true เท่านั้นที่แตะตารางนี้ — เทสชุด COGS ด้านล่างต้องมีให้ mock
+    expense: { findMany: vi.fn() },
   },
 }))
 
@@ -140,6 +142,80 @@ describe('getSalesSeries — รอเงิน COD ต่อวัน', () => {
 
     // ไม่มีพัสดุ active → status SHIPPED = "กำลังจัดส่ง" ไม่ใช่ "รอเงิน COD"
     expect(res.codPendingValues[6]).toBe(0)
+  })
+})
+
+describe('getSalesSeries — ต้นทุนสินค้า (COGS) สองชุด', () => {
+  const expenseFindMany = vi.mocked(prisma.expense.findMany)
+  beforeEach(() => {
+    expenseFindMany.mockReset()
+    expenseFindMany.mockResolvedValue([] as never)
+  })
+
+  /**
+   * [blocker] ห้าม merge ถ้าแดง — นี่คือกฎที่ทำให้หน้า "ยอดขายและกำไร" ลบกันลงตัวบนหน้าจอ
+   *
+   * `cogsValues` ต้องนับต้นทุนของ **ทุกใบ** เพื่อให้คู่กับ `values` (ยอดขาย ซึ่งรวมใบรอยืนยัน)
+   * ส่วน `cogsConfirmedValues` นับเฉพาะใบที่เป็นรายได้แล้ว เพื่อให้คู่กับ `confirmedValues` (สูตร P&L)
+   * ถ้าใครยุบสองอันนี้เป็นก้อนเดียว คอลัมน์ "ต้นทุนสินค้า" บนชีตจะว่างในวันที่ยังไม่มีใครยืนยัน
+   * ทั้งที่คอลัมน์ "ยอดขาย" บรรทัดเดียวกันมีตัวเลข → กำไรของแถวนั้นสูงเกินจริงแบบเงียบ ๆ
+   */
+  it('[blocker] cogsValues นับทุกใบ · cogsConfirmedValues นับเฉพาะใบที่เป็นรายได้แล้ว', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 1000,
+        createdAt: thaiNoon(2026, 3, 5),
+        status: 'CONFIRMED',
+        shipments: [],
+        items: [{ cost: 200, qty: 2 }], // 400
+      },
+      {
+        totalAmount: 500,
+        createdAt: thaiNoon(2026, 3, 5),
+        status: 'PENDING', // ยังไม่นับเป็นรายได้ แต่ยอด 500 อยู่ใน values แล้ว
+        shipments: [],
+        items: [{ cost: 150, qty: 1 }], // 150
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, true)
+
+    expect(res.values[4]).toBe(1500)
+    expect(res.confirmedValues[4]).toBe(1000)
+    expect(res.cogsValues?.[4]).toBe(550) // 400 + 150 — ทุกใบ
+    expect(res.cogsConfirmedValues?.[4]).toBe(400) // เฉพาะใบที่ยืนยันแล้ว
+    expect(res.totalCogs).toBe(550)
+    // netProfit ต้องยังเป็นสูตรการ์ด P&L: ยืนยันแล้ว − ต้นทุน(เฉพาะใบยืนยัน) − ค่าใช้จ่าย
+    expect(res.netProfitValues?.[4]).toBe(600)
+  })
+
+  /** cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ต้นทุน 0 — ต้องข้าม ไม่ใช่บวก 0 แล้วทำเป็นว่ารู้แล้ว */
+  it('[blocker] บรรทัดที่ยังไม่ตั้งต้นทุน (cost = null) ถูกข้าม ไม่นับเป็น 0', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 800,
+        createdAt: thaiNoon(2026, 3, 9),
+        status: 'CONFIRMED',
+        shipments: [],
+        items: [{ cost: null, qty: 3 }, { cost: 100, qty: 1 }],
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, true)
+
+    expect(res.cogsValues?.[8]).toBe(100)
+  })
+
+  /** ไม่ผ่าน gate สิทธิ์ → ต้องไม่มีฟิลด์การเงินเลย (UI ซ่อนทั้งบล็อก ไม่ใช่โชว์ 0) */
+  it('includeFinance=false → ไม่มี cogsValues/totalCogs ใน response', async () => {
+    findMany.mockResolvedValue([
+      { totalAmount: 800, createdAt: thaiNoon(2026, 3, 9), status: 'CONFIRMED', shipments: [] },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 })
+
+    expect(res.cogsValues).toBeUndefined()
+    expect(res.totalCogs).toBeUndefined()
   })
 })
 

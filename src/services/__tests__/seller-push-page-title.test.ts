@@ -6,6 +6,8 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     shop: { findUnique: vi.fn(async () => ({ userId: 'owner1' })) },
     shopMember: { findMany: vi.fn(async () => []) },
+    // ไม่มีแถว = ทุกคนเปิดแจ้งเตือนอยู่ (กติกา opt-out ของ ShopNotificationPref)
+    shopNotificationPref: { findMany: vi.fn(async () => [] as { userId: string }[]) },
   },
 }))
 vi.mock('@/services/chat.service', () => ({ getConversationToastPreview: vi.fn() }))
@@ -14,6 +16,27 @@ vi.mock('@/services/app-push.service', () => ({ pushToUsers: vi.fn() }))
 const { pageTitle, pushNewChatMessage } = await import('@/services/seller-push.service')
 const { getConversationToastPreview } = await import('@/services/chat.service')
 const { pushToUsers } = await import('@/services/app-push.service')
+const { prisma } = await import('@/lib/prisma')
+
+/**
+ * Prisma type ของ findMany อ้างอิง "แถวเต็ม" เสมอ แต่ service เรียกด้วย `select` จึงได้ subset
+ * ของคอลัมน์เท่านั้น — TypeScript มองไม่เห็นความต่างนี้ผ่าน mock. cast ไว้ที่เดียวพร้อมเหตุผล
+ * ดีกว่าโปรย `as any` กระจายทั้งไฟล์แล้วกลืน type error จริงไปด้วยโดยไม่รู้ตัว
+ */
+const selected = <T,>(rows: T[]) => rows as never
+
+/** preview มาตรฐานที่ใช้ซ้ำ — เทสที่สนใจ "ใครได้รับ" ไม่ได้สนใจเนื้อหา */
+function previewFor(conversationId: string) {
+  return {
+    conversationId,
+    senderName: 'สมชาย',
+    senderAvatarUrl: null,
+    preview: 'สวัสดีครับ',
+    channel: 'MESSENGER',
+    channelName: 'BT Premium',
+    lastMessageAt: new Date('2026-08-08T11:50:00.000Z'),
+  }
+}
 
 /**
  * pageTitle = หัวเรื่องของ push notification = ชื่อเพจที่ลูกค้าทักเข้ามา
@@ -106,5 +129,53 @@ describe('pushNewChatMessage — ลำดับบรรทัด', () => {
     expect(title).toBe('Deep') // ไม่มีเพจ → ถอยไปใช้ชื่อช่องทาง
     expect(options?.subtitle).toBe('สมชาย')
     expect(body).toBe('ส่งข้อความถึงคุณ')
+  })
+})
+
+/**
+ * ตั้งค่าแจ้งเตือนรายร้าน (user สั่ง 2026-08-08: "ตั้งค่าทีละร้านได้")
+ *
+ * ทดสอบผ่าน pushNewChatMessage เพราะ shopAudience เป็นฟังก์ชันภายใน — และที่สำคัญกว่าคือ
+ * สิ่งที่ต้องรับประกันจริง ๆ ไม่ใช่ "ฟังก์ชันคืนอาร์เรย์อะไร" แต่คือ **คนที่กดปิดต้องไม่ได้รับ push**
+ */
+describe('pushNewChatMessage — ตั้งค่าแจ้งเตือนรายร้าน', () => {
+  beforeEach(() => {
+    vi.mocked(pushToUsers).mockClear()
+    vi.mocked(prisma.shopNotificationPref.findMany).mockResolvedValue(selected([]))
+    vi.mocked(prisma.shopMember.findMany).mockResolvedValue(selected([]))
+  })
+
+  it('ไม่มีแถวใน ShopNotificationPref = เปิดอยู่ → ยังได้รับตามปกติ', async () => {
+    // กติกา opt-out: ผู้ใช้เดิมทุกคนและร้านที่เพิ่งสร้างต้องได้ noti โดยไม่ต้องมีใครไปสร้างแถวให้
+    vi.mocked(getConversationToastPreview).mockResolvedValueOnce(previewFor('c-pref-1'))
+
+    await pushNewChatMessage({ shopId: 'shop1', conversationId: 'c-pref-1' })
+
+    const [audience] = vi.mocked(pushToUsers).mock.calls[0]!
+    expect(audience).toEqual(['owner1'])
+  })
+
+  it('[blocker] คนที่ปิดแจ้งเตือนของร้านนี้ ต้องถูกหักออกจากผู้รับ', async () => {
+    vi.mocked(prisma.shopNotificationPref.findMany).mockResolvedValue(selected([{ userId: 'owner1' }]))
+    vi.mocked(getConversationToastPreview).mockResolvedValueOnce(previewFor('c-pref-2'))
+
+    await pushNewChatMessage({ shopId: 'shop1', conversationId: 'c-pref-2' })
+
+    // ไม่เหลือผู้รับเลย → ต้องไม่เรียก pushToUsers ทิ้งไว้ให้ยิงเปล่า
+    expect(vi.mocked(pushToUsers)).not.toHaveBeenCalled()
+  })
+
+  it('ปิดของคนหนึ่ง ต้องไม่กระทบพนักงานคนอื่นในร้านเดียวกัน', async () => {
+    // เส้นแบ่งสำคัญ: ค่านี้เป็นความชอบของ "คน" ไม่ใช่การตั้งค่าของ "ร้าน"
+    vi.mocked(prisma.shopMember.findMany).mockResolvedValue(selected([{ userId: 'staff1' }, { userId: 'staff2' }]))
+    vi.mocked(prisma.shopNotificationPref.findMany).mockResolvedValue(selected([{ userId: 'staff1' }]))
+    vi.mocked(getConversationToastPreview).mockResolvedValueOnce(previewFor('c-pref-3'))
+
+    await pushNewChatMessage({ shopId: 'shop1', conversationId: 'c-pref-3' })
+
+    const [audience] = vi.mocked(pushToUsers).mock.calls[0]!
+    expect(audience).toContain('owner1')
+    expect(audience).toContain('staff2')
+    expect(audience).not.toContain('staff1')
   })
 })

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — 00038 ตอบกลับคอมเมนต์ (2026-08-08)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงของสกิน Paces: คัดจาก src/assets/css/config/_root.css + _card/_buttons/_badge/_forms.css ── */
+:root{
+  --color-primary:#236dc9; --color-success:#28c76f; --color-warning:#f9bf59; --color-danger:#ef5f5f;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-500:#58626b; --color-default-700:#40454a; --color-default-900:#313a46;
+  --text-2xs:11px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;color:var(--color-body-color);font-size:14px;line-height:1.5;padding:32px 20px 80px}
+.wrap{max-width:1640px;margin:0 auto}
+h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.sub{margin-top:6px;max-width:92ch}
+.meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;border-left:3px solid var(--color-primary);margin:22px 0}
+.note.warn{border-left-color:var(--color-warning)}
+.note.stop{border-left-color:var(--color-danger)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}.note li{margin-bottom:5px;font-size:13px}
+code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.sec{margin-top:46px}
+.sec>h2{font-size:19px;font-weight:600;color:var(--color-default-900)}
+.sec>p{margin-top:6px;max-width:92ch;font-size:13px}
+.rack{display:flex;gap:30px;align-items:flex-start;flex-wrap:wrap;margin-top:18px}
+figcaption{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:9px}
+figcaption span{font-weight:400;color:var(--color-default-500)}
+.frame{background:var(--color-body-bg);border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(47,43,61,.13);padding:14px}
+.m .frame{width:390px}.t .frame{width:700px}.d .frame{width:940px}
+
+/* ── Paces primitives ── */
+.card{background:var(--color-card);border-radius:8px;box-shadow:0 1px 2px rgba(47,43,61,.08)}
+.card+.card{margin-top:14px}
+.card-header{display:flex;align-items:center;gap:11px;padding:15px 18px;border-bottom:1px dashed var(--color-default-300);flex-wrap:nowrap}
+.card-body{padding:16px 18px}
+.pg{width:38px;height:38px;border-radius:8px;flex:0 0 auto;background:#e3ecfa;color:var(--color-primary);font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:center;position:relative}
+.pg .ovl{position:absolute;right:-3px;bottom:-3px;width:17px;height:17px;border-radius:999px;box-shadow:0 0 0 2px #fff;display:flex;align-items:center;justify-content:center}
+.pg .ovl.fb{background:#1877f2}.pg .ovl.ig{background:linear-gradient(45deg,#f9ce34,#ee2a7b,#6228d7)}
+.pg .ovl svg{width:10px;height:10px;fill:#fff}
+.stack{min-width:0;display:flex;flex-direction:column}
+.nm{font-size:15px;font-weight:600;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sm{font-size:12px;color:var(--color-default-500)}
+.push{margin-left:auto}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 9px;font-size:var(--text-2xs);font-weight:600;white-space:nowrap}
+.badge.ok{background:rgba(40,199,111,.15);color:#128a4b}
+.badge.warn{background:rgba(249,191,89,.15);color:#8a6412}
+.badge.dgr{background:rgba(239,95,95,.15);color:#b93232}
+.badge.mut{background:var(--color-default-200);color:var(--color-default-700)}
+.badge.pri{background:rgba(35,109,201,.15);color:#1a5099}
+
+/* สวิตช์ */
+.sw-row{display:flex;align-items:flex-start;gap:12px;padding:14px 0}
+.sw-row+.sw-row{border-top:1px dashed var(--color-default-300)}
+.sw{width:40px;height:22px;border-radius:999px;background:var(--color-default-300);flex:0 0 auto;position:relative;margin-top:2px}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:999px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.sw.on{background:var(--color-primary)}.sw.on::after{left:21px}
+.sw-txt{min-width:0;flex:1}
+.sw-txt b{font-size:14px;font-weight:600;color:var(--color-default-900);display:block}
+.sw-txt p{font-size:12px;color:var(--color-default-500);margin-top:2px}
+.ta{margin-top:10px;width:100%;border:1px solid var(--color-default-300);border-radius:6px;padding:9px 11px;font-size:13px;color:var(--color-default-900);background:#fff;min-height:66px;font-family:inherit}
+.ta.off{background:var(--color-default-100);color:var(--color-default-500)}
+.hint{font-size:var(--text-2xs);color:var(--color-default-500);margin-top:5px;display:flex;align-items:center;gap:5px}
+.hint svg{width:13px;height:13px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2}
+
+/* ปุ่ม */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border-radius:6px;font-size:13px;font-weight:500;border:1px solid transparent;white-space:nowrap}
+.btn.pri{background:var(--color-primary);color:#fff}
+.btn.out{background:#fff;border-color:var(--color-default-300);color:var(--color-default-700)}
+.btn.ghost{background:transparent;color:var(--color-default-700)}
+.btn.dis{background:var(--color-default-200);color:#9aa3ab}
+.btn.sm{height:28px;padding:0 10px;font-size:12px}
+.btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+.foot{display:flex;gap:9px;justify-content:flex-end;padding:13px 18px;border-top:1px dashed var(--color-default-300)}
+
+/* ตารางประวัติ */
+table.log{border-collapse:collapse;width:100%;font-size:12px}
+table.log th,table.log td{padding:8px 10px;border-bottom:1px solid var(--color-default-200);text-align:left;vertical-align:top}
+table.log th{background:var(--color-default-100);font-weight:600;color:var(--color-default-900);font-size:var(--text-2xs)}
+
+/* ชิปกรอง */
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:500;background:#fff;border:1px solid var(--color-default-300);color:var(--color-default-700)}
+.chip.act{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+.chip .n{font-variant-numeric:tabular-nums;font-weight:600}
+
+/* แถวคอมเมนต์ */
+.cmt{display:flex;gap:10px;padding:13px 0}
+.cmt+.cmt{border-top:1px dashed var(--color-default-300)}
+.av{width:32px;height:32px;border-radius:999px;flex:0 0 auto;background:var(--color-default-200);color:var(--color-default-700);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.bub{background:var(--color-default-100);border-radius:12px;padding:7px 12px;display:inline-block;max-width:100%}
+.bub b{display:block;font-size:13px;font-weight:600;color:var(--color-default-900)}
+.bub span{font-size:13px}
+.acts{display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap;font-size:12px}
+.acts .t{color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.lnk{color:var(--color-default-700);font-weight:500}
+.cd{color:#b93232;font-weight:600;font-variant-numeric:tabular-nums}
+.bot-rep{margin-top:8px;margin-left:20px;border-left:2px solid var(--color-default-300);padding-left:11px}
+
+/* ตารางสถานะ */
+table.h{border-collapse:collapse;width:100%;margin-top:10px;font-size:13px;background:#fff;border-radius:8px;overflow:hidden}
+table.h th,table.h td{padding:8px 12px;border-bottom:1px solid var(--color-default-200);text-align:left}
+table.h th{background:var(--color-default-100);font-weight:600;color:var(--color-default-900)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>00038 — ตอบกลับคอมเมนต์ (Comment Auto-Reply &amp; Private Reply)</h1>
+<p class="sub">ตั้งค่าต่อเพจให้ระบบตอบใต้คอมเมนต์และทักแชทให้อัตโนมัติ + ทำให้ปุ่ม “ทักแชท” ในแท็บความคิดเห็นกดได้จริง (ปิดหนี้ที่ค้างจาก 00029). ทุกค่าสีและขนาดในหน้านี้คัดจาก token จริงของ Paces ไม่ได้กะเอา — <code>.card</code> radius 8px, <code>.btn</code> 34px, <code>--color-primary #236dc9</code>, badge ใช้ <code>bg-{semantic}/15</code> ตาม Hard Rule 7</p>
+<p class="meta">คู่กับ <code>2026-08-08-00038-comment-auto-reply-design.md</code> · ขอบเขตรอบนี้ = Facebook เท่านั้น (IG เฟส 2 แต่วาดไว้ให้เห็นว่าโครงรองรับ)</p>
+
+<div class="note stop">
+  <h2>ข้อจำกัดของ Meta ที่ทุกจอในหน้านี้ต้องเคารพ</h2>
+  <ul>
+    <li><strong>ทักแชทได้ครั้งเดียวต่อคอมเมนต์</strong> — กดพลาดย้อนไม่ได้ ปุ่มจึงต้องเปิดกล่องพิมพ์ก่อน ไม่ส่งทันที</li>
+    <li><strong>ภายใน 7 วัน</strong>นับจากเวลาคอมเมนต์ — เกินแล้วปุ่มต้องปิดพร้อมบอกเหตุผล</li>
+    <li><strong>ทักแล้วยังคุยต่อไม่ได้</strong> จนกว่าลูกค้าจะตอบ — ห้ามออกแบบให้มีข้อความตามหลัง</li>
+  </ul>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="sec">
+  <h2>1 · หน้าตั้งค่า <code>/settings/comment-reply</code></h2>
+  <p>การ์ดหนึ่งใบต่อเพจที่เชื่อมไว้ (ยกโครงจาก <code>/settings/auto-reply</code> ตาม Hard Rule 1) — 2 สวิตช์แยกกัน แต่ละตัวมีข้อความของตัวเอง ค่าตั้งต้นทั้งคู่ = <strong>ปิด</strong></p>
+
+  <div class="rack">
+
+    <!-- Desktop -->
+    <figure class="d">
+      <figcaption>Desktop <span>· 940px — การ์ดเรียงลงมา ประวัติเป็นตารางเต็ม</span></figcaption>
+      <div class="frame">
+
+        <div class="card">
+          <div class="card-header">
+            <div class="pg">ธภ<div class="ovl fb"><svg viewBox="0 0 24 24"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12"/></svg></div></div>
+            <div class="stack">
+              <div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</div>
+              <div class="sm">Facebook Page · เชื่อมเมื่อ 12 มิ.ย. 2569</div>
+            </div>
+            <span class="badge ok push">เชื่อมต่ออยู่</span>
+          </div>
+          <div class="card-body" style="padding-top:4px;padding-bottom:4px">
+
+            <div class="sw-row">
+              <div class="sw on"></div>
+              <div class="sw-txt">
+                <b>ตอบใต้คอมเมนต์</b>
+                <p>ระบบจะตอบข้อความนี้ใต้คอมเมนต์ระดับบนของลูกค้าโดยอัตโนมัติ</p>
+                <textarea class="ta">ขอบคุณที่สนใจครับ ทักแชทมาได้เลย เดี๋ยวแอดมินเช็กรุ่นให้ครับ</textarea>
+                <div class="hint"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg> คนอื่นที่เข้ามาดูโพสต์จะเห็นข้อความนี้ — หลีกเลี่ยงข้อความที่ดูเป็นสแปม</div>
+              </div>
+            </div>
+
+            <div class="sw-row">
+              <div class="sw on"></div>
+              <div class="sw-txt">
+                <b>ทักแชทส่วนตัวต่อ</b>
+                <p>หลังตอบใต้คอมเมนต์แล้ว ระบบจะเปิดห้องแชทกับคนนั้นให้ทันที</p>
+                <textarea class="ta">สวัสดีครับ พอดีเห็นคอมเมนต์ในโพสต์ รบกวนแจ้งรุ่นรถกับปีได้เลยครับ เดี๋ยวเช็กสต๊อกให้</textarea>
+                <div class="hint"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg> Facebook ให้ทักได้ <b style="margin:0 3px">ครั้งเดียวต่อคอมเมนต์</b> และภายใน 7 วัน · คุยต่อได้เมื่อลูกค้าตอบกลับ</div>
+              </div>
+            </div>
+
+          </div>
+          <div class="foot">
+            <button class="btn ghost">ยกเลิก</button>
+            <button class="btn pri">บันทึก</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="pg" style="background:#fdecec;color:#b93232">BT<div class="ovl ig"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 3.3.1 4.8 1.7 4.9 4.9.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.9c-.1 3.2-1.7 4.8-4.9 4.9-1.3.1-1.6.1-4.9.1s-3.6 0-4.9-.1c-3.2-.1-4.8-1.7-4.9-4.9C2.1 15.6 2.1 15.2 2.1 12s0-3.6.1-4.9c.1-3.2 1.7-4.8 4.9-4.9C8.4 2.2 8.8 2.2 12 2.2m0 5.1a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4m0 7.7a3 3 0 1 1 0-6 3 3 0 0 1 0 6m5.9-7.9a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0"/></svg></div></div>
+            <div class="stack">
+              <div class="nm">BT Premium</div>
+              <div class="sm">Instagram · ยังไม่รองรับในรอบนี้</div>
+            </div>
+            <span class="badge mut push">เร็ว ๆ นี้</span>
+          </div>
+          <div class="card-body">
+            <div class="sw-row" style="padding-top:2px">
+              <div class="sw"></div>
+              <div class="sw-txt">
+                <b style="color:var(--color-default-500)">ตอบใต้คอมเมนต์ · ทักแชทส่วนตัว</b>
+                <p>คอมเมนต์บน Instagram ต้องขอสิทธิ์เพิ่มจาก Meta ก่อน แล้วให้คุณกดเชื่อมบัญชี IG ใหม่อีกครั้ง</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="nm" style="font-size:14px">ประวัติการตอบอัตโนมัติ</div><span class="badge mut push">7 วันล่าสุด</span></div>
+          <table class="log">
+            <tr><th style="width:120px">เวลา</th><th>ผู้คอมเมนต์</th><th>โพสต์</th><th style="width:130px">ตอบใต้คอมเมนต์</th><th style="width:150px">ทักแชท</th></tr>
+            <tr><td>08 ส.ค. 13:23</td><td>สุพจน์ เหลา</td><td>โรงงานล้างสต๊อก! โช๊คหลังเวฟ…</td><td><span class="badge ok">ส่งแล้ว</span></td><td><span class="badge ok">ส่งแล้ว</span> <a class="lnk" href="#">เปิดห้อง</a></td></tr>
+            <tr><td>08 ส.ค. 11:22</td><td>Keng Kiattisak</td><td>โรงงานล้างสต๊อก! โช๊คหลังเวฟ…</td><td><span class="badge mut">ข้าม</span></td><td><span class="badge mut">ข้าม</span><div class="sm" style="margin-top:3px">คนในร้านตอบไปก่อนแล้ว</div></td></tr>
+            <tr><td>07 ส.ค. 22:04</td><td>ปรีชา เชียงสอน</td><td>โช๊คหลังบรรทุกหนัก ซ้อนสาม…</td><td><span class="badge ok">ส่งแล้ว</span></td><td><span class="badge dgr">ไม่สำเร็จ</span><div class="sm" style="margin-top:3px">เกิน 7 วันนับจากคอมเมนต์</div></td></tr>
+          </table>
+        </div>
+
+      </div>
+    </figure>
+
+    <!-- Tablet -->
+    <figure class="t">
+      <figcaption>Tablet <span>· 700px — เหมือน desktop, ประวัติซ่อนคอลัมน์ “โพสต์”</span></figcaption>
+      <div class="frame">
+        <div class="card">
+          <div class="card-header">
+            <div class="pg">ธภ<div class="ovl fb"><svg viewBox="0 0 24 24"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12"/></svg></div></div>
+            <div class="stack"><div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</div><div class="sm">Facebook Page</div></div>
+            <span class="badge ok push">เชื่อมต่ออยู่</span>
+          </div>
+          <div class="card-body" style="padding-top:4px;padding-bottom:4px">
+            <div class="sw-row">
+              <div class="sw on"></div>
+              <div class="sw-txt">
+                <b>ตอบใต้คอมเมนต์</b>
+                <p>ตอบข้อความนี้ใต้คอมเมนต์ระดับบนของลูกค้า</p>
+                <textarea class="ta">ขอบคุณที่สนใจครับ ทักแชทมาได้เลย เดี๋ยวแอดมินเช็กรุ่นให้ครับ</textarea>
+              </div>
+            </div>
+            <div class="sw-row">
+              <div class="sw"></div>
+              <div class="sw-txt">
+                <b>ทักแชทส่วนตัวต่อ</b>
+                <p>เปิดห้องแชทกับคนที่คอมเมนต์ให้อัตโนมัติ</p>
+                <textarea class="ta off" disabled>เปิดสวิตช์เพื่อตั้งข้อความ</textarea>
+                <div class="hint"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg> ปิดอยู่ — ปุ่ม “ทักแชท” ในแท็บความคิดเห็นยังกดเองได้ตามปกติ</div>
+              </div>
+            </div>
+          </div>
+          <div class="foot"><button class="btn ghost">ยกเลิก</button><button class="btn pri">บันทึก</button></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="nm" style="font-size:14px">ประวัติการตอบอัตโนมัติ</div><span class="badge mut push">7 วันล่าสุด</span></div>
+          <table class="log">
+            <tr><th style="width:106px">เวลา</th><th>ผู้คอมเมนต์</th><th style="width:112px">ใต้คอมเมนต์</th><th style="width:118px">ทักแชท</th></tr>
+            <tr><td>08 ส.ค. 13:23</td><td>สุพจน์ เหลา</td><td><span class="badge ok">ส่งแล้ว</span></td><td><span class="badge ok">ส่งแล้ว</span></td></tr>
+            <tr><td>08 ส.ค. 11:22</td><td>Keng Kiattisak</td><td><span class="badge mut">ข้าม</span></td><td><span class="badge mut">ข้าม</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </figure>
+
+    <!-- Mobile -->
+    <figure class="m">
+      <figcaption>Mobile <span>· 390px — สวิตช์ยังอยู่ซ้าย, ปุ่มบันทึกเต็มความกว้าง</span></figcaption>
+      <div class="frame">
+        <div class="card">
+          <div class="card-header" style="padding:13px 14px">
+            <div class="pg" style="width:34px;height:34px">ธภ<div class="ovl fb"><svg viewBox="0 0 24 24"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.6V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12"/></svg></div></div>
+            <div class="stack"><div class="nm" style="font-size:14px">ธนภัทร์ อะไหล่มอเตอร์ไซค์…</div><div class="sm">Facebook Page</div></div>
+          </div>
+          <div class="card-body" style="padding:2px 14px">
+            <div class="sw-row">
+              <div class="sw on"></div>
+              <div class="sw-txt">
+                <b>ตอบใต้คอมเมนต์</b>
+                <textarea class="ta">ขอบคุณที่สนใจครับ ทักแชทมาได้เลย</textarea>
+              </div>
+            </div>
+            <div class="sw-row">
+              <div class="sw on"></div>
+              <div class="sw-txt">
+                <b>ทักแชทส่วนตัวต่อ</b>
+                <textarea class="ta">สวัสดีครับ รบกวนแจ้งรุ่นรถกับปีได้เลยครับ</textarea>
+                <div class="hint"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg> ทักได้ครั้งเดียวต่อคอมเมนต์ ภายใน 7 วัน</div>
+              </div>
+            </div>
+          </div>
+          <div class="foot" style="padding:12px 14px"><button class="btn pri" style="flex:1">บันทึก</button></div>
+        </div>
+      </div>
+    </figure>
+
+  </div>
+
+  <div class="note warn">
+    <h2>จุดที่ต้องระวังตอน implement</h2>
+    <ul>
+      <li><code>ShopChannel</code> มี <code>accessTokenEnc</code> อยู่แถวเดียวกับค่าตั้งค่าเหล่านี้ — ทุก query ที่ส่งออกไปหา client ต้อง <code>select</code> ระบุคอลัมน์ ห้ามคืนทั้งแถว</li>
+      <li>เพจที่ <code>status = 'TOKEN_INVALID'</code> ต้องขึ้นแถบเตือนให้เชื่อมใหม่ และปิดสวิตช์ทั้งใบ — ไม่ใช่ปล่อยให้ตั้งค่าได้แล้วยิงไม่ออกเงียบ ๆ</li>
+      <li>ปิดสวิตช์ B <strong>ไม่</strong>ปิดปุ่มแมนนวลในแท็บความคิดเห็น (มติ D-6)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="sec">
+  <h2>2 · ปุ่ม “ทักแชท” ในแท็บความคิดเห็น — 4 สถานะ</h2>
+  <p>วันนี้ตรงนี้เป็น <strong>ป้ายนับถอยหลังเฉย ๆ</strong> (<code>CommentsClient.tsx:1572</code> เขียนยอมรับไว้เองว่า “ยังไม่ใช่ปุ่มกดได้”) — รอบนี้ทำให้กดได้จริง ตัวนับ 7 วันคำนวณถูกอยู่แล้วทั้ง service และ UI ไม่ต้องแตะ</p>
+
+  <div class="rack">
+    <figure class="d">
+      <figcaption>Desktop <span>· คอลัมน์คอมเมนต์ฝั่งขวาของหน้า <code>/inbox/comments</code></span></figcaption>
+      <div class="frame">
+        <div class="card"><div class="card-body">
+
+          <div class="cmt">
+            <div class="av">ส</div>
+            <div style="min-width:0">
+              <div class="bub"><b>สุพจน์ เหลา</b><span>สวยๆครับ</span></div>
+              <div class="acts">
+                <span class="t">13:23</span>
+                <a class="lnk" href="#">ตอบ</a>
+                <button class="btn out sm"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.3-.6L3 21l1.9-4.6A8.4 8.4 0 1 1 21 11.5"/></svg> ทักแชท</button>
+                <span class="cd">คงเหลือ 6 วัน 22 ชั่วโมง 42 นาที</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cmt">
+            <div class="av">K</div>
+            <div style="min-width:0">
+              <div class="bub"><b>Keng Kiattisak</b><span>ใส่ดรีมได้ไหมคับ</span></div>
+              <div class="acts">
+                <span class="t">11:22</span>
+                <span class="badge ok">คนตอบแล้ว</span>
+                <a class="lnk" href="#">ตอบ</a>
+                <button class="btn dis sm">ทักแล้ว · 11:24</button>
+                <a class="lnk" href="#">เปิดห้องแชท</a>
+              </div>
+              <div class="bot-rep">
+                <div class="bub" style="background:#eef4fd"><b>ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง <span class="badge pri" style="margin-left:4px">ผู้ดูแลเพจ</span></b><span>Keng Kiattisak ใส่ได้ค่ะ</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cmt">
+            <div class="av">ป</div>
+            <div style="min-width:0">
+              <div class="bub"><b>ปรีชา เชียงสอน</b><span>สนใจ</span></div>
+              <div class="acts">
+                <span class="t">07 ส.ค. 22:04</span>
+                <span class="badge warn">บอทตอบแล้ว</span>
+                <a class="lnk" href="#">ตอบ</a>
+                <button class="btn dis sm">กำลังส่ง…</button>
+              </div>
+              <div class="bot-rep">
+                <div class="bub" style="background:#fdf7ec"><b>ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง <span class="badge warn" style="margin-left:4px">ตอบอัตโนมัติ</span></b><span>ขอบคุณที่สนใจครับ ทักแชทมาได้เลย เดี๋ยวแอดมินเช็กรุ่นให้ครับ</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cmt">
+            <div class="av">ว</div>
+            <div style="min-width:0">
+              <div class="bub"><b>วิชัย ทองมา</b><span>ราคาเท่าไหร่ครับ</span></div>
+              <div class="acts">
+                <span class="t">28 ก.ค. 09:10</span>
+                <a class="lnk" href="#">ตอบ</a>
+                <button class="btn dis sm">หมดเวลาทักแชท</button>
+                <span class="t">เกิน 7 วันแล้ว Facebook ไม่ให้ทักส่วนตัวอีก</span>
+              </div>
+            </div>
+          </div>
+
+        </div></div>
+      </div>
+    </figure>
+
+    <figure class="m">
+      <figcaption>Mobile <span>· ปุ่มตกลงมาบรรทัดใหม่ นับถอยหลังย่อเหลือ “6 วัน 22 ชม.”</span></figcaption>
+      <div class="frame">
+        <div class="card"><div class="card-body" style="padding:12px 14px">
+          <div class="cmt" style="padding-top:4px">
+            <div class="av">ส</div>
+            <div style="min-width:0">
+              <div class="bub"><b>สุพจน์ เหลา</b><span>สวยๆครับ</span></div>
+              <div class="acts"><span class="t">13:23</span><a class="lnk" href="#">ตอบ</a></div>
+              <div class="acts" style="margin-top:7px">
+                <button class="btn out sm"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.3-.6L3 21l1.9-4.6A8.4 8.4 0 1 1 21 11.5"/></svg> ทักแชท</button>
+                <span class="cd">6 วัน 22 ชม.</span>
+              </div>
+            </div>
+          </div>
+          <div class="cmt">
+            <div class="av">ป</div>
+            <div style="min-width:0">
+              <div class="bub"><b>ปรีชา เชียงสอน</b><span>สนใจ</span></div>
+              <div class="acts"><span class="t">22:04</span><span class="badge warn">บอทตอบแล้ว</span><a class="lnk" href="#">ตอบ</a></div>
+              <div class="acts" style="margin-top:7px"><button class="btn dis sm">ทักแล้ว · 22:04</button><a class="lnk" href="#">เปิดห้องแชท</a></div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </figure>
+  </div>
+
+  <div class="note">
+    <h2>กล่องพิมพ์ก่อนส่ง — ทำไมไม่ส่งทันทีที่กด</h2>
+    <ul>
+      <li>Meta ให้สิทธิ์ทักแค่ครั้งเดียวต่อคอมเมนต์ <strong>กดพลาดคือเสียสิทธิ์ถาวร</strong> จึงต้องมีจังหวะให้อ่านทวน</li>
+      <li>กล่องเติมข้อความจาก <code>commentPrivateReplyText</code> ของเพจไว้ให้แล้ว (ถ้าตั้งไว้) — แก้ก่อนส่งได้</li>
+      <li>ในกล่องต้องมีคำเตือนเดิมที่หน้านี้มีอยู่แล้ว: <em>คอมเมนต์นี้เป็นสาธารณะ</em> ไม่ใช้กับช่องนี้ — ช่องนี้เป็นข้อความส่วนตัว ต้องเขียนคำเตือนคนละแบบ ไม่ยกมาใช้ซ้ำ</li>
+      <li><strong>ปุ่มแมนนวลจำกัดที่ “1 ครั้งต่อคอมเมนต์” ไม่ใช่ “1 ครั้งต่อคน/โพสต์”</strong> — กฎคน/โพสต์เป็นกฎกันสแปมของบอท ถ้าเอามาครอบปุ่มด้วย คนที่คอมเมนต์ 2 ครั้งบนโพสต์เดียวจะถูกทักด้วยมือได้แค่ครั้งเดียวทั้งที่ Meta อนุญาต (ดู §5.3 ของไฟล์ .md)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="sec">
+  <h2>3 · สถานะ 3 ชั้น + ชิปกรอง</h2>
+  <p>ถ้าไม่ทำข้อนี้ ตัวนับ <code>ยังไม่ตอบ</code> จะกลายเป็น 0 เกือบตลอดทันทีที่เปิดบอท เพราะ Meta ส่งคำตอบของบอทกลับเข้ามาเป็นคอมเมนต์ของเพจ แล้วเกณฑ์เดิม (<em>มีคอมเมนต์ลูกที่ <code>isFromPage = true</code></em>) จะนับว่า “ตอบแล้ว” ทันที — คำถามที่ต้องการคนจริงจะจมหายไปกับคำตอบอัตโนมัติ</p>
+
+  <table class="h">
+    <tr><th style="width:170px">สถานะ</th><th>เกณฑ์</th><th style="width:230px">นับใน badge แท็บไหม</th></tr>
+    <tr><td><span class="badge dgr">ยังไม่ตอบ</span></td><td>ไม่มีคอมเมนต์ลูกของเพจเลย</td><td>นับ</td></tr>
+    <tr><td><span class="badge warn">บอทตอบแล้ว</span></td><td>ลูกของเพจ <strong>ทุกอัน</strong> <code>isAutoReply = true</code></td><td>ไม่นับ</td></tr>
+    <tr><td><span class="badge ok">คนตอบแล้ว</span></td><td>มีลูกของเพจอย่างน้อยหนึ่งอันที่ <code>isAutoReply = false</code></td><td>ไม่นับ</td></tr>
+  </table>
+
+  <div class="rack">
+    <figure class="d">
+      <figcaption>Desktop <span>· แถบกรองเหนือรายการโพสต์ — เพิ่มมา 1 ชิปจากของเดิม</span></figcaption>
+      <div class="frame">
+        <div class="card"><div class="card-body">
+          <div class="chips">
+            <span class="chip act">ทั้งหมด <span class="n">42</span></span>
+            <span class="chip">ยังไม่ตอบ <span class="n">9</span></span>
+            <span class="chip">บอทตอบแล้ว <span class="n">26</span></span>
+            <span class="chip">คนตอบแล้ว <span class="n">7</span></span>
+          </div>
+        </div></div>
+      </div>
+    </figure>
+    <figure class="m">
+      <figcaption>Mobile <span>· ชิปเลื่อนแนวนอนในหัวสติกกี้ (แพตเทิร์นเดียวกับ /orders)</span></figcaption>
+      <div class="frame">
+        <div class="card"><div class="card-body" style="padding:12px 14px">
+          <div class="chips" style="flex-wrap:nowrap;overflow-x:auto">
+            <span class="chip act">ทั้งหมด <span class="n">42</span></span>
+            <span class="chip">ยังไม่ตอบ <span class="n">9</span></span>
+            <span class="chip">บอทตอบ <span class="n">26</span></span>
+            <span class="chip">คนตอบ <span class="n">7</span></span>
+          </div>
+        </div></div>
+      </div>
+    </figure>
+  </div>
+
+  <div class="note stop">
+    <h2>ตัวเลขทั้ง 4 ต้องมาจาก symbol เดียว</h2>
+    <ul>
+      <li>จอนี้เคยโชว์ “ยังไม่ตอบ 7 กับ 8” พร้อมกันมาแล้ว (<code>docs/conventions/sibling-surface-parity.md</code>) — ตัวนับบนชิป ตัวนับบน badge แท็บ และตัวกรองที่ใช้จริง ต้องคำนวณจากฟังก์ชันเดียว</li>
+      <li>หน่วยของ badge แท็บยังเป็น <strong>จำนวนโพสต์</strong> ไม่ใช่จำนวนคอมเมนต์ — <code>countUnansweredForShop</code> อธิบายเหตุผลไว้แล้ว (ต้องเป็นหน่วยเดียวกับ badge แท็บ “ข้อความ” ที่นับจำนวนเธรด)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<div class="sec">
+  <h2>4 · เมนูใหม่ในกลุ่ม CHAT</h2>
+  <p>เพิ่มรายการที่ 4 ต่อจาก “ตอบกลับอัตโนมัติ” — กลุ่ม CHAT ตั้งใจรวม “ทุกอย่างที่เกี่ยวกับการคุยกับลูกค้า ทั้งที่คนตอบเองและที่ระบบตอบแทน” อยู่แล้ว (คอมเมนต์ใน <code>seller-menu.ts:93</code>)</p>
+  <div class="rack">
+    <figure class="m">
+      <figcaption>Sidebar <span>· ลำดับใหม่</span></figcaption>
+      <div class="frame" style="width:300px;background:#fff">
+        <div style="font-size:var(--text-2xs);font-weight:600;color:var(--color-default-500);padding:8px 12px;letter-spacing:.04em">แชท</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:14px"><svg style="width:18px;height:18px;fill:none;stroke:var(--color-default-500);stroke-width:1.8" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.3-.6L3 21l1.9-4.6A8.4 8.4 0 1 1 21 11.5"/></svg> ข้อความ <span class="badge dgr push">12</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:14px"><svg style="width:18px;height:18px;fill:none;stroke:var(--color-default-500);stroke-width:1.8" viewBox="0 0 24 24"><path d="M13 3 4 14h7l-1 7 9-11h-7z"/></svg> ตอบกลับอัตโนมัติ</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:14px;background:rgba(35,109,201,.09);color:var(--color-primary);font-weight:600;border-radius:6px;margin:0 6px"><svg style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h9a7 7 0 0 1 7 7v4"/></svg> ตอบกลับคอมเมนต์</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:14px"><svg style="width:18px;height:18px;fill:none;stroke:var(--color-default-500);stroke-width:1.8" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V5M9 13h.01M15 13h.01"/></svg> ผู้ช่วยอัตโนมัติ</div>
+      </div>
+    </figure>
+  </div>
+  <div class="note warn">
+    <h2>รอ user ยืนยัน 1 จุด</h2>
+    <ul>
+      <li><strong>ไอคอนเมนู</strong> — ในภาพใช้ <code>tabler-message-reply</code> (ลูกศรย้อนกลับ) เพื่อนบ้านคือ <code>message-circle</code> / <code>message-bolt</code> / <code>robot</code>. ตาม <code>docs/conventions/no-emoji-use-icons.md</code> ห้ามเดาไอคอนเอง จึงยกมาให้เลือก ไม่ได้ตัดสินแทน</li>
+      <li>เมนูนี้ต้องใส่ใน <code>VERTICAL_VISIBLE_SLUGS</code> ของทุก vertical ที่เห็นเมนู “ข้อความ” อยู่แล้ว — <code>seller-menu.ts</code> เป็น allow-list + fail-closed (00028) ลืมใส่ = เมนูหายเงียบ ไม่มี error</li>
+    </ul>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

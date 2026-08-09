@@ -8,8 +8,13 @@ import { listCommentPosts } from "@/services/page-comment.service";
  * GET /api/chat/comments/posts — รายการโพสต์ที่มีคอมเมนต์ ของร้านที่ active (feature 00029)
  * query: `q` = ค้นหา (ข้อความคอมเมนต์ / ชื่อผู้คอมเมนต์ / ข้อความโพสต์)
  *        `channelId` = กรองเฉพาะเพจเดียว (ร้านเชื่อมได้หลายเพจ)
+ *        `state` = feature 00038 — 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN' กรองที่ server
+ *          (ค่า derived จาก derivePostState ไม่มีคอลัมน์ในฐาน กรองที่ client ไม่ได้แล้ว)
  *
  * per-user authenticated data — ห้าม shared cache (เหตุผลเดียวกับ chat/groups)
+ *
+ * response: { posts, counts } — เปลี่ยนจาก { items } เดิม (feature 00038 Task 9) เพราะตัวนับ 4 กลุ่ม
+ * ต้องมาจาก symbol เดียวกับที่ filter รายการ (BR-CR-S4) — ดู listCommentPosts()
  */
 export const dynamic = "force-dynamic";
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
@@ -31,14 +36,20 @@ export async function GET(request: NextRequest) {
     const shopChannelId = request.nextUrl.searchParams.get("channelId") ?? undefined;
     const skipRaw = Number(request.nextUrl.searchParams.get("skip") ?? 0);
     const skip = Number.isFinite(skipRaw) && skipRaw > 0 ? Math.min(skipRaw, 500) : 0;
-    const items = await listCommentPosts({
+    // feature 00038 — allow-list ค่า state ที่รับ; ค่าแปลก ๆ ตกไป 'ALL' (fail-closed ไม่กรองอะไรเลย
+    // ดีกว่าโยน error เพราะเป็น query param จาก client ที่แก้ไขเองได้)
+    const stateRaw = request.nextUrl.searchParams.get("state");
+    const state: "ALL" | "UNANSWERED" | "BOT" | "HUMAN" =
+      stateRaw === "UNANSWERED" || stateRaw === "BOT" || stateRaw === "HUMAN" ? stateRaw : "ALL";
+    const { posts, counts } = await listCommentPosts({
       shopIds: scope.shopIds,
       actorUserId: userId,
       q,
       shopChannelId,
       skip,
+      state,
     });
-    return NextResponse.json({ items }, { headers: NO_STORE_HEADERS });
+    return NextResponse.json({ posts, counts }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "FORBIDDEN") return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงร้านนี้" }, { status: 403 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
+import { parseMetaSystemNotice, parseMetaAiHandoffNotice } from '@/lib/meta-system-notice'
 
 // ข้อความจริงที่เจอบน prod 2026-07-30 (เธรด 842dd8e1) — ตัด URL ให้สั้นลงพอทดสอบ
 const REAL =
@@ -111,5 +111,56 @@ describe('บรรทัดระบบที่ Meta ส่งในนาม�
     'ผมยังไม่ได้ sent a payment ให้เลย ขอเวลาแป๊บ',
   ])('ข้อความที่คนพิมพ์เองต้องไม่ถูกจับ: “%s”', (line) => {
     expect(parseMetaSystemNotice(line)).toBeNull()
+  })
+})
+
+/**
+ * parseMetaAiHandoffNotice — ข้อความสลับสิทธิ์คุมเธรด AI ↔ คน (2026-08-08)
+ *
+ * สตริงอังกฤษทั้ง 4 ตัวด้านล่าง **คัดลอกตรงตัวจากฐาน prod** (`SELECT DISTINCT body ...`
+ * 2026-08-08) ไม่ใช่ค่าที่แต่งขึ้นตามความเข้าใจของคนเขียนโค้ด — จุดนี้สำคัญเพราะเทสที่แต่งค่าเอง
+ * ตามข้อสันนิษฐานของโค้ด ยืนยันได้แค่ว่า "โค้ดทำตามที่คนเขียนคิด" ไม่ใช่ว่า "คนเขียนคิดถูก"
+ * (docs/conventions/external-payload-schema.md) — และรอบนี้เกิดขึ้นจริง: ตอนออกแบบเดาสตริงที่ 4
+ * ว่าลงท้าย "because your customer is requesting a human" แต่ของจริงคือ "...is ready to buy"
+ * ซึ่งคนละความหมายกันคนละเรื่อง
+ */
+describe('parseMetaAiHandoffNotice', () => {
+  it('[blocker] AI เริ่มตอบ → แปลไทย และ **ไม่มีลิงก์** (AI เปิดอยู่แล้ว ไม่มีอะไรให้เปิดกลับ)', () => {
+    const r = parseMetaAiHandoffNotice('Your AI agent will respond.')
+    expect(r?.text).toBe('เอเจนต์ AI ของ Meta เริ่มตอบแทนคุณในแชทนี้แล้ว')
+    expect(r?.linkLabel).toBeNull()
+    expect(r?.url).toBeNull()
+  })
+
+  it('[blocker] คนแย่งกลับ → ต้องใช้คำที่ Meta ใช้เองใน Business Suite ไทย ห้ามคิดคำใหม่', () => {
+    const r = parseMetaAiHandoffNotice('You took over this chat from your AI agent.')
+    expect(r?.text).toBe('คุณเข้ามาดูแลแชทนี้แทนเอเจนต์ AI')
+    expect(r?.linkLabel).toBe('เปิด AI กลับใน Business Suite')
+  })
+
+  it('AI ส่งคืนให้คน (ชวนไปสอน AI ต่อ) → แปลไทย + มีลิงก์', () => {
+    const r = parseMetaAiHandoffNotice(
+      'Your AI agent transferred this chat to you. Teach your AI so it can respond next time.',
+    )
+    expect(r?.text).toBe('เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล — สอน AI เพิ่มเพื่อให้ตอบเองได้ครั้งหน้า')
+    expect(r?.url).toContain('business.facebook.com')
+  })
+
+  it('AI ส่งคืนเพราะลูกค้าพร้อมซื้อ → ความหมายต้องเป็น "พร้อมซื้อ" ไม่ใช่ "ขอคุยกับคน"', () => {
+    const r = parseMetaAiHandoffNotice(
+      'Your AI agent transferred this chat to you because your customer is ready to buy.',
+    )
+    expect(r?.text).toBe('เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล เพราะลูกค้าพร้อมสั่งซื้อแล้ว')
+  })
+
+  it('สตริงที่ไม่รู้จัก/ข้อความลูกค้าทั่วไป → null (fail-soft ตกไปเป็นบับเบิลปกติ ไม่พัง)', () => {
+    expect(parseMetaAiHandoffNotice('Your AI agent did something new we have never seen')).toBeNull()
+    expect(parseMetaAiHandoffNotice('สวัสดีครับ')).toBeNull()
+    expect(parseMetaAiHandoffNotice(null)).toBeNull()
+    expect(parseMetaAiHandoffNotice('')).toBeNull()
+  })
+
+  it('มีช่องว่างหัว/ท้าย (Meta เติมมาได้) → ยังต้องจับได้', () => {
+    expect(parseMetaAiHandoffNotice('  Your AI agent will respond.  ')).not.toBeNull()
   })
 })

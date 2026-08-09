@@ -22,15 +22,31 @@ const THROTTLE_MS = 25_000
  * ร้าน BUSINESS ที่ owner ไม่ได้ดูแลแชทเอง ถ้าส่งแค่ owner คนที่ตอบจริงจะไม่รู้เรื่องเลย
  *
  * Set กันซ้ำ — owner ของร้าน BUSINESS มีแถวใน ShopMember ด้วย จะได้ noti ใบเดียวไม่ใช่สองใบ
+ *
+ * แล้วหักคนที่ "ปิดแจ้งเตือนของร้านนี้ไว้" ออก (user สั่ง 2026-08-08: "ตั้งค่าทีละร้านได้" —
+ * ผู้ขายที่ถือหลายร้านอยากปิดเสียงร้านหนึ่งโดยไม่กระทบอีกร้าน)
+ *
+ * 🛑 หัก "ที่นี่" ไม่ใช่ที่ pushToUsers: pushToUsers เป็น primitive ที่ฝั่งผู้ซื้อใช้ด้วย
+ * (เหรียญตรา / ประมูล) ถ้าไปกรองที่นั่น การปิดแจ้งเตือน "ร้าน" จะพลอยปิด noti ที่ไม่เกี่ยวข้องกับ
+ * ร้านเลยไปด้วย ซึ่งไม่ตรงกับสิ่งที่ผู้ใช้เห็นบนหน้าจอตอนกดสวิตช์
+ *
+ * query ตัวที่สามอยู่ใน Promise.all เดิม → ไม่เพิ่มเวลาแม้แต่รอบเดียว
+ * และถามเฉพาะ "คนที่ปิด" (chatEnabled: false) เพราะกติกาคือ **ไม่มีแถว = เปิด** จึงไม่ต้องดึง
+ * ทุกแถวมานับ — ตารางนี้จะมีข้อมูลน้อยมากโดยธรรมชาติ (เก็บเฉพาะคนที่กดปิดจริง ๆ)
  */
 async function shopAudience(shopId: string): Promise<string[]> {
-  const [shop, members] = await Promise.all([
+  const [shop, members, optedOut] = await Promise.all([
     prisma.shop.findUnique({ where: { id: shopId }, select: { userId: true } }),
     prisma.shopMember.findMany({ where: { shopId }, select: { userId: true } }),
+    prisma.shopNotificationPref.findMany({
+      where: { shopId, chatEnabled: false },
+      select: { userId: true },
+    }),
   ])
   const ids = new Set<string>()
   if (shop?.userId) ids.add(shop.userId)
   for (const m of members) ids.add(m.userId)
+  for (const p of optedOut) ids.delete(p.userId)
   return [...ids]
 }
 

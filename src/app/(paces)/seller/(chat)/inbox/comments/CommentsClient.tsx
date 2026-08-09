@@ -15,6 +15,7 @@
  * โหลดรูปจากโดเมนภายนอกทั้งชุด จึงเลี่ยงไปก่อนใน v1
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import { formatTimeHM, formatDateTimeTH, formatChatListTime, formatDateTH } from '@/lib/format-date'
@@ -28,6 +29,7 @@ import CommentsFilterPanel, {
   type CommentShowFilter,
 } from './CommentsFilterPanel'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
+import type { CommentAnswerState, CommentPostCounts } from '@/services/page-comment.service'
 
 export type ChannelOption = {
   id: string
@@ -37,6 +39,8 @@ export type ChannelOption = {
   /** feature 00037 — ร้านเจ้าของเพจ (ใช้จัดกลุ่มตัวกรองตามร้านในโหมดรวม) */
   shopId?: string
   shopName?: string
+  /** feature 00038 Task 8 — prefill กล่องยืนยัน "ทักแชท" ด้วยข้อความสวิตช์ B ของเพจนี้ */
+  commentPrivateReplyText?: string | null
 }
 
 export type CommentPostItem = {
@@ -51,6 +55,8 @@ export type CommentPostItem = {
   lastCommentAt: string | null
   commentCount: number
   unansweredCount: number
+  /** feature 00038 — สถานะรวมของโพสต์ (ตัวที่แย่ที่สุดชนะ) ตัดสิน badge แถวนี้ (UX-Design-Spec §3.2) */
+  postStatus: CommentAnswerState
   /** เวลาของคอมเมนต์ที่ยังไม่ตอบและ "เก่าที่สุด" — เส้นตายทักแชท 7 วันที่มาถึงก่อน (null = ตอบครบ) */
   oldestUnansweredAt: string | null
   lastCommenterName: string | null
@@ -73,6 +79,11 @@ type CommentItem = {
   editedAt: string | null
   isDeleted: boolean
   repliedByUserId: string | null
+  /** feature 00038 Task 8 — มาจาก CommentReplyLog ที่ privateReplyStatus='SENT' ของ commentId นี้เอง */
+  privateReplySentAt: string | null
+  privateReplyConversationId: string | null
+  /** feature 00038 Task 9 — ป้าย "ตอบอัตโนมัติ" บนบับเบิลของบอท */
+  isAutoReply: boolean
 }
 
 type ThreadData = {
@@ -144,13 +155,41 @@ function privateReplyWindow(createdTime: string): { text: string; expired: boole
   return { text: `คงเหลือ ${parts.join(' ')}`, expired: false }
 }
 
+/**
+ * feature 00038 Task 8 — ปุ่ม "ทักแชท" 4 สถานะ (UX-Design-Spec §2.2)
+ *
+ * "ทักแล้วหรือยัง" ต้องดูจาก **แถวของ commentId นี้เอง** (c.privateReplySentAt จาก server-side
+ * join กับ CommentReplyLog) ไม่ใช่คีย์คน+โพสต์แบบ AUTO — คนคอมเมนต์ 2 ครั้งบนโพสต์เดียวกัน
+ * ทักด้วยมือได้ทั้ง 2 อัน (Meta ผูกสิทธิ์กับคอมเมนต์ ไม่ใช่คน)
+ *
+ * หน้าต่างหมดเวลาใช้ privateReplyWindow() ตัวเดียวกับที่ countdown ในไฟล์นี้ใช้อยู่แล้ว (ค่าคงที่
+ * PRIVATE_REPLY_WINDOW_MS = 7 วันเท่ากับ service ฝั่ง backend) — ไม่คำนวณ window ซ้ำอีกชุด
+ */
+type PrivateReplyState = 'SENT' | 'SENDING' | 'EXPIRED' | 'AVAILABLE'
+
+function resolvePrivateReplyState(c: CommentItem, sendingId: string | null): PrivateReplyState {
+  if (c.privateReplySentAt) return 'SENT'
+  if (sendingId === c.id) return 'SENDING'
+  if (privateReplyWindow(c.createdTime).expired) return 'EXPIRED'
+  return 'AVAILABLE'
+}
+
+// customClass ของโมดัลยืนยัน "ทักแชท" — ค่าเดียวกับ CONFIRM_BTN.primary/CANCEL_BTN ใน
+// src/lib/paces-swal.ts (const พวกนั้นไม่ได้ export จากไฟล์นั้น จึงคัดลอกค่ามาแทนที่จะขยาย public
+// surface ของ helper กลางซึ่งอยู่นอกขอบเขตไฟล์ที่ task นี้แตะได้) — token ของ Paces ล้วน (HR7)
+const PRIVATE_REPLY_CONFIRM_BTN = 'btn bg-primary text-white hover:bg-primary-hover mt-2 me-2'
+const PRIVATE_REPLY_CANCEL_BTN = 'btn bg-light hover:text-default-800 mt-2'
+
 export default function CommentsClient({
   initialPosts,
+  initialCounts,
   shopIds,
   unified = false,
   channels,
 }: {
   initialPosts: CommentPostItem[]
+  /** feature 00038 — ตัวนับ 4 กลุ่มของหน้าแรก มาจาก listCommentPosts เดียวกับที่ page.tsx fetch */
+  initialCounts: CommentPostCounts
   /** ร้านที่แท็บนี้ครอบคลุม (feature 00037) — subscribe `comments:shop:{id}` ทุกตัว */
   shopIds: string[]
   /** true = โหมดรวมหลายร้าน → การ์ดโพสต์บอกชื่อร้านเจ้าของโพสต์ (ข้อความ ไม่ใช่ badge รูป) */
@@ -159,6 +198,13 @@ export default function CommentsClient({
   channels: ChannelOption[]
 }) {
   const [posts, setPosts] = useState(initialPosts)
+  // feature 00038 — ตัวนับ 4 กลุ่มจากเซิร์ฟเวอร์ (listCommentPosts) ตัวเดียวที่ badge/แท็บ/ตัวกรอง
+  // ใช้ร่วมกัน (BR-CR-S4) — ต้องเข้าคู่กับ `posts` เสมอ (อัปเดตพร้อมกันทุกจุดที่ fetch)
+  const [counts, setCounts] = useState<CommentPostCounts>(initialCounts)
+  // จำนวนโพสต์ "ดิบ" ที่ query มาแล้วจริง (ก่อน filter ด้วย state) — ใช้เป็น skip ของหน้าถัดไป
+  // ต้องแยกจาก posts.length เพราะ posts คือผลหลัง filter ด้วย ?state= แล้ว ถ้าใช้ posts.length
+  // เป็น skip ตอนกรองอยู่ (เช่นแท็บ "บอทตอบแล้ว") จะข้ามแถวดิบผิดจำนวน เกิดโพสต์หายหรือซ้ำตอนโหลดเพิ่ม
+  const rawFetchedRef = useRef(initialCounts.all)
   // null = ทุกเพจ; ตัวกรองอยู่ที่ server เหมือนแท็บข้อความ ไม่ใช่กรองเฉพาะที่โหลดมาแล้ว
   const [channelId, setChannelId] = useState<string | null>(null)
   /**
@@ -189,27 +235,34 @@ export default function CommentsClient({
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null)
   const [replyText, setReplyText] = useState('')
   const [sending, setSending] = useState(false)
+  // feature 00038 Task 8 — commentId ที่กำลังส่ง private reply อยู่ (null = ไม่มี) ใช้ derive
+  // สถานะปุ่ม SENDING ผ่าน resolvePrivateReplyState() เดียวกันทั้งไฟล์
+  const [sendingPrivateReplyId, setSendingPrivateReplyId] = useState<string | null>(null)
   // แนบรูปในคำตอบ (user สั่ง 2026-08-03) — เอกสาร Meta: comment รับ `attachment_url` ได้
   // ใช้ท่าเดียวกับแชท: อัปขึ้น storage ของเราก่อน แล้ว server ค่อยทำ presigned URL ให้ Meta ดึง
   const [pendingFile, setPendingFile] = useState<{ fileId: string; previewUrl: string } | null>(null)
   const [uploading, setUploading] = useState(false)
   // โหลดเพิ่ม: รายการตันที่ 25 โพสต์เงียบ ๆ มาก่อน (critique P1) — ตอนนี้มีปุ่มและรู้ว่ายังมีอีก
   const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(initialPosts.length >= 25)
+  // initialCounts.all = จำนวนดิบที่หน้าแรก fetch มา (ไม่ผ่าน state filter — page.tsx เรียกแบบ ALL
+  // เสมอ) ใช้ตัวนี้แทน initialPosts.length ให้สอดคล้องกับ rawFetchedRef ด้านล่าง
+  const [hasMore, setHasMore] = useState(initialCounts.all >= 25)
   // ในเธรด: ดูเฉพาะคอมเมนต์ที่ยังไม่มีคำตอบของเพจ
   const [unansweredOnly, setUnansweredOnly] = useState(false)
   /**
-   * ตัวกรอง "แสดงอะไร" — multi-select (user สั่ง 2026-08-04) เก็บที่เดียวแล้วให้ทั้งแถบแท็บและ
-   * แผงตัวกรองอ่าน/เขียนตัวเดียวกัน: แท็บเป็นทางลัดของค่าชุดนี้ ไม่ใช่ state คู่ขนาน
-   *   ทั้งหมด    = unanswered เปิด + done เปิด
-   *   ยังไม่ตอบ  = unanswered เปิด + done ปิด
-   * (สอง control ที่เก็บสถานะแยกกันแล้วต้องคอย sync คือที่มาของบั๊ก "ตัวเลข 2 ที่ไม่ตรงกัน" ที่เจอ
-   *  มาแล้วในหน้านี้ — ตัวกรองก็เหมือนกัน)
+   * ตัวกรอง "แสดงอะไร" เก็บที่เดียวแล้วให้ทั้งแถบแท็บและแผงตัวกรองอ่าน/เขียนตัวเดียวกัน: แท็บเป็น
+   * ทางลัดของค่าชุดนี้ ไม่ใช่ state คู่ขนาน (feature 00038 UX-Design-Spec §3.2)
+   *
+   * เดิม `unanswered`/`done` เป็น boolean คู่ที่ overlap กันได้ (ที่มาของบั๊ก "ตัวเลข 2 ที่ไม่ตรงกัน"
+   * ที่เจอมาแล้วในหน้านี้) — เปลี่ยนเป็น `postStatus` single-select 4 ค่า (ALL/UNANSWERED/BOT/HUMAN)
+   * ผูกตรงกับ 4 แท็บใต้แถบช่องทาง ส่งเป็น `?state=` ให้ listCommentPosts กรองที่เซิร์ฟเวอร์
+   * (postStatus เป็นค่า derived จาก derivePostState ไม่ใช่คอลัมน์ในฐาน กรองที่ client ไม่ได้แล้ว
+   * เพราะไม่มีข้อมูลคอมเมนต์ดิบมาด้วย — server ต้องเป็นคนกรองและคืน counts คู่กันมาเสมอ)
    */
   const [show, setShow] = useState<CommentShowFilter>(DEFAULT_COMMENT_SHOW_FILTER)
-  const postTab: 'ALL' | 'UNANSWERED' = show.unanswered && !show.done ? 'UNANSWERED' : 'ALL'
-  const setPostTab = (tab: 'ALL' | 'UNANSWERED') =>
-    setShow((s) => ({ ...s, unanswered: true, done: tab === 'ALL' }))
+  const postTab = show.postStatus
+  const setPostTab = (tab: CommentShowFilter['postStatus']) =>
+    setShow((s) => ({ ...s, postStatus: tab }))
   /**
    * คอมเมนต์ระดับบนที่ร้านเขียนเอง — มาจากตัวกรองชุดเดียวกัน (show.shopComments, ค่าตั้งต้นปิด)
    * ของพวกนี้ **เข้าฐานอยู่แล้ว** (ingestFeedComment เก็บทุกคอมเมนต์ + ติดธง isFromPage) แค่ไม่ควร
@@ -297,45 +350,60 @@ export default function CommentsClient({
    */
   const focusReplyOnLoad = useRef(false)
 
-  const refreshPosts = useCallback(async (ch: string | null) => {
+  const refreshPosts = useCallback(async (ch: string | null, state: CommentShowFilter['postStatus']) => {
     try {
       const params = new URLSearchParams()
       if (ch) params.set('channelId', ch)
+      // feature 00038 — ?state= กรองที่ server (postStatus เป็นค่า derived ไม่มีในฐาน กรองที่นี่ไม่ได้)
+      if (state !== 'ALL') params.set('state', state)
       const qs = params.toString()
       const res = await fetch(`/api/chat/comments/posts${qs ? `?${qs}` : ''}`)
       if (!res.ok) return
-      const data = (await res.json()) as { items: CommentPostItem[] }
-      setPosts(data.items)
-      setHasMore(data.items.length >= 25)
+      const data = (await res.json()) as { posts: CommentPostItem[]; counts: CommentPostCounts }
+      setPosts(data.posts)
+      setCounts(data.counts)
+      rawFetchedRef.current = data.counts.all
+      setHasMore(data.counts.all >= 25)
     } catch {
       // โหลดไม่สำเร็จ = คงรายการเดิมไว้ ไม่ต้องรบกวนผู้ใช้
     }
   }, [])
 
-  // เปลี่ยนเพจที่กรอง → ดึงรายการใหม่จาก server (กรองที่ฐาน ไม่ใช่กรองเฉพาะที่โหลดมาแล้ว)
+  // เปลี่ยนเพจ/แท็บสถานะที่กรอง → ดึงรายการใหม่จาก server (กรองที่ฐาน ไม่ใช่กรองเฉพาะที่โหลดมาแล้ว)
   //
   // ช่องค้นหาถูกถอดออก 2026-08-04 ตามที่ user สั่ง ("ไม่ต้อง search") — แท็บข้อความมีช่องค้นหา
   // เพราะเธรดสะสมเป็นพันและชื่อลูกค้าคือกุญแจ ส่วนที่นี่หน่วยของรายการคือ "โพสต์" ซึ่งมีไม่มากและ
   // เรียงตามคอมเมนต์ล่าสุดอยู่แล้ว. debounce 350ms ที่มีไว้รอพิมพ์จึงไม่ต้องมีด้วย
   useEffect(() => {
-    void refreshPosts(channelId)
-  }, [channelId, refreshPosts])
+    void refreshPosts(channelId, show.postStatus)
+  }, [channelId, show.postStatus, refreshPosts])
 
   async function loadMorePosts() {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
     try {
-      const params = new URLSearchParams({ skip: String(posts.length) })
+      // skip ใช้จำนวนดิบที่เคย fetch มาแล้วจริง (rawFetchedRef) ไม่ใช่ posts.length — posts คือ
+      // ผลหลัง filter ด้วย ?state= แล้ว ถ้าใช้ posts.length เป็น skip ตอนกำลังกรองอยู่จะข้าม/ซ้ำแถวดิบ
+      const params = new URLSearchParams({ skip: String(rawFetchedRef.current) })
       if (channelId) params.set('channelId', channelId)
+      if (show.postStatus !== 'ALL') params.set('state', show.postStatus)
       const res = await fetch(`/api/chat/comments/posts?${params.toString()}`)
       if (!res.ok) return
-      const data = (await res.json()) as { items: CommentPostItem[] }
+      const data = (await res.json()) as { posts: CommentPostItem[]; counts: CommentPostCounts }
       // กันซ้ำด้วย id — poll/realtime อาจแทรกโพสต์ใหม่เข้ามาระหว่างที่กำลังโหลดหน้าถัดไป
       setPosts((prev) => {
         const seen = new Set(prev.map((p) => p.id))
-        return [...prev, ...data.items.filter((p) => !seen.has(p.id))]
+        return [...prev, ...data.posts.filter((p) => !seen.has(p.id))]
       })
-      setHasMore(data.items.length >= 25)
+      // counts สะสม: ยอดทั้งชุดที่โหลดมาแล้ว = ของเดิม + ของหน้าใหม่ (batch นี้ยังไม่เคยรวมมาก่อน)
+      setCounts((prev) => ({
+        all: prev.all + data.counts.all,
+        unanswered: prev.unanswered + data.counts.unanswered,
+        botAnswered: prev.botAnswered + data.counts.botAnswered,
+        humanAnswered: prev.humanAnswered + data.counts.humanAnswered,
+      }))
+      rawFetchedRef.current += data.counts.all
+      setHasMore(data.counts.all >= 25)
     } finally {
       setLoadingMore(false)
     }
@@ -444,9 +512,9 @@ export default function CommentsClient({
    * หยุดเมื่อแท็บไม่ได้อยู่หน้าจอ — ไม่มีใครดูอยู่ก็ไม่ต้องยิง
    */
   const refreshAll = useCallback(() => {
-    void refreshPosts(channelId)
+    void refreshPosts(channelId, show.postStatus)
     if (selectedId) void loadThread(selectedId, { silent: true })
-  }, [channelId, selectedId, refreshPosts, loadThread])
+  }, [channelId, show.postStatus, selectedId, refreshPosts, loadThread])
 
   // realtime จริง (user สั่ง 2026-08-03 "ทำ trigger ให้เป็น realtime จริงเลย") — DB trigger บน
   // PageComment ยิง broadcast `comments:shop:{shopId}` แบบ signal-only แล้ว client refetch เอง
@@ -595,6 +663,131 @@ export default function CommentsClient({
     }
   }
 
+  /**
+   * feature 00038 Task 8 — ยิง POST /api/chat/comments/{commentId}/private-reply แล้ว sync สถานะ
+   * ปุ่มตามตาราง error mapping ของ UX-Design-Spec §2.2 / API.md §4.4/§5 (contract ที่ freeze แล้ว)
+   *
+   * 200: optimistic — เอา conversationId จาก response ใส่ state ทันที ไม่รีเฟรชทั้งหน้า (AC-CR-19)
+   *   บทเรียนหน้าสินค้า 2026-08-06: response ที่ไม่มี field นั้น ≠ field นั้นไม่เปลี่ยน — ที่นี่ตรงข้าม
+   *   response "มี" conversationId ให้แล้ว การไม่เอาไปใส่ state คือบั๊กเดียวกันในทางกลับกัน
+   * 409 ALREADY_SENT: ไม่ใช่ความผิดผู้ใช้ (toast info ไม่ใช่ error) — response ไม่มี conversationId
+   *   มาด้วย จึง refetch เธรดแบบเงียบเพื่อได้ค่าจริงจาก server แทนการเดา
+   * ที่เหลือ (WINDOW_EXPIRED/CHANNEL_NOT_ACTIVE/UPSTREAM_ERROR/VALIDATION_ERROR): แค่เคลียร์
+   * sendingPrivateReplyId แล้วปล่อยให้ resolvePrivateReplyState derive สถานะใหม่เอง — c.privateReplySentAt
+   * ยังเป็น null เหมือนเดิม จึงตกไป EXPIRED (ถ้าหน้าต่างหมดจริง) หรือ AVAILABLE (กรณีอื่น) โดยอัตโนมัติ
+   * ไม่ต้องมี state พิเศษแยก
+   */
+  const PRIVATE_REPLY_ERROR_TEXT: Record<string, string> = {
+    WINDOW_EXPIRED: 'เกิน 7 วันแล้ว ทักแชทไม่ได้อีก',
+    CHANNEL_NOT_ACTIVE: 'เพจนี้เชื่อมต่อไม่อยู่แล้ว ต้องเชื่อมต่อใหม่ก่อน',
+    UPSTREAM_ERROR: 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง',
+    VALIDATION_ERROR: 'พิมพ์ข้อความก่อนส่ง',
+  }
+
+  async function sendPrivateReply(comment: CommentItem, message: string) {
+    setSendingPrivateReplyId(comment.id)
+    try {
+      const res = await fetch(`/api/chat/comments/${comment.id}/private-reply`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message }),
+      })
+      // feature 00038 Task 9 — เก็บหนี้จาก Task 8: conversationId เป็น null ได้จริงเมื่อ sent:true
+      // (Graph ส่งสำเร็จแต่ทรานแซกชันสร้างห้องแชทล้มเหลว — ดู comment-private-reply.service.ts
+      // D2/บรรทัด 28-30) type เดิมเขียน `conversationId: string` แบบ non-nullable ซึ่งไม่ตรงกับ
+      // response จริงของ route — ไม่ได้ทำให้พังตอนนี้แค่เป็น type ที่โกหก
+      const body = (await res.json().catch(() => null)) as
+        | { conversationId: string | null; sentAt: string }
+        | { error?: string; code?: string }
+        | null
+
+      if (res.ok && body && 'conversationId' in body) {
+        pacesToast.success('ส่งข้อความสำเร็จ — เกิดห้องแชทใหม่แล้ว')
+        setThread((prev) =>
+          prev
+            ? {
+                ...prev,
+                comments: prev.comments.map((row) =>
+                  row.id === comment.id
+                    ? { ...row, privateReplySentAt: body.sentAt, privateReplyConversationId: body.conversationId }
+                    : row,
+                ),
+              }
+            : prev,
+        )
+        return
+      }
+
+      const code = body && 'code' in body ? body.code : undefined
+      if (code === 'ALREADY_SENT') {
+        pacesToast.info('คอมเมนต์นี้ถูกทักไปแล้ว')
+        if (selectedId) void loadThread(selectedId, { silent: true })
+        return
+      }
+      pacesToast.error((code && PRIVATE_REPLY_ERROR_TEXT[code]) ?? 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } catch {
+      pacesToast.error('ส่งไม่สำเร็จ ลองใหม่อีกครั้ง')
+    } finally {
+      setSendingPrivateReplyId(null)
+    }
+  }
+
+  /**
+   * feature 00038 Task 8 — โมดัลยืนยันก่อนทักแชท (UX-Design-Spec §2.1/§2.3): ขยายการใช้ Swal ด้วย
+   * input:'textarea' แทนการประดิษฐ์ controlled-div modal เอง — Preline/Swal ล็อก scroll ให้เองแล้ว
+   * (docs/conventions/overlay-scroll-lock.md ไม่มีผลกับเส้นทางนี้)
+   *
+   * โหลด sweetalert2 แบบ lazy เหมือน src/lib/paces-swal.ts (Impeccable optimize 2026-08-04) —
+   * หน้านี้โหลดโมดัลนี้เมื่อกดปุ่มเท่านั้น ไม่ใช่ทุกครั้งที่เข้าหน้า
+   *
+   * คำเตือนในนี้เขียนใหม่ทั้งหมดตาม FR-CR-10 — ห้ามยกคำเตือน "คอมเมนต์นี้เป็นสาธารณะ" ของช่องตอบ
+   * คอมเมนต์มาใช้ซ้ำ เพราะคนละความหมาย (ทักแชทคือข้อความส่วนตัว ไม่มีใครเห็นนอกจากคนที่ทัก)
+   * ใช้ Swal `text` (ไม่ใช่ `html`) เพราะชื่อผู้คอมเมนต์มาจาก Facebook โดยตรง — ปลอดภัยกว่าไม่ต้องเขียน
+   * escapeHtml เอง ผลลัพธ์ที่เห็นเหมือนกันเพราะข้อความไม่มี markup อยู่แล้ว
+   *
+   * fix wave 00038 (Impeccable critique #4) — เดิมยัดขอบเขต+ความย้อนไม่ได้+ทางออกไว้ประโยคเดียวใน
+   * `text` ตัวไม่หนาไม่มีสี คำเตือนที่สำคัญที่สุด ("กดพลาดแล้วแก้ไม่ได้") จมกลางประโยคจนคนกวาดตาอ่านข้าม
+   * แยกออกมา: `text` เหลือแค่ขอบเขต/ผู้รับ (ยังใช้ `name` จาก Facebook ได้ปลอดภัยเพราะ `text` เป็น
+   * textContent ไม่ใช่ innerHTML) ส่วน `footer` ถือประโยคความย้อนไม่ได้ **ต้องเป็นสตริงคงที่ล้วน
+   * ห้ามมี comment.fromName หรือค่าอื่นจาก Facebook ปนแม้แต่นิดเดียว** เพราะ SweetAlert2 render
+   * footer เป็น HTML (`footer?: string | HTMLElement`) ไม่ใช่ textContent แบบ `text` — ใส่ข้อมูลจาก
+   * ผู้ใช้ที่นี่จะเปิดช่อง XSS ทันที ใช้ customClass.footer เน้นหนัก/สี danger แทน inline markup
+   */
+  async function openPrivateReplyModal(comment: CommentItem) {
+    const Swal = (await import('sweetalert2')).default
+    const defaultText =
+      channels.find((ch) => ch.id === selectedPost?.channel.id)?.commentPrivateReplyText ?? ''
+    const name = comment.fromName ?? 'ผู้ใช้ Facebook'
+    const result = await Swal.fire({
+      title: comment.fromName ? `ทักแชทถึง ${comment.fromName}` : 'ทักแชทส่วนตัว',
+      text: `ข้อความนี้ส่งถึงเฉพาะ ${name} เป็นการส่วนตัว คนอื่นที่ดูโพสต์จะไม่เห็น และคุยต่อได้เมื่อเขาตอบกลับเข้ามา`,
+      // สตริงคงที่ล้วน ไม่มีตัวแปรจากผู้ใช้/Facebook ปนอยู่เลย — ปลอดภัยแม้ footer จะ render เป็น HTML
+      footer: 'ส่งได้ครั้งเดียวเท่านั้น กดพลาดแล้วแก้ไม่ได้',
+      input: 'textarea',
+      inputValue: defaultText,
+      inputPlaceholder: 'พิมพ์ข้อความส่วนตัว...',
+      inputAttributes: { maxlength: '1000' },
+      showCancelButton: true,
+      buttonsStyling: false,
+      confirmButtonText: 'ส่งข้อความ',
+      cancelButtonText: 'ยกเลิก',
+      customClass: {
+        confirmButton: PRIVATE_REPLY_CONFIRM_BTN,
+        cancelButton: PRIVATE_REPLY_CANCEL_BTN,
+        footer: 'text-danger-ink font-semibold',
+      },
+      inputValidator: (value: string) => {
+        const trimmed = value.trim()
+        if (!trimmed) return 'พิมพ์ข้อความก่อนส่ง'
+        if (trimmed.length > 1000) return 'ยาวเกิน 1,000 ตัวอักษร'
+        return undefined
+      },
+    })
+    if (result.isConfirmed && typeof result.value === 'string') {
+      void sendPrivateReply(comment, result.value.trim())
+    }
+  }
+
   // แท็บช่องทางกรองฝั่ง client ตั้งใจ: provider ติดมากับโพสต์ทุกแถวแล้ว (p.channel.provider)
   // ไม่ต้องยิง server ใหม่ — ต่างจากตัวกรอง "เพจ" ที่กรองที่ฐานเพราะต้องแบ่งหน้าให้ถูก
   const postsByChannel = useMemo(
@@ -602,25 +795,13 @@ export default function CommentsClient({
     [posts, channelTab],
   )
   /**
-   * จำนวน **คอมเมนต์** ที่ยังไม่ตอบ — ไม่ใช่จำนวนโพสต์ (user report prod 2026-08-04: "จำนวนมัน
-   * แปลก ๆ ใน tab 24 ในยังไม่ตอบ 5 แต่ในแต่ละ comment lists ดันขึ้น 3, 7, 3, 8, 3")
-   *
-   * เลขทั้งสามชุดถูกหมดแต่ **นับคนละหน่วย**: badge บนแท็บ = คอมเมนต์ค้างทั้งร้าน (24),
-   * แท็บ "ยังไม่ตอบ" = จำนวนโพสต์ที่มีของค้าง (5), วงกลมท้ายแถว = คอมเมนต์ค้างต่อโพสต์
-   * (3+7+3+8+3 = 24) — วางเรียงกันในจอเดียวแล้วอ่านเป็น "ระบบนับเลขไม่ตรง"
-   * หน่วยเดียวทั้งจอคือ "คอมเมนต์ที่ยังไม่ตอบ" ตัวเลขจึงบวกกันได้ตรง ๆ
-   * (ยังนับจาก postsByChannel ชุดเดียวกับรายการที่เรนเดอร์ — กรองเป็น Instagram แล้วเลขต้องเปลี่ยนตาม)
+   * feature 00038 — แท็บสถานะ (state) กรองที่ server แล้ว (ดู refreshPosts/loadMorePosts) `posts`
+   * ที่ได้กลับมาจึงตรงกับ show.postStatus อยู่แล้วเสมอ ไม่ต้อง filter ซ้ำที่ client อีกชั้น
+   * (ของเดิม visiblePosts filter ด้วย show.unanswered/done เป็นการกรองซ้ำบน client — ตอนนี้เลิกทำ
+   * เพราะ state ไม่ใช่ boolean คู่ที่ overlap กันได้แล้ว server เป็นคนตัดสินขั้นเดียวจบ)
+   * ตัวนับบนแท็บทั้ง 4 มาจาก `counts` ที่ server คำนวณคู่กับ `posts` ชุดเดียวกันเสมอ (BR-CR-S4)
    */
-  const unansweredPostCount = useMemo(
-    () => postsByChannel.filter((p) => p.unansweredCount > 0).length,
-    [postsByChannel],
-  )
-  const visiblePosts = useMemo(
-    // ตัวกรองเดียวครอบทั้งแถบแท็บและแผงตัวกรอง: โพสต์ที่มีของค้างขึ้นตาม show.unanswered
-    // ส่วนโพสต์ที่ตอบครบแล้วขึ้นตาม show.done — ปิดทั้งคู่ = ลิสต์ว่าง (ผู้ใช้เลือกเองอย่างนั้น)
-    () => postsByChannel.filter((p) => (p.unansweredCount > 0 ? show.unanswered : show.done)),
-    [postsByChannel, show.unanswered, show.done],
-  )
+  const visiblePosts = postsByChannel
 
   const selectedPost = posts.find((p) => p.id === selectedId) ?? null
 
@@ -893,14 +1074,28 @@ export default function CommentsClient({
         {/* แท็บสถานะ — โครงเดียวกับแถว "ทั้งหมด · ปิดงาน · สแปม" ของแท็บข้อความ
             (Base: InboxList.tsx:890-927 — flex flex-wrap gap-1.5 ครอบ, แถบ min-w-0 flex-1 gap-3
             border-b, ปุ่ม -mb-px border-b-2 px-0 py-1.5)
-            **ความหมาย**ของแท็บยังเป็นของหน้านี้เอง (ทั้งหมด/ยังไม่ตอบ/ตอบครบแล้ว) — user สั่งชัด
-            2026-08-04 ว่า "ไม่ได้ให้ลอก tab มา ผมให้ copy style" คือยกหน้าตา ไม่ใช่ยกความหมายของ
-            ปิดงาน/สแปม ซึ่งฝั่งคอมเมนต์ไม่มีคอลัมน์รองรับอยู่แล้ว */}
+            **ความหมาย**ของแท็บยังเป็นของหน้านี้เอง — user สั่งชัด 2026-08-04 ว่า "ไม่ได้ให้ลอก tab
+            มา ผมให้ copy style" คือยกหน้าตา ไม่ใช่ยกความหมายของปิดงาน/สแปม ซึ่งฝั่งคอมเมนต์ไม่มี
+            คอลัมน์รองรับอยู่แล้ว
+
+            feature 00038 UX-Design-Spec §3.2 — ขยาย 2 → 4 ตัว (ทั้งหมด/ยังไม่ตอบ/บอทตอบแล้ว/
+            คนตอบแล้ว) คงโครง underline-tab เดิมเป๊ะ ไม่ใช่ pill ใหม่ตามที่ mockup วาด (HR6: layout
+            ตามธีมปัจจุบัน ไม่ใช่ asset ดิบของ mockup) — เพิ่ม overflow-x-auto ให้แถวเลื่อนแนวนอนได้
+            บนมือถือ (390px ไม่พอให้ 4 แท็บ + ตัวเลขอยู่ในบรรทัดเดียวแบบไม่ตัดคำ) */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="border-default-200 flex min-w-0 flex-1 items-center gap-3 border-b" role="tablist" aria-label="สถานะการตอบ">
+          <div
+            className="border-default-200 flex min-w-0 flex-1 items-center gap-3 overflow-x-auto border-b"
+            role="tablist"
+            aria-label="สถานะการตอบ"
+          >
           {([
-            { key: 'ALL', label: 'ทั้งหมด', icon: null },
-            { key: 'UNANSWERED', label: 'ยังไม่ตอบ', icon: 'alert-circle' },
+            { key: 'ALL', label: 'ทั้งหมด', icon: null, badgeClass: null, count: counts.all },
+            // ยังไม่ตอบ = แดง (ยังไม่มีใครแตะ) · บอทตอบแล้ว = เหลือง (งานกลาง ยังไม่มีคนยืนยัน —
+            // ห้ามเขียว แม้ฟังดู positive, Verified-Means-Green สงวนเขียวให้สถานะที่คนยืนยันแล้ว
+            // เท่านั้น) · คนตอบแล้ว = เขียว (จบงานจริง)
+            { key: 'UNANSWERED', label: 'ยังไม่ตอบ', icon: 'alert-circle', badgeClass: 'bg-danger', count: counts.unanswered },
+            { key: 'BOT', label: 'บอทตอบแล้ว', icon: 'robot', badgeClass: 'bg-warning', count: counts.botAnswered },
+            { key: 'HUMAN', label: 'คนตอบแล้ว', icon: 'circle-check', badgeClass: 'bg-success', count: counts.humanAnswered },
           ] as const).map((t) => {
             const on = postTab === t.key
             return (
@@ -916,14 +1111,14 @@ export default function CommentsClient({
               >
                 {t.icon && <Icon icon={t.icon} width={14} height={14} className="shrink-0" />}
                 {t.label}
-                {/* ตัวนับมาจาก postsByChannel ชุดเดียวกับรายการด้านล่าง (symbol เดียว) และตัดที่ 99+
-                    เหมือน badge ยังไม่อ่านของแท็บข้อความ */}
-                {/* หน่วย = "จำนวนโพสต์ที่ยังมีของค้าง" ตรงกับจำนวนแถวที่เห็นในลิสต์ และตรงกับ badge
-                    บนแท็บ (countUnansweredForShop นับ DISTINCT postId) — user ถาม 2026-08-04
-                    "มันควรเป็น 8 ไหม" ตอนแท็บขึ้น 26 แต่รายการมี 8 แถว */}
-                {t.key === 'UNANSWERED' && unansweredPostCount > 0 && (
-                  <span className="bg-danger text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold text-white">
-                    {unansweredPostCount > 99 ? '99+' : unansweredPostCount}
+                {/* ตัวนับมาจาก `counts` ที่ server คำนวณคู่กับ `posts` ชุดเดียวกันเสมอ (BR-CR-S4)
+                    ไม่คำนวณซ้ำที่ client — จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" พร้อมกันมาแล้วเพราะ
+                    คำนวณคนละที่ ตัดที่ 99+ เหมือน badge ยังไม่อ่านของแท็บข้อความ */}
+                {t.badgeClass && t.count > 0 && (
+                  <span
+                    className={`${t.badgeClass} text-2xs flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-semibold text-white`}
+                  >
+                    {t.count > 99 ? '99+' : t.count}
                   </span>
                 )}
               </button>
@@ -1033,14 +1228,12 @@ export default function CommentsClient({
                         ? `${p.lastCommenterName ?? 'ผู้ใช้ Facebook'}: ${p.lastCommentText}`
                         : `${p.commentCount} ความคิดเห็น`}
                     </span>
-                    {/* บรรทัดที่ 3 — โผล่เฉพาะแถวที่ยังมีคอมเมนต์ค้าง (user สั่ง 2026-08-04):
-                        ไอคอนบอกว่ายังไม่ตอบ + นับถอยหลังหน้าต่างทักแชทส่วนตัว 7 วันของ Meta
-                        นับจาก "คอมเมนต์ที่ค้างเก่าสุด" ของโพสต์นั้น = เส้นตายที่มาถึงก่อน
-                        (ถ้านับจากอันใหม่สุดจะขึ้น "เหลือ 6 วัน" ทั้งที่มีอันเหลือ 2 ชั่วโมงอยู่ในโพสต์
-                        เดียวกัน) ใช้ privateReplyWindow ตัวเดียวกับที่บับเบิลในเธรดใช้ — เวลาเดียวกัน
-                        ต้องมาจาก symbol เดียว. หมดเวลาแล้วขึ้น danger, ยังไม่หมดขึ้น warning
-                        เพราะเป็นเรื่อง "เร่ง" ไม่ใช่ "พัง" */}
-                    {p.unansweredCount > 0 && (
+                    {/* บรรทัดที่ 3 — โผล่เฉพาะแถวที่ยังมีอะไรค้าง (user สั่ง 2026-08-04, ขยาย feature
+                        00038 UX-Design-Spec §3.2): ตัดสินจาก p.postStatus (ตัวที่แย่ที่สุดชนะ,
+                        BR-CR-S2) ตัวเดียวกับที่แท็บใช้ — UNANSWERED โชว์ badge เดิมทั้งคู่ (ไม่แตะ)
+                        · BOT_ANSWERED โชว์ badge ใหม่สีเหลืองตำแหน่งเดียวกัน · HUMAN_ANSWERED
+                        ไม่โชว์อะไรเลย (โพสต์ที่จบงานแล้วไม่ควรมีป้ายค้างทุกแถวตลอดไป) */}
+                    {p.postStatus === 'UNANSWERED' && (
                       /* ป้ายสองใบใต้ preview — เป็น `badge` จริงไม่ใช่ข้อความสีแดงลอย ๆ
                          (user report 2026-08-04 "ยังไม่ตอบ มันไม่เห็น label ด้วย" + ส่งภาพชิป
                          สนใจ/DEV มาเทียบ) ชุดเดียวกับชิปแท็กในรายการแชท: badge + พื้นจาง 15%
@@ -1068,6 +1261,16 @@ export default function CommentsClient({
                             หมดเวลาทักแชท
                           </span>
                         )}
+                      </span>
+                    )}
+                    {/* feature 00038 — บอทตอบแล้วทุกคอมเมนต์ของโพสต์นี้ แต่ยังไม่มีคนยืนยัน
+                        (Verified-Means-Green: เหลืองไม่ใช่เขียว เพราะยังไม่มีมนุษย์ยืนยัน) */}
+                    {p.postStatus === 'BOT_ANSWERED' && (
+                      <span className="mt-1 flex flex-wrap items-center gap-1">
+                        <span className="badge bg-warning/15 text-warning-ink text-2xs inline-flex items-center gap-1">
+                          <Icon icon="robot" width={11} height={11} className="shrink-0" />
+                          บอทตอบแล้ว
+                        </span>
                       </span>
                     )}
                   </span>
@@ -1412,6 +1615,8 @@ export default function CommentsClient({
                       answered={answered}
                       active={replyTo?.id === comment.id}
                       onReply={() => setReplyTo(comment)}
+                      privateReplySendingId={sendingPrivateReplyId}
+                      onOpenPrivateReply={openPrivateReplyModal}
                     />
                     {replies.length > 0 && (
                       // ย่อหน้าเฉย ๆ แบบ Facebook — เส้นตั้งของเดิมทำให้อ่านเป็น "บล็อกโค้ด" มากกว่าบทสนทนา
@@ -1424,6 +1629,8 @@ export default function CommentsClient({
                             isReply
                             active={replyTo?.id === r.id}
                             onReply={() => setReplyTo(r)}
+                            privateReplySendingId={sendingPrivateReplyId}
+                            onOpenPrivateReply={openPrivateReplyModal}
                           />
                         ))}
                       </div>
@@ -1466,6 +1673,8 @@ function CommentBubble({
   isReply = false,
   answered = false,
   active = false,
+  privateReplySendingId = null,
+  onOpenPrivateReply,
 }: {
   c: CommentItem
   channel?: { name: string; avatarUrl: string | null; provider: string }
@@ -1475,6 +1684,10 @@ function CommentBubble({
   answered?: boolean
   /** คอมเมนต์ที่ช่องพิมพ์กำลังจ่อตอบอยู่ (user สั่ง 2026-08-04 "ใส่สีฟ้าอ่อน ๆ พื้นหลังให้ด้วย") */
   active?: boolean
+  /** feature 00038 Task 8 — commentId ที่กำลังส่ง private reply อยู่ (derive สถานะ SENDING) */
+  privateReplySendingId?: string | null
+  /** feature 00038 Task 8 — เปิดโมดัลยืนยันทักแชท */
+  onOpenPrivateReply: (c: CommentItem) => void
 }) {
   /**
    * โครงตามภาพ Facebook จริงที่ user ส่งมา 2026-08-03 ("ต้องดูรู้เรื่องกว่านี้ ตอนนี้มันดูยาก แยกยาก"):
@@ -1497,6 +1710,10 @@ function CommentBubble({
   const avatarSize = isReply ? 'size-7' : 'size-8'
 
   const chatWindow = c.isFromPage || c.isDeleted ? null : privateReplyWindow(c.createdTime)
+  // feature 00038 Task 8 — ปุ่มไม่ render เลยเมื่อ isFromPage/isDeleted (UX-Design-Spec §2.5) เหมือน
+  // เดิม; ไม่ผูกกับสวิตช์อัตโนมัติ (D-6/BR-CR-15) — render เสมอไม่ว่าสวิตช์ B จะเปิดหรือปิด
+  const privateReplyState =
+    c.isFromPage || c.isDeleted ? null : resolvePrivateReplyState(c, privateReplySendingId)
 
   /**
    * กดที่แถวคอมเมนต์ = เตรียมช่องตอบให้เลย (user สั่ง 2026-08-04: "ยังไม่ auto reply เวลากดเข้า
@@ -1553,12 +1770,25 @@ function CommentBubble({
         >
           <p className="mb-0 flex flex-wrap items-center gap-1.5">
             <span className="text-default-800 text-sm font-semibold">{displayName}</span>
-            {c.isFromPage && (
-              <span className="text-primary inline-flex items-center gap-0.5 text-2xs font-medium">
-                <Icon icon="pencil" className="text-2xs" />
-                ผู้ดูแลเพจ
-              </span>
-            )}
+            {/* feature 00038 Task 9 — บอทกับคนตอบเป็นคนละความหมาย ป้ายจึงแยกกัน (mutually
+                exclusive): isAutoReply=true มาจากระบบตอบอัตโนมัติ ไม่ใช่คนในทีมร้าน จึงไม่ใช่
+                "ผู้ดูแลเพจ" — ใช้ inline-text pattern เดิม (ไอคอน+ข้อความ text-2xs ข้างชื่อ) ไม่ใช่
+                AutoReplyTag.tsx เต็มรูป เพราะไม่มี trace data ให้กาง (ข้อความคงที่ ไม่มีกลุ่มคำ
+                แบบ 00023) popup ที่กดแล้วว่างเปล่าแย่กว่าไม่มี popup (UX-Design-Spec §3, decision #4)
+                สี warning-ink ตัวเดียวกับ badge "บอทตอบแล้ว" — Verified-Means-Green ห้ามเขียว
+                เพราะยังไม่มีมนุษย์ยืนยัน */}
+            {c.isFromPage &&
+              (c.isAutoReply ? (
+                <span className="text-warning-ink inline-flex items-center gap-0.5 text-2xs font-medium">
+                  <Icon icon="robot" className="text-2xs" />
+                  ตอบอัตโนมัติ
+                </span>
+              ) : (
+                <span className="text-primary inline-flex items-center gap-0.5 text-2xs font-medium">
+                  <Icon icon="pencil" className="text-2xs" />
+                  ผู้ดูแลเพจ
+                </span>
+              ))}
           </p>
           <p className="text-default-800 mb-0 whitespace-pre-wrap text-sm">
             {c.isDeleted ? 'ความคิดเห็นถูกลบ' : (c.message ?? '(ไม่มีข้อความ)')}
@@ -1570,7 +1800,7 @@ function CommentBubble({
         </div>
 
         {/* เวลา + ปุ่มตอบ อยู่นอกบับเบิล ตัวเล็กสีจาง — จังหวะเดียวกับ Facebook */}
-        <div className="text-default-700 mt-0.5 flex items-center gap-3 ps-3 text-xs">
+        <div className="text-default-700 mt-0.5 flex flex-wrap items-center gap-3 ps-3 text-xs">
           <span title={formatDateTimeTH(c.createdTime)}>{formatTimeHM(c.createdTime)}</span>
           {c.editedAt && <span>แก้ไขแล้ว</span>}
           {answered && !c.isFromPage && (
@@ -1584,25 +1814,63 @@ function CommentBubble({
               ตอบ
             </button>
           )}
-          {/* นาฬิกาถอยหลังหน้าต่างทักแชทส่วนตัว (user สั่ง 2026-08-04 พร้อมรูปแบบที่ต้องการ:
-              `ตอบ  ทักแชท [คงเหลือ 6 วัน 14 ชั่วโมง 34 นาที]` ป้ายสีแดง) — Meta ให้ทักแชทจาก
+          {/* ปุ่ม "ทักแชท" 4 สถานะ (feature 00038 Task 8, UX-Design-Spec §2) — Meta ให้ทักแชทจาก
               คอมเมนต์ได้ภายใน 7 วันนับจากเวลาที่ลูกค้าคอมเมนต์ พ้นแล้วทักไม่ได้อีกเลย ผู้ขายต้อง
-              เห็นตัวเลขตอนกำลังตัดสินใจ ไม่ใช่ไปรู้ตอนกดแล้วโดน Meta ปฏิเสธ
-
-              รูปแบบตาม Business Suite ที่ user ชี้: `Like Reply Hide See Chat (6 วัน ...)` —
-              **หมดเวลาแล้วหายไปทั้งอัน** ไม่ใช่ขึ้นว่า "หมดเวลา" ค้างไว้ เพราะตัวเลือกที่เลือกไม่ได้
-              แล้วไม่ควรกินที่ในแถวเครื่องมือ (เหลือ ตอบ อย่างเดียวคือคำตอบที่ถูกของสถานะนั้น)
-
-              "ทักแชท" ยังไม่ใช่ปุ่มกดได้ — การทักแชทจริงต้องใช้ Private Replies ของ Meta ซึ่งยัง
-              ไม่ได้ทำฝั่ง backend จึงจงใจไม่ทำให้ดูกดได้ (ปุ่มที่กดแล้วไม่เกิดอะไรแย่กว่าไม่มีปุ่ม) */}
-          {chatWindow && !chatWindow.expired && (
-            <span
-              className="inline-flex items-center gap-1"
-              title={`ทักแชทส่วนตัวได้ภายใน 7 วันนับจากเวลาคอมเมนต์ (${formatDateTimeTH(c.createdTime)})`}
+              เห็นตัวเลขตอนกำลังตัดสินใจ ไม่ใช่ไปรู้ตอนกดแล้วโดน Meta ปฏิเสธ (มาจากคอมเมนต์เดิม
+              ก่อนหน้านี้ ตอนนี้ปุ่มกดได้จริงแล้ว ปิดหนี้ที่ค้างจาก feature 00029) */}
+          {privateReplyState === 'AVAILABLE' && (
+            <>
+              <button
+                type="button"
+                onClick={() => onOpenPrivateReply(c)}
+                className="btn btn-sm border-default-300 text-default-800 hover:border-default-400 inline-flex items-center gap-1 border"
+              >
+                <Icon icon="message-reply" className="text-sm" />
+                ทักแชท
+              </button>
+              {chatWindow && (
+                <span
+                  className="text-danger-ink font-semibold"
+                  title={`ทักแชทส่วนตัวได้ภายใน 7 วันนับจากเวลาคอมเมนต์ (${formatDateTimeTH(c.createdTime)})`}
+                >
+                  {chatWindow.text}
+                </span>
+              )}
+            </>
+          )}
+          {privateReplyState === 'SENDING' && (
+            <button
+              type="button"
+              disabled
+              className="btn btn-sm bg-default-200 text-default-500 inline-flex items-center gap-1 cursor-not-allowed"
             >
-              <span className="font-medium">ทักแชท</span>
-              <span className="text-danger-ink font-semibold">({chatWindow.text})</span>
-            </span>
+              <span className="border-default-500 size-3 inline-block animate-spin rounded-full border-2 border-t-transparent" />
+              กำลังส่ง...
+            </button>
+          )}
+          {privateReplyState === 'SENT' && (
+            <>
+              <button
+                type="button"
+                disabled
+                className="btn btn-sm border-default-300 text-default-400 cursor-not-allowed border"
+              >
+                ทักแล้ว · {formatTimeHM(c.privateReplySentAt)}
+              </button>
+              {c.privateReplyConversationId && (
+                <Link href={`/inbox/${c.privateReplyConversationId}`} className="font-medium hover:underline">
+                  เปิดห้องแชท
+                </Link>
+              )}
+            </>
+          )}
+          {privateReplyState === 'EXPIRED' && (
+            <>
+              <button type="button" disabled className="btn btn-sm bg-default-200 text-default-400 cursor-not-allowed">
+                หมดเวลาทักแชท
+              </button>
+              <span className="text-default-500 text-xs">เกิน 7 วันแล้ว Facebook ไม่ให้ทักส่วนตัวอีก</span>
+            </>
           )}
         </div>
       </div>

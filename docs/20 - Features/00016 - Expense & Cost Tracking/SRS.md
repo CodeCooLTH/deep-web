@@ -64,7 +64,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[Feature-Docs-Ownership]]"]
 | **Access Gate (Expense)** | ขั้นตอนตัดสินสิทธิ์เข้าถึง Expense/P&L ที่ทำใน `resolveExpenseAccess()` (`expense-access.service.ts`) |
 | **ownerId** | `Shop.userId` — เจ้าของร้านตัวจริงตอนสร้าง (immutable) ใช้เป็นคีย์ของ `getSubscriptionStatus()` เสมอ **ไม่ว่า shop จะเป็น PERSONAL หรือ BUSINESS** (ดู TFR-009 สำหรับหลักฐาน) |
 | **Fixed Category** | หมวดค่าใช้จ่าย 7 ค่าคงที่ (RENT/PACKAGING/ADVERTISING/SHIPPING/SALARY/UTILITIES/OTHER) เก็บเป็น `String` (ไม่ใช่ Prisma `enum`) |
-| **staffCanViewFinance** | `Shop.staffCanViewFinance: Boolean` (default false) — toggle ระดับร้านที่ owner เปิด/ปิดให้ `ShopMember(role=ADMIN)` เห็นข้อมูลการเงิน |
+| **staffCanViewFinance** | `Shop.staffCanViewFinance: Boolean` (**default `true` ตั้งแต่ 2026-08-08** — เดิม `false`, ดู BRD FR-EXP-10-AC-01b) — toggle ระดับร้านที่ owner เปิด/ปิดให้ `ShopMember(role=ADMIN)` เห็นข้อมูลการเงิน |
 
 ---
 
@@ -195,9 +195,9 @@ flowchart LR
 
 ### TFR-010: Toggle `staffCanViewFinance` + Admin Branch
 - **Trace to:** FR-EXP-10
-- **คำอธิบายเชิงเทคนิค:** เพิ่ม `Shop.staffCanViewFinance: Boolean @default(false)` (additive) `PATCH /api/business/shops/[shopId]/finance-visibility` (route ใหม่, owner-only — mirror guard ของ `api/business/shops/[shopId]/onboarding/route.ts`: query shop ด้วย `shopId` param, เช็ค `shop.kind === 'BUSINESS'` + `shop.userId === session.user.id` มิฉะนั้น `403 NOT_OWNER`) รับ body `{ staffCanViewFinance: boolean }` → `prisma.shop.update`. ใน `resolveExpenseAccess()` — เมื่อ `active.role === 'ADMIN'` (คืนมาจาก `requireActiveShop` ที่ query `ShopMember.role` จริงอยู่แล้ว) ต้องเช็ค `active.shop.staffCanViewFinance === true` มิฉะนั้นคืน `{ kind: 'STAFF_NOT_ALLOWED' }`
+- **คำอธิบายเชิงเทคนิค:** เพิ่ม `Shop.staffCanViewFinance: Boolean @default(true)` (additive · เดิม `@default(false)` เปลี่ยนโดย migration `20260808220000` เมื่อ 2026-08-08) `PATCH /api/business/shops/[shopId]/finance-visibility` (route ใหม่, owner-only — mirror guard ของ `api/business/shops/[shopId]/onboarding/route.ts`: query shop ด้วย `shopId` param, เช็ค `shop.kind === 'BUSINESS'` + `shop.userId === session.user.id` มิฉะนั้น `403 NOT_OWNER`) รับ body `{ staffCanViewFinance: boolean }` → `prisma.shop.update`. ใน `resolveExpenseAccess()` — เมื่อ `active.role === 'ADMIN'` (คืนมาจาก `requireActiveShop` ที่ query `ShopMember.role` จริงอยู่แล้ว) ต้องเช็ค `active.shop.staffCanViewFinance === true` มิฉะนั้นคืน `{ kind: 'STAFF_NOT_ALLOWED' }`
 - **Precondition:** เฉพาะ owner เท่านั้นที่เรียก toggle endpoint สำเร็จ (ไม่มี endpoint ให้ admin แก้ค่านี้เอง)
-- **Postcondition:** Shop ใหม่ทุกแถว (`ensurePersonalShop`/`createBusinessShop`) ได้ `staffCanViewFinance = false` จาก column default โดยอัตโนมัติ ไม่ต้องแก้ 2 ฟังก์ชันนี้เลย (AC-01)
+- **Postcondition:** Shop ใหม่ทุกแถว (`ensurePersonalShop`/`createBusinessShop`) ได้ `staffCanViewFinance` จาก column default โดยอัตโนมัติ ไม่ต้องแก้ 2 ฟังก์ชันนี้เลย — **ค่านั้นคือ `true` ตั้งแต่ 2026-08-08** (เดิม `false` ตาม AC-01 ซึ่งถูกแทนด้วย AC-01b)
 - **Error/Edge cases:** `STAFF_NOT_ALLOWED` ต้อง map เป็น `403` ที่ route **และ** หน้า `/expenses` (RSC) ต้อง **ไม่ render เมนู/ลิงก์** ไปหน้านี้เลยเมื่อ resolve ได้ผลนี้ (AC-04 "มองไม่เห็นเมนู/route เลย" — เป็นความรับผิดชอบของ sidebar/menu config ที่ safepay-ux ต้องออกแบบให้เช็ค role+toggle ก่อน render item เมนู "ค่าใช้จ่าย" — noted เป็น open item ให้ safepay-ux ใน §10)
 
 ### TFR-011: Business Package ACTIVE Gate (+ Shop-Lock Defense-in-Depth)
@@ -261,7 +261,7 @@ sequenceDiagram
 
 | Entity | Field ใหม่ | ประเภท | อ่าน/เขียน |
 |--------|-----------|--------|-----------|
-| **Shop** | `staffCanViewFinance` | `Boolean @default(false)` | อ่าน (access gate) + เขียน (toggle endpoint, owner-only) |
+| **Shop** | `staffCanViewFinance` | `Boolean @default(true)` (เดิม `false` — เปลี่ยน 2026-08-08) | อ่าน (access gate) + เขียน (toggle endpoint, owner-only) |
 | **Product** | `cost` | `Decimal(12,2)?` | อ่าน (order snapshot, product form) + เขียน (product create/update, gate ด้วย `isCostEditAllowed`) |
 | **OrderItem** | `cost` | `Decimal(12,2)?` | เขียนครั้งเดียวตอนสร้าง (`createOrder`), อ่านอย่างเดียวหลังจากนั้น (immutable) |
 | **Expense** (ใหม่) | ทั้ง model | — | CRUD เต็มรูป scoped ด้วย `shopId` |
@@ -298,7 +298,7 @@ erDiagram
     Shop {
         string id PK
         string userId "owner-at-creation, immutable — ownerId ของทั้ง PERSONAL/BUSINESS"
-        boolean staffCanViewFinance "NEW default false"
+        boolean staffCanViewFinance "default true (2026-08-08)"
     }
     Product {
         string id PK
@@ -492,6 +492,70 @@ shipments: { select: { status: true, isDryRun: true, carrierStatus: true } }
 
 **Authorization:** คำนวณและส่งค่าออกจาก server ก็ต่อเมื่อ `resolveExpenseAccess(session).kind === 'GRANTED'` เท่านั้น
 🛑 ไม่ใช่ "คำนวณแล้วซ่อนด้วย CSS" — staff ที่ไม่มีสิทธิ์ต้อง **ไม่ได้รับตัวเลขใน flight payload เลย** (`feedback_rsc_pii_neutralize_at_source`): prop ต้องเป็น `null`/absent ไม่ใช่ตัวเลขที่ component เลือกไม่ render
+
+#### 12.2.1 TFR-018b — กำไรรายออเดอร์บน **หน้ารายการ** `/seller/orders` (ส่วนขยาย 2026-08-08)
+
+> user สั่งระหว่างรอบ 00036: "ตรงยอดนี้มีการแสดงกำไร รายออเดอร์ โดยหักราคาขาย − ส่วนลด − ต้นทุน"
+> `Order.totalAmount` หักส่วนลดแล้ว สูตรจึงเท่ากับ TFR-018 เป๊ะ — **ห้ามเขียนสูตรใหม่**
+> ผ่าน 3 รอบการออกแบบ (คำเต็ม → ถอดคำที่ hedge → ไอคอน+ตัวเลข) รายละเอียดใน
+> `docs/retro/2026-08-08-order-list-profit-and-a11y-retrospective.md`
+
+**Component:** `orders/components/OrderProfitInline.tsx` — ใช้ร่วมทั้งตารางเดสก์ท็อป
+(`OrdersTable` คอลัมน์ `total`) และการ์ดมือถือ (`OrderCard` footer)
+
+**SSOT ของคำ/ไอคอน/โทนสี:** `src/lib/order-profit-presentation.ts` — สกัดออกมาจาก
+`OrderProfitCard.tsx` ในรอบนี้ เพื่อให้หน้ารายการกับหน้า detail พูดคำเดียวกันสีเดียวกัน
+🛑 ห้ามเขียน switch สถานะซ้ำที่ไหนอีก (bug class ที่โปรเจกต์นี้เจอซ้ำหลายรอบ)
+
+**สิ่งที่แสดง (3 สถานะ):**
+
+| กรณี | บนจอ | โทน |
+|---|---|---|
+| `amount > 0` | `↗ ฿150` | `text-success-ink` |
+| `amount < 0` | `↘ -฿90` | `text-danger-ink` |
+| `amount === 0` | `− ฿0` | `text-default-800` |
+
+**สิ่งที่ไม่แสดง (return `null`):**
+
+| กรณี | เหตุผล |
+|---|---|
+| `profit === undefined` | ไม่มีสิทธิ์เห็นการเงิน — server omit คีย์ทิ้งตั้งแต่ประกอบแถวแล้ว (ดู Authorization ของ TFR-018) |
+| `profit === null` | ใบยังไม่นับเป็นยอดขาย (`countsAsRevenue` = false) — สถานะของใบมี badge บอกบนหัวการ์ด/แถวอยู่แล้ว |
+
+🛑 **`hasMissingCost` ไม่ทำให้ซ่อน** — user เคาะ 2026-08-08 ว่า "โชว์เลขเหมือนกันหมด"
+implement ผ่าน `presentOrderProfitCompact()` ที่บังคับ `hasMissingCost: false` แล้ว **delegate**
+ไป `presentOrderProfit()` ตัวเต็ม (ไม่เขียน switch ใหม่)
+
+🛑 **ห้าม gate ด้วย `p.tone`** — `presentOrderProfit()` คืน `tone: 'danger'` ให้ทั้ง
+"ขาดทุนขั้นต้นอย่างน้อย" (ต้นทุนไม่ครบ) และ "ขาดทุนขั้นต้นจากใบนี้" (ต้นทุนครบ)
+แยกสองอันนี้จาก tone ไม่ได้ ต้องอ่าน `profit.hasMissingCost` ดิบ ๆ
+
+**ความเสี่ยงที่ user รับไปแล้ว (ต้องคงบันทึกไว้):** ใบที่ต้นทุนไม่ครบแล้วคำนวณได้ **บวก**
+จะขึ้นเขียวเหมือนยืนยันแล้ว ทั้งที่ต้นทุนที่ยังไม่กรอกอาจทำให้พลิกเป็นขาดทุน —
+ฝั่งลบไม่มีปัญหานี้ (ต่อให้ต้นทุนที่ขาดเป็น 0 ก็ยังขาดทุนอยู่ดี ทิศทางจริงแน่นอน)
+
+**เครื่องหมายลบวางหน้า `฿`** (`-฿90`) — `formatBaht` ตัดเครื่องหมายทิ้งเสมอตามนโยบายใน
+`format-money.ts` ที่ห้าม `฿-150` (ลบชนสัญลักษณ์เงิน) โดยยกหน้าที่บอกทิศทางให้ "คำ + สี"
+แต่ surface นี้ **ไม่มีคำแล้ว** จึงต้องมีตัวบอกทิศทางที่ไม่พึ่งสี (คนตาบอดสีแยกเขียว/แดงไม่ออก)
+รูป `-฿90` ไม่ขัดเหตุผลเดิมเพราะไม่มีอักขระติดกัน
+
+**Hard Rule 16 — ป้ายบอกว่าเป็น "กำไรขั้นต้น" โผล่ครั้งเดียวต่อหน้า ไม่ใช่ต่อแถว:**
+`profitColumnCaption(orderNoun)` → `"ยอด{noun} · กำไรขั้นต้น"`
+- เดสก์ท็อป: หัวคอลัมน์ `total` ใน `OrdersTable`
+- มือถือ: `<p>` เหนือกองการ์ดใน `OrdersList` (การ์ดไม่มีหัวตาราง) — ขึ้นเฉพาะเมื่อ
+  `visible.some(o => o.profit !== undefined)` ไม่เอาป้ายอธิบายของสิ่งที่ตัวเองไม่เห็นไปแปะให้ทีมงาน
+
+🛑 **ห้ามถอดออกทั้งสองที่พร้อมกัน** — นั่นคือจุดเดียวที่บอกผู้ใช้ว่าเลขนี้คนละตัวกับ
+กำไรสุทธิที่ `/sales` (ผู้ขายที่บวกรายใบทั้งเดือนแล้วเทียบจะได้ไม่ตรงเสมอ)
+
+**a11y:** `role="img"` + `aria-label` (คำเต็ม + สูตร) — **`<p>` เปล่าไม่รองรับ `aria-label`**
+รายละเอียด → `docs/conventions/aria-name-requires-supporting-role.md`
+
+**ยังไม่มี (หนี้ที่รู้ตัว):** หน้า `/orders` ไม่มีจุดชี้ทางไปตั้งต้นทุนเลย (มีแต่ badge ในการ์ด
+หน้า detail ที่กดไป `/products?cost=missing` ได้) — ทางแก้ควรเป็นสัญญาณ **ระดับหน้า**
+ครั้งเดียว ไม่ใช่ต่อแถวซ้ำทุกใบ
+
+---
 
 ### 12.3 TFR-019 — มาร์จิ้นรายสินค้า (FR-EXP-15)
 

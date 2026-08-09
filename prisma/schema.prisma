@@ -74,6 +74,7 @@ model User {
   watchList     WatchList[]    @relation("UserWatches")
   notifications Notification[] @relation("UserNotifications")
   pushTokens    PushToken[]    @relation("UserPushTokens")
+  shopNotificationPrefs ShopNotificationPref[] @relation("UserShopNotificationPrefs")
   bidReactions  BidReaction[]  @relation("UserBidReactions")
 
   // --- Deep Stock Pro (feature 00009) ---
@@ -220,12 +221,16 @@ model Shop {
 
   // --- Expense & Cost Tracking (feature 00016, additive) ---
   // staffCanViewFinance: toggle owner เปิด/ปิดให้ ShopMember(role=ADMIN) เห็นข้อมูล Expense/P&L ของร้านนี้
-  // default false เสมอ (FR-EXP-10-AC-01, BR §3.6 — "ข้อมูลการเงินคือความลับทางธุรกิจระดับสูงสุด")
+  // 🛑 default **true** ตั้งแต่ 2026-08-08 (user สั่ง "เปิดหมด" — กลับทิศจาก FR-EXP-10-AC-01 เดิม
+  // ที่ตั้งไว้ false ตาม BR §3.6 "ข้อมูลการเงินคือความลับทางธุรกิจระดับสูงสุด")
+  // เหตุผล: ทีมงานที่ดูออเดอร์อยู่แล้วต้องเห็นต้นทุน/กำไรเพื่อทำงาน การตั้ง default ปิดแปลว่า
+  // ทุกร้านต้องรู้ว่ามีสวิตช์นี้อยู่ก่อนถึงจะใช้ได้ ซึ่งไม่มีใครรู้ → ฟีเจอร์ตายเงียบ ๆ ทั้งฟีเจอร์
+  // **สวิตช์ยังอยู่ครบ** — owner ปิดรายร้านได้เหมือนเดิมที่ /business/[shopId]/invites
   // มีผลจริงเฉพาะ BUSINESS shop ในทางปฏิบัติ (PERSONAL shop ไม่มี ShopMember(ADMIN) อื่นอยู่แล้ว —
   // 1 user = owner คนเดียว) แต่ประกาศไว้ทุกแถวเพื่อความสม่ำเสมอของ schema (PRD §4.2)
-  // 🛑 ไม่ใช่ authorization gate เอง — แค่ data flag; service layer ต้องเช็ค role+toggle+package
+  // 🛑 ไม่ใช่ authorization gate เอง — แค่ data flag; service layer ต้องเช็ค role+toggle
   // ครบทุกครั้ง (ดู SRS สำหรับ authorization logic เต็ม)
-  staffCanViewFinance Boolean @default(false)
+  staffCanViewFinance Boolean @default(true)
   // --- feature 00017: Lodging Vertical (Phase 1) → ขยายเป็น 3 ค่าโดย feature 00028 ---
   // vertical (ป้ายบนจอ "ประเภทร้านค้า") มี 3 ค่าเท่านั้น:
   //   "ONLINE_SALES"  (ขายออนไลน์)      — ขายสินค้าที่ต้องจัดส่ง มีสต็อก/ประมูล/iShip
@@ -273,6 +278,7 @@ model Shop {
   inventoryEntitlement InventoryEntitlement?
   stockMovements       StockMovement[] // Deep Stock Pro (feature 00009) — denormalized scope
   members              ShopMember[] // NEW (feature 00008)
+  notificationPrefs    ShopNotificationPref[] @relation("ShopNotificationPrefs")
   invites              ShopInvite[] // NEW (feature 00008)
   inviteLinks          ShopInviteLink[] // NEW (feature 00012) — reusable staff invite link
   videos               ShopVideo[] // คลิปที่ร้านเลือกโชว์บนหน้าร้านสาธารณะ (2026-07-26)
@@ -1273,11 +1279,46 @@ model PushToken {
   userId    String
   // Expo push token (ExponentPushToken[...]) — unique กัน register ซ้ำ
   token     String   @unique
+  // platform: "ios" | "android" — /api/seller/push-token รับค่านี้จากแอปมาตั้งแต่วันแรกแต่เคย
+  // โยนทิ้งเพราะไม่มีคอลัมน์รองรับ. จำเป็นเพราะ Expo Push มีฟิลด์ที่ใช้ได้เฉพาะ iOS (subtitle)
+  // — ถ้าแยกเครื่องไม่ได้ ก็ประกอบข้อความให้เหมาะกับแต่ละแพลตฟอร์มไม่ได้ (ดู lib/expo-push.ts)
+  // nullable เพราะแถวเดิมที่ลงทะเบียนก่อนคอลัมน์นี้จะไม่มีค่า — ห้ามเดาว่าเป็น ios
+  platform  String?
   createdAt DateTime @default(now())
 
   user User @relation("UserPushTokens", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// ShopNotificationPref — "ฉันอยากรับแจ้งเตือนของร้านไหนบ้าง" (user สั่ง 2026-08-08: "ตั้งค่าทีละร้านได้")
+///
+/// 🛑 ไม่มีแถว = เปิด (opt-out) เก็บเฉพาะตอนผู้ใช้กดปิด — ผู้ใช้เดิมทุกคนจึงไม่ต้อง backfill
+/// และร้านที่สร้างใหม่ได้ noti ทันทีโดยไม่ต้องมีใครไปสร้างแถวรอไว้ให้ (ถ้าออกแบบเป็น opt-in
+/// ร้านใหม่จะเงียบสนิทจนกว่าจะมีคนไปกดเปิด ซึ่งไม่มีอะไรบอกให้เขารู้ว่าต้องไปกด)
+///
+/// ทำไมไม่เก็บที่ ShopMember: แถว ShopMember ถูกสร้างเฉพาะร้าน BUSINESS (business-shop.service.ts)
+/// — เจ้าของร้าน PERSONAL ไม่มีแถวเลย จะตั้งค่าไม่ได้ทั้งกลุ่ม
+///
+/// ทำไมผูกกับ (user, shop) ไม่ใช่ shop เดี่ยว ๆ: นี่คือความชอบของ "คน" ไม่ใช่การตั้งค่าของร้าน
+/// พนักงานสองคนในร้านเดียวกันตั้งไม่เหมือนกันได้
+model ShopNotificationPref {
+  id     String @id @default(uuid())
+  userId String
+  shopId String
+  /// แจ้งเตือน "ข้อความใหม่จากลูกค้า" — ตั้งชื่อเจาะจงชนิดตั้งแต่แรก ไม่ใช่ `enabled` รวม
+  /// เพราะวันที่มี noti ชนิดอื่น (ออเดอร์ใหม่ / พัสดุมีปัญหา) จะเพิ่มคอลัมน์ใหม่ได้เลย
+  /// ไม่ต้องเปลี่ยนความหมายของค่าที่ผู้ใช้เคยตั้งไว้ (คนที่เคยปิด "แชท" จะได้ไม่โดนปิดของอื่นตามไปด้วย)
+  chatEnabled Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation("UserShopNotificationPrefs", fields: [userId], references: [id], onDelete: Cascade)
+  shop Shop @relation("ShopNotificationPrefs", fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shopId])
+  // shopAudience() ถามว่า "ในร้านนี้ ใครปิดแชทไว้บ้าง" — index ตรงกับรูป query นั้น
+  @@index([shopId, chatEnabled], map: "ShopNotificationPref_shopId_chatEnabled_idx")
 }
 
 model Notification {
@@ -1330,6 +1371,14 @@ model ShopChannel {
   status            String   @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
   createdAt         DateTime @default(now())
 
+  // --- feature 00038 ตอบกลับคอมเมนต์ (additive) — ตั้งค่าต่อเพจ ---
+  // 🛑 คอลัมน์กลุ่มนี้อยู่แถวเดียวกับ accessTokenEnc — ทุก query ที่ส่งค่าออกไปหา client
+  // ต้อง select ระบุคอลัมน์เสมอ ห้ามคืนทั้งแถว
+  commentPublicReplyEnabled   Boolean @default(false)
+  commentPublicReplyText      String? @db.Text
+  commentPrivateReplyEnabled  Boolean @default(false)
+  commentPrivateReplyText     String? @db.Text
+
   shop           Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   contacts       ExternalContact[]
   posts          FacebookPost[]
@@ -1337,6 +1386,8 @@ model ShopChannel {
   conversations  Conversation[]
   // back-relation ของ AutoReplyRule.shopChannelId (feature 00023, additive) — เงื่อนไขเพจของกฎคำตอบ
   autoReplyRules AutoReplyRule[]
+  // back-relation ของ CommentReplyLog.shopChannelId (feature 00038, additive)
+  commentReplyLogs CommentReplyLog[]
 
   // เดิม @@unique([provider, externalId]) = "1 เพจ 1 ร้านตลอดกาล" แม้ถอดแล้ว (status=DISCONNECTED)
   // ก็ยังกอด constraint ไว้ ทำให้ย้ายเพจไปร้านอื่นไม่ได้ (ชน P2002 ตลอดกาล) — แก้เป็น partial unique
@@ -2734,6 +2785,8 @@ model FacebookPost {
   channel    ShopChannel     @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
   comments   PageComment[]
   pageBlocks ShopPageBlock[] // NEW (feature 00035) — บล็อกที่ถูกเพิ่มลงหน้าร้าน (ปกติมีอย่างมาก 1 แถวที่ยัง active ต่อร้าน — บังคับด้วย partial unique index ไม่ใช่ Prisma DSL)
+  // back-relation ของ CommentReplyLog.postId (feature 00038, additive)
+  commentReplyLogs CommentReplyLog[]
 
   @@index([shopChannelId, lastCommentAt])
 }
@@ -2858,16 +2911,54 @@ model PageComment {
   /// คนในทีมร้านที่กดตอบผ่าน Deep — Meta มองว่าทุกคำตอบเป็นของ "เพจ" ถ้าไม่เก็บเองจะไม่มีวันรู้
   /// (plain String ไม่ผูก FK — pattern เดียวกับ ShopChannel.connectedByUserId)
   repliedByUserId String?
+  /// คอมเมนต์นี้เขียนโดยระบบตอบอัตโนมัติ ไม่ใช่คนในทีมร้าน (feature 00038)
+  ///
+  /// 🛑 คอลัมน์นี้มีผู้เขียน 2 ราย: เราเขียนตอน replyToComment() คืน comment id กลับมา
+  /// และ webhook เขียนอีกครั้งเมื่อ Meta ส่ง echo ของคอมเมนต์เดียวกันกลับเข้ามา
+  /// ingestFeedComment ต้อง **ไม่** ใส่ field นี้ใน update block ของ upsert ไม่งั้นธงถูกรีเซ็ต
+  /// แล้วป้าย "ตอบอัตโนมัติ" จะกะพริบหายไปเอง (คลาสเดียวกับบั๊กรีแอ็กชัน 2026-08-04)
+  isAutoReply Boolean @default(false)
   /// payload ดิบจาก webhook/Graph — เหตุผลเดียวกับ ChatMessage.rawMessage (บทเรียน 2026-08-03)
   rawPayload    Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   post    FacebookPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  // back-relation ของ CommentReplyLog.commentId (feature 00038, additive)
+  commentReplyLogs CommentReplyLog[]
 
   @@index([postId, createdTime])
   @@index([shopChannelId, createdTime])
   @@index([parentExternalId])
+}
+
+// CommentReplyLog — บันทึกทุกครั้งที่ระบบ/คนตัดสินใจกับคอมเมนต์ ทั้งที่ตอบและที่ข้าม (feature 00038)
+// มิเรอร์ AutoReplyLog ของ 00023 และทำหน้าที่กันซ้ำไปในตัวผ่าน partial unique index 2 ตัว
+model CommentReplyLog {
+  id             String  @id @default(uuid())
+  shopChannelId  String
+  postId         String
+  commentId      String  // PageComment.id ที่เป็นต้นเหตุ
+  fromExternalId String? // ผู้คอมเมนต์ (null = Meta ไม่ส่ง from มา → ด่านที่ 4 ข้ามไปแล้ว)
+
+  trigger     String  // "AUTO" | "MANUAL"
+  actorUserId String? // MANUAL = คนที่กด · AUTO = null
+
+  publicReplyStatus  String? // "SENT" | "SKIPPED" | "FAILED"
+  privateReplyStatus String? // "SENT" | "SKIPPED" | "FAILED"
+  skipReason         String? // ดู COMMENT_SKIP_REASONS ใน comment-auto-reply.service.ts
+  errorMessage       String? @db.Text
+  conversationId     String? // ห้องที่เกิดจาก private reply
+
+  createdAt DateTime @default(now())
+
+  channel ShopChannel  @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  post    FacebookPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment PageComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  // unique 2 ตัวเป็น partial index เขียนมือใน migration.sql — Prisma ประกาศเองไม่ได้
+  @@index([shopChannelId, createdAt])
+  @@index([commentId])
 }
 
 // ── feature 00031: Order Activity Log (additive) ───────────────────────────

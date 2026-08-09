@@ -25,26 +25,25 @@ import { PageAvatar } from '../components/PageFilterDropdown'
 import type { ChannelOption } from './CommentsClient'
 
 /**
- * ตัวกรอง "แสดงอะไรในลิสต์" — multi-select (user สั่ง 2026-08-04 อ้างแถบชิปของ Business Suite
- * "Follow up / Unread / Primary / Done / Spam / Page Comments / Group Comments"
- * + "multi-select นะครับ ... select ทุกอัน ยกเว้น Page Comments ไว้ก่อน")
+ * ตัวกรอง "แสดงอะไรในลิสต์" (feature 00038 UX-Design-Spec §3.2)
  *
- * ที่ทำได้จริงตอนนี้ 3 ตัว เพราะ `PageComment` มีแค่ `isFromPage` / `isDeleted` / `repliedByUserId`
- * — ไม่มีคอลัมน์สถานะ อ่านแล้ว/ปิดงาน/สแปม/ติดตาม และไม่มีการดึงโพสต์จากกลุ่ม (Group Comments)
- * ชิปที่กดแล้วไม่กรองอะไรเลยแย่กว่าไม่มีชิป — ตัวที่เหลือรอเพิ่มคอลัมน์ + ปุ่มให้ร้านตั้งสถานะก่อน
+ * เดิม `unanswered`/`done` เป็น boolean คู่ที่ overlap กันได้ (ปิดทั้งคู่ = ลิสต์ว่าง, เปิดทั้งคู่ =
+ * เหมือน "ทั้งหมด") ซึ่งเสี่ยงบั๊ก "ตัวเลข 7 กับ 8 ไม่ตรงกัน" ที่เคยเกิดในหน้าพี่น้องมาแล้ว —
+ * แทนด้วย `postStatus` single-select (3 สถานะ mutually exclusive โดยธรรมชาติ ตาม
+ * derivePostState ของ page-comment.service.ts) ผูกตรงกับแท็บสถานะใน CommentsClient.tsx เลย
+ * ไม่ใช่ control คู่ขนานที่ต้องคอย sync กับแท็บ (BR-CR-S4 "ตัวแปรตัวเดียวคุมทั้งแท็บและ query")
+ *
+ * `shopComments` (คอมเมนต์ระดับบนที่ร้านเขียนเอง) ยังเป็นแกนแยก — อยู่ในแผง "ตัวกรอง" นี้เหมือนเดิม
+ * เพราะเป็นคนละคำถามกับ "สถานะการตอบ" (คู่กับ Page Comments ของ Business Suite ค่าตั้งต้นปิด)
  */
 export type CommentShowFilter = {
-  /** โพสต์ที่ยังมีคอมเมนต์ค้าง (คู่กับ Follow up ของ Business Suite) */
-  unanswered: boolean
-  /** โพสต์ที่ตอบครบแล้ว (คู่กับ Done) */
-  done: boolean
+  postStatus: 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN'
   /** คอมเมนต์ระดับบนที่ร้านเขียนเอง (คู่กับ Page Comments) — ค่าตั้งต้นปิดตามที่ user สั่ง */
   shopComments: boolean
 }
 
 export const DEFAULT_COMMENT_SHOW_FILTER: CommentShowFilter = {
-  unanswered: true,
-  done: true,
+  postStatus: 'ALL',
   shopComments: false,
 }
 
@@ -71,11 +70,9 @@ export default function CommentsFilterPanel({ pageOptions, value, show, onApply,
     }
   }, [open, value, show])
 
-  // นับ "กี่เรื่องที่กรองอยู่" — เพจ 1 เรื่อง + การแสดงผลที่ไม่ใช่ค่าตั้งต้นอีก 1 เรื่อง
-  const showChanged =
-    show.unanswered !== DEFAULT_COMMENT_SHOW_FILTER.unanswered ||
-    show.done !== DEFAULT_COMMENT_SHOW_FILTER.done ||
-    show.shopComments !== DEFAULT_COMMENT_SHOW_FILTER.shopComments
+  // นับ "กี่เรื่องที่กรองอยู่" — เพจ 1 เรื่อง + "คอมเมนต์ของร้าน" ไม่ใช่ค่าตั้งต้นอีก 1 เรื่อง
+  // postStatus ไม่นับที่นี่แล้ว (ย้ายไปเป็นแท็บของ CommentsClient — ไม่ใช่ของแผงนี้อีกต่อไป)
+  const showChanged = show.shopComments !== DEFAULT_COMMENT_SHOW_FILTER.shopComments
   const activeCount = (value ? 1 : 0) + (showChanged ? 1 : 0)
 
   useEffect(() => {
@@ -136,20 +133,9 @@ export default function CommentsFilterPanel({ pageOptions, value, show, onApply,
           {/* max-h + scroll: ร้านที่เชื่อมเพจไว้หลายสิบเพจต้องยังกดปุ่มท้ายแผงได้
               (บั๊กเดียวกับที่เจอในแผงของแท็บข้อความ 2026-07-31) */}
           <div className="max-h-96 overflow-y-auto p-3">
-            <p className="text-default-700 mb-2 text-xs font-medium">
-              แสดง <span className="font-normal">— เลือกได้หลายอย่าง</span>
-            </p>
+            {/* สถานะการตอบ (ยังไม่ตอบ/บอทตอบแล้ว/คนตอบแล้ว) ย้ายไปเป็นแท็บ 4 ตัวเหนือรายการแล้ว
+                (UX-Design-Spec §3.2) — เหลือแค่ "คอมเมนต์ของร้าน" ที่นี่ เพราะเป็นคนละแกนกับสถานะ */}
             <div className="mb-4 flex flex-wrap gap-1.5">
-              <Chip
-                on={draftShow.unanswered}
-                label="ยังไม่ตอบ"
-                onClick={() => setDraftShow((d) => ({ ...d, unanswered: !d.unanswered }))}
-              />
-              <Chip
-                on={draftShow.done}
-                label="ตอบครบแล้ว"
-                onClick={() => setDraftShow((d) => ({ ...d, done: !d.done }))}
-              />
               <Chip
                 on={draftShow.shopComments}
                 label="คอมเมนต์ของร้าน"

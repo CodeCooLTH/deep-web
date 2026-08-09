@@ -275,6 +275,11 @@ export default async function PublicProfilePage({ params }: Props) {
               customerCount: profileStats?.customerCount ?? null,
               repeatCustomerCount: profileStats?.repeatCustomerCount ?? null,
               completionRate: profileStats?.completionRate ?? null,
+              // feature 00039 — ตัวหาร/ใบที่หักออก ต้องส่งไปคู่กับ % เสมอ (BR-OSM-07)
+              // และ belowMinSample ให้ UI แสดงข้อความ "ยังสรุปไม่ได้" แทนการหายเงียบ
+              completionDenominator: profileStats?.completionDenominator ?? 0,
+              completionExcluded: profileStats?.completionExcluded ?? 0,
+              completionBelowMinSample: profileStats?.completionBelowMinSample ?? false,
               canChat: !!user.shop && !isOwnShop,
               isLodging,
               isServiceQueue,

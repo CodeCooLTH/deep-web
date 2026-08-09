@@ -1581,6 +1581,52 @@ export const UpdateServiceResourceSchema = v.pipe(
   ),
 )
 
+// ── ตอบกลับคอมเมนต์ (feature 00038) — field name/status code อิง API.md (frozen contract) ──
+// ตอนเขียนสคีมานี้พบว่า brief ของ task ใช้ชื่อย่อ (publicEnabled/publicText) แต่ schema.prisma
+// จริง (ShopChannel.commentPublicReplyEnabled ฯลฯ) กับ API.md ตรงกันเป๊ะ — ยึด API.md/schema จริง
+
+/**
+ * PATCH /api/shops/comment-reply/config — partial update (API.md §4.2: ส่งเฉพาะฟิลด์ที่จะแก้)
+ * ด่านนี้เช็ค BR-CR-05 ได้แค่ "เปิด+ข้อความว่างในคำขอเดียวกัน" — เคสเปิดสวิตช์ไว้ก่อนแล้วมา PATCH
+ * ลบข้อความทีหลัง (ไม่แตะ *Enabled ในคำขอนี้) ต้องเช็คสถานะ "หลัง merge กับแถวเดิมใน DB" ที่
+ * route handler เท่านั้น (Valibot ไม่เห็นแถวเดิม) — ดู src/app/api/shops/comment-reply/config/route.ts
+ */
+export const CommentReplyConfigSchema = v.pipe(
+  v.object({
+    shopChannelId: v.pipe(v.string(), v.uuid()),
+    commentPublicReplyEnabled: v.optional(v.boolean()),
+    commentPublicReplyText: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(1000)))),
+    commentPrivateReplyEnabled: v.optional(v.boolean()),
+    commentPrivateReplyText: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(1000)))),
+  }),
+  v.forward(
+    v.check(
+      (i) => i.commentPublicReplyEnabled !== true || !!i.commentPublicReplyText?.trim(),
+      "ต้องกรอกข้อความก่อนเปิดใช้งาน",
+    ),
+    ["commentPublicReplyText"],
+  ),
+  v.forward(
+    v.check(
+      (i) => i.commentPrivateReplyEnabled !== true || !!i.commentPrivateReplyText?.trim(),
+      "ต้องกรอกข้อความก่อนเปิดใช้งาน",
+    ),
+    ["commentPrivateReplyText"],
+  ),
+)
+
+/** GET /api/shops/comment-reply/logs — query (API.md §4.3, offset cursor pattern มิเรอร์ BuilderLibraryQuerySchema) */
+export const CommentReplyLogsQuerySchema = v.object({
+  shopChannelId: v.optional(v.pipe(v.string(), v.uuid())),
+  cursor: v.optional(v.pipe(v.string(), v.regex(/^\d+$/, "cursor ต้องเป็นตัวเลข"))),
+  take: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(50))),
+})
+
+/** POST /api/chat/comments/[commentId]/private-reply — ทักแชทส่วนตัวจากคอมเมนต์ (ปุ่มแมนนวล) */
+export const PrivateReplySchema = v.object({
+  message: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(1000)),
+})
+
 // ตั้ง/เลื่อนนัด — ฝั่งร้าน
 export const SetAppointmentSchema = v.object({
   resourceId: v.pipe(v.string(), v.minLength(1)),

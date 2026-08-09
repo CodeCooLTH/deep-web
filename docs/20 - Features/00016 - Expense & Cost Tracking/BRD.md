@@ -93,6 +93,9 @@ related: ["[[PRD]]", "[[Feature-Docs-Ownership]]"]
 - [ ] `[FR-EXP-02-AC-02]` **Given** รายการสินค้าที่ผูกกับ `Product` ซึ่ง `cost` เป็น `null` **When** ระบบสร้าง `OrderItem` **Then** `OrderItem.cost` เป็น `null` (ไม่ error, ไม่ default เป็น 0)
 - [ ] `[FR-EXP-02-AC-03]` **Given** รายการสินค้าที่เป็น custom/manual line item (ไม่ผูกกับ `Product` ใด ๆ, `productId` เป็น null) **When** ระบบสร้าง `OrderItem` **Then** `OrderItem.cost` เป็น `null` เสมอ (ไม่มีต้นทุนอ้างอิง)
 - [ ] `[FR-EXP-02-AC-04]` **Given** ออเดอร์ที่สร้างไปแล้วก่อนหน้านี้ (มี `OrderItem.cost` snapshot ค่าหนึ่งไว้) **When** seller แก้ `Product.cost` เป็นค่าใหม่ในภายหลัง **Then** re-query ออเดอร์เก่านั้น `OrderItem.cost` ยังคงเป็นค่าเดิมที่ snapshot ไว้ ไม่เปลี่ยนตาม `Product.cost` ปัจจุบัน
+- [ ] `[FR-EXP-02-AC-05]` (เพิ่ม 2026-08-08) **Given** ออเดอร์เก่าที่ `OrderItem.cost` เป็น `null` เพราะร้านเพิ่งมาตั้งราคาทุนให้สินค้าทีหลัง **When** รัน migration `20260808210000_backfill_order_item_cost` **Then** `OrderItem.cost` ของบรรทัดที่ผูกกับสินค้าที่ "มีต้นทุนแล้ว" ถูกเติมด้วย `Product.cost` ปัจจุบัน และ **แถวที่เคยมีค่าอยู่แล้วต้องไม่ถูกแตะเลยแม้แต่แถวเดียว** (AC-04 ยังคุมทิศทาง "แก้ทีหลังไม่ย้อนหลัง" เหมือนเดิม — backfill เติมได้เฉพาะช่องที่ว่าง)
+
+> **หมายเหตุ backfill (2026-08-08, user สั่ง):** ก่อนหน้านี้ระบบไม่มีทางเติมต้นทุนย้อนหลังเลย ร้านที่มาตั้งราคาทุนทีหลังจึงเห็นกำไรของช่วงก่อนหน้าสูงเกินจริงตลอดไป. `null` ในคอลัมน์นี้แปลว่า "ไม่รู้" ไม่ใช่ "ต้นทุน 0" การเติมด้วยราคาทุนปัจจุบันจึงดีกว่าปล่อยว่าง — แต่มันคือ **ค่าประมาณ** ไม่ใช่ราคาทุน ณ วันขายจริง (ระบบไม่เก็บประวัติราคาทุน). บรรทัดที่ผู้ขายพิมพ์เอง (`productId = null`) เติมไม่ได้ ยังเป็น `null` ต่อไปตาม AC-03. ผลบน prod ณ วันรัน: 102 แถวเป็น `null` → เติมได้ 92 แถว, 8 แถวที่มีค่าอยู่แล้วไม่ถูกแตะ, ที่เหลือ 10 แถวคือสินค้าที่ยังไม่ตั้งต้นทุนเลย
 
 **Business Flow:**
 1. Seller submit ฟอร์มสร้างออเดอร์ (มีอยู่แล้ว)
@@ -222,10 +225,13 @@ flowchart TD
 > ในฐานะ Owner ฉันต้องการเลือกเองว่าจะให้พนักงาน (ShopMember role=ADMIN) เห็นข้อมูลการเงินของร้านได้หรือไม่ เพื่อควบคุมความลับทางธุรกิจของตัวเอง
 
 **Acceptance Criteria:**
-- [ ] `[FR-EXP-10-AC-01]` **Given** Shop ใหม่ถูกสร้าง (ไม่ว่า kind ใด) **When** ตรวจค่าเริ่มต้น **Then** `Shop.staffCanViewFinance = false` เสมอ
+- [ ] ~~`[FR-EXP-10-AC-01]` **Given** Shop ใหม่ถูกสร้าง (ไม่ว่า kind ใด) **When** ตรวจค่าเริ่มต้น **Then** `Shop.staffCanViewFinance = false` เสมอ~~ **กลับทิศ 2026-08-08 → `[FR-EXP-10-AC-01b]` ค่าเริ่มต้นคือ `true`** (user สั่ง "เปิดหมด")
+
+> **ทำไมกลับทิศ (2026-08-08):** ตั้ง default false มา 1 เดือน ผลคือ **12/12 ร้านบน prod ไม่มีร้านไหนเปิดเลยสักร้าน** — ไม่ใช่เพราะทุกคนตั้งใจปิด แต่เพราะสวิตช์อยู่ในหน้าจัดการพนักงานซึ่งไม่มีใครรู้ว่ามี ผู้ดูแล 9 คนที่ทำงานกับออเดอร์ทุกวันจึงมองไม่เห็นต้นทุน/กำไรมาตลอด. BR §3.6 ("ข้อมูลการเงินคือความลับทางธุรกิจระดับสูงสุด") ยังใช้กับ **คนนอกร้าน** เหมือนเดิม — สิ่งที่เปลี่ยนคือสมมติฐานว่า ShopMember(ADMIN) ซึ่ง owner เชิญเข้ามาเองนับเป็นคนใน. **สวิตช์ไม่ได้ถูกถอด** owner ยังปิดรายร้านได้และ `resolveExpenseAccess()` ยัง fail-closed ตามเดิม (AC-02..AC-05 ไม่เปลี่ยน) · migration `20260808220000_finance_visible_to_staff_by_default`
+
 - [ ] `[FR-EXP-10-AC-02]` **Given** owner เปิด toggle "ให้พนักงานเห็นข้อมูลการเงิน" **When** ยืนยัน **Then** `Shop.staffCanViewFinance = true` — เฉพาะ owner เท่านั้นที่แก้ค่านี้ได้ (ไม่ใช่ admin)
 - [ ] `[FR-EXP-10-AC-03]` **Given** `staffCanViewFinance = true` **When** `ShopMember(role=ADMIN)` ของ shop นั้น login และเปิดเมนู **Then** เห็นเมนู `/expenses` และเข้าถึงข้อมูลได้เท่ากับ owner (membership-based access ตาม MVP feature 00008)
-- [ ] `[FR-EXP-10-AC-04]` **Given** `staffCanViewFinance = false` (default) **When** `ShopMember(role=ADMIN)` เปิดเมนู **Then** **ไม่เห็นเมนู/route `/expenses` เลย** — เข้า URL ตรง ๆ ก็ต้องถูกปฏิเสธ (403) ไม่ใช่แค่ UI ซ่อนปุ่ม
+- [ ] `[FR-EXP-10-AC-04]` **Given** `staffCanViewFinance = false` (owner ปิดเอง — ไม่ใช่ค่าเริ่มต้นอีกแล้วตั้งแต่ 2026-08-08) **When** `ShopMember(role=ADMIN)` เปิดเมนู **Then** **ไม่เห็นเมนู/route `/expenses` เลย** — เข้า URL ตรง ๆ ก็ต้องถูกปฏิเสธ (403) ไม่ใช่แค่ UI ซ่อนปุ่ม
 - [ ] `[FR-EXP-10-AC-05]` Toggle นี้เป็นค่าต่อ `Shop` (ต่อร้าน) — owner ที่มีหลาย Business shop ต้องตั้งแยกทีละร้าน ไม่มี global toggle รวม
 
 #### FR-EXP-11: Gate การเข้าถึงด้วย Business Package (Bundled Paid Add-on)

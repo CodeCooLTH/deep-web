@@ -74,6 +74,7 @@ import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
 import ThreadStatusBar, { type ThreadStatusItem } from './ThreadStatusBar'
 import OrderProgressBar from './OrderProgressBar'
 import { pacesToast } from '@/lib/paces-toast'
+import { pacesConfirm } from '@/lib/paces-swal'
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 import Link from 'next/link'
 import Lightbox from 'yet-another-react-lightbox'
@@ -84,7 +85,7 @@ import { generateInitials } from '@/utils/helpers'
 // แต่ยังเก็บเวลาเต็มไว้ใน title ให้ชี้ดูได้ (formatTimeHM มีอยู่แล้ว ไม่ต้องเขียน formatter ใหม่)
 import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
-import { parseMetaSystemNotice } from '@/lib/meta-system-notice'
+import { parseMetaSystemNotice, parseMetaAiHandoffNotice } from '@/lib/meta-system-notice'
 import { withEmojiPresentation } from '@/lib/emoji-presentation'
 import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
 import Swal from 'sweetalert2'
@@ -918,6 +919,41 @@ export default function ChatThread({
     externalDeliveredAt,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
+
+  // ── "เธรดที่ Meta AI ถือสิทธิ์คุมอยู่" (2026-08-08) ─────────────────────────────────
+  //
+  // derive สถานะปัจจุบัน: ข้อความล่าสุดของเธรด viaStandby===true ⇒ Meta AI ถือห้องอยู่ตอนนี้
+  // (พิสูจน์บน prod แล้วว่าพลิกถูกทั้งสองทิศอัตโนมัติ — ไม่ใช่แค่ตอนสลับเข้า) เฉพาะช่องทางนอก
+  // (channel != DEEP) เพราะ Deep ไม่มี Meta AI; messages.length===0 ต้องไม่ crash (index ว่าง)
+  const aiAgentActive = isExternal && messages.length > 0 && messages[messages.length - 1].viaStandby === true
+
+  // client gate ล้วน ๆ (ไม่ยิง API) — ผู้ขายกด "ตอบเอง" แล้วยืนยันผ่าน pacesConfirm จึงปลดล็อก
+  // composer ให้พิมพ์ได้ตามปกติ. ต้อง reset กลับ false เมื่อ aiAgentActive ไล่จาก false→true อีกครั้ง
+  // (ลูกค้าทักใหม่แล้ว AI กลับมาคุมระหว่างเปิดหน้าค้าง) ไม่งั้น composer จะปลดล็อกค้างทั้งที่ AI
+  // คุมจริงแล้ว — ใช้ ref เก็บค่ารอบก่อนหน้าเทียบเอง (ไม่ใช่แค่ if (aiAgentActive) เพราะนั่นจะ
+  // reset ทุกครั้งที่ยัง true อยู่ ทำให้กด "ตอบเอง" แล้วปลดล็อกไม่ได้เลยสักครั้ง)
+  const [respondingManually, setRespondingManually] = useState(false)
+  const prevAiAgentActiveRef = useRef(aiAgentActive)
+  useEffect(() => {
+    if (!prevAiAgentActiveRef.current && aiAgentActive) setRespondingManually(false)
+    prevAiAgentActiveRef.current = aiAgentActive
+  }, [aiAgentActive])
+
+  // แสดง "composer replacement block" (แทนที่ทั้งแถบเครื่องมือ+textarea) เฉพาะตอน AI คุมอยู่จริง
+  // ยังไม่ยืนยันตอบเอง และ token ยังไม่ตาย — tokenInvalid ชนะเสมอ (คงพฤติกรรม dim เดิม เพราะ
+  // "เชื่อมต่อเพจขาด" กับ "มี AI ทำงานแทนอยู่" คนละความหมาย จะปนกันไม่ได้)
+  const showAiTakeoverComposer = !composerDisabled && aiAgentActive && !respondingManually
+  // แถบ "กำลังตอบเองแทน AI" หลังยืนยันแล้ว — หายเองเมื่อ aiAgentActive กลับเป็น false (ไม่มีปุ่มปิด)
+  const showManualOverrideStrip = !composerDisabled && aiAgentActive && respondingManually
+
+  const confirmTakeOverFromAi = async () => {
+    const ok = await pacesConfirm.question(
+      'ตอบเองแทน AI ของ Meta?',
+      'หลังจากนี้คุณพิมพ์ข้อความส่งหาลูกค้าได้ตามปกติ — แต่การหยุด AI ให้แน่ใจ 100% ต้องกดที่ Business Suite ของเพจนี้โดยตรง',
+      { confirmButtonText: 'ตอบเอง', cancelButtonText: 'ให้ AI ตอบต่อไป' },
+    )
+    if (ok) setRespondingManually(true)
+  }
 
   // ── กดค้างบนข้อความ → เมนูลอย (user สั่ง 2026-08-02) ────────────────
   //
@@ -1892,7 +1928,11 @@ export default function ChatThread({
                 // Meta ส่งมาในนามเพจ ถ้า render เป็นบับเบิลปกติจะเข้าใจผิดว่าแอดมินพิมพ์เอง
                 // (user: "ทำให้เข้าใจผิดว่าคนพิมพ์") + URL ดิบยาวเต็มจอ
                 // → บรรทัดกลางจอสีจางแบบ Messenger ตามรูปที่ user ส่งมา ไม่ใช่บับเบิล
-                const systemNotice = m.type === 'TEXT' ? parseMetaSystemNotice(m.body) : null
+                // เพิ่ม parseMetaAiHandoffNotice (feature "Meta AI ถือสิทธิ์คุมเธรด" 2026-08-08) —
+                // ข้อความสลับสิทธิ์คุมเธรด AI↔คน คนละชุดสตริงกับ parseMetaSystemNotice เดิม แต่
+                // shape MetaSystemNotice เดียวกัน JSX ด้านล่างจึง render ได้โดยไม่ต้องแก้
+                const systemNotice =
+                  m.type === 'TEXT' ? (parseMetaSystemNotice(m.body) ?? parseMetaAiHandoffNotice(m.body)) : null
                 if (systemNotice) {
                   return (
                     <div key={m.id} className="my-5 px-4 text-center">
@@ -2249,6 +2289,33 @@ export default function ChatThread({
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
       <div className="border-t border-default-300 border-dashed relative px-4 py-3 sm:px-6 sm:py-3.75">
+        {showAiTakeoverComposer ? (
+          /**
+           * composer replacement block (feature "เธรดที่ Meta AI ถือสิทธิ์คุมอยู่" 2026-08-08)
+           * แทนที่ "ทั้งแถบเครื่องมือ + textarea" ไม่ใช่ dim/disable — ต่างจาก tokenInvalid
+           * (composerDisabled): เคสนั้นคือ "ระบบพัง รอแก้" ส่วนเคสนี้คือ "มีคนอื่น (AI ของ Meta)
+           * กำลังทำงานแทนอยู่" ถ้าโชว์ปุ่ม 6 ปุ่มที่กดไม่ได้ ผู้ใช้จะอ่านเป็น "ระบบพัง" ผิดความหมาย
+           *
+           * Base: BotPausedBanner.tsx บรรทัด ~100-126 (กล่อง bg-{tone}/15 + ปุ่ม bg-card min-h-11
+           * shrink-0 sm:min-h-0) — เปลี่ยน tone warning→info (สถานะนี้ไม่ใช่ "พัง"), ไอคอน
+           * robot-off→robot (ห้าม sparkles — ผูกกับ DeepAI ของเราเองไปแล้ว)
+           *
+           * flex-col items-center text-center sm:flex-row sm:text-start: rail แชทเดสก์ท็อป
+           * (แคบกว่า 640px) ต้องได้ผังแนวตั้งเหมือนมือถือ ไม่ใช่บีบทุกอย่างอยู่แถวเดียว
+           */
+          <div className="bg-info/15 text-info flex flex-col items-center gap-2 rounded-lg px-3 py-2 text-center text-sm sm:flex-row sm:items-start sm:text-start">
+            <Icon icon="robot" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
+            <span className="min-w-0 flex-1">ตอนนี้ Meta AI กำลังตอบลูกค้าในแชทนี้อยู่</span>
+            <button
+              type="button"
+              onClick={confirmTakeOverFromAi}
+              className="btn btn-sm bg-card text-default-700 min-h-11 shrink-0 sm:min-h-0"
+            >
+              ตอบเอง
+            </button>
+          </div>
+        ) : (
+          <>
         {/* แผงเหนือช่องพิมพ์ — เปิดได้ทีละแผงเท่านั้น (activePanel) จึงไม่มีทางกางซ้อนกัน
             ทั้งสามใช้โครง/สไตล์เดียวกัน ต่างแค่ accent (AI = success, สำเร็จรูป = primary,
             เลือกสินค้า = info) */}
@@ -2451,6 +2518,28 @@ export default function ChatThread({
             มือถือ/จอสัมผัส: Enter = ขึ้นบรรทัดใหม่เสมอ ส่งด้วยปุ่ม "ส่ง" (ไม่มี Shift ให้กดคู่)
             ปุ่มส่งอยู่ "ในกล่อง" มุมขวาล่าง (user request 2026-08-06) — เดิมอยู่นอกกล่องข้าง ๆ
             ซึ่งกินความกว้างของช่องพิมพ์ไปตลอด บนมือถือจึงเหลือที่พิมพ์แคบ */}
+        {/* manual-override strip (feature "เธรดที่ Meta AI ถือสิทธิ์คุมอยู่" 2026-08-08) —
+            โผล่หลังผู้ขายกดยืนยัน "ตอบเอง" แล้ว ไม่มีปุ่มปิด (หายเองเมื่อ aiAgentActive===false)
+            Base: replyingTo preview bar ด้านล่าง (`border-{semantic} bg-{semantic}/5 border-s-2
+            rounded-lg px-3 py-2`) — เปลี่ยน semantic primary→info, ไอคอน arrow-back-up→robot,
+            เปลี่ยนปุ่ม x (ยกเลิก) เป็นลิงก์ออกไป Business Suite (เราสั่งให้ AI หยุดจริงไม่ได้ —
+            เปิด AI กลับต้องทำที่ Business Suite ของเพจนั้นเอง) */}
+        {showManualOverrideStrip && (
+          <div className="border-info bg-info/5 mb-2 flex items-start gap-2 rounded-lg border-s-2 px-3 py-2">
+            <Icon icon="robot" className="text-info mt-0.5 shrink-0 text-base" />
+            <p className="text-info mb-0 min-w-0 grow text-xs font-semibold">กำลังตอบเองแทน AI ของ Meta</p>
+            <a
+              href="https://business.facebook.com/latest/inbox/all"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-info flex shrink-0 items-center gap-1 text-xs font-semibold hover:underline"
+            >
+              Business Suite
+              <Icon icon="external-link" className="text-sm" />
+            </a>
+          </div>
+        )}
+
         {/* reply/quote (user 2026-07-25) — แถบ preview ข้อความที่กำลังตอบทับ เหนือช่องพิมพ์ (เหมือน Messenger);
             แถบสี primary ด้านซ้าย + ปุ่มกากบาทยกเลิก */}
         {replyingTo && (
@@ -2606,6 +2695,8 @@ export default function ChatThread({
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
 

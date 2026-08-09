@@ -111,12 +111,27 @@ export interface SalesSeries {
         undefined ทั้งชุด = ไม่มีสิทธิ์ดู UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ────────────────────── */
   /** ค่าใช้จ่ายที่บันทึกต่อ bucket (บาท) */
   expenseValues?: number[]
-  /** ต้นทุนสินค้าที่ขายได้ (COGS) ต่อ bucket — คำนวณอยู่แล้วในลูป เดิมแค่ไม่เคยส่งออกมา
-   *  ชีตต้องใช้เพื่อให้ "ยืนยันแล้ว − เงินออก = กำไร" ลบกันได้จริงบนหน้าจอ (เงินออก = COGS + ค่าใช้จ่าย) */
+  /**
+   * 🛑 ต้นทุนสินค้า (COGS) มี **สองชุด** ในไฟล์นี้ และ **จะไม่มีวันเท่ากัน** — วางติดกันตาม HR16
+   * ทั้งคู่ถูกต้องในตัวเอง ต่างกันแค่ "นับต้นทุนของออเดอร์ชุดไหน" ซึ่งต้องเลือกให้ตรงกับ
+   * ตัวตั้งที่เอาไปลบ ไม่งั้นหน้าจอจะโชว์สมการที่ลบตามด้วยมือแล้วไม่ลงตัว:
+   *
+   *   cogsValues          = ต้นทุนของ **ทุกออเดอร์ใน bucket** → คู่กับ `values` (ยอดขายทั้งหมด)
+   *   cogsConfirmedValues = ต้นทุนเฉพาะใบที่นับเป็นรายได้แล้ว → คู่กับ `confirmedValues`
+   *
+   * ชีต "ยอดขายและกำไร" ใช้ตัวแรก เพราะคอลัมน์ที่มันลบออกคือ "ยอดขาย" ซึ่งรวมใบรอยืนยัน
+   * (user เคาะ 2026-08-08: กำไร = ยอดขาย − (ต้นทุนสินค้า + ค่าใช้จ่าย))
+   * การ์ด P&L / netProfitValues ใช้ตัวหลัง เพราะมันลบออกจาก "ยอดที่ยืนยันแล้ว" — สูตรเดียวกับ /expenses
+   *
+   * cost = null คือ "ยังไม่ตั้งต้นทุน" ทั้งสองชุดจึง **ข้าม** ไม่ใช่นับเป็น 0 → ตัวเลขที่ได้เป็น
+   * "ต้นทุนเท่าที่รู้" กำไรที่คำนวณจากมันจึงเป็น **เพดานบน** เสมอ (นิยามเดียวกับ src/lib/order-profit.ts)
+   */
   cogsValues?: number[]
-  /** ต้นทุนสินค้ารวมทั้งช่วง */
+  /** ต้นทุนสินค้ารวมทั้งช่วง (ชุดทุกออเดอร์ — คู่กับ `total`) */
   totalCogs?: number
-  /** กำไรสุทธิต่อ bucket = ยอดที่ยืนยันแล้ว − ต้นทุนสินค้า − ค่าใช้จ่าย (สูตรเดียวกับการ์ด P&L) */
+  /** ต้นทุนสินค้าเฉพาะใบที่นับเป็นรายได้แล้ว ต่อ bucket — คู่กับ `confirmedValues` (ดูบล็อกบน) */
+  cogsConfirmedValues?: number[]
+  /** กำไรสุทธิต่อ bucket = ยอดที่ยืนยันแล้ว − ต้นทุนสินค้า(เฉพาะใบที่ยืนยัน) − ค่าใช้จ่าย (สูตรการ์ด P&L) */
   netProfitValues?: number[]
   /** ค่าใช้จ่ายรวมทั้งช่วง */
   totalExpense?: number
@@ -232,6 +247,7 @@ export async function getSalesSeries(
   const orderCounts = new Array<number>(bucketCount).fill(0)
   const codPendingValues = new Array<number>(bucketCount).fill(0)
   const cogsValues = new Array<number>(bucketCount).fill(0)
+  const cogsConfirmedValues = new Array<number>(bucketCount).fill(0)
   const expenseValues = new Array<number>(bucketCount).fill(0)
   let total = 0
   let prevTotal = 0
@@ -274,15 +290,25 @@ export async function getSalesSeries(
       if (idx >= 0 && idx < bucketCount) {
         values[idx] += amt
         orderCounts[idx] += 1
+        /**
+         * ต้นทุนของใบนี้ — คิดครั้งเดียวแล้วลงทั้งสองชุด (ดูบล็อก "COGS มีสองชุด" ที่ประกาศ type)
+         * ต้องอยู่ **นอก** if ของ countsAsRevenue: `cogsValues` คู่กับ `values` ซึ่งนับทุกใบ
+         * ถ้าเก็บเฉพาะใบที่ยืนยัน คอลัมน์ "ต้นทุนสินค้า" บนชีตจะว่างในวันที่ยังไม่มีใครยืนยัน
+         * ทั้งที่คอลัมน์ "ยอดขาย" บรรทัดเดียวกันมีตัวเลข → กำไรของแถวนั้นจะสูงเกินจริง
+         */
+        const items = (r as { items?: { cost: unknown; qty: number }[] }).items
+        let rowCogs = 0
+        for (const item of items ?? []) {
+          // cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ "ต้นทุน 0" — ข้ามไป
+          if (item.cost == null) continue
+          rowCogs += Number(item.cost) * item.qty
+        }
+        cogsValues[idx] += rowCogs
+
         // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ
         if (countsAsRevenue(r)) {
           confirmedValues[idx] += amt
-          const items = (r as { items?: { cost: unknown; qty: number }[] }).items
-          for (const item of items ?? []) {
-            // cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ "ต้นทุน 0" — ข้ามไป
-            if (item.cost == null) continue
-            cogsValues[idx] += Number(item.cost) * item.qty
-          }
+          cogsConfirmedValues[idx] += rowCogs
         } else unconfirmedValues[idx] += amt
 
         // "รอเงิน COD" ของวันนั้น — ยอดเต็มของใบที่ยังอยู่กองนี้ (ไม่ใช่ codAmount ของพัสดุ
@@ -328,13 +354,15 @@ export async function getSalesSeries(
     if (idx >= 0 && idx < bucketCount) expenseValues[idx] += Number(e.amount)
   }
 
-  const netProfitValues = confirmedValues.map((v, i) => v - cogsValues[i] - expenseValues[i])
+  // netProfit = สูตรการ์ด P&L → ใช้ชุด "เฉพาะใบที่ยืนยันแล้ว" ให้เข้าคู่กับ confirmedValues
+  const netProfitValues = confirmedValues.map((v, i) => v - cogsConfirmedValues[i] - expenseValues[i])
 
   return {
     ...base,
     expenseValues,
     netProfitValues,
     cogsValues,
+    cogsConfirmedValues,
     totalCogs: cogsValues.reduce((s, v) => s + v, 0),
     totalExpense: expenseValues.reduce((s, v) => s + v, 0),
     netProfit: netProfitValues.reduce((s, v) => s + v, 0),

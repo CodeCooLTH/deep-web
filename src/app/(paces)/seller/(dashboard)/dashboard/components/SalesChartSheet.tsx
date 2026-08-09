@@ -38,6 +38,19 @@
  *   ทั้งก้อนไม่ได้อีก — ตัวเลขแยกซีรีส์อ่านได้จาก tooltip กับตารางข้างล่างแทน
  * - คอลัมน์ วันที่ / คำสั่งซื้อ จัดกึ่งกลาง (user สั่ง) — ทั้งสองเป็นค่าสั้นความยาวคงที่
  *   ต่างจากคอลัมน์เงินที่ต้องชิดขวาให้หลักหน่วยตรงกันทั้งคอลัมน์
+ *
+ * ── v5 2026-08-08 (user สั่ง: ถอด "รอ COD" ออก · เพิ่ม "ต้นทุนสินค้า" หน้าค่าใช้จ่าย) ────────
+ * - [สำคัญ] สูตรกำไรเปลี่ยนเป็น **ยอดขาย − (ต้นทุนสินค้า + ค่าใช้จ่าย)** — user เคาะ 2026-08-08
+ *   ยกเลิกสูตร v3 (ยอดขาย − ค่าใช้จ่าย) ที่จงใจไม่หักต้นทุน เพราะตอนนั้นต้นทุนไม่เคยโผล่บนจอนี้เลย
+ *   ตอนนี้มันเป็นคอลัมน์จริงบนตารางแล้ว การไม่หักจึงกลายเป็นสิ่งที่ตรวจตามด้วยตาแล้วผิด
+ * - hero + แถบสมการเปลี่ยนตามในคอมมิตเดียวกัน (user เลือกเอง): รอยืนยัน + ยืนยันแล้ว
+ *   − ต้นทุนสินค้า − ค่าใช้จ่าย = ตัวเลขใหญ่ — invariant เดิมยังอยู่: ทุกแถวในตารางบวกกันต้องได้ hero
+ * - ต้นทุนที่ใช้คือ `series.cogsValues` (ต้นทุนของ **ทุกออเดอร์** ใน bucket) ไม่ใช่ `cogsConfirmedValues`
+ *   เพราะตัวตั้งที่มันลบออกคือคอลัมน์ "ยอดขาย" ซึ่งรวมใบรอยืนยัน — หยิบผิดชุดแล้วแถวจะลบไม่ลงตัว
+ *   (ยังต่างจาก `netProfit` ของ /expenses ที่ลบออกจาก "ยืนยันแล้ว" — สองหน้าจึงยังไม่เท่ากันโดยตั้งใจ)
+ * - ต้นทุนที่ยังไม่ตั้ง (cost = null) ถูก **ข้าม** ไม่ใช่นับเป็น 0 → กำไรที่เห็นเป็น "เพดานบน" เสมอ
+ * - แถบสมการ: ช่อง "ต้นทุนสินค้า" ไม่มีจุดสี เพราะกราฟไม่มีซีรีส์นี้ (จุดสี = ซีรีส์ในกราฟ 1:1
+ *   ใส่จุดให้ของที่ไม่มีในกราฟจะกลายเป็นคำโกหกเรื่องสี) — แถบนี้ทำหน้าที่สมการเป็นหลักอยู่แล้ว
  */
 import { useState, useEffect, useRef } from 'react'
 import Icon from '@/components/wrappers/Icon'
@@ -149,8 +162,8 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
     },
     /**
      * ไม่โชว์ตัวเลขแกน y — กินความกว้างจาก 31 แท่งที่แคบอยู่แล้ว เส้นสเกลอย่างเดียวพอ (ทรงการ์ด)
-     * ตัวเลขที่ต้องอ่านเป๊ะอยู่ในตารางข้างล่าง ซึ่ง v3 เติมจนครบทุกช่องแล้ว (คำสั่งซื้อ/ยอดขาย/
-     * ค่าใช้จ่าย/กำไร/รอเงิน COD) — เดิมตารางมีแค่ 2 คอลัมน์ แกน y จึงยังต้องทำหน้าที่นั้นแทน
+     * ตัวเลขที่ต้องอ่านเป๊ะอยู่ในตารางข้างล่าง ซึ่งครบทุกช่องแล้ว (คำสั่งซื้อ/ยอดขาย/ต้นทุน/
+     * ค่าใช้จ่าย/กำไร) — เดิมตารางมีแค่ 2 คอลัมน์ แกน y จึงยังต้องทำหน้าที่นั้นแทน
      *
      * แท่งทุกตัวต้องผูก seriesName เดียวกันเพื่อใช้สเกลร่วมกัน (หน่วยบาทเหมือนกัน)
      * แกนสุดท้ายเป็นของเส้นคำสั่งซื้อ (หน่วย "ใบ") จึงแยกสเกล
@@ -338,13 +351,14 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   // ไม่ผ่าน gate สิทธิ์ → ไม่มีค่าใช้จ่าย/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ 0
   const hasFinance = series.totalExpense != null
   const expenseTotal = series.totalExpense ?? 0
+  const cogsTotal = series.totalCogs ?? 0
   /**
-   * กำไร = ยอดขายทั้งหมด (ยืนยันแล้ว + รอยืนยัน) − ค่าใช้จ่าย — user เคาะสูตรนี้เอง 2026-08-07
+   * กำไร = ยอดขายทั้งหมด (ยืนยันแล้ว + รอยืนยัน) − ต้นทุนสินค้า − ค่าใช้จ่าย (user เคาะ 2026-08-08)
    * ต้องเป็นสูตรเดียวกับคอลัมน์ "กำไร" ในตารางข้างล่างเป๊ะ ๆ ไม่งั้นแถวทั้งเดือนบวกกันแล้วไม่ได้
-   * ตัวเลขนี้ ซึ่งเป็นเหตุผลทั้งหมดที่ user เลือกสูตรนี้แทน netProfit ของ service
-   * (ดูหมายเหตุ v3 หัวไฟล์ — ที่นี่ไม่หักต้นทุนสินค้า ต่างจาก /expenses โดยตั้งใจ)
+   * ตัวเลขนี้ — invariant ที่เป็นเหตุผลทั้งหมดที่หน้านี้ไม่ใช้ netProfit ของ service ตรง ๆ
+   * (ดูหมายเหตุ v5 หัวไฟล์ — /expenses ลบออกจาก "ยืนยันแล้ว" สองหน้าจึงไม่เท่ากันโดยตั้งใจ)
    */
-  const profit = series.total - expenseTotal
+  const profit = series.total - cogsTotal - expenseTotal
   const heroValue = hasFinance ? profit : series.total
   const heroTone = !hasFinance ? 'text-dark' : profit >= 0 ? 'text-success-ink' : 'text-danger-ink'
 
@@ -364,16 +378,14 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
       label,
       orders: series.orderCounts[i] ?? 0,
       value: series.values[i] ?? 0,
+      // ต้นทุนของ "ทุกออเดอร์" ใน bucket — ชุดเดียวกับ value ที่มันจะถูกลบออก (ดู v5 หัวไฟล์)
+      cogs: series.cogsValues?.[i] ?? 0,
       expense: series.expenseValues?.[i] ?? 0,
-      codPending: series.codPendingValues?.[i] ?? 0,
     }))
-    .filter((r) => r.orders > 0 || r.value > 0 || r.expense > 0 || r.codPending > 0)
+    .filter((r) => r.orders > 0 || r.value > 0 || r.cogs > 0 || r.expense > 0)
     // วันล่าสุดอยู่บนสุดเสมอ (user สั่ง 2026-08-07) — สิ่งที่ผู้ขายอยากรู้ตอนเปิดคือ "วันนี้เป็นไง"
     // ไม่ใช่ต้องเลื่อนผ่านทั้งเดือนไปหาแถวล่างสุด
     .reverse()
-
-  /** "(ถ้ามี)" ของคอลัมน์ COD — ร้านที่ไม่ได้เก็บเงินปลายทางไม่ควรเห็นคอลัมน์ว่างทั้งคอลัมน์ */
-  const showCod = detailRows.some((r) => r.codPending > 0)
 
   return (
     // HR7: fixed inset-0 z-80 = full-screen viewport-lock (Paces ไม่มี token) — pattern เดียวกับ AddressSearchSheet
@@ -462,16 +474,20 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
           </div>
 
           {/* แถบนี้ทำสามหน้าที่: legend ของกราฟ (จุดสี = ซีรีส์ 1:1) + ยอดรวมของแต่ละซีรีส์ +
-              **สมการที่ตรวจสอบตามได้** — รอยืนยัน + ยืนยันแล้ว − ค่าใช้จ่าย = ตัวเลข hero ด้านบนพอดี
-              ลำดับช่องมาจาก user โดยตรง (2026-08-07) และบังเอิญอ่านเป็นสมการได้ครบพอดี จึงคั่นด้วย
-              เครื่องหมาย + / − จริง ไม่ใช่คำอธิบาย — ผู้ขายเอานิ้วไล่บวกลบตามได้เองทั้งแถว
-              สีตรง token กราฟเป๊ะ: bg-warning=warning, bg-success=success, bg-danger=chart-beta */}
+              **สมการที่ตรวจสอบตามได้** — รอยืนยัน + ยืนยันแล้ว − ต้นทุนสินค้า − ค่าใช้จ่าย
+              = ตัวเลข hero ด้านบนพอดี จึงคั่นด้วยเครื่องหมาย + / − จริง ไม่ใช่คำอธิบาย
+              ผู้ขายเอานิ้วไล่บวกลบตามได้เองทั้งแถว
+              สีตรง token กราฟเป๊ะ: bg-warning=warning, bg-success=success, bg-danger=chart-beta
+              "ต้นทุนสินค้า" ไม่มีจุดสีเพราะไม่มีซีรีส์ในกราฟ (ดู v5 หัวไฟล์) — ใส่จุดให้ของที่ไม่ได้
+              อยู่ในกราฟจะทำให้จุดสีเลิกแปลว่า "แท่งไหนคือช่องไหน" ทั้งแถบ */}
           <div className="mb-4 flex items-stretch border-y border-dashed border-default-300">
             <LegendCell color="bg-warning" label="รอยืนยัน" value={unconfirmedTotal} />
             <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">+</span>
             <LegendCell color="bg-success" label="ยืนยันแล้ว" value={confirmedTotal} />
             {hasFinance && (
               <>
+                <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">−</span>
+                <LegendCell label="ต้นทุนสินค้า" value={cogsTotal} />
                 <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">−</span>
                 <LegendCell color="bg-danger" label="ค่าใช้จ่าย" value={expenseTotal} />
               </>
@@ -504,16 +520,19 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
           )}
 
           {/* หัวคอลัมน์ครั้งเดียว แทนการพิมพ์ชื่อคอลัมน์ซ้ำในทุกแถว (เดือนละสูงสุด 155 คำ)
-              คอลัมน์ตามที่ user สั่ง 2026-08-07: วันที่ · คำสั่งซื้อ · ยอดขาย · ค่าใช้จ่าย · กำไร · รอ COD
+              คอลัมน์ v5 (user สั่ง 2026-08-08): วันที่ · คำสั่งซื้อ · ยอดขาย · ต้นทุน · ค่าใช้จ่าย · กำไร
+              — "รอ COD" ถูกถอดออกทั้งคอลัมน์ตามคำสั่งเดียวกัน (ยังดูได้จากไทล์หน้าแรก/ชิปใน /orders)
 
               ความกว้างคอลัมน์เงินเป็น flex-1 basis-0 ไม่ใช่ `w-20` ตายตัว (user report 2026-08-07:
               6 คอลัมน์ล้นจอต้องเลื่อนแนวนอน — w-20 ×4 + w-10 + w-14 + ช่องไฟ = ~456px แต่จอ 390px
               หัก px-4 ของ sheet แล้วเหลือ ~358px). basis-0 ทำให้ทั้ง 4 คอลัมน์แบ่งที่ว่างเท่า ๆ กัน
-              จึงพอดีจอเสมอไม่ว่าจะโชว์ 4/5/6 คอลัมน์ แทนที่จะพอดีเฉพาะตอนไม่มี COD.
+              จึงพอดีจอเสมอไม่ว่าจะโชว์ 3/6 คอลัมน์ (ร้านที่ไม่ผ่าน gate สิทธิ์เห็นแค่ 3) แทนที่จะ
+              พอดีเฉพาะจำนวนคอลัมน์ชุดเดียว.
               `min-w-14` = พื้นที่ขั้นต่ำที่ตัวเลข 6 หลักยังอ่านออก — จอที่แคบกว่านั้นจริง ๆ (SE 320px)
               ค่อยตกไปเลื่อนแนวนอนตาม overflow-x-auto ที่ยังคงไว้เป็นตาข่ายรับ
               หัวตารางใช้ชุด class เดียวกับแถวข้อมูลเป๊ะ ไม่งั้นคอลัมน์เลื่อนไม่ตรงกัน
-              หัวคอลัมน์ย่อเป็น "รอ COD" (เดิม "รอเงิน COD") — เป็นป้ายที่ยาวที่สุดและกินที่เกินตัวเลข */}
+              หัวคอลัมน์ย่อเป็น "ต้นทุน" (คำเต็ม "ต้นทุนสินค้า" อยู่บนแถบสมการเหนือตารางบรรทัดเดียวกัน)
+              — 12 ตัวอักษรใน min-w-14 ตกบรรทัดแน่นอน แล้วหัวตารางจะสูงเป็นสองเท่าทั้งแถว */}
           {!loading && !error && !isEmpty && detailRows.length > 0 && (
             <div className="mt-5 overflow-x-auto">
               <div className="flex items-center gap-1.5 border-b border-default-200 py-2 text-xs text-default-700">
@@ -522,14 +541,14 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                 <span className="w-8 shrink-0 text-center">{mode === 'daily' ? 'วันที่' : 'เดือน'}</span>
                 <span className="w-11 shrink-0 text-center">คำสั่งซื้อ</span>
                 <span className="min-w-14 flex-1 basis-0 text-end">ยอดขาย</span>
+                {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ต้นทุน</span>}
                 {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ค่าใช้จ่าย</span>}
                 {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">กำไร</span>}
-                {showCod && <span className="min-w-14 flex-1 basis-0 text-end">รอ COD</span>}
               </div>
               <div className="divide-y divide-default-100">
                 {detailRows.map((r) => {
                   // สูตรเดียวกับ hero เป๊ะ — ทุกแถวบวกกันแล้วต้องได้ตัวเลขใหญ่ด้านบน
-                  const rowProfit = r.value - r.expense
+                  const rowProfit = r.value - r.cogs - r.expense
                   return (
                     <div key={r.label} className="flex items-center gap-1.5 py-2.5 text-xs">
                       <span className="w-8 shrink-0 text-center text-default-800">{r.label}</span>
@@ -539,6 +558,15 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                       <span className="min-w-14 flex-1 basis-0 text-end font-semibold text-dark tabular-nums">
                         {formatNumberNoSymbol(r.value)}
                       </span>
+                      {hasFinance && (
+                        /* "—" = ยังไม่ได้ตั้งต้นทุนให้สินค้าในใบนั้น (ไม่ใช่ต้นทุน 0) — กำไรของแถว
+                           จึงเป็นเพดานบน · สีเดียวกับค่าใช้จ่ายเพราะเป็นเงินออกเหมือนกัน */
+                        <span
+                          className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${r.cogs > 0 ? 'text-danger-ink' : 'text-default-700'}`}
+                        >
+                          {r.cogs > 0 ? formatNumberNoSymbol(r.cogs) : '—'}
+                        </span>
+                      )}
                       {hasFinance && (
                         <span
                           className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${r.expense > 0 ? 'text-danger-ink' : 'text-default-700'}`}
@@ -553,14 +581,6 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                           className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${rowProfit < 0 ? 'text-danger-ink' : 'text-dark'}`}
                         >
                           {formatNumberNoSymbol(rowProfit)}
-                        </span>
-                      )}
-                      {showCod && (
-                        /* warning = สีเดียวกับป้าย/ไทล์ "รอเงิน COD" ทั้งระบบ (STAGE_BADGE_OVERRIDE) */
-                        <span
-                          className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${r.codPending > 0 ? 'text-warning-ink' : 'text-default-700'}`}
-                        >
-                          {r.codPending > 0 ? formatNumberNoSymbol(r.codPending) : '—'}
                         </span>
                       )}
                     </div>
@@ -584,11 +604,13 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
  * นึกว่าตัวเองต้องเป็นคนไปกดยืนยัน) — user เลือกคำสั้น "ยืนยันแล้ว"/"รอยืนยัน" เอง 2026-08-04
  * โดยรับทราบข้อกังวลนั้นแล้ว และการ์ดหน้าแรกใช้คำสั้นชุดเดียวกัน (คำเดียวกัน = ของเดียวกัน)
  */
-function LegendCell({ color, label, value }: { color: string; label: string; value: number }) {
+function LegendCell({ color, label, value }: { color?: string; label: string; value: number }) {
   return (
     <div className="flex-1 border-e border-dashed border-default-300 px-1 py-2.5 text-center last:border-e-0">
       <p className="flex items-start justify-center gap-1 text-xs leading-tight text-default-700">
-        <span className={`mt-1 size-2 shrink-0 rounded-full ${color}`} aria-hidden="true" />
+        {/* ไม่มี color = ช่องนี้ไม่มีซีรีส์ในกราฟ (ต้นทุนสินค้า) — เว้นจุดไปเลย ไม่ใช่ใส่สีมั่ว
+            เพราะจุดสีในแถบนี้แปลว่า "แท่งสีนี้ในกราฟคือช่องนี้" ตรง ๆ (ดู v5 หัวไฟล์) */}
+        {color && <span className={`mt-1 size-2 shrink-0 rounded-full ${color}`} aria-hidden="true" />}
         <span className="text-balance">{label}</span>
       </p>
       <p className="mt-0.5 font-bold tabular-nums text-default-800">{formatNumberNoSymbol(value)}</p>

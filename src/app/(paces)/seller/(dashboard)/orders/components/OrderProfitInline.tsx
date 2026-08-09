@@ -1,20 +1,31 @@
 /**
- * OrderProfitInline — กำไรรายออเดอร์แบบบรรทัดเดียว ใต้ยอดในหน้ารายการ (user สั่ง 2026-08-08)
+ * OrderProfitInline — กำไรรายออเดอร์ใต้ยอดในหน้ารายการ: ไอคอน + ตัวเลข ไม่มีคำ
  *
  * Base: src/app/(paces)/seller/(dashboard)/orders/components/OrdersTable.tsx คอลัมน์ `status`
- *   (แถวเช็กลิสต์ `<Icon className="shrink-0 text-sm" /> + ข้อความ + text-{semantic}-ink`)
- *   — ยกทรง icon+ข้อความ inline จากคอลัมน์ข้างเคียงในตารางเดียวกัน ไม่ยกการ์ดเต็มใบของหน้า detail
- * Base (คำ/ไอคอน/โทนสี): src/lib/order-profit-presentation.ts — ตัวเดียวกับ OrderProfitCard
+ *   (แถวเช็กลิสต์ `<Icon className="shrink-0 text-sm" /> + text-{semantic}-ink`) — ยกทรง
+ *   icon+เนื้อหา inline จากคอลัมน์ข้างเคียงในตารางเดียวกัน ไม่ยกการ์ดเต็มใบของหน้า detail
+ * Base (ไอคอน/โทนสี/คำใน aria): src/lib/order-profit-presentation.ts — SSOT ตัวเดียวกับ
+ *   OrderProfitCard ในหน้า detail
+ *
+ * ประวัติที่ต้องรู้ก่อนแก้ไฟล์นี้ (user ไล่ปรับ 3 รอบในวันเดียว 2026-08-08):
+ *   1. รอบแรกมีคำเต็ม 6 สถานะ ("กำไรขั้นต้นไม่เกิน ฿360" / "ยังไม่นับเป็นยอดขาย")
+ *   2. user เห็นบนมือถือแล้วสั่ง "เอาออกก่อน สร้างความสับสน" → ถอด 2 สถานะที่ hedge
+ *   3. user สั่งเอากลับมาในรูป "[icon] ฿150 เขียว / -150 แดง" และเคาะว่าใบที่ตั้งต้นทุน
+ *      ไม่ครบให้ "โชว์เลขเหมือนกันหมด" → ไฟล์นี้
  *
  * [สำคัญ] prop `profit` ที่เป็น `undefined` แปลว่า **ผู้ใช้คนนี้ไม่มีสิทธิ์เห็นตัวเลขการเงิน**
  * และ server ต้อง omit key นี้ทิ้งไปเลยตั้งแต่ตอนประกอบ OrderRow ไม่ใช่ส่ง undefined มาให้
  * component เลือกไม่ render — หน้ารายการอยู่ใต้ client layout ทุกค่าที่ข้ามเส้น RSC ถูก
  * serialize ลง HTML เสมอ (feedback_rsc_pii_neutralize_at_source) การเช็คตรงนี้เป็นแค่ด่านสุดท้าย
+ *
+ * [สำคัญ] คำว่า "กำไร" ที่หน้านี้หมายถึง **กำไรขั้นต้น** ซึ่งคนละตัวกับกำไรสุทธิที่ /sales
+ * (Hard Rule 16) — พอไม่มีคำต่อแถวแล้ว ตัวที่บอกผู้ใช้คือ `profitColumnCaption()` ที่หัว
+ * คอลัมน์เดสก์ท็อปและแคปชั่นเหนือการ์ดมือถือ **ห้ามถอดออกทั้งสองที่พร้อมกัน**
  */
 
 import Icon from '@/components/wrappers/Icon'
 import type { OrderProfit } from '@/lib/order-profit'
-import { presentOrderProfit, PROFIT_TONE } from '@/lib/order-profit-presentation'
+import { presentOrderProfitCompact, PROFIT_TONE } from '@/lib/order-profit-presentation'
 
 type Props = {
   /**
@@ -29,31 +40,26 @@ type Props = {
 export default function OrderProfitInline({ profit, orderNoun }: Props) {
   if (profit === undefined) return null
 
-  // ── หน้ารายการโชว์เฉพาะตัวเลขที่ "เชื่อได้จริง" — 2 สถานะข้างล่างถูกถอดออก (user สั่ง
-  //    2026-08-08 หลังเห็นของจริงบนมือถือ: "ไม่ต้องขึ้นได้ไหม เอาออกก่อน สร้างความสับสน")
-  //
-  //    [สำคัญ] จงใจให้ไม่ตรงกับการ์ดในหน้า detail ซึ่งยังโชว์ทั้ง 2 สถานะอยู่ — ไม่ใช่บั๊ก
-  //    ที่นั่นคำเตือน "ต้นทุนไม่ครบ" เป็น badge ที่ **กดไป /products?cost=missing ได้จริง**
-  //    คำเตือนที่มีทางออกให้กดคุ้มที่จะขึ้น ส่วนในแถวรายการไม่มีทางออกให้ เหลือแต่คำที่
-  //    อ่านแล้วงงว่าตกลงกำไรเท่าไหร่กันแน่ (ดู docs/conventions/sibling-surface-parity.md —
-  //    ความต่างระหว่างพี่น้องต้องมีเหตุผลเขียนกำกับ ไม่ใช่ปล่อยให้คนถัดไปเดา)
-
   // ยังไม่นับเป็นยอดขาย (PENDING/CANCELLED) — สถานะของใบมี badge บอกบนหัวการ์ด/แถวอยู่แล้ว
+  // นี่เป็นสถานะเดียวที่ยัง "ไม่มีบรรทัด" (ใบต้นทุนไม่ครบกลับมาโชว์แล้วตามที่ user เคาะ)
   if (profit === null) return null
 
-  // ต้นทุนไม่ครบ = ตัวเลขเป็นเพดานบน ไม่ใช่กำไรจริง
-  //
-  // [สำคัญ] ต้องอ่าน `profit.hasMissingCost` ดิบ ๆ ห้าม gate ด้วย `p.tone`/`p.icon` —
-  // `presentOrderProfit()` คืน tone 'danger' ให้ทั้ง "ขาดทุนอย่างน้อย" (ต้นทุนไม่ครบ → ซ่อน)
-  // และ "ขาดทุนจากใบนี้" (ต้นทุนครบ → ต้องโชว์) แยกสองอันนี้จาก tone ไม่ได้
-  if (profit.hasMissingCost) return null
-
-  const p = presentOrderProfit(profit, orderNoun)
+  // Compact = บังคับ hasMissingCost:false ให้ใบต้นทุนไม่ครบหน้าตาเหมือนใบปกติเป๊ะ
+  // เหตุผลเต็ม + ความเสี่ยงที่ user รับไปแล้ว อยู่ที่ presentOrderProfitCompact
+  const p = presentOrderProfitCompact(profit, orderNoun)
   const tone = PROFIT_TONE[p.tone]
 
-  // เท่าทุนพอดี: ไม่ซ้ำ "฿0" ต่อท้าย — คำว่า "เท่าทุน" สื่อครบแล้ว และตัวเลขที่ไม่เพิ่มข้อมูล
-  // ในพื้นที่ระดับเซลล์คือของที่ต้องตัด (การ์ดในหน้า detail มีที่ว่างพอจึงยังโชว์ ฿0 ตามเดิม)
-  const showAmount = p.amount !== null && p.tone !== 'neutral'
+  /**
+   * เครื่องหมายลบวางไว้ **หน้า ฿** ไม่ใช่หลัง
+   *
+   * `formatBaht` ตัดเครื่องหมายทิ้งเสมอตามนโยบายใน format-money.ts ที่ห้าม `฿-150`
+   * (ลบชนสัญลักษณ์เงิน ผู้อ่านต้องถอดรหัสก่อนเข้าใจ) โดยยกหน้าที่บอกทิศทางให้ "คำ + สี"
+   * — แต่รอบนี้ **คำถูกถอดออกตามคำสั่ง user** เหลือแค่สีกับไอคอน
+   *
+   * `-฿150` จึงไม่ขัดเหตุผลเดิม (ไม่มีอักขระติดกันให้สับสน) และได้ตัวบอกทิศทางตัวที่สาม
+   * ที่ไม่พึ่งสี ซึ่งจำเป็นขึ้นมากเมื่อคำหายไป — คนตาบอดสีแยกเขียว/แดงไม่ออก
+   */
+  const signed = p.amount === null ? null : profit.amount < 0 ? `-${p.amount}` : p.amount
 
   return (
     <p
@@ -62,18 +68,16 @@ export default function OrderProfitInline({ profit, orderNoun }: Props) {
       // ที่ทำตามสเปกจะทิ้ง aria-label แล้วอ่านเนื้อในแทน ซึ่ง aria-hidden ไว้หมด = เงียบสนิท
       // (ทรงเดียวกับ MiniShipmentTimeline.tsx ในโฟลเดอร์นี้ที่ทำถูกอยู่แล้ว)
       role="img"
-      className={`mt-0.5 flex items-center gap-1 text-xs font-medium ${tone.text}`}
-      // note = ประโยคเต็มที่บอกว่าตัวเลขนี้เชื่อได้แค่ไหน — ในเซลล์แคบ ๆ ไม่มีที่ให้พิมพ์เต็ม
-      // title ใช้ได้เฉพาะคนที่มีเมาส์ (มือถือไม่มี hover) จึงต้องมี aria-label คู่เสมอ ไม่ใช่แทนกัน
+      className={`mt-0.5 flex items-center gap-1 text-xs font-semibold tabular-nums ${tone.text}`}
+      // บนจอไม่มีคำแล้ว คำเต็มกับสูตรจึงต้องอยู่ครบใน aria-label ไม่งั้น screen reader ได้ยิน
+      // แค่ "150" ลอย ๆ ไม่รู้ว่าเลขอะไร · title เป็นของแถมสำหรับคนที่มีเมาส์เท่านั้น
       title={p.note}
-      aria-label={`${p.label}${showAmount ? ` ${p.amount}` : ''} · ${p.note}`}
+      aria-label={`${p.label}${p.amount !== null ? ` ${p.amount}` : ''} · ${p.note}`}
     >
-      <Icon icon={p.icon} className="shrink-0 text-xs" aria-hidden="true" />
-      {/* aria-hidden ที่ข้อความ: aria-label ของ <p> พูดครบแล้ว ปล่อยไว้จะได้ยินซ้ำสองรอบ */}
-      <span aria-hidden="true">
-        {p.label}
-        {showAmount ? ` ${p.amount}` : ''}
-      </span>
+      {/* text-sm ไม่ใช่ text-xs — ไอคอนรับหน้าที่ "บอกทิศทาง" แทนคำที่ถอดออกไป จึงต้องมี
+          น้ำหนักภาพมากกว่าตอนที่มันเป็นแค่ของประดับหน้าข้อความ */}
+      <Icon icon={p.icon} className="shrink-0 text-sm" aria-hidden="true" />
+      <span aria-hidden="true">{signed}</span>
     </p>
   )
 }

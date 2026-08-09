@@ -20,7 +20,11 @@ import type { FeedChange } from '@/lib/facebook/webhook-types'
 /** จำนวนคอมเมนต์ต่อหน้าเวลาเปิดโพสต์ (BRD Q-2) */
 const COMMENTS_PAGE_SIZE = 30
 
-async function resolveChannelToken(shopChannelId: string): Promise<{ token: string; pageId: string } | null> {
+/**
+ * export ให้ comment-private-reply.service.ts ใช้ร่วม (feature 00038) — พฤติกรรมเดิมทุกประการ
+ * (คืน null เมื่อ status !== 'ACTIVE' หรือ decrypt token ไม่ผ่าน) ไม่ได้แก้ logic เพียงเปิด export
+ */
+export async function resolveChannelToken(shopChannelId: string): Promise<{ token: string; pageId: string } | null> {
   const channel = await prisma.shopChannel.findUnique({
     where: { id: shopChannelId },
     select: { accessTokenEnc: true, externalId: true, status: true },
@@ -38,18 +42,24 @@ async function resolveChannelToken(shopChannelId: string): Promise<{ token: stri
  *
  * ไม่ throw: webhook ต้องตอบ 200 ให้ Meta เสมอ (กติกาเดิมของ route) — ล้มเหลวก็แค่ไม่มีคอมเมนต์นั้น
  * ไม่ใช่ทั้ง batch พัง. คอมเมนต์ที่หายยังตามเก็บได้ทีหลังด้วย backfill ตอนเปิดโพสต์
+ *
+ * คืน id ของคอมเมนต์ที่บันทึก (feature 00038 — caller เอาไปสั่งตอบอัตโนมัติใน after())
+ * null = ไม่ได้บันทึก (ไม่ใช่คอมเมนต์ / ไม่พบเพจ / เป็น verb=remove)
+ *
+ * 🛑 คืนเฉพาะกรณี **webhook สด** เท่านั้น — backfillPostComments() ต้องไม่เดินผ่านทางนี้
+ * ไม่งั้นคอมเมนต์เก่าเป็นร้อยจะถูกยิงย้อนหลังพร้อมกัน (BR-CR-12 / AC-CR-14)
  */
 export async function ingestFeedComment(params: {
   pageExternalId: string
   change: FeedChange
   /** payload ดิบก่อน parse — เหตุผลเดียวกับ ChatMessage.rawMessage (บทเรียน 2026-08-03) */
   rawChange?: unknown
-}): Promise<void> {
+}): Promise<string | null> {
   const val = params.change.value
-  if (!val || val.item !== 'comment' || !val.comment_id || !val.post_id) return
+  if (!val || val.item !== 'comment' || !val.comment_id || !val.post_id) return null
 
   const channel = await getChannelByExternalId('MESSENGER', params.pageExternalId)
-  if (!channel) return
+  if (!channel) return null
 
   // ลบคอมเมนต์ — ทำเครื่องหมาย ไม่ลบแถว (BR-CMT-04 เก็บเป็นหลักฐานว่าเคยมีคนถามอะไร)
   if (val.verb === 'remove') {
@@ -57,11 +67,11 @@ export async function ingestFeedComment(params: {
       where: { externalCommentId: val.comment_id, shopChannelId: channel.id },
       data: { isDeleted: true },
     })
-    return
+    return null
   }
 
   const post = await ensurePost(channel.id, val.post_id)
-  if (!post) return
+  if (!post) return null
 
   const createdTime = val.created_time ? new Date(val.created_time * 1000) : new Date()
   // parent_id ที่เท่ากับ post_id = คอมเมนต์ระดับบน (ยืนยันจาก payload จริง: reply จะได้ comment id
@@ -83,10 +93,13 @@ export async function ingestFeedComment(params: {
     rawPayload: toJson(params.rawChange ?? params.change),
   }
 
-  await prisma.pageComment.upsert({
+  const saved = await prisma.pageComment.upsert({
     where: { externalCommentId: val.comment_id },
     create: data,
     // verb=edited/edit → ทับข้อความเดิม + ประทับเวลาที่แก้ (UI ขึ้นป้าย "แก้ไขแล้ว")
+    // 🛑 update block นี้ห้ามมี isAutoReply — Meta ส่ง echo ของคำตอบที่บอทเขียนกลับเข้ามา
+    // ผ่านทางนี้ ถ้าเขียนทับด้วยค่า default ธงจะถูกรีเซ็ตแล้วป้าย "ตอบอัตโนมัติ" หายไปเอง
+    // (คอลัมน์ที่มีผู้เขียน 2 ราย — docs/conventions/external-payload-schema.md)
     update: {
       message: data.message,
       attachmentUrl: data.attachmentUrl,
@@ -103,6 +116,8 @@ export async function ingestFeedComment(params: {
     where: { id: post.id, OR: [{ lastCommentAt: null }, { lastCommentAt: { lt: createdTime } }] },
     data: { lastCommentAt: createdTime },
   })
+
+  return saved.id
 }
 
 function toJson(value: unknown) {
@@ -239,6 +254,39 @@ export async function backfillPagePosts(params: {
   return result
 }
 
+/**
+ * สถานะการตอบของคอมเมนต์/โพสต์ (feature 00038 BR-CR-S1/S2) — 3 ชั้น แทนที่ boolean คู่เดิม
+ * ที่ overlap กันได้ (unanswered/done) ซึ่งเป็นต้นเหตุของบั๊ก "ตัวเลขไม่ตรงกัน" มาแล้วในหน้านี้
+ */
+export type CommentAnswerState = 'UNANSWERED' | 'BOT_ANSWERED' | 'HUMAN_ANSWERED'
+
+/**
+ * สถานะของคอมเมนต์ 1 อัน ตัดสินจากคำตอบของเพจที่อยู่ใต้มัน (feature 00038 BR-CR-S1)
+ *
+ * 🛑 ฟังก์ชันนี้ต้องเป็นทางเดียวที่ตัดสินสถานะ — ทั้งตัวนับบน badge, ตัวเลขบนชิป และตัวกรอง
+ * ที่ใช้จริง ต้องผ่านตัวนี้ จอนี้เคยโชว์ "ยังไม่ตอบ 7 กับ 8" พร้อมกันมาแล้วเพราะคำนวณคนละที่
+ * (docs/conventions/sibling-surface-parity.md)
+ */
+export function deriveCommentState(
+  replies: Array<{ isFromPage: boolean; isAutoReply: boolean }>,
+): CommentAnswerState {
+  const pageReplies = replies.filter((r) => r.isFromPage)
+  if (pageReplies.length === 0) return 'UNANSWERED'
+  return pageReplies.some((r) => !r.isAutoReply) ? 'HUMAN_ANSWERED' : 'BOT_ANSWERED'
+}
+
+/**
+ * สถานะของโพสต์ = ตัวที่แย่ที่สุดในบรรดาคอมเมนต์ของมัน (BR-CR-S2)
+ *
+ * ต้องเป็นแบบนี้เพื่อให้ 3 กลุ่มไม่ทับกันและรวมกันได้เท่ายอดทั้งหมด (AC-CR-27)
+ * โพสต์ที่ไม่มีคอมเมนต์ของลูกค้าเลยถือว่าไม่มีอะไรค้าง จึงต้องไม่ไปโผล่ใน "ยังไม่ตอบ"
+ */
+export function derivePostState(commentStates: CommentAnswerState[]): CommentAnswerState {
+  if (commentStates.includes('UNANSWERED')) return 'UNANSWERED'
+  if (commentStates.includes('BOT_ANSWERED')) return 'BOT_ANSWERED'
+  return 'HUMAN_ANSWERED'
+}
+
 export interface CommentPostRow {
   id: string
   externalPostId: string
@@ -252,6 +300,11 @@ export interface CommentPostRow {
   lastCommentAt: Date | null
   commentCount: number
   unansweredCount: number
+  /**
+   * สถานะรวมของโพสต์ (feature 00038 BR-CR-S2) — ตัวที่แย่ที่สุดในบรรดาคอมเมนต์ของโพสต์ชนะ
+   * ตัดสินจาก derivePostState() ตัวเดียวกับที่ badge แถวโพสต์และตัวนับบนแท็บใช้ (BR-CR-S4)
+   */
+  postStatus: CommentAnswerState
   /**
    * เวลาของคอมเมนต์ลูกค้าที่ยังไม่ถูกตอบ **ที่เก่าที่สุดในกลุ่มที่ยังทักแชทได้** (null = ไม่มีอันไหน
    * ที่ยังทักได้ — ตอบครบแล้ว หรือของที่ค้างอยู่พ้น 7 วันไปหมดแล้ว)
@@ -281,6 +334,19 @@ export interface CommentPostRow {
  * คอมเมนต์ของเพจเองไม่ถูกนับ เพราะเพจไม่ต้องตอบตัวเอง) — คำนวณสด ไม่ denormalize เพราะจำนวนโพสต์
  * ที่แสดงมีจำกัด (25) และตัวเลขที่ผิดเพราะลืมอัปเดต counter แย่กว่า query ที่ช้าขึ้นนิดเดียว
  */
+/** จำนวนโพสต์ต่อสถานะ ณ ชุดที่ query รอบนี้ดึงมา (feature 00038 BR-CR-S4)
+ *
+ * 🛑 ต้องคำนวณจากอาร์เรย์ post ชุดเดียวกับที่ filter ด้วย `state` ก่อนตัด — ถ้าคำนวณด้วย SQL COUNT
+ * แยกอีกชุดแล้วเอามาวางคู่กับผลที่ filter ด้วย TS อีกที ตัวเลขจะไม่ตรงกันได้เมื่อสองฝั่งนิยาม
+ * "นับอะไร" ต่างกันแม้นิดเดียว (บทเรียน Command Center 2026-08-04: กดเลข 5 เข้าไปเจอ 4)
+ */
+export interface CommentPostCounts {
+  all: number
+  unanswered: number
+  botAnswered: number
+  humanAnswered: number
+}
+
 export async function listCommentPosts(params: {
   /** ร้านที่รายการครอบคลุม (feature 00037) — ความยาว 1 = โหมดเดิม; มาจาก resolveChatScope เท่านั้น */
   shopIds: string[]
@@ -291,8 +357,15 @@ export async function listCommentPosts(params: {
   skip?: number
   /** กรองเฉพาะเพจเดียว (ตัวกรองเหมือนแท็บข้อความ) — ไม่ส่ง = ทุกเพจของร้าน */
   shopChannelId?: string
-}): Promise<CommentPostRow[]> {
-  if (params.shopIds.length === 0) return []
+  /**
+   * แท็บสถานะ (feature 00038 UX-Design-Spec §3.2) — 'ALL' = ไม่กรอง (ค่าตั้งต้น)
+   * กรอง**หลัง**คำนวณ postStatus ของทุกโพสต์ในชุดที่ query มาแล้ว ไม่ใช่กรองที่ SQL WHERE
+   * เพราะ postStatus เป็นค่า derived ไม่ใช่คอลัมน์ในฐาน (ตัดสินจาก derivePostState เท่านั้น)
+   */
+  state?: 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN'
+}): Promise<{ posts: CommentPostRow[]; counts: CommentPostCounts }> {
+  const EMPTY_COUNTS: CommentPostCounts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
+  if (params.shopIds.length === 0) return { posts: [], counts: EMPTY_COUNTS }
   await assertShopsAccessible(params.shopIds, params.actorUserId)
 
   const channels = await prisma.shopChannel.findMany({
@@ -303,7 +376,7 @@ export async function listCommentPosts(params: {
     },
     select: { id: true },
   })
-  if (channels.length === 0) return []
+  if (channels.length === 0) return { posts: [], counts: EMPTY_COUNTS }
   const channelIds = channels.map((c) => c.id)
 
   const q = params.q?.trim()
@@ -346,6 +419,8 @@ export async function listCommentPosts(params: {
           message: true,
           attachmentUrl: true,
           createdTime: true,
+          // feature 00038 — ต้องมีเพื่อแยก BOT_ANSWERED ออกจาก HUMAN_ANSWERED ใน deriveCommentState
+          isAutoReply: true,
         },
       },
     },
@@ -355,12 +430,19 @@ export async function listCommentPosts(params: {
   // คิดครั้งเดียวนอกลูป (ทุกแถวใช้เส้นเดียวกัน) — ค่าคงที่อยู่ที่ UI ด้วย (privateReplyWindow)
   const dmWindowStart = Date.now() - 7 * 24 * 60 * 60 * 1000
 
-  return posts.map((p) => {
-    const answered = new Set(
-      p.comments.filter((c) => c.isFromPage && c.parentExternalId).map((c) => c.parentExternalId!),
-    )
+  const mapped: CommentPostRow[] = posts.map((p) => {
     const customerComments = p.comments.filter((c) => !c.isFromPage && !c.isDeleted)
-    const unanswered = customerComments.filter((c) => !answered.has(c.externalCommentId))
+    // สถานะต่อคอมเมนต์ — ตัดสินจาก deriveCommentState() ตัวเดียวกับที่เธรด/ตัวนับอื่นใช้ (BR-CR-S4)
+    // ไม่ใช่เซตที่คำนวณเองแยกทาง (ของเดิมนับ "มี isFromPage reply ใด ๆ" = answered ซึ่งปน
+    // คำตอบของบอทเข้ากับคำตอบของคนไว้ด้วยกัน — นี่คือบั๊กที่ทำให้ "ยังไม่ตอบ" หายไปเมื่อเปิดบอท)
+    const commentStates = customerComments.map((c) =>
+      deriveCommentState(
+        p.comments
+          .filter((r) => r.parentExternalId === c.externalCommentId)
+          .map((r) => ({ isFromPage: r.isFromPage, isAutoReply: r.isAutoReply })),
+      ),
+    )
+    const unanswered = customerComments.filter((_, i) => commentStates[i] === 'UNANSWERED')
     const last = [...p.comments]
       .filter((c) => !c.isFromPage)
       .sort((a, b) => b.createdTime.getTime() - a.createdTime.getTime())[0]
@@ -395,8 +477,37 @@ export async function listCommentPosts(params: {
         .reduce<Date | null>((oldest, c) => (oldest === null || c.createdTime < oldest ? c.createdTime : oldest), null),
       lastCommenterName: last?.fromName ?? null,
       lastCommentText: last ? (last.message ?? (last.attachmentUrl ? '[รูปภาพ]' : null)) : null,
+      // feature 00038 BR-CR-S2 — ตัวที่แย่ที่สุดในบรรดาคอมเมนต์ของโพสต์ชนะ; ไม่มีคอมเมนต์ลูกค้าเลย
+      // = HUMAN_ANSWERED (ไม่มีอะไรค้าง) เพราะ derivePostState([]) คืนค่านั้นเสมอ
+      postStatus: derivePostState(commentStates),
     }
   })
+
+  // ตัวนับ 4 กลุ่ม (feature 00038 BR-CR-S4) — คำนวณจาก postStatus ของ `mapped` ชุดเดียวกับที่
+  // filter ด้วย params.state ด้านล่าง ไม่ใช่ query SQL COUNT แยกอีกชุด: ตัวเลขบนแท็บ/badge/
+  // ตัวกรองต้องมาจาก symbol เดียวเสมอ (docs/conventions/sibling-surface-parity.md)
+  const counts: CommentPostCounts = mapped.reduce(
+    (acc, row) => {
+      acc.all += 1
+      if (row.postStatus === 'UNANSWERED') acc.unanswered += 1
+      else if (row.postStatus === 'BOT_ANSWERED') acc.botAnswered += 1
+      else acc.humanAnswered += 1
+      return acc
+    },
+    { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 },
+  )
+
+  const wantedState: CommentAnswerState | null =
+    params.state === 'UNANSWERED'
+      ? 'UNANSWERED'
+      : params.state === 'BOT'
+        ? 'BOT_ANSWERED'
+        : params.state === 'HUMAN'
+          ? 'HUMAN_ANSWERED'
+          : null
+  const filtered = wantedState ? mapped.filter((p) => p.postStatus === wantedState) : mapped
+
+  return { posts: filtered, counts }
 }
 
 /** ยอด engagement เก่าได้ — รีเฟรชตอนเปิดโพสต์ ไม่เกินทุก 5 นาทีต่อโพสต์ (เหมือน backfill) */
@@ -442,6 +553,15 @@ export interface CommentRow {
   editedAt: Date | null
   isDeleted: boolean
   repliedByUserId: string | null
+  /**
+   * feature 00038 Task 8 — ปุ่ม "ทักแชท" กดได้จริง: สถานะ "ทักแล้ว" ต้องมาจากแถว log ของ
+   * commentId นี้เอง (ไม่ใช่คีย์คน+โพสต์ — คนละกฎกับ AUTO ดู CommentReplyLog_manual_once_per_comment)
+   * null = ยังไม่เคยทักสำเร็จ ไม่ว่าจาก trigger AUTO หรือ MANUAL
+   */
+  privateReplySentAt: Date | null
+  privateReplyConversationId: string | null
+  /** feature 00038 Task 9 — ป้าย "ตอบอัตโนมัติ" บนบับเบิลของบอท (ตัดสินสถานะผ่าน deriveCommentState) */
+  isAutoReply: boolean
 }
 
 /** คอมเมนต์ทั้งหมดของโพสต์ (เก่า→ใหม่) + เติมของเก่าจาก Graph ถ้ายังไม่เคยดึง */
@@ -507,6 +627,19 @@ export async function getPostComments(params: {
     }
   }
 
+  /**
+   * feature 00038 Task 8 — join CommentReplyLog เพื่อรู้ว่าคอมเมนต์ไหน "ทักแชทสำเร็จแล้ว" โดยไม่ให้
+   * client ยิง API เพิ่มต่อแถว (UX spec §2.2) partial unique index กันไว้แล้วว่า trigger='MANUAL'
+   * ได้แค่ 1 แถวต่อ commentId และ service ชั้น sendPrivateReplyToComment เช็คว่ามี log สำเร็จของ
+   * commentId นี้จาก trigger ใดก็ได้ก่อนเสมอ (API.md §4.4) — ต่อ commentId จึงมีได้อย่างมาก 1 แถวที่
+   * privateReplyStatus='SENT' ไม่ต้องกังวลเรื่องเลือกแถวไหนตอนชนกัน
+   */
+  const privateReplyLogs = await prisma.commentReplyLog.findMany({
+    where: { commentId: { in: comments.map((c) => c.id) }, privateReplyStatus: 'SENT' },
+    select: { commentId: true, createdAt: true, conversationId: true },
+  })
+  const privateReplyByCommentId = new Map(privateReplyLogs.map((l) => [l.commentId, l]))
+
   return {
     post: {
       id: post.id,
@@ -536,6 +669,9 @@ export async function getPostComments(params: {
       editedAt: c.editedAt,
       isDeleted: c.isDeleted,
       repliedByUserId: c.repliedByUserId,
+      privateReplySentAt: privateReplyByCommentId.get(c.id)?.createdAt ?? null,
+      privateReplyConversationId: privateReplyByCommentId.get(c.id)?.conversationId ?? null,
+      isAutoReply: c.isAutoReply,
     })),
   }
 }
@@ -610,7 +746,15 @@ export async function backfillPostComments(postId: string): Promise<{ added: num
 export async function replyToComment(params: {
   commentId: string
   message: string
-  actorUserId: string
+  /**
+   * null = เส้นทางระบบ (feature 00038 ตอบอัตโนมัติ) — ไม่มี user จริงให้เช็ค canAccessShop
+   *
+   * WARNING: นี่ไม่ใช่ flag ข้าม authz แต่เป็นการ **ย้ายคำถาม** แบบเดียวกับ systemShopId ของ
+   * sendOutboundMessage (00023 TD-005): shopId ที่ใช้ตัดสินมาจากแถวในฐาน
+   * (PageComment → FacebookPost → ShopChannel) เท่านั้น ไม่เคยมาจาก caller
+   * caller ที่ถือ commentId จากที่อื่นมาเดา ๆ จึงยิงข้ามร้านไม่ได้
+   */
+  actorUserId: string | null
   /** รูปที่แนบไปกับคำตอบ (user สั่ง 2026-08-03) — fileId จาก /api/chat/upload ตัวเดียวกับแชท */
   fileId?: string | null
 }): Promise<{ id: string }> {
@@ -619,7 +763,9 @@ export async function replyToComment(params: {
     include: { post: { include: { channel: { select: { id: true, shopId: true, externalId: true } } } } },
   })
   if (!target) throw new Error('COMMENT_NOT_FOUND')
-  if (!(await canAccessShop(target.post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  if (params.actorUserId !== null) {
+    if (!(await canAccessShop(target.post.channel.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  }
   if (target.isDeleted) throw new Error('COMMENT_DELETED')
 
   const auth = await resolveChannelToken(target.shopChannelId)
@@ -653,8 +799,16 @@ export async function replyToComment(params: {
       attachmentUrl: params.fileId ? `/api/files/${params.fileId}` : null,
       createdTime: new Date(),
       repliedByUserId: params.actorUserId,
+      // ระบบเป็นผู้เขียน = ติดธงไว้ให้หน้าจอแยกสถานะที่ 3 ได้ (feature 00038)
+      isAutoReply: params.actorUserId === null,
     },
-    update: { message: params.message || null, repliedByUserId: params.actorUserId },
+    update: {
+      message: params.message || null,
+      repliedByUserId: params.actorUserId,
+      // 🛑 ห้ามใส่ isAutoReply ใน update ของ ingestFeedComment — แต่ที่นี่ใส่ได้และต้องใส่
+      // เพราะนี่คือ "เราเป็นคนเขียน" ไม่ใช่ echo ที่ Meta ส่งกลับมา
+      isAutoReply: params.actorUserId === null,
+    },
   })
 
   await prisma.facebookPost.update({
@@ -738,6 +892,19 @@ export async function countUnansweredForShops(params: {
    * หน่วยเดียวกัน คือ "มีกี่รายการในลิสต์ที่ต้องจัดการ" และตรงกับจำนวนแถวที่ผู้ใช้เห็นจริง
    * (รอบก่อนผมเปลี่ยนเป็นนับคอมเมนต์เพราะ user บอกว่าเลข 24/5/3,7,3,8,3 ดูขัดกัน — ตอนนั้นแถวยังมี
    *  วงกลมตัวเลขต่อโพสต์อยู่ พอถอดวงกลมออกตามที่สั่งทีหลัง เลขจำนวนคอมเมนต์ก็ไม่มีอะไรบนจอให้อ้างอิง)
+   */
+  /**
+   * feature 00038 Fix round 1 — ตั้งใจ "ไม่" แยกบอท/คนในเงื่อนไข NOT EXISTS ด้านล่างนี้ (ย้อนกลับ
+   * `AND r."isAutoReply" = false` ที่ Task 9 เติมเข้ามาตามบรีฟ ซึ่งบรีฟผิด ขัดกับ BRD ที่ user
+   * อนุมัติแล้ว): AC-CR-25 เขียนตรง ๆ ว่า "บอทตอบทุกคอมเมนต์ในโพสต์ → ตัวเลขบนแท็บ 'ความคิดเห็น'
+   * ต้องไม่นับโพสต์นั้น" และ BR-CR-S1 นิยาม "ยังไม่ตอบ" = ไม่มีคำตอบของเพจเลย (ไม่ว่าบอทหรือคน)
+   * เติมเงื่อนไข isAutoReply เข้ามาจะทำให้โพสต์ที่บอทเคลียร์หมดแล้วค้างอยู่ใน badge นี้ตลอดกาล
+   * ผิด AC-CR-25 และตัวนับไร้ความหมาย (เตือนซ้ำไม่มีวันหายแม้บอทตอบครบ)
+   *
+   * การแยกบอท/คนเป็นหน้าที่ของชิปกรอง 4 ตัว ("บอทตอบแล้ว" vs "คนตอบแล้ว") ซึ่งตัดสินด้วย
+   * derivePostState()/deriveCommentState() ใน listCommentPosts() แยกต่างหาก ไม่ใช่ badge รวมตัวนี้
+   * — badge นี้ตอบคำถามคนละข้อ: "โพสต์นี้ยังต้องการความสนใจของคนไหม" (รวม UNANSWERED +
+   * BOT_ANSWERED) ไม่ใช่ "โพสต์นี้อยู่กลุ่มไหนใน 3 กลุ่ม"
    */
   const rows = await prisma.$queryRaw<Array<{ count: bigint }>>`
     SELECT count(DISTINCT c."postId")::bigint AS count

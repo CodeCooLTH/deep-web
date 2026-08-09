@@ -12,8 +12,13 @@ import { requireActiveShop, type ActiveShop } from '@/lib/shop-context'
  * (ซึ่งมาจาก Shop.packageLockedAt ล้วน ๆ = quota/ต่ออายุไม่ผ่าน ไม่ใช่เรื่องความปลอดภัย)
  *
  * สิ่งที่ **ห้ามถอด** และยังทำงานเหมือนเดิมทุกบรรทัดข้างล่างนี้: owner เห็นเสมอ ·
- * staff เห็นเมื่อ `staffCanViewFinance = true` (default false) — ถ้าวันใดวันหนึ่ง
+ * staff เห็นเมื่อ `staffCanViewFinance = true` — ถ้าวันใดวันหนึ่ง
  * `STAFF_NOT_ALLOWED` หายไปจากฟังก์ชันนี้ แปลว่าถอดเลยเส้นไปแล้ว ไม่ใช่ทำต่อจากงานนี้
+ *
+ * [2026-08-08] `staffCanViewFinance` เปลี่ยน **default เป็น true** (user สั่ง "เปิดหมด" —
+ * migration `20260808220000_finance_visible_to_staff_by_default` เปลี่ยนทั้ง DEFAULT และแถวเดิม)
+ * เปลี่ยนแค่ "ค่าตั้งต้น" ไม่ได้เปลี่ยน "กลไก": ด่านข้างล่างยังอ่านธงตัวเดิมและยัง fail-closed
+ * เมื่อ owner ปิดเอง — ห้ามลัดด้วยการ return GRANTED ตรง ๆ เพราะสวิตช์บนหน้าจอจะกลายเป็นของหลอก
  */
 export type ExpenseAccessDecision =
   | { kind: 'GRANTED'; shop: ActiveShop['shop']; role: 'OWNER' | 'ADMIN' }
