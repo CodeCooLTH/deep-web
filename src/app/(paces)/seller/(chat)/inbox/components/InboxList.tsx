@@ -97,7 +97,9 @@ import ChatContextMenu, { type ChatRowAnchor } from './ChatContextMenu'
 import SwipeableRow from './SwipeableRow'
 import {
   ChannelBadgeOverlay,
+  ChannelMark,
   getChannelDisplay,
+  resolveChatChannel,
   type ChatChannel,
   type ChannelFilterOption,
 } from './ChannelBadge'
@@ -822,7 +824,20 @@ export default function InboxList({
   }, [items.length, nextCursor])
 
   // id เพจ → รูปเพจ (จาก prop channels ที่โหลดมาแล้ว) — ใช้ทำ badge รูปเพจต่อแถว
-  const channelAvatarById = new Map(channels.map((c) => [c.id, c.avatarUrl]))
+  // id ช่องทาง → ชื่อบัญชี (เพจ FB / บัญชี IG / LINE OA) สำหรับ "บรรทัดที่มา" ในแถว
+  const channelNameById = new Map(channels.map((c) => [c.id, c.name]))
+  /**
+   * แสดง "บรรทัดที่มา" เฉพาะเมื่อร้านมีบัญชีนอกตั้งแต่ 2 ขึ้นไป (มติแบบ C จาก mockup
+   * 2026-08-09 ที่ user เลือก) — badge มุม avatar บอกได้แค่ "แพลตฟอร์มไหน" ส่วน "บัญชีไหน"
+   * ต้องใช้ข้อความ เพราะร้านตั้งโลโก้ร้านเดียวกันทุกช่องทางเป็นเรื่องปกติ (เจอจริงกับร้าน
+   * BT Premium: เพจ Facebook กับ LINE OA ใช้โลโก้เดียวกัน badge จึงเหมือนกันเป๊ะ แยกไม่ออก)
+   *
+   * 🛑 มีบัญชีเดียวหรือไม่มีเลย = ไม่มีอะไรให้แยก → ซ่อนทิ้ง ไม่เสียความสูงแถวฟรี ๆ
+   * นับรวมทุกแพลตฟอร์ม ไม่แยกนับต่อ provider เพราะความกำกวมเกิดได้ทั้ง "2 เพจ FB"
+   * และ "1 เพจ FB + 1 LINE OA" เหมือนกัน · คำนวณครั้งเดียวนอก .map() ทุกแถวใช้ผลเดียวกัน
+   * เพื่อให้จังหวะการอ่านคงที่ทั้งลิสต์ (ไม่ใช่บางแถวมีบางแถวไม่มี)
+   */
+  const showSourceLine = channels.length >= 2
 
   return (
     // shadow-none (user สั่ง 2026-07-23): .card ของ Paces มี shadow ในตัว (custom/_card.css) ซึ่ง
@@ -1326,13 +1341,14 @@ export default function InboxList({
                   <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="relative shrink-0">
                       <BuyerAvatar avatar={c.counterparty?.avatar ?? null} name={name} />
-                      {/* รูปเพจจริงถ้าเพจนั้นมี (user สั่ง 2026-07-23) — หาได้จาก channels prop ที่
-                          มี avatarUrl ต่อเพจอยู่แล้ว ไม่ต้องเพิ่ม query ต่อแถว; ไม่มีรูป/ไม่มีเพจ
-                          → ChannelBadgeOverlay ถอยไปโลโก้ช่องทางเอง */}
-                      <ChannelBadgeOverlay
-                        channel={c.channel}
-                        imageUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
-                      />
+                      {/* badge = โลโก้ "แพลตฟอร์ม" เสมอ (มติแบบ C 2026-08-09 — user เลือกจาก mockup)
+                          เดิมส่งรูปเพจเข้ามา (user สั่ง 2026-07-23) เพื่อให้ร้านหลายเพจแยกออกว่า
+                          ทักมาจากเพจไหน — แต่พอมี LINE เข้ามาปนในลิสต์เดียวกันแล้วพังทันที เพราะ
+                          ร้านตั้งโลโก้ร้านเดียวกันทั้งเพจ FB และ LINE OA เป็นเรื่องปกติ → badge
+                          เหมือนกันเป๊ะทุกแถว แยกไม่ออกแม้แต่ว่าคนละแพลตฟอร์ม (user เจอเองบน prod)
+                          "บัญชีไหน" ย้ายไปตอบด้วยบรรทัดที่มาข้างล่างแทน — ตรงกับบทเรียนที่จดไว้เอง
+                          ในไฟล์นี้ (คอมเมนต์ของ prop `shop`): ภาพซ้ำกันได้โดยไม่ตั้งใจ ข้อความไม่ซ้ำ */}
+                      <ChannelBadgeOverlay channel={c.channel} />
                     </span>
                     {/* ชื่อลูกค้า "เข้มเสมอ" ทั้งอ่านแล้ว/ยังไม่อ่าน (user report 2026-07-30: "จางไปดูยาก")
                         เดิมอ่านแล้ว = text-default-600 font-medium → ใช้ความจางของ *ชื่อ* มาบอกสถานะอ่าน
@@ -1408,6 +1424,22 @@ export default function InboxList({
                         )}
                         {preview}
                       </span>
+                      {/* บรรทัด "ที่มา" (มติแบบ C 2026-08-09) — ตอบว่า "บัญชีไหน" ที่ badge มุม
+                          avatar ตอบไม่ได้ เพราะ badge บอกได้แค่แพลตฟอร์ม. เบาที่สุดในแถวโดยตั้งใจ
+                          (text-2xs + เทา) ไม่ให้แย่งลำดับชั้นจากชื่อลูกค้าซึ่งยังเป็นพระเอก
+                          เธรด DEEP ไม่มีบัญชีให้อ้าง → ใช้ "แอป Deep" (ไม่ใช่ "Deep" เฉย ๆ กันสับสน
+                          กับชื่อแบรนด์) · เพจถูกถอดไปแล้วแต่เธรดเก่ายังอยู่ → ถอยไปชื่อแพลตฟอร์ม */}
+                      {showSourceLine && (
+                        <span className="text-default-500 mt-0.5 flex min-w-0 max-w-52 items-center gap-1 text-2xs">
+                          <ChannelMark channel={c.channel} />
+                          <span className="truncate">
+                            {resolveChatChannel(c.channel) === 'DEEP'
+                              ? 'แอป Deep'
+                              : ((c.shopChannelId ? channelNameById.get(c.shopChannelId) : null) ??
+                                getChannelDisplay(c.channel).label)}
+                          </span>
+                        </span>
+                      )}
                       {/* feature 00018 CRM — สถานะการขาย + tag (ถ้าตั้งไว้) โชว์ในแถว
                           + E5: ชิป `ad_id.…` บอกว่าโฆษณาไหนพาลูกค้ามา (แบบ Business Suite) */}
                       {(salesStatus !== 'UNSPECIFIED' ||

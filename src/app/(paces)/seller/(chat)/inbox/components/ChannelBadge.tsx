@@ -194,6 +194,37 @@ export function ChannelBadge({ channel, size = 'sm', label, imageUrl }: ChannelB
 }
 
 /**
+ * ChannelMark — เครื่องหมายช่องทางขนาดจิ๋ว ไม่มีพื้นหลัง ไม่มี ring สำหรับ "บรรทัดที่มา"
+ * ในแถวรายการอินบ็อกซ์ (มติแบบ C จาก mockup 2026-08-09 ที่ user เลือก)
+ *
+ * 🛑 ทำไมใช้โลโก้ซ้ำ ไม่ใช่ "จุดสี" ตามที่ร่างไว้ตอนแรก: จุดสีล้วนสื่อด้วย *สี* อย่างเดียว
+ * ซึ่งเป็นเหตุผลเดียวกับที่ mockup ปฏิเสธแบบ B ไปแล้ว (อ่านยาก + ไม่ผ่านเกณฑ์ a11y ที่ห้าม
+ * พึ่งสีอย่างเดียว) และการตั้งค่าสี hex ของแต่ละแบรนด์เพิ่มที่นี่ = สร้างนิยามสีแบรนด์ชุดที่สอง
+ * ขึ้นมาคู่ขนานกับ logoSrc/iconStyle ที่มีอยู่แล้วในไฟล์นี้ (Hard Rule 16) — ใช้ของเดิมซ้ำจึง
+ * ได้ทั้ง "รูปทรง + สี" และไม่มีค่าคงที่ใหม่ให้หลุด sync วันหลัง
+ */
+export function ChannelMark({ channel }: { channel: string }) {
+  const display = getChannelDisplay(channel)
+  if (display.logoSrc) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={display.logoSrc} alt="" aria-hidden="true" width={12} height={12} className="size-3 shrink-0 rounded-full object-cover" />
+    )
+  }
+  // DEEP — ไม่มีโลโก้แบรนด์ ใช้ tabler icon + token สีเดิมของช่องทาง (ไม่ใช่ hex)
+  return (
+    <Icon
+      icon={display.icon}
+      width={12}
+      height={12}
+      aria-hidden="true"
+      className={`size-3 shrink-0 ${display.iconClassName ?? ''}`}
+      style={display.iconStyle}
+    />
+  )
+}
+
+/**
  * overlay badge วงกลมมุมล่างขวาของ avatar — ต้องอยู่ใน wrapper ที่มี class `relative`
  *
  * Messenger/Instagram แสดง **โลโก้แบรนด์จริง** (gradient) เต็มวงกลม + ring ขาว — จำง่ายทันที
