@@ -285,10 +285,25 @@ export async function getInstagramAccountIdForPage(
 
 // ชื่อ/รูปลูกค้าสำหรับแสดงใน inbox — วิธีดึงต่างกันคนละช่องทาง (ทดสอบกับเพจจริงทุกเคสแล้ว)
 //
-// **Messenger:** ยิง GET /{psid} ตรง ๆ ไม่ได้ — Meta ตอบ 400 "cannot be loaded due to missing
-// permissions" ทุกชุด field เพราะ Messenger User Profile API ถูกจำกัดสำหรับแอปที่ยังไม่มี
-// Advanced Access → ต้องใช้ /me/conversations?user_id={psid} ซึ่งคืน participants พร้อมชื่อ
-// (endpoint นี้ไม่มีรูปโปรไฟล์ → avatarUrl เป็น null, inbox แสดงตัวอักษรแรกของชื่อแทน)
+// **Messenger:** ต้องยิง 2 ชั้นเสมอ เพราะ 2 endpoint ให้คนละอย่างและครอบคนละกลุ่ม
+//
+//   ชั้น 1 — GET /{psid}?fields=name,first_name,last_name,profile_pic (Messenger User Profile API)
+//   ให้ **ทั้งชื่อและรูป** แต่ถูกคุมด้วยฟีเจอร์ `Business Asset User Profile Access` ซึ่งตอนนี้อยู่
+//   ที่ **Standard Access** = ใช้ได้เฉพาะคนที่ **มี role บนแอป** (admin/developer/tester) เท่านั้น
+//   ลูกค้าทั่วไปจะได้ 400 code=100 subcode=33 "cannot be loaded due to missing permissions"
+//
+//   🛑 คอมเมนต์เดิมตรงนี้เขียนว่า "ยิงตรงไม่ได้ทุกชุด field" ซึ่ง**ผิด** — สรุปจากการทดสอบกับ
+//   ลูกค้าจริงอย่างเดียวเลยเหมาว่าตายทั้งหมด. วัดใหม่ 2026-08-09 บนเพจ BT Premium คลอง4 ด้วย
+//   token ตัวเดียวกัน: ลูกค้า `37558899090391535` → 400 แต่เจ้าของแอป `28253571950934108`
+//   → **200 พร้อม profile_pic** (ยืนยันซ้ำอีก 2 เพจ) และลูกค้าสุ่ม 30 คน → 400 ครบ 30
+//   บทเรียน: endpoint ที่ล้มเพราะ "ตัวตนของ subject" ไม่ใช่ "รูปคำขอ" ต้องทดสอบด้วย subject
+//   หลายชนิดก่อนสรุปว่าใช้ไม่ได้ ไม่งั้นจะตัดทางที่ใช้ได้จริงบางส่วนทิ้งทั้งเส้น
+//
+//   ชั้น 2 — /me/conversations?user_id={psid} คืน participants พร้อม **ชื่อของทุกคน** (ไม่จำกัด
+//   role) แต่ **ไม่มีรูป**: ขอ participants{picture} ไปก็ตอบ 200 แล้วตัดคีย์ picture ทิ้งเงียบ ๆ
+//
+// ⇒ ลองชั้น 1 ก่อน ได้ครบทั้งชื่อและรูปก็จบใน 1 call; ไม่ได้ค่อยตกไปชั้น 2 เอาเฉพาะชื่อ
+// วันที่ Advanced Access ผ่าน ชั้น 1 จะเริ่มคืนรูปให้ลูกค้าทุกคนเองโดยไม่ต้องแก้อะไรตรงนี้อีก
 //
 // **Instagram:** กลับกัน — /me/conversations?platform=instagram ตอบ error 2207085 "Fatal"
 // แต่ยิง GET /{igsid} ตรงกลับได้ทั้ง name, username และ profile_pic
@@ -314,6 +329,25 @@ export async function getContactProfile(
       }
     }
 
+    // ชั้น 1 — User Profile API: ได้ทั้งชื่อและรูป แต่เฉพาะคนที่มี role บนแอป (ดูหัวฟังก์ชัน)
+    // ห่อ try แยกเพราะ 400 ตรงนี้เป็น "เรื่องปกติของลูกค้าทั่วไป" ไม่ใช่ความล้มเหลวของทั้งฟังก์ชัน —
+    // ถ้าปล่อยให้ throw ออกไป catch ใหญ่ ชื่อที่ชั้น 2 ดึงได้จะหายไปด้วยทั้งที่ดึงได้จริง
+    try {
+      const direct = await graphFetch(`/${externalUserId}`, pageToken, {
+        query: { fields: 'name,first_name,last_name,profile_pic' },
+      })
+      const full =
+        (direct.name as string | undefined) ||
+        [direct.first_name, direct.last_name].filter(Boolean).join(' ').trim()
+      const pic = (direct.profile_pic as string | undefined) ?? null
+      // ยอมรับผลชั้น 1 เฉพาะตอนได้ของที่ชั้น 2 ให้ไม่ได้ (รูป) หรือได้ชื่อมาด้วย — ตอบ 200 เปล่า ๆ
+      // ให้ตกไปชั้น 2 ต่อ ไม่ใช่คืน null ทั้งคู่
+      if (full || pic) return { name: full || null, avatarUrl: pic }
+    } catch {
+      // ลูกค้าทั่วไปมาทางนี้เสมอ (400 code=100 subcode=33) — ไม่ log ไม่ throw ตกไปชั้น 2
+    }
+
+    // ชั้น 2 — ชื่ออย่างเดียว แต่ได้กับทุกคน
     const json = await graphFetch('/me/conversations', pageToken, {
       query: { fields: 'participants', user_id: externalUserId },
     })

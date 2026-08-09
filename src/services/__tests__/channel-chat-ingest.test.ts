@@ -189,9 +189,10 @@ describe('ingestInboundMessage', () => {
       expect(getContactProfile).toHaveBeenCalledWith('PSID_1', 'tok', 'INSTAGRAM')
     })
 
-    it('contact เดิมมีชื่ออยู่แล้ว → ไม่เรียก Graph ซ้ำ และไม่ส่ง name/avatarUrl ไปทับของเดิม', async () => {
+    it('contact เดิมมีทั้งชื่อและรูปที่ mirror แล้ว → ไม่เรียก Graph ซ้ำ และไม่ส่ง name/avatarUrl ไปทับของเดิม', async () => {
+      // "รูปที่เรียบร้อย" = fileId ใน storage เรา ไม่ใช่ URL ของ Meta (ซึ่งหมดอายุได้)
       db.externalContact.findUnique.mockResolvedValue({
-        id: 'ec1', name: 'สมชาย ใจดี', avatarUrl: 'https://x/old.jpg',
+        id: 'ec1', name: 'สมชาย ใจดี', avatarUrl: 'file_abc123', avatarSyncedAt: new Date(),
       })
       const r = await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: textEvent })
       expect(r.status).toBe('STORED')
@@ -199,6 +200,37 @@ describe('ingestInboundMessage', () => {
       const args = db.externalContact.upsert.mock.calls[0]![0]
       expect(args.update).not.toHaveProperty('name')
       expect(args.update).not.toHaveProperty('avatarUrl')
+      // ไม่ได้ลองดึง → ห้ามขยับเวลา ไม่งั้นรอบถัดไปจะถูกเลื่อนออกไปฟรี ๆ
+      expect(args.update).not.toHaveProperty('avatarSyncedAt')
+    })
+
+    it('[blocker] contact เดิมมีชื่อแต่ยังไม่มีรูป และยังไม่เคยลอง → ต้องลองดึงรูป', async () => {
+      // ถ้าเงื่อนไขกลับไปผูกกับ "มีชื่อหรือยัง" อย่างเดียวเหมือนโค้ดเดิม วันที่ Advanced Access
+      // ผ่านจะไม่มีใครได้รูปเลยสักคน เพราะ 1,453 contact "มีชื่อครบแล้ว" ทั้งหมด
+      db.externalContact.findUnique.mockResolvedValue({
+        id: 'ec1', name: 'สมชาย ใจดี', avatarUrl: null, avatarSyncedAt: null,
+      })
+      await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: textEvent })
+      expect(getContactProfile).toHaveBeenCalledTimes(1)
+    })
+
+    it('[blocker] เพิ่งลองไปเมื่อวาน แล้วยังไม่ได้รูป → ต้องไม่ยิง Graph ซ้ำทุกข้อความ', async () => {
+      // ลูกค้าทั่วไป 100% ของวันนี้ตกอยู่ในสถานะนี้ — ไม่คุมรอบ = Graph call ต่อทุกข้อความที่เข้ามา
+      db.externalContact.findUnique.mockResolvedValue({
+        id: 'ec1', name: 'สมชาย ใจดี', avatarUrl: null,
+        avatarSyncedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      })
+      await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: textEvent })
+      expect(getContactProfile).not.toHaveBeenCalled()
+    })
+
+    it('เก็บ URL ดิบไว้ตอน mirror ไม่ผ่าน แล้วครบรอบ 7 วัน → ลองอัปเกรดเป็น fileId ใหม่', async () => {
+      db.externalContact.findUnique.mockResolvedValue({
+        id: 'ec1', name: 'สมชาย ใจดี', avatarUrl: 'https://x/expired.jpg',
+        avatarSyncedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+      })
+      await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: textEvent })
+      expect(getContactProfile).toHaveBeenCalledTimes(1)
     })
 
     it('contact เดิมยังไม่มีชื่อ + Graph ดึงไม่ได้ชั่วคราว (คืน null) → ไม่เขียนทับเป็น null', async () => {

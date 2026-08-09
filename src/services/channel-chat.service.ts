@@ -510,6 +510,34 @@ export async function mirrorRemoteImage(url: string): Promise<string | null> {
   }
 }
 
+/**
+ * รอบการลองดึงรูปโปรไฟล์ใหม่ สำหรับคนที่ยังไม่มีรูปเก็บไว้
+ *
+ * ทำไมต้องมีรอบ ไม่ใช่ "ไม่มีรูปก็ลองทุกครั้ง": วันนี้ Meta ปฏิเสธรูปของลูกค้าทั่วไปทุกคน
+ * (Business Asset User Profile Access ยังเป็น Standard Access = เฉพาะคนที่มี role บนแอป)
+ * ถ้าไม่คุมรอบ ทุกข้อความที่เข้ามาจะพ่วง Graph call ที่รู้อยู่แล้วว่าจะล้ม — 1,453 contact
+ * คูณจำนวนข้อความต่อวัน
+ *
+ * ทำไมต้องลองใหม่ ไม่ใช่ "ล้มแล้วเลิก": วันที่สิทธิ์ผ่าน ต้องไม่มีใครต้องมาสั่ง backfill ด้วยมือ
+ * รูปควรทยอยขึ้นเองภายในรอบเดียว
+ */
+export const AVATAR_RETRY_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
+
+/** รูปที่ "เรียบร้อยแล้ว" = fileId ใน storage ของเรา; ค่าที่เป็น URL ของ Meta หมดอายุได้เสมอ */
+function hasStoredAvatar(avatarUrl: string | null | undefined): boolean {
+  return !!avatarUrl && !avatarUrl.startsWith('http')
+}
+
+export function shouldRetryAvatar(
+  contact: { avatarUrl: string | null; avatarSyncedAt: Date | null } | null,
+  now: Date = new Date(),
+): boolean {
+  if (!contact) return true
+  if (hasStoredAvatar(contact.avatarUrl)) return false
+  if (!contact.avatarSyncedAt) return true
+  return now.getTime() - contact.avatarSyncedAt.getTime() >= AVATAR_RETRY_INTERVAL_MS
+}
+
 // ประกอบ "ข้อความสรุป" จาก field ของ template/location ที่ parse มาแล้ว (feature 00018, user 2026-07-25
 // "รองรับทุกอัน") — order/payment/receipt/generic มี text/summary/elements มากับ webhook เอง ไม่ต้องพึ่ง
 // Graph fetch (ซึ่งคืน message ว่างเมื่อ template ไม่มี text). แก้เคส user report: "[ข้อความจากระบบ
@@ -716,10 +744,23 @@ export async function ingestInboundMessage(params: {
 
   // ดึงโปรไฟล์จาก Graph เฉพาะตอนยังไม่มี contact หรือมีแต่ยังไม่มีชื่อ — ลด Graph call ต่อข้อความ
   // (Minor-5) และกัน Graph error ชั่วคราวทับชื่อจริงที่เก็บไว้แล้วเป็น null (I-2)
-  const needsProfile = !existingContact || !existingContact.name
+  //
+  // เงื่อนไข "รูป" แยกจาก "ชื่อ" เพราะทั้งสองมาคนละชั้นและมีโอกาสสำเร็จไม่เท่ากัน (ดู
+  // getContactProfile) — คนที่ได้ชื่อครบแล้วแต่ยังไม่มีรูปต้องมีสิทธิ์ถูกลองใหม่ ไม่งั้นวันที่
+  // Advanced Access ผ่าน จะไม่มีใครได้รูปเลยเพราะทุกคน "มีชื่อแล้ว" ไปหมด
+  const needsAvatarRetry = shouldRetryAvatar(existingContact)
+  const needsProfile = !existingContact || !existingContact.name || needsAvatarRetry
   const profile = needsProfile
     ? await getContactProfile(contactExternalId, channel.accessToken, provider)
     : { name: null, avatarUrl: null }
+
+  // URL รูปโปรไฟล์ของ Meta ฝังเวลาหมดอายุมาใน `oe=` — เก็บ URL ดิบไว้เฉย ๆ แล้วรูปจะตายเงียบ ๆ
+  // ในไม่กี่วัน (เจอจริง: รูป IG ที่เก็บไว้ 5 ส.ค. กลายเป็น HTTP 403 ตอน 9 ส.ค. แล้ว <img onError>
+  // ตกไปตัวอักษรย่อ โดยไม่มีอะไรฟ้อง) → mirror ลง storage เราเป็น fileId เหมือนที่ทำกับรูปในแชท
+  const mirroredAvatar = profile.avatarUrl ? await mirrorRemoteImage(profile.avatarUrl) : null
+  // mirror ไม่ผ่านก็ยังเก็บ URL ดิบไว้ก่อน — เห็นรูปวันนี้ดีกว่าไม่เห็นเลย และ shouldRetryAvatar
+  // มองว่าค่าที่ขึ้นต้น http คือ "ยังไม่เรียบร้อย" จึงจะถูกลองอัปเกรดใหม่รอบหน้าเอง
+  const avatarToStore = mirroredAvatar ?? profile.avatarUrl
 
   const contact = await prisma.externalContact.upsert({
     where: contactWhere,
@@ -727,12 +768,16 @@ export async function ingestInboundMessage(params: {
       shopChannelId: channel.id,
       externalUserId: contactExternalId,
       name: profile.name,
-      avatarUrl: profile.avatarUrl,
+      avatarUrl: avatarToStore,
+      avatarSyncedAt: new Date(),
     },
     // อัปเดตเฉพาะ field ที่ได้ค่าจริงจาก Graph — ไม่ทับด้วย null ตอน Graph error ชั่วคราว (I-2)
     update: {
       ...(profile.name ? { name: profile.name } : {}),
-      ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+      ...(avatarToStore ? { avatarUrl: avatarToStore } : {}),
+      // ประทับเวลาทุกครั้งที่ "ลอง" ไม่ใช่เฉพาะตอนสำเร็จ — ไม่งั้นคนที่ Meta ไม่ยอมให้รูป
+      // (ลูกค้าทั่วไปทั้งหมดในวันนี้) จะโดนยิง Graph ซ้ำทุกข้อความตลอดไป
+      ...(needsProfile ? { avatarSyncedAt: new Date() } : {}),
     },
   })
 

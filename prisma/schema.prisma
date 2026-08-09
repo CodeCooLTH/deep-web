@@ -1404,7 +1404,15 @@ model ExternalContact {
   shopChannelId  String
   externalUserId String // PSID / IGSID
   name           String?
+  // avatarUrl เก็บ "fileId ของ storage" เป็นหลัก (mirror มาแล้ว ไม่หมดอายุ) — ค่าที่ขึ้นต้นด้วย
+  // http คือ URL ดิบของ Meta ที่ mirror ไม่ผ่าน ซึ่ง **หมดอายุได้** (มี oe= ฝังมา) จึงถือว่า
+  // "ยังไม่เรียบร้อย" และจะถูกลองใหม่ตามรอบของ avatarSyncedAt
   avatarUrl      String?
+  // เวลาที่ลองดึงรูปโปรไฟล์จาก Graph ครั้งล่าสุด (สำเร็จหรือไม่ก็ตาม) — คุมไม่ให้ยิง Graph ทุก
+  // ข้อความสำหรับคนที่ยังไม่มีรูป. Messenger วันนี้ Meta บล็อกรูปทั้งหมด (ต้อง Advanced Access
+  // ของ Business Asset User Profile Access) → ทุกคนจะเป็น null; ช่องนี้คือกลไกที่ทำให้ "วันที่
+  // สิทธิ์ผ่าน" รูปทยอยขึ้นเองภายใน 7 วันโดยไม่ต้องแก้โค้ดหรือ backfill ใหม่
+  avatarSyncedAt DateTime?
   customerId     String? // link → Customer (feature 00014) เมื่อได้เบอร์
   // --- CRM ต่อผู้ติดต่อ (feature 00018 tag/CRM) — ตามคนข้ามแชทของ contact นี้ ---
   // cross-channel merge (Messenger+IG+DEEP → โปรไฟล์เดียว) = Phase 2 (ต้อง resolve Customer ด้วยเบอร์)

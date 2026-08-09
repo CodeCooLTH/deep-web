@@ -4,6 +4,7 @@ import {
   sendTextMessage,
   exchangeCodeForToken,
   fetchThreadMessages,
+  getContactProfile,
   GraphApiError
 } from '@/lib/facebook/graph'
 
@@ -244,5 +245,72 @@ describe('fetchThreadMessages', () => {
       size: 184288,
       isSticker: false
     })
+  })
+})
+
+describe('getContactProfile — Messenger 2 ชั้น', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const urlOf = (call: unknown[]) => String(call[0])
+
+  it('[blocker] ลอง User Profile API ก่อนเสมอ — ได้ทั้งชื่อและรูปแล้วไม่ต้องยิง /me/conversations ต่อ', async () => {
+    // คนที่มี role บนแอปเป็นแบบนี้ (วัดจริงบน prod 2026-08-09) — ถ้ามีใครกลับไปยิง
+    // /me/conversations อย่างเดียวเหมือนโค้ดเดิม เทสนี้ต้องแดง เพราะรูปจะหายทั้งระบบ
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      okJson({ name: 'Sekson Oonnom', profile_pic: 'https://platform-lookaside.fbsbx.com/p.jpg' }),
+    )
+    const res = await getContactProfile('PSID_ROLE', 'tok', 'MESSENGER')
+    expect(res).toEqual({ name: 'Sekson Oonnom', avatarUrl: 'https://platform-lookaside.fbsbx.com/p.jpg' })
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls).toHaveLength(1)
+    expect(urlOf(calls[0])).toContain('/PSID_ROLE')
+  })
+
+  it('[blocker] ลูกค้าทั่วไปที่ Meta ตอบ 400 ต้องตกไปชั้น 2 แล้วยังได้ชื่อ — ห้ามคืน null ทั้งคู่', async () => {
+    // นี่คือลูกค้า 100% ของวันนี้ (สุ่ม 30 คน → 400 ครบ 30). ถ้า 400 ของชั้น 1 หลุดไปโดน
+    // catch ใหญ่ ชื่อที่ชั้น 2 ดึงได้จะหายไปด้วย = inbox กลายเป็นรหัส PSID ทั้งกล่อง
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock
+      .mockReturnValueOnce(
+        failJson({ error: { message: 'cannot be loaded due to missing permissions', code: 100, error_subcode: 33 } }),
+      )
+      .mockReturnValueOnce(
+        okJson({ data: [{ participants: { data: [{ id: 'PSID_1', name: 'ลูกค้า ก' }, { id: 'PAGE', name: 'เพจ' }] } }] }),
+      )
+    const res = await getContactProfile('PSID_1', 'tok', 'MESSENGER')
+    expect(res).toEqual({ name: 'ลูกค้า ก', avatarUrl: null })
+    expect(mock.mock.calls).toHaveLength(2)
+    expect(urlOf(mock.mock.calls[1])).toContain('/me/conversations')
+  })
+
+  it('ชั้น 1 ตอบ 200 แต่ว่างเปล่า ต้องไม่หยุดแค่นั้น — ยังต้องตกไปชั้น 2', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock
+      .mockReturnValueOnce(okJson({ id: 'PSID_1' }))
+      .mockReturnValueOnce(okJson({ data: [{ participants: { data: [{ id: 'PSID_1', name: 'ลูกค้า ข' }] } }] }))
+    const res = await getContactProfile('PSID_1', 'tok', 'MESSENGER')
+    expect(res).toEqual({ name: 'ลูกค้า ข', avatarUrl: null })
+  })
+
+  it('ประกอบชื่อจาก first_name + last_name เมื่อ Meta ไม่ส่ง name มา', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      okJson({ first_name: 'Sekson', last_name: 'Oonnom', profile_pic: 'https://x/p.jpg' }),
+    )
+    const res = await getContactProfile('PSID_ROLE', 'tok', 'MESSENGER')
+    expect(res.name).toBe('Sekson Oonnom')
+  })
+
+  it('Instagram ยังยิงตรงเส้นเดิม ไม่โดนเส้น Messenger แย่งไป', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+      okJson({ name: '', username: 'supersek_', profile_pic: 'https://cdninstagram.com/p.jpg' }),
+    )
+    const res = await getContactProfile('IGSID', 'tok', 'INSTAGRAM')
+    expect(res).toEqual({ name: 'supersek_', avatarUrl: 'https://cdninstagram.com/p.jpg' })
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1)
   })
 })
