@@ -5,6 +5,8 @@ import { decryptToken } from '@/lib/token-crypto'
 import { getChannelByExternalId } from '@/services/shop-channel.service'
 import { createCommentReply, fetchPagePosts, fetchPostComments, fetchPostMeta } from '@/lib/facebook/graph'
 import { getFileUrl } from '@/lib/storage'
+import { toFileUrl } from '@/lib/file-url'
+import { mirrorRemoteImage } from '@/services/channel-chat.service'
 import type { FeedChange } from '@/lib/facebook/webhook-types'
 
 /**
@@ -19,6 +21,44 @@ import type { FeedChange } from '@/lib/facebook/webhook-types'
 
 /** จำนวนคอมเมนต์ต่อหน้าเวลาเปิดโพสต์ (BRD Q-2) */
 const COMMENTS_PAGE_SIZE = 30
+
+/**
+ * รูปปกโพสต์ที่ **หน้าจอต้องใช้** — สำเนาที่เราเก็บเองชนะ URL ของ Meta เสมอ
+ *
+ * 🛑 ห้ามอ่าน `thumbnailUrl` ตรง ๆ ไปแสดงผล ให้เรียกตัวนี้เสมอ
+ *
+ * ที่มา (user report 2026-08-09 พร้อมภาพหน้าจอ): รูปปกในรายการซ้ายของ `/inbox/comments` ทยอย
+ * กลายเป็นกล่องขาวเปล่า โดยโพสต์อายุ 4 วันยังมีรูป ส่วนใบ 5 วันหายหมด — เพราะ `thumbnailUrl`
+ * เก็บ URL ของ fbcdn ดิบ ซึ่ง **หมดอายุ ~4 วัน** (คลาสเดียวกับ `ShopVideo.mirroredFileId` และ
+ * การ์ด carousel ในแชท ที่ปิดไปแล้วคนละรอบ — หน้านี้เป็นที่สุดท้ายที่ยังเก็บ URL ดิบอยู่)
+ *
+ * ทำไมไม่รีเฟรช URL แทนการ mirror: ตัวที่รีเฟรชได้ (`refreshPostStats`) ยิง Graph 1 ครั้งต่อโพสต์
+ * และถูกเรียกจาก `getPostThread` ที่เดียว = เฉพาะโพสต์ที่ "มีคนกดเปิด" เท่านั้น. จะให้รายการซ้าย
+ * สดตลอดต้องยิง Graph ทุกโพสต์ทุกครั้งที่โหลดรายการ ซึ่งหน้านี้ poll ทุก 60 วิ + realtime อีก
+ *
+ * กิ่ง fallback ยังต้องมี: โพสต์เก่าที่ยัง mirror ไม่ทันจะได้ลองใช้ URL เดิม (ยังไม่หมดอายุก็เห็น)
+ */
+export function resolvePostThumbnail(post: { mirroredFileId: string | null; thumbnailUrl: string | null }): string | null {
+  return toFileUrl(post.mirroredFileId) ?? post.thumbnailUrl
+}
+
+/**
+ * mirror รูปปกโพสต์เข้า storage ของเรา — คืน fileId หรือ null เมื่อทำไม่ได้
+ *
+ * best-effort เสมอ: รูปพังห้ามทำให้คอมเมนต์หายทั้งก้อน (หลักการเดียวกับ `mirrorRemoteImage`
+ * ฝั่งแชทที่เขียนไว้ว่า "ห้ามทิ้งทั้งข้อความเพราะรูปพัง")
+ *
+ * ใช้คอลัมน์ `mirroredFileId`/`mirroredAt` **ตัวเดิมของ 00035** ไม่สร้างคอลัมน์ใหม่ — มันคือ
+ * ของสิ่งเดียวกันเป๊ะ ("สำเนารูปปกโพสต์ที่เก็บเอง") การมีสองคอลัมน์เก็บของอย่างเดียวกันบนแถวเดียว
+ * คือ Hard Rule 16 ตรงตัว. ผลข้างเคียงที่ตรวจแล้วว่าปลอดภัย: `mirrorFacebookPost()` ใน
+ * shop-page-layout.service เช็ค `if (post.mirroredFileId)` เพื่อกัน mirror ซ้ำ แล้วคืนรูปนั้นไปใช้
+ * — เจอของที่เรา mirror ไว้ก่อนก็คืนรูปที่ถูกต้อง (แค่ `mirrored: false` ซึ่งแปลว่า "ไม่ได้ mirror
+ * รอบนี้" ไม่ใช่ "ไม่มีรูป")
+ */
+async function mirrorPostThumbnail(pictureUrl: string | null | undefined): Promise<string | null> {
+  if (!pictureUrl) return null
+  return mirrorRemoteImage(pictureUrl)
+}
 
 /**
  * export ให้ comment-private-reply.service.ts ใช้ร่วม (feature 00038) — พฤติกรรมเดิมทุกประการ
@@ -145,6 +185,9 @@ async function ensurePost(shopChannelId: string, externalPostId: string) {
 
   const auth = await resolveChannelToken(shopChannelId)
   const meta = auth ? await fetchPostMeta(externalPostId, auth.token) : null
+  // mirror ทันทีตอนสร้างแถว — ตอนนี้คือ "นาทีที่ URL ของ fbcdn สดที่สุด" ถ้าปล่อยไว้แล้วค่อยมา
+  // ตามเก็บทีหลัง จะต้องยิง Graph ขอ URL ใหม่ก่อนเสมอ (ดู resolvePostThumbnail)
+  const mirroredFileId = await mirrorPostThumbnail(meta?.picture)
 
   try {
     return await prisma.facebookPost.create({
@@ -154,6 +197,8 @@ async function ensurePost(shopChannelId: string, externalPostId: string) {
         message: meta?.message ?? null,
         permalink: meta?.permalink ?? null,
         thumbnailUrl: meta?.picture ?? null,
+        mirroredFileId,
+        mirroredAt: mirroredFileId ? new Date() : null,
         createdTime: meta?.createdTime ?? null,
         mediaType: meta?.mediaType ?? null,
         reactionCount: meta?.reactionCount ?? null,
@@ -227,6 +272,9 @@ export async function backfillPagePosts(params: {
         const existing = await prisma.facebookPost.findUnique({ where: { externalPostId: p.id } })
         let postRowId = existing?.id ?? null
         if (!existing) {
+          // mirror ก่อนสร้างแถว ด้วยเหตุผลเดียวกับ ensurePost — `p.picture` เพิ่งได้มาจาก Graph
+          // จึงยังไม่หมดอายุแน่นอน
+          const mirroredFileId = await mirrorPostThumbnail(p.picture)
           try {
             const created = await prisma.facebookPost.create({
               data: {
@@ -235,6 +283,8 @@ export async function backfillPagePosts(params: {
                 message: p.message,
                 permalink: p.permalink,
                 thumbnailUrl: p.picture,
+                mirroredFileId,
+                mirroredAt: mirroredFileId ? new Date() : null,
                 createdTime: p.createdTime,
                 mediaType: p.mediaType,
                 reactionCount: p.reactionCount,
@@ -603,7 +653,8 @@ export async function listCommentPosts(params: {
       },
       shop: { id: p.channel.shop.id, name: p.channel.shop.shopName },
       message: p.message,
-      thumbnailUrl: p.thumbnailUrl,
+      // สำเนาที่เราเก็บเองชนะ URL ของ Meta เสมอ — ห้ามส่ง p.thumbnailUrl ดิบออกไป (fbcdn หมดอายุ ~4 วัน)
+      thumbnailUrl: resolvePostThumbnail(p),
       permalink: p.permalink,
       lastCommentAt: p.lastCommentAt,
       // นับเฉพาะคอมเมนต์ "ที่ลูกค้าเขียน" ไม่รวมคำตอบของเพจเอง (user สั่ง 2026-08-04: "เวลามันนับ
@@ -667,12 +718,18 @@ export async function refreshPostStats(postId: string): Promise<void> {
     if (!auth) return
     const meta = await fetchPostMeta(post.externalPostId, auth.token)
     if (!meta) return
+    // เก็บตกโพสต์ที่ยังไม่มีสำเนา — `meta.picture` ที่เพิ่งได้มาคือ URL สดเสมอ แม้ค่าที่เก็บไว้ใน
+    // แถวจะหมดอายุไปแล้วก็ตาม จึงเป็นจังหวะเดียวที่ mirror ย้อนหลังได้โดยไม่ต้องยิง Graph เพิ่ม
+    // เช็ค `mirroredFileId` ก่อนเสมอ (idempotent — เปิดโพสต์เดิมซ้ำต้องไม่ mirror ซ้ำ)
+    const mirroredFileId = post.mirroredFileId ?? (await mirrorPostThumbnail(meta.picture))
     await prisma.facebookPost.update({
       where: { id: postId },
       data: {
         message: meta.message ?? post.message,
         permalink: meta.permalink ?? post.permalink,
         thumbnailUrl: meta.picture ?? post.thumbnailUrl,
+        mirroredFileId,
+        mirroredAt: post.mirroredFileId ? post.mirroredAt : mirroredFileId ? new Date() : null,
         mediaType: meta.mediaType,
         reactionCount: meta.reactionCount,
         fbCommentCount: meta.commentCount,
@@ -789,7 +846,8 @@ export async function getPostComments(params: {
       id: post.id,
       message: post.message,
       permalink: post.permalink,
-      thumbnailUrl: post.thumbnailUrl,
+      // เหตุผลเดียวกับ listPosts — หัวเธรดกับรูปใหญ่ในคอลัมน์ขวาต้องใช้สำเนาเดียวกัน
+      thumbnailUrl: resolvePostThumbnail(post),
       mediaType: post.mediaType,
       reactionCount: post.reactionCount,
       fbCommentCount: post.fbCommentCount,

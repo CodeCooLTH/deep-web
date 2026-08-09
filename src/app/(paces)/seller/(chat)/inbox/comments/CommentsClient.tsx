@@ -298,6 +298,21 @@ export default function CommentsClient({
   const beginBusy = listBusy.begin
   const [filterOpen, setFilterOpen] = useState(false)
   /**
+   * โพสต์ที่รูปปกโหลดไม่ขึ้น — ให้ตกไปใช้กล่องเทา+ไอคอนเดียวกับกรณี "ไม่มีรูป"
+   *
+   * ไม่ใช่การซ่อนปัญหา: ต้นเหตุจริง (URL ของ fbcdn หมดอายุ ~4 วัน) ปิดไปแล้วที่ชั้นข้อมูลด้วยการ
+   * mirror รูปเก็บเอง — ตัวนี้เป็นตาข่ายรับกรณีที่ยัง mirror ไม่ทัน/mirror ไม่สำเร็จ
+   *
+   * ทำไมต้องมี: กิ่ง `<img>` ไม่มีพื้นหลังของตัวเอง รูปที่โหลดไม่ขึ้นจึงกลายเป็น **กล่องขาวเปล่า**
+   * ที่มี badge เพจลอยอยู่มุมล่าง ซึ่งอ่านเหมือนหน้าจอพัง ต่างจากกล่องเทา+ไอคอนรูปภาพที่อ่านได้ว่า
+   * "โพสต์นี้ไม่มีรูป" — สองสถานะนี้ต่างกันแค่พื้นหลัง ผู้ใช้แยกไม่ออกว่าอันไหนคืออะไร
+   * (นี่คือสิ่งที่ทำให้ user รายงานว่า "เจอเรื่องรูป" 2026-08-09)
+   */
+  const [brokenThumbs, setBrokenThumbs] = useState<Set<string>>(new Set())
+  const markThumbBroken = useCallback((postId: string) => {
+    setBrokenThumbs((prev) => (prev.has(postId) ? prev : new Set(prev).add(postId)))
+  }, [])
+  /**
    * เดินนาฬิกาให้ตัวนับถอยหลังในแถวรายการขยับเอง (user สั่ง 2026-08-04)
    * ทุก 60 วินาทีพอ เพราะหน่วยเล็กสุดที่โชว์คือ "นาที" — ถี่กว่านั้นคือ re-render ฟรี ๆ
    * ค่าที่เก็บไม่ได้ถูกใช้ตรง ๆ มันมีไว้บังคับให้ component คำนวณเวลาที่เหลือใหม่เท่านั้น
@@ -1380,9 +1395,15 @@ export default function CommentsClient({
                   {/* รูปโพสต์ + ป้ายเพจมุมล่างขวา (user 2026-08-03 'ต้องมี icon page ติดไว้ด้วย
                       ว่าเป็นของเพจไหน') — pattern overlay เดียวกับ ChannelBadge บน avatar ในแท็บข้อความ */}
                   <span className="relative shrink-0">
-                    {p.thumbnailUrl ? (
+                    {p.thumbnailUrl && !brokenThumbs.has(p.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.thumbnailUrl} alt="" className="size-12 rounded-lg object-cover" />
+                      <img
+                        src={p.thumbnailUrl}
+                        alt=""
+                        className="size-12 rounded-lg object-cover"
+                        // โหลดไม่ขึ้น → ใช้กิ่งเดียวกับ "ไม่มีรูป" (ดูเหตุผลที่ brokenThumbs)
+                        onError={() => markThumbBroken(p.id)}
+                      />
                     ) : (
                       <span className="bg-default-100 text-default-700 flex size-12 items-center justify-center rounded-lg">
                         <Icon icon="photo" className="text-xl" />

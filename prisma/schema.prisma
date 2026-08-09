@@ -2837,12 +2837,16 @@ model FacebookPost {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  /// mirroredFileId/mirroredAt (feature 00035 Shop Page Builder, มติ user 2026-08-07 ข้อ 2):
-  /// สำเนารูปปกที่ mirror ลง storage ของเราแล้ว — เขียนครั้งแรกตอนร้านกด "เพิ่มลงหน้าร้าน" เท่านั้น
-  /// (ไม่ mirror ทุกโพสต์ที่ดึงมา — thumbnailUrl ด้านบนยังเป็น URL ของ Meta ตรง ๆ เสมอ ใช้แค่พรีวิว
-  /// ในคลังที่ยังไม่ถูกเพิ่ม ซึ่งหมดอายุได้แต่เป็นความเสี่ยงที่ยอมรับได้เพราะไม่ใช่หน้าสาธารณะถาวร)
-  /// NULL = โพสต์นี้ไม่เคยถูกเพิ่มลงหน้าร้านของร้านไหนเลย — ทน "เพิ่ม-เอาออก-เพิ่มใหม่" โดยไม่ mirror
-  /// ซ้ำ (เช็ค NULL ก่อนเสมอ)
+  /// mirroredFileId/mirroredAt: **สำเนารูปปกโพสต์ที่เก็บใน storage ของเราเอง** — ความหมายเดียว
+  /// ทั้งระบบ ไม่ผูกกับฟีเจอร์ใดฟีเจอร์หนึ่ง (Hard Rule 16)
+  /// ผู้เขียน 2 ราย เช็ค NULL ก่อนเสมอ ไม่ mirror ซ้ำ:
+  ///   - shop-page-layout.service — ตอนร้านกด "เพิ่มลงหน้าร้าน" (feature 00035, มติ user 2026-08-07 ข้อ 2)
+  ///   - page-comment.service — ตอน ingest โพสต์ที่มีคอมเมนต์ + เก็บตกใน refreshPostStats (2026-08-09)
+  /// 🛑 NULL **ไม่ได้แปลว่า** "ไม่เคยถูกเพิ่มลงหน้าร้าน" อีกต่อไป (เคยเขียนไว้แบบนั้นตอน 00035 ซึ่ง
+  /// จริงเฉพาะตอนที่มีผู้เขียนรายเดียว) — แปลว่า "ยังไม่มีสำเนา" เท่านั้น ห้ามใช้เป็นสัญญาณของ
+  /// สถานะหน้าร้าน ให้ถามจาก ShopPageBlock แทน
+  /// 🛑 thumbnailUrl ด้านบนคือ URL ของ fbcdn ซึ่ง **หมดอายุ ~4 วัน** — ห้ามอ่านไปแสดงผลตรง ๆ
+  /// ให้ resolve ผ่าน mirroredFileId ก่อนเสมอ (user เจอรูปหายในรายการ /inbox/comments 2026-08-09)
   /// เก็บเป็น "fileId ของ storage" ไม่ใช่ URL ดิบ — pattern เดียวกับ ChatMessage.imageUrl; ต้องเรียก
   /// mirrorRemoteImage() ตัวเดียวกับ feature 00018 (src/services/channel-chat.service.ts) ที่มี
   /// allow-list host ของ Meta CDN + SSRF guard + streaming size cap อยู่แล้ว — ห้ามเขียน mirror
