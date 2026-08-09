@@ -19,8 +19,12 @@
  *
  * ประวัติหน้าแรกโหลดพร้อมหน้า ไม่มี spinner (Operate mode — UX-Design-Spec §1.5) — ดึงตรงผ่าน
  * prisma มิเรอร์ query เดียวกับ src/app/api/shops/comment-reply/logs/route.ts (ไม่ import ตรง
- * เพราะไฟล์นั้นเป็น route handler ไม่ใช่ service function — "โหลดเพิ่ม" ฝั่ง client ยิง endpoint
- * นั้นต่อสำหรับหน้าถัดไป)
+ * เพราะไฟล์นั้นเป็น route handler ไม่ใช่ service function — เปลี่ยนหน้า/ตัวกรอง/จำนวนต่อหน้า
+ * ฝั่ง client ยิง endpoint นั้นต่อสำหรับหน้าถัดไป)
+ *
+ * ฉบับแก้ครั้งที่ 2 (2026-08-09): ประวัติเปลี่ยนจากปุ่ม "โหลดเพิ่ม" (accumulate) เป็น
+ * `DataTable`+`TablePagination` (manual pagination) ตาม UX-Design-Spec §"ฉบับแก้ครั้งที่ 2" —
+ * ต้องมี `total` ตั้งแต่ SSR (count() คู่กับ findMany แทนการดึงเกิน 1 แถวแบบเดิม)
  */
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
@@ -33,7 +37,8 @@ import CommentReplyClient, { type CommentReplyChannel, type CommentReplyLogRow }
 
 export const metadata: Metadata = { title: 'ตอบกลับคอมเมนต์' }
 
-const LOGS_PAGE_SIZE = 20
+/** ต้องตรงกับ DEFAULT_PAGE_SIZE ใน CommentReplyClient.tsx (ตัวเลือกจำนวนต่อหน้าเริ่มต้นของตาราง) */
+const LOGS_PAGE_SIZE = 10
 
 /**
  * ข้อความไทยของ skipReason — มิเรอร์ SKIP_REASON_TEXT ใน
@@ -115,26 +120,29 @@ export default async function CommentReplySettingsPage() {
     )
   }
 
-  // ประวัติหน้าแรก — ดึงเกินมา 1 แถวเพื่อรู้ hasMore โดยไม่ต้อง count() แยก (มิเรอร์ logs/route.ts)
-  const logRows = await prisma.commentReplyLog.findMany({
-    where: { channel: { shopId: activeCtx.shopId } },
-    orderBy: { createdAt: 'desc' },
-    take: LOGS_PAGE_SIZE + 1,
-    select: {
-      id: true,
-      createdAt: true,
-      trigger: true,
-      publicReplyStatus: true,
-      privateReplyStatus: true,
-      skipReason: true,
-      conversationId: true,
-      comment: { select: { fromName: true } },
-      post: { select: { message: true } },
-    },
-  })
-  const hasMoreLogs = logRows.length > LOGS_PAGE_SIZE
-  const logPage = hasMoreLogs ? logRows.slice(0, LOGS_PAGE_SIZE) : logRows
-  const initialLogs: CommentReplyLogRow[] = logPage.map((r) => ({
+  // ประวัติหน้าแรก — total มาจาก count() คู่กัน (ฉบับแก้ครั้งที่ 2: TablePagination ต้องรู้จำนวนรวม
+  // ไม่ใช่แค่ "มีต่อไหม" แบบเดิม) มิเรอร์ where เดียวกับ logs/route.ts
+  const logsWhere = { channel: { shopId: activeCtx.shopId } }
+  const [logRows, logsTotal] = await Promise.all([
+    prisma.commentReplyLog.findMany({
+      where: logsWhere,
+      orderBy: { createdAt: 'desc' },
+      take: LOGS_PAGE_SIZE,
+      select: {
+        id: true,
+        createdAt: true,
+        trigger: true,
+        publicReplyStatus: true,
+        privateReplyStatus: true,
+        skipReason: true,
+        conversationId: true,
+        comment: { select: { fromName: true } },
+        post: { select: { message: true } },
+      },
+    }),
+    prisma.commentReplyLog.count({ where: logsWhere }),
+  ])
+  const initialLogs: CommentReplyLogRow[] = logRows.map((r) => ({
     id: r.id,
     createdAt: r.createdAt.toISOString(),
     commenterName: r.comment?.fromName ?? null,
@@ -152,7 +160,7 @@ export default async function CommentReplySettingsPage() {
       <CommentReplyClient
         channels={messengerChannels}
         instagramChannel={instagramChannel}
-        initialLogs={{ logs: initialLogs, hasMore: hasMoreLogs }}
+        initialLogs={{ logs: initialLogs, total: logsTotal }}
       />
     </>
   )

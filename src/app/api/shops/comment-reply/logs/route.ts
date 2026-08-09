@@ -92,34 +92,36 @@ export async function GET(request: NextRequest) {
     if (owned) shopChannelIdFilter = owned.id;
   }
 
-  // ดึงเกินมา 1 แถวเพื่อรู้ hasMore โดยไม่ต้อง count() แยก query
-  const rows = await prisma.commentReplyLog.findMany({
-    where: {
-      channel: { shopId: ctx.shopId },
-      ...(shopChannelIdFilter ? { shopChannelId: shopChannelIdFilter } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    skip,
-    take: take + 1,
-    select: {
-      id: true,
-      createdAt: true,
-      trigger: true,
-      publicReplyStatus: true,
-      privateReplyStatus: true,
-      skipReason: true,
-      conversationId: true,
-      comment: { select: { fromName: true } },
-      post: { select: { message: true } },
-    },
-  });
-
-  const hasMore = rows.length > take;
-  const page = hasMore ? rows.slice(0, take) : rows;
+  // UX-Design-Spec ฉบับแก้ครั้งที่ 2 (2026-08-09): เปลี่ยนจาก "โหลดเพิ่ม" (hasMore, ดึงเกิน 1
+  // แถว) เป็น TablePagination เลขหน้าจริง — ต้องรู้จำนวนรวมทั้งหมด ไม่ใช่แค่ "มีต่อไหม"
+  const where = {
+    channel: { shopId: ctx.shopId },
+    ...(shopChannelIdFilter ? { shopChannelId: shopChannelIdFilter } : {}),
+  };
+  const [rows, total] = await Promise.all([
+    prisma.commentReplyLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+      select: {
+        id: true,
+        createdAt: true,
+        trigger: true,
+        publicReplyStatus: true,
+        privateReplyStatus: true,
+        skipReason: true,
+        conversationId: true,
+        comment: { select: { fromName: true } },
+        post: { select: { message: true } },
+      },
+    }),
+    prisma.commentReplyLog.count({ where }),
+  ]);
 
   return NextResponse.json(
     {
-      logs: page.map((r) => ({
+      logs: rows.map((r) => ({
         id: r.id,
         createdAt: r.createdAt.toISOString(),
         commenterName: r.comment?.fromName ?? null,
@@ -130,7 +132,7 @@ export async function GET(request: NextRequest) {
         skipReasonText: r.skipReason ? (SKIP_REASON_TEXT[r.skipReason] ?? r.skipReason) : null,
         conversationId: r.conversationId,
       })),
-      hasMore,
+      total,
     },
     { headers: NO_STORE_HEADERS },
   );

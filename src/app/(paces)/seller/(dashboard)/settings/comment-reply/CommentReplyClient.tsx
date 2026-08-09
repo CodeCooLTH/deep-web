@@ -15,9 +15,6 @@
  *   src/app/(paces)/seller/(dashboard)/settings/channels/ChannelsClient.tsx:232-296
  * Base (ประวัติการ์ดมือถือ `flex items-center gap-3 px-4 py-3.5`):
  *   src/app/(paces)/seller/(dashboard)/settings/auto-reply/AutoReplyListing.tsx:432-467
- * Base (ตารางประวัติ tablet/desktop `.table-wrapper` + `.table`):
- *   docs/system/ui-guideline/paces-component-reference.md §5 (ไม่ใช้ TanStack DataTable — read-only
- *   cursor list)
  * Base (ตัวกรองเพจในประวัติ): src/components/safepay/FilterDropdown.tsx
  * Base (empty state): src/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState.tsx
  * Base (avatar เพจ + provider overlay ขนาด lg): `PageAvatar` (inbox/components/PageFilterDropdown.tsx,
@@ -29,12 +26,33 @@
  * PATCH ยิงทีละเพจ (API §4.2 รับ shopChannelId เดี่ยว) แก้เพจ A ต้องไม่กระทบเพจ B
  *
  * toast ใช้ pacesToast เท่านั้น (Hard Rule 9)
+ *
+ * ===== ฉบับแก้ครั้งที่ 2 — 2026-08-09 (การ์ดประวัติ) =====
+ * user ทักหลังขึ้น prod ว่าหน้านี้ไม่เหมือนหน้าพี่น้อง `/settings/auto-reply` เลย — ต้นเหตุคือ
+ * สเปกฉบับแรกเลือก "ไม่ใช้ TanStack DataTable" (ดู UX-Design-Spec.md §"ฉบับแก้ครั้งที่ 2") ยกเครื่อง
+ * การ์ดประวัติใหม่ทั้งหมดให้ยกโครงจาก AutoReplyListing.tsx ตรง ๆ:
+ * Base (toolbar ใน card-header + page-size ChoiceSelect + useReactTable + DataTable + mobileCard
+ *   ทั้งแถวกดได้ + card-footer TablePagination): AutoReplyListing.tsx:376-491 (บรรทัดอ้างอิงเต็มอยู่
+ *   ใน Theme Source Mapping ของสเปก) — ตัดช่องค้นหา+ปุ่มสร้างออก (หน้านี้ไม่มี action สร้าง,
+ *   ค้นได้แค่หน้าที่โหลดมาจะโกหกผู้ใช้ว่าค้นได้ทั้งประวัติ)
+ * Base (โมดัลรายละเอียด): src/lib/paces-swal.ts (`pacesAlert`, html mode)
+ *
+ * 🛑 ความปลอดภัย: commenterName/postMessage เป็นข้อความจากผู้ใช้ Facebook ภายนอก ต้อง escape
+ * ก่อน interpolate เข้า pacesAlert({ html }) เสมอ (render ผ่าน innerHTML) — ใช้ escapeHtml() จาก
+ * src/lib/html-escape.ts (helper กลางที่มีอยู่แล้ว ใช้ร่วมกับ DowngradeButton.tsx/CancelPackageButton.tsx
+ * — ไม่สร้างใหม่ซ้ำ) ป้าย/label ที่เขียน static เองปลอดภัยอยู่แล้วไม่ต้อง escape
  */
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { ColumnDef, createColumnHelper, getCoreRowModel, PaginationState, useReactTable } from '@tanstack/react-table'
+import DataTable from '@/components/table/DataTable'
+import TablePagination from '@/components/table/TablePagination'
+import ChoiceSelect from '@/components/wrappers/ChoiceSelect'
 import Icon from '@/components/wrappers/Icon'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
+import { pacesAlert } from '@/lib/paces-swal'
+import { escapeHtml } from '@/lib/html-escape'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 import { PageAvatar } from '@/app/(paces)/seller/(chat)/inbox/components/PageFilterDropdown'
@@ -42,7 +60,9 @@ import SellerEmptyState from '../../_shared/SellerEmptyState'
 
 /** ต้องตรงกับ Valibot CommentReplyConfigSchema (src/lib/validations.ts) — maxLength(1000) ทั้งคู่ */
 const REPLY_MAX = 1000
-const LOGS_PAGE_SIZE = 20
+/** ต้องตรงกับ LOGS_PAGE_SIZE ใน page.tsx (RSC หน้าแรกดึงมาเท่ากับ default นี้) */
+const DEFAULT_PAGE_SIZE = 10
+const PAGE_SIZE_OPTIONS = [5, 10, 15, 20].map((n) => ({ value: String(n), label: String(n) }))
 
 export type CommentReplyChannel = {
   shopChannelId: string
@@ -69,7 +89,7 @@ export type CommentReplyLogRow = {
 }
 
 type InstagramChannel = { name: string; avatarUrl: string | null }
-type LogsPage = { logs: CommentReplyLogRow[]; hasMore: boolean }
+type LogsPage = { logs: CommentReplyLogRow[]; total: number }
 
 type Props = {
   channels: CommentReplyChannel[]
@@ -368,15 +388,20 @@ function ReplyStatusBadge({
   conversationId,
   skipReasonText,
   revealSkipReason = false,
+  hideLink = false,
 }: {
   kind: 'public' | 'private'
   status: string | null
   conversationId: string | null
   skipReasonText: string | null
-  /** `title="..."` ไม่ทำงานบนทัชสกรีน (ไม่มี hover) — LogRowMobile ส่ง true เพื่อ render เหตุผลที่
-      "ข้าม" เป็นข้อความเล็กมองเห็นได้จริงใต้ badge แทน ส่วนเดสก์ท็อป (LogRowDesktop) มีเมาส์ hover
-      ได้อยู่แล้ว จึงปล่อย default false คง title ไว้เหมือนเดิม ไม่ต้องเปลืองพื้นที่ตาราง */
+  /** `title="..."` ไม่ทำงานบนทัชสกรีน (ไม่มี hover) — mobileCard ส่ง true เพื่อ render เหตุผลที่
+      "ข้าม" เป็นข้อความเล็กมองเห็นได้จริงใต้ badge แทน ส่วนตาราง desktop มีเมาส์ hover ได้อยู่แล้ว
+      จึงปล่อย default false คง title ไว้เหมือนเดิม ไม่ต้องเปลืองพื้นที่ตาราง */
   revealSkipReason?: boolean
+  /** ฉบับแก้ครั้งที่ 2: mobileCard ทั้งแถวเป็น <button> แล้ว (UX-Design-Spec §"สิ่งที่เปลี่ยน" #4) —
+      <a> (Link) ซ้อนใน <button> เป็น HTML ที่ผิดกฎ (interactive ใน interactive) ต้องซ่อนลิงก์นี้
+      ตอนอยู่ในการ์ดมือถือ — ลิงก์ "เปิดห้อง" ยังกดได้จากโมดัลรายละเอียดแทน (buildDetailHtml) */
+  hideLink?: boolean
 }) {
   if (!status) return <span className="text-default-300 text-xs">—</span>
   const meta = REPLY_STATUS_META[status] ?? REPLY_STATUS_META.SKIPPED
@@ -387,7 +412,7 @@ function ReplyStatusBadge({
         <span className={`badge text-2xs ${meta.className}`} title={status === 'SKIPPED' ? (skipReasonText ?? undefined) : undefined}>
           {meta.label}
         </span>
-        {kind === 'private' && status === 'SENT' && conversationId && (
+        {kind === 'private' && status === 'SENT' && conversationId && !hideLink && (
           <Link href={`/inbox/${conversationId}`} className="text-primary text-xs font-medium hover:underline">
             เปิดห้อง
           </Link>
@@ -398,64 +423,85 @@ function ReplyStatusBadge({
   )
 }
 
-function LogRowMobile({ log }: { log: CommentReplyLogRow }) {
-  return (
-    <div className="px-4 py-3.5">
-      <p className="text-sm">
-        <span className="text-default-800 font-medium">{formatDateTimeTH(log.createdAt)}</span>
-        <span className="text-default-400"> · </span>
-        <span className="text-default-600">{log.commenterName ?? 'ไม่ทราบชื่อ'}</span>
-      </p>
-      <div className="mt-1.5 flex flex-wrap items-start gap-3">
-        <ReplyStatusBadge
-          kind="public"
-          status={log.publicReplyStatus}
-          conversationId={null}
-          skipReasonText={log.skipReasonText}
-          revealSkipReason
-        />
-        <ReplyStatusBadge
-          kind="private"
-          status={log.privateReplyStatus}
-          conversationId={log.conversationId}
-          skipReasonText={log.skipReasonText}
-          revealSkipReason
-        />
+/**
+ * โมดัล "ดูรายละเอียด" — pacesAlert (Swal html mode), UX-Design-Spec §"สิ่งที่เปลี่ยน" #5
+ * 🛑 commenterName/postMessage มาจากผู้ใช้ Facebook ภายนอก — escapeHtml ก่อน interpolate เสมอ
+ * (pacesAlert set เนื้อหาผ่าน innerHTML) ป้าย/label ที่เขียน static เองไม่ต้อง escape
+ */
+function buildDetailHtml(log: CommentReplyLogRow): string {
+  const commenter = escapeHtml(log.commenterName ?? 'ไม่ทราบชื่อ')
+  const post = escapeHtml(log.postMessage ?? '(ไม่มีข้อความ)')
+  const time = escapeHtml(formatDateTimeTH(log.createdAt))
+  return `
+    <div class="text-start space-y-3">
+      <div>
+        <p class="text-default-400 text-xs mb-0.5">เวลา</p>
+        <p class="text-default-800 text-sm font-medium">${time}</p>
+      </div>
+      <div>
+        <p class="text-default-400 text-xs mb-0.5">ผู้คอมเมนต์</p>
+        <p class="text-default-800 text-sm font-medium">${commenter}</p>
+      </div>
+      <div>
+        <p class="text-default-400 text-xs mb-0.5">โพสต์</p>
+        <p class="text-default-800 text-sm">${post}</p>
+      </div>
+      <div class="border-default-300 border-t border-dashed pt-3">
+        <p class="text-default-400 mb-1 text-xs">ตอบใต้คอมเมนต์</p>
+        ${statusBlockHtml('public', log)}
+      </div>
+      <div>
+        <p class="text-default-400 mb-1 text-xs">ทักแชท</p>
+        ${statusBlockHtml('private', log)}
       </div>
     </div>
-  )
+  `
 }
 
-function LogRowDesktop({ log }: { log: CommentReplyLogRow }) {
-  return (
-    <tr>
-      <td className="text-default-500 text-sm whitespace-nowrap">{formatDateTimeTH(log.createdAt)}</td>
-      <td className="text-default-800 text-sm">
-        {log.commenterName ?? <span className="text-default-400">ไม่ทราบชื่อ</span>}
-      </td>
-      <td className="text-default-600 hidden max-w-64 truncate text-sm xl:table-cell" title={log.postMessage ?? undefined}>
-        {log.postMessage ?? <span className="text-default-400">(ไม่มีข้อความ)</span>}
-      </td>
-      <td>
-        <ReplyStatusBadge kind="public" status={log.publicReplyStatus} conversationId={null} skipReasonText={log.skipReasonText} />
-      </td>
-      <td>
-        <ReplyStatusBadge
-          kind="private"
-          status={log.privateReplyStatus}
-          conversationId={log.conversationId}
-          skipReasonText={log.skipReasonText}
-        />
-      </td>
-    </tr>
-  )
+/** เหตุผลข้ามแบบเต็ม (ไม่ตัดด้วย title เหมือนตาราง) + ลิงก์ "เปิดห้อง" ที่หายไปจาก mobileCard
+    (ถูกซ่อนเพราะ hideLink — ผู้ใช้ยังกดเปิดห้องได้จากตรงนี้) */
+function statusBlockHtml(kind: 'public' | 'private', log: CommentReplyLogRow): string {
+  const status = kind === 'public' ? log.publicReplyStatus : log.privateReplyStatus
+  if (!status) return `<span class="text-default-300 text-xs">—</span>`
+  const meta = REPLY_STATUS_META[status] ?? REPLY_STATUS_META.SKIPPED
+  const linkHtml =
+    kind === 'private' && status === 'SENT' && log.conversationId
+      ? ` <a href="/inbox/${encodeURIComponent(log.conversationId)}" class="text-primary text-xs font-medium hover:underline">เปิดห้อง</a>`
+      : ''
+  const reasonHtml =
+    status === 'SKIPPED' && log.skipReasonText
+      ? `<p class="text-default-500 mt-1 text-xs">${escapeHtml(log.skipReasonText)}</p>`
+      : ''
+  return `<span class="badge text-2xs ${meta.className}">${meta.label}</span>${linkHtml}${reasonHtml}`
 }
 
+const logColumnHelper = createColumnHelper<CommentReplyLogRow>()
+
+function openDetailModal(log: CommentReplyLogRow) {
+  void pacesAlert({
+    title: 'รายละเอียดการตอบกลับ',
+    html: buildDetailHtml(log),
+    confirmButtonText: 'ปิด',
+  })
+}
+
+/**
+ * CommentReplyHistoryCard — ฉบับแก้ครั้งที่ 2 (2026-08-09): ยกโครงจาก AutoReplyListing.tsx
+ * (DataTable + useReactTable manual pagination + TablePagination) แทน `<table>`/"โหลดเพิ่ม" เดิม
+ *
+ * manual pagination เพราะข้อมูลมาจาก server เป็นหน้า ๆ (ไม่โหลดทั้งชุดเข้า memory) — `data` ของ
+ * table คือ "หน้าปัจจุบัน" เท่านั้น ตัด getSortedRowModel/getFilteredRowModel/getPaginationRowModel
+ * ออกหมด (log เรียงตามเวลาเสมอ ไม่มีมิติให้ sort, ไม่มีช่องค้นหา — เหตุผลใน header comment บนสุด)
+ */
 function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentReplyChannel[]; initialLogs: LogsPage }) {
   const [logs, setLogs] = useState<CommentReplyLogRow[]>(initialLogs.logs)
-  const [hasMore, setHasMore] = useState(initialLogs.hasMore)
+  const [total, setTotal] = useState(initialLogs.total)
   const [filterChannelId, setFilterChannelId] = useState('')
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: DEFAULT_PAGE_SIZE })
   const [loading, setLoading] = useState(false)
+  // หน้าแรกมากับ RSC อยู่แล้ว (initialLogs) — effect ด้านล่างต้อง fetch เฉพาะตอน filter/page
+  // เปลี่ยน "หลัง" mount ครั้งแรก ไม่งั้นยิงซ้ำโหลดหน้าเดิมทันทีที่ component ขึ้น
+  const isFirstRender = useRef(true)
 
   const showFilter = channels.length > 1
   const pageFilterOptions = [
@@ -463,59 +509,169 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
     ...channels.map((c) => ({ value: c.shopChannelId, label: `เพจ: ${c.name}` })),
   ]
 
-  async function fetchLogsPage(channelId: string, cursor: number): Promise<LogsPage> {
-    const params = new URLSearchParams({ cursor: String(cursor), take: String(LOGS_PAGE_SIZE) })
+  async function fetchLogsPage(channelId: string, pageIndex: number, pageSize: number): Promise<LogsPage> {
+    // cursor = offset ดิบ; pageIndex*pageSize คือ offset ของหน้าที่ต้องการ (API.md §4.3 ไม่เปลี่ยน)
+    const params = new URLSearchParams({ cursor: String(pageIndex * pageSize), take: String(pageSize) })
     if (channelId) params.set('shopChannelId', channelId)
     const res = await fetch(`/api/shops/comment-reply/logs?${params.toString()}`, { cache: 'no-store' })
     if (!res.ok) throw new Error('โหลดประวัติไม่สำเร็จ')
     return res.json()
   }
 
-  async function handleFilterChange(channelId: string) {
-    setFilterChannelId(channelId)
-    setLoading(true)
-    try {
-      // เปลี่ยนตัวกรอง = cursor เป็น offset ดิบ ไม่รู้จักการกรอง — ต้องเริ่มนับใหม่จาก 0 เสมอ
-      const data = await fetchLogsPage(channelId, 0)
-      setLogs(data.logs)
-      setHasMore(data.hasMore)
-    } catch {
-      pacesToast.error('โหลดประวัติไม่สำเร็จ ลองใหม่อีกครั้ง')
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
     }
+    let cancelled = false
+    setLoading(true)
+    fetchLogsPage(filterChannelId, pagination.pageIndex, pagination.pageSize)
+      .then((data) => {
+        if (cancelled) return
+        setLogs(data.logs)
+        setTotal(data.total)
+      })
+      .catch(() => {
+        // เปลี่ยนหน้าแล้ว fetch ล้ม → toast error + คงหน้าเดิมไว้ (logs/total ไม่แตะ) —
+        // UX-Design-Spec §"Edge states" ฉบับแก้ครั้งที่ 2
+        if (!cancelled) pacesToast.error('โหลดประวัติไม่สำเร็จ ลองใหม่อีกครั้ง')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterChannelId, pagination.pageIndex, pagination.pageSize])
+
+  // เปลี่ยน filter หรือ page-size → reset pageIndex=0 เสมอ (Edge states)
+  function handleFilterChange(channelId: string) {
+    setFilterChannelId(channelId)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  function handlePageSizeChange(size: number) {
+    setPagination({ pageIndex: 0, pageSize: size })
   }
 
-  async function handleLoadMore() {
-    setLoading(true)
-    try {
-      const data = await fetchLogsPage(filterChannelId, logs.length)
-      setLogs((prev) => [...prev, ...data.logs])
-      setHasMore(data.hasMore)
-    } catch {
-      pacesToast.error('โหลดประวัติไม่สำเร็จ ลองใหม่อีกครั้ง')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const columns = useMemo<ColumnDef<CommentReplyLogRow, any>[]>(
+    () => [
+      logColumnHelper.accessor('createdAt', {
+        header: 'เวลา',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-default-500 text-sm whitespace-nowrap">{formatDateTimeTH(row.original.createdAt)}</span>
+        ),
+      }),
+      logColumnHelper.accessor('commenterName', {
+        header: 'ผู้คอมเมนต์',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-default-800 text-sm">
+            {row.original.commenterName ?? <span className="text-default-400">ไม่ทราบชื่อ</span>}
+          </span>
+        ),
+      }),
+      logColumnHelper.accessor('postMessage', {
+        header: 'โพสต์',
+        enableSorting: false,
+        meta: { headerClassName: 'hidden xl:table-cell', cellClassName: 'hidden xl:table-cell' },
+        cell: ({ row }) => (
+          <span className="text-default-600 block max-w-64 truncate text-sm" title={row.original.postMessage ?? undefined}>
+            {row.original.postMessage ?? <span className="text-default-400">(ไม่มีข้อความ)</span>}
+          </span>
+        ),
+      }),
+      logColumnHelper.display({
+        id: 'publicStatus',
+        header: 'ตอบใต้คอมเมนต์',
+        cell: ({ row }) => (
+          <ReplyStatusBadge kind="public" status={row.original.publicReplyStatus} conversationId={null} skipReasonText={row.original.skipReasonText} />
+        ),
+      }),
+      logColumnHelper.display({
+        id: 'privateStatus',
+        header: 'ทักแชท',
+        cell: ({ row }) => (
+          <ReplyStatusBadge
+            kind="private"
+            status={row.original.privateReplyStatus}
+            conversationId={row.original.conversationId}
+            skipReasonText={row.original.skipReasonText}
+          />
+        ),
+      }),
+      logColumnHelper.display({
+        id: 'actions',
+        header: 'รายละเอียด',
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => openDetailModal(row.original)}
+              className="btn btn-icon btn-sm border-default-300 text-default-800 hover:border-default-400 border"
+              aria-label="ดูรายละเอียด"
+            >
+              <Icon icon="info-circle" className="text-base" aria-hidden="true" />
+            </button>
+          </div>
+        ),
+      }),
+    ],
+    [],
+  )
+
+  const table = useReactTable({
+    data: logs,
+    columns,
+    state: { pagination },
+    manualPagination: true,
+    pageCount: Math.max(1, Math.ceil(total / pagination.pageSize)),
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  const pageIndex = table.getState().pagination.pageIndex
+  const pageSize = table.getState().pagination.pageSize
+  const start = total === 0 ? 0 : pageIndex * pageSize + 1
+  const end = Math.min(start + pageSize - 1, total)
+
+  // Edge states: "0 log → ซ่อน toolbar+pagination ทั้งคู่" — หมายถึงร้านนี้ไม่เคยมีประวัติเลย
+  // (ไม่ใช่แค่ตัวกรองปัจจุบันว่าง) ตัดสินจาก total ตอนไม่ได้กรอง ไม่งั้นกรองแล้วว่างจะซ่อน
+  // FilterDropdown ไปด้วย ผู้ใช้สลับกลับ "ทุกเพจ" ไม่ได้
+  const isTrulyEmpty = total === 0 && filterChannelId === ''
 
   return (
     <div className="card">
-      <div className="card-header flex items-center justify-between gap-3">
+      <div className="card-header flex flex-wrap items-center justify-between gap-3">
         <h5 className="card-title">ประวัติการตอบอัตโนมัติ</h5>
-        {showFilter && (
-          <FilterDropdown
-            icon="filter"
-            value={filterChannelId}
-            options={pageFilterOptions}
-            onChange={handleFilterChange}
-            resetValue=""
-            align="right"
-          />
+        {!isTrulyEmpty && (
+          <div className="flex items-center gap-2.5">
+            {showFilter && (
+              <FilterDropdown
+                icon="filter"
+                value={filterChannelId}
+                options={pageFilterOptions}
+                onChange={handleFilterChange}
+                resetValue=""
+                align="right"
+              />
+            )}
+            {/* hidden lg:block — เหมือนพี่น้อง AutoReplyListing.tsx (จำนวนต่อหน้าไม่ใช่ control หลักบนมือถือ) */}
+            <div className="hidden w-20 lg:block">
+              <ChoiceSelect
+                options={PAGE_SIZE_OPTIONS}
+                value={String(pageSize)}
+                search={false}
+                onChange={(v) => handlePageSizeChange(Number(v))}
+                ariaLabel="จำนวนต่อหน้า"
+              />
+            </div>
+          </div>
         )}
       </div>
 
-      {logs.length === 0 ? (
+      {logs.length === 0 && !loading ? (
         <div className="card-body">
           <SellerEmptyState
             compact
@@ -525,46 +681,70 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
           />
         </div>
       ) : (
-        <>
-          {/* มือถือ (<768px) — การ์ดแถวละรายการ */}
-          <div className="divide-default-200 divide-y md:hidden">
-            {logs.map((log) => (
-              <LogRowMobile key={log.id} log={log} />
-            ))}
-          </div>
-          {/* tablet/desktop (>=768px) — table จริง; คอลัมน์ "โพสต์" กลับมาที่ >=1280px */}
-          <div className="table-wrapper hidden md:block">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>เวลา</th>
-                  <th>ผู้คอมเมนต์</th>
-                  <th className="hidden xl:table-cell">โพสต์</th>
-                  <th>ตอบใต้คอมเมนต์</th>
-                  <th>ทักแชท</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <LogRowDesktop key={log.id} log={log} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+        // dim ตารางระหว่างโหลดหน้าใหม่ (Edge states) — ไม่ล้างข้อมูลเดิมทิ้งระหว่างรอ
+        <div className={loading ? 'pointer-events-none opacity-50' : undefined}>
+          <DataTable<CommentReplyLogRow>
+            table={table}
+            emptyMessage="ไม่พบประวัติของเพจนี้"
+            mobileCard={(row) => {
+              const log = row.original
+              return (
+                <button
+                  type="button"
+                  onClick={() => openDetailModal(log)}
+                  className="hover:bg-default-50 flex w-full items-center gap-3 px-4 py-3.5 text-start"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm">
+                      <span className="text-default-800 font-medium">{formatDateTimeTH(log.createdAt)}</span>
+                      <span className="text-default-400"> · </span>
+                      <span className="text-default-600">{log.commenterName ?? 'ไม่ทราบชื่อ'}</span>
+                    </p>
+                    {/* postMessage null → ไม่โชว์บรรทัดนี้เลย (พื้นที่จำกัด อย่ากินที่ด้วยข้อความว่าง) */}
+                    {log.postMessage && <p className="text-default-500 mt-0.5 truncate text-xs">{log.postMessage}</p>}
+                    <div className="mt-1.5 flex flex-wrap items-start gap-3">
+                      <ReplyStatusBadge
+                        kind="public"
+                        status={log.publicReplyStatus}
+                        conversationId={null}
+                        skipReasonText={log.skipReasonText}
+                        revealSkipReason
+                        hideLink
+                      />
+                      <ReplyStatusBadge
+                        kind="private"
+                        status={log.privateReplyStatus}
+                        conversationId={log.conversationId}
+                        skipReasonText={log.skipReasonText}
+                        revealSkipReason
+                        hideLink
+                      />
+                    </div>
+                  </div>
+                  <Icon icon="chevron-right" className="text-default-300 shrink-0 text-lg" aria-hidden="true" />
+                </button>
+              )
+            }}
+          />
+        </div>
       )}
 
-      {hasMore && (
-        <div className="card-footer flex justify-center">
-          <button
-            type="button"
-            onClick={handleLoadMore}
-            disabled={loading}
-            className="btn btn-sm bg-light text-default-700 hover:bg-light-hover inline-flex items-center gap-1.5 disabled:opacity-60"
-          >
-            {loading && <Icon icon="loader-2" className="animate-spin text-base" aria-hidden="true" />}
-            โหลดเพิ่ม
-          </button>
+      {logs.length > 0 && (
+        <div className="card-footer">
+          <TablePagination
+            totalItems={total}
+            start={start}
+            end={end}
+            itemsName="รายการ"
+            showInfo
+            previousPage={table.previousPage}
+            canPreviousPage={table.getCanPreviousPage()}
+            pageCount={table.getPageCount()}
+            pageIndex={pageIndex}
+            setPageIndex={table.setPageIndex}
+            nextPage={table.nextPage}
+            canNextPage={table.getCanNextPage()}
+          />
         </div>
       )}
     </div>

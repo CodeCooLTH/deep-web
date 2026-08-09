@@ -150,7 +150,7 @@ serverless เดิมของระบบ SafePay/Deep ผู้บริโ�
 | `logs[].privateReplyStatus` | `string \| null` | เหมือนกัน |
 | `logs[].skipReasonText` | `string \| null` | ข้อความไทยที่แปลแล้ว (ไม่ใช่รหัสดิบ — ดู DATABASE.md §3.4) |
 | `logs[].conversationId` | `string \| null` | ใช้สร้างลิงก์ "เปิดห้อง" เมื่อ `privateReplyStatus='SENT'` |
-| `hasMore` | `boolean` | ยังมีหน้าถัดไปไหม |
+| `total` | `int` | จำนวนรายการทั้งหมดที่ตรงเงื่อนไข (ไม่นับเฉพาะหน้านี้) — ใช้คำนวณจำนวนหน้าให้ `TablePagination` (ฉบับแก้ครั้งที่ 2 — 2026-08-09: แทนที่ `hasMore` เดิม เพราะหน้าเปลี่ยนจาก "โหลดเพิ่ม" เป็นเลขหน้าจริง) |
 
 **Response — Error**
 
@@ -176,7 +176,7 @@ serverless เดิมของระบบ SafePay/Deep ผู้บริโ�
       "conversationId": "conv-88a1..."
     }
   ],
-  "hasMore": true
+  "total": 42
 }
 ```
 
