@@ -107,10 +107,12 @@ export interface SalesSeries {
   last14Unconfirmed?: number[]
   /** label ของ 14 วันล่าสุด — "24 ก.ค." เมื่อขึ้นเดือนใหม่/ตัวแรก, "25" สำหรับวันถัดไปในเดือนเดียวกัน */
   last14Labels?: string[]
-  /* ── ค่าใช้จ่าย (feature 00016) — มีเฉพาะเมื่อ caller ส่ง includeFinance=true คือผ่าน gate สิทธิ์แล้ว
-        undefined ทั้งชุด = ไม่มีสิทธิ์ดู UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ────────────────────── */
-  /** ค่าใช้จ่ายที่บันทึกต่อ bucket (บาท) */
-  expenseValues?: number[]
+  /* ── ค่าส่ง (feature 00016 ส่วนขยาย 2026-08-09) — มีเฉพาะเมื่อ caller ส่ง includeFinance=true
+        คือผ่าน gate สิทธิ์แล้ว undefined ทั้งชุด = ไม่มีสิทธิ์ดู UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0
+        🛑 **ไม่ใช่ค่าใช้จ่ายที่ร้านบันทึกเองในหน้า /expenses** — ชุดนี้คือค่าส่งที่ขนส่งคิดจริง
+        (`OrderShipment.carrierPrice` + `codFee`) เท่านั้น ────────────────────────────────────── */
+  /** ค่าส่งจริง+ค่าธรรมเนียม COD ต่อ bucket (บาท) — คู่กับ `values` (ทุกใบ) */
+  shippingValues?: number[]
   /**
    * 🛑 ต้นทุนสินค้า (COGS) มี **สองชุด** ในไฟล์นี้ และ **จะไม่มีวันเท่ากัน** — วางติดกันตาม HR16
    * ทั้งคู่ถูกต้องในตัวเอง ต่างกันแค่ "นับต้นทุนของออเดอร์ชุดไหน" ซึ่งต้องเลือกให้ตรงกับ
@@ -131,10 +133,11 @@ export interface SalesSeries {
   totalCogs?: number
   /** ต้นทุนสินค้าเฉพาะใบที่นับเป็นรายได้แล้ว ต่อ bucket — คู่กับ `confirmedValues` (ดูบล็อกบน) */
   cogsConfirmedValues?: number[]
-  /** กำไรสุทธิต่อ bucket = ยอดที่ยืนยันแล้ว − ต้นทุนสินค้า(เฉพาะใบที่ยืนยัน) − ค่าใช้จ่าย (สูตรการ์ด P&L) */
+  /** กำไรต่อ bucket = ยอดที่ยืนยันแล้ว − ต้นทุนสินค้า(เฉพาะใบที่ยืนยัน) − ค่าส่ง(เฉพาะใบที่ยืนยัน)
+   *  🛑 ไม่หักค่าใช้จ่ายอื่นของร้าน จึง **ไม่เท่ากับ** กำไรสุทธิที่หน้า /expenses (SALES_PROFIT_FORMULA) */
   netProfitValues?: number[]
-  /** ค่าใช้จ่ายรวมทั้งช่วง */
-  totalExpense?: number
+  /** ค่าส่งรวมทั้งช่วง (คู่กับ `total`) */
+  totalShipping?: number
   /** กำไรสุทธิรวมทั้งช่วง */
   netProfit?: number
 }
@@ -209,7 +212,7 @@ export async function getSalesSeries(
       : utcMonthStart(period.year + 1, 0)
 
   // query ช่วงปัจจุบัน + ช่วงก่อนหน้ารวมทีเดียว (prevGte..lt) แล้วแยกบัคเก็ต — ช่วงเล็ก (≤2 เดือน / 2 ปี)
-  const [rows, expenseRows] = await Promise.all([
+  const [rows] = await Promise.all([
     prisma.order.findMany({
       where: { shopId, status: { not: 'CANCELLED' }, createdAt: { gte: prevGte, lt } },
       select: {
@@ -226,19 +229,23 @@ export async function getSalesSeries(
         // createdAt: ใช้หา "พัสดุ active ใบล่าสุด" ให้ deriveShippingStage — ที่นี่กรอง/เรียงใน TS
         // ไม่ใช่ใน query เพราะ countsAsRevenue ต้องเห็นพัสดุทุกใบ (มันเช็ค .some() เอง)
         shipments: {
-          select: { status: true, isDryRun: true, carrierStatus: true, createdAt: true },
+          // carrierPrice/codFee = ต้นทุนค่าส่งจริงที่ขนส่งคิด (D-EXT-10, 2026-08-09) — ชีตยอดขาย
+          // ใช้เป็นก้อน "ค่าส่ง" ที่หักออกจากกำไร  null = ขนส่งยังไม่เข้ารับ iShip จึงยังไม่คิดเงิน
+          // **ไม่ใช่ ฿0** (0 จะอ่านว่าส่งฟรีแล้วกำไรสูงเกินจริงเงียบ ๆ)
+          select: {
+            status: true,
+            isDryRun: true,
+            carrierStatus: true,
+            createdAt: true,
+            carrierPrice: true,
+            codFee: true,
+          },
         },
         // ต้นทุนสินค้า — จำเป็นต่อ "กำไรสุทธิ" ให้ได้สูตรเดียวกับการ์ด P&L ใน /expenses
         // (ถ้าใช้ ยอดยืนยันแล้ว − ค่าใช้จ่าย เฉย ๆ ตัวเลขจะไม่ตรงกับอีกสองหน้า)
         ...(includeFinance ? { items: { select: { cost: true, qty: true } } } : {}),
       },
     }),
-    includeFinance
-      ? prisma.expense.findMany({
-          where: { shopId, expenseDate: { gte: expGte, lt: expLt } },
-          select: { amount: true, expenseDate: true },
-        })
-      : Promise.resolve([]),
   ])
 
   const values = new Array<number>(bucketCount).fill(0)
@@ -248,7 +255,10 @@ export async function getSalesSeries(
   const codPendingValues = new Array<number>(bucketCount).fill(0)
   const cogsValues = new Array<number>(bucketCount).fill(0)
   const cogsConfirmedValues = new Array<number>(bucketCount).fill(0)
-  const expenseValues = new Array<number>(bucketCount).fill(0)
+  /** ค่าส่งจริง+ค่าธรรมเนียม COD ต่อ bucket — คู่กับ `values` (ทุกใบ) เหมือน cogsValues */
+  const shippingValues = new Array<number>(bucketCount).fill(0)
+  /** ชุดเฉพาะใบที่นับเป็นยอดขายแล้ว — คู่กับ `confirmedValues` เหมือน cogsConfirmedValues */
+  const shippingConfirmedValues = new Array<number>(bucketCount).fill(0)
   let total = 0
   let prevTotal = 0
   let prevTotalToDate = 0
@@ -305,10 +315,29 @@ export async function getSalesSeries(
         }
         cogsValues[idx] += rowCogs
 
+        /**
+         * ค่าส่งจริง + ค่าธรรมเนียมเก็บเงินปลายทางของใบนี้ (D-EXT-10, 2026-08-09)
+         *
+         * อยู่ **นอก** if ของ countsAsRevenue ด้วยเหตุผลเดียวกับ COGS เป๊ะ: `shippingValues` คู่กับ
+         * `values` ซึ่งนับทุกใบ ถ้าเก็บเฉพาะใบที่ยืนยัน คอลัมน์ "ค่าส่ง" บนชีตจะว่างในวันที่ยังไม่มี
+         * ใครยืนยัน ทั้งที่คอลัมน์ "ยอดขาย" บรรทัดเดียวกันมีตัวเลข → กำไรของแถวนั้นสูงเกินจริง
+         *
+         * `carrierPrice == null` = ยังไม่ถูกคิดเงิน (ขนส่งยังไม่เข้ารับ) ข้ามไป ไม่ใช่บวก 0
+         */
+        const activeShipment = (
+          r as { shipments?: { status: string; isDryRun: boolean; carrierPrice: unknown; codFee: unknown }[] }
+        ).shipments?.find((sp) => sp.status === 'CREATED' && !sp.isDryRun)
+        let rowShipping = 0
+        if (activeShipment?.carrierPrice != null) {
+          rowShipping = Number(activeShipment.carrierPrice) + Number(activeShipment.codFee ?? 0)
+          shippingValues[idx] += rowShipping
+        }
+
         // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ
         if (countsAsRevenue(r)) {
           confirmedValues[idx] += amt
           cogsConfirmedValues[idx] += rowCogs
+          shippingConfirmedValues[idx] += rowShipping
         } else unconfirmedValues[idx] += amt
 
         // "รอเงิน COD" ของวันนั้น — ยอดเต็มของใบที่ยังอยู่กองนี้ (ไม่ใช่ codAmount ของพัสดุ
@@ -348,23 +377,23 @@ export async function getSalesSeries(
   }
   if (!includeFinance) return base
 
-  for (const e of expenseRows) {
-    // expenseDate เก็บที่ UTC midnight ของวันตามปฏิทินอยู่แล้ว — อ่าน bucket ตรง ๆ ไม่ต้อง shift
-    const idx = bucketOf(e.expenseDate instanceof Date ? e.expenseDate : new Date(e.expenseDate))
-    if (idx >= 0 && idx < bucketCount) expenseValues[idx] += Number(e.amount)
-  }
-
-  // netProfit = สูตรการ์ด P&L → ใช้ชุด "เฉพาะใบที่ยืนยันแล้ว" ให้เข้าคู่กับ confirmedValues
-  const netProfitValues = confirmedValues.map((v, i) => v - cogsConfirmedValues[i] - expenseValues[i])
+  /**
+   * 🛑 ไม่นับค่าใช้จ่ายที่ร้านบันทึกเองในหน้า /expenses แล้ว (มติ user 2026-08-09)
+   * ชีตนี้เหลือ **ยอดขาย − (ต้นทุนสินค้า + ค่าส่ง)** ค่าใช้จ่ายอื่นของร้านยังอยู่ที่หน้า /expenses
+   * ดูเหตุผลที่สองหน้าไม่เท่ากันใน SALES_PROFIT_FORMULA (src/lib/format-money.ts)
+   */
+  const netProfitValues = confirmedValues.map(
+    (v, i) => v - cogsConfirmedValues[i] - shippingConfirmedValues[i],
+  )
 
   return {
     ...base,
-    expenseValues,
+    shippingValues,
     netProfitValues,
     cogsValues,
     cogsConfirmedValues,
     totalCogs: cogsValues.reduce((s, v) => s + v, 0),
-    totalExpense: expenseValues.reduce((s, v) => s + v, 0),
+    totalShipping: shippingValues.reduce((s, v) => s + v, 0),
     netProfit: netProfitValues.reduce((s, v) => s + v, 0),
   }
 }

@@ -10,8 +10,6 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { formatDate, thaiDayKey } from '@/lib/format-date'
 import { authOptions } from '@/lib/auth'
 import { getOrdersByShop } from '@/services/order.service'
-import { listExpenses } from '@/services/expense.service'
-import { groupExpensesByCategory } from '@/lib/expense'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { requireActiveShop } from '@/lib/shop-context'
 // feature 00033 §5.3 — เที่ยงคืนตามปฏิทินไทย (ไม่ใช่ของ server ซึ่งเป็น UTC) ใช้ตัวเดียวกับ date-range.ts
@@ -116,21 +114,11 @@ export default async function SalesPage({
   const spanMs = toExcl.getTime() - from.getTime()
   const prevFrom = new Date(from.getTime() - spanMs)
 
-  const [allOrders, expensesInRange] = await Promise.all([
-    getOrdersByShop(shop.id),
-    canSeeFinance
-      ? // expenseDate เก็บเป็น UTC-midnight ของวันตามปฏิทิน (ไม่ shift TZ) — boundary จึงต่างจาก
-        // order.createdAt ที่เป็น timestamptz. ดู "Dual Boundary Design" ใน src/lib/date-range.ts
-        // ดึงคลุมช่วงก่อนหน้าด้วย (ยาวเท่ากัน ต่อเนื่องกัน) เพื่อคิด %เปลี่ยนแปลง — ยังเป็น query เดียว
-        // ใช้ fromLocal/toLocal (ปฏิทินดิบ ไม่ shift) ไม่ใช่ from/toExcl (shift เข้าเที่ยงคืนไทยแล้ว)
-        listExpenses(shop.id, {
-          range: {
-            gte: new Date(Date.UTC(fromLocal.getFullYear(), fromLocal.getMonth(), fromLocal.getDate()) - spanMs),
-            lt: new Date(Date.UTC(toLocal.getFullYear(), toLocal.getMonth(), toLocal.getDate() + 1)),
-          },
-        })
-      : Promise.resolve([]),
-  ])
+  /**
+   * ไม่ query ตาราง `Expense` ที่หน้านี้แล้ว (มติ user 2026-08-09) — หน้านี้เหลือ
+   * ยอดขาย − (ต้นทุนสินค้า + ค่าส่ง) เท่านั้น ค่าใช้จ่ายอื่นของร้านยังอยู่ที่หน้า /expenses
+   */
+  const allOrders = await getOrdersByShop(shop.id)
 
   // ใช้ type จริงจาก return value ของ getOrdersByShop — ป้องกัน silent break ถ้า schema เปลี่ยน
   type OrderItem = Awaited<ReturnType<typeof getOrdersByShop>>[number]
@@ -183,6 +171,8 @@ export default async function SalesPage({
   const shippingCostPerDay: Record<string, number> = {}
   /** พัสดุที่ยังไม่รู้ค่าส่งจริงต่อวัน — ทำให้กำไรของวันนั้นเป็นเพดานบน ต้องมีป้ายกำกับ */
   const pendingShipmentPerDay: Record<string, number> = {}
+  /** ยอดค่าธรรมเนียม COD ทั้งช่วง — ส่วนย่อยของค่าส่งข้างบน ใช้โชว์บนการ์ดเท่านั้น */
+  let codFeeTotal = 0
 
   for (const o of inRange) {
     // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ต้องเป็นคีย์รูปแบบเดียวกับที่ eachDay() สร้าง
@@ -199,7 +189,7 @@ export default async function SalesPage({
       }
       /**
        * ค่าส่งจริง + ค่าธรรมเนียม COD จาก iShip = **ค่าใช้จ่าย** (D-EXT-10) ไม่ใช่ต้นทุนสินค้า
-       * จึงไม่เข้า `cogsPerDay` แต่ไปรวมกับ `expensePerDay` ด้านล่าง
+       * จึงไม่เข้า `cogsPerDay` แต่นับแยกใน `shippingCostPerDay`
        *
        * 🛑 นับเฉพาะออเดอร์ที่ CONFIRMED เหมือน COGS โดยตั้งใจ — ต้องเป็น **แถวชุดเดียวกับตัวตั้ง**
        * ไม่งั้นแถวรายวันจะหักค่าส่งของออเดอร์ที่ยังไม่ถูกนับเป็นยอดขาย แล้วกำไรของวันนั้นต่ำกว่าจริง
@@ -216,26 +206,14 @@ export default async function SalesPage({
         } else {
           shippingCostPerDay[day] =
             (shippingCostPerDay[day] ?? 0) + Number(shipment.carrierPrice) + Number(shipment.codFee ?? 0)
+          // แยกยอดค่าธรรมเนียม COD ไว้โชว์เป็น "ส่วนย่อย" บนการ์ด — ไม่ใช่ยอดที่ต้องบวกเพิ่ม
+          codFeeTotal += Number(shipment.codFee ?? 0)
         }
       }
     } else if (o.status !== 'CANCELLED') {
       // PENDING/SHIPPED = ขายได้แล้วแต่ยังไม่ถูกนับเป็นรายได้ (ตรงนิยามเดียวกับ getSalesSeries)
       unconfirmedPerDay[day] = (unconfirmedPerDay[day] ?? 0) + Number(o.totalAmount ?? 0)
     }
-  }
-
-  const expensePerDay: Record<string, number> = {}
-  let prevExpenseTotal = 0
-  const currentExpenses: typeof expensesInRange = []
-  for (const e of expensesInRange) {
-    const t = new Date(e.expenseDate).getTime()
-    if (t < from.getTime()) { prevExpenseTotal += Number(e.amount); continue }  // ช่วงก่อนหน้า
-    currentExpenses.push(e)
-    // ข้อยกเว้นที่ตั้งใจ (feature 00033 §5.3 step 5): expenseDate ถูก normalize เป็น
-    // UTC-midnight-of-calendar-date ตอน WRITE อยู่แล้ว (Dual Boundary Design, date-range.ts) —
-    // ไม่ใช่ event-time ที่ต้อง shift เข้า thai TZ เหมือน order.createdAt ห้ามเปลี่ยนเป็น thaiDayKey
-    const day = new Date(e.expenseDate).toISOString().slice(0, 10)
-    expensePerDay[day] = (expensePerDay[day] ?? 0) + Number(e.amount)
   }
 
   // Zero-fill every day in range
@@ -248,17 +226,12 @@ export default async function SalesPage({
     const label = formatDate(date)
     const unconfirmedRevenue = unconfirmedPerDay[date] ?? 0
     if (!canSeeFinance) return { date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder }
-    // ค่าใช้จ่ายของวัน = ที่ร้านบันทึกเอง + ค่าส่งจริงจาก iShip (สองแหล่ง ห้ามให้แหล่งใดเขียนทับอีกแหล่ง
-    // — BR-EXP-18-05) ร้านที่พิมพ์ค่าส่งเองในหมวด "ค่าขนส่ง" ด้วยจะเห็นยอดซ้อน ซึ่งยังไม่มีทาง dedupe
-    // อัตโนมัติได้ (ตอนนี้ตาราง Expense ว่างทั้งฐาน จึงยังไม่เกิดจริง — ดู Open Question ใน PRD)
     const shippingCost = shippingCostPerDay[date] ?? 0
-    const expense = (expensePerDay[date] ?? 0) + shippingCost
     const pendingShipmentCount = pendingShipmentPerDay[date] ?? 0
     return {
       date, label, orders, completed, revenue, unconfirmedRevenue, avgOrder,
-      expense,
-      netProfit: revenue - (cogsPerDay[date] ?? 0) - expense,
       shippingCost,
+      netProfit: revenue - (cogsPerDay[date] ?? 0) - shippingCost,
       pendingShipmentCount,
     }
   })
@@ -287,14 +260,11 @@ export default async function SalesPage({
     prevOrders: prevWindow.orders === 0 ? null : prevWindow.orders,
     prevAvgOrder: prevWindow.completed === 0 ? null : prevAvgOrder,
     ...(canSeeFinance && {
-      totalExpense: daily.reduce((s, d) => s + (d.expense ?? 0), 0),
-      netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
-      prevExpense: prevExpenseTotal + prevShippingTotal,
       totalShippingCost: daily.reduce((s, d) => s + (d.shippingCost ?? 0), 0),
+      totalCodFee: codFeeTotal,
+      netProfit: daily.reduce((s, d) => s + (d.netProfit ?? 0), 0),
+      prevShippingCost: prevShippingTotal,
       pendingShipmentCount: daily.reduce((s, d) => s + (d.pendingShipmentCount ?? 0), 0),
-      topExpenseCategory: groupExpensesByCategory(
-        currentExpenses.map((e) => ({ category: e.category, amount: Number(e.amount) })),
-      )[0]?.category,
     }),
   }
 

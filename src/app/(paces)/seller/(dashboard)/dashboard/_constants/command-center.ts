@@ -137,9 +137,10 @@ export type SalesSeries = {
   last14Unconfirmed?: number[]
   /** label ของ 14 วันล่าสุด */
   last14Labels?: string[]
-  /* ค่าใช้จ่าย (feature 00016) — undefined = ร้านนี้ไม่ผ่าน gate สิทธิ์ค่าใช้จ่าย
-     UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "ไม่มีค่าใช้จ่าย" */
-  expenseValues?: number[]
+  /* ค่าส่งจริงจากขนส่ง (feature 00016 ส่วนขยาย 2026-08-09) — undefined = ไม่ผ่าน gate สิทธิ์
+     UI ต้องซ่อนทั้งบล็อก ไม่ใช่แสดง ฿0 ซึ่งจะโกหกว่า "ไม่มีค่าส่ง"
+     🛑 ไม่ใช่ค่าใช้จ่ายที่ร้านบันทึกเองในหน้า /expenses — ชุดนี้คือ OrderShipment.carrierPrice+codFee */
+  shippingValues?: number[]
   netProfitValues?: number[]
   /**
    * 🛑 COGS มีสองชุดและไม่เท่ากัน (นิยามเต็มอยู่ที่ SSOT — dashboard.service.ts):
@@ -151,7 +152,7 @@ export type SalesSeries = {
   cogsConfirmedValues?: number[]
   /** ต้นทุนสินค้ารวมทั้งช่วง (ชุดทุกออเดอร์ — คู่กับ `total`) */
   totalCogs?: number
-  totalExpense?: number
+  totalShipping?: number
   netProfit?: number
 }
 

@@ -189,6 +189,90 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
     expect(res.netProfitValues?.[4]).toBe(600)
   })
 
+  /**
+   * [blocker] ค่าส่งจริงจาก iShip ต้องเข้าชุด `shippingValues`/`netProfitValues` (D-EXT-10, 2026-08-09)
+   *
+   * มติ user: ชีต "ยอดขายและกำไร" หัก **ค่าส่ง** ไม่ใช่ค่าใช้จ่ายที่ร้านบันทึกเองในหน้า /expenses
+   * ถ้าใครเผลอเอา `prisma.expense` กลับเข้ามาที่ service นี้ ตัวเลขจะกลายเป็นสองก้อนรวมกัน
+   * โดยที่ป้ายบนจอยังเขียนว่า "ค่าส่ง" อยู่ — ป้ายกับตัวเลขหมายถึงคนละของ (Hard Rule 16)
+   *
+   * `codFee` เป็นเงินคนละก้อนกับ `carrierPrice` และไม่ทับซ้อนกัน ต้องบวกทั้งคู่
+   */
+  it('[blocker] ค่าส่งจริง + ค่าธรรมเนียม COD ถูกหักออกจากกำไร และแยกชุดทุกใบ/เฉพาะใบที่ยืนยัน', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 1000,
+        createdAt: thaiNoon(2026, 3, 5),
+        status: 'CONFIRMED',
+        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: 34, codFee: 7.7 }],
+        items: [{ cost: 200, qty: 2 }], // COGS 400
+      },
+      {
+        totalAmount: 500,
+        createdAt: thaiNoon(2026, 3, 5),
+        status: 'PENDING', // ยอดอยู่ใน values แล้ว แต่ยังไม่เป็นรายได้
+        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: 30, codFee: 0 }],
+        items: [],
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, true)
+
+    // ชุดทุกใบ — คู่กับ `values` (34 + 7.7 + 30)
+    expect(res.shippingValues?.[4]).toBeCloseTo(71.7, 2)
+    expect(res.totalShipping).toBeCloseTo(71.7, 2)
+    // กำไรหักเฉพาะค่าส่งของใบที่เป็นรายได้แล้ว: 1000 − 400 − 41.7
+    expect(res.netProfitValues?.[4]).toBeCloseTo(558.3, 2)
+  })
+
+  /**
+   * [blocker] `carrierPrice = null` = ขนส่งยังไม่เข้ารับ iShip จึงยังไม่คิดเงิน — ต้อง **ข้าม**
+   * ไม่ใช่บวก 0 แล้วทำเป็นว่ารู้แล้วว่าส่งฟรี (คลาสเดียวกับ cost = null บรรทัดล่าง)
+   */
+  it('[blocker] พัสดุที่ยังไม่ถูกคิดเงิน (carrierPrice = null) ไม่ถูกนับเป็นค่าส่ง 0', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 900,
+        createdAt: thaiNoon(2026, 3, 7),
+        status: 'CONFIRMED',
+        // codFee มาแล้วแต่ carrierPrice ยังไม่มา — เคสนี้คือตัวที่พิสูจน์ว่า guard ทำงานจริง
+        // (ถ้าเช็คแค่ "มีพัสดุไหม" แล้วบวกทั้งคู่ Number(null)=0 จะได้ค่าส่ง 12 บาทโผล่มาจากไหนไม่รู้
+        //  ทั้งที่ยังไม่รู้ราคาส่งเลยสักบาท — ตัวเลขบางส่วนที่ดูเหมือนครบ อันตรายกว่าไม่มีตัวเลข)
+        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: null, codFee: 12 }],
+        items: [{ cost: 100, qty: 1 }],
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, true)
+
+    expect(res.shippingValues?.[6]).toBe(0)
+    expect(res.netProfitValues?.[6]).toBe(800) // 900 − 100 − 0 (ไม่มีค่าส่งให้หัก)
+  })
+
+  /**
+   * [blocker] พัสดุที่ยกเลิก/ใบทดสอบ ต้องไม่ถูกนับเป็นต้นทุนค่าส่ง — นิยาม "พัสดุ active"
+   * เดียวกับทั้งระบบ (`status='CREATED' AND isDryRun=false`)
+   */
+  it('[blocker] พัสดุ CANCELLED/dry-run ไม่ถูกนับเป็นค่าส่ง', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 700,
+        createdAt: thaiNoon(2026, 3, 9),
+        status: 'CONFIRMED',
+        shipments: [
+          { status: 'CANCELLED', isDryRun: false, carrierPrice: 99, codFee: 9 },
+          { status: 'CREATED', isDryRun: true, carrierPrice: 88, codFee: 8 },
+        ],
+        items: [],
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, true)
+
+    expect(res.shippingValues?.[8]).toBe(0)
+    expect(res.netProfitValues?.[8]).toBe(700)
+  })
+
   /** cost = null คือ "ยังไม่ตั้งต้นทุน" ไม่ใช่ต้นทุน 0 — ต้องข้าม ไม่ใช่บวก 0 แล้วทำเป็นว่ารู้แล้ว */
   it('[blocker] บรรทัดที่ยังไม่ตั้งต้นทุน (cost = null) ถูกข้าม ไม่นับเป็น 0', async () => {
     findMany.mockResolvedValue([

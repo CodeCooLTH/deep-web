@@ -18,8 +18,7 @@
 
 import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
-import { formatBaht, profitDisplay, NET_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
-import { EXPENSE_CATEGORY_LABEL_TH, type ExpenseCategory } from '@/lib/expense'
+import { formatBaht, profitDisplay, SALES_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
 import PacesStatCard from '../../_shared/PacesStatCard'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
@@ -35,9 +34,10 @@ const SalesChart = ({ daily, summary }: Props) => {
   const categories = daily.map((d) => d.label)
   const revenueSeries = daily.map((d) => d.revenue)
   const unconfirmedSeries = daily.map((d) => d.unconfirmedRevenue)
-  // ค่าใช้จ่าย (feature 00016) — undefined ทั้งชุด = ไม่มีสิทธิ์ดูข้อมูลการเงิน ซ่อนทั้ง series และการ์ด
-  const showFinance = summary.totalExpense != null
-  const expenseSeries = daily.map((d) => d.expense ?? 0)
+  // ค่าส่ง (feature 00016 ส่วนขยาย 2026-08-09) — undefined ทั้งชุด = ไม่มีสิทธิ์ดูข้อมูลการเงิน
+  // ซ่อนทั้ง series และการ์ด (ไม่ใช่ส่ง 0 ลงไปแล้วให้ดูเหมือนไม่มีค่าส่ง)
+  const showFinance = summary.totalShippingCost != null
+  const shippingSeries = daily.map((d) => d.shippingCost ?? 0)
   const profit = profitDisplay(summary.netProfit ?? 0)
 
   /**
@@ -48,7 +48,7 @@ const SalesChart = ({ daily, summary }: Props) => {
   const series = [
     { name: 'ลูกค้ายืนยันแล้ว', group: 'sales', data: revenueSeries },
     { name: 'รอลูกค้ายืนยัน', group: 'sales', data: unconfirmedSeries },
-    ...(showFinance ? [{ name: 'ค่าใช้จ่าย', group: 'expense', data: expenseSeries }] : []),
+    ...(showFinance ? [{ name: 'ค่าส่ง', group: 'expense', data: shippingSeries }] : []),
   ]
 
   const getOptions = useCallback(
@@ -57,8 +57,8 @@ const SalesChart = ({ daily, summary }: Props) => {
       chart: { type: 'bar' as const, height: 320, stacked: true, toolbar: { show: false } },
       plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
       dataLabels: { enabled: false },
-      // น้ำเงิน = ยอดขาย, แดง = ค่าใช้จ่าย — token เท่านั้น (Hard Rule 10 ห้าม hardcode hex)
-      // น้ำเงิน = ยืนยันแล้ว, เหลือง = รอยืนยัน, แดง = ค่าใช้จ่าย — ชุดสีเดียวกับชีตมือถือ
+      // token เท่านั้น (Hard Rule 10 ห้าม hardcode hex)
+      // น้ำเงิน = ยืนยันแล้ว, เหลือง = รอยืนยัน, แดง = ค่าส่ง — ชุดสีเดียวกับชีตมือถือ
       colors: showFinance
         ? [getColor('chart-primary'), getColor('warning'), getColor('chart-beta')]
         : [getColor('chart-primary'), getColor('warning')],
@@ -155,39 +155,34 @@ const SalesChart = ({ daily, summary }: Props) => {
         {showFinance && (
           <>
             <PacesStatCard
-              icon="report-money"
+              icon="truck"
               iconClass="bg-danger/15 text-danger-ink"
-              title="ค่าใช้จ่าย"
-              text={formatBaht(summary.totalExpense ?? 0)}
+              title="ค่าส่ง"
+              text={formatBaht(summary.totalShippingCost ?? 0)}
               valueClass="text-danger-ink"
-              // ค่าใช้จ่ายเพิ่มขึ้นไม่ใช่ข่าวดี — invert ทิศทางสี
-              changePercent={pctChangeVsPrev(summary.totalExpense ?? 0, summary.prevExpense ?? null, true)}
-              changeHint="เทียบช่วงก่อนหน้า — ค่าใช้จ่ายลดลงคือดีขึ้น"
+              // ค่าส่งเพิ่มขึ้นไม่ใช่ข่าวดี — invert ทิศทางสี
+              changePercent={pctChangeVsPrev(
+                summary.totalShippingCost ?? 0,
+                summary.prevShippingCost ?? null,
+                true,
+              )}
+              changeHint="เทียบช่วงก่อนหน้า — ค่าส่งลดลงคือดีขึ้น"
               bulletClass="text-danger"
-              note="ค่าใช้จ่าย = ค่าส่งจริงจากขนส่ง + รายการที่ร้านบันทึกเอง"
-              /*
-               * แถวล่างของการ์ดมีได้บรรทัดเดียว (การ์ดทั้งแถวต้องสูงเท่ากัน) จึงใช้ "ลำดับความสำคัญ"
-               * แทนการโชว์คู่: ค่าส่งจริงมาก่อนเพราะเป็นเลขที่มีอยู่จริงทุกวัน ส่วน "หมวดที่จ่ายมากสุด"
-               * เป็นไทล์ที่ขึ้น "ยังไม่มีรายการ" ตลอดกาลสำหรับทุกร้าน (ตาราง Expense ว่างทั้งฐาน)
-               * — เปลี่ยนสิ่งที่นับ ดีกว่าเปลี่ยนป้ายของช่องที่ตายแล้ว
-               *
-               * ร้านที่ไม่ได้ใช้ iShip เลย (SERVICE_QUEUE/LODGING) จะได้ 0 เสมอแล้วถอยกลับไปใช้ของเดิม
-               * โดยไม่ต้องเช็ค Shop.vertical เพิ่ม
-               */
-              metric={(summary.totalShippingCost ?? 0) > 0 ? 'ในนี้เป็นค่าส่งจริง (iShip)' : 'หมวดที่จ่ายมากสุด'}
-              metricValue={
-                (summary.totalShippingCost ?? 0) > 0
-                  ? formatBaht(summary.totalShippingCost ?? 0)
-                  : summary.topExpenseCategory
-                    ? EXPENSE_CATEGORY_LABEL_TH[summary.topExpenseCategory as ExpenseCategory]
-                    : 'ยังไม่มีรายการ'
-              }
+              note="ค่าส่งที่ขนส่งคิดจริง + ค่าธรรมเนียมเก็บเงินปลายทาง (ไม่รวมค่าใช้จ่ายอื่นของร้าน)"
+              /* แถวล่างของการ์ดมีได้บรรทัดเดียว (การ์ดทั้งแถวต้องสูงเท่ากัน) — เลือกโชว์ส่วนย่อยที่
+                 ผู้ขายมักไม่รู้ว่ามี: ค่าธรรมเนียมเก็บเงินปลายทางที่ขนส่งหักจากยอดโอนคืน
+                 🛑 เป็นส่วนย่อยของตัวเลขด้านบน ไม่ใช่ยอดที่ต้องเอาไปบวกเพิ่ม */
+              metric="ในนี้เป็นค่าบริการ COD"
+              metricValue={formatBaht(summary.totalCodFee ?? 0)}
             />
             <PacesStatCard
               icon={profit.positive ? 'trending-up' : 'trending-down'}
               iconClass={profit.positive ? 'bg-success/15 text-success-ink' : 'bg-danger/15 text-danger-ink'}
-              title={profit.label}
-              note={NET_PROFIT_FORMULA}
+              /* 🛑 ห้ามใช้คำว่า "กำไรสุทธิ" ที่หน้านี้ — ตัวเลขนี้ยังไม่หักค่าใช้จ่ายอื่นของร้าน
+                 จึงไม่เท่ากับกำไรสุทธิที่หน้า /expenses (ดู SALES_PROFIT_FORMULA) การใช้คำเดียวกัน
+                 กับตัวเลขคนละสูตรคือคลาสของบั๊กที่ critique จับได้เมื่อ 2026-08-08 */
+              title={profit.positive ? 'กำไรจากการขาย' : 'ขาดทุนจากการขาย'}
+              note={SALES_PROFIT_FORMULA}
               text={profit.text}
               valueClass={profit.toneClass}
               changePercent={null}

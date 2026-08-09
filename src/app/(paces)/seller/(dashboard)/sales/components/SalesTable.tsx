@@ -63,43 +63,30 @@ const baseColumns = [
 
 // คอลัมน์การเงิน (feature 00016) — ต่อท้ายเฉพาะร้านที่ผ่าน gate สิทธิ์ค่าใช้จ่าย
 const financeColumns = [
-  columnHelper.accessor('expense', {
-    header: 'ค่าใช้จ่าย',
+  columnHelper.accessor('shippingCost', {
+    header: 'ค่าส่ง',
     enableColumnFilter: false,
     /**
-     * 2 บรรทัด: ยอดรวมของวัน + ส่วนที่เป็นค่าส่งจริงจาก iShip
+     * ค่าส่งที่ขนส่งคิดจริง + ค่าธรรมเนียมเก็บเงินปลายทางของวันนั้น
      *
-     * 🛑 บรรทัดล่างเป็น **ส่วนย่อยของบรรทัดบน ไม่ใช่ยอดที่ต้องบวกเพิ่ม** — คำว่า "รวม" ในข้อความ
-     * ต้องอ่านว่า "ในนั้นรวมค่าส่งอยู่ด้วย" ไม่ใช่ "ยอดรวมค่าส่ง"
-     *
-     * ห้ามแสดง "฿0.00" เมื่อวันนั้นมีพัสดุที่ยังไม่รู้ค่าส่ง — 0 อ่านว่า "ส่งฟรี" ไม่ใช่ "ยังไม่รู้"
+     * ห้ามแสดง "฿0.00" เมื่อวันนั้นมีพัสดุที่ขนส่งยังไม่เข้ารับ — 0 อ่านว่า "ส่งฟรี" ไม่ใช่ "ยังไม่รู้"
      * (กติกาเดียวกับ order-profit-presentation.ts ที่เลือกไม่แสดงตัวเลขเลยเมื่อคำนวณไม่ได้)
      */
     cell: ({ row }) => {
-      const expense = row.original.expense ?? 0
       const shipping = row.original.shippingCost ?? 0
       const pending = row.original.pendingShipmentCount ?? 0
-      if (expense === 0 && pending > 0) {
+      if (shipping === 0 && pending > 0) {
         return (
           <span className="text-warning-ink text-nowrap">
             รอรับเข้า {pending.toLocaleString('th-TH')} ใบ
           </span>
         )
       }
-      return (
-        <span className="flex flex-col">
-          <span className="text-danger-ink">{formatBaht(expense)}</span>
-          {shipping > 0 && (
-            <span className="text-default-500 text-2xs text-nowrap">
-              ↳ รวมค่าส่งจริง {formatBaht(shipping)}
-            </span>
-          )}
-        </span>
-      )
+      return <span className="text-danger-ink">{formatBaht(shipping)}</span>
     },
   }),
   columnHelper.accessor('netProfit', {
-    header: 'กำไรสุทธิ',
+    header: 'กำไร',
     enableColumnFilter: false,
     cell: ({ row }) => {
       const v = row.original.netProfit ?? 0

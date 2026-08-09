@@ -39,6 +39,15 @@
  * - คอลัมน์ วันที่ / คำสั่งซื้อ จัดกึ่งกลาง (user สั่ง) — ทั้งสองเป็นค่าสั้นความยาวคงที่
  *   ต่างจากคอลัมน์เงินที่ต้องชิดขวาให้หลักหน่วยตรงกันทั้งคอลัมน์
  *
+ * ── v6 2026-08-09 (user สั่ง: "เอา Expense ออกจาก chart นี้ก่อน") ──────────────────────────
+ * - [สำคัญ] ก้อนที่หักออกเปลี่ยนจาก "ค่าใช้จ่ายที่ร้านบันทึกเอง" (ตาราง Expense) เป็น
+ *   **ค่าส่งจริงที่ขนส่งคิด** (`OrderShipment.carrierPrice` + `codFee`) — สูตรกลายเป็น
+ *   ยอดขาย − (ต้นทุนสินค้า + ค่าส่ง) ส่วนค่าใช้จ่ายอื่นของร้านยังอยู่ที่หน้า /expenses
+ * - ป้ายทุกจุดเปลี่ยนจาก "ค่าใช้จ่าย" เป็น "ค่าส่ง" พร้อมกัน — ป้ายกับตัวเลขต้องหมายถึงของเดียวกัน
+ *   (คำว่า "ค่าใช้จ่าย" ยังถูกใช้ที่ /expenses กับความหมายเดิม ห้ามให้สองที่เรียกเหมือนกันคนละของ)
+ * - 🛑 ผลที่ตามมา: ตัวเลขกำไรที่นี่กับที่ /expenses ยิ่งต่างกันกว่าเดิม — นิยามของหน้านี้อยู่ที่
+ *   `SALES_PROFIT_FORMULA` (src/lib/format-money.ts) ซึ่งอธิบายไว้ว่าทำไมถึงไม่ควรเท่ากัน
+ *
  * ── v5 2026-08-08 (user สั่ง: ถอด "รอ COD" ออก · เพิ่ม "ต้นทุนสินค้า" หน้าค่าใช้จ่าย) ────────
  * - [สำคัญ] สูตรกำไรเปลี่ยนเป็น **ยอดขาย − (ต้นทุนสินค้า + ค่าใช้จ่าย)** — user เคาะ 2026-08-08
  *   ยกเลิกสูตร v3 (ยอดขาย − ค่าใช้จ่าย) ที่จงใจไม่หักต้นทุน เพราะตอนนั้นต้นทุนไม่เคยโผล่บนจอนี้เลย
@@ -83,10 +92,10 @@ type Props = {
  * โดยรับข้อแลกเปลี่ยนเรื่องการอ่านความสูงรวมไว้แล้ว
  */
 export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOptions => {
-  const { labels, confirmedValues, unconfirmedValues, orderCounts, expenseValues, futureFromIndex } = series
+  const { labels, confirmedValues, unconfirmedValues, orderCounts, shippingValues, futureFromIndex } = series
   const isDaily = mode === 'daily'
   // undefined = ไม่มีสิทธิ์ดูข้อมูลการเงิน (feature 00016) → ไม่มีแท่งค่าใช้จ่ายเลย
-  const showExpense = expenseValues != null
+  const showExpense = shippingValues != null
   const bucketCount = labels.length
 
   /**
@@ -109,7 +118,7 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
       { name: 'ยืนยันแล้ว', type: 'column', data: maskFuture(confirmedValues) },
       { name: 'รอยืนยัน', type: 'column', data: maskFuture(unconfirmedValues) },
       ...(showExpense
-        ? [{ name: 'ค่าใช้จ่าย', type: 'column', data: maskFuture(expenseValues) }]
+        ? [{ name: 'ค่าส่ง', type: 'column', data: maskFuture(shippingValues) }]
         : []),
       /** เส้น = จำนวนคำสั่งซื้อ คนละหน่วยกับแท่ง (ใบ vs บาท) จึงต้องมีแกน y ที่สอง ไม่งั้นเส้นจะแบน
        *  ติดพื้นเพราะเลขหลักหน่วยเทียบกับหลักพัน · `stackOnlyBar` กันไม่ให้ Apex เอาเส้นไปซ้อนยอดสะสม */
@@ -223,7 +232,7 @@ export const buildSalesChartOptions = (series: SalesSeries, mode: Mode): ApexOpt
           `<div style="font-weight:600;margin-bottom:2px">${label} · ${formatNumberNoSymbol(orders)} คำสั่งซื้อ</div>` +
           `<div>${dot(getColor('success'))}ยืนยันแล้ว ${formatNumberNoSymbol(conf)}</div>` +
           `<div>${dot(getColor('warning'))}รอยืนยัน ${formatNumberNoSymbol(unconf)}</div>` +
-          (exp != null ? `<div>${dot(getColor('chart-beta'))}ค่าใช้จ่าย ${formatNumberNoSymbol(exp)}</div>` : '') +
+          (exp != null ? `<div>${dot(getColor('chart-beta'))}ค่าส่ง ${formatNumberNoSymbol(exp)}</div>` : '') +
           `<div style="font-weight:600;margin-top:4px">ยอดขายรวม ${formatNumberNoSymbol(conf + unconf)}</div>` +
           `</div>`
         )
@@ -349,8 +358,8 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   const confirmedTotal = series.confirmedValues.reduce((s, v) => s + v, 0)
   const unconfirmedTotal = series.total - confirmedTotal
   // ไม่ผ่าน gate สิทธิ์ → ไม่มีค่าใช้จ่าย/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ 0
-  const hasFinance = series.totalExpense != null
-  const expenseTotal = series.totalExpense ?? 0
+  const hasFinance = series.totalShipping != null
+  const shippingTotal = series.totalShipping ?? 0
   const cogsTotal = series.totalCogs ?? 0
   /**
    * กำไร = ยอดขายทั้งหมด (ยืนยันแล้ว + รอยืนยัน) − ต้นทุนสินค้า − ค่าใช้จ่าย (user เคาะ 2026-08-08)
@@ -358,7 +367,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
    * ตัวเลขนี้ — invariant ที่เป็นเหตุผลทั้งหมดที่หน้านี้ไม่ใช้ netProfit ของ service ตรง ๆ
    * (ดูหมายเหตุ v5 หัวไฟล์ — /expenses ลบออกจาก "ยืนยันแล้ว" สองหน้าจึงไม่เท่ากันโดยตั้งใจ)
    */
-  const profit = series.total - cogsTotal - expenseTotal
+  const profit = series.total - cogsTotal - shippingTotal
   const heroValue = hasFinance ? profit : series.total
   const heroTone = !hasFinance ? 'text-dark' : profit >= 0 ? 'text-success-ink' : 'text-danger-ink'
 
@@ -380,7 +389,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
       value: series.values[i] ?? 0,
       // ต้นทุนของ "ทุกออเดอร์" ใน bucket — ชุดเดียวกับ value ที่มันจะถูกลบออก (ดู v5 หัวไฟล์)
       cogs: series.cogsValues?.[i] ?? 0,
-      expense: series.expenseValues?.[i] ?? 0,
+      expense: series.shippingValues?.[i] ?? 0,
     }))
     .filter((r) => r.orders > 0 || r.value > 0 || r.cogs > 0 || r.expense > 0)
     // วันล่าสุดอยู่บนสุดเสมอ (user สั่ง 2026-08-07) — สิ่งที่ผู้ขายอยากรู้ตอนเปิดคือ "วันนี้เป็นไง"
@@ -474,7 +483,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
           </div>
 
           {/* แถบนี้ทำสามหน้าที่: legend ของกราฟ (จุดสี = ซีรีส์ 1:1) + ยอดรวมของแต่ละซีรีส์ +
-              **สมการที่ตรวจสอบตามได้** — รอยืนยัน + ยืนยันแล้ว − ต้นทุนสินค้า − ค่าใช้จ่าย
+              **สมการที่ตรวจสอบตามได้** — รอยืนยัน + ยืนยันแล้ว − ต้นทุนสินค้า − ค่าส่ง
               = ตัวเลข hero ด้านบนพอดี จึงคั่นด้วยเครื่องหมาย + / − จริง ไม่ใช่คำอธิบาย
               ผู้ขายเอานิ้วไล่บวกลบตามได้เองทั้งแถว
               สีตรง token กราฟเป๊ะ: bg-warning=warning, bg-success=success, bg-danger=chart-beta
@@ -489,7 +498,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                 <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">−</span>
                 <LegendCell label="ต้นทุนสินค้า" value={cogsTotal} />
                 <span className="flex items-center px-1 text-sm text-default-700" aria-hidden="true">−</span>
-                <LegendCell color="bg-danger" label="ค่าใช้จ่าย" value={expenseTotal} />
+                <LegendCell color="bg-danger" label="ค่าส่ง" value={shippingTotal} />
               </>
             )}
           </div>
@@ -542,7 +551,7 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                 <span className="w-11 shrink-0 text-center">คำสั่งซื้อ</span>
                 <span className="min-w-14 flex-1 basis-0 text-end">ยอดขาย</span>
                 {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ต้นทุน</span>}
-                {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ค่าใช้จ่าย</span>}
+                {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">ค่าส่ง</span>}
                 {hasFinance && <span className="min-w-14 flex-1 basis-0 text-end">กำไร</span>}
               </div>
               <div className="divide-y divide-default-100">
