@@ -675,6 +675,20 @@ type Props = {
    * ฝั่ง server ไม่ใช่การดมสตริงในเนื้อข้อความ (ดูเหตุผลที่ page.tsx)
    */
   isCommentReplyThread: boolean
+  /**
+   * คอมเมนต์ที่เป็นต้นเหตุของเธรดนี้ — null เมื่อไม่ได้มาจากคอมเมนต์ (เธรดปกติ)
+   *
+   * ทำไมต้องส่งมาแยก ไม่ดึงจากข้อความในเธรด: คอมเมนต์ **ไม่ใช่ข้อความในเธรด** และไม่มีทางเป็นได้
+   * — Meta ไม่ได้ย้ายคอมเมนต์เข้ากล่องข้อความ สิ่งเดียวที่โผล่คือบรรทัดระบบภาษาอังกฤษที่บอกว่า
+   * "คุณกำลังตอบคอมเมนต์" โดยไม่บอกว่าคอมเมนต์นั้นเขียนว่าอะไร (ดูที่มาเต็มใน page.tsx)
+   */
+  commentOrigin: {
+    message: string | null
+    attachmentUrl: string | null
+    /** ISO string — server component ส่ง Date ตรง ๆ ข้าม RSC boundary ไม่ได้ */
+    createdTime: string
+    url: string | null
+  } | null
   /** เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน และร้านได้ permission human_agent แล้ว → คนตอบเองได้อยู่ */
   humanAgentOpen?: boolean
   humanAgentExpiresAt?: string | null
@@ -869,6 +883,7 @@ export default function ChatThread({
   tokenInvalid,
   neverInbound,
   isCommentReplyThread,
+  commentOrigin,
   humanAgentOpen = false,
   humanAgentExpiresAt = null,
   customerPanelData,
@@ -1796,6 +1811,47 @@ export default function ChatThread({
                 role="status"
                 aria-label="กำลังโหลด"
               />
+            )}
+          </div>
+        )}
+
+        {/**
+         * คอมเมนต์ต้นเหตุ — จุดเริ่มจริงของเธรดนี้ (user report ผ่านหัวหน้า 2026-08-09)
+         *
+         * ผู้ขายกด "ทักแชท" จากคอมเมนต์ แล้วเปิดห้องมาไม่รู้ว่าตอบเรื่องอะไร เพราะคอมเมนต์ไม่ได้
+         * อยู่ในเธรด มีแต่บรรทัดระบบภาษาอังกฤษของ Meta ที่บอกแค่ว่า "คุณกำลังตอบคอมเมนต์"
+         *
+         * วางเป็น "รายการแรกในลิสต์" ไม่ใช่แถบปักหมุดเหนือลิสต์ — คอมเมนต์เกิดก่อนข้อความทุกใบจริง ๆ
+         * มันจึงเป็นเหตุการณ์แรกตามลำดับเวลา และเมื่อคุยกันยาวขึ้นมันจะเลื่อนหายไปเองเหมือนข้อความเก่า
+         * แทนที่จะกินหัวจอถาวร (บทเรียนเดียวกับแถบเตือนที่เพิ่งถูกสั่งให้เอาออกเมื่อ 2026-08-09:
+         * ข้อมูลที่ค้างอยู่หัวเธรดทุกครั้งที่เปิด กลายเป็น noise เมื่อมันไม่เกี่ยวกับสิ่งที่กำลังทำ)
+         *
+         * 🛑 เงื่อนไข `!oldestCursor`: ยังมีข้อความเก่ากว่านี้ให้โหลดอยู่ = ตอนนี้ยังไม่ใช่หัวเธรดจริง
+         * ถ้าโชว์ไว้จะกลายเป็นว่าคอมเมนต์แทรกอยู่กลางบทสนทนา ซึ่งผิดลำดับเวลา
+         */}
+        {commentOrigin && !oldestCursor && (
+          <div className="border-default-200 bg-default-50 mb-4 rounded-lg border p-3">
+            <div className="text-default-500 mb-1.5 flex items-center gap-1.5 text-xs">
+              <Icon icon="message-2" className="size-3.5 shrink-0" aria-hidden="true" />
+              <span>ลูกค้าคอมเมนต์ใต้โพสต์</span>
+              <span aria-hidden="true">·</span>
+              <span>{formatDateTime(commentOrigin.createdTime)}</span>
+            </div>
+            {/* คอมเมนต์ที่เป็นรูปล้วนมีจริง (message ว่าง + attachmentUrl มี) — ต้องบอกว่ามีรูป
+                ไม่ใช่ปล่อยการ์ดว่างเปล่าซึ่งอ่านเหมือนระบบโหลดไม่ขึ้น */}
+            <p className="text-default-900 mb-0 text-sm whitespace-pre-wrap">
+              {commentOrigin.message?.trim() || (commentOrigin.attachmentUrl ? 'ส่งรูปมาในคอมเมนต์' : 'คอมเมนต์ไม่มีข้อความ')}
+            </p>
+            {commentOrigin.url && (
+              <a
+                href={commentOrigin.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary mt-2 inline-flex items-center gap-1 text-xs"
+              >
+                ดูคอมเมนต์บน Facebook
+                <Icon icon="external-link" className="size-3.5 shrink-0" aria-hidden="true" />
+              </a>
             )}
           </div>
         )}

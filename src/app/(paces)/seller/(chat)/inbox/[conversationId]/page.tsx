@@ -290,11 +290,59 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   //
   // แหล่งความจริงคือ `CommentReplyLog.conversationId` — แถวนี้ถูกเขียนโดย comment-private-reply
   // service ตอนสร้างห้องแชทจากคอมเมนต์ ไม่มีทางเกิดจากข้อความที่ใครพิมพ์
+  //
+  // ดึง "คอมเมนต์ต้นเหตุ" มาด้วย (user report ผ่านหัวหน้า 2026-08-09 10:04 "กดจาก Noti ตอนนี้ยัง
+  // เจอปัญหาไม่เจอข้อความอยู่นะ" + ภาพหน้าจอ): เธรดที่เกิดจากการทักแชทจากคอมเมนต์ **ไม่มีข้อความ
+  // ของลูกค้าอยู่ในเธรดเลยสักใบ** — สิ่งเดียวที่อยู่ก่อนข้อความของร้านคือบรรทัดระบบภาษาอังกฤษที่
+  // Meta แทรกให้ ("You are responding to a user comment to a post on your Page.") ซึ่งไม่ได้บอก
+  // ว่าลูกค้าพูดอะไร ผู้ขายจึงเปิดเข้ามาแล้วไม่รู้ว่ากำลังตอบเรื่องอะไร ต้องเด้งออกไปเปิด Facebook เอง
+  //
+  // เคสจริงที่ยืนยันกับฐาน prod: ลูกค้าคอมเมนต์ว่า "เยี่ยม" เวลา 10:25 → ผู้ขายกดทักแชท 10:29
+  // → ห้องแชทมี 2 ข้อความ ฝั่งร้านทั้งคู่ ลูกค้า 0 ใบ (conversation d895e648…)
+  //
+  // ข้อมูลมีอยู่ครบแล้วในฐาน ไม่ต้องยิง Graph ใหม่ — CommentReplyLog ผูก conversationId ↔ commentId
+  // ไว้ตั้งแต่ตอนสร้างห้อง และ PageComment เก็บทั้งข้อความ/ชื่อ/เวลา/ไฟล์แนบ
   const commentOriginLog = await prisma.commentReplyLog.findFirst({
     where: { conversationId: conversation.id },
-    select: { id: true },
+    select: {
+      id: true,
+      comment: {
+        select: {
+          message: true,
+          attachmentUrl: true,
+          createdTime: true,
+          externalCommentId: true,
+          post: { select: { permalink: true } },
+        },
+      },
+    },
   })
   const isCommentReplyThread = commentOriginLog !== null
+
+  /**
+   * ลิงก์ไปคอมเมนต์จริงบน Facebook
+   *
+   * `externalCommentId` ของ Meta เป็นรูป `{postId}_{commentId}` — พารามิเตอร์ `comment_id` ของ
+   * permalink ต้องการเฉพาะท่อนหลัง จึงตัดที่ `_` ตัวสุดท้าย
+   *
+   * ไม่มี permalink (โพสต์ที่ sync มาไม่ครบ) → คืน null แล้วการ์ดจะไม่ขึ้นลิงก์เลย ดีกว่าเดา URL
+   * แล้วพาผู้ขายไปหน้า error ของ Facebook · ถ้าท่อน comment_id เพี้ยน Facebook จะเปิดโพสต์ให้อยู่ดี
+   * (เสียแค่การเลื่อนไปที่คอมเมนต์นั้น ไม่ถึงกับพัง)
+   */
+  const commentOrigin = commentOriginLog?.comment
+    ? {
+        message: commentOriginLog.comment.message,
+        attachmentUrl: commentOriginLog.comment.attachmentUrl,
+        createdTime: commentOriginLog.comment.createdTime.toISOString(),
+        url: (() => {
+          const permalink = commentOriginLog.comment.post?.permalink
+          if (!permalink) return null
+          const id = commentOriginLog.comment.externalCommentId.split('_').pop()
+          if (!id) return permalink
+          return `${permalink}${permalink.includes('?') ? '&' : '?'}comment_id=${id}`
+        })(),
+      }
+    : null
   // เช็ค "ไม่ใช่ ACTIVE" ไม่ใช่เช็คแค่ TOKEN_INVALID — ครอบ DISCONNECTED (ร้านถอดเพจเอง) ด้วย
   // ต้องตรงกับ guard ฝั่ง service (sendOutboundMessage โยน CHANNEL_NOT_ACTIVE เมื่อ status !== 'ACTIVE')
   // ไม่งั้นเธรดของเพจที่ถอดไปแล้วจะเปิดช่องพิมพ์ให้ แล้วไปเด้ง error ตอนกดส่ง
@@ -495,6 +543,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         tokenInvalid={tokenInvalid}
         neverInbound={neverInbound}
         isCommentReplyThread={isCommentReplyThread}
+        commentOrigin={commentOrigin}
         customerPanelData={customerPanelData}
       />
       {/* bug fix 2026-08-01 (user report: iPad Pro เพี้ยน): เดิม `lg:block` = โผล่ที่ 1024px พร้อมกับ
