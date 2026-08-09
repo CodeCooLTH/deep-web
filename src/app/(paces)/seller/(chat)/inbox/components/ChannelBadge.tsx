@@ -203,12 +203,21 @@ export function ChannelBadge({ channel, size = 'sm', label, imageUrl }: ChannelB
  * ขึ้นมาคู่ขนานกับ logoSrc/iconStyle ที่มีอยู่แล้วในไฟล์นี้ (Hard Rule 16) — ใช้ของเดิมซ้ำจึง
  * ได้ทั้ง "รูปทรง + สี" และไม่มีค่าคงที่ใหม่ให้หลุด sync วันหลัง
  */
-export function ChannelMark({ channel }: { channel: string }) {
+export function ChannelMark({ channel, imageUrl }: { channel: string; imageUrl?: string | null }) {
   const display = getChannelDisplay(channel)
-  if (display.logoSrc) {
+  // รูปเพจ/LINE OA จริงมาก่อนเสมอ (user สั่ง 2026-08-09) — badge มุม avatar บอกแพลตฟอร์มไปแล้ว
+  // เอาโลโก้แพลตฟอร์มมาซ้ำตรงนี้อีกจึงไม่ให้ข้อมูลใหม่ ส่วนรูปเพจช่วยจำได้เร็วกว่าเมื่อร้านตั้ง
+  // โลโก้ต่างกันต่อเพจ · โหลดไม่สำเร็จ (URL รูปเพจของ Meta หมดอายุได้) → ถอยไปโลโก้แพลตฟอร์มเอง
+  if (imageUrl || display.logoSrc) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={display.logoSrc} alt="" aria-hidden="true" width={12} height={12} className="size-3 shrink-0 rounded-full object-cover" />
+      <BadgeImage
+        imageUrl={imageUrl}
+        logoSrc={display.logoSrc}
+        alt=""
+        width={12}
+        height={12}
+        className="size-3 shrink-0 rounded-full object-cover"
+      />
     )
   }
   // DEEP — ไม่มีโลโก้แบรนด์ ใช้ tabler icon + token สีเดิมของช่องทาง (ไม่ใช่ hex)

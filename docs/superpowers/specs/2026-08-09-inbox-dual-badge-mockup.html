@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mockup — badge 2 มุม: ซ้าย = แพลตฟอร์ม / ขวา = บัญชี</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#236dc9; --ink:#2F2B3D;
+    --d900:#2F2B3D; --d700:#5D5869; --d500:#8C8896; --d200:#E5E3EA; --d100:#F1F0F4;
+    --card:#fff; --bg:#F5F5F7; --danger:#EA5455;
+    --fb:#1877F2; --ig:#E1306C; --line:#06C755;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Anuphan',system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  .wrap{max-width:1360px;margin:0 auto;padding:24px 20px 60px}
+  h1{font-size:20px;margin:0 0 6px}
+  .lead{color:var(--d700);font-size:14px;line-height:1.7;margin:0 0 20px;max-width:74ch}
+  h2.sec{font-size:16px;margin:34px 0 8px}
+  .note{font-size:13.5px;color:var(--d700);line-height:1.75;margin:6px 0 0;max-width:80ch}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:20px;align-items:start}
+  .card{background:var(--card);border:1px solid var(--d200);border-radius:14px;overflow:hidden}
+  .card h3{font-size:14.5px;margin:0;padding:13px 16px 3px}
+  .card .sub{font-size:12.5px;color:var(--d500);padding:0 16px 11px;margin:0;line-height:1.6}
+  .cap{font-size:12px;font-weight:600;color:var(--d500);padding:9px 14px;border-bottom:1px solid var(--d200);background:var(--d100)}
+  .verdict{font-size:12px;font-weight:600;padding:7px 16px;border-top:1px solid var(--d200)}
+  .ok{background:#EAF7EF;color:#1B7A45}.bad{background:#FDECEC;color:#A03232}.warn{background:#FFF4E5;color:#8A5300}
+
+  .list{border-top:1px solid var(--d200)}
+  .row{display:flex;gap:12px;padding:11px 14px;border-bottom:1px dashed var(--d200);align-items:flex-start}
+  .row:last-child{border-bottom:0}
+  .avwrap{position:relative;flex:0 0 auto;width:40px;height:40px}
+  .face{width:40px;height:40px;border-radius:999px;background:#DCE6F5;display:flex;align-items:center;justify-content:center;font-weight:700;color:#5B7FB0;font-size:12px;overflow:hidden}
+  .face img{width:100%;height:100%;object-fit:cover}
+  .bR,.bL{position:absolute;bottom:-2px;width:16px;height:16px;border-radius:999px;box-shadow:0 0 0 2px var(--card);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--card)}
+  .bR{right:-2px}.bL{left:-2px}
+  .bR svg,.bL svg{width:16px;height:16px;display:block}
+  .pg{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;letter-spacing:-.3px}
+  .pg.bt{background:#111;color:#F5C842}
+  .pg.bn{background:#134E9B;color:#fff}
+  .pg.gr{background:#2F7D46;color:#fff}
+  .body{min-width:0;flex:1}
+  .l1{display:flex;align-items:baseline;gap:8px}
+  .nm{font-weight:600;font-size:14px;color:var(--d900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tm{margin-left:auto;font-size:11.5px;color:var(--d500);flex:0 0 auto}
+  .pv{font-size:12.5px;color:var(--d700);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .src{display:flex;align-items:center;gap:5px;margin-top:3px;font-size:11px;color:var(--d500);min-width:0}
+  .src svg,.src .mini{width:12px;height:12px;flex:0 0 auto;border-radius:999px;overflow:hidden}
+  .src .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .unread{margin-left:auto;background:var(--danger);color:#fff;border-radius:999px;min-width:19px;height:19px;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0 6px;flex:0 0 auto}
+  table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;background:var(--card);border-radius:10px;overflow:hidden}
+  table.cmp th,table.cmp td{border:1px solid var(--d200);padding:8px 10px;text-align:left;vertical-align:top}
+  table.cmp th{background:var(--d100);font-weight:600}
+  .devices{display:grid;gap:20px;grid-template-columns:360px 720px}
+  @media(max-width:1200px){.devices{grid-template-columns:1fr}}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>badge 2 มุม — ซ้าย = แพลตฟอร์ม / ขวา = บัญชี</h1>
+<p class="lead">
+  ตามที่สั่ง: มุมซ้ายล่างของ avatar = โลโก้แพลตฟอร์ม (Facebook / LINE / Instagram) · มุมขวาล่าง = รูปเพจหรือรูป LINE OA นั้น ๆ<br>
+  เทียบกับของที่ขึ้น production ไปแล้ววันนี้ (แบบ C: badge ขวา = แพลตฟอร์ม + บรรทัดที่มาเป็นข้อความ)
+</p>
+
+<div class="grid">
+
+  <!-- ปัจจุบัน -->
+  <section class="card">
+    <h3>ที่ใช้อยู่ตอนนี้ (แบบ C)</h3>
+    <p class="sub">ขวา = แพลตฟอร์ม · ชื่อบัญชีเป็นข้อความบรรทัดล่าง</p>
+    <div class="list">
+      <div class="row">
+        <div class="avwrap"><div class="face">พป</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">พี่ป้อม</span><span class="tm">2 วัน</span></div>
+          <div class="pv">คุณ: โปรโมชั่นพิเศษสุดคุ้ม</div>
+          <div class="src"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg><span class="txt">BT premium auto xenon สาขา สุขสวัสดิ์</span></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avwrap"><div class="face">สม</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#06C755"><circle cx="12" cy="12" r="12"/><path d="M12 5.6c-3.9 0-7.1 2.5-7.1 5.6 0 2.8 2.5 5.1 5.9 5.5.2 0 .5.2.6.4.1.2 0 .5 0 .5l-.1.6c0 .2-.1.7.6.4s3.9-2.3 5.3-3.9c1-1 1.9-2.1 1.9-3.5 0-3.1-3.2-5.6-7.1-5.6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">สมชาย ใจดี</span><span class="tm">เมื่อกี้</span></div>
+          <div class="pv">สวัสดีครับ สนใจโคมไฟ</div>
+          <div class="src"><svg viewBox="0 0 24 24" fill="#06C755"><circle cx="12" cy="12" r="12"/></svg><span class="txt">BT สาขา สุขสวัสดิ์</span><span class="unread">1</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="verdict ok">avatar ลูกค้าโล่ง · แยกได้ทั้งแพลตฟอร์มและบัญชี</div>
+  </section>
+
+  <!-- แบบใหม่ ร้าน BT (โลโก้เพจเหมือนกัน) -->
+  <section class="card">
+    <h3>แบบใหม่ — ร้าน BT (โลโก้เพจเหมือนกันทุกช่องทาง)</h3>
+    <p class="sub">ซ้าย = แพลตฟอร์ม · ขวา = รูปเพจ/LINE OA</p>
+    <div class="list">
+      <div class="row">
+        <div class="avwrap"><div class="face">พป</div>
+          <span class="bL"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+          <span class="bR"><span class="pg bt">BT</span></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">พี่ป้อม</span><span class="tm">2 วัน</span></div>
+          <div class="pv">คุณ: โปรโมชั่นพิเศษสุดคุ้ม</div>
+          <div class="src"><span class="txt">BT premium auto xenon สาขา สุขสวัสดิ์</span></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avwrap"><div class="face">สม</div>
+          <span class="bL"><svg viewBox="0 0 24 24" fill="#06C755"><circle cx="12" cy="12" r="12"/><path d="M12 5.6c-3.9 0-7.1 2.5-7.1 5.6 0 2.8 2.5 5.1 5.9 5.5.2 0 .5.2.6.4.1.2 0 .5 0 .5l-.1.6c0 .2-.1.7.6.4s3.9-2.3 5.3-3.9c1-1 1.9-2.1 1.9-3.5 0-3.1-3.2-5.6-7.1-5.6z" fill="#fff"/></svg></span>
+          <span class="bR"><span class="pg bt">BT</span></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">สมชาย ใจดี</span><span class="tm">เมื่อกี้</span></div>
+          <div class="pv">สวัสดีครับ สนใจโคมไฟ</div>
+          <div class="src"><span class="txt">BT สาขา สุขสวัสดิ์</span><span class="unread">1</span></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avwrap"><div class="face">ทป</div>
+          <span class="bL"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+          <span class="bR"><span class="pg bt">BT</span></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">ทริปเปิ้ล เอ็กซ์</span><span class="tm">6 น.</span></div>
+          <div class="pv">สอบถามรายละเอียด</div>
+          <div class="src"><span class="txt">BT premium สาขา บางนา</span><span class="unread">1</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="verdict warn">มุมขวาเป็นรูป BT เหมือนกันทั้ง 3 แถว — กินพื้นที่ avatar โดยไม่ได้บอกอะไรใหม่</div>
+  </section>
+
+  <!-- แบบใหม่ ร้านที่โลโก้เพจต่างกัน -->
+  <section class="card">
+    <h3>แบบใหม่ — ร้านที่แต่ละเพจโลโก้ต่างกัน</h3>
+    <p class="sub">กรณีที่แบบนี้ให้ประโยชน์เต็มที่</p>
+    <div class="list">
+      <div class="row">
+        <div class="avwrap"><div class="face">อร</div>
+          <span class="bL"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+          <span class="bR"><span class="pg bn">ก</span></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">อรวรรณ</span><span class="tm">10 น.</span></div>
+          <div class="pv">สั่งของเมื่อวานถึงยัง</div>
+          <div class="src"><span class="txt">ครัวคุณแม่ สาขากลาง</span><span class="unread">2</span></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avwrap"><div class="face">ปณ</div>
+          <span class="bL"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+          <span class="bR"><span class="pg gr">ส</span></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">ปณิดา</span><span class="tm">1 ชม.</span></div>
+          <div class="pv">มีเมนูเจไหมคะ</div>
+          <div class="src"><span class="txt">ครัวคุณแม่ สาขาสุขุมวิท</span><span class="unread">1</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="verdict ok">โลโก้เพจต่างกัน → แยกสาขาได้ตั้งแต่เหลือบตา ไม่ต้องอ่าน</div>
+  </section>
+
+</div>
+
+<h2 class="sec">แบบใหม่ — 3 ขนาดจอ</h2>
+<p class="note">avatar 40px + badge 16px สองมุม เหลือหน้าลูกค้าให้เห็นตรงกลางประมาณ 22px</p>
+
+<div class="devices">
+  <div class="card">
+    <div class="cap">มือถือ · 375px</div>
+    <div class="list" style="width:375px">
+      <div class="row">
+        <div class="avwrap"><div class="face">สม</div>
+          <span class="bL"><svg viewBox="0 0 24 24" fill="#06C755"><circle cx="12" cy="12" r="12"/><path d="M12 5.6c-3.9 0-7.1 2.5-7.1 5.6 0 2.8 2.5 5.1 5.9 5.5.2 0 .5.2.6.4.1.2 0 .5 0 .5l-.1.6c0 .2-.1.7.6.4s3.9-2.3 5.3-3.9c1-1 1.9-2.1 1.9-3.5 0-3.1-3.2-5.6-7.1-5.6z" fill="#fff"/></svg></span>
+          <span class="bR"><span class="pg bt">BT</span></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">สมชาย ใจดี</span><span class="tm">เมื่อกี้</span></div>
+          <div class="pv">สวัสดีครับ สนใจโคมไฟหน้ารถ</div>
+          <div class="src"><span class="txt">BT สาขา สุขสวัสดิ์</span><span class="unread">1</span></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avwrap"><div class="face">ธน</div>
+          <span class="bL"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+          <span class="bR"><span class="pg bt">BT</span></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">ธนกร วงศ์สุวรรณชัย</span><span class="tm">19 น.</span></div>
+          <div class="pv">ราคาเท่าไหร่ครับ</div>
+          <div class="src"><span class="txt">BT premium auto xenon สาขา บางนา</span><span class="unread">1</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cap">แท็บเล็ต 768px · เดสก์ท็อป 1280px (rail กว้างเท่ากัน โครงเดียวกัน)</div>
+    <div class="list" style="width:720px">
+      <div class="row">
+        <div class="avwrap"><div class="face">สม</div>
+          <span class="bL"><svg viewBox="0 0 24 24" fill="#06C755"><circle cx="12" cy="12" r="12"/><path d="M12 5.6c-3.9 0-7.1 2.5-7.1 5.6 0 2.8 2.5 5.1 5.9 5.5.2 0 .5.2.6.4.1.2 0 .5 0 .5l-.1.6c0 .2-.1.7.6.4s3.9-2.3 5.3-3.9c1-1 1.9-2.1 1.9-3.5 0-3.1-3.2-5.6-7.1-5.6z" fill="#fff"/></svg></span>
+          <span class="bR"><span class="pg bt">BT</span></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">สมชาย ใจดี</span><span class="tm">เมื่อกี้</span></div>
+          <div class="pv">สวัสดีครับ สนใจโคมไฟหน้ารถรุ่น Wave 125 มีสีอะไรบ้างครับ</div>
+          <div class="src"><span class="txt">BT สาขา สุขสวัสดิ์</span><span class="unread">1</span></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avwrap"><div class="face">วช</div>
+          <span class="bL"><svg viewBox="0 0 24 24" fill="#E1306C"><circle cx="12" cy="12" r="12"/><rect x="6.5" y="6.5" width="11" height="11" rx="3.4" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="#fff" stroke-width="1.6"/></svg></span>
+          <span class="bR"><span class="pg bt">BT</span></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">วัชรพล</span><span class="tm">6 น.</span></div>
+          <div class="pv">สอบถามรายละเอียด</div>
+          <div class="src"><span class="txt">btpremium_official</span><span class="unread">1</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 class="sec">เทียบตรง ๆ</h2>
+<table class="cmp">
+  <tr><th style="width:130px"></th><th>แบบ C (ใช้อยู่)</th><th>2 มุม (ที่เสนอ)</th></tr>
+  <tr><td>รู้แพลตฟอร์ม</td><td>ทันที (ขวา)</td><td>ทันที (ซ้าย)</td></tr>
+  <tr><td>รู้บัญชี — โลโก้เพจต่างกัน</td><td>อ่านข้อความ</td><td><b>เหลือบตาเห็น</b></td></tr>
+  <tr><td>รู้บัญชี — โลโก้เพจเหมือนกัน (เคส BT)</td><td>อ่านข้อความ</td><td>อ่านข้อความอยู่ดี</td></tr>
+  <tr><td>พื้นที่หน้าลูกค้าที่เหลือ</td><td>~30px</td><td><b>~22px</b></td></tr>
+  <tr><td>ความสูงแถว</td><td>เท่ากัน</td><td>เท่ากัน</td></tr>
+  <tr><td>ยังต้องมีบรรทัดที่มาไหม</td><td>ต้องมี</td><td>ต้องมี (โลโก้ซ้ำกันได้)</td></tr>
+</table>
+
+<h2 class="sec">ข้อสังเกตก่อนตัดสิน</h2>
+<p class="note">
+  <b>1. ได้ประโยชน์เฉพาะร้านที่โลโก้เพจต่างกัน</b> — การ์ดกลางคือร้าน BT ของจริง มุมขวาเป็นรูปเดียวกันทั้ง 3 แถว
+  ส่วนการ์ดขวาคือร้านสมมติที่แต่ละสาขาใช้โลโก้ต่างกัน ซึ่งแยกได้ทันทีจริง<br>
+  <b>2. บรรทัดที่มายังต้องอยู่</b> — เพราะโลโก้เพจซ้ำกันได้เสมอ ตัดออกไม่ได้ ดังนั้นแบบ 2 มุมคือ "เพิ่มของ" ไม่ใช่ "แทนของเดิม"<br>
+  <b>3. avatar เหลือ ~22px</b> — user เคยรายงานเรื่อง badge บังรูปโปรไฟล์มาแล้วเมื่อ 2026-07-23 จนต้องลด badge จาก 20px เหลือ 16px<br>
+  <b>4. ทางสายกลาง</b> — แสดงมุมซ้ายเฉพาะเมื่อรูปเพจในร้านนั้น <b>ต่างกันจริง</b> (หลักการเดียวกับที่เราซ่อนบรรทัดที่มาเมื่อมีบัญชีเดียว
+  คือไม่แสดงสิ่งที่ไม่ให้ข้อมูล) — ร้านอย่าง BT จะเห็นเหมือนแบบ C ทุกประการ ส่วนร้านที่โลโก้ต่างกันจะได้ badge คู่เต็ม ๆ
+</p>
+
+</div></body>
+</html>

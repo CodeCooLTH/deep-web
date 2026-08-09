@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mockup — ชิปเพจมุมขวาบนของแถว</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--primary:#236dc9;--ink:#2F2B3D;--d900:#2F2B3D;--d700:#5D5869;--d500:#8C8896;--d400:#A8A5B0;
+        --d200:#E5E3EA;--d100:#F1F0F4;--card:#fff;--bg:#F5F5F7;--danger:#EA5455;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Anuphan',system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  .wrap{max-width:1360px;margin:0 auto;padding:24px 20px 60px}
+  h1{font-size:20px;margin:0 0 6px}
+  .lead{color:var(--d700);font-size:14px;line-height:1.7;margin:0 0 20px;max-width:76ch}
+  h2.sec{font-size:16px;margin:32px 0 8px}
+  .note{font-size:13.5px;color:var(--d700);line-height:1.75;max-width:82ch}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px;align-items:start}
+  .card{background:var(--card);border:1px solid var(--d200);border-radius:14px;overflow:hidden}
+  .card h3{font-size:14.5px;margin:0;padding:13px 16px 3px}
+  .card .sub{font-size:12.5px;color:var(--d500);padding:0 16px 11px;margin:0;line-height:1.6}
+  .cap{font-size:12px;font-weight:600;color:var(--d500);padding:9px 14px;border-bottom:1px solid var(--d200);background:var(--d100)}
+  .verdict{font-size:12px;font-weight:600;padding:7px 16px;border-top:1px solid var(--d200)}
+  .ok{background:#EAF7EF;color:#1B7A45}.bad{background:#FDECEC;color:#A03232}.warn{background:#FFF4E5;color:#8A5300}
+
+  .list{border-top:1px solid var(--d200)}
+  .row{display:flex;gap:12px;padding:11px 14px;border-bottom:1px dashed var(--d200);align-items:flex-start}
+  .row:last-child{border-bottom:0}
+  .avwrap{position:relative;flex:0 0 auto;width:40px;height:40px}
+  .face{width:40px;height:40px;border-radius:999px;background:#DCE6F5;display:flex;align-items:center;justify-content:center;font-weight:700;color:#5B7FB0;font-size:12px}
+  .bR{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:999px;box-shadow:0 0 0 2px var(--card);overflow:hidden;background:var(--card)}
+  .bR svg{width:16px;height:16px;display:block}
+  .body{min-width:0;flex:1}
+  .l1{display:flex;align-items:center;gap:8px;min-width:0}
+  .nm{font-weight:600;font-size:14px;color:var(--d900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .tm{font-size:11.5px;color:var(--d500);flex:0 0 auto}
+  .pv{font-size:12.5px;color:var(--d700);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .unread{background:var(--danger);color:#fff;border-radius:999px;min-width:19px;height:19px;font-size:11px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;flex:0 0 auto}
+
+  /* ชิปเพจ */
+  .pchip{display:inline-flex;align-items:center;gap:5px;background:var(--d100);border-radius:999px;padding:2px 8px 2px 2px;font-size:11px;color:var(--d700);flex:0 0 auto;max-width:190px;min-width:0}
+  .pchip .ava{width:16px;height:16px;border-radius:999px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;letter-spacing:-.3px}
+  .pchip .ava.bt{background:#111;color:#F5C842}
+  .pchip .ava.bn{background:#134E9B;color:#fff}
+  .pchip .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .pchip.tight{max-width:110px}
+  .pchip.tiny{max-width:74px}
+
+  .rt{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:0 0 auto;margin-left:auto}
+  .srcline{display:flex;align-items:center;gap:5px;margin-top:3px;font-size:11px;color:var(--d500);min-width:0}
+  .srcline .ava{width:12px;height:12px;border-radius:999px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;background:#111;color:#F5C842}
+  .srcline .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  table.cmp{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;background:var(--card);border-radius:10px;overflow:hidden}
+  table.cmp th,table.cmp td{border:1px solid var(--d200);padding:8px 10px;text-align:left;vertical-align:top}
+  table.cmp th{background:var(--d100);font-weight:600}
+  .devices{display:grid;gap:20px;grid-template-columns:360px 720px}
+  @media(max-width:1200px){.devices{grid-template-columns:1fr}}
+  .ruler{font-size:11px;color:var(--d400);padding:4px 14px}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>ชิปเพจมุมขวาบนของแถว</h1>
+<p class="lead">
+  ตามที่สั่ง: ย้าย <b>รูปเพจ + ชื่อเพจ</b> ไปเป็นชิปที่มุมขวาบนของกล่องข้อความ<br>
+  ปัญหาที่ต้องดูให้ดีคือ <b>ชื่อเพจของ BT ยาวมาก</b> — "BT premium auto xenon สาขา สุขสวัสดิ์" ยาว 38 ตัวอักษร
+  ซึ่งบนมือถือจะไปแย่งที่กับชื่อลูกค้าโดยตรง เพราะทั้งคู่อยู่บรรทัดเดียวกัน
+</p>
+
+<div class="grid">
+
+  <!-- E1 -->
+  <section class="card">
+    <h3>แบบ E1 — ชิปอยู่บรรทัดเดียวกับชื่อ</h3>
+    <p class="sub">ชื่อลูกค้า ซ้าย · ชิปเพจ + เวลา ขวา (บรรทัดเดียวกัน)</p>
+    <div class="ruler">จำลองความกว้าง 375px</div>
+    <div class="list" style="width:375px">
+      <div class="row">
+        <div class="avwrap"><div class="face">สม</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#06C755"><circle cx="12" cy="12" r="12"/><path d="M12 5.6c-3.9 0-7.1 2.5-7.1 5.6 0 2.8 2.5 5.1 5.9 5.5.2 0 .5.2.6.4.1.2 0 .5 0 .5l-.1.6c0 .2-.1.7.6.4s3.9-2.3 5.3-3.9c1-1 1.9-2.1 1.9-3.5 0-3.1-3.2-5.6-7.1-5.6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body">
+          <div class="l1">
+            <span class="nm">สมชาย ใจดี</span>
+            <span class="pchip tiny"><span class="ava bt">BT</span><span class="txt">BT สาขา สุขสวัสดิ์</span></span>
+            <span class="tm">เมื่อกี้</span>
+          </div>
+          <div class="pv">สวัสดีครับ สนใจโคมไฟหน้ารถ</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avwrap"><div class="face">ธน</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body">
+          <div class="l1">
+            <span class="nm">ธนกร วงศ์สุวรรณชัย</span>
+            <span class="pchip tiny"><span class="ava bt">BT</span><span class="txt">BT premium auto xenon สาขา สุขสวัสดิ์</span></span>
+            <span class="tm">19 น.</span>
+          </div>
+          <div class="pv">ราคาเท่าไหร่ครับ</div>
+        </div>
+      </div>
+    </div>
+    <div class="verdict bad">ชื่อเพจถูกตัดเหลือ "BT prem…" อ่านไม่รู้ว่าสาขาไหน · ชื่อลูกค้าก็โดนบีบตาม — แย่ทั้งคู่</div>
+  </section>
+
+  <!-- E2 -->
+  <section class="card">
+    <h3>แบบ E2 — ชิปอยู่บรรทัดขวาบน เวลาย้ายลงล่าง</h3>
+    <p class="sub">ขวาบน = ชิปเพจ · ขวาล่าง = เวลา + ตัวนับ · ชื่อลูกค้าได้ที่คืนบางส่วน</p>
+    <div class="ruler">จำลองความกว้าง 375px</div>
+    <div class="list" style="width:375px">
+      <div class="row">
+        <div class="avwrap"><div class="face">สม</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#06C755"><circle cx="12" cy="12" r="12"/><path d="M12 5.6c-3.9 0-7.1 2.5-7.1 5.6 0 2.8 2.5 5.1 5.9 5.5.2 0 .5.2.6.4.1.2 0 .5 0 .5l-.1.6c0 .2-.1.7.6.4s3.9-2.3 5.3-3.9c1-1 1.9-2.1 1.9-3.5 0-3.1-3.2-5.6-7.1-5.6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body" style="display:flex;gap:8px">
+          <div style="min-width:0;flex:1">
+            <div class="l1"><span class="nm">สมชาย ใจดี</span></div>
+            <div class="pv">สวัสดีครับ สนใจโคมไฟหน้ารถ</div>
+          </div>
+          <div class="rt">
+            <span class="pchip tight"><span class="ava bt">BT</span><span class="txt">BT สาขา สุขสวัสดิ์</span></span>
+            <span style="display:flex;align-items:center;gap:6px"><span class="tm">เมื่อกี้</span><span class="unread">1</span></span>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avwrap"><div class="face">ธน</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body" style="display:flex;gap:8px">
+          <div style="min-width:0;flex:1">
+            <div class="l1"><span class="nm">ธนกร วงศ์สุวรรณชัย</span></div>
+            <div class="pv">ราคาเท่าไหร่ครับ</div>
+          </div>
+          <div class="rt">
+            <span class="pchip tight"><span class="ava bt">BT</span><span class="txt">BT premium auto xenon สาขา บางนา</span></span>
+            <span style="display:flex;align-items:center;gap:6px"><span class="tm">19 น.</span><span class="unread">1</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="verdict warn">อ่านง่ายขึ้นกว่า E1 แต่ชื่อเพจยาวยังถูกตัด ("BT premium auto…") และแถวกว้างขึ้นเพราะกันที่ให้ชิป</div>
+  </section>
+
+  <!-- C ปัจจุบัน -->
+  <section class="card">
+    <h3>แบบ C — ที่ใช้อยู่ตอนนี้ (ไว้เทียบ)</h3>
+    <p class="sub">ชื่อเพจอยู่บรรทัดล่างเต็มความกว้าง</p>
+    <div class="ruler">จำลองความกว้าง 375px</div>
+    <div class="list" style="width:375px">
+      <div class="row">
+        <div class="avwrap"><div class="face">สม</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#06C755"><circle cx="12" cy="12" r="12"/><path d="M12 5.6c-3.9 0-7.1 2.5-7.1 5.6 0 2.8 2.5 5.1 5.9 5.5.2 0 .5.2.6.4.1.2 0 .5 0 .5l-.1.6c0 .2-.1.7.6.4s3.9-2.3 5.3-3.9c1-1 1.9-2.1 1.9-3.5 0-3.1-3.2-5.6-7.1-5.6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">สมชาย ใจดี</span><span class="tm" style="margin-left:auto">เมื่อกี้</span></div>
+          <div class="pv">สวัสดีครับ สนใจโคมไฟหน้ารถ</div>
+          <div class="srcline"><span class="ava">BT</span><span class="txt">BT สาขา สุขสวัสดิ์</span><span class="unread" style="margin-left:auto">1</span></div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="avwrap"><div class="face">ธน</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body">
+          <div class="l1"><span class="nm">ธนกร วงศ์สุวรรณชัย</span><span class="tm" style="margin-left:auto">19 น.</span></div>
+          <div class="pv">ราคาเท่าไหร่ครับ</div>
+          <div class="srcline"><span class="ava">BT</span><span class="txt">BT premium auto xenon สาขา บางนา</span><span class="unread" style="margin-left:auto">1</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="verdict ok">ชื่อเพจได้ความกว้างเต็มแถว จึงอ่านครบแม้ยาว · ชื่อลูกค้าไม่โดนบีบ</div>
+  </section>
+
+</div>
+
+<h2 class="sec">แบบ E2 บนจอกว้าง (ที่ที่มันทำงานได้ดี)</h2>
+<p class="note">ยิ่งจอกว้าง ชิปยิ่งได้ที่ ชื่อเพจอ่านครบ — ปัญหาอยู่ที่มือถือ ไม่ใช่เดสก์ท็อป</p>
+<div class="devices">
+  <div class="card">
+    <div class="cap">มือถือ · 375px (rail เต็มจอ)</div>
+    <div class="list" style="width:360px">
+      <div class="row">
+        <div class="avwrap"><div class="face">ธน</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body" style="display:flex;gap:8px">
+          <div style="min-width:0;flex:1">
+            <div class="l1"><span class="nm">ธนกร วงศ์สุวรรณชัย</span></div>
+            <div class="pv">ราคาเท่าไหร่ครับ</div>
+          </div>
+          <div class="rt">
+            <span class="pchip tight"><span class="ava bt">BT</span><span class="txt">BT premium auto xenon สาขา บางนา</span></span>
+            <span style="display:flex;align-items:center;gap:6px"><span class="tm">19 น.</span><span class="unread">1</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="cap">แท็บเล็ต/เดสก์ท็อป · rail 720px</div>
+    <div class="list" style="width:720px">
+      <div class="row">
+        <div class="avwrap"><div class="face">ธน</div>
+          <span class="bR"><svg viewBox="0 0 24 24" fill="#1877F2"><circle cx="12" cy="12" r="12"/><path d="M13.3 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.1-1.1h1.2V6c-.2 0-.9-.1-1.8-.1-1.8 0-3 1.1-3 3.1v1.7H8.7V13h2.1v6z" fill="#fff"/></svg></span>
+        </div>
+        <div class="body" style="display:flex;gap:8px">
+          <div style="min-width:0;flex:1">
+            <div class="l1"><span class="nm">ธนกร วงศ์สุวรรณชัย</span></div>
+            <div class="pv">ราคาเท่าไหร่ครับ มีสีอะไรบ้าง</div>
+          </div>
+          <div class="rt">
+            <span class="pchip"><span class="ava bt">BT</span><span class="txt">BT premium auto xenon สาขา บางนา</span></span>
+            <span style="display:flex;align-items:center;gap:6px"><span class="tm">19 น.</span><span class="unread">1</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 class="sec">เทียบตรง ๆ</h2>
+<table class="cmp">
+  <tr><th style="width:150px"></th><th>E1 บรรทัดเดียวกับชื่อ</th><th>E2 ขวาบน เวลาลงล่าง</th><th>C (ใช้อยู่)</th></tr>
+  <tr><td>ชื่อเพจยาว 38 ตัว บนมือถือ</td><td>เหลือ ~8 ตัว</td><td>เหลือ ~14 ตัว</td><td><b>อ่านครบ ~34 ตัว</b></td></tr>
+  <tr><td>ชื่อลูกค้าโดนบีบไหม</td><td><b>โดนหนัก</b></td><td>โดนบ้าง</td><td>ไม่โดน</td></tr>
+  <tr><td>ความสูงแถว</td><td>เท่าเดิม</td><td>เท่าเดิม</td><td>+18px</td></tr>
+  <tr><td>เห็นเพจก่อนอ่านข้อความ</td><td>ใช่</td><td>ใช่</td><td>ไม่ (อยู่บรรทัดล่าง)</td></tr>
+  <tr><td>บนเดสก์ท็อป</td><td>พอใช้</td><td><b>ดี</b></td><td>ดี</td></tr>
+</table>
+
+<h2 class="sec">สรุปตรง ๆ</h2>
+<p class="note">
+  <b>ปัญหาหลักคือความยาวชื่อเพจ ไม่ใช่ตำแหน่ง</b> — ชื่อเพจจริงของ BT ยาว 30-38 ตัวอักษร
+  พอเอาไปวางฝั่งขวาซึ่งต้องแบ่งที่กับชื่อลูกค้าในบรรทัดเดียวกัน มันจะถูกตัดจนไม่รู้ว่าสาขาไหน
+  ซึ่งคือข้อมูลที่เราอยากได้พอดี<br><br>
+  <b>ข้อดีจริงของแบบ E2</b> คือ <b>ไม่เพิ่มความสูงแถว</b> (เห็นเธรดต่อจอมากกว่าแบบ C หนึ่งแถว) และ
+  <b>บนเดสก์ท็อปมันทำงานได้ดีจริง</b> เพราะ rail กว้างพอให้ชิปกางเต็ม<br><br>
+  <b>ทางที่ได้ทั้งสองอย่าง:</b> ใช้ <b>E2 บนจอ ≥768px</b> (ชิปขวาบน ไม่เปลืองความสูง) และ
+  <b>ถอยเป็นแบบ C บนมือถือ</b> (บรรทัดล่างเต็มความกว้าง อ่านชื่อเพจครบ) —
+  เป็นข้อมูลชุดเดียวกัน แค่จัดวางต่างกันตามที่ว่างจริง ซึ่งเป็นสิ่งที่ responsive ควรทำอยู่แล้ว
+</p>
+
+</div></body>
+</html>

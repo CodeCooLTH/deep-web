@@ -824,20 +824,24 @@ export default function InboxList({
   }, [items.length, nextCursor])
 
   // id เพจ → รูปเพจ (จาก prop channels ที่โหลดมาแล้ว) — ใช้ทำ badge รูปเพจต่อแถว
-  // id ช่องทาง → ชื่อบัญชี (เพจ FB / บัญชี IG / LINE OA) สำหรับ "บรรทัดที่มา" ในแถว
+  // id ช่องทาง → ชื่อ + รูปของบัญชีนั้น (เพจ FB / บัญชี IG / LINE OA) สำหรับ "บรรทัดที่มา"
   const channelNameById = new Map(channels.map((c) => [c.id, c.name]))
+  const channelAvatarById = new Map(channels.map((c) => [c.id, c.avatarUrl]))
   /**
-   * แสดง "บรรทัดที่มา" เฉพาะเมื่อร้านมีบัญชีนอกตั้งแต่ 2 ขึ้นไป (มติแบบ C จาก mockup
-   * 2026-08-09 ที่ user เลือก) — badge มุม avatar บอกได้แค่ "แพลตฟอร์มไหน" ส่วน "บัญชีไหน"
-   * ต้องใช้ข้อความ เพราะร้านตั้งโลโก้ร้านเดียวกันทุกช่องทางเป็นเรื่องปกติ (เจอจริงกับร้าน
-   * BT Premium: เพจ Facebook กับ LINE OA ใช้โลโก้เดียวกัน badge จึงเหมือนกันเป๊ะ แยกไม่ออก)
+   * แพลตฟอร์มที่ร้านมี "หลายบัญชี" — badge มุม avatar แยกแพลตฟอร์มให้อยู่แล้ว บรรทัดที่มาจึง
+   * จำเป็นเฉพาะตอนที่แพลตฟอร์มเดียวกันมีหลายบัญชี (เช่น 2 เพจ Facebook) ซึ่งเป็นกรณีเดียวที่
+   * badge ตอบไม่ได้จริง ๆ
    *
-   * 🛑 มีบัญชีเดียวหรือไม่มีเลย = ไม่มีอะไรให้แยก → ซ่อนทิ้ง ไม่เสียความสูงแถวฟรี ๆ
-   * นับรวมทุกแพลตฟอร์ม ไม่แยกนับต่อ provider เพราะความกำกวมเกิดได้ทั้ง "2 เพจ FB"
-   * และ "1 เพจ FB + 1 LINE OA" เหมือนกัน · คำนวณครั้งเดียวนอก .map() ทุกแถวใช้ผลเดียวกัน
-   * เพื่อให้จังหวะการอ่านคงที่ทั้งลิสต์ (ไม่ใช่บางแถวมีบางแถวไม่มี)
+   * 🛑 เกณฑ์รอบแรก (2026-08-09) ผิด: นับ `channels.length >= 2` ทั้งร้าน ทำให้ร้านที่มี
+   * 1 เพจ FB + 1 LINE OA เห็นบรรทัดที่มาทุกแถวด้วยข้อความเดียวกันเป๊ะ — ไม่ได้บอกอะไรใหม่
+   * เลยเพราะ badge บอกไปแล้วว่าคนละแพลตฟอร์ม (user รายงานเองว่า "มันเยอะ" หลังเห็นของจริง)
+   * บทเรียน: เกณฑ์ต้องผูกกับ "สิ่งที่ยังกำกวมอยู่จริง" ไม่ใช่ "มีของหลายชิ้นไหม"
    */
-  const showSourceLine = channels.length >= 2
+  const duplicatedProviders = new Set(
+    channels
+      .map((c) => resolveChatChannel(c.provider))
+      .filter((p, _i, all) => all.filter((x) => x === p).length >= 2),
+  )
 
   return (
     // shadow-none (user สั่ง 2026-07-23): .card ของ Paces มี shadow ในตัว (custom/_card.css) ซึ่ง
@@ -1429,14 +1433,15 @@ export default function InboxList({
                           (text-2xs + เทา) ไม่ให้แย่งลำดับชั้นจากชื่อลูกค้าซึ่งยังเป็นพระเอก
                           เธรด DEEP ไม่มีบัญชีให้อ้าง → ใช้ "แอป Deep" (ไม่ใช่ "Deep" เฉย ๆ กันสับสน
                           กับชื่อแบรนด์) · เพจถูกถอดไปแล้วแต่เธรดเก่ายังอยู่ → ถอยไปชื่อแพลตฟอร์ม */}
-                      {showSourceLine && (
+                      {duplicatedProviders.has(resolveChatChannel(c.channel)) && (
                         <span className="text-default-500 mt-0.5 flex min-w-0 max-w-52 items-center gap-1 text-2xs">
-                          <ChannelMark channel={c.channel} />
+                          <ChannelMark
+                            channel={c.channel}
+                            imageUrl={c.shopChannelId ? (channelAvatarById.get(c.shopChannelId) ?? null) : null}
+                          />
                           <span className="truncate">
-                            {resolveChatChannel(c.channel) === 'DEEP'
-                              ? 'แอป Deep'
-                              : ((c.shopChannelId ? channelNameById.get(c.shopChannelId) : null) ??
-                                getChannelDisplay(c.channel).label)}
+                            {(c.shopChannelId ? channelNameById.get(c.shopChannelId) : null) ??
+                              getChannelDisplay(c.channel).label}
                           </span>
                         </span>
                       )}
