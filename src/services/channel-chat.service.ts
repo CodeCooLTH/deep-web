@@ -8,6 +8,9 @@ import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentM
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
+// pure module (ไม่มี server code) — ใช้ตัวเดียวกับที่ ChatThread ใช้ตัดสินว่าเป็นการ์ดยอดเงิน
+// เพื่อไม่ให้ "อะไรคือการ์ดยอดเงิน" มีสองนิยาม (HR16)
+import { parseMetaOrderCard } from '@/lib/meta-order-card'
 
 /** ChatMessage.type ของไฟล์แนบ → `message.attachment.type` ที่ Meta Send API รับ (2026-08-02)
  *  ขาเข้ามี MEDIA_TYPE ทำหน้าที่ตรงข้ามอยู่แล้ว (Meta → ของเรา) นี่คือขาออก */
@@ -369,6 +372,9 @@ function backfillPreview(c: BackfillContent): string {
   // ไม่ใช่ตัดเนื้อหาจริง 100 ตัวอักษร — list ต้องสั้นเสมอเหมือนรูป/วิดีโอ (user report 2026-07-25:
   // placeholder ยาวไปโผล่ใน list) เนื้อหาจริงของการ์ดเก็บไว้ให้เห็นตอนเปิดเธรด ไม่ใช่ตอนกวาดสายตา
   // คำต้องตรงกับฝั่ง webhook เป๊ะ ๆ — concept เดียวกันต้องอ่านได้เป็นคำเดียวกันทั้ง 2 ทางเข้า
+  // การ์ดยอดเงินบอกยอดไปเลย (ดูเหตุผลที่สาขาฝั่ง webhook — ต้องตรงกันทั้ง 2 ทางเข้า)
+  const orderCard = parseMetaOrderCard(c.body)
+  if (orderCard) return `คำขอชำระเงิน ${orderCard.amount}`
   if (c.body?.startsWith(CARD_PREFIX)) return '[ข้อความจากระบบ]'
   return (c.body ?? SYNCED_EMPTY_TEXT).slice(0, 100)
 }
@@ -978,7 +984,12 @@ export async function ingestInboundMessage(params: {
     : // การ์ดของ Meta → label สั้นตัวเดียวกับ SHORT_PREVIEW_BY_ATTTYPE.template ไม่ใช่เนื้อหาจริง
       // ตัด 100 ตัวอักษร (บทเรียน user report 2026-07-25: placeholder ยาวไปโผล่ในรายการแชท)
       // ต้องมาก่อนสาขา hasDisplayText เพราะการ์ดมี displayText เสมอหลังแก้ 2026-08-07
-      displayText?.startsWith(CARD_PREFIX)
+      // การ์ดยอดเงินบอกยอดไปเลย — "[ข้อความจากระบบ]" ทำให้แถวที่สำคัญที่สุดในรายการ
+      // (ลูกค้าถูกขอให้จ่ายเงิน) อ่านเหมือนข้อความอัตโนมัติทั่วไป ต้องตรงกับสาขา backfill
+      // ด้านบนเสมอ — concept เดียวกันต้องอ่านเป็นคำเดียวกันทั้ง 2 ทางเข้า
+      parseMetaOrderCard(displayText)
+      ? `คำขอชำระเงิน ${parseMetaOrderCard(displayText)!.amount}`
+      : displayText?.startsWith(CARD_PREFIX)
       ? '[ข้อความจากระบบ]'
       : hasDisplayText
       ? displayText!.slice(0, 100)

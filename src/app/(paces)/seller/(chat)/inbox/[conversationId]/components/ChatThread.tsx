@@ -204,16 +204,33 @@ function CopyMessageButton({ text }: { text: string }) {
  * การชำระเงิน และไม่มี API ให้กด "Mark as paid"/"View order" (ดูเหตุผลเต็มใน lib/meta-order-card.ts)
  * จึงยกเฉพาะยอดเงินขึ้นมาให้เด่น ไม่ใส่สถานะที่ยืนยันไม่ได้ และไม่ทำปุ่มที่กดแล้วไม่เกิดอะไร
  */
-function MetaOrderCardBubble({ amount }: { amount: string }) {
+function MetaOrderCardBubble({ amount, status }: { amount: string; status: string | null }) {
   return (
-    <div className="bg-light flex w-52 items-center gap-3 rounded-lg p-3">
-      <span className="bg-card text-default-900 flex size-10 shrink-0 items-center justify-center rounded-full">
-        <Icon icon="currency-baht" width={20} height={20} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="text-default-900 block text-base font-bold">{amount}</span>
-        <span className="text-default-700 block text-xs">คำขอชำระเงินผ่าน Messenger</span>
-      </span>
+    <div className="bg-light w-52 rounded-lg p-3">
+      <div className="flex items-center gap-3">
+        <span className="bg-card text-default-900 flex size-10 shrink-0 items-center justify-center rounded-full">
+          <Icon icon="currency-baht" width={20} height={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="text-default-900 block text-base font-bold">{amount}</span>
+          {/* ไอคอน Facebook เล็ก ๆ = สัญญาณว่าการ์ดนี้เป็นของ Meta ไม่ใช่ออเดอร์ในระบบ Deep
+              (Deep มีการ์ดออเดอร์ของตัวเองในเธรดเดียวกัน ถ้าแยกไม่ออกผู้ขายจะไปหาเลขที่
+              คำสั่งซื้อในระบบเราแล้วไม่เจอ) */}
+          <span className="text-default-700 flex items-center gap-1 text-xs">
+            <Icon icon="brand-facebook" width={11} height={11} className="shrink-0" aria-hidden="true" />
+            <span className="truncate">คำขอชำระเงินผ่าน Messenger</span>
+          </span>
+        </span>
+      </div>
+      {/* สถานะดิบของ Meta — ทุกค่าใช้โทน warning เหมือนกันหมด **ห้ามจำแนกสีตามความหมายของคำ**
+          เรายังไม่มีหลักฐานว่า Meta ใช้คำอะไรได้บ้าง ถ้าเดาว่าคำไหนแปลว่า "จ่ายแล้ว" แล้วให้
+          เขียวไป จะกลายเป็นการยืนยันสิ่งที่เราไม่รู้ (Verified-Means-Green) — เขียวสงวนไว้
+          กับสิ่งที่ยืนยันแล้วเท่านั้น */}
+      {status && (
+        <div className="border-default-200 mt-2.5 border-t border-dashed pt-2.5">
+          <span className="badge bg-warning/15 text-warning-ink">{status}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -2058,8 +2075,17 @@ export default function ChatThread({
                 // แบบเดิมอีกต่อไป — ต้องแสดงเป็นการ์ดเลื่อนในบับเบิลปกติ (ชิดขวา/ซ้ายตามผู้ส่งจริง)
                 // เธรดเก่าที่ไม่มี cards ยังตกไปทางเดิมทุกประการ (ไม่มีอะไรเปลี่ยนสำหรับแถวเก่า)
                 const hasGenericCards = !!m.cards && m.cards.length > 0
+                // 🛑 การ์ดคำขอชำระเงินก็ต้องชนะบรรทัดระบบเช่นกัน (user report 2026-08-09) —
+                // อาการเดียวกับ carousel ข้างบนเป๊ะ แค่คนละชนิดการ์ด: parseMetaSystemNotice
+                // จับคำนำหน้า "[การ์ดจาก Facebook]" ของการ์ด **ทุกชนิด** แล้ว early-return ตรงนี้
+                // ก่อนโค้ดจะไปถึง metaOrder ด้านล่าง → การ์ดยอดเงินที่เข้ามาทางเส้น Graph sync
+                // (ซึ่งเติมคำนำหน้าเสมอ) จึงขึ้นเป็นข้อความดิบ "[การ์ดจาก Facebook] ฿360.00
+                // order — Waiting for payment" กลางจอ
+                // การ์ดชนิดอื่น (โทร/ปุ่ม) ยังตกไปเป็นบรรทัดระบบตามเดิม เพราะ parseMetaOrderCard
+                // แคบเฉพาะรูป "฿N order" เท่านั้น
+                const isMetaOrderCard = m.type === 'TEXT' && !!parseMetaOrderCard(m.body)
                 const systemNotice =
-                  m.type === 'TEXT' && !hasGenericCards
+                  m.type === 'TEXT' && !hasGenericCards && !isMetaOrderCard
                     ? (parseMetaSystemNotice(m.body) ?? parseMetaAiHandoffNotice(m.body))
                     : null
                 if (systemNotice) {
@@ -2156,7 +2182,7 @@ export default function ChatThread({
                         {m.type === 'ORDER' ? (
                           <OrderCardBubble card={m.orderCard ?? null} onEdit={openEditOrder} />
                         ) : metaOrder ? (
-                          <MetaOrderCardBubble amount={metaOrder.amount} />
+                          <MetaOrderCardBubble amount={metaOrder.amount} status={metaOrder.status} />
                         ) : genericCards ? (
                           <MetaGenericCardCarousel
                             cards={genericCards}

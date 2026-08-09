@@ -307,7 +307,12 @@ describe('ingestInboundMessage', () => {
       })
       const data = db.chatMessage.create.mock.calls[0]![0].data
       expect(data.body).toBe('[การ์ดจาก Facebook] ฿360.00 order — Waiting for payment')
-      expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toBe('[ข้อความจากระบบ]')
+      // 2026-08-09: การ์ดยอดเงินบอกยอดใน preview แทน '[ข้อความจากระบบ]' — แถวที่สำคัญที่สุด
+      // ในรายการแชท (ลูกค้าถูกขอให้จ่ายเงิน) ไม่ควรอ่านเหมือนข้อความอัตโนมัติทั่วไป
+      // การ์ดชนิดอื่นที่ใช้คำนำหน้าเดียวกันยังได้ '[ข้อความจากระบบ]' เหมือนเดิม (เทสถัดไป)
+      expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toBe(
+        'คำขอชำระเงิน ฿360.00',
+      )
     })
 
     it('attachment ที่ไม่ใช่รูป (วิดีโอ/เสียง/ไฟล์) → เก็บ placeholder ให้ seller รู้ว่ามีไฟล์แนบ', async () => {
