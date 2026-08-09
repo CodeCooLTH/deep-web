@@ -61,6 +61,9 @@ describe('sellerMenuItems — slug contract', () => {
         'seller:settings-auto-reply',
         'seller:settings-channels',
         'seller:settings-chatbot',
+        // เมนู "ตอบกลับคอมเมนต์" (feature 00038) — เพิ่มใน seller-menu.ts แล้วแต่ลืมเติมที่นี่
+        // เทสข้อนี้จึงแดงอยู่บน main (พบตอน merge 2026-08-09) ไม่ใช่ของใหม่ที่เพิ่งพัง
+        'seller:settings-comment-reply',
         'seller:shop',
         'seller:subscriptions',
         'seller:verification',
