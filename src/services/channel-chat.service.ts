@@ -5,12 +5,15 @@ import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
 import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendImageGridMessage, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment } from '@/lib/facebook/graph'
-import type { ChannelAdapter, ChannelContext } from '@/lib/channels/adapter'
+import type { ChannelAdapter, ChannelContext, OutboundMessagePart } from '@/lib/channels/adapter'
 import { MetaAdapter } from '@/lib/channels/meta-adapter'
 // (S-6, feature 00025) LineAdapter (S-4) + prefix builder (TD-005) — ตัวเดียวที่ประกอบ
 // ChatMessage.externalMessageId ของ LINE ห้ามประกอบ string นี้เองที่ไฟล์นี้
 import { LineAdapter, buildLineExternalMessageId } from '@/lib/channels/line-adapter'
-import { REPLY_WINDOW_MS } from '@/lib/line/constants'
+import { REPLY_WINDOW_MS, REPLY_SAFETY_MARGIN_MS } from '@/lib/line/constants'
+// (S-8, feature 00025) LineApiError — ต้องอ่าน status/raw ของ error จริงเพื่อจำแนกเป็นรหัสทางธุรกิจ
+// (TOKEN_INVALID/CONTACT_BLOCKED/QUOTA_EXCEEDED/LINE_UNAVAILABLE) — ดู classifyLineOutboundError
+import { LineApiError } from '@/lib/line/client'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -2072,6 +2075,305 @@ export async function sendOutboundImageGrid(params: {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// (S-8, feature 00025 TFR-LINE-05/06) — outbound ของ LINE (reply/push + sendMethod + error mapping)
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * รหัสทางธุรกิจของ error ขาออก LINE (API.md §5) — `LineErrorKind` ของ line/client.ts เป็นแค่การจำแนก
+ * เชิง "transport" (status ดิบ) เท่านั้นตามที่ comment ของมันบอกไว้ตรง ๆ ว่าเป็นงานของ S-8 ที่ต้องอ่าน
+ * `status`/`raw` เองต่อ — ฟังก์ชันนี้คือจุดเดียวที่ทำหน้าที่นั้น
+ *
+ * แหล่งอ้างอิงการแมป status → ความหมาย: SDS §4.2 "Flow กรณีล้มเหลว/ชดเชย":
+ *   401/403 → token ใช้ไม่ได้ (TOKEN_INVALID) · 429 → โควตาหมด (QUOTA_EXCEEDED — LINE ใช้ status นี้
+ *   ทั้งกรณี rate-limit และโควตารายเดือนหมด ตามที่ SDS วาดไว้เป็นกิ่งเดียวกัน) · 5xx/timeout/network
+ *   (status 0) → LINE ไม่พร้อมตอบ (LINE_UNAVAILABLE) · 400 ที่มีคำว่า "reply token" → token ตัวนี้ใช้
+ *   ไม่ได้แล้วจริงที่ฝั่ง LINE (คนละเรื่องกับ cache ฝั่งเรา — ต้อง fallback ตาม TFR-LINE-05) · 400 ที่
+ *   บ่งชี้ว่าผู้รับไม่รับข้อความ (unfollow/block) → CONTACT_BLOCKED
+ *
+ * 400 อื่น ๆ ที่ไม่เข้าเงื่อนไขไหนเลย → 'UNKNOWN' (caller ตกไปใช้เส้นทาง SEND_FAILED เดิมที่มีอยู่แล้ว
+ * ในไฟล์นี้ — บันทึกแถว FAILED พร้อมข้อความดิบ ไม่เดา ไม่ทิ้งเงียบ เหมือน Meta ทำอยู่แล้ว)
+ */
+type LineOutboundErrorCode =
+  | 'TOKEN_INVALID'
+  | 'CONTACT_BLOCKED'
+  | 'QUOTA_EXCEEDED'
+  | 'LINE_UNAVAILABLE'
+  | 'REPLY_TOKEN_INVALID'
+  | 'UNKNOWN'
+
+function lineErrorMessage(e: LineApiError): string {
+  const raw = e.raw
+  if (raw && typeof raw === 'object' && 'message' in raw && typeof (raw as { message?: unknown }).message === 'string') {
+    return (raw as { message: string }).message
+  }
+  return e.message
+}
+
+function classifyLineOutboundError(e: unknown): LineOutboundErrorCode {
+  if (!(e instanceof LineApiError)) return 'UNKNOWN'
+  if (e.status === 401 || e.status === 403) return 'TOKEN_INVALID'
+  if (e.status === 429) return 'QUOTA_EXCEEDED'
+  if (e.status >= 500 || e.status === 0) return 'LINE_UNAVAILABLE'
+  if (e.status === 400) {
+    const msg = lineErrorMessage(e)
+    if (/reply token/i.test(msg)) return 'REPLY_TOKEN_INVALID'
+    if (/hasn.?t added the bot|blocked the bot/i.test(msg)) return 'CONTACT_BLOCKED'
+  }
+  return 'UNKNOWN'
+}
+
+/** เก็บลง ChatMessage.rawMessage (source: 'outbound-response') — ทำนองเดียวกับ outboundResponse ของ
+ *  ฝั่ง Meta ด้านล่าง (GraphApiError → {httpStatus, code, subcode, error}) */
+function lineErrorToRaw(e: unknown): unknown {
+  if (e instanceof LineApiError) {
+    return { ok: false, httpStatus: e.status, kind: e.kind, error: e.raw }
+  }
+  return { ok: false, error: e instanceof Error ? e.message : String(e) }
+}
+
+/**
+ * sendOutboundLineMessage — แกนของ S-8 (TFR-LINE-05/06)
+ *
+ * ทำไมแยกเป็นฟังก์ชันของตัวเองแทนการแทรกเข้าไปใน flow ของ Meta ด้านล่าง: LINE ไม่มีแนวคิด
+ * "หน้าต่าง 24 ชม./HUMAN_AGENT tag" ของ Meta เลย (มันคือ reply token อายุ 60 วินาที + โควตารายเดือน
+ * แทน) — ผสมสองโมเดลเข้าด้วยกันในฟังก์ชันเดียวจะพังทั้งคู่ในที่สุด แยกออกมาทำให้ Meta ไม่ถูกแตะแม้แต่
+ * บรรทัดเดียว (scope baseline S-8 "ห้ามเปลี่ยนพฤติกรรม Messenger/Instagram แม้จุดเล็ก")
+ *
+ * caller (sendOutboundMessage) ต้อง fetch conversation พร้อม shopChannel/externalContact (non-null,
+ * ผ่านการเช็ค NOT_EXTERNAL_CHANNEL มาแล้ว) และผ่าน authz (FORBIDDEN/INVALID_ACTOR) มาแล้วเท่านั้น
+ */
+async function sendOutboundLineMessage(
+  conversation: Prisma.ConversationGetPayload<{ include: { shopChannel: true; externalContact: true } }>,
+  params: {
+    actorUserId: string | null
+    autoReplyKind?: 'AUTO' | 'AUTO_TEST'
+    text?: string
+    imageFileId?: string
+    sticker?: { id: string; imageUrl: string }
+    attachment?: {
+      fileId: string
+      kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
+      name?: string | null
+      size?: number | null
+    }
+    orderRefToken?: string
+    replyToMid?: string | null
+  },
+) {
+  const shopChannel = conversation.shopChannel!
+  const externalContact = conversation.externalContact!
+
+  // TFR-LINE-06 ข้อ 3: ลูกค้าบล็อก/เลิกติดตามแล้ว — เช็คก่อนยิง LINE เสมอ (ไม่เสีย round-trip เปล่า ๆ)
+  if (externalContact.isBlocked) throw new Error('CONTACT_BLOCKED')
+  // TFR-LINE-06 ข้อ 2: channel ต้อง ACTIVE — เช็คที่นี่แยกจาก Meta เพราะ LINE ไม่ผ่าน windowState
+  // ของ Meta เลย (M-6 เดิมอยู่หลัง windowState ซึ่งเป็นโค้ดคนละสาขาไปแล้ว ณ จุดนี้)
+  if (shopChannel.status !== 'ACTIVE') throw new Error('CHANNEL_NOT_ACTIVE')
+
+  const accessToken = decryptToken(shopChannel.accessTokenEnc)
+  const recipientId = externalContact.externalUserId
+  const attachment =
+    params.attachment ?? (params.imageFileId ? { fileId: params.imageFileId, kind: 'IMAGE' as const, name: null, size: null } : null)
+  const bodyText = params.text ?? ''
+  const isOrder = !!params.orderRefToken
+
+  const buildParts = async (): Promise<OutboundMessagePart[]> => {
+    if (params.sticker) return [{ kind: 'sticker', stickerId: params.sticker.id }]
+    if (attachment) {
+      // presigned URL อายุ 1 ชม. — LINE ดึงไฟล์ไปโฮสต์เอง (originalContentUrl/previewImageUrl ต้อง
+      // เป็น URL สาธารณะที่ LINE เข้าถึงได้ — /api/files ของเรา auth-gated ใช้ไม่ได้ เหมือน Meta)
+      const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
+      return [{ kind: 'attachment', attachmentKind: attachment.kind, url: fileUrl }]
+    }
+    return [{ kind: 'text', text: bodyText }]
+  }
+
+  // ── TFR-LINE-05/06: ตัดสิน reply vs push ──────────────────────────────────
+  const nowMs = Date.now()
+  const canTryReply =
+    !!conversation.replyToken &&
+    !conversation.replyTokenUsedAt &&
+    !!conversation.replyTokenExpiresAt &&
+    nowMs < conversation.replyTokenExpiresAt.getTime() - REPLY_SAFETY_MARGIN_MS
+
+  let sendMethod: 'REPLY' | 'PUSH' = 'PUSH'
+  let claimedReplyToken: string | null = null
+  if (canTryReply) {
+    // 🛑 CAS (compare-and-swap) ผ่าน conditional updateMany — ต้อง match ทั้ง replyToken เดิมที่เพิ่ง
+    // อ่านมา และ replyTokenUsedAt:null ใน WHERE เดียวกัน (TC-12 [ห้ามข้าม]) "ห้ามอ่านแล้วค่อยเขียน":
+    //   - concurrent send 2 อันแย่งกัน → ผู้ชนะได้ count=1 (claim สำเร็จ) ผู้แพ้ได้ count=0 → push
+    //     ไม่มีทางที่ทั้งคู่ยิง reply ด้วย token เดียวกันสำเร็จพร้อมกัน
+    //   - event ใหม่จาก LINE เขียนทับ replyToken ระหว่างที่เราอ่านมา (คนละ token กับที่เช็คไว้แล้ว)
+    //     → WHERE ไม่ match (replyToken เปลี่ยนไปแล้ว) → count=0 → fallback push โดยไม่แตะ token ใหม่
+    //     (ยังใช้ reply ได้ในการส่งรอบถัดไปตามปกติ)
+    const claim = await prisma.conversation.updateMany({
+      where: { id: conversation.id, replyToken: conversation.replyToken!, replyTokenUsedAt: null },
+      data: { replyTokenUsedAt: new Date(nowMs) },
+    })
+    if (claim.count === 1) {
+      sendMethod = 'REPLY'
+      claimedReplyToken = conversation.replyToken!
+    }
+  }
+
+  // S-9 (quota service) ยังไม่ทำในรอบนี้ (scope baseline S-8 "ไม่ทำ") — จุดที่ S-9 จะเสียบ "เช็ค
+  // cache โควตาก่อนยิง push แล้ว throw QUOTA_EXCEEDED โดยไม่ยิง LINE" คือตรงนี้พอดี (ก่อน attemptSend
+  // ด้านล่างเมื่อ sendMethod === 'PUSH') — ตอนนี้ปล่อยให้ LINE เป็นผู้ตัดสินแทน (TFR-LINE-06 หมายเหตุ)
+
+  let mid: string | null = null
+  let failureReason: string | null = null
+  let outboundResponse: unknown = null
+
+  const attemptSend = async (method: 'REPLY' | 'PUSH'): Promise<string> => {
+    const parts = await buildParts()
+    const ctx: ChannelContext = {
+      provider: 'LINE',
+      accessToken,
+      recipientId,
+      replyToken: method === 'REPLY' ? claimedReplyToken! : undefined,
+    }
+    return (await LineAdapter.sendMessages(ctx, parts)).externalMessageId
+  }
+
+  try {
+    mid = await attemptSend(sendMethod)
+  } catch (e) {
+    const code = classifyLineOutboundError(e)
+    // ผู้ส่งเป็นมนุษย์ (ไม่ใช่ auto-reply ของ 00023/S-12) — เกณฑ์เดียวกับที่ Meta ใช้ตัดสิน
+    // HUMAN_AGENT tag ด้านล่างของฟังก์ชัน sendOutboundMessage
+    const sentByHuman = params.actorUserId !== null && !params.autoReplyKind
+
+    if (code === 'REPLY_TOKEN_INVALID' && sendMethod === 'REPLY' && sentByHuman) {
+      // TFR-LINE-05: reply token ใช้ไม่ได้จริงที่ฝั่ง LINE ทั้งที่ cache ฝั่งเรา (replyTokenUsedAt/
+      // replyTokenExpiresAt) บอกว่ายังใช้ได้ (เช่น LINE ปฏิเสธเพราะ token ถูกใช้ไปแล้วจริงจากอีก
+      // instance หนึ่งที่ race กันแต่ conditional updateMany ของเรา claim สำเร็จก่อน) — fallback
+      // เป็น push ได้เฉพาะผู้ส่งเป็นมนุษย์เท่านั้น (BR-LINE-18 ห้าม fallback ให้ระบบอัตโนมัติ)
+      sendMethod = 'PUSH'
+      try {
+        mid = await attemptSend('PUSH')
+      } catch (e2) {
+        failureReason = e2 instanceof Error ? e2.message : 'ส่งข้อความไม่สำเร็จ'
+        outboundResponse = lineErrorToRaw(e2)
+        const code2 = classifyLineOutboundError(e2)
+        if (code2 === 'TOKEN_INVALID') await markChannelTokenInvalid(shopChannel.id)
+        if (code2 === 'CONTACT_BLOCKED') {
+          await prisma.externalContact.update({ where: { id: externalContact.id }, data: { isBlocked: true } })
+        }
+      }
+    } else if (code === 'REPLY_TOKEN_INVALID') {
+      // ระบบอัตโนมัติ (S-12) ส่งมาทางนี้ได้ในอนาคต — ห้าม fallback เป็น push (BR-LINE-18) บันทึกเป็น
+      // ข้อความส่งไม่สำเร็จตามปกติ ไม่ throw รหัสเฉพาะ (S-12 เป็นคนอ่าน error นี้ไปเขียน AutoReplyLog
+      // ของตัวเอง ไม่ใช่ผ่าน route นี้ — route นี้ไม่มี caller แบบ auto-reply ใน scope ของ S-8)
+      failureReason = e instanceof Error ? e.message : 'ส่งข้อความไม่สำเร็จ'
+      outboundResponse = lineErrorToRaw(e)
+    } else if (code === 'TOKEN_INVALID') {
+      // token ใช้ไม่ได้แล้ว (revoke/หมดอายุ) — เหมือน Meta code 190: ต้องให้ร้านวาง token ใหม่
+      await markChannelTokenInvalid(shopChannel.id)
+      throw new Error('TOKEN_INVALID')
+    } else if (code === 'CONTACT_BLOCKED') {
+      // LINE ปฏิเสธเพราะผู้รับ unfollow/บล็อกไปแล้ว — webhook unfollow อาจมาไม่ถึง (TFR-LINE-11)
+      // จึงต้องตั้ง isBlocked จากที่นี่ด้วย ไม่ใช่รอ webhook อย่างเดียว
+      await prisma.externalContact.update({ where: { id: externalContact.id }, data: { isBlocked: true } })
+      throw new Error('CONTACT_BLOCKED')
+    } else if (code === 'QUOTA_EXCEEDED') {
+      // TODO(S-9): invalidate ShopChannel.quotaValue/quotaUsed cache ที่นี่เมื่อ line-quota.service
+      // มีอยู่จริง (TFR-LINE-07) — ตอนนี้ยังไม่มี write-path ที่มีความหมายให้ invalidate
+      throw new Error('QUOTA_EXCEEDED')
+    } else if (code === 'LINE_UNAVAILABLE') {
+      throw new Error('LINE_UNAVAILABLE')
+    } else {
+      // UNKNOWN — ไม่รู้จัก ไม่เดา บันทึกข้อความดิบไว้เหมือนที่ Meta ทำ (SEND_FAILED เดิมด้านล่าง)
+      failureReason = e instanceof Error ? e.message : 'ส่งข้อความไม่สำเร็จ'
+      outboundResponse = lineErrorToRaw(e)
+    }
+  }
+
+  if (mid) {
+    outboundResponse = { ok: true, mid, sendMethod, attachmentKind: attachment?.kind ?? null, replyToMid: params.replyToMid ?? null }
+  }
+
+  const preview = isOrder
+    ? '[คำสั่งซื้อ]'
+    : params.sticker
+      ? '[สติกเกอร์]'
+      : attachment
+        ? attachment.kind === 'IMAGE'
+          ? '[รูปภาพ]'
+          : attachment.kind === 'VIDEO'
+            ? '[วิดีโอ]'
+            : attachment.kind === 'AUDIO'
+              ? '[ข้อความเสียง]'
+              : `[ไฟล์] ${attachment.name ?? ''}`.trim()
+        : bodyText.slice(0, 100)
+
+  let message
+  try {
+    // create + อัปเดต snapshot ต้องอยู่ในทรานแซกชันเดียวกันเสมอ (M-2 เดิม — invariant เดียวกับฝั่ง Meta)
+    message = await prisma.$transaction(async (tx) => {
+      const created = await tx.chatMessage.create({
+        data: {
+          conversationId: conversation.id,
+          senderUserId: params.actorUserId,
+          senderRole: 'SHOP',
+          type: isOrder ? 'ORDER' : (attachment?.kind ?? 'TEXT'),
+          body: isOrder || attachment ? null : bodyText,
+          imageUrl: attachment?.fileId ?? null,
+          attachmentName: attachment?.name ?? null,
+          attachmentSize: attachment?.size ?? null,
+          orderRefToken: isOrder ? params.orderRefToken! : null,
+          replyToMid: params.replyToMid ?? null,
+          externalMessageId: mid ? buildLineExternalMessageId(mid) : null,
+          deliveryStatus: failureReason ? 'FAILED' : 'SENT',
+          failureReason,
+          // BR-LINE-16: ทุกข้อความขาออกของ LINE ต้องมี sendMethod เสมอ (หลักฐานเวลาร้านทักท้วงบิล) —
+          // ต่างจาก Meta ที่คอลัมน์นี้เป็น null เสมอ (ไม่มีแนวคิด reply/push)
+          sendMethod,
+          autoReplyKind: params.autoReplyKind ?? null,
+          rawMessage: toRawMessage('LINE', outboundResponse, 'outbound-response'),
+        },
+      })
+
+      await tx.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: created.createdAt, lastMessagePreview: preview, lastSenderRole: 'SHOP' },
+      })
+
+      return created
+    })
+  } catch (e) {
+    // unique constraint บน externalMessageId — LINE ไม่มี echo (capabilities.echo=false) ตามสัญญาของ
+    // adapter แปลว่าไม่ควรเกิดกับ LINE จริง (ไม่มีทางที่ ingest ฝั่ง webhook เขียน mid เดียวกันมาก่อน
+    // เรา) แต่กันไว้เผื่อ client retry ด้วย idempotency key เดียวกัน — pattern เดียวกับฝั่ง Meta
+    if (mid && isUniqueViolationOn(e, 'externalMessageId')) {
+      const existing = await prisma.chatMessage.findUnique({
+        where: { externalMessageId: buildLineExternalMessageId(mid) },
+      })
+      if (existing) {
+        message = existing
+      } else {
+        throw e
+      }
+    } else {
+      throw e
+    }
+  }
+
+  if (failureReason) {
+    // pattern เดียวกับ SEND_FAILED ของ Meta ด้านล่าง — แนบแถวที่บันทึกไปแล้วกลับไปด้วย กัน optimistic
+    // bubble ค้างคู่กับแถวจริง (ดู comment เต็มที่ SendFailedError ด้านบนของไฟล์)
+    const err = new Error(`SEND_FAILED: ${failureReason}`) as SendFailedError
+    err.savedMessage = message
+    throw err
+  }
+
+  // feature 00023 — พนักงานตอบเอง = บอทต้องหลบ (เกณฑ์เดียวกับฝั่ง Meta ด้านล่าง)
+  if (!params.autoReplyKind) {
+    await pauseForHumanTakeover(conversation.id, conversation.shopId)
+  }
+
+  return message
+}
+
 export async function sendOutboundMessage(params: {
   conversationId: string
   // actorUserId = คนกดส่ง. null ได้เฉพาะเส้นทางระบบ (auto-reply) ซึ่งต้องส่ง systemShopId มาคู่กัน
@@ -2133,6 +2435,12 @@ export async function sendOutboundMessage(params: {
     // ของร้านตัวเองไม่ได้ (bug จริงบน prod หลังเพจถูกย้ายไปร้าน BUSINESS)
     if (!params.actorUserId) throw new Error('FORBIDDEN')
     if (!(await canAccessShop(conversation.shopId, params.actorUserId))) throw new Error('FORBIDDEN')
+  }
+
+  // (S-8, feature 00025) LINE แยก flow ออกไปทั้งก้อนตั้งแต่จุดนี้ — early-return ก่อนถึงโค้ดของ Meta
+  // แม้แต่บรรทัดเดียว (windowState/HUMAN_AGENT tag ด้านล่างเป็นแนวคิดของ Meta ล้วน ๆ ไม่มีผลกับ LINE)
+  if (conversation.channel === 'LINE') {
+    return await sendOutboundLineMessage(conversation, params)
   }
 
   // หน้าต่างการส่งของ Meta — เลิก "ตัดสินแทน Meta" สำหรับข้อความที่คนพิมพ์เอง

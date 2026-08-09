@@ -69,6 +69,35 @@ function mapChatServiceError(e: unknown, context: string) {
       { status: 409 },
     );
   }
+  // (S-8, feature 00025) LINE outbound — ข้อความ/HTTP status ตรงตาม API.md §5 เป๊ะ ๆ
+  // (feedback_service_error_route_mapping: error ใหม่ทุกตัวที่ service โยนต้องมี catch ที่นี่)
+  if (e instanceof Error && e.message === "TOKEN_INVALID") {
+    return NextResponse.json(
+      { error: "ไม่สามารถใช้ Channel access token นี้ได้ กรุณาตรวจสอบว่าคัดลอกครบถ้วน" },
+      { status: 400 },
+    );
+  }
+  if (e instanceof Error && e.message === "CONTACT_BLOCKED") {
+    return NextResponse.json(
+      { error: "ลูกค้าบล็อกบัญชีทางการของร้านแล้ว จึงส่งข้อความไม่ได้" },
+      { status: 409 },
+    );
+  }
+  if (e instanceof Error && e.message === "QUOTA_EXCEEDED") {
+    return NextResponse.json(
+      {
+        error:
+          "โควตาข้อความของเดือนนี้หมดแล้ว — รอเดือนถัดไป อัปเกรดแพ็กเกจ LINE หรือตอบจากแอป LINE OA (ไม่กินโควตา)",
+      },
+      { status: 409 },
+    );
+  }
+  if (e instanceof Error && e.message === "LINE_UNAVAILABLE") {
+    return NextResponse.json(
+      { error: "ระบบ LINE ไม่ตอบสนองชั่วคราว กรุณาลองใหม่อีกครั้ง" },
+      { status: 502 },
+    );
+  }
   if (e instanceof Error && e.message.startsWith("SEND_FAILED")) {
     // service โยนเป็น "SEND_FAILED: <ข้อความดิบของ Meta>" — แปลเป็นไทยก่อนส่งให้ร้าน
     // (user report 2026-08-02) เดิมตอบ "กรุณาลองใหม่" ทุกกรณี ซึ่งเป็นคำแนะนำที่ผิดกับ #551
