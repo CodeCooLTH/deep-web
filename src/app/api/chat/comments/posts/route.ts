@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveChatScope } from "@/lib/chat-scope";
-import { listCommentPosts } from "@/services/page-comment.service";
+import { listCommentPosts, type CommentChannelFilter } from "@/services/page-comment.service";
 
 /**
  * GET /api/chat/comments/posts — รายการโพสต์ที่มีคอมเมนต์ ของร้านที่ active (feature 00029)
@@ -43,6 +43,11 @@ export async function GET(request: NextRequest) {
     const stateRaw = request.nextUrl.searchParams.get("state");
     const state: "ALL" | "UNANSWERED" | "BOT" | "HUMAN" =
       stateRaw === "UNANSWERED" || stateRaw === "BOT" || stateRaw === "HUMAN" ? stateRaw : "ALL";
+    // พิลล์ช่องทาง — allow-list เหมือน state (ค่าแปลกตกไป 'ALL' = ไม่กรอง) เพราะ client แก้ query
+    // param เองได้ และค่าที่ไม่รู้จักต้องไม่หลุดลงไปเป็น provider ใน SQL
+    const providerRaw = request.nextUrl.searchParams.get("provider");
+    const provider: CommentChannelFilter =
+      providerRaw === "DEEP" || providerRaw === "MESSENGER" || providerRaw === "INSTAGRAM" ? providerRaw : "ALL";
     const { posts, counts, rawCount } = await listCommentPosts({
       shopIds: scope.shopIds,
       actorUserId: userId,
@@ -50,6 +55,7 @@ export async function GET(request: NextRequest) {
       shopChannelId,
       skip,
       state,
+      provider,
     });
     return NextResponse.json({ posts, counts, rawCount }, { headers: NO_STORE_HEADERS });
   } catch (e: unknown) {

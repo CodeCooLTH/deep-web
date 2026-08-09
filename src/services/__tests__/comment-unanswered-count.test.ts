@@ -95,7 +95,19 @@ describe('countUnansweredForShops — SQL ที่ยิงจริง (Fix ro
     // (Sql instance เดี่ยว export จาก @prisma/client) เมื่อไม่ได้ส่ง shopChannelId/q เข้ามา — เช็คแบบนี้
     // เพราะเนื้อ SQL จริงของ fragment ที่ interpolate เข้าไปไม่ปรากฏใน capturedStrings (มันเป็น value
     // ไม่ใช่ literal text ของ template) grep ข้อความจึงมองไม่เห็นว่ามันว่างจริงหรือเปล่า
-    expect(capturedValues[1]).toBe(Prisma.empty)
-    expect(capturedValues[2]).toBe(Prisma.empty)
+    //
+    // 🛑 เช็คจาก "ชนิดของค่า" ไม่ใช่ตำแหน่ง — เดิม hardcode index 1/2 แล้วพังทันทีที่มีการเพิ่ม
+    // interpolation ใหม่ (provider, 2026-08-09) ทั้งที่พฤติกรรมที่เทสตั้งใจตรวจไม่ได้เปลี่ยนเลย
+    const fragments = capturedValues.filter(
+      (v): v is Prisma.Sql => typeof (v as Prisma.Sql | undefined)?.sql === 'string',
+    )
+    // ทุก Sql fragment ที่ interpolate เข้าไปต้องเป็น Prisma.empty (ยกเว้น join ของ shopIds ซึ่งถูก
+    // ตรวจในเทสก่อนหน้า และมี .values ไม่ว่าง)
+    for (const f of fragments) {
+      if ((f as { values?: unknown[] }).values?.length) continue // join ของ shopIds
+      expect(f).toBe(Prisma.empty)
+    }
+    // badge นับทั้งร้านเสมอ → ต้องไม่มีค่า provider อื่นนอกจาก MESSENGER หลุดเข้าไป
+    expect(capturedValues.filter((v) => typeof v === 'string')).toEqual(['MESSENGER'])
   })
 })

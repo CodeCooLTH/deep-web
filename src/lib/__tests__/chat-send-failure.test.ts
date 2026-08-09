@@ -74,3 +74,38 @@ describe('describeSendFailure', () => {
     expect(describeSendFailure('   ').text).toBe('ไม่ทราบสาเหตุ')
   })
 })
+
+describe('describeSendFailure — บริบทเธรดที่มาจากการตอบคอมเมนต์', () => {
+  // 🛑 เพดานของ Meta ในเธรดแบบนี้คือ "ตอบกลับคอมเมนต์ได้ข้อความเดียว" ไม่ใช่หน้าต่าง 24 ชม.
+  // ถ้ากฎ 24 ชม. ตอบแทน ผู้ขายจะได้อ่านว่า "นับจากลูกค้าทักล่าสุด" ในเธรดที่ลูกค้าไม่เคยพิมพ์
+  // อะไรเลย = คำอธิบายที่ผิด และชี้ให้ไปรอสิ่งที่ไม่มีวันเกิด (impeccable critique 2026-08-09 P0)
+  const WINDOW_RAW = '(#10) This message is sent outside of allowed window.'
+
+  it('[blocker] comment-origin + ลูกค้าไม่เคยตอบ → ห้ามพูดถึง "24 ชม." หรือ "ทักล่าสุด"', () => {
+    const d = describeSendFailure(WINDOW_RAW, { commentOriginNoInbound: true })
+    expect(d.known).toBe(true)
+    expect(d.text).not.toContain('24 ชม.')
+    expect(d.text).not.toContain('ทักล่าสุด')
+    expect(d.text).toContain('ตอบกลับคอมเมนต์ได้ข้อความเดียว')
+  })
+
+  it('[blocker] เธรดปกติยังได้คำอธิบาย 24 ชม. เหมือนเดิม — บริบทใหม่ต้องไม่รั่วไปทับของเดิม', () => {
+    const d = describeSendFailure(WINDOW_RAW)
+    expect(d.text).toContain('24 ชม.')
+    expect(describeSendFailure(WINDOW_RAW, { commentOriginNoInbound: false }).text).toContain('24 ชม.')
+  })
+
+  it('[blocker] #551 ต้องไม่ถูกเขียนทับ — "ลูกค้าปิดรับข้อความ" เป็นคนละสาเหตุกับเพดานคอมเมนต์', () => {
+    // เดาว่าทุก error ในเธรดคอมเมนต์เกิดจากเพดาน = ชี้ร้านไปผิดทางเหมือนเดิม แค่คนละทาง
+    const d = describeSendFailure("(#551) This person isn't available right now.", {
+      commentOriginNoInbound: true,
+    })
+    expect(d.text).toContain('ลูกค้าไม่พร้อมรับข้อความ')
+    expect(d.text).not.toContain('ตอบกลับคอมเมนต์ได้ข้อความเดียว')
+  })
+
+  it('error ที่ไม่รู้จัก ยังคงข้อความดิบไว้ ไม่เดาว่าเป็นเพดานคอมเมนต์', () => {
+    const raw = '(#12345) Something nobody has seen before'
+    expect(describeSendFailure(raw, { commentOriginNoInbound: true }).text).toBe(raw)
+  })
+})

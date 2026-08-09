@@ -355,6 +355,24 @@ export interface CommentPostCounts {
   humanAnswered: number
 }
 
+/**
+ * ค่าของพิลล์ช่องทางบนหัวคอลัมน์ซ้าย — ต้องเป็นชนิดเดียวกับที่ client ใช้ เพื่อให้ `tsc` บังคับ
+ * ให้ทุกที่ที่เพิ่มค่าใหม่ (เช่นวันที่ LINE OA เข้ามา) ต้องแก้ครบทั้งสองฝั่ง
+ */
+export type CommentChannelFilter = 'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
+
+/**
+ * แปลงพิลล์ช่องทาง → `ShopChannel.provider` ที่ใช้ query จริง
+ *
+ * 'ALL' → 'MESSENGER' เพราะโพสต์/คอมเมนต์ (`FacebookPost`) ผูกกับ ShopChannel ที่เป็น MESSENGER
+ * เท่านั้นทั้งระบบ — วันนี้ "ทั้งหมด" กับ "Messenger" จึงเป็นชุดเดียวกันจริง ๆ ไม่ใช่การเดา
+ * 'DEEP'/'INSTAGRAM' → คืนค่าตรงตัว ซึ่งจะไม่ match ShopChannel ที่มีโพสต์เลย = ได้ 0 ทั้งรายการ
+ * และตัวนับ พร้อมกัน ซึ่งเป็นความจริงที่ถูกต้อง (ไม่ใช่การ hardcode ว่า "ช่องทางนี้ว่าง")
+ */
+function resolveCommentProvider(filter: CommentChannelFilter | undefined): string {
+  return !filter || filter === 'ALL' ? 'MESSENGER' : filter
+}
+
 const EMPTY_COMMENT_POST_COUNTS: CommentPostCounts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
 
 /**
@@ -378,6 +396,8 @@ export async function countCommentPostStatesByShop(params: {
   shopChannelId?: string
   /** ค้นหาเดียวกับ listCommentPosts — ต้อง trim แล้วก่อนส่งเข้ามา (caller รับผิดชอบ) */
   q?: string
+  /** พิลล์ช่องทางเดียวกับ listCommentPosts — ต้องส่งค่าเดียวกันเสมอ ไม่งั้นตัวเลขกับรายการหลุดกัน */
+  provider?: CommentChannelFilter
 }): Promise<CommentPostCounts> {
   if (params.shopIds.length === 0) return EMPTY_COMMENT_POST_COUNTS
 
@@ -396,7 +416,7 @@ export async function countCommentPostStatesByShop(params: {
     WITH scoped_channels AS (
       SELECT sc.id FROM "ShopChannel" sc
       WHERE sc."shopId" IN (${Prisma.join(params.shopIds)})
-        AND sc.provider = 'MESSENGER'
+        AND sc.provider = ${resolveCommentProvider(params.provider)}
         ${channelFilter}
     ),
     customer_comments AS (
@@ -468,6 +488,18 @@ export async function listCommentPosts(params: {
    * เพราะ postStatus เป็นค่า derived ไม่ใช่คอลัมน์ในฐาน (ตัดสินจาก derivePostState เท่านั้น)
    */
   state?: 'ALL' | 'UNANSWERED' | 'BOT' | 'HUMAN'
+  /**
+   * แท็บช่องทาง (พิลล์ ทั้งหมด/Deep/Messenger/Instagram) — 🛑 ต้องกรองที่ **server** เท่านั้น
+   *
+   * เดิมกรองฝั่ง client ด้วย `posts.filter(p => p.channel.provider === channelTab)` ขณะที่
+   * `counts` มาจาก server ซึ่งนับ MESSENGER เสมอ → กดพิลล์ Instagram แล้วได้ "ยังไม่ตอบ 12"
+   * นั่งอยู่เหนือ "ไม่พบความคิดเห็นตามตัวกรอง" (impeccable critique 2026-08-09 P1)
+   *
+   * นี่คือคลาสเดียวกับ "ซ้ายบอก 8 แต่ panel บอก 7" ที่ไฟล์นี้ถือเป็นบาปมหันต์ — และเป็นเหตุผล
+   * เดียวกับที่ `state` ถูกย้ายมา server แล้วก่อนหน้านี้: ตัวเลขกับรายการต้องมาจาก scope เดียวกัน
+   * **โดยโครงสร้าง** ไม่ใช่โดยความตั้งใจให้ตรง
+   */
+  provider?: CommentChannelFilter
 }): Promise<{
   posts: CommentPostRow[]
   /** ทั้งร้าน (feature 00038 หนี้ #1) — มาจาก countCommentPostStatesByShop() ไม่ใช่ batch นี้ */
@@ -485,7 +517,7 @@ export async function listCommentPosts(params: {
   const channels = await prisma.shopChannel.findMany({
     where: {
       shopId: { in: params.shopIds },
-      provider: 'MESSENGER',
+      provider: resolveCommentProvider(params.provider),
       ...(params.shopChannelId ? { id: params.shopChannelId } : {}),
     },
     select: { id: true },
@@ -604,6 +636,9 @@ export async function listCommentPosts(params: {
     shopIds: params.shopIds,
     shopChannelId: params.shopChannelId,
     q,
+    // ต้องส่ง provider ตัวเดียวกับที่คัด `channels` ข้างบน — ถ้าลืม ตัวเลขจะกลับไปพูดคนละเรื่อง
+    // กับรายการที่อยู่ใต้มันอีกครั้ง
+    provider: params.provider,
   })
 
   const wantedState: CommentAnswerState | null =

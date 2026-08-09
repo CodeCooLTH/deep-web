@@ -1944,7 +1944,15 @@ export default function ChatThread({
                 //   - _status='failed'        = บับเบิล optimistic ที่ยังไม่เคยถึง server ของเรา
                 const failedPersisted = mExt.deliveryStatus === 'FAILED'
                 const failed = mine && (failedPersisted || m._status === 'failed')
-                const failDetail = failedPersisted ? describeSendFailure(mExt.failureReason) : null
+                // 🛑 ส่ง commentOriginNoInbound เข้าไปด้วยเสมอ — เธรดที่มาจากการตอบคอมเมนต์และ
+                // ลูกค้ายังไม่เคยพิมพ์กลับ ติดเพดาน "ตอบได้ข้อความเดียว" ของ Meta ไม่ใช่หน้าต่าง
+                // 24 ชม. ถ้าไม่ส่งบริบทนี้ไป ผู้ขายจะได้อ่านว่า "เกินเวลา… นับจากลูกค้าทักล่าสุด"
+                // ในเธรดที่ไม่มี "ข้อความล่าสุดของลูกค้า" อยู่เลย (impeccable critique 2026-08-09 P0)
+                const failDetail = failedPersisted
+                  ? describeSendFailure(mExt.failureReason, {
+                      commentOriginNoInbound: isCommentReplyThread && neverInbound,
+                    })
+                  : null
                 // ฝั่ง optimistic เคยไม่มีเหตุผลให้ดู (เห็นแต่ toast ตอนกดส่ง) — แต่ toast หายเองใน
                 // ไม่กี่วินาที เหลือบับเบิลแดงที่ไม่บอกว่าทำไม. ตั้งแต่เลิกล็อกช่องพิมพ์ตามหน้าต่าง
                 // 24 ชม. (2026-08-03) บับเบิลล้มเหลวเกิดถี่ขึ้นมาก เหตุผลจึงต้องอยู่ติดข้อความถาวร

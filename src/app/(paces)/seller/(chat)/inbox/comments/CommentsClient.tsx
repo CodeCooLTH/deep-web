@@ -37,7 +37,7 @@ import CommentsFilterPanel, {
   type CommentShowFilter,
 } from './CommentsFilterPanel'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
-import type { CommentAnswerState, CommentPostCounts } from '@/services/page-comment.service'
+import type { CommentAnswerState, CommentPostCounts, CommentChannelFilter } from '@/services/page-comment.service'
 
 export type ChannelOption = {
   id: string
@@ -238,7 +238,7 @@ export default function CommentsClient({
    * DEEP/INSTAGRAM ยังไม่มีคอมเมนต์ไหลเข้า (00029 รับเฉพาะ feed ของเพจ Facebook) — pill ยังโชว์
    * เพื่อให้หน้าตาสองแท็บตรงกัน และกดแล้วได้ empty state ที่บอกตรง ๆ ว่าไม่มีในช่องทางนี้
    */
-  const [channelTab, setChannelTab] = useState<'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM'>('ALL')
+  const [channelTab, setChannelTab] = useState<CommentChannelFilter>('ALL')
   const [filterOpen, setFilterOpen] = useState(false)
   /**
    * เดินนาฬิกาให้ตัวนับถอยหลังในแถวรายการขยับเอง (user สั่ง 2026-08-04)
@@ -412,12 +412,20 @@ export default function CommentsClient({
     updateStatusTabFade()
   }, [counts, updateStatusTabFade])
 
-  const refreshPosts = useCallback(async (ch: string | null, state: CommentShowFilter['postStatus']) => {
+  const refreshPosts = useCallback(async (
+    ch: string | null,
+    state: CommentShowFilter['postStatus'],
+    provider: CommentChannelFilter,
+  ) => {
     try {
       const params = new URLSearchParams()
       if (ch) params.set('channelId', ch)
       // feature 00038 — ?state= กรองที่ server (postStatus เป็นค่า derived ไม่มีในฐาน กรองที่นี่ไม่ได้)
       if (state !== 'ALL') params.set('state', state)
+      // ?provider= ก็ต้องกรองที่ server ด้วยเหตุผลเดียวกันแต่คนละแบบ: ไม่ใช่เพราะกรองที่ client ไม่ได้
+      // แต่เพราะ `counts` มาจาก server — กรองรายการที่ client แล้วปล่อยตัวเลขไว้ที่เดิม = ตัวเลข
+      // ไม่ตรงกับรายการใต้มัน (impeccable critique 2026-08-09 P1)
+      if (provider !== 'ALL') params.set('provider', provider)
       const qs = params.toString()
       const res = await fetch(`/api/chat/comments/posts${qs ? `?${qs}` : ''}`)
       if (!res.ok) return
@@ -440,8 +448,8 @@ export default function CommentsClient({
   // เพราะเธรดสะสมเป็นพันและชื่อลูกค้าคือกุญแจ ส่วนที่นี่หน่วยของรายการคือ "โพสต์" ซึ่งมีไม่มากและ
   // เรียงตามคอมเมนต์ล่าสุดอยู่แล้ว. debounce 350ms ที่มีไว้รอพิมพ์จึงไม่ต้องมีด้วย
   useEffect(() => {
-    void refreshPosts(channelId, show.postStatus)
-  }, [channelId, show.postStatus, refreshPosts])
+    void refreshPosts(channelId, show.postStatus, channelTab)
+  }, [channelId, show.postStatus, channelTab, refreshPosts])
 
   async function loadMorePosts() {
     if (loadingMore || !hasMore) return
@@ -452,6 +460,8 @@ export default function CommentsClient({
       const params = new URLSearchParams({ skip: String(rawFetchedRef.current) })
       if (channelId) params.set('channelId', channelId)
       if (show.postStatus !== 'ALL') params.set('state', show.postStatus)
+      // ต้องตรงกับ refreshPosts เสมอ — ไม่งั้น "โหลดเพิ่ม" จะพาโพสต์ของช่องทางอื่นเข้ามาปนกลางรายการ
+      if (channelTab !== 'ALL') params.set('provider', channelTab)
       const res = await fetch(`/api/chat/comments/posts?${params.toString()}`)
       if (!res.ok) return
       const data = (await res.json()) as { posts: CommentPostItem[]; counts: CommentPostCounts; rawCount: number }
@@ -574,9 +584,11 @@ export default function CommentsClient({
    * หยุดเมื่อแท็บไม่ได้อยู่หน้าจอ — ไม่มีใครดูอยู่ก็ไม่ต้องยิง
    */
   const refreshAll = useCallback(() => {
-    void refreshPosts(channelId, show.postStatus)
+    // ต้องส่ง channelTab ไปด้วย ไม่งั้น poll/realtime รอบถัดไปจะดึงรายการแบบไม่กรองช่องทางมาทับ
+    // ของที่กรองอยู่ — อาการจะเป็น "กดพิลล์แล้วรายการถูกต้อง แต่ 15 วินาทีต่อมามันกลับมาเอง"
+    void refreshPosts(channelId, show.postStatus, channelTab)
     if (selectedId) void loadThread(selectedId, { silent: true })
-  }, [channelId, show.postStatus, selectedId, refreshPosts, loadThread])
+  }, [channelId, show.postStatus, channelTab, selectedId, refreshPosts, loadThread])
 
   // realtime จริง (user สั่ง 2026-08-03 "ทำ trigger ให้เป็น realtime จริงเลย") — DB trigger บน
   // PageComment ยิง broadcast `comments:shop:{shopId}` แบบ signal-only แล้ว client refetch เอง
@@ -812,12 +824,13 @@ export default function CommentsClient({
     if (done) setPrivateReplyComment(null)
   }
 
-  // แท็บช่องทางกรองฝั่ง client ตั้งใจ: provider ติดมากับโพสต์ทุกแถวแล้ว (p.channel.provider)
-  // ไม่ต้องยิง server ใหม่ — ต่างจากตัวกรอง "เพจ" ที่กรองที่ฐานเพราะต้องแบ่งหน้าให้ถูก
-  const postsByChannel = useMemo(
-    () => (channelTab === 'ALL' ? posts : posts.filter((p) => p.channel.provider === channelTab)),
-    [posts, channelTab],
-  )
+  // 🛑 แท็บช่องทางกรองที่ **server** แล้ว (ดู `?provider=` ใน refreshPosts/loadMorePosts) —
+  // ห้ามกลับไปกรองที่ client. ของเดิมกรองที่นี่ด้วย `posts.filter(p => p.channel.provider === tab)`
+  // โดยให้เหตุผลว่า "provider ติดมากับโพสต์แล้ว ไม่ต้องยิง server ใหม่" ซึ่งจริงเรื่องรายการ
+  // แต่ลืมไปว่า `counts` มาจาก server → กดพิลล์ Instagram แล้วได้ "ยังไม่ตอบ 12" อยู่เหนือ
+  // "ไม่พบความคิดเห็นตามตัวกรอง" (impeccable critique 2026-08-09 P1). ตัวเลขกับรายการต้องมาจาก
+  // scope เดียวกันโดยโครงสร้าง — เหตุผลเดียวกับที่ `state` ถูกย้ายมา server ไปแล้วก่อนหน้านี้
+  const postsByChannel = posts
   /**
    * feature 00038 — แท็บสถานะ (state) กรองที่ server แล้ว (ดู refreshPosts/loadMorePosts) `posts`
    * ที่ได้กลับมาจึงตรงกับ show.postStatus อยู่แล้วเสมอ ไม่ต้อง filter ซ้ำที่ client อีกชั้น
@@ -937,6 +950,27 @@ export default function CommentsClient({
             placeholder={replyTo ? 'พิมพ์คำตอบ...' : `แสดงความคิดเห็นในนาม ${thread?.channel.name ?? 'เพจ'}...`}
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
+            // enterKeyHint="enter" → คีย์บอร์ดมือถือขึ้นปุ่ม "ขึ้นบรรทัดใหม่" ให้ตรงกับสิ่งที่
+            // handler ข้างล่างทำจริงบนจอสัมผัส
+            enterKeyHint="enter"
+            onKeyDown={(e) => {
+              // Enter = ส่ง เฉพาะเดสก์ท็อป — guard ชุดนี้ **ก็อปมาทั้งดุ้นจาก ChatThread.tsx**
+              // (แท็บข้อความ) โดยเจตนา ห้ามเขียนใหม่ให้ต่างออกไป: การตอบคอมเมนต์กับการตอบแชท
+              // เป็นการกระทำเดียวกันในสายตาผู้ขาย ที่นี่เคยไม่มี Enter เลยทั้งที่คอมเมนต์ในไฟล์นี้
+              // เขียนเองว่า "Facebook ส่งด้วย Enter" (impeccable critique 2026-08-09 P1)
+              //
+              // ทำไมต้องเช็คในตัว handler ไม่ใช่ตอน render: อ่าน window ตอน render = hydration mismatch
+              const isTouch = window.matchMedia('(pointer: coarse)').matches
+              // isComposing = กำลังเลือกคำจาก IME อยู่ Enter คือ "ยืนยันคำ" ไม่ใช่ "ส่ง"
+              // บรรทัดนี้รับน้ำหนักทั้งหมดของภาษาไทย — ถอดออกแล้วผู้ใช้จะส่งคำที่ยังพิมพ์ไม่จบ
+              if (e.key === 'Enter' && !e.shiftKey && !isTouch && !e.nativeEvent.isComposing) {
+                // ปุ่มส่ง render เฉพาะตอนมีเนื้อหา (ดูข้างล่าง) — เงื่อนไขตรงนี้ต้องตรงกัน
+                // ไม่งั้น Enter จะยิง submitReply กับฟอร์มว่างที่ปุ่มยังไม่ยอมให้กดด้วยซ้ำ
+                if (sending || !(replyText.trim() || pendingFile)) return
+                e.preventDefault()
+                void submitReply()
+              }
+            }}
             disabled={sending}
           />
           <input
@@ -1790,6 +1824,12 @@ function CommentBubble({
    */
   const startReplyFromRow = (e: React.MouseEvent<HTMLDivElement>) => {
     if (c.isDeleted) return
+    // 🛑 ลากคัดลอกข้อความในคอมเมนต์ต้องไม่ถูกตีเป็น "กดเพื่อตอบ" — `click` ยิงหลัง drag-select
+    // ที่เริ่มและจบในอิลิเมนต์เดียวกันเสมอ แล้ว onReply() → useEffect โฟกัสช่องพิมพ์ ซึ่ง
+    // **ยุบ selection ทิ้ง** ผู้ขายจึงคัดเบอร์โทร/ที่อยู่ออกจากคอมเมนต์ไม่ได้เลย ทั้งที่การคัด
+    // ข้อมูลลูกค้าจากคอมเมนต์ไปสร้างออเดอร์คืองานหลักของ social commerce ไทย (PRODUCT.md
+    // §Operating Context) — impeccable critique 2026-08-09 P1
+    if (!window.getSelection()?.isCollapsed) return
     if ((e.target as HTMLElement).closest('button, a')) return
     onReply()
   }

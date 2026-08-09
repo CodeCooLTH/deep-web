@@ -38,9 +38,31 @@ export interface SendFailureDescription {
 /** Meta ใส่เลข error ไว้หน้าประโยคเป็น "(#551) ..." หรือท้ายประโยคก็มี (เช่น token error) */
 const META_CODE = /\(#(\d+)\)/
 
+/**
+ * บริบทของเธรด ที่ทำให้ "คำแปลเดียวกัน" กลายเป็นคำอธิบายที่ผิด
+ *
+ * 🛑 เธรดที่เกิดจากการตอบคอมเมนต์ (private reply) มีเพดานคนละอันกับหน้าต่าง 24 ชม.:
+ * Meta ให้ตอบกลับคอมเมนต์ได้ **ข้อความเดียว** แล้วต้องรอลูกค้าตอบกลับ. ถ้าปล่อยให้กฎ 24 ชม.
+ * ตอบแทน ผู้ขายจะได้อ่านว่า "เกินเวลา… นับจากลูกค้าทักล่าสุด" **ในเธรดที่ลูกค้าไม่เคยพิมพ์
+ * อะไรเลยสักคำ** — คำอธิบายนั้นไม่ได้แค่ไม่ช่วย มันผิด และมันชี้ให้ไปรอสิ่งที่ไม่มีวันเกิด
+ * (impeccable critique 2026-08-09 P0). ยิ่งสำคัญกับเส้น "ตอบอัตโนมัติ" ซึ่งผู้ขายไม่เคยเห็น
+ * คำเตือนเรื่องเพดานนี้มาก่อนเลย เพราะบอทเป็นคนกดส่งให้
+ */
+export interface SendFailureContext {
+  /** เธรดมาจากการตอบคอมเมนต์ **และ** ลูกค้ายังไม่เคยพิมพ์กลับมาเลย */
+  commentOriginNoInbound?: boolean
+}
+
 interface Rule {
   match: (raw: string, code: number | null) => boolean
   text: string
+  /**
+   * คำแปลที่ใช้แทน เมื่อเธรดเป็น comment-origin ที่ลูกค้ายังไม่เคยตอบ
+   * ใส่เฉพาะกฎที่ "อ้างถึงหน้าต่างเวลาที่นับจากข้อความของลูกค้า" ซึ่งในบริบทนั้นไม่มีอยู่จริง —
+   * ห้ามใส่ให้กฎที่เราไม่รู้ว่าเกิดจากเพดานคอมเมนต์จริงหรือเปล่า (เช่น #551 = ลูกค้าปิดรับข้อความ
+   * ซึ่งเป็นคนละสาเหตุ) การเดาผิดที่นี่คือการชี้ร้านไปผิดทางเหมือนเดิม แค่คนละทาง
+   */
+  whenCommentOrigin?: string
 }
 
 const RULES: Rule[] = [
@@ -65,6 +87,8 @@ const RULES: Rule[] = [
     // กลายเป็นเหตุผลที่ร้านเห็นบ่อยที่สุด และมันอยู่บนบับเบิลที่แคบบนจอมือถือ. ยังครบ 3 อย่าง
     // ที่ต้องมี: เกิดอะไร / กรอบเวลา / ต้องทำอะไรต่อ
     text: 'เกินเวลาที่ Meta ให้ตอบ (24 ชม. นับจากลูกค้าทักล่าสุด) — ต้องรอให้ลูกค้าทักเข้ามาใหม่ก่อน',
+    whenCommentOrigin:
+      'Meta ให้ตอบกลับคอมเมนต์ได้ข้อความเดียว — ข้อความถัดไปจะส่งได้ก็ต่อเมื่อลูกค้าตอบกลับเข้ามาก่อน',
   },
   {
     match: (raw) => /rate limit|too many (?:calls|requests)/i.test(raw),
@@ -94,7 +118,10 @@ export function stripSendFailurePrefix(text: string | null | undefined): string 
   return rest || null
 }
 
-export function describeSendFailure(reason: string | null | undefined): SendFailureDescription {
+export function describeSendFailure(
+  reason: string | null | undefined,
+  context: SendFailureContext = {},
+): SendFailureDescription {
   const raw = (reason ?? '').trim()
 
   const done = (text: string, metaCode: number | null, known: boolean): SendFailureDescription => ({
@@ -110,7 +137,10 @@ export function describeSendFailure(reason: string | null | undefined): SendFail
   const metaCode = m ? Number(m[1]) : null
 
   const hit = RULES.find((r) => r.match(raw, metaCode))
-  if (hit) return done(hit.text, metaCode, true)
+  if (hit) {
+    const overridden = context.commentOriginNoInbound ? hit.whenCommentOrigin : undefined
+    return done(overridden ?? hit.text, metaCode, true)
+  }
 
   // ไม่รู้จัก — ส่งดิบต่อไปตามเดิม ดีกว่าแปลมั่วหรือซ่อนจนสืบไม่ได้
   return done(raw, metaCode, false)
