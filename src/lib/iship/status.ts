@@ -480,6 +480,34 @@ export function readCarrierCharges(row: {
   };
 }
 
+/**
+ * readCarrierChargesFromGetOrder — ตัวเดียวกับข้างบน แต่สำหรับ payload ของ `get_order`
+ *
+ * 🛑 **ทำไมต้องแยกฟังก์ชัน ห้ามให้ readCarrierCharges fallback `actual_weight ?? weight` เอง:**
+ * ชื่อ `weight` แปล **คนละอย่าง** ในสอง endpoint ของ iShip — คลาสเดียวกับ `dst_district` ที่
+ * ขาออกแปลว่าตำบล ขาเข้าแปลว่าอำเภอ แล้วทำให้ 23 ออเดอร์บน prod เก็บที่อยู่สลับกัน
+ *
+ *   `query_orders` → `weight` = น้ำหนักที่ **ร้านแจ้ง** · `actual_weight` = ที่ **ชั่งจริง** (มีทั้งคู่)
+ *   `get_order`    → `weight` = ที่ **ชั่งจริง** · ไม่มี `actual_weight` เลย
+ *
+ * ยืนยันกับพัสดุจริง 12 ใบ (2026-08-09): `get_order.weight` เท่ากับ `query_orders.actual_weight`
+ * ทุกใบ ขณะที่ `query_orders.weight` ต่างออกไป (เช่น TH27108UYHZ37H แจ้ง 2 ชั่งได้ 2.05)
+ *
+ * ถ้าปล่อยให้ตัวเดียวกัน fallback: แถวจาก `query_orders` ของพัสดุที่ **ยังไม่ถูกชั่ง** จะเอา
+ * น้ำหนักที่ร้านแจ้งไปบันทึกเป็น "น้ำหนักจริง" — ต่ำกว่าความจริงใน 92 จาก 151 ใบ และไม่มีอะไรฟ้อง
+ */
+export function readCarrierChargesFromGetOrder(row: {
+  discount_price?: string | number | null;
+  weight?: string | number | null;
+  cod_fee?: string | number | null;
+}): { carrierPrice: number | null; actualWeight: number | null; codFee: number | null } {
+  return readCarrierCharges({
+    discount_price: row.discount_price,
+    actual_weight: row.weight,
+    cod_fee: row.cod_fee,
+  });
+}
+
 export function readCodSettlement(row: {
   status?: number | null;
   settlement_at?: string | null;

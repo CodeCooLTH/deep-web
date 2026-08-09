@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readCarrierCharges } from '../status'
+import { readCarrierCharges, readCarrierChargesFromGetOrder } from '../status'
 
 /**
  * ต้นทุนจริงของการจัดส่ง — เกณฑ์การอ่านจาก payload ของ iShip
@@ -59,8 +59,34 @@ describe('readCarrierCharges', () => {
   })
 
   it('[blocker] payload ที่ไม่มีฟิลด์ราคาเลย ต้องคืน null ทั้งชุด — ห้ามเดาจากฟิลด์อื่น', () => {
-    // get_order ไม่มี actual_weight ให้ (มีแต่ weight ที่ร้านแจ้ง) — ห้ามหยิบ weight มาแทน
-    // เพราะ 92 ใน 151 ใบชั่งจริงหนักกว่าที่แจ้ง การแทนกันคือการรายงานต้นทุนต่ำกว่าจริง
     expect(readCarrierCharges({})).toEqual({ carrierPrice: null, actualWeight: null, codFee: null })
+  })
+
+  it('[blocker] แถวจาก query_orders ห้าม fallback ไปหยิบ `weight` มาเป็นน้ำหนักจริง', () => {
+    // แถวจริง TH27108UYHZ37H: ร้านแจ้ง 2 แต่ยังไม่ถูกชั่ง (ไม่มี actual_weight ในรอบนั้น)
+    // ถ้า fallback `actual_weight ?? weight` จะบันทึก 2 เป็น "น้ำหนักจริง" ทั้งที่ยังไม่มีใครชั่ง
+    // — ต่ำกว่าความจริงใน 92 จาก 151 ใบ และไม่มีอะไรฟ้อง
+    const r = readCarrierCharges({ discount_price: 34, weight: 2 } as { discount_price: number })
+    expect(r.actualWeight).toBeNull()
+    expect(r.carrierPrice).toBe(34)
+  })
+})
+
+/**
+ * `get_order` — endpoint คนละตัว ความหมายของ `weight` กลับด้านกับ `query_orders`
+ * (ยืนยันกับพัสดุจริง 12 ใบ 2026-08-09: go.weight === qo.actual_weight ทุกใบ)
+ */
+describe('readCarrierChargesFromGetOrder', () => {
+  it('[blocker] `weight` ของ get_order คือน้ำหนักที่ชั่งจริง ต้องลง actualWeight', () => {
+    // แถวจริง TH720590UGDJ4A — query_orders ใบเดียวกันให้ weight=2 actual_weight=2.05
+    // ส่วน get_order ให้ weight=2.05 ตรงกับ actual_weight
+    expect(
+      readCarrierChargesFromGetOrder({ discount_price: 34, weight: 2.05, cod_fee: '7.70' }),
+    ).toEqual({ carrierPrice: 34, actualWeight: 2.05, codFee: 7.7 })
+  })
+
+  it('ใช้เกณฑ์ตัดสินชุดเดียวกับ query_orders — ราคา 0 ยังคงเป็น "ยังไม่รู้"', () => {
+    // 19 ใบบน prod ที่ discount_price=0 คือใบ "รอเข้ารับพัสดุ" ที่ยังไม่ถูกคิดเงิน
+    expect(readCarrierChargesFromGetOrder({ discount_price: 0, weight: 2.05 }).carrierPrice).toBeNull()
   })
 })
