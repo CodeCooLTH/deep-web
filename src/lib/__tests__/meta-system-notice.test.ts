@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseMetaSystemNotice, parseMetaAiHandoffNotice } from '@/lib/meta-system-notice'
+import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
 
 // ข้อความจริงที่เจอบน prod 2026-07-30 (เธรด 842dd8e1) — ตัด URL ให้สั้นลงพอทดสอบ
 const REAL =
@@ -162,5 +162,50 @@ describe('parseMetaAiHandoffNotice', () => {
 
   it('มีช่องว่างหัว/ท้าย (Meta เติมมาได้) → ยังต้องจับได้', () => {
     expect(parseMetaAiHandoffNotice('  Your AI agent will respond.  ')).not.toBeNull()
+  })
+})
+
+/**
+ * readMetaAiControlMarker — สัญญาณ "ใครถือห้อง" ที่ UI ใช้ตัดสินว่าจะบล็อกช่องพิมพ์ไหม
+ *
+ * 🛑 เกิดจากบั๊ก prod 2026-08-09: เดิม UI อ่านจาก `ChatMessage.viaStandby` ซึ่งแปลว่า
+ * "เราไม่ใช่เจ้าของเธรด" (จริงตลอดเวลา เจ้าของคือ Page Inbox เสมอ) ไม่ได้แปลว่า "AI ถือห้อง"
+ * → พอ AI คืนสิทธิ์แล้วคนตอบเอง ธงยังค้าง true แล้ว **ช่องพิมพ์ถูกบล็อกค้าง 18 เธรดพร้อมกัน**
+ * ทั้งที่ผู้ขายกำลังคุยกับลูกค้าอยู่
+ */
+describe('readMetaAiControlMarker', () => {
+  it('[blocker] "will respond" = AI ถือห้อง', () => {
+    expect(readMetaAiControlMarker('Your AI agent will respond.')).toBe('AI')
+  })
+
+  it('[blocker] ทุกสตริงที่แปลว่า "ส่งคืนให้คน" ต้องเป็น HUMAN — ไม่ใช่แค่ตัวที่คนกด take over เอง', () => {
+    // เคสที่หลุดตอนแรก: ทดสอบเจอแต่ "คนกด take over" เลยเชื่อว่า viaStandby พลิกเสมอ
+    // แต่เคส "AI ส่งคืนเอง" สิทธิ์ไม่ได้เปลี่ยนมือ ธงจึงค้าง — ต้องครอบทั้ง 3 สตริง
+    expect(readMetaAiControlMarker('You took over this chat from your AI agent.')).toBe('HUMAN')
+    expect(
+      readMetaAiControlMarker('Your AI agent transferred this chat to you. Teach your AI so it can respond next time.'),
+    ).toBe('HUMAN')
+    expect(
+      readMetaAiControlMarker('Your AI agent transferred this chat to you because your customer is ready to buy.'),
+    ).toBe('HUMAN')
+  })
+
+  it('ข้อความทั่วไป/ว่าง → null (ไม่ใช่ marker ห้ามตีความเป็นสถานะ)', () => {
+    expect(readMetaAiControlMarker('หนูเชื่อมต่อคุณ Dang กับทีมงานให้แล้วนะคะ')).toBeNull()
+    expect(readMetaAiControlMarker('ไม่มีคา')).toBeNull()
+    expect(readMetaAiControlMarker(null)).toBeNull()
+    expect(readMetaAiControlMarker('')).toBeNull()
+  })
+
+  it('marker ทุกตัวที่ parseMetaAiHandoffNotice แปลได้ ต้องอ่าน control ได้ด้วย (กันเพิ่มสตริงแล้วลืมใส่ control)', () => {
+    for (const en of [
+      'Your AI agent will respond.',
+      'You took over this chat from your AI agent.',
+      'Your AI agent transferred this chat to you. Teach your AI so it can respond next time.',
+      'Your AI agent transferred this chat to you because your customer is ready to buy.',
+    ]) {
+      expect(parseMetaAiHandoffNotice(en)).not.toBeNull()
+      expect(readMetaAiControlMarker(en)).not.toBeNull()
+    }
   })
 })

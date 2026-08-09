@@ -116,19 +116,33 @@ export function parseMetaSystemNotice(body: string | null | undefined): MetaSyst
  * รูปร่าง MetaSystemNotice เดียวกับ parseMetaSystemNotice เพื่อให้ JSX render จุดเดียวกัน
  * ใน ChatThread.tsx ใช้ได้กับทั้งคู่โดยไม่ต้องแก้ (linkLabel/url = null เมื่อไม่มีลิงก์)
  */
-const AI_HANDOFF_NOTICES: { en: string; th: string; hasLink: boolean }[] = [
+type AiHandoffNotice = { en: string; th: string; hasLink: boolean; control: 'AI' | 'HUMAN' }
+
+const AI_HANDOFF_NOTICES: AiHandoffNotice[] = [
   // AI เปิดอยู่แล้ว ไม่มีอะไรให้ "เปิดกลับ" จึงไม่มีลิงก์
-  { en: 'Your AI agent will respond.', th: 'เอเจนต์ AI ของ Meta เริ่มตอบแทนคุณในแชทนี้แล้ว', hasLink: false },
-  { en: 'You took over this chat from your AI agent.', th: 'คุณเข้ามาดูแลแชทนี้แทนเอเจนต์ AI', hasLink: true },
+  {
+    en: 'Your AI agent will respond.',
+    th: 'เอเจนต์ AI ของ Meta เริ่มตอบแทนคุณในแชทนี้แล้ว',
+    hasLink: false,
+    control: 'AI',
+  },
+  {
+    en: 'You took over this chat from your AI agent.',
+    th: 'คุณเข้ามาดูแลแชทนี้แทนเอเจนต์ AI',
+    hasLink: true,
+    control: 'HUMAN',
+  },
   {
     en: 'Your AI agent transferred this chat to you. Teach your AI so it can respond next time.',
     th: 'เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล — สอน AI เพิ่มเพื่อให้ตอบเองได้ครั้งหน้า',
     hasLink: true,
+    control: 'HUMAN',
   },
   {
     en: 'Your AI agent transferred this chat to you because your customer is ready to buy.',
     th: 'เอเจนต์ AI ส่งต่อแชทนี้ให้คุณดูแล เพราะลูกค้าพร้อมสั่งซื้อแล้ว',
     hasLink: true,
+    control: 'HUMAN',
   },
 ]
 
@@ -145,4 +159,27 @@ export function parseMetaAiHandoffNotice(body: string | null | undefined): MetaS
     linkLabel: hit.hasLink ? AI_HANDOFF_LINK_LABEL : null,
     url: hit.hasLink ? AI_HANDOFF_LINK_URL : null,
   }
+}
+
+/**
+ * ใครถือสิทธิ์คุมเธรดหลังข้อความ marker นี้ — `'AI'` = เอเจนต์ของ Meta, `'HUMAN'` = คน
+ *
+ * 🛑 ทำไมต้องอ่านจาก marker ไม่ใช่จาก `ChatMessage.viaStandby` (บั๊ก prod 2026-08-09):
+ * `viaStandby` แปลว่า **"เราไม่ใช่เจ้าของเธรด"** ซึ่งเป็นจริง *ตลอดเวลา* บนเพจเหล่านี้ (เจ้าของคือ
+ * Page Inbox `263902037430900` เสมอ แอปเราไม่เคยเป็นเจ้าของเลย) — พอ AI คืนสิทธิ์แล้วคนตอบเอง
+ * จาก Business Suite/Messenger echo ก็ยังวิ่งมาทางกล่อง standby อยู่ดี ธงจึงค้าง `true`
+ * แล้ว UI บล็อกช่องพิมพ์ไว้ทั้งที่คนกำลังคุยอยู่ (18 เธรดพร้อมกันบน prod)
+ *
+ * ที่หลงเชื่อตอนแรกเพราะทดสอบเจอแต่เคส **"คนกด take over"** (Page Inbox ยึดสิทธิ์จริง → ธงพลิกเป็น
+ * false) ยังไม่เคยเจอเคส **"AI ส่งคืนเอง"** (สิทธิ์ไม่ได้เปลี่ยนมือ → ธงค้าง true) — สองเคสนี้
+ * หน้าตาเหมือนกันจากฝั่งผู้ใช้ แต่ signal ต่างกันคนละเรื่อง
+ *
+ * marker ของ Meta เป็นการประกาศสถานะตรง ๆ ไม่ใช่ผลข้างเคียงของ routing จึงเชื่อได้ทั้งสองทิศ
+ */
+export type MetaAiThreadControl = 'AI' | 'HUMAN'
+
+export function readMetaAiControlMarker(body: string | null | undefined): MetaAiThreadControl | null {
+  if (!body) return null
+  const hit = AI_HANDOFF_NOTICES.find((n) => n.en === body.trim())
+  return hit ? hit.control : null
 }

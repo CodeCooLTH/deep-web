@@ -85,11 +85,11 @@ import { generateInitials } from '@/utils/helpers'
 // แต่ยังเก็บเวลาเต็มไว้ใน title ให้ชี้ดูได้ (formatTimeHM มีอยู่แล้ว ไม่ต้องเขียน formatter ใหม่)
 import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
-import { parseMetaSystemNotice, parseMetaAiHandoffNotice } from '@/lib/meta-system-notice'
+import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
 import { withEmojiPresentation } from '@/lib/emoji-presentation'
 import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
 import Swal from 'sweetalert2'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import {
@@ -920,12 +920,29 @@ export default function ChatThread({
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
 
-  // ── "เธรดที่ Meta AI ถือสิทธิ์คุมอยู่" (2026-08-08) ─────────────────────────────────
+  // ── "เธรดที่ Meta AI ถือสิทธิ์คุมอยู่" (2026-08-08 · แก้สัญญาณ 2026-08-09) ────────────
   //
-  // derive สถานะปัจจุบัน: ข้อความล่าสุดของเธรด viaStandby===true ⇒ Meta AI ถือห้องอยู่ตอนนี้
-  // (พิสูจน์บน prod แล้วว่าพลิกถูกทั้งสองทิศอัตโนมัติ — ไม่ใช่แค่ตอนสลับเข้า) เฉพาะช่องทางนอก
-  // (channel != DEEP) เพราะ Deep ไม่มี Meta AI; messages.length===0 ต้องไม่ crash (index ว่าง)
-  const aiAgentActive = isExternal && messages.length > 0 && messages[messages.length - 1].viaStandby === true
+  // 🛑 เดิม derive จาก `messages[last].viaStandby === true` ซึ่ง **ผิด** และบล็อกช่องพิมพ์ค้าง
+  // 18 เธรดพร้อมกันบน prod: `viaStandby` แปลว่า "เราไม่ใช่เจ้าของเธรด" ซึ่งจริง *ตลอดเวลา*
+  // (เจ้าของคือ Page Inbox เสมอ) พอ AI คืนสิทธิ์แล้วคนตอบจาก Business Suite echo ก็ยังมาทาง
+  // standby ธงจึงค้าง true — ดูเหตุผลเต็มที่ readMetaAiControlMarker()
+  //
+  // ตัวที่เชื่อได้คือ **marker ที่ Meta ประกาศเอง** (4 สตริง) เพราะเป็นการบอกสถานะตรง ๆ ไม่ใช่
+  // ผลข้างเคียงของ routing — ไล่จากล่างขึ้นบน เจอตัวแรกคือสถานะปัจจุบัน
+  //
+  // 🛑 ไม่มี marker เลย = ถือว่า "คนคุม" (ไม่บล็อก) โดยตั้งใจ — ผิดทางนี้ผู้ขายแค่พิมพ์ตอบแล้ว
+  // อาจแย่งสิทธิ์จาก AI โดยไม่ตั้งใจ ส่วนผิดอีกทางคือ **พิมพ์ไม่ได้เลยทั้งที่กำลังคุยกับลูกค้าอยู่**
+  // ซึ่งคือบั๊กที่เพิ่งเกิด เสียหายกว่ากันมาก
+  //
+  // เฉพาะช่องทางนอก (channel != DEEP) เพราะ Deep ไม่มี Meta AI
+  const aiAgentActive = useMemo(() => {
+    if (!isExternal) return false
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const control = readMetaAiControlMarker(messages[i].body)
+      if (control) return control === 'AI'
+    }
+    return false
+  }, [isExternal, messages])
 
   // client gate ล้วน ๆ (ไม่ยิง API) — ผู้ขายกด "ตอบเอง" แล้วยืนยันผ่าน pacesConfirm จึงปลดล็อก
   // composer ให้พิมพ์ได้ตามปกติ. ต้อง reset กลับ false เมื่อ aiAgentActive ไล่จาก false→true อีกครั้ง
@@ -2303,8 +2320,13 @@ export default function ChatThread({
            * flex-col items-center text-center sm:flex-row sm:text-start: rail แชทเดสก์ท็อป
            * (แคบกว่า 640px) ต้องได้ผังแนวตั้งเหมือนมือถือ ไม่ใช่บีบทุกอย่างอยู่แถวเดียว
            */
-          <div className="bg-info/15 text-info flex flex-col items-center gap-2 rounded-lg px-3 py-2 text-center text-sm sm:flex-row sm:items-start sm:text-start">
-            <Icon icon="robot" className="mt-0.5 shrink-0 text-lg" aria-hidden="true" />
+          /* min-h-24 + justify-center: กล่องนี้แทนที่ "แถบเครื่องมือ + textarea" ซึ่งสูงราว 92px
+             (ปุ่ม btn-icon ~40 + gap + textarea min-h-11) ถ้าปล่อยให้สูงตามเนื้อหา (~48px)
+             พื้นที่ท้ายเธรดจะยุบลงครึ่งหนึ่งแล้วเลย์เอาต์กระโดดทุกครั้งที่สลับสถานะ
+             (user report prod 2026-08-09: "พื้นที่มันไม่เท่า panel เดิม มันเล็กลงมาก")
+             24 = 6rem เป็นค่าใน scale ปกติของ Tailwind ไม่ใช่ arbitrary value (HR7) */
+          <div className="bg-info/15 text-info flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-sm sm:flex-row sm:items-center sm:text-start">
+            <Icon icon="robot" className="shrink-0 text-lg" aria-hidden="true" />
             <span className="min-w-0 flex-1">ตอนนี้ Meta AI กำลังตอบลูกค้าในแชทนี้อยู่</span>
             <button
               type="button"
