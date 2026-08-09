@@ -50,7 +50,7 @@ export default function PublicServiceList({ services }: { services: PublicServic
               </Typography>
               {s.durationMinutes != null && (
                 <Typography variant='caption' color='text.disabled' className='block mbs-1'>
-                  {`~${formatDurationTH(s.durationMinutes)}`}
+                  {`ประมาณ ${formatDurationTH(s.durationMinutes)}`}
                 </Typography>
               )}
               {deposit && (
