@@ -253,10 +253,22 @@ function MetaGenericCardCarousel({
           {`การ์ดจาก Facebook${cards.length > 1 ? ` · ${cards.length} รายการ` : ''}`}
         </span>
       </div>
-      <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
+      {/* items-stretch ประกาศชัด (แม้จะเป็นค่า default ของ flex) — ทุกใบต้องสูงเท่ากันแม้ชื่อ
+          จะ 1 หรือ 2 บรรทัด ถ้ามีใครมาเปลี่ยน align ทีหลังการ์ดจะเตี้ยไม่เท่ากันทันที */}
+      <div className="flex snap-x snap-mandatory items-stretch gap-2 overflow-x-auto pb-1">
         {cards.map((c, i) => (
           <div key={`${messageId}-${i}`} className="bg-light w-44 shrink-0 snap-start overflow-hidden rounded-lg">
-            <div className="bg-default-100 aspect-video w-full overflow-hidden">
+            {/**
+             * 🛑 กล่องรูปต้อง "เท่ากันทุกใบเสมอ" (user report 2026-08-09) — `relative` + ลูกเป็น
+             * `absolute inset-0` ไม่ใช่ `size-full` เฉย ๆ
+             *
+             * `aspect-video` กำหนดความสูงจากความกว้างก็จริง แต่ลูกที่อยู่ใน flow ปกติยัง "ดัน"
+             * กล่องให้สูงเกินได้ (min-content) — เช่นจังหวะที่ `<img>` ยังไม่รู้ขนาดจริง หรือรูป
+             * โหลดไม่ขึ้นแล้วเบราว์เซอร์แทนด้วย alt text หลายบรรทัด ผลคือการ์ดในแถวเดียวกันกล่องรูป
+             * สูงไม่เท่ากันเป็นบางจังหวะ ซึ่งจับได้ยากเพราะขึ้นกับความเร็วเน็ตของแต่ละคน
+             * ลูกที่ absolute ถูกถอดออกจาก flow จึงไม่มีทางมีผลกับความสูงของกล่องได้เลย
+             */}
+            <div className="bg-default-100 relative aspect-video w-full overflow-hidden">
               {c.imageFileId ? (
                 // ปุ่มเปิด Lightbox (pattern เดียวกับ ChatImageMessage) — object-contain ไม่ใช่
                 // object-cover เพราะรูปมีตัวหนังสือ (สเปก/ราคา) ฝังอยู่ในรูป cover จะครอปทิ้ง
@@ -264,19 +276,22 @@ function MetaGenericCardCarousel({
                   type="button"
                   onClick={() => onOpenImage(i)}
                   aria-label="ดูรูปเต็มจอ"
-                  className="block size-full cursor-zoom-in"
+                  className="absolute inset-0 block cursor-zoom-in"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={mediaSrc(c.imageFileId)}
-                    alt={c.title ?? 'รูปสินค้า'}
+                    // alt สั้น ๆ ไม่ใช่ชื่อสินค้าเต็ม: ตอนรูปโหลดไม่ขึ้น เบราว์เซอร์จะวาด alt text
+                    // ลงในกล่อง ชื่อยาว ๆ จะตัดคำหลายบรรทัดจนล้นกรอบ (กล่องล็อกความสูงแล้วก็จริง
+                    // แต่ตัวอักษรจะทะลุออกมาดูรก) — ชื่อสินค้าอยู่ใต้รูปให้อ่านอยู่แล้ว
+                    alt="รูปสินค้า"
                     className="size-full object-contain"
                   />
                 </button>
               ) : (
                 // ไม่มีรูป (mirror ล้มเหลว/ไม่มี image_url มา) — placeholder เฉย ๆ ห้ามมี
                 // onClick/cursor-zoom-in (ไม่สร้าง affordance ปลอมว่ากดแล้วมีอะไรให้ดู)
-                <div className="text-default-700 flex size-full items-center justify-center">
+                <div className="text-default-700 absolute inset-0 flex items-center justify-center">
                   <Icon icon="photo-off" className="text-xl" />
                 </div>
               )}
