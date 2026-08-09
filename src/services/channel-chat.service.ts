@@ -4,23 +4,33 @@ import { prisma } from '@/lib/prisma'
 import { pauseForHumanTakeover } from '@/services/auto-reply-takeover.service'
 import { getChannelByExternalId, markChannelTokenInvalid } from '@/services/shop-channel.service'
 import { canAccessShop } from '@/lib/shop-context'
-import { getContactProfile, getLastInboundTime, sendTextMessage, sendAttachmentMessage, fetchMessageText, fetchAttachmentUrl, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendStickerMessage, sendImageGridMessage, GraphApiError, type GraphAttachmentType, type GraphThreadMessage, type GraphThreadAttachment } from '@/lib/facebook/graph'
+import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendImageGridMessage, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment } from '@/lib/facebook/graph'
+import type { ChannelAdapter, ChannelContext } from '@/lib/channels/adapter'
+import { MetaAdapter } from '@/lib/channels/meta-adapter'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
 // pure module (ไม่มี server code) — ใช้ตัวเดียวกับที่ ChatThread ใช้ตัดสินว่าเป็นการ์ดยอดเงิน
 // เพื่อไม่ให้ "อะไรคือการ์ดยอดเงิน" มีสองนิยาม (HR16)
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
-
-/** ChatMessage.type ของไฟล์แนบ → `message.attachment.type` ที่ Meta Send API รับ (2026-08-02)
- *  ขาเข้ามี MEDIA_TYPE ทำหน้าที่ตรงข้ามอยู่แล้ว (Meta → ของเรา) นี่คือขาออก */
-const GRAPH_ATTACHMENT_TYPE: Record<'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE', GraphAttachmentType> = {
-  IMAGE: 'image',
-  VIDEO: 'video',
-  AUDIO: 'audio',
-  FILE: 'file',
-}
 import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
+
+/**
+ * (S-1, feature 00025 TFR-LINE-13) — จุดเดียวที่แปลง ShopChannel.provider → ChannelAdapter
+ *
+ * ห้ามเขียนเงื่อนไขเทียบชื่อ provider กระจายที่อื่นในไฟล์นี้อีก (TD-008) — MESSENGER/INSTAGRAM ใช้ Send
+ * API เดียวกันของ Meta (ต่างกันแค่ endpoint ภายใน getContactProfile) จึง map ไป MetaAdapter ตัวเดียว
+ * ตัวถัดไป (LINE, S-4) แค่เพิ่ม case ที่นี่จุดเดียว ไม่ต้องแก้ call site อื่น
+ */
+function getAdapter(provider: string): ChannelAdapter {
+  switch (provider) {
+    case 'MESSENGER':
+    case 'INSTAGRAM':
+      return MetaAdapter
+    default:
+      throw new Error(`UNSUPPORTED_CHANNEL_PROVIDER: ${provider}`)
+  }
+}
 
 // รับ-ส่งข้อความของช่องทางนอก (feature 00018)
 // แยกจาก chat.service.ts เพราะ chat เดิมมีสมมติฐานว่าทั้งสองฝั่งเป็น User ในระบบ
@@ -766,7 +776,10 @@ export async function ingestInboundMessage(params: {
   const needsAvatarRetry = shouldRetryAvatar(existingContact)
   const needsProfile = !existingContact || !existingContact.name || needsAvatarRetry
   const profile = needsProfile
-    ? await getContactProfile(contactExternalId, channel.accessToken, provider)
+    ? await getAdapter(provider).fetchContactProfile(
+        { provider, accessToken: channel.accessToken },
+        contactExternalId,
+      )
     : { name: null, avatarUrl: null }
 
   // URL รูปโปรไฟล์ของ Meta ฝังเวลาหมดอายุมาใน `oe=` — เก็บ URL ดิบไว้เฉย ๆ แล้วรูปจะตายเงียบ ๆ
@@ -838,7 +851,10 @@ export async function ingestInboundMessage(params: {
   // ไม่ส่ง payload.url มา หรือ url นั้น fetch ไม่ได้/หมดอายุ → ดึง file_url สดจาก Graph ด้วย mid แล้ว mirror
   // (Messenger voice message เจอเคส payload.url หายบ่อย — Graph คืน url สดที่ยังโหลดได้ host fbsbx)
   if (isMedia && !mirroredFileId && event.message.mid) {
-    const graphUrl = await fetchAttachmentUrl(event.message.mid, channel.accessToken)
+    const { url: graphUrl } = await getAdapter(provider).downloadContent(
+      { provider, accessToken: channel.accessToken },
+      { externalMessageId: event.message.mid },
+    )
     if (graphUrl) mirroredFileId = await mirrorRemoteImage(graphUrl)
   }
   // ข้อความลิงก์ที่แชร์ (fallback/post/ig_post) — ประกอบ title + url เป็น text
@@ -1991,6 +2007,17 @@ export async function sendOutboundMessage(params: {
 
   const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
   const recipientId = conversation.externalContact.externalUserId
+  // (S-1) จุดเลือก adapter จาก provider ของเธรดนี้ — ตัวเดียว ไม่กระจายเงื่อนไขเทียบชื่อ provider อีก
+  const adapter = getAdapter(conversation.channel)
+  // บริบทร่วมของเธรดนี้ — override เฉพาะ replyToExternalId/tag ต่อการยิงแต่ละครั้งด้านล่าง
+  // (บาง call site ตั้งใจไม่ส่ง reply/tag เลย ตรงกับพฤติกรรมเดิมที่ sendTextMessage(pageToken,
+  // recipientId, bodyText) ถูกเรียกแบบ 3 พารามิเตอร์ ไม่มี replyToMid/tag)
+  const sendCtx = (opts: { replyToExternalId?: string | null; tag?: string } = {}): ChannelContext => ({
+    provider: conversation.channel,
+    accessToken: pageToken,
+    recipientId,
+    ...opts,
+  })
   // รวม 2 ทางเข้าเป็นตัวแปรเดียว — imageFileId (auto-reply เดิม) กับ attachment (composer ใหม่)
   // ต้องไม่แตกเป็น 2 เส้นทาง ไม่งั้น retry path ด้านล่างจะพลาดเส้นใดเส้นหนึ่งเสมอ
   const attachment = params.attachment ?? (params.imageFileId ? { fileId: params.imageFileId, kind: 'IMAGE' as const, name: null, size: null } : null)
@@ -2004,28 +2031,37 @@ export async function sendOutboundMessage(params: {
     // ไม่ส่ง shopChannel.externalId เข้าไปแล้ว — ช่องทาง IG เก็บ IG account id ไม่ใช่ Page id
     // ทำให้ Meta ตอบ "(#3) does not have the capability" (บั๊กจริงบน prod)
     // sendText/sendImage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจ/IG account ให้เองแล้ว
+    // (S-1) ยิงผ่าน adapter.sendMessages แทนการเรียก sendStickerMessage/sendAttachmentMessage/
+    // sendTextMessage ตรง ๆ — MetaAdapter delegate ไปยังฟังก์ชันเดิมทุกประการ (ดู meta-adapter.ts)
     if (params.sticker) {
       // สติกเกอร์: ยิง sticker_id ตรง ๆ ไม่ใช่ attachment (ดู lib/facebook/graph.ts sendStickerMessage)
       // อยู่ใต้กฎหน้าต่างเวลาเดียวกัน จึงส่ง messageTag ไปด้วยเหมือนข้อความปกติ
-      mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, params.replyToMid, messageTag)
+      mid = (
+        await adapter.sendMessages(sendCtx({ replyToExternalId: params.replyToMid, tag: messageTag }), [
+          { kind: 'sticker', stickerId: params.sticker.id },
+        ])
+      ).externalMessageId
     } else if (attachment) {
       // presigned URL อายุ 1 ชม. — Meta ดึงไฟล์ไปส่งเอง (/api/files ของเรา auth-gated ใช้ไม่ได้)
       const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
-      mid = await sendAttachmentMessage(
-        pageToken,
-        recipientId,
-        GRAPH_ATTACHMENT_TYPE[attachment.kind],
-        fileUrl,
-        params.replyToMid,
-        messageTag,
-      )
+      mid = (
+        await adapter.sendMessages(sendCtx({ replyToExternalId: params.replyToMid, tag: messageTag }), [
+          { kind: 'attachment', attachmentKind: attachment.kind, url: fileUrl },
+        ])
+      ).externalMessageId
       // caption (ถ้ามี) — Meta attachment ไม่มี text ในตัว ส่งเป็นข้อความตามหลังแยก (best-effort);
       // echo ของ caption จะถูก ingestInboundMessage เก็บเป็นบับเบิลข้อความ SHOP แยกเอง (ไม่เขียนซ้ำที่นี่)
       if (bodyText.trim()) {
-        await sendTextMessage(pageToken, recipientId, bodyText, null, messageTag).catch(() => {})
+        await adapter
+          .sendMessages(sendCtx({ replyToExternalId: null, tag: messageTag }), [{ kind: 'text', text: bodyText }])
+          .catch(() => {})
       }
     } else {
-      mid = await sendTextMessage(pageToken, recipientId, bodyText, params.replyToMid, messageTag)
+      mid = (
+        await adapter.sendMessages(sendCtx({ replyToExternalId: params.replyToMid, tag: messageTag }), [
+          { kind: 'text', text: bodyText },
+        ])
+      ).externalMessageId
     }
   } catch (e) {
     // reply/quote best-effort: ถ้ายิงพร้อม reply_to แล้ว Meta ปฏิเสธ (IG ไม่รองรับ / mid หมดอายุ) —
@@ -2035,22 +2071,25 @@ export async function sendOutboundMessage(params: {
         if (params.sticker) {
           // Meta ไม่ได้ระบุว่า sticker รองรับ reply_to — ปฏิเสธก็ยิงซ้ำแบบไม่ผูกการตอบ
           // (ผู้ใช้ต้องได้สติกเกอร์ ดีกว่าไม่ได้อะไรเพราะ quote)
-          mid = await sendStickerMessage(pageToken, recipientId, params.sticker.id, null, messageTag)
+          mid = (
+            await adapter.sendMessages(sendCtx({ tag: messageTag }), [
+              { kind: 'sticker', stickerId: params.sticker.id },
+            ])
+          ).externalMessageId
         } else if (attachment) {
           const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
           // ต้องส่ง kind เดิม ห้ามถอยกลับเป็น 'image' — ไม่งั้นวิดีโอ/ไฟล์จะถูกส่งผิดชนิดเงียบ ๆ
           // เฉพาะรอบ retry (บั๊กแบบที่เห็นเฉพาะตอน Meta ปฏิเสธ reply_to จึงหาเจอยากมาก)
-          mid = await sendAttachmentMessage(
-            pageToken,
-            recipientId,
-            GRAPH_ATTACHMENT_TYPE[attachment.kind],
-            fileUrl,
-            null,
-            messageTag,
-          )
-          if (bodyText.trim()) await sendTextMessage(pageToken, recipientId, bodyText).catch(() => {})
+          mid = (
+            await adapter.sendMessages(sendCtx({ tag: messageTag }), [
+              { kind: 'attachment', attachmentKind: attachment.kind, url: fileUrl },
+            ])
+          ).externalMessageId
+          if (bodyText.trim()) {
+            await adapter.sendMessages(sendCtx(), [{ kind: 'text', text: bodyText }]).catch(() => {})
+          }
         } else {
-          mid = await sendTextMessage(pageToken, recipientId, bodyText)
+          mid = (await adapter.sendMessages(sendCtx(), [{ kind: 'text', text: bodyText }])).externalMessageId
         }
       } catch {
         /* ยังส่งไม่ได้จริง — ตกลงไป failureReason ด้านล่าง */
