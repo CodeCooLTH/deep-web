@@ -34,7 +34,6 @@ import {
 import BuyerAvatar from './BuyerAvatar'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderActions from './OrderActions'
-import OrderProfitInline from './OrderProfitInline'
 import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { ORDER_STATUS_TONE_BORDER } from '@/lib/order-display'
 import { resolveOrderStatusBadge } from '@/lib/order-stage'
@@ -357,9 +356,6 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
             <span className="text-base font-bold tabular-nums text-default-900">
               ฿{order.total.toLocaleString('th-TH')}
             </span>
-            {/* ลำดับ: ยอดรวม (ใหญ่สุด) → กำไร (รอง) → เวลา (เล็กสุด) — กำไรเกาะติดยอดเพราะเป็น
-                อนุพันธ์ของมัน ส่วนเวลาไม่เกี่ยวกับเงินเลยจึงอยู่ล่างสุด */}
-            <OrderProfitInline profit={order.profit} orderNoun={vocab.noun} />
             <p className="mt-0.5 text-2xs text-default-400">{formatRelativeDayTime(order.createdAtISO)}</p>
           </div>
 

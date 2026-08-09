@@ -48,7 +48,6 @@ import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
 import { APPOINTMENT_STAGE_KEYS, APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
 import OrderActions from './OrderActions'
-import OrderProfitInline from './OrderProfitInline'
 import BulkActionBar from './BulkActionBar'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import OrderDateFilterDropdown from './OrderDateFilterDropdown'
@@ -60,7 +59,6 @@ import type { ShopVertical } from '@/lib/lodging'
 import { pacesToast } from '@/lib/paces-toast'
 import { ORDER_STATUS_META, isCODPayment } from '@/lib/order-display'
 import ListBusyOverlay, { type ListBusy } from './ListBusyOverlay'
-import { profitColumnCaption } from '@/lib/order-profit-presentation'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 // อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —
@@ -584,23 +582,15 @@ export default function OrdersTable({
 
     // ─ ยอดคำสั่งซื้อ ─
     columnHelper.accessor('total', {
-      // หัวคอลัมน์บอกเองว่า "กำไร" ในคอลัมน์นี้คือกำไร**ขั้นต้น** (HR16 — คนละตัวกับกำไรสุทธิ
-      // ที่ /sales ผู้ขายที่บวกเลขรายใบทั้งเดือนแล้วเทียบจะได้ไม่ตรง) บอกครั้งเดียวต่อหน้า
-      // เพราะ user สั่งห้ามมีคำต่อแถว — สตริงเดียวกับแคปชั่นมือถือใน OrdersList
-      header: profitColumnCaption(vocab.noun),
-      // whitespace-nowrap ย้ายจาก <td> ลงมาที่ <span> ของยอดเท่านั้น — เดิมอยู่ที่เซลล์ทั้งใบ
-      // ซึ่งจะห้ามบรรทัดกำไรตกบรรทัดไปด้วย ("ขาดทุนขั้นต้นอย่างน้อย ฿90,000" ยาวเกินคอลัมน์
-      // ที่จอ 1024px) แล้วดันคอลัมน์ข้างเคียงแคบลงทั้งตาราง
-      meta: { headerClassName: 'text-end', cellClassName: 'text-end align-top' },
+      header: `ยอด${vocab.noun}`,
+      // whitespace-nowrap อยู่ที่ <td> ตามแพตเทิร์นของคอลัมน์อื่นในตารางนี้ (wrap behavior
+      // กำหนดที่ meta ไม่ใช่ที่ content element) — เคยถูกย้ายลงไปที่ <span> ชั่วคราวตอนมี
+      // บรรทัดกำไรซ้อนอยู่ใต้ยอด ซึ่งถอดออกไปแล้ว 2026-08-09
+      meta: { headerClassName: 'text-end', cellClassName: 'text-end align-top whitespace-nowrap' },
       cell: ({ row }) => (
-        <div className="flex flex-col items-end">
-          <span className="whitespace-nowrap text-lg font-bold tabular-nums text-default-900">
-            ฿{row.original.total.toLocaleString('th-TH')}
-          </span>
-          {/* กำไรเป็น text-xs ใต้ยอด text-lg — เล็กกว่าชัดเจน 2 ขั้นโดยตั้งใจ ยอดที่ลูกค้าจ่าย
-              ยังเป็นข้อมูลหลักของคอลัมน์นี้ กำไรเป็นอนุพันธ์ของมัน (total − ต้นทุน) */}
-          <OrderProfitInline profit={row.original.profit} orderNoun={vocab.noun} />
-        </div>
+        <span className="text-lg font-bold tabular-nums text-default-900">
+          ฿{row.original.total.toLocaleString('th-TH')}
+        </span>
       ),
     }),
 

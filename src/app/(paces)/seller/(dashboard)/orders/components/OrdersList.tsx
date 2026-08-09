@@ -43,7 +43,6 @@ import {
 import { ORDER_STATUS_META } from '@/lib/order-display'
 import { ORDER_DATE_PRESETS, isSpecificDay, matchesOrderDateFilter } from '@/lib/order-date-filter'
 import { formatDateTH } from '@/lib/format-date'
-import { profitColumnCaption } from '@/lib/order-profit-presentation'
 
 /** ลำดับชิปสถานะพัสดุ — เรียงตามเส้นทางจริงของพัสดุ ปิดท้ายด้วยกองที่ต้องแก้ */
 const STAGE_CHIPS = ['AWAITING_PARCEL', 'AWAITING_PICKUP', 'SHIPPING', 'AWAITING_COD', 'PROBLEM'] as const
@@ -649,17 +648,7 @@ export default function OrdersList({
           </div>
         </div>
       ) : (
-        <div className="mt-3">
-          {/* คู่ขนานกับหัวคอลัมน์ของตารางเดสก์ท็อป — การ์ดมือถือไม่มีหัวตาราง ถ้าไม่มีบรรทัดนี้
-              จะไม่มีอะไรบอกเลยว่าเลขใต้ยอดคือกำไร**ขั้นต้น** (HR16) และมือถือคือจอที่ใช้หนักสุด
-              สตริงมาจาก profitColumnCaption ตัวเดียวกับเดสก์ท็อป จะได้ไม่มีวันพูดคนละคำ
-              ขึ้นเฉพาะคนที่เห็นตัวเลขกำไรจริง — ทีมงานที่ไม่มีสิทธิ์การเงินไม่ต้องเห็นป้ายอธิบาย
-              ของสิ่งที่ตัวเองไม่เห็น (server omit คีย์ profit ทิ้งไปแล้วตั้งแต่ประกอบแถว) */}
-          {visible.some((o) => o.profit !== undefined) && (
-            <p className="text-default-400 mb-2 text-xs">{profitColumnCaption(vocab.noun)}</p>
-          )}
-
-          <div className="space-y-3">
+        <div className="mt-3 space-y-3">
           {visible.map((order) => (
             <OrderCard key={order.publicToken} order={order} onCancelRequest={handleCancelRequest} vocab={vocab} />
           ))}
@@ -674,7 +663,6 @@ export default function OrdersList({
           {!hasMore && filtered.length > PAGE && (
             <p className="py-3 text-center text-xs text-default-400">ครบทุกออเดอร์แล้ว ({filtered.length})</p>
           )}
-          </div>{/* /space-y-3 — แคปชั่นกำไรอยู่นอกวงนี้ จะได้ไม่กินระยะ 3 ของการ์ด */}
         </div>
       )}
       {/* bg-body-bg ทับ bg-card ที่เป็นค่าตั้งต้น (twMerge — ตัวหลังชนะ): ฝั่งมือถือรายการเป็น

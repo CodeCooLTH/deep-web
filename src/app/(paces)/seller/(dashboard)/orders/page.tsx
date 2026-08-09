@@ -19,9 +19,6 @@ import { deriveShippingStage } from '@/lib/order-stage'
 import { deriveAppointmentStage } from '@/lib/appointment-stage'
 import { canUseAppointments, isAllDayAppointment } from '@/lib/appointments'
 import { requireActiveShop } from '@/lib/shop-context'
-import { resolveExpenseAccess } from '@/services/expense-access.service'
-import { computeOrderProfit } from '@/lib/order-profit'
-import { countsAsRevenue } from '@/lib/order-revenue'
 import { thaiDayKey } from '@/lib/format-date'
 import { getConnection } from '@/services/iship.service'
 import Icon from '@/components/wrappers/Icon'
@@ -109,19 +106,6 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // ร้านหนึ่งมีแกนเสริมได้แกนเดียว จึงไม่มีทางที่สองเงื่อนไขนี้จะจริงพร้อมกัน
   const isServiceQueue = canUseAppointments(shop)
 
-  // กำไรรายออเดอร์ใต้คอลัมน์ยอด (user สั่ง 2026-08-08) — สิทธิ์เดียวกับการ์ดกำไรในหน้า detail
-  // (OWNER เสมอ · ADMIN ต่อเมื่อ Shop.staffCanViewFinance)
-  //
-  // [สำคัญ] ตัดสินสิทธิ์ "ก่อน" คำนวณและ omit key ทิ้งทั้งดุ้นเมื่อไม่มีสิทธิ์ — หน้านี้อยู่ใต้
-  // client layout `orders` ทั้งก้อนถูก serialize ลง flight payload เสมอไม่ว่า JSX จะ render อะไร
-  // การส่งตัวเลขมาแล้วให้ component เลือกไม่แสดง = เปิด view-source อ่านกำไรได้ทั้งหน้า
-  const canSeeProfit =
-    (
-      await resolveExpenseAccess(
-        session as unknown as { user: { id: string; activeShopId?: string | null } },
-      )
-    ).kind === 'GRANTED'
-
   // รูปเพจของร้าน (คอลัมน์ "ที่มา" — user สั่ง 2026-08-06): Order เก็บแค่ salesChannel
   // ไม่ได้เก็บว่ามาจากเพจไหน → ชี้รูปเพจได้เฉพาะร้านที่เชื่อมเพจ MESSENGER ACTIVE เพจเดียว
   // (หลายเพจ = กำกวม ห้ามเดา ใช้โลโก้แพลตฟอร์มแทน)
@@ -191,19 +175,6 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   }
 
   const orders: OrderRow[] = rawOrders.map((o: any) => ({
-    // ...(cond ? {...} : {}) ไม่ใช่ `profit: cond ? x : undefined` — อย่างหลังยังเขียนคีย์ลง
-    // object จริง แล้วผู้ที่ไม่มีสิทธิ์จะเห็นคีย์ (ค่า undefined) โผล่ใน flight payload
-    //
-    // ใบที่ยังไม่นับเป็นยอดขาย (PENDING/CANCELLED) ได้ null ไม่ใช่ตัวเลข — สอดคล้องกับ
-    // การ์ดกำไรในหน้า detail ที่ใช้ countsAsRevenue ตัวเดียวกัน ตัวเลขที่คำนวณตอนนี้
-    // อาจกลายเป็นเท็จถ้าออเดอร์ถูกยกเลิกทีหลัง
-    ...(canSeeProfit
-      ? {
-          profit: countsAsRevenue(o)
-            ? computeOrderProfit({ totalAmount: o.totalAmount, items: o.items })
-            : null,
-        }
-      : {}),
     sourceLogoUrl: o.salesChannel === 'FACEBOOK' ? fbPageAvatar : null,
     // เลขพัสดุมาได้ 2 ทางและเก็บคนละตาราง — ต้องอ่านทั้งคู่ ไม่งั้นออเดอร์ที่ร้าน "ส่งเอง"
     // (ShipmentTracking: provider = ชื่อขนส่งที่ผู้ขายเลือก, ไม่มีรหัส) จะไม่ขึ้นเลขพัสดุเลย
