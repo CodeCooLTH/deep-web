@@ -277,6 +277,25 @@ export default function CommentsClient({
    * (impeccable critique 2026-08-09 รอบ 2 · P2)
    */
   const listBusy = useListBusy()
+  /**
+   * 🛑 ต้องดึง `begin` ออกมาถือเป็นตัวแปรของตัวเอง แล้วใส่ **ตัวนี้** ใน dep array ของ effect
+   * ห้ามใส่ `listBusy` ทั้งก้อนเด็ดขาด
+   *
+   * `useListBusy()` คืน object literal ใหม่ทุก render (`return { busy, run, begin }`) — อ็อบเจกต์
+   * ที่ไม่เคยเท่ากับของ render ก่อนตาม Object.is. effect ที่ยิง fetch แล้วมี `listBusy` ใน deps
+   * จึงกลายเป็นลูปไม่รู้จบทันที: fetch เสร็จ → setPosts/setCounts → re-render → อ็อบเจกต์ใหม่ →
+   * effect รันใหม่ → fetch อีก วนเร็วเท่า round-trip (user เจอบน prod 2026-08-09 "มันยิง
+   * /api/chat/comments/posts ไม่หยุด")
+   *
+   * ตัว `begin` เองเป็น `useCallback([minMs])` จึงเสถียรข้าม render — dep ที่ถูกต้องคือตัวนี้
+   * และ **การ memo อ็อบเจกต์ที่ hook คืนไม่ได้แก้ปัญหานี้** เพราะ `busy` ต้องเปลี่ยนตามงานอยู่แล้ว
+   * ก้อนนั้นก็ยังเปลี่ยน identity ทุกครั้งที่แผงเปิด/ปิด = ลูปเดิมแค่ช้าลง
+   *
+   * `/orders` ใช้ hook ตัวเดียวกันมาตั้งแต่ 2026-08-07 โดยไม่พัง เพราะที่นั่นเรียก `run()` จาก
+   * event handler อย่างเดียว ไม่เคยมี effect ที่ผูกกับมันเลย — ไม่มี gate ไหนของโปรเจกต์เห็นความ
+   * ต่างข้อนี้ (tsc/build/detector/grep เขียวหมด มันคือ dep array ที่ "ถูกตามกฎ exhaustive-deps")
+   */
+  const beginBusy = listBusy.begin
   const [filterOpen, setFilterOpen] = useState(false)
   /**
    * เดินนาฬิกาให้ตัวนับถอยหลังในแถวรายการขยับเอง (user สั่ง 2026-08-04)
@@ -494,9 +513,11 @@ export default function CommentsClient({
       filterFirstRun.current = false
       return
     }
-    listBusy.begin()
+    beginBusy()
     void refreshPosts(channelId, show.postStatus, channelTab)
-  }, [channelId, show.postStatus, channelTab, refreshPosts, listBusy])
+    // 🛑 dep เป็น `beginBusy` (useCallback เสถียร) ไม่ใช่ `listBusy` ทั้งก้อน — ดูเหตุผลยาวที่จุด
+    // ประกาศ `beginBusy` ด้านบน (ใส่ทั้งก้อน = ยิง fetch ไม่หยุด)
+  }, [channelId, show.postStatus, channelTab, refreshPosts, beginBusy])
 
   async function loadMorePosts() {
     if (loadingMore || !hasMore) return

@@ -43,6 +43,20 @@ export type ListBusy = {
   begin: () => void
 }
 
+/**
+ * 🛑 ห้ามใส่ค่าที่ hook นี้คืน (`ListBusy` ทั้งก้อน) ลงใน dep array ของ `useEffect`/`useCallback`
+ *
+ * มันเป็น object literal ใหม่ทุก render จึงไม่มีวันเท่ากับของ render ก่อนตาม Object.is — effect
+ * ที่ยิง fetch แล้วผูกกับมันจะกลายเป็นลูปไม่รู้จบ: fetch เสร็จ → setState → re-render → อ็อบเจกต์
+ * ใหม่ → effect รันใหม่ → fetch อีก (เกิดจริงบน prod 2026-08-09 ที่ `/inbox/comments` ยิง
+ * `/api/chat/comments/posts` รัวไม่หยุดจนผู้ใช้เห็นเอง)
+ *
+ * ให้ดึงเฉพาะ `begin`/`run` ออกมาใส่ deps — ทั้งคู่เป็น `useCallback` ที่เสถียรข้าม render
+ * (เทสยืนยัน identity ไว้ที่ `__tests__/useListBusy.test.tsx`)
+ *
+ * และ **การ memo อ็อบเจกต์ที่คืนไม่ใช่ทางแก้** เพราะ `busy` ต้องเปลี่ยนตามงานอยู่แล้ว ก้อนนั้น
+ * ก็ยังเปลี่ยน identity ทุกครั้งที่แผงเปิด/ปิด = ลูปเดิมแค่ช้าลง — ทางแก้อยู่ที่ dep เท่านั้น
+ */
 export function useListBusy(minMs: number = MIN_VISIBLE_MS): ListBusy {
   const [isPending, startTransition] = useTransition()
   const [floor, setFloor] = useState(false)
