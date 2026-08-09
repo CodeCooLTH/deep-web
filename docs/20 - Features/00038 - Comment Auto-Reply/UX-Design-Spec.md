@@ -437,3 +437,77 @@ type CommentItem += {
 | 3 | `connectedAt` ไม่มีใน API §4.1 (mockup วาด "เชื่อมเมื่อ 12 มิ.ย. 2569") | **ตัดบรรทัดนั้นออก** เหลือ subtitle แค่ `Facebook Page` — ไม่ขอเพิ่ม field เข้า API ที่ freeze แล้วเพื่อข้อความประดับ |
 | 4 | ยืนยันไอคอน `message-reply` | **ยืนยันแล้ว** — `tabler:message-reply` มีจริง (ตรวจกับ `api.iconify.design` 2026-08-08) |
 | 5 | shape ของ `postStatus` / `statusCounts` | **ยืนยันตามที่ ux ออกแบบ** — service คืน `{ all, unanswered, botAnswered, humanAnswered }` คำนวณจาก `deriveCommentState()`/`derivePostState()` ที่แผน Task 9 กำหนดไว้แล้ว · ⚠️ ฟังก์ชันจริงชื่อ **`countUnansweredForShops`** (พหูพจน์ รับ `shopIds[]`) เปลี่ยนไปตั้งแต่ feature 00037 — ห้ามย้อนเป็นเอกพจน์ |
+
+---
+
+# ฉบับแก้ครั้งที่ 2 — 2026-08-09 (หน้าตั้งค่า: ประวัติการตอบ)
+
+> **เหตุที่แก้:** user ทักหลังขึ้น prod — *"ทำไม UI มันไม่เหมือนหน้า `/settings/auto-reply` เลย ทั้งความสวยงาม การใช้ PACES Theme การทำ Modal"*
+>
+> 🛑 **ต้นเหตุคือสเปกฉบับแรกเอง** — §1.3 เขียนว่า *"ไม่ใช้ TanStack `DataTable` (over-kill สำหรับ read-only cursor list)"* เหตุผลฟังขึ้นทางเทคนิค แต่ผลลัพธ์คือหน้าที่ดูเป็นคนละคุณภาพกับหน้าข้าง ๆ — ตรงกับที่ `docs/conventions/sibling-surface-parity.md` เตือน: **ธีมบอกว่า "ปุ่มหน้าตายังไง" หน้าพี่น้องบอกว่า "หน้านี้ควรมีอะไรบ้าง"**
+
+## สิ่งที่ **ไม่** เปลี่ยน
+
+**การ์ดตั้งค่าต่อเพจ (สวิตช์ + textarea) ถูกอยู่แล้ว** — ยก pattern จาก `AiSettingForm.tsx:157-282` มาถูกต้อง (label→description→`form-switch`, `form-textarea`+ตัวนับ, ปุ่ม primary) · ที่ต่างจาก `AiSettingForm` มี 2 จุดและมีเหตุผลรองรับทั้งคู่: card-header เป็นรูปเพจ+ชื่อ+badge (เพราะมี N การ์ด ต้องบอกว่าใบนี้คือเพจไหน) และคั่นสวิตช์ด้วยเส้นประ (มี 2 บล็อกใหญ่ ไม่ใช่ 3 รายการเล็ก)
+
+## สิ่งที่เปลี่ยน — 5 จุด
+
+| # | เดิม | ใหม่ | เหตุผล |
+|---|---|---|---|
+| 1 | `<table>` ประกอบมือ | **`DataTable`** (TanStack `manualPagination: true`, ปิด sort/columnFilter ทั้งหมด) | ได้ `thead-sm uppercase bg-light/25` · `table-hover` · mobileCard switch ฟรี โดยไม่ต้องโหลดข้อมูลทั้งหมดเข้า memory |
+| 2 | ปุ่ม "โหลดเพิ่ม" (accumulate) | **`TablePagination`** เลขหน้าใน `card-footer` + "แสดง X–Y จาก N รายการ" | 🛑 **ต้องแก้ API เพิ่ม `total`** |
+| 3 | ตาราง↔การ์ดสลับที่ `md` (768) | **สลับที่ `lg` (1024)** ตามค่าจริงของ `DataTable` | ใช้ component เดียวกันแล้ว behavior ต่างกันเอง = สร้างความไม่สม่ำเสมอแบบใหม่ · แลกกับแท็บเล็ตไม่เห็นตารางจริง (ยอมรับแล้ว) |
+| 4 | mobileCard ไม่มีบรรทัดโพสต์เลย | **เพิ่มบรรทัดโพสต์** (truncate) + chevron แตะดูรายละเอียด | ช่องว่างเนื้อหาจริงที่เจอระหว่างตรวจ ไม่ใช่คอสเมติก |
+| 5 | ไม่มี modal เลย · skip reason อยู่ใน `title` เท่านั้น | **`pacesAlert` "ดูรายละเอียด"** (เวลา/ผู้คอมเมนต์/โพสต์/สถานะ+เหตุผลเต็ม) | `title` แตะไม่ได้บนทัชสกรีน ซึ่งเป็นอุปกรณ์หลักตาม PRODUCT.md |
+
+**ไม่เพิ่มช่องค้นหา** ทั้งที่หน้าพี่น้องมี — เพราะค้นได้แค่หน้าที่โหลดมา จะ "โกหก" ผู้ใช้ว่าค้นได้ทั้งประวัติ (anti-slop: copy ต้องบอกสิ่งที่ระบบทำได้จริง)
+
+## Theme Source Mapping (ฉบับแก้)
+
+| Section | Base (ไฟล์ + บรรทัด) | Component | adapt |
+|---|---|---|---|
+| Toolbar ใน `card-header` | `settings/auto-reply/AutoReplyListing.tsx:376-423` | native div + `FilterDropdown` + `ChoiceSelect` | ตัดช่องค้นหา + ปุ่มสร้างออก (หน้านี้ไม่มี action สร้าง) |
+| Page-size selector | `AutoReplyListing.tsx:405-413` | `ChoiceSelect` | options `[5,10,15,20]` · `hidden lg:block` เหมือนพี่น้อง |
+| Column defs | `AutoReplyListing.tsx:175-260` | `createColumnHelper<LogRow>()` | 5 คอลัมน์ + 1 action · ทุกคอลัมน์ `enableSorting: false` (log เรียงตามเวลาเสมอ ไม่มีมิติให้ sort) · `โพสต์` = `hidden xl:table-cell` |
+| `useReactTable` | `AutoReplyListing.tsx:262-278` | `useReactTable` | **ตัด** `getSortedRowModel`/`getFilteredRowModel`/`getPaginationRowModel`/`globalFilterFn` (manual mode — data = หน้าปัจจุบันเท่านั้น) |
+| ตาราง + mobileCard switch | `src/components/table/DataTable.tsx:55-145` | `DataTable` | breakpoint `lg` ตาม default |
+| Footer pagination | `AutoReplyListing.tsx:470-487` + `src/components/table/TablePagination.tsx` | `TablePagination` | `pageCount = Math.ceil(total/pageSize)` คำนวณเอง (manual mode) |
+| Mobile row | `AutoReplyListing.tsx:432-467` | native `<button>` | ทั้งแถวเป็นปุ่ม (แตะได้) + `chevron-right` ท้ายแถว + เพิ่มบรรทัดโพสต์ |
+| ปุ่ม "รายละเอียด" (desktop) | `AutoReplyListing.tsx:237-243` | native `<button className="btn btn-icon btn-sm border-default-300 …">` | icon `info-circle` |
+| Modal รายละเอียด | `src/lib/paces-swal.ts:101-115` | `pacesAlert` | 🛑 ดูข้อควรระวังด้านล่าง |
+
+## 🛑 ข้อควรระวังด้านความปลอดภัย
+
+`commenterName` / `postMessage` เป็นข้อความจากผู้ใช้ Facebook ภายนอก — `pacesAlert` set เนื้อหาผ่าน `innerHTML` **ต้อง escape (`&` `<` `>` `"` `'`) ก่อน interpolate ทุกครั้ง** ไม่งั้นเปิดช่อง XSS ที่มาจากคอมเมนต์ลูกค้า · label/wrapper ที่ developer เขียนเองเป็น static string ปลอดภัยอยู่แล้ว
+
+(คลาสเดียวกับที่ Task 8 เลือกใช้ Swal `text` แทน `html` สำหรับชื่อคนคอมเมนต์)
+
+## API ที่ต้องแก้
+
+**`GET /api/shops/comment-reply/logs`** — เพิ่ม field `total`:
+```ts
+const [rows, total] = await Promise.all([
+  prisma.commentReplyLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take, select: {...} }),
+  prisma.commentReplyLog.count({ where }),
+])
+```
+`cursor`/`take`/`shopChannelId` **ไม่เปลี่ยน** (cursor เป็น skip offset อยู่แล้ว ใช้เป็น `pageIndex * pageSize` ได้ตรง ๆ) · **ถอด `hasMore` ทิ้ง** — มีหน้าเดียวที่เรียก endpoint นี้ ไม่ต้องเก็บไว้เพื่อ back-compat
+**`page.tsx`** (RSC) ต้องเพิ่ม `count()` คู่กัน ให้หน้าแรกมี `total` ตั้งแต่ SSR
+
+## Edge states
+
+- **0 log** → `SellerEmptyState compact` เดิม · ซ่อน toolbar+pagination ทั้งคู่
+- **1 หน้าพอดี** → footer ยังโชว์ "แสดง 1–N จาก N รายการ" ปุ่ม prev/next disabled (เหมือนพี่น้อง ไม่ซ่อน footer)
+- **`postMessage` null** → ตารางโชว์ `(ไม่มีข้อความ)` · **mobileCard ไม่โชว์บรรทัดนั้นเลย** (พื้นที่จำกัด อย่ากินที่ด้วยข้อความว่าง) · modal โชว์ `(ไม่มีข้อความ)`
+- **เปลี่ยน filter หรือ page-size** → reset `pageIndex = 0` เสมอ
+- **เปลี่ยนหน้าแล้ว fetch ล้ม** → toast error + **คงหน้าเดิมไว้** ไม่ล้างตารางเป็นเปล่า
+- **กำลังโหลดหน้าใหม่** → dim ตาราง (`opacity-50 pointer-events-none`) + spinner
+
+### Impeccable compliance
+
+**Mode: Operate** — เลือก **Consistency over surprise** ตรง ๆ ในข้อ 3 (ยอมเสียตารางบนแท็บเล็ตเพื่อให้ behavior ตรงกับทุกหน้าที่ใช้ `DataTable`)
+
+- **One Voice** — primary เพิ่มเฉพาะ `TablePagination` active page + `FilterDropdown` ตอน active ไม่มีจุดใหม่เกินจำเป็น
+- **Verified-Means-Green** — ไม่แตะ badge สถานะ log เดิม
+- **anti-slop** — ไม่มี gradient/hero/การ์ดซ้อนการ์ด · `DataTable` ไม่เพิ่ม wrapper card ซ้อน
+- **Sentence case** — CSS `uppercase` บน header เป็น no-op กับอักษรไทย ไม่ขัดกฎ
