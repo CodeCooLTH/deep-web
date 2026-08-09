@@ -7,6 +7,10 @@ import { canAccessShop } from '@/lib/shop-context'
 import { getLastInboundTime, fetchMessageText, fetchAdPostContent, fetchThreadMessages, sendMessageReaction, sendImageGridMessage, GraphApiError, type GraphThreadMessage, type GraphThreadAttachment } from '@/lib/facebook/graph'
 import type { ChannelAdapter, ChannelContext } from '@/lib/channels/adapter'
 import { MetaAdapter } from '@/lib/channels/meta-adapter'
+// (S-6, feature 00025) LineAdapter (S-4) + prefix builder (TD-005) — ตัวเดียวที่ประกอบ
+// ChatMessage.externalMessageId ของ LINE ห้ามประกอบ string นี้เองที่ไฟล์นี้
+import { LineAdapter, buildLineExternalMessageId } from '@/lib/channels/line-adapter'
+import { REPLY_WINDOW_MS } from '@/lib/line/constants'
 import { decryptToken } from '@/lib/token-crypto'
 import { saveFile, getFileUrl } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
@@ -27,6 +31,8 @@ function getAdapter(provider: string): ChannelAdapter {
     case 'MESSENGER':
     case 'INSTAGRAM':
       return MetaAdapter
+    case 'LINE':
+      return LineAdapter
     default:
       throw new Error(`UNSUPPORTED_CHANNEL_PROVIDER: ${provider}`)
   }
@@ -1233,6 +1239,163 @@ export async function ingestInboundMessage(params: {
           })
         } catch (retryError) {
           // เอดจ์เคส: ข้อความเดียวกัน (mid เดิม) มาถึงซ้ำพอดีตอน retry — ยังคือ "มีอยู่แล้ว"
+          if (isUniqueViolationOn(retryError, 'externalMessageId')) return { status: 'DUPLICATE' }
+          throw retryError
+        }
+      }
+    }
+
+    throw e
+  }
+}
+
+/** (S-6, TFR-LINE-10) รีเฟรชโปรไฟล์ LINE เมื่อข้อมูลเก่ากว่า 7 วัน — ล้อกับ AVATAR_RETRY_INTERVAL_MS
+ *  ของ Meta (ค่าเท่ากัน) แต่แยกค่าคงที่ต่างหากเพราะคนละ TFR/เอกสารอ้างอิง กันคนแก้ค่าฝั่ง Meta แล้ว
+ *  กระทบ LINE โดยไม่ตั้งใจ — export ไว้ให้ยูนิตเทสยิงตรงได้เหมือน shouldRetryAvatar */
+export const LINE_PROFILE_REFRESH_MS = 7 * 24 * 60 * 60 * 1000
+
+export function shouldFetchLineProfile(
+  contact: { name: string | null; profileFetchedAt: Date | null } | null,
+  now: Date = new Date(),
+): boolean {
+  if (!contact) return true
+  if (!contact.name) return true
+  if (!contact.profileFetchedAt) return true
+  return now.getTime() - contact.profileFetchedAt.getTime() >= LINE_PROFILE_REFRESH_MS
+}
+
+/**
+ * ingestLineTextMessage (S-6, feature 00025 TFR-LINE-02..05/10) — ingest ข้อความ `text` ขาเข้าจาก LINE
+ *
+ * เรียกจาก webhook route (`app/api/channels/line/webhook/route.ts`) "หลัง" ตอบ 200 ให้ LINE แล้ว
+ * (TD-003) เขียนตามแพตเทิร์นเดียวกับ ingestInboundMessage ของ Messenger/IG ด้านบน (upsert contact →
+ * upsert เธรด → insert ChatMessage ในทรานแซกชันเดียว + retry เมื่อชน unique constraint จาก race)
+ * แต่ตัดความซับซ้อนที่ LINE ไม่มี (ไม่มี echo — LineAdapter.capabilities.echo=false ข้อความขาเข้าจึง
+ * เป็น BUYER เสมอ, ไม่มี multi-attachment ต่อ event, ไม่มี ad referral) — สื่อ (image/video/audio/file/
+ * location/sticker) เป็นงานของ S-7 ตามที่ scope baseline ระบุไว้ ฟังก์ชันนี้จึงรับเฉพาะข้อความที่
+ * แปลงเป็น text แล้วจาก route
+ *
+ * รับพารามิเตอร์ที่ route resolve/verify มาแล้วเท่านั้น (channel ที่ผ่านลายเซ็นแล้ว) — ฟังก์ชันนี้ไม่รู้จัก
+ * การ verify เอง เพื่อไม่ต้องรู้จัก decryptToken ของ channelSecretEnc (route เป็นเจ้าของ credential ทั้งชุด)
+ */
+export async function ingestLineTextMessage(params: {
+  shopId: string
+  shopChannelId: string
+  /** channel access token ที่ decrypt แล้ว — ใช้เรียก LineAdapter.fetchContactProfile เท่านั้น */
+  accessToken: string
+  externalUserId: string
+  lineMessageId: string
+  text: string
+  /** reply token ของ event นี้ (TFR-LINE-05/TD-009) — ไม่มีก็ยัง ingest ข้อความได้ตามปกติ แค่ไม่มี
+   *  reply token ให้ใช้ตอบกลับฟรี (จะตกไปเส้นทาง push ตอน S-8) */
+  replyToken?: string
+  /** event.timestamp (ms, epoch) จาก LINE — ใช้เป็นทั้งเวลาข้อความและฐานคำนวณ replyTokenExpiresAt */
+  eventTimestamp: number
+}): Promise<{ status: 'STORED' | 'DUPLICATE'; conversationId?: string }> {
+  const { shopId, shopChannelId, accessToken, externalUserId, lineMessageId, text, replyToken, eventTimestamp } =
+    params
+
+  const contactWhere = { shopChannelId_externalUserId: { shopChannelId, externalUserId } }
+  const existingContact = await prisma.externalContact.findUnique({ where: contactWhere })
+
+  // ดึงโปรไฟล์เฉพาะตอนยังไม่มี contact/ยังไม่มีชื่อ/เก่ากว่า 7 วัน — ล้อกับ needsProfile ของ Messenger
+  // ด้านบน ลดจำนวนครั้งที่ยิง GET /v2/bot/profile ต่อข้อความ ล้มเหลว (404 ไม่ได้เป็นเพื่อน/บล็อกแล้ว
+  // หรือ error อื่น) ไม่ throw ตามสัญญาของ adapter — ข้อความยังต้องถูกบันทึกด้วยชื่อสำรอง
+  const needsProfile = shouldFetchLineProfile(existingContact)
+  const profile = needsProfile
+    ? await getAdapter('LINE').fetchContactProfile({ provider: 'LINE', accessToken }, externalUserId)
+    : { name: null, avatarUrl: null }
+
+  // ไม่ mirror รูปโปรไฟล์ LINE ผ่าน mirrorRemoteImage — allow-list ของฟังก์ชันนั้นมีแค่โฮสต์ของ Meta
+  // (กัน SSRF, ดู isAllowedMirrorHost) การขยาย allow-list ให้ profile.line-scdn.net เป็นการเปลี่ยน
+  // security boundary ที่ต้องผ่าน review แยก ไม่ใช่ผลพลอยได้ของ S-6 — เก็บ URL ดิบของ LINE ไว้ก่อน
+  // (ไม่มีหลักฐานว่า URL นี้หมดอายุแบบ Meta ที่ฝัง `oe=` มา)
+  const avatarToStore = profile.avatarUrl
+
+  const contact = await prisma.externalContact.upsert({
+    where: contactWhere,
+    create: {
+      shopChannelId,
+      externalUserId,
+      name: profile.name,
+      avatarUrl: avatarToStore,
+      profileFetchedAt: new Date(),
+    },
+    update: {
+      ...(profile.name ? { name: profile.name } : {}),
+      ...(avatarToStore ? { avatarUrl: avatarToStore } : {}),
+      // ประทับเวลาทุกครั้งที่ "ลอง" ไม่ใช่เฉพาะตอนสำเร็จ — ไม่งั้นคนที่ยังไม่แอดเพื่อน (404 ทุกครั้ง)
+      // จะโดนยิง GET /v2/bot/profile ซ้ำทุกข้อความตลอดไป
+      ...(needsProfile ? { profileFetchedAt: new Date() } : {}),
+    },
+  })
+
+  const conversationWhere = { shopChannelId_externalContactId: { shopChannelId, externalContactId: contact.id } }
+  const occurredAt = eventTimestamp ? new Date(eventTimestamp) : new Date()
+  const preview = text.slice(0, 100)
+  const externalMessageId = buildLineExternalMessageId(lineMessageId)
+  const replyTokenExpiresAt = replyToken ? new Date(eventTimestamp + REPLY_WINDOW_MS) : undefined
+
+  // แยกเป็นฟังก์ชันเพื่อใช้ซ้ำได้ทั้งเส้นทางปกติและเส้นทาง retry หลังแพ้ race สร้างเธรด (รูปแบบเดียวกับ
+  // writeMessage ของ ingestInboundMessage ด้านบน)
+  const writeMessage = async (tx: Prisma.TransactionClient, conversation: { id: string }) => {
+    await tx.chatMessage.create({
+      data: {
+        conversationId: conversation.id,
+        senderUserId: null,
+        // LINE ไม่ echo ข้อความที่เรายิงออก (capabilities.echo=false) — ข้อความที่มาทาง webhook
+        // event ชนิด message จึงเป็นของลูกค้าเสมอ ไม่มีเคส "ร้านตอบเองแล้วเด้งกลับมาทางนี้"
+        senderRole: 'BUYER',
+        type: 'TEXT',
+        body: text,
+        externalMessageId,
+        deliveryStatus: 'SENT',
+        rawMessage: toRawMessage('LINE', { lineMessageId, text, replyToken, eventTimestamp }),
+      },
+    })
+
+    await tx.conversation.update({
+      where: { id: conversation.id },
+      data: {
+        lastMessageAt: occurredAt,
+        lastMessagePreview: preview,
+        lastSenderRole: 'BUYER',
+        lastInboundAt: occurredAt,
+        isHidden: false,
+        resolvedAt: null,
+        // TFR-LINE-05/TD-009: ทับ replyToken เดิมเสมอด้วยตัวล่าสุด — ไม่มี replyToken มาด้วย (ไม่ควร
+        // เกิดกับ event ชนิด message ตามสเปก LINE แต่กันไว้เผื่อ) ก็ไม่แตะคอลัมน์นี้เลย
+        ...(replyToken ? { replyToken, replyTokenExpiresAt, replyTokenUsedAt: null } : {}),
+      },
+    })
+  }
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      let conversation = await tx.conversation.findUnique({ where: conversationWhere })
+      if (!conversation) {
+        conversation = await tx.conversation.create({
+          data: { shopId, channel: 'LINE', shopChannelId, externalContactId: contact.id },
+        })
+      }
+      await writeMessage(tx, conversation)
+      return { status: 'STORED' as const, conversationId: conversation.id }
+    })
+  } catch (e) {
+    // redelivery ของ LINE (message.id เดิม) — ชนที่ externalMessageId = "มีอยู่แล้ว" ไม่ใช่ error (TFR-LINE-04)
+    if (isUniqueViolationOn(e, 'externalMessageId')) return { status: 'DUPLICATE' }
+
+    // race สร้างเธรดพร้อมกัน (ลูกค้าใหม่ทัก 2 ข้อความรัว ๆ ภายในหน้าต่างสั้น ๆ) — ชนที่
+    // (shopChannelId, externalContactId) เหมือน pattern ของ ingestInboundMessage ด้านบนทุกประการ
+    if (isUniqueViolationOn(e, 'externalContactId')) {
+      const winner = await prisma.conversation.findUnique({ where: conversationWhere })
+      if (winner) {
+        try {
+          return await prisma.$transaction(async (tx) => {
+            await writeMessage(tx, winner)
+            return { status: 'STORED' as const, conversationId: winner.id }
+          })
+        } catch (retryError) {
           if (isUniqueViolationOn(retryError, 'externalMessageId')) return { status: 'DUPLICATE' }
           throw retryError
         }
