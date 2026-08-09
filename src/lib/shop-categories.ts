@@ -40,3 +40,21 @@ export const SHOP_CATEGORY_KEYS = Object.keys(SHOP_CATEGORY_LABELS) as ShopCateg
 export function isShopCategory(value: string): value is ShopCategoryKey {
   return value in SHOP_CATEGORY_LABELS
 }
+
+/**
+ * แปลงคีย์หมวดที่เก็บใน DB เป็นคำไทยที่ผู้ใช้อ่านออก
+ *
+ * ทำไมต้องมี helper กลาง: หน้าโปรไฟล์สาธารณะทั้งสองเส้น (/u/[username] และ /b/[slug]) ส่ง
+ * `shop.category` เข้า UI ตรง ๆ มาตลอด ผู้ซื้อจึงเห็นคีย์ดิบ ("general", "motorcycle") อยู่ใน
+ * บรรทัดเดียวกับชื่อผู้ใช้และวันเปิดร้าน — บนหน้าที่ทั้งหน้ามีไว้พิสูจน์ว่าร้านนี้เชื่อได้
+ * ตัวหนังสือภาษาอังกฤษที่หลุดมาจากฐานข้อมูลอ่านเป็น "ระบบยังทำไม่เสร็จ"
+ *
+ * ที่อื่นในรีโปเขียนสำนวนนี้ซ้ำกันเองมาแล้วอย่างน้อย 3 แบบ (ShopsBrowse.tsx `catLabel`,
+ * BusinessCreateModal.tsx, ShopForm.tsx) — ตัวนี้เป็นตัวเดียวที่ควรเรียกต่อจากนี้
+ *
+ * คีย์ที่ไม่รู้จัก (ข้อมูลเก่า/พิมพ์มือ) คืนค่าเดิม ไม่ใช่คืน null — ยังดีกว่าทำให้ข้อมูลหายเงียบ
+ */
+export function shopCategoryLabel(value: string | null | undefined): string | null {
+  if (!value) return null
+  return isShopCategory(value) ? SHOP_CATEGORY_LABELS[value] : value
+}

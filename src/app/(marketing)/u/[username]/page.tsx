@@ -28,6 +28,7 @@ import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layo
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
 import { formatMonthYearTH } from '@/lib/format-date'
+import { shopCategoryLabel } from '@/lib/shop-categories'
 
 // View Imports
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
@@ -262,7 +263,9 @@ export default async function PublicProfilePage({ params }: Props) {
               trustScore: user.trustScore,
               tierLabel,
               maxVerifyLevel,
-              category: user.shop?.category ?? null,
+              // แปลงคีย์หมวดเป็นคำไทยก่อนถึงหน้าจอ (เส้นทางนี้พลาดเหมือน /b/[slug] เป๊ะ —
+              // แก้ที่เดียวไม่พอเสมอ เพราะ public profile มี 2 เส้น)
+              category: shopCategoryLabel(user.shop?.category),
               memberSince: formatMonthYearTH(user.createdAt),
               badges: sellerContextBadges.map((ub) => ({
                 id: ub.id,
@@ -281,6 +284,9 @@ export default async function PublicProfilePage({ params }: Props) {
               completionExcluded: profileStats?.completionExcluded ?? 0,
               completionBelowMinSample: profileStats?.completionBelowMinSample ?? false,
               canChat: !!user.shop && !isOwnShop,
+              // แผงอธิบายคะแนนใช้บอก "อีกกี่คะแนนถึงระดับถัดไป" — ค่าเดียวกับที่ profileTab ใช้อยู่แล้ว
+              nextTierLabel: nextTier?.nextTierLabel ?? null,
+              pointsToNext: nextTier?.pointsToNext ?? null,
               isLodging,
               isServiceQueue,
             },

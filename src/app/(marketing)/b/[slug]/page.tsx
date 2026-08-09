@@ -14,13 +14,13 @@ import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 import { canAccessShop } from '@/lib/shop-context'
 import { findShopBySlug } from '@/services/shop.service'
-import { getAvgRatingByShop } from '@/services/review.service'
 import { getProductsByShop, getConfirmedOrderCountByProduct } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
 import { getPublicRooms, getConfirmedBookingCountByRoom } from '@/services/room.service'
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
+import { shopCategoryLabel } from '@/lib/shop-categories'
 import { formatMonthYearTH } from '@/lib/format-date'
 
 // View Imports
@@ -84,12 +84,15 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   // เดิมมี prisma.order.groupBy({ by:['status'] }) อยู่ในชุดนี้อีกตัว ซึ่งซ้ำกับที่
   // getShopProfileStats() ยิงอยู่แล้ว (shop.service.ts:245) และผลของมันไปตกที่
   // profileHeader.completedOrders/.completionRate ที่ไม่มีใคร render — ถอดออกแล้ว (sync กับ /u/[username])
-  const [approvedVerifications, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
+  //
+  // เดิมชุดนี้ยิง getAvgRatingByShop() ไปด้วยอีกตัว ซึ่งผลตกที่ `const { avgRating, reviewCount }`
+  // ที่ไม่มีใครใช้เลย — ค่าที่ส่งเข้า UI จริงมาจาก profileStats ทั้งคู่ (query ซ้ำที่ยิงทิ้งทุกครั้ง
+  // ที่มีคนเปิดหน้าร้าน) ถอดออกแล้วพร้อมกับ const ที่ตายตามกัน
+  const [approvedVerifications, rawPinnedProducts, rawOtherProducts] = await Promise.all([
     prisma.verificationRecord.findMany({
       where: { shopId: shop.id, status: 'APPROVED' },
       select: { level: true },
     }),
-    getAvgRatingByShop(shop.id),
     // Phase 3 (feature 00013): pinned + other แยกคิวรี (sync /u/[username])
     getPinnedProducts(shop.id),
     getProductsByShop(shop.id, 12, { excludePinned: true }),
@@ -103,25 +106,47 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   const tierColor = getTierColor(shop.trustScore)
   const nextTier = getNextTierInfo(shop.trustScore)
 
-  // redesign 2026-07-26 — ใช้แหล่งข้อมูลชุดเดียวกับ /u/[username] ผ่าน ShopProfile
-  // ย้ายขึ้นมาจากด้านล่าง เพราะ completedOrders/completionRate อ่านจากชุดนี้แล้ว ไม่คำนวณสูตรซ้ำเอง
-  // (เดิมเรียก computeCompletionRate() ที่นี่ แล้วผลตกที่ field ที่ไม่มีใคร render ทำให้เกณฑ์
-  //  ขั้นต่ำใน order-stats.ts ไม่เคยมีผลกับหน้าจอจริง — feature 00039 BR-OSM-10)
-  const profileStats = await getShopProfileStats(shop.id)
-  const completedOrders = profileStats.completedOrders ?? 0
-  const completionRate = profileStats.completionRate
+  // feature 00017 — ร้านประเภทบ้านพักแสดง "ห้องพัก" แทน "สินค้า" บนโปรไฟล์สาธารณะ (FR-LODG-07)
+  // ใช้ grid เดิมทั้งหมด แค่เปลี่ยนแหล่งข้อมูล — ความสม่ำเสมอของหน้าสำคัญกว่าการมี layout เฉพาะ
+  const isLodging = shop.vertical === 'LODGING'
+  // feature 00028 (U11) — เส้นทางที่ 2 ของ public profile (business shop ผ่าน slug) ต้องรู้จัก
+  // SERVICE_QUEUE เหมือน /u/[username] ไม่งั้นร้านนี้จะตกเข้า branch ONLINE_SALES เงียบ ๆ
+  const isServiceQueue = shop.vertical === 'SERVICE_QUEUE'
 
-  const { avgRating, reviewCount } = ratingAgg
+  // 🛑 ทั้งชุดนี้เคยเป็น await เรียงต่อกัน 6 รอบ ทั้งที่ไม่มีตัวไหนใช้ผลของตัวก่อนหน้าเลย —
+  // หน้าสาธารณะที่คนกดจากลิงก์ในแชทจ่ายค่า round-trip นั้นทุกครั้งโดยไม่ได้อะไรกลับมา
+  // ตัวเดียวที่ต้องรอจริงคือ bookedByRoom (ต้องรู้ rooms ก่อน) จึงอยู่นอกชุดนี้
+  //
+  // profileStats = แหล่งเดียวกับ /u/[username] — completedOrders/completionRate อ่านจากชุดนี้
+  // ไม่คำนวณสูตรซ้ำเอง (เดิมเรียก computeCompletionRate() ที่หน้า แล้วผลตกที่ field ที่ไม่มีใคร
+  // render ทำให้เกณฑ์ขั้นต่ำใน order-stats.ts ไม่เคยมีผลกับหน้าจอจริง — feature 00039 BR-OSM-10)
+  const [profileStats, soldByProduct, rooms, rawServices, shopVideos, pageBlocks, availability, shopReviews] =
+    await Promise.all([
+      getShopProfileStats(shop.id),
+      // ยอด "ขายแล้ว" ต่อสินค้า — ดึงครั้งเดียวสำหรับทั้งชุดปักหมุดและชุดที่เหลือ (query เดียว ไม่ใช่ต่อใบ)
+      getConfirmedOrderCountByProduct([
+        ...rawPinnedProducts.map((p) => p.id),
+        ...rawOtherProducts.map((p) => p.id),
+      ]),
+      // getPublicRooms คืนเฉพาะห้อง isActive และตัด field ตั้งค่าภายใน (depositMode/Value) ออกแล้ว
+      isLodging ? getPublicRooms(shop.id) : Promise.resolve([]),
+      isServiceQueue ? listServiceResources(shop.id, { activeOnly: true }) : Promise.resolve([]),
+      getShopVideos(shop.id),
+      // feature 00035 (TFR-005) — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ (sync กับ /u/[username])
+      listShopPageBlocks(shop.id),
+      isLodging ? getShopAvailability(shop.id, 3) : Promise.resolve(null),
+      // รีวิวของร้านนี้ — scope ที่ shopId ตรง ไม่ใช่ผ่าน owner user (business shop แยก trust จาก owner)
+      prisma.review.findMany({
+        where: { order: { shopId: shop.id } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { id: true, rating: true, comment: true, createdAt: true },
+      }),
+    ])
 
   // serialize products: Decimal → string, images Json → string[] → first
   // ไม่ส่ง Decimal object ข้าม RSC boundary เพราะ crash runtime แม้ tsc จะไม่เตือน
   // Phase 3 (feature 00013): serialize แยกชุด pinned/other — ทั้งสองมาจาก Prisma row shape เดียวกัน
-  // ยอด "ขายแล้ว" ต่อสินค้า — ดึงครั้งเดียวสำหรับทั้งชุดปักหมุดและชุดที่เหลือ (query เดียว ไม่ใช่ต่อใบ)
-  const soldByProduct = await getConfirmedOrderCountByProduct([
-    ...rawPinnedProducts.map((p) => p.id),
-    ...rawOtherProducts.map((p) => p.id),
-  ])
-
   const serializeProductRow = (p: (typeof rawPinnedProducts)[number]): SerializedProduct => ({
     id: p.id,
     name: p.name,
@@ -129,28 +154,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     soldCount: soldByProduct.get(p.id) ?? 0,
     imageUrl: (p.images as string[])[0] ?? null,
   })
-  // feature 00017 — ร้านประเภทบ้านพักแสดง "ห้องพัก" แทน "สินค้า" บนโปรไฟล์สาธารณะ (FR-LODG-07)
-  // ใช้ grid เดิมทั้งหมด แค่เปลี่ยนแหล่งข้อมูล — ความสม่ำเสมอของหน้าสำคัญกว่าการมี layout เฉพาะ
-  // getPublicRooms คืนเฉพาะห้อง isActive และตัด field ตั้งค่าภายใน (depositMode/Value) ออกแล้ว
-  const isLodging = shop.vertical === 'LODGING'
-  const rooms = isLodging ? await getPublicRooms(shop.id) : []
-  // feature 00028 (U11) — เส้นทางที่ 2 ของ public profile (business shop ผ่าน slug) ต้องรู้จัก
-  // SERVICE_QUEUE เหมือน /u/[username] ไม่งั้นร้านนี้จะตกเข้า branch ONLINE_SALES เงียบ ๆ
-  const isServiceQueue = shop.vertical === 'SERVICE_QUEUE'
-  const rawServices = isServiceQueue ? await listServiceResources(shop.id, { activeOnly: true }) : []
+
   const publicServices = rawServices.map(serializeServiceResource)
 
-  const shopVideos = await getShopVideos(shop.id)
-  // feature 00035 (TFR-005) — บล็อกที่ผู้ขายจัดวางไว้เหนือแถบแท็บ (sync กับ /u/[username])
-  const pageBlocks = await listShopPageBlocks(shop.id)
-  const availability = isLodging ? await getShopAvailability(shop.id, 3) : null
-  // รีวิวของร้านนี้ — scope ที่ shopId ตรง ไม่ใช่ผ่าน owner user (business shop แยก trust จาก owner)
-  const shopReviews = await prisma.review.findMany({
-    where: { order: { shopId: shop.id } },
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-    select: { id: true, rating: true, comment: true, createdAt: true },
-  })
   const publicRooms = rooms.map((r) => ({
     id: r.id,
     name: r.name,
@@ -242,7 +248,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               trustScore: shop.trustScore,
               tierLabel,
               maxVerifyLevel,
-              category: shop.category ?? null,
+              // คีย์ดิบใน DB ("general"/"motorcycle") ต้องแปลงเป็นคำไทยก่อนถึงหน้าจอเสมอ —
+              // บรรทัดนี้อยู่ติดกับ @username และวันเปิดร้าน ผู้ซื้อใช้อ่านยืนยันว่ามาถูกร้าน
+              category: shopCategoryLabel(shop.category),
               memberSince: formatMonthYearTH(shop.createdAt),
               badges: businessBadges.map((ub) => ({
                 id: ub.id,
@@ -265,6 +273,10 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               // เห็นปุ่มทักแชทบนหน้าร้านตัวเอง ซึ่งเป็นเคสที่ self-chat guard (feat 00011 B3) กันอยู่
               // sync กับ /u/[username]:277 ที่เขียนเงื่อนไขนี้ถูกมาตั้งแต่แรก
               canChat: !isOwnShop,
+              // แผงอธิบายคะแนนใช้บอก "อีกกี่คะแนนถึงระดับถัดไป" — ค่าเดียวกับที่ profileTab ใช้อยู่แล้ว
+              // (getNextTierInfo เรียกไปแล้วด้านบน ไม่ได้ยิงเพิ่ม)
+              nextTierLabel: nextTier?.nextTierLabel ?? null,
+              pointsToNext: nextTier?.pointsToNext ?? null,
               isLodging,
               isServiceQueue,
             },
