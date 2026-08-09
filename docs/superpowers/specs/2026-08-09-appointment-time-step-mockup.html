@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — ขั้น "เลือกเวลา" ของคิวงาน (AppointmentDateSheet step 2) 2026-08-09</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงของสกิน Paces: คัดมาจาก src/assets/css/config/_root.css ตรง ๆ ห้ามเดาสีเอง ──
+   ชุดเดียวกับ docs/superpowers/specs/2026-08-07-appointment-date-sheet-mockup.html
+   (mockup ของจอเดียวกันนี้ ขั้นที่ 1) — สองไฟล์ต้องใช้ค่าเดียวกันเป๊ะ ไม่งั้นเทียบกันไม่ได้ */
+:root{
+  /* primary-ink = สีของ "ตัวหนังสือบนพื้น primary/15" ตาม DESIGN.md — 8.44:1 เทียบกับ
+     primary เปล่าที่ได้แค่ 4.17:1 (ตก AA). แก้ 2026-08-09 หลัง impeccable critique P1
+     ม็อกอัพรอบแรกใช้ primary เปล่ากับชิป active แล้วโค้ดก็อปตามมาอย่างซื่อสัตย์ */
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-info:#5bc3e1;    --color-info-ink:#1e40af;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;
+  background:#e9ecf3;color:var(--color-body-color);
+  font-size:14px;line-height:1.5;padding:32px 20px 80px;
+}
+.wrap{max-width:1500px;margin:0 auto}
+.page-head h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.page-head p{margin-top:6px;max-width:82ch}
+.page-head .meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{
+  background:#fff;border-radius:8px;padding:16px 18px;margin:24px 0 8px;
+  border-left:3px solid var(--color-primary);
+}
+.note.bad{border-left-color:var(--color-danger)}
+.note.good{border-left-color:var(--color-success)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}
+.note li{margin-bottom:6px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.sec-title{
+  margin:44px 0 4px;font-size:19px;font-weight:600;color:var(--color-default-900);
+  padding-bottom:8px;border-bottom:2px solid var(--color-default-300)
+}
+.sec-title span{font-size:13px;font-weight:400;color:var(--color-default-500);margin-left:8px}
+
+.rack{display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap;margin-top:22px}
+.device{flex:0 0 auto}
+.device>figcaption{
+  font-size:12px;font-weight:600;color:var(--color-default-700);
+  margin-bottom:10px;letter-spacing:.2px
+}
+.device>figcaption span{font-weight:400;color:var(--color-default-500)}
+.frame{
+  background:var(--color-card);border-radius:14px;overflow:hidden;
+  box-shadow:0 12px 28px rgba(47,43,61,.14);display:flex;flex-direction:column;
+}
+.m .frame{width:390px;height:812px}
+.t .frame{width:768px;height:760px}
+.d .frame{width:1100px;height:672px}
+
+/* ── แถบหัว sheet — ยกจาก mockup ขั้นที่ 1 ทั้งชุด (ของจริงใช้ component เดียวกัน) ── */
+.sheet-head{
+  display:flex;align-items:center;gap:10px;padding:14px 16px;
+  border-bottom:1px solid var(--color-default-300);flex-shrink:0
+}
+.icon-btn{
+  width:44px;height:44px;border-radius:8px;border:0;background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--color-default-700);flex-shrink:0
+}
+.icon-btn:hover{background:var(--color-default-100)}
+.sheet-head .badge-ico{
+  width:36px;height:36px;border-radius:8px;background:rgba(35,109,201,.15);
+  display:flex;align-items:center;justify-content:center;color:var(--color-primary);flex-shrink:0
+}
+.sheet-head h3{font-size:16px;font-weight:600;color:var(--color-default-900);line-height:1.3}
+.sheet-head p{font-size:12px;color:var(--color-default-500)}
+
+/* ── เนื้อจอ ── */
+.body{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--color-default-100)}
+.pane{padding:14px 16px;background:var(--color-card)}
+.form-label{
+  display:block;font-size:13px;font-weight:600;color:var(--color-default-800);margin-bottom:8px
+}
+.sub-label{font-size:13px;color:var(--color-default-500);margin-bottom:6px}
+
+/* ── แถบสรุปคิวของวันนั้น (ยุบจากกล่อง empty เต็มจอ) ── */
+.daystrip{
+  display:flex;align-items:center;gap:10px;padding:11px 16px;flex-shrink:0;
+  background:var(--color-default-100);border-bottom:1px solid var(--color-default-300)
+}
+.daystrip .ico{
+  width:28px;height:28px;border-radius:9999px;background:var(--color-default-200);
+  color:var(--color-default-500);display:flex;align-items:center;justify-content:center;flex-shrink:0
+}
+.daystrip .lbl{font-size:13px;font-weight:600;color:var(--color-default-800)}
+.daystrip .sub{font-size:12px;color:var(--color-default-500)}
+.disclose{
+  margin-left:auto;border:1px solid var(--color-default-300);background:transparent;border-radius:9999px;
+  padding:6px 12px;font-size:12px;font-weight:500;color:var(--color-default-700);cursor:pointer;
+  font-family:inherit;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;min-height:32px
+}
+.disclose:hover{background:var(--color-default-200)}
+
+/* ── ปุ่มช่วงเวลา ── */
+.slots{display:grid;gap:8px}
+.m .slots{grid-template-columns:repeat(4,1fr)}
+.t .slots{grid-template-columns:repeat(6,1fr)}
+.d .slots{grid-template-columns:repeat(4,1fr)}
+.slot{
+  position:relative;min-height:44px;border:1px solid var(--color-default-300);border-radius:8px;
+  background:transparent;font-family:inherit;font-size:13px;font-variant-numeric:tabular-nums;
+  color:var(--color-default-800);cursor:pointer;display:flex;align-items:center;justify-content:center
+}
+.slot:hover{border-color:var(--color-default-400);background:var(--color-default-100)}
+.slot.on{
+  border-color:var(--color-primary);background:rgba(35,109,201,.15);
+  color:var(--color-primary-ink);font-weight:600
+}
+/* "ผ่านมาแล้ว" เป็นคำใบ้ ไม่ใช่การปิดใช้งาน — ชิปพวกนี้ยังกดได้จริง (FR-RSV-03 นัดย้อนหลัง)
+   opacity:.5 ทำให้ตัวหนังสือเหลือ 2.75:1 ตก AA ทั้งที่เป็น control ที่ใช้งานได้
+   จึงหรี่ด้วย "สีตัวหนังสือที่ยังผ่านเกณฑ์" (default-500 = 6.22:1) + ขอบอ่อนลง แทน opacity */
+.slot.past{color:var(--color-default-500);border-color:var(--color-default-200)}
+/* จุดเตือน "มีคิวแล้ว" — สัญลักษณ์เดียวกับ legend ของปฏิทินขั้นที่ 1 ห้ามคิดสีใหม่
+   ไม่ disable ปุ่ม: BR-RSV-18 เลขฝั่ง client ไม่ใช่คำตัดสิน ตัวจริงคือ EXCLUDE constraint */
+.slot .bz{
+  position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:9999px;
+  background:var(--color-warning)
+}
+.more-time{
+  margin-top:8px;width:100%;min-height:40px;border:0;background:transparent;font-family:inherit;
+  font-size:13px;color:var(--color-primary);cursor:pointer;display:flex;align-items:center;
+  justify-content:center;gap:6px;border-radius:8px
+}
+.more-time:hover{background:var(--color-default-100)}
+
+/* ── ชิประยะเวลา ── */
+.durs{display:flex;flex-wrap:wrap;gap:8px}
+.dur{
+  min-height:44px;padding:0 14px;border:1px solid var(--color-default-300);border-radius:8px;
+  background:transparent;font-family:inherit;font-size:13px;color:var(--color-default-800);
+  cursor:pointer;display:inline-flex;align-items:center;gap:6px
+}
+.dur:hover{border-color:var(--color-default-400);background:var(--color-default-100)}
+.dur.on{
+  border-color:var(--color-primary);background:rgba(35,109,201,.15);
+  color:var(--color-primary-ink);font-weight:600
+}
+.dur small{font-size:11px;color:var(--color-default-500);font-weight:400}
+/* 11px บนพื้น /15 ยิ่งต้องใช้ -ink — เป็นตัวเล็กที่สุดในชิป จึงตกหนักที่สุดถ้าใช้ primary เปล่า */
+.dur.on small{color:var(--color-primary-ink)}
+
+/* ── บรรทัดสรุปช่วงที่ได้ ── */
+.sum{
+  margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 13px;border-radius:8px;background:var(--color-default-100)
+}
+.sum .rng{
+  font-size:16px;font-weight:600;color:var(--color-default-900);font-variant-numeric:tabular-nums;
+  display:inline-flex;align-items:center;gap:7px
+}
+.sum .cap{font-size:12px;color:var(--color-default-500);margin-left:auto}
+.sum .cap.warn{color:var(--color-warning-ink)}
+
+/* ── ช่องกรอกเวลา (แบบ C + โหมด "กำหนดเอง" ของแบบ A) ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-input{
+  width:100%;min-height:44px;border:1px solid var(--color-default-300);border-radius:6px;
+  padding:0 12px;font-family:inherit;font-size:14px;color:var(--color-default-900);
+  font-variant-numeric:tabular-nums;background:#fff
+}
+.form-input.is-invalid{border-color:var(--color-danger)}
+.help{margin-top:8px;font-size:13px;color:var(--color-default-500)}
+.help.err{color:var(--color-danger)}
+
+/* ── ไทม์ไลน์ (แบบ B) ── */
+.tl{
+  flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:44px 1fr;
+  grid-auto-rows:46px;padding:10px 14px 14px;background:var(--color-card);align-content:start
+}
+.tl .hr{
+  font-size:11px;color:var(--color-default-400);text-align:right;padding-right:10px;
+  transform:translateY(-6px);font-variant-numeric:tabular-nums
+}
+.tl .lane{
+  border-top:1px solid var(--color-default-200);grid-column:2;position:relative;cursor:pointer
+}
+.tl .lane:hover{background:var(--color-default-100)}
+.tl .lane .plus{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;
+  padding-right:10px;gap:6px;font-size:12px;color:var(--color-default-400);opacity:.55
+}
+.tl .lane:hover .plus{opacity:1;color:var(--color-primary)}
+.blk{
+  grid-column:2;margin:2px 0 2px 4px;border-radius:8px;padding:7px 10px;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:center;gap:2px;position:relative
+}
+.blk .nm{
+  font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.blk .mt{font-size:11px;opacity:.85;font-variant-numeric:tabular-nums}
+/* คิวของคนอื่น = พื้นเทาอ่อน ขอบซ้ายบอกสถานะด้วยสีเดียวกับ badge ของขั้นที่ 1 */
+.blk.busy{background:var(--color-default-200);color:var(--color-default-700);border-left:3px solid var(--color-warning)}
+.blk.busy.conf{border-left-color:var(--color-success)}
+/* คิวที่กำลังจะสร้าง = primary ทึบ มีที่จับยืดเวลาหัว/ท้าย */
+.blk.mine{background:var(--color-primary);color:#fff}
+.blk.mine .mt{opacity:.9}
+.handle{
+  position:absolute;left:50%;transform:translateX(-50%);width:38px;height:5px;border-radius:9999px;
+  background:rgba(255,255,255,.75);cursor:ns-resize
+}
+.handle.top{top:4px}
+.handle.bot{bottom:4px}
+
+/* ── รายการคิว (ใช้ตอนกางแถบสรุป / คอลัมน์ขวาเดสก์ท็อป) ── */
+.list-wrap{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--color-default-100)}
+.list-head{display:flex;align-items:baseline;gap:8px;padding:12px 16px 8px;flex-shrink:0}
+.list-head h4{font-size:14px;font-weight:600;color:var(--color-default-900)}
+.list-head .count{font-size:12px;color:var(--color-default-500);margin-left:auto}
+.list{flex:1;min-height:0;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
+.row{background:var(--color-card);border-radius:8px;padding:11px 12px;display:flex;align-items:flex-start;gap:11px}
+.row .time{
+  flex-shrink:0;width:52px;font-size:13px;font-weight:600;color:var(--color-default-900);
+  font-variant-numeric:tabular-nums;line-height:1.35
+}
+.row .time small{display:block;font-size:11px;font-weight:400;color:var(--color-default-500)}
+.row .who{flex:1;min-width:0}
+.row .who .nm{font-size:13px;font-weight:500;color:var(--color-default-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .who .no{font-size:11px;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.badge{flex-shrink:0;border-radius:9999px;padding:3px 9px;font-size:var(--text-2xs);font-weight:600;white-space:nowrap}
+.b-sched{background:rgba(249,191,89,.15);color:var(--color-warning-ink)}
+.b-conf {background:rgba(2,188,156,.15);color:var(--color-success-ink)}
+
+/* ── กล่องว่างเต็มจอแบบ "ของเดิม" (มีไว้เทียบเท่านั้น ไม่ใช่ข้อเสนอ) ── */
+.empty-big{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;text-align:center;padding:20px;color:var(--color-default-500);background:var(--color-default-100)
+}
+.empty-big .ring{
+  width:44px;height:44px;border-radius:9999px;background:var(--color-default-200);
+  display:flex;align-items:center;justify-content:center;color:var(--color-default-500)
+}
+.empty-big strong{font-size:13px;font-weight:600;color:var(--color-default-800)}
+.empty-big span{font-size:12px}
+
+/* ── แถบยืนยันติดขอบล่าง ── */
+.footbar{
+  flex-shrink:0;border-top:1px solid var(--color-default-300);background:var(--color-card);
+  padding:12px 16px;display:flex;align-items:center;gap:12px
+}
+.btn-primary{
+  border:0;border-radius:6px;background:var(--color-primary);color:#fff;font-family:inherit;
+  font-size:14px;font-weight:600;padding:0 18px;min-height:47px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:1
+}
+.btn-primary:hover{background:var(--color-primary-hover)}
+.btn-primary[disabled]{opacity:.5;cursor:not-allowed}
+
+/* ── เดสก์ท็อป: ปฏิทินซ้าย / รายการ+เวลา ขวา (≥1024 = @5xl ไม่มีการแยกขั้น) ── */
+.split{flex:1;min-height:0;display:flex}
+.split>.cal{
+  flex:0 0 440px;display:flex;flex-direction:column;background:var(--color-card);
+  border-right:1px solid var(--color-default-300)
+}
+.split>.right{flex:1;min-width:0;display:flex;flex-direction:column}
+.month-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;flex-shrink:0}
+.month-bar .title{flex:1;text-align:center;font-size:15px;font-weight:600;color:var(--color-default-900)}
+.chip-today{
+  border:1px solid var(--color-default-300);background:transparent;border-radius:9999px;
+  padding:5px 12px;font-size:12px;font-weight:500;color:var(--color-default-700);
+  cursor:pointer;font-family:inherit;flex-shrink:0
+}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px 6px;flex-shrink:0}
+.dow span{text-align:center;font-size:var(--text-2xs);font-weight:600;color:var(--color-default-400)}
+.cgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:0 8px 10px;flex-shrink:0}
+.cell{
+  position:relative;height:48px;border:0;background:transparent;font-family:inherit;cursor:pointer;
+  border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;color:var(--color-default-800)
+}
+.cell .n{font-size:14px;font-weight:500;line-height:1}
+.cell:hover{background:var(--color-default-100)}
+.cell.out{color:var(--color-default-400);opacity:.55}
+.cdot{width:5px;height:5px;border-radius:9999px;background:transparent}
+.cell.some .cdot{background:var(--color-warning)}
+.cell.sel{background:var(--color-primary);color:#fff}
+.cell.sel .n{color:#fff;font-weight:600}
+.cell.today{box-shadow:inset 0 0 0 1.5px var(--color-default-300)}
+
+svg{display:block}
+.tag{
+  display:inline-block;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;
+  vertical-align:2px;margin-left:6px
+}
+.tag.rec{background:rgba(2,188,156,.15);color:var(--color-success-ink)}
+.tag.old{background:rgba(247,87,126,.15);color:var(--color-danger-ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="page-head">
+  <h1>Mockup — ขั้น “เลือกเวลา” ของคิวงาน (SERVICE_QUEUE)</h1>
+  <p>จอที่ user รายงาน 2026-08-09 ว่า “ตั้งค่าเวลายาก” = ขั้นที่ 2 ของ <code>AppointmentDateSheet.tsx</code> (<code>step === 'time'</code>). ไฟล์นี้เสนอ <strong>3 ทางเลือก</strong> พร้อมของเดิมไว้เทียบ. สีทุกค่าคัดจาก <code>src/assets/css/config/_root.css</code> ของสกิน Paces ตรง ๆ — ไม่มีสีที่เดาเอง และไม่มี emoji (HR12 — ไอคอนทุกตัวเป็น SVG ทรง tabler ซึ่งของจริงจะเป็น <code>&lt;Icon icon="…"&gt;</code>)</p>
+  <p class="meta">
+    ไฟล์ที่จะถูกแก้: <code>src/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet.tsx</code> (ใช้ร่วมกับ <code>RescheduleAppointmentSheet</code> และหน้าต่างร่างออเดอร์ในแชท) ·
+    ข้อมูลตัวอย่างเป็นทรงเดียวกับที่ <code>GET /api/shops/current/appointments</code> คืนจริง ·
+    breakpoint ทุกตัวเป็น <strong>container query</strong> (<code>@3xl</code>=768 / <code>@5xl</code>=1024) ไม่ใช่ viewport
+  </p>
+</div>
+
+<div class="note bad">
+  <h2>สิ่งที่พังอยู่ตอนนี้ (จากภาพที่ส่งมา + อ่านโค้ดยืนยันแล้ว)</h2>
+  <ul>
+    <li><strong>บั๊กจริง — เวลาสิ้นสุดค้างที่ 12:25 ทั้งที่เพิ่งกดชิป 13:00</strong>: <code>endTouched.current</code> ถูกตั้งเป็น <code>true</code> ตอนเปิดชีตถ้าฟอร์มเคยมี <code>endTime</code> (บรรทัด 226) แล้ว <code>applyStart()</code> จะ <strong>ไม่ auto-fill เวลาสิ้นสุดอีกเลยตลอดชีวิตของชีตนั้น</strong> (บรรทัด 475). กดช่วงเวลาใหม่กี่ครั้งก็ได้ช่วงที่ผิดกฎทุกครั้ง</li>
+    <li><strong>คิวงานนี้ <code>durationMinutes = null</code></strong> — ป้ายชิปจึงเป็น <code>08:00</code> ไม่ใช่ <code>08:00–09:00</code> และชิปเซ็ตให้แค่เวลาเริ่ม. ทางลัดที่โฆษณาว่า “กดครั้งเดียวได้ทั้งเริ่มและจบ” (คอมเมนต์บรรทัด 1075) <strong>ทำงานเฉพาะร้านที่ตั้งระยะเวลาไว้เท่านั้น</strong> ซึ่ง schema เปิดให้เป็น null ได้</li>
+    <li><strong>กล่อง “ว่างทั้งวัน” กิน ~45% ของจอ</strong> เพื่อบอกว่า <em>ไม่มีอะไรอยู่ตรงนี้</em> — มันคือ <code>flex-1 justify-center py-8</code> (บรรทัด 978) ที่ไม่ถูกยุบตอนอยู่ขั้นเลือกเวลา ทั้งที่ทั้งขั้นนี้มีงานเดียวคือเลือกเวลา</li>
+    <li><strong>ปุ่ม CTA กลายเป็นข้อความ error</strong> (“เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม”) ซ้ำกับบรรทัดแดงเหนือมันแบบคำต่อคำ แล้วเสียป้ายที่บอกว่ากดแล้วได้อะไร — ปุ่มที่ <code>disabled</code> ยังหลุด tab order ด้วย</li>
+    <li><strong>ผู้ขายคิดเป็น “13:00 ใช้เวลา 1 ชม.” แต่จอบังคับให้กรอก <em>เวลาสิ้นสุด</em></strong> ซึ่งเป็นค่าเดียวในจอที่กรอกผิดแล้วพังได้ และต้องปั่น native picker</li>
+  </ul>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">ของเดิม <span class="tag old">ตามภาพที่ส่งมา</span><span>— ไว้เทียบเฉย ๆ ไม่ใช่ข้อเสนอ</span></h2>
+<div class="rack">
+<figure class="device m">
+  <figcaption>Mobile · 390 × 812 <span>— ครึ่งบนคือกล่องว่าง, ตัวเลือกเวลาถูกดันลงครึ่งล่าง</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="กลับไปเลือกวันที่"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <div><h3>เลือกเวลา</h3><p>อาทิตย์ 09 ส.ค. 2569</p></div>
+    </div>
+    <div class="empty-big">
+      <span class="ring"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16M9 16l2 2 4-4"/></svg></span>
+      <strong>ว่างทั้งวัน</strong>
+      <span>ยังไม่มีใครจองคิวนี้ — เลือกเวลาได้ตามสะดวก</span>
+    </div>
+    <div class="pane" style="border-top:1px dashed var(--color-default-300)">
+      <p class="form-label">เลือกเวลา</p>
+      <p class="sub-label">ช่วงเวลาที่ว่าง</p>
+      <div class="slots">
+        <button class="slot past">08:00</button><button class="slot past">09:00</button>
+        <button class="slot past">10:00</button><button class="slot past">11:00</button>
+        <button class="slot past">12:00</button><button class="slot on">13:00</button>
+        <button class="slot">14:00</button><button class="slot">15:00</button>
+        <button class="slot">16:00</button><button class="slot">17:00</button>
+        <button class="slot">18:00</button><button class="slot">19:00</button>
+      </div>
+      <div class="grid2" style="margin-top:14px">
+        <div><label class="form-label" style="font-weight:400">เวลาเริ่ม</label><input class="form-input" value="13:00" readonly></div>
+        <div><label class="form-label" style="font-weight:400">เวลาสิ้นสุด</label><input class="form-input is-invalid" value="12:25" readonly></div>
+      </div>
+      <p class="help err">เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม</p>
+      <p class="help">จองแล้ว 0 จาก 10 คิว ในช่วงเวลานี้</p>
+    </div>
+    <div class="footbar">
+      <button class="btn-primary" disabled>เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม</button>
+    </div>
+  </div>
+</figure>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">แบบ A · เวลาเริ่ม + ระยะเวลา <span class="tag rec">user เคาะ 2026-08-09 · build แล้ว</span><span>— ตัดช่อง “เวลาสิ้นสุด” ทิ้ง คำนวณให้แทน</span></h2>
+
+<div class="note good">
+  <h2>สถานะ: ลงโค้ดแล้ว</h2>
+  <ul>
+    <li><code>src/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet.tsx</code> — ชิปเวลาเริ่ม + ชิประยะเวลา + โหมด “กำหนดเอง” + แถบสรุปคิวแบบยุบ + ปุ่ม “เวลาอื่น”</li>
+    <li><code>src/lib/appointments.ts</code> — <code>minutesBetweenTimes</code> / <code>formatDurationTH</code> / <code>resolveInitialDuration</code> / <code>DEFAULT_APPOINTMENT_DURATION_MIN</code> (ฟังก์ชันบริสุทธิ์ทั้งหมด เพื่อให้ตรรกะที่ปิดบั๊กมีที่ให้เทสจับ)</li>
+    <li><code>src/lib/__tests__/appointment-duration.test.ts</code> — 16 เทส มี 3 ตัวติดป้าย <code>[blocker]</code> (พิสูจน์ด้วย mutation แล้วว่าจับ regression ได้จริง)</li>
+    <li><strong>รอบแก้หลัง <code>/impeccable critique</code> (29/40) — ปิด P0/P1/P2/minor ครบ:</strong> แผงเวลาเลื่อนได้แล้ว (เดิม <code>shrink-0</code> ในกล่อง <code>overflow-hidden</code> ทำให้กล่องสรุปกับบรรทัด error เลื่อนไปไม่ถึงเมื่อกาง “เวลาอื่น” — ม็อกอัพระบุ <code>overflow-y-auto</code> ไว้ถูกแล้วตั้งแต่แรก โค้ดต่างหากที่ drift) · ชิป active เปลี่ยนเป็น <code>text-primary-ink</code> (<strong>ม็อกอัพผิดเอง โค้ดก็อปตามมา — แก้ทั้งคู่แล้ว</strong>) · ชิปเวลาที่ผ่านแล้วเลิกใช้ <code>opacity-50</code> (2.75:1) → <code>text-default-500</code> (6.22:1) · “เต็มแล้ว” เป็นคำเตือนที่ยังกดต่อได้ ไม่ใช่ตัวบล็อก (BR-RSV-18) · <code>role="group"</code> ให้ชิปทั้งสองชุด · <code>aria-disabled</code> แทน <code>disabled</code> · guard ปุ่ม “ย่อกลับ”</li>
+    <li><strong>คำว่าระยะเวลาเปลี่ยนจาก “1.5 ชม.” เป็น “1 ชม. 30 นาที”</strong> — “1.5 ชม.” อ่านง่ายเฉพาะ 90 พอเป็นคิวงาน 45 นาที (135) จะกลายเป็น “2.25 ชม.” ซึ่งไม่มีใครพูด. mockup ในหน้านี้แก้ตามแล้ว และ <code>ResourceList</code> / <code>PublicServiceList</code> ที่เคยเขียน <code>${นาที} นาที</code> ดิบ ๆ ถูกดึงมาใช้ตัวเดียวกัน (HR16)</li>
+  </ul>
+</div>
+
+<div class="note good">
+  <h2>ทำไมถึงแนะนำแบบนี้</h2>
+  <ul>
+    <li><strong>ช่วงเวลาที่ผิดกฎสร้างไม่ได้เลย</strong> — เมื่อไม่มีช่อง “เวลาสิ้นสุด” ให้กรอก เงื่อนไข <code>pendingEnd &lt;= pendingStart</code> ก็เกิดขึ้นไม่ได้ตั้งแต่ต้นทาง. บั๊ก <code>endTouched</code> หายไปพร้อมกับกลไกที่มันอยู่ ไม่ใช่ถูกแพตช์</li>
+    <li><strong>จบใน 2 แตะ</strong> (เวลาเริ่ม → ระยะเวลา) และแตะที่สองมักไม่ต้องแตะเลยเมื่อคิวงานตั้ง <code>durationMinutes</code> ไว้ (ชิปนั้นถูกเลือกให้ล่วงหน้า)</li>
+    <li><strong>รองรับ <code>durationMinutes = null</code> ได้จริง</strong> — ค่าตั้งต้นตกไปที่ 1 ชม. แล้วผู้ขายกดเปลี่ยนได้ ต่างจากตอนนี้ที่ชิปเซ็ตให้แค่เวลาเริ่มแล้วปล่อยค้าง</li>
+    <li><strong>“กำหนดเอง” ยังพาไปหาช่องกรอกเวลาแบบเดิม</strong> — ร้านที่ต้องการ 13:00–16:45 ยังทำได้ ไม่มีอะไรหายไปจากระบบ</li>
+    <li>ขอบเขตงาน: <strong>ไฟล์เดียว ไม่แตะ API/DB</strong> — <code>onConfirm</code> ยังส่ง <code>{startTime, endTime}</code> เหมือนเดิม แค่ <code>endTime</code> ถูกคำนวณจากระยะเวลาแทนการรับจาก input</li>
+  </ul>
+</div>
+
+<div class="rack">
+
+<figure class="device m">
+  <figcaption>Mobile · 390 × 812 <span>— ทุกอย่างอยู่เหนือเส้นพับ ไม่ต้องเลื่อน</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="กลับไปเลือกวันที่ (09 ส.ค. 2569)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <div><h3>เลือกเวลา</h3><p>อาทิตย์ 09 ส.ค. 2569</p></div>
+    </div>
+
+    <!-- แถบสรุปคิวของวันนั้น: 1 บรรทัด แทนกล่องเต็มจอ — กางดูรายการได้ถ้าอยากรู้ว่าใครจอง -->
+    <div class="daystrip">
+      <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16M9 16l2 2 4-4"/></svg></span>
+      <div><div class="lbl">ว่างทั้งวัน</div><div class="sub">ยังไม่มีใครจองคิวนี้</div></div>
+    </div>
+
+    <div class="pane" style="flex:1;min-height:0;overflow-y:auto">
+      <p class="form-label">เวลาเริ่ม</p>
+      <div class="slots">
+        <button class="slot past">08:00</button><button class="slot past">09:00</button>
+        <button class="slot past">10:00</button><button class="slot past">11:00</button>
+        <button class="slot past">12:00</button><button class="slot on">13:00</button>
+        <button class="slot">14:00</button><button class="slot">15:00</button>
+        <button class="slot">16:00</button><button class="slot">17:00</button>
+        <button class="slot">18:00</button><button class="slot">19:00</button>
+      </div>
+      <!-- แทนที่จะ hardcode 08:00–20:00 แล้วกันร้านที่เปิดดึกออกไปเงียบ ๆ -->
+      <button class="more-time">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        เวลาอื่น (ก่อน 08:00 / หลัง 20:00)
+      </button>
+
+      <p class="form-label" style="margin-top:18px">ใช้เวลา</p>
+      <div class="durs">
+        <button class="dur">30 นาที</button>
+        <button class="dur on">1 ชม.</button>
+        <button class="dur">1 ชม. 30 นาที</button>
+        <button class="dur">2 ชม.</button>
+        <button class="dur">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          กำหนดเอง
+        </button>
+      </div>
+
+      <!-- ผลลัพธ์ที่คำนวณให้ ไม่ใช่ช่องกรอก — ผู้ใช้ยังเห็นเวลาสิ้นสุดเสมอ แค่ตั้งผิดไม่ได้ -->
+      <div class="sum">
+        <span class="rng">13:00
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          14:00</span>
+        <span class="cap">จองแล้ว 0 จาก 10 คิว</span>
+      </div>
+    </div>
+
+    <div class="footbar">
+      <button class="btn-primary">ยืนยัน 09 ส.ค. 2569 · 13:00–14:00</button>
+    </div>
+  </div>
+</figure>
+
+<figure class="device t">
+  <figcaption>Tablet · 768 × 760 <span>— ยังเป็น 2 ขั้นเหมือนมือถือ (แยกขั้นเลิกที่ @5xl=1024) แค่ชิปได้ 6 คอลัมน์</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="กลับไปเลือกวันที่ (09 ส.ค. 2569)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <div><h3>เลือกเวลา</h3><p>อาทิตย์ 09 ส.ค. 2569</p></div>
+    </div>
+
+    <!-- วันที่มีคิวอยู่แล้ว: แถบสรุปเปลี่ยนคำ + มีปุ่มกางรายการ (ยุบไว้เป็นค่าตั้งต้น) -->
+    <div class="daystrip">
+      <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg></span>
+      <div><div class="lbl">ทั้งวันมี 2 คิว</div><div class="sub">09:00–11:00 · 16:00–17:00</div></div>
+      <button class="disclose">ดูรายการ
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+
+    <div class="pane" style="flex:1;min-height:0;overflow-y:auto">
+      <p class="form-label">เวลาเริ่ม</p>
+      <!-- ทางลัดที่มีอยู่เดิมและยังอยู่: เสนอเวลาที่ "ไม่อยู่ในกริด" (คิวก่อนหน้ามักเลิกไม่ลงชั่วโมง)
+           วางเหนือกริดเพราะถ้าอยู่ใต้จะอ่านเหมือนตัวเลือกที่ 13 ของกริด -->
+      <button class="dur" style="width:100%;justify-content:flex-start;margin-bottom:12px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        ตั้งเวลาเริ่ม 17:00 ต่อจากคิวก่อนหน้า
+      </button>
+      <div class="slots">
+        <button class="slot past">08:00</button>
+        <button class="slot past">09:00<span class="bz"></span></button>
+        <button class="slot past">10:00<span class="bz"></span></button>
+        <button class="slot past">11:00</button>
+        <button class="slot past">12:00</button>
+        <button class="slot on">13:00</button>
+        <button class="slot">14:00</button><button class="slot">15:00</button>
+        <button class="slot">16:00<span class="bz"></span></button>
+        <button class="slot">17:00</button><button class="slot">18:00</button><button class="slot">19:00</button>
+      </div>
+      <button class="more-time">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        เวลาอื่น (ก่อน 08:00 / หลัง 20:00)
+      </button>
+      <p class="form-label" style="margin-top:18px">ใช้เวลา</p>
+      <div class="durs">
+        <button class="dur">30 นาที</button>
+        <button class="dur on">1 ชม. <small>ค่าตั้งต้น</small></button>
+        <button class="dur">1 ชม. 30 นาที</button>
+        <button class="dur">2 ชม.</button>
+        <button class="dur">3 ชม.</button>
+        <button class="dur">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+          กำหนดเอง
+        </button>
+      </div>
+
+      <div class="sum">
+        <span class="rng">13:00
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          14:00</span>
+        <span class="cap">จองแล้ว 0 จาก 10 คิว</span>
+      </div>
+    </div>
+
+    <div class="footbar">
+      <button class="btn-primary">ยืนยัน 09 ส.ค. 2569 · 13:00–14:00</button>
+    </div>
+  </div>
+</figure>
+
+<figure class="device d">
+  <figcaption>Desktop ≥1024 · 1100 × 672 <span>— @5xl: ไม่มีการแยกขั้น ปฏิทิน/รายการ/เวลา เห็นพร้อมกัน (ทรงเดิมของ component)</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="ปิด"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg></span>
+      <div><h3>เลือกวันและเวลา</h3><p>ช่างตัดผม · รับพร้อมกัน 10 คิว</p></div>
+    </div>
+
+    <div class="split">
+      <div class="cal">
+        <div class="month-bar">
+          <button class="icon-btn" aria-label="เดือนก่อนหน้า"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <span class="title">ส.ค. 2569</span>
+          <button class="chip-today">วันนี้</button>
+          <button class="icon-btn" aria-label="เดือนถัดไป"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+        <div class="dow"><span>อาทิตย์</span><span>จันทร์</span><span>อังคาร</span><span>พุธ</span><span>พฤหัส</span><span>ศุกร์</span><span>เสาร์</span></div>
+        <div class="cgrid">
+          <button class="cell out"><span class="n">26</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">27</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">28</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">29</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">30</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">31</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">1</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">2</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">3</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">4</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">5</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">6</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">7</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">8</span><span class="cdot"></span></button>
+          <button class="cell sel today"><span class="n">9</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">10</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">11</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">12</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">13</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">14</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">15</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">16</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">17</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">18</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">19</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">20</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">21</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">22</span><span class="cdot"></span></button>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="list-wrap" style="flex:0 0 auto;max-height:186px">
+          <div class="list-head"><h4>อาทิตย์ 09 ส.ค. 2569</h4><span class="count">ทั้งวันมี 2 คิว</span></div>
+          <div class="list">
+            <div class="row">
+              <span class="time">09:00<small>– 11:00</small></span>
+              <span class="who"><span class="nm">สมชาย ใจดี</span><span class="no">#2569080001</span></span>
+              <span class="badge b-conf">ลูกค้ายืนยันแล้ว</span>
+            </div>
+            <div class="row">
+              <span class="time">16:00<small>– 17:00</small></span>
+              <span class="who"><span class="nm">มานี รักงาน</span><span class="no">#2569080004</span></span>
+              <span class="badge b-sched">นัดไว้แล้ว</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane" style="flex:1;min-height:0;overflow-y:auto;border-top:1px dashed var(--color-default-300)">
+          <p class="form-label">เวลาเริ่ม</p>
+          <div class="slots">
+            <button class="slot past">08:00</button>
+            <button class="slot past">09:00<span class="bz"></span></button>
+            <button class="slot past">10:00<span class="bz"></span></button>
+            <button class="slot past">11:00</button>
+            <button class="slot past">12:00</button>
+            <button class="slot on">13:00</button>
+            <button class="slot">14:00</button><button class="slot">15:00</button>
+            <button class="slot">16:00<span class="bz"></span></button>
+            <button class="slot">17:00</button><button class="slot">18:00</button><button class="slot">19:00</button>
+          </div>
+          <p class="form-label" style="margin-top:16px">ใช้เวลา</p>
+          <div class="durs">
+            <button class="dur">30 นาที</button>
+            <button class="dur on">1 ชม. <small>ค่าตั้งต้น</small></button>
+            <button class="dur">1 ชม. 30 นาที</button>
+            <button class="dur">2 ชม.</button>
+            <button class="dur">3 ชม.</button>
+            <button class="dur">กำหนดเอง</button>
+          </div>
+          <div class="sum">
+            <span class="rng">13:00
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              14:00</span>
+            <span class="cap">จองแล้ว 0 จาก 10 คิว ในช่วงเวลานี้</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footbar">
+      <button class="btn-primary" style="flex:0 0 340px;margin-left:auto">ยืนยัน 09 ส.ค. 2569 · 13:00–14:00</button>
+    </div>
+  </div>
+</figure>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">แบบ B · ไทม์ไลน์รายวัน <span class="tag old">ไม่ได้เลือก</span><span>— เก็บไว้เป็นทางเลือกรอบหน้า</span></h2>
+
+<div class="note">
+  <h2>ได้อะไร / เสียอะไร</h2>
+  <ul>
+    <li><strong>ได้</strong>: คำถาม “ว่างช่วงไหน” ตอบได้ด้วยการกวาดตาครั้งเดียว ไม่ต้องอ่านรายการแล้วแปลงเป็นช่องว่างในหัว. คิวที่ทับกันจริง ๆ เห็นเป็นความสูงที่ทับกัน ไม่ใช่จุดสีเล็ก ๆ บนชิป</li>
+    <li><strong>ได้</strong>: ยืดเวลาด้วยการลากขอบล่าง = ตั้งเวลาสิ้นสุดโดยไม่มีช่องให้กรอกผิด (เหตุผลเดียวกับแบบ A แค่คนละท่า)</li>
+    <li><strong>เสีย</strong>: บนกล่องแคบ 384px ของหน้าต่างร่างออเดอร์ในแชท ไทม์ไลน์ 12 ชั่วโมง = ~550px ต้องเลื่อนเสมอ และการลากนิ้วในกล่องที่ scroll อยู่แล้วชนกันเอง (ต้องกัน gesture — คลาสเดียวกับปัญหาที่ <code>overlay-scroll-lock.md</code> เล่าไว้)</li>
+    <li><strong>เสีย</strong>: งานหนักที่สุดใน 3 แบบ (drag/resize + คำนวณตำแหน่งบล็อกที่ทับกัน + a11y ของการลากต้องมีทางเลือกด้วยคีย์บอร์ดตาม WCAG 2.1.1)</li>
+    <li><strong>ข้อสังเกต</strong>: ถ้าเลือกแบบนี้ ควรทำ <em>หลัง</em> แบบ A ไม่ใช่แทน — โครงข้อมูลเหมือนกันทุกอย่าง เปลี่ยนแค่วิธีวาด</li>
+  </ul>
+</div>
+
+<div class="rack">
+
+<figure class="device m">
+  <figcaption>Mobile · 390 × 812 <span>— แตะช่องว่างเพื่อแทรกคิว, ลากขอบเพื่อยืดเวลา</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="กลับไปเลือกวันที่ (09 ส.ค. 2569)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <div><h3>เลือกเวลา</h3><p>อาทิตย์ 09 ส.ค. 2569 · ทั้งวันมี 2 คิว</p></div>
+    </div>
+
+    <div class="tl">
+      <span class="hr" style="grid-row:1">08:00</span>
+      <span class="hr" style="grid-row:2">09:00</span>
+      <span class="hr" style="grid-row:3">10:00</span>
+      <span class="hr" style="grid-row:4">11:00</span>
+      <span class="hr" style="grid-row:5">12:00</span>
+      <span class="hr" style="grid-row:6">13:00</span>
+      <span class="hr" style="grid-row:7">14:00</span>
+      <span class="hr" style="grid-row:8">15:00</span>
+      <span class="hr" style="grid-row:9">16:00</span>
+      <span class="hr" style="grid-row:10">17:00</span>
+      <span class="hr" style="grid-row:11">18:00</span>
+      <span class="hr" style="grid-row:12">19:00</span>
+
+      <div class="lane" style="grid-row:1"><span class="plus">แตะเพื่อนัด 08:00
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:2"></div>
+      <div class="lane" style="grid-row:3"></div>
+      <div class="lane" style="grid-row:4"><span class="plus">แตะเพื่อนัด 11:00
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:5"><span class="plus">แตะเพื่อนัด 12:00
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:6"></div>
+      <div class="lane" style="grid-row:7"></div>
+      <div class="lane" style="grid-row:8"><span class="plus">แตะเพื่อนัด 15:00
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:9"></div>
+      <div class="lane" style="grid-row:10"><span class="plus">แตะเพื่อนัด 17:00
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:11"></div>
+      <div class="lane" style="grid-row:12"></div>
+
+      <div class="blk busy conf" style="grid-row:2 / span 2">
+        <span class="nm">สมชาย ใจดี</span>
+        <span class="mt">09:00–11:00 · ลูกค้ายืนยันแล้ว</span>
+      </div>
+      <div class="blk mine" style="grid-row:6 / span 2">
+        <span class="handle top"></span>
+        <span class="nm">คิวใหม่</span>
+        <span class="mt">13:00–15:00 · 2 ชม.</span>
+        <span class="handle bot"></span>
+      </div>
+      <div class="blk busy" style="grid-row:9 / span 1">
+        <span class="nm">มานี รักงาน</span>
+        <span class="mt">16:00–17:00 · นัดไว้แล้ว</span>
+      </div>
+    </div>
+
+    <div class="pane" style="border-top:1px solid var(--color-default-300)">
+      <div class="sum" style="margin-top:0">
+        <span class="rng">13:00
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          15:00</span>
+        <span class="cap">จองแล้ว 0 จาก 10 คิว</span>
+      </div>
+      <!-- ชิประยะเวลาต้องมีคู่กับการลากเสมอ: การลากทำด้วยคีย์บอร์ดไม่ได้ (WCAG 2.1.1) -->
+      <div class="durs" style="margin-top:10px">
+        <button class="dur">30 นาที</button>
+        <button class="dur">1 ชม.</button>
+        <button class="dur">1 ชม. 30 นาที</button>
+        <button class="dur on">2 ชม.</button>
+      </div>
+    </div>
+
+    <div class="footbar">
+      <button class="btn-primary">ยืนยัน 09 ส.ค. 2569 · 13:00–15:00</button>
+    </div>
+  </div>
+</figure>
+
+<figure class="device t">
+  <figcaption>Tablet · 768 × 760 <span>— ทรงเดียวกับมือถือ ไทม์ไลน์กว้างขึ้น เห็นชื่อลูกค้าเต็ม</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="กลับไปเลือกวันที่ (09 ส.ค. 2569)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <div><h3>เลือกเวลา</h3><p>อาทิตย์ 09 ส.ค. 2569 · ทั้งวันมี 2 คิว</p></div>
+    </div>
+
+    <div class="tl">
+      <span class="hr" style="grid-row:1">08:00</span>
+      <span class="hr" style="grid-row:2">09:00</span>
+      <span class="hr" style="grid-row:3">10:00</span>
+      <span class="hr" style="grid-row:4">11:00</span>
+      <span class="hr" style="grid-row:5">12:00</span>
+      <span class="hr" style="grid-row:6">13:00</span>
+      <span class="hr" style="grid-row:7">14:00</span>
+      <span class="hr" style="grid-row:8">15:00</span>
+      <span class="hr" style="grid-row:9">16:00</span>
+      <span class="hr" style="grid-row:10">17:00</span>
+      <span class="hr" style="grid-row:11">18:00</span>
+      <span class="hr" style="grid-row:12">19:00</span>
+      <div class="lane" style="grid-row:1"><span class="plus">แตะเพื่อนัด 08:00 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:2"></div>
+      <div class="lane" style="grid-row:3"></div>
+      <div class="lane" style="grid-row:4"><span class="plus">แตะเพื่อนัด 11:00 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:5"><span class="plus">แตะเพื่อนัด 12:00 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:6"></div>
+      <div class="lane" style="grid-row:7"></div>
+      <div class="lane" style="grid-row:8"><span class="plus">แตะเพื่อนัด 15:00 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:9"></div>
+      <div class="lane" style="grid-row:10"><span class="plus">แตะเพื่อนัด 17:00 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+      <div class="lane" style="grid-row:11"></div>
+      <div class="lane" style="grid-row:12"></div>
+      <div class="blk busy conf" style="grid-row:2 / span 2">
+        <span class="nm">สมชาย ใจดี · #2569080001</span>
+        <span class="mt">09:00–11:00 · ลูกค้ายืนยันแล้ว</span>
+      </div>
+      <div class="blk mine" style="grid-row:6 / span 2">
+        <span class="handle top"></span>
+        <span class="nm">คิวใหม่</span>
+        <span class="mt">13:00–15:00 · 2 ชม. — ลากขอบบน/ล่างเพื่อเปลี่ยนเวลา</span>
+        <span class="handle bot"></span>
+      </div>
+      <div class="blk busy" style="grid-row:9 / span 1">
+        <span class="nm">มานี รักงาน · #2569080004</span>
+        <span class="mt">16:00–17:00 · นัดไว้แล้ว</span>
+      </div>
+    </div>
+
+    <div class="pane" style="border-top:1px solid var(--color-default-300);display:flex;align-items:center;gap:16px">
+      <div class="sum" style="margin-top:0;flex:1">
+        <span class="rng">13:00
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          15:00</span>
+        <span class="cap">จองแล้ว 0 จาก 10 คิว</span>
+      </div>
+      <div class="durs">
+        <button class="dur">30 นาที</button><button class="dur">1 ชม.</button>
+        <button class="dur">1 ชม. 30 นาที</button><button class="dur on">2 ชม.</button>
+      </div>
+    </div>
+
+    <div class="footbar">
+      <button class="btn-primary">ยืนยัน 09 ส.ค. 2569 · 13:00–15:00</button>
+    </div>
+  </div>
+</figure>
+
+<figure class="device d">
+  <figcaption>Desktop ≥1024 · 1100 × 672 <span>— ปฏิทินซ้าย / ไทม์ไลน์ขวา (แทนที่รายการแบบ list ไปเลย)</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="ปิด"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg></span>
+      <div><h3>เลือกวันและเวลา</h3><p>ช่างตัดผม · รับพร้อมกัน 10 คิว</p></div>
+    </div>
+    <div class="split">
+      <div class="cal">
+        <div class="month-bar">
+          <button class="icon-btn" aria-label="เดือนก่อนหน้า"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <span class="title">ส.ค. 2569</span>
+          <button class="chip-today">วันนี้</button>
+          <button class="icon-btn" aria-label="เดือนถัดไป"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+        <div class="dow"><span>อาทิตย์</span><span>จันทร์</span><span>อังคาร</span><span>พุธ</span><span>พฤหัส</span><span>ศุกร์</span><span>เสาร์</span></div>
+        <div class="cgrid">
+          <button class="cell out"><span class="n">26</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">27</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">28</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">29</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">30</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">31</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">1</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">2</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">3</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">4</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">5</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">6</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">7</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">8</span><span class="cdot"></span></button>
+          <button class="cell sel today"><span class="n">9</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">10</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">11</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">12</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">13</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">14</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">15</span><span class="cdot"></span></button>
+        </div>
+      </div>
+      <div class="right" style="background:var(--color-card)">
+        <div class="list-head" style="border-bottom:1px solid var(--color-default-300)">
+          <h4>อาทิตย์ 09 ส.ค. 2569</h4><span class="count">ทั้งวันมี 2 คิว</span>
+        </div>
+        <div class="tl">
+          <span class="hr" style="grid-row:1">08:00</span>
+          <span class="hr" style="grid-row:2">09:00</span>
+          <span class="hr" style="grid-row:3">10:00</span>
+          <span class="hr" style="grid-row:4">11:00</span>
+          <span class="hr" style="grid-row:5">12:00</span>
+          <span class="hr" style="grid-row:6">13:00</span>
+          <span class="hr" style="grid-row:7">14:00</span>
+          <span class="hr" style="grid-row:8">15:00</span>
+          <span class="hr" style="grid-row:9">16:00</span>
+          <div class="lane" style="grid-row:1"><span class="plus">แตะเพื่อนัด 08:00 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+          <div class="lane" style="grid-row:2"></div>
+          <div class="lane" style="grid-row:3"></div>
+          <div class="lane" style="grid-row:4"><span class="plus">แตะเพื่อนัด 11:00 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+          <div class="lane" style="grid-row:5"><span class="plus">แตะเพื่อนัด 12:00 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+          <div class="lane" style="grid-row:6"></div>
+          <div class="lane" style="grid-row:7"></div>
+          <div class="lane" style="grid-row:8"><span class="plus">แตะเพื่อนัด 15:00 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></div>
+          <div class="lane" style="grid-row:9"></div>
+          <div class="blk busy conf" style="grid-row:2 / span 2">
+            <span class="nm">สมชาย ใจดี · #2569080001</span>
+            <span class="mt">09:00–11:00 · ลูกค้ายืนยันแล้ว</span>
+          </div>
+          <div class="blk mine" style="grid-row:6 / span 2">
+            <span class="handle top"></span>
+            <span class="nm">คิวใหม่</span>
+            <span class="mt">13:00–15:00 · 2 ชม.</span>
+            <span class="handle bot"></span>
+          </div>
+          <div class="blk busy" style="grid-row:9 / span 1">
+            <span class="nm">มานี รักงาน · #2569080004</span>
+            <span class="mt">16:00–17:00 · นัดไว้แล้ว</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footbar">
+      <div class="sum" style="margin-top:0;flex:1;background:transparent;padding:0">
+        <span class="rng">13:00
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          15:00</span>
+        <span class="cap" style="margin-left:14px">จองแล้ว 0 จาก 10 คิว ในช่วงเวลานี้</span>
+      </div>
+      <button class="btn-primary" style="flex:0 0 300px">ยืนยัน 09 ส.ค. 2569 · 13:00–15:00</button>
+    </div>
+  </div>
+</figure>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">แบบ C · แก้เท่าที่พัง <span class="tag old">ไม่ได้เลือก</span><span>— ของที่ระบุไว้ในนี้ถูกทำไปพร้อมแบบ A ทั้งหมด ยกเว้นการคงช่องเวลา 2 ช่อง</span></h2>
+
+<div class="note">
+  <h2>เปลี่ยนอะไรบ้าง (ทั้งหมดเป็นการซ่อม ไม่ใช่การออกแบบใหม่)</h2>
+  <ul>
+    <li><strong>ปิดบั๊ก <code>endTouched</code></strong> — กดชิปช่วงเวลา = ตั้งเวลาสิ้นสุดให้เสมอ (<code>duration ?? 60 นาที</code>) ไม่ว่าผู้ใช้เคยแตะช่องสิ้นสุดมาก่อนหรือไม่. เจตนาเดิมของ <code>endTouched</code> คือกัน auto-fill ทับตอน<em>พิมพ์เวลาเริ่มเอง</em> ไม่ใช่ตอน<em>กดชิปที่โฆษณาว่าเป็นช่วงเวลา</em></li>
+    <li><strong>ป้ายชิปเป็นช่วงเสมอ</strong> — <code>13:00–14:00</code> ไม่ใช่ <code>13:00</code> แม้คิวงานจะไม่ได้ตั้ง <code>durationMinutes</code> (ตกไปที่ 1 ชม.)</li>
+    <li><strong>ยุบกล่อง “ว่างทั้งวัน” เป็นบรรทัดเดียว</strong> ในขั้นเลือกเวลา — คืนพื้นที่ ~300px ให้ตัวเลือกเวลา</li>
+    <li><strong>ปุ่ม CTA เลิกกลายเป็น error</strong> — ป้ายคงเป็น “ยืนยัน …” เสมอ (disabled เมื่อยังไม่พร้อม) ส่วนข้อความผิดพลาดอยู่ใต้ช่องที่ผิดจริงที่เดียว ไม่พูดซ้ำสองที่</li>
+    <li><strong>ยังต้องคิดเป็นเวลาสิ้นสุดอยู่ดี</strong> — นี่คือข้อจำกัดที่เหลืออยู่ของแบบนี้ ถ้ายอมรับได้ก็เป็นทางที่เร็วที่สุด</li>
+  </ul>
+</div>
+
+<div class="rack">
+
+<figure class="device m">
+  <figcaption>Mobile · 390 × 812 <span>— สถานะปกติ</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="กลับไปเลือกวันที่ (09 ส.ค. 2569)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <div><h3>เลือกเวลา</h3><p>อาทิตย์ 09 ส.ค. 2569</p></div>
+    </div>
+
+    <div class="daystrip">
+      <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16M9 16l2 2 4-4"/></svg></span>
+      <div><div class="lbl">ว่างทั้งวัน</div><div class="sub">ยังไม่มีใครจองคิวนี้</div></div>
+    </div>
+
+    <div class="pane" style="flex:1;min-height:0;overflow-y:auto">
+      <p class="form-label">ช่วงเวลาที่ว่าง</p>
+      <div class="slots" style="grid-template-columns:repeat(3,1fr)">
+        <button class="slot past">08:00–09:00</button>
+        <button class="slot past">09:00–10:00</button>
+        <button class="slot past">10:00–11:00</button>
+        <button class="slot past">11:00–12:00</button>
+        <button class="slot past">12:00–13:00</button>
+        <button class="slot on">13:00–14:00</button>
+        <button class="slot">14:00–15:00</button>
+        <button class="slot">15:00–16:00</button>
+        <button class="slot">16:00–17:00</button>
+        <button class="slot">17:00–18:00</button>
+        <button class="slot">18:00–19:00</button>
+        <button class="slot">19:00–20:00</button>
+      </div>
+
+      <div class="grid2" style="margin-top:18px">
+        <div><label class="form-label" style="font-weight:400">เวลาเริ่ม</label><input class="form-input" value="13:00" readonly></div>
+        <div><label class="form-label" style="font-weight:400">เวลาสิ้นสุด</label><input class="form-input" value="14:00" readonly></div>
+      </div>
+      <p class="help">จองแล้ว 0 จาก 10 คิว ในช่วงเวลานี้</p>
+    </div>
+
+    <div class="footbar">
+      <button class="btn-primary">ยืนยัน 09 ส.ค. 2569 · 13:00–14:00</button>
+    </div>
+  </div>
+</figure>
+
+<figure class="device m">
+  <figcaption>Mobile · 390 × 812 <span class="tag old">สถานะผิดพลาด</span> <span>— CTA คงป้ายเดิม (disabled) ข้อความอยู่ใต้ช่องที่ผิดที่เดียว</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="กลับไปเลือกวันที่ (09 ส.ค. 2569)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <div><h3>เลือกเวลา</h3><p>อาทิตย์ 09 ส.ค. 2569</p></div>
+    </div>
+
+    <div class="daystrip">
+      <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg></span>
+      <div><div class="lbl">ทั้งวันมี 2 คิว</div><div class="sub">09:00–11:00 · 16:00–17:00</div></div>
+      <button class="disclose">ดูรายการ
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+
+    <div class="pane" style="flex:1;min-height:0;overflow-y:auto">
+      <p class="form-label">ช่วงเวลาที่ว่าง</p>
+      <div class="slots" style="grid-template-columns:repeat(3,1fr)">
+        <button class="slot past">08:00–09:00</button>
+        <button class="slot past">09:00–10:00<span class="bz"></span></button>
+        <button class="slot past">10:00–11:00<span class="bz"></span></button>
+        <button class="slot past">11:00–12:00</button>
+        <button class="slot past">12:00–13:00</button>
+        <button class="slot">13:00–14:00</button>
+        <button class="slot">14:00–15:00</button>
+        <button class="slot">15:00–16:00</button>
+        <button class="slot">16:00–17:00<span class="bz"></span></button>
+        <button class="slot">17:00–18:00</button>
+        <button class="slot">18:00–19:00</button>
+        <button class="slot">19:00–20:00</button>
+      </div>
+
+      <div class="grid2" style="margin-top:18px">
+        <div><label class="form-label" style="font-weight:400">เวลาเริ่ม</label><input class="form-input" value="13:00" readonly></div>
+        <div><label class="form-label" style="font-weight:400">เวลาสิ้นสุด</label><input class="form-input is-invalid" value="12:25" readonly></div>
+      </div>
+      <p class="help err">เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม</p>
+    </div>
+
+    <div class="footbar">
+      <!-- ป้ายไม่เปลี่ยนเป็น error: ปุ่ม disabled หลุด tab order อยู่แล้ว ข้อความจึงต้องผูกกับช่อง -->
+      <button class="btn-primary" disabled>ยืนยัน 09 ส.ค. 2569 · 13:00–…</button>
+    </div>
+  </div>
+</figure>
+
+<figure class="device d">
+  <figcaption>Desktop ≥1024 · 1100 × 672 <span>— โครงเดิมทุกอย่าง เปลี่ยนแค่ป้ายชิปเป็นช่วง + ยุบกล่องว่าง</span></figcaption>
+  <div class="frame">
+    <div class="sheet-head">
+      <button class="icon-btn" aria-label="ปิด"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <span class="badge-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg></span>
+      <div><h3>เลือกวันและเวลา</h3><p>ช่างตัดผม · รับพร้อมกัน 10 คิว</p></div>
+    </div>
+    <div class="split">
+      <div class="cal">
+        <div class="month-bar">
+          <button class="icon-btn" aria-label="เดือนก่อนหน้า"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <span class="title">ส.ค. 2569</span>
+          <button class="chip-today">วันนี้</button>
+          <button class="icon-btn" aria-label="เดือนถัดไป"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+        <div class="dow"><span>อาทิตย์</span><span>จันทร์</span><span>อังคาร</span><span>พุธ</span><span>พฤหัส</span><span>ศุกร์</span><span>เสาร์</span></div>
+        <div class="cgrid">
+          <button class="cell out"><span class="n">26</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">27</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">28</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">29</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">30</span><span class="cdot"></span></button>
+          <button class="cell out"><span class="n">31</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">1</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">2</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">3</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">4</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">5</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">6</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">7</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">8</span><span class="cdot"></span></button>
+          <button class="cell sel today"><span class="n">9</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">10</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">11</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">12</span><span class="cdot"></span></button>
+          <button class="cell some"><span class="n">13</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">14</span><span class="cdot"></span></button>
+          <button class="cell"><span class="n">15</span><span class="cdot"></span></button>
+        </div>
+      </div>
+      <div class="right">
+        <div class="list-wrap" style="flex:0 0 auto;max-height:174px">
+          <div class="list-head"><h4>อาทิตย์ 09 ส.ค. 2569</h4><span class="count">ทั้งวันมี 2 คิว</span></div>
+          <div class="list">
+            <div class="row">
+              <span class="time">09:00<small>– 11:00</small></span>
+              <span class="who"><span class="nm">สมชาย ใจดี</span><span class="no">#2569080001</span></span>
+              <span class="badge b-conf">ลูกค้ายืนยันแล้ว</span>
+            </div>
+            <div class="row">
+              <span class="time">16:00<small>– 17:00</small></span>
+              <span class="who"><span class="nm">มานี รักงาน</span><span class="no">#2569080004</span></span>
+              <span class="badge b-sched">นัดไว้แล้ว</span>
+            </div>
+          </div>
+        </div>
+        <div class="pane" style="flex:1;min-height:0;overflow-y:auto;border-top:1px dashed var(--color-default-300)">
+          <p class="form-label">ช่วงเวลาที่ว่าง</p>
+          <div class="slots" style="grid-template-columns:repeat(3,1fr)">
+            <button class="slot past">08:00–09:00</button>
+            <button class="slot past">09:00–10:00<span class="bz"></span></button>
+            <button class="slot past">10:00–11:00<span class="bz"></span></button>
+            <button class="slot past">11:00–12:00</button>
+            <button class="slot past">12:00–13:00</button>
+            <button class="slot on">13:00–14:00</button>
+            <button class="slot">14:00–15:00</button>
+            <button class="slot">15:00–16:00</button>
+            <button class="slot">16:00–17:00<span class="bz"></span></button>
+          </div>
+          <div class="grid2" style="margin-top:16px;max-width:420px">
+            <div><label class="form-label" style="font-weight:400">เวลาเริ่ม</label><input class="form-input" value="13:00" readonly></div>
+            <div><label class="form-label" style="font-weight:400">เวลาสิ้นสุด</label><input class="form-input" value="14:00" readonly></div>
+          </div>
+          <p class="help">จองแล้ว 0 จาก 10 คิว ในช่วงเวลานี้</p>
+        </div>
+      </div>
+    </div>
+    <div class="footbar">
+      <button class="btn-primary" style="flex:0 0 340px;margin-left:auto">ยืนยัน 09 ส.ค. 2569 · 13:00–14:00</button>
+    </div>
+  </div>
+</figure>
+</div>
+
+<div class="note" style="margin-top:44px">
+  <h2>สิ่งที่เหมือนกันทั้ง 3 แบบ (ทำแน่นอนไม่ว่าเลือกอันไหน)</h2>
+  <ul>
+    <li>ปิดบั๊ก <code>endTouched</code> ที่ทำให้กดช่วงเวลาใหม่แล้วเวลาสิ้นสุดค้างค่าเดิม</li>
+    <li>ยุบกล่อง “ว่างทั้งวัน” เป็นแถบบรรทัดเดียวในขั้นเลือกเวลา (กางดูรายการได้เมื่อวันนั้นมีคิว)</li>
+    <li>ปุ่ม CTA ไม่กลายร่างเป็นข้อความ error — ข้อความผิดพลาดอยู่ใต้ช่องที่ผิดจริงที่เดียว ตาม <code>aria-describedby</code> ที่ผูกไว้อยู่แล้ว</li>
+    <li>ทุก tap target ≥ 44px ตาม PRODUCT.md · ไม่มี emoji (HR12) · ไม่มี arbitrary Tailwind value (HR7) · สีทุกค่าเป็น token ของ Paces</li>
+  </ul>
+</div>
+
+<div class="note" style="border-left-color:var(--color-warning)">
+  <h2>ยังไม่ได้ตัดสิน (ต้องถามก่อนลงมือ)</h2>
+  <ul>
+    <li><strong>หน้าต่าง 08:00–20:00 ที่ hardcode ไว้</strong> — ปุ่ม “เวลาอื่น” ในแบบ A เป็นทางออกชั่วคราว. ทางที่ถูกคือมี “เวลาทำการ” ต่อคิวงาน ซึ่ง user เคาะไว้เมื่อ 2026-08-09 ว่า “ยังไม่ต้องมี” — ถ้าจะทำต้องเป็นงานแยก (แตะ schema)</li>
+    <li><strong>ชุดชิประยะเวลา</strong> ที่วาดไว้คือ 30 นาที / 1 / 1.5 / 2 (+3 บนจอกว้าง) — ควรผูกกับ <code>durationMinutes</code> ของคิวงานแค่ไหน (เช่น ร้านตั้ง 45 นาที ควรได้ 45/90/135 แทนไหม)</li>
+    <li><strong>ความละเอียดของเวลาเริ่ม</strong> — ตอนนี้ทีละ 1 ชม. ร้านที่นัดทีละครึ่งชั่วโมงต้องใช้ “กำหนดเอง” ทุกครั้ง</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>

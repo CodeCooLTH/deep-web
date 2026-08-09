@@ -135,6 +135,82 @@ export function addMinutesToTime(time: string, minutes: number): string {
   return `${hh}:${mm}`;
 }
 
+/**
+ * จำนวนนาทีระหว่าง "HH:mm" สองค่าในวันเดียวกัน — null เมื่ออ่านค่าไม่ได้หรือปลายทางไม่ได้อยู่หลังต้นทาง
+ *
+ * คู่กับ addMinutesToTime (ทิศกลับ) — ใช้ตอนเปิดชีตซ้ำเพื่อถอดว่า "ช่วงที่บันทึกไว้เดิม
+ * ยาวเท่าไหร่" แล้วเลือกชิประยะเวลาให้ถูกอันโดยไม่ต้องเก็บ duration ลงฐาน
+ * (ฐานเก็บ start/end เป็นความจริง ระยะเวลาเป็นแค่วิธีกรอก — ห้ามเพิ่มคอลัมน์ให้มันเป็นความจริงที่สอง)
+ */
+export function minutesBetweenTimes(start: string, end: string): number | null {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return null;
+  const diff = eh * 60 + em - (sh * 60 + sm);
+  return diff > 0 ? diff : null;
+}
+
+/**
+ * ระยะเวลาตั้งต้นเมื่อคิวงานไม่ได้ตั้ง `durationMinutes` ไว้ (schema เปิดให้เป็น null ได้)
+ *
+ * ต้องมีค่าตั้งต้นเสมอ ห้ามปล่อยว่าง — ทางลัด "กดครั้งเดียวได้ทั้งเริ่มและจบ" ของเวอร์ชันก่อน
+ * ทำงานเฉพาะร้านที่ตั้งระยะเวลาไว้ ร้านที่ไม่ได้ตั้งจะได้แค่เวลาเริ่มแล้วค้าง
+ */
+export const DEFAULT_APPOINTMENT_DURATION_MIN = 60;
+
+/**
+ * ถอดค่าที่ฟอร์มถืออยู่ (start/end) กลับเป็น "ระยะเวลา" เพื่อเลือกชิปให้ถูกอันตอนเปิดชีตซ้ำ
+ *
+ * ฐานข้อมูลเก็บ start/end เป็นความจริง ระยะเวลาเป็นแค่ *วิธีกรอก* — ห้ามเพิ่มคอลัมน์ให้มัน
+ * กลายเป็นความจริงที่สอง (docs/conventions/stored-flag-vs-owner-truth.md) จึง derive ทุกครั้ง
+ *
+ * 🛑 กติกา 3 ข้อที่มีเทสผูกไว้ (src/lib/__tests__/appointment-duration.test.ts) — แก้แล้วต้องแดง:
+ *   1. ช่วงที่ตรงชิปพอดี → เลือกชิปนั้น (เปิดออเดอร์เดิมแล้วต้องเห็นว่าเคยตั้งอะไรไว้)
+ *   2. ช่วงที่ไม่ตรงชิปไหนเลย (13:00–16:45) → โหมด "กำหนดเอง" พร้อมค่าเดิมเป๊ะ
+ *      **ห้าม snap ให้ใกล้เคียง** — เปิดดูออเดอร์เดิมแล้วเวลาขยับเองคือการแก้ข้อมูลโดยไม่มีใครสั่ง
+ *   3. ค่าเสียที่ค้างมาจากฟอร์ม (end ไม่ได้อยู่หลัง start เช่นบั๊ก 13:00/12:25 ของ 2026-08-09)
+ *      → **ห้ามพาเข้ามาต่อ** ตกกลับไปใช้ระยะเวลามาตรฐาน ไม่งั้นจอเปิดมาพร้อม error ตั้งแต่ paint แรก
+ */
+export function resolveInitialDuration(
+  startTime: string | undefined,
+  endTime: string | undefined,
+  choices: number[],
+  resourceDefault: number | null | undefined,
+): { durationMin: number | null; customEnd: string } {
+  if (startTime && endTime) {
+    const diff = minutesBetweenTimes(startTime, endTime);
+    if (diff != null) {
+      return choices.includes(diff)
+        ? { durationMin: diff, customEnd: "" }
+        : { durationMin: null, customEnd: endTime };
+    }
+  }
+  return {
+    durationMin:
+      resourceDefault && resourceDefault > 0
+        ? resourceDefault
+        : DEFAULT_APPOINTMENT_DURATION_MIN,
+    customEnd: "",
+  };
+}
+
+/**
+ * ระยะเวลาเป็นคำไทย: 30 → "30 นาที" · 60 → "1 ชม." · 90 → "1 ชม. 30 นาที"
+ *
+ * HR16 — SSOT ของ "คำเรียกระยะเวลาบริการ" ทั้งระบบ. ก่อนหน้านี้มี 2 ที่เขียน `${นาที} นาที`
+ * ดิบ ๆ เอง (ResourceList / PublicServiceList) ซึ่งอ่านว่า "90 นาที" ขณะที่จอเลือกเวลาจะ
+ * อ่านว่า "1 ชม. 30 นาที" — เลขเดียวกัน คนละคำ คนละหน้าจอ โดยไม่มี tsc/build ตัวไหนฟ้อง
+ * เพราะทั้งคู่เป็นสตริงที่ถูกในตัวเอง. เพิ่มที่เรียกใหม่ต้องเรียกตัวนี้ ห้ามประกอบคำเอง
+ */
+export function formatDurationTH(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} นาที`;
+  if (m === 0) return `${h} ชม.`;
+  return `${h} ชม. ${m} นาที`;
+}
+
 /** ป้ายภาษาไทยของสถานะนัด — ใช้ร่วมกันทุก surface เพื่อไม่ให้คำเรียกเพี้ยนกัน */
 export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
   SCHEDULED: "นัดแล้ว",

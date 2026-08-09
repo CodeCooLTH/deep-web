@@ -14,6 +14,10 @@ import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
 
+// HR16: คำเรียกระยะเวลาต้องมาจาก SSOT เดียวกับฝั่งผู้ขาย — ผู้ซื้อกับผู้ขายพูดถึงบริการชิ้นเดียวกัน
+// (ฟังก์ชันบริสุทธิ์ ไม่ลาก dependency ของ (paces) เข้ามาใน bundle ของ buyer)
+import { formatDurationTH } from '@/lib/appointments'
+
 export type PublicService = {
   id: string
   name: string
@@ -45,7 +49,7 @@ export default function PublicServiceList({ services }: { services: PublicServic
               </Typography>
               {s.durationMinutes != null && (
                 <Typography variant='caption' color='text.disabled' className='block mbs-1'>
-                  {`~${s.durationMinutes} นาที`}
+                  {`~${formatDurationTH(s.durationMinutes)}`}
                 </Typography>
               )}
               {deposit && (

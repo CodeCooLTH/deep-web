@@ -20,6 +20,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+// HR16: คำเรียกระยะเวลาต้องมาจาก SSOT เดียวกับจอเลือกเวลา — ห้ามประกอบ `${นาที} นาที` เอง
+import { formatDurationTH } from '@/lib/appointments'
 import type { SerializedServiceResource } from '@/services/service-resource.service'
 
 type Props = { resources: SerializedServiceResource[] }
@@ -226,7 +228,7 @@ export default function ResourceList({ resources }: Props) {
               <p className="text-default-500 mt-0.5 truncate text-sm">{resource.description}</p>
             )}
             <p className="text-default-600 mt-0.5 text-sm">
-              {resource.durationMinutes ? `${resource.durationMinutes} นาที · ` : ''}
+              {resource.durationMinutes ? `${formatDurationTH(resource.durationMinutes)} · ` : ''}
               รับพร้อมกัน {resource.capacity} คิว · {depositLabel(resource)}
             </p>
             <div className="mt-2 flex items-center justify-between gap-2">
@@ -289,7 +291,7 @@ export default function ResourceList({ resources }: Props) {
                   )}
                 </td>
                 <td className="text-default-700 px-4 py-3">
-                  {resource.durationMinutes ? `${resource.durationMinutes} นาที` : '—'}
+                  {resource.durationMinutes ? formatDurationTH(resource.durationMinutes) : '—'}
                 </td>
                 <td className="text-default-700 px-4 py-3">{resource.capacity} คิว</td>
                 <td className="text-default-700 px-4 py-3">{depositLabel(resource)}</td>

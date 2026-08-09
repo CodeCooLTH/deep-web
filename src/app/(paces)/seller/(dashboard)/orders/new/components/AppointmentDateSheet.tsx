@@ -54,6 +54,10 @@ import {
   isAllDayAppointment,
   combineDateTime,
   addMinutesToTime,
+  minutesBetweenTimes,
+  formatDurationTH,
+  resolveInitialDuration,
+  DEFAULT_APPOINTMENT_DURATION_MIN as DEFAULT_DURATION_MIN,
   APPOINTMENT_STATUS_LABEL,
   type AppointmentStatus,
   type AppointmentGranularity,
@@ -147,6 +151,16 @@ interface Props {
 
 const FOOTBAR_HEIGHT = 'h-[calc(4.5rem+env(safe-area-inset-bottom))]' // HR7 carve-out: Paces ไม่มี token ของ safe-area และ box-sizing border-box ทำให้การใส่ padding เฉย ๆ ไม่ดันความสูงให้โตขึ้น (docs/conventions/ios-safe-area.md)
 
+/**
+ * ชิประยะเวลาพื้นฐาน — `durationMinutes` ของคิวงานถูก "แทรก" เข้าไปตามลำดับ ไม่ใช่แทนที่ชุดนี้
+ * (ร้านที่ตั้ง 45 นาทีจึงได้ 30/45/60/90/120 ไม่ใช่ 45/90/135 ซึ่งจะทำให้เลือก 1 ชม. ไม่ได้เลย)
+ */
+const BASE_DURATION_CHOICES = [30, 60, 90, 120] as const
+
+/** หน้าต่างเวลาตั้งต้นของชิปเวลาเริ่ม — ปุ่ม "เวลาอื่น" กาง 00:00–23:00 (ดู showAllHours) */
+const DEFAULT_HOUR_FROM = 8
+const DEFAULT_HOUR_TO = 20
+
 /** หัวคอลัมน์วัน — index = getDay() (0 = อาทิตย์ ตรงกับ firstDay={0} ของปฏิทิน) */
 const DOW_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
 const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์']
@@ -195,9 +209,31 @@ export default function AppointmentDateSheet({
    * ตัดสินว่าจะนัดกี่โมง (คิวที่มีอยู่แล้วของวันนั้น) อยู่ในชีตนี้ ไม่ใช่ในฟอร์ม
    */
   const [pendingStart, setPendingStart] = useState<string>(valueStartTime ?? '')
-  const [pendingEnd, setPendingEnd] = useState<string>(valueEndTime ?? '')
-  // ผู้ใช้พิมพ์เวลาสิ้นสุดเองแล้วหรือยัง — ถ้าเคย ห้าม auto-fill ทับ (ยกกติกามาจากฟอร์มเดิม)
-  const endTouched = useRef(false)
+  /**
+   * ระยะเวลาที่เลือก (นาที) — `null` = โหมด "กำหนดเอง" ที่ผู้ใช้พิมพ์เวลาสิ้นสุดเอง
+   *
+   * 2026-08-09: **เลิกถามเวลาสิ้นสุด ถามระยะเวลาแทน** (user เคาะแบบ A จาก mockup
+   * docs/superpowers/specs/2026-08-09-appointment-time-step-mockup.html)
+   *
+   * เหตุผลไม่ใช่แค่ "กดง่ายขึ้น": เมื่อไม่มีช่องเวลาสิ้นสุดให้กรอก เงื่อนไข `end <= start`
+   * ก็เกิดขึ้นไม่ได้ตั้งแต่ต้นทาง — บั๊ก `endTouched` ที่เคยอยู่ตรงนี้ (ตั้งเป็น true ตอนเปิด
+   * ถ้าฟอร์มเคยมี endTime แล้ว auto-fill ไม่ทำงานอีกเลยทั้งชีต → กดชิปเวลาใหม่กี่ครั้งก็ได้
+   * ช่วงที่ผิดกฎทุกครั้ง) จึง**หายไปพร้อมกับกลไกที่มันอาศัยอยู่ ไม่ใช่ถูกแพตช์**
+   *
+   * ผู้ขายคิดเป็น "13:00 ใช้เวลา 1 ชม." อยู่แล้ว — เวลาสิ้นสุดเป็นผลลัพธ์ ไม่ใช่ input
+   */
+  const [pendingDurationMin, setPendingDurationMin] = useState<number | null>(DEFAULT_DURATION_MIN)
+  /** เวลาสิ้นสุดที่พิมพ์เอง — มีความหมายเฉพาะเมื่อ pendingDurationMin === null */
+  const [customEnd, setCustomEnd] = useState<string>('')
+  /** กางชิปเวลาเริ่มเป็น 00:00–23:00 — ร้านที่เปิดดึก/เปิดเช้าต้องไปถึงได้ ไม่ใช่ถูกกันเงียบ ๆ */
+  const [showAllHours, setShowAllHours] = useState(false)
+  /**
+   * กางรายการคิวของวันนั้นในขั้นเลือกเวลา — **กล่องแคบเท่านั้น**
+   *
+   * กล่องกว้าง (@5xl) เห็นรายการเต็มอยู่แล้วตลอดเวลา ค่านี้ไม่มีผลที่นั่น (สลับด้วยคลาส
+   * `@5xl:` ไม่ใช่ JS — idiom เดียวกับ DOW_SHORT/DOW_FULL และปุ่มคู่ที่แถบล่างของไฟล์นี้)
+   */
+  const [showDayList, setShowDayList] = useState(false)
   /**
    * ขั้นที่กำลังอยู่ — มีความหมายเฉพาะ **กล่องแคบ + โหมดระบุเวลา** เท่านั้น
    *
@@ -215,16 +251,36 @@ export default function AppointmentDateSheet({
   const twoStep = !byDay
   const atTimeStep = twoStep && step === 'time'
 
+  /**
+   * ชิประยะเวลาที่จะแสดง — ชุดพื้นฐาน + ค่ามาตรฐานของคิวงาน (ถ้ามีและยังไม่อยู่ในชุด)
+   * เรียงจากน้อยไปมากเสมอ เพื่อให้ตำแหน่งชิปไม่กระโดดเมื่อสลับคิวงาน
+   */
+  const durationChoices = useMemo(() => {
+    const set = new Set<number>(BASE_DURATION_CHOICES)
+    if (resourceDurationMinutes && resourceDurationMinutes > 0) set.add(resourceDurationMinutes)
+    return [...set].sort((a, b) => a - b)
+  }, [resourceDurationMinutes])
+
   // เปิดชีตใหม่ทุกครั้งต้องเริ่มจากค่าที่ฟอร์มถืออยู่ ไม่ใช่ค่าที่ค้างจากการเปิดครั้งก่อน
   useEffect(() => {
     if (!open) return
     setPendingDate(value)
     setPendingStart(valueStartTime ?? '')
-    setPendingEnd(valueEndTime ?? '')
+    const init = resolveInitialDuration(
+      valueStartTime,
+      valueEndTime,
+      durationChoices,
+      resourceDurationMinutes,
+    )
+    setPendingDurationMin(init.durationMin)
+    setCustomEnd(init.customEnd)
     setStep('date')
-    // ค่าที่ฟอร์มถืออยู่ = ผู้ใช้เคยตั้งเวลาสิ้นสุดไว้แล้ว จึงห้าม auto-fill ทับตอนเปิดซ้ำ
-    endTouched.current = !!valueEndTime
-  }, [open, value, valueStartTime, valueEndTime])
+    setShowDayList(false)
+    /* เวลาที่บันทึกไว้เดิมอยู่นอกหน้าต่างตั้งต้น (ร้านเปิดดึก/เปิดเช้า) → กางให้เห็นตั้งแต่แรก
+       ไม่งั้นชิปที่ "ถูกเลือกอยู่" จะซ่อนอยู่หลังปุ่ม "เวลาอื่น" แล้วจอดูเหมือนยังไม่ได้เลือกอะไร */
+    const h = valueStartTime ? Number(valueStartTime.slice(0, 2)) : NaN
+    setShowAllHours(Number.isFinite(h) && (h < DEFAULT_HOUR_FROM || h >= DEFAULT_HOUR_TO))
+  }, [open, value, valueStartTime, valueEndTime, durationChoices, resourceDurationMinutes])
   /**
    * Escape ปิดชีต + ย้ายโฟกัสเข้ามาตอนเปิด — ยกมาจาก AddressSearchSheet.tsx:72-87
    *
@@ -358,6 +414,23 @@ export default function AppointmentDateSheet({
   }, [itemsByDay, pendingDate])
 
   /**
+   * ช่วงเวลาของคิวที่มีอยู่ ย่อเป็นบรรทัดเดียว — ใช้บนแถบสรุปตอนรายการถูกยุบ (ขั้นเลือกเวลา)
+   *
+   * เอา 3 ตัวแรกพอ: บรรทัดนี้มีหน้าที่ตอบว่า "วันนี้แน่นแค่ไหน" ไม่ใช่แทนรายการ —
+   * คนที่อยากรู้ว่าใครจองกดปุ่ม "ดูรายการ" ได้ และตัวเลขรวมอยู่ข้าง ๆ อยู่แล้ว
+   */
+  const dayRangesPreview = useMemo(() => {
+    if (dayItems.length === 0) return ''
+    const parts = dayItems.slice(0, 3).map((it) => {
+      const s = new Date(it.start)
+      const e = new Date(it.end)
+      return isAllDayAppointment(s, e) ? 'ทั้งวัน' : `${formatTimeHM(s)}–${formatTimeHM(e)}`
+    })
+    const rest = dayItems.length - parts.length
+    return rest > 0 ? `${parts.join(' · ')} · อีก ${rest}` : parts.join(' · ')
+  }, [dayItems])
+
+  /**
    * วันนี้เต็มไหม — **โหมดรายวันเท่านั้น**
    *
    * IMPORTANT: โหมดระบุช่วงเวลาห้ามใช้เกณฑ์นี้ เพราะความจุของมันวัดกันที่ "ช่วงเวลาที่ทับกัน"
@@ -423,6 +496,22 @@ export default function AppointmentDateSheet({
   // ส่วนของโหมด "ระบุช่วงเวลา" — คำนวณสดจาก dayItems ที่โหลดมาแล้ว ไม่ยิง API เพิ่ม
   // ─────────────────────────────────────────────────────────────────────────
 
+  /**
+   * เวลาสิ้นสุด = **ผลลัพธ์ ไม่ใช่ state** (2026-08-09)
+   *
+   * ที่เก็บเป็น state คือ "ระยะเวลา" ส่วนเวลาสิ้นสุด derive จาก start + duration ทุกครั้ง
+   * → ไม่มีทางที่ start กับ end จะหลุด sync กันได้ ซึ่งเป็นรูปร่างของบั๊กเดิมทั้งดุ้น
+   * โหมด "กำหนดเอง" เท่านั้นที่ end เป็นค่าที่ผู้ใช้ถือเอง (customEnd)
+   *
+   * ชื่อตัวแปรคงเดิม (`pendingEnd`) เพราะที่เรียกใช้ต่อจากนี้ทั้งหมด — ตัวนับ overlap,
+   * timeIssue, ป้ายปุ่มยืนยัน, onConfirm — ต้องการ "HH:mm" เหมือนเดิมเป๊ะ ไม่ต้องแก้สักจุด
+   */
+  const pendingEnd = useMemo(() => {
+    if (byDay || !pendingStart) return ''
+    if (pendingDurationMin == null) return customEnd
+    return addMinutesToTime(pendingStart, pendingDurationMin)
+  }, [byDay, customEnd, pendingDurationMin, pendingStart])
+
   /** จำนวนคิวที่ทับกับช่วงที่กำลังกรอก — เกณฑ์ overlap เดียวกับที่ฟอร์มเคยใช้ (bookedNow เดิม) */
   const pendingSlotBookedCount = useMemo(() => {
     if (!pendingDate) return 0
@@ -468,16 +557,13 @@ export default function AppointmentDateSheet({
     return `${`${latest.getHours()}`.padStart(2, '0')}:${`${latest.getMinutes()}`.padStart(2, '0')}`
   }, [byDay, dayItems, pendingDate])
 
-  /** เติมเวลาเริ่ม + auto-fill เวลาสิ้นสุดจากระยะเวลามาตรฐาน (เว้นแต่ผู้ใช้พิมพ์เองไปแล้ว) */
-  const applyStart = useCallback(
-    (v: string) => {
-      setPendingStart(v)
-      if (v && resourceDurationMinutes && !endTouched.current) {
-        setPendingEnd(addMinutesToTime(v, resourceDurationMinutes))
-      }
-    },
-    [resourceDurationMinutes],
-  )
+  /**
+   * เติมเวลาเริ่ม — ไม่ต้องแตะเวลาสิ้นสุดอีกแล้ว มัน derive จาก start + duration เอง
+   *
+   * นี่คือจุดที่บั๊ก 2026-08-09 เคยอยู่: เดิมมีเงื่อนไข `!endTouched.current` คร่อมการ
+   * auto-fill ทำให้กดชิปเวลาใหม่แล้วเวลาสิ้นสุดค้างค่าเก่า ตอนนี้ไม่มีอะไรให้ค้าง
+   */
+  const applyStart = useCallback((v: string) => setPendingStart(v), [])
 
   /**
    * ปุ่มยืนยันกดได้ไหม + จะเขียนว่าอะไร — รวมไว้ที่เดียวเพื่อไม่ให้ข้อความกับเงื่อนไขเพี้ยนจากกัน
@@ -499,34 +585,72 @@ export default function AppointmentDateSheet({
    * `invalid` แยกจาก "ยังกรอกไม่ครบ": ช่องว่างที่ยังไม่ถูกแตะไม่ควรถูกประกาศว่า "ผิด"
    * (aria-invalid บนช่องเปล่าตั้งแต่แรกคือเสียงรบกวน) — บอกด้วย aria-required + คำอธิบายพอ
    */
+  /**
+   * `blocking` แยกจาก `invalid` (เพิ่ม 2026-08-09 จาก impeccable critique P1)
+   *
+   * 🛑 **เลขความจุฝั่ง client ห้ามกั้นการบันทึก (BR-RSV-18)** — ไฟล์นี้อ้างกฎข้อนี้ 3 ครั้งเพื่อ
+   * อธิบายว่าทำไมไม่ disable ชิปที่ชนคิว (ข้อมูลอาจเก่าระหว่างเปิดค้าง ตัวตัดสินจริงคือ EXCLUDE
+   * constraint ตอนบันทึก) แล้วเดิมกลับเอาเลขเดียวกันนั้นไป disable **ปุ่มยืนยัน** ซึ่งเป็นด่านจริง
+   * ผลคือ: พนักงานอีกคนยกเลิกนัด 13:00 ขณะชีตเปิดค้าง → ช่องว่างจริง ชิปปล่อยให้กดถูกต้อง
+   * แต่ปุ่มปฏิเสธถาวร ทางออกเดียวคือปิดชีตแล้วเสียค่าที่กรอกไว้ (เปิดประตูไว้แล้วล็อกทางออก)
+   *
+   * ตอนนี้ `blocking` สงวนไว้กับเคสที่ **client ตัดสินได้เองจริง ๆ** เท่านั้น (ยังไม่เลือกเวลา,
+   * ช่วงข้ามเที่ยงคืน) ส่วน "เต็มแล้ว" เป็นคำเตือนสีแดงที่ยังกดต่อได้ แล้วให้ server ปฏิเสธเอง
+   */
   const timeIssue = useMemo(():
-    | { message: string; field: 'start' | 'end'; invalid: boolean }
+    | { message: string; field: 'start' | 'end'; invalid: boolean; blocking: boolean }
     | null => {
     if (byDay || !pendingDate) return null
-    if (!pendingStart) return { message: 'เลือกเวลาเริ่มก่อน', field: 'start', invalid: false }
-    if (!pendingEnd) return { message: 'เลือกเวลาสิ้นสุดก่อน', field: 'end', invalid: false }
+    if (!pendingStart)
+      return { message: 'เลือกเวลาเริ่มก่อน', field: 'start', invalid: false, blocking: true }
+    // "ระบุ" ไม่ใช่ "เลือก": ข้อความนี้ขึ้นเฉพาะโหมดกำหนดเอง ซึ่ง control เป็นช่องที่พิมพ์ลงไป
+    if (!pendingEnd)
+      return { message: 'ระบุเวลาสิ้นสุดก่อน', field: 'end', invalid: false, blocking: true }
     if (pendingEnd <= pendingStart) {
+      /* โหมดชิประยะเวลาไปถึงตรงนี้ได้ทางเดียว: ช่วงที่เลือกล้นข้ามเที่ยงคืน (addMinutesToTime
+         วนกลับที่ 24 ชม.) ซึ่ง "เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม" อธิบายไม่ตรงเลย — ผู้ใช้ไม่ได้
+         กรอกเวลาสิ้นสุด เขากดระยะเวลา แล้วประโยคนั้นจะชี้ไปที่ของที่ไม่มีอยู่บนจอ
+         คนละสาเหตุต้องคนละประโยค แม้เงื่อนไขทางคณิตศาสตร์จะเป็นอันเดียวกัน */
+      if (pendingDurationMin != null) {
+        return {
+          message: 'ช่วงเวลานี้ข้ามเที่ยงคืน — ลดระยะเวลาหรือเลื่อนเวลาเริ่มให้เร็วขึ้น',
+          field: 'start',
+          invalid: true,
+          blocking: true,
+        }
+      }
       // คำเดียวกับ toast ของหน้าเลื่อนนัด (RescheduleAppointmentSheet.submit) — กฎเดียวกัน
       // ต้องได้ยินเป็นประโยคเดียวกันไม่ว่าจะไปเจอมันจากทางไหน
-      return { message: 'เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม', field: 'end', invalid: true }
+      return { message: 'เวลาสิ้นสุดต้องมาหลังเวลาเริ่ม', field: 'end', invalid: true, blocking: true }
     }
     if (pendingSlotFull) {
-      return { message: 'ช่วงเวลานี้เต็มแล้ว — เลือกเวลาอื่น', field: 'start', invalid: true }
+      /* เตือน ไม่ใช่กั้น (BR-RSV-18 — ดูคอมเมนต์เหนือ timeIssue)
+         คำเปลี่ยนจาก "เลือกเวลาอื่น" เป็น "ยืนยันต่อได้" เพราะประโยคเดิมสั่งให้ทำสิ่งที่
+         อาจไม่จำเป็น: ตัวเลขนี้อาจเก่าไปแล้วและช่วงนี้ว่างจริง */
+      return {
+        message: 'ช่วงเวลานี้เต็มตามข้อมูลล่าสุด — ยืนยันต่อได้ ระบบจะตรวจอีกครั้งตอนบันทึก',
+        field: 'start',
+        invalid: true,
+        blocking: false,
+      }
     }
     return null
-  }, [byDay, pendingDate, pendingEnd, pendingSlotFull, pendingStart])
+  }, [byDay, pendingDate, pendingDurationMin, pendingEnd, pendingSlotFull, pendingStart])
 
   const TIME_ISSUE_ID = 'appt-sheet-time-issue'
 
   /**
-   * ปุ่มช่วงเวลาสำเร็จรูป — ทางลัดให้จบใน 2 แตะแทนการปั่น native time picker ทีละช่อง
+   * ชิป "เวลาเริ่ม" — ทางลัดให้จบใน 2 แตะ (เวลาเริ่ม → ระยะเวลา) แทนการปั่น native time picker
    *
-   * หน้าต่าง 08:00–20:00 ทุก 1 ชั่วโมง = 12 ปุ่ม (user เคาะ 2026-08-09 ว่า "ยังไม่ต้องมี
-   * คอลัมน์เวลาทำการ ใช้ 08:00–20:00 ไปก่อน") — ช่องเวลาด้านล่างยังอยู่ครบสำหรับร้านที่เปิด
-   * ดึกหรือเวลาไม่ลงล็อก ปุ่มพวกนี้เป็น "ทางลัด" ไม่ใช่ "ทางเดียว"
+   * ป้ายเป็น **เวลาเริ่มอย่างเดียว** ไม่ใช่ช่วง `08:00–09:00` เพราะปลายทางถูกตัดสินด้วยชิป
+   * "ใช้เวลา" ที่อยู่ใต้ลงไป — เขียนช่วงไว้บนชิปด้วยจะมีเลขที่ขัดกันสองชุดบนจอเดียว (HR16)
+   *
+   * หน้าต่างตั้งต้น 08:00–20:00 = 12 ปุ่ม (user เคาะ 2026-08-09 ว่า "ยังไม่ต้องมีคอลัมน์
+   * เวลาทำการ ใช้ 08:00–20:00 ไปก่อน") — ปุ่ม "เวลาอื่น" กางเป็น 00:00–23:00 ให้ร้านที่เปิด
+   * ดึก/เปิดเช้าไปถึงได้ ไม่ใช่ถูกกันออกเงียบ ๆ แล้วต้องไปหาช่องกรอกที่อื่น
    *
    * ระยะห่างคงที่ 1 ชั่วโมง ไม่ผูกกับ durationMinutes โดยตั้งใจ — บริการที่ยาว 25 นาทีจะได้
-   * ~28 ปุ่มซึ่งล้นทุกความกว้าง ส่วนความละเอียดกว่านั้นไปปรับที่ช่องเวลาได้
+   * ~28 ปุ่มซึ่งล้นทุกความกว้าง ความละเอียดกว่านั้นไปที่โหมด "กำหนดเอง"
    *
    * IMPORTANT: ปุ่มที่ชนคิวเดิม **ไม่ disable** แค่ติดจุดเตือน — BR-RSV-18 ยืนยันว่าเลขบนจอ
    * ไม่ใช่คำตัดสิน (ข้อมูลอาจ stale ระหว่างเปิดค้าง) ตัวตัดสินจริงคือ EXCLUDE constraint
@@ -534,39 +658,55 @@ export default function AppointmentDateSheet({
    */
   const timeSlots = useMemo(() => {
     if (byDay || !pendingDate) return []
-    const dur = resourceDurationMinutes && resourceDurationMinutes > 0 ? resourceDurationMinutes : null
+    /* ระยะเวลาที่ใช้ "ประเมิน" ว่าช่วงนั้นชนคิวเดิมไหม = ระยะเวลาที่ผู้ใช้เลือกอยู่ตอนนี้
+       เดิมใช้ resourceDurationMinutes อย่างเดียว → คิวงานที่ไม่ได้ตั้งค่า (null) ไม่มีช่วงให้
+       เทียบเลย จุดเตือน "มีคิวแล้ว" จึงไม่เคยขึ้นสักปุ่ม ทั้งที่ข้อมูลอยู่ในมือครบ */
+    const previewDur =
+      pendingDurationMin ??
+      (pendingStart && customEnd ? minutesBetweenTimes(pendingStart, customEnd) : null) ??
+      (resourceDurationMinutes && resourceDurationMinutes > 0
+        ? resourceDurationMinutes
+        : DEFAULT_DURATION_MIN)
     const nowMs = Date.now()
-    const out: { start: string; end: string | null; label: string; busy: boolean; past: boolean }[] = []
-    for (let h = 8; h < 20; h++) {
+    const from = showAllHours ? 0 : DEFAULT_HOUR_FROM
+    const to = showAllHours ? 24 : DEFAULT_HOUR_TO
+    const out: { start: string; busy: boolean; past: boolean }[] = []
+    for (let h = from; h < to; h++) {
       const start = `${`${h}`.padStart(2, '0')}:00`
-      const end = dur ? addMinutesToTime(start, dur) : null
       const s = combineDateTime(pendingDate, start)
-      // ชนคิวเดิมไหม — คำนวณได้เฉพาะเมื่อรู้ระยะเวลา ไม่งั้นไม่มีช่วงให้เทียบ (ห้ามย้อมมั่ว)
       let busy = false
-      if (s && end && capacity != null && capacity > 0) {
-        const e = combineDateTime(pendingDate, end)
-        if (e) {
-          const sT = s.getTime()
-          const eT = Math.max(e.getTime(), sT + 1)
-          const overlap = dayItems.filter((it) => {
-            const bs = new Date(it.start).getTime()
-            const be = new Date(it.end).getTime()
-            return bs < eT && sT < be
-          }).length
-          busy = overlap >= capacity
-        }
+      if (s && capacity != null && capacity > 0) {
+        const sT = s.getTime()
+        /* บวกเป็นมิลลิวินาทีตรง ๆ ไม่ผ่าน addMinutesToTime — ตัวนั้นวนกลับที่ 24 ชม.โดยตั้งใจ
+           ซึ่งถูกสำหรับ "ค่าที่ผู้ใช้ต้องเห็นแล้วแก้" แต่ผิดสำหรับการเทียบช่วงเวลาจริง
+           (23:00 + 2 ชม. ต้องเป็น 01:00 ของวันถัดไป ไม่ใช่ย้อนกลับไปต้นวันเดียวกัน) */
+        const eT = Math.max(sT + previewDur * 60_000, sT + 1)
+        const overlap = dayItems.filter((it) => {
+          const bs = new Date(it.start).getTime()
+          const be = new Date(it.end).getTime()
+          return bs < eT && sT < be
+        }).length
+        busy = overlap >= capacity
       }
       out.push({
         start,
-        end,
-        label: end ? `${start}–${end}` : start,
         busy,
         // เลยเวลาไปแล้วของวันนี้ — มัวลงเป็นคำใบ้ แต่ยังกดได้ (นัดย้อนหลังทำได้ตาม FR-RSV-03)
         past: s ? s.getTime() < nowMs : false,
       })
     }
     return out
-  }, [byDay, capacity, dayItems, pendingDate, resourceDurationMinutes])
+  }, [
+    byDay,
+    capacity,
+    customEnd,
+    dayItems,
+    pendingDate,
+    pendingDurationMin,
+    pendingStart,
+    resourceDurationMinutes,
+    showAllHours,
+  ])
 
   const confirmState = useMemo((): { label: string; disabled: boolean } => {
     if (!pendingDate) return { label: 'แตะวันในปฏิทินก่อน', disabled: true }
@@ -575,15 +715,51 @@ export default function AppointmentDateSheet({
       // พูดวันที่ออกมาตรง ๆ ไม่ใช้คำว่า "วันนี้" — จอนี้มีปุ่ม "วันนี้" ที่แปลว่ากระโดดไป
       // วันปัจจุบัน (กติกาเดียวกับที่เขียนไว้ที่แถบยืนยันล่าง) และผู้ขายที่จิ้มดูหลายวัน
       // ติด ๆ กันต้องรู้ว่าใบไหนเต็ม ไม่ใช่ "วันนี้" ลอย ๆ
-      if (pendingFull) return { label: `${dateLabel} เต็มแล้ว — เลือกวันอื่น`, disabled: true }
+      /* วันเต็มก็ยืนยันได้ ด้วยเหตุผลเดียวกับช่วงเวลาเต็ม (BR-RSV-18 — ดูคอมเมนต์เหนือ timeIssue)
+         คำเตือนที่ผู้ใช้เห็นคือตัวนับ "จองแล้ว n จาก m คิว" ที่หัวรายการ ซึ่งเปลี่ยนเป็นสีเตือน
+         อยู่แล้วเมื่อเต็ม — ไม่ต้องมีประโยคซ้ำบนปุ่ม (ปุ่มพูดเรื่องเดียว: ยืนยันอะไร) */
+      if (pendingFull) return { label: `ยืนยัน ${dateLabel}`, disabled: false }
       // ใช้กริยา "ยืนยัน" ทั้งสองโหมด — ปุ่มเดียวกัน การกระทำเดียวกัน (ผูกค่าเข้าฟอร์มแล้วปิด)
       // คำว่า "เลือก" ทำให้อ่านเหมือนยังอยู่ในขั้นสำรวจ ทั้งที่กดแล้วมีผลจริง
       return { label: `ยืนยัน ${dateLabel}`, disabled: false }
     }
-    // ป้ายปุ่มอ่านจาก timeIssue ตัวเดียวกับที่ผูกอยู่กับช่องเวลา (ดูคอมเมนต์ของ timeIssue)
-    if (timeIssue) return { label: timeIssue.message, disabled: true }
+    /**
+     * 2026-08-09: **ปุ่มเลิกกลายร่างเป็นข้อความ error**
+     *
+     * เดิมป้ายปุ่มถูกแทนที่ด้วย `timeIssue.message` ตัวเดียวกับบรรทัดสีแดงที่อยู่เหนือมัน
+     * → ประโยคเดียวกันโผล่สองที่ห่างกัน 40px แล้วผู้ใช้เสียคำที่บอกว่ากดแล้วจะเกิดอะไร
+     * ยิ่งกว่านั้น ปุ่มที่ `disabled` หลุด tab order อยู่แล้ว ข้อความบนมันจึงไปไม่ถึง
+     * ผู้ใช้ screen reader ตั้งแต่แรก (เหตุผลเดียวกับที่ timeIssue ถูกสกัดออกมาผูกกับช่อง)
+     *
+     * ตอนนี้ปุ่มพูดเรื่องเดียว — "ยืนยันอะไร" — และ disabled เมื่อยังยืนยันไม่ได้
+     * คำอธิบายว่าติดอะไรอยู่เป็นหน้าที่ของบรรทัดใต้ช่องที่ผิดจริง ที่เดียว
+     */
+    if (timeIssue?.blocking) return { label: `ยืนยัน ${dateLabel}`, disabled: true }
     return { label: `ยืนยัน ${dateLabel} · ${pendingStart}–${pendingEnd}`, disabled: false }
   }, [byDay, pendingDate, pendingEnd, pendingFull, pendingStart, timeIssue])
+
+  /**
+   * ยุบรายการคิวเหลือแถบบรรทัดเดียว — **กล่องแคบ + ขั้นเลือกเวลา + ยังไม่กดกาง** เท่านั้น
+   *
+   * ที่ต้องยุบ: ขั้นนี้มีงานเดียวคือเลือกเวลา แต่กล่อง "ว่างทั้งวัน" เป็น `flex-1 justify-center`
+   * จึงกินพื้นที่ที่เหลือทั้งหมด (~45% ของจอ 812px) เพื่อบอกว่า *ไม่มีอะไรอยู่ตรงนี้* แล้วดัน
+   * ตัวเลือกเวลาลงไปใต้เส้นพับ — อาการที่ user รายงาน 2026-08-09 ว่า "ตั้งค่าเวลายาก"
+   *
+   * IMPORTANT: การซ่อน/แสดงทำด้วยคลาส `@5xl:` ทับ ไม่ใช่ตัดออกจาก DOM ด้วย JS — กล่องกว้าง
+   * ไม่มีการแยกขั้นและต้องเห็นรายการเต็มเสมอ (idiom เดียวกับปุ่มคู่ที่แถบล่างของไฟล์นี้)
+   */
+  const collapsedDay = atTimeStep && !showDayList
+
+  /**
+   * เวลาเริ่มที่เลือกอยู่ตกนอกหน้าต่างชิปตั้งต้นไหม — ใช้ 2 ที่ที่ต้องตัดสินใจตรงกัน:
+   * effect ตอนเปิดชีต (กางให้อัตโนมัติ) และปุ่ม "ย่อกลับ" (ห้ามย่อจนชิปที่เลือกหายไป)
+   * เดิมมีแต่ที่แรก ปุ่มจึงย่อจนค่าที่เลือกค้างอยู่นอกกริดได้ (critique P2-a)
+   */
+  const startsOutsideDefaultWindow = useMemo(() => {
+    if (!pendingStart) return false
+    const h = Number(pendingStart.slice(0, 2))
+    return Number.isFinite(h) && (h < DEFAULT_HOUR_FROM || h >= DEFAULT_HOUR_TO)
+  }, [pendingStart])
 
   const goPrev = () => calRef.current?.getApi().prev()
   const goNext = () => calRef.current?.getApi().next()
@@ -651,8 +827,16 @@ export default function AppointmentDateSheet({
           {/* ขั้นเลือกเวลา: บอกว่ากำลังตั้งเวลาของวันไหน (แทนชื่อบริการ/ความจุที่รู้ไปแล้วจากขั้นก่อน)
               เป็นข้อความล้วน ไม่ใช่ปุ่ม — ปุ่ม ‹ ข้างซ้ายทำหน้าที่ "กลับไปเปลี่ยนวัน" อยู่แล้ว */}
           {atTimeStep && pendingDate && (
+            /* ต่อท้ายด้วยความจุ: ขั้นนี้โชว์ "จองแล้ว n จาก m คิว" แต่คำอธิบายว่า m คืออะไร
+               ("รับพร้อมกัน m คิว") อยู่ในบรรทัดที่ถูก gate ด้วย !atTimeStep = หายไปแล้วตอนที่
+               ตัวเลขโผล่ → ผู้ขายเห็นเลข 10 มาลอย ๆ โดยไม่มีบริบท (critique H10) */
             <p className="truncate text-xs text-default-500">
-              {formatWeekdayDateTH(new Date(`${pendingDate}T00:00`))}
+              {[
+                formatWeekdayDateTH(new Date(`${pendingDate}T00:00`)),
+                capacity != null && capacity > 0 ? `รับพร้อมกัน ${capacity} คิว` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
           )}
           {/* mockup โชว์ความจุต่อวันไว้ตรงนี้ด้วย — ผู้ขายจะได้รู้ตั้งแต่ต้นว่า "เต็ม" ของคิวนี้
@@ -778,9 +962,16 @@ export default function AppointmentDateSheet({
       <div
         className={`flex min-h-0 flex-1 flex-col overscroll-contain @5xl:flex-row @5xl:overflow-hidden ${
           /* ขั้นเลือกวัน: ปฏิทินสูงตามเดือน จึงให้ทั้งคอลัมน์เลื่อน (กันการบีบจนรายการหาย)
-             ขั้นเลือกเวลา: ปฏิทินหายไปแล้ว พื้นที่พอ → ห้ามให้ทั้งคอลัมน์เลื่อน ไม่งั้นวันที่มีคิวเยอะ
-             จะดันช่องเวลาตกใต้เส้นพับอีกรอบ ซึ่งคืออาการที่ทั้งงานนี้ทำมาเพื่อแก้
-             ให้รายการเลื่อนในตัวเองแทน แล้วช่องเวลาตรึงอยู่ล่างเสมอ */
+             ขั้นเลือกเวลา: ทั้งคอลัมน์ไม่เลื่อน — **แผงเวลาข้างในเป็นตัวเลื่อนแทน**
+             (ดูคอมเมนต์ "ตัวเลื่อนของขั้นเลือกเวลา" ที่แผงนั้น) เจตนาเดิมคือกันไม่ให้คิวยาว
+             ดันช่องเวลาตกใต้เส้นพับ ซึ่งยังอยู่ครบ เพราะรายการถูก cap ความสูงแล้ว
+
+             🛑 2026-08-09 (impeccable critique P0): คอมเมนต์เดิมตรงนี้เขียนว่า "ปฏิทินหายไปแล้ว
+             พื้นที่พอ" แล้วตั้ง overflow-hidden บนสมมติฐานนั้น — สมมติฐานเป็นเท็จทันทีที่ผู้ใช้กด
+             "เวลาอื่น" (24 ชิป = +150px) หรือเข้าโหมดกำหนดเอง: เนื้อหาล้น ~209px บนจอ 375×667
+             แล้ว **ไม่มีอะไรเลื่อนไปหาได้เลย** ส่วนที่หายคือกล่องสรุปช่วงเวลากับบรรทัด error
+             = ผู้ขายกดครบทุกอย่างแล้วเจอปุ่มเทาโดยไม่มีเหตุผลให้เห็น
+             ม็อกอัพที่อนุมัติไว้ระบุ overflow-y-auto บนแผงเวลาตั้งแต่แรก (บรรทัด 406/467) */
           atTimeStep ? 'overflow-hidden' : 'overflow-y-auto'
         }`}
       >
@@ -929,8 +1120,10 @@ export default function AppointmentDateSheet({
       </div>
 
       {/* ── รายการนัดของวันที่กำลังดู (user สั่ง 2026-08-07: "จิ้มวันแต่ละวันเพื่อดูรายการได้") ── */}
-      {/* min-h-40 = พื้นที่ขั้นต่ำที่รายการต้องได้เสมอ (flex-1 basis 0 อย่างเดียวไม่การันตี
-          อะไรเลยเมื่อพื้นที่ติดลบ — ปฏิทินจะกินหมดแล้วรายการหายไปทั้งก้อน) */}
+      {/* คอมเมนต์เดิมตรงนี้อ้าง `min-h-40` ว่าเป็นพื้นที่ขั้นต่ำของรายการ — **ไม่เคยมีคลาสนั้น
+          อยู่จริงทั้งบน div นี้และบนรายการ** (critique 2026-08-09) และมันเป็นพี่น้องของการบีบ
+          พื้นที่ที่ทำให้เกิด P0 พอดี. ตัวที่การันตีพื้นที่จริงตอนนี้คือ: ขั้นเลือกวัน = ทั้งคอลัมน์
+          เลื่อนได้ · ขั้นเลือกเวลา/กล่องกว้าง = รายการถูก cap ด้วย max-h-48 แล้วแผงเวลาเลื่อนเอง */}
       <div
         className={`border-default-200 bg-default-100 flex flex-col border-t @5xl:min-h-0 @5xl:flex-1 @5xl:basis-2/5 @5xl:border-t-0 ${
           atTimeStep ? 'min-h-0 flex-1' : ''
@@ -940,7 +1133,55 @@ export default function AppointmentDateSheet({
             ผู้ใช้ screen reader ที่เพิ่งกด Enter บนช่องวันจึงไม่มีทางรู้ผลของสิ่งที่เพิ่งทำเลย
             (WCAG 4.1.3 Status Messages) — atomic=true เพื่อให้ได้ยินทั้งวันที่ + จำนวนคิว
             เป็นประโยคเดียว ไม่ใช่ได้ยินเฉพาะตัวเลขที่เปลี่ยน */}
-        <div className="flex shrink-0 items-baseline gap-2 px-4 pt-3 pb-2" aria-live="polite" aria-atomic="true">
+        {/* ── แถบสรุปคิวของวันนั้น (แทนหัวเรื่อง+รายการเต็มตอนอยู่ขั้นเลือกเวลาบนกล่องแคบ) ──
+            aria-live เหมือนหัวเรื่องเต็ม เพราะมันคือ "ผลของการเลือกวัน" เวอร์ชันย่อ —
+            ผู้ใช้ screen reader ที่ยุบรายการไว้ต้องยังได้ยินว่าวันที่เลือกมีคิวกี่คิว */}
+        <div
+          className={`shrink-0 items-center gap-3 px-4 py-3 @5xl:hidden ${
+            collapsedDay ? 'flex' : 'hidden'
+          }`}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {/* เทากลาง ไม่ใช่เขียว — Verified-Means-Green สงวนเขียวไว้กับสัญญาณความเชื่อใจที่
+              ยืนยันแล้ว "วันว่าง" เป็นข่าวดีก็จริงแต่ไม่ใช่ trust signal (กติกาเดียวกับกล่องเต็ม) */}
+          <span className="bg-default-200 text-default-500 flex size-7 shrink-0 items-center justify-center rounded-full">
+            <Icon
+              icon={dayItems.length === 0 ? 'calendar-check' : 'calendar-event'}
+              className="size-4"
+              aria-hidden="true"
+            />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-default-800 mb-0 truncate text-sm font-semibold">
+              {dayItems.length === 0 ? 'ว่างทั้งวัน' : `ทั้งวันมี ${pendingCount} คิว`}
+            </p>
+            <p className="text-default-500 mb-0 truncate text-xs">
+              {dayItems.length === 0 ? 'ยังไม่มีใครจองคิวนี้' : dayRangesPreview}
+            </p>
+          </div>
+          {dayItems.length > 0 && (
+            /* combo ปุ่ม outline ชุดเดียวกับชิปด้านล่างและปุ่ม "วันนี้" บนหัวแถบเดือน
+               min-h-9 ไม่ใช่ 11: ปุ่มรองที่อยู่ในแถบข้อมูล ไม่ใช่ทางเดินหลักของขั้นนี้
+               (ทางหลักคือชิปเวลา ซึ่งได้ 44px ครบ) */
+            <button
+              type="button"
+              onClick={() => setShowDayList(true)}
+              className="btn border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 min-h-9 shrink-0 gap-1.5 rounded-full border px-3 text-xs"
+            >
+              ดูรายการ
+              <Icon icon="chevron-down" className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+
+        <div
+          className={`shrink-0 items-baseline gap-2 px-4 pt-3 pb-2 @5xl:flex ${
+            collapsedDay ? 'hidden' : 'flex'
+          }`}
+          aria-live="polite"
+          aria-atomic="true"
+        >
           <h4 className="text-dark text-sm font-semibold">
             {pendingDate ? formatWeekdayDateTH(new Date(`${pendingDate}T00:00`)) : 'แตะวันในปฏิทิน'}
           </h4>
@@ -969,13 +1210,38 @@ export default function AppointmentDateSheet({
                     ทั้งวันมี {pendingCount} คิว
                   </span>
                 ))}
+          {/* ทางกลับของปุ่ม "ดูรายการ" — ไม่มีปุ่มนี้ = กางแล้วยุบคืนไม่ได้จนกว่าจะถอยไปเลือกวันใหม่
+              กล่องกว้างไม่มีการยุบตั้งแต่แรก จึงซ่อนด้วย @5xl:hidden ไม่ใช่เช็คใน JS */}
+          {atTimeStep && showDayList && (
+            <button
+              type="button"
+              onClick={() => setShowDayList(false)}
+              /* ไม่ใส่ ms-auto: ตัวนับ "ทั้งวันมี n คิว" ข้าง ๆ ถือ ms-auto อยู่แล้วและมันมีเสมอ
+                 เมื่อปุ่มนี้โผล่ (ปุ่มนี้ขึ้นได้ต่อเมื่อกด "ดูรายการ" ซึ่งขึ้นเฉพาะวันที่มีคิว)
+                 — auto สองตัวในแถวเดียวจะแบ่งที่ว่างกันแล้วดันตัวนับไปลอยกลางแถว */
+              className="btn text-default-700 hover:bg-default-200 min-h-9 shrink-0 gap-1.5 rounded-full px-3 text-xs @5xl:hidden"
+            >
+              ซ่อนรายการ
+              <Icon icon="chevron-up" className="size-3.5" aria-hidden="true" />
+            </button>
+          )}
         </div>
 
         {dayItems.length === 0 ? (
           /* วันว่าง = ผลลัพธ์ที่ดีของหน้าจอนี้ (จองได้) ไม่ใช่ความล้มเหลว — น้ำเสียงจึงไม่ใช่
              "ไม่พบข้อมูล" และไอคอนเป็นเทากลาง **ไม่ใช่เขียว** เพราะเขียวสงวนไว้กับสัญญาณ
              ความเชื่อใจที่ยืนยันแล้ว (Verified-Means-Green) ว่างไม่ใช่ trust signal */
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-8 text-center">
+          /* collapsedDay: ยุบเหลือแถบบรรทัดเดียวด้านบน (ดูคอมเมนต์ของ collapsedDay) — กล่องนี้
+             เป็น flex-1 justify-center จึงกินพื้นที่ที่เหลือทั้งหมดเพื่อบอกว่าไม่มีอะไรอยู่ตรงนี้
+             `@5xl:flex` ทับกลับเสมอ: กล่องกว้างไม่มีการแยกขั้น ต้องเห็นเหมือนเดิมทุกประการ */
+          <div
+            /* shrink-0 ตอนอยู่ขั้นเลือกเวลา/กล่องกว้าง: กล่องนี้เคยเป็น flex-1 justify-center จึง
+               ดูดพื้นที่ที่เหลือทั้งหมดไปบอกว่า "ไม่มีอะไรอยู่ตรงนี้" แล้วเบียดแผงเวลา (critique P0)
+               ที่ขั้นเลือกวันยังเป็น flex-1 เหมือนเดิม เพราะที่นั่นมันคือเนื้อหาหลักของครึ่งล่างจริง ๆ */
+            className={`flex-col items-center justify-center gap-2 px-6 text-center @5xl:flex @5xl:flex-none @5xl:shrink-0 @5xl:py-6 ${
+              collapsedDay ? 'hidden' : 'flex'
+            } ${atTimeStep ? 'shrink-0 py-6' : 'flex-1 py-8'}`}
+          >
             <span className="bg-default-200 text-default-500 flex size-11 items-center justify-center rounded-full">
               <Icon icon="calendar-check" className="size-5" />
             </span>
@@ -992,9 +1258,14 @@ export default function AppointmentDateSheet({
           </div>
         ) : (
           <div
-            className={`px-3 pb-3 @5xl:min-h-0 @5xl:flex-1 @5xl:overflow-y-auto @5xl:overscroll-contain ${
-              atTimeStep ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain' : ''
-            }`}
+            /* 🛑 ที่ขั้นเลือกเวลาและกล่องกว้าง รายการถูก **cap ความสูง** ไม่ใช่ flex-1
+               เดิมมันกิน flex-1 แล้วแผงเวลา (shrink-0) ถูกดันจนล้นออกนอกกล่องที่ overflow-hidden
+               → กด "ดูรายการ" แล้วเหมือนไม่เกิดอะไร เพราะรายการหดเหลือ 0 ส่วนแผงเวลายังล้นเท่าเดิม
+               ม็อกอัพระบุ cap ไว้ที่ ~186px (max-h-48 = 192px ใกล้ที่สุดบนสเกลมาตรฐาน)
+               ขั้นเลือกวันไม่แตะ: ที่นั่นทั้งคอลัมน์เลื่อนได้อยู่แล้ว รายการจึงยาวได้ตามจริง */
+            className={`px-3 pb-3 @5xl:block @5xl:max-h-48 @5xl:flex-none @5xl:shrink-0 @5xl:overflow-y-auto @5xl:overscroll-contain ${
+              collapsedDay ? 'hidden' : ''
+            } ${atTimeStep ? 'max-h-48 shrink-0 overflow-y-auto overscroll-contain' : ''}`}
           >
             <ul className="flex flex-col gap-2">
               {dayItems.map((it) => {
@@ -1047,17 +1318,32 @@ export default function AppointmentDateSheet({
         {/* กล่องแคบ: โผล่เฉพาะขั้นที่ 2 · กล่องกว้าง: โผล่เสมอ (`@5xl:block` ทับ) */}
         {!byDay && pendingDate && (
           <div
-            className={`border-default-200 shrink-0 border-t border-dashed px-4 pt-3 pb-3 @5xl:block ${
-              atTimeStep ? 'block' : 'hidden'
+            /* ── ตัวเลื่อนของขั้นเลือกเวลา ──
+               แผงนี้ดูดพื้นที่ที่เหลือแล้วเลื่อนในตัวเอง (ไม่ใช่ shrink-0 เหมือนเดิม) เพราะความสูง
+               ของมันไม่คงที่: 12 ชิป → 24 ชิปเมื่อกด "เวลาอื่น", บวกช่องกำหนดเอง, บวกปุ่มต่อคิว
+               ที่โผล่เฉพาะบางวัน. อะไรที่ความสูงผันได้ขนาดนี้ห้ามเป็น shrink-0 ในกล่องที่
+               overflow-hidden — นั่นคือ critique P0 ของ 2026-08-09 ตรง ๆ */
+            className={`border-default-200 border-t border-dashed px-4 pt-3 pb-3 @5xl:block @5xl:min-h-0 @5xl:flex-1 @5xl:overflow-y-auto @5xl:overscroll-contain ${
+              atTimeStep ? 'block min-h-0 flex-1 overflow-y-auto overscroll-contain' : 'hidden shrink-0'
             }`}
           >
-            <p className="form-label mb-2">เลือกเวลา</p>
+            {/* หัวข้อกลุ่มเป็น "เวลาเริ่ม" ไม่ใช่ "เลือกเวลา" — หัวแผ่นพูดคำว่า "เลือกเวลา"
+                ไปแล้วในขั้นนี้ และกลุ่มนี้ถามค่าเดียวจริง ๆ คือเวลาเริ่ม (ปลายทางมาจาก "ใช้เวลา") */}
+            {/* id + role="group" + aria-labelledby: `<p className="form-label">` เป็นหัวข้อทาง
+                สายตาอย่างเดียว ไม่ผูกกับอะไรเลย — ผู้ใช้ screen reader ที่เดินเข้ามาที่ชิปจะได้ยิน
+                แค่ "08:00, toggle button" โดยไม่มีอะไรบอกว่ากลุ่มนี้คืออะไร (critique/Sam)
+                ต้องเป็น role ที่รองรับชื่อจากผู้เขียน — `<p>` รองรับไม่ได้
+                (docs/conventions/aria-name-requires-supporting-role.md) */}
+            <p className="form-label mb-2" id="appt-sheet-start-label">
+              เวลาเริ่ม
+            </p>
 
             {/* ทางลัดจากข้อมูลที่อยู่ตรงหน้าอยู่แล้ว — ไม่ใช่ขั้นตอนบังคับ วันที่ยังว่างจะไม่มีชิปนี้
                 combo ปุ่มเดียวกับ "วันนี้" บนหัวแถบเดือนของไฟล์นี้ (ไม่ใช่คลาสใหม่) */}
-            {/* นี่คือทางลัดหลักของทั้งงานนี้ (กดครั้งเดียวได้ทั้งเวลาเริ่มและสิ้นสุด) จึงต้องเป็น
-                ปุ่มเต็มความกว้าง min-h-11 ไม่ใช่ชิปเล็ก 30px — ของที่ตัดสินใจแทนผู้ใช้ได้เร็วที่สุด
-                ห้ามเป็นของที่กดยากที่สุดในจอ (PRODUCT.md: tap target ≥44px) */}
+            {/* เต็มความกว้าง min-h-11 ไม่ใช่ชิปเล็ก 30px — ของที่ตัดสินใจแทนผู้ใช้ได้เร็วที่สุด
+                ห้ามเป็นของที่กดยากที่สุดในจอ (PRODUCT.md: tap target ≥44px)
+                อยู่เหนือกริดชิปเพราะมันเสนอเวลาที่ **ไม่อยู่ในกริด** (คิวก่อนหน้ามักเลิกเวลา
+                ไม่ลงชั่วโมงพอดี เช่น 15:30) — ถ้าอยู่ใต้กริดจะอ่านเหมือนตัวเลือกที่ 13 ของกริด */}
             {suggestedStart && suggestedStart !== pendingStart && (
               <button
                 type="button"
@@ -1072,15 +1358,18 @@ export default function AppointmentDateSheet({
               </button>
             )}
 
-            {/* ── ปุ่มช่วงเวลาสำเร็จรูป ── ทางลัดหลักของขั้นนี้: กดครั้งเดียวได้ทั้งเริ่มและจบ
-                แทนการปั่น native time picker ทีละช่อง (user 2026-08-09: "เลือกเวลาบนมือถือใช้ยาก")
-                ช่องเวลาด้านล่างยังอยู่ครบ — ปุ่มพวกนี้เป็นทางลัด ไม่ใช่ทางเดียว จึงไม่กันร้าน
-                ที่เปิดนอกช่วง 08:00–20:00 ออกจากระบบ
+            {/* ── ชิปเวลาเริ่ม ── ครึ่งแรกของ "จบใน 2 แตะ"
                 จุดเตือนใช้สัญลักษณ์เดียวกับ legend ปฏิทิน ("มีคิวแล้ว") ไม่ใช่สีใหม่ */}
             {timeSlots.length > 0 && (
               <div className="mb-3">
-                <p className="text-default-500 mb-1.5 text-sm">ช่วงเวลาที่ว่าง</p>
-                <div className="grid grid-cols-4 gap-2">
+                {/* กริดกว้างขึ้นตามกล่อง: 4 คอลัมน์ที่กล่องแคบ (ชิป ~78px อ่านออกที่ 320px)
+                    6 ที่ @3xl — ไม่ใช่ breakpoint วิวพอร์ต เพราะชีตนี้เปิดได้จากกล่อง 384px
+                    ในหน้าต่างร่างออเดอร์ของหน้าแชท (ดูเหตุผลเต็มที่ @container บนหัวแผ่น) */}
+                <div
+                  role="group"
+                  aria-labelledby="appt-sheet-start-label"
+                  className="grid grid-cols-4 gap-2 @3xl:grid-cols-6"
+                >
                   {timeSlots.map((s) => {
                     const active = pendingStart === s.start
                     return (
@@ -1089,14 +1378,28 @@ export default function AppointmentDateSheet({
                         type="button"
                         onClick={() => applyStart(s.start)}
                         aria-pressed={active}
-                        aria-label={`${s.label}${s.busy ? ' มีคิวแล้ว' : ''}${s.past ? ' เลยเวลาไปแล้ว' : ''}`}
-                        className={`btn relative min-h-11 justify-center rounded-lg border px-1 text-xs tabular-nums ${
+                        aria-label={`เวลาเริ่ม ${s.start}${s.busy ? ' มีคิวแล้ว' : ''}${s.past ? ' เลยเวลาไปแล้ว' : ''}`}
+                        /* 🛑 text-primary-ink ไม่ใช่ text-primary บนพื้น /15 (DESIGN.md + critique P1)
+                           primary บนพื้น primary/15 วัดได้ 4.17:1 (บนการ์ด) และ 3.91:1 (บนพื้นเทา)
+                           ตก AA ที่ 14px semibold ซึ่งต้องการ 4.5 — primary-ink บนพื้นเดียวกันได้
+                           8.44:1 · เฉดคงเดิม (น้ำเงินทั้งคู่) จึงไม่ขัด Hue-Preserving Rule
+                           และตระกูล -ink มีคู่ dark mode ให้ ส่วน text-primary เป็นค่าคงที่ไม่มี
+                           สถานะ "ถูกเลือก" คือสิ่งเดียวที่แยกชิปนี้จากพี่น้องอีก 11 ตัว จะให้อ่านยาก
+                           ที่สุดในจอไม่ได้ โดยเฉพาะกับกลุ่มผู้สูงวัยที่ PRODUCT.md ผูกไว้
+
+                           past: หรี่ "ตัวหนังสือ" ด้วย opacity ไม่ได้ — 50% ของ text-default-800
+                           ได้ 2.75:1 ทั้งที่ชิปพวกนี้ตั้งใจให้ยังกดได้ (FR-RSV-03 นัดย้อนหลัง)
+                           ใช้ text-default-500 แทน = 6.22:1 บนการ์ด / 5.81:1 บนพื้นเทา ผ่านทั้งคู่
+                           แล้วหรี่เฉพาะ "ขอบ" ซึ่งไม่ใช่ตัวแบกความหมาย */
+                        className={`btn relative min-h-11 justify-center rounded-lg border px-1 text-sm tabular-nums ${
                           active
-                            ? 'border-primary bg-primary/15 text-primary'
-                            : 'border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50'
-                        } ${s.past ? 'opacity-50' : ''}`}
+                            ? 'border-primary bg-primary/15 text-primary-ink font-semibold'
+                            : s.past
+                              ? 'border-default-200 text-default-500 hover:border-default-400 hover:bg-default-50'
+                              : 'border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50'
+                        }`}
                       >
-                        {s.label}
+                        {s.start}
                         {/* ไม่ disable ปุ่มที่ชนคิว — BR-RSV-18 เลขบนจอไม่ใช่คำตัดสิน (ข้อมูลอาจ
                             เก่าระหว่างเปิดค้าง) ตัวตัดสินจริงคือ EXCLUDE constraint ตอนบันทึก
                             การปิดปุ่มจากข้อมูลฝั่ง client จะบล็อกช่วงที่จริง ๆ ยังจองได้ */}
@@ -1110,48 +1413,183 @@ export default function AppointmentDateSheet({
                     )
                   })}
                 </div>
+                {/* หน้าต่าง 08:00–20:00 เป็นค่าตั้งต้น ไม่ใช่เพดาน — ร้านที่เปิดดึก/เปิดเช้าต้อง
+                    ไปถึงได้จากจอนี้ ไม่ใช่ต้องรู้เองว่ามีช่องกรอกซ่อนอยู่ที่อื่น
+                    (ทางที่ถูกจริงคือ "เวลาทำการ" ต่อคิวงาน ซึ่ง user เคาะ 2026-08-09 ว่ายังไม่ทำ) */}
+                <button
+                  type="button"
+                  /* 🛑 ย่อไม่ได้ถ้าค่าที่เลือกอยู่นอกหน้าต่างตั้งต้น (critique P2-a)
+                     effect ตอนเปิดชีตกางหน้าต่างให้อัตโนมัติด้วยเหตุผลนี้อยู่แล้ว แต่ปุ่มนี้เคยเป็น
+                     toggle เปล่า → เลือก 22:00 แล้วกดย่อ = กริด 12 ชิปไม่มีตัวไหน active
+                     ขณะที่กล่องสรุปยืนยัน 22:00–23:00 และปุ่มยืนยันกดได้ (จอโกหกตัวเอง) */
+                  onClick={() => setShowAllHours((v) => (v ? !startsOutsideDefaultWindow : true))}
+                  disabled={showAllHours && startsOutsideDefaultWindow}
+                  title={
+                    showAllHours && startsOutsideDefaultWindow
+                      ? `ย่อไม่ได้เพราะเลือก ${pendingStart} ไว้ซึ่งอยู่นอกช่วง 08:00–20:00`
+                      : undefined
+                  }
+                  aria-expanded={showAllHours}
+                  className="btn text-primary hover:bg-default-100 mt-2 min-h-11 w-full justify-center gap-1.5 rounded-lg text-sm"
+                >
+                  <Icon
+                    icon={showAllHours ? 'chevron-up' : 'chevron-down'}
+                    className="size-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  {showAllHours
+                    ? startsOutsideDefaultWindow
+                      ? `เลือก ${pendingStart} ไว้ — ย่อกลับไม่ได้`
+                      : 'ย่อกลับเป็น 08:00–20:00'
+                    : 'เวลาอื่น (ก่อน 08:00 / หลัง 20:00)'}
+                </button>
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="appt-sheet-start" className="form-label">
-                  เวลาเริ่ม
-                </label>
-                {/* aria-required: ทั้งคู่บังคับกรอกในโหมดนี้ (ปุ่มยืนยัน disabled จนกว่าจะครบ)
-                    แต่ไม่มี `required` จริงเพราะไม่ได้อยู่ใน <form> ที่ submit
-                    aria-invalid เฉพาะตอน "ค่าที่กรอกผิดจริง" ไม่ใช่ตอนยังว่าง (ดู timeIssue)
-                    aria-describedby ชี้ไปที่ข้อความใต้ช่อง ซึ่งเป็น live region ด้วย */}
-                <input
-                  id="appt-sheet-start"
-                  type="time"
-                  className="form-input"
-                  aria-required
-                  aria-invalid={timeIssue?.field === 'start' && timeIssue.invalid ? true : undefined}
-                  aria-describedby={timeIssue ? TIME_ISSUE_ID : undefined}
-                  value={pendingStart}
-                  onChange={(e) => applyStart(e.target.value)}
-                />
-              </div>
-              <div>
+            {/* ── ชิประยะเวลา ── ครึ่งหลังของ "จบใน 2 แตะ" และเป็นหัวใจของการแก้รอบนี้
+                ผู้ขายคิดเป็น "ใช้เวลาเท่าไหร่" ไม่ใช่ "เลิกกี่โมง" — และเมื่อไม่มีช่องเวลาสิ้นสุด
+                ให้กรอก ช่วงที่ผิดกฎก็สร้างไม่ได้ตั้งแต่ต้นทาง (ดูคอมเมนต์ของ pendingDurationMin) */}
+            <p className="form-label mb-2" id="appt-sheet-duration-label">
+              ใช้เวลา
+            </p>
+            {/* กลุ่มนี้จำเป็นกว่ากลุ่มเวลาเริ่มด้วยซ้ำ: ชิปที่นี่อ่านว่า "30 นาที" ซึ่งไม่มีคำว่า
+                "ใช้เวลา" อยู่ในตัวเลย และผู้ใช้เพิ่งเดินออกมาจากกริดของ "เวลา" ที่หน้าตาคล้ายกัน */}
+            <div
+              role="group"
+              aria-labelledby="appt-sheet-duration-label"
+              className="flex flex-wrap gap-2"
+            >
+              {durationChoices.map((min) => {
+                const active = pendingDurationMin === min
+                const isResourceDefault = resourceDurationMinutes === min
+                return (
+                  <button
+                    key={min}
+                    type="button"
+                    onClick={() => setPendingDurationMin(min)}
+                    aria-pressed={active}
+                    className={`btn min-h-11 justify-center gap-1.5 rounded-lg border px-3.5 text-sm ${
+                      active
+                        ? 'border-primary bg-primary/15 text-primary-ink font-semibold'
+                        : 'border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50'
+                    }`}
+                  >
+                    {formatDurationTH(min)}
+                    {/* ทำไมชิปนี้ถึงถูกเลือกไว้ให้ — ไม่ใช่ตัวเลขที่โผล่มาลอย ๆ
+                        (ค่านี้ตั้งที่ /queues > คิวงาน > ระยะเวลามาตรฐาน)
+                        -ink ด้วยเหตุผลเดียวกับชิปเวลา และตัวนี้เป็น text-xs จึงตกหนักกว่าถ้าใช้ primary */}
+                    {isResourceDefault && (
+                      <span className={`text-xs ${active ? 'text-primary-ink' : 'text-default-500'}`}>
+                        ค่าตั้งต้น
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+              {/* ทางออกสำหรับช่วงที่ไม่ลงล็อก (13:00–16:45) — ของเดิมไม่ได้หายไปจากระบบ
+                  แค่ถอยไปเป็นทางเลือกที่สอง แทนที่จะเป็นทางเดียวเหมือนก่อนหน้านี้ */}
+              <button
+                type="button"
+                /**
+                 * 🛑 ต้องเลือกเวลาเริ่มก่อนถึงเข้าโหมดนี้ได้ — ไม่ใช่แค่เรื่องลำดับที่สวยงาม
+                 *
+                 * ช่อง `type="time"` ข้างล่างคือ native picker ตัวสุดท้ายที่เหลือในจอนี้ และ
+                 * **iOS เปิดวงล้อที่ "เวลาปัจจุบัน" เสมอเมื่อช่องว่าง** → แค่แตะดูก็ได้ค่าเป็น
+                 * เวลาตอนนั้นทันที ซึ่งแทบไม่มีทางถูก (เคสจริงที่ user รายงาน 2026-08-09:
+                 * เวลาเริ่ม 18:00 แต่ช่องสิ้นสุดกลายเป็น 13:51 = เวลาบนนาฬิกาพอดี แล้วจอขึ้น
+                 * error ทั้งที่ผู้ใช้ยังไม่ได้ตั้งใจกรอกอะไรเลย)
+                 *
+                 * พอบังคับให้มีเวลาเริ่มก่อน `customEnd` จะถูก prefill ด้วย เวลาเริ่ม+ระยะเวลา
+                 * เสมอ → ช่องไม่เคยว่าง → วงล้อเปิดที่ค่าที่สมเหตุผล ไม่ใช่ที่นาฬิกาของเครื่อง
+                 */
+                disabled={!pendingStart}
+                title={!pendingStart ? 'เลือกเวลาเริ่มก่อน' : undefined}
+                onClick={() => {
+                  if (!pendingStart) return
+                  // เข้าโหมดกำหนดเองพร้อมค่าเริ่มที่สมเหตุผล ไม่ใช่ช่องว่างที่ผู้ใช้ต้องเดาเอง
+                  setCustomEnd(
+                    (prev) => prev || addMinutesToTime(pendingStart, pendingDurationMin ?? DEFAULT_DURATION_MIN),
+                  )
+                  setPendingDurationMin(null)
+                }}
+                aria-pressed={pendingDurationMin == null}
+                className={`btn min-h-11 justify-center gap-1.5 rounded-lg border px-3.5 text-sm ${
+                  pendingDurationMin == null
+                    ? 'border-primary bg-primary/15 text-primary-ink font-semibold'
+                    : 'border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50'
+                }`}
+              >
+                <Icon icon="adjustments-horizontal" className="size-4 shrink-0" aria-hidden="true" />
+                กำหนดเอง
+              </button>
+            </div>
+
+            {/* ช่องเวลาสิ้นสุดโผล่เฉพาะโหมดกำหนดเอง — ครึ่งความกว้างเพราะมันคือช่องเดียวแล้ว
+                (เวลาเริ่มมาจากชิปด้านบน ไม่ต้องมีช่องคู่ให้เทียบอีก) */}
+            {pendingDurationMin == null && (
+              <div className="mt-3 max-w-48">
                 <label htmlFor="appt-sheet-end" className="form-label">
                   เวลาสิ้นสุด
                 </label>
+                {/* aria-required: บังคับกรอกในโหมดนี้ (ปุ่มยืนยัน disabled จนกว่าจะครบ)
+                    แต่ไม่มี `required` จริงเพราะไม่ได้อยู่ใน <form> ที่ submit
+                    aria-invalid เฉพาะตอน "ค่าที่กรอกผิดจริง" ไม่ใช่ตอนยังว่าง (ดู timeIssue) */}
                 <input
                   id="appt-sheet-end"
                   type="time"
-                  className="form-input"
+                  /* 🛑 min-h-11 ทับ `.form-input` — คลาสนั้นเป็น `h-11 lg:h-9.25` และ **`lg:` เป็น
+                     viewport query ไม่ใช่ container query** ชีตนี้จึงได้ช่องสูง 37px ตอนเปิดจากราง
+                     384px ในหน้าแชทบนจอกว้าง (วิวพอร์ตอ่าน ~1400px แต่กล่องจริงแคบ) = ต่ำกว่าเกณฑ์
+                     44px ของ PRODUCT.md ทั้งที่นิ้วมีที่ให้แตะเท่ามือถือเป๊ะ
+                     คลาสเดียวกับกับดัก `.btn.btn-icon = 37px` ที่ไฟล์นี้ดักไว้แล้วที่ปุ่มหัวแผ่น */
+                  className="form-input min-h-11"
                   min={pendingStart || undefined}
                   aria-required
                   aria-invalid={timeIssue?.field === 'end' && timeIssue.invalid ? true : undefined}
                   aria-describedby={timeIssue ? TIME_ISSUE_ID : undefined}
-                  value={pendingEnd}
-                  onChange={(e) => {
-                    endTouched.current = true
-                    setPendingEnd(e.target.value)
-                  }}
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
                 />
               </div>
+            )}
+
+            {/* ── ช่วงที่ได้ ── ผลลัพธ์ที่คำนวณให้ ไม่ใช่ช่องกรอก
+                ผู้ใช้ยังเห็นเวลาสิ้นสุดตลอดเวลา แค่ตั้งให้ผิดกฎไม่ได้ — ซ่อนมันไปเลยจะกลายเป็น
+                ระบบที่ตัดสินใจลับหลัง ซึ่งแย่กว่าเดิมสำหรับคนที่ต้องบอกเวลาเลิกกับลูกค้า
+                aria-live: ค่านี้เปลี่ยนเองเมื่อกดชิป (คนละที่กับมือ) ต้องประกาศ (WCAG 4.1.3) */}
+            {/* 🛑 wrapper ที่ถือ aria-live ต้อง mount **ถาวร** ไม่ใช่โผล่พร้อมเนื้อหา (critique P2-b)
+                live region ที่ถูกแทรกเข้ามาในเฟรมเดียวกับเนื้อหามักไม่ถูกประกาศเลย — กฎนี้เขียนไว้
+                แล้วที่กล่อง timeIssue ข้างล่าง แต่กล่องนี้เคยทำตรงข้าม (gate ทั้ง div ด้วย
+                pendingStart && pendingEnd) ทำให้ **การประกาศครั้งแรก** ของเวลาสิ้นสุดที่คำนวณให้
+                ซึ่งเป็นค่าที่สำคัญที่สุดสำหรับคนที่มองไม่เห็น คือตัวที่มีโอกาสหายมากที่สุด */}
+            <div aria-live="polite" aria-atomic="true">
+            {pendingStart && pendingEnd && (
+              <div className="bg-default-100 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-3 py-2.5">
+                <span className="text-dark flex items-center gap-2 text-base font-semibold tabular-nums">
+                  {pendingStart}
+                  {/* ไอคอนลูกศรสื่อ "ถึง" ให้คนที่มองเห็น — screen reader ที่ได้ยินเลขสองตัวติดกัน
+                      โดยไม่มีคำเชื่อมจะไม่รู้ว่านี่คือช่วงเวลา จึงต้องมีคำจริงคู่กันเสมอ */}
+                  <Icon icon="arrow-narrow-right" className="size-4 shrink-0" aria-hidden="true" />
+                  <span className="sr-only">ถึง</span>
+                  {pendingEnd}
+                </span>
+                {capacity != null && capacity > 0 && (
+                  /* ตัวนับของ "ช่วงเวลา" ไม่ใช่ของทั้งวัน — แสดงผลเท่านั้น ไม่ใช่คำตัดสิน
+                     (BR-RSV-18) ตัวที่กันจริงคือปุ่มยืนยันล่าง ซึ่ง disabled เมื่อช่วงนี้เต็ม */
+                  <span
+                    className={`ms-auto text-xs ${
+                      pendingSlotFull ? 'text-warning-ink' : 'text-default-500'
+                    }`}
+                  >
+                    จองแล้ว {pendingSlotBookedCount} จาก {capacity} คิว
+                    {/* ที่กล่องกว้างมี "ทั้งวันมี n คิว" อยู่บนจอเดียวกันห่างไป ~200px — สองตัวเลข
+                        คนละขอบเขตที่ไม่มีตัวไหนบอกขอบเขตตัวเองคืออ่านสลับกันได้ทันที (HR16)
+                        กล่องแคบไม่ต้องมี เพราะที่นั่นตัวนับรายวันถูกยุบไปอยู่ในแถบสรุปแล้ว */}
+                    <span className="hidden @5xl:inline"> ในช่วงเวลานี้</span>
+                  </span>
+                )}
+              </div>
+            )}
             </div>
 
             {/* กล่อง live region ต้องอยู่ใน DOM **ตลอดเวลา** ไม่ใช่โผล่มาพร้อมข้อความ —
@@ -1165,25 +1603,22 @@ export default function AppointmentDateSheet({
                 <p
                   id={TIME_ISSUE_ID}
                   className={`mt-2 mb-0 text-sm ${
-                    timeIssue.invalid ? 'text-danger' : 'text-default-500'
+                    /* danger-ink ไม่ใช่ danger: บรรทัดนี้อยู่บนพื้น bg-default-100 ซึ่งทำให้
+                       text-danger ได้แค่ 2.96:1 (ตก AA) — และมันคือ **ประโยคเดียวที่บอกว่าติดอะไรอยู่**
+                       ข้อความที่อธิบายความผิดพลาดต้องเป็นสิ่งที่อ่านง่ายที่สุดในจอ ไม่ใช่ยากที่สุด
+                       danger-ink บนพื้นเดียวกันได้ 9.36:1 · เฉดคงเดิม (แดงทั้งคู่) ตาม Hue-Preserving
+                       ไอคอนกากบาทในปฏิทินยังเป็น text-danger ต่อไป — นั่นคือ "สี = ตัวตน" ของสถานะเต็ม
+                       ซึ่ง DESIGN.md ยกเว้นไว้จากกฎคอนทราสต์ของข้อความ */
+                    timeIssue.invalid ? 'text-danger-ink' : 'text-default-500'
                   }`}
                 >
                   {timeIssue.message}
                 </p>
               )}
             </div>
-
-            {/* ตัวนับของ "ช่วงเวลา" ไม่ใช่ของทั้งวัน — แสดงผลเท่านั้น ไม่ใช่คำตัดสิน (BR-RSV-18)
-                ตัวที่กันจริงคือปุ่มยืนยันล่าง ซึ่ง disabled เมื่อช่วงนี้เต็ม */}
-            {pendingStart && capacity != null && capacity > 0 && (
-              <p
-                className={`mt-2 mb-0 text-sm ${
-                  pendingSlotFull ? 'text-warning-ink' : 'text-default-500'
-                }`}
-              >
-                จองแล้ว {pendingSlotBookedCount} จาก {capacity} คิว ในช่วงเวลานี้
-              </p>
-            )}
+            {/* ตัวนับ "จองแล้ว n จาก m คิว" ย้ายไปอยู่ในกล่องช่วงเวลาด้านบนแล้ว — มันเป็นคุณสมบัติ
+                ของ *ช่วงที่เลือก* จึงต้องอยู่ติดกับช่วงนั้น ไม่ใช่ลอยอยู่ท้ายกลุ่มฟอร์ม
+                (เดิมอยู่ห่างจากช่วงที่มันพูดถึงจนอ่านเหมือนเป็นตัวเลขของทั้งวัน — HR16) */}
           </div>
         )}
       </div>
@@ -1213,9 +1648,17 @@ export default function AppointmentDateSheet({
         </button>
         <button
           type="button"
-          disabled={confirmState.disabled}
+          /* 🛑 aria-disabled ไม่ใช่ disabled (critique/Sam): `disabled` ถอดปุ่มออกจาก tab order
+             ผู้ใช้คีย์บอร์ด/screen reader จึงไล่ tab จนจบชีตแล้วไม่เจออะไรที่ท้ายจอเลย —
+             ไม่มีชื่อ ไม่มีสถานะ ไม่มีเหตุผล. กดแล้วย้ายโฟกัสไปที่บรรทัดที่บอกว่าติดอะไรอยู่แทน
+             (opacity/cursor ที่ `button:disabled` เคยให้ฟรี ต้องเขียนเองเพราะไม่ใช่ disabled แล้ว) */
+          aria-disabled={confirmState.disabled || undefined}
           onClick={() => {
-            if (confirmState.disabled || !pendingDate) return
+            if (confirmState.disabled) {
+              document.getElementById(TIME_ISSUE_ID)?.scrollIntoView({ block: 'nearest' })
+              return
+            }
+            if (!pendingDate) return
             onConfirm({
               date: pendingDate,
               // โหมดรายวันไม่มีเวลา — ส่ง undefined ไม่ใช่สตริงว่าง เพื่อให้ผู้เรียกล้างค่าเดิมได้ชัด
@@ -1226,13 +1669,18 @@ export default function AppointmentDateSheet({
             onClose()
           }}
           /* combo หลักของปุ่ม CTA เต็มความกว้างในธีม Paces (theme/paces/Admin/TS/src ใช้ซ้ำ 27 ที่)
-             ไม่ต้องมี disabled:opacity-50 เอง — `button:disabled` ใน custom/_buttons.css
-             ให้ opacity-50 + cursor-not-allowed อยู่แล้วทั้งระบบ */
-          className={`btn bg-primary hover:bg-primary-hover min-h-11 w-full justify-center py-3 font-semibold text-white @5xl:flex ${
+             aria-disabled:* เขียนเอง เพราะ `button:disabled` ใน custom/_buttons.css ไม่ยิงแล้ว
+             truncate: `.btn` ไม่มี white-space:nowrap และ footbar สูงคงที่ 72px โตตามไม่ได้ —
+               ป้าย "ยืนยัน 09 ส.ค. 2569 · 13:00–14:00" พอดีตัวที่ 320px แบบเฉียดฉิว พอผู้ใช้ซูม
+               หรือใช้ default type ที่ใหญ่ขึ้นตามที่ PRODUCT.md สัญญากับผู้สูงวัย มันจะตก 2 บรรทัด
+               แล้วล้นออกนอก footbar (docs/conventions/flex-header-truncation.md)
+             @5xl:max-w-sm: ที่ 1100px ปุ่มเต็มความกว้างเป็นแผ่น bg-primary ~1068px ซึ่งกินสัดส่วน
+               เกินกฎ One Voice (≤~10% ของจอ) — ม็อกอัพ cap ไว้ ~340px แล้วชิดขวา */
+          className={`btn bg-primary hover:bg-primary-hover aria-disabled:cursor-not-allowed aria-disabled:opacity-50 min-h-11 w-full justify-center py-3 font-semibold text-white @5xl:ms-auto @5xl:flex @5xl:max-w-sm ${
             byDay || step === 'time' ? 'flex' : 'hidden'
           }`}
         >
-          {confirmState.label}
+          <span className="truncate">{confirmState.label}</span>
         </button>
       </div>
     </div>
