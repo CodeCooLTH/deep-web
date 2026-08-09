@@ -38,7 +38,7 @@
  *   (ระหว่างที่ปฏิทินเปิดค้าง อีกเครื่องอาจจองแทรกได้)
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import FullCalendar from '@fullcalendar/react'
@@ -293,12 +293,28 @@ export default function AppointmentDateSheet({
    * โฟกัสที่อยู่หลังชีตในบริเวณที่ถูกซ่อนไปแล้ว และไม่มีทางออกที่เป็นมาตรฐาน
    */
   const closeBtnRef = useRef<HTMLButtonElement>(null)
+  /** กริดชิปเวลาเริ่ม — ปลายทางโฟกัสของขั้นที่ 2 และเจ้าของ roving tabindex */
+  const slotGridRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
     /* ย้ายโฟกัสทุกครั้งที่ "ขั้น" เปลี่ยนด้วย ไม่ใช่แค่ตอนเปิด — ปุ่มที่เพิ่งกด (ถัดไป/ย้อนกลับ)
        ถูกซ่อนด้วย hidden ทันทีที่ขั้นเปลี่ยน ถ้าไม่ย้าย โฟกัสจะค้างอยู่บนปุ่มที่หายไปแล้ว
-       และ aria-label ของปุ่มหัวแผ่นเปลี่ยนไปพร้อมบอกบริบทใหม่ในตัว (ไม่ต้องมี live region แยก) */
-    const t = setTimeout(() => closeBtnRef.current?.focus(), 60)
+       และ aria-label ของปุ่มหัวแผ่นเปลี่ยนไปพร้อมบอกบริบทใหม่ในตัว (ไม่ต้องมี live region แยก)
+
+       🛑 ขั้นเลือกเวลา: โฟกัสไปที่ **ชิปเวลา** ไม่ใช่ปุ่มย้อนกลับ (critique/Sam 2026-08-09)
+       ปุ่มหัวแผ่นในขั้นนี้แปลว่า "ถอยกลับไปเลือกวันใหม่" — วางโฟกัสไว้ที่นั่นคือพาผู้ใช้คีย์บอร์ด
+       ไปจ่อปุ่มเลิกทำ ทั้งที่เขาเพิ่งตัดสินใจเดินหน้ามา งานของขั้นนี้อยู่ที่กริดชิป
+       ยังต้องเป็น setTimeout เหมือนเดิม เพราะ element ปลายทางเพิ่งถูก unhide ในเฟรมนี้ */
+    const t = setTimeout(() => {
+      if (atTimeStep) {
+        const target = slotGridRef.current?.querySelector<HTMLButtonElement>('button[tabindex="0"]')
+        if (target) {
+          target.focus()
+          return
+        }
+      }
+      closeBtnRef.current?.focus()
+    }, 60)
     const onEsc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       // อยู่ขั้นเลือกเวลา = ถอยกลับไปขั้นเลือกวันก่อน ไม่ปิดชีตทิ้งทั้งใบ (สมมาตรกับปุ่ม ‹)
@@ -750,6 +766,34 @@ export default function AppointmentDateSheet({
    * ไม่มีการแยกขั้นและต้องเห็นรายการเต็มเสมอ (idiom เดียวกับปุ่มคู่ที่แถบล่างของไฟล์นี้)
    */
   const collapsedDay = atTimeStep && !showDayList
+
+  /**
+   * เดินชิปเวลาเริ่มด้วยลูกศร (คู่กับ roving tabindex ที่ตัวชิป)
+   *
+   * ทำไมมีแค่ ซ้าย/ขวา/Home/End ไม่มี บน/ล่าง: จำนวนคอลัมน์เป็น **container query**
+   * (4 ที่กล่องแคบ / 6 ที่ `@3xl`) ซึ่ง JS ในนี้ไม่รู้ค่า — การเดาว่า "ขึ้น = ถอย 4 ช่อง"
+   * จะกระโดดผิดช่องทันทีที่กล่องกว้างขึ้น ปล่อยให้ บน/ล่าง เป็นพฤติกรรมเริ่มต้นของเบราว์เซอร์
+   * (เลื่อนหน้า) ดีกว่าเดาผิด — ซ้าย/ขวาเดินตามลำดับเวลาซึ่งเป็นสิ่งที่ผู้ใช้คิดถึงอยู่แล้ว
+   *
+   * ย้ายแค่ "โฟกัส" ไม่ใช่ "เลือก" — ชิปเป็น toggle button (aria-pressed) ไม่ใช่ radio
+   * การเลื่อนแล้วเลือกอัตโนมัติจะเปลี่ยนค่านัดของลูกค้าโดยที่ผู้ใช้แค่กำลังมองหา
+   */
+  const onSlotGridKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    const isEdge = e.key === 'Home' || e.key === 'End'
+    if (!step && !isEdge) return
+    const grid = e.currentTarget
+    const chips = Array.from(grid.querySelectorAll<HTMLButtonElement>('button[data-slot-index]'))
+    if (chips.length === 0) return
+    const from = chips.findIndex((el) => el === document.activeElement)
+    let to: number
+    if (e.key === 'Home') to = 0
+    else if (e.key === 'End') to = chips.length - 1
+    else to = Math.min(chips.length - 1, Math.max(0, (from < 0 ? 0 : from) + step))
+    // ไม่วน: ชนขอบแล้วอยู่กับที่ ตรงกับความรู้สึกว่า "หมดวันแล้ว" มากกว่ากระโดดกลับไป 00:00
+    e.preventDefault()
+    chips[to]?.focus()
+  }, [])
 
   /**
    * เวลาเริ่มที่เลือกอยู่ตกนอกหน้าต่างชิปตั้งต้นไหม — ใช้ 2 ที่ที่ต้องตัดสินใจตรงกัน:
@@ -1369,15 +1413,38 @@ export default function AppointmentDateSheet({
                 <div
                   role="group"
                   aria-labelledby="appt-sheet-start-label"
+                  ref={slotGridRef}
+                  onKeyDown={onSlotGridKeyDown}
                   className="grid grid-cols-4 gap-2 @3xl:grid-cols-6"
                 >
-                  {timeSlots.map((s) => {
+                  {timeSlots.map((s, i) => {
                     const active = pendingStart === s.start
                     return (
+                      <Fragment key={s.start}>
+                        {/* เส้นแบ่ง "บ่าย" ตอนกาง 24 ชิป — ที่ 12 ชิปไม่ต้องมี (กวาดตาเจอได้อยู่แล้ว)
+                            critique: 6 แถวติดกันไม่มีจุดอ้างอิงทำลายการหาตำแหน่งแบบดูหน้าปัดนาฬิกา
+                            ซึ่งเป็นเหตุผลเดียวที่กริดนี้ได้รับยกเว้นจากกฎ "≤4 ตัวเลือกต่อการตัดสินใจ"
+                            aria-hidden: เป็นตัวช่วยทางสายตาล้วน ผู้ใช้ screen reader ได้เวลาเต็ม
+                            อยู่แล้วจาก aria-label ของทุกชิป ไม่ต้องมีหัวข้อคั่นให้เดินผ่านเพิ่ม */}
+                        {showAllHours && (s.start === '06:00' || s.start === '12:00' || s.start === '18:00') && (
+                          <div
+                            aria-hidden="true"
+                            className="text-default-500 col-span-full flex items-center gap-2 pt-1 text-xs"
+                          >
+                            <span className="shrink-0">
+                              {s.start === '06:00' ? 'เช้า' : s.start === '12:00' ? 'บ่าย' : 'เย็น'}
+                            </span>
+                            <span className="bg-default-200 h-px flex-1" />
+                          </div>
+                        )}
                       <button
-                        key={s.start}
                         type="button"
                         onClick={() => applyStart(s.start)}
+                        /* roving tabindex (critique/Sam): กาง 24 ชิป = 24 tab stop ถ้าไม่ทำ
+                           ชิปที่เลือกอยู่เป็นตัวเดียวที่รับ Tab ได้ ที่เหลือเดินด้วยลูกศร
+                           ยังไม่ได้เลือกอะไร → ชิปแรกรับ Tab (ห้ามให้กลุ่มนี้ไม่มีทางเข้าเลย) */
+                        tabIndex={active || (!pendingStart && i === 0) ? 0 : -1}
+                        data-slot-index={i}
                         aria-pressed={active}
                         aria-label={`เวลาเริ่ม ${s.start}${s.busy ? ' มีคิวแล้ว' : ''}${s.past ? ' เลยเวลาไปแล้ว' : ''}`}
                         /* 🛑 text-primary-ink ไม่ใช่ text-primary บนพื้น /15 (DESIGN.md + critique P1)
@@ -1411,6 +1478,7 @@ export default function AppointmentDateSheet({
                           />
                         )}
                       </button>
+                      </Fragment>
                     )
                   })}
                 </div>
