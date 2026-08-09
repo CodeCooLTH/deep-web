@@ -56,6 +56,7 @@ import {
   addMinutesToTime,
   minutesBetweenTimes,
   formatDurationTH,
+  nextShowAllHours,
   resolveInitialDuration,
   DEFAULT_APPOINTMENT_DURATION_MIN as DEFAULT_DURATION_MIN,
   APPOINTMENT_STATUS_LABEL,
@@ -1422,7 +1423,7 @@ export default function AppointmentDateSheet({
                      effect ตอนเปิดชีตกางหน้าต่างให้อัตโนมัติด้วยเหตุผลนี้อยู่แล้ว แต่ปุ่มนี้เคยเป็น
                      toggle เปล่า → เลือก 22:00 แล้วกดย่อ = กริด 12 ชิปไม่มีตัวไหน active
                      ขณะที่กล่องสรุปยืนยัน 22:00–23:00 และปุ่มยืนยันกดได้ (จอโกหกตัวเอง) */
-                  onClick={() => setShowAllHours((v) => (v ? !startsOutsideDefaultWindow : true))}
+                  onClick={() => setShowAllHours((v) => nextShowAllHours(v, startsOutsideDefaultWindow))}
                   disabled={showAllHours && startsOutsideDefaultWindow}
                   title={
                     showAllHours && startsOutsideDefaultWindow

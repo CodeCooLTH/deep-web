@@ -13,6 +13,7 @@ import {
   addMinutesToTime,
   formatDurationTH,
   minutesBetweenTimes,
+  nextShowAllHours,
   resolveInitialDuration,
 } from "@/lib/appointments";
 
@@ -63,6 +64,29 @@ describe("formatDurationTH", () => {
     expect(formatDurationTH(0)).toBe("");
     expect(formatDurationTH(-30)).toBe("");
     expect(formatDurationTH(Number.NaN)).toBe("");
+  });
+});
+
+describe("nextShowAllHours", () => {
+  it("[blocker] กางอยู่ + เวลาที่เลือกอยู่ในหน้าต่างตั้งต้น → ย่อกลับได้", () => {
+    /**
+     * เคสปกติที่สุด และเป็นเคสที่ shipped ไปพังบน prod 2026-08-09: ตรรกะถูกเขียนกลับด้าน
+     * (`!startsOutside` แทน `startsOutside`) ในเทอร์นารีบรรทัดเดียวใน onClick → ปุ่ม
+     * "ย่อกลับเป็น 08:00–20:00" **ไม่ทำอะไรเลยทุกกรณี** และไม่มีด่านไหนเห็น เพราะมันเป็น
+     * boolean ที่ถูกต้องตามชนิดทุกประการ. แดงเมื่อไหร่ห้าม merge
+     */
+    expect(nextShowAllHours(true, false)).toBe(false);
+  });
+
+  it("[blocker] กางอยู่ + เวลาที่เลือกอยู่นอกหน้าต่าง → ห้ามย่อ (ค้างกางไว้)", () => {
+    // ย่อแล้วกริดจะวาด 12 ชิปโดยไม่มีตัวไหน active ขณะที่กล่องสรุปยังยืนยันเวลาเดิม
+    // และปุ่มยืนยันกดได้ = จอโกหกตัวเอง
+    expect(nextShowAllHours(true, true)).toBe(true);
+  });
+
+  it("ยังไม่กาง → กางได้เสมอ ไม่ว่าเวลาที่เลือกจะอยู่ตรงไหน", () => {
+    expect(nextShowAllHours(false, false)).toBe(true);
+    expect(nextShowAllHours(false, true)).toBe(true);
   });
 });
 

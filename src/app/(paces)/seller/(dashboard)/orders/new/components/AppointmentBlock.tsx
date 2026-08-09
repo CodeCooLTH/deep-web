@@ -310,9 +310,26 @@ export default function AppointmentBlock({
                     id={`${idPrefix}-appt-date`}
                     type="button"
                     onClick={() => setDateSheetOpen(true)}
-                    className="form-input flex w-full items-center justify-between gap-2 text-start"
+                    /**
+                     * 🛑 `flex!` ไม่ใช่ `flex` — `_forms.css` **ไม่ได้ห่อด้วย `@layer`** (กับดักที่
+                     * บันทึกไว้แล้วใน docs/conventions ของ Paces) ส่วน utility ของ Tailwind อยู่ใน
+                     * `@layer utilities` และ **CSS ที่ไม่อยู่ใน layer ชนะ layered เสมอ** ไม่ว่า
+                     * specificity จะเป็นอย่างไร → `display:block` ของ `.form-input` ทับ `flex` ทิ้ง
+                     * ทุกครั้ง ผลคือ `<span>` กับไอคอนกลายเป็น inline แล้ว**ไอคอนตกไปบรรทัดที่สอง**
+                     * ทันทีที่ข้อความยาวขึ้น (user เจอเองบน prod 2026-08-09: "17 ส.ค. 2569 ·
+                     * 10:00–12:00" แล้วไอคอนปฏิทินไปนอนบรรทัดล่าง ล้นออกนอกกรอบที่สูงคงที่)
+                     * `items-center justify-between gap-2` ก็ไม่เคยทำงานเลยด้วยเหตุผลเดียวกัน
+                     *
+                     * อาการเพิ่งชัดเพราะ flow ใหม่เติมทั้งเวลาเริ่มและเวลาสิ้นสุดให้เสมอ ข้อความ
+                     * จึงยาวขึ้นเป็นปกติ — ของเดิมยาวแบบนี้เฉพาะตอนผู้ขายกรอกครบเองซึ่งเกิดไม่บ่อย
+                     */
+                    className="form-input flex! w-full items-center justify-between gap-2 text-start"
                   >
-                    <span className={field.value ? 'text-dark' : 'text-default-400'}>
+                    {/* min-w-0 + truncate: ปุ่มสูงคงที่ (h-11) โตตามเนื้อหาไม่ได้ ข้อความยาวจึงต้อง
+                        ถูกตัด ไม่ใช่ดันไอคอนหลุดกรอบ — ชื่อ vertical บางแบบทำให้บรรทัดนี้ยาวกว่านี้อีก */}
+                    <span
+                      className={`min-w-0 truncate ${field.value ? 'text-dark' : 'text-default-400'}`}
+                    >
                       {!field.value
                         ? byDay
                           ? 'เลือกวันนัด'
