@@ -64,6 +64,12 @@ export interface ChannelContext {
   replyToExternalId?: string | null
   /** tag สำหรับยิงนอกหน้าต่างตอบฟรี (Meta HUMAN_AGENT tag) — provider ที่ไม่มีแนวคิดนี้ (LINE) ไม่ต้องส่ง */
   tag?: string
+  /** (เพิ่ม S-4, additive) reply token ของ LINE ที่จะใช้ยิง `POST /v2/bot/message/reply` — การตัดสินใจ
+   *  ว่าจะส่งด้วย reply หรือ push **ไม่ใช่หน้าที่ของ adapter** (เป็นงานของ S-8 ใน channel-chat.service.ts)
+   *  LineAdapter แค่เช็คว่า field นี้มีค่าไหม: มี → ยิง reply endpoint ด้วย token นี้, ไม่มี → ยิง push
+   *  ด้วย `recipientId` แทน. Meta ไม่มีแนวคิด reply token เลย (ไม่ต้องส่ง field นี้ — undefined เสมอ
+   *  ไม่กระทบ MetaAdapter) */
+  replyToken?: string
 }
 
 /** สิ่งที่จะ "ดาวน์โหลด" จาก provider — Meta ส่ง URL สาธารณะมากับ webhook อยู่แล้วเป็นทางหลัก
@@ -79,6 +85,15 @@ export interface DownloadContentRef {
  *  channel-chat.service.ts ใช้ pattern mirror เดิมทุกประการ (ไม่ต้องเปลี่ยน mirrorRemoteImage) */
 export interface DownloadContentResult {
   url: string | null
+  /** (เพิ่ม S-4, additive) เนื้อหาดิบของสื่อ — ใช้เมื่อ provider ไม่มี URL สาธารณะให้ mirror ยิง
+   *  fetch เอง (LINE ต้องดาวน์โหลดผ่าน DATA_API_BASE ด้วย token เสมอ ไม่มี URL ให้คืน) MetaAdapter ไม่ใช้
+   *  field นี้เลย (ค่าเป็น undefined เสมอ, `url` ยังทำงานแบบเดิมทุกประการ ไม่กระทบ MetaAdapter)
+   *  ผู้เรียก (S-7 media mirror ใน channel-chat.service.ts) ต้องเช็คตามลำดับ: `url` มีค่า → ใช้เส้นทาง
+   *  fetch(url) เดิมของ mirrorRemoteImage เหมือน Meta ทุกประการ; `url` เป็น null แต่ `content` ไม่ใช่
+   *  null/undefined → ใช้เส้นทาง buffer ตรง (ต้อง generalize mirrorRemoteImage ให้รับ buffer ได้ด้วย —
+   *  งานของ S-7); ทั้งคู่เป็น null/undefined พร้อมกัน = ดาวน์โหลดไม่สำเร็จ (สร้าง placeholder ตาม
+   *  TFR-LINE-09) */
+  content?: { data: Buffer; contentType: string | null } | null
 }
 
 export interface ChannelAdapter {

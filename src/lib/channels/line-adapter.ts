@@ -1,0 +1,171 @@
+// (S-4, feature 00025 TFR-LINE-04/09/10, TD-005) — implement `ChannelAdapter` สำหรับ LINE Messaging API
+//
+// ยังไม่ต่อ route ใด ๆ ในงานนี้ (S-5/S-6/S-8 เป็นคนเรียกใช้ทีหลัง) — ไฟล์นี้รู้จักแค่ LINE เท่านั้น
+// ไม่รู้จัก Prisma/DB (ตาม scope baseline S-4 "ไม่ทำ")
+
+import { lineApiRequest, lineDataApiRequest } from '@/lib/line/client'
+import { MAX_PARTS, REPLY_WINDOW_MS } from '@/lib/line/constants'
+import type {
+  ChannelAdapter,
+  ChannelCapabilities,
+  ChannelContext,
+  DownloadContentRef,
+  DownloadContentResult,
+  OutboundMessagePart,
+  SendMessagesResult,
+} from './adapter'
+
+// LINE: ไม่ echo ข้อความที่เรายิงออกกลับมาทาง webhook (ต้องเขียน ChatMessage ตอนส่งเองเสมอ) ไม่มี
+// message_reads webhook (ไม่มี "อ่านแล้ว") หน้าต่างตอบฟรีผูกกับ reply token อายุ 60 วินาที (ไม่ใช่นับจาก
+// ข้อความล่าสุดแบบ Meta) และยิงได้สูงสุด 5 message object ต่อคำขอ (array `messages`)
+//
+// 🛑 อ้างค่าจาก line/constants.ts ตรง ๆ ห้าม hardcode ตัวเลขซ้ำ (scope baseline S-4)
+const LINE_CAPABILITIES: ChannelCapabilities = {
+  echo: false,
+  readReceipt: false,
+  freeWindowMs: REPLY_WINDOW_MS,
+  maxPartsPerRequest: MAX_PARTS,
+}
+
+/**
+ * TD-005 (SDS) — จุดเดียวในระบบที่ประกอบ `ChatMessage.externalMessageId` ของ LINE ห้ามประกอบ string
+ * นี้เองที่อื่น (S-6 ingest / S-7 media / S-8 outbound ต้อง import ตัวนี้ไปใช้เสมอ) prefix กัน
+ * namespace ของ id LINE ชนกับ mid ของ Meta ในคอลัมน์ unique เดียวกัน
+ */
+export function buildLineExternalMessageId(lineMessageId: string): string {
+  return `LINE:${lineMessageId}`
+}
+
+/**
+ * แปลง OutboundMessagePart หนึ่งชิ้นเป็น message object ของ LINE Messaging API
+ *
+ * API.md ของ feature นี้ (§4.2) พูดถึงแค่สัญญาการ "เชื่อมช่องทาง" (connect) ไม่ได้ลงรายละเอียด field
+ * ระดับ message object ขาออกของ LINE เลย — รูปร่างด้านล่างยึดจากสเปกจริงของ LINE Messaging API
+ * "Message objects" (text/image/video/audio ตามที่ประกาศรองรับใน OutboundMessagePart ของ adapter.ts)
+ * โดยมี 2 จุดที่เอกสาร LINE ไม่ครอบตรง ๆ กับสิ่งที่เรามี — อธิบาย inline ที่จุดนั้น
+ */
+function toLineMessage(part: OutboundMessagePart): Record<string, unknown> {
+  if (part.kind === 'text') {
+    return { type: 'text', text: part.text }
+  }
+
+  if (part.kind === 'sticker') {
+    // ส่งสติกเกอร์ออกจาก Deep ไม่อยู่ใน MVP ของ phase นี้ (scope baseline 00025 OOS-08 — รับเข้า+
+    // แสดงได้อย่างเดียว) และต่อให้รองรับ รูปร่าง OutboundMessagePart.sticker มีแค่ `stickerId` แต่ LINE
+    // sticker message ต้องมีทั้ง `packageId`+`stickerId` คู่กันเสมอ — ไม่มี packageId ให้ใช้เลยในชั้นนี้
+    // โยน error ที่อ่านออกแทนการเดา packageId แบบสุ่ม
+    throw new Error('LineAdapter.sendMessages: ส่งสติกเกอร์ออกยังไม่รองรับ (ดู scope baseline OOS-08)')
+  }
+
+  const { attachmentKind, url } = part
+
+  if (attachmentKind === 'IMAGE') {
+    // LINE image message ต้องมีทั้ง originalContentUrl และ previewImageUrl (ต้องเป็น URL รูปทั้งคู่)
+    // เราไม่มี thumbnail แยกในชั้นนี้ (ไม่มี thumbnail generation อยู่ใน scope ของ S-4) — ใช้ url
+    // เดียวกันซ้ำทั้งสองฟิลด์ ซึ่งถูกต้องสำหรับรูปเพราะไฟล์ตัวเต็มก็เป็นรูปอยู่แล้ว
+    return { type: 'image', originalContentUrl: url, previewImageUrl: url }
+  }
+
+  if (attachmentKind === 'VIDEO') {
+    // LINE video message ต้องการ previewImageUrl เป็น "ภาพนิ่ง" (jpeg) ไม่ใช่ไฟล์วิดีโอ — เอกสารของ
+    // feature นี้ไม่ได้ครอบกรณีนี้ (§4.2 ไม่ลงรายละเอียด) และเราไม่มี thumbnail generator ในชั้นนี้
+    // (นอกขอบเขต S-4) จึงใช้ url ของวิดีโอเองแทนไปก่อน — ยอมรับความเสี่ยงว่า LINE อาจแสดงภาพตัวอย่าง
+    // ไม่ขึ้น (ตัววิดีโอยังเปิดเล่นได้ปกติ) ถ้ามีรายงานปัญหาจริงต้องกลับมาทำ thumbnail generator แยก
+    return { type: 'video', originalContentUrl: url, previewImageUrl: url }
+  }
+
+  if (attachmentKind === 'AUDIO') {
+    // LINE audio message ต้องการ `duration` (หน่วยมิลลิวินาที) เป็นตัวเลข แต่ OutboundMessagePart ไม่มี
+    // ข้อมูลความยาวไฟล์เสียงเลย (ไม่ได้ decode ไฟล์ในชั้นนี้) — เอกสาร LINE ระบุว่าค่านี้ใช้แสดง
+    // progress bar ของตัวเล่นเสียงในแอปเท่านั้น ไม่ใช่เงื่อนไขที่ทำให้ LINE ปฏิเสธข้อความ จึงใส่
+    // placeholder ไปก่อน (ยอมรับความเสี่ยงว่า progress bar อาจแสดงความยาวผิด — ต้องแก้ด้วยการวัด
+    // duration จริงถ้ามีรายงานปัญหา)
+    return { type: 'audio', originalContentUrl: url, duration: 1 }
+  }
+
+  // FILE: LINE Messaging API ไม่มี message type สำหรับ "ไฟล์แนบทั่วไป" เลย (ชนิดที่ส่งได้มีแค่
+  // text/sticker/image/video/audio/location/imagemap/template/flex ตามสเปก Messaging API) — ทางเลือก
+  // ที่ตรงกับแพลตฟอร์มจริงที่สุดคือส่งเป็นข้อความตัวอักษรที่มีลิงก์ไฟล์ให้ลูกค้ากดเปิดเอง
+  return { type: 'text', text: url }
+}
+
+/** ผลของ `POST /v2/bot/message/reply|push` — ใช้ id ของ sentMessages ตัวแรกเป็น externalMessageId หลัก
+ *  (ตรงกับ comment ของ SendMessagesResult ใน adapter.ts: "ชิ้นแรกที่ส่งสำเร็จ") */
+function extractFirstMessageId(json: Record<string, unknown>): string {
+  const sentMessages = json.sentMessages as Array<{ id?: string }> | undefined
+  return sentMessages?.[0]?.id ?? ''
+}
+
+async function sendMessages(ctx: ChannelContext, parts: OutboundMessagePart[]): Promise<SendMessagesResult> {
+  if (parts.length === 0) throw new Error('LineAdapter.sendMessages: parts ว่างเปล่า')
+  if (parts.length > MAX_PARTS) {
+    // การแบ่งชุด (batching) เป็นงานของ S-10 ที่ endpoint/composer ชั้นบน — adapter นี้แค่ปฏิเสธทันที
+    // เมื่อเกินเพดานเพื่อไม่ให้ยิง LINE แล้วโดน 400 ที่อ่านสาเหตุไม่ออก
+    throw new Error(`LineAdapter.sendMessages: ส่งได้ครั้งละไม่เกิน ${MAX_PARTS} ชิ้น (ได้รับ ${parts.length})`)
+  }
+
+  const messages = parts.map(toLineMessage)
+
+  // การตัดสินใจ reply vs push ไม่ใช่หน้าที่ของ adapter (เป็นงานของ S-8) — ที่นี่แค่ทำตามที่ ctx บอก:
+  // มี replyToken → ยิง reply endpoint, ไม่มี → ยิง push ด้วย recipientId (ดู comment ChannelContext.replyToken)
+  if (ctx.replyToken) {
+    const json = await lineApiRequest('/v2/bot/message/reply', ctx.accessToken, {
+      method: 'POST',
+      body: { replyToken: ctx.replyToken, messages },
+    })
+    return { externalMessageId: extractFirstMessageId(json) }
+  }
+
+  if (!ctx.recipientId) {
+    throw new Error('LineAdapter.sendMessages: ต้องมี recipientId เมื่อไม่ได้ส่งด้วย replyToken (push)')
+  }
+  const json = await lineApiRequest('/v2/bot/message/push', ctx.accessToken, {
+    method: 'POST',
+    body: { to: ctx.recipientId, messages },
+  })
+  return { externalMessageId: extractFirstMessageId(json) }
+}
+
+async function fetchContactProfile(
+  ctx: ChannelContext,
+  externalUserId: string,
+): Promise<{ name: string | null; avatarUrl: string | null }> {
+  try {
+    const json = await lineApiRequest(`/v2/bot/profile/${externalUserId}`, ctx.accessToken)
+    return {
+      name: typeof json.displayName === 'string' ? json.displayName : null,
+      avatarUrl: typeof json.pictureUrl === 'string' ? json.pictureUrl : null,
+    }
+  } catch {
+    // 404 (ยังไม่แอดเพื่อน/บล็อกแล้ว) หรือ error อื่นใด ๆ จาก LINE (เช่น LINE_UNAVAILABLE) — ต้องไม่
+    // throw ตามสัญญาของ adapter.ts ("ดึงชื่อไม่ได้ไม่ใช่เหตุให้ข้อความหาย") พฤติกรรมเดียวกับ
+    // getContactProfile เดิมของ facebook/graph.ts ที่คืน null ทั้งคู่แบบเงียบ ๆ เช่นกัน — ผู้เรียก
+    // (TFR-LINE-10) ใช้ชื่อสำรอง "ลูกค้า LINE" เอง ไม่ใช่หน้าที่ของ adapter
+    return { name: null, avatarUrl: null }
+  }
+}
+
+async function downloadContent(ctx: ChannelContext, ref: DownloadContentRef): Promise<DownloadContentResult> {
+  // LINE ไม่มี URL สาธารณะให้ mirror ยิง fetch เองแบบ Meta เลย — ต้อง GET ผ่าน DATA_API_BASE ด้วย
+  // token เสมอ (ดู comment DownloadContentRef ใน adapter.ts) ref.url จะไม่ถูกใช้เลยในทุกกรณี
+  if (!ref.externalMessageId) return { url: null }
+
+  const res = await lineDataApiRequest(`/v2/bot/message/${ref.externalMessageId}/content`, ctx.accessToken)
+  if (!res.ok) {
+    // ตามธรรมเนียมเดิมของโค้ดฐาน (ดู fetchAttachmentUrl ของ facebook/graph.ts) — ฟังก์ชัน "ดาวน์โหลด
+    // เนื้อหา" ไม่ throw เมื่อดาวน์โหลดไม่สำเร็จ คืนค่าว่างแล้วให้ผู้เรียก (S-7 media mirror) ตัดสินใจ
+    // สร้าง placeholder เอง (TFR-LINE-09: "ล้มเหลว → placeholder ห้ามทิ้ง event")
+    return { url: null, content: null }
+  }
+
+  const contentType = res.headers.get('content-type')
+  const data = Buffer.from(await res.arrayBuffer())
+  return { url: null, content: { data, contentType } }
+}
+
+export const LineAdapter: ChannelAdapter = {
+  capabilities: LINE_CAPABILITIES,
+  sendMessages,
+  fetchContactProfile,
+  downloadContent,
+}
