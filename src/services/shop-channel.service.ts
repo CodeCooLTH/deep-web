@@ -21,6 +21,9 @@ export interface ChannelView {
   name: string
   avatarUrl: string | null
   status: string
+  /** Basic ID ของ LINE OA ("@xxxxxxx") — null เสมอสำหรับ MESSENGER/INSTAGRAM ที่ไม่มีแนวคิดนี้
+   *  (feature 00025, S-13) หน้าตั้งค่าช่องทางใช้ยืนยันว่าเชื่อมถูกบัญชี */
+  basicId: string | null
 }
 
 // 'other-shop' พก shopName ของร้านที่เพจติดอยู่มาด้วย — เพื่อให้ข้อความแจ้ง user บอกได้ว่า
@@ -329,7 +332,7 @@ export async function listChannels(shopId: string): Promise<ChannelView[]> {
   return prisma.shopChannel.findMany({
     where: { shopId, status: { not: 'DISCONNECTED' } },
     // allow-list ชัด ๆ — กัน accessTokenEnc หลุดออกไปโดยไม่ตั้งใจเมื่อมีคนเพิ่มฟิลด์ใหม่
-    select: { id: true, provider: true, externalId: true, name: true, avatarUrl: true, status: true },
+    select: { id: true, provider: true, externalId: true, name: true, avatarUrl: true, status: true, basicId: true },
     orderBy: { createdAt: 'asc' },
   })
 }
@@ -356,6 +359,7 @@ export async function listChannelsForShops(shopIds: string[]): Promise<ChannelVi
       name: true,
       avatarUrl: true,
       status: true,
+      basicId: true,
       shopId: true,
       shop: { select: { shopName: true } },
     },

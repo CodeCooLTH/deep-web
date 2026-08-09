@@ -18,6 +18,10 @@
  * แล้วหน้านี้ยังโชว์ช่องทางของ PERSONAL. เปลี่ยนเป็น resolveActiveShopContext (re-verify membership
  * เสมอ) — resolve ไม่ได้ (ร้านถูกลบ/หลุดสิทธิ์) → null (เดิมก็ return null defensive fallback อยู่แล้ว
  * ไม่เปลี่ยนพฤติกรรมส่วนนี้ — auth guard เต็มอยู่ที่ (dashboard)/layout.tsx แล้ว)
+ *
+ * feature 00025 (S-13): เพิ่มการ์ด "LINE Official Account" เป็น sibling .card ใหม่ (คนละการ์ดกับ
+ * Messenger/IG — flow เชื่อมต่อต่างกันโดยพื้นฐาน paste-credential vs OAuth redirect) — filter
+ * listChannels() ตาม provider ก่อนส่งเข้าแต่ละ client component (LINE ต้องไม่ไปโผล่ในการ์ด Messenger)
  */
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -27,6 +31,7 @@ import PageBreadcrumb from '@/components/PageBreadcrumb'
 import Icon from '@/components/wrappers/Icon'
 import type { Metadata } from 'next'
 import { ChannelsClient } from './ChannelsClient'
+import { LineChannelCard } from './LineChannelCard'
 
 export const metadata: Metadata = { title: 'ช่องทางแชท' }
 
@@ -41,6 +46,9 @@ export default async function ChannelsSettingsPage() {
   if (!activeCtx) return null
 
   const channels = await listChannels(activeCtx.shopId)
+  // แยก LINE ออกจาก Messenger/Instagram ตั้งแต่ตรงนี้ — คนละการ์ด คนละ client component
+  const messengerChannels = channels.filter((c) => c.provider !== 'LINE')
+  const lineChannels = channels.filter((c) => c.provider === 'LINE')
 
   return (
     <>
@@ -60,12 +68,39 @@ export default async function ChannelsSettingsPage() {
 
         {/* ChannelsClient รับ ChannelView[] เท่านั้น — ไม่มี accessTokenEnc (allow-list select ที่ service) */}
         <ChannelsClient
-          initialChannels={channels.map((c) => ({
+          initialChannels={messengerChannels.map((c) => ({
             id: c.id,
             provider: c.provider,
             name: c.name,
             avatarUrl: c.avatarUrl,
             status: c.status,
+          }))}
+        />
+      </div>
+
+      {/* การ์ดใหม่ (feature 00025 S-13) — sibling .card คนละใบกับ Messenger/IG ด้านบน */}
+      <div className="card mt-6">
+        {/* header ไม่ใส่ uppercase (ต่างจากการ์ดบน) — "LINE Official Account" เป็นชื่อแบรนด์
+            การบังคับ ALL CAPS จะขัด Impeccable "Sentence case" (การ์ดบนเป็นข้อความไทยล้วน uppercase
+            จึงไม่มีผลภาพจริง แต่ตรงนี้มีผล) — ตาม design spec Theme Source Mapping ส่วน A ที่ไม่มี
+            uppercase ในตัวอย่าง markup */}
+        <div className="card-header">
+          <h5 className="bg-light/15 border-default-300 flex items-center gap-1.5 rounded border border-dashed p-1.25 text-sm w-full justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/logos/line.svg" alt="" aria-hidden="true" width={16} height={16} />
+            LINE Official Account
+          </h5>
+        </div>
+
+        {/* basicId มาจาก listChannels() แล้ว (เพิ่มใน select ตอน S-13 — additive, MESSENGER/IG ได้ null)
+            ทำให้ @handle ของ OA ขึ้นตั้งแต่โหลดหน้า ไม่ต้องรอ reconnect */}
+        <LineChannelCard
+          initialChannels={lineChannels.map((c) => ({
+            id: c.id,
+            name: c.name,
+            avatarUrl: c.avatarUrl,
+            status: c.status,
+            basicId: c.basicId,
           }))}
         />
       </div>
