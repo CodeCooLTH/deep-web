@@ -176,7 +176,8 @@ type ApiResponse = { items: ConversationListItem[]; nextCursor: string | null }
 
 /** tab ตัวกรองช่องทาง — 'ALL' ไม่ใช่ ChatChannel จริง จึงแยก union เพิ่ม */
 type ChannelTab = 'ALL' | ChatChannel
-const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM']
+// feature 00025 S-14a — เพิ่ม LINE ต่อท้าย (ลำดับเดิมของ DEEP/MESSENGER/INSTAGRAM คงเดิม ไม่สลับ)
+const CHANNEL_TABS: ChannelTab[] = ['ALL', 'DEEP', 'MESSENGER', 'INSTAGRAM', 'LINE']
 
 // feature 00018 CRM — badge สถานะการขายในแถว (UNSPECIFIED ไม่โชว์). ต้องตรงกับ CustomerCrmSection
 const SALES_STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -1048,11 +1049,14 @@ export default function InboxList({
               <button
                 type="button"
                 onClick={() => setOpenPanel(openPanel === 'filter' ? null : 'filter')}
-                aria-label="เลือกเพจก่อนเพื่อดูกลุ่มที่ตั้งไว้ — กดเพื่อเลือกเพจ"
+                // feature 00025 S-14a — "เพจ" → "ช่องทาง" เพราะตัวกรองนี้ตอนนี้มีทั้งเพจ Facebook
+                // และ LINE OA ปนกัน คำว่า "เพจ" ไม่ครอบอีกต่อไป (ดูหัวข้อ "เพจ" ใน InboxFilterPanel
+                // ที่ปุ่มนี้เปิดออกไปหา — ต้องใช้คำเดียวกัน)
+                aria-label="เลือกช่องทางก่อนเพื่อดูกลุ่มที่ตั้งไว้ — กดเพื่อเลือกช่องทาง"
                 className="text-default-500 -mb-px flex shrink-0 items-center gap-1 border-b-2 border-transparent px-0 py-1.5 text-sm text-nowrap"
               >
                 <Icon icon="folder" width={14} height={14} className="shrink-0" />
-                เลือกเพจเพื่อดูกลุ่ม
+                เลือกช่องทางเพื่อดูกลุ่ม
               </button>
             ) : (
             <div className="relative shrink-0">

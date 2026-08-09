@@ -74,9 +74,19 @@ describe('pageTitle', () => {
     expect(pageTitle('MESSENGER', '  BT Premium  ')).toBe('BT Premium')
   })
 
-  it('ช่องทางที่ไม่รู้จักไม่ทำให้บรรทัดพัง', () => {
+  it('LINE เป็นช่องทางที่ระบบรู้จักแล้ว (feature 00025) → ถอยไปใช้ชื่อ "LINE" ไม่ใช่ "Deep"', () => {
+    // เดิมเทสนี้ใช้ 'LINE' เป็นตัวอย่างของ "ค่าที่ไม่รู้จัก" เพราะตอนนั้น ChatChannel ยังไม่มี LINE
+    // พอ S-14a เพิ่ม LINE เข้า union จริง เทสเดิมจึงขัดกับพฤติกรรมที่ถูกต้อง — ไม่ใช่ regression
+    // 🛑 ห้ามเอาค่าที่ "กำลังจะรองรับ" มาเป็นตัวแทนของ "ค่าที่ไม่รู้จัก" ในเทส เพราะวันที่รองรับจริง
+    // เทสจะแดงโดยที่โค้ดถูก แล้วคนอ่านจะแยกไม่ออกว่าพังจริงหรือเทสล้าสมัย
     expect(pageTitle('LINE', 'ร้านบีที')).toBe('ร้านบีที')
-    expect(pageTitle('LINE', null)).toBe('Deep')
+    expect(pageTitle('LINE', null)).toBe('LINE')
+  })
+
+  it('ช่องทางที่ไม่รู้จักไม่ทำให้บรรทัดพัง', () => {
+    // ใช้ค่าที่ระบบยังไม่รองรับจริง ๆ (TikTok = feature 00020 ที่ยังค้าง gate ของ TikTok อยู่)
+    expect(pageTitle('TIKTOK', 'ร้านบีที')).toBe('ร้านบีที')
+    expect(pageTitle('TIKTOK', null)).toBe('Deep')
   })
 })
 

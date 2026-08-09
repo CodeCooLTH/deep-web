@@ -14,22 +14,26 @@
  * ตามเดิม — ที่นี่รับผิดชอบเฉพาะสิ่งที่ทั้ง server และ client ใช้ร่วมกันได้จริง
  */
 
-export type ChatChannel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM'
+export type ChatChannel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | 'LINE'
 
-/** ค่าอื่นนอก 3 ค่านี้ (ข้อมูลเพี้ยน/ช่องทางในอนาคต) → fallback เป็น DEEP — ห้าม crash */
+/** ค่าอื่นนอก 4 ค่านี้ (ข้อมูลเพี้ยน/ช่องทางในอนาคต) → fallback เป็น DEEP — ห้าม crash */
 export function resolveChatChannel(channel: string): ChatChannel {
-  return channel === 'MESSENGER' || channel === 'INSTAGRAM' ? channel : 'DEEP'
+  return channel === 'MESSENGER' || channel === 'INSTAGRAM' || channel === 'LINE' ? channel : 'DEEP'
 }
 
 /**
  * MESSENGER ยังใช้คำว่า "Messenger" เพราะเป็นชื่อ "ช่องทาง" จริงที่ใช้ในแท็บกรอง/alt — ที่เปลี่ยน
  * ไปเป็นโลโก้ Facebook ตามที่ user สั่ง 2026-07-23 คือ *ไอคอน* ไม่ใช่คำ (ดูคอมเมนต์เต็มที่
  * CHANNEL_DISPLAY ใน ChannelBadge.tsx)
+ *
+ * LINE (feature 00025 S-14a) — "LINE" เป็นทั้งชื่อแบรนด์และชื่อช่องทาง ไม่มีคำไทย/คำแปลอื่นให้ใช้
+ * (ต่างจาก Messenger/Instagram ที่ก็ใช้ชื่ออังกฤษเดิมเหมือนกัน — สอดคล้องกัน)
  */
 const CHANNEL_LABEL: Record<ChatChannel, string> = {
   DEEP: 'Deep',
   MESSENGER: 'Messenger',
   INSTAGRAM: 'Instagram',
+  LINE: 'LINE',
 }
 
 export function getChannelLabel(channel: string): string {

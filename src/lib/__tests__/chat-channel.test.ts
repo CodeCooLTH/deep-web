@@ -9,16 +9,18 @@ import { getChannelLabel, resolveChatChannel } from '@/lib/chat-channel'
  * โดยไม่มี tsc/build ตัวไหนฟ้อง (มันเป็นสตริงที่ถูกต้องทั้งคู่) — Hard Rule 16
  */
 describe('resolveChatChannel', () => {
-  it('คืนค่าเดิมสำหรับ 3 ช่องทางที่รองรับ', () => {
+  it('คืนค่าเดิมสำหรับ 4 ช่องทางที่รองรับ', () => {
     expect(resolveChatChannel('DEEP')).toBe('DEEP')
     expect(resolveChatChannel('MESSENGER')).toBe('MESSENGER')
     expect(resolveChatChannel('INSTAGRAM')).toBe('INSTAGRAM')
+    // feature 00025 S-14a (2026-08-09) — LINE เข้าร่วมเป็นช่องทางที่รองรับแล้ว (เดิมตกไป DEEP)
+    expect(resolveChatChannel('LINE')).toBe('LINE')
   })
 
   it('fail-safe: ค่าที่ไม่รู้จัก/ว่าง → DEEP ไม่ throw', () => {
-    // ช่องทางใหม่ที่ยังไม่รองรับ (LINE/TikTok) ต้องไม่ทำให้ push ทั้งใบล้ม —
+    // ช่องทางใหม่ที่ยังไม่รองรับ (TikTok ฯลฯ) ต้องไม่ทำให้ push ทั้งใบล้ม —
     // seller-push เป็น best-effort ที่ถูกเรียกจาก webhook ของ Meta, throw = Meta retry ทั้ง batch
-    expect(resolveChatChannel('LINE')).toBe('DEEP')
+    expect(resolveChatChannel('TIKTOK')).toBe('DEEP')
     expect(resolveChatChannel('')).toBe('DEEP')
     expect(resolveChatChannel('messenger')).toBe('DEEP') // case-sensitive โดยตั้งใจ (ค่าใน DB เป็นตัวใหญ่)
   })
@@ -29,10 +31,11 @@ describe('getChannelLabel', () => {
     expect(getChannelLabel('DEEP')).toBe('Deep')
     expect(getChannelLabel('MESSENGER')).toBe('Messenger')
     expect(getChannelLabel('INSTAGRAM')).toBe('Instagram')
+    expect(getChannelLabel('LINE')).toBe('LINE')
   })
 
   it('ค่าที่ไม่รู้จักได้คำของ DEEP ไม่ใช่ undefined', () => {
     // undefined หลุดไปถึง subtitle จะกลายเป็นคำว่า "undefined" บนหน้าจอผู้ใช้จริง
-    expect(getChannelLabel('LINE')).toBe('Deep')
+    expect(getChannelLabel('TIKTOK')).toBe('Deep')
   })
 })

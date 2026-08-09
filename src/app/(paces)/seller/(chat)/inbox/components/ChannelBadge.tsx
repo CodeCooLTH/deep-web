@@ -86,6 +86,20 @@ const CHANNEL_DISPLAY: Record<ChatChannel, ChannelDisplay> = {
     // ที่หลุดจังหวะ. ไล่สี = gradient แบรนด์ชุดเดียวกับไฟล์เดิม ไม่ได้คิดสีขึ้นเอง
     logoSrc: '/images/logos/instagram-circle.svg',
   },
+  LINE: {
+    // feature 00025 S-14a — โลโก้จริง (asset มีอยู่แล้ว) เป็นตัวแสดงหลัก เหมือน Messenger/Instagram
+    // icon = fallback เมื่อ logoSrc โหลดไม่ขึ้น (BadgeImage.onError ถอยไป Icon อัตโนมัติไม่ได้ — แต่
+    // แถวที่ไม่มี logoSrc เลยจะใช้ icon เป็นตัวหลักแทน ดู ChannelBadge/ChannelBadgeOverlay ด้านล่าง)
+    // 'brand-line' ยืนยันมีจริงใน Tabler icon set (@tabler/icons/icons/outline/brand-line.svg) —
+    // เหมือน brand-facebook/brand-instagram ที่ใช้อยู่แล้วก็ไม่อยู่ใน gallery ของ Paces docs เช่นกัน
+    label: getChannelLabel('LINE'),
+    icon: 'brand-line',
+    // สี brand LINE #06C755 — Hard Rule 6 carve-out (asset สีตามแบรนด์จริง) ผ่าน `style` เท่านั้น
+    // ตาม pattern เดียวกับ Messenger/Instagram ในไฟล์นี้ — ใช้เฉพาะตอน fallback เป็น Icon (ไม่มี
+    // logoSrc/imageUrl) เพราะ logoSrc เป็น .svg ที่มีสีในตัวอยู่แล้ว
+    iconStyle: { color: '#06C755' }, // Hard Rule 6 exception: LINE brand color — brand asset ใช้ได้ตาม ref
+    logoSrc: '/images/logos/line.svg',
+  },
 }
 
 /** export ให้ที่อื่น (เช่น channel tabs ใน InboxList) ใช้ icon/สีชุดเดียวกันได้โดยไม่ต้อง render ทั้ง badge */

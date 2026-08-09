@@ -15,7 +15,8 @@
  *    query ทันทีทุกครั้ง (อยากปรับ 3 อย่างต้องรอโหลด 3 รอบ และไม่มีจุดจบให้รู้ว่าเสร็จ)
  * 3. **สถานะ (ปิดงาน) กับ สแปม ไม่อยู่ในนี้แล้ว** — ขึ้นไปเป็นแท็บในแถวล่างของส่วนหัว
  *    ถ้าปล่อยไว้ทั้งสองที่จะคุมเรื่องเดียวกันจาก 2 จุดแล้วขัดกันเอง
- * 4. หัวข้อที่ไม่มีความหมายกับร้านนั้นจะไม่แสดง: "เพจ" (ร้านเพจเดียว), "พัสดุ" (ไม่ได้เชื่อม iShip)
+ * 4. หัวข้อที่ไม่มีความหมายกับร้านนั้นจะไม่แสดง: "ช่องทาง" (ร้านเชื่อมช่องทางเดียว — เดิมชื่อ "เพจ"
+ *    ก่อนแก้ 2026-08-09 feature 00025 S-14a เพื่อครอบ LINE OA ด้วย), "พัสดุ" (ไม่ได้เชื่อม iShip)
  */
 import Icon from '@/components/wrappers/Icon'
 import { Fragment, useEffect, useRef, useState } from 'react'
@@ -117,7 +118,8 @@ type Props = {
   onApply: (next: ChatFilterState, pageFilter: string) => void
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** 'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM' — ใช้ตัดสินว่าจะโชว์หัวข้อ "เพจ" ไหม (Deep ไม่มีเพจ) */
+  /** 'ALL' | 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | 'LINE' — ใช้ตัดสินว่าจะโชว์หัวข้อ "ช่องทาง" ไหม
+   *  (Deep ไม่มีช่องทางนอกให้เลือก) */
   channelTab: string
   pageFilter: string
   pageOptions: ChannelFilterOption[]
@@ -219,8 +221,10 @@ export default function InboxFilterPanel({
               หัวข้อด้านบนกับปุ่มด้านล่างอยู่กับที่ เลื่อนเฉพาะตัวเลือกตรงกลาง */}
           <div className="max-h-96 overflow-y-auto p-3">
             {showPages && (
-              <Section title="เพจ">
-                <Chip on={draftPage === ''} label="ทุกเพจ" onClick={() => setDraftPage('')} />
+              // feature 00025 S-14a — หัวข้อ "เพจ" → "ช่องทาง" เพราะรายการนี้ตอนนี้มีทั้งเพจ
+              // Facebook และ LINE OA ปนกัน (LINE ไม่ใช่ "เพจ") คำเดิมไม่ครอบทุกตัวเลือกอีกต่อไป
+              <Section title="ช่องทาง">
+                <Chip on={draftPage === ''} label="ทุกช่องทาง" onClick={() => setDraftPage('')} />
                 {pageOptions.map((p, i) => (
                   // ชื่อเพจอย่างเดียวไม่พอ — ร้านที่ตั้งชื่อเพจ Facebook กับ Instagram เหมือนกัน
                   // จะเห็นชิปสองอันข้อความเดียวกันเป๊ะ เลือกไม่ถูก (user report 2026-07-31)
