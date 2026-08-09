@@ -29,10 +29,12 @@ export type AboutData = {
 // <60นาที(3600วิ)→"~N นาที" · 1-24ชม.→"~N ชม." · 24-48ชม.→"~1 วัน" · >48ชม.→"2+ วัน"
 const formatResponseTime = (seconds: number | null | undefined): string | null => {
   if (seconds == null) return null
-  if (seconds < 3600) return `~${Math.max(1, Math.round(seconds / 60))} นาที`
-  if (seconds < 86400) return `~${Math.max(1, Math.round(seconds / 3600))} ชม.`
-  if (seconds < 172800) return '~1 วัน'
-  return '2+ วัน'
+  // ใช้คำแทนสัญลักษณ์ — `~` และ `+` เป็นเครื่องหมายที่กลุ่มผู้ใช้ซึ่ง PRODUCT.md ผูกไว้
+  // (ผู้สูงวัย/digital-literacy ต่ำ) ไม่จำเป็นต้องคุ้น และ "ชม." เป็นตัวย่อที่ย่อโดยไม่จำเป็น
+  if (seconds < 3600) return `ประมาณ ${Math.max(1, Math.round(seconds / 60))} นาที`
+  if (seconds < 86400) return `ประมาณ ${Math.max(1, Math.round(seconds / 3600))} ชั่วโมง`
+  if (seconds < 172800) return 'ประมาณ 1 วัน'
+  return 'มากกว่า 2 วัน'
 }
 
 const AboutOverview = ({ data }: { data: AboutData }) => {
@@ -62,8 +64,11 @@ const AboutOverview = ({ data }: { data: AboutData }) => {
           </Box>
         )}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* 🛑 "เปิดร้านตั้งแต่" ไม่ใช่ "เข้าร่วม" — ค่านี้คือ `memberSince` **ตัวเดียวกันเป๊ะ**
+              กับที่บรรทัดเมตาใต้ชื่อร้านใน ProfileHero แสดงอยู่ ใช้คนละคำบนหน้าเดียวกันทำให้อ่าน
+              เหมือนเป็นข้อมูลคนละตัว และ "เข้าร่วม" ยังฟังเหมือนสมัครสมาชิก ไม่ใช่วันเปิดร้าน */}
           <Icon icon='tabler-calendar' fontSize={16} />
-          เข้าร่วม {memberSince}
+          เปิดร้านตั้งแต่ {memberSince}
         </Box>
         {showResponse && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>

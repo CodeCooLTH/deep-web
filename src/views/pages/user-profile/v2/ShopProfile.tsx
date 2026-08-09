@@ -132,7 +132,9 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
     },
     reviews: {
       // คะแนนอยู่ในป้ายแท็บ ผู้ซื้อเห็นเรตทันทีโดยไม่ต้องกดเข้าไปดู
-      label: `รีวิว ${data.avgRating}`,
+      // กางตัวหารด้วย (`4.5/5`) — เลขลอย ๆ ต้องเดาว่าเต็มเท่าไหร่ กติกาเดียวกับที่คะแนนความน่าเชื่อถือ
+      // และอัตราความสำเร็จใช้อยู่แล้วบนหน้าเดียวกัน (ตัวเลขที่คำนวณย้อนกลับไม่ได้คือตัวเลขที่ไม่มีใครเชื่อ)
+      label: `รีวิว ${data.avgRating}/5`,
       content:
         data.ratingDistribution && data.avgRating != null ? (
           <>

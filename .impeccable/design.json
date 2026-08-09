@@ -55,6 +55,13 @@
         "note": "secondary action, ไอคอนเฉย ๆ, placeholder — ยังต้องผ่าน contrast 4.5:1.",
         "tonalRamp": ["#2b2d34", "#404350", "#5a5d6b", "#6d7080", "#808390", "#a3a5af", "#c6c7ce", "#e8e9ec"]
       },
+      "scrim": {
+        "role": "neutral / overlay",
+        "displayName": "Photo Scrim",
+        "canonical": "rgb(0 0 0 / .72)",
+        "note": "ชั้นไล่เงาทับ 'รูปถ่ายของผู้ใช้' เพื่อให้ตัวหนังสือสีขาวที่ลอยอยู่บนรูปอ่านออกไม่ว่ารูปจะสว่างแค่ไหน. ค่ามาตรฐาน: linear-gradient(180deg, rgb(0 0 0/.28) 0%, transparent 32%, transparent 52%, rgb(0 0 0/.72) 100%). ใช้ที่ไทล์คลิป (9:16) และการ์ดสินค้า (1:1) ในกริดโปรไฟล์สาธารณะ — ดู TILE_SCRIM ใน src/views/pages/user-profile/v2/ShopVideos.tsx ซึ่งเป็น SSOT ของค่านี้ในโค้ด. 🛑 นี่คือ 'ที่เดียว' ที่ใช้ดำสนิทได้ (ยกเว้นของกฎ Ink Plum ที่ห้าม #000): scrim ที่ผสมหมึกพลัมจะไปเปลี่ยนสีรูปถ่ายของร้าน ซึ่งเป็นเนื้อหาของผู้ใช้ ไม่ใช่ผิวของเรา — ต่างจากเงา (Ink-Tinted Shadow) ที่ตกบนพื้นของเราเอง. ห้ามใช้เป็นพื้นของกล่อง/การ์ด/โมดัล ใช้ได้เฉพาะทับรูปภาพเท่านั้น.",
+        "tonalRamp": ["rgb(0 0 0 / .72)", "rgb(0 0 0 / .56)", "rgb(0 0 0 / .42)", "rgb(0 0 0 / .28)", "rgb(0 0 0 / .18)", "rgb(0 0 0 / .12)", "rgb(0 0 0 / .06)", "transparent"]
+      },
       "surface-mist": {
         "role": "neutral",
         "displayName": "Cool Mist",

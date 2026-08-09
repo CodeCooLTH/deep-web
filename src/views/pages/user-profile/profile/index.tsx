@@ -9,8 +9,14 @@ import { Icon } from '@iconify/react'
 
 // Next/Auth Imports — S-19 (extension #1 Chat Product Context Card) login-gate ปุ่ม "สอบถามสินค้านี้"
 // pattern: src/views/pages/user-profile/UserProfileHeader.tsx handleChatClick (AuctionBidPanel.tsx:114-121)
+import { useState } from 'react'
+
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+
+// ไล่เงาของไทล์ใช้ค่าเดียวกับกริดคลิป — สองที่นี้ทำหน้าที่เดียวกัน (ให้ตัวหนังสือขาวบนรูปอ่านออก)
+// แต่เคยตั้งค่าต่างกันเล็กน้อยโดยไม่มีเหตุผล (ux gate 2026-08-09)
+import { TILE_SCRIM } from '../v2/ShopVideos'
 
 // อ้าง TierChipColor จาก SSOT ของระบบ tier โดยตรง (เดิมอ้างผ่าน TrustScoreCardData ซึ่งเป็นการ
 // อ้อมผ่าน component ที่ถูกลบไปพร้อมโปรไฟล์ชุดเดิม — ชี้ที่ต้นทางตรง ๆ ตรงกว่าและไม่ผูกกับ UI)
@@ -105,6 +111,8 @@ const ProductCard = ({
   // (แปลงในการ์ดเหมือนที่ PublicRoomList ทำกับรูปห้องพัก ไม่ใช่แปลงที่หน้า จะได้ไม่ต้องไล่แก้ทุกหน้าที่เรียก)
   const imageSrc = toFileUrl(product.imageUrl)
 
+  const [imgFailed, setImgFailed] = useState(false)
+
   const router = useRouter()
   const { status: sessionStatus } = useSession()
 
@@ -153,12 +161,17 @@ const ProductCard = ({
         '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' },
       }}
     >
-      {imageSrc ? (
+      {imageSrc && !imgFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={imageSrc}
           alt=''
           loading='lazy'
+          decoding='async'
+          // จุดเดียวในหน้านี้ที่เคยไม่มี onError เลย ทั้งที่อีก 3 จุด (ปกร้าน/อวตาร/ไทล์คลิป) มีครบ —
+          // รูปที่เก็บใน DB มีอยู่จริงแต่โหลดไม่ขึ้น (ไฟล์หาย/สิทธิ์เปลี่ยน) จะได้ไอคอนรูปแตกของ
+          // เบราว์เซอร์ดิบ ๆ ซึ่งเป็นสิ่งเดียวในหน้าที่อ่านว่า "เว็บพัง" ไม่ใช่ "ร้านไม่มีรูป"
+          onError={() => setImgFailed(true)}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
       ) : (
@@ -180,15 +193,10 @@ const ProductCard = ({
         </Box>
       )}
 
-      {/* ไล่เงาล่าง — ให้ราคาสีขาวอ่านออกไม่ว่ารูปสินค้าจะสว่างแค่ไหน (แบบเดียวกับไทล์คลิป) */}
-      <Box
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(180deg,rgb(0 0 0/.26) 0%,transparent 30%,transparent 55%,rgb(0 0 0/.72) 100%)',
-          pointerEvents: 'none',
-        }}
-      />
+      {/* ไล่เงาล่าง — ให้ราคาสีขาวอ่านออกไม่ว่ารูปสินค้าจะสว่างแค่ไหน
+          ใช้ค่าเดียวกับไทล์คลิปจริง ๆ แล้ว (เดิมเขียนว่า "แบบเดียวกับไทล์คลิป" แต่ค่าต่างกันจริง:
+          .26/30%/55% ที่นี่ กับ .28/32%/52% ที่โน่น) */}
+      <Box sx={{ position: 'absolute', inset: 0, background: TILE_SCRIM, pointerEvents: 'none' }} />
 
       {pinned && (
         <Box
@@ -312,9 +320,12 @@ export const ProfileRightContent = ({
   // ร้านบ้านพักใช้ grid เดียวกับสินค้า (ความสม่ำเสมอของหน้าสำคัญกว่าการมี layout เฉพาะ)
   // เปลี่ยนเฉพาะถ้อยคำให้ตรงกับสิ่งที่ผู้ใช้เห็นจริง
   const isRoom = itemKind === 'ROOM'
+  // 🛑 `soldUnit` เคยเป็น "คำสั่งซื้อ" ขณะที่หัวหน้าร้านเรียกของอย่างเดียวกันว่า "ออเดอร์"
+  // (`STAT_LABELS.general.orders` ใน ProfileHero) — คำต่างกันสองคำบนหน้าเดียวสำหรับของสิ่งเดียวกัน
+  // ไม่มี tsc/detector ตัวไหนจับได้เพราะเป็นสตริงที่ถูกทั้งคู่
   const L = isRoom
-    ? { empty: 'ร้านนี้ยังไม่มีห้องพัก', pinned: 'ห้องพักแนะนำ', all: 'ห้องพักทั้งหมด', sold: 'เข้าพักแล้ว', soldUnit: 'ครั้ง' }
-    : { empty: 'ร้านนี้ยังไม่มีสินค้า', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด', sold: 'ขายแล้ว', soldUnit: 'คำสั่งซื้อ' }
+    ? { empty: 'ร้านนี้ยังไม่มีห้องพัก', emptyHint: 'ทักแชทสอบถามร้านได้เลย', pinned: 'ห้องพักแนะนำ', all: 'ห้องพักทั้งหมด', sold: 'เข้าพักแล้ว', soldUnit: 'ครั้ง' }
+    : { empty: 'ร้านนี้ยังไม่มีสินค้า', emptyHint: 'ทักแชทสอบถามร้านได้เลย', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด', sold: 'ขายแล้ว', soldUnit: 'ออเดอร์' }
 
   if (openShopEmptyState) return null
 
@@ -324,8 +335,12 @@ export const ProfileRightContent = ({
         <Box id='pinned-products' sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', py: '48px', textAlign: 'center' }}>
           <Icon icon='tabler-photo-off' style={{ fontSize: 48, color: '#808390' }} />
           <Box>
+            {/* 🛑 เดิมเขียนว่า "ติดตามร้านนี้ไว้ก่อนนะ" — ชวนให้ทำสิ่งที่ **หน้านี้ทำไม่ได้**
+                ปุ่มติดตามมีอยู่เฉพาะใน UserProfileHeader.tsx (และยัง disabled "เร็ว ๆ นี้") ซึ่ง
+                หน้าโปรไฟล์สาธารณะไม่ได้ใช้เลย → คนอ่านจะมองหาปุ่มที่ไม่มีอยู่จริง
+                เปลี่ยนเป็นทางที่มีจริงบนหน้านี้: ปุ่ม "แชทกับร้าน" ใน ProfileHero */}
             <Typography sx={{ color: '#808390', fontSize: '15px' }}>{L.empty}</Typography>
-            <Typography sx={{ color: '#808390', fontSize: '13px', mt: '4px' }}>ติดตามร้านนี้ไว้ก่อนนะ</Typography>
+            <Typography sx={{ color: '#808390', fontSize: '13px', mt: '4px' }}>{L.emptyHint}</Typography>
           </Box>
         </Box>
       ) : (
@@ -343,10 +358,15 @@ export const ProfileRightContent = ({
                 sx={{
                   display: 'grid',
                   // ผังเดียวกับแท็บปักหมุด (user 2026-07-26 "เน้นรูป เหมือน IG") — ชิดกันไม่มีช่องว่าง
-                  // มือถือ 3 ต่อแถว เดสก์ท็อป 5 ต่อแถว
+                  //
+                  // เพิ่มขั้น sm (600px) 2026-08-09: เดิมกระโดด 3 → 5 ที่ 900px ทีเดียว ช่วง
+                  // 600–899px (แท็บเล็ตแนวตั้ง/มือถือแนวนอน) จึงได้ไทล์กว้างเกือบ 200px แถวละ 3 ใบ
+                  // ขณะที่กริดคลิปในหน้าเดียวกันเปลี่ยนคนละจังหวะ — สองแผงที่ตั้งใจให้เป็นผังเดียวกัน
+                  // แต่ไม่เคยตรงกันจริงสักช่วง (คอมเมนต์ทั้งสองไฟล์เขียนว่า "ผังเดียวกัน" มาตลอด)
+                  //
                   // -20px = หัก pli-5 ของ tab panel ให้ชนขอบคอนเทนเนอร์ (ค่าเดียวกับ -mli-5 ที่
                   // กริดคลิปใช้) panel padding คงที่ทุก breakpoint จึงไม่ต้องไล่ตาม breakpoint
-                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
                   gap: 0,
                   mx: '-20px',
                 }}
@@ -379,10 +399,15 @@ export const ProfileRightContent = ({
                 sx={{
                   display: 'grid',
                   // ผังเดียวกับแท็บปักหมุด (user 2026-07-26 "เน้นรูป เหมือน IG") — ชิดกันไม่มีช่องว่าง
-                  // มือถือ 3 ต่อแถว เดสก์ท็อป 5 ต่อแถว
+                  //
+                  // เพิ่มขั้น sm (600px) 2026-08-09: เดิมกระโดด 3 → 5 ที่ 900px ทีเดียว ช่วง
+                  // 600–899px (แท็บเล็ตแนวตั้ง/มือถือแนวนอน) จึงได้ไทล์กว้างเกือบ 200px แถวละ 3 ใบ
+                  // ขณะที่กริดคลิปในหน้าเดียวกันเปลี่ยนคนละจังหวะ — สองแผงที่ตั้งใจให้เป็นผังเดียวกัน
+                  // แต่ไม่เคยตรงกันจริงสักช่วง (คอมเมนต์ทั้งสองไฟล์เขียนว่า "ผังเดียวกัน" มาตลอด)
+                  //
                   // -20px = หัก pli-5 ของ tab panel ให้ชนขอบคอนเทนเนอร์ (ค่าเดียวกับ -mli-5 ที่
                   // กริดคลิปใช้) panel padding คงที่ทุก breakpoint จึงไม่ต้องไล่ตาม breakpoint
-                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
                   gap: 0,
                   mx: '-20px',
                 }}

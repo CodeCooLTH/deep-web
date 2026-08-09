@@ -38,8 +38,9 @@ export default function PublicServiceList({ services }: { services: PublicServic
     <div className='grid grid-cols-2 gap-4'>
       {services.map((s) => {
         const deposit = depositLabel(s.depositMode, s.depositValue)
+        // rounded-lg (8px) = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes)
         return (
-          <div key={s.id} className='rounded-xl overflow-hidden border'>
+          <div key={s.id} className='rounded-lg overflow-hidden border'>
             <div className='bs-[130px] bg-[var(--mui-palette-action-hover)] flex items-center justify-center text-[var(--mui-palette-text-disabled)]'>
               <Icon icon='tabler:armchair' width={26} />
             </div>

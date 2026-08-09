@@ -135,7 +135,10 @@ function FacebookPostBlock({ post, blockKey }: { post: PageBlockPost; blockKey: 
     </>
   )
 
-  const cardClass = 'block mli-5 mbs-3.5 mbe-3.5 rounded-xl border overflow-hidden no-underline text-[color:inherit]'
+  // rounded-lg (8px) = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes)
+  // เดิม rounded-xl (12px) ไม่อยู่บน ramp เลย (4/6/8/10/full) — ค่านี้ถูกก็อปต่อ ๆ กันมาในโฟลเดอร์ v2/
+  // จึง "สม่ำเสมอกันเอง" แต่ไม่ตรงระบบ ซึ่งจับได้ยากกว่าค่าที่หลุดเดี่ยว ๆ
+  const cardClass = 'block mli-5 mbs-3.5 mbe-3.5 rounded-lg border overflow-hidden no-underline text-[color:inherit]'
 
   // โพสต์ที่ไม่มี permalink (ข้อมูลผิดปกติ) ยังโชว์ได้ แค่กดออกไปที่โพสต์จริงไม่ได้
   // data-block-key: จุดเกาะให้ BuilderPreviewBridge วัดตำแหน่ง (feature 00035, SDS §4.1)

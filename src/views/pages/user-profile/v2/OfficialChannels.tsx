@@ -92,9 +92,11 @@ export default function OfficialChannels({ channels }: { channels: OfficialChann
                 {meta.label}
               </Typography>
             </span>
+            {/* "เปิด" เฉย ๆ ไม่บอกว่าเปิดอะไรและจะพาออกนอกเว็บ — link text ต้องเข้าใจได้นอกบริบท
+                (screen reader อ่านรายการลิงก์แยกจากแถว จะได้ "เปิด เปิด เปิด" เรียงกัน) */}
             {href && (
               <span className='text-[13px] font-semibold text-primary shrink-0 flex items-center gap-1'>
-                เปิด
+                {`เปิดใน ${meta.label}`}
                 <Icon icon='lucide:external-link' width={13} />
               </span>
             )}

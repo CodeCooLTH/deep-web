@@ -29,8 +29,10 @@ export default function PublicRoomList({ rooms }: { rooms: PublicRoom[] }) {
     <div className='grid grid-cols-2 gap-4'>
       {rooms.map((r) => {
         const img = toFileUrl(r.imageUrl)
+        // rounded-lg (8px) = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes)
+        // เดิม rounded-xl (12px) ไม่อยู่บน ramp — sync กับ PageBlocksSection ที่อ้างไฟล์นี้เป็น Base
         return (
-          <div key={r.id} className='rounded-xl overflow-hidden border'>
+          <div key={r.id} className='rounded-lg overflow-hidden border'>
             <div className='bs-[130px] bg-[var(--mui-palette-action-hover)] flex items-center justify-center text-[var(--mui-palette-text-disabled)]'>
               {img ? (
                 // eslint-disable-next-line @next/next/no-img-element -- รูปจาก storage หลากโดเมน

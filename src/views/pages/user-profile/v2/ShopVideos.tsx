@@ -55,6 +55,22 @@ const PROVIDER_UI: Record<VideoProvider, { logo: string | null; label: string }>
 }
 
 /**
+ * TILE_SCRIM — SSOT ในโค้ดของ token **Photo Scrim** (DESIGN.md §Colors → Neutral + Named Rules,
+ * `.impeccable/design.json` colors.scrim) ไล่เงาทับรูปถ่ายของผู้ใช้ ให้ตัวหนังสือขาวที่ลอยบนรูป
+ * (ชื่อบัญชี/ยอดวิว/ราคา) อ่านออกไม่ว่ารูปจะสว่างแค่ไหน
+ *
+ * ดำสนิทถูกต้องแล้วตรงนี้ ไม่ใช่การละเมิดกฎ "ห้าม #000" — ดู The Photo-Scrim Exception:
+ * scrim ตกบนเนื้อหาของผู้ใช้ ผสมหมึกพลัมเข้าไปคือการเปลี่ยนสีรูปของร้าน
+ *
+ * ค่าเดียวกับที่การ์ดสินค้าใน `../profile/index.tsx` ใช้ — สองที่นี้ทำหน้าที่เดียวกัน 100%
+ * แต่เคยตั้งค่าต่างกันเล็กน้อย (.26/30%/55% กับ .28/32%/52%) โดยไม่มีเหตุผล ต่างน้อยจนตาไม่เห็น
+ * ทีละจุด แต่มันคือสิ่งที่ทำให้หน้าอ่านว่า "ประกอบขึ้นมา" มากกว่า "ออกแบบมา" (DESIGN.md §Typography
+ * เขียนบทเรียนเดียวกันนี้ไว้กับเรื่องขนาดตัวอักษร 14.5 vs 12.5)
+ */
+export const TILE_SCRIM =
+  'linear-gradient(180deg,rgb(0 0 0/.28) 0%,transparent 32%,transparent 52%,rgb(0 0 0/.72) 100%)'
+
+/**
  * แถวที่บันทึกไว้ด้วยโค้ดรุ่นก่อนแก้บั๊ก shortcode จะเก็บ media id (ตัวเลขล้วน) แทน shortcode
  * ของ Instagram ซึ่งประกอบ URL ฝังแล้วเปิดไม่ขึ้น — คัดออกดีกว่าปล่อยให้ผู้ชมกดแล้วเจอหน้าเปล่า
  * โดยไม่มีอะไรอธิบาย (ร้านต้องกดบันทึกใหม่ในหน้าตั้งค่าเพื่อให้ได้ค่าที่ถูก)
@@ -81,7 +97,19 @@ function VideoCell({ item }: { item: ShopVideoItem }) {
 
   if (playing) {
     return (
+      // 🛑 ต้องมีทางกลับ — เดิม `setPlaying(true)` มีที่เดียวและไม่มีที่ไหนคืนเป็น false เลย
+      // กดเล่นคลิปแล้วไทล์นั้นกลายเป็น iframe ของบุคคลที่สามถาวร ต้องรีเฟรชทั้งหน้าถึงจะกลับ
+      // อาการหนักบนมือถือ: ไทล์ชิดกันไม่มีช่องว่างกันพลาด แตะพลาดแล้วออกไม่ได้
       <div className='relative aspect-[9/16] bg-black'>
+        <button
+          type='button'
+          onClick={() => setPlaying(false)}
+          aria-label='ปิดคลิป'
+          // z สูงกว่า iframe + พื้นทึบดำโปร่ง ให้เห็นบนคลิปทุกสี · 32px กดโดนบนมือถือ
+          className='absolute top-2 inline-end-2 z-10 is-8 bs-8 rounded-full bg-black/55 text-white flex items-center justify-center border-0 p-0 cursor-pointer'
+        >
+          <Icon icon='lucide:x' width={16} />
+        </button>
         <iframe
           src={buildEmbedUrl(parsed)}
           title={item.caption ?? `คลิปจาก ${ui.label}`}
@@ -102,24 +130,28 @@ function VideoCell({ item }: { item: ShopVideoItem }) {
       type='button'
       onClick={() => setPlaying(true)}
       aria-label={`เล่นคลิปจาก ${ui.label}${item.accountName ? ` บัญชี ${item.accountName}` : ''}`}
-      className='relative aspect-[9/16] bg-[var(--mui-palette-action-hover)] overflow-hidden border-0 p-0 cursor-pointer block is-full font-[inherit]'
+      className='group relative aspect-[9/16] bg-[var(--mui-palette-action-hover)] overflow-hidden border-0 p-0 cursor-pointer block is-full font-[inherit]'
     >
       {item.thumbnailUrl && !imgFailed && (
-        // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก CDN ของแพลตฟอร์ม
+        // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก storage ของเรา (mirror) หรือ CDN ของแพลตฟอร์ม
         <img
           src={item.thumbnailUrl}
           alt=''
-          className='absolute inset-0 is-full bs-full object-cover'
+          // ขยายเล็กน้อยตอนชี้ — บอกว่าไทล์ทั้งใบกดได้ โดยไม่ต้องเพิ่มกรอบ/เงาเข้ามาในกริดที่
+          // ตั้งใจให้ชิดกันเป็นผืนเดียว (Tailwind 4 ห่อ hover: ด้วย @media (hover:hover) ให้เอง
+          // จอสัมผัสจึงไม่ค้างสถานะหลังแตะ)
+          className='absolute inset-0 is-full bs-full object-cover transition-transform duration-300 ease-out group-hover:scale-105'
           onError={() => setImgFailed(true)}
           loading='lazy'
+          decoding='async'
         />
       )}
 
-      {/* ไล่เงาล่าง — ให้ตัวหนังสือขาวอ่านออกไม่ว่ารูปปกจะสว่างแค่ไหน */}
-      <span
-        className='absolute inset-0'
-        style={{ background: 'linear-gradient(180deg,rgb(0 0 0/.28) 0%,transparent 32%,transparent 52%,rgb(0 0 0/.72) 100%)' }}
-      />
+      {/* ไล่เงาล่าง — render เสมอโดยตั้งใจ ไม่ผูกกับ "มีรูปไหม"
+          ux gate เสนอให้ตัดทิ้งเมื่อไม่มีรูป โดยมองว่าเป็นของตกแต่งที่ไม่ได้ทำงาน แต่ตรวจแล้ว
+          ไม่ใช่: แถบชื่อบัญชี/ยอดวิวด้านล่างเป็น "ตัวหนังสือสีขาว" ที่ render ตลอด ไม่ว่ารูปจะขึ้น
+          หรือไม่ — ถอดไล่เงาออกเมื่อรูปพัง = ตัวขาวบนพื้นเทาจาง อ่านไม่ออกทั้งแถบ */}
+      <span className='absolute inset-0' style={{ background: TILE_SCRIM }} />
 
       {/* โลโก้แพลตฟอร์ม มุมบน — บอกทันทีว่าคลิปมาจากที่ไหน */}
       {ui.logo && (
@@ -175,14 +207,31 @@ export default function ShopVideos({ items: raw }: { items: ShopVideoItem[] }) {
   // เหลือแค่กริดรูปล้วน (user 2026-07-26) — ตัดคำอธิบายใต้กริดกับลิงก์ "ดูบน..." ออก
   // ทั้งสองอันเป็นข้อความรอบ ๆ ที่แย่งความสนใจจากตัวคลิป และข้อมูลที่จำเป็นจริง (แพลตฟอร์ม
   // ชื่อบัญชี ยอดวิว/ไลก์) อยู่บนรูปแต่ละใบอยู่แล้ว ส่วนทางไปดูบนแพลตฟอร์มมีในตัวคลิปที่ฝัง
+
+  // 🛑 คอลัมน์คงที่ 3/4/5 + จัดกลาง "เฉพาะแถวสุดท้าย" (ผลของ justify-center บน flex-wrap:
+  // แถวที่เต็มกินความกว้าง 100% พอดีอยู่แล้ว การจัดกลางจึงไม่มีผล เหลือผลเฉพาะแถวที่ไม่เต็ม)
+  //
+  // ปัญหาที่แก้: MAX_SHOP_VIDEOS = 6 ขณะที่กริดเดิมตรึง 5 คอลัมน์ → ร้านที่ปักครบโควตาได้
+  // แถวล่างเหลือคลิปโดดใบเดียวชิดซ้ายกับที่ว่าง 4 ช่อง อ่านเป็น "หน้าโหลดไม่ครบ" — และเกิดกับ
+  // ทุกร้านที่ใช้ฟีเจอร์นี้เต็มโควตา ไม่ใช่เคสหายาก
+  //
+  // ทำไมไม่ผูกจำนวนคอลัมน์กับจำนวนคลิป (ท่าที่ลองก่อนหน้านี้): มันแก้ได้เฉพาะเดสก์ท็อป —
+  // มือถือตรึง 3 คอลัมน์ตามที่ user กำหนด ร้านที่ปัก 4-5 ใบก็ยังได้แถวโดดอยู่ดี บน surface หลัก
+  // ของ product เสียด้วย และไทล์จะมีขนาดไม่เท่ากันระหว่างร้าน (ปัก 3 ใบได้ไทล์ 200px · ปัก 6 ใบ
+  // ได้ 153px) ซึ่งสวนทางกับเหตุผลที่ยกมาใช้เอง ท่านี้แก้ทั้งสอง breakpoint ด้วยกลไกเดียว
+  // และไทล์กว้างเท่ากันทุกร้านทุกจำนวน = เทียบร้านกันได้จริง
+  //
+  // 3/4/5 ตรงกับกริดสินค้าใน ../profile/index.tsx ทุก breakpoint (sm=600 md=900 ตาม marketing.css)
+  // — สองแผงนี้เขียนคอมเมนต์ว่า "ผังเดียวกัน" มาตลอดโดยไม่เคยตรงกันจริงสักช่วง
   return (
     <div>
-      {/* กริดชิดกันไม่มีช่องว่าง — ผังเดียวกับที่ผู้ชมคุ้นจากแอปคลิปสั้น
-          -mli ดึงออกนอก padding ของ tab panel ให้ชนขอบจอจริง
-          มือถือ 3 ต่อแถวเท่าแอปคลิปสั้นทั่วไป เดสก์ท็อป 5 ต่อแถว (user กำหนด 2026-07-26) */}
-      <div className='grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-0 -mli-5'>
+      {/* ชิดกันไม่มีช่องว่าง — ผังที่ผู้ชมคุ้นจากแอปคลิปสั้น
+          -mli-5 ดึงออกนอก padding ของ tab panel ให้ชนขอบจอจริง */}
+      <div className='flex flex-wrap justify-center -mli-5'>
         {items.map((v) => (
-          <VideoCell key={v.id} item={v} />
+          <div key={v.id} className='basis-1/3 sm:basis-1/4 md:basis-1/5'>
+            <VideoCell item={v} />
+          </div>
         ))}
       </div>
     </div>
