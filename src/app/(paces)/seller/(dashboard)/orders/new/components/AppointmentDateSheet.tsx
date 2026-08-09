@@ -198,12 +198,30 @@ export default function AppointmentDateSheet({
   const [pendingEnd, setPendingEnd] = useState<string>(valueEndTime ?? '')
   // ผู้ใช้พิมพ์เวลาสิ้นสุดเองแล้วหรือยัง — ถ้าเคย ห้าม auto-fill ทับ (ยกกติกามาจากฟอร์มเดิม)
   const endTouched = useRef(false)
+  /**
+   * ขั้นที่กำลังอยู่ — มีความหมายเฉพาะ **กล่องแคบ + โหมดระบุเวลา** เท่านั้น
+   *
+   * user รายงาน 2026-08-09 ว่าเลือกเวลาบนมือถือ (เปิดจากหน้าแชท) ใช้ยาก: พอเลือกวันเสร็จ
+   * ปฏิทินเดือนยังกินพื้นที่ ~320px กลางจอทั้งที่ทำหน้าที่จบไปแล้ว ช่องเวลาเลยถูกดันไปใต้
+   * เส้นพับ ต้องเลื่อนลงไปหาแล้วปั่น native picker ทีละช่อง — งานที่ควรจบใน 2 แตะกลายเป็น
+   * เลื่อน → แตะ → ปั่น → ปั่น → เลื่อนกลับ
+   *
+   * IMPORTANT: กล่องกว้าง (@5xl) **ไม่อ่านค่านี้เพื่อจัด layout เลย** — ที่นั่นเห็นปฏิทินกับ
+   * รายการพร้อมกันคนละคอลัมน์อยู่แล้ว การบังคับแยกขั้นคือการเพิ่มคลิกโดยไม่ได้อะไรกลับมา
+   * การซ่อน/แสดงจึงทำด้วยคลาส `@5xl:` ทับ ไม่ใช่ด้วย JS (ไม่ต้องรู้ความกว้างกล่องใน JS)
+   */
+  const [step, setStep] = useState<'date' | 'time'>('date')
+  /** โหมดรายวันไม่มีขั้นที่ 2 — ทรงเดิมทุกประการ */
+  const twoStep = !byDay
+  const atTimeStep = twoStep && step === 'time'
+
   // เปิดชีตใหม่ทุกครั้งต้องเริ่มจากค่าที่ฟอร์มถืออยู่ ไม่ใช่ค่าที่ค้างจากการเปิดครั้งก่อน
   useEffect(() => {
     if (!open) return
     setPendingDate(value)
     setPendingStart(valueStartTime ?? '')
     setPendingEnd(valueEndTime ?? '')
+    setStep('date')
     // ค่าที่ฟอร์มถืออยู่ = ผู้ใช้เคยตั้งเวลาสิ้นสุดไว้แล้ว จึงห้าม auto-fill ทับตอนเปิดซ้ำ
     endTouched.current = !!valueEndTime
   }, [open, value, valueStartTime, valueEndTime])
@@ -220,16 +238,27 @@ export default function AppointmentDateSheet({
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!open) return
+    /* ย้ายโฟกัสทุกครั้งที่ "ขั้น" เปลี่ยนด้วย ไม่ใช่แค่ตอนเปิด — ปุ่มที่เพิ่งกด (ถัดไป/ย้อนกลับ)
+       ถูกซ่อนด้วย hidden ทันทีที่ขั้นเปลี่ยน ถ้าไม่ย้าย โฟกัสจะค้างอยู่บนปุ่มที่หายไปแล้ว
+       และ aria-label ของปุ่มหัวแผ่นเปลี่ยนไปพร้อมบอกบริบทใหม่ในตัว (ไม่ต้องมี live region แยก) */
     const t = setTimeout(() => closeBtnRef.current?.focus(), 60)
     const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape') return
+      // อยู่ขั้นเลือกเวลา = ถอยกลับไปขั้นเลือกวันก่อน ไม่ปิดชีตทิ้งทั้งใบ (สมมาตรกับปุ่ม ‹)
+      // ไม่กระทบกลไก "ปิดทีละชั้น" ของ RescheduleAppointmentSheet ซึ่งกัน Escape ของตัวเอง
+      // ด้วย dateSheetOpen อยู่แล้ว — มันเห็นแค่ว่าปฏิทินเปิดอยู่ ไม่สนใจขั้นภายใน
+      if (atTimeStep) {
+        setStep('date')
+        return
+      }
+      onClose()
     }
     document.addEventListener('keydown', onEsc)
     return () => {
       clearTimeout(t)
       document.removeEventListener('keydown', onEsc)
     }
-  }, [open, onClose])
+  }, [open, onClose, atTimeStep, step])
 
   /** เดือนที่กำลังมองอยู่ — วาดหัวเรื่อง พ.ศ. เอง (FullCalendar ให้มาเป็น ค.ศ.) */
   const [viewStart, setViewStart] = useState<Date | null>(null)
@@ -489,6 +518,56 @@ export default function AppointmentDateSheet({
 
   const TIME_ISSUE_ID = 'appt-sheet-time-issue'
 
+  /**
+   * ปุ่มช่วงเวลาสำเร็จรูป — ทางลัดให้จบใน 2 แตะแทนการปั่น native time picker ทีละช่อง
+   *
+   * หน้าต่าง 08:00–20:00 ทุก 1 ชั่วโมง = 12 ปุ่ม (user เคาะ 2026-08-09 ว่า "ยังไม่ต้องมี
+   * คอลัมน์เวลาทำการ ใช้ 08:00–20:00 ไปก่อน") — ช่องเวลาด้านล่างยังอยู่ครบสำหรับร้านที่เปิด
+   * ดึกหรือเวลาไม่ลงล็อก ปุ่มพวกนี้เป็น "ทางลัด" ไม่ใช่ "ทางเดียว"
+   *
+   * ระยะห่างคงที่ 1 ชั่วโมง ไม่ผูกกับ durationMinutes โดยตั้งใจ — บริการที่ยาว 25 นาทีจะได้
+   * ~28 ปุ่มซึ่งล้นทุกความกว้าง ส่วนความละเอียดกว่านั้นไปปรับที่ช่องเวลาได้
+   *
+   * IMPORTANT: ปุ่มที่ชนคิวเดิม **ไม่ disable** แค่ติดจุดเตือน — BR-RSV-18 ยืนยันว่าเลขบนจอ
+   * ไม่ใช่คำตัดสิน (ข้อมูลอาจ stale ระหว่างเปิดค้าง) ตัวตัดสินจริงคือ EXCLUDE constraint
+   * ตอนบันทึก การ disable จากข้อมูลฝั่ง client จะบล็อกช่วงที่จริง ๆ ยังจองได้
+   */
+  const timeSlots = useMemo(() => {
+    if (byDay || !pendingDate) return []
+    const dur = resourceDurationMinutes && resourceDurationMinutes > 0 ? resourceDurationMinutes : null
+    const nowMs = Date.now()
+    const out: { start: string; end: string | null; label: string; busy: boolean; past: boolean }[] = []
+    for (let h = 8; h < 20; h++) {
+      const start = `${`${h}`.padStart(2, '0')}:00`
+      const end = dur ? addMinutesToTime(start, dur) : null
+      const s = combineDateTime(pendingDate, start)
+      // ชนคิวเดิมไหม — คำนวณได้เฉพาะเมื่อรู้ระยะเวลา ไม่งั้นไม่มีช่วงให้เทียบ (ห้ามย้อมมั่ว)
+      let busy = false
+      if (s && end && capacity != null && capacity > 0) {
+        const e = combineDateTime(pendingDate, end)
+        if (e) {
+          const sT = s.getTime()
+          const eT = Math.max(e.getTime(), sT + 1)
+          const overlap = dayItems.filter((it) => {
+            const bs = new Date(it.start).getTime()
+            const be = new Date(it.end).getTime()
+            return bs < eT && sT < be
+          }).length
+          busy = overlap >= capacity
+        }
+      }
+      out.push({
+        start,
+        end,
+        label: end ? `${start}–${end}` : start,
+        busy,
+        // เลยเวลาไปแล้วของวันนี้ — มัวลงเป็นคำใบ้ แต่ยังกดได้ (นัดย้อนหลังทำได้ตาม FR-RSV-03)
+        past: s ? s.getTime() < nowMs : false,
+      })
+    }
+    return out
+  }, [byDay, capacity, dayItems, pendingDate, resourceDurationMinutes])
+
   const confirmState = useMemo((): { label: string; disabled: boolean } => {
     if (!pendingDate) return { label: 'แตะวันในปฏิทินก่อน', disabled: true }
     const dateLabel = formatDateTH(new Date(`${pendingDate}T00:00`))
@@ -544,27 +623,41 @@ export default function AppointmentDateSheet({
             chevron เหมือนกันเป๊ะ ต่างกันแค่ขนาด ทั้งที่ผลของสองปุ่มนี้ต่างกันสุดขั้ว
             (ทิ้งงานที่กรอกค้าง vs เลื่อนเดือน) — ระยะเท่านี้บนมือถือคือ misclick ที่รอเกิด
             min-h-11/min-w-11 = 44px ตาม PRODUCT.md (btn-icon เปล่า ๆ ได้ 37px) */}
+        {/* ปุ่มเดียวทำสองหน้าที่ตามขั้น — ขั้นเลือกวัน = ปิดชีต · ขั้นเลือกเวลา = ถอยกลับ
+            ไม่ทำปุ่ม "เปลี่ยนวัน" แยกอีกปุ่มในหัวแผ่น เพราะจะเป็นสองปุ่มที่ทำงานเดียวกัน */}
         <button
           ref={closeBtnRef}
           type="button"
-          onClick={onClose}
-          aria-label="ปิด"
+          onClick={() => (atTimeStep ? setStep('date') : onClose())}
+          aria-label={
+            atTimeStep && pendingDate
+              ? `กลับไปเลือกวันที่ (${formatDateTH(new Date(`${pendingDate}T00:00`))})`
+              : 'ปิด'
+          }
           className="btn btn-icon text-default-800 hover:bg-default-100 min-h-11 min-w-11 shrink-0"
         >
-          <Icon icon="x" className="size-6" />
+          <Icon icon={atTimeStep ? 'chevron-left' : 'x'} className="size-6" />
         </button>
         {/* ไอคอนในกรอบพื้นอ่อนตาม mockup — idiom `bg-{semantic}/15` ของ Paces (HR7) */}
         <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded">
-          <Icon icon="calendar-event" className="size-5" />
+          {/* ไอคอนบอกว่ากำลังทำอะไรอยู่ — ขั้นเลือกเวลาใช้นาฬิกา ไม่ใช่ปฏิทินที่หลบไปแล้ว */}
+          <Icon icon={atTimeStep ? 'clock' : 'calendar-event'} className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
           {/* คำเดียวกับ aria-label ด้านบนและกับปุ่มที่เปิดชีตนี้ — ห้ามให้สามที่นี้พูดคนละคำ */}
           <h3 className="truncate text-base font-semibold text-dark">
-            {byDay ? 'เลือกวันนัด' : 'เลือกวันและเวลา'}
+            {atTimeStep ? 'เลือกเวลา' : byDay ? 'เลือกวันนัด' : 'เลือกวันและเวลา'}
           </h3>
+          {/* ขั้นเลือกเวลา: บอกว่ากำลังตั้งเวลาของวันไหน (แทนชื่อบริการ/ความจุที่รู้ไปแล้วจากขั้นก่อน)
+              เป็นข้อความล้วน ไม่ใช่ปุ่ม — ปุ่ม ‹ ข้างซ้ายทำหน้าที่ "กลับไปเปลี่ยนวัน" อยู่แล้ว */}
+          {atTimeStep && pendingDate && (
+            <p className="truncate text-xs text-default-500">
+              {formatWeekdayDateTH(new Date(`${pendingDate}T00:00`))}
+            </p>
+          )}
           {/* mockup โชว์ความจุต่อวันไว้ตรงนี้ด้วย — ผู้ขายจะได้รู้ตั้งแต่ต้นว่า "เต็ม" ของคิวนี้
               คือกี่งาน โดยไม่ต้องจิ้มวันแล้วไปอ่านตัวเลขที่หัวรายการ */}
-          {(resourceName || (capacity != null && capacity > 0)) && (
+          {!atTimeStep && (resourceName || (capacity != null && capacity > 0)) && (
             <p className="truncate text-xs text-default-500">
               {/* "คิว/วัน" ถูกเฉพาะโหมดรายวัน — โหมดระบุช่วงเวลา ความจุนี้วัดกันที่ "ช่วงเวลาที่ทับกัน"
                   (ดู isFull) ร้าน capacity 2 รับได้ทั้งวันหลายสิบคิว การเขียน "รับได้ 2 คิว/วัน"
@@ -596,7 +689,15 @@ export default function AppointmentDateSheet({
           ปุ่ม "วันนี้" ซึ่งอยู่ห่างลงมา 60px ตกสำรวจ ทั้งที่เป็นแถวเดียวกันในสายตาผู้ใช้
           ใช้ min-h/min-w ไม่ใช่ size-11 เพราะ `.btn[class*="size-"]` บังคับ padding:0 อยู่แล้ว
           และ min-* ชนะ h/w ของ btn-icon ได้โดยไม่ต้องแก้ธีม (ท่าเดียวกับปุ่มปิดด้านบน) */}
-      <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
+      {/* แถบเดือน/legend/ปฏิทิน หายไปในขั้นเลือกเวลา **เฉพาะกล่องแคบ** — ข้อมูลพวกนี้ซ้ำกับ
+          สิ่งที่ผู้ใช้เพิ่งตัดสินใจไปแล้ว และมันคือ ~400px ที่ไปเบียดช่องเวลาให้ตกใต้เส้นพับ
+          `@5xl:flex` ทับกลับเสมอที่กล่องกว้าง → ที่นั่นไม่มีการแยกขั้น (เห็นครบพร้อมกันอยู่แล้ว
+          การบังคับแยกขั้นคือการเพิ่มคลิกโดยไม่ได้อะไรกลับมา) — ไม่ต้องรู้ความกว้างกล่องใน JS */}
+      <div
+        className={`shrink-0 items-center justify-between gap-2 px-4 py-3 @5xl:flex ${
+          atTimeStep ? 'hidden' : 'flex'
+        }`}
+      >
         <button
           type="button"
           onClick={goPrev}
@@ -635,7 +736,11 @@ export default function AppointmentDateSheet({
 
       {/* คำอธิบายสัญลักษณ์ — ย้ายขึ้นมาชิดปฏิทินที่มันอธิบาย (เดิมเป็นแถบแยกที่ก้นจอ กิน ~52px
           ซึ่งตอนนี้เป็นที่ของรายการแล้ว) "ว่าง" ไม่ต้องมี swatch เพราะมันคือช่องที่ไม่มีอะไรเลย */}
-      <div className="text-default-600 text-2xs flex shrink-0 items-center justify-center gap-4 px-4 pb-2">
+      <div
+        className={`text-default-600 text-2xs shrink-0 items-center justify-center gap-4 px-4 pb-2 @5xl:flex ${
+          atTimeStep ? 'hidden' : 'flex'
+        }`}
+      >
         <span className="inline-flex items-center gap-1.5">
           <span className="bg-warning size-1.5 rounded-full" aria-hidden="true" />
           มีคิวแล้ว
@@ -670,7 +775,15 @@ export default function AppointmentDateSheet({
           ซึ่งฆ่าเหตุผลทั้งหมดของการย้ายช่องเวลาเข้ามา (ย้ายมาเพื่อให้เห็นคิวขณะเลือกเวลา
           แล้วคิวดันหายไป = กลับไปเดาเวลาเหมือนก่อนแก้ โดยที่จอดู "ครบ" ทุกอย่าง)
           ให้เลื่อนแทนการบีบ: ไม่มีชิ้นไหนถูกครูดจนหาย และทุกอย่างยังไปถึงได้ */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain @5xl:flex-row @5xl:overflow-hidden">
+      <div
+        className={`flex min-h-0 flex-1 flex-col overscroll-contain @5xl:flex-row @5xl:overflow-hidden ${
+          /* ขั้นเลือกวัน: ปฏิทินสูงตามเดือน จึงให้ทั้งคอลัมน์เลื่อน (กันการบีบจนรายการหาย)
+             ขั้นเลือกเวลา: ปฏิทินหายไปแล้ว พื้นที่พอ → ห้ามให้ทั้งคอลัมน์เลื่อน ไม่งั้นวันที่มีคิวเยอะ
+             จะดันช่องเวลาตกใต้เส้นพับอีกรอบ ซึ่งคืออาการที่ทั้งงานนี้ทำมาเพื่อแก้
+             ให้รายการเลื่อนในตัวเองแทน แล้วช่องเวลาตรึงอยู่ล่างเสมอ */
+          atTimeStep ? 'overflow-hidden' : 'overflow-y-auto'
+        }`}
+      >
       {/* ไม่ใช้ shrink-0 กับปฏิทิน: FullCalendar height="auto" ยืดตามจำนวนแถวของเดือน (6 แถว
           ในบางเดือน) ถ้าห้ามหดแล้วเดือนนั้นสูงเกินพื้นที่ รายการข้างล่างจะถูกบีบเหลือศูนย์
           — ให้ปฏิทินหดแล้วเลื่อนในตัวเองแทน ส่วนรายการมี min-h กันไว้อีกชั้น */}
@@ -679,7 +792,11 @@ export default function AppointmentDateSheet({
           ขาดคลาสนี้เมื่อไหร่ ปฏิทินจะกลับไปเป็นตารางดิบทันที */}
       {/* กล่องแคบ: ปฏิทินสูงตามเนื้อหา แล้วให้คอลัมน์แม่เลื่อน (ไม่ซ้อน scroll สองชั้น)
           กล่องกว้าง: กลับไปเลื่อนในตัวเองเหมือนเดิม เพราะอยู่คู่กับคอลัมน์รายการ */}
-      <div className="appt-date-sheet shrink-0 px-2 pb-2 @5xl:min-h-0 @5xl:shrink @5xl:overflow-y-auto @5xl:overscroll-contain @5xl:basis-3/5 @5xl:border-e @5xl:border-default-200">
+      <div
+        className={`appt-date-sheet shrink-0 px-2 pb-2 @5xl:block @5xl:min-h-0 @5xl:shrink @5xl:overflow-y-auto @5xl:overscroll-contain @5xl:basis-3/5 @5xl:border-e @5xl:border-default-200 ${
+          atTimeStep ? 'hidden' : 'block'
+        }`}
+      >
         <FullCalendar
           ref={calRef}
           plugins={[dayGridPlugin, interactionPlugin]}
@@ -814,7 +931,11 @@ export default function AppointmentDateSheet({
       {/* ── รายการนัดของวันที่กำลังดู (user สั่ง 2026-08-07: "จิ้มวันแต่ละวันเพื่อดูรายการได้") ── */}
       {/* min-h-40 = พื้นที่ขั้นต่ำที่รายการต้องได้เสมอ (flex-1 basis 0 อย่างเดียวไม่การันตี
           อะไรเลยเมื่อพื้นที่ติดลบ — ปฏิทินจะกินหมดแล้วรายการหายไปทั้งก้อน) */}
-      <div className="border-default-200 bg-default-100 flex flex-col border-t @5xl:min-h-0 @5xl:flex-1 @5xl:basis-2/5 @5xl:border-t-0">
+      <div
+        className={`border-default-200 bg-default-100 flex flex-col border-t @5xl:min-h-0 @5xl:flex-1 @5xl:basis-2/5 @5xl:border-t-0 ${
+          atTimeStep ? 'min-h-0 flex-1' : ''
+        }`}
+      >
         {/* aria-live/atomic: การเลือกวันเปลี่ยนแค่ "รายการข้างล่าง" ซึ่งอยู่คนละที่กับมือ/โฟกัส
             ผู้ใช้ screen reader ที่เพิ่งกด Enter บนช่องวันจึงไม่มีทางรู้ผลของสิ่งที่เพิ่งทำเลย
             (WCAG 4.1.3 Status Messages) — atomic=true เพื่อให้ได้ยินทั้งวันที่ + จำนวนคิว
@@ -870,7 +991,11 @@ export default function AppointmentDateSheet({
             </p>
           </div>
         ) : (
-          <div className="px-3 pb-3 @5xl:min-h-0 @5xl:flex-1 @5xl:overflow-y-auto @5xl:overscroll-contain">
+          <div
+            className={`px-3 pb-3 @5xl:min-h-0 @5xl:flex-1 @5xl:overflow-y-auto @5xl:overscroll-contain ${
+              atTimeStep ? 'min-h-0 flex-1 overflow-y-auto overscroll-contain' : ''
+            }`}
+          >
             <ul className="flex flex-col gap-2">
               {dayItems.map((it) => {
                 const start = new Date(it.start)
@@ -919,8 +1044,13 @@ export default function AppointmentDateSheet({
             ซึ่งเป็นคนละบริบทกับตอนที่เพิ่งดูคิวว่างอยู่ วางไว้ "ใต้รายการนัดของวันนั้น"
             โดยตั้งใจ เพราะรายการนั้นคือข้อมูลที่ใช้ตัดสินว่าจะนัดกี่โมง — อ่านแล้วกรอกต่อได้เลย
             shrink-0: ห้ามให้ส่วนนี้ถูกบีบหายเมื่อรายการนัดยาว (รายการมี overflow ของตัวเองแล้ว) */}
+        {/* กล่องแคบ: โผล่เฉพาะขั้นที่ 2 · กล่องกว้าง: โผล่เสมอ (`@5xl:block` ทับ) */}
         {!byDay && pendingDate && (
-          <div className="border-default-200 shrink-0 border-t border-dashed px-4 pt-3 pb-3">
+          <div
+            className={`border-default-200 shrink-0 border-t border-dashed px-4 pt-3 pb-3 @5xl:block ${
+              atTimeStep ? 'block' : 'hidden'
+            }`}
+          >
             <p className="form-label mb-2">เลือกเวลา</p>
 
             {/* ทางลัดจากข้อมูลที่อยู่ตรงหน้าอยู่แล้ว — ไม่ใช่ขั้นตอนบังคับ วันที่ยังว่างจะไม่มีชิปนี้
@@ -940,6 +1070,47 @@ export default function AppointmentDateSheet({
                 <Icon icon="arrow-narrow-right" className="size-4 shrink-0" aria-hidden="true" />
                 ตั้งเวลาเริ่ม {suggestedStart} ต่อจากคิวก่อนหน้า
               </button>
+            )}
+
+            {/* ── ปุ่มช่วงเวลาสำเร็จรูป ── ทางลัดหลักของขั้นนี้: กดครั้งเดียวได้ทั้งเริ่มและจบ
+                แทนการปั่น native time picker ทีละช่อง (user 2026-08-09: "เลือกเวลาบนมือถือใช้ยาก")
+                ช่องเวลาด้านล่างยังอยู่ครบ — ปุ่มพวกนี้เป็นทางลัด ไม่ใช่ทางเดียว จึงไม่กันร้าน
+                ที่เปิดนอกช่วง 08:00–20:00 ออกจากระบบ
+                จุดเตือนใช้สัญลักษณ์เดียวกับ legend ปฏิทิน ("มีคิวแล้ว") ไม่ใช่สีใหม่ */}
+            {timeSlots.length > 0 && (
+              <div className="mb-3">
+                <p className="text-default-500 mb-1.5 text-sm">ช่วงเวลาที่ว่าง</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {timeSlots.map((s) => {
+                    const active = pendingStart === s.start
+                    return (
+                      <button
+                        key={s.start}
+                        type="button"
+                        onClick={() => applyStart(s.start)}
+                        aria-pressed={active}
+                        aria-label={`${s.label}${s.busy ? ' มีคิวแล้ว' : ''}${s.past ? ' เลยเวลาไปแล้ว' : ''}`}
+                        className={`btn relative min-h-11 justify-center rounded-lg border px-1 text-xs tabular-nums ${
+                          active
+                            ? 'border-primary bg-primary/15 text-primary'
+                            : 'border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50'
+                        } ${s.past ? 'opacity-50' : ''}`}
+                      >
+                        {s.label}
+                        {/* ไม่ disable ปุ่มที่ชนคิว — BR-RSV-18 เลขบนจอไม่ใช่คำตัดสิน (ข้อมูลอาจ
+                            เก่าระหว่างเปิดค้าง) ตัวตัดสินจริงคือ EXCLUDE constraint ตอนบันทึก
+                            การปิดปุ่มจากข้อมูลฝั่ง client จะบล็อกช่วงที่จริง ๆ ยังจองได้ */}
+                        {s.busy && (
+                          <span
+                            className="bg-warning absolute end-1 top-1 size-1.5 rounded-full"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
@@ -1023,6 +1194,23 @@ export default function AppointmentDateSheet({
           ไม่ใช้คำว่า "วันนี้" เพราะชนกับปุ่ม "วันนี้" บนหัวที่แปลว่ากระโดดไปวันปัจจุบัน
           — จอเดียวมีคำเดียวกันสองความหมายคืออ่านสลับกันได้ทันที จึงพูดวันที่ออกมาตรง ๆ */}
       <div className={`border-default-200 bg-card flex shrink-0 items-start gap-3 border-t px-4 pt-3 ${FOOTBAR_HEIGHT}`}>
+        {/* ปุ่ม "ไปขั้นเลือกเวลา" — มีเฉพาะกล่องแคบ + โหมดระบุเวลา + ขั้นแรก
+            render สองปุ่มเสมอแล้วสลับด้วยคลาส (ไม่ใช่ JS) เพราะ `@5xl:hidden` ต้องชนะได้
+            โดยไม่ต้องรู้ความกว้างกล่องใน JS — idiom เดียวกับ DOW_SHORT/DOW_FULL ในไฟล์นี้
+            ไม่เช็ค isFull: "เต็มทั้งวัน" ไม่มีความหมายในโหมดเวลา (ดู isFull) */}
+        <button
+          type="button"
+          disabled={!pendingDate}
+          onClick={() => pendingDate && setStep('time')}
+          className={`btn bg-primary hover:bg-primary-hover min-h-11 w-full justify-center gap-2 py-3 font-semibold text-white @5xl:hidden ${
+            twoStep && step === 'date' ? 'flex' : 'hidden'
+          }`}
+        >
+          {pendingDate
+            ? `เลือกเวลาของ ${formatDateTH(new Date(`${pendingDate}T00:00`))}`
+            : 'แตะวันในปฏิทินก่อน'}
+          {pendingDate && <Icon icon="chevron-right" className="size-4 shrink-0" aria-hidden="true" />}
+        </button>
         <button
           type="button"
           disabled={confirmState.disabled}
@@ -1040,7 +1228,9 @@ export default function AppointmentDateSheet({
           /* combo หลักของปุ่ม CTA เต็มความกว้างในธีม Paces (theme/paces/Admin/TS/src ใช้ซ้ำ 27 ที่)
              ไม่ต้องมี disabled:opacity-50 เอง — `button:disabled` ใน custom/_buttons.css
              ให้ opacity-50 + cursor-not-allowed อยู่แล้วทั้งระบบ */
-          className="btn bg-primary hover:bg-primary-hover min-h-11 w-full py-3 font-semibold text-white"
+          className={`btn bg-primary hover:bg-primary-hover min-h-11 w-full justify-center py-3 font-semibold text-white @5xl:flex ${
+            byDay || step === 'time' ? 'flex' : 'hidden'
+          }`}
         >
           {confirmState.label}
         </button>
