@@ -3,7 +3,7 @@ title: "DATABASE — LINE OA Chat Integration"
 owner: shinobu22
 status: draft
 module: M00025-LineOaChatIntegration
-version: "1.1"
+version: "1.2"
 created: 2026-07-26
 tags: [feature, chat, line, database, prisma, migration]
 related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]"]
@@ -11,11 +11,12 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]"]
 
 > **โมดูล:** M00025-LineOaChatIntegration
 > **ประเภทเอกสาร:** Database Design
-> **เวอร์ชัน:** 1.1
+> **เวอร์ชัน:** 1.2
 > **วันที่จัดทำ:** 2026-07-26
-> **สถานะ:** Draft — รอ user review (migration ยังไม่ apply)
+> **สถานะ:** Migration เขียนแล้ว (`20260809180000_line_oa_chat`) — รอ user ยืนยันก่อน apply (S-2)
 >
 > 🔄 **v1.1 (2026-07-31) — sync กับของจริงบน main:** `00023 - Chat Auto-Reply` ขึ้นโค้ดบน production ไปแล้ว (6 service + 10 route + cron sweeper รายวัน + คอลัมน์ `Conversation.autoReply*` / `ChatMessage.autoReplyKind`) เอกสารรอบนี้จึงเปลี่ยน FR-LINE-08 เป็น **"เสียบ LINE เข้าเครื่องยนต์ auto-reply ของ 00023"** และตัดฟิลด์ที่ซ้ำกับของเดิมออก. เดิมจองเลข 00021 — renumber เป็น **00025**
+> 🔄 **v1.2 (2026-08-09) — S-2 doc-fix (D-01/D-02 ใน scope baseline):** (1) timestamp migration เปลี่ยนจาก `20260726000100` (ล้าสมัย ชนลำดับกับ migration ที่ apply จริงไปแล้วระหว่างรอ review) เป็น **`20260809180000`** (มากกว่า `20260809100000` ซึ่งเป็น migration ล่าสุดจริง ณ วันที่ apply) (2) §1 ข้อ 2 แก้จาก "DB dev = prod แชร์กัน" เป็นสถานะจริงปัจจุบัน — ดูรายละเอียดที่ §1
 > **เจ้าของเอกสาร:** safepay-database (ดู [[Feature-Docs-Ownership]])
 
 ---
@@ -30,7 +31,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]"]
 
 **หลักการที่ยึดตลอดเอกสารนี้:**
 1. **Additive เท่านั้น** — ทุกคอลัมน์ใหม่ nullable หรือมี default ไม่มี backfill บังคับ ไม่แตะคอลัมน์เดิม
-2. **DB dev = prod แชร์กัน** — ต้องใช้ `prisma migrate deploy` + ไฟล์ migration เขียนมือ **ห้าม `migrate dev`** (จะ reset ฐานจริง) ตาม `docs/conventions/prisma-shared-db-drift.md`
+2. **DB dev ⇔ prod แยกกันแล้ว (2026-08-xx) แต่ push ขึ้น `main` ยัง auto-migrate prod** — `.env`/`.env.local` ปัจจุบันชี้ `postgresql://...@localhost:5434/safepay` (Docker ในเครื่อง dev, ไม่ใช่ Supabase prod อีกต่อไป — ดู memory `project_dev_db_separated_from_prod`) ดังนั้น "ลบข้อมูล dev ผิดฐาน" ไม่ใช่ความเสี่ยงหลักอีกแล้ว **แต่ความเสี่ยงใหม่คือ** `vercel.json` มี `"buildCommand": "prisma migrate deploy && prisma generate && next build"` — ทุกครั้งที่ push ขึ้น `main`, Vercel รัน `prisma migrate deploy` ชี้ Supabase prod จริงโดยอัตโนมัติ (ไม่มีใครต้องสั่งเอง) เหตุผลที่ยังต้องเขียน migration ด้วยมือ + **ห้าม `migrate dev`** จึงเปลี่ยนจาก "กลัวลบข้อมูล dev/prod ที่แชร์ฐานเดียวกัน" เป็น **"กลัว `migrate dev` reset ฐาน Docker ในเครื่อง dev เอง"** และกลัว migration ที่เขียนผิดจะไปพังตอน merge ขึ้น prod ตาม Hard Rule 15 (`docs/conventions/migrate-on-deploy.md`) — apply บน `.env.local` ต้องใช้ `prisma migrate deploy` เท่านั้น และต้องขอ user ยืนยันก่อนเสมอเพราะการ merge ขึ้น `main` = apply migration เดียวกันนี้บน prod ทันที
 3. **ห้าม `prisma db pull`** — schema มี object ที่ Prisma จัดการไม่ได้ (partial unique index ของ `ShopChannel`, EXCLUDE constraint ของ 00017) การ pull จะทับทิ้ง (`feedback_qa_agent_no_prisma_pull`)
 4. **ความลับเข้ารหัสก่อนเก็บ** — ไม่มีคอลัมน์ใดเก็บ token/secret เป็น plaintext
 5. **ห้ามเพิ่มคอลัมน์ที่ซ้ำกับ 00023** — `Conversation` มี `autoReplyEnabled`, `autoReplyPausedUntil`, `autoReplyCount`, `lastAutoReplyAt`, `handoffAt`, `handoffReason`, `contextProduct*` และ `ChatMessage` มี `autoReplyKind` อยู่แล้วจาก feature 00023 ที่ขึ้น production แล้ว **ให้ใช้ของเดิม** การเพิ่มฟิลด์คู่ขนานจะทำให้มีความจริงสองชุด
@@ -160,9 +161,9 @@ erDiagram
 
 ### 5.1 ลำดับการ Migrate
 
-**ไฟล์เดียว:** `prisma/migrations/20260726000100_line_oa_chat/migration.sql`
+**ไฟล์เดียว:** `prisma/migrations/20260809180000_line_oa_chat/migration.sql` (เขียนแล้ว โดย `safepay-database` — timestamp เปลี่ยนจากที่เอกสาร v1.0/v1.1 เสนอไว้ (`20260726000100`) เป็นค่านี้ เพราะ ณ วันที่ apply จริง (2026-08-09) migration ล่าสุดของโปรเจกต์คือ `20260809100000_chat_message_generic_cards` — ใช้ timestamp เดิมจะแทรกก่อนแล้วชนลำดับ)
 
-รวมทุกคอลัมน์ไว้ใน migration เดียว เพราะ DB dev=prod แชร์กัน — การ ALTER หลายรอบมีต้นทุนความเสี่ยงมากกว่าการเพิ่มให้ครบตั้งแต่รอบแรก (เหตุผลเดียวกับที่ 00018 ทำกับ `isPinned/isHidden/resolvedAt`)
+รวมทุกคอลัมน์ไว้ใน migration เดียวเพื่อลดจำนวนรอบ ALTER บนตารางเดิม (เหตุผลเดียวกับที่ 00018 ทำกับ `isPinned/isHidden/resolvedAt`) — **ไม่ใช่เพราะ dev/prod แชร์ฐานเดียวกันอีกต่อไป** (ดู §1 ข้อ 2 ที่แก้แล้ว) แต่เพราะ push ขึ้น `main` = migration ชุดนี้ไป apply บน prod อัตโนมัติทันที (Hard Rule 15) จึงยังคุ้มที่จะรวมเป็นไฟล์เดียวให้ตรวจสอบง่าย
 
 ```sql
 -- ShopChannel: credential + quota cache + ai opt-in

@@ -1379,6 +1379,19 @@ model ShopChannel {
   commentPrivateReplyEnabled  Boolean @default(false)
   commentPrivateReplyText     String? @db.Text
 
+  // --- feature 00025 LINE OA Chat Integration (additive) ---
+  // channelSecretEnc: Channel secret ของ LINE ผ่าน AES-256-GCM (token-crypto.ts) — ใช้ตรวจ
+  // x-line-signature. Messenger/IG เป็น NULL เสมอ (ใช้ app secret กลางระดับแอป ไม่ใช่ต่อร้าน)
+  // 🛑 ห้าม select ออกไปฝั่ง client ทุกกรณี เหมือน accessTokenEnc
+  channelSecretEnc String?
+  // basicId: Basic ID ของ OA ("@xxxxxxx") — โชว์ในหน้าตั้งค่าให้ร้านยืนยันว่าเชื่อมถูกบัญชี
+  basicId          String?
+  // quotaValue/quotaUsed/quotaFetchedAt: cache โควตาข้อความ LINE รายเดือน — TTL 5 นาที
+  // (line-quota.service.ts) NULL = ยังไม่เคยอ่าน อ่านไม่ได้ต้องไม่บล็อกการส่ง (TD-006)
+  quotaValue       Int?
+  quotaUsed        Int?
+  quotaFetchedAt   DateTime?
+
   shop           Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   contacts       ExternalContact[]
   posts          FacebookPost[]
@@ -1422,6 +1435,13 @@ model ExternalContact {
   tags           String[] @default([])
   phones         String[] @default([]) // เพิ่มได้หลายเบอร์ (CRM — คนละเรื่องกับ Customer.phone ที่ @unique)
   createdAt      DateTime @default(now())
+
+  // --- feature 00025 LINE OA Chat Integration (additive) ---
+  // isBlocked: ลูกค้า unfollow/บล็อก OA แล้ว → ห้ามพยายาม push ซ้ำ (BR-LINE-15) เป็นสถานะ ไม่ใช่การลบ
+  // ใช้ได้กับ Messenger ในอนาคตด้วย จึงไม่ตั้งชื่อผูกกับ LINE
+  isBlocked        Boolean  @default(false)
+  // profileFetchedAt: เวลาที่ดึงโปรไฟล์ล่าสุด — refresh เมื่อเกิน 7 วัน กันยิง /v2/bot/profile ทุกข้อความ
+  profileFetchedAt DateTime?
 
   channel       ShopChannel    @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
   customer      Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
@@ -1510,6 +1530,15 @@ model Conversation {
   // "ADS_MAPPING" | "MANUAL" | "REFERRAL" — MANUAL ชนะเสมอ (BR-AR-12 / AC-014-02)
   contextProductSource String?
   contextProductAt     DateTime? // ใหม่กว่าชนะเมื่อที่มาระดับเดียวกัน (AC-014-03)
+
+  // --- feature 00025 LINE OA Chat Integration (additive) ---
+  // replyToken: reply token ล่าสุดจาก event LINE — ทับค่าเดิมทุกครั้งที่มี event ใหม่เข้ามา
+  replyToken          String?
+  // replyTokenExpiresAt: event.timestamp + 60s (REPLY_WINDOW_MS ใน line/constants.ts)
+  replyTokenExpiresAt DateTime?
+  // replyTokenUsedAt: NULL = ยังไม่ถูกใช้ — ตั้งค่าใน transaction ก่อนยิง LINE เพื่อกัน concurrent
+  // send แย่งใช้ token เดียวกัน (TFR-LINE-05) — 🛑 ห้ามใช้ lastInboundAt แทน (คนละความหมาย/ช่องทาง)
+  replyTokenUsedAt    DateTime?
 
   buyer                User?                        @relation("BuyerConversations", fields: [buyerUserId], references: [id], onDelete: Cascade)
   shop                 Shop                         @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -1669,6 +1698,14 @@ model ChatMessage {
   // false = มาทาง `messaging` ตามปกติ (เราถือห้อง) หรือเป็นแถวก่อนฟีเจอร์นี้ — ไม่ backfill ย้อนหลัง
   // เพราะข้อมูลเดิมไม่มีให้แยกแล้ว (ของเก่าที่ AI ตอบเข้ามาทาง graph-backfill ทั้งหมด)
   viaStandby        Boolean @default(false)
+
+  // --- feature 00025 LINE OA Chat Integration (additive) ---
+  // sendMethod: 'REPLY' | 'PUSH' — NULL สำหรับข้อความขาเข้าและช่องทางที่ไม่มีแนวคิดนี้ (DEEP/Messenger/IG)
+  // เป็นหลักฐานเวลาร้านทักท้วงเรื่องบิล LINE (BR-LINE-16)
+  sendMethod        String?
+  // sendBatchId: UUID ร่วมของข้อความที่ถูกส่งใน request เดียวกัน (parts[] batching, S-10) — ใช้
+  // คำนวณ "โควตาที่ประหยัดได้" และเป็นค่า X-Line-Retry-Key
+  sendBatchId       String?
 
   // --- feature 00023 (additive) ---
   // null = คนส่ง | "AUTO" = ระบบตอบ | "AUTO_TEST" = ระบบตอบขณะอยู่ในโหมดทดสอบ
