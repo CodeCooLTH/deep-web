@@ -278,6 +278,23 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // ทักเข้ามาก่อน" ไม่ใช่ "เกิน 24 ชม.นับจากข้อความล่าสุดของลูกค้า" ที่สื่อว่าเคยทักแล้ว
   // (หลัง sync แล้ว: ถ้า Meta ยืนยันว่ายังไม่มีข้อความลูกค้าเลย ก็ยังเป็น neverInbound จริง ๆ)
   const neverInbound = effectiveLastInbound === null
+
+  // 🛑 "เธรดนี้เกิดจากการตอบคอมเมนต์ไหม" ต้องถามจากข้อมูล ไม่ใช่ดมสตริงในเนื้อข้อความ
+  //
+  // ของเดิมเช็คด้วย `messages.some((m) => m.body.includes('comment_id='))` ที่ ChatThread ซึ่งค้น
+  // ใน **ข้อความอะไรก็ได้ในเธรด รวมข้อความที่ผู้ขายพิมพ์เอง** — ลิงก์คอมเมนต์ของ Facebook หน้าตาคือ
+  // `.../posts/...?comment_id=123` ผู้ขายที่แปะลิงก์คอมเมนต์ให้ลูกค้าดูในแชทปกติ จะพลิกเธรดนั้น
+  // เป็น comment-origin ทันที แล้วได้ผลข้างเคียง 2 อย่างที่ผิดทั้งคู่: แถบเตือน 24 ชม. ที่ควรมี
+  // ถูกลบออกเงียบ ๆ · เวลาส่งไม่ผ่านได้อ่านว่า "Meta ให้ตอบกลับคอมเมนต์ได้ข้อความเดียว" ในเธรดที่
+  // ไม่เกี่ยวกับคอมเมนต์เลย (impeccable critique 2026-08-09 รอบ 2 · P2)
+  //
+  // แหล่งความจริงคือ `CommentReplyLog.conversationId` — แถวนี้ถูกเขียนโดย comment-private-reply
+  // service ตอนสร้างห้องแชทจากคอมเมนต์ ไม่มีทางเกิดจากข้อความที่ใครพิมพ์
+  const commentOriginLog = await prisma.commentReplyLog.findFirst({
+    where: { conversationId: conversation.id },
+    select: { id: true },
+  })
+  const isCommentReplyThread = commentOriginLog !== null
   // เช็ค "ไม่ใช่ ACTIVE" ไม่ใช่เช็คแค่ TOKEN_INVALID — ครอบ DISCONNECTED (ร้านถอดเพจเอง) ด้วย
   // ต้องตรงกับ guard ฝั่ง service (sendOutboundMessage โยน CHANNEL_NOT_ACTIVE เมื่อ status !== 'ACTIVE')
   // ไม่งั้นเธรดของเพจที่ถอดไปแล้วจะเปิดช่องพิมพ์ให้ แล้วไปเด้ง error ตอนกดส่ง
@@ -477,6 +494,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         humanAgentExpiresAt={windowState.humanAgentExpiresAt?.toISOString() ?? null}
         tokenInvalid={tokenInvalid}
         neverInbound={neverInbound}
+        isCommentReplyThread={isCommentReplyThread}
         customerPanelData={customerPanelData}
       />
       {/* bug fix 2026-08-01 (user report: iPad Pro เพี้ยน): เดิม `lg:block` = โผล่ที่ 1024px พร้อมกับ

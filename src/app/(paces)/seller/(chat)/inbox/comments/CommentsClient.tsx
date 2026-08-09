@@ -32,6 +32,7 @@ import PrivateReplyModal from './PrivateReplyModal'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { visibleTopLevelComments } from '@/lib/comment-tree-visibility'
+import ListBusyOverlay, { useListBusy } from '@/app/(paces)/seller/(dashboard)/_shared/ListBusyOverlay'
 import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
 import CommentsFilterPanel, {
   DEFAULT_COMMENT_SHOW_FILTER,
@@ -165,12 +166,14 @@ type PrivateReplyTone = 'danger' | 'warning'
 
 function privateReplyWindow(createdTime: string): {
   text: string
+  /** เวลาที่เหลือแบบไม่มีคำนำหน้า ("6 วัน 14 ชั่วโมง 3 นาที") — สำหรับประโยคที่มีคำนำหน้าของตัวเอง */
+  remaining: string
   expired: boolean
   tone: PrivateReplyTone
 } {
   const left = new Date(createdTime).getTime() + PRIVATE_REPLY_WINDOW_MS - Date.now()
-  if (!Number.isFinite(left)) return { text: '', expired: false, tone: 'warning' }
-  if (left <= 0) return { text: 'หมดเวลาทักแชท', expired: true, tone: 'danger' }
+  if (!Number.isFinite(left)) return { text: '', remaining: '', expired: false, tone: 'warning' }
+  if (left <= 0) return { text: 'หมดเวลาทักแชท', remaining: '', expired: true, tone: 'danger' }
   const tone: PrivateReplyTone = left <= PRIVATE_REPLY_URGENT_MS ? 'danger' : 'warning'
   const days = Math.floor(left / 86_400_000)
   const hours = Math.floor((left % 86_400_000) / 3_600_000)
@@ -180,7 +183,8 @@ function privateReplyWindow(createdTime: string): {
     days > 0 || hours > 0 ? `${hours} ชั่วโมง` : '',
     `${minutes} นาที`,
   ].filter(Boolean)
-  return { text: `คงเหลือ ${parts.join(' ')}`, expired: false, tone }
+  const remaining = parts.join(' ')
+  return { text: `คงเหลือ ${remaining}`, remaining, expired: false, tone }
 }
 
 /**
@@ -225,12 +229,15 @@ function resolvePrivateReplyState(c: CommentItem, sendingId: string | null): Pri
 
 export default function CommentsClient({
   initialPosts,
+  initialRawCount,
   initialCounts,
   shopIds,
   unified = false,
   channels,
 }: {
   initialPosts: CommentPostItem[]
+  /** จำนวนโพสต์ดิบที่ RSC ดึงมาในหน้าแรก (ไม่ใช่ยอดทั้งร้าน) — ใช้เป็น skip ของหน้าถัดไป */
+  initialRawCount: number
   /** feature 00038 — ตัวนับ 4 กลุ่มของหน้าแรก มาจาก listCommentPosts เดียวกับที่ page.tsx fetch */
   initialCounts: CommentPostCounts
   /** ร้านที่แท็บนี้ครอบคลุม (feature 00037) — subscribe `comments:shop:{id}` ทุกตัว */
@@ -247,7 +254,11 @@ export default function CommentsClient({
   // จำนวนโพสต์ "ดิบ" ที่ query มาแล้วจริง (ก่อน filter ด้วย state) — ใช้เป็น skip ของหน้าถัดไป
   // ต้องแยกจาก posts.length เพราะ posts คือผลหลัง filter ด้วย ?state= แล้ว ถ้าใช้ posts.length
   // เป็น skip ตอนกรองอยู่ (เช่นแท็บ "บอทตอบแล้ว") จะข้ามแถวดิบผิดจำนวน เกิดโพสต์หายหรือซ้ำตอนโหลดเพิ่ม
-  const rawFetchedRef = useRef(initialCounts.all)
+  // 🛑 ต้องเป็น "จำนวนที่ fetch มาแล้วจริง" ไม่ใช่ `initialCounts.all` ซึ่งเป็นยอด **ทั้งร้าน**
+  // ของเดิมผิดมาตลอดแต่ถูกกลบด้วยความบังเอิญ: effect ยิง refreshPosts ซ้ำตอน mount แล้วเขียนทับ
+  // ค่านี้ทันที พอปิด double-fetch (2026-08-09) กับดักจะเปิดทันที — ปุ่ม "โหลดเก่ากว่านี้" จะข้าม
+  // โพสต์เป็นสิบ. สองอย่างนี้ต้องแก้คู่กันเสมอ
+  const rawFetchedRef = useRef(initialRawCount)
   // null = ทุกเพจ; ตัวกรองอยู่ที่ server เหมือนแท็บข้อความ ไม่ใช่กรองเฉพาะที่โหลดมาแล้ว
   const [channelId, setChannelId] = useState<string | null>(null)
   /**
@@ -259,6 +270,13 @@ export default function CommentsClient({
    * เพื่อให้หน้าตาสองแท็บตรงกัน และกดแล้วได้ empty state ที่บอกตรง ๆ ว่าไม่มีในช่องทางนี้
    */
   const [channelTab, setChannelTab] = useState<CommentChannelFilter>('ALL')
+  /**
+   * แผงโหลดทับพื้นที่รายการทุกครั้งที่กรอง (user สั่งไว้ตั้งแต่ 2026-08-07 สำหรับ /orders:
+   * "ทุกการ filter หรือ load ข้อมูลใหม่ มี preloading ขึ้นมาทับเสมอ ตามเวลาที่ใช้")
+   * หน้านี้ถูกสร้างหลังคำสั่งนั้นแต่ไม่ได้หยิบ `useListBusy` ที่มีอยู่แล้วไปใช้ — sibling-surface-parity
+   * (impeccable critique 2026-08-09 รอบ 2 · P2)
+   */
+  const listBusy = useListBusy()
   const [filterOpen, setFilterOpen] = useState(false)
   /**
    * เดินนาฬิกาให้ตัวนับถอยหลังในแถวรายการขยับเอง (user สั่ง 2026-08-04)
@@ -291,7 +309,7 @@ export default function CommentsClient({
   const [loadingMore, setLoadingMore] = useState(false)
   // initialCounts.all = จำนวนดิบที่หน้าแรก fetch มา (ไม่ผ่าน state filter — page.tsx เรียกแบบ ALL
   // เสมอ) ใช้ตัวนี้แทน initialPosts.length ให้สอดคล้องกับ rawFetchedRef ด้านล่าง
-  const [hasMore, setHasMore] = useState(initialCounts.all >= 25)
+  const [hasMore, setHasMore] = useState(initialRawCount >= 25)
   // ในเธรด: ดูเฉพาะคอมเมนต์ที่ยังไม่มีคำตอบของเพจ
   const [unansweredOnly, setUnansweredOnly] = useState(false)
   /**
@@ -467,9 +485,18 @@ export default function CommentsClient({
   // ช่องค้นหาถูกถอดออก 2026-08-04 ตามที่ user สั่ง ("ไม่ต้อง search") — แท็บข้อความมีช่องค้นหา
   // เพราะเธรดสะสมเป็นพันและชื่อลูกค้าคือกุญแจ ส่วนที่นี่หน่วยของรายการคือ "โพสต์" ซึ่งมีไม่มากและ
   // เรียงตามคอมเมนต์ล่าสุดอยู่แล้ว. debounce 350ms ที่มีไว้รอพิมพ์จึงไม่ต้องมีด้วย
+  // ห่อที่ effect ตัวเดียว ไม่ใช่ไล่ห่อทีละปุ่ม — ครอบทุกแกนกรอง (เพจ/สถานะ/ช่องทาง) พร้อมกัน
+  // และจะไม่หลุดเมื่อมีคนเพิ่มตัวกรองใหม่ทีหลัง (แพตเทิร์นเดียวกับ OrdersList)
+  // ข้าม mount แรก: RSC ส่งรายการมาให้แล้ว ไม่มีอะไรให้รอ
+  const filterFirstRun = useRef(true)
   useEffect(() => {
+    if (filterFirstRun.current) {
+      filterFirstRun.current = false
+      return
+    }
+    listBusy.begin()
     void refreshPosts(channelId, show.postStatus, channelTab)
-  }, [channelId, show.postStatus, channelTab, refreshPosts])
+  }, [channelId, show.postStatus, channelTab, refreshPosts, listBusy])
 
   async function loadMorePosts() {
     if (loadingMore || !hasMore) return
@@ -1267,9 +1294,12 @@ export default function CommentsClient({
           id="commentPostListPanel"
           role="tabpanel"
           aria-labelledby={`commentPostTab-${postTab}`}
-          aria-busy={loadingMore || undefined}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          aria-busy={listBusy.busy || loadingMore || undefined}
+          // relative = จุดยึดของ ListBusyOverlay (absolute inset-0) — ทับเฉพาะพื้นที่ผลลัพธ์
+          // ไม่ทับหัวคอลัมน์ เพราะนั่นคือสิ่งที่ผู้ขายเพิ่งกดและกำลังจะกดต่อ
+          className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain"
         >
+          <ListBusyOverlay busy={listBusy.busy} />
           {visiblePosts.length === 0 ? (
             <div className="p-4">
               {/* แยกกรณี "กรองแล้วไม่เจอ" ออกจาก "ยังไม่มีเลย" — ของเดิมบอกว่าไม่มีความคิดเห็น
@@ -1397,18 +1427,34 @@ export default function CommentsClient({
                         {p.oldestUnansweredAt ? (
                           // โทนมาจาก privateReplyWindow() ตัวเดียว — badge นี้กับข้อความในเธรด
                           // ต้องเปลี่ยนสีพร้อมกันเสมอ (HR16)
-                          <span
-                            className={`badge text-2xs inline-flex max-w-full items-center gap-1 ${
-                              privateReplyWindow(p.oldestUnansweredAt).tone === 'danger'
-                                ? 'bg-danger/15 text-danger-ink'
-                                : 'bg-warning/15 text-warning-ink'
-                            }`}
-                          >
-                            <Icon icon="clock" width={11} height={11} className="shrink-0" />
-                            <span className="truncate">
-                              ทักแชทได้อีก {privateReplyWindow(p.oldestUnansweredAt).text.replace('คงเหลือ ', '')}
-                            </span>
-                          </span>
+                          (() => {
+                            // อ่านผลลัพธ์ครั้งเดียวแล้วใช้ทั้ง tone/expired/remaining — เดิมเรียก
+                            // privateReplyWindow() สองรอบแล้ว `.replace('คงเหลือ ', '')` แกะสตริง
+                            // ที่ SSOT ประกอบมาแล้ว (คำนำหน้าเปลี่ยนเมื่อไหร่ก็อ่านเป็น
+                            // "ทักแชทได้อีก คงเหลือ 3 วัน" โดยไม่มีอะไรฟ้อง)
+                            const w = privateReplyWindow(p.oldestUnansweredAt!)
+                            // 🛑 oldestUnansweredAt มาจาก server ซึ่งเก่าได้ถึง 60 วิ ขณะที่นาฬิกา
+                            // client เดินอยู่ — ในนาทีที่เส้นตายผ่านพอดี ของเดิมอ่านว่า
+                            // "ทักแชทได้อีก หมดเวลาทักแชท" ซึ่งเป็นนาทีที่ข้อความนี้สำคัญที่สุด
+                            if (w.expired) {
+                              return (
+                                <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
+                                  <Icon icon="clock-off" width={11} height={11} className="shrink-0" />
+                                  หมดเวลาทักแชท
+                                </span>
+                              )
+                            }
+                            return (
+                              <span
+                                className={`badge text-2xs inline-flex max-w-full items-center gap-1 ${
+                                  w.tone === 'danger' ? 'bg-danger/15 text-danger-ink' : 'bg-warning/15 text-warning-ink'
+                                }`}
+                              >
+                                <Icon icon="clock" width={11} height={11} className="shrink-0" />
+                                <span className="truncate">ทักแชทได้อีก {w.remaining}</span>
+                              </span>
+                            )
+                          })()
                         ) : (
                           <span className="badge bg-default-100 text-default-700 text-2xs inline-flex items-center gap-1">
                             <Icon icon="clock-off" width={11} height={11} className="shrink-0" />

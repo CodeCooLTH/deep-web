@@ -670,6 +670,11 @@ type Props = {
   /** ลูกค้ายังไม่เคยทักเข้ามาเลย (lastInboundAt=NULL) — เธรดที่ร้าน initiate จาก Facebook เอง
    *  (user report 2026-07-24). แยก banner จาก "เกิน 24 ชม." ที่สื่อว่าลูกค้าเคยทักแล้ว */
   neverInbound: boolean
+  /**
+   * เธรดนี้เกิดจากการตอบกลับความคิดเห็น (private reply) — มาจาก `CommentReplyLog.conversationId`
+   * ฝั่ง server ไม่ใช่การดมสตริงในเนื้อข้อความ (ดูเหตุผลที่ page.tsx)
+   */
+  isCommentReplyThread: boolean
   /** เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน และร้านได้ permission human_agent แล้ว → คนตอบเองได้อยู่ */
   humanAgentOpen?: boolean
   humanAgentExpiresAt?: string | null
@@ -863,6 +868,7 @@ export default function ChatThread({
   msRemaining,
   tokenInvalid,
   neverInbound,
+  isCommentReplyThread,
   humanAgentOpen = false,
   humanAgentExpiresAt = null,
   customerPanelData,
@@ -1333,9 +1339,6 @@ export default function ChatThread({
   const deliveredAtMs =
     supportsDeliveryReceipt && externalDeliveredAt ? new Date(externalDeliveredAt).getTime() : 0
 
-  // เธรดที่เกิดจาก "ตอบกลับความคิดเห็น" (private reply) — Meta แนบบรรทัดระบบที่มีลิงก์คอมเมนต์
-  // มาด้วยเสมอ จับจาก comment_id ในลิงก์ ไม่ใช่จากถ้อยคำ เพราะเพจตั้งภาษาต่างกันได้
-  const isCommentReplyThread = messages.some((m) => (m.body ?? '').includes('comment_id='))
 
   // ดูรูปเต็มจอ — รวมรูปทุกใบในเธรด (เรียงตามเวลาเหมือนที่แสดง) เป็น slides ชุดเดียว แล้วจำ index
   // ของแต่ละข้อความไว้ เพื่อให้คลิกรูปไหนก็เปิดที่รูปนั้นแล้วเลื่อนดูใบอื่นต่อได้ (ไม่ใช่เปิดทีละใบ

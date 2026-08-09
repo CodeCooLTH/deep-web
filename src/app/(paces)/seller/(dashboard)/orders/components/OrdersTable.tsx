@@ -58,7 +58,7 @@ import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
 import type { ShopVertical } from '@/lib/lodging'
 import { pacesToast } from '@/lib/paces-toast'
 import { ORDER_STATUS_META, isCODPayment } from '@/lib/order-display'
-import ListBusyOverlay, { type ListBusy } from './ListBusyOverlay'
+import ListBusyOverlay, { type ListBusy } from '../../_shared/ListBusyOverlay'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 // อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —

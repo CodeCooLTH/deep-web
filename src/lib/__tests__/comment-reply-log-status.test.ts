@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
-  deriveLogStatus,
+  LOG_STATUS_FILTER_OPTIONS,
+  LOG_STATUS_META,
   logStatusWhere,
   parseLogStatusFilter,
-  type CommentReplyLogStatus,
 } from '../comment-reply-log-status'
 
 /**
@@ -23,22 +23,19 @@ function allowsNull(where: unknown, field: string): boolean {
   return json.includes(`{"${field}":null}`)
 }
 
-describe('deriveLogStatus — ลำดับ FAILED > SENT > SKIPPED', () => {
-  const cases: Array<[string | null, string | null, CommentReplyLogStatus]> = [
-    ['SENT', 'SENT', 'SENT'],
-    ['SENT', null, 'SENT'],
-    [null, 'SENT', 'SENT'],
-    ['FAILED', null, 'FAILED'],
-    [null, 'FAILED', 'FAILED'],
-    // 🛑 หัวใจของลำดับ: มีของสำเร็จอยู่ในแถวเดียวกันก็ยังต้องเป็น "ไม่สำเร็จ"
-    ['SENT', 'FAILED', 'FAILED'],
-    ['FAILED', 'SENT', 'FAILED'],
-    [null, null, 'SKIPPED'],
-    ['SKIPPED', 'SKIPPED', 'SKIPPED'],
-  ]
+describe('LOG_STATUS_META — คำเดียวกันต้องมาจากที่เดียว (HR16)', () => {
+  it('[blocker] ป้ายในตัวกรองประกอบจาก LOG_STATUS_META ไม่ใช่พิมพ์ซ้ำ', () => {
+    // ถ้าใครไปแก้คำที่ badge แล้วลืมแก้ที่ตัวกรอง (หรือกลับกัน) เทสนี้ต้องแดง
+    for (const key of ['FAILED', 'SENT', 'SKIPPED'] as const) {
+      const opt = LOG_STATUS_FILTER_OPTIONS.find((o) => o.value === key)
+      expect(opt?.label).toBe(`สถานะ: ${LOG_STATUS_META[key].label}`)
+    }
+  })
 
-  it.each(cases)('public=%s private=%s → %s', (publicReplyStatus, privateReplyStatus, expected) => {
-    expect(deriveLogStatus({ publicReplyStatus, privateReplyStatus })).toBe(expected)
+  it('badge บนพื้นสีจางต้องใช้ -ink เสมอ (paces-component-reference.md §6)', () => {
+    for (const meta of Object.values(LOG_STATUS_META)) {
+      if (/bg-\w+\/1[05]/.test(meta.className)) expect(meta.className).toMatch(/-ink\b/)
+    }
   })
 })
 

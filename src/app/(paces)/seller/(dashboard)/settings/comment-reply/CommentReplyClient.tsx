@@ -59,6 +59,7 @@ import { PageAvatar } from '@/app/(paces)/seller/(chat)/inbox/components/PageFil
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import {
   LOG_STATUS_FILTER_OPTIONS,
+  LOG_STATUS_META,
   parseLogStatusFilter,
   type CommentReplyLogStatusFilter,
 } from '@/lib/comment-reply-log-status'
@@ -380,11 +381,9 @@ function InstagramComingSoonCard({ channel }: { channel: InstagramChannel }) {
   )
 }
 
-const REPLY_STATUS_META: Record<string, { label: string; className: string }> = {
-  SENT: { label: 'ส่งแล้ว', className: 'bg-success/15 text-success-ink' },
-  SKIPPED: { label: 'ข้าม', className: 'bg-default-200 text-default-700' },
-  FAILED: { label: 'ไม่สำเร็จ', className: 'bg-danger/15 text-danger-ink' },
-}
+// คำ/สีของ badge มาจาก SSOT เดียวกับตัวกรองใน toolbar (src/lib/comment-reply-log-status.ts) —
+// ห้ามพิมพ์คำซ้ำที่นี่: ผู้ใช้กรอง "ไม่สำเร็จ" แล้วเห็น badge เขียนคำอื่นจะไม่มีอะไรฟ้อง (HR16)
+const REPLY_STATUS_META: Record<string, { label: string; className: string }> = LOG_STATUS_META
 
 /** badge สถานะต่อรายการ (public/private) — "เปิดห้อง" ผูกกับ private เท่านั้น (สวิตช์ B สร้างห้องแชท) */
 function ReplyStatusBadge({
@@ -487,6 +486,9 @@ function openDetailModal(log: CommentReplyLogRow) {
     title: 'รายละเอียดการตอบกลับ',
     html: buildDetailHtml(log),
     confirmButtonText: 'ปิด',
+    // โมดัลนี้อ่านอย่างเดียว ปิดทิ้งไม่มีผลอะไรเลย — ค่าตั้งต้นของ pacesAlert คือ false
+    // ซึ่งเหมาะกับ modal ที่มีผลลัพธ์ให้รับทราบ ไม่ใช่ตารางข้อมูลที่เปิดดูแล้วปิด
+    allowOutsideClick: true,
   })
 }
 

@@ -57,6 +57,12 @@ export default async function CommentsPage() {
   // feature 00038 — ตัวนับ 4 กลุ่มของหน้าแรก มาจาก listCommentPosts เดียวกับที่ดึง posts
   // (BR-CR-S4: badge/แท็บ/ตัวกรองต้องมาจาก symbol เดียว) ค่าตั้งต้น 0 ทั้งชุดถ้าโหลดพัง
   let counts = { all: 0, unanswered: 0, botAnswered: 0, humanAnswered: 0 }
+  /**
+   * จำนวนโพสต์ "ดิบ" ที่ query ของหน้าแรกดึงมาได้จริง — คนละความหมายกับ `counts.all` ซึ่งเป็นยอด
+   * **ทั้งร้าน** (ดู listCommentPosts) client ใช้ตัวนี้เป็น skip ของหน้าถัดไป ส่งผิดแล้วปุ่ม
+   * "โหลดโพสต์เก่ากว่านี้" จะข้ามโพสต์เป็นสิบ (impeccable critique 2026-08-09 รอบ 2)
+   */
+  let rawCount = 0
   let failed = false
   // เพจที่เชื่อมไว้ — ใช้ทำตัวกรอง (ร้านเชื่อมได้หลายเพจ); v1 ครอบเฉพาะ Facebook
   const channelsRaw = (await listChannelsForShops(scope.shopIds).catch(() => [])).filter(
@@ -93,6 +99,7 @@ export default async function CommentsPage() {
       oldestUnansweredAt: p.oldestUnansweredAt ? p.oldestUnansweredAt.toISOString() : null,
     }))
     counts = result.counts
+    rawCount = result.rawCount
   } catch {
     failed = true
   }
@@ -115,6 +122,7 @@ export default async function CommentsPage() {
         <CommentsClient
           key={`${scope.mode}:${scope.shopIds.join(',')}`}
           initialPosts={posts}
+          initialRawCount={rawCount}
           initialCounts={counts}
           shopIds={scope.shopIds}
           unified={scope.mode === 'UNIFIED'}

@@ -51,7 +51,10 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
   const previouslyFocused = useRef<HTMLElement | null>(null)
   const [value, setValue] = useState(defaultValue)
   const trimmed = value.trim()
-  const invalid = trimmed.length === 0
+  // เกินเพดานแล้วห้ามส่ง — Valibot ฝั่ง API กันอีกชั้นอยู่แล้ว (maxLength 1000) แต่ให้รู้ตั้งแต่
+  // ก่อนกดดีกว่าโดนปฏิเสธหลังยิง เพราะ private reply ยิงพลาดแล้วเสียสิทธิ์ครั้งเดียวของคอมเมนต์นั้น
+  const overLimit = value.length > MAX_LENGTH
+  const invalid = trimmed.length === 0 || overLimit
 
   const dismiss = () => {
     if (sending) return
@@ -165,19 +168,32 @@ export default function PrivateReplyModal({ fromName, defaultValue, sending, onC
               <label htmlFor="privateReplyText" className="form-label">
                 ข้อความ
               </label>
+              {/* 🛑 ไม่ใช้ `maxLength` ตัดดิบ — ท่าเดียวกับหน้าตั้งค่า (CommentReplyClient) ซึ่งยอมให้
+                  เกินแล้วเตือน: วางข้อความยาวมาแล้วค่อยตัดคือ workflow จริง ส่วน maxLength จะกลืน
+                  ตัวอักษรท้าย ๆ เงียบ ๆ โดยผู้ใช้ไม่รู้ว่าหายไปกี่ตัว กฎเดียวกันต้องทำงานแบบเดียวกัน
+                  ทั้งสองหน้า (impeccable critique 2026-08-09) */}
               <textarea
                 id="privateReplyText"
                 rows={3}
-                maxLength={MAX_LENGTH}
                 placeholder="พิมพ์ข้อความส่วนตัว..."
-                className="form-textarea"
+                className={`form-textarea ${overLimit ? 'is-invalid' : ''}`}
                 value={value}
                 disabled={sending}
+                aria-describedby="privateReplyCounter"
+                aria-invalid={overLimit || undefined}
                 onChange={(e) => setValue(e.target.value)}
               />
-              <p className="text-default-700 mt-1 text-end text-2xs">
+              <p
+                id="privateReplyCounter"
+                className={`mt-1 text-end text-2xs ${overLimit ? 'text-danger-ink font-semibold' : 'text-default-700'}`}
+              >
                 {value.length} / {MAX_LENGTH}
               </p>
+              {overLimit && (
+                <p className="text-danger-ink mt-1 text-xs">
+                  ยาวเกิน {MAX_LENGTH.toLocaleString('th-TH')} ตัวอักษร กรุณาตัดให้สั้นลงก่อนส่ง
+                </p>
+              )}
             </div>
           </div>
 

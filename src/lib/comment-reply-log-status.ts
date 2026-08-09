@@ -15,12 +15,28 @@
 export type CommentReplyLogStatus = 'SENT' | 'SKIPPED' | 'FAILED'
 export type CommentReplyLogStatusFilter = 'ALL' | CommentReplyLogStatus
 
-/** ป้ายไทยของตัวกรอง — เรียงตามลำดับที่ผู้ขายมองหา ไม่ใช่ตามตัวอักษร */
+/**
+ * คำ + สีของแต่ละสถานะ — **แหล่งเดียว** ที่ทั้ง badge ในตารางและตัวกรองใน toolbar อ่าน
+ *
+ * เดิมคำสามคำนี้ถูกพิมพ์แยกกันสองที่ (`REPLY_STATUS_META` กับรายการตัวเลือกของ FilterDropdown)
+ * ซึ่งเป็น HR16 ตรงตัว: ผู้ใช้กรอง "ไม่สำเร็จ" แล้วเห็น badge เขียนคำอื่น ก็ไม่มีอะไรฟ้อง
+ * เพราะทั้งสองสตริงถูกในตัวเอง
+ *
+ * class ต้องเป็น `-ink` บนพื้นจาง 15% เสมอ (paces-component-reference.md §6)
+ */
+export const LOG_STATUS_META: Record<CommentReplyLogStatus, { label: string; className: string }> = {
+  SENT: { label: 'ส่งแล้ว', className: 'bg-success/15 text-success-ink' },
+  SKIPPED: { label: 'ข้าม', className: 'bg-default-200 text-default-700' },
+  FAILED: { label: 'ไม่สำเร็จ', className: 'bg-danger/15 text-danger-ink' },
+}
+
+/** ตัวเลือกของตัวกรอง — เรียงตามลำดับที่ผู้ขายมองหา (ล้มเหลวก่อน) ไม่ใช่ตามตัวอักษร */
 export const LOG_STATUS_FILTER_OPTIONS: Array<{ value: CommentReplyLogStatusFilter; label: string }> = [
   { value: 'ALL', label: 'สถานะ: ทั้งหมด' },
-  { value: 'FAILED', label: 'สถานะ: ไม่สำเร็จ' },
-  { value: 'SENT', label: 'สถานะ: ส่งแล้ว' },
-  { value: 'SKIPPED', label: 'สถานะ: ข้าม' },
+  ...(['FAILED', 'SENT', 'SKIPPED'] as const).map((v) => ({
+    value: v as CommentReplyLogStatusFilter,
+    label: `สถานะ: ${LOG_STATUS_META[v].label}`,
+  })),
 ]
 
 /**
@@ -31,15 +47,14 @@ export function parseLogStatusFilter(raw: string | null | undefined): CommentRep
   return raw === 'SENT' || raw === 'SKIPPED' || raw === 'FAILED' ? raw : 'ALL'
 }
 
-/** สถานะรวมของแถว — ใช้ตัวนี้ทุกที่ที่ต้องบอกว่า "แถวนี้จบยังไง" */
-export function deriveLogStatus(row: {
-  publicReplyStatus: string | null
-  privateReplyStatus: string | null
-}): CommentReplyLogStatus {
-  if (row.publicReplyStatus === 'FAILED' || row.privateReplyStatus === 'FAILED') return 'FAILED'
-  if (row.publicReplyStatus === 'SENT' || row.privateReplyStatus === 'SENT') return 'SENT'
-  return 'SKIPPED'
-}
+// 🛑 เคยมี `deriveLogStatus()` (สถานะ "รวมทั้งแถว") อยู่ตรงนี้ — ถอดออกแล้ว 2026-08-09 เพราะ
+// **ไม่มี production code เรียกเลยสักที่** มีแต่เทสของตัวเอง: badge ในตารางแสดงสถานะ *รายคอลัมน์*
+// (public/private แยกกัน) ไม่ใช่สถานะรวม ส่วนฝั่งกรองใช้ SQL ที่ logStatusWhere() ประกอบ
+//
+// SSOT ที่มีผู้บริโภคศูนย์รายคือเอกสารที่ใส่เสื้อโค้ด — มันเน่าเงียบและเทสจะเขียวตลอดไม่ว่าโค้ดจริง
+// ทำอะไร สิ่งที่กัน drift ได้จริงคือ "มีผู้เรียกอย่างน้อยสองราย" ไม่ใช่ "มีไฟล์"
+// (impeccable critique 2026-08-09 รอบ 2 — ข้อนี้เป็นของที่รอบเดียวกันนั้นเพิ่งสร้างขึ้นมาเอง)
+// ถ้าวันหลังต้องการสถานะรวมทั้งแถวจริง ๆ ให้เขียนใหม่พร้อม call site ในคอมมิตเดียวกัน
 
 /**
  * เงื่อนไข Prisma `where` ของตัวกรองสถานะ

@@ -29,7 +29,7 @@ import type { ShopVertical } from '@/lib/lodging'
 import { pacesToast } from '@/lib/paces-toast'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import OrdersTable from './OrdersTable'
-import ListBusyOverlay, { useListBusy } from './ListBusyOverlay'
+import ListBusyOverlay, { useListBusy } from '../../_shared/ListBusyOverlay'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── status tabs ────────────────────────────────────────────────────────────
