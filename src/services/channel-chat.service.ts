@@ -307,6 +307,9 @@ export async function syncMissingMessagesFromMeta(
         conversationId,
         senderRole: m.fromId === pageId ? 'SHOP' : 'BUYER',
         ...contents[i]!,
+        // Json? ของ Prisma ไม่รับ `null` ตรง ๆ (ต้องเป็น JsonNull/DbNull) — ไม่มีการ์ดก็ไม่ต้องส่งคีย์
+        // ท่าเดียวกับฝั่ง webhook ใน ingestInboundMessage
+        ...(contents[i]!.cards ? { cards: contents[i]!.cards as Prisma.InputJsonValue } : { cards: undefined }),
         createdAt: m.createdTime,
         externalMessageId: m.id,
         // ทางเข้าที่สอง: ข้อความที่ webhook ไม่เคยส่งมา แล้วเราไปดึงจาก Graph เอง — ต้นทางคนละแบบ
@@ -366,6 +369,11 @@ interface BackfillContent {
   imageUrl: string | null
   attachmentName: string | null
   attachmentSize: number | null
+  /**
+   * การ์ดสินค้าแบบ carousel — คอลัมน์เดียวกับที่ฝั่ง webhook เขียน (ดู extractGraphCards)
+   * `body` ยังเป็นบรรทัดสรุปเดิมทุกประการ: ปุ่ม "คัดลอกข้อความ"/"ตอบกลับ" ในเธรดผูกกับ body
+   */
+  cards: { title: string | null; subtitle: string | null; imageFileId: string | null }[] | null
 }
 
 /**
@@ -379,6 +387,37 @@ interface BackfillContent {
  * บรรทัดเดียวเท่านั้น: `parseMetaSystemNotice` ตีข้อความหลายบรรทัดเป็น "ไม่ใช่ข้อความระบบ" โดยตั้งใจ
  */
 export const CARD_PREFIX = '[การ์ดจาก Facebook]'
+
+/**
+ * การ์ดจาก **Graph backfill** → `ChatMessage.cards` (2026-08-10, user report พร้อมภาพจาก Messenger)
+ *
+ * 🛑 การ์ดของ Facebook เข้าระบบได้ **2 ทาง และคนละโครง** — ทางนี้ถูกลืมไปทั้งเส้น
+ *   webhook : `attachment.payload.template_type='generic'` + `elements[].image_url` → extractGenericCards()
+ *   Graph   : `attachments[].generic_template` → แบนเป็น `{ kind:'template', title, subtitle, mediaUrl }`
+ * ตอนทำ carousel (2026-08-09) แก้เฉพาะทาง webhook — ทาง Graph ยังยุบเหลือข้อความบรรทัดเดียวเหมือนเดิม
+ * ผลคือการ์ดโฆษณาขึ้นเป็น "[การ์ดจาก Facebook] ราคานี้ฟรีปลายทาง — แจ้งที่อยู่คุณได้เลย" ทั้งที่ใน
+ * Messenger เป็นการ์ดรูปเต็มใบ (ฐาน prod 2026-08-10: **132 ข้อความ ตั้งแต่ 2026-01-19 ถึงวันนี้**
+ * และยังเพิ่มวันละ ~20) — ไม่มีอะไรฟ้องเพราะทั้งสองทางเขียน `body` ถูกต้องเท่ากัน ต่างกันแค่คอลัมน์
+ * `cards` ที่ทางนี้ไม่เคยเขียนเลย
+ *
+ * เกณฑ์ "เป็นการ์ดสินค้าไหม" ต้องเป็น **ตัวเดียวกับ extractGenericCards**: ต้องมีรูปอย่างน้อย 1 ใบ
+ * — `generic` ไม่ได้แปลว่าสินค้า (การ์ดคำขอชำระเงิน/ขอโทรกลับใช้โครงเดียวกัน) ถ้าไม่กั้น การ์ด
+ * "฿360.00 order" จะกลายเป็นกล่องรูปเทาว่างเปล่าแทนบรรทัดระบบสะอาด ๆ = แย่ลงกว่าเดิม
+ * (ยืนยันกับฐาน prod: template จาก Graph ที่ **ไม่มี** mediaUrl 27 ใบ เป็นคำขอชำระเงิน/โทรล้วน)
+ *
+ * pure — ไม่ยิง network (ผู้เรียกเป็นคน mirror รูป) เพื่อให้ทั้ง ingest และสคริปต์ backfill ใช้เกณฑ์
+ * ก้อนเดียวกันได้จริง ไม่ใช่ลอกไปเขียนซ้ำแล้วรอวันที่มันเลื่อนออกจากกัน
+ */
+export function extractGraphCards(attachments: GraphThreadAttachment[]): GenericCardElement[] | null {
+  const tpl = attachments.filter((a) => a.kind === 'template')
+  if (tpl.length === 0) return null
+  if (!tpl.some((a) => a.mediaUrl)) return null
+  return tpl.slice(0, MAX_GENERIC_CARDS).map((a) => ({
+    title: a.title?.trim() || null,
+    subtitle: a.subtitle?.trim() || null,
+    imageUrl: a.mediaUrl,
+  }))
+}
 
 function cardText(att: GraphThreadAttachment): string | null {
   const parts = [att.title, att.subtitle]
@@ -398,17 +437,25 @@ function mediaChatType(att: GraphThreadAttachment): string {
 }
 
 async function resolveBackfillContent(m: GraphThreadMessage): Promise<BackfillContent> {
-  const base = { type: 'TEXT', body: null, imageUrl: null, attachmentName: null, attachmentSize: null }
+  const base = {
+    type: 'TEXT',
+    body: null,
+    imageUrl: null,
+    attachmentName: null,
+    attachmentSize: null,
+    cards: null,
+  }
 
   // สื่อจริงที่ดาวน์โหลดได้ — mirror เข้า storage เราเหมือนทาง webhook (URL ของ Meta หมดอายุ)
-  // การ์ด (kind === 'template') ไม่เข้าทางนี้: media_url ของมันอยู่บน www.facebook.com ซึ่ง**ไม่ได้
-  // อยู่ใน allow-list ของ mirrorRemoteImage** (กัน SSRF) — การขยาย allow-list เป็นเรื่องที่ต้องผ่าน
-  // security review แยก ไม่ใช่ผลพลอยได้ของการแก้บั๊กนี้
+  // การ์ด (kind === 'template') ไม่เข้าทางนี้: มันไม่ใช่ "ไฟล์แนบที่ลูกค้าส่ง" แต่เป็นรูปในการ์ด
+  // ซึ่งไปอยู่คอลัมน์ `cards` ต่างหาก (ดูด้านล่าง) — ถ้าปล่อยให้เข้าทางนี้ ข้อความจะกลายเป็นชนิด
+  // IMAGE รูปเดี่ยว ๆ ที่ไม่มีชื่อ/ราคากำกับ แทนที่จะเป็นการ์ดที่อ่านรู้เรื่อง
   const media = m.attachments.find((a) => a.kind !== 'template' && !!a.mediaUrl)
   if (media?.mediaUrl) {
     const fileId = await mirrorRemoteImage(media.mediaUrl)
     if (fileId) {
       return {
+        ...base,
         type: mediaChatType(media),
         // caption ของไฟล์แนบ (ถ้ามี) — ห้ามยัด placeholder ลง body ตอน mirror สำเร็จ
         body: m.text,
@@ -424,9 +471,29 @@ async function resolveBackfillContent(m: GraphThreadMessage): Promise<BackfillCo
   if (m.text) return { ...base, body: m.text }
 
   const card = m.attachments.map(cardText).find((t): t is string => !!t)
-  if (card) return { ...base, body: card }
+  if (card) return { ...base, body: card, cards: await mirrorGraphCards(m.attachments) }
 
   return { ...base, body: SYNCED_EMPTY_TEXT }
+}
+
+/**
+ * mirror รูปของการ์ด Graph → `cards` (ล้อ block เดียวกันฝั่ง webhook ใน ingestInboundMessage)
+ *
+ * คืน null เมื่อไม่ใช่การ์ดสินค้า → แถวนั้นตกไปใช้ `body` บรรทัดสรุปเหมือนเดิมทุกประการ
+ * mirror รายใบล้มเหลว → `imageFileId: null` ไม่ใช่ทิ้งทั้งการ์ด (UI มี placeholder ให้อยู่แล้ว)
+ */
+async function mirrorGraphCards(
+  attachments: GraphThreadAttachment[],
+): Promise<{ title: string | null; subtitle: string | null; imageFileId: string | null }[] | null> {
+  const els = extractGraphCards(attachments)
+  if (!els) return null
+  return Promise.all(
+    els.map(async (el) => ({
+      title: el.title,
+      subtitle: el.subtitle,
+      imageFileId: el.imageUrl ? await mirrorRemoteImage(el.imageUrl) : null,
+    })),
+  )
 }
 
 /**
@@ -510,6 +577,33 @@ function isAllowedMirrorHost(hostname: string): boolean {
   return MIRROR_ALLOWED_HOST_SUFFIXES.some((suffix) => h.endsWith(suffix))
 }
 
+/**
+ * (2026-08-10) โฮสต์ที่เปิดให้ "เฉพาะบาง path" — ไม่ใช่ทั้งโฮสต์
+ *
+ * `www.facebook.com/ads/image/?d=<blob>` คือที่อยู่ของ **ครีเอทีฟโฆษณา** ซึ่งเป็นรูปของการ์ดที่
+ * ระบบตอบกลับอัตโนมัติของโฆษณาส่งให้ลูกค้า (Click-to-Messenger) — การ์ดพวกนี้มาทาง Graph backfill
+ * เท่านั้น (Meta ไม่ยิง echo ให้ตัวเอง ดู syncMissingMessagesFromMeta) และรูปไม่ได้อยู่บน fbcdn
+ * ตรง ๆ แต่อยู่หลัง 302 ของหน้า www — โฮสต์นี้จึงไม่เคยผ่าน allow-list มาก่อนเลย
+ *
+ * 🛑 เปิด "ทั้งโฮสต์ www.facebook.com" ไม่ได้ — มันคือเว็บหลักที่มีทั้ง endpoint ที่ตอบ HTML ยาว ๆ
+ * และหน้าที่ขึ้นกับ cookie; การผูกกับ path prefix ทำให้ URL ที่ปลอมมากับ payload ชี้ไปที่อื่น
+ * บนโฮสต์นี้ไม่ได้เลย ส่วนตัว `d=` เป็น blob ที่ Meta เซ็นเอง เราแต่งไม่ได้อยู่แล้ว
+ *
+ * อายุ: ต่างจาก `image_url` ของ webhook ที่หมดอายุใน ~4 วัน (`oe=` param) — URL ชุดนี้พิสูจน์แล้ว
+ * ว่ายังคืนรูปได้ (ยิงจริง 2026-08-10 กับใบเก่าสุดในฐาน prod ลงวันที่ 2026-01-19 → 200 JPEG)
+ * เพราะ `d=` ชี้ตัวครีเอทีฟ ไม่ใช่ลิงก์ CDN ที่เซ็นหมดอายุ — Meta เซ็นลิงก์ปลายทางใหม่ทุกครั้งที่ยิง
+ */
+const MIRROR_ALLOWED_PATH_SCOPED: { host: string; pathPrefix: string }[] = [
+  { host: 'www.facebook.com', pathPrefix: '/ads/image/' },
+]
+
+/** export เพื่อผูกเทสได้ตรง ๆ — ด่านความปลอดภัยที่ตัดสินด้วย boolean ต้องมีที่ให้เทสจับ */
+export function isAllowedMirrorUrl(u: URL): boolean {
+  if (isAllowedMirrorHost(u.hostname)) return true
+  const h = u.hostname.toLowerCase()
+  return MIRROR_ALLOWED_PATH_SCOPED.some((r) => h === r.host && u.pathname.startsWith(r.pathPrefix))
+}
+
 const MIRROR_FETCH_TIMEOUT_MS = 10_000
 
 // อ่าน response body พร้อมบังคับเพดานขนาด "ระหว่างอ่าน" ไม่ใช่หลังโหลดครบ (S-1) — content-length
@@ -584,11 +678,24 @@ export async function mirrorRemoteImage(url: string, filenamePrefix = 'fb'): Pro
   } catch {
     return null
   }
-  if (parsed.protocol !== 'https:' || !isAllowedMirrorHost(parsed.hostname)) return null
+  if (parsed.protocol !== 'https:' || !isAllowedMirrorUrl(parsed)) return null
 
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(MIRROR_FETCH_TIMEOUT_MS) })
     if (!res.ok) return null
+
+    // (S-1, 2026-08-10) ปลายทาง **หลัง redirect** ต้องอยู่ใน allow-list ด้วย — `fetch` เดิน 302 ให้เอง
+    // โดยไม่ถามใคร การเช็ค URL ตั้งต้นอย่างเดียวจึงกันได้แค่ hop แรก. เดิมไม่มีใครสังเกตเพราะ CDN ของ
+    // Meta ตอบรูปตรง ๆ ไม่ redirect ออกนอกบ้าน แต่ `www.facebook.com/ads/image/` **เป็นตัว redirect
+    // โดยธรรมชาติ** (302 → scontent-*.fbcdn.net) การเปิด path นี้โดยไม่ตรวจ hop ปลายทางคือการเชื่อ
+    // Location header ที่เราไม่ได้ตรวจอะไรเลย. `res.url` ว่างได้ในบางรันไทม์ → ถือว่าไม่มี redirect
+    if (res.url) {
+      try {
+        if (!isAllowedMirrorUrl(new URL(res.url))) return null
+      } catch {
+        return null
+      }
+    }
 
     const contentType = (res.headers.get('content-type') ?? '').split(';')[0]!.trim()
     // "รองรับทุกอย่าง" (user 2026-07-24): ชนิดที่รู้จัก → ext ตรง; ชนิดแปลก → generic ext (ยังเก็บได้
