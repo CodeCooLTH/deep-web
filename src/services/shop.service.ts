@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { countableOrderWhere } from "@/lib/public-order-count";
 import { normalizeSlug, isValidSlugFormat, isReservedSlug } from "@/lib/shop-slug";
 import { getTierScoreRange } from "@/lib/trust-tier";
 import { computeCompletionRate, isRateExcludedCancellation } from "@/lib/order-stats";
@@ -242,12 +243,16 @@ export async function setShopSlug(shopId: string, rawSlug: string) {
  * ทั้งบล็อกแทนการโชว์เลขศูนย์ ตามหลักของระบบที่ไม่แสดงตัวเลขที่ไม่มีความหมาย (PRD 00015 §11.3)
  */
 export async function getShopProfileStats(shopId: string) {
-  const [statusGroups, cancelledRows, customerGroups, ratingGroups, channels] = await Promise.all([
+  const [statusGroups, countableOrders, cancelledRows, customerGroups, ratingGroups, channels] = await Promise.all([
     prisma.order.groupBy({
       by: ["status"],
       where: { shopId },
       _count: { _all: true },
     }),
+    // BR-POC-01/03 — "ออเดอร์ที่นับได้" = ผู้ซื้อยืนยันเอง **หรือ** ขนส่งขยับพัสดุจริงแล้ว
+    // (ดู docs/10 - Business Rules/Public Order Count.md) เกณฑ์นี้แก้ปัญหาที่ร้านซึ่งขายผ่าน
+    // แชทจริงแสดงตัวเลขต่ำกว่าความจริงมาก เพราะผู้ซื้อแทบไม่กลับมากดยืนยัน
+    prisma.order.count({ where: countableOrderWhere(shopId) }),
     // feature 00039 — ใบที่ยกเลิกพร้อมหลักฐานที่ใช้ตัดสินว่าเป็นความผิดร้านหรือไม่
     // อยู่ใน Promise.all เดิม ไม่ยิงรอบใหม่ (NFR ประสิทธิภาพ)
     //
@@ -280,9 +285,11 @@ export async function getShopProfileStats(shopId: string) {
     // เหลือทั้งหมด และที่อันตรายกว่านั้นคือ PENDING เป็นสิ่งที่ร้านสร้างเองได้ไม่จำกัด — มิจฉาชีพ
     // เปิดร้านแล้วสร้างออเดอร์ทิ้งไว้ 50 รายการก็ได้ "50 จำนวนลูกค้า" ฟรี ๆ ซึ่งขัดพันธกิจของ
     // ทั้งแพลตฟอร์ม เกณฑ์เดียวกับ completionRate/ยอดขายรายสินค้าที่ใช้ CONFIRMED เท่านั้น
+    // BR-POC-03 — ใช้เกณฑ์ "ออเดอร์ที่นับได้" ตัวเดียวกับช่อง "ออเดอร์" ห้ามนับคนละแบบ
+    // ไม่งั้นหน้าเดียวกันจะมีตัวเลขสองนิยามอีก (Hard Rule 16)
     prisma.order.groupBy({
       by: ["customerId"],
-      where: { shopId, customerId: { not: null }, status: "CONFIRMED" },
+      where: { ...countableOrderWhere(shopId), customerId: { not: null } },
       _count: { _all: true },
     }),
     prisma.review.groupBy({
@@ -328,7 +335,10 @@ export async function getShopProfileStats(shopId: string) {
   }));
 
   return {
-    completedOrders: confirmed > 0 ? confirmed : null,
+    // 🛑 ช่อง "ออเดอร์" ใช้เกณฑ์ BR-POC ส่วน completionRate ด้านล่างยังใช้ `confirmed` ล้วน
+    // (BR-POC-04) — "สำเร็จ" แปลว่าผู้ซื้อได้ของแล้ว พัสดุที่ยังเดินทางอยู่ยังไม่ใช่ความสำเร็จ
+    // สองตัวนี้จึงใช้ตัวหารคนละชุดโดยตั้งใจ
+    completedOrders: countableOrders > 0 ? countableOrders : null,
     completionRate: rate.rate,
     /** ฐานที่ใช้คำนวณจริง — UI ต้องแสดงคู่กับ % เสมอ (BR-OSM-07) ผู้ซื้อจะได้บวกตามได้ */
     completionDenominator: rate.denominator,

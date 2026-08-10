@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { COUNTABLE_CARRIER_STATUSES } from "@/lib/public-order-count";
 import { Prisma } from "@prisma/client";
 import type { FulfillmentMode, BillingMode, BillingPeriod, ProductTypeId } from "@/lib/product-types/registry";
 import { deriveCapabilityDefaults, PRODUCT_TYPES } from "@/lib/product-types/registry";
@@ -521,7 +522,27 @@ export async function getConfirmedOrderCountByProduct(
 
   const pairs = await prisma.orderItem.groupBy({
     by: ["productId", "orderId"],
-    where: { productId: { in: productIds }, order: { status: "CONFIRMED" } },
+    // BR-POC-03 — "ขายแล้ว N" ใช้เกณฑ์เดียวกับช่อง "ออเดอร์" ในหัวโปรไฟล์
+    // (ผู้ซื้อยืนยันเอง **หรือ** ขนส่งขยับพัสดุจริงแล้ว) ไม่งั้นการ์ดสินค้ากับหัวหน้าจะนับคนละแบบ
+    // ⚠️ ไม่มี shopId ที่นี่โดยตั้งใจ — productIds ถูก scope ด้วยร้านมาแล้วจากผู้เรียก
+    where: {
+      productId: { in: productIds },
+      order: {
+        status: { not: "CANCELLED" },
+        OR: [
+          { status: "CONFIRMED" },
+          {
+            shipments: {
+              some: {
+                status: "CREATED",
+                isDryRun: false,
+                carrierStatus: { in: [...COUNTABLE_CARRIER_STATUSES] },
+              },
+            },
+          },
+        ],
+      },
+    },
   });
 
   for (const row of pairs) {
