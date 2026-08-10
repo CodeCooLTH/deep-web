@@ -305,6 +305,24 @@ export async function createOrder(shopId: string, data: {
     if (hasForeignProduct) throw new ProductNotInShopError();
   }
 
+  // feature: Order.shopChannelId (2026-08-10, user request) — บันทึกว่าออเดอร์นี้เกิดจากช่องทางแชท
+  // ไหน (เพจ Messenger/Instagram หรือ LINE OA ใบไหน) ให้หน้า orders โชว์รูป/ชื่อช่องทางที่ลูกค้า
+  // ทักเข้ามาจริง แทนการเดาจาก provider เดียวที่ร้านมี (bug เดิม: ร้านมี ≥2 เพจไม่เคยเห็นรูปเพจสักใบ,
+  // LINE ไม่เคยเห็นเลย เพราะหน้าจอเดิม hardcode เฉพาะ MESSENGER)
+  //
+  // 🛑 เขียนแม้ "ไม่มีเบอร์ลูกค้า" (customerId=null) — ต่างจาก customer-link ด้านล่างที่ทำเฉพาะตอนมี
+  // เบอร์เท่านั้น ถ้าเอาไปห้อยใต้ customerId ออเดอร์จากแชทที่ยังไม่กรอกเบอร์จะไม่มีวันรู้ว่ามาจาก
+  // ช่องทางไหนเลย — read-only เลยไม่ต้องอยู่ใน tx/retry-loop (เหมือนแพตเทิร์น ownership check ด้านบน)
+  // scope ownership ด้วย shopId ใน WHERE — กันผูกออเดอร์กับช่องทางของร้านอื่น
+  let resolvedShopChannelId: string | null = null;
+  if (data.conversationId) {
+    const conv = await prisma.conversation.findFirst({
+      where: { id: data.conversationId, shopId },
+      select: { shopChannelId: true },
+    });
+    resolvedShopChannelId = conv?.shopChannelId ?? null;
+  }
+
   // shortCode: generate + retry ถ้าชน @unique (โอกาสชน 5 รอบติด ≈ 0). spec §4.2
   // orderDataBase ไม่รวม items แล้ว (เดิมมี items: { create: data.items } ตรงนี้) —
   // ย้ายการ build items ไปทำใน retry loop เพื่อแนบ stockDeducted ต่อ item (Inventory Add-on)
@@ -324,6 +342,7 @@ export async function createOrder(shopId: string, data: {
     totalAmount,
     depositAmount: appointmentDeposit,
     fulfillmentMode,
+    shopChannelId: resolvedShopChannelId ?? undefined,
     buyerContact: data.buyerContact ?? undefined,
     buyerName: data.buyerName ?? undefined,
     paymentMethod: data.paymentMethod ?? undefined,
@@ -1106,6 +1125,9 @@ export async function getOrderForShop(publicToken: string, shopId: string) {
       shipments: { select: { status: true, isDryRun: true, carrierStatus: true } },
       shipmentTracking: true,
       review: true,
+      // ช่องทางที่ลูกค้าทักเข้ามาจริง (2026-08-10) — หัวการ์ดออเดอร์อ่านรูป+provider จากตัวนี้
+      // แทนการเดาจาก MESSENGER เพจเดียวของร้าน (ผูกใน include เดียวกัน ไม่ยิงคิวรีเพิ่ม)
+      shopChannel: { select: { avatarUrl: true, provider: true, name: true } },
     },
   });
 }
@@ -1325,6 +1347,9 @@ export async function getOrdersByShop(shopId: string, status?: string) {
       // ทรัพยากรที่รับงานนัด (feature 00036) — คอลัมน์/บล็อก "นัดหมาย" ของร้าน SERVICE_QUEUE
       // ช่วงเวลาและสถานะนัดเป็น scalar บน Order จึงมากับ include อยู่แล้ว ขาดแค่ชื่อทรัพยากร
       serviceResource: { select: { id: true, name: true } },
+      // ช่องทางที่ลูกค้าทักเข้ามาจริง (2026-08-10) — คอลัมน์ "ที่มา" อ่านรูป+provider จากตัวนี้
+      // แทนการเดาจาก MESSENGER เพจเดียวของร้าน (ผูกใน include เดียวกัน ไม่ยิงคิวรีเพิ่มต่อแถว)
+      shopChannel: { select: { avatarUrl: true, provider: true, name: true } },
     },
     orderBy: { createdAt: "desc" },
   });

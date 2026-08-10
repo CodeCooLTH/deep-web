@@ -98,12 +98,19 @@ export type OrderRow = {
   /** ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER) → icon ผ่าน SALES_CHANNEL_ICONS */
   salesChannel: string | null
   /**
-   * รูปเพจที่ลูกค้าทักมา (ShopChannel.avatarUrl) — null = ไม่รู้เพจ ให้ UI ตกไปใช้
-   * โลโก้แพลตฟอร์มแทน (user สั่ง 2026-08-06: คอลัมน์ที่มาของออเดอร์)
-   * ตอนนี้เติมได้เฉพาะออเดอร์ FACEBOOK ของร้านที่เชื่อมเพจ ACTIVE เพจเดียว —
-   * Order ไม่ได้เก็บว่ามาจากเพจไหน (มีแค่ salesChannel) ร้านหลายเพจจึงชี้เพจไม่ได้
+   * รูปช่องทางที่ลูกค้าทักมาจริง (ShopChannel.avatarUrl ผ่าน Order.shopChannelId — 2026-08-10) —
+   * null = ไม่รู้ช่องทาง ให้ UI ตกไปใช้โลโก้แพลตฟอร์มแทน (user สั่ง 2026-08-06: คอลัมน์ที่มาของออเดอร์)
+   * ออเดอร์เก่าก่อน 2026-08-10 (shopChannelId=null) ใช้ legacy fallback: เติมได้เฉพาะออเดอร์
+   * FACEBOOK ของร้านที่เชื่อมเพจ MESSENGER ACTIVE เพจเดียว (ดู resolveOrderSource ใน page.tsx)
    */
   sourceLogoUrl?: string | null
+  /**
+   * ช่องทางที่ "ผูกกับรูปข้างบน" (2026-08-10) — ใช้เป็น `channel` prop ของ OrderSourceLogo/
+   * ChannelBadge เท่านั้น ต่างจาก `salesChannel` ด้านบนซึ่งเป็นหมวดหมู่ที่ร้านเลือก/แก้เองได้
+   * (ใช้กับ badge อื่นที่ไม่เกี่ยวกับรูป) 🛑 ห้ามผสม logoUrl จากตัวนี้กับ channel จาก salesChannel
+   * — รูป LINE OA คู่กับ badge Facebook คือบั๊กแบบที่ resolveOrderSource() ถูกสร้างมากันเป๊ะ
+   */
+  sourceChannel?: string | null
   /** true = order เกิดจากการชนะประมูล (มี auctionId) — แสดง badge ค้อนประมูล */
   isFromAuction: boolean
   /** เบอร์จริง (ไม่ mask) สำหรับ tap-to-call — seller เป็นเจ้าของออเดอร์/ลูกค้าตัวเอง

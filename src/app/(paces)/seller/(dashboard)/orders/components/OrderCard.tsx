@@ -133,7 +133,10 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
 
   const statusCfg = resolveOrderStatusBadge(order.status, order.shippingStage)
   const strip = ORDER_STATUS_TONE_BORDER[statusCfg.tone] ?? 'border-default-300'
-  const hasChannel = Boolean(order.salesChannel && SALES_CHANNEL_LABELS[order.salesChannel])
+  // sourceChannel ผูกกับ sourceLogoUrl แหล่งเดียวกัน (ไม่ใช่ salesChannel ดิบ) — ผสมกันจะได้รูป
+  // ช่องทางหนึ่งคู่กับ badge อีกช่องทางหนึ่ง (2026-08-10)
+  const channel = order.sourceChannel ?? order.salesChannel
+  const hasChannel = Boolean(channel && SALES_CHANNEL_LABELS[channel])
   // null = ยังไม่มีไฟล์โลโก้ของขนส่งเจ้านี้ → ตกไปใช้ตัวย่อ (ดู lib/iship/courier.ts)
   const courierLogo = courierLogoUrl(order.shipment?.courierCode, order.shipment?.courierName)
   const hasPayment = Boolean(order.paymentMethod)
@@ -171,7 +174,7 @@ export default function OrderCard({ order, onCancelRequest, vocab }: OrderCardPr
               <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-default-500">
                 {hasChannel && (
                   <ChannelBadge
-                    channel={order.salesChannel as string}
+                    channel={channel as string}
                     pageLogoUrl={order.sourceLogoUrl ?? null}
                   />
                 )}

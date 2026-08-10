@@ -64,6 +64,7 @@ import OrderProfitCard from './components/OrderProfitCard'
 import { resolveExpenseAccess } from '@/services/expense-access.service'
 import { countsAsRevenue } from '@/lib/order-revenue'
 import { computeOrderProfit } from '@/lib/order-profit'
+import { resolveOrderSource } from '@/lib/order-source-channel'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ (constant ไม่รู้จัก shop ของ request)
@@ -93,13 +94,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
   if (!active) redirect('/orders')
   const shop = active.shop
 
-  // รูปเพจของร้าน (หัวหน้า order detail — user 2026-08-06): Order เก็บแค่ salesChannel
-  // ไม่รู้เพจ → ชี้รูปเพจได้เฉพาะร้านที่เชื่อมเพจ MESSENGER ACTIVE เพจเดียว (เหมือนหน้า orders list)
+  // legacy fallback (ออเดอร์ก่อน 2026-08-10 ไม่มี Order.shopChannelId) — ชี้รูปเพจได้เฉพาะร้านที่
+  // เชื่อมเพจ MESSENGER ACTIVE "เพจเดียว" (เหมือนหน้า orders list) — resolveOrderSource() ด้านล่าง
+  // ใช้ค่านี้ต่อเฉพาะออเดอร์เก่าที่ไม่มี shopChannel ผูกไว้เท่านั้น
   const fbChannels = await prisma.shopChannel.findMany({
     where: { shopId: shop.id, provider: 'MESSENGER', status: 'ACTIVE' },
     select: { avatarUrl: true },
   })
   const fbPageAvatar = fbChannels.length === 1 ? fbChannels[0].avatarUrl : null
+
   // feature 00030 — คลังคำผันตามประเภทกิจการ ใช้ทั้ง h1/breadcrumb และส่งลง client components
   const vocab = resolveOrderVocab(shop.vertical)
 
@@ -110,6 +113,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
   // cast any เพื่อรองรับ field ที่เข้าถึงแบบ dynamic (เช่น order.buyer ที่ไม่มีใน Prisma include)
   // runtime จะ return undefined ตามปกติ — ไม่กระทบ logic
   const order: any = orderRaw
+
+  // ที่มาของออเดอร์ (หัวหน้า order detail — user 2026-08-06 + ต่อสาย shopChannel 2026-08-10):
+  // รูป+badge ต้องมาจากแหล่งเดียวกันเสมอ (resolveOrderSource) ห้ามผสม pageLogoUrl จาก shopChannel
+  // กับ badge จาก salesChannel ดิบ — ดูคอมเมนต์เต็มที่ไฟล์ lib/order-source-channel.ts
+  const orderSource = resolveOrderSource({
+    salesChannel: order.salesChannel ?? null,
+    shopChannel: order.shopChannel ?? null,
+    legacyFacebookPageAvatar: fbPageAvatar,
+  })
 
   // feature 00022 — ข้อมูลส่วน "การจัดส่ง" (พัสดุ iShip)
   // คืน null เมื่อร้านไม่ได้เชื่อมต่อ หรือออเดอร์นี้ไม่เกี่ยวกับการส่งของ
@@ -286,8 +298,8 @@ export default async function OrderDetailPage({ params }: PageProps) {
         createdAtISO={createdAtISO}
         fulfillmentMode={order.fulfillmentMode}
         isFromAuction={Boolean(order.auctionId)}
-        salesChannel={order.salesChannel ?? null}
-        pageLogoUrl={order.salesChannel === 'FACEBOOK' ? fbPageAvatar : null}
+        salesChannel={orderSource.channel}
+        pageLogoUrl={orderSource.logoUrl}
         totalAmount={Number(order.totalAmount)}
         paymentMethod={order.paymentMethod ?? null}
         slipFileId={order.slipFileId ?? null}

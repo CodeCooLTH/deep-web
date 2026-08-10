@@ -27,6 +27,7 @@ import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import type { Metadata } from 'next'
 import { resolveOrderVocab } from '@/lib/seller-menu'
+import { resolveOrderSource } from '@/lib/order-source-channel'
 import type { OrderRow, OrderStatCardData, OrderItemRow } from './components/data'
 import OrdersList from './components/OrdersList'
 import OrdersStatCard from './components/OrdersStatCard'
@@ -106,9 +107,9 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   // ร้านหนึ่งมีแกนเสริมได้แกนเดียว จึงไม่มีทางที่สองเงื่อนไขนี้จะจริงพร้อมกัน
   const isServiceQueue = canUseAppointments(shop)
 
-  // รูปเพจของร้าน (คอลัมน์ "ที่มา" — user สั่ง 2026-08-06): Order เก็บแค่ salesChannel
-  // ไม่ได้เก็บว่ามาจากเพจไหน → ชี้รูปเพจได้เฉพาะร้านที่เชื่อมเพจ MESSENGER ACTIVE เพจเดียว
-  // (หลายเพจ = กำกวม ห้ามเดา ใช้โลโก้แพลตฟอร์มแทน)
+  // legacy fallback (ออเดอร์ก่อน 2026-08-10 ไม่มี Order.shopChannelId) — คอลัมน์ "ที่มา" (user สั่ง
+  // 2026-08-06): ชี้รูปเพจได้เฉพาะร้านที่เชื่อมเพจ MESSENGER ACTIVE "เพจเดียว" (หลายเพจ = กำกวม
+  // ห้ามเดา) — resolveOrderSource() ต่อออเดอร์แต่ละใบด้านล่างใช้ค่านี้เฉพาะใบที่ไม่มี shopChannel
   const fbChannels = await prisma.shopChannel.findMany({
     where: { shopId: shop.id, provider: 'MESSENGER', status: 'ACTIVE' },
     select: { avatarUrl: true },
@@ -174,8 +175,20 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     statByCustomer.set(r.customerId, cur)
   }
 
-  const orders: OrderRow[] = rawOrders.map((o: any) => ({
-    sourceLogoUrl: o.salesChannel === 'FACEBOOK' ? fbPageAvatar : null,
+  const orders: OrderRow[] = rawOrders.map((o: any) => {
+    // ที่มาของออเดอร์ใบนี้ (2026-08-10) — รูป+badge ต้องมาจากแหล่งเดียวกันเสมอ (resolveOrderSource)
+    // ห้ามผสม sourceLogoUrl จาก shopChannel กับ badge จาก salesChannel ดิบ — ดูคอมเมนต์เต็มที่
+    // lib/order-source-channel.ts
+    const orderSource = resolveOrderSource({
+      salesChannel: o.salesChannel ?? null,
+      shopChannel: o.shopChannel ?? null,
+      legacyFacebookPageAvatar: fbPageAvatar,
+    })
+    return {
+    sourceLogoUrl: orderSource.logoUrl,
+    // channel ที่ผูกกับรูปข้างบน (สำหรับ OrderSourceLogo/ChannelBadge) — ต่างจาก `salesChannel`
+    // ด้านล่างซึ่งเป็นค่าดิบที่ร้านแก้เองได้ ใช้กับ badge อื่น (CustomerDetails/BillingDetails เดิม)
+    sourceChannel: orderSource.channel,
     // เลขพัสดุมาได้ 2 ทางและเก็บคนละตาราง — ต้องอ่านทั้งคู่ ไม่งั้นออเดอร์ที่ร้าน "ส่งเอง"
     // (ShipmentTracking: provider = ชื่อขนส่งที่ผู้ขายเลือก, ไม่มีรหัส) จะไม่ขึ้นเลขพัสดุเลย
     // ทั้งที่มีเลขอยู่ — เจอตอน user ส่งภาพหน้าจอ "แจ้งเลขพัสดุ" มาให้ดู 2026-08-04
@@ -300,7 +313,8 @@ export default async function OrdersPage({ searchParams }: PageProps) {
         imageUrl,
       }
     }),
-  }))
+    }
+  })
 
   // คำนวณ sparkline trend + changePct ต่อ status
   // feature 00033 §5.3 — ตัดวันตามปฏิทินไทย ไม่ใช่ UTC (ออเดอร์ 00:00–07:00 น. เคยตกไปวันก่อนหน้า)

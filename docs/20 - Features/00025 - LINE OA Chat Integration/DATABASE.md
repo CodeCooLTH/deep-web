@@ -17,6 +17,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]"]
 >
 > 🔄 **v1.1 (2026-07-31) — sync กับของจริงบน main:** `00023 - Chat Auto-Reply` ขึ้นโค้ดบน production ไปแล้ว (6 service + 10 route + cron sweeper รายวัน + คอลัมน์ `Conversation.autoReply*` / `ChatMessage.autoReplyKind`) เอกสารรอบนี้จึงเปลี่ยน FR-LINE-08 เป็น **"เสียบ LINE เข้าเครื่องยนต์ auto-reply ของ 00023"** และตัดฟิลด์ที่ซ้ำกับของเดิมออก. เดิมจองเลข 00021 — renumber เป็น **00025**
 > 🔄 **v1.2 (2026-08-09) — S-2 doc-fix (D-01/D-02 ใน scope baseline):** (1) timestamp migration เปลี่ยนจาก `20260726000100` (ล้าสมัย ชนลำดับกับ migration ที่ apply จริงไปแล้วระหว่างรอ review) เป็น **`20260809180000`** (มากกว่า `20260809100000` ซึ่งเป็น migration ล่าสุดจริง ณ วันที่ apply) (2) §1 ข้อ 2 แก้จาก "DB dev = prod แชร์กัน" เป็นสถานะจริงปัจจุบัน — ดูรายละเอียดที่ §1
+> 🔄 **v1.3 (2026-08-10) — ส่วนขยาย `Order.shopChannelId` (ดู §9):** user สั่งให้หน้า `/orders` แสดง "ที่มา" ของออเดอร์ให้ถูกต้องเมื่อร้านมีหลายช่องทาง (รวม LINE OA) — ไม่ใช่ฟีเจอร์เฉพาะ LINE แต่บันทึกไว้ในเอกสารนี้เพราะเป็น use case ที่ทำให้ต้องมีคอลัมน์นี้ (ร้านที่เชื่อม LINE + Messenger พร้อมกัน ท่าเดิมหารูปเพจได้ต่อเมื่อร้านมีช่องทางเดียว)
 > **เจ้าของเอกสาร:** safepay-database (ดู [[Feature-Docs-Ownership]])
 
 ---
@@ -262,3 +263,51 @@ ALTER TABLE "ShopChannel" DROP COLUMN IF EXISTS "channelSecretEnc";
 การเปลี่ยนแปลงฐานข้อมูลของ feature นี้เป็น **additive ล้วน 12 คอลัมน์ใน 4 ตารางเดิม ไม่มีตารางใหม่ ไม่มี index ใหม่ ไม่มี backfill** ความเสี่ยงต่อระบบที่ใช้งานจริงจึงต่ำมาก (v1.0 เคยระบุ 15 คอลัมน์ — ตัด 3 ตัวที่ซ้ำกับ 00023 ออกแล้ว)
 
 จุดที่ต้องระวังที่สุดไม่ใช่ตัว migration แต่เป็น **สองอย่างรอบ ๆ มัน**: (1) `push ขึ้น main = apply migration บน prod ทันที` จึงต้องขอ user ยืนยันก่อนเสมอ และ (2) `channelSecretEnc` เป็นข้อมูลที่ rollback แล้วกู้ไม่ได้ — หลังมีร้านใช้จริง ให้ปิดฟีเจอร์ด้วย flag แทนการ drop คอลัมน์
+
+---
+
+## 9. ส่วนขยาย 2026-08-10: `Order.shopChannelId`
+
+**สถานะ:** Migration เขียนแล้ว (`20260810050000_order_shop_channel`) — รอ user ยืนยันก่อน apply (เหมือน §5 ข้างบน)
+
+### 9.1 ทำไมต้องมี
+
+หน้า `/orders` แสดง "ที่มา" ของออเดอร์เป็นรูปเพจ + badge แพลตฟอร์ม (`OrderSourceLogo`, feature 2026-08-05) แต่ท่าปัจจุบัน (`src/app/(paces)/seller/(dashboard)/orders/page.tsx:112-116`) หารูปเพจด้วยการ query `ShopChannel` ทั้งหมดของร้านแล้วใช้ได้ต่อเมื่อร้านมีช่องทางเดียว (`fbChannels.length === 1`) — ร้านที่เชื่อมหลายเพจ หรือเชื่อม LINE OA พร้อม Messenger จึงตกไปเป็นโลโก้แพลตฟอร์มเปล่า ๆ เสมอ ไม่มีทางรู้ว่าออเดอร์ใบไหนมาจากช่องทางไหนจริง ๆ
+
+`createOrder` (`src/services/order.service.ts:159`) รับ `conversationId` เข้ามาอยู่แล้วเพื่อผูก `Customer` แต่ **ทิ้งไปหลังใช้** — ไม่เคยเก็บว่าออเดอร์เกิดจากเธรดของช่องทางไหน
+
+### 9.2 คอลัมน์ใหม่
+
+| คอลัมน์ | ตาราง | ชนิด | Null | Default | คำอธิบาย |
+|---------|-------|------|------|---------|----------|
+| `shopChannelId` | `Order` | `TEXT` | ✔ | `NULL` | FK → `ShopChannel.id`. `NULL` = สร้างออกนอกแชท (หน้าร้าน/POS/ลิงก์ตรง — ไม่มีเธรดต้นทาง) |
+
+**`onDelete: SetNull`** (ไม่ใช่ Restrict/Cascade) — ร้านถอดการเชื่อมต่อเพจ/LINE OA ได้ตลอด ออเดอร์เดิมต้องไม่หายตาม (เป็นประวัติการขายของร้าน) และการมีออเดอร์ผูกอยู่ต้องไม่บล็อกการถอดช่องทางออก
+
+🛑 **`shopChannelId` ≠ `salesChannel` — คนละความหมาย ห้ามใช้แทนกัน:**
+- `salesChannel` (Phase B field เดิม) = หมวดหมู่ที่ร้าน **เลือก/แก้เองได้** ในฟอร์มสร้าง/แก้ไขออเดอร์ (ข้อความอิสระ ไม่ผูก FK)
+- `shopChannelId` = ข้อเท็จจริงว่าออเดอร์นี้เกิดจากกล่องแชทไหน — set **ครั้งเดียว** ตอน `createOrder` จาก `conversationId` ที่ผูกมา ไม่มีหน้าจอให้ร้านแก้ทีหลัง
+
+สองค่านี้ **ไม่ตรงกันได้และไม่ถือว่าผิด** — ร้านสร้างออเดอร์จากแชท LINE (`shopChannelId` ชี้ LINE OA) แล้วแก้ `salesChannel` เป็น "หน้าร้าน" เองทีหลังได้ตามใจ ไม่ใช่บั๊ก
+
+### 9.3 Index
+
+| Index | ตาราง | เหตุผล |
+|-------|-------|--------|
+| `Order_shopChannelId_idx` (`shopChannelId`) | `Order` | รองรับหน้า `/orders` คอลัมน์ "ที่มา" (join ดึงรูป/ชื่อช่องทาง) + lookup ออเดอร์รายช่องทางในอนาคต |
+
+### 9.4 Migration
+
+`prisma/migrations/20260810050000_order_shop_channel/migration.sql` — additive ล้วน (`ADD COLUMN IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS` + FK ผ่าน `DO $$ ... EXCEPTION WHEN duplicate_object` แบบเดียวกับ `20260808150000_shop_notification_pref`) ไม่มี UPDATE/DELETE/ALTER ที่แตะข้อมูลเดิม แถวเก่าทุกใบได้ `NULL` = "สร้างออกนอกแชท" โดยไม่ต้อง backfill
+
+**Rollback:**
+```sql
+ALTER TABLE "Order" DROP CONSTRAINT IF EXISTS "Order_shopChannelId_fkey";
+DROP INDEX IF EXISTS "Order_shopChannelId_idx";
+ALTER TABLE "Order" DROP COLUMN IF EXISTS "shopChannelId";
+```
+ปลอดภัย — คอลัมน์นี้เป็นข้อมูลอ้างอิงล้วน (ไม่ใช่ credential แบบ `channelSecretEnc`) rollback แล้วแค่เสียความสามารถแสดง "ที่มา" ของออเดอร์เก่า ไม่กระทบข้อมูลอื่น
+
+### 9.5 ขอบเขตงานนี้ (safepay-database)
+
+งานรอบนี้ทำเฉพาะชั้นฐานข้อมูล (schema + migration + เอกสารนี้) — **ยังไม่แตะ**: `createOrder` เขียนค่าลงคอลัมน์นี้จริง (`src/services/order.service.ts`), query หน้า `/orders` เปลี่ยนมา join ผ่าน `shopChannelId` แทนท่าเดิม, หรือ UI ใด ๆ — เป็นงานคู่ขนานของ `safepay-developer`

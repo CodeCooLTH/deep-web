@@ -914,9 +914,11 @@ export default function OrdersTable({
             </span>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
               {/* ลำดับตามที่ user สั่ง: [รูปเพจ+badge แพลตฟอร์ม] [เลขออเดอร์] [คัดลอก] … */}
+              {/* channel มาจาก sourceChannel (ผูกกับ sourceLogoUrl แหล่งเดียวกัน) ไม่ใช่ salesChannel
+                  ดิบ — ผสมกันจะได้รูปช่องทางหนึ่งคู่กับ badge อีกช่องทางหนึ่ง (2026-08-10) */}
               <OrderSourceLogo
                 logoUrl={row.original.sourceLogoUrl ?? null}
-                channel={row.original.salesChannel}
+                channel={row.original.sourceChannel ?? row.original.salesChannel}
                 size="xs"
               />
               <Link
