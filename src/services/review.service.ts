@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { canEditReview } from "@/lib/review-window";
 import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
 import { canAccessShop } from "@/lib/shop-context";
 
@@ -140,21 +141,14 @@ export class ReviewReplyNotFoundError extends Error {
   constructor() { super("REVIEW_REPLY_NOT_FOUND"); this.name = "ReviewReplyNotFoundError"; }
 }
 
-/** หน้าต่างแก้ไข/ลบรีวิวของผู้ซื้อ (BR-BOE-17) — SSOT ห้าม hardcode 24 ชม. ที่อื่น */
-export const REVIEW_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-
 /**
- * canEditReview — ยังอยู่ในหน้าต่างแก้ไขไหม
+ * หน้าต่างแก้ไข/ลบรีวิว (BR-BOE-17) — นิยามจริงอยู่ที่ `@/lib/review-window`
  *
- * pure โดยตั้งใจ + รับ `now` เป็นพารามิเตอร์ เพื่อให้ทั้ง server (ด่านจริง) และ client
- * (ตัดสินว่าจะโชว์ปุ่มไหม/นับถอยหลัง) เรียกตัวเดียวกัน และเทสฉีดเวลาได้โดยไม่ต้องรอ 24 ชม.
- *
- * 🛑 นับจาก createdAt เสมอ **ไม่ใช่ updatedAt** — ถ้านับจาก updatedAt การแก้ทีละนิดจะยืดเวลา
- * ไปได้เรื่อย ๆ ไม่รู้จบ ซึ่งเท่ากับไม่มีหน้าต่างเลย
+ * 🛑 ที่นี่ **re-export เท่านั้น ห้ามเขียนสูตรซ้ำ** — ไฟล์นี้ import prisma ⇒ client component
+ * ที่ต้องตัดสินว่าจะโชว์ปุ่มแก้ไข/ลบไหม ดึงเข้าไปไม่ได้ ถ้ามีสองนิยาม วันหนึ่งมันจะเลื่อนออก
+ * จากกันแล้วปุ่มจะโชว์ทั้งที่กดแล้วโดนปฏิเสธ (HR16)
  */
-export function canEditReview(createdAt: Date, now: Date = new Date()): boolean {
-  return now.getTime() - createdAt.getTime() <= REVIEW_EDIT_WINDOW_MS;
-}
+export { REVIEW_EDIT_WINDOW_MS, canEditReview } from "@/lib/review-window";
 
 /**
  * หา review ที่ "ยังมีชีวิต" ของออเดอร์นี้ — soft-deleted ถือว่าไม่มี

@@ -201,7 +201,21 @@ export default async function PublicOrderPage({ params }: Props) {
       hasReview: !!order.review,
       review:
         order.review && !order.review.deletedAt
-          ? { rating: order.review.rating, comment: order.review.comment }
+          ? {
+              rating: order.review.rating,
+              comment: order.review.comment,
+              images: (order.review.images as string[] | null) ?? [],
+              // createdAt ของใบแรกเสมอ — ห้ามใช้ updatedAt เป็นฐานของหน้าต่าง 24 ชม.
+              // ไม่งั้นแก้ทีละนิดจะยืดเวลาไปได้ไม่รู้จบ (BR-BOE-17)
+              createdAtIso: order.review.createdAt.toISOString(),
+              shopReply:
+                order.review.shopReplyComment && order.review.shopRepliedAt
+                  ? {
+                      comment: order.review.shopReplyComment,
+                      repliedAtIso: order.review.shopRepliedAt.toISOString(),
+                    }
+                  : null,
+            }
           : null,
       items: order.items.map((it) => ({
         id: it.id,

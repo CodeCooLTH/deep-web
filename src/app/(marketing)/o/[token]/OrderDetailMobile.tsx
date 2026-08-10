@@ -26,6 +26,9 @@ import { useRef, useState } from 'react'
 
 import Link from 'next/link'
 
+import { canEditReview, formatEditWindowLeft } from '@/lib/review-window'
+import { useRouter } from 'next/navigation'
+
 import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -63,7 +66,15 @@ export type PublicOrderData = {
   totalAmount: number
   createdAtIso: string
   hasReview: boolean
-  review: { rating: number; comment: string | null } | null
+  review: {
+    rating: number
+    comment: string | null
+    /** feature 00041 — fileId ของรูปแนบ (≤4) */
+    images: string[]
+    /** เวลาโพสต์ครั้งแรก — ฐานของหน้าต่างแก้ไข 24 ชม. ไม่ใช่เวลาที่แก้ล่าสุด */
+    createdAtIso: string
+    shopReply: { comment: string; repliedAtIso: string } | null
+  } | null
   items: Array<{
     id: string
     name: string
@@ -340,6 +351,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   // state สำหรับ tracking copy icon (เปลี่ยน icon → tabler-check 2 วิ)
   const [copied, setCopied] = useState(false)
   // state สำหรับ cancel confirm dialog
+  const router = useRouter()
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   // feature 00041 — แจ้งปัญหา (dispute). disputeOpened เก็บสถานะฝั่ง client หลังกดสำเร็จ
   // เพื่อสลับการ์ดเป็นแถบ "แจ้งปัญหาแล้ว" ทันทีโดยไม่ต้องรอ refresh
@@ -348,6 +360,34 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   const [disputing, setDisputing] = useState(false)
   const [disputeOpened, setDisputeOpened] = useState(order.hasOpenDispute)
   const [disputeOpenedAt, setDisputeOpenedAt] = useState(order.disputeOpenedAtIso)
+  // feature 00041 — โหมดแก้ไขรีวิว (BR-BOE-17)
+  const [editingReview, setEditingReview] = useState(false)
+  const [deletingReview, setDeletingReview] = useState(false)
+  const [deleteReviewDialogOpen, setDeleteReviewDialogOpen] = useState(false)
+
+  /**
+   * ลบรีวิว — เป็น soft delete ที่ฝั่ง server (แถวยังอยู่เพื่อกันการเขียนใหม่)
+   * ผู้ใช้ไม่ต้องรู้เรื่องนั้น แต่ต้องรู้ว่า "ลบแล้วเขียนใหม่ไม่ได้" จึงบอกไว้ในกล่องยืนยัน
+   */
+  const handleDeleteReview = async () => {
+    setDeletingReview(true)
+    try {
+      const res = await fetch(`/api/orders/${order.publicToken}/review`, { method: 'DELETE' })
+      const data = (await res.json().catch(() => null)) as { error?: string } | null
+      if (!res.ok) {
+        toast.error(data?.error ?? 'ลบรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+        return
+      }
+      toast.success('ลบรีวิวแล้ว')
+      setDeleteReviewDialogOpen(false)
+      router.refresh()
+    } catch {
+      toast.error('ลบรีวิวไม่สำเร็จ กรุณาตรวจสัญญาณแล้วลองใหม่')
+    } finally {
+      setDeletingReview(false)
+    }
+  }
+
 
   /**
    * แจ้งปัญหา — เรียก endpoint เดิมของ 00039 ตรง ๆ ไม่แก้ business logic ใด ๆ
@@ -844,7 +884,27 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           )}
 
           {/* ── โซนรีวิว (3 สถานะ — ดู SDS TD-002) ── */}
-          {order.hasReview && order.review && (
+          {order.hasReview && order.review && editingReview && (
+            <Card>
+              <Box sx={{ px: 1.75, py: 2 }}>
+                <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
+                  แก้ไขรีวิว
+                </Typography>
+                <ReviewForm
+                  token={order.publicToken}
+                  mode='edit'
+                  initial={{
+                    rating: order.review.rating,
+                    comment: order.review.comment,
+                    images: order.review.images,
+                  }}
+                  onCancel={() => setEditingReview(false)}
+                />
+              </Box>
+            </Card>
+          )}
+
+          {order.hasReview && order.review && !editingReview && (
             <Card>
               <Box sx={{ px: 1.75, py: 1.75 }}>
                 <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
@@ -870,9 +930,62 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                     {order.review.comment}
                   </Typography>
                 )}
+                {/* รูปแนบ (BR-BOE-19) */}
+                {order.review.images.length > 0 && (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                    {order.review.images.map(fileId => (
+                      <Box
+                        key={fileId}
+                        component='img'
+                        src={`/api/files/${fileId}`}
+                        alt=''
+                        sx={{ width: 56, height: 56, borderRadius: 2, objectFit: 'cover', display: 'block' }}
+                      />
+                    ))}
+                  </Box>
+                )}
+
                 <Typography variant='caption' color='text.disabled'>
-                  คุณ · {formatDateTimeTH(order.createdAtIso)}
+                  คุณ · {formatDateTimeTH(order.review.createdAtIso)}
                 </Typography>
+
+                {/* แก้ไข/ลบได้ภายใน 24 ชม. จากเวลาโพสต์ครั้งแรก (BR-BOE-17)
+                    หมดเวลาแล้ว → ปุ่มหายไปเฉย ๆ **ไม่ขึ้นข้อความว่า "หมดเวลาแล้ว"** —
+                    รีวิวยังแสดงปกติ ไม่มีอะไรผิดพลาดที่ต้องแจ้ง */}
+                {canEditReview(new Date(order.review.createdAtIso)) && (
+                  <>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1.5, mb: 1 }}>
+                      <Icon icon='tabler-clock' style={{ fontSize: 14, color: 'var(--mui-palette-text-disabled)' }} />
+                      <Typography variant='caption' color='text.disabled'>
+                        {formatEditWindowLeft(order.review.createdAtIso)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button size='small' variant='outlined' color='primary' onClick={() => setEditingReview(true)}>
+                        แก้ไขรีวิว
+                      </Button>
+                      <Button size='small' variant='text' color='secondary' onClick={() => setDeleteReviewDialogOpen(true)}>
+                        ลบรีวิว
+                      </Button>
+                    </Box>
+                  </>
+                )}
+
+                {/* คำตอบของร้าน (BR-BOE-21) — info tint ไม่ใช่เขียว: เป็นคำพูดของร้าน
+                    ไม่ใช่ข้อเท็จจริงที่ระบบยืนยันได้ (Verified-Means-Green) */}
+                {order.review.shopReply && (
+                  <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, px: 1.5, py: 1.25, mt: 1.5 }}>
+                    <Typography variant='caption' sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 0.25 }}>
+                      ร้านค้าตอบกลับ
+                    </Typography>
+                    <Typography variant='body2' color='text.secondary' sx={{ lineHeight: 1.6 }}>
+                      {order.review.shopReply.comment}
+                    </Typography>
+                    <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mt: 0.5 }}>
+                      {formatDateTimeTH(order.review.shopReply.repliedAtIso)}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             </Card>
           )}
@@ -1124,6 +1237,37 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Button>
           <Button variant='contained' color='warning' onClick={handleDispute} disabled={disputing}>
             {disputing ? 'กำลังแจ้ง...' : 'แจ้งปัญหา'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── ยืนยันลบรีวิว (BR-BOE-18) ──
+          🛑 ต้องบอกให้ชัดว่า "ลบแล้วเขียนใหม่ไม่ได้" — soft delete ฝั่งหลังบ้านกันไม่ให้ผู้ใช้
+          ลบเพื่อรีเซ็ตหน้าต่าง 24 ชม.แล้วเขียนใหม่วนไปเรื่อย ๆ ถ้าไม่เขียนไว้ตรงนี้ ผู้ใช้จะกดลบ
+          ด้วยความเข้าใจว่าเขียนใหม่ได้ แล้วเจอทางตันหลังกด ซึ่งย้อนกลับไม่ได้แล้ว */}
+      <Dialog
+        fullWidth
+        maxWidth='xs'
+        open={deleteReviewDialogOpen}
+        onClose={() => !deletingReview && setDeleteReviewDialogOpen(false)}
+        closeAfterTransition={false}
+        aria-labelledby='delete-review-dialog-title'
+      >
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', pt: 5, pb: 2, px: 4 }}>
+          <Icon icon='tabler-trash' style={{ fontSize: '3.5rem', marginBottom: '1rem', color: 'var(--mui-palette-text-disabled)' }} />
+          <Typography id='delete-review-dialog-title' variant='h5' sx={{ mb: 1 }}>
+            ลบรีวิวนี้?
+          </Typography>
+          <Typography color='text.secondary' sx={{ fontSize: '0.875rem' }}>
+            ลบแล้วจะเขียนรีวิวใหม่สำหรับคำสั่งซื้อนี้อีกไม่ได้
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 5, px: 4, gap: 1.5 }}>
+          <Button variant='tonal' color='secondary' onClick={() => setDeleteReviewDialogOpen(false)} disabled={deletingReview}>
+            ไม่ลบ
+          </Button>
+          <Button variant='contained' color='error' onClick={handleDeleteReview} disabled={deletingReview}>
+            {deletingReview ? 'กำลังลบ...' : 'ลบรีวิว'}
           </Button>
         </DialogActions>
       </Dialog>
