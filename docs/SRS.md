@@ -765,8 +765,18 @@ SellerWallet (1) ── (N) WalletTransaction
 | `actorUserId` | String? | `MANUAL` = คนที่กด · `AUTO` = `NULL` เสมอ |
 | `publicReplyStatus` / `privateReplyStatus` | String? | `"SENT"` / `"SKIPPED"` / `"FAILED"` |
 | `skipReason` | String? | รหัสเหตุผลที่ข้าม — ดู `docs/20 - Features/00038 - Comment Auto-Reply/DATABASE.md` §3.4 |
-| `errorMessage` | String? `@db.Text` | ข้อความ error ดิบจาก Graph เมื่อ `FAILED` |
+| `errorMessage` | String? `@db.Text` | 🛑 **DEPRECATED (2026-08-10) ห้ามเขียนเพิ่ม** — อ่านได้เฉพาะแถวเก่าที่ backfill ไม่ถึง ดูเหตุผลใต้ตาราง |
+| `publicErrorMessage` | String? `@db.Text` | เหตุผลที่ "ตอบใต้คอมเมนต์" ล้มเหลว — คู่กับ `publicReplyStatus='FAILED'` เท่านั้น |
+| `privateErrorMessage` | String? `@db.Text` | เหตุผลที่ "ทักแชท" ล้มเหลว — คู่กับ `privateReplyStatus='FAILED'` เท่านั้น |
 | `conversationId` | String? | ห้องที่เกิดจาก private reply (ถ้าสำเร็จ) |
+
+**🛑 ทำไมเหตุผลความล้มเหลวต้องแยก 2 คอลัมน์ (migration `20260810090000_comment_reply_error_per_side`):**
+"ตอบใต้คอมเมนต์" กับ "ทักแชท" เป็นงานอิสระต่อกัน (BR-CR-A5 — public ล้มไม่หยุด private) เดิมใช้
+`errorMessage` ร่วมกันคอลัมน์เดียว ซึ่งพัง 2 ทาง: (1) ล้มทั้งคู่ → private เขียนทับ public เพราะรัน
+ทีหลังเสมอ (2) **public ล้มแล้ว private สำเร็จ → โค้ดเขียน `NULL` ทับ เหตุผลฝั่งสาธารณะถูกล้างทุกครั้ง**
+ร้านเห็นป้าย "ไม่สำเร็จ" เปล่า ๆ ไม่มีอะไรให้อ่าน (user รายงานเอง 2026-08-10: *"เพราะ reply ไม่ผ่าน
+อาจจะทักแชทได้ก็ได้"*) · `skipReason` **ไม่ต้องแยก** เพราะเขียนที่ `recordSkip()` ที่เดียวก่อนยิงฝั่งไหน
+ทั้งสิ้น = เหตุผลระดับแถวจริง
 
 **🛑 Partial unique indexes (unmanaged SQL — Prisma DSL ประกาศไม่ได้ — ห้าม `prisma db pull`/`migrate dev`):**
 - `(shopChannelId, postId, fromExternalId) WHERE trigger='AUTO'` — กันซ้ำโหมดอัตโนมัติ "1 ครั้ง/คน/โพสต์" (กฎของ Deep เอง กันบอทดูเป็นสแปม)

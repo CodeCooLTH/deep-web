@@ -78,7 +78,9 @@ erDiagram
         string publicReplyStatus "nullable — SENT/SKIPPED/FAILED"
         string privateReplyStatus "nullable — SENT/SKIPPED/FAILED"
         string skipReason "nullable"
-        string errorMessage "nullable"
+        string errorMessage "nullable — DEPRECATED 2026-08-10"
+        string publicErrorMessage "nullable"
+        string privateErrorMessage "nullable"
         string conversationId "nullable — ห้องที่เกิดขึ้น"
         datetime createdAt
     }
@@ -134,7 +136,9 @@ erDiagram
 | `publicReplyStatus` | `varchar` | `YES` | `NULL` | `-` — `"SENT"` \| `"SKIPPED"` \| `"FAILED"` |
 | `privateReplyStatus` | `varchar` | `YES` | `NULL` | `-` — `"SENT"` \| `"SKIPPED"` \| `"FAILED"` |
 | `skipReason` | `varchar` | `YES` | `NULL` | `-` — รหัสเหตุผลที่ข้าม (ดู §3.4) |
-| `errorMessage` | `text` | `YES` | `NULL` | `-` — ข้อความ error ดิบจาก Graph เมื่อ `FAILED` |
+| `errorMessage` | `text` | `YES` | `NULL` | 🛑 **DEPRECATED 2026-08-10 ห้ามเขียนเพิ่ม** — อ่านได้เฉพาะแถวเก่าที่ backfill ไม่ถึง |
+| `publicErrorMessage` | `text` | `YES` | `NULL` | เหตุผลที่ "ตอบใต้คอมเมนต์" ล้มเหลว (คู่กับ `publicReplyStatus='FAILED'`) |
+| `privateErrorMessage` | `text` | `YES` | `NULL` | เหตุผลที่ "ทักแชท" ล้มเหลว (คู่กับ `privateReplyStatus='FAILED'`) |
 | `conversationId` | `uuid` | `YES` | `NULL` | `-` — ห้องที่เกิดจาก private reply (ถ้าสำเร็จ) |
 | `createdAt` | `timestamptz` | `NO` | `now()` | `-` |
 
