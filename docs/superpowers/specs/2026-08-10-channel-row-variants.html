@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>แถวช่องทาง — เลิกใช้ชิปมีกรอบ (3 แบบ)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --primary:#7367F0; --ink:#2F2B3D; --ink-70:rgb(47 43 61/.7); --ink-40:rgb(47 43 61/.4);
+  --divider:rgb(47 43 61/.12); --mist:#F8F7FA; --paper:#fff; --success:#28C76F;
+  --r-card:8px; --r-lg:10px; --shadow-sm:0 2px 8px rgb(47 43 61/.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;background:#eceaf0;color:var(--ink);padding:28px 16px 72px;font-size:15px;line-height:1.47}
+.h1{max-width:1180px;margin:0 auto 6px;font-size:22px;font-weight:800}
+.sub{max-width:1180px;margin:0 auto 20px;font-size:13px;color:var(--ink-70)}
+.gap{max-width:1180px;margin:0 auto 22px;background:var(--paper);border-radius:var(--r-lg);padding:14px 18px;box-shadow:var(--shadow-sm);font-size:13px;color:var(--ink-70)}
+.gap b{color:var(--ink)} .gap ul{margin:8px 0 0 18px} .gap li{margin-bottom:4px}
+.grid{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:20px}
+.card{background:var(--paper);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden;display:flex;flex-direction:column}
+.ch{padding:13px 18px;border-bottom:1px solid var(--divider);font-size:15px}
+.ch b{font-weight:700} .ch em{font-style:normal;font-size:13px;color:var(--ink-70)}
+.tag{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;background:rgb(115 103 240/.16);color:var(--primary);margin-inline-start:6px}
+.stage{padding:20px 0;background:var(--mist);display:flex;justify-content:center}
+.ph{width:358px;background:var(--paper);border-radius:var(--r-card);padding:14px 16px;box-shadow:0 1px 3px rgb(47 43 61/.1)}
+.nm{font-size:20px;font-weight:800;letter-spacing:-.02em;text-align:center}
+.meta{font-size:13px;color:var(--ink-70);text-align:center;margin-top:3px}
+.why{padding:13px 18px;font-size:13px;color:var(--ink-70);border-top:1px solid var(--divider)}
+.why b{color:var(--ink)} .why .no{color:#B4232A}
+
+.logo{width:18px;height:18px;border-radius:999px;flex-shrink:0;position:relative;display:inline-flex;align-items:center;justify-content:center;overflow:hidden}
+.logo img{width:100%;height:100%;object-fit:cover}
+.tick{position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:999px;background:var(--success);border:1.5px solid var(--paper)}
+
+/* ① inline เดียวกันหมด (ใกล้ ref ที่สุด) */
+.v1{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 14px;margin-top:10px}
+.v1 .it{display:inline-flex;align-items:center;gap:6px;font-size:13px;min-height:44px}
+.v1 .pg{font-weight:600;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v1 .num{font-weight:700;font-variant-numeric:tabular-nums}
+.v1 .lb{color:var(--ink-40)}
+
+/* ② สองบรรทัดต่อช่องทาง (ชื่อเพจเต็มกว่า) */
+.v2{display:flex;flex-direction:column;gap:2px;margin-top:10px}
+.v2 .it{display:flex;align-items:center;gap:8px;min-height:44px;text-decoration:none;color:inherit}
+.v2 .tx{display:flex;flex-direction:column;line-height:1.3;min-width:0;flex:1}
+.v2 .pg{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v2 .sub2{font-size:11px;color:var(--ink-70)}
+.v2 .num{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ③ inline + ชื่อช่องทางแทนชื่อเพจ (กระชับสุด) */
+.v3{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 16px;margin-top:10px}
+.v3 .it{display:inline-flex;align-items:center;gap:6px;font-size:13px;min-height:44px}
+.v3 .num{font-weight:700;font-variant-numeric:tabular-nums}
+.v3 .lb{color:var(--ink-40)}
+.v3 .pg{display:block;font-size:11px;color:var(--ink-70);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<div class="h1">แถวช่องทาง — เลิกใช้ชิปที่มีกรอบครอบ</div>
+<div class="sub">อ้างอิงภาษาภาพจาก ref ที่ส่งมา (แถวข้อมูลไม่มีกรอบ) + เพิ่มชื่อเพจและชื่อช่องทางตามที่ขอ · fixture = ยอดจริงจากภาพ (ถูกใจ 6.1K / ผู้ติดตาม 307)</div>
+
+<div class="gap">
+  <b>ข้อมูลใน ref ที่เราไม่มีจริง — ไม่ใส่ให้ทั้ง 3 แบบ</b>
+  <ul>
+    <li><b>★4.8 รายแพลตฟอร์ม</b> — เราไม่มีคะแนนรีวิวแยกตาม Shopee/Lazada/TikTok และไม่มีทางดึงได้ (เรามีแค่รีวิวที่เกิดบน Deep เอง) หน้านี้เคยมีตัวเลขพวกนี้ hardcode อยู่จริง แล้วถูกถอดออก 2026-07-22 เพราะเป็นเลขปลอม</li>
+    <li><b>on-time delivery %</b> — ไม่มีการวัดเวลาส่งจริงเทียบกำหนด</li>
+    <li><b>replies in ~8 min</b> — <b>อันนี้มีจริง</b> (คำนวณจากแชท) แต่ตอนนี้อยู่ในแท็บ "เกี่ยวกับร้าน" ถ้าอยากดึงขึ้นมาแถวนี้ด้วยบอกได้</li>
+    <li><b>lifetime orders</b> — มีจริง และอยู่ในแถบตัวเลข 4 ช่องแล้ว (ช่อง "ออเดอร์")</li>
+  </ul>
+</div>
+
+<div class="grid">
+
+  <!-- ① -->
+  <div class="card">
+    <div class="ch"><b>① แถวเดียว inline</b><span class="tag">ใกล้ ref ที่สุด</span></div>
+    <div class="stage"><div class="ph">
+      <div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+      <div class="meta">@tanapathardware · มอเตอร์ไซค์-อะไหล่</div>
+      <div class="v1">
+        <span class="it">
+          <span class="logo"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23B7202B'/%3E%3Ctext x='20' y='27' font-size='19' fill='white' text-anchor='middle' font-family='sans-serif'%3ET%3C/text%3E%3C/svg%3E"><i class="tick"></i></span>
+          <span class="pg">ธนภัทร์ สายซิ่ง</span>
+          <span class="num">6.1K</span><span class="lb">ถูกใจ</span>
+        </span>
+        <span class="it">
+          <span class="logo"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23f09433'/%3E%3Cstop offset='.5' stop-color='%23dc2743'/%3E%3Cstop offset='1' stop-color='%23bc1888'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' fill='url(%23a)'/%3E%3Crect x='11' y='11' width='18' height='18' rx='6' fill='none' stroke='white' stroke-width='2.8'/%3E%3Ccircle cx='20' cy='20' r='4.4' fill='none' stroke='white' stroke-width='2.8'/%3E%3C/svg%3E"><i class="tick"></i></span>
+          <span class="pg">ธนภัทร์ สายซิ่ง</span>
+          <span class="num">307</span><span class="lb">ผู้ติดตาม</span>
+        </span>
+      </div>
+    </div></div>
+    <div class="why">
+      ไม่มีกรอบ ไม่มีพื้น เหลือแค่ข้อมูล — ตรงกับ ref ที่สุด · โลโก้จริงของแพลตฟอร์มพร้อมเช็คเขียวมุมล่าง (= ยืนยันความเป็นเจ้าของผ่าน OAuth)
+      <div style="margin-top:5px"><span class="no">ข้อแลก:</span> <b>ชื่อเพจต้องถูกตัด</b> (สูงสุด ~112px) เพราะสองช่องทางอยู่บรรทัดเดียวกัน ที่ 390px เหลือที่ให้ชื่อเพจละไม่ถึงครึ่งจอ — และร้านที่มี 3 ช่องทางขึ้นไปจะตกบรรทัดที่สาม</div>
+    </div>
+  </div>
+
+  <!-- ② -->
+  <div class="card">
+    <div class="ch"><b>② บรรทัดละช่องทาง</b> <em>— ชื่อเพจอ่านได้เต็ม</em></div>
+    <div class="stage"><div class="ph">
+      <div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+      <div class="meta">@tanapathardware · มอเตอร์ไซค์-อะไหล่</div>
+      <div class="v2">
+        <a class="it">
+          <span class="logo"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23B7202B'/%3E%3Ctext x='20' y='27' font-size='19' fill='white' text-anchor='middle' font-family='sans-serif'%3ET%3C/text%3E%3C/svg%3E"><i class="tick"></i></span>
+          <span class="tx">
+            <span class="pg">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</span>
+            <span class="sub2">Facebook Page</span>
+          </span>
+          <span class="num">6.1K ถูกใจ</span>
+        </a>
+        <a class="it">
+          <span class="logo"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23f09433'/%3E%3Cstop offset='.5' stop-color='%23dc2743'/%3E%3Cstop offset='1' stop-color='%23bc1888'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' fill='url(%23b)'/%3E%3Crect x='11' y='11' width='18' height='18' rx='6' fill='none' stroke='white' stroke-width='2.8'/%3E%3Ccircle cx='20' cy='20' r='4.4' fill='none' stroke='white' stroke-width='2.8'/%3E%3C/svg%3E"><i class="tick"></i></span>
+          <span class="tx">
+            <span class="pg">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</span>
+            <span class="sub2">Instagram</span>
+          </span>
+          <span class="num">307 ผู้ติดตาม</span>
+        </a>
+      </div>
+    </div></div>
+    <div class="why">
+      ได้ครบตามที่ขอทั้ง <b>ชื่อเพจ + ชื่อช่องทาง + ยอด</b> โดยไม่ต้องตัดชื่อจนอ่านไม่รู้เรื่อง · เพิ่มช่องทางที่ 3-4 ก็ไม่พังผัง แค่ยาวลง · ยังไม่มีกรอบ/พื้น ตามที่ไม่ชอบชิป
+      <div style="margin-top:5px"><span class="no">ข้อแลก:</span> สูงกว่าแบบ ① ราว 24px ต่อช่องทาง และหน้าตาเป็น "รายการ" มากกว่า "แถบสถิติ" แบบใน ref</div>
+    </div>
+  </div>
+
+  <!-- ③ -->
+  <div class="card">
+    <div class="ch"><b>③ inline + ชื่อเพจเป็นบรรทัดรอง</b> <em>— ประนีประนอม</em></div>
+    <div class="stage"><div class="ph">
+      <div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+      <div class="meta">@tanapathardware · มอเตอร์ไซค์-อะไหล่</div>
+      <div class="v3">
+        <span class="it">
+          <span class="logo"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23B7202B'/%3E%3Ctext x='20' y='27' font-size='19' fill='white' text-anchor='middle' font-family='sans-serif'%3ET%3C/text%3E%3C/svg%3E"><i class="tick"></i></span>
+          <span>
+            <span><span class="num">6.1K</span> <span class="lb">ถูกใจ</span></span>
+            <span class="pg">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</span>
+          </span>
+        </span>
+        <span class="it">
+          <span class="logo"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='c' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23f09433'/%3E%3Cstop offset='.5' stop-color='%23dc2743'/%3E%3Cstop offset='1' stop-color='%23bc1888'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' fill='url(%23c)'/%3E%3Crect x='11' y='11' width='18' height='18' rx='6' fill='none' stroke='white' stroke-width='2.8'/%3E%3Ccircle cx='20' cy='20' r='4.4' fill='none' stroke='white' stroke-width='2.8'/%3E%3C/svg%3E"><i class="tick"></i></span>
+          <span>
+            <span><span class="num">307</span> <span class="lb">ผู้ติดตาม</span></span>
+            <span class="pg">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</span>
+          </span>
+        </span>
+      </div>
+    </div></div>
+    <div class="why">
+      ตัวเลขเด่นอยู่บรรทัดบนแบบ ref ส่วนชื่อเพจอยู่บรรทัดรองเล็ก ๆ ใต้มัน — ได้ทั้ง "อ่านเป็นแถบสถิติ" และ "รู้ว่าเพจไหน"
+      <div style="margin-top:5px"><span class="no">ข้อแลก:</span> ไม่มีที่ใส่ชื่อช่องทาง (Facebook Page/Instagram) เป็นตัวอักษร — ต้องอ่านจากโลโก้เอา ซึ่งคนส่วนใหญ่แยกออกอยู่แล้ว แต่ไม่ตรงกับที่ขอ 100%</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="gap" style="margin-top:22px">
+  <b>ที่เหมือนกันทั้ง 3 แบบ</b>
+  <ul>
+    <li>ไม่มีกรอบ ไม่มีพื้นชิป — เหลือแค่โลโก้ + ข้อความ ตามที่ ref เป็น</li>
+    <li>โลโก้จริงของแพลตฟอร์ม (Facebook/Instagram) ไม่ใช่ไอคอนเส้น + เช็คเขียวมุมล่างขวา = ยืนยันความเป็นเจ้าของผ่าน OAuth (ปลอมไม่ได้) ซึ่งเป็นเหตุผลเดียวที่บล็อกนี้มีค่าบนหน้าที่ขายความน่าเชื่อถือ</li>
+    <li>ทั้งแถวกดได้ เปิดเพจในแท็บใหม่ · พื้นที่กดสูง 44px ตามเกณฑ์ของ PRODUCT.md แม้ตัวหนังสือจะเล็กกว่านั้น</li>
+    <li>ไม่รู้ยอด (เพจที่ยังไม่ได้เชื่อมใหม่) → ซ่อนเฉพาะตัวเลข ไม่แสดง 0</li>
+  </ul>
+</div>
+
+</body>
+</html>

@@ -452,7 +452,14 @@ export default function ProfileHero({
              grid 2 คอลัมน์บนมือถือ ไม่ใช่ 4 เรียงเดียว: ที่ 390px สี่ช่องได้ช่องละ ~87px
              ป้ายอย่าง "ลูกค้าซื้อซ้ำ"/"จำนวนลูกค้า" (11 อักขระไทยที่ 13px) จะตกบรรทัดไม่เท่ากัน
              ทำให้แถวสูงไม่เท่ากันและอ่านเป็นตารางเบี้ยว — 2×2 ได้ช่องละ ~175px ป้ายอยู่บรรทัดเดียวครบ */}
-      <div className='grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-2 pli-5 plb-3.5 border-bs'>
+      {/* 🛑 พื้นอ่อน + เส้นคั่น **ทั้งบนและล่าง** (user 2026-08-10 "ไม่มีเส้นขั้น ระหว่าง score กับ Tab")
+          เดิมมีแค่ border-bs (ขอบบน) แถบตัวเลขจึงไหลชนแถบแท็บโดยไม่มีอะไรคั่น สายตาอ่านเป็นก้อนเดียวกัน
+          ทั้งที่เป็นคนละเรื่อง — พื้น background.default (Cool Mist) บนการ์ดขาวทำให้มันเป็น "แผงหลักฐาน"
+          ที่แยกตัวออกมาชัด โดยไม่ต้องเพิ่มสีหรือขนาดตัวอักษรที่จะไปแย่งกับชื่อร้าน
+          plb-4 (จาก 3.5) ให้ตัวเลขมีที่หายใจขึ้น = เด่นขึ้นด้วยพื้นที่ ไม่ใช่ด้วยการขยายตัวอักษร
+          ขนาดยังคง 22px ทุกช่องเท่ากันตามที่ user กำหนดตอนยุบ % เข้ามา */}
+      <div className='pli-5 plb-4 border-bs border-be bg-[var(--mui-palette-background-default)]'>
+        <div className='grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-2'>
           {stats.map((s) => (
             <div key={s.label} className='text-center'>
               {/* อัตราสำเร็จใช้ Verified Ink #18804A ไม่ใช่ #28C76F (DESIGN.md §2 "สองโทน") —
@@ -477,7 +484,7 @@ export default function ProfileHero({
               )}
             </div>
           ))}
-      </div>
+        </div>
 
       {/* ── บรรทัดขยายความของอัตราสำเร็จ ──
              ตัวเลข % ย้ายไปอยู่ในแถวด้านบนแล้ว เหลือแค่ข้อความที่ตัวเลขในช่องแคบ ๆ พูดแทนไม่ได้
@@ -491,14 +498,15 @@ export default function ProfileHero({
              ไม่มี border-bs — เป็นส่วนขยายของแถบตัวเลขด้านบน ไม่ใช่บล็อกใหม่ (user 2026-08-09
              ทักว่าเส้นคั่นเยอะเกินจนหัวดูแน่น) และไม่ render เลยเมื่อไม่มีอะไรต้องอธิบาย */}
       {data.completionRate == null && data.completionBelowMinSample ? (
-        <Typography variant='caption' color='text.secondary' className='block pli-5 pbe-3.5 text-center'>
-          {`อัตราสำเร็จจะขึ้นเมื่อมี${L.settledPhrase}ครบ ${COMPLETION_RATE_MIN_SAMPLE} ${L.unitLabel} — ไม่ได้แปลว่าร้านมีปัญหา`}
-        </Typography>
-      ) : data.completionRate != null && data.completionExcluded ? (
-        <Typography variant='caption' color='text.secondary' className='block pli-5 pbe-3.5 text-center tabular-nums'>
-          {`ไม่นับ ${data.completionExcluded} ${L.unitLabel}ที่ผู้ซื้อไม่รับของ`}
-        </Typography>
-      ) : null}
+          <Typography variant='caption' color='text.secondary' className='block mbs-3 text-center'>
+            {`อัตราสำเร็จจะขึ้นเมื่อมี${L.settledPhrase}ครบ ${COMPLETION_RATE_MIN_SAMPLE} ${L.unitLabel} — ไม่ได้แปลว่าร้านมีปัญหา`}
+          </Typography>
+        ) : data.completionRate != null && data.completionExcluded ? (
+          <Typography variant='caption' color='text.secondary' className='block mbs-3 text-center tabular-nums'>
+            {`ไม่นับ ${data.completionExcluded} ${L.unitLabel}ที่ผู้ซื้อไม่รับของ`}
+          </Typography>
+        ) : null}
+      </div>
 
       {/* ปุ่มแชท — เดิมไม่มีทั้ง onClick และ href คือกดแล้วไม่เกิดอะไรขึ้นเลย ต่อปลายทางให้แล้ว
           ยังไม่ล็อกอิน → พาไปหน้าเข้าสู่ระบบพร้อม callbackUrl กลับมาที่ห้องแชทเดิม

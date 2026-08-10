@@ -142,102 +142,142 @@ export default function OfficialChannels({ channels }: { channels: OfficialChann
   )
 }
 
+
 /**
- * ChannelStrip — แถบช่องทางแบบกระชับ สำหรับวางในหัวโปรไฟล์ใต้บรรทัด slug (user 2026-08-09)
+ * ChannelStrip — ช่องทางที่เชื่อมต่อ วางในหัวโปรไฟล์ใต้บรรทัด slug (user 2026-08-09)
  *
- * ทำไมไม่ reuse รายการแนวตั้งด้านบนตรง ๆ: ที่นั่นเป็นรายการเต็มในแท็บที่มีที่เหลือเฟือ ส่วนหัว
- * โปรไฟล์แน่นอยู่แล้ว (ชื่อ → ชิป → meta → เหรียญ → ตัวเลข) การแทรกรายการแนวตั้งเข้าไปจะดัน
- * ตัวเลขซึ่งเป็นหลักฐานหลักตกจอบนมือถือ — แถบแนวนอนกินความสูงบรรทัดเดียว
+ * แบบ ② จาก docs/superpowers/specs/2026-08-10-channel-row-variants.html (user เลือก 2026-08-10)
+ * — บรรทัดละช่องทาง **ไม่มีกรอบ ไม่มีพื้นชิป** เหลือแค่โลโก้จริง + ข้อความ
  *
- * 🛑 มือถือโชว์แค่ 2 ใบแล้วยุบที่เหลือเป็นปุ่ม "+N" ไม่ปล่อยให้เลื่อนล้นออกนอกจอสองข้าง
- * (เวอร์ชันแรกที่ทำแล้ว user ทักว่า "แน่นล้นไปหมด" — ภาพจริงคือแถบทะลุขอบจอทั้งซ้ายและขวา)
- * กด "+N" แล้วกางลงมาในที่ ไม่เปิดโมดัล เพราะเนื้อหาแค่ไม่กี่แถว
+ * ทำไมเลิกใช้ชิปมีกรอบ (เวอร์ชันแรก): user บอกว่า "ไม่ค่อยชอบ chip ที่ครอบเพจ" และส่ง ref ที่เป็น
+ * แถวข้อมูลเปล่า ๆ มาให้ — กรอบทำให้ทุกช่องทางอ่านเป็น "ปุ่ม" ที่มีน้ำหนักเท่ากับปุ่มจริงในหน้า
+ * ทั้งที่มันคือหลักฐาน ไม่ใช่ action
+ *
+ * ทำไมบรรทัดละช่องทาง ไม่ใช่ inline แถวเดียวแบบ ref เป๊ะ: ชื่อเพจไทยยาว 2 ช่องทางบนบรรทัดเดียว
+ * ที่ 390px เหลือที่ให้ชื่อละไม่ถึงครึ่งจอ ต้องตัดจนอ่านไม่รู้ว่าเพจไหน — ซึ่งขัดกับสิ่งที่ user
+ * ขอเพิ่มมาพร้อมกัน ("ขอเพิ่มการแสดงชื่อเพจ ชื่อช่องทาง") ref เป็นภาษาอังกฤษสั้นกว่ามาก
+ *
+ * 🛑 ข้อมูลใน ref ที่ **ไม่มีจริง** จึงไม่ใส่: คะแนน ★ รายแพลตฟอร์ม (เรามีแค่รีวิวที่เกิดบน Deep)
+ * และ on-time delivery % — หน้านี้เคยมีตัวเลขข้ามแพลตฟอร์ม hardcode อยู่จริงแล้วถูกถอดออก
+ * 2026-07-22 ด้วยเหตุผลเดียวกัน อย่าเอากลับมาไม่ว่าดีไซน์จะเรียกร้องแค่ไหน
  */
 export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
   const [expanded, setExpanded] = useState(false)
   if (channels.length === 0) return null
 
+  // แถวสูง 44px ต่อช่องทาง — ร้านที่มีหลายเพจจะดันตัวเลขหลักฐานตกจอบนมือถือ จึงยุบส่วนเกิน
   const VISIBLE = 2
   const shown = expanded ? channels : channels.slice(0, VISIBLE)
   const rest = channels.length - shown.length
 
   return (
-    <ul className='flex justify-center items-center gap-1.5 flex-wrap pli-5 pbe-3 m-0 p-0 list-none'>
+    <div className='flex flex-col pli-5 pbe-3'>
       {shown.map((c) => {
         const meta = PROVIDER[c.provider]
         if (!meta) return null
         const href = meta.url(c)
         const label = FOLLOWER_LABEL[c.provider] ?? 'ผู้ติดตาม'
+
         const inner = (
           <>
-            <ChannelAvatarSmall src={c.avatarUrl} bg={meta.bg} icon={meta.icon} />
-            <span className='flex flex-col min-is-0 leading-tight text-start'>
-              <span className='text-[13px] font-semibold truncate max-is-[110px]'>{c.name}</span>
-              {/* ซ่อนทั้งบรรทัดเมื่อไม่รู้ยอด — ห้ามแสดง 0 */}
-              {typeof c.followerCount === 'number' && (
-                <span className='text-[11px] text-[var(--mui-palette-text-secondary)] tabular-nums'>
-                  {`${label} ${compactCount(c.followerCount)}`}
-                </span>
-              )}
+            <ChannelMark src={c.avatarUrl} provider={c.provider} icon={meta.icon} bg={meta.bg} />
+            <span className='flex flex-col leading-tight min-is-0 flex-1'>
+              <span className='text-[13px] font-semibold truncate'>{c.name}</span>
+              {/* ชื่อช่องทางเป็นตัวอักษร ไม่ให้ต้องเดาจากโลโก้ (user ขอมาพร้อมกัน)
+                  text.secondary ไม่ใช่ disabled — ชนิดช่องทางเป็นส่วนหนึ่งของหลักฐาน ไม่ใช่ของประดับ */}
+              <span className='text-[11px] text-[var(--mui-palette-text-secondary)]'>{meta.label}</span>
             </span>
+            {/* ซ่อนทั้งก้อนเมื่อไม่รู้ยอด — ห้ามแสดง 0 (0 = "ไม่มีคนถูกใจ" ซึ่งคนละความหมายกับ "ยังไม่รู้") */}
+            {typeof c.followerCount === 'number' && (
+              <span className='text-[13px] shrink-0 tabular-nums'>
+                <span className='font-bold'>{compactCount(c.followerCount)}</span>{' '}
+                <span className='text-[var(--mui-palette-text-secondary)]'>{label}</span>
+              </span>
+            )}
           </>
         )
-        // min-bs-[44px] ให้ผ่านเกณฑ์ tap target ของ PRODUCT.md แม้เนื้อหาภาพจะดูบางกว่านั้น
-        const cls =
-          'inline-flex items-center gap-2 min-bs-[44px] plb-1 pli-2.5 pis-1 rounded-full border border-[var(--mui-palette-divider)] no-underline text-[color:inherit]'
-        return (
-          <li key={`${c.provider}-${c.externalId}`}>
-            {href ? (
-              <a
-                href={href}
-                target='_blank'
-                rel='noopener noreferrer'
-                className={cls}
-                aria-label={`เปิด ${c.name} ใน ${meta.label}`}
-              >
-                {inner}
-              </a>
-            ) : (
-              <span className={cls}>{inner}</span>
-            )}
-          </li>
+
+        // ไม่มี border/พื้น — พื้นที่กด 44px มาจาก min-bs ไม่ใช่จากกรอบที่มองเห็น
+        const cls = 'flex items-center gap-2.5 min-bs-[44px] no-underline text-[color:inherit]'
+
+        return href ? (
+          <a
+            key={`${c.provider}-${c.externalId}`}
+            href={href}
+            target='_blank'
+            rel='noopener noreferrer'
+            className={cls}
+            aria-label={`เปิด ${c.name} ใน ${meta.label}`}
+          >
+            {inner}
+          </a>
+        ) : (
+          <div key={`${c.provider}-${c.externalId}`} className={cls}>
+            {inner}
+          </div>
         )
       })}
+
       {rest > 0 && (
-        <li>
-          <button
-            type='button'
-            onClick={() => setExpanded(true)}
-            aria-label={`ดูช่องทางที่เหลืออีก ${rest} ช่องทาง`}
-            className='inline-flex items-center gap-1 min-bs-[44px] plb-1 pli-3 rounded-full border border-[var(--mui-palette-divider)] bg-transparent text-[13px] font-medium text-[var(--mui-palette-text-secondary)] cursor-pointer'
-          >
-            {`+${rest}`}
-            <Icon icon='lucide:chevron-down' width={13} />
-          </button>
-        </li>
+        <button
+          type='button'
+          onClick={() => setExpanded(true)}
+          aria-label={`ดูช่องทางที่เหลืออีก ${rest} ช่องทาง`}
+          className='flex items-center gap-1 min-bs-[44px] border-0 bg-transparent p-0 text-[13px] font-medium text-[var(--mui-palette-text-secondary)] cursor-pointer self-start'
+        >
+          {`อีก ${rest} ช่องทาง`}
+          <Icon icon='lucide:chevron-down' width={13} />
+        </button>
       )}
-    </ul>
+    </div>
   )
 }
 
-/** อวตารช่องทางขนาดเล็กสำหรับแถบในหัว — วงกลม 26px (ตัวในแท็บเป็น 38px มุมมน) */
-function ChannelAvatarSmall({ src, bg, icon }: { src: string | null; bg: string; icon: string }) {
+/**
+ * โลโก้ช่องทาง 18px — รูปเพจจริงก่อน แล้วค่อยตกไปที่ **โลโก้แบรนด์จริง** ในโปรเจกต์
+ * (`public/images/logos/`) ไม่ใช่ไอคอนเส้นบนพื้นสี: IG ไม่มี avatarUrl แทบทุกเคส (Graph ไม่คืนรูป
+ * ให้ business account id) ถ้าใช้ glyph เส้นจะได้วงกลมสีที่ตีความไม่ได้ ขณะที่ไทล์คลิปในหน้าเดียวกัน
+ * ใช้ไฟล์โลโก้จริงอยู่แล้ว — ให้ทั้งหน้าพูดภาษาเดียวกัน (brand asset = carve-out ของ Hard Rule 6)
+ */
+function ChannelMark({
+  src,
+  provider,
+  icon,
+  bg,
+}: {
+  src: string | null
+  provider: string
+  icon: string
+  bg: string
+}) {
   const [failed, setFailed] = useState(false)
+  const brandLogo =
+    provider === 'MESSENGER'
+      ? '/images/logos/facebook.svg'
+      : provider === 'INSTAGRAM'
+        ? '/images/logos/instagram-circle.svg'
+        : null
+
   return (
-    <span
-      className='is-[26px] bs-[26px] rounded-full shrink-0 relative flex items-center justify-center text-white overflow-hidden'
-      style={{ background: bg }}
-    >
-      {src && !failed ? (
-        // eslint-disable-next-line @next/next/no-img-element -- รูปจากแพลตฟอร์มภายนอก หลากโดเมน
-        <img src={src} alt='' className='is-full bs-full object-cover' onError={() => setFailed(true)} />
-      ) : (
-        <Icon icon={icon} width={14} />
-      )}
-      {/* เช็คเขียว = ยืนยันความเป็นเจ้าของผ่าน OAuth — ตัวเดียวกับที่รายการในแท็บใช้
-          นี่คือที่ที่ความหมายของประโยค "ช่องทางเหล่านี้ยืนยันแล้ว..." ไปอยู่เมื่อย้ายขึ้นหัว */}
+    <span className='is-[18px] bs-[18px] shrink-0 relative flex items-center justify-center'>
       <span
-        className='absolute inline-end-0 block-end-0 is-[10px] bs-[10px] rounded-full bg-success border-2 border-[var(--mui-palette-background-paper)]'
+        className='is-full bs-full rounded-full overflow-hidden flex items-center justify-center text-white'
+        style={{ background: src && !failed ? undefined : brandLogo ? undefined : bg }}
+      >
+        {src && !failed ? (
+          // eslint-disable-next-line @next/next/no-img-element -- รูปเพจจากแพลตฟอร์มภายนอก หลากโดเมน
+          <img src={src} alt='' className='is-full bs-full object-cover' onError={() => setFailed(true)} />
+        ) : brandLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/
+          <img src={brandLogo} alt='' className='is-full bs-full' />
+        ) : (
+          <Icon icon={icon} width={11} />
+        )}
+      </span>
+      {/* เช็คเขียว = ยืนยันความเป็นเจ้าของผ่าน OAuth ปลอมไม่ได้ — เหตุผลเดียวที่บล็อกนี้มีค่า
+          บนหน้าที่ขายความน่าเชื่อถือ (ความหมายของประโยคยาวในแท็บเดิมย้ายมาอยู่ที่นี่) */}
+      <span
+        className='absolute inline-end-[-2px] block-end-[-2px] is-[9px] bs-[9px] rounded-full bg-success border-[1.5px] border-[var(--mui-palette-background-paper)]'
         title='ยืนยันความเป็นเจ้าของแล้ว'
       />
     </span>
