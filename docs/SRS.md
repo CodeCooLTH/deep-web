@@ -65,7 +65,8 @@
 | FR-3.3 | **Rating floor:** ถ้า review < 3 → rating component = 0 + ต้องมี UX copy อธิบาย seller ชัดเจน (กัน beta confusion) | Must |
 | FR-3.4 | Recalculate เมื่อ: order CONFIRMED, review ใหม่, verification approved, badge ใหม่ | Must |
 | FR-3.5 | Snapshot ใน TrustScoreHistory ทุกครั้งที่คำนวณ | Must |
-| FR-3.6 | MVP: Trust Score มีแต่ขึ้น ยังไม่หักคะแนน | Must |
+| FR-3.6 | MVP: Trust Score มีแต่ขึ้น ยังไม่หักคะแนน — บังคับที่ระดับเขียน DB ด้วย `Math.max(เดิม, computed)` ใน `trust-score.service.ts` **(กำลังจะถูกถอดออกโดย 00040 ดู FR-3.7)** | Must |
+| FR-3.7 | 🛑 **[วางแผนแล้ว ยังไม่ implement — feature 00040 Trust Score v2, มติเคาะ 2026-08-10]** คำนวณสดทุกครั้ง ไม่มีพื้นกันคะแนนตก · Orders component = `max(rolling 90 วัน, lifetime × 0.4)` โดยหน้าต่าง 90 วันต้องนับจาก `OrderEvent.occurredAt` **ห้ามใช้ `Order.createdAt`** (ผู้ขายพิมพ์เองได้ตั้งแต่ 00033) **และห้ามใช้ `Order.updatedAt`** (ขยับทุกครั้งที่แก้ไขออเดอร์) · penalty จากอัตรายกเลิกฝั่งร้านเท่านั้น ผ่าน `computeCompletionRate()` ของ 00039 ตัวเดียวกัน ห้ามเขียนสูตรซ้ำ · clamp 0–100 · เหรียญยังติดตัวถาวร (FR-4.4 ไม่เปลี่ยน) · ต้องมีหน้า "ทำไมคะแนนเปลี่ยน" คู่กันเสมอ. รายละเอียด/มติ D-1..D-9 → `docs/20 - Features/00040 - Trust Score v2/` | Must |
 
 ### FR-4: Badge
 
@@ -77,7 +78,7 @@
 
 **Achievements system (MVP):**
 - ทุก achievement มี `audience` = SELLER / BUYER / ANY
-- **ติดตัวถาวร (sticky)** — ครบเงื่อนไขเมื่อไหร่ได้รับทันทีและ **ไม่ถูก revoke** แม้เงื่อนไขเปลี่ยนภายหลัง (เช่น avg rating ตกทีหลัง badge ยังอยู่) — สอดคล้องหลัก "Trust มีแต่ขึ้น"
+- **ติดตัวถาวร (sticky)** — ครบเงื่อนไขเมื่อไหร่ได้รับทันทีและ **ไม่ถูก revoke** แม้เงื่อนไขเปลี่ยนภายหลัง (เช่น avg rating ตกทีหลัง badge ยังอยู่) — เดิมให้เหตุผลว่า "สอดคล้องหลัก Trust มีแต่ขึ้น" 🛑 **เหตุผลนั้นใช้ไม่ได้อีกต่อไปหลัง 00040** (คะแนนรวมลดได้แล้ว ดู FR-3.7) **แต่กติกาข้อนี้ไม่เปลี่ยน** — จำนวนเหรียญและคะแนนที่แต่ละเหรียญให้ยังคงไม่มีวันลด สิ่งที่ลดได้คือคะแนนรวมจากองค์ประกอบอื่นเท่านั้น
 - รองรับ **event/time-bound achievement** เช่น `2026_BADGE` (สมัครภายในปี 2026 — ประเมินตอน signup, ค่าคงที่), `FIRST_ORDER_REVIEWED` (seller ได้เมื่อมี order CONFIRMED แรก)
 - แต่ละ badge มี field `icon` (เพิ่ม asset ภายหลังได้ — nullable, มี fallback)
 - **Badge Process** — ผู้ใช้เห็น progress ต่อ badge ที่ยังไม่ได้ ("อีก N order / N วัน จะได้ badge นี้")

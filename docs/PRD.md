@@ -46,7 +46,7 @@ Deep เป็นระบบจัดเก็บ History และคำนว
 |----|-----------|----------|-------------------|
 | U-1 | สมัคร/เข้าระบบ | Must | **buyer:** Facebook (live prod 2026-06-17) หรือ Phone OTP (ไม่มี password). **seller:** username+password เป็น login หลัก + Phone OTP ยืนยันเบอร์ตอนสมัคร + reset via OTP + Facebook (live prod 2026-06-17); seller ใหม่ผ่าน mandatory onboarding page (slug บังคับ + phone immutable). ไม่มี **email**+password |
 | U-2 | ยืนยันตัวตน (Phone OTP, เอกสารบุคคล, เอกสารธุรกิจ) | Must | verify ได้ 3 ระดับ, L2/L3 admin review |
-| U-3 | เห็น Trust Score ของตัวเอง + เข้าใจที่มา | Must | แสดง score + ระดับ + breakdown 5 ปัจจัย + คำอธิบายเงื่อนไข rating |
+| U-3 | เห็น Trust Score ของตัวเอง + เข้าใจที่มา | Must | แสดง score + ระดับ + breakdown 5 ปัจจัย + คำอธิบายเงื่อนไข rating · **(00040 จะเพิ่ม: ทำไมคะแนนเปลี่ยนจากครั้งก่อน + ทางไปต่อของแต่ละช่อง)** |
 | U-4 | เห็น badges ที่ได้รับ | Must | แสดง verification + achievement + paid badge |
 | U-5 | มี public profile ให้คนอื่นดู | Must | `/u/{username}` แสดง score, badges, order สำเร็จ, reviews |
 | B-1 | เปิดลิงก์ order เพื่อดูข้อมูล | Must | เห็นสินค้า, ราคา, trust score ร้านค้า |
@@ -102,6 +102,8 @@ Priority: Must — รายละเอียด/acceptance: ดู SRS §1 FR-
 ### FR-3: Trust Score
 
 คะแนนความน่าเชื่อถือ 0-100 คำนวณจาก 5 ปัจจัย (Verification 35 / Orders 25 / Rating 20 / Age 10 / Badges 10). Rating floor: ถ้า review < 3 = 0 คะแนน component. MVP มีแต่ขึ้น ไม่หักคะแนน.
+
+> 🛑 **กำลังจะเปลี่ยน — Trust Score v2 (feature 00040, มติ D-1..D-9 เคาะแล้ว 2026-08-10 ยังไม่ implement):** คะแนนจะคำนวณสดทุกครั้ง **ไม่มีพื้นกันตกอีกต่อไป** · Orders = `max(rolling 90 วัน, lifetime × 0.4)` · เพิ่มบทลงโทษจากอัตรายกเลิกออเดอร์ฝั่งร้าน (ใช้ตรรกะเดียวกับ Completion Rate ของ 00039) · สูตรอายุร้านให้คะแนนตั้งแต่วันแรก · เหรียญที่ได้แล้วยังติดตัวถาวรเหมือนเดิม (FR-4.4 ไม่เปลี่ยน). **จนกว่าจะ implement เสร็จ ประโยคข้างบนยังเป็นพฤติกรรมจริงของโค้ด** (`Math.max(เดิม, ใหม่)` ยังอยู่ใน `trust-score.service.ts`) — ดู `docs/20 - Features/00040 - Trust Score v2/`
 
 Priority: Must — สูตรเต็ม/acceptance: ดู SRS §1 FR-3
 
