@@ -376,8 +376,33 @@ export default function InboxList({
 
   const debouncedQuery = railMode ? chatSearchQuery.debouncedQuery : localDebouncedQuery
 
+  /**
+   * ลายเซ็นของ "ชุดข้อมูลที่หน้าจอกำลังแสดง" = ตัวกรองทั้งหมดที่มีผลกับรายการ (ไม่รวม take/cursor)
+   *
+   * ต้องมีเพราะทั้ง `fetchList` และ `refreshFirstPage` เป็น async และ **ไม่มีอะไรผูกผลลัพธ์กับ
+   * ตัวกรองที่ใช้ยิงมันออกไป** — ผลของแท็บเก่าที่ค้างอยู่ในสายจึงมาถึงทีหลังแล้วถูกเขียน/merge
+   * ทับชุดใหม่ได้ (user เจอเองบน prod 2026-08-10: กดแท็บ "ปิดงาน"/"สแปม" แล้วเห็นแถวของแท็บ
+   * "ทั้งหมด" โผล่มาปนกับสถานะ "ไม่พบบทสนทนาตามที่กรอง")
+   *
+   * `refreshFirstPage` อันตรายที่สุดในกลุ่มนี้เพราะมันตั้งใจ **merge** ไม่ใช่ replace
+   * (เพื่อไม่ให้แถวจาก loadMore หน้าถัด ๆ ไปหายกลางคัน) — merge ที่ไม่เช็คลายเซ็นเท่ากับ
+   * "เก็บแถวที่ไม่ตรงตัวกรองปัจจุบันไว้ตลอดไป" และมันถูกยิงทุก 20 วิ + ทุก broadcast realtime
+   * จึงเกิดซ้ำได้เองแม้ผู้ใช้ไม่กดอะไรอีก
+   */
+  const listSignature = buildChatListParams(filter, {
+    channelTab,
+    pageFilter,
+    q: debouncedQuery,
+    chatGroupId: activeGroupId,
+  }).toString()
+  const listSignatureRef = useRef(listSignature)
+  /** ลายเซ็นของ "แถวที่อยู่ใน state ตอนนี้" — ต่างจาก listSignatureRef ที่เป็นของ "ที่ควรแสดง"
+   *  ทั้งคู่ต่างกันได้จริงในช่วงที่ยังรอผลของตัวกรองใหม่ ซึ่งเป็นช่วงที่ poll 20 วิยิงแทรกได้พอดี */
+  const itemsSignatureRef = useRef(listSignature)
+
   // fetch เดียวใช้ทั้ง loadMore (append) และ refetch เมื่อ filter เปลี่ยน (replace)
   const fetchList = async (opts: { cursor?: string; append: boolean }) => {
+    const sig = listSignature
     setLoading(true)
     try {
       // S-7 ตัวกรอง — ประกอบผ่าน builder ตัวเดียวกับที่ ChatRail ใช้ดึงชุดแรก (ห้ามเขียน
@@ -394,6 +419,10 @@ export default function InboxList({
       const res = await fetch(`/api/chat/conversations?${params.toString()}`)
       if (!res.ok) throw new Error('load failed')
       const data: ApiResponse = await res.json()
+      // ตัวกรองเปลี่ยนไปแล้วระหว่างรอ → ผลชุดนี้เป็นของแท็บที่ผู้ใช้ออกไปแล้ว ทิ้งทั้งก้อน
+      // (ห้าม setItems ต่อ ไม่ว่าจะ append หรือ replace — ทั้งคู่ทำให้แถวข้ามตัวกรองโผล่)
+      if (sig !== listSignatureRef.current) return
+      itemsSignatureRef.current = sig
       setItems((prev) => (opts.append ? [...prev, ...data.items] : data.items))
       setNextCursor(data.nextCursor)
     } catch {
@@ -410,6 +439,9 @@ export default function InboxList({
 
   // refetch เมื่อ filter/search เปลี่ยน — ข้าม run แรก (initialItems มาจาก server ตรง filter default อยู่แล้ว)
   useEffect(() => {
+    // ตั้งลายเซ็นของชุดที่ "กำลังจะแสดง" ก่อนยิงเสมอ — ผลที่ค้างอยู่ในสายจากตัวกรองก่อนหน้าจะเห็น
+    // ค่านี้ไม่ตรงกับของตัวเองแล้วทิ้งตัวเองไป (ทั้ง fetchList และ refreshFirstPage)
+    listSignatureRef.current = listSignature
     if (isFirstRun.current) {
       isFirstRun.current = false
       return
@@ -641,6 +673,7 @@ export default function InboxList({
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const refreshFirstPage = async () => {
+    const sig = listSignature
     try {
       // S-7: realtime refresh ต้องเคารพตัวกรองปัจจุบันด้วย (ไม่งั้นดึงแถวข้าม filter มา merge)
       const params = buildChatListParams(filter, {
@@ -653,6 +686,8 @@ export default function InboxList({
       const res = await fetch(`/api/chat/conversations?${params.toString()}`, { cache: 'no-store' })
       if (!res.ok) return
       const data: ApiResponse = await res.json()
+      // ตัวกรองเปลี่ยนระหว่างรอ → ทิ้ง ห้าม merge (merge คือทางที่แถวข้ามตัวกรองเข้ามาได้)
+      if (sig !== listSignatureRef.current) return
       setItems((prev) => {
         const freshIds = new Set(data.items.map((i) => i.id))
         // เสียงเตือนข้อความใหม่จากลูกค้า (user สั่ง 2026-07-23) — เทียบกับ state เดิม: เธรดใหม่ทั้งห้อง
@@ -678,8 +713,14 @@ export default function InboxList({
         // ข้อความของ 3 ร้านที่มาพร้อมกันจะได้ยินเสียงเดียว ทั้งที่เป็นคนละร้านคนละเรื่อง
         if (beepFor) playChatBeep({ shopId: beepFor.shopId, conversationId: beepFor.id })
         // หน้าแรกเรียงล่าสุดก่อนอยู่แล้ว (lastMessageAt desc) — วางไว้บนสุดแล้วต่อด้วยของเก่าที่ไม่ซ้ำ
-        return [...data.items, ...prev.filter((p) => !freshIds.has(p.id))]
+        //
+        // `base`: ต่อท้ายด้วยของเดิมได้ **เฉพาะเมื่อของเดิมเป็นชุดของตัวกรองเดียวกัน** — ถ้าผลของ
+        // ตัวกรองใหม่มาถึงก่อนที่ fetchList(replace) จะตอบ (poll ยิงทุก 20 วิ ชนได้ง่าย) prev ยัง
+        // เป็นแถวของแท็บก่อนหน้าอยู่ การ merge จะพาแถวเหล่านั้นเข้ามาอยู่ในแท็บใหม่
+        const base = itemsSignatureRef.current === sig ? prev : []
+        return [...data.items, ...base.filter((p) => !freshIds.has(p.id))]
       })
+      itemsSignatureRef.current = sig
     } catch {
       // เงียบ — รอ broadcast/focus รอบถัดไป (เหมือน refetchNewer ของ useSellerChatThread)
     }
