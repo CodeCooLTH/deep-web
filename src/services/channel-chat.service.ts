@@ -107,8 +107,56 @@ function toRawMessage(
   }
 }
 
-export function isHumanAgentEnabled(): boolean {
-  return process.env.META_HUMAN_AGENT_ENABLED === 'true'
+/**
+ * canUseHumanAgent — SSOT ของ "PSID/IGSID นี้ใช้สิทธิ์ Human Agent (ตอบเกิน 24 ชม.) ได้ไหม"
+ * (feature 00043 — เดิมชื่อฟังก์ชันนี้เช็คแค่สวิตช์ใหญ่ ไม่รับ PSID เลย ถูก rename+ขยาย logic
+ * ให้รวม allow-list เข้ามาด้วยตามนี้)
+ *
+ * ทำไมสวิตช์ใหญ่ต้องเช็คก่อนแล้ว "ชนะ" ทันทีโดยไม่ต้องพึ่ง allow-list (BR-HA-05): สวิตช์ใหญ่
+ * (`META_HUMAN_AGENT_ENABLED`) คือค่าที่แปลว่า "Meta อนุมัติสิทธิ์ human_agent ให้แอปนี้แล้วจริง"
+ * (กอง 3 ของ Roadmap) — เมื่อนั้นสิทธิ์นี้ใช้ได้กับ**ทุกเธรด**ตามนโยบาย Meta ไม่ใช่แค่เธรดที่อยู่
+ * ใน allow-list (allow-list มีไว้จำกัดวงทดสอบ**ก่อน**ได้รับอนุมัติเท่านั้น) เช็คแบบอื่น (เช่นเช็ค
+ * allow-list ก่อนแล้วค่อยดูสวิตช์) จะทำให้ลูกค้าทั่วไปที่ไม่เคยอยู่ใน allow-list ใช้สิทธิ์ที่อนุมัติ
+ * แล้วจริงไม่ได้โดยไม่มีเหตุผล
+ *
+ * ทำไมต้อง fail-closed (BR-HA-07): env ที่ไม่ได้ตั้งค่าเลย (สถานะปัจจุบันบน prod) ต้องแปลว่า "ปิด"
+ * เสมอ ไม่ใช่ "เปิด" — ฟีเจอร์นี้คือการส่งข้อความออกไปหาลูกค้าจริงโดยไม่มีสิทธิ์ตามนโยบาย Meta
+ * ถ้า parse พลาดแล้วเผลอเปิด (fail-open) ความเสี่ยงคือแอปทั้งระบบถูก Meta ระงับ — คนละชนิดความเสี่ยง
+ * กับฟีเจอร์ทั่วไปที่ fail-open ได้โดยแค่เสียประสบการณ์ผู้ใช้บางจุด
+ */
+export function canUseHumanAgent(externalUserId: string | null | undefined): boolean {
+  // (1) สวิตช์ใหญ่ชนะก่อนเช็ค allow-list เสมอ — ดูเหตุผลใน docstring ด้านบน
+  if (process.env.META_HUMAN_AGENT_ENABLED === 'true') return true
+  // (2) ไม่มี PSID/IGSID ให้เทียบ = ไม่มีทางอยู่ใน allow-list
+  if (!externalUserId) return false
+  // (3)-(4) allow-list: คั่นด้วย , — trim + filter(Boolean) กันช่องว่าง/คอมมาซ้อนพัง parse
+  const raw = process.env.META_HUMAN_AGENT_TEST_PSIDS
+  if (!raw) return false
+  const allowList = raw.split(',').map((id) => id.trim()).filter(Boolean)
+  // (5)
+  return allowList.includes(externalUserId)
+}
+
+/**
+ * shouldTagHumanAgent — ตัดสินว่าจะติด message tag `HUMAN_AGENT` ไหม (feature 00043, TFR-HA-02)
+ *
+ * แยกเป็น pure function แทนการฝังเทอร์นารีกลาง `sendOutboundMessage`/`sendOutboundImageGrid`
+ * (คนละไฟล์คนละจุด) ตาม docs/conventions/ui-boolean-needs-a-testable-home.md — เกณฑ์คือ "ถ้าเขียน
+ * กลับด้านแล้วจะมีอะไรจับได้ไหม" เดิมไม่มีจุดเดียวให้ import มาเทส unit test ตรง ๆ
+ *
+ * 🛑 ตอบแค่ "ติด tag ไหม" — ไม่ได้ตัดสินว่า "throw WINDOW_CLOSED ไหม" (คนละ concern คนละที่ตัดสิน
+ * — ดู sendOutboundMessage)
+ */
+export function shouldTagHumanAgent(params: {
+  windowOpen: boolean
+  sentByHuman: boolean
+  eligible: boolean
+  humanAgentWindowOpen: boolean
+}): boolean {
+  if (params.windowOpen) return false // อยู่ในหน้าต่างปกติ ไม่ต้องติด tag
+  // ระบบ/บอท/AI ห้ามได้ tag HUMAN_AGENT เด็ดขาด (BR-HA-02/13) — ห้ามผ่อนไม่ว่ากรณีใด แม้ eligible=true
+  if (!params.sentByHuman) return false
+  return params.eligible && params.humanAgentWindowOpen
 }
 
 export function getWindowState(
@@ -2177,6 +2225,55 @@ export async function ingestReactionEvent(params: {
 }
 
 /**
+ * ingestPostbackEvent — ลูกค้ากดปุ่ม (Get Started/persistent menu/button template) ยืดหน้าต่าง
+ * เวลาตอบกลับ (feature 00043, TFR-HA-03) — ต้นแบบ: ingestReadEvent/ingestReactionEvent ข้างบน
+ *
+ * เดิม event นี้ตกเข้า branch ingestInboundMessage (ไม่มี message ให้ parse → IGNORED) ทำให้
+ * หน้าต่างแคบกว่าที่ Meta อนุญาตจริง — postback เป็นหนึ่งใน action ที่เปิด/รีเซ็ตหน้าต่าง 24 ชม.
+ * ตามเอกสาร Messaging Policy เท่ากับข้อความ/react/referral
+ *
+ * 🛑 ไม่สร้าง ExternalContact/Conversation ใหม่ (TD-HA-01) — postback ล้วน ๆ จากบัญชีที่ไม่เคย
+ * มีเธรดมาก่อน (เช่นกด Get Started ครั้งแรกสุด) ไม่มี field ให้สร้างโปรไฟล์ผู้ติดต่อที่มีความหมาย
+ * (ไม่มีชื่อ ไม่มีข้อความ) — สร้าง contact เปล่า ๆ จะทำให้ inbox list มีเธรดว่างโผล่ขึ้นโดยไม่มี
+ * อะไรให้ร้านทำ
+ *
+ * ไม่สร้าง ChatMessage/Notification ใด ๆ — postback ไม่ใช่ข้อความ ไม่มีเนื้อหาให้แสดงในเธรด
+ *
+ * ไม่ห่อ try/catch เอง (ต่างจาก ingestAdReferral ที่มี network call เพิ่ม) — ไม่มี network call
+ * เลยในฟังก์ชันนี้ ปล่อยให้ DB infra error ไหลขึ้นไปให้ webhook route จับที่ isInfraError() เดิม
+ * (503 ให้ Meta retry)
+ */
+export async function ingestPostbackEvent(params: {
+  provider: string
+  pageExternalId: string
+  contactExternalId: string
+  /** event.timestamp (ms) ของ Meta — optional เพราะ schema ไม่บังคับ (external-payload-schema.md) */
+  timestamp?: number
+}): Promise<void> {
+  const channel = await getChannelByExternalId(params.provider, params.pageExternalId)
+  if (!channel) return
+  // BR-HA-11 defensive guard: Meta ไม่มีเอกสารยืนยันว่า postback มี echo ฝั่งเพจ — กันไว้แบบเดียว
+  // กับ ingestReactionEvent ที่กัน reactor ฝั่งเพจเช่นกัน
+  if (params.contactExternalId === params.pageExternalId) return
+  const contact = await prisma.externalContact.findUnique({
+    where: { shopChannelId_externalUserId: { shopChannelId: channel.id, externalUserId: params.contactExternalId } },
+    select: { id: true },
+  })
+  if (!contact) return
+  const conversation = await prisma.conversation.findUnique({
+    where: { shopChannelId_externalContactId: { shopChannelId: channel.id, externalContactId: contact.id } },
+    select: { id: true },
+  })
+  if (!conversation) return
+  const at = params.timestamp ? new Date(params.timestamp) : new Date()
+  await prisma.conversation.updateMany({
+    // เขียนเฉพาะเมื่อใหม่กว่าของเดิม — กัน event ที่มาสลับลำดับดันเวลาถอยหลัง (BR-HA-04)
+    where: { id: conversation.id, OR: [{ lastInboundAt: null }, { lastInboundAt: { lt: at } }] },
+    data: { lastInboundAt: at },
+  })
+}
+
+/**
  * ร้านกดรีแอ็กชันใส่ข้อความในเธรด (feature 00018 — user สั่ง 2026-08-03 "reaction ข้อความด้วย")
  *
  * เส้นทางกลับด้านของ ingestReactionEvent: ตัวนั้นรับของจาก Meta ตัวนี้ส่งของออกไป
@@ -2339,12 +2436,23 @@ export async function sendOutboundImageGrid(params: {
   if (files.length < 2) throw new Error('IMAGE_GRID_COUNT_OUT_OF_RANGE')
 
   // หน้าต่างเวลา/แท็ก ใช้กฎเดียวกับการส่งข้อความ (คนกดเองเท่านั้นที่ติด HUMAN_AGENT ได้)
+  //
+  // sendOutboundImageGrid ไม่มี systemShopId/autoReplyKind — actorUserId เป็น string บังคับเสมอ
+  // (ไม่มี caller อัตโนมัติเรียกฟังก์ชันนี้เลย — TD-HA-04 ห้ามเพิ่ม parameter ใหม่) จึง
+  // sentByHuman = true ตลอด (ฟังก์ชันนี้ถูกเรียกจาก composer ของคนกดส่งเท่านั้น)
+  //
+  // 🛑 เลิก throw WINDOW_CLOSED ก่อนลอง (TFR-HA-04/BR-HA-14, สอดคล้องมติ 2026-08-03 ของ
+  // sendOutboundMessage): พยายามส่งเสมอ ไม่ติด tag ก็ยิงแบบ RESPONSE ไปให้ Meta เป็นคนตัดสิน —
+  // ถ้า Meta ปฏิเสธจะตกไป catch ด้านล่าง (fallback ส่งทีละใบ) ซึ่งบันทึก FAILED พร้อมเหตุผลอยู่แล้ว
   const windowState = getWindowState(conversation.lastInboundAt)
-  let messageTag: 'HUMAN_AGENT' | undefined
-  if (!windowState.open) {
-    if (isHumanAgentEnabled() && windowState.humanAgentOpen) messageTag = 'HUMAN_AGENT'
-    else throw new Error('WINDOW_CLOSED')
-  }
+  const messageTag: 'HUMAN_AGENT' | undefined = shouldTagHumanAgent({
+    windowOpen: windowState.open,
+    sentByHuman: true,
+    eligible: canUseHumanAgent(conversation.externalContact.externalUserId),
+    humanAgentWindowOpen: windowState.humanAgentOpen,
+  })
+    ? 'HUMAN_AGENT'
+    : undefined
 
   const pageToken = decryptToken(conversation.shopChannel.accessTokenEnc)
   const recipientId = conversation.externalContact.externalUserId
@@ -2985,13 +3093,17 @@ export async function sendOutboundMessage(params: {
   // ไม่ใช่แค่ error ที่คาดเดาได้ นี่คือ gate ของนโยบาย ห้ามผ่อน
   const windowState = getWindowState(conversation.lastInboundAt)
   const sentByHuman = params.actorUserId !== null && !params.autoReplyKind
-  let messageTag: 'HUMAN_AGENT' | undefined
-  if (!windowState.open) {
-    if (!sentByHuman) throw new Error('WINDOW_CLOSED')
-    // ติด HUMAN_AGENT ให้เมื่อทำได้ — เป็น tag ที่ถูกต้องสำหรับ "คนตอบเองหลังพ้น 24 ชม."
-    // (ต้องได้ permission จาก App Review ก่อน ไม่งั้น Meta ปฏิเสธทั้งข้อความ จึงยังคุมด้วย env)
-    if (isHumanAgentEnabled() && windowState.humanAgentOpen) messageTag = 'HUMAN_AGENT'
-  }
+  // การ throw WINDOW_CLOSED เมื่อ !sentByHuman ยังคงอยู่ตรงนี้เหมือนเดิมทุกประการ — shouldTagHumanAgent
+  // แค่ตอบว่า "ติด tag ไหม" ไม่ได้ตัดสินว่า "throw ไหม" (คนละ concern — TFR-HA-02)
+  if (!windowState.open && !sentByHuman) throw new Error('WINDOW_CLOSED')
+  const messageTag: 'HUMAN_AGENT' | undefined = shouldTagHumanAgent({
+    windowOpen: windowState.open,
+    sentByHuman,
+    eligible: canUseHumanAgent(conversation.externalContact.externalUserId),
+    humanAgentWindowOpen: windowState.humanAgentOpen,
+  })
+    ? 'HUMAN_AGENT'
+    : undefined
 
   // เช็คสถานะ channel ก่อนยิง Send API — token ตายแล้ว (ถูก markChannelTokenInvalid ไว้) หรือ
   // ร้านถอดการเชื่อมต่อไปแล้ว ยิงไปก็ error 190 ซ้ำแน่ ๆ ไม่ต้องเสีย round-trip ไป Graph (M-6)

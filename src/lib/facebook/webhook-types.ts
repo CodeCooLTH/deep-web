@@ -180,6 +180,27 @@ const MessagingEventSchema = v.object({
       metadata: v.optional(v.string()),
     }),
   ),
+  /**
+   * postback (messaging_postbacks) — ลูกค้ากดปุ่ม (Get Started/persistent menu/button template)
+   * — feature 00043 (TFR-HA-03)
+   *
+   * ไม่ใช่ quick reply ที่ผูกมากับข้อความ (นั้นมาทาง `message.quick_reply` และยืดหน้าต่างอยู่แล้ว
+   * ผ่าน `ingestInboundMessage` เพราะมี `message.mid`) — postback ล้วน ๆ ไม่มี `message` เลย เดิม
+   * ตกเข้า branch `else` (ingestInboundMessage) ที่ไม่มีอะไรให้ parse แล้วกลายเป็น `IGNORED` เงียบ ๆ
+   * ทำให้หน้าต่าง 24 ชม./7 วันแคบกว่าที่ Meta อนุญาตจริง
+   *
+   * ทุก sub-field optional ตาม external-payload-schema.md (TD-HA-03): `ingestPostbackEvent` ใช้แค่
+   * `sender.id`/`event.timestamp` ที่อยู่นอก object นี้ — ไม่มี sub-field ไหนเป็นตัวตัดสินความหมาย
+   * บังคับแล้ว Meta ไม่ส่งมาครบทุกครั้งจะทำให้ Valibot ตี event ทั้งก้อนตก (บั๊กคลาสเดียวกับ
+   * `AttachmentSchema.type` ที่เคยทำรูป 6 ใบหายทั้งชุด)
+   */
+  postback: v.optional(
+    v.object({
+      title: v.optional(v.string()),
+      payload: v.optional(v.string()),
+      referral: v.optional(ReferralSchema),
+    }),
+  ),
 })
 
 

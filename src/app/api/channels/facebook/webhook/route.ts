@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { timingSafeEqual } from 'crypto'
 import { verifyWebhookSignature } from '@/lib/facebook/signature'
 import { WebhookBodySchema, extractMessagingEventsWithRaw, extractFeedChanges } from '@/lib/facebook/webhook-types'
-import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDeliveryEvent, ingestReactionEvent, ingestMessageEdit, ingestHandoverEvent } from '@/services/channel-chat.service'
+import { ingestAdReferral, ingestInboundMessage, ingestReadEvent, ingestDeliveryEvent, ingestReactionEvent, ingestMessageEdit, ingestHandoverEvent, ingestPostbackEvent } from '@/services/channel-chat.service'
 import { enqueueAutoReplyJob, processPendingForConversation } from '@/services/auto-reply.service'
 import { pushNewChatMessage } from '@/services/seller-push.service'
 import { ingestFeedComment } from '@/services/page-comment.service'
@@ -214,6 +214,16 @@ export async function POST(request: NextRequest) {
           reactionName: event.reaction.reaction,
           // ส่งผู้กดกับเวลาไปด้วย — react ของ "ลูกค้า" เปิดหน้าต่าง 24 ชม. ใหม่ตามนโยบาย Meta
           reactorExternalId: event.sender.id,
+          timestamp: event.timestamp,
+        })
+      } else if (event.postback) {
+        // ลูกค้ากดปุ่ม (Get Started/persistent menu/button template) — feature 00043 (TFR-HA-03)
+        // ยืดหน้าต่างเวลาตอบกลับ (24 ชม./7 วัน) เหมือน react/referral — ไม่มี message ให้ ingest
+        // เข้าเธรด (postback ไม่ใช่ข้อความ) ทำงานเหมือนกันทั้งกล่อง messaging และ standby (BR-HA-12)
+        await ingestPostbackEvent({
+          provider,
+          pageExternalId: pageId,
+          contactExternalId: event.sender.id,
           timestamp: event.timestamp,
         })
       } else if (event.pass_thread_control || event.take_thread_control || event.request_thread_control) {

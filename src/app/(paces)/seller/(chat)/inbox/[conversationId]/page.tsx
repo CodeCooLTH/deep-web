@@ -50,7 +50,7 @@ import { prisma } from '@/lib/prisma'
 import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
-import { getWindowState, syncInboundWindowFromMeta, isHumanAgentEnabled } from '@/services/channel-chat.service'
+import { getWindowState, syncInboundWindowFromMeta, canUseHumanAgent } from '@/services/channel-chat.service'
 // (S-14b, feature 00025) หน้าต่างตอบฟรี + โควตาของ LINE — คำนวณฝั่ง server แล้วส่งเป็นตัวเลข/boolean
 // ล้วนลง prop (เหมือน windowState/tokenInvalid เดิม) ไม่ให้ service หลุดเข้า client bundle
 import { getLineReplyWindowState } from '@/lib/line/reply-window'
@@ -144,6 +144,10 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           // isBlocked (2026-08-10) — LINE เท่านั้นที่เขียนค่านี้ (BR-LINE-15) ใช้ทำแถบสถานะ
           // "ลูกค้าอาจปิดการรับข้อความ" — ดู contactBlocked ด้านล่าง
           isBlocked: true,
+          // externalUserId (feature 00043, S-5) — PSID/IGSID ใช้เทียบ allow-list ใน
+          // canUseHumanAgent() ที่นี่เท่านั้น (server) — ไม่ส่งค่านี้ลง prop ของ ChatThread ตรง ๆ
+          // ผลลัพธ์ที่ไหลลง client คือ boolean (humanAgentOpen) เท่านั้น
+          externalUserId: true,
         },
       },
       // avatarUrl: รูปเพจ (avatar ฝั่งร้าน mine) + name: ชื่อเพจ (badge แสดงชื่อเพจแทน "Messenger")
@@ -589,9 +593,14 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         windowOpen={windowState.open}
         msRemaining={windowState.msRemaining}
         // ระดับกลาง: เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน — คนตอบเองได้ผ่าน HUMAN_AGENT tag
-        // ต้องเช็ค isHumanAgentEnabled() ด้วย ไม่งั้นจะเปิดช่องพิมพ์ให้ทั้งที่ยังไม่ได้ permission
-        // แล้วไปเด้ง error ตอนกดส่ง ซึ่งแย่กว่าบอกตั้งแต่แรกว่าส่งไม่ได้
-        humanAgentOpen={isHumanAgentEnabled() && windowState.humanAgentOpen}
+        // ต้องเช็ค canUseHumanAgent() ด้วย ไม่งั้นจะเปิดช่องพิมพ์ให้ทั้งที่ยังไม่ได้สิทธิ์ — สิทธิ์นี้
+        // ตัดสิน "รายเธรด" ตาม PSID/IGSID ของคู่สนทนา ไม่ใช่สวิตช์เดียวทั้งระบบ: เปิดได้ 2 ทาง คือ
+        // (ก) สวิตช์ใหญ่ระดับระบบเปิด (Meta อนุมัติสิทธิ์ human_agent แล้วจริง — ใช้ได้ทุกเธรด) หรือ
+        // (ข) PSID ของเธรดนี้อยู่ใน allow-list ทดสอบ (ก่อนผ่าน App Review, จำกัดวงทดสอบ) — เธรด
+        // channel==='DEEP' ไม่มี externalContact เลยจึง fallback เป็น null (ไม่มีทางอยู่ใน allow-list)
+        // ไม่เช็คแบบนี้ = ช่องพิมพ์เปิดทั้งที่ยังส่งจริงไม่ผ่าน แล้วไปเด้ง error ตอนกดส่ง ซึ่งแย่กว่า
+        // บอกตั้งแต่แรกว่าส่งไม่ได้
+        humanAgentOpen={canUseHumanAgent(conversation.externalContact?.externalUserId ?? null) && windowState.humanAgentOpen}
         humanAgentExpiresAt={windowState.humanAgentExpiresAt?.toISOString() ?? null}
         tokenInvalid={tokenInvalid}
         contactBlocked={contactBlocked}
