@@ -1787,3 +1787,10 @@ export const UploadCommitSchema = v.object({
   name: v.pipe(v.string(), v.minLength(1), v.maxLength(300)),
   mime: v.optional(v.pipe(v.string(), v.maxLength(200)), ""),
 });
+
+// AuthFlowStartSchema — body ของ POST /api/orders/[token]/auth-flow/start (feature 00041, TFR-013)
+// instrumentation ล้วน: ทุกฟิลด์ optional และ parse ล้มไม่ทำให้คำขอล้ม (route คืน 204 เสมอ)
+// เก็บ method ไว้ดูภายหลังว่าเส้นทางไหนคนหลุดเยอะ — Facebook คือเส้นที่ยาวที่สุดตาม PRD
+export const AuthFlowStartSchema = v.object({
+  method: v.optional(v.picklist(["facebook", "phone_otp", "other"])),
+});
