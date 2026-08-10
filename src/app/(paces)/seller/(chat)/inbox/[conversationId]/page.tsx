@@ -51,6 +51,10 @@ import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
 import { getWindowState, syncInboundWindowFromMeta, isHumanAgentEnabled } from '@/services/channel-chat.service'
+// (S-14b, feature 00025) หน้าต่างตอบฟรี + โควตาของ LINE — คำนวณฝั่ง server แล้วส่งเป็นตัวเลข/boolean
+// ล้วนลง prop (เหมือน windowState/tokenInvalid เดิม) ไม่ให้ service หลุดเข้า client bundle
+import { getLineReplyWindowState } from '@/lib/line/reply-window'
+import { getLineQuotaByChannelId } from '@/services/line-quota.service'
 import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import { maskPhone } from '@/lib/phone-mask'
@@ -144,7 +148,16 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       },
       // avatarUrl: รูปเพจ (avatar ฝั่งร้าน mine) + name: ชื่อเพจ (badge แสดงชื่อเพจแทน "Messenger")
       // — user request 2026-07-23: ร้านมีหลายเพจ ต้องรู้ว่าลูกค้าทักมาจากเพจไหน + เห็นรูปเพจในเธรด
-      shopChannel: { select: { status: true, avatarUrl: true, name: true } },
+      // id (2026-08-10) — ใช้ถามโควตา LINE ต่อ (getLineQuotaByChannelId) 🛑 ห้าม select
+      // accessTokenEnc/channelSecretEnc มาที่นี่เด็ดขาด: หน้านี้เป็น server component ใต้ layout
+      // ฝั่ง client ทุกอย่างที่ไหลลง prop จะถูก serialize ลง flight payload
+      shopChannel: { select: { id: true, status: true, avatarUrl: true, name: true } },
+      // (S-14b) หน้าต่างตอบฟรีของ LINE — reply token อายุ 60 วินาที ใช้ได้ครั้งเดียว
+      // 🛑 ทั้ง 3 คอลัมน์นี้ใช้ "คำนวณ" อย่างเดียว **ห้ามส่ง replyToken ลง prop** (ใครถือ token นี้
+      // ส่งข้อความในนามร้านได้ทันที — API.md §8 ข้อสอง)
+      replyToken: true,
+      replyTokenExpiresAt: true,
+      replyTokenUsedAt: true,
     },
   })
 
@@ -271,12 +284,24 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // เป็น NULL/หมดอายุ) อาจเป็นเพราะร้านเชื่อมเพจช้ากว่าที่ลูกค้าทัก → ถาม Meta หาเวลาจริง แล้ว persist.
   // เรียกเฉพาะช่องทางนอกที่ดูปิดเท่านั้น (DEEP/หน้าต่างเปิดอยู่ = ไม่แตะ Meta) เพื่อไม่ให้กระทบ latency
   // ของเธรดปกติ. sync คืนค่าเดิมถ้าเรียก Meta ไม่ได้ (fail-safe ไปทางปิดตามเดิม)
+  //
+  // 🛑 (S-14b, 2026-08-10) LINE ไม่เข้าเส้นทางนี้เลย — หน้าต่างตอบฟรีของ LINE คือ **reply token
+  // อายุ 60 วินาที** ไม่ใช่ 24 ชั่วโมงนับจากข้อความล่าสุด. ก่อนหน้านี้เธรด LINE ใช้กติกาของ Meta
+  // ทั้งดุ้น ซึ่งผิดสองชั้นซ้อนกันและไม่มีอะไรฟ้อง: (1) แถบสถานะบอกเวลาที่ไม่ใช่ความจริงของ LINE
+  // (2) `syncInboundWindowFromMeta` **ยิง Graph API ของ Meta ด้วย channel access token ของ LINE**
+  // ทุกครั้งที่เปิดเธรดที่ลูกค้าทักเกิน 24 ชม. — คำขอที่ไม่มีวันสำเร็จ ล้มเงียบ (getLastInboundTime
+  // กลืน error คืน null) จึงไม่เคยมีใครเห็น เหลือไว้แค่ latency ที่จ่ายฟรีทุกครั้ง
+  const isLineThread = conversation.channel === 'LINE'
   let effectiveLastInbound = conversation.lastInboundAt
-  if (conversation.channel !== 'DEEP' && !getWindowState(effectiveLastInbound).open) {
+  if (!isLineThread && conversation.channel !== 'DEEP' && !getWindowState(effectiveLastInbound).open) {
     effectiveLastInbound = await syncInboundWindowFromMeta(conversation.id)
   }
 
-  const windowState = getWindowState(effectiveLastInbound)
+  // LINE คืนรูปร่างเดียวกัน (`open`/`msRemaining`) จึงส่งลง prop เดิมได้โดยไม่ต้องแตะสัญญาของ
+  // ChatThread — ตัวจับเวลาฝั่ง client ที่มีอยู่แล้วจะพลิก "ส่งฟรี" เป็นสถานะโควตาเองเมื่อครบเวลา
+  const windowState = isLineThread
+    ? { ...getLineReplyWindowState(conversation, Date.now()), humanAgentOpen: false, humanAgentExpiresAt: null }
+    : getWindowState(effectiveLastInbound)
   // แยกเคส "ลูกค้ายังไม่เคยทักเข้ามาเลย" (lastInboundAt=NULL) ออกจาก "ทักแล้วแต่เกิน 24 ชม."
   // (user report 2026-07-24) — ทั้งคู่ทำ window ปิดเหมือนกัน แต่ข้อความต่างกัน: เธรดที่ร้าน initiate
   // จาก Facebook เอง (echo เข้ามาเป็น SHOP ล้วน) จะไม่มี inbound เลย → banner ต้องบอกว่า "รอลูกค้า
@@ -367,6 +392,15 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   // จริง (ลูกค้าปลดบล็อกได้โดยเราไม่รู้จนกว่าจะลองส่งอีกที) — ข้อความในแถบสถานะต้องบอกกรอบเวลา
   // "ครั้งล่าสุด" ไว้ด้วยเหตุนี้ (ดู ThreadStatusBar item 'contactBlocked' ใน ChatThread.tsx)
   const contactBlocked = conversation.channel === 'LINE' && conversation.externalContact?.isBlocked === true
+
+  // (S-14b) โควตาข้อความของ LINE OA ที่เธรดนี้ผูกอยู่ — ค่า cache อายุ ≤5 นาที (อ่านจาก LINE ใหม่
+  // เมื่อหมดอายุ) service เป็นคน decrypt token เองภายในตัวมัน ที่นี่ได้แต่ตัวเลขกลับมา
+  // อ่านไม่สำเร็จ = ได้ snapshot ที่ `stale: true` ไม่ใช่ throw — หน้าเธรดต้องเปิดได้เสมอแม้ LINE ล่ม
+  // ส่งลง prop `lineQuota` ของ ChatThread — null สำหรับทุกช่องทางที่ไม่ใช่ LINE (ไม่มีแนวคิดนี้)
+  const lineQuota =
+    isLineThread && conversation.shopChannel?.id
+      ? await getLineQuotaByChannelId(conversation.shopChannel.id)
+      : null
 
   // ชื่อเพจที่เธรดนี้ผูกอยู่ (null = เธรด Deep / ไม่มี ShopChannel) — badge ใช้แทนชื่อช่องทาง
   const channelName = conversation.shopChannel?.name ?? null
@@ -561,6 +595,17 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         humanAgentExpiresAt={windowState.humanAgentExpiresAt?.toISOString() ?? null}
         tokenInvalid={tokenInvalid}
         contactBlocked={contactBlocked}
+        lineQuota={
+          lineQuota
+            ? {
+                type: lineQuota.type,
+                level: lineQuota.level,
+                remaining: lineQuota.remaining,
+                total: lineQuota.total,
+                stale: lineQuota.stale,
+              }
+            : null
+        }
         neverInbound={neverInbound}
         isCommentReplyThread={isCommentReplyThread}
         hidePayments={await shouldHidePayments()}

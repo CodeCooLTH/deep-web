@@ -10,11 +10,13 @@ import { MetaAdapter } from '@/lib/channels/meta-adapter'
 // (S-6, feature 00025) LineAdapter (S-4) + prefix builder (TD-005) — ตัวเดียวที่ประกอบ
 // ChatMessage.externalMessageId ของ LINE ห้ามประกอบ string นี้เองที่ไฟล์นี้
 import { LineAdapter, buildLineExternalMessageId } from '@/lib/channels/line-adapter'
-import { REPLY_WINDOW_MS, REPLY_SAFETY_MARGIN_MS } from '@/lib/line/constants'
+import { REPLY_WINDOW_MS } from '@/lib/line/constants'
 // (S-9, feature 00025 TFR-LINE-06 ข้อ 5 / TFR-LINE-07) โควตา LINE — service เป็นเจ้าของ cache/TTL
 // ส่วน shouldBlockLinePush เป็นฟังก์ชันบริสุทธิ์ที่ถือกติกา "อะไรบ้างที่ห้ามส่ง" ไว้ที่เดียว
 import { getLineQuota, noteLinePushConsumed, invalidateLineQuota } from '@/services/line-quota.service'
 import { shouldBlockLinePush } from '@/lib/line/quota'
+// (S-14b) นิยามเดียวของ "หน้าต่างตอบฟรีของ LINE ยังเปิดอยู่ไหม" — ใช้ร่วมกับหน้าเธรด (HR16)
+import { getLineReplyWindowState } from '@/lib/line/reply-window'
 // (S-18a) SSOT ของสติกเกอร์ LINE ที่ยิงออกผ่าน Messaging API ได้จริง — ห้ามเดา packageId เอง
 import { findLineStickerPackageId } from '@/lib/line/stickers'
 // (S-8, feature 00025) LineApiError — ต้องอ่าน status/raw ของ error จริงเพื่อจำแนกเป็นรหัสทางธุรกิจ
@@ -2631,11 +2633,10 @@ async function sendOutboundLineMessage(
 
   // ── TFR-LINE-05/06: ตัดสิน reply vs push ──────────────────────────────────
   const nowMs = Date.now()
-  const canTryReply =
-    !!conversation.replyToken &&
-    !conversation.replyTokenUsedAt &&
-    !!conversation.replyTokenExpiresAt &&
-    nowMs < conversation.replyTokenExpiresAt.getTime() - REPLY_SAFETY_MARGIN_MS
+  // (S-14b) ใช้ฟังก์ชันตัวเดียวกับที่หน้าเธรดใช้บอกผู้ขายว่า "ข้อความนี้ส่งฟรีไหม" — เดิมเขียน
+  // เงื่อนไขซ้ำเป็น inline ที่นี่ พอหน้าจอมีสูตรของตัวเอง สองสูตรจะเพี้ยนจากกันวันที่นิยามขยับ
+  // (เช่นแก้ safety margin ที่เดียว) โดยไม่มี tsc/build/เทสตัวไหนฟ้อง เพราะทั้งคู่ "ถูก" ในตัวเอง (HR16)
+  const canTryReply = getLineReplyWindowState(conversation, nowMs).open
 
   let sendMethod: 'REPLY' | 'PUSH' = 'PUSH'
   let claimedReplyToken: string | null = null

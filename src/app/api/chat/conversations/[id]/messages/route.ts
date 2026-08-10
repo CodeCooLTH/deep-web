@@ -97,8 +97,11 @@ function mapChatServiceError(e: unknown, context: string) {
   //
   // `code` (2026-08-10) — literal เดียวกับ e.message เสมอ ส่งเพิ่มมาให้ client แยกชนิดล้มเหลวได้โดย
   // ไม่ต้อง parse ข้อความไทย: quota exceeded ต้องยกแถบสถานะระดับห้อง (ThreadStatusBar key='quota')
-  // ขึ้นค้างไว้ตลอด session นี้ — ไม่มี line-quota.service (S-9 ยังไม่ทำ) ให้เช็คได้จากค่าที่ persist
-  // ไว้ ต้องรู้จากการยิงจริงแล้วโดนปฏิเสธเท่านั้น (ดู useSellerChatThread.ts::quotaExceeded)
+  // ขึ้นค้างไว้ตลอด session นี้
+  //
+  // (อัปเดต S-9/S-14b) ตอนนี้มี `line-quota.service` แล้ว หน้าเธรดจึงรู้ล่วงหน้าได้และปิดช่องพิมพ์
+  // ตั้งแต่ก่อนกด (ThreadStatusBar key='quotaBlocked') — เส้นทางนี้ยังต้องอยู่ต่อในฐานะตาข่ายชั้นใน
+  // สุด เพราะค่าที่อ่านล่วงหน้า cache ได้ถึง 5 นาที LINE จึงยังปฏิเสธได้ทั้งที่จอบอกว่าเหลือ
   if (e instanceof Error && e.message === "TOKEN_INVALID") {
     const { message, retryable } = describeSendFailure(e.message);
     return NextResponse.json({ error: message, retryable, code: e.message }, { status: 400 });

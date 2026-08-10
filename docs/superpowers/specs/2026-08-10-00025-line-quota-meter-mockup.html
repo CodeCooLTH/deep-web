@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ม็อกอัพ — มาตรวัดโควตา LINE ในห้องแชท (00025 S-14b)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* token ชุดเดียวกับ src/assets/css/config/_root.css (โหมดสว่าง) — ไม่ประดิษฐ์สีใหม่ */
+  :root {
+    --card: #ffffff;
+    --body-bg: #f4f6f8;
+    --default-900: #1f2937;
+    --default-500: #64748b;
+    --default-400: #627189;
+    --default-200: #e5e7eb;
+    --primary: #236dc9;
+    --warning-ink: #92400e;
+    --warning-bg: rgba(245, 158, 11, .15);
+    --danger-ink: #7f1d1d;
+    --danger-bg: rgba(239, 68, 68, .15);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px 64px;
+    font-family: Anuphan, system-ui, sans-serif;
+    background: var(--body-bg); color: var(--default-900);
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .lede { color: var(--default-500); font-size: 14px; margin: 0 0 28px; max-width: 60ch; line-height: 1.6; }
+  h2 { font-size: 15px; margin: 32px 0 12px; }
+  .note { font-size: 12px; color: var(--default-500); margin: 6px 0 0; line-height: 1.55; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+
+  /* กรอบจำลองความกว้างจริงของอุปกรณ์ */
+  .device { background: var(--card); border: 1px solid var(--default-200); border-radius: 12px; overflow: hidden; }
+  .device .caption-bar { font-size: 11px; color: var(--default-500); padding: 6px 10px; border-bottom: 1px solid var(--default-200); background: var(--body-bg); }
+  .w375 { width: 375px; }
+  .w768 { width: 768px; }
+  .w1280 { width: 1280px; max-width: 100%; }
+
+  .thread { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .bubble { max-width: 72%; font-size: 13px; line-height: 1.5; padding: 8px 12px; border-radius: 14px; }
+  .bubble.them { background: #eef2f6; border-bottom-left-radius: 4px; }
+  .bubble.me { background: var(--primary); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+
+  /* กล่องช่องพิมพ์ — ปุ่มส่ง "อยู่ในกล่อง" ตามของจริงตั้งแต่ 2026-08-06 */
+  .composer { margin: 0 12px 12px; border: 1px solid var(--default-200); border-radius: 12px; background: var(--card); }
+  .composer textarea {
+    width: 100%; border: 0; outline: 0; resize: none; background: transparent;
+    font-family: inherit; font-size: 13px; padding: 10px 12px; color: var(--default-900);
+  }
+  .composer.disabled { opacity: .75; }
+  .sendrow { display: flex; align-items: center; gap: 8px; padding: 0 8px 8px; }
+  .sendrow.no-caption { justify-content: flex-end; }
+  .cap { flex: 1 1 auto; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cap.quiet { color: var(--default-400); }
+  .cap.neutral { color: var(--default-500); }
+  .cap.warning { color: var(--warning-ink); }
+  .cap.danger { color: var(--danger-ink); }
+  .btn-send {
+    flex: 0 0 auto; border: 0; border-radius: 999px; background: var(--primary); color: #fff;
+    font-family: inherit; font-size: 12px; font-weight: 600; padding: 6px 14px; cursor: pointer;
+  }
+  .btn-send[disabled] { opacity: .6; cursor: not-allowed; }
+
+  /* แถบสถานะหัวเธรด (ThreadStatusBar) */
+  .status { display: flex; gap: 8px; align-items: flex-start; margin: 12px 12px 0; padding: 8px 10px; border-radius: 10px; font-size: 12px; line-height: 1.5; }
+  .status.danger { background: var(--danger-bg); color: var(--danger-ink); }
+  .status .ico { flex: 0 0 auto; font-weight: 700; }
+  .status a { color: inherit; font-weight: 600; }
+
+  .states { display: grid; gap: 10px; margin-top: 10px; }
+  .state-label { font-size: 11px; color: var(--default-500); margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<h1>มาตรวัดโควตา LINE — แคปชันข้างปุ่มส่ง</h1>
+<p class="lede">
+  ตัวเลขทั้งหมดอ่านจาก LINE โดยตรง (<code>GET /v2/bot/message/quota</code> + <code>/consumption</code>)
+  เพดานจึงเป็นของ <strong>แพ็กเกจที่ร้านใช้จริง</strong> — ฟรี 300 / Basic 15,000 / Pro 35,000 ข้อความต่อเดือน —
+  ไม่มีตัวเลขแพ็กเกจ hardcode อยู่ในโค้ดเลย · เกณฑ์ “ใกล้หมด” = เหลือ ≤ 20% ของเพดานนั้น
+</p>
+
+<h2>มือถือ 375px — ทุกสถานะเรียงกัน</h2>
+<div class="row">
+  <div class="device w375">
+    <div class="caption-bar">375 × (ตัดเฉพาะส่วนล่างของห้องแชท)</div>
+    <div class="thread">
+      <div class="bubble them">สนใจรุ่นนี้ค่ะ ยังมีของไหม</div>
+      <div class="bubble me">มีครับ เดี๋ยวส่งรายละเอียดให้นะครับ</div>
+    </div>
+    <div class="states" style="padding: 0 0 12px;">
+      <div style="padding: 0 12px;">
+        <div class="state-label">1 · ลูกค้าเพิ่งทัก (ยังอยู่ในช่วงตอบด่วน)</div>
+      </div>
+      <div class="composer">
+        <textarea rows="1" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+        <div class="sendrow"><span class="cap neutral">ส่งฟรี</span><button class="btn-send">ส่ง ➤</button></div>
+      </div>
+
+      <div style="padding: 0 12px;"><div class="state-label">2 · พ้นช่วงตอบด่วนแล้ว — ใบนี้หักโควตา</div></div>
+      <div class="composer">
+        <textarea rows="1" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+        <div class="sendrow"><span class="cap neutral">โควตา 248/300</span><button class="btn-send">ส่ง ➤</button></div>
+      </div>
+
+      <div style="padding: 0 12px;"><div class="state-label">3 · เหลือ ≤ 20% ของเพดานแพ็กเกจ</div></div>
+      <div class="composer">
+        <textarea rows="1" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+        <div class="sendrow"><span class="cap warning">เหลือ 32/300 ใกล้หมด</span><button class="btn-send">ส่ง ➤</button></div>
+      </div>
+
+      <div style="padding: 0 12px;"><div class="state-label">4 · หมดจริง + พ้นช่วงตอบด่วน = ปิดช่องพิมพ์</div></div>
+      <div class="status danger">
+        <span class="ico">🔒</span>
+        <span>โควตาข้อความหมดแล้ว — ส่งไม่ได้ตอนนี้ · <a href="#">เปิด LINE OA Manager</a></span>
+      </div>
+      <div class="composer disabled">
+        <textarea rows="1" placeholder="โควตาข้อความหมดแล้ว ส่งไม่ได้ตอนนี้" disabled></textarea>
+        <div class="sendrow"><span class="cap danger">โควตาหมดแล้ว</span><button class="btn-send" disabled>ส่ง ➤</button></div>
+      </div>
+
+      <div style="padding: 0 12px;"><div class="state-label">5 · หมดแล้วแต่ลูกค้าเพิ่งทัก — ยังตอบฟรีได้ ห้ามบล็อก</div></div>
+      <div class="composer">
+        <textarea rows="1" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+        <div class="sendrow"><span class="cap warning">ส่งฟรี (โควตาหมดแล้ว)</span><button class="btn-send">ส่ง ➤</button></div>
+      </div>
+
+      <div style="padding: 0 12px;"><div class="state-label">6 · อ่านยอดจาก LINE ไม่ได้ชั่วคราว — ยังส่งได้ปกติ</div></div>
+      <div class="composer">
+        <textarea rows="1" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+        <div class="sendrow"><span class="cap quiet">ไม่ทราบยอดโควตา</span><button class="btn-send">ส่ง ➤</button></div>
+      </div>
+
+      <div style="padding: 0 12px;"><div class="state-label">7 · แพ็กเกจไม่จำกัดจำนวนข้อความ</div></div>
+      <div class="composer">
+        <textarea rows="1" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+        <div class="sendrow"><span class="cap neutral">ไม่จำกัดโควตา</span><button class="btn-send">ส่ง ➤</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="note">
+  หมายเหตุ: ที่ &lt;640px ใช้ข้อความย่อ เพราะปุ่มส่งกินที่คงที่ ~78px — ประโยคเต็มจะถูกตัดหางจนไม่เห็นตัวเลขที่ต้องการอ่านพอดี
+</p>
+
+<h2>แท็บเล็ต 768px — ประโยคเต็ม</h2>
+<div class="row">
+  <div class="device w768">
+    <div class="caption-bar">768 × (ตัดเฉพาะส่วนล่าง)</div>
+    <div class="thread">
+      <div class="bubble them">โอนแล้วนะคะ ส่งพรุ่งนี้ทันไหม</div>
+    </div>
+    <div class="composer">
+      <textarea rows="1" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+      <div class="sendrow"><span class="cap neutral">ใช้โควตา 1 ข้อความ (เหลือ 248/300)</span><button class="btn-send">ส่ง ➤</button></div>
+    </div>
+    <div class="composer">
+      <textarea rows="1" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+      <div class="sendrow"><span class="cap warning">ใช้โควตา 1 ข้อความ (เหลือ 32/300 ใกล้หมด)</span><button class="btn-send">ส่ง ➤</button></div>
+    </div>
+    <div class="composer">
+      <textarea rows="1" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+      <div class="sendrow"><span class="cap neutral">ข้อความนี้ส่งฟรี (อยู่ในช่วงตอบด่วน)</span><button class="btn-send">ส่ง ➤</button></div>
+    </div>
+  </div>
+</div>
+
+<h2>เดสก์ท็อป 1280px — ไม่ซ้ำตัวเลขที่คอลัมน์ขวา</h2>
+<div class="row">
+  <div class="device w1280">
+    <div class="caption-bar">1280 × (คอลัมน์ข้อมูลลูกค้าโผล่ที่ ≥1280 — จงใจไม่โชว์โควตาซ้ำที่นั่น)</div>
+    <div style="display: grid; grid-template-columns: 1fr 320px;">
+      <div>
+        <div class="thread">
+          <div class="bubble them">รบกวนสรุปยอดอีกทีค่ะ</div>
+          <div class="bubble me">ยอดรวม 1,290 บาท รวมส่งแล้วครับ</div>
+        </div>
+        <div class="composer">
+          <textarea rows="2" placeholder="พิมพ์ข้อความ หรือวางไฟล์ที่นี่..."></textarea>
+          <div class="sendrow"><span class="cap neutral">ใช้โควตา 1 ข้อความ (เหลือ 12,500/35,000)</span><button class="btn-send">ส่ง ➤</button></div>
+        </div>
+      </div>
+      <div style="border-left: 1px solid var(--default-200); padding: 12px; font-size: 12px; color: var(--default-500);">
+        <div style="font-weight: 600; color: var(--default-900); margin-bottom: 8px;">ข้อมูลลูกค้า</div>
+        <div>ช่องทาง: LINE · BT สาขา สุขสวัสดิ์</div>
+        <div style="margin-top: 8px;">คำสั่งซื้อล่าสุด: #DP2569-0142</div>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="note">
+  ตัวเลขหลักพันมีตัวคั่นหลักเสมอ (12,500/35,000) — กันอ่านผิดหลักตอนกวาดตา ซึ่งเป็นวิธีเดียวที่คนอ่านตัวเลขบนแถบเครื่องมือจริง ๆ
+</p>
+
+</body>
+</html>

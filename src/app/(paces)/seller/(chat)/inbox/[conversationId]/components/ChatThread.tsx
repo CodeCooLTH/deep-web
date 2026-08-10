@@ -92,9 +92,13 @@ import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-fai
 // นิยาม "โพสต์นี้เป็นวิดีโอไหม" ตัวเดียวกับที่รายการคอมเมนต์ใช้ — ห้ามก็อปมาเขียนซ้ำ (HR16)
 import { isVideoPost } from '@/lib/facebook-post'
 import { canRetryFailedMessage } from '@/lib/chat-retry-eligibility'
+// (S-14b, feature 00025) มาตรวัดโควตา LINE — ตรรกะทั้งหมด (รวม boolean ที่ปิดช่องพิมพ์) อยู่ใน
+// ฟังก์ชันบริสุทธิ์ที่มีเทสจับ ไม่ใช่เทอร์นารีกลาง JSX (ui-boolean-needs-a-testable-home.md)
+import { deriveLineQuotaCaption } from '@/lib/line/quota-caption'
+import type { LineQuotaLevel } from '@/lib/line/quota'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import {
   useSellerChatThread,
@@ -694,6 +698,20 @@ type Props = {
   /** feature 00025 (2026-08-10) — ExternalContact.isBlocked ของ LINE (ครั้งล่าสุดที่ส่งล้มเหลว
    *  เพราะลูกค้าปิดรับ/เลิกติดตาม OA — ภาพนิ่ง ไม่ใช่สถานะปัจจุบันจริง) false เสมอสำหรับ Messenger/IG/DEEP */
   contactBlocked: boolean
+  /**
+   * feature 00025 S-14b (2026-08-10) — โควตาข้อความรายเดือนของ LINE OA ที่เธรดนี้ผูกอยู่
+   *
+   * `null` = ไม่ใช่เธรด LINE (Messenger/IG/DEEP ไม่มีแนวคิดโควตารายเดือน — ของ Meta เป็นหน้าต่างเวลา)
+   * ค่าคำนวณที่ server ตอน render (cache ≤5 นาที) และรีเฟรชเองหลังกดส่งสำเร็จ
+   * 🛑 `level` คำนวณมาจาก server แล้ว — ห้ามเอา remaining/total มาคิด % เกณฑ์ "ใกล้หมด" เองที่นี่ (HR16)
+   */
+  lineQuota: {
+    type: 'limited' | 'unlimited' | 'unknown'
+    level: LineQuotaLevel
+    remaining: number | null
+    total: number | null
+    stale: boolean
+  } | null
   /** ลูกค้ายังไม่เคยทักเข้ามาเลย (lastInboundAt=NULL) — เธรดที่ร้าน initiate จาก Facebook เอง
    *  (user report 2026-07-24). แยก banner จาก "เกิน 24 ชม." ที่สื่อว่าลูกค้าเคยทักแล้ว */
   neverInbound: boolean
@@ -741,6 +759,17 @@ type ChatMessageWithDelivery = ChatMessageView & {
   failureReason?: string | null
   quotable?: boolean
   replyTo?: (NonNullable<ChatMessageView['replyTo']> & { quotable?: boolean }) | null
+}
+
+/** (S-14b) tone ของแคปชันโควตา LINE → คลาสสีของธีม — ฟังก์ชันตรรกะ (`deriveLineQuotaCaption`)
+ *  ไม่รู้จัก Tailwind เลย การแปลงเกิดที่นี่ที่เดียว
+ *  🛑 ไล่ความเข้มตามน้ำหนักของข่าว ไม่ใช่ตามความสวย: quiet = ไม่รู้ (เงียบที่สุด ห้ามดูเหมือนคำเตือน
+ *  เพราะยังส่งได้ปกติ) · neutral = ปกติ · warning = ใกล้หมด/หมดแต่ยังส่งฟรีได้ · danger = ส่งไม่ได้จริง */
+const QUOTA_TONE_CLASS: Record<'quiet' | 'neutral' | 'warning' | 'danger', string> = {
+  quiet: 'text-default-400',
+  neutral: 'text-default-500',
+  warning: 'text-warning-ink',
+  danger: 'text-danger-ink',
 }
 
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000
@@ -923,6 +952,7 @@ export default function ChatThread({
   msRemaining,
   tokenInvalid,
   contactBlocked,
+  lineQuota,
   neverInbound,
   isCommentReplyThread,
   hidePayments,
@@ -988,7 +1018,19 @@ export default function ChatThread({
   const isExternal = channel !== 'DEEP'
   // live 24h countdown — capture เวลาหมดอายุครั้งเดียวตอน mount (msRemaining จาก server + เวลาโหลด)
   // แล้ว tick ทุกวินาที ให้ banner ถอยหลังจริง และ composer ปิดเองเมื่อถึง 0 ไม่ต้อง reload หน้า
-  const [expiryTs] = useState(() => Date.now() + msRemaining)
+  //
+  // (S-14b, 2026-08-10) LINE ใช้กลไกเดียวกันนี้ แต่ค่าที่ป้อนเข้ามาคือหน้าต่าง reply 60 วินาที
+  // (page.tsx เป็นคนเลือกกติกาตาม channel) — ที่นี่ไม่ต้องรู้ว่ามาจาก provider ไหน
+  // 🛑 สำหรับ LINE ห้ามมีจุดไหน render `liveRemaining` เป็นตัวเลข (BRD AC-005-05: เป็น "ข้อมูล
+  // ไม่ใช่การนับถอยหลัง") — ตัวจับเวลามีหน้าที่เดียวคือพลิก `liveWindowOpen` เงียบ ๆ เมื่อหมดเวลา
+  // แล้วแคปชันข้างปุ่มส่งจะเปลี่ยนจาก "ส่งฟรี" เป็นสถานะโควตาเอง
+  const [expiryTs, setExpiryTs] = useState(() => Date.now() + msRemaining)
+  // 🛑 ต้อง reset เมื่อ prop เปลี่ยน ไม่ใช่ lazy-init ครั้งเดียวตอน mount: เธรด LINE เรียก
+  // router.refresh() หลังส่งสำเร็จ (โควตา/หน้าต่างเปลี่ยนทันทีที่ส่ง) ถ้าไม่ reset ตัวจับเวลาจะยัง
+  // นับของรอบก่อนต่อไป แล้วแคปชันจะบอกว่า "ส่งฟรี" ทั้งที่ reply token ถูกใช้ไปแล้วตั้งแต่ใบที่แล้ว
+  useEffect(() => {
+    setExpiryTs(Date.now() + msRemaining)
+  }, [msRemaining, windowOpen])
   const [nowTs, setNowTs] = useState(() => Date.now())
   useEffect(() => {
     if (!isExternal || !windowOpen) return // นับเฉพาะช่องทางนอกที่ window ยังเปิดตอนโหลด
@@ -1056,7 +1098,47 @@ export default function ChatThread({
   // เป็นค่าที่ "เราคำนวณเอง" จาก lastInboundAt ที่คลาดได้ทั้งสองทาง การล็อกจากค่านั้น = ห้ามร้าน
   // ส่งข้อความที่ Meta จะรับจริง. ปล่อยให้ส่งแล้วโชว์เหตุผลบนบับเบิลถ้าไม่ผ่าน ตรงความจริงกว่า
   // (ฝั่ง service เลิกบล็อกล่วงหน้าให้ข้อความที่คนพิมพ์เองแล้ว — channel-chat.service.ts)
-  const composerDisabled = isExternal && tokenInvalid
+  //
+  // (S-14b) แคปชันข้างปุ่มส่งของเธรด LINE — รวม "ใบนี้ส่งฟรีไหม" กับ "โควตาเหลือเท่าไหร่" ไว้
+  // คำตอบเดียว เพราะเป็นคำถามเดียวที่ผู้ขายถามก่อนกดส่ง. ตรรกะทั้งหมดอยู่ในฟังก์ชันบริสุทธิ์
+  // (มีเทส + พิสูจน์ด้วย mutation) — ที่นี่มีหน้าที่แค่ป้อนค่าเข้าและแปลง tone เป็นคลาสสี
+  //
+  // 🛑 ใช้ `liveWindowOpen` ไม่ใช่ `windowOpen` ดิบ: หน้าต่างของ LINE ยาว 60 วินาที ผู้ขายพิมพ์
+  // ข้อความเดียวก็เลยเวลาได้ ค่า ณ ตอน render จึงเก่าเกือบทันทีที่แสดง
+  const lineQuotaCaption =
+    channel === 'LINE' && lineQuota
+      ? deriveLineQuotaCaption({
+          windowOpen: liveWindowOpen,
+          type: lineQuota.type,
+          level: lineQuota.level,
+          remaining: lineQuota.remaining,
+          total: lineQuota.total,
+          stale: lineQuota.stale,
+        })
+      : null
+
+  //
+  // (S-14b) รีเฟรชค่าจาก server หลังส่งสำเร็จ — เฉพาะเธรด LINE
+  //
+  // ทำไมต้องมี: การส่ง 1 ครั้งเปลี่ยน "ความจริง" สองอย่างพร้อมกันทันทีในฐานข้อมูล — reply token
+  // ถูกใช้ไป (หน้าต่างฟรีปิดทันที ไม่ใช่รอครบ 60 วิ) และโควตาถูกหักไป 1 ถ้าเป็น push. ถ้าไม่รีเฟรช
+  // แคปชันจะยังบอกว่า "ส่งฟรี"/เลขเดิม ในนาทีที่ผู้ขายกำลังจะพิมพ์ใบถัดไป ซึ่งเป็นนาทีที่มันสำคัญที่สุด
+  //
+  // ทำไมไม่แก้ที่ hook / ไม่ให้ POST คืนโควตากลับมา: เส้นทางส่งข้อความใช้ร่วมกับ Messenger/IG/แอปผู้ซื้อ
+  // การเปลี่ยนสัญญาของมันเพื่อ LINE อย่างเดียวเสี่ยงเกินความจำเป็น — ค่าที่ถูกต้องอยู่ใน DB แล้วตั้งแต่
+  // ก่อน response กลับมาด้วยซ้ำ (noteLinePushConsumed/replyTokenUsedAt เขียนใน transaction ของการส่ง)
+  //
+  // 🛑 กันลูป: เทียบ id ของข้อความที่ "ส่งสำเร็จล่าสุด" กับตัวที่จำไว้ — refresh ทำให้ prop เปลี่ยน
+  // แต่ไม่ได้สร้างข้อความใหม่ รอบถัดไป id จึงเท่าเดิมและไม่ยิงซ้ำ (ครั้งแรกหลัง mount ก็ไม่ยิง
+  // เพราะเป็นการ "รับรู้สถานะเริ่มต้น" ไม่ใช่การส่งใหม่) — บทเรียน hook-return-identity-in-deps.md
+  const router = useRouter()
+
+  // ล็อกช่องพิมพ์ 2 เหตุเท่านั้น — ทั้งคู่เป็นเรื่องที่ "ยิงไปก็ถูกปฏิเสธทุกครั้ง" ไม่ใช่การเดาแทนผู้ใช้:
+  //   - tokenInvalid: ยิงไปก็ 190 ทุกครั้ง และร้านแก้ที่หน้านี้ไม่ได้ ต้องไปเชื่อมช่องทางใหม่ก่อน
+  //   - lineQuotaCaption.blocking: โควตาหมดจริง + พ้นหน้าต่างฟรี = ฝั่ง server ปฏิเสธ 409 แน่นอน
+  //     (TFR-LINE-06 ข้อ 5) เปิดปุ่มไว้ให้กดแล้วล้มเหลว 100% แย่กว่าปิดพร้อมบอกทางออก
+  //     🛑 เงื่อนไข "รู้แน่" อยู่ในฟังก์ชันบริสุทธิ์แล้ว (ค่า stale ไม่มีวันทำให้ blocking เป็น true)
+  const composerDisabled = isExternal && (tokenInvalid || lineQuotaCaption?.blocking === true)
   //
   // เคยมี `sendAtRisk` ตรงนี้สำหรับบรรทัดเตือน "อาจส่งไม่สำเร็จ" เหนือช่องพิมพ์ — ตัวบรรทัดถูกตัด
   // ตอน merge (ไม่อยากทับงานยุบแถบสถานะเหลือบรรทัดเดียวของอีก session) แต่ตัวแปรตกค้างไว้
@@ -1099,6 +1181,31 @@ export default function ChatThread({
     quotaExceeded,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
+
+  //
+  // (S-14b) รีเฟรชค่าจาก server หลังส่งสำเร็จ — เฉพาะเธรด LINE
+  //
+  // ทำไมต้องมี: การส่ง 1 ครั้งเปลี่ยน "ความจริง" สองอย่างพร้อมกันทันทีในฐานข้อมูล — reply token
+  // ถูกใช้ไป (หน้าต่างฟรีปิดทันที ไม่ใช่รอครบ 60 วิ) และโควตาถูกหักไป 1 ถ้าส่งด้วย push. ถ้าไม่รีเฟรช
+  // แคปชันจะยังบอกว่า "ส่งฟรี"/เลขเดิม ในนาทีที่ผู้ขายกำลังจะพิมพ์ใบถัดไป ซึ่งเป็นนาทีที่มันสำคัญที่สุด
+  //
+  // ทำไมไม่แก้ที่ hook / ไม่ให้ POST คืนโควตากลับมา: เส้นทางส่งข้อความใช้ร่วมกับ Messenger/IG/แอปผู้ซื้อ
+  // การเปลี่ยนสัญญาของมันเพื่อ LINE อย่างเดียวเสี่ยงเกินความจำเป็น — ค่าที่ถูกต้องอยู่ใน DB แล้วตั้งแต่
+  // ก่อน response กลับมาด้วยซ้ำ (noteLinePushConsumed / replyTokenUsedAt เขียนในทรานแซกชันของการส่ง)
+  //
+  // 🛑 กันลูป: เทียบ id ของข้อความที่ "ส่งสำเร็จล่าสุด" กับตัวที่จำไว้ — refresh ทำให้ prop เปลี่ยน
+  // แต่ไม่ได้สร้างข้อความใหม่ รอบถัดไป id จึงเท่าเดิมและไม่ยิงซ้ำ · ครั้งแรกหลัง mount ไม่ยิงเลย
+  // (เป็นการ "รับรู้สถานะเริ่มต้น" ไม่ใช่การส่งใหม่) — บทเรียน hook-return-identity-in-deps.md
+  const lastSentIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (channel !== 'LINE') return
+    let lastSentId: string | null = null
+    for (const m of messages) if (m._status === 'sent') lastSentId = m.id
+    if (!lastSentId) return
+    const known = lastSentIdRef.current
+    lastSentIdRef.current = lastSentId
+    if (known !== null && known !== lastSentId) router.refresh()
+  }, [messages, channel, router])
 
   // ── "เธรดที่ Meta AI ถือสิทธิ์คุมอยู่" (2026-08-08 · แก้สัญญาณ 2026-08-09) ────────────
   //
@@ -1458,11 +1565,55 @@ export default function ChatThread({
       ),
     })
   }
+  // (S-14b, 2026-08-10) โควตาหมด "แบบรู้ล่วงหน้า" — ต่างจากตัวถัดไปตรงที่มาของความรู้:
+  // ตัวนี้มาจากค่าที่อ่านจาก LINE โดยตรง (อายุ ≤5 นาที) และผ่านด่านเดียวกับที่ฝั่ง server ใช้ปฏิเสธ
+  // จึงกล้าปิดช่องพิมพ์ (composerDisabled) — ไม่ใช่การเดาแทนผู้ใช้ แต่คือการไม่เชิญให้กดสิ่งที่ถูก
+  // ปฏิเสธแน่นอน 100% (TFR-LINE-06 ข้อ 5)
+  if (isExternal && lineQuotaCaption?.blocking) {
+    threadStatuses.push({
+      key: 'quotaBlocked',
+      tone: 'danger',
+      icon: 'lock',
+      short: 'โควตาข้อความหมดแล้ว — ส่งไม่ได้ตอนนี้',
+      action: (
+        <a
+          href="https://manager.line.biz/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold underline"
+        >
+          เปิด LINE OA Manager
+          <Icon icon="external-link" className="text-sm" />
+        </a>
+      ),
+      detail: (
+        <div className="bg-danger/15 text-danger-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <Icon icon="lock" className="mt-0.5 shrink-0 text-lg" />
+          <span>
+            โควตาข้อความ LINE ของเดือนนี้หมดแล้ว ส่งผลกับข้อความทุกห้องของช่องทางนี้ — ยังตอบได้ฟรีถ้าลูกค้าเพิ่งทักมาไม่เกิน
+            1 นาที นอกเหนือจากนั้นมี 3 ทาง: รอรอบเดือนถัดไปเริ่ม · อัปเกรดแพ็กเกจกับ LINE · หรือตอบผ่านแอป{' '}
+            <a
+              href="https://manager.line.biz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold underline"
+            >
+              LINE Official Account Manager
+            </a>{' '}
+            ได้ทันทีโดยไม่นับโควตานี้
+          </span>
+        </div>
+      ),
+    })
+  }
   // (2026-08-10) LINE โควตาข้อความรายเดือนหมด — session-scoped (ดู comment ที่ useSellerChatThread
-  // ::quotaExceeded) ไม่มี line-quota.service ให้เช็คล่วงหน้า รู้ได้ก็ต่อเมื่อยิงจริงแล้วโดนปฏิเสธ
-  // เท่านั้น ช่องพิมพ์ไม่ถูก dim (ต่างจาก tokenInvalid) เพราะยังคุยกับลูกค้าได้ปกติผ่านแอป LINE OA
-  // Manager และโควตาอาจรีเซ็ตแล้วโดยเราไม่รู้ — ปิดช่องพิมพ์ทั้งที่ยิงได้จริงเสียหายกว่า
-  if (isExternal && channel === 'LINE' && quotaExceeded) {
+  // ::quotaExceeded) เป็นตาข่ายชั้นในสุด: รู้จากการ "ยิงจริงแล้วโดนปฏิเสธ" ซึ่งยังเกิดได้แม้ค่าที่
+  // อ่านล่วงหน้าบอกว่ายังเหลือ (cache อายุได้ถึง 5 นาที) ช่องพิมพ์ไม่ถูก dim ด้วยตัวนี้ (ต่างจาก
+  // ตัวข้างบน) เพราะค่านี้ค้างทั้ง session ข้ามวันข้ามเดือนได้ — โควตาอาจรีเซ็ตแล้วโดยเราไม่รู้
+  //
+  // 🛑 ไม่ขึ้นพร้อมกับ 'quotaBlocked' ข้างบน — สองแถบพูดเรื่องเดียวกันคนละน้ำเสียงบนจอเดียว
+  // ทำให้ผู้ขายไม่รู้ว่าอันไหนจริง (ตัวข้างบนแม่นกว่าเพราะมีตัวเลขจาก LINE ประกอบ)
+  if (isExternal && channel === 'LINE' && quotaExceeded && !lineQuotaCaption?.blocking) {
     threadStatuses.push({
       key: 'quota',
       tone: 'warning',
@@ -1525,7 +1676,12 @@ export default function ChatThread({
   // ซึ่งเป็นข้อมูลที่ถูกต้องแต่ผู้ขายไม่ได้ต้องรู้ "ก่อน" ทำอะไร: ตอนอ่านยังกดส่งได้ตามปกติ และ
   // ถ้าส่งไม่ผ่านจริงจะมีเหตุผลขึ้นใต้บับเบิลนั้นอยู่แล้ว (chat-send-failure.ts) — คำเตือนที่มา
   // ก่อนโดยที่ยังไม่มีอะไรให้ทำ คือ noise ที่กินพื้นที่หัวเธรดทุกครั้งที่เปิด
-  const suppressWindowStatus = isCommentReplyThread && neverInbound
+  //
+  // 🛑 (S-14b) เธรด LINE ไม่เข้าแถบนี้เลย — ข้อความข้างในพูดถึงหน้าต่าง 24 ชั่วโมงของ Meta (มีคำว่า
+  // "Meta" อยู่ในนั้นตรง ๆ) ซึ่งไม่ใช่กติกาของ LINE. หน้าต่างฟรีของ LINE ยาว 60 วินาที = ปิดเกือบ
+  // ตลอดเวลา แบนเนอร์ถาวรที่บอกเรื่องนั้นจึงเป็นเสียงรบกวนที่ไม่มีอะไรให้ทำต่อ — สถานะฟรี/เสียโควตา
+  // ของ LINE สื่อผ่านแคปชันข้างปุ่มส่งที่เดียว (ติดกับปุ่มที่กำลังจะกด)
+  const suppressWindowStatus = (isCommentReplyThread && neverInbound) || channel === 'LINE'
   if (isExternal && !tokenInvalid && !liveWindowOpen && !suppressWindowStatus) {
     // แยก 2 เคสที่เหลือ (user report 2026-07-24 / 2026-07-31):
     //   1. ลูกค้ายังไม่เคยทักเลย (เธรดมาจากทางอื่น)
@@ -1689,7 +1845,10 @@ export default function ChatThread({
             เฉพาะ tier นี้เท่านั้นที่ย้ายขึ้นมา — tier "ส่งไม่ได้แล้ว"/token เสีย ยังเป็นแถบเต็ม
             ด้านล่างเหมือนเดิม เพราะข้อความยาวและมีลิงก์ให้กด ย่อลงมาบรรทัดเดียวไม่ได้
             ms-auto ตัวแรกกินที่ว่างทั้งหมด → ปุ่มถัดไปที่มี ms-auto อยู่แล้วไม่ขยับตำแหน่ง */}
-        {isExternal && !tokenInvalid && liveWindowOpen && liveRemaining <= FOUR_HOURS_MS && (
+        {/* 🛑 (S-14b) กัน LINE ออกจากป้ายนี้: หน้าต่างฟรีของ LINE ยาว 60 วินาที ซึ่งน้อยกว่า 4 ชม.
+            เสมอ ป้ายนี้จึงจะติดค้างนับถอยหลังทุกวินาทีในทุกเธรด LINE ที่หน้าต่างเปิด — ขัด
+            BRD AC-005-05 ที่สั่งว่าสถานะหน้าต่างฟรีเป็น "ข้อมูล ไม่ใช่การนับถอยหลัง" ตรง ๆ */}
+        {isExternal && channel !== 'LINE' && !tokenInvalid && liveWindowOpen && liveRemaining <= FOUR_HOURS_MS && (
           <span
             className="text-warning ms-auto flex shrink-0 items-center gap-1.5 text-sm"
             title={`ใกล้หมดเวลาตอบ — เหลือ ${formatCountdown(liveRemaining)}`}
@@ -3074,7 +3233,17 @@ export default function ChatThread({
               // ไม่งั้นช่องไม่หดกลับตอนลบข้อความ) — จึงไม่มี style prop / ไม่มี min-h ที่นี่
               ref={composerRef}
               className="block w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm outline-none focus:ring-0"
-              placeholder={composerDisabled ? 'ส่งข้อความไม่ได้ในตอนนี้' : pendingImages.length > 0 ? 'เพิ่มคำบรรยาย (ไม่บังคับ)' : 'พิมพ์ข้อความ หรือวางไฟล์ที่นี่...'}
+              // (S-14b) ปิดเพราะโควตา ≠ ปิดเพราะการเชื่อมต่อพัง — ทางแก้คนละเรื่องกันคนละคน
+              // ทำ ("รอรอบเดือน/ตอบในแอป LINE" vs "ไปเชื่อมช่องทางใหม่") ข้อความเดียวจึงบอกไม่ได้
+              placeholder={
+                composerDisabled
+                  ? lineQuotaCaption?.blocking && !tokenInvalid
+                    ? 'โควตาข้อความหมดแล้ว ส่งไม่ได้ตอนนี้'
+                    : 'ส่งข้อความไม่ได้ในตอนนี้'
+                  : pendingImages.length > 0
+                    ? 'เพิ่มคำบรรยาย (ไม่บังคับ)'
+                    : 'พิมพ์ข้อความ หรือวางไฟล์ที่นี่...'
+              }
               value={text}
               onChange={(e) => setText(e.target.value)}
               onPaste={handlePaste} // วางรูปจากคลิปบอร์ด (screenshot/Line/Ctrl+C) → แนบเลย (user 2026-07-25)
@@ -3104,7 +3273,25 @@ export default function ChatThread({
                 และต้องเป็นพี่น้องของ textarea ในกล่องนี้ ไม่ใช่ห่อ textarea เพิ่มอีกชั้น —
                 useComposerHeight ใช้ `textarea.parentElement` เป็น "กล่องนอก" ทั้งตอนล็อก
                 ความสูงระหว่างวัด (กันเธรดเด้งบน iOS) และตอน observe การโผล่/หายของคิวรูปแนบ */}
-            <div className="flex justify-end px-2 pb-2">
+            {/* (S-14b) แคปชันโควตา/หน้าต่างฟรีของ LINE อยู่แถวเดียวกับปุ่มส่ง — ตำแหน่งที่ตอบโจทย์
+                "เห็นก่อนกดส่ง" ตรงที่สุดโดยไม่เพิ่ม chrome ถาวรให้หัวเธรดที่แน่นอยู่แล้ว
+                non-LINE ได้ className เดิมทุกตัวอักษร (lineQuotaCaption เป็น null เสมอ) */}
+            <div
+              className={
+                lineQuotaCaption ? 'flex items-center justify-between gap-2 px-2 pb-2' : 'flex justify-end px-2 pb-2'
+              }
+            >
+              {lineQuotaCaption && (
+                <span
+                  className={`min-w-0 flex-1 truncate text-xs ${QUOTA_TONE_CLASS[lineQuotaCaption.tone]}`}
+                  // ข้อความย่อ/เต็มเป็นคนละสตริง (ไม่ใช่ truncate ของอันเดียว) — จอแคบต้องได้ประโยคที่
+                  // อ่านจบในตัว ไม่ใช่ประโยคยาวที่ถูกตัดหางจนไม่รู้ว่าเหลือเท่าไหร่
+                  title={lineQuotaCaption.fullText}
+                >
+                  <span className="sm:hidden">{lineQuotaCaption.shortText}</span>
+                  <span className="hidden sm:inline">{lineQuotaCaption.fullText}</span>
+                </span>
+              )}
               <button
                 type="button"
                 onClick={handleSend}
