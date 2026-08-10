@@ -91,6 +91,15 @@ export type CommentReplyLogRow = {
   publicReplyStatus: string | null
   privateReplyStatus: string | null
   skipReasonText: string | null
+  /**
+   * เหตุผลของสถานะ FAILED (แปลไทยแล้วที่ชั้น server — `describeCommentReplyFailure`)
+   *
+   * 🛑 `CommentReplyLog.errorMessage` เป็น **คอลัมน์เดียว** ที่ทั้งฝั่ง "ตอบใต้คอมเมนต์" และ
+   * "ทักแชท" เขียนร่วมกัน และฝั่งทักแชทเขียนทีหลังเสมอ (ดู comment-auto-reply.service.ts)
+   * ⇒ เมื่อทั้งคู่ FAILED ข้อความที่รอดคือของ "ทักแชท" — UI จึงต้องแปะเหตุผลกับใบที่ทักแชท
+   * ไม่ใช่แปะซ้ำทั้งสองช่อง (จะกลายเป็นการอ้างว่ารู้เหตุผลของฝั่งที่ไม่ได้เก็บไว้จริง)
+   */
+  failReasonText: string | null
   conversationId: string | null
 }
 
@@ -391,6 +400,7 @@ function ReplyStatusBadge({
   status,
   conversationId,
   skipReasonText,
+  failReasonText,
   revealSkipReason = false,
   hideLink = false,
 }: {
@@ -398,6 +408,16 @@ function ReplyStatusBadge({
   status: string | null
   conversationId: string | null
   skipReasonText: string | null
+  /**
+   * เหตุผลที่ FAILED — แสดง **ใต้ป้ายเสมอ ไม่ซ่อนใน `title`** (user สั่ง 2026-08-09
+   * "อยากให้แสดงรายละเอียดเลย ว่าไม่สำเร็จเพราะอะไร")
+   *
+   * ต่างจาก `skipReasonText` ที่ยังอยู่ใน `title` บนเดสก์ท็อป โดยตั้งใจ: "ข้าม" คือระบบตัดสินใจ
+   * ถูกต้องแล้วตามกฎ (ข้อมูลประกอบ) ส่วน "ไม่สำเร็จ" คือมีบางอย่างพัง ซึ่งร้านต้องรู้ทันทีว่า
+   * แก้ได้เองไหม — และ `title=` บนมือถือไม่มี hover ให้อ่านอยู่แล้ว
+   * (docs/conventions/aria-name-requires-supporting-role.md: title ไม่ใช่ตัวแทนของข้อความจริง)
+   */
+  failReasonText: string | null
   /** `title="..."` ไม่ทำงานบนทัชสกรีน (ไม่มี hover) — mobileCard ส่ง true เพื่อ render เหตุผลที่
       "ข้าม" เป็นข้อความเล็กมองเห็นได้จริงใต้ badge แทน ส่วนตาราง desktop มีเมาส์ hover ได้อยู่แล้ว
       จึงปล่อย default false คง title ไว้เหมือนเดิม ไม่ต้องเปลืองพื้นที่ตาราง */
@@ -410,6 +430,9 @@ function ReplyStatusBadge({
   if (!status) return <span className="text-default-300 text-xs">—</span>
   const meta = REPLY_STATUS_META[status] ?? REPLY_STATUS_META.SKIPPED
   const showReasonText = revealSkipReason && status === 'SKIPPED' && Boolean(skipReasonText)
+  // เหตุผลของ FAILED แปะกับฝั่ง "ทักแชท" เท่านั้น — errorMessage เป็นคอลัมน์เดียวที่ฝั่งนั้นเขียน
+  // ทีหลังเสมอ การเอาไปแปะฝั่ง "ตอบใต้คอมเมนต์" ด้วยคือการอ้างว่ารู้เหตุผลที่ไม่ได้ถูกเก็บไว้จริง
+  const showFailReason = status === 'FAILED' && kind === 'private' && Boolean(failReasonText)
   return (
     <span className="inline-flex flex-col items-start gap-0.5">
       <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -423,6 +446,9 @@ function ReplyStatusBadge({
         )}
       </span>
       {showReasonText && <span className="text-default-500 text-2xs">{skipReasonText}</span>}
+      {/* ข้อความเหตุผลไม่ตัดสั้น — ตัดแล้วร้านต้องไปหาต่ออีกที่ ซึ่งคือปัญหาเดิมที่กำลังแก้อยู่
+          ใช้ text-danger-ink ไม่ใช่ text-danger เปล่า ๆ (คู่สี soft ที่ตกคอนทราสต์ — ui-guideline §6) */}
+      {showFailReason && <span className="text-danger-ink text-2xs max-w-56 text-pretty">{failReasonText}</span>}
     </span>
   )
 }
@@ -475,7 +501,11 @@ function statusBlockHtml(kind: 'public' | 'private', log: CommentReplyLogRow): s
   const reasonHtml =
     status === 'SKIPPED' && log.skipReasonText
       ? `<p class="text-default-500 mt-1 text-xs">${escapeHtml(log.skipReasonText)}</p>`
-      : ''
+      : // เหตุผลของ FAILED — เงื่อนไขเดียวกับ ReplyStatusBadge เป๊ะ (เฉพาะฝั่ง private เพราะ
+        // errorMessage เป็นคอลัมน์เดียวที่ฝั่งนั้นเขียนทีหลังเสมอ) โมดัลกับตารางต้องพูดตรงกัน
+        status === 'FAILED' && kind === 'private' && log.failReasonText
+        ? `<p class="text-danger-ink mt-1 text-xs">${escapeHtml(log.failReasonText)}</p>`
+        : ''
   return `<span class="badge text-2xs ${meta.className}">${meta.label}</span>${linkHtml}${reasonHtml}`
 }
 
@@ -606,7 +636,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
         id: 'publicStatus',
         header: 'ตอบใต้คอมเมนต์',
         cell: ({ row }) => (
-          <ReplyStatusBadge kind="public" status={row.original.publicReplyStatus} conversationId={null} skipReasonText={row.original.skipReasonText} />
+          <ReplyStatusBadge kind="public" status={row.original.publicReplyStatus} conversationId={null} skipReasonText={row.original.skipReasonText} failReasonText={row.original.failReasonText} />
         ),
       }),
       logColumnHelper.display({
@@ -618,6 +648,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
             status={row.original.privateReplyStatus}
             conversationId={row.original.conversationId}
             skipReasonText={row.original.skipReasonText}
+            failReasonText={row.original.failReasonText}
           />
         ),
       }),
@@ -748,6 +779,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
                         status={log.publicReplyStatus}
                         conversationId={null}
                         skipReasonText={log.skipReasonText}
+                        failReasonText={log.failReasonText}
                         revealSkipReason
                         hideLink
                       />
@@ -756,6 +788,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
                         status={log.privateReplyStatus}
                         conversationId={log.conversationId}
                         skipReasonText={log.skipReasonText}
+                        failReasonText={log.failReasonText}
                         revealSkipReason
                         hideLink
                       />

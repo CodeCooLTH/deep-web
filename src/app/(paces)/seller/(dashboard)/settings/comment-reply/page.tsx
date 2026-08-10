@@ -34,29 +34,16 @@ import { prisma } from '@/lib/prisma'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 import CommentReplyClient, { type CommentReplyChannel, type CommentReplyLogRow } from './CommentReplyClient'
+// 🛑 คำอธิบายเหตุผลทั้งสองชุดอยู่ที่ lib ที่เดียว — เดิมตาราง skipReason ถูกก็อปไว้ในไฟล์นี้
+// พร้อมคอมเมนต์ว่า "แก้ที่หนึ่งต้องแก้อีกไฟล์ด้วย" ซึ่งกันอะไรไม่ได้เลย (หน้าแรกมาจากไฟล์นี้
+// หน้าถัดไปมาจาก logs/route.ts — ผู้ใช้เลื่อนหน้าเดียวก็เห็นคำคนละชุดได้โดยไม่มีอะไรฟ้อง)
+import { describeCommentReplyFailure, describeSkipReason } from '@/lib/comment-reply-reason'
 
 export const metadata: Metadata = { title: 'ตอบกลับคอมเมนต์' }
 
 /** ต้องตรงกับ DEFAULT_PAGE_SIZE ใน CommentReplyClient.tsx (ตัวเลือกจำนวนต่อหน้าเริ่มต้นของตาราง) */
 const LOGS_PAGE_SIZE = 10
 
-/**
- * ข้อความไทยของ skipReason — มิเรอร์ SKIP_REASON_TEXT ใน
- * src/app/api/shops/comment-reply/logs/route.ts (SSOT จริงของ mapping นี้ — ดู DATABASE.md §3.4)
- * ต้องซ้ำที่นี่เพราะหน้านี้ query prisma ตรงแทนการ self-fetch API ของตัวเอง (ดู comment หัวไฟล์)
- * — แก้ค่าใดค่าหนึ่งต้องแก้อีกไฟล์ด้วยเสมอ
- */
-const SKIP_REASON_TEXT: Record<string, string> = {
-  FROM_PAGE: 'คอมเมนต์ของเพจเอง',
-  NOT_TOP_LEVEL: 'เป็นการตอบซ้อน ไม่ใช่คอมเมนต์หลัก',
-  COMMENT_DELETED: 'คอมเมนต์ถูกลบไปแล้ว',
-  NO_SENDER_ID: 'ไม่พบผู้คอมเมนต์',
-  CHANNEL_INACTIVE: 'เพจยังไม่ได้เชื่อมต่อ',
-  DISABLED: 'ปิดการตอบกลับอัตโนมัติไว้ หรือยังไม่ได้กรอกข้อความ',
-  ALREADY_HANDLED: 'เคยตอบอัตโนมัติคนนี้บนโพสต์นี้ไปแล้ว',
-  HUMAN_ANSWERED: 'มีคนในทีมตอบคอมเมนต์นี้ไปแล้ว',
-  WINDOW_EXPIRED: 'เกิน 7 วันนับจากเวลาคอมเมนต์',
-}
 
 const BREADCRUMB_TRAIL = [{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ตอบกลับคอมเมนต์' }]
 
@@ -135,6 +122,8 @@ export default async function CommentReplySettingsPage() {
         publicReplyStatus: true,
         privateReplyStatus: true,
         skipReason: true,
+        // ต้อง select มาด้วย ไม่งั้น describeCommentReplyFailure ได้ undefined ทุกแถวเงียบ ๆ
+        errorMessage: true,
         conversationId: true,
         comment: { select: { fromName: true } },
         post: { select: { message: true } },
@@ -150,7 +139,9 @@ export default async function CommentReplySettingsPage() {
     trigger: r.trigger,
     publicReplyStatus: r.publicReplyStatus,
     privateReplyStatus: r.privateReplyStatus,
-    skipReasonText: r.skipReason ? (SKIP_REASON_TEXT[r.skipReason] ?? r.skipReason) : null,
+    skipReasonText: describeSkipReason(r.skipReason),
+    // user 2026-08-09: ป้าย "ไม่สำเร็จ" ต้องบอกได้ว่าเพราะอะไร ไม่ใช่ทางตัน
+    failReasonText: describeCommentReplyFailure(r.errorMessage),
     conversationId: r.conversationId,
   }))
 

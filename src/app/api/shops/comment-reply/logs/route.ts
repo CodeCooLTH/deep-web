@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveActiveShopContext } from "@/lib/shop-context";
 import { CommentReplyLogsQuerySchema } from "@/lib/validations";
 import { logStatusWhere, parseLogStatusFilter } from "@/lib/comment-reply-log-status";
+import { describeCommentReplyFailure, describeSkipReason } from "@/lib/comment-reply-reason";
 
 /**
  * GET /api/shops/comment-reply/logs — ประวัติการตอบ/ข้ามคอมเมนต์ (feature 00038) — API.md §4.3
@@ -31,17 +32,6 @@ function truncatePostMessage(message: string | null): string | null {
 }
 
 /** ข้อความไทยของ skipReason — SSOT เดียวของ endpoint นี้ (ค่าทั้งหมดดู DATABASE.md §3.4) */
-const SKIP_REASON_TEXT: Record<string, string> = {
-  FROM_PAGE: "คอมเมนต์ของเพจเอง",
-  NOT_TOP_LEVEL: "เป็นการตอบซ้อน ไม่ใช่คอมเมนต์หลัก",
-  COMMENT_DELETED: "คอมเมนต์ถูกลบไปแล้ว",
-  NO_SENDER_ID: "ไม่พบผู้คอมเมนต์",
-  CHANNEL_INACTIVE: "เพจยังไม่ได้เชื่อมต่อ",
-  DISABLED: "ปิดการตอบกลับอัตโนมัติไว้ หรือยังไม่ได้กรอกข้อความ",
-  ALREADY_HANDLED: "เคยตอบอัตโนมัติคนนี้บนโพสต์นี้ไปแล้ว",
-  HUMAN_ANSWERED: "มีคนในทีมตอบคอมเมนต์นี้ไปแล้ว",
-  WINDOW_EXPIRED: "เกิน 7 วันนับจากเวลาคอมเมนต์",
-};
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -116,6 +106,8 @@ export async function GET(request: NextRequest) {
         publicReplyStatus: true,
         privateReplyStatus: true,
         skipReason: true,
+        // ต้อง select มาด้วย ไม่งั้น describeCommentReplyFailure ได้ undefined ทุกแถวเงียบ ๆ
+        errorMessage: true,
         conversationId: true,
         comment: { select: { fromName: true } },
         post: { select: { message: true } },
@@ -134,7 +126,9 @@ export async function GET(request: NextRequest) {
         trigger: r.trigger,
         publicReplyStatus: r.publicReplyStatus,
         privateReplyStatus: r.privateReplyStatus,
-        skipReasonText: r.skipReason ? (SKIP_REASON_TEXT[r.skipReason] ?? r.skipReason) : null,
+        skipReasonText: describeSkipReason(r.skipReason),
+        // user 2026-08-09: ป้าย "ไม่สำเร็จ" ต้องบอกได้ว่าเพราะอะไร ไม่ใช่ทางตัน
+        failReasonText: describeCommentReplyFailure(r.errorMessage),
         conversationId: r.conversationId,
       })),
       total,
