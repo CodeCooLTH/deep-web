@@ -65,6 +65,19 @@ export default function SignInForm() {
     defaultValues: { username: '', password: '' },
   })
 
+  /**
+   * Sign in with Apple — App Store Guideline 4.8 (rejection 2026-08-04)
+   *
+   * Apple บังคับว่าถ้ามีล็อกอินของเจ้าอื่น (Facebook/LINE) ต้องมีตัวเลือกที่เก็บข้อมูลแค่ชื่อ+อีเมล
+   * และให้ผู้ใช้ซ่อนอีเมลจริงได้ ให้เลือกด้วย — ไม่มี = ตีกลับทั้ง build
+   *
+   * ชี้ตรงปลายทางเหมือน Facebook (ไม่ผ่านหน้า loading กลาง) — Apple ส่งกลับแบบ form_post
+   * ซึ่งผ่าน callback ของ NextAuth ที่ตั้ง session cookie ให้ก่อน redirect อยู่แล้ว
+   */
+  const handleApple = async () => {
+    await signIn('apple', { callbackUrl })
+  }
+
   const handleFacebook = async () => {
     // ชี้ตรงปลายทาง (ไม่ผ่านหน้า loading กลาง /auth/callback/facebook) เพื่อลด redirect chain
     // — NextAuth set session cookie ก่อน 302, proxy อ่าน JWT เด้ง onboarding/register ถูกอยู่แล้ว.
@@ -106,6 +119,26 @@ export default function SignInForm() {
     <>
       {/* กลุ่มปุ่ม Social Login — stack แนวตั้ง */}
       <div className="flex flex-col gap-3">
+        {/* ปุ่ม Sign in with Apple — วางบนสุดของกลุ่ม
+            🛑 Apple บังคับให้อยู่ "ระดับเดียวกัน" กับล็อกอินเจ้าอื่น (Guideline 4.8) ห้ามซ่อนไว้
+            หลังลิงก์ "ตัวเลือกอื่น" หรือทำให้เล็กกว่าปุ่มอื่น — วางบนสุดจึงชัดเจนที่สุดว่าไม่ได้ลดชั้น
+            โลโก้ Apple ต้องเป็นสีดำบนพื้นขาวตาม Human Interface Guidelines (brand asset —
+            carve-out จาก Paces token ตาม Hard Rule 6 เหมือน Facebook/LINE ด้านล่าง) */}
+        <button
+          type="button"
+          onClick={handleApple}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+        >
+          <BxIcon
+            icon="bxl:apple"
+            width={18}
+            height={18}
+            className="me-2 flex-shrink-0"
+            style={{ color: '#000000' }} // brand asset Apple — carve-out จาก Paces token (Hard Rule 6)
+          />
+          เข้าสู่ระบบด้วย Apple
+        </button>
+
         {/* ปุ่ม Facebook OAuth */}
         <button
           type="button"

@@ -92,6 +92,16 @@ export default function InviteLandingClient({
 
   const callbackUrl = `/i/${slug}`
 
+  /**
+   * Sign in with Apple — App Store Guideline 4.8 (rejection 2026-08-04)
+   *
+   * ต้องมีที่นี่ด้วย ไม่ใช่เฉพาะหน้าล็อกอินหลัก: หน้ารับคำเชิญเป็น "ทางเข้าระบบ" อีกทางหนึ่งที่มี
+   * ปุ่ม Facebook/LINE อยู่ — กฎ 4.8 ผูกกับ "ทุกที่ที่ให้ล็อกอินด้วยเจ้าอื่น" ไม่ใช่หน้าใดหน้าหนึ่ง
+   */
+  const handleApple = async () => {
+    await signIn('apple', { callbackUrl })
+  }
+
   const handleFacebook = async () => {
     await signIn('facebook', { callbackUrl })
   }
@@ -206,6 +216,22 @@ export default function InviteLandingClient({
 
       {/* กลุ่มปุ่มเข้าสู่ระบบ — stack แนวตั้ง (copy จาก SignInForm.tsx) */}
       <div className="flex flex-col gap-3">
+        {/* Apple อยู่บนสุด — Guideline 4.8 บังคับให้อยู่ระดับเดียวกับล็อกอินเจ้าอื่น ห้ามลดชั้น */}
+        <button
+          type="button"
+          onClick={handleApple}
+          className="btn border border-default-300 text-default-900 hover:border-default-400 hover:bg-default-50 w-full"
+        >
+          <BxIcon
+            icon="bxl:apple"
+            width={18}
+            height={18}
+            className="me-2 flex-shrink-0"
+            style={{ color: '#000000' }} // brand asset Apple — carve-out จาก Paces token (Hard Rule 6)
+          />
+          เข้าสู่ระบบด้วย Apple
+        </button>
+
         <button
           type="button"
           onClick={handleFacebook}

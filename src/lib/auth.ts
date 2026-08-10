@@ -2,6 +2,7 @@ import { NextAuthOptions, Account, User } from "next-auth";
 import FacebookProvider from "next-auth/providers/facebook";
 import LineProvider from "next-auth/providers/line";
 import InstagramProvider from "next-auth/providers/instagram";
+import AppleProvider from "next-auth/providers/apple";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { evaluateSignupYearBadge } from "@/services/badge.service";
@@ -14,6 +15,7 @@ import { resolveOnboardingGate } from "@/lib/onboarding-gate";
 // (phone-otp / seller / buyer / admin credentials / mobile-ticket / OAuth) พลาดทางเดียว
 // = บัญชีที่ผู้ใช้สั่งลบยังกลับเข้ามาได้ ซึ่งผิดข้อกำหนดของ Apple ตรง ๆ
 import { isDeletedUser } from "@/lib/account-deletion";
+import { createAppleClientSecret, isApplePrivateRelayEmail } from "@/lib/apple-client-secret";
 
 // Rate-limit store สำหรับ admin login — singleton pattern เหมือน otp.ts
 // ป้องกัน Next.js สร้าง instance ใหม่ต่อ module load ใน multi-route environment
@@ -34,7 +36,7 @@ const PHONE_OTP_CLAIM_SKIP_WINDOW_MS = 5 * 60 * 1000;
 async function upsertOAuthUser(
   account: Account,
   user: User | undefined,
-  providerEnum: "FACEBOOK" | "LINE" | "INSTAGRAM",
+  providerEnum: "FACEBOOK" | "LINE" | "INSTAGRAM" | "APPLE",
   usernamePrefix: string,
   linkEmail: boolean,
 ): Promise<string> {
@@ -102,7 +104,78 @@ async function upsertOAuthUser(
   return dbUser.id;
 }
 
+/**
+ * appleProvider — Sign in with Apple (App Store Guideline 4.8, rejection 2026-08-04)
+ *
+ * คืนเป็น array เพื่อให้ spread ลงรายการ providers ได้ — **ตั้งค่าไม่ครบ = ไม่เปิด provider เลย**
+ * ไม่ใช่เปิดแล้วปล่อยให้พังตอนกด (ต่างจาก FB/LINE ที่ใส่ `|| ""` ไว้) เพราะปุ่ม Apple ที่กดแล้ว
+ * เด้ง error คือสิ่งที่คนตรวจของ Apple จะเจอเป็นอย่างแรก แล้วตีกลับด้วยเหตุผลที่แย่กว่าเดิม
+ *
+ * clientId = **Services ID** (`com.deepthailand.seller.web`) ไม่ใช่ bundle id ของแอป —
+ * เป็นจุดที่สลับกันบ่อยที่สุด และ Apple ตอบแค่ `invalid_client` โดยไม่บอกว่าอะไรผิด
+ */
+function appleProvider() {
+  const clientId = process.env.APPLE_CLIENT_ID;
+  const teamId = process.env.APPLE_TEAM_ID;
+  const keyId = process.env.APPLE_KEY_ID;
+  const privateKey = process.env.APPLE_PRIVATE_KEY;
+  if (!clientId || !teamId || !keyId || !privateKey) return [];
+
+  try {
+    return [
+      AppleProvider({
+        clientId,
+        clientSecret: createAppleClientSecret({ clientId, teamId, keyId, privateKey }),
+      }),
+    ];
+  } catch (e) {
+    // คีย์เสีย/รูปแบบผิด — ดังไว้ใน log แต่ไม่ล้มทั้งระบบ auth (FB/LINE/รหัสผ่าน ต้องใช้ได้ต่อ)
+    console.error("[auth] เปิด Sign in with Apple ไม่ได้ — ตรวจ APPLE_PRIVATE_KEY", e);
+    return [];
+  }
+}
+
+/**
+ * คุกกี้ระหว่างขั้นตอน OAuth — ต้องเป็น SameSite=None เพราะ Apple ส่งกลับแบบ POST ข้ามเว็บ
+ *
+ * 🛑 ถ้าไม่แก้ ล็อกอิน Apple **พังทุกครั้ง** โดยไม่มีอะไรบอกสาเหตุ:
+ * Apple ใช้ `response_mode=form_post` (ดู next-auth/providers/apple) = ยิง POST จาก
+ * appleid.apple.com มาที่ callback ของเรา ซึ่งเป็น cross-site request — เบราว์เซอร์จะ
+ * **ไม่แนบคุกกี้ SameSite=Lax** ที่ next-auth ตั้งไว้เป็น default ทุกตัว ผลคือ code_verifier
+ * หายไป NextAuth จึงตอบ error `OAuthCallback` ทั้งที่ทุกอย่างฝั่ง Apple ถูกหมด
+ * (next-auth v4 ไม่มีการจัดการพิเศษให้ Apple — ตรวจแล้วใน core/lib/cookie.js ตั้ง lax ล้วน)
+ *
+ * ทับเฉพาะ 3 ตัวที่ใช้ "ระหว่างเดินทาง" ของ OAuth (อายุ 15 นาที ใช้ครั้งเดียวทิ้ง) —
+ * **ไม่แตะคุกกี้ session** ซึ่งยังเป็น SameSite=Lax ตามเดิม ความปลอดภัยของ session จึงไม่ลดลง
+ *
+ * เฉพาะ production: SameSite=None บังคับต้องมี Secure ซึ่งต้องเป็น https — dev รันบน
+ * http://seller.deepth.local จึงตั้งไม่ได้ (และ Apple ไม่รับ http อยู่แล้ว เทสได้บน prod เท่านั้น
+ * เหมือน Facebook login ที่โปรเจกต์นี้บันทึกไว้ตั้งแต่ 2026-06-17)
+ */
+const OAUTH_FLOW_COOKIE_MAX_AGE = 60 * 15;
+function crossSiteOAuthCookies(): NextAuthOptions["cookies"] {
+  if (process.env.NODE_ENV !== "production") return undefined;
+  const options = {
+    httpOnly: true,
+    sameSite: "none" as const,
+    path: "/",
+    secure: true,
+  };
+  return {
+    pkceCodeVerifier: {
+      name: "__Secure-next-auth.pkce.code_verifier",
+      options: { ...options, maxAge: OAUTH_FLOW_COOKIE_MAX_AGE },
+    },
+    state: {
+      name: "__Secure-next-auth.state",
+      options: { ...options, maxAge: OAUTH_FLOW_COOKIE_MAX_AGE },
+    },
+    nonce: { name: "__Secure-next-auth.nonce", options },
+  };
+}
+
 export const authOptions: NextAuthOptions = {
+  cookies: crossSiteOAuthCookies(),
   providers: [
     FacebookProvider({
       clientId: process.env.FACEBOOK_ID || "",
@@ -125,6 +198,7 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.LINE_CHANNEL_ID || "",
       clientSecret: process.env.LINE_CHANNEL_SECRET || "",
     }),
+    ...appleProvider(),
     // FR-LO-15: Instagram OAuth — เตรียมโค้ดไว้ ปิด flag (ติด Meta Business Verification เหมือน FB)
     // ใช้งานจริงได้เมื่อผ่าน App Review + business verification แล้ว
     // คำเตือน security R2: flag NEXT_PUBLIC_ENABLE_IG_LOGIN คุมแค่การ "render ปุ่ม" เท่านั้น —
@@ -483,13 +557,14 @@ export const authOptions: NextAuthOptions = {
      */
     async signIn({ account }) {
       // ไม่ใช่ OAuth provider → login ปกติ (Credentials provider ไม่ใช้ link flow)
-      if (!account || !["facebook", "line", "instagram"].includes(account.provider)) return true;
+      if (!account || !["facebook", "line", "instagram", "apple"].includes(account.provider)) return true;
 
       // oauthMap เหมือน jwt callback — ใช้ตรวจ provider ที่รองรับ linking
       const oauthMap = {
         facebook: "FACEBOOK",
         line: "LINE",
         instagram: "INSTAGRAM",
+        apple: "APPLE",
       } as const;
       type OAuthProvider = keyof typeof oauthMap;
       if (!(account.provider in oauthMap)) return true;
@@ -623,10 +698,21 @@ export const authOptions: NextAuthOptions = {
         facebook: ["FACEBOOK", "fb", true],
         line: ["LINE", "line", false],
         instagram: ["INSTAGRAM", "ig", false],
+        // Apple: อีเมล verified จริง (Apple ยืนยันให้) จึง trust ได้ — แต่ต้องผ่านด่าน relay ด้านล่างก่อน
+        apple: ["APPLE", "apple", true],
       } as const;
       if (account && account.provider in oauthMap) {
         const [providerEnum, prefix, linkEmail] = oauthMap[account.provider as keyof typeof oauthMap];
-        token.userId = await upsertOAuthUser(account, user, providerEnum, prefix, linkEmail);
+        /**
+         * 🛑 อีเมลซ่อนของ Apple (`…@privaterelay.appleid.com`) ห้ามใช้จับคู่ประวัติลูกค้าเก่า
+         *
+         * มันไม่ใช่อีเมลจริงของผู้ใช้ และเป็นคนละค่ากันในแต่ละแอป — เก็บเป็น User.email แล้ว
+         * ระบบจะเชื่อว่าติดต่อเขาได้ทั้งที่เขากดตัดการส่งต่อทิ้งเมื่อไหร่ก็ได้ และหน้าโปรไฟล์จะโชว์
+         * อีเมลที่เจ้าตัวเองไม่รู้จัก. isApplePrivateRelayEmail คืน false ให้ provider อื่นเสมอ
+         * บรรทัดนี้จึงไม่กระทบ FB/LINE/IG
+         */
+        const trustEmail = linkEmail && !isApplePrivateRelayEmail(user?.email);
+        token.userId = await upsertOAuthUser(account, user, providerEnum, prefix, trustEmail);
       }
       // เก็บ needsOnboarding ลง JWT ให้ proxy บังคับ redirect ได้ที่ edge — คำนวณเฉพาะตอน
       // sign-in (user/account) หรือ session.update() ไม่ใช่ทุก getToken (กัน query DB ทุก request)
