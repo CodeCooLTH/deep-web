@@ -88,9 +88,20 @@ export async function recordOrderEventSafe(
  * select แคบ ๆ ตั้งใจ — หน้านี้อยู่ใต้ client layout ทุก field ที่ดึงมาจะถูก serialize เข้า
  * flight payload ที่ผู้ใช้เปิดดูได้ (feedback_rsc_pii_neutralize_at_source)
  */
+/**
+ * feature 00041 — เหตุการณ์ที่มีไว้วัดผลอย่างเดียว ไม่ใช่ประวัติที่ร้าน/ผู้ซื้อต้องอ่าน
+ *
+ * กรองที่ getOrderEvents() จุดเดียวเพราะนี่คือ **ทางเดียว** ที่ UI ดึงไทม์ไลน์ไปแสดง —
+ * กรองที่ component จะหลุดทันทีที่มีหน้าใหม่มาเรียก service ตัวนี้
+ */
+const INSTRUMENTATION_EVENT_TYPES: readonly OrderEventType[] = [
+  'AUTH_FLOW_STARTED',
+  'AUTH_FLOW_COMPLETED',
+];
+
 export async function getOrderEvents(orderId: string, take = 50): Promise<OrderEventView[]> {
   const rows = await prisma.orderEvent.findMany({
-    where: { orderId },
+    where: { orderId, type: { notIn: INSTRUMENTATION_EVENT_TYPES as unknown as string[] } },
     orderBy: [{ occurredAt: "desc" }, { seq: "desc" }],
     take,
     select: {

@@ -25,6 +25,12 @@ export const ORDER_EVENT_TYPES = [
   // feature 00039 — ผู้ซื้อทักท้วงว่ายังไม่ได้ของ/ของไม่ตรง (กันระบบปิดงานอัตโนมัติ)
   'ORDER_DISPUTE_OPENED',
   'ORDER_DISPUTE_RESOLVED',
+  // feature 00041 — instrumentation ของ Login Completion Rate (SRS TFR-013)
+  // 🛑 สองค่านี้ **ไม่แสดงในไทม์ไลน์ที่ผู้ใช้เห็น** — getOrderEvents() กรองออกที่จุดเดียว
+  // (ถ้าเผลอเอาออกจากตัวกรอง ประวัติออเดอร์จะรกด้วยเหตุการณ์ที่ไม่มีความหมายกับร้าน)
+  // AUTH_FLOW_STARTED เขียนโดย guest ที่ยังไม่ล็อกอิน ⇒ actorUserId เป็น null เสมอ
+  'AUTH_FLOW_STARTED',
+  'AUTH_FLOW_COMPLETED',
 ] as const
 
 export type OrderEventType = (typeof ORDER_EVENT_TYPES)[number]
@@ -40,6 +46,10 @@ export const ORDER_EVENT_META: Record<
   OrderEventType,
   { label: string; icon: string; tone: 'neutral' | 'success' | 'danger' }
 > = {
+  // instrumentation 2 ตัวนี้ถูกกรองออกก่อนถึงหน้าจอเสมอ — label มีไว้เผื่อกรณีที่มันหลุดมา
+  // จริง ๆ จะได้อ่านออกว่าคืออะไร ไม่ใช่โผล่เป็นรหัสดิบ (TypeScript บังคับให้มีครบทุกค่าอยู่แล้ว)
+  AUTH_FLOW_STARTED: { label: 'เริ่มเข้าสู่ระบบจากลิงก์', icon: 'login', tone: 'neutral' },
+  AUTH_FLOW_COMPLETED: { label: 'เข้าสู่ระบบจากลิงก์สำเร็จ', icon: 'login', tone: 'neutral' },
   ORDER_CREATED: { label: 'สร้างคำสั่งซื้อ', icon: 'file-plus', tone: 'neutral' },
   ORDER_EDITED: { label: 'แก้ไขคำสั่งซื้อ', icon: 'edit', tone: 'neutral' },
   ORDER_CANCELLED: { label: 'ยกเลิกคำสั่งซื้อ', icon: 'ban', tone: 'danger' },
