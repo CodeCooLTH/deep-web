@@ -15,6 +15,8 @@
  *   - isActive=false → disable ปุ่ม ไม่ผูก onClick เลย (กันกด error 400 PRODUCT_NOT_ACTIVE ตั้งแต่ต้น)
  */
 
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { insufficientCreditHtml } from '@/lib/payment-copy'
 import Icon from '@/components/wrappers/Icon'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -41,10 +43,11 @@ interface PinToggleButtonProps {
 }
 
 // map HTTP status ตอนซื้อสล็อต → ข้อความ validation ใน Swal dialog (แสดงผ่าน showValidationMessage — dialog ไม่ปิด)
-function buySlotErrorMessage(status: number): string {
+function buySlotErrorMessage(status: number, hidePayments: boolean): string {
   switch (status) {
     case 402:
-      return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงินก่อนซื้อสล็อต</a>'
+      // 🛑 ในแอป iOS ห้ามมีลิงก์/คำที่พาไปจ่ายเงิน — ข้อความมาจาก SSOT ที่ lib/payment-copy
+      return insufficientCreditHtml(hidePayments, 'เติมเงินก่อนซื้อสล็อต')
     case 403:
       return 'ร้านถูกล็อก ไม่สามารถทำรายการนี้ได้'
     case 400:
@@ -63,6 +66,8 @@ export default function PinToggleButton({
   onChange,
   variant = 'desktop',
 }: PinToggleButtonProps) {
+  // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
+  const hidePayments = useHidePayments()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const isPinned = pinnedAt !== null
@@ -92,7 +97,7 @@ export default function PinToggleButton({
             body: JSON.stringify({ productId }),
           })
           if (res.ok) return res.json()
-          Swal.showValidationMessage(buySlotErrorMessage(res.status))
+          Swal.showValidationMessage(buySlotErrorMessage(res.status, hidePayments))
           return false
         } catch {
           Swal.showValidationMessage('เกิดข้อผิดพลาด กรุณาลองใหม่')

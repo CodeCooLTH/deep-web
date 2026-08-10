@@ -20,6 +20,7 @@ import { getTopUpsByShop } from '@/services/topup.service'
 import { getBalance, getTransactions } from '@/services/wallet.service'
 import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import WalletCard from './components/WalletCard'
 import TopUpRequestTable, { type TopUpRequestRow } from './components/TopUpRequestTable'
 import WalletTransactionTable from './components/WalletTransactionTable'
@@ -52,6 +53,14 @@ export default async function WalletPage() {
   } catch {
     shop = null
   }
+
+  /**
+   * เปิดจากในแอป iOS → ต้องไม่มีช่องทางเติมเงินอยู่ในหน้านี้ (App Store Guideline 3.1.1)
+   *
+   * ยอดคงเหลือกับประวัติเงินเข้า-ออกยังแสดงตามปกติ — ตัดเฉพาะ "ทางจ่าย" (ปุ่มเติมเงิน
+   * โมดัลอัปสลิป และตารางคำขอเติมเงิน) ดูเหตุผลเต็มที่ src/lib/app-shell.ts
+   */
+  const hidePayments = await shouldHidePayments()
 
   // no-shop case: balance = 0, transactions = [] — ตาม spec "no-shop → balance 0 + empty table"
   let balance = 0
@@ -128,13 +137,17 @@ export default async function WalletPage() {
           balance={balance}
           lowBalance={lowBalance}
           hasError={hasError}
+          hidePayments={hidePayments}
         />
       </div>
 
       {/* TopUpRequest section — วางระหว่าง balance card กับ ledger table */}
       {/* แยก section นี้ออกจาก "ประวัติรายการเงินเข้า-ออก" (WalletTransactionTable ด้านล่าง) */}
       {/* เหตุผล: ledger แสดงเฉพาะที่ approve แล้ว; section นี้แสดง PENDING ที่รออยู่ด้วย */}
-      {!hasError && (
+      {/* 🛑 ซ่อนทั้ง section ในแอป iOS (Guideline 3.1.1): ตารางนี้คือ "คำขอเติมเงิน" พร้อม
+          สถานะสลิป = เป็นส่วนหนึ่งของกระบวนการจ่ายเงินโดยตรง ไม่ใช่แค่ประวัติการใช้
+          (ประวัติเงินเข้า-ออกที่เป็นบันทึกย้อนหลังล้วน ๆ ยังแสดงอยู่ด้านล่าง) */}
+      {!hasError && !hidePayments && (
         <div className="mb-6">
           <TopUpRequestTable topups={topUpRequests} />
         </div>

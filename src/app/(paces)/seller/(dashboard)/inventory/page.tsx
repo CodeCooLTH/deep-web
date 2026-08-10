@@ -27,6 +27,7 @@ import Link from 'next/link'
 import { Icon as IconifyIcon } from '@iconify/react'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import { requireActiveShop } from '@/lib/shop-context'
 import { prisma } from '@/lib/prisma'
 import { getBalance } from '@/services/wallet.service'
@@ -99,6 +100,18 @@ export default async function InventoryPage() {
   } catch {
     status = 'NOT_SUBSCRIBED'
   }
+
+  /**
+   * 🛑 เปิดจากในแอป iOS + ยังไม่ได้สมัคร = ห้ามเข้า (App Store Guideline 3.1.1)
+   *
+   * สาขา `status !== 'ACTIVE'` ด้านล่างเรนเดอร์ PackageSelector ซึ่งเป็นหน้าเลือก/สมัครแพ็กเกจ
+   * พร้อมราคา = ช่องทางจ่ายเงินเต็มตัว จึงต้องตัดก่อนถึงตรงนั้น
+   *
+   * ร้านที่สมัครแล้ว (ACTIVE) ยังใช้หน้านี้ได้ครบ — Apple ห้าม "ขายในแอป" ไม่ได้ห้าม
+   * "ใช้ของที่ซื้อไปแล้ว" (เงื่อนไขเดียวกับที่ applyPaymentRestriction ซ่อนเมนูให้)
+   */
+  const hidePayments = await shouldHidePayments()
+  if (status !== 'ACTIVE' && hidePayments) redirect('/dashboard')
 
   if (status !== 'ACTIVE') {
     // ⚠️ TFR-007 — ห้าม query stock/product เพิ่มเติมในสาขานี้ (gate ไม่ leak data)
@@ -180,7 +193,8 @@ export default async function InventoryPage() {
         </span>
       </div>
 
-      {warn && entitlement && (
+      {/* แถบเตือน "ยอดเงินไม่พอตัดรอบหน้า" — ในแอป iOS ซ่อน เพราะเนื้อหาคือการบอกให้ไปเติมเงิน */}
+      {warn && entitlement && !hidePayments && (
         <AdvanceWarningBanner
           nextRenewalAt={formatDateTime(entitlement.nextRenewalAt)}
           shortfall={PACKAGE_PRICE[activePackage] - balance}
@@ -188,7 +202,8 @@ export default async function InventoryPage() {
       )}
 
       {/* BASIC ACTIVE → การ์ดโปรโมทอัพเกรด / PRO ACTIVE → เครื่องมือ Pro (CSV export/import) */}
-      {!isPro && <UpgradeToProCard />}
+      {/* การ์ดชวนอัปเกรดเป็น Pro — ในแอป iOS ซ่อน (เป็นคำเชิญให้ซื้อตรง ๆ) */}
+      {!isPro && !hidePayments && <UpgradeToProCard />}
       {isPro && <InventoryProTools />}
 
       <InventoryManagementTable products={rows} isPro={isPro} />

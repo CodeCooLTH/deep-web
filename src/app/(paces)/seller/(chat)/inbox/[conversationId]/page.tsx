@@ -47,6 +47,7 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import { resolveChatScope } from '@/lib/chat-scope'
 import { ThreadShopProvider } from '../../_components/DraftOrderProvider'
 import { getWindowState, syncInboundWindowFromMeta, isHumanAgentEnabled } from '@/services/channel-chat.service'
@@ -562,6 +563,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         contactBlocked={contactBlocked}
         neverInbound={neverInbound}
         isCommentReplyThread={isCommentReplyThread}
+        hidePayments={await shouldHidePayments()}
         commentOrigin={commentOrigin}
         customerPanelData={customerPanelData}
       />

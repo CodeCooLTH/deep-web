@@ -29,9 +29,23 @@ type WalletCardProps = {
   lowBalance: boolean
   /** true เมื่อ service throw ขณะโหลด — แสดง error banner แทน balance ปลอม */
   hasError?: boolean
+  /**
+   * ซ่อนทุกอย่างที่เป็น "ช่องทางจ่ายเงิน" (App Store Guideline 3.1.1 — rejection 2026-08-04)
+   *
+   * 🛑 ซ่อนเฉพาะปุ่มกับโมดัล **ยอดคงเหลือยังต้องแสดงตามปกติ** (user เคาะ 2026-08-10:
+   * "ถ้าเรามี credit 5000 แสดงเฉย ๆ ได้ป่ะ") — ยอดคงเหลือเป็น "สถานะบัญชี" ไม่ใช่ช่องทางจ่าย
+   * และจำเป็นจริง เพราะเครดิตก้อนนี้ใช้จ่ายค่าส่ง SMS ด้วย ถ้าไม่โชว์ ผู้ขายจะส่ง SMS ไม่ผ่าน
+   * โดยไม่รู้สาเหตุ
+   */
+  hidePayments?: boolean
 }
 
-export default function WalletCard({ balance, lowBalance, hasError = false }: WalletCardProps) {
+export default function WalletCard({
+  balance,
+  lowBalance,
+  hasError = false,
+  hidePayments = false,
+}: WalletCardProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const router = useRouter()
 
@@ -102,20 +116,28 @@ export default function WalletCard({ balance, lowBalance, hasError = false }: Wa
               )}
             </div>
 
-            {/* action button — เติมเงิน */}
-            <button
-              type="button"
-              onClick={() => setModalOpen(true)}
-              className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 text-sm"
-            >
-              <Icon icon="tabler-credit-card" className="size-4" aria-hidden="true" />
-              เติมเงิน
-            </button>
+            {/* action button — เติมเงิน
+                🛑 ในแอป iOS ต้องไม่มีปุ่มนี้และไม่มีคำว่า "เติมเงิน" โผล่เลย (Guideline 3.1.1)
+                ห้ามเปลี่ยนเป็น "ปุ่ม disabled" หรือ "ข้อความบอกให้ไปเติมที่เว็บ" — Apple ถือว่า
+                การบอกทางไปจ่ายเงินข้างนอกผิดข้อเดียวกับการมีช่องทางจ่ายในแอป */}
+            {!hidePayments && (
+              <button
+                type="button"
+                onClick={() => setModalOpen(true)}
+                className="btn bg-primary text-white hover:bg-primary-hover inline-flex items-center gap-2 text-sm"
+              >
+                <Icon icon="tabler-credit-card" className="size-4" aria-hidden="true" />
+                เติมเงิน
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* TopUpRequestModal — open/close controlled ด้วย React state */}
+      {/* TopUpRequestModal — open/close controlled ด้วย React state
+          ไม่ render เลยเมื่อ hidePayments: ถึงปุ่มจะหายไปแล้ว แต่ปล่อย modal ไว้ในต้นไม้เท่ากับ
+          ยังมีฟอร์มอัปสลิปอยู่ในหน้า ซึ่งคือ "ช่องทางจ่ายเงิน" ที่ Apple ห้ามตรง ๆ */}
+      {!hidePayments && (
       <TopUpRequestModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -128,6 +150,7 @@ export default function WalletCard({ balance, lowBalance, hasError = false }: Wa
           router.refresh()
         }}
       />
+      )}
     </>
   )
 }

@@ -47,6 +47,7 @@ export default function CommandCenter({ data }: Props) {
         avgRating={data.avgRating ?? 0}
         packageStatus={data.packageStatus ?? 'NOT_SUBSCRIBED'}
         packageTier={data.packageTier ?? null}
+        hidePayments={data.hidePayments ?? false}
       />
 
       {/* ยอดขาย — การ์ด mini (sparkline + total เดือนนี้) จิ้ม→เปิด full sheet; null=fetch ล้ม→ซ่อนตัวเอง */}

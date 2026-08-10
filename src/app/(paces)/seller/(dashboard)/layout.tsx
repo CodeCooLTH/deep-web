@@ -18,6 +18,7 @@ import type { EntitlementStatus, InventoryPackage } from '@/lib/inventory-addon'
 import OnboardingGate from './dashboard/components/OnboardingGate'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import type { BusinessPackageStatusApp, BusinessPackageTier } from '@/lib/business-package'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import ShopPackageSidenavCard from './_shared/ShopPackageSidenavCard'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -145,12 +146,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // ไม่ว่าจะแปะก่อนหรือหลังกรอง — ถ้าวันหน้ามีตัวกรองที่ซ่อนเมนู "ข้อความ" ได้ ข้อสรุปนี้ตายทันที
   // ให้ย้าย applyChatBadge กลับเข้าไปก่อนตัวกรองนั้น
   // (active.kind/active.role มาจาก requireActiveShop ด้านบน — re-verify membership แล้ว ไม่ trust JWT เปล่า ๆ)
+  /**
+   * เปิดจากในแอป iOS → ต้องไม่มีช่องทาง/คำเชิญให้จ่ายเงินทั้ง sidebar และการ์ดเหนือเมนู
+   * (App Store Guideline 3.1.1 — rejection 2026-08-04) ดูเหตุผลเต็มที่ src/lib/app-shell.ts
+   */
+  const hidePayments = await shouldHidePayments()
+
   const menuItems = applyChatBadge(
     resolveVisibleSellerMenu(sellerMenuItems, {
       entitlement: entitlementInfo,
       staff: { kind: active.kind, role: active.role },
       expense: expenseAccessDecision,
       shop: { kind: active.kind, vertical: shop.vertical },
+      hidePayments,
     }),
     unreadChatCount,
   )
@@ -186,8 +194,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       //
       // ทุก role ของร้านธุรกิจเห็นการ์ดเหมือนกัน (user สั่ง 2026-07-29 — เดิมซ่อนจาก ADMIN แล้วพบว่าผิด:
       // พนักงานก็ควรรู้ว่าร้านอยู่แพ็กเกจไหน) ต่างแค่ canManage — เฉพาะ OWNER ที่กดไปจัดการได้
+      // 🛑 ในแอป iOS ไม่แสดงการ์ดนี้เลย: มันบอกแพ็กเกจปัจจุบันและกดไปหน้าจัดการ/อัปเกรดได้
+      //    = ทั้ง "ราคา/ระดับที่ซื้อได้" และ "ลิงก์ไปหน้าจ่ายเงิน" ในใบเดียว
       sidenavHeaderSlot={
-        active.kind === 'BUSINESS' ? (
+        active.kind === 'BUSINESS' && !hidePayments ? (
           <ShopPackageSidenavCard
             status={businessPackageStatus}
             tier={businessPackageTier}

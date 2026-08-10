@@ -25,6 +25,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import { prisma } from '@/lib/prisma'
 import { getSubscriptionStatus } from '@/services/business-package.service'
 import { resolveActiveShopContext } from '@/lib/shop-context'
@@ -167,6 +168,19 @@ async function getActiveLockedAt(shop: ShopSubscriptionRow | undefined): Promise
 }
 
 export default async function SubscriptionsPage() {
+  /**
+   * 🛑 เปิดจากในแอป iOS = ห้ามเข้าหน้านี้ (App Store Guideline 3.1.1 — rejection 2026-08-04)
+   *
+   * หน้านี้คือหน้าเลือก/สมัคร/อัปเกรดแพ็กเกจ = "ช่องทางจ่ายเงิน" เต็มตัว
+   *
+   * ต้องกันที่หน้าเองด้วย ไม่ใช่พึ่งแค่การซ่อนเมนู — คนตรวจของ Apple พิมพ์ URL ตรงได้ และเรา
+   * เป็น WebView ที่โหลดเว็บจริง ทุก path จึงเข้าถึงได้หมด (pattern เดียวกับที่ applyVerticalMenu
+   * ประกาศไว้ว่า "ซ่อนเมนู ≠ ควบคุมสิทธิ์")
+   *
+   * redirect ไป /dashboard ไม่ใช่ 404 — ผู้ใช้ที่กดลิงก์เก่าค้างมาจะได้ไปที่ที่ใช้งานต่อได้
+   */
+  if (await shouldHidePayments()) redirect('/dashboard')
+
   const session = await getServerSession(authOptions)
   const user = (session as any)?.user
   if (!user) redirect('/auth/sign-in')

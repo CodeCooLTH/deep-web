@@ -574,19 +574,76 @@ export function resolveVisibleSellerMenu(
     staff: { kind: 'PERSONAL' | 'BUSINESS'; role: 'OWNER' | 'ADMIN' }
     expense: ExpenseAccessDecision
     shop: { kind: string; vertical: string }
+    /** เปิดจากในแอปที่ห้ามมีช่องทางจ่ายเงิน (iOS) — ดู src/lib/app-shell.ts */
+    hidePayments?: boolean
   },
 ): MenuItemType[] {
   // applyOrderLabel อยู่นอกสุด — แค่เปลี่ยนป้าย ไม่กรองอะไร วางหลังตัวกรองทุกตัวจึงไม่ต่างกัน
   // เชิงผลลัพธ์ แต่อ่านง่ายกว่าเมื่อวางคู่กับ applyVerticalMenu ซึ่งใช้ vertical ตัวเดียวกัน
+  //
+  // applyPaymentRestriction อยู่ "ในสุด" (ทำก่อนใคร) โดยตั้งใจ: มันลบ badge ที่ applyInventoryGate
+  // เพิ่งใส่ให้ไม่ได้ถ้ารันก่อน — จึงต้องรันทีหลัง แต่ต้องอยู่ก่อนตัวกรองอื่นที่อาจลบ item ทิ้ง
+  // ไปแล้ว (ลบไปแล้วก็ไม่มีอะไรให้ถอด badge) → วางถัดจาก applyInventoryGate ทันที
   return applyOrderLabel(
     applyVerticalMenu(
       applyExpenseMenu(
-        applyStaffMenu(applyInventoryGate(items, ctx.entitlement), ctx.staff),
+        applyStaffMenu(
+          applyPaymentRestriction(applyInventoryGate(items, ctx.entitlement), {
+            hidePayments: ctx.hidePayments ?? false,
+            entitlementStatus: ctx.entitlement.status,
+          }),
+          ctx.staff,
+        ),
         ctx.expense,
       ),
       ctx.shop.vertical,
     ),
     ctx.shop.vertical,
+  )
+}
+
+/**
+ * applyPaymentRestriction — ถอดเมนูและป้ายที่เป็น "ช่องทางจ่ายเงิน/คำเชิญให้จ่าย" ออก
+ * เมื่อหน้าถูกเปิดจากในแอป iOS (App Store Guideline 3.1.1 — rejection 2026-08-04)
+ *
+ * ทำอะไรบ้าง:
+ *   1. ลบเมนู "แพ็กเกจของฉัน" (`/subscriptions`) — เป็นหน้าเลือก/สมัครแพ็กเกจล้วน ๆ
+ *   2. ลบเมนู "จัดการสต็อก" **เฉพาะร้านที่ยังไม่ได้สมัคร** — ร้านที่สมัครแล้วยังใช้ได้ครบ
+ *      (Apple ห้าม "ขายในแอป" ไม่ได้ห้าม "ใช้ของที่ซื้อไปแล้ว")
+ *   3. ถอด badge ราคา/ชวนสมัคร ("เลือกแพ็กเกจ", "ถูกล็อก") ที่ applyInventoryGate ใส่ไว้
+ *
+ * 🛑 ทำไมเมนู "กระเป๋าเงิน" **ไม่ถูกลบ**: หน้านั้นเหลือแค่ยอดคงเหลือกับประวัติเงินเข้า-ออก
+ * (ปุ่มเติมเงิน/ฟอร์มสลิปถูกถอดแล้วที่ WalletCard) ซึ่งเป็น "สถานะบัญชี" ไม่ใช่ช่องทางจ่าย —
+ * และจำเป็นต้องเห็น เพราะเครดิตก้อนเดียวกันนี้ใช้จ่ายค่าส่ง SMS ด้วย (user เคาะ 2026-08-10)
+ *
+ * 🛑 นี่คือ UX เท่านั้น ไม่ใช่การควบคุมสิทธิ์ — คนที่พิมพ์ URL ตรงต้องถูกกันที่หน้านั้นเองด้วย
+ * (pattern เดียวกับที่ applyVerticalMenu ประกาศไว้)
+ */
+export function applyPaymentRestriction(
+  items: MenuItemType[],
+  ctx: { hidePayments: boolean; entitlementStatus: EntitlementStatus },
+): MenuItemType[] {
+  if (!ctx.hidePayments) return items
+
+  const removed = new Set<string>(['seller:subscriptions'])
+  // ยังไม่ได้สมัคร = เข้าไปก็มีแต่หน้าให้เลือกแพ็กเกจ ซึ่งห้ามแสดง → ซ่อนเมนูไปเลย
+  if (ctx.entitlementStatus !== 'ACTIVE') removed.add('seller:inventory')
+
+  return items.map((group) =>
+    !group.children
+      ? group
+      : {
+          ...group,
+          children: group.children
+            .filter((child) => !child.slug || !removed.has(child.slug))
+            // badge ที่เหลือ (เช่น 'Pro' ของคนที่สมัครแล้ว) ไม่ใช่คำเชิญให้ซื้อ จึงเก็บไว้ได้ —
+            // ถอดเฉพาะของที่ชวนให้จ่ายเงิน
+            .map((child) =>
+              child.slug === 'seller:inventory' && child.badge?.text !== 'Pro'
+                ? { ...child, badge: undefined }
+                : child,
+            ),
+        },
   )
 }
 

@@ -702,6 +702,8 @@ type Props = {
    * ฝั่ง server ไม่ใช่การดมสตริงในเนื้อข้อความ (ดูเหตุผลที่ page.tsx)
    */
   isCommentReplyThread: boolean
+  /** เปิดจากในแอป iOS → ห้ามมีลิงก์ไปหน้าเติมเงิน/แพ็กเกจ (App Store Guideline 3.1.1) */
+  hidePayments: boolean
   /**
    * คอมเมนต์ที่เป็นต้นเหตุของเธรดนี้ — null เมื่อไม่ได้มาจากคอมเมนต์ (เธรดปกติ)
    *
@@ -923,6 +925,7 @@ export default function ChatThread({
   contactBlocked,
   neverInbound,
   isCommentReplyThread,
+  hidePayments,
   commentOrigin,
   humanAgentOpen = false,
   humanAgentExpiresAt = null,
@@ -2723,6 +2726,7 @@ export default function ChatThread({
         {aiOpen && (
           <AiSuggestPanel
             conversationId={conversationId}
+            hidePayments={hidePayments}
             onPick={(t) => {
               setText(t)
               setActivePanel(null)

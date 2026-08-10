@@ -29,6 +29,8 @@
 import Icon from '@/components/wrappers/Icon'
 import type { Row as TableRow } from '@tanstack/react-table'
 import Link from 'next/link'
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { INSUFFICIENT_CREDIT_TEXT } from '@/lib/payment-copy'
 import { useEffect, useRef, useState } from 'react'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -257,6 +259,8 @@ interface BulkSmsProgressDialogProps {
  * เท่านั้น (ขั้นยืนยันอยู่ที่ handleSmsClick ตาม Hard Rule 8) จึงเริ่มยิงทันทีที่ open
  */
 function BulkSmsProgressDialog({ open, eligibleRows, onComplete }: BulkSmsProgressDialogProps) {
+  // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
+  const hidePayments = useHidePayments()
   const total = eligibleRows.length
   const [phase, setPhase] = useState<Phase>('sending')
   const [progress, setProgress] = useState({ sent: 0, failed: 0 })
@@ -397,10 +401,18 @@ function BulkSmsProgressDialog({ open, eligibleRows, onComplete }: BulkSmsProgre
                   </span>
                   <div>
                     <p className="font-semibold text-default-800 text-base">สำเร็จ {progress.sent} · ล้มเหลว {progress.failed} ออเดอร์</p>
+                    {/* 🛑 ในแอป iOS ห้ามมีลิงก์/คำที่พาไปจ่ายเงิน (Guideline 3.1.1) — บอกได้แค่
+                        สาเหตุว่าทำต่อไม่ได้ ผู้ขายเห็นยอดคงเหลือจากหน้าแรก/หน้ากระเป๋าเงินอยู่แล้ว */}
                     {creditError && (
                       <p className="mt-1 text-sm text-default-500">
-                        ยอดเงินไม่พอ —{' '}
-                        <Link href="/wallet" className="text-primary underline">เติมเงิน</Link>
+                        {hidePayments ? (
+                          INSUFFICIENT_CREDIT_TEXT
+                        ) : (
+                          <>
+                            ยอดเงินไม่พอ —{' '}
+                            <Link href="/wallet" className="text-primary underline">เติมเงิน</Link>
+                          </>
+                        )}
                       </p>
                     )}
                   </div>

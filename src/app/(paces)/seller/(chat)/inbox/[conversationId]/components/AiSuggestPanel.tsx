@@ -36,6 +36,13 @@ type Props = {
   conversationId: string
   onPick: (text: string) => void
   onClose: () => void
+  /**
+   * เปิดจากในแอป iOS → ห้ามมีลิงก์/คำเชิญให้ไปจ่ายเงิน (App Store Guideline 3.1.1)
+   *
+   * มีผลกับสถานะ `credit-block` เท่านั้น — สถานะอื่นไม่ได้พูดถึงการจ่ายเงิน
+   * (ปุ่ม "ใช้เงินในกระเป๋า ฿1" เป็นการ **ใช้เครดิตที่มีอยู่แล้ว** ไม่ใช่การซื้อ จึงไม่ต้องซ่อน)
+   */
+  hidePayments?: boolean
 }
 
 /** contract: GET /api/chat/ai-quota (docs/20 - Features/00019 .../EXTENSIONS-2026-07-29-usage-limit.md) */
@@ -63,7 +70,7 @@ const GENERIC_RETRY_MESSAGE = 'ขอคำแนะนำไม่สำเร�
  */
 type Phase = 'loading' | 'quota-error' | 'suggest-error' | 'credit-prompt' | 'credit-block' | 'success'
 
-export default function AiSuggestPanel({ conversationId, onPick, onClose }: Props) {
+export default function AiSuggestPanel({ conversationId, onPick, onClose, hidePayments = false }: Props) {
   const threadShopId = useThreadShopId()
   const [phase, setPhase] = useState<Phase>('loading')
   const [quota, setQuota] = useState<AiQuotaStatus | null>(null)
@@ -174,7 +181,12 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
           const data = await res.json().catch(() => null)
           if (res.ok) return data
           if (res.status === 402 && data?.error === 'INSUFFICIENT_CREDIT') {
-            Swal.showValidationMessage('ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงิน</a>')
+            // 🛑 ในแอป iOS ห้ามมีลิงก์ไปหน้าเติมเงินและห้ามใช้คำว่า "เติมเงิน" — บอกได้แค่สาเหตุ
+            Swal.showValidationMessage(
+              hidePayments
+                ? 'เครดิตไม่พอสำหรับขอร่างเพิ่ม'
+                : 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงิน</a>',
+            )
             return false
           }
           Swal.showValidationMessage(typeof data?.error === 'string' ? data.error : 'เกิดข้อผิดพลาด กรุณาลองใหม่')
@@ -288,15 +300,23 @@ export default function AiSuggestPanel({ conversationId, onPick, onClose }: Prop
         ) : phase === 'credit-block' ? (
           <div className="text-default-700 flex flex-col items-center gap-2 py-4 text-center text-sm">
             <Icon icon="alert-circle" className="text-warning text-2xl" />
-            <span>ยอดเงินไม่พอ (คงเหลือ ฿{quota?.balance ?? 0})</span>
-            <div className="flex items-center gap-2">
-              <Link href="/wallet" className="btn btn-sm border-default-300">
-                เติมเงิน
-              </Link>
-              <Link href="/business" className="btn btn-sm border-default-300">
-                อัพเกรดแพ็กเกจ ใช้ AI ไม่จำกัด
-              </Link>
-            </div>
+            <span>
+              {hidePayments ? 'เครดิตไม่พอสำหรับขอร่างเพิ่ม' : 'ยอดเงินไม่พอ'} (คงเหลือ ฿
+              {quota?.balance ?? 0})
+            </span>
+            {/* 🛑 ปุ่มทั้งสองใบเป็นทางไปจ่ายเงินตรง ๆ — ในแอป iOS ต้องไม่มีเลย ห้ามแทนด้วย
+                ข้อความบอกให้ไปทำที่เว็บ (Apple ถือว่าผิดข้อเดียวกัน) เหลือแค่ยอดคงเหลือ
+                ซึ่งเป็นสถานะบัญชี บอกผู้ขายได้ว่าทำไมทำต่อไม่ได้ */}
+            {!hidePayments && (
+              <div className="flex items-center gap-2">
+                <Link href="/wallet" className="btn btn-sm border-default-300">
+                  เติมเงิน
+                </Link>
+                <Link href="/business" className="btn btn-sm border-default-300">
+                  อัพเกรดแพ็กเกจ ใช้ AI ไม่จำกัด
+                </Link>
+              </div>
+            )}
           </div>
         ) : (
           suggestions.map((s, i) => (

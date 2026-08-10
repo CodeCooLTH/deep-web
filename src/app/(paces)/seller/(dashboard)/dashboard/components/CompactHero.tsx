@@ -52,6 +52,13 @@ export interface CompactHeroProps {
   // เพื่อไม่ชนกับ tierName ที่แปลว่า trust tier ใน CommandCenterData — คนละเรื่องกัน)
   packageStatus: BusinessPackageStatusApp
   packageTier: BusinessPackageTier | null
+  /**
+   * เปิดจากในแอป iOS → ซ่อนปุ่มเติมเงิน (App Store Guideline 3.1.1 — rejection 2026-08-04)
+   *
+   * 🛑 ซ่อนแค่ "ปุ่ม" — ตัวเลขยอดคงเหลือยังแสดงตามปกติ (user เคาะ 2026-08-10) เพราะเป็น
+   * สถานะบัญชี ไม่ใช่ช่องทางจ่าย และผู้ขายต้องเห็นเพื่อรู้ว่าเครดิตส่ง SMS ใกล้หมดหรือยัง
+   */
+  hidePayments?: boolean
   /* หมายเหตุ: prop `packageCanManage` ถูกถอดออก 2026-08-04 — ชิปแพ็กเกจกลายเป็นป้ายอย่างเดียว
      (อยู่ในปุ่มสลับบัญชี จึงเป็นลิงก์ไม่ได้) สิทธิ์กด "จัดการ" จึงไม่มีความหมายที่นี่อีก
      ทางเข้าหน้าแพ็กเกจบนมือถือ = เมนู "แพ็กเกจของฉัน" ใน sidebar */
@@ -70,6 +77,7 @@ export default function CompactHero({
   notiCount = 0,
   packageStatus,
   packageTier,
+  hidePayments = false,
 }: CompactHeroProps) {
   /** ความกว้าง/สูงของวง trust ring (HR7 carve-out เดิมของไฟล์นี้ — Paces ไม่มี token progress ring)
    *  ประกาศเป็นค่าเดียวเพราะบรรทัดสถิติที่อยู่นอกปุ่มสลับบัญชีต้องเยื้องตามความกว้างนี้เป๊ะ */
@@ -316,14 +324,19 @@ export default function CompactHero({
           {/*
            * ปุ่มเติมเงิน — white pill; ใช้ next/link ตรง (RSC ห้าม component={Link})
            * pattern จาก Paces buttons page: rounded-full bg-white text-primary btn-sm
+           *
+           * 🛑 ไม่ render เลยในแอป iOS — ห้ามแทนด้วยปุ่ม disabled หรือข้อความบอกให้ไปเติมที่เว็บ
+           * Apple ถือว่าการชี้ทางไปจ่ายเงินข้างนอกผิดข้อเดียวกับการมีช่องทางจ่ายในแอป
            */}
-          <Link
-            href="/wallet"
-            className="btn btn-sm bg-white text-primary rounded-full font-bold text-xs flex-shrink-0 inline-flex items-center gap-1"
-          >
-            <Icon icon="solar:add-circle-bold-duotone" className="text-base" />
-            เติมเงิน
-          </Link>
+          {!hidePayments && (
+            <Link
+              href="/wallet"
+              className="btn btn-sm bg-white text-primary rounded-full font-bold text-xs flex-shrink-0 inline-flex items-center gap-1"
+            >
+              <Icon icon="solar:add-circle-bold-duotone" className="text-base" />
+              เติมเงิน
+            </Link>
+          )}
 
           {/* divider บาง */}
           <div

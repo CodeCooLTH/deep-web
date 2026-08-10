@@ -25,6 +25,8 @@
  * ที่ไม่รู้จัก business logic ของแต่ละ key)
  */
 
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
+import { insufficientCreditHtml } from '@/lib/payment-copy'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { pacesToast } from '@/lib/paces-toast'
@@ -57,10 +59,11 @@ import type { ShipmentSource } from './order-action-set'
 const ShipmentEntryModal = dynamic(() => import('./ShipmentEntryModal'), { ssr: false })
 
 // map HTTP status → validation message (HTML) — เหมือน smsErrorMessage() ใน SendSmsButton.tsx เป๊ะ
-function smsErrorMessage(status: number, orderNoun: string): string {
+function smsErrorMessage(status: number, orderNoun: string, hidePayments: boolean): string {
   switch (status) {
     case 402:
-      return 'ยอดเงินไม่พอ — <a href="/wallet" class="underline">เติมเงิน</a>'
+      // 🛑 ในแอป iOS ห้ามมีลิงก์/คำที่พาไปจ่ายเงิน — ข้อความมาจาก SSOT ที่ lib/payment-copy
+      return insufficientCreditHtml(hidePayments, 'เติมเงิน')
     case 429:
       return 'ส่ง SMS บ่อยเกินไป กรุณารอสักครู่'
     case 422:
@@ -178,6 +181,8 @@ export default function OrderDetailClient({
   codReceivedByLabel,
   isCod,
 }: OrderDetailClientProps) {
+  // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
+  const hidePayments = useHidePayments()
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
@@ -231,7 +236,7 @@ export default function OrderDetailClient({
         try {
           const res = await fetch(`/api/orders/${publicToken}/send-sms`, { method: 'POST' })
           if (res.ok) return true
-          Swal.showValidationMessage(smsErrorMessage(res.status, vocab.noun))
+          Swal.showValidationMessage(smsErrorMessage(res.status, vocab.noun, hidePayments))
           return false
         } catch {
           Swal.showValidationMessage('ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่')

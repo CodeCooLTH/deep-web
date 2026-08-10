@@ -98,6 +98,11 @@ export type CommandCenterData = {
   // มิเรอร์ businessPackageStatus/businessPackageTier ใน (dashboard)/layout.tsx
   packageStatus?: BusinessPackageStatusApp
   packageTier?: BusinessPackageTier | null
+  /**
+   * เปิดจากในแอป iOS → ซ่อนปุ่มเติมเงินใน hero (App Store Guideline 3.1.1)
+   * ยอดคงเหลือยังแสดง — ดูเหตุผลที่ src/lib/app-shell.ts
+   */
+  hidePayments?: boolean
   // canManage: เฉพาะ OWNER ที่กดไปหน้าจัดการแพ็กเกจได้ (คนอื่นเห็นข้อมูลแต่ไม่มีลิงก์)
   packageCanManage?: boolean
   // เมนูลัด (feature 00027) — ช่องที่ผู้ใช้คนนี้เลือกไว้จริง เรียงตามลำดับเมนู sidebar

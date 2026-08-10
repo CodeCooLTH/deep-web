@@ -28,6 +28,7 @@ import {
   type DashboardRange,
 } from './components/DashboardRangeControl'
 import { authOptions } from '@/lib/auth'
+import { shouldHidePayments } from '@/lib/app-shell-server'
 import { prisma } from '@/lib/prisma'
 import { requireActiveShop } from '@/lib/shop-context'
 import { toFileUrl } from '@/lib/file-url'
@@ -536,6 +537,7 @@ export default async function SellerDashboardPage() {
             // แถบแพ็กเกจร้านค้าบนมือถือ (Row 3 ของ CompactHero)
             packageStatus,
             packageTier,
+            hidePayments: await shouldHidePayments(),
             packageCanManage,
             // เมนูลัดที่ผู้ใช้คนนี้เลือกไว้ (feature 00027)
             shortcutTiles,

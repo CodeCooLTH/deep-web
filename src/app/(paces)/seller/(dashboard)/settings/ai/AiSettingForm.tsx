@@ -23,6 +23,7 @@
  * — แค่ปิดการแสดง/แก้ที่ UI นี้เท่านั้น) กรณีชนกับ !canEdit (STAFF ของร้าน non-paid) — !canEdit ชนะ
  * แสดงเฉพาะ banner เดิม ไม่แสดง banner/badge อัปเกรด (STAFF จัดการ billing เองไม่ได้อยู่แล้ว)
  */
+import { useHidePayments } from '@/components/paces/PaymentRestrictionProvider'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -56,6 +57,8 @@ type Props = {
 }
 
 export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscriptionLapsed }: Props) {
+  // ห้ามแสดงคำ/ลิงก์ที่พาไปจ่ายเงินเมื่ออยู่ในแอป iOS (Guideline 3.1.1)
+  const hidePayments = useHidePayments()
   const router = useRouter()
   const [instruction, setInstruction] = useState(initial.instruction)
   const [includeProductContext, setIncludeProductContext] = useState(initial.includeProductContext)
@@ -142,7 +145,9 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
       {/* ── banner บริบท AI ถูกจำกัดสำหรับร้าน non-paid (FR-AIQ-09) — วางระหว่างคำสั่งประจำร้าน
           กับกลุ่มสวิตช์ตามสเปก, copy โครง class จาก banner !canEdit ด้านบนเป๊ะ, ผูกกับกลุ่มสวิตช์
           ผ่าน aria-describedby ที่ input (ไม่ใช่ label — สวิตช์ disabled ถูก screen reader ข้าม) */}
-      {showUpgradeGate && (
+      {/* 🛑 แถบชวนอัปเกรด — ในแอป iOS ห้ามแสดงเลย (Guideline 3.1.1): มันคือคำเชิญให้ซื้อ
+          พร้อมลิงก์ไปหน้าแพ็กเกจ ผู้ขายยังใช้ AI ตามสิทธิ์ที่มีอยู่ได้ตามปกติ */}
+      {showUpgradeGate && !hidePayments && (
         <div id="ai-context-gate-notice" className="bg-info/15 text-info flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
           <Icon icon="info-circle" className="mt-0.5 shrink-0 text-lg" />
           <span>
@@ -162,7 +167,7 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
               <span className={`block text-sm font-medium ${isPaidPlan ? 'text-default-800' : 'text-default-500'}`}>
                 ให้ AI เห็นข้อมูลสินค้า
               </span>
-              {showUpgradeGate && (
+              {showUpgradeGate && !hidePayments && (
                 <Link
                   href="/business"
                   className={`badge ${subscriptionLapsed ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'}`}
@@ -192,7 +197,7 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
               <span className={`block text-sm font-medium ${isPaidPlan ? 'text-default-800' : 'text-default-500'}`}>
                 ให้ AI เห็นประวัติลูกค้า
               </span>
-              {showUpgradeGate && (
+              {showUpgradeGate && !hidePayments && (
                 <Link
                   href="/business"
                   className={`badge ${subscriptionLapsed ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'}`}
@@ -225,7 +230,7 @@ export default function AiSettingForm({ initial, canEdit, isPaidPlan, subscripti
               <span className={`block text-sm font-medium ${isPaidPlan ? 'text-default-800' : 'text-default-500'}`}>
                 ให้ AI อ่านรูปและฟังข้อความเสียง
               </span>
-              {showUpgradeGate && (
+              {showUpgradeGate && !hidePayments && (
                 <Link
                   href="/business"
                   className={`badge ${subscriptionLapsed ? 'bg-warning/15 text-warning' : 'bg-primary/15 text-primary'}`}
