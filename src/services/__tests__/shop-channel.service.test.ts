@@ -24,6 +24,8 @@ vi.mock('@/lib/facebook/graph', () => ({
   unsubscribePageFromApp: vi.fn().mockResolvedValue(undefined),
   getPageIdFromToken: vi.fn().mockResolvedValue(null),
   getInstagramAccountIdForPage: vi.fn().mockResolvedValue(null),
+  // คืน null = "ดึงยอดผู้ติดตามไม่ได้" ซึ่งเป็นเส้นทางที่ต้องไม่ทำให้การเชื่อมเพจพัง
+  fetchInstagramFollowerCount: vi.fn().mockResolvedValue(null),
 }))
 
 beforeAll(() => {
@@ -47,7 +49,7 @@ import {
 
 const page = {
   id: 'PAGE1', name: 'ร้านทดสอบ', accessToken: 'page_token_plain',
-  tasks: ['MESSAGING', 'MODERATE'], instagramBusinessAccountId: null,
+  tasks: ['MESSAGING', 'MODERATE'], instagramBusinessAccountId: null, followerCount: null,
 }
 
 describe('shop-channel.service', () => {

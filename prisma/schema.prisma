@@ -1364,6 +1364,14 @@ model ShopChannel {
   externalId        String // Page ID หรือ IG Business Account ID
   name              String // ชื่อ Page ณ เวลาเชื่อม — cache ไว้แสดงใน UI ไม่ re-fetch ทุกครั้ง
   avatarUrl         String?
+  /// ยอดผู้ติดตามของช่องทาง ณ ครั้งล่าสุดที่ดึงได้ — Facebook Page = "ถูกใจ" (followers_count),
+  /// Instagram = "ผู้ติดตาม" (followers_count) คนละคำกันบนหน้าจอเพราะแพลตฟอร์มเรียกคนละอย่าง
+  ///
+  /// 🛑 null = **ยังไม่รู้** ไม่ใช่ศูนย์ — เพจที่เชื่อมไว้ก่อนฟีเจอร์นี้จะเป็น null จนกว่าจะเชื่อมใหม่
+  /// UI ต้องซ่อนยอดทั้งส่วนเมื่อเป็น null ห้ามแสดง 0 (0 แปลว่า "ไม่มีคนถูกใจ" ซึ่งไม่จริง)
+  /// อ่านจากคอลัมน์นี้เสมอ ห้ามยิง Graph ตอนมีคนเปิดหน้าร้านสาธารณะ (ช้า + ชนลิมิตของ Meta)
+  followerCount     Int?
+  followerSyncedAt  DateTime?
   // accessTokenEnc: page access token ที่ผ่าน AES-256-GCM แล้ว (src/lib/token-crypto.ts)
   // ห้ามเก็บ plaintext ห้าม log ห้ามส่งกลับ client ทุกกรณี
   accessTokenEnc    String

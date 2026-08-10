@@ -58,6 +58,8 @@ export interface PageInfo {
   accessToken: string
   tasks: string[]
   instagramBusinessAccountId: string | null
+  /** ยอดถูกใจเพจ — null = Graph ไม่ส่งมา (สิทธิ์ไม่ถึง/เพจใหม่) **ไม่ใช่ 0** ผู้เรียกต้องแยกสองอย่างนี้ */
+  followerCount: number | null
 }
 
 // (S-3) แลก short-lived user token → long-lived (~60 วัน) ต่ออีกครั้ง — design spec §7.1 ระบุว่า
@@ -110,7 +112,10 @@ export async function exchangeCodeForToken(code: string, redirectUri: string): P
 // สำหรับการรับ-ส่งข้อความแทนเพจ (Page ที่สิทธิ์ไม่ครบเชื่อมไปก็ส่งข้อความไม่ได้)
 export async function listManageablePages(userToken: string): Promise<PageInfo[]> {
   const json = await graphFetch('/me/accounts', userToken, {
-    query: { fields: 'id,name,access_token,tasks,instagram_business_account' },
+    // followers_count ใช้สิทธิ์ pages_read_engagement ซึ่งอยู่ใน CONNECT_SCOPES มาตั้งแต่ต้นแล้ว
+    // (ไม่ใช่ของที่เพิ่งเพิ่มเหมือน pages_read_user_content ที่ token เก่าไม่มี) — ถึงอย่างนั้นก็ยัง
+    // เขียนแบบ "ไม่มีก็ไม่พัง": Graph ที่ไม่ส่ง field นี้มาจะได้ null แล้ว UI ซ่อนยอดไปเอง
+    query: { fields: 'id,name,access_token,tasks,instagram_business_account,followers_count' },
   })
   const rows = (json.data ?? []) as Array<{
     id: string
@@ -118,6 +123,7 @@ export async function listManageablePages(userToken: string): Promise<PageInfo[]
     access_token: string
     tasks?: string[]
     instagram_business_account?: { id: string }
+    followers_count?: number
   }>
 
   return rows
@@ -128,7 +134,30 @@ export async function listManageablePages(userToken: string): Promise<PageInfo[]
       accessToken: r.access_token,
       tasks: r.tasks ?? [],
       instagramBusinessAccountId: r.instagram_business_account?.id ?? null,
+      followerCount: typeof r.followers_count === 'number' ? r.followers_count : null,
     }))
+}
+
+/**
+ * ยอดผู้ติดตามของบัญชี Instagram business ที่ผูกกับเพจ
+ *
+ * แยก call ต่างหากจาก /me/accounts เพราะ IG อยู่คนละ ID space — field `followers_count` ของ IG
+ * ต้องถามที่ IG user id ด้วย page token (สิทธิ์ instagram_basic ซึ่งอยู่ใน CONNECT_SCOPES แล้ว)
+ *
+ * ล้มเหลว = คืน null ไม่ throw: การเชื่อมเพจต้องไม่พังเพราะดึงตัวเลขประดับไม่ได้
+ * (และ null ที่คืนไปแปลว่า "ไม่รู้" ผู้เรียกจะไม่เขียนทับค่าเดิมในฐาน)
+ */
+export async function fetchInstagramFollowerCount(
+  igUserId: string,
+  pageToken: string,
+): Promise<number | null> {
+  try {
+    const json = await graphFetch(`/${igUserId}`, pageToken, { query: { fields: 'followers_count' } })
+    const n = (json as { followers_count?: number }).followers_count
+    return typeof n === 'number' ? n : null
+  } catch {
+    return null
+  }
 }
 
 // บอก Meta ให้ยิง webhook ของเพจนี้มาที่แอปเรา — ถ้าไม่เรียก จะไม่มีข้อความเข้าเลย

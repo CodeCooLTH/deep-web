@@ -6,6 +6,7 @@ import {
   unsubscribePageFromApp,
   getPageIdFromToken,
   getInstagramAccountIdForPage,
+  fetchInstagramFollowerCount,
   type PageInfo,
 } from '@/lib/facebook/graph'
 import { lineApiRequest, LineApiError } from '@/lib/line/client'
@@ -46,6 +47,9 @@ async function upsertChannel(params: {
   externalId: string
   name: string
   accessToken: string
+  /** ยอดผู้ติดตาม ณ ตอนเชื่อม — null = ดึงไม่ได้/ไม่รู้ ห้ามแปลงเป็น 0 (คนละความหมาย)
+   *  undefined = ผู้เรียกไม่ได้ตั้งใจอัปเดตค่านี้ → คงค่าเดิมในฐานไว้ ไม่เขียนทับด้วย null */
+  followerCount?: number | null
   // force: user ยืนยันแล้วว่าต้องการย้ายเพจมาร้านนี้ (เพจติดอยู่กับร้านอื่น) → ตัดแถว active
   // ของร้านอื่นก่อนแล้วสร้างใหม่ให้ร้านนี้ authorization: pages ที่เข้ามาถึงจุดนี้ผ่าน
   // listManageablePages(userToken) มาแล้ว = เป็นเพจที่ user มีสิทธิ์ MESSAGING+MODERATE จริง
@@ -122,6 +126,11 @@ async function upsertChannel(params: {
           accessTokenEnc: encryptToken(params.accessToken), // refresh token ทุก reconnect
           name: params.name,
           avatarUrl,
+          // 🛑 เขียนเฉพาะเมื่อผู้เรียกส่งมาจริง — ถ้า Graph ไม่ตอบ field นี้ (undefined) ต้องคงยอด
+          // ครั้งก่อนไว้ ไม่ใช่ล้างเป็น null เพราะ "ถามไม่สำเร็จ" ไม่ได้แปลว่า "ยอดหายไป"
+          ...(params.followerCount !== undefined
+            ? { followerCount: params.followerCount, followerSyncedAt: new Date() }
+            : {}),
           connectedByUserId: params.userId,
         },
       })
@@ -134,6 +143,9 @@ async function upsertChannel(params: {
           name: params.name,
           avatarUrl,
           accessTokenEnc: encryptToken(params.accessToken),
+          ...(params.followerCount !== undefined
+            ? { followerCount: params.followerCount, followerSyncedAt: new Date() }
+            : {}),
           connectedByUserId: params.userId,
         },
       })
@@ -209,6 +221,7 @@ export async function connectPages(
       externalId: page.id,
       name: page.name,
       accessToken: page.accessToken,
+      followerCount: page.followerCount,
       force: forced,
     })
 
@@ -231,6 +244,12 @@ export async function connectPages(
         externalId: page.instagramBusinessAccountId,
         name: page.name,
         accessToken: page.accessToken,
+        // IG มี "ผู้ติดตาม" ไม่ใช่ "ถูกใจ" และอยู่คนละ ID space กับเพจ จึงต้องถามแยก
+        // ดึงไม่ได้ = null → ไม่เขียนทับค่าเดิม และ UI ซ่อนยอดของแถวนั้นไปเอง
+        followerCount: await fetchInstagramFollowerCount(
+          page.instagramBusinessAccountId,
+          page.accessToken,
+        ),
         force: forced, // IG ต้องใช้การยืนยันเดียวกับ Page แม่ ไม่งั้นย้าย Page ได้แต่ IG ค้างร้านเดิม
       })
     }

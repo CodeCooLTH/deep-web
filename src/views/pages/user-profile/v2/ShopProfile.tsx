@@ -27,7 +27,7 @@ import ProfileTabs from './ProfileTabs'
 import PublicRoomList, { type PublicRoom } from './PublicRoomList'
 import PublicServiceList, { type PublicService } from './PublicServiceList'
 import AvailabilityCalendar, { type AvailabilityData } from './AvailabilityCalendar'
-import OfficialChannels, { type OfficialChannel } from './OfficialChannels'
+import { ChannelStrip, type OfficialChannel } from './OfficialChannels'
 import ReviewSummary, { type RatingBucket } from './ReviewSummary'
 import ReviewList, { type ReviewListItem } from './ReviewList'
 import ShopVideos, { type ShopVideoItem } from './ShopVideos'
@@ -123,12 +123,9 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
       // ช่องทาง Official อยู่ในแท็บนี้ ไม่แยกเป็นแท็บของตัวเอง — เป็นข้อมูล "ติดต่อร้านนี้
       // ได้ทางไหน" ซึ่งเป็นเรื่องเดียวกับการแนะนำร้าน และทำให้จำนวนแท็บอยู่ตามที่กำหนด
       label: 'เกี่ยวกับร้าน',
-      content: (
-        <div className='flex flex-col gap-5'>
-          <AboutOverview data={data.about} />
-          {data.channels.length > 0 && <OfficialChannels channels={data.channels} />}
-        </div>
-      ),
+      // ช่องทางย้ายขึ้นไปอยู่ใต้บรรทัด slug ในหัวโปรไฟล์แล้ว (user 2026-08-09) — ไม่คงไว้สองที่
+      // เพราะเป็นข้อมูลชุดเดียวกัน การซ้ำพร้อมกรอบ "ยืนยันแล้ว" สองรอบเพิ่มพื้นที่โดยไม่เพิ่มข้อมูล
+      content: <AboutOverview data={data.about} />,
     },
     reviews: {
       // คะแนนอยู่ในป้ายแท็บ ผู้ซื้อเห็นเรตทันทีโดยไม่ต้องกดเข้าไปดู
@@ -151,7 +148,7 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
 
   return (
     <div className='mli-auto max-is-[960px]'>
-      <ProfileHero data={{ ...data.hero, shopId: data.shopId }} />
+      <ProfileHero data={{ ...data.hero, shopId: data.shopId }} channels={data.channels} />
 
       <PageBlocksSection blocks={effectiveBlocks} />
 

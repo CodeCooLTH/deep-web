@@ -43,6 +43,7 @@ import VuexyLogo from '@core/svg/Logo'
 import themeConfig from '@configs/themeConfig'
 
 import { badgeIconName } from '@/lib/badge-icons'
+import { ChannelStrip, type OfficialChannel } from './OfficialChannels'
 // เกณฑ์ขั้นต่ำอ่านจาก SSOT — ห้าม hardcode เลขในข้อความ ไม่งั้นวันที่เกณฑ์เปลี่ยน
 // หน้าจอจะบอกตัวเลขที่ไม่ตรงกับที่ระบบใช้จริง
 import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
@@ -208,7 +209,16 @@ function BadgeArtwork({
   return <Icon icon={badgeIconName(nameEN, icon)} width={15} className='shrink-0 opacity-70' />
 }
 
-export default function ProfileHero({ data }: { data: ProfileHeroData }) {
+export default function ProfileHero({
+  data,
+  channels = [],
+}: {
+  data: ProfileHeroData
+  /** ช่องทางที่ยืนยันแล้ว — ย้ายมาจากแท็บ "เกี่ยวกับร้าน" (user 2026-08-09 "เอา page ที่เชื่อมต่อ
+   *  ออกมาไว้ข้างล่าง slug") ผู้ซื้อจำนวนมากรู้จักเพจของร้านก่อนรู้จัก Deep การเห็นชื่อเพจเดียวกับ
+   *  ที่เคยเห็นในฟีดคือหลักฐานว่ามาถูกร้าน จึงควรอยู่ใกล้ตัวตนร้าน ไม่ใช่ซ่อนหลังแท็บ */
+  channels?: OfficialChannel[]
+}) {
   const router = useRouter()
   const { status: sessionStatus } = useSession()
 
@@ -377,6 +387,9 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
             .join(' · ')}
         </Typography>
       </div>
+
+      {/* ── ช่องทางที่เชื่อมต่อ: อยู่ติดบรรทัด slug ── */}
+      <ChannelStrip channels={channels} />
 
       {/* ── เหรียญ: ชิปที่บอกชื่อจริง ไม่ใช่วงกลมไอคอนล้วน ──
              เดิมเป็นวงกลม 38px ที่มีแต่ไอคอน + title สำหรับ hover ซึ่งบนมือถือ (surface หลักของเรา)

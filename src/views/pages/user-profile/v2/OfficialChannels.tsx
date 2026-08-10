@@ -26,6 +26,23 @@ export type OfficialChannel = {
   name: string
   avatarUrl: string | null
   externalId: string
+  /** 🛑 null = "ยังไม่รู้" ไม่ใช่ 0 — เพจที่เชื่อมไว้ก่อนมีคอลัมน์นี้จะเป็น null จนกว่าจะเชื่อมใหม่
+   *  ต้องซ่อนยอดทั้งส่วน ห้าม fallback เป็น 0 เพราะ 0 แปลว่า "ไม่มีคนถูกใจ" ซึ่งเป็นคนละความหมาย */
+  followerCount?: number | null
+}
+
+/** คำเรียกยอดตามแพลตฟอร์ม — Instagram ไม่มี "ไลก์" ของบัญชี มีแต่ผู้ติดตาม (user เคาะ 2026-08-09) */
+const FOLLOWER_LABEL: Record<string, string> = {
+  MESSENGER: 'ถูกใจ',
+  INSTAGRAM: 'ผู้ติดตาม',
+  LINE: 'ผู้ติดตาม',
+}
+
+/** ย่อเลขให้อ่านง่ายบนพื้นที่แคบ — 12,300 → 12.3K (ชุดเดียวกับที่ไทล์คลิปใช้) */
+function compactCount(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`
+  return `${(n / 1_000_000).toFixed(1)}M`
 }
 
 /** ป้ายกำกับ + สีแบรนด์ + วิธีประกอบ URL ต่อแพลตฟอร์ม
@@ -122,5 +139,107 @@ export default function OfficialChannels({ channels }: { channels: OfficialChann
         )
       })}
     </div>
+  )
+}
+
+/**
+ * ChannelStrip — แถบช่องทางแบบกระชับ สำหรับวางในหัวโปรไฟล์ใต้บรรทัด slug (user 2026-08-09)
+ *
+ * ทำไมไม่ reuse รายการแนวตั้งด้านบนตรง ๆ: ที่นั่นเป็นรายการเต็มในแท็บที่มีที่เหลือเฟือ ส่วนหัว
+ * โปรไฟล์แน่นอยู่แล้ว (ชื่อ → ชิป → meta → เหรียญ → ตัวเลข) การแทรกรายการแนวตั้งเข้าไปจะดัน
+ * ตัวเลขซึ่งเป็นหลักฐานหลักตกจอบนมือถือ — แถบแนวนอนกินความสูงบรรทัดเดียว
+ *
+ * 🛑 มือถือโชว์แค่ 2 ใบแล้วยุบที่เหลือเป็นปุ่ม "+N" ไม่ปล่อยให้เลื่อนล้นออกนอกจอสองข้าง
+ * (เวอร์ชันแรกที่ทำแล้ว user ทักว่า "แน่นล้นไปหมด" — ภาพจริงคือแถบทะลุขอบจอทั้งซ้ายและขวา)
+ * กด "+N" แล้วกางลงมาในที่ ไม่เปิดโมดัล เพราะเนื้อหาแค่ไม่กี่แถว
+ */
+export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
+  const [expanded, setExpanded] = useState(false)
+  if (channels.length === 0) return null
+
+  const VISIBLE = 2
+  const shown = expanded ? channels : channels.slice(0, VISIBLE)
+  const rest = channels.length - shown.length
+
+  return (
+    <ul className='flex justify-center items-center gap-1.5 flex-wrap pli-5 pbe-3 m-0 p-0 list-none'>
+      {shown.map((c) => {
+        const meta = PROVIDER[c.provider]
+        if (!meta) return null
+        const href = meta.url(c)
+        const label = FOLLOWER_LABEL[c.provider] ?? 'ผู้ติดตาม'
+        const inner = (
+          <>
+            <ChannelAvatarSmall src={c.avatarUrl} bg={meta.bg} icon={meta.icon} />
+            <span className='flex flex-col min-is-0 leading-tight text-start'>
+              <span className='text-[13px] font-semibold truncate max-is-[110px]'>{c.name}</span>
+              {/* ซ่อนทั้งบรรทัดเมื่อไม่รู้ยอด — ห้ามแสดง 0 */}
+              {typeof c.followerCount === 'number' && (
+                <span className='text-[11px] text-[var(--mui-palette-text-secondary)] tabular-nums'>
+                  {`${label} ${compactCount(c.followerCount)}`}
+                </span>
+              )}
+            </span>
+          </>
+        )
+        // min-bs-[44px] ให้ผ่านเกณฑ์ tap target ของ PRODUCT.md แม้เนื้อหาภาพจะดูบางกว่านั้น
+        const cls =
+          'inline-flex items-center gap-2 min-bs-[44px] plb-1 pli-2.5 pis-1 rounded-full border border-[var(--mui-palette-divider)] no-underline text-[color:inherit]'
+        return (
+          <li key={`${c.provider}-${c.externalId}`}>
+            {href ? (
+              <a
+                href={href}
+                target='_blank'
+                rel='noopener noreferrer'
+                className={cls}
+                aria-label={`เปิด ${c.name} ใน ${meta.label}`}
+              >
+                {inner}
+              </a>
+            ) : (
+              <span className={cls}>{inner}</span>
+            )}
+          </li>
+        )
+      })}
+      {rest > 0 && (
+        <li>
+          <button
+            type='button'
+            onClick={() => setExpanded(true)}
+            aria-label={`ดูช่องทางที่เหลืออีก ${rest} ช่องทาง`}
+            className='inline-flex items-center gap-1 min-bs-[44px] plb-1 pli-3 rounded-full border border-[var(--mui-palette-divider)] bg-transparent text-[13px] font-medium text-[var(--mui-palette-text-secondary)] cursor-pointer'
+          >
+            {`+${rest}`}
+            <Icon icon='lucide:chevron-down' width={13} />
+          </button>
+        </li>
+      )}
+    </ul>
+  )
+}
+
+/** อวตารช่องทางขนาดเล็กสำหรับแถบในหัว — วงกลม 26px (ตัวในแท็บเป็น 38px มุมมน) */
+function ChannelAvatarSmall({ src, bg, icon }: { src: string | null; bg: string; icon: string }) {
+  const [failed, setFailed] = useState(false)
+  return (
+    <span
+      className='is-[26px] bs-[26px] rounded-full shrink-0 relative flex items-center justify-center text-white overflow-hidden'
+      style={{ background: bg }}
+    >
+      {src && !failed ? (
+        // eslint-disable-next-line @next/next/no-img-element -- รูปจากแพลตฟอร์มภายนอก หลากโดเมน
+        <img src={src} alt='' className='is-full bs-full object-cover' onError={() => setFailed(true)} />
+      ) : (
+        <Icon icon={icon} width={14} />
+      )}
+      {/* เช็คเขียว = ยืนยันความเป็นเจ้าของผ่าน OAuth — ตัวเดียวกับที่รายการในแท็บใช้
+          นี่คือที่ที่ความหมายของประโยค "ช่องทางเหล่านี้ยืนยันแล้ว..." ไปอยู่เมื่อย้ายขึ้นหัว */}
+      <span
+        className='absolute inline-end-0 block-end-0 is-[10px] bs-[10px] rounded-full bg-success border-2 border-[var(--mui-palette-background-paper)]'
+        title='ยืนยันความเป็นเจ้าของแล้ว'
+      />
+    </span>
   )
 }

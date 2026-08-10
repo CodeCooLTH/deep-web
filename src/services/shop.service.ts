@@ -292,7 +292,9 @@ export async function getShopProfileStats(shopId: string) {
     }),
     prisma.shopChannel.findMany({
       where: { shopId, status: "ACTIVE" },
-      select: { provider: true, name: true, avatarUrl: true, externalId: true },
+      // followerCount อ่านจากคอลัมน์ ไม่ยิง Graph ตอนมีคนเปิดหน้าร้าน (ช้า + ชนลิมิต Meta)
+      // null = ยังไม่รู้ (เพจที่เชื่อมก่อนมีคอลัมน์นี้) — UI ต้องซ่อนยอด ไม่ใช่แสดง 0
+      select: { provider: true, name: true, avatarUrl: true, externalId: true, followerCount: true },
     }),
   ]);
 
