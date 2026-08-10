@@ -94,7 +94,21 @@ export default function AppointmentDayRows({ items, showResourceName = false, on
               <button
                 type="button"
                 onClick={() => onRowClick(it.orderToken)}
-                aria-label={`เปิดรายละเอียดของ ${who}${it.orderNo ? ` เลขที่ ${it.orderNo}` : ''}`}
+                /* 🛑 ชื่อจากผู้เขียนบน <button> **แทนที่** เนื้อในทั้งก้อน ไม่ได้เติมเข้าไป —
+                   ป้ายสั้น ๆ ว่า "เปิดรายละเอียดของ สมชาย" จึงทำให้ผู้ใช้ screen reader ไม่ได้ยิน
+                   เวลา ชื่อคิว และสถานะเลยสักตัว ทั้งที่สามอย่างนั้นคือเนื้อหาทั้งหมดของแถว
+                   และแถวเดียวกันนี้ในชีต (ไม่ส่ง onRowClick) เป็น <span> ที่อ่านครบ
+                   = รายการเดียวกันอ่านได้ไม่เท่ากันสองจอ. ประกอบประโยคให้ครบ อย่าตัดทิ้ง */
+                aria-label={[
+                  allDay ? 'ทั้งวัน' : `${formatTimeHM(start)} ถึง ${formatTimeHM(end)}`,
+                  showResourceName && it.resource?.name ? it.resource.name : null,
+                  who,
+                  label,
+                  it.orderNo ? `เลขที่ ${it.orderNo}` : null,
+                  'เปิดรายละเอียด',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
                 className="bg-card focus-visible:ring-primary flex w-full items-start gap-3 rounded-lg p-3 text-start transition-colors hover:bg-default-50 focus-visible:ring-2 focus-visible:outline-none"
               >
                 {body}

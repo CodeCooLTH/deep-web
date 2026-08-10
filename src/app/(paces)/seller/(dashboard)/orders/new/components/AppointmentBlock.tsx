@@ -58,6 +58,15 @@ type Props = {
    * pattern เดียวกับ CustomerSelectBlock variant="embedded"
    */
   variant?: 'card' | 'embedded'
+  /**
+   * วัน/เวลาถูกพามาจากปฏิทินก่อนเปิดฟอร์ม (ปุ่มปฏิทินในแถบเครื่องมือแชท 2026-08-10)
+   *
+   * 🛑 มีเพราะฟิลด์วัน/เวลาถูก gate ด้วย `selected` (ต้องเลือกคิวก่อน) — ร้านที่มีคิวมากกว่า
+   * ใบเดียวจะไม่ได้ resourceId มาด้วย (เดาให้ไม่ได้) แล้วจอจะไม่แสดงวัน/เวลาที่ผู้ขาย
+   * เพิ่งเลือกไปเมื่อ 2 วินาทีก่อนเลยสักตัว เห็นแต่กล่องเตือนสีส้มว่า "จะถูกบันทึกเป็น
+   * ออเดอร์ปกติที่ไม่มีวันนัด" — อ่านได้ทางเดียวว่าสิ่งที่เพิ่งทำหายไปแล้ว
+   */
+  prefilledFromCalendar?: boolean
   /** ค่าที่ผู้ใช้กรอกอยู่ (watch จาก form owner) */
   value: {
     resourceId?: string
@@ -88,6 +97,7 @@ export default function AppointmentBlock({
   control,
   errors,
   setValue,
+  prefilledFromCalendar = false,
   resources,
   granularity,
   idPrefix,
@@ -159,9 +169,24 @@ export default function AppointmentBlock({
             ตั้งใจไม่บล็อกการบันทึก — แค่บอกผลที่จะตามมา (pattern เดียวกับกล่องเตือนวันย้อนหลัง) */}
         {value.date && !value.resourceId && (
           <div className="bg-warning/10 border-warning/30 rounded-lg border p-3">
-            <p className="text-default-800 text-sm font-medium">ยังไม่ได้เลือกคิวงาน</p>
+            <p className="text-default-800 text-sm font-medium">
+              {prefilledFromCalendar ? 'เลือกคิวงานเพื่อยืนยันนัด' : 'ยังไม่ได้เลือกคิวงาน'}
+            </p>
+            {/* วัน/เวลาที่พามาจากปฏิทินต้องอยู่บนจอ — ไม่งั้นผู้ขายที่เพิ่งเลือกไปเมื่อกี้
+                จะเห็นแต่คำเตือนว่า "จะไม่มีวันนัด" แล้วอ่านว่างานที่ทำไปหายทั้งหมด
+                (ฟิลด์จริงยังถูก gate ด้วย `selected` ตามเดิม บรรทัดนี้เป็นตัวยืนยันว่ามันยังอยู่) */}
+            {prefilledFromCalendar && (
+              <p className="text-default-800 mt-1 text-sm font-semibold tabular-nums">
+                {formatDateTH(new Date(`${value.date}T00:00`))}
+                {value.startTime
+                  ? ` · ${value.startTime}${value.endTime ? `–${value.endTime}` : ''}`
+                  : ''}
+              </p>
+            )}
             <p className="text-default-600 mt-1 text-sm">
-              เลือกคิวงานด้านล่างก่อน ไม่งั้นออเดอร์นี้จะถูกบันทึกเป็นออเดอร์ปกติที่ไม่มีวันนัด
+              {prefilledFromCalendar
+                ? 'เลือกคิวงานที่จะรับงานนี้ด้านล่าง แล้ววันและเวลาข้างบนจะถูกผูกเข้ากับนัด'
+                : 'เลือกคิวงานด้านล่างก่อน ไม่งั้นออเดอร์นี้จะถูกบันทึกเป็นออเดอร์ปกติที่ไม่มีวันนัด'}
             </p>
           </div>
         )}
@@ -236,9 +261,15 @@ export default function AppointmentBlock({
                         if (!active) field.onChange(r.id)
                         // จำตัวที่เพิ่งกดไว้ป้อนปฏิทิน ไม่รอ useWatch (ดูคอมเมนต์ pickedForSheet)
                         setPickedForSheet(r)
-                        // เปิดปฏิทินทันทีในจังหวะเดียวกับที่เลือก ไม่รอ effect
-                        // (user สั่ง: "เมื่อจิ้มแล้ว ก็ให้ auto open modal ปฏิทินเลย")
-                        setDateSheetOpen(true)
+                        /* เปิดปฏิทินทันทีในจังหวะเดียวกับที่เลือก ไม่รอ effect
+                           (user สั่ง 2026-08-07: "เมื่อจิ้มแล้ว ก็ให้ auto open modal ปฏิทินเลย")
+
+                           ข้อยกเว้นเดียว: วัน/เวลาถูกพามาจากปฏิทินก่อนเปิดฟอร์มแล้ว
+                           (ปุ่มปฏิทินในแถบเครื่องมือแชท) — เปิดซ้ำคือการขอให้เลือกวันเดิม
+                           อีกรอบทั้งที่เพิ่งเลือกไปเมื่อกี้ ซึ่งทำให้ทางลัดที่ตั้งใจ "ลดขั้นตอน"
+                           กลายเป็นเพิ่มจอเต็มอีกใบสำหรับร้านที่มีคิวมากกว่าหนึ่ง
+                           (กดการ์ดที่เลือกอยู่แล้วซ้ำ ยังเปิดปฏิทินได้ตามเดิม = ทางแก้วันยังอยู่) */
+                        if (!(prefilledFromCalendar && value.date) || active) setDateSheetOpen(true)
                       }}
                       /* motion-reduce: กฎ blanket ใน safepay-overrides.css ย่นเวลา transition
                          เหลือ 0.12s แต่ **ไม่ได้ยกเลิกการย่อ-ขยายตัวการ์ด** — ผู้ใช้ที่เปิด

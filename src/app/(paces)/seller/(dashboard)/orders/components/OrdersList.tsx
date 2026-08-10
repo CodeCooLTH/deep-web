@@ -311,8 +311,14 @@ export default function OrdersList({
    * เงื่อนไข `|| appt !== null` มีไว้กันหน้าค้างเปล่า: ถ้าเข้ามาด้วยลิงก์ที่กรองอยู่แล้วจนไม่เหลือ
    * แถวไหนมีนัด แกนต้องยังอยู่ให้กดออกได้ (ตรรกะเดียวกับ hasStageAxis)
    */
+  /**
+   * 🛑 นับจาก `orders` ก้อนดิบ ไม่ใช่ `dayScoped` — การมี/ไม่มีแกนนี้เป็นคุณสมบัติของ **ร้าน**
+   * (ร้าน walk-in ล้วนไม่มีแกนนัดเลย) ไม่ใช่ของชุดที่กรองแล้ว. ถ้าอิง dayScoped วันที่ไม่มีนัด
+   * สักใบ แถวชิปจะ **เปลี่ยนตัวตน** จาก "สถานะนัด" ไปเป็น "สถานะการขาย" กลางคัน ซึ่งอ่านเป็น
+   * จอคนละหน้า ทั้งที่ผู้ใช้แค่กดกรองวัน
+   */
   const hasAppointmentAxis =
-    APPOINTMENT_STAGE_KEYS.some((k) => apptCounts[k] > 0) || appt !== null
+    orders.some((o) => o.appointment) || appt !== null || apptDay !== null
 
   /**
    * ชิปแถวเดียวบนมือถือ — ร้านขายออนไลน์ได้ "สถานะพัสดุ" ร้านอื่นได้ "สถานะการขาย" แบบเดิม
@@ -342,14 +348,22 @@ export default function OrdersList({
           },
           /* วางถัดจาก "ทั้งหมด" ไม่ใช่ท้ายสุด — "ไม่มีนัด" ไม่ใช่จุดบนเส้นทางของนัด
              (นัดแล้ว→ยืนยัน→จบ) ถ้าอยู่ท้ายจะอ่านเป็นขั้นถัดจาก "ไม่มาตามนัด"
-             และในร้านจริงมันคือกองที่ใหญ่ที่สุด ควรอยู่ใกล้ "ทั้งหมด" ที่สุด */
-          {
-            key: 'NONE',
-            label: 'ไม่มีนัด',
-            count: noAppointmentCount,
-            active: appt === 'NONE',
-            select: () => pushQuery({ appt: 'NONE' }),
-          },
+             และในร้านจริงมันคือกองที่ใหญ่ที่สุด ควรอยู่ใกล้ "ทั้งหมด" ที่สุด
+
+             🛑 หายไปเมื่อกรอง `?apptDay=` อยู่ — ชุดนั้นคัดด้วย "มีวันนัดคาบเกี่ยววันนี้"
+             ทุกแถวจึงมีนัดเสมอ ชิปนี้จะเป็น 0 ตลอดและกดแล้วได้จอว่างทุกครั้ง
+             ปุ่มที่กดได้แต่ไม่มีวันให้ผลคือปุ่มที่หลอกให้กด */
+          ...(apptDay
+            ? []
+            : [
+                {
+                  key: 'NONE',
+                  label: 'ไม่มีนัด',
+                  count: noAppointmentCount,
+                  active: appt === 'NONE',
+                  select: () => pushQuery({ appt: 'NONE' }),
+                },
+              ]),
           ...APPOINTMENT_STAGE_KEYS.map((k) => ({
             key: k,
             label: APPOINTMENT_STAGE_META[k].label,
@@ -655,14 +669,29 @@ export default function OrdersList({
         {apptDay && (
           <div className="bg-primary/10 mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5">
             <Icon icon="calendar-event" className="text-primary shrink-0 text-base" aria-hidden="true" />
-            <p className="text-primary-ink mb-0 min-w-0 flex-1 truncate text-xs font-semibold">
-              กำลังดูเฉพาะนัดวันนี้ · {dayScoped.length} รายการ
+            {/* 🛑 คำต้องไม่โกหกว่านี่คือ "จำนวนแถวที่เห็น" — dayScoped เป็นชั้นก่อนตัวกรองอื่น
+                ทั้งหมด (ชิปสถานะนัด/สถานะการขาย/ประเภท/ช่วงเวลา/คำค้น) ผู้ขายที่กดชิปต่อจะเห็น
+                3 การ์ดใต้ประโยคที่บอก 12 และบนมือถือ **ไม่มีตัวนับแถวจริงอยู่ที่ไหนเลย**
+                เลขนี้จึงเป็นเลขเดียวบนจอ ถ้าเขียนกำกวมมันคือเลขเดียวที่ผิด
+                (คลาสเดียวกับ partial-data-must-be-labeled-or-filled.md) */}
+            <p className="text-primary-ink mb-0 min-w-0 flex-1 text-xs font-semibold">
+              กำลังดูเฉพาะนัดวันนี้ ({dayScoped.length} นัด)
+              {filtered.length !== dayScoped.length && (
+                <span className="text-default-600 ms-1 font-normal">
+                  · แสดง {filtered.length} จากตัวกรองอื่น
+                </span>
+              )}
             </p>
+            {/* text-primary-ink ไม่ใช่ text-primary — วัดแล้ว text-primary บนพื้น bg-primary/10
+                ได้ 4.46:1 ตกเกณฑ์ข้อความ 4.5:1 (และ 2.92:1 ในโหมดมืด) ส่วน -ink ได้ 9.03:1
+                บทเรียนเดียวกันเขียนไว้แล้วที่ AppointmentDateSheet.tsx แต่ปุ่มนี้ตกสำรวจ
+                min-h-11: ปุ่มนี้อยู่ใน lg:hidden = มือถือล้วน `px-2 py-2 text-xs` ได้ ~35px
+                ต่ำกว่าเกณฑ์ 44px ที่ PRODUCT.md ประกาศไว้สำหรับกลุ่มผู้สูงวัย (WCAG 2.5.5) */}
             <button
               type="button"
               onClick={() => pushQuery({ apptDay: null })}
               aria-label="ล้างตัวกรองนัดวันนี้"
-              className="text-primary shrink-0 rounded-md px-2 py-2 text-xs font-semibold"
+              className="text-primary-ink hover:bg-primary/10 inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-xs font-semibold"
             >
               ล้าง
             </button>
@@ -723,7 +752,11 @@ export default function OrdersList({
                    กลาง ๆ ("ไม่มีคำสั่งซื้อในสถานะนี้") เขาจะอ่านว่าระบบพัง ไม่ใช่ว่าวันนี้ว่าง
                    และถ้ามีชิปสถานะนัดกรองซ้อนอยู่ด้วย ต้องบอกทั้งสองเงื่อนไข ไม่งั้นผู้ใช้จะกด
                    "ล้างนัดวันนี้" แล้วยังว่างอยู่ โดยไม่รู้ว่าตัวที่กรองจริงคืออีกตัว */
-                apptDay
+                /* คำค้นมาก่อนทุกเงื่อนไข — ผู้ใช้ที่เพิ่งพิมพ์ลงไปรู้อยู่แล้วว่าตัวเองทำอะไร
+                   ถ้าขึ้น "วันนี้ยังไม่มีนัดเข้ามา" ทับ เขาจะอ่านว่าข้อมูลหาย ไม่ใช่ว่าหาไม่เจอ */
+                search.trim()
+                  ? `ไม่พบ${vocab.noun}ที่ตรงกับ "${search.trim()}"`
+                  : apptDay
                   ? appt
                     ? 'วันนี้ไม่มีนัดในสถานะที่เลือก'
                     : 'วันนี้ยังไม่มีนัดเข้ามา'
@@ -732,7 +765,12 @@ export default function OrdersList({
                   : `ไม่มี${vocab.noun}ในสถานะนี้`
               }
               action={
-                apptDay
+                /* ไม่โชว์ปุ่ม "ดูทั้งหมด" ตอนที่คำค้นเป็นตัวกรองจริง — ลิงก์ไป /orders ล้าง
+                   เฉพาะ query ส่วน `search` เป็น client state ที่ค้างอยู่ ผู้ใช้จะกดแล้วเจอ
+                   จอว่างซ้ำอีกรอบพร้อมข้อความใหม่ = ปุ่มที่พาไปที่เดิม */
+                search.trim()
+                  ? undefined
+                  : apptDay
                   ? { label: `ดู${vocab.noun}ทั้งหมด`, href: '/orders' }
                   : { label: `+ ${vocab.createLabel}แรก`, href: '/orders/new' }
               }

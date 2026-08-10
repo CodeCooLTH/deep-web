@@ -54,17 +54,35 @@ type Props = {
   resources: ResourceOption[]
   /** ร้านรับนัดแบบรายวัน — ตัวตัดสินว่าจอนี้จะพูดคำว่า "เต็ม" ไหม (FR-RSV-13) */
   byDay: boolean
+  /**
+   * คำเรียกการสร้างรายการของร้านนี้ — มาจาก `ORDER_VOCAB` ผ่าน RSC (HR16)
+   *
+   * 🛑 ห้าม hardcode "สร้างงาน"/"จองคิว" ที่นี่: การกระทำเดียวกันในหน้าเดียวกันเคยมีสามคำ
+   * (บอร์ดมือถือ "สร้างงาน" · ปฏิทินเดสก์ท็อป "จองคิว" · SSOT "สร้างการเข้ารับบริการ")
+   */
+  createLabelShort: string
 }
 
 const ALL = ''
 
-export default function AppointmentMonthBoard({ resources, byDay }: Props) {
+export default function AppointmentMonthBoard({ resources, byDay, createLabelShort }: Props) {
   const router = useRouter()
   const calRef = useRef<FullCalendar>(null)
 
   const [resourceId, setResourceId] = useState<string>(ALL)
   const [items, setItems] = useState<AppointmentBoardItem[]>([])
   const [loading, setLoading] = useState(false)
+  /**
+   * 🛑 ต้องแยก "โหลดล้ม" ออกจาก "ว่างจริง" — เดิมทั้งสองกรณีจบที่ `items = []` เหมือนกัน
+   * แล้วครึ่งล่างขึ้น "ว่างทั้งวัน · ยังไม่มีใครจองคิวนี้" ในวันที่ลูกค้าจองไว้ 5 คิว
+   * โดยสัญญาณเดียวที่บอกว่าล้มคือ toast ที่หายเองใน 3 วิ และไม่มีปุ่มลองใหม่
+   * งานประจำวันของหน้านี้คือ "ดูว่าวันนี้มีใครเข้ามาบ้าง" — ตอบผิดครั้งเดียวคือเลิกเชื่อทั้งหน้า
+   */
+  const [loadError, setLoadError] = useState(false)
+  /** โหลดรอบแรกจบหรือยัง — ก่อนจบห้ามพูดว่า "ว่าง" เพราะยังไม่รู้ */
+  const [loaded, setLoaded] = useState(false)
+  /** ตัวนับไว้สั่งโหลดซ้ำจากปุ่ม "ลองอีกครั้ง" (range/resourceId เท่าเดิมจึงต้องมี dep ตัวนี้) */
+  const [reloadSeq, setReloadSeq] = useState(0)
   const [viewStart, setViewStart] = useState<Date | null>(null)
   const [range, setRange] = useState<{ from: string; to: string } | null>(null)
   /** วันที่กำลังดูอยู่ — ตั้งต้นเป็นวันนี้ เพื่อไม่ให้ครึ่งล่างว่างเปล่าตั้งแต่เปิดหน้า */
@@ -76,6 +94,7 @@ export default function AppointmentMonthBoard({ resources, byDay }: Props) {
     let cancelled = false
     const run = async () => {
       setLoading(true)
+      setLoadError(false)
       try {
         const qs = new URLSearchParams({
           from: range.from,
@@ -84,13 +103,22 @@ export default function AppointmentMonthBoard({ resources, byDay }: Props) {
         })
         const res = await fetch(`/api/shops/current/appointments?${qs}`, { cache: 'no-store' })
         if (!res.ok) {
-          if (!cancelled) pacesToast.error('โหลดปฏิทินไม่สำเร็จ ลองอีกครั้ง')
+          if (!cancelled) {
+            setLoadError(true)
+            pacesToast.error('โหลดปฏิทินไม่สำเร็จ ลองอีกครั้ง')
+          }
           return
         }
         const json = (await res.json()) as { items: AppointmentBoardItem[] }
-        if (!cancelled) setItems(Array.isArray(json.items) ? json.items : [])
+        if (!cancelled) {
+          setItems(Array.isArray(json.items) ? json.items : [])
+          setLoaded(true)
+        }
       } catch {
-        if (!cancelled) pacesToast.error('เชื่อมต่อไม่ได้ ลองอีกครั้ง')
+        if (!cancelled) {
+          setLoadError(true)
+          pacesToast.error('เชื่อมต่อไม่ได้ ลองอีกครั้ง')
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -99,7 +127,7 @@ export default function AppointmentMonthBoard({ resources, byDay }: Props) {
     return () => {
       cancelled = true
     }
-  }, [range, resourceId])
+  }, [range, resourceId, reloadSeq])
 
   const onDatesSet = useCallback((arg: DatesSetArg) => {
     setRange({ from: arg.start.toISOString(), to: arg.end.toISOString() })
@@ -230,7 +258,16 @@ export default function AppointmentMonthBoard({ resources, byDay }: Props) {
           <h4 className="text-dark truncate text-base font-semibold">
             {viewStart ? formatMonthYearTH(viewStart) : ''}
           </h4>
-          {loading && <Icon icon="loader-2" className="text-default-400 size-4 animate-spin" />}
+          {/* motion-reduce: กฎ blanket ใน safepay-overrides.css ย่นเวลา transition แต่ไม่ได้
+              หยุด keyframe — ผู้ที่เปิด "ลดการเคลื่อนไหว" จะยังเจอวงหมุน (pattern เดียวกับ
+              การ์ดคิวงานใน AppointmentBlock) */}
+          {loading && (
+            <Icon
+              icon="loader-2"
+              className="text-default-400 size-4 animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           {/* กลาง ๆ ไม่ใช่ primary — น้ำเงินบนจอนี้สงวนไว้กับ "วันที่กำลังเลือก" (One Voice) */}
@@ -269,7 +306,10 @@ export default function AppointmentMonthBoard({ resources, byDay }: Props) {
           </span>
         )}
         <span className="inline-flex items-center gap-1.5">
-          <span className="border-default-300 size-2.5 rounded-full border" aria-hidden="true" />
+          {/* rounded-sm ไม่ใช่ rounded-full — ช่อง "วันนี้" ในปฏิทินเป็นสี่เหลี่ยมมน (rounded-lg)
+              swatch ที่เป็นวงกลมคือ legend ที่อธิบายสัญลักษณ์ที่ไม่มีอยู่จริงบนจอ
+              (กฎนี้เขียนไว้เองในบล็อกนี้แล้ว แต่ตัวโค้ดยกมาจากชีตซึ่งผิดมาก่อน) */}
+          <span className="border-default-300 size-2.5 rounded-sm border" aria-hidden="true" />
           วันนี้
         </span>
       </div>
@@ -355,7 +395,35 @@ export default function AppointmentMonthBoard({ resources, byDay }: Props) {
         </div>
 
         <div className="px-3 pb-3">
-          {dayItems.length === 0 ? (
+          {loadError ? (
+            /* บล็อกค้างบนจอ ไม่ใช่ toast ที่หายเอง — และห้ามพูดว่า "ว่าง" เพราะเราไม่รู้ */
+            <div className="border-danger/30 bg-danger/10 flex flex-col items-center gap-2 rounded-lg border px-6 py-6 text-center">
+              <Icon icon="cloud-off" className="text-danger-ink size-6" aria-hidden="true" />
+              <p className="text-default-800 text-sm font-semibold">โหลดตารางคิวไม่สำเร็จ</p>
+              <p className="text-default-600 text-xs">ยังไม่รู้ว่าวันนี้มีคิวหรือไม่ — ลองอีกครั้ง</p>
+              <button
+                type="button"
+                onClick={() => setReloadSeq((n) => n + 1)}
+                className="btn border-default-300 text-default-800 hover:bg-default-50 mt-1 min-h-11 rounded-full border px-4 text-sm"
+              >
+                ลองอีกครั้ง
+              </button>
+            </div>
+          ) : !loaded ? (
+            /* skeleton ไม่ใช่สปินเนอร์กลางเนื้อหา (operate.md) — และไม่ใช่ "ว่างทั้งวัน"
+               ซึ่งเป็นคำตอบที่ผิดสำหรับคำถามเดียวที่หน้านี้มีอยู่เพื่อตอบ */
+            <ul className="flex flex-col gap-2" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <li key={i} className="bg-card flex items-start gap-3 rounded-lg p-3">
+                  <span className="bg-default-200 block h-8 w-14 shrink-0 animate-pulse rounded motion-reduce:animate-none" />
+                  <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <span className="bg-default-200 block h-3.5 w-2/5 animate-pulse rounded motion-reduce:animate-none" />
+                    <span className="bg-default-200 block h-3 w-1/4 animate-pulse rounded motion-reduce:animate-none" />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : dayItems.length === 0 ? (
             /* วันว่าง = ผลลัพธ์ที่ดีของจอนี้ (ยังรับงานได้) ไม่ใช่ความล้มเหลว — น้ำเสียงจึงไม่ใช่
                "ไม่พบข้อมูล" และไอคอนเป็นเทากลาง **ไม่ใช่เขียว** เพราะเขียวสงวนไว้กับสัญญาณ
                ความเชื่อใจที่ยืนยันแล้ว (Verified-Means-Green) ว่างไม่ใช่ trust signal */
@@ -364,7 +432,10 @@ export default function AppointmentMonthBoard({ resources, byDay }: Props) {
                 <Icon icon="calendar-check" className="size-5" />
               </span>
               <p className="text-default-800 text-sm font-semibold">ว่างทั้งวัน</p>
-              <p className="text-default-500 text-xs">ยังไม่มีใครจองคิวนี้</p>
+              {/* "คิวนี้" มีความหมายเฉพาะตอนกรองคิวเดียว — ตอนดู "ทุกคิวงาน" ไม่มีคิวไหนให้ชี้ */}
+              <p className="text-default-500 text-xs">
+                {resourceId ? 'ยังไม่มีใครจองคิวนี้' : 'ยังไม่มีใครจองวันนี้'}
+              </p>
             </div>
           ) : (
             <AppointmentDayRows
@@ -385,7 +456,7 @@ export default function AppointmentMonthBoard({ resources, byDay }: Props) {
             className="btn bg-primary hover:bg-primary-hover min-h-11 w-full gap-1.5 text-white"
           >
             <Icon icon="plus" className="size-4" aria-hidden="true" />
-            สร้างงานวันที่ {formatDateTH(selectedDate)}
+            {createLabelShort} · {formatDateTH(selectedDate)}
           </button>
         </div>
       </div>

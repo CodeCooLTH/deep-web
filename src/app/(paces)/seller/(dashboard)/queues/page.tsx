@@ -17,6 +17,7 @@ import { getServerSession } from 'next-auth'
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import { authOptions } from '@/lib/auth'
 import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
+import { resolveOrderVocab } from '@/lib/seller-menu'
 import { requireActiveShop } from '@/lib/shop-context'
 import {
   listServiceResources,
@@ -71,6 +72,10 @@ export default async function ServiceResourcesPage() {
                   .filter((r) => r.isActive)
                   .map((r) => ({ id: r.id, name: r.name, capacity: r.capacity }))}
                 byDay={(active.shop.appointmentGranularity as AppointmentGranularity) !== 'TIME'}
+                /* คำจาก SSOT ไม่ใช่คำที่พิมพ์ในคอมโพเนนต์ — หน้านี้มี 2 เวอร์ชัน (มือถือ/เดสก์ท็อป)
+                   ที่เคยเรียกการกระทำเดียวกันคนละคำ ("สร้างงาน" กับ "จองคิว") ทั้งที่ ORDER_VOCAB
+                   ตัดสินไว้แล้วว่าร้านคิวงานเรียกว่าอะไร (HR16) */
+                createLabelShort={resolveOrderVocab(active.shop.vertical).createLabelShort}
               />
             </div>
             <div className="hidden lg:block">
@@ -78,6 +83,7 @@ export default async function ServiceResourcesPage() {
                 resources={resources
                   .filter((r) => r.isActive)
                   .map((r) => ({ id: r.id, name: r.name, capacity: r.capacity }))}
+                createLabelShort={resolveOrderVocab(active.shop.vertical).createLabelShort}
               />
             </div>
           </>

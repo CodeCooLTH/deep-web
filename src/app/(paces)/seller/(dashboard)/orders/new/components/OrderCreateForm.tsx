@@ -931,6 +931,9 @@ export default function OrderCreateForm({
         resources={serviceResources}
         granularity={appointmentGranularity}
         total={barTotal}
+        /* วัน/เวลามาจากปฏิทินก่อนเปิดฟอร์ม → บล็อกต้องยืนยันบนจอว่าค่านั้นยังอยู่ และห้ามเปิด
+           ปฏิทินซ้ำตอนกดเลือกคิว (เหตุผลเต็มอยู่ที่ prop นี้ใน AppointmentBlock) */
+        prefilledFromCalendar={Boolean(appointmentPrefill?.date)}
         value={{
           resourceId: appointmentWatch?.resourceId,
           date: appointmentWatch?.date,

@@ -63,7 +63,11 @@ type AppointmentItem = {
   buyerName: string | null
 }
 
-type Props = { resources: ResourceOption[] }
+type Props = {
+  resources: ResourceOption[]
+  /** คำเรียกการสร้างรายการของร้านนี้ (ORDER_VOCAB) — ห้าม hardcode "จองคิว" (HR16, 2026-08-10) */
+  createLabelShort: string
+}
 
 const ALL = ''
 
@@ -152,7 +156,7 @@ function bookedAtSameTime(item: AppointmentItem, all: AppointmentItem[]): number
   }).length
 }
 
-export default function AppointmentCalendar({ resources }: Props) {
+export default function AppointmentCalendar({ resources, createLabelShort }: Props) {
   const router = useRouter()
   const calendarRef = useRef<FullCalendar | null>(null)
   const [resourceId, setResourceId] = useState<string>(ALL)
@@ -412,7 +416,11 @@ export default function AppointmentCalendar({ resources }: Props) {
               <button
                 type="button"
                 className={`appt-day-add btn btn-icon min-h-11 min-w-11 ${full ? 'text-danger-ink' : 'text-primary'}`}
-                aria-label={full ? `${arg.dayNumberText} รับนัดเต็มแล้ว` : `จองคิววันที่ ${arg.dayNumberText}`}
+                aria-label={
+                  full
+                    ? `${arg.dayNumberText} รับนัดเต็มแล้ว`
+                    : `${createLabelShort} วันที่ ${arg.dayNumberText}`
+                }
                 onClick={(e) => {
                   // กันไม่ให้ dateClick ของช่องทำงานซ้ำอีกรอบ
                   e.stopPropagation()
