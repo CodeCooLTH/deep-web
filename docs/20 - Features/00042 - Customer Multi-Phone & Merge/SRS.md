@@ -706,7 +706,7 @@ erDiagram
 | **Race condition: merge กับสร้างออเดอร์พร้อมกัน** (PRD §6.2 ระบุไว้แล้วว่าต้องปิดที่ SRS/SDS) | ออเดอร์ใหม่อาจถูกสร้างชี้ไปแถวที่กำลังถูกรวมทิ้งพอดี | ปิดด้วย `SELECT ... FOR UPDATE` (merge, TFR-006) คู่กับ `SELECT ... FOR SHARE` (order creation, TFR-002) — บังคับให้ transaction ที่มาทีหลังเห็นผลลัพธ์ล่าสุดเสมอ ไม่มี lost update |
 | **Merge ผ่าน UI ทำได้เฉพาะเมื่อทั้งสองแถวเคยสั่งซื้อกับร้านเดียวกัน** (known-limitation จากมติ OD-7) | ลูกค้าคนเดียวกันที่แยกประวัติคนละร้าน (ร้าน A เห็นแค่แถว A, ร้าน B เห็นแค่แถว B) ไม่มีร้านไหนเห็นทั้ง 2 แถวพร้อมกันเพื่อกด merge — แม้สถาปัตยกรรม `Customer` เป็น cross-shop identity ตาม PRD แต่ UI ที่ล็อกไว้ (OD-7: modal บน `/customers` ซึ่ง query เฉพาะออเดอร์ร้านตัวเอง) ไม่รองรับเคสนี้ | **ไม่ใช่บั๊ก ไม่ใช่สิ่งที่ต้องแก้ในเฟสนี้** (ไม่ขัด OD-7 ที่เคาะแล้ว) — บันทึกเป็น known-limitation ที่ Phase ถัดไปอาจต้องมีหน้าจอ "ค้นหาลูกค้าข้ามร้าน" แยกถ้า Ops ต้องการรวมเคสแบบนี้ (นอกขอบเขต MVP) |
 | **`ownerCustomerId` ที่คืนจาก `PhoneAlreadyLinkedError`** เมื่อ `ownerVisibleToShop=true` เปิดเผย customerId ของแถวอื่นให้ผู้ขาย | ความเสี่ยงต่ำ (customerId เป็น opaque uuid ไม่ใช่ PII และคืนเฉพาะเมื่อร้านนี้เคยมีออเดอร์กับแถวนั้นอยู่แล้วจริง — ไม่ใช่ข้อมูลใหม่ที่ระบบไม่เคยเปิดเผย, สอดคล้อง BR-CM-23) | ไม่ต้อง mitigate เพิ่ม — ตรวจสอบด้วย `ownerVisibleToShop` guard ใน TFR-003 แล้ว |
-| **Trigger `customer_merge_userid_guard` เป็น RECOMMENDED ไม่ใช่ MANDATORY** ([[DATABASE]] §5.1 ข้อ 5) | ถ้า service layer มีบั๊กใน BR-CM-11 check (TFR-006 ข้อ 3) และไม่มี trigger นี้ = merge ผิดคนหลุดไปถึง DB commit | TFR-006 implement เงื่อนไขนี้ใน service แล้ว (defense ชั้นแรก) — แนะนำให้ dev คง trigger ไว้เป็นชั้นสอง (ตัดสินใจสุดท้ายอยู่ที่ตอน implementation phase ตาม [[DATABASE]] Open Question #2) |
+| ~~Trigger `customer_merge_userid_guard` เป็น RECOMMENDED~~ → **MANDATORY (มติ 2026-08-10)** ([[DATABASE]] §5.1 ข้อ 5) | ถ้า service layer มีบั๊กใน BR-CM-11 check (TFR-006 ข้อ 3) และไม่มี trigger นี้ = merge ผิดคนหลุดไปถึง DB commit **แบบย้อนกลับไม่ได้** | ปิดความเสี่ยงแล้ว 2 ชั้น: TFR-006 เช็คใน service (ชั้นแรก/UX) + trigger บังคับที่ DB (ชั้นสอง/ความถูกต้อง) — เหตุผลการเคาะอยู่ที่ [[DATABASE]] §8 ข้อ 2 |
 | **`CustomerMergeLog.survivorSnapshot`/`mergedSnapshot` มี PII ดิบ (เบอร์เต็ม)** ([[DATABASE]] §6) | ถ้าอนาคตมีหน้า admin เปิดดู log นี้โดยไม่ mask = PII หลุด | ไม่มี UI เข้าถึงในเฟสนี้ (ยืนยันจาก BRD ไม่มี FR) — ถ้าสร้าง UI ในอนาคตต้อง mask ก่อนส่งออกนอก server (บันทึกไว้แล้วใน [[DATABASE]] เป็นคำเตือนล่วงหน้า) |
 
 ---
@@ -742,8 +742,11 @@ erDiagram
 - แก้ 3 จุด critical ที่มีอยู่ก่อนแล้ว (TFR-007/008/009) ที่ถ้าไม่แก้จะทำให้ฟีเจอร์ "ดูเหมือนใช้ได้" แต่ผิดจริง
 - 8 จุด auto-correct ที่ verified แล้วว่าไม่ต้องแก้ (TFR-010)
 
-**ประเด็นที่ต้องตัดสินใจเพิ่ม (Open Questions — ส่งต่อ implementation phase):**
-- Trigger `customer_merge_userid_guard` เก็บไว้เป็น defense ชั้นสองหรือตัดออก ([[DATABASE]] Open Question #2 — ยังไม่เคาะ)
+**ประเด็นที่ต้องตัดสินใจเพิ่ม — ปิดครบแล้ว 2026-08-10:**
+- ✅ Trigger `customer_merge_userid_guard` = **MANDATORY** (เหตุผลเต็ม: [[DATABASE]] §8 ข้อ 2)
+- ✅ export `resolveCustomerForEditedOrder` เพื่อให้เทส TFR-007 ยิงตรงได้
+- ✅ `buildCustomerBlock` อยู่ที่ `src/services/ai-context.service.ts:115` (export แล้ว) เขียนเทสตรงได้
+- ✅ ขยาย `tests/setup.ts::deleteTestData()` ให้รับ id ของ 3 ตารางใหม่ (scope ด้วย id ที่เทสสร้างเองเท่านั้น)
 - ค่า `isolationLevel` ของ `prisma.$transaction` ต้องระบุชัดหรือใช้ default READ COMMITTED พอ (TFR-006 ออกแบบบนสมมติฐาน READ COMMITTED + `FOR UPDATE`/`FOR SHARE` — ถ้า dev พบว่า Prisma ตั้ง isolation level อื่นเป็น default ต้อง verify ซ้ำว่า locking pattern นี้ยังถูกต้อง)
 
 ---

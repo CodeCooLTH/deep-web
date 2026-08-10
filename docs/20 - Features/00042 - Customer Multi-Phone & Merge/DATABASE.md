@@ -296,7 +296,7 @@ trigger ใหม่ 3 ตัว) ไม่แตะ/ลบ/เปลี่ย�
 | 2 | สร้างตาราง `CustomerPhone` + FK 3 ตัว (`customerId`/`createdByUserId`/`addedByShopId`) + index | PostgreSQL 16 | ต้องมี `Customer`/`User`/`Shop` อยู่ก่อนแล้ว (มีอยู่แล้วทั้งหมด) |
 | 3 | สร้างตาราง `CustomerMergeLog` + FK 4 ตัว + index | PostgreSQL 16 | ต้องมีลำดับ 1-2 ก่อน (`survivorCustomerId`/`mergedCustomerId` อ้าง `Customer`, ไม่อ้าง `CustomerPhone` โดยตรง แต่แนวคิดเดียวกัน) |
 | 4 | สร้าง trigger คู่ `customer_phone_cross_table_unique` บน `Customer`/`CustomerPhone` (บังคับ BR-CM-02 ข้ามตาราง — **REQUIRED**) | PostgreSQL 16 | ต้องมีลำดับ 2 ก่อน (ตาราง `CustomerPhone` ต้องมีอยู่แล้วให้ trigger function query ได้) |
-| 5 | สร้าง trigger `customer_merge_userid_guard` บน `Customer` (บังคับ BR-CM-11 ที่ระดับ DB — **RECOMMENDED, defense-in-depth**) | PostgreSQL 16 | ต้องมีลำดับ 1 ก่อน (ต้องมีคอลัมน์ `mergedIntoId`) |
+| 5 | สร้าง trigger `customer_merge_userid_guard` บน `Customer` (บังคับ BR-CM-11 ที่ระดับ DB — **MANDATORY** ตามมติ 2026-08-10) | PostgreSQL 16 | ต้องมีลำดับ 1 ก่อน (ต้องมีคอลัมน์ `mergedIntoId`) |
 
 **ไม่มี backfill/data migration ใด ๆ ในไฟล์นี้** — ทั้งสองตารางใหม่เริ่มต้นว่างเปล่า (0 แถว) และคอลัมน์ใหม่บน
 `Customer` เป็น `NULL` สำหรับทุกแถวเดิมโดยอัตโนมัติ (nullable ไม่มี default ที่ไม่ใช่ NULL) — สถานะข้อมูลเดิม
@@ -556,7 +556,7 @@ ALTER TABLE "Customer" DROP COLUMN IF EXISTS "mergedAt";
 | `CustomerPhone` (ทั้งตาราง) | FR-CM-001 (เพิ่มเบอร์), FR-CM-002 (มองเห็นเบอร์ทั้งหมด), BR-CM-01/02/03/04 | Draft |
 | `CustomerMergeLog` (ทั้งตาราง) | FR-CM-007 (บันทึกร่องรอยการรวม), BR-CM-15 | Draft |
 | trigger `customer_phone_cross_table_unique` | BR-CM-02 ("เบอร์หนึ่งเบอร์ผูกกับลูกค้ากลางได้สูงสุด 1 คนในระบบเสมอ") | Draft |
-| trigger `customer_merge_userid_guard` | BR-CM-11 ("ห้ามรวม ถ้าทั้งสองแถวมี `userId` ที่ไม่ null และไม่เท่ากัน") | Draft — RECOMMENDED ไม่ใช่ mandatory (ดู §5.1 ข้อ 5) |
+| trigger `customer_merge_userid_guard` | BR-CM-11 ("ห้ามรวม ถ้าทั้งสองแถวมี `userId` ที่ไม่ null และไม่เท่ากัน") | **MANDATORY** (มติ 2026-08-10 — ดู §5.1 ข้อ 5 และ §8 ข้อ 2) |
 
 ---
 
@@ -589,10 +589,15 @@ ALTER TABLE "Customer" DROP COLUMN IF EXISTS "mergedAt";
    **หน้าจอเปรียบเทียบ+ยืนยัน** และ **`CustomerMergeLog`** เท่านั้น ไม่มีชั้นสิทธิ์มาช่วยกรอง
    (PRD §4.3 OD-8 + §2.2 แก้ตรงกันแล้ว)
 
-2. **Trigger `customer_merge_userid_guard` (§5.1 ข้อ 5) เป็น RECOMMENDED ไม่ใช่ MANDATORY** — ถ้า
-   safepay-planner/user ต้องการตัดออกเพื่อลดความซับซ้อนของ migration (เพราะ BR-CM-11 มีทางเข้าเดียวคือ merge
-   function ตัวเดียว ไม่เหมือน BR-CM-02 ที่มีหลายทางเขียน) ตัดได้โดยไม่กระทบ schema ส่วนอื่น — ต้องเคาะก่อน
-   implementation phase
+2. ~~**Trigger `customer_merge_userid_guard` เป็น RECOMMENDED**~~ — 🛑 **มติ 2026-08-10 (ปิด Open Question หลัง QA ตั้งคำถาม): MANDATORY**
+   เหตุผล: (ก) มันเขียนอยู่ใน **ไฟล์ migration** จึงเป็น managed SQL ที่ `migrate deploy` สร้างซ้ำได้เอง
+   ไม่ใช่ SQL ที่รันมือบน console (หนี้ชนิดที่โปรเจกต์นี้เคยเจ็บมาแล้ว) ต้นทุนส่วนเพิ่มจึงเกือบเป็นศูนย์
+   (ข) สิ่งที่มันกันคือ **การรวมบัญชีผู้ซื้อจริง 2 คนเข้าด้วยกัน ซึ่งย้อนกลับไม่ได้ตามมติ OD-2** — ข้อโต้แย้ง
+   ที่ว่า "merge มีทางเข้าเดียว" เป็นจริง *วันนี้* แต่เป็นสัญญาที่ฝากไว้กับความจำของคนเขียนโค้ดคนถัดไป
+   ซึ่งเป็นแพตเทิร์นที่ทำให้เกิดบั๊กมาแล้วหลายรอบในโปรเจกต์นี้ (`stored-flag-vs-owner-truth`)
+   (ค) หลักที่เอกสารนี้ใช้กับ trigger เบอร์ซ้ำอยู่แล้ว: **app-level = UX, DB = ความถูกต้อง** ต้องใช้กับที่นี่ด้วย
+   ⇒ ผลต่อ TestCase: **TC-D-005 เป็นเคสบังคับ ไม่ใช่เคสมีเงื่อนไข** และ route ต้องแมป error ของ trigger
+   ตัวนี้เป็นข้อความไทยเหมือน error อื่น (ห้ามปล่อยเป็น 500 ดิบ)
 3. **`linkBuyerHistory` (`user.service.ts`) ต้องเปลี่ยน logic จาก string-match เป็น customer-based match**
    เพื่อให้ FR-CM-008 AC ("ผูกออเดอร์เก่าที่ใช้เบอร์ทุกเบอร์ในชุด ไม่ใช่แค่เบอร์ที่สมัคร") เป็นจริง — ไม่ใช่คำถาม
    ระดับ schema (ไม่มีตารางไหนต้องแก้เพิ่ม) แต่เป็น service-level change ที่ SDS ต้องระบุไว้ชัด ไม่งั้นจะถูกมองข้าม

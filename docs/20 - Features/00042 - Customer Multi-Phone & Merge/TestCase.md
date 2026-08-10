@@ -45,7 +45,9 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]",
   ของตัวเอง โดย scope ด้วย id ที่ทดสอบสร้างเองเท่านั้น (`prisma.customerMergeLog.deleteMany({where:{id:{in:[...]}}})`
   → `customerPhone` → `externalContact`/`order` (ผ่าน `deleteTestData` เดิมได้) → `customer` → `shop`/`user`)
   เรียงลำดับลูกก่อนแม่เหมือนเดิม — **ห้ามเพิ่มเงื่อนไขลบแบบไม่ scope ใน `deleteTestData` เด็ดขาด** (Hard Rule 13)
-  ดู Open Question ท้ายเอกสารนี้
+  ✅ **มติ 2026-08-10:** ขยาย `deleteTestData()` ให้รับ `customerIds`/`customerPhoneIds`/`mergeLogIds`
+  (รับเฉพาะ id ที่เทสสร้างเอง) แทนการให้แต่ละไฟล์ล้างเอง — การล้างแบบกระจายจะลืมได้ทีละตัวโดยไม่มีอะไรฟ้อง
+  แล้วข้อมูลค้างจะไปโผล่เป็นเทสตัวอื่นแดงในวันหลัง
 
 ---
 
@@ -511,7 +513,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]",
 #### TC-S-034: [blocker] `resolveCustomerForEditedOrder` — เบอร์ใหม่เป็น**เบอร์รอง**ของลูกค้าอีกคน → `newPhoneTaken=true`
 
 - **Linked to:** TFR-007 — "critical gap" ที่ [[SRS]] เตือนไว้ตรง ๆ ว่าถ้าไม่แก้แอดมิน rename เบอร์ไปชนเบอร์รองคนอื่นสำเร็จ
-- **ประเภท:** service (⚠️ ต้อง export `resolveCustomerForEditedOrder` จาก `order.service.ts` ก่อนถึงจะเทสตรงได้ — ปัจจุบันเป็น `async function` ที่ไม่ export ดู Open Question ท้ายเอกสาร)
+- **ประเภท:** service ตรง — ✅ มติ 2026-08-10: **export `resolveCustomerForEditedOrder` จาก `order.service.ts`** ตอน implement (ปัจจุบันเป็น `async function` ที่ยังไม่ export)
 - **Precondition:** `resolveCustomerIdForPhone(tx, newPhone)` (mock) คืน `customerId` ที่ **ไม่ใช่** `current.id`
 - **Steps:**
   1. เรียก `resolveCustomerForEditedOrder(tx, {...current, newPhone})`
@@ -645,8 +647,8 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]",
 
 #### TC-D-005: trigger `customer_merge_userid_guard` (ถ้า implement ตาม [[DATABASE]] §5.1 ข้อ 5 — RECOMMENDED) — UPDATE `mergedIntoId` ให้ survivor มี `userId` ต่างจาก merged → ปฏิเสธด้วย `23514`
 
-- **Linked to:** BR-CM-11 (defense-in-depth ชั้นที่สอง — [[SRS]] §10 Open Question #2 ยังไม่เคาะว่าจะเก็บ trigger นี้ไว้หรือไม่)
-- **ประเภท:** DB-level — **เงื่อนไข: รันเฉพาะถ้า dev ตัดสินใจคง trigger นี้ไว้** (ถ้าตัดออกตาม Open Question #2 ให้ลบเคสนี้ออกจากชุดรัน ไม่ใช่ปล่อยให้แดงค้าง)
+- **Linked to:** BR-CM-11 (defense-in-depth ชั้นที่สอง — trigger นี้เป็น **MANDATORY** ตามมติ 2026-08-10)
+- **ประเภท:** DB-level — **เคสบังคับ ไม่มีเงื่อนไข** (trigger เป็น MANDATORY แล้ว) แดงเมื่อไหร่ = migration ไม่ได้สร้าง trigger จริง ห้าม merge
 - **Steps:**
   1. สร้าง `Customer` survivor (`userId='u-A'`) และ `Customer` merged (`userId='u-B'`, ต่างกัน)
   2. `UPDATE "Customer" SET "mergedIntoId"=<survivor.id> WHERE id=<merged.id>` ตรง ๆ ผ่าน `$executeRaw` (ข้าม service layer โดยตั้งใจ เพื่อพิสูจน์ว่า DB กันได้เองแม้ service มีบั๊ก)
@@ -1024,7 +1026,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]",
 | FR-CM-008 AC2 (แผงลูกค้าในแชท) | TC-S-024, TC-D-007, TC-Q-011 | Yes |
 | FR-CM-008 AC3 (`getCancellationSummary`) | TC-S-040..041, TC-D-011 | Yes |
 | FR-CM-008 AC4 (`linkBuyerHistory`) | TC-S-042..044, TC-D-012 | Yes |
-| FR-CM-008 AC5 (`ai-context.service.ts`) | (auto-correct ตาม TFR-010 — ไม่มีเทสอัตโนมัติแยก, ดู Open Question ท้ายเอกสาร) | **No — ดู Open Question** |
+| FR-CM-008 AC5 (`ai-context.service.ts`) | auto-correct ตาม TFR-010 — ✅ เขียนเทสตรงได้ (`buildCustomerBlock` export อยู่ที่ `ai-context.service.ts:115`) ให้เพิ่มเคสตอน implement | **Yes (เพิ่มตอน implement)** |
 | BR-CM-01 (validate รูปแบบเบอร์) | TC-M-002 | Yes |
 | BR-CM-02 (1 เบอร์ = 1 ลูกค้าเสมอ) | TC-D-001..003, TC-S-013..014 | Yes |
 | BR-CM-03 (ปฏิเสธ+ชี้ทางไปรวม) | TC-S-013..014, TC-Q-003..004 | Yes |
@@ -1052,7 +1054,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]", "[[API]]",
 
 > ทุก FR/BR ใน [[BRD]] ปรากฏในตารางนี้ — 2 แถวที่ทำเครื่องหมาย **N/A** (BR-CM-16/BR-CM-30) เป็น "negative by
 > absence" (ยืนยันด้วยการไม่มีจุดใดในโค้ดแตะสิ่งที่ห้ามแตะ ตรวจผ่าน code review/grep ไม่ใช่ automated test ที่ยืนยันเชิงบวกได้)
-> ส่วน **FR-CM-008 AC5 ยังไม่มีเทสอัตโนมัติ** — ดู Open Question ท้ายเอกสาร
+> ส่วน **FR-CM-008 AC5** — เขียนเทสตรงได้แล้ว (`buildCustomerBlock` export อยู่จริง) เพิ่มเคสตอน implement
 
 ---
 
@@ -1106,15 +1108,30 @@ proof (แก้ตรรกะให้ผิดแล้วต้องแด�
 (end-to-end integration กับ Postgres จริง, 7 เคส) เพราะการรวมย้อนกลับไม่ได้ด้วยตัวผู้ขายเอง (OD-2) — ถ้า
 `[blocker]` กลุ่มนี้ตัวใดตัวหนึ่งพลาด ผลคือข้อมูลของลูกค้า 2 คนปนกันถาวรในระดับที่กู้คืนยาก
 
-**Open Questions (เอกสารต้นน้ำยังไม่พอให้เขียนเทสได้ครบ — ถามกลับ ไม่เดาเอง):**
+**Open Questions — ปิดครบทั้ง 4 ข้อแล้ว 2026-08-10 (Controller เคาะ ไม่ได้ให้ QA เดาเอง):**
 
-1. **`order.service.ts::resolveCustomerForEditedOrder` เป็น `async function` ที่ไม่ได้ `export`** (verified: `src/services/order.service.ts:173`) — กลุ่ม TC-S-034..036 ต้องการเทสตรงฟังก์ชันนี้ตามที่ [[SRS]] TFR-007 ระบุ แต่ปัจจุบันเรียกได้ผ่าน `updateOrder` (exported) เท่านั้น **ต้องถาม `safepay-developer`/`safepay-planner` ว่าจะ export ฟังก์ชันนี้เพื่อให้เทสตรง (แบบเดียวกับ `canRenameCustomerPhone`/`shouldRelinkThreadCustomer` ที่แยกเป็น pure function ต่างหากแล้ว) หรือให้ QA เทสผ่าน `updateOrder` แบบ integration เท่านั้น** — เลือกทางไหนกระทบว่ากลุ่ม F ทั้งกลุ่มจะเป็น "service ตรง" หรือ "service integration ผ่าน caller"
+1. ✅ **`resolveCustomerForEditedOrder` → export ออกมา** ตอน implement แล้วเทสตรง (TC-S-034..036 เป็น
+   "service ตรง" ไม่ใช่ integration ผ่าน `updateOrder`) — ตรรกะที่ตัดสินว่า "แก้เบอร์ในแถวเดิม vs ย้ายไปแถวใหม่"
+   คือ boolean ที่เปลี่ยนพฤติกรรมของข้อมูลถาวร ต้องมีที่ให้เทสจับตรง ๆ ตาม
+   `docs/conventions/ui-boolean-needs-a-testable-home.md` (เหตุผลเดียวกับที่ `canRenameCustomerPhone`
+   ถูกแยกเป็น pure function ตั้งแต่วันที่ ship)
 
-2. **`FR-CM-008 AC5` (`ai-context.service.ts::buildCustomerBlock` เห็นประวัติรวมหลัง merge) ไม่มีเทสอัตโนมัติในเอกสารนี้** — [[SRS]] TFR-010 อ้างว่า "auto-correct" (ไม่ต้องแก้โค้ด) เพราะฟังก์ชันนี้ query ผ่าน `ExternalContact.customerId`/`Customer.userId` ที่ merge sync ให้แล้ว แต่ **ไม่มีเอกสารไหนให้ signature/ที่ตั้งของ `buildCustomerBlock` มากพอให้เขียนเทสตรง ๆ ได้** (ไม่มีใน [[SDS]] Component Design §3, ไม่มีใน [[SRS]] §9 นอกจากชื่อไฟล์) — **ถาม `safepay-planner`/`safepay-developer`: ต้องการให้ QA เขียนเทสแยกยืนยัน AC5 โดยตรง (ต้องมี signature ของ `buildCustomerBlock` ก่อน) หรือยอมรับว่า TC-D-007 (end-to-end merge ที่ `ExternalContact.customerId` ย้ายถูกต้อง) เพียงพอเป็นหลักฐานทางอ้อมแล้ว** เพราะ AC5 ไม่มี route/UI ให้ทดสอบทางอ้อมผ่าน browser QA ได้เลย (เป็นบริบทภายในของ AI ที่ไม่แสดงผลตรง ๆ บนจอ)
+2. ✅ **`buildCustomerBlock` มีอยู่จริงและ export แล้ว** — `src/services/ai-context.service.ts:115`
+   (`export async function buildCustomerBlock`) verified โดย Controller ⇒ **เขียนเทสตรงยืนยัน AC5 ได้**
+   ไม่ต้องยอมรับหลักฐานทางอ้อมจาก TC-D-007 อย่างเดียว. ที่ QA รายงานว่า "ไม่มีเอกสารไหนให้ที่ตั้ง" เกิดจาก
+   การค้นด้วย path ที่ผิดในรอบนั้น ไม่ใช่เพราะฟังก์ชันไม่มี — บทเรียน: "หาไม่เจอ" ≠ "ไม่มี" ต้องยืนยันอีกทาง
+   ก่อนบันทึกเป็นข้อจำกัด (`docs/conventions/known-limitation-vs-unfinished.md`)
 
-3. **`tests/setup.ts::deleteTestData()` ไม่รองรับ `Customer`/`CustomerPhone`/`CustomerMergeLog`** (ดู §1 ของเอกสารนี้) — เอกสารนี้แก้ปัญหาด้วยการให้แต่ละ DB-level test (กลุ่ม G/D2) ลบข้อมูลของตัวเองแบบ scoped ในไฟล์เทสนั้นโดยตรง ไม่แตะ `deleteTestData` **แต่ควรถาม Controller ว่าต้องการให้ขยาย `deleteTestData({customerIds, mergeLogIds})` เป็นส่วนกลางแทนหรือไม่** (ประหยัดโค้ดซ้ำถ้าฟีเจอร์ในอนาคตต้อง seed `Customer` บ่อยขึ้นเรื่อย ๆ) — ไม่ใช่ blocker ของการเขียนเทสตอนนี้ แค่เป็นทางเลือกเชิง maintainability
+3. ✅ **ขยาย `tests/setup.ts::deleteTestData()`** ให้รับ `customerIds`/`customerPhoneIds`/`mergeLogIds`
+   แทนการให้แต่ละไฟล์เทสล้างเอง — เหตุผลคือการล้างแบบกระจายจะ "ลืมได้ทีละตัวโดยไม่มีอะไรฟ้อง" และข้อมูลค้าง
+   จะไปโผล่เป็นเทสตัวอื่นแดงในวันหลัง 🛑 ต้องรับเป็น **id ที่เทสสร้างเองเท่านั้น** ห้ามลบแบบไม่ scope
+   เด็ดขาดตาม HR13 (ห้ามมี `deleteMany()` ที่ไม่มี `where` แม้แต่ตัวเดียว)
 
-4. **`[[DATABASE]] §5.1 ข้อ 5` (trigger `customer_merge_userid_guard`) ยังเป็น RECOMMENDED ไม่ใช่ MANDATORY** ([[SRS]] §10 Open Question #2 ระบุว่า "ต้องเคาะก่อน implementation phase") — TC-D-005 เขียนไว้เป็นเงื่อนไข ("รันเฉพาะถ้า dev ตัดสินใจคง trigger นี้ไว้") แต่ **ยังไม่มีมติสุดท้าย** ว่าจะเก็บ trigger นี้หรือไม่ — ถ้าตัดออก ต้องลบ TC-D-005 ออกจากชุดรันจริง (ไม่ใช่ปล่อยให้ error "ไม่มี trigger นี้" ค้างเป็น false failure)
+4. ✅ **trigger `customer_merge_userid_guard` = MANDATORY** ⇒ **TC-D-005 เป็นเคสบังคับ ไม่ใช่เคสมีเงื่อนไข**
+   (แก้ข้อความ "รันเฉพาะถ้า…" ตอน implement ด้วย) เหตุผลเต็มอยู่ที่ [[DATABASE]] §8 ข้อ 2 — ย่อ: มันอยู่ใน
+   ไฟล์ migration จึงเป็น managed SQL ต้นทุนเกือบศูนย์ · สิ่งที่มันกันคือการรวมบัญชีผู้ซื้อจริง 2 คนซึ่ง
+   **ย้อนกลับไม่ได้** · ข้อโต้แย้ง "merge มีทางเข้าเดียว" เป็นจริงเฉพาะวันนี้ และเป็นสัญญาที่ฝากไว้กับความจำ
+   ของคนเขียนโค้ดคนถัดไป — app-level = UX, DB = ความถูกต้อง (หลักเดียวกับ trigger เบอร์ซ้ำในเอกสารเดียวกัน)
 
 CHECKLIST/TestCase นี้ไม่ทดแทน `docs/qa/customer-multi-phone-merge-qa-checklist.md` (ยังไม่สร้าง เพราะยังไม่มี UI ให้ browser
 QA รอบแรกจับต้องได้จริง) — เมื่อ `safepay-ux` ออก Design Spec ของ `MergeCustomersModal.tsx`/`AddPhoneModal.tsx`

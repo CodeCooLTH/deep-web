@@ -48,7 +48,7 @@ API 2 endpoint, UI). **เพิ่มจาก SRS:** 2 ไฟล์ pure-funct
 |--------|-------------|
 | [[SRS]] ของโมดูลนี้ | ที่มาของ TFR-001..010 ทั้งหมด — SDS นี้ realize เป็น component design + ตอบคำถามที่ SRS เปิดไว้ |
 | [[DATABASE]] ของโมดูลนี้ | schema ล็อกแล้ว (`CustomerPhone`, `CustomerMergeLog`, `Customer.mergedIntoId/mergedAt`, trigger 2 ตัว) — SDS ไม่ออกแบบ schema ใหม่ |
-| [[BRD]] ของโมดูลนี้ | FR-CM-001..008 — 🛑 **§1.3/§2.2/§6.4/§7.1/§8.5 (BR-CM-41) ยังไม่ sync กับมติ OD-8 รอบสอง** (ยังเขียนว่าจำกัด OWNER/ADMIN หรือ "รอเคาะ") SDS นี้ยึด [[PRD]] §4.3 OD-8 (b) ที่ล็อกแล้ว = **ไม่มี authorization check ใหม่** — ต้องแจ้ง Controller ให้ sync BRD แยกต่างหาก |
+| [[BRD]] ของโมดูลนี้ | FR-CM-001..008 — §1.3/§2.2/§6.4/§7.1/§8.5 (BR-CM-41) **sync กับมติ OD-8 รอบสองแล้ว 2026-08-10** (Controller แก้หลัง planner ทักระหว่างเขียน SDS ฉบับนี้) ⇒ ทั้ง PRD/BRD/SRS/DATABASE/SDS ตรงกันหมดว่า **ไม่มี authorization check ใหม่** |
 | [[PRD]] ของโมดูลนี้ | Open Decisions §4.3 (เคาะครบ 8/8, รวม OD-8 รอบสอง) |
 
 ---
@@ -464,7 +464,14 @@ row-select ของ `OrdersTable.tsx`) แทนการเดา/ให้ de
 4. **`safepay-developer`**: UI ตาม spec ของ ux
 5. sync `docs/SRS.md` ตาม [[SRS]] §11
 
-**Open Questions (สืบทอดจาก [[SRS]]/[[DATABASE]], ยังไม่ปิด):**
-- Trigger `customer_merge_userid_guard` เก็บไว้เป็น defense ชั้นสองหรือตัดออก ([[DATABASE]] Open Question #2)
-- `BRD.md` ต้อง sync กับมติ OD-8 รอบสอง (§1.3/§2.2/§6.4/§7.1/§8.5) — ไม่ใช่ blocker ของ implementation
-  (SRS/DATABASE/SDS นี้ยึด PRD ที่ล็อกแล้วถูกต้อง) แต่ทิ้งไว้จะทำให้คนอ่าน BRD ย้อนหลังเข้าใจผิด
+**Open Questions — ปิดครบแล้ว 2026-08-10 (Controller เคาะหลัง QA/planner ตั้งคำถาม):**
+- ✅ Trigger `customer_merge_userid_guard` = **MANDATORY** (เหตุผลเต็มที่ [[DATABASE]] §8 ข้อ 2)
+- ✅ `BRD.md` sync กับมติ OD-8 รอบสองแล้วทั้ง 5 จุด
+- ✅ `resolveCustomerForEditedOrder` (`order.service.ts`) — **export ออกมา** ตอน implement เพื่อให้เทส TFR-007
+  ยิงตรงได้ ไม่ต้องทดสอบอ้อมผ่าน `updateOrder` (ตรรกะที่ตัดสินว่า "แก้เบอร์ในแถวเดิม vs ย้ายไปแถวใหม่"
+  ต้องมีที่ให้เทสจับตรง ๆ ตาม `docs/conventions/ui-boolean-needs-a-testable-home.md`)
+- ✅ `ai-context.service.ts::buildCustomerBlock` — **มีอยู่จริงและ export แล้ว** ที่บรรทัด 115 (verified)
+  เขียนเทสตรงได้ ไม่ต้องพึ่งการครอบทางอ้อม — ที่ QA หาไม่เจอเพราะ path ที่ใช้ค้นตอนนั้นผิด
+- ✅ `tests/setup.ts::deleteTestData()` — **ขยายให้รู้จัก `Customer`/`CustomerPhone`/`CustomerMergeLog`**
+  โดยรับเป็น id ที่เทสสร้างเองเท่านั้น (HR13: ห้ามลบแบบไม่ scope เด็ดขาด) แทนที่จะให้แต่ละเทสล้างเอง
+  ซึ่งจะลืมได้ทีละตัวโดยไม่มีอะไรฟ้อง
