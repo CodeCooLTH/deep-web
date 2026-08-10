@@ -107,7 +107,9 @@ export async function GET(request: NextRequest) {
         privateReplyStatus: true,
         skipReason: true,
         // ต้อง select มาด้วย ไม่งั้น describeCommentReplyFailure ได้ undefined ทุกแถวเงียบ ๆ
-        errorMessage: true,
+        errorMessage: true, // legacy — แถวเก่าที่ backfill ไม่ถึง (private สำเร็จแล้วโดนล้างไป)
+        publicErrorMessage: true,
+        privateErrorMessage: true,
         conversationId: true,
         comment: { select: { fromName: true } },
         post: { select: { message: true } },
@@ -128,7 +130,8 @@ export async function GET(request: NextRequest) {
         privateReplyStatus: r.privateReplyStatus,
         skipReasonText: describeSkipReason(r.skipReason),
         // user 2026-08-09: ป้าย "ไม่สำเร็จ" ต้องบอกได้ว่าเพราะอะไร ไม่ใช่ทางตัน
-        failReasonText: describeCommentReplyFailure(r.errorMessage),
+        publicFailReasonText: describeCommentReplyFailure(r.publicErrorMessage),
+        privateFailReasonText: describeCommentReplyFailure(r.privateErrorMessage ?? r.errorMessage),
         conversationId: r.conversationId,
       })),
       total,

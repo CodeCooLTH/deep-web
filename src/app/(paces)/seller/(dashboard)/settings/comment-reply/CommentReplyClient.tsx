@@ -92,14 +92,14 @@ export type CommentReplyLogRow = {
   privateReplyStatus: string | null
   skipReasonText: string | null
   /**
-   * เหตุผลของสถานะ FAILED (แปลไทยแล้วที่ชั้น server — `describeCommentReplyFailure`)
+   * เหตุผลของสถานะ FAILED แยกรายฝั่ง (แปลไทยแล้วที่ชั้น server — `describeCommentReplyFailure`)
    *
-   * 🛑 `CommentReplyLog.errorMessage` เป็น **คอลัมน์เดียว** ที่ทั้งฝั่ง "ตอบใต้คอมเมนต์" และ
-   * "ทักแชท" เขียนร่วมกัน และฝั่งทักแชทเขียนทีหลังเสมอ (ดู comment-auto-reply.service.ts)
-   * ⇒ เมื่อทั้งคู่ FAILED ข้อความที่รอดคือของ "ทักแชท" — UI จึงต้องแปะเหตุผลกับใบที่ทักแชท
-   * ไม่ใช่แปะซ้ำทั้งสองช่อง (จะกลายเป็นการอ้างว่ารู้เหตุผลของฝั่งที่ไม่ได้เก็บไว้จริง)
+   * แยกตั้งแต่ระดับคอลัมน์ในฐาน (migration 20260810090000) เพราะสองงานนี้เป็นอิสระต่อกันจริง —
+   * "ตอบใต้คอมเมนต์ไม่ผ่าน แต่ทักแชทได้" เป็นเคสปกติ (user ชี้เอง 2026-08-10) ตอนที่ยังใช้
+   * คอลัมน์ร่วมกัน เหตุผลของฝั่งสาธารณะถูกล้างทิ้งทุกครั้งที่ฝั่งทักแชทสำเร็จ
    */
-  failReasonText: string | null
+  publicFailReasonText: string | null
+  privateFailReasonText: string | null
   conversationId: string | null
 }
 
@@ -409,8 +409,8 @@ function ReplyStatusBadge({
   conversationId: string | null
   skipReasonText: string | null
   /**
-   * เหตุผลที่ FAILED — แสดง **ใต้ป้ายเสมอ ไม่ซ่อนใน `title`** (user สั่ง 2026-08-09
-   * "อยากให้แสดงรายละเอียดเลย ว่าไม่สำเร็จเพราะอะไร")
+   * เหตุผลที่ FAILED **ของฝั่งนี้เท่านั้น** — แสดงใต้ป้ายเสมอ ไม่ซ่อนใน `title` (user สั่ง
+   * 2026-08-09 "อยากให้แสดงรายละเอียดเลย ว่าไม่สำเร็จเพราะอะไร")
    *
    * ต่างจาก `skipReasonText` ที่ยังอยู่ใน `title` บนเดสก์ท็อป โดยตั้งใจ: "ข้าม" คือระบบตัดสินใจ
    * ถูกต้องแล้วตามกฎ (ข้อมูลประกอบ) ส่วน "ไม่สำเร็จ" คือมีบางอย่างพัง ซึ่งร้านต้องรู้ทันทีว่า
@@ -430,9 +430,9 @@ function ReplyStatusBadge({
   if (!status) return <span className="text-default-300 text-xs">—</span>
   const meta = REPLY_STATUS_META[status] ?? REPLY_STATUS_META.SKIPPED
   const showReasonText = revealSkipReason && status === 'SKIPPED' && Boolean(skipReasonText)
-  // เหตุผลของ FAILED แปะกับฝั่ง "ทักแชท" เท่านั้น — errorMessage เป็นคอลัมน์เดียวที่ฝั่งนั้นเขียน
-  // ทีหลังเสมอ การเอาไปแปะฝั่ง "ตอบใต้คอมเมนต์" ด้วยคือการอ้างว่ารู้เหตุผลที่ไม่ได้ถูกเก็บไว้จริง
-  const showFailReason = status === 'FAILED' && kind === 'private' && Boolean(failReasonText)
+  // ผู้เรียกส่งเหตุผล "ของฝั่งนี้" มาให้แล้ว จึงไม่ต้องมีกฎว่าแสดงได้เฉพาะฝั่งไหน
+  // (เดิมต้องจำกัดไว้ที่ฝั่งทักแชท เพราะฐานเก็บเหตุผลไว้คอลัมน์เดียว — แยกคอลัมน์แล้วข้อจำกัดนั้นหมดไป)
+  const showFailReason = status === 'FAILED' && Boolean(failReasonText)
   return (
     <span className="inline-flex flex-col items-start gap-0.5">
       <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -492,6 +492,7 @@ function buildDetailHtml(log: CommentReplyLogRow): string {
     (ถูกซ่อนเพราะ hideLink — ผู้ใช้ยังกดเปิดห้องได้จากตรงนี้) */
 function statusBlockHtml(kind: 'public' | 'private', log: CommentReplyLogRow): string {
   const status = kind === 'public' ? log.publicReplyStatus : log.privateReplyStatus
+  const failReason = kind === 'public' ? log.publicFailReasonText : log.privateFailReasonText
   if (!status) return `<span class="text-default-300 text-xs">—</span>`
   const meta = REPLY_STATUS_META[status] ?? REPLY_STATUS_META.SKIPPED
   const linkHtml =
@@ -501,10 +502,9 @@ function statusBlockHtml(kind: 'public' | 'private', log: CommentReplyLogRow): s
   const reasonHtml =
     status === 'SKIPPED' && log.skipReasonText
       ? `<p class="text-default-500 mt-1 text-xs">${escapeHtml(log.skipReasonText)}</p>`
-      : // เหตุผลของ FAILED — เงื่อนไขเดียวกับ ReplyStatusBadge เป๊ะ (เฉพาะฝั่ง private เพราะ
-        // errorMessage เป็นคอลัมน์เดียวที่ฝั่งนั้นเขียนทีหลังเสมอ) โมดัลกับตารางต้องพูดตรงกัน
-        status === 'FAILED' && kind === 'private' && log.failReasonText
-        ? `<p class="text-danger-ink mt-1 text-xs">${escapeHtml(log.failReasonText)}</p>`
+      : // เหตุผลของ FAILED — เงื่อนไขเดียวกับ ReplyStatusBadge เป๊ะ โมดัลกับตารางต้องพูดตรงกัน
+        status === 'FAILED' && failReason
+        ? `<p class="text-danger-ink mt-1 text-xs">${escapeHtml(failReason)}</p>`
         : ''
   return `<span class="badge text-2xs ${meta.className}">${meta.label}</span>${linkHtml}${reasonHtml}`
 }
@@ -636,7 +636,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
         id: 'publicStatus',
         header: 'ตอบใต้คอมเมนต์',
         cell: ({ row }) => (
-          <ReplyStatusBadge kind="public" status={row.original.publicReplyStatus} conversationId={null} skipReasonText={row.original.skipReasonText} failReasonText={row.original.failReasonText} />
+          <ReplyStatusBadge kind="public" status={row.original.publicReplyStatus} conversationId={null} skipReasonText={row.original.skipReasonText} failReasonText={row.original.publicFailReasonText} />
         ),
       }),
       logColumnHelper.display({
@@ -648,7 +648,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
             status={row.original.privateReplyStatus}
             conversationId={row.original.conversationId}
             skipReasonText={row.original.skipReasonText}
-            failReasonText={row.original.failReasonText}
+            failReasonText={row.original.privateFailReasonText}
           />
         ),
       }),
@@ -779,7 +779,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
                         status={log.publicReplyStatus}
                         conversationId={null}
                         skipReasonText={log.skipReasonText}
-                        failReasonText={log.failReasonText}
+                        failReasonText={log.publicFailReasonText}
                         revealSkipReason
                         hideLink
                       />
@@ -788,7 +788,7 @@ function CommentReplyHistoryCard({ channels, initialLogs }: { channels: CommentR
                         status={log.privateReplyStatus}
                         conversationId={log.conversationId}
                         skipReasonText={log.skipReasonText}
-                        failReasonText={log.failReasonText}
+                        failReasonText={log.privateFailReasonText}
                         revealSkipReason
                         hideLink
                       />

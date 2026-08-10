@@ -221,7 +221,7 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
         const errorMessage = err instanceof Error ? err.message : String(err)
         await prisma.commentReplyLog.update({
           where: { id: logId },
-          data: { publicReplyStatus: 'FAILED', errorMessage },
+          data: { publicReplyStatus: 'FAILED', publicErrorMessage: errorMessage },
         })
       }
     }
@@ -244,7 +244,7 @@ export async function processCommentAutoReply(commentId: string): Promise<void> 
       } else {
         await prisma.commentReplyLog.update({
           where: { id: logId },
-          data: { privateReplyStatus: 'FAILED', errorMessage: result.error ?? result.reason },
+          data: { privateReplyStatus: 'FAILED', privateErrorMessage: result.error ?? result.reason },
         })
       }
     }

@@ -231,15 +231,39 @@ describe('sendPrivateReplyToCommentById — เส้นทางที่ยิ
     // แถวที่จองไว้ (privateReplyStatus:null ตอน create) ถูกอัปเดตเป็น FAILED (ไม่ throw ทิ้งเงียบ ๆ)
     expect(prisma.commentReplyLog.update).toHaveBeenCalledWith({
       where: { id: 'log-new' },
-      data: expect.objectContaining({ privateReplyStatus: 'FAILED', errorMessage: 'upstream 400: something failed' }),
+      data: expect.objectContaining({ privateReplyStatus: 'FAILED', privateErrorMessage: 'upstream 400: something failed' }),
     })
+  })
+
+  it('[blocker] ทักแชทสำเร็จ ต้องล้างเฉพาะ privateErrorMessage — ห้ามแตะเหตุผลของฝั่ง "ตอบใต้คอมเมนต์"', async () => {
+    /**
+     * เคสที่ user ชี้เอง 2026-08-10: "reply ไม่ผ่าน อาจจะทักแชทได้ก็ได้"
+     *
+     * เดิมทั้งสองฝั่งใช้คอลัมน์ `errorMessage` ร่วมกัน และตอนทักแชทสำเร็จโค้ดเขียน
+     * `errorMessage: null` ทับ ⇒ เหตุผลของ "ตอบใต้คอมเมนต์" ที่ล้มเหลวไปก่อนหน้า **ถูกล้างทิ้ง
+     * ทุกครั้ง** ร้านเห็นป้าย "ไม่สำเร็จ" เปล่า ๆ ไม่มีเหตุผลให้อ่านเลย
+     *
+     * ความล้มเหลวของกฎนี้เงียบสนิท: ส่งสำเร็จจริง แถวถูกอัปเดตจริง ไม่มี error ที่ไหนเลย
+     * มีแต่ข้อมูลของอีกฝั่งที่หายไปโดยไม่มีใครสังเกต
+     */
+    findComment.mockResolvedValue(okComment() as never)
+    vi.mocked(prisma.commentReplyLog.create).mockResolvedValue({ id: 'log-new' } as never)
+    mockFullSuccessChain()
+
+    await sendPrivateReplyToCommentById({ commentId: 'cmt-1', text: 'สวัสดีครับ', trigger: 'MANUAL', actorUserId: 'u-1' })
+
+    const updates = vi.mocked(prisma.commentReplyLog.update).mock.calls.map((c) => (c[0] as { data: Record<string, unknown> }).data)
+    const sentUpdate = updates.find((d) => d.privateReplyStatus === 'SENT')
+    expect(sentUpdate).toBeDefined()
+    expect(sentUpdate).toHaveProperty('privateErrorMessage', null)
+    // ห้ามมีคีย์ของฝั่งสาธารณะ หรือคอลัมน์เก่าที่ใช้ร่วมกัน โผล่ในคำสั่งนี้เด็ดขาด
+    for (const d of updates) {
+      expect(d).not.toHaveProperty('publicErrorMessage')
+      expect(d).not.toHaveProperty('errorMessage')
+    }
   })
 })
 
-// Fix round 2 — reviewer พบ 3 Critical: (C2) ด่านกันซ้ำใช้คนละคีย์กับตอนเขียนจริงของ AUTO ทำให้
-// คนเดิมคอมเมนต์ใบที่สองบนโพสต์เดิมลอดไปยิง Graph ซ้ำได้ (C3) ไม่มีการจับ P2002 + จองแถวเกิด
-// "หลัง" ยิง Graph ทำให้สองเธรดพร้อมกันยิงได้ทั้งคู่ (C1) $transaction ของเส้นทางสำเร็จไม่มี
-// try/catch ทั้งที่สัญญาว่าไม่ throw — DB ล้มหลัง Graph สำเร็จ = ข้อความถึงลูกค้าแล้วแต่ไม่มี log SENT
 describe('sendPrivateReplyToCommentById — Fix round 2: dedupe คีย์เดียวกัน + จองก่อนยิง + ไม่ throw', () => {
   it('AUTO คนเดิม โพสต์เดิม คอมเมนต์คนละใบ -> ALREADY_SENT และ Graph ถูกเรียก 0 ครั้ง (C2)', async () => {
     // คอมเมนต์ใบที่สอง (id ต่างจากที่เคยส่งไปแล้ว) ของคนเดิมบนโพสต์เดิม
@@ -362,7 +386,7 @@ describe('sendPrivateReplyToCommentById — Fix round 2: dedupe คีย์เ�
 
   // หนี้ #3 (retro 00038): resolveChannelToken คืน null ต้องคืน error ที่เจาะจง
   // ('CHANNEL_TOKEN_UNAVAILABLE') ไปด้วย ไม่ใช่แค่ reason ทั่วไป ('CHANNEL_INACTIVE') — ผู้เรียกฝั่ง
-  // AUTO (comment-auto-reply.service.ts) เขียน errorMessage ด้วย `result.error ?? result.reason`
+  // AUTO (comment-auto-reply.service.ts) เขียน privateErrorMessage ด้วย `result.error ?? result.reason`
   // ถ้าไม่มี error รายละเอียดจะหายไปกลายเป็น CHANNEL_INACTIVE เฉย ๆ ตอนสืบ
   it('resolveChannelToken คืน null -> reason ยังเป็น CHANNEL_INACTIVE เหมือนเดิม แต่มี error เจาะจง CHANNEL_TOKEN_UNAVAILABLE ด้วย', async () => {
     findComment.mockResolvedValue(okComment() as never)
@@ -375,7 +399,7 @@ describe('sendPrivateReplyToCommentById — Fix round 2: dedupe คีย์เ�
     expect(graphSend).not.toHaveBeenCalled()
     expect(prisma.commentReplyLog.update).toHaveBeenCalledWith({
       where: { id: 'log-new' },
-      data: { privateReplyStatus: 'FAILED', errorMessage: 'CHANNEL_TOKEN_UNAVAILABLE' },
+      data: { privateReplyStatus: 'FAILED', privateErrorMessage: 'CHANNEL_TOKEN_UNAVAILABLE' },
     })
   })
 
@@ -396,7 +420,7 @@ describe('sendPrivateReplyToCommentById — Fix round 2: dedupe คีย์เ�
     const sentCallIdx = updateCalls.findIndex((c) => (c[0] as { data: { privateReplyStatus?: string } }).data.privateReplyStatus === 'SENT')
     expect(sentCallIdx).toBeGreaterThanOrEqual(0)
     const roomFailCallIdx = updateCalls.findIndex((c) =>
-      String((c[0] as { data: { errorMessage?: string } }).data.errorMessage ?? '').includes('บันทึกห้องแชทไม่สำเร็จ'),
+      String((c[0] as { data: { privateErrorMessage?: string } }).data.privateErrorMessage ?? '').includes('บันทึกห้องแชทไม่สำเร็จ'),
     )
     expect(roomFailCallIdx).toBeGreaterThanOrEqual(0)
 
@@ -534,4 +558,5 @@ describe('processCommentAutoReply — integration ไม่ mock comment-private
     expect(graphSend).toHaveBeenCalledTimes(1)
     expect(graphSend).toHaveBeenCalledWith('page-token-xyz', '123_456', 'สวัสดีครับ')
   })
+
 })

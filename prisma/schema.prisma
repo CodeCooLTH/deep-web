@@ -3049,8 +3049,22 @@ model CommentReplyLog {
 
   publicReplyStatus  String? // "SENT" | "SKIPPED" | "FAILED"
   privateReplyStatus String? // "SENT" | "SKIPPED" | "FAILED"
-  skipReason         String? // ดู COMMENT_SKIP_REASONS ใน comment-auto-reply.service.ts
+  /// เหตุผลที่ "ข้ามทั้งแถว" — ระดับแถวจริง ไม่ต้องแยกรายฝั่ง เพราะ recordSkip() สร้างแถวแล้ว
+  /// return ทันทีตั้งแต่ก่อนยิงฝั่งไหนทั้งสิ้น (ดู COMMENT_SKIP_REASONS ใน comment-auto-reply.service.ts)
+  skipReason         String?
+  /// 🛑 DEPRECATED (2026-08-10) — ห้ามเขียนเพิ่ม อ่านได้เฉพาะแถวเก่าที่ยังไม่ถูก backfill
+  ///
+  /// เดิมเป็นคอลัมน์เดียวที่ทั้งสองฝั่ง (ตอบใต้คอมเมนต์ / ทักแชท) เขียนร่วมกัน ซึ่งพังใน 2 ทาง:
+  ///   1. ทั้งคู่ FAILED → ข้อความของฝั่งที่เขียนก่อน (public) ถูกทับหายไป
+  ///   2. public FAILED แล้ว private สำเร็จ → โค้ดเขียน `errorMessage: null` ทับ = **เหตุผลของ
+  ///      ฝั่งสาธารณะถูกล้างทิ้งทุกครั้ง** ร้านเห็นป้าย "ไม่สำเร็จ" เปล่า ๆ ไม่มีเหตุผลเลย
+  ///      (user ชี้เองว่าเคสนี้เกิดจริง: "reply ไม่ผ่าน อาจจะทักแชทได้ก็ได้")
+  /// สองงานนี้เป็นอิสระต่อกัน (BR-CR-A5 — public ล้มไม่หยุด private) จึงต้องมีที่เก็บของตัวเอง
   errorMessage       String? @db.Text
+  /// เหตุผลที่ "ตอบใต้คอมเมนต์" ล้มเหลว — คู่กับ publicReplyStatus='FAILED' เท่านั้น
+  publicErrorMessage  String? @db.Text
+  /// เหตุผลที่ "ทักแชท" ล้มเหลว — คู่กับ privateReplyStatus='FAILED' เท่านั้น
+  privateErrorMessage String? @db.Text
   conversationId     String? // ห้องที่เกิดจาก private reply
 
   createdAt DateTime @default(now())

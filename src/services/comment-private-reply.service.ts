@@ -228,7 +228,7 @@ export async function sendPrivateReplyToCommentById(params: {
           where: { id: existing.id, privateReplyStatus: 'FAILED' },
           data: {
             privateReplyStatus: null,
-            errorMessage: null,
+            privateErrorMessage: null,
             actorUserId: params.trigger === 'MANUAL' ? (params.actorUserId ?? null) : null,
           },
         })
@@ -247,7 +247,7 @@ export async function sendPrivateReplyToCommentById(params: {
       // เสมอ (ห้ามเปลี่ยน — API.md/route.ts map เป็น 409 CHANNEL_NOT_ACTIVE ตาม contract เดิม)
       await prisma.commentReplyLog.update({
         where: { id: reservedLogId },
-        data: { privateReplyStatus: 'FAILED', errorMessage: 'CHANNEL_TOKEN_UNAVAILABLE' },
+        data: { privateReplyStatus: 'FAILED', privateErrorMessage: 'CHANNEL_TOKEN_UNAVAILABLE' },
       })
       return { sent: false, reason: 'CHANNEL_INACTIVE', error: 'CHANNEL_TOKEN_UNAVAILABLE' }
     }
@@ -260,7 +260,7 @@ export async function sendPrivateReplyToCommentById(params: {
       const errorMessage = err instanceof Error ? err.message : String(err)
       await prisma.commentReplyLog.update({
         where: { id: reservedLogId },
-        data: { privateReplyStatus: 'FAILED', errorMessage },
+        data: { privateReplyStatus: 'FAILED', privateErrorMessage: errorMessage },
       })
       return { sent: false, reason: 'SEND_FAILED', error: errorMessage }
     }
@@ -270,7 +270,9 @@ export async function sendPrivateReplyToCommentById(params: {
     // once-per-comment ของ Meta หายไปโดยระบบไม่รู้ตัวว่าเคยส่งสำเร็จ
     await prisma.commentReplyLog.update({
       where: { id: reservedLogId },
-      data: { privateReplyStatus: 'SENT', errorMessage: null },
+      // ล้างเฉพาะช่องของฝั่งตัวเอง — เดิมล้าง errorMessage ที่ใช้ร่วมกัน ทำให้เหตุผล
+      // ของ "ตอบใต้คอมเมนต์" ที่ล้มเหลวก่อนหน้าหายไปด้วยทุกครั้ง (user ชี้เอง 2026-08-10)
+      data: { privateReplyStatus: 'SENT', privateErrorMessage: null },
     })
 
     let conversationId: string | null
@@ -334,7 +336,7 @@ export async function sendPrivateReplyToCommentById(params: {
       const errorMessage = err instanceof Error ? err.message : String(err)
       await prisma.commentReplyLog.update({
         where: { id: reservedLogId },
-        data: { errorMessage: `ส่งสำเร็จแต่บันทึกห้องแชทไม่สำเร็จ: ${errorMessage}` },
+        data: { privateErrorMessage: `ส่งสำเร็จแต่บันทึกห้องแชทไม่สำเร็จ: ${errorMessage}` },
       })
       return { sent: true, conversationId: null, messageId: sendResult.messageId }
     }
