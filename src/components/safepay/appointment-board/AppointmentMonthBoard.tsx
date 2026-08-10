@@ -103,10 +103,9 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
         })
         const res = await fetch(`/api/shops/current/appointments?${qs}`, { cache: 'no-store' })
         if (!res.ok) {
-          if (!cancelled) {
-            setLoadError(true)
-            pacesToast.error('โหลดปฏิทินไม่สำเร็จ ลองอีกครั้ง')
-          }
+          // ไม่ยิง toast — บล็อก error ด้านล่างบอกครบกว่าและมีปุ่มลองใหม่ในตัว
+          // สองอย่างโผล่พร้อมกันคือพูดเรื่องเดียวกันสองครั้งด้วยคนละคำ
+          if (!cancelled) setLoadError(true)
           return
         }
         const json = (await res.json()) as { items: AppointmentBoardItem[] }
@@ -115,10 +114,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           setLoaded(true)
         }
       } catch {
-        if (!cancelled) {
-          setLoadError(true)
-          pacesToast.error('เชื่อมต่อไม่ได้ ลองอีกครั้ง')
-        }
+        if (!cancelled) setLoadError(true)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -210,7 +206,11 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
   const onCreateForSelected = () => {
     if (selectedFull) {
       // เดิม return เปล่า ๆ = กดแล้วไม่มีอะไรเกิดขึ้น แล้วผู้ใช้สรุปว่าเว็บพัง
-      pacesToast.warning(`${formatDateTH(selectedDate)} รับนัดเต็มแล้ว — เลือกวันอื่น`)
+      /* บอกทางออกให้ครบ — ทางเดียวที่เคยบอก ("เลือกวันอื่น") ผู้ขายอาจทำไม่ได้เลย
+         (ลูกค้ามาได้วันนั้นวันเดียว) ทั้งที่ทางที่สองอยู่ในเมนูเดียวกันของหน้านี้เอง */
+      pacesToast.warning(
+        `${formatDateTH(selectedDate)} รับนัดครบตามจำนวนที่ตั้งไว้แล้ว — เลือกวันอื่น หรือเพิ่มจำนวนที่รับได้ที่รายการคิวงานด้านล่าง`,
+      )
       return
     }
     router.push(`/orders/new?appointmentDate=${selectedKey}`)
@@ -296,8 +296,11 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           swatch ต้องเป็นสัญลักษณ์ตัวเดียวกับที่เห็นในช่องจริง ไม่งั้นเป็น legend ที่สอนผิด */}
       <div className="text-default-600 text-2xs flex shrink-0 items-center justify-center gap-4 px-4 pb-2">
         <span className="inline-flex items-center gap-1.5">
+          {/* "นัด" ไม่ใช่ "คิว" — บรรทัดถัดกัน ("จองแล้ว n จาก m คิว") ใช้ คิว = ช่องความจุ
+              ถ้าจุดนี้ก็เรียก "คิว" ผู้ขายจะเจอ "ทั้งวันมี 8 คิว" กับ "จองแล้ว 3 จาก 10 คิว"
+              บนจอเดียวแล้วบวกกันไม่ลง · ไทล์ต้นทางบนหน้าแรกก็เรียกว่า "นัด" */}
           <span className="bg-warning size-1.5 rounded-full" aria-hidden="true" />
-          มีคิวแล้ว
+          มีนัดแล้ว
         </span>
         {byDay && (
           <span className="inline-flex items-center gap-1.5">
@@ -388,7 +391,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
               /* "ในวันนี้" อ่านได้ว่า today ทั้งที่หมายถึงวันที่จิ้มอยู่ — และจอนี้มีปุ่ม "วันนี้"
                  ที่แปลว่ากระโดดไปวันปัจจุบันอยู่ห่างไม่ถึงจอเดียว จึงขึ้นต้นด้วย "ทั้งวัน" */
               <span className="text-default-500 ms-auto text-xs">
-                ทั้งวันมี {selectedCount} คิว
+                ทั้งวันมี {selectedCount} นัด
               </span>
             )
           )}
@@ -399,8 +402,11 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
             /* บล็อกค้างบนจอ ไม่ใช่ toast ที่หายเอง — และห้ามพูดว่า "ว่าง" เพราะเราไม่รู้ */
             <div className="border-danger/30 bg-danger/10 flex flex-col items-center gap-2 rounded-lg border px-6 py-6 text-center">
               <Icon icon="cloud-off" className="text-danger-ink size-6" aria-hidden="true" />
-              <p className="text-default-800 text-sm font-semibold">โหลดตารางคิวไม่สำเร็จ</p>
-              <p className="text-default-600 text-xs">ยังไม่รู้ว่าวันนี้มีคิวหรือไม่ — ลองอีกครั้ง</p>
+              {/* ชื่อต้องตรงกับหัวการ์ด ("ปฏิทินคิว") — ของสิ่งเดียวกันเคยมี 4 ชื่อบนจอเดียว */}
+              <p className="text-default-800 text-sm font-semibold">โหลดปฏิทินคิวไม่สำเร็จ</p>
+              {/* ไม่พูด "ลองอีกครั้ง" ซ้ำกับปุ่มที่อยู่ห่างลงไป 20px และเลี่ยง "วันนี้" กับ
+                  น้ำเสียงแบบเอกสาร ("…หรือไม่") ที่ PRODUCT.md ตั้งเป็น anti-reference */}
+              <p className="text-default-600 text-xs">ยังไม่รู้ว่าวันที่เลือกมีนัดกี่รายการ</p>
               <button
                 type="button"
                 onClick={() => setReloadSeq((n) => n + 1)}
@@ -432,9 +438,14 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
                 <Icon icon="calendar-check" className="size-5" />
               </span>
               <p className="text-default-800 text-sm font-semibold">ว่างทั้งวัน</p>
-              {/* "คิวนี้" มีความหมายเฉพาะตอนกรองคิวเดียว — ตอนดู "ทุกคิวงาน" ไม่มีคิวไหนให้ชี้ */}
+              {/* 🛑 ห้ามใช้คำว่า "วันนี้" ที่นี่ — จอนี้มีปุ่ม "วันนี้" ที่แปลว่ากระโดดไปวัน
+                  ปัจจุบัน และผู้ใช้จิ้มดูวันอื่นได้ (กฎนี้เขียนไว้เองที่ตัวนับข้างบนแล้ว)
+                  หัวข้อวันที่อยู่เหนือขึ้นไปบอกวันอยู่แล้ว จึงไม่ต้องพูดซ้ำ
+                  ชื่อคิวงานจริงดีกว่า "คิวนี้" และได้มาฟรีเพราะ resources เป็น prop อยู่แล้ว */}
               <p className="text-default-500 text-xs">
-                {resourceId ? 'ยังไม่มีใครจองคิวนี้' : 'ยังไม่มีใครจองวันนี้'}
+                {resourceId
+                  ? `ยังไม่มีนัดของ ${resources.find((r) => r.id === resourceId)?.name ?? 'คิวงานนี้'}`
+                  : 'ยังไม่มีนัดเข้ามา'}
               </p>
             </div>
           ) : (

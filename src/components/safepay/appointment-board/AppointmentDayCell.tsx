@@ -79,7 +79,7 @@ export default function AppointmentDayCell({
           : used > 0
             ? byDay && capacity != null && capacity > 0
               ? `จองแล้ว ${used} จาก ${capacity} คิว`
-              : `มี ${used} คิว`
+              : `มี ${used} นัด`
             : 'ยังไม่มีคิว',
         isToday ? 'วันนี้' : null,
       ]

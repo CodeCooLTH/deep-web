@@ -99,16 +99,16 @@ export default function AppointmentDayRows({ items, showResourceName = false, on
                    เวลา ชื่อคิว และสถานะเลยสักตัว ทั้งที่สามอย่างนั้นคือเนื้อหาทั้งหมดของแถว
                    และแถวเดียวกันนี้ในชีต (ไม่ส่ง onRowClick) เป็น <span> ที่อ่านครบ
                    = รายการเดียวกันอ่านได้ไม่เท่ากันสองจอ. ประกอบประโยคให้ครบ อย่าตัดทิ้ง */
-                aria-label={[
-                  allDay ? 'ทั้งวัน' : `${formatTimeHM(start)} ถึง ${formatTimeHM(end)}`,
-                  showResourceName && it.resource?.name ? it.resource.name : null,
-                  who,
-                  label,
-                  it.orderNo ? `เลขที่ ${it.orderNo}` : null,
-                  'เปิดรายละเอียด',
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
+                /* `·` ถูก screen reader ข้ามเป็นความว่าง — ชิ้นส่วนต่อกันจึงฟังเป็นรายการ
+                   ไม่ใช่ประโยค · และคำที่บอกว่า "กดแล้วจะเกิดอะไร" ต้องมาก่อน ไม่ใช่ท้ายสุด
+                   (ไม่ตัดข้อมูลออกสักตัว แค่เรียงใหม่ + เติมคำเชื่อม) */
+                aria-label={
+                  `เปิดรายละเอียดนัดของ ${who}` +
+                  (showResourceName && it.resource?.name ? ` คิวงาน ${it.resource.name}` : '') +
+                  (allDay ? ' ทั้งวัน' : ` เวลา ${formatTimeHM(start)} ถึง ${formatTimeHM(end)}`) +
+                  ` สถานะ ${label}` +
+                  (it.orderNo ? ` เลขที่ ${it.orderNo}` : '')
+                }
                 className="bg-card focus-visible:ring-primary flex w-full items-start gap-3 rounded-lg p-3 text-start transition-colors hover:bg-default-50 focus-visible:ring-2 focus-visible:outline-none"
               >
                 {body}
