@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isPublicNameTaken } from "@/lib/public-name";
 import { updateProfile } from "@/services/user.service";
 import { UpdateProfileSchema } from "@/lib/validations";
 
@@ -57,12 +58,13 @@ export async function PATCH(request: NextRequest) {
   }
 
   // username ห้ามซ้ำ user อื่น (ของตัวเองได้) — pattern เดียวกับ /api/account/shop-info
+  // 🛑 ด่านจริงของการตั้ง username (check-username เป็นแค่ UX) — เช็คข้ามตารางด้วย
+  // slug ร้านของคนอื่นก็ถือว่าชื่อนี้ถูกใช้แล้ว ไม่งั้น username กับ slug ชนกันได้ และพอรวม URL
+  // เป็น /profile/{name} ตัวหนึ่งจะเข้าไม่ถึงตลอดกาล (lib/public-name.ts)
   if (data.username) {
-    const taken = await prisma.user.findFirst({
-      where: { username: data.username, NOT: { id: userId } },
-      select: { id: true },
-    });
-    if (taken) return NextResponse.json({ error: "ชื่อผู้ใช้นี้มีคนใช้แล้ว" }, { status: 409 });
+    if (await isPublicNameTaken(data.username, { userId })) {
+      return NextResponse.json({ error: "ชื่อผู้ใช้นี้มีคนใช้แล้ว" }, { status: 409 });
+    }
   }
 
   try {

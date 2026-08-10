@@ -47,6 +47,7 @@ import ResponsiveSheet from './ResponsiveSheet'
 // เกณฑ์ขั้นต่ำอ่านจาก SSOT — ห้าม hardcode เลขในข้อความ ไม่งั้นวันที่เกณฑ์เปลี่ยน
 // หน้าจอจะบอกตัวเลขที่ไม่ตรงกับที่ระบบใช้จริง
 import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
+import { resolveChatResponse } from '@/lib/chat-response-display'
 import { formatDateTH } from '@/lib/format-date'
 
 /** `imageUrl` = artwork จริงของเหรียญจาก backend — `icon` เป็นแค่ fallback เมื่อเหรียญนั้นยังไม่มีรูป
@@ -100,6 +101,12 @@ export type ProfileHeroData = {
   isLodging?: boolean
   /** feature 00028 — ร้านสินค้าและบริการใช้คำ "นัดหมาย" แทน "ออเดอร์" (isLodging ชนะถ้าเป็น true ทั้งคู่ — เคสจริงไม่เกิดขึ้น) */
   isServiceQueue?: boolean
+  /** อัตราการตอบแชท (FR-RESP) — cron คำนวณไว้แล้ว เกณฑ์ว่าจะโชว์ไหมอยู่ที่ lib/chat-response-display.ts
+   *  🛑 อยู่บนโปรไฟล์ ไม่ใช่ในแท็บ "เกี่ยวกับร้าน" (user 2026-08-10) — ความเร็วในการตอบเป็นสิ่งที่
+   *  ผู้ซื้อใช้ตัดสินใจ "จะทักดีไหม" ก่อนกดปุ่มทักแชทซึ่งอยู่บนโปรไฟล์ ไม่ใช่ข้อมูลแนะนำตัวของร้าน */
+  chatResponseRate?: number | null
+  chatMedianResponseSec?: number | null
+  chatResponseSampleSize?: number | null
 }
 
 /** คำเรียกตัวเลขตามประเภทกิจการ — เปลี่ยนแค่คำ ไม่เปลี่ยนวิธีนับ */
@@ -273,6 +280,9 @@ export default function ProfileHero({
   // 🛑 `hint` คือตัวหารที่ BR-OSM-07 (feature 00039) บังคับว่าต้องแสดงคู่ % เสมอ —
   // % ที่ผู้ซื้อคำนวณย้อนกลับไม่ได้คือ % ที่ไม่มีใครเชื่อ ห้ามตัดทิ้งตอนย้ายเข้ามาในแถว
   // และเมื่อยังไม่ถึงเกณฑ์ขั้นต่ำต้องขึ้น "ยังสรุปไม่ได้" ไม่ใช่หายเงียบหรือแสดง 0%
+  // อัตราการตอบแชท — ซ่อนทั้งบรรทัดเมื่อ sample ยังไม่ถึงเกณฑ์ (ไม่ใช่โชว์ 0%)
+  const chatResponse = resolveChatResponse(data)
+
   const stats = [
     data.completionRate != null
       ? {
@@ -560,6 +570,29 @@ export default function ProfileHero({
             </div>
           ))}
         </div>
+
+        {/* ── อัตราการตอบแชท ──
+            อยู่ **ในแถบหลักฐานเดียวกับตัวเลขอื่น** แต่เป็นบรรทัดเดียวขนาดเล็ก ไม่ใช่ช่องที่ 5:
+            5 ช่องบนกริด 2 คอลัมน์ของมือถือจะเหลือช่องเดี่ยวห้อยแถวสุดท้าย และตัวเลขนี้ไม่ใช่
+            หลักฐานการซื้อขาย (ไม่ได้มาจากออเดอร์) จะเอาไปยืนเท่ากับ "ออเดอร์/ลูกค้า" ไม่ได้
+
+            🛑 ห้ามย้ายกลับไปแท็บ "เกี่ยวกับร้าน" (user 2026-08-10) — ผู้ซื้ออ่านตัวเลขนี้เพื่อ
+            ตัดสินใจว่าจะกดปุ่มทักแชทดีไหม ปุ่มนั้นอยู่บนโปรไฟล์ ข้อมูลที่ใช้ตัดสินใจจึงต้อง
+            อยู่ที่เดียวกับปุ่ม ไม่ใช่หลังแท็บที่ต้องกดเข้าไปอ่าน */}
+        {chatResponse && (
+          <div className='flex items-center justify-center gap-x-2 gap-y-1 flex-wrap mbs-3'>
+            <Icon icon='tabler-message-circle-2' fontSize={16} className='text-textSecondary' />
+            <Typography variant='caption' color='text.secondary'>
+              ตอบกลับ <strong className='text-textPrimary tabular-nums'>{chatResponse.ratePercent}%</strong>
+              {chatResponse.timeLabel ? (
+                <>
+                  {' · ตอบเฉลี่ย '}
+                  <strong className='text-textPrimary'>{chatResponse.timeLabel}</strong>
+                </>
+              ) : null}
+            </Typography>
+          </div>
+        )}
 
       {/* ── บรรทัดขยายความของอัตราสำเร็จ ──
              ตัวเลข % ย้ายไปอยู่ในแถวด้านบนแล้ว เหลือแค่ข้อความที่ตัวเลขในช่องแคบ ๆ พูดแทนไม่ได้

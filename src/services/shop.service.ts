@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isPublicNameTaken } from "@/lib/public-name";
 import { countableOrderWhere } from "@/lib/public-order-count";
 import { normalizeSlug, isValidSlugFormat, isReservedSlug } from "@/lib/shop-slug";
 import { getTierScoreRange } from "@/lib/trust-tier";
@@ -221,8 +222,9 @@ export async function findShopBySlug(slug: string) {
 export async function isSlugAvailable(rawSlug: string): Promise<boolean> {
   const slug = normalizeSlug(rawSlug);
   if (!isValidSlugFormat(slug) || isReservedSlug(slug)) return false;
-  const existing = await prisma.shop.findUnique({ where: { slug } });
-  return existing === null;
+  // เช็คข้ามตาราง: username ของคนอื่นก็ถือว่าชื่อนี้ถูกใช้แล้ว — กันไม่ให้ slug ชนกับ username
+  // เพิ่มขึ้นอีก เพราะเมื่อรวม URL เป็นเส้นเดียว ตัวหนึ่งจะเข้าไม่ถึงตลอดกาล (lib/public-name.ts)
+  return !(await isPublicNameTaken(slug));
 }
 
 /** ตั้ง slug ให้ shop — throw ถ้าไม่ available (กัน TOCTOU เบื้องต้น; unique index = guard ชั้นสุดท้าย) */

@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { isPublicNameTaken } from '@/lib/public-name'
 
 // รูปแบบเดียวกับ UpdateProfileSchema และ /api/account/shop-info (SSOT ของรูปแบบ username)
 const USERNAME_RE = /^[a-z0-9_]{3,30}$/
@@ -27,11 +27,10 @@ export async function GET(req: NextRequest) {
   if (!USERNAME_RE.test(username)) return NextResponse.json({ available: false, reason: 'invalid' })
 
   // ของตัวเองถือว่าว่าง (กดเซฟค่าเดิมได้ ไม่ต้องขึ้นว่าชื่อซ้ำ)
-  const taken = await prisma.user.findFirst({
-    where: { username, NOT: { id: userId } },
-    select: { id: true },
-  })
-  if (taken) return NextResponse.json({ available: false, reason: 'taken' })
+  // เช็คข้ามตาราง: slug ร้านของคนอื่นก็ถือว่าชื่อนี้ถูกใช้แล้ว (lib/public-name.ts)
+  // ไม่งั้น username กับ slug จะชนกันได้ และพอรวม URL เป็น /profile/{name} ตัวหนึ่งจะหายไป
+  if (await isPublicNameTaken(username, { userId }))
+    return NextResponse.json({ available: false, reason: 'taken' })
 
   return NextResponse.json({ available: true })
 }

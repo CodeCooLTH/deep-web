@@ -298,6 +298,10 @@ export default async function PublicProfilePage({ params }: Props) {
               pointsToNext: nextTier?.pointsToNext ?? null,
               isLodging,
               isServiceQueue,
+              // อัตราการตอบแชทอยู่บนโปรไฟล์ ไม่ใช่ในแท็บ "เกี่ยวกับร้าน" (user 2026-08-10)
+              chatResponseRate: profileTab.chatResponseRate,
+              chatMedianResponseSec: profileTab.chatMedianResponseSec,
+              chatResponseSampleSize: profileTab.chatResponseSampleSize,
             },
             isLodging,
             isServiceQueue,

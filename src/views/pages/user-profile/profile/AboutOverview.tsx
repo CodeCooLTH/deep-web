@@ -25,24 +25,14 @@ export type AboutData = {
   chatResponseSampleSize?: number | null
 }
 
-// FR-RESP-06: format response time เป็นข้อความไทย (ย้ายมาจาก profile/index.tsx เดิม — ProfileLeftContent ยุบทิ้งแล้ว)
-// <60นาที(3600วิ)→"~N นาที" · 1-24ชม.→"~N ชม." · 24-48ชม.→"~1 วัน" · >48ชม.→"2+ วัน"
-const formatResponseTime = (seconds: number | null | undefined): string | null => {
-  if (seconds == null) return null
-  // ใช้คำแทนสัญลักษณ์ — `~` และ `+` เป็นเครื่องหมายที่กลุ่มผู้ใช้ซึ่ง PRODUCT.md ผูกไว้
-  // (ผู้สูงวัย/digital-literacy ต่ำ) ไม่จำเป็นต้องคุ้น และ "ชม." เป็นตัวย่อที่ย่อโดยไม่จำเป็น
-  if (seconds < 3600) return `ประมาณ ${Math.max(1, Math.round(seconds / 60))} นาที`
-  if (seconds < 86400) return `ประมาณ ${Math.max(1, Math.round(seconds / 3600))} ชั่วโมง`
-  if (seconds < 172800) return 'ประมาณ 1 วัน'
-  return 'มากกว่า 2 วัน'
-}
-
 const AboutOverview = ({ data }: { data: AboutData }) => {
-  const { bio, location, memberSince, chatResponseRate, chatMedianResponseSec, chatResponseSampleSize } = data
+  const { bio, location, memberSince } = data
 
-  // FR-RESP-04: sample-gate ≥3 — ต่ำกว่าซ่อนทั้งบรรทัด response (ไม่โชว์เลขปลอม)
-  const showResponse = chatResponseSampleSize != null && chatResponseSampleSize >= 3 && chatResponseRate != null
-  const responseTimeLabel = formatResponseTime(chatMedianResponseSec)
+  // 🛑 อัตราการตอบแชทเคยอยู่ตรงนี้ ย้ายขึ้นไปบนโปรไฟล์แล้ว (user 2026-08-10 "ต้องอยู่บน Profile
+  // ห้ามเอาไปไว้ใน About") — ProfileHero เป็นเจ้าของการแสดงผลนี้ที่เดียว ห้ามเอากลับมาแสดงซ้ำ
+  // ที่นี่ ไม่งั้นตัวเลขเดียวกันจะโผล่ 2 ที่บนหน้าเดียว ซึ่งเป็นคลาสของบั๊กที่เคยทำให้จอเดียว
+  // ขึ้น "ยังไม่ตอบ 7" กับ "8" พร้อมกัน (docs/conventions/sibling-surface-parity.md)
+  // field chatResponse* ยังอยู่ใน type เพราะ ProfileTabData ส่งชุดเดียวกันลงมาทั้งก้อน
 
   // ถอด Card/CardHeader/CardContent ออก (user รายงาน padding ไม่เท่ากันระหว่างแท็บ 2026-07-30)
   // นี่เป็นการ์ดใบเดียวในหน้า พอห่อการ์ด ตัวหนังสือถูกดันเข้าไป 44px จาก padding ของ CardContent
@@ -70,17 +60,6 @@ const AboutOverview = ({ data }: { data: AboutData }) => {
           <Icon icon='tabler-calendar' fontSize={16} />
           เปิดร้านตั้งแต่ {memberSince}
         </Box>
-        {showResponse && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <Icon icon='tabler-message' fontSize={16} />
-            ตอบกลับ <Box component='strong' sx={{ color: 'text.primary' }}>{Math.round(chatResponseRate as number)}%</Box>
-            {responseTimeLabel && (
-              <>
-                · ตอบเฉลี่ย <Box component='strong' sx={{ color: 'text.primary' }}>{responseTimeLabel}</Box>
-              </>
-            )}
-          </Box>
-        )}
       </Box>
     </Box>
   )

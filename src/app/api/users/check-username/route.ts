@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { isPublicNameTaken } from '@/lib/public-name'
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,30}$/
 const RESERVED = new Set(['admin', 'root', 'api', 'seller', 'safepay', 'www'])
@@ -14,11 +14,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ available: false, reason: 'reserved' })
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { username: u },
-    select: { id: true },
-  })
-  if (existing) {
+  // เช็คข้ามตาราง (User.username + Shop.slug) — ดู lib/public-name.ts ว่าทำไม
+  if (await isPublicNameTaken(u.toLowerCase())) {
     return NextResponse.json({ available: false, reason: 'taken' })
   }
 
