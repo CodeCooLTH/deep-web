@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizePhone } from "@/lib/phone";
 import { findOrCreateCustomer } from "@/services/customer.service";
+import { recordOrderEvent } from "@/services/order-event.service";
 
 // feature 00015 (Order Claim & Forced Login) — SDS §4.0/§4.1
 // resolveOrderAccess() เป็น pure decision core (ไม่มี I/O) แยกออกจาก
@@ -90,7 +91,7 @@ export async function guaranteeOrderLink(params: {
     const normalized = normalizePhone(params.phone);
     if (!normalized) return;
 
-    await prisma.$transaction(async (tx) => {
+    const claimed = await prisma.$transaction(async (tx) => {
       const customerId = await findOrCreateCustomer(tx, normalized); // reuse 00014
       const customer = await tx.customer.findUnique({ where: { id: customerId }, select: { userId: true } });
 
@@ -106,9 +107,32 @@ export async function guaranteeOrderLink(params: {
         console.error("[guaranteeOrderLink] Customer ผูกกับ user อื่นแล้ว — ไม่ override", { customerId, existingUserId: customer.userId });
       }
 
-      await tx.order.updateMany({ where: { id: params.orderId, buyerUserId: null }, data: { buyerUserId: params.userId } });
+      // count > 0 = แถวถูกอัปเดตจริงในรอบนี้ = "เพิ่ง claim สำเร็จ" (ไม่ใช่ของที่ claim ไปแล้ว)
+      // เงื่อนไข buyerUserId: null ทำให้ dedupe เกิดขึ้นเองแบบ atomic — ไม่ต้องมีกลไกนับซ้ำเพิ่ม
+      const res = await tx.order.updateMany({ where: { id: params.orderId, buyerUserId: null }, data: { buyerUserId: params.userId } });
       await tx.order.updateMany({ where: { id: params.orderId, customerId: null }, data: { customerId } });
+      return res.count > 0;
     });
+
+    // feature 00041 (SRS TFR-013) — instrumentation ของ Login Completion Rate
+    //
+    // 🛑 ต้องอยู่ "นอก" $transaction ข้างบนเด็ดขาด ห้ามย้ายเข้าไป:
+    // $transaction ของ Prisma เป็น all-or-nothing — ถ้า statement ใดใน callback throw มันจะ
+    // ROLLBACK ทุกอย่างก่อนหน้ารวมถึงการ claim ที่สำเร็จไปแล้ว. และเพราะทั้งฟังก์ชันนี้ห่อด้วย
+    // try/catch ที่กลืน error โดยเจตนา จะ **ไม่มีอะไรฟ้องเลย** — ผู้ซื้อ login สำเร็จแต่ระบบ
+    // ไม่รู้ว่าเขาเป็นเจ้าของออเดอร์ = regression กลับไปที่ BUYER_CONFIRMED = 0 ซึ่งคือปัญหา
+    // ที่ทั้งฟีเจอร์นี้ตั้งใจแก้ (มีเทส [blocker] มัดลำดับนี้ไว้ที่ order-access-claim.test.ts)
+    if (claimed) {
+      try {
+        await recordOrderEvent(prisma, {
+          orderId: params.orderId,
+          type: "AUTH_FLOW_COMPLETED",
+          actorUserId: params.userId,
+        });
+      } catch (e) {
+        console.error("[guaranteeOrderLink] instrumentation write ล้ม — การ claim ยังสำเร็จปกติ", { orderId: params.orderId }, e);
+      }
+    }
   } catch (e) {
     console.error("[guaranteeOrderLink] best-effort link failed", { orderId: params.orderId, userId: params.userId }, e);
   }
