@@ -41,8 +41,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# uploads
-uploads/
+# uploads — โฟลเดอร์ไฟล์ของ STORAGE_DRIVER=local (dev) ที่ **root ของรีโปเท่านั้น**
+# 🛑 ต้องมี `/` นำหน้า: เขียน `uploads/` เปล่า ๆ จะ match ทุกโฟลเดอร์ชื่อนี้ทุกความลึก —
+# `src/app/api/uploads/` (route ticket/commit ของ direct upload) เคยถูกกลืนหายทั้งโฟลเดอร์
+# ตอน `git add` เมื่อ 2026-08-10: tsc/เทสเขียวหมดเพราะไฟล์อยู่บนดิสก์ครบ แต่ถ้าหลุดไปถึง prod
+# จะได้ 404 ทั้งฟีเจอร์โดยไม่มีอะไรฟ้อง (คลาสเดียวกับ root-served-assets-and-proxy.md)
+/uploads/
 
 # claude code local settings
 .claude/

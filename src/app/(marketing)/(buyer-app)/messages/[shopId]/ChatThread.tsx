@@ -52,6 +52,7 @@ import CustomIconButton from '@core/components/mui/IconButton'
 import { getInitials } from '@/utils/getInitials'
 import { formatDateTH, formatTimeHM } from '@/lib/format-date'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { uploadFileId } from '@/lib/upload-client'
 
 type SenderRole = 'BUYER' | 'SHOP'
 // ORDER = การ์ดออเดอร์/ใบเสนอราคาที่ร้านส่งให้ (user 2026-07-24) — buyer เห็นการ์ดเดียวกับฝั่ง seller
@@ -418,11 +419,9 @@ export default function ChatThread({ shopId, shopName, shopLogo, shopUsername }:
     requestAnimationFrame(scrollToBottom)
     setSending(true)
     try {
-      const fd = new FormData()
-      fd.append('file', image.file)
-      const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!uploadRes.ok) throw new Error('รองรับเฉพาะ JPG/PNG/WEBP ≤5MB')
-      const { fileId } = (await uploadRes.json()) as { fileId: string }
+      // direct upload (2026-08-10) — เดิมส่งผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+      // รูปจากมือถือ 4.5–5MB จึงล้มทั้งที่ผ่านด่าน client 5MB มาแล้ว (ดู upload-policy.ts)
+      const fileId = await uploadFileId(image.file, 'IMAGE')
 
       const res = await fetch(`/api/chat/conversations/${convId}/messages`, {
         method: 'POST',

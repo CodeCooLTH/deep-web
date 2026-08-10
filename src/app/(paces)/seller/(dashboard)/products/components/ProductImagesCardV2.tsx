@@ -18,6 +18,7 @@ import Image from 'next/image'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { pacesToast } from '@/lib/paces-toast'
+import { uploadFileId } from '@/lib/upload-client'
 
 interface ProductImagesCardV2Props {
   value: string[]
@@ -53,14 +54,12 @@ export default function ProductImagesCardV2({
 
   const uploadOne = useCallback(async (file: File, key: string) => {
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error(`upload failed: ${res.status}`)
-      const data = (await res.json()) as { fileId: string }
-      return data.fileId
-    } catch {
-      pacesToast.error('ใส่รูปไม่สำเร็จ ลองใหม่อีกครั้งได้เลยค่ะ')
+      // direct upload (2026-08-10) — เดิมรูปเกิน 4.5MB ตายที่เพดาน body ของ Vercel ทั้งที่การ์ดนี้
+      // ตั้ง maxSize ไว้ 10MB (ดู upload-policy.ts)
+      return await uploadFileId(file, 'IMAGE')
+    } catch (err) {
+      // ข้อความจาก server บอกเหตุจริง (ชนิด/ขนาด) — ดีกว่า "ลองใหม่อีกครั้ง" ที่ไม่บอกอะไร
+      pacesToast.error(err instanceof Error && err.message ? err.message : 'ใส่รูปไม่สำเร็จ ลองใหม่อีกครั้งได้เลยค่ะ')
       return null
     } finally {
       setUploading((prev) => {

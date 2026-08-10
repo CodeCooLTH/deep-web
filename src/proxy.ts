@@ -56,11 +56,29 @@ async function guardApi(request: NextRequest): Promise<NextResponse> {
   //    ทุกครั้งที่ผู้ใช้ลาก seek) — ถ้าใช้เพดาน GET ปกติ 120/นาที ผู้ใช้จะโดน 429 กลางคลิป
   //    ตัว route มี auth gate ของตัวเองครบ (KYC/slip/scam/เอกสารแชท) การยกเพดานจึงไม่เปิด
   //    ช่องข้อมูลรั่ว แค่ยอมให้ดึง asset ที่ตัวเองมีสิทธิ์อยู่แล้วได้ถี่ขึ้น
+  //  - /api/uploads/* (mutation): bucket แยก เพดาน 300 — เหตุผลเดียวกับ /api/files/* คือเป็น
+  //    asset operation ไม่ใช่ API เชิงตรรกะ. direct upload ยิง **2 request ต่อไฟล์**
+  //    (ticket → commit) และการกระทำเดียวของผู้ใช้แนบได้ถึง 24 ไฟล์ (image_grid) = 48 request
+  //    ถ้าใช้เพดาน mutation ปกติ 30/นาที ร้านจะโดน 429 กลางการแนบรูปชุดเดียว โดยที่รูปบางใบ
+  //    ขึ้นไปแล้วบางใบไม่ขึ้น (ครึ่ง ๆ กลาง ๆ แบบที่ debug ยากที่สุด)
+  //    ทั้งสอง route มี auth + HMAC claim ผูก fileId กับ user ของตัวเองครบ การยกเพดานจึงไม่เปิด
+  //    ช่องอะไรใหม่ — แค่ยอมให้แนบไฟล์ชุดใหญ่ได้จบในครั้งเดียว
   const token = await getToken({ req: request })
   const isMutation = MUTATION_METHODS.has(request.method)
   const isFileAsset = !isMutation && pathname.startsWith('/api/files/')
-  const limit = isFileAsset ? 600 : isMutation ? (token ? 30 : 100) : token ? 120 : 200
-  const bucket = isFileAsset ? 'files' : isMutation ? 'mut' : 'get'
+  const isUploadAsset = isMutation && pathname.startsWith('/api/uploads/')
+  const limit = isFileAsset
+    ? 600
+    : isUploadAsset
+      ? 300
+      : isMutation
+        ? token
+          ? 30
+          : 100
+        : token
+          ? 120
+          : 200
+  const bucket = isFileAsset ? 'files' : isUploadAsset ? 'upload' : isMutation ? 'mut' : 'get'
   const key = `${clientIp(request)}:${token ? 'auth' : 'pub'}:${bucket}`
   if (!checkApiRateLimit(key, limit, 60_000)) {
     return NextResponse.json(

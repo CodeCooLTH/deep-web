@@ -21,6 +21,7 @@ import Image from 'next/image'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { uploadFileId } from '@/lib/upload-client'
 import FileUploader from '@/components/FileUploader'
 import { MAX_ROOM_IMAGES } from '@/lib/lodging'
 
@@ -51,14 +52,10 @@ export default function RoomImages({ value, onChange }: RoomImagesProps) {
 
   const uploadOne = useCallback(async (file: File, key: string) => {
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error(`upload failed: ${res.status}`)
-      const data = (await res.json()) as { fileId: string }
-      return data.fileId
-    } catch {
-      pacesToast.error(`อัปโหลดไม่สำเร็จ: ${file.name}`)
+      // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+      return await uploadFileId(file, 'IMAGE')
+    } catch (err) {
+      pacesToast.error(`${file.name}: ${err instanceof Error && err.message ? err.message : 'อัปโหลดไม่สำเร็จ'}`)
       return null
     } finally {
       setUploading((prev) => {

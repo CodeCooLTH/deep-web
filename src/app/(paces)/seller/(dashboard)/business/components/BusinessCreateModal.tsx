@@ -31,6 +31,7 @@ import VerticalTaxonomyPicker, { VERTICAL_LOCK_NOTICE } from '@/components/safep
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
+import { uploadFileId } from '@/lib/upload-client'
 import CategoryMultiSelect from '../../dashboard/components/CategoryMultiSelect'
 import { SHOP_CATEGORY_LABELS } from '@/lib/shop-categories'
 import { SHOP_VERTICAL_KEYS, type ShopVertical } from '@/lib/lodging'
@@ -265,14 +266,10 @@ export default function BusinessCreateModal({ open, onClose }: { open: boolean; 
     if (!file) return
     setLogoUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error()
-      const data = (await res.json()) as { fileId?: string; id?: string }
-      setValue('logo', data.fileId ?? data.id ?? '', { shouldDirty: true })
-    } catch {
-      pacesToast.error('อัปโหลดโลโก้ไม่สำเร็จ')
+      // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+      setValue('logo', await uploadFileId(file, 'IMAGE'), { shouldDirty: true })
+    } catch (err) {
+      pacesToast.error(err instanceof Error && err.message ? err.message : 'อัปโหลดโลโก้ไม่สำเร็จ')
     } finally {
       setLogoUploading(false)
     }

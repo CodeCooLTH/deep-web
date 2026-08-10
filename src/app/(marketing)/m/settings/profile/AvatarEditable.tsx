@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { toast } from 'react-toastify'
+import { uploadFileId } from '@/lib/upload-client'
 
 import CustomAvatar from '@core/components/mui/Avatar'
 
@@ -27,11 +28,8 @@ export default function AvatarEditable({ src, fallback, size = 70 }: Props) {
     }
     setBusy(true)
     try {
-      const form = new FormData()
-      form.append('file', file)
-      const up = await fetch('/api/upload', { method: 'POST', body: form })
-      if (!up.ok) throw new Error()
-      const { fileId } = await up.json()
+      // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+      const fileId = await uploadFileId(file, 'IMAGE')
       const save = await fetch('/api/users/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

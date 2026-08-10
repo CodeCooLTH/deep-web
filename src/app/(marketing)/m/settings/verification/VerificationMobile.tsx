@@ -5,6 +5,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-toastify'
+import { uploadFileId } from '@/lib/upload-client'
 
 type VerificationRecord = {
   id: string
@@ -100,14 +101,9 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
     return true
   }
 
-  const uploadFile = async (file: File): Promise<string | null> => {
-    const form = new FormData()
-    form.append('file', file)
-    const res = await fetch('/api/upload', { method: 'POST', body: form })
-    if (!res.ok) return null
-    const { fileId } = (await res.json()) as { fileId: string }
-    return fileId
-  }
+  // direct upload (2026-08-10) — เดิมส่งผ่าน body ของ function ที่ Vercel จำกัด 4.5MB ทั้งที่
+  // หน้านี้บอกผู้ใช้ว่ารับถึง 5MB. throw แทน return null เพื่อไม่ยุบทุกเหตุผลเป็น "ไม่สำเร็จ"
+  const uploadFile = async (file: File): Promise<string> => uploadFileId(file, 'DOCUMENT')
 
   const submitL2 = async () => {
     if (!idCardFile || !selfieFile) {
@@ -117,7 +113,6 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
     setSubmittingL2(true)
     try {
       const [idCard, selfie] = await Promise.all([uploadFile(idCardFile), uploadFile(selfieFile)])
-      if (!idCard || !selfie) throw new Error()
       const res = await fetch('/api/verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,8 +123,10 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
       setIdCardFile(null)
       setSelfieFile(null)
       router.refresh()
-    } catch {
-      toast.error('ส่งเอกสารไม่สำเร็จ')
+    } catch (e) {
+      // uploadFile throw ข้อความไทยที่พร้อมโชว์ (ชนิดไฟล์/ขนาด/เน็ตขาด); `throw new Error()` เปล่า
+      // จากด่านอื่นไม่มี message จึงตกไปข้อความกลางตามเดิม
+      toast.error(e instanceof Error && e.message ? e.message : 'ส่งเอกสารไม่สำเร็จ')
     } finally {
       setSubmittingL2(false)
     }
@@ -143,7 +140,6 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
     setSubmittingL3(true)
     try {
       const doc = await uploadFile(bizFile)
-      if (!doc) throw new Error()
       const res = await fetch('/api/verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,8 +149,10 @@ export default function VerificationMobile({ phoneVerified, records }: Props) {
       toast.success('ส่งเอกสารแล้ว รอแอดมินตรวจสอบ')
       setBizFile(null)
       router.refresh()
-    } catch {
-      toast.error('ส่งเอกสารไม่สำเร็จ')
+    } catch (e) {
+      // uploadFile throw ข้อความไทยที่พร้อมโชว์ (ชนิดไฟล์/ขนาด/เน็ตขาด); `throw new Error()` เปล่า
+      // จากด่านอื่นไม่มี message จึงตกไปข้อความกลางตามเดิม
+      toast.error(e instanceof Error && e.message ? e.message : 'ส่งเอกสารไม่สำเร็จ')
     } finally {
       setSubmittingL3(false)
     }

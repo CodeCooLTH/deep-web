@@ -13,6 +13,14 @@ import {
 } from "@/lib/chat-attachment";
 
 /**
+ * POST /api/chat/upload — **legacy (2026-08-10): ห้ามใช้กับงานใหม่**
+ *
+ * เพดานจริงของ route นี้คือ 4.5MB (request body ของ Vercel) ไม่ใช่ 25MB ตามที่เขียนไว้ข้างล่าง —
+ * ไฟล์ที่ใหญ่กว่านั้นถูกปฏิเสธก่อนถึงโค้ดนี้ ทำให้ร้านส่งคลิป/รูปความละเอียดสูงไม่ได้เลย
+ * (อาการที่ถูกแจ้ง 2026-08-10) ของใหม่ใช้ `@/lib/upload-client` → `/api/uploads/ticket|commit`
+ * ซึ่งยิงไฟล์ตรงเข้า storage; กฎ/ข้อความทั้งหมดยังมาจาก `chat-attachment.ts` ตัวเดียวกับที่นี่
+ *
+ * ── บริบทเดิม (ยังเป็นเหตุผลที่ route นี้ไม่ใช้ /api/upload) ──
  * POST /api/chat/upload — อัปโหลดไฟล์แนบของแชท (feature 00018 ext, 2026-08-02)
  *
  * ทำไมไม่ใช้ POST /api/upload เดิม: route นั้นเรียก validateUpload() ที่มี allow-list 12 MIME

@@ -15,6 +15,7 @@ import { useCallback, useRef, useState } from 'react'
 import Dropzone, { type DropzoneState, type FileRejection } from 'react-dropzone'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { uploadFileId } from '@/lib/upload-client'
 
 // =========================================================
 // Types
@@ -98,19 +99,10 @@ export default function ProductImageDropzone({
 
       for (const file of acceptedFiles) {
         try {
-          const formData = new FormData()
-          formData.append('file', file)
-
-          const res = await fetch('/api/upload', { method: 'POST', body: formData })
-          if (!res.ok) {
-            pacesToast.error(`อัปโหลด "${file.name}" ล้มเหลว`)
-            continue
-          }
-
-          const data = (await res.json()) as { fileId: string }
-          newFileIds.push(data.fileId)
-        } catch {
-          pacesToast.error(`อัปโหลด "${file.name}" ล้มเหลว`)
+          // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+          newFileIds.push(await uploadFileId(file, 'IMAGE'))
+        } catch (err) {
+          pacesToast.error(`อัปโหลด "${file.name}" ล้มเหลว: ${err instanceof Error ? err.message : ''}`.trim())
         }
       }
 

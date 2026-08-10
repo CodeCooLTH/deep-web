@@ -18,6 +18,7 @@ import Typography from '@mui/material/Typography'
 import CircularProgress from '@mui/material/CircularProgress'
 import classnames from 'classnames'
 import { toast } from 'react-toastify'
+import { uploadFileId } from '@/lib/upload-client'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -70,14 +71,8 @@ export default function AccountSidebar() {
     }
     setUploading(true)
     try {
-      const form = new FormData()
-      form.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
-      if (!res.ok) {
-        toast.error('อัพโหลดรูปไม่สำเร็จ')
-        return
-      }
-      const { fileId } = (await res.json()) as { fileId: string }
+      // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+      const fileId = await uploadFileId(file, 'IMAGE')
       const save = await fetch('/api/users/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

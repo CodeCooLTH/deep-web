@@ -1,18 +1,14 @@
 import { writeFile, mkdir, readFile, unlink, stat, open } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
-import { v4 as uuid } from "uuid";
-import { validateUpload, fileIdExt, type Storage } from "./types";
-import { uploadDatePrefix } from "@/lib/format-date";
+import { validateUpload, fileIdExt, newFileId, type Storage } from "./types";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 
 export const saveFile: Storage["saveFile"] = async (file, opts) => {
   if (!opts?.skipValidation) validateUpload(file);
 
-  const ext = file.name.split(".").pop() || "bin";
-  // ชาร์ดเป็น YYYY/MM/DD/ (user 2026-07-25) — fileId = path relative (มี slash); mkdir โฟลเดอร์วันนั้นก่อน
-  const fileId = `${uploadDatePrefix(new Date())}/${uuid()}.${ext}`;
+  const fileId = newFileId(file.name.split(".").pop() || "bin");
   const filePath = path.join(UPLOAD_DIR, fileId);
   await mkdir(path.dirname(filePath), { recursive: true });
 
@@ -21,6 +17,36 @@ export const saveFile: Storage["saveFile"] = async (file, opts) => {
 
   return fileId;
 };
+
+/**
+ * dev ไม่มี presigned URL ให้ยิง — ให้ client PUT เข้า route ของเราเองที่ `/api/uploads/local/…`
+ *
+ * ทำแบบนี้แทนการ "ให้ dev ตกไปใช้ multipart เดิม" โดยตั้งใจ: เส้นทางที่ prod เดินต้องเป็น
+ * เส้นทางที่ dev เดินด้วย ไม่งั้น flow นี้จะไม่เคยถูกทดสอบเลยจนกว่าจะขึ้น prod
+ * (บทเรียนซ้ำของโปรเจกต์นี้ — iframe builder ที่ตายสนิทบน prod ตั้งแต่ deploy แรก)
+ *
+ * ไม่มีเพดานขนาดที่ชั้นนี้เพราะ dev server ไม่มีเพดาน 4.5MB ของ Vercel — ตัวบังคับจริงคือ
+ * `maxSize` ใน claim ที่ route ตรวจตอนรับ และ commit ที่ตรวจขนาดจริงอีกชั้น
+ */
+export const createUploadTicket: Storage["createUploadTicket"] = async ({ ext, contentType }) => {
+  const fileId = newFileId(ext);
+  return {
+    fileId,
+    url: `/api/uploads/local/${fileId}`,
+    method: "PUT",
+    headers: { "content-type": contentType },
+    requiresTicketToken: true,
+  };
+};
+
+/** เขียนไฟล์ลง key ที่ถูกจ่ายไปแล้ว — ใช้โดย `PUT /api/uploads/local/[...]` เท่านั้น (dev) */
+export async function writeLocalFile(fileId: string, buffer: Buffer): Promise<boolean> {
+  const filePath = resolveInsideUploadDir(fileId);
+  if (!filePath) return false;
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, buffer);
+  return true;
+}
 
 export const getFile: Storage["getFile"] = async (fileId) => {
   const filePath = path.join(UPLOAD_DIR, fileId);

@@ -23,6 +23,7 @@ import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
 import { Icon } from '@iconify/react'
 import { formatDateTH } from '@/lib/format-date'
+import { uploadFileId } from '@/lib/upload-client'
 
 export type BookingGuestData = {
   token: string
@@ -56,11 +57,9 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
     setUploading(true)
     setError(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const up = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!up.ok) throw new Error('upload')
-      const { fileId } = (await up.json()) as { fileId: string }
+      // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+      // สลิปที่ถ่ายจากมือถือเกิน 4.5MB ได้ง่าย ๆ (ดู upload-policy.ts)
+      const fileId = await uploadFileId(file, 'DOCUMENT')
 
       // ใช้ endpoint แนบสลิปเดิมของออเดอร์ — ไม่มี endpoint ใหม่ฝั่งผู้จอง
       const res = await fetch(`/api/orders/${booking.token}/slip`, {

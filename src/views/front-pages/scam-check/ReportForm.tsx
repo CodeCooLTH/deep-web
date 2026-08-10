@@ -19,6 +19,7 @@ import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import { toast } from 'react-toastify'
+import { uploadFileId } from '@/lib/upload-client'
 
 // Component Imports
 import CustomTextField from '@core/components/mui/TextField'
@@ -69,15 +70,9 @@ const ReportForm = () => {
       const evidence: string[] = []
 
       for (const file of files) {
-        const fd = new FormData()
-
-        fd.append('file', file)
-        const up = await fetch('/api/upload', { method: 'POST', body: fd })
-
-        if (!up.ok) throw new Error('อัปโหลดหลักฐานไม่สำเร็จ')
-        const { fileId } = await up.json()
-
-        evidence.push(fileId)
+        // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+        // (รูปหลักฐานจากมือถือเกิน 4.5MB เป็นเรื่องปกติ — ดู upload-policy.ts)
+        evidence.push(await uploadFileId(file, 'IMAGE'))
       }
 
       const res = await fetch('/api/scam-reports', {

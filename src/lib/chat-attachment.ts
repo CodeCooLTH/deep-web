@@ -87,9 +87,34 @@ export function extFromName(name: string): string {
 }
 
 /** MB แบบอ่านง่ายสำหรับข้อความ error (1.5 → "1.5", 12 → "12") */
-function mb(bytes: number): string {
+export function formatSizeMB(bytes: number): string {
   const v = bytes / (1024 * 1024)
   return v >= 10 ? String(Math.round(v)) : v.toFixed(1).replace(/\.0$/, '')
+}
+
+/** alias เดิมสำหรับใช้ในไฟล์นี้ */
+const mb = formatSizeMB
+
+/**
+ * ข้อความ "ไฟล์ใหญ่เกิน" ของทั้งระบบ — จุดเดียว (HR16)
+ *
+ * อยู่ในไฟล์นี้เพราะที่นี่คือเจ้าของ `ATTACHMENT_MAX_SIZE` และ `formatSizeMB` อยู่แล้ว
+ * (`upload-policy.ts` re-export ต่อให้ฝั่งที่ไม่ได้ทำงานกับแชทเรียกได้โดยไม่ต้องรู้จักโมดูลนี้)
+ *
+ * วิดีโอได้คำแนะนำต่างจากไฟล์อื่น เพราะเป็นชนิดเดียวที่ผู้ใช้ลดขนาดเองได้ง่ายและชนเพดาน
+ * บ่อยที่สุด (คลิป iPhone 1 นาที = 40–90MB) — ข้อความที่บอกแค่ตัวเลขทำให้ร้านลองส่งไฟล์เดิมซ้ำ
+ */
+export function oversizeMessage(args: {
+  kind: AttachmentKind
+  size: number
+  maxSize: number
+  noun?: string
+}): string {
+  const head = `${args.noun ?? 'ไฟล์'}นี้ ${mb(args.size)}MB ใหญ่เกิน ${mb(args.maxSize)}MB`
+  if (args.kind === 'VIDEO') {
+    return `${head} — ตัดคลิปให้สั้นลง หรืออัดใหม่ที่ 720p (ตั้งค่า > กล้อง > บันทึกวิดีโอ) แล้วส่งอีกครั้ง`
+  }
+  return head
 }
 
 export type SupportCheck = { ok: true } | { ok: false; reason: string }
@@ -110,7 +135,10 @@ export function checkChannelSupport(
     return { ok: false, reason: `ไฟล์ชนิด .${ext} ส่งไม่ได้ด้วยเหตุผลด้านความปลอดภัย` }
   }
   if (file.size > ATTACHMENT_MAX_SIZE) {
-    return { ok: false, reason: `ไฟล์ใหญ่เกิน 25MB (ไฟล์นี้ ${mb(file.size)}MB)` }
+    return {
+      ok: false,
+      reason: oversizeMessage({ kind: file.kind, size: file.size, maxSize: ATTACHMENT_MAX_SIZE }),
+    }
   }
 
   // ช่องทางที่ยังไม่ live (LINE feat 00025 / TikTok feat 00020) — default deny ไม่ใช่ default allow

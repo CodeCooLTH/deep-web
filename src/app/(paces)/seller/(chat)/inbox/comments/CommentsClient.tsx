@@ -31,6 +31,7 @@ import CommentsThreadSkeleton from './CommentsThreadSkeleton'
 import PrivateReplyModal from './PrivateReplyModal'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
+import { uploadToStorage } from '@/lib/upload-client'
 import { visibleTopLevelComments } from '@/lib/comment-tree-visibility'
 // ย้ายออกจากไฟล์นี้เมื่อ 2026-08-10 ตอนการ์ดคอมเมนต์ต้นเหตุในห้องแชทต้องใช้กติกาเดียวกัน (HR16)
 import { isVideoPost } from '@/lib/facebook-post'
@@ -788,18 +789,13 @@ export default function CommentsClient({
     if (!file) return
     setUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/chat/upload', { method: 'POST', body: fd })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null
-        pacesToast.error(body?.error ?? 'อัปโหลดรูปไม่สำเร็จ')
-        return
-      }
-      const data = (await res.json()) as { fileId: string }
+      // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+      // ไม่ส่ง conversationId เพราะคอมเมนต์ไม่มีเธรด (กฎกลางยังบังคับครบ: deny-list + 25MB)
+      const data = await uploadToStorage(file, { purpose: 'CHAT' })
       setPendingFile({ fileId: data.fileId, previewUrl: URL.createObjectURL(file) })
-    } catch {
-      pacesToast.error('อัปโหลดรูปไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+    } catch (err) {
+      // ข้อความจาก server พร้อมโชว์อยู่แล้ว (บอกทั้งเหตุและทางออก) — อย่ากลบด้วยข้อความกลาง ๆ
+      pacesToast.error(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''

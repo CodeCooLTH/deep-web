@@ -22,8 +22,10 @@ import {
   BLOCKED_EXT,
   attachmentKind,
   extFromName,
+  oversizeMessage,
   type AttachmentKind,
 } from '@/lib/chat-attachment'
+import { uploadToStorage } from '@/lib/upload-client'
 
 // chat-attachment.ts เป็น pure module จึง import ฝั่ง client ได้ (ต่างจาก '@/lib/storage' ที่ barrel
 // ดึง driver local/s3 (fs/server-only) เข้า client bundle) — เพดาน/deny-list จึงไม่ต้อง duplicate อีก
@@ -570,33 +572,26 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   // จึงไม่ต้อง duplicate ความรู้เรื่องช่องทางมาไว้ฝั่ง client แล้วเสี่ยงให้สองที่ไม่ตรงกัน
   const uploadFile = async (file: File) => {
     const ext = extFromName(file.name)
+    const kind = attachmentKind(file.type, ext)
     if (BLOCKED_EXT.includes(ext)) {
       pacesToast.error(`ไฟล์ชนิด .${ext} ส่งไม่ได้ด้วยเหตุผลด้านความปลอดภัย`)
       return
     }
     if (file.size > ATTACHMENT_MAX_SIZE) {
-      pacesToast.error(`"${file.name}" ใหญ่เกิน 25MB`)
+      // ข้อความบอกทางออกด้วย ไม่ใช่แค่ตัวเลข — คลิปจาก iPhone ชนเพดานนี้เป็นปกติ (1 นาที = 40–90MB)
+      // และเพดานนี้เป็นของ Meta ด้วย (Send API 25MB) จึงยกให้ไม่ได้ ต้องให้ผู้ใช้ย่อไฟล์เอง
+      pacesToast.error(oversizeMessage({ kind, size: file.size, maxSize: ATTACHMENT_MAX_SIZE }))
       return
     }
-    const kind = attachmentKind(file.type, ext)
     // objectURL เฉพาะชนิดที่พรีวิวได้จริง — ไฟล์เอกสารสร้างไปก็ไม่มีใครใช้ แถมต้องคอย revoke
     const previewUrl = kind === 'IMAGE' || kind === 'VIDEO' ? URL.createObjectURL(file) : ''
     setUploading(true)
     setUploadProgress((p) => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + 1 }))
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch(`/api/chat/upload?conversationId=${encodeURIComponent(conversationId)}`, {
-        method: 'POST',
-        body: fd,
-      })
-      if (!res.ok) {
-        // route คืนเหตุผลไทยที่พร้อมโชว์ (checkChannelSupport) — ใช้ของจริงดีกว่าข้อความกลาง ๆ
-        const data = (await res.json().catch(() => null)) as { error?: string } | null
-        throw new Error(data?.error || 'อัปโหลดไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง')
-      }
-      const data: { fileId: string; name: string; size: number; mime: string; kind: AttachmentKind } =
-        await res.json()
+      // direct upload (2026-08-10): ไม่ส่งไฟล์ผ่าน function อีก — เดิมทุกไฟล์เกิน 4.5MB ตายที่
+      // เพดาน body ของ Vercel พร้อมข้อความกลาง ๆ ทั้งที่โค้ดเราโฆษณา 25MB (ดู upload-policy.ts)
+      // `size` ที่ได้กลับมาเป็นขนาดจริงจาก HEAD ฝั่ง server ไม่ใช่ `file.size` ที่ client รู้เอง
+      const data = await uploadToStorage(file, { purpose: 'CHAT', conversationId })
       setPendingImages((prev) => [
         ...prev,
         { fileId: data.fileId, previewUrl, name: data.name, size: data.size, mime: data.mime, kind: data.kind },

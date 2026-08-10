@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
+import { uploadFileId } from '@/lib/upload-client'
 import * as Yup from 'yup'
 import { yupResolver } from '@hookform/resolvers/yup'
 
@@ -33,16 +34,10 @@ type L3Values = { registrationNumber: string; address: string }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
+// direct upload (2026-08-10) — เดิมส่งผ่าน body ของ function ที่ Vercel จำกัด 4.5MB ทั้งที่หน้านี้
+// บอกผู้ใช้ว่ารับถึง 5MB (ดู upload-policy.ts); DOCUMENT = รูป + PDF ตาม PRD FR-2.5 (L3)
 async function uploadFile(file: File): Promise<string> {
-  const fd = new FormData()
-  fd.append('file', file)
-  const res = await fetch('/api/upload', { method: 'POST', body: fd })
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new Error(data?.error ?? 'อัปโหลดไฟล์ไม่สำเร็จ')
-  }
-  const data = await res.json()
-  return data.fileId as string
+  return uploadFileId(file, 'DOCUMENT')
 }
 
 function validateFileSize(file: File | null | undefined, label: string): string | null {

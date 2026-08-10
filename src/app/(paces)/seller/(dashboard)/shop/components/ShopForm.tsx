@@ -22,6 +22,7 @@ import BusinessDangerZone from './BusinessDangerZone'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { pacesToast } from '@/lib/paces-toast'
+import { uploadFileId } from '@/lib/upload-client'
 import * as Yup from 'yup'
 import Icon from '@/components/wrappers/Icon'
 import { SHOP_CATEGORY_LABELS, SHOP_CATEGORY_KEYS } from '@/lib/shop-categories'
@@ -129,15 +130,8 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone,
 
     setCoverUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) {
-        pacesToast.error('อัปโหลดภาพหน้าปกไม่สำเร็จ')
-        return
-      }
-      const data = await res.json()
-      setCoverFileId(data.fileId ?? '')
+      // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+      setCoverFileId(await uploadFileId(file, 'IMAGE'))
       // ต้องบอกว่ายังไม่จบ — ไฟล์ขึ้น bucket แล้วก็จริง แต่จะลงฐานตอนกดบันทึกเท่านั้น
       pacesToast.success('อัปโหลดภาพหน้าปกสำเร็จ — กดบันทึกเพื่อใช้งานรูปนี้')
     } catch {
@@ -154,15 +148,8 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone,
 
     setLogoUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) {
-        pacesToast.error('อัปโหลดโลโก้ไม่สำเร็จ')
-        return
-      }
-      const data = await res.json()
-      setLogoFileId(data.fileId ?? '')
+      // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+      setLogoFileId(await uploadFileId(file, 'IMAGE'))
       pacesToast.success('อัปโหลดโลโก้สำเร็จ — กดบันทึกเพื่อใช้งานรูปนี้')
     } catch {
       pacesToast.error('เกิดข้อผิดพลาดขณะอัปโหลด')

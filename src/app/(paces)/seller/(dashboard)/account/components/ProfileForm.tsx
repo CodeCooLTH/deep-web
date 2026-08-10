@@ -20,6 +20,7 @@
 import AccountAvatar from '@/components/AccountAvatar'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
+import { uploadFileId } from '@/lib/upload-client'
 import Swal from 'sweetalert2'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -85,11 +86,8 @@ export default function ProfileForm({ user }: Props) {
     async (file: File) => {
       setAvatarBusy(true)
       try {
-        const form = new FormData()
-        form.append('file', file)
-        const up = await fetch('/api/upload', { method: 'POST', body: form })
-        if (!up.ok) throw new Error()
-        const { fileId } = (await up.json()) as { fileId: string }
+        // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+        const fileId = await uploadFileId(file, 'IMAGE')
         const next = `/api/files/${fileId}`
         const save = await fetch('/api/users/me', {
           method: 'PATCH',

@@ -24,6 +24,33 @@ export const ALLOWED_TYPES = [
 
 export type { ByteRange } from "@/lib/http-range";
 import type { ByteRange } from "@/lib/http-range";
+import { v4 as uuid } from "uuid";
+import { uploadDatePrefix } from "@/lib/format-date";
+
+/**
+ * key ใหม่ของไฟล์ — ชาร์ดเป็น YYYY/MM/DD/ (user 2026-07-25) กันไฟล์กองรวม root ของ bucket
+ * fileId = Key เต็ม (มี slash) เก็บลง DB ตามเดิม; getFile/getFileUrl/deleteFile ใช้เป็น Key ตรง ๆ
+ *
+ * อยู่ที่นี่เพราะตั้งแต่มี direct upload (presigned PUT) key ถูกสร้าง **ก่อน** ไฟล์มาถึง
+ * ทั้ง saveFile และ createUploadTicket จึงต้องใช้สูตรเดียวกัน — เดิม duplicate ในทั้งสอง driver
+ */
+export function newFileId(ext: string): string {
+  return `${uploadDatePrefix(new Date())}/${uuid()}.${ext || "bin"}`;
+}
+
+/**
+ * ใบอนุญาตให้ client ยิงไฟล์เข้า storage ตรง ๆ (ไม่ผ่าน Vercel function ที่จำกัด body 4.5MB)
+ *
+ * `requiresTicketToken` = driver นี้ต้องให้ route แนบ HMAC claim (`?t=`) ต่อท้าย url เอง
+ * (local driver รับไฟล์ผ่าน route ของเราซึ่งต้องตรวจสิทธิ์เอง; s3 ใช้ลายเซ็น SigV4 ของ AWS อยู่แล้ว)
+ */
+export type UploadTicket = {
+  fileId: string;
+  url: string;
+  method: "PUT";
+  headers: Record<string, string>;
+  requiresTicketToken?: boolean;
+};
 
 export type GetFileUrlOptions = {
   signed?: boolean;
@@ -39,6 +66,8 @@ export type SaveFileOptions = {
 
 export interface Storage {
   saveFile(file: File, opts?: SaveFileOptions): Promise<string>;
+  /** จ่าย key + URL ให้ client อัปโหลดตรง — ไม่แตะไฟล์ ไม่รู้ขนาด (ตรวจจริงตอน commit ด้วย HEAD) */
+  createUploadTicket(opts: { ext: string; contentType: string; expiresIn: number }): Promise<UploadTicket>;
   getFile(fileId: string): Promise<{ buffer: Buffer; ext: string } | null>;
   /** ขนาดไฟล์โดยไม่ดึงเนื้อไฟล์ — ต้องรู้ก่อนถึงจะประกอบ Content-Range ได้
    *  (เรียกเฉพาะตอนมี Range header เท่านั้น ไม่เพิ่ม round-trip ให้ request รูปปกติ) */

@@ -1746,3 +1746,28 @@ export const LinePatchSchema = v.object({
     v.pipe(v.string(), v.trim(), v.minLength(1, "กรุณากรอก Channel access token"), v.maxLength(512)),
   ),
 });
+
+/**
+ * POST /api/uploads/ticket — ขอใบอนุญาตอัปโหลดตรงเข้า storage (2026-08-10)
+ *
+ * `size`/`mime` ที่ client แจ้งมาที่นี่ **เชื่อไม่ได้** และไม่ได้ถูกใช้เป็นด่าน — มีไว้ให้ปฏิเสธ
+ * ได้เร็วก่อนผู้ใช้เสียเวลาอัปโหลดจนจบ. ด่านจริงคือ `file_size_limit` ของ bucket (413 จาก
+ * Supabase) + `POST /api/uploads/commit` ที่อ่านขนาดจริงด้วย HEAD (ดู `src/lib/upload-policy.ts`)
+ */
+export const UploadTicketSchema = v.object({
+  purpose: v.picklist(["CHAT", "IMAGE", "DOCUMENT"]),
+  name: v.pipe(v.string(), v.minLength(1), v.maxLength(300)),
+  size: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  mime: v.optional(v.pipe(v.string(), v.maxLength(200)), ""),
+  /** เฉพาะ purpose='CHAT' — route ใช้ resolve channel + เช็คสิทธิ์เข้าถึงเธรด */
+  conversationId: v.optional(v.pipe(v.string(), v.uuid())),
+});
+
+/** POST /api/uploads/commit — ยืนยันว่าไฟล์ขึ้นไปแล้วจริง แล้วให้ server ตรวจของจริง */
+export const UploadCommitSchema = v.object({
+  /** HMAC claim ที่ได้จาก /api/uploads/ticket — ผูก fileId กับ user/purpose/เพดาน */
+  ticket: v.pipe(v.string(), v.minLength(1), v.maxLength(2000)),
+  /** ชื่อไฟล์เดิมเพื่อเก็บเป็น snapshot (storage ตั้งชื่อเป็น uuid.ext) */
+  name: v.pipe(v.string(), v.minLength(1), v.maxLength(300)),
+  mime: v.optional(v.pipe(v.string(), v.maxLength(200)), ""),
+});

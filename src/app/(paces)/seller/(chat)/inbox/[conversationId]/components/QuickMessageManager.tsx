@@ -34,6 +34,7 @@ import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import Icon from '@/components/wrappers/Icon'
 import FilterDropdown from '@/components/safepay/FilterDropdown'
 import { pacesToast } from '@/lib/paces-toast'
+import { uploadFileId } from '@/lib/upload-client'
 import { pacesConfirm } from '@/lib/paces-swal'
 
 // client-side type (ไม่ import service — เลี่ยง prisma เข้า client bundle)
@@ -248,15 +249,15 @@ export default function QuickMessageManager({
           pacesToast.error(`${file.name}: ไฟล์รูปต้องไม่เกิน 5MB`)
           continue
         }
-        const fd = new FormData()
-        fd.append('file', file)
-        const res = await fetch('/api/upload', { method: 'POST', body: fd })
-        if (!res.ok) {
-          pacesToast.error(`${file.name}: อัปโหลดไม่สำเร็จ`)
+        // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+        let fileId: string
+        try {
+          fileId = await uploadFileId(file, 'IMAGE')
+        } catch (err) {
+          pacesToast.error(`${file.name}: ${err instanceof Error ? err.message : 'อัปโหลดไม่สำเร็จ'}`)
           continue
         }
-        const data: { fileId: string } = await res.json()
-        setImageFileIds((prev) => (prev.length >= MAX_IMAGES ? prev : [...prev, data.fileId]))
+        setImageFileIds((prev) => (prev.length >= MAX_IMAGES ? prev : [...prev, fileId]))
       }
     } finally {
       setUploading(false)

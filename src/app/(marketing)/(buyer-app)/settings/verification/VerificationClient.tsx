@@ -19,6 +19,7 @@ import Typography from '@mui/material/Typography'
 import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 import { toast } from 'react-toastify'
+import { uploadFileId } from '@/lib/upload-client'
 
 type VerificationRecord = {
   id: string
@@ -47,13 +48,15 @@ function levelStatus(records: VerificationRecord[], level: number) {
   return { state: 'NONE' as const, record: null }
 }
 
-async function uploadFile(file: File): Promise<string | null> {
-  const form = new FormData()
-  form.append('file', file)
-  const res = await fetch('/api/upload', { method: 'POST', body: form })
-  if (!res.ok) return null
-  const { fileId } = (await res.json()) as { fileId: string }
-  return fileId
+/**
+ * direct upload (2026-08-10) — เดิมส่งผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
+ * ทั้งที่หน้านี้บอกผู้ใช้ว่ารับถึง 5MB → ไฟล์ในช่วง 4.5–5MB ล้มโดยไม่มีใครรู้สาเหตุ
+ *
+ * throw แทน `return null` เพราะเหตุผลที่ล้มมีหลายแบบ (ชนิดไฟล์/ขนาด/เน็ตขาด) และ server
+ * คืนข้อความไทยที่พร้อมโชว์มาแล้ว — การยุบทุกเหตุเป็น null ทำให้ผู้ใช้เห็นแต่ "ไม่สำเร็จ"
+ */
+async function uploadFile(file: File): Promise<string> {
+  return uploadFileId(file, 'DOCUMENT')
 }
 
 export default function VerificationClient({ phoneVerified, records }: Props) {
@@ -81,10 +84,6 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
         uploadFile(idCardFile),
         uploadFile(selfieFile),
       ])
-      if (!idCardId || !selfieId) {
-        toast.error('อัพโหลดรูปไม่สำเร็จ')
-        return
-      }
       const res = await fetch('/api/verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -102,6 +101,10 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
       setIdCardFile(null)
       setSelfieFile(null)
       router.refresh()
+    } catch (e) {
+      // uploadFile throw ข้อความไทยที่พร้อมโชว์มาแล้ว (ชนิดไฟล์/ขนาด/เน็ตขาด) — เดิมบล็อกนี้ไม่มี catch
+      // เลย ถ้าอัปโหลดล้มจะไม่มีอะไรขึ้นบนจอสักอย่าง มีแต่สปินเนอร์หยุดหมุน
+      toast.error(e instanceof Error && e.message ? e.message : 'อัพโหลดรูปไม่สำเร็จ')
     } finally {
       setSubmittingL2(false)
     }
@@ -115,10 +118,6 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
     setSubmittingL3(true)
     try {
       const docId = await uploadFile(bizFile)
-      if (!docId) {
-        toast.error('อัพโหลดเอกสารไม่สำเร็จ')
-        return
-      }
       const res = await fetch('/api/verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,6 +134,8 @@ export default function VerificationClient({ phoneVerified, records }: Props) {
       toast.success('ส่งเอกสารแล้ว รอแอดมินตรวจสอบ')
       setBizFile(null)
       router.refresh()
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : 'อัพโหลดเอกสารไม่สำเร็จ')
     } finally {
       setSubmittingL3(false)
     }

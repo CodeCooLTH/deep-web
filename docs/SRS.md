@@ -331,7 +331,7 @@ known-gap: ปัจจุบัน buyer `/orders` `/reviews` `/settings/*` ย
 |----|---------|
 | NFR-1.1 | API response < 500ms (p95) |
 | NFR-1.2 | Public Profile โหลด < 2s |
-| NFR-1.3 | File upload ≤ 5MB, ภาพสินค้า ≤ 10 รูป |
+| NFR-1.3 | File upload: แชท ≤ 25MB · รูป/เอกสาร ≤ 10MB (ต่อไฟล์), ภาพสินค้า ≤ 10 รูป — เพดานต่อ purpose อยู่ที่ `src/lib/upload-policy.ts` (SSOT) และถูกบังคับ 2 ชั้น: `file_size_limit` ของ bucket (25MB, Supabase ตอบ 413 เอง) + `POST /api/uploads/commit` ที่อ่านขนาดจริงด้วย HEAD. 🛑 เดิมระบุ 5MB แต่ **ไม่มีผลจริง** เพราะทุก upload วิ่งผ่าน body ของ Vercel Function ที่จำกัด 4.5MB → ตกตั้งแต่ 4.5MB (แก้ 2026-08-10 ด้วย direct upload; ดู `docs/conventions/upload-body-size-limit.md`) |
 
 ### NFR-2: Security
 
@@ -885,7 +885,11 @@ SellerWallet (1) ── (N) WalletTransaction
 
 | Method | Path | Auth | Purpose | Service |
 |--------|------|------|---------|---------|
-| POST | `/api/upload` | Buyer/Seller/Admin | อัปโหลดไฟล์ → คืน `fileId` (≤5MB, MIME check) | `lib/storage.ts` |
+| POST | `/api/uploads/ticket` | Buyer/Seller/Admin | ขอใบอนุญาตอัปโหลดตรงเข้า storage → `{ fileId, url, method, headers, ticket, maxSize }` (body: `purpose` CHAT\|IMAGE\|DOCUMENT, `name`, `size`, `mime?`, `conversationId?`) | `lib/storage` + `lib/upload-policy` |
+| PUT | *(url จาก ticket)* | ลายเซ็น presigned ในลิงก์ | client ยิงไฟล์เข้า storage ตรง **ไม่ผ่าน function** (prod = Supabase S3; dev = `PUT /api/uploads/local/[...]` ที่ตรวจ HMAC claim) | — |
+| POST | `/api/uploads/commit` | Buyer/Seller/Admin | ยืนยันไฟล์: อ่านขนาดจริงด้วย HEAD → ตรวจเพดาน/ชนิด/กฎช่องทาง → คืน `{ fileId, name, size, mime, kind }`; ไม่ผ่าน = **ลบไฟล์ทิ้ง** + 413/400 (body: `ticket`, `name`, `mime?`) | `lib/storage` + `lib/upload-ticket` |
+| POST | `/api/upload` | Buyer/Seller/Admin | **legacy** อัปโหลดผ่าน body ของ function — เพดานจริง 4.5MB (Vercel) ไม่ใช่ 5MB ตามที่โค้ดเขียน; ไม่มีหน้าไหนในรีโปเรียกแล้ว (มีเทส `[blocker]` กัน) | `lib/storage.ts` |
+| POST | `/api/chat/upload` | Buyer/Seller | **legacy** ไฟล์แนบแชทผ่าน body ของ function — เพดานจริง 4.5MB ไม่ใช่ 25MB | `lib/storage.ts` |
 | GET | `/api/files/[fileId]` | ตามประเภทไฟล์ (ดูหมายเหตุ) | serve ไฟล์ — KYC/slip: auth-only; public image: ทุกคน | `lib/storage.ts` |
 
 **หมายเหตุ `GET /api/files/[fileId]`:**

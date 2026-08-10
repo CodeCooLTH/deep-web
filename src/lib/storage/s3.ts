@@ -6,9 +6,7 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { v4 as uuid } from "uuid";
-import { validateUpload, fileIdExt, type Storage } from "./types";
-import { uploadDatePrefix } from "@/lib/format-date";
+import { validateUpload, fileIdExt, newFileId, type Storage } from "./types";
 
 function requireEnv(key: string): string {
   const value = process.env[key];
@@ -39,10 +37,7 @@ function getBucket(): string {
 export const saveFile: Storage["saveFile"] = async (file, opts) => {
   if (!opts?.skipValidation) validateUpload(file);
 
-  const ext = file.name.split(".").pop() || "bin";
-  // ชาร์ดเป็น YYYY/MM/DD/ (user 2026-07-25) — กันไฟล์กองรวม root ของ bucket. fileId = Key เต็ม
-  // (มี slash) เก็บลง DB ตามเดิม; getFile/getFileUrl/deleteFile ใช้ fileId เป็น Key ตรง ๆ → ยังตรงกัน
-  const fileId = `${uploadDatePrefix(new Date())}/${uuid()}.${ext}`;
+  const fileId = newFileId(file.name.split(".").pop() || "bin");
   const buffer = Buffer.from(await file.arrayBuffer());
 
   await getClient().send(
@@ -55,6 +50,33 @@ export const saveFile: Storage["saveFile"] = async (file, opts) => {
   );
 
   return fileId;
+};
+
+/**
+ * presigned PUT — client อัปโหลดเข้า Supabase Storage ตรง ๆ ไม่ผ่าน function ของเรา
+ *
+ * ยืนยันด้วยการยิงจริงกับ bucket prod (2026-08-10):
+ *   - PUT 1MB → 200 และ HEAD อ่านขนาดได้ถูกต้อง
+ *   - PUT 30MB → **413 EntityTooLarge และไฟล์ไม่ถูกเขียนลง bucket เลย** (HEAD = NotFound)
+ *     คือ `file_size_limit` ของ bucket บังคับจริงบนเส้นทาง S3 ไม่ใช่แค่บน REST ของ Supabase
+ *   - OPTIONS preflight จาก origin ของเรา → `access-control-allow-origin: *` + PUT อยู่ใน
+ *     allow-methods (เบราว์เซอร์ยิงข้ามโดเมนได้ ไม่ต้องตั้ง CORS เพิ่ม)
+ *
+ * ContentType ถูกผนวกในลายเซ็น → client **ต้อง** ส่ง header `content-type` ค่าตรงกันเป๊ะ
+ * ไม่งั้น S3 ปฏิเสธด้วย SignatureDoesNotMatch (ตั้งใจ: กันเปลี่ยนชนิดไฟล์หลังได้ลายเซ็นไปแล้ว)
+ */
+export const createUploadTicket: Storage["createUploadTicket"] = async ({
+  ext,
+  contentType,
+  expiresIn,
+}) => {
+  const fileId = newFileId(ext);
+  const url = await getSignedUrl(
+    getClient(),
+    new PutObjectCommand({ Bucket: getBucket(), Key: fileId, ContentType: contentType }),
+    { expiresIn: Math.min(expiresIn, MAX_PRESIGNED_TTL) }
+  );
+  return { fileId, url, method: "PUT", headers: { "content-type": contentType } };
 };
 
 export const getFile: Storage["getFile"] = async (fileId) => {

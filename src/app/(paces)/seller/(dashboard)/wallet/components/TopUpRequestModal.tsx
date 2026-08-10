@@ -19,6 +19,7 @@
 import Icon from '@/components/wrappers/Icon'
 import { useEffect, useRef, useState } from 'react'
 import { pacesToast } from '@/lib/paces-toast'
+import { uploadFileId } from '@/lib/upload-client'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -28,18 +29,11 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024
 // preset packages ตาม Design Spec
 const PRESETS = [100, 300, 500, 1000] as const
 
-// ─── Upload helper (copy pattern จาก VerificationForm.tsx line 36-46) ──────────
-// POST /api/upload, FormData field name "file" → คืน fileId string
+// ─── Upload helper ────────────────────────────────────────────────────────────
+// direct upload (2026-08-10) — สลิปที่ถ่ายจากมือถือเกิน 4.5MB (เพดาน body ของ Vercel) ได้ง่าย ๆ
+// ทั้งที่โมดัลนี้บอกผู้ใช้ว่ารับถึง 5MB. DOCUMENT = รูป + PDF
 async function uploadFile(file: File): Promise<string> {
-  const fd = new FormData()
-  fd.append('file', file)
-  const res = await fetch('/api/upload', { method: 'POST', body: fd })
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    throw new Error(data?.error ?? 'อัปโหลดไฟล์ไม่สำเร็จ')
-  }
-  const data = await res.json()
-  return data.fileId as string
+  return uploadFileId(file, 'DOCUMENT')
 }
 
 // ─── Props ──────────────────────────────────────────────────────────────────────
