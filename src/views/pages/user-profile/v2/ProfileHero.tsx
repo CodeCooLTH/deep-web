@@ -457,6 +457,30 @@ export default function ProfileHero({
       {/* ── ช่องทางที่เชื่อมต่อ: อยู่ติดบรรทัด slug ── */}
       <ChannelStrip channels={channels} />
 
+      {/* ── อัตราการตอบแชท: อยู่ติดแถวช่องทาง ──
+             user ย้ายมาที่นี่เอง (2026-08-10 "มันต้องอยู่กับพวก page ด้านบนไหมนะ") และถูก —
+             แถวบนบอก **ช่องทางที่ทักได้** บรรทัดนี้บอก **ทักแล้วได้คำตอบเร็วแค่ไหน** เป็นคำถาม
+             ต่อเนื่องประโยคเดียวกัน ส่วนแถบตัวเลขด้านล่างเป็นหลักฐานการซื้อขาย (ออเดอร์/ลูกค้า/
+             อัตราสำเร็จ) ซึ่งมาจากคนละแหล่งและตอบคนละคำถาม การเอาไปวางท้ายแถบนั้นทำให้มันอ่าน
+             เหมือนสถิติการขายตัวที่ 5 ทั้งที่ไม่ได้มาจากออเดอร์สักใบ
+
+             🛑 ห้ามย้ายกลับไปแท็บ "เกี่ยวกับร้าน" (user สั่งรอบเดียวกัน) — ผู้ซื้ออ่านตัวเลขนี้
+             เพื่อตัดสินใจว่าจะกดทักแชทดีไหม ข้อมูลที่ใช้ตัดสินใจต้องอยู่ที่เดียวกับปุ่ม */}
+      {chatResponse && (
+        <div className='flex items-center justify-center gap-x-2 gap-y-1 flex-wrap mbs-2'>
+          <Icon icon='tabler-message-circle-2' fontSize={16} className='text-textSecondary' />
+          <Typography variant='caption' color='text.secondary'>
+            ตอบกลับ <strong className='text-textPrimary tabular-nums'>{chatResponse.ratePercent}%</strong>
+            {chatResponse.timeLabel ? (
+              <>
+                {' · ตอบเฉลี่ย '}
+                <strong className='text-textPrimary'>{chatResponse.timeLabel}</strong>
+              </>
+            ) : null}
+          </Typography>
+        </div>
+      )}
+
       {/* ── เหรียญ: ชิปที่บอกชื่อจริง ไม่ใช่วงกลมไอคอนล้วน ──
              เดิมเป็นวงกลม 38px ที่มีแต่ไอคอน + title สำหรับ hover ซึ่งบนมือถือ (surface หลักของเรา)
              ไม่มี hover เลย ผู้ชมจึงเห็นวงกลมสีลอย ๆ ที่ตีความไม่ได้ — ซึ่งตรงกับสิ่งที่ DESIGN.md
@@ -570,29 +594,6 @@ export default function ProfileHero({
             </div>
           ))}
         </div>
-
-        {/* ── อัตราการตอบแชท ──
-            อยู่ **ในแถบหลักฐานเดียวกับตัวเลขอื่น** แต่เป็นบรรทัดเดียวขนาดเล็ก ไม่ใช่ช่องที่ 5:
-            5 ช่องบนกริด 2 คอลัมน์ของมือถือจะเหลือช่องเดี่ยวห้อยแถวสุดท้าย และตัวเลขนี้ไม่ใช่
-            หลักฐานการซื้อขาย (ไม่ได้มาจากออเดอร์) จะเอาไปยืนเท่ากับ "ออเดอร์/ลูกค้า" ไม่ได้
-
-            🛑 ห้ามย้ายกลับไปแท็บ "เกี่ยวกับร้าน" (user 2026-08-10) — ผู้ซื้ออ่านตัวเลขนี้เพื่อ
-            ตัดสินใจว่าจะกดปุ่มทักแชทดีไหม ปุ่มนั้นอยู่บนโปรไฟล์ ข้อมูลที่ใช้ตัดสินใจจึงต้อง
-            อยู่ที่เดียวกับปุ่ม ไม่ใช่หลังแท็บที่ต้องกดเข้าไปอ่าน */}
-        {chatResponse && (
-          <div className='flex items-center justify-center gap-x-2 gap-y-1 flex-wrap mbs-3'>
-            <Icon icon='tabler-message-circle-2' fontSize={16} className='text-textSecondary' />
-            <Typography variant='caption' color='text.secondary'>
-              ตอบกลับ <strong className='text-textPrimary tabular-nums'>{chatResponse.ratePercent}%</strong>
-              {chatResponse.timeLabel ? (
-                <>
-                  {' · ตอบเฉลี่ย '}
-                  <strong className='text-textPrimary'>{chatResponse.timeLabel}</strong>
-                </>
-              ) : null}
-            </Typography>
-          </div>
-        )}
 
       {/* ── บรรทัดขยายความของอัตราสำเร็จ ──
              ตัวเลข % ย้ายไปอยู่ในแถวด้านบนแล้ว เหลือแค่ข้อความที่ตัวเลขในช่องแคบ ๆ พูดแทนไม่ได้
