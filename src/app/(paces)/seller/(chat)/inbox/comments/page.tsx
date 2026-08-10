@@ -13,7 +13,7 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveChatScope } from '@/lib/chat-scope'
-import { listCommentPosts, backfillPagePosts } from '@/services/page-comment.service'
+import { listCommentPosts, backfillPagePosts, backfillMissingPostThumbnails } from '@/services/page-comment.service'
 import { listChannelsForShops } from '@/services/shop-channel.service'
 import { prisma } from '@/lib/prisma'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -51,6 +51,10 @@ export default async function CommentsPage() {
     for (const shopId of backfillShopIds) {
       await backfillPagePosts({ shopId, actorUserId: user.id })
     }
+    // เก็บตกรูปปกของโพสต์เก่าที่ยังไม่มีสำเนา ทีละไม่กี่ใบต่อการเปิดหน้า (2026-08-10)
+    // โพสต์ที่ไม่มีใครกดเปิดจะไม่มีวันได้สำเนาเลยถ้าไม่มีตัวนี้ — URL ของ fbcdn หมดอายุ ~4 วัน
+    // มี throttle ในตัวผ่าน refreshPostStats จึงไม่ยิง Graph ถี่ขึ้นจริงแม้เปิดหน้าถี่ ๆ
+    await backfillMissingPostThumbnails({ shopIds: backfillShopIds })
   })
 
   let posts: CommentPostItem[] = []

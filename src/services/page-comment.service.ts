@@ -562,6 +562,49 @@ export async function countCommentPostStatesByShop(params: {
   }
 }
 
+/** จำนวนโพสต์ต่อรอบที่ยอมให้ไล่ mirror รูปย้อนหลัง — ดูเหตุผลที่ `backfillMissingPostThumbnails` */
+const THUMBNAIL_BACKFILL_PER_RUN = 5
+
+/**
+ * ไล่เก็บรูปปกของโพสต์เก่าที่ยังไม่มีสำเนาในสตอเรจ — ทีละไม่กี่ใบต่อการเปิดหน้า
+ *
+ * ทำไมต้องมี: โค้ดที่ mirror ตอน ingest (2026-08-09) แก้ให้เฉพาะโพสต์ที่เข้ามา **หลังจากนั้น**
+ * ส่วนโพสต์เก่าที่ URL ของ fbcdn หมดอายุไปแล้ว จะได้สำเนาก็ต่อเมื่อมีคนกดเปิดโพสต์นั้น
+ * (`getPostThread` → `refreshPostStats`) โพสต์ที่ไม่มีใครกดเปิดจึงค้างเป็นกล่องเทาตลอดไป
+ *
+ * ทำไมทำที่นี่แทนสคริปต์: `scripts/backfill-post-thumbnails.ts` ต้องรันโดยชี้ฐาน prod จากเครื่อง
+ * dev ซึ่งเครื่อง dev **ไม่มี prod DATABASE_URL อยู่แล้วโดยตั้งใจ** (แยก dev/prod หลังเหตุการณ์
+ * ฐานถูกล้าง 2026-07-31) และ Hard Rule 15 ระบุว่าคำสั่งที่ชี้ prod จากเครื่อง dev คือความเสี่ยง
+ * ล้วน ๆ ที่ไม่ได้แลกอะไรกลับมา — ให้แอปที่รันบน prod เป็นคนทำเองจึงถูกกว่าทุกทาง
+ *
+ * 🛑 ไม่เขียน logic mirror ใหม่ — เรียก `refreshPostStats()` ตัวเดิม เพราะมันทำครบอยู่แล้วทั้ง
+ * ขอ URL สดจาก Graph, mirror, เช็ค `mirroredFileId` ก่อนกัน mirror ซ้ำ และมี throttle
+ * `STATS_TTL_MS` ในตัว (โพสต์ที่ mirror ไม่สำเร็จจึงไม่ถูกยิงซ้ำรัว ๆ ทุกครั้งที่เปิดหน้า)
+ *
+ * best-effort ทั้งหมด: เรียกจาก `after()` และกลืน error เสมอ — งานนี้ห้ามมีสิทธิ์ทำให้หน้าพัง
+ */
+export async function backfillMissingPostThumbnails(params: {
+  shopIds: string[]
+  take?: number
+}): Promise<void> {
+  try {
+    if (params.shopIds.length === 0) return
+    const posts = await prisma.facebookPost.findMany({
+      where: {
+        mirroredFileId: null,
+        channel: { shopId: { in: params.shopIds } },
+      },
+      // ใหม่สุดก่อน — โพสต์ที่มีคอมเมนต์ล่าสุดคือโพสต์ที่ผู้ขายกำลังมองอยู่จริง
+      orderBy: { lastCommentAt: 'desc' },
+      take: params.take ?? THUMBNAIL_BACKFILL_PER_RUN,
+      select: { id: true },
+    })
+    for (const p of posts) await refreshPostStats(p.id)
+  } catch {
+    // เงียบโดยตั้งใจ — เป็นงานเก็บตกเบื้องหลัง ไม่ใช่ส่วนหนึ่งของการเปิดหน้า
+  }
+}
+
 export async function listCommentPosts(params: {
   /** ร้านที่รายการครอบคลุม (feature 00037) — ความยาว 1 = โหมดเดิม; มาจาก resolveChatScope เท่านั้น */
   shopIds: string[]
