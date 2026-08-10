@@ -26,11 +26,14 @@ vi.mock('@/lib/token-crypto', () => ({
 
 vi.mock('@/services/channel-chat.service', () => ({
   ingestLineTextMessage: vi.fn().mockResolvedValue({ status: 'STORED', conversationId: 'conv1' }),
+  // (S-7) media/sticker/location dispatch — mock แยกจาก ingestLineTextMessage เพราะ route แยก path
+  // ตั้งแต่ message.type === 'text' ก่อนเรียก ingest ตัวไหนเลย
+  ingestLineMediaMessage: vi.fn().mockResolvedValue({ status: 'STORED', conversationId: 'conv1' }),
 }))
 
 import { POST } from '@/app/api/channels/line/webhook/route'
 import { prisma } from '@/lib/prisma'
-import { ingestLineTextMessage } from '@/services/channel-chat.service'
+import { ingestLineTextMessage, ingestLineMediaMessage } from '@/services/channel-chat.service'
 
 const URL_BASE = 'https://deepthailand.app/api/channels/line/webhook'
 const SECRET = '0123456789abcdef0123456789abcdef' // 32 hex chars ตามฟอร์แมตของ LINE channel secret
@@ -164,7 +167,7 @@ describe('POST /api/channels/line/webhook', () => {
     expect(ingestLineTextMessage).not.toHaveBeenCalled()
   })
 
-  it('event ชนิดที่ยังไม่รองรับ (image message) → ข้ามอย่างปลอดภัย ไม่เรียก ingest ไม่ล้มทั้ง request', async () => {
+  it('event ชนิด image message (S-7) → เรียก ingestLineMediaMessage ไม่ใช่ ingestLineTextMessage (TC-08)', async () => {
     const imageBody = {
       destination: textEventBody.destination,
       events: [
@@ -180,6 +183,133 @@ describe('POST /api/channels/line/webhook', () => {
     const res = await POST(postReq(imageBody))
     expect(res.status).toBe(200)
     expect(ingestLineTextMessage).not.toHaveBeenCalled()
+    expect(ingestLineMediaMessage).toHaveBeenCalledTimes(1)
+    expect(ingestLineMediaMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shopId: 'shop-1',
+        shopChannelId: 'channel-1',
+        externalUserId: 'U0987654321',
+        message: { type: 'image', id: 'msg-img-1' },
+        replyToken: 'reply-token-img',
+      }),
+    )
+  })
+
+  it('event ชนิด file message (S-7) → ส่ง fileName/fileSize เข้า ingestLineMediaMessage', async () => {
+    const fileBody = {
+      destination: textEventBody.destination,
+      events: [
+        {
+          type: 'message',
+          timestamp: 1785000000000,
+          source: { type: 'user', userId: 'U0987654321' },
+          replyToken: 'reply-token-file',
+          message: { id: 'msg-file-1', type: 'file', fileName: 'ใบเสร็จ.pdf', fileSize: 12345 },
+        },
+      ],
+    }
+    const res = await POST(postReq(fileBody))
+    expect(res.status).toBe(200)
+    expect(ingestLineMediaMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: { type: 'file', id: 'msg-file-1', fileName: 'ใบเสร็จ.pdf', fileSize: 12345 },
+      }),
+    )
+  })
+
+  it('event ชนิด sticker message (S-7) → ส่ง packageId/stickerId เข้า ingestLineMediaMessage (TC-25)', async () => {
+    const stickerBody = {
+      destination: textEventBody.destination,
+      events: [
+        {
+          type: 'message',
+          timestamp: 1785000000000,
+          source: { type: 'user', userId: 'U0987654321' },
+          replyToken: 'reply-token-sticker',
+          message: { id: 'msg-sticker-1', type: 'sticker', packageId: '446', stickerId: '1988' },
+        },
+      ],
+    }
+    const res = await POST(postReq(stickerBody))
+    expect(res.status).toBe(200)
+    expect(ingestLineMediaMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: { type: 'sticker', id: 'msg-sticker-1', packageId: '446', stickerId: '1988' },
+      }),
+    )
+  })
+
+  it('event ชนิด location message (S-7) → ส่ง title/address/lat/lng เข้า ingestLineMediaMessage (TC-25)', async () => {
+    const locationBody = {
+      destination: textEventBody.destination,
+      events: [
+        {
+          type: 'message',
+          timestamp: 1785000000000,
+          source: { type: 'user', userId: 'U0987654321' },
+          replyToken: 'reply-token-location',
+          message: {
+            id: 'msg-location-1',
+            type: 'location',
+            title: 'ร้านกาแฟ',
+            address: '123 ถ.สุขุมวิท',
+            latitude: 13.7563,
+            longitude: 100.5018,
+          },
+        },
+      ],
+    }
+    const res = await POST(postReq(locationBody))
+    expect(res.status).toBe(200)
+    expect(ingestLineMediaMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: {
+          type: 'location',
+          id: 'msg-location-1',
+          title: 'ร้านกาแฟ',
+          address: '123 ถ.สุขุมวิท',
+          latitude: 13.7563,
+          longitude: 100.5018,
+        },
+      }),
+    )
+  })
+
+  it('location message ไม่มี latitude/longitude (payload ผิดปกติ) → ข้ามอย่างปลอดภัย ไม่เรียก ingest ใด ๆ', async () => {
+    const badLocationBody = {
+      destination: textEventBody.destination,
+      events: [
+        {
+          type: 'message',
+          timestamp: 1785000000000,
+          source: { type: 'user', userId: 'U0987654321' },
+          replyToken: 'reply-token-bad-location',
+          message: { id: 'msg-bad-location-1', type: 'location', title: 'ร้านกาแฟ' },
+        },
+      ],
+    }
+    const res = await POST(postReq(badLocationBody))
+    expect(res.status).toBe(200)
+    expect(ingestLineTextMessage).not.toHaveBeenCalled()
+    expect(ingestLineMediaMessage).not.toHaveBeenCalled()
+  })
+
+  it('event ชนิดที่ยังไม่รองรับ (postback) → ข้ามอย่างปลอดภัย ไม่เรียก ingest ไม่ล้มทั้ง request', async () => {
+    const postbackBody = {
+      destination: textEventBody.destination,
+      events: [
+        {
+          type: 'postback',
+          timestamp: 1785000000000,
+          source: { type: 'user', userId: 'U0987654321' },
+          replyToken: 'reply-token-postback',
+        },
+      ],
+    }
+    const res = await POST(postReq(postbackBody))
+    expect(res.status).toBe(200)
+    expect(ingestLineTextMessage).not.toHaveBeenCalled()
+    expect(ingestLineMediaMessage).not.toHaveBeenCalled()
   })
 
   it('event follow/unfollow (ยังไม่รองรับ — S-11) → ข้ามอย่างปลอดภัย ไม่เรียก ingest', async () => {

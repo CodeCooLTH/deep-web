@@ -19,7 +19,7 @@ beforeAll(() => {
   process.env.CHANNEL_TOKEN_KEY = 'e'.repeat(64)
 })
 
-import { mirrorRemoteImage } from '@/services/channel-chat.service'
+import { mirrorRemoteImage, mirrorMediaBuffer } from '@/services/channel-chat.service'
 
 // ทำไมใช้ new Response(...) จริงแทน object ปลอม: (S-1) mirrorRemoteImage อ่าน body ผ่าน
 // res.body.getReader() (streaming) ไม่ใช่ res.arrayBuffer() แล้ว — ต้องมี body เป็น
@@ -113,5 +113,47 @@ describe('mirrorRemoteImage', () => {
     )
     saveFile.mockResolvedValue('chat/ig.png')
     expect(await mirrorRemoteImage('https://scontent.cdninstagram.com/x.png')).toBe('chat/ig.png')
+  })
+})
+
+// (S-7, feature 00025) generalize ของ mirrorRemoteImage สำหรับ provider ที่ไม่มี URL สาธารณะ (LINE) —
+// รับ buffer ที่ดาวน์โหลดมาแล้วตรง ๆ ไม่ยิง fetch เอง จึงไม่มี host allow-list/SSRF ให้ทดสอบแบบ
+// mirrorRemoteImage แต่ยังต้องคง "ไม่ throw เมื่อล้มเหลว" + เพดานขนาดเดียวกัน (MIRROR_MAX_BYTES)
+describe('mirrorMediaBuffer (S-7, TFR-LINE-09 — generalize จาก mirrorRemoteImage)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('buffer ปกติ + content-type ที่รู้จัก → mirror สำเร็จ คืน fileId จาก storage', async () => {
+    saveFile.mockResolvedValue('line/abc.jpg')
+    const result = await mirrorMediaBuffer(Buffer.from([1, 2, 3]), 'image/jpeg')
+    expect(result).toBe('line/abc.jpg')
+    expect(saveFile).toHaveBeenCalledWith(expect.anything(), { skipValidation: true })
+  })
+
+  it('contentType เป็น null (LINE บางกรณีไม่ส่ง header content-type มา) → ยังเก็บได้ด้วย octet-stream', async () => {
+    saveFile.mockResolvedValue('line/x.bin')
+    const result = await mirrorMediaBuffer(Buffer.from([1, 2, 3]), null)
+    expect(result).toBe('line/x.bin')
+  })
+
+  it('data ว่างเปล่า (length 0) → คืน null ไม่เรียก saveFile', async () => {
+    expect(await mirrorMediaBuffer(Buffer.alloc(0), 'image/jpeg')).toBeNull()
+    expect(saveFile).not.toHaveBeenCalled()
+  })
+
+  it('เกินเพดานขนาดเดียวกับ Meta (25MB) → คืน null ไม่เรียก saveFile', async () => {
+    const big = Buffer.alloc(26 * 1024 * 1024)
+    expect(await mirrorMediaBuffer(big, 'video/mp4')).toBeNull()
+    expect(saveFile).not.toHaveBeenCalled()
+  })
+
+  it('saveFile (เขียน storage) โยน error → คืน null ไม่ throw ทะลุออกไป', async () => {
+    saveFile.mockRejectedValue(new Error('storage down'))
+    expect(await mirrorMediaBuffer(Buffer.from([1, 2, 3]), 'video/mp4')).toBeNull()
+  })
+
+  it('filenamePrefix default เป็น "line" — ไม่ต้องส่งพารามิเตอร์ที่ 3', async () => {
+    saveFile.mockImplementation(async (file: File) => file.name)
+    const name = await mirrorMediaBuffer(Buffer.from([1]), 'audio/mp4')
+    expect(name).toMatch(/^line-\d+\.m4a$/)
   })
 })

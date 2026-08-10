@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { decryptToken } from '@/lib/token-crypto'
 import { validateSignature } from '@/lib/line/signature'
-import { ingestLineTextMessage } from '@/services/channel-chat.service'
+import { ingestLineTextMessage, ingestLineMediaMessage, type LineInboundMediaMessage } from '@/services/channel-chat.service'
 
 // Webhook ของ LINE Messaging API (feature 00025, S-6 — จุดเสี่ยงสูงสุดรองจาก S-1: public endpoint
 // ไม่มี session)
@@ -32,6 +32,17 @@ interface LineWebhookMessage {
   id?: unknown
   type?: unknown
   text?: unknown
+  // file (S-7): LINE ส่งชื่อไฟล์เดิม + ขนาดมาด้วย (image/video/audio ไม่มีฟิลด์เหล่านี้)
+  fileName?: unknown
+  fileSize?: unknown
+  // sticker (S-7)
+  packageId?: unknown
+  stickerId?: unknown
+  // location (S-7) — title/address เป็น optional จริงตามสเปก LINE, latitude/longitude บังคับเสมอ
+  title?: unknown
+  address?: unknown
+  latitude?: unknown
+  longitude?: unknown
 }
 
 interface LineWebhookEvent {
@@ -48,11 +59,52 @@ interface LineWebhookBody {
 }
 
 /**
+ * ตรวจ shape ของ LineWebhookMessage แบบ unchecked (มาจาก JSON ดิบ) แล้วแปลงเป็น LineInboundMediaMessage
+ * ที่ service เชื่อถือได้ — คืน null เมื่อเป็นชนิดที่ยังไม่รองรับ (postback/beacon ฯลฯ) หรือ field
+ * บังคับของชนิดนั้นหายไป (เช่น location ไม่มี latitude/longitude — ไม่ควรเกิดตามสเปก LINE แต่กันไว้
+ * เผื่อ payload ผิดปกติ ห้าม throw ทั้ง route เพราะ field เดียวหาย)
+ */
+function toLineInboundMediaMessage(message: LineWebhookMessage): LineInboundMediaMessage | null {
+  if (typeof message.id !== 'string' || !message.id) return null
+  const id = message.id
+
+  switch (message.type) {
+    case 'image':
+    case 'video':
+    case 'audio':
+      return { type: message.type, id }
+    case 'file':
+      return {
+        type: 'file',
+        id,
+        fileName: typeof message.fileName === 'string' ? message.fileName : null,
+        fileSize: typeof message.fileSize === 'number' ? message.fileSize : null,
+      }
+    case 'sticker':
+      if (typeof message.packageId !== 'string' || typeof message.stickerId !== 'string') return null
+      return { type: 'sticker', id, packageId: message.packageId, stickerId: message.stickerId }
+    case 'location':
+      if (typeof message.latitude !== 'number' || typeof message.longitude !== 'number') return null
+      return {
+        type: 'location',
+        id,
+        title: typeof message.title === 'string' ? message.title : null,
+        address: typeof message.address === 'string' ? message.address : null,
+        latitude: message.latitude,
+        longitude: message.longitude,
+      }
+    default:
+      // text (แยกไป ingestLineTextMessage ก่อนเรียกฟังก์ชันนี้แล้ว), หรือชนิดที่ยังไม่รองรับ
+      return null
+  }
+}
+
+/**
  * ประมวลผล event เดียว — เรียกจากใน after() เท่านั้น (หลังตอบ 200 ไปแล้ว)
  *
- * รอบนี้ (S-6) รับเฉพาะ event ชนิด `message` ที่เป็น `text` — ชนิดอื่นทั้งหมด (image/video/audio/file/
- * location/sticker = S-7, follow/unfollow = S-11, postback/beacon/join/leave ฯลฯ) ข้ามอย่างปลอดภัย
- * ไว้ก่อนตามที่ scope baseline ระบุ ห้ามทำให้ทั้ง request ล้มเพราะ event ชนิดที่ยังไม่รองรับ
+ * รับ event ชนิด `message` ที่เป็น text (S-6) และ image/video/audio/file/sticker/location (S-7) —
+ * ชนิดอื่นที่เหลือ (follow/unfollow = S-11, postback/beacon/join/leave ฯลฯ) ยังข้ามอย่างปลอดภัยไว้ก่อน
+ * ตามที่ scope baseline ระบุ ห้ามทำให้ทั้ง request ล้มเพราะ event ชนิดที่ยังไม่รองรับ
  *
  * event จากกลุ่ม/ห้อง (source.type !== 'user') ข้ามเงียบทุกชนิด (BR-LINE-08, OOS-02 — MVP รองรับ 1:1
  * เท่านั้น) เช็คนี้ต้องมาก่อนเช็คชนิด event เพราะครอบทุกชนิด ไม่ใช่แค่ message
@@ -69,9 +121,7 @@ async function processLineEvent(params: {
   if (event.type !== 'message') return
 
   const message = event.message
-  if (!message || message.type !== 'text') return
-  if (typeof message.id !== 'string' || !message.id) return
-  if (typeof message.text !== 'string') return
+  if (!message) return
 
   const eventTimestamp = typeof event.timestamp === 'number' ? event.timestamp : Date.now()
   const externalUserId = typeof event.source.userId === 'string' ? event.source.userId : null
@@ -80,15 +130,37 @@ async function processLineEvent(params: {
     console.warn('[line-webhook] event ชนิด user ไม่มี userId')
     return
   }
+  const replyToken = typeof event.replyToken === 'string' ? event.replyToken : undefined
 
-  await ingestLineTextMessage({
+  if (message.type === 'text') {
+    if (typeof message.id !== 'string' || !message.id) return
+    if (typeof message.text !== 'string') return
+
+    await ingestLineTextMessage({
+      shopId: params.shopId,
+      shopChannelId: params.shopChannelId,
+      accessToken: params.accessToken,
+      externalUserId,
+      lineMessageId: message.id,
+      text: message.text,
+      replyToken,
+      eventTimestamp,
+    })
+    return
+  }
+
+  // S-7: image/video/audio/file/sticker/location — ชนิดที่ toLineInboundMediaMessage ไม่รู้จัก
+  // (postback/beacon ฯลฯ) คืน null แล้วข้ามเงียบตามเดิม
+  const media = toLineInboundMediaMessage(message)
+  if (!media) return
+
+  await ingestLineMediaMessage({
     shopId: params.shopId,
     shopChannelId: params.shopChannelId,
     accessToken: params.accessToken,
     externalUserId,
-    lineMessageId: message.id,
-    text: message.text,
-    replyToken: typeof event.replyToken === 'string' ? event.replyToken : undefined,
+    message: media,
+    replyToken,
     eventTimestamp,
   })
 }

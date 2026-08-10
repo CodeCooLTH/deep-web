@@ -486,6 +486,18 @@ function isUniqueViolationOn(e: unknown, field: string): boolean {
   return Array.isArray(target) && target.includes(field)
 }
 
+// เขียน buffer ที่ดาวน์โหลดมาแล้วลง storage — แกนกลางที่ mirrorRemoteImage (Meta, fetch(url) เอง)
+// และ mirrorMediaBuffer (LINE/S-7, ไม่มี URL สาธารณะให้ fetch — ต้องผ่าน LineAdapter.downloadContent
+// ที่คืน buffer ตรง ๆ มาให้) ใช้ร่วมกัน — ห้ามมีสอง copy ของตรรกะ "buffer → storage" (scope baseline
+// S-7: "ห้ามเขียนฟังก์ชัน mirror ตัวที่สองขนาน")
+// skipValidation: mirror ทำ validation เอง (ผู้เรียกแต่ละทางเช็ค host/ขนาดของตัวเองมาแล้ว) — ไม่ต้อง
+// ผ่าน gate ชนิด/ขนาดของ seller upload (validateUpload) ที่แคบกว่าและ cap แค่ 5MB
+function saveMirroredBuffer(buffer: ArrayBuffer | Buffer, contentType: string, filenamePrefix: string): Promise<string> {
+  const ext = contentTypeToExt(contentType)
+  const file = new File([buffer as ArrayBuffer], `${filenamePrefix}-${Date.now()}.${ext}`, { type: contentType })
+  return saveFile(file, { skipValidation: true })
+}
+
 // ดาวน์โหลดรูปจาก CDN ของ Meta แล้วเก็บเข้า storage ของเรา (feature 00018)
 // จำเป็นเพราะ 2 เหตุผล: URL ของ Meta หมดอายุ และ ChatMessage.imageUrl ของโปรเจกต์นี้
 // เก็บ "fileId ของ storage" ไม่ใช่ URL (ดู fileIdExt ที่ route messages ใช้ตรวจนามสกุล)
@@ -510,7 +522,6 @@ export async function mirrorRemoteImage(url: string): Promise<string | null> {
     // "รองรับทุกอย่าง" (user 2026-07-24): ชนิดที่รู้จัก → ext ตรง; ชนิดแปลก → generic ext (ยังเก็บได้
     // ให้ดาวน์โหลด ไม่ตายเป็น placeholder). ไม่มี allow-list ชนิดไฟล์อีกต่อไป — ความปลอดภัยมาจาก
     // host allow-list (Meta CDN เท่านั้น) + streaming size cap ไม่ใช่การจำกัดชนิด
-    const ext = contentTypeToExt(contentType)
 
     // pre-check จาก header เร็ว ๆ ก่อน (ประหยัด round-trip ถ้าโกหกเกินขนาดชัด ๆ) แต่ตัวตัดสินจริง
     // คือ readBodyWithCap ด้านล่างที่นับ byte สดระหว่างอ่าน — header อย่างเดียวเชื่อไม่ได้ (S-1)
@@ -520,10 +531,33 @@ export async function mirrorRemoteImage(url: string): Promise<string | null> {
     const buffer = await readBodyWithCap(res, MIRROR_MAX_BYTES)
     if (!buffer) return null
 
-    // skipValidation: mirror ทำ validation เองแล้ว (host + size + content-type→ext) — ไม่ต้องผ่าน
-    // gate ชนิด/ขนาดของ seller upload (validateUpload) ที่แคบกว่าและ cap แค่ 5MB
-    const file = new File([buffer], `fb-${Date.now()}.${ext}`, { type: contentType })
-    return await saveFile(file, { skipValidation: true })
+    return await saveMirroredBuffer(buffer, contentType, 'fb')
+  } catch {
+    return null
+  }
+}
+
+// mirrorMediaBuffer (S-7, feature 00025 TFR-LINE-09) — generalize ของ mirrorRemoteImage สำหรับ
+// provider ที่ "ไม่มี URL สาธารณะ" ให้ mirror ยิง fetch เอง (LINE: ต้องดาวน์โหลดผ่าน
+// LineAdapter.downloadContent ด้วย channel access token เท่านั้น — ดู DownloadContentResult.content
+// ใน adapter.ts) เนื้อหาจึงมาเป็น Buffer ที่ดาวน์โหลดมาแล้ว ไม่ใช่ URL ให้ยิง fetch ต่อ
+//
+// ไม่ต้องเช็ค host allow-list เหมือน mirrorRemoteImage — SSRF ไม่เกี่ยวเพราะฟังก์ชันนี้ไม่ยิง fetch
+// เองเลย (LineAdapter เป็นคนยิง fetch ไปที่ DATA_API_BASE คงที่แทน) ยังคงบังคับเพดานขนาดเดียวกับ
+// Meta (MIRROR_MAX_BYTES) — LINE ส่งไฟล์ใหญ่กว่านี้ได้ (วิดีโอ/ไฟล์ทั่วไป) เกินเพดาน → คืน null ให้
+// ผู้เรียก (ingestLineMediaMessage) สร้างข้อความ placeholder แทนการทิ้ง event (TFR-LINE-09)
+//
+// คืน null เมื่อ data ว่าง/เกินเพดาน/เขียน storage ไม่ผ่าน — ห้าม throw (เหมือน mirrorRemoteImage)
+export async function mirrorMediaBuffer(
+  data: Buffer,
+  contentType: string | null,
+  filenamePrefix = 'line',
+): Promise<string | null> {
+  if (!data || data.length === 0) return null
+  if (data.length > MIRROR_MAX_BYTES) return null
+
+  try {
+    return await saveMirroredBuffer(data, contentType || 'application/octet-stream', filenamePrefix)
   } catch {
     return null
   }
@@ -1268,6 +1302,50 @@ export function shouldFetchLineProfile(
 }
 
 /**
+ * resolveLineContact (S-6, สกัดออกมาที่ S-7 เพื่อใช้ซ้ำกับ ingestLineMediaMessage) — upsert
+ * ExternalContact ของผู้ติดต่อ LINE คนหนึ่ง พร้อม refresh โปรไฟล์ตามรอบของ shouldFetchLineProfile
+ *
+ * ตรรกะเดิมของ ingestLineTextMessage เป๊ะทุกบรรทัด (แค่แยกเป็นฟังก์ชัน) — ต้องไม่มีสอง copy ของ
+ * "upsert contact ของ LINE" เพราะ media (S-7) ต้องทำขั้นตอนเดียวกันนี้ก่อน mirror ไฟล์
+ */
+async function resolveLineContact(shopChannelId: string, externalUserId: string, accessToken: string) {
+  const contactWhere = { shopChannelId_externalUserId: { shopChannelId, externalUserId } }
+  const existingContact = await prisma.externalContact.findUnique({ where: contactWhere })
+
+  // ดึงโปรไฟล์เฉพาะตอนยังไม่มี contact/ยังไม่มีชื่อ/เก่ากว่า 7 วัน — ล้อกับ needsProfile ของ Messenger
+  // ด้านบน ลดจำนวนครั้งที่ยิง GET /v2/bot/profile ต่อข้อความ ล้มเหลว (404 ไม่ได้เป็นเพื่อน/บล็อกแล้ว
+  // หรือ error อื่น) ไม่ throw ตามสัญญาของ adapter — ข้อความยังต้องถูกบันทึกด้วยชื่อสำรอง
+  const needsProfile = shouldFetchLineProfile(existingContact)
+  const profile = needsProfile
+    ? await getAdapter('LINE').fetchContactProfile({ provider: 'LINE', accessToken }, externalUserId)
+    : { name: null, avatarUrl: null }
+
+  // ไม่ mirror รูปโปรไฟล์ LINE ผ่าน mirrorRemoteImage — allow-list ของฟังก์ชันนั้นมีแค่โฮสต์ของ Meta
+  // (กัน SSRF, ดู isAllowedMirrorHost) การขยาย allow-list ให้ profile.line-scdn.net เป็นการเปลี่ยน
+  // security boundary ที่ต้องผ่าน review แยก ไม่ใช่ผลพลอยได้ของ S-6 — เก็บ URL ดิบของ LINE ไว้ก่อน
+  // (ไม่มีหลักฐานว่า URL นี้หมดอายุแบบ Meta ที่ฝัง `oe=` มา)
+  const avatarToStore = profile.avatarUrl
+
+  return prisma.externalContact.upsert({
+    where: contactWhere,
+    create: {
+      shopChannelId,
+      externalUserId,
+      name: profile.name,
+      avatarUrl: avatarToStore,
+      profileFetchedAt: new Date(),
+    },
+    update: {
+      ...(profile.name ? { name: profile.name } : {}),
+      ...(avatarToStore ? { avatarUrl: avatarToStore } : {}),
+      // ประทับเวลาทุกครั้งที่ "ลอง" ไม่ใช่เฉพาะตอนสำเร็จ — ไม่งั้นคนที่ยังไม่แอดเพื่อน (404 ทุกครั้ง)
+      // จะโดนยิง GET /v2/bot/profile ซ้ำทุกข้อความตลอดไป
+      ...(needsProfile ? { profileFetchedAt: new Date() } : {}),
+    },
+  })
+}
+
+/**
  * ingestLineTextMessage (S-6, feature 00025 TFR-LINE-02..05/10) — ingest ข้อความ `text` ขาเข้าจาก LINE
  *
  * เรียกจาก webhook route (`app/api/channels/line/webhook/route.ts`) "หลัง" ตอบ 200 ให้ LINE แล้ว
@@ -1298,40 +1376,7 @@ export async function ingestLineTextMessage(params: {
   const { shopId, shopChannelId, accessToken, externalUserId, lineMessageId, text, replyToken, eventTimestamp } =
     params
 
-  const contactWhere = { shopChannelId_externalUserId: { shopChannelId, externalUserId } }
-  const existingContact = await prisma.externalContact.findUnique({ where: contactWhere })
-
-  // ดึงโปรไฟล์เฉพาะตอนยังไม่มี contact/ยังไม่มีชื่อ/เก่ากว่า 7 วัน — ล้อกับ needsProfile ของ Messenger
-  // ด้านบน ลดจำนวนครั้งที่ยิง GET /v2/bot/profile ต่อข้อความ ล้มเหลว (404 ไม่ได้เป็นเพื่อน/บล็อกแล้ว
-  // หรือ error อื่น) ไม่ throw ตามสัญญาของ adapter — ข้อความยังต้องถูกบันทึกด้วยชื่อสำรอง
-  const needsProfile = shouldFetchLineProfile(existingContact)
-  const profile = needsProfile
-    ? await getAdapter('LINE').fetchContactProfile({ provider: 'LINE', accessToken }, externalUserId)
-    : { name: null, avatarUrl: null }
-
-  // ไม่ mirror รูปโปรไฟล์ LINE ผ่าน mirrorRemoteImage — allow-list ของฟังก์ชันนั้นมีแค่โฮสต์ของ Meta
-  // (กัน SSRF, ดู isAllowedMirrorHost) การขยาย allow-list ให้ profile.line-scdn.net เป็นการเปลี่ยน
-  // security boundary ที่ต้องผ่าน review แยก ไม่ใช่ผลพลอยได้ของ S-6 — เก็บ URL ดิบของ LINE ไว้ก่อน
-  // (ไม่มีหลักฐานว่า URL นี้หมดอายุแบบ Meta ที่ฝัง `oe=` มา)
-  const avatarToStore = profile.avatarUrl
-
-  const contact = await prisma.externalContact.upsert({
-    where: contactWhere,
-    create: {
-      shopChannelId,
-      externalUserId,
-      name: profile.name,
-      avatarUrl: avatarToStore,
-      profileFetchedAt: new Date(),
-    },
-    update: {
-      ...(profile.name ? { name: profile.name } : {}),
-      ...(avatarToStore ? { avatarUrl: avatarToStore } : {}),
-      // ประทับเวลาทุกครั้งที่ "ลอง" ไม่ใช่เฉพาะตอนสำเร็จ — ไม่งั้นคนที่ยังไม่แอดเพื่อน (404 ทุกครั้ง)
-      // จะโดนยิง GET /v2/bot/profile ซ้ำทุกข้อความตลอดไป
-      ...(needsProfile ? { profileFetchedAt: new Date() } : {}),
-    },
-  })
+  const contact = await resolveLineContact(shopChannelId, externalUserId, accessToken)
 
   const conversationWhere = { shopChannelId_externalContactId: { shopChannelId, externalContactId: contact.id } }
   const occurredAt = eventTimestamp ? new Date(eventTimestamp) : new Date()
@@ -1407,6 +1452,267 @@ export async function ingestLineTextMessage(params: {
 
     throw e
   }
+}
+
+/**
+ * writeLineInboundMessage (S-7, feature 00025 TFR-LINE-09) — เขียน ChatMessage ของ LINE ที่ resolve
+ * เนื้อหาแล้ว (media/sticker/location) ลง DB
+ *
+ * โครงเดียวกับ writeMessage+retry ภายใน ingestLineTextMessage (S-6) ทุกประการ (dedupe ผ่าน
+ * externalMessageId, race ตอนสร้างเธรดพร้อมกัน) แยกออกมาต่างหากแทนที่จะยัดเข้าไปใน
+ * ingestLineTextMessage เพราะฟังก์ชันนั้นมีเทสล็อกพฤติกรรมไว้แล้ว (channel-chat-line-ingest.test.ts)
+ * และ media มี field เพิ่ม (imageUrl/attachmentName/attachmentSize) ที่ text ไม่ใช้เลย
+ */
+async function writeLineInboundMessage(input: {
+  shopId: string
+  shopChannelId: string
+  contact: { id: string }
+  lineMessageId: string
+  type: string
+  body: string | null
+  imageUrl: string | null
+  attachmentName: string | null
+  attachmentSize: number | null
+  preview: string
+  replyToken?: string
+  eventTimestamp: number
+  rawExtra: Record<string, unknown>
+}): Promise<{ status: 'STORED' | 'DUPLICATE'; conversationId?: string }> {
+  const {
+    shopId,
+    shopChannelId,
+    contact,
+    lineMessageId,
+    type,
+    body,
+    imageUrl,
+    attachmentName,
+    attachmentSize,
+    preview,
+    replyToken,
+    eventTimestamp,
+    rawExtra,
+  } = input
+
+  const conversationWhere = { shopChannelId_externalContactId: { shopChannelId, externalContactId: contact.id } }
+  const occurredAt = eventTimestamp ? new Date(eventTimestamp) : new Date()
+  const externalMessageId = buildLineExternalMessageId(lineMessageId)
+  const replyTokenExpiresAt = replyToken ? new Date(eventTimestamp + REPLY_WINDOW_MS) : undefined
+
+  const writeMessage = async (tx: Prisma.TransactionClient, conversation: { id: string }) => {
+    await tx.chatMessage.create({
+      data: {
+        conversationId: conversation.id,
+        senderUserId: null,
+        senderRole: 'BUYER', // LINE ไม่ echo (capabilities.echo=false) — ข้อความขาเข้าเป็นของลูกค้าเสมอ
+        type,
+        body,
+        imageUrl,
+        attachmentName,
+        attachmentSize,
+        externalMessageId,
+        deliveryStatus: 'SENT',
+        rawMessage: toRawMessage('LINE', { lineMessageId, replyToken, eventTimestamp, ...rawExtra }),
+      },
+    })
+
+    await tx.conversation.update({
+      where: { id: conversation.id },
+      data: {
+        lastMessageAt: occurredAt,
+        lastMessagePreview: preview,
+        lastSenderRole: 'BUYER',
+        lastInboundAt: occurredAt,
+        isHidden: false,
+        resolvedAt: null,
+        ...(replyToken ? { replyToken, replyTokenExpiresAt, replyTokenUsedAt: null } : {}),
+      },
+    })
+  }
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      let conversation = await tx.conversation.findUnique({ where: conversationWhere })
+      if (!conversation) {
+        conversation = await tx.conversation.create({
+          data: { shopId, channel: 'LINE', shopChannelId, externalContactId: contact.id },
+        })
+      }
+      await writeMessage(tx, conversation)
+      return { status: 'STORED' as const, conversationId: conversation.id }
+    })
+  } catch (e) {
+    if (isUniqueViolationOn(e, 'externalMessageId')) return { status: 'DUPLICATE' }
+
+    if (isUniqueViolationOn(e, 'externalContactId')) {
+      const winner = await prisma.conversation.findUnique({ where: conversationWhere })
+      if (winner) {
+        try {
+          return await prisma.$transaction(async (tx) => {
+            await writeMessage(tx, winner)
+            return { status: 'STORED' as const, conversationId: winner.id }
+          })
+        } catch (retryError) {
+          if (isUniqueViolationOn(retryError, 'externalMessageId')) return { status: 'DUPLICATE' }
+          throw retryError
+        }
+      }
+    }
+
+    throw e
+  }
+}
+
+/** ข้อความ LINE ขาเข้าชนิด image/video/audio/file/sticker/location — resolve แล้วจาก route
+ *  (webhook route เป็นคนตรวจ shape ของ payload ดิบ, ingestLineMediaMessage รับเฉพาะ shape ที่ผ่านแล้ว
+ *  ตามธรรมเนียมเดียวกับ ingestLineTextMessage) */
+export type LineInboundMediaMessage =
+  | { type: 'image' | 'video' | 'audio'; id: string }
+  | { type: 'file'; id: string; fileName: string | null; fileSize: number | null }
+  | { type: 'sticker'; id: string; packageId: string; stickerId: string }
+  | { type: 'location'; id: string; title: string | null; address: string | null; latitude: number; longitude: number }
+
+// LINE message.type → ChatMessage.type สำหรับสื่อที่ mirror ได้ (image/video/audio/file) — sticker/
+// location ไม่มี asset ให้ mirror จึงเป็น TEXT เสมอ (ดู LINE_STICKER_TEXT ด้านล่าง)
+const LINE_MEDIA_CHAT_TYPE: Record<'image' | 'video' | 'audio' | 'file', string> = {
+  image: 'IMAGE',
+  video: 'VIDEO',
+  audio: 'AUDIO',
+  file: 'FILE',
+}
+
+const LINE_MEDIA_PREVIEW: Record<'image' | 'video' | 'audio' | 'file', string> = {
+  image: '[รูปภาพ]',
+  video: '[วิดีโอ]',
+  audio: '[ข้อความเสียง]',
+  file: '[ไฟล์แนบ]',
+}
+
+// placeholder เมื่อ mirror ไฟล์ไม่สำเร็จ (TFR-LINE-09, TC-09 [ห้ามข้าม]) — ต้องระบุชนิดให้ผู้ขายรู้ว่า
+// ลูกค้าส่งอะไรมาแม้เปิดดูไม่ได้ (ล้อ FAILED_TEXT_BY_TYPE ของฝั่ง Meta ด้านบน) ห้ามหายเงียบ
+const LINE_MEDIA_MIRROR_FAILED_TEXT: Record<'image' | 'video' | 'audio' | 'file', string> = {
+  image: 'ลูกค้าส่งรูปมา แต่ระบบดึงไฟล์ไม่สำเร็จ',
+  video: 'ลูกค้าส่งวิดีโอมา แต่ระบบดึงไฟล์ไม่สำเร็จ',
+  audio: 'ลูกค้าส่งข้อความเสียงมา แต่ระบบดึงไฟล์ไม่สำเร็จ',
+  file: 'ลูกค้าส่งไฟล์มา แต่ระบบดึงไฟล์ไม่สำเร็จ',
+}
+
+// สติกเกอร์: MVP ไม่ render ภาพจริง (scope baseline OOS — รับเข้า+แสดงได้เป็นข้อความอ่านออกเท่านั้น)
+// เก็บ packageId/stickerId ไว้ใน rawMessage (metadata) ไม่ใช่ใน body ที่ผู้ใช้เห็น
+const LINE_STICKER_TEXT = '[สติกเกอร์ LINE]'
+
+/**
+ * ingestLineMediaMessage (S-7, feature 00025 TFR-LINE-09) — ingest ข้อความ image/video/audio/file/
+ * sticker/location จาก LINE (ข้อความ `text` อยู่ที่ ingestLineTextMessage — S-6)
+ *
+ * media (image/video/audio/file): ดาวน์โหลดผ่าน LineAdapter.downloadContent (LINE ไม่มี URL สาธารณะ —
+ * ต้องยิงด้วย channel access token เสมอ) แล้ว mirror เข้า storage เดิมด้วย mirrorMediaBuffer
+ * (generalize จาก mirrorRemoteImage ของ 00018) — ทั้งสองขั้นอยู่ "นอก" transaction เสมอ (network call
+ * ในทรานแซกชันจะถือ DB lock นานเกินไป เหมือน mirroredFileId ของ ingestInboundMessage ฝั่ง Meta)
+ *
+ * ล้มเหลว (ดาวน์โหลดไม่ได้ / เกินเพดานขนาด / เขียน storage ไม่ผ่าน) → **ไม่ throw ทิ้ง event**
+ * บันทึกเป็นข้อความ TEXT แบบ placeholder ที่ผู้ใช้อ่านออกแทน + log ระดับ error เสมอ (TC-09 [ห้ามข้าม])
+ *
+ * sticker/location ไม่มี asset ให้ mirror เลย เก็บเป็นข้อความอ่านออกตรง ๆ ไม่ต้องผ่าน mirror (TFR-LINE-09)
+ */
+export async function ingestLineMediaMessage(params: {
+  shopId: string
+  shopChannelId: string
+  accessToken: string
+  externalUserId: string
+  message: LineInboundMediaMessage
+  replyToken?: string
+  eventTimestamp: number
+}): Promise<{ status: 'STORED' | 'DUPLICATE'; conversationId?: string }> {
+  const { shopId, shopChannelId, accessToken, externalUserId, message, replyToken, eventTimestamp } = params
+
+  const contact = await resolveLineContact(shopChannelId, externalUserId, accessToken)
+
+  let type: string
+  let body: string | null
+  let imageUrl: string | null = null
+  let attachmentName: string | null = null
+  let attachmentSize: number | null = null
+  let preview: string
+  let rawExtra: Record<string, unknown>
+
+  if (message.type === 'sticker') {
+    type = 'TEXT'
+    body = LINE_STICKER_TEXT
+    preview = LINE_STICKER_TEXT
+    rawExtra = { kind: 'sticker', packageId: message.packageId, stickerId: message.stickerId }
+  } else if (message.type === 'location') {
+    // title/address ไม่ได้มาเสมอ (LINE ให้เป็น optional จริง) — ประกอบเฉพาะบรรทัดที่มีค่า พิกัดต้องมี
+    // เสมอตามสเปก LINE จึงใส่ท้ายสุดไม่มีเงื่อนไข
+    const lines = [message.title, message.address].filter((l): l is string => !!l && l.trim().length > 0)
+    lines.push(`(${message.latitude}, ${message.longitude})`)
+    type = 'TEXT'
+    body = lines.join('\n')
+    preview = '[ตำแหน่งที่ตั้ง]'
+    rawExtra = {
+      kind: 'location',
+      title: message.title,
+      address: message.address,
+      latitude: message.latitude,
+      longitude: message.longitude,
+    }
+  } else {
+    // image / video / audio / file — ต้อง mirror ก่อนเข้า tx เสมอ (ดู comment ของฟังก์ชัน)
+    try {
+      const { content } = await getAdapter('LINE').downloadContent(
+        { provider: 'LINE', accessToken },
+        { externalMessageId: message.id },
+      )
+      if (content?.data) {
+        const fileId = await mirrorMediaBuffer(content.data, content.contentType, 'line')
+        if (fileId) {
+          imageUrl = fileId
+          if (message.type === 'file') {
+            attachmentName = message.fileName
+            attachmentSize = message.fileSize ?? content.data.length
+          } else {
+            attachmentSize = content.data.length
+          }
+        }
+      }
+    } catch (e) {
+      // ดาวน์โหลดจาก LINE Data API ล้มเหลว (network/timeout — LineAdapter.downloadContent เองไม่ throw
+      // ตอน LINE ตอบไม่ ok แต่ throw ได้ตอน fetch เองล้มเหลว) ห้ามปล่อยให้ event ทั้งก้อนหายไปเงียบ ๆ
+      console.error('[line-ingest] ดาวน์โหลดสื่อจาก LINE ล้มเหลว', message.type, e instanceof Error ? e.message : e)
+    }
+
+    if (imageUrl) {
+      type = LINE_MEDIA_CHAT_TYPE[message.type]
+      body = null
+      preview = LINE_MEDIA_PREVIEW[message.type]
+    } else {
+      // TC-09 [ห้ามข้าม]: mirror ล้มเหลว (MIME/ขนาดเกินเพดาน/ดาวน์โหลดไม่ผ่าน) → ห้ามหายเงียบ
+      console.error('[line-ingest] mirror สื่อไม่สำเร็จ — บันทึกเป็น placeholder', {
+        kind: message.type,
+        lineMessageId: message.id,
+      })
+      type = 'TEXT'
+      body = LINE_MEDIA_MIRROR_FAILED_TEXT[message.type]
+      preview = LINE_MEDIA_MIRROR_FAILED_TEXT[message.type].slice(0, 100)
+    }
+    rawExtra = { kind: message.type, mirrored: !!imageUrl }
+  }
+
+  return writeLineInboundMessage({
+    shopId,
+    shopChannelId,
+    contact,
+    lineMessageId: message.id,
+    type,
+    body,
+    imageUrl,
+    attachmentName,
+    attachmentSize,
+    preview,
+    replyToken,
+    eventTimestamp,
+    rawExtra,
+  })
 }
 
 // ส่งข้อความจาก Deep ออกไปยัง Messenger/IG (feature 00018)
