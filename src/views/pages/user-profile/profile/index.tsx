@@ -420,7 +420,9 @@ export const ProfileRightContent = ({
                   // ผัง Instagram: 3 คอลัมน์ทุกจอ ช่องไฟ 4px (user ชี้ ref instagram.com/sanook.com
                   // 2026-08-10 "อยากให้ style ของการแสดงผลเป็นแบบ IG · ขนาดเอาตาม ig เลยก็ได้")
                   // เดิม 2/3/4 + gap 16px + การ์ดมีขอบ อ่านเป็น "แคตตาล็อกการ์ด" ไม่ใช่ฟีดรูป
-                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  // 3 คอลัมน์เฉพาะมือถือ — เดสก์ท็อป 960px หาร 3 ได้ไทล์ 317px ซึ่งใหญ่เกินไป
+                  // (ปัญหาเดียวกับกริดคลิป user ทัก 2026-08-10 "grid ใหญ่ไปป่าว")
+                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
                   gap: '4px',
                 }}
               >
@@ -463,7 +465,9 @@ export const ProfileRightContent = ({
                   // ผัง Instagram: 3 คอลัมน์ทุกจอ ช่องไฟ 4px (user ชี้ ref instagram.com/sanook.com
                   // 2026-08-10 "อยากให้ style ของการแสดงผลเป็นแบบ IG · ขนาดเอาตาม ig เลยก็ได้")
                   // เดิม 2/3/4 + gap 16px + การ์ดมีขอบ อ่านเป็น "แคตตาล็อกการ์ด" ไม่ใช่ฟีดรูป
-                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  // 3 คอลัมน์เฉพาะมือถือ — เดสก์ท็อป 960px หาร 3 ได้ไทล์ 317px ซึ่งใหญ่เกินไป
+                  // (ปัญหาเดียวกับกริดคลิป user ทัก 2026-08-10 "grid ใหญ่ไปป่าว")
+                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
                   gap: '4px',
                 }}
               >
