@@ -620,6 +620,22 @@ Dry-run ก่อนเสมอ (D-EXT-9) — พิมพ์ตัวอย่
 | เปิด `ISHIP_WEBHOOK_SECRET` บน prod | D-EXT-8 ล็อกว่าใช้ polling — เปิด webhook เป็นคนละงาน |
 | `cod_fee` เป็นต้นทุน | รอ OQ-1 |
 
+### สถานะ implement (ปิดรอบ 2026-08-10)
+
+| FR | สถานะ | หมายเหตุ |
+|---|---|---|
+| FR-EXP-18 | ✅ deployed | ค่าส่งเข้าเป็นค่าใช้จ่าย — **แต่ D-EXT-12 เปลี่ยนขอบเขต**: หน้า /sales + ชีตยอดขายเหลือ `ยอดขาย − (ต้นทุนสินค้า + ค่าส่ง)` ไม่รวมค่าใช้จ่ายที่ร้านบันทึกเอง |
+| FR-EXP-19 | ✅ deployed | `estimatedPrice` เก็บตอนสร้างพัสดุผ่าน `check-price` (D-EXT-13) |
+| FR-EXP-20 | ✅ deployed | `syncShipmentStatuses()` เขียน `carrierPrice`/`actualWeight`/`codFee` จาก `query_orders` ทุก 15 นาที ไม่เพิ่มคำขอใหม่ |
+| FR-EXP-21 | ✅ รันแล้ว | `scripts/backfill-shipment-charges.ts` — 145/146 ใบมีต้นทุนแล้ว · ที่เหลือ 1 ใบ **iShip เองก็ไม่มีราคาให้** (`ISX054747NGXD` linked/Kerry `discount_price=0` ทั้งที่ส่งถึงแล้ว) |
+| FR-EXP-22 | ✅ deployed | `codFee` เก็บและนับแล้ว — และเก็บได้ตั้งแต่ตอนสร้างพัสดุ ไม่ต้องรอชั่ง |
+| — | ❌ ยังไม่ทำ | การ์ดกำไร**รายใบ**ใน order detail ยังไม่แสดงค่าส่ง (`order-profit.ts` ยังไม่รับ shipping term) |
+| — | ❌ ยังไม่ทำ | หน้า `/expenses` ยังใช้ `NET_PROFIT_FORMULA` เดิม — user แจ้งว่าจะกลับมาจัดการอีกรอบ |
+
+**ผลจริงบน prod:** ค่าส่ง+ค่าธรรมเนียม COD เดือน ส.ค. = **฿6,750.03** (ก่อนรอบนี้ = ฿0 เพราะไม่มีที่ไหนนับเลย)
+
+รายละเอียดบทเรียน + ข้อควรระวัง → `docs/retro/2026-08-10-iship-shipping-cost-in-profit-retrospective.md`
+
 ### Appendix — ข้อมูลจริงจาก prod + บัญชี iShip (2026-08-09)
 
 **ฐาน prod** (`OrderShipment` ที่ `status='CREATED' AND isDryRun=false`):
