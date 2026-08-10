@@ -799,6 +799,34 @@ export async function ingestInboundMessage(params: {
     return { status: 'STORED' as const }
   }
 
+  /**
+   * ตรวจ mid ซ้ำก่อนลงมือ (2026-08-10) — ตัวดัก `isUniqueViolationOn` ที่ท้ายฟังก์ชันยังอยู่และยัง
+   * จำเป็น เพราะ race จริงเกิดได้ระหว่าง SELECT นี้กับ INSERT; อันนี้เป็นทางลัดของเคสที่ "รู้ผล
+   * ล่วงหน้าอยู่แล้ว" ไม่ใช่ตัวกันซ้ำตัวใหม่ — ความถูกต้องยังอยู่ที่ `externalMessageId @unique`
+   *
+   * ทำไมต้องมี: ลำดับของขาออกคือ ส่งก่อน → ได้ mid → ค่อยเขียน DB (ดูคอมเมนต์เหนือ
+   * sendOutboundMessage) แปลว่า **ทุกข้อความที่ร้านส่งจาก Deep จะมี echo ที่ mid ชนแน่นอน 100%**
+   * วิ่งกลับเข้ามาที่นี่ ทางเดิมปล่อยให้เดินจนสุดแล้วให้ Postgres เป็นคนปฏิเสธ ซึ่งจ่ายไปแล้วทั้ง
+   * externalContact.upsert (write), ทรานแซกชัน, และ INSERT ที่ล้ม (เขียน tuple + index entry จริง
+   * ก่อน rollback → เป็น dead tuple ให้ autovacuum ตามเก็บ) แถม ERROR 23505 หนึ่งบรรทัดใน log ของ
+   * Supabase ต่อข้อความหนึ่งใบ (user เจอเองใน log 2026-08-09 22:41–22:52 ~28 บรรทัด)
+   *
+   * ต้นทุนที่แลก: ข้อความใหม่จริงจ่าย SELECT เพิ่ม 1 ครั้งบน unique index ที่มีอยู่แล้ว — เล็กกว่า
+   * งานที่ตัดออกจากฝั่ง duplicate มาก (1 read แทน 2 write + ทรานแซกชัน + งาน vacuum ที่ตามมาทีหลัง)
+   *
+   * ต้องอยู่ "หลัง" สาขา is_deleted: unsend ส่ง mid ของข้อความที่มีอยู่แล้วมาโดยตั้งใจ ถ้าเช็คก่อน
+   * จะกลายเป็นกลืน event ลบข้อความทิ้ง (มีเทสตรึงไว้แล้ว). reaction/edit/read/delivery ไม่ผ่านทางนี้
+   * — webhook route แยกไปฟังก์ชันของตัวเองก่อนถึง ingestInboundMessage
+   *
+   * ผลข้างเคียงที่ยอมรับ: duplicate จะไม่รีเฟรชชื่อ/รูปโปรไฟล์ผู้ติดต่ออีกต่อไป — ของเดิมรีเฟรช
+   * เฉพาะตอนยังไม่มีชื่อ/ถึงรอบ retry รูปอยู่แล้ว และข้อความจริงใบถัดไปของคนเดิมก็รีเฟรชให้อยู่ดี
+   */
+  const duplicate = await prisma.chatMessage.findUnique({
+    where: { externalMessageId: event.message.mid },
+    select: { id: true },
+  })
+  if (duplicate) return { status: 'DUPLICATE' }
+
   // is_echo = ข้อความจากฝั่งเพจ (seller ตอบจากแอป Messenger เอง หรือ echo ของที่เราส่ง)
   // ผู้ติดต่อคือ "อีกฝั่ง" เสมอ → echo ใช้ recipient, ไม่ใช่ sender
   const isEcho = event.message.is_echo === true

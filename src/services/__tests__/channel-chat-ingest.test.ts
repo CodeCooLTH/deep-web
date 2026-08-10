@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client'
 const db = vi.hoisted(() => ({
   externalContact: { upsert: vi.fn(), findUnique: vi.fn() },
   conversation: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-  chatMessage: { create: vi.fn() },
+  chatMessage: { create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
   notification: { create: vi.fn() },
   shop: { findUnique: vi.fn() },
   $transaction: vi.fn(),
@@ -58,6 +58,8 @@ describe('ingestInboundMessage', () => {
     db.conversation.update.mockResolvedValue({})
     db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน' })
     db.chatMessage.create.mockResolvedValue({ id: 'm1', createdAt: new Date() })
+    // ค่าเริ่มต้น = ยังไม่เคยเห็น mid นี้ (ทางลัด dedupe ไม่ทำงาน) → เทสเดิมทุกตัวเดินเส้นทางเดิม
+    db.chatMessage.findUnique.mockResolvedValue(null)
   })
 
   it('ข้อความใหม่ → STORED และบันทึก senderRole=BUYER', async () => {
@@ -106,6 +108,39 @@ describe('ingestInboundMessage', () => {
     db.chatMessage.create.mockRejectedValue(p2002(['externalMessageId']))
     const r = await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: textEvent })
     expect(r.status).toBe('DUPLICATE')
+  })
+
+  it('mid ที่เคยเห็นแล้ว → DUPLICATE ตั้งแต่ยังไม่แตะ contact/ทรานแซกชัน (ไม่ปล่อยให้ Postgres ปฏิเสธ)', async () => {
+    // เคสนี้คือ echo ของข้อความที่ร้านส่งจาก Deep เอง — ชนแน่นอน 100% ทุกใบ ทางเดิมจ่าย
+    // upsert + ทรานแซกชัน + INSERT ที่ล้ม + ERROR 23505 ใน log ทิ้งไปฟรี ๆ ต่อข้อความหนึ่งใบ
+    db.chatMessage.findUnique.mockResolvedValue({ id: 'm-เดิม' })
+
+    const r = await ingestInboundMessage({ provider: 'MESSENGER', pageExternalId: 'PAGE1', event: textEvent })
+
+    expect(r.status).toBe('DUPLICATE')
+    expect(db.chatMessage.findUnique.mock.calls[0]![0].where.externalMessageId).toBe('mid.in.1')
+    // ไม่มี read/write ของ contact และไม่มีทรานแซกชันเลย — นี่คือทั้งหมดของงานที่ประหยัดได้
+    expect(db.externalContact.findUnique).not.toHaveBeenCalled()
+    expect(db.externalContact.upsert).not.toHaveBeenCalled()
+    expect(db.$transaction).not.toHaveBeenCalled()
+    expect(db.chatMessage.create).not.toHaveBeenCalled()
+  })
+
+  it('unsend: mid ที่มีอยู่แล้ว + is_deleted → ต้องลบข้อความจริง ไม่ใช่ถูกทางลัด dedupe กลืน', async () => {
+    // กับดักของทางลัด: unsend ส่ง mid ของข้อความที่ "มีอยู่แล้ว" มาโดยตั้งใจ ถ้าเช็คซ้ำถูกวางไว้
+    // ก่อนสาขานี้ ข้อความที่ลูกค้ากดลบจะค้างในเธรดตลอดไปโดยไม่มีอะไรฟ้อง
+    db.chatMessage.findUnique.mockResolvedValue({ id: 'm-เดิม' })
+    db.chatMessage.updateMany.mockResolvedValue({ count: 1 })
+
+    const r = await ingestInboundMessage({
+      provider: 'MESSENGER',
+      pageExternalId: 'PAGE1',
+      event: { ...textEvent, message: { mid: 'mid.in.1', is_deleted: true } },
+    })
+
+    expect(r.status).toBe('STORED')
+    expect(db.chatMessage.updateMany).toHaveBeenCalledTimes(1)
+    expect(db.chatMessage.updateMany.mock.calls[0]![0].data.isDeleted).toBe(true)
   })
 
   it('ลูกค้าใหม่ทัก 2 ข้อความรัว ๆ → race สร้างเธรด (P2002 บน externalContactId) ต้อง STORED ไม่ใช่ DUPLICATE/หาย (I-1)', async () => {
