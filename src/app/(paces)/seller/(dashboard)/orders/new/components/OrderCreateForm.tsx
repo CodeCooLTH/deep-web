@@ -30,7 +30,11 @@ import QuickForm from './QuickForm'
 import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 import { toDatetimeLocalValue } from './OrderDateRow'
 import { resolveEditedOrderedAtPayload, orderDateRejectReason } from '@/lib/order-date-window'
-import { shopShipsGoods } from '@/lib/shipping-address-status'
+import {
+  orderNeedsShippingAddress,
+  shopShipsGoods,
+  toOrderItemShippingKind,
+} from '@/lib/shipping-address-status'
 import { resolveProductVocab } from '@/lib/seller-menu'
 
 
@@ -77,6 +81,12 @@ interface Props {
   initialBuyerContact?: string
   /** prefill ช่องทางการขาย (STOREFRONT|FACEBOOK|LINE|TIKTOK) จากช่องทางแชท — ชนะ localStorage default */
   initialSalesChannel?: string
+  /**
+   * ล็อกช่องทางการขาย = ใบนี้เกิดจากเธรดที่รู้ช่องทางแน่นอน (Messenger/Instagram/LINE)
+   * user 2026-08-10: "คุยใน Facebook ช่องทางก็ต้องเป็นเฟสบุ๊ค จะเปลี่ยนเป็นหน้าร้านก็จะงง ๆ นะ"
+   * ตัวตัดสินอยู่ที่ DraftOrderProvider ที่เดียว — ฟอร์มแค่รับผลมาแสดง
+   */
+  salesChannelLocked?: boolean
   /**
    * ข้อความจากแชทที่จะ "กระจาย" เป็นชื่อ/เบอร์/ที่อยู่ให้ทันทีที่ฟอร์มเปิด (user สั่ง 2026-08-04)
    * ส่งต่อลง CustomerQuickBlock ซึ่งเป็นเจ้าของทั้ง parseOrderMessage และชีตกระจายอยู่แล้ว —
@@ -204,8 +214,10 @@ const schema = Yup.object({
     )
     .min(1, 'ต้องมีอย่างน้อย 1 รายการ')
     .required(),
+  // ต้องมีค่าครบเท่ากับ CHANNEL_OPTIONS (order-options.ts) เสมอ — ค่าที่มีในลิสต์แต่ไม่มีที่นี่
+  // = เลือกได้บนจอแต่กดบันทึกแล้วเงียบ (yupResolver ตีตกก่อนถึง onSubmit ซึ่งไม่มีใคร render error นี้)
   salesChannel: Yup.string()
-    .oneOf(['STOREFRONT', 'FACEBOOK', 'LINE', 'TIKTOK', 'OTHER'])
+    .oneOf(['STOREFRONT', 'FACEBOOK', 'INSTAGRAM', 'LINE', 'TIKTOK', 'OTHER'])
     .optional(),
   paymentMethod: Yup.string()
     .oneOf(['CASH', 'TRANSFER', 'PROMPTPAY', 'CARD', 'COD', 'OTHER'])
@@ -273,6 +285,7 @@ export default function OrderCreateForm({
   initialBuyerName,
   initialBuyerContact,
   initialSalesChannel,
+  salesChannelLocked = false,
   prefillParseText,
   onSuccess,
   conversationId,
@@ -622,13 +635,13 @@ export default function OrderCreateForm({
     // สินค้าในแคตตาล็อกของร้านบริการติดธง SHIPPED ค้างได้จริง (ร้านที่เปลี่ยนประเภททีหลัง +
     // สินค้าที่ Quick-Create สร้างให้เอง) ธงบนสินค้าจึงไม่ใช่หลักฐานว่าร้านนี้ส่งของ
     // เกณฑ์ต้องตรงกับ createOrder เป๊ะ ๆ ไม่งั้นฟอร์มบล็อกในสิ่งที่ server ไม่ได้บังคับ
-    const needsShipping =
-      shipsGoods &&
-      values.salesChannel !== 'STOREFRONT' &&
-      items.some((item) => {
-        if (!item.productId) return true
-        return catalog.find((p) => p.id === item.productId)?.fulfillmentMode === 'SHIPPED'
-      })
+    const needsShipping = orderNeedsShippingAddress({
+      shipsGoods,
+      salesChannel: values.salesChannel,
+      items: items.map((item) =>
+        toOrderItemShippingKind(item.productId, catalog.find((p) => p.id === item.productId)?.fulfillmentMode),
+      ),
+    })
 
     // ── FR-6.5: ออเดอร์ที่ต้องจัดส่งต้องมีที่อยู่ครบขั้นต่ำ (ที่อยู่ + จังหวัด + รหัสไปรษณีย์) ──
     // server enforce ซ้ำที่ createOrder (single source) — นี่คือ UX surface ก่อน submit
@@ -941,6 +954,7 @@ export default function OrderCreateForm({
           productIcon={productVocab.soldIcon}
           unitLabel={productVocab.unitLabel}
           shipsGoods={shipsGoods}
+          channelLocked={salesChannelLocked}
           prefillParseText={prefillParseText}
           control={control}
           errors={errors}

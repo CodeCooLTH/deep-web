@@ -61,8 +61,17 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
   const { field: contactField } = useController({ control, name: 'buyerContact', defaultValue: '' })
   const { field: line1Field } = useController({ control, name: 'shippingAddress.line1', defaultValue: '' })
 
-  const channel = useWatch({ control, name: 'salesChannel' })
-  const showAddress = channel !== 'STOREFRONT'
+  /**
+   * บล็อกที่อยู่ต้องผูกกับ needsShipping ตัวเดียวกับที่ตัดสินการบันทึกจริง (user 2026-08-10)
+   *
+   * เดิมเงื่อนไขคือ `channel !== 'STOREFRONT'` ล้วน ๆ ซึ่งกว้างกว่ากฎที่บังคับจริงมาก — ร้านคิวงาน/
+   * บ้านพักที่คุยกับลูกค้าในแชท (ช่องทางย่อมไม่ใช่ "หน้าร้าน") จึงเห็นช่องที่อยู่ทุกใบทั้งที่ไม่มีการส่งของ
+   * เลย. ฝั่งเดสก์ท็อป (CartPanel) ซ่อนทั้ง accordion มาตั้งแต่ 2026-08-07 แล้ว — สองจอของฟอร์ม
+   * เดียวกันตอบไม่ตรงกันอยู่ 3 วัน โดยที่โมดัลในแชทคือทางที่ผู้ขายใช้จริงมากที่สุด
+   *
+   * (มติ 2026-08-07 "คงช่องไว้แต่ไม่บังคับ" ถูก user ยกเลิกเอง 2026-08-10 → ซ่อนให้ตรงกับเดสก์ท็อป)
+   */
+  const showAddress = needsShipping
   const addr = useWatch({ control, name: 'shippingAddress' }) as FormValues['shippingAddress']
 
   // ── สถานะที่อยู่ (bug user report 2026-08-02) ────────────────────────────────
@@ -302,9 +311,10 @@ export default function CustomerQuickBlock({ control, errors, setValue, needsShi
             </div>
           )}
           <div className="mb-2.5">
-            {/* ดาวแดงต้องผูกกับ needsShipping ไม่ใช่ติดตายตัว — บล็อกที่อยู่ฝั่งมือถือโผล่ตาม
-                showAddress (channel !== STOREFRONT) ซึ่งกว้างกว่าเงื่อนไขที่บังคับกรอกจริง
-                (เดสก์ท็อป CartPanel.tsx:380 ครอบทั้งบล็อกด้วย needsShipping อยู่แล้ว จึงติดดาวตายตัวได้)
+            {/* ดาวแดงคงเงื่อนไข needsShipping ไว้เหมือนเดิม — ตั้งแต่ 2026-08-10 ทั้งบล็อกโผล่เฉพาะตอน
+                needsShipping อยู่แล้ว เงื่อนไขนี้จึงเป็นจริงเสมอในทางปฏิบัติ แต่ปล่อยไว้เพื่อให้ดาว
+                ผูกกับ "กฎที่บังคับจริง" ไม่ใช่ผูกกับการมีอยู่ของ JSX (ถ้าวันหนึ่งมีคนคืนบล็อกให้โผล่
+                กว้างกว่านี้อีก ดาวจะไม่โกหกทันที)
                 ช่องที่ติดดาวตรงกับ SSOT lib/shipping-address-status.ts เป๊ะ: line1 + จังหวัด + รหัสไปรษณีย์
                 ตำบล/อำเภอ ไม่บล็อกการบันทึก จึงไม่ติดดาว (ตรงกับ CartPanel.tsx:428/432) */}
             <label htmlFor="cq-addr-line1" className="form-label">

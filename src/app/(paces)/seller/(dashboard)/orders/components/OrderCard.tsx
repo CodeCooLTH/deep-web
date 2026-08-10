@@ -51,9 +51,11 @@ import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
 // ── โลโก้ช่องทางสีจริง (self-host public/) — เฉพาะช่องทางที่มีไฟล์; ที่เหลือ fallback tabler mono ──
 const CHANNEL_LOGO: Record<string, string> = {
-  FACEBOOK: '/images/logos/facebook.svg',
-  LINE:     '/images/logos/line.svg',
-  // INSTAGRAM: '/images/logos/instagram.svg', // asset พร้อมถ้าเพิ่ม IG เป็นช่องทางภายหลัง (ยังไม่มีใน enum)
+  FACEBOOK:  '/images/logos/facebook.svg',
+  // ใช้ instagram-circle.svg ไม่ใช่ instagram.svg ที่คอมเมนต์เดิมชี้ไว้ — ต้องเป็นชุดเดียวกับ
+  // PLATFORM_LOGO ใน OrderSourceLogo.tsx (เหตุผลการเลือกไฟล์อยู่ที่นั่น)
+  INSTAGRAM: '/images/logos/instagram-circle.svg',
+  LINE:      '/images/logos/line.svg',
 }
 
 // ช่องทางการขาย: รูปเพจที่ทักมา(ถ้ารู้) → โลโก้สีแพลตฟอร์ม → tabler mono icon

@@ -19,7 +19,7 @@
 import { CHAT_CHANNELS, type ChatChannel } from '@/lib/chat-channel'
 
 /** ค่าที่ `Order.salesChannel` รับได้ (ตรงกับ Yup ของ OrderCreateForm) */
-export type OrderSalesChannel = 'STOREFRONT' | 'FACEBOOK' | 'LINE' | 'TIKTOK' | 'OTHER'
+export type OrderSalesChannel = 'STOREFRONT' | 'FACEBOOK' | 'INSTAGRAM' | 'LINE' | 'TIKTOK' | 'OTHER'
 
 /**
  * ประกาศเป็น `Record<ChatChannel, …>` โดยตั้งใจ — **ไม่ใช่ if/else**
@@ -33,9 +33,15 @@ export type OrderSalesChannel = 'STOREFRONT' | 'FACEBOOK' | 'LINE' | 'TIKTOK' | 
  */
 const CHAT_TO_SALES: Record<ChatChannel, OrderSalesChannel | undefined> = {
   DEEP: undefined,
-  // Messenger/Instagram = Meta ทั้งคู่ ฟอร์มมีค่าเดียวคือ FACEBOOK (ไม่มี INSTAGRAM แยก)
+  // Messenger → FACEBOOK: คนทักเข้ามาที่ "เพจ Facebook" ไม่ใช่ "แอป Messenger"
+  // (เหตุผลเดียวกับที่ ChannelBadge.tsx เลือกโลโก้ f ตั้งแต่ 2026-07-23)
   MESSENGER: 'FACEBOOK',
-  INSTAGRAM: 'FACEBOOK',
+  // 🛑 IG แยกเป็นช่องทางของตัวเองแล้ว (user เคาะ 2026-08-10) — เดิมยุบรวมเป็น FACEBOOK ทำให้ร้าน
+  // แยกไม่ออกว่ายอดมาจากเพจหรือจาก IG ทั้งที่เป็นคนละกลุ่มลูกค้าคนละแคมเปญ. การเปลี่ยนค่านี้มีผลถึง
+  // `resolveOrderSource()` ด้วย (badge/โลโก้ในคอลัมน์ "ที่มา" ของหน้า orders อ่านผ่านฟังก์ชันนี้)
+  // จึงต้องมี 'INSTAGRAM' ครบทั้ง SALES_CHANNEL_LABELS/ICONS + PLATFORM_LOGO/CHANNEL_LOGO
+  // ไม่งั้น badge จะหายทั้งแถว (label ไม่เจอ = hasChannel false) — เติมไปพร้อมกันในคอมมิตเดียว
+  INSTAGRAM: 'INSTAGRAM',
   LINE: 'LINE',
 }
 

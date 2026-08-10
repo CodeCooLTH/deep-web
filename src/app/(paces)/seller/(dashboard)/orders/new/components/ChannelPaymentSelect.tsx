@@ -29,9 +29,16 @@ interface Props {
    * "เก็บเงินปลายทาง" ล้นขอบ + label ทับ chip (user report 2026-07-24)
    */
   compact?: boolean
+  /**
+   * ล็อกช่องทางการขายตามเธรดที่กำลังคุยอยู่ (user 2026-08-10: "คุยใน Facebook ช่องทางก็ต้องเป็น
+   * เฟสบุ๊ค จะเปลี่ยนเป็นหน้าร้านก็จะงง ๆ นะ") — คำนวณที่ DraftOrderProvider ที่เดียว
+   * ไม่ล็อก: เธรด Deep (ลูกค้าอาจมาจากช่องทางอื่นแล้วมาคุยต่อในแอป) · โหมดแก้ไขออเดอร์เดิม ·
+   * หน้า /orders/new เต็มจอที่ไม่มีเธรด
+   */
+  channelLocked?: boolean
 }
 
-export default function ChannelPaymentSelect({ control, compact = false }: Props) {
+export default function ChannelPaymentSelect({ control, compact = false, channelLocked = false }: Props) {
   const [openSheet, setOpenSheet] = useState<'channel' | 'payment' | null>(null)
   const [defaults, setDefaults] = useState<{ channel: string | null; payment: string | null }>({
     channel: null,
@@ -67,19 +74,37 @@ export default function ChannelPaymentSelect({ control, compact = false }: Props
             : 'divide-y divide-default-100 sm:grid sm:grid-cols-2 sm:gap-x-5 sm:divide-y-0'
         }
       >
-        {/* ช่องทางการขาย */}
-        <button
-          type="button"
-          onClick={() => setOpenSheet('channel')}
-          className="flex w-full items-center gap-3 py-2.5 text-left"
-        >
-          <span className="w-28 shrink-0 text-sm font-semibold text-default-700">ช่องทางการขาย</span>
-          <span className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-default-300 px-2.5 py-1.5 text-sm font-semibold text-default-800">
-            {chOpt && <Icon icon={chOpt.icon} className="size-4 text-primary" />}
-            {labelOf(CHANNEL_OPTIONS, channelField.value) || '—'}
-            <Icon icon="chevron-down" className="size-4 text-default-400" />
-          </span>
-        </button>
+        {/* ช่องทางการขาย — ล็อกแล้วเป็น <div> ไม่ใช่ <button disabled>:
+            disabled ของ Paces สื่อว่า "ตอนนี้กดไม่ได้ เดี๋ยวกดได้" (เช่นฟอร์มยังกรอกไม่ครบ) คนละความหมาย
+            กับ "ค่านี้ผูกกับเธรด ไม่มีทางกดได้ในบริบทนี้" — และ <div> ไม่กินโฟกัสคีย์บอร์ดโดยไม่มีอะไรให้ทำ
+            ชิปเปลี่ยน 4 อย่างพร้อมกันเพื่อให้ต่างจากแถว "การชำระเงิน" ที่ยังกดได้: พื้น/ขอบ/สีตัวอักษร/ไอคอนท้าย */}
+        {channelLocked ? (
+          <div className="py-2.5">
+            <div className="flex w-full items-center gap-3">
+              <span className="w-28 shrink-0 text-sm font-semibold text-default-700">ช่องทางการขาย</span>
+              <span className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-default-200 bg-default-50 px-2.5 py-1.5 text-sm font-semibold text-default-600">
+                {chOpt && <Icon icon={chOpt.icon} className="size-4 text-default-400" />}
+                {labelOf(CHANNEL_OPTIONS, channelField.value) || '—'}
+                <Icon icon="lock" className="size-4 text-default-400" aria-hidden="true" />
+              </span>
+            </div>
+            {/* บอกเหตุผล ไม่ใช่บอกข้อห้าม — "ไม่สามารถแก้ไขได้" ไม่ได้ช่วยให้เข้าใจว่าทำไม */}
+            <p className="mt-1 mb-0 text-xs text-default-400">ล็อกตามช่องทางที่ลูกค้าทักมา</p>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOpenSheet('channel')}
+            className="flex w-full items-center gap-3 py-2.5 text-left"
+          >
+            <span className="w-28 shrink-0 text-sm font-semibold text-default-700">ช่องทางการขาย</span>
+            <span className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-default-300 px-2.5 py-1.5 text-sm font-semibold text-default-800">
+              {chOpt && <Icon icon={chOpt.icon} className="size-4 text-primary" />}
+              {labelOf(CHANNEL_OPTIONS, channelField.value) || '—'}
+              <Icon icon="chevron-down" className="size-4 text-default-400" />
+            </span>
+          </button>
+        )}
         {/* การชำระเงิน */}
         <button
           type="button"

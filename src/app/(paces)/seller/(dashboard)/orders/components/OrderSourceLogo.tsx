@@ -18,6 +18,10 @@ import { SALES_CHANNEL_ICONS, SALES_CHANNEL_LABELS } from './data'
 /** โลโก้สีของแพลตฟอร์ม — ไฟล์จริงใน public (ตัวเดียวกับ CHANNEL_LOGO ของ OrderCard) */
 export const PLATFORM_LOGO: Record<string, string> = {
   FACEBOOK: '/images/logos/facebook.svg',
+  // instagram-circle.svg ไม่ใช่ instagram.svg — ที่นี่ถูก clip เป็นวงกลมเสมอ (badge มุม avatar +
+  // rounded-full) ไอคอนแอปทรงสี่เหลี่ยมมนของไฟล์เดิมจะโดนตัดมุมจนเสียรูป. เหตุผลเดียวกับที่
+  // ChannelBadge.tsx ในกล่องแชทเลือกไฟล์นี้ไปแล้วตั้งแต่ 2026-07-23 (ไล่สีแบรนด์ชุดเดียวกัน)
+  INSTAGRAM: '/images/logos/instagram-circle.svg',
   LINE: '/images/logos/line.svg',
 }
 

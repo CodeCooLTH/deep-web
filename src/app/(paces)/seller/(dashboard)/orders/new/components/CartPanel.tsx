@@ -22,6 +22,7 @@ import { useController, useWatch } from 'react-hook-form'
 import { formatWeekdayDateTH } from '@/lib/format-date'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
+import { orderNeedsShippingAddress, toOrderItemShippingKind } from '@/lib/shipping-address-status'
 import Select from '@/components/wrappers/Select'
 import { pacesToast } from '@/lib/paces-toast'
 import CartLineItem from './CartLineItem'
@@ -161,12 +162,17 @@ export default function CartPanel({
     setValue?.('shippingAddress.postcode', loc.postcode)
   }
 
+  // SSOT เดียวกับมือถือ/โมดัลแชท (QuickForm) และตอน submit (OrderCreateForm) — 2026-08-10
+  // เดิมที่นี่ก็กั้น shipsGoods เฉพาะกิ่ง "รายการพิมพ์เอง" เหมือน QuickForm: ร้านที่ไม่ส่งของแต่มีสินค้า
+  // ติดธง SHIPPED ค้าง จะยังเห็น accordion ที่อยู่โผล่บนเดสก์ท็อป ทั้งที่ตัวบล็อกจริงไม่ได้บังคับ
   const needsShipping = useMemo(
     () =>
-      salesChannel !== 'STOREFRONT' &&
-      items.some((i) => {
-        if (!i.productId) return shipsGoods
-        return catalog.find((p) => p.id === i.productId)?.fulfillmentMode === 'SHIPPED'
+      orderNeedsShippingAddress({
+        shipsGoods,
+        salesChannel,
+        items: items.map((i) =>
+          toOrderItemShippingKind(i.productId, catalog.find((p) => p.id === i.productId)?.fulfillmentMode),
+        ),
       }),
     [items, catalog, salesChannel, shipsGoods],
   )

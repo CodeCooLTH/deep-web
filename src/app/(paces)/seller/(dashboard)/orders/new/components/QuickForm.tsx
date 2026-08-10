@@ -15,6 +15,7 @@ import type { ReactNode } from 'react'
 import { useWatch } from 'react-hook-form'
 import type { Control, FieldErrors, UseFormSetValue } from 'react-hook-form'
 import Icon from '@/components/wrappers/Icon'
+import { orderNeedsShippingAddress, toOrderItemShippingKind } from '@/lib/shipping-address-status'
 import QuickLineItem from './QuickLineItem'
 import ProductPickerSheet from './ProductPickerSheet'
 import ChannelPaymentSelect from './ChannelPaymentSelect'
@@ -41,6 +42,8 @@ interface Props {
   setValue: UseFormSetValue<FormValues>
   /** ร้านนี้ส่งของไหม — รายการพิมพ์เอง (ไม่มี productId) นับเป็น "ต้องจัดส่ง" เฉพาะร้านที่ส่งของ */
   shipsGoods?: boolean
+  /** ล็อกช่องทางการขายตามเธรดแชท (ดูเหตุผลเต็มที่ ChannelPaymentSelect) */
+  channelLocked?: boolean
   catalog: CatalogProduct[]
   bestSellers: CatalogProduct[]
   itemsCtl: ItemsController
@@ -82,19 +85,23 @@ export default function QuickForm({
   orderDateMessageTooOld,
   orderDateLabel,
   shipsGoods = true,
+  channelLocked = false,
 }: Props) {
   const [pickerIndex, setPickerIndex] = useState<number | null>(null)
 
-  // needsShipping (reactive) — ตรงกับ logic ตอน submit (OrderCreateForm) + CartPanel: ช่องทาง≠STOREFRONT
-  // และมีสินค้าที่ fulfillment=SHIPPED (custom item ไม่มี productId = ถือว่าต้องจัดส่ง) → ใช้เตือนที่อยู่เชิงรุก
+  // needsShipping (reactive) — เรียก SSOT ตัวเดียวกับตอน submit (OrderCreateForm) และเดสก์ท็อป (CartPanel)
+  // 2026-08-10: เดิมสามที่นี้เขียนกฎซ้ำกันเอง แล้วรอบแก้ 2026-08-07 เติม shipsGoods ให้เฉพาะตอน submit
+  // ที่เดียว → หน้าจอ "ขอ" ที่อยู่ในสิ่งที่ตัวบล็อกจริงไม่ได้บังคับ (ดูเหตุผลเต็มใน lib/shipping-address-status)
   const watchedItems = (useWatch({ control, name: 'items' }) ?? []) as FormValues['items']
   const salesChannel = useWatch({ control, name: 'salesChannel' })
   const needsShipping = useMemo(
     () =>
-      salesChannel !== 'STOREFRONT' &&
-      watchedItems.some((i) => {
-        if (!i?.productId) return shipsGoods
-        return catalog.find((p) => p.id === i.productId)?.fulfillmentMode === 'SHIPPED'
+      orderNeedsShippingAddress({
+        shipsGoods,
+        salesChannel,
+        items: watchedItems.map((i) =>
+          toOrderItemShippingKind(i?.productId, catalog.find((p) => p.id === i?.productId)?.fulfillmentMode),
+        ),
       }),
     [watchedItems, catalog, salesChannel, shipsGoods],
   )
@@ -124,7 +131,7 @@ export default function QuickForm({
 
       {/* SECTION 2: ช่องทางการขาย + การชำระเงิน */}
       <section className={`border-b-8 border-default-100 ${secX} py-3.5`}>
-        <ChannelPaymentSelect control={control} compact={compact} />
+        <ChannelPaymentSelect control={control} compact={compact} channelLocked={channelLocked} />
       </section>
 
       {/* SECTION 2.5: วันที่สั่งซื้อ (feature 00033) — ยุบไว้ + ปุ่มเปลี่ยน ตาม D-7

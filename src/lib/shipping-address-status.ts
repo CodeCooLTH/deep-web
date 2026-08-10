@@ -34,6 +34,50 @@ export function shopShipsGoods(vertical: string | null | undefined): boolean {
   return vertical !== 'SERVICE_QUEUE' && vertical !== 'LODGING'
 }
 
+/**
+ * รายการหนึ่งบรรทัดในตะกร้าเรียกร้องการจัดส่งแบบไหน — แปลงจาก (productId, fulfillmentMode) ที่ call site
+ *
+ * ต้องแยก CUSTOM ออกจาก NO_SHIPPING เพราะสองอย่างนี้ตอบคนละคำถาม: CUSTOM = "ไม่รู้ว่าของชิ้นนี้
+ * ต้องส่งไหมเพราะไม่มีในแคตตาล็อก" (ให้ประเภทร้านเป็นคนตอบแทน) ส่วน NO_SHIPPING = "รู้แน่ ๆ ว่าไม่ต้องส่ง"
+ */
+export type OrderItemShippingKind = 'SHIPPED' | 'NO_SHIPPING' | 'CUSTOM'
+
+export function toOrderItemShippingKind(
+  productId: string | null | undefined,
+  productFulfillmentMode: string | null | undefined,
+): OrderItemShippingKind {
+  if (!productId) return 'CUSTOM'
+  return productFulfillmentMode === 'SHIPPED' ? 'SHIPPED' : 'NO_SHIPPING'
+}
+
+/**
+ * orderNeedsShippingAddress — "ใบนี้ต้องมีที่อยู่จัดส่งไหม" จุดเดียวของความจริงฝั่งหน้าจอ
+ *
+ * 🛑 ทำไมต้องยกออกมาเป็นฟังก์ชัน: กฎนี้เป็น OR ที่เคยถูกเขียนซ้ำ 3 ที่ (`QuickForm` มือถือ/โมดัลแชท,
+ * `CartPanel` เดสก์ท็อป, `OrderCreateForm` ตอน submit) แล้วรอบแก้ 2026-08-07 เติม `shipsGoods`
+ * ให้เฉพาะ **ตอน submit** ที่เดียว — สองที่ที่เหลือยังกั้นแค่กิ่ง CUSTOM ผลคือหน้าจอ "ขอ" ในสิ่งที่
+ * ตัวบล็อกจริงไม่ได้บังคับ: ร้านคิวงานที่มีสินค้าติดธง SHIPPED ค้าง (เกิดได้จริงจากร้านที่เปลี่ยน
+ * vertical ทีหลัง + Quick-Create ที่เคยเขียนคอลัมน์ตรง ๆ) ยังเห็นช่องที่อยู่ในโมดัลทุกใบ
+ * (user report 2026-08-10 — ร้าน BT สุขสวัสดิ์ อาการเดิมกลับมารอบสาม คนละชั้นกับสองรอบก่อน)
+ *
+ * `shipsGoods` ต้องกั้น **ทั้งนิพจน์** ไม่ใช่ operand เดียว — ธงบนสินค้าไม่ใช่หลักฐานว่าร้านนี้ส่งของ
+ * (`docs/conventions/stored-flag-vs-owner-truth.md`) ประเภทร้านต่างหากที่เป็นความจริงของเจ้าของแถว
+ *
+ * ต้องให้ผลตรงกับ `createOrder`/`updateOrder` เป๊ะ ๆ (src/services/order.service.ts) — หน้าจอที่เข้ม
+ * กว่า server = ขอข้อมูลที่ไม่มีอยู่จริง, หน้าจอที่หลวมกว่า = บันทึกไม่ผ่านโดยไม่รู้ว่าเพราะอะไร
+ */
+export function orderNeedsShippingAddress(input: {
+  /** ร้านประเภทนี้ส่งของไหม — `shopShipsGoods(shop.vertical)` */
+  shipsGoods: boolean
+  /** ช่องทางการขายของใบนี้ — 'STOREFRONT' = ลูกค้ามารับที่ร้าน ไม่ต้องมีที่อยู่ */
+  salesChannel: string | null | undefined
+  items: OrderItemShippingKind[]
+}): boolean {
+  if (!input.shipsGoods) return false
+  if (input.salesChannel === 'STOREFRONT') return false
+  return input.items.some((kind) => kind === 'CUSTOM' || kind === 'SHIPPED')
+}
+
 export interface ShippingAddressLike {
   line1?: string | null
   subdistrict?: string | null

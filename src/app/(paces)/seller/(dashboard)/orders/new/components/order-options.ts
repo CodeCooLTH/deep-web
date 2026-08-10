@@ -24,6 +24,10 @@ export type OrderOption = {
 export const CHANNEL_OPTIONS: OrderOption[] = [
   { value: 'STOREFRONT', label: 'หน้าร้าน', icon: 'building-store' },
   { value: 'FACEBOOK', label: 'Facebook', icon: 'brand-facebook' },
+  // 2026-08-10 — เธรด Instagram เคยถูกบันทึกเป็น FACEBOOK มาตลอด (chatChannelToSalesChannel แม็ปรวมกัน)
+  // ทั้งที่เป็นคนละช่องทางการขายจริง ๆ ในมุมร้าน (คนละกลุ่มลูกค้า คนละแคมเปญ) — user เคาะให้แยก
+  // สะกด "Instagram" ต้องตรงกับ CHANNEL_LABEL ใน src/lib/chat-channel.ts (HR16)
+  { value: 'INSTAGRAM', label: 'Instagram', icon: 'brand-instagram' },
   { value: 'LINE', label: 'LINE', icon: 'brand-line' },
   { value: 'TIKTOK', label: 'TikTok / TikTok Shop', icon: 'brand-tiktok' },
   { value: 'OTHER', label: 'อื่นๆ', icon: 'dots' },

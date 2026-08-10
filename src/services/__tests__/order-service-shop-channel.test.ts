@@ -22,7 +22,7 @@ const db = vi.hoisted(() => ({
   shop: { findUnique: vi.fn() },
   product: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
   conversation: { findFirst: vi.fn() },
-  externalContact: { updateMany: vi.fn() },
+  externalContact: { updateMany: vi.fn(), update: vi.fn() },
   inventoryEntitlement: { findUnique: vi.fn() },
   order: { create: vi.fn(), update: vi.fn() },
   orderEvent: { create: vi.fn() },
@@ -58,6 +58,7 @@ describe('createOrder — Order.shopChannelId (2026-08-10)', () => {
     db.order.update.mockResolvedValue({})
     db.orderEvent.create.mockResolvedValue({})
     db.externalContact.updateMany.mockResolvedValue({ count: 1 })
+    db.externalContact.update.mockResolvedValue({})
     custMock.findOrCreateCustomer.mockResolvedValue('cust-9')
   })
 
@@ -80,13 +81,16 @@ describe('createOrder — Order.shopChannelId (2026-08-10)', () => {
     expect(createArgs.data.shopChannelId).toBe('chan-line-1')
     // customer-link block ต้องไม่ทำงาน (ไม่มีเบอร์ → customerId null)
     expect(db.externalContact.updateMany).not.toHaveBeenCalled()
+    expect(db.externalContact.update).not.toHaveBeenCalled()
   })
 
   it('มี conversationId และ "มีเบอร์ลูกค้า" → เขียนทั้ง shopChannelId และผูก customer เหมือนเดิม', async () => {
-    // call แรก (นอก tx) resolve shopChannelId, call ที่สอง (ใน tx) resolve externalContactId
-    db.conversation.findFirst
-      .mockResolvedValueOnce({ shopChannelId: 'chan-fb-1' })
-      .mockResolvedValueOnce({ externalContactId: 'ext-1' })
+    // คิวรีเดียวตอบสองคำถาม (2026-08-10 รอบบ่าย): shopChannelId + ผู้ติดต่อของเธรด
+    // เดิมยิงเธรดเดิม 2 รอบต่อออเดอร์หนึ่งใบ (นอก tx ครั้งหนึ่ง ใน tx อีกครั้งหนึ่ง)
+    db.conversation.findFirst.mockResolvedValueOnce({
+      shopChannelId: 'chan-fb-1',
+      externalContact: { id: 'ext-1', customerId: null, customer: null },
+    })
 
     await createOrder('shop-1', {
       type: 'DIGITAL',
@@ -96,11 +100,16 @@ describe('createOrder — Order.shopChannelId (2026-08-10)', () => {
     })
 
     expect(custMock.findOrCreateCustomer).toHaveBeenCalledWith(db, '0812345678')
-    expect(db.conversation.findFirst).toHaveBeenCalledTimes(2)
+    expect(db.conversation.findFirst).toHaveBeenCalledTimes(1)
     const createArgs = db.order.create.mock.calls[0]![0]
     expect(createArgs.data.shopChannelId).toBe('chan-fb-1')
-    expect(db.externalContact.updateMany).toHaveBeenCalledWith({
-      where: { id: 'ext-1', customerId: null },
+    // 🛑 กติกาผูกเธรดเปลี่ยนวันเดียวกัน (user report "แก้เบอร์แล้วคำสั่งซื้อหายไป"):
+    // เดิมเป็น updateMany ที่กั้น `customerId: null` = "ไม่ทับอะไรเลยสักกรณี" ซึ่งกว้างกว่าเจตนาที่
+    // เขียนกำกับไว้เอง ("login ชนะ manual") ⇒ เธรดที่แอดมินเคยผูกด้วยมือ พอสร้างใบใหม่ด้วยเบอร์อื่น
+    // ใบใหม่ไม่เคยโผล่ในแผงของห้องนั้นเลย. ตอนนี้ตัดสินด้วย shouldRelinkThreadCustomer แล้ว update
+    // ตรง ๆ ด้วย id (เงื่อนไข "ห้ามทับลิงก์ที่มาจาก login" ย้ายไปอยู่ในฟังก์ชันนั้น + มีเทสของตัวเอง)
+    expect(db.externalContact.update).toHaveBeenCalledWith({
+      where: { id: 'ext-1' },
       data: { customerId: 'cust-9' },
     })
   })
@@ -119,7 +128,13 @@ describe('createOrder — Order.shopChannelId (2026-08-10)', () => {
     // พิสูจน์ว่า query ที่ยิงไปสโคปด้วย shopId ของร้านตัวเอง (กันผูกช่องทางของร้านอื่น)
     expect(db.conversation.findFirst).toHaveBeenCalledWith({
       where: { id: 'conv-of-another-shop', shopId: 'shop-1' },
-      select: { shopChannelId: true },
+      // คิวรีเดียวตอบสองคำถาม: ช่องทางของออเดอร์ + ผู้ติดต่อของเธรด (ผูก Customer)
+      select: {
+        shopChannelId: true,
+        externalContact: {
+          select: { id: true, customerId: true, customer: { select: { userId: true } } },
+        },
+      },
     })
     const createArgs = db.order.create.mock.calls[0]![0]
     expect(createArgs.data.shopChannelId).toBeUndefined()

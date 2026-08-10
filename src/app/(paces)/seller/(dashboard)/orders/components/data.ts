@@ -162,6 +162,7 @@ export type OrderRow = {
 export const SALES_CHANNEL_ICONS: Record<string, string> = {
   STOREFRONT: 'building-store',
   FACEBOOK: 'brand-facebook',
+  INSTAGRAM: 'brand-instagram',
   LINE: 'brand-line',
   TIKTOK: 'brand-tiktok',
   OTHER: 'world',
@@ -169,7 +170,10 @@ export const SALES_CHANNEL_ICONS: Record<string, string> = {
 export const SALES_CHANNEL_LABELS: Record<string, string> = {
   STOREFRONT: 'หน้าร้าน',
   FACEBOOK: 'Facebook',
-  LINE: 'Line',
+  INSTAGRAM: 'Instagram',
+  // 'LINE' ตัวใหญ่ทั้งคำ — เป็นการสะกดของแบรนด์ และตรงกับ CHANNEL_OPTIONS/chat-channel.ts (HR16)
+  // เดิมที่นี่เขียน 'Line' อยู่ที่เดียวในระบบ ทำให้ชื่อช่องทางเดียวกันสะกดคนละแบบระหว่างลิสต์ออเดอร์กับที่อื่น
+  LINE: 'LINE',
   TIKTOK: 'TikTok',
   OTHER: 'อื่นๆ',
 }

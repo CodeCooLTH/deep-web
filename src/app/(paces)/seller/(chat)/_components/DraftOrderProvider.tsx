@@ -696,6 +696,10 @@ export default function DraftOrderProvider({
                 formId={`draft-order-form-${d.id}`}
                 initialBuyerName={d.customerName}
                 initialSalesChannel={chatChannelToSalesChannel(d.channel)}
+                /* ล็อกเฉพาะตอน "สร้างใหม่จากเธรดที่รู้ช่องทางแน่นอน" — โหมดแก้ไขใบเดิมต้องกดได้เสมอ
+                   เพราะค่าที่โหลดมาคือค่าที่บันทึกไว้จริง (อาจต่างจากช่องทางของเธรดโดยตั้งใจ)
+                   เธรด Deep คืน undefined จึงไม่ล็อก = ผู้ขายเลือกเองตามที่ user เคาะ */
+                salesChannelLocked={!d.editOrderToken && !!chatChannelToSalesChannel(d.channel)}
                 conversationId={d.conversationId}
                 editOrderToken={d.editOrderToken ?? undefined}
                 prefillParseText={d.prefillText ?? undefined}

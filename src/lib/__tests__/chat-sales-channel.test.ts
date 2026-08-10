@@ -8,9 +8,15 @@ describe('[blocker] chatChannelToSalesChannel — ออเดอร์ที่
     expect(chatChannelToSalesChannel('LINE')).toBe('LINE')
   })
 
-  it('Messenger/Instagram → FACEBOOK (ฟอร์มไม่มีค่า INSTAGRAM แยก)', () => {
+  it('Messenger → FACEBOOK (คนทักเข้ามาที่ "เพจ Facebook" ไม่ใช่ "แอป Messenger")', () => {
     expect(chatChannelToSalesChannel('MESSENGER')).toBe('FACEBOOK')
-    expect(chatChannelToSalesChannel('INSTAGRAM')).toBe('FACEBOOK')
+  })
+
+  // เปลี่ยนกติกา 2026-08-10 (user เคาะ): เดิม IG ยุบรวมเป็น FACEBOOK ร้านจึงแยกไม่ออกว่ายอดมาจาก
+  // เพจหรือจาก IG ทั้งที่เป็นคนละกลุ่มลูกค้า — ค่านี้ไหลไปถึง badge/โลโก้ในคอลัมน์ "ที่มา" ผ่าน
+  // resolveOrderSource() ด้วย ถ้ากลับไปเป็น 'FACEBOOK' เมื่อไหร่ ออเดอร์จาก IG จะติด badge Facebook
+  it('Instagram → INSTAGRAM (ช่องทางของตัวเอง ไม่ยุบรวมกับ Facebook)', () => {
+    expect(chatChannelToSalesChannel('INSTAGRAM')).toBe('INSTAGRAM')
   })
 
   it('DEEP → undefined (แชทในแอปเราเองไม่บอกว่าลูกค้ามาจากช่องทางขายไหน)', () => {

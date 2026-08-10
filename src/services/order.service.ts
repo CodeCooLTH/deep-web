@@ -115,7 +115,20 @@ export function genShortCode(len = 8): string {
  */
 type ThreadContact = { id: string; customerId: string | null; customerUserId: string | null };
 
-/** ผู้ติดต่อของเธรดแชท — ownership scope ด้วย shopId ใน WHERE เสมอ (กันแตะเธรดของร้านอื่น) */
+/** แถว ExternalContact ที่ include มาแล้ว → รูปที่ relinkThreadCustomer ใช้ (null-safe) */
+function toThreadContact(
+  contact: { id: string; customerId: string | null; customer: { userId: string | null } | null } | null,
+): ThreadContact | null {
+  if (!contact) return null;
+  return { id: contact.id, customerId: contact.customerId, customerUserId: contact.customer?.userId ?? null };
+}
+
+/**
+ * ผู้ติดต่อของเธรดแชท — ownership scope ด้วย shopId ใน WHERE เสมอ (กันแตะเธรดของร้านอื่น)
+ *
+ * ใช้เฉพาะ `updateOrder` — `createOrder` ได้ข้อมูลนี้มาพร้อมคิวรีที่ resolve `shopChannelId` อยู่แล้ว
+ * (คิวรีเดียวตอบสองคำถาม ดูคอมเมนต์ตรงนั้น) การเรียกที่นี่ซ้ำจะเป็นการยิงเธรดเดิมสองรอบต่อออเดอร์หนึ่งใบ
+ */
 async function findThreadContact(
   tx: Prisma.TransactionClient,
   shopId: string,
@@ -130,9 +143,7 @@ async function findThreadContact(
       },
     },
   });
-  const contact = conv?.externalContact;
-  if (!contact) return null;
-  return { id: contact.id, customerId: contact.customerId, customerUserId: contact.customer?.userId ?? null };
+  return toThreadContact(conv?.externalContact ?? null);
 }
 
 async function relinkThreadCustomer(
@@ -418,13 +429,24 @@ export async function createOrder(shopId: string, data: {
   // เบอร์เท่านั้น ถ้าเอาไปห้อยใต้ customerId ออเดอร์จากแชทที่ยังไม่กรอกเบอร์จะไม่มีวันรู้ว่ามาจาก
   // ช่องทางไหนเลย — read-only เลยไม่ต้องอยู่ใน tx/retry-loop (เหมือนแพตเทิร์น ownership check ด้านบน)
   // scope ownership ด้วย shopId ใน WHERE — กันผูกออเดอร์กับช่องทางของร้านอื่น
+  //
+  // 🛑 คิวรีเดียวตอบ 2 คำถามโดยตั้งใจ: "ออเดอร์นี้มาจากช่องทางไหน" (shopChannelId) และ
+  // "เธรดนี้ผูกกับลูกค้าคนไหนอยู่" (externalContact — ใช้ตอนผูก Customer ด้านล่าง)
+  // เดิมแยกกันคนละคิวรีในรอบเดียวกัน = ยิงเธรดเดิมซ้ำสองครั้งต่อการสร้างออเดอร์หนึ่งใบ
   let resolvedShopChannelId: string | null = null;
+  let threadContact: ThreadContact | null = null;
   if (data.conversationId) {
     const conv = await prisma.conversation.findFirst({
       where: { id: data.conversationId, shopId },
-      select: { shopChannelId: true },
+      select: {
+        shopChannelId: true,
+        externalContact: {
+          select: { id: true, customerId: true, customer: { select: { userId: true } } },
+        },
+      },
     });
     resolvedShopChannelId = conv?.shopChannelId ?? null;
+    threadContact = toThreadContact(conv?.externalContact ?? null);
   }
 
   // shortCode: generate + retry ถ้าชน @unique (โอกาสชน 5 รอบติด ≈ 0). spec §4.2
@@ -577,11 +599,7 @@ export async function createOrder(shopId: string, data: {
         // 2026-08-10: เดิมเงื่อนไขคือ "เฉพาะแถวที่ยังไม่ผูก (customerId=null)" ซึ่งกว้างกว่าเจตนาที่
         // เขียนกำกับไว้เอง ("login ชนะ manual") — เธรดที่แอดมินเคยผูกด้วยมือแล้วสร้างใบใหม่ด้วยเบอร์อื่น
         // ใบใหม่จะไม่โผล่ในแผงของห้องนั้นเลย. กติกาย้ายไป shouldRelinkThreadCustomer ที่เดียว
-        await relinkThreadCustomer(
-          tx,
-          await findThreadContact(tx, shopId, data.conversationId),
-          customerId,
-        );
+        await relinkThreadCustomer(tx, threadContact, customerId);
 
         // NEW (00009 S-5) — StockMovement record-always (ทุก package, ไม่ gate ที่นี่)
         // insert หลัง order.create สำเร็จ เพราะต้องใช้ order.id เป็น refId
