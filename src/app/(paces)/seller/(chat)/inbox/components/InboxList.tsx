@@ -85,6 +85,7 @@ import { formatChatListTime } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { subscribeShopChat } from '@/lib/chat-shop-realtime'
 import { playChatBeep } from '@/lib/chat-sound'
+import { pickBeepTarget } from '@/lib/chat-beep-target'
 import { useChatSearchQuery } from '@/context/useChatSearchContext'
 import { useLongPress } from '@/hooks/useLongPress'
 import { pacesConfirm } from '@/lib/paces-swal'
@@ -693,22 +694,16 @@ export default function InboxList({
         // เสียงเตือนข้อความใหม่จากลูกค้า (user สั่ง 2026-07-23) — เทียบกับ state เดิม: เธรดใหม่ทั้งห้อง
         // หรือเธรดเดิมที่ lastMessageAt ขยับ **และ** ข้อความล่าสุดมาจากลูกค้า (ไม่ใช่ที่ร้านเพิ่งส่งเอง)
         // playChatBeep throttle ให้เองแล้วเมื่อหน้าเธรดดังพร้อมกัน (ดู comment ใน chat-sound.ts)
-        const prevById = new Map(prev.map((p) => [p.id, p]))
-        const beepFor = data.items.find((it) => {
-          if (it.lastSenderRole !== 'BUYER') return false
-          const before = prevById.get(it.id)
-          // ดังทุกข้อความที่ลูกค้าส่งเข้ามา (user สั่ง 2026-07-30) — เกณฑ์เดียวคือ "มีข้อความใหม่จริง"
-          //
-          // ประวัติที่ต้องรู้ก่อนแก้ตรงนี้: เดิม (2026-07-26) มีเงื่อนไขเพิ่มว่าต้องเป็น "เทิร์นใหม่"
-          // เท่านั้น (ก่อนหน้าต้องเป็นฝั่งร้านพูดล่าสุด) เพราะ user รายงานว่าลูกค้า spam รัว ๆ แล้ว
-          // เสียงดังรัว ๆ. ผลข้างเคียงคือข้อความที่ 2, 3, 4 ในเทิร์นเดียวกันเงียบสนิท → user รายงาน
-          // 2026-07-30 ว่า "มีข้อความเข้าแต่ดังครั้งเดียว"
-          //
-          // ตอนนี้แก้ที่ต้นเหตุจริงแทน: ความน่ารำคาญมาจาก "ความถี่" ไม่ใช่ "จำนวนข้อความ" →
-          // ย้ายไปคุมด้วยระยะเวลาที่ playChatBeep (MIN_GAP_MS) ซึ่งรวบข้อความที่มาติดกันเร็วให้เหลือ
-          // เสียงเดียว โดยข้อความที่ห่างกันพอสมควรยังมีเสียงของตัวเองครบ
-          return !before || new Date(it.lastMessageAt).getTime() > new Date(before.lastMessageAt).getTime()
-        })
+        /**
+         * เสียงเตือนข้อความใหม่จากลูกค้า (user สั่ง 2026-07-23) — เกณฑ์อยู่ที่ `pickBeepTarget`
+         * (`src/lib/chat-beep-target.ts`) ที่เดียว พร้อมเทส [blocker] ที่พิสูจน์ด้วย mutation แล้ว
+         *
+         * `comparable` = `prev` เป็นแถวของตัวกรองชุดเดียวกันหรือไม่ — ตัวแปรเดียวกับที่ `base`
+         * ข้างล่างใช้ (คำถามเดียวกัน: "prev ชุดนี้เอามาเทียบได้ไหม") เดิมเสียงไม่ได้เช็คข้อนี้เลย
+         * จึงดังทุกครั้งที่สลับแท็บ/ตัวกรอง/ค้นหา ทั้งที่ไม่มีข้อความใหม่ (user report 2026-08-10)
+         */
+        const comparable = itemsSignatureRef.current === sig
+        const beepFor = pickBeepTarget({ comparable, items: data.items, previous: prev })
         // throttle key เป็นร้านของเธรดนั้นเอง (ไม่ใช่ร้าน active) — ในโหมดรวม ถ้าใช้ key เดียว
         // ข้อความของ 3 ร้านที่มาพร้อมกันจะได้ยินเสียงเดียว ทั้งที่เป็นคนละร้านคนละเรื่อง
         if (beepFor) playChatBeep({ shopId: beepFor.shopId, conversationId: beepFor.id })
@@ -717,7 +712,7 @@ export default function InboxList({
         // `base`: ต่อท้ายด้วยของเดิมได้ **เฉพาะเมื่อของเดิมเป็นชุดของตัวกรองเดียวกัน** — ถ้าผลของ
         // ตัวกรองใหม่มาถึงก่อนที่ fetchList(replace) จะตอบ (poll ยิงทุก 20 วิ ชนได้ง่าย) prev ยัง
         // เป็นแถวของแท็บก่อนหน้าอยู่ การ merge จะพาแถวเหล่านั้นเข้ามาอยู่ในแท็บใหม่
-        const base = itemsSignatureRef.current === sig ? prev : []
+        const base = comparable ? prev : []
         return [...data.items, ...base.filter((p) => !freshIds.has(p.id))]
       })
       itemsSignatureRef.current = sig

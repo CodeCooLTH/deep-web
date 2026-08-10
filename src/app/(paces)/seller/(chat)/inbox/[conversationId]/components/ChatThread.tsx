@@ -70,6 +70,7 @@
  */
 import Icon from '@/components/wrappers/Icon'
 import AutoReplyTag from './AutoReplyTag'
+import NotificationSoundMenu from './NotificationSoundMenu'
 import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
 import ThreadStatusBar, { type ThreadStatusItem } from './ThreadStatusBar'
 import OrderProgressBar from './OrderProgressBar'
@@ -131,12 +132,6 @@ function mediaSrc(key: string): string {
 }
 import AiSuggestPanel from './AiSuggestPanel'
 import QuickMessageBar from './QuickMessageBar'
-import {
-  CHAT_SOUND_EVENT,
-  isChatSoundMuted,
-  isConversationMuted,
-  setConversationMuted,
-} from '@/lib/chat-sound'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
@@ -1077,20 +1072,6 @@ export default function ChatThread({
   }
   const showAdBanner = !!adReferral && !!adKey && adDismissChecked && adDismissedKey !== adKey
 
-  // เสียงแจ้งเตือน: สถานะปิดเสียง (ระดับแอป/รายเธรด) อ่านหลัง mount เท่านั้น — localStorage ไม่มี
-  // ฝั่ง server ถ้าอ่านตอน render แรกจะ hydration mismatch
-  const [appSoundMuted, setAppSoundMuted] = useState(false)
-  const [threadMuted, setThreadMuted] = useState(false)
-  useEffect(() => {
-    const sync = () => {
-      setAppSoundMuted(isChatSoundMuted())
-      setThreadMuted(isConversationMuted(conversationId))
-    }
-    sync()
-    window.addEventListener(CHAT_SOUND_EVENT, sync)
-    return () => window.removeEventListener(CHAT_SOUND_EVENT, sync)
-  }, [conversationId])
-
   // เหลือเงื่อนไขล็อกเดียว: เพจหลุดการเชื่อมต่อ (2026-08-03 — user: "การไป lock ui มันทำให้เกิดปัญหา")
   //
   // ต่างกันตรง "รู้แน่" กับ "เดา": tokenInvalid คือข้อเท็จจริงที่ยืนยันแล้ว (ยิงไปก็ 190 ทุกครั้ง)
@@ -1882,21 +1863,11 @@ export default function ChatThread({
           <span className="hidden md:inline">ข้อมูลลูกค้า</span>
         </button>
 
-        {/* ปิดเสียงเฉพาะเธรดนี้ (user สั่ง 2026-07-23) — ซ่อนเมื่อปิดเสียงระดับแอปอยู่แล้ว เพราะปุ่ม
-            นี้จะไม่มีผลอะไรและทำให้เข้าใจผิดว่า "เปิดอยู่" ทั้งที่ทั้งแอปเงียบ (สวิตช์ระดับแอปอยู่ที่
-            ChatHeader) */}
-        {!appSoundMuted && (
-          <button
-            type="button"
-            onClick={() => setConversationMuted(conversationId, !threadMuted)}
-            aria-pressed={threadMuted}
-            title={threadMuted ? 'เปิดเสียงเฉพาะแชทนี้' : 'ปิดเสียงเฉพาะแชทนี้'}
-            aria-label={threadMuted ? 'เปิดเสียงเฉพาะแชทนี้' : 'ปิดเสียงเฉพาะแชทนี้'}
-            className={`btn btn-icon hover:bg-default-100 shrink-0 ${threadMuted ? 'text-default-700' : 'text-default-700'}`}
-          >
-            <Icon icon={threadMuted ? 'bell-off' : 'bell'} className="text-lg" />
-          </button>
-        )}
+        {/* เสียงแจ้งเตือน — เมนูเดียวคุมทั้ง "ทั้งแอป" และ "เฉพาะแชทนี้" (user report 2026-08-10)
+            เดิมที่นี่เป็นปุ่มกระดิ่งรายเธรดที่ถูกซ่อนเมื่อปิดเสียงระดับแอป และสวิตช์ระดับแอปอยู่ใน
+            ChatHeader ซึ่ง hidden lg:flex ในหน้าเธรด ⇒ **บนมือถือในห้องแชทไม่มีสวิตช์เสียงให้แตะเลย**
+            แทนที่ 1:1 ไม่เพิ่มปุ่มใหม่ (งบพื้นที่หัวเธรดที่ 320px ตึงอยู่แล้ว — flex-header-truncation) */}
+        <NotificationSoundMenu conversationId={conversationId} />
       </div>
 
       {/**
