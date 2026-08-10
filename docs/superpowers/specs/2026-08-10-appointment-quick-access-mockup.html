@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ทางลัดระบบนัดหมาย 3 จุด — ปุ่มปฏิทินในแชท · ไทล์นัดวันนี้ · /queues มือถือ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+/* token ยกจาก src/assets/css/config/_root.css (Paces — ห้ามใช้ม่วง Vuexy #7367F0 ในจอ seller) */
+:root{
+  --primary:#236dc9; --primary-ink:#1e3a8a;
+  --success:#02bc9c; --success-ink:#065f46;
+  --info:#5bc3e1;    --info-ink:#1e40af;
+  --warning:#f9bf59; --warning-ink:#92400e;
+  --danger:#f7577e;  --danger-ink:#7f1d1d;
+  --card:#fff; --body-bg:#f6f7fb;
+  --d200:#eef2f7; --d300:#e7e9eb; --d400:#627189; --d500:#58626b; --d600:#4a5358; --d700:#40454a; --d900:#313a46;
+  --r:8px; --shadow:0 2px 8px rgb(49 58 70/.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;background:#e9ecf2;color:var(--d900);padding:26px 16px 80px;font-size:15px;line-height:1.47}
+.wrap{max-width:1360px;margin:0 auto}
+h1{font-size:22px;font-weight:800;margin-bottom:4px}
+.sub{font-size:13px;color:var(--d500);margin-bottom:22px}
+h2{font-size:17px;font-weight:800;margin:30px 0 4px;padding-top:14px;border-top:2px solid var(--d300)}
+.note{font-size:13px;color:var(--d500);margin-bottom:14px}
+.note b{color:var(--d900)}
+.row{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px}
+.dev{background:var(--card);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.dev>.lbl{padding:9px 14px;border-bottom:1px solid var(--d300);font-size:12px;font-weight:700;color:var(--d600);letter-spacing:.02em}
+.screen{background:var(--body-bg);padding:12px}
+.m390{width:390px}.m320{width:320px}.t834{width:560px}.d1280{width:720px}
+
+/* ── Paces primitives ── */
+.card{background:var(--card);border-radius:var(--r);box-shadow:0 1px 2px rgb(49 58 70/.08);overflow:hidden}
+.card+.card{margin-top:14px}
+.card-header{padding:12px 14px;border-bottom:1px dashed var(--d300);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card-title{font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
+.card-body{padding:14px}
+.btn{border:0;border-radius:6px;font:inherit;font-size:13px;font-weight:600;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-icon{width:37px;height:37px;padding:0;background:transparent;color:var(--d600);border-radius:6px;font-size:17px;flex-shrink:0}
+.btn-icon.on-success{color:var(--success)}
+.btn-icon.on-primary{color:var(--primary)}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.b-warn{background:rgb(249 191 89/.15);color:var(--warning-ink)}
+.b-pri{background:rgb(35 109 201/.15);color:var(--primary-ink)}
+.b-suc{background:rgb(2 188 156/.15);color:var(--success-ink)}
+.form-select{border:1px solid var(--d300);border-radius:6px;height:33px;font:inherit;font-size:13px;padding:0 26px 0 10px;background:#fff;color:var(--d700);appearance:none}
+.muted{color:var(--d500)} .xs{font-size:11px} .sm{font-size:13px}
+.ic{display:inline-block;width:1em;height:1em;vertical-align:-.125em}
+.dash{border-top:1px dashed var(--d300)}
+
+/* ── A: composer toolbar ── */
+.composer{border-top:1px dashed var(--d300);padding:11px 14px;background:var(--card)}
+.tools{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:8px}
+.tools .push{margin-inline-start:auto}
+.ta{border:1px solid var(--d300);border-radius:6px;min-height:44px;padding:10px 12px;color:var(--d400);font-size:14px}
+.ruler{font-size:11px;color:var(--d400);margin-top:6px;font-variant-numeric:tabular-nums}
+.hl{outline:2px dashed var(--primary);outline-offset:2px;border-radius:8px}
+
+/* ── ปฏิทิน ── */
+.calhead{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 10px}
+.calhead .mo{font-size:15px;font-weight:700}
+.nav{display:flex;gap:4px;align-items:center}
+.todaybtn{border:1px solid var(--d300);background:#fff;border-radius:999px;font:inherit;font-size:12px;font-weight:600;padding:5px 13px;color:var(--d700)}
+.legend{display:flex;gap:14px;justify-content:center;font-size:11px;color:var(--d500);padding-bottom:8px}
+.legend i{width:6px;height:6px;border-radius:999px;display:inline-block;margin-inline-end:4px}
+.dow,.days{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dow div{text-align:center;font-size:11px;font-weight:600;color:var(--d500);padding:4px 0}
+.day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;font-size:13px;color:var(--d900);position:relative;gap:2px}
+.day.out{color:var(--d400)}
+.day.sel{background:var(--primary);color:#fff;font-weight:700}
+.day.today{box-shadow:inset 0 0 0 1px var(--d300)}
+.day .dot{width:5px;height:5px;border-radius:999px;background:var(--warning)}
+.day.sel .dot{background:#fff}
+.day.full{color:var(--danger-ink)}
+
+/* ── รายการนัดของวัน ── */
+.dayhead{display:flex;align-items:center;justify-content:space-between;padding:12px 2px 8px;font-size:13px}
+.dayhead b{font-weight:700}
+.appt{display:flex;align-items:flex-start;gap:10px;background:var(--card);border-radius:var(--r);padding:10px 12px;box-shadow:0 1px 2px rgb(49 58 70/.07);margin-bottom:8px}
+.appt .t{width:56px;flex-shrink:0;font-size:13px;font-weight:700;line-height:1.3;font-variant-numeric:tabular-nums}
+.appt .t span{display:block;font-weight:400;color:var(--d500)}
+.appt .who{flex:1;min-width:0;font-size:13px;line-height:1.35}
+.appt .who .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.appt .who .no{font-size:11px;color:var(--d500);font-variant-numeric:tabular-nums}
+.appt .qn{color:var(--d500);font-weight:400}
+.sheetfoot{position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--d300);padding:10px 14px}
+.sheetfoot .btn{width:100%}
+
+/* ── sheet chrome ── */
+.sheet{background:var(--body-bg);border-radius:var(--r);overflow:hidden;box-shadow:0 1px 2px rgb(49 58 70/.08)}
+.sheethead{background:var(--card);display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-bottom:1px solid var(--d300)}
+.sheethead .sq{width:34px;height:34px;border-radius:8px;background:rgb(35 109 201/.15);color:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sheethead .tt{flex:1;min-width:0}
+.sheethead .tt b{font-size:15px;font-weight:700;display:block}
+.warnline{background:var(--card);padding:8px 14px;font-size:11px;color:var(--d500);border-bottom:1px solid var(--d300);line-height:1.4}
+
+/* ── B: filter bar / pill ── */
+.apptbar{display:flex;align-items:center;gap:8px;background:rgb(35 109 201/.10);border-radius:var(--r);padding:8px 10px;font-size:13px;margin-bottom:10px}
+.apptbar .g{flex:1;min-width:0;color:var(--primary-ink);font-weight:600}
+.clr{background:transparent;border:0;font:inherit;font-size:12px;font-weight:600;color:var(--primary);cursor:pointer;padding:6px 8px;border-radius:6px}
+.chiprow{display:flex;gap:6px;overflow:auto;padding-bottom:4px}
+.chip{border:1px solid var(--d300);background:#fff;border-radius:999px;font-size:12px;font-weight:600;padding:6px 12px;color:var(--d700);white-space:nowrap}
+.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:4px;background:var(--primary);color:#fff;border-radius:999px;font-size:12px;font-weight:600;padding:5px 6px 5px 11px}
+.pill button{background:rgb(255 255 255/.22);border:0;color:#fff;width:20px;height:20px;border-radius:999px;cursor:pointer;font:inherit;line-height:1;display:flex;align-items:center;justify-content:center}
+.srch{border:1px solid var(--d300);border-radius:6px;height:33px;padding:0 10px;font-size:13px;color:var(--d400);display:flex;align-items:center;min-width:150px;flex:1}
+
+/* ── tiles ── */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:8px;padding:4px 0;text-decoration:none;color:inherit}
+.tile .ico{position:relative;font-size:30px;line-height:1;padding:2px 4px}
+.tile .bg{position:absolute;top:-6px;right:-8px;min-width:16px;height:16px;padding:0 4px;background:var(--danger);color:#fff;border-radius:999px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.tile .lb{font-size:12px;font-weight:500;color:var(--d700);text-align:center;line-height:1.2}
+.arrowto{font-size:12px;color:var(--primary);font-weight:600;text-align:center;padding:6px 0 0}
+
+.why{background:var(--card);border-radius:10px;box-shadow:var(--shadow);padding:14px 18px;font-size:13px;color:var(--d500);margin-top:14px}
+.why b{color:var(--d900)} .why ul{margin:8px 0 0 18px} .why li{margin-bottom:5px}
+.why .stop{color:var(--danger-ink);font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>ทางลัดระบบนัดหมาย 3 จุด — ร้าน SERVICE_QUEUE</h1>
+<div class="sub">
+  Paces skin (primary <b>#236dc9</b> ไม่ใช่ม่วง Vuexy) · fixture ยกจากภาพจริงที่ user ส่ง (เสาร์ 15 ส.ค. 2569 · 6 คิว · รับพร้อมกัน 10 คิว · เลขออเดอร์รูปแบบ <code>#DP2569…</code>) ·
+  ทุกวันที่เป็น พ.ศ. ผ่าน <code>src/lib/format-date.ts</code> · ไอคอนในม็อกอัพวาดด้วยตัวอักษร/สัญลักษณ์แทน — ของจริงใช้ <code>@iconify/react</code> ทั้งหมด (HR12 ห้าม emoji)
+</div>
+
+<!-- ══════════════ A ══════════════ -->
+<h2>A · ปุ่มปฏิทินในแถบเครื่องมือแชท → ชีตรวมทุกคิว → ส่งต่อโมดัล</h2>
+<div class="note">
+  ปุ่มใหม่ <b>calendar-plus</b> วางถัดจากปุ่ม AI · สีตั้งต้น <code>text-default-600</code> ไม่ tint ค้าง (แถวนี้มี accent อยู่แล้ว 2 ตัว) ·
+  ที่ 320px แถวเดิม 7 ปุ่มกินไปแล้ว ~283/288px → เพิ่ม <code>flex-wrap</code> ให้ปุ่มสร้างออเดอร์ตกบรรทัดสอง <b>ไม่ซ่อนปุ่มไหนในเมนู</b>
+</div>
+
+<div class="row">
+  <div class="dev m320">
+    <div class="lbl">มือถือ 320px — worst case (8 ปุ่ม) · wrap ทำงาน</div>
+    <div class="screen" style="padding:0">
+      <div class="composer">
+        <div class="tools">
+          <button class="btn btn-icon">⚡</button>
+          <button class="btn btn-icon">▣</button>
+          <button class="btn btn-icon">🔗</button>
+          <button class="btn btn-icon">☺</button>
+          <button class="btn btn-icon">◈</button>
+          <button class="btn btn-icon on-success">✦</button>
+          <button class="btn btn-icon hl" title="ดูตารางว่างคิวงาน">▦</button>
+          <button class="btn btn-icon on-primary push">＋</button>
+        </div>
+        <div class="ta">พิมพ์ข้อความ…</div>
+        <div class="ruler">7 ปุ่ม × 37px + gap 4px × 6 = 283px · เพิ่มตัวที่ 8 = 324px &gt; 288px → ตกบรรทัด</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dev m390">
+    <div class="lbl">มือถือ 390px — แถวเดียวพอดี</div>
+    <div class="screen" style="padding:0">
+      <div class="composer">
+        <div class="tools">
+          <button class="btn btn-icon">⚡</button>
+          <button class="btn btn-icon">▣</button>
+          <button class="btn btn-icon">🔗</button>
+          <button class="btn btn-icon">☺</button>
+          <button class="btn btn-icon">◈</button>
+          <button class="btn btn-icon on-success">✦</button>
+          <button class="btn btn-icon hl">▦</button>
+          <button class="btn btn-icon on-primary push">＋</button>
+        </div>
+        <div class="ta">พิมพ์ข้อความ…</div>
+        <div class="ruler">8 ปุ่ม = 324px ≤ 358px · ไม่ wrap</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dev d1280">
+    <div class="lbl">เดสก์ท็อป — rail แชท 384px (ปุ่มสร้างออเดอร์ md:hidden จึงเหลือ 7)</div>
+    <div class="screen" style="padding:0">
+      <div class="composer">
+        <div class="tools">
+          <button class="btn btn-icon">⚡</button>
+          <button class="btn btn-icon">▣</button>
+          <button class="btn btn-icon">🔗</button>
+          <button class="btn btn-icon">☺</button>
+          <button class="btn btn-icon">◈</button>
+          <button class="btn btn-icon on-success">✦</button>
+          <button class="btn btn-icon hl">▦</button>
+        </div>
+        <div class="ta">พิมพ์ข้อความ…</div>
+        <div class="ruler">ชีตที่เปิดจากตรงนี้กว้าง 384px → ต้องคง container query <code>@3xl/@5xl</code> ห้ามใช้ md:/lg:</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="dev m390">
+    <div class="lbl">มือถือ 390px — ชีต "รวมทุกคิว" (ขั้นที่ 1 เลือกวัน)</div>
+    <div class="screen">
+      <div class="sheet">
+        <div class="sheethead">
+          <span class="sq">▦</span>
+          <span class="tt">
+            <b>เลือกวันและเวลา</b>
+            <span class="sm muted">ภาพรวมทุกคิวงาน · รับได้รวม 10 คิว</span>
+          </span>
+          <button class="btn btn-icon">✕</button>
+        </div>
+        <div class="warnline">ตัวเลขนับรวมทุกคิวงาน — ระบบจะแยกเช็กความว่างอีกครั้งตอนเลือกคิวในฟอร์ม</div>
+        <div style="padding:12px 12px 0">
+          <div class="calhead">
+            <button class="btn btn-icon">‹</button>
+            <span class="mo">ส.ค. 2569</span>
+            <span class="nav"><button class="todaybtn">วันนี้</button><button class="btn btn-icon">›</button></span>
+          </div>
+          <div class="legend"><span><i style="background:var(--warning)"></i>มีคิวแล้ว</span><span><i style="background:#fff;box-shadow:inset 0 0 0 1px var(--d300)"></i>วันนี้</span></div>
+          <div class="dow"><div>อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div>ส</div></div>
+          <div class="days">
+            <div class="day out">27</div><div class="day out">28</div><div class="day out">29</div><div class="day out">30</div><div class="day out">31</div><div class="day">1</div><div class="day">2</div>
+            <div class="day">3</div><div class="day">4</div><div class="day">5</div><div class="day">6</div><div class="day">7</div><div class="day">8</div><div class="day">9</div>
+            <div class="day today">10</div><div class="day">11</div><div class="day">12</div><div class="day">13</div><div class="day">14<span class="dot"></span></div><div class="day sel">15<span class="dot"></span></div><div class="day">16<span class="dot"></span></div>
+            <div class="day">17</div><div class="day">18</div><div class="day">19</div><div class="day">20</div><div class="day">21</div><div class="day">22</div><div class="day">23</div>
+            <div class="day">24</div><div class="day">25</div><div class="day">26</div><div class="day">27</div><div class="day">28</div><div class="day">29</div><div class="day">30</div>
+          </div>
+          <div class="dayhead"><b>เสาร์ 15 ส.ค. 2569</b><span class="muted">จองแล้ว 6 จาก 10 คิว</span></div>
+          <div class="appt"><span class="t">ทั้งวัน</span><span class="who"><span class="nm"><span class="qn">ช่างเอ ·</span> Thanawit A.</span><span class="no">#DP25690815BD0309</span></span><span class="badge b-warn">นัดแล้ว</span></div>
+          <div class="appt"><span class="t">09:00<span>– 10:00</span></span><span class="who"><span class="nm"><span class="qn">ช่างบี ·</span> สำราญ ชวดท่าข้าม</span><span class="no">#DP2569083B983127</span></span><span class="badge b-pri">ลูกค้ายืนยันแล้ว</span></div>
+          <div class="appt"><span class="t">09:00<span>– 10:00</span></span><span class="who"><span class="nm"><span class="qn">ช่างเอ ·</span> เกียรติศักดิ์ นอขุนทด</span><span class="no">#DP256908786F6C3F</span></span><span class="badge b-suc">ให้บริการแล้ว</span></div>
+        </div>
+        <div class="sheetfoot"><button class="btn btn-primary">เลือกเวลาของ 15 ส.ค. 2569 ›</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dev t834">
+    <div class="lbl">แท็บเล็ต 834px — ชีตกล่องกว้าง (@5xl) ปฏิทินซ้าย / รายการขวา · เหมือนเดิมทุกประการ</div>
+    <div class="screen">
+      <div class="sheet">
+        <div class="sheethead">
+          <span class="sq">▦</span>
+          <span class="tt"><b>เลือกวันและเวลา</b><span class="sm muted">ภาพรวมทุกคิวงาน · รับได้รวม 10 คิว</span></span>
+          <button class="btn btn-icon">✕</button>
+        </div>
+        <div class="warnline">ตัวเลขนับรวมทุกคิวงาน — ระบบจะแยกเช็กความว่างอีกครั้งตอนเลือกคิวในฟอร์ม</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px">
+          <div>
+            <div class="calhead"><button class="btn btn-icon">‹</button><span class="mo">ส.ค. 2569</span><span class="nav"><button class="todaybtn">วันนี้</button><button class="btn btn-icon">›</button></span></div>
+            <div class="dow"><div>อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div>ส</div></div>
+            <div class="days">
+              <div class="day out">27</div><div class="day out">28</div><div class="day out">29</div><div class="day out">30</div><div class="day out">31</div><div class="day">1</div><div class="day">2</div>
+              <div class="day">3</div><div class="day">4</div><div class="day">5</div><div class="day">6</div><div class="day">7</div><div class="day">8</div><div class="day">9</div>
+              <div class="day today">10</div><div class="day">11</div><div class="day">12</div><div class="day">13</div><div class="day">14<span class="dot"></span></div><div class="day sel">15<span class="dot"></span></div><div class="day">16<span class="dot"></span></div>
+              <div class="day">17</div><div class="day">18</div><div class="day">19</div><div class="day">20</div><div class="day">21</div><div class="day">22</div><div class="day">23</div>
+            </div>
+          </div>
+          <div>
+            <div class="dayhead"><b>เสาร์ 15 ส.ค. 2569</b><span class="muted">6 จาก 10 คิว</span></div>
+            <div class="appt"><span class="t">ทั้งวัน</span><span class="who"><span class="nm"><span class="qn">ช่างเอ ·</span> Thanawit A.</span><span class="no">#DP25690815BD0309</span></span><span class="badge b-warn">นัดแล้ว</span></div>
+            <div class="appt"><span class="t">09:00<span>– 10:00</span></span><span class="who"><span class="nm"><span class="qn">ช่างบี ·</span> สำราญ ชวดท่าข้าม</span><span class="no">#DP2569083B983127</span></span><span class="badge b-pri">ลูกค้ายืนยันแล้ว</span></div>
+          </div>
+        </div>
+        <div class="sheetfoot"><button class="btn btn-primary">เลือกเวลาของ 15 ส.ค. 2569 ›</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="why">
+  <b>ทำไมแบบนี้ (A)</b>
+  <ul>
+    <li><b>ชื่อคิวอยู่บรรทัดเดียวกับชื่อลูกค้า</b> (<code>ช่างเอ · Thanawit A.</code>) ไม่แยกบรรทัด — รวมทุกคิวแล้วรายการยาวขึ้นอยู่แล้ว ถ้าเพิ่มบรรทัดจะเห็นน้อยลงต่อจอ · สูตรเดียวกับ <code>AppointmentCalendar.tsx:280</code></li>
+    <li><span class="stop">บรรทัดเตือนใต้หัวชีตไม่ใช่ของประดับ</span> — "ว่าง" ที่คิดจากยอดรวมทั้งร้าน คือตัวเลขบางส่วนที่หน้าตาเหมือนตัวเลขที่ครบแล้ว (<code>partial-data-must-be-labeled-or-filled.md</code>)</li>
+    <li>ปุ่มยืนยันยังเป็น <code>bg-primary</code> ตัวเดียวในจอ — ปุ่มเปิดชีตในแถบเครื่องมือจึงต้องไม่ tint แข่ง</li>
+  </ul>
+</div>
+
+<!-- ══════════════ B ══════════════ -->
+<h2>B · ไทล์ "นัดวันนี้" → <code>/orders?apptDay=today</code></h2>
+<div class="note">แกนใหม่แยกจาก <code>?appt=</code> (สถานะนัด) เพราะเป็นคนละแกน · ตัวกรองต้อง <b>มองเห็นและล้างได้</b> ไม่ใช่กรองเงียบ</div>
+
+<div class="row">
+  <div class="dev m390">
+    <div class="lbl">มือถือ 390px — ไทล์บนหน้าแรก (ก่อนกด)</div>
+    <div class="screen">
+      <div class="card">
+        <div class="card-header"><span class="card-title">▤ คิวงาน</span><span class="sm" style="color:var(--primary);font-weight:600">ดูทั้งหมด ›</span></div>
+        <div class="card-body">
+          <div class="tiles">
+            <a class="tile"><span class="ico" style="color:var(--warning)">◔<span class="bg">4</span></span><span class="lb">รอดำเนินการ</span></a>
+            <a class="tile hl"><span class="ico" style="color:var(--info)">▦<span class="bg">6</span></span><span class="lb">นัดวันนี้</span></a>
+            <a class="tile"><span class="ico" style="color:var(--success)">◉</span><span class="lb">สำเร็จ</span></a>
+            <a class="tile"><span class="ico" style="color:var(--d500)">⊘</span><span class="lb">ยกเลิก</span></a>
+          </div>
+          <div class="arrowto">↓ กด "นัดวันนี้" → /orders?apptDay=today (เดิมไป /queues)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dev m390">
+    <div class="lbl">มือถือ 390px — /orders หลังกด</div>
+    <div class="screen">
+      <div class="apptbar">
+        <span class="g">▦ กำลังดูเฉพาะนัดวันนี้ · 6 รายการ</span>
+        <button class="clr" aria-label="ล้างตัวกรองนัดวันนี้">ล้าง ✕</button>
+      </div>
+      <div class="chiprow">
+        <span class="chip on">ทั้งหมด 6</span><span class="chip">ไม่มีนัด 0</span><span class="chip">นัดแล้ว 3</span><span class="chip">ลูกค้ายืนยันแล้ว 2</span><span class="chip">ให้บริการแล้ว 1</span>
+      </div>
+      <div style="height:10px"></div>
+      <div class="card"><div class="card-body" style="padding:12px">
+        <div class="sm" style="font-weight:700">Thanawit Atikitchinnawut</div>
+        <div class="xs muted" style="margin-top:2px">#DP25690815BD0309 · ทั้งวัน · ช่างเอ</div>
+        <div style="margin-top:8px"><span class="badge b-warn">นัดแล้ว</span></div>
+      </div></div>
+      <div class="card"><div class="card-body" style="padding:12px">
+        <div class="sm" style="font-weight:700">สำราญ ชวดท่าข้าม</div>
+        <div class="xs muted" style="margin-top:2px">#DP2569083B983127 · 09:00–10:00 · ช่างบี</div>
+        <div style="margin-top:8px"><span class="badge b-pri">ลูกค้ายืนยันแล้ว</span></div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="dev d1280">
+    <div class="lbl">เดสก์ท็อป 1280px — toolbar ของตาราง</div>
+    <div class="screen">
+      <div class="card">
+        <div class="card-header" style="display:block">
+          <div class="toolbar">
+            <span class="srch">ค้นหา…</span>
+            <span class="pill">▦ นัดวันนี้ <button aria-label="ล้างตัวกรองนัดวันนี้">✕</button></span>
+            <select class="form-select"><option>สถานะ</option></select>
+            <select class="form-select"><option>สถานะนัด</option></select>
+            <select class="form-select"><option>ช่วงเวลา</option></select>
+            <select class="form-select"><option>แถวละ 20</option></select>
+            <button class="btn btn-primary" style="margin-inline-start:auto">＋ สร้างงานใหม่</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="sm muted">แถวออเดอร์ 6 ใบที่มีนัดคาบเกี่ยววันนี้ …</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="why">
+  <b>ทำไมแบบนี้ (B)</b>
+  <ul>
+    <li><span class="stop">pill แยกจาก chip row โดยตั้งใจ</span> — ถ้ายัด "นัดวันนี้" เข้าไปเป็นชิปตัวหนึ่ง ผู้ใช้กด "ทั้งหมด" แล้วจะนึกว่าล้างครบ ทั้งที่ apptDay ยังค้างอยู่</li>
+    <li><b>ตัวนับบนชิปสถานะนัดต้องนับจากชุดที่ผ่าน apptDay แล้ว</b> ไม่ใช่จากออเดอร์ทั้งร้าน — ไม่งั้นชิปบอก "นัดแล้ว 12" แต่กดแล้วเจอ 3 (BR-SOV-06)</li>
+    <li><b>ปุ่มล้างเป็น <code>&lt;button&gt;</code> มี aria-label + padding ขยาย hit-area</b> — badge เปล่าเล็กกว่า 44px และ <code>&lt;span&gt;</code> ไม่รองรับชื่อจากผู้เขียน (<code>aria-name-requires-supporting-role.md</code>)</li>
+    <li><span class="stop">ตัวเลขบนไทล์จะขยับเล็กน้อย</span> — เกณฑ์เดิมของไทล์ (<code>serviceResourceId != null</code>) ไม่ตรงกับเกณฑ์ของรายการ (<code>serviceStart</code>) อยู่ก่อนแล้ว รอบนี้ยึด <code>serviceStart</code> ทั้งคู่</li>
+  </ul>
+</div>
+
+<!-- ══════════════ C ══════════════ -->
+<h2>C · <code>/queues</code> บนมือถือ (&lt;1024px) = ผังเดียวกับชีต แบบดูอย่างเดียว</h2>
+<div class="note">เส้นสลับย้ายจาก 768 → <b>1024 (lg)</b> ให้ตรงกับ shell ของแอป · <code>≥lg</code> คง FullCalendar เดิมทุกบรรทัด</div>
+
+<div class="row">
+  <div class="dev m390">
+    <div class="lbl">มือถือ 390px — /queues</div>
+    <div class="screen">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">▦ ปฏิทินคิว</span>
+          <select class="form-select"><option>ทุกคิวงาน</option></select>
+        </div>
+        <div class="card-body" style="padding:12px">
+          <div class="calhead"><button class="btn btn-icon">‹</button><span class="mo">ส.ค. 2569</span><span class="nav"><button class="todaybtn">วันนี้</button><button class="btn btn-icon">›</button></span></div>
+          <div class="legend"><span><i style="background:var(--warning)"></i>มีคิวแล้ว</span><span><i style="background:var(--danger)"></i>เต็ม</span><span><i style="background:#fff;box-shadow:inset 0 0 0 1px var(--d300)"></i>วันนี้</span></div>
+          <div class="dow"><div>อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div>ส</div></div>
+          <div class="days">
+            <div class="day out">27</div><div class="day out">28</div><div class="day out">29</div><div class="day out">30</div><div class="day out">31</div><div class="day">1</div><div class="day">2</div>
+            <div class="day">3</div><div class="day">4</div><div class="day">5</div><div class="day">6</div><div class="day">7</div><div class="day">8</div><div class="day">9</div>
+            <div class="day today">10</div><div class="day">11</div><div class="day">12</div><div class="day">13</div><div class="day">14<span class="dot"></span></div><div class="day sel">15<span class="dot"></span></div><div class="day">16<span class="dot"></span></div>
+            <div class="day">17</div><div class="day">18</div><div class="day">19</div><div class="day">20</div><div class="day">21</div><div class="day">22</div><div class="day">23</div>
+          </div>
+          <div class="dash" style="margin:12px -12px 0"></div>
+          <div class="dayhead"><b>เสาร์ 15 ส.ค. 2569</b><span class="muted">จองแล้ว 6 จาก 10 คิว</span></div>
+          <div class="appt" style="cursor:pointer"><span class="t">ทั้งวัน</span><span class="who"><span class="nm"><span class="qn">ช่างเอ ·</span> Thanawit A.</span><span class="no">#DP25690815BD0309</span></span><span class="badge b-warn">นัดแล้ว</span><span class="muted">›</span></div>
+          <div class="appt" style="cursor:pointer"><span class="t">09:00<span>– 10:00</span></span><span class="who"><span class="nm"><span class="qn">ช่างบี ·</span> สำราญ ชวดท่าข้าม</span><span class="no">#DP2569083B983127</span></span><span class="badge b-pri">ลูกค้ายืนยันแล้ว</span><span class="muted">›</span></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-header"><span class="card-title">▤ คิวงานของร้าน</span></div><div class="card-body sm muted">ResourceList เดิม — ไม่แตะ</div></div>
+      <div class="card"><div class="card-header"><span class="card-title">⚙ การรับนัด</span></div><div class="card-body sm muted">GranularitySetting เดิม — ไม่แตะ</div></div>
+    </div>
+  </div>
+
+  <div class="dev t834">
+    <div class="lbl">แท็บเล็ต 834px (&lt;1024) — ได้ผังมือถือด้วย (ของเดิมได้ FullCalendar ทั้งที่ sidebar หายไปแล้ว)</div>
+    <div class="screen">
+      <div class="card">
+        <div class="card-header"><span class="card-title">▦ ปฏิทินคิว</span><select class="form-select"><option>ทุกคิวงาน</option></select></div>
+        <div class="card-body" style="padding:12px">
+          <div class="calhead"><button class="btn btn-icon">‹</button><span class="mo">ส.ค. 2569</span><span class="nav"><button class="todaybtn">วันนี้</button><button class="btn btn-icon">›</button></span></div>
+          <div class="dow"><div>อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div>ส</div></div>
+          <div class="days">
+            <div class="day out">27</div><div class="day out">28</div><div class="day out">29</div><div class="day out">30</div><div class="day out">31</div><div class="day">1</div><div class="day">2</div>
+            <div class="day today">10</div><div class="day">11</div><div class="day">12</div><div class="day">13</div><div class="day">14<span class="dot"></span></div><div class="day sel">15<span class="dot"></span></div><div class="day">16<span class="dot"></span></div>
+          </div>
+          <div class="dayhead"><b>เสาร์ 15 ส.ค. 2569</b><span class="muted">จองแล้ว 6 จาก 10 คิว</span></div>
+          <div class="appt"><span class="t">ทั้งวัน</span><span class="who"><span class="nm"><span class="qn">ช่างเอ ·</span> Thanawit A.</span><span class="no">#DP25690815BD0309</span></span><span class="badge b-warn">นัดแล้ว</span><span class="muted">›</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dev d1280">
+    <div class="lbl">เดสก์ท็อป ≥1024px — คงเดิมทุกอย่าง (FullCalendar)</div>
+    <div class="screen">
+      <div class="card">
+        <div class="card-header"><span class="card-title">▦ ปฏิทินคิว · ส.ค. 2569</span>
+          <span style="display:flex;gap:6px"><select class="form-select"><option>ทุกคิวงาน</option></select>
+          <span class="chip on">เดือน</span><span class="chip">สัปดาห์</span><span class="chip">วัน</span><span class="chip">รายการ</span></span>
+        </div>
+        <div class="card-body sm muted" style="min-height:150px;display:flex;align-items:center;justify-content:center">FullCalendar dayGridMonth เดิม — ไม่แตะแม้แต่คลาสเดียว</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="why">
+  <b>ทำไมแบบนี้ (C)</b>
+  <ul>
+    <li><b>ห่อ <code>.card</code> + หัวการ์ด + ดรอปดาวน์เลือกคิว คงคลาสเดิมทุกตัว</b> — หน้านี้มีพี่น้องอีก 2 การ์ดใต้ลงไป ถ้าผังใหม่ไม่ใช่การ์ดจะกลายเป็นของแปลกปลอมกลางหน้า (<code>sibling-surface-parity.md</code>)</li>
+    <li><b>รายการไม่จำกัดความสูง</b> — อยู่ในหน้าเต็ม ไม่ใช่ชีต การ cap แล้วให้เลื่อนซ้อนในหน้าที่เลื่อนได้อยู่แล้ว = สองแกนเลื่อนทับกัน</li>
+    <li><b>แถวกดได้ → <code>/orders/{token}</code></b> + ปุ่ม <code>+</code> ต่อวันคงพฤติกรรมเดิม (รวม toast เตือนวันเต็ม) — "ดูอย่างเดียว" หมายถึงไม่มีขั้นเลือกเวลา/ปุ่มยืนยัน ไม่ได้แปลว่าเอาทางเข้าเดิมออก</li>
+  </ul>
+</div>
+
+<div class="why" style="margin-top:26px">
+  <b>สิ่งที่ไม่ได้ทำในรอบนี้</b>
+  <ul>
+    <li><code>?apptDay=</code> ค่าอื่นนอกจาก <code>today</code> (พรุ่งนี้ / สัปดาห์นี้) — ยังไม่มีใครขอ</li>
+    <li>เดสก์ท็อป <code>/queues</code> (user เคาะว่าคงเดิม)</li>
+    <li>การลากย้ายนัดในปฏิทิน (ยังปิดตามเดิม — เปิดแล้วผู้ใช้จะเข้าใจว่าบันทึกแล้วทั้งที่ไม่ได้บันทึก)</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>
