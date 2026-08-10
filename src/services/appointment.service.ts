@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isExclusionViolation } from "@/lib/prisma-errors";
-import { thaiMidnightUtc, todayThaiIsoDate } from "@/lib/date-range";
+import { appointmentDayWhere } from "@/lib/appointment-day";
 import {
   APPOINTMENT_ORDER_TYPE,
   APPOINTMENT_STATUS,
@@ -552,28 +552,22 @@ export async function listAppointments(args: {
  * ไม่มีวันเข้าถึง (fulfillmentMode = NO_SHIPPING → ไม่มี SHIPPED state ดู order-display.ts) ไทล์นั้น
  * จึงขึ้น 0 ตลอดกาล กินพื้นที่ 1 ใน 4 ช่องของแถบ "งานค้างวันนี้" ไปเปล่า ๆ
  *
- * ขอบเขตวันใช้ปฏิทินไทยผ่าน thaiMidnightUtc — ห้ามตัดวันด้วย UTC (บทเรียน feature 00033: /sales
- * กับ /orders เคยตัดคนละแบบกับ dashboard แล้วตัวเลขสองหน้าไม่ตรงกัน)
+ * ขอบเขตวันใช้ปฏิทินไทย — ห้ามตัดวันด้วย UTC (บทเรียน feature 00033: /sales กับ /orders เคยตัด
+ * คนละแบบกับ dashboard แล้วตัวเลขสองหน้าไม่ตรงกัน)
  *
- * เกณฑ์ = ช่วงนัด "คาบเกี่ยว" วันนี้ (start < พรุ่งนี้ && end > วันนี้) ชุดเดียวกับ listAppointments
- * ไม่ใช่ `serviceStart` อยู่ในวันนี้ — โหมด DAY ที่นัดข้ามหลายวันจะหายไปจากวันกลาง ๆ
+ * เกณฑ์ = ช่วงนัด "คาบเกี่ยว" วันนี้ ไม่ใช่ `serviceStart` อยู่ในวันนี้ — โหมด DAY ที่นัดข้ามหลายวัน
+ * จะหายไปจากวันกลาง ๆ
  *
  * นับรวมนัดที่จบไปแล้ววันนี้ (COMPLETED/NO_SHOW) โดยตั้งใจ — ป้ายเขียนว่า "นัดวันนี้" ซึ่งเป็น
  * ข้อเท็จจริงของทั้งวัน ไม่ใช่ "ที่ยังไม่ได้ทำ" ตัดออกเฉพาะ CANCELLED เหมือน listAppointments
+ *
+ * 🛑 2026-08-10: นิยามย้ายไป `src/lib/appointment-day.ts` ทั้งก้อน เพราะไทล์นี้ลิงก์เข้า
+ * `/orders?apptDay=today` แล้ว — ตัวเลขบนไทล์กับจำนวนแถวที่กรองได้ต้องมาจากนิยามเดียวกัน
+ * (BR-SOV-06). พร้อมกันนั้นเกณฑ์คัดเปลี่ยนจาก `serviceResourceId != null` เป็น `serviceStart != null`
+ * ให้ตรงกับที่รายการใช้ — ของเดิมสองที่ไม่ตรงกันอยู่แล้วสำหรับนัดที่ถูกถอด resource ออกภายหลัง
  */
 export async function getTodayAppointmentCount(shopId: string): Promise<number> {
-  const iso = todayThaiIsoDate();
-  const [y, m, d] = iso.split("-").map(Number);
-  const from = thaiMidnightUtc(y, m - 1, d);
-  const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
-
   return prisma.order.count({
-    where: {
-      shopId,
-      serviceResourceId: { not: null },
-      status: { not: "CANCELLED" },
-      serviceStart: { lt: to },
-      serviceEnd: { gt: from },
-    },
+    where: { shopId, ...appointmentDayWhere("today") },
   });
 }

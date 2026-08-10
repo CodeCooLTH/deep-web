@@ -40,6 +40,7 @@ import {
   countAppointmentStages,
   isAppointmentStatus,
 } from '@/lib/appointment-stage'
+import { appointmentOverlapsDay, isAppointmentDayKey } from '@/lib/appointment-day'
 import { ORDER_STATUS_META } from '@/lib/order-display'
 import { ORDER_DATE_PRESETS, isSpecificDay, matchesOrderDateFilter } from '@/lib/order-date-filter'
 import { formatDateTH } from '@/lib/format-date'
@@ -133,6 +134,17 @@ export default function OrdersList({
    */
   const appt = apptParam === 'NONE' || isAppointmentStatus(apptParam) ? apptParam : null
   /**
+   * `?apptDay=` — แกน "วันของนัด" (ทางเข้าเดียวตอนนี้คือไทล์ "นัดวันนี้" บนหน้าแรก 2026-08-10)
+   *
+   * แยกจาก `?appt=` โดยตั้งใจ: อันนั้นเป็นแกน *สถานะ* ส่วนอันนี้เป็นแกน *วันที่* ใช้พร้อมกันได้
+   * (นัดวันนี้ + ที่ยังไม่ยืนยัน) — เอาค่าวันที่ไปปนในแกนสถานะคือคลาสบั๊กเดียวกับ 00028
+   *
+   * แยกจาก `dateFilter` ด้วย เพราะตัวนั้นกรอง `createdAtISO` = **วันที่สั่งซื้อ** คนละวันกับวันนัด
+   * และเป็น client state ที่ deep-link ไม่ได้ · ค่าที่ไม่รู้จัก = ไม่กรอง (fail-open)
+   */
+  const apptDayParam = searchParams.get('apptDay')
+  const apptDay = isAppointmentDayKey(apptDayParam) ? apptDayParam : null
+  /**
    * ตัวกรองช่วงเวลาของมือถือ (2026-08-08) — โมดัลนี้ไม่เคยมีตัวกรองวันที่เลย มีแต่ฝั่ง
    * เดสก์ท็อป แปลว่าผู้ใช้มือถือเข้าไม่ถึงแกนนี้มาตลอด · ค่าเดียวกับที่เดสก์ท็อปใช้
    * ('All' | preset | 'YYYY-MM-DD') และกรองด้วยฟังก์ชันตัวเดียวกัน (SSOT)
@@ -197,7 +209,12 @@ export default function OrdersList({
    * เขียน query ใหม่โดยคงพารามิเตอร์อีกตัวไว้เสมอ — `?status=` (สถานะการขาย) กับ `?stage=`
    * (สถานะพัสดุ) เป็นคนละแกน ใช้พร้อมกันได้ ถ้าเขียนทับกันผู้ใช้จะรู้สึกว่ากดอันหนึ่งแล้วอีกอันหลุด
    */
-  const pushQuery = (patch: { status?: string | null; stage?: string | null; appt?: string | null }) => {
+  const pushQuery = (patch: {
+    status?: string | null
+    stage?: string | null
+    appt?: string | null
+    apptDay?: string | null
+  }) => {
     const next = new URLSearchParams(searchParams.toString())
     for (const [k, v] of Object.entries(patch)) {
       if (v == null) next.delete(k)
@@ -220,26 +237,51 @@ export default function OrdersList({
     pushQuery({ stage: stage === value ? null : value })
   }
 
+  /**
+   * ก้อนที่ทุกตัวนับและทุกตัวกรองด้านล่างยืนอยู่บน — เท่ากับ `orders` เป๊ะเมื่อไม่มี `?apptDay=`
+   *
+   * 🛑 ต้องเป็นชั้นนอกสุด ไม่ใช่ชั้นหนึ่งใน `filtered`: ถ้ากรองทีหลัง ชิปจะบอก "นัดแล้ว 12"
+   * (ทั้งร้าน) แต่กดแล้วเหลือ 3 (เฉพาะวันนี้) — จอเดียวขึ้นสองเลขที่ขัดกันเองโดยไม่มีอะไรอธิบาย
+   * ซึ่งเป็นอาการเดียวกับที่ BR-SOV-06 มีไว้กัน
+   *
+   * เกณฑ์คาบเกี่ยววันมาจาก lib/appointment-day.ts ตัวเดียวกับที่ getTodayAppointmentCount
+   * ประกอบ where — เลขบนไทล์หน้าแรกกับจำนวนแถวที่นี่จึงตรงกันเสมอ
+   */
+  const dayScoped = useMemo(() => {
+    if (!apptDay) return orders
+    return orders.filter((o) =>
+      appointmentOverlapsDay(
+        {
+          startISO: o.appointment?.startISO,
+          endISO: o.appointment?.endISO,
+          status: o.status,
+        },
+        apptDay,
+      ),
+    )
+  }, [orders, apptDay])
+
   // ─── count per status ───────────────────────────────────────────────────────
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: orders.length }
-    for (const o of orders) counts[o.status] = (counts[o.status] ?? 0) + 1
+    const counts: Record<string, number> = { all: dayScoped.length }
+    for (const o of dayScoped) counts[o.status] = (counts[o.status] ?? 0) + 1
     return counts
-  }, [orders])
+  }, [dayScoped])
 
   /**
    * ตัวนับบนชิปสถานะพัสดุ — นับจาก `orders` ก้อนเดียวกับที่กรอง ห้ามยิง endpoint นับแยก
    * ไม่งั้นเลขบนชิปกับจำนวนแถวที่กรองได้จะเพี้ยนจากกันโดยไม่มีอะไรเตือน
    * นับก่อนกรองด้วย stage แต่หลังกรอง status/ประเภท/คำค้น ไม่ได้ — จงใจนับจากก้อนดิบ เพราะชิป
    * ต้องบอก "ทั้งร้านมีกี่ใบในกองนี้" ให้ตรงกับตัวเลขบนไทล์หน้าแรกซึ่งก็นับจากทั้งร้านเช่นกัน
+   * (ยกเว้นเมื่อ `?apptDay=` เปิดอยู่ — ตอนนั้น "ทั้งร้าน" หมายถึงทั้งร้านของวันนั้น ดู dayScoped)
    */
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const o of orders) {
+    for (const o of dayScoped) {
       if (o.shippingStage) counts[o.shippingStage] = (counts[o.shippingStage] ?? 0) + 1
     }
     return counts
-  }, [orders])
+  }, [dayScoped])
 
   /** ร้านที่ไม่ใช่ ONLINE_SALES ไม่มีพัสดุให้ไล่ → shippingStage undefined ทุกแถว → ไม่มีแกนนี้ */
   const hasStageAxis =
@@ -250,8 +292,8 @@ export default function OrdersList({
    * (countAppointmentStages รับ stage ที่ derive แล้ว จึงไม่มีทางนับคนละเกณฑ์กับตัวกรอง — BR-SOV-06)
    */
   const apptCounts = useMemo(
-    () => countAppointmentStages(orders.map((o) => o.appointment?.stage ?? null)),
-    [orders],
+    () => countAppointmentStages(dayScoped.map((o) => o.appointment?.stage ?? null)),
+    [dayScoped],
   )
 
   /**
@@ -259,7 +301,10 @@ export default function OrdersList({
    * กับจำนวนแถวตรงกันเสมอ · `appointment` เป็น undefined เมื่อร้านไม่มีแกนนี้ ซึ่งกรณีนั้น
    * ทั้งชิปและตัวกรองจะไม่ถูก render อยู่แล้ว ตัวเลขนี้จึงไม่มีใครอ่าน
    */
-  const noAppointmentCount = useMemo(() => orders.filter((o) => !o.appointment).length, [orders])
+  const noAppointmentCount = useMemo(
+    () => dayScoped.filter((o) => !o.appointment).length,
+    [dayScoped],
+  )
 
   /**
    * ร้าน walk-in ล้วนไม่มีนัดสักใบ → ไม่มีแกนนี้เลย (AC-8.2) — ไม่ใช่แกนที่มีอยู่แต่ทุกกองเป็น 0
@@ -291,7 +336,7 @@ export default function OrdersList({
           {
             key: 'all',
             label: 'ทั้งหมด',
-            count: orders.length,
+            count: dayScoped.length,
             active: appt === null,
             select: () => pushQuery({ appt: null }),
           },
@@ -318,7 +363,7 @@ export default function OrdersList({
           {
             key: 'all',
             label: 'ทั้งหมด',
-            count: orders.length,
+            count: dayScoped.length,
             active: stage === null,
             select: () => pushQuery({ stage: null }),
           },
@@ -344,13 +389,13 @@ export default function OrdersList({
    * ค้นหาของตัวเองอยู่แล้ว · ทั้งสองแกนกรองจาก field เดียวกับที่ตัวนับข้างบนนับ (BR-SOV-06)
    */
   const stageFiltered = useMemo(() => {
-    let list = orders
+    let list = dayScoped
     if (stage) list = list.filter((o) => o.shippingStage === stage)
     // 'NONE' กรองด้วยเงื่อนไขเดียวกับที่ noAppointmentCount นับ — ห้ามเขียนคนละแบบ
     if (appt === 'NONE') list = list.filter((o) => !o.appointment)
     else if (appt) list = list.filter((o) => o.appointment?.stage === appt)
     return list
-  }, [orders, stage, appt])
+  }, [dayScoped, stage, appt])
 
   const filtered = useMemo(() => {
     let list = stageFiltered
@@ -374,7 +419,7 @@ export default function OrdersList({
   // reset lazy-load เมื่อ filter/search/status เปลี่ยน
   useEffect(() => {
     setVisibleCount(PAGE)
-  }, [localStatus, typeFilter, search, stage, appt, dateFilter])
+  }, [localStatus, typeFilter, search, stage, appt, apptDay, dateFilter])
 
   // ─── lazy-load: เพิ่ม visibleCount เมื่อ sentinel เข้า viewport ───────────────
   const visible = filtered.slice(0, visibleCount)
@@ -473,6 +518,16 @@ export default function OrdersList({
                   // อ่านตัวเลขจากที่เดียวกับชิปมือถือ (symbol เดียว — sibling-surface-parity)
                   counts: { ...apptCounts, NONE: noAppointmentCount },
                   onChange: (v) => pushQuery({ appt: v }),
+                }
+              : undefined
+          }
+          apptDayFilter={
+            apptDay
+              ? {
+                  label: 'นัดวันนี้',
+                  // นับจาก dayScoped ก้อนเดียวกับที่ชิปมือถือใช้ — symbol เดียว ไม่ใช่นับซ้ำ
+                  count: dayScoped.length,
+                  onClear: () => pushQuery({ apptDay: null }),
                 }
               : undefined
           }
@@ -589,6 +644,31 @@ export default function OrdersList({
           </Link>
         </div>
 
+        {/* แถบ "นัดวันนี้" — ตัวกรองแกนวันที่ต้องมองเห็นและล้างได้ (user สั่ง 2026-08-10)
+
+            ทำไมไม่ยัดเป็นชิปตัวหนึ่งในแถวข้างล่าง: แถวนั้นเป็นชุด radio ของ "แกนเดียว" (กดตัวหนึ่ง
+            ตัวอื่นหลุด) ถ้าเอา apptDay ไปอยู่ในนั้น ผู้ใช้กด "ทั้งหมด" แล้วจะเข้าใจว่าล้างครบ
+            ทั้งที่วันยังถูกกรองค้างอยู่ — สองแกนที่ AND กันต้องแสดงเป็นสองสัญญาณ ไม่ใช่แถวเดียว
+
+            ปุ่มล้างเป็น <button> มี aria-label จริง ไม่ใช่ <span> ที่ใส่ label แล้วถูก AT ทิ้ง
+            (docs/conventions/aria-name-requires-supporting-role.md) + py-2 ดัน hit-area ให้ถึงนิ้ว */}
+        {apptDay && (
+          <div className="bg-primary/10 mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5">
+            <Icon icon="calendar-event" className="text-primary shrink-0 text-base" aria-hidden="true" />
+            <p className="text-primary-ink mb-0 min-w-0 flex-1 truncate text-xs font-semibold">
+              กำลังดูเฉพาะนัดวันนี้ · {dayScoped.length} รายการ
+            </p>
+            <button
+              type="button"
+              onClick={() => pushQuery({ apptDay: null })}
+              aria-label="ล้างตัวกรองนัดวันนี้"
+              className="text-primary shrink-0 rounded-md px-2 py-2 text-xs font-semibold"
+            >
+              ล้าง
+            </button>
+          </div>
+        )}
+
         {/* filter chips — แถวเดียว เลื่อนแนวนอน (ซ่อน scrollbar); สลับด้วย swipe ทั้งจอ
             รายการชิปมาจาก chipRow: ร้านขายออนไลน์ = สถานะพัสดุ · ร้านอื่น = สถานะการขายแบบเดิม
             เปลี่ยนจาก underline-tab → chip row ตาม mockup v10 Frame 3 ".chips" style
@@ -639,11 +719,23 @@ export default function OrdersList({
               compact
               icon="shopping-cart-off"
               title={
-                isSpecificDay(dateFilter)
+                /* apptDay มาก่อน dateFilter: ผู้ใช้เพิ่งกดไทล์ "นัดวันนี้" มา ถ้าขึ้นข้อความ
+                   กลาง ๆ ("ไม่มีคำสั่งซื้อในสถานะนี้") เขาจะอ่านว่าระบบพัง ไม่ใช่ว่าวันนี้ว่าง
+                   และถ้ามีชิปสถานะนัดกรองซ้อนอยู่ด้วย ต้องบอกทั้งสองเงื่อนไข ไม่งั้นผู้ใช้จะกด
+                   "ล้างนัดวันนี้" แล้วยังว่างอยู่ โดยไม่รู้ว่าตัวที่กรองจริงคืออีกตัว */
+                apptDay
+                  ? appt
+                    ? 'วันนี้ไม่มีนัดในสถานะที่เลือก'
+                    : 'วันนี้ยังไม่มีนัดเข้ามา'
+                  : isSpecificDay(dateFilter)
                   ? `ไม่มี${vocab.noun}วันที่ ${formatDateTH(`${dateFilter}T00:00:00+07:00`)}`
                   : `ไม่มี${vocab.noun}ในสถานะนี้`
               }
-              action={{ label: `+ ${vocab.createLabel}แรก`, href: '/orders/new' }}
+              action={
+                apptDay
+                  ? { label: `ดู${vocab.noun}ทั้งหมด`, href: '/orders' }
+                  : { label: `+ ${vocab.createLabel}แรก`, href: '/orders/new' }
+              }
             />
           </div>
         </div>

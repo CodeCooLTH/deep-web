@@ -63,8 +63,14 @@ export function shiftIsoDate(iso: string, days: number): string {
   return new Date(base.getTime() + days * DAY_MS).toISOString().slice(0, 10)
 }
 
-export function todayThaiIsoDate(): string {
-  const t = new Date(Date.now() + TZ_OFFSET_MS)
+/**
+ * วันนี้ตามปฏิทินไทยในรูป "YYYY-MM-DD"
+ *
+ * `now` เป็น optional เพื่อให้เทสกำหนดเวลาเองได้โดยไม่ต้อง mock ทั้งนาฬิกา (เพิ่ม 2026-08-10
+ * ตอนทำ appointment-day.ts ซึ่งต้องพิสูจน์เคสขอบเที่ยงคืนไทย) — ผู้เรียกเดิมทุกจุดไม่ต้องแก้
+ */
+export function todayThaiIsoDate(now?: Date): string {
+  const t = new Date((now?.getTime() ?? Date.now()) + TZ_OFFSET_MS)
   return isoOf(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate())
 }
 

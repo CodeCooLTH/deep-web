@@ -156,6 +156,17 @@ type Props = {
     counts: Record<string, number>
     onChange: (value: string | null) => void
   }
+  /**
+   * `?apptDay=today` เปิดอยู่ไหม (feature 00024 ส่วนขยาย 2026-08-10) — undefined = ไม่ได้กรอง
+   *
+   * เป็น pill ล้างได้ ไม่ใช่ FilterDropdown อีกตัว เพราะแกนนี้มีค่าเดียวและมีทางเข้าเดียว
+   * (ไทล์บนหน้าแรก) ดรอปดาวน์ที่มีตัวเลือกเดียวคือปุ่มที่ปลอมตัวเป็นตัวเลือก
+   */
+  apptDayFilter?: {
+    label: string
+    count: number
+    onClear: () => void
+  }
 }
 
 export default function OrdersTable({
@@ -167,6 +178,7 @@ export default function OrdersTable({
   busy,
   hasShippingAxis = true,
   appointmentFilter,
+  apptDayFilter,
 }: Props) {
   const router = useRouter()
   const [globalFilter,   setGlobalFilter]   = useState('')
@@ -764,6 +776,27 @@ export default function OrdersTable({
         {/* toolbar ใหม่ (user อนุมัติ mockup 2026-08-06): ตัดป้าย "กรอง:" ทิ้ง — ปุ่มมี icon+ชื่อ
             ในตัว ไม่ต้องมีป้ายบอกอีกชั้น · ตัวกรองพัสดุย้ายจากแถบชิปมาอยู่แถวเดียวกัน */}
         <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+          {/* นัดวันนี้ — pill ที่มาจากไทล์หน้าแรก (user สั่ง 2026-08-10)
+              วางหัวแถวก่อนดรอปดาวน์ทุกตัว เพราะเป็นบริบทที่ผู้ใช้ "พามาเอง" ไม่ใช่สิ่งที่เพิ่ง
+              เลือกในหน้านี้ — ถ้าไปอยู่ท้ายแถวจะถูกกวาดตาข้ามแล้วอ่านตัวเลขทั้งตารางผิด */}
+          {apptDayFilter && (
+            <span className="badge bg-primary inline-flex items-center gap-1 rounded-full py-1 ps-3 pe-1 text-xs font-semibold text-white">
+              <Icon icon="calendar-event" className="text-sm" aria-hidden="true" />
+              {apptDayFilter.label}
+              <span className="tabular-nums">{apptDayFilter.count}</span>
+              {/* ปุ่มจริง ไม่ใช่ span — <span> ไม่มี role ที่รองรับชื่อจากผู้เขียน AT จะทิ้ง label
+                  (docs/conventions/aria-name-requires-supporting-role.md) */}
+              <button
+                type="button"
+                onClick={apptDayFilter.onClear}
+                aria-label={`ล้างตัวกรอง${apptDayFilter.label}`}
+                className="ms-0.5 inline-flex size-5 items-center justify-center rounded-full bg-white/20 hover:bg-white/30"
+              >
+                <Icon icon="x" className="text-xs" />
+              </button>
+            </span>
+          )}
+
           {/* สถานะ */}
           <FilterDropdown
             icon="truck"
