@@ -757,15 +757,19 @@ type ChatMessageWithDelivery = ChatMessageView & {
   replyTo?: (NonNullable<ChatMessageView['replyTo']> & { quotable?: boolean }) | null
 }
 
-/** (S-14b) tone ของแคปชันโควตา LINE → คลาสสีของธีม — ฟังก์ชันตรรกะ (`deriveLineQuotaCaption`)
- *  ไม่รู้จัก Tailwind เลย การแปลงเกิดที่นี่ที่เดียว
- *  🛑 ไล่ความเข้มตามน้ำหนักของข่าว ไม่ใช่ตามความสวย: quiet = ไม่รู้ (เงียบที่สุด ห้ามดูเหมือนคำเตือน
- *  เพราะยังส่งได้ปกติ) · neutral = ปกติ · warning = ใกล้หมด/หมดแต่ยังส่งฟรีได้ · danger = ส่งไม่ได้จริง */
-const QUOTA_TONE_CLASS: Record<'quiet' | 'neutral' | 'warning' | 'danger', string> = {
-  quiet: 'text-default-400',
-  neutral: 'text-default-500',
-  warning: 'text-warning-ink',
-  danger: 'text-danger-ink',
+/** (S-14b · ย้ายเข้าปุ่มส่ง 2026-08-10) tone ของสถานะโควตา LINE → คลาสของธีม — ฟังก์ชันตรรกะ
+ *  (`deriveLineQuotaCaption`) ไม่รู้จัก Tailwind เลย การแปลงเกิดที่นี่ที่เดียว
+ *
+ *  ตอนแคปชันยังเป็นข้อความใต้ช่องพิมพ์ tone ถูกแปลงเป็น "สีตัวอักษร" ได้ตรง ๆ — พอย้ายมาอยู่บนปุ่ม
+ *  พื้น `bg-primary` ตัวอักษรเป็นสีขาวเสมอ จะเปลี่ยนสีคำเพื่อสื่อความหมายไม่ได้อีก (คอนทราสต์ตก
+ *  และผิด One Voice) จึงย้ายช่องสื่อสารไปที่ **ขอบ** แทน
+ *  🛑 quiet/neutral ต้องเป็นค่าว่าง ไม่ใช่ขอบจาง ๆ — ปุ่มที่มีขอบตลอดเวลาแปลว่าขอบไม่ได้บอกอะไรเลย
+ *  danger ก็ว่าง เพราะสถานะนั้นปุ่มถูกปิดไปแล้วและมีแถบแดงบอกวิธีแก้อยู่เหนือช่องพิมพ์ */
+const QUOTA_BUTTON_RING_CLASS: Record<'quiet' | 'neutral' | 'warning' | 'danger', string> = {
+  quiet: '',
+  neutral: '',
+  warning: 'ring-2 ring-warning',
+  danger: '',
 }
 
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000
@@ -3298,36 +3302,35 @@ export default function ChatThread({
                 และต้องเป็นพี่น้องของ textarea ในกล่องนี้ ไม่ใช่ห่อ textarea เพิ่มอีกชั้น —
                 useComposerHeight ใช้ `textarea.parentElement` เป็น "กล่องนอก" ทั้งตอนล็อก
                 ความสูงระหว่างวัด (กันเธรดเด้งบน iOS) และตอน observe การโผล่/หายของคิวรูปแนบ */}
-            {/* (S-14b) แคปชันโควตา/หน้าต่างฟรีของ LINE อยู่แถวเดียวกับปุ่มส่ง — ตำแหน่งที่ตอบโจทย์
-                "เห็นก่อนกดส่ง" ตรงที่สุดโดยไม่เพิ่ม chrome ถาวรให้หัวเธรดที่แน่นอยู่แล้ว
+            {/* (S-14b · ปรับ 2026-08-10 ตาม user) สถานะโควตา/หน้าต่างฟรีของ LINE ย้ายจากแคปชัน
+                ใต้ช่องพิมพ์ **เข้าไปอยู่บนปุ่มส่ง** — คำตอบไปอยู่ตรงที่นิ้วกำลังจะกดพอดี และคืน
+                บรรทัดใต้ช่องพิมพ์ให้กล่องพิมพ์
                 non-LINE ได้ className เดิมทุกตัวอักษร (lineQuotaCaption เป็น null เสมอ) */}
-            <div
-              className={
-                lineQuotaCaption ? 'flex items-center justify-between gap-2 px-2 pb-2' : 'flex justify-end px-2 pb-2'
-              }
-            >
-              {lineQuotaCaption && (
-                <span
-                  className={`min-w-0 flex-1 truncate text-xs ${QUOTA_TONE_CLASS[lineQuotaCaption.tone]}`}
-                  // ข้อความย่อ/เต็มเป็นคนละสตริง (ไม่ใช่ truncate ของอันเดียว) — จอแคบต้องได้ประโยคที่
-                  // อ่านจบในตัว ไม่ใช่ประโยคยาวที่ถูกตัดหางจนไม่รู้ว่าเหลือเท่าไหร่
-                  title={lineQuotaCaption.fullText}
-                >
-                  <span className="sm:hidden">{lineQuotaCaption.shortText}</span>
-                  <span className="hidden sm:inline">{lineQuotaCaption.fullText}</span>
-                </span>
-              )}
+            <div className="flex justify-end px-2 pb-2">
               <button
                 type="button"
                 onClick={handleSend}
                 disabled={composerDisabled || sending || uploading || (!text.trim() && pendingImages.length === 0)}
+                // ตัวเลขบนปุ่มบอกแค่ "290/300" ซึ่งอ่านออกด้วยตาเพราะมีบริบทรอบตัว แต่ screen reader
+                // อ่านทีละ element จะได้ "ส่ง 290/300" ที่ไม่มีทางรู้ว่าเป็นโควตา — ให้ชื่อที่เข้าถึงได้
+                // เป็นประโยคเต็มแทน (ยังขึ้นต้นด้วย "ส่ง" ที่มองเห็น จึงไม่ผิด WCAG 2.5.3 Label in Name)
+                aria-label={lineQuotaCaption ? `ส่ง — ${lineQuotaCaption.fullText}` : undefined}
+                title={lineQuotaCaption?.fullText}
                 // btn-sm + rounded-full = ทรงพิลล์เล็กตามภาพอ้างอิง (user 2026-08-06) — ทั้งคู่เป็น
                 // primitive ของธีม (_buttons.css `.btn-sm`, Tailwind `rounded-full`) ไม่ใช่ arbitrary
                 // ปุ่มเล็กลงได้เพราะย้ายเข้ามาในกล่องแล้ว: กล่องทั้งใบคือเป้าสายตาอยู่แล้ว
                 // ปุ่มไม่ต้องแบกหน้าที่ "หาให้เจอ" เหมือนตอนลอยเดี่ยวข้างกล่อง
-                className="btn btn-sm bg-primary text-white hover:bg-primary-hover shrink-0 rounded-full disabled:opacity-60"
+                className={`btn btn-sm bg-primary text-white hover:bg-primary-hover shrink-0 rounded-full disabled:opacity-60 ${
+                  lineQuotaCaption ? QUOTA_BUTTON_RING_CLASS[lineQuotaCaption.tone] : ''
+                }`}
               >
-                ส่ง <Icon icon="send-2" className="ms-1 text-base" />
+                ส่ง
+                {lineQuotaCaption?.buttonSuffix && (
+                  // font-normal + opacity ต่ำกว่าคำว่า "ส่ง" เล็กน้อย — ตัวเลขเป็นข้อมูลประกอบ
+                  // ไม่ใช่ป้ายของปุ่ม ถ้าน้ำหนักเท่ากันปุ่มจะอ่านเหมือนมีสองคำสั่ง
+                  <span className="ms-1 font-normal opacity-90">· {lineQuotaCaption.buttonSuffix}</span>
+                )}
+                <Icon icon="send-2" className="ms-1 text-base" />
               </button>
             </div>
           </div>

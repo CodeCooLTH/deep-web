@@ -28,6 +28,19 @@ export interface LineQuotaCaption {
   tone: 'quiet' | 'neutral' | 'warning' | 'danger'
   /** 🛑 ปิดช่องพิมพ์ + ปุ่มส่งไหม — true ได้ทางเดียวเท่านั้น (ดู comment ในฟังก์ชัน) */
   blocking: boolean
+  /**
+   * (2026-08-10, user สั่ง) ข้อความต่อท้ายคำว่า "ส่ง" บนปุ่ม — `null` = ปุ่มพูดแค่ "ส่ง" ตามเดิม
+   *
+   * ย้ายมาอยู่บนปุ่มแทนแคปชันใต้ช่องพิมพ์ เพราะคำตอบที่ผู้ขายต้องการอยู่ตรงที่นิ้วกำลังจะกดพอดี
+   * 🛑 **ห้ามมีสถานะไหนที่ปุ่มเงียบทั้งที่มีเรื่องต้องบอก** — `null` สงวนไว้ให้ 3 กรณีที่ "ไม่มีอะไร
+   * ต้องบอกจริง ๆ" เท่านั้น (ไม่จำกัดโควตา / อ่านยอดไม่สำเร็จ / โควตาหมดซึ่งมีแถบแดงบอกวิธีแก้อยู่แล้ว
+   * และปุ่มถูกปิดไปแล้ว) — ถ้าเพิ่มสถานะใหม่ในอนาคตแล้วปล่อยเป็น null ผู้ขายจะไม่รู้เลยว่าใบนี้
+   * หักเงินหรือไม่ ซึ่งเป็นเหตุผลทั้งหมดที่ฟีเจอร์นี้มีอยู่ (PRD: ร้าน Free มี 300 ข้อความ/เดือน)
+   *
+   * คำว่า "ส่ง" ไม่ได้อยู่ในนี้โดยตั้งใจ — ปุ่มนั้นใช้ร่วมกับ Messenger/IG/แชทในแอปที่ไม่มีโควตา
+   * ให้ JSX เป็นเจ้าของคำนั้นที่เดียว ไฟล์นี้เป็นเจ้าของเฉพาะส่วนที่ผันตามสถานะของ LINE
+   */
+  buttonSuffix: string | null
 }
 
 /** ตัวเลขหลักพันต้องมีตัวคั่น ไม่งั้น "35000" อ่านผิดเป็นหลักหมื่นได้ง่าย ๆ ตอนกวาดตา */
@@ -59,6 +72,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
         fullText: 'ข้อความนี้ส่งฟรี (อยู่ในช่วงตอบด่วน) — โควตาหมดแล้วหลังจากนี้',
         tone: 'warning',
         blocking: false,
+        buttonSuffix: 'ฟรี',
       }
     }
     if (level === 'LOW' && !stale) {
@@ -67,6 +81,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
         fullText: 'ข้อความนี้ส่งฟรี (อยู่ในช่วงตอบด่วน) — โควตาใกล้หมด',
         tone: 'warning',
         blocking: false,
+        buttonSuffix: 'ฟรี',
       }
     }
     return {
@@ -74,6 +89,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
       fullText: 'ข้อความนี้ส่งฟรี (อยู่ในช่วงตอบด่วน)',
       tone: 'neutral',
       blocking: false,
+      buttonSuffix: 'ฟรี',
     }
   }
 
@@ -84,6 +100,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
       fullText: 'ไม่ทราบยอดโควตาตอนนี้ — ยังส่งได้ตามปกติ',
       tone: 'quiet',
       blocking: false,
+      buttonSuffix: null,
     }
   }
 
@@ -93,6 +110,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
       fullText: 'ไม่จำกัดโควตา — ส่งได้ตามปกติ',
       tone: 'neutral',
       blocking: false,
+      buttonSuffix: null,
     }
   }
 
@@ -102,6 +120,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
       fullText: 'โควตาหมดแล้ว ส่งไม่ได้ตอนนี้',
       tone: 'danger',
       blocking: true,
+      buttonSuffix: null,
     }
   }
 
@@ -113,6 +132,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
       fullText: 'ไม่ทราบยอดโควตาตอนนี้ — ยังส่งได้ตามปกติ',
       tone: 'quiet',
       blocking: false,
+      buttonSuffix: null,
     }
   }
 
@@ -122,6 +142,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
       fullText: `ใช้โควตา 1 ข้อความ (เหลือ ${fmt(remaining)}/${fmt(total)} ใกล้หมด)`,
       tone: 'warning',
       blocking: false,
+      buttonSuffix: `${fmt(remaining)}/${fmt(total)}`,
     }
   }
 
@@ -130,5 +151,6 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
     fullText: `ใช้โควตา 1 ข้อความ (เหลือ ${fmt(remaining)}/${fmt(total)})`,
     tone: 'neutral',
     blocking: false,
+    buttonSuffix: `${fmt(remaining)}/${fmt(total)}`,
   }
 }

@@ -92,3 +92,53 @@ describe('deriveLineQuotaCaption — หน้าต่างตอบฟรี�
     expect(c.shortText).toBe('โควตา 12,500/35,000')
   })
 })
+
+/**
+ * (2026-08-10) แคปชันใต้ช่องพิมพ์ถูกยุบเข้าปุ่มส่งตามที่ user สั่ง — ปุ่มจึงกลายเป็น **ช่องทางเดียว**
+ * ที่บอกว่าใบนี้หักโควตาหรือไม่ ชุดนี้จึงคุมสัญญาว่า "ปุ่มต้องไม่เงียบในสถานะที่มีเรื่องต้องบอก"
+ */
+describe('deriveLineQuotaCaption — ข้อความบนปุ่มส่ง (buttonSuffix)', () => {
+  it('[blocker] อยู่ในหน้าต่างฟรี → ปุ่มต้องบอกว่า "ฟรี" ทุกกรณี ไม่ว่าโควตาจะเหลือเท่าไหร่', () => {
+    // นี่คือสถานะที่เจอบ่อยที่สุดตอนคุยกับลูกค้าจริง (reply token 60 วินาที) — ถ้าปุ่มเงียบตรงนี้
+    // ผู้ขายจะแยกไม่ออกเลยว่าใบไหนหักเงินใบไหนฟรี ซึ่งเป็นเหตุผลทั้งหมดที่ S-14b มีอยู่
+    for (const over of [{}, { level: 'LOW' as const, remaining: 12 }, { level: 'EXHAUSTED' as const, remaining: 0 }]) {
+      const c = deriveLineQuotaCaption(input({ windowOpen: true, ...over }))
+      expect(c.buttonSuffix).toBe('ฟรี')
+    }
+  })
+
+  it('[blocker] หน้าต่างปิด + รู้ยอดจริง → ปุ่มต้องโชว์ "เหลือ/ทั้งหมด" ไม่ใช่เงียบ', () => {
+    expect(deriveLineQuotaCaption(input({ remaining: 290, total: 300 })).buttonSuffix).toBe('290/300')
+    expect(deriveLineQuotaCaption(input({ level: 'LOW', remaining: 12 })).buttonSuffix).toBe('12/300')
+  })
+
+  it('ตัวเลขบนปุ่มใช้ตัวคั่นหลักชุดเดียวกับแคปชัน (ตัวเลขเดียวกันต้องมาจากสูตรเดียว)', () => {
+    const c = deriveLineQuotaCaption(input({ remaining: 12_500, total: 35_000 }))
+    expect(c.buttonSuffix).toBe('12,500/35,000')
+    expect(c.shortText).toContain(c.buttonSuffix!)
+  })
+
+  it('เงียบได้เฉพาะ 3 กรณีที่ไม่มีอะไรต้องบอกจริง ๆ', () => {
+    // ไม่จำกัดโควตา / อ่านยอดไม่สำเร็จ / โควตาหมด (ปุ่มถูกปิด + มีแถบแดงบอกวิธีแก้อยู่แล้ว)
+    expect(deriveLineQuotaCaption(input({ type: 'unlimited' })).buttonSuffix).toBeNull()
+    expect(deriveLineQuotaCaption(input({ stale: true })).buttonSuffix).toBeNull()
+    const blocked = deriveLineQuotaCaption(input({ level: 'EXHAUSTED', remaining: 0 }))
+    expect(blocked.buttonSuffix).toBeNull()
+    expect(blocked.blocking).toBe(true)
+  })
+
+  it('[blocker] ทุกสถานะที่ปุ่มยังกดได้และหักโควตา ต้องมี suffix — ไม่มีช่องโหว่ให้เงียบ', () => {
+    const cases: Partial<LineQuotaCaptionInput>[] = [
+      { windowOpen: true },
+      { windowOpen: true, level: 'LOW', remaining: 9 },
+      { windowOpen: true, level: 'EXHAUSTED', remaining: 0 },
+      { remaining: 290, total: 300 },
+      { level: 'LOW', remaining: 12 },
+    ]
+    for (const over of cases) {
+      const c = deriveLineQuotaCaption(input(over))
+      expect(c.blocking).toBe(false)
+      expect(c.buttonSuffix, `สถานะ ${JSON.stringify(over)} ปล่อยให้ปุ่มเงียบ`).not.toBeNull()
+    }
+  })
+})
