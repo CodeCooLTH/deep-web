@@ -8,9 +8,22 @@
 @import 'tailwindcss/utilities.css' layer(utilities) important;
 @plugin 'tailwindcss-logical';
 
-/* Build-config: กัน Tailwind v4 ไม่ให้สแกน docs/ (retro/convention ที่ยกตัวอย่าง
- * class arbitrary จะ gen CSS พังทั้ง group). ดู task #12 / retro B1. */
+/* Build-config: กัน Tailwind v4 ไม่ให้สแกน "ไฟล์เอกสาร" — retro/convention ที่ยกตัวอย่าง
+ * class arbitrary ในเนื้อความ จะถูก extract เป็นคลาสจริงแล้ว gen CSS ที่ parse ไม่ผ่านทั้ง group
+ * ดู task #12 / retro B1
+ *
+ * 🛑 `docs/` ถูกกันไว้ตั้งแต่รอบนั้น แต่ **ไฟล์เอกสารที่รากรีโปไม่เคยถูกกัน** — `CLAUDE.md`
+ * เขียนอธิบายบทเรียน iOS safe-area ไว้ว่า "`pb-[env(...)]` ที่เขียนไว้ทั่ว (paces)" ซึ่งเป็น
+ * ประโยคภาษาไทยล้วน ๆ แต่ Tailwind อ่านซอร์สเป็น **ข้อความ** จึงหยิบไปเจน
+ * `.pb-\[env\(\.\.\.\)\] { padding-bottom: env(...) !important }` — CSS ที่ไม่ถูกไวยากรณ์
+ *
+ * ผลคือ `npm run dev` ตอบ **500 ทั้ง (marketing) group** ทุก route ("Unexpected token Delim('.')")
+ * ขณะที่ `next build` ผ่านปกติ เพราะ pipeline ตอน build ยอมข้ามกฎที่ parse ไม่ได้ ส่วน dev ไม่ยอม
+ * → เป็นบั๊กที่ "เห็นเฉพาะตอน dev" และ gate ทุกตัวของโปรเจกต์ (tsc/build/test/detector) เขียวหมด
+ * (เจอ 2026-08-10 ตอนพยายามเปิดหน้าโปรไฟล์บนเครื่องให้ user ดู) */
 @source not "../../../docs";
+@source not "../../../CLAUDE.md";
+@source not "../../../AGENTS.md";
 
 /* Vuexy tabler icons (generated from @iconify/json) */
 @import '../../assets/iconify-icons/generated-icons.css';

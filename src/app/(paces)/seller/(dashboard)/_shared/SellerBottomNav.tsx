@@ -222,7 +222,7 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
              FAB top -30px + label mt 30px, KeywordEditorClient footer bottom 5.5rem
 
              HR7 carve-out (2026-08-06): ความสูง = 4.5rem + safe-area แทน h-18 เปล่า ๆ เพราะ
-             Tailwind ตั้ง box-sizing: border-box ให้ทุก element → `h-18` + `pb-[env(...)]`
+             Tailwind ตั้ง box-sizing: border-box ให้ทุก element → `h-18` + `pb-[env(safe-area-inset-bottom)]`
              แปลว่า padding safe-area **กินเข้าไปข้างใน** 72px (เหลือเนื้อหา 38px) ไม่ใช่ต่อเพิ่ม
              ด้านล่าง. ต้องเขียนความสูงรวม inset ตรง ๆ เนื้อหาถึงจะคงที่ 72px แล้วมีเบาะ 34px
              ใต้ label กันแถบ home indicator ของ iOS (เทียบ Shopee/TrueMoney เว้น ~36pt) */

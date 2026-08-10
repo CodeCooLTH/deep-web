@@ -103,7 +103,7 @@ html[data-text-scale="xl"] {
    ไม่เพิ่ม custom gutter (บทเรียน: ชิดขอบมาจาก asymmetry ไม่ใช่ค่าน้อยไป — แค่ลบตัวผิดพอ) */
 
 /* ─── Safe area (iOS) — ตั้งแต่เปิด viewportFit:'cover' ที่ (paces)/layout.tsx 2026-08-06 ───
-   ก่อนหน้านี้ไม่มี cover → env(safe-area-inset-*) คืน 0 ทุกตัว แปลว่า pb-[env(...)] ที่กระจาย
+   ก่อนหน้านี้ไม่มี cover → env(safe-area-inset-*) คืน 0 ทุกตัว แปลว่า pb-[env(safe-area-inset-bottom)] ที่กระจาย
    อยู่ทั่ว (paces) ไม่เคยทำงานเลย (อาการที่ user จับได้: label ของ bottom nav คาบแถบ home
    indicator). พอเปิด cover เนื้อหาจะกินพื้นที่ status bar/home indicator ด้วย → surface ที่
    ยึดขอบจอต้องเว้น inset เอง. 2 ตัวนี้เป็น "เปลือกจอ" ที่คุมได้จาก CSS ที่เดียว:
