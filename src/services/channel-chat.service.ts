@@ -2735,6 +2735,11 @@ async function sendOutboundLineMessage(
       ok: true,
       mid,
       sendMethod,
+      // (2026-08-10) marker "นี่คือสติกเกอร์" ตัวเดียวกับขาเข้า (rawExtra.kind ของ
+      // writeLineInboundMessage) — สติกเกอร์ถูกเก็บเป็น type='IMAGE' เหมือนรูปทั่วไป ถ้าขาออกไม่ติด
+      // marker ด้วย หน้าจอจะวาดสติกเกอร์ที่ "ร้านส่งเอง" ใหญ่เท่ารูป (240px) พร้อมปุ่มบันทึกรูป
+      // ขณะที่ของลูกค้าเล็ก (144px) — ดู isStickerRawMessage + ChatImageMessage
+      ...(params.sticker ? { kind: 'sticker' as const } : {}),
       attachmentKind: attachment?.kind ?? null,
       replyToMid: params.replyToMid ?? null,
       // (S-18a, additive) quoteToken ของข้อความที่เพิ่งส่งสำเร็จนี้เอง — เก็บไว้ให้ข้อความที่ "เรา" ส่งเอง
@@ -3047,6 +3052,11 @@ export async function sendOutboundMessage(params: {
       ok: true,
       mid,
       messageTag: messageTag ?? null,
+      // (2026-08-10) marker "นี่คือสติกเกอร์" ตัวเดียวกับขาเข้า (rawExtra.kind ของ
+      // writeLineInboundMessage) — สติกเกอร์ถูกเก็บเป็น type='IMAGE' เหมือนรูปทั่วไป ถ้าขาออกไม่ติด
+      // marker ด้วย หน้าจอจะวาดสติกเกอร์ที่ "ร้านส่งเอง" ใหญ่เท่ารูป (240px) พร้อมปุ่มบันทึกรูป
+      // ขณะที่ของลูกค้าเล็ก (144px) — ดู isStickerRawMessage + ChatImageMessage
+      ...(params.sticker ? { kind: 'sticker' as const } : {}),
       attachmentKind: attachment?.kind ?? null,
       replyToMid: params.replyToMid ?? null,
     }

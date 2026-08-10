@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { getSubdomain } from "@/lib/subdomain";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { fileIdExt } from "@/lib/storage";
+import { isStickerRawMessage } from "@/lib/chat-sticker";
 import { prisma } from "@/lib/prisma";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
 import { sendOutboundMessage, syncMissingMessagesFromMeta, type SendFailedError } from "@/services/channel-chat.service";
@@ -309,9 +310,7 @@ export async function GET(
        * `filenamePrefix: 'line-sticker'` ที่ ingest ตั้งไว้ใช้แยกไม่ได้ เพราะ `saveFile` ตั้ง key
        * เป็น uuid ใหม่ทิ้งชื่อไฟล์เดิม — ชื่อนั้นไม่เคยไปถึง storage
        */
-      isSticker:
-        (m as { rawMessage?: { payload?: { kind?: unknown } } | null }).rawMessage?.payload?.kind ===
-        'sticker',
+      isSticker: isStickerRawMessage((m as { rawMessage?: unknown }).rawMessage),
       // null = ไม่มีคนส่ง (webhook/บอท) → UI แสดงรูปเพจ; มีค่า = แสดงรูปคนนั้น + ชื่อตอน hover
       sender:
         m.senderRole === "SHOP" && m.senderUserId ? senderMap.get(m.senderUserId) ?? null : null,
