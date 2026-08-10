@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
+import { canAccessShop } from "@/lib/shop-context";
 
 export async function createReview(orderToken: string, data: {
   rating: number;
@@ -11,6 +12,10 @@ export async function createReview(orderToken: string, data: {
     include: { review: true, shop: true },
   });
   if (!order) throw new Error("Order not found");
+  // 🛑 ตรงนี้ **ห้ามเติม deletedAt: null** ต่างจาก read path อื่นทั้งหมดในไฟล์นี้ — นี่คือกลไก
+  // ที่กัน "ลบรีวิวแล้วเขียนใหม่": แถวที่ถูก soft-delete ยังต้องทำให้ guard นี้ throw
+  // ถ้าเผลอกรองออก แถวเก่าจะมองไม่เห็น → สร้างใหม่ได้ → createdAt ใหม่ → หน้าต่างแก้ไข 24 ชม.
+  // เริ่มนับใหม่ ⇒ ลบ-สร้างใหม่ทุก 23 ชม. ก็แก้รีวิวได้ตลอดกาล (ทำลาย BR-BOE-17 ทั้งข้อ)
   if (order.review) throw new Error("Review already exists for this order");
   // State guard — รีวิวได้เฉพาะหลัง buyer ยืนยัน (CONFIRMED / SHIPPED); COMPLETED ถูกลบออกจาก OMS redesign
   // PRD FR-7.1: "Buyer ให้ review + rating ได้หลัง confirm order"
@@ -50,7 +55,7 @@ export async function createReview(orderToken: string, data: {
 
 export async function getReviewsByBuyer(userId: string, take?: number) {
   return prisma.review.findMany({
-    where: { reviewerUserId: userId },
+    where: { reviewerUserId: userId, deletedAt: null },
     include: {
       order: {
         select: {
@@ -67,7 +72,7 @@ export async function getReviewsByBuyer(userId: string, take?: number) {
 
 export async function getReviewsByShopUser(userId: string) {
   return prisma.review.findMany({
-    where: { order: { shop: { userId } } },
+    where: { order: { shop: { userId } }, deletedAt: null },
     include: { order: { select: { publicToken: true, items: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -75,7 +80,7 @@ export async function getReviewsByShopUser(userId: string) {
 
 export async function getReviewsByUsername(username: string, take = 10, skip = 0) {
   return prisma.review.findMany({
-    where: { order: { shop: { user: { username } } } },
+    where: { order: { shop: { user: { username } } }, deletedAt: null },
     include: { order: { select: { publicToken: true, items: true } } },
     orderBy: { createdAt: "desc" },
     take,
@@ -91,7 +96,7 @@ export async function getAvgRatingByUsername(
   const agg = await prisma.review.aggregate({
     _avg: { rating: true },
     _count: { id: true },
-    where: { order: { shop: { user: { username } } } },
+    where: { order: { shop: { user: { username } } }, deletedAt: null },
   });
   return {
     avgRating: agg._avg.rating ?? 0,
@@ -107,10 +112,146 @@ export async function getAvgRatingByShop(
   const agg = await prisma.review.aggregate({
     _avg: { rating: true },
     _count: { id: true },
-    where: { order: { shopId } },
+    where: { order: { shopId }, deletedAt: null },
   });
   return {
     avgRating: agg._avg.rating ?? 0,
     reviewCount: agg._count.id,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// feature 00041 — แก้ไข/ลบรีวิว + คำตอบร้าน (SRS TFR-007/008/009)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export class ReviewNotFoundError extends Error {
+  constructor() { super("REVIEW_NOT_FOUND"); this.name = "ReviewNotFoundError"; }
+}
+export class ReviewForbiddenError extends Error {
+  constructor() { super("REVIEW_FORBIDDEN"); this.name = "ReviewForbiddenError"; }
+}
+export class ReviewEditWindowExpiredError extends Error {
+  constructor() { super("REVIEW_EDIT_WINDOW_EXPIRED"); this.name = "ReviewEditWindowExpiredError"; }
+}
+export class ReviewReplyForbiddenError extends Error {
+  constructor() { super("REVIEW_REPLY_FORBIDDEN"); this.name = "ReviewReplyForbiddenError"; }
+}
+export class ReviewReplyNotFoundError extends Error {
+  constructor() { super("REVIEW_REPLY_NOT_FOUND"); this.name = "ReviewReplyNotFoundError"; }
+}
+
+/** หน้าต่างแก้ไข/ลบรีวิวของผู้ซื้อ (BR-BOE-17) — SSOT ห้าม hardcode 24 ชม. ที่อื่น */
+export const REVIEW_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * canEditReview — ยังอยู่ในหน้าต่างแก้ไขไหม
+ *
+ * pure โดยตั้งใจ + รับ `now` เป็นพารามิเตอร์ เพื่อให้ทั้ง server (ด่านจริง) และ client
+ * (ตัดสินว่าจะโชว์ปุ่มไหม/นับถอยหลัง) เรียกตัวเดียวกัน และเทสฉีดเวลาได้โดยไม่ต้องรอ 24 ชม.
+ *
+ * 🛑 นับจาก createdAt เสมอ **ไม่ใช่ updatedAt** — ถ้านับจาก updatedAt การแก้ทีละนิดจะยืดเวลา
+ * ไปได้เรื่อย ๆ ไม่รู้จบ ซึ่งเท่ากับไม่มีหน้าต่างเลย
+ */
+export function canEditReview(createdAt: Date, now: Date = new Date()): boolean {
+  return now.getTime() - createdAt.getTime() <= REVIEW_EDIT_WINDOW_MS;
+}
+
+/**
+ * หา review ที่ "ยังมีชีวิต" ของออเดอร์นี้ — soft-deleted ถือว่าไม่มี
+ *
+ * ใช้ร่วมทั้ง 4 mutation ข้างล่าง: แก้/ลบ/ตอบกลับ/ลบคำตอบ ล้วนต้องหยุดที่นี่ถ้ารีวิวถูกลบไปแล้ว
+ * (ต่างจาก createReview ที่ต้องเห็นแถว tombstone — ดูคอมเมนต์ตรงนั้น)
+ */
+async function findActiveReviewOrThrow(orderToken: string) {
+  const order = await prisma.order.findUnique({
+    where: { publicToken: orderToken },
+    select: { id: true, shopId: true, review: true },
+  });
+  if (!order?.review || order.review.deletedAt) throw new ReviewNotFoundError();
+  return { orderId: order.id, shopId: order.shopId, review: order.review };
+}
+
+/**
+ * updateReview — ผู้ซื้อแก้ไขรีวิวของตัวเองภายใน 24 ชม.
+ *
+ * 🛑 ลำดับ guard บังคับ: not-found → forbidden → expired
+ * ต้องเช็ค "ไม่ใช่เจ้าของ" ก่อน "หมดเวลา" เสมอ — ไม่งั้นคนที่ไม่ใช่เจ้าของจะรู้จาก status code
+ * ว่ารีวิวใบนั้นหมดเวลาแก้ไขหรือยัง ซึ่งเป็นข้อมูลที่เขาไม่ควรได้ (oracle leak)
+ */
+export async function updateReview(
+  orderToken: string,
+  userId: string,
+  data: { rating?: number; comment?: string; images?: string[] },
+) {
+  const { review } = await findActiveReviewOrThrow(orderToken);
+  if (review.reviewerUserId !== userId) throw new ReviewForbiddenError();
+  if (!canEditReview(review.createdAt)) throw new ReviewEditWindowExpiredError();
+
+  return prisma.review.update({
+    where: { id: review.id },
+    data: {
+      ...(data.rating !== undefined ? { rating: data.rating } : {}),
+      ...(data.comment !== undefined ? { comment: data.comment } : {}),
+      ...(data.images !== undefined ? { images: data.images } : {}),
+    },
+  });
+}
+
+/**
+ * deleteReview — soft delete เท่านั้น
+ *
+ * 🛑 ห้ามใช้ prisma.review.delete() เด็ดขาด: แถวต้องอยู่ต่อเพื่อให้ guard ของ createReview
+ * ยังเห็น ⇒ เขียนรีวิวใหม่ไม่ได้ ⇒ createdAt ไม่มีวันรีเซ็ต (เหตุผลเต็มที่ SRS §8)
+ *
+ * ล้าง images/คำตอบร้านไปด้วย เพื่อให้ BR-BOE-23 ("ลบรีวิว = ลบรูปและคำตอบพร้อมกัน") เป็นจริง
+ * ในระดับข้อมูล ไม่ใช่แค่ซ่อนบนหน้าจอ — แถวที่เหลือทำหน้าที่เป็น tombstone อย่างเดียว
+ */
+export async function deleteReview(orderToken: string, userId: string): Promise<void> {
+  const { review } = await findActiveReviewOrThrow(orderToken);
+  if (review.reviewerUserId !== userId) throw new ReviewForbiddenError();
+  if (!canEditReview(review.createdAt)) throw new ReviewEditWindowExpiredError();
+
+  await prisma.review.update({
+    where: { id: review.id },
+    data: {
+      deletedAt: new Date(),
+      images: [],
+      shopReplyComment: null,
+      shopRepliedAt: null,
+      shopRepliedByUserId: null,
+    },
+  });
+}
+
+/**
+ * replyToReview — ร้านตอบกลับรีวิว (1 คำตอบต่อ 1 รีวิว — ตอบซ้ำ = เขียนทับ ไม่ใช่สร้างใหม่)
+ *
+ * สิทธิ์ผ่าน canAccessShop() ตรง ๆ ไม่ implement ใหม่: ฟังก์ชันนั้นคืน true ให้เจ้าของร้าน
+ * หรือคนที่มีแถว ShopMember ซึ่ง role มีแค่ OWNER/ADMIN ในสคีมา = ตรงกับ BR-BOE-21 พอดี
+ * ไม่มีเงื่อนไขเวลา (BR-BOE-22 — ร้านแก้คำตอบได้ไม่จำกัด)
+ */
+export async function replyToReview(orderToken: string, actorUserId: string, comment: string) {
+  const { shopId, review } = await findActiveReviewOrThrow(orderToken);
+  if (!(await canAccessShop(shopId, actorUserId))) throw new ReviewReplyForbiddenError();
+
+  return prisma.review.update({
+    where: { id: review.id },
+    data: {
+      shopReplyComment: comment,
+      shopRepliedAt: new Date(),
+      shopRepliedByUserId: actorUserId,
+    },
+  });
+}
+
+/** deleteReviewReply — ร้านลบคำตอบของตัวเอง (ไม่กระทบรีวิวต้นทาง) */
+export async function deleteReviewReply(orderToken: string, actorUserId: string): Promise<void> {
+  const { shopId, review } = await findActiveReviewOrThrow(orderToken);
+  if (!(await canAccessShop(shopId, actorUserId))) throw new ReviewReplyForbiddenError();
+  if (review.shopReplyComment == null) throw new ReviewReplyNotFoundError();
+
+  await prisma.review.update({
+    where: { id: review.id },
+    data: { shopReplyComment: null, shopRepliedAt: null, shopRepliedByUserId: null },
+  });
 }
