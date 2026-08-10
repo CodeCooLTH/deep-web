@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Prisma } from '@prisma/client'
 
 // (S-7) mock prisma แบบเดียวกับ channel-chat-line-ingest.test.ts (ของ S-6/text) — vi.hoisted กัน TDZ
@@ -41,6 +41,17 @@ function p2002(target: string[]) {
   })
 }
 
+// (S-7b) สติกเกอร์ mirror ผ่าน mirrorRemoteImage ซึ่งยิง fetch จริง (ต่างจาก image/video/audio/file
+// ที่ผ่าน LineAdapter.downloadContent) — ต้อง stub global fetch เหมือน channel-chat-image.test.ts
+// ไม่งั้นเทสที่ไม่ได้ mock fetch เอง (เช่น dedupe/replyToken) จะยิง network จริงออกไปที่ line-scdn.net
+// ทำไมใช้ new Response(...) จริงแทน object ปลอม: mirrorRemoteImage อ่าน body ผ่าน
+// res.body.getReader() (streaming) — ต้องมี body เป็น ReadableStream จริง
+function fakeStickerResponse(body: Uint8Array | null, init: { status?: number; contentType?: string } = {}) {
+  const headers: Record<string, string> = {}
+  if (init.contentType) headers['content-type'] = init.contentType
+  return new Response(body as BodyInit | null, { status: init.status ?? 200, headers })
+}
+
 const baseParams = {
   shopId: 'shop1',
   shopChannelId: 'ch1',
@@ -53,6 +64,10 @@ const baseParams = {
 describe('ingestLineMediaMessage (S-7, TFR-LINE-09)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // ไม่ mockResolvedValue ไว้ default — เทสที่ไม่ได้ตั้งค่าเอง (dedupe/replyToken) เรียก fetch()
+    // แล้วได้ undefined กลับมา mirrorRemoteImage อ่าน .ok ไม่ได้ → catch → คืน null (mirror ล้ม)
+    // นี่คือพฤติกรรมที่ตั้งใจ ไม่ใช่ query จริงออกไปที่ line-scdn.net
+    vi.stubGlobal('fetch', vi.fn())
     db.$transaction.mockImplementation((fn: (t: typeof db) => unknown) => fn(db))
     db.externalContact.findUnique.mockResolvedValue(null)
     db.externalContact.upsert.mockResolvedValue({ id: 'ec1', name: 'คุณลูกค้า' })
@@ -65,6 +80,7 @@ describe('ingestLineMediaMessage (S-7, TFR-LINE-09)', () => {
       avatarUrl: 'https://profile.line-scdn.net/x',
     })
   })
+  afterEach(() => vi.unstubAllGlobals())
 
   describe('image/video/audio/file — mirror สำเร็จ (TC-08)', () => {
     it('image: ดาวน์โหลดสำเร็จ → mirror เข้า storage → ChatMessage type=IMAGE, imageUrl=fileId, body=null', async () => {
@@ -212,24 +228,85 @@ describe('ingestLineMediaMessage (S-7, TFR-LINE-09)', () => {
     })
   })
 
-  describe('sticker/location — ไม่มี asset ให้ mirror เก็บเป็นข้อความอ่านออก (TC-25)', () => {
-    it('sticker: ไม่เรียก downloadContent เลย บันทึกข้อความ TEXT + metadata อยู่ใน rawMessage', async () => {
+  describe('sticker — mirror รูปจริงจาก LINE sticker CDN (S-7b, user เปลี่ยน scope 2026-08-10)', () => {
+    it('mirror สำเร็จ → ไม่เรียก downloadContent (URL ประกอบจาก stickerId ล้วน ๆ ไม่ต้องใช้ token) ChatMessage type=IMAGE, imageUrl=fileId, body=null, metadata อยู่ใน rawMessage', async () => {
+      ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+        fakeStickerResponse(new Uint8Array(16), { contentType: 'image/png' }),
+      )
+      saveFile.mockResolvedValue('line-sticker/1988.png')
+
       const r = await ingestLineMediaMessage({
         ...baseParams,
-        message: { type: 'sticker', id: 'msg-sticker-1', packageId: '446', stickerId: '1988' },
+        message: { type: 'sticker', id: 'msg-sticker-1', packageId: '446', stickerId: '1988', stickerResourceType: 'STATIC' },
       })
 
       expect(r.status).toBe('STORED')
       expect(lineAdapter.downloadContent).not.toHaveBeenCalled()
+      // ยิง fetch ไปที่ URL ที่ประกอบจาก stickerId ตรง ๆ (de-facto CDN)
+      expect(fetch).toHaveBeenCalledWith(
+        'https://stickershop.line-scdn.net/stickershop/v1/sticker/1988/android/sticker.png',
+        expect.anything(),
+      )
+      const data = db.chatMessage.create.mock.calls[0]![0].data
+      expect(data.type).toBe('IMAGE')
+      expect(data.body).toBeNull()
+      expect(data.imageUrl).toBe('line-sticker/1988.png')
+      const raw = data.rawMessage as {
+        payload: { packageId: string; stickerId: string; stickerResourceType: string | null; mirrored: boolean }
+      }
+      expect(raw.payload.packageId).toBe('446')
+      expect(raw.payload.stickerId).toBe('1988')
+      expect(raw.payload.stickerResourceType).toBe('STATIC')
+      expect(raw.payload.mirrored).toBe(true)
+    })
+
+    it('mirror ล้ม (CDN ตอบ 404/timeout) → ถอยเป็นข้อความอ่านออกเหมือนเดิม ไม่ได้บับเบิลรูปพัง + log error', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(fakeStickerResponse(null, { status: 404 }))
+
+      const r = await ingestLineMediaMessage({
+        ...baseParams,
+        message: { type: 'sticker', id: 'msg-sticker-2', packageId: '446', stickerId: 'not-exist', stickerResourceType: null },
+      })
+
+      expect(r.status).toBe('STORED')
       const data = db.chatMessage.create.mock.calls[0]![0].data
       expect(data.type).toBe('TEXT')
       expect(data.body).toBe('[สติกเกอร์ LINE]')
       expect(data.imageUrl).toBeNull()
-      const raw = data.rawMessage as { payload: { packageId: string; stickerId: string } }
-      expect(raw.payload.packageId).toBe('446')
-      expect(raw.payload.stickerId).toBe('1988')
+      const raw = data.rawMessage as { payload: { mirrored: boolean } }
+      expect(raw.payload.mirrored).toBe(false)
+      expect(errSpy).toHaveBeenCalled()
+      errSpy.mockRestore()
     })
 
+    it('stickerResourceType เป็นค่าที่ไม่รู้จัก (LINE เพิ่มค่าใหม่โดยไม่ประกาศ) → ยัง mirror ตามปกติ ไม่ throw ไม่ skip', async () => {
+      ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+        fakeStickerResponse(new Uint8Array(8), { contentType: 'image/png' }),
+      )
+      saveFile.mockResolvedValue('line-sticker/x.png')
+
+      const r = await ingestLineMediaMessage({
+        ...baseParams,
+        message: {
+          type: 'sticker',
+          id: 'msg-sticker-3',
+          packageId: '446',
+          stickerId: '9999',
+          stickerResourceType: 'SOME_FUTURE_TYPE_NOT_IN_DOCS',
+        },
+      })
+
+      expect(r.status).toBe('STORED')
+      const data = db.chatMessage.create.mock.calls[0]![0].data
+      expect(data.type).toBe('IMAGE')
+      expect(data.imageUrl).toBe('line-sticker/x.png')
+      const raw = data.rawMessage as { payload: { stickerResourceType: string | null } }
+      expect(raw.payload.stickerResourceType).toBe('SOME_FUTURE_TYPE_NOT_IN_DOCS')
+    })
+  })
+
+  describe('location — ไม่มี asset ให้ mirror เก็บเป็นข้อความอ่านออก (TC-25)', () => {
     it('location: ประกอบ title/address/พิกัด เป็นข้อความอ่านออก ไม่มีช่องว่าง', async () => {
       const r = await ingestLineMediaMessage({
         ...baseParams,
@@ -272,11 +349,11 @@ describe('ingestLineMediaMessage (S-7, TFR-LINE-09)', () => {
       expect(r.status).toBe('DUPLICATE')
     })
 
-    it('redelivery ของ sticker (ไม่ผ่าน mirror เลย) ก็ยัง dedupe ได้เหมือนกัน', async () => {
+    it('redelivery ของ sticker (fetch ไม่ถูก mock ค่าไว้ → mirror ล้ม ไปทาง TEXT) ก็ยัง dedupe ได้เหมือนกัน', async () => {
       db.chatMessage.create.mockRejectedValue(p2002(['externalMessageId']))
       const r = await ingestLineMediaMessage({
         ...baseParams,
-        message: { type: 'sticker', id: 'msg-dup-sticker', packageId: '1', stickerId: '2' },
+        message: { type: 'sticker', id: 'msg-dup-sticker', packageId: '1', stickerId: '2', stickerResourceType: null },
       })
       expect(r.status).toBe('DUPLICATE')
     })
@@ -301,7 +378,7 @@ describe('ingestLineMediaMessage (S-7, TFR-LINE-09)', () => {
   it('มี replyToken → เก็บ replyToken/replyTokenExpiresAt บน Conversation เหมือน text (TD-009)', async () => {
     const r = await ingestLineMediaMessage({
       ...baseParams,
-      message: { type: 'sticker', id: 'msg-rt-1', packageId: '1', stickerId: '2' },
+      message: { type: 'sticker', id: 'msg-rt-1', packageId: '1', stickerId: '2', stickerResourceType: null },
     })
     expect(r.status).toBe('STORED')
     const updateData = db.conversation.update.mock.calls[0]![0].data

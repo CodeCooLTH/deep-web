@@ -432,7 +432,17 @@ const UNSUPPORTED_ATTACHMENT_TEXT = '[ไฟล์แนบ — เปิดด�
 // ผ่าน .endsWith('fbcdn.net') ตรง ๆ)
 // fbsbx.com: CDN ของ "ไฟล์แนบ" Messenger (วิดีโอ/เสียง/ไฟล์ มักอยู่ lookaside.fbsbx.com/cdn.fbsbx.com
 // ไม่ใช่ fbcdn.net เหมือนรูป) — feature 00018 mirror ไฟล์แนบ
-const MIRROR_ALLOWED_HOSTS_EXACT = new Set(['graph.facebook.com', 'fbcdn.net', 'cdninstagram.com', 'fbsbx.com'])
+// stickershop.line-scdn.net (S-7b, feature 00025): CDN รูปสติกเกอร์ LINE — URL ประกอบเองจาก stickerId
+// (.../stickershop/v1/sticker/{stickerId}/android/sticker.png) เป็น de-facto standard ไม่อยู่ใน
+// เอกสารทางการของ LINE (Controller ยืนยันแล้ว: ทดสอบ 3 stickerId ได้ 200 image/png จริง) เพิ่มเป็น
+// exact host เดี่ยว ห้ามเปิดกว้างเป็น suffix/wildcard เพราะยังไม่เคยเห็น subdomain อื่นของโฮสต์นี้ถูกใช้
+const MIRROR_ALLOWED_HOSTS_EXACT = new Set([
+  'graph.facebook.com',
+  'fbcdn.net',
+  'cdninstagram.com',
+  'fbsbx.com',
+  'stickershop.line-scdn.net',
+])
 const MIRROR_ALLOWED_HOST_SUFFIXES = ['.fbcdn.net', '.cdninstagram.com', '.fbsbx.com']
 
 function isAllowedMirrorHost(hostname: string): boolean {
@@ -503,7 +513,10 @@ function saveMirroredBuffer(buffer: ArrayBuffer | Buffer, contentType: string, f
 // เก็บ "fileId ของ storage" ไม่ใช่ URL (ดู fileIdExt ที่ route messages ใช้ตรวจนามสกุล)
 //
 // คืน null เมื่อดึงไม่ได้ — ข้อความยังต้องถูกบันทึกอยู่ดี ห้ามทิ้งทั้งข้อความเพราะรูปพัง
-export async function mirrorRemoteImage(url: string): Promise<string | null> {
+//
+// filenamePrefix (S-7b): default 'fb' คงพฤติกรรมเดิมของ Meta ไว้ทุกจุดเรียกเดิม — เพิ่มพารามิเตอร์
+// เพื่อให้ผู้เรียกอื่น (LINE sticker CDN) ตั้งชื่อไฟล์ให้อ่านง่ายขึ้นเวลาสืบสวน ไม่กระทบ Messenger/IG
+export async function mirrorRemoteImage(url: string, filenamePrefix = 'fb'): Promise<string | null> {
   // (S-1) เช็ค host allow-list + บังคับ https ก่อนยิง fetch เสมอ — กัน SSRF ผ่าน
   // attachments[].payload.url ที่ปลอมมากับ webhook (ดู comment ของ MIRROR_ALLOWED_HOSTS_EXACT)
   let parsed: URL
@@ -531,7 +544,7 @@ export async function mirrorRemoteImage(url: string): Promise<string | null> {
     const buffer = await readBodyWithCap(res, MIRROR_MAX_BYTES)
     if (!buffer) return null
 
-    return await saveMirroredBuffer(buffer, contentType, 'fb')
+    return await saveMirroredBuffer(buffer, contentType, filenamePrefix)
   } catch {
     return null
   }
@@ -1597,11 +1610,12 @@ async function writeLineInboundMessage(input: {
 export type LineInboundMediaMessage =
   | { type: 'image' | 'video' | 'audio'; id: string }
   | { type: 'file'; id: string; fileName: string | null; fileSize: number | null }
-  | { type: 'sticker'; id: string; packageId: string; stickerId: string }
+  | { type: 'sticker'; id: string; packageId: string; stickerId: string; stickerResourceType: string | null }
   | { type: 'location'; id: string; title: string | null; address: string | null; latitude: number; longitude: number }
 
-// LINE message.type → ChatMessage.type สำหรับสื่อที่ mirror ได้ (image/video/audio/file) — sticker/
-// location ไม่มี asset ให้ mirror จึงเป็น TEXT เสมอ (ดู LINE_STICKER_TEXT ด้านล่าง)
+// LINE message.type → ChatMessage.type สำหรับสื่อที่ mirror ได้ (image/video/audio/file) — sticker
+// mirror แยกเส้นทางของตัวเอง (ดู buildLineStickerImageUrl ด้านล่าง, S-7b) ส่วน location ไม่มี asset
+// ให้ mirror เลย จึงเป็น TEXT เสมอ
 const LINE_MEDIA_CHAT_TYPE: Record<'image' | 'video' | 'audio' | 'file', string> = {
   image: 'IMAGE',
   video: 'VIDEO',
@@ -1625,9 +1639,22 @@ const LINE_MEDIA_MIRROR_FAILED_TEXT: Record<'image' | 'video' | 'audio' | 'file'
   file: 'ลูกค้าส่งไฟล์มา แต่ระบบดึงไฟล์ไม่สำเร็จ',
 }
 
-// สติกเกอร์: MVP ไม่ render ภาพจริง (scope baseline OOS — รับเข้า+แสดงได้เป็นข้อความอ่านออกเท่านั้น)
-// เก็บ packageId/stickerId ไว้ใน rawMessage (metadata) ไม่ใช่ใน body ที่ผู้ใช้เห็น
+// สติกเกอร์ (S-7b, user เปลี่ยน scope 2026-08-10 ทับมติเดิม OOS-08 ของ PRD §5): render รูปจริงแล้ว —
+// ข้อความนี้เหลือไว้ใช้เป็น preview/placeholder เมื่อ mirror ล้มเหลวเท่านั้น (ห้ามได้บับเบิลรูปพัง)
+// เก็บ packageId/stickerId/stickerResourceType ไว้ใน rawMessage (metadata) เสมอ ไม่ว่า mirror จะสำเร็จ
+// หรือไม่ — จำเป็นสำหรับฟีเจอร์ "ส่งสติกเกอร์" รอบถัดไป
 const LINE_STICKER_TEXT = '[สติกเกอร์ LINE]'
+
+// LINE ไม่มี API ทางการให้ดาวน์โหลดรูปสติกเกอร์ (ต่างจาก image/video/audio/file ที่ดึงผ่าน
+// LineAdapter.downloadContent ด้วย channel access token) — URL นี้เป็น de-facto CDN ที่ประกอบเองจาก
+// stickerId ล้วน ๆ ไม่ต้องใช้ token ใด ๆ (Controller ยืนยันแล้ว: ทดสอบ 3 stickerId จริงได้
+// 200 image/png ขนาด 7-25KB)
+// 🛑 ไม่อยู่ในเอกสารทางการของ LINE — อาจเปลี่ยน/หายไปโดยไม่ประกาศเมื่อไหร่ก็ได้ ดังนั้นห้ามเก็บ URL นี้
+// ลง DB แล้วให้หน้าจอไปโหลดสดตอน render (บทเรียนเดียวกับรูป fbcdn ที่หมดอายุ ~4 วัน —
+// docs memory project_fb_generic_card_carousel) ต้อง mirror เข้า storage ของเราทันทีตอน ingest เสมอ
+function buildLineStickerImageUrl(stickerId: string): string {
+  return `https://stickershop.line-scdn.net/stickershop/v1/sticker/${encodeURIComponent(stickerId)}/android/sticker.png`
+}
 
 /**
  * ingestLineMediaMessage (S-7, feature 00025 TFR-LINE-09) — ingest ข้อความ image/video/audio/file/
@@ -1641,7 +1668,12 @@ const LINE_STICKER_TEXT = '[สติกเกอร์ LINE]'
  * ล้มเหลว (ดาวน์โหลดไม่ได้ / เกินเพดานขนาด / เขียน storage ไม่ผ่าน) → **ไม่ throw ทิ้ง event**
  * บันทึกเป็นข้อความ TEXT แบบ placeholder ที่ผู้ใช้อ่านออกแทน + log ระดับ error เสมอ (TC-09 [ห้ามข้าม])
  *
- * sticker/location ไม่มี asset ให้ mirror เลย เก็บเป็นข้อความอ่านออกตรง ๆ ไม่ต้องผ่าน mirror (TFR-LINE-09)
+ * sticker (S-7b): mirror รูปจริงผ่าน mirrorRemoteImage + buildLineStickerImageUrl (URL ประกอบจาก
+ * stickerId ล้วน ๆ ไม่ต้อง downloadContent) — mirror ล้มแล้วถอยเป็นข้อความอ่านออกเหมือน media อื่น
+ * (ห้ามได้บับเบิลรูปพัง) stickerResourceType ที่ไม่รู้จัก/ค่าใหม่ในอนาคต ก็ยัง mirror ตามปกติเสมอ
+ * ไม่ throw ไม่ skip เพราะ URL ไม่ได้ขึ้นกับ resourceType เลย
+ *
+ * location ไม่มี asset ให้ mirror เลย เก็บเป็นข้อความอ่านออกตรง ๆ ไม่ต้องผ่าน mirror (TFR-LINE-09)
  */
 export async function ingestLineMediaMessage(params: {
   shopId: string
@@ -1665,10 +1697,32 @@ export async function ingestLineMediaMessage(params: {
   let rawExtra: Record<string, unknown>
 
   if (message.type === 'sticker') {
-    type = 'TEXT'
-    body = LINE_STICKER_TEXT
-    preview = LINE_STICKER_TEXT
-    rawExtra = { kind: 'sticker', packageId: message.packageId, stickerId: message.stickerId }
+    // (S-7b) mirror รูปจริงเสมอ ไม่ผ่าน downloadContent — URL ประกอบจาก stickerId ล้วน ๆ ไม่ต้องใช้
+    // token. อยู่นอก transaction เหมือนสื่อชนิดอื่น (network call ไม่ควรถือ DB lock)
+    const fileId = await mirrorRemoteImage(buildLineStickerImageUrl(message.stickerId), 'line-sticker')
+    rawExtra = {
+      kind: 'sticker',
+      packageId: message.packageId,
+      stickerId: message.stickerId,
+      stickerResourceType: message.stickerResourceType,
+      mirrored: !!fileId,
+    }
+    if (fileId) {
+      type = 'IMAGE'
+      body = null
+      imageUrl = fileId
+      preview = LINE_STICKER_TEXT
+    } else {
+      // mirror ล้ม (CDN de-facto ตอบไม่ ok/timeout/เกินเพดาน) → ถอยเป็นข้อความอ่านออกเหมือนเดิม
+      // ห้ามได้บับเบิลรูปพัง (ข้อ 3 ของสเปก) + log ระดับ error เสมอ ห้ามหายเงียบ (ล้อ TC-09)
+      console.error('[line-ingest] mirror สติกเกอร์ไม่สำเร็จ — บันทึกเป็นข้อความแทน', {
+        stickerId: message.stickerId,
+        lineMessageId: message.id,
+      })
+      type = 'TEXT'
+      body = LINE_STICKER_TEXT
+      preview = LINE_STICKER_TEXT
+    }
   } else if (message.type === 'location') {
     // title/address ไม่ได้มาเสมอ (LINE ให้เป็น optional จริง) — ประกอบเฉพาะบรรทัดที่มีค่า พิกัดต้องมี
     // เสมอตามสเปก LINE จึงใส่ท้ายสุดไม่มีเงื่อนไข

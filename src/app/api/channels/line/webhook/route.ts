@@ -35,9 +35,13 @@ interface LineWebhookMessage {
   // file (S-7): LINE ส่งชื่อไฟล์เดิม + ขนาดมาด้วย (image/video/audio ไม่มีฟิลด์เหล่านี้)
   fileName?: unknown
   fileSize?: unknown
-  // sticker (S-7)
+  // sticker (S-7, stickerResourceType เพิ่มใน S-7b) — stickerResourceType มีอย่างน้อย 10 ค่าตามเอกสาร
+  // LINE (STATIC/ANIMATION/SOUND/ANIMATION_SOUND/POPUP/POPUP_SOUND/CUSTOM/MESSAGE/NAME_TEXT/
+  // PER_STICKER_TEXT) และเอกสารเตือนเองว่าจะมีค่าใหม่เพิ่มโดยไม่ประกาศ — เก็บเป็น string ดิบ ไม่ตี
+  // เป็น union ปิด (ห้าม switch ที่ไม่มี default ตัดสิทธิ์ค่าที่ไม่รู้จัก)
   packageId?: unknown
   stickerId?: unknown
+  stickerResourceType?: unknown
   // location (S-7) — title/address เป็น optional จริงตามสเปก LINE, latitude/longitude บังคับเสมอ
   title?: unknown
   address?: unknown
@@ -82,7 +86,15 @@ function toLineInboundMediaMessage(message: LineWebhookMessage): LineInboundMedi
       }
     case 'sticker':
       if (typeof message.packageId !== 'string' || typeof message.stickerId !== 'string') return null
-      return { type: 'sticker', id, packageId: message.packageId, stickerId: message.stickerId }
+      return {
+        type: 'sticker',
+        id,
+        packageId: message.packageId,
+        stickerId: message.stickerId,
+        // ค่าที่ไม่ใช่ string (หรือหายไป) → null แทนที่จะปฏิเสธ event ทั้งก้อน — resourceType เป็น
+        // metadata เสริม ไม่ใช่ field ที่ตัดสินว่า mirror ได้ไหม (S-7b: mirror ด้วย stickerId เสมอ)
+        stickerResourceType: typeof message.stickerResourceType === 'string' ? message.stickerResourceType : null,
+      }
     case 'location':
       if (typeof message.latitude !== 'number' || typeof message.longitude !== 'number') return null
       return {

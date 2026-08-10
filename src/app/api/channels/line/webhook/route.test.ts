@@ -234,7 +234,47 @@ describe('POST /api/channels/line/webhook', () => {
     expect(res.status).toBe(200)
     expect(ingestLineMediaMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: { type: 'sticker', id: 'msg-sticker-1', packageId: '446', stickerId: '1988' },
+        message: {
+          type: 'sticker',
+          id: 'msg-sticker-1',
+          packageId: '446',
+          stickerId: '1988',
+          stickerResourceType: null,
+        },
+      }),
+    )
+  })
+
+  it('event ชนิด sticker message มี stickerResourceType (S-7b) → ส่งต่อเข้า ingestLineMediaMessage', async () => {
+    const stickerBody = {
+      destination: textEventBody.destination,
+      events: [
+        {
+          type: 'message',
+          timestamp: 1785000000000,
+          source: { type: 'user', userId: 'U0987654321' },
+          replyToken: 'reply-token-sticker-2',
+          message: {
+            id: 'msg-sticker-2',
+            type: 'sticker',
+            packageId: '446',
+            stickerId: '1989',
+            stickerResourceType: 'ANIMATION',
+          },
+        },
+      ],
+    }
+    const res = await POST(postReq(stickerBody))
+    expect(res.status).toBe(200)
+    expect(ingestLineMediaMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: {
+          type: 'sticker',
+          id: 'msg-sticker-2',
+          packageId: '446',
+          stickerId: '1989',
+          stickerResourceType: 'ANIMATION',
+        },
       }),
     )
   })

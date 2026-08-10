@@ -114,6 +114,30 @@ describe('mirrorRemoteImage', () => {
     saveFile.mockResolvedValue('chat/ig.png')
     expect(await mirrorRemoteImage('https://scontent.cdninstagram.com/x.png')).toBe('chat/ig.png')
   })
+
+  // stickershop.line-scdn.net (S-7b, feature 00025) — CDN รูปสติกเกอร์ LINE เพิ่มเป็น exact host
+  it('host เป็น stickershop.line-scdn.net (S-7b, สติกเกอร์ LINE) → ผ่าน allow-list', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      fakeFbResponse(new Uint8Array(16), { contentType: 'image/png' }),
+    )
+    saveFile.mockResolvedValue('line-sticker/1988.png')
+    expect(
+      await mirrorRemoteImage('https://stickershop.line-scdn.net/stickershop/v1/sticker/1988/android/sticker.png'),
+    ).toBe('line-sticker/1988.png')
+  })
+
+  // regression ของ SSRF guard เดิม (S-1) — เพิ่ม host ของ LINE แล้วต้องไม่เผลอเปิดกว้างขึ้น
+  it('host นอก allow-list ยังถูกปฏิเสธเหมือนเดิมหลังเพิ่ม LINE sticker host (regression SSRF guard)', async () => {
+    expect(await mirrorRemoteImage('https://internal.example.com/x.jpg')).toBeNull()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  // stickershop.line-scdn.net ถูกเพิ่มเป็น exact host เดี่ยว ไม่ใช่ suffix — subdomain ของมันต้องยังถูก
+  // ปฏิเสธ ไม่งั้นแปลว่าเผลอเปิดกว้างเกินสิ่งที่ทดสอบไว้จริง (Controller ยืนยันแค่โฮสต์นี้ตรง ๆ)
+  it('subdomain ของ stickershop.line-scdn.net → ปฏิเสธ เพราะเพิ่มเป็น exact host ไม่ใช่ suffix', async () => {
+    expect(await mirrorRemoteImage('https://cdn.stickershop.line-scdn.net/x.png')).toBeNull()
+    expect(fetch).not.toHaveBeenCalled()
+  })
 })
 
 // (S-7, feature 00025) generalize ของ mirrorRemoteImage สำหรับ provider ที่ไม่มี URL สาธารณะ (LINE) —
