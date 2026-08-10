@@ -10,6 +10,7 @@
  * Base: src/views/pages/user-profile/profile/index.tsx (การ์ดสินค้า grid 2 คอลัมน์บนมือถือ)
  *   ให้แท็บบ้านพักกับแท็บสินค้าอยู่ในภาษาเดียวกัน
  */
+import Card from '@mui/material/Card'
 import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
@@ -29,10 +30,13 @@ export default function PublicRoomList({ rooms }: { rooms: PublicRoom[] }) {
     <div className='grid grid-cols-2 gap-4'>
       {rooms.map((r) => {
         const img = toFileUrl(r.imageUrl)
-        // rounded-lg (8px) = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes)
-        // เดิม rounded-xl (12px) ไม่อยู่บน ramp — sync กับ PageBlocksSection ที่อ้างไฟล์นี้เป็น Base
+        // rounded 8px = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes)
+        /* การ์ดใช้ MUI `Card variant='outlined'` ไม่ใช่ `<div className='rounded-lg border'>` —
+           ได้ผิวเดียวกันเป๊ะ (ขอบ 1px ไม่มีเงา) แต่ขอบ/พื้นมาจาก palette ของธีมแทนที่จะเป็น utility
+           ที่บังเอิญตรง และเป็น primitive ตัวเดียวกับที่หน้าอื่นทั้งระบบใช้
+           (Hard Rule 1 — safepay-ux audit 2026-08-10 พบว่าโฟลเดอร์ v2/ ประกอบการ์ดเองทุกใบ) */
         return (
-          <div key={r.id} className='rounded-lg overflow-hidden border'>
+          <Card key={r.id} variant='outlined' sx={{ borderRadius: '8px', overflow: 'hidden' }}>
             <div className='bs-[130px] bg-[var(--mui-palette-action-hover)] flex items-center justify-center text-[var(--mui-palette-text-disabled)]'>
               {img ? (
                 // eslint-disable-next-line @next/next/no-img-element -- รูปจาก storage หลากโดเมน
@@ -58,7 +62,7 @@ export default function PublicRoomList({ rooms }: { rooms: PublicRoom[] }) {
                 </Typography>
               </Typography>
             </div>
-          </div>
+          </Card>
         )
       })}
     </div>

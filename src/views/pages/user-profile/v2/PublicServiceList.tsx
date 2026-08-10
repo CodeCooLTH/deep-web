@@ -10,6 +10,7 @@
  * icon กล่องแทนรูป = tabler:armchair (Controller ตัดสินแทนไอคอนที่ ux เสนอแต่ยังไม่เคยใช้ในโปรเจกต์
  * — Hard Rule 12 ห้ามเดา icon ใหม่) badge ระยะเวลา/มัดจำ = ข้อความล้วน ไม่มี icon ตาม UX spec §B
  */
+import Card from '@mui/material/Card'
 import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
@@ -38,9 +39,13 @@ export default function PublicServiceList({ services }: { services: PublicServic
     <div className='grid grid-cols-2 gap-4'>
       {services.map((s) => {
         const deposit = depositLabel(s.depositMode, s.depositValue)
-        // rounded-lg (8px) = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes)
+        // rounded 8px = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes)
+        /* การ์ดใช้ MUI `Card variant='outlined'` ไม่ใช่ `<div className='rounded-lg border'>` —
+           ได้ผิวเดียวกันเป๊ะ (ขอบ 1px ไม่มีเงา) แต่ขอบ/พื้นมาจาก palette ของธีมแทนที่จะเป็น utility
+           ที่บังเอิญตรง และเป็น primitive ตัวเดียวกับที่หน้าอื่นทั้งระบบใช้
+           (Hard Rule 1 — safepay-ux audit 2026-08-10 พบว่าโฟลเดอร์ v2/ ประกอบการ์ดเองทุกใบ) */
         return (
-          <div key={s.id} className='rounded-lg overflow-hidden border'>
+          <Card key={s.id} variant='outlined' sx={{ borderRadius: '8px', overflow: 'hidden' }}>
             <div className='bs-[130px] bg-[var(--mui-palette-action-hover)] flex items-center justify-center text-[var(--mui-palette-text-disabled)]'>
               <Icon icon='tabler:armchair' width={26} />
             </div>
@@ -59,7 +64,7 @@ export default function PublicServiceList({ services }: { services: PublicServic
                 </Typography>
               )}
             </div>
-          </div>
+          </Card>
         )
       })}
     </div>

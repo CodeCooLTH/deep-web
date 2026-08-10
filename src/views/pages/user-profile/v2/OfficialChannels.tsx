@@ -21,6 +21,8 @@ import type { ReactElement } from 'react'
 import Typography from '@mui/material/Typography'
 import Tooltip from '@mui/material/Tooltip'
 
+import CustomAvatar from '@core/components/mui/Avatar'
+
 import { Icon } from '@iconify/react'
 
 export type OfficialChannel = {
@@ -65,19 +67,30 @@ const PROVIDER: Record<string, { label: string; icon: string; bg: string; url: (
   },
 }
 
+/**
+ * รูปเพจขนาด 38px ในแท็บ "ช่องทาง"
+ *
+ * 🛑 ใช้ `CustomAvatar` ของธีม (`@core/components/mui/Avatar` — ห่อ MUI `Avatar`) ไม่ใช่
+ * `<img onError>` + `useState(failed)` ที่เขียนเอง: **MUI Avatar ตกไปใช้ children ให้เองอยู่แล้ว
+ * เมื่อรูปโหลดไม่ขึ้น** state ที่เราเขียนเองจึงเป็นการทำซ้ำสิ่งที่ primitive ทำให้ฟรี — และไฟล์นี้
+ * เคยเขียนตรรกะเดียวกันซ้ำ 2 จุด (38px กับ 20px) ด้วยตัวแปรคนละตัว
+ * (Hard Rule 1 — safepay-ux audit 2026-08-10)
+ *
+ * รูปเพจมาจากหลายโดเมนภายนอกที่ next/image config ไม่ครอบ MUI Avatar ใช้ `<img>` ตรง ๆ
+ * จึงใช้ได้โดยไม่ต้อง disable lint เหมือนตอนเขียนเอง
+ */
 function ChannelAvatar({ src, bg, icon }: { src: string | null; bg: string; icon: string }) {
-  const [failed, setFailed] = useState(false)
   return (
-    <span
-      className='is-[38px] bs-[38px] rounded-xl shrink-0 relative flex items-center justify-center text-white overflow-hidden'
-      style={{ background: bg }}
-    >
-      {src && !failed ? (
-        // eslint-disable-next-line @next/next/no-img-element -- รูปจากแพลตฟอร์มภายนอก หลากโดเมน
-        <img src={src} alt='' className='is-full bs-full object-cover' onError={() => setFailed(true)} />
-      ) : (
+    <span className='is-[38px] bs-[38px] shrink-0 relative'>
+      <CustomAvatar
+        src={src ?? undefined}
+        alt=''
+        variant='rounded'
+        sx={{ inlineSize: 38, blockSize: 38, borderRadius: '12px', background: bg, color: 'common.white' }}
+      >
         <Icon icon={icon} width={19} />
-      )}
+      </CustomAvatar>
+      {/* เช็คเขียว = ยืนยันความเป็นเจ้าของผ่าน OAuth ปลอมไม่ได้ — เหตุผลเดียวที่บล็อกนี้มีค่า */}
       <span
         className='absolute -bottom-0.5 -inline-end-0.5 is-4 bs-4 rounded-full bg-success text-white flex items-center justify-center border-2 border-[var(--mui-palette-background-paper)]'
         title='ยืนยันความเป็นเจ้าของแล้ว'
@@ -285,31 +298,36 @@ function ChannelMark({
   icon: string
   bg: string
 }) {
-  const [failed, setFailed] = useState(false)
   const brandLogo =
     provider === 'MESSENGER'
       ? '/images/logos/facebook.svg'
       : provider === 'INSTAGRAM'
         ? '/images/logos/instagram-circle.svg'
         : null
-  const showPhoto = Boolean(src) && !failed
 
   return (
-    <span className='is-5 bs-5 shrink-0 relative flex items-center justify-center'>
-      <span
-        className='is-full bs-full rounded-full overflow-hidden flex items-center justify-center text-white'
-        style={{ background: showPhoto || brandLogo ? undefined : bg }}
+    <span className='is-5 bs-5 shrink-0 relative'>
+      {/* ลำดับ fallback 3 ชั้นยังเหมือนเดิมเป๊ะ: รูปเพจจริง → โลโก้แบรนด์ → พื้นสีแบรนด์ + ไอคอน
+          MUI Avatar จะ render children ก็ต่อเมื่อ **ไม่มี src หรือ src โหลดไม่ขึ้น** ชั้นที่ 2/3
+          จึงอยู่ใน children ได้โดยไม่ต้องถือ state เอง (ดูเหตุผลเต็มที่ ChannelAvatar)
+          พื้นเป็น transparent เมื่อมีโลโก้แบรนด์ เพราะโลโก้มีสีของตัวเองอยู่แล้ว */}
+      <CustomAvatar
+        src={src ?? undefined}
+        alt=''
+        sx={{
+          inlineSize: 20,
+          blockSize: 20,
+          background: brandLogo ? 'transparent' : bg,
+          color: 'common.white',
+        }}
       >
-        {showPhoto ? (
-          // eslint-disable-next-line @next/next/no-img-element -- รูปเพจจากแพลตฟอร์มภายนอก หลากโดเมน
-          <img src={src!} alt='' className='is-full bs-full object-cover' onError={() => setFailed(true)} />
-        ) : brandLogo ? (
+        {brandLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/
           <img src={brandLogo} alt='' className='is-full bs-full' />
         ) : (
           <Icon icon={icon} width={12} />
         )}
-      </span>
+      </CustomAvatar>
       {/* เช็คเขียว = ยืนยันความเป็นเจ้าของผ่าน OAuth ปลอมไม่ได้ — เหตุผลเดียวที่บล็อกนี้มีค่า */}
       <span
         className='absolute inline-end-[-2px] block-end-[-2px] is-[9px] bs-[9px] rounded-full bg-success border-[1.5px] border-[var(--mui-palette-background-paper)]'

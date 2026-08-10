@@ -7,9 +7,17 @@
  * 1 ดาวสองสามใบ มีความหมายคนละอย่างสำหรับคนที่กำลังจะโอนเงิน แท่งกระจายจึงไม่ใช่ของประดับ
  * แต่เป็นข้อมูลที่เปลี่ยนการตัดสินใจได้ และเป็นสิ่งที่แพลตฟอร์มซึ่งเลือกซ่อนมักถูกตั้งคำถาม
  *
- * Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile (rating block)
- *   + LinearProgress pattern จาก @core (ใช้ div ธรรมดาเพื่อคุมความสูงแท่งให้ตรง mockup)
+ * 🛑 Base: comment เดิมอ้าง "rating block" ใน `views/pages/user-profile` ของธีม ซึ่ง **ไม่มีอยู่จริง**
+ * (grep ทั้งโฟลเดอร์แล้วมีแต่ teams/projects/connections/UserProfileHeader) และอ้างว่าเลี่ยง
+ * `LinearProgress` เพื่อคุมความสูงแท่ง — พบตอน safepay-ux audit HR1 2026-08-10
+ *
+ * ตอนนี้ใช้ MUI `LinearProgress` จริงแล้ว: ความสูงคุมได้ด้วย `sx` ตั้งแต่แรก (ไม่เคยเป็นเหตุผลที่
+ * ต้องเขียน div เอง) และได้ `role="progressbar"` + `aria-valuenow` ติดมาด้วย ซึ่งเป็นสิ่งที่
+ * แท่งที่ประกอบจาก `<span>` ให้ไม่ได้เลย — บนบล็อกที่ทั้งบล็อกมีไว้ให้คนอ่านสัดส่วน
+ *
+ * Base: @mui/material/LinearProgress (variant determinate)
  */
+import LinearProgress from '@mui/material/LinearProgress'
 import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
@@ -55,12 +63,18 @@ export default function ReviewSummary({
         {distribution.map((d) => (
           <div key={d.star} className='flex items-center gap-2 text-xs'>
             <span className='is-2.5 text-end tabular-nums text-[var(--mui-palette-text-disabled)]'>{d.star}</span>
-            <span className='flex-1 bs-[7px] rounded bg-[var(--mui-palette-action-hover)] overflow-hidden min-is-0'>
-              <span
-                className='block bs-full rounded bg-warning'
-                style={{ inlineSize: `${Math.round((d.count / max) * 100)}%` }}
-              />
-            </span>
+            <LinearProgress
+              variant='determinate'
+              value={Math.round((d.count / max) * 100)}
+              aria-label={`${d.star} ดาว — ${d.count} รีวิว`}
+              className='flex-1 min-is-0'
+              sx={{
+                blockSize: 7,
+                borderRadius: 1,
+                backgroundColor: 'var(--mui-palette-action-hover)',
+                '& .MuiLinearProgress-bar': { borderRadius: 1, backgroundColor: 'warning.main' },
+              }}
+            />
             <span className='is-6 text-end tabular-nums text-[var(--mui-palette-text-disabled)]'>{d.count}</span>
           </div>
         ))}

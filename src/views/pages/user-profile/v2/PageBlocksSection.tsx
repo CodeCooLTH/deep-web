@@ -15,6 +15,7 @@
  */
 import { useState } from 'react'
 
+import Card from '@mui/material/Card'
 import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
@@ -135,15 +136,25 @@ function FacebookPostBlock({ post, blockKey }: { post: PageBlockPost; blockKey: 
     </>
   )
 
-  // rounded-lg (8px) = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes)
+  // rounded 8px = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes)
   // เดิม rounded-xl (12px) ไม่อยู่บน ramp เลย (4/6/8/10/full) — ค่านี้ถูกก็อปต่อ ๆ กันมาในโฟลเดอร์ v2/
   // จึง "สม่ำเสมอกันเอง" แต่ไม่ตรงระบบ ซึ่งจับได้ยากกว่าค่าที่หลุดเดี่ยว ๆ
-  const cardClass = 'block mli-5 mbs-3.5 mbe-3.5 rounded-lg border overflow-hidden no-underline text-[color:inherit]'
+  //
+  /* ใช้ MUI `Card variant='outlined'` แทน `<div className='rounded-lg border'>` — ได้ผิวเดียวกันเป๊ะ
+     (ขอบ 1px ไม่มีเงา) แต่ขอบ/พื้นมาจาก palette ของธีมแทน utility ที่บังเอิญตรง และเป็น primitive
+     ตัวเดียวกับที่หน้าอื่นทั้งระบบใช้ (Hard Rule 1 — safepay-ux audit 2026-08-10)
+     `component` เปลี่ยนตัว element จริงตามว่าโพสต์กดออกไปได้ไหม — โพสต์ที่ไม่มี permalink
+     (ข้อมูลผิดปกติ) ยังต้องแสดงได้ แค่ไม่ใช่ลิงก์ ห้ามกลายเป็น <a> ที่กดแล้วไม่ไปไหน */
+  const cardSx = { borderRadius: '8px', overflow: 'hidden' } as const
+  const cardClass = 'block mli-5 mbs-3.5 mbe-3.5 no-underline text-[color:inherit]'
 
   // โพสต์ที่ไม่มี permalink (ข้อมูลผิดปกติ) ยังโชว์ได้ แค่กดออกไปที่โพสต์จริงไม่ได้
   // data-block-key: จุดเกาะให้ BuilderPreviewBridge วัดตำแหน่ง (feature 00035, SDS §4.1)
   return post.permalink ? (
-    <a
+    <Card
+      variant='outlined'
+      sx={cardSx}
+      component='a'
       href={post.permalink}
       target='_blank'
       rel='noopener noreferrer'
@@ -151,11 +162,11 @@ function FacebookPostBlock({ post, blockKey }: { post: PageBlockPost; blockKey: 
       data-block-key={blockKey}
     >
       {inner}
-    </a>
+    </Card>
   ) : (
-    <div className={cardClass} data-block-key={blockKey}>
+    <Card variant='outlined' sx={cardSx} className={cardClass} data-block-key={blockKey}>
       {inner}
-    </div>
+    </Card>
   )
 }
 
