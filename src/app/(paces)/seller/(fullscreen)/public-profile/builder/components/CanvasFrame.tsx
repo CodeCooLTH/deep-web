@@ -151,8 +151,14 @@ export default function CanvasFrame({ draft, header, onReorderBlocks, onReorderT
           {/* ตรึง: หัวโปรไฟล์ — ไม่มีที่จับลาก ไม่มีปุ่มลบ (guardrail) */}
           <div className="border-default-200 relative border-b">
             {/* ปก: รูปจริงถ้าร้านอัปโหลด ไม่งั้นไล่สีตามระดับความน่าเชื่อถือ — เดียวกับ ProfileHero.tsx
-                (เดิม hardcode gradient primary→info ทุกร้าน ไม่ตรงกับหน้าจริงที่ผันตาม tier) */}
-            <div className="relative h-20 overflow-hidden" style={{ background: header.tierGradient }}>
+                (เดิม hardcode gradient primary→info ทุกร้าน ไม่ตรงกับหน้าจริงที่ผันตาม tier)
+
+                🛑 canvas นี้เป็นภาพจำลองที่ **sync มือ** กับ `ProfileHero.tsx` (หนี้ที่รู้ตัวจาก 00035)
+                สเกลราว 0.67 เท่าของจริง อ้างจาก avatar: canvas `size-14` (56px) : จริง 84px
+                ปกจริงถูกยกเป็น 132px (ไล่สี) / 144–224px (มีรูป) เมื่อ 2026-08-10 ตามที่ user ทัก
+                → `h-20` (80px) เดิมกลายเป็นเตี้ยกว่าของจริงเกินสเกล ยกเป็น `h-24` (96px ≈ 144 × 0.67)
+                ผู้ขายจะได้ไม่จัดหน้าจากภาพที่สัดส่วนไม่ตรงกับสิ่งที่ผู้ซื้อเห็นจริง */}
+            <div className="relative h-24 overflow-hidden" style={{ background: header.tierGradient }}>
               {header.coverImageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element -- ภาพปกร้านจาก storage ภายนอก ไม่ผ่าน next/image config
                 <img src={header.coverImageUrl} alt="" className="absolute inset-0 size-full object-cover" />
