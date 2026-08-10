@@ -119,7 +119,7 @@ export function getTierCover(trustScore: number): string {
  *   Silver  → ink tonalRamp dark/mid/light (#454155/#7a7689/#bdbbc7 — ตรงกับ getTierAccentColor Silver #7a7689)
  *   Gold    → warning-amber canonical dark/main/light (#e08400/#FF9F43/#ffd1a3 — ตรงกับ getTierAccentColor Gold #FF9F43)
  *   Diamond → signal-cyan canonical dark/main/light (#009eb2/#00BAD1/#8ee5ee — ตรงกับ getTierAccentColor Diamond #00BAD1)
- *   Star    → primary canonical dark/main/light (#5a4ee0/#7367F0/#b3acf8 — ตรงกับ getTierAccentColor/getTierColor Star)
+ *   Star    → primary tonalRamp ขั้น main/+1/+3 (#7367F0/#9389f4/#d9d4fb)
  *
  * P0-2 (Impeccable critique — "ยังไม่มีประวัติ" ต้องไม่หน้าตาเหมือนรางวัล): C แยกจาก D แล้ว —
  *   C (40-59, มีประวัติจริง) → อำพันจางกว่า Gold (#b36700/#e08400/#ffd1a3)
@@ -128,8 +128,22 @@ export function getTierCover(trustScore: number): string {
  */
 export function getTierGradient(trustScore: number): string {
   switch (letterFromScore(trustScore)) {
-    case 'A+': // Deep Star — ม่วง (primary canonical)
-      return 'linear-gradient(135deg, #5a4ee0 0%, #7367F0 45%, #b3acf8 100%)'
+    // 🛑 Deep Star เจือจางลง 1 ขั้นบน primary tonalRamp เมื่อ 2026-08-10 (user เคาะ) —
+    // เดิม #5a4ee0/#7367F0/#b3acf8 (ขั้น -1/main/+2) ตอนนี้ #7367F0/#9389f4/#d9d4fb (main/+1/+3)
+    //
+    // เหตุผล: นี่เป็น tier **เดียว** ที่ไล่สีปกใช้ #7367F0 ซึ่งเป็น primary ของทั้งระบบ ตอนที่ปก
+    // ยังสูง 104px มันเป็นแถบบางพอที่จะไม่กินโควตา One Voice (ม่วง ≤10% ตาม DESIGN.md) แต่พอ
+    // ยกปกเป็น 132px ในรอบเดียวกัน พื้นที่ม่วงโตขึ้น ~27% บนหน้าที่มีม่วงอยู่แล้วอีก 3 จุด
+    // (ปุ่มแชท / แท็บ active / ป้ายปักหมุด) — และ DESIGN.md มี "ไล่สีม่วง gradient ตกแต่ง"
+    // อยู่ในรายการ Don't ตรงตัว
+    //
+    // ทุกค่ายังเป็นขั้นจริงบน `primary.tonalRamp` ใน .impeccable/design.json ไม่ใช่สีที่ผสมเอง
+    // และ **เฉดเดิมทั้งหมด** ปรับแค่ความเข้ม ตาม docs/conventions/contrast-fix-keeps-hue.md
+    //
+    // แลกมาด้วย: Star จะดูเบากว่า Gold/Diamond ที่ยังอิ่มตัวเต็ม ซึ่งขัดความรู้สึก "รางวัล" ของ
+    // tier สูงสุดอยู่บ้าง — user รับข้อแลกเปลี่ยนนี้แล้ว (ปัจจุบันยังไม่มีร้านไหนในฐานถึงเกณฑ์ 90)
+    case 'A+': // Deep Star — ม่วง (primary tonalRamp, เจือจาง)
+      return 'linear-gradient(135deg, #7367F0 0%, #9389f4 45%, #d9d4fb 100%)'
     case 'A': // Deep Diamond — ฟ้า (signal-cyan canonical)
       return 'linear-gradient(135deg, #009eb2 0%, #00BAD1 45%, #8ee5ee 100%)'
     case 'B+': // Deep Gold — ทอง (warning-amber canonical)

@@ -109,8 +109,19 @@ describe('getTierGradient', () => {
     })
   })
 
-  it('Deep Star (A+) → primary canonical ramp', () => {
-    expect(getTierGradient(90)).toBe('linear-gradient(135deg, #5a4ee0 0%, #7367F0 45%, #b3acf8 100%)')
+  // เจือจางลง 1 ขั้นเมื่อ 2026-08-10 (user เคาะ) พร้อมกับการยกความสูงปก — ดูเหตุผลเต็มใน
+  // trust-tier.ts. ทุกค่าต้องเป็นขั้นจริงบน primary.tonalRamp ของ .impeccable/design.json
+  it('Deep Star (A+) → primary tonalRamp (เจือจาง 1 ขั้น)', () => {
+    expect(getTierGradient(90)).toBe('linear-gradient(135deg, #7367F0 0%, #9389f4 45%, #d9d4fb 100%)')
+  })
+
+  // [blocker] แดงเมื่อไหร่ห้าม merge
+  //
+  // ปกของ Deep Star เป็นพื้นที่ม่วงที่ใหญ่ที่สุดในระบบ (960×132px) การกลับไปใช้ขั้นเข้มจะดัน
+  // One Voice (ม่วง ≤10%) เกินเพดานอีกครั้งโดยไม่มีอะไรฟ้อง — hex ที่เข้มกว่าก็ยัง "ถูก" ตาม
+  // ชนิดข้อมูลทุกประการ ผิดแค่ *ปริมาณสีบนหน้าจอ* ซึ่งไม่มี gate ไหนของโปรเจกต์วัดได้
+  it('[blocker] ไล่สี Star ห้ามกลับไปใช้ขั้นเข้ม (#5a4ee0 / #b3acf8)', () => {
+    expect(getTierGradient(95)).not.toMatch(/#5a4ee0|#b3acf8/i)
   })
 
   it('Deep Diamond (A) → signal-cyan canonical ramp', () => {

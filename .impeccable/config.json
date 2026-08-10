@@ -48,6 +48,24 @@
         "value": "22px",
         "createdAt": "2026-08-10T03:14:23.680Z",
         "reason": "Metric ramp step 2 ตาม DESIGN.md §Typography"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#f09433",
+        "createdAt": "2026-08-10T06:36:23.798Z",
+        "reason": "สีแบรนด์ Instagram (gradient โลโก้) — asset ของเจ้าของแพลตฟอร์ม ไม่ใช่สีของระบบเรา user ยืนยัน 2026-08-10"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#dc2743",
+        "createdAt": "2026-08-10T06:36:23.830Z",
+        "reason": "สีแบรนด์ Instagram (gradient โลโก้) — asset ของเจ้าของแพลตฟอร์ม ไม่ใช่สีของระบบเรา user ยืนยัน 2026-08-10"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#bc1888",
+        "createdAt": "2026-08-10T06:36:23.864Z",
+        "reason": "สีแบรนด์ Instagram (gradient โลโก้) — asset ของเจ้าของแพลตฟอร์ม ไม่ใช่สีของระบบเรา user ยืนยัน 2026-08-10"
       }
     ]
   }
