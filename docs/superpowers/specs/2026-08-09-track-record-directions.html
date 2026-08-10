@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>บล็อกหลักฐานร้าน — 4 ทิศทางที่ไม่ใช่ dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --primary:#7367F0; --ink:#2F2B3D; --ink-70:rgb(47 43 61/.7); --ink-40:rgb(47 43 61/.4);
+  --divider:rgb(47 43 61/.12); --mist:#F8F7FA; --paper:#fff;
+  --success:#28C76F; --vink:#18804A;
+  --r-card:8px; --r-lg:10px; --shadow-sm:0 2px 8px rgb(47 43 61/.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;background:#eceaf0;color:var(--ink);padding:28px 16px 72px;font-size:15px;line-height:1.47}
+.h1{max-width:1200px;margin:0 auto 6px;font-size:22px;font-weight:800}
+.sub{max-width:1200px;margin:0 auto 22px;font-size:13px;color:var(--ink-70)}
+.warn{max-width:1200px;margin:0 auto 24px;background:var(--paper);border-radius:var(--r-lg);padding:14px 18px;box-shadow:var(--shadow-sm);font-size:13px;color:var(--ink-70)}
+.warn b{color:var(--ink)}
+.grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:22px}
+.card{background:var(--paper);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden;display:flex;flex-direction:column}
+.ch{padding:13px 18px;border-bottom:1px solid var(--divider)}
+.ch b{font-size:15px} .ch em{font-style:normal;font-size:13px;color:var(--ink-70)}
+.tag{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;background:rgb(115 103 240/.16);color:var(--primary);margin-inline-start:6px}
+.stage{padding:22px 18px;background:var(--mist);display:flex;justify-content:center}
+.phone{width:358px;background:var(--paper);border-radius:var(--r-card);padding:16px;box-shadow:0 1px 3px rgb(47 43 61/.1)}
+.why{padding:14px 18px;font-size:13px;color:var(--ink-70);border-top:1px solid var(--divider)}
+.why b{color:var(--ink)} .why .no{color:#B4232A}
+
+/* ① ประโยคหลักฐาน */
+.s-lead{font-size:15px;line-height:1.75}
+.s-lead .big{font-size:32px;font-weight:800;color:var(--vink);letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1;display:inline-block;vertical-align:-2px}
+.s-lead b{font-weight:700;font-variant-numeric:tabular-nums}
+.s-sub{font-size:13px;color:var(--ink-70);margin-top:8px}
+
+/* ② ชิปหลักฐาน */
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.cp{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 12px;font-size:13px;background:rgb(47 43 61/.05)}
+.cp b{font-weight:700;font-variant-numeric:tabular-nums}
+.cp.hero{background:rgb(24 128 74/.1);color:var(--vink)}
+.cp.hero b{font-size:15px;font-weight:800}
+.cp svg{opacity:.7}
+.cp.muted{color:var(--ink-40)}
+
+/* ③ รายการหลักฐาน (ledger) */
+.led{display:flex;flex-direction:column}
+.li{display:flex;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px dashed var(--divider)}
+.li:last-child{border-bottom:0}
+.li .k{font-size:13px;color:var(--ink-70);white-space:nowrap}
+.li .fill{flex:1;border-bottom:1px dotted rgb(47 43 61/.18);transform:translateY(-3px)}
+.li .v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.li.top .v{font-size:22px;font-weight:800;color:var(--vink);letter-spacing:-.02em}
+.li .v.muted{color:var(--ink-40);font-weight:600}
+
+/* ④ ตัวเลขเดียว + บรรทัดประกอบ */
+.solo{text-align:center}
+.solo .n{font-size:44px;font-weight:800;color:var(--vink);letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums}
+.solo .c{font-size:15px;margin-top:4px}
+.solo .m{font-size:13px;color:var(--ink-70);margin-top:8px}
+.solo .m i{font-style:normal;color:var(--ink-40);padding:0 5px}
+</style>
+</head>
+<body>
+
+<div class="h1">บล็อก "หลักฐานร้าน" — 4 ทิศทางที่ไม่ใช่ dashboard</div>
+<div class="sub">แทนที่ 92% + แถบคืบหน้า + KPI 3 ช่อง ที่ไม่ชอบ · ข้อมูลเท่าเดิมทุกตัว (92% · จาก 60 · 55 ออเดอร์ · 55 ลูกค้า · 0 ซื้อซ้ำ)</div>
+
+<div class="warn">
+  <b>ทำไมแบบเดิมถึงผิดทาง:</b> ตัวเลขใหญ่ + แถบคืบหน้า + KPI เรียง 3 ช่อง คือ "hero-metric template" ที่ <code>DESIGN.md</code> เขียนไว้ใน
+  <b>Anti-references</b> ตรงตัวว่า Deep ต้องไม่ดูเหมือน — มันเป็นภาษาของ <b>dashboard หลังบ้าน</b> (เจ้าของร้านดูผลงานตัวเอง)
+  แต่บล็อกนี้ทำหน้าที่ตรงข้าม: <b>คนแปลกหน้าอ่านหลักฐานก่อนโอนเงิน</b> ทั้ง 4 แบบด้านล่างจึงเลิกใช้ภาษา KPI
+</div>
+
+<div class="grid">
+
+  <!-- ① -->
+  <div class="card">
+    <div class="ch"><b>① ประโยคหลักฐาน</b><span class="tag">แนะนำ</span> <em>— อ่านเป็นภาษาคน ไม่ใช่แผงตัวเลข</em></div>
+    <div class="stage"><div class="phone">
+      <div class="s-lead">
+        ปิดออเดอร์สำเร็จ <span class="big">92%</span><br>
+        จาก <b>60</b> ออเดอร์ที่จบแล้ว กับลูกค้า <b>55</b> คน
+      </div>
+      <div class="s-sub">ยังไม่มีลูกค้ากลับมาซื้อซ้ำ</div>
+    </div></div>
+    <div class="why">
+      ตรงกับ Brand Personality ที่กำหนดไว้ว่า <b>"พูดกับคนเหมือนคนช่วยคน ไม่ใช่เอกสารราชการ"</b> — ตัวเลขยังเด่น แต่ฝังในประโยคที่บอกว่ามันแปลว่าอะไร
+      ผู้สูงวัย/digital-literacy ต่ำ (กลุ่มที่ PRODUCT.md ผูกไว้) ไม่ต้องแปลป้ายใต้ตัวเลขเอง ·
+      <b>"0" หายไปเป็นประโยค</b> "ยังไม่มีลูกค้ากลับมาซื้อซ้ำ" ซึ่งเป็นความจริงเดียวกันแต่ไม่ใช่คำตัดสิน ·
+      เตี้ยที่สุดในสี่แบบ (~92px)
+      <div style="margin-top:6px"><span class="no">ข้อแลก:</span> เทียบร้านต่อร้านด้วยสายตาเร็ว ๆ ยากกว่าแผงตัวเลข</div>
+    </div>
+  </div>
+
+  <!-- ② -->
+  <div class="card">
+    <div class="ch"><b>② ชิปหลักฐาน</b> <em>— ใช้ภาษาเดียวกับเหรียญ/ช่องทางที่อยู่เหนือมัน</em></div>
+    <div class="stage"><div class="phone">
+      <div class="chips">
+        <span class="cp hero"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg><b>92%</b> ออเดอร์สำเร็จ</span>
+        <span class="cp"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14h18V6l-3-4z"/><path d="M3 6h18"/></svg><b>55</b> ออเดอร์</span>
+        <span class="cp"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/></svg><b>55</b> ลูกค้า</span>
+        <span class="cp muted"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 5v5h5"/></svg>ยังไม่มีคนซื้อซ้ำ</span>
+      </div>
+      <div class="s-sub" style="margin-top:9px">จาก 60 ออเดอร์ที่จบแล้ว</div>
+    </div></div>
+    <div class="why">
+      หัวโปรไฟล์ทั้งหัวเป็น <b>ภาษาชิป</b> อยู่แล้ว (trust pill · แถบเพจ · เหรียญ) แบบนี้ทำให้บล็อกสุดท้ายพูดภาษาเดียวกัน ทั้งหัวจึงอ่านเป็นชิ้นเดียว ไม่ใช่ 2 ระบบชนกัน ·
+      ชิปสำเร็จใช้พื้นเขียวจาง = สัญญาณ "เชื่อได้" ที่กฎ Verified-Means-Green สงวนไว้พอดี ·
+      ชิป "ยังไม่มีคนซื้อซ้ำ" เป็นสีจาง ไม่ใช่เลข 0 ตัวโต
+      <div style="margin-top:6px"><span class="no">ข้อแลก:</span> 92% ไม่ได้ตัวใหญ่แบบเดิม เด่นด้วยสีกับพื้นแทน</div>
+    </div>
+  </div>
+
+  <!-- ③ -->
+  <div class="card">
+    <div class="ch"><b>③ ใบสรุปแบบเคาน์เตอร์</b> <em>— ตรงกับ north star "The Trusted Counter"</em></div>
+    <div class="stage"><div class="phone">
+      <div class="led">
+        <div class="li top"><span class="k">ออเดอร์สำเร็จ</span><span class="fill"></span><span class="v">92%</span></div>
+        <div class="li"><span class="k">ออเดอร์ที่จบแล้ว</span><span class="fill"></span><span class="v">60</span></div>
+        <div class="li"><span class="k">ลูกค้าทั้งหมด</span><span class="fill"></span><span class="v">55</span></div>
+        <div class="li"><span class="k">กลับมาซื้อซ้ำ</span><span class="fill"></span><span class="v muted">ยังไม่มี</span></div>
+      </div>
+    </div></div>
+    <div class="why">
+      เส้นประ + ตัวเลขชิดขวาเป็นภาษาของ <b>ใบเสร็จ/ใบสรุปหน้าเคาน์เตอร์</b> ซึ่งคือ north star ที่ <code>DESIGN.md</code> เขียนไว้เอง
+      ("Deep รู้สึกเหมือนเคาน์เตอร์ร้านที่ไฟสว่าง สะอาด ที่ทุกอย่างถูกตรวจสอบกันอย่างเปิดเผยตรงหน้า ก่อนเงินจะเปลี่ยนมือ") ·
+      ตัวเลขเรียงคอลัมน์เดียวกัน <b>เทียบร้านต่อร้านง่ายที่สุด</b> · เพิ่มบรรทัดใหม่ทีหลังได้ไม่พังผัง
+      <div style="margin-top:6px"><span class="no">ข้อแลก:</span> สูงสุดในสี่แบบ (~150px) และ "สะอาด" อาจอ่านเป็น "ทางการ" ถ้าใช้เส้นเยอะไป</div>
+    </div>
+  </div>
+
+  <!-- ④ -->
+  <div class="card">
+    <div class="ch"><b>④ ตัวเลขเดียว</b> <em>— ตัดทุกอย่างเหลือสิ่งที่คนอยากรู้จริง</em></div>
+    <div class="stage"><div class="phone">
+      <div class="solo">
+        <div class="n">92%</div>
+        <div class="c">ออเดอร์สำเร็จบน Deep</div>
+        <div class="m">จาก 60 ออเดอร์ที่จบแล้ว <i>·</i> ลูกค้า 55 คน</div>
+      </div>
+    </div></div>
+    <div class="why">
+      กล้าที่สุด: ยอมรับว่าคนที่กำลังจะโอนเงินสนใจตัวเลขเดียว ที่เหลือเป็นบริบท —
+      ตรงกับหลัก <b>"ตัดของที่ไม่ได้ทำงานทิ้ง"</b> และทำให้พระเอกของหน้าเด่นชัดที่สุด ·
+      "55 ออเดอร์" ถูกตัดออกโดยตั้งใจเพราะซ้ำกับ "60 ที่จบแล้ว" ในสายตาผู้อ่านทั่วไป
+      <div style="margin-top:6px"><span class="no">ข้อแลก:</span> <b>ตัดข้อมูลจริงออกจากหน้า</b> — ต้องยืนยันก่อนว่ายอมเสีย "จำนวนลูกค้า/ซื้อซ้ำ" ในรูปตัวเลข (user เคยเคาะไว้ว่าให้คงครบ 3 ช่อง)</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="warn" style="margin-top:24px">
+  <b>ทั้ง 4 แบบเก็บของเดิมไว้ครบเท่ากัน</b> ยกเว้นแบบ ④ ที่ตัด "จำนวนลูกค้า/ซื้อซ้ำ" ในรูปตัวเลขออก —
+  และทุกแบบ<b>เลิกแสดง "0"</b> เปลี่ยนเป็นคำว่า "ยังไม่มี" เพราะ 0 ตัวโตข้างเลข 55 สองตัวอ่านเป็นคำตัดสิน
+  ทั้งที่มันแปลว่า "ร้านเพิ่งเริ่ม" ไม่ใช่ "ลูกค้าไม่กลับมา"
+</div>
+
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trust Score chip — 4 ทางเลือก (Vuexy)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --primary:#7367F0;
+  --ink:#2F2B3D; --ink-70:rgb(47 43 61/.7); --ink-40:rgb(47 43 61/.4);
+  --divider:rgb(47 43 61/.12); --mist:#F8F7FA; --paper:#fff;
+  --success:#28C76F; --verified-ink:#18804A;
+  /* tier canonical (src/lib/trust-tier.ts getTierGradient) */
+  --t-classic:#e08400; --t-silver:#7a7689; --t-gold:#FF9F43; --t-diamond:#00BAD1; --t-star:#7367F0;
+  --r-card:8px; --r-lg:10px;
+  --shadow-sm:0 2px 8px rgb(47 43 61/.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;background:#eceaf0;color:var(--ink);padding:32px 16px 72px;font-size:15px;line-height:1.47}
+.h1{max-width:1100px;margin:0 auto 6px;font-size:22px;font-weight:800}
+.sub{max-width:1100px;margin:0 auto 26px;font-size:13px;color:var(--ink-70)}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.card{background:var(--paper);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+.card-h{padding:14px 18px;border-bottom:1px solid var(--divider);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.card-h b{font-size:15px}
+.tagme{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;background:rgb(115 103 240/.16);color:var(--primary)}
+.card-b{padding:22px 18px;display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start}
+.demo{display:flex;flex-direction:column;gap:8px;align-items:center}
+.demo .cap{font-size:11px;color:var(--ink-40)}
+.name{font-size:20px;font-weight:800;letter-spacing:-.02em;text-align:center}
+.why{padding:0 18px 18px;font-size:13px;color:var(--ink-70)}
+.why b{color:var(--ink)}
+.why .bad{color:#B4232A}
+
+/* ── ของเดิม (A/B baseline) ── */
+.row{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap}
+.tick{width:18px;height:18px;border-radius:999px;background:var(--success);color:#fff;display:flex;align-items:center;justify-content:center}
+.old-score{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:13px;font-weight:800;background:var(--ink);color:#fff;font-variant-numeric:tabular-nums}
+.old-tier{border-radius:var(--r-lg);padding:4px 10px;font-size:13px;font-weight:600;background:rgb(47 43 61/.06);color:var(--ink-70)}
+.info{border:0;background:transparent;color:var(--ink-70);display:flex;padding:4px;cursor:pointer}
+
+/* ── ① ก้อนเดียว (Unified) ── */
+.v1{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--divider);
+    border-radius:999px;padding:4px 12px 4px 5px;box-shadow:var(--shadow-sm);cursor:pointer}
+.v1 .tick{width:20px;height:20px}
+.v1 .num{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.v1 .den{font-size:11px;font-weight:600;color:var(--ink-40);margin-inline-start:1px}
+.v1 .sep{width:1px;height:14px;background:var(--divider)}
+.v1 .tier{font-size:13px;font-weight:600;color:var(--ink-70);display:flex;align-items:center;gap:5px}
+.v1 .dot{width:6px;height:6px;border-radius:999px;background:var(--t-classic)}
+.v1 .chev{color:var(--ink-40);display:flex}
+
+/* ── ② วงแหวนคะแนน (Ring) ── */
+.v2{display:inline-flex;align-items:center;gap:9px;cursor:pointer}
+.ring{position:relative;width:44px;height:44px;flex-shrink:0}
+.ring svg{transform:rotate(-90deg)}
+.ring .val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.v2 .stack{display:flex;flex-direction:column;align-items:flex-start;line-height:1.25}
+.v2 .lbl{font-size:11px;font-weight:600;color:var(--ink-40)}
+.v2 .tier{font-size:15px;font-weight:700;display:flex;align-items:center;gap:5px}
+.v2 .tickmini{width:14px;height:14px;border-radius:999px;background:var(--success);color:#fff;display:flex;align-items:center;justify-content:center}
+
+/* ── ③ จุดระดับ (Dots — ตาม SSOT Tier Lists) ── */
+.v3{display:inline-flex;align-items:center;gap:8px;background:rgb(47 43 61/.05);border-radius:999px;padding:5px 12px;cursor:pointer}
+.v3 .tickmini{width:16px;height:16px;border-radius:999px;background:var(--success);color:#fff;display:flex;align-items:center;justify-content:center}
+.v3 .tier{font-size:13px;font-weight:700}
+.dots{display:flex;gap:3px}
+.dots i{width:6px;height:6px;border-radius:999px;background:rgb(47 43 61/.18)}
+.dots i.on{background:var(--t-classic)}
+.v3 .num{font-size:13px;font-weight:700;color:var(--ink-70);font-variant-numeric:tabular-nums}
+
+/* ── ④ แถบความคืบหน้า (Progress) ── */
+.v4{display:flex;flex-direction:column;gap:5px;min-width:230px;cursor:pointer}
+.v4 .top{display:flex;align-items:center;gap:7px}
+.v4 .tickmini{width:16px;height:16px;border-radius:999px;background:var(--success);color:#fff;display:flex;align-items:center;justify-content:center}
+.v4 .tier{font-size:15px;font-weight:700}
+.v4 .num{margin-inline-start:auto;font-size:13px;font-weight:700;color:var(--ink-70);font-variant-numeric:tabular-nums}
+.bar{height:5px;border-radius:999px;background:rgb(47 43 61/.1);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:999px;background:var(--t-classic)}
+.v4 .hint{font-size:11px;color:var(--ink-40);text-align:start}
+
+.tierset{display:flex;gap:18px;flex-wrap:wrap;padding:0 18px 20px}
+.tierset .demo .cap{color:var(--ink-70)}
+</style>
+</head>
+<body>
+
+<div class="h1">Trust Score chip — 4 ทางเลือก</div>
+<div class="sub">
+  <b>ใช่ครับ 24/100 คือ Trust Score</b> (สเกล 0–100) และ <b>Deep Classic คือ tier ที่คำนวณจากคะแนนนั้น</b>
+  (90+ Star · 80+ Diamond · 70+ Gold · 60+ Silver · ต่ำกว่า 60 = Classic) — SSOT: <code>docs/10 - Business Rules/Tier Lists.md</code>
+</div>
+
+<div class="wrap">
+
+  <!-- baseline -->
+  <div class="card">
+    <div class="card-h"><b>ของเดิม (บน prod ตอนนี้)</b></div>
+    <div class="card-b">
+      <div class="demo">
+        <div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <div class="row">
+          <span class="tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="old-score">24/100</span>
+          <span class="old-tier">Deep Classic</span>
+          <button class="info"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="why">
+      <span class="bad">ปัญหา:</span> ของ 4 ชิ้นลอยแยกกัน น้ำหนักเท่ากันหมด · กล่องดำทึบดังกว่าชื่อร้าน ทั้งที่ชื่อร้านควรเป็นพระเอก ·
+      <b>tier เป็นผลลัพธ์ของตัวเลขที่อยู่ติดกัน</b> แต่ถูกวางเป็นของคนละชิ้นน้ำหนักเท่ากัน = พูดเรื่องเดียวกันสองรอบ ·
+      ปุ่ม ⓘ ลอยเดี่ยวไม่รู้ว่าอธิบายอันไหน
+    </div>
+  </div>
+
+  <!-- ① -->
+  <div class="card">
+    <div class="card-h"><b>① ก้อนเดียว</b> <span class="tagme">แนะนำ</span> <span style="font-size:13px;color:var(--ink-70)">— ยุบ 4 ชิ้นเป็นวัตถุเดียวที่กดได้</span></div>
+    <div class="card-b">
+      <div class="demo">
+        <div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <span class="v1">
+          <span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span><span class="num">24</span><span class="den">/100</span></span>
+          <i class="sep"></i>
+          <span class="tier"><i class="dot"></i>Deep Classic</span>
+          <span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+        </span>
+        <div class="cap">ทั้งก้อนกดได้ → เปิดแผงอธิบายคะแนน</div>
+      </div>
+    </div>
+    <div class="why">
+      พื้นขาว+ขอบบาง แทนกล่องดำทึบ → ไม่แย่งสายตาจากชื่อร้าน · ตัวเลขเด่นกว่าตัวหาร (<b>24</b> ใหญ่ / <b>/100</b> เล็กเทา) ·
+      จุดสีเล็ก ๆ หน้าชื่อ tier เป็นที่เดียวที่ใช้สีประจำระดับ — ได้สัญญาณสีโดยไม่ทำให้ร้านคะแนนน้อยดูเหมือนโดนเตือน ·
+      ⓘ อยู่ในก้อนเดียวกัน จึงชัดว่าอธิบายสิ่งนี้ · <b>tap target เดียว 44px</b> แทนของเล็ก 4 ชิ้น
+    </div>
+  </div>
+
+  <!-- ② -->
+  <div class="card">
+    <div class="card-h"><b>② วงแหวนคะแนน</b> <span style="font-size:13px;color:var(--ink-70)">— เห็น "24 จาก 100" เป็นรูป ไม่ต้องอ่านเลข</span></div>
+    <div class="card-b">
+      <div class="demo">
+        <div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <span class="v2">
+          <span class="ring">
+            <svg width="44" height="44" viewBox="0 0 44 44">
+              <circle cx="22" cy="22" r="19" fill="none" stroke="rgb(47 43 61/.1)" stroke-width="4"/>
+              <circle cx="22" cy="22" r="19" fill="none" stroke="var(--t-classic)" stroke-width="4" stroke-linecap="round"
+                      stroke-dasharray="119.4" stroke-dashoffset="90.7"/>
+            </svg>
+            <span class="val">24</span>
+          </span>
+          <span class="stack">
+            <span class="lbl">คะแนนความน่าเชื่อถือ</span>
+            <span class="tier"><span class="tickmini"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M20 6 9 17l-5-5"/></svg></span>Deep Classic</span>
+          </span>
+        </span>
+        <div class="cap">วงแหวนเต็ม = 100</div>
+      </div>
+    </div>
+    <div class="why">
+      ได้ "รู้ทันทีว่ายังห่างจากเต็มแค่ไหน" โดยไม่ต้องคำนวณ · มีป้ายบอกตรง ๆ ว่านี่คือคะแนนอะไร (แก้ปัญหาที่ critique จับได้) ·
+      <span class="bad">แลกด้วย:</span> สูงขึ้น 44px ดันบล็อกอื่นลง และวงแหวนที่เกือบว่างของร้านคะแนนน้อยอ่านเป็น "แย่" ชัดกว่าตัวเลขเปล่า
+    </div>
+  </div>
+
+  <!-- ③ -->
+  <div class="card">
+    <div class="card-h"><b>③ จุดระดับ</b> <span style="font-size:13px;color:var(--ink-70)">— ใช้ dots 5 ระดับที่ SSOT มีอยู่แล้วแต่หน้านี้ไม่เคยใช้</span></div>
+    <div class="card-b">
+      <div class="demo">
+        <div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <span class="v3">
+          <span class="tickmini"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span class="tier">Deep Classic</span>
+          <span class="dots"><i class="on"></i><i></i><i></i><i></i><i></i></span>
+          <span class="num">24</span>
+        </span>
+        <div class="cap">Classic ●○○○○ · Silver ●●○○○ · Gold ●●●○○ · Diamond ●●●●○ · Star ●●●●●</div>
+      </div>
+    </div>
+    <div class="why">
+      เทียบร้านต่อร้านได้เร็วที่สุด (นับจุด ไม่ต้องอ่านเลข) และตรงกับ <code>Tier Lists.md</code> ที่กำหนด dots ไว้แล้ว ·
+      <span class="bad">แลกด้วย:</span> จุดเดียวติดจาก 5 อ่านเป็น "เกือบแย่สุด" แรงกว่าเลข 24 · และผู้ใช้ต้องเรียนรู้ว่าจุดหมายถึงอะไร
+    </div>
+  </div>
+
+  <!-- ④ -->
+  <div class="card">
+    <div class="card-h"><b>④ แถบความคืบหน้า</b> <span style="font-size:13px;color:var(--ink-70)">— เน้น "กำลังไปข้างหน้า" ไม่ใช่ "อยู่ตรงไหน"</span></div>
+    <div class="card-b">
+      <div class="demo">
+        <div class="name">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <span class="v4">
+          <span class="top">
+            <span class="tickmini"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <span class="tier">Deep Classic</span>
+            <span class="num">24/100</span>
+          </span>
+          <span class="bar"><i style="width:40%"></i></span>
+          <span class="hint">อีก 36 คะแนน ถึง Deep Silver</span>
+        </span>
+      </div>
+    </div>
+    <div class="why">
+      น้ำเสียงดีที่สุดกับร้านคะแนนน้อย (ซึ่งคือร้านส่วนใหญ่ตอนนี้) — เล่าเป็นระยะทาง ไม่ใช่คำตัดสิน และใช้ค่าที่ระบบคำนวณอยู่แล้ว (<code>getNextTierInfo</code>) ·
+      <span class="bad">แลกด้วย:</span> กว้าง ~230px กินพื้นที่แนวนอนมากในหัวที่จัดกลาง และแถบยาวอ่านเป็น element ของ "โปรไฟล์ตัวเอง" มากกว่า "หลักฐานให้คนอื่นดู"
+    </div>
+  </div>
+
+  <!-- แบบ ① กับทุก tier -->
+  <div class="card">
+    <div class="card-h"><b>แบบ ① กับทุกระดับ</b> <span style="font-size:13px;color:var(--ink-70)">— เช็คว่าสีประจำระดับยังอยู่ในงบ "ม่วง ≤10%" และไม่มีระดับไหนดูเหมือนคำเตือน</span></div>
+    <div class="tierset">
+      <div class="demo"><span class="v1"><span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span><span><span class="num">24</span><span class="den">/100</span></span><i class="sep"></i><span class="tier"><i class="dot" style="background:var(--t-classic)"></i>Deep Classic</span></span><div class="cap">0–59</div></div>
+      <div class="demo"><span class="v1"><span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span><span><span class="num">64</span><span class="den">/100</span></span><i class="sep"></i><span class="tier"><i class="dot" style="background:var(--t-silver)"></i>Deep Silver</span></span><div class="cap">60–69</div></div>
+      <div class="demo"><span class="v1"><span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span><span><span class="num">75</span><span class="den">/100</span></span><i class="sep"></i><span class="tier"><i class="dot" style="background:var(--t-gold)"></i>Deep Gold</span></span><div class="cap">70–79</div></div>
+      <div class="demo"><span class="v1"><span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span><span><span class="num">85</span><span class="den">/100</span></span><i class="sep"></i><span class="tier"><i class="dot" style="background:var(--t-diamond)"></i>Deep Diamond</span></span><div class="cap">80–89</div></div>
+      <div class="demo"><span class="v1"><span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span><span><span class="num">96</span><span class="den">/100</span></span><i class="sep"></i><span class="tier"><i class="dot" style="background:var(--t-star)"></i>Deep Star</span></span><div class="cap">90–100</div></div>
+      <div class="demo"><span class="v1"><span><span class="num">31</span><span class="den">/100</span></span><i class="sep"></i><span class="tier"><i class="dot" style="background:var(--t-classic)"></i>Deep Classic</span><span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></span><div class="cap">ร้านที่<b>ยังไม่ยืนยันตัวตน</b> — ไม่มีเช็คเขียว</div></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

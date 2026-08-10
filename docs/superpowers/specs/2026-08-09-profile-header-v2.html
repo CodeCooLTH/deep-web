@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>หัวโปรไฟล์ v2 — แก้แน่น/ล้น + ยุบตัวเลขเป็นก้อนเดียว</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --primary:#7367F0;
+  --ink:#2F2B3D; --ink-70:rgb(47 43 61/.7); --ink-40:rgb(47 43 61/.4);
+  --divider:rgb(47 43 61/.12); --mist:#F8F7FA; --paper:#fff;
+  --success:#28C76F; --verified-ink:#18804A;
+  --t-classic:#e08400;
+  --r-card:8px; --r-lg:10px;
+  --shadow-sm:0 2px 8px rgb(47 43 61/.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;background:#eceaf0;color:var(--ink);padding:28px 16px 72px;font-size:15px;line-height:1.47}
+.h1{max-width:1240px;margin:0 auto 6px;font-size:22px;font-weight:800}
+.sub{max-width:1240px;margin:0 auto 24px;font-size:13px;color:var(--ink-70)}
+.diag{max-width:1240px;margin:0 auto 24px;background:var(--paper);border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--shadow-sm);font-size:13px;color:var(--ink-70)}
+.diag b{color:var(--ink)} .diag ul{margin:8px 0 0 18px} .diag li{margin-bottom:5px}
+.row2{max-width:1240px;margin:0 auto;display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+.col{display:flex;flex-direction:column;gap:8px}
+.lbl{font-size:13px;font-weight:600;color:var(--ink-70);text-align:center}
+.dev{background:var(--paper);border-radius:var(--r-lg);overflow:hidden;box-shadow:0 8px 28px rgb(47 43 61/.16)}
+.m{width:390px} .d{width:960px}
+
+/* ── หัว ── */
+.cover{position:relative;height:104px;background:linear-gradient(135deg,#9b98a8,#bdbbc7 55%,#dedce4);overflow:hidden}
+.d .cover{height:176px}
+.brand{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:6px;background:var(--paper);border-radius:999px;padding:5px 12px;box-shadow:var(--shadow-sm);text-decoration:none}
+.brand svg{width:15px;color:var(--primary)} .brand span{font-size:13px;font-weight:700;color:var(--ink)}
+.idy{text-align:center;padding:0 16px 10px;margin-top:-42px;position:relative}
+.av{width:84px;height:84px;border-radius:999px;border:4px solid var(--paper);margin:0 auto 8px;background:#B7202B;color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800}
+.nm{font-size:20px;font-weight:800;letter-spacing:-.02em}
+
+/* Trust pill (แบบ ① ที่เลือกไว้) */
+.tp{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--divider);border-radius:999px;
+    padding:4px 12px 4px 5px;box-shadow:var(--shadow-sm);cursor:pointer;margin-top:6px}
+.tp .tick{width:20px;height:20px;border-radius:999px;background:var(--success);color:#fff;display:flex;align-items:center;justify-content:center}
+.tp .num{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tp .den{font-size:11px;font-weight:600;color:var(--ink-40)}
+.tp .sep{width:1px;height:14px;background:var(--divider)}
+.tp .tier{font-size:13px;font-weight:600;color:var(--ink-70);display:flex;align-items:center;gap:5px}
+.tp .dot{width:6px;height:6px;border-radius:999px;background:var(--t-classic)}
+.tp .i{color:var(--ink-40);display:flex}
+
+/* meta: มือถือตัดวันเปิดร้านออก (ไปอยู่แท็บเกี่ยวกับร้าน) เหลือ 1 บรรทัดเสมอ */
+.meta{font-size:13px;color:var(--ink-70);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── ช่องทาง: มือถือโชว์ 2 + ปุ่มรวม ไม่ล้นขอบ ── */
+.chs{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;padding:0 16px 10px}
+.ch{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:4px 10px 4px 4px;border:1px solid var(--divider);
+    border-radius:999px;background:var(--paper);text-decoration:none;color:inherit;max-width:100%}
+.ch .a{position:relative;width:24px;height:24px;border-radius:999px;overflow:hidden;flex-shrink:0}
+.ch .a img{width:100%;height:100%;object-fit:cover}
+.ch .tk{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:999px;background:var(--success);border:1.5px solid var(--paper)}
+.ch .t{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.ch .n{font-size:13px;font-weight:600;max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch .s{font-size:11px;color:var(--ink-70);font-variant-numeric:tabular-nums}
+.chmore{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--divider);background:transparent;border-radius:999px;
+        padding:6px 10px;font-size:13px;color:var(--ink-70);cursor:pointer;min-height:36px}
+
+/* ── เหรียญ: มือถือ 3 + ปุ่มรวม ── */
+.bds{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:0 16px 12px;list-style:none}
+.bd{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 10px 4px 4px;font-size:13px;background:rgb(47 43 61/.06)}
+.bd .sl{width:20px;height:20px;border-radius:999px;background:var(--paper);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bd .sl svg{width:14px;height:14px}
+.bdmore{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--divider);background:transparent;border-radius:999px;
+        padding:4px 10px;font-size:13px;color:var(--ink-70);cursor:pointer}
+
+/* ══ ตัวเลขก้อนเดียว (ยุบ 92% + 3 ช่องเข้าด้วยกัน) ══ */
+.mx{border-top:1px solid var(--divider);border-bottom:1px solid var(--divider);padding:16px}
+.mx-lead{display:flex;align-items:baseline;gap:10px}
+.mx-num{font-size:32px;font-weight:800;letter-spacing:-.03em;color:var(--verified-ink);font-variant-numeric:tabular-nums;line-height:1}
+.mx-cap{font-size:13px;color:var(--ink-70)}
+.mx-sub{font-size:11px;color:var(--ink-40);margin-top:3px}
+.mx-bar{height:5px;border-radius:999px;background:rgb(47 43 61/.08);margin:10px 0 12px;overflow:hidden}
+.mx-bar i{display:block;height:100%;border-radius:999px;background:var(--verified-ink)}
+.mx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mi{text-align:center}
+.mi b{display:block;font-size:20px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.2}
+.mi span{font-size:11px;color:var(--ink-70)}
+.mi.zero b{color:var(--ink-40)}
+
+/* option B — inline 4 ช่องเท่ากัน */
+.mx4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:16px;border-top:1px solid var(--divider);border-bottom:1px solid var(--divider)}
+.mx4 .mi.hero b{font-size:24px;color:var(--verified-ink)}
+
+.tabs{display:flex;gap:22px;padding:0 16px;border-bottom:1px solid var(--divider)}
+.tab{padding:11px 0;font-size:15px;color:var(--ink-70);border-bottom:2px solid transparent}
+.tab.on{color:var(--primary);font-weight:600;border-bottom-color:var(--primary)}
+.note{padding:14px 16px;font-size:13px;color:var(--ink-70);background:var(--mist)}
+.note b{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<div class="h1">หัวโปรไฟล์ v2 — แก้ "แน่นล้น" + ยุบตัวเลขเป็นก้อนเดียว</div>
+<div class="sub">ตอบ feedback 4 ข้อพร้อมกัน: trust chip ไม่ modern · แถวตัวเลขไม่ modern · 92% ดูเกิน ควรรวมกับข้างบน · มือถือแน่นล้น</div>
+
+<div class="diag">
+  <b>วิเคราะห์: ทั้ง 4 ข้อคือปัญหาเดียว — หัวมี 7 บล็อกเรียงกันโดยไม่มีลำดับชั้น</b>
+  <ul>
+    <li>ชื่อร้าน → ชิป 4 ชิ้น → meta → <b>แถบเพจ (ของใหม่ที่ผมเพิ่ง เพิ่ม)</b> → เหรียญ → ตัวเลข 3 ช่อง → 92% — ทุกบล็อกกินความสูงเท่า ๆ กัน สายตาไม่รู้จะจับอะไรก่อน</li>
+    <li>มือถือ 390px: แถบเพจ <b>ล้นออกนอกจอทั้งสองข้าง</b> · meta ตกเป็น 2 บรรทัด · เหรียญตก 2 แถว → สูงรวม ~600px กว่าจะถึงแท็บ</li>
+    <li><b>92% กับ 3 ช่องตัวเลข เป็นหลักฐานเชิงตัวเลขเหมือนกัน</b> แต่ถูกเส้นคั่นแยกเป็นคนละเรื่อง — ตรงกับที่คุณทัก</li>
+  </ul>
+</div>
+
+<div class="row2">
+
+  <!-- ══ MOBILE — ทางเลือก A ══ -->
+  <div class="col">
+    <div class="lbl">Mobile 390 · <b>A: 92% นำ + 3 ช่องรอง</b></div>
+    <div class="dev m">
+      <div class="cover"><a class="brand"><svg viewBox="0 0 35 24"><path d="M.002 0v7.477s-.147 2.354 2.159 4.347L14.936 24l6.643-.085-1.066-13.13-2.518-2.956L10.078 0H.002Z" fill="currentColor"/></svg><span>Deep</span></a></div>
+      <div class="idy">
+        <div class="av">ธ</div>
+        <div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <span class="tp">
+          <span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span><span class="num">24</span><span class="den">/100</span></span><i class="sep"></i>
+          <span class="tier"><i class="dot"></i>Deep Classic</span>
+          <span class="i"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+        </span>
+        <div class="meta">@tanapathardware · มอเตอร์ไซค์-อะไหล่</div>
+      </div>
+
+      <div class="chs">
+        <a class="ch"><span class="a"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23B7202B'/%3E%3Ctext x='20' y='27' font-size='19' fill='white' text-anchor='middle' font-family='sans-serif'%3ET%3C/text%3E%3C/svg%3E"><i class="tk"></i></span><span class="t"><span class="n">ธนภัทร์ สายซิ่ง</span><span class="s">ถูกใจ 1.2K</span></span></a>
+        <a class="ch"><span class="a"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='q' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23f09433'/%3E%3Cstop offset='.5' stop-color='%23dc2743'/%3E%3Cstop offset='1' stop-color='%23bc1888'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' fill='url(%23q)'/%3E%3Crect x='11' y='11' width='18' height='18' rx='6' fill='none' stroke='white' stroke-width='2.6'/%3E%3Ccircle cx='20' cy='20' r='4.4' fill='none' stroke='white' stroke-width='2.6'/%3E%3C/svg%3E"><i class="tk"></i></span><span class="t"><span class="n">tanapat.moto</span><span class="s">ผู้ติดตาม 340</span></span></a>
+        <button class="chmore">+1</button>
+      </div>
+
+      <ul class="bds">
+        <li><span class="bd"><span class="sl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#FFF3D6"/><path d="M12 5.5l1.9 4 4.4.6-3.2 3 .8 4.3L12 15.4 8.1 17.4l.8-4.3-3.2-3 4.4-.6z" fill="#E0A100"/></svg></span>ขายยอดนิยม</span></li>
+        <li><span class="bd"><span class="sl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#DFF6E9"/><path d="M6 15.5l4-4 3 3 5-5.5" stroke="#18804A" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></span>ร้านกำลังโต</span></li>
+        <li><button class="bdmore">+3 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></li>
+      </ul>
+
+      <!-- ★ ตัวเลขก้อนเดียว -->
+      <div class="mx">
+        <div class="mx-lead">
+          <span class="mx-num">92%</span>
+          <span class="mx-cap">ออเดอร์สำเร็จบน Deep</span>
+        </div>
+        <div class="mx-sub">จาก 60 ออเดอร์ที่จบแล้ว</div>
+        <div class="mx-bar"><i style="width:92%"></i></div>
+        <div class="mx-grid">
+          <div class="mi"><b>55</b><span>ออเดอร์</span></div>
+          <div class="mi"><b>55</b><span>ลูกค้า</span></div>
+          <div class="mi zero"><b>0</b><span>ซื้อซ้ำ</span></div>
+        </div>
+      </div>
+
+      <div class="tabs"><span class="tab">ปักหมุด</span><span class="tab on">สินค้า</span><span class="tab">เกี่ยวกับร้าน</span></div>
+      <div class="note">สูงถึงแท็บ ≈ <b>500px</b> (เดิม ~600px) — เส้นคั่นเหลือ 2 เส้นแทน 4</div>
+    </div>
+  </div>
+
+  <!-- ══ MOBILE — ทางเลือก B ══ -->
+  <div class="col">
+    <div class="lbl">Mobile 390 · <b>B: 4 ช่องเท่ากัน (กระชับสุด)</b></div>
+    <div class="dev m">
+      <div class="cover"><a class="brand"><svg viewBox="0 0 35 24"><path d="M.002 0v7.477s-.147 2.354 2.159 4.347L14.936 24l6.643-.085-1.066-13.13-2.518-2.956L10.078 0H.002Z" fill="currentColor"/></svg><span>Deep</span></a></div>
+      <div class="idy">
+        <div class="av">ธ</div>
+        <div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <span class="tp">
+          <span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span><span class="num">24</span><span class="den">/100</span></span><i class="sep"></i>
+          <span class="tier"><i class="dot"></i>Deep Classic</span>
+          <span class="i"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+        </span>
+        <div class="meta">@tanapathardware · มอเตอร์ไซค์-อะไหล่</div>
+      </div>
+      <div class="chs">
+        <a class="ch"><span class="a"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23B7202B'/%3E%3Ctext x='20' y='27' font-size='19' fill='white' text-anchor='middle' font-family='sans-serif'%3ET%3C/text%3E%3C/svg%3E"><i class="tk"></i></span><span class="t"><span class="n">ธนภัทร์ สายซิ่ง</span><span class="s">ถูกใจ 1.2K</span></span></a>
+        <a class="ch"><span class="a"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='q2' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23f09433'/%3E%3Cstop offset='.5' stop-color='%23dc2743'/%3E%3Cstop offset='1' stop-color='%23bc1888'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' fill='url(%23q2)'/%3E%3Crect x='11' y='11' width='18' height='18' rx='6' fill='none' stroke='white' stroke-width='2.6'/%3E%3Ccircle cx='20' cy='20' r='4.4' fill='none' stroke='white' stroke-width='2.6'/%3E%3C/svg%3E"><i class="tk"></i></span><span class="t"><span class="n">tanapat.moto</span><span class="s">ผู้ติดตาม 340</span></span></a>
+        <button class="chmore">+1</button>
+      </div>
+      <ul class="bds">
+        <li><span class="bd"><span class="sl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#FFF3D6"/><path d="M12 5.5l1.9 4 4.4.6-3.2 3 .8 4.3L12 15.4 8.1 17.4l.8-4.3-3.2-3 4.4-.6z" fill="#E0A100"/></svg></span>ขายยอดนิยม</span></li>
+        <li><span class="bd"><span class="sl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#DFF6E9"/><path d="M6 15.5l4-4 3 3 5-5.5" stroke="#18804A" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></span>ร้านกำลังโต</span></li>
+        <li><button class="bdmore">+3 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></li>
+      </ul>
+      <div class="mx4">
+        <div class="mi hero"><b>92%</b><span>ออเดอร์สำเร็จ</span></div>
+        <div class="mi"><b>55</b><span>ออเดอร์</span></div>
+        <div class="mi"><b>55</b><span>ลูกค้า</span></div>
+        <div class="mi zero"><b>0</b><span>ซื้อซ้ำ</span></div>
+      </div>
+      <div class="tabs"><span class="tab">ปักหมุด</span><span class="tab on">สินค้า</span><span class="tab">เกี่ยวกับร้าน</span></div>
+      <div class="note">สูงถึงแท็บ ≈ <b>455px</b> — กระชับสุด <b>แต่ 92% เสียตำแหน่งพระเอก</b> (เหลือ 24px เท่ากับเพื่อนบ้าน) และตัวหาร "จาก 60" ต้องไปอยู่ในแผงอธิบาย</div>
+    </div>
+  </div>
+
+  <!-- ══ DESKTOP (แบบ A) ══ -->
+  <div class="col">
+    <div class="lbl">Desktop 960 · แบบ A</div>
+    <div class="dev d">
+      <div class="cover"><a class="brand"><svg viewBox="0 0 35 24"><path d="M.002 0v7.477s-.147 2.354 2.159 4.347L14.936 24l6.643-.085-1.066-13.13-2.518-2.956L10.078 0H.002Z" fill="currentColor"/></svg><span>Deep</span></a></div>
+      <div class="idy">
+        <div class="av">ธ</div>
+        <div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <span class="tp">
+          <span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <span><span class="num">24</span><span class="den">/100</span></span><i class="sep"></i>
+          <span class="tier"><i class="dot"></i>Deep Classic</span>
+          <span class="i"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+        </span>
+        <div class="meta">@tanapathardware · มอเตอร์ไซค์-อะไหล่ · เปิดร้านตั้งแต่ ก.ค. 2569</div>
+      </div>
+      <div class="chs">
+        <a class="ch"><span class="a"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%23B7202B'/%3E%3Ctext x='20' y='27' font-size='19' fill='white' text-anchor='middle' font-family='sans-serif'%3ET%3C/text%3E%3C/svg%3E"><i class="tk"></i></span><span class="t"><span class="n" style="max-width:180px">ธนภัทร์ อะไหล่มอเตอร์ไซค์ สายซิ่ง</span><span class="s">ถูกใจ 1.2K</span></span></a>
+        <a class="ch"><span class="a"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='q3' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%23f09433'/%3E%3Cstop offset='.5' stop-color='%23dc2743'/%3E%3Cstop offset='1' stop-color='%23bc1888'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' fill='url(%23q3)'/%3E%3Crect x='11' y='11' width='18' height='18' rx='6' fill='none' stroke='white' stroke-width='2.6'/%3E%3Ccircle cx='20' cy='20' r='4.4' fill='none' stroke='white' stroke-width='2.6'/%3E%3C/svg%3E"><i class="tk"></i></span><span class="t"><span class="n">tanapat.moto</span><span class="s">ผู้ติดตาม 340</span></span></a>
+        <a class="ch"><span class="a"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' fill='%231877F2'/%3E%3Ctext x='20' y='29' font-size='23' fill='white' text-anchor='middle' font-family='Georgia,serif' font-weight='bold'%3Ef%3C/text%3E%3C/svg%3E"><i class="tk"></i></span><span class="t"><span class="n">ธนภัทร์ ช้อป 2</span></span></a>
+      </div>
+      <ul class="bds">
+        <li><span class="bd"><span class="sl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#FFF3D6"/><path d="M12 5.5l1.9 4 4.4.6-3.2 3 .8 4.3L12 15.4 8.1 17.4l.8-4.3-3.2-3 4.4-.6z" fill="#E0A100"/></svg></span>ร้านค้าขายยอดนิยม</span></li>
+        <li><span class="bd"><span class="sl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#DFF6E9"/><path d="M6 15.5l4-4 3 3 5-5.5" stroke="#18804A" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg></span>ร้านกำลังโต</span></li>
+        <li><span class="bd"><span class="sl"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#E7E4FD"/><circle cx="12" cy="9.5" r="3" fill="#7367F0"/><path d="M5.5 18.5c1.4-3 4-4.2 6.5-4.2s5.1 1.2 6.5 4.2z" fill="#7367F0"/></svg></span>เริ่มมีลูกค้า</span></li>
+        <li><span class="bd"><span class="sl"><svg viewBox="0 0 24 24" fill="none" stroke="rgb(47 43 61/.7)" stroke-width="2"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></span>เปิดหน้าร้าน</span></li>
+        <li><button class="bdmore">+1 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></li>
+      </ul>
+      <div class="mx" style="display:flex;align-items:center;gap:40px">
+        <div style="flex:0 0 300px">
+          <div class="mx-lead"><span class="mx-num">92%</span><span class="mx-cap">ออเดอร์สำเร็จบน Deep</span></div>
+          <div class="mx-sub">จาก 60 ออเดอร์ที่จบแล้ว</div>
+          <div class="mx-bar" style="margin-bottom:0"><i style="width:92%"></i></div>
+        </div>
+        <div class="mx-grid" style="flex:1">
+          <div class="mi"><b>55</b><span>ออเดอร์</span></div>
+          <div class="mi"><b>55</b><span>จำนวนลูกค้า</span></div>
+          <div class="mi zero"><b>0</b><span>ลูกค้าซื้อซ้ำ</span></div>
+        </div>
+      </div>
+      <div class="tabs"><span class="tab">ปักหมุด</span><span class="tab on">สินค้า</span><span class="tab">เกี่ยวกับร้าน</span></div>
+      <div class="note">เดสก์ท็อปมีที่เหลือ → วาง 92% ซ้าย ตัวเลข 3 ช่องขวา <b>ในแถบเดียวกัน</b> ไม่ต้องซ้อนแนวตั้ง</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="diag" style="margin-top:26px">
+  <b>สรุปสิ่งที่เปลี่ยน</b>
+  <ul>
+    <li><b>Trust chip</b> → ก้อนเดียวพื้นขาวขอบบาง (เลิกกล่องดำทึบที่ดังกว่าชื่อร้าน) ตัวเลขเด่น ตัวหารเล็ก จุดสีประจำระดับเป็นสัญญาณสีเดียว ⓘ อยู่ในก้อน = ชัดว่าอธิบายอะไร · <b>tap target เดียว</b> แทนของเล็ก 4 ชิ้น</li>
+    <li><b>ตัวเลขยุบเป็นก้อนเดียว</b> ตามที่คุณเสนอ — 92% เป็นหัวเรื่องของก้อน มีแถบความคืบหน้าใต้ตัวเลข แล้ว 3 ช่องเป็นรายละเอียดรอง <b>เส้นคั่นลดจาก 4 เหลือ 2</b></li>
+    <li><b>มือถือเลิกล้น</b> — แถบเพจโชว์ 2 ใบ + ปุ่ม "+1" (เดิมเลื่อนล้นออกนอกจอสองข้าง) · เหรียญโชว์ 2 + "+3" · บรรทัด meta ตัด "เปิดร้านตั้งแต่" ออก (ไปอยู่แท็บเกี่ยวกับร้านซึ่งมันอยู่แล้ว) เหลือบรรทัดเดียวไม่ตกบรรทัด</li>
+    <li><b>"0 ซื้อซ้ำ" ใช้สีจาง</b> ไม่ใช่ดำเข้มเท่าเลขอื่น — 0 ที่เด่นเท่าเลขจริงอ่านเป็นคำตัดสิน ทั้งที่แปลว่า "ยังไม่มีข้อมูล"</li>
+  </ul>
+  <b>ต้องเลือก</b>
+  <ul>
+    <li><b>A</b> (92% นำ) เก็บพระเอกไว้ + ยังกางตัวหาร "จาก 60" ได้ · <b>B</b> (4 ช่องเท่ากัน) เตี้ยกว่า 45px แต่ 92% กลายเป็นเลขธรรมดาและตัวหารต้องหายเข้าแผง</li>
+    <li>ผมแนะนำ <b>A</b> — หน้านี้ทั้งหน้ามีไว้ให้คนกล้าโอนเงิน 92% คือเหตุผลนั้น ไม่ควรลดชั้นให้เท่ากับ "จำนวนลูกค้า"</li>
+  </ul>
+</div>
+
+</body>
+</html>
