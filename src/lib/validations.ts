@@ -1794,3 +1794,28 @@ export const UploadCommitSchema = v.object({
 export const AuthFlowStartSchema = v.object({
   method: v.optional(v.picklist(["facebook", "phone_otp", "other"])),
 });
+
+// UpdateReviewSchema — body ของ PATCH /api/orders/[token]/review (feature 00041, BR-BOE-17/19)
+// ทุกฟิลด์ optional (partial update) แต่ต้องมีอย่างน้อย 1 ฟิลด์ — ไม่งั้นเป็น no-op ที่สับสน
+// (ผู้ใช้กดบันทึกแล้วไม่มีอะไรเปลี่ยน แต่ระบบตอบว่าสำเร็จ)
+export const UpdateReviewSchema = v.pipe(
+  v.object({
+    rating: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(5))),
+    comment: v.optional(v.pipe(v.string(), v.maxLength(500))),
+    // images: fileId จาก /api/uploads/commit (purpose=IMAGE) — เพดาน 4 ใบตาม BR-BOE-19
+    // ขนาดต่อไฟล์ (≤10MB) ถูกบังคับไปแล้วที่ commit ด้วยขนาดจริงจาก HEAD ที่นี่ตรวจแค่จำนวน/รูปแบบ
+    images: v.optional(
+      v.pipe(v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(200))), v.maxLength(4, "แนบรูปได้สูงสุด 4 รูป")),
+    ),
+  }),
+  v.check(
+    (o) => o.rating !== undefined || o.comment !== undefined || o.images !== undefined,
+    "ไม่มีข้อมูลที่จะแก้ไข",
+  ),
+);
+
+// ReplyToReviewSchema — body ของ POST /api/orders/[token]/review/reply (feature 00041, BR-BOE-21)
+// maxLength 1000: ร้านมักต้องอธิบายละเอียดกว่าความเห็นสั้น ๆ ของผู้ซื้อ (500) แต่ยังมีเพดานกันสแปม
+export const ReplyToReviewSchema = v.object({
+  comment: v.pipe(v.string(), v.trim(), v.minLength(1, "กรุณาพิมพ์คำตอบ"), v.maxLength(1000)),
+});
