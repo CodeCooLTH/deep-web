@@ -289,7 +289,8 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               pointsToNext: nextTier?.pointsToNext ?? null,
               isLodging,
               isServiceQueue,
-              // อัตราการตอบแชทอยู่บนโปรไฟล์ ไม่ใช่ในแท็บ "เกี่ยวกับร้าน" (user 2026-08-10)
+              // คำอธิบายร้าน + อัตราการตอบแชท อยู่บนโปรไฟล์ ไม่ใช่หลังแท็บ (user 2026-08-10)
+              bio: shop.description,
               chatResponseRate: shop.chatResponseRate,
               chatMedianResponseSec: shop.chatMedianResponseSec,
               chatResponseSampleSize: shop.chatResponseSampleSize,

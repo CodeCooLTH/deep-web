@@ -16,8 +16,10 @@
  * Base: src/app/(marketing)/auth/sign-in/OrderLinkShell.tsx (แถวช่องทางเดียวกัน ให้สองหน้าเป็นชุดเดียว)
  */
 import { useState } from 'react'
+import type { ReactElement } from 'react'
 
 import Typography from '@mui/material/Typography'
+import Tooltip from '@mui/material/Tooltip'
 
 import { Icon } from '@iconify/react'
 
@@ -155,6 +157,21 @@ export default function OfficialChannels({ channels }: { channels: OfficialChann
  *
  * ยังคงชื่อเพจ + ชื่อช่องทาง + ยอด ครบตามที่ขอไว้รอบก่อน แค่จัดให้กระชับเข้าหากัน
  */
+/**
+ * คำอธิบายว่าทำไมเพจนี้เชื่อถือได้ (user 2026-08-10 "hover ต้องชี้แจงด้วยว่าเป็นเพจที่มาจากการ
+ * authentication เชื่อถือได้")
+ *
+ * 🛑 เขียนเป็น **สิ่งที่เกิดขึ้นจริง** ไม่ใช่คำรับรองลอย ๆ — "ยืนยันแล้ว" เฉย ๆ ไม่ได้บอกว่าใคร
+ * ยืนยันหรือยืนยันยังไง ซึ่งบนหน้าที่ทั้งหน้ามีไว้พิสูจน์ความน่าเชื่อถือ คำรับรองที่ตรวจสอบไม่ได้
+ * มีค่าเท่ากับโฆษณา ประโยคนี้บอกกลไก (เข้าสู่ระบบ + กดอนุญาตกับเจ้าของแพลตฟอร์ม) และบอกสิ่งที่
+ * มัน **ไม่ใช่** (ลิงก์ที่พิมพ์กรอกเอง) ซึ่งเป็นข้อแตกต่างที่ผู้ซื้อเอาไปใช้ได้จริง
+ *
+ * ห้ามเขียนว่า "Deep ตรวจสอบแล้วว่าเป็นเพจของร้าน" — เราไม่ได้ตรวจอะไร เราแค่รับผลจาก OAuth
+ */
+function trustNote(providerLabel: string) {
+  return `ร้านเชื่อมเพจนี้ด้วยการเข้าสู่ระบบ ${providerLabel} แล้วกดอนุญาตเอง ไม่ใช่ลิงก์ที่พิมพ์กรอกเข้ามา จึงยืนยันได้ว่าเพจนี้อยู่ในความดูแลของร้านนี้จริง`
+}
+
 export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
   const [expanded, setExpanded] = useState(false)
   if (channels.length === 0) return null
@@ -199,22 +216,39 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
 
         const cls = 'flex items-center gap-2 min-bs-[44px] no-underline text-[color:inherit]'
 
-        return href ? (
-          <a
+        const note = trustNote(meta.label)
+
+        // MUI Tooltip ไม่ใช่ `title=` — บนมือถือซึ่งเป็น surface หลักของเรา `title` เข้าถึงไม่ได้เลย
+        // (ไม่มี hover) ส่วน Tooltip ของ MUI เปิดด้วยการแตะค้างและด้วยโฟกัสคีย์บอร์ดได้ด้วย
+        // enterTouchDelay=0 เพราะ 700ms ตั้งต้นยาวพอที่คนจะปล่อยนิ้วไปก่อนโดยไม่รู้ว่ามีอะไรให้อ่าน
+        // describeChild: ข้อความนี้เป็น "คำอธิบายเพิ่ม" ของลิงก์ ไม่ใช่ชื่อของมัน — ถ้าไม่ใส่
+        // Tooltip จะไปทับ aria-label แล้ว screen reader จะไม่บอกว่าลิงก์นี้พาไปไหน
+        const withNote = (node: ReactElement) => (
+          <Tooltip
             key={`${c.provider}-${c.externalId}`}
-            href={href}
-            target='_blank'
-            rel='noopener noreferrer'
-            className={cls}
-            aria-label={`เปิด ${c.name} ใน ${meta.label}`}
+            title={note}
+            describeChild
+            enterTouchDelay={0}
+            leaveTouchDelay={6000}
+            slotProps={{ tooltip: { sx: { maxInlineSize: 260, fontSize: '12px', lineHeight: 1.5 } } }}
           >
-            {inner}
-          </a>
-        ) : (
-          <div key={`${c.provider}-${c.externalId}`} className={cls}>
-            {inner}
-          </div>
+            {node}
+          </Tooltip>
         )
+
+        return href
+          ? withNote(
+              <a
+                href={href}
+                target='_blank'
+                rel='noopener noreferrer'
+                className={cls}
+                aria-label={`เปิด ${c.name} ใน ${meta.label}`}
+              >
+                {inner}
+              </a>,
+            )
+          : withNote(<div className={cls}>{inner}</div>)
       })}
 
       {rest > 0 && (

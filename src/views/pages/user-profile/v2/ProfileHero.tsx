@@ -77,6 +77,10 @@ export type ProfileHeroData = {
   maxVerifyLevel: number
   category: string | null
   memberSince: string
+  /** คำอธิบายร้านที่ผู้ขายเขียนเอง (`Shop.description`) — เดิมมีแต่ในแท็บ "เกี่ยวกับร้าน"
+   *  ทั้งที่เป็นประโยคเดียวที่ร้านได้พูดแทนตัวเอง ผู้ซื้อที่กวาดตาผ่านหัวโปรไฟล์แล้วไม่เห็น
+   *  จะได้แต่ตัวเลขที่ระบบคำนวณให้ ไม่มีเสียงของร้านเลยสักบรรทัด (user 2026-08-10) */
+  bio?: string | null
   badges: HeroBadge[]
   totalBadgeCount: number
   completedOrders: number | null
@@ -162,7 +166,14 @@ const TRUST_FACTORS = [
 const TRUST_SCORE_MAX = 100
 
 /** จำนวนเหรียญที่โชว์เป็นไอคอน ที่เหลือยุบเป็นตัวนับ — กันแถวยาวจนดันเนื้อหาสำคัญตกจอ */
-const MAX_BADGE_ICONS = 5
+/* เหรียญต่อบรรทัดเดียว (user 2026-08-10 "บรรทัดเดียว ถ้าเยอะกว่าให้ขึ้น [+]")
+   ต้องมี 2 ค่าเพราะ "หนึ่งบรรทัด" ที่ 320px กับที่ 960px ไม่ใช่จำนวนเดียวกัน — ช่องละ 76px
+   + gap 12px: มือถือได้ 3 ใบ + ปุ่ม [+] = 4 ช่อง (~316px พอดี) จอ sm ขึ้นไปได้ 5 ใบ + ปุ่ม
+   🛑 ปุ่มเขียนว่า "+" เฉย ๆ ไม่ใส่ตัวเลข — จำนวนที่ซ่อนต่างกันตาม breakpoint แต่ HTML ก้อนเดียว
+   ถ้าใส่ "+2" มันจะถูกทั้งมือถือหรือถูกทั้งเดสก์ท็อป อย่างใดอย่างหนึ่ง ไม่มีทางถูกทั้งคู่
+   (จำนวนเต็มยังบอกครบใน aria-label ซึ่งอ่านทีละเครื่อง จึงไม่ขัดกันเอง) */
+const BADGES_PER_ROW_MOBILE = 3
+const BADGES_PER_ROW_DESKTOP = 5
 
 /**
  * รูปที่ยอมให้โหลดพังได้ — คืน `fallback` เมื่อไม่มี URL **หรือ** โหลดไม่สำเร็จ
@@ -310,8 +321,11 @@ export default function ProfileHero({
   // E3 — เหรียญที่เกิน 5 ใบ: `data.badges` ส่งมาครบทุกใบอยู่แล้ว (หน้าไม่ได้ตัด) โค้ดแค่ slice เอง
   // จึงกางได้โดยไม่ต้องดึงข้อมูลเพิ่ม เดิมชิป `+N` เป็น <span> ตาย = ประกาศว่ามีอีกแล้วจบตรงนั้น
   const [badgesExpanded, setBadgesExpanded] = useState(false)
-  const shownBadges = badgesExpanded ? data.badges : data.badges.slice(0, MAX_BADGE_ICONS)
-  const restBadgeCount = data.totalBadgeCount - Math.min(data.badges.length, MAX_BADGE_ICONS)
+  const shownBadges = badgesExpanded ? data.badges : data.badges.slice(0, BADGES_PER_ROW_DESKTOP)
+  // ปุ่ม [+] โผล่คนละเงื่อนไขต่อ breakpoint — คำนวณเป็นคลาสสถิต ไม่ใช่ media query ใน JS
+  // (JS จะทำให้ SSR กับ client ตัดสินคนละแบบตอน first paint)
+  const plusOnMobile = data.totalBadgeCount > BADGES_PER_ROW_MOBILE
+  const plusOnDesktop = data.totalBadgeCount > BADGES_PER_ROW_DESKTOP
 
   // E2 — แผงอธิบายคะแนน เปิดได้จาก 2 ทาง (เช็คเขียว "ยืนยันตัวตนแล้ว" กับไอคอนข้อมูล) แต่ปลายทางเดียว
   // รวมเป็นแผงเดียวเพราะการยืนยันตัวตนคือองค์ประกอบที่มีน้ำหนักสูงสุดของคะแนน (35%) แยกกันจะซ้ำกันเอง
@@ -448,9 +462,37 @@ export default function ProfileHero({
             ใช้ยืนยันว่ามาถูกร้าน ไม่ใช่สถานะปิดใช้งาน จึงไม่ควรอยู่ชั้น disabled
             แก้ความเข้มอย่างเดียว ไม่แตะเฉด (docs/conventions/contrast-fix-keeps-hue.md) */}
         <Typography variant='caption' color='text.secondary' className='block mbs-1'>
-          {[`@${data.username}`, data.category, `เปิดร้านตั้งแต่ ${data.memberSince}`]
-            .filter(Boolean)
-            .join(' · ')}
+          {`@${data.username}`}
+        </Typography>
+
+        {/* คำอธิบายร้าน — ลำดับตามที่ user วางเอง (2026-08-10): รูป → ชื่อ/slug → คำอธิบาย →
+            หมวด+วันเปิดร้าน → ช่องทาง. เหตุผลของลำดับนี้คือมันไล่จาก "ร้านนี้คือใคร" ไป
+            "ร้านนี้ขายอะไร" ไป "ทักได้ทางไหน" ซึ่งเป็นลำดับที่คนอ่านจริง
+
+            🛑 ตัวหนังสือ 14px สีหลัก ไม่ใช่ caption สีรอง — นี่คือประโยคเดียวในหน้าที่ร้านเขียนเอง
+            ทุกบรรทัดที่เหลือเป็นข้อมูลที่ระบบคำนวณ/ดึงมา ถ้าจับมันไปอยู่ชั้นสีรองเท่ากับบอกว่า
+            เสียงของร้านสำคัญน้อยกว่าเลขที่ระบบเติมให้
+            จำกัด 3 บรรทัดแล้วตัด — คำอธิบายยาว ๆ จะดันแถวช่องทาง/เหรียญ/ตัวเลขตกจอแรกไปหมด
+            ตัวเต็มอ่านได้ที่แท็บ "เกี่ยวกับร้าน" ซึ่งยังแสดงครบเหมือนเดิม */}
+        {data.bio?.trim() ? (
+          <Typography
+            component='p'
+            color='text.primary'
+            className='m-0 mbs-2 text-sm mli-auto'
+            sx={{
+              maxInlineSize: '46ch',
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: 3,
+              overflow: 'hidden',
+            }}
+          >
+            {data.bio.trim()}
+          </Typography>
+        ) : null}
+
+        <Typography variant='caption' color='text.secondary' className='block mbs-2'>
+          {[data.category, `เปิดร้านตั้งแต่ ${data.memberSince}`].filter(Boolean).join(' · ')}
         </Typography>
       </div>
 
@@ -497,30 +539,22 @@ export default function ProfileHero({
               ของร้าน ผมอยากได้แบบนี้") แต่ ref เป็น eyebrow ตัวพิมพ์ใหญ่ภาษาอังกฤษ ซึ่ง DESIGN.md
               ระบุไว้ใน Anti-references ตรงตัว ("eyebrow ตัวพิมพ์ใหญ่จิ๋วเหนือทุก section")
               จึงใช้หัวข้อไทย sentence-case ตามระบบแทน — เอา IA/ผังของ ref มา ไม่เอาสกิน */}
-          <div className='flex items-baseline justify-between gap-3 mbe-3'>
-            <Typography variant='body2' className='font-semibold' color='text.primary'>
-              เหรียญของร้าน
-            </Typography>
-            {restBadgeCount > 0 && (
-              <button
-                type='button'
-                onClick={() => setBadgesExpanded((v) => !v)}
-                aria-expanded={badgesExpanded}
-                aria-controls='badge-list'
-                aria-label={badgesExpanded ? 'ย่อรายการเหรียญ' : `ดูเหรียญทั้งหมด ${data.totalBadgeCount} เหรียญ`}
-                className='flex items-center gap-1 border-0 bg-transparent p-0 text-[13px] font-semibold text-primary cursor-pointer shrink-0'
-              >
-                {badgesExpanded ? 'ย่อ' : `ดูทั้งหมด ${data.totalBadgeCount}`}
-                <Icon icon={badgesExpanded ? 'lucide:chevron-up' : 'lucide:arrow-right'} width={13} />
-              </button>
-            )}
-          </div>
+          <Typography variant='body2' className='font-semibold mbe-3' color='text.primary'>
+            เหรียญของร้าน
+          </Typography>
 
           {/* 🛑 ชิดซ้าย ไม่จัดกลาง — เหรียญคือรายการหลักฐาน ไม่ใช่ของตกแต่งที่ต้องสมมาตร
               (แนวเดียวกับที่ user สั่งให้กริดคลิปชิดซ้ายในรอบเดียวกัน) */}
-          <ul id='badge-list' className='flex flex-wrap gap-x-5 gap-y-3 m-0 p-0 list-none'>
-            {shownBadges.map((b) => (
-              <li key={b.id} className='is-[84px]'>
+          <ul
+            id='badge-list'
+            className={`flex gap-x-3 gap-y-3 m-0 p-0 list-none ${badgesExpanded ? 'flex-wrap' : ''}`}
+          >
+            {shownBadges.map((b, i) => (
+              <li
+                key={b.id}
+                /* ใบที่ 4-5 ซ่อนบนมือถือเพื่อคงบรรทัดเดียว — ตอนกางแล้วโชว์หมดทุกจอ */
+                className={`is-[76px] shrink-0 ${!badgesExpanded && i >= BADGES_PER_ROW_MOBILE ? 'hidden sm:block' : ''}`}
+              >
                 <button
                   type='button'
                   onClick={() => setOpenBadge(b)}
@@ -550,6 +584,37 @@ export default function ProfileHero({
                 </button>
               </li>
             ))}
+
+            {/* [+] — ทางเข้าเดียวไปดูเหรียญที่เหลือ (แทนลิงก์ "ดูทั้งหมด N" เดิมที่อยู่หัวบล็อก
+                ซึ่งซ้ำหน้าที่กันและอยู่ไกลจากของที่มันพูดถึง)
+                ปุ่มอยู่ในแถวเดียวกับเหรียญ = อ่านเป็น "ยังมีต่อ" ไม่ใช่คำสั่งลอย ๆ ที่หัวข้อ */}
+            {(plusOnMobile || plusOnDesktop || badgesExpanded) && (
+              <li
+                className={`is-[76px] shrink-0 ${
+                  badgesExpanded ? 'block' : plusOnDesktop ? 'block' : plusOnMobile ? 'block sm:hidden' : 'hidden'
+                }`}
+              >
+                <button
+                  type='button'
+                  onClick={() => setBadgesExpanded((v) => !v)}
+                  aria-expanded={badgesExpanded}
+                  aria-controls='badge-list'
+                  aria-label={
+                    badgesExpanded ? 'ย่อรายการเหรียญ' : `ดูเหรียญทั้งหมด ${data.totalBadgeCount} เหรียญ`
+                  }
+                  className='flex flex-col items-center gap-2 is-full border-0 bg-transparent p-0 cursor-pointer font-[inherit]'
+                >
+                  {/* 56px เท่ากับ artwork ของเหรียญพอดี เพื่อให้ยืนบนเส้นฐานเดียวกันทั้งแถว
+                      พื้นอ่อน + ไม่มีขอบ ตามภาษาเดียวกับเหรียญที่ user เคาะไว้ */}
+                  <span className='is-14 bs-14 rounded-full flex items-center justify-center shrink-0 bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-secondary)]'>
+                    <Icon icon={badgesExpanded ? 'lucide:minus' : 'lucide:plus'} width={22} />
+                  </span>
+                  <Typography variant='caption' color='text.secondary' className='text-center leading-tight'>
+                    {badgesExpanded ? 'ย่อ' : 'ดูทั้งหมด'}
+                  </Typography>
+                </button>
+              </li>
+            )}
           </ul>
         </div>
       )}
