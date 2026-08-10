@@ -109,15 +109,14 @@ export function getPaymentBadge(
 export type OrderStatus = 'PENDING' | 'SHIPPED' | 'CONFIRMED' | 'CANCELLED'
 export type TimelineState = 'done' | 'cur' | 'fin' | 'up' | 'cx' | 'mute'
 export type TimelineStep = { label: string; state: TimelineState }
-export type StatusPill = { label: string; bg: string; text: string; dot: string }
 
 /**
  * ORDER_STATUS_META — badge สถานะออเดอร์แบบ Paces token (bg-{semantic}/15 text-{semantic}) + icon
  * เป็น SSOT เดียวสำหรับ badge สถานะฝั่ง seller: หน้า order detail (StatusHero) และชิปเลขออเดอร์ใน
  * inbox list ใช้ชุดนี้ร่วมกัน → label/สีตรงกันข้ามหน้า (กด #เลข จาก inbox ไป detail เห็นสถานะเดียวกัน)
  *
- * ต่างจาก getStatusPill (hex, buyer-facing pill ใน /o/[token]) — อันนั้นแยก PENDING ตาม
- * fulfillment/payment เป็น 3 label ส่วนอันนี้ยึด status ตรง ๆ 4 ค่า ตาม UI หลังบ้าน
+ * ตั้งแต่ feature 00041 (HR16) ฝั่ง buyer ก็อ่านชุดนี้ผ่าน resolveOrderStatusBadge() เช่นกัน
+ * — เดิมมี getStatusPill (hex ดิบ) เป็นชุดที่สอง ถูกถอดทิ้งแล้วเพราะไม่มีผู้เรียกจริง
  */
 export type OrderStatusTone = 'warning' | 'info' | 'success' | 'danger'
 
@@ -130,7 +129,7 @@ export const ORDER_STATUS_META: Record<
   PENDING: { label: 'รอดำเนินการ', cls: 'bg-warning/15 text-warning-ink', icon: 'clock', tone: 'warning' },
   // "กำลังจัดส่ง" ไม่ใช่ "จัดส่งแล้ว" (user เลือก 2026-08-05) — SHIPPED แปลว่าของออกจากร้านแล้วแต่
   // ยังไม่ถึงมือผู้ซื้อ ซึ่งเป็นสถานะ "ระหว่างทาง" ไม่ใช่สถานะจบ. คำนี้ตรงกับที่ระบบใช้อยู่แล้วทุกที่
-  // (ORDER_STAGE_META.SHIPPING, SHIPPING_STAGE_LABEL.SHIPPING, getStatusPill) — เดิมมีแต่ badge
+  // (ORDER_STAGE_META.SHIPPING, SHIPPING_STAGE_LABEL.SHIPPING) — เดิมมีแต่ badge
   // ฝั่งรายการออเดอร์ที่พูดคนละคำ ทำให้จอเดียวกันขึ้น "จัดส่งแล้ว" บนตารางแต่ "กำลังจัดส่ง" บนการ์ด
   SHIPPED: { label: 'กำลังจัดส่ง', cls: 'bg-info/15 text-info-ink', icon: 'truck', tone: 'info' },
   CONFIRMED: { label: 'สำเร็จ', cls: 'bg-success/15 text-success-ink', icon: 'circle-check-filled', tone: 'success' },
@@ -151,43 +150,21 @@ export const ORDER_STATUS_TONE_BORDER: Record<OrderStatusTone, string> = {
   danger: 'border-danger',
 }
 
-// Palette tokens ตาม spec §2 — ห้ามแก้ค่าสีที่นี่โดยไม่ sync กับ mockup
-const PALETTE = {
-  pend: { bg: '#FEF3E2', text: '#92400E', dot: '#D97706' },
-  ship: { bg: '#E7F1FE', text: '#1E40AF', dot: '#2563EB' },
-  succ: { bg: '#E7F6F0', text: '#065F46', dot: '#059669' },
-  canc: { bg: '#F1F5F9', text: '#475569', dot: '#94A3B8' },
-} as const
-
 /**
- * getStatusPill — คืน label + palette สีสำหรับ status pill
+ * ORDER_STATUS_TONE_TO_MUI — สะพานจาก tone ของ SSOT (`ORDER_STATUS_META`) ไปเป็นสีของ MUI
  *
- * ทำไม PENDING แยก 3 case:
- *   - !isShipping (digital/service/subscription): เสมือน "ส่งมอบแล้ว" แต่รอ buyer confirm
- *   - isCOD: เก็บเงินปลายทาง ยังไม่ชำระ = "รอดำเนินการ"
- *   - else (โอนเงิน): ยังไม่จ่าย = "รอชำระเงิน"
+ * ทำไมต้องมี: `ORDER_STATUS_META.cls` เป็น Tailwind/Paces token ใช้กับฝั่ง buyer (Vuexy/MUI) ไม่ได้
+ * แต่ `label`/`tone` ใช้ร่วมกันได้ — ตัวนี้จึงเป็นจุดเดียวที่แปลง tone → ThemeColor เพื่อให้ทั้ง
+ * สองสกินอ่าน **คำเดียวกัน** จาก SSOT เดียวกัน (Hard Rule 16)
+ *
+ * ชื่อ tone ตรงกับ MUI ทุกตัวยกเว้น danger → error (MUI ไม่มี 'danger')
  */
-export function getStatusPill(
-  status: OrderStatus,
-  fulfillmentMode: string,
-  paymentMethod: string | null | undefined,
-): StatusPill {
-  const isShipping = fulfillmentMode === 'SHIPPED'
-  const isCOD = /COD|ปลายทาง|เก็บเงิน/i.test(paymentMethod ?? '')
-
-  switch (status) {
-    case 'CANCELLED':
-      return { label: 'ยกเลิกแล้ว', ...PALETTE.canc }
-    case 'CONFIRMED':
-      return { label: 'สำเร็จแล้ว', ...PALETTE.succ }
-    case 'SHIPPED':
-      return { label: 'กำลังจัดส่ง', ...PALETTE.ship }
-    case 'PENDING':
-      if (!isShipping) return { label: 'ส่งมอบแล้ว', ...PALETTE.ship }
-      if (isCOD)       return { label: 'รอดำเนินการ', ...PALETTE.pend }
-      return           { label: 'รอชำระเงิน',  ...PALETTE.pend }
-  }
-}
+export const ORDER_STATUS_TONE_TO_MUI = {
+  warning: 'warning',
+  info: 'info',
+  success: 'success',
+  danger: 'error',
+} as const satisfies Record<OrderStatusTone, string>
 
 /**
  * getOrderTimeline — คืน array 3 TimelineStep เสมอ (windowed prev/cur/next)

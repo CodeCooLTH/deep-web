@@ -1,82 +1,9 @@
-// order-display.test.ts — Vitest unit tests สำหรับ getStatusPill และ getOrderTimeline
+// order-display.test.ts — Vitest unit tests สำหรับ getOrderTimeline และ display helper อื่น
 // ครอบ 7 combinations ที่ Controller กำหนด + กรณีเพิ่มเติม
 // Phase 2 additions (S-3, S-13): isCODPayment, isHttpUrl, showSlipZone
 
 import { describe, it, expect } from 'vitest'
-import { getStatusPill, getOrderTimeline, isCODPayment, isHttpUrl, showSlipZone, getPaymentBadge } from './order-display'
-
-// palette snapshot ใช้ตรวจ bg/text/dot จาก spec §2
-const P = {
-  pend: { bg: '#FEF3E2', text: '#92400E', dot: '#D97706' },
-  ship: { bg: '#E7F1FE', text: '#1E40AF', dot: '#2563EB' },
-  succ: { bg: '#E7F6F0', text: '#065F46', dot: '#059669' },
-  canc: { bg: '#F1F5F9', text: '#475569', dot: '#94A3B8' },
-}
-
-// -------------------------------------------------------------------------
-// getStatusPill
-// -------------------------------------------------------------------------
-describe('getStatusPill', () => {
-  it('PENDING transfer physical → label รอชำระเงิน + pend palette', () => {
-    const pill = getStatusPill('PENDING', 'SHIPPED', 'โอนเงิน')
-    expect(pill.label).toBe('รอชำระเงิน')
-    expect(pill.bg).toBe(P.pend.bg)
-    expect(pill.text).toBe(P.pend.text)
-    expect(pill.dot).toBe(P.pend.dot)
-  })
-
-  it('PENDING COD physical → label รอดำเนินการ + pend palette', () => {
-    const pill = getStatusPill('PENDING', 'SHIPPED', 'COD')
-    expect(pill.label).toBe('รอดำเนินการ')
-    expect(pill.bg).toBe(P.pend.bg)
-  })
-
-  it('PENDING COD ภาษาไทย (เก็บเงินปลายทาง) → รอดำเนินการ', () => {
-    const pill = getStatusPill('PENDING', 'SHIPPED', 'เก็บเงินปลายทาง')
-    expect(pill.label).toBe('รอดำเนินการ')
-  })
-
-  it('PENDING COD ภาษาไทย (ชำระปลายทาง) → รอดำเนินการ', () => {
-    const pill = getStatusPill('PENDING', 'SHIPPED', 'ชำระปลายทาง')
-    expect(pill.label).toBe('รอดำเนินการ')
-  })
-
-  it('PENDING digital (NO_SHIPPING) → label ส่งมอบแล้ว + ship palette', () => {
-    const pill = getStatusPill('PENDING', 'NO_SHIPPING', null)
-    expect(pill.label).toBe('ส่งมอบแล้ว')
-    expect(pill.bg).toBe(P.ship.bg)
-    expect(pill.text).toBe(P.ship.text)
-    expect(pill.dot).toBe(P.ship.dot)
-  })
-
-  it('SHIPPED physical → label กำลังจัดส่ง + ship palette', () => {
-    const pill = getStatusPill('SHIPPED', 'SHIPPED', 'โอนเงิน')
-    expect(pill.label).toBe('กำลังจัดส่ง')
-    expect(pill.bg).toBe(P.ship.bg)
-  })
-
-  it('CONFIRMED physical → label สำเร็จแล้ว + succ palette', () => {
-    const pill = getStatusPill('CONFIRMED', 'SHIPPED', 'โอนเงิน')
-    expect(pill.label).toBe('สำเร็จแล้ว')
-    expect(pill.bg).toBe(P.succ.bg)
-    expect(pill.text).toBe(P.succ.text)
-    expect(pill.dot).toBe(P.succ.dot)
-  })
-
-  it('CONFIRMED digital → label สำเร็จแล้ว + succ palette', () => {
-    const pill = getStatusPill('CONFIRMED', 'NO_SHIPPING', undefined)
-    expect(pill.label).toBe('สำเร็จแล้ว')
-    expect(pill.bg).toBe(P.succ.bg)
-  })
-
-  it('CANCELLED → label ยกเลิกแล้ว + canc palette', () => {
-    const pill = getStatusPill('CANCELLED', 'SHIPPED', 'โอนเงิน')
-    expect(pill.label).toBe('ยกเลิกแล้ว')
-    expect(pill.bg).toBe(P.canc.bg)
-    expect(pill.text).toBe(P.canc.text)
-    expect(pill.dot).toBe(P.canc.dot)
-  })
-})
+import { getOrderTimeline, isCODPayment, isHttpUrl, showSlipZone, getPaymentBadge } from './order-display'
 
 // -------------------------------------------------------------------------
 // getOrderTimeline

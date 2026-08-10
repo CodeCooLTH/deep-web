@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
+import { resolveOrderStatusBadge } from '@/lib/order-stage'
 import { getOrdersByBuyer } from '@/services/order.service'
 import { formatDateTimeTH } from '@/lib/format-date'
 import SearchBox from '@/app/(marketing)/(buyer-app)/_components/SearchBox'
@@ -13,19 +14,21 @@ export const metadata: Metadata = { title: 'คำสั่งซื้อขอ
 
 const baht = new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 })
 
+// label อ่านจาก SSOT เดียวกับฝั่งร้าน (feature 00041 / HR16) — สี/ไอคอนยังเป็นของหน้านี้เอง
+// เพราะเป็น token คนละระบบ แต่ "คำ" ต้องตรงกันทุกหน้าจอ
 const STATUS: Record<string, { label: string; color: SemColor; icon: string }> = {
-  PENDING: { label: 'รอดำเนินการ', color: 'warning', icon: 'tabler-clock' },
-  SHIPPED: { label: 'จัดส่งแล้ว', color: 'info', icon: 'tabler-truck-delivery' },
-  CONFIRMED: { label: 'สำเร็จ', color: 'success', icon: 'tabler-circle-check' },
-  CANCELLED: { label: 'ยกเลิก', color: 'error', icon: 'tabler-x' }
+  PENDING: { label: resolveOrderStatusBadge('PENDING').label, color: 'warning', icon: 'tabler-clock' },
+  SHIPPED: { label: resolveOrderStatusBadge('SHIPPED').label, color: 'info', icon: 'tabler-truck-delivery' },
+  CONFIRMED: { label: resolveOrderStatusBadge('CONFIRMED').label, color: 'success', icon: 'tabler-circle-check' },
+  CANCELLED: { label: resolveOrderStatusBadge('CANCELLED').label, color: 'error', icon: 'tabler-x' }
 }
 
 const FILTERS: Array<{ key: string; label: string }> = [
   { key: 'ALL', label: 'ทั้งหมด' },
-  { key: 'PENDING', label: 'รอดำเนินการ' },
-  { key: 'SHIPPED', label: 'จัดส่งแล้ว' },
-  { key: 'CONFIRMED', label: 'สำเร็จ' },
-  { key: 'CANCELLED', label: 'ยกเลิก' }
+  ...(['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED'] as const).map(key => ({
+    key,
+    label: resolveOrderStatusBadge(key).label
+  }))
 ]
 const VALID = new Set(FILTERS.map(f => f.key))
 

@@ -17,6 +17,7 @@
  */
 
 import DataTable from '@/components/table/DataTable'
+import { ORDER_STATUS_META } from '@/lib/order-display'
 import TablePagination from '@/components/table/TablePagination'
 import Select from '@/components/wrappers/Select'
 import Icon from '@/components/wrappers/Icon'
@@ -42,16 +43,19 @@ type StatusTab = 'all' | AdminOrderStatus
 const STATUS_TABS: { value: StatusTab; label: string; icon: string; dot?: string }[] = [
   { value: 'all',       label: 'ทั้งหมด',      icon: 'list' },
   { value: 'PENDING',   label: 'รอดำเนินการ',  icon: 'clock',         dot: 'bg-warning' },
-  { value: 'SHIPPED',   label: 'จัดส่งแล้ว',   icon: 'truck-delivery', dot: 'bg-info' },
+  { value: 'SHIPPED',   label: ORDER_STATUS_META.SHIPPED.label, icon: 'truck-delivery', dot: 'bg-info' },
   { value: 'CONFIRMED', label: 'สำเร็จ',        icon: 'check',         dot: 'bg-success' },
   { value: 'CANCELLED', label: 'ยกเลิก',        icon: 'x',             dot: 'bg-danger' },
 ]
 
+// label อ่านจาก SSOT เดียวกับหน้าร้าน (feature 00041 / HR16) — แอดมินกับร้านคุยเรื่องออเดอร์
+// ใบเดียวกันตลอด ถ้าอ่านคนละคำจะสื่อสารกันผิดตั้งแต่ประโยคแรก
+// cls เก็บของหน้านี้ไว้ (โทน /10 ต่างจาก /15 ของหน้าร้านโดยตั้งใจ)
 const STATUS_META: Record<AdminOrderStatus, { label: string; cls: string }> = {
-  PENDING:   { label: 'รอดำเนินการ', cls: 'bg-warning/10 text-warning' },
-  SHIPPED:   { label: 'จัดส่งแล้ว',  cls: 'bg-info/10 text-info' },
-  CONFIRMED: { label: 'สำเร็จ',      cls: 'bg-success/10 text-success' },
-  CANCELLED: { label: 'ยกเลิก',      cls: 'bg-danger/10 text-danger' },
+  PENDING:   { label: ORDER_STATUS_META.PENDING.label,   cls: 'bg-warning/10 text-warning' },
+  SHIPPED:   { label: ORDER_STATUS_META.SHIPPED.label,   cls: 'bg-info/10 text-info' },
+  CONFIRMED: { label: ORDER_STATUS_META.CONFIRMED.label, cls: 'bg-success/10 text-success' },
+  CANCELLED: { label: ORDER_STATUS_META.CANCELLED.label, cls: 'bg-danger/10 text-danger' },
 }
 
 const TYPE_META: Record<AdminOrderType, { label: string; cls: string }> = {

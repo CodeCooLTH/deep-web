@@ -16,7 +16,7 @@
  *     84px (แทน 112px), ตัด follow/chat actions ทิ้ง (ไม่มีใน order detail)
  *   - Items + totals: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailsCard.tsx
  *     (Card + totals-row label…value pattern — ตัด TanStack table ทิ้ง)
- *   - Status chip: src/views/apps/ecommerce/orders/list/index.tsx (STATUS_COLOR/STATUS_LABEL SSOT — frozen ค่าเดียวกัน)
+ *   - Status chip: ORDER_STATUS_META ผ่าน resolveOrderStatusBadge() — SSOT เดียวกับฝั่งร้าน (HR16)
  *   - Cancel dialog / CTA: theme/vuexy/typescript-version/full-version/src/components/dialogs/two-factor-auth/index.tsx
  *     (Dialog/Button variant='contained'/'tonal' pattern)
  *   - Timeline/payment/tracking/digital cards: bespoke Box/Card — recolor ผ่าน theme.palette.* เท่านั้น
@@ -42,9 +42,9 @@ import { Icon } from '@iconify/react'
 import { toast } from 'react-toastify'
 
 import CustomAvatar from '@core/components/mui/Avatar'
-import type { ThemeColor } from '@core/types'
 
-import { getOrderTimeline, isCODPayment, isHttpUrl, showSlipZone } from '@/lib/order-display'
+import { getOrderTimeline, isCODPayment, isHttpUrl, showSlipZone, ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
+import { resolveOrderStatusBadge } from '@/lib/order-stage'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
@@ -110,20 +110,10 @@ type Props = {
   onCancel?: () => void | Promise<void>
 }
 
-// ── Status pill SSOT — frozen ตรงกับ src/views/apps/ecommerce/orders/list/index.tsx (dedup คนละไฟล์
-// เพราะไม่ได้ export จากที่นั่น — ถ้าแก้ต้องแก้ทั้งคู่พร้อมกัน) ──
-const STATUS_LABEL: Record<PublicOrderData['status'], string> = {
-  PENDING: 'รอดำเนินการ',
-  SHIPPED: 'จัดส่งแล้ว',
-  CONFIRMED: 'สำเร็จ',
-  CANCELLED: 'ยกเลิก',
-}
-const STATUS_COLOR: Record<PublicOrderData['status'], ThemeColor> = {
-  PENDING: 'warning',
-  SHIPPED: 'info',
-  CONFIRMED: 'success',
-  CANCELLED: 'error',
-}
+// ── ป้ายสถานะออเดอร์: อ่านจาก SSOT เดียวกับฝั่งร้าน (feature 00041 / HR16) ──
+// เดิมไฟล์นี้ประกาศ STATUS_LABEL/STATUS_COLOR ของตัวเองพร้อมคอมเมนต์ว่า "frozen ถ้าแก้ต้องแก้
+// ทั้งคู่พร้อมกัน" — ซึ่งคือนิยามซ้ำที่ใช้วินัยคนคุมแทน SSOT และมันเพี้ยนจริง: SHIPPED เขียนว่า
+// "จัดส่งแล้ว" ขณะที่ฝั่งร้านเขียน "กำลังจัดส่ง" ⇒ ออเดอร์ใบเดียวกันอ่านคนละคำสองหน้าจอ
 
 const baht = new Intl.NumberFormat('th-TH', {
   style: 'currency',
@@ -568,7 +558,12 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
         {/* ── 3. Status line — pill + meta ── */}
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Chip size='small' variant='tonal' color={STATUS_COLOR[order.status]} label={STATUS_LABEL[order.status]} />
+          <Chip
+            size='small'
+            variant='tonal'
+            color={ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(order.status).tone]}
+            label={resolveOrderStatusBadge(order.status).label}
+          />
           <Typography variant='caption' color='text.disabled' sx={{ ml: 'auto' }}>
             {formatOrderNo(order.publicToken, order.createdAtIso)} · {formatDateTimeTH(order.createdAtIso)}
           </Typography>

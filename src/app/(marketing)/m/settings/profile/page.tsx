@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 
 import { authOptions } from '@/lib/auth'
+import { resolveOrderStatusBadge } from '@/lib/order-stage'
 import { prisma } from '@/lib/prisma'
 import { getMaxVerificationLevel } from '@/services/verification.service'
 import { getTierDisplay } from '@/services/trust-score.service'
@@ -41,11 +42,12 @@ const Stat = ({ value, label, accent }: { value: number; label: string; accent?:
   </div>
 )
 
+// label อ่านจาก SSOT เดียวกับฝั่งร้าน (feature 00041 / HR16)
 const ORDER_STRIP: Array<{ key: string; label: string; icon: string; color: SemColor }> = [
-  { key: 'PENDING', label: 'รอดำเนินการ', icon: 'tabler-clock', color: 'warning' },
-  { key: 'SHIPPED', label: 'จัดส่งแล้ว', icon: 'tabler-truck-delivery', color: 'info' },
-  { key: 'CONFIRMED', label: 'สำเร็จ', icon: 'tabler-circle-check', color: 'success' },
-  { key: 'CANCELLED', label: 'ยกเลิก', icon: 'tabler-x', color: 'error' },
+  { key: 'PENDING', label: resolveOrderStatusBadge('PENDING').label, icon: 'tabler-clock', color: 'warning' },
+  { key: 'SHIPPED', label: resolveOrderStatusBadge('SHIPPED').label, icon: 'tabler-truck-delivery', color: 'info' },
+  { key: 'CONFIRMED', label: resolveOrderStatusBadge('CONFIRMED').label, icon: 'tabler-circle-check', color: 'success' },
+  { key: 'CANCELLED', label: resolveOrderStatusBadge('CANCELLED').label, icon: 'tabler-x', color: 'error' },
 ]
 
 // ระดับยืนยันตัวตน → label สั้น

@@ -15,6 +15,8 @@ import type { ThemeColor } from '@core/types'
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 import { LinkButton } from '@/app/(marketing)/_components/mui-link'
+import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
+import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
 /**
  * Recent orders widget for the buyer dashboard.
@@ -31,20 +33,11 @@ import { LinkButton } from '@/app/(marketing)/_components/mui-link'
 
 // enum จริง (order.service): PENDING → SHIPPED/CONFIRMED/CANCELLED; CONFIRMED = terminal "สำเร็จ"
 // (ไม่มี CREATED/COMPLETED). label/สี/ไอคอน = ชุดเดียวกับ /orders card list (OrderList/index.tsx)
-const ORDER_STATUS_LABEL: Record<string, string> = {
-  PENDING: 'รอดำเนินการ',
-  SHIPPED: 'จัดส่งแล้ว',
-  CONFIRMED: 'สำเร็จ',
-  CANCELLED: 'ยกเลิก'
-}
+// อ่านจาก SSOT เดียวกับฝั่งร้าน (feature 00041 / HR16) — ดูเหตุผลเต็มที่ ORDER_STATUS_META
+const orderStatusLabel = (status: string) => resolveOrderStatusBadge(status).label
 
-const ORDER_STATUS_COLOR: Record<string, ThemeColor> = {
-  PENDING: 'warning',
-  SHIPPED: 'info',
-  CONFIRMED: 'success',
-  CANCELLED: 'error'
-}
-
+const orderStatusColor = (status: string): ThemeColor =>
+  ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(status).tone]
 const ORDER_STATUS_ICON: Record<string, string> = {
   PENDING: 'tabler-clock',
   SHIPPED: 'tabler-truck',
@@ -110,7 +103,7 @@ const Orders = ({ orders }: Props) => {
         ) : (
           orders.map((order) => {
             const firstItem = order.items[0]
-            const statusColor: ThemeColor = ORDER_STATUS_COLOR[order.status] ?? 'primary'
+            const statusColor: ThemeColor = orderStatusColor(order.status)
             const icon = ORDER_STATUS_ICON[order.status] ?? 'tabler-shopping-bag'
             return (
               <Link
@@ -134,7 +127,7 @@ const Orders = ({ orders }: Props) => {
                     size='small'
                     variant='tonal'
                     color={statusColor}
-                    label={ORDER_STATUS_LABEL[order.status] ?? order.status}
+                    label={orderStatusLabel(order.status)}
                   />
                 </div>
               </Link>

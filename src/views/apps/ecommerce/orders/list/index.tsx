@@ -12,6 +12,8 @@ import type { ThemeColor } from '@core/types'
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 import { LinkChip } from '@/app/(marketing)/_components/mui-link'
+import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
+import { resolveOrderStatusBadge } from '@/lib/order-stage'
 
 // Utils
 import { formatDateTimeTH } from '@/lib/format-date'
@@ -38,27 +40,22 @@ export type BuyerOrderRow = {
   }
 }
 
+// label ของชิปกรองต้องมาจาก SSOT เดียวกับป้ายในแถว ไม่งั้นจอเดียวกันอ่านคนละคำ
+// (เดิมชิปเขียน 'จัดส่งแล้ว' ส่วนป้ายในแถวเขียนอีกอย่าง — ผู้ใช้เห็นพร้อมกันทั้งคู่)
 const FILTERS: Array<{ key: string; label: string }> = [
   { key: 'ALL', label: 'ทั้งหมด' },
-  { key: 'PENDING', label: 'รอดำเนินการ' },
-  { key: 'SHIPPED', label: 'จัดส่งแล้ว' },
-  { key: 'CONFIRMED', label: 'สำเร็จ' },
-  { key: 'CANCELLED', label: 'ยกเลิก' }
+  ...(['PENDING', 'SHIPPED', 'CONFIRMED', 'CANCELLED'] as const).map(key => ({
+    key,
+    label: resolveOrderStatusBadge(key).label
+  }))
 ]
 
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'รอดำเนินการ',
-  SHIPPED: 'จัดส่งแล้ว',
-  CONFIRMED: 'สำเร็จ',
-  CANCELLED: 'ยกเลิก'
-}
-
-const STATUS_COLOR: Record<string, ThemeColor> = {
-  PENDING: 'warning',
-  SHIPPED: 'info',
-  CONFIRMED: 'success',
-  CANCELLED: 'error'
-}
+// ป้ายสถานะอ่านจาก SSOT เดียวกับฝั่งร้าน (feature 00041 / HR16) — เดิมไฟล์นี้ประกาศเอง
+// และเขียน SHIPPED = 'จัดส่งแล้ว' ขณะที่ฝั่งร้านเขียน 'กำลังจัดส่ง' ⇒ ออเดอร์ใบเดียวกัน
+// อ่านคนละคำสองหน้าจอ. SHIPPED = ของออกจากร้านแล้วแต่ยังไม่ถึงมือ = "ระหว่างทาง" ไม่ใช่จบ
+const statusLabel = (status: string) => resolveOrderStatusBadge(status).label
+const statusColor = (status: string): ThemeColor =>
+  ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(status).tone]
 
 const STATUS_ICON: Record<string, string> = {
   PENDING: 'tabler-clock',
@@ -119,7 +116,7 @@ const OrderList = ({
             {orderData.map(order => {
               const first = order.items[0]
               const extra = order.items.length - 1
-              const color = STATUS_COLOR[order.status] ?? 'primary'
+              const color = statusColor(order.status)
 
               return (
                 <Link
@@ -154,7 +151,7 @@ const OrderList = ({
                       size='small'
                       variant='tonal'
                       color={color}
-                      label={STATUS_LABEL[order.status] ?? order.status}
+                      label={statusLabel(order.status)}
                     />
                   </div>
                 </Link>
