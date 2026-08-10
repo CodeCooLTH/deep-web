@@ -190,8 +190,10 @@
 }
 
 /**
- * .appt-date-sheet — ปฏิทิน "เลือกวันนัด" ในฟอร์มสร้างออเดอร์
- * (src/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet.tsx)
+ * .appt-date-sheet — ปฏิทินทรง "ตัวเลือกวัน" (ปฏิทินครึ่งบน / รายการนัดของวันที่จิ้มครึ่งล่าง)
+ * ใช้ 2 ที่ตั้งแต่ 2026-08-10 — ชื่อคลาสยังอ้างชีตเพราะมาจากที่นั่นก่อน:
+ *   1. src/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet.tsx
+ *   2. src/components/safepay/appointment-board/AppointmentMonthBoard.tsx (/queues บนมือถือ)
  * ทรงตาม mockup ที่ user อนุมัติ: docs/superpowers/specs/2026-08-07-appointment-date-sheet-mockup.html
  *
  * ทำไมต้องเป็นสโคปคนละตัวกับ .appointment-calendar: หน้า /queues เป็น "ปฏิทินงาน" (ช่องใหญ่

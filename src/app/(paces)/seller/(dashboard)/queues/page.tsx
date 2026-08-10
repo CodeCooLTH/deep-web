@@ -22,6 +22,7 @@ import {
   listServiceResources,
   serializeServiceResource,
 } from '@/services/service-resource.service'
+import AppointmentMonthBoard from '@/components/safepay/appointment-board/AppointmentMonthBoard'
 import ResourceList from './components/ResourceList'
 import AppointmentCalendar from './components/AppointmentCalendar'
 import GranularitySetting from './components/GranularitySetting'
@@ -56,11 +57,30 @@ export default async function ServiceResourcesPage() {
             ระบบพัง ยังไม่ตั้งค่า หรือแค่ยังไม่มีนัด ส่วน empty state ที่บอกขั้นตอนแรก
             ก็ถูกดันลงไปใต้ปฏิทินจนต้องเลื่อนหา (impeccable critique P1 2026-07-31) */}
         {resources.length > 0 && (
-          <AppointmentCalendar
-            resources={resources
-              .filter((r) => r.isActive)
-              .map((r) => ({ id: r.id, name: r.name, capacity: r.capacity }))}
-          />
+          <>
+            {/* มือถือ/แท็บเล็ต (<lg) — ผังเดียวกับชีต "เลือกวันและเวลา" แบบดูอย่างเดียว
+                (user สั่ง 2026-08-10) ตารางเดือน 7 คอลัมน์ที่มีป้ายนัดอยู่ในช่องอ่านไม่ออกจริง
+                บนจอ 390px ส่วนมุมมองสัปดาห์ที่ของเดิมสลับไปให้ ก็ไม่บอกภาพรวมเดือน
+
+                เส้นสลับคือ lg (1024) ไม่ใช่ 768 ที่ AppointmentCalendar เคยใช้ภายใน —
+                1024 คือเส้นเดียวของ seller shell ทั้งตัว (sidebar/topbar หาย, bottom nav โผล่)
+                ของเดิมทำให้แท็บเล็ต 768–1023 ได้ปฏิทินทรงเดสก์ท็อปทั้งที่ sidebar หายไปแล้ว */}
+            <div className="lg:hidden">
+              <AppointmentMonthBoard
+                resources={resources
+                  .filter((r) => r.isActive)
+                  .map((r) => ({ id: r.id, name: r.name, capacity: r.capacity }))}
+                byDay={(active.shop.appointmentGranularity as AppointmentGranularity) !== 'TIME'}
+              />
+            </div>
+            <div className="hidden lg:block">
+              <AppointmentCalendar
+                resources={resources
+                  .filter((r) => r.isActive)
+                  .map((r) => ({ id: r.id, name: r.name, capacity: r.capacity }))}
+              />
+            </div>
+          </>
         )}
         {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary */}
         <ResourceList resources={resources.map(serializeServiceResource)} />

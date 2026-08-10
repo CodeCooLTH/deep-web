@@ -59,21 +59,20 @@ import {
   nextShowAllHours,
   resolveInitialDuration,
   DEFAULT_APPOINTMENT_DURATION_MIN as DEFAULT_DURATION_MIN,
-  APPOINTMENT_STATUS_LABEL,
-  type AppointmentStatus,
   type AppointmentGranularity,
 } from '@/lib/appointments'
-import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
+import AppointmentDayCell from '@/components/safepay/appointment-board/AppointmentDayCell'
+import AppointmentDayRows from '@/components/safepay/appointment-board/AppointmentDayRows'
+import { localDateKey, type AppointmentBoardItem } from '@/components/safepay/appointment-board/types'
 
 /**
- * สีป้ายสถานะ — ยกมาจาก queues/components/AppointmentCalendar.tsx (STATUS_DOT) ทั้งชุด
- * ห้ามคิดใหม่: สถานะเดียวกันต้องหน้าตาเหมือนกันทั้งปฏิทินคิวและที่นี่ ไม่งั้นผู้ขายต้องจำสองชุด
+ * ป้ายสถานะของแต่ละแถวย้ายไป AppointmentDayRows แล้ว (2026-08-10) — ไฟล์นี้ไม่ประกาศชุดสี
+ * หรือคำของสถานะเองอีกต่อไป
  *
- * 2026-08-07 (feature 00036): ชุดสีถูกยกขึ้นเป็น SSOT ที่ src/lib/appointment-stage.ts แล้ว —
- * ไฟล์นี้เคยประกาศ map ของตัวเองเป็นที่ที่ **สาม** และเพี้ยนไปแล้วจริง 2 ช่อง
- * (CONFIRMED_BY_BUYER เขียว / COMPLETED เทา) หลังจาก user เคาะให้สลับเป็น primary/success
- * เพราะเขียวต้องอยู่กับสิ่งที่เกิดขึ้นแล้วเท่านั้น — คำเตือน "ห้ามคิดใหม่" ข้างบนกันไม่ได้
- * เพราะมันเตือนคนอ่าน ไม่ได้บังคับโค้ด จึงเลิกประกาศซ้ำแล้ว import แทน
+ * ประวัติที่ต้องไม่ลืม: ไฟล์นี้เคยประกาศ map ของตัวเองเป็นที่ที่ **สาม** แล้วเพี้ยนไปจริง 2 ช่อง
+ * (CONFIRMED_BY_BUYER เขียว / COMPLETED เทา) หลัง user เคาะให้สลับเป็น primary/success —
+ * คำเตือน "ห้ามคิดใหม่" ที่เขียนไว้ตรงนี้กันไม่ได้ เพราะมันเตือนคนอ่าน ไม่ได้บังคับโค้ด
+ * SSOT ของชุดสีอยู่ที่ src/lib/appointment-stage.ts
  */
 
 /**
@@ -85,14 +84,6 @@ import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
  * ย้ายมาใช้ /api/shops/current/appointments ที่มีอยู่แล้ว (หน้า /queues ใช้อยู่) ซึ่งคืนครบ
  * และ select ของมันกันเบอร์/อีเมลไว้ตั้งแต่ใน service (appointment.service.ts) แล้ว
  */
-interface AppointmentItem {
-  orderToken: string
-  orderNo: string | null
-  start: string
-  end: string
-  appointmentStatus: string | null
-  buyerName: string | null
-}
 
 interface Props {
   open: boolean
@@ -166,12 +157,6 @@ const DEFAULT_HOUR_TO = 20
 const DOW_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
 const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์']
 
-/** "YYYY-MM-DD" ตามเวลาเครื่อง (ตรงกับที่ AppointmentBlock ใช้เก็บค่า ห้ามใช้ toISOString ที่เป็น UTC) */
-function localDateKey(d: Date): string {
-  const m = `${d.getMonth() + 1}`.padStart(2, '0')
-  const day = `${d.getDate()}`.padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
 
 export default function AppointmentDateSheet({
   open,
@@ -192,7 +177,7 @@ export default function AppointmentDateSheet({
 
   const calRef = useRef<FullCalendar>(null)
   const capacity = resourceCapacity ?? null
-  const [items, setItems] = useState<AppointmentItem[]>([])
+  const [items, setItems] = useState<AppointmentBoardItem[]>([])
   const [loading, setLoading] = useState(false)
   /**
    * วันที่กำลัง "ดูอยู่" ยังไม่ยืนยัน (user สั่ง 2026-08-07: จิ้มวันเพื่อดูรายการได้)
@@ -368,7 +353,7 @@ export default function AppointmentDateSheet({
           `/api/shops/current/appointments?resourceId=${resourceId}&from=${from.toISOString()}&to=${to.toISOString()}`,
         )
         if (!res.ok) throw new Error(String(res.status))
-        const data = (await res.json()) as { items?: AppointmentItem[] }
+        const data = (await res.json()) as { items?: AppointmentBoardItem[] }
         setItems(data.items ?? [])
       } catch {
         // โหลดไม่ได้ = ไม่รู้ว่าวันไหนเต็ม → ปล่อยให้กดได้ทุกวันแล้วให้ server ตัดสิน
@@ -400,7 +385,7 @@ export default function AppointmentDateSheet({
    * ทั้งที่ระบบจะปล่อยผ่าน (server ปลดที่นั่งเดิมคืนในทรานแซกชันเดียวกัน)
    */
   const itemsByDay = useMemo(() => {
-    const map = new Map<string, AppointmentItem[]>()
+    const map = new Map<string, AppointmentBoardItem[]>()
     for (const it of items) {
       if (excludeOrderToken && it.orderToken === excludeOrderToken) continue
       const start = new Date(it.start)
@@ -1060,105 +1045,28 @@ export default function AppointmentDateSheet({
               <span className="hidden @3xl:inline">{DOW_FULL[arg.date.getDay()]}</span>
             </>
           )}
+          /* ช่องวันย้ายไป src/components/safepay/appointment-board/AppointmentDayCell.tsx
+             (2026-08-10) — จอเดียวกันนี้ถูกใช้ที่ /queues บนมือถือด้วยแล้ว กติกา a11y ของช่องวัน
+             (3 สถานะแยกด้วยรูปร่าง / เลขวันต้องอยู่ใน DOM เสมอ / ช่องเดือนข้างเคียงไม่รับโฟกัส)
+             จึงต้องอยู่ที่เดียว ไม่งั้นหายไปทีละข้อโดยไม่มี gate ไหนเห็น */
           dayCellContent={(arg) => {
             const key = localDateKey(arg.date)
-            const used = countByDay.get(key) ?? 0
-            /* ต้องใช้ isFull() ตัวเดียวกับที่ปุ่มยืนยันใช้ ห้ามคำนวณเองซ้ำ — เดิมบรรทัดนี้
-               ไม่ดู byDay ทำให้โหมดระบุช่วงเวลาวาดกากบาท "เต็ม" บนวันที่มีนัดครบ capacity
-               ทั้งที่ (ก) legend ซ่อนสัญลักษณ์นั้นไปแล้วในโหมดนี้ → กากบาทไม่มีคำอธิบาย
-               (ข) เกณฑ์นับทั้งวันไม่มีความหมายในโหมดเวลา (ร้านรับพร้อมกัน 2 คิวที่มีนัดสั้น ๆ
-               8 นัดกระจายทั้งวัน ยังว่างอีกเยอะ) — เหตุผลเต็มอยู่ที่ isFull */
-            const full = isFull(key)
-            const selected = pendingDate === key
-            /**
-             * ทั้งช่องคือ "ปุ่มกลม ๆ" ใบเดียว — ขนาด/พื้น/ขอบอยู่ที่ div นี้ ไม่ใช่ที่ td ของตาราง
-             * (td ของ FullCalendar อยู่ในตาราง border-collapse จึงมนมุมไม่ได้จริง และ
-             * dayCellClassNames เอื้อมไปได้แค่ td) — ดู .appt-date-sheet ใน _calendar.css
-             *
-             * สถานะทั้งหมดอยู่ตรงนี้ที่เดียวเพื่อให้มันอัปเดตเองเมื่อข้อมูลนัดโหลดมาทีหลัง
-             * (ปฏิทินถูกวาดก่อน fetch เสร็จเสมอ)
-             *
-             * วันเต็ม = กากบาทแทนเลขวัน (user สั่ง 2026-08-07 พร้อมภาพอ้างอิง) — 3 สถานะ
-             * แยกกันด้วย **รูปร่าง** ไม่ใช่ด้วยสีอย่างเดียว คนตาบอดสีจึงยังแยกออก
-             * เลขวันต้องยังอยู่ใน DOM (sr-only) ไม่งั้นคนใช้ screen reader จะได้ยินแต่
-             * "กากบาท" เรียงกันทั้งเดือนโดยไม่รู้ว่าช่องไหนคือวันที่เท่าไหร่
-             */
-            const tone = selected
-              ? 'bg-primary text-white'
-              : arg.isOther
-                ? 'text-default-400 opacity-55'
-                : arg.isToday
-                  ? 'text-default-800 border-default-300 hover:bg-default-100 border'
-                  : 'text-default-800 hover:bg-default-100'
-            /**
-             * ช่องของเดือนข้างเคียงไม่รับโฟกัส — `onDateClick` กันมันไว้แล้วด้วย `fc-day-other`
-             * ถ้าปล่อยให้ tab ไปหยุดได้ จะกลายเป็นจุดที่กดแล้วไม่มีอะไรเกิดขึ้น (WCAG 2.4.3)
-             * และเพิ่มจุดแวะให้คีย์บอร์ดอีก 7-14 จุดต่อเดือนโดยไม่ได้อะไรกลับมา
-             */
-            const pickable = !arg.isOther
-            /**
-             * ป้ายเสียงต่อช่องวัน — เดิมมี sr-only เฉพาะกรณี "เต็ม" เท่านั้น ช่องปกติจึงได้ยิน
-             * แค่เลขวันลอย ๆ ("8") ไม่รู้ว่าเดือนอะไร มีคิวอยู่แล้วกี่งาน หรือกำลังเลือกอยู่ไหม
-             * ประกอบจาก formatDateTH (พ.ศ. ตาม docs/conventions/date-format.md) ไม่ใช่ต่อสตริงเอง
-             *
-             * ตัวหาร (capacity) พูดเฉพาะโหมดรายวัน ด้วยเหตุผลเดียวกับที่หัวรายการทำ —
-             * โหมดระบุช่วงเวลาเอา day-count มาหารด้วยความจุไม่ได้ (ดู isFull) พูดจำนวนดิบพอ
-             */
-            const dayLabel = pickable
-              ? [
-                  formatDateTH(arg.date),
-                  full
-                    ? 'เต็มแล้ว'
-                    : used > 0
-                      ? byDay && capacity != null && capacity > 0
-                        ? `จองแล้ว ${used} จาก ${capacity} คิว`
-                        : `มี ${used} คิว`
-                      : 'ยังไม่มีคิว',
-                  arg.isToday ? 'วันนี้' : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-              : undefined
             return (
-              <div
-                /* role/tabIndex/onKeyDown = ทางเข้าคีย์บอร์ดของงานหลักในจอนี้ (ดู onDayKeyDown)
-                   aria-pressed บอกว่า "วันนี้คือวันที่กำลังดูอยู่" ซึ่งเป็นสถานะสลับได้ ไม่ใช่
-                   การนำทาง — ตรงกับที่การ์ดเลือกบริการใน AppointmentBlock ใช้อยู่แล้ว
-                   focus-visible ชุด ring: idiom เดียวกับทั้ง (paces) (ProductGrid/OrdersList)
-                   ring-offset-1 จำเป็นเพราะช่องที่เลือกอยู่พื้นเป็น bg-primary — ring สีเดียวกัน
-                   บนพื้นสีเดียวกันคือขอบโฟกัสที่มองไม่เห็น (WCAG 2.4.7) */
-                role={pickable ? 'button' : undefined}
-                tabIndex={pickable ? 0 : undefined}
-                aria-pressed={pickable ? selected : undefined}
-                aria-label={dayLabel}
-                onKeyDown={pickable ? (e) => onDayKeyDown(e, key) : undefined}
-                className={`flex min-h-11.5 w-full flex-col items-center justify-center gap-1 rounded-lg focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none @3xl:min-h-13 ${tone}`}
-              >
-                {full ? (
-                  <>
-                    <span className="sr-only">{arg.dayNumberText} เต็ม</span>
-                    {/* บนพื้น primary ของวันที่เลือกอยู่ กากบาทชมพูอ่านไม่ออก ต้องกลับเป็นขาว */}
-                    <Icon
-                      icon="x"
-                      className={`size-5 ${selected ? 'text-white' : 'text-danger'}`}
-                      aria-hidden="true"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <span className={`text-sm leading-none ${selected ? 'font-semibold' : 'font-medium'}`}>
-                      {arg.dayNumberText}
-                    </span>
-                    {/* จุดว่างโปร่งใสยังต้องอยู่ ไม่งั้นเลขวันของช่องที่มีคิวกับไม่มีคิวจะไม่ตรงแนวกัน */}
-                    <span
-                      className={`size-1.5 rounded-full ${
-                        used > 0 ? (selected ? 'bg-white' : 'bg-warning') : 'bg-transparent'
-                      }`}
-                      aria-hidden="true"
-                    />
-                  </>
-                )}
-              </div>
+              <AppointmentDayCell
+                date={arg.date}
+                dayNumberText={arg.dayNumberText}
+                isOther={arg.isOther}
+                isToday={arg.isToday}
+                used={countByDay.get(key) ?? 0}
+                capacity={capacity}
+                byDay={byDay}
+                /* ต้องใช้ isFull() ตัวเดียวกับที่ปุ่มยืนยันใช้ ห้ามคำนวณเองซ้ำ — เดิมบรรทัดนี้
+                   ไม่ดู byDay ทำให้โหมดระบุช่วงเวลาวาดกากบาท "เต็ม" บนวันที่มีนัดครบ capacity
+                   ทั้งที่ legend ซ่อนสัญลักษณ์นั้นไปแล้วในโหมดนี้ (เหตุผลเต็มอยู่ที่ isFull) */
+                full={isFull(key)}
+                selected={pendingDate === key}
+                onKeyDown={(e) => onDayKeyDown(e, key)}
+              />
             )
           }}
         />
@@ -1312,45 +1220,10 @@ export default function AppointmentDateSheet({
               collapsedDay ? 'hidden' : ''
             } ${atTimeStep ? 'max-h-48 shrink-0 overflow-y-auto overscroll-contain' : ''}`}
           >
-            <ul className="flex flex-col gap-2">
-              {dayItems.map((it) => {
-                const start = new Date(it.start)
-                const end = new Date(it.end)
-                const allDay = isAllDayAppointment(start, end)
-                const status = (it.appointmentStatus ?? 'SCHEDULED') as AppointmentStatus
-                return (
-                  /* ไม่ทำเป็นลิงก์ไปหน้าออเดอร์ — ผู้ใช้กำลังกรอกฟอร์มสร้างงานค้างอยู่
-                     กดออกไปแล้วร่างที่พิมพ์ไว้จะเสีย (ต่างจากปฏิทินในหน้า /queues ที่กดได้) */
-                  <li key={it.orderToken} className="bg-card flex items-start gap-3 rounded-lg p-3">
-                    <span className="text-dark w-14 shrink-0 text-sm font-semibold tabular-nums">
-                      {allDay ? (
-                        'ทั้งวัน'
-                      ) : (
-                        <>
-                          {formatTimeHM(start)}
-                          <span className="text-default-500 block text-xs font-normal">
-                            – {formatTimeHM(end)}
-                          </span>
-                        </>
-                      )}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="text-dark block truncate text-sm font-medium">
-                        {it.buyerName || 'ไม่ระบุชื่อ'}
-                      </span>
-                      {it.orderNo && (
-                        <span className="text-default-500 block text-xs tabular-nums">#{it.orderNo}</span>
-                      )}
-                    </span>
-                    <span
-                      className={`badge shrink-0 ${(APPOINTMENT_STAGE_META[status] ?? APPOINTMENT_STAGE_META.SCHEDULED).cls}`}
-                    >
-                      {APPOINTMENT_STATUS_LABEL[status] ?? APPOINTMENT_STATUS_LABEL.SCHEDULED}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
+            {/* แถวรายการย้ายไป AppointmentDayRows (2026-08-10) — ทรงเดียวกับ /queues มือถือ
+                ไม่ส่ง onRowClick: ผู้ใช้กำลังกรอกฟอร์มสร้างงานค้างอยู่ กดออกไปแล้วร่างที่พิมพ์
+                ไว้จะเสีย (ต่างจากบอร์ดใน /queues ที่ไม่มีร่างอะไรค้าง) */}
+            <AppointmentDayRows items={dayItems} />
           </div>
         )}
 

@@ -1,7 +1,14 @@
 'use client'
 
 /**
- * AppointmentCalendar — ปฏิทินคิวของร้าน (feature 00024, FR-RSV-04)
+ * AppointmentCalendar — ปฏิทินคิวของร้าน **เฉพาะเดสก์ท็อป (≥lg)** (feature 00024, FR-RSV-04)
+ *
+ * 🛑 2026-08-10: หน้า /queues render ตัวนี้ใต้ `hidden lg:block` แล้ว มือถือ/แท็บเล็ตได้
+ *   `src/components/safepay/appointment-board/AppointmentMonthBoard.tsx` แทน (user สั่ง)
+ *   → กิ่งมือถือทั้งหมดในไฟล์นี้ (state `isMobile`, effect `matchMedia(max-width:767px)`,
+ *   มุมมอง dayGridWeek/listWeek บังคับ, layout ช่องวันแนวตั้ง, `capClassMobile`) ถูกลบทิ้ง
+ *   เพราะเข้าไม่ถึงแล้ว — ถ้ายังอยู่ คนอ่านคนถัดไปจะมาแก้ผิดไฟล์
+ *   เส้นสลับคือ lg (1024) ไม่ใช่ 768 ที่เคยใช้ในนี้ ให้ตรงกับ seller shell ทั้งตัว
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/calendar/components/CalendarPage.tsx
  *   (FullCalendar + dayGrid/timeGrid/list + headerToolbar + โครง .card)
@@ -152,8 +159,6 @@ export default function AppointmentCalendar({ resources }: Props) {
   const [range, setRange] = useState<{ from: string; to: string } | null>(null)
   const [title, setTitle] = useState('')
   const [items, setItems] = useState<AppointmentItem[]>([])
-  /** มือถือ (<768px) — ใช้เลือก layout ของช่องวัน ตั้งค่าใน effect เดียวกับที่สลับมุมมอง */
-  const [isMobile, setIsMobile] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const fetchAppointments = useCallback(async (from: string, to: string, resource: string) => {
@@ -194,33 +199,6 @@ export default function AppointmentCalendar({ resources }: Props) {
   }, [range, resourceId, fetchAppointments])
 
 
-  /**
-   * มือถือใช้มุมมอง "สัปดาห์" แทนตารางเดือน
-   *
-   * ตารางเดือน 7 คอลัมน์บนจอ 375px อ่านไม่ออกจริง (ป้ายนัดถูกตัดเหลือ "ช่างสม")
-   * แต่ "สัปดาห์" มีแถวเดียว บีบแค่แนวนอน จึงยืดความสูงต่อช่องให้วางเนื้อหาแนวตั้งได้
-   * และยังมีช่องวันให้กดสร้างนัด — ต่างจาก listWeek ที่ไม่มีช่องวันเลย
-   * (listWeek ยังอยู่ใน toolbar ให้ผู้ใช้เลือกเองได้ แค่ไม่ใช่ค่าบังคับ)
-   *
-   * IMPORTANT: บล็อกนี้เคยเป็น dead code ทั้งก้อน — `calendarRef` ถูกประกาศแต่
-   * **ไม่เคยผูกกับ <FullCalendar>** (ไม่มี ref={calendarRef}) ทำให้ getApi() คืน undefined
-   * เสมอ มือถือจึงเห็นตารางเดือนมาตลอดทั้งที่โค้ดตั้งใจเลี่ยง — วัดยืนยันแล้วที่ 375px
-   * ได้ `fc-dayGridMonth-view` และไม่เปลี่ยนแม้ข้าม breakpoint จริง (2026-08-01)
-   *
-   * เปลี่ยนหลัง mount เพราะ initialView ต้องคงที่ตอน SSR ไม่งั้น hydration ไม่ตรง
-   */
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const apply = () => {
-      setIsMobile(mq.matches)
-      const api = calendarRef.current?.getApi()
-      if (!api) return
-      api.changeView(mq.matches ? 'dayGridWeek' : 'dayGridMonth')
-    }
-    apply()
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [])
 
 
   /**
@@ -287,12 +265,7 @@ export default function AppointmentCalendar({ resources }: Props) {
           // (user สั่ง 2026-07-31: การจองต้อง map กับ order ได้)
         return {
           id: it.orderToken,
-          /**
-           * มือถือเหลือแค่ชื่อผู้จอง — ช่องในมุมมองสัปดาห์กว้างจริง ~45px
-           * ยัดชื่อ + จำนวนคิว + เลขออเดอร์ลงไปได้แค่ "ช่างสม" แล้วตัดดิบ ๆ
-           * รายละเอียดเต็มยังกดเข้าไปดูได้ที่ออเดอร์ (onEventClick)
-           */
-          title: isMobile ? who : `${base}${cap}${it.orderNo ? ` · ${it.orderNo}` : ''}`,
+          title: `${base}${cap}${it.orderNo ? ` · ${it.orderNo}` : ''}`,
           start: it.start,
           end: it.end,
           // นัดรายวัน (FR-RSV-13) ให้ FullCalendar วางเป็น all-day ไม่ใช่แถบเวลา 00:00-00:00
@@ -301,8 +274,7 @@ export default function AppointmentCalendar({ resources }: Props) {
           className: STATUS_CLASS[status] ?? 'appt-ev-completed',
         }
       }),
-    // isMobile อยู่ใน dep ด้วย — title เปลี่ยนตามขนาดจอ ไม่งั้นหมุนจอแล้วป้ายไม่อัปเดต
-    [items, resourceId, isMobile],
+    [items, resourceId],
   )
 
   const onEventClick = useCallback(
@@ -382,7 +354,7 @@ export default function AppointmentCalendar({ resources }: Props) {
           headerToolbar={{
             left: 'prev,next,today',
             center: '',
-            right: isMobile ? 'listWeek' : 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
           }}
           noEventsText="ช่วงนี้ยังไม่มีนัด — นัดจะขึ้นเมื่อคุณระบุวันเข้าใช้บริการตอนสร้างออเดอร์"
           allDayText="ทั้งวัน"
@@ -424,17 +396,10 @@ export default function AppointmentCalendar({ resources }: Props) {
              * ส่วนพื้นที่ย้อม 100x100px เป็นของตกแต่งที่ทับ Cool Mist ของทั้งระบบ
              * (Design Spec: safepay-ux 2026-08-01 หลัง user บอกว่า "สีมันไม่ได้เลย")
              *
-             * เดสก์ท็อป: วันเต็มได้ pill เล็ก (idiom เดียวกับ badge ของ Paces)
-             * มือถือ: ตัด pill ออก เหลือแค่สีตัวอักษร เพราะช่องกว้างจริง ~45px
-             * padding ของ pill จะดันความกว้างเกิน
+             * วันเต็มได้ pill เล็ก (idiom เดียวกับ badge ของ Paces)
              */
             const capClass = full
               ? 'bg-danger/15 text-danger-ink rounded px-1.5 py-0.5 font-bold'
-              : tight
-                ? 'text-warning-ink font-bold'
-                : 'text-default-600 font-semibold'
-            const capClassMobile = full
-              ? 'text-danger-ink font-bold'
               : tight
                 ? 'text-warning-ink font-bold'
                 : 'text-default-600 font-semibold'
@@ -457,23 +422,6 @@ export default function AppointmentCalendar({ resources }: Props) {
                 <Icon icon={full ? 'tabler:ban' : 'tabler:plus'} className="size-4" />
               </button>
             )
-
-            // มือถือ: ช่องแคบ (~50px) วางแนวตั้ง เลขวันบนสุดตามที่ตาคาดหวังในปฏิทิน
-            if (isMobile) {
-              return (
-                <div className="flex w-full flex-col items-center gap-0.5">
-                  <span
-                    className={`inline-flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
-                      arg.isToday ? 'bg-primary text-white' : 'text-default-700'
-                    }`}
-                  >
-                    {arg.dayNumberText}
-                  </span>
-                  {cap && <span className={`appt-day-cap text-xs ${capClassMobile}`}>{cap}</span>}
-                  {addButton}
-                </div>
-              )
-            }
 
             return (
               <div className="flex w-full items-center justify-between gap-2">
