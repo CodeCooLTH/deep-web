@@ -220,7 +220,9 @@ Next.js 16 App Router บน Vercel (เดิม) — ไม่มี service �
   ```
   `canEditReview` เป็น **pure function แยกออกมา** (ไม่ฝังใน `updateReview`) เพื่อให้ทั้ง server (guard จริง) และ client (ปุ่มแก้ไข/นับถอยหลัง) เรียกตัวเดียวกัน — server เป็นด่านที่มีผลจริง, client ใช้แค่กำหนดว่าจะโชว์ปุ่มไหม (เทส `[blocker]` พิสูจน์ด้วย mutation: สลับ `<=` เป็น `<` ต้องแดง)
   - `updateReview`/`deleteReview`: ownership check `review.reviewerUserId === userId` ก่อน แล้วค่อยเช็ค `canEditReview(review.createdAt)` — **ลำดับสำคัญ**: ต้องเช็ค forbidden ก่อน expired เสมอ (ป้องกัน oracle: คนที่ไม่ใช่เจ้าของไม่ควรรู้ด้วยซ้ำว่ารีวิวหมดเวลาแก้ไขหรือยัง)
-  - `deleteReview`: `prisma.review.delete({where:{id}})` — **hard delete** ลบทั้งแถวรวม `images`/`shopReplyComment` ไปพร้อมกันเพราะเป็นคอลัมน์เดียวกัน (BR-BOE-23 satisfied โดยอัตโนมัติจากการเลือก inline-column design — ดู §5.1) **ผลข้างเคียงที่ต้องบันทึกไว้:** หลังลบ `Order.review` กลับเป็น `null` → `createReview()` (guard เดิม `if (order.review) throw`) จะยอมให้เขียนรีวิวใหม่ได้อีกครั้งถ้ายังอยู่ในเงื่อนไข `status IN (CONFIRMED, SHIPPED)` — พฤติกรรมนี้ inferred จาก schema ไม่ใช่ BR ที่ระบุชัด ต้องแจ้ง QA ให้ทดสอบเป็นเคสเปิด (open question ดู §10)
+  - `deleteReview`: 🛑 **soft delete เท่านั้น** — `prisma.review.update({where:{id}, data:{deletedAt: new Date(), images: [], shopReplyComment: null, shopRepliedAt: null, shopRepliedByUserId: null}})` (ล้างเนื้อหาจริงเพื่อให้ BR-BOE-23 "ลบรีวิว = ลบรูปแนบและคำตอบร้านไปพร้อมกัน" เป็นจริงในระดับข้อมูล ไม่ใช่แค่ซ่อนบนหน้าจอ — แถวที่เหลือทำหน้าที่เป็น tombstone อย่างเดียว)
+    **ห้ามใช้ `prisma.review.delete()` เด็ดขาด** — เหตุผลเต็มอยู่ที่ §8 แถวแรก: hard delete ทำให้ `createdAt` รีเซ็ตได้ผ่านการสร้างใหม่ = ยืดหน้าต่าง 24 ชม. ได้ไม่จำกัด ซึ่งทำลาย BR-BOE-17 ทั้งข้อ
+    **ทุก read path ต้องกรอง `deletedAt: null`** — `getReviewsByShopUser()`, `getAvgRatingByUsername()`, `getOrderByToken()` (ส่วน `review`), และหน้าโปรไฟล์สาธารณะ — ลืมจุดเดียวรีวิวที่ลบแล้วจะโผล่กลับมา (เทส `[blocker]` ต้องสแกนซอร์สว่าทุก query บน `prisma.review` มี `deletedAt` ในเงื่อนไข ไม่ใช่ hardcode รายชื่อไฟล์)
   - `replyToReview`/`deleteReviewReply`: authorize ด้วย `canAccessShop(order.shopId, actorUserId)` (`src/lib/shop-context.ts:25-30`, **reuse ตรง ๆ** — ฟังก์ชันนี้คืน true เมื่อ `Shop.userId===actorUserId` **หรือ** มีแถว `ShopMember` (ซึ่งมีแค่ 2 ค่า role คือ `OWNER`/`ADMIN` เท่านั้นตาม schema) จึงตรงกับ BR-BOE-21 เป๊ะโดยไม่ต้อง implement ใหม่)
   - `replyToReview` เขียนทับ (`shopReplyComment`/`shopRepliedAt`/`shopRepliedByUserId` = ค่าล่าสุดเสมอ) — ตรงกับ "เขียนคำตอบที่สองทับคำตอบเดิม" (FR-014 AC)
 - **Precondition:** review ต้องมีอยู่แล้ว (`order.review !== null`) สำหรับ update/delete/reply/delete-reply ทั้งหมด
@@ -548,6 +550,7 @@ ALTER TABLE "Review"
   ADD COLUMN "shopReplyComment" TEXT,
   ADD COLUMN "shopRepliedAt" TIMESTAMP(3),
   ADD COLUMN "shopRepliedByUserId" TEXT,
+  ADD COLUMN "deletedAt" TIMESTAMP(3),
   ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 ALTER TABLE "Review" ADD CONSTRAINT "Review_shopRepliedByUserId_fkey"
@@ -612,7 +615,7 @@ ALTER TABLE "Review" ADD CONSTRAINT "Review_shopRepliedByUserId_fkey"
 | **Guest View เปิดข้อมูลออเดอร์ให้คนที่ถือลิงก์ (ไม่ใช่แค่เจ้าของ)** | ข้อมูลรั่วไหลถ้าลิงก์หลุดมือ (ความเสี่ยงที่ user ยอมรับแล้วตาม PRD §6.1 D-1) | จำกัดเข้มตาม allow-list BR-BOE-01, mask ที่ server, ไม่มี action ที่เปลี่ยนแปลงข้อมูลได้จาก guest view เลย |
 | **การรวม SSOT ป้ายสถานะ (TFR-012) กระทบ 5 ไฟล์พร้อมกัน** | ถ้าพลาดจุดใดจุดหนึ่ง จะเกิดความไม่ตรงกันแบบใหม่แทนที่จะแก้ของเดิม | grep ทุก `STATUS_LABEL`/`ORDER_STATUS_LABEL`/`getStatusPill` ในทั้ง repo ก่อนปิดงาน (ไม่ใช่แค่ 3 ไฟล์ที่ BRD ระบุ — พบเพิ่ม 2 ไฟล์ระหว่างเขียน SRS นี้) |
 | **`guaranteeOrderLink()` เป็นจุด critical ที่สุดของระบบ claim — แก้แล้วเสี่ยง regression กว้าง** | ถ้าพลาด อาจทำให้ order claim ล้มเงียบ ๆ (ระบบฝั่งผู้ซื้อพังกลับไปจุดเดิมที่ PRD พยายามแก้) | แยก event write ออกจาก transaction หลักเด็ดขาด (TFR-013), มีเทส `[blocker]` มัด behavior เดิมไว้ก่อนแก้ |
-| **`Review.orderId @unique` + hard-delete review → เปิดช่องเขียนรีวิวใหม่ได้อีกหลังลบ** | ผู้ซื้อลบแล้วรีวิวใหม่ให้คะแนนต่างจากเดิมได้ภายใน 24 ชม. เดิม — ไม่ผิดกฎที่มี แต่เป็นพฤติกรรมที่ไม่มีใครตัดสินใจชัดเจน | บันทึกเป็น open question ให้ QA ทดสอบเป็นเคสที่รู้ตัว (§10) ไม่ใช่ปล่อยให้ถูกค้นพบทีหลัง |
+| 🛑 **hard-delete รีวิว = ช่องยืดหน้าต่างแก้ไขได้ไม่จำกัด (ทำลาย BR-BOE-17 ทั้งข้อ)** | `canEditReview` นับจาก `Review.createdAt` — ถ้าลบแล้วสร้างใหม่ได้ **แถวใหม่ได้ `createdAt` ใหม่ = หน้าต่าง 24 ชม. เริ่มนับใหม่** ผู้ซื้อลบ-สร้างใหม่ทุก 23 ชม. ก็แก้รีวิวได้ตลอดกาล ซึ่งคือสิ่งที่ BR-BOE-17 ตั้งใจกันพอดี (PRD §6.1 "เปลี่ยนใจหลังร้านโทรมา") · **ภายใน 24 ชม. การลบ-สร้างใหม่ไม่ได้ให้อำนาจอะไรเกินกว่าการแก้ไขปกติอยู่แล้ว — ปัญหาอยู่ที่ตัวจับเวลารีเซ็ต ไม่ใช่ที่การเขียนใหม่** | **เปลี่ยนจาก hard-delete เป็น soft-delete** — เพิ่ม `Review.deletedAt DateTime?` แถวยังอยู่ ⇒ `Order.review` ยังไม่ null ⇒ guard เดิมของ `createReview` (`if (order.review) throw`) ยังทำงาน ⇒ สร้างใหม่ไม่ได้ ⇒ `createdAt` ไม่มีวันรีเซ็ต · ทุก read path (หน้าผู้ซื้อ/หน้าร้าน/`getAvgRatingByUsername`/`getReviewsByShopUser`) ต้องกรอง `deletedAt: null` — **ถ้าลืมกรองแม้จุดเดียว รีวิวที่ลบแล้วจะโผล่กลับมา** จึงต้องกรองที่ service layer ทุกตัว ไม่ใช่ที่ component |
 | **`getStatusPill` เป็น public export ที่อาจมีผู้เรียกที่ grep ไม่เห็น** | ลบแล้วพัง runtime ที่ static analysis ไม่จับ | grep ยืนยันแล้วว่าผู้เรียกที่เหลือเป็นคอมเมนต์ล้วน + รัน `tsc` เต็มหลังลบ (compiler จับ import ที่หลุดทั้งหมดเพราะเป็น named export ไม่ใช่ dynamic) |
 
 ---
@@ -651,7 +654,7 @@ ALTER TABLE "Review" ADD CONSTRAINT "Review_shopRepliedByUserId_fkey"
 - ยืนยันแล้วว่า FR-004 (endpoint เดิมทั้งหมด), FR-008/009 (สลิป) **มีอยู่แล้ว/แก้ไปแล้ว** — งานจริงของฟีเจอร์นี้แคบกว่าที่ PRD เขียนไว้ในหลายจุด
 
 **ประเด็นที่ต้องตัดสินใจเพิ่ม (Open Questions):**
-- **หลังลบรีวิวแล้วเขียนใหม่ได้อีก** (ผลธรรมชาติของ `orderId @unique` + hard-delete, §8) — ไม่ใช่ BR ที่ user ตัดสินใจชัดเจน ต้องแจ้งให้ QA รู้ตัวและอาจต้องขอ user ยืนยันว่าเป็นพฤติกรรมที่ยอมรับได้
+- **ลบรีวิวแล้วเขียนใหม่ไม่ได้อีกเลย** (ผลของการเลือก soft-delete เพื่อปิดช่องยืดหน้าต่างแก้ไข — §8 แถวแรก) — เป็นการตัดสินใจของ SRS ฉบับนี้ที่ **user ยังไม่ได้เคาะ**: "ลบแล้วลบเลย" เป็นพฤติกรรมที่ยอมรับได้ไหม หรือควรให้เขียนใหม่ได้แต่ล็อกเวลาไว้ที่ `createdAt` ของใบแรก (ซับซ้อนกว่า ต้องเก็บ `firstReviewedAt` แยก) — ทางที่เลือกไว้ตอนนี้คือทางที่ง่ายและ fail-closed
 - **`ReplyToReviewSchema` maxLength 1000** เป็นตัวเลขที่ SRS ฉบับนี้ตั้งเอง (BRD ไม่ได้ล็อก) — ควรยืนยันกับ user/BA ก่อน implement จริง
 - **FR-005/006/007 (เส้นทาง Facebook)** ต้องสำรวจโค้ด auth flow เพิ่มก่อนเขียน SDS ว่าเหลืออะไรต้องทำจริงบ้างหลังจาก 00015 ทำไปแล้ว
 - **หนี้เอกสารที่พบระหว่างทาง (ไม่ใช่ scope ของฟีเจอร์นี้แต่ควร sync พร้อมกัน เพราะแก้ไฟล์เดียวกันอยู่แล้ว):**
