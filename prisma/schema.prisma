@@ -63,6 +63,9 @@ model User {
   orderEventsActedOn     OrderEvent[]            @relation("OrderEventActor") // feature 00031 — เหตุการณ์ที่คนนี้เป็นผู้กระทำ
   customer               Customer? // feat 00014 — link Customer เมื่อสมัครเป็น buyer (Phase 2; nullable)
   reviewsGiven           Review[]                @relation("ReviewerReviews")
+  // feature 00041 — รีวิวที่ผู้ใช้คนนี้ตอบกลับในฐานะร้าน (เจ้าของร้าน หรือ ShopMember role=ADMIN)
+  // onDelete SetNull ที่ฝั่ง Review: ลบบัญชีพนักงาน คำตอบยังอยู่ (เป็นประวัติสาธารณะของร้าน)
+  shopReviewReplies      Review[]                @relation("ShopReviewReplies")
   verificationsReviewed  VerificationRecord[]    @relation("ReviewedBy")
   topUpRequestsReviewed  TopUpRequest[]          @relation("TopUpReviewedBy")
   scamReports            ScamReport[]            @relation("ScamReporter")
@@ -900,10 +903,33 @@ model Review {
   reviewerContact String?
   rating          Int
   comment         String?
+  // feature 00041 — รูปแนบรีวิว ≤4 ใบ (BR-BOE-19): array ของ fileId จาก /api/uploads/commit
+  // มิเรอร์ Product.images/Room.images — เพดานจำนวนบังคับที่ service layer ไม่ใช่ DB CHECK
+  // ขนาดต่อไฟล์ (≤10MB) ถูกบังคับไปแล้วที่ commit ตาม upload-policy.ts purpose IMAGE
+  images          Json     @default("[]")
+  // feature 00041 — คำตอบร้าน 1 คำตอบต่อ 1 รีวิว (BR-BOE-21): ตอบครั้งที่สอง = เขียนทับ
+  // ไม่ใช่สร้างแถวใหม่ จึงเป็นคอลัมน์ inline ไม่ใช่ตารางแยก (cardinality 0..1 เสมอ
+  // และทุกจอที่แสดงรีวิวต้องโชว์คำตอบคู่กันเสมอ = read path ที่ join ทุกครั้ง)
+  shopReplyComment    String?   @db.Text
+  shopRepliedAt       DateTime?
+  shopRepliedByUserId String?
+  // 🛑 feature 00041 — soft delete ที่ "ต้องมี" ไม่ใช่ทางเลือกเชิงสไตล์:
+  // canEditReview() นับหน้าต่างแก้ไข 24 ชม. จาก createdAt — ถ้า hard-delete แล้วสร้างใหม่ได้
+  // แถวใหม่จะได้ createdAt ใหม่ = จับเวลาเริ่มนับใหม่ ⇒ ลบ-สร้างใหม่ทุก 23 ชม. ก็แก้รีวิวได้
+  // ตลอดกาล ทำลาย BR-BOE-17 ทั้งข้อ. แถวยังอยู่ ⇒ Order.review ไม่เป็น null ⇒ guard เดิมของ
+  // createReview() ยังทำงาน ⇒ createdAt ไม่มีวันรีเซ็ต (SRS §8)
+  // 🛑 ทุก read path ต้องกรอง deletedAt: null — ยกเว้น 2 จุดที่ต้องไม่กรองโดยตั้งใจ
+  //    (createReview guard, linkBuyerHistory) ดู DATABASE.md §8.2
+  deletedAt       DateTime?
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  reviewer User? @relation("ReviewerReviews", fields: [reviewerUserId], references: [id])
+  order       Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reviewer    User? @relation("ReviewerReviews", fields: [reviewerUserId], references: [id])
+  shopReplier User? @relation("ShopReviewReplies", fields: [shopRepliedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([reviewerUserId, deletedAt])
+  @@index([shopRepliedByUserId])
 }
 
 model TrustScoreHistory {
