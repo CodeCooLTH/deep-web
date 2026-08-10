@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import * as v from 'valibot'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
 import { resolveActiveShopContext } from '@/lib/shop-context'
-import { getLineQuota } from '@/services/line-quota.service'
+import { getLineQuotaByChannelId } from '@/services/line-quota.service'
 
 /**
  * GET /api/channels/line/[channelId]/quota — โควตาข้อความคงเหลือของ LINE OA (feature 00025, S-9)
@@ -38,17 +37,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const idCheck = v.safeParse(ChannelIdParamSchema, rawChannelId)
   if (!idCheck.success) return NextResponse.json({ error: 'รหัสช่องทางไม่ถูกต้อง' }, { status: 400 })
 
-  // 🛑 scope ownership ใน WHERE ไม่ใช่ดึงมาแล้วค่อยเทียบทีหลัง (feedback_rsc_dal_authz) — และ select
-  // เฉพาะคอลัมน์ที่ต้องใช้: แถวนี้มี accessTokenEnc/channelSecretEnc อยู่ด้วย ห้ามเผลอคืนทั้งแถว
-  const channel = await prisma.shopChannel.findFirst({
-    where: { id: idCheck.output, shopId: activeCtx.shopId, provider: 'LINE' },
-    select: { id: true, accessTokenEnc: true, quotaValue: true, quotaUsed: true, quotaFetchedAt: true },
-  })
-  if (!channel) return NextResponse.json({ error: 'ไม่พบช่องทางนี้' }, { status: 404, headers: NO_STORE_HEADERS })
-
-  // getLineQuota ไม่โยน error ในทุกกรณีตามสัญญาของมันเอง — ไม่มี try/catch ที่นี่โดยตั้งใจ
+  // ownership scope (shopId) อยู่ใน WHERE ของ service ไม่ใช่ post-check — และ route ไม่แตะ
+  // `accessTokenEnc` เลยแม้แต่ตัวแปรเดียว (service เป็นคนโหลด/ใช้/ทิ้งภายในตัวมันเอง)
+  //
+  // getLineQuotaByChannelId ไม่โยน error ในทุกกรณีตามสัญญาของมันเอง — ไม่มี try/catch ที่นี่โดยตั้งใจ
   // (ถ้ามันโยนขึ้นมาจริงแปลว่าสัญญาถูกละเมิด ให้ 500 ดังออกมาแทนการซ่อน)
-  const quota = await getLineQuota(channel)
+  const quota = await getLineQuotaByChannelId(idCheck.output, { shopId: activeCtx.shopId })
+  if (!quota) return NextResponse.json({ error: 'ไม่พบช่องทางนี้' }, { status: 404, headers: NO_STORE_HEADERS })
 
   return NextResponse.json(
     {

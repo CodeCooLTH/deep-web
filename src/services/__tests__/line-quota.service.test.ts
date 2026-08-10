@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 
 // (S-9, feature 00025 TFR-LINE-07/TD-006) — mock prisma แบบเดียวกับ channel-chat-line-outbound.test.ts
 const db = vi.hoisted(() => ({
-  shopChannel: { update: vi.fn(), updateMany: vi.fn() },
+  shopChannel: { update: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn() },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
 
@@ -16,7 +16,12 @@ beforeAll(() => {
   process.env.CHANNEL_TOKEN_KEY = 'd'.repeat(64)
 })
 
-import { getLineQuota, noteLinePushConsumed, invalidateLineQuota } from '@/services/line-quota.service'
+import {
+  getLineQuota,
+  getLineQuotaByChannelId,
+  noteLinePushConsumed,
+  invalidateLineQuota,
+} from '@/services/line-quota.service'
 import { QUOTA_TTL_MS } from '@/lib/line/constants'
 
 const now = 1_800_000_000_000
@@ -109,6 +114,36 @@ describe('getLineQuota (S-9, TFR-LINE-07)', () => {
       forceRefresh: true,
     })
     expect(adapter.fetchLineQuota).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('getLineQuotaByChannelId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    db.shopChannel.update.mockResolvedValue({})
+  })
+
+  it('[blocker] scope provider LINE ไว้ใน WHERE — ช่องทางอื่นไม่มีสิทธิ์เข้ามาถึงเส้นทางนี้', async () => {
+    db.shopChannel.findFirst.mockResolvedValue({
+      id: 'ch1',
+      accessTokenEnc: 'enc',
+      quotaValue: 300,
+      quotaUsed: 52,
+      quotaFetchedAt: new Date(now - 1000),
+    })
+
+    const snap = await getLineQuotaByChannelId('ch1', { now })
+
+    expect(db.shopChannel.findFirst).toHaveBeenCalledWith({
+      where: { id: 'ch1', provider: 'LINE' },
+      select: { id: true, accessTokenEnc: true, quotaValue: true, quotaUsed: true, quotaFetchedAt: true },
+    })
+    expect(snap).toMatchObject({ remaining: 248, level: 'OK' })
+  })
+
+  it('ไม่พบแถว (หรือไม่ใช่ LINE) → null ไม่ throw', async () => {
+    db.shopChannel.findFirst.mockResolvedValue(null)
+    await expect(getLineQuotaByChannelId('ch-nope')).resolves.toBeNull()
   })
 })
 

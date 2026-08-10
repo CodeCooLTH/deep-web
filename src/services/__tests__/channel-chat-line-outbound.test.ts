@@ -401,6 +401,19 @@ describe('sendOutboundMessage — LINE โควตา (S-9, TFR-LINE-06/07)', (
     expect(quota.noteLinePushConsumed).not.toHaveBeenCalled()
   })
 
+  it('fallback reply→push แล้วโดนปฏิเสธเพราะโควตา → ล้าง cache ด้วย (เส้นทางนี้ไม่ผ่านด่านโควตาข้างบน)', async () => {
+    lineAdapter.sendMessages
+      .mockRejectedValueOnce(new LineApiError('Invalid reply token', 400, { message: 'Invalid reply token' }))
+      .mockRejectedValueOnce(new LineApiError('quota exceeded', 429, {}))
+
+    await expect(
+      sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' }),
+    ).rejects.toThrow('SEND_FAILED')
+
+    expect(quota.invalidateLineQuota).toHaveBeenCalledWith('ch1')
+    expect(quota.noteLinePushConsumed).not.toHaveBeenCalled()
+  })
+
   it('ไม่เช็คโควตาเลยเมื่อส่งด้วย reply (ไม่เสีย round-trip ไป LINE โดยไม่จำเป็น)', async () => {
     await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' })
     expect(quota.getLineQuota).not.toHaveBeenCalled()

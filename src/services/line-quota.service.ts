@@ -134,6 +134,32 @@ export async function getLineQuota(
 }
 
 /**
+ * เวอร์ชันที่โหลดแถวเองจาก channelId — สำหรับผู้เรียกที่ยังไม่มีแถวอยู่ในมือ (server component
+ * ของหน้าเธรด, route)
+ *
+ * 🛑 มีอยู่เพื่อ **กันไม่ให้ `accessTokenEnc` ไหลออกไปนอก service นี้** — ถ้าให้ผู้เรียก select
+ * คอลัมน์นั้นมาเองแล้วส่งต่อ อ็อบเจกต์ที่มี token จะไปนั่งอยู่ในตัวแปรของ server component ซึ่ง
+ * เผลอ spread ลง prop เมื่อไหร่ก็ serialize ลง flight payload ทันที (บทเรียน RSC PII 2026-06-06)
+ * ที่นี่โหลด → ใช้ → ทิ้งภายในฟังก์ชันเดียว คืนออกไปเฉพาะตัวเลขที่หน้าจอต้องใช้
+ *
+ * ไม่ใช่ช่องทาง LINE / ไม่พบแถว / ไม่ใช่ของร้านที่ระบุ → คืน `null` (ผู้เรียกไม่ต้องรู้จักโครงสร้าง
+ * ตาราง และไม่ต้องแยกแยะเองว่า "ไม่มี" กับ "ไม่ใช่ของคุณ" ต่างกันยังไง — ปลายทางตอบ 404 เหมือนกัน)
+ *
+ * `shopId` เป็น ownership scope ที่อยู่ **ใน WHERE** ไม่ใช่ดึงมาแล้วเทียบทีหลัง (feedback_rsc_dal_authz)
+ */
+export async function getLineQuotaByChannelId(
+  channelId: string,
+  opts: { shopId?: string; now?: number; forceRefresh?: boolean } = {},
+): Promise<LineQuotaSnapshot | null> {
+  const row = await prisma.shopChannel.findFirst({
+    where: { id: channelId, provider: 'LINE', ...(opts.shopId ? { shopId: opts.shopId } : {}) },
+    select: { id: true, accessTokenEnc: true, quotaValue: true, quotaUsed: true, quotaFetchedAt: true },
+  })
+  if (!row) return null
+  return getLineQuota(row, opts)
+}
+
+/**
  * ส่ง push สำเร็จ 1 คำขอ = โควตาถูกหัก 1 (TFR-LINE-07 "ลด quotaUsed ในหน่วยความจำได้เลย +1")
  *
  * 🛑 นับเป็น "ต่อคำขอ" ไม่ใช่ "ต่อชิ้นข้อความ" — LINE นับ 1 push (ที่มีได้ถึง 5 message object)

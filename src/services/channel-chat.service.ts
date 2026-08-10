@@ -2746,6 +2746,10 @@ async function sendOutboundLineMessage(
         if (code2 === 'CONTACT_BLOCKED') {
           await prisma.externalContact.update({ where: { id: externalContact.id }, data: { isBlocked: true } })
         }
+        // (S-9) เส้นทาง fallback นี้ไม่ผ่านด่านโควตาข้างบน (ตอนนั้นตั้งใจจะส่งด้วย reply) — ถ้า push
+        // ที่ตามมาถูกปฏิเสธเพราะโควตา ต้องล้าง cache เหมือนกัน ไม่งั้นค่าที่ผิดจะค้างต่ออีกถึง 5 นาที
+        // เฉพาะในเคสนี้เคสเดียว ซึ่งเป็นเคสที่หาไม่เจอทีหลังเพราะมันไม่ได้ throw ออกไปให้ใครเห็น
+        if (code2 === 'QUOTA_EXCEEDED') await invalidateLineQuota(shopChannel.id)
       }
     } else if (code === 'REPLY_TOKEN_INVALID') {
       // ระบบอัตโนมัติ (S-12) ส่งมาทางนี้ได้ในอนาคต — ห้าม fallback เป็น push (BR-LINE-18) บันทึกเป็น
