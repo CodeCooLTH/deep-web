@@ -47,11 +47,23 @@ import { ChannelStrip, type OfficialChannel } from './OfficialChannels'
 // เกณฑ์ขั้นต่ำอ่านจาก SSOT — ห้าม hardcode เลขในข้อความ ไม่งั้นวันที่เกณฑ์เปลี่ยน
 // หน้าจอจะบอกตัวเลขที่ไม่ตรงกับที่ระบบใช้จริง
 import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
+import { formatDateTH } from '@/lib/format-date'
 
 /** `imageUrl` = artwork จริงของเหรียญจาก backend — `icon` เป็นแค่ fallback เมื่อเหรียญนั้นยังไม่มีรูป
  *  (badge-icons.ts เขียนกติกานี้ไว้เองว่า "ปกติ render รูป asset จาก badge.imageUrl" แต่ hero
  *   ไม่เคยมี field นี้ให้ส่ง จึงตกไปใช้ fallback ตลอดเวลา ทั้งที่ artwork มีอยู่จริงในโปรเจกต์) */
-export type HeroBadge = { id: string; name: string; nameEN: string; icon: string; imageUrl?: string | null }
+export type HeroBadge = {
+  id: string
+  name: string
+  nameEN: string
+  icon: string
+  imageUrl?: string | null
+  /** เงื่อนไขที่ทำให้ได้เหรียญนี้ — แปลจาก `Badge.criteria` ที่เป็นเกณฑ์จริง (badge-criteria.ts)
+   *  null = เกณฑ์ชนิดที่ยังไม่มีคำแปล → โมดัลไม่แสดงบรรทัดนั้น ไม่ใช่เดาข้อความกลาง ๆ */
+  criteriaLabel?: string | null
+  /** วันที่ได้รับ (UserBadge.earnedAt) — ISO string เพราะข้าม RSC boundary ห้ามส่ง Date object */
+  earnedAtIso?: string | null
+}
 
 export type ProfileHeroData = {
   shopName: string
@@ -296,6 +308,10 @@ export default function ProfileHero({
   // และแก้ปัญหาเดิมที่เช็คเขียวสื่อความหมายด้วย `title` อย่างเดียว — มือถือไม่มี hover จึงไม่มีทางรู้
   const [scorePanelOpen, setScorePanelOpen] = useState(false)
 
+  // เหรียญที่กดเปิดดูรายละเอียดอยู่ — null = ปิด (user 2026-08-10 "อยากให้ badge กดได้ แล้วมี modal
+  // ขึ้นมาแสดงว่าเค้าได้จากเงื่อนไขอะไร เมื่อไหร่ เน้นให้ buyer อ่านแล้วเชื่อมั่นในร้าน")
+  const [openBadge, setOpenBadge] = useState<HeroBadge | null>(null)
+
   return (
     <div className='is-full'>
       {/* ── ปก: รูปจริงถ้าร้านอัปโหลด ไม่งั้นใช้ไล่สีตามระดับความน่าเชื่อถือ ──
@@ -470,7 +486,14 @@ export default function ProfileHero({
               (แนวเดียวกับที่ user สั่งให้กริดคลิปชิดซ้ายในรอบเดียวกัน) */}
           <ul id='badge-list' className='flex flex-wrap gap-x-5 gap-y-3 m-0 p-0 list-none'>
             {shownBadges.map((b) => (
-              <li key={b.id} className='flex flex-col items-center gap-2 is-[84px]'>
+              <li key={b.id} className='is-[84px]'>
+                <button
+                  type='button'
+                  onClick={() => setOpenBadge(b)}
+                  aria-haspopup='dialog'
+                  aria-label={`ดูรายละเอียดเหรียญ ${b.name}`}
+                  className='flex flex-col items-center gap-2 is-full border-0 bg-transparent p-0 cursor-pointer font-[inherit]'
+                >
                 {/* วงกลม 56px ให้ artwork เต็มตาแบบ ref — ไม่ใช่ไอคอนจิ๋วในชิป
                     🛑 พื้นวงต้องมีสีอ่อน ไม่ใช่ขาวล้วน: เหรียญ 11/20 ใบในระบบยังไม่มี artwork และ
                     ตกไปใช้ไอคอนเส้น ถ้าพื้นเป็นขาวเดียวกับการ์ด ใบที่ไม่มีรูปจะดูเหมือน "โหลดไม่มา"
@@ -490,6 +513,7 @@ export default function ProfileHero({
                 >
                   {b.name}
                 </Typography>
+                </button>
               </li>
             ))}
           </ul>
@@ -603,6 +627,97 @@ export default function ProfileHero({
           แชทกับร้าน
         </Button>
       )}
+
+      {/* ── โมดัลรายละเอียดเหรียญ ──
+             user 2026-08-10: "อยากให้ badge กดได้ แล้วมี modal ขึ้นมาแสดงว่าเค้าได้จากเงื่อนไขอะไร
+             เมื่อไหร่ (เน้นให้ buyer อ่านแล้วเชื่อมั่นในร้านค้า)"
+
+             🛑 ref ที่ส่งมาเป็นจอของ **ผู้ขาย** (YOUR PROGRESS 847/1000 · HOW TO UNLOCK FASTER ·
+             Reward upon unlocking · Apply Tips) ซึ่งทั้งหมดไม่มีความหมายกับผู้ซื้อที่กำลังดูเหรียญ
+             ที่ร้าน **ได้มาแล้ว** — เอาโครงโมดัล/ลำดับการอ่านของ ref มา ไม่เอาเนื้อหา
+
+             🛑 สิ่งที่ ref มีแต่เรา **ไม่มีข้อมูลจริง** จึงไม่ใส่: ระดับความหายาก (UNCOMMON) ·
+             "มีร้านแค่ ~12% ที่ทำได้" (ไม่มีสถิติเทียบกลุ่ม) · ความคืบหน้า (เหรียญที่ได้แล้วไม่มี
+             ความคืบหน้า) — หน้านี้เคยมีตัวเลขข้ามแพลตฟอร์มที่แต่งขึ้นแล้วถูกถอดออก 2026-07-22
+
+             บรรทัดที่ทำให้ผู้ซื้อ "เชื่อมั่น" จริง ๆ คือบรรทัดสุดท้าย: ระบบมอบให้เองจากพฤติกรรมจริง
+             ร้านขอเองไม่ได้ — ซึ่งเป็นความจริงของระบบ (evaluateSellerBadgesForShop ประเมินอัตโนมัติ)
+             ไม่ใช่คำโฆษณา */}
+      <Drawer
+        anchor='bottom'
+        open={openBadge !== null}
+        onClose={() => setOpenBadge(null)}
+        slotProps={{
+          paper: {
+            'aria-label': 'รายละเอียดเหรียญ',
+            sx: { borderRadius: '10px 10px 0 0', maxBlockSize: '86dvh' },
+          },
+        }}
+      >
+        {openBadge && (
+          <div className='pli-5 pbs-3 pbe-6'>
+            <div className='flex justify-end'>
+              <IconButton size='small' onClick={() => setOpenBadge(null)} aria-label='ปิด'>
+                <Icon icon='lucide:x' width={18} />
+              </IconButton>
+            </div>
+
+            <div className='flex flex-col items-center gap-3 pbe-4'>
+              <span className='is-24 bs-24 flex items-center justify-center'>
+                <BadgeArtwork
+                  imageUrl={openBadge.imageUrl}
+                  nameEN={openBadge.nameEN}
+                  icon={openBadge.icon}
+                  alt={openBadge.name}
+                  size={96}
+                />
+              </span>
+              <Typography component='h2' className='text-xl font-extrabold text-center'>
+                {openBadge.name}
+              </Typography>
+            </div>
+
+            <div className='flex flex-col gap-3'>
+              {/* เงื่อนไขที่ได้มา — แปลจากเกณฑ์จริงใน Badge.criteria ไม่ใช่คำที่แต่งขึ้น */}
+              {openBadge.criteriaLabel && (
+                <div className='flex items-start gap-2.5'>
+                  <Icon icon='lucide:target' width={17} className='shrink-0 mbs-0.5 text-primary' />
+                  <span>
+                    <Typography variant='caption' color='text.secondary' className='block'>
+                      ได้รับเมื่อทำถึงเกณฑ์
+                    </Typography>
+                    <Typography variant='body2' color='text.primary' className='font-medium'>
+                      {openBadge.criteriaLabel}
+                    </Typography>
+                  </span>
+                </div>
+              )}
+
+              {/* เมื่อไหร่ — วันที่จริงจาก UserBadge.earnedAt */}
+              {openBadge.earnedAtIso && (
+                <div className='flex items-start gap-2.5'>
+                  <Icon icon='lucide:calendar-check' width={17} className='shrink-0 mbs-0.5 text-primary' />
+                  <span>
+                    <Typography variant='caption' color='text.secondary' className='block'>
+                      ร้านนี้ได้รับเมื่อ
+                    </Typography>
+                    <Typography variant='body2' color='text.primary' className='font-medium'>
+                      {formatDateTH(openBadge.earnedAtIso)}
+                    </Typography>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className='mbs-5 plb-3 pli-3.5 rounded-lg bg-[var(--mui-palette-action-hover)]'>
+              <Typography variant='body2' color='text.primary' className='flex items-start gap-2'>
+                <Icon icon='lucide:shield-check' width={17} className='shrink-0 mbs-0.5' />
+                <span>ระบบมอบเหรียญนี้ให้อัตโนมัติจากประวัติจริงของร้าน — ร้านขอเองหรือซื้อไม่ได้</span>
+              </Typography>
+            </div>
+          </div>
+        )}
+      </Drawer>
 
       {/* ── E2: แผงอธิบายคะแนนความน่าเชื่อถือ ──
              Base: src/app/(marketing)/a/[id]/AuctionBidHistoryModal.tsx (Drawer anchor='bottom' +

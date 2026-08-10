@@ -167,7 +167,10 @@ const ProductCard = ({
       {/* โซนรูป — ของที่ลอยทับ (ป้ายปักหมุด/ราคา/ยอดขาย/overlay ตอน hover) ต้องอยู่ในกล่องนี้เท่านั้น
           ถ้าปล่อยให้ overlay ครอบทั้งปุ่มเหมือนเดิม มันจะทับชื่อ+คำอธิบายที่เพิ่งเพิ่มเข้ามาตอน hover
           = ปิดบังสิ่งที่เพิ่งทำให้อ่านง่ายขึ้นพอดี */}
-      <Box sx={{ position: 'relative', aspectRatio: '1/1', inlineSize: '100%', overflow: 'hidden', bgcolor: 'background.default' }}>
+      {/* 9:16 เท่าไทล์คลิปในแท็บปักหมุด (user 2026-08-10 สั่งให้สองแท็บเหมือนกัน)
+          ⚠️ ผลข้างเคียงที่รู้ตัว: object-cover จะครอบหัว-ท้ายรูปสินค้าทิ้ง สินค้าที่ถ่ายเป็น
+          กล่อง/แนวนอนจะเสียหนักกว่ารูปแนวตั้ง — แลกกับความสม่ำเสมอของสองแท็บตามที่สั่ง */}
+      <Box sx={{ position: 'relative', aspectRatio: '9/16', inlineSize: '100%', overflow: 'hidden', bgcolor: 'background.default' }}>
       {imageSrc && !imgFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -243,7 +246,40 @@ const ProductCard = ({
           pointerEvents: 'none',
         }}
       >
-        <Box component='span' sx={{ display: 'block', fontSize: '15px', fontWeight: 800 }}>
+        {/* ชื่อ + คำอธิบาย ย้ายขึ้นมาทับบนรูป (user 2026-08-10) — อยู่เหนือราคาเพราะ
+            "นี่คืออะไร" ต้องอ่านก่อน "เท่าไหร่"
+            อ่านออกได้เพราะมีสกริมไล่เงาด้านล่างรองอยู่ (TILE_SCRIM) ตัวเดียวกับไทล์คลิป */}
+        <Box
+          component='span'
+          sx={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            fontSize: '13px',
+            fontWeight: 600,
+            lineHeight: 1.3,
+          }}
+        >
+          {product.name}
+        </Box>
+        {product.shortDescription && (
+          <Box
+            component='span'
+            sx={{
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              fontSize: '11px',
+              opacity: 0.85,
+              mt: '1px',
+            }}
+          >
+            {product.shortDescription}
+          </Box>
+        )}
+        <Box component='span' sx={{ display: 'block', fontSize: '15px', fontWeight: 800, mt: '2px' }}>
           {priceLabel}
         </Box>
         {product.soldCount > 0 && (
@@ -304,49 +340,13 @@ const ProductCard = ({
       )}
       </Box>
 
-      {/* โซนเนื้อหา — ชื่อ+คำอธิบายอยู่บนพื้นเรียบ ไม่ใช่ลอยบนรูป (user 2026-08-09 เคาะให้ราคายัง
-          อยู่บนรูป ส่วนชื่อ/คำอธิบายอยู่ใต้) เหตุผลเชิงเทคนิค: ราคา/ยอดขายสั้นและคุมความยาวได้
-          จึงรับประกันคอนทราสต์บนสกริมได้ ส่วนชื่อ+คำอธิบายยาวไม่จำกัดและทับรูปที่สว่าง/มืดไม่แน่นอน
-          ไม่มีทางการันตี AA 4.5:1 ได้ทุกใบ */}
-      <Box sx={{ p: '10px' }}>
-        <Box
-          component='span'
-          sx={{
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-            fontSize: '13px',
-            fontWeight: 600,
-            color: 'text.primary',
-          }}
-        >
-          {product.name}
+      {/* ข้อความทั้งหมดย้ายขึ้นไปทับบนรูปแล้ว (user 2026-08-10 สั่งให้เหมือนแท็บปักหมุด)
+          เหลือแค่ป้ายบอก screen reader ว่ากดแล้วเกิดอะไร — ข้อมูลสินค้าอ่านจาก text บนรูปได้อยู่แล้ว */}
+      {clickable && (
+        <Box component='span' className='sr-only'>
+          สอบถามสินค้านี้
         </Box>
-        {/* ไม่ render บรรทัดนี้เลยเมื่อไม่มีคำอธิบาย — ไม่ใช่เว้นที่ว่างไว้ให้การ์ดสูงเท่ากัน */}
-        {product.shortDescription && (
-          <Box
-            component='span'
-            sx={{
-              display: '-webkit-box',
-              WebkitLineClamp: 1,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-              fontSize: '13px',
-              color: 'text.secondary',
-              mt: '2px',
-            }}
-          >
-            {product.shortDescription}
-          </Box>
-        )}
-        {/* บอก screen reader ว่ากดแล้วเกิดอะไร — ข้อมูลสินค้าอ่านจาก text จริงด้านบนอยู่แล้ว */}
-        {clickable && (
-          <Box component='span' className='sr-only'>
-            สอบถามสินค้านี้
-          </Box>
-        )}
-      </Box>
+      )}
     </Box>
   )
 }

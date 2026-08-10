@@ -29,6 +29,7 @@ import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
 import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { shopCategoryLabel } from '@/lib/shop-categories'
+import { badgeCriteriaLabel } from '@/lib/badge-criteria'
 
 // View Imports
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
@@ -276,6 +277,10 @@ export default async function PublicProfilePage({ params }: Props) {
                 nameEN: ub.badge.nameEN,
                 icon: ub.badge.icon ?? '',
                 imageUrl: ub.badge.imageUrl ?? null,
+                // โมดัลรายละเอียดเหรียญต้องตอบ "ได้จากเงื่อนไขอะไร เมื่อไหร่" — แปลเกณฑ์ที่ server
+                // (ฟังก์ชันบริสุทธิ์) แล้วส่งเป็นสตริง ไม่ส่ง criteria ดิบข้าม RSC boundary
+                criteriaLabel: badgeCriteriaLabel(ub.badge.criteria),
+                earnedAtIso: ub.earnedAt.toISOString(),
               })),
               totalBadgeCount: sellerContextBadges.length,
               completedOrders: profileStats?.completedOrders ?? null,

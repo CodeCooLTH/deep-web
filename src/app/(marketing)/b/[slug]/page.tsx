@@ -21,6 +21,7 @@ import { listServiceResources, serializeServiceResource } from '@/services/servi
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { shopCategoryLabel } from '@/lib/shop-categories'
+import { badgeCriteriaLabel } from '@/lib/badge-criteria'
 import { formatMonthYearTH } from '@/lib/format-date'
 
 // View Imports
@@ -262,6 +263,10 @@ export default async function BusinessShopProfilePage({ params }: Props) {
                 nameEN: ub.badge.nameEN,
                 icon: ub.badge.icon ?? '',
                 imageUrl: ub.badge.imageUrl ?? null,
+                // โมดัลรายละเอียดเหรียญต้องตอบ "ได้จากเงื่อนไขอะไร เมื่อไหร่" — แปลเกณฑ์ที่ server
+                // (ฟังก์ชันบริสุทธิ์) แล้วส่งเป็นสตริง ไม่ส่ง criteria ดิบข้าม RSC boundary
+                criteriaLabel: badgeCriteriaLabel(ub.badge.criteria),
+                earnedAtIso: ub.earnedAt.toISOString(),
               })),
               totalBadgeCount: businessBadges.length,
               completedOrders: profileStats.completedOrders,
