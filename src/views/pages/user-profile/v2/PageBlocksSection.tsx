@@ -11,7 +11,7 @@
  *
  * Base: ./ProfileHero.tsx (ชิปเหรียญ + ProfileImg fallback pattern สำหรับรูปที่โหลดพังได้)
  *   + ./OfficialChannels.tsx (แถวลิงก์นอกเปิดแท็บใหม่ rel noopener noreferrer)
- *   + ./PublicRoomList.tsx (การ์ด rounded-xl border overflow-hidden)
+ *   + ./PublicRoomList.tsx (การ์ด — ทั้งคู่ใช้ MUI Card variant='outlined' radius 8px ตั้งแต่ 2026-08-10)
  */
 import { useState } from 'react'
 

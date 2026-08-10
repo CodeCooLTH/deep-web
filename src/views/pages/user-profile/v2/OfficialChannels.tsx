@@ -70,13 +70,13 @@ const PROVIDER: Record<string, { label: string; icon: string; bg: string; url: (
 /**
  * รูปเพจขนาด 38px ในแท็บ "ช่องทาง"
  *
- * 🛑 ใช้ `CustomAvatar` ของธีม (`@core/components/mui/Avatar` — ห่อ MUI `Avatar`) ไม่ใช่
- * `<img onError>` + `useState(failed)` ที่เขียนเอง: **MUI Avatar ตกไปใช้ children ให้เองอยู่แล้ว
- * เมื่อรูปโหลดไม่ขึ้น** state ที่เราเขียนเองจึงเป็นการทำซ้ำสิ่งที่ primitive ทำให้ฟรี — และไฟล์นี้
- * เคยเขียนตรรกะเดียวกันซ้ำ 2 จุด (38px กับ 20px) ด้วยตัวแปรคนละตัว
+ * 🛑 ใช้ `CustomAvatar` ของธีม (`@core/components/mui/Avatar` — ห่อ MUI `Avatar`) ไม่ใช่แท็กรูป
+ * ดิบ + `useState(failed)` ที่เขียนเอง: **MUI Avatar ตกไปใช้ children ให้เองอยู่แล้วเมื่อรูปโหลด
+ * ไม่ขึ้น** state ที่เราเขียนเองจึงเป็นการทำซ้ำสิ่งที่ primitive ทำให้ฟรี — และไฟล์นี้เคยเขียน
+ * ตรรกะเดียวกันซ้ำ 2 จุด (38px กับ 20px) ด้วยตัวแปรคนละตัว
  * (Hard Rule 1 — safepay-ux audit 2026-08-10)
  *
- * รูปเพจมาจากหลายโดเมนภายนอกที่ next/image config ไม่ครอบ MUI Avatar ใช้ `<img>` ตรง ๆ
+ * รูปเพจมาจากหลายโดเมนภายนอกที่ next/image config ไม่ครอบ MUI Avatar เรนเดอร์แท็กรูปดิบให้อยู่แล้ว
  * จึงใช้ได้โดยไม่ต้อง disable lint เหมือนตอนเขียนเอง
  */
 function ChannelAvatar({ src, bg, icon }: { src: string | null; bg: string; icon: string }) {
@@ -86,7 +86,11 @@ function ChannelAvatar({ src, bg, icon }: { src: string | null; bg: string; icon
         src={src ?? undefined}
         alt=''
         variant='rounded'
-        sx={{ inlineSize: 38, blockSize: 38, borderRadius: '12px', background: bg, color: 'common.white' }}
+        /* 8px = ขั้น "การ์ดและแผง" ของ shape ramp ฝั่ง buyer (DESIGN.md §Shapes 4/6/8/10/full)
+           เดิมเป็น `rounded-xl` (12px) ซึ่งไม่อยู่บน ramp เลย — ค่านี้ถูกก็อปต่อ ๆ กันมาทั้งโฟลเดอร์
+           v2/ จน "สม่ำเสมอกันเอง" แต่ไม่ตรงระบบ ไฟล์อื่นในโฟลเดอร์แก้ไปแล้ว ตัวนี้ตกค้าง
+           และผมยกมันข้ามมาตอนเปลี่ยนเป็น CustomAvatar โดยไม่ได้เอะใจ (impeccable hook จับได้) */
+        sx={{ inlineSize: 38, blockSize: 38, borderRadius: '8px', background: bg, color: 'common.white' }}
       >
         <Icon icon={icon} width={19} />
       </CustomAvatar>
