@@ -174,9 +174,12 @@ const itemSchema = Yup.object({
     .integer('จำนวนต้องเป็นจำนวนเต็ม')
     .min(1, 'จำนวนอย่างน้อย 1')
     .required('กรุณากรอกจำนวน'),
+  // ฿0 บันทึกได้ (user 2026-08-10) — ร้านคิวงานรับจองไว้ก่อนโดยยังไม่เก็บเงิน/ไม่เก็บมัดจำ
+  // mirror CreateOrderSchema.items[].price (SSOT) ที่ผ่อนเป็น minValue(0) พร้อมกัน
+  // "ยังไม่คิดเงิน" ≠ "ลืมกรอกราคา": ช่องว่างเป็น NaN จึงตกที่ typeError ไม่ใช่ min → ยังเตือนอยู่
   price: Yup.number()
     .typeError('กรุณากรอกราคา')
-    .min(0.01, 'ราคาต้องมากกว่า 0')
+    .min(0, 'ราคาต้องไม่ติดลบ')
     .required('กรุณากรอกราคา'),
 })
 
@@ -648,7 +651,9 @@ export default function OrderCreateForm({
       resourceId: string
       start: string
       end: string
-      depositAmount?: string
+      // required ไม่ใช่ optional โดยตั้งใจ — ฟอร์มนี้ต้องพูดยอดมัดจำออกมาเสมอ (ดูคอมเมนต์
+      // ตอนประกอบ payload) ถ้าเผลอเอาออก tsc จะฟ้องแทนที่จะเงียบแล้วไปใช้ค่าเริ่มต้นของคิวงาน
+      depositAmount: string
     } | undefined
     const ap = values.appointment
     if (serviceResourcesEnabled && ap?.resourceId) {
@@ -683,9 +688,15 @@ export default function OrderCreateForm({
         start: start.toISOString(),
         end: end.toISOString(),
         // ส่งเป็น string ทศนิยม 2 ตำแหน่งให้ตรงกับ DecimalString ของ Valibot
-        ...(ap.depositAmount != null
-          ? { depositAmount: Number(ap.depositAmount).toFixed(2) }
-          : {}),
+        //
+        // [สำคัญ] ส่ง "เสมอ" และตีช่องว่างเป็น ฿0 — ห้ามกลับไปเป็น `!= null ? ... : {}`
+        // (บั๊กที่ user เจอ 2026-08-10 "ใส่ 0 ไม่ได้"): ไม่ส่งคีย์นี้ = ให้ service คำนวณจาก
+        // ค่าเริ่มต้นของคิวงาน (BR-RSV-48) ซึ่งถูกต้องกับผู้เรียก API ทั่วไป แต่ผิดกับฟอร์มนี้ —
+        // ช่องมัดจำถูก "เติมค่าตั้งต้นให้แล้ว" ตอนเลือกคิวงาน การลบทิ้งจึงแปลว่า "ไม่เก็บมัดจำ"
+        // ตรง ๆ ไม่ใช่ "ไม่มีความเห็น". ของเดิม: ลบช่องทิ้ง → Yup แปลงเป็น undefined → ไม่ส่ง →
+        // ออเดอร์ถูกบันทึกด้วยมัดจำเริ่มต้นของคิวงาน ทั้งที่บนจอเป็นศูนย์ (จอโกหก และไม่มี
+        // error ให้เห็นสักตัว). พิมพ์ 0 เองยังได้เหมือนเดิม — เส้นทางนี้ครอบทั้งสองท่า
+        depositAmount: Number(ap.depositAmount ?? 0).toFixed(2),
       }
     }
 

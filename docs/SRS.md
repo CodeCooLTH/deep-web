@@ -574,7 +574,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `name` | String | snapshot ชื่อ ณ เวลาสั่ง |
 | `description` | String? | snapshot คำอธิบาย |
 | `qty` | Int | ≥1 |
-| `price` | Decimal(12,2) | snapshot ราคา ≥0.01 |
+| `price` | Decimal(12,2) | snapshot ราคา **≥0** — ฿0 บันทึกได้ (2026-08-10: ร้านคิวงานรับจองไว้ก่อนโดยยังไม่เก็บเงิน/ไม่เก็บมัดจำ) ติดลบไม่ได้ |
 
 #### OrderEvent (`prisma/schema.prisma:2721`)
 
@@ -1363,7 +1363,7 @@ SellerWallet (1) ── (N) WalletTransaction
 | `items[].productId` | UUID (optional) |
 | `items[].name` | string ≥1 char |
 | `items[].qty` | int ≥1 |
-| `items[].price` | number ≥0.01 |
+| `items[].price` | number **≥0** (฿0 = จองไว้ก่อน ยังไม่เก็บเงิน — เปลี่ยนจาก ≥0.01 เมื่อ 2026-08-10) |
 | `type` | picklist: `PHYSICAL` / `DIGITAL` / `SERVICE` / `SUBSCRIPTION` |
 | `buyerContact` | string (optional) |
 | `buyerName` | string (optional) |

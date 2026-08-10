@@ -326,7 +326,11 @@ export const CreateOrderSchema = v.object({
       name: v.pipe(v.string(), v.minLength(1)),
       description: v.optional(v.string()),
       qty: v.pipe(v.number(), v.integer(), v.minValue(1)),
-      price: v.pipe(v.number(), v.minValue(0.01)),
+      // ราคา ฿0 บันทึกได้ (user 2026-08-10) — ร้านคิวงานจองไว้ก่อนโดยยังไม่เก็บเงิน/ไม่เก็บมัดจำ
+      // และร้านขายของก็มีบรรทัด "ของแถม" จริง. ห้ามกลับไปเป็น minValue(0.01):
+      // "ยังไม่คิดเงิน" กับ "กรอกราคาไม่ครบ" เป็นคนละเรื่อง — อย่างหลังกันด้วย typeError ที่ฟอร์ม
+      // (ช่องว่าง = NaN ไม่ใช่ 0) ไม่ใช่ด้วยเพดานล่างของราคา. ติดลบยังห้ามเหมือนเดิม
+      price: v.pipe(v.number(), v.minValue(0, "ราคาต้องไม่ติดลบ")),
       // ราคาทุนรายบรรทัด (FR-EXP-17) — optional เสมอ ห้ามบล็อกการบันทึกออเดอร์ (D-EXT-4)
       // ไม่ส่ง key = พฤติกรรมเดิม (fallback Product.cost) · ส่ง 0 = ต้นทุนศูนย์บาทจริง
       cost: v.optional(v.pipe(v.number(), v.minValue(0, "ราคาทุนต้องไม่ต่ำกว่า 0"))),
