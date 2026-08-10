@@ -85,7 +85,10 @@ export type ChatMessageView = {
   seq?: number
   id: string
   conversationId: string
-  senderUserId: string
+  /** id ของคนในทีมร้านที่กดส่ง — **null ได้จริง**: ข้อความที่มาทาง webhook (echo ของสิ่งที่ส่งจาก
+   *  Business Suite) และบอทไม่มี "คน" กดส่ง (route ก็เช็ค `&& m.senderUserId` อยู่แล้ว)
+   *  ใช้เป็นตัวตนของผู้ส่งตอนตัดกลุ่มข้อความ (ดู burstIdentity) — ห้ามใช้ชื่อที่แสดงแทน ชื่อซ้ำกันได้ */
+  senderUserId: string | null
   senderRole: 'BUYER' | 'SHOP'
   // VIDEO/AUDIO/FILE = ไฟล์แนบช่องทางนอก (feature 00018) — fileId เก็บใน imageUrl เหมือน IMAGE
   // ORDER = การ์ดออเดอร์/ใบเสนอราคา (user 2026-07-24) — enrich orderCard จาก GET
@@ -148,6 +151,9 @@ export type ChatMessageView = {
   isDeleted?: boolean // ผู้ส่ง unsend → แสดง "ข้อความถูกลบ"
   /** ลูกค้าแก้ข้อความนี้ทีหลัง (message_edits, 2026-08-03) — เนื้อความที่เห็นคือเวอร์ชันล่าสุดแล้ว */
   edited?: boolean
+  /** สติกเกอร์ (ไม่ใช่รูปที่ลูกค้าส่ง) — server derive จาก rawMessage ให้แล้ว ห้าม UI เดาจากขนาดรูป
+   *  มีผล 2 อย่าง: จำกัดความกว้างให้เท่าสติกเกอร์ + ไม่ต้องมีปุ่ม "บันทึกรูป" */
+  isSticker?: boolean
   replyTo?: { body: string | null; senderRole: 'BUYER' | 'SHOP' } | null // quote ข้อความที่ตอบทับ (enrich ที่ API)
   // optimistic send (client-only, ไม่มาจาก server): 'sending'=spinner, 'sent'=check, 'failed'=refresh แดง
   _status?: 'sending' | 'sent' | 'failed'

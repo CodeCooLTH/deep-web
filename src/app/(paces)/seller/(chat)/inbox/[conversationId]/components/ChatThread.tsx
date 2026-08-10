@@ -84,6 +84,7 @@ import { generateInitials } from '@/utils/helpers'
 // user 2026-07-31: แถวเวลาแสดงแค่ ชม.:นาที — วินาทีไม่ใช่ข้อมูลที่ใช้ตัดสินใจอะไรในแชท
 // แต่ยังเก็บเวลาเต็มไว้ใน title ให้ชี้ดูได้ (formatTimeHM มีอยู่แล้ว ไม่ต้องเขียน formatter ใหม่)
 import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
+import { burstIdentity, computeBurstEndIds } from '@/lib/chat-message-burst'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
 import { withEmojiPresentation } from '@/lib/emoji-presentation'
@@ -338,6 +339,11 @@ function MetaGenericCardCarousel({
  * เลือกวิธีนี้แทนการเพิ่มคอลัมน์ isSticker เพราะ (1) ใช้ได้กับข้อความเก่าที่มีอยู่แล้วทันที
  * — คอลัมน์ใหม่ backfill ไม่ได้ เพราะไม่ได้เก็บ sticker_id ไว้ (2) ไม่ต้องแตะ schema ของ DB
  * ที่ dev/prod ใช้ร่วมกัน. ถ้าวันหนึ่งอยากได้แม่นจริง ต้องเก็บ sticker_id ตั้งแต่ ingest
+ *
+ * สำคัญ 2026-08-10: เกณฑ์นี้ไม่ใช่ทางหลักอีกแล้ว — สติกเกอร์ LINE (S-7b) ขนาดจริง 320–370px จึง
+ * **หลุดเกณฑ์ 240 ทุกใบ** (ได้ทั้งขนาดใหญ่เท่ารูปและปุ่มบันทึกรูปที่ไม่ควรมี) ตอนนี้ทางหลักคือธง
+ * `isSticker` ที่ API derive จาก `rawMessage.payload.kind` (ดู messages/route.ts) และเกณฑ์ขนาด
+ * เหลือไว้เป็นตัวสำรองสำหรับ **สติกเกอร์ Meta ของข้อความเก่า** ที่ rawMessage ไม่มี marker นั้น
  */
 const STICKER_MAX_PX = 240
 
@@ -480,8 +486,18 @@ function MediaDownloadLink({
  * รูปในเธรด — คลิกเปิดเต็มจอ + ปุ่มบันทึกใต้รูป (ซ่อนปุ่มถ้าเป็นสติกเกอร์ ดู STICKER_MAX_PX)
  * วัดขนาดตอน onLoad เพราะขนาดจริงไม่ได้เก็บใน DB
  */
-function ChatImageMessage({ storageKey, onOpen }: { storageKey: string; onOpen: () => void }) {
-  const [isSticker, setIsSticker] = useState(false)
+function ChatImageMessage({
+  storageKey,
+  onOpen,
+  isStickerHint = false,
+}: {
+  storageKey: string
+  onOpen: () => void
+  /** ธงจาก server (rawMessage) — แม่นกว่าการวัดขนาดรูป และรู้ได้ก่อนรูปโหลดเสร็จ จึงไม่มีจังหวะ
+   *  ที่สติกเกอร์ถูกวาดใหญ่แล้วหุบลง (สติกเกอร์ LINE ขนาดจริง 320–370px หลุดเกณฑ์ 240px) */
+  isStickerHint?: boolean
+}) {
+  const [isSticker, setIsSticker] = useState(isStickerHint)
   return (
     <>
       {/* คลิก/กด Enter ที่รูป → เปิดเต็มจอ (user request 2026-07-23). ใช้ <button>
@@ -493,7 +509,11 @@ function ChatImageMessage({ storageKey, onOpen }: { storageKey: string; onOpen: 
           src={mediaSrc(storageKey)}
           alt="รูปภาพที่ส่ง"
           // chat-media = ปิดเมนู long-press ของ iOS ให้ gesture เป็นของ useLongPress (react/ตอบกลับ)
-          className="chat-media max-w-60 rounded"
+          // สติกเกอร์แคบกว่ารูป: max-w-36 (144px) — เทียบกับแอป LINE เองที่วาดสติกเกอร์ราว 104–164px
+          // ส่วน max-w-60 (240px) ทำให้สติกเกอร์ LINE (ขนาดจริง 320–370px) เต็มบับเบิลจนอ่านเหมือน
+          // รูปที่ลูกค้าส่ง (user เจอเองบน prod 2026-08-10) — สติกเกอร์ Meta 100×100 ไม่กระทบเพราะ
+          // max-w ไม่ขยายรูปที่เล็กกว่าเพดานอยู่แล้ว
+          className={`chat-media rounded ${isSticker ? 'max-w-36' : 'max-w-60'}`}
           onLoad={(e) => {
             const el = e.currentTarget
             if (el.naturalWidth <= STICKER_MAX_PX && el.naturalHeight <= STICKER_MAX_PX) setIsSticker(true)
@@ -607,7 +627,7 @@ function buildAlbumRows(items: ChatMessageView[]): AlbumRow[] {
     const sameGroup =
       bare &&
       prev &&
-      prev.senderRole === m.senderRole &&
+      burstIdentity(prev) === burstIdentity(m) &&
       new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() <= ALBUM_GAP_MS
     // mid เดียวกัน = ข้อความเดียวของ Meta → รวมเสมอ · ต่าง mid = ต้องผ่านเงื่อนไขเวลา/ผู้ส่ง
     if (bare && (buf.length === 0 || sameMidGroup || sameGroup)) {
@@ -1331,18 +1351,8 @@ export default function ChatThread({
   const RECENT_MS = 60 * 1000
   const nowMs = Date.now()
   const lastMsgId = messages[messages.length - 1]?.id ?? null
-  const burstEndIds = new Set<string>()
-  for (let i = 0; i < messages.length; i++) {
-    const cur = messages[i]
-    const nxt = messages[i + 1]
-    if (
-      !nxt ||
-      nxt.senderRole !== cur.senderRole ||
-      new Date(nxt.createdAt).getTime() - new Date(cur.createdAt).getTime() > GROUP_GAP_MS
-    ) {
-      burstEndIds.add(cur.id)
-    }
-  }
+  // ตัดกลุ่มด้วย burstIdentity (ผู้ส่งรายคน ไม่ใช่แค่ role) — กฎ+เทสอยู่ที่ src/lib/chat-message-burst.ts
+  const burstEndIds = computeBurstEndIds(messages, GROUP_GAP_MS)
 
   // read receipt (feature 00018) — ป้าย "อ่านแล้ว/ส่งแล้ว" โชว์เฉพาะข้อความ SHOP ตัวสุดท้าย (ช่องทางนอก)
   const lastShopMsgId = isExternal
@@ -2315,6 +2325,7 @@ export default function ChatThread({
                             {m.type === 'IMAGE' && m.imageUrl && (
                               <ChatImageMessage
                                 storageKey={m.imageUrl}
+                                isStickerHint={m.isSticker}
                                 onOpen={() => setLightboxIndex(slideIndexByMessageId.get(m.id) ?? -1)}
                               />
                             )}

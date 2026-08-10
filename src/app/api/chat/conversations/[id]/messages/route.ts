@@ -298,6 +298,20 @@ export async function GET(
       // ลูกค้าแก้ข้อความนี้ทีหลังหรือเปล่า (message_edits, 2026-08-03) — ร่องรอยเก็บใน rawMessage.edit
       // ไม่ได้เพิ่มคอลัมน์ (ดู ingestMessageEdit); UI ใช้ขึ้นป้าย "แก้ไขแล้ว" ท้ายบับเบิล
       edited: !!(m as { rawMessage?: { edit?: unknown } | null }).rawMessage?.edit,
+      /**
+       * สติกเกอร์หรือรูปธรรมดา (S-7b LINE, 2026-08-10) — ร่องรอยอยู่ใน rawMessage เหมือน `edited`
+       * ไม่ได้เพิ่มคอลัมน์
+       *
+       * ทำไมต้อง derive ที่นี่ ไม่ให้ UI เดาเอง: สติกเกอร์ถูกเก็บเป็น `type='IMAGE'` เหมือนรูปทั่วไป
+       * (ดู ingestLineMessage) UI จึงเคยแยกด้วย "ขนาดจริงของรูป ≤ 240px" ซึ่งใช้ได้กับสติกเกอร์ Meta
+       * (100×100) แต่ **ใช้ไม่ได้กับ LINE** เพราะ CDN ของ LINE ส่งมา 320–370px → หลุดเกณฑ์ กลายเป็น
+       * "รูปที่ลูกค้าส่ง" ทั้งขนาดที่แสดงและปุ่มบันทึกรูปที่ไม่ควรมี (user เจอเองบน prod)
+       * `filenamePrefix: 'line-sticker'` ที่ ingest ตั้งไว้ใช้แยกไม่ได้ เพราะ `saveFile` ตั้ง key
+       * เป็น uuid ใหม่ทิ้งชื่อไฟล์เดิม — ชื่อนั้นไม่เคยไปถึง storage
+       */
+      isSticker:
+        (m as { rawMessage?: { payload?: { kind?: unknown } } | null }).rawMessage?.payload?.kind ===
+        'sticker',
       // null = ไม่มีคนส่ง (webhook/บอท) → UI แสดงรูปเพจ; มีค่า = แสดงรูปคนนั้น + ชื่อตอน hover
       sender:
         m.senderRole === "SHOP" && m.senderUserId ? senderMap.get(m.senderUserId) ?? null : null,
