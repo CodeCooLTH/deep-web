@@ -31,7 +31,8 @@ import { LinkButton } from '@/app/(marketing)/_components/mui-link'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
-import { deriveShippingStage, resolveOrderStatusBadge, ORDER_STAGE_META } from '@/lib/order-stage'
+import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
+import ParcelTimeline from './ParcelTimeline'
 import type { GuestOrderData } from './guest-order-data'
 
 const baht = new Intl.NumberFormat('th-TH', {
@@ -40,83 +41,6 @@ const baht = new Intl.NumberFormat('th-TH', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
 })
-
-/** 4 จุดของ timeline พัสดุ — ลำดับเดียวกับ MiniShipmentTimeline ฝั่งร้าน (BR-BOE-12) */
-const PARCEL_STEPS = [
-  { key: 'PARCEL_CREATED', label: 'สร้างพัสดุ' },
-  { key: 'LABEL_PRINTED', label: 'รับเข้าระบบแล้ว' },
-  { key: 'SHIPPING', label: 'กำลังจัดส่ง' },
-  { key: 'DELIVERED', label: 'จัดส่งสำเร็จ' },
-] as const
-
-function ParcelTimeline({ stage }: { stage: string }) {
-  const problem = stage === 'PARCEL_PROBLEM'
-  const idx = PARCEL_STEPS.findIndex((s) => s.key === stage)
-  // stage ที่ไม่อยู่ในแถบนี้ (ORDERED/COMPLETED/CANCELLED) → ยังไม่เริ่มเดิน ไม่ใช่ error
-  const current = idx === -1 ? (problem ? 2 : 0) : idx
-
-  return (
-    <Box>
-      {problem && (
-        <Typography
-          variant='caption'
-          sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'error.main', fontWeight: 700, mb: 1 }}
-        >
-          <Icon icon='tabler-alert-triangle' fontSize={15} />
-          {ORDER_STAGE_META.PARCEL_PROBLEM.label}
-        </Typography>
-      )}
-      <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-        {PARCEL_STEPS.map((step, i) => {
-          const done = i < current
-          const isCurrent = i === current && !problem
-          return (
-            <Box key={step.key} sx={{ flex: 1, textAlign: 'center', position: 'relative' }}>
-              {i > 0 && (
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    top: 6,
-                    left: '-50%',
-                    width: '100%',
-                    height: 2,
-                    // Verified-Means-Green: เขียวเฉพาะช่วงที่ "ผ่านไปแล้วจริง"
-                    bgcolor: i <= current && !problem ? 'success.main' : 'divider',
-                  }}
-                />
-              )}
-              <Box
-                sx={{
-                  position: 'relative',
-                  zIndex: 1,
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  mx: 'auto',
-                  mb: 0.75,
-                  bgcolor: problem && i === current ? 'error.main' : done ? 'success.main' : isCurrent ? 'primary.main' : 'divider',
-                  boxShadow: isCurrent ? (theme) => `0 0 0 4px ${theme.palette.primary.main}22` : 'none',
-                }}
-              />
-              <Typography
-                variant='caption'
-                sx={{
-                  display: 'block',
-                  lineHeight: 1.35,
-                  fontSize: '0.66rem',
-                  fontWeight: isCurrent || done ? 700 : 400,
-                  color: isCurrent ? 'primary.main' : done ? 'success.dark' : 'text.disabled',
-                }}
-              >
-                {step.label}
-              </Typography>
-            </Box>
-          )
-        })}
-      </Box>
-    </Box>
-  )
-}
 
 export default function GuestOrderView({ order }: { order: GuestOrderData }) {
   const loginHref = `/auth/sign-in?callbackUrl=${encodeURIComponent(`/o/${order.publicToken}`)}`

@@ -32,10 +32,10 @@ import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import Chip from '@mui/material/Chip'
 import Dialog from '@mui/material/Dialog'
+import TextField from '@mui/material/TextField'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import Divider from '@mui/material/Divider'
-import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
 import { Icon } from '@iconify/react'
@@ -93,6 +93,11 @@ export type PublicOrderData = {
   cancelInitiator: 'seller' | 'buyer' | null
   // Phase 2 fields (S-2 frozen contract) — UI ใช้ใน S-8/S-9/S-10; type เพิ่มก่อน UI task
   slipFileId: string | null
+  /** Shop.id — ใช้เป็นพารามิเตอร์ของ /messages/[shopId] (ยืนยันแล้วว่าเป็น id ไม่ใช่ userId) */
+  shopId: string
+  /** มีข้อพิพาทเปิดค้างอยู่ไหม — derive ที่ server ด้วย hasOpenDispute() ตัวเดียวกับ 00039 */
+  hasOpenDispute: boolean
+  disputeOpenedAtIso: string | null
   accessUrl: string | null
   // feature 00024 — วันเข้าใช้บริการ (FR-RSV-05) null = ออเดอร์นี้ไม่มีนัด → ไม่ render การ์ดเลย
   appointment: import('./AppointmentCard').PublicAppointment | null
@@ -336,6 +341,42 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   const [copied, setCopied] = useState(false)
   // state สำหรับ cancel confirm dialog
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  // feature 00041 — แจ้งปัญหา (dispute). disputeOpened เก็บสถานะฝั่ง client หลังกดสำเร็จ
+  // เพื่อสลับการ์ดเป็นแถบ "แจ้งปัญหาแล้ว" ทันทีโดยไม่ต้องรอ refresh
+  const [disputeDialogOpen, setDisputeDialogOpen] = useState(false)
+  const [disputeNote, setDisputeNote] = useState('')
+  const [disputing, setDisputing] = useState(false)
+  const [disputeOpened, setDisputeOpened] = useState(order.hasOpenDispute)
+  const [disputeOpenedAt, setDisputeOpenedAt] = useState(order.disputeOpenedAtIso)
+
+  /**
+   * แจ้งปัญหา — เรียก endpoint เดิมของ 00039 ตรง ๆ ไม่แก้ business logic ใด ๆ
+   * 409 = ออเดอร์ปิดจบไปแล้ว (เกิดได้ถ้าร้านเพิ่งกดยืนยันระหว่างที่โมดัลเปิดค้าง)
+   */
+  const handleDispute = async () => {
+    setDisputing(true)
+    try {
+      const res = await fetch(`/api/orders/${order.publicToken}/dispute`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(disputeNote.trim() ? { note: disputeNote.trim() } : {}),
+      })
+      const data = (await res.json().catch(() => null)) as { disputeOpenedAt?: string; error?: string } | null
+      if (!res.ok) {
+        toast.error(data?.error ?? 'แจ้งปัญหาไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+        return
+      }
+      setDisputeOpened(true)
+      setDisputeOpenedAt(data?.disputeOpenedAt ?? new Date().toISOString())
+      setDisputeDialogOpen(false)
+      toast.success('แจ้งปัญหาแล้ว ร้านค้าจะเห็นข้อความนี้')
+    } catch {
+      toast.error('แจ้งปัญหาไม่สำเร็จ กรุณาตรวจสัญญาณแล้วลองใหม่')
+    } finally {
+      setDisputing(false)
+    }
+  }
+
   const [cancelling, setCancelling] = useState(false)
 
   // ── S-8/S-9: slip upload state ──
@@ -471,7 +512,20 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   return (
     // D1: ตัด MobileFrame ทิ้ง — plain column กลางจอ, page scroll ปกติ (ไม่มี "กรอบมือถือ" อีกต่อไป)
     <Box sx={{ bgcolor: 'background.default', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ width: '100%', maxWidth: 640, mx: 'auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* FR-018 — เดิมเป็น maxWidth: 640 คงที่ทุกขนาดจอ ซึ่งคือต้นเหตุที่หน้านี้ "ไม่ responsive
+          เลย" ไม่ใช่แค่จัดวางไม่สวย: บนจอ 1440 เหลือขอบขาวสองข้างข้างละ ~400px
+          ใช้ min-[768px] แบบ arbitrary variant เพราะ Vuexy remap breakpoint ของ Tailwind
+          (md=900 / lg=1200) — เขียน md: จะได้จุดตัดที่ 900 ไม่ใช่ 768 โดยไม่มีอะไรฟ้อง */}
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: { xs: '100%', '@media (min-width:768px)': 720, lg: 880 },
+          mx: 'auto',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
 
         {/* ── 1. Tier gradient banner — ProfileBanner โดยตรง (D3: gradient แทน cover image) ── */}
         <ProfileBanner data={{ trustScore }} bannerHeight={140} />
@@ -693,58 +747,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             </Card>
           )}
 
-          {/* ── 9. Review zone ── */}
-          {order.hasReview && order.review && (
-            <Card>
-              <Box sx={{ px: 1.75, py: 1.75 }}>
-                <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
-                  รีวิวของคุณ
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <Box sx={{ display: 'flex', gap: 0.25 }}>
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Icon
-                        key={i}
-                        icon={i < order.review!.rating ? 'tabler-star-filled' : 'tabler-star'}
-                        style={{
-                          fontSize: 16,
-                          color: i < order.review!.rating ? 'var(--mui-palette-warning-main)' : 'var(--mui-palette-text-disabled)',
-                        }}
-                      />
-                    ))}
-                  </Box>
-                  <Chip size='small' variant='tonal' color='success' label='รีวิวแล้ว' sx={{ ml: 'auto' }} />
-                </Box>
-                {order.review.comment && (
-                  <Typography variant='body2' color='text.secondary' sx={{ lineHeight: 1.6, mb: 1 }}>
-                    {order.review.comment}
-                  </Typography>
-                )}
-                <Typography variant='caption' color='text.disabled'>
-                  คุณ · {formatDateTimeTH(order.createdAtIso)}
-                </Typography>
-              </Box>
-            </Card>
-          )}
-
-          {canReview && (
-            <Card>
-              <Box sx={{ px: 1.75, py: 2 }}>
-                <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
-                  รีวิวร้านค้า
-                </Typography>
-                <Typography variant='subtitle1' sx={{ fontWeight: 800, mb: 0.25 }}>
-                  สินค้าถึงมือคุณแล้ว
-                </Typography>
-                <Typography variant='body2' color='text.disabled' sx={{ mb: 1.75 }}>
-                  ให้คะแนนร้านนี้เพื่อช่วยผู้ซื้อคนอื่น
-                </Typography>
-                <ReviewForm token={order.publicToken} />
-              </Box>
-            </Card>
-          )}
-
-          {/* ── S-8/S-9: Slip upload zone (OOS-1) ── */}
+          {/* ── สลิป — 🛑 ต้องอยู่ "ก่อน" โซนรีวิวเสมอ (FR-010) ──
+              เดิมอยู่ล่างสุดใต้ทุกอย่างรวมถึงรีวิว ซึ่งกลับลำดับของความเป็นจริง: การชำระเงิน
+              เกิดก่อนการรับของ และการรีวิวเกิดหลังรับของ — ผู้ซื้อที่เพิ่งโอนเงินต้องเลื่อนผ่าน
+              ทั้งหน้าเพื่อหาที่แนบสลิป ── */}
           {showSlipZone(order.status, order.paymentMethod) && (
             <>
               <input
@@ -776,7 +782,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                       อัปโหลดสลิปการโอนเงิน
                     </Typography>
                     <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mt: 0.25 }}>
-                      ไฟล์ภาพหรือ PDF ≤ 5MB
+                      ไฟล์ภาพหรือ PDF ≤ 10MB
                     </Typography>
 
                     <Button
@@ -837,6 +843,74 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             </>
           )}
 
+          {/* ── โซนรีวิว (3 สถานะ — ดู SDS TD-002) ── */}
+          {order.hasReview && order.review && (
+            <Card>
+              <Box sx={{ px: 1.75, py: 1.75 }}>
+                <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
+                  รีวิวของคุณ
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <Box sx={{ display: 'flex', gap: 0.25 }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Icon
+                        key={i}
+                        icon={i < order.review!.rating ? 'tabler-star-filled' : 'tabler-star'}
+                        style={{
+                          fontSize: 16,
+                          color: i < order.review!.rating ? 'var(--mui-palette-warning-main)' : 'var(--mui-palette-text-disabled)',
+                        }}
+                      />
+                    ))}
+                  </Box>
+                  <Chip size='small' variant='tonal' color='success' label='รีวิวแล้ว' sx={{ ml: 'auto' }} />
+                </Box>
+                {order.review.comment && (
+                  <Typography variant='body2' color='text.secondary' sx={{ lineHeight: 1.6, mb: 1 }}>
+                    {order.review.comment}
+                  </Typography>
+                )}
+                <Typography variant='caption' color='text.disabled'>
+                  คุณ · {formatDateTimeTH(order.createdAtIso)}
+                </Typography>
+              </Box>
+            </Card>
+          )}
+
+          {/* สถานะที่ 3: เคยรีวิวแล้วแต่ลบทิ้ง — เบากว่าอีกสองสถานะโดยตั้งใจ
+              ไม่มีกรอบแดง/ไอคอน error เพราะนี่คือ "ปิดจบแล้ว" ไม่ใช่ "ผิดพลาด" */}
+          {order.hasReview && !order.review && (
+            <Box sx={{ bgcolor: 'action.hover', borderRadius: 3, px: 2, py: 3, textAlign: 'center' }}>
+              <Icon
+                icon='tabler-mood-sad'
+                style={{ fontSize: 30, color: 'var(--mui-palette-text-disabled)' }}
+              />
+              <Typography variant='body2' sx={{ fontWeight: 600, color: 'text.secondary', mt: 1 }}>
+                คุณลบรีวิวนี้ไปแล้ว
+              </Typography>
+              <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mt: 0.5, lineHeight: 1.6 }}>
+                รีวิวที่ลบแล้วไม่สามารถเขียนใหม่สำหรับคำสั่งซื้อนี้ได้อีก
+              </Typography>
+            </Box>
+          )}
+
+          {canReview && (
+            <Card>
+              <Box sx={{ px: 1.75, py: 2 }}>
+                <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
+                  รีวิวร้านค้า
+                </Typography>
+                <Typography variant='subtitle1' sx={{ fontWeight: 800, mb: 0.25 }}>
+                  สินค้าถึงมือคุณแล้ว
+                </Typography>
+                <Typography variant='body2' color='text.disabled' sx={{ mb: 1.75 }}>
+                  ให้คะแนนร้านนี้เพื่อช่วยผู้ซื้อคนอื่น
+                </Typography>
+                <ReviewForm token={order.publicToken} />
+              </Box>
+            </Card>
+          )}
+
           {/* ── S-10: Digital access-link card (OOS-2) ── */}
           {order.fulfillmentMode === 'NO_SHIPPING' &&
             order.accessUrl != null &&
@@ -871,19 +945,79 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               </Card>
             )}
 
+          {/* ── ต้องการความช่วยเหลือ? — ตำแหน่งที่ ux ตัดสิน (คำตอบของ SDS TD-001) ──
+              🛑 การ์ดนี้ render "นอก" เงื่อนไข canConfirm/isCancelled โดยตั้งใจ
+              ของเดิมปุ่ม "ติดต่อร้านค้า" อยู่ใน (!canConfirm && isCancelled) = โผล่เฉพาะออเดอร์
+              ที่ยกเลิก และ "ยังไม่ได้รับสินค้า" อยู่ใน (canConfirm && status==='SHIPPED') =
+              ไม่เคยโผล่ตอน PENDING เลย — เงื่อนไข render เดิมกลายเป็น business rule โดยไม่ตั้งใจ
+              เพราะตอนออกแบบปุ่มยัง disabled ถาวร ตำแหน่งจึงไม่มีนัยอะไร ── */}
+          <Card>
+            <Box sx={{ px: 1.75, py: 1.75 }}>
+              <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1.25 }}>
+                ต้องการความช่วยเหลือ?
+              </Typography>
+
+              {/* BR-BOE-16: ไม่มีเงื่อนไขสถานะ — ติดต่อร้านได้เสมอ */}
+              <Button
+                component={Link}
+                href={`/messages/${order.shopId}`}
+                fullWidth
+                variant='outlined'
+                color='secondary'
+                startIcon={<Icon icon='tabler-headset' fontSize={18} />}
+              >
+                ติดต่อร้านค้า
+              </Button>
+
+              {/* BR-BOE-13: แจ้งปัญหาได้เมื่อออเดอร์ยังไม่ปิดจบ */}
+              {order.status !== 'CONFIRMED' && order.status !== 'CANCELLED' && (
+                <Box sx={{ mt: 1.5 }}>
+                  {disputeOpened ? (
+                    /* มีเรื่องเปิดค้างแล้ว → แทนที่ปุ่มด้วยแถบสถานะที่กดไม่ได้ตั้งแต่โหลดหน้าแรก
+                       ไม่ต้องรอให้ผู้ใช้กดแล้วเจอ 409 · โทน warning ไม่ใช่ error เพราะเป็น
+                       "รอดำเนินการ" ไม่ใช่ "ผิดพลาด" */
+                    <Box
+                      sx={{
+                        bgcolor: 'warning.lightOpacity',
+                        borderRadius: 2,
+                        px: 1.5,
+                        py: 1.25,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                      }}
+                    >
+                      <Icon icon='tabler-flag-3' style={{ fontSize: 17, color: 'var(--mui-palette-warning-main)' }} />
+                      <Typography variant='body2' sx={{ fontWeight: 600, color: 'warning.main' }}>
+                        แจ้งปัญหาแล้ว
+                        {disputeOpenedAt ? ` เมื่อ ${formatDateTimeTH(disputeOpenedAt)}` : ''}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <>
+                      {/* น้ำหนักเบากว่า "ติดต่อร้านค้า" โดยตั้งใจ และอยู่ต่ำกว่าเสมอ —
+                          ทางแก้ที่เบากว่ามาก่อน ทางที่หนักกว่ามาทีหลัง (ไม่ชวนกดพลาด) */}
+                      <Button
+                        variant='text'
+                        color='secondary'
+                        size='small'
+                        onClick={() => setDisputeDialogOpen(true)}
+                      >
+                        ยังไม่ได้รับสินค้า?
+                      </Button>
+                      <Typography variant='caption' color='text.disabled' sx={{ display: 'block' }}>
+                        แจ้งร้านค้าว่าคำสั่งซื้อนี้มีปัญหา
+                      </Typography>
+                    </>
+                  )}
+                </Box>
+              )}
+            </Box>
+          </Card>
+
           {/* ── Footer — non-canConfirm states ── */}
           {!canConfirm && (
             <Box sx={{ textAlign: 'center', py: 2, px: 2.25 }}>
-              {/* S-13: CANCELLED → ghost "ติดต่อร้านค้า" button (disabled + tooltip "เร็ว ๆ นี้") */}
-              {isCancelled && (
-                <Tooltip title='เร็ว ๆ นี้' placement='top'>
-                  <span style={{ display: 'block', marginBottom: 12 }}>
-                    <Button disabled fullWidth variant='outlined' color='secondary'>
-                      ติดต่อร้านค้า
-                    </Button>
-                  </span>
-                </Tooltip>
-              )}
               {order.status === 'CONFIRMED' && (
                 <Typography
                   variant='caption'
@@ -920,7 +1054,19 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             pb: 'max(0px, env(safe-area-inset-bottom))',
           }}
         >
-          <Box sx={{ maxWidth: 420, mx: 'auto', px: 2, pt: 1.5, pb: 1.75, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {/* แถบ CTA ล่างจอ — กว้างตามคอนเทนต์ ไม่ใช่ 420 คงที่ (บนแท็บเล็ตปุ่มเคยลอยแคบกลางจอ) */}
+          <Box
+            sx={{
+              maxWidth: { xs: '100%', '@media (min-width:768px)': 720, lg: 880 },
+              mx: 'auto',
+              px: 2,
+              pt: 1.5,
+              pb: 1.75,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 0.5,
+            }}
+          >
             {/* Primary CTA — D2: contained primary แทน ink #0F172A */}
             <Button fullWidth variant='contained' color='primary' disabled={submitting} onClick={handleConfirm}>
               {ctaLabel}
@@ -932,15 +1078,6 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               </Button>
             )}
 
-            {order.status === 'SHIPPED' && (
-              <Tooltip title='เร็ว ๆ นี้' placement='top'>
-                <span>
-                  <Button disabled fullWidth variant='text' color='secondary' sx={{ fontSize: '0.71875rem' }}>
-                    ยังไม่ได้รับสินค้า?
-                  </Button>
-                </span>
-              </Tooltip>
-            )}
 
             {/* Q1: retire unlockedPhone footer branch — sub-text เดียวเสมอ (force-login = ไม่มี guest phone อีกต่อไป) */}
             <Typography variant='caption' sx={{ textAlign: 'center', color: 'text.disabled' }}>
@@ -949,6 +1086,47 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           </Box>
         </Box>
       )}
+
+      {/* ── แจ้งปัญหา (feature 00041) ──
+          🛑 ไอคอนเทาและปุ่มยืนยันเป็น warning **ไม่ใช่ error** โดยตั้งใจ — น้ำหนักต้องตรงกับ
+          สิ่งที่มันทำจริง: dispute คือ "ติดธงเตือนว่าคำสั่งซื้อนี้มีปัญหา" ซึ่งไม่ได้ยกเลิก
+          ไม่ได้คืนเงิน ไม่ได้ลบอะไรเลย (Order.status ไม่เปลี่ยนด้วยซ้ำ — BR-BOE-15)
+          ถ้าใช้แดงเท่ากับปุ่มยกเลิก ผู้ใช้จะลังเลที่จะกดสิ่งที่ควรกดได้อย่างสบายใจ ── */}
+      <Dialog
+        fullWidth
+        maxWidth='xs'
+        open={disputeDialogOpen}
+        onClose={() => !disputing && setDisputeDialogOpen(false)}
+        closeAfterTransition={false}
+        aria-labelledby='dispute-dialog-title'
+      >
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', pt: 5, pb: 2, px: 4 }}>
+          <Icon icon='tabler-flag-3' style={{ fontSize: '3.5rem', marginBottom: '1rem', color: 'var(--mui-palette-text-disabled)' }} />
+          <Typography id='dispute-dialog-title' variant='h5' sx={{ mb: 1 }}>
+            แจ้งปัญหาคำสั่งซื้อนี้
+          </Typography>
+          <Typography color='text.secondary' sx={{ fontSize: '0.875rem', mb: 2 }}>
+            บอกร้านค้าว่าเกิดอะไรขึ้น (ไม่บังคับ)
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            minRows={3}
+            value={disputeNote}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDisputeNote(e.target.value.slice(0, 500))}
+            placeholder='เช่น ยังไม่ได้รับของ / ของไม่ตรงกับที่สั่ง'
+            disabled={disputing}
+          />
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 5, px: 4, gap: 1.5 }}>
+          <Button variant='tonal' color='secondary' onClick={() => setDisputeDialogOpen(false)} disabled={disputing}>
+            ยกเลิก
+          </Button>
+          <Button variant='contained' color='warning' onClick={handleDispute} disabled={disputing}>
+            {disputing ? 'กำลังแจ้ง...' : 'แจ้งปัญหา'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── Cancel confirm dialog (FR-UX-5) — token-correct อยู่แล้ว คงไว้ ── */}
       {showCancel && (

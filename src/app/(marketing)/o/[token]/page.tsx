@@ -26,6 +26,7 @@ import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 import { getOrderByToken } from '@/services/order.service'
 import { resolveOrderAccess, guaranteeOrderLink } from '@/services/order-access.service'
+import { hasOpenDispute } from '@/services/order-dispute.service'
 
 import PublicOrderClient from './PublicOrderClient'
 import OrderAccessBlock from './OrderAccessBlock'
@@ -243,6 +244,14 @@ export default async function PublicOrderPage({ params }: Props) {
       cancelInitiator: (order.cancelInitiator as 'seller' | 'buyer' | null) ?? null,
       slipFileId: order.slipFileId ?? null,
       accessUrl: order.accessUrl ?? null,
+      // feature 00041 — /messages/[shopId] รับ Shop.id (ยืนยันจาก
+      // (buyer-app)/messages/[shopId]/page.tsx ที่ findUnique ด้วย { id: shopId })
+      // ถ้าส่ง shop.userId ไปแทน ปุ่ม "ติดต่อร้านค้า" จะพาไปหน้า not-found ทุกใบ
+      shopId: order.shopId,
+      // derive ที่ server ด้วย SSOT ตัวเดียวกับ 00039 — UI จะได้ไม่เขียนเงื่อนไข
+      // "ไม่ null และยังไม่ resolve" ซ้ำเป็นชุดที่สอง
+      hasOpenDispute: hasOpenDispute(order),
+      disputeOpenedAtIso: order.disputeOpenedAt?.toISOString() ?? null,
       // feature 00024 — วันเข้าใช้บริการ (FR-RSV-05) เติมที่จุดนี้เท่านั้น คือ "หลังผ่าน grant"
       // แล้ว ไม่แตะกลไกด่านของ feature 00015 เหนือบรรทัดนี้เลย
       // ออเดอร์ที่ไม่มีนัด → null → การ์ดไม่ถูก render เลย DOM เหมือนเดิมทุกประการ
