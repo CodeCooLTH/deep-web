@@ -19,6 +19,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Icon } from '@iconify/react'
 
 import { pacesToast } from '@/lib/paces-toast'
+// จาก lib ไม่ใช่จาก service — service import prisma ซึ่งลากเข้า bundle ฝั่ง client ไม่ได้
+import { MAX_SHOP_VIDEOS } from '@/lib/shop-video'
 import SellerEmptyState from '../../_shared/SellerEmptyState'
 
 interface AvailableVideo {
@@ -85,7 +87,9 @@ export default function ShopVideosClient() {
   const [available, setAvailable] = useState<AvailableVideo[]>([])
   // key = PROVIDER:videoId — id คนละแพลตฟอร์มชนกันได้ในทางทฤษฎี
   const [chosen, setChosen] = useState<string[]>([])
-  const [max, setMax] = useState(6)
+  // ค่าตั้งต้นก่อน GET ตอบ — ต้องเป็นค่าเดียวกับ SSOT ไม่งั้นช่วงกำลังโหลดจะขึ้นเพดานเก่าให้ร้านเห็น
+  // แล้วเด้งเป็นเลขใหม่ทีหลัง (ตัวจริงมาจาก data.max ในบรรทัดถัดลงไป)
+  const [max, setMax] = useState(MAX_SHOP_VIDEOS)
   // แท็บช่องทางที่กำลังดู — '' = ยังไม่เลือก (ตั้งเป็นช่องทางแรกหลังโหลด)
   const [activeSource, setActiveSource] = useState('')
 

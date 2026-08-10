@@ -17,10 +17,10 @@ import { toFileUrl } from "@/lib/file-url";
 import { mirrorRemoteImage } from "@/services/channel-chat.service";
 import { decryptToken } from "@/lib/token-crypto";
 import { GRAPH_BASE } from "@/lib/facebook/constants";
-import { parseVideoUrl } from "@/lib/shop-video";
+import { parseVideoUrl, MAX_SHOP_VIDEOS } from "@/lib/shop-video";
 
-/** จำนวนคลิปสูงสุดที่ร้านโชว์ได้ — กันหน้าร้านยาวจนเนื้อหาสำคัญตกจอ และกันโหลด iframe เกินจำเป็น */
-export const MAX_SHOP_VIDEOS = 6;
+/** SSOT อยู่ที่ lib/shop-video.ts (client-safe) — re-export ให้ผู้เรียกเดิมไม่ต้องแก้ */
+export { MAX_SHOP_VIDEOS };
 
 /** รายการคลิปที่ให้ร้านเลือก — รูปเดียวกันทุกแพลตฟอร์ม ต่างกันแค่ที่มา */
 export type PickableVideo = {
