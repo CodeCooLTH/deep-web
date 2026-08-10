@@ -35,6 +35,8 @@ import type { PublicOrderData } from './OrderDetailMobile'
 // feature 00024 — ชนิดสถานะนัด (SSOT เดียวกับที่ service/UI ใช้)
 import type { AppointmentStatus } from '@/lib/appointments'
 import BookingGuestView from './BookingGuestView'
+import GuestOrderView from './GuestOrderView'
+import { buildGuestOrderData } from './guest-order-data'
 
 type Props = { params: Promise<{ token: string }> }
 
@@ -67,9 +69,28 @@ export default async function PublicOrderPage({ params }: Props) {
 
     const session = await getServerSession(authOptions)
 
-    // ไม่มี session เลย → บังคับ login ก่อน (TFR-001) — carry callbackUrl กลับมาหน้านี้
+    // ── ไม่มี session → guest view (feature 00041, มติ D-1 ของ user) ────────────────
+    // เดิมบรรทัดนี้ redirect ไป sign-in ทันที ซึ่งเป็นมติของ feature 00015 — ผลจริงบน prod คือ
+    // 0/73 ใบมีผู้ซื้อเข้ามาเลย (00015 เขียนความเสี่ยงนี้ไว้เองว่ารุนแรงสูง แล้วมันเกิดจริง 100%)
+    //
+    // 🛑 สิ่งที่ **ไม่** เปลี่ยน: ทุก action ที่ผูกตัวตนยังบังคับ login เหมือนเดิมทุกประการ —
+    // กติกา ownership/claim ของ 00015 อยู่ใต้บรรทัดนี้ทั้งหมดและไม่ถูกแตะเลย
+    // ที่เปลี่ยนคือ "ก่อน login เห็นอะไรได้บ้าง" เท่านั้น
     if (!session) {
-      redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
+      // BOOKING ยังคง redirect เหมือนเดิม — flow การจองไม่อยู่ในขอบเขตรอบนี้ (SRS §1.2)
+      if (order.type === 'BOOKING') {
+        redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
+      }
+
+      const guestVerifications = await prisma.verificationRecord.findMany({
+        where: { userId: order.shop.userId, status: 'APPROVED' },
+        select: { level: true },
+      })
+      const guestMaxVerifyLevel = guestVerifications.length
+        ? Math.max(...guestVerifications.map((v) => v.level))
+        : 0
+
+      return <GuestOrderView order={buildGuestOrderData(order, guestMaxVerifyLevel)} />
     }
 
     const sessionUser = session.user as { id: string; justAuthedViaPhoneOtp?: boolean }
@@ -171,10 +192,16 @@ export default async function PublicOrderPage({ params }: Props) {
       type: order.type as 'PHYSICAL' | 'DIGITAL' | 'SERVICE' | 'SUBSCRIPTION',
       totalAmount: Number(order.totalAmount),
       createdAtIso: order.createdAt.toISOString(),
+      // 🛑 hasReview ตั้งใจไม่กรอง deletedAt — ต้องคง "true" ไว้แม้รีวิวถูกลบแล้ว
+      // เพราะมันคือสิ่งที่บอก UI ว่า "ห้ามเปิดฟอร์มเขียนรีวิวใหม่" (createReview จะปฏิเสธอยู่ดี
+      // เพราะแถว tombstone ยังอยู่ — ถ้า UI เปิดฟอร์มให้กรอกจนเสร็จแล้วค่อยปฏิเสธ คือ UX ที่แย่
+      // กว่าไม่มีฟอร์มเลย). ส่วน review เป็น null = ไม่แสดงการ์ดคะแนน → UI ได้สถานะที่ 3
+      // "คุณลบรีวิวนี้ไปแล้ว" จากคู่ (hasReview=true, review=null) — SDS TD-002
       hasReview: !!order.review,
-      review: order.review
-        ? { rating: order.review.rating, comment: order.review.comment }
-        : null,
+      review:
+        order.review && !order.review.deletedAt
+          ? { rating: order.review.rating, comment: order.review.comment }
+          : null,
       items: order.items.map((it) => ({
         id: it.id,
         name: it.name,
