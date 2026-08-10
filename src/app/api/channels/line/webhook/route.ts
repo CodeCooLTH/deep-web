@@ -32,6 +32,10 @@ interface LineWebhookMessage {
   id?: unknown
   type?: unknown
   text?: unknown
+  // quoteToken (S-18a, quote reply): LINE ใส่มากับ message object ของ event ประเภท message "ทุกชนิด"
+  // (text/image/video/audio/file/location/sticker) — ใช้ตอบกลับแบบอ้างข้อความนี้ในอนาคต ไม่มีก็ ingest
+  // ข้อความได้ตามปกติ (แค่ quote ข้อความนี้ต่อไม่ได้)
+  quoteToken?: unknown
   // file (S-7): LINE ส่งชื่อไฟล์เดิม + ขนาดมาด้วย (image/video/audio ไม่มีฟิลด์เหล่านี้)
   fileName?: unknown
   fileSize?: unknown
@@ -143,6 +147,9 @@ async function processLineEvent(params: {
     return
   }
   const replyToken = typeof event.replyToken === 'string' ? event.replyToken : undefined
+  // (S-18a) quote reply — token นี้ผูกกับ "ข้อความนี้โดยเฉพาะ" (ไม่ใช่ผูกกับ event เหมือน replyToken)
+  // เก็บไว้ใน rawMessage เพื่อให้ตอบกลับแบบอ้างข้อความนี้ได้ในอนาคต ไม่มีก็ ingest ต่อได้ตามปกติ
+  const quoteToken = typeof message.quoteToken === 'string' ? message.quoteToken : undefined
 
   if (message.type === 'text') {
     if (typeof message.id !== 'string' || !message.id) return
@@ -157,6 +164,7 @@ async function processLineEvent(params: {
       text: message.text,
       replyToken,
       eventTimestamp,
+      quoteToken,
     })
     return
   }
@@ -174,6 +182,7 @@ async function processLineEvent(params: {
     message: media,
     replyToken,
     eventTimestamp,
+    quoteToken,
   })
 }
 

@@ -934,7 +934,10 @@ export default function ChatThread({
   const [emojiOpen, setEmojiOpen] = useState(false)
   /** แผงสติกเกอร์เป็นปุ่มของตัวเอง (user สั่ง 2026-08-04 "อยากให้แยก emoji / sticker เป็น 2 icon") */
   const [stickerOpen, setStickerOpen] = useState(false)
-  const canSendSticker = channel === 'MESSENGER' || channel === 'INSTAGRAM'
+  // S-18b: เปิดให้ LINE ด้วย — ปุ่มเดิม/เงื่อนไขเดิมของ Meta ไม่เปลี่ยน แค่เพิ่มช่องทางที่ผ่าน
+  const canSendSticker = channel === 'MESSENGER' || channel === 'INSTAGRAM' || channel === 'LINE'
+  /** แหล่งสติกเกอร์ผัน — LINE มีชุดปิดตายตัวจาก SSOT (ไม่ใช่ Sticker Catalog API ของ Meta) */
+  const stickerProvider: 'META' | 'LINE' = channel === 'LINE' ? 'LINE' : 'META'
   // composer improvement #2/#3 — แผงเหนือช่องพิมพ์ (ข้อความสำเร็จรูป / AI ช่วยร่างคำตอบ)
   // state เดียวคุมทั้งคู่ (user สั่ง 2026-07-23: "ต้องไม่ขึ้นซ้อนกัน เปิดได้ทีละอัน") — เดิมแยก
   // boolean คนละตัว กดสองปุ่มแล้วกางพร้อมกันทับกัน (ทั้งคู่เป็นแถบ full-bleed -mt ติดลบ)
@@ -2727,10 +2730,11 @@ export default function ChatThread({
             {canSendSticker && stickerOpen && (
               <EmojiPicker
                 mode="STICKER"
+                stickerProvider={stickerProvider}
                 onSelect={() => {}}
                 onClose={() => setStickerOpen(false)}
                 onSelectSticker={(sticker) => {
-                  rememberRecentSticker(sticker)
+                  rememberRecentSticker(sticker, stickerProvider)
                   setStickerOpen(false)
                   void sendSticker(sticker)
                 }}
@@ -2738,9 +2742,9 @@ export default function ChatThread({
             )}
           </div>
 
-          {/* ปุ่มสติกเกอร์แยกจากอิโมจิ (user สั่ง 2026-08-04) — เฉพาะช่องทาง Meta เพราะ Graph ของ
-              แชทเราเอง (DEEP) ไม่มี sticker_id ให้ส่ง. relative ของตัวเอง = แผงยึดกับปุ่มนี้ ไม่ใช่
-              ยึดกับแถวทั้งแถว (สาเหตุที่แผงเคย "เพี้ยน") */}
+          {/* ปุ่มสติกเกอร์แยกจากอิโมจิ (user สั่ง 2026-08-04) — เฉพาะ Messenger/Instagram/LINE (S-18b)
+              เพราะ Graph ของแชทเราเอง (DEEP) ไม่มี sticker_id ให้ส่ง. relative ของตัวเอง = แผงยึดกับ
+              ปุ่มนี้ ไม่ใช่ยึดกับแถวทั้งแถว (สาเหตุที่แผงเคย "เพี้ยน") */}
           {canSendSticker && (
             <button
               type="button"

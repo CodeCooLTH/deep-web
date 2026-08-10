@@ -304,6 +304,23 @@ describe('ingestLineMediaMessage (S-7, TFR-LINE-09)', () => {
       const raw = data.rawMessage as { payload: { stickerResourceType: string | null } }
       expect(raw.payload.stickerResourceType).toBe('SOME_FUTURE_TYPE_NOT_IN_DOCS')
     })
+
+    it('(S-18a) มี quoteToken มากับ event สติกเกอร์ → เก็บลง rawMessage.payload.quoteToken ด้วย', async () => {
+      ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+        fakeStickerResponse(new Uint8Array(8), { contentType: 'image/png' }),
+      )
+      saveFile.mockResolvedValue('line-sticker/1988.png')
+
+      await ingestLineMediaMessage({
+        ...baseParams,
+        message: { type: 'sticker', id: 'msg-sticker-4', packageId: '446', stickerId: '1988', stickerResourceType: 'STATIC' },
+        quoteToken: 'quote-token-sticker',
+      })
+
+      const data = db.chatMessage.create.mock.calls[0]![0].data
+      const raw = data.rawMessage as { payload: { quoteToken?: string } }
+      expect(raw.payload.quoteToken).toBe('quote-token-sticker')
+    })
   })
 
   describe('location — ไม่มี asset ให้ mirror เก็บเป็นข้อความอ่านออก (TC-25)', () => {

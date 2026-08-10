@@ -11,6 +11,8 @@ import { MetaAdapter } from '@/lib/channels/meta-adapter'
 // ChatMessage.externalMessageId ของ LINE ห้ามประกอบ string นี้เองที่ไฟล์นี้
 import { LineAdapter, buildLineExternalMessageId } from '@/lib/channels/line-adapter'
 import { REPLY_WINDOW_MS, REPLY_SAFETY_MARGIN_MS } from '@/lib/line/constants'
+// (S-18a) SSOT ของสติกเกอร์ LINE ที่ยิงออกผ่าน Messaging API ได้จริง — ห้ามเดา packageId เอง
+import { findLineStickerPackageId } from '@/lib/line/stickers'
 // (S-8, feature 00025) LineApiError — ต้องอ่าน status/raw ของ error จริงเพื่อจำแนกเป็นรหัสทางธุรกิจ
 // (TOKEN_INVALID/CONTACT_BLOCKED/QUOTA_EXCEEDED/LINE_UNAVAILABLE) — ดู classifyLineOutboundError
 import { LineApiError } from '@/lib/line/client'
@@ -1413,8 +1415,11 @@ export async function ingestLineTextMessage(params: {
   replyToken?: string
   /** event.timestamp (ms, epoch) จาก LINE — ใช้เป็นทั้งเวลาข้อความและฐานคำนวณ replyTokenExpiresAt */
   eventTimestamp: number
+  /** (S-18a) quote token ของ "ข้อความนี้โดยเฉพาะ" (ต่างจาก replyToken ที่ผูกกับ event) — เก็บไว้ใน
+   *  rawMessage.payload.quoteToken เพื่อให้ตอบกลับแบบอ้างข้อความนี้ได้ ไม่มีก็ ingest ได้ตามปกติ */
+  quoteToken?: string
 }): Promise<{ status: 'STORED' | 'DUPLICATE'; conversationId?: string }> {
-  const { shopId, shopChannelId, accessToken, externalUserId, lineMessageId, text, replyToken, eventTimestamp } =
+  const { shopId, shopChannelId, accessToken, externalUserId, lineMessageId, text, replyToken, eventTimestamp, quoteToken } =
     params
 
   const contact = await resolveLineContact(shopChannelId, externalUserId, accessToken)
@@ -1439,7 +1444,7 @@ export async function ingestLineTextMessage(params: {
         body: text,
         externalMessageId,
         deliveryStatus: 'SENT',
-        rawMessage: toRawMessage('LINE', { lineMessageId, text, replyToken, eventTimestamp }),
+        rawMessage: toRawMessage('LINE', { lineMessageId, text, replyToken, eventTimestamp, quoteToken }),
       },
     })
 
@@ -1517,6 +1522,9 @@ async function writeLineInboundMessage(input: {
   preview: string
   replyToken?: string
   eventTimestamp: number
+  /** (S-18a) quote token ของข้อความนี้โดยเฉพาะ — เก็บลง rawMessage.payload.quoteToken เหมือนข้อความ
+   *  text (ingestLineTextMessage) ไม่มีก็ ingest ได้ตามปกติ (ล้อ comment ของ ingestLineTextMessage) */
+  quoteToken?: string
   rawExtra: Record<string, unknown>
 }): Promise<{ status: 'STORED' | 'DUPLICATE'; conversationId?: string }> {
   const {
@@ -1532,6 +1540,7 @@ async function writeLineInboundMessage(input: {
     preview,
     replyToken,
     eventTimestamp,
+    quoteToken,
     rawExtra,
   } = input
 
@@ -1553,7 +1562,7 @@ async function writeLineInboundMessage(input: {
         attachmentSize,
         externalMessageId,
         deliveryStatus: 'SENT',
-        rawMessage: toRawMessage('LINE', { lineMessageId, replyToken, eventTimestamp, ...rawExtra }),
+        rawMessage: toRawMessage('LINE', { lineMessageId, replyToken, eventTimestamp, quoteToken, ...rawExtra }),
       },
     })
 
@@ -1683,8 +1692,12 @@ export async function ingestLineMediaMessage(params: {
   message: LineInboundMediaMessage
   replyToken?: string
   eventTimestamp: number
+  /** (S-18a) quote token ของข้อความนี้โดยเฉพาะ — ส่งต่อให้ writeLineInboundMessage เก็บลง rawMessage
+   *  (ล้อ comment ของ ingestLineTextMessage) */
+  quoteToken?: string
 }): Promise<{ status: 'STORED' | 'DUPLICATE'; conversationId?: string }> {
-  const { shopId, shopChannelId, accessToken, externalUserId, message, replyToken, eventTimestamp } = params
+  const { shopId, shopChannelId, accessToken, externalUserId, message, replyToken, eventTimestamp, quoteToken } =
+    params
 
   const contact = await resolveLineContact(shopChannelId, externalUserId, accessToken)
 
@@ -1793,6 +1806,7 @@ export async function ingestLineMediaMessage(params: {
     preview,
     replyToken,
     eventTimestamp,
+    quoteToken,
     rawExtra,
   })
 }
@@ -2566,7 +2580,13 @@ async function sendOutboundLineMessage(
   const isOrder = !!params.orderRefToken
 
   const buildParts = async (): Promise<OutboundMessagePart[]> => {
-    if (params.sticker) return [{ kind: 'sticker', stickerId: params.sticker.id }]
+    if (params.sticker) {
+      // (S-18a) packageId ต้องมาจาก SSOT ของเรา (lib/line/stickers.ts) เท่านั้น — ไม่มี packageId
+      // ที่นี่แปลว่า stickerId ที่ส่งมาไม่อยู่ในชุดที่เรายืนยันว่าส่งได้ (เช่น เผลอส่ง sticker id ของ
+      // catalog ฝั่ง Meta มาแทน) ปล่อยให้ toLineMessage ของ LineAdapter ปฏิเสธด้วย error อ่านออก
+      // แทนการเดา packageId เอง
+      return [{ kind: 'sticker', stickerId: params.sticker.id, packageId: findLineStickerPackageId(params.sticker.id) }]
+    }
     if (attachment) {
       // presigned URL อายุ 1 ชม. — LINE ดึงไฟล์ไปโฮสต์เอง (originalContentUrl/previewImageUrl ต้อง
       // เป็น URL สาธารณะที่ LINE เข้าถึงได้ — /api/files ของเรา auth-gated ใช้ไม่ได้ เหมือน Meta)
@@ -2608,23 +2628,55 @@ async function sendOutboundLineMessage(
   // cache โควตาก่อนยิง push แล้ว throw QUOTA_EXCEEDED โดยไม่ยิง LINE" คือตรงนี้พอดี (ก่อน attemptSend
   // ด้านล่างเมื่อ sendMethod === 'PUSH') — ตอนนี้ปล่อยให้ LINE เป็นผู้ตัดสินแทน (TFR-LINE-06 หมายเหตุ)
 
+  // (S-18a) quote reply — หา quoteToken ของ "ข้อความที่กำลังตอบทับ" จาก ChatMessage.rawMessage ที่เก็บ
+  // ไว้แล้ว (ทั้งขาเข้าตอน ingest และขาออกตอนเราส่งเอง เก็บที่ payload.quoteToken เหมือนกัน — ดู
+  // ingestLineTextMessage/ingestLineMediaMessage/ตอนล่างของฟังก์ชันนี้) ผูกกับ conversation.id กันยิง
+  // ข้ามเธรด (params.replyToMid มาจาก route ที่ resolve จาก conversationId เดียวกันอยู่แล้ว แต่กันซ้ำไว้)
+  //
+  // 🛑 หาไม่เจอ/หมดอายุ/query ล้ม → **ห้ามทำให้การส่งทั้งก้อนล้ม** (ผู้ใช้กดตอบกลับแล้วต้องได้ส่งข้อความ
+  // ปกติต่อไป ไม่ใช่ error) แค่ log ไว้เฉย ๆ แล้วปล่อยให้ quoteToken เป็น undefined (ส่งแบบไม่ quote)
+  let quoteToken: string | undefined
+  if (params.replyToMid) {
+    try {
+      const quoted = await prisma.chatMessage.findFirst({
+        where: { externalMessageId: params.replyToMid, conversationId: conversation.id },
+        select: { rawMessage: true },
+      })
+      const raw = quoted?.rawMessage as { payload?: { quoteToken?: unknown } } | null | undefined
+      const token = raw?.payload?.quoteToken
+      if (typeof token === 'string' && token) {
+        quoteToken = token
+      } else {
+        console.warn('[line-outbound] ไม่พบ quoteToken ของข้อความที่ตอบทับ — ส่งแบบไม่ quote', {
+          replyToMid: params.replyToMid,
+        })
+      }
+    } catch (e) {
+      console.warn('[line-outbound] หา quoteToken ไม่สำเร็จ — ส่งแบบไม่ quote', e instanceof Error ? e.message : e)
+    }
+  }
+
   let mid: string | null = null
+  let sentQuoteToken: string | undefined
   let failureReason: string | null = null
   let outboundResponse: unknown = null
 
-  const attemptSend = async (method: 'REPLY' | 'PUSH'): Promise<string> => {
+  const attemptSend = async (method: 'REPLY' | 'PUSH'): Promise<{ externalMessageId: string; quoteToken?: string }> => {
     const parts = await buildParts()
     const ctx: ChannelContext = {
       provider: 'LINE',
       accessToken,
       recipientId,
       replyToken: method === 'REPLY' ? claimedReplyToken! : undefined,
+      quoteToken,
     }
-    return (await LineAdapter.sendMessages(ctx, parts)).externalMessageId
+    return LineAdapter.sendMessages(ctx, parts)
   }
 
   try {
-    mid = await attemptSend(sendMethod)
+    const result = await attemptSend(sendMethod)
+    mid = result.externalMessageId
+    sentQuoteToken = result.quoteToken
   } catch (e) {
     const code = classifyLineOutboundError(e)
     // ผู้ส่งเป็นมนุษย์ (ไม่ใช่ auto-reply ของ 00023/S-12) — เกณฑ์เดียวกับที่ Meta ใช้ตัดสิน
@@ -2638,7 +2690,9 @@ async function sendOutboundLineMessage(
       // เป็น push ได้เฉพาะผู้ส่งเป็นมนุษย์เท่านั้น (BR-LINE-18 ห้าม fallback ให้ระบบอัตโนมัติ)
       sendMethod = 'PUSH'
       try {
-        mid = await attemptSend('PUSH')
+        const result2 = await attemptSend('PUSH')
+        mid = result2.externalMessageId
+        sentQuoteToken = result2.quoteToken
       } catch (e2) {
         failureReason = e2 instanceof Error ? e2.message : 'ส่งข้อความไม่สำเร็จ'
         outboundResponse = lineErrorToRaw(e2)
@@ -2677,8 +2731,25 @@ async function sendOutboundLineMessage(
   }
 
   if (mid) {
-    outboundResponse = { ok: true, mid, sendMethod, attachmentKind: attachment?.kind ?? null, replyToMid: params.replyToMid ?? null }
+    outboundResponse = {
+      ok: true,
+      mid,
+      sendMethod,
+      attachmentKind: attachment?.kind ?? null,
+      replyToMid: params.replyToMid ?? null,
+      // (S-18a, additive) quoteToken ของข้อความที่เพิ่งส่งสำเร็จนี้เอง — เก็บไว้ให้ข้อความที่ "เรา" ส่งเอง
+      // ถูกอ้าง (quote) ต่อได้ในรอบถัดไป (อ่านคืนผ่าน payload.quoteToken เหมือนขาเข้าทุกประการ)
+      quoteToken: sentQuoteToken ?? null,
+    }
   }
+
+  // (S-18a) สติกเกอร์เก็บเป็นแถวชนิด IMAGE + mirror รูปจริงมาไว้ storage ของเรา — เส้นทางเดียวกับสติกเกอร์
+  // ขาเข้า (S-7b buildLineStickerImageUrl) ไม่ใช่เชื่อ params.sticker.imageUrl ที่ client ส่งมา (กัน SSRF
+  // เหมือนกับที่ mirrorRemoteImage มี host allow-list — เราคุม URL เองจาก stickerId ล้วน ๆ)
+  // mirror ล้มเหลว = ยังเก็บแถวไว้ (บับเบิลจะไม่มีรูป) ไม่ทำให้การส่งที่สำเร็จแล้วกลายเป็น error
+  const stickerFileId = params.sticker
+    ? await mirrorRemoteImage(buildLineStickerImageUrl(params.sticker.id), 'line-sticker')
+    : null
 
   const preview = isOrder
     ? '[คำสั่งซื้อ]'
@@ -2703,9 +2774,9 @@ async function sendOutboundLineMessage(
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: isOrder ? 'ORDER' : (attachment?.kind ?? 'TEXT'),
-          body: isOrder || attachment ? null : bodyText,
-          imageUrl: attachment?.fileId ?? null,
+          type: isOrder ? 'ORDER' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
+          body: isOrder || attachment || params.sticker ? null : bodyText,
+          imageUrl: stickerFileId ?? attachment?.fileId ?? null,
           attachmentName: attachment?.name ?? null,
           attachmentSize: attachment?.size ?? null,
           orderRefToken: isOrder ? params.orderRefToken! : null,

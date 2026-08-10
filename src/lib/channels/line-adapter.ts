@@ -50,11 +50,17 @@ function toLineMessage(part: OutboundMessagePart): Record<string, unknown> {
   }
 
   if (part.kind === 'sticker') {
-    // ส่งสติกเกอร์ออกจาก Deep ไม่อยู่ใน MVP ของ phase นี้ (scope baseline 00025 OOS-08 — รับเข้า+
-    // แสดงได้อย่างเดียว) และต่อให้รองรับ รูปร่าง OutboundMessagePart.sticker มีแค่ `stickerId` แต่ LINE
-    // sticker message ต้องมีทั้ง `packageId`+`stickerId` คู่กันเสมอ — ไม่มี packageId ให้ใช้เลยในชั้นนี้
-    // โยน error ที่อ่านออกแทนการเดา packageId แบบสุ่ม
-    throw new Error('LineAdapter.sendMessages: ส่งสติกเกอร์ออกยังไม่รองรับ (ดู scope baseline OOS-08)')
+    // (S-18a, user เปลี่ยน scope 2026-08-10 ทับมติเดิม OOS-08) ส่งสติกเกอร์ออกได้แล้ว — LINE sticker
+    // message ต้องมีทั้ง `packageId`+`stickerId` คู่กันเสมอ (ต่างจาก Meta ที่ใช้ stickerId ตัวเดียว)
+    // caller (sendOutboundLineMessage) เป็นคนหา packageId จาก SSOT ของเรา (lib/line/stickers.ts) มาให้
+    // แล้วเท่านั้น — ไม่มี packageId ที่นี่ = stickerId ไม่อยู่ในชุดที่เรายืนยันว่าส่งได้ ปฏิเสธด้วย error
+    // ที่อ่านออกแทนการเดา packageId แบบสุ่ม (ห้ามยิงไปให้ LINE เดาเอง)
+    if (!part.packageId) {
+      throw new Error(
+        `LineAdapter.sendMessages: ไม่รู้จัก stickerId "${part.stickerId}" (ไม่มี packageId คู่กันในชุดที่ยืนยันว่าส่งได้ — ดู lib/line/stickers.ts)`,
+      )
+    }
+    return { type: 'sticker', packageId: part.packageId, stickerId: part.stickerId }
   }
 
   const { attachmentKind, url } = part
@@ -89,11 +95,20 @@ function toLineMessage(part: OutboundMessagePart): Record<string, unknown> {
   return { type: 'text', text: url }
 }
 
-/** ผลของ `POST /v2/bot/message/reply|push` — ใช้ id ของ sentMessages ตัวแรกเป็น externalMessageId หลัก
- *  (ตรงกับ comment ของ SendMessagesResult ใน adapter.ts: "ชิ้นแรกที่ส่งสำเร็จ") */
-function extractFirstMessageId(json: Record<string, unknown>): string {
-  const sentMessages = json.sentMessages as Array<{ id?: string }> | undefined
-  return sentMessages?.[0]?.id ?? ''
+/** ผลของ `POST /v2/bot/message/reply|push` — ใช้ชิ้นแรกของ sentMessages เป็นทั้ง externalMessageId
+ *  หลัก (ตรงกับ comment ของ SendMessagesResult ใน adapter.ts: "ชิ้นแรกที่ส่งสำเร็จ") และ quoteToken
+ *  (S-18a, additive) — 🛑 session นี้ยืนยันกับ payload จริงไม่ได้ (ไม่มีเครื่องมือยิง LINE จริง) ว่า
+ *  sentMessages[].quoteToken มาด้วยเสมอไหม — อ่านแบบ defensive (ไม่มีก็ undefined เฉย ๆ ไม่ throw ไม่ใช่
+ *  เงื่อนไขที่ตัดสินว่าส่งสำเร็จไหม) ถ้ามีจริงจะใช้อ้าง (quote) ข้อความที่ "เรา" ส่งเองต่อได้ในรอบถัดไป
+ *  ถ้าไม่มีจริง ผลคือแค่ quote ข้อความที่เราส่งเองไม่ได้ (quote ข้อความขาเข้าของลูกค้ายังทำงานตามปกติ —
+ *  อันนั้น Controller ยืนยันจากเอกสารแล้วว่ามีจริง) */
+function extractSendResult(json: Record<string, unknown>): SendMessagesResult {
+  const sentMessages = json.sentMessages as Array<{ id?: string; quoteToken?: unknown }> | undefined
+  const first = sentMessages?.[0]
+  return {
+    externalMessageId: first?.id ?? '',
+    quoteToken: typeof first?.quoteToken === 'string' ? first.quoteToken : undefined,
+  }
 }
 
 async function sendMessages(ctx: ChannelContext, parts: OutboundMessagePart[]): Promise<SendMessagesResult> {
@@ -105,6 +120,12 @@ async function sendMessages(ctx: ChannelContext, parts: OutboundMessagePart[]): 
   }
 
   const messages = parts.map(toLineMessage)
+  // (S-18a, additive) quote reply — แปะ quoteToken เข้า message object ตัวแรกเท่านั้น (ตัวแทนของ "ข้อความ
+  // ที่กำลังตอบ" ในชุดที่ยิงไปพร้อมกัน) caller เป็นคนหา token มาให้แล้ว (ดู comment ChannelContext.quoteToken
+  // — ไม่มีค่า = ไม่ใช่ quote reply ก็ส่งตามปกติ ไม่แตะ messages เลย)
+  if (ctx.quoteToken) {
+    messages[0] = { ...messages[0], quoteToken: ctx.quoteToken }
+  }
 
   // การตัดสินใจ reply vs push ไม่ใช่หน้าที่ของ adapter (เป็นงานของ S-8) — ที่นี่แค่ทำตามที่ ctx บอก:
   // มี replyToken → ยิง reply endpoint, ไม่มี → ยิง push ด้วย recipientId (ดู comment ChannelContext.replyToken)
@@ -113,7 +134,7 @@ async function sendMessages(ctx: ChannelContext, parts: OutboundMessagePart[]): 
       method: 'POST',
       body: { replyToken: ctx.replyToken, messages },
     })
-    return { externalMessageId: extractFirstMessageId(json) }
+    return extractSendResult(json)
   }
 
   if (!ctx.recipientId) {
@@ -123,7 +144,7 @@ async function sendMessages(ctx: ChannelContext, parts: OutboundMessagePart[]): 
     method: 'POST',
     body: { to: ctx.recipientId, messages },
   })
-  return { externalMessageId: extractFirstMessageId(json) }
+  return extractSendResult(json)
 }
 
 async function fetchContactProfile(

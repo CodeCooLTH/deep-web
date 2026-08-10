@@ -165,10 +165,54 @@ describe('LineAdapter.sendMessages', () => {
     expect(body.messages[0]).toEqual({ type: 'text', text: 'https://x/doc.pdf' })
   })
 
-  it('sticker → throw (ส่งสติกเกอร์ออกยังไม่รองรับ ดู OOS-08)', async () => {
+  it('sticker ไม่มี packageId → throw (ไม่รู้จัก stickerId นี้) ไม่ยิง fetch (S-18a)', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
     await expect(
       LineAdapter.sendMessages(baseCtx, [{ kind: 'sticker', stickerId: '52002734' }]),
-    ).rejects.toThrow(/สติกเกอร์/)
+    ).rejects.toThrow(/ไม่รู้จัก/)
+    expect(mock).not.toHaveBeenCalled()
+  })
+
+  it('sticker มี packageId → ยิง { type: sticker, packageId, stickerId } (S-18a)', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm6' }] }))
+    await LineAdapter.sendMessages(baseCtx, [{ kind: 'sticker', stickerId: '1988', packageId: '446' }])
+    const [, init] = mock.mock.calls[0]! as [string, RequestInit]
+    const body = JSON.parse(init.body as string)
+    expect(body.messages[0]).toEqual({ type: 'sticker', packageId: '446', stickerId: '1988' })
+  })
+
+  it('ctx.quoteToken → แปะ quoteToken เข้า message object ตัวแรก (S-18a quote reply)', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm7' }] }))
+    const ctx: ChannelContext = { ...baseCtx, quoteToken: 'quote-token-xyz' }
+    await LineAdapter.sendMessages(ctx, [{ kind: 'text', text: 'ตอบกลับนะคะ' }])
+    const [, init] = mock.mock.calls[0]! as [string, RequestInit]
+    const body = JSON.parse(init.body as string)
+    expect(body.messages[0]).toEqual({ type: 'text', text: 'ตอบกลับนะคะ', quoteToken: 'quote-token-xyz' })
+  })
+
+  it('ไม่มี ctx.quoteToken → ไม่มี field quoteToken ติดไปกับ message object เลย', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm8' }] }))
+    await LineAdapter.sendMessages(baseCtx, [{ kind: 'text', text: 'hello' }])
+    const [, init] = mock.mock.calls[0]! as [string, RequestInit]
+    const body = JSON.parse(init.body as string)
+    expect(body.messages[0]).toEqual({ type: 'text', text: 'hello' })
+  })
+
+  it('response มี sentMessages[0].quoteToken → คืนใน SendMessagesResult.quoteToken (ให้ quote ต่อได้)', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm9', quoteToken: 'sent-quote-token' }] }))
+    const result = await LineAdapter.sendMessages(baseCtx, [{ kind: 'text', text: 'hi' }])
+    expect(result).toEqual({ externalMessageId: 'm9', quoteToken: 'sent-quote-token' })
+  })
+
+  it('response ไม่มี quoteToken → SendMessagesResult.quoteToken เป็น undefined ไม่ throw', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm10' }] }))
+    const result = await LineAdapter.sendMessages(baseCtx, [{ kind: 'text', text: 'hi' }])
+    expect(result).toEqual({ externalMessageId: 'm10', quoteToken: undefined })
   })
 })
 

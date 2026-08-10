@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest'
 import { Prisma } from '@prisma/client'
 
 // (S-8, feature 00025) mock prisma แบบเดียวกับ channel-chat-outbound.test.ts (ของ Messenger/IG) —
 // vi.hoisted กัน TDZ (เจอปัญหานี้แล้วใน Task 7/8 ของฟีเจอร์นี้)
 const db = vi.hoisted(() => ({
   conversation: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-  chatMessage: { create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
+  chatMessage: { create: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
   shop: { findUnique: vi.fn() },
   shopMember: { findUnique: vi.fn() },
   shopChannel: { findUnique: vi.fn(), update: vi.fn() },
@@ -36,6 +36,12 @@ vi.mock('@/services/shop-channel.service', () => ({
 // accessTokenEnc mock ('enc') ไม่ใช่ payload รูปแบบ iv.tag.data จริง — mock decryptToken
 // กันชน CHANNEL_TOKEN_MALFORMED (สนใจแค่ flow ของ sendOutboundMessage ไม่ใช่ crypto จริง)
 vi.mock('@/lib/token-crypto', () => ({ decryptToken: vi.fn().mockReturnValue('line-token-plain') }))
+
+// (S-18a) สติกเกอร์ขาออก mirror ผ่าน mirrorRemoteImage (ยิง fetch จริงไปที่ stickershop.line-scdn.net)
+// แล้วเขียนลง storage ผ่าน saveFile — mock ทั้งคู่กันเทสยิง network/เขียนไฟล์จริง (pattern เดียวกับ
+// channel-chat-line-media-ingest.test.ts)
+const { saveFile } = vi.hoisted(() => ({ saveFile: vi.fn() }))
+vi.mock('@/lib/storage', () => ({ saveFile, getFileUrl: vi.fn().mockResolvedValue('https://signed.example/x') }))
 
 beforeAll(() => {
   process.env.CHANNEL_TOKEN_KEY = 'd'.repeat(64)
@@ -73,6 +79,7 @@ describe('sendOutboundMessage — LINE (S-8, TFR-LINE-05/06)', () => {
     db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน' })
     db.chatMessage.create.mockResolvedValue({ id: 'm1', createdAt: new Date() })
     db.chatMessage.findUnique.mockResolvedValue(null)
+    db.chatMessage.findFirst.mockResolvedValue(null) // (S-18a) ไม่มีข้อความที่ตอบทับ เว้นแต่เทสตั้งเอง
     db.conversation.update.mockResolvedValue({})
     db.externalContact.update.mockResolvedValue({})
     lineAdapter.sendMessages.mockResolvedValue({ externalMessageId: 'line-mid-1' })
@@ -260,5 +267,157 @@ describe('sendOutboundMessage — LINE (S-8, TFR-LINE-05/06)', () => {
   it('ส่งสำเร็จ → create ข้อความ + update snapshot อยู่ในทรานแซกชันเดียวกัน (M-2)', async () => {
     await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'สวัสดีค่ะ' })
     expect(db.$transaction).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('sendOutboundMessage — LINE quote reply (S-18a)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    db.$transaction.mockImplementation((fn: (t: typeof db) => unknown) => fn(db))
+    db.conversation.findUnique.mockResolvedValue(baseConversation())
+    db.conversation.updateMany.mockResolvedValue({ count: 1 })
+    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน' })
+    db.chatMessage.create.mockResolvedValue({ id: 'm1', createdAt: new Date() })
+    db.chatMessage.findUnique.mockResolvedValue(null)
+    db.conversation.update.mockResolvedValue({})
+    db.externalContact.update.mockResolvedValue({})
+    lineAdapter.sendMessages.mockResolvedValue({ externalMessageId: 'line-mid-1' })
+  })
+
+  it('เจอ quoteToken ของข้อความที่ตอบทับ (rawMessage.payload.quoteToken) → ส่งไปกับ ctx.quoteToken', async () => {
+    db.chatMessage.findFirst.mockResolvedValue({ rawMessage: { payload: { quoteToken: 'quote-token-abc' } } })
+
+    await sendOutboundMessage({
+      conversationId: 'conv1',
+      actorUserId: 'owner1',
+      text: 'ใช่ค่ะ อันนี้ยังมีอยู่',
+      replyToMid: 'LINE:1234567890',
+    })
+
+    expect(db.chatMessage.findFirst).toHaveBeenCalledWith({
+      where: { externalMessageId: 'LINE:1234567890', conversationId: 'conv1' },
+      select: { rawMessage: true },
+    })
+    const ctx = lineAdapter.sendMessages.mock.calls[0]![0]
+    expect(ctx.quoteToken).toBe('quote-token-abc')
+  })
+
+  it('หา quoteToken ไม่เจอ (แถวไม่มี/ไม่มี field นี้) → ยังส่งสำเร็จโดยไม่มี quoteToken ไม่ throw (ต้อง console.warn)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    db.chatMessage.findFirst.mockResolvedValue({ rawMessage: { payload: {} } })
+
+    const msg = await sendOutboundMessage({
+      conversationId: 'conv1',
+      actorUserId: 'owner1',
+      text: 'ตอบกลับนะคะ',
+      replyToMid: 'LINE:not-found',
+    })
+
+    const ctx = lineAdapter.sendMessages.mock.calls[0]![0]
+    expect(ctx.quoteToken).toBeUndefined()
+    expect(msg.id).toBe('m1')
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
+  it('query หา quoteToken ล้ม (DB error) → ยังส่งข้อความปกติต่อไปได้ ไม่ throw ทั้งการส่ง', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    db.chatMessage.findFirst.mockRejectedValue(new Error('DB ล่มชั่วคราว'))
+
+    const msg = await sendOutboundMessage({
+      conversationId: 'conv1',
+      actorUserId: 'owner1',
+      text: 'ตอบกลับนะคะ',
+      replyToMid: 'LINE:whatever',
+    })
+
+    expect(msg.id).toBe('m1')
+    const ctx = lineAdapter.sendMessages.mock.calls[0]![0]
+    expect(ctx.quoteToken).toBeUndefined()
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
+  it('ไม่ได้ตอบกลับข้อความไหนเลย (ไม่มี replyToMid) → ไม่ query หา quoteToken เลย', async () => {
+    await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'สวัสดีค่ะ' })
+    expect(db.chatMessage.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('ส่งสำเร็จ → เก็บ quoteToken ของข้อความที่เพิ่งส่งเอง (จาก response ของ LINE) ลง rawMessage เพื่อให้ quote ต่อได้', async () => {
+    lineAdapter.sendMessages.mockResolvedValue({ externalMessageId: 'line-mid-2', quoteToken: 'sent-quote-token' })
+
+    await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'สวัสดีค่ะ' })
+
+    const data = db.chatMessage.create.mock.calls[0]![0].data
+    const raw = data.rawMessage as { payload: { quoteToken: string | null } }
+    expect(raw.payload.quoteToken).toBe('sent-quote-token')
+  })
+})
+
+describe('sendOutboundMessage — LINE ส่งสติกเกอร์ (S-18a)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', vi.fn())
+    db.$transaction.mockImplementation((fn: (t: typeof db) => unknown) => fn(db))
+    db.conversation.findUnique.mockResolvedValue(baseConversation())
+    db.conversation.updateMany.mockResolvedValue({ count: 1 })
+    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน' })
+    db.chatMessage.create.mockResolvedValue({ id: 'm1', createdAt: new Date() })
+    db.chatMessage.findUnique.mockResolvedValue(null)
+    db.chatMessage.findFirst.mockResolvedValue(null)
+    db.conversation.update.mockResolvedValue({})
+    db.externalContact.update.mockResolvedValue({})
+    lineAdapter.sendMessages.mockResolvedValue({ externalMessageId: 'line-mid-sticker-1' })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('stickerId อยู่ในชุดที่ยืนยันว่าส่งได้ (446/1988) → ยิง part { kind: sticker, stickerId, packageId }', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(new Uint8Array(8) as BodyInit, { status: 200, headers: { 'content-type': 'image/png' } }),
+    )
+    saveFile.mockResolvedValue('line-sticker/1988.png')
+
+    await sendOutboundMessage({
+      conversationId: 'conv1',
+      actorUserId: 'owner1',
+      sticker: { id: '1988', imageUrl: 'https://should-not-be-used.example/x.png' },
+    })
+
+    const parts = lineAdapter.sendMessages.mock.calls[0]![1]
+    expect(parts).toEqual([{ kind: 'sticker', stickerId: '1988', packageId: '446' }])
+  })
+
+  it('สติกเกอร์ที่ยิงสำเร็จ → mirror รูปจาก stickershop CDN (ไม่ใช่ params.sticker.imageUrl) แล้วบันทึกเป็น ChatMessage type=IMAGE', async () => {
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(new Uint8Array(8) as BodyInit, { status: 200, headers: { 'content-type': 'image/png' } }),
+    )
+    saveFile.mockResolvedValue('line-sticker/1988.png')
+
+    await sendOutboundMessage({
+      conversationId: 'conv1',
+      actorUserId: 'owner1',
+      sticker: { id: '1988', imageUrl: 'https://should-not-be-used.example/x.png' },
+    })
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://stickershop.line-scdn.net/stickershop/v1/sticker/1988/android/sticker.png',
+      expect.anything(),
+    )
+    const data = db.chatMessage.create.mock.calls[0]![0].data
+    expect(data.type).toBe('IMAGE')
+    expect(data.body).toBeNull()
+    expect(data.imageUrl).toBe('line-sticker/1988.png')
+    expect(data.deliveryStatus).toBe('SENT')
+  })
+
+  it('stickerId ไม่อยู่ในชุดที่ยืนยันว่าส่งได้ → ส่ง packageId เป็น undefined ไป (ไม่เดาค่าเอง — LineAdapter จริงเป็นคนปฏิเสธ)', async () => {
+    await sendOutboundMessage({
+      conversationId: 'conv1',
+      actorUserId: 'owner1',
+      sticker: { id: 'unknown-sticker-id', imageUrl: 'https://x/img.png' },
+    })
+
+    const parts = lineAdapter.sendMessages.mock.calls[0]![1]
+    expect(parts).toEqual([{ kind: 'sticker', stickerId: 'unknown-sticker-id', packageId: undefined }])
   })
 })

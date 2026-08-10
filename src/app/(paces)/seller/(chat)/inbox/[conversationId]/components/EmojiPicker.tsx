@@ -21,6 +21,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+// S-18b: สติกเกอร์ LINE — ชุดปิดตายตัวจาก SSOT (ไม่ใช่ Sticker Catalog API ของ Meta) เป็น constant
+// ล้วน ไม่มี import ฝั่ง server จึงดึงมาใช้ตรงในไฟล์ client นี้ได้เลย ไม่ต้องมี API route ใหม่
+import { LINE_STICKER_PACKS, lineStickerImageUrl } from '@/lib/line/stickers'
 
 // codepoint (ไม่ใช่ตัว emoji) — จัดกลุ่มให้เหมาะกับแชทร้านค้า (ทักทาย/ขอบคุณ/นิ้วโป้ง/หัวใจ/เงิน/ช้อป)
 // export เพื่อให้แผงรีแอ็กชันบนข้อความ (MessageActionBubble) ใช้ชุดเดียวกัน — user สั่ง 2026-08-03
@@ -71,21 +74,47 @@ export const EMOJI_CATEGORIES: { key: string; label: string; codepoints: number[
   },
 ]
 
-/** สติกเกอร์จาก Sticker Catalog API ของ Meta (ผ่าน /api/channels/facebook/stickers) */
+/** สติกเกอร์จาก Sticker Catalog API ของ Meta (ผ่าน /api/channels/facebook/stickers) หรือจากชุดปิด
+ *  ตายตัวของ LINE (`@/lib/line/stickers`) — shape เดียวกันทั้งคู่ ตัวเรนเดอร์ใช้ร่วมได้ */
 export type StickerItem = { id: string; name: string | null; imageUrl: string }
 type StickerPack = { id: string; name: string; previewImageUrl: string | null }
 
+/** แหล่งสติกเกอร์ — S-18b: LINE มีชุดปิดตายตัวจาก SSOT คนละแหล่งกับ Sticker Catalog API ของ Meta */
+export type StickerProvider = 'META' | 'LINE'
+
 /** สติกเกอร์ที่ใช้ล่าสุด (user สั่ง 2026-08-04 "มี recent ให้ใช้ด้วย") — เก็บที่เครื่อง ไม่ต้องมี
- *  ตารางใหม่: มันเป็นความชอบส่วนตัวของเครื่องที่ใช้ ไม่ใช่ข้อมูลร้านที่ต้องแชร์ข้ามอุปกรณ์ */
-const RECENT_KEY = 'deep.chat.recentStickers'
-/** ค่าพิเศษของแท็บ "ใช้ล่าสุด" — ไม่ใช่ id แพ็กจริง (id ของ Meta เป็นตัวเลขล้วน ไม่ชนกัน) */
+ *  ตารางใหม่: มันเป็นความชอบส่วนตัวของเครื่องที่ใช้ ไม่ใช่ข้อมูลร้านที่ต้องแชร์ข้ามอุปกรณ์
+ *
+ * S-18b: namespace แยกตาม provider — ของเดิม (ก่อนมี LINE) เก็บที่คีย์เดียวไม่แยกช่องทาง ถ้าใช้คีย์
+ * ร่วมกันต่อไป เปิดเธรด LINE จะเห็นสติกเกอร์ Messenger ในแท็บ "ใช้ล่าสุด" แล้วกดส่งไม่ได้เพราะ
+ * payload คนละรูปแบบ (id ของ Meta ไม่ใช่คู่ packageId/stickerId ที่ LINE ยอมรับ) — บั๊กจริงไม่ใช่
+ * เรื่องความสวยงาม
+ */
+const RECENT_KEY_LEGACY = 'deep.chat.recentStickers'
+const RECENT_KEY_META = 'deep.chat.recentStickers.meta'
+const RECENT_KEY_LINE = 'deep.chat.recentStickers.line'
+/** ค่าพิเศษของแท็บ "ใช้ล่าสุด" — ไม่ใช่ id แพ็กจริง (id ของ Meta/LINE เป็นตัวเลขล้วน ไม่ชนกัน) */
 const RECENT_TAB = 'RECENT'
 const RECENT_MAX = 16
 
-function readRecentStickers(): StickerItem[] {
+function recentKeyFor(provider: StickerProvider): string {
+  return provider === 'LINE' ? RECENT_KEY_LINE : RECENT_KEY_META
+}
+
+function readRecentStickers(provider: StickerProvider): StickerItem[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = window.localStorage.getItem(RECENT_KEY)
+    const key = recentKeyFor(provider)
+    let raw = window.localStorage.getItem(key)
+    // migrate ของเดิม (คีย์เดียวก่อนแยก provider) เข้าคีย์ .meta ครั้งแรกที่อ่าน — ของเดิมมีแต่
+    // สติกเกอร์ Meta เท่านั้น (ตอนนั้นยังไม่มี LINE) จึงย้ายไปฝั่ง META เสมอ ไม่ลบคีย์เก่าทิ้ง
+    if (raw === null && provider === 'META') {
+      const legacy = window.localStorage.getItem(RECENT_KEY_LEGACY)
+      if (legacy !== null) {
+        window.localStorage.setItem(RECENT_KEY_META, legacy)
+        raw = legacy
+      }
+    }
     const arr = raw ? (JSON.parse(raw) as unknown) : null
     if (!Array.isArray(arr)) return []
     return arr.filter(
@@ -97,14 +126,33 @@ function readRecentStickers(): StickerItem[] {
   }
 }
 
-export function rememberRecentSticker(sticker: StickerItem): void {
+export function rememberRecentSticker(sticker: StickerItem, provider: StickerProvider = 'META'): void {
   if (typeof window === 'undefined') return
   try {
-    const next = [sticker, ...readRecentStickers().filter((s) => s.id !== sticker.id)].slice(0, RECENT_MAX)
-    window.localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+    const key = recentKeyFor(provider)
+    const next = [sticker, ...readRecentStickers(provider).filter((s) => s.id !== sticker.id)].slice(0, RECENT_MAX)
+    window.localStorage.setItem(key, JSON.stringify(next))
   } catch {
     /* localStorage เต็ม/ปิดอยู่ — recents เป็นของเสริม ห้ามทำให้ส่งสติกเกอร์ไม่ได้ */
   }
+}
+
+/**
+ * S-18b: 15 แพ็ก × 5 ตัวของ LINE (`LINE_STICKER_PACKS`) แปลงเป็น shape เดียวกับ `StickerPack`/
+ * `StickerItem` ของ Meta — ปิดตายตัวไม่ต้องยิง network เลย (ต่างจาก Meta ที่โหลดจาก Graph)
+ */
+function lineStickerPacksAsPacks(): StickerPack[] {
+  return LINE_STICKER_PACKS.map((p) => ({
+    id: p.packageId,
+    name: p.title,
+    previewImageUrl: lineStickerImageUrl(p.stickerIds[0]),
+  }))
+}
+
+function lineStickerItemsForPack(packageId: string): StickerItem[] {
+  const pack = LINE_STICKER_PACKS.find((p) => p.packageId === packageId)
+  if (!pack) return []
+  return pack.stickerIds.map((stickerId) => ({ id: stickerId, name: null, imageUrl: lineStickerImageUrl(stickerId) }))
 }
 
 type Props = {
@@ -123,9 +171,22 @@ type Props = {
    * 2026-08-04 "panel มันเพี้ยน")
    */
   align?: 'left' | 'right'
+  /**
+   * S-18b: แหล่งสติกเกอร์ — เฉพาะตอน mode='STICKER'. ผู้เรียกต้อง derive จาก channel ของเธรด เอง
+   * (ChatThread.tsx: channel==='LINE' ? 'LINE' : 'META') ไม่ default เป็น LINE เพราะ Meta คือ
+   * ของเดิมที่ผ่านการใช้งานจริงมาก่อน
+   */
+  stickerProvider?: StickerProvider
 }
 
-export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelectSticker, align = 'left' }: Props) {
+export default function EmojiPicker({
+  onSelect,
+  onClose,
+  mode = 'EMOJI',
+  onSelectSticker,
+  align = 'left',
+  stickerProvider = 'META',
+}: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const tab = mode
   const [packs, setPacks] = useState<StickerPack[] | null>(null)
@@ -164,11 +225,16 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
 
   // เปิดแท็บสติกเกอร์ครั้งแรก → โหลดรายการแพ็ก + อ่าน recents (ไม่โหลดล่วงหน้าตอนเปิดแผงอิโมจิ
   // เพราะคนส่วนใหญ่เปิดมาเพื่อกดอิโมจิ ไม่ควรยิง Graph ทิ้งทุกครั้ง)
+  //
+  // S-18b: LINE ไม่มี Graph ให้ยิง — 15 แพ็กเป็น constant ปิดตายตัว ตั้งค่า packs แบบ sync ได้เลย
   useEffect(() => {
     if (tab !== 'STICKER') return
-    setRecents(readRecentStickers())
-    if (packs === null) void loadStickers('/api/channels/facebook/stickers')
-  }, [tab, packs, loadStickers])
+    setRecents(readRecentStickers(stickerProvider))
+    if (packs === null) {
+      if (stickerProvider === 'LINE') setPacks(lineStickerPacksAsPacks())
+      else void loadStickers('/api/channels/facebook/stickers')
+    }
+  }, [tab, packs, loadStickers, stickerProvider])
 
   // ได้รายการแพ็กแล้ว → เปิดแพ็กแรกให้เลย (user report 2026-08-04: แผงค้างที่ข้อความ "เลือกแพ็ก
   // ด้านล่าง" ซึ่งเท่ากับบังคับให้กดอีกครั้งก่อนเห็นของ — Messenger เปิดมาเห็นสติกเกอร์ทันที)
@@ -183,12 +249,14 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
     if (!packs || packs.length === 0 || stickers !== null) return
     const first = packs[0]
     setPackId(first.id)
-    void loadStickers(`/api/channels/facebook/stickers?packId=${encodeURIComponent(first.id)}`)
-  }, [tab, packs, packId, stickers, q, recents, loadStickers])
+    if (stickerProvider === 'LINE') setStickers(lineStickerItemsForPack(first.id))
+    else void loadStickers(`/api/channels/facebook/stickers?packId=${encodeURIComponent(first.id)}`)
+  }, [tab, packs, packId, stickers, q, recents, loadStickers, stickerProvider])
 
   // ค้นหา — debounce กันยิงทุกตัวอักษร; Meta บังคับ ≥2 ตัวอักษร
+  // S-18b: LINE ไม่มีช่องค้นหา (ชุดปิดตายตัว 15 แพ็ก) — สาขานี้จึงไม่มีผลกับ LINE เลย
   useEffect(() => {
-    if (tab !== 'STICKER') return
+    if (tab !== 'STICKER' || stickerProvider === 'LINE') return
     const term = q.trim()
     if (term.length < 2) return
     const t = setTimeout(() => {
@@ -196,7 +264,7 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
       void loadStickers(`/api/channels/facebook/stickers?q=${encodeURIComponent(term)}`)
     }, 400)
     return () => clearTimeout(t)
-  }, [q, tab, loadStickers])
+  }, [q, tab, loadStickers, stickerProvider])
 
   /**
    * มือถือ (<768px) = bottom sheet ครึ่งจอ ไม่ใช่ popover เกาะปุ่ม — user สั่ง 2026-08-06:
@@ -295,19 +363,35 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
 
       {tab === 'STICKER' && onSelectSticker ? (
         <div className={`flex flex-col ${isSheet ? 'min-h-0 flex-1' : ''}`}>
-          <div className="border-default-200 shrink-0 border-b p-2">
-            <div className="input-icon-group">
-              <Icon icon="search" className="input-icon" />
-              <input
-                type="search"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="ค้นหาสติกเกอร์"
-                aria-label="ค้นหาสติกเกอร์"
-                className="form-input"
-              />
+          {/* S-18b — notice ถาวรบน LINE: ชุดนี้ปิดตายตัว 15 แพ็ก ไม่ใช่แคตาล็อกหลักพันแบบ Meta และ
+              สติกเกอร์ที่ร้านซื้อไว้ตอบจากที่นี่ไม่ได้ (LINE ไม่เปิด API ให้ยิงสติกเกอร์ที่ไม่อยู่ใน
+              รายการสาธารณะ) — ไม่มีปุ่มปิดเพราะเป็นข้อจำกัดถาวร ไม่ใช่เรื่องแจ้งครั้งเดียว */}
+          {stickerProvider === 'LINE' && (
+            <div className="shrink-0 p-2 pb-0">
+              {/* text-xs ไม่ใช่ text-2xs — ข้อความนี้คือสิ่งเดียวที่กันร้านเข้าใจผิดว่า "โหลดสติกเกอร์ไม่ครบ/
+                  ระบบพัง" ถ้าอ่านไม่ออกก็เท่ากับไม่มี (ภาษาไทยที่ ~10px อ่านยากกว่าอังกฤษที่ขนาดเดียวกัน) */}
+              <p className="bg-info/15 text-info-ink mb-0 rounded-lg px-3 py-2.5 text-xs leading-normal">
+                ชุดนี้คือสติกเกอร์สาธารณะที่ตอบอัตโนมัติผ่านระบบได้ — สติกเกอร์ที่ร้านซื้อไว้ ตอบได้จากแอป LINE
+                Official Account Manager แทน
+              </p>
             </div>
-          </div>
+          )}
+          {/* S-18b: LINE เป็นชุดปิดตายตัว 15 แพ็ก — ไม่มีช่องค้นหาเหมือน Meta */}
+          {stickerProvider !== 'LINE' && (
+            <div className="border-default-200 shrink-0 border-b p-2">
+              <div className="input-icon-group">
+                <Icon icon="search" className="input-icon" />
+                <input
+                  type="search"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="ค้นหาสติกเกอร์"
+                  aria-label="ค้นหาสติกเกอร์"
+                  className="form-input"
+                />
+              </div>
+            </div>
+          )}
           <div className={`overflow-y-auto overscroll-contain p-2 ${isSheet ? 'min-h-0 flex-1' : 'max-h-80'}`}>
             {error ? (
               <p className="text-danger p-2 text-xs" role="alert">
@@ -375,7 +459,8 @@ export default function EmojiPicker({ onSelect, onClose, mode = 'EMOJI', onSelec
                   onClick={() => {
                     setQ('')
                     setPackId(pk.id)
-                    void loadStickers(`/api/channels/facebook/stickers?packId=${encodeURIComponent(pk.id)}`)
+                    if (stickerProvider === 'LINE') setStickers(lineStickerItemsForPack(pk.id))
+                    else void loadStickers(`/api/channels/facebook/stickers?packId=${encodeURIComponent(pk.id)}`)
                   }}
                   className={`flex size-11 shrink-0 items-center justify-center rounded-lg ${
                     packId === pk.id ? 'bg-primary/15' : 'hover:bg-default-100'

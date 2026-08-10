@@ -38,13 +38,26 @@ export interface ChannelCapabilities {
 export type OutboundMessagePart =
   | { kind: 'text'; text: string }
   | { kind: 'attachment'; attachmentKind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'; url: string }
-  | { kind: 'sticker'; stickerId: string }
+  | {
+      kind: 'sticker'
+      stickerId: string
+      /** (เพิ่ม S-18a, additive) LINE sticker message ต้องมี packageId คู่กับ stickerId เสมอ (Meta ใช้
+       *  แค่ stickerId ตัวเดียว — field นี้เป็น undefined เสมอสำหรับ Meta ไม่กระทบ MetaAdapter) LineAdapter
+       *  ปฏิเสธด้วย error อ่านออกถ้าไม่มีค่านี้ (ดู comment toLineMessage ใน line-adapter.ts) */
+      packageId?: string
+    }
 
 /** ผลของ sendMessages — externalMessageId ของ "ข้อความหลัก" (ชิ้นแรกที่ส่งสำเร็จ) เก็บลง
  *  ChatMessage.externalMessageId เพื่อ dedupe กับ echo (provider ที่ capabilities.echo=false ก็ยัง
  *  ต้องคืนค่านี้ไว้อ้างอิง แม้จะไม่มี echo มาช่วย dedupe ก็ตาม) */
 export interface SendMessagesResult {
   externalMessageId: string
+  /** (เพิ่ม S-18a, additive) quoteToken ของข้อความที่เพิ่งส่งสำเร็จ — LINE เท่านั้น (ถ้า LINE คืนค่านี้มา
+   *  จะอยู่ใน `sentMessages[].quoteToken` ของ response ยิง reply/push — 🛑 ยังไม่ได้ยืนยันกับ payload
+   *  จริงว่ามาด้วยเสมอไหม อ่านแบบ defensive เสมอ ไม่มีก็ undefined เฉย ๆ) เก็บไว้ใน ChatMessage.rawMessage
+   *  เพื่อให้ข้อความที่ "เรา" ส่งเองถูกอ้าง (quote) ต่อได้ในรอบถัดไป ไม่ใช่แค่ข้อความขาเข้าของลูกค้า
+   *  Meta ไม่มีแนวคิดนี้ — MetaAdapter ไม่ใส่ค่านี้เลย (undefined เสมอ ไม่กระทบพฤติกรรมเดิม) */
+  quoteToken?: string
 }
 
 /**
@@ -70,6 +83,12 @@ export interface ChannelContext {
    *  ด้วย `recipientId` แทน. Meta ไม่มีแนวคิด reply token เลย (ไม่ต้องส่ง field นี้ — undefined เสมอ
    *  ไม่กระทบ MetaAdapter) */
   replyToken?: string
+  /** (เพิ่ม S-18a, additive) LINE quote token ของข้อความที่กำลังตอบทับ (quote reply) — แปะเข้า message
+   *  object ตัวแรกของ parts เป็น field `quoteToken` เมื่อยิงจริง (ดู LineAdapter.sendMessages) caller
+   *  (sendOutboundLineMessage) เป็นคนหา token นี้เอง (จาก ChatMessage.rawMessage ของข้อความที่ถูกอ้าง)
+   *  ไม่ใช่หน้าที่ adapter — หาไม่เจอ/หมดอายุก็แค่ไม่ส่งค่านี้มา ไม่ throw (ต้องส่งข้อความต่อได้เสมอ)
+   *  Meta ไม่มีแนวคิดนี้ (ใช้ replyToExternalId แทน) — MetaAdapter ไม่อ่าน field นี้เลย */
+  quoteToken?: string
 }
 
 /** สิ่งที่จะ "ดาวน์โหลด" จาก provider — Meta ส่ง URL สาธารณะมากับ webhook อยู่แล้วเป็นทางหลัก

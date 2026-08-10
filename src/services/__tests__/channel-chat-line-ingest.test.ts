@@ -136,6 +136,21 @@ describe('ingestLineTextMessage (S-6, TFR-LINE-02..05/10)', () => {
     expect(r.status).toBe('STORED')
     expect(db.externalContact.upsert.mock.calls[0]![0].create.name).toBeNull()
   })
+
+  it('(S-18a) มี quoteToken มากับ event → เก็บลง rawMessage.payload.quoteToken', async () => {
+    await ingestLineTextMessage({ ...baseParams, quoteToken: 'quote-token-abc' })
+    const data = db.chatMessage.create.mock.calls[0]![0].data
+    const raw = data.rawMessage as { payload: { quoteToken?: string } }
+    expect(raw.payload.quoteToken).toBe('quote-token-abc')
+  })
+
+  it('(S-18a) ไม่มี quoteToken มากับ event → ยัง ingest ได้ตามปกติ ไม่มี key นี้ใน rawMessage', async () => {
+    const r = await ingestLineTextMessage(baseParams)
+    expect(r.status).toBe('STORED')
+    const data = db.chatMessage.create.mock.calls[0]![0].data
+    const raw = data.rawMessage as { payload: Record<string, unknown> }
+    expect('quoteToken' in raw.payload).toBe(false)
+  })
 })
 
 describe('shouldFetchLineProfile (TFR-LINE-10)', () => {
