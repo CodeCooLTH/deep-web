@@ -104,6 +104,7 @@ import {
   type ChatMessageView,
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
+import { shouldWarnQuoteUnavailable } from '@/lib/chat-quote-availability'
 import { useLongPress } from '@/hooks/useLongPress'
 import MessageActionBubble, { type MessageAction, type MessageReactionOption } from './MessageActionBubble'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -724,9 +725,16 @@ type Props = {
 }
 
 // feature 00018 — ดู comment หัวไฟล์ (badge "ส่งไม่สำเร็จ")
+//
+// reply/quote quotable (bugfix 2026-08-10): GET .../messages enrich ฟิลด์นี้มาแล้วทั้งข้อความหลัก
+// (ตัดสินก่อนกดส่งผ่าน replyingTo.quotable) และ snapshot replyTo (ตัดสินหลังส่งว่า quote ติดจริงไหม)
+// — ChatMessageView (hook) ไม่ประกาศฟิลด์นี้ในชนิดข้อมูล (นอกขอบเขต T4/แก้ไม่ได้รอบนี้ — งานอื่นค้าง
+// อยู่ในไฟล์นั้น) จึง extend ชนิดข้อมูลในนี้เองแบบเดียวกับ deliveryStatus/failureReason ข้างบน
 type ChatMessageWithDelivery = ChatMessageView & {
   deliveryStatus?: string | null
   failureReason?: string | null
+  quotable?: boolean
+  replyTo?: (NonNullable<ChatMessageView['replyTo']> & { quotable?: boolean }) | null
 }
 
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000
@@ -2266,15 +2274,28 @@ export default function ChatThread({
                       )}
                       {/* reply quote (feature 00018 Phase 3) — กล่องจาง ๆ เยื้องเหนือบับเบิล ให้เห็นชัดว่าเป็น
                           quote คนละก้อนกับข้อความตอบ (user report 2026-07-25: ดูยาก) */}
-                      {m.replyTo && (
+                      {mExt.replyTo && (
                         <div className={`mb-1 flex ${mine ? 'justify-end' : 'justify-start'}`}>
                           <div className="border-default-300 bg-default-100/70 max-w-full rounded-lg border-s-2 px-2.5 py-1">
                             <p className="text-default-700 mb-0 text-2xs font-medium">
-                              ตอบกลับ{m.replyTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
+                              ตอบกลับ{mExt.replyTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
                             </p>
                             <p className="text-default-700 mb-0 line-clamp-2 text-xs opacity-90">
-                              {m.replyTo.body ?? '[สื่อ/ไฟล์แนบ]'}
+                              {mExt.replyTo.body ?? '[สื่อ/ไฟล์แนบ]'}
                             </p>
+                            {/* bugfix 2026-08-10 — quotable=false: ข้อความเป้าหมายไม่มี quoteToken (ข้อความ
+                                เก่าก่อนระบบเก็บ token/สื่อที่ LINE ไม่คืน token ให้) จึงถอยไปส่งแบบไม่อ้างอิง
+                                (ส่งได้ตามปกติ ไม่ใช่ error) — เดิมถอยเงียบสนิท ผู้ขายเห็นกล่อง quote นี้แล้ว
+                                เข้าใจว่าลูกค้าเห็นแบบเดียวกัน ทั้งที่ในแอป LINE มาเป็นข้อความธรรมดา
+                                Base: theme/paces .../ChatPage.tsx:72-74 (icon+text meta line, text-xs) —
+                                ตัดสินด้วย shouldWarnQuoteUnavailable (lib/chat-quote-availability.ts) ไม่ใช่
+                                เทอร์นารีตรงนี้ (docs/conventions/ui-boolean-needs-a-testable-home.md) */}
+                            {shouldWarnQuoteUnavailable({ channel, quotable: mExt.replyTo.quotable, carrierIsShop: mine }) && (
+                              <p className="text-default-500 mb-0 mt-1 flex items-center gap-1 text-xs">
+                                <Icon icon="info-circle" className="text-xs" aria-hidden="true" />
+                                ลูกค้าไม่เห็นว่าข้อความนี้ตอบข้อความไหน
+                              </p>
+                            )}
                           </div>
                         </div>
                       )}
@@ -2864,6 +2885,21 @@ export default function ChatThread({
                         ? '[สินค้า]'
                         : '[สื่อ/ไฟล์แนบ]')}
               </p>
+              {/* bugfix 2026-08-10 — บอกก่อนกดส่ง ไม่ใช่แค่ตอนดูประวัติย้อนหลัง (safepay-ux: ข้อความ
+                  ก่อนส่งไม่ใช่สิ่งที่คนกลับมาอ่าน แต่กันผู้ขายหลุดบริบทตอนพิมพ์ได้ทันที) — ข้อความนี้
+                  (ที่กำลังจะตอบทับ) ไม่มี quoteToken จึงยังส่งได้ตามปกติ (ถอยไปแบบไม่อ้างอิงให้เอง)
+                  แค่ลูกค้าจะไม่เห็นลิงก์อ้างอิง. Base: theme/paces .../ChatPage.tsx:72-74 (icon+text
+                  meta line) — ตัดสินด้วย shouldWarnQuoteUnavailable ตัวเดียวกับกล่อง quote ในเธรด */}
+              {shouldWarnQuoteUnavailable({
+                channel,
+                quotable: (replyingTo as ChatMessageWithDelivery).quotable,
+                carrierIsShop: true,
+              }) && (
+                <p className="text-default-500 mb-0 mt-1 flex items-center gap-1 text-xs">
+                  <Icon icon="info-circle" className="text-xs" aria-hidden="true" />
+                  ส่งได้ตามปกติ แต่ลูกค้าจะไม่เห็นว่ากำลังตอบข้อความไหน
+                </p>
+              )}
             </div>
             <button
               type="button"

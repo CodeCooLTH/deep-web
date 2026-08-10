@@ -36,6 +36,12 @@ interface LineWebhookMessage {
   // (text/image/video/audio/file/location/sticker) — ใช้ตอบกลับแบบอ้างข้อความนี้ในอนาคต ไม่มีก็ ingest
   // ข้อความได้ตามปกติ (แค่ quote ข้อความนี้ต่อไม่ได้)
   quoteToken?: unknown
+  // quotedMessageId (bugfix 2026-08-10): message id ของข้อความ "ที่ถูกอ้างถึง" เมื่อข้อความนี้เป็นการ
+  // reply แบบ swipe/long-press ในแอป LINE — มีเฉพาะตอนข้อความนี้ quote ข้อความเก่า (เอกสาร LINE:
+  // "Message ID of a quoted message. Only included when the received message quotes a past message.")
+  // มีทั้งชนิด text และ sticker (และชนิดอื่น) คนละเรื่องกับ quoteToken ด้านบน (quoteToken = โทเคนของ
+  // ข้อความนี้เองไว้ให้คนอื่น quote ต่อ, quotedMessageId = ตัวชี้ไปข้อความเก่าที่ข้อความนี้กำลังอ้างถึง)
+  quotedMessageId?: unknown
   // file (S-7): LINE ส่งชื่อไฟล์เดิม + ขนาดมาด้วย (image/video/audio ไม่มีฟิลด์เหล่านี้)
   fileName?: unknown
   fileSize?: unknown
@@ -150,6 +156,10 @@ async function processLineEvent(params: {
   // (S-18a) quote reply — token นี้ผูกกับ "ข้อความนี้โดยเฉพาะ" (ไม่ใช่ผูกกับ event เหมือน replyToken)
   // เก็บไว้ใน rawMessage เพื่อให้ตอบกลับแบบอ้างข้อความนี้ได้ในอนาคต ไม่มีก็ ingest ต่อได้ตามปกติ
   const quoteToken = typeof message.quoteToken === 'string' ? message.quoteToken : undefined
+  // bugfix 2026-08-10 (ลูกค้ากด reply อ้างข้อความจากแอป LINE แล้วเข้ากล่องแชทเป็นข้อความธรรมดา):
+  // ส่งต่อ id ดิบจาก LINE เข้า service — service เป็นคนแปลงเป็น externalMessageId รูปแบบของเรา
+  // (buildLineExternalMessageId → `LINE:${id}`) ห้ามแปลงที่ route เพราะ route ไม่รู้จักฟังก์ชันนั้น
+  const quotedMessageId = typeof message.quotedMessageId === 'string' ? message.quotedMessageId : undefined
 
   if (message.type === 'text') {
     if (typeof message.id !== 'string' || !message.id) return
@@ -165,6 +175,7 @@ async function processLineEvent(params: {
       replyToken,
       eventTimestamp,
       quoteToken,
+      quotedMessageId,
     })
     return
   }
@@ -183,6 +194,7 @@ async function processLineEvent(params: {
     replyToken,
     eventTimestamp,
     quoteToken,
+    quotedMessageId,
   })
 }
 

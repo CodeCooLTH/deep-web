@@ -321,6 +321,27 @@ describe('ingestLineMediaMessage (S-7, TFR-LINE-09)', () => {
       const raw = data.rawMessage as { payload: { quoteToken?: string } }
       expect(raw.payload.quoteToken).toBe('quote-token-sticker')
     })
+
+    // bugfix 2026-08-10: quote reply ต้องใช้ได้กับสติกเกอร์ด้วย ไม่ใช่แค่ข้อความ text
+    // (เอกสาร LINE ระบุ quotedMessageId มีในทุกชนิด message event)
+    it('(bugfix 2026-08-10) มี quotedMessageId มากับ event สติกเกอร์ → replyToMid มี prefix "LINE:"', async () => {
+      ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+        fakeStickerResponse(new Uint8Array(8), { contentType: 'image/png' }),
+      )
+      saveFile.mockResolvedValue('line-sticker/1988.png')
+
+      await ingestLineMediaMessage({
+        ...baseParams,
+        message: { type: 'sticker', id: 'msg-sticker-5', packageId: '446', stickerId: '1988', stickerResourceType: 'STATIC' },
+        quotedMessageId: 'quoted-msg-sticker-1',
+      })
+
+      const data = db.chatMessage.create.mock.calls[0]![0].data
+      // assert ตรงสตริงเต็ม (ไม่ใช่แค่ truthy) — พิสูจน์ด้วย mutation: ถอด prefix ออกแล้วเทสนี้ต้องแดง
+      expect(data.replyToMid).toBe('LINE:quoted-msg-sticker-1')
+      const raw = data.rawMessage as { payload: { quotedMessageId?: string } }
+      expect(raw.payload.quotedMessageId).toBe('quoted-msg-sticker-1')
+    })
   })
 
   describe('location — ไม่มี asset ให้ mirror เก็บเป็นข้อความอ่านออก (TC-25)', () => {
@@ -390,6 +411,36 @@ describe('ingestLineMediaMessage (S-7, TFR-LINE-09)', () => {
       expect(r.status).toBe('STORED')
       expect(r.conversationId).toBe('conv-winner')
     })
+  })
+
+  // bugfix 2026-08-10: ครอบเส้นทาง image/video/audio/file ด้วย (ไม่ใช่แค่ sticker ด้านบน)
+  it('(bugfix 2026-08-10) มี quotedMessageId มากับ event รูปภาพ → replyToMid มี prefix "LINE:" เหมือนสติกเกอร์', async () => {
+    lineAdapter.downloadContent.mockResolvedValue({
+      url: null,
+      content: { data: Buffer.from([1, 2, 3]), contentType: 'image/jpeg' },
+    })
+    saveFile.mockResolvedValue('line/2026/08/10/abc.jpg')
+
+    await ingestLineMediaMessage({
+      ...baseParams,
+      message: { type: 'image', id: 'msg-img-quote-1' },
+      quotedMessageId: 'quoted-msg-image-1',
+    })
+
+    const data = db.chatMessage.create.mock.calls[0]![0].data
+    expect(data.replyToMid).toBe('LINE:quoted-msg-image-1')
+  })
+
+  it('ไม่มี quotedMessageId มากับ event สื่อ → replyToMid เป็น null, ingest ได้ปกติ', async () => {
+    lineAdapter.downloadContent.mockResolvedValue({
+      url: null,
+      content: { data: Buffer.from([1, 2, 3]), contentType: 'image/jpeg' },
+    })
+    saveFile.mockResolvedValue('line/2026/08/10/abc.jpg')
+
+    const r = await ingestLineMediaMessage({ ...baseParams, message: { type: 'image', id: 'msg-img-noquote-1' } })
+    expect(r.status).toBe('STORED')
+    expect(db.chatMessage.create.mock.calls[0]![0].data.replyToMid).toBeNull()
   })
 
   it('มี replyToken → เก็บ replyToken/replyTokenExpiresAt บน Conversation เหมือน text (TD-009)', async () => {

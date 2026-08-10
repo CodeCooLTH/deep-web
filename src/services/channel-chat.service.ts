@@ -1418,9 +1418,23 @@ export async function ingestLineTextMessage(params: {
   /** (S-18a) quote token ของ "ข้อความนี้โดยเฉพาะ" (ต่างจาก replyToken ที่ผูกกับ event) — เก็บไว้ใน
    *  rawMessage.payload.quoteToken เพื่อให้ตอบกลับแบบอ้างข้อความนี้ได้ ไม่มีก็ ingest ได้ตามปกติ */
   quoteToken?: string
+  /** bugfix 2026-08-10: message.quotedMessageId ดิบจาก LINE — มีเฉพาะตอนข้อความนี้ "อ้างถึง" ข้อความเก่า
+   *  (กด reply ในแอป LINE) ต้องแปลงเป็น externalMessageId รูปแบบของเรา (buildLineExternalMessageId)
+   *  ก่อนเขียนลง ChatMessage.replyToMid ไม่งั้น UI หาข้อความต้นทางไม่เจอ (คนละรูปแบบกับ id ดิบของ LINE) */
+  quotedMessageId?: string
 }): Promise<{ status: 'STORED' | 'DUPLICATE'; conversationId?: string }> {
-  const { shopId, shopChannelId, accessToken, externalUserId, lineMessageId, text, replyToken, eventTimestamp, quoteToken } =
-    params
+  const {
+    shopId,
+    shopChannelId,
+    accessToken,
+    externalUserId,
+    lineMessageId,
+    text,
+    replyToken,
+    eventTimestamp,
+    quoteToken,
+    quotedMessageId,
+  } = params
 
   const contact = await resolveLineContact(shopChannelId, externalUserId, accessToken)
 
@@ -1428,6 +1442,7 @@ export async function ingestLineTextMessage(params: {
   const occurredAt = eventTimestamp ? new Date(eventTimestamp) : new Date()
   const preview = text.slice(0, 100)
   const externalMessageId = buildLineExternalMessageId(lineMessageId)
+  const replyToMid = quotedMessageId ? buildLineExternalMessageId(quotedMessageId) : null
   const replyTokenExpiresAt = replyToken ? new Date(eventTimestamp + REPLY_WINDOW_MS) : undefined
 
   // แยกเป็นฟังก์ชันเพื่อใช้ซ้ำได้ทั้งเส้นทางปกติและเส้นทาง retry หลังแพ้ race สร้างเธรด (รูปแบบเดียวกับ
@@ -1443,8 +1458,11 @@ export async function ingestLineTextMessage(params: {
         type: 'TEXT',
         body: text,
         externalMessageId,
+        // bugfix 2026-08-10: quote reply จากแอป LINE — UI ดึงข้อความต้นทางมาแสดงเป็นบล็อกอ้างอิง
+        // (แพตเทิร์นเดียวกับ Messenger reply_to.mid ด้านบนของไฟล์นี้ — ดู ingestInboundMessage)
+        replyToMid,
         deliveryStatus: 'SENT',
-        rawMessage: toRawMessage('LINE', { lineMessageId, text, replyToken, eventTimestamp, quoteToken }),
+        rawMessage: toRawMessage('LINE', { lineMessageId, text, replyToken, eventTimestamp, quoteToken, quotedMessageId }),
       },
     })
 
@@ -1525,6 +1543,9 @@ async function writeLineInboundMessage(input: {
   /** (S-18a) quote token ของข้อความนี้โดยเฉพาะ — เก็บลง rawMessage.payload.quoteToken เหมือนข้อความ
    *  text (ingestLineTextMessage) ไม่มีก็ ingest ได้ตามปกติ (ล้อ comment ของ ingestLineTextMessage) */
   quoteToken?: string
+  /** bugfix 2026-08-10: message.quotedMessageId ดิบจาก LINE (ล้อ comment ของ ingestLineTextMessage) —
+   *  มีได้ทั้งชนิดสื่อ/สติกเกอร์ ไม่ใช่แค่ text (เอกสาร LINE ระบุว่ามีในทุกชนิด message event) */
+  quotedMessageId?: string
   rawExtra: Record<string, unknown>
 }): Promise<{ status: 'STORED' | 'DUPLICATE'; conversationId?: string }> {
   const {
@@ -1541,12 +1562,14 @@ async function writeLineInboundMessage(input: {
     replyToken,
     eventTimestamp,
     quoteToken,
+    quotedMessageId,
     rawExtra,
   } = input
 
   const conversationWhere = { shopChannelId_externalContactId: { shopChannelId, externalContactId: contact.id } }
   const occurredAt = eventTimestamp ? new Date(eventTimestamp) : new Date()
   const externalMessageId = buildLineExternalMessageId(lineMessageId)
+  const replyToMid = quotedMessageId ? buildLineExternalMessageId(quotedMessageId) : null
   const replyTokenExpiresAt = replyToken ? new Date(eventTimestamp + REPLY_WINDOW_MS) : undefined
 
   const writeMessage = async (tx: Prisma.TransactionClient, conversation: { id: string }) => {
@@ -1561,8 +1584,10 @@ async function writeLineInboundMessage(input: {
         attachmentName,
         attachmentSize,
         externalMessageId,
+        // bugfix 2026-08-10: quote reply — ครอบสื่อ/สติกเกอร์ด้วย (ไม่ใช่แค่ text ที่ ingestLineTextMessage)
+        replyToMid,
         deliveryStatus: 'SENT',
-        rawMessage: toRawMessage('LINE', { lineMessageId, replyToken, eventTimestamp, quoteToken, ...rawExtra }),
+        rawMessage: toRawMessage('LINE', { lineMessageId, replyToken, eventTimestamp, quoteToken, quotedMessageId, ...rawExtra }),
       },
     })
 
@@ -1695,8 +1720,11 @@ export async function ingestLineMediaMessage(params: {
   /** (S-18a) quote token ของข้อความนี้โดยเฉพาะ — ส่งต่อให้ writeLineInboundMessage เก็บลง rawMessage
    *  (ล้อ comment ของ ingestLineTextMessage) */
   quoteToken?: string
+  /** bugfix 2026-08-10: message.quotedMessageId ดิบจาก LINE — ส่งต่อให้ writeLineInboundMessage แปลงเป็น
+   *  replyToMid (ล้อ comment ของ ingestLineTextMessage) */
+  quotedMessageId?: string
 }): Promise<{ status: 'STORED' | 'DUPLICATE'; conversationId?: string }> {
-  const { shopId, shopChannelId, accessToken, externalUserId, message, replyToken, eventTimestamp, quoteToken } =
+  const { shopId, shopChannelId, accessToken, externalUserId, message, replyToken, eventTimestamp, quoteToken, quotedMessageId } =
     params
 
   const contact = await resolveLineContact(shopChannelId, externalUserId, accessToken)
@@ -1807,6 +1835,7 @@ export async function ingestLineMediaMessage(params: {
     replyToken,
     eventTimestamp,
     quoteToken,
+    quotedMessageId,
     rawExtra,
   })
 }

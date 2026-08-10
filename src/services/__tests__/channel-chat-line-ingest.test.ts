@@ -151,6 +151,31 @@ describe('ingestLineTextMessage (S-6, TFR-LINE-02..05/10)', () => {
     const raw = data.rawMessage as { payload: Record<string, unknown> }
     expect('quoteToken' in raw.payload).toBe(false)
   })
+
+  // bugfix 2026-08-10: ลูกค้ากด reply อ้างข้อความจากแอป LINE แล้วเข้ากล่องแชทเป็นข้อความธรรมดา
+  // ไม่มีบล็อกอ้างอิง — ต้นเหตุคือไม่เคยอ่าน message.quotedMessageId เลย
+  it('มี quotedMessageId มากับ event → replyToMid มี prefix "LINE:" (รูปแบบเดียวกับ externalMessageId ที่เราเก็บ ไม่ใช่ id ดิบจาก LINE)', async () => {
+    await ingestLineTextMessage({ ...baseParams, quotedMessageId: 'quoted-msg-99' })
+    const data = db.chatMessage.create.mock.calls[0]![0].data
+    // assert ตรง ๆ ทั้งสตริง (ไม่ใช่แค่ truthy) — พิสูจน์ด้วย mutation: ถ้าถอด
+    // buildLineExternalMessageId ออกแล้วเขียน replyToMid = quotedMessageId ตรง ๆ (id ดิบไม่มี prefix)
+    // เทสนี้ต้องแดงทันที เพราะ 'quoted-msg-99' !== 'LINE:quoted-msg-99'
+    expect(data.replyToMid).toBe('LINE:quoted-msg-99')
+  })
+
+  it('ไม่มี quotedMessageId มากับ event → replyToMid เป็น null, ingest ได้ปกติ', async () => {
+    const r = await ingestLineTextMessage(baseParams)
+    expect(r.status).toBe('STORED')
+    const data = db.chatMessage.create.mock.calls[0]![0].data
+    expect(data.replyToMid).toBeNull()
+  })
+
+  it('มี quotedMessageId → เก็บดิบลง rawMessage.payload.quotedMessageId ด้วย (หลักฐานดิบ ท่าเดียวกับ quoteToken)', async () => {
+    await ingestLineTextMessage({ ...baseParams, quotedMessageId: 'quoted-msg-99' })
+    const data = db.chatMessage.create.mock.calls[0]![0].data
+    const raw = data.rawMessage as { payload: { quotedMessageId?: string } }
+    expect(raw.payload.quotedMessageId).toBe('quoted-msg-99')
+  })
 })
 
 describe('shouldFetchLineProfile (TFR-LINE-10)', () => {

@@ -35,6 +35,22 @@ function isAttachmentType(t: string): t is AttachmentKind {
   return (ATTACHMENT_TYPES as readonly string[]).includes(t);
 }
 
+// reply/quote — "อ้างอิงข้อความนี้ได้จริงไหม" (bugfix 2026-08-10: ผู้ขายกด "ตอบกลับ" บน LINE แล้ว
+// จอเราขึ้นบล็อกอ้างอิงครบเหมือนสำเร็จ แต่ในแอป LINE ของลูกค้ามาเป็นข้อความธรรมดา เพราะข้อความ
+// เป้าหมายไม่มี quoteToken — ระบบถอยไปส่งแบบไม่ quote ให้เอง (ถูกแล้ว ห้ามทำให้ส่งไม่ออก) แต่ถอย
+// เงียบสนิท ไม่มีอะไรบอกผู้ขาย. คำนวณที่นี่ล่วงหน้าให้ UI เตือนได้ก่อนกดส่งจริง — sendOutboundMessage
+// (channel-chat.service.ts) อ่าน rawMessage.payload.quoteToken จาก DB ด้วยสูตรเดียวกันตอนส่งจริง
+//
+// ตั้งชื่อกลาง ๆ ว่า quotable ไม่ใช่ lineQuotable โดยตั้งใจ — Messenger/IG มีช่องโหว่ชนิดเดียวกัน
+// (Meta ปฏิเสธ reply_to แล้ว retry แบบไม่ quote เงียบ ๆ เหมือนกัน) แต่ payload ของ Meta ไม่มี
+// quoteToken อยู่แล้วจึงได้ false เสมอสำหรับช่องทางนั้น — รอบนี้ไม่เปลี่ยนพฤติกรรม Meta, UI gate
+// เฉพาะ channel==='LINE' ไว้ที่ shouldWarnQuoteUnavailable (lib/chat-quote-availability.ts)
+function isQuotable(rawMessage: unknown): boolean {
+  const raw = rawMessage as { payload?: { quoteToken?: unknown } } | null | undefined;
+  const token = raw?.payload?.quoteToken;
+  return typeof token === "string" && token.length > 0;
+}
+
 function mapChatServiceError(e: unknown, context: string) {
   if (e instanceof Error && e.message === "CONVERSATION_NOT_FOUND") {
     return NextResponse.json({ error: "ไม่พบบทสนทนา" }, { status: 404 });
@@ -247,10 +263,14 @@ export async function GET(
               conversationId: id,
               OR: [{ externalMessageId: { in: replyMids } }, { id: { in: replyMids } }],
             },
-            select: { id: true, externalMessageId: true, body: true, type: true, senderRole: true },
+            // rawMessage: ต้องอ่านมาด้วยเพื่อคำนวณ quotable ของ "ข้อความที่ถูกอ้างถึง" (isQuotable ด้านบน)
+            select: { id: true, externalMessageId: true, body: true, type: true, senderRole: true, rawMessage: true },
           })
         : [];
-    const repliedMap = new Map<string, { body: string | null; senderRole: "BUYER" | "SHOP" }>();
+    const repliedMap = new Map<
+      string,
+      { body: string | null; senderRole: "BUYER" | "SHOP"; quotable: boolean }
+    >();
     for (const r of repliedRows) {
       // ข้อความสื่อ/การ์ด (body=null) → แสดง label แทนช่องว่างใน quote
       const label =
@@ -263,7 +283,11 @@ export async function GET(
           ORDER: "[คำสั่งซื้อ]",
           PRODUCT: "[สินค้า]",
         }[r.type] ?? null);
-      const entry = { body: label, senderRole: r.senderRole as "BUYER" | "SHOP" };
+      const entry = {
+        body: label,
+        senderRole: r.senderRole as "BUYER" | "SHOP",
+        quotable: isQuotable(r.rawMessage),
+      };
       if (r.externalMessageId) repliedMap.set(r.externalMessageId, entry);
       repliedMap.set(r.id, entry);
     }
@@ -318,6 +342,9 @@ export async function GET(
         const rmid = (m as { replyToMid?: string | null }).replyToMid;
         return rmid ? repliedMap.get(rmid) ?? null : null;
       })(),
+      // reply/quote — ข้อความ "นี้เอง" อ้างอิงได้ไหมถ้าถูกตอบทับต่อ (composer ใช้ตัดสินก่อนกดส่ง
+      // ผ่าน replyingTo.quotable — ดู isQuotable ด้านบนไฟล์นี้)
+      quotable: isQuotable((m as { rawMessage?: unknown }).rawMessage),
       productCard:
         m.type === "PRODUCT" && m.productRefId && productMap.has(m.productRefId)
           ? (() => {
@@ -373,7 +400,14 @@ async function withSender<T extends { senderUserId: string | null }>(message: T,
     where: { id: userId },
     select: { displayName: true, avatar: true },
   });
-  return { ...message, sender: u ? { name: u.displayName, avatar: u.avatar } : null };
+  return {
+    ...message,
+    sender: u ? { name: u.displayName, avatar: u.avatar } : null,
+    // reply/quote — ข้อความที่เพิ่งส่งสำเร็จนี้เอง มี quoteToken ให้อ้างต่อได้ไหม (ดู isQuotable
+    // ด้านบนไฟล์นี้) เผื่อร้านกด "ตอบกลับ" บนข้อความนี้ก่อน GET refetch รอบถัดไปจะมาเติม replyTo
+    // ให้ครบ — message ที่ผ่านมาที่นี่คือแถวดิบจาก Prisma จึงมี rawMessage อยู่แล้ว
+    quotable: isQuotable((message as { rawMessage?: unknown }).rawMessage),
+  };
 }
 
 export async function POST(
