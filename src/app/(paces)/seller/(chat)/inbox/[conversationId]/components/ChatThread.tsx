@@ -88,6 +88,8 @@ import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
 import { withEmojiPresentation } from '@/lib/emoji-presentation'
 import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
+// นิยาม "โพสต์นี้เป็นวิดีโอไหม" ตัวเดียวกับที่รายการคอมเมนต์ใช้ — ห้ามก็อปมาเขียนซ้ำ (HR16)
+import { isVideoPost } from '@/lib/facebook-post'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -688,6 +690,11 @@ type Props = {
     /** ISO string — server component ส่ง Date ตรง ๆ ข้าม RSC boundary ไม่ได้ */
     createdTime: string
     url: string | null
+    /** ข้อความของ "โพสต์" ที่คอมเมนต์นี้อยู่ใต้ — คนละอันกับ `message` ซึ่งเป็นของลูกค้า */
+    postMessage: string | null
+    /** resolve มาแล้วที่ server (`resolvePostThumbnail`) — สำเนาที่เราเก็บเองชนะ URL ของ Meta เสมอ */
+    postThumbnailUrl: string | null
+    postMediaType: string | null
   } | null
   /** เกิน 24 ชม. แต่ยังไม่เกิน 7 วัน และร้านได้ permission human_agent แล้ว → คนตอบเองได้อยู่ */
   humanAgentOpen?: boolean
@@ -961,6 +968,10 @@ export default function ChatThread({
   // E5 — แบนเนอร์ "ตอบกลับจากโฆษณา" ปิดได้แบบ Messenger. เก็บสถานะที่ localStorage ต่อเธรด
   // (ความชอบระดับอุปกรณ์เหมือน mute รายเธรด ไม่ใช่ข้อมูลร้าน — พนักงานคนอื่นยังเห็นแบนเนอร์อยู่)
   // เก็บ "รหัสโฆษณาที่ปิดไป" ไม่ใช่ boolean เพื่อให้โฆษณา *ตัวใหม่* เด้งกลับมาเองโดยไม่ต้องเคลียร์ค่า
+  /** รูปปกโพสต์ในการ์ดคอมเมนต์ต้นเหตุโหลดไม่ขึ้น — การ์ดนี้มีรูปเดียว ใช้ boolean ตัวเดียวพอ
+      (รายการคอมเมนต์ใช้ Set เพราะมีหลายแถว) */
+  const [postThumbBroken, setPostThumbBroken] = useState(false)
+
   const adKey = adReferral?.adId ?? adReferral?.adTitle ?? null
   // อ่านหลัง mount เท่านั้น (localStorage ไม่มีฝั่ง server) และเริ่มที่ "ยังไม่รู้" แทน "ยังไม่ได้ปิด"
   // เพื่อไม่ให้แบนเนอร์ที่ผู้ขายปิดไปแล้วแวบขึ้นมาก่อนแล้วค่อยหาย
@@ -1831,6 +1842,58 @@ export default function ChatThread({
          */}
         {commentOrigin && !oldestCursor && (
           <div className="border-default-200 bg-default-50 mb-4 rounded-lg border p-3">
+            {/**
+             * โซน A — โพสต์ต้นฉบับ (user 2026-08-10: "อยากให้เอา รูป Posts มาแสดงด้วย ว่าเค้า
+             * Post จากไหน เหมือน ads พร้อม ชื่อ Posts") ยกภาษาการออกแบบจากแบนเนอร์โฆษณาในไฟล์
+             * เดียวกัน (รูป size-10 rounded-md + fallback กล่องเทา+ไอคอน) และปุ่มเล่นวิดีโอจาก
+             * แถวรายการคอมเมนต์
+             *
+             * 🛑 ความเสี่ยงหลักของการ์ดนี้คือ "แยกไม่ออกว่าอันไหนข้อความโพสต์ อันไหนข้อความ
+             * คอมเมนต์" — สองก้อนเป็นข้อความยาวคล้ายกันวางติดกัน จึงแยกด้วย 4 ชั้นพร้อมกัน
+             * ไม่ใช่ชั้นเดียว: ตำแหน่ง (โพสต์เกิดก่อนเสมอ จึงอยู่บน) · ไอคอน+label คู่ขนาน ·
+             * ขนาด/ความเข้มตัวอักษร (โพสต์ text-xs/700 จงใจเบากว่าคอมเมนต์ text-sm/900 ซึ่งเป็น
+             * พระเอกของการ์ด) · เส้นคั่น 1px
+             *
+             * เส้นคั่นเป็นเส้น **ทึบ** ไม่ใช่เส้นประ — เส้นประของธีมสงวนไว้กับ `.card-header`
+             * ตรงนี้เป็นตัวคั่นเนื้อหาภายในกล่องเดียว ไม่ใช่หัวการ์ด (และไม่แตกเป็นการ์ดซ้อนการ์ด)
+             */}
+            <div className="mb-2.5 flex items-start gap-2.5 border-b border-default-200 pb-2.5">
+              <span className="relative shrink-0">
+                {commentOrigin.postThumbnailUrl && !postThumbBroken ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={commentOrigin.postThumbnailUrl}
+                    alt=""
+                    className="size-10 rounded-md object-cover"
+                    // โหลดไม่ขึ้น → กิ่งเดียวกับ "ไม่มีรูป" (กล่องเทา) ไม่ใช่กล่องขาวเปล่า
+                    onError={() => setPostThumbBroken(true)}
+                  />
+                ) : (
+                  <span className="bg-default-100 text-default-700 flex size-10 items-center justify-center rounded-md">
+                    <Icon icon="photo" className="text-lg" aria-hidden="true" />
+                  </span>
+                )}
+                {isVideoPost(commentOrigin.postMediaType) && (
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <span className="flex size-5 items-center justify-center rounded-full bg-black/50 text-white">
+                      <Icon icon="player-play-filled" className="text-2xs" aria-hidden="true" />
+                    </span>
+                  </span>
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-default-500 mb-0.5 flex items-center gap-1.5 text-2xs">
+                  <Icon icon="photo" className="size-3 shrink-0" aria-hidden="true" />
+                  <span>โพสต์ต้นฉบับ</span>
+                </div>
+                {/* ตัด 2 บรรทัด — โพสต์ของร้านยาวมากและมีแฮชแท็กพ่วงท้ายเป็นสิบ การ์ดนี้เป็น
+                    บริบทประกอบ ไม่ใช่เนื้อหาหลัก จึงไม่ต้องมี "อ่านเพิ่มเติม"
+                    คำว่า "โพสต์ไม่มีข้อความ" ยกมาจากรายการคอมเมนต์คำต่อคำ (HR16) */}
+                <p className="text-default-700 mb-0 line-clamp-2 text-xs">
+                  {commentOrigin.postMessage?.trim() || 'โพสต์ไม่มีข้อความ'}
+                </p>
+              </div>
+            </div>
             <div className="text-default-500 mb-1.5 flex items-center gap-1.5 text-xs">
               <Icon icon="message-2" className="size-3.5 shrink-0" aria-hidden="true" />
               <span>ลูกค้าคอมเมนต์ใต้โพสต์</span>

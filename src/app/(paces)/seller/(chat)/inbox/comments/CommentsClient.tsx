@@ -32,6 +32,8 @@ import PrivateReplyModal from './PrivateReplyModal'
 import EmojiPicker from '../[conversationId]/components/EmojiPicker'
 import { subscribeShopComments } from '@/lib/comment-realtime'
 import { visibleTopLevelComments } from '@/lib/comment-tree-visibility'
+// ย้ายออกจากไฟล์นี้เมื่อ 2026-08-10 ตอนการ์ดคอมเมนต์ต้นเหตุในห้องแชทต้องใช้กติกาเดียวกัน (HR16)
+import { isVideoPost } from '@/lib/facebook-post'
 import ListBusyOverlay, { useListBusy } from '@/app/(paces)/seller/(dashboard)/_shared/ListBusyOverlay'
 import { ChannelBadgeOverlay, getChannelDisplay } from '../components/ChannelBadge'
 import CommentsFilterPanel, {
@@ -129,11 +131,6 @@ function pickRelevantComment(list: CommentItem[]): CommentItem | null {
     byNewest[0] ??
     null
   )
-}
-
-/** โพสต์วิดีโอหรือเปล่า — Graph ส่ง media_type เป็น 'video' ส่วน status_type เก่าใช้ 'added_video' */
-function isVideoPost(mediaType: string | null | undefined): boolean {
-  return !!mediaType && (mediaType === 'video' || mediaType.includes('video'))
 }
 
 /**

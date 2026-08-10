@@ -54,6 +54,7 @@ import { BOOKING_ORDER_TYPE } from '@/services/booking.service'
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from '@/lib/lodging'
 import { maskPhone } from '@/lib/phone-mask'
 import { findConversationShopForUser } from '@/services/chat.service'
+import { resolvePostThumbnail } from '@/services/page-comment.service'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
 import ChatShopAutoSwitch from './components/ChatShopAutoSwitch'
 import ChatThread from './components/ChatThread'
@@ -312,7 +313,11 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           attachmentUrl: true,
           createdTime: true,
           externalCommentId: true,
-          post: { select: { permalink: true } },
+          // ดึงโพสต์มาแสดงในการ์ดด้วย (user 2026-08-10 "อยากให้เอา รูป Posts มาแสดงด้วย
+          // ว่าเค้า Post จากไหน เหมือน ads พร้อม ชื่อ Posts")
+          // 🛑 ต้องเอา mirroredFileId มาด้วยเสมอ ห้ามใช้ thumbnailUrl เดี่ยว ๆ — URL ของ fbcdn
+          // หมดอายุ ~4 วัน (ดู resolvePostThumbnail)
+          post: { select: { permalink: true, message: true, thumbnailUrl: true, mirroredFileId: true, mediaType: true } },
         },
       },
     },
@@ -334,6 +339,10 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         message: commentOriginLog.comment.message,
         attachmentUrl: commentOriginLog.comment.attachmentUrl,
         createdTime: commentOriginLog.comment.createdTime.toISOString(),
+        postMessage: commentOriginLog.comment.post.message,
+        // สำเนาที่เราเก็บเองชนะ URL ของ Meta เสมอ — SSOT ตัวเดียวกับที่รายการคอมเมนต์ใช้
+        postThumbnailUrl: resolvePostThumbnail(commentOriginLog.comment.post),
+        postMediaType: commentOriginLog.comment.post.mediaType,
         url: (() => {
           const permalink = commentOriginLog.comment.post?.permalink
           if (!permalink) return null
