@@ -33,6 +33,31 @@ vi.mock('@/services/shop-channel.service', () => ({
   getChannelByExternalId: vi.fn(),
   markChannelTokenInvalid: vi.fn(),
 }))
+
+// (S-9) โควตา — mock ทั้ง service (ตรรกะ cache/TTL มีเทสของตัวเองที่ line-quota.service.test.ts)
+// ค่าเริ่มต้นของทุกเทสในไฟล์นี้คือ "ยังไม่รู้โควตา" (UNKNOWN) ซึ่งต้อง **ไม่บล็อกอะไรเลย** — ถ้าวันไหน
+// มีคนทำให้ UNKNOWN บล็อก เทสเดิมทั้งไฟล์นี้จะแดงทันที ไม่ใช่แค่เทสของ S-9
+const quota = vi.hoisted(() => ({
+  getLineQuota: vi.fn(),
+  noteLinePushConsumed: vi.fn(),
+  invalidateLineQuota: vi.fn(),
+}))
+vi.mock('@/services/line-quota.service', () => quota)
+
+/** ค่าตั้งต้นของทุกเทสในไฟล์นี้ = "ยังไม่รู้โควตา" (LINE ยังไม่เคยตอบ) — ต้องส่งได้ตามปกติ (TD-006) */
+function resetQuotaMocks() {
+  quota.getLineQuota.mockResolvedValue({
+    type: 'unknown',
+    total: null,
+    used: null,
+    remaining: null,
+    level: 'UNKNOWN',
+    fetchedAt: null,
+    stale: true,
+  })
+  quota.noteLinePushConsumed.mockResolvedValue(undefined)
+  quota.invalidateLineQuota.mockResolvedValue(undefined)
+}
 // accessTokenEnc mock ('enc') ไม่ใช่ payload รูปแบบ iv.tag.data จริง — mock decryptToken
 // กันชน CHANNEL_TOKEN_MALFORMED (สนใจแค่ flow ของ sendOutboundMessage ไม่ใช่ crypto จริง)
 vi.mock('@/lib/token-crypto', () => ({ decryptToken: vi.fn().mockReturnValue('line-token-plain') }))
@@ -83,6 +108,7 @@ describe('sendOutboundMessage — LINE (S-8, TFR-LINE-05/06)', () => {
     db.conversation.update.mockResolvedValue({})
     db.externalContact.update.mockResolvedValue({})
     lineAdapter.sendMessages.mockResolvedValue({ externalMessageId: 'line-mid-1' })
+    resetQuotaMocks()
   })
 
   it('อยู่ในหน้าต่าง reply (replyToken ยังไม่ถูกใช้ + ไม่หมดอายุ) → ใช้ reply ไม่กินโควตา, sendMethod=REPLY', async () => {
@@ -174,12 +200,14 @@ describe('sendOutboundMessage — LINE (S-8, TFR-LINE-05/06)', () => {
     expect(markChannelTokenInvalid).toHaveBeenCalledWith('ch1')
   })
 
-  it('LINE ตอบ 429 (โควตาหมด) → QUOTA_EXCEEDED', async () => {
+  it('LINE ตอบ 429 (โควตาหมด) → QUOTA_EXCEEDED + ล้าง cache โควตา (S-9)', async () => {
     lineAdapter.sendMessages.mockRejectedValue(new LineApiError('quota exceeded', 429, {}))
 
     await expect(
       sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' }),
     ).rejects.toThrow('QUOTA_EXCEEDED')
+    // ค่าที่ cache ไว้ขัดกับความจริงที่ LINE เพิ่งบอก — ต้องบังคับให้อ่านใหม่รอบหน้า (TFR-LINE-07)
+    expect(quota.invalidateLineQuota).toHaveBeenCalledWith('ch1')
   })
 
   it('LINE ตอบ 5xx → LINE_UNAVAILABLE', async () => {
@@ -270,6 +298,115 @@ describe('sendOutboundMessage — LINE (S-8, TFR-LINE-05/06)', () => {
   })
 })
 
+// ══════════════════════════════════════════════════════════════════════════
+// (S-9) โควตากับการตัดสินใจส่ง — TFR-LINE-06 ข้อ 5
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('sendOutboundMessage — LINE โควตา (S-9, TFR-LINE-06/07)', () => {
+  /** โควตาหมดจริง (รู้ตัวเลขแน่นอน) */
+  const exhausted = {
+    type: 'limited' as const,
+    total: 300,
+    used: 300,
+    remaining: 0,
+    level: 'EXHAUSTED' as const,
+    fetchedAt: new Date(now - 1000),
+    stale: false,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    db.$transaction.mockImplementation((fn: (t: typeof db) => unknown) => fn(db))
+    db.conversation.findUnique.mockResolvedValue(baseConversation())
+    db.conversation.updateMany.mockResolvedValue({ count: 1 })
+    db.shop.findUnique.mockResolvedValue({ userId: 'owner1', shopName: 'ร้าน' })
+    db.chatMessage.create.mockResolvedValue({ id: 'm1', createdAt: new Date() })
+    db.chatMessage.findUnique.mockResolvedValue(null)
+    db.chatMessage.findFirst.mockResolvedValue(null)
+    db.conversation.update.mockResolvedValue({})
+    db.externalContact.update.mockResolvedValue({})
+    lineAdapter.sendMessages.mockResolvedValue({ externalMessageId: 'line-mid-1' })
+    resetQuotaMocks()
+  })
+
+  it('[ห้ามข้าม] TC-15: โควตาหมด + พ้นหน้าต่างฟรี → QUOTA_EXCEEDED โดยไม่มี request ไป LINE เลย', async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      baseConversation({ replyTokenExpiresAt: new Date(now - REPLY_SAFETY_MARGIN_MS) }),
+    )
+    quota.getLineQuota.mockResolvedValue(exhausted)
+
+    await expect(
+      sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' }),
+    ).rejects.toThrow('QUOTA_EXCEEDED')
+    expect(lineAdapter.sendMessages).not.toHaveBeenCalled()
+    expect(db.chatMessage.create).not.toHaveBeenCalled()
+  })
+
+  it('[ห้ามข้าม] TC-28: โควตาหมดแต่ยังอยู่ในหน้าต่างฟรี → ส่งได้ตามปกติด้วย reply (reply ไม่กินโควตา)', async () => {
+    // 🛑 เคสที่ implement ผิดง่ายที่สุดตามที่ TestCase.md เตือนเอง — mutation: ย้ายด่านโควตาออกมา
+    // นอก `if (sendMethod === 'PUSH')` แล้วข้อนี้แดงทันที
+    quota.getLineQuota.mockResolvedValue(exhausted)
+
+    await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' })
+
+    const data = db.chatMessage.create.mock.calls[0]![0].data
+    expect(data.sendMethod).toBe('REPLY')
+    expect(data.deliveryStatus).toBe('SENT')
+    // ส่งด้วย reply → ต้องไม่ไปแตะตัวนับโควตาเลย (ไม่งั้นเลขจะเดินทั้งที่ไม่ได้ใช้)
+    expect(quota.noteLinePushConsumed).not.toHaveBeenCalled()
+  })
+
+  it('โควตาเหลือน้อย (LOW) ยังส่งได้ตามปกติ — เป็นแค่คำเตือน ไม่ใช่ตัวบล็อก', async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      baseConversation({ replyTokenExpiresAt: new Date(now - REPLY_SAFETY_MARGIN_MS) }),
+    )
+    quota.getLineQuota.mockResolvedValue({ ...exhausted, used: 280, remaining: 20, level: 'LOW' })
+
+    await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' })
+
+    expect(lineAdapter.sendMessages).toHaveBeenCalledTimes(1)
+    expect(db.chatMessage.create.mock.calls[0]![0].data.sendMethod).toBe('PUSH')
+  })
+
+  it('[ห้ามข้าม] อ่านโควตาไม่ได้ (UNKNOWN/stale) → ต้องไม่บล็อก ปล่อยให้ LINE ตัดสิน (TD-006)', async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      baseConversation({ replyTokenExpiresAt: new Date(now - REPLY_SAFETY_MARGIN_MS) }),
+    )
+    // getLineQuota คืน UNKNOWN อยู่แล้วตาม resetQuotaMocks()
+    await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' })
+
+    expect(lineAdapter.sendMessages).toHaveBeenCalledTimes(1)
+  })
+
+  it('push สำเร็จ → นับโควตาที่ใช้ไป 1 ครั้งต่อ 1 คำขอ (ไม่ต้องรอ TTL หมดอายุ)', async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      baseConversation({ replyTokenExpiresAt: new Date(now - REPLY_SAFETY_MARGIN_MS) }),
+    )
+
+    await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' })
+
+    expect(quota.noteLinePushConsumed).toHaveBeenCalledTimes(1)
+    expect(quota.noteLinePushConsumed).toHaveBeenCalledWith('ch1')
+  })
+
+  it('push ล้มเหลว → ห้ามนับโควตา (ยังไม่มีอะไรถูกหักจริง)', async () => {
+    db.conversation.findUnique.mockResolvedValue(
+      baseConversation({ replyTokenExpiresAt: new Date(now - REPLY_SAFETY_MARGIN_MS) }),
+    )
+    lineAdapter.sendMessages.mockRejectedValue(new LineApiError('bad request', 400, { message: 'invalid' }))
+
+    await expect(
+      sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' }),
+    ).rejects.toThrow('SEND_FAILED')
+    expect(quota.noteLinePushConsumed).not.toHaveBeenCalled()
+  })
+
+  it('ไม่เช็คโควตาเลยเมื่อส่งด้วย reply (ไม่เสีย round-trip ไป LINE โดยไม่จำเป็น)', async () => {
+    await sendOutboundMessage({ conversationId: 'conv1', actorUserId: 'owner1', text: 'hi' })
+    expect(quota.getLineQuota).not.toHaveBeenCalled()
+  })
+})
+
 describe('sendOutboundMessage — LINE quote reply (S-18a)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -282,6 +419,7 @@ describe('sendOutboundMessage — LINE quote reply (S-18a)', () => {
     db.conversation.update.mockResolvedValue({})
     db.externalContact.update.mockResolvedValue({})
     lineAdapter.sendMessages.mockResolvedValue({ externalMessageId: 'line-mid-1' })
+    resetQuotaMocks()
   })
 
   it('เจอ quoteToken ของข้อความที่ตอบทับ (rawMessage.payload.quoteToken) → ส่งไปกับ ctx.quoteToken', async () => {

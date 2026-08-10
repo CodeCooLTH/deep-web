@@ -4,7 +4,8 @@
 // ไม่รู้จัก Prisma/DB (ตาม scope baseline S-4 "ไม่ทำ")
 
 import { lineApiRequest, lineDataApiRequest } from '@/lib/line/client'
-import { MAX_PARTS, REPLY_WINDOW_MS } from '@/lib/line/constants'
+import { MAX_PARTS, QUOTA_FETCH_TIMEOUT_MS, REPLY_WINDOW_MS } from '@/lib/line/constants'
+import type { LineQuotaRead } from '@/lib/line/quota'
 import type {
   ChannelAdapter,
   ChannelCapabilities,
@@ -182,6 +183,41 @@ async function downloadContent(ctx: ChannelContext, ref: DownloadContentRef): Pr
   const contentType = res.headers.get('content-type')
   const data = Buffer.from(await res.arrayBuffer())
   return { url: null, content: { data, contentType } }
+}
+
+/**
+ * (S-9, TFR-LINE-07) อ่านโควตาข้อความรายเดือนจาก LINE — **ไม่ได้อยู่ใน `ChannelAdapter`** โดยตั้งใจ
+ *
+ * เพราะ "โควตารายเดือนต่อบัญชี" เป็นแนวคิดที่ Meta ไม่มีเลย (Messenger/IG ไม่จำกัดจำนวนข้อความ
+ * แต่จำกัด *หน้าต่างเวลา* แทน) การยัดเป็น optional method บนสัญญากลางจะทำให้ทุก provider ในอนาคต
+ * ต้องตอบคำถามที่ไม่เกี่ยวกับตัวเอง — ผู้เรียกคือ `line-quota.service.ts` ซึ่งเป็นของ LINE ล้วนอยู่แล้ว
+ *
+ * โยน error เสมอเมื่ออ่านไม่สำเร็จ (LineApiError จาก client หรือ Error ธรรมดาเมื่อ payload ผิดรูป) —
+ * 🛑 **ห้ามกลืน error เป็น "ไม่จำกัด"** เพราะปลายทางจะแยกไม่ออกระหว่าง "แพ็กเกจไม่จำกัดจริง" กับ
+ * "อ่านไม่ได้" ซึ่งอันหลังต้องกลายเป็น UNKNOWN (TD-006) ผู้เรียกเป็นคนแปลง error → UNKNOWN เอง
+ */
+export async function fetchLineQuota(ctx: ChannelContext): Promise<Exclude<LineQuotaRead, { kind: 'UNKNOWN' }>> {
+  // ยิงขนานกัน — สองคำขอนี้ไม่ขึ้นต่อกัน และมันอยู่บนเส้นทางกดส่งด้วย (TFR-LINE-06 ข้อ 5)
+  // การต่อคิวกันจะเพิ่มเวลารอของผู้ใช้เป็นสองเท่าโดยไม่ได้อะไรกลับมา
+  const [quota, consumption] = await Promise.all([
+    lineApiRequest('/v2/bot/message/quota', ctx.accessToken, { timeoutMs: QUOTA_FETCH_TIMEOUT_MS }),
+    lineApiRequest('/v2/bot/message/quota/consumption', ctx.accessToken, { timeoutMs: QUOTA_FETCH_TIMEOUT_MS }),
+  ])
+
+  // LINE ตอบ `type: 'none' | 'limited'` — 'none' = ไม่มีเพดาน (แพ็กเกจไม่จำกัด) ไม่ใช่ "ไม่มีโควตา
+  // เหลือ" ตามที่ชื่ออ่านเหมือน. ค่าที่ไม่รู้จักในอนาคตให้ตกมาทาง 'limited' ไม่ได้ — ถือเป็นไม่จำกัด
+  // (allow-list: บล็อกได้เฉพาะเมื่อรู้ตัวเลขจริงเท่านั้น)
+  if (quota.type !== 'limited') return { kind: 'UNLIMITED' }
+
+  const total = Number(quota.value)
+  const used = Number(consumption.totalUsage)
+  if (!Number.isFinite(total)) {
+    throw new Error('fetchLineQuota: LINE ตอบ type=limited แต่ไม่มี value ที่เป็นตัวเลข')
+  }
+  // อ่าน totalUsage ไม่ได้ = ยังไม่รู้ว่าใช้ไปเท่าไหร่ → นับเป็น 0 (คือ "เหลือเต็มเพดาน") ซึ่งเป็น
+  // ฝั่งที่ปลอดภัยกว่าสำหรับผู้ใช้: ผิดทางนี้ = ปล่อยให้กดส่งแล้ว LINE ปฏิเสธเอง (มีเส้นทาง error
+  // รองรับ) ส่วนผิดอีกทาง = บล็อกร้านไม่ให้ตอบลูกค้าด้วยตัวเลขที่เราอ่านไม่ได้
+  return { kind: 'LIMITED', total, used: Number.isFinite(used) ? used : 0 }
 }
 
 export const LineAdapter: ChannelAdapter = {

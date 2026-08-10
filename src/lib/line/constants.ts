@@ -26,6 +26,18 @@ export const MAX_PARTS = 5
 /** อายุ cache ของโควตาที่ดึงจาก LINE (ms) — ไม่ยิง LINE ซ้ำถ้า cache ยังไม่หมดอายุ (TD-006) */
 export const QUOTA_TTL_MS = 300_000
 
+/** timeout ของคำขออ่านโควตา (ms) — สั้นกว่า DEFAULT_TIMEOUT_MS (10s) ของ line/client.ts โดยตั้งใจ
+ *  เพราะการอ่านโควตาอยู่ "บนเส้นทางกดส่ง" ด้วย (TFR-LINE-06 ข้อ 5) ถ้า LINE อืด ผู้ใช้จะรู้สึกว่า
+ *  ปุ่มส่งค้าง ทั้งที่ผลของการอ่านนี้ *ไม่มีอำนาจบล็อกการส่ง* อยู่แล้วเมื่ออ่านไม่สำเร็จ (TD-006) —
+ *  ยอมแพ้เร็วแล้วปล่อยให้ LINE เป็นผู้ตัดสินตอนยิงจริง ดีกว่ารอค่าที่ไม่ได้ใช้ตัดสินอะไร */
+export const QUOTA_FETCH_TIMEOUT_MS = 5_000
+
+/** เกณฑ์ "โควตาเหลือน้อย" — เหลือ ≤ 20% ของเพดานเดือนนั้น (user เคาะเอง 2026-08-10)
+ *  🛑 ค่านี้ตัดสิน *สิ่งที่ผู้ใช้เห็น* (มาตรวัดเปลี่ยนเป็นโทนเตือน) จึงต้องอยู่ที่เดียวและถูกอ่าน
+ *  ผ่าน `classifyLineQuota()` ใน lib/line/quota.ts เท่านั้น — ห้ามเขียน `remaining / total < 0.2`
+ *  เองที่ component ไหน (ui-boolean-needs-a-testable-home.md) */
+export const QUOTA_LOW_RATIO = 0.2
+
 /** เพดานเวลาที่ระบบตอบอัตโนมัติต้องทำให้จบ นับจาก event.timestamp (ms) — เกินนี้ต้องยกเลิกงาน
  *  และห้าม fallback เป็น push โดยเด็ดขาด (NFR-8, TD-007, S-12) */
 export const AUTO_REPLY_DEADLINE_MS = 40_000

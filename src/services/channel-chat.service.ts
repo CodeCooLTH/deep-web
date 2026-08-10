@@ -11,6 +11,10 @@ import { MetaAdapter } from '@/lib/channels/meta-adapter'
 // ChatMessage.externalMessageId ของ LINE ห้ามประกอบ string นี้เองที่ไฟล์นี้
 import { LineAdapter, buildLineExternalMessageId } from '@/lib/channels/line-adapter'
 import { REPLY_WINDOW_MS, REPLY_SAFETY_MARGIN_MS } from '@/lib/line/constants'
+// (S-9, feature 00025 TFR-LINE-06 ข้อ 5 / TFR-LINE-07) โควตา LINE — service เป็นเจ้าของ cache/TTL
+// ส่วน shouldBlockLinePush เป็นฟังก์ชันบริสุทธิ์ที่ถือกติกา "อะไรบ้างที่ห้ามส่ง" ไว้ที่เดียว
+import { getLineQuota, noteLinePushConsumed, invalidateLineQuota } from '@/services/line-quota.service'
+import { shouldBlockLinePush } from '@/lib/line/quota'
 // (S-18a) SSOT ของสติกเกอร์ LINE ที่ยิงออกผ่าน Messaging API ได้จริง — ห้ามเดา packageId เอง
 import { findLineStickerPackageId } from '@/lib/line/stickers'
 // (S-8, feature 00025) LineApiError — ต้องอ่าน status/raw ของ error จริงเพื่อจำแนกเป็นรหัสทางธุรกิจ
@@ -2653,9 +2657,21 @@ async function sendOutboundLineMessage(
     }
   }
 
-  // S-9 (quota service) ยังไม่ทำในรอบนี้ (scope baseline S-8 "ไม่ทำ") — จุดที่ S-9 จะเสียบ "เช็ค
-  // cache โควตาก่อนยิง push แล้ว throw QUOTA_EXCEEDED โดยไม่ยิง LINE" คือตรงนี้พอดี (ก่อน attemptSend
-  // ด้านล่างเมื่อ sendMethod === 'PUSH') — ตอนนี้ปล่อยให้ LINE เป็นผู้ตัดสินแทน (TFR-LINE-06 หมายเหตุ)
+  // ── TFR-LINE-06 ข้อ 5 (S-9): โควตาหมด = ห้ามยิง LINE ─────────────────────
+  //
+  // 🛑 เช็คเฉพาะตอนที่ *จะส่งด้วย push จริง* เท่านั้น — reply ไม่กินโควตา (TC-28: โควตาหมดแต่ยัง
+  // อยู่ในหน้าต่างฟรี ต้องส่งได้ตามปกติ ซึ่ง TestCase.md เตือนเองว่าเป็นเคสที่ implement ผิดง่ายที่สุด
+  // เพราะคนมักบล็อกรวมด้วยเงื่อนไขโควตาเดียว) — เงื่อนไข `sendMethod === 'PUSH'` ข้างล่างคือด่านนั้น
+  //
+  // อ่านไม่ได้/ไม่เคยอ่าน → `shouldBlockLinePush` คืน false เสมอ = ส่งต่อไปให้ LINE ตัดสิน (TD-006)
+  if (sendMethod === 'PUSH') {
+    const quota = await getLineQuota(shopChannel)
+    if (shouldBlockLinePush(quota.level)) {
+      // ไม่มี request ไป LINE เลยในเส้นทางนี้ (TC-15) — โยนรหัสเดียวกับตอนที่ LINE เป็นคนปฏิเสธ
+      // เพื่อให้ route/หน้าจอมีทางเดียวที่ต้องรองรับ ไม่ใช่สองรหัสที่แปลว่าเรื่องเดียวกัน
+      throw new Error('QUOTA_EXCEEDED')
+    }
+  }
 
   // (S-18a) quote reply — หา quoteToken ของ "ข้อความที่กำลังตอบทับ" จาก ChatMessage.rawMessage ที่เก็บ
   // ไว้แล้ว (ทั้งขาเข้าตอน ingest และขาออกตอนเราส่งเอง เก็บที่ payload.quoteToken เหมือนกัน — ดู
@@ -2747,8 +2763,9 @@ async function sendOutboundLineMessage(
       await prisma.externalContact.update({ where: { id: externalContact.id }, data: { isBlocked: true } })
       throw new Error('CONTACT_BLOCKED')
     } else if (code === 'QUOTA_EXCEEDED') {
-      // TODO(S-9): invalidate ShopChannel.quotaValue/quotaUsed cache ที่นี่เมื่อ line-quota.service
-      // มีอยู่จริง (TFR-LINE-07) — ตอนนี้ยังไม่มี write-path ที่มีความหมายให้ invalidate
+      // (S-9, TFR-LINE-07) LINE ปฏิเสธเพราะโควตา ทั้งที่ cache ฝั่งเราเพิ่งบอกว่ายังส่งได้ (ไม่งั้น
+      // เราคงถูกบล็อกไปตั้งแต่ด่านข้างบนแล้ว) — ค่าที่เก็บไว้ผิดแน่นอน ล้างให้อ่านใหม่รอบหน้า
+      await invalidateLineQuota(shopChannel.id)
       throw new Error('QUOTA_EXCEEDED')
     } else if (code === 'LINE_UNAVAILABLE') {
       throw new Error('LINE_UNAVAILABLE')
@@ -2775,6 +2792,12 @@ async function sendOutboundLineMessage(
       // ถูกอ้าง (quote) ต่อได้ในรอบถัดไป (อ่านคืนผ่าน payload.quoteToken เหมือนขาเข้าทุกประการ)
       quoteToken: sentQuoteToken ?? null,
     }
+
+    // (S-9, TFR-LINE-07) push สำเร็จ = โควตาถูกหักไป 1 แล้วจริง ๆ ที่ฝั่ง LINE — อัปเดต cache ทันที
+    // แทนการรอ TTL หมดอายุ ไม่งั้นมาตรวัดจะค้างเลขเดิมนานถึง 5 นาทีทั้งที่ร้านเพิ่งกดส่งไปหลายใบ
+    // (นับต่อ "คำขอ" ไม่ใช่ต่อชิ้นข้อความ — ดู comment ของ noteLinePushConsumed)
+    // 🛑 เรียกเฉพาะเมื่อ mid มีค่า (= LINE รับแล้ว) และวิธีส่งจริงเป็น push — reply ไม่กินโควตา
+    if (sendMethod === 'PUSH') await noteLinePushConsumed(shopChannel.id)
   }
 
   // (S-18a) สติกเกอร์เก็บเป็นแถวชนิด IMAGE + mirror รูปจริงมาไว้ storage ของเรา — เส้นทางเดียวกับสติกเกอร์
