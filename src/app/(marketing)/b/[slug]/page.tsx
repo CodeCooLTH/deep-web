@@ -153,6 +153,8 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     price: p.price.toFixed(2),
     soldCount: soldByProduct.get(p.id) ?? 0,
     imageUrl: (p.images as string[])[0] ?? null,
+    // teaser ที่ผู้ขายเขียนไว้สำหรับการ์ดสินค้าโดยเฉพาะ (≤200 ตัวอักษร) — ไม่ใช่ description เต็ม
+    shortDescription: p.shortDescription,
   })
 
   const publicServices = rawServices.map(serializeServiceResource)
@@ -252,11 +254,14 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               // บรรทัดนี้อยู่ติดกับ @username และวันเปิดร้าน ผู้ซื้อใช้อ่านยืนยันว่ามาถูกร้าน
               category: shopCategoryLabel(shop.category),
               memberSince: formatMonthYearTH(shop.createdAt),
+              // imageUrl = artwork จริงของเหรียญ — `achievements` ด้านบนส่งอยู่แล้ว แต่ hero ไม่เคยส่ง
+              // ชิปเหรียญในหัวจึงตกไปใช้ไอคอนเส้น fallback ตลอดเวลา ทั้งที่รูปมีอยู่ในโปรเจกต์
               badges: businessBadges.map((ub) => ({
                 id: ub.id,
                 name: ub.badge.name,
                 nameEN: ub.badge.nameEN,
                 icon: ub.badge.icon ?? '',
+                imageUrl: ub.badge.imageUrl ?? null,
               })),
               totalBadgeCount: businessBadges.length,
               completedOrders: profileStats.completedOrders,

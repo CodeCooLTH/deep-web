@@ -165,6 +165,8 @@ export default async function PublicProfilePage({ params }: Props) {
     price: p.price.toFixed(2),
     soldCount: soldByProduct.get(p.id) ?? 0,
     imageUrl: (p.images as string[])[0] ?? null,
+    // teaser ที่ผู้ขายเขียนไว้สำหรับการ์ดสินค้าโดยเฉพาะ (≤200 ตัวอักษร) — ไม่ใช่ description เต็ม
+    shortDescription: p.shortDescription,
   })
   const pinnedProducts: SerializedProduct[] = rawPinnedProducts.map(serializeProductRow)
   const otherProducts: SerializedProduct[] = rawOtherProducts.map(serializeProductRow)
@@ -267,11 +269,13 @@ export default async function PublicProfilePage({ params }: Props) {
               // แก้ที่เดียวไม่พอเสมอ เพราะ public profile มี 2 เส้น)
               category: shopCategoryLabel(user.shop?.category),
               memberSince: formatMonthYearTH(user.createdAt),
+              // imageUrl = artwork จริงของเหรียญ (sync กับ /b/[slug] — แก้เส้นเดียวไม่พอเสมอ)
               badges: sellerContextBadges.map((ub) => ({
                 id: ub.id,
                 name: ub.badge.name,
                 nameEN: ub.badge.nameEN,
                 icon: ub.badge.icon ?? '',
+                imageUrl: ub.badge.imageUrl ?? null,
               })),
               totalBadgeCount: sellerContextBadges.length,
               completedOrders: profileStats?.completedOrders ?? null,

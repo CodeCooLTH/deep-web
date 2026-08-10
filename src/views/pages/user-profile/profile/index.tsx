@@ -41,6 +41,9 @@ export type SerializedProduct = {
   imageUrl: string | null
   /** จำนวนคำสั่งซื้อที่ยืนยันแล้ว (CONFIRMED) — 0 = ยังไม่มี ซึ่งจะไม่แสดงเลข ไม่ใช่แสดง 0 */
   soldCount: number
+  /** `Product.shortDescription` (≤200 ตัวอักษร) — ฟิลด์ที่ฝั่งผู้ขายเขียนกำกับไว้เองว่าเป็น teaser
+   *  สำหรับการ์ดสินค้าโดยเฉพาะ ไม่ใช่ `description` ที่ยาวไม่จำกัดและไม่มีหน้าให้กดดูต่อ */
+  shortDescription?: string | null
 }
 
 export type ProfileTabData = {
@@ -134,33 +137,38 @@ const ProductCard = ({
   const clickable = showAskButton
 
   return (
+    // 🛑 ไม่มี aria-label แล้ว (เดิมมี) — ชื่อ/ราคา/ยอดขาย/คำอธิบาย ตอนนี้เป็น text node ที่มองเห็นจริง
+    // ในปุ่มทั้งหมด การใส่ aria-label ทับจะ **บัง** ข้อความเหล่านั้นจาก screen reader ตามสเปก ARIA
+    // (คนตาบอดจะไม่ได้ยินคำอธิบายสินค้าเลย ทั้งที่คนตาดีอ่านได้) ปล่อยให้ accessible name คำนวณ
+    // จากเนื้อหาจริง แล้วเติมแค่ "สิ่งที่จะเกิดขึ้นเมื่อกด" เป็น sr-only ท้ายปุ่มแทน
+    // `title` ก็ถอดด้วย เพราะชื่อสินค้าไม่ได้ซ่อนอยู่แล้ว
     <Box
       component={clickable ? 'button' : 'div'}
       type={clickable ? 'button' : undefined}
       onClick={clickable ? handleAskClick : undefined}
-      aria-label={
-        clickable
-          ? `สอบถาม ${product.name} ราคา ${priceLabel}${product.soldCount > 0 ? ` ${soldLabel} ${product.soldCount} ${soldUnit}` : ''}`
-          : product.name
-      }
-      title={product.name}
       sx={{
-        position: 'relative',
-        aspectRatio: '1/1',
-        display: 'block',
+        display: 'flex',
+        flexDirection: 'column',
         inlineSize: '100%',
         overflow: 'hidden',
-        border: 0,
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: '8px',
         padding: 0,
         margin: 0,
+        textAlign: 'start',
         // <button> ไม่สืบทอด font จาก body (UA stylesheet ตั้ง Arial ให้ form control ทุกตัว)
         fontFamily: 'inherit',
-        bgcolor: 'background.default',
+        bgcolor: 'background.paper',
         cursor: clickable ? 'pointer' : 'default',
         '&:hover .askOverlay': { opacity: 1 },
-        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '-2px' },
+        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: '2px' },
       }}
     >
+      {/* โซนรูป — ของที่ลอยทับ (ป้ายปักหมุด/ราคา/ยอดขาย/overlay ตอน hover) ต้องอยู่ในกล่องนี้เท่านั้น
+          ถ้าปล่อยให้ overlay ครอบทั้งปุ่มเหมือนเดิม มันจะทับชื่อ+คำอธิบายที่เพิ่งเพิ่มเข้ามาตอน hover
+          = ปิดบังสิ่งที่เพิ่งทำให้อ่านง่ายขึ้นพอดี */}
+      <Box sx={{ position: 'relative', aspectRatio: '1/1', inlineSize: '100%', overflow: 'hidden', bgcolor: 'background.default' }}>
       {imageSrc && !imgFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -175,9 +183,9 @@ const ProductCard = ({
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
       ) : (
-        // กริดชิดกันแบบ IG ใช้ได้เพราะทุกช่องเป็นรูปที่ขอบตัดกันเอง — สินค้าที่ไม่มีรูปเป็นพื้นเรียบ
-        // สีเดียว วางติดกันหลายช่องแล้วกลายเป็นแผ่นเทาผืนเดียว แยกไม่ออกว่ามีกี่ชิ้น จึงตีเส้นในตัว
-        // เฉพาะช่องที่ไม่มีรูป (ช่องที่มีรูปไม่ต้อง เดี๋ยวจะเป็นตารางกรอบซึ่งขัดกับที่ตั้งใจ)
+        // ไม่ต้องตีเส้นในตัวเองแล้ว (เดิมมี inset ring) — การ์ดมีขอบล้อมรอบอยู่แล้ว ไทล์ที่ไม่มีรูป
+        // จึงอ่านเป็น "สินค้าที่ยังไม่ใส่รูป" ไม่ใช่ "แผ่นเทาผืนเดียวที่แยกไม่ออกว่ามีกี่ชิ้น"
+        // ซึ่งเป็นปัญหาเฉพาะของกริดชิดขอบแบบเดิม
         <Box
           sx={{
             inlineSize: '100%',
@@ -186,7 +194,6 @@ const ProductCard = ({
             alignItems: 'center',
             justifyContent: 'center',
             color: '#808390',
-            boxShadow: 'inset 0 0 0 1px rgb(47 43 61 / .12)',
           }}
         >
           <Icon icon='tabler-photo' fontSize={30} />
@@ -296,6 +303,51 @@ const ProductCard = ({
           </Box>
         </Box>
       )}
+      </Box>
+
+      {/* โซนเนื้อหา — ชื่อ+คำอธิบายอยู่บนพื้นเรียบ ไม่ใช่ลอยบนรูป (user 2026-08-09 เคาะให้ราคายัง
+          อยู่บนรูป ส่วนชื่อ/คำอธิบายอยู่ใต้) เหตุผลเชิงเทคนิค: ราคา/ยอดขายสั้นและคุมความยาวได้
+          จึงรับประกันคอนทราสต์บนสกริมได้ ส่วนชื่อ+คำอธิบายยาวไม่จำกัดและทับรูปที่สว่าง/มืดไม่แน่นอน
+          ไม่มีทางการันตี AA 4.5:1 ได้ทุกใบ */}
+      <Box sx={{ p: '10px' }}>
+        <Box
+          component='span'
+          sx={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            fontSize: '13px',
+            fontWeight: 600,
+            color: 'text.primary',
+          }}
+        >
+          {product.name}
+        </Box>
+        {/* ไม่ render บรรทัดนี้เลยเมื่อไม่มีคำอธิบาย — ไม่ใช่เว้นที่ว่างไว้ให้การ์ดสูงเท่ากัน */}
+        {product.shortDescription && (
+          <Box
+            component='span'
+            sx={{
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              fontSize: '13px',
+              color: 'text.secondary',
+              mt: '2px',
+            }}
+          >
+            {product.shortDescription}
+          </Box>
+        )}
+        {/* บอก screen reader ว่ากดแล้วเกิดอะไร — ข้อมูลสินค้าอ่านจาก text จริงด้านบนอยู่แล้ว */}
+        {clickable && (
+          <Box component='span' className='sr-only'>
+            สอบถามสินค้านี้
+          </Box>
+        )}
+      </Box>
     </Box>
   )
 }
@@ -366,9 +418,8 @@ export const ProfileRightContent = ({
                   //
                   // -20px = หัก pli-5 ของ tab panel ให้ชนขอบคอนเทนเนอร์ (ค่าเดียวกับ -mli-5 ที่
                   // กริดคลิปใช้) panel padding คงที่ทุก breakpoint จึงไม่ต้องไล่ตาม breakpoint
-                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
-                  gap: 0,
-                  mx: '-20px',
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
+                  gap: '16px',
                 }}
               >
                 {pinnedProducts.map((product) => (
@@ -407,9 +458,8 @@ export const ProfileRightContent = ({
                   //
                   // -20px = หัก pli-5 ของ tab panel ให้ชนขอบคอนเทนเนอร์ (ค่าเดียวกับ -mli-5 ที่
                   // กริดคลิปใช้) panel padding คงที่ทุก breakpoint จึงไม่ต้องไล่ตาม breakpoint
-                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
-                  gap: 0,
-                  mx: '-20px',
+                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
+                  gap: '16px',
                 }}
               >
                 {otherProducts.map((product) => (

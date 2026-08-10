@@ -47,7 +47,10 @@ import { badgeIconName } from '@/lib/badge-icons'
 // หน้าจอจะบอกตัวเลขที่ไม่ตรงกับที่ระบบใช้จริง
 import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
 
-export type HeroBadge = { id: string; name: string; nameEN: string; icon: string }
+/** `imageUrl` = artwork จริงของเหรียญจาก backend — `icon` เป็นแค่ fallback เมื่อเหรียญนั้นยังไม่มีรูป
+ *  (badge-icons.ts เขียนกติกานี้ไว้เองว่า "ปกติ render รูป asset จาก badge.imageUrl" แต่ hero
+ *   ไม่เคยมี field นี้ให้ส่ง จึงตกไปใช้ fallback ตลอดเวลา ทั้งที่ artwork มีอยู่จริงในโปรเจกต์) */
+export type HeroBadge = { id: string; name: string; nameEN: string; icon: string; imageUrl?: string | null }
 
 export type ProfileHeroData = {
   shopName: string
@@ -165,6 +168,44 @@ function ProfileImg({
   // eslint-disable-next-line @next/next/no-img-element -- URL หลากโดเมน (storage/CDN/OAuth) ตาม pattern
   // ShopAvatar เดิมใน ChooseShopClient.tsx ที่ fallback initials เมื่อโหลดรูปไม่ได้
   return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />
+}
+
+/**
+ * BadgeArtwork — รูปเหรียญจริง แล้วค่อยตกไปที่ไอคอนเส้นเมื่อไม่มี/โหลดพัง
+ *
+ * ทำไมไม่ import `BadgeIcon` จาก (buyer-app)/_components ตรง ๆ ตามที่ ux เสนอ:
+ * ตัวนั้นบังคับ `objectFit:'cover'` ซึ่งเขียนไว้สำหรับกรอบวงกลม 32px ของหน้า /badges —
+ * artwork ของเหรียญเป็นภาพประกอบรูปเหรียญ/ริบบิ้น ไม่ใช่ภาพถ่ายสี่เหลี่ยม `cover` ในกรอบ 15px
+ * จะครอปขอบลายทิ้ง ที่นี่ต้อง `contain` และไม่ควรไปแก้ default ของ component กลาง
+ * เพราะบริบท 32px ที่อื่นอาจตั้งใจให้เต็มกรอบจริง ๆ
+ */
+function BadgeArtwork({
+  imageUrl,
+  nameEN,
+  icon,
+  alt,
+}: {
+  imageUrl?: string | null
+  nameEN: string
+  icon: string
+  alt: string
+}) {
+  const [failed, setFailed] = useState(false)
+  if (imageUrl && !failed) {
+    // eslint-disable-next-line @next/next/no-img-element -- asset ใน public/ + storage หลากโดเมน
+    return (
+      <img
+        src={imageUrl}
+        alt={alt}
+        width={15}
+        height={15}
+        loading='lazy'
+        onError={() => setFailed(true)}
+        style={{ width: 15, height: 15, objectFit: 'contain' }}
+      />
+    )
+  }
+  return <Icon icon={badgeIconName(nameEN, icon)} width={15} className='shrink-0 opacity-70' />
 }
 
 export default function ProfileHero({ data }: { data: ProfileHeroData }) {
@@ -351,8 +392,15 @@ export default function ProfileHero({ data }: { data: ProfileHeroData }) {
         <ul id='badge-list' className='flex justify-center gap-2 flex-wrap pli-5 pbe-3.5 m-0 p-0 list-none'>
           {shownBadges.map((b) => (
             <li key={b.id}>
-              <span className='inline-flex items-center gap-1.5 rounded-full plb-1 pli-2.5 text-[13px] font-medium bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-primary)]'>
-                <Icon icon={badgeIconName(b.nameEN, b.icon)} width={15} className='shrink-0 opacity-70' />
+              {/* 🛑 "กรอบวงกลมขาวขนาดคงที่" คือหัวใจของข้อนี้ ไม่ใช่แค่สลับ Icon เป็น img
+                  แถวเดียวจะมีทั้งเหรียญที่มี artwork (มีสีสัน) และเหรียญที่ยังไม่มี (ไอคอนเส้นสีเทา)
+                  ปนกันแน่นอน — ถ้าปล่อยลอยบนพื้นชิปตรง ๆ สองแบบจะอ่านเป็น "คนละชนิดของ" ทันที
+                  ใส่กรอบเดียวกันให้ทั้งคู่ ตาเห็น "ช่องใส่เหรียญ" ก่อน แล้วค่อยเห็นว่าข้างในมีรูปไหม
+                  (pattern เดียวกับหน้า /badges ของผู้ซื้อที่ห่อทั้ง img/icon ด้วยวงกลมสีอ่อน) */}
+              <span className='inline-flex items-center gap-1.5 rounded-full plb-1 pli-2.5 pis-1 text-[13px] font-medium bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-primary)]'>
+                <span className='is-[22px] bs-[22px] rounded-full bg-[var(--mui-palette-background-paper)] flex items-center justify-center shrink-0'>
+                  <BadgeArtwork imageUrl={b.imageUrl} nameEN={b.nameEN} icon={b.icon} alt={b.name} />
+                </span>
                 {b.name}
               </span>
             </li>
