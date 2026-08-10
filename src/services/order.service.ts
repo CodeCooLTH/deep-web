@@ -10,6 +10,8 @@ import { isCancelReason, resolveShopVertical } from "@/lib/lodging";
 import { isValidCancelReason, BUYER_SELF_CANCEL_REASON } from "@/lib/cancel-reasons";
 import { deriveShippingStage } from "@/lib/order-stage";
 import { shopShipsGoods } from "@/lib/shipping-address-status";
+import { shouldRelinkThreadCustomer } from "@/lib/thread-customer-link";
+import { canRenameCustomerPhone } from "@/lib/customer-phone-edit";
 import { resolvePaymentSync } from "@/lib/iship/payment-sync";
 import { formatOrderNo } from "@/lib/order-no";
 import { recordOrderEvent } from "@/services/order-event.service";
@@ -101,6 +103,108 @@ export function genShortCode(len = 8): string {
  *    ใบเดียวไปเปลี่ยนต้นทุนอ้างอิงของสินค้าที่ตั้งไว้แล้วเงียบ ๆ (D-EXT-5)
  *  - ไม่กรอก = fallback ไป Product.cost ตามพฤติกรรมเดิมของ FR-EXP-02 ทุกประการ
  */
+/**
+ * relinkThreadCustomer — ให้ "ลูกค้าของเธรดแชท" ตามเบอร์ที่อยู่บนออเดอร์ใบที่เพิ่งบันทึก
+ *
+ * ต้องเรียกจาก **ทุกทางที่เขียน `Order.customerId` จากในแชท** (createOrder + updateOrder) ไม่งั้น
+ * ออเดอร์จะไปอยู่ใต้ Customer คนใหม่ตามเบอร์ที่ถูกต้อง ขณะที่แผงในห้องแชทยังถามหาออเดอร์ของคนเก่า
+ * → หน้าจอว่างเปล่าโดยไม่มี error (user report 2026-08-10 "แก้เบอร์แล้วข้อมูลคำสั่งซื้อหายไป")
+ *
+ * กติกาว่าจะย้ายหรือไม่อยู่ที่ `shouldRelinkThreadCustomer` (`src/lib/thread-customer-link.ts`) ที่เดียว
+ * ownership scope ด้วย `shopId` ใน WHERE ของ conversation เสมอ — กันผูกเธรดของร้านอื่น
+ */
+type ThreadContact = { id: string; customerId: string | null; customerUserId: string | null };
+
+/** ผู้ติดต่อของเธรดแชท — ownership scope ด้วย shopId ใน WHERE เสมอ (กันแตะเธรดของร้านอื่น) */
+async function findThreadContact(
+  tx: Prisma.TransactionClient,
+  shopId: string,
+  conversationId?: string,
+): Promise<ThreadContact | null> {
+  if (!conversationId) return null;
+  const conv = await tx.conversation.findFirst({
+    where: { id: conversationId, shopId },
+    select: {
+      externalContact: {
+        select: { id: true, customerId: true, customer: { select: { userId: true } } },
+      },
+    },
+  });
+  const contact = conv?.externalContact;
+  if (!contact) return null;
+  return { id: contact.id, customerId: contact.customerId, customerUserId: contact.customer?.userId ?? null };
+}
+
+async function relinkThreadCustomer(
+  tx: Prisma.TransactionClient,
+  contact: ThreadContact | null,
+  customerId: string | null,
+): Promise<void> {
+  if (!contact || !customerId) return;
+  const relink = shouldRelinkThreadCustomer({
+    linkedCustomerId: contact.customerId,
+    linkedCustomerUserId: contact.customerUserId,
+    newCustomerId: customerId,
+  });
+  if (!relink) return;
+  await tx.externalContact.update({ where: { id: contact.id }, data: { customerId } });
+}
+
+/**
+ * resolveCustomerForEditedOrder — "แก้เบอร์บนออเดอร์" ต้องได้ลูกค้าคนไหน (user 2026-08-10)
+ *
+ * ทางที่ user เคาะ: ถ้าแถวเดิมพิสูจน์ได้ว่าเป็นเศษจากการคีย์ผิด → **แก้เบอร์ในแถวเดิม** ลูกค้ายังเป็น
+ * คนเดิม id เดิม ประวัติ/เธรดไม่ต้องย้ายอะไรเลย (ตอบโจทย์ "2 เบอร์นี้ต้องเป็นคนเดียวกัน" ตรง ๆ)
+ * พิสูจน์ไม่ได้ → ถอยไปทางเดิม: หา/สร้าง Customer ของเบอร์ใหม่ แล้วให้เธรดย้ายตาม (relinkThreadCustomer)
+ *
+ * กติกาการพิสูจน์อยู่ที่ `canRenameCustomerPhone` (`src/lib/customer-phone-edit.ts`) ที่เดียว
+ */
+async function resolveCustomerForEditedOrder(
+  tx: Prisma.TransactionClient,
+  input: { orderId: string; currentCustomerId: string | null; newPhone: string; threadContactId?: string },
+): Promise<string> {
+  const { orderId, currentCustomerId, newPhone, threadContactId } = input;
+  if (!currentCustomerId) return findOrCreateCustomer(tx, newPhone);
+
+  const current = await tx.customer.findUnique({
+    where: { id: currentCustomerId },
+    select: { id: true, phone: true, userId: true },
+  });
+  // แถวเดิมหายไปแล้ว (customerId ถูก SET NULL/ลบ) → เส้นทางปกติ
+  if (!current) return findOrCreateCustomer(tx, newPhone);
+  // ไม่ได้แก้เบอร์ (กดบันทึกเฉย ๆ) → คนเดิม ไม่ต้องแตะอะไรทั้งสิ้น
+  if (current.phone === newPhone) return current.id;
+
+  const [otherOrderCount, otherContactCount, takenBy] = await Promise.all([
+    // ทุกร้านในระบบ ไม่ scope shopId — Customer เป็นตัวตนข้ามร้าน การเปลี่ยนเบอร์กระทบร้านอื่นด้วย
+    tx.order.count({ where: { customerId: current.id, id: { not: orderId } } }),
+    tx.externalContact.count({
+      where: { customerId: current.id, ...(threadContactId ? { id: { not: threadContactId } } : {}) },
+    }),
+    tx.customer.findUnique({ where: { phone: newPhone }, select: { id: true } }),
+  ]);
+
+  const rename = canRenameCustomerPhone({
+    hasLinkedUserAccount: current.userId != null,
+    otherOrderCount,
+    otherContactCount,
+    newPhoneTaken: takenBy != null,
+  });
+  if (!rename) return findOrCreateCustomer(tx, newPhone);
+
+  try {
+    await tx.customer.update({ where: { id: current.id }, data: { phone: newPhone } });
+    return current.id;
+  } catch (e) {
+    // แข่งกับอีกทรานแซกชันที่เพิ่งสร้างเบอร์นี้ไปเสี้ยววินาทีก่อน (เช็คข้างบนไม่ใช่ล็อก) →
+    // ถอยไปเส้นทางปกติ ห้ามให้ทั้งใบล้มเพราะเรื่องนี้
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return findOrCreateCustomer(tx, newPhone);
+    }
+    throw e;
+  }
+}
+
 /** ค่าที่เก็บใน OrderItem.cost ได้จริง — Decimal จาก Prisma, number จากที่ผู้ขายพิมพ์, หรือไม่มี */
 type LineCost = Prisma.Decimal | number | null
 
@@ -468,20 +572,16 @@ export async function createOrder(shopId: string, data: {
 
         // feature 00018 (user request 2026-07-24) — ผูกเธรดแชทเข้ากับ Customer ทันทีเมื่อสร้างจากแชท
         // เงื่อนไข: มี conversationId + ได้ customerId (มีเบอร์) เท่านั้น. scope ownership ด้วย shopId ใน
-        // WHERE (กันผูกเธรดของร้านอื่น) + updateMany เฉพาะแถวที่ externalContact ยังไม่ผูก (customerId=null)
-        // — ไม่ทับของเดิมถ้า buyer login แล้ว upgrade ไป full customer ไว้ก่อนหน้า (login ชนะ manual)
-        if (data.conversationId && customerId) {
-          const conv = await tx.conversation.findFirst({
-            where: { id: data.conversationId, shopId },
-            select: { externalContactId: true },
-          });
-          if (conv?.externalContactId) {
-            await tx.externalContact.updateMany({
-              where: { id: conv.externalContactId, customerId: null },
-              data: { customerId },
-            });
-          }
-        }
+        // WHERE (กันผูกเธรดของร้านอื่น)
+        //
+        // 2026-08-10: เดิมเงื่อนไขคือ "เฉพาะแถวที่ยังไม่ผูก (customerId=null)" ซึ่งกว้างกว่าเจตนาที่
+        // เขียนกำกับไว้เอง ("login ชนะ manual") — เธรดที่แอดมินเคยผูกด้วยมือแล้วสร้างใบใหม่ด้วยเบอร์อื่น
+        // ใบใหม่จะไม่โผล่ในแผงของห้องนั้นเลย. กติกาย้ายไป shouldRelinkThreadCustomer ที่เดียว
+        await relinkThreadCustomer(
+          tx,
+          await findThreadContact(tx, shopId, data.conversationId),
+          customerId,
+        );
 
         // NEW (00009 S-5) — StockMovement record-always (ทุก package, ไม่ gate ที่นี่)
         // insert หลัง order.create สำเร็จ เพราะต้องใช้ order.id เป็น refId
@@ -612,6 +712,8 @@ export async function updateOrder(
       // ฟิลด์เพิ่มจาก id/status ใช้นับ changedCount ของ ORDER_EDITED (feature 00031) เท่านั้น
       select: {
         id: true, status: true, type: true, totalAmount: true, buyerContact: true,
+        // customerId: ตัวตัดสินว่า "แก้เบอร์" = แก้แถวเดิม หรือ ย้ายไปลูกค้าคนใหม่ (2026-08-10)
+        customerId: true,
         buyerName: true, paymentMethod: true, salesChannel: true, internalNote: true,
         discount: true, vatRate: true, vatAmount: true, shippingAddress: true,
         createdAt: true, publicToken: true,
@@ -666,8 +768,25 @@ export async function updateOrder(
     }));
 
     // 6) customer link — relink เฉพาะเมื่อมีเบอร์ (ไม่มีเบอร์ = ไม่แตะ customerId เดิม กัน unlink ไม่ตั้งใจ)
+    //
+    // 2026-08-10 (user): "2 เบอร์นี้ต้องเป็นลูกค้าคนเดียวกัน" — แก้เบอร์ที่คีย์ผิดต้องไม่ผลิตลูกค้า
+    // คนใหม่ทิ้งไว้ ตัวตัดสินอยู่ที่ resolveCustomerForEditedOrder (แก้แถวเดิม vs ย้ายไปแถวใหม่)
+    const threadContact = await findThreadContact(tx, shopId, data.conversationId);
     const custPhone = data.buyerContact ? normalizePhone(data.buyerContact) : null;
-    const customerId = custPhone ? await findOrCreateCustomer(tx, custPhone) : null;
+    const customerId = custPhone
+      ? await resolveCustomerForEditedOrder(tx, {
+          orderId: existing.id,
+          currentCustomerId: existing.customerId,
+          newPhone: custPhone,
+          threadContactId: threadContact?.id,
+        })
+      : null;
+
+    // 6.1) เธรดแชทต้องตามลูกค้าที่ใบนี้ผูกอยู่ (เคสที่ rename ไม่ได้ — ย้ายไป Customer คนใหม่)
+    //
+    // แผงออเดอร์ในห้องแชทดึงด้วย ExternalContact.customerId ของเธรด ถ้าไม่ย้ายตาม แอดมินจะเห็น
+    // ห้องนั้น "ไม่มีคำสั่งซื้อ" ทันทีที่กดบันทึก ทั้งที่ตั้งใจแค่แก้เบอร์
+    await relinkThreadCustomer(tx, threadContact, customerId);
 
     // 7) update order + สร้าง items ชุดใหม่
     const order = await tx.order.update({
