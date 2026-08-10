@@ -80,6 +80,25 @@ export type OpenDraftInput = {
    * มีผลเฉพาะตอนสร้างร่างใหม่ เหมือน prefillText — ร่างที่เปิดค้างอยู่แล้วไม่ถูกทับ
    */
   messageCreatedAt?: string
+  /**
+   * วัน/เวลานัดที่เลือกมาจากปฏิทินในแถบเครื่องมือแชท (2026-08-10)
+   *
+   * ต่างจาก prefillText/messageCreatedAt ตรงที่ **ทับร่างที่เปิดค้างอยู่ได้** — สองตัวนั้นเป็น
+   * ผลพลอยได้ของการกด "สร้างออเดอร์จากข้อความนี้" (ทับ = ข้อมูลที่ร้านพิมพ์ไว้หาย) ส่วนอันนี้
+   * ผู้ขายเพิ่งจงใจเลือกวันและเวลาในจังหวะนั้นเอง การไม่ใส่ให้ต่างหากที่จะอ่านว่าปุ่มพัง
+   *
+   * `resourceId` ส่งมาก็ต่อเมื่อร้านมีคิวงานที่เปิดใช้ใบเดียว (ไม่มีอะไรให้เลือก) — หลายคิว
+   * ต้องปล่อยให้ช่อง "บริการ" ว่างไว้ให้เห็นว่ายังต้องเลือก ห้ามเดาให้
+   */
+  appointmentPrefill?: AppointmentPrefill
+}
+
+/** วัน/เวลานัดที่พามาจากปฏิทิน — `date` เป็น "YYYY-MM-DD", เวลาเป็น "HH:mm" */
+export type AppointmentPrefill = {
+  date: string
+  startTime?: string
+  endTime?: string
+  resourceId?: string
 }
 
 type ChatDraft = {
@@ -97,6 +116,14 @@ type ChatDraft = {
   shipmentOrderToken: string | null
   /** ข้อความที่จะให้ฟอร์มกระจายตอน mount (null = ไม่มี) */
   prefillText: string | null
+  /** วัน/เวลานัดที่พามาจากปฏิทินในแถบเครื่องมือ (null = ไม่มี) */
+  appointmentPrefill: AppointmentPrefill | null
+  /**
+   * ตัวนับรอบของ appointmentPrefill — ฟอร์ม mount ค้างไว้ตลอดอายุร่าง การเปลี่ยนแค่ค่าใน
+   * object จึงไม่พอให้ effect ฝั่งฟอร์มรู้ว่า "ผู้ใช้เลือกวันใหม่มาอีกครั้ง" (เลือกวันเดิมซ้ำ
+   * = ค่าเท่าเดิมทุก field) ต้องมีตัวนับที่ขยับทุกครั้งเป็น dep
+   */
+  appointmentSeq: number
   /** feature 00033 — เวลาของข้อความต้นทาง (null = ไม่มีข้อความต้นทาง ไม่ใช่ "เก่าเกินไป") */
   messageCreatedAt: string | null
   state: 'expanded' | 'minimized'
@@ -174,6 +201,20 @@ type DraftOrderContextValue = {
   vocab: OrderVocab
   /** คลังคำของร้านที่ระบุ (feature 00037) — รายการแชทรวมหลายร้านต้องเรียกรายการให้ถูกชื่อรายแถว */
   vocabFor: (shopId: string | null | undefined) => OrderVocab
+  /**
+   * ข้อมูลระบบนัดของร้านที่ระบุ (2026-08-10) — null = ร้านนั้นใช้ระบบคิวงานไม่ได้ **หรือ**
+   * context ยังโหลดไม่เสร็จ
+   *
+   * มีเพื่อให้ปุ่มปฏิทินในแถบเครื่องมือแชทรู้ได้ว่า "ร้านของเธรดนี้มีคิวงานให้ดูไหม" โดยไม่ต้อง
+   * ยิง API ซ้ำ — layout โหลดมาให้แล้วตั้งแต่แรก (chat/layout.tsx) และ Provider เก็บเป็น Map
+   * ต่อ shopId อยู่แล้วเพื่อรองรับกล่องแชทรวมหลายร้าน
+   *
+   * 🛑 คืน null ตอนกำลังโหลด ไม่ใช่คืนค่าเปล่า — "ยังไม่รู้" กับ "ไม่มีคิวงาน" ต้องแยกกัน
+   * ไม่งั้นปุ่มจะกะพริบหายตอนสลับไปเธรดของร้านที่ยังไม่เคยเปิด
+   */
+  appointmentCtxFor: (
+    shopId: string | null | undefined,
+  ) => { resources: ServiceResourceOption[]; granularity: AppointmentGranularity } | null
 }
 const DraftOrderContext = createContext<DraftOrderContextValue | null>(null)
 
@@ -198,7 +239,10 @@ export function useThreadShopId(): string | null {
   return useContext(ThreadShopContext)
 }
 
-export function useDraftOrders(): DraftOrderContextValue {
+export function useDraftOrders(): DraftOrderContextValue & {
+  /** ระบบนัดของ "ร้านเจ้าของเธรดที่เปิดอยู่" — null = ใช้ไม่ได้/ยังไม่มีคิวงาน/ยังโหลดไม่เสร็จ */
+  appointmentCtx: ReturnType<DraftOrderContextValue['appointmentCtxFor']>
+} {
   const ctx = useContext(DraftOrderContext)
   const threadShopId = useContext(ThreadShopContext)
   if (!ctx) throw new Error('useDraftOrders ต้องอยู่ภายใต้ <DraftOrderProvider>')
@@ -209,7 +253,10 @@ export function useDraftOrders(): DraftOrderContextValue {
       ctx.openDraft(threadShopId ? { shopId: threadShopId, ...input } : input),
     [ctx, threadShopId],
   )
-  return { ...ctx, openDraft }
+  /* ผูกกับร้านของเธรดที่เปิดอยู่ด้วยเหตุผลเดียวกับ openDraft — จุดที่เพิ่มทีหลังจะได้ไม่ลืมส่ง
+     shopId แล้วตกกลับไปอ่านของร้านที่ active เงียบ ๆ (ปฏิทินของร้านผิด = ตัวเลขคิวผิดทั้งจอ) */
+  const appointmentCtx = ctx.appointmentCtxFor(threadShopId)
+  return { ...ctx, openDraft, appointmentCtx }
 }
 
 /**
@@ -453,8 +500,25 @@ export default function DraftOrderProvider({
       )
       if (existing) {
         // มีร่างนี้อยู่แล้ว → ขยายตัวเดิม, ตัวอื่นที่ขยายอยู่ให้ย่อ (expanded ได้ทีละ 1)
+        //
+        // 🛑 appointmentPrefill เป็น field เดียวที่ "ทับร่างเดิมได้" — prefillText/messageCreatedAt
+        // ตั้งใจไม่ทับ เพราะเป็นผลพลอยได้ของการกดสร้างจากข้อความ (ทับ = สิ่งที่ร้านพิมพ์ไว้หาย)
+        // ส่วนวัน/เวลานัดผู้ขายเพิ่งจงใจเลือกในจังหวะนั้นเอง ถ้าไม่ใส่ให้จะอ่านว่าปุ่มพัง
         return prev.map((d) =>
-          d.id === existing.id ? { ...d, state: 'expanded' } : d.state === 'expanded' ? { ...d, state: 'minimized' } : d,
+          d.id === existing.id
+            ? {
+                ...d,
+                state: 'expanded' as const,
+                ...(input.appointmentPrefill
+                  ? {
+                      appointmentPrefill: input.appointmentPrefill,
+                      appointmentSeq: d.appointmentSeq + 1,
+                    }
+                  : {}),
+              }
+            : d.state === 'expanded'
+              ? { ...d, state: 'minimized' as const }
+              : d,
         )
       }
       const next: ChatDraft = {
@@ -469,6 +533,8 @@ export default function DraftOrderProvider({
         editOrderToken: editToken,
         shipmentOrderToken: shipmentToken,
         prefillText: input.prefillText ?? null,
+        appointmentPrefill: input.appointmentPrefill ?? null,
+        appointmentSeq: input.appointmentPrefill ? 1 : 0,
         messageCreatedAt: input.messageCreatedAt ?? null,
         state: 'expanded',
       }
@@ -485,6 +551,21 @@ export default function DraftOrderProvider({
       return vertical ? resolveOrderVocab(vertical) : vocab
     },
     [shopId, vocab, shops],
+  )
+
+  /**
+   * ระบบนัดของร้านหนึ่ง — อ่านจาก shopCtx ที่โหลดไว้แล้ว ไม่ยิง API ซ้ำ
+   * เงื่อนไข: context พร้อม + ร้านใช้ระบบนัดได้ + **มีคิวงานที่เปิดใช้อย่างน้อย 1 ใบ**
+   * (ไม่มีคิวเลย = ไม่มีอะไรให้ดู ผู้เรียกต้องซ่อนปุ่มไปเลย ไม่ใช่เปิดจอเปล่า)
+   */
+  const appointmentCtxFor = useCallback(
+    (targetShopId: string | null | undefined) => {
+      const ctx = shopCtx[targetShopId ?? shopId]
+      if (!ctx || ctx.status !== 'ready') return null
+      if (!ctx.serviceResourcesEnabled || ctx.serviceResources.length === 0) return null
+      return { resources: ctx.serviceResources, granularity: ctx.appointmentGranularity }
+    },
+    [shopCtx, shopId],
   )
 
   /** เปิดร่าง + สั่งโหลด context ของร้านนั้นทันที (ไม่รอให้กดปุ่มบันทึก) — D-5: ปุ่มกดได้เสมอ
@@ -604,7 +685,7 @@ export default function DraftOrderProvider({
   const minimized = drafts.filter((d) => d.state === 'minimized')
 
   return (
-    <DraftOrderContext.Provider value={{ openDraft: openDraftWithContext, vocab, vocabFor }}>
+    <DraftOrderContext.Provider value={{ openDraft: openDraftWithContext, vocab, vocabFor, appointmentCtxFor }}>
       {children}
 
       {/* ทุก draft mount ฟอร์มค้างไว้ (hidden เมื่อไม่ได้ขยาย) กันข้อมูลที่กรอกหาย — expanded เห็นทีละ 1 */}
@@ -707,6 +788,11 @@ export default function DraftOrderProvider({
                 serviceResourcesEnabled={ctx.serviceResourcesEnabled}
                 serviceResources={ctx.serviceResources}
                 appointmentGranularity={ctx.appointmentGranularity}
+                /* วัน/เวลาที่พามาจากปฏิทินในแถบเครื่องมือ — ส่ง seq คู่กันเสมอ เพราะฟอร์ม mount
+                   ค้างไว้ตลอดอายุร่าง การเลือกวันเดิมซ้ำจะได้ object ที่ค่าเท่าเดิมทุก field
+                   ถ้าไม่มีตัวนับ effect ฝั่งฟอร์มจะไม่รู้ว่าผู้ใช้เพิ่งกดมาอีกรอบ */
+                appointmentPrefill={d.appointmentPrefill ?? undefined}
+                appointmentPrefillSeq={d.appointmentSeq}
                 onSuccess={() => handleSuccess(d)}
                 prefillCreatedAt={msgInWindow ? d.messageCreatedAt ?? undefined : undefined}
                 prefillCreatedAtTooOld={msgMs != null && !msgInWindow}

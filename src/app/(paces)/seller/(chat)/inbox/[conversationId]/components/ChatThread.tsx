@@ -131,6 +131,7 @@ function mediaSrc(key: string): string {
   return key.startsWith('http') ? key : `/api/files/${key}`
 }
 import AiSuggestPanel from './AiSuggestPanel'
+import AppointmentDateSheet from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet'
 import QuickMessageBar from './QuickMessageBar'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
 import type { QuickMessage } from './QuickMessageManager'
@@ -959,7 +960,7 @@ export default function ChatThread({
   const { data: session } = useSession()
   const shopUsername = (session?.user as { username?: string } | undefined)?.username
   // แตะการ์ดคำสั่งซื้อในแชท → เปิดโมดัลแก้ไข (user 2026-07-25: เหมือนแตะการ์ดใน right panel)
-  const { openDraft, vocab } = useDraftOrders()
+  const { openDraft, vocab, appointmentCtx } = useDraftOrders()
   const openEditOrder = (token: string) =>
     openDraft({
       conversationId,
@@ -978,6 +979,15 @@ export default function ChatThread({
    */
   const startCreateOrder = () =>
     openDraft({ conversationId, customerName: buyerName, channel, customerAvatar: buyerAvatar, pageAvatarUrl: channelAvatarUrl })
+  /**
+   * ปฏิทินตารางว่างในแถบเครื่องมือ (user สั่ง 2026-08-10 "อยากให้หน้า chat มี icon ดูตารางนัดได้
+   * ข้าง ๆ AI Suggestion ... พร้อมปุ่มเลือกวันได้เลย จากนั้นค่อยส่งต่อให้ Modal สร้างการบริการ
+   * จะได้ลดขั้นตอน")
+   *
+   * เปิดชีตตัวเดียวกับที่ฟอร์มใช้ แต่โหมด "ภาพรวมทุกคิว" — ตอนกดยังไม่มีการเลือกคิว ผู้ขายแค่
+   * อยากรู้ว่าวันไหนพอรับได้
+   */
+  const [apptSheetOpen, setApptSheetOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   // user request 2026-07-25 — กดไอคอนตะกร้าใน inbox (?panel=orders) บนจอเล็ก (<1024px) → เด้ง sheet
   // ข้อมูลลูกค้า (แท็บออเดอร์เปิดเองใน CustomerPanelBody). เดสก์ท็อปมี panel persistent ไม่ต้องเปิด sheet
@@ -2889,7 +2899,17 @@ export default function ChatThread({
             ปฏิเสธทันทีที่เห็น ("ไม่ชอบการที่เอา shortcut ไปซ่อนไว้ อยากให้เอาคำว่า สร้างคำสั่งซื้อออกแทน")
             → เมนูนั้นถูกถอดทิ้งทั้งก้อน เครื่องมือทุกตัวกลับมาเห็นครบทุก breakpoint และปุ่มสร้างออเดอร์
             ยุบเหลือไอคอน (ตัวสุดท้ายของแถว) — ทางลัดที่หาไม่เจอ แพงกว่าป้ายที่หายไป */}
-        <div className="mb-2 flex items-center gap-1">
+        {/* flex-wrap: worst case (ร้านคิวงาน + ช่องทางที่ส่งสติกเกอร์ได้) = 8 ปุ่ม ≈ 324px ซึ่งเกิน
+            288px ที่เหลือหลัง px-4 บนจอ 320px → ปุ่มสร้างออเดอร์ (ms-auto) ตกลงบรรทัดสองแล้วชิดขวา
+            ในบรรทัดตัวเอง กรณีอื่นยังเป็นแถวเดียวเหมือนเดิมทุกประการ
+
+            ไม่ใช้เมนู "⋯" เก็บปุ่มที่เกิน — user ปฏิเสธไปแล้ว 2026-08-07 ("ไม่ชอบการที่เอา
+            shortcut ไปซ่อนไว้") · precedent ของ flex-wrap อยู่ที่ OrdersTable.tsx toolbar
+            ซึ่งแก้ปัญหาคลาสเดียวกันเป๊ะ
+
+            wrap ไม่ย้ายจุดยึดของแผงอิโมจิ/สติกเกอร์ — แผงพวกนั้นเป็น absolute ที่ยึดกับ
+            `div.relative` ของ *ปุ่มตัวเอง* ไม่ใช่ยึดกับแถว (เหตุผลเต็มอยู่ที่ปุ่มสติกเกอร์) */}
+        <div className="mb-2 flex flex-wrap items-center gap-1">
           {/* ข้อความสำเร็จรูป — ปุ่มสายฟ้าซ้ายสุดตาม ref; กดแล้วแถบ pill ค่อยกางออกด้านบน */}
           <button
             type="button"
@@ -3017,6 +3037,35 @@ export default function ChatThread({
           >
             <Icon icon="sparkles" className="text-lg" />
           </button>
+
+          {/* ดูตารางว่างคิวงาน (user สั่ง 2026-08-10) — เห็นทุก breakpoint เพราะไม่มีทางเข้าอื่น
+              (ต่างจากปุ่มสร้างออเดอร์ที่ md:hidden เพราะ ≥768 มีปุ่มมีป้ายที่หัวเธรดอยู่แล้ว)
+
+              ไม่ tint ค้าง (`text-default-600` เหมือนปุ่มข้อความสำเร็จรูป/เลือกสินค้า) — แถวนี้มี
+              accent อยู่แล้ว 2 ตัวคือ AI (success) กับสร้างออเดอร์ (primary) การเพิ่มตัวที่สาม
+              กระจายสีจนไม่มีอะไรเด่นจริง (One Voice) และปุ่มนี้เป็นทางลัด "ไปดู" ไม่ใช่การตัดสินใจ
+
+              ไอคอน `calendar-plus` (user เคาะ 2026-08-10) — ไม่ใช้ calendar-event/calendar-check/
+              calendar-mark เพราะทั้งสามถูกผูกความหมายไปแล้ว (สถานะนัด SCHEDULED/COMPLETED และ
+              ไทล์ "นัดวันนี้" บนหน้าแรก)
+
+              ขึ้นเฉพาะร้านที่ใช้ระบบคิวงานได้ **และมีคิวงานที่เปิดใช้อย่างน้อย 1 ใบ** —
+              appointmentCtx เป็น null ทั้งกรณี "ใช้ไม่ได้" และ "ยังโหลดไม่เสร็จ" ซึ่งถูกทั้งคู่:
+              ปุ่มที่กดแล้วเจอปฏิทินเปล่ายังไงก็ไม่มีประโยชน์ */}
+          {appointmentCtx && (
+            <button
+              type="button"
+              onClick={() => setApptSheetOpen(true)}
+              aria-label="ดูตารางว่างคิวงาน"
+              title="ดูตารางว่างคิวงาน"
+              /* ไม่ผูกกับ composerDisabled ต่างจากปุ่มอื่นในแถว — ตัวนั้นแปลว่า "ส่งข้อความออกไป
+                 ไม่ได้" (หน้าต่าง 24 ชม.ปิด / token ตาย) ซึ่งไม่เกี่ยวกับการเปิดดูตารางคิวหรือ
+                 สร้างงานใหม่เลย · ปุ่มสร้างออเดอร์ท้ายแถวก็ไม่ได้ผูกด้วยเหตุผลเดียวกัน */
+              className="btn btn-icon text-default-600 hover:bg-primary/10 shrink-0"
+            >
+              <Icon icon="calendar-plus" className="text-lg" />
+            </button>
+          )}
 
           {/* feature 00018 T5 — ทางเข้า Customer Panel ของมือถือ **ย้ายขึ้นหัวเธรดแล้ว** (user สั่ง
               2026-08-06) ไอคอนคนที่เคยอยู่ท้ายแถวนี้จึงถูกถอดออก ไม่ใช่ซ่อนด้วย breakpoint —
@@ -3306,6 +3355,38 @@ export default function ChatThread({
             : undefined
         }
         onClose={() => setActionTarget(null)}
+      />
+    )}
+
+    {/* ปฏิทินตารางว่างคิวงาน (user สั่ง 2026-08-10) — ชีตตัวเดียวกับที่ฟอร์มสร้างออเดอร์ใช้
+        โหมด "ภาพรวมทุกคิว" · กดยืนยันแล้วส่งวัน+เวลาเข้าโมดัลสร้างงานทันที (ลดขั้นตอน)
+
+        resourceId ส่งไปด้วยเฉพาะตอนร้านมีคิวงานเปิดใช้ **ใบเดียว** — หลายคิวต้องปล่อยให้ช่อง
+        "บริการ" ในฟอร์มว่างไว้ให้เห็นว่ายังต้องเลือก การเดาให้จะทำให้ผู้ขายเผลอบันทึกผิดคิว
+        โดยไม่ทันสังเกต (กติกาเดียวกับที่ปฏิทิน /queues ประกาศไว้ตั้งแต่ feature 00024) */}
+    {appointmentCtx && apptSheetOpen && (
+      <AppointmentDateSheet
+        open
+        aggregateResources={appointmentCtx.resources}
+        granularity={appointmentCtx.granularity}
+        onClose={() => setApptSheetOpen(false)}
+        onConfirm={(r) => {
+          setApptSheetOpen(false)
+          openDraft({
+            conversationId,
+            customerName: buyerName,
+            channel,
+            customerAvatar: buyerAvatar,
+            pageAvatarUrl: channelAvatarUrl,
+            appointmentPrefill: {
+              date: r.date,
+              startTime: r.startTime,
+              endTime: r.endTime,
+              resourceId:
+                appointmentCtx.resources.length === 1 ? appointmentCtx.resources[0]!.id : undefined,
+            },
+          })
+        }}
       />
     )}
 

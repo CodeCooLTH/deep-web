@@ -117,6 +117,20 @@ interface Props {
   serviceResources?: ServiceResourceOption[]
   /** feature 00024 FR-RSV-13 — ร้านรับนัดเป็นรายวัน (DAY) หรือระบุช่วงเวลา (TIME) */
   appointmentGranularity?: AppointmentGranularity
+  /**
+   * วัน/เวลานัดที่พามาจากปฏิทินในแถบเครื่องมือแชท (2026-08-10)
+   *
+   * เส้นทางเดียวกับ `?appointmentDate=` ที่ปฏิทิน /queues ใช้ แต่มาทาง prop เพราะฟอร์มในแชท
+   * ไม่ได้อยู่บน URL ของตัวเอง · **ชนะ `?appointmentDate=`** เมื่อมีทั้งคู่ (ในแชทไม่มี query
+   * นั้นอยู่แล้ว แต่เขียนกติกาไว้ให้ชัดว่าอันไหนชนะ)
+   *
+   * ต่างจาก `?appointmentDate=` ตรงที่พา "เวลา" มาด้วยได้ และพา `resourceId` มาได้เมื่อร้าน
+   * มีคิวงานเปิดใช้ใบเดียว — หลายคิวจะไม่ส่งมา ปล่อยให้ผู้ขายเลือกเอง (ห้ามเดาให้ ผู้ใช้จะ
+   * เผลอบันทึกผิดคิวโดยไม่ทันสังเกต — กติกาเดียวกับที่ปฏิทินเดิมประกาศไว้)
+   */
+  appointmentPrefill?: { date: string; startTime?: string; endTime?: string; resourceId?: string }
+  /** ตัวนับรอบของ appointmentPrefill — ต้องขยับทุกครั้งที่ผู้ใช้กดเลือกมาใหม่ (ดู DraftOrderProvider) */
+  appointmentPrefillSeq?: number
   /** feature 00033 — เวลาของข้อความในแชทที่กดสร้างออเดอร์ (ISO string) ใช้เป็นวันที่สั่งซื้อ */
   prefillCreatedAt?: string
   /** feature 00033 — เวลาข้อความต้นทางเก่ากว่าเพดานย้อนหลัง จึงไม่ได้เติมให้ (โชว์ชิปบอกเหตุผลใน OrderDateRow) */
@@ -295,6 +309,8 @@ export default function OrderCreateForm({
   serviceResourcesEnabled = false,
   serviceResources = [],
   appointmentGranularity = 'DAY',
+  appointmentPrefill,
+  appointmentPrefillSeq = 0,
   prefillCreatedAt,
   prefillCreatedAtTooOld = false,
 }: Props) {
@@ -557,6 +573,8 @@ export default function OrderCreateForm({
    * ผู้ใช้จะไม่มีทางเห็นว่ามีวันที่ถูกพามา แล้วได้ออเดอร์เปล่าโดยไม่มี error
    */
   const appointmentPrefilledDate = (() => {
+    // prop ชนะ query — ในแชทไม่มี query นี้อยู่แล้ว แต่เขียนลำดับไว้ให้ชัดว่าอันไหนชนะ
+    if (appointmentPrefill?.date) return appointmentPrefill.date
     const d = searchParams.get('appointmentDate')
     return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null
   })()
@@ -566,6 +584,25 @@ export default function OrderCreateForm({
     if (appointmentPrefilledDate) setValue('appointment.date', appointmentPrefilledDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentPrefilledDate, serviceResourcesEnabled])
+
+  /**
+   * เวลา + คิวงานที่ปฏิทินในแชทพามาด้วย (2026-08-10)
+   *
+   * แยก effect จากวันที่ข้างบนเพราะ dep คนละชุด: อันบนผูกกับ "ค่าวันที่" (ซึ่งมาทาง query ได้ด้วย)
+   * ส่วนอันนี้ผูกกับ **ตัวนับรอบ** — ฟอร์มในแชท mount ค้างไว้ตลอดอายุร่าง ถ้า dep เป็นตัวค่า
+   * การเลือก "วัน+เวลาเดิม" ซ้ำอีกรอบจะไม่ทำอะไรเลย แล้วผู้ขายจะอ่านว่าปุ่มพัง
+   *
+   * resourceId เขียนก็ต่อเมื่อส่งมาจริง (ร้านมีคิวเดียว) — ไม่ส่งมา = ห้ามแตะค่าเดิมในฟอร์ม
+   * เพราะการเซ็ตเป็นค่าว่างจะล้างคิวที่ผู้ขายอาจเลือกไว้แล้ว
+   */
+  useEffect(() => {
+    if (!serviceResourcesEnabled) return
+    if (!appointmentPrefill) return
+    if (appointmentPrefill.startTime) setValue('appointment.startTime', appointmentPrefill.startTime)
+    if (appointmentPrefill.endTime) setValue('appointment.endTime', appointmentPrefill.endTime)
+    if (appointmentPrefill.resourceId) setValue('appointment.resourceId', appointmentPrefill.resourceId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentPrefillSeq, serviceResourcesEnabled])
 
   // ── ★ default channel/payment ที่ seller ตั้งไว้ (localStorage) → override ตอน mount (client-only) ──
   // key ตรงกับ ChannelPaymentSelect (DEFAULT_CHANNEL_KEY/DEFAULT_PAYMENT_KEY); ใส่ใน useForm defaultValues ไม่ได้ (SSR ไม่มี window)

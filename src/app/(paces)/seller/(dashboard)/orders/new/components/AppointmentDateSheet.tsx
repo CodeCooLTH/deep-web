@@ -89,6 +89,18 @@ interface Props {
   open: boolean
   /** คิวงานที่เลือกไว้ในฟอร์ม — ปฏิทินโชว์ความว่างของคิวนี้คิวเดียว (user เคาะ 2026-08-07) */
   resourceId?: string
+  /**
+   * โหมด "ภาพรวมทุกคิวงาน" (2026-08-10) — ส่งมาแทน `resourceId` ไม่ใช่ส่งคู่กัน
+   *
+   * ใช้กับปุ่มปฏิทินในแถบเครื่องมือแชท ซึ่งเปิดขึ้นมาตอนที่ยังไม่มีการเลือกคิวเลย (ผู้ขาย
+   * แค่อยากรู้ว่าวันไหนพอรับได้) — ความจุของวันจึงเป็นผลรวมของทุกคิวที่เปิดใช้
+   *
+   * 🛑 ตัวเลขที่ได้เป็น **ภาพรวม** ไม่ใช่คำตอบของคิวใดคิวหนึ่ง — จอต้องติดป้ายบอกเสมอ
+   * (ดูบรรทัดเตือนใต้หัวแผ่น) ไม่งั้นผู้ขายอ่านว่า "ว่าง" แล้วไปเจอคิวที่เลือกจริงเต็ม
+   * ซึ่งเป็นคลาส "ตัวเลขบางส่วนที่หน้าตาเหมือนตัวเลขที่ครบแล้ว"
+   * (docs/conventions/partial-data-must-be-labeled-or-filled.md)
+   */
+  aggregateResources?: { id: string; name: string; capacity: number }[]
   /** ชื่อคิวงาน — โชว์ใต้หัวเรื่องให้รู้ว่ากำลังดูความว่างของคิวไหน */
   resourceName?: string
   /**
@@ -161,6 +173,7 @@ const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังค�
 export default function AppointmentDateSheet({
   open,
   resourceId,
+  aggregateResources,
   resourceName,
   resourceCapacity,
   resourceDurationMinutes,
@@ -176,7 +189,12 @@ export default function AppointmentDateSheet({
   const byDay = granularity === 'DAY'
 
   const calRef = useRef<FullCalendar>(null)
-  const capacity = resourceCapacity ?? null
+  /** โหมดภาพรวมทุกคิว — ตัดสินจาก prop ที่ส่งมา ไม่ใช่จาก "ไม่มี resourceId" (ซึ่งเกิดตอน
+   *  ค่าจาก useWatch ยังเดินทางมาไม่ถึงด้วย — คนละความหมายกันคนละเรื่อง) */
+  const aggregate = Array.isArray(aggregateResources) && aggregateResources.length > 0
+  const capacity = aggregate
+    ? aggregateResources!.reduce((sum, r) => sum + r.capacity, 0) || null
+    : (resourceCapacity ?? null)
   const [items, setItems] = useState<AppointmentBoardItem[]>([])
   const [loading, setLoading] = useState(false)
   /**
@@ -338,20 +356,24 @@ export default function AppointmentDateSheet({
 
   const loadRange = useCallback(
     async (from: Date, to: Date) => {
-      if (!resourceId) {
+      // โหมดภาพรวม: ไม่ส่ง resourceId ให้ endpoint = คืนนัดของทุกคิว (API.md §4.5 รองรับอยู่แล้ว)
+      if (!aggregate && !resourceId) {
         setItems([])
         return
       }
-      const key = `${resourceId}|${from.toISOString()}|${to.toISOString()}`
+      const key = `${aggregate ? 'ALL' : resourceId}|${from.toISOString()}|${to.toISOString()}`
       if (loadedRangeRef.current === key) return
       loadedRangeRef.current = key
 
       setLoading(true)
       try {
         // pattern เดียวกับ queues/components/AppointmentCalendar.tsx (fetchAppointments)
-        const res = await fetch(
-          `/api/shops/current/appointments?resourceId=${resourceId}&from=${from.toISOString()}&to=${to.toISOString()}`,
-        )
+        const qs = new URLSearchParams({
+          from: from.toISOString(),
+          to: to.toISOString(),
+          ...(aggregate ? {} : { resourceId: resourceId! }),
+        })
+        const res = await fetch(`/api/shops/current/appointments?${qs}`)
         if (!res.ok) throw new Error(String(res.status))
         const data = (await res.json()) as { items?: AppointmentBoardItem[] }
         setItems(data.items ?? [])
@@ -365,7 +387,7 @@ export default function AppointmentDateSheet({
         setLoading(false)
       }
     },
-    [resourceId],
+    [resourceId, aggregate],
   )
 
   // เปลี่ยนคิวงาน (หรือค่าที่ถูกต้องเพิ่งเดินทางมาถึง) = ข้อมูลเดิมใช้ไม่ได้แล้ว
@@ -871,18 +893,20 @@ export default function AppointmentDateSheet({
           )}
           {/* mockup โชว์ความจุต่อวันไว้ตรงนี้ด้วย — ผู้ขายจะได้รู้ตั้งแต่ต้นว่า "เต็ม" ของคิวนี้
               คือกี่งาน โดยไม่ต้องจิ้มวันแล้วไปอ่านตัวเลขที่หัวรายการ */}
-          {!atTimeStep && (resourceName || (capacity != null && capacity > 0)) && (
+          {!atTimeStep && (aggregate || resourceName || (capacity != null && capacity > 0)) && (
             <p className="truncate text-xs text-default-500">
               {/* "คิว/วัน" ถูกเฉพาะโหมดรายวัน — โหมดระบุช่วงเวลา ความจุนี้วัดกันที่ "ช่วงเวลาที่ทับกัน"
                   (ดู isFull) ร้าน capacity 2 รับได้ทั้งวันหลายสิบคิว การเขียน "รับได้ 2 คิว/วัน"
                   ไว้หัวจอจึงขัดกับบรรทัด "จองแล้ว n จาก m คิว ในช่วงเวลานี้" ที่อยู่จอเดียวกัน (HR16)
                   คำโหมดเวลายกมาจากการ์ดเลือกบริการใน AppointmentBlock ("รับพร้อมกัน n คิว") ตรง ๆ */}
               {[
-                resourceName,
+                /* โหมดภาพรวมไม่มี "ชื่อคิว" ให้พูด — ต้องบอกแทนว่ากำลังดูอะไรอยู่ ไม่งั้นบรรทัดนี้
+                   จะเหลือแค่ตัวเลขความจุลอย ๆ ที่อ่านไม่ออกว่าเป็นของใคร */
+                aggregate ? 'ภาพรวมทุกคิวงาน' : resourceName,
                 capacity != null && capacity > 0
                   ? byDay
-                    ? `รับได้ ${capacity} คิว/วัน`
-                    : `รับพร้อมกัน ${capacity} คิว`
+                    ? `รับได้${aggregate ? 'รวม' : ''} ${capacity} คิว/วัน`
+                    : `รับพร้อมกัน${aggregate ? 'รวม' : ''} ${capacity} คิว`
                   : null,
               ]
                 .filter(Boolean)
@@ -891,6 +915,16 @@ export default function AppointmentDateSheet({
           )}
         </div>
       </div>
+
+      {/* 🛑 ป้ายกำกับของตัวเลขภาพรวม — ตัวเลขที่รวมทุกคิวคือ "ข้อมูลบางส่วนที่หน้าตาเหมือน
+          ข้อมูลครบ" ถ้าไม่ติดป้าย ผู้ขายจะอ่านว่าวันนี้ว่างแล้วไปเจอคิวที่เลือกจริงเต็ม
+          (docs/conventions/partial-data-must-be-labeled-or-filled.md)
+          ขึ้นเฉพาะขั้นเลือกวัน — ขั้นเลือกเวลาผู้ใช้ตัดสินใจไปแล้วและพื้นที่ตรงนั้นมีจำกัด */}
+      {aggregate && !atTimeStep && (
+        <p className="text-default-500 mb-0 shrink-0 px-4 pb-2 text-xs">
+          ตัวเลขนับรวมทุกคิวงาน — ระบบจะแยกเช็กความว่างอีกครั้งตอนเลือกคิวในฟอร์ม
+        </p>
+      )}
 
       {/* หัวเรื่องเดือน + ปุ่มเลื่อน — วาดเองเพราะต้องเป็น พ.ศ. (ดูหมายเหตุหัวไฟล์)
           IMPORTANT: `btn-soft-default`/`btn-soft-primary` ที่เคยเขียนไว้ตรงนี้ **ไม่มีอยู่จริงในธีม**
@@ -1223,7 +1257,11 @@ export default function AppointmentDateSheet({
             {/* แถวรายการย้ายไป AppointmentDayRows (2026-08-10) — ทรงเดียวกับ /queues มือถือ
                 ไม่ส่ง onRowClick: ผู้ใช้กำลังกรอกฟอร์มสร้างงานค้างอยู่ กดออกไปแล้วร่างที่พิมพ์
                 ไว้จะเสีย (ต่างจากบอร์ดใน /queues ที่ไม่มีร่างอะไรค้าง) */}
-            <AppointmentDayRows items={dayItems} />
+            <AppointmentDayRows
+              items={dayItems}
+              // รวมหลายคิว = ต้องบอกว่าแถวไหนของคิวไหน · คิวเดียวแล้วชื่อซ้ำทุกแถว = เสียงรบกวน
+              showResourceName={aggregate && (aggregateResources?.length ?? 0) > 1}
+            />
           </div>
         )}
 
