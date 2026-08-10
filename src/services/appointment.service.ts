@@ -107,6 +107,22 @@ function assertValidRange(start: Date, end: Date): void {
 const ADVISORY_NS_APPOINTMENT_SEAT = 24;
 
 /**
+ * ลำดับที่จะลองจองที่นั่ง — "ที่น่าจะว่าง" ขึ้นก่อน ที่เหลือต่อท้าย (2026-08-10)
+ *
+ * 🛑 invariant ที่ต้องไม่มีวันเสีย: **ผลลัพธ์เป็น permutation ของ 1..capacity เสมอ**
+ * ไม่ว่า `taken` จะมีอะไรอยู่ (รวมค่าที่เพี้ยน/นอกช่วง/ซ้ำ) — เพราะนี่คือตัวจัดลำดับ ไม่ใช่ตัวกรอง
+ * ถ้าวันไหนมันตัดที่นั่งทิ้งได้ ระบบจะรายงาน "เต็ม" ทั้งที่ยังจองได้ โดยไม่มีอะไรฟ้อง
+ *
+ * แยกออกมาเป็นฟังก์ชันบริสุทธิ์เพราะ `allocateSeat` แตะ DB จริงทั้งตัว — ตรรกะที่ตัดสินพฤติกรรม
+ * ต้องมีที่ให้เทสจับได้โดยไม่ต้องมีฐานข้อมูล
+ */
+export function seatTryOrder(capacity: number, taken: readonly number[]): number[] {
+  const takenSet = new Set(taken);
+  const all = Array.from({ length: capacity }, (_, i) => i + 1);
+  return [...all.filter((s) => !takenSet.has(s)), ...all.filter((s) => takenSet.has(s))];
+}
+
+/**
  * จัดสรร "ที่นั่งลำดับที่ n" ให้ออเดอร์หนึ่งใบ — หัวใจของการรองรับความจุ > 1 (BR-RSV-16)
  *
  * วิธีทำงาน: กัน "การจัดสรรของทรัพยากรเดียวกัน" ให้เรียงคิวทีละคนด้วย advisory lock
@@ -148,7 +164,36 @@ async function allocateSeat(
   // ซึ่งเป็นเงื่อนไขที่กลไก "ลองแล้วชน = ข้ามไปที่นั่งถัดไป" ต้องการจึงจะทำงานถูก
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${ADVISORY_NS_APPOINTMENT_SEAT}::int, hashtext(${resource.id})::int)`;
 
-  for (let seat = 1; seat <= resource.capacity; seat++) {
+  /**
+   * อ่านที่นั่งที่ถูกจองไว้ในช่วงเวลานี้ 1 ครั้ง เพื่อ **จัดลำดับ** การลอง (2026-08-10)
+   *
+   * 🛑 ใช้ "จัดลำดับ" เท่านั้น ห้ามใช้ "ตัดที่นั่งทิ้ง" — นั่นคือ count-แล้ว-เทียบ-capacity ที่
+   * IMPORTANT ด้านบนห้ามไว้ (BR-RSV-18.1) และถ้า WHERE ของ query นี้กว้างกว่าของ constraint
+   * แม้แต่นิดเดียว ที่นั่งที่ว่างจริงจะถูกตัดทิ้งแล้วรายงาน "เต็ม" ทั้งที่ยังจองได้
+   * การจัดลำดับทำให้เดาผิดมีโทษสูงสุดแค่ "เท่าเดิม" — ลูปยังลองครบ 1..capacity เหมือนเดิมทุกที่นั่ง
+   * ตัวตัดสินสุดท้ายยังเป็น EXCLUDE constraint เท่านั้น
+   *
+   * ทำไมต้องมี: ทุกที่นั่งที่ชนจ่าย 3 round trip (SAVEPOINT / UPDATE ที่ล้ม / ROLLBACK TO
+   * SAVEPOINT) + tuple ที่เขียนแล้ว rollback (dead tuple ให้ autovacuum ตามเก็บ) + 1 บรรทัด
+   * ERROR 23P01 ใน log — และมันเกิด **ขณะถือ advisory lock ที่บล็อกคนอื่นที่จองทรัพยากรตัวเดียวกัน
+   * อยู่** ความจุ 8 ที่เต็ม 7 = ~21 round trip ต่อการจอง 1 ใบ โดยแพงที่สุดตอนใกล้เต็ม ซึ่งคือ
+   * ตอนที่คนแย่งกันจองมากที่สุดพอดี (user เห็น 23P01 4 บรรทัดรวดใน log 2026-08-10 10:01:34)
+   *
+   * WHERE ต้องสะท้อน constraint ให้ตรงที่สุด (ดู migration 20260731000100): resource เดียวกัน ·
+   * status <> 'CANCELLED' · ช่วงเวลาทับกันแบบ '[)' · ตัดตัวเองออกเพราะแถวไม่ชนกับตัวเอง
+   * ตอน UPDATE (เคสเลื่อนนัด ที่นั่งเดิมของออเดอร์ใบนี้ยังใช้ได้อยู่)
+   */
+  const takenRows = await tx.$queryRaw<{ serviceSeat: number }[]>`
+    SELECT DISTINCT "serviceSeat"
+    FROM "Order"
+    WHERE "serviceResourceId" = ${resource.id}
+      AND "status" <> 'CANCELLED'
+      AND "serviceSeat" IS NOT NULL
+      AND "id" <> ${orderId}
+      AND tstzrange("serviceStart", "serviceEnd", '[)')
+          && tstzrange(${start}::timestamptz, ${end}::timestamptz, '[)')
+  `;
+  for (const seat of seatTryOrder(resource.capacity, takenRows.map((r) => r.serviceSeat))) {
     const savepoint = `seat_try_${seat}`;
     await tx.$executeRawUnsafe(`SAVEPOINT ${savepoint}`);
     try {
