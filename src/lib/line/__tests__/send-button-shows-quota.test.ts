@@ -36,6 +36,13 @@ describe('ปุ่มส่งของเธรด LINE ต้องแสด�
     expect(src).toContain('lineQuotaCaption.fullText')
   })
 
+  it('[blocker] ต้องป้อน secondsLeft เข้าไปจริง — ไม่งั้น countdown ไม่มีวันเดินแม้ lib จะรองรับ', () => {
+    // คลาสเดียวกับข้อบน: `freeSuffix` คำนวณถูกทุกเคสในเทสตรรกะ แต่ถ้า caller ไม่ส่งเวลามา
+    // ปุ่มจะขึ้น "ฟรี" เฉย ๆ ตลอดกาล และไม่มีเทสตรรกะข้อไหนแดงเลย
+    expect(src).toContain('secondsLeft:')
+    expect(src).toMatch(/Math\.max\(1, Math\.ceil\(liveRemaining \/ 1000\)\)/)
+  })
+
   it('tone ยังถูกแปลงเป็นคลาสของธีมที่จุดเดียว ไม่ใช่เทอร์นารีกระจายใน JSX', () => {
     expect(src).toContain('QUOTA_BUTTON_RING_CLASS[lineQuotaCaption.tone]')
   })

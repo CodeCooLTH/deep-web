@@ -127,6 +127,39 @@ describe('deriveLineQuotaCaption — ข้อความบนปุ่มส�
     expect(blocked.blocking).toBe(true)
   })
 
+  it('[blocker] นับถอยหลังวินาทีตอนอยู่ในหน้าต่างฟรี (user สั่ง 2026-08-10 รอบเย็น)', () => {
+    const c = deriveLineQuotaCaption(input({ windowOpen: true, secondsLeft: 45 }))
+    expect(c.buttonSuffix).toBe('ฟรี 45 วิ')
+  })
+
+  it('นับถอยหลังใช้กับหน้าต่างฟรีเท่านั้น — นอกหน้าต่างไม่มีอะไรให้นับ', () => {
+    // ส่ง secondsLeft มาผิดที่ต้องไม่ทำให้ตัวเลขวินาทีไปโผล่ปนกับยอดโควตา
+    const c = deriveLineQuotaCaption(input({ windowOpen: false, secondsLeft: 45 }))
+    expect(c.buttonSuffix).toBe('248/300')
+    expect(c.buttonSuffix).not.toContain('วิ')
+  })
+
+  it('ไม่ส่ง secondsLeft มา → ยังเป็น "ฟรี" เฉย ๆ (ของเดิมไม่พังเมื่อผู้เรียกไม่รู้เรื่องเวลา)', () => {
+    expect(deriveLineQuotaCaption(input({ windowOpen: true })).buttonSuffix).toBe('ฟรี')
+    expect(deriveLineQuotaCaption(input({ windowOpen: true, secondsLeft: null })).buttonSuffix).toBe('ฟรี')
+  })
+
+  it('[blocker] ห้ามขึ้น "ฟรี 0 วิ" — ขัดกับคำว่าฟรีที่อยู่ข้าง ๆ มันเอง', () => {
+    expect(deriveLineQuotaCaption(input({ windowOpen: true, secondsLeft: 0 })).buttonSuffix).toBe('ฟรี')
+    expect(deriveLineQuotaCaption(input({ windowOpen: true, secondsLeft: -3 })).buttonSuffix).toBe('ฟรี')
+  })
+
+  it('นับถอยหลังไม่แตะ tone เลย — ความเร่งด่วนห้ามกลายเป็นสีเตือน (BRD: ห้ามกดดันจนตอบผิด)', () => {
+    // ตัวเลขเวลาบอกความจริง ส่วน tone ยังผูกกับ "สถานะโควตา" อย่างเดียวเหมือนเดิม
+    for (const s of [59, 30, 5, 1]) {
+      expect(deriveLineQuotaCaption(input({ windowOpen: true, secondsLeft: s })).tone).toBe('neutral')
+    }
+    // โควตาใกล้หมดต่างหากที่ทำให้เป็น warning ไม่ใช่เวลาที่เหลือน้อย
+    expect(
+      deriveLineQuotaCaption(input({ windowOpen: true, secondsLeft: 59, level: 'LOW', remaining: 12 })).tone,
+    ).toBe('warning')
+  })
+
   it('[blocker] ทุกสถานะที่ปุ่มยังกดได้และหักโควตา ต้องมี suffix — ไม่มีช่องโหว่ให้เงียบ', () => {
     const cases: Partial<LineQuotaCaptionInput>[] = [
       { windowOpen: true },

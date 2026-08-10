@@ -18,6 +18,16 @@ export interface LineQuotaCaptionInput {
   total: number | null
   /** อ่านค่าล่าสุดจาก LINE ไม่สำเร็จ (กำลังใช้ค่าเก่า/ไม่มีค่าเลย) */
   stale: boolean
+  /**
+   * (2026-08-10 รอบเย็น, user สั่ง) วินาทีที่เหลือของหน้าต่างตอบฟรี — `null`/ไม่ส่ง = ไม่นับถอยหลัง
+   *
+   * มีผลเฉพาะตอน `windowOpen` เท่านั้น (นอกหน้าต่างไม่มีอะไรให้นับ) — ผู้เรียกเป็นคนปัดเศษมาให้
+   * เพราะเป็นคนถือตัวจับเวลาที่ tick ทุกวินาทีอยู่แล้ว ไฟล์นี้ไม่ยุ่งกับเวลาจริง (จะได้เทสได้)
+   *
+   * 🛑 ค่านี้ต้องไม่มีวันเป็น 0 ตอนหน้าต่างยังเปิด — "ฟรี 0 วิ" ค้างอยู่ 1 วินาทีเต็มอ่านแล้วขัดแย้ง
+   * กับตัวมันเอง (บอกว่าฟรีแต่บอกว่าหมดเวลา) ผู้เรียกต้อง clamp ขั้นต่ำที่ 1
+   */
+  secondsLeft?: number | null
 }
 
 export interface LineQuotaCaption {
@@ -61,7 +71,18 @@ function fmt(n: number): string {
  * (TFR-LINE-06 ข้อ 5) — ไม่ใช่การเดาแทนผู้ใช้ การเปิดปุ่มที่กดแล้วล้มเหลว 100% แย่กว่าปิดพร้อมบอกทางออก
  */
 export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaCaption {
-  const { windowOpen, type, level, remaining, total, stale } = input
+  const { windowOpen, type, level, remaining, total, stale, secondsLeft } = input
+
+  /**
+   * ป้ายบนปุ่มตอนอยู่ในหน้าต่างฟรี — `ฟรี` หรือ `ฟรี 45 วิ` เมื่อผู้เรียกส่งเวลามาให้
+   *
+   * BRD FR-LINE-05 มีเกณฑ์สองข้อที่ต้องเป็นจริงพร้อมกัน: "เธรดแสดง...ว่าเหลือเวลาเท่าไร" กับ
+   * "ต้องไม่กดดันจนร้านรีบตอบผิด ๆ" — ตัวเลขจึงบอกความจริงตรง ๆ และ **ห้ามมีตัวเร่งความเครียด**
+   * (ห้ามเปลี่ยนเป็นสีแดง/กะพริบ/ขยายเมื่อใกล้ 0) เพราะการพลาดหน้าต่างเสียแค่โควตา 1 ใบจาก 300
+   * ขณะที่การรีบจนส่งข้อความผิดไปหาลูกค้าถอนคืนไม่ได้ — tone จึงยังคุมด้วยสถานะโควตาเหมือนเดิม
+   * ไม่ผูกกับเวลาที่เหลือเลย
+   */
+  const freeSuffix = secondsLeft != null && secondsLeft > 0 ? `ฟรี ${secondsLeft} วิ` : 'ฟรี'
 
   if (windowOpen) {
     // อยู่ในนาทีทองแล้ว — เรื่องเดียวที่ผู้ขายต้องรู้คือ "ใบนี้ไม่เสียโควตา" ส่วนสถานะโควตาเป็นแค่
@@ -72,7 +93,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
         fullText: 'ข้อความนี้ส่งฟรี (อยู่ในช่วงตอบด่วน) — โควตาหมดแล้วหลังจากนี้',
         tone: 'warning',
         blocking: false,
-        buttonSuffix: 'ฟรี',
+        buttonSuffix: freeSuffix,
       }
     }
     if (level === 'LOW' && !stale) {
@@ -81,7 +102,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
         fullText: 'ข้อความนี้ส่งฟรี (อยู่ในช่วงตอบด่วน) — โควตาใกล้หมด',
         tone: 'warning',
         blocking: false,
-        buttonSuffix: 'ฟรี',
+        buttonSuffix: freeSuffix,
       }
     }
     return {
@@ -89,7 +110,7 @@ export function deriveLineQuotaCaption(input: LineQuotaCaptionInput): LineQuotaC
       fullText: 'ข้อความนี้ส่งฟรี (อยู่ในช่วงตอบด่วน)',
       tone: 'neutral',
       blocking: false,
-      buttonSuffix: 'ฟรี',
+      buttonSuffix: freeSuffix,
     }
   }
 

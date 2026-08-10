@@ -1030,9 +1030,11 @@ export default function ChatThread({
   //
   // (S-14b, 2026-08-10) LINE ใช้กลไกเดียวกันนี้ แต่ค่าที่ป้อนเข้ามาคือหน้าต่าง reply 60 วินาที
   // (page.tsx เป็นคนเลือกกติกาตาม channel) — ที่นี่ไม่ต้องรู้ว่ามาจาก provider ไหน
-  // 🛑 สำหรับ LINE ห้ามมีจุดไหน render `liveRemaining` เป็นตัวเลข (BRD AC-005-05: เป็น "ข้อมูล
-  // ไม่ใช่การนับถอยหลัง") — ตัวจับเวลามีหน้าที่เดียวคือพลิก `liveWindowOpen` เงียบ ๆ เมื่อหมดเวลา
-  // แล้วแคปชันข้างปุ่มส่งจะเปลี่ยนจาก "ส่งฟรี" เป็นสถานะโควตาเอง
+  // 🔄 (2026-08-10 รอบเย็น, user สั่ง) เดิมห้าม render `liveRemaining` เป็นตัวเลขสำหรับ LINE โดยอ้าง
+  // BRD FR-LINE-05 ข้อ "เป็นข้อมูล ไม่ใช่การนับถอยหลัง" — อ่านเกณฑ์ทั้งชุดแล้วพบว่าตีความเกินไป
+  // เพราะข้อที่อยู่ติดกันเขียนว่า "เธรดแสดงให้ร้านเห็นว่า...**เหลือเวลาเท่าไร**" ซึ่งไม่เคยถูกทำเลย
+  // ตอนนี้ปุ่มส่งนับถอยหลังจริง (`ส่ง · ฟรี 45 วิ`) โดยข้อห้ามที่ยังอยู่คือ **ห้ามมีตัวเร่งความเครียด**
+  // (ห้ามแดง/กะพริบ/ขยายเมื่อใกล้ 0) — ดู comment เหนือ `freeSuffix` ใน lib/line/quota-caption.ts
   const [expiryTs, setExpiryTs] = useState(() => Date.now() + msRemaining)
   // 🛑 ต้อง reset เมื่อ prop เปลี่ยน ไม่ใช่ lazy-init ครั้งเดียวตอน mount: เธรด LINE เรียก
   // router.refresh() หลังส่งสำเร็จ (โควตา/หน้าต่างเปลี่ยนทันทีที่ส่ง) ถ้าไม่ reset ตัวจับเวลาจะยัง
@@ -1109,6 +1111,10 @@ export default function ChatThread({
           remaining: lineQuota.remaining,
           total: lineQuota.total,
           stale: lineQuota.stale,
+          // ปัดขึ้น + clamp ขั้นต่ำ 1: เหลือ 0.4 วินาทีต้องอ่านว่า "1 วิ" ไม่ใช่ "0 วิ" — ตัวเลข 0
+          // ที่ค้างอยู่เต็มวินาทีขัดกับคำว่า "ฟรี" ที่อยู่ข้าง ๆ มันเอง (พอถึง 0 จริง `liveWindowOpen`
+          // พลิกเป็น false แล้วปุ่มเปลี่ยนไปโหมดโควตาเอง จึงไม่มีทางค้างที่ "ฟรี 1 วิ")
+          secondsLeft: liveWindowOpen ? Math.max(1, Math.ceil(liveRemaining / 1000)) : null,
         })
       : null
 
@@ -3328,7 +3334,14 @@ export default function ChatThread({
                 {lineQuotaCaption?.buttonSuffix && (
                   // font-normal + opacity ต่ำกว่าคำว่า "ส่ง" เล็กน้อย — ตัวเลขเป็นข้อมูลประกอบ
                   // ไม่ใช่ป้ายของปุ่ม ถ้าน้ำหนักเท่ากันปุ่มจะอ่านเหมือนมีสองคำสั่ง
-                  <span className="ms-1 font-normal opacity-90">· {lineQuotaCaption.buttonSuffix}</span>
+                  //
+                  // 🛑 aria-hidden โดยตั้งใจ: ตอนอยู่ในหน้าต่างฟรีข้อความนี้เปลี่ยนทุกวินาที
+                  // ("ฟรี 45 วิ" → "ฟรี 44 วิ") ถ้าปล่อยให้เป็นส่วนหนึ่งของชื่อปุ่ม screen reader
+                  // จะถูกรบกวนทุกวินาที — ความหมายทั้งหมดถูกยกไปไว้ใน aria-label ที่นิ่งแล้ว
+                  // (ยังกดด้วยเสียงว่า "ส่ง" ได้ เพราะคำนั้นอยู่ทั้งในข้อความที่เห็นและในชื่อ)
+                  <span aria-hidden="true" className="ms-1 font-normal opacity-90">
+                    · {lineQuotaCaption.buttonSuffix}
+                  </span>
                 )}
                 <Icon icon="send-2" className="ms-1 text-base" />
               </button>
