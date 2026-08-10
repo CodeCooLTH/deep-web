@@ -397,14 +397,12 @@ export const ProfileRightContent = ({
       ) : (
         <>
           {/* ── สินค้าปักหมุด (Phase 3: pinnedProducts จริงจาก getPinnedProducts — ซ่อนทั้งโซนเมื่อว่าง TFR-PIN-07) ── */}
+          {/* ไม่มีหัวข้อ "สินค้าปักหมุด"/"สินค้าทั้งหมด" แล้ว (user 2026-08-10) — แท็บนี้ต้องอ่านเป็น
+              ฟีดรูปต่อเนื่องเหมือนแท็บปักหมุด ไม่ใช่เอกสารที่แบ่ง section · ป้าย "ปักหมุด" บนไทล์
+              ยังบอกอยู่แล้วว่าใบไหนถูกปักหมุด จึงไม่ได้เสียข้อมูลไปกับการตัดหัวข้อ
+              pb เหลือ 4px เท่าช่องไฟกริด เพื่อให้สองชุดไหลต่อกันเป็นผืนเดียว */}
           {pinnedProducts.length > 0 && (
-            <Box id='pinned-products' sx={{ pt: '18px', pb: '16px' }}>
-              <Typography
-                component='h3'
-                sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
-              >
-                {L.pinned}
-              </Typography>
+            <Box id='pinned-products' sx={{ pt: '12px', pb: '4px' }}>
               <Box
                 sx={{
                   display: 'grid',
@@ -443,13 +441,7 @@ export const ProfileRightContent = ({
 
           {/* ── สินค้าทั้งหมด (Phase 3: otherProducts = getProductsByShop excludePinned — ซ่อนเมื่อว่าง) ── */}
           {otherProducts.length > 0 && (
-            <Box id='all-products' sx={{ pb: '16px' }}>
-              <Typography
-                component='h3'
-                sx={{ m: 0, mb: '10px', fontSize: '13px', fontWeight: 600, color: '#2F2B3D' }}
-              >
-                {L.all}
-              </Typography>
+            <Box id='all-products' sx={{ pb: '16px' }} data-section='all-products'>
               <Box
                 sx={{
                   display: 'grid',

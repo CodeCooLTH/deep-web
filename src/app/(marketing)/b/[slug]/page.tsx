@@ -301,6 +301,13 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               bio: profileTab.bio,
               location: profileTab.location,
               memberSince: profileTab.memberSince,
+              // 🛑 สามค่านี้ถูกเก็บลงฐานมาตลอด (cron chat-metrics.service) และ AboutOverview ก็มีโค้ด
+              // แสดงผลพร้อม sample-gate ≥3 รออยู่แล้ว — แต่หน้านี้ไม่เคยส่งมาให้ ข้อมูลเลยตกหายที่
+              // "ตัวส่ง" ไม่ใช่ที่ตัวแสดง และไม่มีอะไรฟ้องเพราะ field เป็น optional ทั้งหมด
+              // /u/[username] ต่อสายไว้ถูกตั้งแต่แรก — public profile มี 2 เส้น แก้เส้นเดียวไม่พอเสมอ
+              chatResponseRate: shop.chatResponseRate,
+              chatMedianResponseSec: shop.chatMedianResponseSec,
+              chatResponseSampleSize: shop.chatResponseSampleSize,
             },
             channels: profileStats.channels,
             videos: shopVideos,

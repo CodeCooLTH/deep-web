@@ -30,7 +30,6 @@ import { useSession } from 'next-auth/react'
 
 import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
-import Drawer from '@mui/material/Drawer'
 import IconButton from '@mui/material/IconButton'
 
 import { Icon } from '@iconify/react'
@@ -44,6 +43,7 @@ import themeConfig from '@configs/themeConfig'
 
 import { badgeIconName } from '@/lib/badge-icons'
 import { ChannelStrip, type OfficialChannel } from './OfficialChannels'
+import ResponsiveSheet from './ResponsiveSheet'
 // เกณฑ์ขั้นต่ำอ่านจาก SSOT — ห้าม hardcode เลขในข้อความ ไม่งั้นวันที่เกณฑ์เปลี่ยน
 // หน้าจอจะบอกตัวเลขที่ไม่ตรงกับที่ระบบใช้จริง
 import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
@@ -643,16 +643,10 @@ export default function ProfileHero({
              บรรทัดที่ทำให้ผู้ซื้อ "เชื่อมั่น" จริง ๆ คือบรรทัดสุดท้าย: ระบบมอบให้เองจากพฤติกรรมจริง
              ร้านขอเองไม่ได้ — ซึ่งเป็นความจริงของระบบ (evaluateSellerBadgesForShop ประเมินอัตโนมัติ)
              ไม่ใช่คำโฆษณา */}
-      <Drawer
-        anchor='bottom'
+      <ResponsiveSheet
         open={openBadge !== null}
         onClose={() => setOpenBadge(null)}
-        slotProps={{
-          paper: {
-            'aria-label': 'รายละเอียดเหรียญ',
-            sx: { borderRadius: '10px 10px 0 0', maxBlockSize: '86dvh' },
-          },
-        }}
+        ariaLabel='รายละเอียดเหรียญ'
       >
         {openBadge && (
           <div className='pli-5 pbs-3 pbe-6'>
@@ -717,29 +711,21 @@ export default function ProfileHero({
             </div>
           </div>
         )}
-      </Drawer>
+      </ResponsiveSheet>
 
       {/* ── E2: แผงอธิบายคะแนนความน่าเชื่อถือ ──
              Base: src/app/(marketing)/a/[id]/AuctionBidHistoryModal.tsx (Drawer anchor='bottom' +
              แถบจับ + หัวข้อ/ปุ่มปิด) ซึ่ง adapt มาจาก theme/vuexy/.../views/apps/email/ComposeMail.tsx
 
-             เป็น bottom sheet ไม่ใช่ modal กลางจอ: นี่คือข้อมูลเสริมที่ไม่ได้ขัดจังหวะงานอะไร
-             และไม่ใช่ tooltip เพราะเนื้อหาหลายบรรทัด + surface หลักคือมือถือที่ไม่มี hover
+             ไม่ใช่ tooltip เพราะเนื้อหาหลายบรรทัด + surface หลักคือมือถือที่ไม่มี hover
 
-             🛑 radius 10px ไม่ใช่ 18px ของไฟล์ต้นแบบ — 18 ไม่อยู่บน shape ramp ฝั่ง buyer
-             (4/6/8/10/full) ไฟล์นี้เพิ่งแก้ปุ่มแชท 13→10 ด้วยเหตุผลเดียวกันในรอบเดียวกัน */}
-      <Drawer
-        anchor='bottom'
+             รูปร่างสลับตามจอผ่าน ResponsiveSheet: มือถือ = bottom sheet · เดสก์ท็อป = โมดัลกลางจอ
+             (เดิมเป็น bottom sheet ทุกจอ ซึ่ง user ทักว่าบนเดสก์ท็อปมันยึดขอบล่างโดยไม่มีเหตุผล) */}
+      <ResponsiveSheet
         open={scorePanelOpen}
         onClose={() => setScorePanelOpen(false)}
-        // MUI v9: `PaperProps` ถูกถอดออกแล้ว ต้องผ่าน `slotProps.paper` (รูปเดียวกับไฟล์ต้นแบบ)
-        slotProps={{
-          paper: {
-            id: 'trust-score-panel',
-            'aria-labelledby': 'trust-score-panel-title',
-            sx: { borderRadius: '10px 10px 0 0', maxBlockSize: '86dvh' },
-          },
-        }}
+        id='trust-score-panel'
+        ariaLabelledBy='trust-score-panel-title'
       >
         <div className='pli-5 pbs-3 pbe-6'>
           <div className='flex items-center justify-between mbe-3'>
@@ -793,7 +779,7 @@ export default function ProfileHero({
             คำนวณจากพฤติกรรมจริงบน Deep เท่านั้น ร้านไม่สามารถซื้อหรือปลอมคะแนนได้
           </Typography>
         </div>
-      </Drawer>
+      </ResponsiveSheet>
     </div>
   )
 }
