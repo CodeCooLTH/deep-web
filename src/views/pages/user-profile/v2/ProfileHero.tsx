@@ -214,7 +214,17 @@ function BadgeArtwork({
   }
   // เหรียญที่ยังไม่มี artwork — ไอคอนเส้นเล็กกว่ารูปจริงเล็กน้อย เพราะ glyph เส้นเต็มวงจะดูหนา
   // เกินจนแย่งสายตาไปจากเหรียญที่มีลายจริง
-  return <Icon icon={badgeIconName(nameEN, icon)} width={Math.round(size * 0.6)} className='shrink-0 opacity-60' />
+  // 🛑 เหรียญ 11/20 ใบในระบบยังไม่มี artwork และตกมาที่ไอคอนเส้น — ถ้าปล่อยจาง (opacity .6 เทา)
+  // มันจะดูอ่อนกว่าเหรียญ pixel-art ที่สีจัดข้าง ๆ จนทั้งแถวอ่านเป็น "บางใบโหลดไม่มา"
+  // ใช้สี primary เต็มความเข้ม: เป็นสีของระบบ ไม่ใช่การประดิษฐ์ความหมายใหม่ให้เหรียญแต่ละใบ
+  // (เขียวสงวนให้ "ยืนยันแล้ว" · ส้มสงวนให้ "เตือน" ตาม DESIGN.md จึงใช้ไม่ได้ที่นี่)
+  return (
+    <Icon
+      icon={badgeIconName(nameEN, icon)}
+      width={Math.round(size * 0.62)}
+      className='shrink-0 text-primary'
+    />
+  )
 }
 
 export default function ProfileHero({
@@ -256,7 +266,12 @@ export default function ProfileHero({
       ? {
           value: `${data.completionRate}%`,
           label: 'อัตราสำเร็จ',
-          hint: data.completionDenominator != null ? `จาก ${data.completionDenominator} ${L.unitLabel}` : null,
+          // ถอด "จาก N ใบ" ออกจากช่อง (user 2026-08-10: "76 ใบคืออะไร ผมว่าเอาออกดีกว่า")
+          // 🛑 นี่เป็นการเบี่ยงจาก BR-OSM-07 (feature 00039) ที่กำหนดให้ % ต้องมาคู่ตัวหารเสมอ
+          // ต้นเหตุที่มันอ่านไม่รู้เรื่องคือ **ผมย่อคำเอง** ตอนยุบ % เข้าช่องแคบ: ของเดิมเขียนว่า
+          // "จาก 60 ออเดอร์ที่จบแล้ว" ซึ่งมีคำนามครบ พอเหลือ "จาก 76 ใบ" ลักษณนามลอยจึงไร้ความหมาย
+          // ถ้าจะเอาตัวหารกลับมา ให้ใช้ประโยคเต็มที่มีคำนาม ไม่ใช่เอาคำย่อกลับมา
+          hint: null,
           highlight: true,
         }
       : {
@@ -455,19 +470,19 @@ export default function ProfileHero({
               (แนวเดียวกับที่ user สั่งให้กริดคลิปชิดซ้ายในรอบเดียวกัน) */}
           <ul id='badge-list' className='flex flex-wrap gap-x-5 gap-y-3 m-0 p-0 list-none'>
             {shownBadges.map((b) => (
-              <li key={b.id} className='flex flex-col items-center gap-1.5 is-[64px]'>
+              <li key={b.id} className='flex flex-col items-center gap-2 is-[84px]'>
                 {/* วงกลม 56px ให้ artwork เต็มตาแบบ ref — ไม่ใช่ไอคอนจิ๋วในชิป
                     🛑 พื้นวงต้องมีสีอ่อน ไม่ใช่ขาวล้วน: เหรียญ 11/20 ใบในระบบยังไม่มี artwork และ
                     ตกไปใช้ไอคอนเส้น ถ้าพื้นเป็นขาวเดียวกับการ์ด ใบที่ไม่มีรูปจะดูเหมือน "โหลดไม่มา"
                     พื้นอ่อนทำให้มันอ่านเป็น "ช่องใส่เหรียญที่ยังไม่มีลาย" ซึ่งเป็นความจริง */}
-                <span className='is-14 bs-14 rounded-full bg-[var(--mui-palette-action-hover)] flex items-center justify-center shrink-0 overflow-hidden'>
+                <span className='is-14 bs-14 rounded-full bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] shadow-sm flex items-center justify-center shrink-0 overflow-hidden'>
                   <BadgeArtwork imageUrl={b.imageUrl} nameEN={b.nameEN} icon={b.icon} alt={b.name} />
                 </span>
                 {/* ชื่อเหรียญใต้รูป — clamp 2 บรรทัด ชื่อไทยยาวกว่าอังกฤษใน ref มาก */}
                 <Typography
                   variant='caption'
-                  color='text.secondary'
-                  className='text-center leading-tight line-clamp-2'
+                  color='text.primary'
+                  className='text-center leading-tight line-clamp-2 font-medium'
                 >
                   {b.name}
                 </Typography>

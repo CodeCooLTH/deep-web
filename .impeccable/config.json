@@ -42,6 +42,12 @@
           "*/scratchpad/mockup/*.html"
         ],
         "createdAt": "2026-08-06T04:20:56.586Z"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "22px",
+        "createdAt": "2026-08-10T03:14:23.680Z",
+        "reason": "Metric ramp step 2 ตาม DESIGN.md §Typography"
       }
     ]
   }
