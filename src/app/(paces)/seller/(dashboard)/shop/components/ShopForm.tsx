@@ -134,8 +134,9 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone,
       setCoverFileId(await uploadFileId(file, 'IMAGE'))
       // ต้องบอกว่ายังไม่จบ — ไฟล์ขึ้น bucket แล้วก็จริง แต่จะลงฐานตอนกดบันทึกเท่านั้น
       pacesToast.success('อัปโหลดภาพหน้าปกสำเร็จ — กดบันทึกเพื่อใช้งานรูปนี้')
-    } catch {
-      pacesToast.error('เกิดข้อผิดพลาดขณะอัปโหลด')
+    } catch (err) {
+      // uploadFileId throw เหตุผลจริง (ชนิด/ขนาด/เน็ตขาด) — ข้อความกลาง ๆ ทำให้ผู้ใช้ลองไฟล์เดิมซ้ำ
+      pacesToast.error(err instanceof Error && err.message ? err.message : 'เกิดข้อผิดพลาดขณะอัปโหลด')
     } finally {
       setCoverUploading(false)
     }
@@ -151,8 +152,9 @@ export default function ShopForm({ shop, isExisting, ageText = null, dangerZone,
       // direct upload (2026-08-10) — ไม่ผ่าน body ของ function ที่ Vercel จำกัด 4.5MB
       setLogoFileId(await uploadFileId(file, 'IMAGE'))
       pacesToast.success('อัปโหลดโลโก้สำเร็จ — กดบันทึกเพื่อใช้งานรูปนี้')
-    } catch {
-      pacesToast.error('เกิดข้อผิดพลาดขณะอัปโหลด')
+    } catch (err) {
+      // uploadFileId throw เหตุผลจริง (ชนิด/ขนาด/เน็ตขาด) — ข้อความกลาง ๆ ทำให้ผู้ใช้ลองไฟล์เดิมซ้ำ
+      pacesToast.error(err instanceof Error && err.message ? err.message : 'เกิดข้อผิดพลาดขณะอัปโหลด')
     } finally {
       setLogoUploading(false)
     }
