@@ -1729,6 +1729,80 @@ export default function ChatThread({
         </div>
       )}
 
+      {/**
+       * ที่มาของเธรด: คอมเมนต์ใต้โพสต์ — แถวเดียวติดหัวแชท ที่เดียวกับแบนเนอร์โฆษณา
+       *
+       * user สั่ง 2026-08-10 หลังเห็นรุ่นแรก: *"ต้อง merge เป็นด้านบนที่เดียว"* + *"ด้านล่าง …
+       * เอาออกเลย"* + *"มันกินพื้นที่เวลาอยู่บน mobile"* — เดิมเป็นการ์ดในสตรีมข้อความสูง ~5 บรรทัด
+       * ซึ่งบนมือถือกินพื้นที่จอไปมากทุกครั้งที่เปิดห้อง ตอนนี้ยุบเหลือแถวเดียวสูงเท่าแบนเนอร์โฆษณา
+       *
+       * ยุบแล้วยัง **ไม่ทิ้งข้อมูล** — ทั้ง "โพสต์ไหน" และ "ลูกค้าคอมเมนต์ว่าอะไร" อยู่ครบใน 2 บรรทัด
+       * เพราะข้อความคอมเมนต์คือเหตุผลที่การ์ดนี้ถูกสร้างขึ้นแต่แรก (user report ผ่านหัวหน้า
+       * 2026-08-09: เปิดห้องมาแล้วไม่รู้ว่าตอบเรื่องอะไร) ถ้าตัดทิ้งคือย้อนงานนั้นกลับ
+       *
+       * ไม่มี `!oldestCursor` แล้ว — เงื่อนไขนั้นมีไว้ตอนการ์ดวางเป็น "รายการแรกในลิสต์" (ถ้ายังมี
+       * ข้อความเก่ากว่าให้โหลด มันจะไปแทรกกลางบทสนทนา) แถวที่ติดหัวแชทไม่ขึ้นกับตำแหน่ง scroll
+       *
+       * ไม่มีปุ่มปิดแบบแบนเนอร์โฆษณา — โฆษณาเป็นข้อมูลครั้งเดียวจบ ส่วนคอมเมนต์ต้นเหตุคือบริบทของ
+       * ทั้งห้องที่ผู้ขายอ้างถึงได้ตลอดบทสนทนา
+       */}
+      {commentOrigin && (
+        <div className="border-default-200 flex items-center gap-3 border-b px-4 py-2.5" role="note">
+          <span className="relative shrink-0">
+            {commentOrigin.postThumbnailUrl && !postThumbBroken ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={commentOrigin.postThumbnailUrl}
+                alt=""
+                className="size-10 rounded-md object-cover"
+                // โหลดไม่ขึ้น → กิ่งเดียวกับ "ไม่มีรูป" (กล่องเทา) ไม่ใช่กล่องขาวเปล่า
+                onError={() => setPostThumbBroken(true)}
+              />
+            ) : (
+              <span className="bg-default-100 text-default-700 flex size-10 items-center justify-center rounded-md">
+                <Icon icon="photo" className="text-lg" aria-hidden="true" />
+              </span>
+            )}
+            {isVideoPost(commentOrigin.postMediaType) && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="flex size-5 items-center justify-center rounded-full bg-black/50 text-white">
+                  <Icon icon="player-play-filled" className="text-2xs" aria-hidden="true" />
+                </span>
+              </span>
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            {/* บรรทัดบน = โพสต์ไหน (ตอบ "เค้า Post จากไหน") · ไม่มีบรรทัด label เปล่า ๆ คั่น
+                เพราะรูปกับไอคอนสื่อความหมายอยู่แล้ว และทุกบรรทัดที่เพิ่มคือพื้นที่จอมือถือ */}
+            <p
+              className="text-default-800 truncate text-sm font-semibold"
+              title={commentOrigin.postMessage ?? undefined}
+            >
+              {commentOrigin.postMessage?.trim() || 'โพสต์ไม่มีข้อความ'}
+            </p>
+            <div className="flex min-w-0 items-center gap-2">
+              {/* ไอคอนนำหน้าทำให้แยกออกทันทีว่าบรรทัดนี้คือ "คำพูดของลูกค้า" ไม่ใช่ส่วนต่อของ
+                  ข้อความโพสต์ด้านบน — สองก้อนเป็นข้อความยาวคล้ายกันวางติดกัน (ux ทักไว้) */}
+              <Icon icon="message-2" className="text-default-500 size-3.5 shrink-0" aria-hidden="true" />
+              <span className="text-default-700 truncate text-sm" title={commentOrigin.message ?? undefined}>
+                {commentOrigin.message?.trim() ||
+                  (commentOrigin.attachmentUrl ? 'ส่งรูปมาในคอมเมนต์' : 'คอมเมนต์ไม่มีข้อความ')}
+              </span>
+              {commentOrigin.url && (
+                <a
+                  href={commentOrigin.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary shrink-0 text-sm font-medium hover:underline"
+                >
+                  ดูคอมเมนต์
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* แถบสถานะห้อง — ยุบเป็นบรรทัดเดียว กดกางดูรายละเอียด (user report 2026-08-02:
           "alert box เยอะ ๆ ไม่ work มันรกหน้าจอมาก") ลำดับใน array = ลำดับความสำคัญ:
           ส่งไม่ได้เลย > ส่งได้แบบมีเงื่อนไข > บอทเงียบ > โหมดทดสอบ
@@ -1826,98 +1900,6 @@ export default function ChatThread({
           </div>
         )}
 
-        {/**
-         * คอมเมนต์ต้นเหตุ — จุดเริ่มจริงของเธรดนี้ (user report ผ่านหัวหน้า 2026-08-09)
-         *
-         * ผู้ขายกด "ทักแชท" จากคอมเมนต์ แล้วเปิดห้องมาไม่รู้ว่าตอบเรื่องอะไร เพราะคอมเมนต์ไม่ได้
-         * อยู่ในเธรด มีแต่บรรทัดระบบภาษาอังกฤษของ Meta ที่บอกแค่ว่า "คุณกำลังตอบคอมเมนต์"
-         *
-         * วางเป็น "รายการแรกในลิสต์" ไม่ใช่แถบปักหมุดเหนือลิสต์ — คอมเมนต์เกิดก่อนข้อความทุกใบจริง ๆ
-         * มันจึงเป็นเหตุการณ์แรกตามลำดับเวลา และเมื่อคุยกันยาวขึ้นมันจะเลื่อนหายไปเองเหมือนข้อความเก่า
-         * แทนที่จะกินหัวจอถาวร (บทเรียนเดียวกับแถบเตือนที่เพิ่งถูกสั่งให้เอาออกเมื่อ 2026-08-09:
-         * ข้อมูลที่ค้างอยู่หัวเธรดทุกครั้งที่เปิด กลายเป็น noise เมื่อมันไม่เกี่ยวกับสิ่งที่กำลังทำ)
-         *
-         * 🛑 เงื่อนไข `!oldestCursor`: ยังมีข้อความเก่ากว่านี้ให้โหลดอยู่ = ตอนนี้ยังไม่ใช่หัวเธรดจริง
-         * ถ้าโชว์ไว้จะกลายเป็นว่าคอมเมนต์แทรกอยู่กลางบทสนทนา ซึ่งผิดลำดับเวลา
-         */}
-        {commentOrigin && !oldestCursor && (
-          <div className="border-default-200 bg-default-50 mb-4 rounded-lg border p-3">
-            {/**
-             * โซน A — โพสต์ต้นฉบับ (user 2026-08-10: "อยากให้เอา รูป Posts มาแสดงด้วย ว่าเค้า
-             * Post จากไหน เหมือน ads พร้อม ชื่อ Posts") ยกภาษาการออกแบบจากแบนเนอร์โฆษณาในไฟล์
-             * เดียวกัน (รูป size-10 rounded-md + fallback กล่องเทา+ไอคอน) และปุ่มเล่นวิดีโอจาก
-             * แถวรายการคอมเมนต์
-             *
-             * 🛑 ความเสี่ยงหลักของการ์ดนี้คือ "แยกไม่ออกว่าอันไหนข้อความโพสต์ อันไหนข้อความ
-             * คอมเมนต์" — สองก้อนเป็นข้อความยาวคล้ายกันวางติดกัน จึงแยกด้วย 4 ชั้นพร้อมกัน
-             * ไม่ใช่ชั้นเดียว: ตำแหน่ง (โพสต์เกิดก่อนเสมอ จึงอยู่บน) · ไอคอน+label คู่ขนาน ·
-             * ขนาด/ความเข้มตัวอักษร (โพสต์ text-xs/700 จงใจเบากว่าคอมเมนต์ text-sm/900 ซึ่งเป็น
-             * พระเอกของการ์ด) · เส้นคั่น 1px
-             *
-             * เส้นคั่นเป็นเส้น **ทึบ** ไม่ใช่เส้นประ — เส้นประของธีมสงวนไว้กับ `.card-header`
-             * ตรงนี้เป็นตัวคั่นเนื้อหาภายในกล่องเดียว ไม่ใช่หัวการ์ด (และไม่แตกเป็นการ์ดซ้อนการ์ด)
-             */}
-            <div className="mb-2.5 flex items-start gap-2.5 border-b border-default-200 pb-2.5">
-              <span className="relative shrink-0">
-                {commentOrigin.postThumbnailUrl && !postThumbBroken ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={commentOrigin.postThumbnailUrl}
-                    alt=""
-                    className="size-10 rounded-md object-cover"
-                    // โหลดไม่ขึ้น → กิ่งเดียวกับ "ไม่มีรูป" (กล่องเทา) ไม่ใช่กล่องขาวเปล่า
-                    onError={() => setPostThumbBroken(true)}
-                  />
-                ) : (
-                  <span className="bg-default-100 text-default-700 flex size-10 items-center justify-center rounded-md">
-                    <Icon icon="photo" className="text-lg" aria-hidden="true" />
-                  </span>
-                )}
-                {isVideoPost(commentOrigin.postMediaType) && (
-                  <span className="absolute inset-0 flex items-center justify-center">
-                    <span className="flex size-5 items-center justify-center rounded-full bg-black/50 text-white">
-                      <Icon icon="player-play-filled" className="text-2xs" aria-hidden="true" />
-                    </span>
-                  </span>
-                )}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-default-500 mb-0.5 flex items-center gap-1.5 text-2xs">
-                  <Icon icon="photo" className="size-3 shrink-0" aria-hidden="true" />
-                  <span>โพสต์ต้นฉบับ</span>
-                </div>
-                {/* ตัด 2 บรรทัด — โพสต์ของร้านยาวมากและมีแฮชแท็กพ่วงท้ายเป็นสิบ การ์ดนี้เป็น
-                    บริบทประกอบ ไม่ใช่เนื้อหาหลัก จึงไม่ต้องมี "อ่านเพิ่มเติม"
-                    คำว่า "โพสต์ไม่มีข้อความ" ยกมาจากรายการคอมเมนต์คำต่อคำ (HR16) */}
-                <p className="text-default-700 mb-0 line-clamp-2 text-xs">
-                  {commentOrigin.postMessage?.trim() || 'โพสต์ไม่มีข้อความ'}
-                </p>
-              </div>
-            </div>
-            <div className="text-default-500 mb-1.5 flex items-center gap-1.5 text-xs">
-              <Icon icon="message-2" className="size-3.5 shrink-0" aria-hidden="true" />
-              <span>ลูกค้าคอมเมนต์ใต้โพสต์</span>
-              <span aria-hidden="true">·</span>
-              <span>{formatDateTime(commentOrigin.createdTime)}</span>
-            </div>
-            {/* คอมเมนต์ที่เป็นรูปล้วนมีจริง (message ว่าง + attachmentUrl มี) — ต้องบอกว่ามีรูป
-                ไม่ใช่ปล่อยการ์ดว่างเปล่าซึ่งอ่านเหมือนระบบโหลดไม่ขึ้น */}
-            <p className="text-default-900 mb-0 text-sm whitespace-pre-wrap">
-              {commentOrigin.message?.trim() || (commentOrigin.attachmentUrl ? 'ส่งรูปมาในคอมเมนต์' : 'คอมเมนต์ไม่มีข้อความ')}
-            </p>
-            {commentOrigin.url && (
-              <a
-                href={commentOrigin.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary mt-2 inline-flex items-center gap-1 text-xs"
-              >
-                ดูคอมเมนต์บน Facebook
-                <Icon icon="external-link" className="size-3.5 shrink-0" aria-hidden="true" />
-              </a>
-            )}
-          </div>
-        )}
 
         {messages.length === 0 ? (
           <SellerEmptyState
