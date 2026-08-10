@@ -28,15 +28,11 @@ import ShipmentDraftPanel from './ShipmentDraftPanel'
 import type { IShipCreateMode } from '@/lib/iship/after-order-create'
 // feature 00033 — ตัดสินว่าเวลาข้อความที่กดสร้างออเดอร์อยู่ในช่วงที่ยอมรับไหม (SSOT เดียวกับ OrderDateRow)
 import { isOrderDateInWindow } from '@/lib/order-date-window'
+// ย้ายออกไป lib + มีเทสคลุม (2026-08-10) — ตอนอยู่ในไฟล์นี้ LINE ตกหล่นจาก if/else เงียบ ๆ
+// จนออเดอร์จากแชท LINE ถูกบันทึกเป็น STOREFRONT ทุกใบ ดู lib/chat-sales-channel.ts
+import { chatChannelToSalesChannel } from '@/lib/chat-sales-channel'
 
 type Channel = 'DEEP' | 'MESSENGER' | 'INSTAGRAM' | string
-
-// map ช่องทางแชท → ช่องทางการขาย ของฟอร์มออเดอร์ (STOREFRONT|FACEBOOK|LINE|TIKTOK)
-// Messenger/Instagram = Meta → FACEBOOK; DEEP = แอปในระบบ → undefined (ใช้ default STOREFRONT)
-function chatChannelToSalesChannel(channel: string): string | undefined {
-  if (channel === 'MESSENGER' || channel === 'INSTAGRAM') return 'FACEBOOK'
-  return undefined
-}
 
 /** ชนิดของงานในหน้าต่าง — คำสั่งซื้อ (เดิม) หรือพัสดุ (feature 00022) */
 export type DraftKind = 'ORDER' | 'SHIPMENT'
