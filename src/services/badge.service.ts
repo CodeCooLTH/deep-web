@@ -23,6 +23,7 @@ import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { recalculateTrustScore, recalculateShopTrustScore } from "@/services/trust-score.service"
 import { pushToUser } from "@/services/app-push.service"
+import { computeShippingSpeed } from "@/lib/shipping-speed"
 import type {
   BadgeCriteria,
   BadgeProgress,
@@ -218,9 +219,15 @@ export async function checkVeteran(
 }
 
 /**
- * U1 item 3: คง findMany ไว้เพราะต้องคำนวณ delta ต่อ row (shipmentTracking.createdAt - order.createdAt)
- * ทำไม: avg ของ delta ไม่ใช่ avg ของ column เดียว → Prisma aggregate ไม่รองรับ computed field
- * เพิ่ม select เฉพาะ field ที่ใช้จริง (createdAt ทั้งสองฝั่ง) + เพิ่ม take bound เพื่อ scale safety
+ * U1 item 3: คง findMany ไว้เพราะต้องคำนวณ delta ต่อ row → Prisma aggregate ไม่รองรับ computed field
+ *
+ * 🛑 ตรรกะการตัดสินย้ายไป `@/lib/shipping-speed` ทั้งหมดแล้ว (2026-08-10) — ที่นี่เหลือแค่ดึงข้อมูล
+ * เหตุผลและบั๊ก 2 ตัวที่แก้ (อ่านพัสดุแค่ทางเดียวจากสองทาง + ตัวตั้งเวลาที่เปลี่ยนความหมายไปแล้ว
+ * ตั้งแต่ 00033) อธิบายไว้ครบที่หัวไฟล์นั้น
+ *
+ * where ไม่กรอง `shipmentTracking: { isNot: null }` อีกต่อไป — ตัวกรองนั้นเองคือบั๊กที่ 1
+ * (ตัดออเดอร์ที่เปิดพัสดุผ่าน iShip ทิ้งทั้งหมดตั้งแต่ชั้น query) การคัดว่าใบไหนนับได้
+ * ไปเกิดใน `computeShippingSpeed` ซึ่งเห็นทั้งสองแหล่ง
  */
 export async function checkFastShipping(
   shop: BadgeShopContext | null,
@@ -229,28 +236,52 @@ export async function checkFastShipping(
 ): Promise<{ met: boolean; orderCount: number; avgHours: number }> {
   if (!shop) return { met: false, orderCount: 0, avgHours: 0 }
 
-  const ordersWithShipment = await prisma.order.findMany({
-    where: { shopId: shop.id, status: { in: statuses }, shipmentTracking: { isNot: null } },
+  const orders = await prisma.order.findMany({
+    where: { shopId: shop.id, status: { in: statuses } },
     select: {
       createdAt: true,
       shipmentTracking: { select: { createdAt: true } },
+      // status='CREATED' + ไม่ใช่ dry-run = นิยาม "ออเดอร์นี้มีพัสดุแล้ว" ตัวเดียวกับทั้งระบบ
+      // (ใบ FAILED ไม่ใช่พัสดุ — บทเรียน 2026-08-06/08-07 ที่เคยนับผิดมาแล้ว 2 ที่)
+      shipments: {
+        where: { status: 'CREATED', isDryRun: false },
+        select: { createdAt: true },
+        orderBy: { createdAt: 'asc' },
+        take: 1,
+      },
+      // ดึง 2 ชนิดใน select เดียว (Prisma มี relation `events` ได้ครั้งเดียวต่อ query)
+      // ไม่ใส่ take เพราะ 2 ชนิดนี้เกิดไม่กี่แถวต่อออเดอร์ — ORDER_CREATED มีแถวเดียวเสมอ
+      // (เขียนที่ `order.service.ts` จุดเดียวใน tx เดียวกับการสร้าง) ส่วน SHIPMENT_CREATED
+      // เพิ่มหนึ่งแถวต่อการเปิดพัสดุสำเร็จหนึ่งครั้ง
+      events: {
+        where: { type: { in: ['ORDER_CREATED', 'SHIPMENT_CREATED'] } },
+        select: { type: true, occurredAt: true },
+        orderBy: { seq: 'asc' },
+      },
     },
     // ทำไม take: ป้องกัน seller ที่มีออเดอร์หลักหมื่นทำให้ query ใหญ่เกิน
     // 10,000 แถวเพียงพอสำหรับ avg ที่มีนัยสำคัญ
     take: 10_000,
   })
-  const orderCount = ordersWithShipment.length
-  if (orderCount < criteria.minOrders) return { met: false, orderCount, avgHours: 0 }
 
-  // คำนวณ avg เวลาตั้งแต่สร้าง order ถึง shipment create (proxy สำหรับ confirmed→shipped)
-  let totalHours = 0
-  for (const order of ordersWithShipment) {
-    if (!order.shipmentTracking) continue
-    const diffMs = order.shipmentTracking.createdAt.getTime() - order.createdAt.getTime()
-    totalHours += diffMs / (1000 * 60 * 60)
-  }
-  const avgHours = totalHours / orderCount
-  return { met: avgHours <= criteria.maxHours, orderCount, avgHours }
+  const { sampleSize, avgHours } = computeShippingSpeed(
+    orders.map((o) => ({
+      orderCreatedAt: o.createdAt,
+      // ORDER_CREATED: ใบแรก (เรียง seq asc แล้ว) = การสร้างออเดอร์
+      keyedInAt: o.events.find((e) => e.type === 'ORDER_CREATED')?.occurredAt ?? null,
+      // SHIPMENT_CREATED: ใบ *ล่าสุด* — พัสดุที่ถูกยกเลิกแล้วเปิดใหม่ ต้องนับใบที่ยังมีผลอยู่
+      // ให้ตรงกับ `shipments` ข้างบนที่กรอง status='CREATED' (BR-ISHIP-22: active ได้ใบเดียว)
+      ishipShipmentEventAt:
+        o.events.filter((e) => e.type === 'SHIPMENT_CREATED').at(-1)?.occurredAt ?? null,
+      ishipShipmentRowAt: o.shipments[0]?.createdAt ?? null,
+      manualShipmentAt: o.shipmentTracking?.createdAt ?? null,
+    })),
+  )
+
+  // orderCount = จำนวนใบที่ "นับได้จริง" ไม่ใช่จำนวนใบทั้งหมดของร้าน — minOrders คือขนาดตัวอย่าง
+  // ขั้นต่ำที่ทำให้ค่าเฉลี่ยมีความหมาย ร้านที่เพิ่งเปิดพัสดุใบที่สองจึงยังไม่ถูกตัดสิน
+  if (sampleSize < criteria.minOrders) return { met: false, orderCount: sampleSize, avgHours: 0 }
+  return { met: avgHours <= criteria.maxHours, orderCount: sampleSize, avgHours }
 }
 
 /**
