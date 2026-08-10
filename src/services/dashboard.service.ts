@@ -248,6 +248,7 @@ export async function getSalesSeries(
             carrierStatus: true,
             createdAt: true,
             carrierPrice: true,
+            estimatedPrice: true,
             codFee: true,
           },
         },
@@ -337,15 +338,34 @@ export async function getSalesSeries(
          * `carrierPrice == null` = ยังไม่ถูกคิดเงิน (ขนส่งยังไม่เข้ารับ) ข้ามไป ไม่ใช่บวก 0
          */
         const activeShipment = (
-          r as { shipments?: { status: string; isDryRun: boolean; carrierPrice: unknown; codFee: unknown }[] }
+          r as {
+            shipments?: {
+              status: string
+              isDryRun: boolean
+              carrierPrice: unknown
+              estimatedPrice: unknown
+              codFee: unknown
+            }[]
+          }
         ).shipments?.find((sp) => sp.status === 'CREATED' && !sp.isDryRun)
         let rowShipping = 0
-        if (activeShipment?.carrierPrice != null) {
-          rowShipping = Number(activeShipment.carrierPrice) + Number(activeShipment.codFee ?? 0)
+        if (activeShipment) {
+          /**
+           * ลำดับความน่าเชื่อถือ: ราคาจริง → ราคาประมาณตอนสร้าง → ไม่มีเลย
+           *
+           * iShip ไม่เปิดราคาจริงจนกว่าขนส่งจะเข้ารับและชั่ง (ใบ status=1 คืน discount_price=0)
+           * ระหว่างนั้นใช้ค่าประมาณไปก่อนดีกว่าปล่อยว่าง — แต่ **ต้องนับว่ายังไม่ใช่ตัวจริง**
+           * (`pendingShipmentValues`) เพราะค่าประมาณคิดจากน้ำหนักที่ร้านแจ้ง ซึ่งมักน้อยกว่า
+           * ที่ชั่งได้จริง (92/151 ใบ) ตัวเลขจึงเป็นเพดานล่าง ไม่ใช่คำตอบสุดท้าย
+           *
+           * `codFee` บวกได้เสมอไม่ว่าราคาส่งจะมาหรือยัง — iShip คิดจาก % ของยอด COD จึงรู้
+           * ตั้งแต่วินาทีที่สร้างพัสดุ (ยืนยัน 2026-08-10: ใบ status=1 มี cod_fee=12.63 แล้ว)
+           */
+          const price = activeShipment.carrierPrice ?? activeShipment.estimatedPrice
+          if (price != null) rowShipping += Number(price)
+          rowShipping += Number(activeShipment.codFee ?? 0)
           shippingValues[idx] += rowShipping
-        } else if (activeShipment) {
-          // มีพัสดุแล้วแต่ยังไม่ถูกคิดเงิน — ต้องนับไว้บอกผู้ใช้ว่ายอดค่าส่งของวันนี้ยังไม่ครบ
-          pendingShipmentValues[idx] += 1
+          if (activeShipment.carrierPrice == null) pendingShipmentValues[idx] += 1
         }
 
         // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ

@@ -96,8 +96,8 @@ const SalesChart = ({ daily, summary }: Props) => {
         >
           <span className="flex items-start gap-2">
             <Icon icon="alert-triangle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-            ค่าส่งยังไม่ครบ — อีก {pendingShipments.toLocaleString('th-TH')} ใบขนส่งยังไม่เข้ารับ
-            จึงยังไม่ถูกคิดเงิน กำไรที่แสดงจึงสูงกว่าจริง
+            ค่าส่งของ {pendingShipments.toLocaleString('th-TH')} ใบยังเป็นราคาประมาณ — ขนส่งยังไม่เข้ารับ
+            จึงยังไม่ชั่งน้ำหนักจริง ตัวเลขจริงมักสูงกว่านี้เล็กน้อย
           </span>
           <Link href="/orders?stage=AWAITING_PICKUP" className="font-semibold underline">
             ดูออเดอร์ที่รอรับเข้า →

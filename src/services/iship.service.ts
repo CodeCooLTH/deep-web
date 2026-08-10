@@ -900,6 +900,45 @@ export async function createShipment(
   const paymentNotice = await syncOrderPaymentToParcel(orderId, codAmount, userId);
 
   const view = await dispatchShipment(shopId, shipment.id, token);
+
+  /**
+   * ราคาโดยประมาณ ณ เวลาที่สร้าง — เก็บไว้ให้หน้ายอดขายมีตัวเลขใช้ระหว่างรอราคาจริง
+   *
+   * ทำไมต้องประมาณเอง: iShip ตัดเครดิตตอนกดสร้างก็จริง แต่ **ไม่เปิดราคาให้อ่านจนกว่าขนส่ง
+   * จะเข้ารับและชั่งน้ำหนัก** — ใบที่ `status=1` คืน `discount_price = 0` เสมอ (พิสูจน์กับ
+   * TH271991F5GZ5E 2026-08-10) หน้ายอดขายจึงเคยแสดงค่าส่งต่ำกว่าจริงมากจนผู้ขายทักเข้ามา
+   *
+   * 🛑 ยิง **หลัง** สร้างพัสดุสำเร็จเสมอ และห่อ try/catch ทั้งก้อน — นี่เป็นข้อมูลประกอบ
+   * ไม่ใช่ด่าน ถ้า check-price ล่มแล้วไปทำให้การเปิดพัสดุล้มคือแลกของสำคัญกับของไม่สำคัญ
+   * (check-price ไม่ก่อค่าใช้จ่ายตามเอกสาร 00022 จึงไม่มีต้นทุนแฝงจากการยิงเพิ่มใบละครั้ง)
+   */
+  try {
+    // ค่าพวกนี้ผ่านด่าน missingParcel มาแล้วจึงไม่มีทางเป็น null จริง แต่ TS narrow ให้ไม่ได้
+    // — เช็คซ้ำแทนการ cast เพราะถ้าวันหน้าด่านนั้นเปลี่ยน ตรงนี้จะข้ามไปเงียบ ๆ ไม่ใช่ส่ง null ออกไป
+    if (courierCode == null || weight == null || width == null || length == null || height == null) {
+      throw new Error('SKIP_ESTIMATE')
+    }
+    const quote = await iship.checkPrice(token, {
+      courier_code: courierCode,
+      ...buildCheckPricePayload(senderOf(account), receiverAddress, {
+        weight,
+        width,
+        length,
+        height,
+      }),
+    });
+    const estimated = Number(quote?.total_price);
+    // ≤ 0 = ขนส่งไม่รองรับเส้นทางนี้ ไม่ใช่ "ส่งฟรี" — เก็บ 0 ลงไปจะกลายเป็นต้นทุนค่าส่ง ฿0
+    if (Number.isFinite(estimated) && estimated > 0) {
+      await prisma.orderShipment.update({
+        where: { id: shipment.id },
+        data: { estimatedPrice: estimated },
+      });
+    }
+  } catch {
+    // เงียบโดยเจตนา — พัสดุเปิดสำเร็จไปแล้ว ผู้ใช้ไม่ควรเห็น error ของงานประกอบ
+  }
+
   return { ...view, paymentNotice };
 }
 

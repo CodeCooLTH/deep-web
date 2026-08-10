@@ -152,8 +152,8 @@ export default async function SalesPage({
   const prevShippingTotal = inPrevRange.reduce((sum: number, o: OrderItem) => {
     if (o.status !== 'CONFIRMED') return sum
     const sp = o.shipments?.[0]
-    if (!sp || sp.carrierPrice == null) return sum
-    return sum + Number(sp.carrierPrice) + Number(sp.codFee ?? 0)
+    if (!sp) return sum
+    return sum + Number(sp.carrierPrice ?? sp.estimatedPrice ?? 0) + Number(sp.codFee ?? 0)
   }, 0)
 
   // Build bucket maps
@@ -201,13 +201,15 @@ export default async function SalesPage({
        */
       const shipment = o.shipments?.[0]
       if (shipment) {
+        // ราคาจริงก่อน → ถ้ายังไม่มีใช้ราคาประมาณตอนสร้าง (iShip ไม่เปิดราคาจนกว่าจะชั่ง)
+        // ค่าธรรมเนียม COD บวกได้เสมอ — รู้ตั้งแต่วินาทีที่สร้างพัสดุ
+        const price = shipment.carrierPrice ?? shipment.estimatedPrice
+        shippingCostPerDay[day] =
+          (shippingCostPerDay[day] ?? 0) + Number(price ?? 0) + Number(shipment.codFee ?? 0)
+        codFeeTotal += Number(shipment.codFee ?? 0)
+        // ยังไม่ใช่ราคาจริง = ตัวเลขของวันนั้นยังขยับได้ ต้องมีป้ายกำกับ
         if (shipment.carrierPrice == null) {
           pendingShipmentPerDay[day] = (pendingShipmentPerDay[day] ?? 0) + 1
-        } else {
-          shippingCostPerDay[day] =
-            (shippingCostPerDay[day] ?? 0) + Number(shipment.carrierPrice) + Number(shipment.codFee ?? 0)
-          // แยกยอดค่าธรรมเนียม COD ไว้โชว์เป็น "ส่วนย่อย" บนการ์ด — ไม่ใช่ยอดที่ต้องบวกเพิ่ม
-          codFeeTotal += Number(shipment.codFee ?? 0)
         }
       }
     } else if (o.status !== 'CANCELLED') {

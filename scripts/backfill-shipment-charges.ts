@@ -38,8 +38,10 @@
  */
 import { PrismaClient } from '@prisma/client'
 import { decryptToken } from '../src/lib/token-crypto'
-import { getOrder } from '../src/lib/iship/client'
+import { getOrder, checkPrice } from '../src/lib/iship/client'
 import { readCarrierChargesFromGetOrder } from '../src/lib/iship/status'
+import { buildCheckPricePayload } from '../src/lib/iship/mapping'
+import type { DeepAddress } from '../src/lib/iship/mapping'
 
 const APPLY = process.argv.includes('--apply')
 const SHOP_ARG = process.argv.find((a) => a.startsWith('--shop='))?.slice('--shop='.length) ?? null
@@ -53,6 +55,46 @@ const baht = (n: number) =>
   n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 type Plan = { id: string; label: string; data: Record<string, number> }
+
+/**
+ * ราคาประมาณจากน้ำหนัก/ขนาดที่ร้านแจ้งไว้ตอนสร้างพัสดุ — ใช้ snapshot ที่เก็บไว้ในแถว
+ * ไม่ใช่ค่าปัจจุบันของร้าน (ต้องเป็นเงื่อนไขเดียวกับตอนที่พัสดุใบนั้นถูกเปิด)
+ *
+ * คืน null เมื่อขอราคาไม่ได้ — ปล่อยว่างดีกว่าเดาเลขมั่ว
+ */
+async function quoteEstimate(
+  token: string,
+  s: {
+    courierCode: string | null
+    weight: unknown
+    width: unknown
+    length: unknown
+    height: unknown
+    senderSnapshot: unknown
+    receiverSnapshot: unknown
+  },
+): Promise<number | null> {
+  if (!s.courierCode || s.weight == null || s.width == null || s.length == null || s.height == null) return null
+  const sender = s.senderSnapshot as DeepAddress & { postcode?: string | null }
+  const receiver = s.receiverSnapshot as DeepAddress
+  if (!sender || !receiver) return null
+  try {
+    const quote = await checkPrice(token, {
+      courier_code: s.courierCode,
+      ...buildCheckPricePayload(sender as never, receiver, {
+        weight: Number(s.weight),
+        width: Number(s.width),
+        length: Number(s.length),
+        height: Number(s.height),
+      }),
+    })
+    const n = Number(quote?.total_price)
+    // ≤ 0 = ขนส่งไม่รองรับเส้นทางนี้ ไม่ใช่ส่งฟรี
+    return Number.isFinite(n) && n > 0 ? n : null
+  } catch {
+    return null
+  }
+}
 
 async function main() {
   const accounts = await prisma.shopShippingAccount.findMany({
@@ -84,8 +126,16 @@ async function main() {
         id: true,
         trackingNo: true,
         carrierPrice: true,
+        estimatedPrice: true,
         actualWeight: true,
         codFee: true,
+        courierCode: true,
+        weight: true,
+        width: true,
+        length: true,
+        height: true,
+        senderSnapshot: true,
+        receiverSnapshot: true,
         order: { select: { orderNo: true } },
       },
       orderBy: { createdAt: 'asc' },
@@ -121,17 +171,27 @@ async function main() {
           continue
         }
         const next = readCarrierChargesFromGetOrder(raw)
-        if (next.carrierPrice === null) {
-          // ยังไม่ถูกคิดเงิน (ขนส่งยังไม่เข้ารับ) — ข้ามไปเฉย ๆ sync จะเก็บให้เองเมื่อถึงเวลา
-          noPrice += 1
-          continue
-        }
         const data: Record<string, number> = {}
         // null = "iShip ไม่ได้บอก" ไม่ใช่ "ค่านั้นถูกลบ" — ห้ามเขียนทับของเดิมด้วยความว่าง
-        if (Number(s.carrierPrice ?? NaN) !== next.carrierPrice) data.carrierPrice = next.carrierPrice
+        if (next.carrierPrice !== null && Number(s.carrierPrice ?? NaN) !== next.carrierPrice)
+          data.carrierPrice = next.carrierPrice
         if (next.actualWeight !== null && Number(s.actualWeight ?? NaN) !== next.actualWeight)
           data.actualWeight = next.actualWeight
+        /**
+         * ค่าธรรมเนียม COD เก็บได้เสมอแม้ยังไม่มีราคาส่ง — iShip คิดจาก % ของยอด COD จึงรู้
+         * ตั้งแต่วินาทีที่สร้างพัสดุ (ยืนยัน 2026-08-10: ใบ status=1 มี cod_fee แล้วทั้งที่
+         * discount_price ยังเป็น 0) รอบก่อนสคริปต์นี้ `continue` ทิ้งทั้งแถวเมื่อไม่มีราคาส่ง
+         * จึงทิ้งค่าธรรมเนียมที่รู้แล้วไปด้วยโดยไม่จำเป็น
+         */
         if (next.codFee !== null && Number(s.codFee ?? NaN) !== next.codFee) data.codFee = next.codFee
+
+        // ยังไม่มีราคาจริง → ขอราคาประมาณจากน้ำหนักที่ร้านแจ้ง เพื่อให้หน้ายอดขายมีตัวเลขใช้
+        // ระหว่างรอ (เขียนลง estimatedPrice เท่านั้น ห้ามลง carrierPrice — คนละความน่าเชื่อถือ)
+        if (next.carrierPrice === null && s.carrierPrice === null && s.estimatedPrice === null) {
+          noPrice += 1
+          const est = await quoteEstimate(token, s)
+          if (est !== null) data.estimatedPrice = est
+        }
         if (Object.keys(data).length === 0) continue
 
         planned.push({ id: s.id, label: `${s.order.orderNo ?? '-'} ${s.trackingNo}`, data })
@@ -143,7 +203,7 @@ async function main() {
     process.stdout.write('\n')
 
     console.log(
-      `  ต้องอัปเดต ${planned.length} ใบ · ยังไม่มีราคา (ขนส่งยังไม่เข้ารับ) ${noPrice} ใบ · ` +
+      `  ต้องอัปเดต ${planned.length} ใบ · ยังไม่มีราคาจริง (ใช้ราคาประมาณแทน) ${noPrice} ใบ · ` +
         `ไม่พบบน iShip ${notFound} ใบ`,
     )
     // ตัวอย่างแถวจริงก่อนเขียนเสมอ — จำนวนรวมอย่างเดียวหลอกได้ (บทเรียน 2026-08-09)

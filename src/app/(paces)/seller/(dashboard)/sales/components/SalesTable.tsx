@@ -78,7 +78,7 @@ const financeColumns = [
       if (shipping === 0 && pending > 0) {
         return (
           <span className="text-warning-ink text-nowrap">
-            รอรับเข้า {pending.toLocaleString('th-TH')} ใบ
+            รอราคา {pending.toLocaleString('th-TH')} ใบ
           </span>
         )
       }
@@ -90,7 +90,7 @@ const financeColumns = [
           <span className="flex flex-col">
             <span className="text-danger-ink">{formatBaht(shipping)}</span>
             <span className="text-warning-ink text-2xs text-nowrap">
-              ยังไม่ครบ · รออีก {pending.toLocaleString('th-TH')} ใบ
+              ประมาณ {pending.toLocaleString('th-TH')} ใบ
             </span>
           </span>
         )

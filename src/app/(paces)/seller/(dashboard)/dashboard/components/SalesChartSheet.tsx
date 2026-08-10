@@ -515,8 +515,9 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             >
               <Icon icon="alert-triangle" className="mt-px size-3.5 shrink-0" aria-hidden="true" />
               <span>
-                ค่าส่งยังไม่ครบ — อีก {formatNumberNoSymbol(pendingCount)} ใบขนส่งยังไม่เข้ารับ
-                จึงยังไม่ถูกคิดเงิน กำไรที่แสดงจึงสูงกว่าจริง (แถวที่มี * คือวันที่ยังไม่ครบ)
+                ค่าส่งของ {formatNumberNoSymbol(pendingCount)} ใบยังเป็นราคาประมาณ —
+                ขนส่งยังไม่เข้ารับจึงยังไม่ชั่งน้ำหนักจริง ตัวเลขจริงมักสูงกว่านี้เล็กน้อย
+                (แถวที่มี * คือวันที่ยังมีราคาประมาณปนอยู่)
               </span>
             </p>
           )}
@@ -610,11 +611,11 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                           }`}
                           title={
                             r.pending > 0
-                              ? `ยังไม่ครบ — อีก ${formatNumberNoSymbol(r.pending)} ใบขนส่งยังไม่เข้ารับ จึงยังไม่ถูกคิดค่าส่ง`
+                              ? `${formatNumberNoSymbol(r.pending)} ใบยังเป็นราคาประมาณ — ขนส่งยังไม่เข้ารับจึงยังไม่ชั่งน้ำหนักจริง`
                               : undefined
                           }
                         >
-                          {r.expense > 0 ? formatNumberNoSymbol(r.expense) : r.pending > 0 ? 'รอราคา' : '—'}
+                          {r.expense > 0 ? formatNumberNoSymbol(r.expense) : '—'}
                           {r.expense > 0 && r.pending > 0 && '*'}
                         </span>
                       )}

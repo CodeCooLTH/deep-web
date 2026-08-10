@@ -269,7 +269,49 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
    * [blocker] `carrierPrice = null` = ขนส่งยังไม่เข้ารับ iShip จึงยังไม่คิดเงิน — ต้อง **ข้าม**
    * ไม่ใช่บวก 0 แล้วทำเป็นว่ารู้แล้วว่าส่งฟรี (คลาสเดียวกับ cost = null บรรทัดล่าง)
    */
-  it('[blocker] พัสดุที่ยังไม่ถูกคิดเงิน (carrierPrice = null) ไม่ถูกนับเป็นค่าส่ง 0', async () => {
+  it('[blocker] ยังไม่มีราคาจริง → ใช้ราคาประมาณ + ค่าธรรมเนียม COD และยังนับว่าเป็นประมาณการ', async () => {
+    // iShip ไม่เปิดราคาจริงจนกว่าจะชั่ง แต่ cod_fee รู้ตั้งแต่สร้าง — ปล่อยว่างทั้งคู่คือการ
+    // รายงานต้นทุนต่ำกว่าจริงทั้งวัน (เคสจริง 2026-08-10 วันที่ 9 โชว์ ฿328.88 จาก 31 ออเดอร์)
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 600,
+        createdAt: thaiNoon(2026, 3, 13),
+        status: 'CONFIRMED',
+        shipments: [
+          { status: 'CREATED', isDryRun: false, carrierPrice: null, estimatedPrice: 29, codFee: 12.63 },
+        ],
+        items: [],
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, true)
+
+    expect(res.shippingValues?.[12]).toBeCloseTo(41.63, 2) // 29 (ประมาณ) + 12.63 (COD)
+    // ยังต้องนับเป็น "ยังไม่ใช่ราคาจริง" — ไม่งั้นหน้าจอจะแสดงค่าประมาณเหมือนตัวเลขที่จบแล้ว
+    expect(res.pendingShipmentValues?.[12]).toBe(1)
+  })
+
+  /** ราคาจริงต้องชนะราคาประมาณเสมอ — ไม่ใช่บวกกัน และไม่ใช่ใช้ตัวที่มาก่อน */
+  it('[blocker] มีราคาจริงแล้วต้องไม่ใช้ราคาประมาณ', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 600,
+        createdAt: thaiNoon(2026, 3, 15),
+        status: 'CONFIRMED',
+        shipments: [
+          { status: 'CREATED', isDryRun: false, carrierPrice: 34, estimatedPrice: 29, codFee: 7.7 },
+        ],
+        items: [],
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, true)
+
+    expect(res.shippingValues?.[14]).toBeCloseTo(41.7, 2) // 34 + 7.7 (ไม่ใช่ 29 และไม่ใช่ 63)
+    expect(res.pendingShipmentValues?.[14]).toBe(0)
+  })
+
+  it('[blocker] ไม่มีทั้งราคาจริงและราคาประมาณ → นับเฉพาะค่าธรรมเนียม COD ที่รู้แล้ว', async () => {
     findMany.mockResolvedValue([
       {
         totalAmount: 900,
@@ -278,15 +320,16 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
         // codFee มาแล้วแต่ carrierPrice ยังไม่มา — เคสนี้คือตัวที่พิสูจน์ว่า guard ทำงานจริง
         // (ถ้าเช็คแค่ "มีพัสดุไหม" แล้วบวกทั้งคู่ Number(null)=0 จะได้ค่าส่ง 12 บาทโผล่มาจากไหนไม่รู้
         //  ทั้งที่ยังไม่รู้ราคาส่งเลยสักบาท — ตัวเลขบางส่วนที่ดูเหมือนครบ อันตรายกว่าไม่มีตัวเลข)
-        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: null, codFee: 12 }],
+        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: null, estimatedPrice: null, codFee: 12 }],
         items: [{ cost: 100, qty: 1 }],
       },
     ] as never)
 
     const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, true)
 
-    expect(res.shippingValues?.[6]).toBe(0)
-    expect(res.netProfitValues?.[6]).toBe(800) // 900 − 100 − 0 (ไม่มีค่าส่งให้หัก)
+    // ค่าธรรมเนียม COD รู้แล้วจึงนับได้ ส่วนค่าส่งยังไม่รู้ → ไม่เดา ไม่บวก 0 ทับ
+    expect(res.shippingValues?.[6]).toBe(12)
+    expect(res.netProfitValues?.[6]).toBe(788) // 900 − 100 − 12
   })
 
   /**
