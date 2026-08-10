@@ -230,7 +230,10 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
             describeChild
             enterTouchDelay={0}
             leaveTouchDelay={6000}
-            slotProps={{ tooltip: { sx: { maxInlineSize: 260, fontSize: '12px', lineHeight: 1.5 } } }}
+            /* 13px = ขั้น "Body small / Label" ของ ramp (DESIGN.md §Typography) ไม่ใช่ 12px
+               ซึ่งเป็นขั้น Overline ที่สงวนไว้ให้ป้ายสั้น ๆ พร้อม letter-spacing — ข้อความนี้เป็น
+               ประโยคอธิบายเต็ม และ 11px ตั้งต้นของ MUI Tooltip เล็กเกินไปสำหรับตัวไทย 2 บรรทัด */
+            slotProps={{ tooltip: { sx: { maxInlineSize: 260, fontSize: '13px', lineHeight: 1.5 } } }}
           >
             {node}
           </Tooltip>
