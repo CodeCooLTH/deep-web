@@ -1,0 +1,88 @@
+
+> safepay@0.2.0 build
+> next build
+
+▲ Next.js 16.1.1 (Turbopack)
+- Environments: .env.local, .env
+
+  Creating an optimized production build ...
+Found 1 warning while optimizing generated CSS:
+
+[2m│   }[22m
+[2m│   .pb-\[env\(\.\.\.\)\] {[22m
+[2m│[22m     padding-bottom: env(...);
+[2m┆[22m                         [33m[2m^--[22m Unexpected token Delim('.')[39m
+[2m┆[22m
+[2m│   }[22m
+[2m│   .pb-\[env\(safe-area-inset-bottom\)\] {[22m
+
+Found 1 warning while optimizing generated CSS:
+
+[2m│   }[22m
+[2m│   .pb-\[env\(\.\.\.\)\] {[22m
+[2m│[22m     padding-bottom: env(...) !important;
+[2m┆[22m                         [33m[2m^--[22m Unexpected token Delim('.')[39m
+[2m┆[22m
+[2m│   }[22m
+[2m│   .pb-\[env\(safe-area-inset-bottom\)\] {[22m
+
+
+> Build error occurred
+Error: Turbopack build failed with 3 errors:
+./src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx:92:1
+Parsing ecmascript source code failed
+[0m [90m 90 |[39m [36mimport[39m { withEmojiPresentation } [36mfrom[39m [32m'@/lib/emoji-presentation'[39m
+ [90m 91 |[39m [36mimport[39m { describeSendFailure[33m,[39m stripSendFailurePrefix } [36mfrom[39m [32m'@/lib/chat-send-failure'[39m
+[31m[1m>[22m[39m[90m 92 |[39m [33m<<[39m[33m<<[39m[33m<<[39m[33m<[39m [33mHEAD[39m
+ [90m    |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 93 |[39m [90m// นิยาม "โพสต์นี้เป็นวิดีโอไหม" ตัวเดียวกับที่รายการคอมเมนต์ใช้ — ห้ามก็อปมาเขียนซ้ำ (HR16)[39m
+ [90m 94 |[39m [36mimport[39m { isVideoPost } [36mfrom[39m [32m'@/lib/facebook-post'[39m
+ [90m 95 |[39m [33m===[39m[33m===[39m[33m=[39m[0m
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx
+    ./src/app/(paces)/seller/(chat)/inbox/[conversationId]/page.tsx
+
+
+./src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx:95:1
+Parsing ecmascript source code failed
+[0m [90m 93 |[39m [90m// นิยาม "โพสต์นี้เป็นวิดีโอไหม" ตัวเดียวกับที่รายการคอมเมนต์ใช้ — ห้ามก็อปมาเขียนซ้ำ (HR16)[39m
+ [90m 94 |[39m [36mimport[39m { isVideoPost } [36mfrom[39m [32m'@/lib/facebook-post'[39m
+[31m[1m>[22m[39m[90m 95 |[39m [33m===[39m[33m===[39m[33m=[39m
+ [90m    |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 96 |[39m [36mimport[39m { canRetryFailedMessage } [36mfrom[39m [32m'@/lib/chat-retry-eligibility'[39m
+ [90m 97 |[39m [33m>>>[39m[33m>>>[39m[33m>[39m d67987cc (feat([35m00025[39m)[33m:[39m ส่งข้อความหาลูกค้า [33mLINE[39m ไม่ได้ — บอกว่าเกิดอะไรและกดซ้ำมีผลไหม)
+ [90m 98 |[39m [36mimport[39m [33mSwal[39m [36mfrom[39m [32m'sweetalert2'[39m[0m
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx
+    ./src/app/(paces)/seller/(chat)/inbox/[conversationId]/page.tsx
+
+
+./src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx:97:1
+Parsing ecmascript source code failed
+[0m [90m  95 |[39m [33m===[39m[33m===[39m[33m=[39m
+ [90m  96 |[39m [36mimport[39m { canRetryFailedMessage } [36mfrom[39m [32m'@/lib/chat-retry-eligibility'[39m
+[31m[1m>[22m[39m[90m  97 |[39m [33m>>>[39m[33m>>>[39m[33m>[39m d67987cc (feat([35m00025[39m)[33m:[39m ส่งข้อความหาลูกค้า [33mLINE[39m ไม่ได้ — บอกว่าเกิดอะไรและกดซ้ำมีผลไหม)
+ [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m  98 |[39m [36mimport[39m [33mSwal[39m [36mfrom[39m [32m'sweetalert2'[39m
+ [90m  99 |[39m [36mimport[39m { useState[33m,[39m useEffect[33m,[39m useRef[33m,[39m useMemo } [36mfrom[39m [32m'react'[39m
+ [90m 100 |[39m [36mimport[39m { useSearchParams } [36mfrom[39m [32m'next/navigation'[39m[0m
+
+Merge conflict marker encountered.
+
+Import trace:
+  Server Component:
+    ./src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx
+    ./src/app/(paces)/seller/(chat)/inbox/[conversationId]/page.tsx
+
+
+    at <unknown> (./src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx:92:1)
+    at <unknown> (./src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx:95:1)
+    at <unknown> (./src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/ChatThread.tsx:97:1)

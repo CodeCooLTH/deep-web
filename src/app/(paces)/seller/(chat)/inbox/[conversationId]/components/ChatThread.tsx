@@ -91,6 +91,7 @@ import { withEmojiPresentation } from '@/lib/emoji-presentation'
 import { describeSendFailure, stripSendFailurePrefix } from '@/lib/chat-send-failure'
 // นิยาม "โพสต์นี้เป็นวิดีโอไหม" ตัวเดียวกับที่รายการคอมเมนต์ใช้ — ห้ามก็อปมาเขียนซ้ำ (HR16)
 import { isVideoPost } from '@/lib/facebook-post'
+import { canRetryFailedMessage } from '@/lib/chat-retry-eligibility'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -690,6 +691,9 @@ type Props = {
   msRemaining: number
   /** feature 00018 — ShopChannel.status === 'TOKEN_INVALID' (เฉพาะ channel != DEEP) */
   tokenInvalid: boolean
+  /** feature 00025 (2026-08-10) — ExternalContact.isBlocked ของ LINE (ครั้งล่าสุดที่ส่งล้มเหลว
+   *  เพราะลูกค้าปิดรับ/เลิกติดตาม OA — ภาพนิ่ง ไม่ใช่สถานะปัจจุบันจริง) false เสมอสำหรับ Messenger/IG/DEEP */
+  contactBlocked: boolean
   /** ลูกค้ายังไม่เคยทักเข้ามาเลย (lastInboundAt=NULL) — เธรดที่ร้าน initiate จาก Facebook เอง
    *  (user report 2026-07-24). แยก banner จาก "เกิน 24 ชม." ที่สื่อว่าลูกค้าเคยทักแล้ว */
   neverInbound: boolean
@@ -916,6 +920,7 @@ export default function ChatThread({
   windowOpen,
   msRemaining,
   tokenInvalid,
+  contactBlocked,
   neverInbound,
   isCommentReplyThread,
   commentOrigin,
@@ -1087,6 +1092,8 @@ export default function ChatThread({
     sendSticker,
     externalReadAt: externalReadAtLive,
     externalDeliveredAt,
+    // LINE โควตาข้อความรายเดือนหมด (2026-08-10) — session-scoped, ดู comment ที่ useSellerChatThread
+    quotaExceeded,
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
 
@@ -1443,6 +1450,68 @@ export default function ChatThread({
             <Link href="/settings/channels" className="font-semibold underline">
               ตั้งค่าช่องทาง
             </Link>
+          </span>
+        </div>
+      ),
+    })
+  }
+  // (2026-08-10) LINE โควตาข้อความรายเดือนหมด — session-scoped (ดู comment ที่ useSellerChatThread
+  // ::quotaExceeded) ไม่มี line-quota.service ให้เช็คล่วงหน้า รู้ได้ก็ต่อเมื่อยิงจริงแล้วโดนปฏิเสธ
+  // เท่านั้น ช่องพิมพ์ไม่ถูก dim (ต่างจาก tokenInvalid) เพราะยังคุยกับลูกค้าได้ปกติผ่านแอป LINE OA
+  // Manager และโควตาอาจรีเซ็ตแล้วโดยเราไม่รู้ — ปิดช่องพิมพ์ทั้งที่ยิงได้จริงเสียหายกว่า
+  if (isExternal && channel === 'LINE' && quotaExceeded) {
+    threadStatuses.push({
+      key: 'quota',
+      tone: 'warning',
+      icon: 'clock-exclamation',
+      short: 'จำนวนข้อความที่ส่งได้เดือนนี้เต็มแล้ว — ตอบผ่าน LINE OA Manager แทนได้',
+      action: (
+        <a
+          href="https://manager.line.biz/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold underline"
+        >
+          เปิด LINE OA Manager
+          <Icon icon="external-link" className="text-sm" />
+        </a>
+      ),
+      detail: (
+        <div className="bg-warning/15 text-warning-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <Icon icon="clock-exclamation" className="mt-0.5 shrink-0 text-lg" />
+          <span>
+            จำนวนข้อความที่ส่งได้ในเดือนนี้เต็มแล้ว ส่งผลกับข้อความทุกห้องของช่องทางนี้ — จะกลับมาส่งได้เองเมื่อรอบเดือนถัดไปเริ่ม
+            หรือตอบผ่านแอป{' '}
+            <a
+              href="https://manager.line.biz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold underline"
+            >
+              LINE Official Account Manager
+            </a>{' '}
+            ได้ทันทีโดยไม่นับจำนวนนี้
+          </span>
+        </div>
+      ),
+    })
+  }
+  // (2026-08-10) ลูกค้าปิดรับ/เลิกติดตาม LINE OA — isBlocked เป็น "ภาพนิ่ง ณ ครั้งที่ส่งล้มล่าสุด"
+  // ไม่ใช่สถานะปัจจุบันจริง (ลูกค้าปลดบล็อกได้โดยเราไม่รู้จนกว่าจะลองส่งอีกที) ไม่มี action ให้กด —
+  // ไม่มีอะไรที่ร้านทำได้ต่อจากนี้ รอฝั่งลูกค้าเปิดรับเองเท่านั้น และไม่ dim ช่องพิมพ์ด้วยเหตุผล
+  // เดียวกับ quota ข้างบน (docs/conventions/stored-flag-vs-owner-truth.md)
+  if (isExternal && channel === 'LINE' && contactBlocked) {
+    threadStatuses.push({
+      key: 'contactBlocked',
+      tone: 'warning',
+      icon: 'ban',
+      short: 'ลูกค้าอาจปิดการรับข้อความจากบัญชีนี้ไว้ — พิมพ์ได้ตามปกติ',
+      detail: (
+        <div className="bg-warning/15 text-warning-ink flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+          <Icon icon="ban" className="mt-0.5 shrink-0 text-lg" />
+          <span>
+            ครั้งล่าสุดที่ส่งข้อความหาลูกค้ารายนี้ไม่สำเร็จ เพราะลูกค้าปิดการรับข้อความจากบัญชีนี้ไว้ (บล็อกหรือเลิกติดตาม
+            LINE OA) — จะส่งได้เองเมื่อลูกค้าเปิดรับอีกครั้ง
           </span>
         </div>
       ),
@@ -2106,9 +2175,20 @@ export default function ChatThread({
                 const retryAttachment =
                   (m.type === 'IMAGE' || m.type === 'VIDEO' || m.type === 'AUDIO' || m.type === 'FILE') &&
                   !!m.imageUrl
-                const canRetryFailed = failedPersisted
-                  ? (m.type === 'TEXT' && !!m.body?.trim()) || retryAttachment
-                  : !!m._retry
+                // (2026-08-10) "กดซ้ำมีผลไหม" เป็นความจริงของ *เหตุผล* ไม่ใช่ของ *ชนิดข้อความ* —
+                // resolve จากแหล่งที่ถูกต้องตามเส้นทาง: persisted อ่านจาก describeSendFailure ตัวเดียวกับ
+                // ที่คำนวณ failDetail ข้างบน (Meta ทุก rule ยัง retryable=true เหมือนเดิม — ไม่แตะพฤติกรรม
+                // Meta), optimistic อ่านจาก `_retryable` ที่ hook เซ็ตจาก JSON ของ POST (ไม่รู้ = true
+                // ค่าเดิมของทุกเหตุก่อน 2026-08-10). ตัวตัดสินจริงอยู่ใน canRetryFailedMessage (pure fn)
+                const retryable = failDetail ? failDetail.retryable : (m._retryable ?? true)
+                const canRetryFailed = canRetryFailedMessage({
+                  failedPersisted,
+                  messageType: m.type,
+                  hasTextBody: !!m.body?.trim(),
+                  hasRetryableAttachment: retryAttachment,
+                  hasOptimisticRetryPayload: !!m._retry,
+                  retryable,
+                })
                 const retryFailed = () => {
                   if (failedPersisted) {
                     resendMessage({

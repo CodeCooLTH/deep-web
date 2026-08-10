@@ -88,32 +88,32 @@ function mapChatServiceError(e: unknown, context: string) {
   }
   // (S-8, feature 00025) LINE outbound — ข้อความ/HTTP status ตรงตาม API.md §5 เป๊ะ ๆ
   // (feedback_service_error_route_mapping: error ใหม่ทุกตัวที่ service โยนต้องมี catch ที่นี่)
+  //
+  // bugfix 2026-08-10 (ux gate): เดิม hardcode ข้อความไทยไว้ที่นี่ตรง ๆ 4 ก้อน ไม่ผ่าน
+  // describeSendFailure เลย → บับเบิลไม่มี `retryable` ให้อ่าน (ทั้ง 4 รหัสนี้ไม่สร้างแถว ChatMessage
+  // — sendOutboundLineMessage throw ก่อนถึง prisma.$transaction — จึงไม่มี failureReason ที่บันทึก
+  // ให้ ChatThread เรียก describeSendFailure ตอน render ซ้ำได้ ต้องส่ง retryable มาใน JSON ตรงนี้
+  // เลยเท่านั้น) ย้ายข้อความไปอยู่ที่ chat-send-failure.ts (HR16 — นิยามเดียวกับกฎของ Meta)
+  //
+  // `code` (2026-08-10) — literal เดียวกับ e.message เสมอ ส่งเพิ่มมาให้ client แยกชนิดล้มเหลวได้โดย
+  // ไม่ต้อง parse ข้อความไทย: quota exceeded ต้องยกแถบสถานะระดับห้อง (ThreadStatusBar key='quota')
+  // ขึ้นค้างไว้ตลอด session นี้ — ไม่มี line-quota.service (S-9 ยังไม่ทำ) ให้เช็คได้จากค่าที่ persist
+  // ไว้ ต้องรู้จากการยิงจริงแล้วโดนปฏิเสธเท่านั้น (ดู useSellerChatThread.ts::quotaExceeded)
   if (e instanceof Error && e.message === "TOKEN_INVALID") {
-    return NextResponse.json(
-      { error: "ไม่สามารถใช้ Channel access token นี้ได้ กรุณาตรวจสอบว่าคัดลอกครบถ้วน" },
-      { status: 400 },
-    );
+    const { message, retryable } = describeSendFailure(e.message);
+    return NextResponse.json({ error: message, retryable, code: e.message }, { status: 400 });
   }
   if (e instanceof Error && e.message === "CONTACT_BLOCKED") {
-    return NextResponse.json(
-      { error: "ลูกค้าบล็อกบัญชีทางการของร้านแล้ว จึงส่งข้อความไม่ได้" },
-      { status: 409 },
-    );
+    const { message, retryable } = describeSendFailure(e.message);
+    return NextResponse.json({ error: message, retryable, code: e.message }, { status: 409 });
   }
   if (e instanceof Error && e.message === "QUOTA_EXCEEDED") {
-    return NextResponse.json(
-      {
-        error:
-          "โควตาข้อความของเดือนนี้หมดแล้ว — รอเดือนถัดไป อัปเกรดแพ็กเกจ LINE หรือตอบจากแอป LINE OA (ไม่กินโควตา)",
-      },
-      { status: 409 },
-    );
+    const { message, retryable } = describeSendFailure(e.message);
+    return NextResponse.json({ error: message, retryable, code: e.message }, { status: 409 });
   }
   if (e instanceof Error && e.message === "LINE_UNAVAILABLE") {
-    return NextResponse.json(
-      { error: "ระบบ LINE ไม่ตอบสนองชั่วคราว กรุณาลองใหม่อีกครั้ง" },
-      { status: 502 },
-    );
+    const { message, retryable } = describeSendFailure(e.message);
+    return NextResponse.json({ error: message, retryable, code: e.message }, { status: 502 });
   }
   if (e instanceof Error && e.message.startsWith("SEND_FAILED")) {
     // service โยนเป็น "SEND_FAILED: <ข้อความดิบของ Meta>" — แปลเป็นไทยก่อนส่งให้ร้าน

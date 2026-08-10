@@ -33,6 +33,19 @@ export interface SendFailureDescription {
   metaCode: number | null
   /** true = เรารู้จักสาเหตุนี้และแปลแล้ว; false = ข้อความดิบ */
   known: boolean
+  /**
+   * true = กดปุ่ม "ลองใหม่" มีผลจริง (มีโอกาสสำเร็จ) — false = ยิงซ้ำด้วยเงื่อนไขเดิมไม่มีทางผ่าน
+   * ต้องแก้อย่างอื่นก่อน (token/โควตา/ลูกค้าบล็อก) UI ต้องแสดงเป็นข้อความนิ่ง ไม่ใช่ปุ่มกดได้
+   *
+   * 🛑 อยู่ระดับ "เหตุผล" (ที่นี่) ไม่ใช่ระดับ UI component — "กดซ้ำมีผลไหม" เป็นความจริงของสาเหตุ
+   * ไม่ใช่ของบับเบิลที่ไปแสดงมัน (มี ≥2 จุดที่ render บับเบิลอ่าน describeSendFailure)
+   *
+   * default = true — คือพฤติกรรมของทุก rule ที่มีอยู่ก่อน 2026-08-10 (LINE quota/token/blocked เพิ่ม
+   * เข้ามารอบนี้เป็นชุดแรกที่ retryable=false) ห้ามเปลี่ยนพฤติกรรมเดิมของ Meta แม้จุดเดียว — Meta มี
+   * บั๊ก retryable คลาสเดียวกันอยู่ (#551/หน้าต่าง 24 ชม.) รู้แล้วแต่ไม่แก้ในรอบนี้เพื่อไม่พาความเสี่ยง
+   * เข้ามาพร้อมกัน
+   */
+  retryable: boolean
 }
 
 /** Meta ใส่เลข error ไว้หน้าประโยคเป็น "(#551) ..." หรือท้ายประโยคก็มี (เช่น token error) */
@@ -63,6 +76,8 @@ interface Rule {
    * ซึ่งเป็นคนละสาเหตุ) การเดาผิดที่นี่คือการชี้ร้านไปผิดทางเหมือนเดิม แค่คนละทาง
    */
   whenCommentOrigin?: string
+  /** ดู SendFailureDescription.retryable — ไม่ใส่ = true (พฤติกรรมเดิมของทุก rule ก่อน 2026-08-10) */
+  retryable?: boolean
 }
 
 const RULES: Rule[] = [
@@ -98,6 +113,40 @@ const RULES: Rule[] = [
     match: (raw) => /no matching user found/i.test(raw),
     text: 'ไม่พบบัญชีผู้รับนี้แล้ว — ลูกค้าอาจลบบัญชีหรือเลิกเชื่อมต่อกับเพจไปแล้ว',
   },
+  // ══════════════════════════════════════════════════════════════════════
+  // LINE — 4 รหัสธุรกิจของ S-8 (feature 00025 TFR-LINE-05/06, channel-chat.service.ts
+  // ::classifyLineOutboundError) ต่างจากกฎ Meta ด้านบนตรงที่ raw ที่ได้ **คือรหัส literal ตรง ๆ**
+  // ('TOKEN_INVALID' ฯลฯ) ไม่ใช่ข้อความดิบจาก LINE — sendOutboundLineMessage throw new Error(<รหัส>)
+  // แล้ว route (api/chat/conversations/[id]/messages/route.ts::mapChatServiceError) ส่ง e.message
+  // เข้ามาที่นี่ตรง ๆ แทนที่จะ hardcode ข้อความไทยเองแบบเดิม (HR16 — นิยามเดียวทั้งระบบ)
+  {
+    // LINE ล่มชั่วคราว (5xx/timeout/network) — กดส่งอีกครั้งมีโอกาสผ่านจริง
+    match: (raw) => raw === 'LINE_UNAVAILABLE',
+    text: 'ระบบฝั่ง LINE ยังไม่ตอบกลับตอนนี้ — ลองส่งอีกครั้งใน 1-2 นาที',
+    retryable: true,
+  },
+  {
+    // token ถูกถอนสิทธิ์/หมดอายุ — มีผลกับ "ทุกห้อง" ของช่องทางนี้ ไม่ใช่แค่ห้องนี้ห้องเดียว
+    // (ต่างจาก #190 ของ Meta ตรงที่ประโยคนี้ต้องบอกขอบเขตผลกระทบด้วย — ux spec 2026-08-10)
+    match: (raw) => raw === 'TOKEN_INVALID',
+    text: 'การเชื่อมต่อกับบัญชี LINE OA นี้ใช้งานไม่ได้แล้ว ส่งผลกับข้อความทุกห้องของช่องทางนี้ — ไปที่ตั้งค่าช่องทางเพื่อเชื่อมต่อใหม่',
+    retryable: false,
+  },
+  {
+    // โควตาข้อความรายเดือนหมด — มีผลกับทุกห้องของช่องทางนี้เหมือนกัน + มีทางออกที่ไม่กินโควตา
+    // (ตอบผ่านแอป LINE OA Manager โดยตรง)
+    match: (raw) => raw === 'QUOTA_EXCEEDED',
+    text: 'จำนวนข้อความที่ส่งได้ในเดือนนี้เต็มแล้ว ส่งผลกับข้อความทุกห้องของช่องทางนี้ — จะกลับมาส่งได้เองเมื่อรอบเดือนถัดไปเริ่ม หรือตอบผ่านแอป LINE Official Account Manager ได้ทันทีโดยไม่นับจำนวนนี้',
+    retryable: false,
+  },
+  {
+    // ลูกค้าปิดรับ/เลิกติดตาม — เขียนแบบกริยากลาง ("ปิดการรับข้อความ") ไม่ใช่ "บล็อกคุณ" และวางใน
+    // กรอบเวลา "ครั้งล่าสุด" เพราะ isBlocked เป็นภาพนิ่ง ณ ครั้งที่ส่งล้มล่าสุด ไม่ใช่สถานะปัจจุบันจริง
+    // (ลูกค้าปลดบล็อกได้ตลอดโดยเราไม่รู้จนกว่าจะลองส่งอีกที — docs/conventions/stored-flag-vs-owner-truth.md)
+    match: (raw) => raw === 'CONTACT_BLOCKED',
+    text: 'ครั้งล่าสุดที่ส่งข้อความหาลูกค้ารายนี้ไม่สำเร็จ เพราะลูกค้าปิดการรับข้อความจากบัญชีนี้ไว้ (บล็อกหรือเลิกติดตาม LINE OA) — จะส่งได้เองเมื่อลูกค้าเปิดรับอีกครั้ง',
+    retryable: false,
+  },
 ]
 
 /**
@@ -124,14 +173,21 @@ export function describeSendFailure(
 ): SendFailureDescription {
   const raw = (reason ?? '').trim()
 
-  const done = (text: string, metaCode: number | null, known: boolean): SendFailureDescription => ({
+  const done = (
+    text: string,
+    metaCode: number | null,
+    known: boolean,
+    retryable: boolean,
+  ): SendFailureDescription => ({
     text,
     message: `${PREFIX} — ${text}`,
     metaCode,
     known,
+    retryable,
   })
 
-  if (!raw) return done('ไม่ทราบสาเหตุ', null, false)
+  // ไม่มีเหตุผลเลย/แถวเก่าก่อนมีคอลัมน์นี้ — ไม่รู้ว่าลองซ้ำได้ไหม ปล่อยเป็น true (ค่าเดิม)
+  if (!raw) return done('ไม่ทราบสาเหตุ', null, false, true)
 
   const m = META_CODE.exec(raw)
   const metaCode = m ? Number(m[1]) : null
@@ -139,9 +195,10 @@ export function describeSendFailure(
   const hit = RULES.find((r) => r.match(raw, metaCode))
   if (hit) {
     const overridden = context.commentOriginNoInbound ? hit.whenCommentOrigin : undefined
-    return done(overridden ?? hit.text, metaCode, true)
+    return done(overridden ?? hit.text, metaCode, true, hit.retryable ?? true)
   }
 
-  // ไม่รู้จัก — ส่งดิบต่อไปตามเดิม ดีกว่าแปลมั่วหรือซ่อนจนสืบไม่ได้
-  return done(raw, metaCode, false)
+  // ไม่รู้จัก — ส่งดิบต่อไปตามเดิม ดีกว่าแปลมั่วหรือซ่อนจนสืบไม่ได้ (retryable=true ค่าเดิม — ไม่รู้ว่า
+  // ลองซ้ำได้ไหมจริง แต่การปิดปุ่มโดยไม่รู้ = เดาไปอีกทาง เสี่ยงพอกัน)
+  return done(raw, metaCode, false, true)
 }

@@ -109,3 +109,84 @@ describe('describeSendFailure — บริบทเธรดที่มาจ�
     expect(describeSendFailure(raw, { commentOriginNoInbound: true }).text).toBe(raw)
   })
 })
+
+// (2026-08-10) LINE — 4 รหัสธุรกิจของ S-8 + retryable ("กดลองใหม่มีผลไหม")
+//
+// 🛑 กันไม่ให้ Meta เปลี่ยนพฤติกรรม: rule เดิมทุกตัว (ก่อน 2026-08-10) ต้องยัง retryable=true
+// เป๊ะ — ถ้าใครแก้ default หรือลืมใส่ retryable ให้ rule ใหม่จนกระทบ rule เก่า เทสกลุ่มนี้ต้องแดง
+describe('[blocker] describeSendFailure — retryable ของกฎ Meta เดิมต้องยัง true ทุกตัว (ไม่แตะพฤติกรรม Meta)', () => {
+  it('[blocker] #551 (ลูกค้าไม่พร้อมรับข้อความ) — retryable=true', () => {
+    expect(describeSendFailure("(#551) This person isn't available right now.").retryable).toBe(true)
+  })
+
+  it('[blocker] #190 (token Facebook หมดอายุ) — retryable=true', () => {
+    expect(describeSendFailure('Error validating access token: Session has expired. (#190)').retryable).toBe(true)
+  })
+
+  it('[blocker] หน้าต่าง 24 ชม. — retryable=true (ทั้งเธรดปกติและ comment-origin override)', () => {
+    const raw = '(#10) This message is sent outside of allowed window.'
+    expect(describeSendFailure(raw).retryable).toBe(true)
+    expect(describeSendFailure(raw, { commentOriginNoInbound: true }).retryable).toBe(true)
+  })
+
+  it('[blocker] rate limit — retryable=true', () => {
+    expect(
+      describeSendFailure('(#613) Calls to this api have exceeded the rate limit.').retryable,
+    ).toBe(true)
+  })
+
+  it('[blocker] no matching user found — retryable=true', () => {
+    expect(describeSendFailure('No matching user found').retryable).toBe(true)
+  })
+
+  it('[blocker] ไม่รู้จัก/ไม่มีเหตุผลเลย — retryable=true (ค่าเดิม ไม่ใช่การเดาว่ากดซ้ำไม่ได้)', () => {
+    expect(describeSendFailure('(#12345) Something nobody has seen before.').retryable).toBe(true)
+    expect(describeSendFailure(null).retryable).toBe(true)
+    expect(describeSendFailure('   ').retryable).toBe(true)
+  })
+})
+
+describe('[blocker] describeSendFailure — LINE (S-8 feature 00025) 4 รหัสธุรกิจ', () => {
+  // raw ของ LINE คือรหัส literal ตรง ๆ (route ส่ง e.message เข้ามาตรง ๆ — ดู channel-chat.service.ts
+  // ::sendOutboundLineMessage ที่ throw new Error(<รหัส>))
+  it('[blocker] LINE_UNAVAILABLE — known + retryable=true (ล่มชั่วคราว กดซ้ำมีโอกาสผ่าน)', () => {
+    const out = describeSendFailure('LINE_UNAVAILABLE')
+    expect(out.known).toBe(true)
+    expect(out.retryable).toBe(true)
+    expect(out.text).toContain('LINE')
+  })
+
+  it('[blocker] TOKEN_INVALID — known + retryable=false (token ตายทุกครั้งที่ยิงซ้ำ)', () => {
+    const out = describeSendFailure('TOKEN_INVALID')
+    expect(out.known).toBe(true)
+    expect(out.retryable).toBe(false)
+    expect(out.text).toContain('เชื่อมต่อ')
+    // มีผลกับ "ทุกห้อง" ของช่องทางนี้ ไม่ใช่แค่ห้องนี้ — ux spec 2026-08-10 ห้ามหาย
+    expect(out.text).toContain('ทุกห้อง')
+  })
+
+  it('[blocker] QUOTA_EXCEEDED — known + retryable=false (โควตาหมดจนกว่าจะขึ้นเดือนใหม่)', () => {
+    const out = describeSendFailure('QUOTA_EXCEEDED')
+    expect(out.known).toBe(true)
+    expect(out.retryable).toBe(false)
+    expect(out.text).toContain('เดือนนี้เต็มแล้ว')
+    expect(out.text).toContain('ทุกห้อง')
+  })
+
+  it('[blocker] CONTACT_BLOCKED — known + retryable=false (ลูกค้าปิดรับข้อความ)', () => {
+    const out = describeSendFailure('CONTACT_BLOCKED')
+    expect(out.known).toBe(true)
+    expect(out.retryable).toBe(false)
+    // น้ำเสียงกลาง — ห้ามเขียนว่า "บล็อกคุณ" ตรง ๆ (ux spec: กริยากลาง)
+    expect(out.text).not.toContain('บล็อกคุณ')
+    expect(out.text).toContain('ครั้งล่าสุด')
+  })
+
+  it('[blocker] 4 รหัสของ LINE ไม่ชนกับกฎ Meta ที่มีมาก่อน (จับคำนามตรง ๆ ไม่ใช่ regex กว้าง)', () => {
+    // กัน regression ชนิด "regex กว้างเกินจนกลืนรหัสของอีกฝั่ง" — LINE ใช้ raw === <รหัส> ตรง ๆ
+    // ไม่ใช่ .test() จึงต้องพิสูจน์ว่าไม่ไปตรงกับ #190/#551/rate-limit/window โดยบังเอิญ
+    expect(describeSendFailure('TOKEN_INVALID').text).not.toContain('Facebook Page')
+    expect(describeSendFailure('QUOTA_EXCEEDED').text).not.toContain('Meta')
+    expect(describeSendFailure('CONTACT_BLOCKED').text).not.toContain('Meta')
+  })
+})

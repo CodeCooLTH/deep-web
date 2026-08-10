@@ -136,6 +136,9 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
           name: true,
           avatarUrl: true, // IG profile_pic (Messenger=null) — header avatar ลูกค้า
           customer: { select: { id: true, phone: true, createdAt: true } },
+          // isBlocked (2026-08-10) — LINE เท่านั้นที่เขียนค่านี้ (BR-LINE-15) ใช้ทำแถบสถานะ
+          // "ลูกค้าอาจปิดการรับข้อความ" — ดู contactBlocked ด้านล่าง
+          isBlocked: true,
         },
       },
       // avatarUrl: รูปเพจ (avatar ฝั่งร้าน mine) + name: ชื่อเพจ (badge แสดงชื่อเพจแทน "Messenger")
@@ -358,6 +361,12 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   const tokenInvalid =
     conversation.channel !== 'DEEP' && (conversation.shopChannel?.status ?? 'ACTIVE') !== 'ACTIVE'
 
+  // LINE เท่านั้นที่มีแนวคิด unfollow/block OA (BR-LINE-15) — Messenger/IG ไม่มีคอลัมน์นี้เขียนจริง
+  // (isBlocked default false เสมอ) ค่านี้เป็น "ภาพนิ่ง ณ ครั้งที่ส่งล้มล่าสุด" ไม่ใช่สถานะปัจจุบัน
+  // จริง (ลูกค้าปลดบล็อกได้โดยเราไม่รู้จนกว่าจะลองส่งอีกที) — ข้อความในแถบสถานะต้องบอกกรอบเวลา
+  // "ครั้งล่าสุด" ไว้ด้วยเหตุนี้ (ดู ThreadStatusBar item 'contactBlocked' ใน ChatThread.tsx)
+  const contactBlocked = conversation.channel === 'LINE' && conversation.externalContact?.isBlocked === true
+
   // ชื่อเพจที่เธรดนี้ผูกอยู่ (null = เธรด Deep / ไม่มี ShopChannel) — badge ใช้แทนชื่อช่องทาง
   const channelName = conversation.shopChannel?.name ?? null
   // รูปเพจสำหรับ badge ช่องทางที่หัวเธรด (user สั่ง 2026-07-23) — select avatarUrl มาแล้วข้างบน
@@ -550,6 +559,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
         humanAgentOpen={isHumanAgentEnabled() && windowState.humanAgentOpen}
         humanAgentExpiresAt={windowState.humanAgentExpiresAt?.toISOString() ?? null}
         tokenInvalid={tokenInvalid}
+        contactBlocked={contactBlocked}
         neverInbound={neverInbound}
         isCommentReplyThread={isCommentReplyThread}
         commentOrigin={commentOrigin}

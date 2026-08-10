@@ -164,6 +164,13 @@ export type ChatMessageView = {
    *  ช่องพิมพ์ตามหน้าต่าง 24 ชม. บับเบิลล้มเหลวจะเกิดถี่ขึ้นมาก เหตุผลจึงต้องอยู่ติดข้อความถาวร
    *  เหมือนเส้นทาง deliveryStatus='FAILED' (แถวที่บันทึกลง DB แล้ว) ไม่ใช่คนละมาตรฐาน */
   _failReason?: string
+  /** ข้อความ optimistic เท่านั้น (2026-08-10) — "กดลองใหม่มีผลไหม" ของ `_failReason` นี้ มาจาก
+   *  `describeSendFailure().retryable` ที่ server ส่งมาใน JSON ตอน POST ล้ม (route คำนวณให้แล้ว
+   *  เพราะ 4 รหัสของ LINE — TOKEN_INVALID/CONTACT_BLOCKED/QUOTA_EXCEEDED/LINE_UNAVAILABLE — ไม่สร้าง
+   *  แถว ChatMessage เลย จึงไม่มี failureReason ที่บันทึกให้ ChatThread เรียก describeSendFailure
+   *  ซ้ำตอน render ได้เหมือนเส้นทาง deliveryStatus='FAILED') undefined = ไม่รู้ → ChatThread ถือเป็น
+   *  true (ค่าเดิมของทุกเหตุที่เคยมีมาก่อน 2026-08-10) */
+  _retryable?: boolean
   /** หมายเหตุระดับ "ชุดที่ส่งด้วยกัน" (2026-08-05 ux spec partial-send) — แนบท้ายเหตุผลบนปุ่ม (i)
    *  เมื่อใบนี้ล้มเหลวแต่ใบอื่นในชุดเดียวกันถึงลูกค้าไปแล้ว: กัน "ผู้ขายเข้าใจว่าพังทั้งชุดแล้วไป
    *  เลือกรูปส่งใหม่ทั้ง 8 ใบเองที่ composer" ซึ่งจะทำให้ลูกค้าได้รูปที่ถึงแล้วซ้ำ. แยกจาก
@@ -277,6 +284,14 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   // คง prop `sending` ไว้ให้ ChatWidgetThreadPanel เดิม (bubble widget) ที่ยังอ้างถึง = false เสมอ
   const sending = false
   const [errorState, setErrorState] = useState(false)
+  /**
+   * LINE โควตาข้อความรายเดือนหมด (2026-08-10) — ไม่มี line-quota.service (S-9 ยังไม่ทำ) ให้เช็คค่าที่
+   * persist ไว้ล่วงหน้าได้ รู้ได้ก็ต่อเมื่อยิงจริงแล้วโดน LINE ปฏิเสธเท่านั้น (code='QUOTA_EXCEEDED'
+   * จาก POST .../messages — ดู postMessage ด้านล่าง) จึงเป็น **session-scoped**: ค้างเป็น true ไป
+   * ตลอด session นี้ (ไม่มีสัญญาณที่บอกว่าโควตากลับมาแล้ว — รีเฟรชหน้าใหม่จึงล้างสถานะนี้ ให้ลองส่ง
+   * ครั้งถัดไปเป็นตัวยืนยันสถานะจริงแทน) ใช้ยกแถบสถานะระดับห้อง (ThreadStatusBar key='quota')
+   */
+  const [quotaExceeded, setQuotaExceeded] = useState(false)
   const [text, setText] = useState('')
   // reply/quote (user 2026-07-25): ข้อความที่กำลังจะ "ตอบทับ" — แสดง preview เหนือ composer, เคลียร์เมื่อส่ง/ยกเลิก
   const [replyingTo, setReplyingTo] = useState<ChatMessageView | null>(null)
@@ -690,15 +705,26 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
           // ไม่งั้นบับเบิลชั่วคราวจะค้างคู่กับแถวจริงที่ตามมาทาง realtime/GET = ข้อความเดียวขึ้นสองอัน
           // แล้วหายไปเองตอน refresh (user report 2026-08-03)
           const saved: ChatMessageView | null = body?.savedMessage ?? null
+          // (2026-08-10) เฉพาะเส้นทางที่ไม่มี savedMessage เท่านั้นที่ต้องอ่านค่านี้จาก JSON —
+          // ตัวที่มี savedMessage จะรีเดอร์ผ่าน describeSendFailure(mExt.failureReason) ที่ ChatThread
+          // เองแทน (ไฟล์เดียวกับที่ route เรียก จึงได้ค่าเดียวกันเสมอ ไม่ต้องส่งซ้ำ)
+          const retryable: boolean = typeof body?.retryable === 'boolean' ? body.retryable : true
+          // (2026-08-10) โควตา LINE หมด — ยกแถบสถานะระดับห้องค้างไว้ทั้ง session (ดู comment ของ
+          // quotaExceeded ด้านบน) แยกจาก setMessages ข้างล่างเพราะเป็นสถานะของ "ห้อง" ไม่ใช่ของ
+          // "ข้อความใบนี้ใบเดียว"
+          if (body?.code === 'QUOTA_EXCEEDED') setQuotaExceeded(true)
           setMessages((prev) => {
             if (saved?.id) {
               const deduped = prev.filter((m) => m.id !== saved.id)
               return deduped.map((m) => (m.id === localId ? { ...saved, _status: undefined } : m))
             }
-            // ไม่มีแถวจริง (ยังไม่ถึง Meta เลย เช่น 429/สิทธิ์/validation) — คงบับเบิลชั่วคราวไว้
-            // พร้อมเหตุผล — toast หายเองแต่บับเบิลอยู่ต่อ ร้านต้องย้อนดูได้ว่าทำไมไม่ผ่าน
+            // ไม่มีแถวจริง (ยังไม่ถึง Meta เลย เช่น 429/สิทธิ์/validation/4 รหัสของ LINE ที่ไม่สร้างแถว)
+            // — คงบับเบิลชั่วคราวไว้พร้อมเหตุผล — toast หายเองแต่บับเบิลอยู่ต่อ ร้านต้องย้อนดูได้ว่า
+            // ทำไมไม่ผ่าน และย้อนดูได้ว่า "ลองใหม่" มีผลจริงไหม (_retryable)
             return prev.map((m) =>
-              m.id === localId ? { ...m, _status: 'failed' as const, _failReason: reason } : m,
+              m.id === localId
+                ? { ...m, _status: 'failed' as const, _failReason: reason, _retryable: retryable }
+                : m,
             )
           })
           return
@@ -1065,5 +1091,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     /** delivery receipt (2026-08-05) — watermark "ถึงเครื่องลูกค้าถึงเวลานี้" จาก message_deliveries
      *  null ตลอดสำหรับ Instagram (โปรโตคอลไม่มี event นี้) caller ต้อง gate ด้วย channel เอง */
     externalDeliveredAt,
+    /** LINE โควตาข้อความรายเดือนหมด (2026-08-10) — session-scoped ดู comment ของ useState ด้านบน */
+    quotaExceeded,
   }
 }
