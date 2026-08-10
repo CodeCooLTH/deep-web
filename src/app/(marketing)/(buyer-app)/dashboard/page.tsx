@@ -59,7 +59,7 @@ export default async function BuyerDashboardPage() {
   const [allOrders, recentReviewsRaw, reviewsGivenCount] = await Promise.all([
     getOrdersByBuyer(userId),
     getReviewsByBuyer(userId, 5),
-    prisma.review.count({ where: { reviewerUserId: userId } })
+    prisma.review.count({ where: { reviewerUserId: userId, deletedAt: null } })
   ])
 
   const recentOrdersRaw = allOrders.slice(0, 5)

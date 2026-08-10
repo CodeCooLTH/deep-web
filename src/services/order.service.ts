@@ -1794,7 +1794,7 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
       _count: { _all: true },
     }),
     prisma.review.aggregate({
-      where: { order: { shopId } },
+      where: { order: { shopId }, deletedAt: null },
       _avg: { rating: true },
       _count: { _all: true },
     }),
@@ -1805,7 +1805,7 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
     // รีวิวล่าสุดที่ "มีข้อความจริง" — ข้อความจากคนซื้อจริงหนึ่งอันน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
     // ไม่มีรีวิวที่เขียนข้อความ → null → UI ซ่อนบล็อกไปเลย ไม่แต่งคำชมขึ้นมาเอง
     prisma.review.findFirst({
-      where: { order: { shopId }, comment: { not: null } },
+      where: { order: { shopId }, comment: { not: null }, deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: { rating: true, comment: true, createdAt: true },
     }),

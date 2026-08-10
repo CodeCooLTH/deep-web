@@ -95,7 +95,7 @@ export default async function MobileAccountPage() {
     }),
     // นับสถานะออเดอร์ด้วย groupBy (query เดียว ไม่ join items/shop/review) — เบากว่าดึงทั้งหมดมานับ
     prisma.order.groupBy({ by: ['status'], where: { buyerUserId: userId }, _count: true }),
-    prisma.review.count({ where: { reviewerUserId: userId } }),
+    prisma.review.count({ where: { reviewerUserId: userId, deletedAt: null } }),
     prisma.userBadge.count({ where: { userId } }),
     getMaxVerificationLevel(userId)
   ])

@@ -296,7 +296,7 @@ export async function getShopProfileStats(shopId: string) {
     }),
     prisma.review.groupBy({
       by: ["rating"],
-      where: { order: { shopId } },
+      where: { order: { shopId }, deletedAt: null },
       _count: { _all: true },
     }),
     prisma.shopChannel.findMany({

@@ -138,7 +138,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
       isLodging ? getShopAvailability(shop.id, 3) : Promise.resolve(null),
       // รีวิวของร้านนี้ — scope ที่ shopId ตรง ไม่ใช่ผ่าน owner user (business shop แยก trust จาก owner)
       prisma.review.findMany({
-        where: { order: { shopId: shop.id } },
+        where: { order: { shopId: shop.id }, deletedAt: null },
         orderBy: { createdAt: 'desc' },
         take: 10,
         select: { id: true, rating: true, comment: true, createdAt: true },

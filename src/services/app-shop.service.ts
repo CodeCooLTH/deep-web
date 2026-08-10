@@ -17,7 +17,7 @@ function fileUrl(fileId: string | null | undefined): string {
 
 async function ratingFor(shopId: string): Promise<{ avg: number; count: number }> {
   const agg = await prisma.review.aggregate({
-    where: { order: { shopId } },
+    where: { order: { shopId }, deletedAt: null },
     _avg: { rating: true },
     _count: { _all: true },
   })
@@ -60,7 +60,7 @@ export async function listShops(
   // กัน N+1: ดึง rating รวม + verified ของทุกร้านในหน้านี้ ด้วย 2 query (ไม่ใช่ 2×N)
   const [reviews, verifiedRecs] = await Promise.all([
     prisma.review.findMany({
-      where: { order: { shopId: { in: shopIds } } },
+      where: { order: { shopId: { in: shopIds } }, deletedAt: null },
       select: { rating: true, order: { select: { shopId: true } } },
     }),
     prisma.verificationRecord.findMany({
@@ -217,7 +217,7 @@ export type ReviewDTO = { id: string; author: string; rating: number; text: stri
 /** รีวิวของร้าน → Review[] (app shape) */
 export async function getShopReviews(shopId: string, take = 30): Promise<ReviewDTO[]> {
   const rows = await prisma.review.findMany({
-    where: { order: { shopId } },
+    where: { order: { shopId }, deletedAt: null },
     orderBy: { createdAt: 'desc' },
     take,
     include: { reviewer: { select: { displayName: true } } },

@@ -26,7 +26,7 @@ export async function GET() {
     // Completion Rate = CONFIRMED / (CONFIRMED + CANCELLED) (PRD §9.1)
     prisma.order.count({ where: { status: "CONFIRMED" } }),
     prisma.order.count({ where: { status: "CANCELLED" } }),
-    prisma.review.aggregate({ _avg: { rating: true } }),
+    prisma.review.aggregate({ _avg: { rating: true }, where: { deletedAt: null } }),
     // Active Users = user (buyer/เจ้าของร้าน) ที่มี order ใน 30 วัน
     prisma.order.findMany({
       where: { createdAt: { gte: since } },

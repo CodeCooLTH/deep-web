@@ -105,7 +105,7 @@ export async function getRecentActivity(shopId: string, take = 10): Promise<Acti
     // เหตุผล: service รับ shopId ไม่ใช่ userId; avoid extra query หา userId ก่อน
     // pattern เดียวกับ getReviewsByShopUser แต่ใช้ shopId (ดู review.service.ts L66)
     const reviews = await prisma.review.findMany({
-      where: { order: { shopId } },
+      where: { order: { shopId }, deletedAt: null },
       orderBy: { createdAt: 'desc' },
       take,
       select: {

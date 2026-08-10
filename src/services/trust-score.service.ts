@@ -76,7 +76,7 @@ async function calcRatingScore(scope: TrustScope): Promise<number> {
   if (!shopId) return 0;
 
   const reviews = await prisma.review.findMany({
-    where: { order: { shopId } },
+    where: { order: { shopId }, deletedAt: null },
     select: { rating: true },
   });
   if (reviews.length < 3) return 0;

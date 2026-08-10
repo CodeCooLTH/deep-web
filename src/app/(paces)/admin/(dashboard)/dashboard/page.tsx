@@ -45,7 +45,7 @@ async function getAdminStats() {
     prisma.order.count({ where: { status: 'CONFIRMED' } }),
     prisma.order.count({ where: { status: 'CANCELLED' } }),
     // Avg Rating = AVG(reviews.rating) ทั้งหมด
-    prisma.review.aggregate({ _avg: { rating: true } }),
+    prisma.review.aggregate({ _avg: { rating: true }, where: { deletedAt: null } }),
     // Active Users = user (buyer หรือ เจ้าของร้าน) ที่มี order ใน 30 วัน
     prisma.order.findMany({
       where: { createdAt: { gte: since } },

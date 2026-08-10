@@ -153,7 +153,7 @@ export async function checkPerfectRating(
   const agg = await prisma.review.aggregate({
     _avg: { rating: true },
     _count: { rating: true },
-    where: { order: { shopId: shop.id } },
+    where: { order: { shopId: shop.id }, deletedAt: null },
   })
   const reviewCount = agg._count.rating
   if (reviewCount < criteria.minReviews) return { met: false, reviewCount, avg: 0 }
@@ -173,7 +173,7 @@ export async function checkHighRating(
   const agg = await prisma.review.aggregate({
     _avg: { rating: true },
     _count: { rating: true },
-    where: { order: { shopId: shop.id } },
+    where: { order: { shopId: shop.id }, deletedAt: null },
   })
   const reviewCount = agg._count.rating
   if (reviewCount < criteria.minReviews) return { met: false, reviewCount, avg: 0 }
@@ -316,7 +316,7 @@ export async function checkUniqueReviewers(
 ): Promise<{ met: boolean; uniqueCount: number }> {
   if (!shop) return { met: false, uniqueCount: 0 }
   const distinctRows = await prisma.review.findMany({
-    where: { order: { shopId: shop.id }, reviewerUserId: { not: null } },
+    where: { order: { shopId: shop.id }, reviewerUserId: { not: null }, deletedAt: null },
     distinct: ['reviewerUserId'],
     select: { reviewerUserId: true },
   })
@@ -1173,6 +1173,7 @@ export async function getBadgePaceEstimate(
           order: { shopId: shop.id },
           reviewerUserId: { not: null },
           createdAt: { gte: thirtyDaysAgo },
+          deletedAt: null,
         },
         distinct: ['reviewerUserId'],
         select: { reviewerUserId: true },
