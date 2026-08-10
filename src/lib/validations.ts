@@ -552,6 +552,14 @@ export const SetAccessUrlSchema = v.object({
   ),
 });
 
+// AttachSlipSchema — body ของ POST /api/orders/[token]/slip (ทางหลักตั้งแต่ 2026-08-10)
+// fileId มาจาก direct upload (`@/lib/upload-client` → /api/uploads/commit) ไม่ใช่ไฟล์ใน body
+// เพราะ body ของ function ตันที่ 4.5MB ของ Vercel — สลิปจากมือถือเกินได้ง่าย
+// (ดู docs/conventions/upload-body-size-limit.md); รูปแบบเดียวกับ CreateTopUpRequestSchema.slipFileId
+export const AttachSlipSchema = v.object({
+  fileId: v.pipe(v.string(), v.minLength(1, "กรุณาแนบไฟล์สลิป"), v.maxLength(200)),
+});
+
 // ── Scam Report (spec 2026-06-20-scam-risk-check-report) ─────────────────────
 export const ScamIdentifierTypeSchema = v.picklist([
   "PHONE",
