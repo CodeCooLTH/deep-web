@@ -221,7 +221,7 @@ function BadgeArtwork({
   return (
     <Icon
       icon={badgeIconName(nameEN, icon)}
-      width={Math.round(size * 0.62)}
+      width={Math.round(size * 0.58)}
       className='shrink-0 text-primary'
     />
   )
@@ -475,8 +475,12 @@ export default function ProfileHero({
                     🛑 พื้นวงต้องมีสีอ่อน ไม่ใช่ขาวล้วน: เหรียญ 11/20 ใบในระบบยังไม่มี artwork และ
                     ตกไปใช้ไอคอนเส้น ถ้าพื้นเป็นขาวเดียวกับการ์ด ใบที่ไม่มีรูปจะดูเหมือน "โหลดไม่มา"
                     พื้นอ่อนทำให้มันอ่านเป็น "ช่องใส่เหรียญที่ยังไม่มีลาย" ซึ่งเป็นความจริง */}
-                <span className='is-14 bs-14 rounded-full bg-[var(--mui-palette-background-paper)] border border-[var(--mui-palette-divider)] shadow-sm flex items-center justify-center shrink-0 overflow-hidden'>
-                  <BadgeArtwork imageUrl={b.imageUrl} nameEN={b.nameEN} icon={b.icon} alt={b.name} />
+                {/* ไม่มีขอบ/พื้น/เงา (user 2026-08-10: "ไม่ชอบ border เน้นแสดงรูปได้ไหม ไม่ต้องมีขอบ")
+                    artwork ของเหรียญเป็นเหรียญกลมที่มีขอบในตัวอยู่แล้ว การครอบวงอีกชั้นคือขอบซ้อนขอบ
+                    กล่องยังคงขนาด 56px คงที่ไว้เพื่อให้ทุกใบยืนบนเส้นฐานเดียวกัน แม้ artwork แต่ละใบ
+                    จะมีสัดส่วน/ระยะขอบในไฟล์ไม่เท่ากัน */}
+                <span className='is-14 bs-14 flex items-center justify-center shrink-0'>
+                  <BadgeArtwork imageUrl={b.imageUrl} nameEN={b.nameEN} icon={b.icon} alt={b.name} size={56} />
                 </span>
                 {/* ชื่อเหรียญใต้รูป — clamp 2 บรรทัด ชื่อไทยยาวกว่าอังกฤษใน ref มาก */}
                 <Typography
