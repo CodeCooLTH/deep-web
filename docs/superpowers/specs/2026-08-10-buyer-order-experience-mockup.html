@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — 00041 Buyer Order Experience (/o/{token})</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงจาก .impeccable/design.json + DESIGN.md (cross-check แล้ว ไม่ใช่สีที่คิดเอง) ── */
+:root{
+  --primary:#7367F0; --primary-dark:#675DD8;
+  --green:#28C76F; --green-ink:#18804A;
+  --cyan:#00BAD1; --amber:#FF9F43; --coral:#FF4C51;
+  --ink:#2F2B3D; --slate:#808390; --mist:#F8F7FA; --paper:#FFFFFF;
+  --divider:#2F2B3D1F;
+  --paces-primary:#236dc9; --paces-surface:#f6f7fb; --paces-danger:#f7577e;
+  --r:10px;
+  --shadow:0 2px 8px 0 rgba(47,43,61,.10); /* ink-tinted ไม่ใช่ดำสนิท */
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eceaf0;font-family:'Anuphan',sans-serif;color:var(--ink);padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--slate);font-size:14px;margin:0 0 28px;max-width:900px;line-height:1.6}
+.legend{background:#fff;border-radius:var(--r);padding:14px 18px;margin:0 0 32px;font-size:13px;line-height:1.9;max-width:900px;box-shadow:var(--shadow)}
+.legend b{color:var(--primary)}
+.row{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;margin-bottom:40px}
+.frame{background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(47,43,61,.14);overflow:hidden;flex:none}
+.frame-cap{background:var(--ink);color:#fff;font-size:12px;font-weight:600;padding:7px 12px;letter-spacing:.2px}
+.frame-cap span{color:#c6c4cf;font-weight:400}
+.m{width:375px} .t{width:768px} .d{width:1180px}
+.vp{background:var(--mist);height:640px;overflow-y:auto}
+.d .vp{height:760px}
+
+/* header */
+.hd{background:#fff;border-bottom:1px solid var(--divider);display:flex;align-items:center;justify-content:space-between;padding:10px 14px;position:sticky;top:0;z-index:5}
+.logo{font-weight:700;font-size:16px;color:var(--primary);letter-spacing:.3px}
+.btn{border:0;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;padding:8px 14px;cursor:default}
+.btn-o{background:#fff;border:1px solid var(--primary);color:var(--primary)}
+.btn-p{background:var(--primary);color:#fff}
+.btn-sec-o{background:#fff;border:1px solid #c6c4cf;color:var(--ink)}
+.btn-t{background:none;color:var(--slate);padding:6px 2px;font-weight:500;text-decoration:underline}
+.btn-w{background:var(--amber);color:#fff}
+.btn-full{display:block;width:100%;text-align:center}
+
+/* hero */
+.hero{position:relative;background:linear-gradient(120deg,#8F85F3,#7367F0 55%,#675DD8);height:104px}
+.hero-in{padding:0 16px 14px;background:#fff;position:relative}
+.av{width:76px;height:76px;border-radius:50%;border:4px solid #fff;background:#e4e3e9;margin-top:-38px;position:relative;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--slate);font-size:22px}
+.shopname{font-weight:700;font-size:17px;margin:8px 0 6px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px}
+.c-green{background:#28C76F1F;color:var(--green-ink)}
+.c-amber{background:#FF9F431F;color:#b36700}
+.c-purple{background:#7367F01F;color:var(--primary-dark)}
+.c-slate{background:#8083901F;color:#5a5d6b}
+.c-cyan{background:#00BAD11F;color:#007e8e}
+
+/* cards */
+.wrap{padding:14px}
+.card{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+.card.hl{outline:2px dashed var(--primary);outline-offset:2px}
+.card.new::after{content:'ใหม่';position:absolute}
+.ct{font-size:11px;font-weight:700;color:var(--slate);letter-spacing:.4px;margin:0 0 10px}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:4px 0}
+.kv .k{color:var(--slate)}
+.kv .v{font-weight:600;text-align:right}
+.total{border-top:1px dashed var(--divider);margin-top:8px;padding-top:8px;font-size:15px}
+.total .v{color:var(--ink);font-weight:700}
+.statusbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.ono{font-size:12px;color:var(--slate)}
+.masked{letter-spacing:1px}
+
+/* timeline 4 node */
+.tl{display:flex;align-items:flex-start;margin:14px 0 4px}
+.tl .node{flex:1;text-align:center;position:relative}
+.tl .dot{width:14px;height:14px;border-radius:50%;background:#dedce4;margin:0 auto 6px;position:relative;z-index:2}
+.tl .node.done .dot{background:var(--green)}
+.tl .node.cur .dot{background:var(--primary);box-shadow:0 0 0 4px #7367F033}
+.tl .node.err .dot{background:var(--coral)}
+.tl .node::before{content:'';position:absolute;top:6px;left:-50%;width:100%;height:2px;background:#dedce4;z-index:1}
+.tl .node:first-child::before{display:none}
+.tl .node.done::before,.tl .node.cur::before{background:var(--green)}
+.tl .lb{font-size:10.5px;color:var(--slate);line-height:1.35}
+.tl .node.cur .lb{color:var(--primary);font-weight:700}
+.tl .node.done .lb{color:var(--green-ink);font-weight:600}
+
+/* item row */
+.item{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--divider)}
+.item:last-of-type{border-bottom:0}
+.thumb{width:42px;height:42px;border-radius:8px;background:#e4e3e9;flex:none}
+.iname{font-size:13px;font-weight:600;line-height:1.3}
+.iqty{font-size:11.5px;color:var(--slate)}
+.iprice{margin-left:auto;font-size:13px;font-weight:600;white-space:nowrap}
+
+/* sticky cta */
+.sticky{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--divider);padding:12px 14px;box-shadow:0 -3px 12px rgba(47,43,61,.08)}
+.microcopy{font-size:11px;color:var(--slate);text-align:center;margin-top:7px;line-height:1.5}
+
+/* review */
+.stars{color:var(--amber);font-size:17px;letter-spacing:2px}
+.stars .off{color:#dedce4}
+.rphotos{display:flex;gap:7px;margin-top:9px}
+.rp{width:52px;height:52px;border-radius:8px;background:#e4e3e9;position:relative}
+.rp.add{border:1.5px dashed #c6c4cf;background:#fff;display:flex;align-items:center;justify-content:center;color:var(--slate);font-size:20px}
+.rp .x{position:absolute;top:-5px;right:-5px;width:17px;height:17px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;line-height:17px;text-align:center}
+.countdown{font-size:12px;color:var(--slate);margin:10px 0 8px;display:flex;align-items:center;gap:5px}
+.reply{background:var(--mist);border-radius:8px;padding:10px;margin-top:11px}
+.rlabel{font-size:11px;font-weight:700;color:var(--primary-dark);margin-bottom:4px}
+.deleted{background:#f4f3f6;border-radius:var(--r);padding:22px 14px;text-align:center;color:var(--slate)}
+.deleted .ic{width:34px;height:34px;border-radius:50%;background:#e4e3e9;margin:0 auto 9px}
+.deleted b{display:block;color:#5a5d6b;font-size:14px;margin-bottom:4px;font-weight:600}
+.deleted p{margin:0;font-size:12px;line-height:1.55}
+
+/* help card */
+.help .btn{margin-bottom:2px}
+.help .sub{font-size:11.5px;color:var(--slate);margin-top:2px}
+.flagged{background:#FF9F431A;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#874c00;font-weight:600}
+
+/* desktop grid */
+.dgrid{display:flex;gap:16px;padding:14px}
+.dmain{flex:1 1 0;min-width:0}
+.dside{width:310px;flex:none}
+.dside .card{position:sticky;top:14px}
+.acct{width:212px;flex:none;background:#fff;border-radius:var(--r);box-shadow:var(--shadow);padding:12px;height:fit-content}
+.acct .ai{font-size:13px;padding:8px 10px;border-radius:7px;color:var(--slate)}
+.acct .ai.on{background:#7367F01A;color:var(--primary);font-weight:600}
+.bigamt{font-size:26px;font-weight:700;margin:2px 0 12px}
+
+/* dialog */
+.dlg{width:330px;background:#fff;border-radius:12px;box-shadow:0 10px 34px rgba(47,43,61,.24);padding:22px;text-align:center}
+.dlg .ic{width:44px;height:44px;border-radius:50%;background:#8083901F;margin:0 auto 12px}
+.dlg h4{margin:0 0 6px;font-size:16px}
+.dlg p{margin:0 0 14px;font-size:12.5px;color:var(--slate);line-height:1.6}
+.ta{width:100%;border:1px solid #c6c4cf;border-radius:8px;padding:9px;font-family:inherit;font-size:13px;min-height:66px;margin-bottom:14px;color:var(--slate)}
+.dlg-a{display:flex;gap:8px}
+.dlg-a .btn{flex:1}
+
+/* paces block */
+.paces{background:var(--paces-surface);border-radius:var(--r);padding:16px;width:620px}
+.pcard{background:#fff;border:1px solid #e6e9f0;border-radius:8px;padding:14px}
+.p-btn{background:var(--paces-primary);color:#fff;border:0;border-radius:6px;padding:7px 13px;font-size:12.5px;font-weight:600;font-family:inherit}
+.p-btn-l{background:#fff;border:1px solid #d5dae2;color:#3e4756}
+.p-ta{width:100%;border:1px solid #d5dae2;border-radius:6px;padding:9px;font-family:inherit;font-size:13px;min-height:64px;color:var(--slate)}
+.note{background:#fff8e6;border-left:3px solid var(--amber);padding:10px 13px;border-radius:6px;font-size:12.5px;line-height:1.65;margin:10px 0 0}
+h2{font-size:16px;margin:34px 0 12px;padding-bottom:7px;border-bottom:2px solid var(--divider)}
+.tagnew{background:var(--primary);color:#fff;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:4px;vertical-align:middle;margin-left:6px}
+</style>
+</head>
+<body>
+
+<h1>Mockup — 00041 Buyer Order Experience</h1>
+<p class="lead">หน้า <code>/o/{token}</code> ทั้งเส้น · guest view + authenticated + 3 สถานะรีวิว + dispute + UI ตอบกลับฝั่งร้าน · <b>3 ขนาดจอ</b> mobile 375 / tablet 768 / desktop 1180 (จำลอง 1440 หักขอบ)</p>
+
+<div class="legend">
+  <b>สีทุกตัวดึงจาก <code>.impeccable/design.json</code> + <code>DESIGN.md</code> ของจริง</b> ไม่ใช่สีที่เดาเอง — ม่วง #7367F0 · Verified Green #28C76F (ตัวหนังสือใช้ ink #18804A) · Amber #FF9F43 · Coral #FF4C51 · Ink Plum #2F2B3D<br>
+  <b>One Voice:</b> ม่วงปรากฏเฉพาะ CTA หลัก + ลิงก์ + focus — ปุ่ม "ติดต่อร้านค้า"/"ยังไม่ได้รับสินค้า" <b>ไม่ใช้ม่วง</b><br>
+  <b>Verified-Means-Green:</b> เขียวเฉพาะ ยืนยันแล้ว · สำเร็จ · จัดส่งสำเร็จ · รีวิวแล้ว — <b>"แจ้งปัญหาแล้ว" ใช้ amber ไม่ใช่เขียวและไม่ใช่แดง</b><br>
+  <b>ห้าม emoji (HR12)</b> — ทุกไอคอนในของจริงเป็น tabler (<code>tabler-headset</code> · <code>tabler-flag-3</code> · <code>tabler-mood-sad</code> ยืนยันแล้วว่ามีจริงใน generated-icons.css) · ในม็อกอัพแทนด้วยกล่องสีเทา<br>
+  <b>กรอบเส้นประม่วง</b> = บล็อกที่เป็นของใหม่/ย้ายตำแหน่งในรอบนี้
+</div>
+
+<h2>1. Guest View — ยังไม่ล็อกอิน <span class="tagnew">D-1</span></h2>
+<div class="row">
+
+  <!-- MOBILE GUEST -->
+  <div class="frame m">
+    <div class="frame-cap">Mobile 375px <span>· guest · SHIPPED</span></div>
+    <div class="vp">
+      <div class="hd"><div class="logo">Deep</div><button class="btn btn-o">เข้าสู่ระบบ</button></div>
+      <div class="hero"></div>
+      <div class="hero-in">
+        <div class="av">ธ</div>
+        <div class="shopname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <div class="chips"><span class="chip c-green">ยืนยันแล้ว</span><span class="chip c-purple">Deep Classic</span><span class="chip c-slate">73 คำสั่งซื้อ</span></div>
+      </div>
+      <div class="wrap">
+        <div class="statusbar"><span class="chip c-cyan">กำลังจัดส่ง</span><span class="ono">#DP2569-0012 · 08 ส.ค. 2569</span></div>
+
+        <div class="card hl">
+          <p class="ct">การจัดส่ง</p>
+          <div class="kv"><span class="k">ขนส่ง</span><span class="v">Flash Express</span></div>
+          <div class="kv"><span class="k">เลขพัสดุ</span><span class="v">TH0112ABCD34</span></div>
+          <div class="tl">
+            <div class="node done"><div class="dot"></div><div class="lb">สร้างพัสดุ</div></div>
+            <div class="node done"><div class="dot"></div><div class="lb">รับเข้าระบบ</div></div>
+            <div class="node cur"><div class="dot"></div><div class="lb">กำลังจัดส่ง</div></div>
+            <div class="node"><div class="dot"></div><div class="lb">จัดส่งสำเร็จ</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="ct">รายการสินค้า</p>
+          <div class="item"><div class="thumb"></div><div><div class="iname">ผ้าเบรกหน้า Wave 110i</div><div class="iqty">x2</div></div><div class="iprice">฿640</div></div>
+          <div class="item"><div class="thumb"></div><div><div class="iname">น้ำมันเครื่อง 4T 0.8L</div><div class="iqty">x1</div></div><div class="iprice">฿250</div></div>
+          <div class="kv total"><span class="k">ยอดรวม</span><span class="v">฿1,290</span></div>
+        </div>
+
+        <div class="card">
+          <p class="ct">วิธีชำระเงิน</p>
+          <div class="kv"><span class="k">ชำระโดย</span><span class="v">เก็บเงินปลายทาง</span></div>
+        </div>
+
+        <div class="card hl">
+          <p class="ct">ข้อมูลผู้รับ</p>
+          <div class="kv"><span class="k">เบอร์ผู้รับ</span><span class="v masked">•••-•••-891</span></div>
+          <div class="kv"><span class="k">ที่อยู่จัดส่ง</span><span class="v" style="max-width:190px">จ.สมุทรปราการ<br><span class="masked" style="font-weight:400;color:var(--slate);font-size:12px">•••45 ถ.•••ทร ต.•••ยว อ.•••ง •••80</span></span></div>
+        </div>
+
+        <div class="card">
+          <p class="ct">ให้คะแนนร้านนี้</p>
+          <div class="stars">★★★★★</div>
+          <div style="font-size:12.5px;color:var(--primary);font-weight:600;margin-top:8px">เข้าสู่ระบบเพื่อรีวิว →</div>
+        </div>
+
+        <div class="card help hl">
+          <p class="ct">ต้องการความช่วยเหลือ?</p>
+          <button class="btn btn-sec-o btn-full">ติดต่อร้านค้า</button>
+          <div style="margin-top:12px"><button class="btn btn-t">ยังไม่ได้รับสินค้า?</button>
+          <div class="sub">แจ้งร้านค้าว่าคำสั่งซื้อนี้มีปัญหา</div></div>
+        </div>
+      </div>
+      <div class="sticky">
+        <button class="btn btn-p btn-full">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</button>
+        <div class="microcopy">ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป เขียนรีวิว หรือแจ้งปัญหา</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLET GUEST -->
+  <div class="frame t">
+    <div class="frame-cap">Tablet 768px <span>· guest · คอนเทนต์รวบ max-width 720 กึ่งกลาง ยัง 1 คอลัมน์ · sticky bar คงอยู่</span></div>
+    <div class="vp">
+      <div class="hd"><div class="logo">Deep</div><button class="btn btn-o">เข้าสู่ระบบ</button></div>
+      <div class="hero"></div>
+      <div class="hero-in" style="padding:0 32px 16px">
+        <div class="av">ธ</div>
+        <div class="shopname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <div class="chips"><span class="chip c-green">ยืนยันแล้ว</span><span class="chip c-purple">Deep Classic</span><span class="chip c-slate">73 คำสั่งซื้อ</span></div>
+      </div>
+      <div class="wrap" style="max-width:720px;margin:0 auto;padding:16px 32px">
+        <div class="statusbar"><span class="chip c-cyan">กำลังจัดส่ง</span><span class="ono">#DP2569-0012 · 08 ส.ค. 2569</span></div>
+        <div class="card hl">
+          <p class="ct">การจัดส่ง</p>
+          <div class="kv"><span class="k">ขนส่ง</span><span class="v">Flash Express · TH0112ABCD34</span></div>
+          <div class="tl">
+            <div class="node done"><div class="dot"></div><div class="lb">สร้างพัสดุ</div></div>
+            <div class="node done"><div class="dot"></div><div class="lb">รับเข้าระบบแล้ว</div></div>
+            <div class="node cur"><div class="dot"></div><div class="lb">กำลังจัดส่ง</div></div>
+            <div class="node"><div class="dot"></div><div class="lb">จัดส่งสำเร็จ</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <p class="ct">รายการสินค้า</p>
+          <div class="item"><div class="thumb"></div><div><div class="iname">ผ้าเบรกหน้า Wave 110i</div><div class="iqty">x2</div></div><div class="iprice">฿640</div></div>
+          <div class="item"><div class="thumb"></div><div><div class="iname">น้ำมันเครื่อง 4T 0.8L</div><div class="iqty">x1</div></div><div class="iprice">฿250</div></div>
+          <div class="kv total"><span class="k">ยอดรวม</span><span class="v">฿1,290</span></div>
+        </div>
+        <div class="card hl">
+          <p class="ct">ข้อมูลผู้รับ</p>
+          <div class="kv"><span class="k">เบอร์ผู้รับ</span><span class="v masked">•••-•••-891</span></div>
+          <div class="kv"><span class="k">ที่อยู่จัดส่ง</span><span class="v">จ.สมุทรปราการ · <span class="masked" style="font-weight:400;color:var(--slate)">•••45 ถ.•••ทร ต.•••ยว อ.•••ง •••80</span></span></div>
+        </div>
+        <div class="card help hl">
+          <p class="ct">ต้องการความช่วยเหลือ?</p>
+          <button class="btn btn-sec-o btn-full">ติดต่อร้านค้า</button>
+          <div style="margin-top:12px"><button class="btn btn-t">ยังไม่ได้รับสินค้า?</button></div>
+        </div>
+      </div>
+      <div class="sticky">
+        <div style="max-width:720px;margin:0 auto">
+          <button class="btn btn-p btn-full">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</button>
+          <div class="microcopy">ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป เขียนรีวิว หรือแจ้งปัญหา</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>2. Authenticated — desktop ≥1200px (2 คอลัมน์ + AccountSidebar)</h2>
+<div class="row">
+  <div class="frame d">
+    <div class="frame-cap">Desktop <span>· authenticated · AccountSidebar 240 + main 8/12 + action panel 4/12 sticky · sticky bottom bar ซ่อน</span></div>
+    <div class="vp">
+      <div class="hd"><div class="logo">Deep</div><div style="display:flex;gap:16px;font-size:13px;color:var(--slate)"><span>หน้าแรก</span><span>คำสั่งซื้อ</span><span>รีวิว</span><span>ข้อความ</span></div><div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:var(--slate)">แจ้งเตือน</span><div style="width:30px;height:30px;border-radius:50%;background:#e4e3e9"></div></div></div>
+      <div class="hero"></div>
+      <div class="hero-in" style="padding:0 24px 14px">
+        <div class="av">ธ</div>
+        <div class="shopname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+        <div class="chips"><span class="chip c-green">ยืนยันแล้ว</span><span class="chip c-purple">Deep Classic</span></div>
+      </div>
+      <div class="dgrid">
+        <div class="acct">
+          <div class="ai">แดชบอร์ด</div>
+          <div class="ai on">คำสั่งซื้อ</div>
+          <div class="ai">รีวิวของฉัน</div>
+          <div class="ai">เหรียญตรา</div>
+          <div class="ai">ข้อความ</div>
+          <div class="ai">โปรไฟล์</div>
+        </div>
+        <div class="dmain">
+          <div class="statusbar"><span class="chip c-cyan">กำลังจัดส่ง</span><span class="ono">#DP2569-0012 · 08 ส.ค. 2569</span></div>
+          <div class="card">
+            <p class="ct">การจัดส่ง</p>
+            <div class="kv"><span class="k">ขนส่ง</span><span class="v">Flash Express · TH0112ABCD34</span></div>
+            <div class="tl">
+              <div class="node done"><div class="dot"></div><div class="lb">สร้างพัสดุ</div></div>
+              <div class="node done"><div class="dot"></div><div class="lb">รับเข้าระบบแล้ว</div></div>
+              <div class="node cur"><div class="dot"></div><div class="lb">กำลังจัดส่ง</div></div>
+              <div class="node"><div class="dot"></div><div class="lb">จัดส่งสำเร็จ</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <p class="ct">รายการสินค้า</p>
+            <div class="item"><div class="thumb"></div><div><div class="iname">ผ้าเบรกหน้า Wave 110i</div><div class="iqty">x2</div></div><div class="iprice">฿640</div></div>
+            <div class="item"><div class="thumb"></div><div><div class="iname">น้ำมันเครื่อง 4T 0.8L</div><div class="iqty">x1</div></div><div class="iprice">฿250</div></div>
+            <div class="kv total"><span class="k">ยอดรวม</span><span class="v">฿1,290</span></div>
+          </div>
+          <div class="card">
+            <p class="ct">ข้อมูลผู้รับ</p>
+            <div class="kv"><span class="k">เบอร์ผู้รับ</span><span class="v">081-234-5891</span></div>
+            <div class="kv"><span class="k">ที่อยู่จัดส่ง</span><span class="v">45 ถ.สุขุมวิท ต.บางปูใหม่ อ.เมืองสมุทรปราการ จ.สมุทรปราการ 10280</span></div>
+          </div>
+
+          <div class="card hl">
+            <p class="ct">หลักฐานการชำระเงิน <span class="tagnew">ย้ายมาก่อนรีวิว · FR-010</span></p>
+            <div style="display:flex;gap:12px;align-items:center">
+              <div style="width:64px;height:80px;border-radius:8px;background:#e4e3e9"></div>
+              <div><div style="font-size:13px;font-weight:600">แนบสลิปแล้ว</div><div style="font-size:11.5px;color:var(--slate)">08 ส.ค. 2569 14:22 · ดูสลิป</div></div>
+              <span class="chip c-green" style="margin-left:auto">แนบแล้ว</span>
+            </div>
+          </div>
+
+          <div class="card hl">
+            <p class="ct">รีวิวของคุณ</p>
+            <div style="display:flex;align-items:center;gap:9px"><span class="stars">★★★★<span class="off">★</span></span><span class="chip c-green">รีวิวแล้ว</span></div>
+            <div style="font-size:13.5px;margin:8px 0 2px;line-height:1.55">ส่งไวมาก แพ็คของดี ของตรงปก ไม่มีปัญหาเลยครับ</div>
+            <div class="rphotos"><div class="rp"></div><div class="rp"></div></div>
+            <div style="font-size:11.5px;color:var(--slate);margin-top:8px">คุณ · 09 ส.ค. 2569 19:30</div>
+            <div class="countdown"><span style="width:13px;height:13px;border-radius:3px;background:#dedce4;display:inline-block"></span> แก้ไขได้อีก 6 ชม. 12 นาที</div>
+            <div style="display:flex;gap:8px"><button class="btn btn-o">แก้ไขรีวิว</button><button class="btn btn-t">ลบรีวิว</button></div>
+            <div class="reply">
+              <div class="rlabel">ร้านค้าตอบกลับ</div>
+              <div style="font-size:13px;line-height:1.55">ขอบคุณที่อุดหนุนครับ ถ้าต้องการอะไหล่ตัวอื่นทักมาได้เลย</div>
+              <div style="font-size:11px;color:var(--slate);margin-top:5px">10 ส.ค. 2569</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dside">
+          <div class="card">
+            <p class="ct">ยอดที่ต้องชำระ</p>
+            <div class="bigamt">฿1,290</div>
+            <button class="btn btn-p btn-full">ยืนยันรับสินค้า</button>
+            <div style="text-align:center;margin-top:9px"><button class="btn btn-t">ยกเลิกคำสั่งซื้อ</button></div>
+            <div style="border-top:1px solid var(--divider);margin:14px 0 12px"></div>
+            <p class="ct">ต้องการความช่วยเหลือ?</p>
+            <button class="btn btn-sec-o btn-full">ติดต่อร้านค้า</button>
+            <div style="margin-top:11px"><button class="btn btn-t">ยังไม่ได้รับสินค้า?</button>
+            <div class="sub" style="font-size:11.5px;color:var(--slate)">แจ้งร้านค้าว่าคำสั่งซื้อนี้มีปัญหา</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>3. โซนรีวิว 3 สถานะ + Dispute dialog</h2>
+<div class="row">
+  <div class="frame m">
+    <div class="frame-cap">State 1 <span>· ยังไม่รีวิว (ฟอร์ม + แนบรูป ≤4)</span></div>
+    <div class="vp" style="height:420px;padding:14px">
+      <div class="card">
+        <p class="ct">รีวิวร้านค้า</p>
+        <div style="font-size:13.5px;font-weight:600">สินค้าถึงมือคุณแล้ว</div>
+        <div style="font-size:12px;color:var(--slate);margin-bottom:10px">ให้คะแนนร้านนี้เพื่อช่วยผู้ซื้อคนอื่น</div>
+        <div class="stars" style="font-size:26px;letter-spacing:5px">★★★★<span class="off">★</span></div>
+        <textarea class="ta" style="margin-top:11px">เล่าประสบการณ์ของคุณ (ไม่บังคับ)</textarea>
+        <div style="font-size:11.5px;color:var(--slate);margin-bottom:6px">แนบรูป (ไม่บังคับ, สูงสุด 4 รูป)</div>
+        <div class="rphotos"><div class="rp"><span class="x">×</span></div><div class="rp"><span class="x">×</span></div><div class="rp add">+</div></div>
+        <button class="btn btn-p btn-full" style="margin-top:14px">ส่งรีวิว</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame m">
+    <div class="frame-cap">State 3 <span>· soft-deleted (TD-002) — เบา ไม่ใช่ error</span></div>
+    <div class="vp" style="height:420px;padding:14px">
+      <div class="deleted">
+        <div class="ic"></div>
+        <b>คุณลบรีวิวนี้ไปแล้ว</b>
+        <p>รีวิวที่ลบแล้วไม่สามารถเขียนใหม่<br>สำหรับคำสั่งซื้อนี้ได้อีก</p>
+      </div>
+      <div class="note">ไม่มีกรอบแดง ไม่มีไอคอน error — พื้น <code>action.hover</code> จาง ไอคอนโทน <code>text.disabled</code> สื่อว่า "ปิดจบแล้ว" ไม่ใช่ "ผิดพลาด"</div>
+      <div style="margin-top:14px">
+        <div class="frame-cap" style="border-radius:6px 6px 0 0">เกิน 24 ชม. (State 2 หมดเวลา)</div>
+        <div class="card" style="border-radius:0 0 var(--r) var(--r);margin:0">
+          <div style="display:flex;align-items:center;gap:9px"><span class="stars">★★★★<span class="off">★</span></span><span class="chip c-green">รีวิวแล้ว</span></div>
+          <div style="font-size:13px;margin:7px 0 2px">ส่งไวมาก แพ็คของดี</div>
+          <div style="font-size:11.5px;color:var(--slate)">คุณ · 01 ส.ค. 2569 19:30</div>
+          <div class="note" style="margin-top:9px">ปุ่มแก้ไข/ลบ <b>หายไป</b> · ไม่มีข้อความ "หมดเวลาแล้ว" ซ้ำ · รีวิวยังแสดงปกติ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="dlg">
+      <div class="ic"></div>
+      <h4>แจ้งปัญหาคำสั่งซื้อนี้</h4>
+      <p>บอกร้านค้าว่าเกิดอะไรขึ้น (ไม่บังคับ)</p>
+      <textarea class="ta">เช่น ยังไม่ได้รับของ / ของไม่ตรงกับที่สั่ง</textarea>
+      <div class="dlg-a"><button class="btn btn-sec-o">ยกเลิก</button><button class="btn btn-w">แจ้งปัญหา</button></div>
+    </div>
+    <div class="note" style="width:330px">ไอคอน <code>tabler-flag-3</code> <b>สีเทา</b> ไม่ใช่แดง · ปุ่มยืนยัน <b>amber</b> ไม่ใช่ error — น้ำหนักตรงกับสิ่งที่มันทำจริง (ติดธงเตือน ไม่ใช่ยกเลิก/ลบ)</div>
+    <div style="width:330px;margin-top:14px">
+      <div class="card" style="margin:0">
+        <p class="ct">ต้องการความช่วยเหลือ?</p>
+        <button class="btn btn-sec-o btn-full">ติดต่อร้านค้า</button>
+        <div class="flagged" style="margin-top:11px">แจ้งปัญหาแล้ว เมื่อ 10 ส.ค. 2569 09:12</div>
+      </div>
+      <div class="note">มีเรื่องเปิดค้าง → ปุ่มถูกแทนที่ด้วยแถบสถานะ <b>กดไม่ได้ตั้งแต่โหลดหน้าแรก</b> ไม่ต้องรอ 409 มาบอก · โทน amber = "รอดำเนินการ" ไม่ใช่ "ผิดพลาด"</div>
+    </div>
+  </div>
+</div>
+
+<h2>4. UI ตอบกลับรีวิวฝั่งร้าน (Paces — คนละสกิน)</h2>
+<div class="row">
+  <div class="paces">
+    <div class="pcard">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:9px">
+        <div>
+          <div style="font-weight:600;font-size:14px">สมชาย ใจดี</div>
+          <div style="font-size:11.5px;color:#8a94a6">#DP2569-0012 · 09 ส.ค. 2569</div>
+        </div>
+        <div style="color:#f9bf59;font-size:15px;letter-spacing:2px">★★★★<span style="color:#e6e9f0">★</span></div>
+      </div>
+      <div style="font-size:13.5px;line-height:1.6;margin-bottom:11px">ส่งไวมาก แพ็คของดี ของตรงปก ไม่มีปัญหาเลยครับ</div>
+      <div style="display:flex;gap:6px;margin-bottom:12px"><div style="width:40px;height:40px;border-radius:6px;background:#e6e9f0"></div><div style="width:40px;height:40px;border-radius:6px;background:#e6e9f0"></div></div>
+      <textarea class="p-ta">พิมพ์คำตอบถึงลูกค้า...</textarea>
+      <div style="display:flex;gap:8px;margin-top:9px"><button class="p-btn">ส่งคำตอบ</button><button class="p-btn p-btn-l">ยกเลิก</button></div>
+    </div>
+    <div class="pcard" style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="font-weight:600;font-size:14px">สมชาย ใจดี <span style="font-weight:400;font-size:11.5px;color:#8a94a6">· ตอบกลับแล้ว</span></div>
+        <div style="width:30px;height:30px;border-radius:6px;border:1px solid #d5dae2;display:flex;align-items:center;justify-content:center;color:#8a94a6">⋯</div>
+      </div>
+      <div style="background:#f6f7fb;border-radius:6px;padding:10px;margin-top:9px;font-size:13px;line-height:1.55">
+        <div style="font-size:11px;font-weight:700;color:var(--paces-primary);margin-bottom:3px">คำตอบของร้าน</div>
+        ขอบคุณที่อุดหนุนครับ ถ้าต้องการอะไหล่ตัวอื่นทักมาได้เลย
+      </div>
+    </div>
+    <div class="note">ปุ่ม <code>⋯</code> ต้อง <code>size-11</code> (44px) explicit — <code>.btn.btn-icon</code> เดิมวัดได้ 37px ไม่ผ่าน tap-target · ลบคำตอบใช้ <code>pacesConfirm.danger()</code> ห้ามประดิษฐ์ modal เอง (HR8) · ห้าม arbitrary Tailwind value ในหน้า <code>(paces)</code> (HR7)</div>
+  </div>
+</div>
+
+<h2>5. จุดที่ต้องตัดสินก่อนลงมือ</h2>
+<div class="legend">
+  <b>C-1 breakpoint:</b> ux เสนอ mobile &lt;900 แต่ BRD FR-018 ที่อนุมัติแล้วเขียน ≤767 และโค้ดจริงสลับ sidebar ที่ <b>768px</b> — ม็อกอัพนี้ยึด <b>768</b> เพราะถ้าใช้ 900 จะเกิดช่วง 768–899 ที่ sidebar โผล่แล้วแต่เนื้อหายังเป็นโหมดมือถือ<br>
+  <b>C-2 FR-005 (PII):</b> การโชว์เลขออเดอร์/ชื่อร้านบนหน้า OTP ต้อง query ออเดอร์ในจังหวะที่ <b>ยังไม่ผ่าน resolveOrderAccess</b> — เป็นคำถามความปลอดภัย ไม่ใช่แค่ scope<br>
+  <b>C-5 desktop 1200–1280:</b> 3 แถบ (sidebar 240 + main + action panel) อาจแน่นที่ขอบล่างของช่วง — ต้อง QA จริง
+</div>
+
+</body>
+</html>
