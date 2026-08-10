@@ -14,16 +14,10 @@ import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { cn } from '@/utils/helpers'
 import { SALES_CHANNEL_ICONS, SALES_CHANNEL_LABELS } from './data'
+import { SALES_CHANNEL_LOGO } from '@/lib/sales-channel-logo'
 
-/** โลโก้สีของแพลตฟอร์ม — ไฟล์จริงใน public (ตัวเดียวกับ CHANNEL_LOGO ของ OrderCard) */
-export const PLATFORM_LOGO: Record<string, string> = {
-  FACEBOOK: '/images/logos/facebook.svg',
-  // instagram-circle.svg ไม่ใช่ instagram.svg — ที่นี่ถูก clip เป็นวงกลมเสมอ (badge มุม avatar +
-  // rounded-full) ไอคอนแอปทรงสี่เหลี่ยมมนของไฟล์เดิมจะโดนตัดมุมจนเสียรูป. เหตุผลเดียวกับที่
-  // ChannelBadge.tsx ในกล่องแชทเลือกไฟล์นี้ไปแล้วตั้งแต่ 2026-07-23 (ไล่สีแบรนด์ชุดเดียวกัน)
-  INSTAGRAM: '/images/logos/instagram-circle.svg',
-  LINE: '/images/logos/line.svg',
-}
+/** โลโก้สีของแพลตฟอร์ม — SSOT อยู่ที่ lib/sales-channel-logo (เดิมก็อปไว้ 2 ที่ ดูเหตุผลที่นั่น) */
+export { SALES_CHANNEL_LOGO as PLATFORM_LOGO } from '@/lib/sales-channel-logo'
 
 interface Props {
   /** รูปเพจ — null = ไม่รู้เพจ ให้ตกไปโลโก้แพลตฟอร์ม */
@@ -48,7 +42,7 @@ export default function OrderSourceLogo({ logoUrl, channel, size = 'sm', classNa
   const [platformFailed, setPlatformFailed] = useState(false)
   const label = channel ? (SALES_CHANNEL_LABELS[channel] ?? channel) : 'ไม่ระบุช่องทาง'
   const pageSrc = !pageFailed && logoUrl ? logoUrl : null
-  const platformSrc = channel && !platformFailed ? PLATFORM_LOGO[channel] : undefined
+  const platformSrc = channel && !platformFailed ? SALES_CHANNEL_LOGO[channel] : undefined
 
   if (pageSrc) {
     return (

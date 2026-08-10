@@ -31,6 +31,7 @@ import {
   SALES_CHANNEL_LABELS,
   type OrderRow,
 } from './data'
+import { SALES_CHANNEL_LOGO } from '@/lib/sales-channel-logo'
 import BuyerAvatar from './BuyerAvatar'
 import MiniShipmentTimeline from './MiniShipmentTimeline'
 import OrderActions from './OrderActions'
@@ -49,14 +50,8 @@ import { resolveOrderStatusBadge } from '@/lib/order-stage'
 //    สถานะพัสดุเข้ามาด้วย ใบ COD ที่ส่งถึงแล้วจะได้ป้ายเหลือง "รอเงิน COD" ถ้าแถบยังคีย์
 //    ตาม status=SHIPPED มันจะฟ้า = การ์ดใบเดียวมีสองสีที่ขัดกันเอง
 
-// ── โลโก้ช่องทางสีจริง (self-host public/) — เฉพาะช่องทางที่มีไฟล์; ที่เหลือ fallback tabler mono ──
-const CHANNEL_LOGO: Record<string, string> = {
-  FACEBOOK:  '/images/logos/facebook.svg',
-  // ใช้ instagram-circle.svg ไม่ใช่ instagram.svg ที่คอมเมนต์เดิมชี้ไว้ — ต้องเป็นชุดเดียวกับ
-  // PLATFORM_LOGO ใน OrderSourceLogo.tsx (เหตุผลการเลือกไฟล์อยู่ที่นั่น)
-  INSTAGRAM: '/images/logos/instagram-circle.svg',
-  LINE:      '/images/logos/line.svg',
-}
+// ── โลโก้ช่องทางสีจริง — SSOT: lib/sales-channel-logo (เดิมประกาศซ้ำที่นี่กับ OrderSourceLogo) ──
+const CHANNEL_LOGO = SALES_CHANNEL_LOGO
 
 // ช่องทางการขาย: รูปเพจที่ทักมา(ถ้ารู้) → โลโก้สีแพลตฟอร์ม → tabler mono icon
 // (รูปเพจ: user สั่ง 2026-08-06 "mobile ด้วย" — sourceLogoUrl มาจาก page.tsx)
