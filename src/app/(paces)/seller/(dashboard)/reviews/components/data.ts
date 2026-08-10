@@ -9,6 +9,10 @@ export type ReviewRow = {
   dateISO: string // ISO 8601 — format เป็นไทยใน client component
   productName: string
   orderToken: string // สำหรับ link ไป /seller/orders/{token} (internal)
+  // feature 00041 — รูปที่ผู้ซื้อแนบมากับรีวิว (≤4 ใบ) เป็น fileId → `/api/files/{id}`
+  images: string[]
+  // feature 00041 — คำตอบของร้าน (null = ยังไม่ตอบ) ตอบซ้ำ = เขียนทับ ไม่ใช่แถวใหม่
+  shopReply: { comment: string; repliedAtISO: string } | null
 }
 
 export type SummaryData = {

@@ -72,13 +72,22 @@ export default async function ReviewsPage() {
   const rows: ReviewRow[] = rawReviews.map((review) => {
     const order = review.order as { publicToken: string; items: { name: string }[] }
 
-    const reviewerLabel: string = review.reviewerContact
-      ? maskContact(review.reviewerContact)
-      : review.reviewerUserId
-        ? 'ผู้ใช้ที่ลงทะเบียน'
-        : '—'
+    // feature 00041 — ชื่อจริงมาก่อนเบอร์ที่ถูกปิดบัง
+    // 🛑 เดิมเช็ค reviewerContact ก่อน แล้วตกไปเป็นคำว่า "ผู้ใช้ที่ลงทะเบียน" — ผู้ขายจึงเห็น
+    // ชื่อเดียวกันทุกแถวสำหรับลูกค้าที่สมัครสมาชิกแล้ว แยกไม่ออกว่าใครเป็นใคร ซึ่งย้อนแย้งกับ
+    // ตัวฟีเจอร์เอง (ตอบกลับรีวิวโดยไม่รู้ว่าตอบใครอยู่). displayName/username เป็นข้อมูล
+    // สาธารณะอยู่แล้ว (โปรไฟล์ `/u/{username}`) จึงไม่ใช่การเปิดเผยอะไรใหม่
+    const reviewerLabel: string =
+      review.reviewer?.displayName?.trim() ||
+      review.reviewer?.username ||
+      (review.reviewerContact ? maskContact(review.reviewerContact) : '—')
 
     const reviewerInitial = getInitial(reviewerLabel)
+
+    // images เป็นคอลัมน์ Json — กรองให้เหลือเฉพาะ string จริง เพราะ Prisma ไม่การันตีชนิดข้างใน
+    const images = Array.isArray(review.images)
+      ? review.images.filter((i): i is string => typeof i === 'string')
+      : []
 
     // ส่งเป็น ISO string — client component จะ format เป็นภาษาไทย
     const dateISO = new Date(review.createdAt).toISOString()
@@ -94,6 +103,15 @@ export default async function ReviewsPage() {
       dateISO,
       productName,
       orderToken: order?.publicToken ?? '',
+      images,
+      // shopRepliedAt เป็น null ได้แม้มีข้อความ (แถวเก่าก่อน migration) — ต้องมีทั้งคู่ถึงนับว่าตอบแล้ว
+      shopReply:
+        review.shopReplyComment && review.shopRepliedAt
+          ? {
+              comment: review.shopReplyComment,
+              repliedAtISO: new Date(review.shopRepliedAt).toISOString(),
+            }
+          : null,
     }
   })
 

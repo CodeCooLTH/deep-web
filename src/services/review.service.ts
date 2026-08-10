@@ -74,7 +74,15 @@ export async function getReviewsByBuyer(userId: string, take?: number) {
 export async function getReviewsByShopUser(userId: string) {
   return prisma.review.findMany({
     where: { order: { shop: { userId } }, deletedAt: null },
-    include: { order: { select: { publicToken: true, items: true } } },
+    include: {
+      order: { select: { publicToken: true, items: true } },
+      // feature 00041 — ดึงชื่อผู้รีวิวจริงมาแสดงแทนคำว่า "ผู้ใช้ที่ลงทะเบียน"
+      // 🛑 select ทีละฟิลด์ ไม่ใช่ `true` ทั้งก้อน: หน้านี้เป็น RSC ที่อยู่ใต้ client layout
+      // ⇒ อะไรที่ include มาจะถูก serialize ลง flight payload ทั้งหมด การดึง User ทั้งแถว
+      // = ส่ง passwordHash/เบอร์/อีเมลของผู้ซื้อไปให้เบราว์เซอร์ของผู้ขาย
+      // (memory `feedback_rsc_pii_neutralize_at_source`)
+      reviewer: { select: { displayName: true, username: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 }
