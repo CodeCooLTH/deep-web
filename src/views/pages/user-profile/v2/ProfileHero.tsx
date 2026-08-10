@@ -22,7 +22,7 @@
  * Base: theme/vuexy/typescript-version/full-version/src/@core/components/mui/Avatar.tsx (fallback initials)
  *   + src/app/(marketing)/auth/sign-in/OrderLinkShell.tsx (ภาษาภาพเดียวกัน: รูปเต็มกว้าง + ไล่เงา + สถิติ)
  */
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import NextLink from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -48,6 +48,7 @@ import ResponsiveSheet from './ResponsiveSheet'
 // หน้าจอจะบอกตัวเลขที่ไม่ตรงกับที่ระบบใช้จริง
 import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
 import { resolveChatResponse } from '@/lib/chat-response-display'
+import { badgeRowFit } from '@/lib/badge-row-fit'
 import { formatDateTH } from '@/lib/format-date'
 
 /** `imageUrl` = artwork จริงของเหรียญจาก backend — `icon` เป็นแค่ fallback เมื่อเหรียญนั้นยังไม่มีรูป
@@ -166,14 +167,7 @@ const TRUST_FACTORS = [
 const TRUST_SCORE_MAX = 100
 
 /** จำนวนเหรียญที่โชว์เป็นไอคอน ที่เหลือยุบเป็นตัวนับ — กันแถวยาวจนดันเนื้อหาสำคัญตกจอ */
-/* เหรียญต่อบรรทัดเดียว (user 2026-08-10 "บรรทัดเดียว ถ้าเยอะกว่าให้ขึ้น [+]")
-   ต้องมี 2 ค่าเพราะ "หนึ่งบรรทัด" ที่ 320px กับที่ 960px ไม่ใช่จำนวนเดียวกัน — ช่องละ 76px
-   + gap 12px: มือถือได้ 3 ใบ + ปุ่ม [+] = 4 ช่อง (~316px พอดี) จอ sm ขึ้นไปได้ 5 ใบ + ปุ่ม
-   🛑 ปุ่มเขียนว่า "+" เฉย ๆ ไม่ใส่ตัวเลข — จำนวนที่ซ่อนต่างกันตาม breakpoint แต่ HTML ก้อนเดียว
-   ถ้าใส่ "+2" มันจะถูกทั้งมือถือหรือถูกทั้งเดสก์ท็อป อย่างใดอย่างหนึ่ง ไม่มีทางถูกทั้งคู่
-   (จำนวนเต็มยังบอกครบใน aria-label ซึ่งอ่านทีละเครื่อง จึงไม่ขัดกันเอง) */
-const BADGES_PER_ROW_MOBILE = 3
-const BADGES_PER_ROW_DESKTOP = 5
+
 
 /**
  * รูปที่ยอมให้โหลดพังได้ — คืน `fallback` เมื่อไม่มี URL **หรือ** โหลดไม่สำเร็จ
@@ -321,11 +315,25 @@ export default function ProfileHero({
   // E3 — เหรียญที่เกิน 5 ใบ: `data.badges` ส่งมาครบทุกใบอยู่แล้ว (หน้าไม่ได้ตัด) โค้ดแค่ slice เอง
   // จึงกางได้โดยไม่ต้องดึงข้อมูลเพิ่ม เดิมชิป `+N` เป็น <span> ตาย = ประกาศว่ามีอีกแล้วจบตรงนั้น
   const [badgesExpanded, setBadgesExpanded] = useState(false)
-  const shownBadges = badgesExpanded ? data.badges : data.badges.slice(0, BADGES_PER_ROW_DESKTOP)
-  // ปุ่ม [+] โผล่คนละเงื่อนไขต่อ breakpoint — คำนวณเป็นคลาสสถิต ไม่ใช่ media query ใน JS
-  // (JS จะทำให้ SSR กับ client ตัดสินคนละแบบตอน first paint)
-  const plusOnMobile = data.totalBadgeCount > BADGES_PER_ROW_MOBILE
-  const plusOnDesktop = data.totalBadgeCount > BADGES_PER_ROW_DESKTOP
+  // 🛑 ปุ่มกางโผล่เฉพาะตอน "ล้นจริง" — วัดความกว้างของแถวเอง ไม่ใช่เดาจาก breakpoint
+  // (user 2026-08-10: "ทำไมมันมี icon ย่อ ตลอด ทั้ง ๆ ที่ร้านนี้ได้ไม่เต็ม ต้องมีเฉพาะกรณีมันล้นสิ")
+  // เหตุผลเต็มและกฎการคำนวณอยู่ที่ src/lib/badge-row-fit.ts
+  const badgeRowRef = useRef<HTMLUListElement>(null)
+  const [badgeRowWidth, setBadgeRowWidth] = useState(0)
+
+  useEffect(() => {
+    const el = badgeRowRef.current
+    if (!el) return
+    const update = () => setBadgeRowWidth(el.clientWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const badgeFit = badgeRowFit(badgeRowWidth, data.badges.length)
+  const shownBadges = badgesExpanded ? data.badges : data.badges.slice(0, badgeFit.visible)
+  const badgeOverflow = badgesExpanded ? 0 : badgeFit.overflow
 
   // E2 — แผงอธิบายคะแนน เปิดได้จาก 2 ทาง (เช็คเขียว "ยืนยันตัวตนแล้ว" กับไอคอนข้อมูล) แต่ปลายทางเดียว
   // รวมเป็นแผงเดียวเพราะการยืนยันตัวตนคือองค์ประกอบที่มีน้ำหนักสูงสุดของคะแนน (35%) แยกกันจะซ้ำกันเอง
@@ -478,8 +486,12 @@ export default function ProfileHero({
             ส่วน 0.7 ได้ ~5.2:1 ผ่าน. บรรทัดนี้คือชื่อผู้ใช้/หมวด/วันเปิดร้าน = ข้อมูลจริงที่ผู้ซื้อ
             ใช้ยืนยันว่ามาถูกร้าน ไม่ใช่สถานะปิดใช้งาน จึงไม่ควรอยู่ชั้น disabled
             แก้ความเข้มอย่างเดียว ไม่แตะเฉด (docs/conventions/contrast-fix-keeps-hue.md) */}
+        {/* วันเปิดร้านอยู่ **บรรทัดเดียวกับ slug** (user 2026-08-10 "ย้ายขึ้นไปไว้ข้างๆ slug ร้าน")
+            สองค่านี้เป็น "ตัวระบุร้าน" เหมือนกัน — ชื่อที่ใช้เรียก กับ อายุที่ใช้ประเมิน — ผู้ซื้อ
+            อ่านคู่กันในการกวาดตาครั้งเดียว ส่วนหมวดหมู่เป็น "ขายอะไร" ซึ่งเป็นคำถามคนละข้อ
+            จึงอยู่ใต้คำอธิบายร้านที่ตอบคำถามเดียวกัน */}
         <Typography variant='caption' color='text.secondary' className='block mbs-1'>
-          {`@${data.username}`}
+          {[`@${data.username}`, `เปิดร้านตั้งแต่ ${data.memberSince}`].join(' · ')}
         </Typography>
 
         {/* คำอธิบายร้าน — ลำดับตามที่ user วางเอง (2026-08-10): รูป → ชื่อ/slug → คำอธิบาย →
@@ -508,9 +520,14 @@ export default function ProfileHero({
           </Typography>
         ) : null}
 
-        <Typography variant='caption' color='text.secondary' className='block mbs-2'>
-          {[data.category, `เปิดร้านตั้งแต่ ${data.memberSince}`].filter(Boolean).join(' · ')}
-        </Typography>
+        {/* 🛑 render ก็ต่อเมื่อมีหมวดจริง — วันเปิดร้านย้ายขึ้นไปบรรทัดบนแล้ว บรรทัดนี้จึงเหลือ
+            ค่าเดียว ถ้าไม่เช็คก่อน ร้านที่ยังไม่ตั้งหมวด (มีจริงในฐาน) จะได้ Typography เปล่า
+            ที่กินระยะห่าง mbs-2 ไปฟรี ๆ แล้วช่องไฟใต้คำอธิบายจะไม่เท่ากันระหว่างร้าน */}
+        {data.category ? (
+          <Typography variant='caption' color='text.secondary' className='block mbs-2'>
+            {data.category}
+          </Typography>
+        ) : null}
       </div>
 
       {/* ── ช่องทางที่เชื่อมต่อ: อยู่ติดบรรทัด slug ── */}
@@ -562,16 +579,17 @@ export default function ProfileHero({
 
           {/* 🛑 ชิดซ้าย ไม่จัดกลาง — เหรียญคือรายการหลักฐาน ไม่ใช่ของตกแต่งที่ต้องสมมาตร
               (แนวเดียวกับที่ user สั่งให้กริดคลิปชิดซ้ายในรอบเดียวกัน) */}
+          {/* ตอนยังไม่กาง: บังคับแถวเดียว + ตัดส่วนเกิน — ใบที่ล้นถูกซ่อนด้วย `overflow-hidden`
+              ตั้งแต่เฟรมแรกก่อน ResizeObserver จะวัดเสร็จ จึงไม่มีอะไรกระพริบหาย */}
           <ul
             id='badge-list'
-            className={`flex gap-x-3 gap-y-3 m-0 p-0 list-none ${badgesExpanded ? 'flex-wrap' : ''}`}
+            ref={badgeRowRef}
+            className={`flex gap-x-3 gap-y-3 m-0 p-0 list-none ${
+              badgesExpanded ? 'flex-wrap' : 'flex-nowrap overflow-hidden'
+            }`}
           >
-            {shownBadges.map((b, i) => (
-              <li
-                key={b.id}
-                /* ใบที่ 4-5 ซ่อนบนมือถือเพื่อคงบรรทัดเดียว — ตอนกางแล้วโชว์หมดทุกจอ */
-                className={`is-[76px] shrink-0 ${!badgesExpanded && i >= BADGES_PER_ROW_MOBILE ? 'hidden sm:block' : ''}`}
-              >
+            {shownBadges.map((b) => (
+              <li key={b.id} className='is-[76px] shrink-0'>
                 <button
                   type='button'
                   onClick={() => setOpenBadge(b)}
@@ -605,12 +623,8 @@ export default function ProfileHero({
             {/* [+] — ทางเข้าเดียวไปดูเหรียญที่เหลือ (แทนลิงก์ "ดูทั้งหมด N" เดิมที่อยู่หัวบล็อก
                 ซึ่งซ้ำหน้าที่กันและอยู่ไกลจากของที่มันพูดถึง)
                 ปุ่มอยู่ในแถวเดียวกับเหรียญ = อ่านเป็น "ยังมีต่อ" ไม่ใช่คำสั่งลอย ๆ ที่หัวข้อ */}
-            {(plusOnMobile || plusOnDesktop || badgesExpanded) && (
-              <li
-                className={`is-[76px] shrink-0 ${
-                  badgesExpanded ? 'block' : plusOnDesktop ? 'block' : plusOnMobile ? 'block sm:hidden' : 'hidden'
-                }`}
-              >
+            {(badgeOverflow > 0 || badgesExpanded) && (
+              <li className='is-[76px] shrink-0'>
                 <button
                   type='button'
                   onClick={() => setBadgesExpanded((v) => !v)}
