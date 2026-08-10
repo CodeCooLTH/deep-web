@@ -151,9 +151,8 @@ const ProductCard = ({
         flexDirection: 'column',
         inlineSize: '100%',
         overflow: 'hidden',
-        border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: '8px',
+        // ไม่มีขอบ/มุมโค้งแล้ว — ผัง IG เป็นฟีดรูปที่ไทล์ชิดกัน ขอบการ์ดทำให้กลายเป็นแคตตาล็อก
+        border: 0,
         padding: 0,
         margin: 0,
         textAlign: 'start',
@@ -418,8 +417,11 @@ export const ProfileRightContent = ({
                   //
                   // -20px = หัก pli-5 ของ tab panel ให้ชนขอบคอนเทนเนอร์ (ค่าเดียวกับ -mli-5 ที่
                   // กริดคลิปใช้) panel padding คงที่ทุก breakpoint จึงไม่ต้องไล่ตาม breakpoint
-                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-                  gap: '16px',
+                  // ผัง Instagram: 3 คอลัมน์ทุกจอ ช่องไฟ 4px (user ชี้ ref instagram.com/sanook.com
+                  // 2026-08-10 "อยากให้ style ของการแสดงผลเป็นแบบ IG · ขนาดเอาตาม ig เลยก็ได้")
+                  // เดิม 2/3/4 + gap 16px + การ์ดมีขอบ อ่านเป็น "แคตตาล็อกการ์ด" ไม่ใช่ฟีดรูป
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '4px',
                 }}
               >
                 {pinnedProducts.map((product) => (
@@ -458,8 +460,11 @@ export const ProfileRightContent = ({
                   //
                   // -20px = หัก pli-5 ของ tab panel ให้ชนขอบคอนเทนเนอร์ (ค่าเดียวกับ -mli-5 ที่
                   // กริดคลิปใช้) panel padding คงที่ทุก breakpoint จึงไม่ต้องไล่ตาม breakpoint
-                  gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-                  gap: '16px',
+                  // ผัง Instagram: 3 คอลัมน์ทุกจอ ช่องไฟ 4px (user ชี้ ref instagram.com/sanook.com
+                  // 2026-08-10 "อยากให้ style ของการแสดงผลเป็นแบบ IG · ขนาดเอาตาม ig เลยก็ได้")
+                  // เดิม 2/3/4 + gap 16px + การ์ดมีขอบ อ่านเป็น "แคตตาล็อกการ์ด" ไม่ใช่ฟีดรูป
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '4px',
                 }}
               >
                 {otherProducts.map((product) => (

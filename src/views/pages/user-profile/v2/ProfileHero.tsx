@@ -185,11 +185,14 @@ function BadgeArtwork({
   nameEN,
   icon,
   alt,
+  size = 48,
 }: {
   imageUrl?: string | null
   nameEN: string
   icon: string
   alt: string
+  /** ขนาด artwork ภายในวงกลม — 48 ใน 56 = เต็มตาแบบ ref เหลือขอบบางไว้ไม่ให้ลายชนขอบวง */
+  size?: number
 }) {
   const [failed, setFailed] = useState(false)
   if (imageUrl && !failed) {
@@ -198,15 +201,20 @@ function BadgeArtwork({
       <img
         src={imageUrl}
         alt={alt}
-        width={15}
-        height={15}
+        width={size}
+        height={size}
         loading='lazy'
         onError={() => setFailed(true)}
-        style={{ width: 15, height: 15, objectFit: 'contain' }}
+        // 24 ใน 26 = artwork กินเกือบเต็มวง เหลือขอบขาวบางเฉียบไว้แยกเหรียญออกจากพื้นชิป
+        // (user 2026-08-10 "อยากให้ badge มันเต็ม ๆ circle มากกว่านี้ ให้เน้นการแสดง badge ให้ชัดขึ้น")
+        // ยัง contain ไม่ใช่ cover — artwork เป็นรูปเหรียญ/ริบบิ้น cover จะครอปขอบลายทิ้ง
+        style={{ width: size, height: size, objectFit: 'contain' }}
       />
     )
   }
-  return <Icon icon={badgeIconName(nameEN, icon)} width={15} className='shrink-0 opacity-70' />
+  // เหรียญที่ยังไม่มี artwork — ไอคอนเส้นเล็กกว่ารูปจริงเล็กน้อย เพราะ glyph เส้นเต็มวงจะดูหนา
+  // เกินจนแย่งสายตาไปจากเหรียญที่มีลายจริง
+  return <Icon icon={badgeIconName(nameEN, icon)} width={Math.round(size * 0.6)} className='shrink-0 opacity-60' />
 }
 
 export default function ProfileHero({
@@ -321,13 +329,30 @@ export default function ProfileHero({
 
       {/* ── ตัวตนร้าน: รูปวงกลมคร่อมรอยต่อระหว่างปกกับเนื้อหา แทนการใช้มุมโค้งทับ ── */}
       <div className='text-center pli-5 pbe-3 -mbs-[42px] relative'>
-        <div className='is-[84px] bs-[84px] rounded-full border-4 mli-auto mbe-2.5 overflow-hidden bg-primary flex items-center justify-center text-white text-3xl font-extrabold border-[var(--mui-palette-background-paper)]'>
-          <ProfileImg
-            src={data.avatar}
-            alt={data.shopName}
-            className='is-full bs-full object-cover'
-            fallback={data.shopName.trim().charAt(0)}
-          />
+        {/* 🛑 กล่องนอกต้อง **ไม่มี** overflow-hidden ไม่งั้นป้ายระดับที่ absolute อยู่มุมล่างขวาโดนตัดหาย
+            วงกลมที่ครอบรูปเป็นชั้นในต่างหากที่ถือ overflow-hidden ไว้ */}
+        <div className='relative is-[84px] bs-[84px] mli-auto mbe-2.5'>
+          <div className='is-full bs-full rounded-full border-4 overflow-hidden bg-primary flex items-center justify-center text-white text-3xl font-extrabold border-[var(--mui-palette-background-paper)]'>
+            <ProfileImg
+              src={data.avatar}
+              alt={data.shopName}
+              className='is-full bs-full object-cover'
+              fallback={data.shopName.trim().charAt(0)}
+            />
+          </div>
+          {/* ระดับการยืนยันตัวตนติดที่รูปร้าน (user 2026-08-10) — เขียนคำเต็ม "ระดับ N" ไม่ใช่เลขลอย
+              เพราะเลขในวงกลมมุมรูปโปรไฟล์อ่านเป็น "จำนวนแจ้งเตือน" ตามความคุ้นของทุกแอป
+              ใช้เขียว success ถูกตามกฎ Verified-Means-Green (ระดับ > 0 = ยืนยันแล้วจริง)
+              maxVerifyLevel = 0 → ไม่ render เลย ไม่ใช่ขึ้น "ระดับ 0" ซึ่งอ่านเป็นตราลบ */}
+          {data.maxVerifyLevel > 0 && (
+            <span
+              className='absolute inline-end-[-4px] block-end-0 inline-flex items-center gap-1 rounded-full plb-0.5 pli-2 text-[11px] font-bold bg-success text-white border-2 border-[var(--mui-palette-background-paper)] whitespace-nowrap'
+              title={`ยืนยันตัวตนระดับ ${data.maxVerifyLevel}`}
+            >
+              <Icon icon='lucide:shield-check' width={11} />
+              {`ระดับ ${data.maxVerifyLevel}`}
+            </span>
+          )}
         </div>
 
         <Typography component='h1' className='text-xl font-extrabold' sx={{ letterSpacing: '-0.02em' }}>
@@ -402,47 +427,54 @@ export default function ProfileHero({
              เพราะ Verified-Means-Green สงวนไว้ให้ "ยืนยันแล้ว" โดยเฉพาะ ใช้กับทุกเหรียญจะทำให้
              สัญญาณเขียวเฟ้อตามที่กติกาเตือนไว้เอง ── */}
       {shownBadges.length > 0 && (
-        <ul id='badge-list' className='flex justify-center gap-2 flex-wrap pli-5 pbe-3.5 m-0 p-0 list-none'>
-          {shownBadges.map((b) => (
-            <li key={b.id}>
-              {/* 🛑 "กรอบวงกลมขาวขนาดคงที่" คือหัวใจของข้อนี้ ไม่ใช่แค่สลับ Icon เป็น img
-                  แถวเดียวจะมีทั้งเหรียญที่มี artwork (มีสีสัน) และเหรียญที่ยังไม่มี (ไอคอนเส้นสีเทา)
-                  ปนกันแน่นอน — ถ้าปล่อยลอยบนพื้นชิปตรง ๆ สองแบบจะอ่านเป็น "คนละชนิดของ" ทันที
-                  ใส่กรอบเดียวกันให้ทั้งคู่ ตาเห็น "ช่องใส่เหรียญ" ก่อน แล้วค่อยเห็นว่าข้างในมีรูปไหม
-                  (pattern เดียวกับหน้า /badges ของผู้ซื้อที่ห่อทั้ง img/icon ด้วยวงกลมสีอ่อน) */}
-              <span className='inline-flex items-center gap-1.5 rounded-full plb-1 pli-2.5 pis-1 text-[13px] font-medium bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-primary)]'>
-                <span className='is-[22px] bs-[22px] rounded-full bg-[var(--mui-palette-background-paper)] flex items-center justify-center shrink-0'>
-                  <BadgeArtwork imageUrl={b.imageUrl} nameEN={b.nameEN} icon={b.icon} alt={b.name} />
-                </span>
-                {b.name}
-              </span>
-            </li>
-          ))}
-          {restBadgeCount > 0 && (
-            <li>
-              {/* 🛑 สองอย่างที่แก้พร้อมกันตรงนี้:
-                  (1) เดิมเป็น <span> ตาย — บอกว่ามีเหรียญอีก N ใบแล้วจบ ไม่มีทางดูได้เลยทั้งเมาส์
-                      คีย์บอร์ด และ screen reader (อ่านผ่านไปเฉย ๆ) เหรียญคือหลักฐานความน่าเชื่อถือ
-                      การประกาศว่ามีแต่ดูไม่ได้ ขัดหลัก show-don't-tell ตรงจุดที่ตัวมันเองพูดถึง
-                  (2) text-disabled (ink 0.4) ได้คอนทราสต์ ~2.3:1 ตก AA — ไฟล์นี้อธิบายเรื่องนี้ไว้เอง
-                      ในบล็อกบรรทัดเมตาด้านบน แล้วเปลี่ยนไปใช้ text-secondary (0.7 ≈ 5.2:1) แต่ตกหล่น
-                      ตรงชิปนี้จุดเดียว
-                  พื้นโปร่ง+ขอบ แทนพื้นทึบแบบชิปเหรียญ เพื่อให้ต่างจากชิปที่กดไม่ได้ข้าง ๆ
-                  (filled = ข้อมูลนิ่ง · outlined + chevron = กดได้) */}
+        <div className='pli-5 pbe-4'>
+          {/* หัวข้อ + ทางไปดูทั้งหมด — โครงตาม ref ที่ user ส่ง (2026-08-10 "ตอนแรก Achievement
+              ของร้าน ผมอยากได้แบบนี้") แต่ ref เป็น eyebrow ตัวพิมพ์ใหญ่ภาษาอังกฤษ ซึ่ง DESIGN.md
+              ระบุไว้ใน Anti-references ตรงตัว ("eyebrow ตัวพิมพ์ใหญ่จิ๋วเหนือทุก section")
+              จึงใช้หัวข้อไทย sentence-case ตามระบบแทน — เอา IA/ผังของ ref มา ไม่เอาสกิน */}
+          <div className='flex items-baseline justify-between gap-3 mbe-3'>
+            <Typography variant='body2' className='font-semibold' color='text.primary'>
+              เหรียญของร้าน
+            </Typography>
+            {restBadgeCount > 0 && (
               <button
                 type='button'
                 onClick={() => setBadgesExpanded((v) => !v)}
                 aria-expanded={badgesExpanded}
                 aria-controls='badge-list'
-                aria-label={badgesExpanded ? 'ย่อรายการเหรียญ' : `ดูเหรียญที่เหลืออีก ${restBadgeCount} ใบ`}
-                className='inline-flex items-center gap-1 rounded-full plb-1 pli-2.5 text-[13px] font-medium bg-transparent border border-[var(--mui-palette-divider)] text-[var(--mui-palette-text-secondary)] cursor-pointer'
+                aria-label={badgesExpanded ? 'ย่อรายการเหรียญ' : `ดูเหรียญทั้งหมด ${data.totalBadgeCount} เหรียญ`}
+                className='flex items-center gap-1 border-0 bg-transparent p-0 text-[13px] font-semibold text-primary cursor-pointer shrink-0'
               >
-                {badgesExpanded ? 'ย่อ' : `+${restBadgeCount}`}
-                <Icon icon={badgesExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} width={13} />
+                {badgesExpanded ? 'ย่อ' : `ดูทั้งหมด ${data.totalBadgeCount}`}
+                <Icon icon={badgesExpanded ? 'lucide:chevron-up' : 'lucide:arrow-right'} width={13} />
               </button>
-            </li>
-          )}
-        </ul>
+            )}
+          </div>
+
+          {/* 🛑 ชิดซ้าย ไม่จัดกลาง — เหรียญคือรายการหลักฐาน ไม่ใช่ของตกแต่งที่ต้องสมมาตร
+              (แนวเดียวกับที่ user สั่งให้กริดคลิปชิดซ้ายในรอบเดียวกัน) */}
+          <ul id='badge-list' className='flex flex-wrap gap-x-5 gap-y-3 m-0 p-0 list-none'>
+            {shownBadges.map((b) => (
+              <li key={b.id} className='flex flex-col items-center gap-1.5 is-[64px]'>
+                {/* วงกลม 56px ให้ artwork เต็มตาแบบ ref — ไม่ใช่ไอคอนจิ๋วในชิป
+                    🛑 พื้นวงต้องมีสีอ่อน ไม่ใช่ขาวล้วน: เหรียญ 11/20 ใบในระบบยังไม่มี artwork และ
+                    ตกไปใช้ไอคอนเส้น ถ้าพื้นเป็นขาวเดียวกับการ์ด ใบที่ไม่มีรูปจะดูเหมือน "โหลดไม่มา"
+                    พื้นอ่อนทำให้มันอ่านเป็น "ช่องใส่เหรียญที่ยังไม่มีลาย" ซึ่งเป็นความจริง */}
+                <span className='is-14 bs-14 rounded-full bg-[var(--mui-palette-action-hover)] flex items-center justify-center shrink-0 overflow-hidden'>
+                  <BadgeArtwork imageUrl={b.imageUrl} nameEN={b.nameEN} icon={b.icon} alt={b.name} />
+                </span>
+                {/* ชื่อเหรียญใต้รูป — clamp 2 บรรทัด ชื่อไทยยาวกว่าอังกฤษใน ref มาก */}
+                <Typography
+                  variant='caption'
+                  color='text.secondary'
+                  className='text-center leading-tight line-clamp-2'
+                >
+                  {b.name}
+                </Typography>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* ── ตัวเลขธุรกรรม: อัตราสำเร็จ + 3 ช่องเดิม อยู่ในแถวเดียวกัน ──

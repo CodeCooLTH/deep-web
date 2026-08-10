@@ -144,34 +144,28 @@ export default function OfficialChannels({ channels }: { channels: OfficialChann
 
 
 /**
- * ChannelStrip — ช่องทางที่เชื่อมต่อ วางในหัวโปรไฟล์ใต้บรรทัด slug (user 2026-08-09)
+ * ChannelStrip — ช่องทางที่เชื่อมต่อ วางในหัวโปรไฟล์ใต้บรรทัด slug
  *
- * แบบ ② จาก docs/superpowers/specs/2026-08-10-channel-row-variants.html (user เลือก 2026-08-10)
- * — บรรทัดละช่องทาง **ไม่มีกรอบ ไม่มีพื้นชิป** เหลือแค่โลโก้จริง + ข้อความ
+ * ประวัติการลองผิด (อย่าวนกลับไปทางเดิม):
+ *   1. ชิปมีกรอบเรียงกลาง → user: "ไม่ค่อยชอบ chip ที่ครอบเพจ" (กรอบทำให้อ่านเป็นปุ่ม ทั้งที่เป็นหลักฐาน)
+ *   2. บรรทัดละช่องทาง เต็มความกว้าง ยอดชิดขวา → user: "ไม่สวยเฉย" (กระจายออกจนดูเป็นตาราง
+ *      ไม่ใช่ป้ายกำกับตัวตน และช่องว่างกลางแถวยาวเกินทำให้ชื่อเพจกับยอดดูไม่เกี่ยวกัน)
+ *   3. ✅ ปัจจุบัน: อยู่ **ติดกันตรงกลาง** เหมือนเวอร์ชันแรก แต่ **ไม่มีกรอบ** — user ระบุเองว่า
+ *      "ตรง page แบบเดิม (ที่ติดๆ กันตรงกลาง) และไม่มี chip ยังสวยกว่า"
  *
- * ทำไมเลิกใช้ชิปมีกรอบ (เวอร์ชันแรก): user บอกว่า "ไม่ค่อยชอบ chip ที่ครอบเพจ" และส่ง ref ที่เป็น
- * แถวข้อมูลเปล่า ๆ มาให้ — กรอบทำให้ทุกช่องทางอ่านเป็น "ปุ่ม" ที่มีน้ำหนักเท่ากับปุ่มจริงในหน้า
- * ทั้งที่มันคือหลักฐาน ไม่ใช่ action
- *
- * ทำไมบรรทัดละช่องทาง ไม่ใช่ inline แถวเดียวแบบ ref เป๊ะ: ชื่อเพจไทยยาว 2 ช่องทางบนบรรทัดเดียว
- * ที่ 390px เหลือที่ให้ชื่อละไม่ถึงครึ่งจอ ต้องตัดจนอ่านไม่รู้ว่าเพจไหน — ซึ่งขัดกับสิ่งที่ user
- * ขอเพิ่มมาพร้อมกัน ("ขอเพิ่มการแสดงชื่อเพจ ชื่อช่องทาง") ref เป็นภาษาอังกฤษสั้นกว่ามาก
- *
- * 🛑 ข้อมูลใน ref ที่ **ไม่มีจริง** จึงไม่ใส่: คะแนน ★ รายแพลตฟอร์ม (เรามีแค่รีวิวที่เกิดบน Deep)
- * และ on-time delivery % — หน้านี้เคยมีตัวเลขข้ามแพลตฟอร์ม hardcode อยู่จริงแล้วถูกถอดออก
- * 2026-07-22 ด้วยเหตุผลเดียวกัน อย่าเอากลับมาไม่ว่าดีไซน์จะเรียกร้องแค่ไหน
+ * ยังคงชื่อเพจ + ชื่อช่องทาง + ยอด ครบตามที่ขอไว้รอบก่อน แค่จัดให้กระชับเข้าหากัน
  */
 export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
   const [expanded, setExpanded] = useState(false)
   if (channels.length === 0) return null
 
-  // แถวสูง 44px ต่อช่องทาง — ร้านที่มีหลายเพจจะดันตัวเลขหลักฐานตกจอบนมือถือ จึงยุบส่วนเกิน
   const VISIBLE = 2
   const shown = expanded ? channels : channels.slice(0, VISIBLE)
   const rest = channels.length - shown.length
 
   return (
-    <div className='flex flex-col pli-5 pbe-3'>
+    // gap-x กว้างกว่า gap-y เพื่อให้แต่ละช่องทางเป็นก้อนที่แยกจากกันได้ด้วยระยะ ไม่ต้องใช้เส้น/กรอบ
+    <div className='flex flex-wrap justify-center items-center gap-x-5 gap-y-1 pli-5 pbe-3'>
       {shown.map((c) => {
         const meta = PROVIDER[c.provider]
         if (!meta) return null
@@ -181,24 +175,29 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
         const inner = (
           <>
             <ChannelMark src={c.avatarUrl} provider={c.provider} icon={meta.icon} bg={meta.bg} />
-            <span className='flex flex-col leading-tight min-is-0 flex-1'>
-              <span className='text-[13px] font-semibold truncate'>{c.name}</span>
-              {/* ชื่อช่องทางเป็นตัวอักษร ไม่ให้ต้องเดาจากโลโก้ (user ขอมาพร้อมกัน)
-                  text.secondary ไม่ใช่ disabled — ชนิดช่องทางเป็นส่วนหนึ่งของหลักฐาน ไม่ใช่ของประดับ */}
-              <span className='text-[11px] text-[var(--mui-palette-text-secondary)]'>{meta.label}</span>
-            </span>
-            {/* ซ่อนทั้งก้อนเมื่อไม่รู้ยอด — ห้ามแสดง 0 (0 = "ไม่มีคนถูกใจ" ซึ่งคนละความหมายกับ "ยังไม่รู้") */}
-            {typeof c.followerCount === 'number' && (
-              <span className='text-[13px] shrink-0 tabular-nums'>
-                <span className='font-bold'>{compactCount(c.followerCount)}</span>{' '}
-                <span className='text-[var(--mui-palette-text-secondary)]'>{label}</span>
+            <span className='flex flex-col leading-tight min-is-0'>
+              {/* ชื่อเพจตัดที่ 150px — สั้นกว่านี้อ่านไม่ออกว่าเพจไหน ยาวกว่านี้สองช่องทางไม่พอบรรทัดเดียว */}
+              <span className='text-[13px] font-semibold truncate max-is-[150px]'>{c.name}</span>
+              <span className='text-[11px] text-[var(--mui-palette-text-secondary)]'>
+                {meta.label}
+                {/* ยอดต่อท้ายชื่อช่องทางในบรรทัดเดียวกัน ไม่แยกไปชิดขวา — ทั้งก้อนจึงอ่านเป็น
+                    "ป้ายกำกับของเพจนี้" ไม่ใช่แถวตารางที่มีค่าอยู่คนละฝั่ง
+                    ซ่อนเมื่อไม่รู้ยอด ห้ามแสดง 0 */}
+                {typeof c.followerCount === 'number' && (
+                  <>
+                    {' · '}
+                    <span className='font-semibold tabular-nums text-[var(--mui-palette-text-primary)]'>
+                      {compactCount(c.followerCount)}
+                    </span>
+                    {` ${label}`}
+                  </>
+                )}
               </span>
-            )}
+            </span>
           </>
         )
 
-        // ไม่มี border/พื้น — พื้นที่กด 44px มาจาก min-bs ไม่ใช่จากกรอบที่มองเห็น
-        const cls = 'flex items-center gap-2.5 min-bs-[44px] no-underline text-[color:inherit]'
+        const cls = 'flex items-center gap-2 min-bs-[44px] no-underline text-[color:inherit]'
 
         return href ? (
           <a
@@ -223,9 +222,9 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
           type='button'
           onClick={() => setExpanded(true)}
           aria-label={`ดูช่องทางที่เหลืออีก ${rest} ช่องทาง`}
-          className='flex items-center gap-1 min-bs-[44px] border-0 bg-transparent p-0 text-[13px] font-medium text-[var(--mui-palette-text-secondary)] cursor-pointer self-start'
+          className='flex items-center gap-1 min-bs-[44px] border-0 bg-transparent p-0 text-[13px] font-medium text-[var(--mui-palette-text-secondary)] cursor-pointer'
         >
-          {`อีก ${rest} ช่องทาง`}
+          {`อีก ${rest}`}
           <Icon icon='lucide:chevron-down' width={13} />
         </button>
       )}
@@ -234,10 +233,9 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
 }
 
 /**
- * โลโก้ช่องทาง 18px — รูปเพจจริงก่อน แล้วค่อยตกไปที่ **โลโก้แบรนด์จริง** ในโปรเจกต์
- * (`public/images/logos/`) ไม่ใช่ไอคอนเส้นบนพื้นสี: IG ไม่มี avatarUrl แทบทุกเคส (Graph ไม่คืนรูป
- * ให้ business account id) ถ้าใช้ glyph เส้นจะได้วงกลมสีที่ตีความไม่ได้ ขณะที่ไทล์คลิปในหน้าเดียวกัน
- * ใช้ไฟล์โลโก้จริงอยู่แล้ว — ให้ทั้งหน้าพูดภาษาเดียวกัน (brand asset = carve-out ของ Hard Rule 6)
+ * โลโก้ช่องทาง 20px — รูปเพจจริงก่อน แล้วค่อยตกไปที่ **โลโก้แบรนด์จริง** ใน public/images/logos/
+ * ไม่ใช่ไอคอนเส้นบนพื้นสี: IG แทบไม่เคยมี avatarUrl (Graph ไม่คืนรูปให้ business account id)
+ * ถ้าใช้ glyph เส้นจะได้วงกลมสีที่ตีความไม่ได้ ขณะที่ไทล์คลิปในหน้าเดียวกันใช้ไฟล์จริงอยู่แล้ว
  */
 function ChannelMark({
   src,
@@ -257,25 +255,25 @@ function ChannelMark({
       : provider === 'INSTAGRAM'
         ? '/images/logos/instagram-circle.svg'
         : null
+  const showPhoto = Boolean(src) && !failed
 
   return (
-    <span className='is-[18px] bs-[18px] shrink-0 relative flex items-center justify-center'>
+    <span className='is-5 bs-5 shrink-0 relative flex items-center justify-center'>
       <span
         className='is-full bs-full rounded-full overflow-hidden flex items-center justify-center text-white'
-        style={{ background: src && !failed ? undefined : brandLogo ? undefined : bg }}
+        style={{ background: showPhoto || brandLogo ? undefined : bg }}
       >
-        {src && !failed ? (
+        {showPhoto ? (
           // eslint-disable-next-line @next/next/no-img-element -- รูปเพจจากแพลตฟอร์มภายนอก หลากโดเมน
-          <img src={src} alt='' className='is-full bs-full object-cover' onError={() => setFailed(true)} />
+          <img src={src!} alt='' className='is-full bs-full object-cover' onError={() => setFailed(true)} />
         ) : brandLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/
           <img src={brandLogo} alt='' className='is-full bs-full' />
         ) : (
-          <Icon icon={icon} width={11} />
+          <Icon icon={icon} width={12} />
         )}
       </span>
-      {/* เช็คเขียว = ยืนยันความเป็นเจ้าของผ่าน OAuth ปลอมไม่ได้ — เหตุผลเดียวที่บล็อกนี้มีค่า
-          บนหน้าที่ขายความน่าเชื่อถือ (ความหมายของประโยคยาวในแท็บเดิมย้ายมาอยู่ที่นี่) */}
+      {/* เช็คเขียว = ยืนยันความเป็นเจ้าของผ่าน OAuth ปลอมไม่ได้ — เหตุผลเดียวที่บล็อกนี้มีค่า */}
       <span
         className='absolute inline-end-[-2px] block-end-[-2px] is-[9px] bs-[9px] rounded-full bg-success border-[1.5px] border-[var(--mui-palette-background-paper)]'
         title='ยืนยันความเป็นเจ้าของแล้ว'
