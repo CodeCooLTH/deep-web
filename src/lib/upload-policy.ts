@@ -46,7 +46,17 @@ export const STORAGE_HARD_MAX = 25 * 1024 * 1024
 /** เพดาน request body ของ Vercel — ใช้เฉพาะประกอบข้อความ error ของเส้นทาง multipart เดิม */
 export const VERCEL_BODY_LIMIT = 4.5 * 1024 * 1024
 
-export type UploadPurpose = 'CHAT' | 'IMAGE' | 'DOCUMENT'
+/**
+ * รายชื่อ purpose — **แหล่งเดียว** ที่ทั้ง type และ Valibot picklist อ้างถึง
+ *
+ * ห้ามพิมพ์ list ซ้ำใน `validations.ts`: บั๊กแบบเดียวกันเพิ่งเกิดกับ `channel` ของแท็บอินบ็อกซ์
+ * (คอมมิต `42b71894` 2026-08-09) — เพิ่ม `'LINE'` เข้า type แล้ว picklist ที่เขียนตายตัวไม่ถูกแตะ
+ * `tsc` เขียวสนิท แต่ผู้ใช้กดแท็บนั้นได้ **400 Bad Request บน prod** เพราะ type ไม่ผูกกับ
+ * validator ตอน runtime
+ */
+export const UPLOAD_PURPOSES = ['CHAT', 'IMAGE', 'DOCUMENT'] as const
+
+export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number]
 
 /**
  * ชนิดรูปที่ทุก surface ของโปรเจกต์รับอยู่เดิม — ยกมาจาก `ALLOWED_TYPES` ของ storage ตรง ๆ

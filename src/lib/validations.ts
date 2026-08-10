@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { UPLOAD_PURPOSES } from "@/lib/upload-policy";
 import {
   PRODUCT_TYPE_IDS,
   FULFILLMENT_MODES,
@@ -1755,7 +1756,10 @@ export const LinePatchSchema = v.object({
  * Supabase) + `POST /api/uploads/commit` ที่อ่านขนาดจริงด้วย HEAD (ดู `src/lib/upload-policy.ts`)
  */
 export const UploadTicketSchema = v.object({
-  purpose: v.picklist(["CHAT", "IMAGE", "DOCUMENT"]),
+  // 🛑 อ้าง UPLOAD_PURPOSES ห้ามพิมพ์ list ซ้ำที่นี่ — บทเรียนจาก `channel` ของแท็บอินบ็อกซ์
+  // (42b71894): เพิ่มค่าใหม่เข้า type แล้ว picklist ที่เขียนตายตัวไม่ถูกแตะ tsc เขียวสนิท
+  // แต่ผู้ใช้ได้ 400 บน prod เพราะ validator ไม่ผูกกับ type ตอน runtime
+  purpose: v.picklist(UPLOAD_PURPOSES),
   name: v.pipe(v.string(), v.minLength(1), v.maxLength(300)),
   size: v.pipe(v.number(), v.integer(), v.minValue(1)),
   mime: v.optional(v.pipe(v.string(), v.maxLength(200)), ""),
