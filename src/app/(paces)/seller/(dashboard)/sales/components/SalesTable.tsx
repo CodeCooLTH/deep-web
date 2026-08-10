@@ -69,56 +69,22 @@ const financeColumns = [
     /**
      * ค่าส่งที่ขนส่งคิดจริง + ค่าธรรมเนียมเก็บเงินปลายทางของวันนั้น
      *
-     * ห้ามแสดง "฿0.00" เมื่อวันนั้นมีพัสดุที่ขนส่งยังไม่เข้ารับ — 0 อ่านว่า "ส่งฟรี" ไม่ใช่ "ยังไม่รู้"
-     * (กติกาเดียวกับ order-profit-presentation.ts ที่เลือกไม่แสดงตัวเลขเลยเมื่อคำนวณไม่ได้)
+     * ใบที่ขนส่งยังไม่เข้ารับจะใช้ราคาประมาณไปก่อน และ **แสดงเหมือนราคาจริงทุกประการ**
+     * (user สั่ง 2026-08-10: "ไม่ต้องแสดงให้ user รู้ว่ายังเป็นราคาประเมิน ลูกค้ารู้อยู่แล้ว")
+     * ตัวเลขจะขยับขึ้นเองเมื่อขนส่งชั่งน้ำหนักจริง
      */
-    cell: ({ row }) => {
-      const shipping = row.original.shippingCost ?? 0
-      const pending = row.original.pendingShipmentCount ?? 0
-      if (shipping === 0 && pending > 0) {
-        return (
-          <span className="text-warning-ink text-nowrap">
-            รอราคา {pending.toLocaleString('th-TH')} ใบ
-          </span>
-        )
-      }
-      // 🛑 มาบางส่วนก็ต้องบอก ไม่ใช่เตือนเฉพาะตอนยังไม่มาเลย — วันที่มีทั้งใบที่คิดเงินแล้วและ
-      // ยังไม่คิด จะแสดงยอดที่ต่ำกว่าจริงมากโดยหน้าตาเหมือนตัวเลขปกติ (เคสจริง 2026-08-10:
-      // 31 ออเดอร์ มีราคาแค่ 7 ใบ ผู้ขายทักมาว่าต้นทุนคำนวณผิด)
-      if (pending > 0) {
-        return (
-          <span className="flex flex-col">
-            <span className="text-danger-ink">{formatBaht(shipping)}</span>
-            <span className="text-warning-ink text-2xs text-nowrap">
-              ประมาณ {pending.toLocaleString('th-TH')} ใบ
-            </span>
-          </span>
-        )
-      }
-      return <span className="text-danger-ink">{formatBaht(shipping)}</span>
-    },
+    cell: ({ row }) => (
+      <span className="text-danger-ink">{formatBaht(row.original.shippingCost ?? 0)}</span>
+    ),
   }),
   columnHelper.accessor('netProfit', {
     header: 'กำไร',
     enableColumnFilter: false,
     cell: ({ row }) => {
       const v = row.original.netProfit ?? 0
-      const pending = row.original.pendingShipmentCount ?? 0
       return (
-        <span className="inline-flex items-center gap-1">
-          {/* วันที่ยังมีพัสดุรอรับเข้า = ตัวเลขนี้เป็นเพดานบน ต้องมีป้ายกำกับ ไม่ใช่แสดงเงียบ ๆ
-              ใช้ไอคอนเตือนแทนการเปลี่ยนสีตัวเลข เพราะสิ่งที่ไม่ชัวร์คือ "ครบไหม" ไม่ใช่ "บวกหรือลบ" */}
-          {pending > 0 && (
-            <Icon
-              icon="alert-triangle"
-              className="text-warning-ink size-3.5 shrink-0"
-              role="img"
-              aria-label="ยังไม่รวมค่าส่งของออเดอร์ที่ขนส่งยังไม่แจ้งราคา — ตัวเลขนี้อาจสูงกว่าจริง"
-            />
-          )}
-          <span className={`font-semibold ${v >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>
-            {formatBaht(v)}
-          </span>
+        <span className={`font-semibold ${v >= 0 ? 'text-success-ink' : 'text-danger-ink'}`}>
+          {formatBaht(v)}
         </span>
       )
     },

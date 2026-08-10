@@ -20,8 +20,6 @@ import ApexChart from '@/components/wrappers/ApexChart'
 import { getColor } from '@/utils/helpers'
 import { formatBaht, profitDisplay, SALES_PROFIT_FORMULA, pctChangeVsPrev } from '@/lib/format-money'
 import PacesStatCard from '../../_shared/PacesStatCard'
-import Link from 'next/link'
-import Icon from '@/components/wrappers/Icon'
 import { useCallback } from 'react'
 import type { DailyRow, SummaryData } from './data'
 
@@ -79,32 +77,8 @@ const SalesChart = ({ daily, summary }: Props) => {
     [daily, showFinance],
   )
 
-  const pendingShipments = showFinance ? (summary.pendingShipmentCount ?? 0) : 0
-
   return (
     <div>
-      {/* แถบเตือน "ยังไม่รู้ค่าส่งจริง" — โครง/tone คัดลอกจากแถบต้นทุนขาดใน ExpenseWorkspace.tsx:183-199
-          (ปัญหาชนิดเดียวกัน: ตัวเลขที่แสดงเป็นเพดานบนเพราะข้อมูลบางส่วนยังไม่มา)
-
-          ไม่มีปุ่ม "แก้ไข" ต่างจากแถบต้นทุนขาด — ร้านทำอะไรให้ขนส่งแจ้งราคาเร็วขึ้นไม่ได้
-          ปุ่มที่สั่งทำในสิ่งที่ทำไม่ได้แย่กว่าไม่มีปุ่ม เหลือแค่ลิงก์ "ดู" */}
-      {pendingShipments > 0 && (
-        <div
-          role="alert"
-          aria-live="polite"
-          className="border-warning/20 bg-warning/10 text-warning-ink mb-1.25 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm font-medium"
-        >
-          <span className="flex items-start gap-2">
-            <Icon icon="alert-triangle" className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-            ค่าส่งของ {pendingShipments.toLocaleString('th-TH')} ใบยังเป็นราคาประมาณ — ขนส่งยังไม่เข้ารับ
-            จึงยังไม่ชั่งน้ำหนักจริง ตัวเลขจริงมักสูงกว่านี้เล็กน้อย
-          </span>
-          <Link href="/orders?stage=AWAITING_PICKUP" className="font-semibold underline">
-            ดูออเดอร์ที่รอรับเข้า →
-          </Link>
-        </div>
-      )}
-
       {/* การ์ดสรุป — โครง 3 แถวของธีม ผ่าน PacesStatCard ที่ใช้ร่วมกับ /expenses
           เดิมเป็น SummaryCard ที่เขียนซ้ำในไฟล์นี้เองและมีแค่ 2 แถว (ไม่มี badge ไม่มีแถวล่าง) */}
       <div className={`mb-1.25 grid grid-cols-1 gap-1.25 md:grid-cols-2 ${showFinance ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-4'}`}>

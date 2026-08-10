@@ -360,7 +360,6 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
   // ไม่ผ่าน gate สิทธิ์ → ไม่มีค่าใช้จ่าย/กำไรเลย: hero กลับไปเป็นยอดขายเหมือนเดิม ไม่ใช่โชว์ 0
   const hasFinance = series.totalShipping != null
   const shippingTotal = series.totalShipping ?? 0
-  const pendingCount = series.pendingShipmentCount ?? 0
   const cogsTotal = series.totalCogs ?? 0
   /**
    * กำไร = ยอดขายทั้งหมด (ยืนยันแล้ว + รอยืนยัน) − ต้นทุนสินค้า − ค่าใช้จ่าย (user เคาะ 2026-08-08)
@@ -391,7 +390,6 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
       // ต้นทุนของ "ทุกออเดอร์" ใน bucket — ชุดเดียวกับ value ที่มันจะถูกลบออก (ดู v5 หัวไฟล์)
       cogs: series.cogsValues?.[i] ?? 0,
       expense: series.shippingValues?.[i] ?? 0,
-      pending: series.pendingShipmentValues?.[i] ?? 0,
     }))
     .filter((r) => r.orders > 0 || r.value > 0 || r.cogs > 0 || r.expense > 0)
     // วันล่าสุดอยู่บนสุดเสมอ (user สั่ง 2026-08-07) — สิ่งที่ผู้ขายอยากรู้ตอนเปิดคือ "วันนี้เป็นไง"
@@ -505,23 +503,6 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
             )}
           </div>
 
-          {/* ค่าส่งยังมาไม่ครบ — ต้องบอกใต้สมการที่ผู้ใช้เพิ่งไล่บวกลบด้วยตา ไม่ใช่ปล่อยให้เขาสรุปเอง
-              ว่าระบบคิดผิด (เคสจริง 2026-08-10 ผู้ขายทักมาว่าต้นทุนไม่ถูก ทั้งที่เลขถูกแต่ยังไม่ครบ)
-              ไม่มีปุ่มให้กด เพราะร้านทำอะไรให้ขนส่งเข้ารับเร็วขึ้นไม่ได้ — เป็นคำอธิบายล้วน ๆ */}
-          {hasFinance && pendingCount > 0 && (
-            <p
-              role="status"
-              className="-mt-2 mb-4 flex items-start gap-1.5 text-xs text-warning-ink"
-            >
-              <Icon icon="alert-triangle" className="mt-px size-3.5 shrink-0" aria-hidden="true" />
-              <span>
-                ค่าส่งของ {formatNumberNoSymbol(pendingCount)} ใบยังเป็นราคาประมาณ —
-                ขนส่งยังไม่เข้ารับจึงยังไม่ชั่งน้ำหนักจริง ตัวเลขจริงมักสูงกว่านี้เล็กน้อย
-                (แถวที่มี * คือวันที่ยังมีราคาประมาณปนอยู่)
-              </span>
-            </p>
-          )}
-
           {error ? (
             <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <p className="text-sm text-default-700">โหลดข้อมูลไม่สำเร็จ</p>
@@ -596,27 +577,13 @@ export default function SalesChartSheet({ initialSeries, onClose }: Props) {
                         </span>
                       )}
                       {hasFinance && (
-                        /* ค่าส่งของแถวนี้ยังไม่ครบเมื่อ `pending > 0` — พัสดุที่ขนส่งยังไม่เข้ารับ
-                           iShip ยังไม่คิดเงิน เราจึงยังไม่มีตัวเลขให้หัก
-                           🛑 ต้องบอกให้เห็นตรงเซลล์ ไม่ใช่แสดงยอดบางส่วนเงียบ ๆ — เคสจริง
-                           2026-08-10: วันที่ 9 มี 31 ออเดอร์ มีราคาแค่ 7 ใบ จอขึ้น 328.88
-                           ผู้ขายอ่านว่า "ค่าส่งถูกจัง" แล้วทักมาว่าต้นทุนคำนวณผิด */
+                        /* ราคาที่ยังเป็นประมาณการ (ขนส่งยังไม่เข้ารับ) แสดงเหมือนราคาจริงทุกประการ
+                           — user สั่ง 2026-08-10: "ไม่ต้องแสดงให้ user รู้ ลูกค้ารู้อยู่แล้ว"
+                           ตัวเลขจะขยับขึ้นเองเมื่อขนส่งชั่งน้ำหนักจริง */
                         <span
-                          className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${
-                            r.pending > 0
-                              ? 'text-warning-ink'
-                              : r.expense > 0
-                                ? 'text-danger-ink'
-                                : 'text-default-700'
-                          }`}
-                          title={
-                            r.pending > 0
-                              ? `${formatNumberNoSymbol(r.pending)} ใบยังเป็นราคาประมาณ — ขนส่งยังไม่เข้ารับจึงยังไม่ชั่งน้ำหนักจริง`
-                              : undefined
-                          }
+                          className={`min-w-14 flex-1 basis-0 text-end font-semibold tabular-nums ${r.expense > 0 ? 'text-danger-ink' : 'text-default-700'}`}
                         >
                           {r.expense > 0 ? formatNumberNoSymbol(r.expense) : '—'}
-                          {r.expense > 0 && r.pending > 0 && '*'}
                         </span>
                       )}
                       {hasFinance && (
