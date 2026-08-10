@@ -100,7 +100,7 @@ function VideoCell({ item }: { item: ShopVideoItem }) {
       // 🛑 ต้องมีทางกลับ — เดิม `setPlaying(true)` มีที่เดียวและไม่มีที่ไหนคืนเป็น false เลย
       // กดเล่นคลิปแล้วไทล์นั้นกลายเป็น iframe ของบุคคลที่สามถาวร ต้องรีเฟรชทั้งหน้าถึงจะกลับ
       // อาการหนักบนมือถือ: ไทล์ชิดกันไม่มีช่องว่างกันพลาด แตะพลาดแล้วออกไม่ได้
-      <div className='relative aspect-[9/16] bg-black'>
+      <div className='relative aspect-[3/4] bg-black'>
         <button
           type='button'
           onClick={() => setPlaying(false)}
@@ -130,7 +130,10 @@ function VideoCell({ item }: { item: ShopVideoItem }) {
       type='button'
       onClick={() => setPlaying(true)}
       aria-label={`เล่นคลิปจาก ${ui.label}${item.accountName ? ` บัญชี ${item.accountName}` : ''}`}
-      className='group relative aspect-[9/16] bg-[var(--mui-palette-action-hover)] overflow-hidden border-0 p-0 cursor-pointer block is-full font-[inherit]'
+      // 3:4 ไม่ใช่ 9:16 — วัดจากไทล์จริงที่ user แคปมาจาก IG (233×310 ≈ 0.75)
+      // IG ครอปไทล์ในกริดเป็น 3:4 แม้แต่ reels ที่ต้นฉบับเป็น 9:16
+      // ⚠️ ตอนกดเล่น คลิปแนวตั้งจะมีแถบดำบน-ล่างในกรอบ 3:4 — แลกกับกริดที่ไม่กระโดด
+      className='group relative aspect-[3/4] bg-[var(--mui-palette-action-hover)] overflow-hidden border-0 p-0 cursor-pointer block is-full font-[inherit]'
     >
       {item.thumbnailUrl && !imgFailed && (
         // eslint-disable-next-line @next/next/no-img-element -- รูปปกจาก storage ของเรา (mirror) หรือ CDN ของแพลตฟอร์ม

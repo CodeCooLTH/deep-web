@@ -167,10 +167,10 @@ const ProductCard = ({
       {/* โซนรูป — ของที่ลอยทับ (ป้ายปักหมุด/ราคา/ยอดขาย/overlay ตอน hover) ต้องอยู่ในกล่องนี้เท่านั้น
           ถ้าปล่อยให้ overlay ครอบทั้งปุ่มเหมือนเดิม มันจะทับชื่อ+คำอธิบายที่เพิ่งเพิ่มเข้ามาตอน hover
           = ปิดบังสิ่งที่เพิ่งทำให้อ่านง่ายขึ้นพอดี */}
-      {/* 9:16 เท่าไทล์คลิปในแท็บปักหมุด (user 2026-08-10 สั่งให้สองแท็บเหมือนกัน)
+      {/* 3:4 เท่าไทล์คลิปในแท็บปักหมุด — วัดจากไทล์จริงที่ user แคปมาจาก IG (233×310 ≈ 0.75)
           ⚠️ ผลข้างเคียงที่รู้ตัว: object-cover จะครอบหัว-ท้ายรูปสินค้าทิ้ง สินค้าที่ถ่ายเป็น
           กล่อง/แนวนอนจะเสียหนักกว่ารูปแนวตั้ง — แลกกับความสม่ำเสมอของสองแท็บตามที่สั่ง */}
-      <Box sx={{ position: 'relative', aspectRatio: '9/16', inlineSize: '100%', overflow: 'hidden', bgcolor: 'background.default' }}>
+      <Box sx={{ position: 'relative', aspectRatio: '3/4', inlineSize: '100%', overflow: 'hidden', bgcolor: 'background.default' }}>
       {imageSrc && !imgFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
