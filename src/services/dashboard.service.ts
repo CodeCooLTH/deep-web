@@ -138,6 +138,16 @@ export interface SalesSeries {
   netProfitValues?: number[]
   /** ค่าส่งรวมทั้งช่วง (คู่กับ `total`) */
   totalShipping?: number
+  /**
+   * จำนวนพัสดุต่อ bucket ที่ **ยังไม่ถูกขนส่งคิดเงิน** (ขนส่งยังไม่เข้ารับ → `carrierPrice` ยัง null)
+   *
+   * 🛑 มีไว้เพื่อบอกว่าตัวเลขค่าส่งของ bucket นั้น **ยังไม่ครบ** — ไม่มีตัวนี้ หน้าจอจะแสดงยอด
+   * บางส่วนอย่างเงียบ ๆ แล้วผู้ขายอ่านว่า "ค่าส่งวันนั้นถูกจัง" (เคสจริง 2026-08-10: วันที่ 9
+   * มี 31 ออเดอร์ แต่มีราคาแค่ 7 ใบ จอขึ้น ฿328.88 ทั้งที่ของจริงน่าจะราว ฿1,100+)
+   */
+  pendingShipmentValues?: number[]
+  /** จำนวนพัสดุทั้งช่วงที่ยังไม่ถูกคิดเงิน — > 0 = ตัวเลขค่าส่ง/กำไรทั้งหน้าเป็นเพดานบน */
+  pendingShipmentCount?: number
   /** กำไรสุทธิรวมทั้งช่วง */
   netProfit?: number
 }
@@ -259,6 +269,8 @@ export async function getSalesSeries(
   const shippingValues = new Array<number>(bucketCount).fill(0)
   /** ชุดเฉพาะใบที่นับเป็นยอดขายแล้ว — คู่กับ `confirmedValues` เหมือน cogsConfirmedValues */
   const shippingConfirmedValues = new Array<number>(bucketCount).fill(0)
+  /** พัสดุที่ยังไม่ถูกคิดเงินต่อ bucket — ทำให้ยอดค่าส่งของ bucket นั้นเป็นแค่บางส่วน */
+  const pendingShipmentValues = new Array<number>(bucketCount).fill(0)
   let total = 0
   let prevTotal = 0
   let prevTotalToDate = 0
@@ -331,6 +343,9 @@ export async function getSalesSeries(
         if (activeShipment?.carrierPrice != null) {
           rowShipping = Number(activeShipment.carrierPrice) + Number(activeShipment.codFee ?? 0)
           shippingValues[idx] += rowShipping
+        } else if (activeShipment) {
+          // มีพัสดุแล้วแต่ยังไม่ถูกคิดเงิน — ต้องนับไว้บอกผู้ใช้ว่ายอดค่าส่งของวันนี้ยังไม่ครบ
+          pendingShipmentValues[idx] += 1
         }
 
         // แยกยอดที่ "นับเป็นยอดขายแล้ว" (ผู้ซื้อยืนยัน หรือขนส่งรับของไปแล้ว) ออกจากที่ยังไม่นับ
@@ -389,11 +404,13 @@ export async function getSalesSeries(
   return {
     ...base,
     shippingValues,
+    pendingShipmentValues,
     netProfitValues,
     cogsValues,
     cogsConfirmedValues,
     totalCogs: cogsValues.reduce((s, v) => s + v, 0),
     totalShipping: shippingValues.reduce((s, v) => s + v, 0),
+    pendingShipmentCount: pendingShipmentValues.reduce((s, v) => s + v, 0),
     netProfit: netProfitValues.reduce((s, v) => s + v, 0),
   }
 }

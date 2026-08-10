@@ -153,6 +153,10 @@ export type SalesSeries = {
   /** ต้นทุนสินค้ารวมทั้งช่วง (ชุดทุกออเดอร์ — คู่กับ `total`) */
   totalCogs?: number
   totalShipping?: number
+  /** พัสดุที่ยังไม่ถูกขนส่งคิดเงินต่อ bucket — > 0 = ยอดค่าส่งของ bucket นั้นยังไม่ครบ */
+  pendingShipmentValues?: number[]
+  /** พัสดุทั้งช่วงที่ยังไม่ถูกคิดเงิน — > 0 = ตัวเลขค่าส่ง/กำไรทั้งหน้าเป็นเพดานบน */
+  pendingShipmentCount?: number
   netProfit?: number
 }
 

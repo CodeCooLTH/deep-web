@@ -226,6 +226,46 @@ describe('getSalesSeries — ต้นทุนสินค้า (COGS) สอ�
   })
 
   /**
+   * [blocker] ต้องนับ "จำนวนใบที่ยังไม่ถูกคิดเงิน" ออกมาด้วย ไม่ใช่แค่ข้ามเงียบ ๆ
+   *
+   * เคสจริง 2026-08-10: วันที่ 9 มี 31 ออเดอร์ แต่ iShip คิดเงินแล้วแค่ 7 ใบ จอขึ้นค่าส่ง ฿328.88
+   * ซึ่ง "ถูกตามข้อมูลที่มี" แต่ผู้ขายอ่านว่าระบบคำนวณผิดแล้วทักเข้ามา — ตัวเลขบางส่วนที่ไม่มี
+   * ป้ายกำกับ อันตรายกว่าไม่มีตัวเลข เพราะมันดูเหมือนตัวเลขที่ครบแล้ว
+   */
+  it('[blocker] นับพัสดุที่ยังไม่ถูกคิดเงินแยกไว้ เพื่อบอกว่ายอดค่าส่งของ bucket นั้นยังไม่ครบ', async () => {
+    findMany.mockResolvedValue([
+      {
+        totalAmount: 500,
+        createdAt: thaiNoon(2026, 3, 11),
+        status: 'CONFIRMED',
+        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: 34, codFee: 7.7 }],
+        items: [],
+      },
+      {
+        totalAmount: 500,
+        createdAt: thaiNoon(2026, 3, 11),
+        status: 'CONFIRMED',
+        shipments: [{ status: 'CREATED', isDryRun: false, carrierPrice: null, codFee: null }],
+        items: [],
+      },
+      {
+        totalAmount: 500,
+        createdAt: thaiNoon(2026, 3, 11),
+        status: 'CONFIRMED',
+        shipments: [], // ไม่มีพัสดุเลย = ไม่ใช่ "รอราคา" ต้องไม่ถูกนับ
+        items: [],
+      },
+    ] as never)
+
+    const res = await getSalesSeries('shop1', 'daily', { year: 2026, month: 3 }, true)
+
+    expect(res.pendingShipmentValues?.[10]).toBe(1)
+    expect(res.pendingShipmentCount).toBe(1)
+    // ยอดค่าส่งยังเป็นของเฉพาะใบที่คิดเงินแล้ว — ตัวนับข้างบนคือสิ่งเดียวที่บอกว่ามันไม่ครบ
+    expect(res.shippingValues?.[10]).toBeCloseTo(41.7, 2)
+  })
+
+  /**
    * [blocker] `carrierPrice = null` = ขนส่งยังไม่เข้ารับ iShip จึงยังไม่คิดเงิน — ต้อง **ข้าม**
    * ไม่ใช่บวก 0 แล้วทำเป็นว่ารู้แล้วว่าส่งฟรี (คลาสเดียวกับ cost = null บรรทัดล่าง)
    */

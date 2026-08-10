@@ -82,6 +82,19 @@ const financeColumns = [
           </span>
         )
       }
+      // 🛑 มาบางส่วนก็ต้องบอก ไม่ใช่เตือนเฉพาะตอนยังไม่มาเลย — วันที่มีทั้งใบที่คิดเงินแล้วและ
+      // ยังไม่คิด จะแสดงยอดที่ต่ำกว่าจริงมากโดยหน้าตาเหมือนตัวเลขปกติ (เคสจริง 2026-08-10:
+      // 31 ออเดอร์ มีราคาแค่ 7 ใบ ผู้ขายทักมาว่าต้นทุนคำนวณผิด)
+      if (pending > 0) {
+        return (
+          <span className="flex flex-col">
+            <span className="text-danger-ink">{formatBaht(shipping)}</span>
+            <span className="text-warning-ink text-2xs text-nowrap">
+              ยังไม่ครบ · รออีก {pending.toLocaleString('th-TH')} ใบ
+            </span>
+          </span>
+        )
+      }
       return <span className="text-danger-ink">{formatBaht(shipping)}</span>
     },
   }),
