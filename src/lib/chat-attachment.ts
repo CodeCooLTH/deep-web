@@ -58,8 +58,26 @@ const IG_IMAGE_EXT = new Set(['jpg', 'jpeg', 'png'])
 const IG_VIDEO_EXT = new Set(['mp4', 'ogg', 'avi', 'mov', 'webm'])
 const IG_AUDIO_EXT = new Set(['aac', 'm4a', 'wav', 'mp4'])
 
+/** LINE Messaging API "Message objects" (ยืนยันกับเอกสารทางการ 2026-08-10 — ห้ามแก้ตัวเลขจากความจำ)
+ *  รูป JPEG/PNG · วิดีโอ mp4 · เสียง mp3/m4a — ทุกชนิดต้องเป็น HTTPS (TLS 1.2+) */
+const LINE_IMAGE_EXT = new Set(['jpg', 'jpeg', 'png'])
+const LINE_VIDEO_EXT = new Set(['mp4'])
+const LINE_AUDIO_EXT = new Set(['mp3', 'm4a'])
+
+/** เพดาน `originalContentUrl` ของรูปฝั่ง LINE = 10MB (คนละตัวกับ preview ด้านล่าง) */
+export const LINE_IMAGE_MAX_SIZE = 10 * 1024 * 1024
+
+/**
+ * เพดาน `previewImageUrl` ของ LINE = 1MB — **ไม่ใช่ด่านของ checkChannelSupport**
+ *
+ * รูปจากมือถือปกติ 2–5MB ผ่านเพดาน 10MB สบาย ๆ แต่จะเกินเพดาน preview ทันที ถ้าเอาไฟล์เดียวกัน
+ * ไปใส่ทั้งสองฟิลด์ (ซึ่งเป็นสิ่งที่ line-adapter ทำมาแต่เดิม) — ทางแก้คือ **ย่อรูปให้เองตอนส่ง**
+ * ไม่ใช่ปฏิเสธไฟล์ที่ผู้ใช้แนบมา ดู `src/lib/line/preview-image.ts` ซึ่งใช้ค่านี้เป็นเป้า
+ */
+export const LINE_PREVIEW_MAX_SIZE = 1024 * 1024
+
 /** ช่องทางที่รองรับไฟล์แนบขาออกแล้วจริง — นอกลิสต์นี้ default deny (ดู checkChannelSupport) */
-export const ATTACHMENT_CHANNELS: readonly string[] = ['DEEP', 'MESSENGER', 'INSTAGRAM']
+export const ATTACHMENT_CHANNELS: readonly string[] = ['DEEP', 'MESSENGER', 'INSTAGRAM', 'LINE']
 
 /**
  * จัดชนิดไฟล์ — MIME ชนะ ext เสมอ (ext ปลอมง่ายกว่า) แล้วค่อย fallback ที่ ext
@@ -156,33 +174,73 @@ export function checkChannelSupport(
     return { ok: true }
   }
 
-  // INSTAGRAM — เข้มที่สุด (Meta docs 2026-08-02)
-  if (file.kind === 'IMAGE') {
-    if (!IG_IMAGE_EXT.has(ext)) {
-      return { ok: false, reason: 'Instagram รองรับรูป jpg/png เท่านั้น' }
+  if (channel === 'LINE') {
+    if (file.kind === 'IMAGE') {
+      if (!LINE_IMAGE_EXT.has(ext)) {
+        return { ok: false, reason: 'LINE รองรับรูป jpg/png เท่านั้น' }
+      }
+      if (file.size > LINE_IMAGE_MAX_SIZE) {
+        return { ok: false, reason: `LINE รองรับรูปไม่เกิน 10MB (ไฟล์นี้ ${mb(file.size)}MB)` }
+      }
+      return { ok: true }
     }
-    if (file.size > IG_IMAGE_MAX_SIZE) {
-      return { ok: false, reason: `Instagram รองรับรูปไม่เกิน 8MB (ไฟล์นี้ ${mb(file.size)}MB)` }
+    if (file.kind === 'VIDEO') {
+      if (!LINE_VIDEO_EXT.has(ext)) {
+        return { ok: false, reason: 'LINE รองรับวิดีโอ mp4 เท่านั้น' }
+      }
+      return { ok: true }
+    }
+    if (file.kind === 'AUDIO') {
+      if (!LINE_AUDIO_EXT.has(ext)) {
+        return { ok: false, reason: 'LINE รองรับไฟล์เสียง mp3/m4a เท่านั้น' }
+      }
+      return { ok: true }
+    }
+    // kind === 'FILE' — LINE Messaging API **ไม่มี message type สำหรับไฟล์เอกสารเลย** (ชนิดที่ส่งได้
+    // มีแค่ text/sticker/image/video/audio/location/imagemap/template/flex) ทางเดียวที่พอทำได้คือส่ง
+    // เป็นข้อความที่มีลิงก์ ซึ่งลิงก์ของเราเป็น presigned URL ที่หมดอายุ → ลูกค้ากดวันรุ่งขึ้นแล้วเปิด
+    // ไม่ได้ โดยที่ร้านไม่มีทางรู้เลยว่าเสีย (user เคาะ 2026-08-10: บล็อกไปก่อน บอกเหตุผลตรง ๆ)
+    return {
+      ok: false,
+      reason: 'LINE ส่งไฟล์เอกสารไม่ได้ — ส่งได้เฉพาะรูป วิดีโอ และไฟล์เสียง',
+    }
+  }
+
+  if (channel === 'INSTAGRAM') {
+    // INSTAGRAM — เข้มที่สุด (Meta docs 2026-08-02)
+    if (file.kind === 'IMAGE') {
+      if (!IG_IMAGE_EXT.has(ext)) {
+        return { ok: false, reason: 'Instagram รองรับรูป jpg/png เท่านั้น' }
+      }
+      if (file.size > IG_IMAGE_MAX_SIZE) {
+        return { ok: false, reason: `Instagram รองรับรูปไม่เกิน 8MB (ไฟล์นี้ ${mb(file.size)}MB)` }
+      }
+      return { ok: true }
+    }
+    if (file.kind === 'VIDEO') {
+      if (!IG_VIDEO_EXT.has(ext)) {
+        return { ok: false, reason: 'Instagram รองรับวิดีโอ mp4/mov/avi/webm/ogg เท่านั้น' }
+      }
+      return { ok: true }
+    }
+    if (file.kind === 'AUDIO') {
+      if (!IG_AUDIO_EXT.has(ext)) {
+        return { ok: false, reason: 'Instagram รองรับไฟล์เสียง aac/m4a/wav เท่านั้น' }
+      }
+      return { ok: true }
+    }
+    // kind === 'FILE'
+    if (ext !== 'pdf') {
+      return { ok: false, reason: 'Instagram ส่งได้เฉพาะไฟล์ PDF' }
     }
     return { ok: true }
   }
-  if (file.kind === 'VIDEO') {
-    if (!IG_VIDEO_EXT.has(ext)) {
-      return { ok: false, reason: 'Instagram รองรับวิดีโอ mp4/mov/avi/webm/ogg เท่านั้น' }
-    }
-    return { ok: true }
-  }
-  if (file.kind === 'AUDIO') {
-    if (!IG_AUDIO_EXT.has(ext)) {
-      return { ok: false, reason: 'Instagram รองรับไฟล์เสียง aac/m4a/wav เท่านั้น' }
-    }
-    return { ok: true }
-  }
-  // kind === 'FILE'
-  if (ext !== 'pdf') {
-    return { ok: false, reason: 'Instagram ส่งได้เฉพาะไฟล์ PDF' }
-  }
-  return { ok: true }
+
+  // fail-closed — เดิมบล็อกนี้เป็น "ตกท้ายไปเป็น Instagram" โดยปริยาย: ช่องทางใดก็ตามที่ถูกเพิ่มเข้า
+  // ATTACHMENT_CHANNELS แล้วลืมเขียนกฎของตัวเอง จะไปใช้กฎของ Instagram เงียบ ๆ (รับ pdf, ปฏิเสธ webp,
+  // เพดาน 8MB) ซึ่ง "ถูกต้องตามชนิด" ทุกประการจึงไม่มี tsc/เทส/grep ตัวไหนฟ้อง — รูปแบบเดียวกับบทเรียน
+  // docs/conventions/enum-value-removal.md เป๊ะ ๆ และ LINE คือค่าที่ 4 ที่มาจริงในวันนี้
+  return { ok: false, reason: 'ช่องทางนี้ยังไม่รองรับไฟล์แนบ' }
 }
 
 /**

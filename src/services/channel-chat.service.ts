@@ -19,11 +19,13 @@ import { shouldBlockLinePush } from '@/lib/line/quota'
 import { getLineReplyWindowState } from '@/lib/line/reply-window'
 // (S-18a) SSOT ของสติกเกอร์ LINE ที่ยิงออกผ่าน Messaging API ได้จริง — ห้ามเดา packageId เอง
 import { findLineStickerPackageId } from '@/lib/line/stickers'
+import { buildLinePreviewJpeg } from '@/lib/line/preview-image'
+import { LINE_PREVIEW_MAX_SIZE } from '@/lib/chat-attachment'
 // (S-8, feature 00025) LineApiError — ต้องอ่าน status/raw ของ error จริงเพื่อจำแนกเป็นรหัสทางธุรกิจ
 // (TOKEN_INVALID/CONTACT_BLOCKED/QUOTA_EXCEEDED/LINE_UNAVAILABLE) — ดู classifyLineOutboundError
 import { LineApiError } from '@/lib/line/client'
 import { decryptToken } from '@/lib/token-crypto'
-import { saveFile, getFileUrl } from '@/lib/storage'
+import { saveFile, getFileUrl, getFile, getFileMeta } from '@/lib/storage'
 import { contentTypeToExt } from '@/lib/attachment-mime'
 // pure module (ไม่มี server code) — ใช้ตัวเดียวกับที่ ChatThread ใช้ตัดสินว่าเป็นการ์ดยอดเงิน
 // เพื่อไม่ให้ "อะไรคือการ์ดยอดเงิน" มีสองนิยาม (HR16)
@@ -2678,6 +2680,54 @@ function lineErrorToRaw(e: unknown): unknown {
 }
 
 /**
+ * resolveLinePreviewUrl — หา URL ของ `previewImageUrl` ให้ LINE (ส่วนขยาย 2026-08-10)
+ *
+ * LINE บังคับให้ image/video message มี "รูปตัวอย่าง" แยกจากไฟล์เต็ม และจำกัดไว้ที่ **1MB**
+ * ขณะที่ไฟล์เต็มได้ถึง 10MB — รูปจากมือถือปกติ (2–5MB) จึงเกินเพดาน preview ทุกใบถ้าใช้ไฟล์เดียวกัน
+ *
+ * คืน `undefined` = ให้ LineAdapter ถอยไปใช้ URL ไฟล์เต็มเป็น preview ตามพฤติกรรมเดิม
+ * 🛑 ทุกความล้มเหลวในฟังก์ชันนี้ต้องจบที่ `undefined` ห้าม throw — รูปตัวอย่างไม่ขึ้นเป็นเรื่องเล็ก
+ * กว่าข้อความของร้านไม่ถึงลูกค้ามาก (เส้นทางนี้อยู่กลางทางส่ง ไม่ใช่ขั้นตอนเตรียมของ)
+ *
+ * ที่ยังไม่ทำ (หนี้ที่รู้ตัว): ไม่ได้ cache รูปที่ย่อแล้ว — ส่งรูปเดิมซ้ำสองครั้งจะย่อสองรอบและได้
+ * ไฟล์ใน bucket สองใบ. ต้องมีคอลัมน์เก็บ previewFileId ถึงจะแก้ได้ ซึ่งเป็น migration ที่ไม่คุ้มกับ
+ * รอบแก้บั๊กนี้ — วิดีโอไม่ได้รับ preview เลยด้วยเหตุผลเดียวกัน (สกัดเฟรมต้องใช้ ffmpeg)
+ */
+async function resolveLinePreviewUrl(
+  fileId: string,
+  kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE',
+  fullUrl: string,
+): Promise<string | undefined> {
+  if (kind !== 'IMAGE') return undefined
+
+  try {
+    // ทางลัดที่คุ้มที่สุด: รูปที่เล็กกว่าเพดาน preview อยู่แล้วไม่ต้องย่อเลย — ใช้ไฟล์เต็มเป็น
+    // preview ได้ตรง ๆ (HEAD ครั้งเดียว ไม่ต้องดาวน์โหลดเนื้อไฟล์ ไม่ต้อง encode ไม่เขียน bucket)
+    const meta = await getFileMeta(fileId)
+    if (meta && meta.size <= LINE_PREVIEW_MAX_SIZE) return fullUrl
+
+    const original = await getFile(fileId)
+    if (!original) return undefined
+
+    const preview = await buildLinePreviewJpeg(original.buffer, LINE_PREVIEW_MAX_SIZE)
+    if (!preview) return undefined
+
+    // ชื่อไฟล์ต้องลงท้าย .jpg — storage ตั้ง fileId จากนามสกุลของชื่อที่ส่งเข้าไป และ /api/files
+    // แปลง ext → content-type จากนามสกุลนั้น (ตั้งผิด = LINE ได้ content-type ที่ไม่ใช่รูป)
+    const previewFileId = await saveFile(
+      new File([new Uint8Array(preview)], 'line-preview.jpg', { type: 'image/jpeg' }),
+    )
+    return await getFileUrl(previewFileId, { signed: true, expiresIn: 3600 })
+  } catch (err) {
+    // ไม่ log fileId/ชื่อไฟล์ (RC-8 — ไฟล์ของลูกค้าอาจมี PII)
+    console.warn('[line-preview] สร้างรูปตัวอย่างไม่สำเร็จ ถอยไปใช้ไฟล์เต็ม', {
+      reason: err instanceof Error ? err.message : 'unknown',
+    })
+    return undefined
+  }
+}
+
+/**
  * sendOutboundLineMessage — แกนของ S-8 (TFR-LINE-05/06)
  *
  * ทำไมแยกเป็นฟังก์ชันของตัวเองแทนการแทรกเข้าไปใน flow ของ Meta ด้านล่าง: LINE ไม่มีแนวคิด
@@ -2734,7 +2784,8 @@ async function sendOutboundLineMessage(
       // presigned URL อายุ 1 ชม. — LINE ดึงไฟล์ไปโฮสต์เอง (originalContentUrl/previewImageUrl ต้อง
       // เป็น URL สาธารณะที่ LINE เข้าถึงได้ — /api/files ของเรา auth-gated ใช้ไม่ได้ เหมือน Meta)
       const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
-      return [{ kind: 'attachment', attachmentKind: attachment.kind, url: fileUrl }]
+      const previewUrl = await resolveLinePreviewUrl(attachment.fileId, attachment.kind, fileUrl)
+      return [{ kind: 'attachment', attachmentKind: attachment.kind, url: fileUrl, previewUrl }]
     }
     return [{ kind: 'text', text: bodyText }]
   }
@@ -2815,8 +2866,15 @@ async function sendOutboundLineMessage(
   let failureReason: string | null = null
   let outboundResponse: unknown = null
 
+  // buildParts() ทำงานหนักจริงตั้งแต่ 2026-08-10 (ดาวน์โหลดรูป → ย่อเป็น preview → อัปโหลดกลับ) และ
+  // **ผลลัพธ์ไม่ขึ้นกับ method เลย** (method มีผลแค่กับ ctx) — คำนวณครั้งเดียวแล้วใช้ซ้ำ ไม่งั้นเส้นทาง
+  // fallback REPLY→PUSH ด้านล่างจะย่อรูปใหม่ทั้งใบ: ได้ไฟล์ค้างใน bucket เพิ่มอีกหนึ่ง และหน่วงเวลาซ้ำ
+  // ในจังหวะที่กำลังกู้จากความล้มเหลวอยู่พอดี (จังหวะที่ควรเร็วที่สุด)
+  let partsOnce: Promise<OutboundMessagePart[]> | null = null
+  const getParts = () => (partsOnce ??= buildParts())
+
   const attemptSend = async (method: 'REPLY' | 'PUSH'): Promise<{ externalMessageId: string; quoteToken?: string }> => {
-    const parts = await buildParts()
+    const parts = await getParts()
     const ctx: ChannelContext = {
       provider: 'LINE',
       accessToken,

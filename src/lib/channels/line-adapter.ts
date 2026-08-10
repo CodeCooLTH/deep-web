@@ -67,18 +67,19 @@ function toLineMessage(part: OutboundMessagePart): Record<string, unknown> {
   const { attachmentKind, url } = part
 
   if (attachmentKind === 'IMAGE') {
-    // LINE image message ต้องมีทั้ง originalContentUrl และ previewImageUrl (ต้องเป็น URL รูปทั้งคู่)
-    // เราไม่มี thumbnail แยกในชั้นนี้ (ไม่มี thumbnail generation อยู่ใน scope ของ S-4) — ใช้ url
-    // เดียวกันซ้ำทั้งสองฟิลด์ ซึ่งถูกต้องสำหรับรูปเพราะไฟล์ตัวเต็มก็เป็นรูปอยู่แล้ว
-    return { type: 'image', originalContentUrl: url, previewImageUrl: url }
+    // LINE image message ต้องมีทั้ง originalContentUrl (≤10MB) และ previewImageUrl (**≤1MB**)
+    // ผู้เรียกย่อรูปมาให้แล้วผ่าน `previewUrl` (ดู lib/line/preview-image.ts) — ไม่มีค่านั้นแปลว่า
+    // ย่อไม่สำเร็จ ถอยไปใช้ไฟล์เต็มเป็น preview เหมือนเดิม (รูปตัวอย่างอาจไม่ขึ้น แต่ข้อความยังถึง
+    // ลูกค้า ซึ่งสำคัญกว่า — ห้ามให้เรื่องรูปตัวอย่างมาบล็อกการส่ง)
+    return { type: 'image', originalContentUrl: url, previewImageUrl: part.previewUrl ?? url }
   }
 
   if (attachmentKind === 'VIDEO') {
-    // LINE video message ต้องการ previewImageUrl เป็น "ภาพนิ่ง" (jpeg) ไม่ใช่ไฟล์วิดีโอ — เอกสารของ
-    // feature นี้ไม่ได้ครอบกรณีนี้ (§4.2 ไม่ลงรายละเอียด) และเราไม่มี thumbnail generator ในชั้นนี้
-    // (นอกขอบเขต S-4) จึงใช้ url ของวิดีโอเองแทนไปก่อน — ยอมรับความเสี่ยงว่า LINE อาจแสดงภาพตัวอย่าง
-    // ไม่ขึ้น (ตัววิดีโอยังเปิดเล่นได้ปกติ) ถ้ามีรายงานปัญหาจริงต้องกลับมาทำ thumbnail generator แยก
-    return { type: 'video', originalContentUrl: url, previewImageUrl: url }
+    // LINE video message ต้องการ previewImageUrl เป็น "ภาพนิ่ง" JPEG/PNG ≤1MB ไม่ใช่ไฟล์วิดีโอ —
+    // เราสกัดเฟรมจากวิดีโอไม่ได้ (ไม่มี ffmpeg ในระบบ) ผู้เรียกจึงส่งภาพนิ่งสำรองมาให้ทาง previewUrl
+    // ไม่มีค่านั้น = ถอยไปใช้ url ของวิดีโอเองตามพฤติกรรมเดิม (LINE อาจไม่แสดงภาพตัวอย่าง แต่ตัว
+    // วิดีโอยังเปิดเล่นได้ — ยอมรับความเสี่ยงนี้แทนการไม่ส่งเลย)
+    return { type: 'video', originalContentUrl: url, previewImageUrl: part.previewUrl ?? url }
   }
 
   if (attachmentKind === 'AUDIO') {

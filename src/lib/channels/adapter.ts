@@ -37,7 +37,17 @@ export interface ChannelCapabilities {
  */
 export type OutboundMessagePart =
   | { kind: 'text'; text: string }
-  | { kind: 'attachment'; attachmentKind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'; url: string }
+  | {
+      kind: 'attachment'
+      attachmentKind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
+      url: string
+      /** (เพิ่ม 2026-08-10, additive) URL ของ "รูปตัวอย่าง" ที่ย่อมาแล้ว — LINE image/video message
+       *  บังคับ `previewImageUrl` แยกจากไฟล์เต็ม และจำกัดไว้ที่ **1MB** (ไฟล์เต็มได้ถึง 10MB/200MB)
+       *  ผู้เรียกเป็นคนสร้าง (ดู `src/lib/line/preview-image.ts`) ไม่ใช่หน้าที่ adapter — ไม่มีค่านี้
+       *  LineAdapter ถอยไปใช้ `url` เป็น preview ตามพฤติกรรมเดิม. Meta ไม่มีแนวคิดนี้ (MetaAdapter
+       *  ไม่อ่าน field นี้เลย — undefined เสมอ ไม่กระทบพฤติกรรมเดิม) */
+      previewUrl?: string
+    }
   | {
       kind: 'sticker'
       stickerId: string

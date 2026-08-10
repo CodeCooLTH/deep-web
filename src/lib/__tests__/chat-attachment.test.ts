@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   ATTACHMENT_MAX_SIZE,
   IG_IMAGE_MAX_SIZE,
+  LINE_IMAGE_MAX_SIZE,
+  LINE_PREVIEW_MAX_SIZE,
   attachmentKind,
   attachmentDisplayName,
   checkChannelSupport,
@@ -67,7 +69,10 @@ describe('checkChannelSupport — กฎที่ใช้ทุกช่อง�
   })
 
   it('ช่องทางที่ยังไม่ live = default deny ไม่ใช่ default allow', () => {
-    for (const ch of ['LINE', 'TIKTOK', '']) {
+    // 🛑 เดิมลิสต์นี้มี 'LINE' อยู่ด้วย — เทสจึง "ยืนยันบั๊ก" ให้เขียวมาตลอดตั้งแต่ 2026-08-02:
+    // ฟีเจอร์ส่งไฟล์ของ LINE (S-8) สร้างเสร็จแล้วแต่ถูก default-deny ปิดไว้ ผู้ขายแนบรูปในเธรด LINE
+    // ไม่ได้เลยและได้ข้อความ "ช่องทางนี้ยังไม่รองรับไฟล์แนบ" (ร้านแจ้งเข้ามา 2026-08-10)
+    for (const ch of ['TIKTOK', '']) {
       const r = checkChannelSupport(ch, f('a.pdf', 1024))
       expect(r.ok).toBe(false)
       expect(r.ok === false && r.reason).toContain('ยังไม่รองรับ')
@@ -146,6 +151,80 @@ describe('checkChannelSupport — INSTAGRAM', () => {
   it('เสียง: m4a ผ่าน, mp3 ไม่ผ่าน', () => {
     expect(checkChannelSupport('INSTAGRAM', f('a.m4a', 3 * MB, 'audio/mp4')).ok).toBe(true)
     expect(checkChannelSupport('INSTAGRAM', f('a.mp3', 3 * MB, 'audio/mpeg')).ok).toBe(false)
+  })
+})
+
+/**
+ * LINE — ตัวเลข/ฟอร์แมตทุกตัวยึดจากเอกสาร LINE Messaging API "Message objects" (ยืนยัน 2026-08-10)
+ * ห้ามแก้ให้ผ่านเทสด้วยการขยับตัวเลขเอง ต้องกลับไปดูเอกสารก่อนเสมอ
+ */
+describe('checkChannelSupport — LINE', () => {
+  it('[blocker] รูปจากมือถือขนาดปกติต้องส่งได้ — นี่คืออาการที่ร้านแจ้งเข้ามา 2026-08-10', () => {
+    const r = checkChannelSupport('LINE', f('IMG_1234.jpg', 3 * MB, 'image/jpeg'))
+    expect(r.ok).toBe(true)
+  })
+
+  it('รูป: jpg/png ผ่าน — webp/gif/heic ไม่ผ่าน (LINE รับแค่ JPEG/PNG)', () => {
+    expect(checkChannelSupport('LINE', f('a.jpg', 2 * MB, 'image/jpeg')).ok).toBe(true)
+    expect(checkChannelSupport('LINE', f('a.jpeg', 2 * MB, 'image/jpeg')).ok).toBe(true)
+    expect(checkChannelSupport('LINE', f('a.png', 2 * MB, 'image/png')).ok).toBe(true)
+    for (const name of ['a.webp', 'a.gif', 'a.heic']) {
+      const r = checkChannelSupport('LINE', f(name, 2 * MB, 'image/webp'))
+      expect(r.ok).toBe(false)
+      expect(r.ok === false && r.reason).toContain('jpg/png')
+    }
+  })
+
+  it('รูป: พอดี 10MB ผ่าน / เกินไม่ผ่าน และบอกขนาดจริงในข้อความ', () => {
+    expect(checkChannelSupport('LINE', f('a.jpg', LINE_IMAGE_MAX_SIZE, 'image/jpeg')).ok).toBe(true)
+    const over = checkChannelSupport('LINE', f('a.jpg', LINE_IMAGE_MAX_SIZE + 1, 'image/jpeg'))
+    expect(over.ok).toBe(false)
+    expect(over.ok === false && over.reason).toContain('10MB')
+  })
+
+  it('เพดาน preview 1MB ต้องไม่ถูกใช้เป็นด่านปฏิเสธไฟล์ — รูป 5MB ยังต้องผ่าน (เราย่อให้เองตอนส่ง)', () => {
+    expect(LINE_PREVIEW_MAX_SIZE).toBeLessThan(LINE_IMAGE_MAX_SIZE)
+    expect(checkChannelSupport('LINE', f('a.jpg', 5 * MB, 'image/jpeg')).ok).toBe(true)
+  })
+
+  it('วิดีโอ: mp4 ผ่าน — mov/webm ไม่ผ่าน', () => {
+    expect(checkChannelSupport('LINE', f('a.mp4', 10 * MB, 'video/mp4')).ok).toBe(true)
+    for (const name of ['a.mov', 'a.webm']) {
+      const r = checkChannelSupport('LINE', f(name, 10 * MB, 'video/quicktime'))
+      expect(r.ok).toBe(false)
+      expect(r.ok === false && r.reason).toContain('mp4')
+    }
+  })
+
+  it('เสียง: mp3/m4a ผ่าน — wav/aac ไม่ผ่าน (ต่างจาก Instagram ที่รับ wav แต่ไม่รับ mp3)', () => {
+    expect(checkChannelSupport('LINE', f('a.mp3', 3 * MB, 'audio/mpeg')).ok).toBe(true)
+    expect(checkChannelSupport('LINE', f('a.m4a', 3 * MB, 'audio/mp4')).ok).toBe(true)
+    expect(checkChannelSupport('LINE', f('a.wav', 3 * MB, 'audio/wav')).ok).toBe(false)
+    expect(checkChannelSupport('LINE', f('a.aac', 3 * MB, 'audio/aac')).ok).toBe(false)
+  })
+
+  it('[blocker] ไฟล์เอกสารถูกปฏิเสธพร้อมเหตุผลที่บอกว่าส่งอะไรได้ — ไม่ใช่ "ยังไม่รองรับ" ลอย ๆ', () => {
+    for (const name of ['ใบเสนอราคา.pdf', 'สต๊อก.xlsx', 'งาน.zip']) {
+      const r = checkChannelSupport('LINE', f(name, 1 * MB))
+      expect(r.ok).toBe(false)
+      const reason = r.ok === false ? r.reason : ''
+      expect(reason).toContain('รูป วิดีโอ และไฟล์เสียง')
+      // ต้องไม่ตกไปใช้กฎของ Instagram (ซึ่งปล่อย .pdf ผ่าน) — เคยเป็นความเสี่ยงจริงตอนที่บล็อก
+      // ท้ายฟังก์ชันยังเป็น fall-through ของ Instagram
+      expect(reason).not.toContain('Instagram')
+    }
+  })
+
+  it('deny-list ยังมาก่อนกฎช่องทาง แม้ LINE เปิดใช้งานแล้ว', () => {
+    const r = checkChannelSupport('LINE', f('virus.exe', 1024))
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toContain('ความปลอดภัย')
+  })
+
+  it('เพดานรวม 25MB ยังมาก่อนเพดานเฉพาะช่องทาง', () => {
+    const r = checkChannelSupport('LINE', f('a.mp4', ATTACHMENT_MAX_SIZE + 1, 'video/mp4'))
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.reason).toContain('25MB')
   })
 })
 

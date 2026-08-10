@@ -116,6 +116,7 @@
     "react-use-wizard": "^2.3.0",
     "remark-gfm": "^4.0.1",
     "server-only": "0.0.1",
+    "sharp": "^0.34.5",
     "simplebar-react": "^3.3.2",
     "spinkit": "^2.0.1",
     "stylis-plugin-rtl": "^2.1.1",

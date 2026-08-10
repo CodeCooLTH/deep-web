@@ -135,9 +135,53 @@ describe('LineAdapter.sendMessages', () => {
     const [, init] = mock.mock.calls[0]! as [string, RequestInit]
     const body = JSON.parse(init.body as string)
     expect(body.messages[0]).toEqual({
+      // ไม่มี previewUrl มาด้วย → ถอยไปใช้ไฟล์เต็มเป็น preview (พฤติกรรมเดิม ห้ามกลายเป็น undefined
+      // เพราะ LINE บังคับให้ field นี้มีค่าเสมอ ส่ง undefined = ข้อความตกทั้งใบ)
       type: 'image',
       originalContentUrl: 'https://x/img.jpg',
       previewImageUrl: 'https://x/img.jpg',
+    })
+  })
+
+  it('[blocker] IMAGE ที่มี previewUrl → previewImageUrl ต้องเป็นรูปที่ย่อแล้ว ไม่ใช่ไฟล์เต็ม', async () => {
+    // LINE จำกัด previewImageUrl ไว้ที่ 1MB ขณะที่ originalContentUrl ได้ถึง 10MB — ถ้าสองฟิลด์นี้
+    // ชี้ไฟล์เดียวกัน รูปจากมือถือปกติ (2–5MB) จะเกินเพดาน preview ทุกใบ
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm3b' }] }))
+    await LineAdapter.sendMessages(baseCtx, [
+      {
+        kind: 'attachment',
+        attachmentKind: 'IMAGE',
+        url: 'https://x/img.jpg',
+        previewUrl: 'https://x/thumb.jpg',
+      },
+    ])
+    const [, init] = mock.mock.calls[0]! as [string, RequestInit]
+    const body = JSON.parse(init.body as string)
+    expect(body.messages[0]).toEqual({
+      type: 'image',
+      originalContentUrl: 'https://x/img.jpg',
+      previewImageUrl: 'https://x/thumb.jpg',
+    })
+  })
+
+  it('VIDEO ที่มี previewUrl → ใช้ภาพนิ่งที่ส่งมา (LINE ต้องการ jpeg/png ไม่ใช่ไฟล์วิดีโอ)', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm3c' }] }))
+    await LineAdapter.sendMessages(baseCtx, [
+      {
+        kind: 'attachment',
+        attachmentKind: 'VIDEO',
+        url: 'https://x/clip.mp4',
+        previewUrl: 'https://x/thumb.jpg',
+      },
+    ])
+    const [, init] = mock.mock.calls[0]! as [string, RequestInit]
+    const body = JSON.parse(init.body as string)
+    expect(body.messages[0]).toEqual({
+      type: 'video',
+      originalContentUrl: 'https://x/clip.mp4',
+      previewImageUrl: 'https://x/thumb.jpg',
     })
   })
 
