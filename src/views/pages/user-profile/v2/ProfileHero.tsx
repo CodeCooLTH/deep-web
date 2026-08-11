@@ -462,7 +462,7 @@ export default function ProfileHero({
                   → line box ของ <h1> โตขึ้น 28px แล้วดันชิปคะแนนกับบรรทัดที่เหลือห่างลงไปทั้งชุด
                   (user 2026-08-10: "ระยะมันห่างไป จากชื่อร้านลงมา")
                   `after:inset-[-13px]` ให้พื้นที่แตะ 44px เท่าเดิมโดยไม่กินที่ในโฟลว์เลย */
-              className='relative inline-flex items-center justify-center align-middle border-0 bg-transparent p-0 mis-1.5 cursor-pointer after:absolute after:inset-[-13px] after:content-[""]'
+              className='relative inline-flex items-center justify-center align-middle border-0 bg-transparent p-0 mis-1.5 cursor-pointer after:absolute after:inset-[-13px] after:content-[""] rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--mui-palette-primary-main)]'
             >
               <span
                 title='ยืนยันตัวตนแล้ว'
@@ -510,7 +510,7 @@ export default function ProfileHero({
             aria-controls='trust-score-panel'
             aria-label='ดูวิธีคำนวณคะแนนความน่าเชื่อถือ'
             /* เหตุผลเดียวกับเช็คเขียว — 44px จริงในแถวที่พิลสูง ~28px จะดันแถวทั้งแถวให้สูงขึ้น */
-            className='relative flex items-center justify-center border-0 bg-transparent p-0 mis-0.5 cursor-pointer text-[var(--mui-palette-text-secondary)] after:absolute after:inset-[-15px] after:content-[""]'
+            className='relative flex items-center justify-center border-0 bg-transparent p-0 mis-0.5 cursor-pointer text-[var(--mui-palette-text-secondary)] after:absolute after:inset-[-15px] after:content-[""] rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--mui-palette-primary-main)]'
           >
             <Icon icon='lucide:info' width={15} />
           </button>
@@ -554,7 +554,7 @@ export default function ProfileHero({
             onClick={bioOverflows ? () => setBioExpanded((v) => !v) : undefined}
             aria-expanded={bioOverflows ? bioExpanded : undefined}
             className={`m-0 mbs-2 text-sm mli-auto border-0 bg-transparent p-0 font-[inherit] ${
-              bioOverflows ? 'cursor-pointer relative block is-full' : ''
+              bioOverflows ? 'cursor-pointer relative block is-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)] rounded' : ''
             }`}
             sx={{
               maxInlineSize: '46ch',
@@ -658,9 +658,12 @@ export default function ProfileHero({
           ที่มีโครงสร้าง แทนที่จะเป็นตัวเลขสี่ตัวลอย ๆ — เป็น divider กลาง ไม่ใช่แถบสีตกแต่ง
           พื้น background.default + เส้นคั่นบน-ล่าง คงเดิม */}
       <div className='pli-5 plb-3.5 border-bs border-be bg-[var(--mui-palette-background-default)]'>
-        <div className='grid grid-cols-4 gap-x-1'>
+        {/* 🛑 2 คอลัมน์ที่ต่ำกว่า 360px — 4 คอลัมน์ที่ 320px ได้ช่องละ 70px แต่ป้าย "อัตราสำเร็จ"
+            + ไอคอน ⓘ ต้องการ ~80px จึงล้นและป้ายตกบรรทัดไม่เท่ากันจนแถวเบี้ยว
+            (จอที่โดนจริง: iPhone SE รุ่นแรก, Galaxy Fold ตอนพับ) */}
+        <div className='grid grid-cols-2 min-[360px]:grid-cols-4 gap-x-1 gap-y-3'>
           {stats.map((s, i) => {
-            const cellCls = `text-center ${i > 0 ? 'border-s' : ''}`
+            const cellCls = `text-center ${i > 0 ? 'min-[360px]:border-s' : ''}`
             const value = (
               /* อัตราสำเร็จใช้ Verified Ink #18804A ไม่ใช่ #28C76F (DESIGN.md §2 "สองโทน") —
                  เขียวหลักบนพื้นขาวได้ contrast แค่ 2.21:1 ตกเกณฑ์แม้กับตัวใหญ่ ตัวเลขที่สำคัญ
@@ -689,7 +692,7 @@ export default function ProfileHero({
                     ? 'ทำไมอัตราสำเร็จยังสรุปไม่ได้ — แตะเพื่อดูรายละเอียด'
                     : 'อัตราสำเร็จคำนวณจากอะไรบ้าง — แตะเพื่อดูรายละเอียด'
                 }
-                className={`${cellCls} is-full min-bs-[44px] flex flex-col items-center justify-center border-is border-be-0 border-bs-0 border-ie-0 bg-transparent p-0 cursor-pointer font-[inherit]`}
+                className={`${cellCls} is-full min-bs-[44px] flex flex-col items-center justify-center border-is border-be-0 border-bs-0 border-ie-0 bg-transparent p-0 cursor-pointer font-[inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)] rounded`}
               >
                 {value}
                 <Typography variant='caption' color='text.secondary' className='flex items-center gap-0.5'>
