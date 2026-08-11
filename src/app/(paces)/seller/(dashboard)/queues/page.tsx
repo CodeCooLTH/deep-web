@@ -47,7 +47,12 @@ export default async function ServiceResourcesPage() {
 
   return (
     <>
-      <PageBreadcrumb title="คิวงาน" />
+      {/* breadcrumb เดสก์ท็อปเท่านั้น — มือถือมีชื่อหน้าใน SellerMobileHeader อยู่แล้ว (กันซ้ำ)
+          ท่าเดียวกับ /orders · ของเดิมทำให้มือถือขึ้นคำว่า "คิวงาน" สองครั้งซ้อนกันก่อนถึงปฏิทิน
+          แล้วปฏิทินถูกดันลงไปเกือบครึ่งจอ (user รายงาน 2026-08-11: "padding เยอะ") */}
+      <div className="hidden lg:block">
+        <PageBreadcrumb title="คิวงาน" />
+      </div>
       <div className="flex flex-col gap-5">
         {/* ปฏิทินมาก่อนรายการ — งานประจำวันของร้านคือ "ดูว่าวันนี้มีใครเข้ามาบ้าง"
             ส่วนการตั้งค่าคิวงานทำครั้งเดียวตอนเริ่มใช้ (user รวมสองหน้าเป็นหน้าเดียว 2026-07-31)

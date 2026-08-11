@@ -218,16 +218,18 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
 
   return (
     <div className="card @container">
-      <div className="card-header flex-nowrap gap-2">
-        <h4 className="card-title flex min-w-0 items-center gap-1.5">
-          <Icon icon="calendar-month" className="text-primary size-4 shrink-0" />
-          <span className="truncate">ปฏิทินคิว</span>
-        </h4>
-        {/* ดรอปดาวน์เลือกคิว — ยกมาจาก AppointmentCalendar ทั้งดุ้น (คลาสเดิม คำเดิม)
-            ต้องมีบนมือถือด้วย ไม่งั้นร้านหลายคิวจะดูแยกคิวไม่ได้เลยบนเครื่องที่ใช้จริงทุกวัน */}
-        {resources.length > 1 && (
+      {/* 🛑 ไม่มีหัวการ์ด "ปฏิทินคิว" — บนมือถือ SellerMobileHeader เขียนคำว่า "คิวงาน" อยู่แล้ว
+          หัวการ์ดจึงเป็นหัวข้อที่สามซ้อนกันก่อนถึงปฏิทิน กินไปเกือบ 100px โดยไม่ได้บอกอะไรใหม่
+          (user รายงาน 2026-08-11: "padding เยอะ ไม่เหมือนหน้าสร้างรายการ") — ชีตที่ผู้ใช้ยกมา
+          เทียบก็ไม่มีชั้นนี้ ขึ้นแถบเดือนต่อจากหัวแผ่นเลย
+
+          ดรอปดาวน์เลือกคิวยังต้องอยู่ (ร้านหลายคิวต้องดูแยกคิวได้บนเครื่องที่ใช้จริงทุกวัน)
+          แต่ยืนเป็นแถวของตัวเองแทนการเป็นของแถมในหัวข้อ — และหายไปเลยเมื่อมีคิวเดียว
+          เพราะดรอปดาวน์ที่มีตัวเลือกเดียวคือช่องว่างที่กดไม่ได้ */}
+      {resources.length > 1 && (
+        <div className="border-default-200 flex items-center gap-2 border-b border-dashed px-4 py-2.5">
           <select
-            className="form-select w-auto max-w-40 shrink-0 text-sm"
+            className="form-select w-full text-sm"
             value={resourceId}
             onChange={(e) => setResourceId(e.target.value)}
             aria-label="เลือกคิวงานที่จะดู"
@@ -239,8 +241,8 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
               </option>
             ))}
           </select>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* แถบเดือน — วาดหัวเรื่อง พ.ศ. เอง (FullCalendar ให้ ค.ศ.)
           min-h-11/min-w-11 บนปุ่มไอคอน: `.btn.btn-icon` ของธีม = 37px ต่ำกว่าเกณฑ์ 44px
@@ -433,7 +435,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
             /* วันว่าง = ผลลัพธ์ที่ดีของจอนี้ (ยังรับงานได้) ไม่ใช่ความล้มเหลว — น้ำเสียงจึงไม่ใช่
                "ไม่พบข้อมูล" และไอคอนเป็นเทากลาง **ไม่ใช่เขียว** เพราะเขียวสงวนไว้กับสัญญาณ
                ความเชื่อใจที่ยืนยันแล้ว (Verified-Means-Green) ว่างไม่ใช่ trust signal */
-            <div className="flex flex-col items-center justify-center gap-2 px-6 py-8 text-center">
+            <div className="flex flex-col items-center justify-center gap-2 px-6 py-6 text-center">
               <span className="bg-default-200 text-default-500 flex size-11 items-center justify-center rounded-full">
                 <Icon icon="calendar-check" className="size-5" />
               </span>
