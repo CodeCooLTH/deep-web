@@ -55,6 +55,7 @@ import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
 
+import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
 import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
 import TrustPill from './TrustPill'
@@ -1223,6 +1224,9 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           )}
 
         </Box>
+
+        {/* ท้ายหน้าชุดเดียวกับหน้าโปรไฟล์ร้านสาธารณะ — ดูเหตุผลที่ `PublicProfileFooter` */}
+        <PublicProfileFooter />
       </Box>
 
       {/* ── Bottom CTA bar sticky — เฉพาะ canConfirm (PENDING/SHIPPED) ── */}

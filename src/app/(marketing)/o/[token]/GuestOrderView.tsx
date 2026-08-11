@@ -24,6 +24,7 @@ import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import { Icon } from '@iconify/react'
 
+import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { LinkButton } from '@/app/(marketing)/_components/mui-link'
@@ -342,6 +343,9 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             ปกป้องการซื้อขายโดย Deep
           </Typography>
         </Box>
+
+        {/* ท้ายหน้าชุดเดียวกับหน้าโปรไฟล์ร้านสาธารณะ — ดูเหตุผลที่ `PublicProfileFooter` */}
+        <PublicProfileFooter />
       </Box>
 
       {/* ── CTA ล่างจอ — จุดเดียวที่พาไป login เป็นหลัก ── */}

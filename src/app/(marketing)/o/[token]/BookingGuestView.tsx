@@ -24,6 +24,7 @@ import Divider from '@mui/material/Divider'
 import { Icon } from '@iconify/react'
 import { formatDateTH } from '@/lib/format-date'
 import { uploadFileId } from '@/lib/upload-client'
+import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
 import BrandHomeLink from './BrandHomeLink'
 
 export type BookingGuestData = {
@@ -248,6 +249,9 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
           )}
         </Box>
       )}
+
+      {/* ท้ายหน้าชุดเดียวกับหน้าโปรไฟล์ร้านสาธารณะ — ดูเหตุผลที่ `PublicProfileFooter` */}
+      <PublicProfileFooter />
     </Box>
   )
 }
