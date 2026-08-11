@@ -86,6 +86,7 @@ import { generateInitials } from '@/utils/helpers'
 // แต่ยังเก็บเวลาเต็มไว้ใน title ให้ชี้ดูได้ (formatTimeHM มีอยู่แล้ว ไม่ต้องเขียน formatter ใหม่)
 import { formatTime, formatTimeHM, formatDateTime } from '@/lib/format-date'
 import { burstIdentity, computeBurstEndIds } from '@/lib/chat-message-burst'
+import { isSelfContainedBubble } from '@/lib/chat-bubble-frame'
 import { useComposerHeight } from '@/hooks/useComposerHeight'
 import { parseMetaSystemNotice, parseMetaAiHandoffNotice, readMetaAiControlMarker } from '@/lib/meta-system-notice'
 import { withEmojiPresentation } from '@/lib/emoji-presentation'
@@ -1570,7 +1571,9 @@ export default function ChatThread({
     setActivePanel(null)
   }
 
-  // composer improvement #4 — เลือกสินค้า: ทุกโหมดเติมลงช่องพิมพ์ (คนตรวจก่อนกดส่งเสมอ) ไม่ส่งเอง
+  // composer improvement #4 — เลือกสินค้า: 3 โหมดแรกเติมลงช่องพิมพ์ (คนตรวจก่อนกดส่งเสมอ)
+  // 🛑 ตั้งแต่ 2026-08-11 มีโหมดที่ 4 ที่ **ส่งออกเอง** — ประโยคเดิมตรงนี้เขียนว่า "ทุกโหมด...ไม่ส่งเอง"
+  // ซึ่งกลายเป็นเท็จตั้งแต่วันที่เพิ่มโหมดนั้น (คอมเมนต์ที่อ้างพฤติกรรมของโค้ดต้องขยับตามโค้ด — HR16)
   // รูปสินค้าที่เป็น URL เต็ม (seed เก่า) แนบไม่ได้ — pendingImage รับเฉพาะ storage fileId ที่ backend
   // ตรวจนามสกุลได้ (route คืน 400 ถ้าไม่ใช่ไฟล์รูป) จึงข้ามรูปแล้วเติมเฉพาะข้อความแทนการส่งค่าที่พัง
   function handleProductPick(payload: ProductPickPayload) {
@@ -2702,12 +2705,18 @@ export default function ChatThread({
                         // ให้ผู้ขายงงว่าทำไมบางทีมีลูกศรเลื่อนบางทีไม่มี)
                         const ownProductCards =
                           m.type === 'PRODUCT' && (m.productCards?.length ?? 0) > 1 ? m.productCards! : null
-                        const bareImage =
-                          m.type === 'ORDER' ||
-                          !!metaOrder ||
-                          !!genericCards ||
-                          !!ownProductCards ||
-                          ((m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body)
+                        // 🛑 ย้ายการตัดสินไปเป็นฟังก์ชันบริสุทธิ์ (2026-08-11) — เดิมเป็น OR ห้าก้อน
+                        // คาไว้ตรงนี้ ซึ่ง "ลืมเคส" ได้โดยไม่มีอะไรฟ้อง (การ์ดสินค้าใบเดียวตกหล่นมา
+                        // ตั้งแต่วันแรกจนโดนครอบกรอบซ้ำ) ดู src/lib/chat-bubble-frame.ts + เทส [blocker]
+                        const bareImage = isSelfContainedBubble({
+                          type: m.type,
+                          hasBody: !!m.body,
+                          hasImageUrl: !!m.imageUrl,
+                          isMetaOrderCard: !!metaOrder,
+                          hasGenericCards: !!genericCards,
+                          productCardsCount: m.productCards?.length ?? 0,
+                          hasResolvedSoloCard: !!m.productCard,
+                        })
                         return (
                           <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary text-white' : 'bg-light'}`}>
                         {m.type === 'ORDER' ? (
@@ -3490,7 +3499,13 @@ export default function ChatThread({
                 // primitive ของธีม (_buttons.css `.btn-sm`, Tailwind `rounded-full`) ไม่ใช่ arbitrary
                 // ปุ่มเล็กลงได้เพราะย้ายเข้ามาในกล่องแล้ว: กล่องทั้งใบคือเป้าสายตาอยู่แล้ว
                 // ปุ่มไม่ต้องแบกหน้าที่ "หาให้เจอ" เหมือนตอนลอยเดี่ยวข้างกล่อง
-                className={`btn btn-sm bg-primary text-white hover:bg-primary-hover shrink-0 rounded-full disabled:opacity-60 ${
+                //
+                // 🛑 `min-h-11 sm:min-h-0` (ux retroactive review 2026-08-11): `.btn-sm` ของธีมคือ
+                // `px-3 py-1.25 text-xs` = สูงจริงราว 30px ต่ำกว่าเกณฑ์ tap target 44px ของ DESIGN.md
+                // ทั้งที่นี่คือปุ่มที่ถูกกดถี่ที่สุดในหน้า. คืนขนาดเดิมที่ `sm:` เพราะเมาส์แม่นกว่านิ้ว
+                // — ท่าเดียวกับปุ่ม "ตอบเอง" ในไฟล์นี้ (พิสูจน์แล้วว่าอยู่ร่วมกับ `btn-sm` ได้โดยไม่
+                // ทำลายทรงพิลล์เล็กที่ user สั่งไว้ 2026-08-06)
+                className={`btn btn-sm bg-primary text-white hover:bg-primary-hover min-h-11 shrink-0 rounded-full disabled:opacity-60 sm:min-h-0 ${
                   lineQuotaCaption ? QUOTA_BUTTON_RING_CLASS[lineQuotaCaption.tone] : ''
                 }`}
               >
