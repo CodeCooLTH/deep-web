@@ -136,7 +136,6 @@ import AiSuggestPanel from './AiSuggestPanel'
 import AppointmentDateSheet from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet'
 import QuickMessageBar from './QuickMessageBar'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
-import ProductMultiSelectSheet from './ProductMultiSelectSheet'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
 
@@ -1150,9 +1149,6 @@ export default function ChatThread({
   const productOpen = activePanel === 'product'
   /** ร้านของเธรดที่เปิดอยู่ — ใช้เป็น key ของแผงสินค้า (ดูเหตุผลที่จุด render) */
   const threadShopIdForPanels = useThreadShopId()
-  // (ส่วนขยาย 2026-08-11) ชีตเลือกหลายชิ้น — ซ้อนบนแผงเลือกสินค้า ปิดแล้วกลับไปแผงเดิม
-  // ไม่รวมเข้า activePanel เพราะไม่ใช่ "แผงที่ 4" ที่แข่งพื้นที่กับอีก 3 แผง แต่เป็นชั้นที่สองของแผงเดิม
-  const [multiSelectOpen, setMultiSelectOpen] = useState(false)
   const togglePanel = (panel: 'quick' | 'ai' | 'product') =>
     setActivePanel((cur) => (cur === panel ? null : panel))
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
@@ -3049,6 +3045,9 @@ export default function ChatThread({
         {/* แผงข้อความสำเร็จรูปย้ายไปวางทับพื้นที่ข้อความด้านบนแล้ว (ดู relative wrapper) —
             ไม่ได้อยู่เหนือ composer เหมือนแผง AI/สินค้าอีกต่อไป */}
 
+        {/* เลือกหลายรายการเป็น "โหมด" ในแผงนี้แล้ว ไม่ใช่ชีตแยก (ยุบ ProductMultiSelectSheet ทิ้ง
+            2026-08-11 — ดูเหตุผลหัวไฟล์ ProductPickerPanel) · ส่งสำเร็จ = ปิดแผงเหมือนโหมด "ส่ง
+            การ์ดสินค้า" ใบเดียว · ส่งไม่สำเร็จ = แผงเปิดค้าง ของที่ติ๊กยังอยู่ครบ กดใหม่ได้ทันที */}
         {productOpen && (
           /* 🛑 key = ร้านของเธรด: ChatThread ไม่ remount ตอนสลับ conversationId (มี effect ผูก
              [conversationId] อยู่จุดเดียวทั้งไฟล์ = หลักฐานว่าไม่ remount) และ activePanel เป็น
@@ -3061,23 +3060,12 @@ export default function ChatThread({
             onPick={handleProductPick}
             disabled={composerDisabled}
             onClose={() => setActivePanel(null)}
-            onOpenMultiSelect={() => setMultiSelectOpen(true)}
-          />
-        )}
-
-        {/* ชีตเลือกหลายชิ้น — ส่งสำเร็จแล้วปิดทั้งชีตและแผงเลือกสินค้า (เหมือนโหมด "ส่งการ์ดสินค้า"
-            ใบเดียวที่ปิดแผงหลังส่ง) · ส่งไม่สำเร็จ = ชีตเปิดค้าง ของที่เลือกยังอยู่ครบ กดใหม่ได้ทันที */}
-        {productOpen && multiSelectOpen && (
-          <ProductMultiSelectSheet
-            key={threadShopIdForPanels}
             channel={channel}
-            disabled={composerDisabled}
-            onSend={async (ids) => {
+            onSendMany={async (ids) => {
               const ok = await sendProductCards(ids)
               if (ok) setActivePanel(null)
               return ok
             }}
-            onClose={() => setMultiSelectOpen(false)}
           />
         )}
 

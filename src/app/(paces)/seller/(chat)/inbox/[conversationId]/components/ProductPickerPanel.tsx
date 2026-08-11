@@ -18,13 +18,29 @@
  * เหตุผลข้อ 1 ยังจริงและเป็นเหตุผลที่ไม่เปลี่ยน 3 โหมดเดิม:
  *   1) พฤติกรรมเดียวกับข้อความสำเร็จรูปที่ user อนุมัติแล้ว (คนตรวจก่อนกดส่งเสมอ)
  *
+ * 🛑 **แก้ 2026-08-11 (รอบสอง): ยุบ `ProductMultiSelectSheet` กลับเข้ามาเป็น "โหมด" ของแผงนี้**
+ * รอบแรกทำเป็นชีตแยกโดยให้เหตุผลว่าสไลด์แนวนอน (การ์ด 112px) ทบทวนของที่เลือกยาก จึงยกโครง grid
+ * ของ QuickMessageBar มาใช้ — **เหตุผลนั้นตอบได้แค่ว่า "ต้องเห็นของที่เลือก" ไม่ได้ตอบว่า "ต้องเป็น
+ * คนละแผง"** สิ่งที่ออกมาคือแผงที่สองซึ่งซ้ำกับแผงนี้เกือบทั้งใบ (fetch เดียวกัน ค้นหา skeleton
+ * empty error การ์ดสินค้า ก็อปมาทั้งชุด) แต่ใช้ไอคอน/ชื่อหัวข้อ/ทรงคนละแบบ → ผู้ขายอ่านว่าเป็น
+ * *คนละฟีเจอร์* ทั้งที่มันคือรายการสินค้าตัวเดิมที่ติ๊กได้ (user ทัก 2026-08-11: "ทำไมต้องแยก panel
+ * ในเมื่อกดตรง icon มันก็แค่เปิดให้เลือกสินค้าได้หลายรายการ" + "มันไม่จำเป็นต้องเป็นกริดก็ได้
+ * มันก็เป็น carousel เหมือนเดิม แต่ทำให้ checked ได้")
+ *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/chat/components/ChatPage.tsx (composer/แถวการ์ด)
  *   + AiSuggestPanel.tsx/QuickMessageBar.tsx ในเธรดนี้ (โครงแผงที่ user อนุมัติแล้ว)
+ *   + VerticalTaxonomyPicker.tsx (เครื่องหมายถูกมุมขวาบนของการ์ดที่ถูกเลือก)
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import ProductThumb from '@/app/(paces)/seller/(dashboard)/orders/new/components/ProductThumb'
 import { useThreadShopId } from '@/app/(paces)/seller/(chat)/_components/DraftOrderProvider'
+import {
+  describeProductSelection,
+  maxSelectableProducts,
+  productCardsPerMessage,
+  productSendButtonLabel,
+} from '@/lib/chat-product-card-batch'
 
 /** field ที่ใช้จริงจาก GET /api/products (serializeProduct คืนมากกว่านี้ — ประกาศเท่าที่ใช้) */
 type PickerProduct = {
@@ -56,9 +72,11 @@ type Props = {
   onPick: (payload: ProductPickPayload) => void
   onClose: () => void
   disabled?: boolean
-  /** (ส่วนขยาย 2026-08-11) เปิดชีต "เลือกหลายชิ้น" — ChatThread เป็นคนเรนเดอร์ชีต เพราะแผงนี้
-   *  ไม่รู้จัก conversationId/channel ซึ่งชีตต้องใช้ตัดสินเพดานต่อข้อความ */
-  onOpenMultiSelect?: () => void
+  /** ช่องทางของเธรด — ตัวกำหนดเพดานการ์ดต่อข้อความ/เพดานรวม (ดู lib/chat-product-card-batch) */
+  channel: string
+  /** ส่งการ์ดหลายใบ — คืน true เมื่อสำเร็จ (แผงปิดเอง); false = คงโหมดเลือกหลายรายการและของที่
+   *  เลือกไว้ครบ กดใหม่ได้ทันทีโดยไม่ต้องไล่ติ๊กใหม่ */
+  onSendMany: (productIds: string[]) => Promise<boolean>
 }
 
 /** รูปแรกของสินค้า — seed เก่าบางตัวเก็บเป็น URL เต็ม (picsum/CDN) ไม่ใช่ storage fileId
@@ -71,12 +89,22 @@ function imageSrc(images: string[]): string | null {
 
 const priceText = (p: number) => `฿${p.toLocaleString('th-TH')}`
 
-export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMultiSelect }: Props) {
+export default function ProductPickerPanel({ onPick, onClose, disabled, channel, onSendMany }: Props) {
   const [items, setItems] = useState<PickerProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [q, setQ] = useState('')
   const [selected, setSelected] = useState<PickerProduct | null>(null)
+  /** โหมดเลือกหลายรายการ — สไลด์ตัวเดิมทุกประการ ต่างแค่ "แตะแล้วติ๊ก" แทน "แตะแล้วไปหน้าเลือกรูปแบบ" */
+  const [multi, setMulti] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [sending, setSending] = useState(false)
+
+  const perMessage = productCardsPerMessage(channel)
+  const maxSelectable = maxSelectableProducts(channel)
+  const count = selectedIds.length
+  const selection = describeProductSelection(count, perMessage)
+  const atMax = count >= maxSelectable
 
   /**
    * ร้านของเธรดที่เปิดอยู่ (feature 00037) — **ไม่ใช่ร้านที่ active**
@@ -112,16 +140,21 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMu
     load()
   }, [load])
 
+  /**
+   * Escape ถอย "ทีละชั้น" ไม่ปิดรวดเดียว — กดพลาดแล้วต้องเริ่มใหม่คือการทำลายงานของผู้ใช้ด้วยปุ่มเดียว
+   * ลำดับ: หน้าเลือกรูปแบบ → รายการ · มีของติ๊กค้าง → ล้างของที่ติ๊ก · อยู่โหมดหลายรายการ → กลับโหมดเดิม
+   */
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return
-      // Escape ในหน้าเลือกรูปแบบ = ถอยกลับไปรายการก่อน ไม่ปิดทั้งแผง (กันกดพลาดแล้วต้องเริ่มใหม่)
+      if (e.key !== 'Escape' || sending) return
       if (selected) setSelected(null)
+      else if (count > 0) setSelectedIds([])
+      else if (multi) setMulti(false)
       else onClose()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose, selected])
+  }, [onClose, selected, multi, count, sending])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -148,6 +181,30 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMu
     setSelected(null)
   }
 
+  function toggle(id: string) {
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id)
+      if (prev.length >= maxSelectable) return prev // เพดานรวม — ใบที่ยังไม่ติ๊กถูก disable อยู่แล้ว
+      return [...prev, id]
+    })
+  }
+
+  /** ออกจากโหมดหลายรายการ = ทิ้งของที่ติ๊กไว้เสมอ ไม่ให้ค้างเป็นสถานะที่มองไม่เห็นในโหมดเดิม */
+  function leaveMulti() {
+    setMulti(false)
+    setSelectedIds([])
+  }
+
+  async function handleSendMany() {
+    if (count === 0 || sending || disabled) return
+    setSending(true)
+    try {
+      await onSendMany(selectedIds) // สำเร็จ → ChatThread ปิดทั้งแผงเอง (แผงนี้ unmount ไปแล้ว)
+    } finally {
+      setSending(false)
+    }
+  }
+
   return (
     <div className="border-default-300 bg-info/5 -mx-4 -mt-3 mb-3 border-b border-dashed px-4 py-2 sm:-mx-6 sm:-mt-3.75 sm:px-6">
       <div className="flex items-center justify-between pb-1.5">
@@ -172,26 +229,39 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMu
           )}
         </span>
         <span className="flex items-center gap-1">
-          {/* (ส่วนขยาย 2026-08-11) เลือกหลายชิ้น — โผล่เฉพาะหน้ารายการ ไม่ใช่หน้าเลือกรูปแบบการส่ง
-              (ตรงนั้นผู้ใช้เลือกสินค้าไปแล้ว 1 ชิ้น การกดตรงนี้จะกำกวมว่าของที่เลือกไว้หายไปไหน) */}
-          {!selected && onOpenMultiSelect && (
+          {/* สวิตช์โหมดหลายรายการ — โผล่เฉพาะหน้ารายการ ไม่ใช่หน้าเลือกรูปแบบการส่ง (ตรงนั้นผู้ใช้
+              เลือกสินค้าไปแล้ว 1 ชิ้น การกดตรงนี้จะกำกวมว่าของที่เลือกไว้หายไปไหน)
+
+              🛑 ต้องมี "ข้อความ" ไม่ใช่ไอคอนเปล่า (user สั่ง 2026-08-11) — ไอคอน `square-check`
+              เดี่ยว ๆ อ่านไม่ออกว่ามันทำอะไร มี aria-label ก็ช่วยเฉพาะ screen reader คนที่มองเห็น
+              ต้องเดาเอาเอง (คลาสเดียวกับป้ายพฤติกรรมลูกค้าที่เพิ่งแก้ไปคอมมิต 81f66bc0)
+              เป็น toggle จริง ๆ (aria-pressed) ไม่ใช่ประตูไปแผงอื่น — กดซ้ำกลับโหมดเดิมได้
+
+              min-h-11 sm:min-h-7 — 44px เฉพาะจอที่กดด้วยนิ้ว ส่วนจอกว้าง (rail ในเดสก์ท็อป = เมาส์)
+              ยุบกลับให้เท่าปุ่มปิดข้าง ๆ ไม่ให้หัวแผงบวมกินพื้นที่เธรด. ท่าเดียวกับปุ่ม "ตอบเอง"
+              ของแถบ Meta AI ใน ChatThread.tsx ไฟล์เดียวกันนี้ */}
+          {!selected && (
             <button
               type="button"
-              onClick={onOpenMultiSelect}
-              disabled={disabled}
-              aria-label="เลือกสินค้าหลายชิ้น"
-              className={`text-default-700 hover:text-info flex size-7 items-center justify-center rounded ${
-                disabled ? 'pointer-events-none opacity-50' : ''
-              }`}
+              onClick={() => (multi ? leaveMulti() : setMulti(true))}
+              disabled={disabled || sending}
+              aria-pressed={multi}
+              className={`flex min-h-11 items-center gap-1 rounded px-1.5 text-xs font-medium transition-colors sm:min-h-7 ${
+                multi ? 'bg-info/15 text-info' : 'text-default-700 hover:text-info'
+              } ${disabled || sending ? 'pointer-events-none opacity-50' : ''}`}
             >
-              <Icon icon="square-check" className="text-base" />
+              <Icon icon={multi ? 'square-check-filled' : 'square-check'} className="text-base" />
+              เลือกหลายรายการ
             </button>
           )}
           <button
             type="button"
             onClick={onClose}
             aria-label="ปิด"
-            className="text-default-700 hover:text-default-800 flex size-7 items-center justify-center rounded"
+            disabled={sending}
+            className={`text-default-700 hover:text-default-800 flex size-7 items-center justify-center rounded ${
+              sending ? 'pointer-events-none opacity-50' : ''
+            }`}
           >
             <Icon icon="x" className="text-base" />
           </button>
@@ -262,10 +332,14 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMu
               มาให้เป็นแบบ) — Base: (dashboard)/dashboard/components/BestSellerStrip.tsx ทั้งการ์ด
               (w-28 / ProductThumb aspect-video / ชื่อ line-clamp-2 min-h-8 / ราคา bold primary /
               บรรทัดที่ 3 เป็น meta) และพฤติกรรม scroll-snap + ซ่อน scrollbar
-              ต่างจากต้นแบบแค่ปลายทางของการกด: ที่นั่น
-              navigate ไป /orders/new ที่นี่เปิดหน้าเลือกรูปแบบการส่ง */}
+              ต่างจากต้นแบบแค่ปลายทางของการกด: ที่นั่น navigate ไป /orders/new ที่นี่เปิดหน้าเลือก
+              รูปแบบการส่ง — หรือ "ติ๊กเลือก" เมื่ออยู่โหมดหลายรายการ
+
+              -mx-0.5 px-0.5: กล่องนี้ overflow-x-auto จึงตัดทุกอย่างที่ล้นขอบ — ring ของการ์ดที่ถูก
+              ติ๊กวาดนอก layout box 2px ใบซ้ายสุดตอน scrollLeft=0 จะโดนตัดหายไปข้างเดียว เผื่อที่ให้
+              แล้วดึงกลับด้วย margin ติดลบ ตำแหน่งการ์ดจึงเท่าเดิมทุกประการ */}
           <div
-            className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-contain pb-1 [&::-webkit-scrollbar]:hidden"
+            className="-mx-0.5 flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-contain px-0.5 pb-1 [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: 'none' }}
           >
             {loading ? (
@@ -288,17 +362,29 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMu
             ) : (
               filtered.map((p) => {
                 const src = imageSrc(p.images)
+                const isSelected = multi && selectedIds.includes(p.id)
+                // เต็มเพดานรวมแล้ว → ใบที่ยังไม่ติ๊กกดไม่ได้ (ใบที่ติ๊กแล้วยังกดเอาออกได้เสมอ)
+                const blocked = multi && !isSelected && atMax
+                const off = disabled || sending || blocked
                 return (
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => setSelected(p)}
-                    disabled={disabled}
+                    onClick={() => (multi ? toggle(p.id) : setSelected(p))}
+                    disabled={off}
+                    aria-pressed={multi ? isSelected : undefined}
                     aria-label={`${p.name} ${formatThb(p.price)}`}
-                    className={`w-28 shrink-0 snap-start overflow-hidden rounded-xl border border-default-200 bg-card text-left transition-transform duration-150 hover:shadow-sm active:scale-95 ${
-                      disabled ? 'pointer-events-none opacity-50' : ''
-                    }`}
+                    /* ติ๊กแล้วใช้ ring ไม่ใช่ border-2 — ความหนาขอบที่เปลี่ยนจะดันการ์ดทั้งแถวขยับ 1px
+                       ทุกครั้งที่ติ๊ก/เอาออก (ring วาดนอก layout box จึงไม่กระทบเพื่อนบ้าน) */
+                    className={`bg-card relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border text-left transition-transform duration-150 hover:shadow-sm active:scale-95 ${
+                      isSelected ? 'border-info ring-info ring-2' : 'border-default-200'
+                    } ${off ? 'pointer-events-none opacity-50' : ''}`}
                   >
+                    {isSelected && (
+                      <span className="bg-card absolute end-1.5 top-1.5 z-10 rounded-full p-0.5 shadow-sm">
+                        <Icon icon="circle-check-filled" className="text-info size-5" />
+                      </span>
+                    )}
                     {/* ProductThumb + aspect-video ชุดเดียวกับ BestSellerStrip (user สั่ง 2026-08-06
                         "ทำให้เหมือนสินค้าขายดีใน command center"): รูป 96×96 จัตุรัสของเดิมกินเกินครึ่ง
                         การ์ด และร้านส่วนใหญ่สินค้าไม่มีรูป ⇒ กล่องเทาว่างเป็นตัวเด่นที่สุดของแผง.
@@ -332,11 +418,58 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMu
         </>
       )}
 
-      {/* หนี้ที่ ux ชี้ 2026-08-11: ข้อความเดิมเขียนว่า "ทุกโหมดเติมช่องพิมพ์" ซึ่งไม่จริงตั้งแต่มี
-          โหมด "ส่งการ์ดสินค้า" ที่ส่งออกทันที — แยกคำตามหน้าที่ผู้ใช้อยู่จริง */}
-      <div className="text-default-700 pt-1.5 text-2xs">
-        {selected ? 'การ์ดสินค้าส่งออกทันที — อีก 3 แบบจะไปอยู่ในช่องพิมพ์ให้แก้ก่อนส่ง' : 'แตะสินค้าเพื่อเลือกรูปแบบการส่ง'}
-      </div>
+      {/* แถบส่งของโหมดหลายรายการ — โผล่เฉพาะตอนอยู่โหมดนั้นและอยู่หน้ารายการ
+          🛑 ป้าย "จะแบ่งเป็นกี่ข้อความ" ต้องอยู่ **ก่อนกดส่ง** (มติ user 2026-08-11) และอยู่ 2 จุด
+          (บรรทัดสถานะ + บนตัวปุ่มเอง) — ผู้ขายที่ตากวาดไปที่ปุ่มอย่างเดียวต้องเห็นเหมือนกัน
+          warning ไม่ใช่ danger: เกินเพดานต่อการ์ดไม่ใช่ความผิดพลาด ยังกดส่งได้ปกติ */}
+      {multi && !selected ? (
+        <div className="border-default-300 mt-1.5 border-t border-dashed pt-2">
+          {selection.exceedsPerMessage && (
+            <div className="bg-warning/15 text-warning-ink mb-2 flex items-start gap-1.5 rounded px-2 py-1.5 text-xs">
+              <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
+              <span>{selection.text}</span>
+            </div>
+          )}
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <span className="text-default-700 min-w-0 truncate text-xs" aria-live="polite">
+              {selection.exceedsPerMessage ? `เลือกแล้ว ${count} รายการ` : selection.text}
+            </span>
+            {count > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                disabled={sending}
+                className="text-default-700 hover:text-danger shrink-0 text-xs"
+              >
+                ล้างทั้งหมด
+              </button>
+            )}
+          </div>
+          {atMax && (
+            <p className="text-default-700 mb-1.5 text-2xs">เลือกได้สูงสุด {maxSelectable} รายการต่อการส่งหนึ่งครั้ง</p>
+          )}
+          <button
+            type="button"
+            onClick={handleSendMany}
+            disabled={count === 0 || sending || disabled}
+            className="btn bg-primary min-h-11 w-full text-white disabled:opacity-50"
+          >
+            {sending ? (
+              <>
+                <Icon icon="loader-2" className="me-1 animate-spin" aria-hidden="true" /> กำลังส่ง…
+              </>
+            ) : (
+              productSendButtonLabel(count, perMessage)
+            )}
+          </button>
+        </div>
+      ) : (
+        /* หนี้ที่ ux ชี้ 2026-08-11: ข้อความเดิมเขียนว่า "ทุกโหมดเติมช่องพิมพ์" ซึ่งไม่จริงตั้งแต่มี
+           โหมด "ส่งการ์ดสินค้า" ที่ส่งออกทันที — แยกคำตามหน้าที่ผู้ใช้อยู่จริง */
+        <div className="text-default-700 pt-1.5 text-2xs">
+          {selected ? 'การ์ดสินค้าส่งออกทันที — อีก 3 แบบจะไปอยู่ในช่องพิมพ์ให้แก้ก่อนส่ง' : 'แตะสินค้าเพื่อเลือกรูปแบบการส่ง'}
+        </div>
+      )}
     </div>
   )
 }
