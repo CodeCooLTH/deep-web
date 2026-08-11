@@ -28,7 +28,7 @@ related: ["[[SRS]]", "[[API]]", "[[DATABASE]]"]
 | ชั้น | ของใหม่ | ของเดิมที่ใช้ซ้ำ |
 |------|---------|------------------|
 | lib (pure) | `src/lib/line/rich-menu.ts` · `src/lib/line/rich-menu-templates.ts` | `constants.ts` · `postback.ts` · `reply-window.ts` |
-| lib (client) | `src/lib/line/rich-menu-canvas.ts` (เรนเดอร์ภาพ) | `@/lib/upload-client` |
+| lib (client) | `src/lib/line/rich-menu-canvas.ts` — `renderRichMenuImage` (โหมด AUTO) · `prepareCustomMenuImage` (ตรวจ+ย่อ+บีบอัดภาพของร้าน) · `renderRichMenuBlueprint` (แบบร่าง PNG ให้กราฟิก) | `@/lib/upload-client` |
 | service | `src/services/line-rich-menu.service.ts` | `channel-chat.service.ts` (โทเคน/ส่งข้อความ) |
 | api | `src/app/api/channels/line/rich-menu/**` | `/api/uploads/*` · `guardApi` |
 | ui | หน้าตั้งค่าใต้ `(paces)/seller/settings/channels/**` | `pacesToast` · `pacesConfirm` |

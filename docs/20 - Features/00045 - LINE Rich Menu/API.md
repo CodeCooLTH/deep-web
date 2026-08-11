@@ -80,6 +80,11 @@ API ของฟีเจอร์นี้เป็น **ฝั่งตั้�
 
 **Body:** `{ shopChannelId, templateKey, chatBarText, buttons[], imageFileId }`
 
+🛑 `templateKey` รับได้ทั้งคีย์เทมเพลตของระบบ และรูป `custom:<layoutKey>` (โหมดร้านอัปโหลดภาพเอง —
+D-RM-2b) · จำนวนสมาชิกใน `buttons` ต้องเท่าจำนวนช่องของเลย์เอาต์นั้น ไม่งั้น `activate` จะตกด้วย
+`RICH_MENU_BUTTON_COUNT_MISMATCH` (ตรวจตอนประกอบ payload ไม่ใช่ตอนบันทึกร่าง — ร้านบันทึกร่างที่ยัง
+ไม่ครบไว้ก่อนได้)
+
 **Validation (Valibot):**
 - `chatBarText` 1–14 **code point** — 🛑 นับด้วย `Array.from(s).length` ไม่ใช่ `s.length`
   (สระ/วรรณยุกต์ไทยเป็น code point แยก และ `.length` ของ JS นับ UTF-16 unit ซึ่งไม่ตรงกับที่ LINE นับ)

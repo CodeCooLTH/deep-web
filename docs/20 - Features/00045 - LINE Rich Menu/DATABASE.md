@@ -62,7 +62,7 @@ erDiagram
 | `id` | String (uuid) | ไม่ | `uuid()` | PK |
 | `shopChannelId` | String | ไม่ | — | FK → `ShopChannel.id` **`@unique`** (1 เพจ = ไม่เกิน 1 เมนูในระบบเรา) · `onDelete: Cascade` |
 | `lineRichMenuId` | String | ได้ | `null` | id ที่ LINE คืนมา — 🛑 **`null` = DRAFT (ยังไม่เคยสร้างบน LINE)** ไม่ใช่ "ปิดอยู่" |
-| `templateKey` | String | ไม่ | — | คีย์เทมเพลตที่ร้านเลือก (ผูกกับ `Shop.vertical`) |
+| `templateKey` | String | ไม่ | — | คีย์เทมเพลต **หรือ** โหมด+เลย์เอาต์ที่ร้านเลือก · 🛑 `custom:<layoutKey>` = ร้านอัปโหลดภาพเอง (D-RM-2b) · ค่าอื่น = เทมเพลตของระบบ (ผูกกับ `Shop.vertical`) — **ไม่มีคอลัมน์แยกโดยตั้งใจ** เพราะคอลัมน์นี้ตอบคำถาม "เมนูนี้ประกอบจากอะไร" อยู่แล้ว เพิ่มคอลัมน์ = ข้อมูลสองที่ที่ต้องคอยให้ตรงกัน (TD-RM-8) · อ่านด้วย `parseTemplateKey()` ซึ่ง fail-closed ถอยไป AUTO เมื่อคีย์ไม่รู้จัก |
 | `chatBarText` | String | ไม่ | — | คำบนแถบเปิดเมนู — 🛑 **≤14 ตัวอักษร** (เพดานของ LINE) |
 | `buttons` | Json | ไม่ | — | อาร์เรย์ปุ่ม: `{ key, label, action }` เรียงตามตำแหน่งบนภาพ |
 | `imageFileId` | String | ได้ | `null` | ไฟล์ภาพใน storage ที่จะอัปโหลดไป LINE |
@@ -132,6 +132,7 @@ CREATE TABLE "LineRichMenu" (
 - `imageFileId` ที่ถูกแทนที่ตอนแก้ไขจะกลายเป็นไฟล์กำพร้าใน bucket — ยอมรับได้ในรอบนี้ (ไฟล์ละ <1MB
   จำนวนเท่ากับจำนวนครั้งที่ร้านแก้เมนู) แต่บันทึกเป็นหนี้ไว้ เป็นคลาสเดียวกับไฟล์ที่ commit ไม่สำเร็จ
   ซึ่งยังไม่มีตัวเก็บกวาดเหมือนกัน
+- 🛑 **จำนวนสมาชิกใน `buttons` ต้องเท่าจำนวนช่องของเลย์เอาต์ใน `templateKey` เสมอ** — DB บังคับให้ไม่ได้ ต้องกันที่ `buildRichMenuPayload()` (`RICH_MENU_BUTTON_COUNT_MISMATCH`) ไม่งั้นได้ช่องที่ไม่มี action หรือปุ่มที่ไม่มีช่อง ซึ่งเงียบสนิททั้งคู่
 - `buttons` เป็น JSON ที่ **ไม่มี type บังคับที่ระดับ DB** — ต้อง validate ด้วย Valibot ทุกทางเข้า
   และเมื่อเพิ่มชนิดปุ่มใหม่ต้องอ่านแบบ allow-list + fail-closed (`docs/conventions/enum-value-removal.md`)
 
