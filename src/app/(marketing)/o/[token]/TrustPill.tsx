@@ -29,6 +29,11 @@ import { VERIFY_BADGE_PALETTE, type VerifyBadgeTone } from '@/lib/verify-badge'
  */
 export const VERIFIED_INK = VERIFY_BADGE_PALETTE.green.fg
 
+/** พื้นคู่ของ `VERIFIED_INK` — อ่านจาก SSOT เดียวกัน ไม่เขียนค่า rgba ซ้ำที่หน้าจอ
+ *  (audit 2026-08-11 พบว่า GuestOrderView hardcode `rgba(40,199,111,0.15)` ไว้ทั้งที่ import
+ *  `VERIFIED_INK` จาก palette ตัวเดียวกันนี้มาใช้อยู่แล้วในบรรทัดข้าง ๆ กัน) */
+export const VERIFIED_BG = VERIFY_BADGE_PALETTE.green.bg
+
 export default function TrustPill({
   tone,
   label,
