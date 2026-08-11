@@ -71,6 +71,8 @@ type OrderLike = {
   }>
   shop: {
     shopName: string
+    /** โลโก้ร้าน — มาก่อนรูปส่วนตัวของเจ้าของเสมอ (ดูหมายเหตุที่จุด map) */
+    logo: string | null
     user: { displayName: string | null; username: string; trustScore: number; avatar: string | null }
   }
   shipmentTracking: { provider: string; trackingNo: string } | null
@@ -127,7 +129,17 @@ export function buildGuestOrderData(
         displayName: order.shop.user.displayName,
         username: order.shop.user.username,
         trustScore: order.shop.user.trustScore,
-        avatar: order.shop.user.avatar ?? null,
+        /* 🛑 โลโก้ร้านมาก่อนรูปส่วนตัวของเจ้าของเสมอ — ลำดับเดียวกับ /u/[username]/page.tsx
+           ("toFileUrl(user.shop?.logo) ?? profileHeader.profileImg")
+
+           เดิมจอนี้หยิบ `user.avatar` อย่างเดียว ทั้งที่ query มี `shop.logo` มาให้อยู่แล้ว
+           (มาจาก `include: { shop: { include: { user } } }` ซึ่งคืน scalar ของ Shop ครบทุกตัว)
+           ⇒ ผู้ซื้อที่กำลังจะโอนเงินเห็น "รูปส่วนตัวของเจ้าของร้าน" แทนโลโก้ร้าน แล้วพอกดปุ่ม
+           ไปจอถัดไป (sign-in) ซึ่ง select ถูกอยู่แล้ว จะเห็นโลโก้ร้านจริง = ร้านเดียวกัน คนละรูป
+           ห่างกันไม่กี่วินาที ตรงจุดที่ระบบต้องพิสูจน์ตัวตนที่สุด
+
+           คง fallback ไป avatar ไว้เป็นชั้นสอง เพราะร้านบุคคลที่ยังไม่อัปโหลดโลโก้มีจริง */
+        avatar: order.shop.logo ?? order.shop.user.avatar ?? null,
       },
     },
     maxVerifyLevel,

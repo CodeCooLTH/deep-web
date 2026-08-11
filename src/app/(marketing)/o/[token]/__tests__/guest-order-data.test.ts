@@ -44,6 +44,7 @@ function makeOrder(over: Record<string, unknown> = {}) {
     ],
     shop: {
       shopName: 'ร้านทดสอบ',
+      logo: null,
       user: { displayName: 'เจ้าของร้าน', username: 'shop1', trustScore: 26, avatar: null },
     },
     shipmentTracking: null,
@@ -158,5 +159,39 @@ describe('buildGuestOrderData', () => {
 
   it('carrierStatus ส่งต่อไปให้คำนวณ stage ได้ (BR-BOE-12)', () => {
     expect(buildGuestOrderData(makeOrder(), 1).carrierStatus).toBe('in_transit')
+  })
+
+  /* 🛑 [blocker] รูปที่ผู้ซื้อเห็นบนจอที่กำลังจะโอนเงิน ต้องเป็น "โลโก้ร้าน" ไม่ใช่รูปส่วนตัว
+     ของเจ้าของ — จอถัดไป (sign-in) เลือกด้วยกฎนี้อยู่แล้ว ถ้าสองจอเลือกคนละกฎ ผู้ซื้อจะเห็น
+     ร้านเดียวกันเป็นคนละรูปห่างกันไม่กี่วินาที
+
+     ⚠️ fixture ในไฟล์นี้ cast `as never` ทั้งก้อน ⇒ TypeScript จับ field ที่หายไปจาก shop
+     ไม่ได้เลย เทสคู่นี้จึงเป็นด่านเดียวที่เหลืออยู่ ห้ามลบ */
+  it('[blocker] มีโลโก้ร้าน → ใช้โลโก้ร้าน ไม่ใช่รูปส่วนตัวของเจ้าของ', () => {
+    const out = buildGuestOrderData(
+      makeOrder({
+        shop: {
+          shopName: 'ร้านทดสอบ',
+          logo: 'shop-logo.png',
+          user: { displayName: 'เจ้าของร้าน', username: 'shop1', trustScore: 26, avatar: 'owner-selfie.jpg' },
+        },
+      }),
+      1,
+    )
+    expect(out.shop.user.avatar).toBe('shop-logo.png')
+  })
+
+  it('[blocker] ไม่มีโลโก้ร้าน → ตกไปใช้รูปเจ้าของ (ร้านบุคคลที่ยังไม่อัปโหลดโลโก้)', () => {
+    const out = buildGuestOrderData(
+      makeOrder({
+        shop: {
+          shopName: 'ร้านทดสอบ',
+          logo: null,
+          user: { displayName: 'เจ้าของร้าน', username: 'shop1', trustScore: 26, avatar: 'owner-selfie.jpg' },
+        },
+      }),
+      1,
+    )
+    expect(out.shop.user.avatar).toBe('owner-selfie.jpg')
   })
 })

@@ -276,8 +276,10 @@ export default async function PublicOrderPage({ params }: Props) {
           displayName: order.shop.user.displayName,
           username: order.shop.user.username,
           trustScore: order.shop.user.trustScore,
-          // raw avatar URL — pattern เดียวกับ /u/[username]/page.tsx:109 (S-1 T1)
-          avatar: order.shop.user.avatar ?? null,
+          /* raw URL — ลำดับเดียวกับ /u/[username]/page.tsx: โลโก้ร้านมาก่อนรูปส่วนตัวเจ้าของ
+             (เหตุผลเต็มอยู่ที่ guest-order-data.ts จุดเดียวกัน — ทั้งสองจอต้องเลือกรูปด้วยกฎ
+             เดียวกัน ไม่งั้นก่อนล็อกอินกับหลังล็อกอินจะเห็นคนละรูปของร้านเดียวกัน) */
+          avatar: order.shop.logo ?? order.shop.user.avatar ?? null,
         },
       },
       // feature 00022 — ลำดับความสำคัญ: สิ่งที่ร้าน "แจ้งเอง" มาก่อนเสมอ
