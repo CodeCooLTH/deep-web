@@ -70,6 +70,22 @@ export default async function PublicOrderPage({ params }: Props) {
 
     const session = await getServerSession(authOptions)
 
+    /**
+     * 🛑 "มี session" ไม่ได้แปลว่า "รู้ว่าเป็นใคร" — session callback ใน `lib/auth.ts` เติม
+     * `user.id` ให้เฉพาะตอน `token.userId` resolve เป็นแถว User ได้จริงเท่านั้น
+     * (`if (token.userId)` + `if (user)`) โทเคนที่ออกก่อนมีฟิลด์นั้น หรือผู้ใช้ที่ถูกลบ/purge
+     * ไปแล้ว จะได้ object session ที่ไม่เป็น null แต่ `user.id` เป็น undefined
+     *
+     * ของเดิมเขียน `session.user as { id: string }` แล้วยิง prisma ด้วยค่านั้นทันที —
+     * TypeScript เชื่อ cast ทุกตัวอักษร แต่ runtime ได้ `where: { id: undefined }` ซึ่ง Prisma
+     * โยน PrismaClientValidationError ⇒ **ทั้งหน้าเป็น 500** (user เจอบน prod 2026-08-11,
+     * digest 3758181775). cast คือสิ่งที่ปิดตาไม่ให้เห็นเคสนี้ตั้งแต่ต้น
+     *
+     * ตกลงไปทาง guest แทนการพัง: จอ guest แสดงออเดอร์ใบเดียวกันได้อยู่แล้วและไม่ต้องรู้ตัวตน
+     * ส่วน action ที่ผูกตัวตน (ยืนยันรับของ/รีวิว) อยู่หลังด่าน login เหมือนเดิมทุกประการ
+     */
+    const sessionUserId = (session?.user as { id?: string } | undefined)?.id ?? null
+
     // ── ไม่มี session → guest view (feature 00041, มติ D-1 ของ user) ────────────────
     // เดิมบรรทัดนี้ redirect ไป sign-in ทันที ซึ่งเป็นมติของ feature 00015 — ผลจริงบน prod คือ
     // 0/73 ใบมีผู้ซื้อเข้ามาเลย (00015 เขียนความเสี่ยงนี้ไว้เองว่ารุนแรงสูง แล้วมันเกิดจริง 100%)
@@ -77,7 +93,7 @@ export default async function PublicOrderPage({ params }: Props) {
     // 🛑 สิ่งที่ **ไม่** เปลี่ยน: ทุก action ที่ผูกตัวตนยังบังคับ login เหมือนเดิมทุกประการ —
     // กติกา ownership/claim ของ 00015 อยู่ใต้บรรทัดนี้ทั้งหมดและไม่ถูกแตะเลย
     // ที่เปลี่ยนคือ "ก่อน login เห็นอะไรได้บ้าง" เท่านั้น
-    if (!session) {
+    if (!session || !sessionUserId) {
       // BOOKING ยังคง redirect เหมือนเดิม — flow การจองไม่อยู่ในขอบเขตรอบนี้ (SRS §1.2)
       if (order.type === 'BOOKING') {
         redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
@@ -141,11 +157,11 @@ export default async function PublicOrderPage({ params }: Props) {
       )
     }
 
-    const sessionUser = session.user as { id: string; justAuthedViaPhoneOtp?: boolean }
+    const sessionUser = session.user as { justAuthedViaPhoneOtp?: boolean }
 
     // session callback ไม่ include phone ดิบใน session.user (PII) → resolve แยกด้วย findUnique
     const me = await prisma.user.findUnique({
-      where: { id: sessionUser.id },
+      where: { id: sessionUserId },
       select: { phone: true },
     })
 
@@ -157,7 +173,7 @@ export default async function PublicOrderPage({ params }: Props) {
         status: order.status,
       },
       {
-        userId: sessionUser.id,
+        userId: sessionUserId,
         phone: me?.phone ?? null,
         justAuthedViaPhoneOtp: !!sessionUser.justAuthedViaPhoneOtp,
       },
@@ -191,7 +207,7 @@ export default async function PublicOrderPage({ params }: Props) {
     }
 
     // ── grant: OWNER_MATCH / PHONE_MATCH_AUTO_CLAIM ───────────────────────────────────
-    await guaranteeOrderLink({ orderId: order.id, userId: sessionUser.id, phone: me?.phone ?? null })
+    await guaranteeOrderLink({ orderId: order.id, userId: sessionUserId, phone: me?.phone ?? null })
 
     /* query verificationRecord ของ shop owner หลัง order resolve
        + หลักฐานร้านชุดเดียวกับที่ guest branch ยิงอยู่แล้ว (user 2026-08-11 "ต้องเห็นทั้งคู่")
