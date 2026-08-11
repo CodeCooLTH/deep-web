@@ -45,6 +45,8 @@ import ResponsiveSheet from './ResponsiveSheet'
 // หน้าจอจะบอกตัวเลขที่ไม่ตรงกับที่ระบบใช้จริง
 import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
 import { getTierChipTone } from '@/lib/trust-tier'
+/* SSOT ของคำ + โทนสีป้ายยืนยันตัวตน — ไฟล์นี้เคยไม่ import เลยแล้ว hardcode สีเอง (ดูหมายเหตุที่ป้าย) */
+import { resolveVerifyBadge, VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
 import { isClampOverflowing } from '@/lib/clamp-overflow'
 import { formatDateTH } from '@/lib/format-date'
 
@@ -281,6 +283,9 @@ export default function ProfileHero({
 }) {
   // สีของช่วงระดับในชิปคะแนน — ผ่านคอนทราสต์แล้วทุกระดับ (ดูเหตุผลใน lib/trust-tier.ts)
   const tierTone = getTierChipTone(data.trustScore)
+  /* null เมื่อยังไม่ยืนยันอะไรเลย — ใช้เป็นเงื่อนไข render ของป้ายมุมรูป แทนการเทียบ `> 0` เอง
+     เพื่อให้ "มีป้ายไหม" กับ "ป้ายพูดว่าอะไร/สีอะไร" ตัดสินจากฟังก์ชันเดียวกันเสมอ */
+  const verifyBadge = resolveVerifyBadge(data.maxVerifyLevel)
 
   const L = data.isLodging ? STAT_LABELS.lodging : data.isServiceQueue ? STAT_LABELS.serviceQueue : STAT_LABELS.general
 
@@ -437,12 +442,23 @@ export default function ProfileHero({
           </div>
           {/* ระดับการยืนยันตัวตนติดที่รูปร้าน (user 2026-08-10) — เขียนคำเต็ม "ระดับ N" ไม่ใช่เลขลอย
               เพราะเลขในวงกลมมุมรูปโปรไฟล์อ่านเป็น "จำนวนแจ้งเตือน" ตามความคุ้นของทุกแอป
-              ใช้เขียว success ถูกตามกฎ Verified-Means-Green (ระดับ > 0 = ยืนยันแล้วจริง)
-              maxVerifyLevel = 0 → ไม่ render เลย ไม่ใช่ขึ้น "ระดับ 0" ซึ่งอ่านเป็นตราลบ */}
-          {data.maxVerifyLevel > 0 && (
+              maxVerifyLevel = 0 → ไม่ render เลย ไม่ใช่ขึ้น "ระดับ 0" ซึ่งอ่านเป็นตราลบ
+
+              🛑 แก้ 2026-08-11: เดิม hardcode `bg-success text-white` **ทุกระดับ** พร้อมคอมเมนต์
+              ที่อ้างว่า "ถูกตามกฎ Verified-Means-Green" — ซึ่งกลับหัวกฎนั้นพอดี `verify-badge.ts`
+              (SSOT) เขียนไว้เองว่าระดับ 1 (ยืนยันแค่เบอร์โทร) **ห้ามเป็นสีเขียว** เพราะให้เขียว
+              เท่าร้านที่จดทะเบียนธุรกิจคือการทำให้สัญญาณเฟ้อ · ไฟล์นี้ไม่เคย import SSOT ตัวนั้นเลย
+              จึงไม่มีอะไรฟ้องว่าละเมิด (คลาสเดียวกับ HR16: สองนิยามที่ "ถูก" ในตัวเอง)
+
+              สีพื้นใช้ค่า `fg` ของแต่ละ tone (โทนเข้มของเฉดนั้น) คู่กับตัวอักษรขาว — ไม่ใช่ `bg`
+              ซึ่งเป็นสีจางโปร่งที่ออกแบบมาสำหรับชิปบนพื้นทึบ ป้ายนี้ลอยอยู่บนขอบรูปโปรไฟล์ที่พื้นหลัง
+              เป็นภาพอะไรก็ได้ พื้นโปร่งจะอ่านไม่ออก · เปลี่ยนแค่ "ความเข้ม" ไม่เปลี่ยนเฉด
+              (docs/conventions/contrast-fix-keeps-hue.md) — L2 ยังเขียว L3 ยังอำพัน L1 เป็นหมึกกลาง */}
+          {verifyBadge && (
             <span
-              className='absolute inline-end-[-4px] block-end-0 inline-flex items-center gap-1 rounded-full plb-0.5 pli-2 text-[11px] font-bold bg-success text-white border-2 border-[var(--mui-palette-background-paper)] whitespace-nowrap'
-              title={`ยืนยันตัวตนระดับ ${data.maxVerifyLevel}`}
+              className='absolute inline-end-[-4px] block-end-0 inline-flex items-center gap-1 rounded-full plb-0.5 pli-2 text-[11px] font-bold text-white border-2 border-[var(--mui-palette-background-paper)] whitespace-nowrap'
+              style={{ backgroundColor: VERIFY_BADGE_PALETTE[verifyBadge.tone].fg }}
+              title={`${verifyBadge.label} (ระดับ ${data.maxVerifyLevel})`}
             >
               <Icon icon='lucide:shield-check' width={11} />
               {`ระดับ ${data.maxVerifyLevel}`}
