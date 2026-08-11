@@ -53,7 +53,20 @@ export default function ProfileTabs({ tabs }: { tabs: ProfileTabDef[] }) {
 
   return (
     <>
-      <div role='tablist' className='flex gap-6 border-be overflow-x-auto pli-5' onKeyDown={onKeyDown}>
+      {/* 🛑 mbs-2 เฉพาะมือถือ — บนจอเล็กแถบตัวเลขกับแถบแท็บชนกันจนอ่านเป็นก้อนเดียว
+          (user 2026-08-11 "ตรง static / tab อยากให้ห่างกันอีกนิด มันชิดไปหน่อย")
+
+          ระยะนี้อยู่ **เหนือ tablist** ไม่ใช่เพิ่ม padding ล่างให้แถบตัวเลข เพราะแถบตัวเลขมี
+          `border-be` เป็นขอบล่างของตัวเอง — เพิ่ม padding ข้างในจะดันเส้นขอบลงไปด้วย แล้ว
+          ที่ว่างจะไปโผล่ "ในกรอบ" แทนที่จะเป็น "ระหว่างสองบล็อก"
+
+          เดสก์ท็อปไม่ต้อง (`sm:mbs-0`) เพราะแท็บมี padding แนวตั้งของตัวเองมากพออยู่แล้ว
+          และจอกว้างสายตาแยกสองบล็อกออกจากกันได้ด้วยความกว้าง ไม่ต้องพึ่งระยะห่าง */}
+      <div
+        role='tablist'
+        className='flex gap-6 border-be overflow-x-auto pli-5 mbs-2 sm:mbs-0'
+        onKeyDown={onKeyDown}
+      >
         {tabs.map((t, i) => {
           const selected = i === active
           return (
