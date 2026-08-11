@@ -143,7 +143,9 @@ export type OrderRow = {
    * อ่านง่ายกว่า "เคยสั่ง 2 ครั้ง" เวลามองจากแถวของใบใดใบหนึ่ง
    * cancelled ใช้ตัดสินใจจริงตอนจะเปิดพัสดุ COD (ลูกค้าที่ยกเลิกบ่อย = ค่าส่งเสียเปล่า)
    */
-  customerStats: { orders: number; cancelled: number } | null
+  /** ประวัติลูกค้ากับร้านนี้ — ป้ายท้ายชื่อ. `cancelled` = ทุกใบที่ยกเลิก (คงไว้เพื่อความเข้ากันได้)
+   *  ส่วน `cancelledByBuyer`/`returned` คือค่าที่ป้ายใช้จริง (ดู lib/customer-behavior.ts) */
+  customerStats: { orders: number; cancelled: number; cancelledByBuyer: number; returned: number } | null
   /**
    * ห้องแชทของลูกค้ารายนี้ (null = ไม่มี/หาไม่เจอ) — ใช้ทำปุ่ม "เปิดแชท" บนแถบหัว
    *

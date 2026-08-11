@@ -31,6 +31,8 @@ import { resolveOrderSource } from '@/lib/order-source-channel'
 import type { OrderRow, OrderStatCardData, OrderItemRow } from './components/data'
 import OrdersList from './components/OrdersList'
 import OrdersStatCard from './components/OrdersStatCard'
+// นิยาม "พัสดุตีกลับ" อยู่ที่ lib/iship/status.ts ที่เดียว — ห้ามเขียนรายชื่อสถานะซ้ำที่นี่
+import { RETURNED_CARRIER_STATUSES } from '@/lib/iship/status'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -158,20 +160,56 @@ export default async function OrdersPage({ searchParams }: PageProps) {
 
   // ประวัติลูกค้าต่อร้าน — groupBy ครั้งเดียวสำหรับลูกค้าทุกคนในหน้านี้ ไม่วนต่อแถว
   // (ใช้ index Order_customerId_status_idx ที่มีอยู่แล้ว)
-  const custStatRows =
-    customerIds.length > 0
-      ? await prisma.order.groupBy({
-          by: ['customerId', 'status'],
+  //
+  // 🛑 แก้ 2026-08-11: เดิมนับ `status === 'CANCELLED'` **ทุกใบ ไม่สนว่าใครยกเลิก** แล้วเอาไปขึ้น
+  // ป้าย "เคยยกเลิก N ครั้ง" ท้ายชื่อลูกค้า — ข้อมูลจริงบน prod วันนั้น: ใบที่ยกเลิก 8 ใบ
+  // `cancelInitiator = 'seller'` **ทั้งหมด ไม่มี 'buyer' สักใบ** แปลว่าป้ายกำลังติดตราลูกค้า
+  // ด้วยการยกเลิกของร้านเอง ซึ่งตรงข้ามกับสิ่งที่ป้ายบอก และทำให้ร้านตัดสินใจผิดกับลูกค้าที่ไม่ผิด
+  //
+  // เกณฑ์ที่ถูกอยู่ที่ `lib/customer-behavior.ts` (ยืมนิยาม "ไม่ใช่ความผิดร้าน" ของ feature 00039
+  // มาพลิกด้าน) — ป้ายในแชทกับที่นี่ต้องมาจากตัวเดียวกัน ไม่งั้นลูกค้าคนเดียวกันจะได้ป้ายไม่ตรงกัน
+  // สองหน้าจอ (`docs/conventions/sibling-surface-parity.md` + HR16)
+  //
+  // ยังเป็น query ครั้งเดียวทั้งหน้าเหมือนเดิม — เพิ่ม `cancelInitiator` เป็นมิติที่ 3 ของ groupBy
+  // เดิม และนับ "ใบที่ตีกลับ" ด้วย query แยกอีก 1 ตัว (นับเป็นจำนวน **ออเดอร์** ไม่ใช่จำนวนแถว
+  // OrderShipment — ใบเดียว retry ได้หลายพัสดุ ดู project_iship_retry_credit_fixes)
+  const [custStatRows, returnedRows] = customerIds.length > 0
+    ? await Promise.all([
+        prisma.order.groupBy({
+          by: ['customerId', 'status', 'cancelInitiator'],
           where: { shopId: shop.id, customerId: { in: customerIds } },
           _count: { _all: true },
-        })
-      : []
-  const statByCustomer = new Map<string, { orders: number; cancelled: number }>()
+        }),
+        prisma.order.findMany({
+          where: {
+            shopId: shop.id,
+            customerId: { in: customerIds },
+            shipments: {
+              some: { status: { not: 'CANCELLED' }, carrierStatus: { in: [...RETURNED_CARRIER_STATUSES] } },
+            },
+          },
+          select: { customerId: true },
+        }),
+      ])
+    : [[], []]
+  const statByCustomer = new Map<string, { orders: number; cancelled: number; cancelledByBuyer: number; returned: number }>()
+  const bump = (cid: string) =>
+    statByCustomer.get(cid) ?? { orders: 0, cancelled: 0, cancelledByBuyer: 0, returned: 0 }
   for (const r of custStatRows) {
     if (!r.customerId) continue
-    const cur = statByCustomer.get(r.customerId) ?? { orders: 0, cancelled: 0 }
+    const cur = bump(r.customerId)
     cur.orders += r._count._all
-    if (r.status === 'CANCELLED') cur.cancelled += r._count._all
+    if (r.status === 'CANCELLED') {
+      cur.cancelled += r._count._all
+      // ไม่รู้ว่าใครยกเลิก (ใบเก่า null) = ไม่โทษลูกค้า — fail-closed ทางเดียวกับ customer-behavior.ts
+      if (r.cancelInitiator === 'buyer') cur.cancelledByBuyer += r._count._all
+    }
+    statByCustomer.set(r.customerId, cur)
+  }
+  for (const r of returnedRows) {
+    if (!r.customerId) continue
+    const cur = bump(r.customerId)
+    cur.returned += 1
     statByCustomer.set(r.customerId, cur)
   }
 

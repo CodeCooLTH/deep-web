@@ -47,6 +47,8 @@ import type { ShopVertical } from '@/lib/lodging'
 import OrderOverflowMenu from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/OrderOverflowMenu'
 import { getOrderActionSet } from '@/app/(paces)/seller/(dashboard)/orders/[token]/components/order-action-set'
 import { ChannelBadge } from '../../components/ChannelBadge'
+// SSOT ของป้ายพฤติกรรมลูกค้า — ป้ายท้ายชื่อลูกค้าในตาราง /orders ใช้ตัวเดียวกัน (HR16)
+import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import OrderCardView from '../../../_components/OrderCardView'
@@ -112,6 +114,8 @@ export type CustomerPanelData = {
   /** สถิติลูกค้า (aggregate จริงทั้งหมด ไม่ใช่แค่ orders 20 แถวที่ list ใช้) — null = ยังไม่ผูก Customer
    *  orderCount = ทุกออเดอร์; totalSpent = ผลรวมที่ไม่ยกเลิก (Decimal→string); since = วันเป็นลูกค้า (ISO) */
   customerStats: { orderCount: number; totalSpent: string; since: string } | null
+  /** ตัวเลขดิบของป้ายพฤติกรรมลูกค้า (ส่วนขยาย 2026-08-11) — null = ยังไม่ผูกกับลูกค้าในระบบ */
+  customerBehavior: CustomerBehavior | null
   /** feature 00018 E5 — รหัสโฆษณาที่พาลูกค้าคนนี้เข้ามา (null = ไม่ได้มาจากโฆษณา)
    *  ใช้ทำป้ายกำกับอัตโนมัติ `ad_id.…` / `messenger_ads` แบบ Business Suite */
   adReferralId: string | null
@@ -543,6 +547,21 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
     setTab(wantOrders ? 'orders' : 'customer')
   }, [wantOrders])
   const cta = VERTICAL_CTA[data.vertical]
+  /**
+   * ป้ายพฤติกรรมลูกค้า — คำนามผันตาม vertical ด้วย `resolveOrderVocab().noun`
+   *
+   * 🛑 ใช้ `noun` ไม่ใช่ `cta.tabLabel` — LODGING ตั้งใจให้สองค่านี้ไม่เท่ากัน (tabLabel="การจอง"
+   * ใช้เรียกลิสต์ ส่วน noun ใช้ในประโยค) มีคอมเมนต์เตือนไว้แล้วที่ resolveOrderVocab
+   *
+   * `hasHistory` ผูกกับ `customerStats` — ไม่ใช่ `customerBehavior.orders > 0`: เธรดที่ยังไม่ผูก
+   * กับลูกค้าในระบบจะไม่มี customerStats เลย และต้องไม่ขึ้นป้าย "ลูกค้าใหม่" (ยังไม่มีออเดอร์ใบแรก)
+   */
+  const behaviorBadges = data.customerBehavior
+    ? customerBadges(data.customerBehavior, {
+        hasHistory: !!data.customerStats,
+        orderNoun: resolveOrderVocab(data.vertical).noun,
+      })
+    : []
   const { openDraft } = useDraftOrders()
   // เปิดโมดัลสร้างคำสั่งซื้อ (พับได้/ค้างข้ามแชท) แทนการ navigate ไป /orders/new (user request 2026-07-24)
   const startCreateOrder = () =>
@@ -628,6 +647,31 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
           <ChannelBadge channel={data.channel} label={data.channelName} />
         </div>
       </div>
+
+      {/* ป้ายเตือนพฤติกรรมลูกค้า (user สั่ง 2026-08-11 "เตือน seller ไว้ว่าลูกค้าคนนี้พฤติกรรมเป็นอย่างไร")
+          🛑 อยู่ **นอกแท็บ** โดยตั้งใจ — ฝังในแท็บ "ข้อมูลลูกค้า" แล้วป้ายจะหายทันทีที่ผู้ขายกดดูแท็บ
+          "คำสั่งซื้อ" ซึ่งเป็นแท็บที่ป้ายนี้มีประโยชน์ที่สุด (กำลังจะตัดสินใจว่าจะเปิดพัสดุให้ไหม)
+          ไม่ซ้ำกับแถวสถิติในแท็บ: ที่นั่นเป็นจำนวนออเดอร์/ยอดซื้อ ไม่มีที่ไหนบอก "ตีกลับ/ยกเลิกเอง"
+          ไม่มีป้ายสักใบ → ไม่ render อะไรเลย (ค่าเริ่มต้นของระบบคือเงียบ ไม่ใช่ "ไม่มีข้อมูล") */}
+      {behaviorBadges.length > 0 && (
+        <div className="border-default-200 flex flex-wrap gap-1.5 border-b border-dashed px-4 pb-3">
+          {behaviorBadges.map((b) => (
+            <span
+              key={b.key}
+              // role="img" + aria-label: `<span>` เปล่าไม่รองรับ "ชื่อจากผู้เขียน" — ป้ายที่มีแต่
+              // ข้อความก็จริง แต่ไอคอนข้างในต้องไม่ถูกอ่านเป็นอักขระประหลาด (aria-name-requires-supporting-role.md)
+              role="img"
+              aria-label={b.label}
+              className={`badge inline-flex items-center gap-1 text-2xs ${
+                b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
+              }`}
+            >
+              <Icon icon={b.icon} className="text-xs" aria-hidden="true" />
+              {b.label}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* แถบสรุป 1 บรรทัดเหนือแท็บถูกย้ายลงไปเป็น "แถวสถิติ" ในแท็บข้อมูลลูกค้าแทน (user สั่ง 2026-07-24
           ส่งภาพรูปแบบ label-ซ้าย/ค่า-ขวามาให้) — เดิมโชว์ count+total เหนือแท็บ ซึ่งจะซ้ำกับแถวใหม่

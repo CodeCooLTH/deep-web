@@ -1,0 +1,154 @@
+import { describe, it, expect } from 'vitest'
+import {
+  summarizeCustomerBehavior,
+  customerBadges,
+  hasBehaviorWarning,
+  type CustomerOrderEvidence,
+} from '@/lib/customer-behavior'
+
+const order = (o: Partial<CustomerOrderEvidence> = {}): CustomerOrderEvidence => ({
+  status: 'CONFIRMED',
+  cancelInitiator: null,
+  activeShipmentCarrierStatus: null,
+  ...o,
+})
+
+describe('summarizeCustomerBehavior', () => {
+  it('ไม่มีประวัติเลย → ศูนย์ทุกช่อง (ไม่ใช่ null ให้ปลายทางต้องเช็คซ้ำ)', () => {
+    expect(summarizeCustomerBehavior([])).toEqual({
+      orders: 0,
+      completed: 0,
+      cancelledByBuyer: 0,
+      returnedParcels: 0,
+      problemOrders: 0,
+    })
+  })
+
+  it('ใบปกติ → นับเป็น completed', () => {
+    const s = summarizeCustomerBehavior([order(), order({ status: 'SHIPPED' })])
+    expect(s.orders).toBe(2)
+    expect(s.completed).toBe(2)
+    expect(s.problemOrders).toBe(0)
+  })
+
+  /**
+   * [blocker] ป้ายเดิมใน /orders นับ `status==='CANCELLED'` ทุกใบ ทำให้ลูกค้าถูกติดตราด้วย
+   * การยกเลิกของ *ร้านเอง* — ข้อมูล prod 2026-08-11: ยกเลิก 8 ใบ เป็น 'seller' ทั้งหมด
+   * ถ้าเทสนี้แดง = เรากลับไปโทษลูกค้าด้วยการกระทำของร้านอีกครั้ง
+   */
+  it('[blocker] ร้านเป็นคนยกเลิก → ไม่นับเป็นพฤติกรรมลูกค้า', () => {
+    const s = summarizeCustomerBehavior([order({ status: 'CANCELLED', cancelInitiator: 'seller' })])
+    expect(s.cancelledByBuyer).toBe(0)
+    expect(s.problemOrders).toBe(0)
+    expect(s.completed).toBe(0) // ยกเลิกแล้วก็ไม่ใช่ใบที่สำเร็จเช่นกัน
+  })
+
+  it('[blocker] ใบเก่าที่ไม่รู้ว่าใครยกเลิก (null) → ไม่โทษลูกค้า (fail-closed)', () => {
+    const s = summarizeCustomerBehavior([order({ status: 'CANCELLED', cancelInitiator: null })])
+    expect(s.cancelledByBuyer).toBe(0)
+    expect(s.problemOrders).toBe(0)
+  })
+
+  it('ผู้ซื้อกดยกเลิกเอง → นับ', () => {
+    const s = summarizeCustomerBehavior([order({ status: 'CANCELLED', cancelInitiator: 'buyer' })])
+    expect(s.cancelledByBuyer).toBe(1)
+    expect(s.problemOrders).toBe(1)
+  })
+
+  it('พัสดุตีกลับ → นับเป็น returnedParcels (ทั้ง return และ return_success)', () => {
+    const s = summarizeCustomerBehavior([
+      order({ activeShipmentCarrierStatus: 'return' }),
+      order({ activeShipmentCarrierStatus: 'return_success' }),
+    ])
+    expect(s.returnedParcels).toBe(2)
+    expect(s.problemOrders).toBe(2)
+    expect(s.completed).toBe(0)
+  })
+
+  /**
+   * [blocker] ใบเดียวต้องนับครั้งเดียว — ตีกลับแล้วผู้ซื้อกดยกเลิกตามคือเหตุการณ์เดียว
+   * ถ้านับสองถัง ผู้ขายจะอ่านว่า "ยกเลิก 1 · ตีกลับ 1" แล้วเข้าใจว่ามีปัญหา 2 ครั้ง
+   */
+  it('[blocker] ตีกลับ + ผู้ซื้อยกเลิกในใบเดียว → นับครั้งเดียว (ตีกลับชนะ)', () => {
+    const s = summarizeCustomerBehavior([
+      order({ status: 'CANCELLED', cancelInitiator: 'buyer', activeShipmentCarrierStatus: 'return_success' }),
+    ])
+    expect(s.returnedParcels).toBe(1)
+    expect(s.cancelledByBuyer).toBe(0)
+    expect(s.problemOrders).toBe(1)
+  })
+
+  it('[blocker] problemOrders ต้องเท่ากับผลรวมสองถังเสมอ — ปลายทางห้ามบวกเอง', () => {
+    const s = summarizeCustomerBehavior([
+      order(),
+      order({ status: 'CANCELLED', cancelInitiator: 'buyer' }),
+      order({ activeShipmentCarrierStatus: 'return' }),
+      order({ status: 'CANCELLED', cancelInitiator: 'seller' }),
+    ])
+    expect(s.orders).toBe(4)
+    expect(s.completed).toBe(1)
+    expect(s.problemOrders).toBe(s.cancelledByBuyer + s.returnedParcels)
+    expect(s.problemOrders).toBe(2)
+  })
+})
+
+describe('customerBadges', () => {
+  const noun = 'คำสั่งซื้อ'
+  const behavior = (o: Partial<ReturnType<typeof summarizeCustomerBehavior>> = {}) => ({
+    orders: 0,
+    completed: 0,
+    cancelledByBuyer: 0,
+    returnedParcels: 0,
+    problemOrders: 0,
+    ...o,
+  })
+
+  it('[blocker] ยังไม่ผูกกับลูกค้าในระบบ → ไม่มีป้ายเลย แม้แต่ "ลูกค้าใหม่"', () => {
+    // ป้าย "ลูกค้าใหม่" ในเธรดที่ยังไม่มีออเดอร์สักใบ = ยืนยันสิ่งที่ยังไม่เกิด
+    expect(customerBadges(behavior({ orders: 0 }), { hasHistory: false, orderNoun: noun })).toEqual([])
+  })
+
+  it('สั่งใบเดียว → ลูกค้าใหม่', () => {
+    const b = customerBadges(behavior({ orders: 1, completed: 1 }), { hasHistory: true, orderNoun: noun })
+    expect(b.map((x) => x.key)).toEqual(['NEW'])
+  })
+
+  it('[blocker] สั่ง 5 ยกเลิกหมด → ห้ามได้ป้าย "ลูกค้าเก่า" (ป้ายบวกที่ผิด)', () => {
+    const b = customerBadges(behavior({ orders: 5, completed: 0, cancelledByBuyer: 5, problemOrders: 5 }), {
+      hasHistory: true,
+      orderNoun: noun,
+    })
+    expect(b.map((x) => x.key)).not.toContain('REGULAR')
+    expect(b.map((x) => x.key)).toContain('CANCELLED_BY_BUYER')
+  })
+
+  it('ลูกค้าเก่าผันคำนามตาม vertical — ไม่ต่อคำเอง', () => {
+    const b = customerBadges(behavior({ orders: 4, completed: 4 }), { hasHistory: true, orderNoun: 'การจอง' })
+    expect(b[0]!.label).toBe('ลูกค้าเก่า · 4 การจอง')
+  })
+
+  it('[blocker] ห้ามมีป้ายสีเขียว/แดง — บวก=info ระวัง=warning เท่านั้น', () => {
+    const b = customerBadges(behavior({ orders: 6, completed: 4, returnedParcels: 1, cancelledByBuyer: 1, problemOrders: 2 }), {
+      hasHistory: true,
+      orderNoun: noun,
+    })
+    expect(b.every((x) => x.tone === 'info' || x.tone === 'warning')).toBe(true)
+    expect(b.map((x) => x.key)).toEqual(['REGULAR', 'RETURNED', 'CANCELLED_BY_BUYER'])
+    expect(hasBehaviorWarning(b)).toBe(true)
+  })
+
+  it('[blocker] คำว่า "พัสดุตีกลับ" ห้ามเขียนเป็น "คืนของ" (คนละความหมายกับ 00044)', () => {
+    const b = customerBadges(behavior({ orders: 2, completed: 1, returnedParcels: 1, problemOrders: 1 }), {
+      hasHistory: true,
+      orderNoun: noun,
+    })
+    const returned = b.find((x) => x.key === 'RETURNED')!
+    expect(returned.label).toContain('พัสดุตีกลับ')
+    expect(returned.label).not.toContain('คืนของ')
+  })
+
+  it('ลูกค้าปกติที่ไม่เข้าเงื่อนไขไหนเลย → ไม่มีป้าย (ค่าเริ่มต้นของระบบ)', () => {
+    expect(customerBadges(behavior({ orders: 2, completed: 2 }), { hasHistory: true, orderNoun: noun })).toEqual([])
+    expect(hasBehaviorWarning([])).toBe(false)
+  })
+})

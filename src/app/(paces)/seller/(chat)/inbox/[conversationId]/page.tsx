@@ -64,6 +64,8 @@ import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErr
 import ChatShopAutoSwitch from './components/ChatShopAutoSwitch'
 import ChatThread from './components/ChatThread'
 import CustomerPanel, { type CustomerPanelData, type CustomerPanelOrder } from './components/CustomerPanel'
+// SSOT ของ "ลูกค้าคนนี้มีพฤติกรรมอะไรบ้าง" — ใช้ร่วมกับป้ายท้ายชื่อลูกค้าในตาราง /orders (HR16)
+import { summarizeCustomerBehavior, type CustomerBehavior } from '@/lib/customer-behavior'
 
 export const metadata: Metadata = { title: 'ข้อความ' }
 
@@ -513,6 +515,8 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
   //   orderCount = ทุกออเดอร์ของลูกค้าในร้านนี้; totalSpent = ผลรวมเฉพาะที่ไม่ยกเลิก (= ยอดซื้อจริง)
   const orderTypeFilter = vertical === 'LODGING' ? { type: BOOKING_ORDER_TYPE } : {}
   let customerStats: { orderCount: number; totalSpent: string; since: string } | null = null
+  /** ตัวเลขดิบของป้ายพฤติกรรม — ป้ายจริงประกอบที่ client ด้วย `customerBadges` (SSOT เดียวกับ /orders) */
+  let customerBehavior: CustomerBehavior | null = null
   if (linkedCustomer) {
     const [orderCount, spentAgg] = await Promise.all([
       prisma.order.count({ where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter } }),
@@ -526,6 +530,38 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       totalSpent: spentAgg._sum.totalAmount ? spentAgg._sum.totalAmount.toFixed(2) : '0.00',
       since: linkedCustomer.createdAt.toISOString(),
     }
+
+    /**
+     * ป้ายเตือนพฤติกรรมลูกค้า (user สั่ง 2026-08-11) — นับจาก "หลักฐานรายใบ" ผ่าน SSOT
+     * `summarizeCustomerBehavior` ไม่ใช่ groupBy ที่นี่ เพราะกฎ "ใบเดียวนับครั้งเดียว"
+     * (ตีกลับ + ผู้ซื้อยกเลิกในใบเดียวกัน) ตัดสินระดับแถวไม่ได้ด้วย aggregate
+     *
+     * select แค่ 3 ฟิลด์เล็ก ๆ ต่อใบ — ไม่ cap จำนวนโดยตั้งใจ: cap แล้วตัวเลขจะน้อยกว่าจริงเงียบ ๆ
+     * ซึ่งเป็นคลาสเดียวกับ `docs/conventions/partial-data-must-be-labeled-or-filled.md`
+     * (ป้ายที่บอก "ตีกลับ 2 ครั้ง" ทั้งที่จริง 5 แย่กว่าไม่มีป้าย)
+     *
+     * `shipments.where` ชุดเดียวกับที่ panelOrders ใช้ด้านบน — นิยาม "พัสดุของใบนี้" ต้องมีชุดเดียว
+     */
+    const behaviorRows = await prisma.order.findMany({
+      where: { shopId: shop.id, customerId: linkedCustomer.id, ...orderTypeFilter },
+      select: {
+        status: true,
+        cancelInitiator: true,
+        shipments: {
+          where: { status: { not: 'CANCELLED' } },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { carrierStatus: true },
+        },
+      },
+    })
+    customerBehavior = summarizeCustomerBehavior(
+      behaviorRows.map((o) => ({
+        status: o.status,
+        cancelInitiator: o.cancelInitiator ?? null,
+        activeShipmentCarrierStatus: o.shipments[0]?.carrierStatus ?? null,
+      })),
+    )
   }
 
   // RSC PII: เบอร์โทร mask ที่นี่เสมอ ก่อนลง prop ที่ถูก serialize เข้า flight ของ client layout
@@ -539,6 +575,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
     vertical,
     customer: linkedCustomer ? { id: linkedCustomer.id, phoneMasked: maskPhone(linkedCustomer.phone) } : null,
     customerStats,
+    customerBehavior,
     // feature 00018 E5 (user request 2026-07-26) — ป้ายกำกับอัตโนมัติแบบ Business Suite
     // (`ad_id.…` / `messenger_ads`) ให้ร้านแมพได้ว่าลูกค้าคนนี้มาจากโฆษณาไหน
     adReferralId: conversation.referralSource === 'ADS' ? conversation.referralAdId : null,

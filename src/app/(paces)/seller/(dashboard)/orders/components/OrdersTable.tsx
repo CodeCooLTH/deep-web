@@ -59,6 +59,8 @@ import type { ShopVertical } from '@/lib/lodging'
 import { pacesToast } from '@/lib/paces-toast'
 import { ORDER_STATUS_META, isCODPayment } from '@/lib/order-display'
 import ListBusyOverlay, { type ListBusy } from '../../_shared/ListBusyOverlay'
+// ป้ายพฤติกรรมลูกค้า — นิยามเดียวกับหัวแผงลูกค้าในกล่องแชท (HR16)
+import { customerBadges } from '@/lib/customer-behavior'
 
 // ─── status badge config ──────────────────────────────────────────────────────
 // อ่านจาก SSOT ตัวเดียวกับหน้ารายละเอียดออเดอร์และการ์ดมือถือ (src/lib/order-display.ts) —
@@ -375,6 +377,20 @@ export default function OrdersTable({
       cell: ({ row }) => {
         const displayName = row.original.buyerName ?? row.original.buyerUsername ?? 'ลูกค้าทั่วไป'
         const stats = row.original.customerStats
+        // ป้ายจาก SSOT เดียวกับกล่องแชท — คำนามผันตาม vertical ผ่าน vocab ที่หน้านี้ใช้อยู่แล้ว
+        const behaviorBadges = stats
+          ? customerBadges(
+              {
+                orders: stats.orders,
+                // ใบที่ "สำเร็จ" = ทั้งหมด − ยกเลิกทั้งหมด (ตรงกับนิยาม completed ใน customer-behavior)
+                completed: stats.orders - stats.cancelled,
+                cancelledByBuyer: stats.cancelledByBuyer,
+                returnedParcels: stats.returned,
+                problemOrders: stats.cancelledByBuyer + stats.returned,
+              },
+              { hasHistory: true, orderNoun: vocab.noun },
+            )
+          : []
         return (
           <>
             <p className="mb-0 flex items-center gap-1 text-sm font-semibold text-default-900">
@@ -388,22 +404,26 @@ export default function OrdersTable({
               {/* icon ล้วนสีเทาจมหายไปกับชื่อ (user บอก 2026-08-06 ว่า "ไม่เด่นเลย") →
                   ใส่พื้นอ่อน bg-{semantic}/15 + หมึกคู่ -ink ตาม idiom badge ของ Paces
                   ทั้งคู่ทรงเดียวกัน เพราะเป็นชุดเดียวกัน = "ประวัติลูกค้ากับร้าน" */}
-              {stats && stats.orders <= 1 && (
+              {/* 🛑 แก้ 2026-08-11 สองอย่าง:
+                  1. เดิม `stats.cancelled >= 2` นับ **ทุกใบที่ยกเลิกไม่สนว่าใครยกเลิก** — บน prod
+                     วันนั้นยกเลิก 8 ใบเป็นร้านเองทั้งหมด ป้ายจึงติดตราลูกค้าด้วยการกระทำของร้าน
+                  2. เดิมมีแต่ `title=` — screen reader ไม่อ่าน (`<span>` เปล่าไม่รองรับชื่อจากผู้เขียน)
+                     และมือถือไม่มี hover ⇒ ป้ายนี้ไม่มีอยู่จริงสำหรับคนกลุ่มหนึ่ง
+                     (`docs/conventions/aria-name-requires-supporting-role.md`)
+                  เกณฑ์/คำ/ไอคอน มาจาก `lib/customer-behavior.ts` ตัวเดียวกับป้ายในกล่องแชท */}
+              {behaviorBadges.map((b) => (
                 <span
-                  className="bg-info/15 text-info-ink inline-flex size-5 shrink-0 items-center justify-center rounded-full"
-                  title="ลูกค้าใหม่ — สั่งครั้งแรกกับร้าน"
+                  key={b.key}
+                  role="img"
+                  aria-label={b.label}
+                  title={b.label}
+                  className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full ${
+                    b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
+                  }`}
                 >
-                  <Icon icon="sparkles" className="text-sm" />
+                  <Icon icon={b.icon} className="text-sm" aria-hidden="true" />
                 </span>
-              )}
-              {stats && stats.cancelled >= 2 && (
-                <span
-                  className="bg-warning/15 text-warning-ink inline-flex size-5 shrink-0 items-center justify-center rounded-full"
-                  title={`เคยยกเลิก ${stats.cancelled} ครั้ง`}
-                >
-                  <Icon icon="flag" className="text-sm" />
-                </span>
-              )}
+              ))}
             </p>
             {/* select-all: คลิกเดียวเลือกทั้งเบอร์ ไม่ต้องลาก */}
             <p className="mb-0 select-all text-xs tabular-nums text-default-500">
