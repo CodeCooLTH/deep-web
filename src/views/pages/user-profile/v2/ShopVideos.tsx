@@ -19,11 +19,14 @@
  *
  * Base: src/views/pages/user-profile/v2/PublicRoomList.tsx (กริดการ์ด) ปรับเป็นชิดขอบไม่มี gap
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Icon } from '@iconify/react'
 
-import { buildEmbedUrl, type VideoProvider } from '@/lib/shop-video'
+import { type VideoProvider } from '@/lib/shop-video'
+
+import ClipLightbox from './ClipLightbox'
+import { useLightboxDeepLink } from './useLightboxDeepLink'
 
 export type ShopVideoItem = {
   id: string
@@ -47,7 +50,7 @@ export type ShopVideoItem = {
  * brand asset เป็น carve-out ของ Hard Rule 6
  * TikTok/YouTube ยังไม่มีไฟล์ในโปรเจกต์ (ยังเชื่อมบัญชีไม่ได้) — เผื่อ label ไว้ก่อน
  */
-const PROVIDER_UI: Record<VideoProvider, { logo: string | null; label: string }> = {
+export const PROVIDER_UI: Record<VideoProvider, { logo: string | null; label: string }> = {
   INSTAGRAM: { logo: '/images/logos/instagram-circle.svg', label: 'Instagram' },
   FACEBOOK: { logo: '/images/logos/facebook.svg', label: 'Facebook' },
   TIKTOK: { logo: null, label: 'TikTok' },
@@ -81,55 +84,33 @@ function isRenderable(item: ShopVideoItem): boolean {
 }
 
 /** ย่อเลขให้อ่านง่ายบนพื้นที่แคบ — 12,300 → 12.3K */
-function compact(n: number): string {
+export function compactCount(n: number): string {
   if (n < 1000) return String(n)
   if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`
   return `${(n / 1_000_000).toFixed(1)}M`
 }
 
-function VideoCell({ item }: { item: ShopVideoItem }) {
-  const [playing, setPlaying] = useState(false)
+const compact = compactCount
+
+/**
+ * ไทล์คลิปในกริด
+ *
+ * 🛑 กดแล้ว **เปิด lightbox** ไม่ใช่แทนที่ไทล์นั้นด้วย iframe เหมือนเดิม — ท่าเดิมทำให้คลิป
+ * เล่นอยู่ในกรอบ 3:4 ขนาดเท่าไทล์ (ราว 240px บนเดสก์ท็อป) ซึ่งเล็กเกินกว่าจะดูรู้เรื่อง
+ * และ iframe ที่โผล่กลางกริดทำให้ผังกระตุก · การ gate ก่อนโหลด iframe ไม่ได้หายไปไหน
+ * มันย้ายเข้าไปอยู่ใน lightbox (`ClipLightbox`) ซึ่งยังต้องกดอีกทีถึงจะโหลด
+ */
+function VideoCell({ item, onOpen }: { item: ShopVideoItem; onOpen: () => void }) {
   const [imgFailed, setImgFailed] = useState(false)
 
   const provider = item.provider as VideoProvider
   const ui = PROVIDER_UI[provider]
-  const parsed = { provider, videoId: item.videoId }
-
-  if (playing) {
-    return (
-      // 🛑 ต้องมีทางกลับ — เดิม `setPlaying(true)` มีที่เดียวและไม่มีที่ไหนคืนเป็น false เลย
-      // กดเล่นคลิปแล้วไทล์นั้นกลายเป็น iframe ของบุคคลที่สามถาวร ต้องรีเฟรชทั้งหน้าถึงจะกลับ
-      // อาการหนักบนมือถือ: ไทล์ชิดกันไม่มีช่องว่างกันพลาด แตะพลาดแล้วออกไม่ได้
-      <div className='relative aspect-[3/4] bg-black'>
-        <button
-          type='button'
-          onClick={() => setPlaying(false)}
-          aria-label='ปิดคลิป'
-          // z สูงกว่า iframe + พื้นทึบดำโปร่ง ให้เห็นบนคลิปทุกสี · 32px กดโดนบนมือถือ
-          className='absolute top-2 inline-end-2 z-10 is-8 bs-8 rounded-full bg-black/55 text-white flex items-center justify-center border-0 p-0 cursor-pointer'
-        >
-          <Icon icon='lucide:x' width={16} />
-        </button>
-        <iframe
-          src={buildEmbedUrl(parsed)}
-          title={item.caption ?? `คลิปจาก ${ui.label}`}
-          className='absolute inset-0 is-full bs-full'
-          style={{ border: 0 }}
-          allow='accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture'
-          allowFullScreen
-          // sandbox แน่นที่สุดเท่าที่ยังเล่นได้ — ไม่ให้ iframe พาหน้าเราไปที่อื่นเอง
-          sandbox='allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox'
-          referrerPolicy='strict-origin-when-cross-origin'
-        />
-      </div>
-    )
-  }
 
   return (
     <button
       type='button'
-      onClick={() => setPlaying(true)}
-      aria-label={`เล่นคลิปจาก ${ui.label}${item.accountName ? ` บัญชี ${item.accountName}` : ''}`}
+      onClick={onOpen}
+      aria-label={`เปิดคลิปจาก ${ui.label}${item.accountName ? ` บัญชี ${item.accountName}` : ''}`}
       // 3:4 ไม่ใช่ 9:16 — วัดจากไทล์จริงที่ user แคปมาจาก IG (233×310 ≈ 0.75)
       // IG ครอปไทล์ในกริดเป็น 3:4 แม้แต่ reels ที่ต้นฉบับเป็น 9:16
       // ⚠️ ตอนกดเล่น คลิปแนวตั้งจะมีแถบดำบน-ล่างในกรอบ 3:4 — แลกกับกริดที่ไม่กระโดด
@@ -203,8 +184,55 @@ function VideoCell({ item }: { item: ShopVideoItem }) {
   )
 }
 
-export default function ShopVideos({ items: raw }: { items: ShopVideoItem[] }) {
+export default function ShopVideos({
+  items: raw,
+  shopId = null,
+  isOwnShop,
+  /** id ของคลิปที่ deep link สั่งให้เปิด (`?clip=`) — ไม่มี/ไม่รู้จัก = ไม่เปิดอะไร */
+  initialClipId,
+  onDeepLinkResolved,
+}: {
+  items: ShopVideoItem[]
+  shopId?: string | null
+  isOwnShop?: boolean
+  initialClipId?: string | null
+  /** แจ้งผู้เรียกว่า id ที่ส่งมาใช้ได้จริงไหม — ใช้ไม่ได้ต้องถอดพารามิเตอร์ทิ้งเงียบ ๆ */
+  onDeepLinkResolved?: (ok: boolean) => void
+}) {
   const items = raw.filter(isRenderable)
+
+  const writeParam = useLightboxDeepLink('clip')
+  /* lazy initializer ไม่ใช่ useEffect — useEffect จะมีหนึ่งเฟรมที่ lightbox ยังไม่เปิด
+     ผู้ใช้ที่กดลิงก์มาจะเห็นหน้าร้านกระพริบก่อนแล้วโมดัลค่อยเด้งทับ */
+  const [openIndex, setOpenIndex] = useState<number | null>(() => {
+    if (!initialClipId) return null
+    const i = items.findIndex((v) => v.id === initialClipId)
+    return i >= 0 ? i : null
+  })
+
+  useEffect(() => {
+    if (!initialClipId) return
+    onDeepLinkResolved?.(items.some((v) => v.id === initialClipId))
+    // ตั้งใจให้รันครั้งเดียวตอน mount — deep link เป็นค่าตั้งต้น ไม่ใช่ค่าที่ sync ตลอดเวลา
+    // (ผู้ใช้กด ‹ › ต่อไปเองแล้ว URL จะไม่ตรงกับ initialClipId อีก ซึ่งถูกต้อง)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const open = (i: number) => {
+    setOpenIndex(i)
+    // push ตอนเปิดครั้งแรก → ปุ่ม back ปิด lightbox
+    writeParam(items[i].id, 'push')
+  }
+  const move = (i: number) => {
+    setOpenIndex(i)
+    // replace ตอนเลื่อนใบ → ไม่ว่าจะดูกี่ใบก็กด back ครั้งเดียวออก
+    writeParam(items[i].id, 'replace')
+  }
+  const close = () => {
+    setOpenIndex(null)
+    writeParam(null, 'replace')
+  }
+
   if (items.length === 0) return null
 
   // เหลือแค่กริดรูปล้วน (user 2026-07-26) — ตัดคำอธิบายใต้กริดกับลิงก์ "ดูบน..." ออก
@@ -251,10 +279,23 @@ export default function ShopVideos({ items: raw }: { items: ShopVideoItem[] }) {
        (profile/index.tsx เขียนตรงตัวว่า "-20px = หัก pli-5 ของ tab panel ... ค่าเดียวกับ -mli-5
        ที่กริดคลิปใช้") แต่ **ไม่มีไฟล์ไหนใส่ negative margin จริงสักไฟล์** — คอมเมนต์อ้างอิงกันเอง
        ไปมาจนอ่านเหมือนมีของอยู่แล้ว ไม่มี gate ไหนตรวจว่าคอมเมนต์ตรงกับโค้ดไหม (HR16 ทิศกลับ) */
-    <div className='grid grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-1 -mx-5 sm:mx-0 xl:-mx-[260px]'>
-      {items.map((v) => (
-        <VideoCell key={v.id} item={v} />
-      ))}
-    </div>
+    <>
+      <div className='grid grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-1 -mx-5 sm:mx-0 xl:-mx-[260px]'>
+        {items.map((v, i) => (
+          <VideoCell key={v.id} item={v} onOpen={() => open(i)} />
+        ))}
+      </div>
+
+      {openIndex != null && (
+        <ClipLightbox
+          items={items}
+          index={openIndex}
+          onIndexChange={move}
+          onClose={close}
+          shopId={shopId}
+          isOwnShop={isOwnShop}
+        />
+      )}
+    </>
   )
 }

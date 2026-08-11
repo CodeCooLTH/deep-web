@@ -21,6 +21,8 @@
  * ใหม่ (Shop.vertical = SERVICE_QUEUE แสดงผลเป็น "สินค้าและบริการ") ตรงตัวถ้าไม่แก้จะเกิดร้าน
  * SERVICE_QUEUE ที่มีทั้งแท็บ "บริการ" กับแท็บ "สินค้าและบริการ" วางเคียงกัน — คำเดียวกันสองความหมาย
  */
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+
 import ProfileHero, { type ProfileHeroData } from './ProfileHero'
 import PageBlocksSection, { type PageBlockItem } from './PageBlocksSection'
 import ProfileTabs from './ProfileTabs'
@@ -68,6 +70,34 @@ export type ShopProfileData = {
 }
 
 export default function ShopProfile({ data }: { data: ShopProfileData }) {
+  /**
+   * deep link ของ lightbox — อ่านฝั่ง client ที่นี่ ไม่ใช่ `await searchParams` ที่ Server Component
+   *
+   * 🛑 ทั้งสองหน้าประกาศ type `searchParams` ไว้แต่ไม่เคยอ่านจริง ถ้าเริ่มอ่าน Next จะเปลี่ยน
+   * navigation เป็น server refetch เต็มรูป **ทุกครั้งที่กด ‹ ›** = โหลดใหม่ทั้งหน้าเพื่อเลื่อนรูป
+   *
+   * ทั้งสองหน้า render แบบ dynamic อยู่แล้ว (เรียก `getServerSession` ซึ่งอ่านคุกกี้) จึงไม่ติด
+   * เงื่อนไข `<Suspense>` ของ `useSearchParams()` ที่บังคับเฉพาะหน้าที่ prerender แบบ static
+   */
+  const searchParams = useSearchParams()
+  const productParam = searchParams.get('p')
+  const clipParam = searchParams.get('clip')
+
+  const router = useRouter()
+  const pathname = usePathname()
+
+  /**
+   * id ที่ไม่มีอยู่จริง/สินค้าถูกปิดขายไปแล้ว → **ถอดพารามิเตอร์ทิ้งเงียบ ๆ ไม่ toast**
+   * ลิงก์เก่าที่ของถูกเอาออกไปแล้วเป็นเรื่องปกติของฟีดสาธารณะ ไม่ใช่ความผิดพลาดที่ผู้ชมต้องรับรู้
+   */
+  const dropParam = (key: 'p' | 'clip') => (ok: boolean) => {
+    if (ok) return
+    const next = new URLSearchParams(searchParams.toString())
+    next.delete(key)
+    const qs = next.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
+
   // feature 00035 — เดิมอ่านจาก BuilderDraftContext (BuilderPreviewBridge.tsx) เมื่ออยู่ในโหมด
   // builder draft ผ่าน iframe; รื้อ canvas เป็น Paces-native แล้ว (2026-08-07 รอบสอง) ไม่มี Bridge
   // ห่ออีกต่อไป — อ่านจาก data.tabOrder/data.blocks (SSR) ตรง ๆ เสมอ
@@ -94,7 +124,18 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
   const tabContent: Record<ProfileTabKey, { label: string; content: React.ReactNode }> = {
     // "ปักหมุด" มาก่อนเสมอเมื่อร้านปักคลิปไว้ (user กำหนด 2026-07-26) — คลิปคือสิ่งที่
     // ร้านตั้งใจให้เห็นก่อนสิ่งอื่น (ลำดับนี้อยู่ใน PROFILE_TAB_KEYS แล้ว)
-    pinned: { label: 'ปักหมุด', content: <ShopVideos items={data.videos} /> },
+    pinned: {
+      label: 'ปักหมุด',
+      content: (
+        <ShopVideos
+          items={data.videos}
+          shopId={data.shopId}
+          isOwnShop={data.isOwnShop}
+          initialClipId={clipParam}
+          onDeepLinkResolved={dropParam('clip')}
+        />
+      ),
+    },
     rooms: { label: 'ห้องพัก', content: <PublicRoomList rooms={data.rooms} /> },
     calendar: {
       label: 'ปฏิทิน',
@@ -116,6 +157,10 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
           }}
           shopId={data.shopId}
           isOwnShop={data.isOwnShop}
+          shopName={data.hero.shopName}
+          shopAvatar={data.hero.avatar}
+          initialProductId={productParam}
+          onDeepLinkResolved={dropParam('p')}
         />
       ),
     },
@@ -156,6 +201,10 @@ export default function ShopProfile({ data }: { data: ShopProfileData }) {
       <PageBlocksSection blocks={effectiveBlocks} />
 
       <ProfileTabs
+        /* deep link ต้องพาไปแท็บที่ของชิ้นนั้นอยู่ก่อน ไม่งั้น panel ที่ถือ lightbox ไม่ถูก mount
+           (ProfileTabs render content เฉพาะแท็บที่ active) แล้วลิงก์จะเปิดหน้าเปล่าเฉย ๆ
+           คีย์ที่ไม่มีในชุดแท็บ → ProfileTabs ตกกลับไปแท็บแรกให้เอง */
+        initialActiveKey={productParam ? 'items' : clipParam ? 'pinned' : null}
         tabs={applyTabOrder(visibleKeys, effectiveTabOrder).map((key) => ({
           key,
           label: tabContent[key].label,

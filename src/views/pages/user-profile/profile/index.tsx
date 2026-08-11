@@ -8,10 +8,12 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 
 import ProductLikeButton from '../v2/ProductLikeButton'
+import ProductLightbox from '../v2/ProductLightbox'
+import { useLightboxDeepLink } from '../v2/useLightboxDeepLink'
 
 // Next/Auth Imports — S-19 (extension #1 Chat Product Context Card) login-gate ปุ่ม "สอบถามสินค้านี้"
 // pattern: src/views/pages/user-profile/UserProfileHeader.tsx handleChatClick (AuctionBidPanel.tsx:114-121)
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -33,14 +35,36 @@ import { toFileUrl } from '@/lib/file-url'
 // impeccable critique P0: ตัวเลข hardcode ของ Shopee/Lazada/TikTok)
 // ProductCard คงเดิม (Base: theme .../apps/academy/my-courses/Courses.tsx bordered-card pattern)
 
+/**
+ * เพดานจำนวนรูปที่ส่งข้าม RSC boundary ต่อสินค้าหนึ่งชิ้น
+ *
+ * 🛑 อยู่ที่นี่ที่เดียว เพราะทั้ง `/u/[username]` และ `/b/[slug]` ต้อง cap เท่ากัน — สองหน้านี้มี
+ * ประวัติเดินแยกกันทีละนิดจนต่างกันจริงมาแล้ว (เหตุผลที่ `ShopProfile` ถูกสร้างขึ้นตั้งแต่แรก)
+ *
+ * ทำไมต้อง cap: `Product.images` **ไม่มี `maxLength` ใน `validations.ts` เลย** (ต่างจาก
+ * `Room.images` และรูปรีวิวที่ cap 4) ⇒ payload ของกริดบวมตามจำนวนรูปของทุกสินค้ารวมกัน
+ * ทั้งที่ผู้ชมเปิดดูเต็ม ๆ ทีละใบ · เพดานตอน **อัปโหลด** เป็น business rule ที่ยังไม่ตัดสิน
+ * (ต้องผ่าน safepay-product) อันนี้เป็นเพดานฝั่งแสดงผลล้วน
+ */
+export const MAX_PRODUCT_LIGHTBOX_IMAGES = 10
+
 // ── Type: สินค้าที่ serialize จาก RSC boundary (Decimal → string) ──
 export type SerializedProduct = {
   id: string
   name: string
   /** Decimal serialize แล้วเป็น string ทศนิยม 2 (e.g. "120.00") */
   price: string
-  /** images[0] ?? null */
+  /** images[0] ?? null — คง field นี้ไว้และ derive จาก `images` เสมอ ไม่ให้สองค่าเดินแยกกัน */
   imageUrl: string | null
+  /**
+   * รูปทั้งหมดของสินค้า (สูงสุด 10 ใบ) — ใช้เป็น carousel ใน lightbox
+   *
+   * 🛑 **cap ที่ 10 ตอน serialize** เพราะ `Product.images` ไม่มี `maxLength` ใน `validations.ts`
+   * เลย (ต่างจาก `Room.images` และรูปรีวิวที่ cap 4) ⇒ ถ้าไม่ตัด payload ของกริดจะบวมตาม
+   * จำนวนรูปของ **ทุกสินค้ารวมกัน** ทั้งที่ผู้ชมเปิดดูเต็ม ๆ ทีละใบ
+   * เลือก cap แทน lazy-fetch เพราะ lazy ต้องมี endpoint + skeleton + prefetch กันกระพริบตอนกด ‹ › รัว
+   */
+  images: string[]
   /** จำนวนคำสั่งซื้อที่ยืนยันแล้ว (CONFIRMED) — 0 = ยังไม่มี ซึ่งจะไม่แสดงเลข ไม่ใช่แสดง 0 */
   soldCount: number
   /** ยอดถูกใจ (CR 2026-08-11) — 0 = ไม่แสดงตัวเลข แสดงแค่ปุ่ม (BR-LIKE-06) */
@@ -104,6 +128,9 @@ const ProductCard = ({
   isOwnShop,
   soldLabel,
   soldUnit,
+  onOpen,
+  like,
+  onLikeChange,
 }: {
   product: SerializedProduct
   pinned: boolean
@@ -112,6 +139,10 @@ const ProductCard = ({
   /** "ขายแล้ว" หรือ "เข้าพักแล้ว" — ร้านที่พักใช้กริดเดียวกันแต่คนละคำ */
   soldLabel: string
   soldUnit: string
+  /** เปิด lightbox — `undefined` = ห้องพัก ซึ่งยังใช้พฤติกรรมเดิม (ไทล์ทั้งใบ = ปุ่มทักแชท) */
+  onOpen?: () => void
+  like: { liked: boolean; count: number }
+  onLikeChange: (next: { liked: boolean; count: number }) => void
 }) => {
   const price = parseFloat(product.price)
   const priceLabel = `฿${isNaN(price) ? product.price : price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
@@ -138,9 +169,20 @@ const ProductCard = ({
     router.push(target)
   }
 
-  // ทั้งไทล์เป็นปุ่มเดียว ไม่ซ้อนปุ่มข้างใน — overlay ตอน hover เป็นแค่ภาพบอกว่ากดแล้วได้อะไร
-  // (ปุ่มซ้อนปุ่มทำให้ keyboard/screen reader เจอสองเป้าหมายที่ทำงานเหมือนกัน และ HTML ไม่ให้ทำ)
-  const clickable = showAskButton
+  /**
+   * ทั้งไทล์เป็นปุ่มเดียว ไม่ซ้อนปุ่มข้างใน — overlay ตอน hover เป็นแค่ภาพบอกว่ากดแล้วได้อะไร
+   * (ปุ่มซ้อนปุ่มทำให้ keyboard/screen reader เจอสองเป้าหมายที่ทำงานเหมือนกัน และ HTML ไม่ให้ทำ)
+   *
+   * 🛑 **สินค้า = เปิด lightbox · ห้องพัก = ทักแชทเหมือนเดิม** ห้องพักไม่เข้ารอบ lightbox เพราะ
+   * มันไม่มีของที่แผงขวาต้องใช้เลย (`shortDescription`/ยอดถูกใจไม่มีในโมเดลห้องพัก) และมีหน้า
+   * ของตัวเองอยู่แล้วในแท็บ "ห้องพัก" — เปิด lightbox ให้ก็ได้แผงเปล่า
+   *
+   * 🛑 ทางเข้า "ทักแชท" ที่เคยเป็นไทล์ทั้งใบ **ไม่ได้หายไป** มันย้ายไปเป็น CTA ในแผงของ lightbox
+   * (คลาสเดียวกับ `docs/conventions/seller-action-placement.md` §5.1 — เปลี่ยนสิ่งที่ปุ่มทำ
+   *  แล้วไม่หาที่ใหม่ให้ของเดิม = ฟีเจอร์เดิมหายเงียบ)
+   */
+  const clickable = onOpen ? true : showAskButton
+  const handleTileClick = onOpen ?? (showAskButton ? handleAskClick : undefined)
 
   return (
     // 🛑 ไม่มี aria-label แล้ว (เดิมมี) — ชื่อ/ราคา/ยอดขาย/คำอธิบาย ตอนนี้เป็น text node ที่มองเห็นจริง
@@ -151,7 +193,7 @@ const ProductCard = ({
     <Box
       component={clickable ? 'button' : 'div'}
       type={clickable ? 'button' : undefined}
-      onClick={clickable ? handleAskClick : undefined}
+      onClick={handleTileClick}
       sx={{
         display: 'flex',
         flexDirection: 'column',
@@ -247,8 +289,9 @@ const ProductCard = ({
           ถ้าคำขอล้ม ย้อนสถานะกลับ ไม่ปล่อยให้หัวใจค้างทึบทั้งที่ยังไม่ถูกบันทึก */}
       <ProductLikeButton
         productId={product.id}
-        initialCount={product.likeCount ?? 0}
-        initialLiked={product.likedByMe ?? false}
+        liked={like.liked}
+        count={like.count}
+        onChange={onLikeChange}
       />
 
       {/* ราคา + ยอดขายลอยบนรูป — สองอย่างที่ผู้ซื้อต้องเห็นก่อนตัดสินใจกด ชื่อสินค้าอยู่ใน title/aria-label
@@ -354,8 +397,11 @@ const ProductCard = ({
               py: '7px',
             }}
           >
-            <Icon icon='tabler-message-circle' fontSize={14} />
-            สอบถามสินค้านี้
+            {/* 🛑 ป้าย overlay ต้องเปลี่ยนพร้อมกับสิ่งที่ปุ่มทำ **ในคอมมิตเดียวกัน** — ไทล์สินค้า
+                เปิด lightbox แล้ว ถ้ายังเขียน "สอบถามสินค้านี้" + ไอคอนแชทอยู่ มันคือคำโกหก
+                (ห้องพักยังทักแชทจริง จึงยังใช้คำเดิม) */}
+            <Icon icon={onOpen ? 'tabler-zoom-in' : 'tabler-message-circle'} fontSize={14} />
+            {onOpen ? 'ดูสินค้านี้' : 'สอบถามสินค้านี้'}
           </Box>
         </Box>
       )}
@@ -365,7 +411,7 @@ const ProductCard = ({
           เหลือแค่ป้ายบอก screen reader ว่ากดแล้วเกิดอะไร — ข้อมูลสินค้าอ่านจาก text บนรูปได้อยู่แล้ว */}
       {clickable && (
         <Box component='span' className='sr-only'>
-          สอบถามสินค้านี้
+          {onOpen ? 'ดูสินค้านี้' : 'สอบถามสินค้านี้'}
         </Box>
       )}
     </Box>
@@ -382,13 +428,81 @@ export const ProfileRightContent = ({
   data,
   shopId,
   isOwnShop,
+  shopName = '',
+  shopAvatar = null,
+  initialProductId,
+  onDeepLinkResolved,
 }: {
   data: Pick<ProfileTabData, 'pinnedProducts' | 'otherProducts' | 'openShopEmptyState' | 'itemKind'>
   shopId?: string | null
   isOwnShop?: boolean
+  /** ชื่อ/รูปร้าน — โผล่หัวแผงของ lightbox เท่านั้น (กริดไม่ได้ใช้) */
+  shopName?: string
+  shopAvatar?: string | null
+  /** id ของสินค้าที่ deep link สั่งให้เปิด (`?p=`) — ไม่มี/ไม่รู้จัก = ไม่เปิดอะไร */
+  initialProductId?: string | null
+  /** แจ้งผู้เรียกว่า id ที่ส่งมาใช้ได้จริงไหม — ใช้ไม่ได้ต้องถอดพารามิเตอร์ทิ้งเงียบ ๆ */
+  onDeepLinkResolved?: (ok: boolean) => void
 }) => {
   const { pinnedProducts, otherProducts, openShopEmptyState, itemKind = 'PRODUCT' } = data
   const hasAnyProduct = pinnedProducts.length > 0 || otherProducts.length > 0
+
+  /** ลำดับเดียวกับที่ตาเห็นบนหน้าจอ (กริดปักหมุดมาก่อน แล้วต่อด้วยกริดที่เหลือ) — ‹ › เดินตามนี้ */
+  const allProducts = [...pinnedProducts, ...otherProducts]
+
+  /* 🛑 ห้องพักไม่เข้ารอบ lightbox (ดูเหตุผลที่ ProductCard) */
+  const lightboxEnabled = itemKind === 'PRODUCT'
+
+  /**
+   * สถานะถูกใจที่ผู้ใช้กดเองในรอบนี้ — เก็บเฉพาะ id ที่ถูกแตะ ไม่ snapshot ทั้งรายการ
+   *
+   * 🛑 ทำไมเป็น override map ไม่ใช่ initial state ทั้งก้อน: ถ้า snapshot ตอน mount แล้ว
+   * `router.refresh()` พาค่าใหม่จาก server เข้ามา (เช่นคนอื่นกดถูกใจสินค้าเดียวกัน) กริดจะยัง
+   * โชว์เลขเก่าค้างตลอดอายุหน้า · แบบนี้สินค้าที่ผู้ใช้ไม่ได้แตะจะเดินตาม props เสมอ
+   *
+   * ยกขึ้นมาที่นี่เพราะปุ่มถูกใจโผล่ **สองที่ต่อสินค้าหนึ่งชิ้น** (บนไทล์ + ในแผงของ lightbox)
+   * ต่างคนต่างถือ state = กดในแผงแล้วปิดกลับมา ไทล์โชว์เลขเก่า
+   */
+  const [likeOverrides, setLikeOverrides] = useState<Record<string, { liked: boolean; count: number }>>({})
+  const likeOf = (p: SerializedProduct) =>
+    likeOverrides[p.id] ?? { liked: p.likedByMe ?? false, count: p.likeCount ?? 0 }
+  const setLike = (id: string, next: { liked: boolean; count: number }) =>
+    setLikeOverrides((m) => ({ ...m, [id]: next }))
+
+  const writeParam = useLightboxDeepLink('p')
+
+  /* lazy initializer ไม่ใช่ useEffect — useEffect จะมีหนึ่งเฟรมที่ lightbox ยังไม่เปิด
+     ผู้ใช้ที่กดลิงก์มาจะเห็นกริดกระพริบก่อนแล้วโมดัลค่อยเด้งทับ */
+  const [openIndex, setOpenIndex] = useState<number | null>(() => {
+    if (!lightboxEnabled || !initialProductId) return null
+    const i = allProducts.findIndex((p) => p.id === initialProductId)
+    return i >= 0 ? i : null
+  })
+
+  useEffect(() => {
+    if (!initialProductId) return
+    onDeepLinkResolved?.(lightboxEnabled && allProducts.some((p) => p.id === initialProductId))
+    // ตั้งใจให้รันครั้งเดียวตอน mount — deep link เป็นค่าตั้งต้น ไม่ใช่ค่าที่ sync ตลอดเวลา
+    // (ผู้ใช้กด ‹ › ต่อไปเองแล้ว URL จะไม่ตรงกับ initialProductId อีก ซึ่งถูกต้อง)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openAt = (id: string) => {
+    const i = allProducts.findIndex((p) => p.id === id)
+    if (i < 0) return
+    setOpenIndex(i)
+    // push ตอนเปิดครั้งแรก → ปุ่ม back ปิด lightbox
+    writeParam(id, 'push')
+  }
+  const moveTo = (i: number) => {
+    setOpenIndex(i)
+    // replace ตอนเลื่อนใบ → ไม่ว่าจะดูกี่ใบก็กด back ครั้งเดียวออก
+    writeParam(allProducts[i].id, 'replace')
+  }
+  const closeLightbox = () => {
+    setOpenIndex(null)
+    writeParam(null, 'replace')
+  }
   // ร้านบ้านพักใช้ grid เดียวกับสินค้า (ความสม่ำเสมอของหน้าสำคัญกว่าการมี layout เฉพาะ)
   // เปลี่ยนเฉพาะถ้อยคำให้ตรงกับสิ่งที่ผู้ใช้เห็นจริง
   const isRoom = itemKind === 'ROOM'
@@ -471,6 +585,9 @@ export const ProfileRightContent = ({
                     isOwnShop={isOwnShop}
                     soldLabel={L.sold}
                     soldUnit={L.soldUnit}
+                    onOpen={lightboxEnabled ? () => openAt(product.id) : undefined}
+                    like={likeOf(product)}
+                    onLikeChange={(next) => setLike(product.id, next)}
                   />
                 ))}
               </Box>
@@ -527,12 +644,45 @@ export const ProfileRightContent = ({
                     isOwnShop={isOwnShop}
                     soldLabel={L.sold}
                     soldUnit={L.soldUnit}
+                    onOpen={lightboxEnabled ? () => openAt(product.id) : undefined}
+                    like={likeOf(product)}
+                    onLikeChange={(next) => setLike(product.id, next)}
                   />
                 ))}
               </Box>
             </Box>
           )}
         </>
+      )}
+
+      {openIndex != null && allProducts[openIndex] && (
+        <ProductLightbox
+          products={allProducts.map((p) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            // สินค้าเก่าที่ serialize ก่อนมี field นี้ → ตกไปใช้รูปเดียวจาก imageUrl
+            // (ไม่ปล่อยเป็น [] ไม่งั้น lightbox เปิดมาเป็นจอว่างทั้งที่ไทล์มีรูป)
+            images: p.images?.length ? p.images : p.imageUrl ? [p.imageUrl] : [],
+            soldCount: p.soldCount,
+            shortDescription: p.shortDescription,
+            pinned: pinnedProducts.some((pp) => pp.id === p.id),
+          }))}
+          index={openIndex}
+          onIndexChange={moveTo}
+          onClose={closeLightbox}
+          shopId={shopId ?? null}
+          isOwnShop={isOwnShop}
+          shopName={shopName}
+          shopAvatar={shopAvatar}
+          soldLabel={L.sold}
+          soldUnit={L.soldUnit}
+          likeOf={(id) => {
+            const p = allProducts.find((x) => x.id === id)
+            return p ? likeOf(p) : { liked: false, count: 0 }
+          }}
+          onLikeChange={setLike}
+        />
       )}
     </>
   )

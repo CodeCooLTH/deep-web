@@ -36,9 +36,26 @@ const TAB_ICON: Record<string, string> = {
 
 export type ProfileTabDef = { key: string; label: string; content: ReactNode }
 
-export default function ProfileTabs({ tabs }: { tabs: ProfileTabDef[] }) {
+export default function ProfileTabs({
+  tabs,
+  initialActiveKey,
+}: {
+  tabs: ProfileTabDef[]
+  /**
+   * แท็บที่ต้องเปิดอยู่ตอนโหลดหน้า — ใช้กับ deep link ของ lightbox (`?p=` → สินค้า · `?clip=` → ปักหมุด)
+   * คีย์ที่ไม่มีในชุดแท็บ (แท็บนั้นไม่ถูก render เพราะไม่มีข้อมูล) → ตกกลับไปแท็บแรกตามปกติ
+   */
+  initialActiveKey?: string | null
+}) {
   const baseId = useId()
-  const [active, setActive] = useState(0)
+  /* 🛑 lazy initializer ไม่ใช่ useEffect — useEffect จะมีหนึ่งเฟรมที่แท็บ 0 ถูก render ไปแล้ว
+     ผู้ใช้ที่กดลิงก์มาจะเห็นแท็บแรกกระพริบก่อนแล้วค่อยสลับ (และ panel ของแท็บ 0 จะ mount ทิ้ง
+     โดยเปล่าประโยชน์ เพราะ ProfileTabs render เฉพาะ content ของแท็บที่ active) */
+  const [active, setActive] = useState(() => {
+    if (!initialActiveKey) return 0
+    const i = tabs.findIndex((t) => t.key === initialActiveKey)
+    return i >= 0 ? i : 0
+  })
 
   if (tabs.length === 0) return null
 

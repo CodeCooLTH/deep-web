@@ -38,6 +38,7 @@ import { badgeCriteriaLabel } from '@/lib/badge-criteria'
 
 // View Imports
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
+import { MAX_PRODUCT_LIGHTBOX_IMAGES } from '@views/pages/user-profile/profile'
 import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profile/profile'
 
 // Base: theme/vuexy/typescript-version/full-version/src/app/[lang]/(dashboard)/(private)/pages/user-profile/page.tsx
@@ -184,6 +185,9 @@ export default async function PublicProfilePage({ params }: Props) {
     likeCount: p.likeCount,
     likedByMe: likedProductIds.has(p.id),
     imageUrl: (p.images as string[])[0] ?? null,
+    // รูปทั้งชุดสำหรับ carousel ใน lightbox — cap ที่ SSOT เดียว (ดู MAX_PRODUCT_LIGHTBOX_IMAGES)
+    // `imageUrl` ด้านบน derive จาก array ตัวเดียวกัน จึงไม่มีทางชี้คนละรูปกัน
+    images: ((p.images as string[]) ?? []).slice(0, MAX_PRODUCT_LIGHTBOX_IMAGES),
     // teaser ที่ผู้ขายเขียนไว้สำหรับการ์ดสินค้าโดยเฉพาะ (≤200 ตัวอักษร) — ไม่ใช่ description เต็ม
     shortDescription: p.shortDescription,
   })

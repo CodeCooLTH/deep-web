@@ -38,6 +38,7 @@ import { getShopAvailability } from '@/services/room.service'
 import { getTierGradient } from '@/lib/trust-tier'
 import { toFileUrl } from '@/lib/file-url'
 import type { ProfileHeaderData } from '@views/pages/user-profile/UserProfileHeader'
+import { MAX_PRODUCT_LIGHTBOX_IMAGES } from '@views/pages/user-profile/profile'
 import type { ProfileTabData, SerializedProduct } from '@views/pages/user-profile/profile'
 
 // Base: src/app/(marketing)/u/[username]/page.tsx (โครงเป๊ะ — reuse @views/pages/user-profile 100%)
@@ -201,6 +202,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     likeCount: p.likeCount,
     likedByMe: likedProductIds.has(p.id),
     imageUrl: (p.images as string[])[0] ?? null,
+    // รูปทั้งชุดสำหรับ carousel ใน lightbox — cap ที่ SSOT เดียว (ดู MAX_PRODUCT_LIGHTBOX_IMAGES)
+    // `imageUrl` ด้านบน derive จาก array ตัวเดียวกัน จึงไม่มีทางชี้คนละรูปกัน
+    images: ((p.images as string[]) ?? []).slice(0, MAX_PRODUCT_LIGHTBOX_IMAGES),
     // teaser ที่ผู้ขายเขียนไว้สำหรับการ์ดสินค้าโดยเฉพาะ (≤200 ตัวอักษร) — ไม่ใช่ description เต็ม
     shortDescription: p.shortDescription,
   })
@@ -228,6 +232,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
         price: r.pricePerNight,
         soldCount: bookedByRoom.get(r.id) ?? 0,
         imageUrl: r.images[0] ?? null,
+        // ห้องพักไม่เข้ารอบ lightbox (ไทล์ยังเป็นปุ่มทักแชทเหมือนเดิม) แต่ type เดียวกันจึงต้องมี
+        // field นี้ — ส่งของจริงไป ไม่ใช่ [] เพื่อไม่ให้กลายเป็นกับดักถ้าวันหนึ่งเปิด lightbox ให้ห้องพัก
+        images: r.images.slice(0, MAX_PRODUCT_LIGHTBOX_IMAGES),
       }))
     : rawOtherProducts.map(serializeProductRow)
 
