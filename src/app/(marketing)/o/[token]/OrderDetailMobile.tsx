@@ -602,7 +602,21 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
   return (
     // D1: ตัด MobileFrame ทิ้ง — plain column กลางจอ, page scroll ปกติ (ไม่มี "กรอบมือถือ" อีกต่อไป)
-    <Box sx={{ bgcolor: 'background.default', minHeight: '100dvh', display: 'flex', flexDirection: 'column' }}>
+    <Box
+      sx={{
+        bgcolor: 'background.default',
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        /* เว้นที่ให้แถบ CTA ที่เป็น `fixed` — ไม่งั้นมันทับท้ายหน้าตอนเลื่อนสุด
+           ตัวเลขมาจากความสูงจริงของแถบ: ปุ่ม 38px (+ ปุ่มยกเลิกอีก 38 + gap 4 ถ้ามี)
+           + padding บน-ล่างของแถบ 26 แล้วเผื่ออีกเล็กน้อย · safe-area บวกซ้ำที่นี่ด้วย
+           เพราะแถบเองก็ดันตัวเองขึ้นด้วยค่าเดียวกัน */
+        pb: canConfirm
+          ? `calc(${showCancel ? 128 : 88}px + max(0px, env(safe-area-inset-bottom)))`
+          : 0,
+      }}
+    >
       {/* FR-018 — เดิมเป็น maxWidth: 640 คงที่ทุกขนาดจอ ซึ่งคือต้นเหตุที่หน้านี้ "ไม่ responsive
           เลย" ไม่ใช่แค่จัดวางไม่สวย: บนจอ 1440 เหลือขอบขาวสองข้างข้างละ ~400px
           ใช้ min-[768px] แบบ arbitrary variant เพราะ Vuexy remap breakpoint ของ Tailwind
@@ -1229,13 +1243,19 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         <PublicProfileFooter />
       </Box>
 
-      {/* ── Bottom CTA bar sticky — เฉพาะ canConfirm (PENDING/SHIPPED) ── */}
+      {/* ── แถบ CTA ล่างจอ — เฉพาะ canConfirm (PENDING/SHIPPED) ──
+          🛑 `fixed` ไม่ใช่ `sticky` + `mt:'auto'` เหมือนเดิม (จอ guest เป็น fixed อยู่แล้ว)
+          `sticky bottom:0` ในคอลัมน์ flex แปลว่าแถบเป็น "ท้ายเนื้อหาที่บังเอิญเกาะขอบจอ" —
+          มันอยู่ **หลัง** ท้ายหน้าใน flow จึงลอยทับ footer ตอนเลื่อน แล้วหลุดไปอยู่ใต้ footer
+          ตอนเลื่อนสุด = ปุ่มหลักของหน้าหายไปตอนที่ผู้ใช้เลื่อนอ่านจนจบพอดี ซึ่งเป็นจังหวะ
+          ที่เขาพร้อมจะกดที่สุด · fixed ทำให้แถบเป็น chrome ของจอจริง ๆ อยู่ตลอดเวลา */}
       {canConfirm && (
         <Box
           sx={{
-            position: 'sticky',
+            position: 'fixed',
+            left: 0,
+            right: 0,
             bottom: 0,
-            mt: 'auto',
             zIndex: 30,
             borderTop: '1px solid',
             borderColor: 'divider',
