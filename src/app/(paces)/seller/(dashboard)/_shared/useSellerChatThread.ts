@@ -1010,6 +1010,39 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
   )
 
   /**
+   * ส่ง "การ์ดสินค้า" ออกไปทันที (โหมดที่ 4 ของแผงเลือกสินค้า, 2026-08-11)
+   *
+   * 🛑 **ไม่มีบับเบิล optimistic ต่างจาก sendSticker โดยตั้งใจ** — การ์ดถูกประกอบที่ server ทั้งใบ
+   * (อ่านสินค้าจากฐาน · แปลงรูปตามช่องทาง: LINE ได้ JPEG 1024 ส่วน Meta ได้ 1.91:1) client จึงเดา
+   * รูปร่างที่จะออกมาไม่ได้จริง ๆ การเดาแล้วให้ refetch มาแทนทีหลังจะทำให้การ์ดกระพริบเปลี่ยนรูป
+   * ต่อหน้าผู้ขาย ซึ่งอ่านเหมือนระบบส่งสองครั้ง
+   *
+   * แลกด้วย: กดแล้วเงียบจนกว่า API จะตอบ — จึงต้องคง `sending` ไว้ตลอดเพื่อให้ปุ่มส่งขึ้นสถานะกำลังส่ง
+   */
+  const sendProductCard = useCallback(
+    async (productRefId: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'PRODUCT', productRefId }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'ส่งการ์ดสินค้าไม่สำเร็จ')
+          return false
+        }
+        await refetchNewer()
+        return true
+      } catch {
+        pacesToast.error('ส่งการ์ดสินค้าไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        return false
+      }
+    },
+    [conversationId, refetchNewer],
+  )
+
+  /**
    * ร้านกดรีแอ็กชันใส่ข้อความ (user สั่ง 2026-08-03) — optimistic แล้วค่อยยิง API
    *
    * optimistic เพราะการกดรีแอ็กชันต้องรู้สึก "ติดทันที" เหมือนในแอปแชททุกตัว และค่ามัน
@@ -1057,6 +1090,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     sending,
     reactToMessage,
     sendSticker,
+    sendProductCard,
     uploading,
     /** {done,total} ระหว่างแนบหลายไฟล์ — null เมื่อไม่ได้อัปโหลด (2026-08-02) */
     uploadProgress,

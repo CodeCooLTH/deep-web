@@ -20,8 +20,9 @@ import {
 import { describeSendFailure } from "@/lib/chat-send-failure";
 import { buildLineFlexOrderCard } from "@/lib/line/flex-order-card";
 import { buildLineFlexProductCard } from "@/lib/line/flex-product-card";
+import { buildMetaProductCard } from "@/lib/meta/product-card";
 import { getProductById } from "@/services/product.service";
-import { resolveLineFlexImageUrl } from "@/services/channel-chat.service";
+import { resolveLineFlexImageUrl, resolveMetaCardImageUrl } from "@/services/channel-chat.service";
 import { formatBaht } from "@/lib/format-money";
 import { EXT_TO_MIME } from "@/lib/attachment-mime";
 import { sendOutboundImageGrid, IMAGE_GRID_MAX } from "@/services/channel-chat.service";
@@ -574,28 +575,35 @@ export async function POST(
     }
 
     if (conv && conv.channel !== "DEEP") {
-      // การ์ดสินค้า — LINE ได้ Flex จริงแล้ว (2026-08-11) ส่วน Messenger/IG ยังไม่มีของเทียบ
+      // การ์ดสินค้า — ทุกช่องทางได้การ์ดจริงแล้ว (LINE = Flex 2026-08-11, Messenger/IG = Generic
+      // Template รอบเดียวกัน) แต่ **รูปคนละไฟล์กัน**: LINE ครอบ 1:1 เอง ส่วน Messenger ครอปทุกอย่าง
+      // ที่ไม่ใช่ 1.91:1 (เอกสาร Meta) รูปสินค้าจัตุรัสจะโดนตัดหัวท้าย จึงต้องประกอบรูปแยกตามช่องทาง
       if (type === "PRODUCT") {
-        if (conv.channel !== "LINE") {
-          return NextResponse.json({ error: "ช่องทางนี้ยังไม่รองรับการ์ดสินค้า" }, { status: 400 });
-        }
         const p = productRow!; // ผ่านด่าน ownership มาแล้วข้างบน
         const priceText = formatBaht(p.price);
-        // รูปต้องแปลงเป็น JPEG ก่อนเสมอ — Flex รับแค่ JPEG/PNG แต่รูปสินค้าในระบบเป็น webp/gif ได้
-        // แปลงไม่ผ่าน = คืน null แล้วส่งการ์ดแบบไม่มีรูป (ยังอ่านชื่อ/ราคาได้ครบ)
-        const imageUrl = p.images[0] ? await resolveLineFlexImageUrl(p.images[0]) : null;
-        const card = buildLineFlexProductCard({
-          name: p.name,
-          priceText,
-          imageUrl,
-          isActive: p.isActive,
-        });
+        const imageFileId = p.images[0] ?? null;
+        // text ยังต้องส่งเสมอ: เป็น ChatMessage.body ที่ร้านเห็นในประวัติ และเป็นทางถอยถ้าการ์ดล้ม
+        const fallbackText = `${p.name}\n${priceText}`;
+
+        if (conv.channel === "LINE") {
+          // แปลงเป็น JPEG ก่อนเสมอ — Flex รับแค่ JPEG/PNG แต่รูปสินค้าเป็น webp/gif ได้
+          const imageUrl = imageFileId ? await resolveLineFlexImageUrl(imageFileId) : null;
+          const sent = await sendOutboundMessage({
+            conversationId: id,
+            actorUserId: userId,
+            text: fallbackText,
+            flex: buildLineFlexProductCard({ name: p.name, priceText, imageUrl, isActive: p.isActive }),
+            productRefId: productRefId!,
+          });
+          return NextResponse.json(await withSender(sent, userId));
+        }
+
+        const imageUrl = imageFileId ? await resolveMetaCardImageUrl(imageFileId) : null;
         const sent = await sendOutboundMessage({
           conversationId: id,
           actorUserId: userId,
-          // text ยังต้องส่ง: เป็น ChatMessage.body ที่ร้านเห็นในประวัติ และเป็นทางถอยถ้า flex ล้ม
-          text: `${p.name}\n${priceText}`,
-          flex: card,
+          text: fallbackText,
+          template: buildMetaProductCard({ name: p.name, priceText, imageUrl, isActive: p.isActive }),
           productRefId: productRefId!,
         });
         return NextResponse.json(await withSender(sent, userId));

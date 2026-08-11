@@ -1137,3 +1137,29 @@ export async function sendImageGridMessage(
   })
   return (json.message_id as string | undefined) ?? ''
 }
+
+/**
+ * sendTemplateMessage — ยิง `message.attachment` ชนิด template ที่ผู้เรียกประกอบมาแล้ว (2026-08-11)
+ *
+ * ใช้กับ Generic Template (การ์ดสินค้า) — โครงเดียวกับ `sendImageGridMessage` ทุกประการ ต่างแค่
+ * payload มาจากข้างนอกแทนที่จะประกอบในนี้ เพราะรูปร่างการ์ดเป็นเรื่องของเนื้อหา ไม่ใช่เรื่องของ HTTP
+ *
+ * IG ใช้โครงเดียวกันเป๊ะ (เอกสาร Instagram Platform → generic-template) จึงไม่ต้องแยกฟังก์ชัน —
+ * ตัวที่ต่างคือ token/endpoint ซึ่ง graphFetch จัดการให้อยู่แล้วเหมือน sendTextMessage
+ */
+export async function sendTemplateMessage(
+  pageToken: string,
+  recipientId: string,
+  attachment: Record<string, unknown>,
+  opts: { tag?: string } = {},
+): Promise<string> {
+  const json = await graphFetch('/me/messages', pageToken, {
+    method: 'POST',
+    body: {
+      recipient: { id: recipientId },
+      ...(opts.tag ? { messaging_type: 'MESSAGE_TAG', tag: opts.tag } : { messaging_type: 'RESPONSE' }),
+      message: { attachment },
+    },
+  })
+  return (json.message_id as string | undefined) ?? ''
+}

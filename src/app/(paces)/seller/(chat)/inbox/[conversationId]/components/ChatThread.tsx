@@ -1180,6 +1180,7 @@ export default function ChatThread({
     cancelMessage,
     reactToMessage,
     sendSticker,
+    sendProductCard,
     externalReadAt: externalReadAtLive,
     externalDeliveredAt,
     // LINE โควตาข้อความรายเดือนหมด (2026-08-10) — session-scoped, ดู comment ที่ useSellerChatThread
@@ -1446,6 +1447,14 @@ export default function ChatThread({
   // รูปสินค้าที่เป็น URL เต็ม (seed เก่า) แนบไม่ได้ — pendingImage รับเฉพาะ storage fileId ที่ backend
   // ตรวจนามสกุลได้ (route คืน 400 ถ้าไม่ใช่ไฟล์รูป) จึงข้ามรูปแล้วเติมเฉพาะข้อความแทนการส่งค่าที่พัง
   function handleProductPick(payload: ProductPickPayload) {
+    // (2026-08-11) โหมดที่ 4 — ส่งการ์ดออกทันที ไม่ผ่านช่องพิมพ์
+    // 🛑 ไม่มี optimistic bubble: การ์ดถูกประกอบที่ server (ต้องอ่านสินค้า + แปลงรูปตามช่องทาง)
+    // client จึงเดารูปร่างล่วงหน้าไม่ได้ — รอผลจริงแล้ว refetch ดีกว่าโชว์บับเบิลที่อาจไม่ตรงของจริง
+    if (payload.sendCardProductId) {
+      void sendProductCard(payload.sendCardProductId)
+      setActivePanel(null)
+      return
+    }
     if (payload.imageFileId && !payload.imageFileId.startsWith('http')) {
       setPendingImage({ fileId: payload.imageFileId, previewUrl: `/api/files/${payload.imageFileId}` })
     }

@@ -41,6 +41,13 @@ export type OutboundMessagePart =
       /** (เพิ่ม 2026-08-11) ข้อความแบบมี layout ของ LINE (Flex Message) — **LINE เท่านั้น**
        *  Meta ไม่มีของเทียบ: MetaAdapter ปฏิเสธด้วย error ที่อ่านออกแทนการเงียบหรือส่งเป็นข้อความเปล่า
        *  (ผู้เรียกต้องเลือกเองว่าช่องทางไหนได้ flex ช่องทางไหนได้ text — ดู messages route) */
+      /** (เพิ่ม 2026-08-11) `message.attachment` แบบ template ของ Meta — **Messenger/IG เท่านั้น**
+       *  LINE ไม่มีของเทียบ (ใช้ `flex` แทน): LineAdapter ปฏิเสธด้วย error ที่อ่านออก */
+      kind: 'template'
+      /** payload ที่ประกอบมาแล้ว (lib/meta/product-card.ts) — adapter ไม่รู้จักรูปร่างการ์ด */
+      attachment: Record<string, unknown>
+    }
+  | {
       kind: 'flex'
       /** สิ่งที่ลูกค้าเห็นใน **รายการแชทและ notification** (flex ไม่ถูกเรนเดอร์ที่นั่น) — ห้ามว่าง */
       altText: string

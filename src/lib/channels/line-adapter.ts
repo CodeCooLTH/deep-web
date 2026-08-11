@@ -50,6 +50,12 @@ function toLineMessage(part: OutboundMessagePart): Record<string, unknown> {
     return { type: 'text', text: part.text }
   }
 
+  if (part.kind === 'template') {
+    // (2026-08-11) Generic Template เป็นของ Meta ล้วน LINE ไม่มีของเทียบ (ใช้ flex แทน) —
+    // โยน error ที่อ่านออกแทนการถอยเงียบไปส่งเป็นข้อความเปล่า ซึ่งลูกค้าจะได้บับเบิลว่าง
+    throw new Error('LineAdapter.sendMessages: ไม่รองรับ template ของ Meta (LINE ใช้ flex แทน)')
+  }
+
   if (part.kind === 'flex') {
     // (2026-08-11) altText คือสิ่งเดียวที่ลูกค้าเห็นในรายการแชท/notification — ปล่อยให้ว่างแล้ว LINE
     // จะขึ้นเป็นบรรทัดเปล่า ลูกค้าไม่มีทางรู้ว่ามีออเดอร์เข้ามาจนกว่าจะเปิดห้องแชท ปฏิเสธตั้งแต่ที่นี่

@@ -12,6 +12,7 @@ import {
   sendTextMessage,
   sendAttachmentMessage,
   sendStickerMessage,
+  sendTemplateMessage,
   type GraphAttachmentType,
 } from '@/lib/facebook/graph'
 import type {
@@ -48,6 +49,10 @@ const ATTACHMENT_KIND_TO_GRAPH: Record<'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE', Gra
 async function sendOnePart(ctx: ChannelContext, part: OutboundMessagePart): Promise<string> {
   if (!ctx.recipientId) throw new Error('MetaAdapter.sendMessages: ต้องมี recipientId')
   const replyTo = ctx.replyToExternalId ?? undefined
+  if (part.kind === 'template') {
+    // (2026-08-11) การ์ดสินค้าแบบ Generic Template — payload ประกอบมาจาก lib/meta/product-card.ts
+    return sendTemplateMessage(ctx.accessToken, ctx.recipientId, part.attachment, { tag: ctx.tag })
+  }
   if (part.kind === 'flex') {
     // (2026-08-11) Flex เป็นของ LINE ล้วน Meta ไม่มีของเทียบ — โยน error ที่อ่านออกแทนการถอยไปส่ง
     // เป็นข้อความเปล่า: การถอยเงียบจะทำให้ลูกค้า Messenger ได้บับเบิลว่างโดยไม่มีใครรู้ว่าหายไปไหน

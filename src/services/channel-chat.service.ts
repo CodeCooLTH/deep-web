@@ -20,6 +20,7 @@ import { getLineReplyWindowState } from '@/lib/line/reply-window'
 // (S-18a) SSOT ของสติกเกอร์ LINE ที่ยิงออกผ่าน Messaging API ได้จริง — ห้ามเดา packageId เอง
 import { findLineStickerPackageId } from '@/lib/line/stickers'
 import { buildLinePreviewJpeg } from '@/lib/line/preview-image'
+import { buildMetaCardJpeg, META_CARD_MAX_BYTES } from '@/lib/meta/card-image'
 import { LINE_PREVIEW_MAX_SIZE } from '@/lib/chat-attachment'
 // (S-8, feature 00025) LineApiError — ต้องอ่าน status/raw ของ error จริงเพื่อจำแนกเป็นรหัสทางธุรกิจ
 // (TOKEN_INVALID/CONTACT_BLOCKED/QUOTA_EXCEEDED/LINE_UNAVAILABLE) — ดู classifyLineOutboundError
@@ -2702,6 +2703,26 @@ function lineErrorToRaw(e: unknown): unknown {
  *
  * ผลพลอยได้: ตัวย่อรูปคืน JPEG ≤1MB/1024px อยู่แล้ว ซึ่งตรงกับที่เอกสาร LINE แนะนำสำหรับ Flex พอดี
  */
+export async function resolveMetaCardImageUrl(fileId: string): Promise<string | null> {
+  // 1.91:1 พื้นขาว — Messenger ครอปรูปที่ไม่ใช่อัตราส่วนนี้ (เอกสาร Meta) รูปสินค้าจัตุรัสจะโดนตัด
+  // หัวท้ายทิ้งเกือบครึ่ง จึงประกอบให้เองแทนการปล่อยให้ Meta ตัด (ดู lib/meta/card-image.ts)
+  try {
+    const original = await getFile(fileId)
+    if (!original) return null
+    const jpeg = await buildMetaCardJpeg(original.buffer, META_CARD_MAX_BYTES)
+    if (!jpeg) return null
+    const cardFileId = await saveFile(
+      new File([new Uint8Array(jpeg)], 'meta-card.jpg', { type: 'image/jpeg' }),
+    )
+    return await getFileUrl(cardFileId, { signed: true, expiresIn: 3600 })
+  } catch (err) {
+    console.warn('[meta-card] เตรียมรูปสินค้าไม่สำเร็จ ส่งการ์ดแบบไม่มีรูป', {
+      reason: err instanceof Error ? err.message : 'unknown',
+    })
+    return null
+  }
+}
+
 export async function resolveLineFlexImageUrl(fileId: string): Promise<string | null> {
   try {
     const original = await getFile(fileId)
@@ -3143,6 +3164,9 @@ export async function sendOutboundMessage(params: {
   orderRefToken?: string
   /** (2026-08-11) การ์ดสินค้า — ผ่านด่าน ownership ที่ route มาแล้ว (scope ด้วย shopId ใน WHERE) */
   productRefId?: string
+  /** (2026-08-11) การ์ดแบบ Generic Template สำหรับ **Messenger/IG เท่านั้น** — ชนะ `text` เมื่อมีค่า
+   *  (LINE ใช้ `flex` แทน; ส่งผิดช่องทางจะถูก adapter ปฏิเสธด้วย error ที่อ่านออก ไม่ถอยเงียบ) */
+  template?: Record<string, unknown>
   /**
    * (2026-08-11) การ์ด Flex สำหรับ **LINE เท่านั้น** — มีค่าเมื่อไหร่จะถูกส่งแทน `text`
    *
@@ -3251,7 +3275,15 @@ export async function sendOutboundMessage(params: {
     // sendText/sendImage ใช้ /me/messages ซึ่ง pageToken resolve เป็นเพจ/IG account ให้เองแล้ว
     // (S-1) ยิงผ่าน adapter.sendMessages แทนการเรียก sendStickerMessage/sendAttachmentMessage/
     // sendTextMessage ตรง ๆ — MetaAdapter delegate ไปยังฟังก์ชันเดิมทุกประการ (ดู meta-adapter.ts)
-    if (params.sticker) {
+    if (params.template) {
+      // (2026-08-11) การ์ดสินค้าแบบ Generic Template — วางไว้ก่อน sticker/attachment เพราะเป็นชนิด
+      // ที่ผู้เรียกเจาะจงมาแล้วว่าต้องการการ์ด (ไม่ปนกับไฟล์แนบ) และอยู่ใต้กฎหน้าต่างเวลาเดียวกัน
+      mid = (
+        await adapter.sendMessages(sendCtx({ tag: messageTag }), [
+          { kind: 'template', attachment: params.template },
+        ])
+      ).externalMessageId
+    } else if (params.sticker) {
       // สติกเกอร์: ยิง sticker_id ตรง ๆ ไม่ใช่ attachment (ดู lib/facebook/graph.ts sendStickerMessage)
       // อยู่ใต้กฎหน้าต่างเวลาเดียวกัน จึงส่ง messageTag ไปด้วยเหมือนข้อความปกติ
       mid = (
@@ -3379,13 +3411,14 @@ export async function sendOutboundMessage(params: {
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: isOrder ? 'ORDER' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
+          type: isOrder ? 'ORDER' : params.productRefId ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
           // ORDER: เก็บ orderRefToken (การ์ด live-join); ไฟล์แนบ: body=null, imageUrl=fileId; ข้อความ: body=text
-          body: isOrder || attachment || params.sticker ? null : bodyText,
+          body: isOrder || params.productRefId || attachment || params.sticker ? null : bodyText,
           imageUrl: stickerFileId ?? attachment?.fileId ?? null,
           attachmentName: attachment?.name ?? null,
           attachmentSize: attachment?.size ?? null,
           orderRefToken: isOrder ? params.orderRefToken! : null,
+          productRefId: params.productRefId ?? null,
           replyToMid: params.replyToMid ?? null,
           externalMessageId: mid || null,
           deliveryStatus: failureReason ? 'FAILED' : 'SENT',

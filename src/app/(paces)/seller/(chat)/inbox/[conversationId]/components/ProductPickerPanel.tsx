@@ -10,11 +10,13 @@
  * ไอคอน+ชื่อซ้าย / ปิดขวา, body max-h-64 scroll) — accent เป็น `info` เพื่อแยกจาก primary
  * (สำเร็จรูป) และ success (AI); เปิดได้ทีละแผงเท่านั้นผ่าน activePanel ของ ChatThread
  *
- * **ทุกโหมดเติมลงช่องพิมพ์ ไม่ส่งออกเอง** — เหตุผล 2 ข้อ:
+ * 🔄 **แก้ 2026-08-11:** เดิม "ทุกโหมดเติมลงช่องพิมพ์ ไม่ส่งออกเอง" โดยให้เหตุผลข้อ 2 ว่า
+ * *การ์ดสินค้าส่งได้เฉพาะเธรด Deep — Messenger/IG คืน 400* — **เหตุผลนั้นหมดไปแล้ว** ตอนนี้
+ * ทุกช่องทางส่งการ์ดได้ (LINE = Flex, Messenger/IG = Generic Template) จึงเพิ่ม **โหมดที่ 4
+ * "ส่งการ์ดสินค้า" ที่ส่งออกทันที** ส่วน 3 โหมดเดิมยังเติมช่องพิมพ์เหมือนเดิมทุกประการ
+ *
+ * เหตุผลข้อ 1 ยังจริงและเป็นเหตุผลที่ไม่เปลี่ยน 3 โหมดเดิม:
  *   1) พฤติกรรมเดียวกับข้อความสำเร็จรูปที่ user อนุมัติแล้ว (คนตรวจก่อนกดส่งเสมอ)
- *   2) การ์ดสินค้า (`type=PRODUCT`) ส่งได้เฉพาะเธรด Deep — ช่องทาง Messenger/IG ระบบคืน 400
- *      (`ช่องทางนี้ยังไม่รองรับการ์ดสินค้า`) การเติมข้อความ+รูปจึงเป็นทางเดียวที่ทำงานได้ทุกช่องทาง
- *      (user เลือก "ส่งรูป + ข้อความแทน" 2026-07-23)
  *
  * Base: theme/paces/Admin/TS/src/app/(admin)/apps/chat/components/ChatPage.tsx (composer/แถวการ์ด)
  *   + AiSuggestPanel.tsx/QuickMessageBar.tsx ในเธรดนี้ (โครงแผงที่ user อนุมัติแล้ว)
@@ -41,7 +43,13 @@ type PickerProduct = {
 const formatThb = (n: number) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(n)
 
 /** เนื้อหาที่จะเติมลงช่องพิมพ์ — text และ/หรือ รูปแนบ */
-export type ProductPickPayload = { text?: string; imageFileId?: string }
+export type ProductPickPayload = {
+  text?: string
+  imageFileId?: string
+  /** (2026-08-11) โหมดที่ 4 "ส่งการ์ดสินค้า" — ส่งออกทันที ไม่เติมช่องพิมพ์ (ดู comment หัวไฟล์)
+   *  ChatThread เป็นคนยิง `type=PRODUCT` เพราะแผงนี้ไม่รู้จัก conversationId */
+  sendCardProductId?: string
+}
 
 type Props = {
   onPick: (payload: ProductPickPayload) => void
@@ -115,10 +123,11 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
     return lines.join('\n')
   }
 
-  function pick(mode: 'image' | 'detail' | 'stock') {
+  function pick(mode: 'image' | 'detail' | 'stock' | 'card') {
     if (!selected || disabled) return
     const img = selected.images[0]
-    if (mode === 'image') onPick({ imageFileId: img })
+    if (mode === 'card') onPick({ sendCardProductId: selected.id })
+    else if (mode === 'image') onPick({ imageFileId: img })
     else if (mode === 'detail') onPick({ text: detailText(selected), imageFileId: img })
     else onPick({ text: `${selected.name} — คงเหลือ ${selected.stockQty} ชิ้น` })
     setSelected(null)
@@ -160,6 +169,14 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
       {selected ? (
         /* ── เลือกรูปแบบการส่ง ── */
         <div className="flex flex-col gap-2 pb-1">
+          {/* (2026-08-11) โหมดที่ 4 — ส่งออกทันที ต่างจากอีก 3 โหมดที่เติมช่องพิมพ์ให้ตรวจก่อน
+              จึงต้องบอกความต่างนั้นไว้ใน hint ตรง ๆ ไม่ให้ผู้ขายกดแล้วเซอร์ไพรส์ */}
+          <ModeButton
+            icon="layout-cards"
+            label="ส่งการ์ดสินค้า"
+            hint="ส่งออกทันที — ลูกค้าเห็นเป็นการ์ด (รูป ชื่อ ราคา)"
+            onClick={() => pick('card')}
+          />
           <ModeButton
             icon="photo"
             label="ส่งรูปภาพสินค้าอย่างเดียว"
