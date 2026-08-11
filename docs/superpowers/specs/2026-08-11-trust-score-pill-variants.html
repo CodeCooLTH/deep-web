@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ชิปคะแนนความน่าเชื่อถือ — เทียบทรง (2026-08-11)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ── token จาก .impeccable/design.json + DESIGN.md — ห้ามตั้งค่าใหม่ในไฟล์นี้ ──
+     ink plum #2F2B3D ไม่ใช่ดำสนิท · verified green #28C76F · primary #7367F0 */
+  :root{
+    --ink:#2F2B3D;
+    --ink-60:rgba(47,43,61,.60);
+    --ink-38:rgba(47,43,61,.38);
+    --paper:#fff;
+    --page:#F8F7FA;
+    --divider:rgba(47,43,61,.12);
+    --hover:rgba(47,43,61,.06);
+    --success:#28C76F;
+    --primary:#7367F0;
+    --warning:#FF9F43;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--page);color:var(--ink);
+    font-family:Anuphan,"Noto Sans Thai",system-ui,sans-serif;
+    /* body 15px ตาม ramp (root bump ให้ glyph ไทยอ่านง่าย) */
+    font-size:15px;line-height:1.47;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:28px;font-weight:500;line-height:1.5;margin:0 0 6px}
+  h2{font-size:24px;font-weight:500;line-height:1.58;margin:44px 0 4px}
+  .lead{color:var(--ink-60);font-size:15px;margin:0 0 8px}
+  .note{
+    background:#fff;border:1px solid var(--divider);border-radius:10px;
+    padding:14px 16px;margin:16px 0 0;font-size:13px;color:var(--ink-60);line-height:1.6;
+  }
+  .note b{color:var(--ink)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:var(--hover);padding:1px 5px;border-radius:4px}
+
+  /* ── ตารางเทียบทรง ── */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;margin-top:18px}
+  .card{background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:18px 18px 20px}
+  .card.pick{border-color:var(--primary);box-shadow:0 0 0 3px rgba(115,103,240,.10)}
+  .card h3{margin:0 0 2px;font-size:18px;font-weight:500;line-height:1.56}
+  .tag{
+    display:inline-block;font-size:12px;letter-spacing:.8px;font-weight:600;
+    color:var(--ink-60);text-transform:uppercase;margin-bottom:10px
+  }
+  .why{font-size:13px;color:var(--ink-60);line-height:1.6;margin:12px 0 0;border-top:1px solid var(--divider);padding-top:10px}
+  /* error-coral tonalRamp idx2 จาก .impeccable/design.json — ไม่ใช่แดงที่ผสมเอง
+     (รอบแรกผมใส่ #b34a4a ซึ่งไม่อยู่ในพาเลตเลย impeccable hook จับได้) */
+  .why .bad{color:#b31e22}
+  .samples{display:flex;flex-direction:column;gap:12px;align-items:center;padding:16px 0 4px}
+
+  /* ═══ ทรงที่ 0 — ของปัจจุบัน ═══ */
+  .v0{display:inline-flex;align-items:stretch;border-radius:999px;overflow:hidden}
+  .v0 .num{
+    display:inline-flex;align-items:center;padding:4px 8px;
+    font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;
+    background:var(--ink);color:var(--paper)
+  }
+  .v0 .den{font-size:11px;font-weight:700;opacity:.65}
+  .v0 .tier{display:inline-flex;align-items:center;padding:4px 10px;font-size:13px;font-weight:700;line-height:1}
+
+  /* ═══ A — พิลเดียว ไม่แบ่งช่วง ═══ */
+  .vA{
+    display:inline-flex;align-items:center;gap:7px;border-radius:999px;
+    padding:5px 12px;font-size:13px;font-weight:700;line-height:1
+  }
+  .vA .dot{inline-size:6px;block-size:6px;border-radius:999px;flex:none}
+  .vA .num{font-weight:800;font-variant-numeric:tabular-nums}
+  .vA .sep{opacity:.42;font-weight:600}
+
+  /* ═══ B — สองช่วง ขนาดเท่ากัน ตัด /100 ═══ */
+  .vB{display:inline-flex;align-items:stretch;border-radius:999px;overflow:hidden}
+  .vB .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-inline-size:38px;padding:5px 9px;
+    font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1
+  }
+  .vB .tier{display:inline-flex;align-items:center;padding:5px 11px;font-size:13px;font-weight:700;line-height:1}
+
+  /* ═══ C — วงแหวน ═══ */
+  .vC{display:inline-flex;align-items:center;gap:10px}
+  .vC .ring{
+    inline-size:44px;block-size:44px;border-radius:999px;flex:none;
+    display:grid;place-items:center;position:relative
+  }
+  .vC .ring::after{
+    content:"";position:absolute;inset:4px;border-radius:999px;background:var(--paper)
+  }
+  .vC .ring span{
+    position:relative;z-index:1;
+    font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1
+  }
+  .vC .lbl{display:flex;flex-direction:column;gap:2px;text-align:start}
+  .vC .lbl b{font-size:13px;font-weight:700;line-height:1.2}
+  .vC .lbl small{font-size:12px;letter-spacing:.8px;color:var(--ink-60)}
+
+  /* ═══ D — แถบความคืบหน้า ═══ */
+  .vD{inline-size:210px;display:flex;flex-direction:column;gap:6px}
+  .vD .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .vD .row b{font-size:13px;font-weight:700;line-height:1}
+  .vD .row span{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink-60);line-height:1}
+  .vD .bar{block-size:4px;border-radius:999px;background:var(--hover);overflow:hidden}
+  .vD .bar i{display:block;block-size:100%;border-radius:999px}
+
+  /* ═══ E — คง /100 แต่ขนาดเดียวกัน ═══ */
+  .vE{display:inline-flex;align-items:stretch;border-radius:999px;overflow:hidden}
+  .vE .num{
+    display:inline-flex;align-items:baseline;gap:1px;padding:5px 10px;
+    font-size:13px;line-height:1;background:var(--ink);color:var(--paper);
+    font-variant-numeric:tabular-nums
+  }
+  .vE .num b{font-weight:800}
+  .vE .num i{font-style:normal;font-weight:600;opacity:.55}
+  .vE .tier{display:inline-flex;align-items:center;padding:5px 11px;font-size:13px;font-weight:700;line-height:1}
+
+  /* ═══ F — Metric แนวตั้ง ═══ */
+  .vF{display:inline-flex;align-items:center;gap:9px}
+  .vF .n{font-size:20px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.4px}
+  .vF .stack{display:flex;flex-direction:column;gap:1px;text-align:start}
+  .vF .stack b{font-size:13px;font-weight:700;line-height:1.2}
+  .vF .stack small{font-size:12px;color:var(--ink-60);letter-spacing:.4px}
+
+  /* ── บริบทจริง: หัวโปรไฟล์ย่อ ── */
+  .devices{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px;align-items:flex-start}
+  .device{background:var(--paper);border:1px solid var(--divider);border-radius:10px;overflow:hidden}
+  .device .cap{font-size:12px;letter-spacing:.8px;color:var(--ink-60);padding:8px 12px;border-bottom:1px solid var(--divider);font-weight:600}
+  .m390{inline-size:390px}.m768{inline-size:420px}.m1200{inline-size:100%;min-inline-size:340px;flex:1}
+  .hero{padding:0 0 16px}
+  .cover{block-size:96px}
+  .avatar{
+    inline-size:76px;block-size:76px;border-radius:999px;border:4px solid var(--paper);
+    margin:-38px auto 0;background:var(--hover);display:grid;place-items:center;
+    font-size:24px;font-weight:800;color:var(--ink-38)
+  }
+  .hero .name{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    font-size:18px;font-weight:500;line-height:1.56;margin-top:8px
+  }
+  .hero .check{
+    inline-size:18px;block-size:18px;border-radius:999px;background:var(--success);
+    display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800
+  }
+  .hero .pillrow{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap;margin-top:6px}
+  .hero .slug{text-align:center;font-size:13px;color:var(--ink-60);margin-top:4px}
+  .rating{
+    display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:999px;
+    font-size:13px;font-weight:700;line-height:1;background:var(--hover)
+  }
+  .rating .star{color:var(--warning)}
+  .rating .cnt{font-weight:500;color:var(--ink-60);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>ชิปคะแนนความน่าเชื่อถือ — เทียบทรง</h1>
+  <p class="lead">
+    หน้าร้านสาธารณะ <code>/u/[username]</code> + <code>/b/[slug]</code> · <code>ProfileHero.tsx</code> ·
+    2026-08-11
+  </p>
+
+  <div class="note">
+    <b>โจทย์จาก user:</b> “ตรงนี้ก็ไม่สวยอยู่ดี มีแบบอื่นปะ เลขก็ไม่เท่ากัน” — และระบุว่าที่ติดตาคือ
+    <b><code>29</code> กับ <code>/100</code> ขนาดต่างกัน</b> (ตอนนี้ 15px กับ 11px opacity .65)
+    <br><br>
+    <b>ทุกทรงในหน้านี้ใช้ token จริง</b> — สีระดับมาจาก <code>getTierChipTone()</code> / <code>getTierAccentColor()</code>
+    ใน <code>src/lib/trust-tier.ts</code> · ขนาดตัวอักษรอยู่บน ramp ของ <code>DESIGN.md</code> ทุกค่า
+    (13px = Label · 15px = Body · 20px = ขั้นล่างสุดของ <b>Metric</b> ซึ่งเป็นชุดที่สงวนไว้ให้
+    “ตัวเลขที่ทำหน้าที่เป็นภาพ”) · ไม่มีค่าไหนที่ผมตั้งเอง
+    <br><br>
+    <b>คะแนนตัวอย่างครอบ 4 ระดับจริง</b> — 29 (Classic ช่วง D เทาม่วง) · 52 (Classic ช่วง C อำพัน) ·
+    72 (Gold) · 94 (Star) เพื่อให้เห็นว่าสีระดับแยกออกจากกันไหม และ<b>พิลขยับหรือเปล่าเวลาเลขเปลี่ยนหลัก</b>
+  </div>
+
+  <h2>ทรงที่มีอยู่ตอนนี้</h2>
+  <div class="grid">
+    <div class="card">
+      <span class="tag">ปัจจุบัน</span>
+      <h3>สองช่วง · เลขคนละขนาด</h3>
+      <div class="samples" id="s0"></div>
+      <p class="why">
+        <span class="bad">ปัญหา:</span> <code>29</code> เป็น 15px/800 ส่วน <code>/100</code> เป็น 11px/700 opacity .65
+        — ต่างกัน 3 ขั้นบน ramp ในก้อนเดียว อ่านเป็น “ตัวหนังสือสองขนาดแปะกัน” มากกว่าตัวเลขเดียว ·
+        11px ตาม DESIGN.md สงวนไว้ให้ <b>ข้อความบนรูปภาพเท่านั้น</b> ห้ามใช้บนพื้นสีเรียบ ·
+        และก้อนซ้ายกว้างไม่คงที่ พิลจึงขยับเวลาเลขเปลี่ยนจาก 2 หลักเป็น 3 หลัก
+      </p>
+    </div>
+  </div>
+
+  <h2>ทรงที่เสนอ</h2>
+  <p class="lead">เรียงจาก “เปลี่ยนน้อยสุด” ไป “เปลี่ยนเยอะสุด”</p>
+  <div class="grid">
+
+    <div class="card">
+      <span class="tag">แบบ E · เปลี่ยนน้อยสุด</span>
+      <h3>คงทุกอย่าง แค่ทำเลขขนาดเดียวกัน</h3>
+      <div class="samples" id="sE"></div>
+      <p class="why">
+        <code>29</code> กับ <code>/100</code> เป็น 13px เท่ากัน ต่างกันแค่<b>น้ำหนักกับความทึบ</b> (800 vs 600/.55)
+        ซึ่งเป็นวิธีสร้างลำดับชั้นที่ไม่ต้องเปลี่ยนขนาด · ก้อนซ้ายชิดขวาแบบ tabular-nums
+        <br>ยังเป็นก้อนทึบเข้มเหมือนเดิม ถ้ารู้สึกว่า “หนัก” อยู่ ทรงนี้ไม่ได้แก้ให้
+      </p>
+    </div>
+
+    <div class="card">
+      <span class="tag">แบบ B</span>
+      <h3>สองช่วง · ตัด <code>/100</code> ทิ้ง</h3>
+      <div class="samples" id="sB"></div>
+      <p class="why">
+        ตัวหารซ้ำกับแผงคะแนนที่กดดูได้จากเช็คเขียวอยู่แล้ว · ช่องเลข <b>กว้างคงที่ 38px</b>
+        รองรับ 3 หลัก ⇒ 9 / 29 / 100 พิลไม่ขยับเลย
+        <br>แลกด้วย: คนที่กวาดตาผ่านครั้งแรกไม่รู้ว่า 29 เทียบกับเต็มเท่าไร
+      </p>
+    </div>
+
+    <div class="card">
+      <span class="tag">แบบ A</span>
+      <h3>พิลเดียว ไม่มีก้อนทึบ</h3>
+      <div class="samples" id="sA"></div>
+      <p class="why">
+        ตัดเส้นแบ่งกับก้อนเข้มทิ้ง เหลือพิลเดียวพื้นสีระดับอ่อน · จุดสีนำหน้าเป็นตัวแยกระดับด้วย
+        <b>รูปร่าง+สี</b> ไม่ใช่สีอย่างเดียว
+        <br>เบาที่สุด กลืนกับหัวโปรไฟล์ที่สุด — แต่คะแนนเด่นน้อยลงชัดเจน
+      </p>
+    </div>
+
+    <div class="card">
+      <span class="tag">แบบ F</span>
+      <h3>ตัวเลขเป็น Metric · ไม่มีพิล</h3>
+      <div class="samples" id="sF"></div>
+      <p class="why">
+        20px/800 = ขั้นล่างสุดของชุด <b>Metric</b> ซึ่ง DESIGN.md นิยามไว้ตรงตัวว่าสำหรับ
+        “ตัวเลขที่ทำหน้าที่เป็นภาพ ไม่ใช่ข้อความ” · คะแนนกลายเป็นพระเอกของบรรทัด
+        <br>ไม่มีพื้นพิล = ต้องพึ่งขนาดกับน้ำหนักล้วน ๆ บนจอแคบอาจดูโล่ง
+      </p>
+    </div>
+
+    <div class="card">
+      <span class="tag">แบบ C</span>
+      <h3>วงแหวนเติมตามคะแนน</h3>
+      <div class="samples" id="sC"></div>
+      <p class="why">
+        วงเติม 29% ด้วยสีระดับ ⇒ <b>ไม่ต้องมี <code>/100</code> เลย</b> รูปทรงบอกสัดส่วนแทน
+        และเห็น “ยังไปได้อีกไกล” ทันทีโดยไม่ต้องอ่านเลข
+        <br>สูงกว่าเดิม ~20px กินที่แนวตั้งในหัวโปรไฟล์ที่เพิ่งยุบไป และเป็นภาษาภาพใหม่ที่หน้านี้ยังไม่มีใช้
+      </p>
+    </div>
+
+    <div class="card">
+      <span class="tag">แบบ D</span>
+      <h3>แถบความคืบหน้า</h3>
+      <div class="samples" id="sD"></div>
+      <p class="why">
+        ชื่อระดับกับคะแนนบรรทัดเดียว มีแถบบางใต้บอกว่าไปถึงไหน
+        <br><span class="bad">ข้อควรระวัง:</span> บนหน้าที่ผู้ซื้อใช้ตัดสินใจโอนเงิน แถบที่เติมไม่ถึง 1/3
+        อ่านได้ว่า “ร้านนี้ยังไม่ผ่าน” ซึ่งแรงกว่าที่ตัวเลขสื่อ — เหมาะกับจอ<b>ฝั่งผู้ขาย</b>ที่ต้องการกระตุ้น
+        มากกว่าจอที่ผู้ซื้อใช้ประเมิน
+      </p>
+    </div>
+
+  </div>
+
+  <h2>อยู่ในหัวโปรไฟล์จริง — 3 ขนาดจอ</h2>
+  <p class="lead">
+    ร้านเดียวกัน คะแนน 29 (Deep Classic) — ดูว่าแต่ละทรงแย่งสายตาไปจากชื่อร้านหรือเปล่า
+    และวางคู่กับชิปคะแนนรีวิวแล้วยังอยู่บรรทัดเดียวไหม
+  </p>
+  <div class="devices" id="devices"></div>
+
+  <div class="note" style="margin-top:28px">
+    <b>สิ่งที่ยังไม่ตัดสินในไฟล์นี้</b> — ตำแหน่งของชิป (ยังอยู่ใต้ชื่อร้านเหมือนเดิมทุกทรง) และ
+    ชิปคะแนนรีวิวข้าง ๆ (ไม่แตะ) · เลือกทรงแล้วผมจะส่งเข้า <code>safepay-ux</code> ให้ออก Design Spec
+    ก่อนแก้โค้ดจริงตาม Hard Rule 8
+  </div>
+
+</div>
+
+<script>
+/* ── SSOT จำลองจาก src/lib/trust-tier.ts — ห้ามแก้ค่าที่นี่โดยไม่แก้ไฟล์นั้นด้วย ── */
+function letter(s){ if(s>=90)return'A+'; if(s>=80)return'A'; if(s>=70)return'B+'; if(s>=60)return'B'; if(s>=40)return'C'; return'D' }
+function tierLabel(s){ return {'A+':'Deep Star','A':'Deep Diamond','B+':'Deep Gold','B':'Deep Silver'}[letter(s)] || 'Deep Classic' }
+function chipTone(s){ return {
+  'A+':{bg:'rgba(115,103,240,.16)',text:'#5a4ee0'},
+  'A' :{bg:'rgba(0,186,209,.18)', text:'#005a66'},
+  'B+':{bg:'rgba(255,159,67,.18)',text:'#874c00'},
+  'B' :{bg:'rgba(122,118,137,.18)',text:'#5c5870'},
+  'C' :{bg:'rgba(179,103,0,.18)', text:'#874c00'},
+  'D' :{bg:'rgba(155,152,168,.22)',text:'#5c5870'},
+}[letter(s)] }
+function accent(s){ return {'A+':'#7367F0','A':'#00BAD1','B+':'#FF9F43','B':'#7a7689','C':'#b36700','D':'#9b98a8'}[letter(s)] }
+function gradient(s){ return {
+  'A+':'linear-gradient(135deg,#7367F0 0%,#9389f4 45%,#d9d4fb 100%)',
+  'A' :'linear-gradient(135deg,#009eb2 0%,#00BAD1 45%,#8ee5ee 100%)',
+  'B+':'linear-gradient(135deg,#e08400 0%,#FF9F43 45%,#ffd1a3 100%)',
+  'B' :'linear-gradient(135deg,#454155 0%,#7a7689 45%,#bdbbc7 100%)',
+  'C' :'linear-gradient(135deg,#b36700 0%,#e08400 55%,#ffd1a3 100%)',
+  'D' :'linear-gradient(135deg,#9b98a8 0%,#bdbbc7 55%,#dedce4 100%)',
+}[letter(s)] }
+
+const SCORES = [29, 52, 72, 94]
+
+/* ทุกทรงคืน HTML ของ "ชิป" อย่างเดียว ไม่รวมบริบท — จะได้เอาไปวางในหัวโปรไฟล์ซ้ำได้ */
+const V = {
+  v0: s => `<span class="v0"><span class="num">${s}<span class="den">/100</span></span>
+       <span class="tier" style="background:${chipTone(s).bg};color:${chipTone(s).text}">${tierLabel(s)}</span></span>`,
+
+  vE: s => `<span class="vE"><span class="num"><b>${s}</b><i>/100</i></span>
+       <span class="tier" style="background:${chipTone(s).bg};color:${chipTone(s).text}">${tierLabel(s)}</span></span>`,
+
+  vB: s => `<span class="vB"><span class="num" style="background:var(--ink);color:var(--paper)">${s}</span>
+       <span class="tier" style="background:${chipTone(s).bg};color:${chipTone(s).text}">${tierLabel(s)}</span></span>`,
+
+  vA: s => `<span class="vA" style="background:${chipTone(s).bg};color:${chipTone(s).text}">
+       <span class="dot" style="background:${accent(s)}"></span>
+       <span class="num">${s}</span><span class="sep">·</span>${tierLabel(s)}</span>`,
+
+  vF: s => `<span class="vF"><span class="n" style="color:${chipTone(s).text}">${s}</span>
+       <span class="stack"><b style="color:${chipTone(s).text}">${tierLabel(s)}</b>
+       <small>คะแนนความน่าเชื่อถือ</small></span></span>`,
+
+  vC: s => `<span class="vC">
+       <span class="ring" style="background:conic-gradient(${accent(s)} ${s}%, rgba(47,43,61,.10) 0)">
+         <span style="color:${chipTone(s).text}">${s}</span></span>
+       <span class="lbl"><b style="color:${chipTone(s).text}">${tierLabel(s)}</b>
+       <small>ความน่าเชื่อถือ</small></span></span>`,
+
+  vD: s => `<span class="vD"><span class="row"><b style="color:${chipTone(s).text}">${tierLabel(s)}</b>
+       <span>${s}/100</span></span>
+       <span class="bar"><i style="inline-size:${s}%;background:${accent(s)}"></i></span></span>`,
+}
+
+for (const [id, fn] of Object.entries({ s0:V.v0, sE:V.vE, sB:V.vB, sA:V.vA, sF:V.vF, sC:V.vC, sD:V.vD })) {
+  document.getElementById(id).innerHTML = SCORES.map(fn).join('')
+}
+
+/* ── หัวโปรไฟล์ย่อ 3 ขนาดจอ ── */
+const DEVICES = [
+  { cls:'m390', cap:'MOBILE 390' },
+  { cls:'m768', cap:'TABLET 768 (ตัดครึ่งให้เห็นคอลัมน์กลาง)' },
+  { cls:'m1200', cap:'DESKTOP 1200' },
+]
+const SHOW = [['ปัจจุบัน','v0'],['E','vE'],['B','vB'],['A','vA'],['F','vF'],['C','vC'],['D','vD']]
+const S = 29
+
+document.getElementById('devices').innerHTML = DEVICES.map(d => `
+  <div class="device ${d.cls}">
+    <div class="cap">${d.cap}</div>
+    ${SHOW.map(([name, key]) => `
+      <div class="hero">
+        <div class="cover" style="background:${gradient(S)}"></div>
+        <div class="avatar">ท</div>
+        <div class="name">ธนภัทร ฮาร์ดแวร์ <span class="check">&#10003;</span></div>
+        <div class="pillrow">
+          ${V[key](S)}
+          <span class="rating"><span class="star">&#9733;</span>4.8<span class="cnt">(12)</span></span>
+        </div>
+        <div class="slug">@tanapathardware &middot; เปิดร้านตั้งแต่ มิ.ย. 2568</div>
+        <div style="text-align:center;font-size:12px;letter-spacing:.8px;color:var(--ink-38);margin-top:10px">${name}</div>
+      </div>
+    `).join('<hr style="border:0;border-top:1px solid var(--divider);margin:0">')}
+  </div>
+`).join('')
+</script>
+</body>
+</html>
