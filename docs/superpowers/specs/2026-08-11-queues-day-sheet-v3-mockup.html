@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v3 — คิวงาน: จิ้มวันแล้วชีตเลื่อนขึ้นทับปฏิทิน + ปัด/กดลูกศรเปลี่ยนวัน (2026-08-11)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-info:#4ba3f7;    --color-info-ink:#1e40af;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px; --radius:4px; --shadow:0 1px 2px rgba(49,58,70,.075);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;color:var(--color-body-color);font-size:14px;line-height:1.5;padding:32px 20px 90px}
+.wrap{max-width:1900px;margin:0 auto}
+.page-head h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.page-head p{margin-top:6px;max-width:96ch}
+.page-head .meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;margin:22px 0 8px;border-left:3px solid var(--color-primary)}
+.note.bad{border-left-color:var(--color-danger)}
+.note.good{border-left-color:var(--color-success)}
+.note.warn{border-left-color:var(--color-warning)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}.note li{margin-bottom:7px;font-size:13px}
+.note ol{margin-left:20px}.note ol li{margin-bottom:8px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.note b{color:var(--color-default-900)}
+.sec-title{margin:46px 0 4px;font-size:19px;font-weight:600;color:var(--color-default-900);padding-bottom:8px;border-bottom:2px solid var(--color-default-300)}
+.sec-title span{font-size:13px;font-weight:400;color:var(--color-default-500);margin-left:8px}
+.rack{display:flex;gap:38px;align-items:flex-start;flex-wrap:wrap;margin-top:22px}
+.device{flex:0 0 auto}
+.device>figcaption{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:10px;max-width:393px;line-height:1.55}
+.device>figcaption em{font-style:normal;font-weight:400;color:var(--color-default-500)}
+.device>figcaption b.tagbad{color:var(--color-danger-ink)}
+.device>figcaption b.taggood{color:var(--color-success-ink)}
+
+.phone{position:relative;width:393px;height:852px;background:var(--color-body-bg);border:10px solid #1c2430;border-radius:38px;overflow:hidden;box-shadow:0 18px 44px rgba(28,36,48,.28)}
+.phone.se{width:320px;height:568px;border-radius:30px}
+.phone.tab{width:834px;height:700px;border-radius:24px;border-width:12px}
+.screen{position:absolute;inset:0;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:13px;font-weight:600;color:var(--color-default-900)}
+.se .statusbar{height:24px;font-size:11px}.tab .statusbar{height:28px;font-size:12px}
+.apphead{height:50px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--color-card);border-bottom:1px solid var(--color-default-200);z-index:1}
+.apphead .ttl{flex:1;text-align:center;font-weight:600;color:var(--color-default-900)}
+.icnbtn{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500)}
+.stage{flex:1 1 auto;position:relative;overflow:hidden}
+
+/* ปฏิทิน */
+.calpane{background:var(--color-card);height:100%}
+.monthbar{display:flex;align-items:center;gap:8px;padding:10px 12px}
+.monthbar .m{flex:1;text-align:center;font-weight:600;color:var(--color-default-900);font-size:15px}
+.navbtn{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500)}
+.todaybtn{height:40px;padding:0 14px;border-radius:99px;border:1px solid var(--color-default-300);display:grid;place-items:center;font-size:13px;font-weight:500;color:var(--color-default-700)}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px}
+.dow span{text-align:center;font-size:var(--text-2xs);font-weight:600;color:var(--color-default-400);padding:5px 0}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px 8px}
+.cell{min-height:52px;margin:1px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:15px;color:var(--color-default-800);line-height:1.05}
+/* 🛑 จุด ไม่ใช่ตัวเลข (user เคาะ 2026-08-11 · ตรงกับ AppointmentDayCell.tsx ที่ขึ้น prod แล้ว)
+   size-2 (8px) สี warning-ink = เฉดเดิมที่เข้มขึ้น 8.94:1 (bg-warning ตรง ๆ ได้ 1.66:1 ตกเกณฑ์ non-text 3:1)
+   จุดโปร่งใสของวันว่างต้องคงไว้ ไม่งั้นเลขวันของสองแบบไม่ตรงแนวกัน */
+.cell .n{width:8px;height:8px;border-radius:99px;background:var(--color-warning-ink);font-size:0;line-height:0}
+.cell .n.zero{background:transparent}
+.cell.sel .n{background:#fff}
+/* วันที่มีงาน = เลขเข้ม+หนา · วันว่าง = จาง (แก้ที่พื้นหลังเสียง ไม่ใช่ที่ตัวสัญญาณ) */
+.cell:has(.n:not(.zero)){color:var(--color-default-900);font-weight:600}
+.cell:has(.n.zero){color:var(--color-default-400);font-weight:500}
+.cell.other,.cell.other:has(.n.zero){color:var(--color-default-400);opacity:.55}
+/* ต้องอยู่หลังกฎ :has() ข้างบน — specificity เท่ากัน ตัวหลังชนะ */
+.cell.sel:has(.n){background:var(--color-primary);color:#fff;font-weight:600}
+.cell.today{border:1px solid var(--color-default-400)}
+.cell.sel{background:var(--color-primary);color:#fff;font-weight:600}
+.cell.sel .n{color:#fff}
+
+/* ── ชีตวัน ─────────────────────────────────────────────── */
+.scrim{position:absolute;inset:0;background:rgba(49,58,70,.35);backdrop-filter:blur(1px)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--color-default-100);border-radius:16px 16px 0 0;box-shadow:0 -8px 28px rgba(28,36,48,.22);display:flex;flex-direction:column;overflow:hidden}
+.sheet.full{top:0;border-radius:0}
+/* ทับเต็มจอรวมหัวแอป (user เคาะ 2026-08-11) — ในโค้ดจริงคือ fixed inset-0 z-80
+   + padding-top: env(safe-area-inset-top) เพื่อไม่ให้หัวชีตไปนอนใต้แถบสถานะ/รอยบาก */
+.sheet.appfull{top:0;border-radius:0}
+.closebtn{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;color:var(--color-default-700);background:var(--color-default-100);flex:0 0 auto}
+.sheet.week{top:112px;border-radius:16px 16px 0 0}
+.sheet.mid{top:46%}
+.grip{width:36px;height:4px;border-radius:99px;background:var(--color-default-300);margin:8px auto 2px;flex:0 0 auto}
+.sheethead{flex:0 0 auto;background:var(--color-card);border-bottom:1px solid var(--color-default-200);padding:2px 6px 10px}
+.daynav{display:flex;align-items:center;gap:4px}
+.daynav .arw{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;color:var(--color-default-700);flex:0 0 auto}
+.daynav .arw.off{color:var(--color-default-300)}
+.daynav .ctr{flex:1;min-width:0;text-align:center}
+.daynav .ctr .d{font-size:15px;font-weight:600;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.daynav .ctr .c{font-size:var(--text-2xs);color:var(--color-default-500);margin-top:1px}
+.daynav .ctr .c b{color:var(--color-default-800)}
+.daynav .x{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;color:var(--color-default-500);flex:0 0 auto}
+.dayprog{margin:8px 10px 0;display:flex;align-items:center;gap:8px}
+.dayprog .bar{flex:1;height:5px;border-radius:99px;background:var(--color-default-300);overflow:hidden;display:flex}
+.dayprog .bar i{display:block;height:100%}
+.dayprog .bar i.done{background:var(--color-success)}
+.dayprog .bar i.miss{background:var(--color-danger)}
+.dayprog .lbl{font-size:var(--text-2xs);color:var(--color-default-500);white-space:nowrap;font-variant-numeric:tabular-nums}
+.sheetbody{flex:1 1 auto;overflow:hidden;position:relative}
+.fadebottom{position:absolute;left:0;right:0;bottom:0;height:40px;background:linear-gradient(to top,var(--color-default-100),transparent);pointer-events:none;z-index:3}
+.sheetfoot{flex:0 0 auto;background:var(--color-card);border-top:1px solid var(--color-default-200);padding:10px 12px}
+
+/* แถบสัปดาห์ (แบบ B) */
+.weekstrip{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:6px 8px 8px;background:var(--color-card)}
+.wd{border-radius:10px;padding:5px 0 6px;text-align:center;line-height:1.15}
+.wd .dw{font-size:var(--text-2xs);color:var(--color-default-400);font-weight:600}
+.wd .dd{font-size:15px;font-weight:600;color:var(--color-default-800);font-variant-numeric:tabular-nums}
+.wd .dn{font-size:9px;font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.wd .dn.zero{color:transparent}
+.wd.sel{background:var(--color-primary)}
+.wd.sel .dw,.wd.sel .dd,.wd.sel .dn{color:#fff}
+.wd.today{box-shadow:inset 0 0 0 1px var(--color-default-400)}
+
+/* รายการ */
+.list{padding:10px 12px 16px;display:flex;flex-direction:column;gap:8px}
+.slot{display:flex;align-items:baseline;gap:8px;padding:8px 4px 2px}
+.slot:first-child{padding-top:0}
+.slot .rng{font-size:13px;font-weight:600;color:var(--color-default-800);font-variant-numeric:tabular-nums}
+.slot .cnt{margin-left:auto;font-size:var(--text-2xs);color:var(--color-default-500);white-space:nowrap}
+.slot.past .rng{color:var(--color-default-500)}
+.slotfold{display:flex;align-items:center;gap:8px;background:var(--color-card);border:1px dashed var(--color-default-300);border-radius:8px;padding:9px 12px}
+.slotfold .rng{font-size:13px;font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.slotfold .txt{font-size:12px;color:var(--color-default-500)}
+.slotfold .chev{margin-left:auto;color:var(--color-default-400)}
+
+.qc{background:var(--color-card);border-radius:8px;padding:11px 12px;position:relative}
+.qc .top{display:flex;align-items:flex-start;gap:10px}
+.qc .mid{flex:1;min-width:0}
+.qc .nm{font-size:15px;font-weight:600;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.qc .sub{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
+.qc .chev{color:var(--color-default-400);flex:0 0 auto;margin-top:3px}
+.qc.done{background:#fbfcfe}
+.qc.done .nm{font-weight:500;color:var(--color-default-700)}
+
+.av{position:relative;width:40px;height:40px;flex:0 0 auto}
+.av .ph{width:40px;height:40px;border-radius:99px;object-fit:cover;background:var(--color-default-200);display:block}
+.av .ini{width:40px;height:40px;border-radius:99px;background:rgba(35,109,201,.1);color:var(--color-primary);display:grid;place-items:center;font-size:14px;font-weight:600}
+.av .bdg{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:99px;box-shadow:0 0 0 2px var(--color-card);display:grid;place-items:center;overflow:hidden;background:#fff}
+.av .bdg svg{width:11px;height:11px;stroke:#fff;fill:none;stroke-width:2}
+.av .bdg.fb{background:#0866FF}
+.av .bdg.ig{background:linear-gradient(45deg,#f9ce34,#ee2a7b,#6228d7)}
+.av .bdg.line{background:#06C755}
+.av .bdg.store{background:var(--color-default-200)}
+.av .bdg.store svg{stroke:var(--color-default-500)}
+
+.phrow{display:flex;align-items:center;gap:8px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--color-default-300)}
+.phrow .tel{flex:1;min-width:0;display:flex;align-items:center;gap:7px;font-size:15px;font-weight:600;color:var(--color-default-900);font-variant-numeric:tabular-nums}
+.phrow .tel svg{color:var(--color-default-400)}
+.phrow .tel.none{font-size:13px;font-weight:400;color:var(--color-default-400)}
+.phrow .acts{display:flex;gap:6px;flex:0 0 auto}
+
+.badge{font-size:var(--text-2xs);font-weight:600;padding:3px 8px;border-radius:99px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;flex:0 0 auto}
+.badge.sched{background:rgba(249,191,89,.15);color:var(--color-warning-ink)}
+.badge.conf{background:rgba(35,109,201,.15);color:var(--color-primary-ink)}
+.badge.done{background:rgba(2,188,156,.15);color:var(--color-success-ink)}
+.src{font-size:var(--text-2xs);color:var(--color-default-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:135px}
+
+.btn{height:38px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:500;padding:0 14px;border:1px solid transparent;background:transparent;white-space:nowrap}
+.btn.h44{height:44px}
+.btn.w44{width:44px;padding:0}
+.btn.call{background:var(--color-primary);color:#fff}
+.btn.line2{border-color:var(--color-default-300);color:var(--color-default-700)}
+.btn.pri{background:var(--color-primary);color:#fff;width:100%}
+
+.nowline{display:flex;align-items:center;gap:8px;margin:4px 2px}
+.nowline .dot{width:8px;height:8px;border-radius:99px;background:var(--color-primary);flex:0 0 auto}
+.nowline .ln{flex:1;height:1px;background:var(--color-primary);opacity:.45}
+.nowline .lb{font-size:var(--text-2xs);font-weight:600;color:var(--color-primary-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ระหว่างปัดเปลี่ยนวัน */
+.swipewrap{position:absolute;inset:0;display:flex}
+.swipepane{width:100%;flex:0 0 100%;overflow:hidden}
+.peek{background:var(--color-default-100);border-left:1px solid var(--color-default-200)}
+.peekhint{position:absolute;top:50%;right:6px;transform:translateY(-50%);background:rgba(49,58,70,.75);color:#fff;font-size:var(--text-2xs);font-weight:600;padding:5px 9px;border-radius:99px;white-space:nowrap;z-index:4}
+
+.bottombar{flex:0 0 auto;background:var(--color-card);border-top:1px solid var(--color-default-200);padding:12px}
+.twocol{display:grid;grid-template-columns:1fr 1fr;height:100%}
+.twocol>.calpane{border-right:1px solid var(--color-default-200)}
+.daypane{background:var(--color-default-100);display:flex;flex-direction:column;min-height:0}
+
+.tbl{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden}
+.tbl th,.tbl td{border:1px solid var(--color-default-300);padding:7px 10px;text-align:left;vertical-align:top}
+.tbl th{background:var(--color-default-200);color:var(--color-default-900);font-weight:600}
+.tbl td b{color:var(--color-default-900)}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+svg.i.sm{width:14px;height:14px}
+svg.i.xs{width:12px;height:12px}
+svg.i.lg{width:20px;height:20px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+<symbol id="i-chevl" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+<symbol id="i-chevd" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24"><path d="M8 9h8M8 13h5M4 19V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="M4 10v9h16v-9M3 10l1.5-5h15L21 10a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></symbol>
+<symbol id="i-fb" viewBox="0 0 24 24"><path d="M14 8h3V4h-3a5 5 0 0 0-5 5v2H6v4h3v7h4v-7h3l1-4h-4V9a1 1 0 0 1 1-1"/></symbol>
+<symbol id="i-ig" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="3.8"/></symbol>
+<symbol id="i-line" viewBox="0 0 24 24"><path d="M20.5 10.3c0-3.9-3.8-7-8.5-7s-8.5 3.1-8.5 7c0 3.5 3 6.4 7.1 6.9.3.1.7.2.8.5.1.3.1.6 0 .9l-.1.8c0 .2-.2.9.8.5s5.4-3.2 7.4-5.5c1.3-1.4 2-2.9 2-4.6z"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+
+<div class="page-head">
+  <h1>คิวงาน v3 — จิ้มวัน ⇒ ชีตเลื่อนขึ้นทับปฏิทิน + เปลี่ยนวันด้วยการปัดหรือกดลูกศร</h1>
+  <p>ต่อจาก v2 (การ์ดที่มี <b>ช่องทางที่มา · รูปลูกค้า · เบอร์โทร</b>) — รอบนี้เปลี่ยน <b>วิธีเข้าถึง</b> จาก
+     “ลิสต์อยู่ใต้ปฏิทินตลอดเวลา” เป็น “ชีตเลื่อนขึ้นทับ แล้วเดินวันได้ในชีตเลย”</p>
+  <p style="margin-top:10px;background:#fff;border-left:3px solid var(--color-success);padding:12px 14px;border-radius:8px">
+    <b style="color:var(--color-default-900)">เคาะแล้ว 2 ข้อระหว่างทาง:</b>
+    ① ชีต <b>ทับเต็มจอรวมหัวแอป + มีปุ่ม ✕ ให้กดปิด</b> (แบบ A · เฟรม ③) — แบบ B ที่เหลือแถบสัปดาห์ตกไป
+    ② ปฏิทินบอก “วันนี้มีงาน” ด้วย <b>จุด</b> ไม่ใช่ตัวเลขนับ — ตรงกับที่ขึ้น prod แล้วใน
+    <code>AppointmentDayCell.tsx</code> (จุด 8px <code>bg-warning-ink</code> + เลขวันหนาขึ้น + วันว่างจางลง)
+    ⇒ เฟรมในไฟล์นี้แก้กลับเป็นจุดหมดแล้ว รอบแรกผมเผลอวาดเป็นตัวเลขซึ่งถอยหลังจากของจริง
+  </p>
+  <div class="meta">
+    Base (ท่าปัด: axis lock + <code>touch-action:pan-y</code> + ดัก <code>touchcancel</code>): <code>src/app/(paces)/seller/(chat)/inbox/components/SwipeableRow.tsx</code><br>
+    Base (เปลือกชีต + scrim + grip + ปุ่มปิด): <code>src/app/(paces)/seller/(dashboard)/orders/components/OrderQrSheet.tsx</code> → ซึ่ง chase ไป <code>theme/paces/Admin/TS/src/app/(admin)/ui/offcanvas/page.tsx</code><br>
+    บังคับใช้: <code>src/hooks/useLockBodyScroll.ts</code> (<code>docs/conventions/overlay-scroll-lock.md</code>)<br>
+    เนื้อในการ์ด: เหมือน v2 ทุกประการ ไม่ออกแบบซ้ำ
+  </div>
+</div>
+
+<div class="note bad">
+  <h2>4 เรื่องที่ท่านี้ต้องแก้ให้ได้ ไม่งั้นมันจะแย่กว่าของเดิม</h2>
+  <ol>
+    <li>🛑 <b>iOS/WebView ยึด “ปัดขวาจากขอบซ้าย” ไว้เป็นปุ่มย้อนกลับอยู่แล้ว</b> — คนที่เริ่มนิ้วตรงขอบจะ
+      <em>ออกจากหน้า</em> แทนที่จะได้วันก่อนหน้า ⇒ <b>ลูกศร ‹ › ไม่ใช่ของแถม มันคือทางที่ทำงานได้เสมอ</b>
+      และเป็นทางเดียวที่ผู้ใช้คีย์บอร์ด/screen reader มี (ปัดไม่มี affordance ให้ AT เลย)</li>
+    <li>🛑 <b>ปุ่ม back ของเครื่องจะปิดแอป ไม่ใช่ปิดชีต</b> ถ้าชีตเป็น React state ล้วน — ผู้ขายที่ใช้ผ่านแอป
+      จะกด back หวังปิดชีตแล้วหลุดออกจากหน้าคิวงานทั้งหน้า ⇒ ต้องผูก <code>history.pushState</code> ตอนเปิด
+      แล้วปิดชีตเมื่อ <code>popstate</code> (ข้อนี้คนลืมบ่อยที่สุดและไม่มี gate ไหนจับได้)</li>
+    <li>🛑 <b>ชีตประกอบเองด้วย React state = ต้องเรียก <code>useLockBodyScroll</code></b> + ทุก
+      <code>overflow-y-auto</code> ข้างในต้องมี <code>overscroll-contain</code> — ไม่งั้นลากนิ้วในชีตแล้ว
+      หน้าข้างหลังถูกดึงจนเนื้อหาหลุดกรอบ (เกิดมาแล้ว 11 ใบในรอบเก็บตก 2026-08-07)</li>
+    <li>🛑 <b>แกนชนกันเอง</b> — ในชีตต้องเลื่อนขึ้นลงอ่านรายการ และปัดซ้ายขวาเปลี่ยนวัน
+      ⇒ ต้อง axis lock แบบเดียวกับ <code>SwipeableRow</code> (ล็อกแกนหลังนิ้วขยับ 6px แล้วไม่เปลี่ยนแกนอีกจนปล่อย)</li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">1 · ลำดับการใช้งาน บนมือถือ 393px <span>ซ้าย→ขวา = จิ้มวัน → ชีตขึ้น → ปัดเปลี่ยนวัน</span></h2>
+
+<div class="rack">
+
+  <!-- ────────── 1. ปฏิทิน ────────── -->
+  <figure class="device">
+    <figcaption><b>① ก่อนจิ้ม — ปฏิทินได้ทั้งจอ</b><br>
+      <em>ช่องวันโตขึ้นเป็น 52px (เดิม 46) เพราะไม่ต้องแบ่งครึ่งล่างให้ลิสต์อีกแล้ว — เห็นทั้งเดือนโดยไม่ต้องเลื่อน</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="stage">
+          <div class="calpane">
+            <div class="monthbar"><span class="navbtn"><svg class="i"><use href="#i-chevl"/></svg></span><span class="m">สิงหาคม 2569</span><span class="todaybtn">วันนี้</span><span class="navbtn"><svg class="i"><use href="#i-chev"/></svg></span></div>
+            <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+            <div class="grid">
+              <div class="cell other">27<span class="n zero">0</span></div><div class="cell other">28<span class="n zero">0</span></div><div class="cell other">29<span class="n zero">0</span></div><div class="cell other">30<span class="n zero">0</span></div><div class="cell other">31<span class="n zero">0</span></div><div class="cell">1<span class="n zero">0</span></div><div class="cell">2<span class="n">3</span></div>
+              <div class="cell">3<span class="n zero">0</span></div><div class="cell">4<span class="n">1</span></div><div class="cell">5<span class="n zero">0</span></div><div class="cell">6<span class="n">2</span></div><div class="cell">7<span class="n zero">0</span></div><div class="cell">8<span class="n">4</span></div><div class="cell">9<span class="n">2</span></div>
+              <div class="cell">10<span class="n zero">0</span></div><div class="cell today">11<span class="n">2</span></div><div class="cell">12<span class="n zero">0</span></div><div class="cell">13<span class="n">1</span></div><div class="cell">14<span class="n">6</span></div><div class="cell">15<span class="n">9</span></div><div class="cell">16<span class="n">2</span></div>
+              <div class="cell">17<span class="n zero">0</span></div><div class="cell">18<span class="n">3</span></div><div class="cell">19<span class="n zero">0</span></div><div class="cell">20<span class="n">1</span></div><div class="cell">21<span class="n zero">0</span></div><div class="cell">22<span class="n">5</span></div><div class="cell">23<span class="n">1</span></div>
+              <div class="cell">24<span class="n zero">0</span></div><div class="cell">25<span class="n">2</span></div><div class="cell">26<span class="n zero">0</span></div><div class="cell">27<span class="n zero">0</span></div><div class="cell">28<span class="n">3</span></div><div class="cell">29<span class="n">1</span></div><div class="cell">30<span class="n zero">0</span></div>
+              <div class="cell">31<span class="n zero">0</span></div><div class="cell other">1<span class="n zero">0</span></div><div class="cell other">2<span class="n zero">0</span></div><div class="cell other">3<span class="n zero">0</span></div><div class="cell other">4<span class="n zero">0</span></div><div class="cell other">5<span class="n zero">0</span></div><div class="cell other">6<span class="n zero">0</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="bottombar"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ────────── 2. กำลังขึ้น ────────── -->
+  <figure class="device">
+    <figcaption><b>② กำลังเลื่อนขึ้น (~180ms)</b><br>
+      <em>ฉากหลังมืดลงพร้อมกัน = บอกว่านี่คือชั้นใหม่ ไม่ใช่หน้าใหม่ · <b>ต้องเคารพ “ลดการเคลื่อนไหว”</b> — กฎ blanket ของโปรเจกต์ย่นเวลา transition ให้แล้ว แต่ไม่หยุด keyframe</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="stage">
+          <div class="calpane">
+            <div class="monthbar"><span class="navbtn"><svg class="i"><use href="#i-chevl"/></svg></span><span class="m">สิงหาคม 2569</span><span class="todaybtn">วันนี้</span><span class="navbtn"><svg class="i"><use href="#i-chev"/></svg></span></div>
+            <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+            <div class="grid">
+              <div class="cell other">27<span class="n zero">0</span></div><div class="cell other">28<span class="n zero">0</span></div><div class="cell other">29<span class="n zero">0</span></div><div class="cell other">30<span class="n zero">0</span></div><div class="cell other">31<span class="n zero">0</span></div><div class="cell">1<span class="n zero">0</span></div><div class="cell">2<span class="n">3</span></div>
+              <div class="cell">3<span class="n zero">0</span></div><div class="cell">4<span class="n">1</span></div><div class="cell">5<span class="n zero">0</span></div><div class="cell">6<span class="n">2</span></div><div class="cell">7<span class="n zero">0</span></div><div class="cell">8<span class="n">4</span></div><div class="cell">9<span class="n">2</span></div>
+              <div class="cell">10<span class="n zero">0</span></div><div class="cell today">11<span class="n">2</span></div><div class="cell">12<span class="n zero">0</span></div><div class="cell">13<span class="n">1</span></div><div class="cell">14<span class="n">6</span></div><div class="cell sel">15<span class="n">9</span></div><div class="cell">16<span class="n">2</span></div>
+              <div class="cell">17<span class="n zero">0</span></div><div class="cell">18<span class="n">3</span></div><div class="cell">19<span class="n zero">0</span></div><div class="cell">20<span class="n">1</span></div><div class="cell">21<span class="n zero">0</span></div><div class="cell">22<span class="n">5</span></div><div class="cell">23<span class="n">1</span></div>
+              <div class="cell">24<span class="n zero">0</span></div><div class="cell">25<span class="n">2</span></div><div class="cell">26<span class="n zero">0</span></div><div class="cell">27<span class="n zero">0</span></div><div class="cell">28<span class="n">3</span></div><div class="cell">29<span class="n">1</span></div><div class="cell">30<span class="n zero">0</span></div>
+              <div class="cell">31<span class="n zero">0</span></div><div class="cell other">1<span class="n zero">0</span></div><div class="cell other">2<span class="n zero">0</span></div><div class="cell other">3<span class="n zero">0</span></div><div class="cell other">4<span class="n zero">0</span></div><div class="cell other">5<span class="n zero">0</span></div><div class="cell other">6<span class="n zero">0</span></div>
+            </div>
+          </div>
+          <div class="scrim" style="background:rgba(49,58,70,.18)"></div>
+          <div class="sheet mid">
+            <div class="grip"></div>
+            <div class="sheethead">
+              <div class="daynav">
+                <span class="arw"><svg class="i lg"><use href="#i-chevl"/></svg></span>
+                <span class="ctr"><span class="d">เสาร์ 15 ส.ค. 2569</span><span class="c"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></span>
+                <span class="arw"><svg class="i lg"><use href="#i-chev"/></svg></span>
+                <span class="x"><svg class="i"><use href="#i-x"/></svg></span>
+              </div>
+              <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            </div>
+            <div class="sheetbody">
+              <div class="list">
+                <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+                <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                  <span class="mid"><span class="nm">Unyarat</span><span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="src">LINE · BT Premium</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                    <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div></div>
+              </div>
+              <div class="fadebottom"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ────────── 3. แบบ A เต็มจอ ────────── -->
+  <figure class="device">
+    <figcaption><b class="taggood">③ แบบ A — ทับเต็มจอ รวมหัวแอปด้วย ← user เคาะแล้ว</b><br>
+      <em>ชีตขึ้นไปจนสุด (เหลือแค่แถบสถานะของเครื่อง) แถบ “คิวงาน” กับปุ่มเมนูถูกทับไปด้วย
+      ⇒ <b>ปุ่ม ✕ คือทางออกเดียวที่มองเห็น</b> จึงอยู่ซ้ายสุดในระยะนิ้วโป้ง · เห็นการ์ดเต็มใบ 5 ใบ</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="stage">
+          <div class="sheet appfull">
+            <div class="sheethead" style="padding-top:10px">
+              <div class="daynav">
+                <span class="closebtn"><svg class="i"><use href="#i-x"/></svg></span>
+                <span class="arw"><svg class="i lg"><use href="#i-chevl"/></svg></span>
+                <span class="ctr"><span class="d">เสาร์ 15 ส.ค. 2569</span><span class="c"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></span>
+                <span class="arw"><svg class="i lg"><use href="#i-chev"/></svg></span>
+              </div>
+              <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            </div>
+            <div class="sheetbody">
+              <div class="list">
+                <div class="slot"><span class="rng"><svg class="i xs" style="vertical-align:-1px"><use href="#i-sun"/></svg> ทั้งวัน</span><span class="cnt">1 คิว</span></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ini">TA</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                  <span class="mid"><span class="nm">Thanawit Atikitchinnawut</span><span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">เพจ BT Premium</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>081-234-5678</span>
+                    <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div></div>
+
+                <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+
+                <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                  <span class="mid"><span class="nm">Unyarat</span><span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="src">LINE · BT Premium</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                    <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ini">อา</span><span class="bdg store"><svg viewBox="0 0 24 24"><use href="#i-store"/></svg></span></span>
+                  <span class="mid"><span class="nm">คุณอาทิตย์</span><span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">หน้าร้าน</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel none">ยังไม่มีเบอร์</span>
+                    <span class="acts"><span class="btn line2 h44"><svg class="i sm"><use href="#i-plus"/></svg> เพิ่มเบอร์</span></span></div></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ini">นว</span><span class="bdg ig"><svg viewBox="0 0 24 24"><use href="#i-ig"/></svg></span></span>
+                  <span class="mid"><span class="nm">ชื่อ นิวัฒน์ ขวัญสุข</span><span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">IG · btpremium.th</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>062-119-4477</span>
+                    <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div></div>
+                <div class="nowline"><span class="dot"></span><span class="ln"></span><span class="lb">ตอนนี้ 17:43</span></div>
+              </div>
+              <div class="fadebottom"></div>
+            </div>
+            <div class="sheetfoot"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ────────── 4. แบบ B แถบสัปดาห์ ────────── -->
+  <figure class="device">
+    <figcaption><b class="tagbad">④ แบบ B — เหลือแถบสัปดาห์ไว้ · <u>ไม่เอาแล้ว</u></b> <em>(เก็บไว้เป็นบันทึกว่าเคยชั่งอะไรบ้าง)</em><br>
+      <em>ผมเคยเสนออันนี้เพราะมันแก้ปัญหา “ปัดแล้วไม่รู้ว่าวันข้าง ๆ มีอะไร” — user เลือกทับเต็มแทน
+      ⇒ หน้าที่นั้นย้ายไปอยู่ที่ <b>ตัวนับในหัวชีต</b> ซึ่งบอกทันทีที่ปัดถึง</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="stage">
+          <div style="background:var(--color-card);height:100%">
+            <div class="monthbar" style="padding:8px 12px"><span class="navbtn"><svg class="i"><use href="#i-chevl"/></svg></span><span class="m">สิงหาคม 2569</span><span class="todaybtn">วันนี้</span><span class="navbtn"><svg class="i"><use href="#i-chev"/></svg></span></div>
+            <div class="weekstrip">
+              <div class="wd"><div class="dw">อา</div><div class="dd">9</div><div class="dn">2</div></div>
+              <div class="wd"><div class="dw">จ</div><div class="dd">10</div><div class="dn zero">0</div></div>
+              <div class="wd today"><div class="dw">อ</div><div class="dd">11</div><div class="dn">2</div></div>
+              <div class="wd"><div class="dw">พ</div><div class="dd">12</div><div class="dn zero">0</div></div>
+              <div class="wd"><div class="dw">พฤ</div><div class="dd">13</div><div class="dn">1</div></div>
+              <div class="wd"><div class="dw">ศ</div><div class="dd">14</div><div class="dn">6</div></div>
+              <div class="wd sel"><div class="dw">ส</div><div class="dd">15</div><div class="dn">9</div></div>
+            </div>
+          </div>
+          <div class="sheet week">
+            <div class="grip"></div>
+            <div class="sheethead">
+              <div class="daynav">
+                <span class="arw"><svg class="i lg"><use href="#i-chevl"/></svg></span>
+                <span class="ctr"><span class="d">เสาร์ 15 ส.ค. 2569</span><span class="c"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></span>
+                <span class="arw"><svg class="i lg"><use href="#i-chev"/></svg></span>
+              </div>
+              <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            </div>
+            <div class="sheetbody">
+              <div class="list">
+                <div class="slot"><span class="rng"><svg class="i xs" style="vertical-align:-1px"><use href="#i-sun"/></svg> ทั้งวัน</span><span class="cnt">1 คิว</span></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ini">TA</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                  <span class="mid"><span class="nm">Thanawit Atikitchinnawut</span><span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">เพจ BT Premium</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>081-234-5678</span>
+                    <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div></div>
+                <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+                <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                  <span class="mid"><span class="nm">Unyarat</span><span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="src">LINE · BT Premium</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                    <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ini">อา</span><span class="bdg store"><svg viewBox="0 0 24 24"><use href="#i-store"/></svg></span></span>
+                  <span class="mid"><span class="nm">คุณอาทิตย์</span><span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">หน้าร้าน</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel none">ยังไม่มีเบอร์</span>
+                    <span class="acts"><span class="btn line2 h44"><svg class="i sm"><use href="#i-plus"/></svg> เพิ่มเบอร์</span></span></div></div>
+              </div>
+              <div class="fadebottom"></div>
+            </div>
+            <div class="sheetfoot"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ────────── 5. ระหว่างปัด ────────── -->
+  <figure class="device">
+    <figcaption><b>⑤ ระหว่างปัดไปวันถัดไป</b><br>
+      <em>วันข้างเคียงโผล่ที่ขอบทันทีที่นิ้วขยับ (ไม่ใช่รอปล่อยแล้วค่อยสลับ) · <b>ปัดในเดือนเดียวกัน = ไม่ยิง API เลย</b> ข้อมูลทั้งเดือนอยู่ในเครื่องแล้ว</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="stage">
+          <div class="sheet appfull">
+            <div class="sheethead" style="padding-top:10px;opacity:.55">
+              <div class="daynav">
+                <span class="closebtn"><svg class="i"><use href="#i-x"/></svg></span>
+                <span class="arw"><svg class="i lg"><use href="#i-chevl"/></svg></span>
+                <span class="ctr"><span class="d">เสาร์ 15 ส.ค. 2569</span><span class="c"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></span>
+                <span class="arw"><svg class="i lg"><use href="#i-chev"/></svg></span>
+              </div>
+              <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            </div>
+            <div class="sheetbody">
+              <span class="peekhint">อาทิตย์ 16 ส.ค. · 2 นัด</span>
+              <div style="position:absolute;inset:0;display:flex;transform:translateX(-96px)">
+                <div style="flex:0 0 100%">
+                  <div class="list">
+                    <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้ว</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+                    <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว</span></div>
+                    <div class="qc"><div class="top">
+                      <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                      <span class="mid"><span class="nm">Unyarat</span><span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span></span></span>
+                      <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                      <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                        <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span></span></div></div>
+                    <div class="qc"><div class="top">
+                      <span class="av"><span class="ini">อา</span><span class="bdg store"><svg viewBox="0 0 24 24"><use href="#i-store"/></svg></span></span>
+                      <span class="mid"><span class="nm">คุณอาทิตย์</span><span class="sub"><span class="badge sched">นัดแล้ว</span></span></span>
+                      <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                      <div class="phrow"><span class="tel none">ยังไม่มีเบอร์</span></div></div>
+                  </div>
+                </div>
+                <div style="flex:0 0 100%" class="peek">
+                  <div class="list">
+                    <div class="slot"><span class="rng">13:00 – 14:00</span><span class="cnt">2 คิว</span></div>
+                    <div class="qc"><div class="top">
+                      <span class="av"><span class="ini">พร</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                      <span class="mid"><span class="nm">พรทิพย์ ศรีสุข</span><span class="sub"><span class="badge sched">นัดแล้ว</span></span></span>
+                      <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                      <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>086-771-0092</span></div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="fadebottom"></div>
+            </div>
+            <div class="sheetfoot"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">2 · จอแคบสุด และแท็บเล็ต <span>320px = iPhone SE · 834px = iPad</span></h2>
+
+<div class="rack">
+  <figure class="device">
+    <figcaption><b>320px — ทับเต็มจอเหมือนกัน</b><br>
+      <em>จอเตี้ย 568px คือที่ที่การทับเต็มได้กำไรมากสุด — ไม่มีอะไรมาแบ่งพื้นที่เลย เหลือให้การ์ด ~3 ใบ
+      · หัวชีตบีบเหลือแถวเดียว (✕ ‹ วันที่ ›) และตัดตัวนับความคืบหน้าทิ้งเมื่อที่ไม่พอ</em></figcaption>
+    <div class="phone se">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="stage">
+          <div class="sheet appfull">
+            <div class="sheethead" style="padding:8px 4px 8px">
+              <div class="daynav">
+                <span class="closebtn"><svg class="i"><use href="#i-x"/></svg></span>
+                <span class="arw"><svg class="i lg"><use href="#i-chevl"/></svg></span>
+                <span class="ctr"><span class="d" style="font-size:14px">เสาร์ 15 ส.ค. 2569</span><span class="c"><b>9</b> นัด · ปิดผล <b>3</b></span></span>
+                <span class="arw"><svg class="i lg"><use href="#i-chev"/></svg></span>
+              </div>
+            </div>
+            <div class="sheetbody">
+              <div class="list" style="padding:8px 10px 14px">
+                <div class="slot past" style="padding-top:0"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว</span></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                  <span class="mid"><span class="nm">Unyarat</span><span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                    <span class="acts"><span class="btn call h44" style="padding:0 11px"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div></div>
+                <div class="qc"><div class="top">
+                  <span class="av"><span class="ini">สร</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                  <span class="mid"><span class="nm">ชื่อนายสำราญ ชวดท่า…</span><span class="sub"><span class="badge sched">นัดแล้ว</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                  <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>095-402-1188</span>
+                    <span class="acts"><span class="btn call h44" style="padding:0 11px"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span></span></div></div>
+              </div>
+              <div class="fadebottom"></div>
+            </div>
+            <div class="sheetfoot" style="padding:8px 10px"><span class="btn pri h44" style="font-size:12.5px"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device">
+    <figcaption><b>834px — ไม่มีชีต คงซ้ายขวาเหมือนเดิม</b><br>
+      <em>ที่นี่ปฏิทินกับลิสต์เห็นพร้อมกันอยู่แล้ว ชีตจึงเป็นการซ่อนของที่มองเห็นได้ฟรี ๆ · <b>แต่ ‹ › ยังอยู่ที่หัวคอลัมน์ขวา</b> — การเดินวันจึงมีท่าเดียวกันทุกขนาดจอ</em></figcaption>
+    <div class="phone tab">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="stage">
+          <div class="twocol">
+            <div class="calpane">
+              <div class="monthbar"><span class="navbtn"><svg class="i"><use href="#i-chevl"/></svg></span><span class="m">สิงหาคม 2569</span><span class="todaybtn">วันนี้</span><span class="navbtn"><svg class="i"><use href="#i-chev"/></svg></span></div>
+              <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+              <div class="grid">
+                <div class="cell other">27<span class="n zero">0</span></div><div class="cell other">28<span class="n zero">0</span></div><div class="cell other">29<span class="n zero">0</span></div><div class="cell other">30<span class="n zero">0</span></div><div class="cell other">31<span class="n zero">0</span></div><div class="cell">1<span class="n zero">0</span></div><div class="cell">2<span class="n">3</span></div>
+                <div class="cell">3<span class="n zero">0</span></div><div class="cell">4<span class="n">1</span></div><div class="cell">5<span class="n zero">0</span></div><div class="cell">6<span class="n">2</span></div><div class="cell">7<span class="n zero">0</span></div><div class="cell">8<span class="n">4</span></div><div class="cell">9<span class="n">2</span></div>
+                <div class="cell">10<span class="n zero">0</span></div><div class="cell today">11<span class="n">2</span></div><div class="cell">12<span class="n zero">0</span></div><div class="cell">13<span class="n">1</span></div><div class="cell">14<span class="n">6</span></div><div class="cell sel">15<span class="n">9</span></div><div class="cell">16<span class="n">2</span></div>
+                <div class="cell">17<span class="n zero">0</span></div><div class="cell">18<span class="n">3</span></div><div class="cell">19<span class="n zero">0</span></div><div class="cell">20<span class="n">1</span></div><div class="cell">21<span class="n zero">0</span></div><div class="cell">22<span class="n">5</span></div><div class="cell">23<span class="n">1</span></div>
+                <div class="cell">24<span class="n zero">0</span></div><div class="cell">25<span class="n">2</span></div><div class="cell">26<span class="n zero">0</span></div><div class="cell">27<span class="n zero">0</span></div><div class="cell">28<span class="n">3</span></div><div class="cell">29<span class="n">1</span></div><div class="cell">30<span class="n zero">0</span></div>
+                <div class="cell">31<span class="n zero">0</span></div><div class="cell other">1<span class="n zero">0</span></div><div class="cell other">2<span class="n zero">0</span></div><div class="cell other">3<span class="n zero">0</span></div><div class="cell other">4<span class="n zero">0</span></div><div class="cell other">5<span class="n zero">0</span></div><div class="cell other">6<span class="n zero">0</span></div>
+              </div>
+            </div>
+            <div class="daypane">
+              <div class="sheethead" style="background:var(--color-card)">
+                <div class="daynav">
+                  <span class="arw"><svg class="i lg"><use href="#i-chevl"/></svg></span>
+                  <span class="ctr"><span class="d">เสาร์ 15 ส.ค. 2569</span><span class="c"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></span>
+                  <span class="arw"><svg class="i lg"><use href="#i-chev"/></svg></span>
+                </div>
+                <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+              </div>
+              <div class="sheetbody">
+                <div class="list">
+                  <div class="slot"><span class="rng"><svg class="i xs" style="vertical-align:-1px"><use href="#i-sun"/></svg> ทั้งวัน</span><span class="cnt">1 คิว</span></div>
+                  <div class="qc"><div class="top">
+                    <span class="av"><span class="ini">TA</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                    <span class="mid"><span class="nm">Thanawit Atikitchinnawut</span><span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">Messenger · เพจ BT Premium</span></span></span>
+                    <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                    <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>081-234-5678</span>
+                      <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44"><svg class="i sm"><use href="#i-msg"/></svg> ทักแชท</span></span></div></div>
+                  <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+                  <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+                  <div class="qc"><div class="top">
+                    <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                    <span class="mid"><span class="nm">Unyarat</span><span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="src">LINE · BT Premium</span></span></span>
+                    <svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                    <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                      <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44"><svg class="i sm"><use href="#i-msg"/></svg> ทักแชท</span></span></div></div>
+                </div>
+                <div class="fadebottom"></div>
+              </div>
+              <div class="sheetfoot"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">3 · กติกาที่ต้องเขียนลงโค้ด</h2>
+
+<div class="note">
+  <h2>การเดินวัน</h2>
+  <table class="tbl">
+    <tr><th style="width:170px">เรื่อง</th><th>กติกา</th></tr>
+    <tr><td><b>3 ทางเข้า ผลเหมือนกัน</b></td><td>ปัด · กด ‹ › · จิ้มวันบนแถบสัปดาห์ (แบบ B) — ทั้งสามต้องเรียกฟังก์ชันเดียวกัน ไม่ใช่ต่างคนต่างเขียน (บทเรียน “ตัวเลขเดียวกันต้องมาจาก symbol เดียว”)</td></tr>
+    <tr><td><b>ทิศทาง</b></td><td>ปัด<b>ซ้าย</b> = วันถัดไป (เนื้อหาเลื่อนตามนิ้ว) · ปัด<b>ขวา</b> = วันก่อนหน้า — ทิศเดียวกับปฏิทินทุกตัวที่ผู้ใช้เคยใช้</td></tr>
+    <tr><td><b>ข้ามเดือน</b></td><td>ปัดในเดือนเดียวกัน = <b>ไม่ยิง API</b> (ข้อมูลทั้งเดือนอยู่ในเครื่องแล้ว) · ปัดข้ามขอบเดือน = ยิงเดือนใหม่ + <b>ปฏิทินข้างหลังต้องเปลี่ยนเดือนตามด้วย</b> ไม่งั้นปิดชีตแล้วเจอเดือนเก่า = จอเดียวขัดกันเอง</td></tr>
+    <tr><td><b>ระหว่างโหลดเดือนใหม่</b></td><td>ใช้ skeleton ของเดิม ห้ามขึ้น “ว่างทั้งวัน” (กฎที่ <code>AppointmentMonthBoard</code> เขียนไว้เองแล้ว) และห้ามค้างรายการของวันก่อนหน้าไว้เฉย ๆ</td></tr>
+    <tr><td><b>วันว่างติดกัน</b></td><td>ปัดผ่านวันว่างได้ตามปกติ — ตัวนับในหัวชีตบอกทันทีว่า “0 นัด” · <b>ห้ามให้ลูกศรกระโดดข้ามวันว่าง</b> (ลูกศรที่เดินไม่เท่ากันทุกครั้ง = ผู้ใช้เลิกเชื่อว่ามันคือ “วันถัดไป”)</td></tr>
+    <tr><td><b>ขอบเขต</b></td><td>ไม่ตัน — เดินไปข้างหน้า/ถอยหลังได้เรื่อย ๆ ข้ามปีก็ได้ · ‹ › จึงไม่มีสถานะ disabled</td></tr>
+    <tr><td><b>ประกาศให้ AT รู้</b></td><td>หัวชีตต้องเป็น <code>aria-live="polite"</code> — ปัด/กดลูกศรแล้วเนื้อหาเปลี่ยนยกแผง ผู้ใช้ screen reader ต้องได้ยินว่าตอนนี้เป็นวันไหนและกี่นัด (ของเดิมมี live region อยู่แล้ว ยกมาใช้ต่อ)</td></tr>
+  </table>
+</div>
+
+<div class="note warn">
+  <h2>การเปิด/ปิดชีต</h2>
+  <ul>
+    <li><b>ความสูง = เต็มจอ รวมหัวแอป</b> (user เคาะ) — ในโค้ดคือ <code>fixed inset-0</code> + <code>z-80</code>
+      (token เดียวกับ <code>OrderQrSheet</code>/<code>AccountSwitcherSheet</code>) และ
+      🛑 <b>ต้อง <code>padding-top: env(safe-area-inset-top)</code></b> ไม่งั้นหัวชีตไปนอนใต้รอยบาก/แถบสถานะ
+      (โปรเจกต์เปิด <code>viewport-fit=cover</code> ไปแล้วเมื่อ 2026-08-06 ค่านี้จึงคืนค่าจริง ไม่ใช่ 0)</li>
+    <li><b>เปิด:</b> จิ้มวันในปฏิทิน — วันเดิมที่จิ้มซ้ำก็เปิด (ไม่ toggle ปิด เพราะผู้ใช้จะงงว่าทำไมกดแล้วไม่ขึ้น)</li>
+    <li>🛑 <b>ปิด: ปุ่ม ✕ คือทางออกเดียวที่มองเห็น</b> — เมื่อทับหัวแอปแล้ว ปุ่มเมนู/ชื่อหน้าหายไปด้วย
+      ไม่มีฉากมืดให้แตะ และไม่มีขอบปฏิทินโผล่ให้เดา ⇒ ✕ ต้อง <b>ซ้ายสุดในระยะนิ้วโป้ง</b> ขนาด 44px
+      และมีพื้นอ่อนรองให้เห็นว่ากดได้ (ไอคอนลอย ๆ บนพื้นขาวอ่านเป็นของตกแต่ง)</li>
+    <li><b>ปิดได้อีกทาง:</b> ปุ่ม back ของเครื่อง (ดูข้อถัดไป) · ลากลงจากหัวชีต — <em>ทางเลือก ไม่บังคับ</em>
+      แต่ถ้าทำต้องระวังชนกับการเลื่อนอ่านรายการ (แกนเดียวกัน)</li>
+    <li>🛑 <b>ปุ่ม back ต้องปิดชีต ไม่ใช่ออกจากหน้า</b> — <code>history.pushState</code> ตอนเปิด + ฟัง <code>popstate</code>
+      · ถ้าไม่ทำ ผู้ขายที่ใช้ผ่านแอปจะกด back หวังปิดชีตแล้วหลุดออกจากหน้าคิวงานทั้งหน้า</li>
+    <li><b>เปิดหน้ามาครั้งแรก ชีตเปิดอยู่ไหม?</b> — ผมเสนอ <b>เปิดที่ “วันนี้” เลย</b> เพราะคำถามแรกของทุกเช้าคือ “วันนี้มีใครบ้าง”
+      ไม่ใช่ “เดือนนี้หน้าตาเป็นยังไง” · ของเดิมก็ตั้งต้นที่วันนี้อยู่แล้ว (<code>selectedKey = today</code>)</li>
+  </ul>
+</div>
+
+<div class="note bad">
+  <h2>ยังไม่ได้พิสูจน์ — และรอบนี้มีของที่ภาพนิ่งพิสูจน์ไม่ได้เยอะกว่าทุกรอบ</h2>
+  <ul>
+    <li><b>ทั้งหมดนี้เป็นภาพนิ่งของสิ่งที่เป็น “การเคลื่อนไหว” ล้วน ๆ</b> — ความหนืดของการปัด, ระยะที่ถือว่า “ปัดสำเร็จ”,
+      การชนกันของแกนตอนเลื่อนอ่านแล้วนิ้วเอียง, การลาก grip ลงตอนรายการเลื่อนค้างอยู่กลางทาง — <b>ต้องกดจริงเท่านั้นถึงจะรู้</b></li>
+    <li><b>ยังไม่ผ่าน <code>safepay-ux</code> (HR8)</b> — session นี้ห้ามเรียก subagent</li>
+    <li><b>ยังไม่ได้วัดว่าแถบสัปดาห์กิน 62px แล้วเหลือที่ให้การ์ดพอไหมบนเครื่องจริง</b> (เฟรม 320px ข้างบนบอกว่าเหลือ ~2 ใบ ซึ่งน้อย)</li>
+    <li><b>ไม่รู้ว่าแอป WebView ของ deep-mobile-seller เปิด swipe-back ไว้หรือเปล่า</b> — ถ้าเปิด ปัดขวาจากขอบซ้ายจะออกจากหน้าเสมอ ต้องเช็คฝั่งแอป</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>

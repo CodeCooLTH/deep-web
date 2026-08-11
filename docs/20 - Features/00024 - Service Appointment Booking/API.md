@@ -266,6 +266,55 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 ```
 
 > 🛑 **TFR-010:** หน้านี้อยู่ใต้ client layout → ทุก field ที่ส่งกลับจะถูก serialize เข้า flight payload ต้องตัดข้อมูลลูกค้าที่ไม่จำเป็นออก **ที่ server** ไม่ใช่ตอนแสดงผล
+>
+> 🛑 **คำขอนี้ครอบทั้งเดือน — ห้ามเติมเบอร์/รูปลงที่นี่เด็ดขาด** ต้องการข้อมูลติดต่อให้ใช้ §4.5b
+
+---
+
+### 4.5b `GET /api/shops/current/appointments/day`
+
+นัดของ **หนึ่งวัน** พร้อมข้อมูลติดต่อลูกค้า (ส่วนขยาย 2026-08-11 — การ์ดคิวงานรายวัน)
+
+**Query:** `date` (`YYYY-MM-DD` ตามปฏิทินไทย, บังคับ), `resourceId` (ไม่บังคับ)
+
+**Response 200**
+
+```jsonc
+{
+  "items": [
+    {
+      "orderToken": "uuid",
+      "orderNo": "DP25690800001",
+      "resource": { "id": "uuid", "name": "หมอนวด A", "capacity": 1 },
+      "start": "2026-08-15T09:00:00+07:00",
+      "end": "2026-08-15T10:00:00+07:00",
+      "appointmentStatus": "CONFIRMED_BY_BUYER",
+      "buyerName": "สมชาย",
+      "buyerContact": "0812345678",   // null ได้ (นัดที่ร้านคีย์เองมักไม่มี)
+      "source": {                      // null = สร้างนอกแชท ⇒ UI ห้าม render ปุ่มทักแชท
+        "channel": "MESSENGER",        // provider ของ ShopChannel — MESSENGER|INSTAGRAM|LINE
+        "pageName": "BT Premium",
+        "pageAvatarUrl": "https://…"   // null ได้
+      },
+      "customerAvatarUrl": null,       // 🛑 null เป็นค่าปกติ ไม่ใช่ error (ดูหมายเหตุ)
+      "conversationId": "uuid"         // null = ไม่มีเธรดให้เปิด
+    }
+  ]
+}
+```
+
+**400** `VALIDATION_ERROR` — ไม่ส่ง `date` หรือรูปแบบไม่ใช่ `YYYY-MM-DD` หรือเป็นวันที่ไม่มีอยู่จริง
+(เช็ค roundtrip ไม่ใช่แค่ regex — `2569-02-31` ผ่าน regex แต่ `Date.UTC` จะม้วนไปวันอื่นเงียบ ๆ)
+
+> 🛑 **รับ `date` ไม่รับ `from`/`to`** — endpoint นี้คืนเบอร์ลูกค้า การรับช่วงเวลาอิสระแปลว่าใครก็ขอ
+> ทั้งปีในคำขอเดียวได้ เพดานต้องถูกบังคับด้วย **รูปร่างของ input** ไม่ใช่ด้วยความตั้งใจของผู้เรียก
+>
+> 🛑 **`customerAvatarUrl` เป็น `null` ได้เสมอ** — Meta บล็อกรูปโปรไฟล์ Messenger ทั้งหมด
+> (ต้อง Advanced Access ของ `Business Asset User Profile Access`) ⇒ ฝั่ง UI ต้องออกแบบให้ **ตัวย่อ
+> เป็นของหลัก ไม่ใช่ของสำรอง** · IG/LINE ได้รูปจริง
+>
+> 🛑 **รูปลูกค้าหาด้วย "คู่" `(shopChannelId, customerId)` เท่านั้น** — PSID เป็น page-scoped
+> ลูกค้าคนเดียวที่ทักมาสองเพจมีคนละ contact คนละรูป การจับด้วย `customerId` เฉย ๆ จะเอารูปเพจอื่นมาแปะ
 
 ---
 

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v2 — การ์ดคิวงานรายวัน: ช่องทางที่มา + รูปลูกค้า + เบอร์โทร (2026-08-11)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-info:#4ba3f7;    --color-info-ink:#1e40af;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px; --radius:4px; --shadow:0 1px 2px rgba(49,58,70,.075);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;color:var(--color-body-color);font-size:14px;line-height:1.5;padding:32px 20px 90px}
+.wrap{max-width:1760px;margin:0 auto}
+.page-head h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.page-head p{margin-top:6px;max-width:96ch}
+.page-head .meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;margin:22px 0 8px;border-left:3px solid var(--color-primary)}
+.note.bad{border-left-color:var(--color-danger)}
+.note.good{border-left-color:var(--color-success)}
+.note.warn{border-left-color:var(--color-warning)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}.note li{margin-bottom:6px;font-size:13px}
+.note ol{margin-left:20px}.note ol li{margin-bottom:7px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.note b{color:var(--color-default-900)}
+.sec-title{margin:46px 0 4px;font-size:19px;font-weight:600;color:var(--color-default-900);padding-bottom:8px;border-bottom:2px solid var(--color-default-300)}
+.sec-title span{font-size:13px;font-weight:400;color:var(--color-default-500);margin-left:8px}
+.rack{display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;margin-top:22px}
+.device{flex:0 0 auto}
+.device>figcaption{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:10px;max-width:393px;line-height:1.55}
+.device>figcaption em{font-style:normal;font-weight:400;color:var(--color-default-500)}
+.device>figcaption b.tagbad{color:var(--color-danger-ink)}
+.device>figcaption b.taggood{color:var(--color-success-ink)}
+
+.phone{position:relative;width:393px;height:852px;background:var(--color-body-bg);border:10px solid #1c2430;border-radius:38px;overflow:hidden;box-shadow:0 18px 44px rgba(28,36,48,.28)}
+.phone.se{width:320px;height:568px;border-radius:30px}
+.phone.tab{width:834px;height:760px;border-radius:24px;border-width:12px}
+.screen{position:absolute;inset:0;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:13px;font-weight:600;color:var(--color-default-900)}
+.se .statusbar{height:24px;font-size:11px}.tab .statusbar{height:28px;font-size:12px}
+.apphead{height:50px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--color-card);border-bottom:1px solid var(--color-default-200)}
+.apphead .ttl{flex:1;text-align:center;font-weight:600;color:var(--color-default-900)}
+.icnbtn{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500)}
+.scroll{flex:1 1 auto;overflow:hidden;position:relative}
+.fadebottom{position:absolute;left:0;right:0;bottom:0;height:44px;background:linear-gradient(to top,var(--color-default-100),transparent);pointer-events:none;z-index:3}
+
+/* ปฏิทินย่อ (ของเดิม) */
+.calpane{background:var(--color-card)}
+.monthbar{display:flex;align-items:center;gap:8px;padding:10px 12px}
+.monthbar .m{flex:1;text-align:center;font-weight:600;color:var(--color-default-900);font-size:15px}
+.navbtn{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500)}
+.todaybtn{height:40px;padding:0 14px;border-radius:99px;border:1px solid var(--color-default-300);display:grid;place-items:center;font-size:13px;font-weight:500;color:var(--color-default-700)}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px}
+.dow span{text-align:center;font-size:var(--text-2xs);font-weight:600;color:var(--color-default-400);padding:5px 0}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px 8px}
+.cell{min-height:42px;margin:1px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:var(--color-default-800);line-height:1.05}
+.cell .n{font-size:var(--text-2xs);font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.cell .n.zero{color:transparent}
+.cell.other{color:var(--color-default-400)}
+.cell.today{border:1px solid var(--color-default-400)}
+.cell.sel{background:var(--color-primary);color:#fff;font-weight:600}
+.cell.sel .n{color:#fff}
+
+/* ครึ่งล่าง */
+.daypane{background:var(--color-default-100);border-top:1px solid var(--color-default-200);flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.dayhead{display:flex;align-items:baseline;gap:8px;padding:12px 16px 8px;flex:0 0 auto}
+.dayhead .dt{font-weight:600;color:var(--color-default-900);font-size:14px}
+.dayhead .cnt{margin-left:auto;font-size:12px;color:var(--color-default-500);white-space:nowrap}
+.dayhead .cnt b{color:var(--color-default-800);font-weight:600}
+.list{padding:0 12px 16px;display:flex;flex-direction:column;gap:8px}
+.dayprog{margin:0 16px 10px;display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.dayprog .bar{flex:1;height:5px;border-radius:99px;background:var(--color-default-300);overflow:hidden;display:flex}
+.dayprog .bar i{display:block;height:100%}
+.dayprog .bar i.done{background:var(--color-success)}
+.dayprog .bar i.miss{background:var(--color-danger)}
+.dayprog .lbl{font-size:var(--text-2xs);color:var(--color-default-500);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* หัวกลุ่มช่วงเวลา (คงไว้ — user ชอบ) */
+.slot{display:flex;align-items:baseline;gap:8px;padding:10px 4px 2px}
+.slot:first-child{padding-top:2px}
+.slot .rng{font-size:13px;font-weight:600;color:var(--color-default-800);font-variant-numeric:tabular-nums}
+.slot .cnt{margin-left:auto;font-size:var(--text-2xs);color:var(--color-default-500);white-space:nowrap}
+.slot.past .rng{color:var(--color-default-500)}
+.slotfold{display:flex;align-items:center;gap:8px;background:var(--color-card);border:1px dashed var(--color-default-300);border-radius:8px;padding:9px 12px;margin-top:8px}
+.slotfold .rng{font-size:13px;font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.slotfold .txt{font-size:12px;color:var(--color-default-500)}
+.slotfold .chev{margin-left:auto;color:var(--color-default-400)}
+
+/* ── การ์ด v2 ─────────────────────────────────────────────── */
+.qc{background:var(--color-card);border-radius:8px;padding:11px 12px;position:relative}
+.qc .top{display:flex;align-items:flex-start;gap:10px}
+.qc .mid{flex:1;min-width:0}
+.qc .nm{font-size:15px;font-weight:600;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.qc .sub{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
+.qc .chev{color:var(--color-default-400);flex:0 0 auto;margin-top:3px}
+.qc.done{background:#fbfcfe}
+.qc.done .nm{font-weight:500;color:var(--color-default-700)}
+.qc.lead{border-left:3px solid transparent}
+
+/* avatar + badge ช่องทาง — ท่าเดียวกับ InboxList.BuyerAvatar + ChannelBadgeOverlay */
+.av{position:relative;width:40px;height:40px;flex:0 0 auto}
+.av .ph{width:40px;height:40px;border-radius:99px;object-fit:cover;background:var(--color-default-200);display:block}
+.av .ini{width:40px;height:40px;border-radius:99px;background:rgba(35,109,201,.1);color:var(--color-primary);display:grid;place-items:center;font-size:14px;font-weight:600;letter-spacing:.02em}
+.av .bdg{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:99px;box-shadow:0 0 0 2px var(--color-card);display:grid;place-items:center;overflow:hidden;background:#fff}
+.av .bdg svg{width:11px;height:11px}
+.av .bdg.fb{background:#0866FF}
+.av .bdg.ig{background:linear-gradient(45deg,#f9ce34,#ee2a7b,#6228d7)}
+.av .bdg.line{background:#06C755}
+.av .bdg.deep{background:var(--color-default-400)}
+.av .bdg.store{background:var(--color-default-200)}
+.av .bdg svg{stroke:#fff;fill:none;stroke-width:2}
+.av .bdg.store svg{stroke:var(--color-default-500)}
+.av .bdg.pg{padding:0}
+.av .bdg.pg img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* แถวเบอร์ */
+.phrow{display:flex;align-items:center;gap:8px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--color-default-300)}
+.phrow .tel{flex:1;min-width:0;display:flex;align-items:center;gap:7px;font-size:15px;font-weight:600;color:var(--color-default-900);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.phrow .tel svg{color:var(--color-default-400)}
+.phrow .tel.none{font-size:13px;font-weight:400;color:var(--color-default-400);letter-spacing:0}
+.phrow .acts{display:flex;gap:6px;flex:0 0 auto}
+
+/* เบอร์แบบกระชับ (แบบ 2) */
+.telinline{display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:var(--color-default-900);font-variant-numeric:tabular-nums}
+.telinline svg{color:var(--color-default-400)}
+
+.badge{font-size:var(--text-2xs);font-weight:600;padding:3px 8px;border-radius:99px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;flex:0 0 auto}
+.badge.sched{background:rgba(249,191,89,.15);color:var(--color-warning-ink)}
+.badge.conf{background:rgba(35,109,201,.15);color:var(--color-primary-ink)}
+.badge.resch{background:rgba(75,163,247,.15);color:var(--color-info-ink)}
+.badge.done{background:rgba(2,188,156,.15);color:var(--color-success-ink)}
+.badge.noshow{background:rgba(247,87,126,.15);color:var(--color-danger-ink)}
+.src{font-size:var(--text-2xs);color:var(--color-default-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+.ordno{font-size:var(--text-2xs);color:var(--color-default-400);font-variant-numeric:tabular-nums}
+
+.btn{height:38px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:500;padding:0 14px;border:1px solid transparent;background:transparent;white-space:nowrap}
+.btn.h44{height:44px}
+.btn.w44{width:44px;padding:0}
+.btn.call{background:var(--color-primary);color:#fff}
+.btn.line2{border-color:var(--color-default-300);color:var(--color-default-700)}
+.btn.ok{border-color:var(--color-success);color:var(--color-success-ink);flex:1}
+.btn.ghost{color:var(--color-default-700);background:var(--color-default-100)}
+.btn.pri{background:var(--color-primary);color:#fff;width:100%}
+.acts2{display:flex;align-items:center;gap:8px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--color-default-300)}
+
+.nowline{display:flex;align-items:center;gap:8px;margin:4px 2px}
+.nowline .dot{width:8px;height:8px;border-radius:99px;background:var(--color-primary);flex:0 0 auto}
+.nowline .ln{flex:1;height:1px;background:var(--color-primary);opacity:.45}
+.nowline .lb{font-size:var(--text-2xs);font-weight:600;color:var(--color-primary-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.bottombar{flex:0 0 auto;background:var(--color-card);border-top:1px solid var(--color-default-200);padding:12px}
+.twocol{display:grid;grid-template-columns:1fr 1fr;flex:1 1 auto;min-height:0}
+.twocol>.calpane{border-right:1px solid var(--color-default-200)}
+.twocol>.daypane{border-top:0}
+
+.swatch{background:var(--color-default-100);border:1px solid var(--color-default-200);border-radius:10px;padding:12px;width:344px}
+.swatch>h4{font-size:12px;font-weight:600;color:var(--color-default-800);margin-bottom:8px}
+.swatch>p{font-size:var(--text-2xs);color:var(--color-default-500);margin-top:8px;line-height:1.5}
+.swrack{display:flex;gap:16px;flex-wrap:wrap;margin-top:18px}
+
+.tbl{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden}
+.tbl th,.tbl td{border:1px solid var(--color-default-300);padding:7px 10px;text-align:left;vertical-align:top}
+.tbl th{background:var(--color-default-200);color:var(--color-default-900);font-weight:600}
+.tbl td b{color:var(--color-default-900)}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+svg.i.sm{width:14px;height:14px}
+svg.i.xs{width:12px;height:12px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+<symbol id="i-chevl" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+<symbol id="i-chevd" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24"><path d="M8 9h8M8 13h5M4 19V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></symbol>
+<symbol id="i-clockoff" viewBox="0 0 24 24"><path d="M3 3l18 18M20.9 14.8A9 9 0 0 0 9.2 3.1M12 7v5M5.6 5.6a9 9 0 0 0 12.8 12.7"/></symbol>
+<symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 12V9a3 3 0 0 1 3-3h13M17 3l3 3-3 3M20 12v3a3 3 0 0 1-3 3H4M7 21l-3-3 3-3"/></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="M4 10v9h16v-9M3 10l1.5-5h15L21 10a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0"/></symbol>
+<!-- โลโก้แบรนด์ = carve-out HR6 (asset สีตามแบรนด์จริง) -->
+<symbol id="i-fb" viewBox="0 0 24 24"><path d="M14 8h3V4h-3a5 5 0 0 0-5 5v2H6v4h3v7h4v-7h3l1-4h-4V9a1 1 0 0 1 1-1"/></symbol>
+<symbol id="i-ig" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="3.8"/><circle cx="17" cy="7" r=".9" fill="#fff" stroke="none"/></symbol>
+<symbol id="i-line" viewBox="0 0 24 24"><path d="M20.5 10.3c0-3.9-3.8-7-8.5-7s-8.5 3.1-8.5 7c0 3.5 3 6.4 7.1 6.9.3.1.7.2.8.5.1.3.1.6 0 .9l-.1.8c0 .2-.2.9.8.5s5.4-3.2 7.4-5.5c1.3-1.4 2-2.9 2-4.6z"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+
+<div class="page-head">
+  <h1>การ์ดคิวงานรายวัน v2 — ช่องทางที่มา · รูปลูกค้า · เบอร์โทร</h1>
+  <p>ต่อจาก v1 (ซึ่งเคาะไปแล้วว่า <b>เอาการจัดกลุ่มตามช่วงเวลา</b>) รอบนี้ออกแบบ “เนื้อในการ์ด” ตามที่สั่ง:
+     ต้องเห็นชัดว่า <b>ลูกค้ามาจากช่องทางไหน · หน้าตาเป็นใคร · เบอร์อะไร</b> — และโทรออกได้จากจอนี้เลย</p>
+  <div class="meta">
+    Base (รูป 40px + badge ช่องทางมุมล่างขวา + ตัวย่อสำรอง): <code>src/app/(paces)/seller/(chat)/inbox/components/InboxList.tsx</code> → <code>BuyerAvatar</code> + <code>ChannelBadge.tsx</code> → <code>ChannelBadgeOverlay</code><br>
+    Base (โครงการ์ด/แถวปุ่มในการ์ด/เส้นประคั่น): <code>theme/paces/Admin/TS/src/app/(admin)/apps/crm/activities/page.tsx</code><br>
+    Base (เปลือก/หัววัน/พื้นเทาครึ่งล่าง/แถบล่างติดจอ): <code>src/components/safepay/appointment-board/AppointmentMonthBoard.tsx</code><br>
+    ข้อมูล: ชื่อ+เลขออเดอร์จริงจากภาพหน้าจอที่ส่งมา · <b>เบอร์เป็นเบอร์สมมติ</b> (ไม่ได้ query PII จริงมาทำ mockup)
+  </div>
+</div>
+
+<div class="note bad">
+  <h2>2 เรื่องที่ต้องรู้ก่อนดู ไม่งั้นจะคาดหวังผิด</h2>
+  <ol>
+    <li><b>รูปโปรไฟล์ Messenger วันนี้เป็น null ทุกคน</b> — Meta บล็อกไว้ (ต้องได้ <code>Business Asset User Profile Access</code>
+      ระดับ Advanced ก่อน ซึ่งเป็นตัวบล็อกเดียวกับที่ทำชื่อคอมเมนต์หายใน 00029) · <b>IG กับ LINE ได้รูปจริง</b>
+      ⇒ ร้านที่ลูกค้าทักมาจากเพจ Facebook จะเห็น <b>ตัวย่อเกือบทั้งจอ</b> — เฟรมข้างล่างจึง mock ตามสัดส่วนจริง
+      ไม่ใช่รูปสวย 9 ใบ · ข้อดี: โครงสร้างรองรับไว้แล้ว (<code>avatarSyncedAt</code>) วันที่สิทธิ์ผ่าน รูปจะทยอยขึ้นเองใน 7 วัน
+      โดยไม่ต้องแก้โค้ด</li>
+    <li><b>เบอร์โทรจะอยู่ใน flight payload ของหน้านี้</b> — <code>TFR-010</code> ไม่ได้ห้ามขาด มันเขียนว่า
+      “ตัด PII ที่ <em>server boundary</em> ไม่ใช่ตอนแสดงผล” + “ปฏิทินต้องการแค่ชื่อ ไม่ต้องการเบอร์”
+      ซึ่งข้อหลังคือ<em>ความต้องการ ณ ตอนนั้น</em> ⇒ พอเบอร์กลายเป็นของที่ต้องเห็น ต้อง<b>แก้ TFR-010 + คอมเมนต์ใน route
+      ไปพร้อมกัน ไม่ใช่แอบเติม field</b> · วิธีที่ผมเสนอเพื่อจำกัดความเสี่ยง อยู่ใน §4</li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">1 · สองท่าจัดวาง บนมือถือ 393px <span>กลุ่มตามช่วงเวลาคงไว้ทั้งคู่ · ต่างกันที่ “เบอร์อยู่ตรงไหน”</span></h2>
+
+<div class="rack">
+
+  <!-- ────────── แบบ 1 ────────── -->
+  <figure class="device">
+    <figcaption><b class="taggood">แบบ 1 — เบอร์เป็นแถวของตัวเอง (ผมเสนออันนี้)</b><br>
+      <em>เบอร์ตัวใหญ่ 15px หนา อยู่ใต้เส้นประ คู่กับปุ่มโทร/แชท — สแกนหาเบอร์ได้โดยไม่ต้องอ่านอย่างอื่น · การ์ดสูง ~112px</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="scroll">
+          <div class="daypane" style="border-top:0">
+            <div class="dayhead"><span class="dt">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></div>
+            <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            <div class="list">
+
+              <div class="slot"><span class="rng"><svg class="i xs" style="vertical-align:-1px"><use href="#i-sun"/></svg> ทั้งวัน</span><span class="cnt">1 คิว</span></div>
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ini">TA</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                  <span class="mid"><span class="nm">Thanawit Atikitchinnawut</span>
+                    <span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">เพจ BT Premium</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>081-234-5678</span>
+                  <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div>
+              </div>
+
+              <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+
+              <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                  <span class="mid"><span class="nm">Unyarat</span>
+                    <span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="src">LINE · BT Premium</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                  <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div>
+              </div>
+
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ini">อา</span><span class="bdg store"><svg viewBox="0 0 24 24"><use href="#i-store"/></svg></span></span>
+                  <span class="mid"><span class="nm">คุณอาทิตย์</span>
+                    <span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">หน้าร้าน</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel none">ยังไม่มีเบอร์</span>
+                  <span class="acts"><span class="btn line2 h44"><svg class="i sm"><use href="#i-plus"/></svg> เพิ่มเบอร์</span></span></div>
+              </div>
+
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ph" style="background:#d8ccc0"></span><span class="bdg ig"><svg viewBox="0 0 24 24"><use href="#i-ig"/></svg></span></span>
+                  <span class="mid"><span class="nm">ชื่อ นิวัฒน์ ขวัญสุข</span>
+                    <span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">IG · btpremium.th</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>062-119-4477</span>
+                  <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div>
+              </div>
+
+              <div class="nowline"><span class="dot"></span><span class="ln"></span><span class="lb">ตอนนี้ 17:43</span></div>
+            </div>
+          </div>
+          <div class="fadebottom"></div>
+        </div>
+        <div class="bottombar"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ────────── แบบ 2 ────────── -->
+  <figure class="device">
+    <figcaption><b>แบบ 2 — เบอร์อยู่ใต้ชื่อ ปุ่มโทรเป็นไอคอน</b><br>
+      <em>การ์ดเตี้ยกว่า ~24px เห็นได้มากกว่า 1 ใบต่อจอ · แต่เบอร์ไปแชร์บรรทัดกับป้ายสถานะ + ที่มา = สแกนหาเบอร์ช้ากว่า และที่ 320px สามอย่างนี้จะตกบรรทัด</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="scroll">
+          <div class="daypane" style="border-top:0">
+            <div class="dayhead"><span class="dt">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></div>
+            <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            <div class="list">
+              <div class="slot"><span class="rng"><svg class="i xs" style="vertical-align:-1px"><use href="#i-sun"/></svg> ทั้งวัน</span><span class="cnt">1 คิว</span></div>
+              <div class="qc"><div class="top">
+                <span class="av"><span class="ini">TA</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                <span class="mid"><span class="nm">Thanawit Atikitchinnawut</span>
+                  <span class="sub"><span class="telinline"><svg class="i xs"><use href="#i-phone"/></svg>081-234-5678</span><span class="badge sched">นัดแล้ว</span></span></span>
+                <span class="btn call w44 h44"><svg class="i sm"><use href="#i-phone"/></svg></span>
+              </div></div>
+
+              <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+
+              <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+              <div class="qc"><div class="top">
+                <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                <span class="mid"><span class="nm">Unyarat</span>
+                  <span class="sub"><span class="telinline"><svg class="i xs"><use href="#i-phone"/></svg>089-876-5432</span><span class="badge conf">ลูกค้ายืนยันแล้ว</span></span></span>
+                <span class="btn call w44 h44"><svg class="i sm"><use href="#i-phone"/></svg></span>
+              </div></div>
+              <div class="qc"><div class="top">
+                <span class="av"><span class="ini">อา</span><span class="bdg store"><svg viewBox="0 0 24 24"><use href="#i-store"/></svg></span></span>
+                <span class="mid"><span class="nm">คุณอาทิตย์</span>
+                  <span class="sub"><span class="tel none" style="font-size:12px">ยังไม่มีเบอร์</span><span class="badge sched">นัดแล้ว</span></span></span>
+                <span class="btn line2 w44 h44"><svg class="i sm"><use href="#i-plus"/></svg></span>
+              </div></div>
+              <div class="qc"><div class="top">
+                <span class="av"><span class="ph" style="background:#d8ccc0"></span><span class="bdg ig"><svg viewBox="0 0 24 24"><use href="#i-ig"/></svg></span></span>
+                <span class="mid"><span class="nm">ชื่อ นิวัฒน์ ขวัญสุข</span>
+                  <span class="sub"><span class="telinline"><svg class="i xs"><use href="#i-phone"/></svg>062-119-4477</span><span class="badge sched">นัดแล้ว</span></span></span>
+                <span class="btn call w44 h44"><svg class="i sm"><use href="#i-phone"/></svg></span>
+              </div></div>
+              <div class="qc"><div class="top">
+                <span class="av"><span class="ini">ฟร</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                <span class="mid"><span class="nm">เฟริสท์</span>
+                  <span class="sub"><span class="telinline"><svg class="i xs"><use href="#i-phone"/></svg>095-402-1188</span><span class="badge sched">นัดแล้ว</span></span></span>
+                <span class="btn call w44 h44"><svg class="i sm"><use href="#i-phone"/></svg></span>
+              </div></div>
+              <div class="nowline"><span class="dot"></span><span class="ln"></span><span class="lb">ตอนนี้ 17:43</span></div>
+            </div>
+          </div>
+          <div class="fadebottom"></div>
+        </div>
+        <div class="bottombar"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ────────── แบบ 1 + ปุ่มปิดผล ────────── -->
+  <figure class="device">
+    <figcaption><b>แบบ 1 + ปุ่มปิดผล (ของ v1 แบบ C ที่ยังค้างการตัดสิน)</b><br>
+      <em>ใบที่ถึงเวลาแล้วได้แถวที่สาม — เห็นครบว่า “ใครมา · โทรหาได้ · ปิดงานได้” ในใบเดียว · แลกด้วยการ์ดสูง ~166px</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="scroll">
+          <div class="daypane" style="border-top:0">
+            <div class="dayhead"><span class="dt">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></div>
+            <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            <div class="list">
+              <div class="slotfold" style="margin-top:0"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+              <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                  <span class="mid"><span class="nm">Unyarat</span>
+                    <span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="src">LINE · BT Premium</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                  <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div>
+                <div class="acts2"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-dots"/></svg></span></div>
+              </div>
+
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ini">อา</span><span class="bdg store"><svg viewBox="0 0 24 24"><use href="#i-store"/></svg></span></span>
+                  <span class="mid"><span class="nm">คุณอาทิตย์</span>
+                    <span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">หน้าร้าน</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel none">ยังไม่มีเบอร์</span>
+                  <span class="acts"><span class="btn line2 h44"><svg class="i sm"><use href="#i-plus"/></svg> เพิ่มเบอร์</span></span></div>
+                <div class="acts2"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-dots"/></svg></span></div>
+              </div>
+
+              <div class="nowline"><span class="dot"></span><span class="ln"></span><span class="lb">ตอนนี้ 17:43</span></div>
+            </div>
+          </div>
+          <div class="fadebottom"></div>
+        </div>
+        <div class="bottombar"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">2 · แบบ 1 บนจอแคบสุด และแท็บเล็ต <span>320px = iPhone SE · 834px = iPad ซ้ายขวา</span></h2>
+
+<div class="rack">
+  <figure class="device">
+    <figcaption><b>320px</b><br><em>เบอร์ยังอยู่แถวของตัวเอง ปุ่ม “โทร” ยังมีข้อความกำกับ · ที่มาถูกตัดเป็นชื่อสั้น · ปุ่มยัง 44px ครบ</em></figcaption>
+    <div class="phone se">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead" style="height:44px"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl" style="font-size:14px">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="scroll">
+          <div class="daypane" style="border-top:0">
+            <div class="dayhead" style="padding:10px 12px 6px"><span class="dt" style="font-size:13px">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> · ปิดผล <b>3</b></span></div>
+            <div class="dayprog" style="margin:0 12px 8px"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            <div class="list" style="padding:0 10px 14px">
+              <div class="slot past" style="padding-top:2px"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว</span></div>
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                  <span class="mid"><span class="nm">Unyarat</span>
+                    <span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span></span>
+                    <span class="sub"><span class="src">LINE · BT Premium</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                  <span class="acts"><span class="btn call h44" style="padding:0 11px"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div>
+              </div>
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ini">สร</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                  <span class="mid"><span class="nm">ชื่อนายสำราญ ชวดท่า…</span>
+                    <span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">เพจ BT Prem…</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>095-402-1188</span>
+                  <span class="acts"><span class="btn call h44" style="padding:0 11px"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="fadebottom"></div>
+        </div>
+        <div class="bottombar" style="padding:10px"><span class="btn pri h44" style="font-size:12.5px"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device">
+    <figcaption><b>834px — แท็บเล็ต ซ้ายขวา</b><br><em>คอลัมน์ขวากว้างขึ้น → ที่มาเขียนเต็ม (“Messenger · เพจ BT Premium”) และเลขออเดอร์กลับมาได้โดยไม่เบียดใคร</em></figcaption>
+    <div class="phone tab">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="twocol">
+          <div class="calpane">
+            <div class="monthbar"><span class="navbtn"><svg class="i"><use href="#i-chevl"/></svg></span><span class="m">สิงหาคม 2569</span><span class="todaybtn">วันนี้</span><span class="navbtn"><svg class="i"><use href="#i-chev"/></svg></span></div>
+            <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+            <div class="grid">
+              <div class="cell other">27<span class="n zero">0</span></div><div class="cell other">28<span class="n zero">0</span></div><div class="cell other">29<span class="n zero">0</span></div><div class="cell other">30<span class="n zero">0</span></div><div class="cell other">31<span class="n zero">0</span></div><div class="cell">1<span class="n zero">0</span></div><div class="cell">2<span class="n">3</span></div>
+              <div class="cell">3<span class="n zero">0</span></div><div class="cell">4<span class="n">1</span></div><div class="cell">5<span class="n zero">0</span></div><div class="cell">6<span class="n">2</span></div><div class="cell">7<span class="n zero">0</span></div><div class="cell">8<span class="n">4</span></div><div class="cell">9<span class="n">2</span></div>
+              <div class="cell">10<span class="n zero">0</span></div><div class="cell today">11<span class="n">2</span></div><div class="cell">12<span class="n zero">0</span></div><div class="cell">13<span class="n">1</span></div><div class="cell">14<span class="n">6</span></div><div class="cell sel">15<span class="n">9</span></div><div class="cell">16<span class="n">2</span></div>
+              <div class="cell">17<span class="n zero">0</span></div><div class="cell">18<span class="n">3</span></div><div class="cell">19<span class="n zero">0</span></div><div class="cell">20<span class="n">1</span></div><div class="cell">21<span class="n zero">0</span></div><div class="cell">22<span class="n">5</span></div><div class="cell">23<span class="n">1</span></div>
+              <div class="cell">24<span class="n zero">0</span></div><div class="cell">25<span class="n">2</span></div><div class="cell">26<span class="n zero">0</span></div><div class="cell">27<span class="n zero">0</span></div><div class="cell">28<span class="n">3</span></div><div class="cell">29<span class="n">1</span></div><div class="cell">30<span class="n zero">0</span></div>
+              <div class="cell">31<span class="n zero">0</span></div><div class="cell other">1<span class="n zero">0</span></div><div class="cell other">2<span class="n zero">0</span></div><div class="cell other">3<span class="n zero">0</span></div><div class="cell other">4<span class="n zero">0</span></div><div class="cell other">5<span class="n zero">0</span></div><div class="cell other">6<span class="n zero">0</span></div>
+            </div>
+          </div>
+          <div class="daypane">
+            <div class="dayhead"><span class="dt">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></div>
+            <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            <div class="list">
+              <div class="slot"><span class="rng"><svg class="i xs" style="vertical-align:-1px"><use href="#i-sun"/></svg> ทั้งวัน</span><span class="cnt">1 คิว</span></div>
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ini">TA</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+                  <span class="mid"><span class="nm">Thanawit Atikitchinnawut</span>
+                    <span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src" style="max-width:none">Messenger · เพจ BT Premium</span><span class="ordno">#DP25690815BD0309</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>081-234-5678</span>
+                  <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44"><svg class="i sm"><use href="#i-msg"/></svg> ทักแชท</span></span></div>
+              </div>
+              <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+              <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+                  <span class="mid"><span class="nm">Unyarat</span>
+                    <span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="src" style="max-width:none">LINE · BT Premium</span><span class="ordno">#DP2569087F957E65</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>089-876-5432</span>
+                  <span class="acts"><span class="btn call h44"><svg class="i sm"><use href="#i-phone"/></svg> โทร</span><span class="btn line2 h44"><svg class="i sm"><use href="#i-msg"/></svg> ทักแชท</span></span></div>
+              </div>
+              <div class="qc">
+                <div class="top">
+                  <span class="av"><span class="ini">อา</span><span class="bdg store"><svg viewBox="0 0 24 24"><use href="#i-store"/></svg></span></span>
+                  <span class="mid"><span class="nm">คุณอาทิตย์</span>
+                    <span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src" style="max-width:none">หน้าร้าน</span><span class="ordno">#DP2569085A491954</span></span></span>
+                  <svg class="i sm chev"><use href="#i-chev"/></svg>
+                </div>
+                <div class="phrow"><span class="tel none">ยังไม่มีเบอร์</span>
+                  <span class="acts"><span class="btn line2 h44"><svg class="i sm"><use href="#i-plus"/></svg> เพิ่มเบอร์</span></span></div>
+              </div>
+              <div class="nowline"><span class="dot"></span><span class="ln"></span><span class="lb">ตอนนี้ 17:43</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="bottombar" style="padding:12px 16px"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">3 · ทุกกรณีที่ 3 อย่างนี้ต้องรองรับ <span>ไม่ใช่เคสหายาก — ทั้งหมดเกิดบน prod วันนี้</span></h2>
+
+<div class="swrack">
+  <div class="swatch">
+    <h4>รูป: Messenger = ตัวย่อ (กรณีที่พบบ่อยที่สุดวันนี้)</h4>
+    <div class="qc"><div class="top">
+      <span class="av"><span class="ini">TA</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+      <span class="mid"><span class="nm">Thanawit Atikitchinnawut</span><span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">เพจ BT Premium</span></span></span>
+      <svg class="i sm chev"><use href="#i-chev"/></svg></div></div>
+    <p>ตัวย่อจาก <code>generateInitials()</code> พื้น <code>bg-primary/10</code> — <b>ท่าเดียวกับกล่องแชทเป๊ะ</b> ไม่ตั้งใหม่
+      · badge ยังบอกช่องทางได้ครบแม้ไม่มีรูป จึงยังตอบคำถาม “มาจากไหน” ได้ 100%</p>
+  </div>
+
+  <div class="swatch">
+    <h4>รูป: LINE / IG = รูปจริง</h4>
+    <div class="qc"><div class="top">
+      <span class="av"><span class="ph" style="background:#c9d6e4"></span><span class="bdg line"><svg viewBox="0 0 24 24"><use href="#i-line"/></svg></span></span>
+      <span class="mid"><span class="nm">Unyarat</span><span class="sub"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="src">LINE · BT Premium</span></span></span>
+      <svg class="i sm chev"><use href="#i-chev"/></svg></div></div>
+    <p>รูปหมดอายุได้ (Meta) → <code>onError</code> ตกไปตัวย่ออัตโนมัติ ไม่ใช่กล่องรูปแตก · LINE มี <code>profileFetchedAt</code> refresh ทุก 7 วันอยู่แล้ว</p>
+  </div>
+
+  <div class="swatch">
+    <h4>ที่มา: ร้านหลายเพจ → badge เป็น “รูปเพจ”</h4>
+    <div class="qc"><div class="top">
+      <span class="av"><span class="ini">ปจ</span><span class="bdg pg"><img alt="" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Crect width='32' height='32' fill='%23f2b705'/%3E%3C/svg%3E"></span></span>
+      <span class="mid"><span class="nm">ปิยะ จันทร์เพ็ญ</span><span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">เพจ BT สาขา 2</span></span></span>
+      <svg class="i sm chev"><use href="#i-chev"/></svg></div></div>
+    <p><code>ChannelBadgeOverlay</code> รับ <code>imageUrl</code> อยู่แล้ว (user สั่งไว้ตั้งแต่ 2026-07-23 ที่กล่องแชท)
+      · <b>แต่พอ badge เป็นรูปเพจ มันเลิกบอกว่าเป็น Messenger หรือ LINE</b> ⇒ ชื่อช่องทางต้องอยู่ในบรรทัดที่มาแทน — เหตุผลเดียวกับที่ <code>InboxList</code> ใส่ชื่อเพจใน pill</p>
+  </div>
+
+  <div class="swatch">
+    <h4>ที่มา: ไม่ได้มาจากแชทเลย</h4>
+    <div class="qc"><div class="top">
+      <span class="av"><span class="ini">อา</span><span class="bdg store"><svg viewBox="0 0 24 24"><use href="#i-store"/></svg></span></span>
+      <span class="mid"><span class="nm">คุณอาทิตย์</span><span class="sub"><span class="badge sched">นัดแล้ว</span><span class="src">หน้าร้าน</span></span></span>
+      <svg class="i sm chev"><use href="#i-chev"/></svg></div></div>
+    <p><code>Order.shopChannelId = null</code> (สร้างจาก POS/ลิงก์ตรง) → badge เป็นไอคอนกลาง <b>ไม่ใช่ช่องว่าง</b>
+      · และ <b>ไม่มีปุ่ม “ทักแชท”</b> เพราะไม่มีเธรดให้ไป — ปุ่มที่กดแล้วไม่มีปลายทางแย่กว่าไม่มีปุ่ม</p>
+  </div>
+
+  <div class="swatch">
+    <h4>เบอร์: ไม่มี — ต้องพูด ไม่ใช่ปล่อยว่าง</h4>
+    <div class="qc">
+      <div class="top"><span class="av"><span class="ini">อา</span><span class="bdg store"><svg viewBox="0 0 24 24"><use href="#i-store"/></svg></span></span>
+        <span class="mid"><span class="nm">คุณอาทิตย์</span><span class="sub"><span class="badge sched">นัดแล้ว</span></span></span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+      <div class="phrow"><span class="tel none">ยังไม่มีเบอร์</span><span class="acts"><span class="btn line2 h44"><svg class="i sm"><use href="#i-plus"/></svg> เพิ่มเบอร์</span></span></div>
+    </div>
+    <p><code>Order.buyerContact</code> เป็น nullable และนัดที่ร้านคีย์เองมักไม่มีเบอร์ ·
+      ปล่อยแถวว่าง = ผู้ใช้อ่านว่า “ระบบไม่โหลด” (<code>partial-data-must-be-labeled-or-filled.md</code>)</p>
+  </div>
+
+  <div class="swatch">
+    <h4>ปิดผลแล้ว — ปุ่มโทรยังอยู่ไหม?</h4>
+    <div class="qc done">
+      <div class="top"><span class="av" style="opacity:.75"><span class="ini">กศ</span><span class="bdg fb"><svg viewBox="0 0 24 24"><use href="#i-fb"/></svg></span></span>
+        <span class="mid"><span class="nm">เกียรติศักดิ์ นอขุนทด</span><span class="sub"><span class="badge done"><svg class="i xs"><use href="#i-check"/></svg> ให้บริการแล้ว</span></span></span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+      <div class="phrow"><span class="tel"><svg class="i sm"><use href="#i-phone"/></svg>081-555-2211</span>
+        <span class="acts"><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-phone"/></svg></span><span class="btn line2 h44 w44"><svg class="i sm"><use href="#i-msg"/></svg></span></span></div>
+    </div>
+    <p><b>อยู่ — แต่ลดน้ำหนัก</b> (ปุ่มโทรจากทึบเป็นเส้นขอบ) · ร้านยังต้องโทรตามหลังบริการจบได้
+      (ของหาย/ตามเก็บเงิน) การซ่อนเบอร์หลังปิดงานคือการเอาข้อมูลออกตอนที่ยังใช้อยู่</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">4 · งานฝั่งข้อมูล — 3 อย่างนี้ไม่มีใน payload วันนี้เลยสักตัว</h2>
+
+<div class="note warn">
+  <h2>วิธีที่ผมเสนอ: แยกเป็น 2 คำขอ ไม่ใช่ยัดทุกอย่างลงคำขอเดิม</h2>
+  <p style="font-size:13px;margin-bottom:10px">ตอนนี้ <code>AppointmentMonthBoard</code> ยิง <code>GET /api/shops/current/appointments?from=&amp;to=</code>
+    <b>ครั้งเดียวครอบทั้งเดือน</b> แล้วกรองวันที่จิ้มในเครื่อง — ถ้าเติมเบอร์+รูป+ช่องทางลงคำขอเดิม
+    จะได้ <b>เบอร์ลูกค้าทั้งเดือน (อาจ 100–200 เบอร์) นอนอยู่ใน flight payload</b> เพื่อแสดงวันเดียว</p>
+  <table class="tbl">
+    <tr><th style="width:150px">คำขอ</th><th>ได้อะไร</th><th>ทำไม</th></tr>
+    <tr><td><b>เดือน</b> (ของเดิม ไม่แตะ)</td><td>นับจำนวนนัดต่อวัน ลงจุดในปฏิทิน — ไม่มีเบอร์ ไม่มีรูป เหมือนเดิมทุกประการ</td><td>ปฏิทินต้องการแค่ตัวเลข · <code>TFR-010</code> ข้อ 1–2 ยังบังคับได้เต็ม</td></tr>
+    <tr><td><b>รายวัน</b> (ใหม่)</td><td>เฉพาะวันที่จิ้ม: <code>buyerContact</code> · <code>avatarUrl</code> · ช่องทาง+ชื่อเพจ · <code>conversationId</code></td><td>เบอร์อยู่ใน payload ครั้งละ <b>1 วัน</b> ไม่ใช่ 1 เดือน · และรูป/ช่องทางเป็น join ที่แพงเกินจะดึงทั้งเดือนอยู่แล้ว</td></tr>
+  </table>
+  <ul style="margin-top:12px">
+    <li><b>ต้องแก้เอกสารพร้อมกัน</b> — <code>TFR-010</code> บรรทัด “ปฏิทินต้องการแค่ชื่อย่อ + เลขออเดอร์ ไม่ต้องการเบอร์”
+      กลายเป็นเท็จทันทีที่ merge · ถ้าไม่แก้ คนอ่านคนถัดไปจะเจอเอกสารที่ขัดกับโค้ด แล้วไม่รู้ว่าอันไหนถูก</li>
+    <li><b>ยังไม่ส่งอีเมล</b> — ไม่มีจอไหนขอ · ตัดออกที่ server ตามกฎเดิม</li>
+    <li><b>เส้นทางของรูป:</b> <code>Order.customerId</code> → <code>Customer.externalContacts[]</code> → <code>avatarUrl</code>
+      โดย scope ด้วย <code>Order.shopChannelId</code> (PSID เป็น page-scoped — ห้าม dedup ข้ามเพจ ตาม <code>@@unique</code> ในสคีมา)
+      · <b>ยังไม่มี helper ตัวไหนทำเส้นทางนี้ ต้องเขียนใหม่</b></li>
+    <li><b>ปุ่ม “ทักแชท”</b> ต้องได้ <code>conversationId</code> มาด้วย ไม่งั้นกดแล้วไปไม่ถูกห้อง — ถ้าไม่อยากทำรอบนี้ ให้ตัดปุ่มออก อย่าปล่อยให้ลิงก์ไปหน้ารวม</li>
+  </ul>
+</div>
+
+<div class="note bad">
+  <h2>ยังไม่ได้พิสูจน์</h2>
+  <ul>
+    <li><b>ยังไม่ได้กดจริงสักครั้ง</b> — ตัวที่ภาพนิ่งตอบไม่ได้: ปุ่ม “โทร” กับพื้นที่กดทั้งใบทับกันตรงไหน (การ์ดทั้งใบเปิดออเดอร์ แต่ในใบมีปุ่มอีก 3 ปุ่ม = ต้องกัน event ให้ครบ), เมนู <code>⋯</code> ของใบล่างสุดเด้งทะลุขอบจอไหม</li>
+    <li><b>ยังไม่ผ่าน <code>safepay-ux</code> (HR8)</b> — session นี้ห้ามเรียก subagent ผมอ่าน <code>design.json</code> + theme source เอง</li>
+    <li><b>สัดส่วนรูปจริง/ตัวย่อในเฟรม</b> เดาจากชื่อในภาพหน้าจอ (Latin script = น่าจะมาจาก Messenger) — ยังไม่ได้ query ว่าร้านนี้มีนัดจากช่องทางไหนกี่ใบจริง ๆ</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>

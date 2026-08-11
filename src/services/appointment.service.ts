@@ -546,6 +546,138 @@ export async function listAppointments(args: {
 }
 
 /**
+ * รายการนัดของ "หนึ่งวัน" พร้อมสิ่งที่ต้องใช้ติดต่อลูกค้า (ส่วนขยาย 2026-08-11)
+ *
+ * 🛑 ทำไมเป็นฟังก์ชันแยก ไม่ใช่เติม field เข้า `listAppointments` — TFR-010 (ฉบับแก้ 2026-08-11)
+ * ปฏิทินยิงครั้งเดียวครอบ **ทั้งเดือน** ถ้าเติมเบอร์ลงตัวนั้น flight payload ของหน้า `/queues`
+ * จะมีเบอร์ลูกค้าทั้งเดือน (ร้านที่ยุ่ง = 100–200 เบอร์) เพียงเพื่อแสดงผลวันเดียว
+ * ตัวนี้รับช่วงแคบ ๆ และถูกเรียกเมื่อผู้ขายเปิดดูวันนั้นจริง ๆ เท่านั้น
+ *
+ * ยังไม่คืนอีเมล — ไม่มีจอไหนขอ (กฎ "ตัดที่ server boundary" ของ TFR-010 ข้อ 1–2 ยังบังคับเต็ม)
+ */
+export type AppointmentDayItem = {
+  orderToken: string;
+  orderNo: string | null;
+  start: Date;
+  end: Date;
+  appointmentStatus: string | null;
+  buyerName: string | null;
+  /** ช่องทางติดต่อที่ร้านกรอกไว้ (เบอร์เป็นหลัก) — null = ไม่มี ซึ่งเกิดปกติกับนัดที่ร้านคีย์เอง */
+  buyerContact: string | null;
+  resource: { id: string; name: string; capacity: number } | null;
+  /** ช่องทางที่ลูกค้าทักเข้ามา — null = สร้างนอกแชท (หน้าร้าน/ลิงก์ตรง) ⇒ ไม่มีเธรดให้เปิด */
+  source: { channel: string; pageName: string; pageAvatarUrl: string | null } | null;
+  /**
+   * รูปโปรไฟล์ลูกค้าในช่องทางนั้น
+   *
+   * 🛑 null เป็นค่าปกติ ไม่ใช่ข้อผิดพลาด — Messenger ถูก Meta บล็อกรูปทั้งหมดอยู่ (ต้องได้
+   * Advanced Access ของ Business Asset User Profile Access ก่อน) ฝั่ง UI จึงต้องออกแบบให้
+   * "ตัวย่อ" เป็นของหลัก ไม่ใช่ของสำรอง — ดูคอมเมนต์ที่ ExternalContact.avatarUrl ในสคีมา
+   */
+  customerAvatarUrl: string | null;
+  /** เธรดแชทของลูกค้าคนนี้ในช่องทางนั้น — null = ไม่มีให้เปิด ⇒ UI ห้าม render ปุ่มทักแชท */
+  conversationId: string | null;
+};
+
+export async function listAppointmentsForDay(args: {
+  shopId: string;
+  from: Date;
+  to: Date;
+  resourceId?: string | null;
+}): Promise<AppointmentDayItem[]> {
+  const { shopId, from, to, resourceId } = args;
+  await assertShopCanUseAppointments(shopId);
+
+  const rows = await prisma.order.findMany({
+    where: {
+      shopId,
+      serviceResourceId: resourceId ? resourceId : { not: null },
+      status: { not: "CANCELLED" },
+      serviceStart: { lt: to },
+      serviceEnd: { gt: from },
+    },
+    select: {
+      publicToken: true,
+      orderNo: true,
+      serviceStart: true,
+      serviceEnd: true,
+      appointmentStatus: true,
+      buyerName: true,
+      buyerContact: true,
+      customerId: true,
+      shopChannelId: true,
+      serviceResource: { select: { id: true, name: true, capacity: true } },
+      // ห้าม select ทั้งแถวของ ShopChannel — แถวเดียวกันมี accessTokenEnc อยู่
+      shopChannel: { select: { provider: true, name: true, avatarUrl: true } },
+    },
+    orderBy: { serviceStart: "asc" },
+  });
+
+  /**
+   * รูปโปรไฟล์ + เธรดแชท: Order → คู่ (shopChannelId, customerId) → ExternalContact
+   *
+   * 🛑 ต้องใช้ **คู่** เป็นคีย์ ห้ามหาด้วย customerId อย่างเดียว — PSID เป็น page-scoped
+   * (`@@unique([shopChannelId, externalUserId])`) ลูกค้าคนเดียวที่ทักมาสองเพจมีคนละ contact
+   * คนละรูป การจับด้วย customerId เฉย ๆ จะเอารูปจากเพจอื่นมาแปะ
+   */
+  const linkable = rows.filter((r) => r.shopChannelId && r.customerId);
+  const contacts = linkable.length
+    ? await prisma.externalContact.findMany({
+        where: {
+          shopChannelId: {
+            in: [...new Set(linkable.map((r) => r.shopChannelId!))],
+          },
+          customerId: { in: [...new Set(linkable.map((r) => r.customerId!))] },
+          // ownership scope ใน WHERE เสมอ ไม่พึ่งว่า id พวกนี้มาจากแถวของร้านตัวเองอยู่แล้ว
+          // (feedback_rsc_dal_authz)
+          channel: { shopId },
+        },
+        select: {
+          shopChannelId: true,
+          customerId: true,
+          avatarUrl: true,
+          // เธรดล่าสุดของ contact นี้ — ปุ่ม "ทักแชท" ต้องพาไปห้องที่มีบทสนทนาอยู่จริง
+          conversations: {
+            select: { id: true },
+            orderBy: { lastMessageAt: "desc" },
+            take: 1,
+          },
+        },
+      })
+    : [];
+
+  const byPair = new Map(
+    contacts.map((c) => [`${c.shopChannelId}:${c.customerId}`, c]),
+  );
+
+  return rows.map((r) => {
+    const contact =
+      r.shopChannelId && r.customerId
+        ? (byPair.get(`${r.shopChannelId}:${r.customerId}`) ?? null)
+        : null;
+    return {
+      orderToken: r.publicToken,
+      orderNo: r.orderNo,
+      start: r.serviceStart!,
+      end: r.serviceEnd!,
+      appointmentStatus: r.appointmentStatus,
+      buyerName: r.buyerName,
+      buyerContact: r.buyerContact,
+      resource: r.serviceResource,
+      source: r.shopChannel
+        ? {
+            channel: r.shopChannel.provider,
+            pageName: r.shopChannel.name,
+            pageAvatarUrl: r.shopChannel.avatarUrl,
+          }
+        : null,
+      customerAvatarUrl: contact?.avatarUrl ?? null,
+      conversationId: contact?.conversations[0]?.id ?? null,
+    };
+  });
+}
+
+/**
  * getTodayAppointmentCount — จำนวนนัดของ "วันนี้" สำหรับไทล์บน Command Center (user สั่ง 2026-08-07)
  *
  * ทำไมมีอยู่: ไทล์ที่ 2 ของ OrderStatusBand เดิมคือ Order.status='SHIPPED' ซึ่งร้าน SERVICE_QUEUE

@@ -38,6 +38,7 @@ import Icon from '@/components/wrappers/Icon'
 import { formatDateTH, formatMonthYearTH, formatWeekdayDateTH, thaiDayKey } from '@/lib/format-date'
 import AppointmentDayCell from './AppointmentDayCell'
 import AppointmentDayRows from './AppointmentDayRows'
+import AppointmentDaySheet from './AppointmentDaySheet'
 import { localDateKey, type AppointmentBoardItem } from './types'
 
 /** หัวคอลัมน์วัน — index = getDay() (0 = อาทิตย์ ตรงกับ firstDay={0} ของปฏิทิน) */
@@ -194,10 +195,50 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
     [byDay, totalCapacity, countByDay]
   )
 
-  const onDateClick = useCallback((arg: DateClickArg) => {
-    // ช่องของเดือนข้างเคียงไม่รับการเลือก — กดแล้วเดือนไม่เปลี่ยน จะกลายเป็นกดแล้วเงียบ
-    if (arg.dayEl.classList.contains('fc-day-other')) return
-    setSelectedKey(localDateKey(arg.date))
+  /**
+   * มือถือ (<768) = จิ้มวันแล้วชีตเต็มจอเลื่อนขึ้นทับ · แท็บเล็ต (768–1023) = ซ้ายขวาเหมือนเดิม
+   * (user เคาะ 2026-08-11) — ที่ ≥768 ปฏิทินกับรายการเห็นพร้อมกันอยู่แล้ว ชีตจึงเป็นการซ่อน
+   * ของที่มองเห็นได้ฟรี ๆ
+   *
+   * 🛑 ต้องเป็นสามสถานะ (null = ยังไม่รู้ความกว้าง) ไม่ใช่ boolean ที่เดาว่า false — เดสก์ท็อป
+   * จะเปิดชีตหนึ่งเฟรมแล้วปิด ซึ่งยิง endpoint รายวัน (ที่มี PII) ทิ้งไปหนึ่งครั้งพอดี
+   * (บั๊กเดียวกับที่ QueuesCalendarSwitch มีไว้แก้)
+   */
+  const [isCompact, setIsCompact] = useState<boolean | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const apply = () => setIsCompact(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  // จอกว้างขึ้นระหว่างชีตเปิดอยู่ (หมุนเครื่อง) → ปิดชีต ไม่งั้นมันจะทับเลย์เอาต์ 2 คอลัมน์ค้างไว้
+  useEffect(() => {
+    if (isCompact === false) setSheetOpen(false)
+  }, [isCompact])
+
+  const onDateClick = useCallback(
+    (arg: DateClickArg) => {
+      // ช่องของเดือนข้างเคียงไม่รับการเลือก — กดแล้วเดือนไม่เปลี่ยน จะกลายเป็นกดแล้วเงียบ
+      if (arg.dayEl.classList.contains('fc-day-other')) return
+      setSelectedKey(localDateKey(arg.date))
+      // จิ้มวันเดิมซ้ำก็เปิด (ไม่ toggle ปิด — ผู้ใช้จะงงว่ากดแล้วทำไมไม่ขึ้น)
+      if (isCompact) setSheetOpen(true)
+    },
+    [isCompact],
+  )
+
+  /**
+   * เดินวันจากในชีต — ต้องขยับปฏิทินข้างหลังด้วยเสมอ
+   *
+   * 🛑 ถ้าไม่ `gotoDate` เมื่อปัดข้ามขอบเดือน ผู้ใช้จะปิดชีตแล้วเจอเดือนเก่าโดยที่วันที่เลือก
+   * อยู่นอกจอ = จอเดียวขัดกันเอง · และ `datesSet` ที่ตามมาคือตัวที่ทำให้จุดในปฏิทินโหลดเดือนใหม่
+   */
+  const onSheetDayChange = useCallback((next: string) => {
+    setSelectedKey(next)
+    calRef.current?.getApi().gotoDate(new Date(`${next}T00:00`))
   }, [])
 
   const selectedCount = countByDay.get(selectedKey) ?? 0
@@ -400,7 +441,10 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
             (border-s) — ภาษาภาพเดิมทุกอย่าง (พื้นเทา = ผลลัพธ์ / พื้นขาว = เครื่องมือ) แค่เปลี่ยนแกน
             md:h-full คู่กับ flex-1 ที่บล็อกเนื้อหา = คอลัมน์นี้ยืดเต็มความสูงเท่าปฏิทินเสมอ
             ไม่งั้นวันที่ไม่มีนัดจะเหลือแผ่นเทาสั้น ๆ ลอยข้างปฏิทินสูง ๆ */}
-          <div className='border-default-200 bg-default-100 flex flex-col border-t md:h-full md:border-t-0 md:border-s'>
+          {/* 🛑 `hidden md:flex` — ต่ำกว่า 768 รายการย้ายไปอยู่ในชีตเต็มจอทั้งก้อน (user เคาะ
+            2026-08-11) การปล่อยให้ยัง render อยู่ข้างล่างแปลว่าข้อมูลชุดเดียวกันถูกวาดสองที่
+            พร้อมกัน และปฏิทินก็จะไม่ได้พื้นที่คืนตามที่ตั้งใจ */}
+          <div className='border-default-200 bg-default-100 hidden flex-col border-t md:flex md:h-full md:border-t-0 md:border-s'>
             {/* aria-live: การจิ้มวันเปลี่ยนแค่ "รายการข้างล่าง" ซึ่งอยู่คนละที่กับมือ/โฟกัส
             ผู้ใช้ screen reader จึงไม่มีทางรู้ผลของสิ่งที่เพิ่งทำ (WCAG 4.1.3) */}
             <div
@@ -499,6 +543,21 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           </div>
         </div>
       </div>
+
+      {/* ชีตเต็มจอของวันที่จิ้ม — mount เฉพาะตอนเปิดจริง (ไม่ใช่ซ่อนด้วย CSS) เพราะมันยิง
+          endpoint ที่คืนเบอร์ลูกค้า การ mount ทิ้งไว้ = ดึง PII มาโดยไม่มีใครดู */}
+      {isCompact && sheetOpen ? (
+        <AppointmentDaySheet
+          dayKey={selectedKey}
+          onDayChange={onSheetDayChange}
+          onClose={() => setSheetOpen(false)}
+          resourceId={resourceId}
+          resourceName={resourceId ? (resources.find(r => r.id === resourceId)?.name ?? null) : null}
+          // รวมทุกคิว = ต้องบอกว่าแถวไหนของคิวไหน · กรองคิวเดียวแล้วชื่อซ้ำทุกใบ = เสียงรบกวน
+          showResourceName={!resourceId && resources.length > 1}
+          createLabelShort={createLabelShort}
+        />
+      ) : null}
 
       {/* ปุ่มสร้างงานของวันที่จิ้มอยู่ — ย้ายจากท้ายการ์ดมาเป็นแถบติดล่างจอ (2026-08-11)
 

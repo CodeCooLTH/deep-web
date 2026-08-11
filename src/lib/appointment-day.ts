@@ -46,6 +46,36 @@ export function appointmentDayBounds(
   return { from, to: new Date(from.getTime() + 24 * 60 * 60 * 1000) }
 }
 
+/** รูปแบบวันที่ที่รับได้จาก query string — ปฏิทินไทย ไม่ใช่ UTC */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * ขอบวัน [from, to) ของ "วันที่ระบุ" ตามปฏิทินไทย — คืน null เมื่อรูปแบบไม่ถูกหรือวันไม่มีอยู่จริง
+ *
+ * ต่างจาก `appointmentDayBounds` ตรงที่ตัวนั้นรับ *คีย์เชิงความหมาย* ("today") ส่วนตัวนี้รับ
+ * *วันที่ตรง ๆ* ที่ผู้ใช้จิ้มบนปฏิทิน — แต่ทั้งคู่ต้องตัดวันด้วยกติกาเดียวกัน จึงอยู่ไฟล์เดียวกัน
+ * และเรียก `thaiMidnightUtc` ตัวเดียวกัน (บทเรียน 00033: ตัดวันคนละแบบแล้วตัวเลขสองหน้าไม่ตรงกัน)
+ *
+ * 🛑 ต้องเช็ค roundtrip ไม่ใช่แค่ regex — "2569-02-31" ผ่าน regex แต่ `Date.UTC` จะม้วนไปเป็น
+ * วันที่ 3 มี.ค. เงียบ ๆ แล้วผู้ใช้จะได้รายการของวันที่ไม่ได้ขอโดยไม่มีอะไรฟ้อง
+ */
+export function thaiDateBounds(iso: string): { from: Date; to: Date } | null {
+  if (!ISO_DATE_RE.test(iso)) return null
+  const [y, m, d] = iso.split('-').map(Number)
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null
+  const from = thaiMidnightUtc(y, m - 1, d)
+  // ม้วนวันแล้วหรือเปล่า — เทียบกลับด้วยปฏิทินเดียวกับที่สร้าง (บวก offset คืนก่อนอ่านส่วนประกอบ)
+  const back = new Date(from.getTime() + 7 * 60 * 60 * 1000)
+  if (
+    back.getUTCFullYear() !== y ||
+    back.getUTCMonth() !== m - 1 ||
+    back.getUTCDate() !== d
+  ) {
+    return null
+  }
+  return { from, to: new Date(from.getTime() + 24 * 60 * 60 * 1000) }
+}
+
 /**
  * where fragment สำหรับ prisma.order — ต้อง **มิเรอร์** `appointmentOverlapsDay` บรรทัดต่อบรรทัด
  *

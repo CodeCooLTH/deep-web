@@ -30,6 +30,10 @@ import {
 } from '@/lib/format-date'
 import RescheduleAppointmentSheet from './RescheduleAppointmentSheet'
 import { APPOINTMENT_STAGE_META } from '@/lib/appointment-stage'
+import {
+  appointmentOutcomeErrorMessage,
+  appointmentOutcomeSuccessMessage,
+} from '@/lib/appointment-outcome'
 import { isTerminalAppointmentStatus, type AppointmentStatus } from '@/lib/appointments'
 
 type Props = {
@@ -144,17 +148,12 @@ export default function AppointmentCard({
         // แปล error code เป็นไทยที่บอกทางออก ห้ามโยนรหัสดิบขึ้นจอ (BR-SOV-05)
         // อีก 2 เคสที่ server โยนได้คือ 403 (ร้านไม่เข้าเงื่อนไข) และ 404 (ใบนี้ไม่มีนัด)
         // ซึ่งไม่มีทางเกิดจากหน้านี้ เพราะการ์ดจะไม่ถูก render เลย — ตกไปที่ข้อความกลาง
-        const message =
-          data.error === 'APPOINTMENT_TERMINAL'
-            ? 'นัดนี้ถูกปิดผลไปแล้ว'
-            : data.error === 'APPOINTMENT_NOT_STARTED'
-              ? // บอกเวลาที่ทำได้จริง ไม่ใช่ "ปิดผลได้เมื่อถึงเวลา" ซึ่งวนกลับไปพูดสิ่งเดิม
-                `ยังไม่ถึงเวลานัด — ปิดผลได้ตั้งแต่ ${whenText}`
-              : // 403/404 กดซ้ำก็ไม่ผ่าน การบอก "ลองใหม่" เฉย ๆ จึงส่งคนไปทำสิ่งที่ไม่มีผล
-                'บันทึกผลนัดไม่สำเร็จ — รีเฟรชหน้าแล้วลองอีกครั้ง'
-        throw new Error(message)
+        //
+        // 🛑 คำพูดย้ายไป src/lib/appointment-outcome.ts ตั้งแต่ 2026-08-11 เพราะการ์ดคิวงานรายวัน
+        // ปิดผลได้จากลิสต์ด้วยแล้ว = การกระทำเดียวกันมี 2 จอ (HR16 — ห้ามพิมพ์ข้อความซ้ำที่นั่น)
+        throw new Error(appointmentOutcomeErrorMessage(data.error, whenText))
       }
-      pacesToast.success(outcome === 'COMPLETED' ? 'บันทึกว่าให้บริการแล้ว' : 'บันทึกว่าไม่มาตามนัด')
+      pacesToast.success(appointmentOutcomeSuccessMessage(outcome))
       router.refresh()
     } catch (err: unknown) {
       pacesToast.error(err instanceof Error ? err.message : 'บันทึกผลนัดไม่สำเร็จ กรุณาลองใหม่')

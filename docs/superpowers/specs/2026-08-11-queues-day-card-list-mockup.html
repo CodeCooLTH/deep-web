@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — การ์ดคิวงานรายวัน (จิ้มวันแล้วเห็นอะไร) 3 แบบ × 3 ขนาดจอ (2026-08-11)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* token จริงของสกิน Paces — ชุดเดียวกับ 2026-08-11-queues-mobile-v3-mockup.html */
+:root{
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-info:#4ba3f7;    --color-info-ink:#1e40af;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px; --radius:4px; --shadow:0 1px 2px rgba(49,58,70,.075);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;color:var(--color-body-color);font-size:14px;line-height:1.5;padding:32px 20px 90px}
+.wrap{max-width:1760px;margin:0 auto}
+.page-head h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.page-head p{margin-top:6px;max-width:96ch}
+.page-head .meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;margin:22px 0 8px;border-left:3px solid var(--color-primary)}
+.note.bad{border-left-color:var(--color-danger)}
+.note.good{border-left-color:var(--color-success)}
+.note.warn{border-left-color:var(--color-warning)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}.note li{margin-bottom:6px;font-size:13px}
+.note ol{margin-left:20px}.note ol li{margin-bottom:6px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.note b{color:var(--color-default-900)}
+.sec-title{margin:46px 0 4px;font-size:19px;font-weight:600;color:var(--color-default-900);padding-bottom:8px;border-bottom:2px solid var(--color-default-300)}
+.sec-title span{font-size:13px;font-weight:400;color:var(--color-default-500);margin-left:8px}
+.rack{display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;margin-top:22px}
+.device{flex:0 0 auto}
+.device>figcaption{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:10px;max-width:393px}
+.device>figcaption em{font-style:normal;font-weight:400;color:var(--color-default-500)}
+.device>figcaption b.tagbad{color:var(--color-danger-ink)}
+.device>figcaption b.taggood{color:var(--color-success-ink)}
+
+/* ── เปลือกเครื่อง ───────────────────────────────────────────── */
+.phone{position:relative;width:393px;height:852px;background:var(--color-body-bg);border:10px solid #1c2430;border-radius:38px;overflow:hidden;box-shadow:0 18px 44px rgba(28,36,48,.28)}
+.phone.se{width:320px;height:568px;border-radius:30px}
+.phone.tab{width:834px;height:720px;border-radius:24px;border-width:12px}
+.phone.desk{width:1180px;height:560px;border-radius:14px;border-width:10px}
+.screen{position:absolute;inset:0;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:13px;font-weight:600;color:var(--color-default-900)}
+.se .statusbar{height:24px;font-size:11px}.tab .statusbar{height:28px;font-size:12px}.desk .statusbar{display:none}
+.apphead{height:50px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--color-card);border-bottom:1px solid var(--color-default-200)}
+.apphead .ttl{flex:1;text-align:center;font-weight:600;color:var(--color-default-900)}
+.icnbtn{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500);position:relative}
+.scroll{flex:1 1 auto;overflow:hidden;position:relative}
+.fadebottom{position:absolute;left:0;right:0;bottom:0;height:44px;background:linear-gradient(to top,var(--color-default-100),transparent);pointer-events:none;z-index:3}
+
+/* ── ปฏิทินย่อ (ของเดิม ไม่ได้ออกแบบใหม่รอบนี้) ────────────── */
+.calpane{background:var(--color-card)}
+.monthbar{display:flex;align-items:center;gap:8px;padding:10px 12px}
+.monthbar .m{flex:1;text-align:center;font-weight:600;color:var(--color-default-900);font-size:15px}
+.navbtn{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500)}
+.todaybtn{height:40px;padding:0 14px;border-radius:99px;border:1px solid var(--color-default-300);display:grid;place-items:center;font-size:13px;font-weight:500;color:var(--color-default-700)}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px}
+.dow span{text-align:center;font-size:var(--text-2xs);font-weight:600;color:var(--color-default-400);padding:5px 0}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px 8px}
+.cell{min-height:42px;margin:1px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:var(--color-default-800);line-height:1.05}
+.cell .n{font-size:var(--text-2xs);font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.cell .n.zero{color:transparent}
+.cell.other{color:var(--color-default-400)}
+.cell.today{border:1px solid var(--color-default-400)}
+.cell.sel{background:var(--color-primary);color:#fff;font-weight:600}
+.cell.sel .n{color:#fff}
+
+/* ── ครึ่งล่าง: รายการของวันที่จิ้ม ───────────────────────── */
+.daypane{background:var(--color-default-100);border-top:1px solid var(--color-default-200);flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.dayhead{display:flex;align-items:baseline;gap:8px;padding:12px 16px 8px;flex:0 0 auto}
+.dayhead .dt{font-weight:600;color:var(--color-default-900);font-size:14px}
+.dayhead .cnt{margin-left:auto;font-size:12px;color:var(--color-default-500);white-space:nowrap}
+.dayhead .cnt b{color:var(--color-default-800);font-weight:600}
+.list{padding:0 12px 16px;display:flex;flex-direction:column;gap:8px}
+
+/* แถบความคืบหน้าของวัน (แบบ C) */
+.dayprog{margin:0 16px 10px;display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.dayprog .bar{flex:1;height:5px;border-radius:99px;background:var(--color-default-300);overflow:hidden;display:flex}
+.dayprog .bar i{display:block;height:100%}
+.dayprog .bar i.done{background:var(--color-success)}
+.dayprog .bar i.miss{background:var(--color-danger)}
+.dayprog .lbl{font-size:var(--text-2xs);color:var(--color-default-500);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* ── ของเดิม (baseline) ─────────────────────────────────────── */
+.oldrow{background:var(--color-card);border-radius:8px;padding:12px;display:flex;align-items:flex-start;gap:12px}
+.oldrow .t{width:56px;flex:0 0 auto;font-size:14px;font-weight:600;color:var(--color-default-900);line-height:1.25;font-variant-numeric:tabular-nums}
+.oldrow .t small{display:block;font-weight:400;font-size:12px;color:var(--color-default-500)}
+.oldrow .mid{flex:1;min-width:0}
+.oldrow .nm{font-size:14px;font-weight:500;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oldrow .no{font-size:12px;color:var(--color-default-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.oldrow .chev{color:var(--color-default-400);margin-top:2px}
+
+/* ── หัวกลุ่มช่วงเวลา (แบบ A/C) ─────────────────────────────── */
+.slot{display:flex;align-items:baseline;gap:8px;padding:10px 4px 2px}
+.slot:first-child{padding-top:2px}
+.slot .rng{font-size:13px;font-weight:600;color:var(--color-default-800);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.slot .dur{font-size:var(--text-2xs);color:var(--color-default-400)}
+.slot .cnt{margin-left:auto;font-size:var(--text-2xs);color:var(--color-default-500);white-space:nowrap}
+.slot.past .rng{color:var(--color-default-500)}
+
+/* กลุ่มที่ปิดผลครบแล้ว — ยุบเหลือบรรทัดเดียว */
+.slotfold{display:flex;align-items:center;gap:8px;background:var(--color-card);border:1px dashed var(--color-default-300);border-radius:8px;padding:9px 12px;margin-top:8px}
+.slotfold .rng{font-size:13px;font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.slotfold .txt{font-size:12px;color:var(--color-default-500)}
+.slotfold .chev{margin-left:auto;color:var(--color-default-400)}
+
+/* ── การ์ดคิว (แบบ A/C) ────────────────────────────────────── */
+.qcard{background:var(--color-card);border-radius:8px;padding:11px 12px;display:flex;flex-direction:column;gap:6px;position:relative}
+.qcard.lead{border-left:3px solid transparent}
+.qcard .top{display:flex;align-items:flex-start;gap:10px}
+.qcard .nm{flex:1;min-width:0;font-size:15px;font-weight:600;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.qcard .chev{color:var(--color-default-400);flex:0 0 auto;margin-top:2px}
+.qcard .meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--color-default-500);min-height:18px}
+.qcard .meta .sep{width:3px;height:3px;border-radius:99px;background:var(--color-default-300);flex:0 0 auto}
+.qcard .meta .no{font-size:var(--text-2xs);color:var(--color-default-400);font-variant-numeric:tabular-nums}
+.qcard .meta .res{display:inline-flex;align-items:center;gap:4px;color:var(--color-default-700)}
+.qcard .acts{display:flex;align-items:center;gap:8px;margin-top:2px}
+.qcard.done{background:#fbfcfe}
+.qcard.done .nm{font-weight:500;color:var(--color-default-700)}
+
+/* ป้ายสถานะ — คำ/สีมาจาก APPOINTMENT_STAGE_META ห้ามตั้งใหม่ */
+.badge{font-size:var(--text-2xs);font-weight:600;padding:3px 8px;border-radius:99px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;flex:0 0 auto}
+.badge.sched{background:rgba(249,191,89,.15);color:var(--color-warning-ink)}
+.badge.conf{background:rgba(35,109,201,.15);color:var(--color-primary-ink)}
+.badge.resch{background:rgba(75,163,247,.15);color:var(--color-info-ink)}
+.badge.done{background:rgba(2,188,156,.15);color:var(--color-success-ink)}
+.badge.noshow{background:rgba(247,87,126,.15);color:var(--color-danger-ink)}
+.badge.quiet{background:transparent;color:var(--color-default-400);font-weight:500;padding-left:0}
+
+/* ปุ่มในการ์ด */
+.btn{height:38px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:500;padding:0 14px;border:1px solid transparent;background:transparent;white-space:nowrap}
+.btn.h44{height:44px}
+.btn.ok{border-color:var(--color-success);color:var(--color-success-ink);flex:1}
+.btn.ghost{color:var(--color-default-700);background:var(--color-default-100)}
+.btn.icn{width:44px;padding:0;color:var(--color-default-500);border-color:var(--color-default-300)}
+.btn.pri{background:var(--color-primary);color:#fff;width:100%}
+
+/* ── รางเวลา (แบบ B) ───────────────────────────────────────── */
+.rail{display:flex;gap:10px}
+.rail .tcol{width:52px;flex:0 0 auto;text-align:right;padding-top:9px}
+.rail .tcol .h{font-size:13px;font-weight:600;color:var(--color-default-800);font-variant-numeric:tabular-nums;line-height:1.2}
+.rail .tcol .h small{display:block;font-weight:400;font-size:var(--text-2xs);color:var(--color-default-400)}
+.rail .ncol{width:26px;flex:0 0 auto;position:relative;display:flex;justify-content:center}
+.rail .ncol::after{content:"";position:absolute;top:30px;bottom:-8px;left:50%;width:0;border-left:1px dashed var(--color-default-300)}
+.rail:last-child .ncol::after{display:none}
+.rail .node{width:26px;height:26px;border-radius:99px;border:1px dashed var(--color-default-300);background:var(--color-card);display:grid;place-items:center;margin-top:9px;position:relative;z-index:1;color:var(--color-default-400)}
+.rail .node.sched{color:var(--color-warning-ink);border-color:rgba(249,191,89,.6)}
+.rail .node.conf{color:var(--color-primary-ink);border-color:rgba(35,109,201,.5)}
+.rail .node.done{color:#fff;background:var(--color-success);border:1px solid var(--color-success)}
+.rail .node.noshow{color:#fff;background:var(--color-danger);border:1px solid var(--color-danger)}
+.rail .body{flex:1;min-width:0}
+
+/* ── เส้น "ตอนนี้" ─────────────────────────────────────────── */
+.nowline{display:flex;align-items:center;gap:8px;margin:4px 2px}
+.nowline .dot{width:8px;height:8px;border-radius:99px;background:var(--color-primary);flex:0 0 auto}
+.nowline .ln{flex:1;height:1px;background:var(--color-primary);opacity:.45}
+.nowline .lb{font-size:var(--text-2xs);font-weight:600;color:var(--color-primary-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ── แถบล่างติดจอ ──────────────────────────────────────────── */
+.bottombar{flex:0 0 auto;background:var(--color-card);border-top:1px solid var(--color-default-200);padding:12px}
+
+/* ── แท็บเล็ต 2 คอลัมน์ ────────────────────────────────────── */
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1 1 auto;min-height:0}
+.twocol>.calpane{border-right:1px solid var(--color-default-200)}
+.twocol>.daypane{border-top:0}
+
+/* ── ตัวอย่างการ์ดเดี่ยว (แผงสถานะ) ────────────────────────── */
+.swatch{background:var(--color-default-100);border:1px solid var(--color-default-200);border-radius:10px;padding:12px;width:330px}
+.swatch>h4{font-size:12px;font-weight:600;color:var(--color-default-800);margin-bottom:8px}
+.swatch>p{font-size:var(--text-2xs);color:var(--color-default-500);margin-top:8px;line-height:1.45}
+.swrack{display:flex;gap:16px;flex-wrap:wrap;margin-top:18px}
+
+.tbl{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px;background:#fff;border-radius:8px;overflow:hidden}
+.tbl th,.tbl td{border:1px solid var(--color-default-300);padding:7px 10px;text-align:left;vertical-align:top}
+.tbl th{background:var(--color-default-200);color:var(--color-default-900);font-weight:600}
+.tbl td b{color:var(--color-default-900)}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+svg.i.sm{width:13px;height:13px}
+svg.i.xs{width:12px;height:12px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+<symbol id="i-chevl" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+<symbol id="i-chevd" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></symbol>
+<symbol id="i-calchk" viewBox="0 0 24 24"><path d="M11.5 21H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5M16 3v4M8 3v4M4 11h16M15 19l2 2 4-4"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></symbol>
+<symbol id="i-clockoff" viewBox="0 0 24 24"><path d="M3 3l18 18M20.9 14.8A9 9 0 0 0 9.2 3.1M12 7v5M5.6 5.6a9 9 0 0 0 12.8 12.7"/></symbol>
+<symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 12V9a3 3 0 0 1 3-3h13M17 3l3 3-3 3M20 12v3a3 3 0 0 1-3 3H4M7 21l-3-3 3-3"/></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+
+<div class="page-head">
+  <h1>การ์ดคิวงานรายวัน — จิ้มวันแล้วเห็นอะไร</h1>
+  <p>ครึ่งล่างของหน้า <code>/queues</code> บนมือถือ/แท็บเล็ต (<code>&lt;1024px</code>) — ส่วนที่ตอนนี้เป็น <code>AppointmentDayRows.tsx</code>
+     ข้อมูลในทุกเฟรมคือของจริงจากภาพหน้าจอที่ส่งมา: เสาร์ 15 ส.ค. 2569 · 9 นัด (ทั้งวัน 1 · 09:00–10:00 ห้าใบ · 10:00–11:00 สามใบ) เปิดจอตอน 17:43</p>
+  <div class="meta">
+    Base (ทรงการ์ด + ราง + โหนดไอคอน + ปุ่มในแถว): <code>theme/paces/Admin/TS/src/app/(admin)/apps/crm/activities/page.tsx</code><br>
+    Base (เปลือกการ์ด/หัววัน/พื้นเทาครึ่งล่าง/แถบล่างติดจอ): <code>src/components/safepay/appointment-board/AppointmentMonthBoard.tsx</code> (ซึ่ง chase ไป <code>theme/paces/.../apps/calendar/components/CalendarPage.tsx</code>)<br>
+    คำ/สี/ไอคอนของสถานะ: <code>APPOINTMENT_STAGE_META</code> + <code>APPOINTMENT_STATUS_LABEL</code> — mockup นี้ไม่ตั้งคำใหม่แม้แต่คำเดียว
+  </div>
+</div>
+
+<div class="note bad">
+  <h2>7 อย่างที่ทำให้จอปัจจุบันอ่านยาก — ทุกข้อดูได้จากภาพหน้าจอที่ส่งมา</h2>
+  <ol>
+    <li><b>เวลาถูกพิมพ์ซ้ำ 5 รอบ</b> — “09:00 / –10:00” โผล่ 5 ใบติดกัน ทั้งที่มันคือค่าเดียวกัน ส่วนตัวที่ <em>ต่างกันจริง</em> (ชื่อคน) ตัวเล็กกว่าและอยู่คนละคอลัมน์</li>
+    <li><b>เลขออเดอร์กินบรรทัดที่ 2 ของทุกใบ</b> — <code>#DP25690815BD0309</code> ยาว 18 ตัว เป็นตัวเลขล้วน และไม่ใช่สิ่งที่คนยืนหน้าร้านใช้เลือกลูกค้า แต่ได้พื้นที่เท่าชื่อ</li>
+    <li><b>ป้าย “นัดแล้ว” 9 ใบเหมือนกันหมด</b> — ป้ายที่ทุกแถวเหมือนกันไม่ได้แยกอะไรเลย แต่กินขวามือ ~92px ทุกแถว และบีบชื่อจนต้องตัด</li>
+    <li><b>ไม่มีอะไรบอกว่า “ตอนนี้อยู่ตรงไหนของวัน”</b> — เปิดจอ 17:43 นัดทั้ง 9 ใบผ่านเวลาไปหมดแล้ว แต่จอยังหน้าตาเหมือนตอน 8 โมงเช้าเป๊ะ</li>
+    <li><b>ทำอะไรจากจอนี้ไม่ได้เลย</b> — ปิดผล “ให้บริการแล้ว/ไม่มาตามนัด” ต้องกดเข้าออเดอร์ทีละใบ วันละ 9 รอบ เข้า-ออก ทั้งที่ปุ่มมีอยู่แล้วใน <code>AppointmentCard.tsx</code></li>
+    <li><b>“ทั้งวัน” ปนอยู่ในลิสต์เดียวกับนัดมีเวลา</b> โดยไม่มีเส้นแบ่ง — คนอ่านต้องสังเกตเองว่าใบแรกไม่ได้อยู่ในลำดับเวลาเดียวกับที่เหลือ</li>
+    <li><b>ไม่บอกว่าใบไหนเป็นบริการอะไร</b> — ร้านที่มี 3 บริการในคิวเดียวกันแยกไม่ออกจากจอนี้ (ข้อนี้ต้องแก้ API ดูหัวข้อสุดท้าย)</li>
+  </ol>
+</div>
+
+<div class="note">
+  <h2>หลักที่ใช้ตัดสินทุกเฟรมข้างล่าง</h2>
+  <ul>
+    <li><b>สิ่งที่ซ้ำทุกใบ ยกขึ้นไปพูดครั้งเดียว</b> — เวลาเป็นหัวกลุ่ม ไม่ใช่คอลัมน์ประจำแถว. บนจอ 320px คอลัมน์เวลาซ้าย 56px คือ 19% ของความกว้างที่หายไปตลอดกาล</li>
+    <li><b>ชื่อลูกค้าคือสิ่งเดียวที่ผู้ขายใช้เลือกใบ</b> — ต้องเป็นตัวใหญ่สุดของการ์ดและได้ความกว้างเต็ม ไม่มีอะไรมาแย่งบรรทัดเดียวกัน</li>
+    <li><b>ปุ่มโผล่เฉพาะตอนที่กดได้จริง</b> — <code>BR-RSV-34</code> ห้ามปิดผลก่อนถึงเวลานัด ปุ่มเทา 9 ปุ่มเรียงกันคือเสียงรบกวน ไม่ใช่ affordance</li>
+    <li><b>“ไม่มาตามนัด” อยู่ใน <code>⋯</code> เสมอ</b> — ย้อนกลับไม่ได้ ตาม <code>seller-action-placement.md</code> (destructive → ⋯ + confirm) และ confirm ใช้ <code>pacesConfirm</code> ตัวเดียวกับที่หน้าออเดอร์ใช้อยู่</li>
+    <li><b>ไม่มีคำใหม่</b> — ทุกป้ายมาจาก <code>APPOINTMENT_STATUS_LABEL</code> ทุกสีมาจาก <code>APPOINTMENT_STAGE_META</code></li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">1 · เทียบ 3 แบบ บนมือถือ 393px <span>ข้อมูลชุดเดียวกันทั้ง 4 เฟรม · เวลาบนเครื่อง 17:43</span></h2>
+
+<div class="rack">
+
+  <!-- ────────── ของเดิม ────────── -->
+  <figure class="device">
+    <figcaption><b class="tagbad">ของเดิม (บน prod วันนี้)</b><br><em>9 ใบ · เห็น 6 ใบก่อนต้องเลื่อน · เวลาซ้ำ 5 รอบ · ป้ายเหลืองซ้ำ 9 รอบ</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="scroll">
+          <div class="daypane" style="border-top:0">
+            <div class="dayhead"><span class="dt">เสาร์ 15 ส.ค. 2569</span><span class="cnt">ทั้งวันมี 9 นัด</span></div>
+            <div class="list">
+              <div class="oldrow"><span class="t">ทั้งวัน</span><span class="mid"><span class="nm">Thanawit Atikitchinnawut</span><span class="no">#DP25690815BD0309</span></span><span class="badge sched">นัดแล้ว</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+              <div class="oldrow"><span class="t">09:00<small>– 10:00</small></span><span class="mid"><span class="nm">เกียรติศักดิ์ นอขุนทด</span><span class="no">#DP256908786F6C3F</span></span><span class="badge sched">นัดแล้ว</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+              <div class="oldrow"><span class="t">09:00<small>– 10:00</small></span><span class="mid"><span class="nm">Pakkapon Jakchum</span><span class="no">#DP25690852146E08</span></span><span class="badge sched">นัดแล้ว</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+              <div class="oldrow"><span class="t">09:00<small>– 10:00</small></span><span class="mid"><span class="nm">ชื่อนายสำราญ ชวดท่าข้ามค่ะ</span><span class="no">#DP2569083B983127</span></span><span class="badge sched">นัดแล้ว</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+              <div class="oldrow"><span class="t">09:00<small>– 10:00</small></span><span class="mid"><span class="nm">ขคุณไพรัตน์</span><span class="no">#DP25690895E87F92</span></span><span class="badge sched">นัดแล้ว</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+              <div class="oldrow"><span class="t">09:00<small>– 10:00</small></span><span class="mid"><span class="nm">เฟริสท์</span><span class="no">#DP256908E755F1AA</span></span><span class="badge sched">นัดแล้ว</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+              <div class="oldrow"><span class="t">10:00<small>– 11:00</small></span><span class="mid"><span class="nm">Unyarat</span><span class="no">#DP2569087F957E65</span></span><span class="badge sched">นัดแล้ว</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+            </div>
+          </div>
+          <div class="fadebottom"></div>
+        </div>
+        <div class="bottombar"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ────────── แบบ A ────────── -->
+  <figure class="device">
+    <figcaption><b>แบบ A — จัดกลุ่มตามช่วงเวลา</b> <em>(เปลี่ยนน้อยสุด)</em><br><em>เวลาพูดครั้งเดียวต่อกลุ่ม · ชื่อได้เต็มบรรทัด · ป้ายลงไปแถวรอง · เห็น 9 ใบครบในจอเดียว</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="scroll">
+          <div class="daypane" style="border-top:0">
+            <div class="dayhead"><span class="dt">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> นัด</span></div>
+            <div class="list">
+              <div class="slot"><span class="rng"><svg class="i xs" style="vertical-align:-1px"><use href="#i-sun"/></svg> ทั้งวัน</span><span class="cnt">1 คิว</span></div>
+              <div class="qcard"><div class="top"><span class="nm">Thanawit Atikitchinnawut</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP25690815BD0309</span></div></div>
+
+              <div class="slot"><span class="rng">09:00 – 10:00</span><span class="cnt">5 คิว</span></div>
+              <div class="qcard"><div class="top"><span class="nm">เกียรติศักดิ์ นอขุนทด</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP256908786F6C3F</span></div></div>
+              <div class="qcard"><div class="top"><span class="nm">Pakkapon Jakchum</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP25690852146E08</span></div></div>
+              <div class="qcard"><div class="top"><span class="nm">ชื่อนายสำราญ ชวดท่าข้ามค่ะ</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP2569083B983127</span></div></div>
+              <div class="qcard"><div class="top"><span class="nm">ขคุณไพรัตน์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP25690895E87F92</span></div></div>
+              <div class="qcard"><div class="top"><span class="nm">เฟริสท์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP256908E755F1AA</span></div></div>
+
+              <div class="slot"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว</span></div>
+              <div class="qcard"><div class="top"><span class="nm">Unyarat</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP2569087F957E65</span></div></div>
+              <div class="qcard"><div class="top"><span class="nm">คุณอาทิตย์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP2569085A491954</span></div></div>
+            </div>
+          </div>
+          <div class="fadebottom"></div>
+        </div>
+        <div class="bottombar"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ────────── แบบ B ────────── -->
+  <figure class="device">
+    <figcaption><b>แบบ B — รางเวลา + โหนดสถานะ</b> <em>(ยกทรงจากธีมตรง ๆ)</em><br><em>สวยและอ่านลำดับง่าย แต่ <b class="tagbad">เสียความกว้างถาวร 78px</b> ให้คอลัมน์เวลา+ราง — ชื่อยาวถูกตัดเร็วกว่าเดิม</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="scroll">
+          <div class="daypane" style="border-top:0">
+            <div class="dayhead"><span class="dt">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> นัด</span></div>
+            <div class="list" style="gap:0">
+              <div class="rail"><div class="tcol"><span class="h">ทั้งวัน</span></div><div class="ncol"><span class="node sched"><svg class="i xs"><use href="#i-cal"/></svg></span></div>
+                <div class="body"><div class="qcard"><div class="top"><span class="nm">Thanawit Atikit…</span><svg class="i sm chev"><use href="#i-chev"/></svg></div><div class="meta"><span class="badge sched">นัดแล้ว</span></div></div></div></div>
+              <div class="rail"><div class="tcol"><span class="h">09:00<small>10:00</small></span></div><div class="ncol"><span class="node sched"><svg class="i xs"><use href="#i-cal"/></svg></span></div>
+                <div class="body"><div class="qcard"><div class="top"><span class="nm">เกียรติศักดิ์ นอ…</span><svg class="i sm chev"><use href="#i-chev"/></svg></div><div class="meta"><span class="badge sched">นัดแล้ว</span></div></div></div></div>
+              <div class="rail"><div class="tcol"><span class="h">09:00<small>10:00</small></span></div><div class="ncol"><span class="node sched"><svg class="i xs"><use href="#i-cal"/></svg></span></div>
+                <div class="body"><div class="qcard"><div class="top"><span class="nm">Pakkapon Jakc…</span><svg class="i sm chev"><use href="#i-chev"/></svg></div><div class="meta"><span class="badge sched">นัดแล้ว</span></div></div></div></div>
+              <div class="rail"><div class="tcol"><span class="h">09:00<small>10:00</small></span></div><div class="ncol"><span class="node sched"><svg class="i xs"><use href="#i-cal"/></svg></span></div>
+                <div class="body"><div class="qcard"><div class="top"><span class="nm">ชื่อนายสำราญ ช…</span><svg class="i sm chev"><use href="#i-chev"/></svg></div><div class="meta"><span class="badge sched">นัดแล้ว</span></div></div></div></div>
+              <div class="rail"><div class="tcol"><span class="h">09:00<small>10:00</small></span></div><div class="ncol"><span class="node sched"><svg class="i xs"><use href="#i-cal"/></svg></span></div>
+                <div class="body"><div class="qcard"><div class="top"><span class="nm">ขคุณไพรัตน์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div><div class="meta"><span class="badge sched">นัดแล้ว</span></div></div></div></div>
+              <div class="rail"><div class="tcol"><span class="h">09:00<small>10:00</small></span></div><div class="ncol"><span class="node sched"><svg class="i xs"><use href="#i-cal"/></svg></span></div>
+                <div class="body"><div class="qcard"><div class="top"><span class="nm">เฟริสท์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div><div class="meta"><span class="badge sched">นัดแล้ว</span></div></div></div></div>
+              <div class="rail"><div class="tcol"><span class="h">10:00<small>11:00</small></span></div><div class="ncol"><span class="node sched"><svg class="i xs"><use href="#i-cal"/></svg></span></div>
+                <div class="body"><div class="qcard"><div class="top"><span class="nm">Unyarat</span><svg class="i sm chev"><use href="#i-chev"/></svg></div><div class="meta"><span class="badge sched">นัดแล้ว</span></div></div></div></div>
+            </div>
+          </div>
+          <div class="fadebottom"></div>
+        </div>
+        <div class="bottombar"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <!-- ────────── แบบ C ────────── -->
+  <figure class="device">
+    <figcaption><b class="taggood">แบบ C — A + ลงมือได้จากลิสต์ (ผมเสนออันนี้)</b><br><em>หัววันบอกความคืบหน้า · เส้น “ตอนนี้” · ปุ่มจบงานโผล่เฉพาะใบที่ถึงเวลาแล้ว · กลุ่มที่ปิดครบยุบเหลือบรรทัดเดียว</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="scroll">
+          <div class="daypane" style="border-top:0">
+            <div class="dayhead"><span class="dt">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></div>
+            <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            <div class="list">
+              <div class="slot"><span class="rng"><svg class="i xs" style="vertical-align:-1px"><use href="#i-sun"/></svg> ทั้งวัน</span><span class="cnt">1 คิว</span></div>
+              <div class="qcard"><div class="top"><span class="nm">Thanawit Atikitchinnawut</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP25690815BD0309</span></div>
+                <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div>
+              </div>
+
+              <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+
+              <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+              <div class="qcard"><div class="top"><span class="nm">Unyarat</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="no">#DP2569087F957E65</span></div>
+                <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div>
+              </div>
+              <div class="qcard"><div class="top"><span class="nm">คุณอาทิตย์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP2569085A491954</span></div>
+                <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div>
+              </div>
+              <div class="qcard"><div class="top"><span class="nm">ชื่อ นิวัฒน์ ขวัญสุข</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP256908213BAD87</span></div>
+                <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div>
+              </div>
+
+              <div class="nowline"><span class="dot"></span><span class="ln"></span><span class="lb">ตอนนี้ 17:43</span></div>
+            </div>
+          </div>
+          <div class="fadebottom"></div>
+        </div>
+        <div class="bottombar"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+
+</div>
+
+<div class="note warn">
+  <h2>ข้อแลกเปลี่ยนที่ต้องรู้ก่อนเลือก — ไม่มีแบบไหนได้ฟรี</h2>
+  <table class="tbl">
+    <tr><th style="width:90px">แบบ</th><th>ได้</th><th>เสีย</th><th style="width:150px">แตะอะไรบ้าง</th></tr>
+    <tr><td><b>A</b></td>
+      <td>เห็นครบ 9 ใบในจอเดียว (เดิม 6) · ชื่อได้ความกว้างเต็ม ไม่ถูกป้ายบีบ · ไม่มีคำใหม่ ไม่มี API ใหม่</td>
+      <td>ยังทำอะไรไม่ได้จากจอนี้ · ยังไม่รู้ว่าตอนนี้ถึงไหน · <b>เวลาไปอยู่หัวกลุ่ม แปลว่าตอนเลื่อนไปกลางลิสต์แล้วหัวกลุ่มหลุดจอ จะไม่รู้ว่ากำลังดูช่วงไหน</b> (แก้ด้วย sticky หัวกลุ่ม — เพิ่มความซับซ้อน)</td>
+      <td>1 ไฟล์ (<code>AppointmentDayRows.tsx</code>)</td></tr>
+    <tr><td><b>B</b></td>
+      <td>ลำดับเวลาอ่านออกทันทีจากราง · โหนดบอกสถานะด้วย <em>รูปร่าง</em> ไม่ใช่แค่สี</td>
+      <td><b>เสียความกว้าง 78px ถาวรทุกแถว</b> — ที่ 320px เหลือชื่อ ~150px (≈10 ตัวอักษรไทย) ทั้งที่ปัญหาข้อ 1 คือชื่อถูกบีบอยู่แล้ว · เวลายังซ้ำทุกแถวเหมือนเดิม แค่ย้ายที่</td>
+      <td>1 ไฟล์ + CSS ราง</td></tr>
+    <tr><td><b>C</b></td>
+      <td>ทุกอย่างของ A + ปิดผลได้จากลิสต์ (งานประจำวันจริงของหน้านี้) + รู้ว่าเหลืออีกกี่ใบ</td>
+      <td>การ์ดสูงขึ้น ~44px เฉพาะใบที่ถึงเวลาแล้ว · <b>มีปุ่มที่ย้อนกลับไม่ได้อยู่ในลิสต์</b> (กันด้วย <code>pacesConfirm</code> ที่ระบุชื่อลูกค้า เหมือนหน้าออเดอร์) · ต้องยิง POST จากหน้านี้ = ต้องจัดการ loading/error รายใบ</td>
+      <td>1 ไฟล์ + เรียก <code>POST /api/orders/[token]/appointment/outcome</code> (มีอยู่แล้ว ไม่ต้องสร้าง)</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">2 · แบบ C บนจอแคบสุดและแท็บเล็ต <span>320px = iPhone SE · 834px = iPad ซ้ายขวา (เส้นแบ่งจริงคือ md 768)</span></h2>
+
+<div class="rack">
+
+  <figure class="device">
+    <figcaption><b>320px — จอแคบสุดที่ต้องรอด</b><br><em>ชื่อยาวสุดในชุดข้อมูลจริงยังอ่านได้ 2 ท่อน · ปุ่มยังสูง 44px ครบ</em></figcaption>
+    <div class="phone se">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead" style="height:44px"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl" style="font-size:14px">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="scroll">
+          <div class="daypane" style="border-top:0">
+            <div class="dayhead" style="padding:10px 12px 6px"><span class="dt" style="font-size:13px">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> นัด · ปิดผล <b>3</b></span></div>
+            <div class="dayprog" style="margin:0 12px 8px"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            <div class="list" style="padding:0 10px 14px">
+              <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดครบ</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+              <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+              <div class="qcard"><div class="top"><span class="nm">ชื่อนายสำราญ ชวดท่าข้าม…</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge conf">ลูกค้ายืนยันแล้ว</span></div>
+                <div class="meta"><span class="no">#DP2569083B983127</span></div>
+                <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div>
+              </div>
+              <div class="qcard"><div class="top"><span class="nm">คุณอาทิตย์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP2569085A491954</span></div>
+                <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="fadebottom"></div>
+        </div>
+        <div class="bottombar" style="padding:10px"><span class="btn pri h44" style="font-size:12.5px"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device">
+    <figcaption><b>834px — แท็บเล็ต ซ้ายขวา (โครงเดิมของ v3 ไม่เปลี่ยน)</b><br><em>คอลัมน์ขวากว้าง ~380px จึง <b>ยังใช้หัวกลุ่มเหมือนมือถือ ไม่ใช่ราง</b> — 380px ยังไม่พอจ่ายค่าคอลัมน์เวลา 78px</em></figcaption>
+    <div class="phone tab">
+      <div class="screen">
+        <div class="statusbar"><span>17:43</span><span>5G</span></div>
+        <div class="apphead"><span class="icnbtn"><svg class="i"><use href="#i-menu"/></svg></span><span class="ttl">คิวงาน</span><span class="icnbtn"><svg class="i"><use href="#i-plus"/></svg></span></div>
+        <div class="twocol">
+          <div class="calpane">
+            <div class="monthbar"><span class="navbtn"><svg class="i"><use href="#i-chevl"/></svg></span><span class="m">สิงหาคม 2569</span><span class="todaybtn">วันนี้</span><span class="navbtn"><svg class="i"><use href="#i-chev"/></svg></span></div>
+            <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+            <div class="grid">
+              <div class="cell other">27<span class="n zero">0</span></div><div class="cell other">28<span class="n zero">0</span></div><div class="cell other">29<span class="n zero">0</span></div><div class="cell other">30<span class="n zero">0</span></div><div class="cell other">31<span class="n zero">0</span></div><div class="cell">1<span class="n zero">0</span></div><div class="cell">2<span class="n">3</span></div>
+              <div class="cell">3<span class="n zero">0</span></div><div class="cell">4<span class="n">1</span></div><div class="cell">5<span class="n zero">0</span></div><div class="cell">6<span class="n">2</span></div><div class="cell">7<span class="n zero">0</span></div><div class="cell">8<span class="n">4</span></div><div class="cell">9<span class="n">2</span></div>
+              <div class="cell">10<span class="n zero">0</span></div><div class="cell today">11<span class="n">2</span></div><div class="cell">12<span class="n zero">0</span></div><div class="cell">13<span class="n">1</span></div><div class="cell">14<span class="n">6</span></div><div class="cell sel">15<span class="n">9</span></div><div class="cell">16<span class="n">2</span></div>
+              <div class="cell">17<span class="n zero">0</span></div><div class="cell">18<span class="n">3</span></div><div class="cell">19<span class="n zero">0</span></div><div class="cell">20<span class="n">1</span></div><div class="cell">21<span class="n zero">0</span></div><div class="cell">22<span class="n">5</span></div><div class="cell">23<span class="n">1</span></div>
+              <div class="cell">24<span class="n zero">0</span></div><div class="cell">25<span class="n">2</span></div><div class="cell">26<span class="n zero">0</span></div><div class="cell">27<span class="n zero">0</span></div><div class="cell">28<span class="n">3</span></div><div class="cell">29<span class="n">1</span></div><div class="cell">30<span class="n zero">0</span></div>
+              <div class="cell">31<span class="n zero">0</span></div><div class="cell other">1<span class="n zero">0</span></div><div class="cell other">2<span class="n zero">0</span></div><div class="cell other">3<span class="n zero">0</span></div><div class="cell other">4<span class="n zero">0</span></div><div class="cell other">5<span class="n zero">0</span></div><div class="cell other">6<span class="n zero">0</span></div>
+            </div>
+          </div>
+          <div class="daypane">
+            <div class="dayhead"><span class="dt">เสาร์ 15 ส.ค. 2569</span><span class="cnt"><b>9</b> นัด · ปิดผลแล้ว <b>3</b></span></div>
+            <div class="dayprog"><span class="bar"><i class="done" style="width:22%"></i><i class="miss" style="width:11%"></i></span><span class="lbl">3 / 9</span></div>
+            <div class="list">
+              <div class="slot"><span class="rng"><svg class="i xs" style="vertical-align:-1px"><use href="#i-sun"/></svg> ทั้งวัน</span><span class="cnt">1 คิว</span></div>
+              <div class="qcard"><div class="top"><span class="nm">Thanawit Atikitchinnawut</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="res"><svg class="i xs"><use href="#i-user"/></svg> ช่างเอ</span><span class="no">#DP25690815BD0309</span></div>
+                <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div></div>
+              <div class="slotfold"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+              <div class="slot past"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว · เหลือ 3</span></div>
+              <div class="qcard"><div class="top"><span class="nm">Unyarat</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="res"><svg class="i xs"><use href="#i-user"/></svg> ช่างบี</span><span class="no">#DP2569087F957E65</span></div>
+                <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div></div>
+              <div class="qcard"><div class="top"><span class="nm">คุณอาทิตย์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+                <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="res"><svg class="i xs"><use href="#i-user"/></svg> ช่างเอ</span><span class="no">#DP2569085A491954</span></div>
+                <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div></div>
+              <div class="nowline"><span class="dot"></span><span class="ln"></span><span class="lb">ตอนนี้ 17:43</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="bottombar" style="padding:12px 16px"><span class="btn pri h44"><svg class="i sm"><use href="#i-plus"/></svg> งานใหม่ · 15 ส.ค. 2569</span></div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<div class="note">
+  <h2>จอที่สาม: ≥1024px (เดสก์ท็อป) — การ์ดลิสต์นี้ <b>ไม่ปรากฏเลย</b></h2>
+  <ul>
+    <li><code>QueuesCalendarSwitch.tsx</code> สลับไป <code>AppointmentCalendar</code> (FullCalendar เต็มจอ) ที่ <code>lg</code> = 1024 และเป็นการ <b>mount ตัวเดียว</b> ไม่ใช่ <code>hidden</code> — บอร์ดมือถือไม่ถูก render บนเดสก์ท็อปเลย</li>
+    <li>แปลว่างานนี้มีขอบเขต <b>&lt;1024px เท่านั้น</b> ไม่ต้องมีเฟรมเดสก์ท็อปให้ตรวจ และไม่ต้องกลัวว่าจะไปทับปฏิทินเดิม</li>
+    <li>ถ้าอยากได้แผงรายวันบนเดสก์ท็อปด้วย นั่นคือ <b>งานคนละชิ้น</b> (ต้องตัดสินว่าจะวางข้างปฏิทิน FullCalendar ยังไงโดยไม่ทำให้ปฏิทินแคบจนป้ายในช่องอ่านไม่ออก) — ยังไม่รวมในรอบนี้</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">3 · ทุกสถานะที่การ์ดต้องรองรับ <span>คำและสีมาจาก APPOINTMENT_STAGE_META / APPOINTMENT_STATUS_LABEL ทั้งหมด</span></h2>
+
+<div class="swrack">
+  <div class="swatch">
+    <h4>ยังไม่ถึงเวลานัด — ไม่มีปุ่ม</h4>
+    <div class="qcard"><div class="top"><span class="nm">คุณอาทิตย์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+      <div class="meta"><span class="badge sched">นัดแล้ว</span><span class="no">#DP2569085A491954</span></div></div>
+    <p><b>BR-RSV-34</b> ห้ามปิดผลก่อนถึงเวลา — จึงไม่โชว์ปุ่มเทาที่กดไม่ได้ (หน้าออเดอร์โชว์ปุ่ม disabled + คำอธิบายได้ เพราะมีใบเดียว แต่ในลิสต์จะกลายเป็นปุ่มตายเรียงกัน 9 ปุ่ม)</p>
+  </div>
+
+  <div class="swatch">
+    <h4>ถึงเวลาแล้ว ยังไม่ปิดผล — ปุ่มโผล่</h4>
+    <div class="qcard"><div class="top"><span class="nm">Unyarat</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+      <div class="meta"><span class="badge conf">ลูกค้ายืนยันแล้ว</span><span class="no">#DP2569087F957E65</span></div>
+      <div class="acts"><span class="btn ok h44"><svg class="i sm"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div></div>
+    <p>ปุ่มเดียวที่เห็นคือทางที่เกิดบ่อยกว่า · “ไม่มาตามนัด” และ “เลื่อนนัด” อยู่ใน <code>⋯</code> · ทั้งคู่ผ่าน <code>pacesConfirm</code> ที่ระบุชื่อลูกค้า+เวลา เหมือนหน้าออเดอร์เป๊ะ</p>
+  </div>
+
+  <div class="swatch">
+    <h4>ลูกค้าขอเลื่อน — ต้องชี้ทางแก้</h4>
+    <div class="qcard lead" style="border-left-color:var(--color-info)"><div class="top"><span class="nm">เฟริสท์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+      <div class="meta"><span class="badge resch">ลูกค้าขอเลื่อน</span><span class="no">#DP256908E755F1AA</span></div>
+      <div class="acts"><span class="btn ghost h44" style="flex:1"><svg class="i sm"><use href="#i-repeat"/></svg> เลือกเวลาใหม่</span><span class="btn icn h44"><svg class="i sm"><use href="#i-dots"/></svg></span></div></div>
+    <p>สถานะเดียวในชุดที่ <em>ร้านต้องลงมือ</em> — ได้แถบซ้ายสี info ตัวเดียวกับที่ <code>AppointmentCard.tsx</code> ใช้อยู่แล้ว (<code>border-info border-s-3</code>) ไม่ได้คิดภาษาใหม่</p>
+  </div>
+
+  <div class="swatch">
+    <h4>ปิดผลแล้ว — เงียบลง ไม่มีปุ่ม</h4>
+    <div class="qcard done"><div class="top"><span class="nm">เกียรติศักดิ์ นอขุนทด</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+      <div class="meta"><span class="badge done"><svg class="i xs"><use href="#i-check"/></svg> ให้บริการแล้ว</span><span class="no">#DP256908786F6C3F</span></div></div>
+    <div style="height:8px"></div>
+    <div class="qcard done"><div class="top"><span class="nm">ขคุณไพรัตน์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div>
+      <div class="meta"><span class="badge noshow"><svg class="i xs"><use href="#i-clockoff"/></svg> ไม่มาตามนัด</span><span class="no">#DP25690895E87F92</span></div></div>
+    <p>terminal แล้ว (<code>TERMINAL_APPOINTMENT_STATUSES</code>) — ปุ่มหายทั้งชุด ชื่อเบาลงเป็น 500/default-700 พื้นการ์ดจางลงนิดเดียว <b>ไม่ใช้ opacity ทั้งใบ</b> เพราะป้ายสถานะต้องยังผ่านคอนทราสต์</p>
+  </div>
+
+  <div class="swatch">
+    <h4>กลุ่มที่ปิดครบ — ยุบเหลือบรรทัดเดียว</h4>
+    <div class="slotfold" style="margin-top:0"><span class="rng">09:00 – 10:00</span><span class="txt">5 คิว · ปิดผลแล้วทั้งกลุ่ม</span><svg class="i sm chev"><use href="#i-chevd"/></svg></div>
+    <p>5 การ์ดที่ไม่มีอะไรให้ทำแล้ว → 1 บรรทัด กดกางดูได้ · <b>ยุบเฉพาะตอนที่ทั้งกลุ่มเป็น terminal</b> — เหลือค้างใบเดียวก็กางทั้งกลุ่ม (ไม่งั้นใบที่ต้องทำจะถูกซ่อน ซึ่งแย่กว่าอ่านยาก)</p>
+  </div>
+
+  <div class="swatch">
+    <h4>เส้น “ตอนนี้” — เฉพาะวันนี้เท่านั้น</h4>
+    <div class="slot" style="padding-top:0"><span class="rng">10:00 – 11:00</span><span class="cnt">3 คิว</span></div>
+    <div class="qcard"><div class="top"><span class="nm">Unyarat</span><svg class="i sm chev"><use href="#i-chev"/></svg></div><div class="meta"><span class="badge sched">นัดแล้ว</span></div></div>
+    <div class="nowline"><span class="dot"></span><span class="ln"></span><span class="lb">ตอนนี้ 10:30</span></div>
+    <div class="slot"><span class="rng">11:00 – 12:00</span><span class="cnt">2 คิว</span></div>
+    <div class="qcard"><div class="top"><span class="nm">คุณอาทิตย์</span><svg class="i sm chev"><use href="#i-chev"/></svg></div><div class="meta"><span class="badge sched">นัดแล้ว</span></div></div>
+    <p>จิ้มดูวันอื่นแล้วเส้นนี้ <b>ต้องหายไป</b> — ไม่งั้นมันจะอ่านเป็น “ตอนนี้ของวันนั้น” ซึ่งไม่มีความหมาย · เวลาบนเส้นเดินเองทุกนาที ไม่ต้องรีเฟรชหน้า</p>
+  </div>
+
+  <div class="swatch">
+    <h4>ว่างทั้งวัน / โหลดล้ม — ของเดิม ไม่แตะ</h4>
+    <div style="background:var(--color-card);border-radius:8px;padding:20px;text-align:center">
+      <div style="width:44px;height:44px;border-radius:99px;background:var(--color-default-200);color:var(--color-default-500);display:grid;place-items:center;margin:0 auto 8px"><svg class="i"><use href="#i-calchk"/></svg></div>
+      <div style="font-size:13px;font-weight:600;color:var(--color-default-800)">ว่างทั้งวัน</div>
+      <div style="font-size:var(--text-2xs);color:var(--color-default-500);margin-top:2px">ยังไม่มีนัดเข้ามา</div>
+    </div>
+    <p>สถานะว่าง / กำลังโหลด (skeleton) / โหลดล้ม (บล็อกแดง + ปุ่มลองอีกครั้ง) <b>ยกมาจากของเดิมทั้งหมด ไม่ออกแบบใหม่</b> — มันถูกอยู่แล้วและมีเหตุผลเขียนกำกับไว้ครบใน <code>AppointmentMonthBoard.tsx</code></p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<h2 class="sec-title">4 · เรื่องที่ต้องตัดสินก่อนลงมือ</h2>
+
+<div class="note warn">
+  <h2>ก. ป้าย “นัดแล้ว” ที่ซ้ำ 9 ใบ — ผมเลือกเก็บไว้ ไม่ตัด</h2>
+  <ul>
+    <li>ทางที่สวยกว่าคือ <b>ให้สถานะปกติไม่มีป้าย</b> แล้วเหลือป้ายเฉพาะสถานะที่ต้องรู้ (ยืนยันแล้ว/ขอเลื่อน/ให้บริการแล้ว/ไม่มาตามนัด) — จอจะเงียบลงมาก</li>
+    <li>แต่นั่นแปลว่า <b>“นัดแล้ว” จะถูกสื่อด้วยความว่างเปล่า</b> ซึ่งอ่านไม่ออกว่าเป็นสถานะหนึ่งหรือระบบยังไม่รู้ — และมันจะสร้างนิยามที่สองของสีสถานะขึ้นมาในไฟล์นี้ ซึ่งชนกับ <code>APPOINTMENT_STAGE_META</code> ที่ประกาศตัวเองเป็น SSOT (<b>HR16</b>)</li>
+    <li><b>ต้องการให้ตัดจริงไหม</b> — ถ้าเอา ผมจะทำโดยเพิ่มโหมดที่ <em>ตัว SSOT</em> ไม่ใช่ที่การ์ด</li>
+  </ul>
+</div>
+
+<div class="note">
+  <h2>ข. ข้อมูลที่ยังไม่มีในลิสต์ — ต้องแตะ <code>listAppointments</code></h2>
+  <table class="tbl">
+    <tr><th style="width:150px">อยากได้</th><th>ตอนนี้</th><th>ทำได้ไหม</th></tr>
+    <tr><td><b>ชื่อบริการ</b> (“ตัดผม”, “ล้างแอร์”)</td><td>ไม่มีใน payload เลย</td><td><b>ได้</b> — เพิ่ม select <code>items[0].title</code> ไม่ใช่ PII · นี่คือสิ่งที่จะทำให้ 5 ใบเวลาเดียวกันต่างกันจริง แนะนำให้ทำพร้อมกัน</td></tr>
+    <tr><td><b>เบอร์โทร / ปุ่มโทร</b></td><td>ตั้งใจไม่ส่ง</td><td><b>ไม่ทำ</b> — คอมเมนต์ใน route เขียนห้ามไว้ตรงตัว (TFR-010: หน้านี้อยู่ใต้ client layout ทุก field ไหลเข้า flight payload) · อยากโทรให้กดเข้าออเดอร์ ซึ่งเป็นที่ที่เบอร์อยู่แล้ว</td></tr>
+    <tr><td><b>ยอดเงิน / มัดจำ</b></td><td>ไม่มี</td><td>ได้ทางเทคนิค แต่ <b>ผมไม่เสนอ</b> — จอนี้ตอบคำถาม “วันนี้ใครมาบ้าง” ไม่ใช่ “เก็บเงินครบยัง” การใส่ตัวเลขเงินจะเปิดคำถามที่จอนี้ตอบไม่จบ</td></tr>
+    <tr><td><b>ชื่อคิวงาน</b> (ช่างเอ/ช่างบี)</td><td>มีแล้ว</td><td>ใช้กฎเดิมไม่เปลี่ยน — โผล่เฉพาะตอนดู “ทุกคิวงาน” และร้านมีมากกว่า 1 คิว</td></tr>
+  </table>
+</div>
+
+<div class="note bad">
+  <h2>ค. สิ่งที่ mockup นี้ยังไม่ได้พิสูจน์</h2>
+  <ul>
+    <li><b>ยังไม่ได้กดจริงสักครั้ง</b> — นี่คือภาพนิ่ง ไม่ใช่ของที่รันได้ ตัวที่ static ตรวจไม่ได้คือ: เมนู <code>⋯</code> ของการ์ดใบล่างสุดจะเด้งทะลุขอบจอไหม, ปุ่ม “ให้บริการแล้ว” กับพื้นที่กดทั้งใบทับกันตรงไหน, หัวกลุ่มแบบ sticky จะชนกับหัว <code>SellerMobileHeader</code> ไหม</li>
+    <li><b>ยังไม่ผ่าน <code>safepay-ux</code></b> (HR8) — session นี้ตั้งค่าห้ามเรียก subagent ผมจึงอ่าน <code>design.json</code> + theme source เอง ควรให้ ux ตรวจย้อนหลังก่อนเขียนโค้ด</li>
+    <li><b>เลขที่อ้างถึงความกว้าง</b> (78px ของราง, ชื่อเหลือ 150px ที่ 320px) คำนวณจาก padding ในโค้ดจริง แต่ยังไม่ได้วัดจากเบราว์เซอร์</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>

@@ -156,7 +156,10 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 | **TC-H01** | 🛑 ไม่มี SMS อัตโนมัติ | `rg "sendSms"` ในไฟล์ของฟีเจอร์ + ตรวจยอด `SellerWallet` ก่อน/หลัง flow เต็ม | 0 ผลลัพธ์ + ยอดเครดิตไม่ลด | BR-RSV-38 |
 | **TC-H02** | 🛑 `serviceSeat` ไม่หลุดออก API | ตรวจ response ทุก endpoint | ไม่มี key `serviceSeat` ที่ไหนเลย | [[DATABASE]] §6 |
 | **TC-H03** | 🛑 ไม่มีข้อความดิบจาก Postgres | ทำให้เกิด 409 แล้วดู response | ไม่มีคำว่า `constraint`/`tstzrange`/`23P01` | TFR-004 |
-| **TC-H04** | 🛑 PII ไม่รั่วใน flight payload | เปิดปฏิทินคิวแล้วค้น payload ในเบราว์เซอร์ | ไม่มีเบอร์/อีเมลลูกค้าเต็ม | TFR-010 |
+| **TC-H04** | 🛑 คำขอ**ระดับเดือน**ไม่มี PII | เปิดปฏิทินคิว แล้วค้น payload ของ `?from&to` | ไม่มี `buyerContact`/อีเมล/รูปลูกค้าเลย (แก้ 2026-08-11: เดิมเกณฑ์คือ "ทั้งหน้า" — ตอนนี้การ์ดรายวันคืนเบอร์โดยตั้งใจ) | TFR-010 |
+| **TC-H04b** | 🛑 คำขอ**ระดับวัน**คืนเบอร์ได้ แต่ห้ามคืนอีเมล | `curl` `…/appointments/day?date=YYYY-MM-DD` ของวันที่มีนัด | มี `buyerContact` · **ไม่มีอีเมลทุกกรณี** | TFR-010 |
+| **TC-H04c** | 🛑 ขอช่วงกว้างกว่าหนึ่งวันไม่ได้ | ยิง `…/day` ด้วย `?from=&to=` / `?date=2569-02-31` / ไม่ส่ง `date` | 400 `VALIDATION_ERROR` ทั้งสามกรณี (โดยเฉพาะวันที่ไม่มีอยู่จริง ซึ่ง regex อย่างเดียวจับไม่ได้) | TFR-010 |
+| **TC-H04d** | 🛑 รูปลูกค้าไม่ข้ามเพจ | ลูกค้าคนเดียวมี `ExternalContact` 2 เพจ รูปคนละใบ → เปิดวันที่มีนัดจากเพจ A | ได้รูปของเพจ A ไม่ใช่ของเพจ B | API §4.5b |
 | **TC-H05** | Cache header | `curl -I` endpoint ปฏิทิน | `private, no-store` | TFR-005 |
 | **TC-H06** | EXCLUDE constraint ยังอยู่หลัง migrate | query `pg_constraint` | พบ `Order_service_seat_no_overlap` | [[DATABASE]] §4.2 |
 | **TC-H07** | constraint ของ 00008/00017 ยังอยู่ | query `pg_constraint` | `Order_room_no_overlap` และ partial unique index ยังอยู่ครบ | SRS §8 |

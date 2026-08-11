@@ -12,8 +12,12 @@ import { listAppointments } from "@/services/appointment.service";
  *
  * IMPORTANT: หน้าปฏิทินอยู่ใต้ client layout → ทุก field ที่คืนไปถูก serialize เข้า
  * flight payload ทั้งหมด service จึงคืนเฉพาะที่ปฏิทินใช้จริง (ไม่มีเบอร์/อีเมลลูกค้า)
- * ห้ามเติม field ลูกค้าเพิ่มที่นี่โดยไม่ทบทวน TFR-010 ก่อน
  * (บทเรียน feedback_rsc_pii_neutralize_at_source)
+ *
+ * 🛑 คำขอนี้ครอบ **ทั้งเดือน** — ห้ามเติมเบอร์/รูปลูกค้าลงที่นี่เด็ดขาด ไม่ว่าจอไหนจะขอ
+ * เพราะมันแปลว่าเบอร์ลูกค้าทั้งเดือน (ร้านที่ยุ่ง 100–200 เบอร์) นอนอยู่ใน flight payload
+ * เพื่อแสดงผลวันเดียว. ต้องการข้อมูลติดต่อ → `GET …/appointments/day?date=` ซึ่งรับได้ทีละวัน
+ * (TFR-010 ฉบับแก้ 2026-08-11 · API.md §4.5b)
  */
 
 export const dynamic = "force-dynamic";
