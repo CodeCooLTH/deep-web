@@ -18,10 +18,10 @@ import {
 import {
   buildRichMenuName,
   buildRichMenuPayload,
-  cellBounds,
+  layoutBounds,
+  layoutFor,
   readImageSize,
   countChatBarText,
-  gridFor,
   isChatBarTextValid,
   isOwnRichMenuName,
   richMenuNamePrefix,
@@ -95,13 +95,20 @@ describe('ชื่อเมนู = กลไกเก็บกวาด', () =
   })
 })
 
-describe('กริดพิกัดปุ่ม', () => {
-  it('จำนวนปุ่มที่ไม่รองรับ = ปฏิเสธ (fail-closed) ไม่ใช่เดากริดให้', () => {
-    expect(gridFor(1)).toBeNull()
-    expect(gridFor(5)).toBeNull()
-    expect(gridFor(7)).toBeNull()
-    expect(gridFor(2)).toEqual({ rows: 1, cols: 2 })
-    expect(gridFor(4)).toEqual({ rows: 2, cols: 2 })
+describe('เลย์เอาต์พิกัดปุ่ม', () => {
+  it('จำนวนปุ่มที่ไม่รองรับ = ปฏิเสธ (fail-closed) ไม่ใช่เดาเลย์เอาต์ให้', () => {
+    expect(layoutFor(1)).toBeNull()
+    expect(layoutFor(5)).toBeNull()
+    expect(layoutFor(7)).toBeNull()
+    expect(layoutFor(2)).toEqual([2])
+    expect(layoutFor(4)).toEqual([2, 2])
+  })
+
+  it('3 ปุ่ม = T-split (บนเต็มแถว ล่างแบ่งสอง) ไม่ใช่สามช่องเท่ากัน', () => {
+    expect(layoutFor(3)).toEqual([1, 2])
+    const b = layoutBounds([1, 2])
+    expect(b[0]!.width).toBe(RICH_MENU_CANVAS_WIDTH) // แถวบนเต็มความกว้าง
+    expect(b[1]!.width + b[2]!.width).toBe(RICH_MENU_CANVAS_WIDTH)
   })
 
   /**
@@ -113,12 +120,12 @@ describe('กริดพิกัดปุ่ม', () => {
    */
   it('[blocker] TC-18 ทุกกริด: พื้นที่กดต้องต่อกันสนิทและเต็มกรอบภาพพอดี ไม่เหลือเศษ ไม่ซ้อนกัน', () => {
     for (const count of [2, 3, 4, 6]) {
-      const grid = gridFor(count)!
-      const cells = Array.from({ length: count }, (_, i) => cellBounds(grid, i))
+      const cells = layoutBounds(layoutFor(count)!)
+      expect(cells, `กริด ${count} ปุ่ม ต้องได้กล่องครบ`).toHaveLength(count)
 
       // 1) ผลรวมพื้นที่ = พื้นที่ภาพเป๊ะ (ไม่ทับกัน + ไม่มีรู)
       const area = cells.reduce((s, c) => s + c.width * c.height, 0)
-      expect(area, `กริด ${count} ปุ่ม`).toBe(RICH_MENU_CANVAS_WIDTH * RICH_MENU_CANVAS_HEIGHT)
+      expect(area, `เลย์เอาต์ ${count} ปุ่ม`).toBe(RICH_MENU_CANVAS_WIDTH * RICH_MENU_CANVAS_HEIGHT)
 
       // 2) ขอบขวาสุด/ล่างสุดต้องชนขอบภาพพอดี (นี่คือจุดที่ 2500/3 = 833.33 ทำให้เหลือ 1px)
       expect(Math.max(...cells.map((c) => c.x + c.width))).toBe(RICH_MENU_CANVAS_WIDTH)
@@ -134,11 +141,27 @@ describe('กริดพิกัดปุ่ม', () => {
     }
   })
 
-  it('กริด 3 คอลัมน์: ช่องสุดท้ายกลืนเศษ (2500/3 ไม่ลงตัว)', () => {
-    const g = gridFor(3)!
-    expect(cellBounds(g, 0).width).toBe(833)
-    expect(cellBounds(g, 1).width).toBe(833)
-    expect(cellBounds(g, 2).width).toBe(834) // 2500 - 833*2
+  /**
+   * 🛑 เคสนี้ต้องส่งความสูงที่ **หารไม่ลงตัว** เข้าไปเอง เพราะกรอบจริง 1686 หาร 2 แถวลงตัวพอดี
+   * กิ่ง "แถวสุดท้ายกลืนเศษแนวตั้ง" จึงไม่มีทางถูกเรียกด้วยค่าจริง — พิสูจน์ด้วย mutation แล้วว่า
+   * ถอดกิ่งนั้นออกเทสก็ยังเขียว (คลาส P-7: โค้ดเผื่อที่พิสูจน์ไม่ได้ว่าทำงาน)
+   *
+   * กิ่งนี้ **ไม่ใช่โค้ดตาย** เพราะ `layoutBounds` รับ canvas size เข้ามาได้ (ตัวเรนเดอร์พรีวิว
+   * ใช้ขนาดย่อ) — เทสจึงยิงด้วยขนาดที่หารไม่ลงตัวเพื่อให้กิ่งนั้นมีของพิสูจน์จริง ๆ
+   */
+  it('[blocker] แถวสุดท้ายกลืนเศษแนวตั้งเมื่อความสูงหารไม่ลงตัว', () => {
+    const b = layoutBounds([1, 2], 2500, 1687) // 1687/2 = 843.5
+    expect(b[0]!.height).toBe(843)
+    expect(b[1]!.height).toBe(844) // แถวล่างกลืนเศษ
+    const area = b.reduce((s, c) => s + c.width * c.height, 0)
+    expect(area).toBe(2500 * 1687)
+  })
+
+  it('แถวที่มี 3 คอลัมน์: ช่องสุดท้ายกลืนเศษ (2500/3 ไม่ลงตัว)', () => {
+    const b = layoutBounds([3, 3])
+    expect(b[0]!.width).toBe(833)
+    expect(b[1]!.width).toBe(833)
+    expect(b[2]!.width).toBe(834) // 2500 - 833*2
   })
 })
 
@@ -264,7 +287,7 @@ describe('เทมเพลต', () => {
     for (const t of allTemplates()) {
       expect(t.buttons.length, `${t.key} ต้องมีปุ่ม`).toBeGreaterThan(0)
       // จำนวนปุ่มต้องอยู่ในกริดที่รองรับ ไม่งั้น buildRichMenuPayload จะโยนตอน runtime
-      expect(gridFor(t.buttons.length), `${t.key} จำนวนปุ่มต้องมีกริดรองรับ`).not.toBeNull()
+      expect(layoutFor(t.buttons.length), `${t.key} จำนวนปุ่มต้องมีเลย์เอาต์รองรับ`).not.toBeNull()
       for (const b of t.buttons) {
         expect(b.label.trim(), `${t.key}/${b.key}`).not.toBe('')
         expect(allowed.has(b.action.type), `${t.key}/${b.key} = ${b.action.type}`).toBe(true)
@@ -301,7 +324,7 @@ describe('เทมเพลต', () => {
     expect(without).toHaveLength(t.buttons.length - 1)
     expect(without.some((b) => b.key === 'catalog')).toBe(false)
     // และสิ่งที่เหลือต้องยังประกอบเป็นเมนูได้จริง (มีกริดรองรับ)
-    expect(gridFor(without.length)).not.toBeNull()
+    expect(layoutFor(without.length)).not.toBeNull()
   })
 
   it('[blocker] BR-RM-07 ลิงก์ที่ไม่ใช่ https ต้องถูกตัดทิ้ง (LINE ปฏิเสธทั้งเมนู)', () => {

@@ -92,9 +92,11 @@ const TEMPLATES: RichMenuTemplate[] = [
     vertical: 'SERVICE_QUEUE',
     title: 'ชุดร้านบริการ/คิวงาน',
     chatBarText: 'เมนูลัด',
+    // 🛑 ลำดับ = ตำแหน่งบนภาพ (T-split: ตัวแรกได้แถวบนเต็มแถว) — ปุ่มแจ้งเวลาจึงมาก่อน
+    // เพราะเป็นงานหลักของร้านบริการ ไม่ใช่เพราะเรียงตามตัวอักษร
     buttons: [
-      { key: 'catalog', label: 'ดูบริการ', action: { type: 'uri', uri: '__PUBLIC_URL__' }, requiresPublicUrl: true },
       datetimeButton('แจ้งเวลาที่สะดวก'),
+      { key: 'catalog', label: 'ดูบริการ', action: { type: 'uri', uri: '__PUBLIC_URL__' }, requiresPublicUrl: true },
       AGENT_BUTTON,
     ],
   },
@@ -103,9 +105,10 @@ const TEMPLATES: RichMenuTemplate[] = [
     vertical: 'LODGING',
     title: 'ชุดบ้านพัก',
     chatBarText: 'เมนูลัด',
+    // ลำดับเดียวกับร้านบริการ — ตัวแรกได้แถวบนเต็มแถว
     buttons: [
-      { key: 'catalog', label: 'ดูห้องพัก', action: { type: 'uri', uri: '__PUBLIC_URL__' }, requiresPublicUrl: true },
       datetimeButton('แจ้งวันที่เข้าพัก'),
+      { key: 'catalog', label: 'ดูห้องพัก', action: { type: 'uri', uri: '__PUBLIC_URL__' }, requiresPublicUrl: true },
       AGENT_BUTTON,
     ],
   },

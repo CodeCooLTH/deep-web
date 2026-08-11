@@ -101,52 +101,61 @@ export function isChatBarTextValid(s: string): boolean {
 // กริดพิกัดปุ่ม — SSOT ของทั้ง canvas และ payload
 // ---------------------------------------------------------------------------
 
-export type RichMenuGrid = { rows: number; cols: number }
+export type Bounds = { x: number; y: number; width: number; height: number }
+
+/** เลย์เอาต์ = จำนวนคอลัมน์ของแต่ละแถว (เรียงบน→ล่าง) เช่น `[1, 2]` = บนเต็มแถว ล่างแบ่งสอง */
+export type RichMenuLayout = number[]
 
 /**
- * กริดที่รองรับ — จำนวนปุ่มที่ไม่อยู่ในตารางนี้ = **ปฏิเสธ** (fail-closed)
+ * เลย์เอาต์ที่รองรับ — จำนวนปุ่มที่ไม่อยู่ในตารางนี้ = **ปฏิเสธ** (fail-closed)
  *
- * ไม่รองรับ 5 ปุ่มโดยตั้งใจ: กริด 5 ช่องต้องมีช่องที่ขนาดไม่เท่าเพื่อน ซึ่งทำให้ภาพที่วาดกับพิกัดที่
- * ส่งไปมีโอกาสไม่ตรงกันสูงมาก และผลของการไม่ตรงคือ **ลูกค้ากดโดนปุ่มผิด** ซึ่งไม่มีอะไรฟ้อง
+ * `3 → [1, 2]` (T-split) ไม่ใช่ `[3]`: เมนู 3 ปุ่มของร้านบริการมีปุ่มหนึ่งที่สำคัญกว่าอีกสองปุ่มชัดเจน
+ * (แจ้งเวลาที่สะดวก) การวางเรียงสามช่องเท่ากันทำให้ทุกปุ่มดูมีน้ำหนักเท่ากัน ซึ่งไม่ตรงกับงานจริง
+ * — ux Design Spec 2026-08-11 · user เคาะ
+ *
+ * ไม่รองรับ 5 ปุ่มโดยตั้งใจ: จะมีช่องที่ขนาดไม่เท่าเพื่อนโดยไม่มีเหตุผลเชิงความหมายรองรับ ซึ่งเพิ่ม
+ * โอกาสที่ภาพกับพิกัดไม่ตรงกัน และผลของการไม่ตรงคือ **ลูกค้ากดโดนปุ่มผิด** ซึ่งไม่มีอะไรฟ้อง
  */
-const GRIDS: Record<number, RichMenuGrid> = {
-  2: { rows: 1, cols: 2 },
-  3: { rows: 1, cols: 3 },
-  4: { rows: 2, cols: 2 },
-  6: { rows: 2, cols: 3 },
+const LAYOUTS: Record<number, RichMenuLayout> = {
+  2: [2],
+  3: [1, 2],
+  4: [2, 2],
+  6: [3, 3],
 }
 
-export function gridFor(buttonCount: number): RichMenuGrid | null {
-  return GRIDS[buttonCount] ?? null
+export function layoutFor(buttonCount: number): RichMenuLayout | null {
+  return LAYOUTS[buttonCount] ?? null
 }
 
 /**
- * คำนวณกล่องของแต่ละปุ่มจากกริด
+ * คำนวณกล่องของทุกปุ่มพร้อมกัน (เรียงตามลำดับปุ่ม บน→ล่าง ซ้าย→ขวา)
  *
- * 🛑 ช่องสุดท้ายของแต่ละแถว/คอลัมน์ต้อง **กลืนเศษ** ไม่ใช่ปัดลงทุกช่อง — 2500/3 = 833.33
- * ถ้าปัดลงหมดจะได้ 833×3 = 2499 เหลือแถบกว้าง 1px ทางขวาที่กดแล้วไม่โดนอะไรเลย
- * (ผู้ใช้ที่กดขอบขวาสุดจะเจอปุ่มไม่ทำงานเป็นบางครั้ง ซึ่งเป็นอาการที่ report ยากมาก)
+ * 🛑 ช่องสุดท้ายของแต่ละแถว และแถวสุดท้าย ต้อง **กลืนเศษ** ไม่ใช่ปัดลงทุกช่อง — 2500/3 = 833.33
+ * ถ้าปัดลงหมดจะได้ 833×3 = 2499 เหลือแถบกว้าง 1px ทางขวาที่กดแล้วไม่โดนอะไรเลย ผู้ใช้ที่กดขอบขวาสุด
+ * จะเจอ "กดแล้วบางทีไม่ติด" ซึ่งเป็นอาการที่รายงานยากมากและไม่มีเครื่องมือไหนจับได้
+ *
+ * คืนทั้งชุดในครั้งเดียว (ไม่ใช่ทีละช่อง) เพื่อให้เทสตรวจ **ผลรวมพื้นที่ = พื้นที่ภาพเป๊ะ** ได้
+ * ซึ่งจับได้ทั้ง "มีรูโหว่" และ "ช่องซ้อนกัน" ในเงื่อนไขเดียว
  */
-export function cellBounds(
-  grid: RichMenuGrid,
-  index: number,
+export function layoutBounds(
+  layout: RichMenuLayout,
   canvasWidth = RICH_MENU_CANVAS_WIDTH,
   canvasHeight = RICH_MENU_CANVAS_HEIGHT,
-): { x: number; y: number; width: number; height: number } {
-  const row = Math.floor(index / grid.cols)
-  const col = index % grid.cols
-  const baseW = Math.floor(canvasWidth / grid.cols)
-  const baseH = Math.floor(canvasHeight / grid.rows)
-  const x = col * baseW
-  const y = row * baseH
-  const isLastCol = col === grid.cols - 1
-  const isLastRow = row === grid.rows - 1
-  return {
-    x,
-    y,
-    width: isLastCol ? canvasWidth - x : baseW,
-    height: isLastRow ? canvasHeight - y : baseH,
+): Bounds[] {
+  const rows = layout.length
+  const baseH = Math.floor(canvasHeight / rows)
+  const out: Bounds[] = []
+  for (let r = 0; r < rows; r++) {
+    const cols = layout[r]!
+    const y = r * baseH
+    const height = r === rows - 1 ? canvasHeight - y : baseH
+    const baseW = Math.floor(canvasWidth / cols)
+    for (let c = 0; c < cols; c++) {
+      const x = c * baseW
+      out.push({ x, y, width: c === cols - 1 ? canvasWidth - x : baseW, height })
+    }
   }
+  return out
 }
 
 /** แปลง action ของเราเป็นรูปที่ LINE รับ (คีย์ต่างกันบางตัว) */
@@ -182,11 +191,12 @@ export function buildRichMenuPayload(input: {
   if (input.buttons.length > RICH_MENU_MAX_AREAS) {
     throw new Error('RICH_MENU_TOO_MANY_AREAS')
   }
-  const grid = gridFor(input.buttons.length)
-  if (!grid) throw new Error('RICH_MENU_LAYOUT_UNSUPPORTED')
+  const layout = layoutFor(input.buttons.length)
+  if (!layout) throw new Error('RICH_MENU_LAYOUT_UNSUPPORTED')
   if (input.buttons.some((b) => !b.label.trim())) {
     throw new Error('RICH_MENU_LABEL_REQUIRED')
   }
+  const bounds = layoutBounds(layout)
 
   return {
     size: { width: RICH_MENU_CANVAS_WIDTH, height: RICH_MENU_CANVAS_HEIGHT },
@@ -196,7 +206,7 @@ export function buildRichMenuPayload(input: {
     name: input.name,
     chatBarText: input.chatBarText.trim(),
     areas: input.buttons.map((b, i) => ({
-      bounds: cellBounds(grid, i),
+      bounds: bounds[i]!,
       action: toLineAction(b.action, b.label.trim()),
     })),
   }
