@@ -330,6 +330,13 @@ export default async function PublicProfilePage({ params }: Props) {
             otherProducts,
             about: {
               bio: profileTab.bio,
+              // ── เพิ่ม 2026-08-11 (user: "เกี่ยวกับร้าน อยากให้เพิ่ม stat มากขึ้น") ──
+              // หมวดหมู่ส่งเป็นป้ายที่แปลแล้ว ไม่ใช่คีย์ดิบ (`automotive`) — หน้าจอไม่ควรต้องรู้จักคีย์
+              categoryLabel: shopCategoryLabel(user.shop?.category ?? null),
+              address: user.shop?.address ?? null,
+              latitude: user.shop?.latitude ?? null,
+              longitude: user.shop?.longitude ?? null,
+              maxVerifyLevel,
               location: profileTab.location,
               memberSince: profileTab.memberSince,
               chatResponseRate: profileTab.chatResponseRate,

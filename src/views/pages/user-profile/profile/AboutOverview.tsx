@@ -7,13 +7,11 @@ import Typography from '@mui/material/Typography'
 // Icon Imports
 import { Icon } from '@iconify/react'
 
+import { resolveVerifyBadge } from '@/lib/verify-badge'
+
 // Base: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/profile/AboutOverview.tsx
-// (Card+CardContent icon-row pattern) — revive (Desktop layout redesign, IG-style + trust data)
-// เดิม type AboutOverviewData ({about,overview,shopInfo}) ไม่ตรง data shape จริงของหน้านี้เลย — ProfileTabData
-// ไม่มี field about/overview/shopInfo จึงเขียน type ใหม่ AboutData รับ bio/location/memberSince/chatResponse* ตรง ๆ
-// ตัด "uppercase" eyebrow ของ theme เดิมทิ้ง (ขัด Hard Rule impeccable — ห้าม textTransform:uppercase, ไทยไม่มี case)
-// ใช้ CardHeader title แทน (sync กับ VerificationBadges.tsx/TrustScoreCard.tsx ที่อยู่ใน TrustDetailSection เดียวกัน)
-// เนื้อหา + formatResponseTime ย้ายมาจาก ProfileLeftContent เดิมใน profile/index.tsx (ยุบทิ้งแล้ว)
+// (icon-row pattern) — ตัด Card/CardHeader ออกเพราะเป็นการ์ดใบเดียวในแท็บ ห่อแล้ว padding ไม่ตรง
+// กับแท็บอื่น (user รายงาน 2026-07-30) และตัด eyebrow ตัวพิมพ์ใหญ่ของธีมทิ้ง (ไทยไม่มี case)
 
 export type AboutData = {
   bio?: string | null
@@ -23,43 +21,126 @@ export type AboutData = {
   chatResponseRate?: number | null
   chatMedianResponseSec?: number | null
   chatResponseSampleSize?: number | null
+  /** ── เพิ่ม 2026-08-11 (user: "เกี่ยวกับร้าน อยากให้เพิ่ม stat มากขึ้น") ── */
+  /** ป้ายหมวดหมู่ที่แปลแล้ว (shopCategoryLabel) ไม่ใช่คีย์ดิบอย่าง `automotive` */
+  categoryLabel?: string | null
+  /** ที่อยู่ร้านที่ผู้ขายกรอกเอง (`Shop.address`) */
+  address?: string | null
+  /** พิกัดที่ผู้ขายปักไว้ — ต้องมีครบทั้งคู่ถึงจะเปิดแผนที่ได้ */
+  latitude?: number | null
+  longitude?: number | null
+  /** ระดับยืนยันตัวตนสูงสุดที่อนุมัติแล้ว (0 = ยังไม่ยืนยัน) */
+  maxVerifyLevel?: number
 }
 
+/** แถวข้อมูลหนึ่งบรรทัด — ไอคอน + ป้ายกำกับ + ค่า */
+const Row = ({ icon, label, children }: { icon: string; label: string; children: React.ReactNode }) => (
+  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+    <Icon icon={icon} fontSize={17} style={{ flexShrink: 0, marginBlockStart: 2 }} />
+    <Box sx={{ minInlineSize: 0 }}>
+      {/* ป้ายกำกับต้องมี — ค่าอย่าง "ส.ค. 2569" หรือที่อยู่ลอย ๆ ไม่บอกว่ามันคืออะไร
+          ต่างจากหัวโปรไฟล์ที่บริบทรอบข้างช่วยตีความให้ */}
+      <Typography variant='caption' color='text.disabled' sx={{ display: 'block', lineHeight: 1.4 }}>
+        {label}
+      </Typography>
+      <Typography variant='body2' color='text.primary' sx={{ lineHeight: 1.5 }}>
+        {children}
+      </Typography>
+    </Box>
+  </Box>
+)
+
 const AboutOverview = ({ data }: { data: AboutData }) => {
-  const { bio, location, memberSince } = data
+  const { bio, location, memberSince, categoryLabel, address, latitude, longitude, maxVerifyLevel } = data
 
-  // 🛑 อัตราการตอบแชทเคยอยู่ตรงนี้ ย้ายขึ้นไปบนโปรไฟล์แล้ว (user 2026-08-10 "ต้องอยู่บน Profile
-  // ห้ามเอาไปไว้ใน About") — ProfileHero เป็นเจ้าของการแสดงผลนี้ที่เดียว ห้ามเอากลับมาแสดงซ้ำ
-  // ที่นี่ ไม่งั้นตัวเลขเดียวกันจะโผล่ 2 ที่บนหน้าเดียว ซึ่งเป็นคลาสของบั๊กที่เคยทำให้จอเดียว
-  // ขึ้น "ยังไม่ตอบ 7" กับ "8" พร้อมกัน (docs/conventions/sibling-surface-parity.md)
-  // field chatResponse* ยังอยู่ใน type เพราะ ProfileTabData ส่งชุดเดียวกันลงมาทั้งก้อน
+  const verifyBadge = resolveVerifyBadge(maxVerifyLevel ?? 0)
 
-  // ถอด Card/CardHeader/CardContent ออก (user รายงาน padding ไม่เท่ากันระหว่างแท็บ 2026-07-30)
-  // นี่เป็นการ์ดใบเดียวในหน้า พอห่อการ์ด ตัวหนังสือถูกดันเข้าไป 44px จาก padding ของ CardContent
-  // ขณะที่แท็บอื่นอยู่ที่ 20px สลับแท็บแล้วบรรทัดกระโดด
-  // หัวข้อ "เกี่ยวกับร้าน" ตัดออกด้วย — ชื่อแท็บบอกอยู่แล้วว่าอยู่ส่วนไหน พูดซ้ำสองที่ในจอเดียว
+  /* 🛑 ต้องมีครบทั้ง lat และ lng ถึงจะเปิดแผนที่ได้ — เช็คแค่ตัวเดียวแล้วส่งอีกตัวเป็น undefined
+     จะได้ลิงก์ที่พาไปพิกัดผิดบนโลก ไม่ใช่ลิงก์ที่พัง (ผิดเงียบ อันตรายกว่าพังเสียงดัง) */
+  const hasPin = typeof latitude === 'number' && typeof longitude === 'number'
+
+  /* เปิดแอปแผนที่แทนการฝัง iframe ของ Google:
+     - ฝัง iframe ต้องมี API key และโหลดสคริปต์ของ Google บนหน้าที่ผู้ซื้อเปิดครั้งแรก
+       ซึ่งเป็นจุดสัมผัสแรกที่ต้องเบาที่สุด
+     - ลิงก์ออกเปิดในแอปแผนที่ของเครื่องผู้ใช้เอง ซึ่งนำทางต่อได้จริง ต่างจาก iframe ที่ดูได้อย่างเดียว */
+  const mapHref = hasPin
+    ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+    : null
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {bio && (
-        <Typography component='p' sx={{ m: 0, fontSize: '15px', color: 'text.primary', lineHeight: 1.5 }}>
+        <Typography component='p' sx={{ m: 0, fontSize: '15px', color: 'text.primary', lineHeight: 1.55 }}>
           {bio}
         </Typography>
       )}
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'text.secondary' }}>
-        {location && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Icon icon='tabler-map-pin' fontSize={16} />
-            {location}
-          </Box>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {categoryLabel && (
+          <Row icon='tabler-category' label='หมวดหมู่ร้าน'>
+            {categoryLabel}
+          </Row>
         )}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* 🛑 "เปิดร้านตั้งแต่" ไม่ใช่ "เข้าร่วม" — ค่านี้คือ `memberSince` **ตัวเดียวกันเป๊ะ**
-              กับที่บรรทัดเมตาใต้ชื่อร้านใน ProfileHero แสดงอยู่ ใช้คนละคำบนหน้าเดียวกันทำให้อ่าน
-              เหมือนเป็นข้อมูลคนละตัว และ "เข้าร่วม" ยังฟังเหมือนสมัครสมาชิก ไม่ใช่วันเปิดร้าน */}
-          <Icon icon='tabler-calendar' fontSize={16} />
-          เปิดร้านตั้งแต่ {memberSince}
-        </Box>
+
+        <Row icon='tabler-calendar' label='เปิดร้านตั้งแต่'>
+          {memberSince}
+        </Row>
+
+        {/* คำมาจาก resolveVerifyBadge ตัวเดียวกับที่ป้ายบนหัวโปรไฟล์ใช้ — ไม่ตั้งคำใหม่
+            ไม่งั้น "ยืนยันเบอร์แล้ว" กับคำอื่นที่แปลว่าเรื่องเดียวกันจะอยู่คนละหน้าจอ (HR16) */}
+        {verifyBadge ? (
+          <Row icon={verifyBadge.icon} label='การยืนยันตัวตน'>
+            {`${verifyBadge.label} (ระดับ ${maxVerifyLevel})`}
+          </Row>
+        ) : (
+          /* 🛑 บอกตรง ๆ ว่ายังไม่ยืนยัน ไม่ใช่ซ่อนแถวทิ้ง — ผู้ซื้อที่ไม่เห็นแถวนี้จะไม่รู้ว่า
+             "ร้านนี้ยังไม่ยืนยัน" หรือ "หน้านี้ไม่แสดงเรื่องนั้น" ซึ่งเป็นคนละความหมายกันมาก
+             บนหน้าที่ทั้งหน้ามีไว้ให้ประเมินความน่าเชื่อถือ */
+          <Row icon='tabler-shield-off' label='การยืนยันตัวตน'>
+            <Box component='span' sx={{ color: 'text.secondary' }}>ยังไม่ได้ยืนยันตัวตน</Box>
+          </Row>
+        )}
+
+        {address && (
+          <Row icon='tabler-map-pin' label='ที่อยู่ร้าน'>
+            {address}
+            {mapHref && (
+              <>
+                {' '}
+                <Box
+                  component='a'
+                  href={mapHref}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  sx={{ color: 'primary.main', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}
+                >
+                  เปิดแผนที่
+                </Box>
+              </>
+            )}
+          </Row>
+        )}
+
+        {/* ที่อยู่ไม่มีแต่ปักพิกัดไว้ — ยังเปิดแผนที่ได้ ไม่ต้องรอให้กรอกที่อยู่ก่อน */}
+        {!address && mapHref && (
+          <Row icon='tabler-map-pin' label='ตำแหน่งร้าน'>
+            <Box
+              component='a'
+              href={mapHref}
+              target='_blank'
+              rel='noopener noreferrer'
+              sx={{ color: 'primary.main', fontWeight: 600, textDecoration: 'none' }}
+            >
+              เปิดแผนที่
+            </Box>
+          </Row>
+        )}
+
+        {location && !address && (
+          <Row icon='tabler-building-community' label='พื้นที่ให้บริการ'>
+            {location}
+          </Row>
+        )}
       </Box>
     </Box>
   )
