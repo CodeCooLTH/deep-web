@@ -1,5 +1,6 @@
 // Next Imports
 import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
 import { notFound } from 'next/navigation'
 
 // MUI Imports
@@ -13,6 +14,7 @@ import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 import { canAccessShop } from '@/lib/shop-context'
 import { findShopBySlug } from '@/services/shop.service'
+import { getLikedProductIds } from '@/services/product-like.service'
 import { getProductsByShop, getConfirmedOrderCountByProduct } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
 import { getPublicRooms, getConfirmedBookingCountByRoom } from '@/services/room.service'
@@ -145,6 +147,16 @@ export default async function BusinessShopProfilePage({ params }: Props) {
       }),
     ])
 
+  // ── ถูกใจสินค้า (CR 2026-08-11) ──
+  // อ่านคุกกี้อุปกรณ์เพื่อให้หัวใจขึ้นทึบตั้งแต่ render แรก — ไม่ต้องล็อกอิน (D-1)
+  // ยังไม่เคยกดอะไรเลย = ไม่มีคุกกี้ = ไม่ต้องยิง query (getLikedProductIds คืน Set ว่างทันที)
+  // 🛑 ถามทีเดียวทั้งชุด ไม่ใช่ถามทีละใบ — หน้าหนึ่งมีการ์ดได้ 12+ ใบ
+  const deviceKey = (await cookies()).get('deep_did')?.value ?? null
+  const likedProductIds = await getLikedProductIds(
+    [...rawPinnedProducts, ...rawOtherProducts].map((p) => p.id),
+    deviceKey,
+  )
+
   // serialize products: Decimal → string, images Json → string[] → first
   // ไม่ส่ง Decimal object ข้าม RSC boundary เพราะ crash runtime แม้ tsc จะไม่เตือน
   // Phase 3 (feature 00013): serialize แยกชุด pinned/other — ทั้งสองมาจาก Prisma row shape เดียวกัน
@@ -153,6 +165,9 @@ export default async function BusinessShopProfilePage({ params }: Props) {
     name: p.name,
     price: p.price.toFixed(2),
     soldCount: soldByProduct.get(p.id) ?? 0,
+    // CR 2026-08-11 — ยอดถูกใจอ่านจากคอลัมน์ที่ denormalize ไว้ ไม่ใช่ count() ต่อใบ (BR-LIKE-03)
+    likeCount: p.likeCount,
+    likedByMe: likedProductIds.has(p.id),
     imageUrl: (p.images as string[])[0] ?? null,
     // teaser ที่ผู้ขายเขียนไว้สำหรับการ์ดสินค้าโดยเฉพาะ (≤200 ตัวอักษร) — ไม่ใช่ description เต็ม
     shortDescription: p.shortDescription,

@@ -222,7 +222,15 @@ export default function ShopVideos({ items: raw }: { items: ShopVideoItem[] }) {
   // สัดส่วนไทล์คือสิ่งที่ทำให้ลอกจำนวนคอลัมน์ของ IG มาตรง ๆ ไม่ได้ ต้องคิดจากความสูงที่ได้จริง
   // ช่องไฟ 4px + ชิดซ้าย ยังคงไว้ตามที่ user ขอ
   return (
-    /* 🛑 -mx-5 = หัก `pli-5` (20px) ของ tab panel ให้ไทล์ชนขอบคอนเทนเนอร์จริง
+    /* 3 คอลัมน์ทุกจอเหมือน Instagram (user 2026-08-11 "ขนาดรูปบน Desktop เล็กจิ๋วมาก
+       ขยายพื้นที่รูปให้เท่า IG") — ที่คอนเทนเนอร์ 960px ได้ไทล์ ~309px เท่า IG พอดี
+       (เดิม 3/4/5 ตาม breakpoint → เดสก์ท็อปได้แค่ ~188px)
+
+       🛑 นี่คือการกลับมติเมื่อ 2026-08-10 ที่ user เคยทักว่า "grid ใหญ่ไปป่าว" ตอนใช้ 3 คอลัมน์
+       บนเดสก์ท็อป — ครั้งนั้นตัดสินบน dev ที่ยังไม่มีเนื้อหาจริง ครั้งนี้ตัดสินบน prod ที่มีคลิป
+       จริงและเทียบกับ IG ตรง ๆ · บันทึกไว้เพื่อไม่ให้ใครย้อนกลับไป 5 คอลัมน์โดยอ้างมติเก่า
+
+       🛑 -mx-5 = หัก `pli-5` (20px) ของ tab panel ให้ไทล์ชนขอบคอนเทนเนอร์จริง
        (Tailwind v4 map `mx` เป็น `margin-inline` อยู่แล้ว จึงยังเป็น logical property
         เลือก core utility แทน `-mli-5` ของปลั๊กอินเพราะไม่ต้องพึ่งพฤติกรรมของปลั๊กอิน
 
@@ -236,7 +244,7 @@ export default function ShopVideos({ items: raw }: { items: ShopVideoItem[] }) {
        (profile/index.tsx เขียนตรงตัวว่า "-20px = หัก pli-5 ของ tab panel ... ค่าเดียวกับ -mli-5
        ที่กริดคลิปใช้") แต่ **ไม่มีไฟล์ไหนใส่ negative margin จริงสักไฟล์** — คอมเมนต์อ้างอิงกันเอง
        ไปมาจนอ่านเหมือนมีของอยู่แล้ว ไม่มี gate ไหนตรวจว่าคอมเมนต์ตรงกับโค้ดไหม (HR16 ทิศกลับ) */
-    <div className='grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1 -mx-5 sm:mx-0'>
+    <div className='grid grid-cols-3 gap-1 -mx-5 sm:mx-0'>
       {items.map((v) => (
         <VideoCell key={v.id} item={v} />
       ))}

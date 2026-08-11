@@ -7,6 +7,8 @@ import Typography from '@mui/material/Typography'
 // Icon Imports
 import { Icon } from '@iconify/react'
 
+import ProductLikeButton from '../v2/ProductLikeButton'
+
 // Next/Auth Imports — S-19 (extension #1 Chat Product Context Card) login-gate ปุ่ม "สอบถามสินค้านี้"
 // pattern: src/views/pages/user-profile/UserProfileHeader.tsx handleChatClick (AuctionBidPanel.tsx:114-121)
 import { useState } from 'react'
@@ -41,6 +43,10 @@ export type SerializedProduct = {
   imageUrl: string | null
   /** จำนวนคำสั่งซื้อที่ยืนยันแล้ว (CONFIRMED) — 0 = ยังไม่มี ซึ่งจะไม่แสดงเลข ไม่ใช่แสดง 0 */
   soldCount: number
+  /** ยอดถูกใจ (CR 2026-08-11) — 0 = ไม่แสดงตัวเลข แสดงแค่ปุ่ม (BR-LIKE-06) */
+  likeCount?: number
+  /** อุปกรณ์นี้เคยกดถูกใจไว้ไหม — ใช้ให้หัวใจขึ้นทึบตั้งแต่ render แรก */
+  likedByMe?: boolean
   /** `Product.shortDescription` (≤200 ตัวอักษร) — ฟิลด์ที่ฝั่งผู้ขายเขียนกำกับไว้เองว่าเป็น teaser
    *  สำหรับการ์ดสินค้าโดยเฉพาะ ไม่ใช่ `description` ที่ยาวไม่จำกัดและไม่มีหน้าให้กดดูต่อ */
   shortDescription?: string | null
@@ -229,6 +235,21 @@ const ProductCard = ({
           ปักหมุด
         </Box>
       )}
+
+      {/* ── ปุ่มถูกใจ (CR 2026-08-11) ──
+          มุมบนขวา — มุมบนซ้ายเป็นป้าย "ปักหมุด" อยู่แล้ว
+
+          🛑 การ์ดทั้งใบเป็นลิงก์ไปหน้าสินค้า ปุ่มนี้จึงต้อง `preventDefault + stopPropagation`
+          ไม่งั้นกดหัวใจแล้วเด้งออกจากหน้าไปด้วย
+
+          optimistic: สลับสถานะทันทีแล้วค่อย sync กับ response — ปุ่ม gimmick ที่ต้องรอ
+          round-trip ก่อนเห็นผลจะรู้สึกเหมือนกดไม่ติด แล้วคนจะกดรัว
+          ถ้าคำขอล้ม ย้อนสถานะกลับ ไม่ปล่อยให้หัวใจค้างทึบทั้งที่ยังไม่ถูกบันทึก */}
+      <ProductLikeButton
+        productId={product.id}
+        initialCount={product.likeCount ?? 0}
+        initialLiked={product.likedByMe ?? false}
+      />
 
       {/* ราคา + ยอดขายลอยบนรูป — สองอย่างที่ผู้ซื้อต้องเห็นก่อนตัดสินใจกด ชื่อสินค้าอยู่ใน title/aria-label
           ยอดขายนับเฉพาะออเดอร์ที่ผู้ซื้อยืนยันรับของแล้ว (ดู getConfirmedOrderCountByProduct)
@@ -420,7 +441,14 @@ export const ProfileRightContent = ({
                   // เดิม 2/3/4 + gap 16px + การ์ดมีขอบ อ่านเป็น "แคตตาล็อกการ์ด" ไม่ใช่ฟีดรูป
                   // 3 คอลัมน์เฉพาะมือถือ — เดสก์ท็อป 960px หาร 3 ได้ไทล์ 317px ซึ่งใหญ่เกินไป
                   // (ปัญหาเดียวกับกริดคลิป user ทัก 2026-08-10 "grid ใหญ่ไปป่าว")
-                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
+                  // 3 คอลัมน์ทุกจอเหมือน Instagram (user 2026-08-11 "ขนาดรูปบน Desktop เล็กจิ๋วมาก
+                  // ขยายพื้นที่รูปให้เท่า IG") — ที่คอนเทนเนอร์ 960px ได้ไทล์ ~309px เท่า IG พอดี
+                  // (เดิม 3/4/5 ตาม breakpoint → เดสก์ท็อปได้แค่ ~188px)
+
+                  // 🛑 นี่คือการกลับมติเมื่อ 2026-08-10 ที่ user เคยทักว่า "grid ใหญ่ไปป่าว" ตอนใช้ 3 คอลัมน์
+                  // บนเดสก์ท็อป — ครั้งนั้นตัดสินบน dev ที่ยังไม่มีเนื้อหาจริง ครั้งนี้ตัดสินบน prod ที่มีคลิป
+                  // จริงและเทียบกับ IG ตรง ๆ · บันทึกไว้เพื่อไม่ให้ใครย้อนกลับไป 5 คอลัมน์โดยอ้างมติเก่า
+                  gridTemplateColumns: 'repeat(3, 1fr)',
                   gap: '4px',
                   // 🛑 คอมเมนต์ข้างบนอ้างค่านี้มาตลอดแต่ **ไม่เคยมีในโค้ดจริง** — ใส่จริงแล้ว
                   // 2026-08-11 (user: "บน mobile เราไม่ชิดขอบแบบ IG เหลือพื้นที่ตรงรูปเยอะ")
@@ -462,7 +490,14 @@ export const ProfileRightContent = ({
                   // เดิม 2/3/4 + gap 16px + การ์ดมีขอบ อ่านเป็น "แคตตาล็อกการ์ด" ไม่ใช่ฟีดรูป
                   // 3 คอลัมน์เฉพาะมือถือ — เดสก์ท็อป 960px หาร 3 ได้ไทล์ 317px ซึ่งใหญ่เกินไป
                   // (ปัญหาเดียวกับกริดคลิป user ทัก 2026-08-10 "grid ใหญ่ไปป่าว")
-                  gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
+                  // 3 คอลัมน์ทุกจอเหมือน Instagram (user 2026-08-11 "ขนาดรูปบน Desktop เล็กจิ๋วมาก
+                  // ขยายพื้นที่รูปให้เท่า IG") — ที่คอนเทนเนอร์ 960px ได้ไทล์ ~309px เท่า IG พอดี
+                  // (เดิม 3/4/5 ตาม breakpoint → เดสก์ท็อปได้แค่ ~188px)
+
+                  // 🛑 นี่คือการกลับมติเมื่อ 2026-08-10 ที่ user เคยทักว่า "grid ใหญ่ไปป่าว" ตอนใช้ 3 คอลัมน์
+                  // บนเดสก์ท็อป — ครั้งนั้นตัดสินบน dev ที่ยังไม่มีเนื้อหาจริง ครั้งนี้ตัดสินบน prod ที่มีคลิป
+                  // จริงและเทียบกับ IG ตรง ๆ · บันทึกไว้เพื่อไม่ให้ใครย้อนกลับไป 5 คอลัมน์โดยอ้างมติเก่า
+                  gridTemplateColumns: 'repeat(3, 1fr)',
                   gap: '4px',
                   // 🛑 คอมเมนต์ข้างบนอ้างค่านี้มาตลอดแต่ **ไม่เคยมีในโค้ดจริง** — ใส่จริงแล้ว
                   // 2026-08-11 (user: "บน mobile เราไม่ชิดขอบแบบ IG เหลือพื้นที่ตรงรูปเยอะ")

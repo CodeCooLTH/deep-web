@@ -605,6 +605,11 @@ model Product {
   // จำนวนปักหมุดต่อ shop <= Shop.pinSlots (enforce service layer เท่านั้น — ไม่มี DB constraint ข้ามแถว)
   pinnedAt          DateTime?
 
+  /// ยอดถูกใจ — denormalize ไว้อ่านตรง ๆ (BR-LIKE-03) ห้ามนับสดด้วย count() ตอนเปิดหน้าร้าน
+  /// เพราะการ์ดสินค้ามีได้ 12+ ใบต่อหน้า บนจุดสัมผัสแรกของผู้ซื้อ
+  /// SSOT ของการเขียน: toggleProductLike() เท่านั้น — เขียนพร้อมแถวใน ProductLike ทรานแซกชันเดียว
+  likeCount         Int       @default(0)
+
   // --- Expense & Cost Tracking (feature 00016, additive) ---
   // cost: ราคาทุนปัจจุบัน — nullable/opt-in (BR §3.1). ไม่บังคับกรอก, ไม่กระทบสินค้าเดิมที่ยังไม่ตั้ง
   // (zero-regression). Snapshot ลง OrderItem.cost ตอนสร้างออเดอร์ทุกครั้ง — แก้ค่านี้ทีหลังไม่มีผลย้อนหลัง
@@ -618,6 +623,7 @@ model Product {
 
   shop            Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
   orderItems      OrderItem[]
+  likes           ProductLike[]
   tags            Tag[]
   stockMovements  StockMovement[] // Deep Stock Pro (feature 00009)
   chatMessageRefs ChatMessage[] // extension #1 Chat Product Context Card — back-relation ของ ChatMessage.productRefId
@@ -3239,4 +3245,21 @@ model ChatHandoverEvent {
   @@index([pageExternalId, createdAt])
   // หา event ของลูกค้ารายหนึ่ง (ใช้ตอน UI ถามว่า "ใครถือห้องนี้อยู่")
   @@index([contactExternalId, createdAt])
+}
+
+/// ถูกใจสินค้าบนหน้าร้านสาธารณะ (CR 2026-08-11 — docs/20 - Features/00035 …/EXTENSIONS-2026-08-11-product-likes.md)
+///
+/// 🛑 `deviceKey` คือค่าในคุกกี้ `deep_did` **ไม่ใช่ userId** — guest กดได้โดยไม่ต้องล็อกอิน (D-1)
+/// กันได้แค่การกดซ้ำจากอุปกรณ์เดิม ไม่ได้กันการปั่น (ล้างคุกกี้ก็กดใหม่ได้) ซึ่งยอมรับได้เพราะ
+/// ยอดนี้ไม่นับเข้า Trust Score (D-4) — ถ้าวันไหนมันเริ่มมีผลต่ออะไร ต้องกลับมาอ่านบรรทัดนี้ก่อน
+model ProductLike {
+  id        String   @id @default(uuid())
+  productId String
+  deviceKey String
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, deviceKey]) // BR-LIKE-01 — บังคับที่ฐาน ไม่ใช่ที่แอป (กดรัวยังชนกันได้)
+  @@index([productId])
 }
