@@ -4,8 +4,10 @@
  * GuestOrderView — หน้าออเดอร์สำหรับผู้ที่ยังไม่ล็อกอิน (feature 00041, มติ D-1 ของ user)
  *
  * Base: src/app/(marketing)/o/[token]/OrderDetailMobile.tsx
- *   (hero/ProfileBanner + status line + การ์ดรายการสินค้า + โครง MUI ทั้งหมด)
+ *   (hero + status line + การ์ดรายการสินค้า + โครง MUI ทั้งหมด)
  *   ยกโครงมาแล้วตัดทุกอย่างที่ต้องล็อกอินออก เหลือแค่ "อ่านอย่างเดียว"
+ *   ส่วนที่สองจอต้องเหมือนกันเป๊ะถูกยกเป็นไฟล์ร่วมแล้ว: `ShopCover` · `ShopEvidence` ·
+ *   `TrustPill` · `content-width` — แก้ที่นั่นที่เดียว ไม่ต้องไล่แก้สองที่ให้ตรงกันอีก
  *
  * ทำไมแยกไฟล์แทนใส่เงื่อนไขใน OrderDetailMobile (พันกว่าบรรทัด): ทั้งสองมุมมองต่างกันที่
  * **ชุดข้อมูลที่รับเข้ามา** ไม่ใช่แค่ปุ่มที่ซ่อน — guest รับ GuestOrderData ที่ mask แล้วและ
@@ -33,6 +35,7 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import ParcelTimeline from './ParcelTimeline'
+import { orderContentWidthSx } from './content-width'
 import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
 import TrustPill, { VERIFIED_INK } from './TrustPill'
@@ -86,7 +89,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
 
   return (
     <Box sx={{ pb: 14 }}>
-      <Box sx={{ maxWidth: { xs: '100%', 'min-[768px]': 720 }, mx: 'auto' }}>
+      <Box sx={orderContentWidthSx}>
         {/* ── Hero — ปกใช้ร่วมกับจอหลังล็อกอิน (ShopCover) ── */}
         {/* 🛑 ส่ง isNewShop แยก ไม่ใช่ completionRate — ร้านที่ยังไม่มีออเดอร์จบต้องไม่ได้
             แบนเนอร์ไล่สีที่หน้าตาเหมือนรางวัล (ดูเหตุผลเต็มที่ prop ของ ShopCover) */}
@@ -367,7 +370,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           zIndex: 10,
         }}
       >
-        <Box sx={{ maxWidth: { xs: '100%', 'min-[768px]': 720 }, mx: 'auto' }}>
+        <Box sx={orderContentWidthSx}>
           <LinkButton href={loginHref} onClick={() => pingAuthFlow('other')} fullWidth variant='contained' size='large'>
             {ctaLabel}
           </LinkButton>

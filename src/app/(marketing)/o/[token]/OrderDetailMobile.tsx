@@ -56,6 +56,7 @@ import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
 
 import PublicProfileFooter from '@/views/pages/user-profile/v2/PublicProfileFooter'
+import { orderContentWidthSx } from './content-width'
 import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
 import TrustPill from './TrustPill'
@@ -619,13 +620,11 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
     >
       {/* FR-018 — เดิมเป็น maxWidth: 640 คงที่ทุกขนาดจอ ซึ่งคือต้นเหตุที่หน้านี้ "ไม่ responsive
           เลย" ไม่ใช่แค่จัดวางไม่สวย: บนจอ 1440 เหลือขอบขาวสองข้างข้างละ ~400px
-          ใช้ min-[768px] แบบ arbitrary variant เพราะ Vuexy remap breakpoint ของ Tailwind
-          (md=900 / lg=1200) — เขียน md: จะได้จุดตัดที่ 900 ไม่ใช่ 768 โดยไม่มีอะไรฟ้อง */}
+          เพดานอยู่ที่ `orderContentWidthSx` จุดเดียว (ค่าที่เขียนไว้เดิมไม่เคยมีผลจริง — อ่านที่นั่น) */}
       <Box
         sx={{
+          ...orderContentWidthSx,
           width: '100%',
-          maxWidth: { xs: '100%', '@media (min-width:768px)': 720, lg: 880 },
-          mx: 'auto',
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
@@ -1267,8 +1266,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           {/* แถบ CTA ล่างจอ — กว้างตามคอนเทนต์ ไม่ใช่ 420 คงที่ (บนแท็บเล็ตปุ่มเคยลอยแคบกลางจอ) */}
           <Box
             sx={{
-              maxWidth: { xs: '100%', '@media (min-width:768px)': 720, lg: 880 },
-              mx: 'auto',
+              ...orderContentWidthSx,
               px: 2,
               pt: 1.5,
               pb: 1.75,
