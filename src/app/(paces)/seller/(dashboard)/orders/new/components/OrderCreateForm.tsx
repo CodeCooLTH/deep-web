@@ -30,6 +30,7 @@ import QuickForm from './QuickForm'
 import SubmitStatusSheet, { type SubmitStatus } from './SubmitStatusSheet'
 import { toDatetimeLocalValue } from './OrderDateRow'
 import { resolveEditedOrderedAtPayload, orderDateRejectReason } from '@/lib/order-date-window'
+import { pickApiErrorMessage } from '@/lib/api-error-message'
 import {
   orderNeedsShippingAddress,
   shopShipsGoods,
@@ -66,6 +67,15 @@ interface Props {
    * ไม่ส่งมา = ถือว่าร้านส่งของ (พฤติกรรมเดิม) — fail-safe ทางที่เข้มกว่า
    */
   shopVertical?: string
+  /**
+   * ร้านที่ฟอร์มใบนี้ทำงานด้วย — **ต้องเดินทางไปกับทุก request ที่ฟอร์มยิง** (GET prefill / POST / PATCH)
+   *
+   * 🛑 ไม่ใช่ "ร้านที่ active" เสมอไป: ในกล่องแชทรวมหลายร้าน (feature 00037) ร่างผูกกับร้าน
+   * เจ้าของเธรด ขณะที่ `activeShopId` ยังเป็นอีกร้านโดยตั้งใจ (BR-UNI-07). prop นี้เคยถูกรับมา
+   * แล้วโยนทิ้ง (`shopId: _shopId`) — ทุก request จึงตกไปใช้ร้าน active ⇒ ออเดอร์เข้าร้านผิด
+   * (มีนัด → RESOURCE_NOT_FOUND เต็มจอ · พิมพ์รายการเอง → สำเร็จแบบผิดร้านเงียบ ๆ)
+   * user เจอเองบน prod 2026-08-11 — ห้ามถอดออกจาก payload ใด ๆ อีก
+   */
   shopId: string
   catalog: CatalogProduct[]
   /** สินค้าขายดี (เรียงยอดขาย desc) — โชว์ใน quick create ProductPickerSheet (< lg) */
@@ -291,7 +301,7 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 export default function OrderCreateForm({
   vocab,
   shopVertical,
-  shopId: _shopId,
+  shopId,
   catalog,
   bestSellers = [],
   formId,
@@ -344,6 +354,8 @@ export default function OrderCreateForm({
   // ── Submit status full-bleed sheet (loading/error) — แทน inline loading + toast เดิม ──
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>('idle')
   const [submitError, setSubmitError] = useState<string>('')
+  /** รหัส error ไว้อ้างตอนแจ้งปัญหา — โชว์เป็นบรรทัดเล็กจางใต้ข้อความ (null = ไม่มี/แสดงไปแล้ว) */
+  const [submitErrorCode, setSubmitErrorCode] = useState<string | null>(null)
 
   const {
     control,
@@ -395,7 +407,9 @@ export default function OrderCreateForm({
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(`/api/orders/${editOrderToken}`, { cache: 'no-store' })
+        // shopId = ร้านของฟอร์มใบนี้ (ดูคอมเมนต์ที่ prop `shopId`) — ในกล่องแชทรวมหลายร้าน
+        // ออเดอร์ที่กำลังแก้เป็นของร้านเธรด ไม่ใช่ร้านที่ active; ไม่ส่งไป = 404 "ไม่พบคำสั่งซื้อนี้"
+        const res = await fetch(`/api/orders/${editOrderToken}?shopId=${encodeURIComponent(shopId)}`, { cache: 'no-store' })
         if (!res.ok) throw new Error('load failed')
         const o = await res.json()
         if (cancelled) return
@@ -784,6 +798,9 @@ export default function OrderCreateForm({
     )
 
     const body = {
+      // ร้านปลายทางของการบันทึกครั้งนี้ (feature 00037 AC-06-6) — ต้องมาก่อนเสมอเพื่อให้เห็นชัด
+      // ว่า payload ก้อนนี้ผูกร้านไหน; ฝั่ง server เป็น optional เพื่อ backward-compat กับ caller เดิม
+      shopId,
       type: derivedType,
       items: items.map((item) => ({
         ...(item.productId ? { productId: item.productId } : {}),
@@ -847,7 +864,17 @@ export default function OrderCreateForm({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setSubmitError(data?.error ?? (editOrderToken ? `แก้ไข${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่` : `${vocab.createLabel}ไม่สำเร็จ กรุณาลองใหม่`))
+        // 🛑 เดิมเป็น `data?.error ?? fallback` = หยิบ "รหัส" ก่อน "ข้อความ" เสมอ ผู้ขายจึงเห็น
+        // `RESOURCE_NOT_FOUND` เต็มจอ (user report prod 2026-08-11). ตรรกะเลือกข้อความอยู่ที่
+        // pickApiErrorMessage ซึ่งมีเทสคุม — ห้ามเขียนเทอร์นารีกลับมาที่นี่ (route ฝั่งเราใส่ไทยไว้
+        // ทั้งใน `message` และใน `error` แล้วแต่จุด การเลือกผิดคีย์ทำให้ข้อความดี ๆ หายไปเงียบ ๆ)
+        const shown = pickApiErrorMessage(
+          data,
+          editOrderToken ? `แก้ไข${vocab.noun}ไม่สำเร็จ กรุณาลองใหม่` : `${vocab.createLabel}ไม่สำเร็จ กรุณาลองใหม่`,
+        )
+        console.error('[order-submit] failed', { status: res.status, code: data?.error, message: data?.message })
+        setSubmitError(shown.text)
+        setSubmitErrorCode(shown.code)
         setSubmitStatus('error')
         return
       }
@@ -977,9 +1004,13 @@ export default function OrderCreateForm({
     >
       {/* Full-bleed status sheet: loading ระหว่าง submit / error + ปุ่มปิดกลับไปแก้ไข */}
       <SubmitStatusSheet
-        createLabel={vocab.createLabel}
+        /* โหมดแก้ไขต้องพูดว่า "แก้ไข…" ไม่ใช่ "สร้าง…" (เดิมใช้คำเดียวทั้งสองโหมด จนรายงานบั๊ก
+           จากจอนี้ถูกอ่านผิดทางว่าเป็นการสร้างใหม่). "แก้ไข" + noun ผันตรงทุก vertical จึงไม่ต้อง
+           เพิ่มช่องใหม่ใน ORDER_VOCAB — ต่างจาก "สร้าง" ที่ LODGING ต้องเป็น "เปิดบิลเข้าพัก" */
+        actionLabel={editOrderToken ? `แก้ไข${vocab.noun}` : vocab.createLabel}
         status={submitStatus}
         errorMessage={submitError}
+        errorCode={submitErrorCode}
         onDismiss={() => setSubmitStatus('idle')}
       />
 

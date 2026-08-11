@@ -879,8 +879,9 @@ SellerWallet (1) ── (N) WalletTransaction
 | Method | Path | Auth | Purpose | Service |
 |--------|------|------|---------|---------|
 | GET | `/api/orders` | Buyer/Seller | ดู order list — `?role=buyer` สำหรับ buyer, default = seller | `order.service` |
-| POST | `/api/orders` | Seller | สร้าง order → คืน `publicToken` — body: `CreateOrderSchema` (มี `createdAt` optional, feature 00033) | `order.service` |
-| PATCH | `/api/orders/[token]` | Seller-owner | แก้ไข order เต็มรูป — body เดียวกับ POST (`CreateOrderSchema`) | `order.service` |
+| POST | `/api/orders` | Seller | สร้าง order → คืน `publicToken` — body: `CreateOrderSchema` (มี `createdAt` optional, feature 00033) + **`shopId` optional** (ดู 🛑 ใต้ตาราง) | `order.service` |
+| GET | `/api/orders/[token]` | Seller | prefill ฟอร์มแก้ไข — รับ **`?shopId=`** optional (ความหมายเดียวกับ POST) | — |
+| PATCH | `/api/orders/[token]` | Seller-owner | แก้ไข order เต็มรูป — body เดียวกับ POST (`CreateOrderSchema`) + **`shopId` optional** | `order.service` |
 | GET | `/api/orders/customers` | Seller | autocomplete ลูกค้าเดิม `?q=<term>` (≥2 chars) | — |
 | POST | `/api/orders/[token]/unlock` | Guest | phone-unlock — ตรวจเบอร์ตรงกับ order | `order.service` |
 | POST | `/api/orders/[token]/confirm` | Guest/Buyer | ยืนยัน order (Path A: SMS cookie; Path B: phone parity) | `order.service` |
@@ -896,6 +897,18 @@ SellerWallet (1) ── (N) WalletTransaction
 | POST | `/api/orders/[token]/send-sms` | Seller-owner | ส่ง SMS Order Link — atomic deduct+issue (฿1/SMS) | `wallet.service`, `sms-code.service`, `lib/sms.ts` |
 | POST | `/api/orders/[token]/access-url` | Seller-owner | ตั้ง `accessUrl` สำหรับ digital delivery | `order.service` |
 | GET | `/api/orders/[token]/buyer-phone` | Buyer (SMS cookie) | คืน phone+masked phone สำหรับ OTP pre-fill | — |
+
+🛑 **`shopId` ของ 3 เส้นข้างบน = "ร้านที่คำขอนี้ทำงานด้วย" ไม่ใช่ร้านที่ active** (feature 00037 AC-06-6 — ปิดบั๊ก prod 2026-08-11)
+
+ก่อนหน้านี้ทั้งสามเส้น resolve ร้านด้วย `requireActiveShop()` ล้วน ๆ ซึ่งถูกต้องตราบใดที่ "ร้านที่ active" = "ร้านที่ผู้ใช้กำลังมองอยู่" — **กล่องแชทรวมหลายร้านตัดความเท่ากันนั้นทิ้งตั้งแต่ 2026-08-08** (BR-UNI-07: เปิดเธรดของร้าน B โดยไม่เปลี่ยนร้านที่ active โดยตั้งใจ) ผลคือฟอร์มโหลดคิวงาน/แคตตาล็อกของร้าน B มาแสดงแล้วบันทึกลงร้าน A:
+- มีนัดติดไปด้วย → คิวงานของ B ไม่มีในร้าน A → `404 RESOURCE_NOT_FOUND` (อาการที่ผู้ใช้รายงาน)
+- เลือกสินค้าจากแคตตาล็อก → `400 พบสินค้าที่ไม่ใช่ของร้านนี้`
+- **รายการพิมพ์เอง ไม่มีนัด → `201` เข้าร้านผิดถาวร ไม่มีอะไรฟ้อง** (เคสที่อันตรายที่สุด)
+
+กติกาที่บังคับที่ `requireShopForWrite()` (`src/lib/shop-context.ts`):
+- ไม่ส่ง `shopId` → ร้านที่ active (พฤติกรรมเดิมทุกประการ)
+- ส่งมาแล้วเข้าไม่ถึง → **403 `SHOP_FORBIDDEN` ห้าม fallback ไปร้านที่ active เด็ดขาด** (ต่างจาก `requireActiveShop` ที่ถอยไป Personal ได้ — ที่นั่นการถอยคือ "พาผู้ใช้ไปที่ที่ใช้งานได้" ที่นี่คือ "เขียนข้อมูลลงร้านที่ผู้ใช้ไม่ได้ตั้งใจ" ซึ่งย้อนไม่ได้)
+- POST ที่แนบ `conversationId` มาด้วย: เธรดนั้นเป็นของอีกร้าน → **409 `DRAFT_SHOP_MISMATCH`** (AC-06-6); ไม่พบเธรดเลย (ถูกลบ/ไม่มีสิทธิ์) → สร้างต่อได้โดยไม่ผูกลูกค้า = พฤติกรรมเดิม
 
 ### 7.6 SMS Code (Public)
 

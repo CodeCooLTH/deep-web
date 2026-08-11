@@ -36,7 +36,16 @@ export function appointmentErrorResponse(e: unknown): Response | null {
     );
   }
   if (e instanceof ServiceResourceNotFoundError) {
-    return jsonNoStore({ error: "RESOURCE_NOT_FOUND" }, { status: 404 });
+    // 🛑 เคสเดียวในไฟล์นี้ที่เคยไม่มี `message` — จอสร้างออเดอร์จึงโชว์รหัสดิบ `RESOURCE_NOT_FOUND`
+    // เต็มจอให้ผู้ขายอ่าน (user report prod 2026-08-11). ใช้คำว่า "คิวงาน" ตามที่หน้าฟอร์มเรียก
+    // ไม่ใช่ "ทรัพยากร" ซึ่งเป็นชื่อภายใน และไม่ใช่ "ปิดใช้งาน" ซึ่งเป็นคนละ error (RESOURCE_INACTIVE)
+    return jsonNoStore(
+      {
+        error: "RESOURCE_NOT_FOUND",
+        message: "คิวงานที่เลือกไว้ถูกลบไปแล้ว — เลือกคิวงานอื่นก่อนบันทึก",
+      },
+      { status: 404 },
+    );
   }
   if (e instanceof AppointmentNotFoundError) {
     return jsonNoStore({ error: "APPOINTMENT_NOT_FOUND" }, { status: 404 });

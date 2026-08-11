@@ -152,6 +152,53 @@ export async function requireActiveShop(
   return { shop, kind: meta.kind, role: meta.role, locked: meta.locked, lockReason: meta.lockReason };
 }
 
+/** ผลลัพธ์ของ requireShopForWrite — บังคับให้ caller แยก "ไม่มีร้าน" ออกจาก "ไม่มีสิทธิ์ร้านที่ขอ"
+ *  เพราะสองอันนี้ต้องตอบคนละ status และคนละข้อความ (404 vs 403) */
+export type ShopForWrite =
+  | { ok: true; target: ActiveShop }
+  | { ok: false; reason: "NO_SHOP" | "FORBIDDEN" };
+
+/**
+ * requireShopForWrite — resolve "ร้านที่การเขียนครั้งนี้จะลงจริง" (feature 00037 AC-06-6)
+ *
+ * ทำไมต้องมี: กล่องแชทรวมหลายร้านเปิดเธรดของร้าน B ได้โดยที่ `activeShopId` ยังเป็นร้าน A
+ * (BR-UNI-07 ตั้งใจให้เป็นแบบนั้น) ฟอร์มสร้างรายการจึงโหลดแคตตาล็อก/คิวงานของร้าน B มาแสดง
+ * แต่ route ที่ resolve ร้านด้วย requireActiveShop() ล้วน ๆ จะเขียนลงร้าน A —
+ * **ข้อมูลไปผิดร้านถาวรโดยที่ backend คืน 201** (user report prod 2026-08-11)
+ *
+ * 🛑 ผู้เรียกที่ระบุ `requestedShopId` มาแล้ว **ห้าม fallback ไปร้านอื่นทุกกรณี** — ต่างจาก
+ * requireActiveShop ที่ถอยไป Personal ได้เมื่อ resolve ไม่ออก. ที่นั่นการถอยคือ "พาผู้ใช้ไป
+ * ที่ที่ใช้งานได้" แต่ที่นี่คือ "เขียนข้อมูลลงร้านที่ผู้ใช้ไม่ได้ตั้งใจ" ซึ่งย้อนไม่ได้และไม่มีอะไรฟ้อง
+ *
+ * ตัวตรวจสิทธิ์คือ resolveActiveShopContext ตัวเดิม (re-verify membership เสมอ ไม่เชื่อ JWT) —
+ * ตั้งใจไม่เขียนตรรกะสิทธิ์ขึ้นใหม่ให้แตกเป็นสองชุด
+ */
+export async function requireShopForWrite(
+  session: { user?: { id?: string | null; activeShopId?: string | null } | null } | null,
+  requestedShopId?: string | null,
+): Promise<ShopForWrite> {
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, reason: "NO_SHOP" };
+
+  if (!requestedShopId) {
+    const active = await requireActiveShop(session);
+    return active ? { ok: true, target: active } : { ok: false, reason: "NO_SHOP" };
+  }
+
+  const ctx = await resolveActiveShopContext({
+    user: { id: userId, activeShopId: requestedShopId },
+  });
+  if (!ctx) return { ok: false, reason: "FORBIDDEN" };
+
+  const shop = await prisma.shop.findUnique({ where: { id: ctx.shopId } });
+  if (!shop) return { ok: false, reason: "FORBIDDEN" };
+
+  return {
+    ok: true,
+    target: { shop, kind: ctx.kind, role: ctx.role, locked: ctx.locked, lockReason: ctx.lockReason },
+  };
+}
+
 /** ensurePersonalShop — invariant "ทุก seller มี Personal shop" (D1). resolve Personal, ถ้าไม่มี → สร้าง.
  *  แยกจาก requireActiveShop เพื่อให้ layout เรียกก่อน (guarantee Personal มีอยู่) แล้วค่อย resolve active.
  *  หมายเหตุ: auto-create เฉพาะ PERSONAL — Business ไม่เคย auto-create (สร้างผ่าน createBusinessShop เท่านั้น)

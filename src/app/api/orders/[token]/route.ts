@@ -20,18 +20,41 @@ import { ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "@/lib/order-date-window";
 export const dynamic = "force-dynamic";
 const NO_STORE = { "Cache-Control": "private, no-store, max-age=0, must-revalidate" };
 
-async function resolveShop(session: unknown) {
+/**
+ * ร้านที่คำขอนี้ทำงานด้วย — `requestedShopId` มาจากร่างในกล่องแชทรวมหลายร้าน (feature 00037)
+ *
+ * ไม่ส่งมา = ร้านที่ active (พฤติกรรมเดิมทุกประการ) · ส่งมา = ต้องเป็นร้านนั้นเท่านั้น
+ * 🛑 ห้าม fallback ไปร้าน active เมื่อระบุมาแล้วเข้าไม่ถึง — ออเดอร์คนละใบกันจะถูกอ่าน/เขียนแทนกัน
+ * (คลาสเดียวกับบั๊ก POST /api/orders ที่ user เจอบน prod 2026-08-11)
+ */
+async function resolveShop(session: unknown, requestedShopId?: string | null) {
   const user = (session as { user?: { id?: string; activeShopId?: string | null } } | null)?.user;
   if (!user?.id) return null;
-  return resolveActiveShopContext({ user: { id: user.id, activeShopId: user.activeShopId ?? null } });
+  return resolveActiveShopContext({
+    user: { id: user.id, activeShopId: requestedShopId ?? user.activeShopId ?? null },
+  });
+}
+
+/**
+ * shopId ที่ client ส่งมา — คืน undefined ถ้าไม่ส่ง, null ถ้าส่งมาแต่รูปแบบผิด (caller ตอบ 400)
+ *
+ * สตริงว่าง = "ส่งมาแต่ผิด" ไม่ใช่ "ไม่ส่ง" — ต้องตรงกับ `POST /api/orders` เป๊ะ ไม่งั้นค่าเดียวกัน
+ * ให้ผลคนละอย่างสองเส้นทาง (เส้นหนึ่ง 400 อีกเส้นถอยไปร้าน active เงียบ ๆ)
+ */
+function readShopId(raw: unknown): string | undefined | null {
+  if (raw === undefined || raw === null) return undefined;
+  const parsed = v.safeParse(v.pipe(v.string(), v.uuid()), raw);
+  return parsed.success ? parsed.output : null;
 }
 
 // GET — ข้อมูลสำหรับ prefill ฟอร์มแก้ไข (เฉพาะ field ที่ฟอร์มใช้)
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const ctx = await resolveShop(session);
+  const shopId = readShopId(request.nextUrl.searchParams.get("shopId"));
+  if (shopId === null) return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
+  const ctx = await resolveShop(session, shopId);
   if (!ctx) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
 
   const order = await prisma.order.findFirst({
@@ -80,10 +103,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { token } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const ctx = await resolveShop(session);
-  if (!ctx) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
 
   const body = await request.json().catch(() => null);
+  const shopId = readShopId((body as { shopId?: unknown } | null)?.shopId);
+  if (shopId === null) return NextResponse.json({ error: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
+  const ctx = await resolveShop(session, shopId);
+  if (!ctx) return NextResponse.json({ error: "ไม่พบร้านที่กำลังใช้งาน" }, { status: 404 });
+
   const parsed = v.safeParse(CreateOrderSchema, body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.issues[0]?.message ?? "ข้อมูลไม่ถูกต้อง" }, { status: 400 });

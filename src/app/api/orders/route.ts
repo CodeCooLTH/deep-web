@@ -6,7 +6,8 @@ import { CreateOrderSchema, OrderAppointmentSchema } from "@/lib/validations";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError, OrderDateOutOfWindowError } from "@/services/order.service";
 import { OutOfStockError } from "@/services/inventory-stock.service";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireActiveShop, requireShopForWrite } from "@/lib/shop-context";
+import { prisma } from "@/lib/prisma";
 import { ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "@/lib/order-date-window";
 
 export async function GET(request: NextRequest) {
@@ -35,15 +36,71 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) return NextResponse.json({ error: "No shop" }, { status: 404 });
+  const body = await request.json().catch(() => null);
+  if (body === null) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+
+  /**
+   * ร้านปลายทางของการสร้างครั้งนี้ (feature 00037 AC-06-6 — user report prod 2026-08-11)
+   *
+   * `shopId` = ร้านของ "ร่าง" ที่ฟอร์มถืออยู่ ซึ่งคือร้านเจ้าของเธรด **ไม่ใช่ร้านที่ active**
+   * ในกล่องแชทรวมหลายร้าน สองค่านี้ต่างกันได้ตลอดเวลาโดยตั้งใจ (BR-UNI-07) — ก่อนหน้านี้
+   * route นี้รู้จักแต่ร้าน active ออเดอร์ที่คีย์จากเธรดของอีกร้านจึงลงผิดร้านเงียบ ๆ
+   *
+   * parse แยกจาก CreateOrderSchema โดยตั้งใจ (แบบเดียวกับ appointment ข้างล่าง): schema ก้อนนั้น
+   * ใช้ร่วมกับ PATCH ซึ่ง "ย้ายร้านของออเดอร์เดิม" ไม่ใช่สิ่งที่ทำได้ — ถ้าใส่คีย์นี้ลงไปในนั้น
+   * วันหนึ่งจะมีคนเชื่อว่ามันมีผลที่ฝั่ง PATCH ด้วย
+   */
+  const rawShopId = (body as { shopId?: unknown })?.shopId;
+  let requestedShopId: string | undefined;
+  if (rawShopId !== undefined && rawShopId !== null) {
+    const sid = v.safeParse(v.pipe(v.string(), v.uuid()), rawShopId);
+    if (!sid.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    requestedShopId = sid.output;
+  }
+
+  const resolved = await requireShopForWrite(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+    requestedShopId,
+  );
+  if (!resolved.ok) {
+    // fail-closed: ระบุร้านมาแล้วเข้าไม่ถึง = ปฏิเสธ ห้ามถอยไปสร้างในร้านที่ active
+    return resolved.reason === "FORBIDDEN"
+      ? NextResponse.json({ error: "SHOP_FORBIDDEN", message: "คุณไม่มีสิทธิ์สร้างรายการในร้านนี้" }, { status: 403 })
+      : NextResponse.json({ error: "No shop" }, { status: 404 });
+  }
+  const active = resolved.target;
   if (active.locked) return NextResponse.json({ error: "SHOP_LOCKED" }, { status: 403 });
   const shop = active.shop;
 
-  const body = await request.json().catch(() => null);
-  if (body === null) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   const parsed = v.safeParse(CreateOrderSchema, body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+
+  /**
+   * AC-06-6 — ร่างที่ผูกกับร้านหนึ่ง แต่เธรดที่อ้างมาเป็นของอีกร้าน = ปฏิเสธ ไม่ใช่เดาว่าจะเข้าร้านไหน
+   *
+   * scope ด้วย "ร้านที่ผู้ใช้เข้าถึงได้" ไม่ใช่ร้านปลายทาง — ต้องแยก "เธรดของอีกร้าน" (ผิดจริง
+   * ต้องบอก) ออกจาก "ไม่มีเธรดนี้แล้ว" (ลบไปแล้ว/ของคนอื่น) ซึ่งคงพฤติกรรมเดิมคือสร้างต่อได้
+   * โดยไม่ผูกลูกค้า — ตรงกับที่ createOrder ทำอยู่ (findThreadContact scope ด้วย shopId ใน WHERE)
+   */
+  if (parsed.output.conversationId) {
+    const userId = (session.user as { id: string }).id;
+    // scope สิทธิ์อยู่ใน WHERE ผ่าน relation filter — ไม่ใช่ดึงมาแล้วค่อยเทียบ (feedback_rsc_dal_authz)
+    // ตั้งใจไม่เรียก listAccessibleShopIds(): requireShopForWrite เพิ่งตรวจ membership ไปแล้ว
+    // การถามซ้ำเป็น round trip ที่ไม่ได้ความรู้ใหม่ — ที่นี่ต้องการแค่ "เธรดนี้อยู่ในร้านที่ฉันเข้าถึงได้ไหม"
+    const conv = await prisma.conversation.findFirst({
+      where: {
+        id: parsed.output.conversationId,
+        shop: { OR: [{ userId }, { members: { some: { userId } } }] },
+      },
+      select: { shopId: true },
+    });
+    if (conv && conv.shopId !== shop.id) {
+      return NextResponse.json(
+        { error: "DRAFT_SHOP_MISMATCH", message: "ร่างนี้เป็นของอีกร้าน บันทึกไม่ได้ — ปิดแล้วเปิดใหม่จากในเธรดอีกครั้ง" },
+        { status: 409 },
+      );
+    }
+  }
 
   // ครอบ try-catch: เดิมไม่มี → exception ใด ๆ จาก createOrder ถูก Next กลืน
   // เป็น 500 ตัวเปล่า วินิจฉัยไม่ได้ (B9 transient ตอน OMS cutover พิสูจน์ปัญหานี้).

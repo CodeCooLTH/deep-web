@@ -21,16 +21,24 @@ import Icon from '@/components/wrappers/Icon'
 export type SubmitStatus = 'idle' | 'loading' | 'error'
 
 interface Props {
-  /** ป้ายการสร้างตามประเภทกิจการ (feature 00030) — ไม่ส่ง = คำของ ONLINE_SALES */
-  createLabel?: string
+  /**
+   * ป้าย "การกระทำ" ตามประเภทกิจการ (feature 00030) — ไม่ส่ง = คำของ ONLINE_SALES
+   *
+   * ชื่อเดิมคือ `createLabel` ซึ่งชวนเข้าใจผิดว่าจอนี้ใช้เฉพาะตอนสร้าง — ความจริงฟอร์มเดียวกัน
+   * ทำหน้าที่แก้ไขด้วย (PATCH) แล้วหัวข้อยังขึ้นว่า "สร้าง…ไม่สำเร็จ" ทำให้รายงานบั๊กจากจอนี้
+   * ถูกอ่านผิดทาง (2026-08-11). ผู้เรียกเป็นคนตัดสินคำ — component นี้ไม่รู้จักโหมด
+   */
+  actionLabel?: string
   status: SubmitStatus
-  /** ข้อความ error (server message หรือ fallback) — ใช้เฉพาะ status === 'error' */
+  /** ข้อความ error ภาษาคน — เลือกมาแล้วที่ผู้เรียกผ่าน pickApiErrorMessage (ห้ามเป็นรหัสดิบ) */
   errorMessage?: string
+  /** รหัส error ไว้อ้างตอนแจ้งปัญหา — null/ไม่ส่ง = ไม่แสดงบรรทัดนี้ (ห้ามโชว์ "รหัสอ้างอิง: -") */
+  errorCode?: string | null
   /** กด "ปิดกลับไปแก้ไข" → ปิด sheet (set status กลับ idle ที่ parent) */
   onDismiss: () => void
 }
 
-export default function SubmitStatusSheet({ status, errorMessage, onDismiss, createLabel = 'สร้างคำสั่งซื้อ' }: Props) {
+export default function SubmitStatusSheet({ status, errorMessage, errorCode, onDismiss, actionLabel = 'สร้างคำสั่งซื้อ' }: Props) {
   if (status === 'idle') return null
 
   const isError = status === 'error'
@@ -41,12 +49,12 @@ export default function SubmitStatusSheet({ status, errorMessage, onDismiss, cre
       className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-card px-6 pb-[env(safe-area-inset-bottom)] text-center"
       role="alertdialog"
       aria-live="assertive"
-      aria-label={isError ? `${createLabel}ไม่สำเร็จ` : `กำลัง${createLabel}`}
+      aria-label={isError ? `${actionLabel}ไม่สำเร็จ` : `กำลัง${actionLabel}`}
     >
       {status === 'loading' && (
         <>
           <Icon icon="loader-2" className="size-12 animate-spin text-primary" aria-hidden="true" />
-          <p className="mt-5 text-lg font-semibold text-dark">กำลัง{createLabel}</p>
+          <p className="mt-5 text-lg font-semibold text-dark">กำลัง{actionLabel}</p>
           <p className="mt-1 text-sm text-default-500">กรุณารอสักครู่...</p>
         </>
       )}
@@ -59,10 +67,16 @@ export default function SubmitStatusSheet({ status, errorMessage, onDismiss, cre
           >
             <Icon icon="alert-triangle" className="size-8 text-danger" />
           </span>
-          <p className="mt-5 text-lg font-semibold text-dark">{createLabel}ไม่สำเร็จ</p>
+          <p className="mt-5 text-lg font-semibold text-dark">{actionLabel}ไม่สำเร็จ</p>
           <p className="mt-1 max-w-sm text-sm text-default-500">
             {errorMessage || 'กรุณาลองใหม่อีกครั้ง'}
           </p>
+          {/* รหัสไว้อ้างตอนแจ้งปัญหา — เดิมรหัสนี้ถูกโยนขึ้นมาเป็น "ข้อความ" ให้ผู้ขายอ่านเอง
+              ตรงนี้คือที่ของมัน: อ่านได้ถ้าต้องการ แต่ไม่แย่งความสนใจจากประโยคที่บอกทางออก
+              ห้าม font-mono — บรรทัดนี้ผสมไทยกับอังกฤษ ต้องเป็น Anuphan ทั้งบรรทัด (HR5) */}
+          {errorCode && (
+            <p className="mt-2 text-2xs text-default-400">รหัสอ้างอิง: {errorCode}</p>
+          )}
           <button
             type="button"
             onClick={onDismiss}
