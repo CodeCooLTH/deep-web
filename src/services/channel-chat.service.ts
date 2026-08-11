@@ -31,6 +31,8 @@ import { contentTypeToExt } from '@/lib/attachment-mime'
 // pure module (ไม่มี server code) — ใช้ตัวเดียวกับที่ ChatThread ใช้ตัดสินว่าเป็นการ์ดยอดเงิน
 // เพื่อไม่ให้ "อะไรคือการ์ดยอดเงิน" มีสองนิยาม (HR16)
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
+// SSOT ของ "ชื่อช่องทางที่ผู้ใช้เห็น" (HR16) — ใช้ในข้อความแทนสติกเกอร์ที่ mirror ไม่ผ่าน
+import { getChannelLabel } from '@/lib/chat-channel'
 import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 
 /**
@@ -549,6 +551,24 @@ const MIRROR_FAILED_TEXT = '[ลูกค้าส่งรูปภาพ — �
 // เขียนแบบไม่ระบุว่าใครเป็นคนส่ง เพราะ ingest ใช้ path เดียวกันทั้งข้อความของลูกค้าและ
 // echo ของฝั่งร้าน — ถ้าเขียนว่า "ลูกค้าส่ง" จะโกหกเมื่อคนส่งคือร้านเอง (เห็นจริงใน prod)
 const UNSUPPORTED_ATTACHMENT_TEXT = '[ไฟล์แนบ — เปิดดูใน Messenger]'
+
+/**
+ * บับเบิลสติกเกอร์ "ขาออก" ที่ mirror รูปไม่ผ่าน (2026-08-11, user เจอเองบน prod)
+ *
+ * 🛑 สติกเกอร์ขาออกเก็บ `body = null` โดยตั้งใจ (รูปคือเนื้อหาทั้งหมด) — พอ mirror ล้ม `imageUrl`
+ * เป็น null ไปด้วย แถวนั้นจึงว่างทั้งสองคอลัมน์ แล้ว `ChatThread` วาด **"ข้อความไม่รองรับ — เปิดดูใน
+ * Messenger"** ทับสติกเกอร์ที่ปลายทางได้รับไปเรียบร้อยแล้ว (ยืนยันกับแถวจริงบน prod
+ * `5d43926a…` 2026-08-11 10:13 น.: `ok:true` มี mid ครบ แต่ `imageUrl` ว่าง) — ผู้ขายอ่านว่า
+ * "ระบบส่งไม่ได้" ทั้งที่ลูกค้าเห็นสติกเกอร์แล้ว ซึ่งแย่กว่าไม่มีรูปเฉย ๆ มาก
+ *
+ * คอมเมนต์เดิมของทั้งสองเส้นทางเขียนไว้เองว่า "mirror ล้มเหลว = บับเบิลจะไม่มีรูป" — ถูกครึ่งเดียว
+ * ความจริงคือบับเบิลจะไม่มี *อะไรเลย* แล้วถูกเติมคำที่ความหมายตรงข้ามกับสิ่งที่เกิดขึ้นจริง
+ *
+ * ชื่อช่องทางดึงจาก `getChannelLabel` (SSOT ตาม HR16) ห้ามพิมพ์ 'Messenger'/'LINE' เองที่นี่
+ */
+function stickerMirrorFailedText(channel: string): string {
+  return `[สติกเกอร์ — เปิดดูใน ${getChannelLabel(channel)}]`
+}
 
 // (S-1) allow-list ของ host ที่ยอมให้ mirrorRemoteImage ยิง fetch ออกไปได้ — เฉพาะ CDN ของ Meta
 // เท่านั้น. attachments[].payload.url มาจาก webhook payload ซึ่งถ้า FB_CHAT_APP_SECRET หลุด
@@ -3124,7 +3144,8 @@ async function sendOutboundLineMessage(
       // writeLineInboundMessage) — สติกเกอร์ถูกเก็บเป็น type='IMAGE' เหมือนรูปทั่วไป ถ้าขาออกไม่ติด
       // marker ด้วย หน้าจอจะวาดสติกเกอร์ที่ "ร้านส่งเอง" ใหญ่เท่ารูป (240px) พร้อมปุ่มบันทึกรูป
       // ขณะที่ของลูกค้าเล็ก (144px) — ดู isStickerRawMessage + ChatImageMessage
-      ...(params.sticker ? { kind: 'sticker' as const } : {}),
+      // stickerId (2026-08-11): เหตุผลเดียวกับฝั่ง Meta — ไม่เก็บ id ไว้ = สืบไม่ได้ว่าตัวไหนพัง
+      ...(params.sticker ? { kind: 'sticker' as const, stickerId: params.sticker.id } : {}),
       attachmentKind: attachment?.kind ?? null,
       replyToMid: params.replyToMid ?? null,
       // (S-18a, additive) quoteToken ของข้อความที่เพิ่งส่งสำเร็จนี้เอง — เก็บไว้ให้ข้อความที่ "เรา" ส่งเอง
@@ -3142,10 +3163,17 @@ async function sendOutboundLineMessage(
   // (S-18a) สติกเกอร์เก็บเป็นแถวชนิด IMAGE + mirror รูปจริงมาไว้ storage ของเรา — เส้นทางเดียวกับสติกเกอร์
   // ขาเข้า (S-7b buildLineStickerImageUrl) ไม่ใช่เชื่อ params.sticker.imageUrl ที่ client ส่งมา (กัน SSRF
   // เหมือนกับที่ mirrorRemoteImage มี host allow-list — เราคุม URL เองจาก stickerId ล้วน ๆ)
-  // mirror ล้มเหลว = ยังเก็บแถวไว้ (บับเบิลจะไม่มีรูป) ไม่ทำให้การส่งที่สำเร็จแล้วกลายเป็น error
+  // mirror ล้มเหลว = ยังเก็บแถวไว้ ไม่ทำให้การส่งที่สำเร็จแล้วกลายเป็น error — แต่ต้องมี body แทนรูป
+  // เสมอ (ดู stickerMirrorFailedText) ไม่งั้นได้บับเบิล "ข้อความไม่รองรับ" ทับสติกเกอร์ที่ส่งถึงแล้ว
+  //
+  // ฝั่ง LINE ไม่มีปัญหา URL หมดอายุแบบ Meta (ประกอบเองจาก stickerId ล้วน ๆ จึงไม่มีลายเซ็น) —
+  // ที่นี่จึงไม่มีทางกู้ผ่าน Graph ให้ทำ เหลือแค่ไม่ปล่อยบับเบิลว่าง
   const stickerFileId = params.sticker
     ? await mirrorRemoteImage(buildLineStickerImageUrl(params.sticker.id), 'line-sticker')
     : null
+  if (params.sticker && !stickerFileId) {
+    console.warn('[line-outbound] mirror สติกเกอร์ไม่ผ่าน', { stickerId: params.sticker.id })
+  }
 
   const preview = isOrder
     ? '[คำสั่งซื้อ]'
@@ -3174,7 +3202,12 @@ async function sendOutboundLineMessage(
           // (route messages: `type === "PRODUCT" || type === "ORDER" ? null : text`) ไม่งั้นร้านจะเห็น
           // ทั้งการ์ดและข้อความดิบซ้อนกันสองชั้นในเธรดเดียว
           type: isOrder ? 'ORDER' : params.productRefId ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
-          body: isOrder || params.productRefId || attachment || params.sticker ? null : bodyText,
+          // สติกเกอร์: body=null เมื่อมีรูป — ไม่มีรูปต้องมีคำแทนเสมอ (ดู stickerMirrorFailedText)
+          body: isOrder || params.productRefId || attachment
+            ? null
+            : params.sticker
+              ? (stickerFileId ? null : stickerMirrorFailedText('LINE'))
+              : bodyText,
           imageUrl: stickerFileId ?? attachment?.fileId ?? null,
           attachmentName: attachment?.name ?? null,
           attachmentSize: attachment?.size ?? null,
@@ -3478,7 +3511,10 @@ export async function sendOutboundMessage(params: {
       // writeLineInboundMessage) — สติกเกอร์ถูกเก็บเป็น type='IMAGE' เหมือนรูปทั่วไป ถ้าขาออกไม่ติด
       // marker ด้วย หน้าจอจะวาดสติกเกอร์ที่ "ร้านส่งเอง" ใหญ่เท่ารูป (240px) พร้อมปุ่มบันทึกรูป
       // ขณะที่ของลูกค้าเล็ก (144px) — ดู isStickerRawMessage + ChatImageMessage
-      ...(params.sticker ? { kind: 'sticker' as const } : {}),
+      //
+      // stickerId (2026-08-11): แถวสติกเกอร์ที่ mirror ไม่ผ่านเคยไม่มีร่องรอยเลยว่าเป็นสติกเกอร์ตัวไหน
+      // (payload เก็บแต่ mid) — สืบสวนไม่ได้และ backfill รูปย้อนหลังก็ไม่ได้ ทั้งที่ id เป็นค่าถาวร
+      ...(params.sticker ? { kind: 'sticker' as const, stickerId: params.sticker.id } : {}),
       attachmentKind: attachment?.kind ?? null,
       replyToMid: params.replyToMid ?? null,
     }
@@ -3491,9 +3527,35 @@ export async function sendOutboundMessage(params: {
    * สติกเกอร์เก็บเป็นแถวชนิด IMAGE + mirror รูปมาไว้ storage ของเรา (เหมือนรูปขาเข้า) ไม่เก็บ URL
    * ของ CDN Meta ตรง ๆ เพราะ (1) ตัวเรนเดอร์ในเธรดอ่าน imageUrl เป็น fileId เสมอ (`/api/files/{id}`)
    * (2) URL ของ Meta หมดอายุได้ แล้วบับเบิลเก่าจะกลายเป็นรูปแตกย้อนหลัง
-   * mirror ล้มเหลว = ยังเก็บแถวไว้ (บับเบิลจะไม่มีรูป) ไม่ทำให้การส่งที่สำเร็จแล้วกลายเป็น error
+   * mirror ล้มเหลว = ยังเก็บแถวไว้ ไม่ทำให้การส่งที่สำเร็จแล้วกลายเป็น error (แต่ต้องมี body แทน
+   * ดู stickerMirrorFailedText — ห้ามปล่อยว่างทั้ง body และ imageUrl)
+   *
+   * 🛑 `params.sticker.imageUrl` มาจาก client และ **หมดอายุได้** — URL ของ Sticker Catalog มี `oe=`
+   * (ลายเซ็นอายุ ~4 วัน; ยิงด้วย oe ที่ผ่านมาแล้วได้ 403 — ยืนยัน 2026-08-11) ขณะที่แท็บ "ใช้ล่าสุด"
+   * เก็บ URL นั้นไว้ใน localStorage ของเครื่อง **ตลอดไป** (`deep.chat.recentStickers.meta`) กดส่ง
+   * สติกเกอร์ตัวเดิมอีกครั้งหลังจากนั้นจึง mirror ไม่ผ่าน ทั้งที่ Meta รับ `sticker_id` ไปส่งสำเร็จแล้ว
+   * (sticker_id ไม่มีวันหมดอายุ — สองสิ่งนี้อายุไม่เท่ากันคือรูปร่างทั้งหมดของบั๊กนี้)
+   *
+   * ทางกู้: ถาม Graph ด้วย mid ที่เพิ่งได้มา — `fetchAttachmentUrl` อ่าน `image_data.url` ซึ่งเป็น
+   * URL สดที่ Meta เซ็นใหม่ให้ทุกครั้ง (เส้นทางเดียวกับ fallback ของขาเข้าที่ ingestInboundMessage
+   * ใช้อยู่แล้ว) — ยิงเฉพาะตอน mirror รอบแรกล้มเท่านั้น ปกติไม่มี round trip เพิ่ม
    */
-  const stickerFileId = params.sticker ? await mirrorRemoteImage(params.sticker.imageUrl) : null
+  let stickerFileId: string | null = null
+  if (params.sticker) {
+    stickerFileId = await mirrorRemoteImage(params.sticker.imageUrl)
+    if (!stickerFileId && mid) {
+      const { url: freshUrl } = await adapter.downloadContent(sendCtx(), { externalMessageId: mid })
+      if (freshUrl) stickerFileId = await mirrorRemoteImage(freshUrl)
+    }
+    if (!stickerFileId) {
+      // เดิมเงียบสนิท — ความล้มเหลวนี้ไปโผล่เป็นบับเบิล "ข้อความไม่รองรับ" ให้ผู้ขายเจอเอง
+      // โดยไม่มีร่องรอยอะไรให้ตามเลยสักบรรทัด (ต้องขุดจากแถวใน DB ถึงจะรู้ว่าเป็นสติกเกอร์)
+      console.warn('[fb-outbound] mirror สติกเกอร์ไม่ผ่านทั้งสองทาง', {
+        stickerId: params.sticker.id,
+        hasMid: !!mid,
+      })
+    }
+  }
   const preview = isOrder
     ? '[คำสั่งซื้อ]'
     : params.sticker
@@ -3520,7 +3582,12 @@ export async function sendOutboundMessage(params: {
           senderRole: 'SHOP',
           type: isOrder ? 'ORDER' : params.productRefId ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
           // ORDER: เก็บ orderRefToken (การ์ด live-join); ไฟล์แนบ: body=null, imageUrl=fileId; ข้อความ: body=text
-          body: isOrder || params.productRefId || attachment || params.sticker ? null : bodyText,
+          // สติกเกอร์: body=null เมื่อมีรูป — ไม่มีรูปต้องมีคำแทนเสมอ (ดู stickerMirrorFailedText)
+          body: isOrder || params.productRefId || attachment
+            ? null
+            : params.sticker
+              ? (stickerFileId ? null : stickerMirrorFailedText(conversation.channel))
+              : bodyText,
           imageUrl: stickerFileId ?? attachment?.fileId ?? null,
           attachmentName: attachment?.name ?? null,
           attachmentSize: attachment?.size ?? null,
