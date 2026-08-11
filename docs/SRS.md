@@ -1071,7 +1071,7 @@ SellerWallet (1) ── (N) WalletTransaction
 
 ### 8.1b OrderEvent Type (`src/lib/order-event.ts::ORDER_EVENT_TYPES`)
 
-> **15 ค่า** — CHECK constraint `OrderEvent_type_check` (unmanaged SQL) ต้องตรงกับรายการนี้เป๊ะ ดู §6.2 OrderEvent
+> **17 ค่า** — CHECK constraint `OrderEvent_type_check` (unmanaged SQL) ต้องตรงกับรายการนี้เป๊ะ ดู §6.2 OrderEvent
 
 | ค่า | ความหมาย |
 |-----|---------|
@@ -1088,6 +1088,8 @@ SellerWallet (1) ── (N) WalletTransaction
 | `SYSTEM_CONFIRMED` | ระบบยืนยันคำสั่งซื้ออัตโนมัติ |
 | `PAYMENT_METHOD_SYNCED` | ปรับวิธีชำระเงินตามพัสดุ |
 | `ORDER_DATE_CHANGED` | **feature 00033** — เปลี่ยนวันที่คำสั่งซื้อ (เลื่อนยอดข้ามงวด) |
+| `ORDER_DISPUTE_OPENED` | **feature 00041** — ผู้ซื้อแจ้งว่ายังไม่ได้รับสินค้า (ติดธงเตือน ไม่เปลี่ยน `Order.status`) |
+| `ORDER_DISPUTE_RESOLVED` | **feature 00041** — ปัญหาถูกปิด |
 | `AUTH_FLOW_STARTED` | **feature 00041** — guest กดปุ่มเข้าสู่ระบบจากหน้าออเดอร์สาธารณะ (ครึ่งแรกของ Login Completion Rate) |
 | `AUTH_FLOW_COMPLETED` | **feature 00041** — ยืนยันตัวตนสำเร็จและเข้าถึงออเดอร์ได้ (ครึ่งหลัง) |
 
