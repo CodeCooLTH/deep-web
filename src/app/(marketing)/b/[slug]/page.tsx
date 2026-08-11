@@ -22,6 +22,8 @@ import { listServiceResources, serializeServiceResource } from '@/services/servi
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { shopCategoryLabel } from '@/lib/shop-categories'
+import { formatOrderNo } from '@/lib/order-no'
+import { maskedReviewerName } from '@/lib/reviewer-display'
 import { badgeCriteriaLabel } from '@/lib/badge-criteria'
 import { formatMonthYearTH } from '@/lib/format-date'
 
@@ -139,11 +141,30 @@ export default async function BusinessShopProfilePage({ params }: Props) {
       listShopPageBlocks(shop.id),
       isLodging ? getShopAvailability(shop.id, 3) : Promise.resolve(null),
       // รีวิวของร้านนี้ — scope ที่ shopId ตรง ไม่ใช่ผ่าน owner user (business shop แยก trust จาก owner)
+      /* รีวิวบนหน้าร้านสาธารณะ (ขยาย 2026-08-11 ตามที่ user สั่ง: แสดงลูกค้าแบบ mask +
+         เลขออเดอร์ + รูปแนบ แบบ Shopee)
+
+         🛑 **รีวิวเกิดจากออเดอร์จริงเท่านั้นอยู่แล้วโดยโครงสร้าง** — `Review.orderId` เป็น
+         `@unique` และ FK ไป Order ไม่มีทางสร้างรีวิวลอยที่ไม่ผูกออเดอร์ ไม่ต้องเพิ่มด่านใหม่
+
+         ดึง reviewer/contact/order มาเพื่อ **mask ที่ฝั่งเซิร์ฟเวอร์** ก่อนข้าม RSC boundary
+         ค่าดิบต้องไม่ไปโผล่ใน flight payload ของหน้าสาธารณะ (lib/reviewer-display.ts) */
       prisma.review.findMany({
         where: { order: { shopId: shop.id }, deletedAt: null },
         orderBy: { createdAt: 'desc' },
         take: 10,
-        select: { id: true, rating: true, comment: true, createdAt: true },
+        select: {
+          id: true,
+          rating: true,
+          comment: true,
+          createdAt: true,
+          images: true,
+          reviewerContact: true,
+          shopReplyComment: true,
+          shopRepliedAt: true,
+          reviewer: { select: { displayName: true } },
+          order: { select: { publicToken: true, createdAt: true } },
+        },
       }),
     ])
 
@@ -345,6 +366,14 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               rating: r.rating,
               comment: r.comment,
               createdAtIso: r.createdAt.toISOString(),
+              // 🛑 mask ที่นี่ ไม่ใช่ที่ component — ค่าดิบที่ข้าม RSC boundary จะถูก serialize
+              // ลง flight payload ให้ใครก็อ่านได้จาก view-source (feedback_rsc_pii_neutralize_at_source)
+              reviewerName: maskedReviewerName(r.reviewer?.displayName, r.reviewerContact),
+              // เลขออเดอร์คำนวณจาก publicToken + วันที่สั่ง (SSOT เดียวกับทุกหน้า)
+              orderNo: formatOrderNo(r.order.publicToken, r.order.createdAt),
+              images: ((r.images as string[]) ?? []).map((f) => toFileUrl(f)).filter(Boolean) as string[],
+              shopReply: r.shopReplyComment,
+              shopRepliedAtIso: r.shopRepliedAt?.toISOString() ?? null,
             })),
             avgRating: profileStats.avgRating,
             reviewCount: profileStats.reviewCount,

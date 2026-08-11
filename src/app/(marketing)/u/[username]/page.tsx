@@ -31,6 +31,8 @@ import PublicProfileFooter from '@views/pages/user-profile/v2/PublicProfileFoote
 import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { shopCategoryLabel } from '@/lib/shop-categories'
+import { formatOrderNo } from '@/lib/order-no'
+import { maskedReviewerName } from '@/lib/reviewer-display'
 import { badgeCriteriaLabel } from '@/lib/badge-criteria'
 
 // View Imports
@@ -350,6 +352,13 @@ export default async function PublicProfilePage({ params }: Props) {
               rating: r.rating,
               comment: r.comment,
               createdAtIso: r.createdAt.toISOString(),
+              // 🛑 mask ที่นี่ ไม่ใช่ที่ component — ค่าดิบที่ข้าม RSC boundary ถูก serialize
+              // ลง flight payload ให้ใครก็อ่านได้ (feedback_rsc_pii_neutralize_at_source)
+              reviewerName: maskedReviewerName(r.reviewer?.displayName, r.reviewerContact),
+              orderNo: formatOrderNo(r.order.publicToken, r.order.createdAt),
+              images: ((r.images as string[]) ?? []).map((f) => toFileUrl(f)).filter(Boolean) as string[],
+              shopReply: r.shopReplyComment,
+              shopRepliedAtIso: r.shopRepliedAt?.toISOString() ?? null,
             })),
             avgRating: profileStats?.avgRating ?? null,
             reviewCount: profileStats?.reviewCount ?? 0,

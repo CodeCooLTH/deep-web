@@ -90,7 +90,13 @@ export async function getReviewsByShopUser(userId: string) {
 export async function getReviewsByUsername(username: string, take = 10, skip = 0) {
   return prisma.review.findMany({
     where: { order: { shop: { user: { username } } }, deletedAt: null },
-    include: { order: { select: { publicToken: true, items: true } } },
+    // ขยาย 2026-08-11 — หน้าโปรไฟล์สาธารณะแสดงชื่อผู้รีวิว (mask), เลขออเดอร์ และรูปแนบ
+    // 🛑 คืน reviewer/contact ดิบ — **ผู้เรียกต้อง mask ก่อนส่งข้ามไปฝั่ง client เสมอ**
+    // (lib/reviewer-display.ts) ไม่ใช่ mask ที่นี่ เพราะฝั่ง seller ต้องการค่าจริงเพื่อติดต่อลูกค้า
+    include: {
+      order: { select: { publicToken: true, createdAt: true, items: true } },
+      reviewer: { select: { displayName: true } },
+    },
     orderBy: { createdAt: "desc" },
     take,
     skip,

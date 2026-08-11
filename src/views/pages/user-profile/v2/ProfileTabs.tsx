@@ -65,7 +65,7 @@ export default function ProfileTabs({ tabs }: { tabs: ProfileTabDef[] }) {
           เดสก์ท็อปเป็น `sm:mbs-3` แทน · ความกว้างไม่ได้ทดแทนระยะห่างแนวตั้ง มันคนละแกนกัน */}
       <div
         role='tablist'
-        className='flex gap-6 border-be overflow-x-auto pli-5 mbs-2 sm:mbs-3'
+        className='flex gap-6 border-be overflow-x-auto overflow-y-hidden pli-5 mbs-2 sm:mbs-3'
         onKeyDown={onKeyDown}
       >
         {tabs.map((t, i) => {
@@ -88,8 +88,15 @@ export default function ProfileTabs({ tabs }: { tabs: ProfileTabDef[] }) {
                   เพื่อไม่ให้แย่งน้ำหนักกับแท็บที่ active */}
               {TAB_ICON[t.key] && <Icon icon={TAB_ICON[t.key]} width={17} />}
               {t.label}
+              {/* 🛑 ตัวชี้แท็บใช้ `bottom-0` ไม่ใช่ `-bottom-px` — ตัวที่ยื่นออกนอกกล่อง 1px คือสิ่งที่
+                  ทำให้แถบแท็บ **เลื่อนขึ้นลงได้** (user ทัก 2026-08-11 "ทำไม Tab ถึง scroll บนล่างได้")
+
+                  ต้นเหตุจริงคือสเปก CSS: `overflow-x: auto` เดี่ยว ๆ ทำให้ `overflow-y` ที่เป็น
+                  `visible` ถูกคำนวณเป็น `auto` โดยอัตโนมัติ (visible คู่กับ auto ไม่ได้) กล่องจึง
+                  กลายเป็น scroll container ทั้งสองแกน แล้ว 1px ที่ยื่นออกไปก็พอทำให้เลื่อนได้จริง
+                  แก้สองชั้น: `overflow-y-hidden` ที่กล่อง + ตัวชี้ไม่ยื่นออกนอกกล่อง */}
               {selected && (
-                <span className='absolute inline-start-0 inline-end-0 -bottom-px bs-[2.5px] rounded bg-primary' />
+                <span className='absolute inline-start-0 inline-end-0 bottom-0 bs-[2.5px] rounded bg-primary' />
               )}
             </button>
           )
