@@ -122,3 +122,42 @@ export async function lineDataApiRequest(
 ): Promise<Response> {
   return rawFetch(DATA_API_BASE, path, token, init)
 }
+
+/**
+ * อัปโหลด **binary** ขึ้น LINE Data API (feature 00045 — ภาพ rich menu)
+ *
+ * ต้องมีตัวแยกจาก `lineDataApiRequest` เพราะ `rawFetch` ตั้ง `Content-Type: application/json`
+ * แล้ว `JSON.stringify` body เสมอเมื่อมี body — ซึ่งใช้กับไฟล์ภาพไม่ได้เลย (LINE ต้องการไบต์ดิบ
+ * พร้อม `Content-Type: image/jpeg|image/png`)
+ *
+ * 🛑 ไม่ผ่าน `rawFetch` จึงต้องดูแล timeout/การแปลง error เองให้เหมือนกัน — ถ้าวันหนึ่งมีใครแก้
+ * การจัดการ error ใน `rawFetch` ต้องมาแก้ที่นี่ด้วย (เขียนกำกับไว้เพราะโค้ดสองก้อนนี้ต้องเดินคู่กัน)
+ */
+export async function lineDataApiUpload(
+  path: string,
+  token: string,
+  body: ArrayBuffer | Uint8Array,
+  contentType: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<void> {
+  let res: Response
+  try {
+    res = await fetch(`${DATA_API_BASE}${path}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType },
+      body: body as BodyInit,
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+  } catch (err) {
+    throw new LineApiError(
+      isTimeoutOrAbort(err) ? 'LINE API หมดเวลาเชื่อมต่อ' : 'เชื่อมต่อ LINE API ไม่สำเร็จ',
+      0,
+      err instanceof Error ? { name: err.name, message: err.message } : undefined,
+    )
+  }
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    const message = typeof json.message === 'string' ? json.message : `LINE API error (HTTP ${res.status})`
+    throw new LineApiError(message, res.status, json)
+  }
+}

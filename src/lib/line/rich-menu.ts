@@ -209,6 +209,51 @@ export function buildRichMenuPayload(input: {
 export type RichMenuImageMeta = { bytes: number; width: number; height: number; mime: string }
 
 /**
+ * อ่านขนาดภาพจากไบต์หัวไฟล์ (PNG + JPEG)
+ *
+ * 🛑 อยู่ในไฟล์ pure โดยตั้งใจเพื่อให้ **เทสจับได้** — JPEG เก็บ **ความสูงก่อนความกว้าง** ซึ่งสลับ
+ * กันได้ง่ายมากเวลาเขียน และถ้าสลับ ภาพ 2500×1686 จะถูกอ่านเป็น 1686×2500 → สัดส่วน 0.67
+ * → `validateRichMenuImage` ตีตกทุกใบ แปลว่า **ร้านจะเปิดเมนูไม่ได้เลยสักร้าน** โดยที่ tsc/build
+ * ผ่านหมดและข้อความ error ก็ดูสมเหตุสมผล ("ภาพแบนเกินไป")
+ *
+ * ไม่ใช้ sharp ที่มีอยู่แล้ว: ตรงนี้อ่านแค่เลขสองตัวไม่ได้แปลงภาพ การปลุก sharp แพงกว่าที่ได้
+ * และมันเป็น optional dependency ที่เคยมีปัญหาเรื่อง binary บนบางแพลตฟอร์ม
+ *
+ * คืน null เมื่ออ่านไม่ออก → ผู้เรียกส่ง 0×0 เข้า `validateRichMenuImage` แล้วถูกตีตกพร้อมเหตุผล
+ * ซึ่งเป็นผลลัพธ์ที่ถูกต้อง (ไฟล์ที่อ่านหัวไม่ออกไม่ควรถูกส่งขึ้น LINE อยู่แล้ว)
+ */
+export function readImageSize(
+  buf: Uint8Array,
+  mime: string,
+): { width: number; height: number } | null {
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength)
+  try {
+    if (mime === 'image/png') {
+      // PNG: IHDR อยู่ที่ byte 16 เสมอ (8 signature + 4 length + 4 type) width ก่อน height
+      if (buf.byteLength < 24) return null
+      return { width: view.getUint32(16), height: view.getUint32(20) }
+    }
+    // JPEG: เดินทีละ marker หา SOFn (0xC0–0xCF ยกเว้น C4/C8/CC ซึ่งไม่ใช่ frame header)
+    // โครง SOF จาก marker: [FF][Cn][len:2][precision:1][height:2][width:2]
+    let i = 2
+    while (i + 9 < buf.byteLength) {
+      if (buf[i] !== 0xff) {
+        i++
+        continue
+      }
+      const marker = buf[i + 1]!
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { height: view.getUint16(i + 5), width: view.getUint16(i + 7) }
+      }
+      i += 2 + view.getUint16(i + 2)
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
  * ตรวจภาพให้ครบทุกเกณฑ์แล้วคืน **เหตุผลทุกข้อที่ไม่ผ่านพร้อมกัน** ไม่ใช่ข้อแรกที่เจอ
  *
  * เหตุผล: ผู้ขายที่ภาพไม่ผ่าน 3 ข้อ จะต้องแก้แล้วลองใหม่ 3 รอบถ้าเราบอกทีละข้อ

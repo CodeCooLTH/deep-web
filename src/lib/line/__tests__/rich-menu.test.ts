@@ -19,6 +19,7 @@ import {
   buildRichMenuName,
   buildRichMenuPayload,
   cellBounds,
+  readImageSize,
   countChatBarText,
   gridFor,
   isChatBarTextValid,
@@ -200,6 +201,54 @@ describe('validateRichMenuImage', () => {
 
   it('ความสูง 0 ต้องไม่ทำให้หารด้วยศูนย์', () => {
     expect(() => validateRichMenuImage({ ...ok, height: 0 })).not.toThrow()
+  })
+})
+
+describe('readImageSize', () => {
+  /** PNG: [8 signature][4 len][4 "IHDR"][4 width][4 height] — width มาก่อน height */
+  function png(width: number, height: number): Uint8Array {
+    const b = Buffer.alloc(24)
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b, 0)
+    b.write('IHDR', 12, 'ascii')
+    b.writeUInt32BE(width, 16)
+    b.writeUInt32BE(height, 20)
+    return b
+  }
+
+  /** JPEG: [FFD8][FFC0][len:2][precision:1][height:2][width:2] — 🛑 height มาก่อน width */
+  function jpeg(width: number, height: number): Uint8Array {
+    const b = Buffer.alloc(20)
+    b.writeUInt16BE(0xffd8, 0)
+    b.writeUInt16BE(0xffc0, 2)
+    b.writeUInt16BE(17, 4) // length ของ segment
+    b.writeUInt8(8, 6) // precision
+    b.writeUInt16BE(height, 7)
+    b.writeUInt16BE(width, 9)
+    return b
+  }
+
+  /**
+   * 🛑 เคสนี้จับบั๊กที่ทำให้ **ร้านเปิดเมนูไม่ได้เลยสักร้าน**: JPEG เก็บความสูงก่อนความกว้าง
+   * ถ้าอ่านสลับ ภาพ 2500×1686 จะกลายเป็น 1686×2500 → สัดส่วน 0.67 → `validateRichMenuImage`
+   * ตีตกด้วยเหตุผลที่ฟังดูสมเหตุสมผล ("ภาพแบนเกินไป") ทั้งที่ภาพถูกต้องทุกประการ
+   */
+  it('[blocker] JPEG ต้องอ่าน width/height ไม่สลับกัน', () => {
+    expect(readImageSize(jpeg(RICH_MENU_CANVAS_WIDTH, RICH_MENU_CANVAS_HEIGHT), 'image/jpeg')).toEqual({
+      width: RICH_MENU_CANVAS_WIDTH,
+      height: RICH_MENU_CANVAS_HEIGHT,
+    })
+    // ภาพจากกรอบมาตรฐานของเราต้องผ่านเกณฑ์ของ LINE เมื่ออ่านขนาดถูก
+    const dim = readImageSize(jpeg(RICH_MENU_CANVAS_WIDTH, RICH_MENU_CANVAS_HEIGHT), 'image/jpeg')!
+    expect(validateRichMenuImage({ bytes: 900_000, mime: 'image/jpeg', ...dim })).toEqual({ ok: true })
+  })
+
+  it('[blocker] PNG ต้องอ่าน width/height ไม่สลับกัน', () => {
+    expect(readImageSize(png(2500, 1686), 'image/png')).toEqual({ width: 2500, height: 1686 })
+  })
+
+  it('ไฟล์ที่อ่านหัวไม่ออก = null (แล้วผู้เรียกจะตีตกด้วย 0×0 ซึ่งถูกต้อง)', () => {
+    expect(readImageSize(new Uint8Array([1, 2, 3]), 'image/png')).toBeNull()
+    expect(readImageSize(new Uint8Array([0xff, 0xd8, 0, 0, 0, 0]), 'image/jpeg')).toBeNull()
   })
 })
 
