@@ -2937,6 +2937,8 @@ async function sendOutboundLineMessage(
     /** (2026-08-11) การ์ด Flex — ชนะ `text` เมื่อมีค่า (ดู buildParts) */
     flex?: { altText: string; contents: Record<string, unknown> }
     replyToMid?: string | null
+    /** (feature 00045) claim reply token ไม่ได้ = ยกเลิก ห้าม push — ดู sendOutboundMessage */
+    replyOnly?: boolean
   },
 ) {
   const shopChannel = conversation.shopChannel!
@@ -3009,6 +3011,15 @@ async function sendOutboundLineMessage(
       sendMethod = 'REPLY'
       claimedReplyToken = conversation.replyToken!
     }
+  }
+
+  // 🛑 BR-LINE-18 — ผู้ส่งอัตโนมัติที่ประกาศ `replyOnly` ห้ามตกไป push เด็ดขาด (feature 00045 D-RM-3)
+  //
+  // ต้องอยู่ **หลัง CAS** ไม่ใช่ก่อนเรียกฟังก์ชันนี้: ช่วงระหว่าง "เช็คว่าหน้าต่างเปิด" กับ "claim
+  // token ได้จริง" มี event ใหม่จาก LINE หรือการส่งอีกอันแย่ง token ไปได้ ผู้เรียกที่เช็คเองข้างนอก
+  // จะเห็นว่าเปิดแล้วเรียกเข้ามา แต่ที่นี่ claim ไม่ผ่าน → ตกไป PUSH = ใช้เงินร้านโดยไม่มีใครสั่ง
+  if (params.replyOnly && sendMethod !== 'REPLY') {
+    throw new Error('REPLY_WINDOW_CLOSED')
   }
 
   // ── TFR-LINE-06 ข้อ 5 (S-9): โควตาหมด = ห้ามยิง LINE ─────────────────────
@@ -3335,6 +3346,17 @@ export async function sendOutboundMessage(params: {
   // reply/quote (user 2026-07-25): externalMessageId (mid) ของข้อความที่ตอบทับ — ส่ง reply_to:{mid}
   // ให้ Meta (Messenger รองรับ; IG best-effort) + เก็บ replyToMid ฝั่งเราเพื่อ render quote
   replyToMid?: string | null
+  /**
+   * (feature 00045) **ส่งได้เฉพาะด้วย reply token เท่านั้น — claim ไม่ได้ = ยกเลิก ห้าม push**
+   *
+   * 🛑 มีไว้บังคับ BR-LINE-18 ให้กับผู้ส่งอัตโนมัติ: ฟังก์ชันนี้ตั้งต้น `sendMethod = 'PUSH'` แล้ว
+   * ค่อยพยายามอัปเกรดเป็น REPLY ⇒ ผู้ส่งอัตโนมัติที่เรียกตอนหน้าต่างฟรีปิดอยู่ (หรือแพ้ CAS ให้
+   * คนอื่นที่แย่ง token ไปก่อน) จะ **push ทันทีโดยไม่มีใครสั่ง = ใช้เงินร้านเอง**
+   *
+   * การเช็คหน้าต่างก่อนเรียกอย่างเดียวไม่พอ เพราะยังมีช่องระหว่าง "เช็คแล้วเปิด" กับ "claim จริง"
+   * ที่ event ใหม่หรือการส่งอีกอันแย่ง token ไปได้ — ด่านจึงต้องอยู่ **หลัง CAS** ในฟังก์ชันนี้
+   */
+  replyOnly?: boolean
 }) {
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.conversationId },
