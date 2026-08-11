@@ -25,6 +25,7 @@ import Typography from '@mui/material/Typography'
 import { formatDateTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import { getTierGradient } from '@/lib/trust-tier'
+import { resolveVerifyBadge, VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
 
 export type OrderLinkShopContext = {
   publicToken: string
@@ -47,14 +48,17 @@ export type OrderLinkShopContext = {
   latestReview: { rating: number; comment: string; createdAtIso: string } | null
 }
 
-/** ป้ายบอก "ระดับ" ที่ยืนยันถึง ไม่ใช่คำว่ายืนยันแล้วลอย ๆ — ร้านที่ทำแค่ OTP ไม่ควรได้ป้ายเดียวกับ
- *  ร้านที่จดทะเบียนธุรกิจ (L1 = เบอร์ OTP, L2 = เอกสาร, L3 = จดทะเบียนธุรกิจ) */
-function verifyBadge(level: number): { label: string; tone: 'gold' | 'green' } | null {
-  if (level >= 3) return { label: 'จดทะเบียนธุรกิจแล้ว', tone: 'gold' }
-  if (level === 2) return { label: 'ยืนยันเอกสารแล้ว', tone: 'green' }
-  if (level === 1) return { label: 'ยืนยันเบอร์แล้ว', tone: 'green' }
-  return null
-}
+/**
+ * 🛑 นิยามป้ายยืนยันย้ายไป `@/lib/verify-badge` แล้ว — ห้ามเขียนกลับมาที่นี่
+ *
+ * ป้ายนี้โผล่บนหน้าออเดอร์สาธารณะ /o/{token} ด้วย ซึ่งผู้ซื้อคนเดียวกันเห็นก่อนกดมาหน้านี้
+ * ห่างกันไม่กี่วินาที คำหรือสีที่ไม่ตรงกันสังเกตได้ทันทีและบั่นทอนสิ่งเดียวที่ป้ายนี้มีไว้ทำ
+ *
+ * สองอย่างที่เปลี่ยนไปพร้อมกับการย้าย:
+ * 1. L1 (ยืนยันเบอร์ด้วย OTP) ไม่ใช่สีเขียวอีกต่อไป — ซิมเติมเงินซื้อที่ร้านสะดวกซื้อก็ทำได้
+ *    ให้เขียวเท่าร้านที่ส่งเอกสารให้แอดมินตรวจ = ทำให้สัญญาณเฟ้อ (Verified-Means-Green)
+ * 2. ตัวอักษรใช้เฉด ink แทน text-success/text-warning ซึ่งบนพื้นจางวัดได้ 1.8–3.5:1 (ตก AA)
+ */
 
 function initials(name: string) {
   return name.trim().charAt(0) || '?'
@@ -77,7 +81,7 @@ export default function OrderLinkShell({
   compact?: boolean
   children: ReactNode
 }) {
-  const badge = verifyBadge(ctx.maxVerifyLevel)
+  const badge = resolveVerifyBadge(ctx.maxVerifyLevel)
   const hasStats = ctx.completedOrders != null || ctx.avgRating != null
 
   return (
@@ -180,11 +184,11 @@ export default function OrderLinkShell({
               {badge && (
                 <div className='flex gap-1.5 flex-wrap mbe-3'>
                   <span
-                    className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-lg ${
-                      badge.tone === 'gold'
-                        ? 'bg-warning/15 text-warning'
-                        : 'bg-success/15 text-success'
-                    }`}
+                    className='text-[11.5px] font-semibold px-2.5 py-1 rounded-lg inline-flex items-center gap-1'
+                    style={{
+                      backgroundColor: VERIFY_BADGE_PALETTE[badge.tone].bg,
+                      color: VERIFY_BADGE_PALETTE[badge.tone].fg,
+                    }}
                   >
                     {badge.label}
                   </span>

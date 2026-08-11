@@ -20,6 +20,20 @@ export type VerifyBadge = {
   icon: string
 }
 
+/**
+ * สีพื้น/สีตัวอักษรต่อโทน — อยู่ที่นี่เพราะสองจอที่ใช้ป้ายนี้เขียนคนละระบบสไตล์
+ * (จอหนึ่งเป็น MUI sx อีกจอเป็น Tailwind class) ถ้าปล่อยให้แต่ละที่แปลโทนเป็นสีเอง
+ * มันจะเลื่อนออกจากกันทันทีที่มีคนแก้ข้างเดียว
+ *
+ * 🛑 ตัวอักษรใช้เฉด "ink" เสมอ ห้ามใช้สี main บนพื้นจาง — วัดได้ 1.8–3.5:1 ซึ่งตก AA
+ * ทุกคู่ ค่าที่ใช้คือเฉดเดิมแค่เข้มขึ้น ไม่เปลี่ยนฮิว (contrast-fix-keeps-hue.md)
+ */
+export const VERIFY_BADGE_PALETTE: Record<VerifyBadgeTone, { bg: string; fg: string }> = {
+  green: { bg: 'rgba(40,199,111,0.15)', fg: '#18804A' },
+  gold: { bg: 'rgba(255,159,67,0.15)', fg: '#874C00' },
+  neutral: { bg: 'rgba(47,43,61,0.08)', fg: 'rgba(47,43,61,0.75)' },
+}
+
 export function resolveVerifyBadge(maxVerifyLevel: number): VerifyBadge | null {
   if (maxVerifyLevel >= 3) {
     return { label: 'จดทะเบียนธุรกิจแล้ว', tone: 'gold', icon: 'tabler-building-store' }

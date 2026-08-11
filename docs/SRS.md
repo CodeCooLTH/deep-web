@@ -146,6 +146,9 @@
 | FR-6.13 | **Buyer cancel เฉพาะ PENDING** — buyer ที่ผ่าน phone-unlock สามารถยกเลิก order ได้เฉพาะสถานะ `PENDING`; เมื่อ status = `SHIPPED` ปุ่มยกเลิกหาย เหลือแต่ปุ่มยืนยันรับของ; `CONFIRMED`/`CANCELLED` = terminal. guard ทั้ง UI + API. `cancelInitiator='buyer'` ไม่กระทบ Zero Complaint | Must |
 | FR-6.14 | **เลือกวันที่คำสั่งซื้อย้อนหลัง (feature 00033)** — seller ระบุ `Order.createdAt` เองได้ตอนสร้าง/แก้ไข order (ย้อนหลัง 90 วัน / ล่วงหน้า 7 วัน) ค่านี้กำหนดเลขออเดอร์ (`orderNo`), ลำดับรายการ, และยอดขายทุกหน้าที่นับตามวันที่. เวลาจริงที่กดสร้าง/แก้ไขไม่ถูกบิดเบือนตาม — บันทึกแยกใน `OrderEvent.occurredAt` เสมอ (ดู §6.2, §8.1b) รายละเอียดเต็ม: `docs/20 - Features/00033 - Backdated Order Date/` | Must |
 
+| FR-6.15 | **เปิดหน้าออเดอร์ให้ผู้ที่ยังไม่ล็อกอินเห็นแบบจำกัด (feature 00041, มติ D-1)** — เดิม `/o/{token}` redirect ไป sign-in ทันที ผลจริงบน prod คือ **0/73 ใบมีผู้ซื้อเข้ามาเลย**. ตอนนี้ guest เห็น: สถานะ, รายการสินค้า, ยอดรวม, เลขพัสดุ+timeline, หลักฐานร้าน (ระดับยืนยัน/ยอดออเดอร์สำเร็จ/คะแนน/ช่องทางที่เชื่อม/รีวิวจริง) และ **ข้อมูลผู้รับที่ปิดบังแล้ว** (จังหวัดเต็ม + 3 ตัวท้ายของท่อนอื่น, เบอร์ `•••-•••-891`) 🛑 **ทุก action ที่ผูกตัวตนยังบังคับ login เหมือนเดิมทุกประการ** — ที่เปลี่ยนคือ "ก่อน login เห็นอะไรได้บ้าง" เท่านั้น. ชุดข้อมูลที่ส่งข้ามไป client เป็น **allow-list** ที่ `guest-order-data.ts` (ฟิลด์ใหม่ต้องมาเพิ่มที่นั่นโดยตั้งใจ ไม่ใช่ไหลตามไปเอง) | Must |
+| FR-6.16 | **feature 00041** — การปิดบังต้องมีคำอธิบายบนหน้าจอเสมอ: จุดไข่ปลาที่ไม่มี legend อ่านได้ว่า "เว็บนี้ปิดบังอะไรอยู่" ไม่ใช่ "กำลังปกป้องฉัน" ซึ่งกลับหัวกับเจตนา — ผู้ใช้กลุ่มนี้คือคนที่กลัวมิจฉาชีพอยู่แล้ว | Must |
+
 ### FR-7: Review
 
 | ID | ข้อกำหนด | Priority |
@@ -154,6 +157,11 @@
 | FR-7.2 | 1 order = 1 review (unique constraint บน orderId; error message ผู้ใช้เป็นไทย) | Must |
 | FR-7.3 | Buyer ไม่สมัคร → เก็บ `reviewerContact`. **anonymous review นับเข้า rating แต่ไม่นับ unique-reviewer ของ Community Favorite** | Must |
 | FR-7.4 | แสดง reviews บน public profile | Must |
+| FR-7.5 | **feature 00041** — ผู้ซื้อแก้ไข/ลบรีวิวของตัวเองได้ภายใน **24 ชม.** SSOT ของหน้าต่าง = `src/lib/review-window.ts` (ห้าม hardcode เลข 24 ที่อื่น) 🛑 นับจาก `createdAt` ของใบแรกเสมอ **ไม่ใช่ `updatedAt`** — นับจากเวลาที่แก้ล่าสุดจะยืดหน้าต่างได้ไม่รู้จบ = เท่ากับไม่มีหน้าต่าง. หมดเวลาแล้วปุ่มหายไปเฉย ๆ ไม่ขึ้นข้อความว่า "หมดเวลาแล้ว" (รีวิวยังแสดงปกติ ไม่มีอะไรผิดพลาดที่ต้องแจ้ง) | Must |
+| FR-7.6 | **feature 00041** — ลบรีวิวเป็น **soft delete** และ **ลบแล้วเขียนใหม่สำหรับออเดอร์เดิมไม่ได้อีก** (ดูเหตุผลที่ §6.2 Review) ต้องบอกผู้ใช้ในกล่องยืนยันก่อนกด ไม่ใช่ให้ไปเจอทางตันหลังกด | Must |
+| FR-7.7 | **feature 00041** — แนบรูปในรีวิวได้ ≤4 ใบ ผ่าน direct upload (`@/lib/upload-client`) ห้ามส่งผ่าน body ของ API route | Must |
+| FR-7.8 | **feature 00041** — ร้านตอบกลับรีวิวได้ 1 คำตอบต่อ 1 รีวิว ตอบซ้ำ = เขียนทับ **ไม่มีเงื่อนไขเวลา** (ต่างจากผู้ซื้อ) สิทธิ์ = เจ้าของร้าน หรือ `ShopMember(role='ADMIN')` ตรวจที่ service ทุกครั้ง ไม่ใช่แค่ซ่อนปุ่ม (BR-BOE-07) 🛑 คำตอบแสดงต่อสาธารณะบนหน้าออเดอร์ของผู้ซื้อ — หน้าจอที่ให้เขียนต้องบอกเรื่องนี้ *ก่อน* กดบันทึก | Must |
+| FR-7.9 | **feature 00041** — คำตอบของร้านใช้โทน info ไม่ใช่เขียว: เป็นคำพูดของร้าน ไม่ใช่ข้อเท็จจริงที่ระบบยืนยันได้ (Verified-Means-Green) และไม่มี badge "ตอบแล้ว" สีเขียวรายแถว — คำตอบที่แสดงอยู่คือหลักฐานในตัวมันเอง | Should |
 
 ### FR-8: Buyer History Linking
 
@@ -612,6 +620,20 @@ SellerWallet (1) ── (N) WalletTransaction
 | `reviewerContact` | String? | phone/email ของ anonymous reviewer — PII |
 | `rating` | Int | 1-5 |
 | `comment` | String? | ≤500 chars |
+| `images` | Json `@default("[]")` | **feature 00041** — fileId ของรูปแนบ ≤4 ใบ (BR-BOE-19); เพดานจำนวนบังคับที่ service ไม่ใช่ DB CHECK · ขนาดต่อไฟล์บังคับที่ `/api/uploads/commit` |
+| `shopReplyComment` | String? `@db.Text` | **feature 00041** — คำตอบของร้าน 1 ต่อ 1 รีวิว (BR-BOE-21) ตอบซ้ำ = **เขียนทับ** ไม่ใช่แถวใหม่ จึงเป็นคอลัมน์ inline ไม่ใช่ตารางแยก |
+| `shopRepliedAt` | DateTime? | เวลาที่ตอบ — 🛑 ต้องมีคู่กับ `shopReplyComment` เสมอถึงจะนับว่า "ตอบแล้ว" (แถวเก่ามีข้อความโดยไม่มีเวลาได้) |
+| `shopRepliedByUserId` | String? FK → User `onDelete: SetNull` | ใครในร้านเป็นคนตอบ — **บันทึกแล้วแต่ยังไม่มีหน้าจอไหนแสดง** (หนี้ที่รู้ตัว: ร้านที่มีพนักงานหลายคนยังตรวจสอบย้อนหลังไม่ได้) |
+| `deletedAt` | DateTime? | **feature 00041 — soft delete ที่ "ต้องมี" ไม่ใช่ทางเลือกเชิงสไตล์** ดูกล่องเตือนด้านล่าง |
+| `updatedAt` | DateTime `@updatedAt` | ขยับทุกครั้งที่แถวถูกแก้ **รวมตอนร้านตอบกลับ** — ห้ามใช้วัด "ผู้ซื้อแก้ไขกี่ครั้ง" ตรง ๆ |
+
+🛑 **ทำไม Review ต้อง soft delete:** `canEditReview()` นับหน้าต่างแก้ไข 24 ชม. จาก `createdAt`
+ถ้า hard-delete แล้วเขียนใหม่ได้ แถวใหม่จะได้ `createdAt` ใหม่ = เริ่มจับเวลาใหม่ ⇒ ลบ-เขียนใหม่
+ทุก 23 ชม. ก็แก้รีวิวได้ตลอดกาล ทำลาย BR-BOE-17 ทั้งข้อ. แถวยังอยู่ ⇒ `Order.review` ไม่เป็น null
+⇒ guard ของ `createReview()` ยังทำงาน ⇒ `createdAt` ไม่มีวันรีเซ็ต
+
+🛑 **ทุก read path ต้องกรอง `deletedAt: null`** ยกเว้น 2 จุดที่ต้องไม่กรองโดยตั้งใจ:
+`createReview()` guard (ต้องเห็นแถวที่ถูกลบเพื่อกันเขียนใหม่) และ `linkBuyerHistory`
 
 **หมายเหตุ:** anonymous review นับเข้า avgRating แต่ **ไม่นับ** unique reviewer ของ Community Favorite badge
 
@@ -864,8 +886,13 @@ SellerWallet (1) ── (N) WalletTransaction
 | POST | `/api/orders/[token]/confirm` | Guest/Buyer | ยืนยัน order (Path A: SMS cookie; Path B: phone parity) | `order.service` |
 | POST | `/api/orders/[token]/cancel` | Seller-owner / Buyer (phone parity) | ยกเลิก — derive `cancelInitiator` จาก session | `order.service` |
 | POST | `/api/orders/[token]/ship` | Seller-owner | ใส่ tracking (เฉพาะ `fulfillmentMode=SHIPPED`) | `order.service` |
-| POST | `/api/orders/[token]/review` | Buyer (phone parity) | เขียน review 1-5 ดาว | `review.service` |
-| POST | `/api/orders/[token]/slip` | Buyer (cookie/phone parity) | แนบสลิปโอนเงิน (≤5MB; PENDING only) | `order.service` |
+| POST | `/api/orders/[token]/review` | Buyer (phone parity) | เขียน review 1-5 ดาว + รูปแนบ ≤4 | `review.service` |
+| PATCH | `/api/orders/[token]/review` | Buyer เจ้าของรีวิว | **feature 00041** — แก้ไขรีวิวของตัวเองภายใน 24 ชม. นับจาก `createdAt` (BR-BOE-17) | `review.service` |
+| DELETE | `/api/orders/[token]/review` | Buyer เจ้าของรีวิว | **feature 00041** — ลบรีวิว (soft) ภายในหน้าต่างเดียวกัน — ลบแล้วเขียนใหม่ไม่ได้ (BR-BOE-18) | `review.service` |
+| POST | `/api/orders/[token]/review/reply` | Shop owner / `ShopMember(ADMIN)` | **feature 00041** — ตอบกลับรีวิว; ตอบซ้ำ = เขียนทับ **ไม่มีเงื่อนไขเวลา** | `review.service` |
+| DELETE | `/api/orders/[token]/review/reply` | Shop owner / `ShopMember(ADMIN)` | **feature 00041** — ลบคำตอบ (ไม่กระทบรีวิวต้นทาง) | `review.service` |
+| POST | `/api/orders/[token]/auth-flow/start` | สาธารณะ (ไม่ต้อง login) | **feature 00041** — บันทึกว่า guest เริ่มยืนยันตัวตน; คืน 204 เสมอ ไม่ว่าเกิดอะไรขึ้น (เป็น instrumentation ห้ามทำให้ผู้ใช้สะดุด) | `order-event.service` |
+| POST | `/api/orders/[token]/slip` | Buyer (cookie/phone parity) | แนบสลิปโอนเงิน (PENDING only) — 🛑 **รับ JSON `{fileId}` เท่านั้น** ไฟล์ขึ้น storage ตรงผ่าน `@/lib/upload-client`; multipart ถูกถอดออกแล้วเพราะ body ของ function ตันที่ 4.5MB (`docs/conventions/upload-body-size-limit.md`) | `order.service` |
 | POST | `/api/orders/[token]/send-sms` | Seller-owner | ส่ง SMS Order Link — atomic deduct+issue (฿1/SMS) | `wallet.service`, `sms-code.service`, `lib/sms.ts` |
 | POST | `/api/orders/[token]/access-url` | Seller-owner | ตั้ง `accessUrl` สำหรับ digital delivery | `order.service` |
 | GET | `/api/orders/[token]/buyer-phone` | Buyer (SMS cookie) | คืน phone+masked phone สำหรับ OTP pre-fill | — |
@@ -1027,7 +1054,7 @@ SellerWallet (1) ── (N) WalletTransaction
 
 ### 8.1b OrderEvent Type (`src/lib/order-event.ts::ORDER_EVENT_TYPES`)
 
-> **13 ค่า** — CHECK constraint `OrderEvent_type_check` (unmanaged SQL) ต้องตรงกับรายการนี้เป๊ะ ดู §6.2 OrderEvent
+> **15 ค่า** — CHECK constraint `OrderEvent_type_check` (unmanaged SQL) ต้องตรงกับรายการนี้เป๊ะ ดู §6.2 OrderEvent
 
 | ค่า | ความหมาย |
 |-----|---------|
@@ -1044,6 +1071,12 @@ SellerWallet (1) ── (N) WalletTransaction
 | `SYSTEM_CONFIRMED` | ระบบยืนยันคำสั่งซื้ออัตโนมัติ |
 | `PAYMENT_METHOD_SYNCED` | ปรับวิธีชำระเงินตามพัสดุ |
 | `ORDER_DATE_CHANGED` | **feature 00033** — เปลี่ยนวันที่คำสั่งซื้อ (เลื่อนยอดข้ามงวด) |
+| `AUTH_FLOW_STARTED` | **feature 00041** — guest กดปุ่มเข้าสู่ระบบจากหน้าออเดอร์สาธารณะ (ครึ่งแรกของ Login Completion Rate) |
+| `AUTH_FLOW_COMPLETED` | **feature 00041** — ยืนยันตัวตนสำเร็จและเข้าถึงออเดอร์ได้ (ครึ่งหลัง) |
+
+🛑 **สองค่าท้ายเป็น instrumentation ไม่ใช่เหตุการณ์ของออเดอร์** — ถูกกรองออกจากไทม์ไลน์ที่ผู้ใช้เห็น
+ผ่าน `INSTRUMENTATION_EVENT_TYPES` ใน `order-event.service.ts` ถ้ามีคนเอาออกจากรายการนั้น
+ประวัติออเดอร์ของลูกค้าจะรกขึ้นทันทีโดยไม่มีอะไรฟ้อง (มันยังเป็น event ที่ถูกต้องทุกประการ)
 
 ### 8.2 Product Type / Capability
 
@@ -1184,6 +1217,10 @@ SellerWallet (1) ── (N) WalletTransaction
 | ส่ง SMS | — | — | ✅ (wallet ต้องมีเครดิต) | — |
 | ตั้ง accessUrl | — | — | ✅ | — |
 | ดู buyer phone (SMS cookie) | — | ✅ (ถือ SMS cookie valid) | — | — |
+| เขียนรีวิว | ✅ (phone parity) | ✅ | — | — |
+| **แก้ไข/ลบรีวิวของตัวเอง** (00041) | ✅ (phone parity, ภายใน 24 ชม.) | ✅ (ภายใน 24 ชม.) | — | — |
+| **ตอบกลับ/ลบคำตอบรีวิว** (00041) | — | — | ✅ (owner หรือ `ShopMember(ADMIN)`, ไม่จำกัดเวลา) | — |
+| **บันทึกว่าเริ่มยืนยันตัวตน** (00041) | ✅ (ไม่ต้อง login — คืน 204 เสมอ) | ✅ | ✅ | ✅ |
 
 ### 9.2 Product / Shop
 
