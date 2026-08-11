@@ -27,6 +27,11 @@ import { authOptions } from '@/lib/auth'
 import { getOrderByToken } from '@/services/order.service'
 import { resolveOrderAccess, guaranteeOrderLink } from '@/services/order-access.service'
 import { hasOpenDispute } from '@/services/order-dispute.service'
+import {
+  approvedVerificationWhere,
+  businessScope,
+  type VerificationReadScope,
+} from '@/lib/verification-scope'
 
 import PublicOrderClient from './PublicOrderClient'
 import OrderAccessBlock from './OrderAccessBlock'
@@ -68,6 +73,22 @@ export default async function PublicOrderPage({ params }: Props) {
     const order = await getOrderByToken(token)
     if (!order) notFound()
 
+    /* 🛑 "ระดับยืนยันของร้านนี้" มีนิยามเดียวทั้งระบบที่ src/lib/verification-scope.ts (FR-2.7)
+       ประกาศไว้ตรงนี้ครั้งเดียวแล้วใช้ทั้ง 2 สาขาข้างล่าง (guest / ล็อกอินแล้ว) เพราะสองสาขานั้น
+       เคยเขียน where ของตัวเองแยกกันคนละบรรทัด — จอเดียวกัน ผู้ซื้อคนเดียวกัน ต้องไม่มีทางตอบต่างกัน
+
+       เดิมทั้งคู่เขียน `{ userId: order.shop.userId }` ลอย ๆ ไม่มีเงื่อนไข shopId ⇒ เอกสาร L2/L3
+       ที่เจ้าของอัปให้ร้าน **อื่น** ของตัวเองจะไหลมานับเป็นระดับของร้านที่กำลังเปิดใบสั่งซื้ออยู่
+       (บน prod มีเจ้าของที่ถือ 4 ร้าน) — เป็นการอ้างความน่าเชื่อถือที่ยังไม่จริง บนหน้าที่ผู้ซื้อ
+       ใช้ตัดสินใจโอนเงิน ซึ่งอันตรายกว่าบั๊กทิศตรงข้ามที่แก้ไปใน 413cafb3 (นับน้อยไป) มาก
+
+       ยังไม่เคยระเบิดเพราะทั้งฐานยังไม่มีแถว L2/L3 เลยสักแถว (ตรวจ 2026-08-11: 6 แถวเป็น L1
+       shopId=null ล้วน) — ไม่ใช่เพราะโค้ดถูก แต่เพราะยังไม่มีใครเดินผ่านเส้นทางนั้น */
+    const verifyScope: VerificationReadScope =
+      order.shop.kind === 'BUSINESS'
+        ? businessScope(order.shop.id, order.shop.userId)
+        : { kind: 'personal', userId: order.shop.userId }
+
     const session = await getServerSession(authOptions)
 
     /**
@@ -105,7 +126,7 @@ export default async function PublicOrderPage({ params }: Props) {
       // จะกลายเป็น findUnique ของออเดอร์ใบเดิมรอบที่สองโดยไม่ได้อะไรเพิ่ม
       const [guestVerifications, statusGroups, ratingAgg, latestReview, channels] = await Promise.all([
         prisma.verificationRecord.findMany({
-          where: { userId: order.shop.userId, status: 'APPROVED' },
+          where: approvedVerificationWhere(verifyScope),
           select: { level: true },
         }),
         prisma.order.groupBy({
@@ -217,7 +238,7 @@ export default async function PublicOrderPage({ params }: Props) {
        จะยืดเวลาโหลดจริงตามจำนวน round trip ส่วนแบบขนานเสียเท่าตัวที่ช้าที่สุดตัวเดียว */
     const [approvedVerifications, statusGroups, ratingAgg, channels] = await Promise.all([
       prisma.verificationRecord.findMany({
-        where: { userId: order.shop.userId, status: 'APPROVED' },
+        where: approvedVerificationWhere(verifyScope),
         select: { level: true },
       }),
       prisma.order.groupBy({

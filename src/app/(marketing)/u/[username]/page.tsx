@@ -19,6 +19,7 @@ import { getAvgRatingByUsername } from '@/services/review.service'
 import { getProductsByShop, getConfirmedOrderCountByProduct } from '@/services/product.service'
 import { getPinnedProducts } from '@/services/pin.service'
 import { getTierLabel, getTierColor, getNextTierInfo, getTierGradient } from '@/lib/trust-tier'
+import { approvedVerificationWhere } from '@/lib/verification-scope'
 import { getShopProfileStats } from '@/services/shop.service'
 import { getShopVideos } from '@/services/shop-video.service'
 import { toFileUrl } from '@/lib/file-url'
@@ -127,8 +128,13 @@ export default async function PublicProfilePage({ params }: Props) {
   // แล้วผลของชุดที่สองไปตกที่ profileHeader.completedOrders/.completionRate ซึ่งไม่มีใคร render
   // (ShopProfile อ่านจาก profileStats ทั้งหมด) — ถอดออกแล้ว อ่านจาก profileStats ที่มีอยู่แทน
   const [approvedVerifications, ratingAgg, rawPinnedProducts, rawOtherProducts] = await Promise.all([
+    /* 🛑 ต้องมี `shopId: null` ด้วย ไม่ใช่ `{ userId }` ลอย ๆ — หน้านี้คือโปรไฟล์ของ *คน* (ร้าน
+       PERSONAL) ถ้ากรองด้วย userId อย่างเดียว เอกสาร L2/L3 ที่เจ้าของอัปให้ร้าน BUSINESS ของตัวเอง
+       จะไหลมานับเป็นระดับของโปรไฟล์นี้ด้วย = อ้างสิ่งที่ยังไม่จริงบนหน้าที่ผู้ซื้อใช้ตัดสินใจ
+       (ทิศตรงข้ามกับบั๊กที่แก้ไปใน 413cafb3 — อันนั้นนับน้อยไป อันนี้นับเกิน)
+       นิยามเดียวกับทุกจุดในระบบ: src/lib/verification-scope.ts (FR-2.7) */
     prisma.verificationRecord.findMany({
-      where: { userId: user.id, status: 'APPROVED' },
+      where: approvedVerificationWhere({ kind: 'personal', userId: user.id }),
       select: { level: true },
     }),
     // aggregate ทั้งหมด — ใช้แสดง rating บน platforms section

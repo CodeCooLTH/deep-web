@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toFileUrl } from "@/lib/file-url";
+import { approvedVerificationWhere, businessScope } from "@/lib/verification-scope";
 import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
 import { deductStockForOrderItems, restockFromCancelledOrder } from "@/services/inventory-stock.service";
 import { normalizePhone } from "@/lib/phone";
@@ -1771,6 +1772,8 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
           logo: true,
           coverImage: true,
           createdAt: true,
+          // ต้องมี kind — ระดับยืนยันของร้าน BUSINESS กับ PERSONAL อ่านคนละ scope (FR-2.7)
+          kind: true,
           user: { select: { id: true, username: true, trustScore: true } },
           // ช่องทางที่ร้านเชื่อมไว้ — ผู้ซื้อเพิ่งคุยกับเพจนี้อยู่ในแชทเมื่อครู่
           // เอาเฉพาะ ACTIVE: เพจที่ถอดออกแล้วไม่ใช่หลักฐานว่าติดต่อร้านได้
@@ -1798,8 +1801,16 @@ export async function getOrderSummaryForSignIn(publicToken: string) {
       _avg: { rating: true },
       _count: { _all: true },
     }),
+    /* 🛑 นิยามเดียวกับหน้า `/o/[token]` และโปรไฟล์สาธารณะ — `src/lib/verification-scope.ts` (FR-2.7)
+       จอนี้ (OrderLinkShell บนหน้า sign-in) กับหน้าออเดอร์คือสองจอที่ผู้ซื้อ *คนเดียวกัน* เห็น
+       ห่างกันไม่กี่วินาที ซึ่งเป็นเหตุผลทั้งหมดที่ `verify-badge.ts` ถูกทำเป็นไฟล์กลางตั้งแต่แรก
+       เดิมที่นี่กรอง `{ userId: ownerId }` ลอย ๆ ⇒ นับเอกสารของร้านอื่นที่เจ้าของคนเดียวกันถืออยู่ */
     prisma.verificationRecord.findMany({
-      where: { userId: ownerId, status: "APPROVED" },
+      where: approvedVerificationWhere(
+        order.shop.kind === "BUSINESS"
+          ? businessScope(shopId, ownerId)
+          : { kind: "personal", userId: ownerId },
+      ),
       select: { level: true },
     }),
     // รีวิวล่าสุดที่ "มีข้อความจริง" — ข้อความจากคนซื้อจริงหนึ่งอันน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
