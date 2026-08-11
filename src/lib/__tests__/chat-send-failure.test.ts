@@ -110,6 +110,54 @@ describe('describeSendFailure — บริบทเธรดที่มาจ�
   })
 })
 
+// (2026-08-11) feature 00043 follow-up — "(#100) Cannot tag messages with 'HUMAN_AGENT'
+// without prior approval." เกิดตอน Deep ยังไม่ได้รับสิทธิ์ human_agent จาก App Review (กอง 3)
+// สังเกตว่า code #100 ถูกใช้ซ้ำกับ error อื่นของ Meta (thread-control ใน 00018) — regex ต้องแม็ตช์
+// ที่ถ้อยคำ ไม่ใช่ code เฉย ๆ ไม่งั้นจะกลืน error อื่นที่ไม่เกี่ยวกันไปด้วย
+describe('[blocker] describeSendFailure — human_agent tag ปฏิเสธ (feature 00043 follow-up)', () => {
+  const RAW = "(#100) Cannot tag messages with 'HUMAN_AGENT' without prior approval."
+
+  it('[blocker] แปลเป็นไทยตามสเปก ux + metaCode=100 + known=true', () => {
+    const out = describeSendFailure(RAW)
+    expect(out.known).toBe(true)
+    expect(out.metaCode).toBe(100)
+    expect(out.text).toBe(
+      'เกิน 24 ชม. จากข้อความล่าสุดของลูกค้า และ Deep ยังไม่ได้รับอนุญาตจาก Meta ให้ตอบข้อความช้ากว่านั้น — เป็นแบบนี้ทุกครั้งจนกว่า Meta จะอนุญาต ตอนนี้ตอบได้ทันทีที่ลูกค้าทักเข้ามาใหม่',
+    )
+  })
+
+  it('[blocker] retryable=false — พิสูจน์ด้วย mutation (ดู mutation log ในรายงาน)', () => {
+    // เคสนี้ยืนยันพฤติกรรมปัจจุบันของโค้ดจริง (retryable: false ตามสเปก) — การพิสูจน์ด้วย mutation
+    // (สลับ rule เป็น retryable: true แล้วรันเทียบ) ทำนอกไฟล์นี้ชั่วคราว ไม่ commit ดู mutation
+    // log ในรายงานผลของ agent
+    expect(describeSendFailure(RAW).retryable).toBe(false)
+  })
+
+  it('[blocker] comment-origin → ได้ whenCommentOrigin ไม่ใช่ text ปกติ', () => {
+    const d = describeSendFailure(RAW, { commentOriginNoInbound: true })
+    expect(d.known).toBe(true)
+    expect(d.text).toBe(
+      'Meta ให้ตอบกลับคอมเมนต์นี้ได้ข้อความเดียว และ Deep ยังไม่ได้รับอนุญาตจาก Meta ให้ตอบเพิ่ม — ข้อความถัดไปจะส่งได้ก็ต่อเมื่อลูกค้าทักกลับเข้ามาก่อน',
+    )
+    expect(d.text).not.toContain('24 ชม.')
+  })
+
+  it('regression: raw ที่มี (#100) แต่เป็น error คนละเรื่อง (thread-control 00018) ต้องไม่ถูกกฎนี้แย่ง', () => {
+    // ตัวอย่างจริงจากตระกูล thread-control error ของ 00018 — โค้ด #100 เดียวกัน แต่ถ้อยคำคนละเรื่อง
+    const raw = '(#100) calling app is not the thread owner'
+    const out = describeSendFailure(raw)
+    expect(out.known).toBe(false) // ไม่มีกฎไหน match — คงข้อความดิบไว้
+    expect(out.text).toContain(raw)
+    expect(out.retryable).toBe(true) // ค่าเดิมของ "ไม่รู้จัก" ต้องไม่เปลี่ยน
+  })
+
+  it('regression: กฎ 24 ชม. เดิม (raw "outside the allowed window") ยังทำงานเหมือนเดิม ไม่ถูกกฎใหม่แย่ง', () => {
+    const out = describeSendFailure('(#10) This message is sent outside of allowed window.')
+    expect(out.text).toContain('24 ชม.')
+    expect(out.retryable).toBe(true)
+  })
+})
+
 // (2026-08-10) LINE — 4 รหัสธุรกิจของ S-8 + retryable ("กดลองใหม่มีผลไหม")
 //
 // 🛑 กันไม่ให้ Meta เปลี่ยนพฤติกรรม: rule เดิมทุกตัว (ก่อน 2026-08-10) ต้องยัง retryable=true

@@ -1,7 +1,7 @@
 # Scope Baseline — feature 00043 Facebook Human Agent (กอง 1 + กอง 2)
 
 > **สถานะ:** `ACTIVE`
-> **Gate 2 Sign-off status:** `DRAFT` (ยังไม่ถึง Gate 2 — flip เป็น `SIGNED-OFF`/`BLOCKED` ตอนจบ phase เท่านั้น)
+> **Gate 2 Sign-off status:** `SIGNED-OFF` (2026-08-11 โดย `safepay-product` — scope audit = PASS ไม่มี CREEP/GAP, DoD §9 ผ่านครบยกเว้น retro ที่ทำต่อหลัง Gate 2 ตาม workflow)
 > **Phase:** Implementation — กอง 1 (แก้บั๊ก postback) + กอง 2 (allow-list + ความสม่ำเสมอของด่านนโยบาย) — **ไม่รวมกอง 3** (เปิดสวิตช์ใหญ่ รอ Meta App Review)
 > **วันที่ตั้ง baseline:** 2026-08-10
 > **เจ้าของ scope:** `safepay-product` (Gate 0 ของ skill `agent-team-phase`)
@@ -293,10 +293,13 @@ TFR ที่ map ไม่ได้: **0 รายการ**
 - **A-03:** เทส `[blocker]` ทั้ง 4 ตัวใน S-6/S-7 พิสูจน์ด้วย unit test (pure function/mock Prisma) พอ —
   ไม่ต้องมี integration test ยิง Meta จริงใน phase นี้ (การพิสูจน์กับ Meta จริงคือ Test Plan §11.3 ของ
   PRD ซึ่งเป็นงานปฏิบัติการหลัง merge)
-- **A-04:** `META_HUMAN_AGENT_ENABLED` มีอยู่แล้วบน Vercel prod แต่ตั้งเป็นค่าว่าง/ไม่ตั้ง (= ปิด) —
-  ไม่มีใครเปิดเป็น `'true'` ระหว่าง phase นี้โดยไม่ผ่าน Controller
-- **A-05:** `META_HUMAN_AGENT_TEST_PSIDS` ยังไม่เคยตั้งค่าบน prod — การตั้งค่าจริง (Test Plan §11.3
-  ของ PRD) เป็นขั้นตอนปฏิบัติการหลัง merge ไม่ใช่ scope ของ S-id ใดใน phase นี้
+- ~~**A-04:** `META_HUMAN_AGENT_ENABLED` มีอยู่แล้วบน Vercel prod แต่ตั้งเป็นค่าว่าง/ไม่ตั้ง (= ปิด)~~
+  🛑 **ผิด — แก้ 2026-08-11:** ตรวจด้วย `vercel env ls production` แล้วพบว่า **ไม่เคยถูกตั้งค่าบน prod
+  เลยสักครั้ง** ผลลัพธ์ปลายทางเหมือนกัน (fail-closed → ปิดสนิท) แต่ข้อความเดิมสื่อผิดว่ามีการตั้งค่าไว้แล้ว
+  ซึ่งจะทำให้คนอ่านคิดว่ามีคนเคยพิจารณาค่านี้มาก่อน — ยังคงเดิม: ห้ามเปิดเป็น `'true'` โดยไม่ผ่าน Controller
+- ~~**A-05:** `META_HUMAN_AGENT_TEST_PSIDS` ยังไม่เคยตั้งค่าบน prod~~
+  **ล้าสมัย — แก้ 2026-08-11:** ตั้งค่าจริงแล้วบน Vercel production = 3 PSID ของ Sekson Oonnom
+  (ครอบ 3 เพจ) + redeploy แล้ว ตาม Test Plan §11.3 ข้อ 1-5 ของ PRD
 
 ---
 
@@ -312,6 +315,9 @@ TFR ที่ map ไม่ได้: **0 รายการ**
 | D-04 | **G-2 (นาฬิกา 7 วัน derive จากคอลัมน์เดียวกับ 24 ชม. ยังเป็นข้อสันนิษฐาน)** | ต้องพิสูจน์ระหว่าง Test Plan §11.3 ของ PRD (ข้อ 10) | ระหว่าง Test Plan (หลัง merge, ก่อนยื่น App Review) |
 | D-05 | **G-3 (เธรดที่ Meta AI ถือสิทธิ์ `standby`)** | หนี้สืบทอดจาก feature ก่อนหน้า — ฟีเจอร์นี้ไม่ทำให้อาการแย่ลง (`ingestPostbackEvent` รองรับ standby แล้วตาม BR-HA-12) แต่ไม่แก้ | Phase ที่ยังไม่กำหนด — carry ต่อ |
 | D-06 | **G-4 (`GRAPH_VERSION='v21.0'` ยังไม่ตรวจ deprecation)** | ควรตรวจ Meta Changelog ก่อนยื่น App Review | ก่อนยื่น App Review (กอง 3) |
+| **D-07** | **`(#100) Cannot tag messages with 'HUMAN_AGENT' without prior approval` ถูกจัดเป็น retryable** | ไม่มี rule ผูกกับ error นี้ใน `chat-send-failure.ts` → ตกไปทาง "ไม่รู้จัก" ซึ่ง default `retryable: true` → ผู้ขายเห็นอังกฤษดิบ + ปุ่ม "ลองใหม่" ที่กดกี่ครั้งก็ไม่มีทางผ่านจนกว่า App Review จะอนุมัติ (คลาสเดียวกับ `feedback_retry_must_reread_source_of_truth`) · API.md เขียนไว้เองว่า "ห้ามเดา error code ... ต้อง reproduce กับเพจจริงก่อน" — **ตอนนี้ reproduce ได้แล้ว** เข้าเงื่อนไขที่เอกสารอนุญาต | **กำลังปิดในรอบเดียวกันนี้** (ux gate ผ่านแล้ว 2026-08-11) |
+| **D-08** | 🛑 **เส้นทาง Human Agent ไม่ทิ้งร่องรอยให้สืบย้อนหลังในเคสที่สำคัญที่สุด** | ยืนยันกับโค้ดแล้ว 2 ช่องซ้อนกัน: (1) `sendOutboundMessage` ใส่ `messageTag` ลง `rawMessage` **เฉพาะตอนสำเร็จ** (`:3506`) ส่วนตอน **Meta ปฏิเสธ** (`:3494`/`:3496`) บันทึกแค่ `ok:false/httpStatus/code/subcode/error` **ไม่มี `messageTag`** ⇒ เคส "พยายามติด tag แล้วถูกปฏิเสธ" ซึ่งเป็นเคสที่ต้องสืบมากที่สุด คือเคสเดียวที่ไม่มีหลักฐาน (2) `sendOutboundImageGrid::createMany` **ไม่มี field `rawMessage` เลย** ⇒ กริดรูปที่ส่งด้วยสิทธิ์นี้สืบไม่ได้ทั้งหมด | **ต้องปิดก่อนกอง 3** — เป็น audit trail เดียวที่มี ถ้า Meta ทักว่ามีการละเมิดนโยบายแล้วสืบไม่ได้ว่าร้านไหน/ข้อความไหน จะตอบ Meta ไม่ได้เลย |
+| **D-09** | **ไม่มีด่านตรวจว่าเนื้อหาที่ร้านพิมพ์เป็นโปรโมชันหรือไม่** | มีแค่ข้อความเตือนบน UI (`ChatThread.tsx:1761`) ซึ่งบังคับอะไรไม่ได้ · PRD §6.1 ให้ความเสี่ยงนี้ระดับ "สูง — Meta อาจระงับแอปทั้งระบบ" แต่ mitigation ที่เขียนไว้ ("UI เตือน") ไม่ใช่ด่านจริง · ทางเลือก: (A) keyword blocklist — false positive/negative สูงทั้งคู่ (B) manual audit หลังส่ง — **ทำไม่ได้จนกว่าจะปิด D-08** (C) รับความเสี่ยงในสเกลปัจจุบัน | **ตอนนี้ยังไม่ต้องปิด** (allow-list มีแค่ 3 PSID ของทีมเอง blast radius เล็ก) · **ต้องมีอย่างน้อย (B) ก่อนกอง 3** ซึ่งแปลว่าต้องปิด D-08 ก่อน |
 
 ---
 
@@ -384,3 +390,7 @@ TFR ที่ map ไม่ได้: **0 รายการ**
 |--------|-----------|--------|-----------|
 | 2026-08-10 | baseline สร้าง (`ACTIVE`) — S-1..S-9, map TFR-HA-01..06 ครบ 6/6, OOS-01..OOS-19, Debt D-01..D-06 | Gate 0 ของ phase implement feature 00043 (กอง 1+2 เท่านั้น) — rebase onto `origin/main` แล้ว (13 คอมมิตจาก 00025) | `safepay-product` |
 | 2026-08-10 | **ตัดสิน OOS-13 — `sentByHuman` ของ LINE ที่ `:2730` ไม่รวมเข้า SSOT รอบนี้** | พบระหว่างอ่านโค้ดสด — คนละกฎธุรกิจ (BR-LINE-18 vs BR-HA-13), ไม่มี FR/BR ของ 00043 ครอบ, เสี่ยง regression ของ 00025 สด ๆ — บันทึกเป็น D-01 แทน | `safepay-product` |
+| 2026-08-11 | **แก้ A-04/A-05 ให้ตรงข้อเท็จจริง** | Gate 2 พบว่า `META_HUMAN_AGENT_ENABLED` **ไม่เคยถูกตั้งบน prod เลย** (baseline เดิมเขียนว่า "ตั้งเป็นค่าว่าง") และ `META_HUMAN_AGENT_TEST_PSIDS` ตั้งค่าจริงแล้ว (baseline เดิมเขียนว่ายังไม่เคยตั้ง) | `safepay-product` |
+| 2026-08-11 | **บันทึกผล Test Plan §11.3 (PLAN-01..08) — allow-list ทำงานถูกต้อง แต่ Open Question §11.5 ยังปิดไม่ได้** | ทดสอบจริงบน prod: แถบสถานะขึ้น "ยังตอบเองได้ถึง 2569-08-16 18:32:04" = `lastInboundAt + 7 วัน` เป๊ะ ⇒ allow-list รายเธรดทำงานจริง · กดส่งจริงได้ `(#100) Cannot tag messages with 'HUMAN_AGENT' without prior approval.` ⇒ พิสูจน์ว่า tag ถูกแนบและยิงถึง Meta จริง (BR-HA-14 ทำงานถูก — พยายามส่งก่อนแล้วให้ Meta ตัดสิน) · 🛑 **แต่ Meta DevTools MCP ยืนยันว่าฟีเจอร์ "Human Agent" ไม่เคยถูกเพิ่มเข้า use case ของแอปเลย** ⇒ การทดลองนี้ **คุมตัวแปรไม่ครบ** พิสูจน์ได้แค่ "ไม่เคยขอสิทธิ์ = ถูกปฏิเสธ" ไม่ใช่ "ขอแล้วรออนุมัติ = ถูกปฏิเสธ" — PRD §11.5 ยังคง OPEN ต้องทำ PLAN-01 ก่อน | `safepay-product` |
+| 2026-08-11 | **บันทึกหนี้ใหม่ D-07/D-08/D-09** | จาก Gate 2 audit — D-08 ยืนยันกับโค้ดโดย Controller แล้ว (เส้นทางล้มเหลวไม่บันทึก `messageTag`) | `safepay-product` + Controller |
+| 2026-08-11 | **Gate 2 → `SIGNED-OFF`** | scope audit PASS (ไม่มี CREEP/GAP, S-1..S-9 ครบ, TFR-HA-01..06 map ครบ 6/6) · DoD §9 ผ่านครบยกเว้น retro ซึ่งมาหลัง Gate 2 ตาม Hard Rule 4 | `safepay-product` |
