@@ -1536,23 +1536,25 @@ export default function InboxList({
                         behaviorBadges.length > 0 ||
                         (c.lastSenderRole === 'SHOP' && !!c.lastMessageAutoReplyKind)) && (
                         <span className="mt-1 flex flex-wrap items-center gap-1">
-                          {/* ป้ายพฤติกรรมลูกค้า (user สั่ง 2026-08-11 "ต้องขึ้น label บน chat lists นะ")
-                              🛑 **ไอคอนล้วน ไม่มีข้อความ** ต่างจากในหัวแผงลูกค้าที่เป็นชิปมีคำ —
-                              critique 2026-08-09 เพิ่งตัดชิปในแถวนี้จาก "ชิงพื้นที่ได้ถึง 6 ใบ" เหลือ 1
-                              การใส่ชิปมีคำกลับเข้ามาคือย้อนงานนั้นทันที ที่ rail 320px แถวจะสูงขึ้นทุกแถว
-                              คำเต็มยังอ่านได้จาก title (hover) + aria-label (screen reader) และเห็นเต็ม ๆ
-                              ตอนเปิดเธรด — precedent เดียวกับป้ายท้ายชื่อลูกค้าในตาราง /orders */}
+                          {/* ป้ายพฤติกรรมลูกค้า — user สั่ง 2026-08-11
+                              รอบแรกผมทำเป็น **ไอคอนล้วนไม่มีคำ** เพราะ critique 2026-08-09 เพิ่งตัดชิป
+                              ในแถวนี้จาก "ชิงพื้นที่ได้ถึง 6 ใบ" เหลือ 1 — ผลคือมันขึ้นจริงแต่ผู้ขาย
+                              **อ่านไม่ออกว่าเป็นป้าย** (user: "มันไปซ่อนอยู่ตรงไหน งง") ป้ายที่อ่านไม่ออก
+                              มีค่าเท่ากับไม่มีป้าย จึงกลับมาเป็นชิปมีคำตามที่ user ระบุถ้อยคำมาเอง
+                              คุมพื้นที่แทนด้วย: คำสั้น (`ตีกลับ 2 รายการ`) + max-w + truncate
+                              ไม่ให้ดันแถวสูงขึ้นที่ rail 320px */}
                           {behaviorBadges.map((b) => (
                             <span
                               key={b.key}
                               role="img"
-                              aria-label={b.label}
-                              title={b.label}
-                              className={`inline-flex size-4.5 shrink-0 items-center justify-center rounded-full ${
+                              aria-label={b.detail ?? b.label}
+                              title={b.detail ?? b.label}
+                              className={`badge text-2xs inline-flex max-w-32 shrink-0 items-center gap-1 ${
                                 b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
                               }`}
                             >
                               <Icon icon={b.icon} width={12} height={12} className="shrink-0" aria-hidden="true" />
+                              <span className="truncate">{b.label}</span>
                             </span>
                           ))}
                           {/* ชิปโฟลเดอร์ย้ายไปมุมขวาล่าง (ใต้เวลา) แล้ว — user สั่ง 2026-07-24 */}

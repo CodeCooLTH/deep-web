@@ -661,7 +661,8 @@ export function CustomerPanelBody({ data }: { data: CustomerPanelData }) {
               // role="img" + aria-label: `<span>` เปล่าไม่รองรับ "ชื่อจากผู้เขียน" — ป้ายที่มีแต่
               // ข้อความก็จริง แต่ไอคอนข้างในต้องไม่ถูกอ่านเป็นอักขระประหลาด (aria-name-requires-supporting-role.md)
               role="img"
-              aria-label={b.label}
+              aria-label={b.detail ?? b.label}
+              title={b.detail ?? b.label}
               className={`badge inline-flex items-center gap-1 text-2xs ${
                 b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
               }`}

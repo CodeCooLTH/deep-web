@@ -385,6 +385,7 @@ export default function OrdersTable({
                 // ใบที่ "สำเร็จ" = ทั้งหมด − ยกเลิกทั้งหมด (ตรงกับนิยาม completed ใน customer-behavior)
                 completed: stats.orders - stats.cancelled,
                 cancelledByBuyer: stats.cancelledByBuyer,
+                cancelledTotal: stats.cancelled,
                 returnedParcels: stats.returned,
                 problemOrders: stats.cancelledByBuyer + stats.returned,
               },
@@ -415,8 +416,8 @@ export default function OrdersTable({
                 <span
                   key={b.key}
                   role="img"
-                  aria-label={b.label}
-                  title={b.label}
+                  aria-label={b.detail ?? b.label}
+                  title={b.detail ?? b.label}
                   className={`inline-flex size-5 shrink-0 items-center justify-center rounded-full ${
                     b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
                   }`}

@@ -20,6 +20,7 @@ describe('summarizeCustomerBehavior', () => {
       orders: 0,
       completed: 0,
       cancelledByBuyer: 0,
+      cancelledTotal: 0,
       returnedParcels: 0,
       problemOrders: 0,
     })
@@ -126,6 +127,7 @@ describe('customerBadges', () => {
     orders: 0,
     completed: 0,
     cancelledByBuyer: 0,
+    cancelledTotal: 0,
     returnedParcels: 0,
     problemOrders: 0,
     ...o,
@@ -142,7 +144,7 @@ describe('customerBadges', () => {
   })
 
   it('[blocker] สั่ง 5 ยกเลิกหมด → ห้ามได้ป้าย "ลูกค้าเก่า" (ป้ายบวกที่ผิด)', () => {
-    const b = customerBadges(behavior({ orders: 5, completed: 0, cancelledByBuyer: 5, problemOrders: 5 }), {
+    const b = customerBadges(behavior({ orders: 5, completed: 0, cancelledByBuyer: 5, cancelledTotal: 5, problemOrders: 5 }), {
       hasHistory: true,
       orderNoun: noun,
     })
@@ -156,7 +158,7 @@ describe('customerBadges', () => {
   })
 
   it('[blocker] ห้ามมีป้ายสีเขียว/แดง — บวก=info ระวัง=warning เท่านั้น', () => {
-    const b = customerBadges(behavior({ orders: 6, completed: 4, returnedParcels: 1, cancelledByBuyer: 1, problemOrders: 2 }), {
+    const b = customerBadges(behavior({ orders: 6, completed: 4, returnedParcels: 1, cancelledByBuyer: 1, cancelledTotal: 1, problemOrders: 2 }), {
       hasHistory: true,
       orderNoun: noun,
     })
@@ -165,14 +167,35 @@ describe('customerBadges', () => {
     expect(hasBehaviorWarning(b)).toBe(true)
   })
 
-  it('[blocker] คำว่า "พัสดุตีกลับ" ห้ามเขียนเป็น "คืนของ" (คนละความหมายกับ 00044)', () => {
+  it('[blocker] ห้ามใช้คำว่า "คืน" กับพัสดุตีกลับ (ชนกับ 00044 ที่กำลังออกแบบอยู่)', () => {
     const b = customerBadges(behavior({ orders: 2, completed: 1, returnedParcels: 1, problemOrders: 1 }), {
       hasHistory: true,
       orderNoun: noun,
     })
     const returned = b.find((x) => x.key === 'RETURNED')!
-    expect(returned.label).toContain('พัสดุตีกลับ')
-    expect(returned.label).not.toContain('คืนของ')
+    expect(returned.label).toBe('ตีกลับ 1 รายการ')
+    // 00044 = "ลูกค้ารับของแล้วขอคืนเงิน" คนละสถานการณ์สิ้นเชิง ใช้คำเดียวกันแล้วผู้ขายแยกไม่ออก
+    expect(returned.label).not.toContain('คืน')
+  })
+
+  it('[blocker] ป้ายยกเลิกนับ "ทุกใบ" ตามที่ user ระบุ + ขยายความใน tooltip เมื่อรู้ต้นเรื่อง', () => {
+    const b = customerBadges(
+      behavior({ orders: 5, completed: 2, cancelledTotal: 3, cancelledByBuyer: 1, problemOrders: 1 }),
+      { hasHistory: true, orderNoun: noun },
+    )
+    const cancelled = b.find((x) => x.key === 'CANCELLED_BY_BUYER')!
+    expect(cancelled.label).toBe('ยกเลิก 3 รายการ')
+    expect(cancelled.detail).toBe('ยกเลิก 3 รายการ (ลูกค้าขอเอง 1)')
+  })
+
+  it('ร้านยกเลิกเองล้วน → ป้ายยังขึ้น (ข้อเท็จจริง) แต่ไม่มีวงเล็บขยายความ', () => {
+    const b = customerBadges(behavior({ orders: 3, completed: 1, cancelledTotal: 2 }), {
+      hasHistory: true,
+      orderNoun: noun,
+    })
+    const cancelled = b.find((x) => x.key === 'CANCELLED_BY_BUYER')!
+    expect(cancelled.label).toBe('ยกเลิก 2 รายการ')
+    expect(cancelled.detail).toBe('ยกเลิก 2 รายการ')
   })
 
   it('ลูกค้าปกติที่ไม่เข้าเงื่อนไขไหนเลย → ไม่มีป้าย (ค่าเริ่มต้นของระบบ)', () => {

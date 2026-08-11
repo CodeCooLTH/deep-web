@@ -65,6 +65,17 @@ export type CustomerBehavior = {
   completed: number
   /** ผู้ซื้อกดยกเลิกเอง (ไม่นับใบที่ตีกลับ — ใบนั้นไปอยู่ถัง returnedParcels แล้ว) */
   cancelledByBuyer: number
+  /**
+   * ใบที่ยกเลิก **ทั้งหมด** ไม่สนว่าใครกด (ไม่นับใบที่ตีกลับ — ไปอยู่ถัง returnedParcels แล้ว)
+   *
+   * ป้ายบนหน้าจอใช้ตัวนี้ตามที่ user ระบุเอง 2026-08-11: "[ยกเลิก 2 รายการ] สำหรับคนที่มียกเลิก
+   * (สั่งแล้วแต่ยกเลิกก่อน)" — ถ้อยคำเป็นกลาง **บอกข้อเท็จจริงว่าใบนี้ถูกยกเลิก ไม่ได้กล่าวหาใคร**
+   * จึงนับได้ทุกใบโดยไม่ผิด (ต่างจากคำเดิม "ยกเลิกเอง" ที่ชี้ตัวคนทำ จึงต้องกรองด้วย initiator)
+   *
+   * `cancelledByBuyer` ยังเก็บไว้เพราะเป็นข้อมูลคนละชั้น — ใช้ขยายความใน tooltip และเป็นฐานของ
+   * ฟีเจอร์ที่ต้องแยก "ใครเป็นต้นเรื่อง" จริง ๆ ในอนาคต
+   */
+  cancelledTotal: number
   /** พัสดุตีกลับ: ผู้รับไม่รับ / ติดต่อไม่ได้ / ที่อยู่ใช้ไม่ได้ */
   returnedParcels: number
   /**
@@ -80,6 +91,7 @@ const EMPTY: CustomerBehavior = {
   orders: 0,
   completed: 0,
   cancelledByBuyer: 0,
+  cancelledTotal: 0,
   returnedParcels: 0,
   problemOrders: 0,
 }
@@ -89,6 +101,7 @@ export function summarizeCustomerBehavior(orders: CustomerOrderEvidence[]): Cust
 
   let completed = 0
   let cancelledByBuyer = 0
+  let cancelledTotal = 0
   let returnedParcels = 0
 
   for (const o of orders) {
@@ -113,6 +126,7 @@ export function summarizeCustomerBehavior(orders: CustomerOrderEvidence[]): Cust
        *
        * ไม่มีทั้ง initiator และ reason (ใบเก่าก่อนมีฟีเจอร์เหตุผล) = ไม่รู้ → **ไม่โทษลูกค้า**
        */
+      cancelledTotal += 1
       const byBuyer =
         o.cancelInitiator === 'buyer' ||
         (o.cancelReason !== null && cancelReasonCountsAgainstGuest(o.cancelReason))
@@ -126,7 +140,10 @@ export function summarizeCustomerBehavior(orders: CustomerOrderEvidence[]): Cust
     orders: orders.length,
     completed,
     cancelledByBuyer,
+    cancelledTotal,
     returnedParcels,
+    // "ใบที่มีปัญหา" ยังยึด cancelledByBuyer (ต้นเรื่องฝั่งลูกค้าจริง ๆ) ไม่ใช่ cancelledTotal —
+    // ป้ายบอกข้อเท็จจริงได้ทุกใบ แต่การ "นับว่าเป็นปัญหาของลูกค้า" ต้องมีหลักฐานว่าใครเป็นต้นเรื่อง
     problemOrders: cancelledByBuyer + returnedParcels,
   }
 }
@@ -146,7 +163,10 @@ export type CustomerBadgeTone = 'info' | 'warning'
 
 export type CustomerBadge = {
   key: 'NEW' | 'REGULAR' | 'RETURNED' | 'CANCELLED_BY_BUYER'
+  /** คำบนป้าย — สั้นพอใส่ในแถวรายการแชทที่แคบสุด 320px */
   label: string
+  /** คำขยายสำหรับ tooltip/screen reader — ไม่มี = ใช้ `label` (ห้ามให้ปลายทางประกอบคำเอง) */
+  detail?: string
   icon: string
   tone: CustomerBadgeTone
 }
@@ -193,19 +213,26 @@ export function customerBadges(
   }
 
   if (b.returnedParcels > 0) {
-    // คำ + ไอคอน + tone ยกจาก SSOT ของสถานะขนส่ง (`lib/iship/status.ts` → "พัสดุตีกลับ")
-    // ห้ามเขียนว่า "คืนของ" — คนละความหมายกับการที่ลูกค้ารับของแล้วขอคืน (ฟีเจอร์ 00044)
+    // 🛑 ใช้คำว่า "ตีกลับ" ไม่ใช่ "คืนของ" ที่ user เขียนมาในตัวอย่าง — เพราะฟีเจอร์ 00044 ที่กำลัง
+    // ออกแบบอยู่ตอนนี้จะใช้คำว่า "คืน" กับเรื่องที่ต่างกันสิ้นเชิง (ลูกค้ารับของแล้วขอคืนเงิน)
+    // ถ้าใช้คำเดียวกันตอนนี้ ผู้ขายจะแยกสองสถานการณ์ไม่ออกในวันที่ 00044 ขึ้น — ตัวนับ "รายการ"
+    // ใช้ตามที่ user เขียนมา (เดิมเป็น "ครั้ง")
     out.push({
       key: 'RETURNED',
-      label: `พัสดุตีกลับ ${b.returnedParcels} ครั้ง`,
+      label: `ตีกลับ ${b.returnedParcels} รายการ`,
       icon: 'arrow-back-up',
       tone: 'warning',
     })
   }
-  if (b.cancelledByBuyer >= CUSTOMER_BADGE_THRESHOLDS.cancelledByBuyer) {
+  if (b.cancelledTotal > 0) {
+    // user ระบุเองว่า "[ยกเลิก 2 รายการ] สำหรับคนที่มียกเลิก (สั่งแล้วแต่ยกเลิกก่อน)" — นับทุกใบ
+    // ถ้อยคำเป็นกลางจึงไม่ใช่การกล่าวหา (ต่างจาก "ยกเลิกเอง" เดิมที่ชี้ตัวคนทำ)
+    // tooltip/aria ขยายความเมื่อรู้ว่าลูกค้าเป็นต้นเรื่อง — ข้อมูลที่มีก็บอก ไม่ต้องซ่อน
+    const byBuyerNote = b.cancelledByBuyer > 0 ? ` (ลูกค้าขอเอง ${b.cancelledByBuyer})` : ''
     out.push({
       key: 'CANCELLED_BY_BUYER',
-      label: `ยกเลิกเอง ${b.cancelledByBuyer} ครั้ง`,
+      label: `ยกเลิก ${b.cancelledTotal} รายการ`,
+      detail: `ยกเลิก ${b.cancelledTotal} รายการ${byBuyerNote}`,
       icon: 'flag',
       tone: 'warning',
     })
