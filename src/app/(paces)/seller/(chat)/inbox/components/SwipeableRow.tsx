@@ -22,6 +22,19 @@ type Props = {
 export default function SwipeableRow({ actions, actionsWidth = 156, children }: Props) {
   const [offset, setOffset] = useState(0) // translateX ปัจจุบัน (0 ปิด, -actionsWidth เปิดเต็ม)
   const [dragging, setDragging] = useState(false)
+  /**
+   * 🛑 เลเยอร์ปุ่มต้อง "ไม่ถูกวาด" ตอนแถวปิด ไม่ใช่แค่ถูกบังด้วย content ที่มี bg-card ทึบ
+   *
+   * ปุ่มทั้งสี่เป็นสีเต็ม (warning/success/default/danger) เรียงกันเป็นแถบ ถ้าขอบล่างของ content
+   * กับขอบล่างของกล่องพ่อปัดเป็น device pixel ไม่ตรงกันแม้เศษเดียว (ความสูงแถวเป็นเลขทศนิยม +
+   * DPR 2–3 บนมือถือ + content ถูกยกเป็นเลเยอร์แยกเพราะมี transform ติดอยู่) แถบสีนั้นจะโผล่มา
+   * เป็นเส้นบางหลากสีพาดทับเส้นประคั่นแถว — เห็นเฉพาะ *บาง* แถว เพราะขึ้นกับว่าความสูงแถวนั้น
+   * ตกลงตรงกับ device pixel พอดีไหม (user report 2026-08-11 "border ด้านล่างเหมือนมีสีรุ้ง ๆ")
+   *
+   * แยก state จาก `isOpen` ไม่ได้ เพราะตอนปิด offset กลับเป็น 0 ทันทีแต่ transform ยังวิ่ง
+   * transition อีก 200ms — ซ่อนตามค่า offset จะทำให้ปุ่มวูบหายก่อนแถวเลื่อนกลับมาปิดจริง
+   */
+  const [actionsPainted, setActionsPainted] = useState(false)
   const startX = useRef(0)
   const startY = useRef(0)
   const baseOffset = useRef(0)
@@ -33,6 +46,7 @@ export default function SwipeableRow({ actions, actionsWidth = 156, children }: 
     baseOffset.current = offset
     axis.current = null
     setDragging(true)
+    setActionsPainted(true) // นิ้วแตะแล้ว = อาจกำลังจะปัด ต้องพร้อมเผยทันทีไม่ให้ปุ่มโผล่ตามหลัง
   }
 
   function onTouchMove(e: React.TouchEvent) {
@@ -51,7 +65,10 @@ export default function SwipeableRow({ actions, actionsWidth = 156, children }: 
 
   function onTouchEnd() {
     setDragging(false)
-    if (axis.current === 'h') setOffset(offset < -actionsWidth / 2 ? -actionsWidth : 0)
+    const target = axis.current === 'h' && offset < -actionsWidth / 2 ? -actionsWidth : 0
+    if (axis.current === 'h') setOffset(target)
+    // แตะเฉย ๆ / ปัดแนวตั้ง = transform ไม่เปลี่ยน → `transitionend` ไม่มีวันยิง ต้องเก็บเลเยอร์เอง
+    if (target === 0 && offset === 0) setActionsPainted(false)
   }
 
   const isOpen = offset !== 0
@@ -64,7 +81,11 @@ export default function SwipeableRow({ actions, actionsWidth = 156, children }: 
     // ที่ ≥1024px ไม่มี touch → offset เป็น 0 ตลอด ไม่มีอะไรล้นให้ต้องตัด จึงเปิด overflow ได้ปลอดภัย
     <div className="bg-card relative overflow-hidden lg:overflow-visible">
       {/* action layer หลัง content — เผยเมื่อ content เลื่อนซ้าย */}
-      <div className="absolute inset-y-0 end-0 flex" style={{ width: actionsWidth }} aria-hidden={!isOpen}>
+      <div
+        className={`absolute inset-y-0 end-0 flex ${actionsPainted ? '' : 'invisible'}`}
+        style={{ width: actionsWidth }}
+        aria-hidden={!isOpen}
+      >
         {actions}
       </div>
 
@@ -74,6 +95,14 @@ export default function SwipeableRow({ actions, actionsWidth = 156, children }: 
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
+        // 🛑 ต้องมีคู่กับ onTouchEnd เสมอ — เบราว์เซอร์ยิง `touchcancel` แทน `touchend` เมื่อมันยึด
+        // gesture ไปทำ scroll เอง (ท่าที่เกิดบ่อยที่สุดในลิสต์นี้) ถ้าไม่ดัก เลเยอร์ปุ่มจะค้างสถานะ
+        // "วาดอยู่" ของแถวนั้นตลอดไป = เส้นสีกลับมาโผล่เหมือนเดิมโดยไม่มีอะไรฟ้อง
+        onTouchCancel={onTouchEnd}
+        // แถวเลื่อนกลับมาปิดสนิทแล้ว → เลิกวาดเลเยอร์ปุ่ม (เหตุผลเต็มอยู่ที่ actionsPainted ด้านบน)
+        onTransitionEnd={(e) => {
+          if (e.propertyName === 'transform' && offset === 0) setActionsPainted(false)
+        }}
         // เปิดอยู่แล้วแตะเนื้อหา = ปิดก่อน (ไม่ให้ลิงก์เด้งไปหน้าเธรด) — คลิกจริงบน desktop offset=0 เสมอ
         onClickCapture={(e) => {
           if (isOpen) {
