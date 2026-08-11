@@ -68,14 +68,27 @@ const AboutOverview = ({ data }: { data: AboutData }) => {
     : null
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {bio && (
-        <Typography component='p' sx={{ m: 0, fontSize: '15px', color: 'text.primary', lineHeight: 1.55 }}>
-          {bio}
-        </Typography>
-      )}
-
+    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* คำอธิบายร้านอยู่ในรูปแบบเดียวกับแถวอื่น (ไอคอน + ป้ายกำกับ) ตามที่ user สั่ง 2026-08-11
+            — เดิมเป็นย่อหน้าลอยอยู่เหนือรายการ ซึ่งอ่านเป็นคนละชนิดกับข้อมูลที่เหลือทั้งที่อยู่ในแท็บเดียวกัน
+
+            🛑 ตัวหนังสือยังเป็น 15px ไม่ใช่ 14px เหมือนแถวอื่น — นี่คือประโยคเดียวในแท็บที่ร้าน
+            เขียนเอง ที่เหลือเป็นข้อมูลที่ระบบดึงมา ลดขนาดให้เท่ากันหมดจะกลบเสียงของร้าน */}
+        {bio && (
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <Icon icon='tabler-file-description' fontSize={17} style={{ flexShrink: 0, marginBlockStart: 2 }} />
+            <Box sx={{ minInlineSize: 0 }}>
+              <Typography variant='caption' color='text.disabled' sx={{ display: 'block', lineHeight: 1.4 }}>
+                รายละเอียดร้าน
+              </Typography>
+              <Typography component='p' sx={{ m: 0, fontSize: '15px', color: 'text.primary', lineHeight: 1.55 }}>
+                {bio}
+              </Typography>
+            </Box>
+          </Box>
+        )}
+
         {categoryLabel && (
           <Row icon='tabler-category' label='หมวดหมู่ร้าน'>
             {categoryLabel}

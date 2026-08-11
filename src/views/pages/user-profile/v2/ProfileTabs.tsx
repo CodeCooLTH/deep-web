@@ -60,11 +60,12 @@ export default function ProfileTabs({ tabs }: { tabs: ProfileTabDef[] }) {
           `border-be` เป็นขอบล่างของตัวเอง — เพิ่ม padding ข้างในจะดันเส้นขอบลงไปด้วย แล้ว
           ที่ว่างจะไปโผล่ "ในกรอบ" แทนที่จะเป็น "ระหว่างสองบล็อก"
 
-          เดสก์ท็อปไม่ต้อง (`sm:mbs-0`) เพราะแท็บมี padding แนวตั้งของตัวเองมากพออยู่แล้ว
-          และจอกว้างสายตาแยกสองบล็อกออกจากกันได้ด้วยความกว้าง ไม่ต้องพึ่งระยะห่าง */}
+          📌 เดิมตั้ง `sm:mbs-0` ด้วยเหตุผลว่า "จอกว้างสายตาแยกสองบล็อกได้ด้วยความกว้าง" —
+          user ดูของจริงแล้วบอกว่าไม่จริง (2026-08-11 "เพิ่มระยะห่างระหว่างเหรียญ สถิติ tab")
+          เดสก์ท็อปเป็น `sm:mbs-3` แทน · ความกว้างไม่ได้ทดแทนระยะห่างแนวตั้ง มันคนละแกนกัน */}
       <div
         role='tablist'
-        className='flex gap-6 border-be overflow-x-auto pli-5 mbs-2 sm:mbs-0'
+        className='flex gap-6 border-be overflow-x-auto pli-5 mbs-2 sm:mbs-3'
         onKeyDown={onKeyDown}
       >
         {tabs.map((t, i) => {
