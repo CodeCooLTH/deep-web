@@ -56,6 +56,46 @@ export const VERIFY_LEVEL_TITLES: Record<1 | 2 | 3, string> = {
  */
 export const VERIFY_LEVEL_NOT_YET_LABEL = 'ยังไม่ยืนยัน'
 
+/**
+ * อาร์ตเวิร์กตราระดับ — ติดมุมขวาล่างของรูปโปรไฟล์ร้าน (user สั่ง 2026-08-11)
+ *
+ * อยู่ไฟล์เดียวกับ label/tone ด้วยเหตุผลเดิมของไฟล์นี้: ถ้าแยกไปอยู่ที่อื่น วันหนึ่งจะมีคนเพิ่ม
+ * ระดับหรือสลับรูปข้างเดียวจนตรากับคำที่อยู่ห่างกันสองบรรทัดพูดคนละเรื่อง (HR16)
+ *
+ * 🛑 **สีของอาร์ตเวิร์กชุดนี้ยังไม่ตรงกับ `VERIFY_BADGE_PALETTE` ข้างบน** — SSOT กำหนด
+ *    L2 = เขียว / L3 = ทอง แต่รูปที่ใช้อยู่เป็นน้ำเงิน / ม่วง+ทอง ⇒ ชิปข้อความกับตราจะโผล่บน
+ *    จอเดียวกันแต่คนละสี และม่วงของ L3 ยังไปกินโควตา One Voice (ม่วง ≤10%) ของหน้าโปรไฟล์
+ *    ซึ่งมีม่วงอยู่แล้ว 3 จุด. **user รับทราบและจะแก้ไฟล์รูปเองให้ตรงกฎ (2026-08-11)** —
+ *    ห้ามแก้ `VERIFY_BADGE_PALETTE` ให้ตรงรูปแทน เพราะ Verified-Means-Green เป็นกฎ north-star
+ *    ใน DESIGN.md ไม่ใช่ค่าสีที่เลือกไว้เฉย ๆ. เมื่อรูปชุดใหม่มาถึง ไฟล์แทนที่ได้เลยโดยไม่ต้องแก้โค้ด
+ *
+ * 🛑 มีไฟล์ `level_4.png` อยู่ใน `public/images/level/` ด้วยแต่ **จงใจไม่แมป** — ระบบมีแค่ 3 ระดับ
+ *    (`VERIFY_LEVEL_TITLES`) การแมปมันเข้ามาโดยไม่มีระดับที่ 4 จริงจะทำให้เลข "4" ในรูปขัดกับ
+ *    ตารางระดับในแท็บ "เกี่ยวกับร้าน" ที่มี 3 แถว. วันที่มีระดับ 4 จริงให้เพิ่มที่นี่ที่เดียว
+ *
+ * 🛑 ไม่มี key 0 — ระดับ 0 ไม่มีตราเลย (ดูเหตุผลหัวไฟล์: ไม่ประจานร้านใหม่) ผู้เรียกต้องเช็ค
+ *    `maxVerifyLevel` ก่อน ไม่ใช่หวังว่า lookup จะคืน undefined แล้วรอดไปเอง
+ */
+export const VERIFY_LEVEL_IMAGE: Record<1 | 2 | 3, string> = {
+  1: '/images/level/level_1.png',
+  2: '/images/level/level_2.png',
+  3: '/images/level/level_3.png',
+}
+
+/** ตราของระดับที่ระบุ — คืน null เมื่อไม่มีตราให้แสดง (ระดับ 0 หรือค่านอกช่วง) */
+export function resolveVerifyLevelImage(maxVerifyLevel: number): { src: string; alt: string } | null {
+  // clamp ขึ้นบน: ถ้าวันหนึ่งมีระดับ 4 ในฐานแต่ยังไม่มีรูป ให้ใช้ตราสูงสุดที่มี ไม่ใช่หายไปเฉย ๆ
+  const level = maxVerifyLevel >= 3 ? 3 : maxVerifyLevel === 2 ? 2 : maxVerifyLevel === 1 ? 1 : 0
+  if (level === 0) return null
+  const key = level as 1 | 2 | 3
+  return {
+    src: VERIFY_LEVEL_IMAGE[key],
+    // ชื่อที่ screen reader อ่าน — ต้องมีคำว่า "ระดับ N" เพราะเลขในอาร์ตเวิร์กอ่านไม่ออกที่ 36px
+    // และสีอย่างเดียวสื่อความหมายไม่ได้ตามเกณฑ์ WCAG 1.4.1
+    alt: `ระดับ ${key} · ${VERIFY_LEVEL_TITLES[key]}`,
+  }
+}
+
 export function resolveVerifyBadge(maxVerifyLevel: number): VerifyBadge | null {
   if (maxVerifyLevel >= 3) {
     return { label: 'จดทะเบียนธุรกิจแล้ว', tone: 'gold', icon: 'tabler-building-store' }

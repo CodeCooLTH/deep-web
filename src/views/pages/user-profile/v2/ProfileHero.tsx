@@ -46,7 +46,7 @@ import ResponsiveSheet from './ResponsiveSheet'
 import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
 import { getTierChipTone } from '@/lib/trust-tier'
 /* SSOT ของคำ + โทนสีป้ายยืนยันตัวตน — ไฟล์นี้เคยไม่ import เลยแล้ว hardcode สีเอง (ดูหมายเหตุที่ป้าย) */
-import { resolveVerifyBadge, VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
+import { resolveVerifyLevelImage } from '@/lib/verify-badge'
 import { isClampOverflowing } from '@/lib/clamp-overflow'
 import { formatDateTH } from '@/lib/format-date'
 
@@ -285,7 +285,7 @@ export default function ProfileHero({
   const tierTone = getTierChipTone(data.trustScore)
   /* null เมื่อยังไม่ยืนยันอะไรเลย — ใช้เป็นเงื่อนไข render ของป้ายมุมรูป แทนการเทียบ `> 0` เอง
      เพื่อให้ "มีป้ายไหม" กับ "ป้ายพูดว่าอะไร/สีอะไร" ตัดสินจากฟังก์ชันเดียวกันเสมอ */
-  const verifyBadge = resolveVerifyBadge(data.maxVerifyLevel)
+  const verifyLevelImage = resolveVerifyLevelImage(data.maxVerifyLevel)
 
   const L = data.isLodging ? STAT_LABELS.lodging : data.isServiceQueue ? STAT_LABELS.serviceQueue : STAT_LABELS.general
 
@@ -454,15 +454,31 @@ export default function ProfileHero({
               ซึ่งเป็นสีจางโปร่งที่ออกแบบมาสำหรับชิปบนพื้นทึบ ป้ายนี้ลอยอยู่บนขอบรูปโปรไฟล์ที่พื้นหลัง
               เป็นภาพอะไรก็ได้ พื้นโปร่งจะอ่านไม่ออก · เปลี่ยนแค่ "ความเข้ม" ไม่เปลี่ยนเฉด
               (docs/conventions/contrast-fix-keeps-hue.md) — L2 ยังเขียว L3 ยังอำพัน L1 เป็นหมึกกลาง */}
-          {verifyBadge && (
-            <span
-              className='absolute inline-end-[-4px] block-end-0 inline-flex items-center gap-1 rounded-full plb-0.5 pli-2 text-[11px] font-bold text-white border-2 border-[var(--mui-palette-background-paper)] whitespace-nowrap'
-              style={{ backgroundColor: VERIFY_BADGE_PALETTE[verifyBadge.tone].fg }}
-              title={`${verifyBadge.label} (ระดับ ${data.maxVerifyLevel})`}
-            >
-              <Icon icon='lucide:shield-check' width={11} />
-              {`ระดับ ${data.maxVerifyLevel}`}
-            </span>
+          {/* 🛑 แก้ 2026-08-11 รอบสอง (user สั่ง): ป้ายข้อความ "ระดับ N" เปลี่ยนเป็นอาร์ตเวิร์กตรา
+              จาก `public/images/level/` — path อยู่ใน `verify-badge.ts` ไฟล์เดียวกับ label/tone
+              เพื่อไม่ให้รูปกับคำเลื่อนออกจากกัน (HR16)
+
+              ความสูง 36px (user เคาะจาก mockup 22/28/36) — อาร์ตเวิร์กเป็น 2:3 แนวตั้ง จึงล็อก
+              **ความสูง** แล้วปล่อยความกว้างตามสัดส่วน (~24px) ห้ามใส่กรอบจัตุรัส+object-cover
+              เพราะจะครอปหกเหลี่ยมเลขที่ฐานทิ้ง ซึ่งเป็นตัวเดียวที่บอกว่าระดับไหน
+
+              🛑 ที่ 36px เลขในรูปอ่านออกยาก และสีอย่างเดียวสื่อความหมายไม่ได้ตาม WCAG 1.4.1 →
+              ความหมายจึงต้องมาจาก `alt` (element เป็น <img> = role img ซึ่งรองรับชื่อจากผู้เขียน
+              ต่างจาก <span>/<div> ที่ screen reader ทิ้ง label ทิ้ง — aria-name-requires-supporting-role.md)
+              `title` เป็นของแถมสำหรับ hover บนเดสก์ท็อป ไม่ใช่ตัวแทน `alt` (มือถือไม่มี hover)
+
+              drop-shadow ไม่ใช่ border: ตรามีรูปทรงเป็นโล่ ไม่ใช่สี่เหลี่ยม — ขอบสีพื้นการ์ดแบบที่
+              ป้ายเดิมใช้จะกลายเป็นกรอบสี่เหลี่ยมรอบภาพโปร่งใส */}
+          {verifyLevelImage && (
+            <img
+              src={verifyLevelImage.src}
+              alt={verifyLevelImage.alt}
+              title={verifyLevelImage.alt}
+              width={24}
+              height={36}
+              className='absolute inline-end-[-6px] block-end-[-2px] bs-9 is-auto'
+              style={{ filter: 'drop-shadow(0 1px 2px rgba(47,43,61,0.35))' }}
+            />
           )}
         </div>
 
