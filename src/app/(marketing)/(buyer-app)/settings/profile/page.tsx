@@ -16,14 +16,15 @@ import { formatDateTH } from '@/lib/format-date'
 import ProfileForm from './ProfileForm'
 import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
 import DeleteAccountSection from '@/app/(marketing)/(buyer-app)/_components/DeleteAccountSection'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'ตั้งค่าบัญชี' }
 
 export default async function ProfileSettingsPage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/settings/profile')
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/settings/profile')
 
-  const userId = (session.user as { id: string }).id
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { userBadges: true },

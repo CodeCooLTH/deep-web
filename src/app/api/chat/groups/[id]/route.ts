@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { resolveScopedShopId } from "@/lib/chat-scope";
 import { renameChatGroup, deleteChatGroup } from "@/services/chat-group.service";
 import { ChatGroupRenameSchema } from "@/lib/validations";
+import { sessionUserId } from "@/lib/session-user";
 
 // PATCH (เปลี่ยนชื่อ) / DELETE (ลบ) กลุ่มแชท — feature 00018
 export const dynamic = "force-dynamic";
@@ -13,8 +14,8 @@ const IdParamSchema = v.pipe(v.string(), v.uuid());
 
 async function requireShopId(requestedShopId?: string | null) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   // feature 00037 — ร้านของทรัพยากรนี้: ?shopId= ที่ client ส่งมา (ร้านของเธรดที่เปิดอยู่)
   // ต้องถูก intersect กับขอบเขตเสมอ; ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิมของผู้ใช้ร้านเดียว)
   const activeCtx = await resolveScopedShopId(

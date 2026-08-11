@@ -7,13 +7,14 @@ import { prisma } from '@/lib/prisma'
 import { getUserVerifications } from '@/services/verification.service'
 import { MPageTitle } from '../../_components/ui'
 import VerificationMobile from './VerificationMobile'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'ยืนยันตัวตน' }
 
 export default async function MobileVerificationPage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/settings/verification')
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/settings/verification')
 
   const [user, records] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { phone: true } }),

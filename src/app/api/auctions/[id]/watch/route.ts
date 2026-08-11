@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { evaluateBadges } from "@/services/badge.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // POST /api/auctions/[id]/watch — เพิ่มเข้ารายการติดตาม (feature 00004 — buyer web, session-authed)
 // เหมือน /api/app/auctions/[id]/watch (mobile) เป๊ะ ต่างแค่ auth: session แทน HMAC Bearer
@@ -12,10 +13,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const { id } = await params;
   const auction = await prisma.auction.findUnique({ where: { id }, select: { id: true } });
@@ -38,10 +39,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const { id } = await params;
   await prisma.watchList.deleteMany({ where: { userId, auctionId: id } });

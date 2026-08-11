@@ -9,6 +9,7 @@ import { getReviewsByBuyer } from '@/services/review.service'
 import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
 import SearchBox from '@/app/(marketing)/(buyer-app)/_components/SearchBox'
 import ManageReviews, { type BuyerReviewRow } from '@views/apps/ecommerce/manage-reviews'
+import { sessionUserId } from '@/lib/session-user'
 
 /**
  * Buyer "My Reviews" list.
@@ -31,9 +32,9 @@ export default async function MyReviewsPage({
 }) {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/reviews')
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/reviews')
 
-  const userId = (session.user as { id: string }).id
   const { rating: rawRating = 'ALL', q = '' } = await searchParams
   const rating = VALID_RATINGS.has(rawRating) ? rawRating : 'ALL'
   const query = q.trim().toLowerCase()

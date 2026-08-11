@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveChatScope } from "@/lib/chat-scope";
 import { listCommentPosts, type CommentChannelFilter } from "@/services/page-comment.service";
+import { sessionUserId } from "@/lib/session-user";
 
 /**
  * GET /api/chat/comments/posts — รายการโพสต์ที่มีคอมเมนต์ ของร้านที่ active (feature 00029)
@@ -23,8 +24,8 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const scope = await resolveChatScope({
     user: {
       id: userId,

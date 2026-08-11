@@ -6,6 +6,7 @@ import { resolveConversationShopId } from "@/lib/chat-scope";
 import { updateConversationState } from "@/services/chat.service";
 import { setConversationGroup } from "@/services/chat-group.service";
 import { ConversationPatchSchema } from "@/lib/validations";
+import { sessionUserId } from "@/lib/session-user";
 
 // S-7 (ตัวกรองแชท + ปักหมุด/ซ่อน/ปิดงาน) — feature 00018
 //
@@ -30,10 +31,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const { id: rawId } = await params;
   const idCheck = v.safeParse(ConversationIdParamSchema, rawId);

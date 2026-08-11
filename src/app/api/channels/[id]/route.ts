@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveActiveShopContext } from "@/lib/shop-context";
 import { disconnectChannel } from "@/services/shop-channel.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // T1 (feature 00018): ถอดการเชื่อมต่อช่องทาง — ใช้โดยหน้า /settings/channels ปุ่ม "ถอด"
 //
@@ -30,10 +31,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const activeCtx = await resolveActiveShopContext({
     user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },

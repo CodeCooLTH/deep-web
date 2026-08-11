@@ -22,6 +22,7 @@ import { getAuctionDetail } from '@/services/auction.service'
 import { getSellerTrust } from '@/services/app-shop.service'
 
 import AuctionDetailClient from './AuctionDetailClient'
+import { sessionUserId } from '@/lib/session-user'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -50,7 +51,7 @@ export default async function AuctionDetailPage({ params }: Props) {
 
   // session เป็น optional เสมอ (หน้านี้ public) — ใช้เช็ค isWinner/initialWatching + reactedByMe (feat 00005)
   const session = await getServerSession(authOptions)
-  const userId = session?.user ? (session.user as { id: string }).id : null
+  const userId = sessionUserId(session)
 
   const auction = await getAuctionDetail(id, userId ?? undefined)
   if (!auction) notFound()

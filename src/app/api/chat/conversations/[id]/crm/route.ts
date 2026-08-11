@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { resolveConversationShopId } from "@/lib/chat-scope";
 import { getConversationCrm, updateConversationCrm } from "@/services/chat-crm.service";
 import { ChatCrmPatchSchema } from "@/lib/validations";
+import { sessionUserId } from "@/lib/session-user";
 
 // feature 00018 CRM/tag ต่อผู้ติดต่อ — GET อ่าน, PATCH แก้ (ownership scope shopId ใน service)
 export const dynamic = "force-dynamic";
@@ -19,8 +20,8 @@ const IdParamSchema = v.pipe(v.string(), v.uuid());
  */
 async function resolveShop(conversationId: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   const resolved = await resolveConversationShopId(
     { user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null } },
     conversationId,

@@ -8,6 +8,7 @@ import {
   BelowReserveConfirmError,
   BidError,
 } from "@/services/auction.service";
+import { sessionUserId } from '@/lib/session-user'
 
 // shared helper สำหรับ 7 endpoint ใต้ src/app/api/seller/auctions/**
 // (feature 00002 Seller Auction, Batch C task #6; wire active-shop-context Phase 4 00008 P4-3)
@@ -24,12 +25,12 @@ import {
  */
 export async function requireSellerShop(opts?: { mutate?: boolean }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return {
       response: NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 }),
     } as const;
   }
-  const userId = (session.user as { id: string }).id;
 
   const active = await requireActiveShop(
     session as unknown as { user: { id: string; activeShopId?: string | null } },

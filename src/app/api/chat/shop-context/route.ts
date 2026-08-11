@@ -9,6 +9,7 @@ import { listServiceResources } from "@/services/service-resource.service";
 import { canUseAppointments } from "@/lib/appointments";
 import { resolveOrderVocab } from "@/lib/seller-menu";
 import { resolveChatIshipCreateMode } from "@/lib/iship/chat-create-mode";
+import { sessionUserId } from "@/lib/session-user";
 
 /**
  * GET /api/chat/shop-context?shopId=... — ข้อมูลประกอบฟอร์ม "สร้างรายการ" ของร้านหนึ่ง (feature 00037)
@@ -32,8 +33,8 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const scope = await resolveChatScope({
     user: {

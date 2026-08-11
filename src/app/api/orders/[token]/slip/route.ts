@@ -6,6 +6,7 @@ import * as v from "valibot";
 import { validateUpload, saveFile, deleteFile, getFileMeta } from "@/lib/storage";
 import { AttachSlipSchema } from "@/lib/validations";
 import { attachSlip } from "@/services/order.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // POST /api/orders/[token]/slip
 //
@@ -33,17 +34,17 @@ export async function POST(
   const { token } = await params;
 
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const actorUserId = sessionUserId(session);
+  if (!session?.user || !actorUserId) {
     return NextResponse.json({ error: "ไม่ได้เข้าสู่ระบบ" }, { status: 401 });
   }
-  const sessionUserId = (session.user as { id: string }).id;
 
   const order = await prisma.order.findUnique({
     where: { publicToken: token },
     select: { buyerUserId: true },
   });
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  if (order.buyerUserId !== sessionUserId) {
+  if (order.buyerUserId !== actorUserId) {
     return NextResponse.json({ error: "ไม่มีสิทธิ์แนบสลิปคำสั่งซื้อนี้" }, { status: 403 });
   }
 

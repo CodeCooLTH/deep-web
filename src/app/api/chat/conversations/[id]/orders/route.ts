@@ -6,6 +6,7 @@ import { resolveConversationShopId } from "@/lib/chat-scope";
 import { prisma } from "@/lib/prisma";
 import { getOrdersByCustomer } from "@/services/order.service";
 import { isShopVertical, DEFAULT_SHOP_VERTICAL } from "@/lib/lodging";
+import { sessionUserId } from "@/lib/session-user";
 
 // GET /api/chat/conversations/[id]/orders — ออเดอร์ของลูกค้าที่ผูกกับเธรดนี้ แบบแบ่งหน้า (lazy load)
 // feature 00018 orders tab. ownership: conversation ต้องเป็นของร้านที่ active (WHERE guard — กัน IDOR)
@@ -15,8 +16,8 @@ const IdParam = v.pipe(v.string(), v.uuid());
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   const idc = v.safeParse(IdParam, id);
   if (!idc.success) return NextResponse.json({ error: "รหัสบทสนทนาไม่ถูกต้อง" }, { status: 400 });

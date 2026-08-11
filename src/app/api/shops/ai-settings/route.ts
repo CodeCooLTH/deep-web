@@ -6,6 +6,7 @@ import { resolveActiveShopContext } from "@/lib/shop-context";
 import { getAiSetting, upsertAiSetting, CONTEXT_GATE_PAID_PLAN_REQUIRED } from "@/services/ai-setting.service";
 import { isOwnerPaidPlan } from "@/services/ai-suggest-quota.service";
 import { ShopAiSettingSchema } from "@/lib/validations";
+import { sessionUserId } from "@/lib/session-user";
 
 /**
  * GET/PUT /api/shops/ai-settings — การตั้งค่าผู้ช่วยร่างคำตอบ AI ของร้านที่ active (feature 00019)
@@ -24,10 +25,10 @@ const EDITABLE_ROLES = ["OWNER", "ADMIN"] as const;
 
 async function requireShopContext() {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
   }
-  const userId = (session.user as { id: string }).id;
   const activeCtx = await resolveActiveShopContext({
     user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
   });

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { bidHistoryPaged } from '@/services/auction.service'
+import { sessionUserId } from '@/lib/session-user'
 
 // GET /api/app/auctions/[id]/bids?page=<n> — ประวัติการเสนอราคาแบบแบ่งหน้า (public, lazy-load)
 // mirror /api/app/auctions/browse (page-based) — { items, nextPage }, ใหม่→เก่า
@@ -20,7 +21,7 @@ export async function GET(
   if (!exists) return NextResponse.json({ error: 'ไม่พบรายการประมูล' }, { status: 404 })
 
   const session = await getServerSession(authOptions)
-  const viewerUserId = session?.user ? (session.user as { id: string }).id : undefined
+  const viewerUserId = sessionUserId(session) ?? undefined
   const result = await bidHistoryPaged(id, page, viewerUserId)
   return NextResponse.json(result)
 }

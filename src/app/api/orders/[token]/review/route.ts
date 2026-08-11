@@ -4,6 +4,7 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CreateReviewSchema, UpdateReviewSchema } from "@/lib/validations";
+import { sessionUserId } from "@/lib/session-user";
 import {
   createReview,
   updateReview,
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { token } = await params;
 
   const session = await getServerSession(authOptions);
-  const userId = session?.user ? (session.user as { id: string }).id : null;
+  const userId = sessionUserId(session);
   if (!userId) return NextResponse.json({ error: "ต้องเข้าสู่ระบบ" }, { status: 401 });
 
   const body = await request.json();

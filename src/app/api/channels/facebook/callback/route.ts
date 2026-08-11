@@ -6,6 +6,7 @@ import { encryptToken } from '@/lib/token-crypto'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { OAUTH_USER_TOKEN_COOKIE, PENDING_TOKEN_COOKIE_OPTIONS } from '@/lib/facebook/pending-connect'
 import { OAUTH_STATE_COOKIE, callbackUrl } from '../connect/route'
+import { sessionUserId } from '@/lib/session-user'
 
 // รับ code จาก Facebook (feature 00018)
 //
@@ -27,10 +28,10 @@ function backToSettings(request: NextRequest, query: Record<string, string>) {
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user) {
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
-  const userId = (session.user as { id: string }).id
 
   const { searchParams } = request.nextUrl
   // user กด "ยกเลิก" ในหน้า Facebook

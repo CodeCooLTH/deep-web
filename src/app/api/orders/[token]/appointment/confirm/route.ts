@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { confirmAppointmentByBuyer } from "@/services/appointment.service";
+import { sessionUserId } from "@/lib/session-user";
 
 /**
  * POST /api/orders/[token]/appointment/confirm — ลูกค้ายืนยันนัด
@@ -25,10 +26,10 @@ export async function POST(
   const { token } = await params;
 
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const buyerUserId = sessionUserId(session);
+  if (!session?.user || !buyerUserId) {
     return NextResponse.json({ error: "ไม่ได้เข้าสู่ระบบ" }, { status: 401 });
   }
-  const buyerUserId = (session.user as { id: string }).id;
 
   try {
     const result = await confirmAppointmentByBuyer({ orderToken: token, buyerUserId });

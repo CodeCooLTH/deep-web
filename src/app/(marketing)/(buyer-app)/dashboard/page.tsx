@@ -20,6 +20,7 @@ import Congratulations from '@views/apps/ecommerce/dashboard/Congratulations'
 import StatCard from '@views/apps/ecommerce/dashboard/StatCard'
 import Orders, { type DashboardOrder } from '@views/apps/ecommerce/dashboard/Orders'
 import Transactions, { type DashboardReview } from '@views/apps/ecommerce/dashboard/Transactions'
+import { sessionUserId } from '@/lib/session-user'
 
 /**
  * Base: theme/vuexy/typescript-version/full-version/src/app/[lang]/(dashboard)/(private)/apps/ecommerce/dashboard/page.tsx
@@ -42,9 +43,9 @@ const NEXT_LEVEL_LABEL: Record<string, string> = {
 
 export default async function BuyerDashboardPage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/dashboard')
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/dashboard')
 
-  const userId = (session.user as { id: string }).id
 
   const user = await prisma.user.findUnique({
     where: { id: userId },

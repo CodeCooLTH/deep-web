@@ -11,6 +11,7 @@ import { getTrustedShops, getSellerTrustByShopIds, getConfirmedOrderCountByShopI
 import { topAuctions, recentEndedAuctions, listCategoriesWithImage } from '@/services/auction.service'
 
 import HomeFeed, { type CategoryItem, type TrustedShopCard, type AuctionCard, type TrustSnapshot } from './_components/HomeFeed'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'หน้าแรก' }
 
@@ -117,9 +118,9 @@ const getHomeDiscovery = unstable_cache(
  */
 export default async function MobileHomePage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/dashboard')
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/dashboard')
 
-  const userId = (session.user as { id: string }).id
 
   // me (ต่อ user — สด) + discovery (ร่วม — cache) parallel
   const [me, discovery] = await Promise.all([

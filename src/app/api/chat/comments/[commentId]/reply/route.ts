@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { replyToComment } from "@/services/page-comment.service";
 import { GraphApiError } from "@/lib/facebook/graph";
+import { sessionUserId } from "@/lib/session-user";
 
 /**
  * POST /api/chat/comments/[commentId]/reply — ตอบคอมเมนต์แบบสาธารณะในนามเพจ (feature 00029)
@@ -19,8 +20,8 @@ export async function POST(
   { params }: { params: Promise<{ commentId: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { commentId } = await params;
 
   let message = "";

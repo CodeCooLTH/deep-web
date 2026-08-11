@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { LinePatchSchema } from '@/lib/validations'
 import { updateLineChannelCredentials, LineChannelServiceError } from '@/services/shop-channel.service'
+import { sessionUserId } from '@/lib/session-user'
 
 /**
  * PATCH /api/channels/line/[channelId] — อัปเดต credential ของ LINE OA ที่เชื่อมไว้แล้ว (feature 00025, S-5)
@@ -60,8 +61,8 @@ function mapLineChannelError(e: unknown, logTag: string): NextResponse {
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ channelId: string }> }) {
   const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const activeCtx = await resolveActiveShopContext({
     user: {

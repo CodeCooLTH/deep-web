@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sendPrivateReplyToCommentById } from "@/services/comment-private-reply.service";
 import { PrivateReplySchema } from "@/lib/validations";
+import { sessionUserId } from "@/lib/session-user";
 
 /**
  * POST /api/chat/comments/[commentId]/private-reply — ปุ่มแมนนวล "ทักแชท" (feature 00038)
@@ -30,13 +31,13 @@ export async function POST(
   { params }: { params: Promise<{ commentId: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json(
       { error: "unauthorized", code: "UNAUTHORIZED" },
       { status: 401, headers: NO_STORE_HEADERS },
     );
   }
-  const userId = (session.user as { id: string }).id;
   const { commentId } = await params;
 
   const body = await request.json().catch(() => null);

@@ -7,6 +7,7 @@ import { OAUTH_USER_TOKEN_COOKIE, readPendingUserToken } from '@/lib/facebook/pe
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { ConfirmChannelPagesSchema } from '@/lib/validations'
 import { connectPages } from '@/services/shop-channel.service'
+import { sessionUserId } from '@/lib/session-user'
 
 /**
  * POST /api/channels/facebook/confirm — เชื่อมเฉพาะเพจที่ user ติ๊กเลือก (feature 00018)
@@ -21,8 +22,8 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const activeCtx = await resolveActiveShopContext({
     user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },

@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { listNotifications, markAllNotificationsRead } from '@/services/notification.service'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { MPageTitle } from '../_components/ui'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'การแจ้งเตือน' }
 
@@ -21,8 +22,8 @@ const DEFAULT_META = { icon: 'tabler-bell', color: 'var(--mui-palette-text-secon
 
 export default async function MobileNotificationsPage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/dashboard')
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/dashboard')
 
   const { items } = await listNotifications(userId, { take: 50 })
   // เปิดหน้านี้ = อ่านทั้งหมด (badge บนกระดิ่งเคลียร์รอบถัดไป)

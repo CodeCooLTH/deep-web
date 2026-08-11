@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { resolveConversationShopId } from "@/lib/chat-scope";
 import { prisma } from "@/lib/prisma";
+import { sessionUserId } from "@/lib/session-user";
 
 // GET /api/chat/conversations/[id]/customer-prefill — เบอร์ + ที่อยู่ล่าสุดของลูกค้าที่ผูกกับเธรดนี้
 // สำหรับ prefill ฟอร์มสร้างออเดอร์จากแชท (user request 2026-07-25: แชทผูกลูกค้าแล้ว → เติมเบอร์+ที่อยู่
@@ -19,8 +20,8 @@ const IdParam = v.pipe(v.string(), v.uuid());
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   const idc = v.safeParse(IdParam, id);
   if (!idc.success) return NextResponse.json({ error: "รหัสบทสนทนาไม่ถูกต้อง" }, { status: 400 });

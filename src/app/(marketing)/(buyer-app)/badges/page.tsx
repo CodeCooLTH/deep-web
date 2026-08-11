@@ -17,6 +17,7 @@ import type { RarityTier } from '@/services/badge.service'
 import type { BadgeProgress } from '@/types/badge'
 import BadgeIcon from '@/app/(marketing)/(buyer-app)/_components/BadgeIcon'
 import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
+import { sessionUserId } from '@/lib/session-user'
 
 // ─── Rarity pill config (safepay-ux Design Spec 2026-07-02) ──
 // label ไทย + สี MUI ต่อ tier; เลี่ยง success (ชนกับ chip "ได้รับแล้ว") + error (สื่อ error)
@@ -53,9 +54,9 @@ export default async function BadgesPage() {
 
   // security must-fix #3: ต้อง redirect พร้อม callbackUrl เพราะ (buyer-app) layout
   // redirect ไม่ส่ง URL กลับ — confirmed pattern จาก reviews/page.tsx
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/badges')
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/badges')
 
-  const userId = (session.user as { id: string }).id
   const items = await getBadgeProgress(userId, 'BUYER')
 
   // rarity pill — ฐาน user count (gate <20 → Map ว่าง = ไม่แสดง); badgeId ที่ไม่มีใน map = ไม่มี pill

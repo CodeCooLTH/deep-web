@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { placeBid, BidError } from "@/services/auction.service";
 import { prisma } from "@/lib/prisma";
+import { sessionUserId } from "@/lib/session-user";
 
 // POST /api/auctions/[id]/buy-now — ซื้อทันที (feature 00004 — buyer web, session-authed)
 // เหมือน /api/app/auctions/[id]/buy-now (mobile) เป๊ะ ต่างแค่ auth: session แทน HMAC Bearer
@@ -12,10 +13,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const { id } = await params;
 

@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveConversationShopId } from "@/lib/chat-scope";
 import { getConversationToastPreview } from "@/services/chat.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // per-user authenticated data — ห้าม shared cache (CDN/carrier proxy) เก็บ/serve ทับข้าม user
 // (บทเรียนโปรเจกต์ 2026-07-04: default header เป็น public ทำให้ carrier cache ข้าม user)
@@ -27,10 +28,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const { id: rawId } = await params;
   const idCheck = v.safeParse(ConversationIdParamSchema, rawId);

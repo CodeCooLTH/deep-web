@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveChatScope } from "@/lib/chat-scope";
 import { countUnreadSpamConversations } from "@/services/chat.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // feature 00018 — badge จำนวนสแปมที่ยังไม่อ่านบนแท็บ "สแปม" (user สั่ง 2026-07-31)
 // แยกเป็น endpoint เบา ๆ ไม่ยัดลง response ของ list เพราะ list ถูกเรียกทุกครั้งที่เปลี่ยน
@@ -12,8 +13,8 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const scope = await resolveChatScope({
     user: {
       id: userId,

@@ -16,14 +16,15 @@ import { getUserVerifications } from '@/services/verification.service'
 
 import PageHeader from '@/app/(marketing)/(buyer-app)/_components/PageHeader'
 import VerificationClient from './VerificationClient'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'ยืนยันตัวตน' }
 
 export default async function VerificationSettingsPage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/settings/verification')
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/settings/verification')
 
-  const userId = (session.user as { id: string }).id
 
   const [user, records] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { phone: true } }),

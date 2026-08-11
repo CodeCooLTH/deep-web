@@ -43,6 +43,7 @@ import type { AppointmentStatus } from '@/lib/appointments'
 import BookingGuestView from './BookingGuestView'
 import GuestOrderView from './GuestOrderView'
 import { buildGuestOrderData } from './guest-order-data'
+import { sessionUserId } from '@/lib/session-user'
 
 type Props = { params: Promise<{ token: string }> }
 
@@ -105,7 +106,7 @@ export default async function PublicOrderPage({ params }: Props) {
      * ตกลงไปทาง guest แทนการพัง: จอ guest แสดงออเดอร์ใบเดียวกันได้อยู่แล้วและไม่ต้องรู้ตัวตน
      * ส่วน action ที่ผูกตัวตน (ยืนยันรับของ/รีวิว) อยู่หลังด่าน login เหมือนเดิมทุกประการ
      */
-    const sessionUserId = (session?.user as { id?: string } | undefined)?.id ?? null
+    const viewerUserId = sessionUserId(session)
 
     // ── ไม่มี session → guest view (feature 00041, มติ D-1 ของ user) ────────────────
     // เดิมบรรทัดนี้ redirect ไป sign-in ทันที ซึ่งเป็นมติของ feature 00015 — ผลจริงบน prod คือ
@@ -114,7 +115,7 @@ export default async function PublicOrderPage({ params }: Props) {
     // 🛑 สิ่งที่ **ไม่** เปลี่ยน: ทุก action ที่ผูกตัวตนยังบังคับ login เหมือนเดิมทุกประการ —
     // กติกา ownership/claim ของ 00015 อยู่ใต้บรรทัดนี้ทั้งหมดและไม่ถูกแตะเลย
     // ที่เปลี่ยนคือ "ก่อน login เห็นอะไรได้บ้าง" เท่านั้น
-    if (!session || !sessionUserId) {
+    if (!session || !viewerUserId) {
       // BOOKING ยังคง redirect เหมือนเดิม — flow การจองไม่อยู่ในขอบเขตรอบนี้ (SRS §1.2)
       if (order.type === 'BOOKING') {
         redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
@@ -182,7 +183,7 @@ export default async function PublicOrderPage({ params }: Props) {
 
     // session callback ไม่ include phone ดิบใน session.user (PII) → resolve แยกด้วย findUnique
     const me = await prisma.user.findUnique({
-      where: { id: sessionUserId },
+      where: { id: viewerUserId },
       select: { phone: true },
     })
 
@@ -194,7 +195,7 @@ export default async function PublicOrderPage({ params }: Props) {
         status: order.status,
       },
       {
-        userId: sessionUserId,
+        userId: viewerUserId,
         phone: me?.phone ?? null,
         justAuthedViaPhoneOtp: !!sessionUser.justAuthedViaPhoneOtp,
       },
@@ -228,7 +229,7 @@ export default async function PublicOrderPage({ params }: Props) {
     }
 
     // ── grant: OWNER_MATCH / PHONE_MATCH_AUTO_CLAIM ───────────────────────────────────
-    await guaranteeOrderLink({ orderId: order.id, userId: sessionUserId, phone: me?.phone ?? null })
+    await guaranteeOrderLink({ orderId: order.id, userId: viewerUserId, phone: me?.phone ?? null })
 
     /* query verificationRecord ของ shop owner หลัง order resolve
        + หลักฐานร้านชุดเดียวกับที่ guest branch ยิงอยู่แล้ว (user 2026-08-11 "ต้องเห็นทั้งคู่")

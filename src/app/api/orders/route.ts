@@ -8,6 +8,7 @@ import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequired
 import { OutOfStockError } from "@/services/inventory-stock.service";
 import { requireActiveShop, requireShopForRequest } from "@/lib/shop-context";
 import { prisma } from "@/lib/prisma";
+import { sessionUserId } from "@/lib/session-user";
 import { ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "@/lib/order-date-window";
 
 export async function GET(request: NextRequest) {
@@ -34,7 +35,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json().catch(() => null);
   if (body === null) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -83,7 +85,6 @@ export async function POST(request: NextRequest) {
    * โดยไม่ผูกลูกค้า — ตรงกับที่ createOrder ทำอยู่ (findThreadContact scope ด้วย shopId ใน WHERE)
    */
   if (parsed.output.conversationId) {
-    const userId = (session.user as { id: string }).id;
     // scope สิทธิ์อยู่ใน WHERE ผ่าน relation filter — ไม่ใช่ดึงมาแล้วค่อยเทียบ (feedback_rsc_dal_authz)
     // ตั้งใจไม่เรียก listAccessibleShopIds(): requireShopForRequest เพิ่งตรวจ membership ไปแล้ว
     // การถามซ้ำเป็น round trip ที่ไม่ได้ความรู้ใหม่ — ที่นี่ต้องการแค่ "เธรดนี้อยู่ในร้านที่ฉันเข้าถึงได้ไหม"

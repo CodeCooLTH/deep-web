@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { getBadgeProgress, getUserBadgeRarityMap } from '@/services/badge.service'
 import BadgeIcon from '@/app/(marketing)/(buyer-app)/_components/BadgeIcon'
 import { MPageTitle, MEmpty, MChip, type SemColor } from '../_components/ui'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'ความสำเร็จ' }
 
@@ -25,8 +26,8 @@ const SectionLabel = ({ title, count }: { title: string; count: number }) => (
 
 export default async function MobileBadgesPage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/badges')
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/badges')
 
   const items = await getBadgeProgress(userId, 'BUYER')
   const rarityMap = await getUserBadgeRarityMap(items.map(i => i.badge.id))

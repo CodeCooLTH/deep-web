@@ -4,6 +4,7 @@ import * as v from 'valibot'
 import { authOptions } from '@/lib/auth'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { getLineQuotaByChannelId } from '@/services/line-quota.service'
+import { sessionUserId } from '@/lib/session-user'
 
 /**
  * GET /api/channels/line/[channelId]/quota — โควตาข้อความคงเหลือของ LINE OA (feature 00025, S-9)
@@ -22,8 +23,8 @@ const ChannelIdParamSchema = v.pipe(v.string(), v.uuid())
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ channelId: string }> }) {
   const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const activeCtx = await resolveActiveShopContext({
     user: {

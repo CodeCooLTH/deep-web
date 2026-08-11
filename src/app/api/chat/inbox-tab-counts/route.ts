@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { resolveChatScope } from "@/lib/chat-scope";
 import { countUnreadConversations } from "@/services/chat.service";
 import { countUnansweredForShops } from "@/services/page-comment.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // feature 00029 — ตัวเลขบน 2 แท็บของกล่องข้อความ: "ข้อความ" (เธรดยังไม่อ่าน) + "ความคิดเห็น"
 // (คอมเมนต์ยังไม่ตอบ) — user สั่ง 2026-08-04
@@ -18,8 +19,8 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   // feature 00037 — ตัวเลขบน 2 แท็บต้องรวมทุกร้านในขอบเขตเมื่อผู้ใช้เปิดโหมดรวม ไม่งั้นผู้ใช้
   // จะเห็นรายการของ 3 ร้านแต่ badge นับแค่ร้านเดียว (ตัวเลขบนจอเดียวกันไม่ตรงกัน = อ่านว่าระบบพัง)
   const scope = await resolveChatScope({

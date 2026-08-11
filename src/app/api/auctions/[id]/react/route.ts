@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { toggleBidReaction, AuctionOpError } from "@/services/auction.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // POST /api/auctions/[id]/react — toggle "ถูกใจ" bid (feature 00005, FR-REACT-01/02)
 // body: { bidId }. login required (FR-REACT-01-AC-02); rate-limit ใช้ guardApi กลาง (proxy.ts) อยู่แล้ว
@@ -12,10 +13,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const { id } = await params;
 

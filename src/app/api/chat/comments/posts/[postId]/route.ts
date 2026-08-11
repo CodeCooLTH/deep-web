@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getPostComments } from "@/services/page-comment.service";
+import { sessionUserId } from "@/lib/session-user";
 
 /**
  * GET /api/chat/comments/posts/[postId] — โพสต์ + คอมเมนต์ทั้งหมด (เก่า→ใหม่)
@@ -15,8 +16,8 @@ export async function GET(
   { params }: { params: Promise<{ postId: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const userId = (session.user as { id: string }).id;
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { postId } = await params;
 
   try {

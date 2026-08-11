@@ -6,6 +6,7 @@ import { listManageablePages } from '@/lib/facebook/graph'
 import { readPendingUserToken } from '@/lib/facebook/pending-connect'
 import { resolveActiveShopContext } from '@/lib/shop-context'
 import { describePageStates } from '@/services/shop-channel.service'
+import { sessionUserId } from '@/lib/session-user'
 
 /**
  * GET /api/channels/facebook/pages — รายการเพจให้หน้า "เลือกเพจที่จะเชื่อม" (feature 00018)
@@ -19,8 +20,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const activeCtx = await resolveActiveShopContext({
     user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },

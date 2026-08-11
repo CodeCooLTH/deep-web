@@ -36,6 +36,7 @@ import {
 } from "@/services/ai-suggest-quota.service";
 import { AI_SUGGEST_EXTRA_USE_PRICE_BAHT, WALLET_REASON_AI_SUGGEST } from "@/lib/ai-suggest-limit";
 import { deductCredit, creditWallet, getBalance } from "@/services/wallet.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // feature 00018 composer improvement #3 — AI ช่วยร่างคำตอบ (Gemini)
 export const dynamic = "force-dynamic";
@@ -69,10 +70,10 @@ const GEMINI_INLINE_MIME = new Set([
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   if (!checkApiRateLimit(`ai-suggest:${userId}`, AI_RATE_LIMIT_MAX, AI_RATE_LIMIT_WINDOW_MS)) {
     return NextResponse.json({ error: "ใช้ AI ถี่เกินไป กรุณารอสักครู่" }, { status: 429, headers: { "Retry-After": "60" } });

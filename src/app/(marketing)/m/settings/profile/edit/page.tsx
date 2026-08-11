@@ -8,13 +8,14 @@ import { getTrustLevel } from '@/services/trust-score.service'
 import { formatDateTH } from '@/lib/format-date'
 import { MPageTitle } from '../../../_components/ui'
 import ProfileEditMobile from './ProfileEditMobile'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'แก้ไขโปรไฟล์' }
 
 export default async function MobileProfileEditPage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/settings/profile')
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/settings/profile')
 
   const user = await prisma.user.findUnique({
     where: { id: userId },

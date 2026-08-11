@@ -14,6 +14,7 @@ import type { TierChipColor } from '@/lib/trust-tier'
 import SignOutButton from '@/app/(marketing)/(buyer-app)/dashboard/SignOutButton'
 import DeleteAccountSection from '@/app/(marketing)/(buyer-app)/_components/DeleteAccountSection'
 import AvatarEditable from './AvatarEditable'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'บัญชีของฉัน' }
 
@@ -85,8 +86,8 @@ const MenuSection = ({ title, rows }: { title: string; rows: Row[] }) => (
 /** หน้าบัญชี mobile (/m) — hub แนว home: tier hero (gradient) → ออเดอร์ → stats → เมนู → ออกจากระบบ */
 export default async function MobileAccountPage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/settings/profile')
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/settings/profile')
 
   const [user, orderGroups, reviewCount, badgeCount, verifyLevel] = await Promise.all([
     prisma.user.findUnique({

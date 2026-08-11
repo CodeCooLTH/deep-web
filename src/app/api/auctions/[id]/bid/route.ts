@@ -4,6 +4,7 @@ import * as v from "valibot";
 import { authOptions } from "@/lib/auth";
 import { PlaceBidSchema } from "@/lib/validations";
 import { placeBid, BidError } from "@/services/auction.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // POST /api/auctions/[id]/bid  { amount }  (feature 00004 — buyer web, session-authed)
 // เหมือน /api/app/auctions/[id]/bid (mobile) เป๊ะ ต่างแค่ auth: session แทน HMAC Bearer
@@ -13,10 +14,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const { id } = await params;
   const body = await request.json().catch(() => null);

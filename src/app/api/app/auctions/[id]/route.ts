@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getAuctionDetail } from '@/services/auction.service'
 import { getSellerTrust } from '@/services/app-shop.service'
+import { sessionUserId } from '@/lib/session-user'
 
 // GET /api/app/auctions/[id] — รายละเอียด auction + ประวัติบิด + trust ผู้ขาย (public)
 // (compose ที่ route เพื่อเลี่ยง circular import: app-shop ↔ auction service)
@@ -13,7 +14,7 @@ export async function GET(
 ) {
   const { id } = await params
   const session = await getServerSession(authOptions)
-  const viewerUserId = session?.user ? (session.user as { id: string }).id : undefined
+  const viewerUserId = sessionUserId(session) ?? undefined
   const auction = await getAuctionDetail(id, viewerUserId)
   if (!auction) return NextResponse.json({ error: 'ไม่พบรายการประมูล' }, { status: 404 })
   const seller = await getSellerTrust(auction.shopId)

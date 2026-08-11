@@ -15,6 +15,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getBadgeProgress, getBadgePaceEstimate, toBadgeScope } from '@/services/badge.service'
 import { requireActiveShop } from '@/lib/shop-context'
+import { sessionUserId } from '@/lib/session-user'
 
 export async function GET(
   _req: NextRequest,
@@ -22,11 +23,11 @@ export async function GET(
 ) {
   const session = await getServerSession(authOptions)
   // ทำไม cast as any: session.user.id ถูก inject ใน auth.ts callback แต่ NextAuth type ไม่รู้ — เหมือน pattern ใน verification/route.ts
-  if (!session?.user) {
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const userId = (session.user as { id: string }).id
   const { badgeId } = await params
   if (!badgeId || badgeId.length < 1) {
     return NextResponse.json({ error: 'Invalid badgeId' }, { status: 400 })

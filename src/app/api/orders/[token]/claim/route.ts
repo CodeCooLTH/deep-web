@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizePhone } from "@/lib/phone";
 import { verifyOtp } from "@/lib/otp";
 import { guaranteeOrderLink } from "@/services/order-access.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // POST /api/orders/[token]/claim — feature 00015 (Order Claim & Forced Login)
 // API.md §4.3, SDS §4.5 — endpoint ใหม่สำหรับ decision OTP_CLAIM_REQUIRED
@@ -22,10 +23,10 @@ export async function POST(
   const { token } = await params;
 
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const actorUserId = sessionUserId(session);
+  if (!session?.user || !actorUserId) {
     return NextResponse.json({ error: "ไม่ได้เข้าสู่ระบบ" }, { status: 401 });
   }
-  const sessionUserId = (session.user as { id: string }).id;
 
   let body: unknown;
   try {
@@ -48,7 +49,7 @@ export async function POST(
   }
 
   // idempotent-hit — claim ไปแล้วโดยบัญชีเดียวกัน (เช่น double-submit) → ข้าม verify OTP ซ้ำ
-  if (order.buyerUserId === sessionUserId) {
+  if (order.buyerUserId === actorUserId) {
     return NextResponse.json({ ok: true });
   }
 
@@ -59,7 +60,7 @@ export async function POST(
 
   // resolve เบอร์ของ session user จาก DB เอง — ไม่รับจาก body (กัน spoofing)
   const sessionUser = await prisma.user.findUnique({
-    where: { id: sessionUserId },
+    where: { id: actorUserId },
     select: { phone: true },
   });
   const sessionPhone = sessionUser?.phone ? normalizePhone(sessionUser.phone) : null;
@@ -78,6 +79,6 @@ export async function POST(
     return NextResponse.json({ error: "รหัส OTP ไม่ถูกต้องหรือหมดอายุ" }, { status: 401 });
   }
 
-  await guaranteeOrderLink({ orderId: order.id, userId: sessionUserId, phone: sessionPhone });
+  await guaranteeOrderLink({ orderId: order.id, userId: actorUserId, phone: sessionPhone });
   return NextResponse.json({ ok: true });
 }

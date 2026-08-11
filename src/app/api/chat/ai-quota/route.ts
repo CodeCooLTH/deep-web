@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveScopedShopId } from "@/lib/chat-scope";
 import { getAiSuggestQuotaStatus } from "@/services/ai-suggest-quota.service";
+import { sessionUserId } from "@/lib/session-user";
 
 /**
  * GET /api/chat/ai-quota — สถานะโควตาฟรี/ยอดเงิน/paid-plan ของ ai-suggest ล่วงหน้า (feature 00019 ext, 2026-07-29)
@@ -18,10 +19,10 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   // feature 00037 — ร้านของทรัพยากรนี้: ?shopId= ที่ client ส่งมา (ร้านของเธรดที่เปิดอยู่)
   // ต้องถูก intersect กับขอบเขตเสมอ; ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิมของผู้ใช้ร้านเดียว)

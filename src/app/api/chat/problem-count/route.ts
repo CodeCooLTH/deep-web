@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveChatScope } from "@/lib/chat-scope";
 import { conversationIdsByShipmentState } from "@/services/chat.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // feature 00022 — จำนวนบทสนทนาที่พัสดุมีปัญหา สำหรับชิปกรองในรายการแชท
 //
@@ -16,10 +17,10 @@ const NO_STORE_HEADERS = {
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
   const scope = await resolveChatScope({
     user: {
       id: userId,

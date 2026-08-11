@@ -9,6 +9,7 @@ import { getOrdersByBuyer } from '@/services/order.service'
 import { formatDateTimeTH } from '@/lib/format-date'
 import SearchBox from '@/app/(marketing)/(buyer-app)/_components/SearchBox'
 import { MPageTitle, MEmpty, MChip, type SemColor } from '../_components/ui'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'คำสั่งซื้อของฉัน' }
 
@@ -47,8 +48,8 @@ export default async function MobileOrdersPage({
   searchParams: Promise<{ status?: string; q?: string }>
 }) {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/orders')
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/orders')
 
   const { status: rawStatus = 'ALL', q = '' } = await searchParams
   const status = VALID.has(rawStatus) ? rawStatus : 'ALL'

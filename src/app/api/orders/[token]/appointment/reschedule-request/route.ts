@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { RequestRescheduleSchema } from "@/lib/validations";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { requestAppointmentReschedule } from "@/services/appointment.service";
+import { sessionUserId } from "@/lib/session-user";
 
 /**
  * POST /api/orders/[token]/appointment/reschedule-request — ลูกค้าขอเลื่อนนัด
@@ -26,10 +27,10 @@ export async function POST(
   const { token } = await params;
 
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const buyerUserId = sessionUserId(session);
+  if (!session?.user || !buyerUserId) {
     return NextResponse.json({ error: "ไม่ได้เข้าสู่ระบบ" }, { status: 401 });
   }
-  const buyerUserId = (session.user as { id: string }).id;
 
   const body = await request.json().catch(() => null);
   const parsed = v.safeParse(RequestRescheduleSchema, body ?? {});

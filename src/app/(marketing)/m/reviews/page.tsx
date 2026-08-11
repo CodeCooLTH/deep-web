@@ -8,6 +8,7 @@ import { getReviewsByBuyer } from '@/services/review.service'
 import { formatDateTimeTH } from '@/lib/format-date'
 import SearchBox from '@/app/(marketing)/(buyer-app)/_components/SearchBox'
 import { MPageTitle, MEmpty } from '../_components/ui'
+import { sessionUserId } from '@/lib/session-user'
 
 export const metadata: Metadata = { title: 'รีวิวที่ให้' }
 
@@ -47,8 +48,8 @@ export default async function MobileReviewsPage({
   searchParams: Promise<{ rating?: string; q?: string }>
 }) {
   const session = await getServerSession(authOptions)
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/reviews')
-  const userId = (session.user as { id: string }).id
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/reviews')
 
   const { rating: rawRating = 'ALL', q = '' } = await searchParams
   const rating = VALID.has(rawRating) ? rawRating : 'ALL'

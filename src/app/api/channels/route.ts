@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { resolveActiveShopContext, listAccessibleShopIds } from "@/lib/shop-context";
 import { listChannels, resubscribeShopChannels } from "@/services/shop-channel.service";
+import { sessionUserId } from "@/lib/session-user";
 
 // T1 (feature 00018): list ช่องทาง (ShopChannel) ของร้าน — ใช้โดย Chat Rail filter "เพจ" +
 // หน้า /settings/channels
@@ -27,10 +28,10 @@ const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0, must-
  */
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const activeCtx = await resolveActiveShopContext({
     user: { id: userId, activeShopId: ((session.user as any).activeShopId as string | null | undefined) ?? null },
@@ -70,10 +71,10 @@ export async function GET() {
  */
 export async function POST() {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const userId = sessionUserId(session);
+  if (!session?.user || !userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const userId = (session.user as { id: string }).id;
 
   const shopIds = await listAccessibleShopIds(userId);
   if (shopIds.length === 0) {

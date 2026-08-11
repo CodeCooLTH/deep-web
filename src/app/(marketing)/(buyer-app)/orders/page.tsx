@@ -9,6 +9,7 @@ import { getOrdersByBuyer } from '@/services/order.service'
 import OrderList, { type BuyerOrderRow } from '@views/apps/ecommerce/orders/list'
 import PageHeader from '../_components/PageHeader'
 import SearchBox from '../_components/SearchBox'
+import { sessionUserId } from '@/lib/session-user'
 
 /**
  * Buyer "My Orders" list.
@@ -30,9 +31,9 @@ export default async function MyOrdersPage({
 }) {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user) redirect('/auth/sign-in?callbackUrl=/orders')
+  const userId = sessionUserId(session)
+  if (!session?.user || !userId) redirect('/auth/sign-in?callbackUrl=/orders')
 
-  const userId = (session.user as { id: string }).id
   const { status: rawStatus = 'ALL', q = '' } = await searchParams
   const status = VALID_STATUSES.has(rawStatus) ? rawStatus : 'ALL'
   const query = q.trim().toLowerCase()
