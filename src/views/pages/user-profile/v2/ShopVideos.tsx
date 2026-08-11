@@ -222,7 +222,21 @@ export default function ShopVideos({ items: raw }: { items: ShopVideoItem[] }) {
   // สัดส่วนไทล์คือสิ่งที่ทำให้ลอกจำนวนคอลัมน์ของ IG มาตรง ๆ ไม่ได้ ต้องคิดจากความสูงที่ได้จริง
   // ช่องไฟ 4px + ชิดซ้าย ยังคงไว้ตามที่ user ขอ
   return (
-    <div className='grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1'>
+    /* 🛑 -mx-5 = หัก `pli-5` (20px) ของ tab panel ให้ไทล์ชนขอบคอนเทนเนอร์จริง
+       (Tailwind v4 map `mx` เป็น `margin-inline` อยู่แล้ว จึงยังเป็น logical property
+        เลือก core utility แทน `-mli-5` ของปลั๊กอินเพราะไม่ต้องพึ่งพฤติกรรมของปลั๊กอิน
+
+        📌 ผมเคยเขียนตรงนี้ว่า `-mli-5` "ไม่ถูกเจนเป็น CSS เลย" — **ผิด** ตรวจ CSS ที่ build ออกมา
+        จริงแล้วเจน `.-mli-5{margin-inline:calc(calc(var(--spacing)*5)*-1)!important}` ปกติ
+        (Tailwind v4 จัดการค่าติดลบให้เองโดยไม่ต้องมี supportsNegative เหมือน v3) ใช้ได้ทั้งคู่ —
+        บันทึกไว้เพราะข้ออ้างว่า "คลาสนี้ใช้ไม่ได้" คือเหตุผลที่คนถัดไปจะไม่ลองใช้มันอีกเลย)
+       user ทัก 2026-08-11: "เวลาอยู่บน mobile เราไม่ชิดขอบแบบ IG มันเหลือพื้นที่ตรงรูปเยอะ เสียดาย"
+
+       ที่น่าสนใจคือ **คอมเมนต์ในไฟล์นี้กับ profile/index.tsx อ้างมาตลอดว่าทำ full-bleed แล้ว**
+       (profile/index.tsx เขียนตรงตัวว่า "-20px = หัก pli-5 ของ tab panel ... ค่าเดียวกับ -mli-5
+       ที่กริดคลิปใช้") แต่ **ไม่มีไฟล์ไหนใส่ negative margin จริงสักไฟล์** — คอมเมนต์อ้างอิงกันเอง
+       ไปมาจนอ่านเหมือนมีของอยู่แล้ว ไม่มี gate ไหนตรวจว่าคอมเมนต์ตรงกับโค้ดไหม (HR16 ทิศกลับ) */
+    <div className='grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1 -mx-5 sm:mx-0'>
       {items.map((v) => (
         <VideoCell key={v.id} item={v} />
       ))}

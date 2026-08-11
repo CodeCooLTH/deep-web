@@ -422,6 +422,9 @@ export const ProfileRightContent = ({
                   // (ปัญหาเดียวกับกริดคลิป user ทัก 2026-08-10 "grid ใหญ่ไปป่าว")
                   gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
                   gap: '4px',
+                  // 🛑 คอมเมนต์ข้างบนอ้างค่านี้มาตลอดแต่ **ไม่เคยมีในโค้ดจริง** — ใส่จริงแล้ว
+                  // 2026-08-11 (user: "บน mobile เราไม่ชิดขอบแบบ IG เหลือพื้นที่ตรงรูปเยอะ")
+                  marginInline: { xs: '-20px', sm: 0 },
                 }}
               >
                 {pinnedProducts.map((product) => (
@@ -461,6 +464,9 @@ export const ProfileRightContent = ({
                   // (ปัญหาเดียวกับกริดคลิป user ทัก 2026-08-10 "grid ใหญ่ไปป่าว")
                   gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(5, 1fr)' },
                   gap: '4px',
+                  // 🛑 คอมเมนต์ข้างบนอ้างค่านี้มาตลอดแต่ **ไม่เคยมีในโค้ดจริง** — ใส่จริงแล้ว
+                  // 2026-08-11 (user: "บน mobile เราไม่ชิดขอบแบบ IG เหลือพื้นที่ตรงรูปเยอะ")
+                  marginInline: { xs: '-20px', sm: 0 },
                 }}
               >
                 {otherProducts.map((product) => (

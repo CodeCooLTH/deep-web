@@ -1,7 +1,6 @@
 // Next Imports
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import NextLink from 'next/link'
 
 // MUI Imports
 import Box from '@mui/material/Box'
@@ -26,6 +25,7 @@ import { formatMonthYearTH } from '@/lib/format-date'
 
 // View Imports
 import ShopProfile from '@views/pages/user-profile/v2/ShopProfile'
+import PublicProfileFooter from '@views/pages/user-profile/v2/PublicProfileFooter'
 import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
 import { getShopProfileStats } from '@/services/shop.service'
 import { getShopVideos } from '@/services/shop-video.service'
@@ -332,12 +332,7 @@ export default async function BusinessShopProfilePage({ params }: Props) {
             blocks: pageBlocks,
           }}
         />
-      {/* mini-footer: legal link ที่ Meta ต้องการ — RSC ใช้ NextLink ห่อ Typography แทน component={Link} (Hard Rule 2) */}
-      <Box component='footer' sx={{ textAlign: 'center', py: 2, px: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-        <NextLink href='/privacy' style={{ textDecoration: 'none' }}>
-          <Typography variant='caption' color='text.secondary'>นโยบายความเป็นส่วนตัว</Typography>
-        </NextLink>
-      </Box>
+      <PublicProfileFooter />
     </Box>
   )
 }
