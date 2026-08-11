@@ -334,7 +334,8 @@ describe('POST /api/channels/line/webhook', () => {
     expect(ingestLineMediaMessage).not.toHaveBeenCalled()
   })
 
-  it('event ชนิดที่ยังไม่รองรับ (postback) → ข้ามอย่างปลอดภัย ไม่เรียก ingest ไม่ล้มทั้ง request', async () => {
+  it('postback ที่ payload ไม่ครบ (ไม่มี data/webhookEventId) → ข้ามอย่างปลอดภัย ไม่เรียก ingest', async () => {
+    // 🛑 ไม่มี webhookEventId = ไม่มีคีย์ dedupe → ingest ไปก็เสี่ยงข้อความซ้ำทุกครั้งที่ LINE redeliver
     const postbackBody = {
       destination: textEventBody.destination,
       events: [
@@ -350,6 +351,41 @@ describe('POST /api/channels/line/webhook', () => {
     expect(res.status).toBe(200)
     expect(ingestLineTextMessage).not.toHaveBeenCalled()
     expect(ingestLineMediaMessage).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] postback ครบถ้วน → ingest เป็นข้อความขาเข้า + ส่ง replyToken ต่อ (เปิดหน้าต่างตอบฟรี)', async () => {
+    // ที่มา 2026-08-11: การที่ลูกค้า "แตะปุ่ม" ให้ replyToken มาเหมือนการพิมพ์ข้อความทุกประการ —
+    // ถ้าทิ้ง event นี้ ร้านจะเสียทั้งสัญญาณว่าลูกค้าตอบสนอง และเสียโอกาสตอบฟรี 60 วินาที
+    const postbackBody = {
+      destination: textEventBody.destination,
+      events: [
+        {
+          type: 'postback',
+          timestamp: 1785000000000,
+          webhookEventId: '01FZ74A0TDDPYRVKNK77XKC3ZR',
+          source: { type: 'user', userId: 'U0987654321' },
+          replyToken: 'reply-token-postback',
+          postback: { data: 'action=book&label=เลือกวันเข้าใช้บริการ', params: { datetime: '2026-08-12T10:00' } },
+        },
+      ],
+    }
+    const res = await POST(postReq(postbackBody))
+    expect(res.status).toBe(200)
+    expect(ingestLineMediaMessage).not.toHaveBeenCalled()
+    expect(ingestLineTextMessage).toHaveBeenCalledTimes(1)
+
+    const arg = (ingestLineTextMessage as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][0] as {
+      lineMessageId: string
+      text: string
+      replyToken?: string
+      externalUserId: string
+    }
+    // dedupe key ต้องมาจาก webhookEventId และต้องมี prefix กันชนกับ message id จริงของ LINE
+    expect(arg.lineMessageId).toBe('pb:01FZ74A0TDDPYRVKNK77XKC3ZR')
+    expect(arg.replyToken).toBe('reply-token-postback')
+    expect(arg.externalUserId).toBe('U0987654321')
+    expect(arg.text).toContain('เลือกวันเข้าใช้บริการ')
+    expect(arg.text).toContain('2026-08-12T10:00')
   })
 
   it('event follow/unfollow (ยังไม่รองรับ — S-11) → ข้ามอย่างปลอดภัย ไม่เรียก ingest', async () => {

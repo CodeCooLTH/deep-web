@@ -38,6 +38,16 @@ export interface ChannelCapabilities {
 export type OutboundMessagePart =
   | { kind: 'text'; text: string }
   | {
+      /** (เพิ่ม 2026-08-11) ข้อความแบบมี layout ของ LINE (Flex Message) — **LINE เท่านั้น**
+       *  Meta ไม่มีของเทียบ: MetaAdapter ปฏิเสธด้วย error ที่อ่านออกแทนการเงียบหรือส่งเป็นข้อความเปล่า
+       *  (ผู้เรียกต้องเลือกเองว่าช่องทางไหนได้ flex ช่องทางไหนได้ text — ดู messages route) */
+      kind: 'flex'
+      /** สิ่งที่ลูกค้าเห็นใน **รายการแชทและ notification** (flex ไม่ถูกเรนเดอร์ที่นั่น) — ห้ามว่าง */
+      altText: string
+      /** flex container object ตามสเปก LINE — ผู้เรียกประกอบมาแล้ว (lib/line/flex-order-card.ts) */
+      contents: Record<string, unknown>
+    }
+  | {
       kind: 'attachment'
       attachmentKind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE'
       url: string

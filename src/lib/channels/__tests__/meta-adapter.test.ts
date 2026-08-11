@@ -21,6 +21,19 @@ const baseCtx: ChannelContext = {
   recipientId: 'PSID123',
 }
 
+describe('MetaAdapter.sendMessages — flex (2026-08-11)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('[blocker] flex เป็นชนิดของ LINE ล้วน → Meta ต้องโยน error ไม่ใช่ถอยไปส่งข้อความเปล่า', async () => {
+    // ถอยเงียบ = ลูกค้า Messenger ได้บับเบิลว่างโดยไม่มีใครรู้ว่าเนื้อหาหายไปไหน
+    await expect(
+      MetaAdapter.sendMessages(baseCtx, [{ kind: 'flex', altText: 'คำสั่งซื้อ', contents: { type: 'bubble' } }]),
+    ).rejects.toThrow(/flex/)
+    expect(graph.sendTextMessage).not.toHaveBeenCalled()
+    expect(graph.sendAttachmentMessage).not.toHaveBeenCalled()
+  })
+})
+
 describe('MetaAdapter.sendMessages — sticker (regression, S-18a)', () => {
   beforeEach(() => vi.clearAllMocks())
 

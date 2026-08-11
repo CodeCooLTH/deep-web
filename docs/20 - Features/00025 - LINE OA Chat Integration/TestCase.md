@@ -252,6 +252,39 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 **Then** มีไฟล์ preview ถูกสร้างขึ้น **1 ใบเท่านั้น** ไม่ใช่ 2 (ผล `buildParts()` ถูก memoize)
 **ระดับ:** Integration
 
+#### TC-42: การ์ดคำสั่งซื้อไปถึงลูกค้าเป็น Flex ไม่ใช่ลิงก์ดิบ
+**Given** เธรด LINE ของร้านที่มีออเดอร์อยู่แล้ว
+**When** ร้านกดส่งการ์ดคำสั่งซื้อ
+**Then** ลูกค้าเห็น **บับเบิลการ์ด** (ชื่อรายการ · ยอดสุทธิ · ปุ่ม "เปิดคำสั่งซื้อ") ไม่ใช่ข้อความ 3 บรรทัดกับลิงก์
+**Then (ต่อ)** ปิดแอป LINE แล้วดู **การแจ้งเตือนบนล็อกสกรีน** ต้องเห็นทั้งชื่อของและยอดเงิน (นี่คือ `altText` — จุดที่พังแล้วไม่มีใครเห็นจนกว่าจะปิดแอปไปดู)
+**Then (ต่อ)** กดปุ่มแล้วเปิดหน้าออเดอร์ได้จริง
+**ระดับ:** Unit ([blocker] `flex-order-card.test.ts`) + Manual บนเครื่องจริง
+
+#### TC-43: ออเดอร์หลายรายการ
+**Given** ออเดอร์ที่มี 3 รายการ
+**Then** การ์ดขึ้น "และอีก 2 รายการ" (นับจาก `_count.items` ไม่ใช่ `items.length` ที่ take:1)
+**Then (ต่อ)** ออเดอร์รายการเดียว **ต้องไม่มี**บรรทัดนั้นเลย
+**ระดับ:** Unit ([blocker])
+
+#### TC-44: Messenger/IG ต้องไม่เปลี่ยนพฤติกรรม
+**Given** เธรด Messenger และ Instagram
+**When** ส่งการ์ดคำสั่งซื้อ
+**Then** ลูกค้ายังได้ **ข้อความลิงก์เหมือนเดิมทุกตัวอักษร** และไม่มี request ไหนพยายามส่ง flex
+**ระดับ:** Unit ([blocker] `meta-adapter.test.ts`) + Integration
+
+#### TC-45: ลูกค้าแตะปุ่ม (postback) → เข้าเธรด + เปิดหน้าต่างตอบฟรี
+**Given** ปุ่มชนิด postback (ยังไม่มีตัวส่งจริงในรอบนี้ — ยิง payload เข้า webhook ตรง ๆ)
+**When** ส่ง event `postback` ที่มี `data` + `webhookEventId` + `replyToken`
+**Then** เกิด `ChatMessage` ขาเข้า 1 แถว ข้อความอ่านรู้เรื่อง ("ลูกค้าแตะปุ่ม: …") และ `externalMessageId` = `LINE:pb:{webhookEventId}`
+**Then (ต่อ)** `replyToken` ถูกบันทึก → แคปชันบนปุ่มส่งเปลี่ยนเป็น `ส่ง · ฟรี xx วิ`
+**Then (ต่อ)** ยิง event เดิมซ้ำ → ไม่เกิดแถวที่สอง · แต่ **กดปุ่มเดิมอีกครั้งจริง ๆ** (webhookEventId ใหม่) → ต้องเกิดแถวใหม่
+**ระดับ:** Integration ([blocker] `webhook/route.test.ts`)
+
+#### TC-46: postback payload ไม่ครบ
+**When** ส่ง postback ที่ไม่มี `data` หรือไม่มี `webhookEventId`
+**Then** HTTP 200, ไม่มีแถวใดถูกเขียน, ไม่ล้มทั้ง request
+**ระดับ:** Integration
+
 ### กลุ่ม E — ตอบอัตโนมัติ (00023) และการไม่ก่อค่าใช้จ่าย
 
 #### TC-29: keyword ตรง + อยู่ในหน้าต่างฟรี → ตอบด้วย reply
@@ -304,7 +337,7 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[API]]", "[[DATABASE]]"]
 | FR-LINE-01 | BR-LINE-01/02/03/04 | TC-01, TC-02, TC-21, TC-22, TC-23 |
 | FR-LINE-02 | BR-LINE-05/06/07/08 | TC-03, TC-04, TC-05, TC-06, TC-07, TC-20, TC-26 |
 | FR-LINE-03 | BR-LINE-09 | TC-08, TC-09, TC-25 |
-| FR-LINE-04 | BR-LINE-16 | TC-10, TC-11, TC-16, TC-36, TC-37, TC-38, TC-39, TC-40, TC-41 |
+| FR-LINE-04 | BR-LINE-16 | TC-10, TC-11, TC-16, TC-36…TC-41 (ไฟล์แนบ), TC-42…TC-46 (Flex + postback) |
 | FR-LINE-05 | BR-LINE-10/11 | TC-10, TC-12, TC-28 |
 | FR-LINE-06 | BR-LINE-13/14 | TC-13, TC-14, TC-15, TC-28 |
 | FR-LINE-07 | BR-LINE-12 | TC-16, TC-17 |

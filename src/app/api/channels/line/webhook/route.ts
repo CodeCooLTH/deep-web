@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { decryptToken } from '@/lib/token-crypto'
 import { validateSignature } from '@/lib/line/signature'
+import { describeLinePostback } from '@/lib/line/postback'
 import { ingestLineTextMessage, ingestLineMediaMessage, type LineInboundMediaMessage } from '@/services/channel-chat.service'
 
 // Webhook ของ LINE Messaging API (feature 00025, S-6 — จุดเสี่ยงสูงสุดรองจาก S-1: public endpoint
@@ -65,6 +66,10 @@ interface LineWebhookEvent {
   source?: { type?: unknown; userId?: unknown }
   replyToken?: unknown
   message?: LineWebhookMessage
+  /** (2026-08-11) id ที่ LINE รับประกันว่าไม่ซ้ำต่อ event — postback ไม่มี message.id ให้ dedupe */
+  webhookEventId?: unknown
+  /** (2026-08-11) มีเฉพาะ event ชนิด postback — `params` มีเมื่อปุ่มเป็น datetimepicker/richmenuswitch */
+  postback?: { data?: unknown; params?: Record<string, unknown> }
 }
 
 interface LineWebhookBody {
@@ -140,6 +145,37 @@ async function processLineEvent(params: {
   const { event } = params
 
   if (typeof event.source?.type !== 'string' || event.source.type !== 'user') return
+
+  // (2026-08-11) postback — เกิดเมื่อลูกค้าแตะปุ่มที่เราส่งไป (quick reply / ปุ่มใน Flex / rich menu)
+  //
+  // 🛑 postback **ไม่มี `message.id`** ให้ใช้ dedupe เหมือน event ชนิด message — ใช้ `webhookEventId`
+  // ซึ่ง LINE รับประกันว่าไม่ซ้ำต่อ event แทน (ถ้าใช้ timestamp หรือ data จะซ้ำทันทีที่ลูกค้ากดปุ่มเดิม
+  // สองครั้ง แล้วการกดครั้งที่สองจะหายเงียบ ซึ่งเป็นการกดที่ตั้งใจจริง ๆ)
+  //
+  // ที่สำคัญกว่าตัวข้อความ: postback **มี replyToken มาด้วย** — การที่ลูกค้าแตะปุ่มจึงเปิดหน้าต่าง
+  // ตอบฟรี 60 วินาทีให้ร้านเหมือนกับการพิมพ์ข้อความทุกประการ (ประหยัดโควตาจริง ไม่ใช่ผลพลอยได้)
+  if (event.type === 'postback') {
+    const postbackData = typeof event.postback?.data === 'string' ? event.postback.data : ''
+    const webhookEventId = typeof event.webhookEventId === 'string' ? event.webhookEventId : ''
+    if (!postbackData || !webhookEventId) return
+
+    const userId = typeof event.source.userId === 'string' ? event.source.userId : null
+    if (!userId) return
+
+    await ingestLineTextMessage({
+      shopId: params.shopId,
+      shopChannelId: params.shopChannelId,
+      accessToken: params.accessToken,
+      externalUserId: userId,
+      // prefix `pb:` กัน id ชนกับ message id จริงของ LINE ในคอลัมน์ externalMessageId เดียวกัน
+      lineMessageId: `pb:${webhookEventId}`,
+      text: describeLinePostback(postbackData, event.postback?.params),
+      replyToken: typeof event.replyToken === 'string' ? event.replyToken : undefined,
+      eventTimestamp: typeof event.timestamp === 'number' ? event.timestamp : Date.now(),
+    })
+    return
+  }
+
   if (event.type !== 'message') return
 
   const message = event.message

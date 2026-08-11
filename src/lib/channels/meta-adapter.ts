@@ -48,6 +48,13 @@ const ATTACHMENT_KIND_TO_GRAPH: Record<'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE', Gra
 async function sendOnePart(ctx: ChannelContext, part: OutboundMessagePart): Promise<string> {
   if (!ctx.recipientId) throw new Error('MetaAdapter.sendMessages: ต้องมี recipientId')
   const replyTo = ctx.replyToExternalId ?? undefined
+  if (part.kind === 'flex') {
+    // (2026-08-11) Flex เป็นของ LINE ล้วน Meta ไม่มีของเทียบ — โยน error ที่อ่านออกแทนการถอยไปส่ง
+    // เป็นข้อความเปล่า: การถอยเงียบจะทำให้ลูกค้า Messenger ได้บับเบิลว่างโดยไม่มีใครรู้ว่าหายไปไหน
+    // (บล็อกนี้มีอยู่เพราะ tsc บังคับ — union ใหม่ทำให้ fall-through ท้ายฟังก์ชันคอมไพล์ไม่ผ่าน
+    // ซึ่งเป็นเจตนา ดู docs/conventions/enum-value-removal.md)
+    throw new Error('MetaAdapter.sendMessages: ไม่รองรับ flex message (เป็นชนิดข้อความเฉพาะของ LINE)')
+  }
   if (part.kind === 'sticker') {
     return sendStickerMessage(ctx.accessToken, ctx.recipientId, part.stickerId, replyTo, ctx.tag)
   }

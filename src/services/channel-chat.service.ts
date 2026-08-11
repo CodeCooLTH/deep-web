@@ -2753,6 +2753,8 @@ async function sendOutboundLineMessage(
       size?: number | null
     }
     orderRefToken?: string
+    /** (2026-08-11) การ์ด Flex — ชนะ `text` เมื่อมีค่า (ดู buildParts) */
+    flex?: { altText: string; contents: Record<string, unknown> }
     replyToMid?: string | null
   },
 ) {
@@ -2786,6 +2788,13 @@ async function sendOutboundLineMessage(
       const fileUrl = await getFileUrl(attachment.fileId, { signed: true, expiresIn: 3600 })
       const previewUrl = await resolveLinePreviewUrl(attachment.fileId, attachment.kind, fileUrl)
       return [{ kind: 'attachment', attachmentKind: attachment.kind, url: fileUrl, previewUrl }]
+    }
+    if (params.flex) {
+      // (2026-08-11) การ์ดคำสั่งซื้อ — ลูกค้า LINE เคยได้แค่ข้อความกับลิงก์ดิบ ตอนนี้ได้บับเบิลจริง
+      // 🛑 ถูกวางไว้ **หลัง** sticker/attachment โดยตั้งใจ: ทั้งสองอย่างนั้นเป็นเนื้อหาที่ผู้ขายเลือกส่ง
+      // โดยตรง ส่วน flex เป็นการ "ยกระดับการนำเสนอ" ของข้อความที่มี `text` เป็นตัวสำรองอยู่แล้ว —
+      // ถ้าวางไว้บนสุดแล้ววันหนึ่งมีคนส่ง flex มาพร้อมรูป รูปจะหายเงียบ
+      return [{ kind: 'flex', altText: params.flex.altText, contents: params.flex.contents }]
     }
     return [{ kind: 'text', text: bodyText }]
   }
@@ -3097,6 +3106,16 @@ export async function sendOutboundMessage(params: {
   // orderRefToken (user 2026-07-25): การ์ดคำสั่งซื้อบนช่องทางนอก — ส่ง "ลิงก์ (text)" ให้ลูกค้าผ่าน Meta
   // แต่เก็บข้อความฝั่งเราเป็น type=ORDER เพื่อให้ "ร้าน" เห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด)
   orderRefToken?: string
+  /**
+   * (2026-08-11) การ์ด Flex สำหรับ **LINE เท่านั้น** — มีค่าเมื่อไหร่จะถูกส่งแทน `text`
+   *
+   * ทำไมเป็น optional แทนที่จะให้ service ประกอบเอง: ผู้เรียกเป็นคนรู้บริบท (ออเดอร์กี่รายการ ยอดเท่าไหร่
+   * ลิงก์อะไร) และ **การฟอร์แมตเงินต้องมาจากสูตรกลางที่ผู้เรียกใช้อยู่แล้ว** ไม่ใช่ให้ service เดาใหม่ (HR16)
+   *
+   * 🛑 `text` ยังต้องส่งมาด้วยเสมอ — มันคือสิ่งที่บันทึกลง `ChatMessage.body` ให้ร้านเห็นในประวัติ
+   * และเป็นทางถอยเมื่อช่องทางไม่ใช่ LINE (Meta ยังได้ลิงก์ข้อความเหมือนเดิมทุกประการ)
+   */
+  flex?: { altText: string; contents: Record<string, unknown> }
   // reply/quote (user 2026-07-25): externalMessageId (mid) ของข้อความที่ตอบทับ — ส่ง reply_to:{mid}
   // ให้ Meta (Messenger รองรับ; IG best-effort) + เก็บ replyToMid ฝั่งเราเพื่อ render quote
   replyToMid?: string | null

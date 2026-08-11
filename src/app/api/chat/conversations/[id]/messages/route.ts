@@ -18,6 +18,7 @@ import {
   CHAT_RATE_LIMIT_WINDOW_MS,
 } from "@/lib/chat-constants";
 import { describeSendFailure } from "@/lib/chat-send-failure";
+import { buildLineFlexOrderCard } from "@/lib/line/flex-order-card";
 import { EXT_TO_MIME } from "@/lib/attachment-mime";
 import { sendOutboundImageGrid, IMAGE_GRID_MAX } from "@/services/channel-chat.service";
 import {
@@ -565,7 +566,13 @@ export async function POST(
       if (type === "ORDER") {
         const order = await prisma.order.findFirst({
           where: { publicToken: orderRefToken!, shopId: conv.shopId },
-          select: { totalAmount: true, items: { select: { name: true }, take: 1 } },
+          // _count.items: ใช้บอกว่า "และอีก n รายการ" บนการ์ด Flex — ต้องนับจากฐาน ไม่ใช่ items.length
+          // ที่ take:1 ไว้แล้ว (จะได้ 1 เสมอ ซึ่งแปลว่าการ์ดจะบอกว่ามีรายการเดียวตลอดกาล)
+          select: {
+            totalAmount: true,
+            items: { select: { name: true }, take: 1 },
+            _count: { select: { items: true } },
+          },
         });
         if (!order) {
           return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้ในร้าน" }, { status: 400 });
@@ -573,11 +580,25 @@ export async function POST(
         const base = (process.env.NEXT_PUBLIC_BUYER_URL || "https://deepthailand.app").replace(/\/+$/, "");
         const orderTitle = order.items[0]?.name ?? "คำสั่งซื้อ";
         const orderTotal = `฿${Number(order.totalAmount).toLocaleString("th-TH")}`;
-        const linkText = `คำสั่งซื้อ: ${orderTitle}\nยอดสุทธิ ${orderTotal}\n${base}/o/${orderRefToken}`;
+        const orderUrl = `${base}/o/${orderRefToken}`;
+        const linkText = `คำสั่งซื้อ: ${orderTitle}\nยอดสุทธิ ${orderTotal}\n${orderUrl}`;
+        // (2026-08-11) LINE ได้การ์ด Flex จริง — Messenger/IG ยังได้ลิงก์ข้อความเหมือนเดิมทุกประการ
+        // (ไม่มีของเทียบฝั่ง Meta; MetaAdapter ปฏิเสธ part ชนิด flex ตั้งแต่ต้นทางถ้าเผลอส่งไป)
+        // 🛑 uri action ของ LINE รับเฉพาะ https — dev ที่ base เป็น http จะโดน LINE ปฏิเสธทั้งข้อความ
+        // จึงถอยไปใช้ข้อความลิงก์เดิม ดีกว่าส่งไม่ออกเลย
+        const useFlex = conv.channel === "LINE" && orderUrl.startsWith("https://");
         const sent = await sendOutboundMessage({
           conversationId: id,
           actorUserId: userId,
-          text: linkText, // ลูกค้าได้ลิงก์นี้
+          text: linkText, // ยังต้องส่งเสมอ: เป็นทั้ง body ที่ร้านเห็นในประวัติ และทางถอยของช่องทางอื่น
+          flex: useFlex
+            ? buildLineFlexOrderCard({
+                title: orderTitle,
+                extraItemCount: Math.max(0, order._count.items - 1),
+                totalText: orderTotal,
+                url: orderUrl,
+              })
+            : undefined,
           orderRefToken: orderRefToken!, // ฝั่งเราเก็บเป็นการ์ด
         });
         return NextResponse.json(await withSender(sent, userId));

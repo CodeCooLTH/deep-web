@@ -185,6 +185,30 @@ describe('LineAdapter.sendMessages', () => {
     })
   })
 
+  it('[blocker] แปลง flex เป็น { type: flex, altText, contents } — การ์ดออเดอร์ของลูกค้า LINE', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm9' }] }))
+    await LineAdapter.sendMessages(baseCtx, [
+      { kind: 'flex', altText: 'คำสั่งซื้อ: เสื้อยืด ยอดสุทธิ ฿590', contents: { type: 'bubble' } },
+    ])
+    const [, init] = mock.mock.calls[0]! as [string, RequestInit]
+    const body = JSON.parse(init.body as string)
+    expect(body.messages[0]).toEqual({
+      type: 'flex',
+      altText: 'คำสั่งซื้อ: เสื้อยืด ยอดสุทธิ ฿590',
+      contents: { type: 'bubble' },
+    })
+  })
+
+  it('[blocker] flex ที่ altText ว่าง → ปฏิเสธตั้งแต่ต้นทาง (ลูกค้าจะเห็นบรรทัดเปล่าใน notification)', async () => {
+    const mock = fetch as unknown as ReturnType<typeof vi.fn>
+    mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm10' }] }))
+    await expect(
+      LineAdapter.sendMessages(baseCtx, [{ kind: 'flex', altText: '   ', contents: { type: 'bubble' } }]),
+    ).rejects.toThrow(/altText/)
+    expect(mock).not.toHaveBeenCalled()
+  })
+
   it('แปลง attachment AUDIO เป็น { type: audio, originalContentUrl, duration }', async () => {
     const mock = fetch as unknown as ReturnType<typeof vi.fn>
     mock.mockReturnValue(okJson({ sentMessages: [{ id: 'm4' }] }))

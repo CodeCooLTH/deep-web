@@ -50,6 +50,15 @@ function toLineMessage(part: OutboundMessagePart): Record<string, unknown> {
     return { type: 'text', text: part.text }
   }
 
+  if (part.kind === 'flex') {
+    // (2026-08-11) altText คือสิ่งเดียวที่ลูกค้าเห็นในรายการแชท/notification — ปล่อยให้ว่างแล้ว LINE
+    // จะขึ้นเป็นบรรทัดเปล่า ลูกค้าไม่มีทางรู้ว่ามีออเดอร์เข้ามาจนกว่าจะเปิดห้องแชท ปฏิเสธตั้งแต่ที่นี่
+    if (!part.altText.trim()) {
+      throw new Error('LineAdapter.sendMessages: flex message ต้องมี altText (ห้ามว่าง)')
+    }
+    return { type: 'flex', altText: part.altText, contents: part.contents }
+  }
+
   if (part.kind === 'sticker') {
     // (S-18a, user เปลี่ยน scope 2026-08-10 ทับมติเดิม OOS-08) ส่งสติกเกอร์ออกได้แล้ว — LINE sticker
     // message ต้องมีทั้ง `packageId`+`stickerId` คู่กันเสมอ (ต่างจาก Meta ที่ใช้ stickerId ตัวเดียว)
