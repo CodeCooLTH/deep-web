@@ -196,6 +196,8 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
     setSelectedIds([])
   }
 
+  /** 🛑 ไม่มี Swal ยืนยันโดยเจตนา — ปุ่มบอกจำนวนที่จะออกไปอยู่แล้ว และนี่คือขั้นสุดท้ายของ flow ที่
+   *  ตั้งใจเดินเข้ามา (เกณฑ์: `docs/conventions/seller-action-placement.md` §3.1) */
   async function handleSendMany() {
     if (count === 0 || sending || disabled) return
     const batch = selectedIds // ตรึงชุดที่ส่งไว้ — การ์ดถูก disable ระหว่างส่งอยู่แล้ว แต่ไม่พึ่งข้อนั้น
@@ -317,6 +319,12 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
            * เดิมแล้วได้การกระทำที่ **ส่งออกจริงทันที ย้อนกลับไม่ได้ และเสียโควตาเป็นเงินร้านบน LINE**
            * ปุ่มทั้งสี่ยังใช้ `ModeButton` ตัวเดียวกัน (หน้าตาเหมือนกันหมด) เส้นคั่น+หัวข้อจึงเป็นสิ่ง
            * เดียวที่บอกว่ากลุ่มล่างทำงานคนละแบบกับกลุ่มบน
+           *
+           * 🛑 **ห้ามใส่ Swal ยืนยันก่อนส่ง** (เคาะ 2026-08-11 — คำถามนี้ถูกเสนอซ้ำหลายรอบ) ปุ่มนี้เป็น
+           * ขั้นสุดท้ายของ flow ที่ผู้ขายตั้งใจเดินเข้ามาเอง ไม่ใช่ปุ่มที่แตะพลาดได้ · เกณฑ์เต็ม +
+           * เหตุผลที่ `CustomerPanel` ถามแต่ที่นี่ไม่ถาม อยู่ที่
+           * `docs/conventions/seller-action-placement.md` §3.1 — สิ่งที่ทำแทน confirm คือเส้นคั่น/
+           * หัวข้อกลุ่ม/hint ข้างล่างนี้ และการที่กดส่งซ้ำไม่ยิงซ้ำ (207)
            */}
           <div className="border-default-300 mt-0.5 border-t border-dashed pt-2">
             <p className="text-default-700 mb-1.5 text-2xs font-semibold">ส่งออกทันที</p>
