@@ -3062,9 +3062,9 @@ export default function ChatThread({
             onClose={() => setActivePanel(null)}
             channel={channel}
             onSendMany={async (ids) => {
-              const ok = await sendProductCards(ids)
-              if (ok) setActivePanel(null)
-              return ok
+              const res = await sendProductCards(ids)
+              if (res.ok) setActivePanel(null)
+              return res
             }}
           />
         )}

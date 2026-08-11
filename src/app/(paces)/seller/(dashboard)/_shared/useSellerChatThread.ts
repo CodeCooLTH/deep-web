@@ -1073,9 +1073,18 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
    * 207 = ส่งได้บางส่วน (ชุดแรก ๆ ถึงลูกค้าแล้ว ชุดหลังล้ม) — ต้อง refetch ด้วย ไม่ใช่แค่ขึ้น error
    * ไม่งั้นเธรดจะไม่มีบับเบิลของที่ "ส่งไปแล้วจริง" ให้เห็น แล้วผู้ขายกดส่งซ้ำทั้งชุด = ลูกค้าได้ของซ้ำ
    */
+  /**
+   * ส่งการ์ดสินค้าหลายใบ
+   *
+   * 🛑 คืน `sentMessages` ออกไปด้วย ไม่ใช่ boolean เปล่า — route ตอบ **207** เมื่อส่งได้บางส่วน
+   * (ชุดแรกผ่าน ชุดถัดไปล้ม) พร้อมตัวเลขว่าออกไปกี่ข้อความ **เราเคยอ่าน body ตัวนี้อยู่แล้วแต่หยิบ
+   * แค่ `error` แล้วโยนตัวเลขทิ้ง** ผลคือหน้าจอคงติ๊กไว้ครบทุกใบรวมใบที่ถึงลูกค้าแล้ว ผู้ขายกดส่งซ้ำ
+   * ตามที่ข้อความบอก = ลูกค้าได้การ์ดซ้ำ และบน LINE รอบสองตกไปใช้ push ซึ่งนับโควตา = เงินร้าน
+   * ผู้เรียกแปลงเลขนี้กลับเป็นรายชื่อ id ด้วย `sentProductIds()` (SSOT เดียวกับที่ route ใช้แบ่งชุด)
+   */
   const sendProductCards = useCallback(
-    async (productIds: string[]): Promise<boolean> => {
-      if (productIds.length === 0) return false
+    async (productIds: string[]): Promise<{ ok: boolean; sentMessages: number }> => {
+      if (productIds.length === 0) return { ok: false, sentMessages: 0 }
       try {
         const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
           method: 'POST',
@@ -1085,14 +1094,22 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         if (!res.ok) {
           const body = await res.json().catch(() => null)
           pacesToast.error(body?.error ?? 'ส่งการ์ดสินค้าไม่สำเร็จ')
-          if (res.status === 207) await refetchNewer()
-          return false
+          if (res.status === 207) {
+            await refetchNewer()
+            // อ่านค่าแบบระแวง: body อาจไม่ใช่ JSON (413 ของแพลตฟอร์ม/proxy ตอบ HTML) หรือ field หาย
+            // ตอนแก้ route ทีหลัง — เดาไม่ได้ต้องเป็น 0 เสมอ เพราะ 0 = "ไม่ติ๊กอะไรออก" ซึ่งพาไป
+            // พฤติกรรมเดิมที่ปลอดภัยกว่า (ส่งซ้ำ) ไม่ใช่ติ๊กของที่ยังไม่ถึงลูกค้าออกทิ้ง
+            const n = typeof body?.sentMessages === 'number' ? body.sentMessages : 0
+            return { ok: false, sentMessages: n }
+          }
+          return { ok: false, sentMessages: 0 }
         }
         await refetchNewer()
-        return true
+        // สำเร็จทั้งหมด — ผู้เรียกปิดแผงทิ้งอยู่แล้ว ตัวเลขไม่ถูกใช้ต่อ
+        return { ok: true, sentMessages: 0 }
       } catch {
         pacesToast.error('ส่งการ์ดสินค้าไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
-        return false
+        return { ok: false, sentMessages: 0 }
       }
     },
     [conversationId, refetchNewer],

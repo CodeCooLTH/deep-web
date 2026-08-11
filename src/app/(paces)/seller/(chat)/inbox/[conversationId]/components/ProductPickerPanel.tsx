@@ -40,6 +40,7 @@ import {
   maxSelectableProducts,
   productCardsPerMessage,
   productSendButtonLabel,
+  sentProductIds,
 } from '@/lib/chat-product-card-batch'
 
 /** field ที่ใช้จริงจาก GET /api/products (serializeProduct คืนมากกว่านี้ — ประกาศเท่าที่ใช้) */
@@ -74,9 +75,9 @@ type Props = {
   disabled?: boolean
   /** ช่องทางของเธรด — ตัวกำหนดเพดานการ์ดต่อข้อความ/เพดานรวม (ดู lib/chat-product-card-batch) */
   channel: string
-  /** ส่งการ์ดหลายใบ — คืน true เมื่อสำเร็จ (แผงปิดเอง); false = คงโหมดเลือกหลายรายการและของที่
-   *  เลือกไว้ครบ กดใหม่ได้ทันทีโดยไม่ต้องไล่ติ๊กใหม่ */
-  onSendMany: (productIds: string[]) => Promise<boolean>
+  /** ส่งการ์ดหลายใบ — `ok` = สำเร็จทั้งหมด (แผงถูกปิดจากข้างนอก) · ไม่สำเร็จ = แผงเปิดค้างให้กดใหม่
+   *  `sentMessages` = ส่งออกไปได้กี่ข้อความก่อนล้ม (>0 เฉพาะกรณี 207 ส่งได้บางส่วน) */
+  onSendMany: (productIds: string[]) => Promise<{ ok: boolean; sentMessages: number }>
 }
 
 /** รูปแรกของสินค้า — seed เก่าบางตัวเก็บเป็น URL เต็ม (picsum/CDN) ไม่ใช่ storage fileId
@@ -197,9 +198,22 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
 
   async function handleSendMany() {
     if (count === 0 || sending || disabled) return
+    const batch = selectedIds // ตรึงชุดที่ส่งไว้ — การ์ดถูก disable ระหว่างส่งอยู่แล้ว แต่ไม่พึ่งข้อนั้น
     setSending(true)
     try {
-      await onSendMany(selectedIds) // สำเร็จ → ChatThread ปิดทั้งแผงเอง (แผงนี้ unmount ไปแล้ว)
+      const res = await onSendMany(batch) // สำเร็จ → ChatThread ปิดทั้งแผงเอง (แผงนี้ unmount ไปแล้ว)
+      /**
+       * 🛑 ส่งได้บางส่วน (207): ติ๊ก "เฉพาะใบที่ออกไปถึงลูกค้าแล้ว" ออกให้เอง แล้วคงที่เหลือไว้
+       *
+       * เดิมคงติ๊กไว้ครบทุกใบ ขณะที่ข้อความจาก server สั่งว่า "เลือกเฉพาะรายการที่ยังไม่ได้ส่งแล้ว
+       * ลองใหม่" — คำสั่งที่ผู้ขายทำตามไม่ได้ เพราะบนจอเขาเห็นแค่ "ส่งได้ 1 จาก 3 ข้อความ" ไม่มีทาง
+       * รู้ว่าข้อความที่ 1 บรรจุสินค้าใบไหน (ต้องรู้เพดานต่อช่องทางแล้วหารเอง) ⇒ เขากดส่งซ้ำทั้งชุด
+       * = ลูกค้าได้การ์ดซ้ำ และบน LINE reply token ถูกใช้ไปรอบแรก รอบสองตกไป push = เงินร้าน
+       */
+      if (!res.ok && res.sentMessages > 0) {
+        const done = new Set(sentProductIds(batch, perMessage, res.sentMessages))
+        setSelectedIds((prev) => prev.filter((id) => !done.has(id)))
+      }
     } finally {
       setSending(false)
     }
