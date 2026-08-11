@@ -40,6 +40,7 @@ import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 import BuyerAvatar from '../../orders/components/BuyerAvatar'
 import CopyLinkButton from '../../orders/[token]/components/CopyLinkButton'
+import RichMenuStatusRow from './RichMenuStatusRow'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -263,6 +264,11 @@ export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
                       </button>
                     </div>
                   </div>
+
+                  {/* เมนูลัดใน LINE (feature 00045) — แถวเต็มความกว้างใต้บล็อกข้อมูล+ปุ่มเดิม
+                      ไม่แย่งที่กับปุ่ม "ถอด"/"เชื่อมต่อใหม่" ที่ชิดขวาอยู่แล้ว และคั่นด้วยเส้นประ
+                      ตามภาษาการออกแบบของ Paces เพื่อบอกว่าเป็นคนละกลุ่มข้อมูล (ux Design Spec §A) */}
+                  <RichMenuStatusRow channelId={channel.id} tokenInvalid={isTokenInvalid} />
 
                   {isReconnectingThis && (
                     <div className="pb-4">
