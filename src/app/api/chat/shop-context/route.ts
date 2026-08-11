@@ -8,6 +8,7 @@ import { isEntitlementActive } from "@/services/inventory-entitlement.service";
 import { listServiceResources } from "@/services/service-resource.service";
 import { canUseAppointments } from "@/lib/appointments";
 import { resolveOrderVocab } from "@/lib/seller-menu";
+import { resolveChatIshipCreateMode } from "@/lib/iship/chat-create-mode";
 
 /**
  * GET /api/chat/shop-context?shopId=... — ข้อมูลประกอบฟอร์ม "สร้างรายการ" ของร้านหนึ่ง (feature 00037)
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
         select: { kind: true, vertical: true, appointmentGranularity: true },
       }),
       prisma.shopShippingAccount
-        .findUnique({ where: { shopId }, select: { status: true } })
+        .findUnique({ where: { shopId }, select: { status: true, createMode: true } })
         .catch(() => null),
     ]);
     if (!shopRow) return NextResponse.json({ error: "ไม่พบร้าน" }, { status: 404 });
@@ -91,6 +92,10 @@ export async function GET(request: NextRequest) {
         serviceResourcesEnabled,
         serviceResources,
         appointmentGranularity: shopRow.appointmentGranularity ?? "DAY",
+        // feature 00022 × 00037 — โหมดเปิดพัสดุของ "ร้านนี้" ต้องเดินทางมาพร้อมชุดข้อมูลเดียวกัน
+        // (BR-UNI-04: ห้ามให้ฟอร์มถือ vertical ของร้านหนึ่งกับการตั้งค่าขนส่งของอีกร้าน)
+        // ต้องคำนวณด้วย resolveChatIshipCreateMode ตัวเดียวกับที่ (chat)/layout.tsx ใช้ seed
+        ishipCreateMode: resolveChatIshipCreateMode(shipping),
         hasShipping: shipping?.status === "ACTIVE",
       },
       { headers: NO_STORE_HEADERS },

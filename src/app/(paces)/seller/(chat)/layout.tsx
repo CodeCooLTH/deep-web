@@ -48,6 +48,7 @@ import type { CatalogProduct } from '@/app/(paces)/seller/(dashboard)/orders/new
 import { canUseAppointments, type AppointmentGranularity } from '@/lib/appointments'
 import { listServiceResources } from '@/services/service-resource.service'
 import { listChannelsForShops } from '@/services/shop-channel.service'
+import { resolveChatIshipCreateMode, type ChatIShipCreateMode } from '@/lib/iship/chat-create-mode'
 import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentBlock'
 
 // map Product → CatalogProduct (เหมือน (fullscreen)/orders/new/page.tsx) — สำหรับโมดัลสร้างคำสั่งซื้อในแชท
@@ -130,6 +131,9 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
   let serviceResourcesEnabled = false
   let serviceResources: ServiceResourceOption[] = []
   let appointmentGranularity: AppointmentGranularity = 'DAY'
+  // feature 00022 × 00037 — โหมดเปิดพัสดุ "ของร้านนี้" (เดิม DraftOrderProvider ถามเองครั้งเดียว
+  // ตอน mount แล้วใช้ค่าเดียวกับทุกร่างไม่ว่าร้านไหน ดู resolveChatIshipCreateMode)
+  let ishipCreateMode: ChatIShipCreateMode = 'OFF'
   if (scope?.activeShopId) {
     const shopId = scope.activeShopId
     let shopRow: { vertical: string; appointmentGranularity: string } | null = null
@@ -138,8 +142,12 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       getBestSellerProducts(shopId, 8).then((ps) => ps.map(toCatalog)).catch(() => []),
       isEntitlementActive(shopId).catch(() => false),
       prisma.shopShippingAccount
-        .findUnique({ where: { shopId }, select: { status: true } })
-        .then((a) => a?.status === 'ACTIVE')
+        .findUnique({ where: { shopId }, select: { status: true, createMode: true } })
+        .then((a) => {
+          // อ่านแถวเดียวได้สองคำตอบ — ห้ามยิง query เพิ่มเพื่อถามโหมด (ข้อมูลชุดเดียวกันเป๊ะ)
+          ishipCreateMode = resolveChatIshipCreateMode(a)
+          return a?.status === 'ACTIVE'
+        })
         .catch(() => false),
       prisma.shop
         .findUnique({ where: { id: shopId }, select: { vertical: true, appointmentGranularity: true } })
@@ -257,6 +265,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       serviceResourcesEnabled={serviceResourcesEnabled}
       serviceResources={serviceResources}
       appointmentGranularity={appointmentGranularity}
+      ishipCreateMode={ishipCreateMode}
     >
       {shell}
     </DraftOrderProvider>

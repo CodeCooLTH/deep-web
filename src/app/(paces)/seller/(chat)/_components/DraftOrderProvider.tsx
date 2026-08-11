@@ -295,6 +295,9 @@ type ShopChatContextReady = {
   serviceResourcesEnabled: boolean
   serviceResources: ServiceResourceOption[]
   appointmentGranularity: AppointmentGranularity
+  /** feature 00022 × 00037 — โหมดเปิดพัสดุของ "ร้านนี้" (ดู resolveChatIshipCreateMode)
+   *  เดิมเป็น state ตัวเดียวทั้ง provider จึงใช้ค่าของร้าน active กับร่างของทุกร้าน */
+  ishipCreateMode: IShipCreateMode
 }
 type ShopChatContext =
   | ShopChatContextReady
@@ -384,6 +387,8 @@ type ProviderProps = {
   serviceResources?: ServiceResourceOption[]
   /** ร้านรับนัดรายวัน (DAY) หรือระบุช่วงเวลา (TIME) */
   appointmentGranularity?: AppointmentGranularity
+  /** feature 00022 — โหมดเปิดพัสดุของร้าน active (layout seed; ร้านอื่นมาทาง shop-context) */
+  ishipCreateMode?: IShipCreateMode
   children: React.ReactNode
 }
 
@@ -398,6 +403,7 @@ export default function DraftOrderProvider({
   serviceResourcesEnabled = false,
   serviceResources = [],
   appointmentGranularity = 'DAY',
+  ishipCreateMode = 'OFF',
   children,
 }: ProviderProps) {
   const [drafts, setDrafts] = useState<ChatDraft[]>([])
@@ -422,6 +428,7 @@ export default function DraftOrderProvider({
       serviceResourcesEnabled,
       serviceResources,
       appointmentGranularity,
+      ishipCreateMode,
     },
   }))
 
@@ -453,29 +460,18 @@ export default function DraftOrderProvider({
     })()
   }, [])
 
-  // feature 00022 — โหมดสร้างพัสดุของร้าน
-  // ที่นี่เป็น client component จึงถามผ่าน API ครั้งเดียวตอน mount (ต่างจากหน้า POS
-  // ที่ server ส่งมาให้ตอน render). ร้านที่ไม่ได้เชื่อมต่อ/ร้านบ้านพักจะได้ 403 หรือ
-  // connected=false → คงค่า 'OFF' ไว้ = ไม่มีอะไรเกิดขึ้นตอนสร้างออเดอร์จากแชท
-  const [ishipCreateMode, setIshipCreateMode] = useState<IShipCreateMode>('OFF')
-  useEffect(() => {
-    let alive = true
-    void (async () => {
-      try {
-        const res = await fetch('/api/seller/iship/connection', { cache: 'no-store' })
-        if (!res.ok) return
-        const body = (await res.json()) as { connected?: boolean; status?: string; createMode?: string }
-        if (alive && body.connected && body.status === 'ACTIVE') {
-          setIshipCreateMode((body.createMode as IShipCreateMode) ?? 'OFF')
-        }
-      } catch {
-        // เงียบโดยเจตนา — ถามไม่ได้ก็คงเป็น 'OFF' ไม่ควรรบกวนหน้าแชทด้วย error เรื่องขนส่ง
-      }
-    })()
-    return () => {
-      alive = false
-    }
-  }, [])
+  /**
+   * feature 00022 × 00037 — โหมดสร้างพัสดุ **ย้ายไปอยู่ใน shopCtx[shopId] แล้ว** (2026-08-11)
+   *
+   * 🛑 ของเดิมคือ `useState` ตัวเดียวทั้ง provider ที่ยิง `/api/seller/iship/connection` ครั้งเดียว
+   * ตอน mount ด้วยร้านที่ active แล้วส่งค่าเดียวกันให้ฟอร์มของ **ทุกร่างไม่ว่าร้านไหน** — ร้าน A
+   * เปิด AUTO อยู่ ร่างของร้าน B จะพยายามเปิดพัสดุตามไปด้วยทั้งที่ B อาจไม่ได้เชื่อม iShip เลย
+   * (ล้มแบบปลอดภัยเพราะ guard หาออเดอร์ไม่เจอ แต่ผู้ขายได้ toast "สร้างพัสดุไม่สำเร็จ" ที่อธิบายไม่ได้)
+   * เคสนี้เพิ่งเข้าถึงได้จริงหลังปิดบั๊กสร้างออเดอร์ข้ามร้าน — ก่อนหน้านั้นออเดอร์ไม่เคยถูกสร้างสำเร็จ
+   *
+   * ตอนนี้ค่ามาพร้อมชุดข้อมูลรายร้านชุดเดียวกับ catalog/vertical (BR-UNI-04) และไม่ต้องยิง API
+   * เพิ่มอีกเลย — layout seed ให้ร้าน active, `/api/chat/shop-context` ให้ร้านอื่น
+   */
   const router = useRouter()
   const pathname = usePathname()
 
@@ -784,7 +780,8 @@ export default function DraftOrderProvider({
                 conversationId={d.conversationId}
                 editOrderToken={d.editOrderToken ?? undefined}
                 prefillParseText={d.prefillText ?? undefined}
-                ishipCreateMode={ishipCreateMode}
+                /* ของ "ร้านของร่างใบนี้" ไม่ใช่ร้านที่ active — ctx มาจาก shopCtx[d.shopId] */
+                ishipCreateMode={ctx.ishipCreateMode}
                 serviceResourcesEnabled={ctx.serviceResourcesEnabled}
                 serviceResources={ctx.serviceResources}
                 appointmentGranularity={ctx.appointmentGranularity}
