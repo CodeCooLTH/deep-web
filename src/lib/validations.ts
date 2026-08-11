@@ -831,6 +831,16 @@ export const SendChatMessageSchema = v.object({
   attachmentName: v.nullish(v.pipe(v.string(), v.maxLength(200))),
   attachmentSize: v.nullish(v.pipe(v.number(), v.integer(), v.minValue(0))),
   productRefId: v.optional(v.pipe(v.string(), v.uuid())), // extension #1 Chat Product Context Card — เฉพาะ type=PRODUCT (FR-CTX-05)
+  /**
+   * (ส่วนขยาย 2026-08-11) การ์ดสินค้าหลายชิ้น — ส่งแทน `productRefId` เมื่อผู้ขายเลือกหลายรายการ
+   *
+   * เพดาน 36 = ค่าสูงสุดข้ามทุกช่องทาง (LINE 12 × 3 ตาม `maxSelectableProducts`) — ด่านนี้กัน payload
+   * ที่ใหญ่เกินเหตุเท่านั้น **ไม่ใช่กฎธุรกิจ** เพดานจริงต่อช่องทางถูกบังคับอีกชั้นใน route ซึ่งรู้ว่า
+   * เธรดนี้เป็นช่องทางอะไร (ที่นี่ยังไม่รู้ — schema ถูก parse ก่อน fetch conversation)
+   */
+  productRefIds: v.optional(
+    v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.minLength(1), v.maxLength(36)),
+  ),
   orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์ในแชท — เฉพาะ type=ORDER (Order.publicToken)
   replyToMessageId: v.optional(v.pipe(v.string(), v.uuid())), // reply/quote (user 2026-07-25) — id ของข้อความที่ตอบทับ (route resolve → replyToMid/Meta reply_to)
   /**

@@ -94,6 +94,9 @@ export interface ChatMessageView {
   attachmentName?: string | null
   attachmentSize?: number | null
   productRefId: string | null // extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type='PRODUCT'
+  // การ์ดสินค้าหลายชิ้นในข้อความเดียว (ส่วนขยาย 2026-08-11) — ว่าง = ใบเดียว (ใช้ productRefId เดิม)
+  // findMany ไม่มี select จึงคืนคอลัมน์นี้มาอยู่แล้ว — ประกาศ type เพิ่มเท่านั้น
+  productRefIds?: string[]
   orderRefToken: string | null // การ์ดออเดอร์ในแชท (user 2026-07-24) — เฉพาะ type='ORDER' (Order.publicToken)
   flaggedScam: boolean // extension #3 Scam-link Detection (FR-SCAM-03) — WARN banner เท่านั้น ไม่ block
   // feature 00023 — null = คนส่ง | 'AUTO' = ระบบตอบ | 'AUTO_TEST' = ระบบตอบขณะโหมดทดสอบ

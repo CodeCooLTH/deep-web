@@ -55,6 +55,9 @@ type Props = {
   onPick: (payload: ProductPickPayload) => void
   onClose: () => void
   disabled?: boolean
+  /** (ส่วนขยาย 2026-08-11) เปิดชีต "เลือกหลายชิ้น" — ChatThread เป็นคนเรนเดอร์ชีต เพราะแผงนี้
+   *  ไม่รู้จัก conversationId/channel ซึ่งชีตต้องใช้ตัดสินเพดานต่อข้อความ */
+  onOpenMultiSelect?: () => void
 }
 
 /** รูปแรกของสินค้า — seed เก่าบางตัวเก็บเป็น URL เต็ม (picsum/CDN) ไม่ใช่ storage fileId
@@ -67,7 +70,7 @@ function imageSrc(images: string[]): string | null {
 
 const priceText = (p: number) => `฿${p.toLocaleString('th-TH')}`
 
-export default function ProductPickerPanel({ onPick, onClose, disabled }: Props) {
+export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMultiSelect }: Props) {
   const [items, setItems] = useState<PickerProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -156,14 +159,31 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
             </>
           )}
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="ปิด"
-          className="text-default-700 hover:text-default-800 flex size-7 items-center justify-center rounded"
-        >
-          <Icon icon="x" className="text-base" />
-        </button>
+        <span className="flex items-center gap-1">
+          {/* (ส่วนขยาย 2026-08-11) เลือกหลายชิ้น — โผล่เฉพาะหน้ารายการ ไม่ใช่หน้าเลือกรูปแบบการส่ง
+              (ตรงนั้นผู้ใช้เลือกสินค้าไปแล้ว 1 ชิ้น การกดตรงนี้จะกำกวมว่าของที่เลือกไว้หายไปไหน) */}
+          {!selected && onOpenMultiSelect && (
+            <button
+              type="button"
+              onClick={onOpenMultiSelect}
+              disabled={disabled}
+              aria-label="เลือกสินค้าหลายชิ้น"
+              className={`text-default-700 hover:text-info flex size-7 items-center justify-center rounded ${
+                disabled ? 'pointer-events-none opacity-50' : ''
+              }`}
+            >
+              <Icon icon="square-check" className="text-base" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="ปิด"
+            className="text-default-700 hover:text-default-800 flex size-7 items-center justify-center rounded"
+          >
+            <Icon icon="x" className="text-base" />
+          </button>
+        </span>
       </div>
 
       {selected ? (
@@ -289,7 +309,11 @@ export default function ProductPickerPanel({ onPick, onClose, disabled }: Props)
         </>
       )}
 
-      <div className="text-default-700 pt-1.5 text-2xs">เลือกแล้วเนื้อหาจะไปอยู่ในช่องพิมพ์ — แก้ไขก่อนส่งได้</div>
+      {/* หนี้ที่ ux ชี้ 2026-08-11: ข้อความเดิมเขียนว่า "ทุกโหมดเติมช่องพิมพ์" ซึ่งไม่จริงตั้งแต่มี
+          โหมด "ส่งการ์ดสินค้า" ที่ส่งออกทันที — แยกคำตามหน้าที่ผู้ใช้อยู่จริง */}
+      <div className="text-default-700 pt-1.5 text-2xs">
+        {selected ? 'การ์ดสินค้าส่งออกทันที — อีก 3 แบบจะไปอยู่ในช่องพิมพ์ให้แก้ก่อนส่ง' : 'แตะสินค้าเพื่อเลือกรูปแบบการส่ง'}
+      </div>
     </div>
   )
 }

@@ -1693,6 +1693,17 @@ model ChatMessage {
   // productRefId: extension #1 Chat Product Context Card (FR-CTX-05) — เฉพาะ type=PRODUCT
   // nullable FK, onDelete SetNull — สินค้าถูกลบไม่ลบข้อความในเธรด (BR-CTX-04 ไม่ snapshot, live-join)
   productRefId     String?
+  // productRefIds: การ์ดสินค้าหลายชิ้นในข้อความเดียว (ส่วนขยาย 2026-08-11 — user สั่ง "อยากส่งหลายรายการได้")
+  //
+  // 🛑 ทำไมคอลัมน์ใหม่ ไม่ใช้ `cards` ที่มีอยู่: `cards` เก็บ **snapshot** (title/subtitle/รูป) ของการ์ด
+  // carousel ที่มาจาก Facebook ส่วนการ์ดสินค้าของเราต้อง **live-join** ถึงจะขึ้น "หยุดขายแล้ว"/
+  // "ไม่พบสินค้านี้แล้ว" ได้ (BR-CTX-04) — ยัดสองความหมายลงคอลัมน์เดียว = HR16
+  //
+  // ไม่ใช่ FK (array ทำ FK ไม่ได้ใน Postgres) — id ที่ชี้สินค้าที่ถูกลบไปแล้วจะ resolve ไม่เจอตอน
+  // enrich แล้วการ์ดใบนั้นขึ้น "ไม่พบสินค้านี้แล้ว" ซึ่งเป็นพฤติกรรมเดียวกับ productRefId ที่โดน SetNull
+  //
+  // ว่าง = ข้อความชิ้นเดียว (ใช้ productRefId เหมือนเดิมทุกประการ) — ไม่ backfill ของเก่า
+  productRefIds    String[]
   // orderRefToken: การ์ดออเดอร์/ใบเสนอราคาในแชท (user request 2026-07-24) — เฉพาะ type=ORDER (แชท DEEP)
   // เก็บ Order.publicToken (live-join enrich ตอน GET เหมือน PRODUCT) ไม่ FK — order ลบไม่ลบข้อความ
   // ช่องทางนอก (Messenger/IG) ไม่ใช้ type=ORDER — ส่งเป็นลิงก์ TEXT แทน (Meta ไม่ render การ์ดในแอปเรา)

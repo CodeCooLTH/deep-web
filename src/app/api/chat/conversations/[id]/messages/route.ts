@@ -19,8 +19,13 @@ import {
 } from "@/lib/chat-constants";
 import { describeSendFailure } from "@/lib/chat-send-failure";
 import { buildLineFlexOrderCard } from "@/lib/line/flex-order-card";
-import { buildLineFlexProductCard } from "@/lib/line/flex-product-card";
-import { buildMetaProductCard } from "@/lib/meta/product-card";
+import { buildLineFlexProductCarousel } from "@/lib/line/flex-product-card";
+import { buildMetaProductCarousel } from "@/lib/meta/product-card";
+import {
+  chunkProductCards,
+  maxSelectableProducts,
+  productCardsPerMessage,
+} from "@/lib/chat-product-card-batch";
 import { getProductById } from "@/services/product.service";
 import { resolveLineFlexImageUrl, resolveMetaCardImageUrl } from "@/services/channel-chat.service";
 import { formatBaht } from "@/lib/format-money";
@@ -180,11 +185,16 @@ export async function GET(
 
     // extension #1 Chat Product Context Card (S-18) — enrich ข้อความ type='PRODUCT' ด้วย productCard
     // (additive เท่านั้น ไม่แตะ ChatMessageView core); batch fetch กัน N+1
+    // ต้องเก็บทั้ง 2 คอลัมน์: `productRefId` (การ์ดใบเดียว ของเดิม) และ `productRefIds` (หลายใบ
+    // ส่วนขยาย 2026-08-11) — ตกอันใดอันหนึ่ง = การ์ดกลุ่มนั้นขึ้นเป็นบับเบิลเปล่าโดยไม่มีอะไรฟ้อง
     const productIds = Array.from(
       new Set(
         result.items
-          .filter((m) => m.type === "PRODUCT" && m.productRefId)
-          .map((m) => m.productRefId as string),
+          .filter((m) => m.type === "PRODUCT")
+          .flatMap((m) => {
+            const many = (m as { productRefIds?: string[] }).productRefIds ?? [];
+            return many.length > 0 ? many : m.productRefId ? [m.productRefId] : [];
+          }),
       ),
     );
     const products = productIds.length > 0 ? await getProductsByIds(productIds) : [];
@@ -362,6 +372,24 @@ export async function GET(
               return { id: p.id, name: p.name, price: p.price, imageFileId: p.images[0] ?? null, isActive: p.isActive };
             })()
           : null,
+      /**
+       * การ์ดหลายชิ้น (ส่วนขยาย 2026-08-11) — `null` เมื่อข้อความนี้เป็นการ์ดใบเดียว (ใช้ productCard เดิม)
+       *
+       * 🛑 คงลำดับตาม `productRefIds` ที่บันทึกไว้ ไม่ใช่ลำดับที่ query คืนมา — ลำดับใน carousel คือสิ่งที่
+       * ผู้ขายตั้งใจให้ลูกค้าเห็นก่อน-หลัง และเป็นลำดับเดียวกับที่ยิงออกไปจริง
+       *
+       * สินค้าที่ถูกลบหลังส่ง → ไม่อยู่ใน map → คืน `null` **ในตำแหน่งเดิม** (ไม่ filter ทิ้ง) เพื่อให้ UI
+       * วาด "ไม่พบสินค้านี้แล้ว" เป็นใบหนึ่งในแถว ไม่ใช่การ์ดหายไปเฉย ๆ แล้วผู้ขายนึกว่าส่งไม่ครบ
+       */
+      productCards:
+        m.type === "PRODUCT" && ((m as { productRefIds?: string[] }).productRefIds?.length ?? 0) > 0
+          ? (m as { productRefIds?: string[] }).productRefIds!.map((pid) => {
+              const p = productMap.get(pid);
+              return p
+                ? { id: p.id, name: p.name, price: p.price, imageFileId: p.images[0] ?? null, isActive: p.isActive }
+                : null;
+            })
+          : null,
       orderCard: m.type === "ORDER" && m.orderRefToken ? orderMap.get(m.orderRefToken) ?? null : null,
     }));
 
@@ -465,6 +493,7 @@ export async function POST(
     attachmentName: rawAttachmentName,
     attachmentSize,
     productRefId,
+    productRefIds,
     orderRefToken,
     replyToMessageId,
     stickerId,
@@ -494,6 +523,8 @@ export async function POST(
 
     // แถวสินค้าที่ผ่านด่าน ownership แล้ว — ใช้ต่อตอนประกอบการ์ด Flex ให้ LINE (ไม่ query ซ้ำ)
     let productRow: Awaited<ReturnType<typeof getProductById>> = null;
+    /** สินค้าทุกชิ้นที่จะไปอยู่ในการ์ด เรียงตามที่ผู้ขายเลือก (ใบเดียว = array ยาว 1) */
+    let productRows: NonNullable<Awaited<ReturnType<typeof getProductById>>>[] = [];
 
     // conditional-required — Valibot schema เดียวไม่ครอบทุกกรณี (SendChatMessageSchema comment)
     if (type === "TEXT") {
@@ -521,20 +552,41 @@ export async function POST(
         return NextResponse.json({ error: check.reason }, { status: 400 });
       }
     } else if (type === "PRODUCT") {
-      // extension #1 Chat Product Context Card (S-18)
-      if (!productRefId) {
+      // extension #1 Chat Product Context Card (S-18) + ส่วนขยาย 2026-08-11 (หลายรายการ)
+      //
+      // รวมสองทางเข้าเป็น "รายการเดียว" ตั้งแต่บรรทัดแรก — ที่เหลือของ handler จึงไม่ต้องรู้เลยว่า
+      // client ส่งมาแบบเดี่ยวหรือแบบหลายชิ้น (สองเส้นทางขนานคือที่ที่ด่าน ownership จะหลุดไปข้างหนึ่ง)
+      const wantedIds = productRefIds ?? (productRefId ? [productRefId] : []);
+      if (wantedIds.length === 0) {
         return NextResponse.json({ error: "กรุณาระบุสินค้า" }, { status: 400 });
+      }
+      // กันเลือกซ้ำ (กดรัวบน UI / client ส่งซ้ำ) — การ์ดใบเดียวกันสองใบในข้อความเดียวไม่มีความหมาย
+      const uniqueIds = [...new Set(wantedIds)];
+      // เพดานต่อช่องทาง — บังคับที่ server ด้วย ไม่ใช่เชื่อว่า UI กันมาแล้ว (UI กันได้เฉพาะคนที่เดิน
+      // ผ่านหน้าจอ) เกินแล้วตอบ 400 พร้อมตัวเลขจริง ไม่ตัดทิ้งเงียบ ๆ ให้ร้านเข้าใจว่าส่งครบ
+      const channelForCap = conv?.channel ?? "DEEP";
+      const maxSelectable = maxSelectableProducts(channelForCap);
+      if (uniqueIds.length > maxSelectable) {
+        return NextResponse.json(
+          { error: `เลือกได้สูงสุด ${maxSelectable} รายการต่อการส่งหนึ่งครั้ง` },
+          { status: 400 },
+        );
       }
       // 🛑 ด่าน cross-shop (FR-CTX-07) เดิมอยู่ใน `chat.service.sendMessage()` ซึ่งเป็นเส้นทางของ
       // ช่องทาง DEEP เท่านั้น — ช่องทางนอกไม่เคยต้องใช้เพราะ PRODUCT ถูกตอบ 400 ทิ้งก่อนถึงตรงนั้น
       // พอเปิด LINE (2026-08-11) เส้นทางใหม่วิ่งผ่าน `sendOutboundMessage` ซึ่ง **ไม่ผ่าน sendMessage**
       // ด่านเดิมจึงไม่ครอบ ต้องกันที่นี่ด้วยเกณฑ์เดียวกันเป๊ะ (ใช้ helper ตัวเดียวกัน ไม่เขียน query ใหม่
       // ไม่งั้นสองที่จะนิยาม "สินค้าอยู่ในร้านนี้ไหม" ต่างกันวันที่โมเดลขยับ — HR16)
-      const product = await getProductById(productRefId);
-      if (!product || product.shopId !== conv?.shopId) {
+      //
+      // ตรวจ **ทุก id** ไม่ใช่ใบแรก: ปล่อยผ่านใบเดียวแล้วเชื่อที่เหลือ = ช่องส่งการ์ดสินค้าร้านอื่น
+      const found = await getProductsByIds(uniqueIds);
+      const owned = new Map(found.filter((p) => p.shopId === conv?.shopId).map((p) => [p.id, p]));
+      if (owned.size !== uniqueIds.length) {
         return NextResponse.json({ error: "ไม่พบสินค้านี้ในร้าน" }, { status: 400 });
       }
-      productRow = product;
+      // คงลำดับที่ผู้ขายเลือกไว้ — ลำดับใน carousel คือสิ่งที่เขาตั้งใจให้ลูกค้าเห็นก่อน-หลัง
+      productRows = uniqueIds.map((pid) => owned.get(pid)!);
+      productRow = productRows[0]!;
     } else if (type === "IMAGE_GRID") {
       // ตรวจครบก่อนเข้า try แล้ว — สาขานี้มีไว้กัน fail-closed ด้านล่างไม่ให้ตีตก
     } else if (type === "STICKER") {
@@ -579,34 +631,85 @@ export async function POST(
       // Template รอบเดียวกัน) แต่ **รูปคนละไฟล์กัน**: LINE ครอบ 1:1 เอง ส่วน Messenger ครอปทุกอย่าง
       // ที่ไม่ใช่ 1.91:1 (เอกสาร Meta) รูปสินค้าจัตุรัสจะโดนตัดหัวท้าย จึงต้องประกอบรูปแยกตามช่องทาง
       if (type === "PRODUCT") {
-        const p = productRow!; // ผ่านด่าน ownership มาแล้วข้างบน
-        const priceText = formatBaht(p.price);
-        const imageFileId = p.images[0] ?? null;
-        // text ยังต้องส่งเสมอ: เป็น ChatMessage.body ที่ร้านเห็นในประวัติ และเป็นทางถอยถ้าการ์ดล้ม
-        const fallbackText = `${p.name}\n${priceText}`;
+        /**
+         * ส่วนขยาย 2026-08-11 — การ์ดสินค้าหลายชิ้นในข้อความเดียว (carousel)
+         *
+         * แบ่งเป็นชุดตามเพดานของช่องทางด้วย `chunkProductCards` ซึ่งเป็น **ฟังก์ชันตัวเดียวกับที่
+         * หน้าจอใช้คำนวณป้าย "จะแบ่งส่งเป็น N ข้อความ"** — ถ้าสองฝั่งใช้คนละสูตร ป้ายจะโกหกโดยไม่มี
+         * tsc/build ตัวไหนฟ้อง เพราะเลขทั้งคู่ "ถูก" ในตัวเอง (HR16)
+         *
+         * 🛑 ส่งเรียงทีละชุด (ไม่ Promise.all) — ลำดับการ์ดที่ลูกค้าเห็นต้องตรงกับที่ผู้ขายเลือก
+         * ยิงขนานแล้ว Meta/LINE จะจัดลำดับตามเวลาที่รับ ซึ่งสลับกันได้
+         *
+         * ชุดแรกล้ม → error ขึ้นตามปกติ (ยังไม่มีอะไรถึงลูกค้า) · ชุดหลังล้ม → ลูกค้าได้ของบางส่วนไปแล้ว
+         * จึงคืน 207 พร้อมบอกตรง ๆ ว่าส่งได้กี่ข้อความจากกี่ข้อความ ห้ามตอบ 500 เฉย ๆ ให้ร้านเข้าใจว่า
+         * ไม่มีอะไรถึงลูกค้าเลยแล้วกดส่งซ้ำทั้งชุด (ลูกค้าจะได้ของซ้ำ)
+         */
+        const perMessage = productCardsPerMessage(conv.channel);
+        const batches = chunkProductCards(
+          productRows.map((row) => row.id),
+          perMessage,
+        );
+        const byId = new Map(productRows.map((row) => [row.id, row]));
 
-        if (conv.channel === "LINE") {
-          // แปลงเป็น JPEG ก่อนเสมอ — Flex รับแค่ JPEG/PNG แต่รูปสินค้าเป็น webp/gif ได้
-          const imageUrl = imageFileId ? await resolveLineFlexImageUrl(imageFileId) : null;
-          const sent = await sendOutboundMessage({
-            conversationId: id,
-            actorUserId: userId,
-            text: fallbackText,
-            flex: buildLineFlexProductCard({ name: p.name, priceText, imageUrl, isActive: p.isActive }),
-            productRefId: productRefId!,
-          });
-          return NextResponse.json(await withSender(sent, userId));
+        let lastSent: Awaited<ReturnType<typeof sendOutboundMessage>> | null = null;
+        for (let i = 0; i < batches.length; i++) {
+          const ids = batches[i]!;
+          const rows = ids.map((pid) => byId.get(pid)!);
+          // text ยังต้องส่งเสมอ: เป็น ChatMessage.body ที่ร้านเห็นในประวัติ และเป็นทางถอยถ้าการ์ดล้ม
+          const fallbackText = rows.map((r) => `${r.name}\n${formatBaht(r.price)}`).join("\n\n");
+
+          try {
+            if (conv.channel === "LINE") {
+              // แปลงเป็น JPEG ก่อนเสมอ — Flex รับแค่ JPEG/PNG แต่รูปสินค้าเป็น webp/gif ได้
+              const cards = await Promise.all(
+                rows.map(async (r) => ({
+                  name: r.name,
+                  priceText: formatBaht(r.price),
+                  imageUrl: r.images[0] ? await resolveLineFlexImageUrl(r.images[0]) : null,
+                  isActive: r.isActive,
+                })),
+              );
+              lastSent = await sendOutboundMessage({
+                conversationId: id,
+                actorUserId: userId,
+                text: fallbackText,
+                flex: buildLineFlexProductCarousel(cards),
+                productRefIds: ids,
+              });
+            } else {
+              // Messenger/IG ครอปทุกอย่างที่ไม่ใช่ 1.91:1 (เอกสาร Meta) — รูปสินค้าจัตุรัสจะโดนตัด
+              // หัวท้าย จึงต้องประกอบรูปคนละไฟล์กับฝั่ง LINE ที่ครอบ 1:1 เอง
+              const cards = await Promise.all(
+                rows.map(async (r) => ({
+                  name: r.name,
+                  priceText: formatBaht(r.price),
+                  imageUrl: r.images[0] ? await resolveMetaCardImageUrl(r.images[0]) : null,
+                  isActive: r.isActive,
+                })),
+              );
+              lastSent = await sendOutboundMessage({
+                conversationId: id,
+                actorUserId: userId,
+                text: fallbackText,
+                template: buildMetaProductCarousel(cards),
+                productRefIds: ids,
+              });
+            }
+          } catch (e) {
+            if (i === 0) throw e; // ยังไม่มีอะไรถึงลูกค้า — ให้ตัวจัดการ error เดิมตอบตามปกติ
+            console.error("[POST messages] ส่งการ์ดสินค้าชุดที่ " + (i + 1) + " ไม่สำเร็จ", e);
+            return NextResponse.json(
+              {
+                error: `ส่งได้ ${i} จาก ${batches.length} ข้อความ — ที่เหลือส่งไม่สำเร็จ กรุณาเลือกเฉพาะรายการที่ยังไม่ได้ส่งแล้วลองใหม่`,
+                sentMessages: i,
+                totalMessages: batches.length,
+              },
+              { status: 207 },
+            );
+          }
         }
-
-        const imageUrl = imageFileId ? await resolveMetaCardImageUrl(imageFileId) : null;
-        const sent = await sendOutboundMessage({
-          conversationId: id,
-          actorUserId: userId,
-          text: fallbackText,
-          template: buildMetaProductCard({ name: p.name, priceText, imageUrl, isActive: p.isActive }),
-          productRefId: productRefId!,
-        });
-        return NextResponse.json(await withSender(sent, userId));
+        return NextResponse.json(await withSender(lastSent!, userId));
       }
       // ORDER (การ์ดคำสั่งซื้อ, user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" ผ่าน Meta แต่ฝั่งเรา
       // เก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด). verify order-in-shop ที่นี่
@@ -738,6 +841,35 @@ export async function POST(
       );
     }
 
+    /**
+     * เธรด DEEP + การ์ดสินค้าหลายชิ้น (ส่วนขยาย 2026-08-11)
+     *
+     * 🛑 แอปผู้ซื้อวาดการ์ดจาก `productCard` ซึ่งเป็น **ใบเดียว** (ดู `productCardsPerMessage` ที่ตั้ง
+     * DEEP = 1) — จึงส่งเป็นข้อความละใบ ลูกค้าได้ครบทุกชิ้นแน่นอน ไม่ใช่ได้ใบแรกใบเดียวแล้วที่เหลือ
+     * หายเงียบ. หน้าจอบอกผู้ขายไว้ก่อนกดส่งแล้วว่าจะกลายเป็นกี่ข้อความ (ป้ายตัวเดียวกับช่องทางอื่น)
+     *
+     * ส่งเรียงทีละใบ ไม่ Promise.all — ลำดับในเธรดต้องตรงกับที่ผู้ขายเลือก
+     */
+    if (type === "PRODUCT" && productRows.length > 1) {
+      let lastDeep: Awaited<ReturnType<typeof sendMessage>> | null = null;
+      for (const row of productRows) {
+        lastDeep = await sendMessage({
+          conversationId: id,
+          senderUserId: userId,
+          senderRole,
+          type,
+          body: null,
+          imageUrl: null,
+          attachmentName: null,
+          attachmentSize: null,
+          productRefId: row.id,
+          orderRefToken: null,
+          replyToMid,
+        });
+      }
+      return NextResponse.json(await withSender(lastDeep!, userId));
+    }
+
     const message = await sendMessage({
       conversationId: id,
       senderUserId: userId,
@@ -747,7 +879,7 @@ export async function POST(
       imageUrl: isAttachmentType(type) ? imageUrl ?? null : null,
       attachmentName: isAttachmentType(type) ? attachmentName : null,
       attachmentSize: isAttachmentType(type) ? attachmentSize ?? null : null,
-      productRefId: type === "PRODUCT" ? productRefId ?? null : null,
+      productRefId: type === "PRODUCT" ? (productRows[0]?.id ?? productRefId ?? null) : null,
       orderRefToken: type === "ORDER" ? orderRefToken ?? null : null,
       replyToMid, // reply/quote (DEEP) — id ของข้อความที่ตอบทับ
     });

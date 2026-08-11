@@ -111,6 +111,9 @@ export type ChatMessageView = {
   attachmentSize?: number | null
   createdAt: string
   productCard?: ChatProductCard | null
+  /** การ์ดสินค้าหลายชิ้นในข้อความเดียว (ส่วนขยาย 2026-08-11) — `null` = ใบเดียว (ใช้ productCard เดิม)
+   *  สมาชิกที่เป็น `null` = สินค้าถูกลบหลังส่ง ต้องคงตำแหน่งไว้เพื่อวาด "ไม่พบสินค้านี้แล้ว" */
+  productCards?: (ChatProductCard | null)[] | null
   orderCard?: ChatOrderCard | null
   /**
    * การ์ดสินค้าแบบ carousel จาก Facebook (generic template elements[], 2026-08-09) — เฉพาะ type=TEXT
@@ -1063,6 +1066,38 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
    * ย้อนกลับง่าย (คืนค่าเดิมถ้า API ปฏิเสธ) ต่างจากการส่งข้อความที่ต้องมีบับเบิลค้างให้กดซ้ำ
    * กดอันเดิมซ้ำ = ถอนออก (emoji=null) ตามพฤติกรรม Messenger
    */
+  /**
+   * ส่งการ์ดสินค้าหลายชิ้น (ส่วนขยาย 2026-08-11) — 1 คำขอ, server เป็นคนแบ่งเป็นข้อความตามเพดาน
+   * ของช่องทาง (ดู lib/chat-product-card-batch) แล้วยิงเรียงให้ตามลำดับที่ผู้ขายเลือก
+   *
+   * 207 = ส่งได้บางส่วน (ชุดแรก ๆ ถึงลูกค้าแล้ว ชุดหลังล้ม) — ต้อง refetch ด้วย ไม่ใช่แค่ขึ้น error
+   * ไม่งั้นเธรดจะไม่มีบับเบิลของที่ "ส่งไปแล้วจริง" ให้เห็น แล้วผู้ขายกดส่งซ้ำทั้งชุด = ลูกค้าได้ของซ้ำ
+   */
+  const sendProductCards = useCallback(
+    async (productIds: string[]): Promise<boolean> => {
+      if (productIds.length === 0) return false
+      try {
+        const res = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'PRODUCT', productRefIds: productIds }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          pacesToast.error(body?.error ?? 'ส่งการ์ดสินค้าไม่สำเร็จ')
+          if (res.status === 207) await refetchNewer()
+          return false
+        }
+        await refetchNewer()
+        return true
+      } catch {
+        pacesToast.error('ส่งการ์ดสินค้าไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองใหม่')
+        return false
+      }
+    },
+    [conversationId, refetchNewer],
+  )
+
   const reactToMessage = useCallback(
     async (messageId: string, emoji: string): Promise<void> => {
       // ข้อความ optimistic ยังไม่มีแถวจริงใน DB ให้ผูกรีแอ็กชัน
@@ -1102,6 +1137,7 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     reactToMessage,
     sendSticker,
     sendProductCard,
+    sendProductCards,
     uploading,
     /** {done,total} ระหว่างแนบหลายไฟล์ — null เมื่อไม่ได้อัปโหลด (2026-08-02) */
     uploadProgress,

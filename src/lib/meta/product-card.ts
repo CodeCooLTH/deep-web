@@ -43,8 +43,12 @@ export interface MetaProductCardInput {
   isActive: boolean
 }
 
-/** payload ของ `message.attachment` ที่พร้อมยิงเข้า Send API */
-export function buildMetaProductCard(input: MetaProductCardInput): Record<string, unknown> {
+/** เพดานจำนวนการ์ดต่อข้อความของ Meta — ตัวเลขสำหรับ "แบ่งกี่ข้อความ" อยู่ที่
+ *  `lib/chat-product-card-batch.ts` (SSOT ฝั่งผู้เรียก) ที่นี่เก็บไว้เป็นด่านสุดท้ายกันส่งเกินจริง */
+export const META_CAROUSEL_MAX = 10
+
+/** 1 element ของ generic template — นิยามเดียวที่ทั้งการ์ดเดี่ยวและ carousel ใช้ร่วมกัน */
+function toElement(input: MetaProductCardInput): Record<string, unknown> {
   // subtitle รวมราคาและสถานะไว้บรรทัดเดียว — generic template ไม่มีที่ให้บรรทัดที่สาม
   // "หยุดขายแล้ว" เป็น **คำ** ไม่ใช่สี (Meta ไม่ให้คุมสีอยู่แล้ว) จึงไม่มีปัญหาคอนทราสต์เหมือนฝั่ง LINE
   const subtitle = input.isActive ? input.priceText : `${input.priceText} · หยุดขายแล้ว`
@@ -55,9 +59,27 @@ export function buildMetaProductCard(input: MetaProductCardInput): Record<string
   }
   // ไม่ใส่คีย์ image_url เลยเมื่อไม่มีรูป — ส่งค่าว่างไป Meta ตีเป็น payload ผิดรูปแล้วตกทั้งข้อความ
   if (input.imageUrl) element.image_url = input.imageUrl
+  return element
+}
 
+/**
+ * การ์ดสินค้าหลายชิ้นในข้อความเดียว — ลูกค้าเลื่อนซ้ายขวาได้ (ส่วนขยาย 2026-08-11)
+ *
+ * โครงเดียวกับการ์ดเดี่ยวทุกประการ ต่างแค่จำนวน element — Messenger เรนเดอร์เป็น carousel เองเมื่อมี
+ * มากกว่า 1 ใบ ไม่ต้องเปลี่ยน template_type
+ *
+ * 🛑 ตัดที่ 10 ใบเป็นด่านสุดท้าย: ผู้เรียกควรแบ่งชุดมาให้ถูกตั้งแต่ต้น (chunkProductCards) แต่ถ้าหลุด
+ * มาเกิน Meta จะ **ปฏิเสธทั้งข้อความ** ไม่ใช่ตัดให้ — ยอมส่ง 10 ใบแรกดีกว่าลูกค้าไม่ได้อะไรเลย
+ */
+export function buildMetaProductCarousel(inputs: MetaProductCardInput[]): Record<string, unknown> {
+  const elements = inputs.slice(0, META_CAROUSEL_MAX).map(toElement)
   return {
     type: 'template',
-    payload: { template_type: 'generic', elements: [element] },
+    payload: { template_type: 'generic', elements },
   }
+}
+
+/** payload ของ `message.attachment` ที่พร้อมยิงเข้า Send API (การ์ดใบเดียว) */
+export function buildMetaProductCard(input: MetaProductCardInput): Record<string, unknown> {
+  return buildMetaProductCarousel([input])
 }

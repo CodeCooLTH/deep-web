@@ -135,6 +135,7 @@ import AiSuggestPanel from './AiSuggestPanel'
 import AppointmentDateSheet from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentDateSheet'
 import QuickMessageBar from './QuickMessageBar'
 import ProductPickerPanel, { type ProductPickPayload } from './ProductPickerPanel'
+import ProductMultiSelectSheet from './ProductMultiSelectSheet'
 import type { QuickMessage } from './QuickMessageManager'
 import PhotoAlbum from './PhotoAlbum'
 
@@ -926,6 +927,94 @@ function ProductCardBubble({ card, username }: { card: ChatProductCard | null; u
 }
 
 /**
+ * OwnProductCardCarousel — การ์ดสินค้าหลายชิ้นที่ "ร้านส่งเอง" ในข้อความเดียว (ส่วนขยาย 2026-08-11)
+ *
+ * Base: MegaGenericCardCarousel ในไฟล์นี้ (w-44 / relative aspect-video + ลูก absolute inset-0 /
+ * snap-x gap-2) — ค่าพวกนี้ผ่านการวัด peek บนรางแชท 384px มาแล้วจริง อย่าตั้งใหม่
+ * เนื้อหาแต่ละใบยึด `ProductCardBubble` (ชื่อ/ราคา/"หยุดขายแล้ว"/"ไม่พบสินค้านี้แล้ว"/ลิงก์ดูสินค้า)
+ *
+ * ต่างจากการ์ดของ Meta ตรงที่ **ใบนี้กดได้จริง** จึงใช้ `text-primary` + "ดูสินค้า ↗" ได้
+ * (ของ Meta ห้าม เพราะไม่มีปลายทางให้กด — ดู project_fb_generic_card_carousel)
+ *
+ * `null` ในลิสต์ = สินค้าถูกลบหลังส่ง — ต้องวาดเป็นใบหนึ่งในแถวตามตำแหน่งเดิม ไม่ใช่ตัดทิ้ง
+ * ไม่งั้นผู้ขายเปิดดูย้อนหลังแล้วนับการ์ดได้ไม่ครบ แล้วนึกว่าระบบส่งไม่ครบตั้งแต่แรก
+ */
+function OwnProductCardCarousel({
+  cards,
+  username,
+  messageId,
+}: {
+  cards: (ChatProductCard | null)[]
+  username?: string
+  messageId: string
+}) {
+  return (
+    <div>
+      {/* caption — ตำแหน่ง/ขนาดชุดเดียวกับ caption ของการ์ด Meta ในไฟล์นี้ ต่างที่ไม่มีไอคอนแบรนด์
+          (การ์ดนี้เป็นของร้านเอง ไม่ได้มาจากที่ไหน) */}
+      <div className="mb-1 flex justify-end">
+        <span className="text-default-700 text-2xs">{`สินค้า ${cards.length} รายการ`}</span>
+      </div>
+      <div className="flex snap-x snap-mandatory items-stretch gap-2 overflow-x-auto pb-1">
+        {cards.map((card, i) => {
+          const href = card && username ? `/u/${username}` : undefined
+          const inner = (
+            <div className="bg-light flex h-full w-44 shrink-0 snap-start flex-col overflow-hidden rounded-lg">
+              {/* กล่องรูปสูงเท่ากันทุกใบเสมอ — เหตุผลเต็มอยู่ที่ MetaGenericCardCarousel ในไฟล์นี้
+                  (ลูกต้อง absolute ไม่งั้น alt text/รูปที่ยังไม่รู้ขนาดดันกล่องให้สูงไม่เท่ากัน) */}
+              {/* 🛑 ยกภาษาการออกแบบจาก `ProductCardBubble` (การ์ดใบเดียว) ที่ถูก re-design ไปเมื่อ
+                  `617bb496` — **ไม่ใช่จาก MetaGenericCardCarousel** ทั้งที่ยก geometry มาจากตัวนั้น:
+                  `aspect-square` (รูปสินค้าที่ร้านถ่ายเองส่วนใหญ่จัตุรัส 16:9 จะได้แถบว่างหนา) +
+                  `object-contain` (รูปสินค้ามักมีข้อความ/สเปกฝังอยู่ cover จะครอปทิ้ง) + `mediaSrc`
+                  ถ้าใช้ของเดิม การ์ด 1 ใบกับหลายใบในเธรดเดียวกันจะอ่านเป็นคนละภาษา ทั้งที่เป็นของ
+                  ชนิดเดียวกัน (HR17: rebase ผ่านสะอาดไม่ได้แปลว่าแพตเทิร์นยังตรงกัน) */}
+              <div className="bg-default-100 relative aspect-square w-full overflow-hidden">
+                {card?.imageFileId ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={mediaSrc(card.imageFileId)} alt="รูปสินค้า" className="absolute inset-0 size-full object-contain" />
+                ) : (
+                  <span className="text-default-700 absolute inset-0 flex items-center justify-center">
+                    {/* ไม่มีรูป = `photo-off` (ชุดเดียวกับการ์ดใบเดียว); ถูกลบไปแล้ว = `package-off`
+                        คนละความหมาย ห้ามใช้ไอคอนเดียวกัน */}
+                    <Icon icon={card ? 'photo-off' : 'package-off'} className="text-xl" />
+                  </span>
+                )}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col p-2">
+                {card ? (
+                  <>
+                    <p className="text-default-800 mb-0 line-clamp-2 min-h-8 text-xs font-medium">{card.name}</p>
+                    <p className="text-default-600 mt-0.5 mb-0 truncate text-sm">{formatBaht(card.price)}</p>
+                    {!card.isActive && (
+                      <span className="text-default-700 mt-0.5 flex items-center gap-1 text-2xs">
+                        <Icon icon="ban" />
+                        หยุดขายแล้ว
+                      </span>
+                    )}
+                    <span className="text-primary mt-auto flex items-center gap-1 pt-1 text-2xs font-semibold">
+                      ดูสินค้า <Icon icon="external-link" className="text-xs" />
+                    </span>
+                  </>
+                ) : (
+                  <p className="text-default-700 mb-0 text-xs">ไม่พบสินค้านี้แล้ว</p>
+                )}
+              </div>
+            </div>
+          )
+          return href ? (
+            <Link key={`${messageId}-${i}`} href={href} className="block">
+              {inner}
+            </Link>
+          ) : (
+            <div key={`${messageId}-${i}`}>{inner}</div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/**
  * OrderCardBubble — เนื้อหาข้อความ type='ORDER' (การ์ดคำสั่งซื้อในแชท ฝั่ง seller)
  * user request 2026-07-25: ใช้ OrderCardView shared (การ์ดเดียวกับแท็บคำสั่งซื้อ) — แตะการ์ด → เปิด
  * โมดัลแก้ไข (onEdit); footer "ดูคำสั่งซื้อ" → /orders/{token}. buyer มี component แยก (Vuexy)
@@ -1049,6 +1138,9 @@ export default function ChatThread({
   const aiOpen = activePanel === 'ai'
   const quickOpen = activePanel === 'quick'
   const productOpen = activePanel === 'product'
+  // (ส่วนขยาย 2026-08-11) ชีตเลือกหลายชิ้น — ซ้อนบนแผงเลือกสินค้า ปิดแล้วกลับไปแผงเดิม
+  // ไม่รวมเข้า activePanel เพราะไม่ใช่ "แผงที่ 4" ที่แข่งพื้นที่กับอีก 3 แผง แต่เป็นชั้นที่สองของแผงเดิม
+  const [multiSelectOpen, setMultiSelectOpen] = useState(false)
   const togglePanel = (panel: 'quick' | 'ai' | 'product') =>
     setActivePanel((cur) => (cur === panel ? null : panel))
   // feature 00018 — composer/attach ปิดเมื่อช่องทางนอก (Messenger/IG) ยังไม่รองรับส่งรูป, หรือ
@@ -1206,6 +1298,7 @@ export default function ChatThread({
     reactToMessage,
     sendSticker,
     sendProductCard,
+    sendProductCards,
     externalReadAt: externalReadAtLive,
     externalDeliveredAt,
     // LINE โควตาข้อความรายเดือนหมด (2026-08-10) — session-scoped, ดู comment ที่ useSellerChatThread
@@ -2595,10 +2688,16 @@ export default function ChatThread({
                         // การ์ดสินค้าแบบ carousel จาก Facebook (2026-08-09) — self-contained เหมือน
                         // ORDER/metaOrder (มีกรอบ/สีในตัวการ์ดแต่ละใบแล้ว) ไม่ต้องกรอบ bubble ครอบซ้ำ
                         const genericCards = hasGenericCards ? m.cards! : null
+                        // การ์ดสินค้าหลายชิ้น (ส่วนขยาย 2026-08-11) — มีตั้งแต่ 2 ใบขึ้นไปเท่านั้น
+                        // ใบเดียวยังเป็น ProductCardBubble เดิมทุกประการ (ไม่มี "carousel ใบเดียว"
+                        // ให้ผู้ขายงงว่าทำไมบางทีมีลูกศรเลื่อนบางทีไม่มี)
+                        const ownProductCards =
+                          m.type === 'PRODUCT' && (m.productCards?.length ?? 0) > 1 ? m.productCards! : null
                         const bareImage =
                           m.type === 'ORDER' ||
                           !!metaOrder ||
                           !!genericCards ||
+                          !!ownProductCards ||
                           ((m.type === 'IMAGE' || m.type === 'VIDEO') && m.imageUrl && !m.body)
                         return (
                           <div className={bareImage ? '' : `rounded px-6 py-3 ${m.type === 'PRODUCT' ? 'bg-light' : mine ? 'bg-primary text-white' : 'bg-light'}`}>
@@ -2612,6 +2711,8 @@ export default function ChatThread({
                             messageId={m.id}
                             onOpenImage={(i) => setLightboxIndex(slideIndexByMessageId.get(`${m.id}:${i}`) ?? -1)}
                           />
+                        ) : ownProductCards ? (
+                          <OwnProductCardCarousel cards={ownProductCards} username={shopUsername} messageId={m.id} />
                         ) : m.type === 'PRODUCT' ? (
                           <ProductCardBubble card={m.productCard ?? null} username={shopUsername} />
                         ) : (
@@ -2933,6 +3034,22 @@ export default function ChatThread({
             onPick={handleProductPick}
             disabled={composerDisabled}
             onClose={() => setActivePanel(null)}
+            onOpenMultiSelect={() => setMultiSelectOpen(true)}
+          />
+        )}
+
+        {/* ชีตเลือกหลายชิ้น — ส่งสำเร็จแล้วปิดทั้งชีตและแผงเลือกสินค้า (เหมือนโหมด "ส่งการ์ดสินค้า"
+            ใบเดียวที่ปิดแผงหลังส่ง) · ส่งไม่สำเร็จ = ชีตเปิดค้าง ของที่เลือกยังอยู่ครบ กดใหม่ได้ทันที */}
+        {productOpen && multiSelectOpen && (
+          <ProductMultiSelectSheet
+            channel={channel}
+            disabled={composerDisabled}
+            onSend={async (ids) => {
+              const ok = await sendProductCards(ids)
+              if (ok) setActivePanel(null)
+              return ok
+            }}
+            onClose={() => setMultiSelectOpen(false)}
           />
         )}
 

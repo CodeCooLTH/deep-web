@@ -40,6 +40,37 @@ export interface LineFlexMessage {
   contents: Record<string, unknown>
 }
 
+/** เพดาน bubble ต่อ carousel ของ LINE — ด่านสุดท้าย (ผู้เรียกแบ่งชุดมาก่อนแล้วผ่าน chunkProductCards) */
+export const LINE_CAROUSEL_MAX = 12
+
+/** bubble เดียว — นิยามที่การ์ดเดี่ยวและ carousel ใช้ร่วมกัน (ห้ามมีสองนิยามของ "การ์ดสินค้า") */
+function toBubble(input: LineFlexProductCardInput): Record<string, unknown> {
+  const bubble = buildLineFlexProductCard(input)
+  return bubble.contents
+}
+
+/**
+ * การ์ดสินค้าหลายชิ้นในข้อความเดียว — ลูกค้าเลื่อนซ้ายขวาได้ (ส่วนขยาย 2026-08-11)
+ *
+ * altText ใช้ของใบแรก + จำนวนที่เหลือ: LINE แสดง altText ในรายการแชท/แจ้งเตือน ถ้าเอา altText ของ
+ * ใบแรกมาเฉย ๆ ลูกค้าจะเห็นว่ามีสินค้าชิ้นเดียวทั้งที่ส่งไปหลายชิ้น
+ */
+export function buildLineFlexProductCarousel(inputs: LineFlexProductCardInput[]): LineFlexMessage {
+  const items = inputs.slice(0, LINE_CAROUSEL_MAX)
+  if (items.length === 1) return buildLineFlexProductCard(items[0]!)
+
+  const first = items[0]
+  const rest = items.length - 1
+  const altText = first
+    ? `สินค้า: ${first.name} · ${first.priceText}${rest > 0 ? ` และอีก ${rest} รายการ` : ''}`.slice(0, ALT_TEXT_MAX)
+    : 'สินค้า'
+
+  return {
+    altText,
+    contents: { type: 'carousel', contents: items.map(toBubble) },
+  }
+}
+
 export function buildLineFlexProductCard(input: LineFlexProductCardInput): LineFlexMessage {
   const bodyContents: Record<string, unknown>[] = [
     { type: 'text', text: 'สินค้า', size: 'sm', color: SLATE },

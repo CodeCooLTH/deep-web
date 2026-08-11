@@ -2932,6 +2932,8 @@ async function sendOutboundLineMessage(
     /** (2026-08-11) การ์ดสินค้า — เก็บลง ChatMessage.productRefId ให้ร้านเห็นเป็นการ์ดในประวัติ
      *  เหมือนช่องทาง DEEP (ฝั่งลูกค้าได้ Flex) */
     productRefId?: string
+    /** (ส่วนขยาย 2026-08-11) การ์ดสินค้าหลายชิ้นในข้อความเดียว — ผู้เรียกแบ่งชุดมาแล้ว (ดูฝั่ง Meta) */
+    productRefIds?: string[]
     /** (2026-08-11) การ์ด Flex — ชนะ `text` เมื่อมีค่า (ดู buildParts) */
     flex?: { altText: string; contents: Record<string, unknown> }
     replyToMid?: string | null
@@ -2952,6 +2954,10 @@ async function sendOutboundLineMessage(
     params.attachment ?? (params.imageFileId ? { fileId: params.imageFileId, kind: 'IMAGE' as const, name: null, size: null } : null)
   const bodyText = params.text ?? ''
   const isOrder = !!params.orderRefToken
+  // การ์ดสินค้า — ใบเดียว (productRefId) หรือหลายใบ (productRefIds) ต้องตัดสินด้วยเกณฑ์เดียว
+  // ไม่งั้นข้อความหลายใบจะถูกเก็บเป็น type='TEXT' + body ที่เป็นข้อความ fallback ดิบ ๆ
+  // แล้วร้านเห็นชื่อ+ราคาเป็นตัวหนังสือแทนการ์ด (คนละอย่างกับที่ลูกค้าได้รับ)
+  const isProductCard = !!params.productRefId || (params.productRefIds?.length ?? 0) > 0
 
   const buildParts = async (): Promise<OutboundMessagePart[]> => {
     if (params.sticker) {
@@ -3201,9 +3207,9 @@ async function sendOutboundLineMessage(
           // PRODUCT/ORDER เก็บ body=null แล้ว live-join การ์ดตอนอ่าน — ตรงกับที่ฝั่ง DEEP ทำ
           // (route messages: `type === "PRODUCT" || type === "ORDER" ? null : text`) ไม่งั้นร้านจะเห็น
           // ทั้งการ์ดและข้อความดิบซ้อนกันสองชั้นในเธรดเดียว
-          type: isOrder ? 'ORDER' : params.productRefId ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
+          type: isOrder ? 'ORDER' : isProductCard ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
           // สติกเกอร์: body=null เมื่อมีรูป — ไม่มีรูปต้องมีคำแทนเสมอ (ดู stickerMirrorFailedText)
-          body: isOrder || params.productRefId || attachment
+          body: isOrder || isProductCard || attachment
             ? null
             : params.sticker
               ? (stickerFileId ? null : stickerMirrorFailedText('LINE'))
@@ -3213,6 +3219,7 @@ async function sendOutboundLineMessage(
           attachmentSize: attachment?.size ?? null,
           orderRefToken: isOrder ? params.orderRefToken! : null,
           productRefId: params.productRefId ?? null,
+          productRefIds: params.productRefIds ?? [],
           replyToMid: params.replyToMid ?? null,
           externalMessageId: mid ? buildLineExternalMessageId(mid) : null,
           deliveryStatus: failureReason ? 'FAILED' : 'SENT',
@@ -3304,6 +3311,14 @@ export async function sendOutboundMessage(params: {
   orderRefToken?: string
   /** (2026-08-11) การ์ดสินค้า — ผ่านด่าน ownership ที่ route มาแล้ว (scope ด้วย shopId ใน WHERE) */
   productRefId?: string
+  /**
+   * (ส่วนขยาย 2026-08-11) การ์ดสินค้า **หลายชิ้น** ในข้อความเดียว — ผ่านด่าน ownership ที่ route แล้ว
+   *
+   * ผู้เรียกต้องแบ่งชุดมาให้อยู่ในเพดานของช่องทางแล้ว (`chunkProductCards`) — service ไม่แบ่งให้เอง
+   * เพราะ 1 การเรียก = 1 ข้อความเสมอ (ถ้า service แอบแตกเป็นหลายข้อความ ผู้เรียกจะได้ id เดียวกลับไป
+   * แล้วเข้าใจว่าส่งใบเดียว)
+   */
+  productRefIds?: string[]
   /** (2026-08-11) การ์ดแบบ Generic Template สำหรับ **Messenger/IG เท่านั้น** — ชนะ `text` เมื่อมีค่า
    *  (LINE ใช้ `flex` แทน; ส่งผิดช่องทางจะถูก adapter ปฏิเสธด้วย error ที่อ่านออก ไม่ถอยเงียบ) */
   template?: Record<string, unknown>
@@ -3523,6 +3538,10 @@ export async function sendOutboundMessage(params: {
   // การ์ดคำสั่งซื้อ (user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" (bodyText ที่ยิงไป Meta) แต่
   // ฝั่งเราเก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด. echo ของลิงก์ (mid เดิม) จะ dedupe กับแถวนี้เอง
   const isOrder = !!params.orderRefToken
+  // การ์ดสินค้า — ใบเดียว (productRefId) หรือหลายใบ (productRefIds) ต้องตัดสินด้วยเกณฑ์เดียว
+  // ไม่งั้นข้อความหลายใบจะถูกเก็บเป็น type='TEXT' + body ที่เป็นข้อความ fallback ดิบ ๆ
+  // แล้วร้านเห็นชื่อ+ราคาเป็นตัวหนังสือแทนการ์ด (คนละอย่างกับที่ลูกค้าได้รับ)
+  const isProductCard = !!params.productRefId || (params.productRefIds?.length ?? 0) > 0
   /**
    * สติกเกอร์เก็บเป็นแถวชนิด IMAGE + mirror รูปมาไว้ storage ของเรา (เหมือนรูปขาเข้า) ไม่เก็บ URL
    * ของ CDN Meta ตรง ๆ เพราะ (1) ตัวเรนเดอร์ในเธรดอ่าน imageUrl เป็น fileId เสมอ (`/api/files/{id}`)
@@ -3580,10 +3599,10 @@ export async function sendOutboundMessage(params: {
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: isOrder ? 'ORDER' : params.productRefId ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
+          type: isOrder ? 'ORDER' : isProductCard ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
           // ORDER: เก็บ orderRefToken (การ์ด live-join); ไฟล์แนบ: body=null, imageUrl=fileId; ข้อความ: body=text
           // สติกเกอร์: body=null เมื่อมีรูป — ไม่มีรูปต้องมีคำแทนเสมอ (ดู stickerMirrorFailedText)
-          body: isOrder || params.productRefId || attachment
+          body: isOrder || isProductCard || attachment
             ? null
             : params.sticker
               ? (stickerFileId ? null : stickerMirrorFailedText(conversation.channel))
@@ -3593,6 +3612,7 @@ export async function sendOutboundMessage(params: {
           attachmentSize: attachment?.size ?? null,
           orderRefToken: isOrder ? params.orderRefToken! : null,
           productRefId: params.productRefId ?? null,
+          productRefIds: params.productRefIds ?? [],
           replyToMid: params.replyToMid ?? null,
           externalMessageId: mid || null,
           deliveryStatus: failureReason ? 'FAILED' : 'SENT',
