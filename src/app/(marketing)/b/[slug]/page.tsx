@@ -287,6 +287,8 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               // (getNextTierInfo เรียกไปแล้วด้านบน ไม่ได้ยิงเพิ่ม)
               nextTierLabel: nextTier?.nextTierLabel ?? null,
               pointsToNext: nextTier?.pointsToNext ?? null,
+              avgRating: profileStats.avgRating,
+              reviewCount: profileStats.reviewCount,
               isLodging,
               isServiceQueue,
               // คำอธิบายร้าน + อัตราการตอบแชท อยู่บนโปรไฟล์ ไม่ใช่หลังแท็บ (user 2026-08-10)

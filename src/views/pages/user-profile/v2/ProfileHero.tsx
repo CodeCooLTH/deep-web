@@ -72,6 +72,9 @@ export type ProfileHeroData = {
   tierGradient: string
   trustScore: number
   tierLabel: string
+  /** คะแนนรีวิวเฉลี่ย + จำนวนรีวิว — null/0 = ยังไม่มีรีวิว (ไม่ใช่ 0 ดาว ซึ่งคนละความหมาย) */
+  avgRating?: number | null
+  reviewCount?: number
   maxVerifyLevel: number
   category: string | null
   memberSince: string
@@ -167,6 +170,19 @@ const TRUST_FACTORS = [
 
 /** คะแนนเต็มของ Trust Score (SSOT: docs/10 - Business Rules/Tier Lists.md — สเกล 0–100) */
 const TRUST_SCORE_MAX = 100
+
+/**
+ * จำนวนรีวิวขั้นต่ำก่อนโชว์ดาวบนหัวโปรไฟล์
+ *
+ * ค่าเดียวกับที่ `/u/[username]` ใช้อยู่แล้ว (`showRating: reviewCount >= 3`) — ยกมาตั้งชื่อ
+ * ไว้ที่นี่เพราะเลข 3 ลอย ๆ ใน JSX ไม่มีใครรู้ว่ามาจากไหน และหน้า `/b/[slug]` ไม่เคยมีเกณฑ์นี้เลย
+ * (ถ้าไม่ยกมา สองเส้นทางของหน้าเดียวกันจะโชว์ดาวคนละเงื่อนไข)
+ *
+ * ทำไมต้องมีเกณฑ์: 5.0 จากรีวิวเดียวไม่ได้แปลว่าร้านดีกว่า 4.8 จาก 200 รีวิว — ค่าเฉลี่ยจาก
+ * ตัวอย่างน้อยเกินไปคือตัวเลขที่ดูน่าเชื่อกว่าความจริง ซึ่งอันตรายกว่าไม่โชว์อะไรเลย
+ * (หลักเดียวกับ COMPLETION_RATE_MIN_SAMPLE และ CHAT_RESPONSE_MIN_SAMPLE ที่ใช้ 3 เท่ากัน)
+ */
+const RATING_MIN_REVIEWS = 3
 
 /** จำนวนเหรียญที่โชว์เป็นไอคอน ที่เหลือยุบเป็นตัวนับ — กันแถวยาวจนดันเนื้อหาสำคัญตกจอ */
 
@@ -496,20 +512,27 @@ export default function ProfileHero({
               {data.tierLabel}
             </span>
           </span>
-          {/* ทางลึกสำหรับคนที่อยากรู้ว่าคะแนนมาจากไหน (progressive disclosure) — กดเท่านั้น ไม่ใช้ hover
-              min-bs/min-is 44px บังคับตรง ๆ แทนการคำนวณจาก padding (ไอคอน 15px + p-2 ได้แค่ 31px) */}
-          <button
-            type='button'
-            onClick={() => setScorePanelOpen(true)}
-            aria-haspopup='dialog'
-            aria-expanded={scorePanelOpen}
-            aria-controls='trust-score-panel'
-            aria-label='ดูวิธีคำนวณคะแนนความน่าเชื่อถือ'
-            /* เหตุผลเดียวกับเช็คเขียว — 44px จริงในแถวที่พิลสูง ~28px จะดันแถวทั้งแถวให้สูงขึ้น */
-            className='relative flex items-center justify-center border-0 bg-transparent p-0 mis-0.5 cursor-pointer text-[var(--mui-palette-text-secondary)] after:absolute after:inset-[-15px] after:content-[""] rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--mui-palette-primary-main)]'
-          >
-            <Icon icon='lucide:info' width={15} />
-          </button>
+          {/* ── คะแนนรีวิว: อยู่ข้างชิประดับ (user 2026-08-11 "อยากให้มี rating บน profile
+              ไว้ข้าง ๆ Deep Classic เอา (i) ออก") ──
+
+              🛑 คนละเรื่องกับคะแนนความน่าเชื่อถือในพิลเดียวกัน — ตัวซ้าย (26/100) คือคะแนนที่
+              **ระบบคำนวณ** จากหลักฐานหลายชนิด ส่วนตัวนี้คือ **ผู้ซื้อให้ดาว** จึงต้องมีจำนวนรีวิว
+              กำกับเสมอ: 5.0 จากรีวิวเดียว กับ 4.8 จาก 200 รีวิว ไม่ใช่สิ่งเดียวกันสำหรับคนกำลังจะโอนเงิน
+
+              ไม่ render เลยเมื่อยังไม่มีรีวิว — ห้ามขึ้น 0.0 ซึ่งอ่านเป็น "ร้านนี้ได้ศูนย์ดาว"
+              ทั้งที่ความจริงคือยังไม่มีใครรีวิว คนละความหมายกันคนละเรื่อง
+
+              📌 ปุ่ม ⓘ ที่เคยอยู่ตรงนี้ถูกถอดตามคำสั่ง user — แผงอธิบายคะแนนยังเปิดได้จาก
+              เช็คเขียวหลังชื่อร้าน (ทางเข้าที่สองที่มีอยู่แล้ว) จึงไม่ได้เสียทางเข้าไปทั้งหมด */}
+          {typeof data.avgRating === 'number' && (data.reviewCount ?? 0) >= RATING_MIN_REVIEWS && (
+            <span className='inline-flex items-center gap-1 plb-1 pli-2.5 rounded-full text-[13px] font-bold leading-none bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-primary)]'>
+              <Icon icon='tabler:star-filled' width={13} className='text-warning' />
+              <span className='tabular-nums'>{data.avgRating.toFixed(1)}</span>
+              <span className='font-medium text-[var(--mui-palette-text-secondary)] tabular-nums'>
+                {`(${data.reviewCount})`}
+              </span>
+            </span>
+          )}
         </div>
 
         {/* วันเปิดร้านอยู่ **บรรทัดเดียวกับ slug** (user 2026-08-10 "ย้ายขึ้นไปไว้ข้างๆ slug ร้าน")

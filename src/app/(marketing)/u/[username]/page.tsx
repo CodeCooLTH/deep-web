@@ -296,6 +296,8 @@ export default async function PublicProfilePage({ params }: Props) {
               // แผงอธิบายคะแนนใช้บอก "อีกกี่คะแนนถึงระดับถัดไป" — ค่าเดียวกับที่ profileTab ใช้อยู่แล้ว
               nextTierLabel: nextTier?.nextTierLabel ?? null,
               pointsToNext: nextTier?.pointsToNext ?? null,
+              avgRating,
+              reviewCount,
               isLodging,
               isServiceQueue,
               // คำอธิบายร้าน + อัตราการตอบแชท อยู่บนโปรไฟล์ ไม่ใช่หลังแท็บ (user 2026-08-10)

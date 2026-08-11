@@ -376,7 +376,7 @@ export const ProfileRightContent = ({
   // ไม่มี tsc/detector ตัวไหนจับได้เพราะเป็นสตริงที่ถูกทั้งคู่
   const L = isRoom
     ? { empty: 'ร้านนี้ยังไม่มีห้องพัก', emptyHint: 'ทักแชทสอบถามร้านได้เลย', pinned: 'ห้องพักแนะนำ', all: 'ห้องพักทั้งหมด', sold: 'เข้าพักแล้ว', soldUnit: 'ครั้ง' }
-    : { empty: 'ร้านนี้ยังไม่มีสินค้า', emptyHint: 'ทักแชทสอบถามร้านได้เลย', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด', sold: 'ขายแล้ว', soldUnit: 'ออเดอร์' }
+    : { empty: 'ร้านนี้ยังไม่มีสินค้า', emptyHint: 'ทักแชทสอบถามร้านได้เลย', pinned: 'สินค้าปักหมุด', all: 'สินค้าทั้งหมด', sold: 'ขายแล้ว', soldUnit: 'ชิ้น' }
 
   if (openShopEmptyState) return null
 
