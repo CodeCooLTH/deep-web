@@ -173,6 +173,30 @@ async function processLineEvent(params: {
       replyToken: typeof event.replyToken === 'string' ? event.replyToken : undefined,
       eventTimestamp: typeof event.timestamp === 'number' ? event.timestamp : Date.now(),
     })
+
+    /**
+     * ปุ่ม "เช็คสถานะพัสดุ" บนเมนูลัด (feature 00045 FR-RM-09 / D-RM-3) — ตอบให้ทันที
+     *
+     * 🛑 ต้องเรียก **หลัง** ingest เสมอ: บับเบิล "ลูกค้าแตะปุ่ม: …" ต้องอยู่ในเธรดก่อนคำตอบ
+     * ไม่งั้นผู้ขายจะเห็นคำตอบลอยมาโดยไม่รู้ว่าตอบอะไร (และถ้าตอบไม่ได้ บับเบิลนั้นคือสิ่งเดียว
+     * ที่บอกว่าลูกค้าต้องการอะไร)
+     *
+     * 🛑 ล้มแล้วต้องไม่ทำให้ webhook ตอบ error — LINE จะ retry ทั้ง event แล้วบับเบิลจะซ้ำ
+     */
+    const qs = new URLSearchParams(postbackData)
+    if (qs.get('src') === 'rm' && qs.get('action') === 'order_status') {
+      // 🛑 dynamic import โดยตั้งใจ: service นี้มี `server-only` ซึ่งทำให้ไฟล์เทสของ route นี้
+      // โหลดไม่ขึ้นทั้งไฟล์ถ้า import ที่ระดับบนสุด (เจอจริงตอนเพิ่มครั้งแรก) — และได้ผลพลอยได้
+      // คือไม่ต้องโหลด service สำหรับ event ที่ไม่ใช่ปุ่มนี้ ซึ่งเป็น event ส่วนใหญ่
+      const { replyOrderStatus } = await import('@/services/line-rich-menu-reply.service')
+      await replyOrderStatus({
+        shopId: params.shopId,
+        shopChannelId: params.shopChannelId,
+        externalUserId: userId,
+        // คำจริงที่ร้านตั้งไว้บนปุ่ม (ฝังมากับ data ตอนสร้างเมนู) — ห้าม hardcode
+        buttonLabel: qs.get('label') || 'เช็คสถานะพัสดุ',
+      }).catch((e) => console.error('[rich-menu] ตอบสถานะพัสดุอัตโนมัติไม่สำเร็จ', e))
+    }
     return
   }
 

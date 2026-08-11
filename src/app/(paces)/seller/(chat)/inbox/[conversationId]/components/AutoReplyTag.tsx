@@ -36,6 +36,8 @@ export type AiAnswerContext = {
 export type AutoReplyTrace = {
   matchedVia: string | null
   aiContext?: AiAnswerContext | null
+  /** feature 00045 — คำตอบที่มาจากการแตะปุ่มบนเมนูลัดใน LINE (null = มาจากทางอื่น) */
+  richMenuContext?: { buttonLabel: string; orderNo: string | null } | null
   keywordName: string | null
   matchedPhrase: string | null
   matchType: string | null
@@ -135,7 +137,15 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
   // แยกสองชื่อตามที่มาจริง (user 2026-08-01): คำตอบสำเร็จรูปที่ร้านเขียนเอง = DeepBot
   // ส่วนข้อความที่ AI แต่งขึ้นจากคลังความรู้ = DeepAI — ร้านต้องแยกออกตั้งแต่แรกเห็นว่า
   // อันไหนคือคำพูดของตัวเองและอันไหนที่ควรอ่านตรวจก่อนปล่อยผ่าน
-  const brand = trace?.matchedVia === 'CHATBOT' ? 'DeepAI' : 'DeepBot'
+  /**
+   * ที่มาที่สาม (feature 00045 FR-RM-09): คำตอบที่เกิดจาก **ลูกค้าแตะปุ่มบนเมนูลัดใน LINE**
+   *
+   * 🛑 ต้องแยกชื่อออกจาก DeepBot เพราะมันไม่ใช่บอทคีย์เวิร์ด — ไม่มีกฎไหนถูกจับคู่เลย ถ้าปล่อยให้
+   * ตกเป็น DeepBot ป๊อปอัปจะแสดงแถว "กลุ่มคำ/คำที่ตรง" เป็น "ไม่เจาะจง" ซึ่ง**โกหกสองชั้น**:
+   * ไม่ใช่บอทคีย์เวิร์ด และไม่มีเงื่อนไขให้ดูตั้งแต่ต้น (เหตุผลเดียวกับที่แยกเคส CHATBOT ออกมา)
+   */
+  const isRichMenu = trace?.matchedVia === 'RICH_MENU_ORDER_STATUS'
+  const brand = trace?.matchedVia === 'CHATBOT' ? 'DeepAI' : isRichMenu ? 'DeepMenu' : 'DeepBot'
   /**
    * S-20a: ชิปแสดง**ชื่อเท่านั้น** ไม่ต่อท้าย "· ทดสอบ" อีกแล้ว (user สั่ง 2026-07-31)
    *
@@ -235,6 +245,20 @@ export default function AutoReplyTag({ isTest, trace }: { isTest: boolean; trace
                   <Row label="เพจ" value={trace.channelName} />
                   <Row label="โฆษณา" value={trace.adLabel} />
                   <Row label="สินค้า" value={trace.productName} />
+                </dl>
+              </>
+            ) : isRichMenu ? (
+              /* 🛑 ไม่มีบล็อก "เงื่อนไขของเธรด" ในสาขานี้โดยตั้งใจ — ค่าพวกนั้นเป็น null เสมอ
+                 ถ้าใส่ไว้จะขึ้น "ไม่เจาะจง" ซึ่งโกหกว่ามีเงื่อนไขอยู่แต่หาไม่เจอ ทั้งที่ความจริง
+                 คือไม่มีเงื่อนไขตั้งแต่ต้น (คำตอบนี้มาจากการแตะปุ่มตรง ๆ) */
+              <>
+                <p className="mb-2">
+                  {trace?.richMenuContext?.orderNo
+                    ? `ลูกค้าแตะปุ่ม “${trace.richMenuContext.buttonLabel}” บนเมนูลัดใน LINE ระบบจึงตอบสถานะของคำสั่งซื้อ ${trace.richMenuContext.orderNo} ให้ทันที`
+                    : `ลูกค้าแตะปุ่ม “${trace?.richMenuContext?.buttonLabel ?? 'บนเมนูลัด'}” แต่ไม่พบคำสั่งซื้อที่ยังไม่ปิดของลูกค้าคนนี้ในร้าน ระบบจึงตอบข้อความแนะนำแทน`}
+                </p>
+                <dl className="mb-0">
+                  <Row label="ปุ่มที่กด" value={trace?.richMenuContext?.buttonLabel ?? null} />
                 </dl>
               </>
             ) : trace ? (

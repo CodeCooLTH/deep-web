@@ -72,6 +72,11 @@ export interface AutoReplyTrace {
   matchedVia: string | null
   /** ข้อมูลที่ AI ใช้ประกอบการตอบครั้งนั้น (feature 00023) — null = ไม่ใช่คำตอบจาก AI */
   aiContext: AiAnswerContext | null
+  /**
+   * บริบทของคำตอบที่มาจาก "ลูกค้าแตะปุ่มบนเมนูลัดใน LINE" (feature 00045 FR-RM-09)
+   * null = ไม่ได้มาจากเมนูลัด · 🛑 `buttonLabel` คือคำจริงที่ร้านตั้งไว้ ไม่ใช่ค่าคงที่
+   */
+  richMenuContext: { buttonLabel: string; orderNo: string | null } | null
   keywordName: string | null
   matchedPhrase: string | null
   matchType: string | null // "EXACT" | "CONTAINS" | "STARTS_WITH" — แปลเป็นไทยที่ชั้น UI
@@ -598,6 +603,7 @@ export async function getMessages(
         productId: true,
         matchedVia: true,
         aiContext: true,
+        richMenuContext: true,
         keyword: { select: { name: true } },
       },
     })
@@ -630,6 +636,8 @@ export async function getMessages(
       traceByMessageId.set(l.outboundMessageId, {
         matchedVia: l.matchedVia,
         aiContext: (l.aiContext as AiAnswerContext | null) ?? null,
+        richMenuContext:
+          (l.richMenuContext as { buttonLabel: string; orderNo: string | null } | null) ?? null,
         keywordName: l.keyword?.name ?? null,
         matchedPhrase: l.matchedPhrase,
         matchType: l.matchType,

@@ -31,10 +31,16 @@ export type OrderStatusReplyOutcome =
   | 'NO_TOKEN'
   | 'NO_CONVERSATION'
 
+/**
+ * @param buttonLabel คำบนปุ่มที่ลูกค้ากดจริง — 🛑 มาจาก `postback.data` ที่เราฝังไว้ตอนสร้างเมนู
+ * ซึ่งเป็นคำที่ร้านตั้งเอง (FR-RM-02) **ห้าม hardcode "เช็คสถานะพัสดุ"** เพราะร้านเปลี่ยนคำได้
+ * แล้วป้าย "ตอบโดย DeepMenu" ในเธรดจะโกหกทันที
+ */
 export async function replyOrderStatus(params: {
   shopId: string
   shopChannelId: string
   externalUserId: string
+  buttonLabel: string
 }): Promise<OrderStatusReplyOutcome> {
   const conversation = await prisma.conversation.findFirst({
     where: {
@@ -63,6 +69,7 @@ export async function replyOrderStatus(params: {
    * ไม่ใช่ "ไม่พบข้อมูล" (FR-RM-09 AC)
    */
   let text = NO_ORDER_REPLY_TEXT
+  let orderNoPicked: string | null = null
   if (customerId) {
     const rows = await prisma.order.findMany({
       where: { shopId: params.shopId, customerId },
@@ -94,11 +101,15 @@ export async function replyOrderStatus(params: {
     }))
 
     const picked = pickOrderForStatusReply(candidates)
-    if (picked) text = buildOrderStatusText(picked)
+    if (picked) {
+      text = buildOrderStatusText(picked)
+      orderNoPicked = picked.orderNo
+    }
   }
 
+  const orderNo = orderNoPicked
   try {
-    await sendOutboundMessage({
+    const sent = await sendOutboundMessage({
       conversationId: conversation.id,
       // เส้นทางระบบ — ไม่มี user จริงให้เช็คสิทธิ์ ต้องประกาศ shopId ที่เชื่อว่าเป็นเจ้าของออกมา
       actorUserId: null,
@@ -108,6 +119,31 @@ export async function replyOrderStatus(params: {
       // 🛑 หัวใจของ D-RM-3 — claim reply token ไม่ได้เมื่อไหร่ให้ยกเลิก ห้ามตกไป push
       replyOnly: true,
     })
+
+    /**
+     * บันทึกที่มาของคำตอบ เพื่อให้บับเบิลในเธรดขึ้นชิป **"DeepMenu"** ไม่ใช่ "DeepBot"
+     *
+     * 🛑 ถ้าไม่เขียนแถวนี้ ป้ายจะตกไปเป็น DeepBot (ค่าตั้งต้นของ `AutoReplyTag`) พร้อมป๊อปอัป
+     * ที่แสดงแถว "กลุ่มคำ/คำที่ตรง" เป็น "ไม่เจาะจง" ซึ่งโกหกสองชั้น: ไม่ใช่บอทคีย์เวิร์ด และ
+     * ไม่มีเงื่อนไขให้ดูตั้งแต่ต้น
+     *
+     * เขียนหลังส่งสำเร็จเท่านั้น และ **ล้มแล้วไม่ทำให้คำตอบเป็นโมฆะ** — ลูกค้าได้คำตอบไปแล้ว
+     * การเสียป้ายไปหนึ่งใบเป็นเรื่องรองกว่าการโยน error ทิ้งทั้งที่งานหลักสำเร็จ
+     */
+    await prisma.autoReplyLog
+      .create({
+        data: {
+          shopId: params.shopId,
+          conversationId: conversation.id,
+          shopChannelId: params.shopChannelId,
+          decision: 'REPLIED',
+          matchedVia: 'RICH_MENU_ORDER_STATUS',
+          richMenuContext: { buttonLabel: params.buttonLabel, orderNo },
+          replyText: text,
+          outboundMessageId: sent.id,
+        },
+      })
+      .catch((e) => console.error('[rich-menu] บันทึกที่มาของคำตอบไม่สำเร็จ (คำตอบส่งไปแล้ว)', e))
   } catch (e) {
     // REPLY_WINDOW_CLOSED = แพ้ CAS ให้ผู้ส่งอื่น หรือ token หมดอายุระหว่างทาง — จบเงียบตามกติกา
     if (e instanceof Error && e.message === 'REPLY_WINDOW_CLOSED') return 'NO_TOKEN'
