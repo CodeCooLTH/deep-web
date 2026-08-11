@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import ProductThumb from '@/app/(paces)/seller/(dashboard)/orders/new/components/ProductThumb'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
+import { useThreadShopId } from '@/app/(paces)/seller/(chat)/_components/DraftOrderProvider'
 import {
   describeProductSelection,
   maxSelectableProducts,
@@ -70,11 +71,18 @@ export default function ProductMultiSelectSheet({ channel, onSend, onClose, disa
   const perMessage = productCardsPerMessage(channel)
   const maxSelectable = maxSelectableProducts(channel)
 
+  /** ร้านของเธรดที่เปิดอยู่ (feature 00037) — ชีตนี้ส่งการ์ดสินค้าออกให้ลูกค้าเหมือนแผงเลือกเดี่ยว */
+  const threadShopId = useThreadShopId()
+
   const load = useCallback(async () => {
     setLoading(true)
     setFailed(false)
     try {
-      const res = await fetch('/api/products?sort=best', { cache: 'no-store' })
+      // shopId = ร้านของเธรด ไม่ใช่ร้านที่ active (เหตุผลเต็มอยู่ที่ ProductPickerPanel)
+      const res = await fetch(
+        `/api/products?sort=best${threadShopId ? `&shopId=${encodeURIComponent(threadShopId)}` : ''}`,
+        { cache: 'no-store' },
+      )
       if (!res.ok) {
         setFailed(true)
         return
@@ -86,7 +94,7 @@ export default function ProductMultiSelectSheet({ channel, onSend, onClose, disa
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [threadShopId])
 
   useEffect(() => {
     load()

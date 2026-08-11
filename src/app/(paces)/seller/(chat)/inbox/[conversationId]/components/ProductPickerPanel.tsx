@@ -24,6 +24,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import ProductThumb from '@/app/(paces)/seller/(dashboard)/orders/new/components/ProductThumb'
+import { useThreadShopId } from '@/app/(paces)/seller/(chat)/_components/DraftOrderProvider'
 
 /** field ที่ใช้จริงจาก GET /api/products (serializeProduct คืนมากกว่านี้ — ประกาศเท่าที่ใช้) */
 type PickerProduct = {
@@ -77,12 +78,23 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMu
   const [q, setQ] = useState('')
   const [selected, setSelected] = useState<PickerProduct | null>(null)
 
+  /**
+   * ร้านของเธรดที่เปิดอยู่ (feature 00037) — **ไม่ใช่ร้านที่ active**
+   *
+   * 🛑 แผงนี้เอาผลไปส่ง "การ์ดสินค้า" ให้ลูกค้าจริง หยิบผิดร้าน = ส่งชื่อ/ราคา/รูปของอีกร้าน
+   * ออกไปหาลูกค้า โดยไม่มีอะไรบนจอบอกว่าผิด (คลาสเดียวกับบั๊กสร้างออเดอร์ 2026-08-11)
+   */
+  const threadShopId = useThreadShopId()
+
   const load = useCallback(async () => {
     setLoading(true)
     setFailed(false)
     try {
       // ?sort=best — ขายดีก่อน (user สั่ง 2026-07-23) แล้วต่อด้วยตัวที่ยังไม่เคยขาย + แนบ soldCount
-      const res = await fetch('/api/products?sort=best', { cache: 'no-store' })
+      const res = await fetch(
+        `/api/products?sort=best${threadShopId ? `&shopId=${encodeURIComponent(threadShopId)}` : ''}`,
+        { cache: 'no-store' },
+      )
       if (!res.ok) {
         setFailed(true)
         return
@@ -94,7 +106,7 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, onOpenMu
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [threadShopId])
 
   useEffect(() => {
     load()

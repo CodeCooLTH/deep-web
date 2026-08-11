@@ -120,7 +120,7 @@ import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErr
 import { SellerThreadSkeleton } from '@/app/(paces)/seller/(dashboard)/_shared/SellerCardSkeleton'
 import { ChannelBadgeOverlay } from '../../components/ChannelBadge'
 import OrderCardView from '../../../_components/OrderCardView'
-import { useDraftOrders, useOrderVocab } from '../../../_components/DraftOrderProvider'
+import { useDraftOrders, useOrderVocab, useThreadShopId } from '../../../_components/DraftOrderProvider'
 import CustomerPanelSheet from './CustomerPanelSheet'
 import EmojiPicker, { rememberRecentSticker } from './EmojiPicker'
 
@@ -1148,6 +1148,8 @@ export default function ChatThread({
   const aiOpen = activePanel === 'ai'
   const quickOpen = activePanel === 'quick'
   const productOpen = activePanel === 'product'
+  /** ร้านของเธรดที่เปิดอยู่ — ใช้เป็น key ของแผงสินค้า (ดูเหตุผลที่จุด render) */
+  const threadShopIdForPanels = useThreadShopId()
   // (ส่วนขยาย 2026-08-11) ชีตเลือกหลายชิ้น — ซ้อนบนแผงเลือกสินค้า ปิดแล้วกลับไปแผงเดิม
   // ไม่รวมเข้า activePanel เพราะไม่ใช่ "แผงที่ 4" ที่แข่งพื้นที่กับอีก 3 แผง แต่เป็นชั้นที่สองของแผงเดิม
   const [multiSelectOpen, setMultiSelectOpen] = useState(false)
@@ -3048,7 +3050,14 @@ export default function ChatThread({
             ไม่ได้อยู่เหนือ composer เหมือนแผง AI/สินค้าอีกต่อไป */}
 
         {productOpen && (
+          /* 🛑 key = ร้านของเธรด: ChatThread ไม่ remount ตอนสลับ conversationId (มี effect ผูก
+             [conversationId] อยู่จุดเดียวทั้งไฟล์ = หลักฐานว่าไม่ remount) และ activePanel เป็น
+             state ระดับนี้ — เปิดแผงค้างไว้ในเธรดร้าน A แล้วคลิกเธรดร้าน B จากรายการ แผงจะไม่
+             unmount แล้วรายการสินค้าของร้าน A ค้างทับบริบทร้าน B (จอโกหก). remount ทั้ง subtree
+             เคลียร์ items/selected/q/loading ให้เองโดยไม่ต้องไล่ผูก dep รายตัว — แพตเทิร์นเดียว
+             กับ key={scopeKey} ที่ (chat)/layout.tsx และ inbox/comments/page.tsx ใช้อยู่แล้ว */
           <ProductPickerPanel
+            key={threadShopIdForPanels}
             onPick={handleProductPick}
             disabled={composerDisabled}
             onClose={() => setActivePanel(null)}
@@ -3060,6 +3069,7 @@ export default function ChatThread({
             ใบเดียวที่ปิดแผงหลังส่ง) · ส่งไม่สำเร็จ = ชีตเปิดค้าง ของที่เลือกยังอยู่ครบ กดใหม่ได้ทันที */}
         {productOpen && multiSelectOpen && (
           <ProductMultiSelectSheet
+            key={threadShopIdForPanels}
             channel={channel}
             disabled={composerDisabled}
             onSend={async (ids) => {

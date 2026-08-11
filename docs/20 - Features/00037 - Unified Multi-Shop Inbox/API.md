@@ -59,6 +59,11 @@ related: ["[[SRS]]", "[[SDS]]"]
 | `POST /api/orders` | body **`shopId`** (uuid, optional) = ร้านของร่าง | `403 SHOP_FORBIDDEN` (ไม่มีสิทธิ์ร้านนั้น) · `409 DRAFT_SHOP_MISMATCH` (`conversationId` ที่แนบมาเป็นเธรดของอีกร้าน) |
 | `GET /api/orders/[token]` | query **`?shopId=`** | 404 (resolve ร้านไม่ได้) — ไม่เคย fallback ไปร้าน active |
 | `PATCH /api/orders/[token]` | body **`shopId`** | เหมือน GET |
+| `GET /api/products` | query **`?shopId=`** | รูปแบบผิด → 400 · ไม่มีสิทธิ์ → **รายการว่าง** (เป็น "รายการ" ไม่ใช่การขอทรัพยากรที่ระบุ จึงอยู่ใต้กฎข้อ 3 ของ §4 ตามปกติ) |
+
+🛑 `GET /api/products` ต้องอยู่ในลิสต์นี้ทั้งที่เป็น **read** เพราะ `ProductPickerPanel`/`ProductMultiSelectSheet` เอาผลไป **ส่งการ์ดสินค้าให้ลูกค้าจริง** — อ่านผิดร้าน = ส่งชื่อ/ราคา/รูปของอีกร้านออกไปหาลูกค้าของร้านนี้ โดยไม่มีอะไรบนจอบอกว่าผิด (helper จึงชื่อ `requireShopForRequest` ไม่ใช่ `...ForWrite`)
+
+🛑 **เติม `?shopId=` อย่างเดียวไม่พอสำหรับแผงที่เปิดค้างได้:** `ChatThread` ไม่ remount ตอนสลับ `conversationId` และ `activePanel` เป็น state ระดับนั้น — เปิดแผงเลือกสินค้าค้างไว้ในเธรดร้าน A แล้วคลิกเธรดร้าน B รายการเดิมจะค้างทับบริบทใหม่ ต้องมี `key={threadShopId}` ที่จุด render ด้วย (แพตเทิร์นเดียวกับ `key={scopeKey}` ที่ `(chat)/layout.tsx` ใช้อยู่แล้ว)
 
 🛑 **3 เส้นนี้เคยรู้จักแต่ "ร้านที่ active" ทั้งที่ฟีเจอร์นี้ทำให้ร้านที่ active ≠ ร้านที่ผู้ใช้กำลังมองอยู่** (BR-UNI-07) — `DraftOrderProvider` ส่ง `shopId` ของร่างเข้า `OrderCreateForm` ถูกต้องมาตลอด แต่ฟอร์มรับมาแล้ว**โยนทิ้ง** (`shopId: _shopId`) และ route ก็ไม่มีที่ให้ใส่ ⇒ ออเดอร์ที่คีย์จากเธรดของร้าน B ลงร้าน A: มีนัด → `404 RESOURCE_NOT_FOUND` · เลือกสินค้าจากแคตตาล็อก → `400` · **รายการพิมพ์เอง → `201` เข้าร้านผิดถาวรเงียบ ๆ**
 

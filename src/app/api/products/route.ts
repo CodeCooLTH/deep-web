@@ -10,15 +10,32 @@ import {
   serializeProduct,
 } from "@/services/product.service";
 import { isEntitlementActive, isProActive } from "@/services/inventory-entitlement.service";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireActiveShop, requireShopForRequest } from "@/lib/shop-context";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const active = await requireActiveShop(session as unknown as { user: { id: string; activeShopId?: string | null } });
-  if (!active) return NextResponse.json([]);
-  const shop = active.shop;
+  /**
+   * `?shopId=` = ร้านของเธรดที่เปิดอยู่ (feature 00037) — ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิม)
+   *
+   * 🛑 ทำไม read ก็ต้องกั้น ไม่ใช่แค่ write: แผงเลือกสินค้าในแชท (`ProductPickerPanel`,
+   * `ProductMultiSelectSheet`) ใช้ผลจาก endpoint นี้ไปส่ง "การ์ดสินค้า" ให้ลูกค้า —
+   * หยิบผิดร้าน = ส่งชื่อ/ราคา/รูปของอีกร้านออกไปหาลูกค้าจริง โดยไม่มีอะไรบนจอบอกว่าผิด
+   * (คลาสเดียวกับบั๊กสร้างออเดอร์ที่ปิดไปเมื่อ 2026-08-11 — ดู requireShopForRequest)
+   */
+  const requestedShopId = request.nextUrl.searchParams.get("shopId");
+  if (requestedShopId !== null && !v.is(v.pipe(v.string(), v.uuid()), requestedShopId)) {
+    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+  const resolved = await requireShopForRequest(
+    session as unknown as { user: { id: string; activeShopId?: string | null } },
+    requestedShopId,
+  );
+  // FORBIDDEN → [] เหมือน NO_SHOP: นี่คือ "รายการ" ไม่ใช่การขอทรัพยากรที่ระบุ — คืนผลว่าง
+  // ตามสัญญาข้อ 3 ของ 00037 API.md (403 จะยืนยันการมีอยู่ของร้าน) และ caller เดิมรับ [] อยู่แล้ว
+  if (!resolved.ok) return NextResponse.json([]);
+  const shop = resolved.target.shop;
 
   const products = await getProductsByShop(shop.id);
 

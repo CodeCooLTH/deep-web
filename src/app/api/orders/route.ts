@@ -6,7 +6,7 @@ import { CreateOrderSchema, OrderAppointmentSchema } from "@/lib/validations";
 import { appointmentErrorResponse } from "@/lib/appointment-api";
 import { createOrder, getOrdersByShop, getOrdersByBuyer, ShippingAddressRequiredError, ProductNotInShopError, OrderDateOutOfWindowError } from "@/services/order.service";
 import { OutOfStockError } from "@/services/inventory-stock.service";
-import { requireActiveShop, requireShopForWrite } from "@/lib/shop-context";
+import { requireActiveShop, requireShopForRequest } from "@/lib/shop-context";
 import { prisma } from "@/lib/prisma";
 import { ORDER_DATE_OUT_OF_WINDOW_MESSAGE } from "@/lib/order-date-window";
 
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     requestedShopId = sid.output;
   }
 
-  const resolved = await requireShopForWrite(
+  const resolved = await requireShopForRequest(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
     requestedShopId,
   );
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
   if (parsed.output.conversationId) {
     const userId = (session.user as { id: string }).id;
     // scope สิทธิ์อยู่ใน WHERE ผ่าน relation filter — ไม่ใช่ดึงมาแล้วค่อยเทียบ (feedback_rsc_dal_authz)
-    // ตั้งใจไม่เรียก listAccessibleShopIds(): requireShopForWrite เพิ่งตรวจ membership ไปแล้ว
+    // ตั้งใจไม่เรียก listAccessibleShopIds(): requireShopForRequest เพิ่งตรวจ membership ไปแล้ว
     // การถามซ้ำเป็น round trip ที่ไม่ได้ความรู้ใหม่ — ที่นี่ต้องการแค่ "เธรดนี้อยู่ในร้านที่ฉันเข้าถึงได้ไหม"
     const conv = await prisma.conversation.findFirst({
       where: {

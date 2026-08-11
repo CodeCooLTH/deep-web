@@ -152,14 +152,17 @@ export async function requireActiveShop(
   return { shop, kind: meta.kind, role: meta.role, locked: meta.locked, lockReason: meta.lockReason };
 }
 
-/** ผลลัพธ์ของ requireShopForWrite — บังคับให้ caller แยก "ไม่มีร้าน" ออกจาก "ไม่มีสิทธิ์ร้านที่ขอ"
+/** ผลลัพธ์ของ requireShopForRequest — บังคับให้ caller แยก "ไม่มีร้าน" ออกจาก "ไม่มีสิทธิ์ร้านที่ขอ"
  *  เพราะสองอันนี้ต้องตอบคนละ status และคนละข้อความ (404 vs 403) */
-export type ShopForWrite =
+export type ShopForRequest =
   | { ok: true; target: ActiveShop }
   | { ok: false; reason: "NO_SHOP" | "FORBIDDEN" };
 
 /**
- * requireShopForWrite — resolve "ร้านที่การเขียนครั้งนี้จะลงจริง" (feature 00037 AC-06-6)
+ * requireShopForRequest — resolve "ร้านที่คำขอนี้ทำงานด้วยจริง" (feature 00037 AC-06-6)
+ *
+ * ใช้กับ **read ด้วย ไม่ใช่แค่ write**: แคตตาล็อกสินค้าที่แผงเลือกสินค้าในแชทหยิบไปส่งการ์ดให้ลูกค้า
+ * ก็ต้องเป็นของร้านเจ้าของเธรด — อ่านผิดร้านที่นั่นแปลว่าส่งสินค้าของอีกร้านออกไปหาลูกค้าจริง
  *
  * ทำไมต้องมี: กล่องแชทรวมหลายร้านเปิดเธรดของร้าน B ได้โดยที่ `activeShopId` ยังเป็นร้าน A
  * (BR-UNI-07 ตั้งใจให้เป็นแบบนั้น) ฟอร์มสร้างรายการจึงโหลดแคตตาล็อก/คิวงานของร้าน B มาแสดง
@@ -173,10 +176,10 @@ export type ShopForWrite =
  * ตัวตรวจสิทธิ์คือ resolveActiveShopContext ตัวเดิม (re-verify membership เสมอ ไม่เชื่อ JWT) —
  * ตั้งใจไม่เขียนตรรกะสิทธิ์ขึ้นใหม่ให้แตกเป็นสองชุด
  */
-export async function requireShopForWrite(
+export async function requireShopForRequest(
   session: { user?: { id?: string | null; activeShopId?: string | null } | null } | null,
   requestedShopId?: string | null,
-): Promise<ShopForWrite> {
+): Promise<ShopForRequest> {
   const userId = session?.user?.id;
   if (!userId) return { ok: false, reason: "NO_SHOP" };
 
