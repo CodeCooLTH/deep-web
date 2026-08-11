@@ -74,21 +74,21 @@ export default async function ServiceResourcesPage() {
             createLabelShort={resolveOrderVocab(active.shop.vertical).createLabelShort}
           />
         )}
-        {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary */}
-        <ResourceList resources={resources.map(serializeServiceResource)} />
+        {/* serializeServiceResource แปลง Decimal → string ก่อนข้าม RSC boundary
 
-        {/* การรับนัด (รายวัน/ระบุช่วงเวลา) — ค่าระดับ **ร้าน** ย้ายมาจาก ResourceForm 2026-08-08
-            เดิมอยู่ในฟอร์มคิวงาน (/queues/new, /queues/[resourceId]) ซึ่งเข้าถึงได้เฉพาะตอน
-            เพิ่ม/แก้คิวงาน — ร้านที่ตั้งคิวงานเสร็จแล้วไม่มีเหตุผลกลับเข้าไปอีก จึงหาไม่เจอ
-            แล้วสรุปว่า "ระบบระบุเวลานัดไม่ได้" (ร้าน BT รายงานจริง 2026-08-08; retro 00024
-            บันทึกเป็นหนี้ P2 ไว้ตั้งแต่แรก) ส่วนหน้านี้เป็นหน้าที่ผู้ขายเข้าทุกวันเพื่อดูปฏิทิน
-
-            วาง **ท้ายสุด** ไม่ใช่บนสุด: ปฏิทินกับรายการคิวงานคืองานประจำวัน ส่วนนี่คือค่าที่ตั้ง
-            ครั้งเดียวตอนเริ่มใช้ — ยัง reachable ด้วยการเลื่อนหน้าเดียว ไม่ต้องเปลี่ยน route
-            และการ์ดนี้บันทึกทันทีที่เลือก (คนละ endpoint กับอะไรทั้งสิ้นในหน้านี้) จึงไม่มีปุ่ม
-            บันทึก/ยกเลิกของฟอร์มอื่นมาให้สับสนอีกแล้ว ซึ่งเป็นปัญหาเดิมตอนอยู่ใน ResourceForm */}
-        <GranularitySetting
-          value={(active.shop.appointmentGranularity as AppointmentGranularity) ?? 'DAY'}
+            การตั้งค่า "การรับนัด" ถูกควบเข้ามาเป็นท้ายการ์ดเดียวกัน (2026-08-11) แทนที่จะเป็น
+            การ์ดใบที่สาม — เหตุผลเต็มอยู่ที่ prop `footer` ของ ResourceList
+            ไม่มีคิวงานเลย = ไม่ส่ง footer (จอนั้นเป็น empty CTA ล้วน ไม่มีอะไรให้ตั้งค่า) */}
+        <ResourceList
+          resources={resources.map(serializeServiceResource)}
+          footer={
+            resources.length > 0 ? (
+              <GranularitySetting
+                embedded
+                value={(active.shop.appointmentGranularity as AppointmentGranularity) ?? 'DAY'}
+              />
+            ) : undefined
+          }
         />
       </div>
     </>

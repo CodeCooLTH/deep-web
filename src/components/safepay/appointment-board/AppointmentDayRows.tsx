@@ -77,10 +77,19 @@ export default function AppointmentDayRows({ items, showResourceName = false, on
                   who
                 )}
               </span>
+              {/* truncate ให้ตรงกับบรรทัดชื่อเหนือมัน — `.card` มี break-words ซึ่ง inherit ลงมา
+                  เลขออเดอร์ 17 ตัวจึงไม่ล้นออกนอกกล่องแต่ **หักบรรทัดกลางคำ 3 บรรทัด** แทน
+                  ทำให้แถวสูงไม่เท่ากันทั้งรายการ (impeccable audit 2026-08-11) */}
               {it.orderNo && (
-                <span className="text-default-500 block text-xs tabular-nums">#{it.orderNo}</span>
+                <span className="text-default-500 block truncate text-xs tabular-nums">
+                  #{it.orderNo}
+                </span>
               )}
             </span>
+            {/* 🛑 ที่ 320px คอลัมน์ชื่อเหลือ ~40px (≈3 ตัวอักษรไทย) เมื่อป้าย "ลูกค้ายืนยันแล้ว"
+                กินไป ~92px — flex ตัดสิน wrap จากขนาดเนื้อหาเต็ม *ก่อน* หด (flex-header-truncation.md)
+                จึงใช้ flex-wrap ที่แถว: ชื่อยาว = ป้ายตกบรรทัดใหม่เอง ชื่อสั้น = อยู่แถวเดียวเหมือนเดิม
+                ป้ายกับ chevron ห่อรวมกันเพื่อให้ตกบรรทัดไปด้วยกัน ไม่ใช่แยกกันคนละบรรทัด */}
             <span className={`badge shrink-0 ${meta.cls}`}>{label}</span>
           </>
         )
@@ -109,7 +118,7 @@ export default function AppointmentDayRows({ items, showResourceName = false, on
                   ` สถานะ ${label}` +
                   (it.orderNo ? ` เลขที่ ${it.orderNo}` : '')
                 }
-                className="bg-card focus-visible:ring-primary flex w-full items-start gap-3 rounded-lg p-3 text-start transition-colors hover:bg-default-50 focus-visible:ring-2 focus-visible:outline-none"
+                className="bg-card focus-visible:ring-primary flex w-full flex-wrap items-start gap-x-3 gap-y-1.5 rounded-lg p-3 text-start transition-colors hover:bg-default-50 focus-visible:ring-2 focus-visible:outline-none"
               >
                 {body}
                 <Icon
@@ -119,7 +128,7 @@ export default function AppointmentDayRows({ items, showResourceName = false, on
                 />
               </button>
             ) : (
-              <span className="bg-card flex items-start gap-3 rounded-lg p-3">{body}</span>
+              <span className="bg-card flex flex-wrap items-start gap-x-3 gap-y-1.5 rounded-lg p-3">{body}</span>
             )}
           </li>
         )

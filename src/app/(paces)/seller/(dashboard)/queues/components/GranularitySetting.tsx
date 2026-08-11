@@ -21,9 +21,13 @@ import {
   type AppointmentGranularity,
 } from '@/lib/appointments'
 
-type Props = { value: AppointmentGranularity }
+type Props = {
+  value: AppointmentGranularity
+  /** true = ไม่ห่อ `.card` ของตัวเอง (ถูกควบเข้าเป็นท้ายการ์ด "คิวงานที่รับได้") */
+  embedded?: boolean
+}
 
-export default function GranularitySetting({ value }: Props) {
+export default function GranularitySetting({ value, embedded = false }: Props) {
   const [current, setCurrent] = useState<AppointmentGranularity>(value)
   const [saving, setSaving] = useState(false)
   /**
@@ -34,7 +38,6 @@ export default function GranularitySetting({ value }: Props) {
    * เดิมกันด้วย "ตำแหน่งการวาง" อย่างเดียว (วางบนสุดให้ห่างจากปุ่ม) ซึ่งกันได้แค่คนที่อ่านลำดับ
    * ส่วน toast ที่เด้งแล้วหายไม่เหลือหลักฐานตอนที่ผู้ใช้เลื่อนลงไปกดยกเลิก — บรรทัดนี้ค้างอยู่
    */
-  const [changed, setChanged] = useState(false)
 
   async function change(next: AppointmentGranularity) {
     const prev = current
@@ -52,7 +55,6 @@ export default function GranularitySetting({ value }: Props) {
         pacesToast.error('บันทึกไม่สำเร็จ ลองเลือกอีกครั้ง')
         return
       }
-      setChanged(true)
       pacesToast.success(
         next === 'DAY' ? 'เปลี่ยนเป็นรับนัดรายวันแล้ว' : 'เปลี่ยนเป็นระบุช่วงเวลาแล้ว',
       )
@@ -64,61 +66,54 @@ export default function GranularitySetting({ value }: Props) {
     }
   }
 
+  /**
+   * โหมด embedded (2026-08-11) — การ์ดนี้ถูกควบเข้าไปเป็น "ท้ายการ์ดคิวงาน" ไม่ใช่การ์ดของตัวเอง
+   *
+   * เหตุผล: บนมือถือหน้านี้เคยมี **การ์ดน้ำหนักเท่ากัน 3 ใบเรียงกัน** (ปฏิทิน / คิวงาน / การรับนัด)
+   * ทั้งที่ใบแรกเป็นงานประจำวัน ส่วนสองใบหลังเป็นของที่ตั้งครั้งเดียวตอนเริ่มใช้ — นั่นคือสิ่งที่
+   * user อ่านว่า "padding เยอะ" (ไม่ใช่ค่า padding ผิด แต่ไม่มีลำดับชั้น)
+   * ยังอยู่หน้าเดิมตามเดิม ไม่ย้ายไปซ่อนที่อื่น (บทเรียน 2026-08-08: ย้ายไปฝังในฟอร์มคิวงาน
+   * แล้วร้านหาไม่เจอจนสรุปว่า "ระบบระบุเวลานัดไม่ได้")
+   */
+  const body = (
+    <div className="max-w-md">
+      <label htmlFor="appt-granularity" className="form-label">
+        การรับนัด
+      </label>
+      <select
+        id="appt-granularity"
+        className="form-select"
+        value={current}
+        disabled={saving}
+        onChange={(e) => change(e.target.value as AppointmentGranularity)}
+      >
+        {(
+          Object.entries(APPOINTMENT_GRANULARITY_LABEL) as [AppointmentGranularity, string][]
+        ).map(([key, label]) => (
+          <option key={key} value={key}>
+            {label}
+          </option>
+        ))}
+      </select>
+      {/* เหลือบรรทัดเดียว — ของเดิมมี 3 บรรทัด: คำอธิบายราย mode (เป็น onboarding copy ที่อ่าน
+          ครั้งเดียวแล้วไม่ต้องอ่านอีก), guardrail, และบรรทัดยืนยัน "บันทึกแล้ว" ที่ค้างอยู่
+          เก็บเฉพาะ guardrail ซึ่งเป็นข้อเดียวที่ผู้ใช้ต้องรู้ทุกครั้งก่อนกดเปลี่ยน
+
+          บรรทัด "บันทึกแล้ว" ถูกตัด: เหตุผลเดิมของมันคือ "toast หายก่อนผู้ใช้เลื่อนลงไปเจอ
+          ปุ่มยกเลิกของฟอร์ม" ซึ่งไม่จริงอีกแล้วตั้งแต่ย้ายออกจาก ResourceForm มาอยู่หน้านี้
+          (2026-08-08) — ไม่มีฟอร์ม ไม่มีปุ่มยกเลิก การยืนยันด้วย pacesToast ก็พอ */}
+      <p className="text-default-500 mt-1 text-sm">เปลี่ยนได้ตลอด ไม่กระทบนัดที่บันทึกไว้แล้ว</p>
+    </div>
+  )
+
+  if (embedded) return <div className="p-4">{body}</div>
+
   return (
     <div className="card">
       <div className="card-header">
         <h4 className="card-title">การรับนัด</h4>
-        <p className="text-default-500 mt-0.5 text-sm">
-          ตั้งว่าตอนคีย์ออเดอร์จะให้กรอกแค่วัน หรือกรอกเวลาด้วย —
-          ค่านี้ใช้กับคิวงานทุกอันของร้าน และบันทึกทันทีที่เลือก
-        </p>
       </div>
-      <div className="card-body">
-        <div className="max-w-md">
-          <label htmlFor="appt-granularity" className="form-label">
-            รับนัดแบบ
-          </label>
-          <select
-            id="appt-granularity"
-            className="form-select"
-            value={current}
-            disabled={saving}
-            onChange={(e) => change(e.target.value as AppointmentGranularity)}
-          >
-            {(
-              Object.entries(APPOINTMENT_GRANULARITY_LABEL) as [
-                AppointmentGranularity,
-                string,
-              ][]
-            ).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <p className="text-default-500 mt-1 text-sm">
-            {current === 'DAY'
-              ? 'ลูกค้าจองเป็นวัน เช่น ขับรถเข้ามาวันที่ 5 ส.ค. — ตอนคีย์ออเดอร์จะไม่ถามเวลา'
-              : 'ระบุช่วงเวลาได้ เช่น วันเดียวกันรับ 09:00–12:00 แล้วรับอีกคัน 13:00–14:00'}
-          </p>
-          <p className="text-default-500 mt-1 text-sm">
-            เปลี่ยนได้ตลอด นัดที่บันทึกไว้แล้วไม่เปลี่ยนตาม
-          </p>
-          {/* ค้างอยู่จนกว่าจะออกจากหน้า ต่างจาก toast ที่หายไปก่อนผู้ใช้เลื่อนลงไปเจอปุ่มยกเลิก
-              text-success-ink: ข้อความยืนยันว่าบันทึกสำเร็จจริง (Verified-Means-Green) */}
-          {/* ข้อความเดิมอ้าง "ฟอร์มคิวงานด้านล่าง" ซึ่งใช้ได้ตอนการ์ดนี้ยังฝังอยู่ในฟอร์มคิวงาน
-              — ย้ายมาอยู่ท้ายหน้า /queues แล้ว (2026-08-08) ไม่มีฟอร์มไหนอยู่ด้านล่างอีก
-              ป้ายที่ชี้ไปยังของที่ไม่มีอยู่ ทำให้ผู้ใช้กวาดตาหาสิ่งที่ระบบบอกว่ามี */}
-          {changed && (
-            /* พูดสิ่งที่บรรทัดเหนือมันพูดไปแล้วซ้ำอีกรอบ ("นัดที่บันทึกไว้แล้วไม่เปลี่ยน" อยู่
-               ห่างขึ้นไปบรรทัดเดียว) — บรรทัดยืนยันต้องเพิ่มข้อมูลใหม่คือ "บันทึกไปแล้ว"
-               เท่านั้น · "คีย์ใหม่" เป็นศัพท์คนคีย์ข้อมูล ไม่ใช่คำที่ผู้ขายทั่วไปใช้ */
-            <p className="text-success-ink mt-1 text-sm">
-              บันทึกแล้ว — มีผลกับออเดอร์ที่สร้างหลังจากนี้
-            </p>
-          )}
-        </div>
-      </div>
+      <div className="card-body">{body}</div>
     </div>
   )
 }

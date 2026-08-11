@@ -81,6 +81,10 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
   const [loaded, setLoaded] = useState(false)
   /** ตัวนับไว้สั่งโหลดซ้ำจากปุ่ม "ลองอีกครั้ง" (range/resourceId เท่าเดิมจึงต้องมี dep ตัวนี้) */
   const [reloadSeq, setReloadSeq] = useState(0)
+  /** true = เพิ่งกด "ลองอีกครั้ง" → ต้องย้ายโฟกัสไปหัวรายการเมื่อบล็อก error หายไป
+   *  (ปุ่มที่กดจะ unmount พร้อมบล็อก โฟกัสจะตกไปที่ <body> แล้วผู้ใช้คีย์บอร์ดเด้งกลับหัวหน้า) */
+  const retriedRef = useRef(false)
+  const dayHeadingRef = useRef<HTMLHeadingElement>(null)
   const [viewStart, setViewStart] = useState<Date | null>(null)
   const [range, setRange] = useState<{ from: string; to: string } | null>(null)
   /** วันที่กำลังดูอยู่ — ตั้งต้นเป็นวันนี้ เพื่อไม่ให้ครึ่งล่างว่างเปล่าตั้งแต่เปิดหน้า */
@@ -116,6 +120,10 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
         if (!cancelled) {
           setItems(Array.isArray(json.items) ? json.items : [])
           setLoaded(true)
+          if (retriedRef.current) {
+            retriedRef.current = false
+            dayHeadingRef.current?.focus()
+          }
         }
       } catch {
         if (!cancelled) setLoadError(true)
@@ -392,7 +400,14 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           aria-live="polite"
           aria-atomic="true"
         >
-          <h4 className="text-dark text-sm font-semibold">{formatWeekdayDateTH(selectedDate)}</h4>
+          {/* tabIndex={-1} = ปลายทางโฟกัสหลัง retry สำเร็จ (Tab ไม่หยุดที่นี่) */}
+          <h4
+            ref={dayHeadingRef}
+            tabIndex={-1}
+            className="text-dark text-sm font-semibold focus:outline-none"
+          >
+            {formatWeekdayDateTH(selectedDate)}
+          </h4>
           {/* ตัวหาร (capacity) พูดได้เฉพาะโหมดรายวัน — โหมดระบุช่วงเวลาเอาจำนวนนัดทั้งวันมา
               หารด้วยความจุไม่ได้ (จะได้ "จองแล้ว 8 จาก 2 คิว" ซึ่งอ่านไม่รู้เรื่อง) */}
           {byDay && totalCapacity > 0 ? (
@@ -412,7 +427,11 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           )}
         </div>
 
-        <div className="px-3 pb-3">
+        {/* 🛑 wrapper ที่ถือ aria-live ต้อง **mount ถาวร** — เดิม live region ครอบแค่หัวข้อวันที่
+            ส่วนบล็อก error / skeleton / empty / รายการ อยู่นอกทั้งหมด ผู้ใช้ screen reader จึงไม่ได้ยิน
+            ว่าโหลดล้มหรือโหลดเสร็จเลย (WCAG 4.1.3) · ชีตต้นทางแก้เรื่องนี้ไปแล้วครึ่งหนึ่ง
+            แต่บอร์ดยกมาแค่ครึ่งเดียว · aria-busy บอกว่ากำลังโหลดอยู่ ไม่ใช่ว่างจริง */}
+        <div className="px-3 pb-3" aria-live="polite" aria-busy={loading}>
           {loadError ? (
             /* บล็อกค้างบนจอ ไม่ใช่ toast ที่หายเอง — และห้ามพูดว่า "ว่าง" เพราะเราไม่รู้ */
             <div className="border-danger/30 bg-danger/10 flex flex-col items-center gap-2 rounded-lg border px-6 py-6 text-center">
@@ -424,7 +443,10 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
               <p className="text-default-600 text-xs">ยังไม่รู้ว่าวันที่เลือกมีนัดกี่รายการ</p>
               <button
                 type="button"
-                onClick={() => setReloadSeq((n) => n + 1)}
+                onClick={() => {
+                  retriedRef.current = true
+                  setReloadSeq((n) => n + 1)
+                }}
                 className="btn border-default-300 text-default-800 hover:bg-default-50 mt-1 min-h-11 rounded-full border px-4 text-sm"
               >
                 ลองอีกครั้ง

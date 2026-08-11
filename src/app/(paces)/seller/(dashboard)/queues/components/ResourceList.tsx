@@ -16,15 +16,30 @@
  * ตัวเลขแบบนั้นเป็นของหน้าปฏิทินคิว (FR-RSV-04)
  */
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
 // HR16: คำเรียกระยะเวลาต้องมาจาก SSOT เดียวกับจอเลือกเวลา — ห้ามประกอบ `${นาที} นาที` เอง
 import { formatDurationTH } from '@/lib/appointments'
 import type { SerializedServiceResource } from '@/services/service-resource.service'
 
-type Props = { resources: SerializedServiceResource[] }
+type Props = {
+  resources: SerializedServiceResource[]
+  /**
+   * บล็อกที่ควบเข้ามาเป็น "ท้ายการ์ดเดียวกัน" (2026-08-11) — ตอนนี้คือการตั้งค่าการรับนัด
+   *
+   * ทำไมไม่ปล่อยเป็นการ์ดของตัวเองเหมือนเดิม: มือถือเคยมีการ์ดน้ำหนักเท่ากัน 3 ใบเรียงกัน
+   * (ปฏิทิน / คิวงาน / การรับนัด) ทั้งที่ใบแรกเป็นงานประจำวัน ส่วนสองใบหลังตั้งครั้งเดียว
+   * ตอนเริ่มใช้ — ไม่มีลำดับชั้น คือสิ่งที่ผู้ใช้อ่านว่า "padding เยอะ" (user 2026-08-11)
+   *
+   * 🛑 ไม่ถูก render เมื่อยังไม่มีคิวงานสักอัน — จอนั้นเป็น empty CTA ล้วน และการตั้งค่า
+   * ที่ไม่มีอะไรให้ apply กติกาด้วยคือของที่กินที่โดยไม่ทำงาน
+   */
+  footer?: ReactNode
+}
 
 /** ยอดเงินไทยแบบมีคั่นหลักพัน — ตัด .00 ทิ้งเพราะมัดจำเป็นจำนวนเต็มแทบทุกกรณี */
 function formatAmount(value: string): string {
@@ -51,7 +66,89 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
   )
 }
 
-export default function ResourceList({ resources }: Props) {
+/**
+ * ResourceRowMenu — เมนู `⋯` ต่อคิวงานบนมือถือ (2026-08-11)
+ *
+ * Base: src/app/(paces)/seller/(dashboard)/orders/new/components/ProductCombobox.tsx
+ *   (useAnchoredDropdown + createPortal ไป body — โครง/คลาสของแผงยกมาตรง ๆ)
+ *
+ * แยกเป็น component เพราะ hook เรียกในลูป `.map()` ไม่ได้ · และต้อง portal เพราะแถวอยู่ใน
+ * การ์ดที่มีขอบเขต แผงที่เป็น absolute จะโดนตัดตรงขอบล่าง
+ * (docs/conventions/scroll-container-clips-popovers.md)
+ *
+ * มี 2 รายการไม่ใช่รายการเดียว — "แก้ไข" ย้ายเข้ามาด้วย เพราะทางเข้าเดิมบนมือถือคือตัวชื่อ
+ * คิวงานซึ่งเป็นลิงก์ข้อความสูง 21px ขณะที่เดสก์ท็อปมีปุ่ม "แก้ไข" จริง 44px (sibling parity)
+ * เมนูที่มีรายการเดียวคือปุ่มที่ปลอมตัวเป็นเมนู สองรายการทำให้มันเป็นเมนูจริง
+ */
+function ResourceRowMenu({
+  resource,
+  disabled,
+  onDelete,
+}: {
+  resource: SerializedServiceResource
+  disabled: boolean
+  onDelete: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const { anchorRef, panelRef, style, mounted } = useAnchoredDropdown({
+    open,
+    onClose: () => setOpen(false),
+  })
+
+  return (
+    <div ref={anchorRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        aria-label={`ตัวเลือกเพิ่มเติมของ${resource.name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        /* min-h-11/min-w-11: `.btn.btn-icon` ของธีม = 37px ต่ำกว่าเกณฑ์ 44px ที่ PRODUCT.md
+           ประกาศไว้สำหรับกลุ่มผู้สูงวัย (WCAG 2.5.5) — ท่าเดียวกับปุ่มอื่นในหน้านี้ */
+        className="btn bg-default-100 text-default-700 hover:bg-default-200 min-h-11 min-w-11 px-3"
+      >
+        <Icon icon="tabler:dots-vertical" className="size-4" />
+      </button>
+      {open &&
+        mounted &&
+        style &&
+        createPortal(
+          <div
+            ref={panelRef}
+            role="menu"
+            style={style}
+            className="border-default-300 bg-card min-w-40 overflow-hidden rounded border shadow-lg"
+          >
+            <Link
+              href={`/queues/${resource.id}`}
+              role="menuitem"
+              className="text-default-800 hover:bg-default-100 flex min-h-11 items-center gap-2 px-4 text-sm"
+            >
+              <Icon icon="tabler:pencil" className="size-4" />
+              แก้ไข
+            </Link>
+            {/* destructive อยู่ใน ⋯ + confirm เท่านั้น (docs/conventions/seller-action-placement.md) */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false)
+                onDelete()
+              }}
+              className="text-danger hover:bg-default-100 flex min-h-11 w-full items-center gap-2 px-4 text-start text-sm"
+            >
+              <Icon icon="tabler:trash" className="size-4" />
+              ลบ
+            </button>
+          </div>,
+          document.body,
+        )}
+    </div>
+  )
+}
+
+export default function ResourceList({ resources, footer }: Props) {
   const [items, setItems] = useState(resources)
   const [busyId, setBusyId] = useState<string | null>(null)
   const activeCount = items.filter((r) => r.isActive).length
@@ -242,15 +339,11 @@ export default function ResourceList({ resources }: Props) {
                 >
                   {resource.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => removeResource(resource)}
+                <ResourceRowMenu
+                  resource={resource}
                   disabled={busyId === resource.id}
-                  aria-label={`ลบ${resource.name}`}
-                  className="btn bg-default-100 text-danger hover:bg-default-200 min-h-11 min-w-11 px-3"
-                >
-                  <Icon icon="tabler:trash" className="size-4" />
-                </button>
+                  onDelete={() => removeResource(resource)}
+                />
               </div>
             </div>
           </div>
@@ -330,6 +423,9 @@ export default function ResourceList({ resources }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* เส้นคั่นใช้ token เดียวกับ .card-header (border-dashed border-default-300) ไม่ใช่ค่าใหม่ */}
+      {footer && <div className="border-default-300 border-t border-dashed">{footer}</div>}
     </div>
   )
 }
