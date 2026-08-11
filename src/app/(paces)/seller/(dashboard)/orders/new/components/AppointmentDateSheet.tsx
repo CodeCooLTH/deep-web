@@ -295,7 +295,19 @@ export default function AppointmentDateSheet({
    * screen reader ปิดทุกอย่างนอกชีต — ถ้าไม่ย้ายโฟกัสเข้ามา ผู้ใช้ AT จะถูกทิ้งไว้กับ
    * โฟกัสที่อยู่หลังชีตในบริเวณที่ถูกซ่อนไปแล้ว และไม่มีทางออกที่เป็นมาตรฐาน
    */
-  const closeBtnRef = useRef<HTMLButtonElement>(null)
+  /**
+   * ปลายทางโฟกัสตอนเปิดชีต (ขั้นเลือกวัน) — เป็น "ตัวชีต" ไม่ใช่ปุ่มปิด
+   *
+   * 🛑 เดิมโฟกัสไปที่ปุ่ม `x` ทำให้ทุกครั้งที่เปิดชีตจะมีกรอบโฟกัสสีฟ้าคาดรอบปุ่มปิด
+   * (user เจอบนเครื่องจริง 2026-08-11: "ทุกครั้งที่เข้า มันไป focus ปุ่ม x") — นอกจากดูเป็น
+   * ของเสียแล้ว มันยังพาผู้ใช้คีย์บอร์ด/AT ไปจ่อ "ปุ่มทิ้งงาน" เป็นสิ่งแรกทั้งที่เพิ่งกดเข้ามา
+   *
+   * ชีตพี่น้องอีก 2 ใบ (CustomerSearchSheet/AddressSearchSheet) โฟกัส "ช่องค้นหา" = ตัวงาน
+   * ของจอนั้น ชีตนี้ไม่มี input ในขั้นเลือกวัน (งานคือจิ้มปฏิทิน) จึงโฟกัสตัว dialog แทน —
+   * ยังย้ายโฟกัสเข้ามาในชีตครบตามเจตนาเดิม (จำเป็นเพราะ aria-modal="true") และ AT จะอ่าน
+   * ชื่อชีตจาก aria-label ให้เอง แล้ว Tab ถัดไปค่อยเดินเข้าปุ่มปิด → แถบเดือน → ปฏิทิน
+   */
+  const sheetRef = useRef<HTMLDivElement>(null)
   /** กริดชิปเวลาเริ่ม — ปลายทางโฟกัสของขั้นที่ 2 และเจ้าของ roving tabindex */
   const slotGridRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -316,7 +328,8 @@ export default function AppointmentDateSheet({
           return
         }
       }
-      closeBtnRef.current?.focus()
+      // preventScroll: ตัวชีตสูงเต็มจอ การโฟกัสไม่ควรทำให้เนื้อหาเลื่อนเอง
+      sheetRef.current?.focus({ preventScroll: true })
     }, 60)
     const onEsc = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
@@ -836,7 +849,12 @@ export default function AppointmentDateSheet({
          บริบทเดียวกัน) · @3xl=768px / @5xl=1024px = เลขเดียวกับ md/lg ของธีมเป๊ะ
          (ยืนยันแล้วว่าโปรเจกต์ไม่ได้ override ตัวแปรสเกล container หรือ breakpoint
          ใน src/assets/css จึงใช้สเกลมาตรฐานของ Tailwind v4 ตรง ๆ) */
-      className="@container fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)]" /* carve-out: safe-area ไม่มี token */
+      ref={sheetRef}
+      /* tabIndex={-1} = โฟกัสด้วยโค้ดได้ แต่ Tab ไม่มีวันหยุดที่นี่ — จึงไม่ใช่การซ่อนขอบโฟกัส
+         ของ control ที่ผู้ใช้เดินไปถึงได้เอง (ที่ห้ามทำ) แต่เป็นการไม่วาดกรอบให้กล่องที่ผู้ใช้
+         ไม่ได้ตั้งใจโฟกัสเอง — ปุ่มทุกตัวในชีตยังมี focus-visible ครบเหมือนเดิม */
+      tabIndex={-1}
+      className="@container fixed inset-0 z-80 flex flex-col bg-card pt-[env(safe-area-inset-top)] focus:outline-none" /* carve-out: safe-area ไม่มี token */
       role="dialog"
       aria-modal="true"
       /* ชื่อชีตต้องเป็นคำเดียวกับปุ่มที่เปิดมัน (AppointmentBlock/RescheduleAppointmentSheet
@@ -854,7 +872,6 @@ export default function AppointmentDateSheet({
         {/* ปุ่มเดียวทำสองหน้าที่ตามขั้น — ขั้นเลือกวัน = ปิดชีต · ขั้นเลือกเวลา = ถอยกลับ
             ไม่ทำปุ่ม "เปลี่ยนวัน" แยกอีกปุ่มในหัวแผ่น เพราะจะเป็นสองปุ่มที่ทำงานเดียวกัน */}
         <button
-          ref={closeBtnRef}
           type="button"
           onClick={() => (atTimeStep ? setStep('date') : onClose())}
           aria-label={
