@@ -1246,7 +1246,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           <Typography id='confirm-dialog-title' variant='h5' sx={{ mb: 1 }}>
             ยืนยันว่าได้รับสินค้าแล้ว?
           </Typography>
-          <Typography color='text.secondary' sx={{ fontSize: '0.875rem' }}>
+          <Typography variant='body2' color='text.secondary'>
             ยืนยันแล้วจะแจ้งปัญหากับคำสั่งซื้อนี้ไม่ได้อีก — ถ้ายังไม่ได้รับของ อย่าเพิ่งกดยืนยัน
           </Typography>
         </DialogContent>
@@ -1281,7 +1281,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           <Typography id='dispute-dialog-title' variant='h5' sx={{ mb: 1 }}>
             แจ้งปัญหาคำสั่งซื้อนี้
           </Typography>
-          <Typography color='text.secondary' sx={{ fontSize: '0.875rem', mb: 2 }}>
+          <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
             บอกร้านค้าว่าเกิดอะไรขึ้น (ไม่บังคับ)
           </Typography>
           <TextField
@@ -1321,7 +1321,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           <Typography id='delete-review-dialog-title' variant='h5' sx={{ mb: 1 }}>
             ลบรีวิวนี้?
           </Typography>
-          <Typography color='text.secondary' sx={{ fontSize: '0.875rem' }}>
+          <Typography variant='body2' color='text.secondary'>
             ลบแล้วจะเขียนรีวิวใหม่สำหรับคำสั่งซื้อนี้อีกไม่ได้
           </Typography>
         </DialogContent>
@@ -1350,7 +1350,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             <Typography id='cancel-dialog-title' variant='h5' sx={{ mb: 1 }}>
               ยืนยันการยกเลิก?
             </Typography>
-            <Typography color='text.secondary' sx={{ fontSize: '0.875rem' }}>
+            <Typography variant='body2' color='text.secondary'>
               การยกเลิกจะไม่สามารถเลิกทำได้
             </Typography>
           </DialogContent>

@@ -76,13 +76,26 @@ export const ProfileBanner = ({
   // known-gap: completionRate เป็น optional (ต่างจาก Pick<> ตรง ๆ ตามสเปก) เพราะมีผู้เรียกนอกขอบเขต task นี้
   // (OrderDetailMobile.tsx /o/[token] — PublicOrderData ไม่มี field นี้ใน contract, อยู่นอก scope งานนี้)
   // undefined = ไม่ override (พฤติกรรมเดิม ใช้ tier gradient เสมอ) ต่างจาก null ที่ตั้งใจส่งมาเพื่อบอกว่า "ร้านใหม่"
-  data: Pick<ProfileHeaderData, 'trustScore'> & { completionRate?: ProfileHeaderData['completionRate'] }
+  data: Pick<ProfileHeaderData, 'trustScore'> & {
+    completionRate?: ProfileHeaderData['completionRate']
+    /**
+     * บอกตรง ๆ ว่าร้านนี้ยังไม่มีประวัติ — ใช้เมื่อผู้เรียก "รู้คำตอบอยู่แล้ว" แต่ส่ง
+     * `completionRate` มาไม่ได้
+     *
+     * 🛑 ทำไมต้องมี prop แยก ทั้งที่ดูเหมือน `completionRate === null` ก็พอ:
+     * บางหน้าจงใจไม่แสดง % สำเร็จ (FR-OSM-11) แล้ว `getOrderSummaryForSignIn()` จึง
+     * **hardcode `completionRate = null` เสมอ** ⇒ ฟิลด์เดียวแบกสองความหมายที่ชนกันพอดี
+     * ("ไม่โชว์ %" กับ "ไม่มีประวัติ") ถ้าเอาค่านั้นส่งเข้ามาตรง ๆ ทุกร้านจะกลายเป็น
+     * "ร้านใหม่" หมดแม้ร้านที่ขายมาเป็นปี — สัญญาณจริงคือ "มีออเดอร์จบไหม" ไม่ใช่ค่า % (HR16)
+     */
+    isNewShop?: boolean
+  }
   bannerHeight?: number | string | { xs?: number; sm?: number; md?: number }
 }) => {
   // P0-2 (Impeccable critique): "ร้านใหม่" ผูกกับ completionRate === null (ต้องมีออเดอร์จบจริง >= 3)
   // ไม่ใช่ trustScore — คะแนนถูกดันด้วยรีวิวเพื่อนได้ แต่ออเดอร์จบจริงปลอมยากกว่ามาก
   // ไม่ว่าคะแนนจะสูงแค่ไหน ถ้ายังไม่ผ่าน 3 ออเดอร์จบ → banner เทาเสมอ (ไม่ใช้ tier gradient ที่ดูเหมือนรางวัล)
-  const isNewShop = data.completionRate === null
+  const isNewShop = data.isNewShop ?? data.completionRate === null
   const gradient = isNewShop
     ? 'linear-gradient(135deg, #9b98a8 0%, #bdbbc7 55%, #dedce4 100%)'
     : getTierGradient(data.trustScore)

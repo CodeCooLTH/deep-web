@@ -25,6 +25,22 @@ export type GuestOrderData = {
     user: { displayName: string | null; username: string; trustScore: number; avatar: string | null }
   }
   maxVerifyLevel: number
+  /**
+   * หลักฐานของร้าน — ยกชุดเดียวกับที่หน้า sign-in (OrderLinkShell) แสดงอยู่แล้ว
+   *
+   * 🛑 ทั้งหมดเป็นตัวเลขรวมของ "ร้าน" ไม่ใช่ของออเดอร์ใบนี้ จึงไม่ใช่ PII ของผู้ซื้อ และเป็น
+   * ข้อมูลที่เปิดสาธารณะอยู่แล้วบนโปรไฟล์ร้าน /u/{username} — เอามาแสดงตรงนี้ไม่ได้เปิดอะไรใหม่
+   * แค่ย้ายมาไว้ตรงจุดที่ผู้ซื้อกำลังตัดสินใจจริง
+   *
+   * เหตุผลที่ต้องมี: เดิมจอนี้โชว์แค่ชิป "ยืนยันแล้ว" แบบมี/ไม่มี ⇒ ร้านที่ยืนยันแค่เบอร์
+   * หน้าตาเหมือนร้านจดทะเบียนบริษัท บนจอที่ตัดสินว่าเงินจะโอนหรือไม่ ขณะที่หน้า sign-in
+   * ซึ่งอยู่ *ถัดจากนี้* มีครบอยู่แล้ว — เท่ากับเอาจอที่อ่อนกว่าไปวางไว้หน้าจอที่แข็งกว่า
+   */
+  completedOrders: number | null
+  avgRating: number | null
+  reviewCount: number
+  channels: { provider: string; name: string; avatarUrl: string | null }[]
+  latestReview: { rating: number; comment: string } | null
   shipmentTracking: { provider: string; trackingNo: string } | null
   /** สถานะพัสดุจากขนส่ง — ใช้คำนวณ stage ด้วยตรรกะเดียวกับฝั่งร้าน (BR-BOE-12) */
   carrierStatus: string | null
@@ -66,7 +82,29 @@ type OrderLike = {
   }>
 }
 
-export function buildGuestOrderData(order: OrderLike, maxVerifyLevel: number): GuestOrderData {
+/** สถิติร้านที่ page คำนวณมาให้ — แยก parameter เพราะไม่ได้อยู่บน order */
+export type GuestShopStats = {
+  completedOrders: number | null
+  avgRating: number | null
+  reviewCount: number
+  channels: { provider: string; name: string; avatarUrl: string | null }[]
+  latestReview: { rating: number; comment: string } | null
+}
+
+/** ค่าตั้งต้นเมื่อ query สถิติล้ม — หน้ายังแสดงได้ครบ แค่ไม่มีบล็อกหลักฐาน (graceful degrade) */
+export const EMPTY_SHOP_STATS: GuestShopStats = {
+  completedOrders: null,
+  avgRating: null,
+  reviewCount: 0,
+  channels: [],
+  latestReview: null,
+}
+
+export function buildGuestOrderData(
+  order: OrderLike,
+  maxVerifyLevel: number,
+  stats: GuestShopStats = EMPTY_SHOP_STATS,
+): GuestOrderData {
   const shipment = order.shipments?.[0]
 
   return {
@@ -93,6 +131,13 @@ export function buildGuestOrderData(order: OrderLike, maxVerifyLevel: number): G
       },
     },
     maxVerifyLevel,
+    completedOrders: stats.completedOrders,
+    avgRating: stats.avgRating,
+    reviewCount: stats.reviewCount,
+    channels: stats.channels,
+    // 🛑 ส่งเฉพาะ rating + comment — ไม่ส่งชื่อผู้รีวิวหรือวันที่ ซึ่งประกอบกับ "ร้านไหน"
+    // แล้วชี้ตัวคนซื้อได้ในร้านที่ยังมีออเดอร์น้อย (บน prod ตอนนี้ร้านส่วนใหญ่เป็นแบบนั้น)
+    latestReview: stats.latestReview,
     // ลำดับเดียวกับฝั่ง authenticated: สิ่งที่ร้านแจ้งเองมาก่อน แล้วค่อย fallback เป็นพัสดุ iShip
     shipmentTracking: order.shipmentTracking
       ? { provider: order.shipmentTracking.provider, trackingNo: order.shipmentTracking.trackingNo }

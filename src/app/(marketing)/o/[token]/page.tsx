@@ -83,15 +83,59 @@ export default async function PublicOrderPage({ params }: Props) {
         redirect('/auth/sign-in?callbackUrl=' + encodeURIComponent('/o/' + token))
       }
 
-      const guestVerifications = await prisma.verificationRecord.findMany({
-        where: { userId: order.shop.userId, status: 'APPROVED' },
-        select: { level: true },
-      })
+      // ── หลักฐานร้านที่ guest เห็น ──
+      // ยิงพร้อมกันทั้งชุด ไม่ใช่ต่อคิว — เป็น round trip เดียวเพิ่มจากเดิม
+      // ตรรกะทั้งหมดเหมือน getOrderSummaryForSignIn() แต่ inline เพราะเรียกตัวนั้นตรง ๆ
+      // จะกลายเป็น findUnique ของออเดอร์ใบเดิมรอบที่สองโดยไม่ได้อะไรเพิ่ม
+      const [guestVerifications, statusGroups, ratingAgg, latestReview, channels] = await Promise.all([
+        prisma.verificationRecord.findMany({
+          where: { userId: order.shop.userId, status: 'APPROVED' },
+          select: { level: true },
+        }),
+        prisma.order.groupBy({
+          by: ['status'],
+          where: { shopId: order.shopId },
+          _count: { _all: true },
+        }),
+        prisma.review.aggregate({
+          where: { order: { shopId: order.shopId }, deletedAt: null },
+          _avg: { rating: true },
+          _count: { _all: true },
+        }),
+        prisma.review.findFirst({
+          where: { order: { shopId: order.shopId }, deletedAt: null, comment: { not: null } },
+          orderBy: { createdAt: 'desc' },
+          select: { rating: true, comment: true },
+        }),
+        prisma.shopChannel.findMany({
+          where: { shopId: order.shopId, status: 'ACTIVE' },
+          select: { provider: true, name: true, avatarUrl: true },
+          take: 3,
+        }),
+      ])
+
       const guestMaxVerifyLevel = guestVerifications.length
         ? Math.max(...guestVerifications.map((v) => v.level))
         : 0
 
-      return <GuestOrderView order={buildGuestOrderData(order, guestMaxVerifyLevel)} />
+      const confirmedCount = statusGroups.find((g) => g.status === 'CONFIRMED')?._count._all ?? 0
+      const reviewCount = ratingAgg._count._all
+
+      return (
+        <GuestOrderView
+          order={buildGuestOrderData(order, guestMaxVerifyLevel, {
+            // 🛑 `null` ไม่ใช่ `0` — 0 แปลว่า "นับแล้วได้ศูนย์" ซึ่งเป็นข้อเท็จจริงที่ต้องบอก
+            // แต่เราเลือกไม่แสดงบล็อกเลยเมื่อยังไม่มีประวัติ (ไม่ประจานร้านใหม่ด้วยเลข 0 ตัวโต)
+            completedOrders: confirmedCount > 0 ? confirmedCount : null,
+            avgRating: ratingAgg._avg.rating != null ? Math.round(ratingAgg._avg.rating * 10) / 10 : null,
+            reviewCount,
+            channels,
+            latestReview: latestReview?.comment
+              ? { rating: latestReview.rating, comment: latestReview.comment }
+              : null,
+          })}
+        />
+      )
     }
 
     const sessionUser = session.user as { id: string; justAuthedViaPhoneOtp?: boolean }

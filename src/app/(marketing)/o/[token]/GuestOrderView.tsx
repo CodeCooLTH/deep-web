@@ -20,13 +20,13 @@ import Link from 'next/link'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
-import Chip from '@mui/material/Chip'
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import { Icon } from '@iconify/react'
 
 import { ProfileBanner } from '@/views/pages/user-profile/UserProfileHeader'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
+import { resolveVerifyBadge, type VerifyBadgeTone } from '@/lib/verify-badge'
 import { LinkButton } from '@/app/(marketing)/_components/mui-link'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH } from '@/lib/format-date'
@@ -34,6 +34,65 @@ import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import ParcelTimeline from './ParcelTimeline'
 import type { GuestOrderData } from './guest-order-data'
+
+/**
+ * Verified Ink — เขียวเข้มสำหรับ "ตัวหนังสือ" บนพื้นเขียวจาง
+ *
+ * 🛑 ห้ามใช้ success.main (#28C76F) เป็นสีตัวอักษร: บนพื้นจางได้ ~1.9–2.2:1 ซึ่งตก AA ไปไกล
+ * ค่านี้คือเฉดเดียวกันแค่เข้มขึ้น (ไม่เปลี่ยนฮิว — docs/conventions/contrast-fix-keeps-hue.md)
+ */
+const VERIFIED_INK = '#18804A'
+
+/**
+ * ป้ายเล็กบนหัวโปรไฟล์ร้าน — ประกอบเองแทน MUI Chip variant='tonal'
+ *
+ * 🛑 ทำไมไม่ใช้ Chip: tonal ของธีมนี้ให้ text = {semantic}.main บนพื้น {semantic} จาง
+ * ซึ่งวัดได้ 1.83–3.51:1 ทุกสี = ตก AA ทั้งชุด และป้ายพวกนี้แบก "ระดับการยืนยัน" กับ "tier"
+ * ซึ่งเป็นสาระของจอนี้ทั้งจอ ไม่ใช่ของประดับที่อ่านไม่ออกก็ได้
+ */
+function TrustPill({
+  tone,
+  label,
+  icon,
+  tierColor,
+}: {
+  tone: VerifyBadgeTone | 'tier'
+  label: string
+  icon?: string
+  tierColor?: string
+}) {
+  const palette =
+    tone === 'green'
+      ? { bg: 'rgba(40,199,111,0.15)', fg: VERIFIED_INK }
+      : tone === 'gold'
+        ? { bg: 'rgba(255,159,67,0.15)', fg: '#874C00' }
+        : tone === 'neutral'
+          ? { bg: 'rgba(47,43,61,0.08)', fg: 'rgba(47,43,61,0.75)' }
+          : { bg: 'action.hover', fg: 'text.primary' }
+
+  return (
+    <Box
+      component='span'
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.5,
+        px: 1,
+        py: 0.375,
+        borderRadius: 999,
+        fontSize: '0.8125rem',
+        fontWeight: 600,
+        lineHeight: 1.4,
+        bgcolor: palette.bg,
+        color: tone === 'tier' && tierColor ? undefined : palette.fg,
+        ...(tone === 'tier' && tierColor ? { color: `${tierColor}.dark` } : {}),
+      }}
+    >
+      {icon && <Icon icon={icon} fontSize={14} />}
+      {label}
+    </Box>
+  )
+}
 
 const baht = new Intl.NumberFormat('th-TH', {
   style: 'currency',
@@ -55,6 +114,9 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
     paymentMethod: order.paymentMethod,
     codReceivedAt: null,
   })
+
+  const verifyBadge = resolveVerifyBadge(order.maxVerifyLevel)
+  const hasStats = order.completedOrders != null || order.avgRating != null
 
   const isClosed = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
   const ctaLabel = isClosed ? 'เข้าสู่ระบบเพื่อดูรายละเอียดคำสั่งซื้อ' : 'เข้าสู่ระบบเพื่อยืนยันรับสินค้า'
@@ -83,7 +145,12 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
     <Box sx={{ pb: 14 }}>
       <Box sx={{ maxWidth: { xs: '100%', 'min-[768px]': 720 }, mx: 'auto' }}>
         {/* ── Hero — ยกจาก OrderDetailMobile ── */}
-        <ProfileBanner data={{ trustScore: order.shop.user.trustScore }} bannerHeight={104} />
+        {/* 🛑 ส่ง isNewShop แยก ไม่ใช่ completionRate — ร้านที่ยังไม่มีออเดอร์จบต้องไม่ได้
+            แบนเนอร์ไล่สีที่หน้าตาเหมือนรางวัล (ดูเหตุผลเต็มที่ prop ของ ProfileBanner) */}
+        <ProfileBanner
+          data={{ trustScore: order.shop.user.trustScore, isNewShop: order.completedOrders == null }}
+          bannerHeight={104}
+        />
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, pb: 2, textAlign: 'center' }}>
           <Box
             sx={{
@@ -115,6 +182,8 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             component={Link}
             href={`/u/${order.shop.user.username}`}
             variant='h6'
+            noWrap
+            title={order.shop.shopName}
             sx={{ display: 'block', textDecoration: 'none', color: 'text.primary', fontWeight: 800, mt: 1 }}
           >
             {order.shop.shopName}
@@ -124,23 +193,139 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           </Typography>
 
           <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', mt: 1, flexWrap: 'wrap' }}>
-            {order.maxVerifyLevel >= 1 && (
-              <Chip
-                size='small'
-                variant='tonal'
-                color='success'
-                icon={<Icon icon='tabler-rosette-discount-check-filled' fontSize={14} />}
-                label='ยืนยันแล้ว'
-              />
-            )}
-            <Chip size='small' variant='tonal' color={tierColor} label={tierLabel} />
+            {/* 🛑 ป้ายบอก "ระดับที่ยืนยันถึง" ไม่ใช่คำว่ายืนยันแล้วลอย ๆ — ร้านที่ทำแค่ OTP
+                ไม่ควรได้ป้ายเดียวกับร้านที่จดทะเบียนธุรกิจ บนจอที่ตัดสินว่าเงินจะโอนหรือไม่
+                คำ+โทนมาจาก SSOT เดียวกับหน้า sign-in ที่ผู้ซื้อจะเห็นต่อในอีกไม่กี่วินาที */}
+            {verifyBadge && <TrustPill tone={verifyBadge.tone} icon={verifyBadge.icon} label={verifyBadge.label} />}
+            <TrustPill tone='tier' tierColor={tierColor} label={tierLabel} />
           </Box>
+
+          {/* ── หลักฐานของร้าน ── ไหลต่อในบล็อกเดียวกัน ไม่ทำเป็นการ์ดแยก
+              เพื่อไม่ให้แข่งความสำคัญกับการ์ดออเดอร์ และไม่เพิ่ม eyebrow เป็นจุดที่ 12 ของหน้า
+              (DESIGN.md ระบุ "eyebrow เหนือทุก section" เป็น anti-reference ตรงตัว) */}
+          {hasStats && (
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'stretch',
+                gap: 3,
+                mt: 2,
+                pt: 2,
+                borderTop: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              {order.completedOrders != null && (
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant='h6' sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1.3 }}>
+                    {order.completedOrders.toLocaleString('th-TH')}
+                  </Typography>
+                  <Typography variant='caption' color='text.secondary'>
+                    ออเดอร์สำเร็จ
+                  </Typography>
+                </Box>
+              )}
+              {order.completedOrders != null && order.avgRating != null && (
+                <Divider orientation='vertical' flexItem />
+              )}
+              {order.avgRating != null && (
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant='h6' sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1.3 }}>
+                    {order.avgRating}
+                  </Typography>
+                  <Typography variant='caption' color='text.secondary'>
+                    จาก {order.reviewCount.toLocaleString('th-TH')} รีวิว
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {/* ช่องทางที่ร้านเชื่อมไว้ — ตอบคำถาม "นี่ร้านเดียวกับที่เพิ่งคุยด้วยไหม"
+              ซึ่งเป็นคำถามแรกของคนที่ได้ลิงก์มาจากแชท ไม่ใช่ของประดับ */}
+          {order.channels.length > 0 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+              {order.channels.map((ch) => (
+                <Box key={`${ch.provider}-${ch.name}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                  <Box
+                    sx={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 1.5,
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                      display: 'grid',
+                      placeItems: 'center',
+                      bgcolor: 'action.hover',
+                      color: 'text.secondary',
+                      fontSize: '0.8125rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {ch.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={ch.avatarUrl} alt='' style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : ch.provider === 'INSTAGRAM' ? (
+                      'IG'
+                    ) : (
+                      'f'
+                    )}
+                  </Box>
+                  <Box sx={{ minWidth: 0, textAlign: 'left' }}>
+                    <Typography variant='body2' sx={{ fontWeight: 600 }} noWrap>
+                      {ch.name}
+                    </Typography>
+                    {/* text.secondary ไม่ใช่ text.disabled — ชนิดช่องทางเป็นข้อมูลจริง
+                        ไม่ใช่สถานะปิดใช้งาน และ disabled อยู่ที่ ~2.3:1 ซึ่งตก AA */}
+                    <Typography variant='caption' color='text.secondary'>
+                      {ch.provider === 'INSTAGRAM' ? 'Instagram' : 'Facebook Page'}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          {/* รีวิวจริงหนึ่งอัน — ข้อความจากคนซื้อจริงน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
+              ไม่มีรีวิวที่เขียนข้อความ → ซ่อนบล็อก ไม่แต่งคำชมเอง */}
+          {order.latestReview && (
+            <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 1.5, mt: 2, textAlign: 'left' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                {/* carve-out HR12: typographic dingbat สีเดียว (★) ไม่ใช่ emoji */}
+                <Box component='span' sx={{ color: 'warning.dark', fontSize: '0.8125rem', letterSpacing: '0.15em' }}>
+                  {'★'.repeat(order.latestReview.rating)}
+                </Box>
+                <Box
+                  component='span'
+                  sx={{
+                    fontSize: '0.8125rem',
+                    fontWeight: 700,
+                    color: VERIFIED_INK,
+                    bgcolor: 'rgba(40,199,111,0.15)',
+                    px: 0.75,
+                    py: 0.25,
+                    borderRadius: 0.75,
+                  }}
+                >
+                  ซื้อจริง
+                </Box>
+              </Box>
+              <Typography
+                variant='body2'
+                color='text.secondary'
+                sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+              >
+                {order.latestReview.comment}
+              </Typography>
+            </Box>
+          )}
         </Box>
 
         {/* ── สถานะ ── */}
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Chip size='small' variant='tonal' color={ORDER_STATUS_TONE_TO_MUI[badge.tone]} label={badge.label} />
-          <Typography variant='caption' color='text.disabled' sx={{ ml: 'auto' }}>
+          <TrustPill tone='tier' tierColor={ORDER_STATUS_TONE_TO_MUI[badge.tone]} label={badge.label} />
+          <Typography variant='caption' color='text.secondary' sx={{ ml: 'auto' }}>
             {formatOrderNo(order.publicToken, order.createdAtIso)} · {formatDateTimeTH(order.createdAtIso)}
           </Typography>
         </Box>
@@ -211,9 +396,19 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           {(order.maskedPhone || order.maskedShippingAddress) && (
             <Card>
               <CardContent>
-                <Typography variant='overline' color='text.disabled' sx={{ display: 'block', mb: 1 }}>
+                <Typography variant='overline' color='text.secondary' sx={{ display: 'block', mb: 0.75 }}>
                   ข้อมูลผู้รับ
                 </Typography>
+                {/* 🛑 จุดไข่ปลาที่ไม่มีคำอธิบาย อ่านได้ว่า "เว็บนี้ปิดบังอะไรอยู่" ไม่ใช่ "กำลังปกป้องฉัน"
+                    ซึ่งกลับหัวกับเจตนาพอดี — คนที่เปิดหน้านี้คือคนที่กลัวโดนโกงอยู่แล้ว
+                    บอกเหตุผล + บอกทางออกในประโยคเดียว เปลี่ยนสิ่งที่ดูน่าสงสัยที่สุดในหน้า
+                    ให้กลายเป็นหลักฐานว่าระบบทำงานอยู่ */}
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.75, mb: 1.25 }}>
+                  <Icon icon='tabler-shield-lock' fontSize={15} style={{ marginTop: 2, flexShrink: 0, color: VERIFIED_INK }} />
+                  <Typography variant='caption' color='text.secondary'>
+                    ปกป้องข้อมูลของคุณ — แสดงบางส่วนจนกว่าจะเข้าสู่ระบบด้วยเบอร์ที่ใช้สั่งซื้อ
+                  </Typography>
+                </Box>
                 {/* ไม่มีเบอร์ → ไม่ render แถวนี้เลย ไม่ใช่แสดงคำว่า "ไม่ระบุ" */}
                 {order.maskedPhone && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, py: 0.5 }}>

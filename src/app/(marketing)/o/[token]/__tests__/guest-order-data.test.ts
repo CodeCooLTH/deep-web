@@ -102,8 +102,37 @@ describe('buildGuestOrderData', () => {
         'shop',
         'status',
         'totalAmount',
+        // หลักฐานร้าน — ตัวเลขรวมของร้าน ไม่ใช่ของออเดอร์ใบนี้ และเปิดสาธารณะอยู่แล้วบน /u/{username}
+        'completedOrders',
+        'avgRating',
+        'reviewCount',
+        'channels',
+        'latestReview',
       ].sort(),
     )
+  })
+
+  // 🛑 รีวิวที่ยกมาโชว์ต้องไม่พาตัวระบุคนซื้อมาด้วย — ร้านที่มีออเดอร์น้อย (ส่วนใหญ่บน prod ตอนนี้)
+  // ชื่อ+วันที่ประกอบกันชี้ตัวได้ทันทีว่าใครเป็นคนรีวิว
+  it('รีวิวล่าสุดส่งแค่ rating กับ comment ไม่มีชื่อ/วันที่', () => {
+    const out = buildGuestOrderData(makeOrder(), 1, {
+      completedOrders: 12,
+      avgRating: 4.8,
+      reviewCount: 5,
+      channels: [],
+      latestReview: { rating: 5, comment: 'ส่งไวมาก' },
+    })
+
+    expect(Object.keys(out.latestReview ?? {}).sort()).toEqual(['comment', 'rating'])
+  })
+
+  // ไม่ส่ง stats มา → ต้องได้ค่าที่แปลว่า "ไม่มีข้อมูล" ไม่ใช่ 0 ที่แปลว่า "นับแล้วได้ศูนย์"
+  it('ไม่มีสถิติ → completedOrders/avgRating เป็น null ไม่ใช่ 0', () => {
+    const out = buildGuestOrderData(makeOrder(), 1)
+
+    expect(out.completedOrders).toBeNull()
+    expect(out.avgRating).toBeNull()
+    expect(out.channels).toEqual([])
   })
 
   it('ไม่ส่งสลิป/ผู้ซื้อ/ลิงก์เข้าถึง ที่เป็นของเจ้าของออเดอร์เท่านั้น', () => {
