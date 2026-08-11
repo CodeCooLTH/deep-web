@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup — หน้าแก้ไขเมนูลัดใน LINE (Rich Menu) · feature 00045</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── token: คัดจาก .impeccable/design.json + Paces (seller = น้ำเงิน #236dc9 ไม่ใช่ม่วง Vuexy) ── */
+  :root{
+    --primary:#236dc9; --primary-hover:#1d5cab;
+    --ink:#2F2B3D;                 /* Ink Plum — ไม่ใช่ดำสนิท */
+    --d900:#2F2B3D; --d800:#454155; --d700:#5a5d6b; --d600:#6d7080; --d500:#808390; --d400:#a3a5af;
+    --d200:#dedce4; --d100:#e8e9ec;
+    --card:#fff; --body:#F8F7FA;
+    --success:#28C76F; --success-ink:#18804A;
+    --info:#00BAD1; --info-ink:#00707e;
+    --danger:#FF4C51; --danger-ink:#b31e22;
+    --warning:#FF9F43;
+    --radius:.5rem;
+    --shadow:0 1px 4px rgba(130,143,163,.15);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eef0f4;font-family:Anuphan,system-ui,sans-serif;color:var(--ink);padding:28px 16px 64px}
+  h1{font-size:20px;margin:0 0 4px}
+  .lede{color:var(--d600);font-size:13px;margin:0 0 28px;max-width:900px;line-height:1.7}
+  .lede code{background:#fff;padding:1px 5px;border-radius:4px;border:1px solid var(--d100)}
+  .row{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-bottom:36px}
+  .frame{background:var(--card);border:1px solid var(--d200);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+  .frame-cap{font-size:12px;color:var(--d600);margin:0 0 8px;font-weight:600}
+  .note{font-size:12px;color:var(--d500);margin:8px 0 0;max-width:390px;line-height:1.6}
+  .mobile{width:390px}
+  .tablet{width:834px}
+  .desktop{width:1100px}
+
+  /* ── ชิ้นส่วนแบบ Paces ── */
+  .app{background:var(--body);min-height:100%}
+  .hdr{position:sticky;top:0;background:var(--card);box-shadow:var(--shadow);padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .back{width:32px;height:32px;border-radius:var(--radius);border:1px solid var(--d200);background:#fff;display:flex;align-items:center;justify-content:center;color:var(--d700);flex:0 0 auto}
+  .hdr-t{flex:1;min-width:0}
+  .hdr-t b{display:block;font-size:15px;font-weight:600;line-height:1.3}
+  .hdr-t span{display:block;font-size:12px;color:var(--d500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .body{padding:16px}
+  .banner{border-radius:var(--radius);padding:10px 14px;font-size:13px;line-height:1.65;margin-bottom:10px}
+  .b-info{background:rgba(0,186,209,.15);color:var(--info-ink)}
+  .b-danger{background:rgba(255,76,81,.15);color:var(--danger-ink)}
+  .sect{font-size:13px;font-weight:600;margin:18px 0 8px}
+  .sect:first-child{margin-top:0}
+  .tpl{font-size:13px;font-weight:600;color:var(--d700);margin:0 0 14px}
+  .fld{margin-bottom:12px}
+  .fld label{display:block;font-size:11px;color:var(--d600);margin-bottom:4px}
+  .input{width:100%;height:38px;border:1px solid var(--d200);border-radius:var(--radius);padding:0 12px;font:inherit;font-size:14px;color:var(--d800);background:#fff}
+  .input:focus{outline:2px solid rgba(35,109,201,.35);border-color:var(--primary)}
+  .cbrow{display:flex;align-items:center;gap:12px}
+  .cbrow .input{max-width:12rem}
+  .count{font-size:12px;color:var(--d400);font-variant-numeric:tabular-nums}
+  .count.over{color:var(--danger-ink);font-weight:600}
+  .help{font-size:11px;color:var(--d500);margin:4px 0 0}
+
+  /* ── พรีวิวภาพเมนู: สัดส่วนจริง 2500×1686 (≈1.483:1) ── */
+  .prev{border:1px solid var(--d200);border-radius:var(--radius);overflow:hidden;background:#fff}
+  .menu{aspect-ratio:2500/1686;display:grid;background:#fff}
+  .menu.g4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+  .menu.g3{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+  .menu.g3 .cell:first-child{grid-column:1 / span 2}   /* T-split: แถวบนเต็มแถว */
+  .cell{border:1px solid #E4E3E9;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;
+        font-weight:600;color:#2F2B3D;font-size:15px;line-height:1.3}
+  .chatbar{border-top:1px solid var(--d100);background:#fff;padding:8px;text-align:center;font-size:12px;color:var(--d600)}
+  .status{font-size:11px;color:var(--d500);margin:8px 0 0}
+
+  /* ── ปุ่ม ── */
+  .btn{height:38px;min-height:44px;border-radius:var(--radius);padding:0 16px;font:inherit;font-size:14px;font-weight:500;
+       display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;border:1px solid transparent}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-outline{background:#fff;color:var(--primary);border-color:var(--primary)}
+  .bar{position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--d200);padding:12px;display:flex;gap:8px}
+  .bar .btn{flex:1}
+  .hdr .btn{min-height:0;height:34px;font-size:13px}
+
+  /* ── badge/แถวสถานะในการ์ดช่องทาง ── */
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;padding:2px 8px;border-radius:5px}
+  .bg-neutral{background:var(--d100);color:var(--d700)}
+  .bg-success{background:rgba(40,199,111,.15);color:var(--success-ink)}
+  .bg-info{background:rgba(0,186,209,.15);color:var(--info-ink)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .modal-wrap{background:rgba(47,43,61,.45);padding:28px;border-radius:12px;display:flex;justify-content:center}
+  .modal{background:#fff;border-radius:10px;max-width:460px;padding:22px;text-align:center;box-shadow:0 8px 28px rgba(47,43,61,.25)}
+  .modal h3{font-size:16px;margin:12px 0 10px;line-height:1.5}
+  .modal .txt{font-size:13px;color:var(--d700);text-align:start;line-height:1.75;margin:0 0 8px}
+  .modal ul{text-align:start;font-size:13px;color:var(--d700);line-height:1.7;padding-inline-start:18px;margin:0 0 18px}
+  .modal .acts{display:flex;gap:8px;justify-content:center}
+  .warnmark{width:52px;height:52px;border-radius:50%;border:3px solid var(--warning);color:var(--warning);
+            display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 auto}
+  .legend{font-size:12px;color:var(--d600);line-height:1.8;background:#fff;border:1px solid var(--d200);border-radius:10px;padding:14px 18px;max-width:1100px}
+  .legend b{color:var(--ink)}
+</style>
+</head>
+<body>
+
+<h1>Mockup — หน้าแก้ไขเมนูลัดใน LINE (Rich Menu)</h1>
+<p class="lede">
+  feature <b>00045</b> · เส้นทางจริง <code>/settings/channels/line/{channelId}/rich-menu</code> ·
+  ธีม <b>Paces</b> (seller = น้ำเงิน <code>#236dc9</code> ไม่ใช่ม่วง Vuexy) · ฟอนต์ Anuphan ·
+  พรีวิวเมนูใช้สัดส่วนจริง <b>2500×1686</b> (≈1.483:1 ผ่านเกณฑ์ ≥1.45 ของ LINE) ·
+  ข้อมูลตัวอย่างใช้เพจจริงในระบบ (LINE OA “BT สาขา สุขสวัสดิ์”)
+</p>
+
+<!-- ══════════ 1. มือถือ ══════════ -->
+<div class="row">
+  <div>
+    <p class="frame-cap">① มือถือ 390px — ร้านขายออนไลน์ (4 ปุ่ม 2×2)</p>
+    <div class="frame mobile">
+      <div class="app">
+        <div class="hdr">
+          <div class="back">‹</div>
+          <div class="hdr-t"><b>เมนูลัดใน LINE</b><span>BT สาขา สุขสวัสดิ์</span></div>
+        </div>
+        <div class="body">
+          <div class="banner b-info">ตั้งค่าเมนูนี้ได้เฉพาะที่นี่ — แก้ไขผ่าน LINE Official Account Manager ไม่ได้</div>
+          <div class="banner b-info">การแก้ไขแต่ละครั้งจะสร้างเมนูใหม่ทดแทนของเดิมโดยอัตโนมัติ</div>
+
+          <p class="tpl">ชุดร้านขายออนไลน์</p>
+
+          <p class="sect">แก้ข้อความบนปุ่ม</p>
+          <div class="fld"><label>เปิดลิงก์หน้าร้านของคุณ</label><input class="input" value="ดูสินค้า"></div>
+          <div class="fld"><label>ตอบสถานะพัสดุอัตโนมัติ</label><input class="input" value="เช็คสถานะพัสดุ"></div>
+          <div class="fld"><label>รับตำแหน่งที่ลูกค้าส่งมา</label><input class="input" value="ส่งที่อยู่จัดส่ง"></div>
+          <div class="fld"><label>ส่งข้อความเข้าแชท</label><input class="input" value="คุยกับแอดมิน"></div>
+
+          <p class="sect">ข้อความบนแถบเปิด-ปิดเมนู</p>
+          <div class="cbrow">
+            <input class="input" value="เมนูลัด">
+            <span class="count">7 / 14</span>
+          </div>
+          <p class="help">ข้อความนี้อยู่บนแถบที่ลูกค้าแตะเพื่อเปิด-ปิดเมนู</p>
+
+          <p class="sect">พรีวิว — ภาพที่ลูกค้าจะเห็นจริง</p>
+          <div class="prev">
+            <div class="menu g4">
+              <div class="cell">ดูสินค้า</div>
+              <div class="cell">เช็คสถานะพัสดุ</div>
+              <div class="cell">ส่งที่อยู่จัดส่ง</div>
+              <div class="cell">คุยกับแอดมิน</div>
+            </div>
+            <div class="chatbar">▲ เมนูลัด</div>
+          </div>
+          <p class="status">สถานะตอนนี้: ลูกค้าเห็นเมนูนี้อยู่</p>
+        </div>
+        <div class="bar">
+          <button class="btn btn-outline">บันทึกร่าง</button>
+          <button class="btn btn-primary">↩ คืนเมนูเดิม</button>
+        </div>
+      </div>
+    </div>
+    <p class="note">แถบปุ่มยึดล่างจอ (โซนนิ้วโป้ง) + เผื่อ safe-area ของ iPhone · ปุ่มหลักสลับป้ายเป็น
+      “คืนเมนูเดิม” เมื่อสถานะเป็น <b>ลูกค้าเห็นเมนูนี้อยู่</b></p>
+  </div>
+
+  <div>
+    <p class="frame-cap">② มือถือ — สถานะยังไม่เปิดใช้ + เพจที่โทเคนมีปัญหา</p>
+    <div class="frame mobile">
+      <div class="app">
+        <div class="hdr">
+          <div class="back">‹</div>
+          <div class="hdr-t"><b>เมนูลัดใน LINE</b><span>BT สาขา บางมด</span></div>
+        </div>
+        <div class="body">
+          <div class="banner b-danger">การเชื่อมต่อ LINE OA ของเพจนี้มีปัญหา — แก้ไขคำบนปุ่มได้ แต่เปิดใช้เมนูไม่ได้จนกว่าจะเชื่อมต่อใหม่</div>
+          <p class="tpl">ชุดร้านบริการ/คิวงาน</p>
+
+          <p class="sect">แก้ข้อความบนปุ่ม</p>
+          <div class="fld"><label>ให้ลูกค้าเลือกวันเวลา</label><input class="input" value="แจ้งเวลาที่สะดวก"></div>
+          <div class="fld"><label>เปิดลิงก์หน้าร้านของคุณ</label><input class="input" value="ดูบริการ"></div>
+          <div class="fld"><label>ส่งข้อความเข้าแชท</label><input class="input" value="คุยกับแอดมิน"></div>
+
+          <p class="sect">ข้อความบนแถบเปิด-ปิดเมนู</p>
+          <div class="cbrow">
+            <input class="input" style="border-color:var(--danger)" value="แตะเพื่อเปิดเมนู">
+            <span class="count over">16 / 14</span>
+          </div>
+          <p class="help" style="color:var(--danger-ink)">ยาวเกินเพดานของ LINE — ต้องไม่เกิน 14 ตัวอักษร</p>
+
+          <p class="sect">พรีวิว — ภาพที่ลูกค้าจะเห็นจริง</p>
+          <div class="prev">
+            <div class="menu g3">
+              <div class="cell">แจ้งเวลาที่สะดวก</div>
+              <div class="cell">ดูบริการ</div>
+              <div class="cell">คุยกับแอดมิน</div>
+            </div>
+            <div class="chatbar">▲ แตะเพื่อเปิดเมนู</div>
+          </div>
+          <p class="status">สถานะตอนนี้: สร้างไว้แล้ว ยังไม่เปิดใช้</p>
+        </div>
+        <div class="bar">
+          <button class="btn btn-outline" style="opacity:.5">บันทึกร่าง</button>
+          <button class="btn btn-primary" style="opacity:.5">🚀 เปิดใช้เมนู</button>
+        </div>
+      </div>
+    </div>
+    <p class="note">เลย์เอาต์ <b>T-split</b> ของร้าน 3 ปุ่ม — ปุ่มแรกได้แถวบนเต็มแถวเพราะเป็นงานหลักของร้านกลุ่มนั้น ·
+      คำเกิน 14 ตัวทำให้ตัวนับแดงและปุ่มถูกปิด <b>ก่อน</b> ยิงไป LINE</p>
+  </div>
+</div>
+
+<!-- ══════════ 3. แท็บเล็ต ══════════ -->
+<p class="frame-cap">③ แท็บเล็ต 834px — คอลัมน์เดียวจัดกึ่งกลาง (ฟอร์มตัวอักษรล้วนไม่ควรยืดเต็มจอ)</p>
+<div class="row">
+  <div class="frame tablet">
+    <div class="app">
+      <div class="hdr">
+        <div class="back">‹</div>
+        <div class="hdr-t"><b>เมนูลัดใน LINE</b><span>BT สาขา สุขสวัสดิ์</span></div>
+      </div>
+      <div class="body" style="max-width:640px;margin:0 auto">
+        <div class="banner b-info">ตั้งค่าเมนูนี้ได้เฉพาะที่นี่ — แก้ไขผ่าน LINE Official Account Manager ไม่ได้</div>
+        <p class="tpl">ชุดร้านขายออนไลน์</p>
+        <p class="sect">แก้ข้อความบนปุ่ม</p>
+        <div class="fld"><label>เปิดลิงก์หน้าร้านของคุณ</label><input class="input" value="ดูสินค้า"></div>
+        <div class="fld"><label>ตอบสถานะพัสดุอัตโนมัติ</label><input class="input" value="เช็คสถานะพัสดุ"></div>
+        <p class="sect">ข้อความบนแถบเปิด-ปิดเมนู</p>
+        <div class="cbrow"><input class="input" value="เมนูลัด"><span class="count">7 / 14</span></div>
+        <p class="sect">พรีวิว — ภาพที่ลูกค้าจะเห็นจริง</p>
+        <div class="prev">
+          <div class="menu g4">
+            <div class="cell">ดูสินค้า</div><div class="cell">เช็คสถานะพัสดุ</div>
+            <div class="cell">ส่งที่อยู่จัดส่ง</div><div class="cell">คุยกับแอดมิน</div>
+          </div>
+          <div class="chatbar">▲ เมนูลัด</div>
+        </div>
+        <p class="status">สถานะตอนนี้: ยังไม่ได้สร้าง</p>
+      </div>
+      <div class="bar" style="justify-content:flex-end">
+        <button class="btn btn-outline" style="flex:0 0 auto">บันทึกร่าง</button>
+        <button class="btn btn-primary" style="flex:0 0 auto">🚀 เปิดใช้เมนู</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 4. เดสก์ท็อป ══════════ -->
+<p class="frame-cap">④ เดสก์ท็อป ≥1024px — 2 คอลัมน์ ปุ่มย้ายขึ้นไปอยู่บนหัว พรีวิวติดหนึบทางขวา</p>
+<div class="row">
+  <div class="frame desktop">
+    <div class="app">
+      <div class="hdr">
+        <div class="back">‹</div>
+        <div class="hdr-t"><b>เมนูลัดใน LINE</b><span>BT สาขา สุขสวัสดิ์</span></div>
+        <button class="btn btn-outline">บันทึกร่าง</button>
+        <button class="btn btn-primary">🚀 เปิดใช้เมนู</button>
+      </div>
+      <div class="body">
+        <div class="banner b-info">ตั้งค่าเมนูนี้ได้เฉพาะที่นี่ — แก้ไขผ่าน LINE Official Account Manager ไม่ได้ · การแก้ไขแต่ละครั้งจะสร้างเมนูใหม่ทดแทนของเดิมโดยอัตโนมัติ</div>
+        <div class="grid2">
+          <div>
+            <p class="tpl">ชุดร้านขายออนไลน์</p>
+            <p class="sect" style="margin-top:0">แก้ข้อความบนปุ่ม</p>
+            <div class="fld"><label>เปิดลิงก์หน้าร้านของคุณ</label><input class="input" value="ดูสินค้า"></div>
+            <div class="fld"><label>ตอบสถานะพัสดุอัตโนมัติ</label><input class="input" value="เช็คสถานะพัสดุ"></div>
+            <div class="fld"><label>รับตำแหน่งที่ลูกค้าส่งมา</label><input class="input" value="ส่งที่อยู่จัดส่ง"></div>
+            <div class="fld"><label>ส่งข้อความเข้าแชท</label><input class="input" value="คุยกับแอดมิน"></div>
+            <p class="sect">ข้อความบนแถบเปิด-ปิดเมนู</p>
+            <div class="cbrow"><input class="input" value="เมนูลัด"><span class="count">7 / 14</span></div>
+            <p class="help">ข้อความนี้อยู่บนแถบที่ลูกค้าแตะเพื่อเปิด-ปิดเมนู</p>
+          </div>
+          <div>
+            <p class="sect" style="margin-top:0">พรีวิว — ภาพที่ลูกค้าจะเห็นจริง</p>
+            <div class="prev">
+              <div class="menu g4">
+                <div class="cell">ดูสินค้า</div><div class="cell">เช็คสถานะพัสดุ</div>
+                <div class="cell">ส่งที่อยู่จัดส่ง</div><div class="cell">คุยกับแอดมิน</div>
+              </div>
+              <div class="chatbar">▲ เมนูลัด</div>
+            </div>
+            <p class="status">สถานะตอนนี้: ลูกค้าเห็นเมนูนี้อยู่</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 5. จอขอความยินยอม ══════════ -->
+<p class="frame-cap">⑤ จอขอความยินยอม — ขึ้นครั้งแรกของแต่ละเพจเท่านั้น (BR-RM-01)</p>
+<div class="row">
+  <div class="modal-wrap" style="width:100%;max-width:1100px">
+    <div class="modal">
+      <div class="warnmark">!</div>
+      <h3>เปิดใช้เมนูของ Deep บนเพจ “BT สาขา สุขสวัสดิ์”?</h3>
+      <p class="txt">ถ้าเพจนี้เคยตั้งเมนูไว้เองใน LINE Official Account Manager เมนูของ Deep จะ<b>แสดงแทนทันที</b></p>
+      <ul>
+        <li><b>ระบบตรวจไม่ได้</b>ว่าเพจนี้มีเมนูเดิมอยู่หรือเปล่า — LINE ไม่เปิดให้เครื่องมือภายนอกตรวจสอบส่วนนี้</li>
+        <li>ฝั่ง LINE Official Account Manager จะยังแสดงเมนูเดิมของคุณว่า “ใช้งานอยู่” ทั้งที่ลูกค้าเห็นเมนูของ Deep แล้ว — เป็นเรื่องปกติ ไม่ใช่ความผิดพลาด</li>
+        <li>กด “คืนเมนูเดิม” ได้ทุกเมื่อในหน้านี้ เมนูที่ตั้งไว้เดิมจะกลับมาทันที</li>
+      </ul>
+      <div class="acts">
+        <button class="btn btn-primary" style="background:var(--warning)">เปิดใช้เมนู</button>
+        <button class="btn btn-outline" style="color:var(--d700);border-color:var(--d200)">ยกเลิก</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 6. แถวสถานะในการ์ดช่องทาง ══════════ -->
+<p class="frame-cap">⑥ ทางเข้า — แถวใหม่ในการ์ด LINE OA ที่ <code>/settings/channels</code> (5 สถานะ)</p>
+<div class="row">
+  <div class="frame" style="width:640px">
+    <div style="padding:16px">
+      <div style="display:flex;align-items:center;gap:12px;padding-bottom:12px">
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--d100)"></div>
+        <div style="flex:1"><b style="font-size:14px">BT สาขา สุขสวัสดิ์</b>
+          <div style="margin-top:4px"><span class="badge bg-success">✓ เชื่อมแล้ว</span></div></div>
+        <button class="btn btn-outline" style="height:32px;min-height:0;font-size:12px;color:var(--danger-ink);border-color:var(--d200)">ถอด</button>
+      </div>
+      <div style="border-top:1px dashed var(--d200);padding-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500;color:var(--d700)">▦ เมนูลัดใน LINE</span>
+        <span class="badge bg-success">✓ ลูกค้าเห็นเมนูนี้อยู่</span>
+        <a href="#" style="margin-inline-start:auto;color:var(--primary);font-size:13px;font-weight:500;text-decoration:none">จัดการเมนู ›</a>
+      </div>
+      <div style="border-top:1px dashed var(--d200);margin-top:12px;padding-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500;color:var(--d700)">▦ เมนูลัดใน LINE</span>
+        <span class="badge bg-info">✎ สร้างไว้แล้ว ยังไม่เปิดใช้</span>
+        <a href="#" style="margin-inline-start:auto;color:var(--primary);font-size:13px;font-weight:500;text-decoration:none">จัดการเมนู ›</a>
+      </div>
+      <div style="border-top:1px dashed var(--d200);margin-top:12px;padding-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500;color:var(--d700)">▦ เมนูลัดใน LINE</span>
+        <span class="badge bg-neutral">ยังไม่ได้สร้าง</span>
+        <button class="btn" style="margin-inline-start:auto;height:30px;min-height:0;font-size:12px;background:rgba(35,109,201,.15);color:var(--primary)">สร้างเมนู</button>
+      </div>
+      <div style="border-top:1px dashed var(--d200);margin-top:12px;padding-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500;color:var(--d700)">▦ เมนูลัดใน LINE</span>
+        <span class="badge bg-neutral">◎ ไม่ได้ใช้เมนูของ Deep</span>
+        <a href="#" style="margin-inline-start:auto;color:var(--primary);font-size:13px;font-weight:500;text-decoration:none">จัดการเมนู ›</a>
+      </div>
+      <div style="border-top:1px dashed var(--d200);margin-top:12px;padding-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500;color:var(--d700)">▦ เมนูลัดใน LINE</span>
+        <span style="font-size:13px;color:var(--d400)">เชื่อมต่อ LINE OA ให้สำเร็จก่อน จึงจะตั้งเมนูลัดได้</span>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="max-width:340px">
+    <b>เขียวมีจุดเดียว</b> — “ลูกค้าเห็นเมนูนี้อยู่” เท่านั้น (Verified-Means-Green: เขียว = ยืนยันแล้วว่าทำงานจริง)
+    “สร้างไว้แล้ว” ใช้ฟ้าเพราะยังไม่ live · <b>“ไม่ได้ใช้เมนูของ Deep” ห้ามเขียนว่า “ร้านนี้ไม่มีเมนู”</b>
+    เพราะเรามองไม่เห็นเมนูฝั่ง OA Manager — การเขียนว่าไม่มีคือการโกหกที่ทำให้ร้านตัดสินใจผิด
+  </p>
+</div>
+
+<div class="legend">
+  <b>สิ่งที่ mockup นี้ยึดจากของจริง ไม่ได้วาดตามใจ</b><br>
+  • สัดส่วนพรีวิว <b>2500×1686</b> = กรอบที่ระบบเรนเดอร์จริง (<code>RICH_MENU_CANVAS_*</code>) ผ่านเกณฑ์ ≥1.45 ของ LINE<br>
+  • เพดาน <b>14 ตัวอักษร</b> ของแถบเปิดเมนู = เพดานจริงของ LINE นับเป็น code point (ไม่ใช่ <code>String.length</code>)<br>
+  • เลย์เอาต์ <b>2×2</b> (4 ปุ่ม) และ <b>T-split</b> (3 ปุ่ม) = ค่าจาก <code>layoutFor()</code> ตัวเดียวกับที่ประกอบพิกัดส่ง LINE<br>
+  • ปุ่ม “ดูสินค้า/ดูบริการ” จะ<b>หายไปทั้งปุ่ม</b>ถ้าร้านยังไม่มีหน้าร้านสาธารณะ — เมนูจะเหลือน้อยลงหนึ่งช่อง (ไม่ใช่ลิงก์เสีย)<br>
+  • ป้าย “ตอบสถานะพัสดุอัตโนมัติ” ใต้ช่องกรอก = คำอธิบายพฤติกรรมปุ่ม ซึ่ง<b>ตอนนี้ยังไม่ทำงาน</b> (ยังไม่ต่อ webhook)
+</div>
+
+</body>
+</html>
