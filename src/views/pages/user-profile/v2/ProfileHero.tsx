@@ -339,15 +339,11 @@ export default function ProfileHero({
 
   // เหรียญที่กดเปิดดูรายละเอียดอยู่ — null = ปิด (user 2026-08-10 "อยากให้ badge กดได้ แล้วมี modal
   // ขึ้นมาแสดงว่าเค้าได้จากเงื่อนไขอะไร เมื่อไหร่ เน้นให้ buyer อ่านแล้วเชื่อมั่นในร้าน")
-  /* 🛑 โมดัลรายละเอียดเหรียญ **เข้าไม่ถึงตั้งแต่ 2026-08-10** — ไม่มีใครเรียก `setOpenBadge(b)`
-     อีกแล้วหลังถอดกริดเหรียญที่กดได้ออก (user ไม่เอาการกางในหน้า)
-
-     คงไว้โดยตั้งใจ ไม่ใช่ลืม: นี่คือชิ้นส่วนของปลายทางที่ user ต้องการจริง — "กดแล้วเป็น modal
-     หรือเปลี่ยนหน้าไปเลย ซึ่งยังไม่มีตอนนี้" วันที่ทำโมดัลรวมเหรียญ (หรือ route ของเหรียญ)
-     ตัวนี้คือเนื้อหาต่อ 1 ใบที่เอาไปใช้ได้ทันที
-
-     🛑 ถ้าอ่านถึงตรงนี้แล้วยังไม่มีใครเรียก และไม่มีแผนจะทำโมดัลแล้ว — ลบทิ้ง อย่าปล่อยไว้
-     เพราะโค้ด UI ที่เข้าไม่ถึงจะกลายเป็นสิ่งที่คนอ่านเชื่อว่ายังทำงานอยู่ */
+  /* โมดัลรายละเอียดเหรียญรายใบ — เปิดจากการกดเหรียญในกริด (แท็บเล็ต/เดสก์ท็อปเท่านั้น)
+     📌 เคยเข้าไม่ถึงอยู่ช่วงหนึ่งของวันที่ 2026-08-10 ตอนถอดกริดออกเหลือแถวสรุปทุกจอ —
+     กลับมาเข้าถึงได้เมื่อ 2026-08-11 ที่ user ขอกริดคืนเฉพาะจอใหญ่
+     🛑 บนมือถือยังไม่มีทางเปิด (แถวสรุปกดไม่ได้ตามที่ user กำหนด) — วันที่ทำโมดัลรวมเหรียญ
+     หรือหน้าเต็ม ให้ต่อจากมือถือเข้ามาที่นี่ อย่าทำให้แถวสรุปกางในหน้า ทางนั้นถูกปฏิเสธไปแล้ว */
   const [openBadge, setOpenBadge] = useState<HeroBadge | null>(null)
 
   return (
@@ -610,7 +606,13 @@ export default function ProfileHero({
            วันที่จะทำ ต้องสร้างปลายทางใหม่ก่อน (โมดัลรวมเหรียญ หรือ route `/…/badges`) */}
       {data.badges.length > 0 && (
         <div className='pli-5 pbs-1 pbe-4'>
-          <div className='flex items-center gap-2'>
+          {/* ── มือถือ (<600px): แถวสรุปบรรทัดเดียวแบบ Instagram ──
+              user เลือกแบบนี้เมื่อ 2026-08-10 ("Followed by … + 3 more") และยืนยันอีกครั้ง
+              2026-08-11 ว่า "mobile ขอเหมือนเดิม" — กดไม่ได้โดยตั้งใจ
+
+              🛑 ทำไมไอคอนต้องมีวงพื้นขาวคั่น: ref ของ IG ซ้อน "รูปคน" ซึ่งแต่ละใบต่างกันชัด
+              ส่วนเหรียญเราเป็นไอคอนเส้นสีเดียวกันหมด ซ้อนดิบ ๆ จะอ่านเป็นก้อนเดียว */}
+          <div className='flex items-center gap-2 sm:hidden'>
             <span className='flex shrink-0'>
               {data.badges.slice(0, 3).map((b, i) => (
                 <span
@@ -629,6 +631,56 @@ export default function ProfileHero({
               </strong>
               {data.totalBadgeCount > 2 ? ` + อีก ${data.totalBadgeCount - 2}` : ''}
             </Typography>
+          </div>
+
+          {/* ── แท็บเล็ต/เดสก์ท็อป (≥600px): กริดเต็มพร้อมชื่อใต้ไอคอน ──
+              user ขอคืนเฉพาะจอใหญ่ 2026-08-11 — จอกว้างมีที่พอให้เหรียญเป็น "หลักฐานที่อ่านออก"
+              ไม่ใช่แค่ป้ายสรุป ซึ่งเป็นเหตุผลเดิมที่ DESIGN.md ห้าม badge ที่ตีความไม่ได้
+
+              สลับด้วยคลาส `sm:hidden` / `hidden sm:block` ไม่ใช่ตรวจ breakpoint ด้วย JS —
+              JS จะทำให้ SSR กับ client ตัดสินคนละแบบตอน paint แรกแล้วเห็นของกระพริบสลับกัน
+
+              🛑 ไม่มีลิงก์ "ดูทั้งหมด N →" แบบใน ref ที่ user ส่ง เพราะ **ยังไม่มีปลายทางให้ไป** —
+              user ปฏิเสธการกางในหน้าไปแล้ว และโมดัลรวมเหรียญ/หน้าเต็มยังไม่ได้สร้าง
+              ลิงก์ที่กดแล้วไม่ไปไหนบนหน้าที่ทั้งหน้ามีไว้พิสูจน์ความน่าเชื่อถือ แย่กว่าไม่มีลิงก์
+              ตรงนั้นจึงเป็นจำนวนเหรียญเฉย ๆ · วันที่ทำปลายทางเสร็จค่อยเปลี่ยนเป็นลิงก์
+              (เหรียญแต่ละใบกดได้อยู่แล้ว → เปิดการ์ดรายละเอียดใบนั้น) */}
+          <div className='hidden sm:block'>
+            <div className='flex items-baseline justify-between gap-3 mbe-3'>
+              <Typography variant='body2' className='font-semibold' color='text.primary'>
+                เหรียญของร้าน
+              </Typography>
+              <Typography variant='caption' color='text.secondary' className='shrink-0 tabular-nums'>
+                {`${data.totalBadgeCount} เหรียญ`}
+              </Typography>
+            </div>
+
+            <ul className='flex flex-wrap gap-x-3 gap-y-4 m-0 p-0 list-none'>
+              {data.badges.map((b) => (
+                <li key={b.id} className='is-[76px] shrink-0'>
+                  <button
+                    type='button'
+                    onClick={() => setOpenBadge(b)}
+                    aria-haspopup='dialog'
+                    aria-label={`ดูรายละเอียดเหรียญ ${b.name}`}
+                    className='flex flex-col items-center gap-2 is-full border-0 bg-transparent p-0 cursor-pointer font-[inherit] rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mui-palette-primary-main)]'
+                  >
+                    {/* ไม่มีขอบ/พื้น/เงา (user 2026-08-10) — artwork ของเหรียญมีขอบในตัวอยู่แล้ว
+                        กล่อง 44px คงที่เพื่อให้ทุกใบยืนบนเส้นฐานเดียวกัน แม้ระยะขอบในไฟล์ไม่เท่ากัน */}
+                    <span className='is-11 bs-11 flex items-center justify-center shrink-0'>
+                      <BadgeArtwork imageUrl={b.imageUrl} nameEN={b.nameEN} icon={b.icon} alt={b.name} size={44} />
+                    </span>
+                    <Typography
+                      variant='caption'
+                      color='text.secondary'
+                      className='text-center leading-tight line-clamp-1 font-medium'
+                    >
+                      {b.name}
+                    </Typography>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
