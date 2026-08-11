@@ -176,10 +176,16 @@ export default function SellerBottomNav({ pendingCount, unreadChatCount, orderVo
   // /orders/<token>/edit มี 2 segment ไม่ match regex นี้ → ยังเห็น nav ตามปกติ
   // /products (list): full-bleed เดียวกับ /orders (2026-08-06) — exact match เท่านั้น
   // ห้ามกระทบ /products/<id> (product detail ยังต้องเห็น nav ปกติ)
+  // /queues (list): full-bleed เดียวกับสองหน้าบน (2026-08-11, user req "bottom navbar ต้องหายไปเลย")
+  //   exact match เท่านั้น — /queues/new และ /queues/<id> ยังต้องเห็น nav ปกติ
+  //   🛑 หน้านี้ไม่มี FAB แล้ว ทางสร้างงานใหม่จึงต้องอยู่ในหน้าเอง (sticky bottom bar ใน
+  //   AppointmentMonthBoard) — ถ้าวันไหนถอดบาร์นั้นออก ต้องเอา /queues ออกจากลิสต์นี้ด้วย
+  //   ไม่งั้นซ้ำรอย /orders ที่เคยสร้างออเดอร์บนมือถือไม่ได้เลยโดยไม่มีอะไรฟ้อง
+  //   (docs/conventions/seller-action-placement.md §5.1)
   // วาง return null หลัง hooks ทั้งหมดเพื่อไม่ละเมิด rules of hooks
   const orderDetailMatch = pathname.match(/^\/orders\/([^/]+)$/)
   const isOrderDetail = orderDetailMatch !== null && orderDetailMatch[1] !== 'new'
-  if (pathname === '/orders' || isOrderDetail || pathname === '/products') {
+  if (pathname === '/orders' || isOrderDetail || pathname === '/products' || pathname === '/queues') {
     return null
   }
 

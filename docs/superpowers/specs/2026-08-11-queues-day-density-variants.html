@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เทียบวิธีแสดง "วันไหนมีกี่คิว" — 6 แบบ × 2 สถานการณ์ (2026-08-11)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --color-primary:#236dc9; --color-primary-ink:#1e3a8a;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px; --radius:4px; --shadow:0 1px 2px rgba(49,58,70,.075);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;color:var(--color-body-color);font-size:14px;line-height:1.5;padding:32px 20px 90px}
+.wrap{max-width:1700px;margin:0 auto}
+h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.lead{margin-top:6px;max-width:92ch}
+.meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;margin:22px 0 6px;border-left:3px solid var(--color-primary)}
+.note.warn{border-left-color:var(--color-warning)}
+.note.good{border-left-color:var(--color-success,#02bc9c)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}.note li{margin-bottom:6px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.sec{margin:46px 0 6px;font-size:19px;font-weight:600;color:var(--color-default-900);padding-bottom:8px;border-bottom:2px solid var(--color-default-300)}
+.sec span{font-size:13px;font-weight:400;color:var(--color-default-500);margin-left:8px}
+.rack{display:flex;gap:26px;flex-wrap:wrap;margin-top:20px}
+.card{width:393px;background:var(--color-card);border:1px solid var(--color-default-200);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.cap{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:8px}
+.cap em{font-style:normal;font-weight:400;color:var(--color-default-500)}
+.tagme{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:var(--color-default-900);border-radius:4px;padding:1px 6px;margin-left:6px}
+.monthbar{display:flex;align-items:center;gap:8px;padding:10px 14px}
+.monthbar .m{flex:1;text-align:center;font-weight:600;color:var(--color-default-900);font-size:15px}
+.navbtn{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500);font-size:18px}
+.legend{display:flex;gap:14px;justify-content:center;padding:0 14px 8px;font-size:var(--text-2xs);color:var(--color-default-500);align-items:center}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px}
+.dow span{text-align:center;font-size:var(--text-2xs);font-weight:600;color:var(--color-default-400);padding:6px 0}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px 10px}
+.cell{min-height:46px;margin:1px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:var(--color-default-800);line-height:1.05;position:relative}
+.cell.other{color:var(--color-default-400);opacity:.55}
+.cell.today{border:1px solid var(--color-default-400)}
+.cell.sel{background:var(--color-primary);color:#fff;font-weight:600}
+/* v1 dot */
+.v-dot .dot{width:6px;height:6px;border-radius:99px;background:var(--color-warning)}
+.v-dot .cell.sel .dot{background:#fff}
+/* v2 small number */
+.v-num .n{font-size:11px;font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.v-num .cell.sel .n{color:#fff}
+/* v3 bold number */
+.v-bold .n{font-size:13px;font-weight:700;color:var(--color-default-900);font-variant-numeric:tabular-nums}
+.v-bold .cell.sel .n{color:#fff}
+/* v4 chip */
+.v-chip .n{font-size:11px;font-weight:700;color:var(--color-primary-ink);background:rgba(35,109,201,.15);border-radius:99px;min-width:18px;height:16px;padding:0 5px;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.v-chip .cell.sel .n{background:rgba(255,255,255,.28);color:#fff}
+/* v5 heat */
+.v-heat .cell.h1{background:rgba(35,109,201,.10)}
+.v-heat .cell.h2{background:rgba(35,109,201,.20)}
+.v-heat .cell.h3{background:rgba(35,109,201,.32)}
+.v-heat .n{font-size:11px;font-weight:700;color:var(--color-primary-ink);font-variant-numeric:tabular-nums}
+.v-heat .cell.sel .n{color:#fff}
+/* v7/v8 focus: วันที่ไม่มีงานจางลง วันที่มีงานเด่นขึ้น
+   จาง = text-default-400 (#627189) ซึ่งวัดกับพื้นขาวได้ 4.96:1 → ยังผ่านเกณฑ์ข้อความ 4.5:1
+   ห้ามใช้ opacity ต่ำ ๆ เพราะจะหลุดเกณฑ์ทันทีและกดวันว่างเพื่อจองไม่ได้ */
+.v-focus .cell.empty,.v-focuschip .cell.empty{color:var(--color-default-400);font-weight:400}
+.v-focus .cell.has,.v-focuschip .cell.has{color:var(--color-default-900);font-weight:700}
+.v-focus .cell.other,.v-focuschip .cell.other{color:var(--color-default-300);opacity:1}
+.v-focus .n{font-size:13px;font-weight:700;color:var(--color-default-900);font-variant-numeric:tabular-nums}
+.v-focus .cell.sel .n{color:#fff}
+.v-focuschip .n{font-size:11px;font-weight:700;color:var(--color-primary-ink);background:rgba(35,109,201,.15);border-radius:99px;min-width:18px;height:16px;padding:0 5px;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.v-focuschip .cell.sel .n{background:rgba(255,255,255,.28);color:#fff}
+/* v6 flip: จำนวนเป็นพระเอก */
+.v-flip .cell{justify-content:center;gap:1px}
+.v-flip .d{font-size:10px;color:var(--color-default-400);line-height:1}
+.v-flip .n{font-size:17px;font-weight:700;color:var(--color-default-900);line-height:1;font-variant-numeric:tabular-nums}
+.v-flip .cell.empty .d{font-size:14px;color:var(--color-default-800)}
+.v-flip .cell.sel .d,.v-flip .cell.sel .n{color:#fff}
+
+.lg-dot{width:8px;height:8px;border-radius:99px;background:var(--color-warning);display:inline-block}
+.lg-sq{display:inline-block;width:9px;height:9px;border-radius:3px;border:1.5px solid var(--color-default-400)}
+.lg-n{font-size:11px;font-weight:600;color:var(--color-default-500)}
+.lg-chip{font-size:10px;font-weight:700;color:var(--color-primary-ink);background:rgba(35,109,201,.15);border-radius:99px;padding:1px 6px}
+
+/* โครงทางเลือก */
+.phone{position:relative;width:393px;height:760px;background:var(--color-body-bg);border:10px solid #1c2430;border-radius:34px;overflow:hidden;box-shadow:0 16px 40px rgba(28,36,48,.26)}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden}
+.apphead{height:50px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 12px;background:#fff;border-bottom:1px solid var(--color-default-200)}
+.apphead .ttl{flex:1;text-align:center;font-weight:600;color:var(--color-default-900)}
+.icn{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500)}
+.body{flex:1;overflow:hidden;padding-bottom:76px}
+.wkstrip{background:#fff;border-bottom:1px solid var(--color-default-200);padding:8px 0 10px}
+.wkrow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px}
+.wk{margin:1px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:7px 0}
+.wk .w{font-size:10px;color:var(--color-default-400)}
+.wk .dd{font-size:16px;font-weight:600;color:var(--color-default-800);line-height:1}
+.wk .nn{font-size:10px;font-weight:700;color:var(--color-primary-ink);background:rgba(35,109,201,.15);border-radius:99px;padding:0 5px;min-width:16px;text-align:center}
+.wk.sel{background:var(--color-primary)}
+.wk.sel .w,.wk.sel .dd{color:#fff}
+.wk.sel .nn{background:rgba(255,255,255,.28);color:#fff}
+.wk .nn.ghost{background:transparent;color:transparent}
+.expand{display:flex;align-items:center;justify-content:center;gap:5px;padding:7px 0 0;font-size:12px;color:var(--color-default-500)}
+.agenda{padding:12px 16px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.agday{}
+.agh{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px}
+.agh .t{font-weight:600;color:var(--color-default-900);font-size:14px}
+.agh .c{font-size:12px;color:var(--color-default-500)}
+.row{background:#fff;border:1px solid var(--color-default-200);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.row .t{width:56px;flex:0 0 auto;font-size:13px;font-weight:600;color:var(--color-default-900);line-height:1.25}
+.row .t small{display:block;font-weight:400;font-size:12px;color:var(--color-default-500)}
+.row .mid{flex:1;min-width:0}
+.row .nm{font-size:13px;font-weight:500;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .no{font-size:11px;color:var(--color-default-400)}
+.badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:99px;background:rgba(249,191,89,.15);color:var(--color-warning-ink)}
+.actionbar{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--color-default-200);padding:12px;padding-bottom:34px}
+.cta{height:44px;border-radius:8px;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px}
+.side{width:320px;font-size:13px}
+.side h3{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.side ul{margin-left:16px}.side li{margin-bottom:8px}
+.pickme{background:#fff;border:2px solid var(--color-primary);border-radius:10px;padding:14px 16px;margin-top:26px}
+.pickme h3{font-size:15px;font-weight:600;color:var(--color-default-900);margin-bottom:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>วันไหนมีกี่คิว — เทียบ 6 วิธี บนข้อมูล 2 สถานการณ์</h1>
+<p class="lead">
+  รอบก่อนเสนอ "เลขเล็กใต้วันที่" แล้วยังดูยากอยู่ ผมเลยกางทุกทางให้เห็นพร้อมกันบนความกว้างจริง 393px
+  แทนที่จะเดาต่อทีละรอบ — <b>ชี้มาได้เลยว่าอันไหน</b> หรือบอกว่ายังไม่ใช่สักอัน
+</p>
+<p class="meta">2026-08-11 · ทุกแบบใช้ token จริงของธีม · ข้อมูลแถวบน = ของจริงเดือนนี้ (14 มี 3 · 15 มี 1 · 16 มี 2) · แถวล่าง = เดือนที่งานเยอะ</p>
+
+<div class="note warn">
+  <h2>สิ่งที่ผมคิดว่าเป็นตัวปัญหาจริง (ไม่ใช่แค่ขนาดตัวเลข)</h2>
+  <ul>
+    <li><b>เดือนนี้มีงานแค่ 3 วันจาก 31 วัน</b> — ตารางที่เหลืออีก 28 ช่องว่างเปล่า ไม่ว่าจะวาดจุดหรือวาดเลข
+      สิ่งที่ต้องดูก็มีอยู่นิดเดียวแต่ต้องกวาดสายตาทั้งตาราง <b>ปฏิทินเดือนอาจไม่ใช่เครื่องมือที่ถูกสำหรับงานนี้ตั้งแต่แรก</b></li>
+    <li>ตัวเลขที่เสนอไปเป็น <b>ตัวเล็กกว่าและจางกว่าเลขวัน</b> มันเลยถอยไปอยู่ข้างหลังทั้งที่เป็นข้อมูลที่คุณต้องการ
+      — แบบ ③ ④ ⑤ ⑥ ข้างล่างแก้ตรงนี้คนละวิธี</li>
+    <li>ผมจึงใส่ <b>โครงทางเลือกที่ไม่ใช่ปฏิทินเดือน</b> ไว้ท้ายหน้าด้วย (หัวข้อ C) เผื่อว่าทางออกจริงคือเปลี่ยนเครื่องมือ ไม่ใช่ตกแต่งช่อง</li>
+  </ul>
+</div>
+
+<div class="sec">A · เดือนนี้ของจริง <span>งานน้อย — 3 วันจาก 31</span></div>
+<div class="rack" id="rackA"></div>
+
+<div class="sec">B · เดือนที่งานเยอะ <span>แบบที่ชนะตอนงานน้อย อาจแพ้ตอนงานเยอะ</span></div>
+<div class="rack" id="rackB"></div>
+
+<div class="sec">C · ถ้าเปลี่ยนเครื่องมือไปเลย <span>ไม่ใช่ปฏิทินเดือน</span></div>
+<div class="rack">
+  <div>
+    <div class="cap">C1 · แถบสัปดาห์ + รายการนัดเรียงตามวัน <span class="tagme">ทางเลือกใหญ่</span></div>
+    <div class="phone">
+      <div class="screen">
+        <div class="apphead"><div class="icn">←</div><div class="ttl">คิวงาน</div><div class="icn">🔔</div></div>
+        <div class="body">
+          <div class="wkstrip">
+            <div class="monthbar" style="padding:2px 14px 8px"><div class="navbtn">‹</div><div class="m" style="font-size:14px">10–16 ส.ค. 2569</div><div class="navbtn">›</div></div>
+            <div class="wkrow">
+              <div class="wk"><span class="w">อา</span><span class="dd">9</span><span class="nn ghost">0</span></div>
+              <div class="wk"><span class="w">จ</span><span class="dd">10</span><span class="nn ghost">0</span></div>
+              <div class="wk"><span class="w">อ</span><span class="dd">11</span><span class="nn ghost">0</span></div>
+              <div class="wk"><span class="w">พ</span><span class="dd">12</span><span class="nn ghost">0</span></div>
+              <div class="wk"><span class="w">พฤ</span><span class="dd">13</span><span class="nn ghost">0</span></div>
+              <div class="wk sel"><span class="w">ศ</span><span class="dd">14</span><span class="nn">3</span></div>
+              <div class="wk"><span class="w">ส</span><span class="dd">15</span><span class="nn">1</span></div>
+            </div>
+            <div class="expand">▾ ดูทั้งเดือน</div>
+          </div>
+          <div class="agenda">
+            <div class="agday">
+              <div class="agh"><span class="t">ศุกร์ 14 ส.ค.</span><span class="c">3 นัด</span></div>
+              <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">นายสิทธินันท์ สิงหนาท</div><div class="no">#DP256908B6496026</div></div><span class="badge">นัดแล้ว</span></div>
+              <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">ชื่อ บี</div><div class="no">#DP256908F94012FD</div></div><span class="badge">นัดแล้ว</span></div>
+              <div class="row"><div class="t">13:00<small>– 14:00</small></div><div class="mid"><div class="nm">Jaraspong Pooreun</div><div class="no">#DP2569085FF1A848</div></div><span class="badge">นัดแล้ว</span></div>
+            </div>
+            <div class="agday">
+              <div class="agh"><span class="t">เสาร์ 15 ส.ค.</span><span class="c">1 นัด</span></div>
+              <div class="row"><div class="t">09:00<small>– 10:00</small></div><div class="mid"><div class="nm">คุณมานี</div><div class="no">#DP256908C1140A22</div></div><span class="badge">นัดแล้ว</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="actionbar"><div class="cta">＋ งานใหม่ · 14 ส.ค. 2569</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="side">
+    <h3>C1 ต่างจากปฏิทินเดือนยังไง</h3>
+    <ul>
+      <li><b>เห็นงานจริงทันทีโดยไม่ต้องจิ้ม</b> — เลื่อนลงก็เห็นวันถัดไปต่อกันไปเรื่อย ๆ ไม่ต้องเลือกวันก่อนถึงจะเห็นอะไร</li>
+      <li>แถบสัปดาห์ยังบอกจำนวนต่อวันด้วยชิปตัวเลข และกด "ดูทั้งเดือน" เพื่อกางเป็นตารางเดือนเดิมได้</li>
+      <li><b>เดือนที่งานน้อยจะไม่โล่ง</b> เพราะเราไม่ได้วาดช่องว่าง 28 ช่องอีกต่อไป — มีงานกี่วันก็แสดงเท่านั้น</li>
+      <li>ต้นทุนสูงกว่าแบบ ①–⑥ มาก (เขียนของใหม่ ไม่ใช่แก้ช่องในตารางเดิม) จึงควรเลือกก็ต่อเมื่อ
+        ปัญหาจริงคือ "ปฏิทินเดือนไม่ตอบโจทย์" ไม่ใช่ "ตัวเลขเล็กไป"</li>
+    </ul>
+  </div>
+</div>
+
+<div class="pickme">
+  <h3>ตอบกลับสั้น ๆ ได้เลย</h3>
+  <p>
+    ชอบเลข <b>①–⑥</b> อันไหน หรือ <b>C1</b> · หรือถ้ายังไม่ใช่สักอัน บอกได้ว่า "ดูยาก" ตรงไหน —
+    อ่านตัวเลขไม่ออก / แยกไม่ออกว่าเลขไหนคือวันที่ / หรือกวาดตาแล้วยังไม่รู้ว่าวันไหนงานแน่น
+  </p>
+</div>
+
+<script>
+/* ── ข้อมูล ─────────────────────────────────────────────── */
+// ส.ค. 2569: 1 ส.ค. = เสาร์, 31 วัน, กริดเริ่มวันอาทิตย์ → 6 แถว
+const SPARSE = {14:3, 15:1, 16:2};                       // ของจริงเดือนนี้
+const BUSY   = {3:2,4:5,5:1,6:3,7:8,10:4,11:2,12:6,13:1,14:3,15:1,16:2,
+                17:5,18:2,19:7,20:3,21:4,24:2,25:6,26:1,27:3,28:5};
+const TODAY = 11, SEL = 14;
+const DOW = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+// สร้างช่องทั้ง 42 ช่อง: {d, other}
+function cells(){
+  const out = [];
+  for (let d = 26; d <= 31; d++) out.push({d, other:true});   // ก.ค.
+  for (let d = 1; d <= 31; d++)  out.push({d, other:false});  // ส.ค.
+  for (let d = 1; d <= 5; d++)   out.push({d, other:true});   // ก.ย.
+  return out;
+}
+
+const VARIANTS = [
+  { key:'dot',  no:'①', name:'จุดกลม (ของตอนนี้)', hint:'บอกได้แค่ มี/ไม่มี',
+    legend:'<span class="lg-dot"></span> มีนัดแล้ว' },
+  { key:'num',  no:'②', name:'เลขเล็กใต้วันที่', hint:'ที่เสนอรอบก่อน — เล็กและจางกว่าเลขวัน',
+    legend:'<span class="lg-n">3</span> จำนวนนัด' },
+  { key:'bold', no:'③', name:'เลขเข้มใต้วันที่', hint:'ตัวเดิมแต่เข้ม/ใหญ่ขึ้น',
+    legend:'<span class="lg-n" style="color:var(--color-default-900);font-size:12px">3</span> จำนวนนัด' },
+  { key:'chip', no:'④', name:'ชิปพื้นสีมีตัวเลข', hint:'มีพื้นรอง เลยเด้งออกจากเลขวันชัด',
+    legend:'<span class="lg-chip">3</span> จำนวนนัด' },
+  { key:'heat', no:'⑤', name:'พื้นช่องเข้มตามจำนวน', hint:'กวาดตาเห็นทั้งเดือนว่าช่วงไหนแน่น',
+    legend:'<span class="lg-chip" style="background:rgba(35,109,201,.32)">3</span> ยิ่งเข้ม ยิ่งแน่น' },
+  { key:'flip', no:'⑥', name:'จำนวนเป็นตัวเด่น วันที่ตัวเล็ก', hint:'สลับลำดับ — หน้านี้คนมาดูงาน ไม่ได้มาดูวันที่',
+    legend:'' },
+  { key:'focus', no:'⑦', name:'วันที่ไม่มีงานจางลง + เลขเข้ม', hint:'ไอเดียของคุณ — ลดเสียงของช่องว่าง แทนที่จะเพิ่มเสียงให้ตัวเลข',
+    legend:'' },
+  { key:'focuschip', no:'⑧', name:'วันที่ไม่มีงานจางลง + ชิปตัวเลข', hint:'อันเดียวกับ ⑦ แต่จำนวนมีพื้นรอง',
+    legend:'' },
+];
+
+function heatClass(n){ if(!n) return ''; if(n<=2) return 'h1'; if(n<=4) return 'h2'; return 'h3'; }
+
+function buildGrid(variant, data){
+  const g = document.createElement('div');
+  g.className = 'grid';
+  cells().forEach(c => {
+    const n = c.other ? 0 : (data[c.d] || 0);
+    const el = document.createElement('div');
+    let cls = 'cell';
+    if (c.other) cls += ' other';
+    if (!c.other && c.d === TODAY) cls += ' today';
+    if (!c.other && c.d === SEL)   cls += ' sel';
+    if (variant === 'heat' && n && c.d !== SEL) cls += ' ' + heatClass(n);
+    if (variant === 'flip' && !n) cls += ' empty';
+    if (variant.indexOf('focus') === 0) cls += n ? ' has' : ' empty';
+    el.className = cls;
+
+    if (variant === 'flip') {
+      el.innerHTML = n
+        ? `<span class="d">${c.d}</span><span class="n">${n}</span>`
+        : `<span class="d">${c.d}</span>`;
+    } else if (variant === 'dot') {
+      el.innerHTML = `${c.d}` + (n ? `<span class="dot"></span>` : `<span class="dot" style="background:transparent"></span>`);
+    } else {
+      el.innerHTML = `${c.d}` + (n ? `<span class="n">${n}</span>` : `<span class="n" style="color:transparent">0</span>`);
+    }
+    g.appendChild(el);
+  });
+  return g;
+}
+
+function buildCard(v, data){
+  const box = document.createElement('div');
+  box.innerHTML = `<div class="cap">${v.no} ${v.name}<span class="tagme">${v.key}</span><br><em>${v.hint}</em></div>`;
+  const card = document.createElement('div');
+  card.className = 'card v-' + v.key;
+  /* ไม่มีแถว legend แล้ว (user: "ไม่อยากให้มี") — ตัวเลขอธิบายตัวเองได้ ไม่ต้องมีคำอธิบายสัญลักษณ์
+     คืนพื้นที่ให้ 26px และลดของที่ตาต้องประมวลผลก่อนถึงตารางจริง */
+  card.innerHTML =
+    `<div class="monthbar"><div class="navbtn">‹</div><div class="m">ส.ค. 2569</div><div class="navbtn">›</div></div>
+     <div class="dow">${DOW.map(d=>`<span>${d}</span>`).join('')}</div>`;
+  card.appendChild(buildGrid(v.key, data));
+  box.appendChild(card);
+  return box;
+}
+
+VARIANTS.forEach(v => {
+  document.getElementById('rackA').appendChild(buildCard(v, SPARSE));
+  document.getElementById('rackB').appendChild(buildCard(v, BUSY));
+});
+</script>
+
+</div>
+</body>
+</html>

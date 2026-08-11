@@ -262,7 +262,11 @@ export default function ResourceList({ resources, footer }: Props) {
 
   if (items.length === 0) {
     return (
-      <div className="card">
+      /* full-bleed บนมือถือเหมือนการ์ดปฏิทินเหนือมัน (2026-08-11) — ถ้าทำแค่ใบบนจะกลายเป็น
+         บนสุดชนขอบจอ ล่างสุดเว้นขอบ ขัดกันเองในหน้าเดียว · md:mx-0 = หยุดหักล้าง padding ของ
+         main ตั้งแต่ 768 ขึ้นไป (ไฟล์นี้เรนเดอร์ทั้งมือถือและเดสก์ท็อป ต่างจาก AppointmentMonthBoard)
+         Base: src/app/(paces)/seller/(dashboard)/products/components/ProductsListing.tsx:252 */
+      <div className="card queues-fullbleed -mx-4 md:mx-0">
         <div className="card-body flex flex-col items-center justify-center gap-3 py-12 text-center">
           <div className="bg-default-100 flex size-14 items-center justify-center rounded-full">
             <Icon icon="tabler:user-cog" className="text-default-400 size-7" />
@@ -294,7 +298,8 @@ export default function ResourceList({ resources, footer }: Props) {
   }
 
   return (
-    <div className="card">
+    /* full-bleed มือถือ — เหตุผลเดียวกับ empty state ข้างบน */
+    <div className="card queues-fullbleed -mx-4 md:mx-0">
       <div className="card-header flex items-center justify-between">
         <div>
           <h4 className="card-title">คิวงานที่รับได้</h4>

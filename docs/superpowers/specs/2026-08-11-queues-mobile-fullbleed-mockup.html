@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v2 — คิวงานมือถือ full-bleed + ไม่มี bottom nav (2026-08-11)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* token จริงของสกิน Paces — ชุดเดียวกับ 2026-08-09-appointment-time-step-mockup.html */
+:root{
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px; --radius:4px;
+  --shadow:0 1px 2px rgba(49,58,70,.075);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;color:var(--color-body-color);font-size:14px;line-height:1.5;padding:32px 20px 80px}
+.wrap{max-width:1620px;margin:0 auto}
+.page-head h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.page-head p{margin-top:6px;max-width:90ch}
+.page-head .meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;margin:22px 0 8px;border-left:3px solid var(--color-primary)}
+.note.bad{border-left-color:var(--color-danger)}
+.note.good{border-left-color:var(--color-success)}
+.note.warn{border-left-color:var(--color-warning)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}
+.note li{margin-bottom:6px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.sec-title{margin:44px 0 4px;font-size:19px;font-weight:600;color:var(--color-default-900);padding-bottom:8px;border-bottom:2px solid var(--color-default-300)}
+.sec-title span{font-size:13px;font-weight:400;color:var(--color-default-500);margin-left:8px}
+.rack{display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;margin-top:22px}
+.device{flex:0 0 auto}
+.device>figcaption{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:10px}
+.device>figcaption em{font-style:normal;font-weight:400;color:var(--color-default-500)}
+
+.phone{position:relative;width:393px;height:852px;background:var(--color-body-bg);border:10px solid #1c2430;border-radius:38px;overflow:hidden;box-shadow:0 18px 44px rgba(28,36,48,.28)}
+.phone.se{width:320px;height:568px;border-radius:30px}
+.phone.tab{width:834px;height:720px;border-radius:24px;border-width:12px}
+.screen{position:absolute;inset:0;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:13px;font-weight:600;color:var(--color-default-900)}
+.se .statusbar{height:24px;font-size:11px}
+.tab .statusbar{height:28px;font-size:12px}
+.apphead{height:50px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--color-card);border-bottom:1px solid var(--color-default-200)}
+.apphead .ttl{flex:1;text-align:center;font-weight:600;color:var(--color-default-900)}
+.icnbtn{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500);position:relative}
+.icnbtn .dotred{position:absolute;top:5px;right:6px;width:7px;height:7px;border-radius:99px;background:var(--color-danger)}
+
+/* พื้นที่เนื้อหา: padding-inline 16px ของ shell — full-bleed คือการ์ดใช้ -mx-4 หักล้าง */
+.scroll{flex:1 1 auto;overflow:hidden;position:relative;padding:0 16px;padding-bottom:76px}
+.bleed{margin-left:-16px;margin-right:-16px}          /* = -mx-4 */
+.tab .scroll{padding:0 16px 76px}
+.tab .bleed{margin-left:auto;margin-right:auto;max-width:672px}  /* md:mx-auto md:max-w-2xl */
+
+.card{background:var(--color-card);border:1px solid var(--color-default-200);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.stack{display:flex;flex-direction:column;gap:20px;padding-top:16px}
+.monthbar{display:flex;align-items:center;gap:8px;padding:12px 16px}
+.monthbar .m{flex:1;text-align:center;font-weight:600;color:var(--color-default-900);font-size:15px}
+.navbtn{width:44px;height:44px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500);font-size:18px}
+.todaybtn{height:44px;padding:0 14px;border-radius:99px;border:1px solid var(--color-default-300);display:grid;place-items:center;font-size:13px;font-weight:500;color:var(--color-default-700)}
+.legend{display:flex;gap:14px;justify-content:center;padding:0 16px 8px;font-size:var(--text-2xs);color:var(--color-default-500)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--color-warning);margin-right:5px;vertical-align:1px}
+.legend i.sq{border-radius:3px;background:transparent;border:1.5px solid var(--color-default-400)}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px}
+.dow span{text-align:center;font-size:var(--text-2xs);font-weight:600;color:var(--color-default-400);padding:6px 0}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px 8px}
+.cell{min-height:46px;margin:1px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:14px;color:var(--color-default-800)}
+.cell.other{color:var(--color-default-400)}
+.cell.today{border:1px solid var(--color-default-400)}
+.cell.sel{background:var(--color-primary);color:#fff;font-weight:600}
+.cell .d{width:6px;height:6px;border-radius:99px;background:var(--color-warning)}
+.cell.sel .d{background:#fff}
+.daysec{background:var(--color-default-100);border-top:1px solid var(--color-default-200);padding:12px 16px 14px}
+.dayhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.dayhead .dt{font-weight:600;color:var(--color-default-900);font-size:14px}
+.dayhead .cnt{font-size:12px;color:var(--color-default-500)}
+.rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.row{background:var(--color-card);border:1px solid var(--color-default-200);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.row .t{width:56px;flex:0 0 auto;font-size:13px;font-weight:600;color:var(--color-default-900);line-height:1.25}
+.row .t small{display:block;font-weight:400;font-size:12px;color:var(--color-default-500)}
+.row .mid{flex:1;min-width:0}
+.row .nm{font-size:13px;font-weight:500;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .no{font-size:11px;color:var(--color-default-400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:99px;background:rgba(249,191,89,.15);color:var(--color-warning-ink);white-space:nowrap}
+.chev{color:var(--color-default-400);font-size:14px}
+/* การ์ดคิวงานที่รับได้ */
+.chead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px dashed var(--color-default-300)}
+.chead h4{font-size:14px;font-weight:600;color:var(--color-default-900)}
+.btn-sm{height:34px;padding:0 12px;border-radius:6px;border:1px solid var(--color-default-300);font-size:12px;font-weight:600;color:var(--color-default-700);display:grid;place-items:center}
+.qrow{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--color-default-200)}
+.qrow:last-child{border-bottom:0}
+.qico{width:34px;height:34px;border-radius:8px;background:rgba(35,109,201,.1);color:var(--color-primary-ink);display:grid;place-items:center;font-size:14px;flex:0 0 auto}
+.qrow .qn{flex:1;font-size:13px;font-weight:500;color:var(--color-default-900)}
+.qrow .qm{font-size:11px;color:var(--color-default-500)}
+
+/* sticky action bar (Base: ProductFormV2.tsx:463-474) */
+.actionbar{
+  position:absolute;left:0;right:0;bottom:0;z-index:20;background:var(--color-card);
+  border-top:1px solid var(--color-default-200);padding:12px;
+  padding-bottom:calc(12px + 22px); /* = 0.75rem + env(safe-area-inset-bottom) */
+}
+.se .actionbar{padding-bottom:calc(12px + 10px)}
+.actionbar .inner{max-width:672px;margin:0 auto}
+.cta{height:44px;border-radius:8px;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:600;font-size:14px}
+.safelbl{position:absolute;right:8px;bottom:3px;font-size:9px;color:var(--color-default-400)}
+
+/* ป้ายชี้ */
+.pin{position:absolute;z-index:30;font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:var(--color-default-900);color:#fff;white-space:nowrap}
+.edge{position:absolute;top:94px;bottom:76px;width:0;border-left:2px dashed var(--color-success);z-index:25}
+.edge.l{left:0}.edge.r{right:0}
+.edge b{position:absolute;top:6px;left:4px;font-size:9px;font-weight:600;color:var(--color-success-ink);background:#fff;padding:1px 4px;border-radius:3px;white-space:nowrap}
+.edge.r b{left:auto;right:4px}
+.gut{position:absolute;top:94px;bottom:76px;width:16px;background:repeating-linear-gradient(45deg,rgba(247,87,126,.22) 0 5px,rgba(247,87,126,.06) 5px 10px);z-index:25}
+.gut.l{left:0}.gut.r{right:0}
+
+.side{width:310px;font-size:13px}
+.side h3{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.side ul{margin-left:16px}.side li{margin-bottom:7px}
+.kv{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;background:#fff;border-radius:8px;overflow:hidden}
+.kv th,.kv td{padding:7px 9px;border-bottom:1px solid var(--color-default-200);text-align:left}
+.kv th{background:var(--color-default-100);font-weight:600;color:var(--color-default-700)}
+.kv tr:last-child td{border-bottom:0}
+.kv .bad{color:var(--color-danger-ink);font-weight:600}
+.kv .good{color:var(--color-success-ink);font-weight:600}
+.flat{background:#fff;border:1px dashed var(--color-default-300);border-radius:12px;padding:20px;width:480px;font-size:13px}
+.flat h3{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="page-head">
+  <h1>คิวงานบนมือถือ — เต็มขอบจอ + ไม่มีแถบล่าง (v2)</h1>
+  <p>
+    ทำตามที่สั่ง 2 ข้อ: มือถือไม่มีระยะขอบซ้ายขวา และเข้าหน้านี้แล้ว bottom navbar หายทั้งแถบ
+    ข้อมูลชุดเดียวกับภาพหน้าจอจริง (ศุกร์ 14 ส.ค. 2569 · 3 นัด · วันนี้คือ 11 · จุดที่ 15 กับ 16)
+  </p>
+  <p class="meta">
+    2026-08-11 · v2 แทนที่ <code>2026-08-11-queues-mobile-layout-mockup.html</code> ·
+    แถบเขียวประ = ขอบจอ (เนื้อหาชนพอดี) · แถบลายทางแดง = ระยะขอบ 16px ที่ถูกตัดออก
+  </p>
+</div>
+
+<div class="note good">
+  <h2>ทั้งสองข้อใช้ของที่มีอยู่แล้วในโปรเจกต์ ไม่ได้ประดิษฐ์ใหม่</h2>
+  <ul>
+    <li><b>ซ่อนแถบล่าง</b> — <code>SellerBottomNav.tsx:182</code> มีลิสต์หน้าที่ซ่อนอยู่แล้ว
+      (<code>/orders</code>, หน้ารายละเอียดออเดอร์, <code>/products</code>) เติม <code>/queues</code> เข้าไป
+      แบบตรงตัวเป๊ะ ไม่ให้กระทบ <code>/queues/new</code> และหน้ารายละเอียดคิวงาน</li>
+    <li><b>เต็มขอบจอ</b> — <code>ProductsListing.tsx:252</code> ใช้ <code>products-fullbleed -mx-4 md:mx-auto md:max-w-2xl</code>
+      คู่กับ <code>:has()</code> ที่ <code>safepay-overrides.css:160</code> (ตัดขอบบน 20px + ซ่อน footer ไปด้วย)
+      → ทำ <code>queues-fullbleed</code> แบบเดียวกัน</li>
+    <li><b>แถบปุ่มติดล่างจอ</b> — <code>ProductFormV2.tsx:463</code> มีอยู่แล้วพร้อม
+      <code>pb-[calc(0.75rem+env(safe-area-inset-bottom))]</code> (กันปุ่มไปนอนใต้แถบ home ของ iPhone)</li>
+  </ul>
+</div>
+
+<div class="note warn">
+  <h2>ปุ่ม "งานใหม่" ย้ายอีกครั้ง — ไปเป็นแถบติดล่างจอ</h2>
+  <ul>
+    <li>พอไม่มีแถบล่างแล้ว พื้นที่ 72px ตรงนั้นว่าง — เอามาทำแถบปุ่มแทน</li>
+    <li>เหตุผลที่ไม่วางไว้ใต้หัวข้อวันที่ (แบบ v1): <b>ต้องคืนคุณสมบัติที่ FAB เคยให้คือ "กดได้จากทุกจุดที่เลื่อนอยู่"</b>
+      ถ้าวางในเนื้อหา ผู้ใช้ที่เลื่อนดูนัดยาว ๆ ต้องเลื่อนย้อนขึ้นไปกด</li>
+    <li>ได้เปรียบกว่า FAB เดิมด้วย: FAB เป็นวงกลมมีแต่ไอคอน ส่วนแถบนี้เห็นคำว่า <b>"งานใหม่ · 14 ส.ค. 2569"</b> ครบ
+      รู้เลยว่ากดแล้วจะได้งานของวันไหน</li>
+  </ul>
+</div>
+
+<!-- ══════════ A. โทรศัพท์ 393 ══════════ -->
+<div class="sec-title">A · โทรศัพท์ 393px <span>ก่อน → หลัง</span></div>
+<div class="rack">
+
+  <figure class="device">
+    <figcaption>ก่อน — ของจริงตอนนี้ <em>มีขอบ 16px + แถบล่าง + FAB</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>15:42</span><span>5G ▮</span></div>
+        <div class="apphead"><div class="icnbtn">←</div><div class="ttl">คิวงาน</div><div class="icnbtn">🔔<i class="dotred"></i></div></div>
+        <div class="scroll">
+          <div class="stack">
+            <div class="card">
+              <div class="monthbar"><div class="navbtn">‹</div><div class="m">ส.ค. 2569</div><div class="todaybtn">วันนี้</div><div class="navbtn">›</div></div>
+              <div class="legend"><span><i></i>มีนัดแล้ว</span><span><i class="sq"></i>วันนี้</span></div>
+              <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+              <div class="grid">
+                <div class="cell other">26</div><div class="cell other">27</div><div class="cell other">28</div><div class="cell other">29</div><div class="cell other">30</div><div class="cell other">31</div><div class="cell">1</div>
+                <div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div><div class="cell">6</div><div class="cell">7</div><div class="cell">8</div>
+                <div class="cell">9</div><div class="cell">10</div><div class="cell today">11</div><div class="cell">12</div><div class="cell">13</div><div class="cell sel">14<i class="d"></i></div><div class="cell">15<i class="d"></i></div>
+                <div class="cell">16<i class="d"></i></div><div class="cell">17</div><div class="cell">18</div><div class="cell">19</div><div class="cell">20</div><div class="cell">21</div><div class="cell">22</div>
+                <div class="cell">23</div><div class="cell">24</div><div class="cell">25</div><div class="cell">26</div><div class="cell">27</div><div class="cell">28</div><div class="cell">29</div>
+                <div class="cell">30</div><div class="cell">31</div><div class="cell other">1</div><div class="cell other">2</div><div class="cell other">3</div><div class="cell other">4</div><div class="cell other">5</div>
+              </div>
+              <div class="daysec">
+                <div class="dayhead"><span class="dt">ศุกร์ 14 ส.ค. 2569</span><span class="cnt">ทั้งวันมี 3 นัด</span></div>
+                <div class="rows">
+                  <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">นายสิทธินันท์ สิงหนาท</div><div class="no">#DP256908B6496026</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                  <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">ชื่อ บี</div><div class="no">#DP256908F94012FD</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="gut l"></div><div class="gut r"></div>
+        <div class="pin" style="left:20px;top:100px">ขอบ 16px</div>
+        <!-- bottom nav เดิม -->
+        <div style="position:absolute;left:0;right:0;bottom:0;height:72px;background:#fff;border-top:1px solid var(--color-default-200);display:grid;grid-template-columns:repeat(5,1fr);align-items:center;z-index:20">
+          <div style="text-align:center;font-size:11px;color:var(--color-default-500)">🏠<div>หน้าหลัก</div></div>
+          <div style="text-align:center;font-size:11px;color:var(--color-default-500)">📋<div>บริการ</div></div>
+          <div style="text-align:center;position:relative"><div style="position:absolute;top:-30px;left:50%;transform:translateX(-50%);width:54px;height:54px;border-radius:99px;background:var(--color-primary);color:#fff;display:grid;place-items:center;font-size:26px;border:3px solid #fff">＋</div><div style="margin-top:30px;font-size:11px;color:var(--color-default-500)">สร้าง</div></div>
+          <div style="text-align:center;font-size:11px;color:var(--color-default-500)">💬<div>แชท</div></div>
+          <div style="text-align:center;font-size:11px;color:var(--color-default-500)">🏪<div>ร้านค้า</div></div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device">
+    <figcaption>หลัง — เต็มขอบจอ ไม่มีแถบล่าง <em>ปุ่มงานใหม่ติดล่างจอแทน</em></figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>15:42</span><span>5G ▮</span></div>
+        <div class="apphead"><div class="icnbtn">←</div><div class="ttl">คิวงาน</div><div class="icnbtn">🔔<i class="dotred"></i></div></div>
+        <div class="scroll">
+          <div class="stack">
+            <div class="card bleed">
+              <div class="monthbar"><div class="navbtn">‹</div><div class="m">ส.ค. 2569</div><div class="todaybtn">วันนี้</div><div class="navbtn">›</div></div>
+              <div class="legend"><span><i></i>มีนัดแล้ว</span><span><i class="sq"></i>วันนี้</span></div>
+              <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+              <div class="grid">
+                <div class="cell other">26</div><div class="cell other">27</div><div class="cell other">28</div><div class="cell other">29</div><div class="cell other">30</div><div class="cell other">31</div><div class="cell">1</div>
+                <div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div><div class="cell">6</div><div class="cell">7</div><div class="cell">8</div>
+                <div class="cell">9</div><div class="cell">10</div><div class="cell today">11</div><div class="cell">12</div><div class="cell">13</div><div class="cell sel">14<i class="d"></i></div><div class="cell">15<i class="d"></i></div>
+                <div class="cell">16<i class="d"></i></div><div class="cell">17</div><div class="cell">18</div><div class="cell">19</div><div class="cell">20</div><div class="cell">21</div><div class="cell">22</div>
+                <div class="cell">23</div><div class="cell">24</div><div class="cell">25</div><div class="cell">26</div><div class="cell">27</div><div class="cell">28</div><div class="cell">29</div>
+                <div class="cell">30</div><div class="cell">31</div><div class="cell other">1</div><div class="cell other">2</div><div class="cell other">3</div><div class="cell other">4</div><div class="cell other">5</div>
+              </div>
+              <div class="daysec">
+                <div class="dayhead"><span class="dt">ศุกร์ 14 ส.ค. 2569</span><span class="cnt">ทั้งวันมี 3 นัด</span></div>
+                <div class="rows">
+                  <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">นายสิทธินันท์ สิงหนาท</div><div class="no">#DP256908B6496026</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                  <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">ชื่อ บี</div><div class="no">#DP256908F94012FD</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                  <div class="row"><div class="t">13:00<small>– 14:00</small></div><div class="mid"><div class="nm">Jaraspong Pooreun</div><div class="no">#DP2569085FF1A848</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="edge l"><b>ชนขอบ</b></div><div class="edge r"><b>ชนขอบ</b></div>
+        <div class="actionbar">
+          <div class="inner"><div class="cta">＋ งานใหม่ · 14 ส.ค. 2569</div></div>
+          <span class="safelbl">safe-area</span>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <div class="side">
+    <h3>ต่างกันตรงไหน</h3>
+    <table class="kv">
+      <tr><th></th><th>ก่อน</th><th>หลัง</th></tr>
+      <tr><td>ขอบซ้าย-ขวา</td><td class="bad">16px</td><td class="good">0</td></tr>
+      <tr><td>ปฏิทินกว้าง</td><td>343px</td><td class="good">375px</td></tr>
+      <tr><td>ช่องวันกว้าง</td><td>~49px</td><td class="good">~51px</td></tr>
+      <tr><td>แถบล่าง</td><td class="bad">มี 72px</td><td class="good">ไม่มี</td></tr>
+      <tr><td>ปุ่มงานใหม่</td><td class="bad">ท้ายรายการ (ถูก FAB ทับ)</td><td class="good">ติดล่างจอ กดได้ตลอด</td></tr>
+      <tr><td>เห็นนัดครบ 3 ใบ</td><td class="bad">ต้องเลื่อน</td><td class="good">เห็นเลย</td></tr>
+    </table>
+    <h3 style="margin-top:16px">การ์ดยังเป็นการ์ดอยู่</h3>
+    <ul>
+      <li>มุมมน 4px + เงาบาง + พื้นขาว <b>ไม่เปลี่ยน</b> — แค่ลบระยะขอบซ้ายขวาออก</li>
+      <li>ยึดตาม <code>/orders</code> มือถือที่ทำแบบเดียวกัน (การ์ดชนขอบจอ แต่ยังเป็นการ์ด)
+        ไม่ได้แบนเป็นแผงเปล่า</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════ B. 320px ══════════ -->
+<div class="sec-title">B · โทรศัพท์ 320px (iPhone SE) <span>จอแคบที่สุดที่ต้องรอด</span></div>
+<div class="rack">
+  <figure class="device">
+    <figcaption>หลัง — 320px <em>ได้พื้นที่คืนเยอะที่สุด (16px จาก 320 = 5% ของจอ)</em></figcaption>
+    <div class="phone se">
+      <div class="screen">
+        <div class="statusbar"><span>15:42</span><span>5G</span></div>
+        <div class="apphead" style="height:46px"><div class="icnbtn">←</div><div class="ttl">คิวงาน</div><div class="icnbtn">🔔<i class="dotred"></i></div></div>
+        <div class="scroll" style="padding-bottom:70px">
+          <div class="stack" style="padding-top:12px">
+            <div class="card bleed">
+              <div class="monthbar" style="padding:10px 12px"><div class="navbtn">‹</div><div class="m" style="font-size:14px">ส.ค. 2569</div><div class="todaybtn">วันนี้</div><div class="navbtn">›</div></div>
+              <div class="legend" style="padding:0 12px 6px"><span><i></i>มีนัดแล้ว</span><span><i class="sq"></i>วันนี้</span></div>
+              <div class="dow" style="padding:0 6px"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+              <div class="grid" style="padding:0 6px 6px">
+                <div class="cell other">26</div><div class="cell other">27</div><div class="cell other">28</div><div class="cell other">29</div><div class="cell other">30</div><div class="cell other">31</div><div class="cell">1</div>
+                <div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div><div class="cell">6</div><div class="cell">7</div><div class="cell">8</div>
+                <div class="cell">9</div><div class="cell">10</div><div class="cell today">11</div><div class="cell">12</div><div class="cell">13</div><div class="cell sel">14<i class="d"></i></div><div class="cell">15<i class="d"></i></div>
+                <div class="cell">16<i class="d"></i></div><div class="cell">17</div><div class="cell">18</div><div class="cell">19</div><div class="cell">20</div><div class="cell">21</div><div class="cell">22</div>
+                <div class="cell">23</div><div class="cell">24</div><div class="cell">25</div><div class="cell">26</div><div class="cell">27</div><div class="cell">28</div><div class="cell">29</div>
+                <div class="cell">30</div><div class="cell">31</div><div class="cell other">1</div><div class="cell other">2</div><div class="cell other">3</div><div class="cell other">4</div><div class="cell other">5</div>
+              </div>
+              <div class="daysec" style="padding:10px 12px 12px">
+                <div class="dayhead"><span class="dt" style="font-size:13px">ศ. 14 ส.ค. 2569</span><span class="cnt">3 นัด</span></div>
+                <div class="rows">
+                  <div class="row" style="padding:9px 10px"><div class="t" style="width:50px;font-size:12px">10:00<small style="font-size:11px">– 11:00</small></div><div class="mid"><div class="nm" style="font-size:12px">นายสิทธินันท์ สิงหนาท</div><div class="no" style="font-size:10px">#DP256908B6496026</div></div><span class="badge" style="font-size:10px">นัดแล้ว</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="edge l" style="top:78px;bottom:70px"><b>ชนขอบ</b></div><div class="edge r" style="top:78px;bottom:70px"><b>ชนขอบ</b></div>
+        <div class="actionbar" style="padding:10px"><div class="inner"><div class="cta" style="font-size:13px">＋ งานใหม่ · 14 ส.ค.</div></div></div>
+      </div>
+    </div>
+  </figure>
+  <div class="side">
+    <h3>ที่ 320px ได้อะไรเพิ่ม</h3>
+    <ul>
+      <li>ช่องวันกว้างจาก ~42px → <b>~44px</b> — ตัวเลขวันหายใจขึ้นชัดเจนบนจอที่แคบที่สุด</li>
+      <li>ปุ่มยังสูง 44px ครบเกณฑ์การแตะ และเต็มความกว้างจอ กดพลาดยาก</li>
+      <li>ชื่อลูกค้ายาว ๆ ได้ที่เพิ่มอีก 16px ก่อนโดนตัดคำ</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════ C. แท็บเล็ต ══════════ -->
+<div class="sec-title">C · แท็บเล็ต 834px <span>🛑 หน้านี้ใช้จอเดียวกับมือถือจนถึง 1023px</span></div>
+<div class="rack">
+  <figure class="device">
+    <figcaption>แท็บเล็ต — การ์ดอยู่กลางจอ ไม่เต็มขอบ <em>(ส่วนบนของจอ)</em></figcaption>
+    <div class="phone tab">
+      <div class="screen">
+        <div class="statusbar"><span>15:42</span><span>Wi-Fi ▮</span></div>
+        <div class="apphead"><div class="icnbtn">←</div><div class="ttl">คิวงาน</div><div class="icnbtn">🔔<i class="dotred"></i></div></div>
+        <div class="scroll">
+          <div class="stack">
+            <div class="card bleed">
+              <div class="monthbar"><div class="navbtn">‹</div><div class="m">ส.ค. 2569</div><div class="todaybtn">วันนี้</div><div class="navbtn">›</div></div>
+              <div class="legend"><span><i></i>มีนัดแล้ว</span><span><i class="sq"></i>วันนี้</span></div>
+              <div class="dow"><span>อาทิตย์</span><span>จันทร์</span><span>อังคาร</span><span>พุธ</span><span>พฤหัส</span><span>ศุกร์</span><span>เสาร์</span></div>
+              <div class="grid">
+                <div class="cell other">26</div><div class="cell other">27</div><div class="cell other">28</div><div class="cell other">29</div><div class="cell other">30</div><div class="cell other">31</div><div class="cell">1</div>
+                <div class="cell">2</div><div class="cell">3</div><div class="cell">4</div><div class="cell">5</div><div class="cell">6</div><div class="cell">7</div><div class="cell">8</div>
+                <div class="cell">9</div><div class="cell">10</div><div class="cell today">11</div><div class="cell">12</div><div class="cell">13</div><div class="cell sel">14<i class="d"></i></div><div class="cell">15<i class="d"></i></div>
+                <div class="cell">16<i class="d"></i></div><div class="cell">17</div><div class="cell">18</div><div class="cell">19</div><div class="cell">20</div><div class="cell">21</div><div class="cell">22</div>
+                <div class="cell">23</div><div class="cell">24</div><div class="cell">25</div><div class="cell">26</div><div class="cell">27</div><div class="cell">28</div><div class="cell">29</div>
+                <div class="cell">30</div><div class="cell">31</div><div class="cell other">1</div><div class="cell other">2</div><div class="cell other">3</div><div class="cell other">4</div><div class="cell other">5</div>
+              </div>
+              <div class="daysec">
+                <div class="dayhead"><span class="dt">ศุกร์ 14 ส.ค. 2569</span><span class="cnt">ทั้งวันมี 3 นัด</span></div>
+                <div class="rows">
+                  <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">นายสิทธินันท์ สิงหนาท</div><div class="no">#DP256908B6496026</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="actionbar"><div class="inner"><div class="cta">＋ งานใหม่ · 14 ส.ค. 2569</div></div></div>
+      </div>
+    </div>
+  </figure>
+  <div class="side">
+    <h3>ทำไมแท็บเล็ตไม่เต็มขอบ</h3>
+    <ul>
+      <li>คลาสที่ใช้คือ <code>-mx-4 md:mx-auto md:max-w-2xl</code> — <b>เต็มขอบเฉพาะต่ำกว่า 768px</b>
+        ตั้งแต่ 768px ขึ้นไปการ์ดกลับมาอยู่กลางจอกว้าง 672px เหมือน <code>/orders</code> และ <code>/products</code></li>
+      <li>ถ้าปล่อยเต็มขอบบนแท็บเล็ต ปฏิทินจะกว้าง 834px ช่องวันกลายเป็น ~115px ต่อช่องเพื่อใส่เลขตัวเดียว
+        — กว้างจนสายตากวาดหาวันลำบาก</li>
+      <li><b>แถบล่างหายบนแท็บเล็ตด้วย</b> (ซ่อนตาม path ไม่ได้ซ่อนตามความกว้าง) และปุ่มในแถบถูกจำกัดกว้าง 672px
+        ให้ตรงแนวกับการ์ด ไม่ยืดเต็ม 834px</li>
+      <li>เดสก์ท็อป <b>ตั้งแต่ 1024px ขึ้นไปเป็นคนละหน้าจอกันเลย</b> (<code>AppointmentCalendar</code> ตารางเดือนเต็มที่มีชื่อผู้จองในช่องวัน)
+        รอบนี้ไม่แตะ</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════ D. แลกอะไรไป ══════════ -->
+<div class="sec-title">D · สิ่งที่แลกไปกับการเอาแถบล่างออก</div>
+<div class="rack">
+  <div class="flat">
+    <h3>3 อย่างที่หายไปด้วย</h3>
+    <ul style="margin-left:16px">
+      <li style="margin-bottom:8px"><b>ตัวเลขงานค้าง "บริการ 16"</b> — ระหว่างอยู่ในหน้าคิวงานจะไม่เห็น ต้องกด ← ออกก่อน</li>
+      <li style="margin-bottom:8px"><b>ตัวเลขข้อความใหม่ "แชท 4"</b> — เหมือนกัน</li>
+      <li style="margin-bottom:8px"><b>ทางลัดไปหน้าหลัก / ร้านค้า / แชท</b> — ต้องกด ← กลับก่อนทุกครั้ง</li>
+    </ul>
+    <p style="margin-top:10px">
+      ทั้ง 3 ข้อ<b>ไม่ใช่ของใหม่</b> — หน้า <code>/orders</code> และ <code>/products</code> แลกแบบนี้ไปแล้วตั้งแต่ตอนทำเต็มจอ
+      และปุ่ม <code>←</code> ที่หัวจอมีอยู่แล้วจริง (ยืนยันจากโค้ด: <code>/queues</code> ไม่อยู่ใน
+      <code>PRIMARY_TABS</code> ของ <code>SellerMobileHeader</code> จึงแสดงปุ่มย้อนกลับเสมอ)
+    </p>
+  </div>
+  <div class="flat" style="width:520px">
+    <h3>สิ่งที่จะแก้จริงถ้าอนุมัติ — 4 ไฟล์</h3>
+    <ul style="margin-left:16px">
+      <li style="margin-bottom:7px"><code>SellerBottomNav.tsx</code> — เติม <code>/queues</code> ในเงื่อนไข <code>return null</code> (ตรงตัวเท่านั้น)</li>
+      <li style="margin-bottom:7px"><code>AppointmentMonthBoard.tsx</code> — การ์ดได้ <code>queues-fullbleed -mx-4 md:mx-auto md:max-w-2xl</code> ·
+        ย้ายปุ่มออกมาเป็นแถบติดล่างจอ · เพิ่ม <code>fixedWeekCount={false}</code></li>
+      <li style="margin-bottom:7px"><code>ResourceList.tsx</code> — การ์ด "คิวงานที่รับได้" เต็มขอบด้วย (ไม่งั้นบนสุดชนขอบ ล่างสุดเว้นขอบ ดูขัดกันเอง)
+        ต้องมี <code>lg:mx-0 lg:max-w-none</code> เพราะไฟล์นี้ใช้ทั้งมือถือและเดสก์ท็อป</li>
+      <li><code>safepay-overrides.css:160-161</code> — เติม <code>.queues-fullbleed</code> เข้า <code>:has()</code> ทั้ง 2 บรรทัด</li>
+    </ul>
+    <p style="margin-top:10px">ไม่มี migration · ไม่แตะ API · ไม่แตะสีหรือฟอนต์ · เดสก์ท็อป (≥1024px) ไม่ถูกแตะเลย</p>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v3 — คิวงาน: เต็มขอบจอ + ไม่มีแถบล่าง + เห็นจำนวนคิว + แท็บเล็ตซ้ายขวา (2026-08-11)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* token จริงของสกิน Paces — ชุดเดียวกับ 2026-08-09-appointment-time-step-mockup.html */
+:root{
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px; --radius:4px; --shadow:0 1px 2px rgba(49,58,70,.075);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;color:var(--color-body-color);font-size:14px;line-height:1.5;padding:32px 20px 80px}
+.wrap{max-width:1700px;margin:0 auto}
+.page-head h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.page-head p{margin-top:6px;max-width:92ch}
+.page-head .meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;margin:22px 0 8px;border-left:3px solid var(--color-primary)}
+.note.bad{border-left-color:var(--color-danger)}
+.note.good{border-left-color:var(--color-success)}
+.note.warn{border-left-color:var(--color-warning)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}.note li{margin-bottom:6px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.sec-title{margin:46px 0 4px;font-size:19px;font-weight:600;color:var(--color-default-900);padding-bottom:8px;border-bottom:2px solid var(--color-default-300)}
+.sec-title span{font-size:13px;font-weight:400;color:var(--color-default-500);margin-left:8px}
+.rack{display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;margin-top:22px}
+.device{flex:0 0 auto}
+.device>figcaption{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:10px}
+.device>figcaption em{font-style:normal;font-weight:400;color:var(--color-default-500)}
+
+.phone{position:relative;width:393px;height:852px;background:var(--color-body-bg);border:10px solid #1c2430;border-radius:38px;overflow:hidden;box-shadow:0 18px 44px rgba(28,36,48,.28)}
+.phone.se{width:320px;height:568px;border-radius:30px}
+.phone.tab{width:834px;height:700px;border-radius:24px;border-width:12px}
+.screen{position:absolute;inset:0;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{height:44px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:13px;font-weight:600;color:var(--color-default-900)}
+.se .statusbar{height:24px;font-size:11px}.tab .statusbar{height:28px;font-size:12px}
+.apphead{height:50px;flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--color-card);border-bottom:1px solid var(--color-default-200)}
+.apphead .ttl{flex:1;text-align:center;font-weight:600;color:var(--color-default-900)}
+.icnbtn{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500);position:relative}
+.icnbtn .dotred{position:absolute;top:5px;right:6px;width:7px;height:7px;border-radius:99px;background:var(--color-danger)}
+.scroll{flex:1 1 auto;overflow:hidden;position:relative;padding:16px 16px 76px}
+.bleed{margin-left:-16px;margin-right:-16px}
+
+.card{background:var(--color-card);border:1px solid var(--color-default-200);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.monthbar{display:flex;align-items:center;gap:8px;padding:12px 16px}
+.monthbar .m{flex:1;text-align:center;font-weight:600;color:var(--color-default-900);font-size:15px}
+.navbtn{width:44px;height:44px;border-radius:8px;display:grid;place-items:center;color:var(--color-default-500);font-size:18px}
+.todaybtn{height:44px;padding:0 14px;border-radius:99px;border:1px solid var(--color-default-300);display:grid;place-items:center;font-size:13px;font-weight:500;color:var(--color-default-700)}
+.legend{display:flex;gap:14px;justify-content:center;padding:0 16px 8px;font-size:var(--text-2xs);color:var(--color-default-500)}
+.legend .sw{font-size:var(--text-2xs);font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums;margin-right:5px}
+.legend .swx{color:var(--color-danger-ink);font-weight:700;margin-right:5px}
+.legend i.sq{display:inline-block;width:9px;height:9px;border-radius:3px;background:transparent;border:1.5px solid var(--color-default-400);margin-right:5px;vertical-align:0}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px}
+.dow span{text-align:center;font-size:var(--text-2xs);font-weight:600;color:var(--color-default-400);padding:6px 0}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);padding:0 8px 8px}
+.cell{min-height:46px;margin:1px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:14px;color:var(--color-default-800);line-height:1.05}
+.cell .n{font-size:var(--text-2xs);font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.cell .n.zero{color:transparent}
+.cell.other{color:var(--color-default-400)}
+.cell.today{border:1px solid var(--color-default-400)}
+.cell.sel{background:var(--color-primary);color:#fff;font-weight:600}
+.cell.sel .n{color:#fff}
+.cell.full .x{color:var(--color-danger-ink);font-weight:700;font-size:15px}
+
+.daysec{background:var(--color-default-100);border-top:1px solid var(--color-default-200);padding:12px 16px 14px}
+.dayhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.dayhead .dt{font-weight:600;color:var(--color-default-900);font-size:14px}
+.dayhead .cnt{font-size:12px;color:var(--color-default-500)}
+.rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.row{background:var(--color-card);border:1px solid var(--color-default-200);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.row .t{width:56px;flex:0 0 auto;font-size:13px;font-weight:600;color:var(--color-default-900);line-height:1.25}
+.row .t small{display:block;font-weight:400;font-size:12px;color:var(--color-default-500)}
+.row .mid{flex:1;min-width:0}
+.row .nm{font-size:13px;font-weight:500;color:var(--color-default-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .no{font-size:11px;color:var(--color-default-400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:99px;background:rgba(249,191,89,.15);color:var(--color-warning-ink);white-space:nowrap}
+.chev{color:var(--color-default-400);font-size:14px}
+
+.actionbar{position:absolute;left:0;right:0;bottom:0;z-index:20;background:var(--color-card);border-top:1px solid var(--color-default-200);padding:12px;padding-bottom:calc(12px + 22px)}
+.se .actionbar{padding:10px;padding-bottom:calc(10px + 10px)}
+.actionbar .inner{max-width:672px;margin:0 auto}
+.cta{height:44px;border-radius:8px;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:600;font-size:14px}
+.cta.sm{height:38px;font-size:13px;padding:0 14px;width:auto;display:inline-flex}
+.edge{position:absolute;top:96px;bottom:76px;width:0;border-left:2px dashed var(--color-success);z-index:25}
+.edge.l{left:0}.edge.r{right:0}
+.edge b{position:absolute;top:6px;left:4px;font-size:9px;font-weight:600;color:var(--color-success-ink);background:#fff;padding:1px 4px;border-radius:3px;white-space:nowrap}
+.edge.r b{left:auto;right:4px}
+
+/* แท็บเล็ต 2 คอลัมน์ */
+.tab .scroll{padding:16px 16px 84px;overflow:hidden}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.two .right{background:var(--color-default-100);display:flex;flex-direction:column;border-left:1px solid var(--color-default-200)}
+.rhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--color-default-200)}
+.rhead .dt{font-weight:600;color:var(--color-default-900);font-size:14px}
+.rhead .cnt{font-size:12px;color:var(--color-default-500)}
+.rlist{padding:12px 16px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+
+/* zoom cells */
+.zoomrack{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px}
+.zc{width:132px}
+.zc .box{width:100px;height:92px;border-radius:12px;background:#fff;border:1px solid var(--color-default-200);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;margin-bottom:8px}
+.zc .box .dd{font-size:26px;color:var(--color-default-800);line-height:1}
+.zc .box .nn{font-size:15px;font-weight:600;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+.zc .box.today{border:2px solid var(--color-default-400)}
+.zc .box.sel{background:var(--color-primary);border-color:var(--color-primary)}
+.zc .box.sel .dd{color:#fff;font-weight:700}
+.zc .box.sel .nn{color:#fff}
+.zc .box.full .xx{font-size:28px;color:var(--color-danger-ink);font-weight:700;line-height:1}
+.zc .box.other .dd{color:var(--color-default-400);opacity:.55}
+.zc .cap{font-size:11px;color:var(--color-default-500);line-height:1.35}
+.zc .cap b{color:var(--color-default-900);display:block;font-size:12px}
+
+.side{width:300px;font-size:13px}
+.side h3{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.side ul{margin-left:16px}.side li{margin-bottom:7px}
+.kv{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;background:#fff;border-radius:8px;overflow:hidden}
+.kv th,.kv td{padding:7px 9px;border-bottom:1px solid var(--color-default-200);text-align:left}
+.kv th{background:var(--color-default-100);font-weight:600;color:var(--color-default-700)}
+.kv tr:last-child td{border-bottom:0}
+.kv .bad{color:var(--color-danger-ink);font-weight:600}
+.kv .good{color:var(--color-success-ink);font-weight:600}
+.flat{background:#fff;border:1px dashed var(--color-default-300);border-radius:12px;padding:20px;width:500px;font-size:13px}
+.flat h3{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.pending{background:#fff7e6;border:1px solid var(--color-warning);border-radius:8px;padding:10px 12px;font-size:12px;margin-top:12px}
+
+/* ═══ มติสุดท้าย 2026-08-11 (user เลือกเอง หลังกางเทียบ 8 แบบ) ═══════════════════
+   1. กลับไปใช้ "จุดกลม" ไม่ใช่ตัวเลข — ตัวเลขในทุกช่องทำให้ปฏิทินรกกว่าที่ได้กลับมา
+      จุดที่ใช้คือ bg-warning-ink 8px ซึ่งของจริงในโค้ดวัดได้ 8.94:1 อยู่แล้ว (ผ่าน non-text 3:1)
+   2. วันที่ไม่มีงาน "จางลง" เพื่อให้วันที่มีงานเด่นขึ้นเอง โดยไม่ต้องขยายอะไร
+      จาง = default-400 (#627189) = 4.96:1 บนพื้นขาว → ยังผ่านเกณฑ์ข้อความ 4.5:1
+      ห้ามใช้ opacity ต่ำ เพราะกดวันว่างเพื่อจองงานใหม่ยังเป็นงานปกติที่ต้องทำได้
+   3. ไม่มีแถว legend (user: "ไม่อยากให้มี")
+   ลำดับความเข้ม 3 ระดับ: มีงาน > วันว่างในเดือนนี้ > วันของเดือนอื่น
+   — ต้องมี 3 ระดับ ไม่ใช่ 2 ไม่งั้นขอบเขตของเดือนหายไปเลย */
+.legend{display:none}
+.cell .n{
+  font-size:0;width:8px;height:8px;border-radius:99px;
+  background:var(--color-warning-ink);
+}
+.cell .n.zero{background:transparent}
+.cell:has(.n:not(.zero)){color:var(--color-default-900);font-weight:700}
+.cell:has(.n.zero){color:var(--color-default-400);font-weight:400}
+.cell.other:has(.n){color:var(--color-default-300);opacity:1}
+.cell.today:has(.n){color:var(--color-default-800)}
+.cell.sel:has(.n){color:#fff;font-weight:700}
+.cell.sel .n{background:#fff}
+.cell.sel .n.zero{background:transparent}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="page-head">
+  <h1>คิวงาน v3 — รวมทุกอย่างที่เคาะแล้ว</h1>
+  <p>
+    เต็มขอบจอบนโทรศัพท์ · ไม่มีแถบล่าง · ปุ่มงานใหม่ติดล่างจอ · <b>เห็นจำนวนนัดในช่องปฏิทิน</b> ·
+    <b>แท็บเล็ตเป็นซ้ายขวา</b> — ข้อมูลชุดเดียวกับหน้าจอจริง (ศุกร์ 14 ส.ค. 2569 · 3 นัด · วันนี้คือ 11 · มีนัดวันที่ 14/15/16)
+  </p>
+  <p class="meta">2026-08-11 · v3 แทน v1/v2 · ร้านนี้ไม่ได้ตั้งความจุต่อวัน (หน้าจอจริงขึ้นว่า "ทั้งวันมี 3 นัด") ช่องปฏิทินจึงโชว์เลขตัวเดียว — ร้านที่ตั้งความจุจะเห็นเป็น 3/5 ดูหัวข้อ D</p>
+</div>
+
+<div class="note good">
+  <h2>ที่เปลี่ยนจาก v2 คือข้อ 3 กับ 4 — สองข้อแรกคือของเดิมที่คุณรับไปแล้ว</h2>
+  <ul>
+    <li>1. โทรศัพท์เต็มขอบจอ ไม่มีระยะขอบ 16px</li>
+    <li>2. เข้าหน้านี้แล้วแถบล่างหายทั้งแถบ ปุ่ม "งานใหม่" มาเป็นแถบติดล่างจอแทน</li>
+    <li>3. <b>วันที่ไม่มีงานจางลง</b> วันที่มีงานเข้มขึ้น — จุดกลมยังอยู่เหมือนเดิม (กางเทียบ 8 แบบแล้วเลือกทางนี้) · <b>ตัด legend ออก</b></li>
+    <li>4. <b>แท็บเล็ตแยกเป็นซ้ายขวา</b> ปฏิทินซ้าย รายการนัดขวา</li>
+  </ul>
+</div>
+
+<!-- ═══════ A. โทรศัพท์ ═══════ -->
+<div class="sec-title">A · โทรศัพท์ 393px <span>ทรงที่คุณอนุมัติแล้ว + ตัวเลขจำนวนนัด</span></div>
+<div class="rack">
+  <figure class="device">
+    <figcaption>หลัง — เต็มขอบจอ ไม่มีแถบล่าง เห็นจำนวนนัดในช่อง</figcaption>
+    <div class="phone">
+      <div class="screen">
+        <div class="statusbar"><span>15:42</span><span>5G ▮</span></div>
+        <div class="apphead"><div class="icnbtn">←</div><div class="ttl">คิวงาน</div><div class="icnbtn">🔔<i class="dotred"></i></div></div>
+        <div class="scroll">
+          <div class="card bleed">
+            <div class="monthbar"><div class="navbtn">‹</div><div class="m">ส.ค. 2569</div><div class="todaybtn">วันนี้</div><div class="navbtn">›</div></div>
+            <div class="legend"><span><span class="sw">3</span>จำนวนนัด</span><span><i class="sq"></i>วันนี้</span></div>
+            <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+            <div class="grid">
+              <div class="cell other">26<span class="n zero">0</span></div><div class="cell other">27<span class="n zero">0</span></div><div class="cell other">28<span class="n zero">0</span></div><div class="cell other">29<span class="n zero">0</span></div><div class="cell other">30<span class="n zero">0</span></div><div class="cell other">31<span class="n zero">0</span></div><div class="cell">1<span class="n zero">0</span></div>
+              <div class="cell">2<span class="n zero">0</span></div><div class="cell">3<span class="n zero">0</span></div><div class="cell">4<span class="n zero">0</span></div><div class="cell">5<span class="n zero">0</span></div><div class="cell">6<span class="n zero">0</span></div><div class="cell">7<span class="n zero">0</span></div><div class="cell">8<span class="n zero">0</span></div>
+              <div class="cell">9<span class="n zero">0</span></div><div class="cell">10<span class="n zero">0</span></div><div class="cell today">11<span class="n zero">0</span></div><div class="cell">12<span class="n zero">0</span></div><div class="cell">13<span class="n zero">0</span></div><div class="cell sel">14<span class="n">3</span></div><div class="cell">15<span class="n">1</span></div>
+              <div class="cell">16<span class="n">2</span></div><div class="cell">17<span class="n zero">0</span></div><div class="cell">18<span class="n zero">0</span></div><div class="cell">19<span class="n zero">0</span></div><div class="cell">20<span class="n zero">0</span></div><div class="cell">21<span class="n zero">0</span></div><div class="cell">22<span class="n zero">0</span></div>
+              <div class="cell">23<span class="n zero">0</span></div><div class="cell">24<span class="n zero">0</span></div><div class="cell">25<span class="n zero">0</span></div><div class="cell">26<span class="n zero">0</span></div><div class="cell">27<span class="n zero">0</span></div><div class="cell">28<span class="n zero">0</span></div><div class="cell">29<span class="n zero">0</span></div>
+              <div class="cell">30<span class="n zero">0</span></div><div class="cell">31<span class="n zero">0</span></div><div class="cell other">1<span class="n zero">0</span></div><div class="cell other">2<span class="n zero">0</span></div><div class="cell other">3<span class="n zero">0</span></div><div class="cell other">4<span class="n zero">0</span></div><div class="cell other">5<span class="n zero">0</span></div>
+            </div>
+            <div class="daysec">
+              <div class="dayhead"><span class="dt">ศุกร์ 14 ส.ค. 2569</span><span class="cnt">ทั้งวันมี 3 นัด</span></div>
+              <div class="rows">
+                <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">นายสิทธินันท์ สิงหนาท</div><div class="no">#DP256908B6496026</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">ชื่อ บี</div><div class="no">#DP256908F94012FD</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                <div class="row"><div class="t">13:00<small>– 14:00</small></div><div class="mid"><div class="nm">Jaraspong Pooreun</div><div class="no">#DP2569085FF1A848</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="edge l"><b>ชนขอบ</b></div><div class="edge r"><b>ชนขอบ</b></div>
+        <div class="actionbar"><div class="inner"><div class="cta">＋ งานใหม่ · 14 ส.ค. 2569</div></div></div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device">
+    <figcaption>320px (iPhone SE) <em>เลขจำนวนยังอ่านออกในช่อง ~44px</em></figcaption>
+    <div class="phone se">
+      <div class="screen">
+        <div class="statusbar"><span>15:42</span><span>5G</span></div>
+        <div class="apphead" style="height:46px"><div class="icnbtn">←</div><div class="ttl">คิวงาน</div><div class="icnbtn">🔔<i class="dotred"></i></div></div>
+        <div class="scroll" style="padding:12px 16px 66px">
+          <div class="card bleed">
+            <div class="monthbar" style="padding:10px 12px"><div class="navbtn">‹</div><div class="m" style="font-size:14px">ส.ค. 2569</div><div class="todaybtn">วันนี้</div><div class="navbtn">›</div></div>
+            <div class="legend" style="padding:0 12px 6px"><span><span class="sw">3</span>จำนวนนัด</span><span><i class="sq"></i>วันนี้</span></div>
+            <div class="dow" style="padding:0 6px"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+            <div class="grid" style="padding:0 6px 6px">
+              <div class="cell other">26<span class="n zero">0</span></div><div class="cell other">27<span class="n zero">0</span></div><div class="cell other">28<span class="n zero">0</span></div><div class="cell other">29<span class="n zero">0</span></div><div class="cell other">30<span class="n zero">0</span></div><div class="cell other">31<span class="n zero">0</span></div><div class="cell">1<span class="n zero">0</span></div>
+              <div class="cell">2<span class="n zero">0</span></div><div class="cell">3<span class="n zero">0</span></div><div class="cell">4<span class="n zero">0</span></div><div class="cell">5<span class="n zero">0</span></div><div class="cell">6<span class="n zero">0</span></div><div class="cell">7<span class="n zero">0</span></div><div class="cell">8<span class="n zero">0</span></div>
+              <div class="cell">9<span class="n zero">0</span></div><div class="cell">10<span class="n zero">0</span></div><div class="cell today">11<span class="n zero">0</span></div><div class="cell">12<span class="n zero">0</span></div><div class="cell">13<span class="n zero">0</span></div><div class="cell sel">14<span class="n">3</span></div><div class="cell">15<span class="n">1</span></div>
+              <div class="cell">16<span class="n">2</span></div><div class="cell">17<span class="n zero">0</span></div><div class="cell">18<span class="n zero">0</span></div><div class="cell">19<span class="n zero">0</span></div><div class="cell">20<span class="n zero">0</span></div><div class="cell">21<span class="n zero">0</span></div><div class="cell">22<span class="n zero">0</span></div>
+              <div class="cell">23<span class="n zero">0</span></div><div class="cell">24<span class="n zero">0</span></div><div class="cell">25<span class="n zero">0</span></div><div class="cell">26<span class="n zero">0</span></div><div class="cell">27<span class="n zero">0</span></div><div class="cell">28<span class="n zero">0</span></div><div class="cell">29<span class="n zero">0</span></div>
+              <div class="cell">30<span class="n zero">0</span></div><div class="cell">31<span class="n zero">0</span></div><div class="cell other">1<span class="n zero">0</span></div><div class="cell other">2<span class="n zero">0</span></div><div class="cell other">3<span class="n zero">0</span></div><div class="cell other">4<span class="n zero">0</span></div><div class="cell other">5<span class="n zero">0</span></div>
+            </div>
+            <div class="daysec" style="padding:10px 12px 12px">
+              <div class="dayhead"><span class="dt" style="font-size:13px">ศ. 14 ส.ค. 2569</span><span class="cnt">3 นัด</span></div>
+              <div class="rows">
+                <div class="row" style="padding:9px 10px"><div class="t" style="width:50px;font-size:12px">10:00<small style="font-size:11px">– 11:00</small></div><div class="mid"><div class="nm" style="font-size:12px">นายสิทธินันท์ สิงหนาท</div><div class="no" style="font-size:10px">#DP256908B6496026</div></div><span class="badge" style="font-size:10px">นัดแล้ว</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="edge l" style="top:78px;bottom:64px"><b>ชนขอบ</b></div><div class="edge r" style="top:78px;bottom:64px"><b>ชนขอบ</b></div>
+        <div class="actionbar"><div class="inner"><div class="cta" style="font-size:13px">＋ งานใหม่ · 14 ส.ค.</div></div></div>
+      </div>
+    </div>
+  </figure>
+
+  <div class="side">
+    <h3>ลดเสียงของช่องว่าง แทนที่จะเพิ่มเสียงให้ตัวเลข</h3>
+    <ul>
+      <li>ต้นเหตุที่กวาดตาแล้วไม่เจอ ไม่ใช่ "จุดเล็กไป" แต่คือ <b>28 ช่องที่ไม่มีงานดังเท่ากับ 3 ช่องที่มีงาน</b></li>
+      <li>พอวันว่างจางลง วันที่มีงานก็เด่นขึ้นเองโดยไม่ต้องขยาย/เติมอะไรลงไปในช่องเลย</li>
+      <li><b>ความเข้ม 3 ระดับ ไม่ใช่ 2</b> — มีงาน / ว่างในเดือนนี้ / เดือนอื่น ถ้าเหลือ 2 ระดับ
+        ขอบเขตของเดือนจะหายไปเพราะวันว่างกับวันเดือนอื่นจะดูเหมือนกัน</li>
+    </ul>
+    <h3 style="margin-top:16px">ตัวเลขที่ต้องผ่าน</h3>
+    <table class="kv">
+      <tr><th></th><th>ค่าที่วัดได้</th><th>เกณฑ์</th></tr>
+      <tr><td>จุด (warning-ink 8px)</td><td class="good">8.94:1</td><td>3:1 (กราฟิก)</td></tr>
+      <tr><td>วันว่างที่จางลง</td><td class="good">4.96:1</td><td>4.5:1 (ข้อความ)</td></tr>
+      <tr><td>วันที่มีงาน</td><td class="good">12.6:1</td><td>4.5:1 (ข้อความ)</td></tr>
+    </table>
+    <p style="margin-top:8px;font-size:12px">
+      "จาง" ต้องเป็น <b>สีเทาของธีม ไม่ใช่ opacity ต่ำ ๆ</b> — เพราะการกดวันว่างเพื่อจองงานใหม่
+      ยังเป็นงานปกติที่ต้องทำได้ ถ้าจางจนอ่านเลขวันไม่ออกก็จองไม่ถูกวัน
+    </p>
+  </div>
+</div>
+
+<!-- ═══════ B. แท็บเล็ต ═══════ -->
+<div class="sec-title">B · แท็บเล็ต 834px — ซ้ายขวา <span>ตามที่สั่ง</span></div>
+<div class="rack">
+  <figure class="device">
+    <figcaption>แท็บเล็ต — ปฏิทินซ้าย รายการนัดขวา <em>เห็นนัดครบทุกใบโดยไม่ต้องเลื่อน</em></figcaption>
+    <div class="phone tab">
+      <div class="screen">
+        <div class="statusbar"><span>15:42</span><span>Wi-Fi ▮</span></div>
+        <div class="apphead"><div class="icnbtn">←</div><div class="ttl">คิวงาน</div><div class="icnbtn">🔔<i class="dotred"></i></div></div>
+        <div class="scroll">
+          <div class="card two">
+            <div class="left">
+              <div class="monthbar"><div class="navbtn">‹</div><div class="m">ส.ค. 2569</div><div class="todaybtn">วันนี้</div><div class="navbtn">›</div></div>
+              <div class="legend"><span><span class="sw">3</span>จำนวนนัด</span><span><i class="sq"></i>วันนี้</span></div>
+              <div class="dow"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+              <div class="grid">
+                <div class="cell other">26<span class="n zero">0</span></div><div class="cell other">27<span class="n zero">0</span></div><div class="cell other">28<span class="n zero">0</span></div><div class="cell other">29<span class="n zero">0</span></div><div class="cell other">30<span class="n zero">0</span></div><div class="cell other">31<span class="n zero">0</span></div><div class="cell">1<span class="n zero">0</span></div>
+                <div class="cell">2<span class="n zero">0</span></div><div class="cell">3<span class="n zero">0</span></div><div class="cell">4<span class="n zero">0</span></div><div class="cell">5<span class="n zero">0</span></div><div class="cell">6<span class="n zero">0</span></div><div class="cell">7<span class="n zero">0</span></div><div class="cell">8<span class="n zero">0</span></div>
+                <div class="cell">9<span class="n zero">0</span></div><div class="cell">10<span class="n zero">0</span></div><div class="cell today">11<span class="n zero">0</span></div><div class="cell">12<span class="n zero">0</span></div><div class="cell">13<span class="n zero">0</span></div><div class="cell sel">14<span class="n">3</span></div><div class="cell">15<span class="n">1</span></div>
+                <div class="cell">16<span class="n">2</span></div><div class="cell">17<span class="n zero">0</span></div><div class="cell">18<span class="n zero">0</span></div><div class="cell">19<span class="n zero">0</span></div><div class="cell">20<span class="n zero">0</span></div><div class="cell">21<span class="n zero">0</span></div><div class="cell">22<span class="n zero">0</span></div>
+                <div class="cell">23<span class="n zero">0</span></div><div class="cell">24<span class="n zero">0</span></div><div class="cell">25<span class="n zero">0</span></div><div class="cell">26<span class="n zero">0</span></div><div class="cell">27<span class="n zero">0</span></div><div class="cell">28<span class="n zero">0</span></div><div class="cell">29<span class="n zero">0</span></div>
+                <div class="cell">30<span class="n zero">0</span></div><div class="cell">31<span class="n zero">0</span></div><div class="cell other">1<span class="n zero">0</span></div><div class="cell other">2<span class="n zero">0</span></div><div class="cell other">3<span class="n zero">0</span></div><div class="cell other">4<span class="n zero">0</span></div><div class="cell other">5<span class="n zero">0</span></div>
+              </div>
+            </div>
+            <div class="right">
+              <div class="rhead">
+                <div><div class="dt">ศุกร์ 14 ส.ค. 2569</div><div class="cnt">ทั้งวันมี 3 นัด</div></div>
+              </div>
+              <div class="rlist">
+                <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">นายสิทธินันท์ สิงหนาท</div><div class="no">#DP256908B6496026</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                <div class="row"><div class="t">10:00<small>– 11:00</small></div><div class="mid"><div class="nm">ชื่อ บี</div><div class="no">#DP256908F94012FD</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+                <div class="row"><div class="t">13:00<small>– 14:00</small></div><div class="mid"><div class="nm">Jaraspong Pooreun</div><div class="no">#DP2569085FF1A848</div></div><span class="badge">นัดแล้ว</span><span class="chev">›</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="actionbar" style="padding:12px 16px"><div class="inner" style="max-width:none"><div class="cta">＋ งานใหม่ · 14 ส.ค. 2569</div></div></div>
+      </div>
+    </div>
+  </figure>
+
+  <div class="side">
+    <h3>เลขที่กางแล้ว</h3>
+    <table class="kv">
+      <tr><th>จอ</th><th>ครึ่งซ้าย</th><th>ช่องวัน</th></tr>
+      <tr><td>768px (แคบสุด)</td><td>360px</td><td class="good">~49px</td></tr>
+      <tr><td>834px</td><td>393px</td><td class="good">~54px</td></tr>
+      <tr><td>1023px (กว้างสุด)</td><td>487px</td><td class="good">~67px</td></tr>
+      <tr><td>โทรศัพท์ 393px</td><td>—</td><td>~54px</td></tr>
+    </table>
+    <p style="margin-top:8px;font-size:12px">
+      ครึ่งซ้ายที่ 768px (จอแคบสุดของช่วงนี้) ให้ช่องวัน ~49px <b>ต่างจากโทรศัพท์แค่ ~5px</b>
+      แปลว่าแบ่งครึ่งเท่ากันใช้ได้ทั้งช่วง 768–1023 ไม่ต้องขยับเส้นเริ่มไป 900
+      · เทียบกับถ้าแบ่ง 40/60 จะเหลือ <b>~39px</b> ซึ่งแคบกว่าโทรศัพท์ชัดเจน = บีบที่ของตัวเลขจำนวนนัดที่เพิ่งทำ
+    </p>
+    <h3 style="margin-top:16px">ตัดสินใจไว้แบบนี้</h3>
+    <ul>
+      <li><b>ปุ่มงานใหม่ยังเป็นแถบล่างจอเหมือนโทรศัพท์</b> — ตอนแรกผมจะย้ายไปหัวคอลัมน์ขวา แต่ ux ค้านว่า
+        คุณเพิ่งชมแถบนี้ไป การย้ายที่ตอนหมุนจอ/สลับเครื่องจะทำให้ต้องจำตำแหน่งใหม่โดยไม่ได้อะไรกลับมา
+        ผมเห็นด้วยเลยคงไว้ · ขอบซ้ายขวาของปุ่มตรงแนวกับกริดด้านบนพอดี</li>
+      <li><b>ปฏิทินฝั่งซ้ายค้างอยู่กับที่</b> เวลารายการขวายาว (วันที่มี 20 นัด) — เลื่อนทั้งหน้าไม่ทำกล่องเลื่อนซ้อนกล่องเลื่อน
+        (เคยมีบั๊กแผงดรอปดาวน์โดนกล่องเลื่อนตัด จึงเลี่ยงไม่สร้างกล่องใหม่)</li>
+      <li><b>ขอบซ้ายขวาเหลือ 16px เท่ากับโทรศัพท์</b> ไม่บีบการ์ดให้แคบลงมาอยู่กลางจออีก (เดิม 672px เหลือขอบข้างละ ~80px)</li>
+      <li>ตั้งแต่ <b>1024px ขึ้นไปเป็นคนละหน้าจอ</b> (ตารางเดือนเต็มที่มีชื่อผู้จองในช่อง) รอบนี้ไม่แตะ</li>
+    </ul>
+    <div class="pending">
+      จุดที่อยากให้ดู: ระหว่างปฏิทินกับแผงเทาฝั่งขวามีช่องไฟ 16px คั่นตามสเปก ถ้าดูแล้วรู้สึกว่า
+      แถบขาวตรงนั้นเกินมา บอกได้ — ตัดช่องไฟออกให้เหลือแค่เส้นแบ่งก็ได้
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ C. ช่องวันซูม ═══════ -->
+<div class="sec-title">C · ช่องวันทุกสถานะ (ซูม) <span>ความเข้ม 3 ระดับ</span></div>
+<div class="zoomrack">
+  <div class="zc"><div class="box"><span class="dd" style="color:var(--color-default-900);font-weight:700">14</span><span class="nn" style="width:9px;height:9px;border-radius:99px;background:var(--color-warning-ink);font-size:0"></span></div><span class="cap"><b>มีงาน</b>เข้มหนา + จุด</span></div>
+  <div class="zc"><div class="box"><span class="dd" style="color:var(--color-default-400);font-weight:400">17</span></div><span class="cap"><b>ว่าง (เดือนนี้)</b>จางลง แต่ยังกดจองได้ 4.96:1</span></div>
+  <div class="zc"><div class="box other"><span class="dd">31</span></div><span class="cap"><b>เดือนอื่น</b>จางที่สุด — ขอบเขตเดือนยังอ่านออก</span></div>
+  <div class="zc"><div class="box today"><span class="dd">11</span></div><span class="cap"><b>วันนี้</b>ไม่จางตามวันว่าง (กรอบเป็นตัวบอก)</span></div>
+  <div class="zc"><div class="box sel"><span class="dd">14</span><span class="nn" style="width:9px;height:9px;border-radius:99px;background:#fff;font-size:0"></span></div><span class="cap"><b>วันที่เลือก + มีงาน</b>จุดขาวบนน้ำเงิน</span></div>
+  <div class="zc"><div class="box full"><span class="xx">✕</span></div><span class="cap"><b>เต็ม</b>เฉพาะร้านที่ตั้งความจุ (ของเดิม ไม่แตะ)</span></div>
+</div>
+
+<div class="note warn" style="margin-top:26px">
+  <h2>สิ่งที่แลกไปกับการเลือกจุดแทนตัวเลข</h2>
+  <ul>
+    <li><b>ยังไม่รู้ว่าวันนั้นมีกี่คิว ต้องจิ้มเข้าไปดู</b> — จุดบอกได้แค่ "วันนี้มีงาน" เหมือนเดิม
+      สิ่งที่ดีขึ้นคือ <b>หาวันที่มีงานเจอเร็วขึ้น</b> เพราะวันว่างถอยไปข้างหลังแล้ว (คุณเลือกทางนี้เองหลังเห็นทั้ง 8 แบบ — บันทึกไว้เฉย ๆ ไม่ได้ค้าน)</li>
+    <li><b>ถ้าวันไหนอยากได้ตัวเลขกลับมา</b> ทำได้ทีหลังโดยไม่ต้องรื้ออะไร — สลับ span เดียวในไฟล์เดิม</li>
+    <li><b>ร้านที่ตั้งความจุต่อวัน</b> ยังเห็นกากบาทในวันที่เต็มเหมือนเดิม ซึ่งเดิม legend เป็นคนอธิบาย
+      พอตัด legend แล้วต้องอาศัยว่ากากบาทอ่านออกเอง — ร้านคุณไม่ได้ตั้งความจุจึงไม่เจอกรณีนี้</li>
+  </ul>
+</div>
+
+<div class="note good">
+  <h2>ไฟล์ที่จะแก้จริง — 4 ไฟล์ ไม่มี migration ไม่แตะ API</h2>
+  <ul>
+    <li><code>SellerBottomNav.tsx</code> — เติม <code>/queues</code> ในลิสต์ที่ซ่อนแถบล่าง</li>
+    <li><code>AppointmentDayCell.tsx</code> — เปลี่ยนจุดเป็นตัวเลข (ข้อมูลจำนวน+ความจุถูกส่งเข้ามาอยู่แล้ว)</li>
+    <li><code>AppointmentMonthBoard.tsx</code> — เต็มขอบจอ · แถบปุ่มล่างจอ · แท็บเล็ต 2 คอลัมน์ · legend ใหม่ · ไม่เติมแถวปฏิทินที่ว่าง</li>
+    <li><code>ResourceList.tsx</code> + <code>safepay-overrides.css</code> — เต็มขอบจอให้การ์ด "คิวงานที่รับได้" ด้วย</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>

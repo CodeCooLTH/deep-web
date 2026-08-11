@@ -157,8 +157,13 @@ html[data-text-scale="xl"] {
   /* เฉพาะ /orders, /products (full-bleed): ตัด top margin 20px ของ .wrapper + ซ่อน footer
      scope ด้วย :has(.orders-fullbleed, .products-fullbleed) marker จาก OrdersList/ProductsListing
      → ไม่กระทบหน้าอื่น (เดิมใช้ margin:0 global ทำให้หน้าอื่นเพี้ยน — user รายงาน 2026-06-15) */
-  .seller-mobile-shell:has(.orders-fullbleed, .products-fullbleed) { margin-top: 0 !important; }
-  .seller-mobile-shell:has(.orders-fullbleed, .products-fullbleed) footer { display: none !important; }
+  .seller-mobile-shell:has(.orders-fullbleed, .products-fullbleed, .queues-fullbleed) { margin-top: 0 !important; }
+  .seller-mobile-shell:has(.orders-fullbleed, .products-fullbleed, .queues-fullbleed) footer { display: none !important; }
+  /* หมายเหตุ /queues: หน้านี้ซ่อน SellerBottomNav แล้วเอาพื้นที่ไปทำ sticky action bar ของตัวเอง
+     ไม่ต้องเพิ่ม padding-bottom ให้ — บาร์สูง 12+44+12+1 = 69px ขณะที่ 5.5rem ให้ 88px
+     (safe-area บวกเท่ากันทั้งสองฝั่งจึงหักล้างกัน) เหลือช่องหายใจ 19px พอดี
+     🛑 อย่าเผลอเพิ่มเป็น 6.5rem ตามสัญชาตญาณ "บาร์สูงกว่า nav" — มันจะกลายเป็นช่องว่างท้ายจอ
+     เกินมา ~35px แทน (เคยเกือบพลาดตอน implement 2026-08-11) */
   /* พื้นหลัง = Paces body-bg token (ให้การ์ดขาวเด้ง) แทน hardcode hex เดิม */
   .seller-mobile-shell .page-content { background: var(--color-body-bg); }
 }
