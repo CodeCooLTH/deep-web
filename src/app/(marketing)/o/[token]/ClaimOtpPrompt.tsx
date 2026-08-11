@@ -18,6 +18,7 @@
  */
 import { useState, type FormEvent } from 'react'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import Button from '@mui/material/Button'
@@ -110,8 +111,15 @@ export default function ClaimOtpPrompt({ token, phone, maskedPhone }: Props) {
       <AuthIllustrationWrapper>
         <Card className='flex flex-col sm:is-[450px]'>
           <CardContent className='sm:!p-12'>
+            {/* 🛑 ตราแบรนด์ต้องเป็นลิงก์ ไม่ใช่รูปเฉย ๆ — `Logo.tsx` ไม่มี `href` ในตัวเอง
+                จอนี้ไม่มีทางออกไปหน้าอื่นเลยนอกจากตรงนี้ (ไม่มีปุ่ม ไม่มีเมนู มีแต่ช่อง OTP)
+                ก่อนหน้านี้พึ่ง header ของ `FrontLayout` ที่ถูกถอดออกในคอมมิตเดียวกันนี้
+                ⇒ ถ้าไม่ทำพร้อมกัน ผู้ซื้อที่มาถึงจอนี้แล้วไม่อยากกรอก OTP จะติดตายทั้งจอ
+                ซึ่งคือบั๊กเดิมที่ layout ตัวนั้นถูกสร้างมาแก้พอดี (FR-019) */}
             <div className='flex justify-center mbe-6'>
-              <Logo />
+              <Link href='/' aria-label='กลับหน้าแรก' className='inline-flex'>
+                <Logo />
+              </Link>
             </div>
             <div className='flex flex-col gap-1 mbe-6 text-center'>
               <Typography variant='h4'>ยืนยันตัวตนเพื่อเข้าถึงออเดอร์นี้</Typography>

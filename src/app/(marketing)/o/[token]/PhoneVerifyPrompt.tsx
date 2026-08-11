@@ -21,6 +21,7 @@
  */
 import { useState, type FormEvent } from 'react'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import Alert from '@mui/material/Alert'
@@ -187,8 +188,13 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
       <AuthIllustrationWrapper>
         <Card className='flex flex-col sm:is-[450px]'>
           <CardContent className='sm:!p-12'>
+            {/* 🛑 ตราแบรนด์ต้องเป็นลิงก์ — เหตุผลเดียวกับ `ClaimOtpPrompt.tsx` เป๊ะ:
+                จอนี้ไม่มีทางออกอื่นเลย และ header ของ `FrontLayout` ที่เคยเป็นทางออกถูกถอด
+                ออกในคอมมิตเดียวกันนี้ (`Logo.tsx` ไม่มี `href` ในตัว) */}
             <div className='flex justify-center mbe-6'>
-              <Logo />
+              <Link href='/' aria-label='กลับหน้าแรก' className='inline-flex'>
+                <Logo />
+              </Link>
             </div>
             <div className='flex flex-col gap-1 mbe-6 text-center'>
               <Typography variant='h4'>ยืนยันเบอร์ที่ใช้สั่งซื้อ</Typography>

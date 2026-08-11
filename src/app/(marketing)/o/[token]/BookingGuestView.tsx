@@ -24,6 +24,7 @@ import Divider from '@mui/material/Divider'
 import { Icon } from '@iconify/react'
 import { formatDateTH } from '@/lib/format-date'
 import { uploadFileId } from '@/lib/upload-client'
+import BrandHomeLink from './BrandHomeLink'
 
 export type BookingGuestData = {
   token: string
@@ -80,6 +81,13 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
 
   return (
     <Box sx={{ maxWidth: 640, mx: 'auto', px: { xs: 2, sm: 3 }, py: 3 }}>
+      {/* 🛑 ทางออกเดียวของจอนี้ — จอใบจองไม่มีลิงก์ออกไปไหนเลยแม้แต่จุดเดียว และเคยพึ่ง
+          header ของ `FrontLayout` ที่ถูกถอดออกในคอมมิตเดียวกันนี้ (จอนี้ไม่อยู่ในตาราง
+          ตรวจของสเปกซึ่งไล่แค่ 3 จอ auth — เจอตอนไล่ทุกไฟล์ที่อยู่ใต้ layout เดิม) */}
+      <Box sx={{ display: 'flex', mb: 1, ml: '-10px' }}>
+        <BrandHomeLink />
+      </Box>
+
       {/* ── สถานะ ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, mb: 2 }}>
         <Typography variant='h5' sx={{ fontWeight: 600 }}>
