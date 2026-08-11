@@ -161,7 +161,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                     {order.shipmentTracking.trackingNo}
                   </Typography>
                 </Box>
-                <ParcelTimeline stage={stage} />
+                <ParcelTimeline stage={stage} hasShipment={!!order.shipmentTracking} />
               </CardContent>
             </Card>
           )}
@@ -291,7 +291,11 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           borderTop: '1px solid',
           borderColor: 'divider',
           px: 2,
-          py: 1.5,
+          pt: 1.5,
+          // 🛑 (marketing)/layout.tsx ตั้ง viewportFit:'cover' แล้ว env() จึงคืนค่าจริงบนเส้นทางนี้
+          // แถบ fixed ของจอที่ล็อกอินแล้วใส่ไว้ถูก แต่แถบนี้ (จอแรกที่ผู้ซื้อทุกคนเจอ) ไม่มีเลย
+          // ⇒ บน iPhone ที่มีแถบ home indicator ปุ่มหลักไปนอนอยู่ใต้แถบนั้น
+          pb: 'calc(12px + max(0px, env(safe-area-inset-bottom)))',
           zIndex: 10,
         }}
       >

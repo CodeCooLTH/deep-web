@@ -52,6 +52,8 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
+import { uploadFileId } from '@/lib/upload-client'
+import { uploadMaxSize } from '@/lib/upload-policy'
 import { ProfileBanner } from '@/views/pages/user-profile/UserProfileHeader'
 
 import ReviewForm from './ReviewForm'
@@ -364,6 +366,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   const [editingReview, setEditingReview] = useState(false)
   const [deletingReview, setDeletingReview] = useState(false)
   const [deleteReviewDialogOpen, setDeleteReviewDialogOpen] = useState(false)
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
 
   /**
    * ลบรีวิว — เป็น soft delete ที่ฝั่ง server (แถวยังอยู่เพื่อกันการเขียนใหม่)
@@ -478,26 +481,36 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
     }
   }
 
+  /**
+   * เพดานสลิป — อ่านจากตัวเดียวกับที่ `/api/uploads/commit` บังคับจริง
+   *
+   * 🛑 เดิมมีเลข 3 ชุดที่ไม่ตรงกันสักชุด: จอเขียน "≤ 10MB" · client ตัดที่ 5MB · และเส้นทาง
+   * จริงเป็น multipart ผ่าน body ของ API route ซึ่ง Vercel ตอบ 413 ที่ **4.5MB** ก่อนถึงโค้ดเรา
+   * ด้วย body ที่ไม่ใช่ JSON ⇒ `res.json()` พัง ตกไปข้อความ "แนบสลิปไม่สำเร็จ" ซึ่งเชิญให้ผู้ใช้
+   * กดวนสิ่งที่ไม่มีวันสำเร็จ — ตอนที่เขากำลังพยายามพิสูจน์ว่าโอนเงินไปแล้ว
+   * (`docs/conventions/upload-body-size-limit.md`)
+   */
+  const SLIP_MAX_MB = Math.floor(uploadMaxSize('DOCUMENT') / (1024 * 1024))
+
   // ── S-8/S-9: slip upload handler ──
   // feature 00015 TD-004: ไม่ต้องส่ง contact อีกต่อไป — server ยืนยันด้วย session+ownership
   const handleSlipUpload = async (file: File) => {
-    // client-side guard — ≤5MB ก่อน upload เพื่อ UX ดี (server ก็ตรวจอีกชั้น)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('ไฟล์ใหญ่เกิน 5MB กรุณาเลือกไฟล์ขนาดเล็กลง')
-      return
-    }
     setUploadingSlip(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
+      // direct upload: ticket → PUT เข้า storage ตรง → commit
+      // ห้ามกลับไปส่งไฟล์ผ่าน body ของ API route (ตัน 4.5MB — ดู SLIP_MAX_MB ข้างบน)
+      // ข้อความ error ที่ uploadFileId โยนมาเป็นภาษาไทยพร้อมโชว์ และบอกขนาดจริงที่เกิน
+      const fileId = await uploadFileId(file, 'DOCUMENT')
 
       const res = await fetch(`/api/orders/${order.publicToken}/slip`, {
         method: 'POST',
-        body: fd,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId }),
       })
 
       if (!res.ok) {
-        toast.error('แนบสลิปไม่สำเร็จ')
+        const err = (await res.json().catch(() => null)) as { error?: string } | null
+        toast.error(err?.error || 'แนบสลิปไม่สำเร็จ')
         return
       }
 
@@ -507,9 +520,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
       setSlipPreview(URL.createObjectURL(file))
       setSlipName(file.name)
       toast.success('แนบสลิปแล้ว')
-    } catch {
-      // network error / res.json() พัง → ต้องมี feedback (review must-fix)
-      toast.error('แนบสลิปไม่สำเร็จ กรุณาลองอีกครั้ง')
+    } catch (err) {
+      // uploadFileId โยน Error ที่มีข้อความไทยบอกสาเหตุจริง (ไฟล์ใหญ่เกิน/ชนิดไม่รองรับ)
+      // ใช้ก่อนข้อความกลางเสมอ — "ลองอีกครั้ง" กับไฟล์ที่ใหญ่เกินคือคำเชิญให้ทำสิ่งที่ไม่มีวันสำเร็จ
+      toast.error(err instanceof Error ? err.message : 'แนบสลิปไม่สำเร็จ กรุณาลองอีกครั้ง')
     } finally {
       setUploadingSlip(false)
       // reset ค่า input เพื่อให้เลือกไฟล์เดิมได้อีกครั้ง (onChange จะไม่ fire ถ้า value ไม่เปลี่ยน)
@@ -822,7 +836,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
                       อัปโหลดสลิปการโอนเงิน
                     </Typography>
                     <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mt: 0.25 }}>
-                      ไฟล์ภาพหรือ PDF ≤ 10MB
+                      ไฟล์ภาพหรือ PDF ≤ {SLIP_MAX_MB}MB
                     </Typography>
 
                     <Button
@@ -1181,7 +1195,18 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             }}
           >
             {/* Primary CTA — D2: contained primary แทน ink #0F172A */}
-            <Button fullWidth variant='contained' color='primary' disabled={submitting} onClick={handleConfirm}>
+            {/* 🛑 เปิด dialog ก่อน ไม่ยิง handleConfirm ตรง ๆ
+                การกดนี้ทำให้ออเดอร์เป็น CONFIRMED ถาวร ป้อนเข้า Trust Score และ **ซ่อนปุ่มแจ้งปัญหาทิ้ง**
+                (เงื่อนไขที่บรรทัด ~1086) ซึ่งเป็นทางออกเดียวของผู้ซื้อที่ยังไม่ได้ของ
+                — ก่อน 00041 ยังไม่มีปุ่มแจ้งปัญหาให้เสีย ตอนนี้มีแล้ว เดิมพันจึงสูงขึ้นจริง
+                ขณะที่ "ยกเลิกคำสั่งซื้อ" ที่อยู่ห่างลงไป 5 บรรทัดกลับมี dialog มาตลอด */}
+            <Button
+              fullWidth
+              variant='contained'
+              color='primary'
+              disabled={submitting}
+              onClick={() => setConfirmDialogOpen(true)}
+            >
               {ctaLabel}
             </Button>
 
@@ -1205,6 +1230,44 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
           สิ่งที่มันทำจริง: dispute คือ "ติดธงเตือนว่าคำสั่งซื้อนี้มีปัญหา" ซึ่งไม่ได้ยกเลิก
           ไม่ได้คืนเงิน ไม่ได้ลบอะไรเลย (Order.status ไม่เปลี่ยนด้วยซ้ำ — BR-BOE-15)
           ถ้าใช้แดงเท่ากับปุ่มยกเลิก ผู้ใช้จะลังเลที่จะกดสิ่งที่ควรกดได้อย่างสบายใจ ── */}
+      {/* ── ยืนยันรับของ ── ไม่ใช่ error tone: การยืนยันคือเรื่องดี ไม่ใช่การทำลาย
+          แต่ต้องบอกให้ครบว่ามันย้อนไม่ได้และแลกอะไรไป (ผู้ใช้กลุ่มนี้กลัวโดนโกงอยู่แล้ว
+          การไม่บอกไม่ได้ทำให้เขาสบายใจขึ้น มันแค่ทำให้เขารู้ตอนที่สายไปแล้ว) ── */}
+      <Dialog
+        fullWidth
+        maxWidth='xs'
+        open={confirmDialogOpen}
+        onClose={() => !submitting && setConfirmDialogOpen(false)}
+        closeAfterTransition={false}
+        aria-labelledby='confirm-dialog-title'
+      >
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', pt: 5, pb: 2, px: 4 }}>
+          <Icon icon='tabler-circle-check' style={{ fontSize: '3.5rem', marginBottom: '1rem', color: 'var(--mui-palette-success-main)' }} />
+          <Typography id='confirm-dialog-title' variant='h5' sx={{ mb: 1 }}>
+            ยืนยันว่าได้รับสินค้าแล้ว?
+          </Typography>
+          <Typography color='text.secondary' sx={{ fontSize: '0.875rem' }}>
+            ยืนยันแล้วจะแจ้งปัญหากับคำสั่งซื้อนี้ไม่ได้อีก — ถ้ายังไม่ได้รับของ อย่าเพิ่งกดยืนยัน
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 5, px: 4, gap: 1.5 }}>
+          <Button variant='tonal' color='secondary' onClick={() => setConfirmDialogOpen(false)} disabled={submitting}>
+            ยังไม่ยืนยัน
+          </Button>
+          <Button
+            variant='contained'
+            color='success'
+            disabled={submitting}
+            onClick={() => {
+              setConfirmDialogOpen(false)
+              void handleConfirm()
+            }}
+          >
+            {submitting ? 'กำลังยืนยัน...' : 'ได้รับแล้ว'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog
         fullWidth
         maxWidth='xs'

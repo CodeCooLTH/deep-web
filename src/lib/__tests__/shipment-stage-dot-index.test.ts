@@ -1,0 +1,103 @@
+/**
+ * [blocker] แถบพัสดุของผู้ซื้อกับของผู้ขายต้องชี้จุดเดียวกันเสมอ — feature 00041 (BR-BOE-12)
+ *
+ * ที่มา: `ParcelTimeline.tsx` (ฝั่งผู้ซื้อ) เคยไล่หา stage ในรายชื่อ key ของตัวเอง
+ * (`PARCEL_CREATED`/`LABEL_PRINTED`/`DELIVERED`) ซึ่งเป็นค่าของ `OrderStageKey` คนละชุดกับ
+ * `ShippingStageKey` ที่ `deriveShippingStage()` คืนมาจริง — ตัดกันแค่ `SHIPPING` ค่าเดียว
+ * ⇒ พัสดุที่ส่งถึงแล้วไฮไลต์ "สร้างพัสดุ" · จุด "จัดส่งสำเร็จ" ไม่มีทางติด · แถบเตือน
+ * "พัสดุมีปัญหา" ไม่เคยขึ้นเลยตั้งแต่วันแรก
+ *
+ * 🛑 ไม่มี gate ไหนจับได้เลย เพราะ prop ประกาศเป็น `stage: string` — ค่าที่ไม่มีในรายชื่อ
+ * ตกไปที่ `idx === -1 → 0` อย่างเงียบ ๆ ซึ่งเป็นค่าที่ "ดูสมเหตุสมผล" บนหน้าจอ
+ *
+ * 🛑 แดง = ห้าม merge
+ */
+
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { describe, it, expect } from 'vitest'
+
+import { SHIPMENT_STAGES } from '../iship/status'
+import { SHIPMENT_STAGE_DOT_INDEX, type ShippingStageKey } from '../order-stage'
+
+const ALL_STAGES: ShippingStageKey[] = [
+  'AWAITING_PARCEL',
+  'AWAITING_PICKUP',
+  'SHIPPING',
+  'AWAITING_COD',
+  'PROBLEM',
+  'DONE',
+]
+
+describe('SHIPMENT_STAGE_DOT_INDEX', () => {
+  it('ครอบทุกค่าของ ShippingStageKey', () => {
+    for (const stage of ALL_STAGES) {
+      expect(SHIPMENT_STAGE_DOT_INDEX).toHaveProperty(stage)
+    }
+    expect(Object.keys(SHIPMENT_STAGE_DOT_INDEX).sort()).toEqual([...ALL_STAGES].sort())
+  })
+
+  // พัสดุที่ถึงมือแล้วต้องอยู่ "เลยจุดสุดท้าย" ⇒ ทุกจุดเขียว ไม่มีจุดไหนเป็นปัจจุบัน
+  // เดิมเคสนี้ตกไปจุด 0 ("สร้างพัสดุ") ซึ่งเป็นอาการที่ผู้ซื้อเห็นจริง
+  it('DONE และ AWAITING_COD = จบเส้นทาง (เลย index สุดท้ายของแถบ)', () => {
+    expect(SHIPMENT_STAGE_DOT_INDEX.DONE).toBe(SHIPMENT_STAGES.length)
+    expect(SHIPMENT_STAGE_DOT_INDEX.AWAITING_COD).toBe(SHIPMENT_STAGES.length)
+  })
+
+  it('ยังไม่มีพัสดุ = null (ไม่ใช่ 0 — 0 แปลว่า "สร้างพัสดุแล้ว")', () => {
+    expect(SHIPMENT_STAGE_DOT_INDEX.AWAITING_PARCEL).toBeNull()
+  })
+
+  it('PROBLEM ปักจุดเดียวกับ SHIPPING (ไม่มีจุดแยกของ "มีปัญหา" ในแถบ 4 จุด)', () => {
+    expect(SHIPMENT_STAGE_DOT_INDEX.PROBLEM).toBe(SHIPMENT_STAGE_DOT_INDEX.SHIPPING)
+  })
+
+  it('ทุกค่าที่ไม่ใช่ null อยู่ในช่วง 0..length (length = จบเส้นทาง)', () => {
+    for (const stage of ALL_STAGES) {
+      const v = SHIPMENT_STAGE_DOT_INDEX[stage]
+      if (v == null) continue
+      expect(v).toBeGreaterThanOrEqual(0)
+      expect(v).toBeLessThanOrEqual(SHIPMENT_STAGES.length)
+    }
+  })
+})
+
+describe('parity ระหว่างจอผู้ซื้อกับจอผู้ขาย', () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+
+  const BUYER = 'src/app/(marketing)/o/[token]/ParcelTimeline.tsx'
+  const SELLER = 'src/app/(paces)/seller/(dashboard)/orders/components/MiniShipmentTimeline.tsx'
+
+  it('ทั้งสองจออ่านจากตารางเดียวกัน ไม่มีใครถือตารางของตัวเอง', () => {
+    for (const p of [BUYER, SELLER]) {
+      expect(read(p)).toContain('SHIPMENT_STAGE_DOT_INDEX')
+    }
+  })
+
+  // ป้ายขั้นต้องมาจาก SHIPMENT_STAGES ไม่ใช่ literal ที่ก็อปไว้ในไฟล์
+  // (คำเดียวกันสองที่ = เลื่อนออกจากกันได้เงียบ ๆ — HR16)
+  it('ป้าย 4 ขั้นมาจาก SHIPMENT_STAGES ทั้งสองจอ', () => {
+    for (const p of [BUYER, SELLER]) {
+      expect(read(p)).toContain('SHIPMENT_STAGES')
+    }
+    // ฝั่งผู้ซื้อเคยฝังรายชื่อขั้นของตัวเองไว้ — ห้ามกลับมา
+    expect(read(BUYER)).not.toMatch(/PARCEL_STEPS\s*=/)
+  })
+
+  // prop ที่เป็น `string` คือเหตุผลที่ tsc มองไม่เห็นบั๊กเดิม
+  //
+  // 🛑 ต้องตัดคอมเมนต์ก่อนตรวจ — หัวไฟล์ที่ถูกตรวจ *อธิบายบั๊กเดิมด้วยตัวอักษร* `stage: string`
+  // เช็คแบบ substring ตรง ๆ จะแดงตลอดกาลทั้งที่โค้ดถูกแล้ว (บทเรียนเดียวกับ grep gate ของ HR9:
+  // ไฟล์ที่ทำถูกกฎมักเป็นไฟล์ที่อ้างชื่อกฎไว้บนหัว)
+  it('prop stage ของฝั่งผู้ซื้อพิมพ์เป็น ShippingStageKey ไม่ใช่ string', () => {
+    const src = read(BUYER)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('//'))
+      .join('\n')
+
+    expect(src).toMatch(/stage:\s*ShippingStageKey/)
+    expect(src).not.toMatch(/stage:\s*string/)
+  })
+})

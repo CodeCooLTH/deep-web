@@ -16,20 +16,9 @@ import Icon from '@/components/wrappers/Icon'
 import HoverPanel from './HoverPanel'
 import { cn } from '@/utils/helpers'
 import { SHIPMENT_STAGES } from '@/lib/iship/status'
-import type { ShippingStageKey } from '@/lib/order-stage'
-
-/**
- * จุดปัจจุบันต่อ stage — 4 = จบเส้นทาง (ทุกจุดเขียว), null = ยังไม่มีพัสดุให้วาด
- * PROBLEM ปักที่จุดรถ (2) ด้วยสี danger — ไม่มีจุดแยกของ "มีปัญหา" ในแถบ 4 จุด
- */
-const CURRENT_INDEX: Record<ShippingStageKey, number | null> = {
-  AWAITING_PARCEL: null,
-  AWAITING_PICKUP: 0,
-  SHIPPING: 2,
-  PROBLEM: 2,
-  AWAITING_COD: 4,
-  DONE: 4,
-}
+// ตารางจุดไฮไลต์ย้ายไปเป็น SSOT ที่ order-stage.ts แล้ว — ฝั่งผู้ซื้อ (ParcelTimeline) เคยเขียน
+// ตรรกะของตัวเองขึ้นมาใหม่แล้วแมปผิดทั้งชุด สองจอต้องอ่านจากตารางเดียวกันเท่านั้น
+import { SHIPMENT_STAGE_DOT_INDEX, type ShippingStageKey } from '@/lib/order-stage'
 
 interface Props {
   stage: ShippingStageKey | undefined
@@ -47,7 +36,7 @@ interface Props {
 }
 
 export default function MiniShipmentTimeline({ stage, hasShipment, cancelled, plain }: Props) {
-  const cur = stage != null ? CURRENT_INDEX[stage] : null
+  const cur = stage != null ? SHIPMENT_STAGE_DOT_INDEX[stage] : null
   if (cur == null || !hasShipment || cancelled) {
     return <span className="text-default-400 text-sm">—</span>
   }

@@ -96,7 +96,7 @@ export default function ReviewForm({ token, mode = 'create', initial, onCancel }
         toast.error(data?.error || (mode === 'edit' ? 'แก้ไขรีวิวไม่สำเร็จ' : 'ส่งรีวิวไม่สำเร็จ'))
         return
       }
-      toast.success(mode === 'edit' ? 'แก้ไขรีวิวแล้ว' : 'ขอบคุณสำหรับรีวิว')
+      toast.success(mode === 'edit' ? 'แก้ไขรีวิวแล้ว' : 'ขอบคุณสำหรับรีวิว · แก้ไขได้ภายใน 24 ชม.')
       onCancel?.()
       // invalidate RSC cache ให้ server re-render การ์ดรีวิวใหม่โดยไม่ต้อง full reload
       router.refresh()
@@ -209,6 +209,15 @@ export default function ReviewForm({ token, mode = 'create', initial, onCancel }
           {loading ? 'กำลังบันทึก…' : mode === 'edit' ? 'บันทึกการแก้ไข' : 'ส่งรีวิว'}
         </Button>
       </Box>
+
+      {/* 🛑 ประกาศหน้าต่างแก้ไข "ตรงจุดที่ตัดสินใจ" ไม่ใช่รอให้ไปเจอในการ์ดหลังโพสต์
+          ตัวนับถอยหลังที่มีอยู่แสดงเฉพาะในการ์ดรีวิวที่โพสต์แล้ว = บอกเฉพาะคนที่รู้อยู่แล้ว
+          คนที่เขียนรีวิวเสร็จแล้วปิดแท็บไปจะไม่มีทางรู้ว่าเคยมีหน้าต่างนี้อยู่ */}
+      {mode === 'create' && (
+        <Typography variant='caption' color='text.secondary' sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
+          แก้ไขหรือลบรีวิวได้ภายใน 24 ชั่วโมงหลังส่ง
+        </Typography>
+      )}
     </form>
   )
 }

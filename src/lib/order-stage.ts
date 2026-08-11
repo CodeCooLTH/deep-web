@@ -104,6 +104,29 @@ export type ShippingStageKey =
   /** จบแล้ว/ไม่ใช่งานค้าง — ไม่นับบนไทล์ และไม่ขึ้นในตัวกรอง */
   | 'DONE'
 
+/**
+ * จุดที่ไฮไลต์บนแถบพัสดุ 4 จุด (`SHIPMENT_STAGES`) ต่อ stage หนึ่งค่า
+ *
+ * `null` = ยังไม่มีพัสดุให้วาดแถบ · `4` = เลยจุดสุดท้ายไปแล้ว ⇒ ทุกจุดเขียวและไม่มีจุดไหน
+ * เป็น "ปัจจุบัน" (แถบมี 4 จุด index 0–3 เท่านั้น ค่า 4 จึงแปลว่าจบเส้นทาง ไม่ใช่ index ที่ 5)
+ * `PROBLEM` ปักที่จุดรถ (2) แล้วให้ผู้เรียกเปลี่ยนสีเอง — ไม่มีจุดแยกของ "มีปัญหา" ในแถบนี้
+ *
+ * 🛑 ตารางนี้เคยอยู่ใน `MiniShipmentTimeline.tsx` ฝั่งร้านที่เดียว แล้วฝั่งผู้ซื้อ
+ * (`ParcelTimeline.tsx`) เขียนตรรกะของตัวเองขึ้นมาใหม่โดยไล่หา key คนละชุด
+ * (`PARCEL_CREATED`/`LABEL_PRINTED`/`DELIVERED` ซึ่งเป็นค่าของ `OrderStageKey` ไม่ใช่ของนี่)
+ * ⇒ ตัดกันแค่ `SHIPPING` ค่าเดียว: พัสดุที่ส่งถึงแล้วโชว์ "สร้างพัสดุ" และแถบเตือน
+ * "พัสดุมีปัญหา" ไม่เคยขึ้นเลยสักครั้ง — `tsc` มองไม่เห็นเพราะ prop ตรงนั้นประกาศเป็น `string`
+ * ทั้งสองจอต้องอ่านจากตารางนี้เท่านั้น และ prop ต้องพิมพ์เป็น `ShippingStageKey`
+ */
+export const SHIPMENT_STAGE_DOT_INDEX: Record<ShippingStageKey, number | null> = {
+  AWAITING_PARCEL: null,
+  AWAITING_PICKUP: 0,
+  SHIPPING: 2,
+  PROBLEM: 2,
+  AWAITING_COD: 4,
+  DONE: 4,
+}
+
 export interface ShippingStageInput {
   status: string
   /** carrierStatus ของพัสดุใบล่าสุดที่ยัง active (status='CREATED', ไม่ใช่ dry-run) */
