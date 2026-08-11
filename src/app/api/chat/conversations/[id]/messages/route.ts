@@ -284,12 +284,37 @@ export async function GET(
               OR: [{ externalMessageId: { in: replyMids } }, { id: { in: replyMids } }],
             },
             // rawMessage: ต้องอ่านมาด้วยเพื่อคำนวณ quotable ของ "ข้อความที่ถูกอ้างถึง" (isQuotable ด้านบน)
-            select: { id: true, externalMessageId: true, body: true, type: true, senderRole: true, rawMessage: true },
+            // imageUrl: fileId ของสื่อ — ใช้วาดรูปย่อใน quote (ดู entry.imageUrl ด้านล่าง)
+            select: {
+              id: true,
+              externalMessageId: true,
+              body: true,
+              type: true,
+              senderRole: true,
+              rawMessage: true,
+              imageUrl: true,
+            },
           })
         : [];
     const repliedMap = new Map<
       string,
-      { body: string | null; senderRole: "BUYER" | "SHOP"; quotable: boolean }
+      {
+        /**
+         * id ภายในของข้อความที่ถูกอ้างถึง — UI ใช้เป็นจุดหมายของ "แตะ quote แล้วเลื่อนไปหา"
+         * (`[data-message-id]` ในเธรด). ต้องเป็น id ไม่ใช่ externalMessageId เพราะฝั่ง DEEP
+         * ไม่มี mid เลย และ DOM ผูกกับ id เสมอทุกช่องทาง
+         */
+        id: string;
+        body: string | null;
+        senderRole: "BUYER" | "SHOP";
+        quotable: boolean;
+        /**
+         * fileId ของรูปที่ถูกอ้างถึง (null เมื่อไม่ใช่ข้อความรูป) — ให้ UI วาดรูปย่อแทนคำว่า
+         * "[รูปภาพ]" ซึ่งบอกไม่ได้ว่าหมายถึงรูปใบไหนในเธรดที่มีรูปติดกันหลายใบ
+         * (user report 2026-08-11 เทียบกับ Messenger ที่แสดงรูปย่อ)
+         */
+        imageUrl: string | null;
+      }
     >();
     for (const r of repliedRows) {
       // ข้อความสื่อ/การ์ด (body=null) → แสดง label แทนช่องว่างใน quote
@@ -304,9 +329,13 @@ export async function GET(
           PRODUCT: "[สินค้า]",
         }[r.type] ?? null);
       const entry = {
+        id: r.id,
         body: label,
         senderRole: r.senderRole as "BUYER" | "SHOP",
         quotable: isQuotable(r.rawMessage),
+        // เฉพาะ IMAGE — VIDEO/FILE ไม่มีภาพนิ่งให้ย่อ (ยังใช้ label เดิม) ส่วน imageUrl ของชนิดอื่น
+        // เป็น fileId ของไฟล์ที่เอาไปวาดเป็นรูปไม่ได้ ส่งไปก็ได้แต่กรอบรูปแตก
+        imageUrl: r.type === "IMAGE" ? r.imageUrl : null,
       };
       if (r.externalMessageId) repliedMap.set(r.externalMessageId, entry);
       repliedMap.set(r.id, entry);

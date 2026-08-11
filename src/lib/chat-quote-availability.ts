@@ -35,3 +35,19 @@ export function shouldWarnQuoteUnavailable(input: {
 }): boolean {
   return input.channel === 'LINE' && input.carrierIsShop === true && input.quotable === false
 }
+
+/**
+ * id ของข้อความที่กล่อง quote ควร "กระโดดไปหา" เมื่อผู้ขายแตะ — `null` = กล่องนี้กดไม่ได้
+ * (user report 2026-08-11: กล่อง quote เป็น <div> เฉย ๆ กดไปหาข้อความต้นทางไม่ได้เลย)
+ *
+ * 🛑 อยู่ที่นี่ไม่ใช่ในเทอร์นารีกลาง JSX เพราะถ้าเขียนกลับด้าน ผลคือ **ปุ่มไม่ทำงานเลยทุกกรณี**
+ * ซึ่งผ่าน tsc/build/detector/grep ครบทุกด่าน (ชนิดถูกทุกประการ ที่ผิดคือความหมาย) —
+ * docs/conventions/ui-boolean-needs-a-testable-home.md
+ *
+ * `local-…` = บับเบิล optimistic ที่ client สร้างเองก่อน POST กลับมา ยังไม่มีแถวจริงใน DOM ให้
+ * กระโดดไปหา — เงื่อนไขเดียวกับที่ฝั่งส่งใช้ตัดสินว่าจะแนบ `replyToMessageId` ไปกับ request ไหม
+ */
+export function quoteJumpTargetId(quoteId: string | null | undefined): string | null {
+  if (!quoteId) return null
+  return quoteId.startsWith('local-') ? null : quoteId
+}

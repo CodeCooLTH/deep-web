@@ -112,7 +112,7 @@ import {
   type ChatMessageView,
 } from '@/app/(paces)/seller/(dashboard)/_shared/useSellerChatThread'
 import { attachmentDisplayName, formatAttachmentSize } from '@/lib/chat-attachment'
-import { shouldWarnQuoteUnavailable } from '@/lib/chat-quote-availability'
+import { shouldWarnQuoteUnavailable, quoteJumpTargetId } from '@/lib/chat-quote-availability'
 import { useLongPress } from '@/hooks/useLongPress'
 import MessageActionBubble, { type MessageAction, type MessageReactionOption } from './MessageActionBubble'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
@@ -1314,6 +1314,38 @@ export default function ChatThread({
     // beepEnabled=false — หน้า inbox มี InboxList เป็นเจ้าของเสียงเตือนแล้ว (กันเสียงเบิ้ล 2 ครั้ง)
   } = useSellerChatThread(conversationId, shopId, false)
 
+  // ── แตะกล่อง quote แล้วเลื่อนไปหาข้อความต้นทาง (user report 2026-08-11) ──────────────
+  //
+  // เดิมกล่อง quote เป็น <div> เฉย ๆ กดไม่ได้เลย — ในเธรดที่ลูกค้าส่งรูปติดกันหลายใบ ข้อความว่า
+  // "[รูปภาพ]" ชี้ไม่ได้ว่าใบไหน และไม่มีทางย้อนไปดูนอกจากเลื่อนหาเอง
+  //
+  // 🛑 หาเป้าจาก DOM ไม่ใช่จากอาร์เรย์ `messages` — รูปที่ส่งติดกันถูกยุบเป็น "อัลบั้ม" ใบเดียวซึ่ง
+  // ผูก `data-message-id` ไว้กับรูปใบแรกของกลุ่มเท่านั้น (ดูบล็อกอัลบั้มในไฟล์นี้) การหาจาก index
+  // ในอาร์เรย์จึงได้ id ที่ไม่มี element จริงรองรับสำหรับรูปใบที่ 2 เป็นต้นไป
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current) }, [])
+
+  function jumpToMessage(targetId: string) {
+    const target = scrollRef.current?.querySelector(`[data-message-id="${CSS.escape(targetId)}"]`)
+    if (!target) {
+      // เธรดโหลดทีละหน้า (load-older ผ่าน sentinel บนสุด) — ข้อความเก่ากว่าหน้าที่โหลดไว้ยังไม่มีใน DOM
+      // บอกตรง ๆ ดีกว่าเงียบ ไม่งั้นผู้ขายกดแล้วไม่เกิดอะไรและสรุปว่าปุ่มเสีย
+      pacesToast.chat.info('ข้อความที่อ้างถึงยังไม่ได้โหลด — เลื่อนขึ้นด้านบนเพื่อโหลดข้อความเก่าก่อน')
+      return
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // ไฮไลต์ชั่วคราว: เลื่อนไปเฉย ๆ ไม่พอ ผู้ใช้ต้องรู้ว่า "ใบไหน" คือใบที่ถูกอ้างถึง
+    setHighlightedId(targetId)
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+    highlightTimerRef.current = setTimeout(() => setHighlightedId(null), 1800)
+  }
+
+  /** วงแหวนไฮไลต์ชั่วคราวบนบับเบิลปลายทาง — ใช้ร่วมทั้งบับเบิลปกติและอัลบั้มรูป (ผูกกับ id เดียวกับ
+   *  ที่ `data-message-id` ใช้ ไม่งั้นกระโดดถูกใบแต่ไฮไลต์ไปโผล่คนละใบ) */
+  const highlightClass = (id: string) =>
+    highlightedId === id ? 'ring-primary rounded-lg ring-2' : ''
+
   //
   // (S-14b) รีเฟรชค่าจาก server หลังส่งสำเร็จ — เฉพาะเธรด LINE
   //
@@ -2341,7 +2373,7 @@ export default function ChatThread({
                           />
                         </div>
                       )}
-                      <div data-message-bubble className="min-w-0">
+                      <div data-message-bubble className={`min-w-0 ${highlightClass(ms[0].id)}`}>
                         <PhotoAlbum ms={ms} onOpen={(id) => setLightboxIndex(slideIndexByMessageId.get(id) ?? -1)} />
                         {/* ชิปรีแอ็กชันของก้อน (ผูกกับ ms[0] ตามที่ Meta เก็บ) */}
                         {ms[0].reactionEmoji && (
@@ -2644,7 +2676,10 @@ export default function ChatThread({
                     {/* data-message-bubble: จุดที่ MessageActionBubble โคลนไปลอยเหนือฉากเบลอตอน
                         กดค้าง — ต้องอยู่ที่คอลัมน์นี้ (ไม่ใช่แถวด้านนอกที่กว้างเต็มบรรทัด) เพราะ
                         ที่ผู้ใช้ "เพ่ง" คือเนื้อข้อความ + quote + ป้ายระบบตอบ ไม่ใช่ avatar/ปุ่ม hover */}
-                    <div data-message-bubble className="relative min-w-0 max-w-96 break-words">
+                    <div
+                      data-message-bubble
+                      className={`relative min-w-0 max-w-96 break-words ${highlightClass(m.id)}`}
+                    >
                       {mExt.autoReplyKind && (
                         <AutoReplyTag isTest={mExt.autoReplyKind === 'AUTO_TEST'} trace={m.autoReply ?? null} />
                       )}
@@ -2652,27 +2687,71 @@ export default function ChatThread({
                           quote คนละก้อนกับข้อความตอบ (user report 2026-07-25: ดูยาก) */}
                       {mExt.replyTo && (
                         <div className={`mb-1 flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                          <div className="border-default-300 bg-default-100/70 max-w-full rounded-lg border-s-2 px-2.5 py-1">
-                            <p className="text-default-700 mb-0 text-2xs font-medium">
-                              ตอบกลับ{mExt.replyTo.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
-                            </p>
-                            <p className="text-default-700 mb-0 line-clamp-2 text-xs opacity-90">
-                              {mExt.replyTo.body ?? '[สื่อ/ไฟล์แนบ]'}
-                            </p>
-                            {/* bugfix 2026-08-10 — quotable=false: ข้อความเป้าหมายไม่มี quoteToken (ข้อความ
-                                เก่าก่อนระบบเก็บ token/สื่อที่ LINE ไม่คืน token ให้) จึงถอยไปส่งแบบไม่อ้างอิง
-                                (ส่งได้ตามปกติ ไม่ใช่ error) — เดิมถอยเงียบสนิท ผู้ขายเห็นกล่อง quote นี้แล้ว
-                                เข้าใจว่าลูกค้าเห็นแบบเดียวกัน ทั้งที่ในแอป LINE มาเป็นข้อความธรรมดา
-                                Base: theme/paces .../ChatPage.tsx:72-74 (icon+text meta line, text-xs) —
-                                ตัดสินด้วย shouldWarnQuoteUnavailable (lib/chat-quote-availability.ts) ไม่ใช่
-                                เทอร์นารีตรงนี้ (docs/conventions/ui-boolean-needs-a-testable-home.md) */}
-                            {shouldWarnQuoteUnavailable({ channel, quotable: mExt.replyTo.quotable, carrierIsShop: mine }) && (
-                              <p className="text-default-500 mb-0 mt-1 flex items-center gap-1 text-xs">
-                                <Icon icon="info-circle" className="text-xs" aria-hidden="true" />
-                                ลูกค้าไม่เห็นว่าข้อความนี้ตอบข้อความไหน
-                              </p>
-                            )}
-                          </div>
+                          {/* กดได้เมื่อรู้ปลายทาง (`id`) — quote ของข้อความเก่าก่อนระบบเก็บ id หรือบับเบิล
+                              optimistic ที่ปลายทางยังเป็น local id จะไม่มี affordance ให้กด แทนที่จะมี
+                              ปุ่มที่กดแล้วไม่เกิดอะไร (ห้ามสร้าง affordance ปลอม — precedent เดียวกับ
+                              รูปที่ mirror ไม่สำเร็จในไฟล์นี้ที่ไม่ใส่ cursor-zoom-in) */}
+                          {(() => {
+                            const quote = mExt.replyTo!
+                            const quoteTargetId = quoteJumpTargetId(quote.id)
+                            const shellClass =
+                              'border-default-300 bg-default-100/70 max-w-full rounded-lg border-s-2 px-2.5 py-1 text-start'
+                            const inner = (
+                              <>
+                                <p className="text-default-700 mb-0 text-2xs font-medium">
+                                  ตอบกลับ{quote.senderRole === 'SHOP' ? 'ข้อความของร้าน' : buyerName}
+                                </p>
+                                {/* รูปย่อแทนคำว่า "[รูปภาพ]" — ในเธรดที่ลูกค้าส่งรูปติดกันหลายใบ ข้อความนั้น
+                                    บอกไม่ได้เลยว่าหมายถึงใบไหน (user เทียบกับ Messenger ที่แสดงรูปย่อ)
+                                    object-cover เพราะเป็นภาพ "จำได้ว่าใบไหน" ไม่ใช่ภาพที่ต้องเห็นครบเฟรม */}
+                                {quote.imageUrl ? (
+                                  <span className="mt-0.5 flex items-center gap-1.5">
+                                    <img
+                                      src={mediaSrc(quote.imageUrl)}
+                                      alt=""
+                                      aria-hidden="true"
+                                      className="bg-default-200 size-10 shrink-0 rounded object-cover"
+                                    />
+                                    {/* caption ของรูป (ถ้ามี) — รูปเปล่าไม่ต้องมีคำว่า "[รูปภาพ]" ซ้ำกับรูปที่เห็นอยู่ */}
+                                    {quote.body && quote.body !== '[รูปภาพ]' && (
+                                      <span className="text-default-700 line-clamp-2 min-w-0 text-xs opacity-90">
+                                        {quote.body}
+                                      </span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  <p className="text-default-700 mb-0 line-clamp-2 text-xs opacity-90">
+                                    {quote.body ?? '[สื่อ/ไฟล์แนบ]'}
+                                  </p>
+                                )}
+                                {/* bugfix 2026-08-10 — quotable=false: ข้อความเป้าหมายไม่มี quoteToken (ข้อความ
+                                    เก่าก่อนระบบเก็บ token/สื่อที่ LINE ไม่คืน token ให้) จึงถอยไปส่งแบบไม่อ้างอิง
+                                    (ส่งได้ตามปกติ ไม่ใช่ error) — เดิมถอยเงียบสนิท ผู้ขายเห็นกล่อง quote นี้แล้ว
+                                    เข้าใจว่าลูกค้าเห็นแบบเดียวกัน ทั้งที่ในแอป LINE มาเป็นข้อความธรรมดา
+                                    Base: theme/paces .../ChatPage.tsx:72-74 (icon+text meta line, text-xs) —
+                                    ตัดสินด้วย shouldWarnQuoteUnavailable (lib/chat-quote-availability.ts) ไม่ใช่
+                                    เทอร์นารีตรงนี้ (docs/conventions/ui-boolean-needs-a-testable-home.md) */}
+                                {shouldWarnQuoteUnavailable({ channel, quotable: quote.quotable, carrierIsShop: mine }) && (
+                                  <p className="text-default-500 mb-0 mt-1 flex items-center gap-1 text-xs">
+                                    <Icon icon="info-circle" className="text-xs" aria-hidden="true" />
+                                    ลูกค้าไม่เห็นว่าข้อความนี้ตอบข้อความไหน
+                                  </p>
+                                )}
+                              </>
+                            )
+                            return quoteTargetId ? (
+                              <button
+                                type="button"
+                                onClick={() => jumpToMessage(quoteTargetId)}
+                                aria-label="ไปที่ข้อความที่ถูกอ้างถึง"
+                                className={`${shellClass} hover:bg-default-200 cursor-pointer`}
+                              >
+                                {inner}
+                              </button>
+                            ) : (
+                              <div className={shellClass}>{inner}</div>
+                            )
+                          })()}
                         </div>
                       )}
                       {/* รูปล้วน (IMAGE ไม่มี caption เช่น sticker/thumbs-up) → ไม่มีกรอบ bubble/bg/padding

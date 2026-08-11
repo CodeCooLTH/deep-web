@@ -159,7 +159,19 @@ export type ChatMessageView = {
   /** สติกเกอร์ (ไม่ใช่รูปที่ลูกค้าส่ง) — server derive จาก rawMessage ให้แล้ว ห้าม UI เดาจากขนาดรูป
    *  มีผล 2 อย่าง: จำกัดความกว้างให้เท่าสติกเกอร์ + ไม่ต้องมีปุ่ม "บันทึกรูป" */
   isSticker?: boolean
-  replyTo?: { body: string | null; senderRole: 'BUYER' | 'SHOP' } | null // quote ข้อความที่ตอบทับ (enrich ที่ API)
+  /**
+   * quote ข้อความที่ตอบทับ (enrich ที่ API)
+   *
+   * `id` = จุดหมายของการแตะ quote เพื่อเลื่อนไปหาข้อความต้นทาง · `imageUrl` = fileId ของรูป
+   * ที่ถูกอ้างถึง (มีเฉพาะ type IMAGE) ให้วาดรูปย่อแทนคำว่า "[รูปภาพ]" ซึ่งชี้ไม่ได้ว่ารูปใบไหน
+   * ทั้งคู่ optional เพราะบับเบิล optimistic สร้างจากฝั่ง client ก่อน GET รอบถัดไปจะมาเติม
+   */
+  replyTo?: {
+    id?: string | null
+    body: string | null
+    senderRole: 'BUYER' | 'SHOP'
+    imageUrl?: string | null
+  } | null
   // optimistic send (client-only, ไม่มาจาก server): 'sending'=spinner, 'sent'=check, 'failed'=refresh แดง
   _status?: 'sending' | 'sent' | 'failed'
   // payload สำหรับ resend เมื่อ _status='failed' (เก็บเฉพาะข้อความ optimistic ที่ยังไม่สำเร็จ)
@@ -801,10 +813,14 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     const replyTargetId = replyingTo?.id
     const replyQuote = replyingTo
       ? {
+          id: replyingTo.id,
           body:
             replyingTo.body ??
             (QUOTE_LABEL[replyingTo.type] ?? '[สื่อ/ไฟล์แนบ]'),
           senderRole: replyingTo.senderRole,
+          // รูปย่อต้องขึ้นตั้งแต่บับเบิล optimistic ไม่งั้นผู้ขายเห็น "[รูปภาพ]" วูบหนึ่งแล้วค่อย
+          // กลายเป็นรูปตอน GET รอบถัดไป — ดูเหมือนระบบเปลี่ยนใจ
+          imageUrl: replyingTo.type === 'IMAGE' ? replyingTo.imageUrl : null,
         }
       : null
     if (replyTargetId && payloads[0]) payloads[0] = { ...payloads[0], replyToMessageId: replyTargetId }
@@ -984,8 +1000,10 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
         createdAt: new Date().toISOString(),
         replyTo: replyTarget
           ? {
+              id: replyTarget.id,
               body: replyTarget.body ?? '[รูปภาพ]',
               senderRole: replyTarget.senderRole,
+              imageUrl: replyTarget.type === 'IMAGE' ? replyTarget.imageUrl : null,
             }
           : null,
         _status: 'sending',
