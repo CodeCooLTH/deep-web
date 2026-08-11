@@ -196,7 +196,16 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             {/* 🛑 ป้ายบอก "ระดับที่ยืนยันถึง" ไม่ใช่คำว่ายืนยันแล้วลอย ๆ — ร้านที่ทำแค่ OTP
                 ไม่ควรได้ป้ายเดียวกับร้านที่จดทะเบียนธุรกิจ บนจอที่ตัดสินว่าเงินจะโอนหรือไม่
                 คำ+โทนมาจาก SSOT เดียวกับหน้า sign-in ที่ผู้ซื้อจะเห็นต่อในอีกไม่กี่วินาที */}
-            {verifyBadge && <TrustPill tone={verifyBadge.tone} icon={verifyBadge.icon} label={verifyBadge.label} />}
+            {/* ต่อ "(ระดับ N)" ท้าย label — สำนวนเดียวกับที่ AboutOverview ใช้อยู่แล้ว ไม่ตั้งคำใหม่ (HR16)
+                เหตุผล: "ยืนยันเบอร์แล้ว" กับ "จดทะเบียนธุรกิจแล้ว" อ่านเผิน ๆ เป็นน้ำหนักพอกัน
+                ทั้งที่คนละชั้นความยากมาก ตัวเลขระดับคือสิ่งที่บอกสเกลให้ผู้ซื้อเทียบได้ */}
+            {verifyBadge && (
+              <TrustPill
+                tone={verifyBadge.tone}
+                icon={verifyBadge.icon}
+                label={`${verifyBadge.label} (ระดับ ${order.maxVerifyLevel})`}
+              />
+            )}
             <TrustPill tone='tier' tierColor={tierColor} label={tierLabel} />
           </Box>
 

@@ -52,6 +52,7 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
+import { resolveVerifyBadge, VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
 import { ProfileBanner } from '@/views/pages/user-profile/UserProfileHeader'
@@ -559,6 +560,8 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   // ใช้ SSOT helper จาก @/lib/trust-tier
   const tierLabel = getTierLabel(trustScore)
   const tierColor = getTierColor(trustScore)
+  /* SSOT เดียวกับจอ guest — ห้าม hardcode เงื่อนไข/สีเอง (ดูหมายเหตุที่ชิป) */
+  const verifyBadge = resolveVerifyBadge(order.maxVerifyLevel)
   const avatarLetter = order.shop.user.displayName.slice(0, 1)
 
   // timeline จาก order-display.ts (T2/T3) — status pill ใช้ SSOT ด้านบนแทน getStatusPill (freeze ตาม UX spec)
@@ -682,13 +685,25 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
           {/* Chips: verified / tier / Trust score */}
           <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', mt: 1, flexWrap: 'wrap', px: 2 }}>
-            {order.maxVerifyLevel >= 1 && (
+            {/* 🛑 แก้ 2026-08-11: เดิมเป็น Chip `color='success'` label 'ยืนยันแล้ว' hardcode
+                ⇒ เขียวเสมอทุกระดับและไม่บอกว่าระดับไหน ขณะที่จอ guest (`GuestOrderView.tsx`)
+                ซึ่งเป็น **จอเดียวกันของออเดอร์ใบเดียวกัน** ใช้ `resolveVerifyBadge()` ถูกอยู่แล้ว
+                ⇒ ร้านเดียวกันเห็นป้ายคนละแบบก่อน/หลังล็อกอิน ห่างกันไม่กี่วินาที ซึ่งเป็นเหตุผล
+                ที่ `verify-badge.ts` ถูกสร้างขึ้นมาตั้งแต่แรก (docstring ของไฟล์นั้นพูดเรื่องนี้ตรง ๆ)
+
+                สีมาจาก tone ของ SSOT ไม่ใช่ `color='success'` — L1 (ยืนยันแค่เบอร์) ห้ามเขียว
+                ส่วน `(ระดับ N)` ใช้สำนวนเดียวกับที่ AboutOverview ใช้อยู่แล้ว ไม่ตั้งคำใหม่ (HR16) */}
+            {verifyBadge && (
               <Chip
                 size='small'
                 variant='tonal'
-                color='success'
-                icon={<Icon icon='tabler-rosette-discount-check-filled' fontSize={14} />}
-                label='ยืนยันแล้ว'
+                icon={<Icon icon={verifyBadge.icon} fontSize={14} />}
+                label={`${verifyBadge.label} (ระดับ ${order.maxVerifyLevel})`}
+                sx={{
+                  backgroundColor: VERIFY_BADGE_PALETTE[verifyBadge.tone].bg,
+                  color: VERIFY_BADGE_PALETTE[verifyBadge.tone].fg,
+                  '& .MuiChip-icon': { color: 'inherit' },
+                }}
               />
             )}
             <Chip size='small' variant='tonal' color={tierColor} label={tierLabel} />

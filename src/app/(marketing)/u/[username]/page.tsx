@@ -340,6 +340,8 @@ export default async function PublicProfilePage({ params }: Props) {
               latitude: user.shop?.latitude ?? null,
               longitude: user.shop?.longitude ?? null,
               maxVerifyLevel,
+              // ตารางยืนยันตัวตนต้องเช็คทีละระดับ — DB ไม่รับประกันว่าระดับที่ผ่านจะต่อเนื่องกัน
+              verifiedLevels,
               location: profileTab.location,
               memberSince: profileTab.memberSince,
               chatResponseRate: profileTab.chatResponseRate,

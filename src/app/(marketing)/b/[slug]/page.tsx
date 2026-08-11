@@ -360,6 +360,8 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               latitude: shop?.latitude ?? null,
               longitude: shop?.longitude ?? null,
               maxVerifyLevel,
+              // ตารางยืนยันตัวตนต้องเช็คทีละระดับ — DB ไม่รับประกันว่าระดับที่ผ่านจะต่อเนื่องกัน
+              verifiedLevels,
               location: profileTab.location,
               memberSince: profileTab.memberSince,
               // 🛑 สามค่านี้ถูกเก็บลงฐานมาตลอด (cron chat-metrics.service) และ AboutOverview ก็มีโค้ด
