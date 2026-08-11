@@ -246,8 +246,8 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
               onClick={() => (multi ? leaveMulti() : setMulti(true))}
               disabled={disabled || sending}
               aria-pressed={multi}
-              className={`flex min-h-11 items-center gap-1 rounded px-1.5 text-xs font-medium transition-colors sm:min-h-7 ${
-                multi ? 'bg-info/15 text-info' : 'text-default-700 hover:text-info'
+              className={`focus-visible:ring-info-ink flex min-h-11 items-center gap-1 rounded px-1.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none sm:min-h-7 ${
+                multi ? 'bg-info/15 text-info-ink' : 'text-default-700 hover:text-info'
               } ${disabled || sending ? 'pointer-events-none opacity-50' : ''}`}
             >
               <Icon icon={multi ? 'square-check-filled' : 'square-check'} className="text-base" />
@@ -373,16 +373,29 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
                     onClick={() => (multi ? toggle(p.id) : setSelected(p))}
                     disabled={off}
                     aria-pressed={multi ? isSelected : undefined}
-                    aria-label={`${p.name} ${formatThb(p.price)}`}
+                    /* เต็มเพดานแล้วกดไม่ได้ — เหตุผลต้องติดมากับตัวการ์ด ไม่ใช่อยู่แต่ในแถบส่งด้านล่าง
+                       คนที่ใช้ screen reader ไล่ทีละใบตาม DOM จะได้ยินแค่ "ปิดใช้งาน" แล้วไม่รู้ว่าทำไม */
+                    aria-label={
+                      blocked
+                        ? `${p.name} ${formatThb(p.price)} — เลือกครบ ${maxSelectable} รายการแล้ว เอารายการอื่นออกก่อน`
+                        : `${p.name} ${formatThb(p.price)}`
+                    }
                     /* ติ๊กแล้วใช้ ring ไม่ใช่ border-2 — ความหนาขอบที่เปลี่ยนจะดันการ์ดทั้งแถวขยับ 1px
-                       ทุกครั้งที่ติ๊ก/เอาออก (ring วาดนอก layout box จึงไม่กระทบเพื่อนบ้าน) */
-                    className={`bg-card relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border text-left transition-transform duration-150 hover:shadow-sm active:scale-95 ${
-                      isSelected ? 'border-info ring-info ring-2' : 'border-default-200'
+                       ทุกครั้งที่ติ๊ก/เอาออก (ring วาดนอก layout box จึงไม่กระทบเพื่อนบ้าน)
+
+                       🛑 `-ink` ไม่ใช่ `info` เปล่า: #5bc3e1 บนพื้นการ์ดขาวได้ **2.03:1** ซึ่งตกเกณฑ์
+                       non-text ของ WCAG 1.4.11 (≥3:1) ทั้งที่ "การ์ดใบนี้ถูกเลือกอยู่ไหม" คือข้อมูลที่
+                       สื่อด้วยสีล้วน — #1e40af ได้ 8.72:1 และยังเป็นเฉดเดิม (ปรับความเข้ม ไม่สลับเฉด
+                       ตาม docs/conventions/contrast-fix-keeps-hue.md). ยืนยันด้วย ux gate 2026-08-11
+                       focus-visible: ยกจาก orders/new/components/ProductGrid.tsx ซึ่งเป็นการ์ดเลือก
+                       สินค้าที่ทำหน้าที่เดียวกันและมีวงแหวนโฟกัสตั้งใจอยู่แล้ว (sibling-surface-parity) */
+                    className={`bg-card focus-visible:ring-info-ink relative w-28 shrink-0 snap-start overflow-hidden rounded-xl border text-left transition-transform duration-150 hover:shadow-sm focus-visible:ring-2 focus-visible:outline-none active:scale-95 ${
+                      isSelected ? 'border-info-ink ring-info-ink ring-2' : 'border-default-200'
                     } ${off ? 'pointer-events-none opacity-50' : ''}`}
                   >
                     {isSelected && (
                       <span className="bg-card absolute end-1.5 top-1.5 z-10 rounded-full p-0.5 shadow-sm">
-                        <Icon icon="circle-check-filled" className="text-info size-5" />
+                        <Icon icon="circle-check-filled" className="text-info-ink size-5" />
                       </span>
                     )}
                     {/* ProductThumb + aspect-video ชุดเดียวกับ BestSellerStrip (user สั่ง 2026-08-06
@@ -424,10 +437,18 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
           warning ไม่ใช่ danger: เกินเพดานต่อการ์ดไม่ใช่ความผิดพลาด ยังกดส่งได้ปกติ */}
       {multi && !selected ? (
         <div className="border-default-300 mt-1.5 border-t border-dashed pt-2">
+          {/* 🛑 เพดานรวมถูกยุบเข้ามาในป้ายเดียวกัน ไม่แยกเป็นบรรทัดที่สอง — `atMax` เกิดพร้อม
+              `exceedsPerMessage` **เสมอ** (atMax = count ≥ perMessage×3 ⇒ count > perMessage) สอง
+              บรรทัดจึงโผล่คู่กันตลอดกาลโดยไม่มีเคสไหนแยกกันได้เลย. แผงนี้อยู่เหนือช่องพิมพ์ในเธรด
+              ทุก px ที่มันสูงขึ้นคือพื้นที่อ่านข้อความที่หายไปตรง ๆ (เคยโดนบ่นมาแล้วบน prod 08-09
+              ตอนแถบ AI takeover ทำพื้นที่ข้อความเล็กลง) — ux gate 2026-08-11 P1-2 */}
           {selection.exceedsPerMessage && (
             <div className="bg-warning/15 text-warning-ink mb-2 flex items-start gap-1.5 rounded px-2 py-1.5 text-xs">
               <Icon icon="alert-triangle" className="mt-0.5 shrink-0 text-sm" aria-hidden="true" />
-              <span>{selection.text}</span>
+              <span>
+                {selection.text}
+                {atMax && ` · เลือกได้สูงสุด ${maxSelectable} รายการต่อการส่งหนึ่งครั้ง`}
+              </span>
             </div>
           )}
           <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -445,9 +466,6 @@ export default function ProductPickerPanel({ onPick, onClose, disabled, channel,
               </button>
             )}
           </div>
-          {atMax && (
-            <p className="text-default-700 mb-1.5 text-2xs">เลือกได้สูงสุด {maxSelectable} รายการต่อการส่งหนึ่งครั้ง</p>
-          )}
           <button
             type="button"
             onClick={handleSendMany}
