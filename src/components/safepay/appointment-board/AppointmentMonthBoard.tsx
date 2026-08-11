@@ -107,7 +107,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
         const qs = new URLSearchParams({
           from: range.from,
           to: range.to,
-          ...(resourceId ? { resourceId } : {}),
+          ...(resourceId ? { resourceId } : {})
         })
         const res = await fetch(`/api/shops/current/appointments?${qs}`, { cache: 'no-store' })
         if (!res.ok) {
@@ -148,12 +148,8 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
    * กรองคิวเดียว → นับเฉพาะตัวนั้น (กติกาเดียวกับ AppointmentCalendar — user ตัดสิน 2026-07-31)
    */
   const totalCapacity = useMemo(
-    () =>
-      (resourceId ? resources.filter((r) => r.id === resourceId) : resources).reduce(
-        (sum, r) => sum + r.capacity,
-        0,
-      ),
-    [resources, resourceId],
+    () => (resourceId ? resources.filter(r => r.id === resourceId) : resources).reduce((sum, r) => sum + r.capacity, 0),
+    [resources, resourceId]
   )
 
   /** จำนวนนัดต่อวัน — นัดข้ามวันนับเข้าทุกวันที่มันกิน (วันนั้นถือว่าคิวถูกใช้ไปแล้ว) */
@@ -175,7 +171,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
   const dayItems = useMemo(
     () =>
       items
-        .filter((it) => {
+        .filter(it => {
           const start = new Date(it.start)
           const end = new Date(it.end)
           for (let t = start.getTime(); t < end.getTime(); t += DAY_MS) {
@@ -185,7 +181,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           return false
         })
         .sort((a, b) => a.start.localeCompare(b.start)),
-    [items, selectedKey],
+    [items, selectedKey]
   )
 
   /**
@@ -195,7 +191,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
    */
   const isFull = useCallback(
     (key: string) => byDay && totalCapacity > 0 && (countByDay.get(key) ?? 0) >= totalCapacity,
-    [byDay, totalCapacity, countByDay],
+    [byDay, totalCapacity, countByDay]
   )
 
   const onDateClick = useCallback((arg: DateClickArg) => {
@@ -234,8 +230,15 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
   }
 
   return (
-    <div className="card @container">
-      {/* 🛑 ไม่มีหัวการ์ด "ปฏิทินคิว" — บนมือถือ SellerMobileHeader เขียนคำว่า "คิวงาน" อยู่แล้ว
+    <>
+      {/* queues-fullbleed = marker ให้ CSS :has() ใน safepay-overrides.css (ตัดขอบบน 20px + ซ่อน footer)
+          -mx-4 หักล้าง padding-inline 1rem ของ main → การ์ดชนขอบจอบนมือถือ
+          (user 2026-08-11: "เวลาเปิดในมือถือ ต้องไม่มี padding ข้างๆ")
+          md:mx-0 = หยุดหักล้างตั้งแต่ 768 ขึ้นไป และ **ไม่ใส่ max-w-*** เพราะช่วง 768–1023
+          เปลี่ยนเป็น 2 คอลัมน์แล้ว ต้องใช้ความกว้างที่มีให้เต็ม (เดิม max-w-2xl เหลือขอบข้างละ ~80px)
+          Base: src/app/(paces)/seller/(dashboard)/products/components/ProductsListing.tsx:252 */}
+      <div className='card @container queues-fullbleed -mx-4 md:mx-0'>
+        {/* 🛑 ไม่มีหัวการ์ด "ปฏิทินคิว" — บนมือถือ SellerMobileHeader เขียนคำว่า "คิวงาน" อยู่แล้ว
           หัวการ์ดจึงเป็นหัวข้อที่สามซ้อนกันก่อนถึงปฏิทิน กินไปเกือบ 100px โดยไม่ได้บอกอะไรใหม่
           (user รายงาน 2026-08-11: "padding เยอะ ไม่เหมือนหน้าสร้างรายการ") — ชีตที่ผู้ใช้ยกมา
           เทียบก็ไม่มีชั้นนี้ ขึ้นแถบเดือนต่อจากหัวแผ่นเลย
@@ -243,274 +246,294 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           ดรอปดาวน์เลือกคิวยังต้องอยู่ (ร้านหลายคิวต้องดูแยกคิวได้บนเครื่องที่ใช้จริงทุกวัน)
           แต่ยืนเป็นแถวของตัวเองแทนการเป็นของแถมในหัวข้อ — และหายไปเลยเมื่อมีคิวเดียว
           เพราะดรอปดาวน์ที่มีตัวเลือกเดียวคือช่องว่างที่กดไม่ได้ */}
-      {resources.length > 1 && (
-        <div className="border-default-200 flex items-center gap-2 border-b border-dashed px-4 py-2.5">
-          <select
-            className="form-select w-full text-sm"
-            value={resourceId}
-            onChange={(e) => setResourceId(e.target.value)}
-            aria-label="เลือกคิวงานที่จะดู"
-          >
-            <option value={ALL}>ทุกคิวงาน</option>
-            {resources.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+        {resources.length > 1 && (
+          <div className='border-default-200 flex items-center gap-2 border-b border-dashed px-4 py-2.5'>
+            <select
+              className='form-select w-full text-sm'
+              value={resourceId}
+              onChange={e => setResourceId(e.target.value)}
+              aria-label='เลือกคิวงานที่จะดู'
+            >
+              <option value={ALL}>ทุกคิวงาน</option>
+              {resources.map(r => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-      {/* แถบเดือน — วาดหัวเรื่อง พ.ศ. เอง (FullCalendar ให้ ค.ศ.)
+        {/* ตั้งแต่ 768 ขึ้นไปแยกเป็น 2 คอลัมน์ — ปฏิทินซ้าย / รายการนัดของวันที่เลือกขวา
+          (user 2026-08-11 ดูเฟรมแท็บเล็ตแล้วสั่ง "อยากให้เป็นซ้ายขวา" — เดิมซ้อนบน-ล่างจนเห็นนัด
+          ได้ใบเดียวก่อนโดนขอบจอตัด ขณะที่ซ้ายขวาว่างข้างละ ~80px คือใช้พื้นที่ผิดแกน)
+
+          แบ่งครึ่งเท่ากันเพราะเลข ไม่ใช่เพราะความสมมาตร: ที่ 768px (แคบสุดของช่วงนี้)
+          ครึ่งซ้าย = (768−32−16)/2 = 360px → ช่องวัน (360−16)/7 ≈ 49px ห่างจากมือถือแค่ ~5px
+          ถ้าแบ่ง 40/60 จะเหลือ ~39px ซึ่งแคบกว่ามือถือชัดเจน
+          ช่วงนี้จบที่ 1023 เพราะ QueuesCalendarSwitch สลับไป AppointmentCalendar ที่ lg */}
+        <div className='md:grid md:grid-cols-2 md:gap-4'>
+          {/* ปฏิทินเกาะที่เดิมตอนเลื่อนดูรายการยาว ๆ ฝั่งขวา — ใช้ scroll ของหน้าเดิมตัวเดียว
+            ไม่สร้าง overflow container ใหม่ในคอลัมน์ขวา (docs/conventions/scroll-container-clips-popovers.md:
+            กล่อง scroll ซ้อนเคยตัดแผงดรอปดาวน์มาแล้ว)
+            self-start จำเป็น ไม่งั้น grid stretch ดึงกล่องนี้สูงเท่าคอลัมน์ขวาก่อน sticky จะได้ทำงาน
+            top = ความสูงจริงของ SellerMobileHeader (pt-3.5 14 + ปุ่ม h-11 44 + pb-2.5 10 = 68px)
+            carve-out: ไม่มี token ความสูง header และ safe-area ไม่มี token */}
+          <div className='md:sticky md:top-[calc(4.25rem+env(safe-area-inset-top))] md:self-start'>
+            {/* แถบเดือน — วาดหัวเรื่อง พ.ศ. เอง (FullCalendar ให้ ค.ศ.)
           min-h-11/min-w-11 บนปุ่มไอคอน: `.btn.btn-icon` ของธีม = 37px ต่ำกว่าเกณฑ์ 44px
           ที่ PRODUCT.md ประกาศไว้ (WCAG 2.5.5) — ท่าเดียวกับ AppointmentDateSheet */}
-      <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
-        <button
-          type="button"
-          onClick={() => calRef.current?.getApi().prev()}
-          aria-label="เดือนก่อนหน้า"
-          className="btn btn-icon text-default-800 hover:bg-default-100 min-h-11 min-w-11"
-        >
-          <Icon icon="chevron-left" className="size-4" />
-        </button>
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
-          <h4 className="text-dark truncate text-base font-semibold">
-            {viewStart ? formatMonthYearTH(viewStart) : ''}
-          </h4>
-          {/* motion-reduce: กฎ blanket ใน safepay-overrides.css ย่นเวลา transition แต่ไม่ได้
+            <div className='flex shrink-0 items-center justify-between gap-2 px-4 py-3'>
+              <button
+                type='button'
+                onClick={() => calRef.current?.getApi().prev()}
+                aria-label='เดือนก่อนหน้า'
+                className='btn btn-icon text-default-800 hover:bg-default-100 min-h-11 min-w-11'
+              >
+                <Icon icon='chevron-left' className='size-4' />
+              </button>
+              <div className='flex min-w-0 flex-1 items-center justify-center gap-2'>
+                <h4 className='text-dark truncate text-base font-semibold'>
+                  {viewStart ? formatMonthYearTH(viewStart) : ''}
+                </h4>
+                {/* motion-reduce: กฎ blanket ใน safepay-overrides.css ย่นเวลา transition แต่ไม่ได้
               หยุด keyframe — ผู้ที่เปิด "ลดการเคลื่อนไหว" จะยังเจอวงหมุน (pattern เดียวกับ
               การ์ดคิวงานใน AppointmentBlock) */}
-          {loading && (
-            <Icon
-              icon="loader-2"
-              className="text-default-400 size-4 animate-spin motion-reduce:animate-none"
-              aria-hidden="true"
-            />
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {/* กลาง ๆ ไม่ใช่ primary — น้ำเงินบนจอนี้สงวนไว้กับ "วันที่กำลังเลือก" (One Voice) */}
-          <button
-            type="button"
-            onClick={() => {
-              calRef.current?.getApi().today()
-              setSelectedKey(localDateKey(new Date()))
-            }}
-            className="btn btn-sm border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 min-h-11 rounded-full border px-4"
-          >
-            วันนี้
-          </button>
-          <button
-            type="button"
-            onClick={() => calRef.current?.getApi().next()}
-            aria-label="เดือนถัดไป"
-            className="btn btn-icon text-default-800 hover:bg-default-100 min-h-11 min-w-11"
-          >
-            <Icon icon="chevron-right" className="size-4" />
-          </button>
-        </div>
-      </div>
+                {loading && (
+                  <Icon
+                    icon='loader-2'
+                    className='text-default-400 size-4 animate-spin motion-reduce:animate-none'
+                    aria-hidden='true'
+                  />
+                )}
+              </div>
+              <div className='flex items-center gap-1.5'>
+                {/* กลาง ๆ ไม่ใช่ primary — น้ำเงินบนจอนี้สงวนไว้กับ "วันที่กำลังเลือก" (One Voice) */}
+                <button
+                  type='button'
+                  onClick={() => {
+                    calRef.current?.getApi().today()
+                    setSelectedKey(localDateKey(new Date()))
+                  }}
+                  className='btn btn-sm border-default-300 text-default-800 hover:border-default-400 hover:bg-default-50 min-h-11 rounded-full border px-4'
+                >
+                  วันนี้
+                </button>
+                <button
+                  type='button'
+                  onClick={() => calRef.current?.getApi().next()}
+                  aria-label='เดือนถัดไป'
+                  className='btn btn-icon text-default-800 hover:bg-default-100 min-h-11 min-w-11'
+                >
+                  <Icon icon='chevron-right' className='size-4' />
+                </button>
+              </div>
+            </div>
 
-      {/* คำอธิบายสัญลักษณ์ — "ว่าง" ไม่ต้องมี swatch เพราะมันคือช่องที่ไม่มีอะไรเลย
-          swatch ต้องเป็นสัญลักษณ์ตัวเดียวกับที่เห็นในช่องจริง ไม่งั้นเป็น legend ที่สอนผิด */}
-      <div className="text-default-600 text-2xs flex shrink-0 items-center justify-center gap-4 px-4 pb-2">
-        <span className="inline-flex items-center gap-1.5">
-          {/* "นัด" ไม่ใช่ "คิว" — บรรทัดถัดกัน ("จองแล้ว n จาก m คิว") ใช้ คิว = ช่องความจุ
-              ถ้าจุดนี้ก็เรียก "คิว" ผู้ขายจะเจอ "ทั้งวันมี 8 คิว" กับ "จองแล้ว 3 จาก 10 คิว"
-              บนจอเดียวแล้วบวกกันไม่ลง · ไทล์ต้นทางบนหน้าแรกก็เรียกว่า "นัด" */}
-          {/* swatch ต้องเป็นสัญลักษณ์เดียวกับที่เห็นในช่องจริงเป๊ะ ๆ (สี/ขนาด/รูปร่าง) —
-              AppointmentDayCell เปลี่ยนจุดเป็น warning-ink 8px และวงแหวนเป็น default-400
-              เพื่อผ่านเกณฑ์คอนทราสต์ non-text 3:1 legend จึงต้องตามไปด้วย ไม่งั้นกลายเป็น
-              legend ที่สอนสัญลักษณ์ที่ไม่มีอยู่บนจอ */}
-          <span className="bg-warning-ink size-2 rounded-full" aria-hidden="true" />
-          มีนัดแล้ว
-        </span>
-        {byDay && (
-          <span className="inline-flex items-center gap-1.5">
-            <Icon icon="x" className="text-danger size-3.5" aria-hidden="true" />
-            เต็ม
-          </span>
-        )}
-        <span className="inline-flex items-center gap-1.5">
-          {/* rounded-sm ไม่ใช่ rounded-full — ช่อง "วันนี้" ในปฏิทินเป็นสี่เหลี่ยมมน (rounded-lg)
-              swatch ที่เป็นวงกลมคือ legend ที่อธิบายสัญลักษณ์ที่ไม่มีอยู่จริงบนจอ
-              (กฎนี้เขียนไว้เองในบล็อกนี้แล้ว แต่ตัวโค้ดยกมาจากชีตซึ่งผิดมาก่อน) */}
-          <span className="border-default-400 size-2.5 rounded-sm border" aria-hidden="true" />
-          วันนี้
-        </span>
-      </div>
+            {/* 🛑 ไม่มีแถวคำอธิบายสัญลักษณ์ (legend) แล้ว — user สั่งถอด 2026-08-11 ("ไม่อยากให้มี")
+              เหตุผลที่ถอดได้โดยไม่เสีย a11y: legend มีไว้อธิบายว่า "จุดสี" แปลว่าอะไร ซึ่งจำเป็น
+              ตอนความหมายถูกเข้ารหัสด้วยสีล้วน — ตอนนี้ช่องที่มีงานต่างจากช่องว่างด้วย
+              **น้ำหนัก+ความเข้มของเลขวัน** ไม่ใช่แค่จุด และ "เต็ม" มีป้ายคำว่าเต็มอยู่ในช่องตัวเอง
+              ทุกช่องยังมี aria-label เต็มประโยคเหมือนเดิม
+              🛑 ถ้าวันไหนกลับไปสื่อความหมายด้วยสี/รูปร่างล้วนอีก ต้องเอา legend กลับมาพร้อมกัน */}
 
-      {/* appt-date-sheet = สโคป CSS ที่รื้อทรงตารางของ FullCalendar ออก (ดู _calendar.css)
+            {/* appt-date-sheet = สโคป CSS ที่รื้อทรงตารางของ FullCalendar ออก (ดู _calendar.css)
           ขาดคลาสนี้เมื่อไหร่ ปฏิทินจะกลับไปเป็นตารางดิบทันที */}
-      <div className="appt-date-sheet px-2 pb-2">
-        <FullCalendar
-          ref={calRef}
-          plugins={[dayGridPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
-          headerToolbar={false}
-          height="auto"
-          locale="th"
-          firstDay={0}
-          editable={false}
-          selectable={false}
-          datesSet={onDatesSet}
-          dateClick={onDateClick}
-          /* หัวคอลัมน์ย่อเมื่อกล่องแคบ — locale th ของ FullCalendar ให้ชื่อเต็มเสมอในมุมมองเดือน
+            <div className='appt-date-sheet px-2 pb-2'>
+              <FullCalendar
+                ref={calRef}
+                plugins={[dayGridPlugin, interactionPlugin]}
+                initialView='dayGridMonth'
+                headerToolbar={false}
+                height='auto'
+                /* เดือนที่จบใน 4-5 แถวไม่ต้องเติมแถวว่างที่ 6 (ค่าตั้งต้นของ FullCalendar คือเติมเสมอ)
+             ประหยัด 48px ในเดือนแบบนั้น แลกกับความสูงการ์ดไม่คงที่ระหว่างเดือน ซึ่งเป็นพฤติกรรม
+             เดียวกับปฏิทินของ Google/Apple บนมือถือ (user เคาะแล้ว 2026-08-11)
+             หมายเหตุ: ส.ค. 2569 เป็นเดือน 6 แถวพอดี จึงไม่เห็นผลของค่านี้ในเดือนนั้น */
+                fixedWeekCount={false}
+                locale='th'
+                firstDay={0}
+                editable={false}
+                selectable={false}
+                datesSet={onDatesSet}
+                dateClick={onDateClick}
+                /* หัวคอลัมน์ย่อเมื่อกล่องแคบ — locale th ของ FullCalendar ให้ชื่อเต็มเสมอในมุมมองเดือน
              ซึ่งที่ 390px จะถูกยัดลงคอลัมน์ ~30px แล้วตัดเป็นตัวอักษรทีละตัว
              container query (@3xl) ไม่ใช่ md: เพราะการ์ดนี้ไม่ได้กว้างเท่าวิวพอร์ตเสมอไป */
-          dayHeaderContent={(arg) => (
-            <>
-              <span className="@3xl:hidden">{DOW_SHORT[arg.date.getDay()]}</span>
-              <span className="hidden @3xl:inline">{DOW_FULL[arg.date.getDay()]}</span>
-            </>
-          )}
-          dayCellContent={(arg) => {
-            const key = localDateKey(arg.date)
-            return (
-              <AppointmentDayCell
-                date={arg.date}
-                dayNumberText={arg.dayNumberText}
-                isOther={arg.isOther}
-                isToday={arg.isToday}
-                used={countByDay.get(key) ?? 0}
-                capacity={totalCapacity > 0 ? totalCapacity : null}
-                byDay={byDay}
-                full={isFull(key)}
-                selected={selectedKey === key}
-                onKeyDown={(e) => {
-                  if (e.key !== 'Enter' && e.key !== ' ') return
-                  e.preventDefault()
-                  setSelectedKey(key)
+                dayHeaderContent={arg => (
+                  <>
+                    <span className='@3xl:hidden'>{DOW_SHORT[arg.date.getDay()]}</span>
+                    <span className='hidden @3xl:inline'>{DOW_FULL[arg.date.getDay()]}</span>
+                  </>
+                )}
+                dayCellContent={arg => {
+                  const key = localDateKey(arg.date)
+                  return (
+                    <AppointmentDayCell
+                      date={arg.date}
+                      dayNumberText={arg.dayNumberText}
+                      isOther={arg.isOther}
+                      isToday={arg.isToday}
+                      used={countByDay.get(key) ?? 0}
+                      capacity={totalCapacity > 0 ? totalCapacity : null}
+                      byDay={byDay}
+                      full={isFull(key)}
+                      selected={selectedKey === key}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter' && e.key !== ' ') return
+                        e.preventDefault()
+                        setSelectedKey(key)
+                      }}
+                    />
+                  )
                 }}
               />
-            )
-          }}
-        />
-      </div>
+            </div>
+          </div>
 
-      {/* ── รายการนัดของวันที่จิ้มอยู่ ─────────────────────────────────────────
-          พื้น bg-default-100 แยกครึ่งล่างออกจากปฏิทินด้วยพื้น ไม่ใช่ด้วยเส้นอย่างเดียว
-          (ทรงเดียวกับชีต) · ไม่ cap ความสูง: หน้านี้เป็นหน้าเต็มที่เลื่อนได้อยู่แล้ว
-          การ cap แล้วให้เลื่อนซ้อนในหน้าที่เลื่อนได้ = สองแกนเลื่อนทับกัน */}
-      <div className="border-default-200 bg-default-100 flex flex-col border-t">
-        {/* aria-live: การจิ้มวันเปลี่ยนแค่ "รายการข้างล่าง" ซึ่งอยู่คนละที่กับมือ/โฟกัส
+          {/* ── รายการนัดของวันที่จิ้มอยู่ ─────────────────────────────────────────
+            พื้น bg-default-100 แยกครึ่งล่างออกจากปฏิทินด้วยพื้น ไม่ใช่ด้วยเส้นอย่างเดียว
+            (ทรงเดียวกับชีต) · ไม่ cap ความสูง: หน้านี้เป็นหน้าเต็มที่เลื่อนได้อยู่แล้ว
+            การ cap แล้วให้เลื่อนซ้อนในหน้าที่เลื่อนได้ = สองแกนเลื่อนทับกัน
+
+            ตั้งแต่ md เป็นคอลัมน์ขวาของกริด: เส้นแบ่งหมุนแกนจากบน-ล่าง (border-t) เป็นซ้าย-ขวา
+            (border-s) — ภาษาภาพเดิมทุกอย่าง (พื้นเทา = ผลลัพธ์ / พื้นขาว = เครื่องมือ) แค่เปลี่ยนแกน
+            md:h-full คู่กับ flex-1 ที่บล็อกเนื้อหา = คอลัมน์นี้ยืดเต็มความสูงเท่าปฏิทินเสมอ
+            ไม่งั้นวันที่ไม่มีนัดจะเหลือแผ่นเทาสั้น ๆ ลอยข้างปฏิทินสูง ๆ */}
+          <div className='border-default-200 bg-default-100 flex flex-col border-t md:h-full md:border-t-0 md:border-s'>
+            {/* aria-live: การจิ้มวันเปลี่ยนแค่ "รายการข้างล่าง" ซึ่งอยู่คนละที่กับมือ/โฟกัส
             ผู้ใช้ screen reader จึงไม่มีทางรู้ผลของสิ่งที่เพิ่งทำ (WCAG 4.1.3) */}
-        <div
-          className="flex shrink-0 flex-wrap items-baseline gap-x-2 gap-y-1 px-4 pt-3 pb-2"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {/* tabIndex={-1} = ปลายทางโฟกัสหลัง retry สำเร็จ (Tab ไม่หยุดที่นี่) */}
-          <h4
-            ref={dayHeadingRef}
-            tabIndex={-1}
-            className="text-dark text-sm font-semibold focus:outline-none"
-          >
-            {formatWeekdayDateTH(selectedDate)}
-          </h4>
-          {/* ตัวหาร (capacity) พูดได้เฉพาะโหมดรายวัน — โหมดระบุช่วงเวลาเอาจำนวนนัดทั้งวันมา
-              หารด้วยความจุไม่ได้ (จะได้ "จองแล้ว 8 จาก 2 คิว" ซึ่งอ่านไม่รู้เรื่อง) */}
-          {byDay && totalCapacity > 0 ? (
-            <span
-              className={`ms-auto text-xs ${selectedFull ? 'text-warning-ink' : 'text-default-500'}`}
+            <div
+              className='flex shrink-0 flex-wrap items-baseline gap-x-2 gap-y-1 px-4 pt-3 pb-2'
+              aria-live='polite'
+              aria-atomic='true'
             >
-              จองแล้ว {selectedCount} จาก {totalCapacity} คิว
-            </span>
-          ) : (
-            selectedCount > 0 && (
-              /* "ในวันนี้" อ่านได้ว่า today ทั้งที่หมายถึงวันที่จิ้มอยู่ — และจอนี้มีปุ่ม "วันนี้"
+              {/* tabIndex={-1} = ปลายทางโฟกัสหลัง retry สำเร็จ (Tab ไม่หยุดที่นี่) */}
+              <h4 ref={dayHeadingRef} tabIndex={-1} className='text-dark text-sm font-semibold focus:outline-none'>
+                {formatWeekdayDateTH(selectedDate)}
+              </h4>
+              {/* ตัวหาร (capacity) พูดได้เฉพาะโหมดรายวัน — โหมดระบุช่วงเวลาเอาจำนวนนัดทั้งวันมา
+              หารด้วยความจุไม่ได้ (จะได้ "จองแล้ว 8 จาก 2 คิว" ซึ่งอ่านไม่รู้เรื่อง) */}
+              {byDay && totalCapacity > 0 ? (
+                <span className={`ms-auto text-xs ${selectedFull ? 'text-warning-ink' : 'text-default-500'}`}>
+                  จองแล้ว {selectedCount} จาก {totalCapacity} คิว
+                </span>
+              ) : (
+                selectedCount > 0 && (
+                  /* "ในวันนี้" อ่านได้ว่า today ทั้งที่หมายถึงวันที่จิ้มอยู่ — และจอนี้มีปุ่ม "วันนี้"
                  ที่แปลว่ากระโดดไปวันปัจจุบันอยู่ห่างไม่ถึงจอเดียว จึงขึ้นต้นด้วย "ทั้งวัน" */
-              <span className="text-default-500 ms-auto text-xs">
-                ทั้งวันมี {selectedCount} นัด
-              </span>
-            )
-          )}
-        </div>
+                  <span className='text-default-500 ms-auto text-xs'>ทั้งวันมี {selectedCount} นัด</span>
+                )
+              )}
+            </div>
 
-        {/* 🛑 wrapper ที่ถือ aria-live ต้อง **mount ถาวร** — เดิม live region ครอบแค่หัวข้อวันที่
+            {/* 🛑 wrapper ที่ถือ aria-live ต้อง **mount ถาวร** — เดิม live region ครอบแค่หัวข้อวันที่
             ส่วนบล็อก error / skeleton / empty / รายการ อยู่นอกทั้งหมด ผู้ใช้ screen reader จึงไม่ได้ยิน
             ว่าโหลดล้มหรือโหลดเสร็จเลย (WCAG 4.1.3) · ชีตต้นทางแก้เรื่องนี้ไปแล้วครึ่งหนึ่ง
             แต่บอร์ดยกมาแค่ครึ่งเดียว · aria-busy บอกว่ากำลังโหลดอยู่ ไม่ใช่ว่างจริง */}
-        <div className="px-3 pb-3" aria-live="polite" aria-busy={loading}>
-          {loadError ? (
-            /* บล็อกค้างบนจอ ไม่ใช่ toast ที่หายเอง — และห้ามพูดว่า "ว่าง" เพราะเราไม่รู้ */
-            <div className="border-danger/30 bg-danger/10 flex flex-col items-center gap-2 rounded-lg border px-6 py-6 text-center">
-              <Icon icon="cloud-off" className="text-danger-ink size-6" aria-hidden="true" />
-              {/* ชื่อต้องตรงกับหัวการ์ด ("ปฏิทินคิว") — ของสิ่งเดียวกันเคยมี 4 ชื่อบนจอเดียว */}
-              <p className="text-default-800 text-sm font-semibold">โหลดปฏิทินคิวไม่สำเร็จ</p>
-              {/* ไม่พูด "ลองอีกครั้ง" ซ้ำกับปุ่มที่อยู่ห่างลงไป 20px และเลี่ยง "วันนี้" กับ
+            <div className='flex-1 px-3 pb-3' aria-live='polite' aria-busy={loading}>
+              {loadError ? (
+                /* บล็อกค้างบนจอ ไม่ใช่ toast ที่หายเอง — และห้ามพูดว่า "ว่าง" เพราะเราไม่รู้ */
+                <div className='border-danger/30 bg-danger/10 flex flex-col items-center gap-2 rounded-lg border px-6 py-6 text-center'>
+                  <Icon icon='cloud-off' className='text-danger-ink size-6' aria-hidden='true' />
+                  {/* ชื่อต้องตรงกับหัวการ์ด ("ปฏิทินคิว") — ของสิ่งเดียวกันเคยมี 4 ชื่อบนจอเดียว */}
+                  <p className='text-default-800 text-sm font-semibold'>โหลดปฏิทินคิวไม่สำเร็จ</p>
+                  {/* ไม่พูด "ลองอีกครั้ง" ซ้ำกับปุ่มที่อยู่ห่างลงไป 20px และเลี่ยง "วันนี้" กับ
                   น้ำเสียงแบบเอกสาร ("…หรือไม่") ที่ PRODUCT.md ตั้งเป็น anti-reference */}
-              <p className="text-default-600 text-xs">ยังไม่รู้ว่าวันที่เลือกมีนัดกี่รายการ</p>
-              <button
-                type="button"
-                onClick={() => {
-                  retriedRef.current = true
-                  setReloadSeq((n) => n + 1)
-                }}
-                className="btn border-default-300 text-default-800 hover:bg-default-50 mt-1 min-h-11 rounded-full border px-4 text-sm"
-              >
-                ลองอีกครั้ง
-              </button>
-            </div>
-          ) : !loaded ? (
-            /* skeleton ไม่ใช่สปินเนอร์กลางเนื้อหา (operate.md) — และไม่ใช่ "ว่างทั้งวัน"
+                  <p className='text-default-600 text-xs'>ยังไม่รู้ว่าวันที่เลือกมีนัดกี่รายการ</p>
+                  <button
+                    type='button'
+                    onClick={() => {
+                      retriedRef.current = true
+                      setReloadSeq(n => n + 1)
+                    }}
+                    className='btn border-default-300 text-default-800 hover:bg-default-50 mt-1 min-h-11 rounded-full border px-4 text-sm'
+                  >
+                    ลองอีกครั้ง
+                  </button>
+                </div>
+              ) : !loaded ? (
+                /* skeleton ไม่ใช่สปินเนอร์กลางเนื้อหา (operate.md) — และไม่ใช่ "ว่างทั้งวัน"
                ซึ่งเป็นคำตอบที่ผิดสำหรับคำถามเดียวที่หน้านี้มีอยู่เพื่อตอบ */
-            <ul className="flex flex-col gap-2" aria-hidden="true">
-              {[0, 1, 2].map((i) => (
-                <li key={i} className="bg-card flex items-start gap-3 rounded-lg p-3">
-                  <span className="bg-default-200 block h-8 w-14 shrink-0 animate-pulse rounded motion-reduce:animate-none" />
-                  <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <span className="bg-default-200 block h-3.5 w-2/5 animate-pulse rounded motion-reduce:animate-none" />
-                    <span className="bg-default-200 block h-3 w-1/4 animate-pulse rounded motion-reduce:animate-none" />
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : dayItems.length === 0 ? (
-            /* วันว่าง = ผลลัพธ์ที่ดีของจอนี้ (ยังรับงานได้) ไม่ใช่ความล้มเหลว — น้ำเสียงจึงไม่ใช่
+                <ul className='flex flex-col gap-2' aria-hidden='true'>
+                  {[0, 1, 2].map(i => (
+                    <li key={i} className='bg-card flex items-start gap-3 rounded-lg p-3'>
+                      <span className='bg-default-200 block h-8 w-14 shrink-0 animate-pulse rounded motion-reduce:animate-none' />
+                      <span className='flex min-w-0 flex-1 flex-col gap-1.5'>
+                        <span className='bg-default-200 block h-3.5 w-2/5 animate-pulse rounded motion-reduce:animate-none' />
+                        <span className='bg-default-200 block h-3 w-1/4 animate-pulse rounded motion-reduce:animate-none' />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : dayItems.length === 0 ? (
+                /* วันว่าง = ผลลัพธ์ที่ดีของจอนี้ (ยังรับงานได้) ไม่ใช่ความล้มเหลว — น้ำเสียงจึงไม่ใช่
                "ไม่พบข้อมูล" และไอคอนเป็นเทากลาง **ไม่ใช่เขียว** เพราะเขียวสงวนไว้กับสัญญาณ
                ความเชื่อใจที่ยืนยันแล้ว (Verified-Means-Green) ว่างไม่ใช่ trust signal */
-            <div className="flex flex-col items-center justify-center gap-2 px-6 py-6 text-center">
-              <span className="bg-default-200 text-default-500 flex size-11 items-center justify-center rounded-full">
-                <Icon icon="calendar-check" className="size-5" />
-              </span>
-              <p className="text-default-800 text-sm font-semibold">ว่างทั้งวัน</p>
-              {/* 🛑 ห้ามใช้คำว่า "วันนี้" ที่นี่ — จอนี้มีปุ่ม "วันนี้" ที่แปลว่ากระโดดไปวัน
+                /* md:h-full — บนแท็บเล็ตคอลัมน์นี้สูงเท่าปฏิทิน ข้อความจึงต้องอยู่กลางกล่องที่ยืดแล้ว
+               ไม่ใช่ค้างชิดบนโดยเหลือที่ว่างโบ๋ข้างล่าง */
+                <div className='flex flex-col items-center justify-center gap-2 px-6 py-6 text-center md:h-full'>
+                  <span className='bg-default-200 text-default-500 flex size-11 items-center justify-center rounded-full'>
+                    <Icon icon='calendar-check' className='size-5' />
+                  </span>
+                  <p className='text-default-800 text-sm font-semibold'>ว่างทั้งวัน</p>
+                  {/* 🛑 ห้ามใช้คำว่า "วันนี้" ที่นี่ — จอนี้มีปุ่ม "วันนี้" ที่แปลว่ากระโดดไปวัน
                   ปัจจุบัน และผู้ใช้จิ้มดูวันอื่นได้ (กฎนี้เขียนไว้เองที่ตัวนับข้างบนแล้ว)
                   หัวข้อวันที่อยู่เหนือขึ้นไปบอกวันอยู่แล้ว จึงไม่ต้องพูดซ้ำ
                   ชื่อคิวงานจริงดีกว่า "คิวนี้" และได้มาฟรีเพราะ resources เป็น prop อยู่แล้ว */}
-              <p className="text-default-500 text-xs">
-                {resourceId
-                  ? `ยังไม่มีนัดของ ${resources.find((r) => r.id === resourceId)?.name ?? 'คิวงานนี้'}`
-                  : 'ยังไม่มีนัดเข้ามา'}
-              </p>
+                  <p className='text-default-500 text-xs'>
+                    {resourceId
+                      ? `ยังไม่มีนัดของ ${resources.find(r => r.id === resourceId)?.name ?? 'คิวงานนี้'}`
+                      : 'ยังไม่มีนัดเข้ามา'}
+                  </p>
+                </div>
+              ) : (
+                <AppointmentDayRows
+                  items={dayItems}
+                  // รวมทุกคิว = ต้องบอกว่าแถวไหนของคิวไหน · กรองคิวเดียวแล้วชื่อซ้ำทุกแถว = เสียงรบกวน
+                  showResourceName={!resourceId && resources.length > 1}
+                  onRowClick={token => router.push(`/orders/${token}`)}
+                />
+              )}
             </div>
-          ) : (
-            <AppointmentDayRows
-              items={dayItems}
-              // รวมทุกคิว = ต้องบอกว่าแถวไหนของคิวไหน · กรองคิวเดียวแล้วชื่อซ้ำทุกแถว = เสียงรบกวน
-              showResourceName={!resourceId && resources.length > 1}
-              onRowClick={(token) => router.push(`/orders/${token}`)}
-            />
-          )}
-        </div>
-
-        {/* ปุ่มสร้างงานของวันที่จิ้มอยู่ — ทางเข้าเดียวกับปุ่ม + ในช่องวันของปฏิทินเดิม
-            เต็มความกว้างเพราะเป็น action เดียวของครึ่งล่าง และเป็นปุ่มทึบตัวเดียวในการ์ดนี้ */}
-        <div className="px-3 pb-3">
-          <button
-            type="button"
-            onClick={onCreateForSelected}
-            /* `·` ถูก screen reader ข้ามเป็นความว่าง — ป้ายบนจอคงเดิม แต่ชื่อสำหรับ AT ต้องมี
-               คำเชื่อมถึงจะรู้ว่าวันที่ต่อท้ายคืออะไร (ท่าเดียวกับที่ AppointmentDayRows ทำแล้ว) */
-            aria-label={`${createLabelShort} สำหรับวันที่ ${formatDateTH(selectedDate)}`}
-            className="btn bg-primary hover:bg-primary-hover min-h-11 w-full gap-1.5 text-white"
-          >
-            <Icon icon="plus" className="size-4" aria-hidden="true" />
-            {createLabelShort} · {formatDateTH(selectedDate)}
-          </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* ปุ่มสร้างงานของวันที่จิ้มอยู่ — ย้ายจากท้ายการ์ดมาเป็นแถบติดล่างจอ (2026-08-11)
+
+          🛑 ทำไมต้อง fixed ไม่ใช่ปุ่มท้ายเนื้อหา: หน้านี้ถอด SellerBottomNav ออกแล้ว (ดูลิสต์ใน
+          SellerBottomNav.tsx) ⇒ FAB "สร้าง" หายไปด้วย ถ้าปุ่มนี้ไปนอนท้ายรายการ ผู้ขายที่เลื่อนดู
+          นัดยาว ๆ ต้องเลื่อนกลับไปหาปุ่ม ซึ่งแย่กว่า FAB เดิมที่ลอยอยู่ตลอด
+          — คือรอยเดียวกับ docs/conventions/seller-action-placement.md §5.1 ที่ /orders เคยเจอ
+
+          ไม่ต้องเพิ่ม padding-bottom ให้ main: บาร์นี้สูง 12+44+12+1 = 69px ขณะที่ shell เว้นไว้
+          88px (5.5rem) อยู่แล้ว — safe-area บวกเท่ากันทั้งสองฝั่งจึงหักล้างกัน เหลือช่องหายใจ 19px
+
+          Base: src/app/(paces)/seller/(dashboard)/products/components/ProductFormV2.tsx:463-474
+          (แถบบันทึกติดล่างจอของหน้าที่เป็น full-screen เหมือนกัน) */}
+      <div
+        className={[
+          'bg-card border-default-100 fixed bottom-0 inset-x-0 z-20 border-t p-3 lg:hidden',
+          /* pb = p-3 (0.75rem) + safe-area: ตั้งแต่เปิด viewportFit:'cover' (2026-08-06)
+             ปุ่มจะไปนอนใต้แถบ home indicator ถ้าไม่เว้น inset */
+          'pb-[calc(0.75rem+env(safe-area-inset-bottom))]' /* carve-out: safe-area ไม่มี token */,
+          /* ≥768 ขอบซ้ายขวาของปุ่มตรงแนวกับกริด 2 คอลัมน์ด้านบนพอดี (= padding ของ main) */
+          'md:px-4'
+        ].join(' ')}
+      >
+        <button
+          type='button'
+          onClick={onCreateForSelected}
+          /* `·` ถูก screen reader ข้ามเป็นความว่าง — ป้ายบนจอคงเดิม แต่ชื่อสำหรับ AT ต้องมี
+             คำเชื่อมถึงจะรู้ว่าวันที่ต่อท้ายคืออะไร (ท่าเดียวกับที่ AppointmentDayRows ทำแล้ว) */
+          aria-label={`${createLabelShort} สำหรับวันที่ ${formatDateTH(selectedDate)}`}
+          className='btn bg-primary hover:bg-primary-hover min-h-11 w-full gap-1.5 text-white'
+        >
+          <Icon icon='plus' className='size-4' aria-hidden='true' />
+          {createLabelShort} · {formatDateTH(selectedDate)}
+        </button>
+      </div>
+    </>
   )
 }
