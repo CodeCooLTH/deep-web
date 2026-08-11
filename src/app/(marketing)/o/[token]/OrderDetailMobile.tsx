@@ -448,7 +448,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
     try {
       await onConfirmAction()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'ยืนยันไม่สำเร็จ'
+      const message = err instanceof Error ? err.message : 'ยืนยันไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
       toast.error(message)
     } finally {
       setSubmitting(false)
@@ -463,7 +463,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
       // รีเซ็ต icon กลับหลัง 2 วินาที
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      toast.error('คัดลอกไม่สำเร็จ')
+      toast.error('คัดลอกไม่สำเร็จ — กดค้างที่เลขพัสดุเพื่อคัดลอกเองได้')
     }
   }
 
@@ -473,7 +473,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
     try {
       await onCancel()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'ยกเลิกไม่สำเร็จ'
+      const message = err instanceof Error ? err.message : 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'
       toast.error(message)
     } finally {
       setCancelling(false)
@@ -510,7 +510,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
 
       if (!res.ok) {
         const err = (await res.json().catch(() => null)) as { error?: string } | null
-        toast.error(err?.error || 'แนบสลิปไม่สำเร็จ')
+        toast.error(err?.error || 'แนบสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
         return
       }
 
@@ -523,7 +523,7 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
     } catch (err) {
       // uploadFileId โยน Error ที่มีข้อความไทยบอกสาเหตุจริง (ไฟล์ใหญ่เกิน/ชนิดไม่รองรับ)
       // ใช้ก่อนข้อความกลางเสมอ — "ลองอีกครั้ง" กับไฟล์ที่ใหญ่เกินคือคำเชิญให้ทำสิ่งที่ไม่มีวันสำเร็จ
-      toast.error(err instanceof Error ? err.message : 'แนบสลิปไม่สำเร็จ กรุณาลองอีกครั้ง')
+      toast.error(err instanceof Error ? err.message : 'แนบสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setUploadingSlip(false)
       // reset ค่า input เพื่อให้เลือกไฟล์เดิมได้อีกครั้ง (onChange จะไม่ fire ถ้า value ไม่เปลี่ยน)
@@ -540,17 +540,25 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
   // timeline จาก order-display.ts (T2/T3) — status pill ใช้ SSOT ด้านบนแทน getStatusPill (freeze ตาม UX spec)
   const timeline = getOrderTimeline(order.status, order.fulfillmentMode, order.paymentMethod)
 
-  // CTA label ตาม status + paymentMethod
+  // ใช้กับแถว "วิธีชำระเงิน" ด้านล่าง — จงใจไม่เกี่ยวกับป้ายปุ่มหลักอีกต่อไป (ดูเหตุผลถัดไป)
   const isCOD = isCODPayment(order.paymentMethod)
+
+  /**
+   * ป้ายปุ่มหลัก — บอก "สิ่งที่จะเกิดขึ้น" ไม่ใช่บริบทของการชำระเงิน
+   *
+   * 🛑 เดิมแตกตามวิธีจ่ายเงินแล้วได้ป้าย "ยืนยันการชำระเงิน" สำหรับออเดอร์ PENDING ที่โอนเข้าบัญชี
+   * ซึ่ง **ไม่ตรงกับสิ่งที่ปุ่มทำเลย** — มันยิง POST /confirm ทำให้ออเดอร์เป็น CONFIRMED ถาวร
+   * ป้อนเข้า Trust Score และซ่อนปุ่มแจ้งปัญหาทิ้ง. นี่คือช่องทางของสแกมที่ product นี้มีไว้กัน:
+   * ร้านส่งลิงก์ก่อนส่งของ ผู้ซื้อเห็นปุ่มม่วงเต็มความกว้างเขียนว่า "ยืนยันการชำระเงิน"
+   * แล้วกดด้วยความเข้าใจว่ากำลังยืนยัน *การโอนของตัวเอง* — ทางออกเดียวหายไปในหนึ่งแตะ
+   * ทั้งสี่กรณีเรียก endpoint เดียวกันและได้ผลเหมือนกันทุกประการ ป้ายจึงต้องพูดเรื่องเดียวกัน
+   * และต้องตรงกับ dialog ที่ถามว่า "ยืนยันว่าได้รับสินค้าแล้ว?"
+   */
   const ctaLabel = submitting
     ? 'กำลังยืนยัน...'
-    : order.status === 'SHIPPED'
-      ? 'ยืนยันรับสินค้า'
-      : order.fulfillmentMode !== 'SHIPPED' // NO_SHIPPING (digital/service/subscription) PENDING — ยืนยันรับของส่งมอบ (scenario 8)
-        ? 'ยืนยันว่าได้รับแล้ว'
-        : isCOD
-          ? 'ยืนยันคำสั่งซื้อ'
-          : 'ยืนยันการชำระเงิน'
+    : order.fulfillmentMode !== 'SHIPPED' // NO_SHIPPING (digital/service/subscription) — ไม่มีของให้ "รับ"
+      ? 'ยืนยันว่าได้รับแล้ว'
+      : 'ยืนยันรับสินค้า'
 
   // total label ตาม status
   const totalLabel = order.status === 'PENDING' ? 'ยอดที่ต้องชำระ' : 'ยอดรวม'
@@ -1217,10 +1225,10 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             )}
 
 
-            {/* Q1: retire unlockedPhone footer branch — sub-text เดียวเสมอ (force-login = ไม่มี guest phone อีกต่อไป) */}
-            <Typography variant='caption' sx={{ textAlign: 'center', color: 'text.disabled' }}>
-              แตะเพื่อยืนยันว่าได้รับสินค้า/บริการแล้ว
-            </Typography>
+            {/* คำอธิบายใต้ปุ่มถูกถอดออก: ของเดิมเขียนว่า "แตะเพื่อยืนยันว่าได้รับสินค้า/บริการแล้ว"
+                ซึ่งบรรยาย *ท่าทางที่ใช้กด* แทนผลลัพธ์ และพูดสิ่งเดียวกับป้ายปุ่มที่อยู่เหนือมัน 4px
+                ส่วนผลที่ตามมา (แจ้งปัญหาไม่ได้อีก) ตอนนี้อยู่ใน dialog ซึ่งเป็นจุดที่ผู้ใช้
+                กำลังตัดสินใจจริง — พูดครั้งเดียวตรงที่มันมีผล */}
           </Box>
         </Box>
       )}

@@ -72,7 +72,7 @@ export default function BookingGuestView({ booking }: { booking: BookingGuestDat
       const data = (await res.json()) as { slipFileId: string }
       setSlipFileId(data.slipFileId)
     } catch {
-      setError('แนบสลิปไม่สำเร็จ ลองอีกครั้ง')
+      setError('แนบสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setUploading(false)
     }

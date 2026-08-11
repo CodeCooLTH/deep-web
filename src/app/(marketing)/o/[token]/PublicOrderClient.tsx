@@ -39,7 +39,7 @@ export default function PublicOrderClient({ order }: Props) {
       if (res.status === 403) {
         throw new Error('ไม่สามารถยกเลิกได้ กรุณาติดต่อผู้ขาย')
       }
-      throw new Error(data.error ?? 'ยกเลิกไม่สำเร็จ')
+      throw new Error(data.error ?? 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     }
     toast.success('ยกเลิกคำสั่งซื้อแล้ว')
     // Optimistic update — รวม cancelInitiator จาก response เพื่อให้ copy "คุณ/ร้านค้ายกเลิก" ถูกต้องทันที (ไม่ต้อง reload)
@@ -58,9 +58,13 @@ export default function PublicOrderClient({ order }: Props) {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      throw new Error(data?.error ?? 'ยืนยันไม่สำเร็จ')
+      throw new Error(data?.error ?? 'ยืนยันไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     }
-    toast.success('ยืนยันคำสั่งซื้อแล้ว ขอบคุณครับ')
+    // 🛑 บอก "ผลที่เกิดขึ้นจริง" ไม่ใช่คำขอบคุณลอย ๆ — นาทีนี้คือตอนที่คนแปลกหน้ากลายเป็น
+    // คู่ค้าที่ยืนยันแล้ว และประวัติของร้านได้หลักฐานเพิ่มหนึ่งชิ้นซึ่งร้านเขียนเองไม่ได้
+    // (คือสิ่งเดียวที่ Deep มีไว้ทำ) ของเดิมเขียน "ขอบคุณครับ" ซึ่งนอกจากไม่บอกอะไรแล้ว
+    // ยังเป็นคำลงท้ายที่ระบุเพศของผู้พูด ทั้งที่คนพูดคือระบบ
+    toast.success('ยืนยันรับสินค้าแล้ว — บันทึกลงประวัติของร้านเรียบร้อย')
     // Optimistic update → re-render detail with new status (status จาก response)
     setOrderState((prev) => ({ ...prev, status: data.status ?? 'CONFIRMED' }))
   }

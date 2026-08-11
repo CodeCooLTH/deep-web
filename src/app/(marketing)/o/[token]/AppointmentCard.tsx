@@ -125,7 +125,7 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
       const res = await fetch(`/api/orders/${token}/appointment/confirm`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(errorMessage(data, 'ยืนยันนัดไม่สำเร็จ กรุณาลองอีกครั้ง'))
+        toast.error(errorMessage(data, 'ยืนยันนัดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'))
         return
       }
       setState((prev) => ({
@@ -135,7 +135,7 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
       }))
       toast.success('ยืนยันนัดแล้ว ร้านค้าจะได้รับแจ้ง')
     } catch {
-      toast.error('ยืนยันนัดไม่สำเร็จ กรุณาลองอีกครั้ง')
+      toast.error('ยืนยันนัดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setConfirming(false)
     }
@@ -152,7 +152,7 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         // ตั้งใจไม่ปิด dialog ตอน error — ข้อความที่ผู้ใช้พิมพ์ไว้ต้องไม่หายเมื่อกดลองใหม่
-        toast.error(errorMessage(data, 'ส่งคำขอเลื่อนไม่สำเร็จ กรุณาลองอีกครั้ง'))
+        toast.error(errorMessage(data, 'ส่งคำขอเลื่อนไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'))
         return
       }
       setState((prev) => ({
@@ -163,7 +163,7 @@ export default function AppointmentCard({ token, appointment, orderCancelled }: 
       setDialogOpen(false)
       toast.success('ส่งคำขอเลื่อนนัดแล้ว ร้านค้าจะได้รับแจ้งทันที')
     } catch {
-      toast.error('ส่งคำขอเลื่อนไม่สำเร็จ กรุณาลองอีกครั้ง')
+      toast.error('ส่งคำขอเลื่อนไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setSending(false)
     }

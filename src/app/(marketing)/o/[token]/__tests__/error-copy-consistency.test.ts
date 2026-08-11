@@ -1,0 +1,71 @@
+/**
+ * [blocker] ข้อความล้มเหลวของทั้งเส้นทางต้องพูดแบบเดียวกัน — feature 00041 (/impeccable clarify)
+ *
+ * ก่อนหน้านี้มี 5 สำนวนสำหรับสิ่งเดียวกัน — บางจุดบอกทางแก้ บางจุดไม่บอกอะไรเลย และ
+ * "แนบสลิปไม่สำเร็จ" อย่างเดียวโผล่ 3 แบบในไฟล์เดียวกัน. ผู้ใช้ที่เจอ error สองครั้งในหนึ่ง
+ * เซสชันจะอ่านความต่างนั้นเป็น "คนละปัญหา" ทั้งที่เป็นเรื่องเดียวกัน
+ *
+ * 🛑 ข้อยกเว้นที่ตั้งใจ: "กรุณาตรวจสัญญาณแล้วลองใหม่" ใช้เฉพาะ branch ที่ดักเน็ตหลุด —
+ * มันบอก *สาเหตุที่น่าจะเป็น* ซึ่งเป็นข้อมูลคนละชิ้นกับการชวนให้ลองใหม่เฉย ๆ ห้ามยุบรวม
+ *
+ * 🛑 แดง = ห้าม merge
+ */
+
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { describe, it, expect } from 'vitest'
+
+const DIR = join(process.cwd(), 'src/app/(marketing)/o/[token]')
+
+/** สำนวนปิดท้ายที่อนุญาต — นอกจากนี้ถือว่าแตกแถว */
+const ALLOWED_TAILS = [
+  'กรุณาลองใหม่อีกครั้ง',
+  'กรุณาตรวจสัญญาณแล้วลองใหม่',
+  // คัดลอกล้มเหลวไม่ใช่เรื่องที่ "ลองใหม่" แล้วจะได้ — เบราว์เซอร์ไม่ให้สิทธิ์ ต้องบอกทางที่ทำได้จริง
+  'กดค้างที่เลขพัสดุเพื่อคัดลอกเองได้',
+]
+
+function uiFiles(): string[] {
+  return readdirSync(DIR).filter((f) => f.endsWith('.tsx'))
+}
+
+/** เอาเฉพาะสตริงที่ผู้ใช้เห็น — ตัดคอมเมนต์ทิ้งก่อน ไม่งั้นคอมเมนต์ที่อ้างข้อความเก่าจะถูกนับ */
+function userStrings(file: string): string[] {
+  const src = readFileSync(join(DIR, file), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+    .join('\n')
+
+  return [...src.matchAll(/'([^']*ไม่สำเร็จ[^']*)'/g)].map((m) => m[1])
+}
+
+describe('ข้อความล้มเหลว', () => {
+  it('ทุกข้อความบอกทางไปต่อ ไม่ปล่อยให้ผู้ใช้ค้าง', () => {
+    const offenders: string[] = []
+
+    for (const f of uiFiles()) {
+      for (const msg of userStrings(f)) {
+        if (!ALLOWED_TAILS.some((tail) => msg.includes(tail))) {
+          offenders.push(`${f}: "${msg}"`)
+        }
+      }
+    }
+
+    expect(offenders).toEqual([])
+  })
+
+  it('ใช้สำนวนชวนลองใหม่แบบเดียว ไม่ใช่ 5 แบบ', () => {
+    const variants = new Set<string>()
+
+    for (const f of uiFiles()) {
+      for (const msg of userStrings(f)) {
+        const m = msg.match(/(กรุณาลอง\S*\s*\S*|ลองใหม่อีกครั้ง|ลองอีกครั้ง)$/)
+        if (m) variants.add(m[1])
+      }
+    }
+
+    expect([...variants]).toEqual(['กรุณาลองใหม่อีกครั้ง'])
+  })
+})

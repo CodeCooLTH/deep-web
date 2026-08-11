@@ -82,7 +82,7 @@ const ShopReplyBlock = ({
 
       if (!res.ok) {
         // ข้อความจาก API บอกเหตุผลจริง (403 ไม่มีสิทธิ์ / 404 ไม่พบรีวิว) — ใช้ก่อน fallback เสมอ
-        pacesToast.error(data?.error || 'บันทึกคำตอบไม่สำเร็จ ลองใหม่อีกครั้ง')
+        pacesToast.error(data?.error || 'บันทึกคำตอบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
 
         return
       }
@@ -92,7 +92,7 @@ const ShopReplyBlock = ({
       router.refresh()
     } catch {
       // เน็ตหลุด/ยิงไม่ออก — ฟอร์มยังเปิดค้างพร้อมข้อความที่พิมพ์ไว้ ไม่เสียงานที่พิมพ์มา
-      pacesToast.error('บันทึกคำตอบไม่สำเร็จ ลองใหม่อีกครั้ง')
+      pacesToast.error('บันทึกคำตอบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setSaving(false)
     }
@@ -112,7 +112,7 @@ const ShopReplyBlock = ({
       const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        pacesToast.error(data?.error || 'ลบคำตอบไม่สำเร็จ ลองใหม่อีกครั้ง')
+        pacesToast.error(data?.error || 'ลบคำตอบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
 
         return
       }
@@ -120,7 +120,7 @@ const ShopReplyBlock = ({
       pacesToast.success('ลบคำตอบแล้ว')
       router.refresh()
     } catch {
-      pacesToast.error('ลบคำตอบไม่สำเร็จ ลองใหม่อีกครั้ง')
+      pacesToast.error('ลบคำตอบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setDeleting(false)
     }

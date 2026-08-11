@@ -74,17 +74,17 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
         body: JSON.stringify({ contact: phone, type: 'PHONE' }),
       })
       if (res.status === 429) {
-        toast.warning('ขอรหัสบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่')
+        toast.warning('ขอรหัส OTP บ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่')
         return
       }
       if (!res.ok) {
-        toast.error('ส่งรหัส OTP ไม่สำเร็จ')
+        toast.error('ส่งรหัส OTP ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
         return
       }
       setOtp('')
       setStage('otp')
     } catch {
-      toast.error('ส่งรหัส OTP ไม่สำเร็จ')
+      toast.error('ส่งรหัส OTP ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setSending(false)
     }
@@ -124,7 +124,7 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
         )
         return
       }
-      setError(data?.error ?? 'เชื่อมบัญชีไม่สำเร็จ กรุณาลองใหม่')
+      setError(data?.error ?? 'เชื่อมบัญชีไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } catch {
       setError('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')
     } finally {

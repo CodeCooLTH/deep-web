@@ -66,13 +66,13 @@ export default function ClaimOtpPrompt({ token, phone, maskedPhone }: Props) {
         return
       }
       if (!res.ok) {
-        toast.error('ส่งรหัส OTP ไม่สำเร็จ')
+        toast.error('ส่งรหัส OTP ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
         return
       }
       setOtp('')
       setStage('otp')
     } catch {
-      toast.error('ส่งรหัส OTP ไม่สำเร็จ')
+      toast.error('ส่งรหัส OTP ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setSending(false)
     }
@@ -130,7 +130,7 @@ export default function ClaimOtpPrompt({ token, phone, maskedPhone }: Props) {
             ) : (
               <form onSubmit={handleSubmit} noValidate autoComplete='off' className='flex flex-col gap-6'>
                 <div className='flex flex-col gap-2'>
-                  <Typography>กรอกรหัสความปลอดภัย 6 หลัก</Typography>
+                  <Typography>กรอกรหัส OTP 6 หลัก</Typography>
                   <OtpSlots value={otp} onChange={setOtp} />
                 </div>
 
@@ -145,7 +145,7 @@ export default function ClaimOtpPrompt({ token, phone, maskedPhone }: Props) {
                 </Button>
 
                 <div className='flex justify-center items-center flex-wrap gap-2'>
-                  <Typography>ไม่ได้รับ SMS?</Typography>
+                  <Typography>ไม่ได้รับรหัส?</Typography>
                   <Typography
                     component='button'
                     type='button'

@@ -71,7 +71,7 @@ export default function ReviewForm({ token, mode = 'create', initial, onCancel }
         setImages((prev) => (prev.length >= MAX_IMAGES ? prev : [...prev, fileId]))
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'แนบรูปไม่สำเร็จ ลองใหม่อีกครั้ง')
+      toast.error(err instanceof Error ? err.message : 'แนบรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -93,7 +93,7 @@ export default function ReviewForm({ token, mode = 'create', initial, onCancel }
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
-        toast.error(data?.error || (mode === 'edit' ? 'แก้ไขรีวิวไม่สำเร็จ' : 'ส่งรีวิวไม่สำเร็จ'))
+        toast.error(data?.error || (mode === 'edit' ? 'แก้ไขรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง' : 'ส่งรีวิวไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'))
         return
       }
       toast.success(mode === 'edit' ? 'แก้ไขรีวิวแล้ว' : 'ขอบคุณสำหรับรีวิว · แก้ไขได้ภายใน 24 ชม.')
