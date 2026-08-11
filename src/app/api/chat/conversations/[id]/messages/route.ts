@@ -6,6 +6,7 @@ import { getSubdomain } from "@/lib/subdomain";
 import { checkApiRateLimit } from "@/lib/api-rate-limit";
 import { fileIdExt } from "@/lib/storage";
 import { isStickerRawMessage } from "@/lib/chat-sticker";
+import { isDuplicateProductSend } from "@/lib/chat-product-resend";
 import { prisma } from "@/lib/prisma";
 import { getMessages, sendMessage, type SenderRole } from "@/services/chat.service";
 import { sendOutboundMessage, syncMissingMessagesFromMeta, type SendFailedError } from "@/services/channel-chat.service";
@@ -651,6 +652,35 @@ export async function POST(
           perMessage,
         );
         const byId = new Map(productRows.map((row) => [row.id, row]));
+
+        /**
+         * idempotent-guard (2026-08-11) — เส้นทาง DEEP มีด่านนี้มาตั้งแต่ BR-CTX-02 ใน
+         * `chat.service.sendMessage()` แต่ช่องทางนอกวิ่งผ่าน `sendOutboundMessage` ซึ่งไม่ผ่าน
+         * ตัวนั้น จึงไม่เคยมีด่านเลย — กดส่งรัว ๆ = ลูกค้าได้การ์ดซ้ำ และ **บน LINE เสียโควตาจริง**
+         * ทุกครั้งที่เกินครั้งแรก (reply token ใช้ได้ครั้งเดียว ครั้งถัดไปตกไปใช้ push ที่นับเงิน)
+         *
+         * ดึงเท่าจำนวนข้อความที่กำลังจะส่ง แล้วเทียบทั้งชุดตามลำดับ (ดู `isDuplicateProductSend`)
+         * เจอว่าซ้ำ → คืน **แถวเดิม** เหมือนที่ DEEP ทำ ไม่ใช่ตอบ error: ฝั่งผู้ขายผลลัพธ์เหมือนกัน
+         * ทุกประการ (การ์ดใบนั้นอยู่ในเธรดแล้ว) ต่างกันแค่ไม่มีอะไรถูกยิงออกไปรอบสอง
+         */
+        const recentForGuard = await prisma.chatMessage.findMany({
+          where: { conversationId: id },
+          orderBy: [{ createdAt: "desc" }, { seq: "desc" }],
+          take: batches.length,
+        });
+        const isDuplicate = isDuplicateProductSend(
+          recentForGuard.map((r) => ({
+            type: r.type,
+            // แถวเก่าก่อนส่วนขยาย "หลายรายการ" เก็บไว้ที่ `productRefId` เดี่ยว — normalize ให้เป็น
+            // รูปเดียวกันเหมือนที่ฝั่ง GET ทำ ไม่งั้นการ์ดใบเดียวของเก่าจะหลุดด่านไปทุกใบ
+            productRefIds: r.productRefIds.length > 0 ? r.productRefIds : r.productRefId ? [r.productRefId] : [],
+            deliveryStatus: r.deliveryStatus,
+          })),
+          batches,
+        );
+        if (isDuplicate) {
+          return NextResponse.json(await withSender(recentForGuard[0]!, userId));
+        }
 
         let lastSent: Awaited<ReturnType<typeof sendOutboundMessage>> | null = null;
         for (let i = 0; i < batches.length; i++) {
