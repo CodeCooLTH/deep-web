@@ -3,19 +3,32 @@
 > ที่มา: user 2026-08-11 "UI บน Orderlink เทียบไม่ได้กับ Public Profile เลย"
 > ผ่าน `safepay-ux` 2 รอบ (วินิจฉัย + สเปก implement + delta) — ไฟล์นี้คือมติสุดท้าย
 
-## สถานะ: 2/9 คอมมิตขึ้น prod แล้ว
+## สถานะ: ครบทุกคอมมิตแล้ว (9/9)
 
 | # | คอมมิต | สถานะ |
 |---|---|---|
 | 1 | `shop.logo ?? user.avatar` ทั้ง 2 branch | ✅ `ee000870` |
 | 1.5 | สถิติร้าน (`completedOrders`/`avgRating`/`reviewCount`/`channels`) เข้า `PublicOrderData` | ✅ `61c208ac` |
-| 2 | ตัด `FrontLayout` ออกจาก `layout.tsx` | ⬜ **มีด่านต้องผ่านก่อน — ดู §ด่าน** |
-| 3 | ปก: ตัด `ProfileBanner` (dot-mesh + ปุ่มย้อนกลับ) → `getTierGradient()` ตรง + พิลแบรนด์ · ปก authenticated 140→104 ให้เท่า guest | ⬜ |
-| 4 | รวม verify badge + tier chip เป็นแพตเทิร์นเดียวทั้ง 2 จอ | 🟡 ทำบางส่วนแล้วที่ `cc2c3b67` (ชิปได้ `(ระดับ N)` + เลิก hardcode เขียว) เหลือรวม 3 ชิปของ authenticated ให้เหลือทรงเดียวกับ guest |
-| 5 | render บล็อกหลักฐานร้าน (สถิติ 2 คอลัมน์ + `ChannelStrip`) **ทั้ง 2 จอ** | ⬜ data พร้อมแล้วจากคอมมิต 1.5 |
-| 6 | `PublicProfileFooter` แทน `Footer` การตลาด | ⬜ |
-| 7 | CTA authenticated `sticky+mt:auto` → `position:fixed` เหมือน guest | ⬜ |
-| 8 | เพิ่ม `lg:880` ให้ guest `maxWidth` (authenticated มีแล้ว) | ⬜ |
+| 2 | ตัด `FrontLayout` ออกจาก `layout.tsx` | ✅ `a7f0638e` |
+| 3 | ปก: ตัด `ProfileBanner` (dot-mesh + ปุ่มย้อนกลับ) → `getTierGradient()` ตรง + พิลแบรนด์ · ปก authenticated 140→104 ให้เท่า guest | ✅ `cfd1a7ec` (`ShopCover.tsx`) |
+| 4 | รวม verify badge + tier chip เป็นแพตเทิร์นเดียวทั้ง 2 จอ | ✅ `639acbde` (`TrustPill.tsx`) |
+| 5 | render บล็อกหลักฐานร้าน (สถิติ 2 คอลัมน์ + `ChannelStrip`) **ทั้ง 2 จอ** | ✅ `510a5650` (`ShopEvidence.tsx`) |
+| 6 | `PublicProfileFooter` แทน `Footer` การตลาด | ✅ `221e9e16` |
+| 7 | CTA authenticated `sticky+mt:auto` → `position:fixed` เหมือน guest | ✅ `fbff50d5` |
+| 8 | เพิ่ม `lg:880` ให้ guest `maxWidth` (authenticated มีแล้ว) | ✅ `61d503a9` (`content-width.ts`) |
+
+### สิ่งที่เจอเพิ่มระหว่างทาง (ไม่ได้อยู่ในสเปก)
+
+1. **`BookingGuestView` ก็ไม่มีทางออกเหมือนกัน** — ตาราง §ด่าน ไล่แค่ 3 จอ auth แต่จอใบจอง
+   อยู่ใต้ `layout.tsx` ตัวเดียวกันและไม่มีลิงก์ออกเลยแม้แต่จุดเดียว (แก้ในคอมมิต 2)
+2. 🛑 **เพดานความกว้าง 720px ไม่เคยทำงานเลยทั้งสองจอ** — `'min-[768px]'` (ไวยากรณ์ Tailwind)
+   และ `'@media (min-width:768px)'` ไม่ใช่ key ที่ `iterateBreakpoints` ของ MUI รู้จัก
+   มันโยนค่าลง output ดิบ ๆ เป็น CSS เสีย โดยไม่มี error/warning/type ผิด
+   ⇒ จอ guest กว้างเต็มจอทุกขนาด · จอหลังล็อกอินเต็มจอตั้งแต่ 768–1199 (คอมมิต 8)
+3. **`TrustPill` เขียนสีของโทน verify ซ้ำเอง** ทั้งที่ `VERIFY_BADGE_PALETTE` เป็น SSOT
+   และไฟล์นั้นเขียนเหตุผลกันเรื่องนี้ไว้เองอยู่แล้ว (HR16 — แก้ในคอมมิต 4)
+4. จอหลังล็อกอิน **ไม่เคยส่ง `isNewShop`** ⇒ ร้านที่ยังไม่มีออเดอร์จบได้ปกเทาก่อนล็อกอิน
+   แล้วกลายเป็นปกไล่สีทันทีหลังล็อกอิน (คอมมิต 3)
 
 ## 🛑 ด่านที่ต้องผ่านก่อนคอมมิต 2 (ตรวจกับโค้ดแล้ว ไม่ใช่สมมติฐาน)
 
