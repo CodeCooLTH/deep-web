@@ -846,7 +846,7 @@ function ChatAvatar({
  * ยังไม่ plumb เพิ่ม) จึงอ่านผ่าน useSession ตรง ๆ (pattern เดียวกับหน้าอื่นใน (paces)/** ที่ใช้
  * useSession เช่น onboarding/page.tsx) แทนการ prop-drill ใหม่
  */
-function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCard | null; username?: string; thumbSize: string }) {
+function ProductCardBubble({ card, username }: { card: ChatProductCard | null; username?: string }) {
   if (!card) {
     // FR-CTX-08 — สินค้าถูกลบจริง (ไม่พบใน productMap) แทนทั้งการ์ดด้วย empty state ไม่มีลิงก์/รูป
     return (
@@ -857,40 +857,65 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
     )
   }
 
-  // (2026-08-11) เปลี่ยนมาใช้ `formatBaht` ตัวเดียวกับที่การ์ดสินค้าบน LINE ใช้ — สูตรเดิมที่เขียนไว้
-  // ตรงนี้ให้ผลต่างกันตอนมีสตางค์ (`฿1,290.5` vs `฿1,290.50`) ราคาชิ้นเดียวกันจึงอ่านคนละแบบระหว่าง
-  // จอร้านกับที่ลูกค้าเห็นในแอป LINE โดยไม่มี tsc/เทสตัวไหนฟ้อง เพราะทั้งคู่ "ถูก" ในตัวเอง (HR16)
+  // (2026-08-11) เปลี่ยนมาใช้ `formatBaht` ตัวเดียวกับที่การ์ดสินค้าบน LINE/Meta ใช้ — สูตรเดิมที่เขียน
+  // ไว้ตรงนี้ให้ผลต่างกันตอนมีสตางค์ (`฿1,290.5` vs `฿1,290.50`) ราคาชิ้นเดียวกันจึงอ่านคนละแบบระหว่าง
+  // จอร้านกับที่ลูกค้าเห็นในแอปแชท โดยไม่มี tsc/เทสตัวไหนฟ้อง เพราะทั้งคู่ "ถูก" ในตัวเอง (HR16)
   const priceLabel = formatBaht(card.price)
   const href = username ? `/u/${username}` : undefined
 
+  /**
+   * (2026-08-11 รอบสอง, user เจอเองบน prod: "UI ไม่ได้เลย ผมอยากให้เหมือนนี้")
+   *
+   * เดิมเป็นแถวนอน: รูปจิ๋ว 56px ซ้าย + ตัวหนังสือขวา — เล็กจนรูปสินค้าดูไม่ออกว่าเป็นอะไร ขณะที่
+   * ลูกค้าปลายทาง (Messenger/LINE) เห็นการ์ดรูปใหญ่ ผู้ขายจึงเห็นคนละอย่างกับสิ่งที่ตัวเองเพิ่งส่ง
+   *
+   * 🛑 ภาษาการออกแบบยกมาจาก `MetaGenericCardCarousel` ในไฟล์เดียวกัน (การ์ดขาเข้าจาก Facebook)
+   * ไม่ได้ประดิษฐ์ใหม่ — รูปบน/ตัวหนังสือล่าง, กล่องรูป `relative` + ลูก `absolute inset-0`,
+   * บล็อกข้อความ `p-2.5` เท่ากัน. การ์ดขาเข้ากับขาออกในเธรดเดียวกันต้องอ่านเป็นภาษาเดียวกัน
+   * (docs/conventions/sibling-surface-parity.md)
+   *
+   * ต่างจากตัวขาเข้า 2 จุดที่มีเหตุผล:
+   *   - `aspect-square` ไม่ใช่ `aspect-video` — รูปสินค้าที่ร้านถ่ายเองส่วนใหญ่เป็นจัตุรัส ใช้ 16:9
+   *     จะได้แถบว่างบน-ล่างหนาทุกใบ
+   *   - `w-56` ไม่ใช่ `w-44` — ใบเดียวไม่ต้องเบียดกันในแถวเลื่อน จึงให้พื้นที่รูปเต็มที่
+   */
   const inner = (
-    <div className="flex items-center gap-3">
-      <span className={`${thumbSize} bg-default-100 flex shrink-0 items-center justify-center overflow-hidden rounded-lg`}>
+    <div className="bg-light w-56 overflow-hidden rounded-lg">
+      {/* 🛑 กล่องรูปต้องล็อกความสูงจริง: `relative` + ลูก `absolute inset-0` — `aspect-*` อย่างเดียว
+          ไม่พอ ลูกที่ยังอยู่ใน flow (img ที่ยังไม่รู้ขนาด / alt text ตอนโหลดไม่ขึ้น) ดันกล่องให้สูง
+          เกินได้ (บทเรียนเดียวกับการ์ดขาเข้า — user เจอเองบน prod 2026-08-09) */}
+      <div className="bg-default-100 relative aspect-square w-full overflow-hidden">
         {card.imageFileId ? (
+          // object-contain ไม่ใช่ cover — รูปสินค้าที่ร้านอัปเองมักมีข้อความ/สเปกอยู่ในรูป และ cover
+          // จะครอปทิ้ง (docs/conventions/user-supplied-image-assets.md)
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/files/${card.imageFileId}`} alt={card.name} className="size-full object-cover" />
+          <img src={mediaSrc(card.imageFileId)} alt="รูปสินค้า" className="absolute inset-0 size-full object-contain" />
         ) : (
-          <Icon icon="photo" className="text-default-700 text-xl" />
+          <div className="text-default-700 absolute inset-0 flex items-center justify-center">
+            <Icon icon="photo-off" className="text-xl" />
+          </div>
         )}
-      </span>
-      <div className="min-w-0">
-        <p className="text-default-800 mb-0 line-clamp-1 text-sm font-semibold">{card.name}</p>
+      </div>
+      <div className="p-2.5">
+        <p className="text-default-800 mb-0.5 line-clamp-2 text-sm font-semibold">{card.name}</p>
         <p className="text-default-600 mb-0 text-sm">{priceLabel}</p>
         {!card.isActive && (
-          <span className="text-default-700 mt-0.5 flex items-center gap-1 text-2xs">
+          <span className="text-default-700 mt-1 flex items-center gap-1 text-2xs">
             <Icon icon="ban" />
             หยุดขายแล้ว
           </span>
         )}
-        <span className="text-primary mt-1 flex items-center gap-1 text-sm font-semibold">
-          ดูสินค้า <Icon icon="external-link" className="text-sm" />
-        </span>
+        {href && (
+          <span className="text-primary mt-1.5 flex items-center gap-1 text-2xs font-semibold">
+            ดูสินค้า <Icon icon="external-link" className="text-2xs" />
+          </span>
+        )}
       </div>
     </div>
   )
 
-  // คลิกทั้งก้อนได้ (tap target ใหญ่กว่า 44px) — ถ้าไม่มี username (edge case ไม่ล็อกอิน/session ยังโหลด)
-  // แสดงเนื้อหาเฉย ๆ ไม่มีลิงก์ แทนที่จะ crash
+  // คลิกทั้งก้อนได้ — ถ้าไม่มี username (edge case ไม่ล็อกอิน/session ยังโหลด) แสดงเนื้อหาเฉย ๆ
+  // ไม่มีลิงก์ แทนที่จะ crash (และไม่โชว์ "ดูสินค้า" ที่กดไม่ได้ — ดู href guard ข้างบน)
   return href ? (
     <Link href={href} className="block">
       {inner}
@@ -2588,7 +2613,7 @@ export default function ChatThread({
                             onOpenImage={(i) => setLightboxIndex(slideIndexByMessageId.get(`${m.id}:${i}`) ?? -1)}
                           />
                         ) : m.type === 'PRODUCT' ? (
-                          <ProductCardBubble card={m.productCard ?? null} username={shopUsername} thumbSize="size-14" />
+                          <ProductCardBubble card={m.productCard ?? null} username={shopUsername} />
                         ) : (
                           <>
                             {m.type === 'IMAGE' && m.imageUrl && (
