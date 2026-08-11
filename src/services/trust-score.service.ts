@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { BADGE_SCORE_MAX, BADGE_SCORE_PER_BADGE } from "@/lib/badge-score-rule";
+import {
+  approvedVerificationWhere,
+  businessScope,
+  type VerificationReadScope,
+} from "@/lib/verification-scope";
 
 export type TrustLevel = "A+" | "A" | "B+" | "B" | "C" | "D";
 
@@ -39,13 +44,21 @@ type TrustScope = { kind: "personal"; userId: string } | { kind: "business"; sho
 
 async function calcVerificationScore(scope: TrustScope): Promise<number> {
   // shopId:null = personal/user-level เท่านั้น (00008 P5-1) — ไม่นับ verification ของ Business shop
-  // เข้า personal trust score; business scope นับตรงจาก shopId (แยกจาก owner)
-  const where =
-    scope.kind === "personal"
-      ? { userId: scope.userId, shopId: null, status: "APPROVED" }
-      : { shopId: scope.shopId, status: "APPROVED" };
+  // เข้า personal trust score; business scope นับจาก shopId + L1 ของเจ้าของร้าน
+  // (นิยามเดียวกับหน้าจอทุกจุด — ดู src/lib/verification-scope.ts; ก่อน 2026-08-11 ตรงนี้กรอง
+  //  shopId ล้วน ทำให้ร้าน BUSINESS ทุกร้านเสีย 10 คะแนนของ L1 ที่เจ้าของยืนยันไว้แล้ว)
+  let readScope: VerificationReadScope;
+  if (scope.kind === "personal") {
+    readScope = { kind: "personal", userId: scope.userId };
+  } else {
+    const shop = await prisma.shop.findUnique({
+      where: { id: scope.shopId },
+      select: { userId: true },
+    });
+    readScope = businessScope(scope.shopId, shop?.userId ?? null);
+  }
   const approved = await prisma.verificationRecord.findMany({
-    where,
+    where: approvedVerificationWhere(readScope),
     select: { level: true },
   });
   const maxLevel = approved.length > 0 ? Math.max(...approved.map((v) => v.level)) : 0;

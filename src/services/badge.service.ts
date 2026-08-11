@@ -24,6 +24,7 @@ import { Prisma } from "@prisma/client"
 import { recalculateTrustScore, recalculateShopTrustScore } from "@/services/trust-score.service"
 import { pushToUser } from "@/services/app-push.service"
 import { computeShippingSpeed } from "@/lib/shipping-speed"
+import { approvedVerificationWhere, businessScope } from "@/lib/verification-scope"
 import type {
   BadgeCriteria,
   BadgeProgress,
@@ -287,16 +288,25 @@ export async function checkFastShipping(
 /**
  * checkFullVerification — scope-aware (00008 P5-1 + P5-2)
  * scope.shopId=null → personal/user-level เดิม (where userId,shopId:null) — zero-regression
- * scope.shopId=<businessId> → business scope (where shopId เท่านั้น ไม่ผูก userId — เอกสารของ
- *   business ไม่ใช่ของ member คนใดคนหนึ่ง, ตรง pattern getMaxVerificationLevel ใน verification.service)
+ * scope.shopId=<businessId> → business scope: เอกสารของ business + L1 ของ "เจ้าของร้าน"
+ *
+ * 🛑 `scope.userId` ในเส้น business = `shop.userId` เสมอ (`evaluateSellerBadgesForShop` ส่ง
+ *    `{ userId: shop.userId, ... }` เข้า `runBadgeEvaluation`) จึงใช้เป็น ownerUserId ได้ตรง —
+ *    ถ้าวันไหนมีผู้เรียกที่ส่ง session user เข้ามาแทน ต้องแก้ที่ผู้เรียกไม่ใช่คลายเงื่อนไขที่นี่
+ *
+ * ก่อน 2026-08-11 เส้น business กรอง shopId ล้วน ⇒ L1 (ซึ่งเขียน shopId=null เสมอทุกทางเข้า)
+ * ไม่มีวันเข้ามา ⇒ เหรียญนี้ที่ต้องครบ 1+2+3 เป็นไปไม่ได้เลยสำหรับร้าน BUSINESS
+ * ดู `src/lib/verification-scope.ts`
  */
 export async function checkFullVerification(
   scope: { userId: string; shopId: string | null },
 ): Promise<{ met: boolean; levels: Set<number> }> {
   const approved = await prisma.verificationRecord.findMany({
-    where: scope.shopId
-      ? { shopId: scope.shopId, status: 'APPROVED' }
-      : { userId: scope.userId, shopId: null, status: 'APPROVED' },
+    where: approvedVerificationWhere(
+      scope.shopId
+        ? businessScope(scope.shopId, scope.userId)
+        : { kind: 'personal', userId: scope.userId },
+    ),
     select: { level: true },
   })
   const levels = new Set(approved.map((v) => v.level))

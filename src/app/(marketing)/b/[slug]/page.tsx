@@ -21,6 +21,7 @@ import { getPublicRooms, getConfirmedBookingCountByRoom } from '@/services/room.
 import { listServiceResources, serializeServiceResource } from '@/services/service-resource.service'
 import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layout.service'
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
+import { approvedVerificationWhere, businessScope } from '@/lib/verification-scope'
 import { shopCategoryLabel } from '@/lib/shop-categories'
 import { formatOrderNo } from '@/lib/order-no'
 import { resolveOrderSource } from '@/lib/order-source-channel'
@@ -96,8 +97,11 @@ export default async function BusinessShopProfilePage({ params }: Props) {
   // ที่ไม่มีใครใช้เลย — ค่าที่ส่งเข้า UI จริงมาจาก profileStats ทั้งคู่ (query ซ้ำที่ยิงทิ้งทุกครั้ง
   // ที่มีคนเปิดหน้าร้าน) ถอดออกแล้วพร้อมกับ const ที่ตายตามกัน
   const [approvedVerifications, rawPinnedProducts, rawOtherProducts] = await Promise.all([
+    // 🛑 นิยาม "แถวไหนนับเป็นการยืนยันของร้านนี้" อยู่ที่ src/lib/verification-scope.ts ที่เดียว —
+    // ห้ามเขียน where เองที่นี่ เพราะ L1 เขียน shopId=null เสมอทุกทางเข้า การกรอง shopId ล้วนจึง
+    // ทำให้แท็บ "เกี่ยวกับร้าน" ขึ้น "ยังไม่ยืนยัน" ครบ 3 บรรทัดกับร้านที่เจ้าของยืนยันเบอร์แล้ว
     prisma.verificationRecord.findMany({
-      where: { shopId: shop.id, status: 'APPROVED' },
+      where: approvedVerificationWhere(businessScope(shop.id, shop.userId)),
       select: { level: true },
     }),
     // Phase 3 (feature 00013): pinned + other แยกคิวรี (sync /u/[username])

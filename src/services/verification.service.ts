@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { evaluateBadges, evaluateSellerBadgesForShop } from "@/services/badge.service";
+import {
+  approvedVerificationWhere,
+  businessScope,
+  verificationRecordWhere,
+  type VerificationReadScope,
+} from "@/lib/verification-scope";
 
 /** VerificationScope — Personal (shopId=null, ผูก userId) หรือ Business (shopId=active.shop.id)
  *  P5-1: verification ผูก active shop context (Personal เดิม 100% / Business แยกต่อร้าน) */
@@ -86,11 +92,25 @@ export async function reviewVerification(recordId: string, adminId: string, data
   return record;
 }
 
-/** getVerifications — scope-aware list. Business: filter เฉพาะ shopId (verification ของ business
- *  ไม่ใช่ของ user คนใดคนหนึ่ง — ไม่ผูก userId ในการ filter). Personal: {userId, shopId:null} เดิม */
+/** resolveReadScope — แปลง VerificationScope เดิมเป็น scope ของ SSOT ฝั่งอ่าน
+ *  business ต้องยึด "เจ้าของร้าน" ไม่ใช่ผู้ใช้ที่กำลังเปิดหน้าอยู่ (พนักงานที่ถูกเชิญยืนยันเบอร์ตัวเอง
+ *  แล้วไม่ได้แปลว่าร้านยืนยันแล้ว) → ต้อง query หา Shop.userId ไม่ใช่หยิบ scope.userId มาใช้
+ *  หาเจ้าของไม่เจอ → คงพฤติกรรมเดิม `{ shopId }` (ไม่ตกไป personal ซึ่งจะกลายเป็นเอา verification
+ *  ของคนที่เปิดหน้าอยู่มาแสดงแทนของร้าน) */
+async function resolveReadScope(scope: VerificationScope): Promise<VerificationReadScope> {
+  if (!scope.shopId) return { kind: "personal", userId: scope.userId };
+  const shop = await prisma.shop.findUnique({
+    where: { id: scope.shopId },
+    select: { userId: true },
+  });
+  return businessScope(scope.shopId, shop?.userId ?? null);
+}
+
+/** getVerifications — scope-aware list. Business: แถวของร้าน + L1 ของเจ้าของร้าน (ดู
+ *  `src/lib/verification-scope.ts` — L1 เขียน shopId=null เสมอทุกทางเข้า). Personal: เดิม */
 export async function getVerifications(scope: VerificationScope) {
   return prisma.verificationRecord.findMany({
-    where: scope.shopId ? { shopId: scope.shopId } : { userId: scope.userId, shopId: null },
+    where: verificationRecordWhere(await resolveReadScope(scope)),
     orderBy: { createdAt: "desc" },
   });
 }
@@ -106,9 +126,7 @@ export async function getUserVerifications(userId: string) {
 export async function getMaxVerificationLevel(scope: string | VerificationScope): Promise<number> {
   const normalized: VerificationScope = typeof scope === "string" ? { userId: scope, shopId: null } : scope;
   const approved = await prisma.verificationRecord.findMany({
-    where: normalized.shopId
-      ? { shopId: normalized.shopId, status: "APPROVED" }
-      : { userId: normalized.userId, shopId: null, status: "APPROVED" },
+    where: approvedVerificationWhere(await resolveReadScope(normalized)),
     select: { level: true },
   });
   if (approved.length === 0) return 0;

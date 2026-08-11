@@ -45,6 +45,7 @@
 | FR-2.4 | Verification type enum กำหนดชัด: `PHONE_OTP`, `ID_DOC`, `BUSINESS_REG` | Must |
 | FR-2.5 | Verification ที่ผ่าน → ได้ Verification Badge อัตโนมัติ | Must |
 | FR-2.6 | **Admin อนุมัติ/ปฏิเสธ verification ของตัวเองไม่ได้** (self-review block) — guard ที่ `services/verification.service.ts:reviewVerification` (single source) | Must |
+| FR-2.7 | **ระดับยืนยันของร้าน BUSINESS = เอกสารที่ผูก `shopId` ของร้านนั้น + `PHONE_OTP` L1 ของ *เจ้าของร้าน* (`Shop.userId`)** — เพราะ L1 เป็นข้อเท็จจริงของ "คน" จึงเขียน `shopId = null` เสมอ (ดูตาราง VerificationRecord). SSOT ของ where อยู่ที่ `src/lib/verification-scope.ts` ที่เดียว — **ห้ามเขียน where เองที่ call site** (ทั้ง `verification.service`, `trust-score.service::calcVerificationScore`, `badge.service::checkFullVerification`, หน้า `/b/[slug]` ต้องเรียกตัวนี้). 🛑 ต้องยึด **เจ้าของร้าน** ไม่ใช่ผู้ใช้ที่กำลังเปิดหน้าอยู่ — พนักงานที่ถูกเชิญ (`ShopMember`) ยืนยันเบอร์ตัวเองไม่ได้แปลว่าร้านยืนยันแล้ว. 🛑 ระดับ 2/3 **ไม่** สืบทอดจาก personal ของเจ้าของ (เป็นเอกสารของร้านโดยแท้). หาเจ้าของไม่เจอ → ถอยไป `{ shopId }` ล้วน **ห้ามถอยไป personal path** (จะกลายเป็นเอาการยืนยันของคนที่เปิดหน้าอยู่มาแสดงแทนของร้าน). เหตุผล: ก่อน 2026-08-11 ทุกจุดกรอง `shopId` ล้วน ⇒ ร้าน BUSINESS **ทุกร้าน** ขึ้น "Level 0 · ยังไม่ได้ยืนยัน" ตลอดกาล, เสียคะแนน verification 10 คะแนน และเหรียญ Fully Verification เป็นไปไม่ได้เลย (ยืนยันกับ prod: BUSINESS 3/3 ร้านโดนทั้งหมด) | Must |
 
 ### FR-3: Trust Score
 
@@ -486,7 +487,8 @@ SellerWallet (1) ── (N) WalletTransaction
 
 | Field | Type | หมายเหตุ |
 |-------|------|---------|
-| `userId` | String FK → User | |
+| `userId` | String FK → User | คนที่ส่ง/ถือการยืนยันใบนี้ (audit) — มีค่าเสมอทุกแถว |
+| `shopId` | String? FK → Shop | `null` = ระดับของ "คน" (personal) · `<businessId>` = เอกสารของร้าน BUSINESS นั้น. 🛑 **L1 `PHONE_OTP` เขียน `shopId = null` เสมอทุกทางเข้า** (`api/account/set-phone`, `lib/auth.ts` ×2, `scripts/backfill-phone-l1-verifications.ts`) — ไม่มีทางเข้าไหนเขียน L1 พร้อม `shopId` เลย ดู FR-2.7 |
 | `type` | String | `PHONE_OTP` / `ID_DOC` / `BUSINESS_REG` |
 | `level` | Int | 1 / 2 / 3 |
 | `status` | String default `"PENDING"` | `PENDING` / `APPROVED` / `REJECTED` |
