@@ -1829,3 +1829,60 @@ export const UpdateReviewSchema = v.pipe(
 export const ReplyToReviewSchema = v.object({
   comment: v.pipe(v.string(), v.trim(), v.minLength(1, "กรุณาพิมพ์คำตอบ"), v.maxLength(1000)),
 });
+
+// ---------------------------------------------------------------------------
+// เมนูลัดใน LINE (feature 00045)
+// ---------------------------------------------------------------------------
+
+/**
+ * action ที่รองรับ — **allow-list + fail-closed**
+ *
+ * 🛑 ชนิดที่ LINE มีแต่เรายังไม่เปิด (เช่น `richmenuswitch`, `camera`) ต้องตกที่นี่เป็น 400
+ * ห้ามปล่อยผ่านไปให้ LINE ตัดสิน เพราะ error ของ LINE เป็นภาษาอังกฤษที่ผู้ขายอ่านไม่ออกและ
+ * แก้ไม่ถูก และปุ่มที่เราไม่มีตัวรับ = ลูกค้ากดแล้วเงียบหาย (BR-RM-03)
+ */
+export const RichMenuActionSchema = v.variant("type", [
+  v.object({
+    type: v.literal("uri"),
+    // https เท่านั้น (BR-RM-07) — LINE ปฏิเสธ http ทั้งเมนู ไม่ใช่แค่ปุ่มนั้น
+    uri: v.pipe(v.string(), v.startsWith("https://"), v.maxLength(1000)),
+  }),
+  v.object({ type: v.literal("message"), text: v.pipe(v.string(), v.minLength(1), v.maxLength(300)) }),
+  v.object({ type: v.literal("postback"), data: v.pipe(v.string(), v.minLength(1), v.maxLength(300)) }),
+  v.object({ type: v.literal("location") }),
+  v.object({
+    type: v.literal("datetimepicker"),
+    data: v.pipe(v.string(), v.minLength(1), v.maxLength(300)),
+    mode: v.picklist(["date", "time", "datetime"]),
+  }),
+]);
+
+export const RichMenuButtonSchema = v.object({
+  key: v.pipe(v.string(), v.minLength(1), v.maxLength(40)),
+  label: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(60)),
+  action: RichMenuActionSchema,
+});
+
+export const RichMenuDraftSchema = v.object({
+  shopChannelId: v.pipe(v.string(), v.minLength(1)),
+  templateKey: v.pipe(v.string(), v.minLength(1), v.maxLength(60)),
+  /**
+   * 🛑 นับเป็น **code point** ไม่ใช่ `String.length` — `v.maxLength()` ของ Valibot นับ UTF-16 unit
+   * ซึ่งไม่ตรงกับที่ LINE นับ (อักขระนอก BMP นับเป็น 2) ถ้าใช้ maxLength ตรง ๆ ผู้ขายที่ใส่
+   * อิโมจิจะถูกปฏิเสธทั้งที่ยังไม่เกินเพดานจริง — เกณฑ์เดียวกับ `countChatBarText()` ใน
+   * lib/line/rich-menu.ts (HR16: นิยาม "ยาวเกินไป" ต้องมีชุดเดียวทั้งระบบ)
+   */
+  chatBarText: v.pipe(
+    v.string(),
+    v.trim(),
+    v.check((s) => Array.from(s).length >= 1, "ต้องมีข้อความบนแถบเปิดเมนู"),
+    v.check((s) => Array.from(s).length <= 14, "ข้อความบนแถบเปิดเมนูยาวได้ไม่เกิน 14 ตัวอักษร"),
+  ),
+  // เพดาน 20 = จำนวนพื้นที่กดได้สูงสุดต่อเมนูของ LINE (PRD §4.3)
+  buttons: v.pipe(v.array(RichMenuButtonSchema), v.minLength(1), v.maxLength(20)),
+  imageFileId: v.nullable(v.pipe(v.string(), v.minLength(1))),
+});
+
+export const RichMenuChannelRefSchema = v.object({
+  shopChannelId: v.pipe(v.string(), v.minLength(1)),
+});
