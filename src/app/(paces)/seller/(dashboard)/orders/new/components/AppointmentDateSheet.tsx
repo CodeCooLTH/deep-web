@@ -1016,7 +1016,11 @@ export default function AppointmentDateSheet({
         }`}
       >
         <span className="inline-flex items-center gap-1.5">
-          <span className="bg-warning size-1.5 rounded-full" aria-hidden="true" />
+          {/* swatch ต้องเป็นสัญลักษณ์เดียวกับที่เห็นในช่องจริงเป๊ะ ๆ (สี/ขนาด/รูปร่าง) —
+              AppointmentDayCell เปลี่ยนจุดเป็น warning-ink 8px และวงแหวนเป็น default-400
+              เพื่อผ่านเกณฑ์คอนทราสต์ non-text 3:1 legend จึงต้องตามไปด้วย ไม่งั้นกลายเป็น
+              legend ที่สอนสัญลักษณ์ที่ไม่มีอยู่บนจอ */}
+          <span className="bg-warning-ink size-2 rounded-full" aria-hidden="true" />
           มีนัดแล้ว
         </span>
         {/* "เต็ม" มีความหมายเฉพาะโหมดรายวัน — โหมดระบุช่วงเวลาไม่มีเครื่องหมายนี้ในปฏิทินเลย
@@ -1031,7 +1035,7 @@ export default function AppointmentDateSheet({
         {/* swatch ต้องเป็นสัญลักษณ์ตัวเดียวกับที่เห็นในช่องจริง (เส้นขอบ ไม่ใช่จุดสี)
             — legend ที่แสดงคนละสัญลักษณ์กับของจริงคือ legend ที่อธิบายผิด */}
         <span className="inline-flex items-center gap-1.5">
-          <span className="border-default-300 size-2.5 rounded-full border" aria-hidden="true" />
+          <span className="border-default-400 size-2.5 rounded-full border" aria-hidden="true" />
           วันนี้
         </span>
       </div>

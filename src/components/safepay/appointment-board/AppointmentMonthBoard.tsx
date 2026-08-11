@@ -31,8 +31,11 @@ import FullCalendar from '@fullcalendar/react'
 import type { DatesSetArg } from '@fullcalendar/core'
 import type { DateClickArg } from '@fullcalendar/interaction'
 import Icon from '@/components/wrappers/Icon'
-import { pacesToast } from '@/lib/paces-toast'
-import { formatDateTH, formatMonthYearTH, formatWeekdayDateTH } from '@/lib/format-date'
+/* thaiDayKey = SSOT ของ "คีย์วันตามเวลาไทย" — ไฟล์นี้เคยประกาศ bangkokDayKey ของตัวเองซึ่งให้ผล
+   เท่ากันเป๊ะแต่ **สร้าง Intl.DateTimeFormat ใหม่ทุกครั้งที่เรียก** (format-date.ts เขียนคอมเมนต์
+   ไว้เองว่าการ construct formatter แพงกว่าการ format มาก จึง cache เป็น singleton) —
+   ฟังก์ชันนี้ถูกเรียกต่อนัดต่อวันใน countByDay/dayItems ซึ่งรันใหม่ทุกครั้งที่จิ้มวัน (HR16) */
+import { formatDateTH, formatMonthYearTH, formatWeekdayDateTH, thaiDayKey } from '@/lib/format-date'
 import AppointmentDayCell from './AppointmentDayCell'
 import AppointmentDayRows from './AppointmentDayRows'
 import { localDateKey, type AppointmentBoardItem } from './types'
@@ -42,11 +45,6 @@ const DOW_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
 const DOW_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์']
 
 const DAY_MS = 86_400_000
-
-/** คีย์วันตามเวลาไทย — ใช้กับ "ข้อมูลจากเซิร์ฟเวอร์" (ISO/UTC) ต่างจาก localDateKey ที่ใช้กับช่องปฏิทิน */
-function bangkokDayKey(d: Date): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(d)
-}
 
 export type ResourceOption = { id: string; name: string; capacity: number }
 
@@ -95,6 +93,12 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
     const run = async () => {
       setLoading(true)
       setLoadError(false)
+      /* 🛑 ต้องคืนเป็น "ยังไม่รู้" ทุกครั้งที่เปลี่ยนเดือน/เปลี่ยนคิว — เดิม `loaded` ตั้งเป็น true
+         ครั้งเดียวแล้วไม่เคยกลับ ทำให้ระหว่างโหลดเดือนใหม่ ปฏิทินยังวาดจุดของ **เดือนก่อน**
+         ทับอยู่และครึ่งล่างโชว์รายการเก่าเป็นของใหม่ · กรณีร้ายกว่าคือโหลดเดือนใหม่ล้ม แล้ว
+         ครึ่งล่างขึ้น "โหลดไม่สำเร็จ" ขณะครึ่งบนยังโชว์จุดของเดือนเก่าอย่างมั่นใจ = จอเดียวขัดกันเอง */
+      setLoaded(false)
+      setItems([])
       try {
         const qs = new URLSearchParams({
           from: range.from,
@@ -151,7 +155,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
       const start = new Date(it.start)
       const end = new Date(it.end)
       for (let t = start.getTime(); t < end.getTime(); t += DAY_MS) {
-        const k = bangkokDayKey(new Date(t))
+        const k = thaiDayKey(new Date(t))
         map.set(k, (map.get(k) ?? 0) + 1)
         if (end.getTime() - t <= DAY_MS) break
       }
@@ -167,7 +171,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           const start = new Date(it.start)
           const end = new Date(it.end)
           for (let t = start.getTime(); t < end.getTime(); t += DAY_MS) {
-            if (bangkokDayKey(new Date(t)) === selectedKey) return true
+            if (thaiDayKey(new Date(t)) === selectedKey) return true
             if (end.getTime() - t <= DAY_MS) break
           }
           return false
@@ -203,16 +207,21 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
    * ลงไปข้างเลขวันได้ tap target ที่เล็กกว่าเกณฑ์และแย่งพื้นที่กับจุดบอกสถานะ — ที่หัวรายการ
    * ปุ่มมีที่พอจะมีข้อความกำกับด้วย ผู้ใช้จึงรู้ว่ามันจะสร้างของวันไหน
    */
+  /**
+   * 🛑 BR-RSV-18 — เลขความจุฝั่ง client **ห้ามกั้นการบันทึก** เป็นได้แค่คำเตือน
+   *
+   * เดิมที่นี่ `return` ทิ้งพร้อม toast เมื่อวันนั้น "เต็ม" ซึ่งขัดกฎที่ชีตพี่น้องประกาศไว้ตรงตัว
+   * (AppointmentDateSheet: วันเต็มยังกดยืนยันได้) และเลขที่ใช้ตัดสินก็นับผิดหน่วยด้วย:
+   *   - `countByDay` นับนัด **รวมทุกคิว** ส่วน `totalCapacity` เป็น **ผลรวมความจุทุกคิว**
+   *     ร้าน 3 คิว × ความจุ 1 ที่มีนัด 3 ใบตกที่คิว A หมด จึงขึ้น "เต็ม" ทั้งที่ B/C ว่าง
+   *   - `listAppointments` ตัดออกเฉพาะ CANCELLED → ใบที่ **ไม่มาตามนัด** ยังนับเป็นเต็ม
+   *     ร้านคิวเดียวความจุ 1 จึงสร้างงานทดแทนในวันนั้นจากหน้านี้ไม่ได้เลย
+   *
+   * ตัวตัดสินจริงคือ EXCLUDE constraint ตอนบันทึก (allocateSeat วน seat ครอบ SAVEPOINT)
+   * — ปล่อยให้ไปถึงตรงนั้น ส่วนสัญญาณเตือนที่ผู้ใช้เห็นคือกากบาทในช่องวันซึ่งวาดอยู่แล้ว
+   * และคำว่า "จองแล้ว n จาก m คิว" ที่หัวรายการซึ่งเปลี่ยนเป็นสีเตือนเองเมื่อเต็ม
+   */
   const onCreateForSelected = () => {
-    if (selectedFull) {
-      // เดิม return เปล่า ๆ = กดแล้วไม่มีอะไรเกิดขึ้น แล้วผู้ใช้สรุปว่าเว็บพัง
-      /* บอกทางออกให้ครบ — ทางเดียวที่เคยบอก ("เลือกวันอื่น") ผู้ขายอาจทำไม่ได้เลย
-         (ลูกค้ามาได้วันนั้นวันเดียว) ทั้งที่ทางที่สองอยู่ในเมนูเดียวกันของหน้านี้เอง */
-      pacesToast.warning(
-        `${formatDateTH(selectedDate)} รับนัดครบตามจำนวนที่ตั้งไว้แล้ว — เลือกวันอื่น หรือเพิ่มจำนวนที่รับได้ที่รายการคิวงานด้านล่าง`,
-      )
-      return
-    }
     router.push(`/orders/new?appointmentDate=${selectedKey}`)
   }
 
@@ -301,7 +310,11 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           {/* "นัด" ไม่ใช่ "คิว" — บรรทัดถัดกัน ("จองแล้ว n จาก m คิว") ใช้ คิว = ช่องความจุ
               ถ้าจุดนี้ก็เรียก "คิว" ผู้ขายจะเจอ "ทั้งวันมี 8 คิว" กับ "จองแล้ว 3 จาก 10 คิว"
               บนจอเดียวแล้วบวกกันไม่ลง · ไทล์ต้นทางบนหน้าแรกก็เรียกว่า "นัด" */}
-          <span className="bg-warning size-1.5 rounded-full" aria-hidden="true" />
+          {/* swatch ต้องเป็นสัญลักษณ์เดียวกับที่เห็นในช่องจริงเป๊ะ ๆ (สี/ขนาด/รูปร่าง) —
+              AppointmentDayCell เปลี่ยนจุดเป็น warning-ink 8px และวงแหวนเป็น default-400
+              เพื่อผ่านเกณฑ์คอนทราสต์ non-text 3:1 legend จึงต้องตามไปด้วย ไม่งั้นกลายเป็น
+              legend ที่สอนสัญลักษณ์ที่ไม่มีอยู่บนจอ */}
+          <span className="bg-warning-ink size-2 rounded-full" aria-hidden="true" />
           มีนัดแล้ว
         </span>
         {byDay && (
@@ -314,7 +327,7 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           {/* rounded-sm ไม่ใช่ rounded-full — ช่อง "วันนี้" ในปฏิทินเป็นสี่เหลี่ยมมน (rounded-lg)
               swatch ที่เป็นวงกลมคือ legend ที่อธิบายสัญลักษณ์ที่ไม่มีอยู่จริงบนจอ
               (กฎนี้เขียนไว้เองในบล็อกนี้แล้ว แต่ตัวโค้ดยกมาจากชีตซึ่งผิดมาก่อน) */}
-          <span className="border-default-300 size-2.5 rounded-sm border" aria-hidden="true" />
+          <span className="border-default-400 size-2.5 rounded-sm border" aria-hidden="true" />
           วันนี้
         </span>
       </div>
@@ -466,6 +479,9 @@ export default function AppointmentMonthBoard({ resources, byDay, createLabelSho
           <button
             type="button"
             onClick={onCreateForSelected}
+            /* `·` ถูก screen reader ข้ามเป็นความว่าง — ป้ายบนจอคงเดิม แต่ชื่อสำหรับ AT ต้องมี
+               คำเชื่อมถึงจะรู้ว่าวันที่ต่อท้ายคืออะไร (ท่าเดียวกับที่ AppointmentDayRows ทำแล้ว) */
+            aria-label={`${createLabelShort} สำหรับวันที่ ${formatDateTH(selectedDate)}`}
             className="btn bg-primary hover:bg-primary-hover min-h-11 w-full gap-1.5 text-white"
           >
             <Icon icon="plus" className="size-4" aria-hidden="true" />

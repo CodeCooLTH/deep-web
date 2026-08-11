@@ -62,7 +62,11 @@ export default function AppointmentDayCell({
     : isOther
       ? 'text-default-400 opacity-55'
       : isToday
-        ? 'text-default-800 border-default-300 hover:bg-default-100 border'
+        /* border-default-400 ไม่ใช่ -300 — วงแหวน "วันนี้" เป็นตัวบอกเดียวว่าช่องไหนคือวันนี้
+           (ไม่มีข้อความ/ไอคอนสำรอง และ --fc-today-bg-color ถูกตั้งเป็น transparent) แต่
+           default-300 บนพื้นการ์ดวัดได้ 1.22:1 ทั้งโหมดสว่างและมืด ต่ำกว่าเกณฑ์ non-text 3:1
+           มาก · default-400 = เฉดเดิมที่เข้มขึ้น (ไม่ได้สลับเฉด — contrast-fix-keeps-hue.md) */
+        ? 'text-default-800 border-default-400 hover:bg-default-100 border'
         : 'text-default-800 hover:bg-default-100'
 
   /**
@@ -116,8 +120,12 @@ export default function AppointmentDayCell({
           </span>
           {/* จุดว่างโปร่งใสยังต้องอยู่ ไม่งั้นเลขวันของช่องที่มีคิวกับไม่มีคิวจะไม่ตรงแนวกัน */}
           <span
-            className={`size-1.5 rounded-full ${
-              used > 0 ? (selected ? 'bg-white' : 'bg-warning') : 'bg-transparent'
+            /* จุดนี้คือ *ทั้งหมด* ของสิ่งที่ปฏิทินบอกว่า "วันนี้มีนัด" — bg-warning บนพื้นการ์ด
+               วัดได้ 1.66:1 (เกณฑ์ non-text 3:1) คือให้ของที่เล็กที่สุดบนจอแบกข้อมูลสำคัญที่สุด
+               ใช้ warning-ink (เฉดเดิมที่เข้มขึ้น = 8.94:1) + ขยายเป็น 8px ชดเชยพื้นที่
+               บนช่องที่เลือกอยู่ (พื้น primary) ยังเป็นขาวเหมือนเดิม */
+            className={`size-2 rounded-full ${
+              used > 0 ? (selected ? 'bg-white' : 'bg-warning-ink') : 'bg-transparent'
             }`}
             aria-hidden="true"
           />
