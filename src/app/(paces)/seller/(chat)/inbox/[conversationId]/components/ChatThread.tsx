@@ -887,10 +887,16 @@ function ProductCardBubble({ card, username }: { card: ChatProductCard | null; u
           เกินได้ (บทเรียนเดียวกับการ์ดขาเข้า — user เจอเองบน prod 2026-08-09) */}
       <div className="bg-default-100 relative aspect-square w-full overflow-hidden">
         {card.imageFileId ? (
-          // object-contain ไม่ใช่ cover — รูปสินค้าที่ร้านอัปเองมักมีข้อความ/สเปกอยู่ในรูป และ cover
-          // จะครอปทิ้ง (docs/conventions/user-supplied-image-assets.md)
+          // 🔄 object-cover (user สั่งเอง 2026-08-11 รอบสอง: "รูปมันไม่เต็มเหมือน Facebook อ่ะ
+          // ผมชอบรูปเต็ม ๆ แบบนี้") — รอบแรกใช้ `contain` โดยอ้าง user-supplied-image-assets.md
+          // ที่ว่ารูปสินค้ามักมีข้อความฝังอยู่ cover จะครอปทิ้ง แต่ผลจริงคือรูปแนวตั้งได้แถบขาว
+          // ซ้าย-ขวาหนา ดูเหมือนรูปโหลดไม่ครบ ซึ่ง user ตัดสินว่าแย่กว่าการโดนครอป
+          //
+          // 🛑 กรอบเป็น **จัตุรัส** ไม่ใช่ 16:9 จึงยอมได้: รูปแนวตั้ง 3:4 โดนครอปบน-ล่างราว 25%
+          // ถ้าวันไหนเปลี่ยนกรอบให้กว้างขึ้น ต้องกลับมาคิดข้อนี้ใหม่ — ยิ่งกรอบกว้าง cover ยิ่งกิน
+          // เนื้อรูปแนวตั้งเยอะขึ้นเร็วมาก (ที่ 1.91:1 จะเหลือรูปแค่แถบกลางราว 28%)
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={mediaSrc(card.imageFileId)} alt="รูปสินค้า" className="absolute inset-0 size-full object-contain" />
+          <img src={mediaSrc(card.imageFileId)} alt="รูปสินค้า" className="absolute inset-0 size-full object-cover" />
         ) : (
           <div className="text-default-700 absolute inset-0 flex items-center justify-center">
             <Icon icon="photo-off" className="text-xl" />
@@ -965,13 +971,16 @@ function OwnProductCardCarousel({
               {/* 🛑 ยกภาษาการออกแบบจาก `ProductCardBubble` (การ์ดใบเดียว) ที่ถูก re-design ไปเมื่อ
                   `617bb496` — **ไม่ใช่จาก MetaGenericCardCarousel** ทั้งที่ยก geometry มาจากตัวนั้น:
                   `aspect-square` (รูปสินค้าที่ร้านถ่ายเองส่วนใหญ่จัตุรัส 16:9 จะได้แถบว่างหนา) +
-                  `object-contain` (รูปสินค้ามักมีข้อความ/สเปกฝังอยู่ cover จะครอปทิ้ง) + `mediaSrc`
+                  `object-cover` (user สั่งเอง 2026-08-11: "ผมชอบรูปเต็ม ๆ แบบนี้") + `mediaSrc`
                   ถ้าใช้ของเดิม การ์ด 1 ใบกับหลายใบในเธรดเดียวกันจะอ่านเป็นคนละภาษา ทั้งที่เป็นของ
                   ชนิดเดียวกัน (HR17: rebase ผ่านสะอาดไม่ได้แปลว่าแพตเทิร์นยังตรงกัน) */}
               <div className="bg-default-100 relative aspect-square w-full overflow-hidden">
                 {card?.imageFileId ? (
+                  // 🛑 object-cover ต้องตรงกับ ProductCardBubble เสมอ — การ์ดใบเดียวกับหลายใบอยู่ใน
+                  // เธรดเดียวกัน ถ้า object-fit ต่างกัน ผู้ขายจะเห็นรูปเต็มตอนส่งใบเดียวแต่มีแถบขาว
+                  // ตอนส่งหลายใบ โดยไม่มีอะไรฟ้อง (git ไม่เห็นเป็น conflict เพราะเป็นโค้ดคนละก้อน)
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={mediaSrc(card.imageFileId)} alt="รูปสินค้า" className="absolute inset-0 size-full object-contain" />
+                  <img src={mediaSrc(card.imageFileId)} alt="รูปสินค้า" className="absolute inset-0 size-full object-cover" />
                 ) : (
                   <span className="text-default-700 absolute inset-0 flex items-center justify-center">
                     {/* ไม่มีรูป = `photo-off` (ชุดเดียวกับการ์ดใบเดียว); ถูกลบไปแล้ว = `package-off`
