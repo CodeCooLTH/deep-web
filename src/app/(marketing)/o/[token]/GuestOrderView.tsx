@@ -33,6 +33,7 @@ import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import ParcelTimeline from './ParcelTimeline'
 import ShopCover from './ShopCover'
+import ShopEvidence from './ShopEvidence'
 import TrustPill, { VERIFIED_INK } from './TrustPill'
 import type { GuestOrderData } from './guest-order-data'
 
@@ -58,7 +59,6 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
   })
 
   const verifyBadge = resolveVerifyBadge(order.maxVerifyLevel)
-  const hasStats = order.completedOrders != null || order.avgRating != null
 
   const isClosed = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
   const ctaLabel = isClosed ? 'เข้าสู่ระบบเพื่อดูรายละเอียดคำสั่งซื้อ' : 'เข้าสู่ระบบเพื่อยืนยันรับสินค้า'
@@ -148,92 +148,13 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             <TrustPill tone='tier' tierColor={tierColor} label={tierLabel} />
           </Box>
 
-          {/* ── หลักฐานของร้าน ── ไหลต่อในบล็อกเดียวกัน ไม่ทำเป็นการ์ดแยก
-              เพื่อไม่ให้แข่งความสำคัญกับการ์ดออเดอร์ และไม่เพิ่ม eyebrow เป็นจุดที่ 12 ของหน้า
-              (DESIGN.md ระบุ "eyebrow เหนือทุก section" เป็น anti-reference ตรงตัว) */}
-          {hasStats && (
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'stretch',
-                gap: 3,
-                mt: 2,
-                pt: 2,
-                borderTop: '1px solid',
-                borderColor: 'divider',
-              }}
-            >
-              {order.completedOrders != null && (
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant='h6' sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1.3 }}>
-                    {order.completedOrders.toLocaleString('th-TH')}
-                  </Typography>
-                  <Typography variant='caption' color='text.secondary'>
-                    ออเดอร์สำเร็จ
-                  </Typography>
-                </Box>
-              )}
-              {order.completedOrders != null && order.avgRating != null && (
-                <Divider orientation='vertical' flexItem />
-              )}
-              {order.avgRating != null && (
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant='h6' sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums', lineHeight: 1.3 }}>
-                    {order.avgRating}
-                  </Typography>
-                  <Typography variant='caption' color='text.secondary'>
-                    จาก {order.reviewCount.toLocaleString('th-TH')} รีวิว
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          )}
-
-          {/* ช่องทางที่ร้านเชื่อมไว้ — ตอบคำถาม "นี่ร้านเดียวกับที่เพิ่งคุยด้วยไหม"
-              ซึ่งเป็นคำถามแรกของคนที่ได้ลิงก์มาจากแชท ไม่ใช่ของประดับ */}
-          {order.channels.length > 0 && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-              {order.channels.map((ch) => (
-                <Box key={`${ch.provider}-${ch.name}`} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
-                  <Box
-                    sx={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 1.5,
-                      flexShrink: 0,
-                      overflow: 'hidden',
-                      display: 'grid',
-                      placeItems: 'center',
-                      bgcolor: 'action.hover',
-                      color: 'text.secondary',
-                      fontSize: '0.8125rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {ch.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={ch.avatarUrl} alt='' style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : ch.provider === 'INSTAGRAM' ? (
-                      'IG'
-                    ) : (
-                      'f'
-                    )}
-                  </Box>
-                  <Box sx={{ minWidth: 0, textAlign: 'left' }}>
-                    <Typography variant='body2' sx={{ fontWeight: 600 }} noWrap>
-                      {ch.name}
-                    </Typography>
-                    {/* text.secondary ไม่ใช่ text.disabled — ชนิดช่องทางเป็นข้อมูลจริง
-                        ไม่ใช่สถานะปิดใช้งาน และ disabled อยู่ที่ ~2.3:1 ซึ่งตก AA */}
-                    <Typography variant='caption' color='text.secondary'>
-                      {ch.provider === 'INSTAGRAM' ? 'Instagram' : 'Facebook Page'}
-                    </Typography>
-                  </Box>
-                </Box>
-              ))}
-            </Box>
-          )}
+          {/* ── หลักฐานของร้าน — ใช้ร่วมกับจอหลังล็อกอิน (ShopEvidence) ── */}
+          <ShopEvidence
+            completedOrders={order.completedOrders}
+            avgRating={order.avgRating}
+            reviewCount={order.reviewCount}
+            channels={order.channels}
+          />
 
           {/* รีวิวจริงหนึ่งอัน — ข้อความจากคนซื้อจริงน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
               ไม่มีรีวิวที่เขียนข้อความ → ซ่อนบล็อก ไม่แต่งคำชมเอง */}

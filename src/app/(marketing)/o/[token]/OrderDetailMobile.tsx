@@ -56,6 +56,7 @@ import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
 
 import ShopCover from './ShopCover'
+import ShopEvidence from './ShopEvidence'
 import TrustPill from './TrustPill'
 import ReviewForm from './ReviewForm'
 // feature 00024 — การ์ดนัดหมาย (render เฉพาะออเดอร์ที่มีนัด)
@@ -704,6 +705,20 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
               />
             )}
             <TrustPill tone='tier' tierColor={tierColor} label={tierLabel} />
+          </Box>
+
+          {/* ── หลักฐานของร้าน — ตัวเดียวกับจอ guest (ShopEvidence) ──
+              🛑 เดิมบล็อกนี้มีเฉพาะจอ guest ⇒ ผู้ซื้อที่เพิ่งล็อกอินเสร็จ *เสีย* หลักฐานที่
+              เพิ่งเห็นเมื่อสิบวินาทีก่อนไปทั้งชุด ทั้งที่นี่คือวินาทีที่เขากำลังจะกดปุ่มที่
+              ย้อนไม่ได้ (user 2026-08-11 "ต้องเห็นทั้งคู่ครับ")
+              ข้อมูลถูกยิงให้ branch นี้แล้วตั้งแต่ 61c208ac — ที่ขาดคือคนเรนเดอร์ */}
+          <Box sx={{ px: 2.25 }}>
+            <ShopEvidence
+              completedOrders={order.completedOrders}
+              avgRating={order.avgRating}
+              reviewCount={order.reviewCount}
+              channels={order.channels}
+            />
           </Box>
         </Box>
 
