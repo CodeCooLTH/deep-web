@@ -20,9 +20,9 @@ import { deriveOrderStage, type OrderStageInput } from '@/lib/order-stage'
  * ป้ายสถานะด้วย customerId อย่างเดียว เธรดของร้าน B จะได้ป้ายจากออเดอร์ของร้าน A มาแปะ — ผิดแบบ
  * ที่ดูเนียนมาก (ป้ายขึ้นสวยงามและอัปเดตจริง แค่เป็นออเดอร์คนละร้าน)
  */
-type Linkable = { externalContactId: string | null; buyerUserId: string | null; shopId: string }
+export type Linkable = { externalContactId: string | null; buyerUserId: string | null; shopId: string }
 
-async function resolveCustomerIds<T extends Linkable>(items: T[]): Promise<Map<T, string | null>> {
+export async function resolveCustomerIds<T extends Linkable>(items: T[]): Promise<Map<T, string | null>> {
   const externalContactIds = [
     ...new Set(items.map((i) => i.externalContactId).filter((x): x is string => x !== null)),
   ]

@@ -80,6 +80,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Icon from '@/components/wrappers/Icon'
+// ป้ายพฤติกรรมลูกค้า — SSOT เดียวกับหัวแผงลูกค้าในเธรด และป้ายท้ายชื่อในตาราง /orders (HR16)
+import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
 import { generateInitials } from '@/utils/helpers'
 import { formatChatListTime } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
@@ -141,6 +143,9 @@ export type ConversationListItem = {
   // null = ไม่ต้องแสดงชิป (ไม่เคยมีออเดอร์ หรือป้ายหมดอายุแล้ว — ดู deriveOrderStage)
   // enrich ด้วย enrichWithOrderStage ทั้งฝั่ง RSC (inbox/page.tsx) และ route; optional เผื่อ payload เก่า
   orderStage?: { key: string; label: string; cls: string; icon: string; printCount?: number } | null
+  /** ป้ายพฤติกรรมลูกค้า (user สั่ง 2026-08-11) — null = ยังไม่ผูกกับลูกค้าในระบบ (ไม่มีป้ายเลย)
+   *  enrich ด้วย enrichWithCustomerBehavior ทั้งฝั่ง RSC และ route เหมือน orderStage */
+  customerBehavior?: CustomerBehavior | null
   // S-20 (phase 00023-qna) — ป้าย DeepBot/DeepAI แทนคำว่า "คุณ: " เมื่อข้อความล่าสุดมาจากบอท
   // ค่าคือ autoReplyKind ของข้อความล่าสุดจริงของเธรด ('AUTO' | 'AUTO_TEST' | null)
   // enrich ด้วย enrichWithAutoReplyBadge ทั้งฝั่ง RSC (inbox/page.tsx) และ route
@@ -1305,6 +1310,11 @@ export default function InboxList({
             const isResolved = c.resolvedAt !== null
             const salesStatus = c.contactSalesStatus ?? 'UNSPECIFIED'
             const contactTags = c.contactTags ?? []
+            // ป้ายพฤติกรรมลูกค้า — SSOT เดียวกับหัวแผงลูกค้า/ตาราง /orders
+            // `hasHistory` = ผูกกับลูกค้าในระบบแล้ว (null = ยังไม่ผูก → ไม่มีป้ายเลย)
+            const behaviorBadges = c.customerBehavior
+              ? customerBadges(c.customerBehavior, { hasHistory: true, orderNoun: orderVocab.noun })
+              : []
             // ชื่อกลุ่มที่เธรดนี้อยู่ — โชว์เฉพาะแท็บ "ทั้งหมด" (activeGroupId===null); ในแท็บกลุ่มเองไม่ต้อง
             // ย้ำ. หาจาก groups ที่โหลดมาแล้ว (ไม่ query เพิ่ม) — กลุ่มถูกลบ = หาไม่เจอ → ไม่โชว์ชิป
             const groupChip =
@@ -1523,8 +1533,28 @@ export default function InboxList({
                       {(salesStatus !== 'UNSPECIFIED' ||
                         contactTags.length > 0 ||
                         !!c.referralAdId ||
+                        behaviorBadges.length > 0 ||
                         (c.lastSenderRole === 'SHOP' && !!c.lastMessageAutoReplyKind)) && (
                         <span className="mt-1 flex flex-wrap items-center gap-1">
+                          {/* ป้ายพฤติกรรมลูกค้า (user สั่ง 2026-08-11 "ต้องขึ้น label บน chat lists นะ")
+                              🛑 **ไอคอนล้วน ไม่มีข้อความ** ต่างจากในหัวแผงลูกค้าที่เป็นชิปมีคำ —
+                              critique 2026-08-09 เพิ่งตัดชิปในแถวนี้จาก "ชิงพื้นที่ได้ถึง 6 ใบ" เหลือ 1
+                              การใส่ชิปมีคำกลับเข้ามาคือย้อนงานนั้นทันที ที่ rail 320px แถวจะสูงขึ้นทุกแถว
+                              คำเต็มยังอ่านได้จาก title (hover) + aria-label (screen reader) และเห็นเต็ม ๆ
+                              ตอนเปิดเธรด — precedent เดียวกับป้ายท้ายชื่อลูกค้าในตาราง /orders */}
+                          {behaviorBadges.map((b) => (
+                            <span
+                              key={b.key}
+                              role="img"
+                              aria-label={b.label}
+                              title={b.label}
+                              className={`inline-flex size-4.5 shrink-0 items-center justify-center rounded-full ${
+                                b.tone === 'warning' ? 'bg-warning/15 text-warning-ink' : 'bg-info/15 text-info-ink'
+                              }`}
+                            >
+                              <Icon icon={b.icon} width={12} height={12} className="shrink-0" aria-hidden="true" />
+                            </span>
+                          ))}
                           {/* ชิปโฟลเดอร์ย้ายไปมุมขวาล่าง (ใต้เวลา) แล้ว — user สั่ง 2026-07-24 */}
                           {/* DeepBot/DeepAI — ย้ายมาจากหน้าบรรทัด preview (user 2026-08-01) ให้เป็น
                               ป้ายระดับเดียวกับแท็ก/สถานะขาย ไม่แย่งสายตาจากชื่อลูกค้าอีกต่อไป */}

@@ -31,12 +31,25 @@
  */
 
 import { isReturnedCarrierStatus } from './iship/status'
+// SSOT ของ "การยกเลิกครั้งนี้เข้าประวัติฝั่งลูกค้าไหม" (BR-LODG-37) — มีอยู่ก่อนแล้ว ห้ามเขียนซ้ำ
+import { cancelReasonCountsAgainstGuest } from './lodging'
 
 /** หลักฐานของออเดอร์หนึ่งใบเท่าที่จำเป็นต่อการตัดสิน — ผู้เรียก select มาให้เท่านี้พอ */
 export type CustomerOrderEvidence = {
   status: string
   /** ใครกดยกเลิก — 'buyer' คือเส้นทางเดียวฝั่งลูกค้าที่ระบบเชื่อได้ (derive จาก session ไม่รับจาก body) */
   cancelInitiator: string | null
+  /**
+   * เหตุผลที่ร้านเลือกตอนกดยกเลิก (`CANCEL_REASONS` ใน lib/lodging.ts — บังคับกรอกทุกประเภทออเดอร์
+   * แล้วตั้งแต่ feature 00039 ไม่ใช่เฉพาะการจอง)
+   *
+   * 🛑 จำเป็นต้องดูค่านี้ ไม่ใช่ดูแค่ `cancelInitiator` — ข้อมูลจริงบน prod 2026-08-11:
+   * **ไม่มีการยกเลิกสักใบเลยที่ `cancelInitiator='buyer'`** ทั้งฐาน ทุกใบเป็น 'seller'
+   * เพราะในทางปฏิบัติ **ลูกค้าแจ้งในแชทแล้วร้านเป็นคนกดให้** ปุ่มยกเลิกฝั่งผู้ซื้อแทบไม่ถูกใช้
+   * สิ่งที่บันทึกว่าใครเป็นต้นเรื่องจริง ๆ คือ `cancelReason` (`BUYER_REQUESTED` 2 ใบบน prod)
+   * — ถ้าดูแต่ initiator ป้าย "ยกเลิกเอง" จะไม่มีวันขึ้นให้ใครเห็นเลยตลอดกาล
+   */
+  cancelReason: string | null
   /**
    * carrierStatus ของพัสดุ "ที่มีอยู่จริง" ของใบนี้ (`status='CREATED'` และไม่ใช่ dry-run)
    * null = ไม่มีพัสดุที่นับได้ — ผู้เรียกต้องกรองมาให้แล้ว ไม่ใช่ส่งแถวดิบมาทั้งหมด
@@ -86,9 +99,24 @@ export function summarizeCustomerBehavior(orders: CustomerOrderEvidence[]): Cust
       continue
     }
     if (o.status === 'CANCELLED') {
-      // ยกเลิกโดยร้าน (หรือใบเก่าที่ไม่มีค่าบันทึกไว้) **ไม่ใช่พฤติกรรมลูกค้า** — ไม่นับ
-      // fail-closed ไปทางไม่กล่าวหาลูกค้า: ไม่รู้ว่าใครยกเลิก = ไม่โทษใคร
-      if (o.cancelInitiator === 'buyer') cancelledByBuyer += 1
+      /**
+       * นับเป็นพฤติกรรมลูกค้าเมื่อ **ต้นเรื่องมาจากฝั่งลูกค้า** — 2 ทาง:
+       *   1. ผู้ซื้อกดยกเลิกเองจากลิงก์ของตัวเอง (`cancelInitiator === 'buyer'`)
+       *   2. ร้านกดให้ แต่บันทึกเหตุผลที่เข้าประวัติผู้ซื้อ (ขอยกเลิกเอง / ไม่โอน)
+       *      — ตัดสินด้วย `cancelReasonCountsAgainstGuest` ไม่ใช่ list ที่เขียนซ้ำที่นี่
+       *
+       * 🛑 ทำไมที่นี่ใช้ `cancelReason` ได้ ทั้งที่ `order-stats.ts` (BR-OSM-05) ห้ามใช้:
+       * ที่นั่นคือ **อัตราความสำเร็จที่ผู้ซื้อเห็น** — ให้เหตุผลที่ร้านเลือกเองมีอำนาจ = ให้ร้าน
+       * ให้คะแนนตัวเอง ซึ่งขัดพันธกิจแพลตฟอร์ม. ป้ายนี้ **ร้านเห็นคนเดียว ไม่มีใครนอกร้านเห็น**
+       * ร้านที่กรอกเหตุผลมั่วจึงหลอกได้แค่ตัวเอง ไม่มีผลกับความน่าเชื่อถือที่ผู้ซื้อใช้ตัดสินใจ
+       * — คนละ trade-off กัน ห้ามเอากฎของที่นั่นมาใช้ที่นี่โดยไม่อ่านเหตุผล
+       *
+       * ไม่มีทั้ง initiator และ reason (ใบเก่าก่อนมีฟีเจอร์เหตุผล) = ไม่รู้ → **ไม่โทษลูกค้า**
+       */
+      const byBuyer =
+        o.cancelInitiator === 'buyer' ||
+        (o.cancelReason !== null && cancelReasonCountsAgainstGuest(o.cancelReason))
+      if (byBuyer) cancelledByBuyer += 1
       continue
     }
     completed += 1

@@ -9,6 +9,7 @@ import {
 const order = (o: Partial<CustomerOrderEvidence> = {}): CustomerOrderEvidence => ({
   status: 'CONFIRMED',
   cancelInitiator: null,
+  cancelReason: null,
   activeShipmentCarrierStatus: null,
   ...o,
 })
@@ -47,6 +48,33 @@ describe('summarizeCustomerBehavior', () => {
     const s = summarizeCustomerBehavior([order({ status: 'CANCELLED', cancelInitiator: null })])
     expect(s.cancelledByBuyer).toBe(0)
     expect(s.problemOrders).toBe(0)
+  })
+
+  /**
+   * [blocker] เคสที่ทำให้ป้ายไม่ขึ้นเลยตอน ship รอบแรก (user รายงาน 2026-08-11 "ยกเลิก 2 orders
+   * ไม่เห็นจะขึ้นในกล่องแชท")
+   *
+   * ในทางปฏิบัติ **ลูกค้าแจ้งในแชทแล้วร้านเป็นคนกดยกเลิกให้** ปุ่มฝั่งผู้ซื้อแทบไม่ถูกใช้เลย —
+   * ฐาน prod ยืนยัน: ยกเลิกทั้งฐานเป็น `cancelInitiator='seller'` 100% ไม่มี 'buyer' สักใบ
+   * ต้นเรื่องจริงถูกบันทึกไว้ที่ `cancelReason` ต่างหาก
+   *
+   * เทสนี้แดง = ป้าย "ยกเลิกเอง" กลับไปเป็นป้ายที่ไม่มีวันขึ้นให้ใครเห็นอีกครั้ง
+   */
+  it('[blocker] ร้านกดยกเลิกให้ แต่บันทึกว่าลูกค้าขอเอง → นับเป็นพฤติกรรมลูกค้า', () => {
+    const s = summarizeCustomerBehavior([
+      order({ status: 'CANCELLED', cancelInitiator: 'seller', cancelReason: 'BUYER_REQUESTED' }),
+      order({ status: 'CANCELLED', cancelInitiator: 'seller', cancelReason: 'BUYER_NO_TRANSFER' }),
+    ])
+    expect(s.cancelledByBuyer).toBe(2)
+    expect(s.problemOrders).toBe(2)
+  })
+
+  it('[blocker] เหตุผลที่เป็นความผิดร้าน/ตกลงกันได้ → ไม่นับ', () => {
+    const s = summarizeCustomerBehavior([
+      order({ status: 'CANCELLED', cancelInitiator: 'seller', cancelReason: 'SHOP_ISSUE' }),
+      order({ status: 'CANCELLED', cancelInitiator: 'seller', cancelReason: 'MUTUAL' }),
+    ])
+    expect(s.cancelledByBuyer).toBe(0)
   })
 
   it('ผู้ซื้อกดยกเลิกเอง → นับ', () => {

@@ -547,6 +547,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       select: {
         status: true,
         cancelInitiator: true,
+        cancelReason: true,
         shipments: {
           where: { status: { not: 'CANCELLED' } },
           orderBy: { createdAt: 'desc' },
@@ -559,6 +560,7 @@ export default async function SellerInboxThreadPage({ params, searchParams }: Pa
       behaviorRows.map((o) => ({
         status: o.status,
         cancelInitiator: o.cancelInitiator ?? null,
+        cancelReason: o.cancelReason ?? null,
         activeShipmentCarrierStatus: o.shipments[0]?.carrierStatus ?? null,
       })),
     )

@@ -13,6 +13,9 @@ import {
   type ConversationSummary,
 } from "@/services/chat.service";
 import { enrichWithOrderStage } from "@/services/order-stage.service";
+// ป้ายพฤติกรรมลูกค้าในแถว — ต้องเรียกทั้งที่นี่และ inbox/page.tsx ด้วยเหตุผลเดียวกับ orderStage
+// (enrich ทางเดียว = ป้ายไม่ขึ้นตอนโหลดหน้าแรกแล้วค่อยโผล่หลัง refetch ซึ่งดูเหมือนบั๊ก)
+import { enrichWithCustomerBehavior } from "@/services/customer-behavior.service";
 import { StartConversationSchema, ChatConversationsQuerySchema } from "@/lib/validations";
 import { sweepStuckJobs, enrichWithAutoReplyBadge } from "@/services/auto-reply.service";
 import { syncShipmentStatuses } from "@/services/iship.service";
@@ -280,7 +283,8 @@ export async function GET(request: NextRequest) {
     // ป้าย DeepBot ในแถว (S-20) — อ่าน autoReplyKind ของข้อความล่าสุดจริงของแต่ละเธรด
     // เรียกที่นี่และใน inbox/page.tsx ด้วยฟังก์ชันเดียวกัน ไม่งั้นหน้าแรก (RSC) กับหน้าที่โหลด
     // จากการกรอง (route นี้) จะแสดงไม่เหมือนกัน — บทเรียนเดียวกับ enrichWithOrderStage
-    const items = await enrichWithAutoReplyBadge(withStage);
+    const withBehavior = await enrichWithCustomerBehavior(withStage, scopedShopIds);
+    const items = await enrichWithAutoReplyBadge(withBehavior);
 
     // ชั้นที่ 3(ข) ของการกู้คืนงานตอบอัตโนมัติ (feature 00023, SDS TD-001)
     //

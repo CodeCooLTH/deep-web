@@ -33,6 +33,7 @@ import OrdersList from './components/OrdersList'
 import OrdersStatCard from './components/OrdersStatCard'
 // นิยาม "พัสดุตีกลับ" อยู่ที่ lib/iship/status.ts ที่เดียว — ห้ามเขียนรายชื่อสถานะซ้ำที่นี่
 import { RETURNED_CARRIER_STATUSES } from '@/lib/iship/status'
+import { cancelReasonCountsAgainstGuest } from '@/lib/lodging'
 
 /**
  * feature 00030 — ชื่อหน้าผันตามประเภทกิจการ จึงเป็น generateMetadata ไม่ใช่ constant
@@ -176,7 +177,9 @@ export default async function OrdersPage({ searchParams }: PageProps) {
   const [custStatRows, returnedRows] = customerIds.length > 0
     ? await Promise.all([
         prisma.order.groupBy({
-          by: ['customerId', 'status', 'cancelInitiator'],
+          // ต้องมี cancelReason ด้วย — บน prod ไม่มีใบไหนเลยที่ cancelInitiator='buyer'
+          // (ลูกค้าแจ้งในแชท ร้านกดให้) ต้นเรื่องจริงอยู่ที่เหตุผลที่ร้านบันทึก ดู customer-behavior.ts
+          by: ['customerId', 'status', 'cancelInitiator', 'cancelReason'],
           where: { shopId: shop.id, customerId: { in: customerIds } },
           _count: { _all: true },
         }),
@@ -201,8 +204,13 @@ export default async function OrdersPage({ searchParams }: PageProps) {
     cur.orders += r._count._all
     if (r.status === 'CANCELLED') {
       cur.cancelled += r._count._all
-      // ไม่รู้ว่าใครยกเลิก (ใบเก่า null) = ไม่โทษลูกค้า — fail-closed ทางเดียวกับ customer-behavior.ts
-      if (r.cancelInitiator === 'buyer') cur.cancelledByBuyer += r._count._all
+      // เกณฑ์เดียวกับ customer-behavior.ts เป๊ะ — ห้ามเขียนกฎซ้ำที่นี่ (HR16)
+      if (
+        r.cancelInitiator === 'buyer' ||
+        (r.cancelReason !== null && cancelReasonCountsAgainstGuest(r.cancelReason))
+      ) {
+        cur.cancelledByBuyer += r._count._all
+      }
     }
     statByCustomer.set(r.customerId, cur)
   }
