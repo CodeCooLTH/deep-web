@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — แผงรีวิวบนหน้าร้านสาธารณะ (2026-08-11)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* token จริงจากโปรเจกต์ — src/@core/theme/colorSchemes.ts + DESIGN.md
+   ink 47 43 61 · text .9/.7/.4 · divider .12 · mist #F8F7FA · primary #7367F0
+   warning #FF9F43 (ดาว) · verified ink #18804A · radius ramp buyer 4/6/8/10/full */
+:root{
+  --ink:47 43 61;
+  --t1:rgb(var(--ink)/.9);--t2:rgb(var(--ink)/.7);--t3:rgb(var(--ink)/.4);
+  --divider:rgb(var(--ink)/.12);--hover:rgb(var(--ink)/.06);
+  --paper:#fff;--mist:#F8F7FA;--primary:#7367F0;--warning:#FF9F43;--verified:#18804A;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Anuphan,system-ui,sans-serif;background:#eceaf0;color:var(--t1);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1400px;margin:0 auto;padding:32px 20px 90px}
+h1{font-size:28px;font-weight:600;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:20px;font-weight:600;margin:46px 0 6px;letter-spacing:-.01em}
+h3{font-size:15px;font-weight:700;margin:0 0 2px}
+.lead{color:var(--t2);font-size:15px;line-height:1.55;margin:0 0 10px;max-width:80ch}
+.note{color:var(--t2);font-size:13px;line-height:1.6;margin:0 0 14px;max-width:80ch}
+.row{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:18px}
+code{background:var(--hover);border-radius:4px;padding:1px 5px;font-size:.92em}
+
+.dev{background:var(--paper);border-radius:12px;overflow:hidden;box-shadow:0 6px 22px rgb(var(--ink)/.12)}
+.cap{font-size:12px;font-weight:600;color:var(--t2);margin:0 0 6px;display:flex;justify-content:space-between;gap:10px}
+.cap b{color:var(--t1)}
+.w390{width:390px}.w768{width:768px}.w960{width:960px}
+
+/* ── แถบแท็บ ── */
+.tabs{display:flex;gap:22px;border-bottom:1px solid var(--divider);padding:0 20px;overflow-x:auto;overflow-y:hidden}
+.tabs span{padding:11px 0;font-size:15px;font-weight:600;color:var(--t3);white-space:nowrap;position:relative;display:inline-flex;align-items:center;gap:6px}
+.tabs span.on{color:var(--t1)}
+.tabs span.on::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2.5px;border-radius:2px;background:var(--primary)}
+.tabs svg{opacity:.75}.tabs .on svg{opacity:1}
+
+.panel{padding:16px 20px 24px}
+
+/* ── สรุปคะแนน ── */
+.sum{display:flex;align-items:center;gap:20px;padding-bottom:16px;border-bottom:1px solid var(--divider);margin-bottom:4px}
+.sum .big{text-align:center;flex:0 0 auto;min-width:92px}
+.sum .n{font-size:42px;font-weight:800;letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums}
+.sum .stars{display:flex;justify-content:center;gap:2px;margin-top:4px;color:var(--warning)}
+.sum .from{font-size:13px;color:var(--t3);margin-top:4px;font-variant-numeric:tabular-nums}
+.bars{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.bar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t3)}
+.bar .k{width:10px;text-align:right;font-variant-numeric:tabular-nums}
+.bar .track{flex:1;height:7px;border-radius:4px;background:var(--hover);overflow:hidden}
+.bar .track i{display:block;height:100%;border-radius:4px;background:var(--warning)}
+.bar .c{width:22px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* ── การ์ดรีวิว ── */
+.rv{padding:16px 0;border-bottom:1px solid var(--divider)}
+.rv:last-child{border-bottom:0}
+.rv-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:4px}
+.rv-who{min-width:0;display:flex;align-items:center;gap:8px}
+.rv-av{width:34px;height:34px;border-radius:999px;flex:0 0 auto;background:var(--hover);color:var(--t3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700}
+.rv-name{font-size:14px;font-weight:600}
+.rv-stars{display:flex;gap:2px;color:var(--warning);margin-top:2px}
+.rv-date{font-size:12px;color:var(--t3);flex:0 0 auto;white-space:nowrap}
+.rv-text{font-size:15px;line-height:1.55;margin:8px 0 10px}
+.rv-src{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t3)}
+.mark{position:relative;width:18px;height:18px;flex:0 0 auto}
+.mark img{width:100%;height:100%;border-radius:999px;object-fit:cover}
+.mark .plat{position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:999px;border:1.5px solid var(--paper)}
+.plat.fb{background:#1877F2}.plat.ig{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)}.plat.line{background:#06C755}
+.pics{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 2px}
+.pics i{width:72px;height:72px;border-radius:8px;background:#cfcbd8;display:block}
+.pics i:nth-child(2){background:#c4cdd6}.pics i:nth-child(3){background:#d6cbc4}.pics i:nth-child(4){background:#c9c4d6}
+.reply{margin-top:10px;padding:8px 12px;border-radius:8px;background:var(--mist)}
+.reply-h{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);font-weight:600;margin-bottom:2px}
+.reply p{margin:0;font-size:14px;line-height:1.5}
+
+.opt{background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:16px 18px;width:430px}
+.opt .why{font-size:13px;color:var(--t2);line-height:1.55;margin:0 0 12px}
+.demo{border:1px solid var(--divider);border-radius:8px;padding:14px 16px}
+.rec{display:inline-block;background:rgba(24,128,74,.12);color:var(--verified);font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-inline-start:6px;vertical-align:2px}
+.now{display:inline-block;background:var(--hover);color:var(--t2);font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-inline-start:6px;vertical-align:2px}
+.box{background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:14px 18px;font-size:14px;line-height:1.75;max-width:80ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>แผงรีวิวบนหน้าร้านสาธารณะ</h1>
+<p class="lead">
+  ข้อมูลจริงจากร้าน BT Premium บน prod (5.0 · 1 รีวิว · คำสั่งซื้อ DP2569084609E267) —
+  ทุกสี/ระยะ/ขนาดตัวอักษรใช้ token จริงของโปรเจกต์
+</p>
+<p class="note">
+  แผงนี้ = <code>ReviewSummary.tsx</code> (สรุปคะแนน) + <code>ReviewList.tsx</code> (การ์ดรีวิว)
+  · ทุกรีวิวผูกกับออเดอร์จริงเสมอโดยโครงสร้าง (<code>Review.orderId @unique</code>)
+  · ชื่อผู้รีวิวถูก mask ที่ฝั่งเซิร์ฟเวอร์ก่อนข้าม RSC boundary
+</p>
+
+<h2>1 · สามจอ (สภาพที่ขึ้น prod แล้ว)</h2>
+<div class="row">
+
+  <!-- Mobile -->
+  <div>
+    <p class="cap"><span>Mobile 390px</span><b>1 คอลัมน์</b></p>
+    <div class="dev w390">
+      <div class="tabs">
+        <span class="on"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>รีวิว 5.0</span>
+        <span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg>ปักหมุด</span>
+        <span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/></svg>สินค้า</span>
+      </div>
+      <div class="panel">
+        <div class="sum">
+          <div class="big">
+            <div class="n">5.0</div>
+            <div class="stars">★★★★★</div>
+            <div class="from">จาก 1 รีวิว</div>
+          </div>
+          <div class="bars">
+            <div class="bar"><span class="k">5</span><span class="track"><i style="width:100%"></i></span><span class="c">1</span></div>
+            <div class="bar"><span class="k">4</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+            <div class="bar"><span class="k">3</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+            <div class="bar"><span class="k">2</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+            <div class="bar"><span class="k">1</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+          </div>
+        </div>
+
+        <div class="rv">
+          <div class="rv-head">
+            <div class="rv-who">
+              <span class="rv-av">U</span>
+              <span>
+                <span class="rv-name">U•••••••</span>
+                <span class="rv-stars">★★★★★</span>
+              </span>
+            </div>
+            <span class="rv-date">01 ส.ค. 2569</span>
+          </div>
+          <div class="rv-src" style="margin-bottom:8px">
+            <span class="mark"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36'%3E%3Crect width='36' height='36' fill='%23231f20'/%3E%3Ctext x='18' y='23' font-size='13' fill='%23f5c518' text-anchor='middle' font-family='sans-serif'%3EBT%3C/text%3E%3C/svg%3E" alt=""><span class="plat fb"></span></span>
+            คำสั่งซื้อ DP2569084609E267
+          </div>
+          <p class="rv-text">ของตรงปก ส่งไว ติดตั้งให้ด้วย ราคาดีมากครับ แนะนำเลย</p>
+          <div class="pics"><i></i><i></i></div>
+          <div class="reply">
+            <div class="reply-h">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 5 5v3"/></svg>
+              ร้านตอบกลับ · 02 ส.ค. 2569
+            </div>
+            <p>ขอบคุณมากครับ แวะมาใหม่ได้เลย</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tablet -->
+  <div>
+    <p class="cap"><span>Tablet 768px</span><b>โครงเดียวกัน กว้างขึ้น</b></p>
+    <div class="dev w768">
+      <div class="tabs">
+        <span class="on"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>รีวิว 5.0</span>
+        <span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg>ปักหมุด</span>
+        <span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/></svg>สินค้า</span>
+        <span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>เกี่ยวกับร้าน</span>
+      </div>
+      <div class="panel">
+        <div class="sum">
+          <div class="big"><div class="n">5.0</div><div class="stars">★★★★★</div><div class="from">จาก 1 รีวิว</div></div>
+          <div class="bars">
+            <div class="bar"><span class="k">5</span><span class="track"><i style="width:100%"></i></span><span class="c">1</span></div>
+            <div class="bar"><span class="k">4</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+            <div class="bar"><span class="k">3</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+            <div class="bar"><span class="k">2</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+            <div class="bar"><span class="k">1</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+          </div>
+        </div>
+        <div class="rv">
+          <div class="rv-head">
+            <div class="rv-who">
+              <span class="rv-av">U</span>
+              <span><span class="rv-name">U•••••••</span><span class="rv-stars">★★★★★</span></span>
+            </div>
+            <span class="rv-date">01 ส.ค. 2569</span>
+          </div>
+          <div class="rv-src" style="margin-bottom:8px">
+            <span class="mark"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36'%3E%3Crect width='36' height='36' fill='%23231f20'/%3E%3Ctext x='18' y='23' font-size='13' fill='%23f5c518' text-anchor='middle' font-family='sans-serif'%3EBT%3C/text%3E%3C/svg%3E" alt=""><span class="plat fb"></span></span>
+            คำสั่งซื้อ DP2569084609E267
+          </div>
+          <p class="rv-text">ของตรงปก ส่งไว ติดตั้งให้ด้วย ราคาดีมากครับ แนะนำเลย</p>
+          <div class="pics"><i></i><i></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div>
+    <p class="cap"><span>Desktop 960px</span><b>คอลัมน์เดียวเหมือนกัน</b></p>
+    <div class="dev w960">
+      <div class="tabs">
+        <span class="on"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>รีวิว 5.0</span>
+        <span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg>ปักหมุด</span>
+        <span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/></svg>สินค้า</span>
+        <span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>เกี่ยวกับร้าน</span>
+      </div>
+      <div class="panel">
+        <div class="sum">
+          <div class="big"><div class="n">5.0</div><div class="stars">★★★★★</div><div class="from">จาก 1 รีวิว</div></div>
+          <div class="bars">
+            <div class="bar"><span class="k">5</span><span class="track"><i style="width:100%"></i></span><span class="c">1</span></div>
+            <div class="bar"><span class="k">4</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+            <div class="bar"><span class="k">3</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+            <div class="bar"><span class="k">2</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+            <div class="bar"><span class="k">1</span><span class="track"><i style="width:0"></i></span><span class="c">0</span></div>
+          </div>
+        </div>
+        <div class="rv">
+          <div class="rv-head">
+            <div class="rv-who"><span class="rv-av">U</span><span><span class="rv-name">U•••••••</span><span class="rv-stars">★★★★★</span></span></div>
+            <span class="rv-date">01 ส.ค. 2569</span>
+          </div>
+          <div class="rv-src" style="margin-bottom:8px">
+            <span class="mark"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36'%3E%3Crect width='36' height='36' fill='%23231f20'/%3E%3Ctext x='18' y='23' font-size='13' fill='%23f5c518' text-anchor='middle' font-family='sans-serif'%3EBT%3C/text%3E%3C/svg%3E" alt=""><span class="plat fb"></span></span>
+            คำสั่งซื้อ DP2569084609E267
+          </div>
+          <p class="rv-text">ของตรงปก ส่งไว ติดตั้งให้ด้วย ราคาดีมากครับ แนะนำเลย</p>
+          <div class="pics"><i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>2 · สิ่งที่ผมเพิ่มในม็อกอัพนี้ ยังไม่มีบน prod</h2>
+<div class="row">
+  <div class="opt">
+    <h3>ก · รูปโปรไฟล์ผู้รีวิว (วงตัวอักษร)<span class="rec">แนะนำ</span></h3>
+    <p class="why">
+      ตอนนี้การ์ดเริ่มด้วยตัวหนังสือ <code>U•••••••</code> ลอย ๆ ทำให้หลายรีวิวเรียงกันแล้วแยกใบไม่ออก
+      · วงตัวอักษรแรกให้จุดยึดสายตาโดยไม่ต้องมีรูปจริง (ผู้รีวิวส่วนใหญ่เป็น guest ไม่มีรูป)
+      <br>🛑 <b>ใช้ตัวอักษรแรกของชื่อที่ mask แล้วเท่านั้น</b> — ห้ามดึงรูปโปรไฟล์จริงของผู้ซื้อ
+      มาแสดง เพราะจะย้อนงาน mask ทั้งหมด (รูปคน = ตัวระบุตัวตนที่แรงกว่าชื่อ)
+    </p>
+    <div class="demo">
+      <div class="rv" style="border:0;padding:0">
+        <div class="rv-head">
+          <div class="rv-who"><span class="rv-av">U</span><span><span class="rv-name">U•••••••</span><span class="rv-stars">★★★★★</span></span></div>
+          <span class="rv-date">01 ส.ค. 2569</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="opt">
+    <h3>ข · ปัจจุบันบน prod<span class="now">ตอนนี้</span></h3>
+    <p class="why">ชื่อ + ดาว ไม่มีวงรูป — ประหยัดพื้นที่กว่า แต่หลายใบเรียงกันแล้วขอบเขตของแต่ละรีวิวไม่ชัด</p>
+    <div class="demo">
+      <div class="rv" style="border:0;padding:0">
+        <div class="rv-head">
+          <div class="rv-who"><span><span class="rv-name">U•••••••</span><span class="rv-stars">★★★★★</span></span></div>
+          <span class="rv-date">01 ส.ค. 2569</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>3 · ลำดับในการ์ด (ตามที่สั่งว่า "เน้นข้อความรีวิว")</h2>
+<div class="box">
+  <b>1.</b> ชื่อ (mask) + ดาว + วันที่ — บอกว่าใครพูด เมื่อไหร่<br>
+  <b>2.</b> ช่องทาง + เลขคำสั่งซื้อ (caption สีจาง) — ซื้อจากไหน<br>
+  <b>3.</b> <b>ข้อความรีวิว 15px สีหลัก</b> ← ตัวเด่นที่สุดในการ์ด<br>
+  <b>4.</b> รูปแนบ (กดขยายได้ ≤4 ใบ)<br>
+  <b>5.</b> คำตอบร้าน (พื้นอ่อน เยื้องเข้า = คนละเสียงกับผู้รีวิว)<br><br>
+  🛑 <b>เลขคำสั่งซื้ออยู่ "ก่อน" ข้อความ</b> (user สั่ง 2026-08-11 ให้ย้ายขึ้นบน) — มันตอบว่า
+  "ใครพูด ซื้อจากไหน" ซึ่งเป็นบริบทที่ต้องรู้ก่อนอ่านสิ่งที่เขาพูด · ที่ยังไม่แย่งสายตาไปจาก
+  ตัวข้อความ เพราะมันเป็น caption 12px สีจาง ส่วนข้อความเป็น 15px สีหลัก — <b>ลำดับกับน้ำหนัก
+  เป็นคนละแกน</b> ขึ้นก่อนไม่ได้แปลว่าเด่นกว่า
+</div>
+
+<h2>4 · จุดที่ยังไม่ได้ตัดสิน</h2>
+<div class="box">
+  <b>· รีวิวเกิน 10 ใบ</b> — ตอนนี้ query <code>take: 10</code> แล้วจบ ไม่มีปุ่ม "ดูเพิ่มเติม"
+  ร้านที่มี 50 รีวิวจะเห็นแค่ 10 ใบล่าสุดโดยไม่มีอะไรบอกว่ายังมีอีก<br>
+  <b>· ตัวกรองดาว</b> — Shopee มีชิป "ทั้งหมด / 5 ดาว / 4 ดาว / มีรูป" เรายังไม่มี<br>
+  <b>· เรียงลำดับ</b> — ตอนนี้ใหม่สุดก่อนเสมอ ไม่มีตัวเลือก "มีประโยชน์ที่สุด"<br>
+  <b>· รีวิวที่ไม่มีข้อความ</b> (ให้ดาวอย่างเดียว) — การ์ดจะเหลือแค่ชื่อ+ดาว+เลขออเดอร์ ยังไม่ได้ออกแบบ
+</div>
+
+</div>
+</body>
+</html>

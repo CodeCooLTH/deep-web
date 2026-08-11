@@ -26,8 +26,8 @@ export const PROFILE_TAB_KEYS = [
   'calendar',
   'services',
   'items',
-  'about',
   'reviews',
+  'about',
 ] as const
 
 export type ProfileTabKey = (typeof PROFILE_TAB_KEYS)[number]
@@ -58,18 +58,20 @@ export type VisibleTabInput = {
 export function computeVisibleTabKeys(input: VisibleTabInput): ProfileTabKey[] {
   const visible: ProfileTabKey[] = []
 
-  /* 🛑 รีวิวอยู่หน้าสุด (user 2026-08-11 "ย้าย Review มาไว้ข้างหน้า") — เดิมอยู่ท้ายสุดจนต้อง
-     เลื่อนแถบแท็บไปทางขวาถึงจะเห็น ทั้งที่เป็นหลักฐานชิ้นที่ผู้ซื้อมองหาที่สุดบนหน้าที่ใช้ตัดสินใจโอนเงิน
-
-     ⚠️ ผลข้างเคียงที่ต้องรู้: แท็บแรกคือแท็บที่เปิดอยู่ตอนโหลดหน้า ⇒ ผู้ชมจะเห็น "รีวิว" ก่อน
-     ไม่ใช่คลิป/สินค้า ซึ่งสวนทางกับโจทย์ "จอแรกต้องเห็นของที่ร้านขาย" ที่เป็นที่มาของการยุบ
-     หัวโปรไฟล์ทั้งหมด — user เลือกเองโดยเห็นแท็บจริงบน prod แล้ว ถ้าจะกลับ ย้ายบรรทัดนี้ลงท้าย */
-  if (input.hasReviews) visible.push('reviews')
   if (input.hasVideos) visible.push('pinned')
   if (input.isLodging && input.hasRooms) visible.push('rooms')
   if (input.isLodging && input.hasAvailability) visible.push('calendar')
   if (input.isServiceQueue && input.hasServices) visible.push('services')
   if (!input.isLodging && input.hasItems) visible.push('items')
+
+  /* 🛑 รีวิวอยู่ "ก่อนเกี่ยวกับร้าน" ไม่ใช่แท็บแรก (user 2026-08-11 สั่งแก้ในวันเดียวกับที่สั่ง
+     ให้ย้ายมาข้างหน้า — "เอา tab review ไว้ข้างหน้า เกี่ยวกับร้านครับ ไม่ใช่ tab แรก")
+
+     เหตุผลที่ตำแหน่งนี้ถูก: แท็บแรกคือแท็บที่เปิดอยู่ตอนโหลดหน้า ถ้ารีวิวอยู่หน้าสุด ผู้ชมจะเห็น
+     รีวิวก่อนเห็นของที่ร้านขาย ซึ่งสวนทางกับโจทย์ "จอแรกต้องเห็นสินค้า" ที่เป็นที่มาของการยุบ
+     หัวโปรไฟล์ทั้งหมด — ตรงนี้รีวิวยังอยู่ก่อนแท็บที่คนเปิดน้อยสุด (เกี่ยวกับร้าน) จึงยังไม่ต้อง
+     เลื่อนแถบแท็บไปหา แต่ไม่แย่งจอแรกไปจากสินค้า */
+  if (input.hasReviews) visible.push('reviews')
   visible.push('about')
 
   return visible

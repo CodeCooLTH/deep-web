@@ -79,23 +79,17 @@ export default function ReviewList({ items }: { items: ReviewListItem[] }) {
             </Typography>
           </div>
 
-          {/* ── ข้อความรีวิว = พระเอกของการ์ด ──
-              user 2026-08-11 "เน้นข้อความรีวิวครับ" — ขึ้นก่อนบรรทัดเลขออเดอร์ และใหญ่กว่า
-              ทุกอย่างในการ์ด (15px สีหลัก) ส่วนเลขออเดอร์/ช่องทางเป็นหลักฐานประกอบที่อยู่ชั้นรอง
-              เดิมเลขออเดอร์อยู่ก่อนข้อความ ทำให้สายตาเจอรหัสยาว ๆ ก่อนเจอสิ่งที่ลูกค้าพูดจริง */}
-          {r.comment && (
-            <Typography sx={{ fontSize: '15px', lineHeight: 1.55 }} color='text.primary' className='mbe-2'>
-              {r.comment}
-            </Typography>
-          )}
-
           {/* ── หลักฐานว่ารีวิวนี้มาจากการซื้อจริง: ช่องทาง + เลขออเดอร์ ──
+              user 2026-08-11 สั่งย้ายขึ้นมาไว้บน (เดิมอยู่ใต้ข้อความรีวิว) — บรรทัดนี้ตอบคำถามว่า
+              "ใครพูด และซื้อจากไหน" ซึ่งเป็นบริบทที่ต้องรู้ *ก่อน* อ่านสิ่งที่เขาพูด บนหน้าที่ผู้ชม
+              กำลังชั่งใจว่าจะเชื่อร้านนี้ไหม — รีวิวที่ไม่รู้ว่ามาจากออเดอร์จริงคือคอมเมนต์ธรรมดา
+
               ไม่ใช่ลิงก์ เพราะหน้าออเดอร์เป็นของผู้ซื้อคนนั้น คนอื่นเปิดไม่ได้อยู่แล้ว
 
               🛑 รูปเพจกับ badge แพลตฟอร์มมาจาก `resolveOrderSource` ตัวเดียวกับหน้า /orders
               ห้ามผสมแหล่ง — `salesChannel` ร้านแก้เองทีหลังได้ ส่วน `shopChannel` คือข้อเท็จจริง
               ตอนสร้างออเดอร์ ผสมกันจะได้ "รูป LINE คู่ badge Facebook" ที่คนดูไม่เชื่ออะไรเลยทั้งคู่ */}
-          <div className='flex items-center gap-1.5'>
+          <div className='flex items-center gap-1.5 mbe-2'>
             {r.source?.logoUrl ? (
               <span className='relative is-[18px] bs-[18px] shrink-0'>
                 {/* eslint-disable-next-line @next/next/no-img-element -- รูปเพจจากแพลตฟอร์มภายนอก */}
@@ -117,6 +111,15 @@ export default function ReviewList({ items }: { items: ReviewListItem[] }) {
               {`คำสั่งซื้อ ${r.orderNo}`}
             </Typography>
           </div>
+
+          {/* ── ข้อความรีวิว = พระเอกของการ์ด ──
+              user 2026-08-11 "เน้นข้อความรีวิวครับ" — ใหญ่กว่าทุกอย่างในการ์ด (15px สีหลัก)
+              บรรทัดช่องทาง/เลขออเดอร์เหนือมันเป็น caption สีจาง จึงยังไม่แย่งสายตาไปจากตัวข้อความ */}
+          {r.comment && (
+            <Typography sx={{ fontSize: '15px', lineHeight: 1.55 }} color='text.primary' className='mbe-2'>
+              {r.comment}
+            </Typography>
+          )}
 
           {/* ── รูปแนบ (Shopee-style) ── */}
           {r.images.length > 0 && (
