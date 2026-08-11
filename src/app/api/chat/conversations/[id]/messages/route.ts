@@ -19,6 +19,10 @@ import {
 } from "@/lib/chat-constants";
 import { describeSendFailure } from "@/lib/chat-send-failure";
 import { buildLineFlexOrderCard } from "@/lib/line/flex-order-card";
+import { buildLineFlexProductCard } from "@/lib/line/flex-product-card";
+import { getProductById } from "@/services/product.service";
+import { resolveLineFlexImageUrl } from "@/services/channel-chat.service";
+import { formatBaht } from "@/lib/format-money";
 import { EXT_TO_MIME } from "@/lib/attachment-mime";
 import { sendOutboundImageGrid, IMAGE_GRID_MAX } from "@/services/channel-chat.service";
 import {
@@ -487,6 +491,9 @@ export async function POST(
       select: { channel: true, shopId: true },
     });
 
+    // แถวสินค้าที่ผ่านด่าน ownership แล้ว — ใช้ต่อตอนประกอบการ์ด Flex ให้ LINE (ไม่ query ซ้ำ)
+    let productRow: Awaited<ReturnType<typeof getProductById>> = null;
+
     // conditional-required — Valibot schema เดียวไม่ครอบทุกกรณี (SendChatMessageSchema comment)
     if (type === "TEXT") {
       if (!text || text.trim().length === 0) {
@@ -517,6 +524,16 @@ export async function POST(
       if (!productRefId) {
         return NextResponse.json({ error: "กรุณาระบุสินค้า" }, { status: 400 });
       }
+      // 🛑 ด่าน cross-shop (FR-CTX-07) เดิมอยู่ใน `chat.service.sendMessage()` ซึ่งเป็นเส้นทางของ
+      // ช่องทาง DEEP เท่านั้น — ช่องทางนอกไม่เคยต้องใช้เพราะ PRODUCT ถูกตอบ 400 ทิ้งก่อนถึงตรงนั้น
+      // พอเปิด LINE (2026-08-11) เส้นทางใหม่วิ่งผ่าน `sendOutboundMessage` ซึ่ง **ไม่ผ่าน sendMessage**
+      // ด่านเดิมจึงไม่ครอบ ต้องกันที่นี่ด้วยเกณฑ์เดียวกันเป๊ะ (ใช้ helper ตัวเดียวกัน ไม่เขียน query ใหม่
+      // ไม่งั้นสองที่จะนิยาม "สินค้าอยู่ในร้านนี้ไหม" ต่างกันวันที่โมเดลขยับ — HR16)
+      const product = await getProductById(productRefId);
+      if (!product || product.shopId !== conv?.shopId) {
+        return NextResponse.json({ error: "ไม่พบสินค้านี้ในร้าน" }, { status: 400 });
+      }
+      productRow = product;
     } else if (type === "IMAGE_GRID") {
       // ตรวจครบก่อนเข้า try แล้ว — สาขานี้มีไว้กัน fail-closed ด้านล่างไม่ให้ตีตก
     } else if (type === "STICKER") {
@@ -557,9 +574,31 @@ export async function POST(
     }
 
     if (conv && conv.channel !== "DEEP") {
-      // PRODUCT (การ์ดสินค้า) ยังไม่รองรับบนช่องทางนอก
+      // การ์ดสินค้า — LINE ได้ Flex จริงแล้ว (2026-08-11) ส่วน Messenger/IG ยังไม่มีของเทียบ
       if (type === "PRODUCT") {
-        return NextResponse.json({ error: "ช่องทางนี้ยังไม่รองรับการ์ดสินค้า" }, { status: 400 });
+        if (conv.channel !== "LINE") {
+          return NextResponse.json({ error: "ช่องทางนี้ยังไม่รองรับการ์ดสินค้า" }, { status: 400 });
+        }
+        const p = productRow!; // ผ่านด่าน ownership มาแล้วข้างบน
+        const priceText = formatBaht(p.price);
+        // รูปต้องแปลงเป็น JPEG ก่อนเสมอ — Flex รับแค่ JPEG/PNG แต่รูปสินค้าในระบบเป็น webp/gif ได้
+        // แปลงไม่ผ่าน = คืน null แล้วส่งการ์ดแบบไม่มีรูป (ยังอ่านชื่อ/ราคาได้ครบ)
+        const imageUrl = p.images[0] ? await resolveLineFlexImageUrl(p.images[0]) : null;
+        const card = buildLineFlexProductCard({
+          name: p.name,
+          priceText,
+          imageUrl,
+          isActive: p.isActive,
+        });
+        const sent = await sendOutboundMessage({
+          conversationId: id,
+          actorUserId: userId,
+          // text ยังต้องส่ง: เป็น ChatMessage.body ที่ร้านเห็นในประวัติ และเป็นทางถอยถ้า flex ล้ม
+          text: `${p.name}\n${priceText}`,
+          flex: card,
+          productRefId: productRefId!,
+        });
+        return NextResponse.json(await withSender(sent, userId));
       }
       // ORDER (การ์ดคำสั่งซื้อ, user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" ผ่าน Meta แต่ฝั่งเรา
       // เก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด). verify order-in-shop ที่นี่

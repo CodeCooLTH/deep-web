@@ -97,6 +97,7 @@ import { canRetryFailedMessage } from '@/lib/chat-retry-eligibility'
 // ฟังก์ชันบริสุทธิ์ที่มีเทสจับ ไม่ใช่เทอร์นารีกลาง JSX (ui-boolean-needs-a-testable-home.md)
 import { deriveLineQuotaCaption } from '@/lib/line/quota-caption'
 import type { LineQuotaLevel } from '@/lib/line/quota'
+import { formatBaht } from '@/lib/format-money'
 import Swal from 'sweetalert2'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -856,7 +857,10 @@ function ProductCardBubble({ card, username, thumbSize }: { card: ChatProductCar
     )
   }
 
-  const priceLabel = `฿${card.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+  // (2026-08-11) เปลี่ยนมาใช้ `formatBaht` ตัวเดียวกับที่การ์ดสินค้าบน LINE ใช้ — สูตรเดิมที่เขียนไว้
+  // ตรงนี้ให้ผลต่างกันตอนมีสตางค์ (`฿1,290.5` vs `฿1,290.50`) ราคาชิ้นเดียวกันจึงอ่านคนละแบบระหว่าง
+  // จอร้านกับที่ลูกค้าเห็นในแอป LINE โดยไม่มี tsc/เทสตัวไหนฟ้อง เพราะทั้งคู่ "ถูก" ในตัวเอง (HR16)
+  const priceLabel = formatBaht(card.price)
   const href = username ? `/u/${username}` : undefined
 
   const inner = (

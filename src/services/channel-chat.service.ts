@@ -2693,6 +2693,34 @@ function lineErrorToRaw(e: unknown): unknown {
  * ไฟล์ใน bucket สองใบ. ต้องมีคอลัมน์เก็บ previewFileId ถึงจะแก้ได้ ซึ่งเป็น migration ที่ไม่คุ้มกับ
  * รอบแก้บั๊กนี้ — วิดีโอไม่ได้รับ preview เลยด้วยเหตุผลเดียวกัน (สกัดเฟรมต้องใช้ ffmpeg)
  */
+/**
+ * resolveLineFlexImageUrl — URL รูปที่ใส่ใน Flex ได้จริง (2026-08-11)
+ *
+ * ต่างจาก `resolveLinePreviewUrl` ตรงที่ **ห้ามถอยไปใช้ไฟล์ต้นฉบับ**: Flex รับเฉพาะ JPEG/PNG ส่วน
+ * ไฟล์ในระบบเราเป็น webp/gif ได้ (รูปสินค้าไม่ได้ถูกจำกัดชนิดเหมือนไฟล์แนบของ LINE) — ถอยไปใช้
+ * ต้นฉบับ = ลูกค้าเห็นกรอบว่างบนการ์ด ซึ่งแย่กว่าไม่มีรูปเลย จึงคืน `null` ให้การ์ดตัดรูปทิ้งแทน
+ *
+ * ผลพลอยได้: ตัวย่อรูปคืน JPEG ≤1MB/1024px อยู่แล้ว ซึ่งตรงกับที่เอกสาร LINE แนะนำสำหรับ Flex พอดี
+ */
+export async function resolveLineFlexImageUrl(fileId: string): Promise<string | null> {
+  try {
+    const original = await getFile(fileId)
+    if (!original) return null
+    const jpeg = await buildLinePreviewJpeg(original.buffer, LINE_PREVIEW_MAX_SIZE)
+    if (!jpeg) return null
+    const previewFileId = await saveFile(
+      new File([new Uint8Array(jpeg)], 'line-flex.jpg', { type: 'image/jpeg' }),
+    )
+    return await getFileUrl(previewFileId, { signed: true, expiresIn: 3600 })
+  } catch (err) {
+    // ไม่ log fileId/ชื่อไฟล์ (RC-8) — รูปหายไม่ใช่เหตุให้การ์ดส่งไม่ออก
+    console.warn('[line-flex] เตรียมรูปสินค้าไม่สำเร็จ ส่งการ์ดแบบไม่มีรูป', {
+      reason: err instanceof Error ? err.message : 'unknown',
+    })
+    return null
+  }
+}
+
 async function resolveLinePreviewUrl(
   fileId: string,
   kind: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE',
@@ -2753,6 +2781,9 @@ async function sendOutboundLineMessage(
       size?: number | null
     }
     orderRefToken?: string
+    /** (2026-08-11) การ์ดสินค้า — เก็บลง ChatMessage.productRefId ให้ร้านเห็นเป็นการ์ดในประวัติ
+     *  เหมือนช่องทาง DEEP (ฝั่งลูกค้าได้ Flex) */
+    productRefId?: string
     /** (2026-08-11) การ์ด Flex — ชนะ `text` เมื่อมีค่า (ดู buildParts) */
     flex?: { altText: string; contents: Record<string, unknown> }
     replyToMid?: string | null
@@ -3011,12 +3042,16 @@ async function sendOutboundLineMessage(
           conversationId: conversation.id,
           senderUserId: params.actorUserId,
           senderRole: 'SHOP',
-          type: isOrder ? 'ORDER' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
-          body: isOrder || attachment || params.sticker ? null : bodyText,
+          // PRODUCT/ORDER เก็บ body=null แล้ว live-join การ์ดตอนอ่าน — ตรงกับที่ฝั่ง DEEP ทำ
+          // (route messages: `type === "PRODUCT" || type === "ORDER" ? null : text`) ไม่งั้นร้านจะเห็น
+          // ทั้งการ์ดและข้อความดิบซ้อนกันสองชั้นในเธรดเดียว
+          type: isOrder ? 'ORDER' : params.productRefId ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
+          body: isOrder || params.productRefId || attachment || params.sticker ? null : bodyText,
           imageUrl: stickerFileId ?? attachment?.fileId ?? null,
           attachmentName: attachment?.name ?? null,
           attachmentSize: attachment?.size ?? null,
           orderRefToken: isOrder ? params.orderRefToken! : null,
+          productRefId: params.productRefId ?? null,
           replyToMid: params.replyToMid ?? null,
           externalMessageId: mid ? buildLineExternalMessageId(mid) : null,
           deliveryStatus: failureReason ? 'FAILED' : 'SENT',
@@ -3106,6 +3141,8 @@ export async function sendOutboundMessage(params: {
   // orderRefToken (user 2026-07-25): การ์ดคำสั่งซื้อบนช่องทางนอก — ส่ง "ลิงก์ (text)" ให้ลูกค้าผ่าน Meta
   // แต่เก็บข้อความฝั่งเราเป็น type=ORDER เพื่อให้ "ร้าน" เห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด)
   orderRefToken?: string
+  /** (2026-08-11) การ์ดสินค้า — ผ่านด่าน ownership ที่ route มาแล้ว (scope ด้วย shopId ใน WHERE) */
+  productRefId?: string
   /**
    * (2026-08-11) การ์ด Flex สำหรับ **LINE เท่านั้น** — มีค่าเมื่อไหร่จะถูกส่งแทน `text`
    *
