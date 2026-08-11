@@ -18,8 +18,13 @@ import {
 import {
   buildRichMenuName,
   buildRichMenuPayload,
+  RICH_MENU_LAYOUTS,
+  defaultLayoutKeyForCount,
+  isRichMenuLayoutKey,
   layoutBounds,
-  layoutFor,
+  layoutCellCount,
+  layoutRows,
+  type RichMenuLayoutKey,
   readImageSize,
   countChatBarText,
   isChatBarTextValid,
@@ -96,19 +101,32 @@ describe('ชื่อเมนู = กลไกเก็บกวาด', () =
 })
 
 describe('เลย์เอาต์พิกัดปุ่ม', () => {
-  it('จำนวนปุ่มที่ไม่รองรับ = ปฏิเสธ (fail-closed) ไม่ใช่เดาเลย์เอาต์ให้', () => {
-    expect(layoutFor(1)).toBeNull()
-    expect(layoutFor(5)).toBeNull()
-    expect(layoutFor(7)).toBeNull()
-    expect(layoutFor(2)).toEqual([2])
-    expect(layoutFor(4)).toEqual([2, 2])
+  it('จำนวนที่ไม่มีเลย์เอาต์เริ่มต้น = ปฏิเสธ (fail-closed) ไม่ใช่เดาให้', () => {
+    expect(defaultLayoutKeyForCount(5)).toBeNull()
+    expect(defaultLayoutKeyForCount(7)).toBeNull()
+    expect(defaultLayoutKeyForCount(2)).toBe('row-2')
+    expect(defaultLayoutKeyForCount(4)).toBe('grid-2x2')
+    expect(defaultLayoutKeyForCount(1)).toBe('full')
   })
 
-  it('3 ปุ่ม = T-split (บนเต็มแถว ล่างแบ่งสอง) ไม่ใช่สามช่องเท่ากัน', () => {
-    expect(layoutFor(3)).toEqual([1, 2])
-    const b = layoutBounds([1, 2])
-    expect(b[0]!.width).toBe(RICH_MENU_CANVAS_WIDTH) // แถวบนเต็มความกว้าง
-    expect(b[1]!.width + b[2]!.width).toBe(RICH_MENU_CANVAS_WIDTH)
+  /**
+   * 🛑 หัวใจของการรื้อจาก `layoutFor(count)` มาเป็นคีย์: สองเลย์เอาต์นี้ **มี 3 ช่องเท่ากัน**
+   * ถ้าระบบยังเดาจากจำนวนอย่างเดียว ภาพที่ร้านออกแบบมาเป็นสามช่องเรียงนอนจะถูกวางพื้นที่กด
+   * เป็น T-split ทับลงไป = ลูกค้ากดโดนช่องผิด โดยไม่มี tsc/เทส/ตาเปล่าจับได้
+   */
+  it('[blocker] 1บน+2ล่าง กับ 1×3 มี 3 ช่องเท่ากัน แต่พิกัดต้องต่างกัน', () => {
+    expect(layoutCellCount('top-1-bottom-2')).toBe(3)
+    expect(layoutCellCount('row-3')).toBe(3)
+    const tsplit = layoutBounds(layoutRows('top-1-bottom-2'))
+    const row3 = layoutBounds(layoutRows('row-3'))
+    expect(tsplit[0]!.width).toBe(RICH_MENU_CANVAS_WIDTH) // T-split: แถวบนเต็มความกว้าง
+    expect(row3[0]!.width).toBeLessThan(RICH_MENU_CANVAS_WIDTH) // 1×3: ช่องแรกกว้างแค่หนึ่งในสาม
+    expect(tsplit).not.toEqual(row3)
+  })
+
+  it('คีย์ที่ไม่รู้จักต้องถูกปฏิเสธ (allow-list)', () => {
+    expect(isRichMenuLayoutKey('grid-3x2')).toBe(true)
+    expect(isRichMenuLayoutKey('grid-9x9')).toBe(false)
   })
 
   /**
@@ -119,13 +137,14 @@ describe('เลย์เอาต์พิกัดปุ่ม', () => {
    * รายงานยากมาก ("กดแล้วบางทีไม่ติด")
    */
   it('[blocker] TC-18 ทุกกริด: พื้นที่กดต้องต่อกันสนิทและเต็มกรอบภาพพอดี ไม่เหลือเศษ ไม่ซ้อนกัน', () => {
-    for (const count of [2, 3, 4, 6]) {
-      const cells = layoutBounds(layoutFor(count)!)
-      expect(cells, `กริด ${count} ปุ่ม ต้องได้กล่องครบ`).toHaveLength(count)
+    for (const key of Object.keys(RICH_MENU_LAYOUTS) as RichMenuLayoutKey[]) {
+      const count = layoutCellCount(key)
+      const cells = layoutBounds(layoutRows(key))
+      expect(cells, `เลย์เอาต์ ${key} ต้องได้กล่องครบ`).toHaveLength(count)
 
       // 1) ผลรวมพื้นที่ = พื้นที่ภาพเป๊ะ (ไม่ทับกัน + ไม่มีรู)
       const area = cells.reduce((s, c) => s + c.width * c.height, 0)
-      expect(area, `เลย์เอาต์ ${count} ปุ่ม`).toBe(RICH_MENU_CANVAS_WIDTH * RICH_MENU_CANVAS_HEIGHT)
+      expect(area, `เลย์เอาต์ ${key}`).toBe(RICH_MENU_CANVAS_WIDTH * RICH_MENU_CANVAS_HEIGHT)
 
       // 2) ขอบขวาสุด/ล่างสุดต้องชนขอบภาพพอดี (นี่คือจุดที่ 2500/3 = 833.33 ทำให้เหลือ 1px)
       expect(Math.max(...cells.map((c) => c.x + c.width))).toBe(RICH_MENU_CANVAS_WIDTH)
@@ -157,6 +176,28 @@ describe('เลย์เอาต์พิกัดปุ่ม', () => {
     expect(area).toBe(2500 * 1687)
   })
 
+  it('[blocker] จำนวนปุ่มต้องเท่าจำนวนช่องเป๊ะ — ไม่งั้นมีช่องไม่มี action หรือปุ่มหายไปเงียบ ๆ', () => {
+    expect(() =>
+      buildRichMenuPayload({
+        name: 'n',
+        chatBarText: 'เมนู',
+        buttons: [btn('a'), btn('b')],
+        layoutKey: 'grid-2x2', // 4 ช่อง แต่ส่งมา 2 ปุ่ม
+      }),
+    ).toThrow('RICH_MENU_BUTTON_COUNT_MISMATCH')
+  })
+
+  it('เลือกเลย์เอาต์เองแล้วพิกัดต้องตามคีย์ ไม่ใช่ตามจำนวนปุ่ม', () => {
+    const p = buildRichMenuPayload({
+      name: 'n',
+      chatBarText: 'เมนู',
+      buttons: [btn('a'), btn('b'), btn('c')],
+      layoutKey: 'row-3',
+    })
+    // 1×3 → ทุกช่องสูงเต็มภาพ (ต่างจาก T-split ที่แถวบนสูงครึ่งเดียว)
+    expect(p.areas.every((a) => a.bounds.height === RICH_MENU_CANVAS_HEIGHT)).toBe(true)
+  })
+
   it('แถวที่มี 3 คอลัมน์: ช่องสุดท้ายกลืนเศษ (2500/3 ไม่ลงตัว)', () => {
     const b = layoutBounds([3, 3])
     expect(b[0]!.width).toBe(833)
@@ -180,9 +221,10 @@ describe('buildRichMenuPayload', () => {
     expect(() =>
       buildRichMenuPayload({ name: 'n', chatBarText: 'เมนู', buttons: [btn('a'), { ...btn('b'), label: '  ' }] }),
     ).toThrow('RICH_MENU_LABEL_REQUIRED')
-    expect(() => buildRichMenuPayload({ name: 'n', chatBarText: 'เมนู', buttons: [btn('a')] })).toThrow(
-      'RICH_MENU_LAYOUT_UNSUPPORTED',
-    )
+    // 5 ปุ่มไม่มีเลย์เอาต์รองรับ (1 ปุ่มมีแล้ว = 'full' ตั้งแต่เปิดให้เลือกเลย์เอาต์เอง 2026-08-11)
+    expect(() =>
+      buildRichMenuPayload({ name: 'n', chatBarText: 'เมนู', buttons: [1, 2, 3, 4, 5].map((i) => btn(`b${i}`)) }),
+    ).toThrow('RICH_MENU_LAYOUT_UNSUPPORTED')
   })
 
   it('แปลง action ทุกชนิดเป็นรูปที่ LINE รับ และแนบ label ให้ทุกตัว', () => {
@@ -287,7 +329,7 @@ describe('เทมเพลต', () => {
     for (const t of allTemplates()) {
       expect(t.buttons.length, `${t.key} ต้องมีปุ่ม`).toBeGreaterThan(0)
       // จำนวนปุ่มต้องอยู่ในกริดที่รองรับ ไม่งั้น buildRichMenuPayload จะโยนตอน runtime
-      expect(layoutFor(t.buttons.length), `${t.key} จำนวนปุ่มต้องมีเลย์เอาต์รองรับ`).not.toBeNull()
+      expect(defaultLayoutKeyForCount(t.buttons.length), `${t.key} จำนวนปุ่มต้องมีเลย์เอาต์รองรับ`).not.toBeNull()
       for (const b of t.buttons) {
         expect(b.label.trim(), `${t.key}/${b.key}`).not.toBe('')
         expect(allowed.has(b.action.type), `${t.key}/${b.key} = ${b.action.type}`).toBe(true)
@@ -324,7 +366,7 @@ describe('เทมเพลต', () => {
     expect(without).toHaveLength(t.buttons.length - 1)
     expect(without.some((b) => b.key === 'catalog')).toBe(false)
     // และสิ่งที่เหลือต้องยังประกอบเป็นเมนูได้จริง (มีกริดรองรับ)
-    expect(layoutFor(without.length)).not.toBeNull()
+    expect(defaultLayoutKeyForCount(without.length)).not.toBeNull()
   })
 
   it('[blocker] BR-RM-07 ลิงก์ที่ไม่ใช่ https ต้องถูกตัดทิ้ง (LINE ปฏิเสธทั้งเมนู)', () => {

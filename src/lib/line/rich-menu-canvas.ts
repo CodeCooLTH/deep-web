@@ -18,7 +18,14 @@ import {
   RICH_MENU_CANVAS_WIDTH,
   RICH_MENU_IMAGE_MAX_BYTES,
 } from './constants'
-import { layoutBounds, layoutFor, type RichMenuButton } from './rich-menu'
+import {
+  defaultLayoutKeyForCount,
+  layoutBounds,
+  layoutCellCount,
+  layoutRows,
+  type RichMenuButton,
+  type RichMenuLayoutKey,
+} from './rich-menu'
 
 /**
  * พาเลตของภาพนี้ = **ฝั่งผู้ซื้อ** ไม่ใช่ Paces
@@ -82,9 +89,13 @@ export type RenderRichMenuResult = { blob: Blob; width: number; height: number }
  */
 export async function renderRichMenuImage(
   buttons: Pick<RichMenuButton, 'label'>[],
+  /** เลย์เอาต์ที่ร้านเลือก — ไม่ส่ง = โหมด auto เดาจากจำนวนปุ่ม (ต้องตรงกับที่ payload ใช้เสมอ) */
+  layoutKey?: RichMenuLayoutKey,
 ): Promise<RenderRichMenuResult> {
-  const layout = layoutFor(buttons.length)
-  if (!layout) throw new Error('RICH_MENU_LAYOUT_UNSUPPORTED')
+  const key = layoutKey ?? defaultLayoutKeyForCount(buttons.length)
+  if (!key) throw new Error('RICH_MENU_LAYOUT_UNSUPPORTED')
+  // 🛑 ภาพกับพิกัดต้องมาจากเลย์เอาต์เดียวกันเป๊ะ — ถ้าจำนวนไม่ตรง ช่องบนภาพกับพื้นที่กดจะเหลื่อมกัน
+  if (buttons.length !== layoutCellCount(key)) throw new Error('RICH_MENU_BUTTON_COUNT_MISMATCH')
 
   /**
    * 🛑 ต้องรอฟอนต์ก่อนวาด — ถ้าไม่รอ ตัวอักษรไทยจะถูกวาดด้วยฟอนต์ fallback แล้ว **ฝังลงภาพจริง**
@@ -104,7 +115,7 @@ export async function renderRichMenuImage(
   ctx.fillStyle = COLOR.bg
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const cells = layoutBounds(layout)
+  const cells = layoutBounds(layoutRows(key))
 
   // เส้นแบ่ง — วาดตามขอบของแต่ละช่อง แล้วเส้นรอบนอกจะถูกทับด้วยขอบภาพเอง
   ctx.strokeStyle = COLOR.divider

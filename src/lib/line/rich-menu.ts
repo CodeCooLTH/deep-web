@@ -107,28 +107,63 @@ export type Bounds = { x: number; y: number; width: number; height: number }
 export type RichMenuLayout = number[]
 
 /**
- * เลย์เอาต์ที่รองรับ — จำนวนปุ่มที่ไม่อยู่ในตารางนี้ = **ปฏิเสธ** (fail-closed)
+ * เลย์เอาต์ที่รองรับ — อิงชุดเทมเพลตมาตรฐานของ LINE เอง (user เคาะ 2026-08-11)
  *
- * `3 → [1, 2]` (T-split) ไม่ใช่ `[3]`: เมนู 3 ปุ่มของร้านบริการมีปุ่มหนึ่งที่สำคัญกว่าอีกสองปุ่มชัดเจน
- * (แจ้งเวลาที่สะดวก) การวางเรียงสามช่องเท่ากันทำให้ทุกปุ่มดูมีน้ำหนักเท่ากัน ซึ่งไม่ตรงกับงานจริง
- * — ux Design Spec 2026-08-11 · user เคาะ
- *
- * ไม่รองรับ 5 ปุ่มโดยตั้งใจ: จะมีช่องที่ขนาดไม่เท่าเพื่อนโดยไม่มีเหตุผลเชิงความหมายรองรับ ซึ่งเพิ่ม
- * โอกาสที่ภาพกับพิกัดไม่ตรงกัน และผลของการไม่ตรงคือ **ลูกค้ากดโดนปุ่มผิด** ซึ่งไม่มีอะไรฟ้อง
+ * 🛑 **ต้องเป็น "คีย์ที่เลือก" ไม่ใช่ "เดาจากจำนวนช่อง"** — `top-1-bottom-2` กับ `row-3`
+ * มี 3 ช่องเท่ากันทั้งคู่ ถ้าเดาจากจำนวนอย่างเดียวจะแยกไม่ออก แล้วภาพที่ร้านออกแบบมาเป็นสามช่อง
+ * เรียงนอนจะถูกวางพื้นที่กดเป็น T-split ทับลงไป = **ลูกค้ากดโดนช่องผิด** โดยไม่มีอะไรฟ้อง
+ * (นี่คือเหตุผลทั้งหมดที่ต้องรื้อจาก `layoutFor(count)` มาเป็นคีย์)
  */
-const LAYOUTS: Record<number, RichMenuLayout> = {
-  2: [2],
-  3: [1, 2],
-  4: [2, 2],
-  6: [3, 3],
+export const RICH_MENU_LAYOUTS = {
+  'grid-3x2': { rows: [3, 3], label: '3×2 — 6 ช่อง' },
+  'grid-2x2': { rows: [2, 2], label: '2×2 — 4 ช่อง' },
+  'top-1-bottom-2': { rows: [1, 2], label: '1 บน + 2 ล่าง — 3 ช่อง' },
+  'row-3': { rows: [3], label: '1×3 — 3 ช่องเรียงนอน' },
+  'row-2': { rows: [2], label: '1×2 — 2 ช่อง' },
+  full: { rows: [1], label: 'เต็มใบ — 1 ช่อง' },
+} as const satisfies Record<string, { rows: RichMenuLayout; label: string }>
+
+export type RichMenuLayoutKey = keyof typeof RICH_MENU_LAYOUTS
+
+export function isRichMenuLayoutKey(v: string): v is RichMenuLayoutKey {
+  return v in RICH_MENU_LAYOUTS
 }
 
-export function layoutFor(buttonCount: number): RichMenuLayout | null {
-  return LAYOUTS[buttonCount] ?? null
+/** จำนวนช่องของเลย์เอาต์นั้น */
+export function layoutCellCount(key: RichMenuLayoutKey): number {
+  return RICH_MENU_LAYOUTS[key].rows.reduce((a, b) => a + b, 0)
+}
+
+export function layoutRows(key: RichMenuLayoutKey): RichMenuLayout {
+  return [...RICH_MENU_LAYOUTS[key].rows]
 }
 
 /**
- * คำนวณกล่องของทุกปุ่มพร้อมกัน (เรียงตามลำดับปุ่ม บน→ล่าง ซ้าย→ขวา)
+ * เลย์เอาต์เริ่มต้นของ **เทมเพลตที่ระบบสร้างให้** (โหมด auto) — ยังเดาจากจำนวนปุ่มได้
+ * เพราะโหมดนั้นเราเป็นคนกำหนดปุ่มเองทั้งหมด ไม่มีภาพของร้านให้ต้องตรงกัน
+ *
+ * 🛑 ห้ามใช้ตัวนี้กับโหมด "ภาพของร้านเอง" — ที่นั่นต้องใช้คีย์ที่ร้านเลือกเท่านั้น
+ * คืน null เมื่อไม่มีเลย์เอาต์รองรับ (fail-closed ไม่เดาให้)
+ */
+export function defaultLayoutKeyForCount(count: number): RichMenuLayoutKey | null {
+  switch (count) {
+    case 1:
+      return 'full'
+    case 2:
+      return 'row-2'
+    case 3:
+      return 'top-1-bottom-2'
+    case 4:
+      return 'grid-2x2'
+    case 6:
+      return 'grid-3x2'
+    default:
+      return null
+  }
+}
+
+/**
+ * คำนวณกล่องของทุกช่องพร้อมกัน (เรียงบน→ล่าง ซ้าย→ขวา)
  *
  * 🛑 ช่องสุดท้ายของแต่ละแถว และแถวสุดท้าย ต้อง **กลืนเศษ** ไม่ใช่ปัดลงทุกช่อง — 2500/3 = 833.33
  * ถ้าปัดลงหมดจะได้ 833×3 = 2499 เหลือแถบกว้าง 1px ทางขวาที่กดแล้วไม่โดนอะไรเลย ผู้ใช้ที่กดขอบขวาสุด
@@ -184,6 +219,8 @@ export function buildRichMenuPayload(input: {
   name: string
   chatBarText: string
   buttons: RichMenuButton[]
+  /** เลย์เอาต์ที่ร้านเลือก — ไม่ส่งมา = โหมด auto ให้เดาจากจำนวนปุ่ม (ดู defaultLayoutKeyForCount) */
+  layoutKey?: RichMenuLayoutKey
 }): LineRichMenuObject {
   if (!isChatBarTextValid(input.chatBarText)) {
     throw new Error('RICH_MENU_CHAT_BAR_INVALID')
@@ -191,12 +228,17 @@ export function buildRichMenuPayload(input: {
   if (input.buttons.length > RICH_MENU_MAX_AREAS) {
     throw new Error('RICH_MENU_TOO_MANY_AREAS')
   }
-  const layout = layoutFor(input.buttons.length)
-  if (!layout) throw new Error('RICH_MENU_LAYOUT_UNSUPPORTED')
+  const key = input.layoutKey ?? defaultLayoutKeyForCount(input.buttons.length)
+  if (!key) throw new Error('RICH_MENU_LAYOUT_UNSUPPORTED')
+  // 🛑 จำนวนปุ่มต้องเท่ากับจำนวนช่องของเลย์เอาต์เป๊ะ — ไม่งั้นจะมีช่องที่ไม่มี action (กดแล้วเงียบ)
+  // หรือปุ่มที่ไม่มีช่อง (หายไปเฉย ๆ) ทั้งสองอย่างเงียบสนิทถ้าไม่ตรวจ
+  if (input.buttons.length !== layoutCellCount(key)) {
+    throw new Error('RICH_MENU_BUTTON_COUNT_MISMATCH')
+  }
   if (input.buttons.some((b) => !b.label.trim())) {
     throw new Error('RICH_MENU_LABEL_REQUIRED')
   }
-  const bounds = layoutBounds(layout)
+  const bounds = layoutBounds(layoutRows(key))
 
   return {
     size: { width: RICH_MENU_CANVAS_WIDTH, height: RICH_MENU_CANVAS_HEIGHT },

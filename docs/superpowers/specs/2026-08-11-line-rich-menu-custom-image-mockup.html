@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup — ใช้ภาพเมนูของร้านเอง (Rich Menu) · feature 00045 ส่วนขยาย</title>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#236dc9; --primary-hover:#1d5cab;
+    --ink:#2F2B3D; --d800:#454155; --d700:#5a5d6b; --d600:#6d7080; --d500:#808390; --d400:#a3a5af;
+    --d200:#dedce4; --d100:#e8e9ec; --light:#F4F5F7;
+    --card:#fff; --body:#F8F7FA;
+    --success:#28C76F; --success-ink:#18804A;
+    --info:#00BAD1; --info-ink:#00707e;
+    --danger:#FF4C51; --danger-ink:#b31e22;
+    --radius:.5rem; --shadow:0 1px 4px rgba(130,143,163,.15);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eef0f4;font-family:Anuphan,system-ui,sans-serif;color:var(--ink);padding:28px 16px 64px}
+  h1{font-size:20px;margin:0 0 4px}
+  .lede{color:var(--d600);font-size:13px;margin:0 0 26px;max-width:960px;line-height:1.75}
+  .lede code{background:#fff;padding:1px 5px;border-radius:4px;border:1px solid var(--d100)}
+  .row{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap;margin-bottom:34px}
+  .frame{background:var(--card);border:1px solid var(--d200);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+  .cap{font-size:12px;color:var(--d600);margin:0 0 8px;font-weight:600}
+  .note{font-size:12px;color:var(--d500);margin:8px 0 0;max-width:390px;line-height:1.65}
+  .mobile{width:390px} .tablet{width:760px} .desktop{width:1100px}
+
+  .app{background:var(--body)}
+  .hdr{background:var(--card);box-shadow:var(--shadow);padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .back{width:32px;height:32px;border-radius:var(--radius);border:1px solid var(--d200);display:flex;align-items:center;justify-content:center;color:var(--d700);flex:0 0 auto}
+  .hdr-t{flex:1;min-width:0}
+  .hdr-t b{display:block;font-size:15px;font-weight:600}
+  .hdr-t span{display:block;font-size:12px;color:var(--d500)}
+  .body{padding:16px}
+  .banner{border-radius:var(--radius);padding:10px 14px;font-size:13px;line-height:1.65;margin-bottom:12px}
+  .b-info{background:rgba(0,186,209,.15);color:var(--info-ink)}
+  .b-danger{background:rgba(255,76,81,.15);color:var(--danger-ink)}
+  .tpl{font-size:13px;font-weight:600;color:var(--d700);margin:0 0 14px}
+  .sect{font-size:13px;font-weight:600;margin:18px 0 8px}
+  .sub{font-size:11px;color:var(--d500);margin:-4px 0 10px;line-height:1.6}
+
+  /* segmented control — Base: ChatbotTabs.tsx */
+  .seg{display:flex;gap:4px;background:var(--light);border-radius:var(--radius);padding:4px}
+  .seg button{flex:1;min-height:44px;border:0;background:transparent;border-radius:6px;font:inherit;font-size:13px;
+              color:var(--d600);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+  .seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(47,43,61,.1)}
+
+  .cells{font-size:12px;color:var(--d600);line-height:1.6;margin:14px 0 8px}
+  .cells b{color:var(--ink)}
+
+  .drop{border:1.5px dashed var(--d200);border-radius:var(--radius);background:#fbfbfc;padding:22px 16px;text-align:center}
+  .drop .ic{font-size:26px;color:var(--d400);line-height:1}
+  .drop p{margin:8px 0 2px;font-size:13px;color:var(--d700)}
+  .drop small{display:block;font-size:11px;color:var(--d500);margin-bottom:12px}
+
+  .fld{margin-bottom:12px}
+  .fld label{display:block;font-size:11px;color:var(--d600);margin-bottom:4px}
+  .fld label b{color:var(--primary)}
+  .input{width:100%;height:38px;min-height:38px;border:1px solid var(--d200);border-radius:var(--radius);padding:0 12px;font:inherit;font-size:14px;color:var(--d800);background:#fff}
+  .input.focus{outline:2px solid rgba(35,109,201,.35);border-color:var(--primary)}
+  .cbrow{display:flex;align-items:center;gap:12px}
+  .cbrow .input{max-width:12rem}
+  .count{font-size:12px;color:var(--d400);font-variant-numeric:tabular-nums}
+
+  /* พรีวิว + overlay กริด */
+  .prevhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
+  .switch{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--d600)}
+  .track{width:34px;height:18px;border-radius:9px;background:var(--primary);position:relative}
+  .track i{position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+  .track.off{background:var(--d200)} .track.off i{right:auto;left:2px}
+  .prev{position:relative;border:1px solid var(--d200);border-radius:var(--radius);overflow:hidden;background:#fff}
+  .shot{display:block;width:100%;aspect-ratio:2500/1686;
+        background:linear-gradient(135deg,#e8f3ff 0 33.3%,#ffe8ee 33.3% 66.6%,#fff2d9 66.6% 100%)}
+  .shot.two-row{background:
+      linear-gradient(#0000 0 50%,#25c05a 50% 100%),
+      linear-gradient(90deg,#e8f3ff 0 33.3%,#ffe8ee 33.3% 66.6%,#fff2d9 66.6% 100%)}
+  .ov{position:absolute;inset:0;pointer-events:none}
+  /* เส้นคู่ ขาวทึบนอก + primary ประใน — กันจมหายบนพื้นภาพสีอะไรก็ได้ */
+  .box{position:absolute;border:3px solid rgba(255,255,255,.9);box-shadow:inset 0 0 0 1px var(--primary)}
+  .box.hl{background:rgba(35,109,201,.18);box-shadow:inset 0 0 0 2px var(--primary)}
+  .num{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;
+       font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:5px}
+  .status{font-size:11px;color:var(--d500);margin:8px 0 0}
+
+  .btn{min-height:44px;border-radius:var(--radius);padding:0 16px;font:inherit;font-size:14px;font-weight:500;
+       display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;border:1px solid transparent}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-outline{background:#fff;color:var(--primary);border-color:var(--primary)}
+  .btn-sm{min-height:36px;font-size:13px}
+  .bar{background:var(--card);border-top:1px solid var(--d200);padding:12px;display:flex;gap:8px}
+  .bar .btn{flex:1}
+  .hdr .btn{min-height:34px;font-size:13px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .legend{font-size:12px;color:var(--d600);line-height:1.85;background:#fff;border:1px solid var(--d200);border-radius:10px;padding:14px 18px;max-width:1100px}
+  .legend b{color:var(--ink)}
+  .bp{border:1px solid var(--d200);border-radius:var(--radius);background:#fff;padding:0;overflow:hidden;width:340px}
+  .bpimg{aspect-ratio:2500/1686;position:relative;background:#fff}
+  .bpcell{position:absolute;border:2px dashed #B0B0B0;display:flex;align-items:center;justify-content:center;
+          font-size:11px;color:#7a7a7a;text-align:center;padding:4px}
+  .bpnum{position:absolute;margin:4px;font-size:12px;font-weight:700;color:#7a7a7a}
+</style>
+</head>
+<body>
+
+<h1>Mockup — “ใช้ภาพเมนูของร้านเอง” (ส่วนขยาย feature 00045)</h1>
+<p class="lede">
+  จาก Design Spec ของ <b>safepay-ux</b> (2026-08-11) · หน้าเดิม
+  <code>/settings/channels/line/{channelId}/rich-menu</code> · ธีม Paces (seller = น้ำเงิน <code>#236dc9</code>)<br>
+  🛑 <b>ส่วนขยายนี้กลับมติ D-RM-2</b> ที่เคยเคาะว่า “รอบแรกใช้เทมเพลตอย่างเดียว” — ต้องแก้ BRD ให้ตรงก่อน dev เริ่ม (HR11)
+</p>
+
+<!-- ① มือถือ: โหมด auto (ของเดิม) → ② โหมด custom ยังไม่อัปโหลด -->
+<div class="row">
+  <div>
+    <p class="cap">① มือถือ — โหมด “ให้ระบบสร้างให้” (ค่าเริ่มต้น ของเดิมไม่เปลี่ยน)</p>
+    <div class="frame mobile"><div class="app">
+      <div class="hdr"><div class="back">‹</div><div class="hdr-t"><b>เมนูลัดใน LINE</b><span>BT สาขา สุขสวัสดิ์</span></div></div>
+      <div class="body">
+        <p class="tpl">ชุดร้านขายออนไลน์</p>
+        <p class="sect" style="margin-top:0">แหล่งภาพเมนู</p>
+        <div class="seg">
+          <button class="on">✦ ให้ระบบสร้างให้</button>
+          <button>▣ ใช้ภาพของร้านเอง</button>
+        </div>
+        <p class="sect">แก้ข้อความบนปุ่ม</p>
+        <div class="fld"><label>เปิดลิงก์หน้าร้านของคุณ</label><input class="input" value="ดูสินค้า"></div>
+        <div class="fld"><label>ตอบสถานะพัสดุอัตโนมัติ</label><input class="input" value="เช็คสถานะพัสดุ"></div>
+        <p class="sect">พรีวิว — ภาพที่ลูกค้าจะเห็นจริง</p>
+        <div class="prev"><div class="shot" style="background:#fff"></div></div>
+        <p class="status">สถานะตอนนี้: ลูกค้าเห็นเมนูนี้อยู่</p>
+      </div>
+      <div class="bar"><button class="btn btn-outline">บันทึกร่าง</button><button class="btn btn-primary">↩ คืนเมนูเดิม</button></div>
+    </div></div>
+    <p class="note">ร้านที่ทำรูปไม่เป็นยังใช้ทางเดิมได้เหมือนเดิมทุกประการ — ส่วนขยายนี้<b>ไม่แตะ path นี้เลย</b></p>
+  </div>
+
+  <div>
+    <p class="cap">② มือถือ — สลับเป็น “ใช้ภาพของร้านเอง” (ยังไม่อัปโหลด)</p>
+    <div class="frame mobile"><div class="app">
+      <div class="hdr"><div class="back">‹</div><div class="hdr-t"><b>เมนูลัดใน LINE</b><span>BT สาขา สุขสวัสดิ์</span></div></div>
+      <div class="body">
+        <p class="tpl">ชุดร้านขายออนไลน์</p>
+        <p class="sect" style="margin-top:0">แหล่งภาพเมนู</p>
+        <div class="seg">
+          <button>✦ ให้ระบบสร้างให้</button>
+          <button class="on">▣ ใช้ภาพของร้านเอง</button>
+        </div>
+        <p class="cells">เทมเพลตนี้มี <b>4 ช่อง</b><br>แถวบน 2 ช่อง · แถวล่าง 2 ช่อง</p>
+        <button class="btn btn-outline btn-sm" style="width:100%">⬇ ดาวน์โหลดแบบร่างขนาดจริง (PNG)</button>
+
+        <div class="drop" style="margin-top:14px">
+          <div class="ic">☁</div>
+          <p>แตะเพื่อเลือกรูป หรือลากมาวาง</p>
+          <small>JPG/PNG · แนวนอนมาก (คล้ายแบนเนอร์)</small>
+          <button class="btn btn-outline btn-sm">เลือกรูป</button>
+        </div>
+
+        <p class="sect">คำอธิบายปุ่ม (ไม่ปรากฏบนภาพ)</p>
+        <p class="sub">จำเป็นแม้มีตัวหนังสือในภาพแล้ว — ใช้ตอนเราสรุปให้คุณเห็นในกล่องแชทเวลาลูกค้ากด และช่วยผู้ใช้ที่เปิดโหมดอ่านหน้าจอ</p>
+        <div class="fld"><label><b>①</b> เปิดลิงก์หน้าร้านของคุณ</label><input class="input" value="ดูสินค้า"></div>
+        <div class="fld"><label><b>②</b> ตอบสถานะพัสดุอัตโนมัติ</label><input class="input" value="เช็คสถานะพัสดุ"></div>
+        <div class="fld"><label><b>③</b> รับตำแหน่งที่ลูกค้าส่งมา</label><input class="input" value="ส่งที่อยู่จัดส่ง"></div>
+        <div class="fld"><label><b>④</b> ส่งข้อความเข้าแชท</label><input class="input" value="คุยกับแอดมิน"></div>
+
+        <p class="sect">ข้อความบนแถบเปิด-ปิดเมนู</p>
+        <div class="cbrow"><input class="input" value="เมนูลัด"><span class="count">7 / 14</span></div>
+      </div>
+      <div class="bar">
+        <button class="btn btn-outline" style="opacity:.5">บันทึกร่าง</button>
+        <button class="btn btn-primary" style="opacity:.5">🚀 เปิดใช้เมนู</button>
+      </div>
+    </div></div>
+    <p class="note">ปุ่มถูกปิดจนกว่าจะอัปโหลดภาพ · หัวข้อฟอร์มเปลี่ยนเป็น <b>“คำอธิบายปุ่ม (ไม่ปรากฏบนภาพ)”</b>
+      พร้อมเหตุผลใต้หัวข้อทันที ไม่ซ่อนใน accordion เพราะเป็นฟิลด์บังคับ</p>
+  </div>
+</div>
+
+<!-- ③ มือถือ: อัปโหลดแล้ว + กริด -->
+<div class="row">
+  <div>
+    <p class="cap">③ มือถือ — อัปโหลดแล้ว เปิดเส้นแบ่งช่อง (ค่าเริ่มต้น = เปิด)</p>
+    <div class="frame mobile"><div class="app"><div class="body">
+      <div class="prevhead">
+        <b style="font-size:13px">พรีวิว — ภาพที่คุณอัปโหลด</b>
+        <span class="switch"><span class="track"><i></i></span> แสดงเส้นแบ่งช่อง</span>
+      </div>
+      <div class="prev">
+        <div class="shot two-row"></div>
+        <div class="ov">
+          <div class="box" style="left:0;top:0;width:50%;height:50%"><span class="num">1</span></div>
+          <div class="box" style="left:50%;top:0;width:50%;height:50%"><span class="num">2</span></div>
+          <div class="box" style="left:0;top:50%;width:50%;height:50%"><span class="num">3</span></div>
+          <div class="box" style="left:50%;top:50%;width:50%;height:50%"><span class="num">4</span></div>
+        </div>
+      </div>
+      <p class="status">สถานะตอนนี้: สร้างไว้แล้ว ยังไม่เปิดใช้</p>
+
+      <p class="sect">คำอธิบายปุ่ม (ไม่ปรากฏบนภาพ)</p>
+      <div class="fld"><label><b>①</b> เปิดลิงก์หน้าร้านของคุณ</label><input class="input" value="ดูสินค้า"></div>
+      <div class="fld"><label><b>②</b> ตอบสถานะพัสดุอัตโนมัติ</label><input class="input focus" value="เช็คสถานะพัสดุ"></div>
+    </div></div></div>
+    <p class="note">เส้นกริดมาจาก <b><code>layoutBounds()</code> ตัวเดียวกับที่ส่งพิกัดให้ LINE</b>
+      ไม่ใช่กริดที่วาดแยกด้วยสูตรอื่น — ถ้าวาดคนละสูตร ร้านจะเห็นตรงแต่ลูกค้ากดผิดช่อง</p>
+  </div>
+
+  <div>
+    <p class="cap">④ มือถือ — โฟกัสช่องกรอก ② แล้วช่องนั้นไฮไลต์บนภาพ</p>
+    <div class="frame mobile"><div class="app"><div class="body">
+      <div class="prevhead">
+        <b style="font-size:13px">พรีวิว — ภาพที่คุณอัปโหลด</b>
+        <span class="switch"><span class="track"><i></i></span> แสดงเส้นแบ่งช่อง</span>
+      </div>
+      <div class="prev">
+        <div class="shot two-row"></div>
+        <div class="ov">
+          <div class="box" style="left:0;top:0;width:50%;height:50%"><span class="num">1</span></div>
+          <div class="box hl" style="left:50%;top:0;width:50%;height:50%"><span class="num">2</span></div>
+          <div class="box" style="left:0;top:50%;width:50%;height:50%"><span class="num">3</span></div>
+          <div class="box" style="left:50%;top:50%;width:50%;height:50%"><span class="num">4</span></div>
+        </div>
+      </div>
+      <div class="banner b-danger" style="margin-top:14px">
+        ภาพนี้เป็นแนวตั้งหรือเกือบจัตุรัสเกินไป — เมนูลัดต้องเป็นภาพแนวนอนมาก (กว้างอย่างน้อย 1.45 เท่าของสูง คล้ายแบนเนอร์) ลองครอปภาพให้กว้างขึ้นหรือเลือกภาพใหม่
+      </div>
+      <div class="banner b-danger">
+        ไฟล์นี้ยังใหญ่เกิน 1 MB แม้บีบอัดแล้ว — ภาพที่มีรายละเอียดเยอะบีบอัดได้ยาก ลองใช้ภาพกราฟิกที่เรียบกว่า หรือถ่ายภาพใหม่ที่ความละเอียดต่ำลง
+      </div>
+    </div></div></div>
+    <p class="note">ไฮไลต์ใช้ <b>onFocus/onBlur ไม่ใช่ hover</b> — มือถือไม่มี hover และเป็นอุปกรณ์หลักของผู้ขาย ·
+      ข้อความ error ทุกอันบอก<b>ทางแก้ที่ทำได้จริง</b> ไม่ใช่ “ไฟล์ผิดพลาด”</p>
+  </div>
+</div>
+
+<!-- ⑤ เดสก์ท็อป -->
+<p class="cap">⑤ เดสก์ท็อป ≥1024px — 2 คอลัมน์เดิม ปุ่มอยู่บนหัว</p>
+<div class="row">
+  <div class="frame desktop"><div class="app">
+    <div class="hdr">
+      <div class="back">‹</div>
+      <div class="hdr-t"><b>เมนูลัดใน LINE</b><span>BT สาขา สุขสวัสดิ์</span></div>
+      <button class="btn btn-outline">บันทึกร่าง</button>
+      <button class="btn btn-primary">🚀 เปิดใช้เมนู</button>
+    </div>
+    <div class="body">
+      <div class="banner b-info">ตั้งค่าเมนูนี้ได้เฉพาะที่นี่ — แก้ไขผ่าน LINE Official Account Manager ไม่ได้ · การแก้ไขแต่ละครั้งจะสร้างเมนูใหม่ทดแทนของเดิมโดยอัตโนมัติ</div>
+      <div class="grid2">
+        <div>
+          <p class="tpl">ชุดร้านขายออนไลน์</p>
+          <p class="sect" style="margin-top:0">แหล่งภาพเมนู</p>
+          <div class="seg" style="max-width:360px"><button>✦ ให้ระบบสร้างให้</button><button class="on">▣ ใช้ภาพของร้านเอง</button></div>
+          <p class="cells">เทมเพลตนี้มี <b>4 ช่อง</b> · แถวบน 2 ช่อง · แถวล่าง 2 ช่อง</p>
+          <button class="btn btn-outline btn-sm">⬇ ดาวน์โหลดแบบร่างขนาดจริง (PNG)</button>
+          <div class="drop" style="margin-top:14px">
+            <div class="ic">☁</div>
+            <p>ลากรูปมาวาง หรือแตะเลือก</p>
+            <small>JPG/PNG · กว้าง 800–2500px · อัตราส่วนแนวนอนมาก</small>
+          </div>
+          <p class="sect">คำอธิบายปุ่ม (ไม่ปรากฏบนภาพ)</p>
+          <p class="sub">จำเป็นแม้มีตัวหนังสือในภาพแล้ว — ใช้ตอนเราสรุปให้คุณเห็นในกล่องแชทเวลาลูกค้ากด และช่วยผู้ใช้ที่เปิดโหมดอ่านหน้าจอ</p>
+          <div class="fld"><label><b>①</b> เปิดลิงก์หน้าร้านของคุณ</label><input class="input" value="ดูสินค้า"></div>
+          <div class="fld"><label><b>②</b> ตอบสถานะพัสดุอัตโนมัติ</label><input class="input" value="เช็คสถานะพัสดุ"></div>
+          <div class="fld"><label><b>③</b> รับตำแหน่งที่ลูกค้าส่งมา</label><input class="input" value="ส่งที่อยู่จัดส่ง"></div>
+          <div class="fld"><label><b>④</b> ส่งข้อความเข้าแชท</label><input class="input" value="คุยกับแอดมิน"></div>
+          <p class="sect">ข้อความบนแถบเปิด-ปิดเมนู</p>
+          <div class="cbrow"><input class="input" value="เมนูลัด"><span class="count">7 / 14</span></div>
+        </div>
+        <div>
+          <div class="prevhead">
+            <b style="font-size:13px">พรีวิว — ภาพที่คุณอัปโหลด</b>
+            <span class="switch"><span class="track"><i></i></span> แสดงเส้นแบ่งช่อง</span>
+          </div>
+          <div class="prev">
+            <div class="shot two-row"></div>
+            <div class="ov">
+              <div class="box" style="left:0;top:0;width:50%;height:50%"><span class="num">1</span></div>
+              <div class="box" style="left:50%;top:0;width:50%;height:50%"><span class="num">2</span></div>
+              <div class="box" style="left:0;top:50%;width:50%;height:50%"><span class="num">3</span></div>
+              <div class="box" style="left:50%;top:50%;width:50%;height:50%"><span class="num">4</span></div>
+            </div>
+          </div>
+          <p class="status">สถานะตอนนี้: สร้างไว้แล้ว ยังไม่เปิดใช้</p>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ⑥ แบบร่าง PNG + กริด 6 ช่องแบบ ref -->
+<p class="cap">⑥ แบบร่างที่ดาวน์โหลดได้ (ซ้าย) · และกริด 6 ช่องแบบเดียวกับ LINE STICKERS ที่ส่งมาเป็น ref (ขวา)</p>
+<div class="row">
+  <div class="bp">
+    <div class="bpimg">
+      <div class="bpcell" style="left:0;top:0;width:50%;height:50%"><span class="bpnum" style="left:0;top:0">1</span>① ดูสินค้า<br>ปุ่มลิงก์หน้าร้าน</div>
+      <div class="bpcell" style="left:50%;top:0;width:50%;height:50%"><span class="bpnum" style="left:0;top:0">2</span>② เช็คสถานะพัสดุ</div>
+      <div class="bpcell" style="left:0;top:50%;width:50%;height:50%"><span class="bpnum" style="left:0;top:0">3</span>③ ส่งที่อยู่จัดส่ง</div>
+      <div class="bpcell" style="left:50%;top:50%;width:50%;height:50%"><span class="bpnum" style="left:0;top:0">4</span>④ คุยกับแอดมิน</div>
+    </div>
+    <div style="padding:8px 10px;font-size:11px;color:var(--d500);border-top:1px solid var(--d100)">
+      <code>เมนูลัด-แบบร่าง-4ชอง.png</code> · 2500×1686 · เส้นประเป็นแนวทาง กราฟิกลบทิ้งก่อนส่งงานจริง
+    </div>
+  </div>
+
+  <div class="frame" style="width:340px">
+    <div class="prev" style="border:0;border-radius:0">
+      <div class="shot two-row" style="background:
+        linear-gradient(#0000 0 50%,#25c05a 50% 100%),
+        linear-gradient(90deg,#bfe0ff 0 33.3%,#ffc9d6 33.3% 66.6%,#ffd98a 66.6% 100%)"></div>
+      <div class="ov">
+        <div class="box" style="left:0;top:0;width:33.33%;height:50%"><span class="num">1</span></div>
+        <div class="box" style="left:33.33%;top:0;width:33.33%;height:50%"><span class="num">2</span></div>
+        <div class="box" style="left:66.66%;top:0;width:33.34%;height:50%"><span class="num">3</span></div>
+        <div class="box" style="left:0;top:50%;width:33.33%;height:50%"><span class="num">4</span></div>
+        <div class="box" style="left:33.33%;top:50%;width:33.33%;height:50%"><span class="num">5</span></div>
+        <div class="box" style="left:66.66%;top:50%;width:33.34%;height:50%"><span class="num">6</span></div>
+      </div>
+    </div>
+    <div style="padding:8px 10px;font-size:11px;color:var(--d500)">
+      กริด <b>6 ช่อง [3,3]</b> — รองรับอยู่แล้วใน <code>layoutFor(6)</code> · ช่องขวาสุดกว้าง 33.34% เพราะ<b>กลืนเศษ</b> (2500÷3 ไม่ลงตัว)
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>สิ่งที่ยึดจากของจริง</b><br>
+  • เส้นกริด/เลขช่องคำนวณจาก <code>layoutBounds()</code> <b>ตัวเดียวกับที่ส่งพิกัดพื้นที่กดให้ LINE</b> — ถ้าคนละสูตร ร้านเห็นตรงแต่ลูกค้ากดผิดช่อง<br>
+  • รองรับ <b>2 / 3 / 4 / 6 ช่อง</b> เท่านั้น · 3 ช่อง = T-split (บนเต็มแถว) · 6 ช่อง = แบบเดียวกับ ref ที่ส่งมา<br>
+  • เกณฑ์ภาพ JPG/PNG ≤1MB · กว้าง 800–2500 · สูง ≥250 · อัตราส่วน ≥1.45 — ตรวจซ้ำที่ server ด้วย <code>validateRichMenuImage</code> ที่คืน<b>เหตุผลทุกข้อพร้อมกัน</b><br>
+  • เส้นกริดเป็น<b>เส้นคู่</b> (ขาวทึบนอก + primary ประใน) เพราะเส้นสีเดียวจะจมหายถ้าภาพร้านมีสีตรงกับเส้น — Paces ไม่มี primitive สำหรับกรณีนี้ ต้อง compose เอง<br>
+  • <b><code>label</code> ของช่อง LINE กำหนดเป็น optional และไม่มีเพดานตัวอักษรระบุไว้</b> (ยืนยันจากซอร์สทางการ) — ที่ฟอร์มเราบังคับกรอกและจำกัด 60 ตัว เป็น<b>การตัดสินใจของเราเอง</b> ไม่ใช่ข้อบังคับของ LINE
+</div>
+
+</body>
+</html>
