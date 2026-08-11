@@ -17,6 +17,8 @@ import { formatDate } from '@/lib/format-date'
 import { pacesToast } from '@/lib/paces-toast'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { playChatBeep } from '@/lib/chat-sound'
+// SSOT ของ "กดอิโมจิตัวนี้แล้วได้อะไร" — ค่าที่คืนคือ payload ที่ยิงขึ้น Meta ตรง ๆ
+import { resolveReactionToggle } from '@/lib/chat-reaction-toggle'
 import {
   ATTACHMENT_MAX_SIZE,
   BLOCKED_EXT,
@@ -257,6 +259,18 @@ export function groupByDate(messages: ChatMessageView[]) {
 // dashboard ไม่มี list → คงเปิด beep (default true)
 export function useSellerChatThread(conversationId: string, shopId?: string | null, beepEnabled = true) {
   const [messages, setMessages] = useState<ChatMessageView[]>([])
+  /**
+   * กระจกของ `messages` ที่อ่านได้ทันทีใน event handler — ไม่ใช่ของประดับ
+   *
+   * handler ที่ต้องรู้ "ค่าปัจจุบันของข้อความหนึ่ง" ก่อนยิง API (เช่น reactToMessage) อ่านจาก state
+   * ตรง ๆ ไม่ได้ เพราะ callback ถูก memo ด้วย deps ที่ไม่มี `messages` (ใส่เข้าไปจะทำให้ identity
+   * เปลี่ยนทุกข้อความใหม่ — ดู docs/conventions/hook-return-identity-in-deps.md) และอ่านจากข้างใน
+   * updater ของ setState ก็ไม่ได้เพราะ updater ไม่ได้รันทันที (บั๊กรีแอ็กชัน 2026-08-11)
+   */
+  const messagesRef = useRef<ChatMessageView[]>([])
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
   // ผู้ส่ง = ตัวเราเองเสมอสำหรับบับเบิล optimistic (user 2026-08-02) — ถ้าไม่ใส่ไป บับเบิลที่เพิ่ง
   // กดส่งจะขึ้นรูปเพจอยู่ครู่หนึ่งแล้วเปลี่ยนเป็นรูปเราตอน API ตอบกลับ ซึ่งอ่านเหมือนระบบสลับ
   // ตัวตนผู้ส่งเอง (session มี displayName/avatar อยู่แล้ว ไม่ต้องยิง API เพิ่ม)
@@ -1053,16 +1067,13 @@ export function useSellerChatThread(conversationId: string, shopId?: string | nu
     async (messageId: string, emoji: string): Promise<void> => {
       // ข้อความ optimistic ยังไม่มีแถวจริงใน DB ให้ผูกรีแอ็กชัน
       if (messageId.startsWith('local-')) return
-      let previous: string | null = null
-      let next: string | null = null
-      setMessages((prev) =>
-        prev.map((m) => {
-          if (m.id !== messageId) return m
-          previous = m.reactionEmoji ?? null
-          next = m.reactionEmoji === emoji ? null : emoji
-          return { ...m, reactionEmoji: next }
-        }),
-      )
+      // 🛑 ต้องอ่านค่าปัจจุบันแบบ "ซิงโครนัส" จาก ref ก่อนเสมอ — ห้ามคำนวณข้างใน updater ของ
+      // setMessages แล้วอ่านออกมาใช้ต่อ: React เก็บ updater ไว้รันตอน render รอบถัดไป บรรทัด fetch
+      // ด้านล่างจึงทำงานก่อนค่าจะถูกเขียน แล้วยิง `{"emoji": null}` = unreact ทุกครั้ง
+      // (บั๊กที่ user เจอบน prod: "กดแล้วขึ้นแป๊บนึงแล้วหาย") — ดู lib/chat-reaction-toggle.ts
+      const previous = messagesRef.current.find((m) => m.id === messageId)?.reactionEmoji ?? null
+      const next = resolveReactionToggle(previous, emoji)
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactionEmoji: next } : m)))
       try {
         const res = await fetch(`/api/chat/conversations/${conversationId}/messages/${messageId}`, {
           method: 'POST',
