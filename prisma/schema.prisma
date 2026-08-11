@@ -34,9 +34,9 @@ model User {
   //
   // 🛑 ห้าม physical DELETE แถวนี้เด็ดขาด: onDelete:Cascade 85 จุดจะลากออเดอร์/รีวิว/แชท
   // ของ "คู่ค้า" หายไปด้วย (เหตุผลเดียวกับ comment ที่ purgeExpiredShops)
-  deletedAt          DateTime?
-  deletedReason      String?
-  purgedAt           DateTime?
+  deletedAt     DateTime?
+  deletedReason String?
+  purgedAt      DateTime?
 
   // chatScopeMode (feature 00037) — มุมมองกล่องข้อความของ "คนคนนี้": "SINGLE" | "UNIFIED"
   //   SINGLE  = เห็นเฉพาะแชทของร้านที่ active อยู่ (พฤติกรรมเดิมทั้งหมดก่อน 00037)
@@ -49,7 +49,7 @@ model User {
   // — validate ที่ Valibot ชั้น API; ค่าที่ไม่รู้จักถูกตีเป็น SINGLE (fail-closed, ดู lib/chat-scope.ts)
   //
   // 🛑 ห้ามใส่ CHECK constraint รายชื่อค่าให้คอลัมน์นี้ (docs/conventions/migration-check-constraint-additive.md)
-  chatScopeMode      String    @default("SINGLE")
+  chatScopeMode String @default("SINGLE")
 
   authAccounts           AuthAccount[]
   mobileAuthTickets      MobileAuthTicket[]
@@ -73,12 +73,12 @@ model User {
   appointmentReschedules AppointmentReschedule[] @relation("AppointmentRescheduleActor") // feature 00024
 
   // --- Buyer App (auction domain — additive, mobile-only) ---
-  bids          Bid[]          @relation("UserBids")
-  watchList     WatchList[]    @relation("UserWatches")
-  notifications Notification[] @relation("UserNotifications")
-  pushTokens    PushToken[]    @relation("UserPushTokens")
+  bids                  Bid[]                  @relation("UserBids")
+  watchList             WatchList[]            @relation("UserWatches")
+  notifications         Notification[]         @relation("UserNotifications")
+  pushTokens            PushToken[]            @relation("UserPushTokens")
   shopNotificationPrefs ShopNotificationPref[] @relation("UserShopNotificationPrefs")
-  bidReactions  BidReaction[]  @relation("UserBidReactions")
+  bidReactions          BidReaction[]          @relation("UserBidReactions")
 
   // --- Deep Stock Pro (feature 00009) ---
   stockMovementsActedOn StockMovement[] @relation("StockMovementActor")
@@ -269,7 +269,7 @@ model Shop {
   // CHECK: appointmentGranularity IN ('DAY','TIME')
   appointmentGranularity String @default("DAY")
 
-  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   rooms                Room[] // NEW (feature 00017 P1) — ห้องพัก; ว่างเสมอสำหรับ shop ที่ vertical ไม่ใช่ LODGING
   housekeepers         Housekeeper[] // NEW (feature 00017 P3) — รายชื่อแม่บ้าน; ว่างเสมอสำหรับ GENERAL
   serviceResources     ServiceResource[] // NEW (feature 00024) — ทรัพยากรที่จองเวลาได้; ว่างเสมอถ้าไม่เข้า BR-RSV-01
@@ -289,7 +289,7 @@ model Shop {
   channels             ShopChannel[] // Facebook/Instagram chat integration (feature 00018) — Page/IG ที่ร้านผูกไว้
   quickMessages        QuickMessage[] // ข้อความสำเร็จรูป (feature 00018 composer #2) — ระดับร้าน ทุกคนในร้านใช้ร่วมกัน
   chatGroups           ChatGroup[] // กลุ่ม/แท็บจัดหมวดแชท (feature 00018) — ร้านตั้งเอง เช่น ทั่วไป/ร้านอะไหล่/ไม่สนใจ
-  verifications        VerificationRecord[]  @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
+  verifications        VerificationRecord[]   @relation("ShopVerifications") // NEW (feature 00008 Phase 5, P5-1) — Business-scope verification (NULL shopId = personal/user-level เดิมยังอยู่ใน User.verifications)
   badges               UserBadge[] // NEW (feature 00008 Phase 5, P5-2) — Business-scope badge (NULL shopId = personal/buyer badge เดิมยังอยู่ใน User relation)
   trustScoreHistory    TrustScoreHistory[] // NEW (feature 00008 Phase 5, P5-3) — Business-scope trust score history (NULL shopId = personal/user-level เดิมยังอยู่ใน User.trustScoreHistory)
   expenses             Expense[] // NEW (feature 00016) — ค่าใช้จ่ายดำเนินธุรกิจของร้านนี้
@@ -608,7 +608,7 @@ model Product {
   /// ยอดถูกใจ — denormalize ไว้อ่านตรง ๆ (BR-LIKE-03) ห้ามนับสดด้วย count() ตอนเปิดหน้าร้าน
   /// เพราะการ์ดสินค้ามีได้ 12+ ใบต่อหน้า บนจุดสัมผัสแรกของผู้ซื้อ
   /// SSOT ของการเขียน: toggleProductLike() เท่านั้น — เขียนพร้อมแถวใน ProductLike ทรานแซกชันเดียว
-  likeCount         Int       @default(0)
+  likeCount Int @default(0)
 
   // --- Expense & Cost Tracking (feature 00016, additive) ---
   // cost: ราคาทุนปัจจุบัน — nullable/opt-in (BR §3.1). ไม่บังคับกรอก, ไม่กระทบสินค้าเดิมที่ยังไม่ตั้ง
@@ -646,9 +646,9 @@ model Tag {
 }
 
 model Order {
-  id              String   @id @default(uuid())
-  publicToken     String   @unique @default(uuid())
-  shortCode       String?  @unique // permanent 8-char short alias สำหรับ copy/share link (nullable: backfill รุ่นเก่า)
+  id              String  @id @default(uuid())
+  publicToken     String  @unique @default(uuid())
+  shortCode       String? @unique // permanent 8-char short alias สำหรับ copy/share link (nullable: backfill รุ่นเก่า)
   // orderNo (user 2026-07-25): เลขคำสั่งซื้ออ่านง่าย `DP` + ปีพ.ศ. + เดือน + publicToken 8 หลัก
   // deterministic (ไม่ใช่ running counter → ไม่มี race/reset/scale cost) — ดู src/lib/order-no.ts
   // index ธรรมดา (ไม่ unique): เป็นป้าย/ค้นหา ไม่ใช่ identity (publicToken ยังเป็น key จริง)
@@ -656,10 +656,10 @@ model Order {
   shopId          String
   buyerUserId     String?
   buyerContact    String?
-  type            String   @default("PHYSICAL")
-  totalAmount     Decimal  @db.Decimal(12, 2)
-  status          String   @default("PENDING")
-  fulfillmentMode String   @default("SHIPPED")
+  type            String  @default("PHYSICAL")
+  totalAmount     Decimal @db.Decimal(12, 2)
+  status          String  @default("PENDING")
+  fulfillmentMode String  @default("SHIPPED")
   /// ใครกดยกเลิก: "seller" | "buyer"
   /// 🛑 feature 00039 — ค่านี้กลายเป็น *หลักฐาน* ที่ใช้ตัดสินว่าการยกเลิกใบนี้เข้าตัวหาร
   /// ของอัตราความสำเร็จหรือไม่ (BR-OSM-04) เดิมแทบไม่มีใครอ่าน ตอนนี้มีผลต่อตัวเลขสาธารณะ
@@ -674,8 +674,8 @@ model Order {
   disputeOpenedAt   DateTime?
   disputeResolvedAt DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Phase B fields — additive, all nullable (migration order_fields_phase_b)
   paymentMethod String?
@@ -763,7 +763,7 @@ model Order {
   /// เป็นสถานะพัสดุล้วน ไม่มีตัวไหนแปลว่าเงินเข้าร้าน" — 2026-08-06 ยิง API จริงแล้วพบว่า
   /// ข้อความนั้นผิด: payload มี `settlement_at` ตรงตัว (= "เงินเข้าระบบ" บนหน้าจอ iShip)
   /// มาพร้อมสถานะ 12 และอยู่ใน query_orders ที่เรา sync อยู่แล้ว ดู OrderShipment.codSettledAt
-  codReceivedAt     DateTime?
+  codReceivedAt       DateTime?
   /// คนที่กดยืนยันรับเงิน — NULL = ระบบเป็นผู้บันทึก (หรือบัญชีคนกดถูกลบ, SetNull)
   /// หน้าจอตีความ NULL ว่า "ระบบ" อยู่แล้วตาม pattern เดียวกับ createdByUserId
   codReceivedByUserId String?
@@ -903,16 +903,16 @@ model ShipmentTracking {
 }
 
 model Review {
-  id              String   @id @default(uuid())
-  orderId         String   @unique
-  reviewerUserId  String?
-  reviewerContact String?
-  rating          Int
-  comment         String?
+  id                  String    @id @default(uuid())
+  orderId             String    @unique
+  reviewerUserId      String?
+  reviewerContact     String?
+  rating              Int
+  comment             String?
   // feature 00041 — รูปแนบรีวิว ≤4 ใบ (BR-BOE-19): array ของ fileId จาก /api/uploads/commit
   // มิเรอร์ Product.images/Room.images — เพดานจำนวนบังคับที่ service layer ไม่ใช่ DB CHECK
   // ขนาดต่อไฟล์ (≤10MB) ถูกบังคับไปแล้วที่ commit ตาม upload-policy.ts purpose IMAGE
-  images          Json     @default("[]")
+  images              Json      @default("[]")
   // feature 00041 — คำตอบร้าน 1 คำตอบต่อ 1 รีวิว (BR-BOE-21): ตอบครั้งที่สอง = เขียนทับ
   // ไม่ใช่สร้างแถวใหม่ จึงเป็นคอลัมน์ inline ไม่ใช่ตารางแยก (cardinality 0..1 เสมอ
   // และทุกจอที่แสดงรีวิวต้องโชว์คำตอบคู่กันเสมอ = read path ที่ join ทุกครั้ง)
@@ -926,9 +926,9 @@ model Review {
   // createReview() ยังทำงาน ⇒ createdAt ไม่มีวันรีเซ็ต (SRS §8)
   // 🛑 ทุก read path ต้องกรอง deletedAt: null — ยกเว้น 2 จุดที่ต้องไม่กรองโดยตั้งใจ
   //    (createReview guard, linkBuyerHistory) ดู DATABASE.md §8.2
-  deletedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   order       Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   reviewer    User? @relation("ReviewerReviews", fields: [reviewerUserId], references: [id])
@@ -1352,9 +1352,9 @@ model PushToken {
 /// ทำไมผูกกับ (user, shop) ไม่ใช่ shop เดี่ยว ๆ: นี่คือความชอบของ "คน" ไม่ใช่การตั้งค่าของร้าน
 /// พนักงานสองคนในร้านเดียวกันตั้งไม่เหมือนกันได้
 model ShopNotificationPref {
-  id     String @id @default(uuid())
-  userId String
-  shopId String
+  id          String   @id @default(uuid())
+  userId      String
+  shopId      String
   /// แจ้งเตือน "ข้อความใหม่จากลูกค้า" — ตั้งชื่อเจาะจงชนิดตั้งแต่แรก ไม่ใช่ `enabled` รวม
   /// เพราะวันที่มี noti ชนิดอื่น (ออเดอร์ใหม่ / พัสดุมีปัญหา) จะเพิ่มคอลัมน์ใหม่ได้เลย
   /// ไม่ต้องเปลี่ยนความหมายของค่าที่ผู้ใช้เคยตั้งไว้ (คนที่เคยปิด "แชท" จะได้ไม่โดนปิดของอื่นตามไปด้วย)
@@ -1407,7 +1407,7 @@ model OtpCode {
 
 // ShopChannel — Page/IG ที่ร้านผูกไว้ (1 Shop : N channel) — feature 00018
 model ShopChannel {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   shopId            String
   provider          String // "MESSENGER" | "INSTAGRAM"
   externalId        String // Page ID หรือ IG Business Account ID
@@ -1425,16 +1425,16 @@ model ShopChannel {
   // ห้ามเก็บ plaintext ห้าม log ห้ามส่งกลับ client ทุกกรณี
   accessTokenEnc    String
   connectedByUserId String
-  status            String   @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
-  createdAt         DateTime @default(now())
+  status            String    @default("ACTIVE") // "ACTIVE" | "TOKEN_INVALID" | "DISCONNECTED"
+  createdAt         DateTime  @default(now())
 
   // --- feature 00038 ตอบกลับคอมเมนต์ (additive) — ตั้งค่าต่อเพจ ---
   // 🛑 คอลัมน์กลุ่มนี้อยู่แถวเดียวกับ accessTokenEnc — ทุก query ที่ส่งค่าออกไปหา client
   // ต้อง select ระบุคอลัมน์เสมอ ห้ามคืนทั้งแถว
-  commentPublicReplyEnabled   Boolean @default(false)
-  commentPublicReplyText      String? @db.Text
-  commentPrivateReplyEnabled  Boolean @default(false)
-  commentPrivateReplyText     String? @db.Text
+  commentPublicReplyEnabled  Boolean @default(false)
+  commentPublicReplyText     String? @db.Text
+  commentPrivateReplyEnabled Boolean @default(false)
+  commentPrivateReplyText    String? @db.Text
 
   // --- feature 00025 LINE OA Chat Integration (additive) ---
   // channelSecretEnc: Channel secret ของ LINE ผ่าน AES-256-GCM (token-crypto.ts) — ใช้ตรวจ
@@ -1449,17 +1449,19 @@ model ShopChannel {
   quotaUsed        Int?
   quotaFetchedAt   DateTime?
 
-  shop           Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  contacts       ExternalContact[]
-  posts          FacebookPost[]
+  shop             Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  contacts         ExternalContact[]
+  posts            FacebookPost[]
   // back-relation ของ Conversation.shopChannel — Prisma บังคับต้องประกาศทั้งสองฝั่งของ relation
-  conversations  Conversation[]
+  conversations    Conversation[]
   // back-relation ของ AutoReplyRule.shopChannelId (feature 00023, additive) — เงื่อนไขเพจของกฎคำตอบ
-  autoReplyRules AutoReplyRule[]
+  autoReplyRules   AutoReplyRule[]
   // back-relation ของ CommentReplyLog.shopChannelId (feature 00038, additive)
   commentReplyLogs CommentReplyLog[]
   // back-relation ของ Order.shopChannelId (2026-08-10) — ช่องทางที่ลูกค้าทักเข้ามาตอนสร้างออเดอร์
   orders           Order[]
+  // back-relation ของ LineRichMenu.shopChannelId (feature 00045) — 0..1 เฉพาะเพจ provider=LINE
+  richMenu         LineRichMenu?
 
   // เดิม @@unique([provider, externalId]) = "1 เพจ 1 ร้านตลอดกาล" แม้ถอดแล้ว (status=DISCONNECTED)
   // ก็ยังกอด constraint ไว้ ทำให้ย้ายเพจไปร้านอื่นไม่ได้ (ชน P2002 ตลอดกาล) — แก้เป็น partial unique
@@ -1472,7 +1474,7 @@ model ShopChannel {
 
 // ExternalContact — ลูกค้าจากช่องทางนอก (PSID/IGSID) — ไม่ใช่ User ของ Deep — feature 00018
 model ExternalContact {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   shopChannelId  String
   externalUserId String // PSID / IGSID
   name           String?
@@ -1490,15 +1492,15 @@ model ExternalContact {
   // cross-channel merge (Messenger+IG+DEEP → โปรไฟล์เดียว) = Phase 2 (ต้อง resolve Customer ด้วยเบอร์)
   note           String? // โน้ตอิสระที่ต้องจดจำ — AI ใช้ประกอบการร่างคำตอบด้วย
   address        String?
-  salesStatus    String   @default("UNSPECIFIED") // "UNSPECIFIED" | "INTERESTED" | "NOT_INTERESTED"
-  tags           String[] @default([])
-  phones         String[] @default([]) // เพิ่มได้หลายเบอร์ (CRM — คนละเรื่องกับ Customer.phone ที่ @unique)
-  createdAt      DateTime @default(now())
+  salesStatus    String    @default("UNSPECIFIED") // "UNSPECIFIED" | "INTERESTED" | "NOT_INTERESTED"
+  tags           String[]  @default([])
+  phones         String[]  @default([]) // เพิ่มได้หลายเบอร์ (CRM — คนละเรื่องกับ Customer.phone ที่ @unique)
+  createdAt      DateTime  @default(now())
 
   // --- feature 00025 LINE OA Chat Integration (additive) ---
   // isBlocked: ลูกค้า unfollow/บล็อก OA แล้ว → ห้ามพยายาม push ซ้ำ (BR-LINE-15) เป็นสถานะ ไม่ใช่การลบ
   // ใช้ได้กับ Messenger ในอนาคตด้วย จึงไม่ตั้งชื่อผูกกับ LINE
-  isBlocked        Boolean  @default(false)
+  isBlocked        Boolean   @default(false)
   // profileFetchedAt: เวลาที่ดึงโปรไฟล์ล่าสุด — refresh เมื่อเกิน 7 วัน กันยิง /v2/bot/profile ทุกข้อความ
   profileFetchedAt DateTime?
 
@@ -1741,7 +1743,7 @@ model ChatMessage {
   //
   // null = แถวที่สร้างก่อนฟีเจอร์นี้ หรือข้อความที่ไม่ได้มาจาก platform ภายนอก (แชท DEEP ในแอป)
   // ไม่ backfill ย้อนหลัง (payload เดิมไม่มีให้แล้ว) — เก็บเฉพาะที่ได้รับตั้งแต่นี้เป็นต้นไป
-  rawMessage        Json?
+  rawMessage Json?
 
   // cards — การ์ดสินค้าแบบ carousel จาก Facebook (generic template, 2026-08-09)
   //
@@ -1755,7 +1757,7 @@ model ChatMessage {
   //
   // null = ข้อความก่อนฟีเจอร์นี้ / ไม่ใช่การ์ด generic template / การ์ดที่ไม่มี element จริง
   // shape: { title: string|null; subtitle: string|null; imageFileId: string|null }[]
-  cards             Json?
+  cards Json?
 
   // viaStandby — แถวนี้มาจากกล่อง `standby` ของ Meta = **ตอนนั้นเราไม่ใช่เจ้าของเธรด** (2026-08-08)
   //
@@ -1767,15 +1769,15 @@ model ChatMessage {
   //
   // false = มาทาง `messaging` ตามปกติ (เราถือห้อง) หรือเป็นแถวก่อนฟีเจอร์นี้ — ไม่ backfill ย้อนหลัง
   // เพราะข้อมูลเดิมไม่มีให้แยกแล้ว (ของเก่าที่ AI ตอบเข้ามาทาง graph-backfill ทั้งหมด)
-  viaStandby        Boolean @default(false)
+  viaStandby Boolean @default(false)
 
   // --- feature 00025 LINE OA Chat Integration (additive) ---
   // sendMethod: 'REPLY' | 'PUSH' — NULL สำหรับข้อความขาเข้าและช่องทางที่ไม่มีแนวคิดนี้ (DEEP/Messenger/IG)
   // เป็นหลักฐานเวลาร้านทักท้วงเรื่องบิล LINE (BR-LINE-16)
-  sendMethod        String?
+  sendMethod  String?
   // sendBatchId: UUID ร่วมของข้อความที่ถูกส่งใน request เดียวกัน (parts[] batching, S-10) — ใช้
   // คำนวณ "โควตาที่ประหยัดได้" และเป็นค่า X-Line-Retry-Key
-  sendBatchId       String?
+  sendBatchId String?
 
   // --- feature 00023 (additive) ---
   // null = คนส่ง | "AUTO" = ระบบตอบ | "AUTO_TEST" = ระบบตอบขณะอยู่ในโหมดทดสอบ
@@ -2094,7 +2096,7 @@ model OrderShipment {
   /// delivered — ดู lib/order-stage.ts:309) จะทำให้ carrierStatusAt กลายเป็นเวลาที่เงินเข้า
   /// ไม่ใช่เวลาที่ของถึง → ถ้าเอาไปจับ 7 วัน กำหนดปิดจะถูกเลื่อนออกทุกครั้งที่มี webhook ใหม่
   /// และอาจไม่ปิดเลย โดยไม่มีอะไรฟ้อง (ไม่มี type error ไม่มีเทสแดง มีแต่ตัวเลขที่ไม่ขยับ)
-  deliveredAt       DateTime?
+  deliveredAt DateTime?
 
   /// วันเวลาที่ iShip แจ้งว่าเงินเก็บปลายทางเข้าระบบร้านแล้ว (`settlement_at`) — NULL = ยังไม่แจ้ง
   ///
@@ -2104,9 +2106,9 @@ model OrderShipment {
   ///                          และเป็นกุญแจกันประมวลผลซ้ำของรอบ sync (มีค่าแล้ว = เคยทำไปแล้ว)
   /// ถ้ายุบเป็นช่องเดียว ใบที่ร้านกดเองไปก่อนจะแยกไม่ออกว่าเคยได้รับแจ้งจากขนส่งหรือยัง
   /// แล้ว sync จะประมวลผลใบนั้นซ้ำทุกรอบตลอดไป
-  codSettledAt      DateTime?
-  isOverSize        Boolean   @default(false) // ขนส่งวัดได้เกินที่ร้านแจ้ง (จาก webhook)
-  isOverWeight      Boolean   @default(false)
+  codSettledAt   DateTime?
+  isOverSize     Boolean   @default(false) // ขนส่งวัดได้เกินที่ร้านแจ้ง (จาก webhook)
+  isOverWeight   Boolean   @default(false)
   /// ค่าส่งที่ขนส่งคิดจริง = **ต้นทุนของออเดอร์ใบนี้** (FR-EXP-18, 2026-08-09)
   ///
   /// 🛑 มาจากฟิลด์ชื่อ `discount_price` ของ `query_orders`/`get_order` — **ชื่อหลอก มันไม่ใช่ส่วนลด**
@@ -2117,13 +2119,13 @@ model OrderShipment {
   ///
   /// 🛑 **ห้าม re-quote ด้วย check-price เพื่อเติมค่าย้อนหลัง** — จะได้ราคา ณ วันที่ยิง ไม่ใช่เงินที่
   /// ถูกหักไปจริง และผิดแบบเงียบ ๆ (1 ใน 56 ใบ) ต้องอ่านจากค่าที่ iShip บันทึกไว้เท่านั้น
-  carrierPrice      Decimal?  @db.Decimal(12, 2)
+  carrierPrice   Decimal?  @db.Decimal(12, 2)
   /// น้ำหนักที่ขนส่งชั่งได้จริง (kg) — จาก `actual_weight` ของ `query_orders`
   ///
   /// แยกจาก `weight` ข้างบนซึ่งเป็นค่าที่ **ร้านแจ้ง** ตอนสร้างพัสดุ: ข้อมูลจริง 2026-08-09 พบว่า
   /// 92 จาก 151 ใบถูกชั่งได้หนักกว่าที่แจ้ง = ค่าส่งจริงสูงกว่าที่ร้านคาดตอนกดสร้าง นี่คือเหตุผลที่
   /// ราคาประเมินใช้แทนราคาจริงในสูตรกำไรไม่ได้
-  actualWeight      Decimal?  @db.Decimal(6, 2)
+  actualWeight   Decimal?  @db.Decimal(6, 2)
   /// ค่าส่งโดยประมาณ ณ เวลาที่ร้านกดสร้างพัสดุ — จาก `check-price` ด้วยน้ำหนักที่ร้านแจ้ง
   ///
   /// มีเพราะ iShip **ไม่เปิดราคาจริงจนกว่าขนส่งจะเข้ารับและชั่ง** (ใบที่ `status=1` คืน
@@ -2133,12 +2135,12 @@ model OrderShipment {
   /// 🛑 **ใช้เป็นตัวสำรองเท่านั้น — มี `carrierPrice` เมื่อไหร่ต้องใช้ตัวจริงเสมอ** และหน้าจอ
   /// ต้องบอกว่าตัวเลขไหนยังเป็นประมาณการ (ค่าประมาณมักต่ำกว่าจริง เพราะ 92/151 ใบชั่งได้
   /// หนักกว่าที่ร้านแจ้ง)
-  estimatedPrice    Decimal?  @db.Decimal(12, 2)
+  estimatedPrice Decimal?  @db.Decimal(12, 2)
   /// ค่าธรรมเนียมเก็บเงินปลายทางที่ขนส่งหักจากยอดโอนคืนร้าน — จาก `cod_fee`
   ///
   /// **เงินคนละก้อนกับ `carrierPrice` ไม่ทับซ้อนกัน** (คิดเป็น % ของยอด COD ไม่ใช่ของค่าส่ง —
   /// ยืนยัน 2026-08-09: cod_fee 7.70 บนยอด 360 · 23.11 บนยอด 720) จึงต้องหักออกจากกำไรทั้งคู่
-  codFee            Decimal?  @db.Decimal(12, 2)
+  codFee         Decimal?  @db.Decimal(12, 2)
 
   labelPrintedAt  DateTime?
   labelPrintCount Int       @default(0)
@@ -2237,17 +2239,17 @@ model ShipmentPickup {
 /// จึงการันตีความเป็นเจ้าของโดยอัตโนมัติ เพราะเลือกได้เฉพาะคลิปในบัญชีที่ผ่าน OAuth มาแล้ว
 /// (ถ้าให้วาง URL อิสระ ร้านจะเอาคลิปคนอื่นมาอ้างเป็นของตัวเองได้)
 model ShopVideo {
-  id           String   @id @default(uuid())
-  shopId       String
+  id             String    @id @default(uuid())
+  shopId         String
   /// "INSTAGRAM" | "TIKTOK" | "YOUTUBE" — String ตาม convention เดิมของ repo (มิเรอร์ provider ของ ShopChannel)
-  provider     String
+  provider       String
   /// id/shortcode ของคลิปบนแพลตฟอร์มนั้น ใช้ประกอบ URL ฝังเอง ไม่เก็บ URL ดิบที่ผู้ใช้กำหนด
-  videoId      String
-  caption      String?  @db.Text
+  videoId        String
+  caption        String?   @db.Text
   /// รูปปกที่แพลตฟอร์มให้มา — เก็บไว้แสดงก่อนผู้ชมกดเล่น จะได้ไม่ต้องโหลด iframe ทุกอัน
   /// 🛑 URL ของ fbcdn/cdninstagram มีอายุจำกัด (สังเกตจริง ~4 วัน — feature การ์ด carousel 2026-08-09)
   /// ค่านี้จึงเป็นแค่ fallback ชั่วคราว ห้ามใช้เป็นแหล่งหลัก ให้อ่าน mirroredFileId ก่อนเสมอ
-  thumbnailUrl String?
+  thumbnailUrl   String?
   /// สำเนารูปปกในสตอเรจของเรา — คู่เดียวกับ FacebookPost.mirroredFileId/mirroredAt (feature 00035)
   ///
   /// ทำไมต้องมี: รูปปกคลิปคือบล็อกภาพที่ใหญ่ที่สุดของหน้าร้านสาธารณะ พอ URL ของ Meta หมดอายุ
@@ -2256,16 +2258,16 @@ model ShopVideo {
   mirroredFileId String?
   mirroredAt     DateTime?
   /// ชื่อบัญชีต้นทาง (เช่น @oilssm) — บอกผู้ชมว่าคลิปมาจากช่องไหน ไม่ใช่แค่แพลตฟอร์มอะไร
-  accountName  String?
+  accountName    String?
   /// ยอด ณ เวลาที่ร้านกดเลือก — เป็น snapshot ไม่ใช่ค่าสด เพราะการยิง API ทุกครั้งที่มีคน
   /// เปิดหน้าร้านจะช้าและชนลิมิตของแพลตฟอร์ม ค่าจะอัปเดตเมื่อร้านกดบันทึกใหม่
-  likeCount    Int?
-  commentCount Int?
+  likeCount      Int?
+  commentCount   Int?
   /// ยอดวิว — ยังเป็น null เสมอสำหรับ Instagram เพราะต้องใช้ scope instagram_manage_insights
   /// ที่ยังไม่ได้ขอ (ทดสอบจริงแล้วได้ error #10) เผื่อไว้ให้ TikTok ที่ video.list ให้ view มาด้วย
-  viewCount    Int?
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now())
+  viewCount      Int?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
 
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
@@ -2916,17 +2918,17 @@ model SellerShortcutPreference {
 /// Suite) จัดกลุ่ม "ตามโพสต์" — ถ้าไม่มีตารางนี้ต้อง group by post_id ทุกครั้งที่เปิดหน้า และ
 /// ไม่มีที่เก็บรูป/ข้อความโพสต์ที่ webhook ไม่ได้ส่งมา (feed ให้แค่ post_id ต้อง GET เพิ่ม)
 model FacebookPost {
-  id            String @id @default(uuid())
-  shopChannelId String
+  id             String    @id @default(uuid())
+  shopChannelId  String
   /// id ฝั่ง Meta รูปแบบ "{pageId}_{postNum}" — กุญแจกันซ้ำ (ยืนยันจาก payload จริง 2026-08-03)
-  externalPostId String @unique
-  message       String?
-  permalink     String?
+  externalPostId String    @unique
+  message        String?
+  permalink      String?
   /// รูปประกอบโพสต์ (full_picture ของ Graph) — เก็บ URL ของ Meta ตรง ๆ ไม่ mirror ใน v1
-  thumbnailUrl  String?
-  createdTime   DateTime?
+  thumbnailUrl   String?
+  createdTime    DateTime?
   /// เวลาคอมเมนต์ล่าสุดของโพสต์นี้ — คอลัมน์ที่รายการซ้ายใช้เรียง (ไม่ใช่วันที่โพสต์)
-  lastCommentAt DateTime?
+  lastCommentAt  DateTime?
   /// ชนิดสื่อของโพสต์ (video/photo/album/link/status) — วิดีโอต้องมีปุ่มเล่นบนรูปปก
   mediaType      String?
   /// ยอด engagement ฝั่ง Facebook (user สั่ง 2026-08-03 "มียอด like, comment, share เหมือนกัน")
@@ -2935,8 +2937,8 @@ model FacebookPost {
   fbCommentCount Int?
   shareCount     Int?
   statsSyncedAt  DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   /// mirroredFileId/mirroredAt: **สำเนารูปปกโพสต์ที่เก็บใน storage ของเราเอง** — ความหมายเดียว
   /// ทั้งระบบ ไม่ผูกกับฟีเจอร์ใดฟีเจอร์หนึ่ง (Hard Rule 16)
@@ -2955,9 +2957,9 @@ model FacebookPost {
   mirroredFileId String?
   mirroredAt     DateTime?
 
-  channel    ShopChannel     @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
-  comments   PageComment[]
-  pageBlocks ShopPageBlock[] // NEW (feature 00035) — บล็อกที่ถูกเพิ่มลงหน้าร้าน (ปกติมีอย่างมาก 1 แถวที่ยัง active ต่อร้าน — บังคับด้วย partial unique index ไม่ใช่ Prisma DSL)
+  channel          ShopChannel       @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
+  comments         PageComment[]
+  pageBlocks       ShopPageBlock[] // NEW (feature 00035) — บล็อกที่ถูกเพิ่มลงหน้าร้าน (ปกติมีอย่างมาก 1 แถวที่ยัง active ต่อร้าน — บังคับด้วย partial unique index ไม่ใช่ Prisma DSL)
   // back-relation ของ CommentReplyLog.postId (feature 00038, additive)
   commentReplyLogs CommentReplyLog[]
 
@@ -3062,41 +3064,41 @@ model ShopPageBlock {
 /// รวมทั้งคอมเมนต์ของลูกค้าและของเพจเอง (isFromPage) — คำตอบของเพจคือคอมเมนต์ลูกที่มี
 /// parentExternalId ชี้มาที่คอมเมนต์แม่ ซึ่งเป็นตัวตัดสินว่า "ตอบแล้ว" (BRD BR-14)
 model PageComment {
-  id            String @id @default(uuid())
-  postId        String
-  shopChannelId String
+  id                String    @id @default(uuid())
+  postId            String
+  shopChannelId     String
   /// id ฝั่ง Meta รูปแบบ "{postNum}_{commentNum}" — กันซ้ำแบบเดียวกับ ChatMessage.externalMessageId
-  externalCommentId String @unique
+  externalCommentId String    @unique
   /// คอมเมนต์แม่ (null = คอมเมนต์ระดับบน). เก็บเป็น id ของ Meta ไม่ใช่ id ภายใน เพราะ webhook
   /// ส่งคอมเมนต์ลูกมาก่อนตัวแม่ได้ (backfill ยังไม่ถึง) — ผูกด้วย id ภายในจะพลาดตอนนั้น
-  parentExternalId String?
-  fromExternalId String?
+  parentExternalId  String?
+  fromExternalId    String?
   /// ชื่อผู้คอมเมนต์ — payload จริงส่ง from.name มาให้ (ยืนยัน 2026-08-03) ไม่ต้อง GET เพิ่ม
-  fromName      String?
-  isFromPage    Boolean @default(false)
-  message       String?
+  fromName          String?
+  isFromPage        Boolean   @default(false)
+  message           String?
   /// รูป/วิดีโอที่แนบมากับคอมเมนต์ (URL ของ Meta)
-  attachmentUrl String?
-  createdTime   DateTime
-  editedAt      DateTime?
+  attachmentUrl     String?
+  createdTime       DateTime
+  editedAt          DateTime?
   /// ลูกค้าลบคอมเมนต์บน Facebook — เก็บแถวไว้เป็นหลักฐาน ไม่ลบจริง (BR-CMT-04)
-  isDeleted     Boolean @default(false)
+  isDeleted         Boolean   @default(false)
   /// คนในทีมร้านที่กดตอบผ่าน Deep — Meta มองว่าทุกคำตอบเป็นของ "เพจ" ถ้าไม่เก็บเองจะไม่มีวันรู้
   /// (plain String ไม่ผูก FK — pattern เดียวกับ ShopChannel.connectedByUserId)
-  repliedByUserId String?
+  repliedByUserId   String?
   /// คอมเมนต์นี้เขียนโดยระบบตอบอัตโนมัติ ไม่ใช่คนในทีมร้าน (feature 00038)
   ///
   /// 🛑 คอลัมน์นี้มีผู้เขียน 2 ราย: เราเขียนตอน replyToComment() คืน comment id กลับมา
   /// และ webhook เขียนอีกครั้งเมื่อ Meta ส่ง echo ของคอมเมนต์เดียวกันกลับเข้ามา
   /// ingestFeedComment ต้อง **ไม่** ใส่ field นี้ใน update block ของ upsert ไม่งั้นธงถูกรีเซ็ต
   /// แล้วป้าย "ตอบอัตโนมัติ" จะกะพริบหายไปเอง (คลาสเดียวกับบั๊กรีแอ็กชัน 2026-08-04)
-  isAutoReply Boolean @default(false)
+  isAutoReply       Boolean   @default(false)
   /// payload ดิบจาก webhook/Graph — เหตุผลเดียวกับ ChatMessage.rawMessage (บทเรียน 2026-08-03)
-  rawPayload    Json?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  rawPayload        Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  post    FacebookPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post             FacebookPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
   // back-relation ของ CommentReplyLog.commentId (feature 00038, additive)
   commentReplyLogs CommentReplyLog[]
 
@@ -3111,17 +3113,17 @@ model CommentReplyLog {
   id             String  @id @default(uuid())
   shopChannelId  String
   postId         String
-  commentId      String  // PageComment.id ที่เป็นต้นเหตุ
+  commentId      String // PageComment.id ที่เป็นต้นเหตุ
   fromExternalId String? // ผู้คอมเมนต์ (null = Meta ไม่ส่ง from มา → ด่านที่ 4 ข้ามไปแล้ว)
 
-  trigger     String  // "AUTO" | "MANUAL"
+  trigger     String // "AUTO" | "MANUAL"
   actorUserId String? // MANUAL = คนที่กด · AUTO = null
 
-  publicReplyStatus  String? // "SENT" | "SKIPPED" | "FAILED"
-  privateReplyStatus String? // "SENT" | "SKIPPED" | "FAILED"
+  publicReplyStatus   String? // "SENT" | "SKIPPED" | "FAILED"
+  privateReplyStatus  String? // "SENT" | "SKIPPED" | "FAILED"
   /// เหตุผลที่ "ข้ามทั้งแถว" — ระดับแถวจริง ไม่ต้องแยกรายฝั่ง เพราะ recordSkip() สร้างแถวแล้ว
   /// return ทันทีตั้งแต่ก่อนยิงฝั่งไหนทั้งสิ้น (ดู COMMENT_SKIP_REASONS ใน comment-auto-reply.service.ts)
-  skipReason         String?
+  skipReason          String?
   /// 🛑 DEPRECATED (2026-08-10) — ห้ามเขียนเพิ่ม อ่านได้เฉพาะแถวเก่าที่ยังไม่ถูก backfill
   ///
   /// เดิมเป็นคอลัมน์เดียวที่ทั้งสองฝั่ง (ตอบใต้คอมเมนต์ / ทักแชท) เขียนร่วมกัน ซึ่งพังใน 2 ทาง:
@@ -3130,12 +3132,12 @@ model CommentReplyLog {
   ///      ฝั่งสาธารณะถูกล้างทิ้งทุกครั้ง** ร้านเห็นป้าย "ไม่สำเร็จ" เปล่า ๆ ไม่มีเหตุผลเลย
   ///      (user ชี้เองว่าเคสนี้เกิดจริง: "reply ไม่ผ่าน อาจจะทักแชทได้ก็ได้")
   /// สองงานนี้เป็นอิสระต่อกัน (BR-CR-A5 — public ล้มไม่หยุด private) จึงต้องมีที่เก็บของตัวเอง
-  errorMessage       String? @db.Text
+  errorMessage        String? @db.Text
   /// เหตุผลที่ "ตอบใต้คอมเมนต์" ล้มเหลว — คู่กับ publicReplyStatus='FAILED' เท่านั้น
   publicErrorMessage  String? @db.Text
   /// เหตุผลที่ "ทักแชท" ล้มเหลว — คู่กับ privateReplyStatus='FAILED' เท่านั้น
   privateErrorMessage String? @db.Text
-  conversationId     String? // ห้องที่เกิดจาก private reply
+  conversationId      String? // ห้องที่เกิดจาก private reply
 
   createdAt DateTime @default(now())
 
@@ -3207,31 +3209,36 @@ model OrderEvent {
 
 /**
  * ChatHandoverEvent — บันทึกดิบของ webhook field `messaging_handovers` (2026-08-08)
- *
  * 🛑 ทำไมต้องมีตาราง ไม่ใช่แค่ console.log: เดิม webhook route log event พวกนี้แล้วทิ้ง แต่ Vercel
  * plan ที่ใช้อยู่ **ดึง runtime log ย้อนหลังไม่ได้เลย** (ลอง /v1/deployments/{id}/runtime-logs และ
  * /v2/.../events แล้ว 404/คืนแต่ build log) — พอต้องสืบว่า "Meta ส่งอะไรมาบ้าง" จึงตอบไม่ได้สักครั้ง
  * ทั้งที่โค้ดรับถูกทุกบรรทัด นี่คือรอบที่ 3 ของอาการ "webhook เงียบแล้วเดากันเอง" ในสัปดาห์เดียว
- *
  * สิ่งที่ต้องได้จากตารางนี้เป็นอย่างแรก: **app id ของ Meta AI** ซึ่งไม่มีในเอกสารสาธารณะ
  * (เอกสารให้มาแค่ Page Inbox 263902037430900 / IG Inbox 1217981644879628) แต่จำเป็นต่อ
  * `pass_thread_control` เพื่อ "เปิด AI กลับ" จากในแอปเรา — รู้ได้ทางเดียวคืออ่านจาก payload จริง
  * ตอนผู้ขายกดสลับใน Business Suite (external-payload-schema.md: ห้ามแมปจากการเดา)
- *
  * ไม่ผูก FK กับ Conversation/ShopChannel โดยตั้งใจ — เป็นตารางหลักฐาน ต้องเก็บได้แม้ event มาจาก
  * เพจที่ไม่มีร้านไหนเชื่อม (เคส NO_CHANNEL) ไม่งั้นจะทิ้งของที่ต้องการสืบพอดี
  */
 model ChatHandoverEvent {
   id String @id @default(uuid())
 
-  /** "MESSENGER" | "INSTAGRAM" — object ของ webhook body */
-  provider String
-  /** Page ID (หรือ IG Business Account ID) จาก entry.id */
-  pageExternalId String
-  /** PSID ของลูกค้าที่เกี่ยวข้อง (sender.id) — null ได้ เพราะ app_roles ไม่ผูกกับคนคนเดียว */
+  /**
+   * "MESSENGER" | "INSTAGRAM" — object ของ webhook body
+   */
+  provider          String
+  /**
+   * Page ID (หรือ IG Business Account ID) จาก entry.id
+   */
+  pageExternalId    String
+  /**
+   * PSID ของลูกค้าที่เกี่ยวข้อง (sender.id) — null ได้ เพราะ app_roles ไม่ผูกกับคนคนเดียว
+   */
   contactExternalId String?
 
-  /** "pass" | "take" | "request" | "app_roles" */
+  /**
+   * "pass" | "take" | "request" | "app_roles"
+   */
   kind String
 
   // app id ทั้งสามช่องเป็น String — Meta ส่งมาเป็น number บ้าง string บ้างในเอกสารเดียวกัน
@@ -3239,16 +3246,24 @@ model ChatHandoverEvent {
   previousOwnerAppId  String?
   newOwnerAppId       String?
   requestedOwnerAppId String?
-  /** metadata ที่ผู้เรียกแนบมา (เราไม่ได้เป็นคนตั้ง — ของฝั่งที่สลับสิทธิ์) */
-  metadata String?
+  /**
+   * metadata ที่ผู้เรียกแนบมา (เราไม่ได้เป็นคนตั้ง — ของฝั่งที่สลับสิทธิ์)
+   */
+  metadata            String?
 
-  /** true = event นี้มาจากกล่อง standby (ตอนนั้นเราไม่ใช่เจ้าของเธรด) */
+  /**
+   * true = event นี้มาจากกล่อง standby (ตอนนั้นเราไม่ใช่เจ้าของเธรด)
+   */
   viaStandby Boolean @default(false)
 
-  /** payload ดิบ **ก่อน** Valibot — Valibot ตัด field ที่เราไม่ได้ประกาศทิ้งหมด เก็บตัวที่ถูกตัดแล้วจะสืบอะไรไม่ได้เลย */
+  /**
+   * payload ดิบ **ก่อน** Valibot — Valibot ตัด field ที่เราไม่ได้ประกาศทิ้งหมด เก็บตัวที่ถูกตัดแล้วจะสืบอะไรไม่ได้เลย
+   */
   raw Json?
 
-  /** event.timestamp ของ Meta (ไม่ใช่เวลาที่เราเขียนแถว) */
+  /**
+   * event.timestamp ของ Meta (ไม่ใช่เวลาที่เราเขียนแถว)
+   */
   occurredAt DateTime?
   createdAt  DateTime  @default(now())
 
@@ -3273,4 +3288,43 @@ model ProductLike {
 
   @@unique([productId, deviceKey]) // BR-LIKE-01 — บังคับที่ฐาน ไม่ใช่ที่แอป (กดรัวยังชนกันได้)
   @@index([productId])
+}
+
+/// เมนูลัดใน LINE รายเพจ (feature 00045 — docs/20 - Features/00045 - LINE Rich Menu/)
+///
+/// 🛑 **ไม่มีคอลัมน์ `status` โดยตั้งใจ** — สถานะ 4 ค่าที่หน้าจอแสดง (ยังไม่ได้สร้าง / สร้างแล้วยัง
+/// ไม่เปิดใช้ / ลูกค้าเห็นเมนูนี้อยู่ / ไม่ได้ใช้เมนูของ Deep) **derive จากความจริงฝั่ง LINE**
+/// (`lineRichMenuId` + ผลของ `GET /v2/bot/user/all/richmenu`) เพราะร้านเข้าไปเปลี่ยนเมนูเองใน
+/// LINE OA Manager ได้ตลอดเวลาโดยที่เราไม่รู้ — ธงที่เก็บไว้จะเพี้ยนแน่นอน
+/// (docs/conventions/stored-flag-vs-owner-truth.md)
+///
+/// 🛑 **ไม่มีคอลัมน์เก็บ id ของเมนูใบเก่าที่รอลบ โดยตั้งใจ** — LINE ไม่มี endpoint แก้เมนู ทุกการ
+/// แก้ไขคือสร้างใบใหม่แล้วลบใบเก่า และใบที่สร้างสำเร็จแล้ว "ล้มตอนอัปโหลดรูป" จะไม่มีใครจำได้เลย
+/// ทั้งที่มันมีอยู่จริงบน LINE การเก็บกวาดจึงไล่จาก **prefix ของชื่อเมนู** (`deep:{shopChannelId}:`)
+/// ซึ่งเก็บได้ทั้งใบที่บันทึกแล้วและใบที่ค้างจากรอบที่ล้มกลางทาง (TD-RM-3)
+model LineRichMenu {
+  id              String    @id @default(uuid())
+  /// 1 เพจ = ไม่เกิน 1 เมนูในระบบเรา — บังคับที่ฐาน ไม่ใช่แค่ในโค้ด (สองแท็บกดพร้อมกันยังชนกันได้)
+  shopChannelId   String    @unique
+  /// id ฝั่ง LINE — null = ยังไม่เคยสร้างบน LINE (สถานะ DRAFT) **ไม่ใช่** "ปิดอยู่"
+  lineRichMenuId  String?
+  templateKey     String
+  /// 🛑 ≤14 ตัวอักษร (เพดานของ LINE) นับเป็น code point — บังคับที่ Valibot + lib/line/rich-menu.ts
+  chatBarText     String
+  /// [{ key, label, action }] เรียงตามตำแหน่งบนภาพ — ไม่มี type บังคับที่ระดับ DB
+  /// ทุกทางเข้าต้อง validate ด้วย allow-list + fail-closed
+  buttons         Json
+  /// ไฟล์ภาพใน storage ที่จะอัปโหลดไป LINE (เรนเดอร์ด้วย canvas ฝั่งเบราว์เซอร์)
+  imageFileId     String?
+  /// 🛑 เวลาที่ร้านกดยินยอมว่าเมนูของ Deep จะแสดงแทนเมนูที่ตั้งไว้ใน LINE OA Manager (BR-RM-01)
+  /// null = **ห้าม activate** — เราตรวจแทนไม่ได้ว่าร้านมีเมนูเดิมอยู่หรือเปล่า (แพลตฟอร์มไม่ให้ API)
+  /// ความยินยอมจึงเป็นด่านเดียวที่มี และต้องบังคับที่ server ไม่ใช่แค่ที่จอ
+  consentAt       DateTime?
+  /// เก็บเป็น id เปล่าไม่ผูก FK — ตามแบบเดียวกับ `ShopChannel.connectedByUserId` ในตารางแม่
+  consentByUserId String?
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  shopChannel ShopChannel @relation(fields: [shopChannelId], references: [id], onDelete: Cascade)
 }

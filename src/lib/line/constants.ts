@@ -41,3 +41,38 @@ export const QUOTA_LOW_RATIO = 0.2
 /** เพดานเวลาที่ระบบตอบอัตโนมัติต้องทำให้จบ นับจาก event.timestamp (ms) — เกินนี้ต้องยกเลิกงาน
  *  และห้าม fallback เป็น push โดยเด็ดขาด (NFR-8, TD-007, S-12) */
 export const AUTO_REPLY_DEADLINE_MS = 40_000
+
+// ---------------------------------------------------------------------------
+// Rich Menu (feature 00045)
+// ---------------------------------------------------------------------------
+// 🛑 ตัวเลขทุกตัวด้านล่างคัดจากซอร์สเอกสารทางการ `line/line-developers-docs-source`
+// (`docs/en/reference/messaging-api/index.html.md`) เมื่อ 2026-08-11 — หน้า reference บนเว็บเป็น
+// SPA ที่ดึงตรงไม่ได้ ถ้าจะแก้ตัวเลขพวกนี้ต้องกลับไปอ่านซอร์สนั้น **ห้ามแก้จากความจำ**
+// สรุปที่มาแบบเต็มอยู่ใน `docs/20 - Features/00045 - LINE Rich Menu/PRD.md` §4.3
+
+/** ภาพเมนู: ≤1MB (ทั้ง JPEG และ PNG) */
+export const RICH_MENU_IMAGE_MAX_BYTES = 1024 * 1024
+/** ความกว้างที่ LINE ยอมรับ */
+export const RICH_MENU_IMAGE_MIN_WIDTH = 800
+export const RICH_MENU_IMAGE_MAX_WIDTH = 2500
+/** ความสูงขั้นต่ำ (ไม่มีเพดานบน — ถูกคุมด้วยอัตราส่วนแทน) */
+export const RICH_MENU_IMAGE_MIN_HEIGHT = 250
+/** อัตราส่วน กว้าง/สูง ขั้นต่ำ — ต่ำกว่านี้ LINE ปฏิเสธ */
+export const RICH_MENU_IMAGE_MIN_ASPECT = 1.45
+
+/** กรอบที่เราเรนเดอร์จริง — ขนาดที่เอกสาร LINE ใช้เป็นตัวอย่าง (อัตราส่วน ≈1.483 ผ่านเกณฑ์ 1.45)
+ *  🛑 canvas ฝั่ง client กับตัวคำนวณพิกัดปุ่มต้องอ่านคู่นี้ **ตัวเดียวกัน** ไม่งั้นพื้นที่กดจะไม่ตรง
+ *  กับสิ่งที่วาด แล้วลูกค้าจะกดโดนปุ่มผิดโดยไม่มี tsc/เทสตัวไหนฟ้อง (TD-RM-6) */
+export const RICH_MENU_CANVAS_WIDTH = 2500
+export const RICH_MENU_CANVAS_HEIGHT = 1686
+
+/** คำบนแถบเปิด/ปิดเมนู — 🛑 **14 ตัวอักษร** เท่านั้น ภาษาไทยชนเพดานง่ายมาก
+ *  ("แตะเพื่อเปิดเมนู" = 16 ตัว เกินแล้ว) และต้องนับเป็น code point ไม่ใช่ `String.length` */
+export const RICH_MENU_CHAT_BAR_MAX = 14
+
+/** ชื่อเมนู (ร้านไม่เห็น ใช้ภายในเพื่อระบุเจ้าของ) */
+export const RICH_MENU_NAME_MAX = 300
+
+/** จำนวนพื้นที่กดได้สูงสุดต่อเมนู — หมายเหตุ: MCP `line-bot` จำกัดที่ 6 แต่นั่นเป็นเพดานของเครื่องมือ
+ *  ไม่ใช่ของ LINE ตัวจริงคือ 20 */
+export const RICH_MENU_MAX_AREAS = 20
