@@ -332,3 +332,40 @@ export function validateRichMenuImage(meta: RichMenuImageMeta): { ok: true } | {
   }
   return reasons.length === 0 ? { ok: true } : { ok: false, reasons }
 }
+
+// ---------------------------------------------------------------------------
+// โหมดภาพ: ระบบวาดให้ (AUTO) vs ร้านอัปโหลดเอง (CUSTOM)  — D-RM-2b
+// ---------------------------------------------------------------------------
+
+/**
+ * เก็บโหมด+เลย์เอาต์ลง `templateKey` แทนการเพิ่มคอลัมน์ใหม่
+ *
+ * 🛑 ทำไมไม่เพิ่มคอลัมน์: `LineRichMenu.templateKey` เป็น String ที่มีหน้าที่ "บอกว่าเมนูนี้ประกอบ
+ * จากอะไร" อยู่แล้ว โหมด CUSTOM ก็คือ "ประกอบจากภาพของร้าน + เลย์เอาต์ที่เลือก" ซึ่งเป็นคำตอบของ
+ * คำถามเดียวกัน — เพิ่มคอลัมน์ = ข้อมูลสองที่ที่ต้องคอยให้ตรงกัน (เคยพลาดคลาสนี้มาแล้วหลายรอบ)
+ *
+ * รูปแบบ: `custom:<layoutKey>` เช่น `custom:grid-3x2` · ค่าอื่นทั้งหมด = โหมด AUTO (เทมเพลตของระบบ)
+ */
+const CUSTOM_PREFIX = 'custom:'
+
+export function encodeCustomTemplateKey(layoutKey: RichMenuLayoutKey): string {
+  return `${CUSTOM_PREFIX}${layoutKey}`
+}
+
+export type TemplateKeyInfo =
+  | { mode: 'AUTO'; layoutKey: null }
+  | { mode: 'CUSTOM'; layoutKey: RichMenuLayoutKey }
+
+/**
+ * อ่านโหมดจาก `templateKey`
+ *
+ * 🛑 `custom:` ที่ตามด้วยคีย์ที่ไม่รู้จัก ต้องตกเป็น **AUTO** ไม่ใช่ CUSTOM ที่มี layout พัง —
+ * fail-closed: แถวที่ข้อมูลเพี้ยน (แก้มือ/ของเก่า/คีย์ถูกถอดออกภายหลัง) ต้องถอยไปทางที่ยังใช้ได้
+ * ไม่ใช่พาไปสู่สถานะที่ประกอบ payload ไม่ได้
+ */
+export function parseTemplateKey(templateKey: string): TemplateKeyInfo {
+  if (!templateKey.startsWith(CUSTOM_PREFIX)) return { mode: 'AUTO', layoutKey: null }
+  const key = templateKey.slice(CUSTOM_PREFIX.length)
+  if (!isRichMenuLayoutKey(key)) return { mode: 'AUTO', layoutKey: null }
+  return { mode: 'CUSTOM', layoutKey: key }
+}

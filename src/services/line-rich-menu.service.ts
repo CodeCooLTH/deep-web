@@ -22,6 +22,7 @@ import {
   buildRichMenuName,
   buildRichMenuPayload,
   isOwnRichMenuName,
+  parseTemplateKey,
   readImageSize,
   validateRichMenuImage,
   type RichMenuButton,
@@ -224,10 +225,12 @@ export async function activate(params: {
 
   const token = decryptToken(channel.accessTokenEnc)
   const name = buildRichMenuName(params.shopChannelId, Date.now())
+  // โหมด CUSTOM = ร้านเลือกเลย์เอาต์เอง ต้องใช้คีย์นั้น ห้ามเดาจากจำนวนปุ่ม (เดาผิด = ลูกค้ากดผิดช่อง)
   const payload = buildRichMenuPayload({
     name,
     chatBarText: row.chatBarText,
     buttons: row.buttons as unknown as RichMenuButton[],
+    layoutKey: parseTemplateKey(row.templateKey).layoutKey ?? undefined,
   })
 
   let newId: string

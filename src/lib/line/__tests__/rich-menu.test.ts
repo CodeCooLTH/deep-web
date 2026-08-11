@@ -19,6 +19,8 @@ import {
   buildRichMenuName,
   buildRichMenuPayload,
   RICH_MENU_LAYOUTS,
+  encodeCustomTemplateKey,
+  parseTemplateKey,
   defaultLayoutKeyForCount,
   isRichMenuLayoutKey,
   layoutBounds,
@@ -382,5 +384,26 @@ describe('เทมเพลต', () => {
         buildRichMenuPayload({ name: buildRichMenuName('c1', 1), chatBarText: t.chatBarText, buttons }),
       ).not.toThrow()
     }
+  })
+})
+
+describe('โหมดภาพ (D-RM-2b)', () => {
+  it('เข้ารหัส/ถอดรหัสไป-กลับได้ทุกเลย์เอาต์', () => {
+    for (const key of Object.keys(RICH_MENU_LAYOUTS) as RichMenuLayoutKey[]) {
+      expect(parseTemplateKey(encodeCustomTemplateKey(key))).toEqual({ mode: 'CUSTOM', layoutKey: key })
+    }
+  })
+
+  it('เทมเพลตของระบบ = โหมด AUTO', () => {
+    expect(parseTemplateKey('online_sales_v1')).toEqual({ mode: 'AUTO', layoutKey: null })
+  })
+
+  /**
+   * 🛑 fail-closed: แถวที่ `templateKey` เพี้ยน (แก้มือ / คีย์ถูกถอดออกภายหลัง) ต้องถอยไป AUTO
+   * ซึ่งยังประกอบ payload ได้ ไม่ใช่ CUSTOM ที่มี layout พังแล้วพังทั้งเส้นทางเปิดใช้เมนู
+   */
+  it('[blocker] custom: ที่ตามด้วยคีย์ที่ไม่รู้จัก ต้องถอยไป AUTO ไม่ใช่ CUSTOM ที่พัง', () => {
+    expect(parseTemplateKey('custom:grid-9x9')).toEqual({ mode: 'AUTO', layoutKey: null })
+    expect(parseTemplateKey('custom:')).toEqual({ mode: 'AUTO', layoutKey: null })
   })
 })

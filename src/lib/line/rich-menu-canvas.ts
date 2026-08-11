@@ -17,6 +17,9 @@ import {
   RICH_MENU_CANVAS_HEIGHT,
   RICH_MENU_CANVAS_WIDTH,
   RICH_MENU_IMAGE_MAX_BYTES,
+  RICH_MENU_IMAGE_MAX_WIDTH,
+  RICH_MENU_IMAGE_MIN_ASPECT,
+  RICH_MENU_IMAGE_MIN_WIDTH,
 } from './constants'
 import {
   defaultLayoutKeyForCount,
@@ -158,4 +161,124 @@ async function toJpegUnderCap(canvas: HTMLCanvasElement): Promise<Blob> {
     if (blob.size <= RICH_MENU_IMAGE_MAX_BYTES) return blob
   }
   throw new Error('RICH_MENU_IMAGE_TOO_LARGE')
+}
+
+// ---------------------------------------------------------------------------
+// โหมด "ใช้ภาพของร้านเอง" (D-RM-2b)
+// ---------------------------------------------------------------------------
+
+/** ผลของการเตรียมภาพที่ร้านอัปโหลด — `reasons` มีค่าเมื่อภาพใช้ไม่ได้ */
+export type PreparedImage =
+  | { ok: true; file: File; width: number; height: number }
+  | { ok: false; reasons: string[] }
+
+/**
+ * ตรวจ + ย่อ + บีบอัดภาพที่ร้านเลือก **ก่อนอัปโหลดขึ้น storage**
+ *
+ * 🛑 ลำดับสำคัญ: ปฏิเสธเรื่องที่ "บีบอัดแล้วก็ไม่หาย" ก่อน (อัตราส่วน/กว้างไม่พอ) แล้วค่อยบีบอัด —
+ * ไม่งั้นจะเสียเวลาย่อภาพที่ยังไงก็ไม่ผ่าน แล้วค่อยไปบอกทีหลังว่าใช้ไม่ได้
+ *
+ * 🛑 บีบอัดให้เอง ไม่ใช่บอกร้านไปย่อมาเอง — ผู้ขายจำนวนมากไม่มีเครื่องมือย่อรูปในมือ การบอกว่า
+ * "ไฟล์ใหญ่เกินไป" เท่ากับส่งเขาออกจาก Deep ไปหาแอปอื่น ซึ่งขัดหลัก "ทำจบได้โดยไม่ต้องรู้จัก
+ * คำว่าพิกเซล" (BRD §6.5)
+ */
+export async function prepareCustomMenuImage(file: File): Promise<PreparedImage> {
+  const bitmap = await createImageBitmap(file).catch(() => null)
+  if (!bitmap) return { ok: false, reasons: ['เปิดไฟล์ภาพนี้ไม่ได้ — รองรับเฉพาะ JPG และ PNG'] }
+
+  const { width: w0, height: h0 } = bitmap
+  const reasons: string[] = []
+  if (h0 > 0 && w0 / h0 < RICH_MENU_IMAGE_MIN_ASPECT) {
+    reasons.push(
+      'ภาพนี้เป็นแนวตั้งหรือเกือบจัตุรัสเกินไป — เมนูลัดต้องเป็นภาพแนวนอนมาก (กว้างอย่างน้อย 1.45 เท่าของสูง คล้ายแบนเนอร์) ลองครอปภาพให้กว้างขึ้นหรือเลือกภาพใหม่',
+    )
+  }
+  if (w0 < RICH_MENU_IMAGE_MIN_WIDTH) {
+    reasons.push(
+      `ภาพเล็กเกินไป (กว้าง ${w0}px ต้องอย่างน้อย ${RICH_MENU_IMAGE_MIN_WIDTH}px) — ลองใช้ภาพต้นฉบับที่มีความละเอียดสูงกว่านี้`,
+    )
+  }
+  if (reasons.length > 0) {
+    bitmap.close?.()
+    return { ok: false, reasons }
+  }
+
+  // ย่อลงถ้ากว้างเกินเพดาน (คงอัตราส่วนเดิม ไม่ครอป — ครอปเองคือการตัดสินใจแทนร้าน)
+  const scale = w0 > RICH_MENU_IMAGE_MAX_WIDTH ? RICH_MENU_IMAGE_MAX_WIDTH / w0 : 1
+  const width = Math.round(w0 * scale)
+  const height = Math.round(h0 * scale)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return { ok: false, reasons: ['เบราว์เซอร์นี้เตรียมภาพไม่ได้ ลองใช้เบราว์เซอร์อื่น'] }
+  ctx.drawImage(bitmap, 0, 0, width, height)
+  bitmap.close?.()
+
+  /**
+   * บันไดคุณภาพยาวกว่าฝั่งเรนเดอร์เอง (ที่มี 2 ขั้น) โดยตั้งใจ — ภาพถ่ายจริงบีบอัดยากกว่าพื้นขาว
+   * กับตัวหนังสือมาก นี่คือ "วันที่ภาพมีรูปประกอบ" ที่คอมเมนต์ของ `toJpegUnderCap` เขียนเตือนไว้
+   */
+  for (const quality of [0.92, 0.85, 0.75, 0.65, 0.5]) {
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', quality))
+    if (!blob) break
+    if (blob.size <= RICH_MENU_IMAGE_MAX_BYTES) {
+      return { ok: true, file: new File([blob], 'rich-menu.jpg', { type: 'image/jpeg' }), width, height }
+    }
+  }
+  return {
+    ok: false,
+    reasons: [
+      'ไฟล์นี้ยังใหญ่เกิน 1 MB แม้บีบอัดแล้ว — ภาพที่มีรายละเอียดเยอะบีบอัดได้ยาก ลองใช้ภาพกราฟิกที่เรียบกว่า หรือถ่ายภาพใหม่ที่ความละเอียดต่ำลง',
+    ],
+  }
+}
+
+/**
+ * แบบร่างขนาดจริงให้กราฟิกเอาไปออกแบบ — เส้นประ + เลขช่อง + คำอธิบายของแต่ละช่อง
+ *
+ * เลขและเส้นใช้ **สีเทา ไม่ใช่สีแบรนด์** โดยตั้งใจ: นี่คือไฟล์แนวทางที่กราฟิกจะลบทิ้ง ไม่ใช่ของที่
+ * ลูกค้าจะเห็น การใส่สีแบรนด์ลงไปจะชวนให้เข้าใจผิดว่าเป็นส่วนหนึ่งของงานจริง
+ */
+export async function renderRichMenuBlueprint(
+  labels: string[],
+  layoutKey?: RichMenuLayoutKey,
+): Promise<Blob> {
+  const key = layoutKey ?? defaultLayoutKeyForCount(labels.length)
+  if (!key) throw new Error('RICH_MENU_LAYOUT_UNSUPPORTED')
+  if (typeof document !== 'undefined' && document.fonts?.ready) await document.fonts.ready
+
+  const canvas = document.createElement('canvas')
+  canvas.width = RICH_MENU_CANVAS_WIDTH
+  canvas.height = RICH_MENU_CANVAS_HEIGHT
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('RICH_MENU_CANVAS_UNAVAILABLE')
+
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  const cells = layoutBounds(layoutRows(key))
+  ctx.strokeStyle = '#B0B0B0'
+  ctx.lineWidth = 6
+  ctx.setLineDash([28, 20])
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+
+  cells.forEach((c, i) => {
+    ctx.strokeRect(c.x + 3, c.y + 3, c.width - 6, c.height - 6)
+    ctx.setLineDash([])
+    ctx.fillStyle = '#7a7a7a'
+    ctx.textAlign = 'left'
+    ctx.font = `700 56px ${FONT_FAMILY}`
+    ctx.fillText(String(i + 1), c.x + 36, c.y + 60)
+    ctx.textAlign = 'center'
+    ctx.font = `500 44px ${FONT_FAMILY}`
+    ctx.fillText(labels[i]?.trim() || `ช่องที่ ${i + 1}`, c.x + c.width / 2, c.y + c.height / 2)
+    ctx.setLineDash([28, 20])
+  })
+
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'))
+  if (!blob) throw new Error('RICH_MENU_ENCODE_FAILED')
+  return blob
 }
