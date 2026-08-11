@@ -58,13 +58,19 @@ export type VisibleTabInput = {
 export function computeVisibleTabKeys(input: VisibleTabInput): ProfileTabKey[] {
   const visible: ProfileTabKey[] = []
 
+  /* 🛑 รีวิวอยู่หน้าสุด (user 2026-08-11 "ย้าย Review มาไว้ข้างหน้า") — เดิมอยู่ท้ายสุดจนต้อง
+     เลื่อนแถบแท็บไปทางขวาถึงจะเห็น ทั้งที่เป็นหลักฐานชิ้นที่ผู้ซื้อมองหาที่สุดบนหน้าที่ใช้ตัดสินใจโอนเงิน
+
+     ⚠️ ผลข้างเคียงที่ต้องรู้: แท็บแรกคือแท็บที่เปิดอยู่ตอนโหลดหน้า ⇒ ผู้ชมจะเห็น "รีวิว" ก่อน
+     ไม่ใช่คลิป/สินค้า ซึ่งสวนทางกับโจทย์ "จอแรกต้องเห็นของที่ร้านขาย" ที่เป็นที่มาของการยุบ
+     หัวโปรไฟล์ทั้งหมด — user เลือกเองโดยเห็นแท็บจริงบน prod แล้ว ถ้าจะกลับ ย้ายบรรทัดนี้ลงท้าย */
+  if (input.hasReviews) visible.push('reviews')
   if (input.hasVideos) visible.push('pinned')
   if (input.isLodging && input.hasRooms) visible.push('rooms')
   if (input.isLodging && input.hasAvailability) visible.push('calendar')
   if (input.isServiceQueue && input.hasServices) visible.push('services')
   if (!input.isLodging && input.hasItems) visible.push('items')
   visible.push('about')
-  if (input.hasReviews) visible.push('reviews')
 
   return visible
 }

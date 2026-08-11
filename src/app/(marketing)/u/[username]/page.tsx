@@ -32,6 +32,7 @@ import ProfileUnavailable from '@views/pages/user-profile/v2/ProfileUnavailable'
 import { formatMonthYearTH } from '@/lib/format-date'
 import { shopCategoryLabel } from '@/lib/shop-categories'
 import { formatOrderNo } from '@/lib/order-no'
+import { resolveOrderSource } from '@/lib/order-source-channel'
 import { maskedReviewerName } from '@/lib/reviewer-display'
 import { badgeCriteriaLabel } from '@/lib/badge-criteria'
 
@@ -356,6 +357,13 @@ export default async function PublicProfilePage({ params }: Props) {
               // ลง flight payload ให้ใครก็อ่านได้ (feedback_rsc_pii_neutralize_at_source)
               reviewerName: maskedReviewerName(r.reviewer?.displayName, r.reviewerContact),
               orderNo: formatOrderNo(r.order.publicToken, r.order.createdAt),
+              // รูป+badge จากแหล่งเดียวกันเสมอ (order-source-channel.ts) — ไม่มี legacy fallback
+              // บนหน้าสาธารณะ เดารูปเพจผิดเสียหายกว่าไม่โชว์
+              source: resolveOrderSource({
+                salesChannel: r.order.salesChannel,
+                shopChannel: r.order.shopChannel,
+                legacyFacebookPageAvatar: null,
+              }),
               images: ((r.images as string[]) ?? []).map((f) => toFileUrl(f)).filter(Boolean) as string[],
               shopReply: r.shopReplyComment,
               shopRepliedAtIso: r.shopRepliedAt?.toISOString() ?? null,

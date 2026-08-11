@@ -39,7 +39,8 @@ export default function ReviewSummary({
     <div className='flex items-center gap-5 pbe-4 border-be mbe-2'>
       <div className='text-center shrink-0 min-is-[92px]'>
         <div className='text-[42px] font-extrabold tabular-nums leading-none' style={{ letterSpacing: '-0.035em' }}>
-          {avgRating}
+          {/* ทศนิยม 1 ตำแหน่งเสมอ (user 2026-08-11) — "5" กับ "4.9" สลับกันแล้วเลขกระโดดกว้าง */}
+          {avgRating.toFixed(1)}
         </div>
         {/* ดาวต้องเป็นทึบ/โปร่งเพื่อสื่อคะแนน — lucide:star เป็นไอคอนเส้นล้วน ถ้าใช้ตัวเดียวกัน
             ทั้งเต็มและว่างจะได้ดาวโครงห้าดวงเหมือนกันหมด อ่านคะแนนไม่ได้เลย (เจอตอน QA จริง)

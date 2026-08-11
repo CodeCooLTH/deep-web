@@ -23,6 +23,7 @@ import { getShopPageLayout, listShopPageBlocks } from '@/services/shop-page-layo
 import { getTierLabel, getTierColor, getNextTierInfo } from '@/lib/trust-tier'
 import { shopCategoryLabel } from '@/lib/shop-categories'
 import { formatOrderNo } from '@/lib/order-no'
+import { resolveOrderSource } from '@/lib/order-source-channel'
 import { maskedReviewerName } from '@/lib/reviewer-display'
 import { badgeCriteriaLabel } from '@/lib/badge-criteria'
 import { formatMonthYearTH } from '@/lib/format-date'
@@ -163,7 +164,17 @@ export default async function BusinessShopProfilePage({ params }: Props) {
           shopReplyComment: true,
           shopRepliedAt: true,
           reviewer: { select: { displayName: true } },
-          order: { select: { publicToken: true, createdAt: true } },
+          // ช่องทางที่ซื้อขายกันจริง (user 2026-08-11 "ให้แสดงช่องทางซื้อขายด้วย รูปเพจ + platform")
+          // 🛑 รูปกับ badge ต้องมาจากแหล่งเดียวกันเสมอ — `resolveOrderSource` บังคับกติกานี้ไว้แล้ว
+          // ผสม (รูปจาก shopChannel + badge จาก salesChannel) จะได้ "รูป LINE คู่ badge Facebook"
+          order: {
+            select: {
+              publicToken: true,
+              createdAt: true,
+              salesChannel: true,
+              shopChannel: { select: { avatarUrl: true, provider: true } },
+            },
+          },
         },
       }),
     ])
@@ -371,6 +382,13 @@ export default async function BusinessShopProfilePage({ params }: Props) {
               reviewerName: maskedReviewerName(r.reviewer?.displayName, r.reviewerContact),
               // เลขออเดอร์คำนวณจาก publicToken + วันที่สั่ง (SSOT เดียวกับทุกหน้า)
               orderNo: formatOrderNo(r.order.publicToken, r.order.createdAt),
+              source: resolveOrderSource({
+                salesChannel: r.order.salesChannel,
+                shopChannel: r.order.shopChannel,
+                // ไม่มี legacy fallback ที่นี่ — หน้าสาธารณะไม่ควรเดารูปเพจให้ออเดอร์เก่า
+                // (เดาผิดบนหน้าที่ขายความน่าเชื่อถือ เสียหายกว่าไม่โชว์รูป)
+                legacyFacebookPageAvatar: null,
+              }),
               images: ((r.images as string[]) ?? []).map((f) => toFileUrl(f)).filter(Boolean) as string[],
               shopReply: r.shopReplyComment,
               shopRepliedAtIso: r.shopRepliedAt?.toISOString() ?? null,

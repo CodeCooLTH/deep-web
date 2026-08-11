@@ -25,6 +25,7 @@ import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
 
 import { formatDateTH } from '@/lib/format-date'
+import { SALES_CHANNEL_LOGO } from '@/lib/sales-channel-logo'
 import ResponsiveSheet from './ResponsiveSheet'
 
 export type ReviewListItem = {
@@ -38,6 +39,8 @@ export type ReviewListItem = {
   orderNo: string
   /** URL รูปแนบ (≤4 ใบ ตาม BR-BOE-19) — แปลงเป็น URL เต็มมาแล้ว */
   images: string[]
+  /** ช่องทางที่ซื้อขายกันจริง — resolveOrderSource() มาแล้วจากเซิร์ฟเวอร์ (รูป+badge มาจากแหล่งเดียวกัน) */
+  source?: { logoUrl: string | null; channel: string | null }
   /** คำตอบของร้าน — 1 คำตอบต่อ 1 รีวิว */
   shopReply?: string | null
   shopRepliedAtIso?: string | null
@@ -76,17 +79,44 @@ export default function ReviewList({ items }: { items: ReviewListItem[] }) {
             </Typography>
           </div>
 
-          {/* เลขออเดอร์ — หลักฐานว่ารีวิวนี้มาจากการซื้อจริง ไม่ใช่คอมเมนต์ที่ใครก็เขียนได้
-              ไม่ใช่ลิงก์ เพราะหน้าออเดอร์เป็นของผู้ซื้อคนนั้น คนอื่นเปิดไม่ได้อยู่แล้ว */}
-          <Typography variant='caption' color='text.disabled' className='block tabular-nums mbe-1.5'>
-            {`คำสั่งซื้อ ${r.orderNo}`}
-          </Typography>
-
+          {/* ── ข้อความรีวิว = พระเอกของการ์ด ──
+              user 2026-08-11 "เน้นข้อความรีวิวครับ" — ขึ้นก่อนบรรทัดเลขออเดอร์ และใหญ่กว่า
+              ทุกอย่างในการ์ด (15px สีหลัก) ส่วนเลขออเดอร์/ช่องทางเป็นหลักฐานประกอบที่อยู่ชั้นรอง
+              เดิมเลขออเดอร์อยู่ก่อนข้อความ ทำให้สายตาเจอรหัสยาว ๆ ก่อนเจอสิ่งที่ลูกค้าพูดจริง */}
           {r.comment && (
-            <Typography variant='body2' color='text.primary' className='mbe-2'>
+            <Typography sx={{ fontSize: '15px', lineHeight: 1.55 }} color='text.primary' className='mbe-2'>
               {r.comment}
             </Typography>
           )}
+
+          {/* ── หลักฐานว่ารีวิวนี้มาจากการซื้อจริง: ช่องทาง + เลขออเดอร์ ──
+              ไม่ใช่ลิงก์ เพราะหน้าออเดอร์เป็นของผู้ซื้อคนนั้น คนอื่นเปิดไม่ได้อยู่แล้ว
+
+              🛑 รูปเพจกับ badge แพลตฟอร์มมาจาก `resolveOrderSource` ตัวเดียวกับหน้า /orders
+              ห้ามผสมแหล่ง — `salesChannel` ร้านแก้เองทีหลังได้ ส่วน `shopChannel` คือข้อเท็จจริง
+              ตอนสร้างออเดอร์ ผสมกันจะได้ "รูป LINE คู่ badge Facebook" ที่คนดูไม่เชื่ออะไรเลยทั้งคู่ */}
+          <div className='flex items-center gap-1.5'>
+            {r.source?.logoUrl ? (
+              <span className='relative is-[18px] bs-[18px] shrink-0'>
+                {/* eslint-disable-next-line @next/next/no-img-element -- รูปเพจจากแพลตฟอร์มภายนอก */}
+                <img src={r.source.logoUrl} alt='' className='is-full bs-full rounded-full object-cover' />
+                {r.source.channel && SALES_CHANNEL_LOGO[r.source.channel] && (
+                  // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/
+                  <img
+                    src={SALES_CHANNEL_LOGO[r.source.channel]}
+                    alt=''
+                    className='absolute -bottom-0.5 -inline-end-0.5 is-[10px] bs-[10px] rounded-full'
+                  />
+                )}
+              </span>
+            ) : r.source?.channel && SALES_CHANNEL_LOGO[r.source.channel] ? (
+              // eslint-disable-next-line @next/next/no-img-element -- โลโก้ static ใน public/
+              <img src={SALES_CHANNEL_LOGO[r.source.channel]} alt='' className='is-[14px] bs-[14px] shrink-0' />
+            ) : null}
+            <Typography variant='caption' color='text.disabled' className='tabular-nums'>
+              {`คำสั่งซื้อ ${r.orderNo}`}
+            </Typography>
+          </div>
 
           {/* ── รูปแนบ (Shopee-style) ── */}
           {r.images.length > 0 && (
