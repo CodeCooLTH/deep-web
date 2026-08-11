@@ -198,8 +198,12 @@ export function ChannelStrip({ channels }: { channels: OfficialChannel[] }) {
   const rest = channels.length - shown.length
 
   return (
-    // gap-x กว้างกว่า gap-y เพื่อให้แต่ละช่องทางเป็นก้อนที่แยกจากกันได้ด้วยระยะ ไม่ต้องใช้เส้น/กรอบ
-    <div className='flex flex-wrap justify-center items-center gap-x-5 gap-y-1 pli-5 pbe-3'>
+    /* gap-x กว้างกว่า gap-y เพื่อให้แต่ละช่องทางเป็นก้อนที่แยกจากกันได้ด้วยระยะ ไม่ต้องใช้เส้น/กรอบ
+       🛑 ไม่มี padding ล่าง — แต่ละแถวมี `min-bs-[44px]` (hit target) ซึ่งจัดเนื้อหา ~20px ไว้กลาง
+       จึงมีที่ว่างบน-ล่างในตัวอยู่แล้วข้างละ ~12px การใส่ pbe อีกชั้นทำให้ระยะห่างสะสมเป็น ~24px
+       แล้วหัวโปรไฟล์อ่านเป็น "บล็อกที่ลอยห่างกัน" (user ทัก 2026-08-10 "มันห่าง ๆ กันไงไม่รู้")
+       ปล่อยให้พื้นที่แตะทำหน้าที่เป็นระยะห่างไปในตัว */
+    <div className='flex flex-wrap justify-center items-center gap-x-5 gap-y-1 pli-5'>
       {shown.map((c) => {
         const meta = PROVIDER[c.provider]
         if (!meta) return null

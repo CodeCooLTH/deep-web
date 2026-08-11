@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v2 — จอแรกต้องเห็นของที่ร้านขาย (2026-08-10)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:47 43 61;
+  --t1:rgb(var(--ink)/.9);--t2:rgb(var(--ink)/.7);--t3:rgb(var(--ink)/.4);
+  --divider:rgb(var(--ink)/.12);--hover:rgb(var(--ink)/.06);
+  --paper:#fff;--mist:#F8F7FA;--primary:#7367F0;--verified:#18804A;--success:#28C76F;
+  --grad:linear-gradient(135deg,#9b98a8 0%,#bdbbc7 55%,#dedce4 100%);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Anuphan,system-ui,sans-serif;background:#eceaf0;color:var(--t1);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1400px;margin:0 auto;padding:32px 20px 90px}
+h1{font-size:28px;font-weight:600;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:20px;font-weight:600;margin:46px 0 6px;letter-spacing:-.01em}
+h3{font-size:16px;font-weight:700;margin:26px 0 0}
+.lead{color:var(--t2);font-size:15px;line-height:1.55;margin:0 0 10px;max-width:80ch}
+.note{color:var(--t2);font-size:13px;line-height:1.6;margin:0 0 14px;max-width:80ch}
+.row{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:18px}
+code{background:var(--hover);border-radius:4px;padding:1px 5px;font-size:.92em}
+
+/* ── กรอบมือถือพร้อมเส้นพับจอ ── */
+.phone{width:390px;position:relative}
+.phone-cap{font-size:12px;font-weight:600;color:var(--t2);margin:0 0 6px;display:flex;justify-content:space-between;gap:10px}
+.phone-cap b{color:var(--t1)}
+.bad{color:#b3261e}.good{color:var(--verified)}
+.screen{background:var(--paper);border-radius:12px;overflow:hidden;box-shadow:0 6px 22px rgb(var(--ink)/.12);position:relative}
+/* 844 - browser chrome ~144 = 700px ที่มองเห็นจริง */
+.fold{position:absolute;left:0;right:0;top:700px;border-top:2px dashed #b3261e;z-index:5;pointer-events:none}
+.fold::after{content:"เส้นพับจอ — ต่ำกว่านี้ต้องเลื่อนถึงจะเห็น (iPhone 390×844)";position:absolute;right:6px;top:4px;background:#b3261e;color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:2px 6px}
+.dim{filter:saturate(.25) opacity(.5)}
+
+/* ── ชิ้นส่วน ── */
+.cover{height:132px;background:var(--grad);position:relative}
+.brand{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:6px;background:var(--paper);border-radius:999px;padding:5px 12px;box-shadow:0 1px 3px rgb(var(--ink)/.12);font-size:13px;font-weight:700}
+.brand svg{width:15px;height:15px;color:var(--primary)}
+.idblk{text-align:center;padding:0 20px 10px;margin-top:-42px;position:relative}
+.avatar{width:84px;height:84px;border-radius:999px;margin:0 auto 10px;position:relative;border:4px solid var(--paper);background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800}
+.lvl{position:absolute;right:-4px;bottom:0;display:inline-flex;align-items:center;gap:3px;background:var(--success);color:#fff;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;border:2px solid var(--paper);white-space:nowrap}
+.shopname{font-size:20px;font-weight:800;letter-spacing:-.02em;margin:0}
+.chips{display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:6px}
+.chip-score{background:var(--t1);color:var(--paper);border-radius:999px;padding:4px 10px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.chip-tier{background:var(--hover);color:var(--t2);border-radius:8px;padding:4px 10px;font-size:13px;font-weight:600}
+.chk{width:18px;height:18px;border-radius:999px;background:var(--success);color:#fff;display:inline-flex;align-items:center;justify-content:center}
+.icobtn{color:var(--t2);display:inline-flex;padding:4px}
+.meta{font-size:13px;color:var(--t2);margin-top:4px}
+.bio{font-size:14px;line-height:1.5;margin:8px auto 0;max-width:46ch;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.cat{font-size:13px;color:var(--t2);margin-top:6px}
+.chan{display:flex;justify-content:center;align-items:center;gap:18px;flex-wrap:wrap;padding:0 20px 10px}
+.chan a{display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;min-height:44px}
+.mark{width:20px;height:20px;border-radius:999px;position:relative;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
+.mark.fb{background:#1877F2}.mark.ig{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)}
+.mark::after{content:"";position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:999px;background:var(--success);border:1.5px solid var(--paper)}
+.cname{font-size:13px;font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.cmeta{font-size:11px;color:var(--t2)}.cmeta b{color:var(--t1);font-variant-numeric:tabular-nums}
+
+/* แถบหลักฐาน — แบบเดิม (กริด) */
+.stats-grid{background:var(--mist);border-top:1px solid var(--divider);border-bottom:1px solid var(--divider);padding:16px 20px}
+.sgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 8px;text-align:center}
+.snum{font-size:22px;font-weight:800;letter-spacing:-.025em;line-height:1.15;font-variant-numeric:tabular-nums}
+.slab{font-size:13px;color:var(--t2);display:block}
+.shint{font-size:13px;color:var(--t3);display:block}
+.sexp{font-size:13px;color:var(--t3);line-height:1.5;margin-top:10px;text-align:center}
+
+/* แถบหลักฐาน — แบบใหม่ (บรรทัดเดียว) */
+.stats-line{background:var(--mist);border-top:1px solid var(--divider);border-bottom:1px solid var(--divider);
+  padding:10px 20px;display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;
+  font-size:13px;color:var(--t2);line-height:1.5}
+.stats-line b{color:var(--t1);font-weight:800;font-variant-numeric:tabular-nums;font-size:15px}
+.stats-line .ok{color:var(--verified)}
+.sep{color:var(--t3)}
+.iBtn{display:inline-flex;align-items:center;gap:3px;color:var(--t2);background:none;border:0;font:inherit;font-size:13px;cursor:pointer;padding:4px}
+
+/* แท็บ + เนื้อหา */
+.tabs{display:flex;gap:22px;border-bottom:1px solid var(--divider);padding:0 20px;overflow-x:auto}
+.tabs span{padding:11px 0;font-size:15px;font-weight:600;color:var(--t3);white-space:nowrap;position:relative}
+.tabs span.on{color:var(--t1)}
+.tabs span.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2.5px;border-radius:2px;background:var(--primary)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:12px 20px 20px}
+.tile{aspect-ratio:3/4;border-radius:6px;background:#cfcbd8;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:6px}
+.tile:nth-child(2){background:#c4cdd6}.tile:nth-child(3){background:#d6cbc4}
+.tile:nth-child(4){background:#c9c4d6}.tile:nth-child(5){background:#cdd6c4}.tile:nth-child(6){background:#d6c4cd}
+.tile span{color:#fff;font-size:11px;font-weight:600;text-shadow:0 1px 3px rgb(0 0 0/.5)}
+.tile::before{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgb(0 0 0/.42),transparent 55%)}
+.tile svg{position:absolute;top:6px;right:6px;width:14px;height:14px;color:#fff;opacity:.9}
+
+/* ปุ่มแชท (แบบเดิม) */
+.cta{padding:14px 20px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--primary);color:#fff;border:0;border-radius:6px;font-family:inherit;font-size:15px;font-weight:600;padding:12px 20px;width:100%;box-shadow:0 10px 28px rgb(var(--ink)/.28)}
+
+.ruler{position:relative}
+.ruler::after{content:attr(data-h);position:absolute;top:5px;right:5px;background:rgb(var(--ink)/.75);color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px;z-index:3}
+.cut{background:rgba(179,38,30,.07);outline:1px dashed rgba(179,38,30,.45);outline-offset:-1px}
+
+.opt{background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:16px 18px;width:400px}
+.opt h4{font-size:15px;font-weight:700;margin:0 0 2px}
+.opt .why{font-size:13px;color:var(--t2);line-height:1.55;margin:0 0 12px}
+.opt .demo{background:var(--mist);border-radius:8px;overflow:hidden}
+.rec{display:inline-block;background:rgba(24,128,74,.12);color:var(--verified);font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-inline-start:6px;vertical-align:2px}
+.sum{background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:14px 18px;font-size:14px;line-height:1.75;max-width:80ch}
+.sum b{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>จอแรกต้องเห็นของที่ร้านขาย</h1>
+<p class="lead">
+  รอบนี้เปลี่ยนตัวตั้งจาก "ลดความสูงกี่ %" เป็น <b>"เลื่อนหรือยังถึงจะเห็นสินค้าชิ้นแรก"</b> —
+  เพราะหน้าร้านที่จอแรกมีแต่ป้ายกำกับ ไม่มีของ คือหน้าที่ผู้ซื้อปิดก่อนจะได้ตัดสินใจอะไร
+</p>
+<p class="note">
+  เส้นประแดง = ขอบล่างของจอ iPhone 390×844 หลังหัก browser chrome (~700px ที่มองเห็นจริง)
+  · ทุกสี/ระยะใช้ token จริงของโปรเจกต์ · ข้อมูลร้านชุดเดียวกับที่เปิดดูบน dev
+</p>
+
+<h2>1 · ตอนนี้ vs ข้อเสนอ (มือถือ 390×844)</h2>
+<div class="row">
+
+  <!-- ─────────── ตอนนี้ ─────────── -->
+  <div class="phone">
+    <p class="phone-cap"><span class="bad">ตอนนี้</span><b>จอแรกไม่เห็นสินค้าเลยสักชิ้น</b></p>
+    <div class="screen">
+      <div class="fold"></div>
+      <div class="cover ruler" data-h="132"><span class="brand"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 3 7v10l9 5 9-5V7z"/></svg>Deep</span></div>
+      <div class="idblk ruler" data-h="172">
+        <div class="avatar">ธ<span class="lvl">ระดับ 1</span></div>
+        <p class="shopname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</p>
+        <div class="chips">
+          <span class="chk"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M4 12l5 5L20 6"/></svg></span>
+          <span class="chip-score">26/100</span><span class="chip-tier">Deep Classic</span>
+          <span class="icobtn"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span>
+        </div>
+        <p class="meta">@tanapathardware · เปิดร้านตั้งแต่ ส.ค. 2569</p>
+        <p class="cat">ยานยนต์</p>
+      </div>
+      <div class="chan ruler" data-h="104">
+        <a href="#"><span class="mark fb">f</span><span><span class="cname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</span><span class="cmeta">Facebook Page · <b>6.1K</b> ถูกใจ</span></span></a>
+        <a href="#"><span class="mark ig">I</span><span><span class="cname">@tanapat_parts</span><span class="cmeta">Instagram · <b>307</b> ผู้ติดตาม</span></span></a>
+      </div>
+      <div class="ruler" data-h="28" style="text-align:center;font-size:13px;color:var(--t2);padding-bottom:12px">ตอบกลับ <b style="color:var(--t1)">100%</b> · ตอบเฉลี่ย <b style="color:var(--t1)">ประมาณ 1 นาที</b></div>
+      <div class="ruler" data-h="144" style="padding:0 20px 16px">
+        <p style="font-size:14px;font-weight:600;margin:0 0 12px">เหรียญของร้าน</p>
+        <div style="display:flex;gap:12px">
+          <div style="width:76px;text-align:center"><div style="width:56px;height:56px;margin:0 auto;color:var(--primary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9h18l-2-5H5zM4 9v11h16V9M9 20v-6h6v6"/></svg></div><div style="font-size:12px;margin-top:6px">เปิดหน้าร้าน</div></div>
+          <div style="width:76px;text-align:center"><div style="width:56px;height:56px;margin:0 auto;color:var(--primary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></div><div style="font-size:12px;margin-top:6px;line-height:1.25">ร้านค้าขาย<br>อดนิยม</div></div>
+          <div style="width:76px;text-align:center"><div style="width:56px;height:56px;margin:0 auto;color:var(--primary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="6"/><path d="M8 14l-2 7 6-3 6 3-2-7"/></svg></div><div style="font-size:12px;margin-top:6px">ร้อยออเดอร์</div></div>
+          <div style="width:76px;text-align:center"><div style="width:56px;height:56px;margin:0 auto;color:var(--primary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h12l3 6-9 12L3 9z"/></svg></div><div style="font-size:12px;margin-top:6px;line-height:1.25">ร้านคะแนน<br>เต็ม</div></div>
+        </div>
+      </div>
+      <div class="stats-grid ruler cut" data-h="198">
+        <div class="sgrid">
+          <div><div class="snum">—</div><span class="slab">อัตราสำเร็จ</span><span class="shint">ยังสรุปไม่ได้</span></div>
+          <div><div class="snum">0</div><span class="slab">ออเดอร์</span></div>
+          <div><div class="snum">0</div><span class="slab">จำนวนลูกค้า</span></div>
+          <div><div class="snum">0</div><span class="slab">ลูกค้าซื้อซ้ำ</span></div>
+        </div>
+        <p class="sexp">อัตราสำเร็จจะขึ้นเมื่อมีออเดอร์ที่จบแล้วครบ 5 ใบ — ไม่ได้แปลว่าร้านมีปัญหา</p>
+      </div>
+      <div class="cta ruler cut" data-h="82"><button class="btn">แชทกับร้าน</button></div>
+      <div class="tabs"><span class="on">ไฮไลท์</span><span>สินค้า</span><span>เกี่ยวกับร้าน</span></div>
+      <div class="grid3 dim">
+        <div class="tile"><span>คลิปที่ 1</span></div><div class="tile"><span>คลิปที่ 2</span></div><div class="tile"><span>คลิปที่ 3</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────── ข้อเสนอ ─────────── -->
+  <div class="phone">
+    <p class="phone-cap"><span class="good">ข้อเสนอ</span><b>เห็นคลิปแถวแรกเต็ม ๆ + แถวสองโผล่</b></p>
+    <div class="screen">
+      <div class="fold"></div>
+      <div class="cover ruler" data-h="132"><span class="brand"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 3 7v10l9 5 9-5V7z"/></svg>Deep</span></div>
+      <div class="idblk ruler" data-h="168">
+        <div class="avatar">ธ<span class="lvl">ระดับ 1</span></div>
+        <p class="shopname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</p>
+        <div class="chips">
+          <span class="chk"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M4 12l5 5L20 6"/></svg></span>
+          <span class="chip-score">26/100</span><span class="chip-tier">Deep Classic</span>
+          <span class="icobtn"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span>
+        </div>
+        <p class="meta">@tanapathardware · เปิดร้านตั้งแต่ ส.ค. 2569</p>
+        <p class="cat">ยานยนต์</p>
+      </div>
+      <div class="chan ruler" data-h="102">
+        <a href="#"><span class="mark fb">f</span><span><span class="cname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</span><span class="cmeta">Facebook Page · <b>6.1K</b> ถูกใจ</span></span></a>
+        <a href="#"><span class="mark ig">I</span><span><span class="cname">@tanapat_parts</span><span class="cmeta">Instagram · <b>307</b> ผู้ติดตาม</span></span></a>
+      </div>
+      <div class="ruler" data-h="26" style="text-align:center;font-size:13px;color:var(--t2);padding-bottom:10px">ตอบกลับ <b style="color:var(--t1)">100%</b> · ตอบเฉลี่ย <b style="color:var(--t1)">ประมาณ 1 นาที</b></div>
+      <div class="ruler" data-h="118" style="padding:0 20px 14px">
+        <p style="font-size:14px;font-weight:600;margin:0 0 10px">เหรียญของร้าน</p>
+        <div style="display:flex;gap:12px">
+          <div style="width:76px;text-align:center"><div style="width:56px;height:56px;margin:0 auto;color:var(--primary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9h18l-2-5H5zM4 9v11h16V9M9 20v-6h6v6"/></svg></div><div style="font-size:12px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">เปิดหน้าร้าน</div></div>
+          <div style="width:76px;text-align:center"><div style="width:56px;height:56px;margin:0 auto;color:var(--primary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></div><div style="font-size:12px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">ร้านค้าขายอดนิยม</div></div>
+          <div style="width:76px;text-align:center"><div style="width:56px;height:56px;margin:0 auto;color:var(--primary)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="6"/><path d="M8 14l-2 7 6-3 6 3-2-7"/></svg></div><div style="font-size:12px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">ร้อยออเดอร์</div></div>
+          <div style="width:76px;text-align:center"><div style="width:56px;height:56px;margin:0 auto;background:var(--hover);border-radius:999px;display:flex;align-items:center;justify-content:center;color:var(--t2)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div><div style="font-size:12px;margin-top:6px;color:var(--t2)">ดูทั้งหมด</div></div>
+        </div>
+      </div>
+      <div class="stats-line ruler" data-h="44">
+        <span><b>0</b> ออเดอร์</span><span class="sep">·</span>
+        <span><b>0</b> ลูกค้า</span><span class="sep">·</span>
+        <span><b>0</b> ซื้อซ้ำ</span><span class="sep">·</span>
+        <button class="iBtn">อัตราสำเร็จ <b style="color:var(--t2);font-size:13px">ยังสรุปไม่ได้</b>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>
+      </div>
+      <div class="tabs"><span class="on">ไฮไลท์</span><span>สินค้า</span><span>เกี่ยวกับร้าน</span></div>
+      <div class="grid3">
+        <div class="tile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>ชุดโซ่สเตอร์</span></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>ผ้าเบรคหน้า</span></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>โช้คหลัง</span></div>
+        <div class="tile"><span>จานดิส</span></div><div class="tile"><span>ล้อแม็ก</span></div><div class="tile"><span>ไฟหน้า</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sum" style="margin-top:20px">
+  <b>ที่ได้คืนมา 236px</b> — ปุ่มแชท <b>82px</b> (เอาออกตาม phase นี้) + แถบหลักฐานจากกริด 2×2 <b>198px → บรรทัดเดียว 44px</b>
+  + รัดชื่อเหรียญเหลือบรรทัดเดียว <b>26px</b><br>
+  หัวโปรไฟล์ <b>860px → 590px</b> · <b>คลิปแถวแรกอยู่เหนือเส้นพับทั้งแถว และแถวสองโผล่ให้รู้ว่ายังมีต่อ</b>
+</div>
+
+<h2>2 · แถบหลักฐาน — 3 แบบให้เลือก</h2>
+<p class="note">
+  🛑 ทั้ง 3 แบบ <b>ยังมีตัวเลขครบทั้ง 4 ตัว</b> ตามมติ 26 ก.ค. ที่ห้ามซ่อนช่อง — ต่างกันที่รูปแบบการวาง ไม่ใช่จำนวนข้อมูล
+  · ประโยคยาว "อัตราสำเร็จจะขึ้นเมื่อ…" ย้ายไปอยู่หลังการแตะทั้ง 3 แบบ
+</p>
+<div class="row">
+  <div class="opt">
+    <h4>แบบ A · บรรทัดเดียว<span class="rec">แนะนำ</span></h4>
+    <p class="why">44px (จาก 198px) · เป็นแพตเทิร์นเดียวกับ GitHub <code>316k followers · 0 following</code>
+      · เหมาะกับร้านใหม่มาก เพราะ "0" สี่ตัวขนาด 22px อ่านเป็นการประกาศความว่างเปล่า แต่ในบรรทัดเดียวมันแค่เป็นข้อเท็จจริง</p>
+    <div class="demo"><div class="stats-line" style="border:0">
+      <span><b>0</b> ออเดอร์</span><span class="sep">·</span><span><b>0</b> ลูกค้า</span><span class="sep">·</span>
+      <span><b>0</b> ซื้อซ้ำ</span><span class="sep">·</span>
+      <button class="iBtn">อัตราสำเร็จ <b style="color:var(--t2);font-size:13px">ยังสรุปไม่ได้</b>
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>
+    </div></div>
+    <p class="why" style="margin:12px 0 6px"><b>ร้านที่ขายจริงแล้วหน้าตาแบบนี้:</b></p>
+    <div class="demo"><div class="stats-line" style="border:0">
+      <span><b>128</b> ออเดอร์</span><span class="sep">·</span><span><b>96</b> ลูกค้า</span><span class="sep">·</span>
+      <span><b>31</b> ซื้อซ้ำ</span><span class="sep">·</span>
+      <span><b class="ok">93%</b> สำเร็จ</span>
+    </div></div>
+  </div>
+
+  <div class="opt">
+    <h4>แบบ B · แถวเดียว 4 ช่อง เลขเล็กลง</h4>
+    <p class="why">~76px · ยังเป็นกริดให้เทียบร้านต่อร้านได้ตรงตำแหน่ง แต่ลดเลขจาก 22px → 18px และบีบเป็นแถวเดียวบนมือถือ
+      · ประนีประนอมระหว่าง A กับของเดิม</p>
+    <div class="demo"><div style="background:var(--mist);padding:12px 10px;display:grid;grid-template-columns:repeat(4,1fr);text-align:center;gap:4px">
+      <div><div style="font-size:18px;font-weight:800;font-variant-numeric:tabular-nums">0</div><span style="font-size:12px;color:var(--t2)">ออเดอร์</span></div>
+      <div><div style="font-size:18px;font-weight:800">0</div><span style="font-size:12px;color:var(--t2)">ลูกค้า</span></div>
+      <div><div style="font-size:18px;font-weight:800">0</div><span style="font-size:12px;color:var(--t2)">ซื้อซ้ำ</span></div>
+      <div><div style="font-size:18px;font-weight:800">—</div><span style="font-size:12px;color:var(--t2)">สำเร็จ</span></div>
+    </div></div>
+  </div>
+
+  <div class="opt">
+    <h4>แบบ C · คงกริด 2×2 เดิม</h4>
+    <p class="why">198px · ไม่แตะอะไรเลย ตัวเลขเด่นที่สุดในหน้าเหมือนเดิม แต่เป็นตัวที่ user บอกว่ากินพื้นที่เยอะเกินไป
+      และร้านใหม่จะเห็น "0" สี่ตัวเต็มจอ</p>
+    <div class="demo"><div class="stats-grid" style="border:0">
+      <div class="sgrid">
+        <div><div class="snum">—</div><span class="slab">อัตราสำเร็จ</span><span class="shint">ยังสรุปไม่ได้</span></div>
+        <div><div class="snum">0</div><span class="slab">ออเดอร์</span></div>
+        <div><div class="snum">0</div><span class="slab">จำนวนลูกค้า</span></div>
+        <div><div class="snum">0</div><span class="slab">ลูกค้าซื้อซ้ำ</span></div>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<h2>3 · ปุ่ม "แชทกับร้าน"</h2>
+<div class="sum">
+  ตาม phase นี้ <b>เอาออกจากหน้าโปรไฟล์ทั้งหมด</b> (ทั้งปุ่มในโฟลว์บนมือถือ และปุ่มลอยมุมขวาล่างบนเดสก์ท็อป) — คืน 82px<br><br>
+  🛑 <b>ผลที่ต้องรับรู้ก่อนตัดสิน:</b> หน้านี้จะไม่มีทางไปคุยกับร้านเลยจากหน้าโปรไฟล์
+  ผู้ซื้อที่เชื่อแล้วต้องออกไปหาช่องทางเอง (กดเพจ Facebook/Instagram ในแถวช่องทาง ซึ่งพาออกนอก Deep)
+  — ถ้ารับได้ใน phase นี้ ทำได้เลย ถ้าอยากเก็บทางกลับไว้ ทางเลือกที่กินพื้นที่น้อยสุดคือ
+  ย้ายไปเป็นไอคอนเล็กข้างชื่อร้าน (~0px เพิ่ม เพราะอยู่ในแถวที่มีอยู่แล้ว)
+</div>
+
+<h2>4 · สรุปที่เปลี่ยน</h2>
+<div class="sum">
+  <b>1.</b> ปุ่มแชทออกจากหน้า — <b>−82px</b><br>
+  <b>2.</b> แถบหลักฐาน กริด 2×2 → บรรทัดเดียว (ตัวเลขครบ 4 ตัวเหมือนเดิม) — <b>−154px</b><br>
+  <b>3.</b> ชื่อเหรียญเหลือ 1 บรรทัด ตัดท้าย … — <b>−26px</b><br>
+  <b>4.</b> ประโยค "อัตราสำเร็จจะขึ้นเมื่อ…" ย้ายไปหลังการแตะที่ป้าย "ยังสรุปไม่ได้ ⓘ"<br>
+  <b>5.</b> รัดระยะห่างบน scale เดิม — <b>−8px</b><br><br>
+  <b>รวม 860px → 590px</b> · จอแรกเห็นคลิปเต็มแถวแรก + แถวสองโผล่
+</div>
+
+</div>
+</body>
+</html>

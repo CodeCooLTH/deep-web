@@ -25,10 +25,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 import NextLink from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
 
-import Button from '@mui/material/Button'
 import Typography from '@mui/material/Typography'
 import IconButton from '@mui/material/IconButton'
 
@@ -47,8 +44,8 @@ import ResponsiveSheet from './ResponsiveSheet'
 // เกณฑ์ขั้นต่ำอ่านจาก SSOT — ห้าม hardcode เลขในข้อความ ไม่งั้นวันที่เกณฑ์เปลี่ยน
 // หน้าจอจะบอกตัวเลขที่ไม่ตรงกับที่ระบบใช้จริง
 import { COMPLETION_RATE_MIN_SAMPLE } from '@/lib/order-stats'
-import { resolveChatResponse } from '@/lib/chat-response-display'
-import { badgeRowFit } from '@/lib/badge-row-fit'
+import { getTierChipTone } from '@/lib/trust-tier'
+import { isClampOverflowing } from '@/lib/clamp-overflow'
 import { formatDateTH } from '@/lib/format-date'
 
 /** `imageUrl` = artwork จริงของเหรียญจาก backend — `icon` เป็นแค่ fallback เมื่อเหรียญนั้นยังไม่มีรูป
@@ -95,8 +92,10 @@ export type ProfileHeroData = {
   completionExcluded?: number
   /** ตัวหารยังไม่ถึงเกณฑ์ขั้นต่ำ — ต้องแสดงข้อความอธิบาย ไม่ใช่ซ่อนเงียบ ๆ */
   completionBelowMinSample?: boolean
+  /** 🛑 ทั้งสอง field นี้ **ไม่ถูกอ่านใน ProfileHero อีกต่อไป** ตั้งแต่ถอดปุ่มแชทออก 2026-08-10
+   *  เก็บไว้เพราะ ShopProfile.tsx ส่ง object ก้อนเดียวกันนี้ต่อให้ component อื่นที่ยังใช้ `shopId`
+   *  (เช่นปุ่ม "สอบถามสินค้านี้" ที่การ์ดสินค้า) — ลบออกจะบังคับแก้ caller โดยไม่ได้อะไรกลับมา */
   canChat: boolean
-  /** ปลายทางของปุ่มแชท — null เมื่อยังไม่มีร้าน (ปุ่มจะไม่ถูก render) */
   shopId?: string | null
   /** ระดับถัดไปและระยะห่าง — ทั้งสองหน้าคำนวณจาก getNextTierInfo() อยู่แล้ว แค่ไม่เคยส่งเข้า hero
    *  null = อยู่ระดับสูงสุดแล้ว (แผงอธิบายคะแนนใช้เลือกข้อความ ไม่ใช่ซ่อนบล็อก) */
@@ -127,8 +126,11 @@ export type ProfileHeroData = {
 const STAT_LABELS = {
   general: {
     orders: 'ออเดอร์',
-    customers: 'จำนวนลูกค้า',
-    repeat: 'ลูกค้าซื้อซ้ำ',
+    /* 🛑 ย่อจาก 'จำนวนลูกค้า'/'ลูกค้าซื้อซ้ำ' เมื่อ 2026-08-10 ตอนยุบเป็น 4 คอลัมน์แถวเดียว —
+       ที่ 390px ช่องละ ~87px คำ 11 อักขระที่ 12px จะตกบรรทัดไม่เท่ากันแล้วแถวสูงเบี้ยว
+       ยังผันตาม vertical ครบเหมือนเดิม ไม่ได้เพิ่มคีย์ใหม่ */
+    customers: 'ลูกค้า',
+    repeat: 'ซื้อซ้ำ',
     /** ลักษณนามที่ใช้กับ "จำนวนที่ปิดจบ" — ต่างกันตามโดเมน ไม่ใช่แทนคำนามเฉย ๆ */
     unitLabel: 'ใบ',
     /** คำเต็มที่ใช้แทน "ใบที่ปิดจบ" ซึ่งเป็นศัพท์ภายใน — ผู้ซื้อทั่วไปต้องเดาทั้งกริยาและลักษณนาม */
@@ -136,15 +138,15 @@ const STAT_LABELS = {
   },
   lodging: {
     orders: 'การเข้าพัก',
-    customers: 'จำนวนลูกค้า',
-    repeat: 'ลูกค้ากลับมาพักซ้ำ',
+    customers: 'ลูกค้า',
+    repeat: 'พักซ้ำ',
     unitLabel: 'ครั้ง',
     settledPhrase: 'การเข้าพักที่จบแล้ว',
   },
   serviceQueue: {
     orders: 'นัดหมาย',
-    customers: 'จำนวนลูกค้า',
-    repeat: 'ลูกค้าใช้บริการซ้ำ',
+    customers: 'ลูกค้า',
+    repeat: 'ใช้ซ้ำ',
     unitLabel: 'งาน',
     settledPhrase: 'นัดหมายที่จบแล้ว',
   },
@@ -261,17 +263,8 @@ export default function ProfileHero({
    *  ที่เคยเห็นในฟีดคือหลักฐานว่ามาถูกร้าน จึงควรอยู่ใกล้ตัวตนร้าน ไม่ใช่ซ่อนหลังแท็บ */
   channels?: OfficialChannel[]
 }) {
-  const router = useRouter()
-  const { status: sessionStatus } = useSession()
-
-  /** ยังไม่ล็อกอิน → ไปหน้าเข้าสู่ระบบแล้วเด้งกลับมาที่ห้องแชทเดิม (เส้นทางเดียวกับปุ่มสอบถามสินค้า) */
-  const goChat = () => {
-    if (!data.shopId) return
-    const target = `/messages/${data.shopId}`
-    router.push(
-      sessionStatus === 'authenticated' ? target : `/auth/sign-in?callbackUrl=${encodeURIComponent(target)}`,
-    )
-  }
+  // สีของช่วงระดับในชิปคะแนน — ผ่านคอนทราสต์แล้วทุกระดับ (ดูเหตุผลใน lib/trust-tier.ts)
+  const tierTone = getTierChipTone(data.trustScore)
 
   const L = data.isLodging ? STAT_LABELS.lodging : data.isServiceQueue ? STAT_LABELS.serviceQueue : STAT_LABELS.general
 
@@ -285,99 +278,98 @@ export default function ProfileHero({
   // 🛑 `hint` คือตัวหารที่ BR-OSM-07 (feature 00039) บังคับว่าต้องแสดงคู่ % เสมอ —
   // % ที่ผู้ซื้อคำนวณย้อนกลับไม่ได้คือ % ที่ไม่มีใครเชื่อ ห้ามตัดทิ้งตอนย้ายเข้ามาในแถว
   // และเมื่อยังไม่ถึงเกณฑ์ขั้นต่ำต้องขึ้น "ยังสรุปไม่ได้" ไม่ใช่หายเงียบหรือแสดง 0%
-  // อัตราการตอบแชท — ซ่อนทั้งบรรทัดเมื่อ sample ยังไม่ถึงเกณฑ์ (ไม่ใช่โชว์ 0%)
-  const chatResponse = resolveChatResponse(data)
-
+  // 🛑 ลำดับใหม่ (user เคาะ 2026-08-10): ออเดอร์ · ลูกค้า · ซื้อซ้ำ · อัตราสำเร็จ
+  // เดิมอัตราสำเร็จอยู่ช่องแรก แต่มันเป็น "ผลสรุป" ของสามช่องแรก การอ่านผลสรุปก่อนตัวตั้งทำให้
+  // ผู้ซื้อไม่รู้ว่า % นั้นมาจากฐานเท่าไหร่ — และช่องนี้เป็นช่องเดียวที่อาจกดได้ วางท้ายสุด
+  // จึงไม่ทำให้ผู้ใช้เผลอกดตอนกวาดตาจากซ้าย
+  //
+  // `interactive` = เซลล์นี้เปิดแผงอธิบายได้ — เฉพาะตอนมีอะไรให้อธิบายจริงเท่านั้น
+  // ถ้าข้อมูลครบต้องเป็น static ไม่ใช่ปุ่มที่กดแล้วไม่มีอะไรเกิดขึ้น
   const stats = [
+    { value: data.completedOrders ?? 0, label: L.orders, highlight: false, interactive: false },
+    { value: data.customerCount ?? 0, label: L.customers, highlight: false, interactive: false },
+    { value: data.repeatCustomerCount ?? 0, label: L.repeat, highlight: false, interactive: false },
     data.completionRate != null
       ? {
           value: `${data.completionRate}%`,
           label: 'อัตราสำเร็จ',
-          // ถอด "จาก N ใบ" ออกจากช่อง (user 2026-08-10: "76 ใบคืออะไร ผมว่าเอาออกดีกว่า")
-          // 🛑 นี่เป็นการเบี่ยงจาก BR-OSM-07 (feature 00039) ที่กำหนดให้ % ต้องมาคู่ตัวหารเสมอ
-          // ต้นเหตุที่มันอ่านไม่รู้เรื่องคือ **ผมย่อคำเอง** ตอนยุบ % เข้าช่องแคบ: ของเดิมเขียนว่า
-          // "จาก 60 ออเดอร์ที่จบแล้ว" ซึ่งมีคำนามครบ พอเหลือ "จาก 76 ใบ" ลักษณนามลอยจึงไร้ความหมาย
-          // ถ้าจะเอาตัวหารกลับมา ให้ใช้ประโยคเต็มที่มีคำนาม ไม่ใช่เอาคำย่อกลับมา
-          hint: null,
           highlight: true,
+          interactive: Boolean(data.completionExcluded),
         }
       : {
           value: '—',
           label: 'อัตราสำเร็จ',
-          hint: data.completionBelowMinSample ? 'ยังสรุปไม่ได้' : null,
           highlight: false,
+          interactive: Boolean(data.completionBelowMinSample),
         },
-    { value: data.completedOrders ?? 0, label: L.orders, hint: null, highlight: false },
-    { value: data.customerCount ?? 0, label: L.customers, hint: null, highlight: false },
-    { value: data.repeatCustomerCount ?? 0, label: L.repeat, hint: null, highlight: false },
   ]
 
-  // E3 — เหรียญที่เกิน 5 ใบ: `data.badges` ส่งมาครบทุกใบอยู่แล้ว (หน้าไม่ได้ตัด) โค้ดแค่ slice เอง
-  // จึงกางได้โดยไม่ต้องดึงข้อมูลเพิ่ม เดิมชิป `+N` เป็น <span> ตาย = ประกาศว่ามีอีกแล้วจบตรงนั้น
-  const [badgesExpanded, setBadgesExpanded] = useState(false)
-  // 🛑 ปุ่มกางโผล่เฉพาะตอน "ล้นจริง" — วัดความกว้างของแถวเอง ไม่ใช่เดาจาก breakpoint
-  // (user 2026-08-10: "ทำไมมันมี icon ย่อ ตลอด ทั้ง ๆ ที่ร้านนี้ได้ไม่เต็ม ต้องมีเฉพาะกรณีมันล้นสิ")
-  // เหตุผลเต็มและกฎการคำนวณอยู่ที่ src/lib/badge-row-fit.ts
-  const badgeRowRef = useRef<HTMLUListElement>(null)
-  const [badgeRowWidth, setBadgeRowWidth] = useState(0)
-
-  useEffect(() => {
-    const el = badgeRowRef.current
-    if (!el) return
-    const update = () => setBadgeRowWidth(el.clientWidth)
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  const badgeFit = badgeRowFit(badgeRowWidth, data.badges.length)
-  const shownBadges = badgesExpanded ? data.badges : data.badges.slice(0, badgeFit.visible)
-  const badgeOverflow = badgesExpanded ? 0 : badgeFit.overflow
 
   // E2 — แผงอธิบายคะแนน เปิดได้จาก 2 ทาง (เช็คเขียว "ยืนยันตัวตนแล้ว" กับไอคอนข้อมูล) แต่ปลายทางเดียว
   // รวมเป็นแผงเดียวเพราะการยืนยันตัวตนคือองค์ประกอบที่มีน้ำหนักสูงสุดของคะแนน (35%) แยกกันจะซ้ำกันเอง
   // และแก้ปัญหาเดิมที่เช็คเขียวสื่อความหมายด้วย `title` อย่างเดียว — มือถือไม่มี hover จึงไม่มีทางรู้
   const [scorePanelOpen, setScorePanelOpen] = useState(false)
 
+  // แผงอธิบายอัตราสำเร็จ — ประโยคยาวย้ายมาอยู่หลังการแตะแทนที่จะ inline เสมอ (user 2026-08-10
+  // "static กินพื้นที่เยอะมาก") ตัวเลข 4 ช่องยังอยู่ครบตามมติ 2026-07-26 ไม่แตะแม้แต่ช่องเดียว
+  const [completionPanelOpen, setCompletionPanelOpen] = useState(false)
+
+  // ── คำอธิบายร้าน: ย่อ 2 บรรทัด กดดูเพิ่มเติมได้ (user 2026-08-10 "ข้างบนมันแน่น") ──
+  // 🛑 ปุ่ม "ดูเพิ่มเติม" โผล่เฉพาะตอนข้อความล้นจริง ไม่ใช่เดาจากจำนวนตัวอักษร — จำนวนตัวอักษร
+  // บอกไม่ได้ว่าจะตก 2 บรรทัดไหม เพราะขึ้นกับความกว้างกล่องและการตัดคำของภาษาไทยที่ไม่มีช่องว่าง
+  // ระหว่างคำ (บทเรียนเดียวกับปุ่มกางเหรียญที่ user ทักไปเมื่อเช้าว่าโผล่ตลอด — lib/clamp-overflow.ts)
+  const bioRef = useRef<HTMLParagraphElement>(null)
+  const [bioExpanded, setBioExpanded] = useState(false)
+  const [bioOverflows, setBioOverflows] = useState(false)
+
+  useEffect(() => {
+    const el = bioRef.current
+    if (!el) return
+    // วัดตอน "ย่ออยู่" เท่านั้น — ตอนกางแล้ว scrollHeight = clientHeight เสมอ ถ้าวัดตอนนั้น
+    // ปุ่มจะหายไปทันทีที่กด แล้วผู้ใช้ย่อกลับไม่ได้
+    const update = () => {
+      if (bioExpanded) return
+      setBioOverflows(isClampOverflowing(el.scrollHeight, el.clientHeight))
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [bioExpanded, data.bio])
+
   // เหรียญที่กดเปิดดูรายละเอียดอยู่ — null = ปิด (user 2026-08-10 "อยากให้ badge กดได้ แล้วมี modal
   // ขึ้นมาแสดงว่าเค้าได้จากเงื่อนไขอะไร เมื่อไหร่ เน้นให้ buyer อ่านแล้วเชื่อมั่นในร้าน")
+  /* 🛑 โมดัลรายละเอียดเหรียญ **เข้าไม่ถึงตั้งแต่ 2026-08-10** — ไม่มีใครเรียก `setOpenBadge(b)`
+     อีกแล้วหลังถอดกริดเหรียญที่กดได้ออก (user ไม่เอาการกางในหน้า)
+
+     คงไว้โดยตั้งใจ ไม่ใช่ลืม: นี่คือชิ้นส่วนของปลายทางที่ user ต้องการจริง — "กดแล้วเป็น modal
+     หรือเปลี่ยนหน้าไปเลย ซึ่งยังไม่มีตอนนี้" วันที่ทำโมดัลรวมเหรียญ (หรือ route ของเหรียญ)
+     ตัวนี้คือเนื้อหาต่อ 1 ใบที่เอาไปใช้ได้ทันที
+
+     🛑 ถ้าอ่านถึงตรงนี้แล้วยังไม่มีใครเรียก และไม่มีแผนจะทำโมดัลแล้ว — ลบทิ้ง อย่าปล่อยไว้
+     เพราะโค้ด UI ที่เข้าไม่ถึงจะกลายเป็นสิ่งที่คนอ่านเชื่อว่ายังทำงานอยู่ */
   const [openBadge, setOpenBadge] = useState<HeroBadge | null>(null)
 
   return (
     <div className='is-full'>
       {/* ── ปก: รูปจริงถ้าร้านอัปโหลด ไม่งั้นใช้ไล่สีตามระดับความน่าเชื่อถือ ──
-             🛑 ความสูงขึ้นกับ "มีรูปจริงไหม" ไม่ใช่ขนาดจอเพียงอย่างเดียว
+             176 → 200 → 224px **เท่ากันทั้งสองกรณี** (user ทัก 2026-08-10 รอบสอง "cover ก็เล็ก"
+             หลังจากรอบแรกยกจาก 104 เป็น 132/144–224 แล้วยังไม่พอ)
+             ที่ 390px ได้ 2.2:1 ใกล้เคียง Facebook Page cover (2.63:1) · ที่ 960px ได้ 4.29:1
 
-             - มีรูป → 144 → 184 → 224px ตามความกว้าง (ที่ 960px = 4.29:1 เทียบ Facebook Page
-               cover 2.63:1 · LinkedIn 4:1) เดิมเป็น 104/140/176 ซึ่งที่ 960px ให้ 5.45:1 = แถบบาง
-               ที่ object-cover ครอปรูปของร้านทิ้งเกินจำเป็น ทั้งที่นี่คือรูปแรกที่ผู้ซื้อเห็น
-             - ไม่มีรูป → ตรึง 132px ทุกจอ (เดิม 104px)
+             🛑 เดิมแยกความสูง 2 กรณี (มีรูป > ไล่สี) ด้วยเหตุผลว่า "ของจริงควรได้พื้นที่มากกว่า
+             ของตกแต่ง" — ยกเลิกแล้ว เพราะผลข้างเคียงคือ **หน้าร้านสองร้านสูงไม่เท่ากัน** ซึ่งขัด
+             หลักที่ไฟล์นี้ยึดมาตลอดว่า layout ต้องคงที่ข้ามร้านเพื่อให้ผู้ซื้อเทียบกันได้
+             (หลักเดียวกับที่บังคับให้แถบตัวเลขแสดงครบ 4 ช่องเสมอแทนการซ่อนช่องว่าง)
 
-             🛑 ทำไมเคส "ไม่มีรูป" ยังไม่โตตาม breakpoint: เหตุผลเดิมยังถูก **ครึ่งเดียว** —
-             ไล่สี tier เป็นของตกแต่ง การให้มันกินพื้นที่เพิ่มตามจอที่กว้างขึ้นไม่ได้เพิ่มหลักฐาน
-             อะไรให้ผู้ซื้อ (ข้อนี้เก็บไว้) แต่ **ค่าฐาน 104px เองตั้งต่ำเกินไป** จนอ่านเป็นเส้นคาด
-             ไม่ใช่แบนเนอร์ โดยเฉพาะที่ 960px (9.2:1) ซึ่งเป็นสิ่งที่ user ทักมาเอง (2026-08-10)
-             ยกฐานขึ้นแต่ไม่เปิด ramp = รักษาข้อโต้แย้งเดิมไว้พร้อมแก้ปัญหาที่เกิดจริง
+             แลกด้วย: ร้านที่ยังไม่อัปโหลดปกได้แถบไล่สีสูง 176–224px ซึ่งเป็นพื้นที่ตกแต่งล้วน
+             และร้านระดับ Deep Star จะได้ม่วงกินพื้นที่มากขึ้น — จึงเจือจางไล่สีของ Star ลง 1 ขั้น
+             ไปแล้วในรอบก่อน (getTierGradient) ให้ยังอยู่ในเพดาน One Voice
 
-             ผลที่ตั้งใจ: เคส "มีรูป" ได้พื้นที่มากกว่าเคส gradient เสมอทุกจอ (224 vs 132 ที่ 960px)
-             — ของจริงที่ร้านอัปโหลดชนะของตกแต่งที่ระบบสร้างให้ ตามหลัก show-don't-tell ของ PRODUCT.md
-
-             หลักฐานว่าตัวเลขระดับนี้ไม่ได้เกินเลย: `UserProfileHeader.tsx` ของ Vuexy เองใช้
-             `<CardMedia className='bs-[250px]'>` คงที่ทุกจอ — ที่เสนอนี้ยัง**อนุรักษ์นิยมกว่าธีม**
-
-             ⚠️ ความเสี่ยง One Voice ที่ยังเปิดอยู่: Deep Star (score ≥ 90) เป็น tier เดียวที่ไล่สี
-             ใช้ #7367F0 ซึ่งเป็น primary ของทั้งระบบ แถบที่สูงขึ้นทำให้ม่วงกินพื้นที่เพิ่ม ~27%
-             ตอนนี้ยังไม่มีร้านไหนในฐานถึงเกณฑ์นั้น จึงเป็นความเสี่ยงเชิงทฤษฎี — ทางแก้ที่ ux เสนอ
-             คือเจือจางไล่สีของ Star ลง 1 ขั้นบน tonalRamp (คง hue เดิม) แต่แตะความรู้สึก "รางวัล"
-             ของ tier สูงสุด จึงรอ user เคาะ ไม่ตัดสินใจเอง
-
-             ไม่แตะ -mbs-[42px] ของบล็อกถัดไป — 42 คือครึ่งหนึ่งของรูป 84px ผูกกับ "ขนาดรูป"
-             ไม่ได้ผูกกับ "ความสูงปก" ปกจะสูงเท่าไหร่ผลลัพธ์เหมือนเดิมตราบใดที่ปก ≥ 50px */}
+             ไม่แตะ -mbs-[42px] ของบล็อกถัดไป — 42 คือครึ่งของรูป 84px ผูกกับ "ขนาดรูป"
+             ไม่ใช่ "ความสูงปก" */}
       <div
-        className={`relative overflow-hidden ${
-          data.coverImage ? 'bs-[144px] sm:bs-[184px] md:bs-[224px]' : 'bs-[132px]'
-        }`}
+        className='relative overflow-hidden bs-[176px] sm:bs-[200px] md:bs-[224px]'
         style={{ background: data.tierGradient }}
       >
         <ProfileImg src={data.coverImage} alt='' className='absolute inset-0 is-full bs-full object-cover' />
@@ -408,7 +400,18 @@ export default function ProfileHero({
       </div>
 
       {/* ── ตัวตนร้าน: รูปวงกลมคร่อมรอยต่อระหว่างปกกับเนื้อหา แทนการใช้มุมโค้งทับ ── */}
-      <div className='text-center pli-5 pbe-3 -mbs-[42px] relative'>
+      {/* ── จังหวะแนวตั้งของหัวโปรไฟล์ (ตั้งเป็นระบบเดียว 2026-08-10) ──
+             ระหว่าง "บล็อกใหญ่" (ตัวตน · เพจ · เหรียญ · ตัวเลข) = **16px เสมอ**
+             ภายในบล็อก = 4–10px
+
+             🛑 วิธีนับ: แถวที่มี `min-bs-[44px]` (แถวเพจ) มีที่ว่างในตัวข้างละ ~12px อยู่แล้ว
+             เพราะเนื้อหาจริงสูงแค่ ~20px แล้วถูกจัดกลาง — บล็อกที่อยู่ติดกับมันจึงใส่ padding
+             แค่ 4px ก็ได้ระยะจริง 16px ส่วนบล็อกที่ไม่มี min-height (แถวเหรียญ) ต้องใส่เต็ม
+
+             ผมพลาดข้อนี้มา 2 รอบในวันเดียว — รอบแรกใส่ padding เต็มทุกบล็อกแล้วได้ 24px
+             (user: "มันห่าง ๆ กันไงไม่รู้") รอบสองถอด padding ออกหมดแล้วได้ ~12px และติดกันเป็นพืด
+             (user: "มันแออัดกันสุด ๆ") ทั้งสองรอบผมแก้ทีละจุดโดยไม่มีเลขกลางให้ยึด */}
+      <div className='text-center pli-5 pbe-1 -mbs-[42px] relative'>
         {/* 🛑 กล่องนอกต้อง **ไม่มี** overflow-hidden ไม่งั้นป้ายระดับที่ absolute อยู่มุมล่างขวาโดนตัดหาย
             วงกลมที่ครอบรูปเป็นชั้นในต่างหากที่ถือ overflow-hidden ไว้ */}
         <div className='relative is-[84px] bs-[84px] mli-auto mbe-2.5'>
@@ -437,12 +440,15 @@ export default function ProfileHero({
 
         <Typography component='h1' className='text-xl font-extrabold' sx={{ letterSpacing: '-0.02em' }}>
           {data.shopName}
-        </Typography>
+          {/* 🛑 เช็คยืนยันตัวตนย้ายมาต่อท้าย "ชื่อร้าน" (user 2026-08-10) — เดิมอยู่หน้าชิปคะแนน
+              ซึ่งผิดที่ เพราะมันเป็นคุณสมบัติของ *ชื่อร้าน* ไม่ใช่ของ *คะแนน* และเป็นแพตเทิร์น
+              verified badge ที่ทุกแพลตฟอร์มใช้ตรงกัน ผู้ซื้อจึงอ่านออกโดยไม่ต้องเรียนรู้ใหม่
 
-        <div className='flex items-center justify-center gap-1.5 flex-wrap mbs-1.5'>
-          {/* เดิมเป็น <span title='...'> — `title` ขึ้นเมื่อ hover เท่านั้น ซึ่งบนมือถือ (surface หลัก
-              ของเรา) ไม่มี hover เลย ความหมายของเช็คเขียวจึงเข้าถึงไม่ได้ทั้งกลุ่มผู้ใช้หลัก
-              ตอนนี้เป็นปุ่มที่เปิดแผงอธิบายเดียวกับไอคอนข้อมูล (ยืนยันตัวตน = 35% ของคะแนน) */}
+              ยังเป็น <button> จริงเหมือนเดิม ไม่ใช่ <span> ที่มีแต่ `title` — มือถือไม่มี hover
+              ความหมายจึงต้องมาจาก aria-label · p-3.5 เป็น hit-area ที่มองไม่เห็น ดันวง 18px
+              ให้รวมเป็น 46px ผ่านเกณฑ์ 44px โดยที่ตาเห็นวงเท่าเดิม
+              (<button> ซ้อนใน <h1> ถูกตามสเปก HTML — h1 รับ inline interactive content ได้
+              และ screen reader จะอ่านชื่อร้านต่อด้วย "ยืนยันตัวตนแล้ว" ซึ่งให้บริบทมากขึ้น) */}
           {data.maxVerifyLevel > 0 && (
             <button
               type='button'
@@ -451,24 +457,51 @@ export default function ProfileHero({
               aria-expanded={scorePanelOpen}
               aria-controls='trust-score-panel'
               aria-label='ยืนยันตัวตนแล้ว — แตะเพื่อดูรายละเอียดคะแนนความน่าเชื่อถือ'
-              title='ยืนยันตัวตนแล้ว'
-              className='is-[18px] bs-[18px] rounded-full bg-success text-white flex items-center justify-center border-0 p-0 cursor-pointer'
+              /* 🛑 พื้นที่แตะทำด้วย `after:` ที่ absolute ไม่ใช่ padding จริง — padding 14px รอบวง 18px
+                  ให้ hit area 46px ก็จริง แต่มัน **ขยายกล่องของปุ่มไปด้วย** ซึ่งอยู่ในบรรทัดชื่อร้าน
+                  → line box ของ <h1> โตขึ้น 28px แล้วดันชิปคะแนนกับบรรทัดที่เหลือห่างลงไปทั้งชุด
+                  (user 2026-08-10: "ระยะมันห่างไป จากชื่อร้านลงมา")
+                  `after:inset-[-13px]` ให้พื้นที่แตะ 44px เท่าเดิมโดยไม่กินที่ในโฟลว์เลย */
+              className='relative inline-flex items-center justify-center align-middle border-0 bg-transparent p-0 mis-1.5 cursor-pointer after:absolute after:inset-[-13px] after:content-[""]'
             >
-              <Icon icon='lucide:check' width={11} />
+              <span
+                title='ยืนยันตัวตนแล้ว'
+                className='is-[18px] bs-[18px] rounded-full bg-success text-white flex items-center justify-center'
+              >
+                <Icon icon='lucide:check' width={11} />
+              </span>
             </button>
           )}
-          {/* คะแนนความน่าเชื่อถือ — ตำแหน่งข้างชื่อตามที่ user กำหนด สีของตัวเลขมาจากระดับจริง
-              ไม่ได้ตายตัวเป็นเหลือง (ยึด SSOT docs/10 - Business Rules/Tier Lists.md) */}
-          {/* 🛑 แสดง "/100" ติดตัวเลขเสมอ ไม่ใช่ซ่อนไว้ในแผงอธิบาย — เดิมเป็นเลขเปล่า ผู้ชมไม่มีทาง
-              รู้ว่า 24 ดีหรือแย่ ทั้งที่มันอยู่ตำแหน่งเด่นที่สุดของหน้าติดชื่อร้าน และมาก่อน 93% ใน
-              ลำดับการอ่าน คนที่แค่กวาดตาผ่าน (ซึ่งคือคนส่วนใหญ่) ต้องได้บริบทโดยไม่ต้องกดอะไรเลย */}
-          <span className='inline-flex items-center gap-1 rounded-full plb-1 pli-2.5 text-[13px] font-extrabold bg-[var(--mui-palette-text-primary)] text-[var(--mui-palette-background-paper)] tabular-nums'>
-            {`${data.trustScore}/${TRUST_SCORE_MAX}`}
+        </Typography>
+
+        {/* ── ชิปคะแนน: พิลเดียว 2 ช่วง (user เคาะแบบ T2 เมื่อ 2026-08-10) ──
+            เดิมเป็น "ชิป 2 ก้อนที่ไม่เกี่ยวกัน" วางต่อกัน — ก้อนดำบอกตัวเลข ก้อนเทาบอกชื่อระดับ
+            ทั้งที่มันคือของชิ้นเดียวกัน (78 คะแนน → เพราะงั้นถึงเป็น Deep Gold)
+
+            และที่สำคัญกว่า: ก้อนระดับใช้พื้นเทากลาง ๆ ทำให้ **Deep Gold กับ Deep Classic
+            หน้าตาเหมือนกันเป๊ะ** แยกได้ด้วยการอ่านตัวหนังสืออย่างเดียว ทั้งที่สีประจำระดับมีอยู่แล้ว
+            ในระบบและปกก็ใช้สีชุดนี้อยู่ — มีแต่ชิปที่ไม่ใช้ (getTierChipTone ใน lib/trust-tier.ts)
+
+            `/100` เล็กลงและจาง = ตัวเลขจริงเด่นขึ้นโดยไม่ต้องขยายพิล แต่ยังมีบริบทให้คนที่
+            กวาดตาผ่านรู้ว่า 26 นั้นเทียบกับอะไร (เหตุผลเดิมตอนเพิ่ม /100 เข้ามา ยังใช้อยู่) */}
+        <div className='flex items-center justify-center gap-0.5 flex-wrap mbs-1.5'>
+          <span className='inline-flex items-stretch rounded-full overflow-hidden'>
+            {/* 15px = ขั้น "h6 / Subtitle / Body" ของ ramp (DESIGN.md §Typography) ไม่ใช่ 14px
+                ซึ่งไม่อยู่บน ramp เลย — ผมตั้ง 14 ตอนแรกเพราะอยากให้ใหญ่กว่า 13px ของชิปเดิม
+                แล้วเลือกเลขที่ "ดูพอดี" แทนที่จะเลือกขั้นถัดไปที่ระบบมีอยู่ (impeccable hook จับได้) */}
+            <span className='inline-flex items-center plb-1 pli-2 text-[15px] font-extrabold tabular-nums leading-none bg-[var(--mui-palette-text-primary)] text-[var(--mui-palette-background-paper)]'>
+              {data.trustScore}
+              <span className='text-[11px] font-bold opacity-65'>{`/${TRUST_SCORE_MAX}`}</span>
+            </span>
+            <span
+              className='inline-flex items-center plb-1 pli-2.5 text-[13px] font-bold leading-none'
+              style={{ background: tierTone.bg, color: tierTone.text }}
+            >
+              {data.tierLabel}
+            </span>
           </span>
-          <span className='rounded-lg plb-1 pli-2.5 text-[13px] font-semibold bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-secondary)]'>
-            {data.tierLabel}
-          </span>
-          {/* ทางลึกสำหรับคนที่อยากรู้ว่าคะแนนมาจากไหน (progressive disclosure) — กดเท่านั้น ไม่ใช้ hover */}
+          {/* ทางลึกสำหรับคนที่อยากรู้ว่าคะแนนมาจากไหน (progressive disclosure) — กดเท่านั้น ไม่ใช้ hover
+              min-bs/min-is 44px บังคับตรง ๆ แทนการคำนวณจาก padding (ไอคอน 15px + p-2 ได้แค่ 31px) */}
           <button
             type='button'
             onClick={() => setScorePanelOpen(true)}
@@ -476,16 +509,13 @@ export default function ProfileHero({
             aria-expanded={scorePanelOpen}
             aria-controls='trust-score-panel'
             aria-label='ดูวิธีคำนวณคะแนนความน่าเชื่อถือ'
-            className='flex items-center justify-center border-0 bg-transparent p-1 cursor-pointer text-[var(--mui-palette-text-secondary)]'
+            /* เหตุผลเดียวกับเช็คเขียว — 44px จริงในแถวที่พิลสูง ~28px จะดันแถวทั้งแถวให้สูงขึ้น */
+            className='relative flex items-center justify-center border-0 bg-transparent p-0 mis-0.5 cursor-pointer text-[var(--mui-palette-text-secondary)] after:absolute after:inset-[-15px] after:content-[""]'
           >
             <Icon icon='lucide:info' width={15} />
           </button>
         </div>
 
-        {/* text.secondary ไม่ใช่ text.disabled — ink ที่ 0.4 ได้คอนทราสต์ ~2.3:1 ตก AA (4.5:1)
-            ส่วน 0.7 ได้ ~5.2:1 ผ่าน. บรรทัดนี้คือชื่อผู้ใช้/หมวด/วันเปิดร้าน = ข้อมูลจริงที่ผู้ซื้อ
-            ใช้ยืนยันว่ามาถูกร้าน ไม่ใช่สถานะปิดใช้งาน จึงไม่ควรอยู่ชั้น disabled
-            แก้ความเข้มอย่างเดียว ไม่แตะเฉด (docs/conventions/contrast-fix-keeps-hue.md) */}
         {/* วันเปิดร้านอยู่ **บรรทัดเดียวกับ slug** (user 2026-08-10 "ย้ายขึ้นไปไว้ข้างๆ slug ร้าน")
             สองค่านี้เป็น "ตัวระบุร้าน" เหมือนกัน — ชื่อที่ใช้เรียก กับ อายุที่ใช้ประเมิน — ผู้ซื้อ
             อ่านคู่กันในการกวาดตาครั้งเดียว ส่วนหมวดหมู่เป็น "ขายอะไร" ซึ่งเป็นคำถามคนละข้อ
@@ -504,149 +534,102 @@ export default function ProfileHero({
             จำกัด 3 บรรทัดแล้วตัด — คำอธิบายยาว ๆ จะดันแถวช่องทาง/เหรียญ/ตัวเลขตกจอแรกไปหมด
             ตัวเต็มอ่านได้ที่แท็บ "เกี่ยวกับร้าน" ซึ่งยังแสดงครบเหมือนเดิม */}
         {data.bio?.trim() ? (
+          /* ── คำอธิบายร้าน: กดที่ตัวข้อความเพื่อกาง ไม่มีปุ่มแยกบรรทัด ──
+             user 2026-08-10: "เอาดูเพิ่มเติมออก แต่เปลี่ยนเป็น ... หรือทำให้ดูกดได้"
+
+             เดิมปุ่ม "ดูเพิ่มเติม" กินทั้งบรรทัด (~26px) เพื่อบอกสิ่งที่ `…` ของ line-clamp
+             บอกอยู่แล้ว — ตอนนี้ตัวข้อความเองเป็นปุ่ม และมีคำว่า "เพิ่มเติม" สีหลักซ้อนอยู่
+             ท้ายบรรทัดสุดท้าย (แพตเทิร์นเดียวกับ Instagram/Facebook) = ได้ทั้ง `…` และสัญญาณว่ากดได้
+             โดยไม่กินบรรทัดใหม่เลย
+
+             🛑 ตัวซ้อนต้องมีพื้น paper ทึบ ไม่ใช่โปร่ง — มันวางทับตัวหนังสือที่ยังอยู่ข้างใต้
+             (line-clamp ไม่ได้ลบข้อความ แค่ซ่อน) ถ้าโปร่งจะเห็นตัวอักษรซ้อนกันเป็นเงา
+
+             🛑 `bioOverflows` มาจากการวัดจริง ไม่ใช่นับตัวอักษร — ข้อความไทยไม่มีช่องว่างระหว่างคำ
+             จำนวนอักขระบอกไม่ได้ว่าจะตก 2 บรรทัดไหม (lib/clamp-overflow.ts) */
           <Typography
-            component='p'
+            ref={bioRef}
+            component={bioOverflows ? 'button' : 'p'}
             color='text.primary'
-            className='m-0 mbs-2 text-sm mli-auto'
+            onClick={bioOverflows ? () => setBioExpanded((v) => !v) : undefined}
+            aria-expanded={bioOverflows ? bioExpanded : undefined}
+            className={`m-0 mbs-2 text-sm mli-auto border-0 bg-transparent p-0 font-[inherit] ${
+              bioOverflows ? 'cursor-pointer relative block is-full' : ''
+            }`}
             sx={{
               maxInlineSize: '46ch',
-              display: '-webkit-box',
-              WebkitBoxOrient: 'vertical',
-              WebkitLineClamp: 3,
-              overflow: 'hidden',
+              textAlign: 'center',
+              ...(bioExpanded
+                ? {}
+                : {
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: 2,
+                    overflow: 'hidden',
+                  }),
             }}
           >
             {data.bio.trim()}
+            {bioOverflows && !bioExpanded && (
+              <span
+                aria-hidden
+                className='absolute inset-be-0 inline-end-0 pis-2 text-[13px] font-semibold text-primary bg-[var(--mui-palette-background-paper)]'
+              >
+                เพิ่มเติม
+              </span>
+            )}
           </Typography>
         ) : null}
 
-        {/* 🛑 render ก็ต่อเมื่อมีหมวดจริง — วันเปิดร้านย้ายขึ้นไปบรรทัดบนแล้ว บรรทัดนี้จึงเหลือ
-            ค่าเดียว ถ้าไม่เช็คก่อน ร้านที่ยังไม่ตั้งหมวด (มีจริงในฐาน) จะได้ Typography เปล่า
-            ที่กินระยะห่าง mbs-2 ไปฟรี ๆ แล้วช่องไฟใต้คำอธิบายจะไม่เท่ากันระหว่างร้าน */}
-        {data.category ? (
-          <Typography variant='caption' color='text.secondary' className='block mbs-2'>
-            {data.category}
-          </Typography>
-        ) : null}
+        {/* 🛑 บรรทัด "หมวดหมู่ · ตอบกลับ N% ใน X" ถูกถอดออกชั่วคราว (user 2026-08-10 "ลองเอา
+            category / ตอบภายใน 1 นาที ออกก่อน") — หัวโปรไฟล์แน่นเกินไป
+
+            ข้อมูลไม่ได้หายจากระบบ: `data.category` กับ `data.chatResponse*` ยังส่งมาครบเหมือนเดิม
+            ทั้งสองหน้า (/b/[slug] และ /u/[username]) เอากลับมาแค่คืนบล็อกนี้ + `resolveChatResponse`
+            ไม่ต้องแตะ data layer — ดู git history ของไฟล์นี้ที่คอมมิตวันเดียวกัน */}
       </div>
 
       {/* ── ช่องทางที่เชื่อมต่อ: อยู่ติดบรรทัด slug ── */}
       <ChannelStrip channels={channels} />
 
-      {/* ── อัตราการตอบแชท: อยู่ติดแถวช่องทาง ──
-             user ย้ายมาที่นี่เอง (2026-08-10 "มันต้องอยู่กับพวก page ด้านบนไหมนะ") และถูก —
-             แถวบนบอก **ช่องทางที่ทักได้** บรรทัดนี้บอก **ทักแล้วได้คำตอบเร็วแค่ไหน** เป็นคำถาม
-             ต่อเนื่องประโยคเดียวกัน ส่วนแถบตัวเลขด้านล่างเป็นหลักฐานการซื้อขาย (ออเดอร์/ลูกค้า/
-             อัตราสำเร็จ) ซึ่งมาจากคนละแหล่งและตอบคนละคำถาม การเอาไปวางท้ายแถบนั้นทำให้มันอ่าน
-             เหมือนสถิติการขายตัวที่ 5 ทั้งที่ไม่ได้มาจากออเดอร์สักใบ
 
-             🛑 ห้ามย้ายกลับไปแท็บ "เกี่ยวกับร้าน" (user สั่งรอบเดียวกัน) — ผู้ซื้ออ่านตัวเลขนี้
-             เพื่อตัดสินใจว่าจะกดทักแชทดีไหม ข้อมูลที่ใช้ตัดสินใจต้องอยู่ที่เดียวกับปุ่ม */}
-      {chatResponse && (
-        <div className='flex items-center justify-center gap-x-2 gap-y-1 flex-wrap mbs-2'>
-          <Icon icon='tabler-message-circle-2' fontSize={16} className='text-textSecondary' />
-          <Typography variant='caption' color='text.secondary'>
-            ตอบกลับ <strong className='text-textPrimary tabular-nums'>{chatResponse.ratePercent}%</strong>
-            {chatResponse.timeLabel ? (
-              <>
-                {' · ตอบเฉลี่ย '}
-                <strong className='text-textPrimary'>{chatResponse.timeLabel}</strong>
-              </>
-            ) : null}
-          </Typography>
-        </div>
-      )}
+      {/* ── เหรียญ: แถวสรุปบรรทัดเดียว (user 2026-08-10 ส่ง ref ของ Instagram
+             "Followed by ckfastwork, paulpattarapon + 3 more") ──
 
-      {/* ── เหรียญ: ชิปที่บอกชื่อจริง ไม่ใช่วงกลมไอคอนล้วน ──
-             เดิมเป็นวงกลม 38px ที่มีแต่ไอคอน + title สำหรับ hover ซึ่งบนมือถือ (surface หลักของเรา)
-             ไม่มี hover เลย ผู้ชมจึงเห็นวงกลมสีลอย ๆ ที่ตีความไม่ได้ — ซึ่งตรงกับสิ่งที่ DESIGN.md
-             Principle #1 ห้ามไว้ตรง ๆ ว่า "ห้าม badge ตกแต่ง" เหรียญที่อ่านไม่ออกคือของตกแต่ง
-             ไม่ใช่หลักฐาน. ใส่ชื่อลงไปแล้วมันกลายเป็นหลักฐานที่ทำงานจริง
+           เดิมเป็นบล็อกของตัวเองสูง ~96px (หัวข้อ + กริดไอคอน + ชื่อใต้ไอคอน) ตอนนี้ ~32px
 
-             สีเปลี่ยนจาก warning-amber เป็นกลาง — DESIGN.md สงวนส้มไว้ให้ "รอดำเนินการ/เตือน"
-             การเอาสีเตือนมาใช้กับรางวัลที่ได้มาแล้วทำให้ความหมายของสีทั้งระบบเพี้ยน และไม่ใช้เขียว
-             เพราะ Verified-Means-Green สงวนไว้ให้ "ยืนยันแล้ว" โดยเฉพาะ ใช้กับทุกเหรียญจะทำให้
-             สัญญาณเขียวเฟ้อตามที่กติกาเตือนไว้เอง ── */}
-      {shownBadges.length > 0 && (
-        <div className='pli-5 pbe-4'>
-          {/* หัวข้อ + ทางไปดูทั้งหมด — โครงตาม ref ที่ user ส่ง (2026-08-10 "ตอนแรก Achievement
-              ของร้าน ผมอยากได้แบบนี้") แต่ ref เป็น eyebrow ตัวพิมพ์ใหญ่ภาษาอังกฤษ ซึ่ง DESIGN.md
-              ระบุไว้ใน Anti-references ตรงตัว ("eyebrow ตัวพิมพ์ใหญ่จิ๋วเหนือทุก section")
-              จึงใช้หัวข้อไทย sentence-case ตามระบบแทน — เอา IA/ผังของ ref มา ไม่เอาสกิน */}
-          <Typography variant='body2' className='font-semibold mbe-3' color='text.primary'>
-            เหรียญของร้าน
-          </Typography>
+           🛑 ทำไมแบบซ้อนกันถึงใช้ได้กับของเรา: ref ของ IG ซ้อน "รูปคน" ซึ่งแต่ละใบต่างกันชัด
+           ส่วนเหรียญเราเป็นไอคอนเส้นสีเดียวกันหมด ถ้าซ้อนโดยไม่มีอะไรคั่นจะอ่านเป็นก้อนเดียว
+           จึงต้องมีวงพื้นขาวคั่นทุกใบ เหมือนที่ IG ได้มาฟรีจากขอบรูปโปรไฟล์
 
-          {/* 🛑 ชิดซ้าย ไม่จัดกลาง — เหรียญคือรายการหลักฐาน ไม่ใช่ของตกแต่งที่ต้องสมมาตร
-              (แนวเดียวกับที่ user สั่งให้กริดคลิปชิดซ้ายในรอบเดียวกัน) */}
-          {/* ตอนยังไม่กาง: บังคับแถวเดียว + ตัดส่วนเกิน — ใบที่ล้นถูกซ่อนด้วย `overflow-hidden`
-              ตั้งแต่เฟรมแรกก่อน ResizeObserver จะวัดเสร็จ จึงไม่มีอะไรกระพริบหาย */}
-          <ul
-            id='badge-list'
-            ref={badgeRowRef}
-            className={`flex gap-x-3 gap-y-3 m-0 p-0 list-none ${
-              badgesExpanded ? 'flex-wrap' : 'flex-nowrap overflow-hidden'
-            }`}
-          >
-            {shownBadges.map((b) => (
-              <li key={b.id} className='is-[76px] shrink-0'>
-                <button
-                  type='button'
-                  onClick={() => setOpenBadge(b)}
-                  aria-haspopup='dialog'
-                  aria-label={`ดูรายละเอียดเหรียญ ${b.name}`}
-                  className='flex flex-col items-center gap-2 is-full border-0 bg-transparent p-0 cursor-pointer font-[inherit]'
+           🛑 **ยังกดไม่ได้โดยตั้งใจ** — user ตัดสิน 2026-08-10 ว่าไม่เอาการกางเป็นกริดในหน้า
+           ("ไม่อยากให้กดแถวเหรียญแล้วเป็นแบบนั้น") และปลายทางที่ต้องการจริงคือ **โมดัล หรือ
+           หน้าเต็มของเหรียญ ซึ่งยังไม่มีในระบบ** ("เอาดูทั้งหมดออกก่อนก็ได้")
+
+           อย่าเผลอทำให้กดได้โดยชี้ไปที่ทางเดิม — ทางเดิมคือสิ่งที่ถูกปฏิเสธ ไม่ใช่สิ่งที่ยังไม่ได้ทำ
+           วันที่จะทำ ต้องสร้างปลายทางใหม่ก่อน (โมดัลรวมเหรียญ หรือ route `/…/badges`) */}
+      {data.badges.length > 0 && (
+        <div className='pli-5 pbs-1 pbe-4'>
+          <div className='flex items-center gap-2'>
+            <span className='flex shrink-0'>
+              {data.badges.slice(0, 3).map((b, i) => (
+                <span
+                  key={b.id}
+                  className={`is-6 bs-6 rounded-full bg-[var(--mui-palette-background-paper)] flex items-center justify-center shrink-0 ${i > 0 ? '-mis-2' : ''}`}
+                  style={{ boxShadow: '0 0 0 2px var(--mui-palette-background-paper)', zIndex: 3 - i }}
                 >
-                {/* วงกลม 56px ให้ artwork เต็มตาแบบ ref — ไม่ใช่ไอคอนจิ๋วในชิป
-                    🛑 พื้นวงต้องมีสีอ่อน ไม่ใช่ขาวล้วน: เหรียญ 11/20 ใบในระบบยังไม่มี artwork และ
-                    ตกไปใช้ไอคอนเส้น ถ้าพื้นเป็นขาวเดียวกับการ์ด ใบที่ไม่มีรูปจะดูเหมือน "โหลดไม่มา"
-                    พื้นอ่อนทำให้มันอ่านเป็น "ช่องใส่เหรียญที่ยังไม่มีลาย" ซึ่งเป็นความจริง */}
-                {/* ไม่มีขอบ/พื้น/เงา (user 2026-08-10: "ไม่ชอบ border เน้นแสดงรูปได้ไหม ไม่ต้องมีขอบ")
-                    artwork ของเหรียญเป็นเหรียญกลมที่มีขอบในตัวอยู่แล้ว การครอบวงอีกชั้นคือขอบซ้อนขอบ
-                    กล่องยังคงขนาด 56px คงที่ไว้เพื่อให้ทุกใบยืนบนเส้นฐานเดียวกัน แม้ artwork แต่ละใบ
-                    จะมีสัดส่วน/ระยะขอบในไฟล์ไม่เท่ากัน */}
-                <span className='is-14 bs-14 flex items-center justify-center shrink-0'>
-                  <BadgeArtwork imageUrl={b.imageUrl} nameEN={b.nameEN} icon={b.icon} alt={b.name} size={56} />
+                  <BadgeArtwork imageUrl={b.imageUrl} nameEN={b.nameEN} icon={b.icon} alt='' size={24} />
                 </span>
-                {/* ชื่อเหรียญใต้รูป — clamp 2 บรรทัด ชื่อไทยยาวกว่าอังกฤษใน ref มาก */}
-                <Typography
-                  variant='caption'
-                  color='text.primary'
-                  className='text-center leading-tight line-clamp-2 font-medium'
-                >
-                  {b.name}
-                </Typography>
-                </button>
-              </li>
-            ))}
-
-            {/* [+] — ทางเข้าเดียวไปดูเหรียญที่เหลือ (แทนลิงก์ "ดูทั้งหมด N" เดิมที่อยู่หัวบล็อก
-                ซึ่งซ้ำหน้าที่กันและอยู่ไกลจากของที่มันพูดถึง)
-                ปุ่มอยู่ในแถวเดียวกับเหรียญ = อ่านเป็น "ยังมีต่อ" ไม่ใช่คำสั่งลอย ๆ ที่หัวข้อ */}
-            {(badgeOverflow > 0 || badgesExpanded) && (
-              <li className='is-[76px] shrink-0'>
-                <button
-                  type='button'
-                  onClick={() => setBadgesExpanded((v) => !v)}
-                  aria-expanded={badgesExpanded}
-                  aria-controls='badge-list'
-                  aria-label={
-                    badgesExpanded ? 'ย่อรายการเหรียญ' : `ดูเหรียญทั้งหมด ${data.totalBadgeCount} เหรียญ`
-                  }
-                  className='flex flex-col items-center gap-2 is-full border-0 bg-transparent p-0 cursor-pointer font-[inherit]'
-                >
-                  {/* 56px เท่ากับ artwork ของเหรียญพอดี เพื่อให้ยืนบนเส้นฐานเดียวกันทั้งแถว
-                      พื้นอ่อน + ไม่มีขอบ ตามภาษาเดียวกับเหรียญที่ user เคาะไว้ */}
-                  <span className='is-14 bs-14 rounded-full flex items-center justify-center shrink-0 bg-[var(--mui-palette-action-hover)] text-[var(--mui-palette-text-secondary)]'>
-                    <Icon icon={badgesExpanded ? 'lucide:minus' : 'lucide:plus'} width={22} />
-                  </span>
-                  <Typography variant='caption' color='text.secondary' className='text-center leading-tight'>
-                    {badgesExpanded ? 'ย่อ' : 'ดูทั้งหมด'}
-                  </Typography>
-                </button>
-              </li>
-            )}
-          </ul>
+              ))}
+            </span>
+            <Typography variant='caption' color='text.secondary' className='min-is-0 truncate'>
+              {'เหรียญ '}
+              <strong className='text-textPrimary font-semibold'>
+                {data.badges.slice(0, 2).map((b) => b.name).join(', ')}
+              </strong>
+              {data.totalBadgeCount > 2 ? ` + อีก ${data.totalBadgeCount - 2}` : ''}
+            </Typography>
+          </div>
         </div>
       )}
 
@@ -663,100 +646,77 @@ export default function ProfileHero({
           ที่แยกตัวออกมาชัด โดยไม่ต้องเพิ่มสีหรือขนาดตัวอักษรที่จะไปแย่งกับชื่อร้าน
           plb-4 (จาก 3.5) ให้ตัวเลขมีที่หายใจขึ้น = เด่นขึ้นด้วยพื้นที่ ไม่ใช่ด้วยการขยายตัวอักษร
           ขนาดยังคง 22px ทุกช่องเท่ากันตามที่ user กำหนดตอนยุบ % เข้ามา */}
-      <div className='pli-5 plb-4 border-bs border-be bg-[var(--mui-palette-background-default)]'>
-        <div className='grid grid-cols-2 sm:grid-cols-4 gap-y-3 gap-x-2'>
-          {stats.map((s) => (
-            <div key={s.label} className='text-center'>
-              {/* อัตราสำเร็จใช้ Verified Ink #18804A ไม่ใช่ #28C76F (DESIGN.md §2 "สองโทน") —
-                  เขียวหลักบนพื้นขาวได้ contrast แค่ 2.21:1 ตกเกณฑ์แม้กับตัวใหญ่ ตัวเลขที่สำคัญ
-                  ที่สุดในหน้าจึงจะเป็นตัวที่ผู้สูงวัยอ่านยากที่สุดพอดี ซึ่งขัดกับกลุ่มผู้ใช้ใน PRODUCT.md */}
+      {/* 🛑 4 คอลัมน์แถวเดียวทุกจอ + เส้นคั่นตั้ง (user เคาะแบบ S3 เมื่อ 2026-08-10)
+          เดิมเป็น 2×2 บนมือถือ สูง 198px — user ทักว่า "กินพื้นที่เยอะมาก" และจอแรกไม่เหลือที่ให้
+          เห็นสินค้าสักชิ้น ตอนนี้ ~72px
+
+          ที่ 390px ช่องละ ~87px จึงต้องย่อป้ายเป็น "ลูกค้า"/"ซื้อซ้ำ" (ดู STAT_LABELS) —
+          เหตุผลเดิมที่ต้องใช้ 2×2 คือป้ายยาวตกบรรทัดไม่เท่ากันแล้วแถวเบี้ยว พอย่อป้ายแล้ว
+          ข้อจำกัดนั้นหายไป ไม่ใช่การฝืน
+
+          เส้นคั่นตั้ง (`border-s` ที่ช่อง 2-4) คือสิ่งที่ทำให้มันกลับมาอ่านเป็น "แผงหลักฐาน"
+          ที่มีโครงสร้าง แทนที่จะเป็นตัวเลขสี่ตัวลอย ๆ — เป็น divider กลาง ไม่ใช่แถบสีตกแต่ง
+          พื้น background.default + เส้นคั่นบน-ล่าง คงเดิม */}
+      <div className='pli-5 plb-3.5 border-bs border-be bg-[var(--mui-palette-background-default)]'>
+        <div className='grid grid-cols-4 gap-x-1'>
+          {stats.map((s, i) => {
+            const cellCls = `text-center ${i > 0 ? 'border-s' : ''}`
+            const value = (
+              /* อัตราสำเร็จใช้ Verified Ink #18804A ไม่ใช่ #28C76F (DESIGN.md §2 "สองโทน") —
+                 เขียวหลักบนพื้นขาวได้ contrast แค่ 2.21:1 ตกเกณฑ์แม้กับตัวใหญ่ ตัวเลขที่สำคัญ
+                 ที่สุดในหน้าจึงจะเป็นตัวที่ผู้สูงวัยอ่านยากที่สุดพอดี ซึ่งขัดกับ PRODUCT.md */
               <div
                 className='text-[22px] font-extrabold tabular-nums leading-tight'
                 style={{ letterSpacing: '-0.025em', color: s.highlight ? '#18804A' : undefined }}
               >
                 {s.value}
               </div>
-              {/* ป้ายใต้ตัวเลข = สิ่งที่บอกว่าตัวเลขนั้นแปลว่าอะไร ถ้าอ่านไม่ออกตัวเลขก็ไร้ความหมาย
-                  เดิม text.disabled ตก AA เช่นเดียวกับบรรทัด meta ด้านบน */}
-              <Typography variant='caption' color='text.secondary' className='block'>
-                {s.label}
-              </Typography>
-              {/* ตัวหารที่ BR-OSM-07 บังคับให้อยู่คู่ % เสมอ (feature 00039) — ย้ายบล็อกแล้วห้ามหาย */}
-              {s.hint && (
-                <Typography variant='caption' color='text.disabled' className='block tabular-nums'>
-                  {s.hint}
+            )
+
+            /* 🛑 ทั้งเซลล์เป็นปุ่ม ไม่ใช่แค่ตัวหนังสือป้าย — ป้ายสูงราว 18px ซึ่งตกเกณฑ์ tap target
+               44px ส่วนทั้งเซลล์ ~87×64px ผ่านสบาย และกลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้
+               (ผู้สูงวัย/digital-literacy ต่ำ) แตะเป้าใหญ่ง่ายกว่าเสมอ */
+            return s.interactive ? (
+              <button
+                key={s.label}
+                type='button'
+                onClick={() => setCompletionPanelOpen(true)}
+                aria-haspopup='dialog'
+                aria-expanded={completionPanelOpen}
+                aria-controls='completion-rate-panel'
+                aria-label={
+                  data.completionRate == null
+                    ? 'ทำไมอัตราสำเร็จยังสรุปไม่ได้ — แตะเพื่อดูรายละเอียด'
+                    : 'อัตราสำเร็จคำนวณจากอะไรบ้าง — แตะเพื่อดูรายละเอียด'
+                }
+                className={`${cellCls} is-full min-bs-[44px] flex flex-col items-center justify-center border-is border-be-0 border-bs-0 border-ie-0 bg-transparent p-0 cursor-pointer font-[inherit]`}
+              >
+                {value}
+                <Typography variant='caption' color='text.secondary' className='flex items-center gap-0.5'>
+                  {s.label}
+                  <Icon icon='lucide:info' width={12} />
                 </Typography>
-              )}
-            </div>
-          ))}
+              </button>
+            ) : (
+              <div key={s.label} className={cellCls}>
+                {value}
+                {/* ป้ายใต้ตัวเลข = สิ่งที่บอกว่าตัวเลขนั้นแปลว่าอะไร ถ้าอ่านไม่ออกตัวเลขก็ไร้ความหมาย
+                    text.secondary ไม่ใช่ text.disabled ซึ่งตก AA */}
+                <Typography variant='caption' color='text.secondary' className='block'>
+                  {s.label}
+                </Typography>
+              </div>
+            )
+          })}
         </div>
-
-      {/* ── บรรทัดขยายความของอัตราสำเร็จ ──
-             ตัวเลข % ย้ายไปอยู่ในแถวด้านบนแล้ว เหลือแค่ข้อความที่ตัวเลขในช่องแคบ ๆ พูดแทนไม่ได้
-             และเป็นข้อความที่ feature 00039 บังคับว่าต้องมี ไม่ใช่ของประดับ:
-
-             • ยังไม่ถึงเกณฑ์ → ต้องบอกว่า "ไม่ได้แปลว่าร้านมีปัญหา" เพราะช่องที่ขึ้น "—" เฉย ๆ
-               ผู้ซื้ออ่านเป็นข้อมูลถูกซ่อน ซึ่งอันตรายกว่าการบอกตรง ๆ ว่าข้อมูลยังไม่พอ (BR-OSM-10)
-             • มีใบที่หักออก → ต้องกางว่าหักกี่ใบเพราะอะไร (BR-OSM-07) ไม่งั้นตัวหารในช่องด้านบน
-               จะบวกกลับไม่ตรงกับจำนวนออเดอร์ที่โชว์อยู่ข้าง ๆ กันเอง
-
-             ไม่มี border-bs — เป็นส่วนขยายของแถบตัวเลขด้านบน ไม่ใช่บล็อกใหม่ (user 2026-08-09
-             ทักว่าเส้นคั่นเยอะเกินจนหัวดูแน่น) และไม่ render เลยเมื่อไม่มีอะไรต้องอธิบาย */}
-      {data.completionRate == null && data.completionBelowMinSample ? (
-          <Typography variant='caption' color='text.secondary' className='block mbs-3 text-center'>
-            {`อัตราสำเร็จจะขึ้นเมื่อมี${L.settledPhrase}ครบ ${COMPLETION_RATE_MIN_SAMPLE} ${L.unitLabel} — ไม่ได้แปลว่าร้านมีปัญหา`}
-          </Typography>
-        ) : data.completionRate != null && data.completionExcluded ? (
-          <Typography variant='caption' color='text.secondary' className='block mbs-3 text-center tabular-nums'>
-            {`ไม่นับ ${data.completionExcluded} ${L.unitLabel}ที่ผู้ซื้อไม่รับของ`}
-          </Typography>
-        ) : null}
       </div>
 
-      {/* ปุ่มแชท — เดิมไม่มีทั้ง onClick และ href คือกดแล้วไม่เกิดอะไรขึ้นเลย ต่อปลายทางให้แล้ว
-          ยังไม่ล็อกอิน → พาไปหน้าเข้าสู่ระบบพร้อม callbackUrl กลับมาที่ห้องแชทเดิม
-          (เส้นทางเดียวกับปุ่ม "สอบถามสินค้านี้" ที่การ์ดสินค้า) */}
-      {data.canChat && data.shopId && (
-        <div className='pli-5 pbs-4 pbe-4 max-md:block hidden'>
-          <Button
-            fullWidth
-            variant='contained'
-            size='large'
-            onClick={goChat}
-            startIcon={<Icon icon='lucide:message-circle' width={19} />}
-            // 10px = ขั้นบนสุดของ shape ramp ฝั่ง buyer (4/6/8/10/full ตาม DESIGN.md §Shapes)
-            // เดิม 13px ไม่ตรงขั้นไหนเลย — ต่างจาก 10 น้อยจนตาไม่เห็นทีละจุด แต่คือสิ่งที่ทำให้หน้า
-            // อ่านว่า "ประกอบขึ้นมา" (ปุ่มลอยฝั่งเดสก์ท็อปด้านล่างใช้ full ซึ่งอยู่บน ramp อยู่แล้ว)
-            sx={{ minBlockSize: 50, borderRadius: '10px' }}
-          >
-            แชทกับร้าน
-          </Button>
-        </div>
-      )}
+      {/* 🛑 ปุ่ม "แชทกับร้าน" ถูกถอดออกทั้งสองจุด (inline มือถือ + ปุ่มลอยเดสก์ท็อป) เมื่อ
+          2026-08-10 ตามคำสั่ง user ใน phase นี้ — คืนพื้นที่ 82px ให้จอแรกได้เห็นสินค้าจริง
 
-      {/* บนจอกว้างปุ่มเต็มความกว้างกินพื้นที่เกินความสำคัญและดันเนื้อหาจริงตกจอ (user 2026-07-26)
-          จึงย้ายเป็นปุ่มลอยมุมขวาล่างแทน — กดได้ทุกจุดที่เลื่อนถึงโดยไม่แย่งพื้นที่เนื้อหา */}
-      {data.canChat && data.shopId && (
-        <Button
-          variant='contained'
-          size='large'
-          onClick={goChat}
-          startIcon={<Icon icon='lucide:message-circle' width={19} />}
-          sx={{
-            display: { xs: 'none', md: 'inline-flex' },
-            position: 'fixed',
-            insetBlockEnd: 24,
-            insetInlineEnd: 24,
-            zIndex: 30,
-            minBlockSize: 50,
-            borderRadius: '999px',
-            paddingInline: '22px',
-            boxShadow: '0 10px 28px rgb(47 43 61 / .28)',
-          }}
-        >
-          แชทกับร้าน
-        </Button>
-      )}
+          ผลที่ยอมรับไว้แล้ว: หน้านี้ไม่มีทางไปคุยกับร้านจากตัวมันเองอีก ผู้ซื้อที่เชื่อแล้วต้อง
+          กดเพจ Facebook/Instagram ในแถวช่องทาง ซึ่งพาออกนอก Deep — ถ้าจะเอากลับ ทางที่ไม่กิน
+          พื้นที่คือทำเป็นไอคอนในแถวที่มีอยู่แล้ว ไม่ใช่คืนปุ่มเต็มความกว้าง */}
 
       {/* ── โมดัลรายละเอียดเหรียญ ──
              user 2026-08-10: "อยากให้ badge กดได้ แล้วมี modal ขึ้นมาแสดงว่าเค้าได้จากเงื่อนไขอะไร
@@ -773,6 +733,44 @@ export default function ProfileHero({
              บรรทัดที่ทำให้ผู้ซื้อ "เชื่อมั่น" จริง ๆ คือบรรทัดสุดท้าย: ระบบมอบให้เองจากพฤติกรรมจริง
              ร้านขอเองไม่ได้ — ซึ่งเป็นความจริงของระบบ (evaluateSellerBadgesForShop ประเมินอัตโนมัติ)
              ไม่ใช่คำโฆษณา */}
+      {/* ── แผงอธิบายอัตราสำเร็จ ──
+             ข้อความชุดนี้เคย inline อยู่ใต้แถบตัวเลขเสมอ 2 บรรทัด (user 2026-08-10 ทักว่าแถบนี้
+             "กินพื้นที่เยอะมาก") — ย้ายมาอยู่หลังการแตะแทน
+
+             🛑 สิ่งที่ **ไม่ได้** เปลี่ยน: ตัวเลข 4 ช่องยังแสดงครบเสมอตามมติ 2026-07-26 และ
+             ป้ายสั้นบนหน้าจอยังบอกสถานะอยู่ (— / %) ที่ย้ายมาคือ *ประโยคขยายความ* เท่านั้น
+             ซึ่ง feature 00039 บังคับว่าต้องมี แต่ไม่ได้บังคับว่าต้องอ่านทุกครั้ง (1 ชั้นของ
+             progressive disclosure ตามที่ NN/g แนะนำว่าห้ามเกิน 2 ชั้น)
+
+             คำทุกคำเป็นของเดิมไม่ได้เขียนใหม่ — BR-OSM-07/BR-OSM-10 ยังบังคับเหมือนเดิม */}
+      <ResponsiveSheet
+        open={completionPanelOpen}
+        onClose={() => setCompletionPanelOpen(false)}
+        id='completion-rate-panel'
+        ariaLabelledBy='completion-rate-panel-title'
+      >
+        <div className='pli-5 pbs-3 pbe-6'>
+          <div className='flex items-center justify-between mbe-3'>
+            <Typography id='completion-rate-panel-title' className='font-semibold' color='text.primary'>
+              อัตราสำเร็จ
+            </Typography>
+            <IconButton size='small' onClick={() => setCompletionPanelOpen(false)} aria-label='ปิด'>
+              <Icon icon='lucide:x' width={18} />
+            </IconButton>
+          </div>
+
+          {data.completionRate == null && data.completionBelowMinSample ? (
+            <Typography variant='body2' color='text.secondary'>
+              {`อัตราสำเร็จจะขึ้นเมื่อมี${L.settledPhrase}ครบ ${COMPLETION_RATE_MIN_SAMPLE} ${L.unitLabel} — ไม่ได้แปลว่าร้านมีปัญหา`}
+            </Typography>
+          ) : data.completionRate != null && data.completionExcluded ? (
+            <Typography variant='body2' color='text.secondary' className='tabular-nums'>
+              {`ไม่นับ ${data.completionExcluded} ${L.unitLabel}ที่ผู้ซื้อไม่รับของ`}
+            </Typography>
+          ) : null}
+        </div>
+      </ResponsiveSheet>
+
       <ResponsiveSheet
         open={openBadge !== null}
         onClose={() => setOpenBadge(null)}

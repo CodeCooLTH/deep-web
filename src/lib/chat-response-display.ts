@@ -25,13 +25,20 @@ export type ChatResponseInput = {
  *
  * ใช้คำเต็มแทนสัญลักษณ์ (`~` / `+` / "ชม.") เพราะกลุ่มผู้ใช้ที่ PRODUCT.md ผูกไว้
  * (ผู้สูงวัย / digital-literacy ต่ำ) ไม่จำเป็นต้องคุ้นเครื่องหมายพวกนี้
+ *
+ * 🛑 2026-08-10 ตัดคำว่า "ประมาณ" ออก — เดิมมีไว้บอกว่าเป็นค่าเฉลี่ยไม่ใช่เวลาที่รับประกัน แต่ตอนนี้
+ * ค่านี้ถูกประกอบเป็นประโยคเดียวกับ % ("ตอบกลับ 100% ใน 1 นาที") คำว่า "ใน" ข้างหน้าทำหน้าที่
+ * เดียวกันอยู่แล้ว เก็บทั้งสองคำจะยาวเกินที่ช่องรับได้ · caller เดียวคือ ProfileHero
+ * แก้ที่นี่ที่เดียวจึงไม่เกิดนิยามที่สอง (HR16)
  */
 export function formatChatResponseTime(seconds: number | null | undefined): string | null {
   if (seconds == null) return null;
-  if (seconds < 3600) return `ประมาณ ${Math.max(1, Math.round(seconds / 60))} นาที`;
-  if (seconds < 86400) return `ประมาณ ${Math.max(1, Math.round(seconds / 3600))} ชั่วโมง`;
-  if (seconds < 172800) return "ประมาณ 1 วัน";
-  return "มากกว่า 2 วัน";
+  if (seconds < 3600) return `${Math.max(1, Math.round(seconds / 60))} นาที`;
+  if (seconds < 86400) return `${Math.max(1, Math.round(seconds / 3600))} ชั่วโมง`;
+  if (seconds < 172800) return "1 วัน";
+  // 🛑 "2 วันขึ้นไป" ไม่ใช่ "มากกว่า 2 วัน" — ประโยคเต็มคือ "ตอบกลับ 60% ใน …" และ
+  // "ใน มากกว่า 2 วัน" อ่านสะดุดในภาษาไทย (คำบุพบทชนคำเปรียบเทียบ) ส่วน "ใน 2 วันขึ้นไป" ลื่น
+  return "2 วันขึ้นไป";
 }
 
 /**

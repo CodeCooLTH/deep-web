@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup v3 — เน้นตัวเลข ลดน้ำหนักเหรียญ (2026-08-10)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:47 43 61;
+  --t1:rgb(var(--ink)/.9);--t2:rgb(var(--ink)/.7);--t3:rgb(var(--ink)/.4);
+  --divider:rgb(var(--ink)/.12);--hover:rgb(var(--ink)/.06);
+  --paper:#fff;--mist:#F8F7FA;--primary:#7367F0;--verified:#18804A;--success:#28C76F;
+  --grad:linear-gradient(135deg,#9b98a8 0%,#bdbbc7 55%,#dedce4 100%);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Anuphan,system-ui,sans-serif;background:#eceaf0;color:var(--t1);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1360px;margin:0 auto;padding:32px 20px 90px}
+h1{font-size:28px;font-weight:600;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:20px;font-weight:600;margin:46px 0 6px;letter-spacing:-.01em}
+.lead{color:var(--t2);font-size:15px;line-height:1.55;margin:0 0 10px;max-width:80ch}
+.note{color:var(--t2);font-size:13px;line-height:1.6;margin:0 0 14px;max-width:80ch}
+.row{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:18px}
+code{background:var(--hover);border-radius:4px;padding:1px 5px;font-size:.92em}
+
+.phone{width:390px}
+.phone-cap{font-size:12px;font-weight:600;color:var(--t2);margin:0 0 6px;display:flex;justify-content:space-between;gap:10px}
+.phone-cap b{color:var(--t1)}
+.good{color:var(--verified)}
+.screen{background:var(--paper);border-radius:12px;overflow:hidden;box-shadow:0 6px 22px rgb(var(--ink)/.12);position:relative}
+.fold{position:absolute;left:0;right:0;top:700px;border-top:2px dashed #b3261e;z-index:5;pointer-events:none}
+.fold::after{content:"ขอบล่างจอ iPhone 390×844";position:absolute;right:6px;top:4px;background:#b3261e;color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:2px 6px}
+
+.cover{height:132px;background:var(--grad);position:relative}
+.brand{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:6px;background:var(--paper);border-radius:999px;padding:5px 12px;box-shadow:0 1px 3px rgb(var(--ink)/.12);font-size:13px;font-weight:700}
+.brand svg{width:15px;height:15px;color:var(--primary)}
+.idblk{text-align:center;padding:0 20px 10px;margin-top:-42px;position:relative}
+.avatar{width:84px;height:84px;border-radius:999px;margin:0 auto 10px;position:relative;border:4px solid var(--paper);background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800}
+.lvl{position:absolute;right:-4px;bottom:0;display:inline-flex;align-items:center;gap:3px;background:var(--success);color:#fff;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;border:2px solid var(--paper);white-space:nowrap}
+.shopname{font-size:20px;font-weight:800;letter-spacing:-.02em;margin:0}
+.shopname .chk{margin-inline-start:6px;vertical-align:2px}
+.chips{display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:6px}
+.chip-score{background:var(--t1);color:var(--paper);border-radius:999px;padding:4px 10px;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.chip-tier{background:var(--hover);color:var(--t2);border-radius:8px;padding:4px 10px;font-size:13px;font-weight:600}
+.chk{width:18px;height:18px;border-radius:999px;background:var(--success);color:#fff;display:inline-flex;align-items:center;justify-content:center}
+.icobtn{color:var(--t2);display:inline-flex;padding:4px}
+.meta{font-size:13px;color:var(--t2);margin-top:4px}
+.cat{font-size:13px;color:var(--t2);margin-top:6px}
+.cat b{color:var(--t1);font-weight:700}
+.cat .dot{color:var(--t3)}
+.chan{display:flex;justify-content:center;align-items:center;gap:18px;flex-wrap:wrap;padding:0 20px 10px}
+.chan a{display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;min-height:44px}
+.mark{width:20px;height:20px;border-radius:999px;position:relative;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
+.mark.fb{background:#1877F2}.mark.ig{background:linear-gradient(45deg,#f09433,#dc2743,#bc1888)}
+.mark::after{content:"";position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:999px;background:var(--success);border:1.5px solid var(--paper)}
+.cname{font-size:13px;font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.cmeta{font-size:11px;color:var(--t2)}.cmeta b{color:var(--t1);font-variant-numeric:tabular-nums}
+.resp{text-align:center;font-size:13px;color:var(--t2);padding-bottom:10px}
+.resp b{color:var(--t1)}
+
+/* ── เหรียญ: หัวข้อซ้าย + "ดูทั้งหมด N" ขวา (แบบ GitHub) ── */
+.bwrap{padding:0 20px 12px}
+.bhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.btitle{font-size:14px;font-weight:600;margin:0}
+.ball{font-size:13px;font-weight:600;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;min-height:32px}
+.blist{display:flex;gap:12px;list-style:none;margin:0;padding:0;overflow:hidden}
+.blist li{width:72px;flex:0 0 auto;text-align:center}
+.bico{width:44px;height:44px;margin:0 auto;display:flex;align-items:center;justify-content:center;color:var(--primary)}
+.bico svg{width:28px;height:28px}
+.bname{font-size:12px;color:var(--t2);line-height:1.25;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+
+/* ── ชิปคะแนน 4 แบบ ── */
+.tier-row{display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+/* T2 พิลเดียวสองช่วง */
+.grade{display:inline-flex;align-items:stretch;border-radius:999px;overflow:hidden;font-weight:800;line-height:1}
+.grade .sc{background:var(--t1);color:#fff;padding:6px 11px;font-size:14px;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:1px}
+.grade .sc i{font-style:normal;font-size:11px;font-weight:700;opacity:.65}
+.grade .tr{padding:6px 12px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:5px}
+.grade .tr svg{width:13px;height:13px}
+/* T3 พิล + แถบความคืบหน้า */
+.gwrap{display:inline-flex;flex-direction:column;align-items:stretch;gap:4px}
+.track{height:3px;border-radius:999px;background:var(--hover);overflow:hidden}
+.track > i{display:block;height:100%;border-radius:999px}
+.togo{font-size:11px;color:var(--t3);text-align:center}
+/* T4 ไม่มีพื้น */
+.bare{display:inline-flex;align-items:center;gap:8px}
+.bare .n{font-size:26px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.bare .n i{font-style:normal;font-size:13px;font-weight:700;color:var(--t3)}
+.bare .tl{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:700}
+.bare .tl svg{width:15px;height:15px}
+.tinfo{color:var(--t3);display:inline-flex;padding:4px}
+.swatch{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.swatch > div{background:var(--paper);border:1px solid var(--divider);border-radius:8px;padding:12px 14px;text-align:center;min-width:150px}
+.swatch small{display:block;font-size:11px;color:var(--t3);margin-top:8px}
+
+/* ── แถบตัวเลข: 3 ระดับความเน้น ── */
+.st{border-top:1px solid var(--divider);border-bottom:1px solid var(--divider)}
+/* S1 เบา (v2 เดิม) */
+.st1{background:var(--mist);padding:10px 20px;display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--t2)}
+.st1 b{color:var(--t1);font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+/* S2 กลาง — 4 คอลัมน์แถวเดียว */
+.st2{background:var(--mist);padding:12px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.st2 .n{font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}
+.st2 .l{font-size:12px;color:var(--t2);display:block;margin-top:2px}
+/* S3 หนัก — พื้นเข้ม เส้นคั่นตั้ง */
+.st3{background:var(--mist);padding:14px 12px;display:grid;grid-template-columns:repeat(4,1fr);text-align:center}
+.st3 > div{padding:0 4px}
+.st3 > div + div{border-inline-start:1px solid var(--divider)}
+.st3 .n{font-size:22px;font-weight:800;letter-spacing:-.025em;line-height:1.1;font-variant-numeric:tabular-nums}
+.st3 .l{font-size:12px;color:var(--t2);display:block;margin-top:3px}
+.ok{color:var(--verified)}
+.muted{color:var(--t3)}
+.iBtn{display:inline-flex;align-items:center;gap:3px;color:var(--t2);background:none;border:0;font:inherit;font-size:12px;cursor:pointer;padding:2px}
+
+.tabs{display:flex;gap:22px;border-bottom:1px solid var(--divider);padding:0 20px;overflow-x:auto}
+.tabs span{padding:11px 0;font-size:15px;font-weight:600;color:var(--t3);white-space:nowrap;position:relative;display:inline-flex;align-items:center;gap:6px}
+.tabs span svg{opacity:.75}
+.tabs span.on svg{opacity:1}
+.tabs span.on{color:var(--t1)}
+.tabs span.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2.5px;border-radius:2px;background:var(--primary)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:12px 20px 20px}
+.tile{aspect-ratio:3/4;border-radius:6px;background:#cfcbd8;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:6px}
+.tile:nth-child(2){background:#c4cdd6}.tile:nth-child(3){background:#d6cbc4}
+.tile:nth-child(4){background:#c9c4d6}.tile:nth-child(5){background:#cdd6c4}.tile:nth-child(6){background:#d6c4cd}
+.tile span{color:#fff;font-size:11px;font-weight:600;position:relative;z-index:1}
+.tile::before{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgb(0 0 0/.42),transparent 55%)}
+.tile svg{position:absolute;top:6px;right:6px;width:14px;height:14px;color:#fff;opacity:.9;z-index:1}
+
+.ruler{position:relative}
+.ruler::after{content:attr(data-h);position:absolute;top:5px;right:5px;background:rgb(var(--ink)/.75);color:#fff;font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px;z-index:3}
+.opt{background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:16px 18px;width:400px}
+.opt h4{font-size:15px;font-weight:700;margin:0 0 2px}
+.opt .why{font-size:13px;color:var(--t2);line-height:1.55;margin:0 0 12px}
+.opt .demo{border-radius:8px;overflow:hidden;border:1px solid var(--divider)}
+.rec{display:inline-block;background:rgba(24,128,74,.12);color:var(--verified);font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-inline-start:6px;vertical-align:2px}
+.sum{background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:14px 18px;font-size:14px;line-height:1.75;max-width:80ch}
+.sum b{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>เน้นตัวเลขให้หนักขึ้น · ลดน้ำหนักเหรียญลง</h1>
+<p class="lead">
+  สลับลำดับความสำคัญตามที่สั่ง — ตัวเลขธุรกรรมคือหลักฐานที่ร้านเขียนเองไม่ได้ ควรได้น้ำหนักมากกว่าเหรียญที่ระบบแจก
+  · ปุ่ม <code>+</code> ของเหรียญเปลี่ยนเป็นลิงก์ <b>"ดูทั้งหมด N →"</b> ที่มุมขวาแถวเดียวกับหัวข้อ (แบบ GitHub achievements)
+</p>
+
+<h2>1 · จอเต็ม (มือถือ 390×844)</h2>
+<div class="row">
+  <div class="phone">
+    <p class="phone-cap"><span class="good">ข้อเสนอ v3</span><b>หัวโปรไฟล์ ≈ 540px</b></p>
+    <div class="screen">
+      <div class="fold"></div>
+      <div class="cover ruler" data-h="132"><span class="brand"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 3 7v10l9 5 9-5V7z"/></svg>Deep</span></div>
+      <div class="idblk ruler" data-h="168">
+        <div class="avatar">ธ<span class="lvl">ระดับ 1</span></div>
+        <p class="shopname">ธนภัทร์ อะไหล่มอเตอร์ไซค์<span class="chk" title="ยืนยันตัวตนแล้ว"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M4 12l5 5L20 6"/></svg></span></p>
+        <div class="chips">
+          <span class="chip-score">26/100</span><span class="chip-tier">Deep Classic</span>
+          <span class="icobtn"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span>
+        </div>
+        <p class="meta">@tanapathardware · เปิดร้านตั้งแต่ ส.ค. 2569</p>
+        <p class="cat">ยานยนต์ <span class="dot">·</span> ตอบกลับ <b>100%</b> ใน <b>1 นาที</b></p>
+      </div>
+      <div class="chan ruler" data-h="102">
+        <a href="#"><span class="mark fb">f</span><span><span class="cname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</span><span class="cmeta">Facebook Page · <b>6.1K</b> ถูกใจ</span></span></a>
+        <a href="#"><span class="mark ig">I</span><span><span class="cname">@tanapat_parts</span><span class="cmeta">Instagram · <b>307</b> ผู้ติดตาม</span></span></a>
+      </div>
+      <div class="resp ruler" data-h="26">ตอบกลับ <b>100%</b> · ตอบเฉลี่ย <b>ประมาณ 1 นาที</b></div>
+
+      <div class="bwrap ruler" data-h="96">
+        <div class="bhead">
+          <p class="btitle">เหรียญของร้าน</p>
+          <a class="ball" href="#">ดูทั้งหมด 7
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+        <ul class="blist">
+          <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9h18l-2-5H5zM4 9v11h16V9M9 20v-6h6v6"/></svg></span><div class="bname">เปิดหน้าร้าน</div></li>
+          <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></span><div class="bname">ร้านค้าขายอดนิยม</div></li>
+          <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="6"/><path d="M8 14l-2 7 6-3 6 3-2-7"/></svg></span><div class="bname">ร้อยออเดอร์</div></li>
+          <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h12l3 6-9 12L3 9z"/></svg></span><div class="bname">ร้านคะแนนเต็ม</div></li>
+        </ul>
+      </div>
+
+      <div class="st st3 ruler" data-h="72">
+        <div><div class="n">0</div><span class="l">ออเดอร์</span></div>
+        <div><div class="n">0</div><span class="l">ลูกค้า</span></div>
+        <div><div class="n">0</div><span class="l">ซื้อซ้ำ</span></div>
+        <div><div class="n muted">—</div><button class="iBtn">อัตราสำเร็จ
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button></div>
+      </div>
+
+      <div class="tabs"><span class="on"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg>ไฮไลท์</span><span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>สินค้า</span><span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>เกี่ยวกับร้าน</span></div>
+      <div class="grid3">
+        <div class="tile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>ชุดโซ่สเตอร์</span></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>ผ้าเบรคหน้า</span></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>โช้คหลัง</span></div>
+        <div class="tile"><span>จานดิส</span></div><div class="tile"><span>ล้อแม็ก</span></div><div class="tile"><span>ไฟหน้า</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone">
+    <p class="phone-cap"><span class="good">ร้านที่ขายจริงแล้ว</span><b>ตัวเลขมีน้ำหนักทันที</b></p>
+    <div class="screen">
+      <div class="fold"></div>
+      <div class="cover"><span class="brand"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 3 7v10l9 5 9-5V7z"/></svg>Deep</span></div>
+      <div class="idblk">
+        <div class="avatar">ธ<span class="lvl">ระดับ 3</span></div>
+        <p class="shopname">ธนภัทร์ อะไหล่มอเตอร์ไซค์<span class="chk" title="ยืนยันตัวตนแล้ว"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M4 12l5 5L20 6"/></svg></span></p>
+        <div class="chips">
+          <span class="chip-score">78/100</span><span class="chip-tier">Deep Gold</span>
+          <span class="icobtn"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span>
+        </div>
+        <p class="meta">@tanapathardware · เปิดร้านตั้งแต่ ส.ค. 2567</p>
+        <p class="cat">ยานยนต์ <span class="dot">·</span> ตอบกลับ <b>100%</b> ใน <b>1 นาที</b></p>
+      </div>
+      <div class="chan">
+        <a href="#"><span class="mark fb">f</span><span><span class="cname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</span><span class="cmeta">Facebook Page · <b>6.1K</b> ถูกใจ</span></span></a>
+        <a href="#"><span class="mark ig">I</span><span><span class="cname">@tanapat_parts</span><span class="cmeta">Instagram · <b>307</b> ผู้ติดตาม</span></span></a>
+      </div>
+      <div class="bwrap">
+        <div class="bhead">
+          <p class="btitle">เหรียญของร้าน</p>
+          <a class="ball" href="#">ดูทั้งหมด 12
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+        <ul class="blist">
+          <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9h18l-2-5H5zM4 9v11h16V9M9 20v-6h6v6"/></svg></span><div class="bname">เปิดหน้าร้าน</div></li>
+          <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></span><div class="bname">ร้านค้าขายอดนิยม</div></li>
+          <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="6"/><path d="M8 14l-2 7 6-3 6 3-2-7"/></svg></span><div class="bname">ร้อยออเดอร์</div></li>
+          <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h12l3 6-9 12L3 9z"/></svg></span><div class="bname">ร้านคะแนนเต็ม</div></li>
+        </ul>
+      </div>
+      <div class="st st3">
+        <div><div class="n">128</div><span class="l">ออเดอร์</span></div>
+        <div><div class="n">96</div><span class="l">ลูกค้า</span></div>
+        <div><div class="n">31</div><span class="l">ซื้อซ้ำ</span></div>
+        <div><div class="n ok">93%</div><span class="l">อัตราสำเร็จ</span></div>
+      </div>
+      <div class="tabs"><span class="on"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z"/></svg>ไฮไลท์</span><span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>สินค้า</span><span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>เกี่ยวกับร้าน</span></div>
+      <div class="grid3">
+        <div class="tile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>ชุดโซ่สเตอร์</span></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>ผ้าเบรคหน้า</span></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>โช้คหลัง</span></div>
+        <div class="tile"><span>จานดิส</span></div><div class="tile"><span>ล้อแม็ก</span></div><div class="tile"><span>ไฟหน้า</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>2 · แถบตัวเลข — 3 ระดับความเน้น</h2>
+<p class="note">ทั้ง 3 แบบมีตัวเลขครบ 4 ตัวเหมือนกัน · ประโยคยาว "อัตราสำเร็จจะขึ้นเมื่อ…" อยู่หลังการแตะที่ ⓘ ทุกแบบ</p>
+<div class="row">
+  <div class="opt">
+    <h4>S1 · เบา (v2 เดิม) — 44px</h4>
+    <p class="why">กระชับสุด แต่ตัวเลขอ่านเป็นข้อความ ไม่ใช่หลักฐาน — นี่คือแบบที่ user บอกว่ายังเน้นไม่พอ</p>
+    <div class="demo"><div class="st1" style="border:0">
+      <span><b>0</b> ออเดอร์</span><span class="muted">·</span><span><b>0</b> ลูกค้า</span><span class="muted">·</span>
+      <span><b>0</b> ซื้อซ้ำ</span><span class="muted">·</span><span>อัตราสำเร็จ <b style="font-size:13px;color:var(--t2)">ยังสรุปไม่ได้</b> ⓘ</span>
+    </div></div>
+  </div>
+  <div class="opt">
+    <h4>S2 · กลาง — 62px</h4>
+    <p class="why">4 คอลัมน์แถวเดียว เลข 20px · กลับมาเป็น "ตัวเลขที่ทำหน้าที่เป็นภาพ" ตาม Metric role ของ DESIGN.md แต่ไม่กินพื้นที่เท่ากริด 2×2</p>
+    <div class="demo"><div class="st2" style="border:0">
+      <div><div class="n">0</div><span class="l">ออเดอร์</span></div>
+      <div><div class="n">0</div><span class="l">ลูกค้า</span></div>
+      <div><div class="n">0</div><span class="l">ซื้อซ้ำ</span></div>
+      <div><div class="n muted">—</div><span class="l">อัตราสำเร็จ ⓘ</span></div>
+    </div></div>
+  </div>
+  <div class="opt">
+    <h4>S3 · หนัก — 72px<span class="rec">แนะนำ</span></h4>
+    <p class="why">เลข 22px เท่าเดิม + <b>เส้นคั่นตั้งระหว่างช่อง</b> ทำให้อ่านเป็น "แผงหลักฐาน" ที่มีโครงสร้าง ไม่ใช่ตัวเลขลอย ๆ
+      · หนักกว่า S1 ชัดเจน แต่ยังเล็กกว่าของเดิม <b>126px</b></p>
+    <div class="demo"><div class="st3" style="border:0">
+      <div><div class="n">0</div><span class="l">ออเดอร์</span></div>
+      <div><div class="n">0</div><span class="l">ลูกค้า</span></div>
+      <div><div class="n">0</div><span class="l">ซื้อซ้ำ</span></div>
+      <div><div class="n muted">—</div><button class="iBtn">อัตราสำเร็จ
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button></div>
+    </div></div>
+  </div>
+</div>
+
+<h2>3 · เหรียญ — ปุ่ม + เปลี่ยนเป็น "ดูทั้งหมด N →" มุมขวา</h2>
+<div class="row">
+  <div class="opt" style="width:auto;max-width:520px">
+    <h4>ก่อน — ปุ่ม + เป็นช่องที่ 5 ในแถว</h4>
+    <p class="why">ปุ่มแย่งช่องเหรียญไป 1 ช่อง และอยู่ปลายแถวซึ่งเป็นจุดที่สายตาไปถึงช้าที่สุด</p>
+    <div class="demo" style="padding:14px 16px;background:var(--paper)">
+      <p class="btitle" style="margin:0 0 10px">เหรียญของร้าน</p>
+      <ul class="blist">
+        <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9h18l-2-5H5zM4 9v11h16V9M9 20v-6h6v6"/></svg></span><div class="bname">เปิดหน้าร้าน</div></li>
+        <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></span><div class="bname">ร้านค้าขายอด…</div></li>
+        <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="6"/><path d="M8 14l-2 7 6-3 6 3-2-7"/></svg></span><div class="bname">ร้อยออเดอร์</div></li>
+        <li><span class="bico" style="background:var(--hover);border-radius:999px;color:var(--t2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span><div class="bname">ดูทั้งหมด</div></li>
+      </ul>
+    </div>
+  </div>
+  <div class="opt" style="width:auto;max-width:520px">
+    <h4>หลัง — ลิงก์มุมขวาแถวเดียวกับหัวข้อ<span class="rec">แนะนำ</span></h4>
+    <p class="why">คืนช่องให้เหรียญเต็มแถว · บอกจำนวนจริงตั้งแต่ยังไม่กด ("ดูทั้งหมด 7" ไม่ใช่ "+") · ไอคอนเหรียญเล็กลง 56→44px และชื่ออยู่ชั้นสีรอง = ลดน้ำหนักตามที่สั่ง</p>
+    <div class="demo" style="padding:14px 16px;background:var(--paper)">
+      <div class="bhead"><p class="btitle">เหรียญของร้าน</p>
+        <a class="ball" href="#">ดูทั้งหมด 7 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+      <ul class="blist">
+        <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 9h18l-2-5H5zM4 9v11h16V9M9 20v-6h6v6"/></svg></span><div class="bname">เปิดหน้าร้าน</div></li>
+        <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></span><div class="bname">ร้านค้าขายอดนิยม</div></li>
+        <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="6"/><path d="M8 14l-2 7 6-3 6 3-2-7"/></svg></span><div class="bname">ร้อยออเดอร์</div></li>
+        <li><span class="bico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h12l3 6-9 12L3 9z"/></svg></span><div class="bname">ร้านคะแนนเต็ม</div></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<h2>4 · อัตราตอบกลับ — ยุบยังไงดี</h2>
+<p class="note">
+  ของเดิม <code>ตอบกลับ 100% · ตอบเฉลี่ย ประมาณ 1 นาที</code> ยาว 38 ตัวอักษร กินทั้งบรรทัด 26px
+  · ตัวที่ทำให้ยาวคือ <b>การพูดสองประโยคต่อกันด้วย <code>·</code></b> ("ตอบกลับ N%" + "ตอบเฉลี่ย X")
+  ทั้งที่รวมเป็นประโยคเดียวได้: <b>"ตอบกลับ 100% ใน 1 นาที"</b> (22 ตัวอักษร) — ข้อมูลครบเท่าเดิม
+</p>
+<div class="row">
+  <div class="opt">
+    <h4>R1 · ต่อท้ายบรรทัดหมวดหมู่<span class="rec">แนะนำ</span></h4>
+    <p class="why"><b>ไม่กินบรรทัดใหม่เลย (−26px)</b> · ยังอยู่เหนือแถวเพจตามที่สั่งไว้ว่าต้องอยู่กับพวก page
+      · เป็นแพตเทิร์นเดียวกับ GitHub/dev.to ที่รวมข้อเท็จจริงย่อย ๆ ไว้บรรทัดเดียวคั่น <code>·</code></p>
+    <div class="demo" style="padding:14px 16px;background:var(--paper);text-align:center">
+      <p class="meta" style="margin:0">@tanapathardware · เปิดร้านตั้งแต่ ส.ค. 2569</p>
+      <p class="cat">ยานยนต์ <span class="dot">·</span> ตอบกลับ <b>100%</b> ใน <b>1 นาที</b></p>
+    </div>
+  </div>
+  <div class="opt">
+    <h4>R2 · บรรทัดของตัวเอง แต่สั้นลง</h4>
+    <p class="why">26px → 22px · ยังแยกออกมาให้เห็นชัดว่าเป็นเรื่องการตอบแชท ไม่ปนกับหมวดหมู่สินค้า
+      แต่ก็ยังกินบรรทัดเต็มอยู่ดี</p>
+    <div class="demo" style="padding:14px 16px;background:var(--paper);text-align:center">
+      <p class="cat" style="margin:0">ยานยนต์</p>
+      <p class="resp" style="padding:6px 0 0;margin:0">ตอบกลับ <b>100%</b> ใน <b>1 นาที</b></p>
+    </div>
+  </div>
+  <div class="opt">
+    <h4>R3 · ชิปเล็กในแถวเพจ</h4>
+    <p class="why">อยู่ติดกับช่องทางที่ใช้ทักจริง ๆ · บนจอกว้างไม่กินบรรทัดใหม่เลย
+      แต่บนมือถือแถวเพจ wrap อยู่แล้ว ชิปจะตกลงมาเป็นบรรทัดที่ 3 = ไม่ประหยัดกว่า R2</p>
+    <div class="demo" style="padding:14px 16px;background:var(--paper)">
+      <div class="chan" style="padding:0">
+        <a href="#"><span class="mark fb">f</span><span><span class="cname">ธนภัทร์ อะไหล่มอเตอร์ไซค์</span><span class="cmeta">Facebook Page · <b>6.1K</b> ถูกใจ</span></span></a>
+        <span style="display:inline-flex;align-items:center;gap:5px;background:var(--hover);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--t2)">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a8 8 0 1 1-3-6.2L21 4v6h-6"/></svg>
+          ตอบ <b style="color:var(--t1)">1 นาที</b></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>5 · ชิปคะแนนความน่าเชื่อถือ — 4 แบบ</h2>
+<p class="note">
+  ปัญหาของแบบปัจจุบัน: เป็น <b>ชิป 2 ก้อนที่ไม่เกี่ยวกัน</b> วางต่อกัน — ก้อนดำบอกตัวเลข ก้อนเทาบอกชื่อระดับ
+  ทั้งที่มันคือ <i>ของชิ้นเดียวกัน</i> (คะแนน 78 → ระดับ Deep Gold) และชื่อระดับใช้พื้นเทากลาง ๆ
+  ทำให้ Gold กับ Classic หน้าตาเหมือนกันเป๊ะ ทั้งที่เป็นคนละชั้นความน่าเชื่อถือ
+  · สีระดับมีอยู่แล้วในระบบ (<code>getTierAccentColor</code>) และปกก็ใช้สีชุดนี้อยู่ — ชิปกลับไม่ใช้
+</p>
+<div class="row">
+  <div class="opt">
+    <h4>T1 · ปัจจุบัน</h4>
+    <p class="why">2 ชิปแยกกัน สีระดับไม่ถูกใช้เลย · Gold กับ Classic แยกด้วยตัวหนังสืออย่างเดียว</p>
+    <div class="demo" style="padding:18px;background:var(--paper)">
+      <div class="tier-row"><span class="chip-score">78/100</span><span class="chip-tier">Deep Gold</span><span class="tinfo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span></div>
+      <div class="tier-row" style="margin-top:12px"><span class="chip-score">26/100</span><span class="chip-tier">Deep Classic</span><span class="tinfo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span></div>
+    </div>
+  </div>
+
+  <div class="opt">
+    <h4>T2 · พิลเดียว 2 ช่วง<span class="rec">แนะนำ</span></h4>
+    <p class="why">คะแนนกับระดับเชื่อมเป็นวัตถุเดียว — อ่านเป็น "เกรด" ไม่ใช่ป้ายสองใบ
+      · ช่วงขวาใช้สีระดับจริง ทำให้แยก Gold/Diamond/Classic ได้ด้วยสายตาก่อนอ่านตัวหนังสือ
+      · <code>/100</code> เล็กลงและจาง ตัวเลขจริงเด่นขึ้นโดยไม่ต้องขยายพิล</p>
+    <div class="demo" style="padding:18px;background:var(--paper)">
+      <div class="tier-row"><span class="grade"><span class="sc">78<i>/100</i></span><span class="tr" style="background:rgba(255,159,67,.18);color:#a35f00"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Gold</span></span><span class="tinfo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span></div>
+      <div class="tier-row" style="margin-top:12px"><span class="grade"><span class="sc">26<i>/100</i></span><span class="tr" style="background:rgba(155,152,168,.22);color:#5f5c70"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Classic</span></span><span class="tinfo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span></div>
+    </div>
+  </div>
+
+  <div class="opt">
+    <h4>T3 · พิลเดียว + แถบไประดับถัดไป</h4>
+    <p class="why">เพิ่มบรรทัดจิ๋วบอกว่า "อีก 12 คะแนนถึง Deep Diamond" ซึ่งเป็นข้อมูลที่เรามีอยู่แล้ว
+      (<code>pointsToNext</code>) แต่ทุกวันนี้ซ่อนอยู่หลังการกด ⓘ อย่างเดียว<br>
+      ⚠️ เคยเสนอ hero-metric + progress bar แล้ว user ปฏิเสธ — อันนี้เล็กกว่ามาก (แถบ 3px ไม่ใช่บล็อก) แต่ยังเป็นตระกูลเดียวกัน</p>
+    <div class="demo" style="padding:18px;background:var(--paper)">
+      <div class="tier-row">
+        <span class="gwrap">
+          <span class="grade"><span class="sc">78<i>/100</i></span><span class="tr" style="background:rgba(255,159,67,.18);color:#a35f00"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Gold</span></span>
+          <span class="track"><i style="width:80%;background:#FF9F43"></i></span>
+          <span class="togo">อีก 12 คะแนนถึง Deep Diamond</span>
+        </span>
+        <span class="tinfo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="opt">
+    <h4>T4 · ไม่มีพื้น เน้นตัวเลขล้วน</h4>
+    <p class="why">เบาที่สุด ตัวเลข 26px เป็นพระเอกจริง ๆ ไม่มีพิลมาแย่งน้ำหนัก
+      · แต่เสีย "ความเป็นตรา" ไป — อ่านเป็นตัวเลขบนหน้า ไม่ใช่ป้ายรับรองที่ระบบออกให้</p>
+    <div class="demo" style="padding:18px;background:var(--paper)">
+      <div class="tier-row"><span class="bare"><span class="n">78<i>/100</i></span><span class="tl" style="color:#a35f00"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Gold</span></span><span class="tinfo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span></div>
+      <div class="tier-row" style="margin-top:12px"><span class="bare"><span class="n">26<i>/100</i></span><span class="tl" style="color:#5f5c70"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Classic</span></span><span class="tinfo"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span></div>
+    </div>
+  </div>
+</div>
+
+<p class="note" style="margin-top:16px">
+  <b>สีระดับที่ใช้ (มีอยู่แล้วใน <code>getTierAccentColor</code>):</b>
+</p>
+<div class="swatch">
+  <div><span class="grade"><span class="sc">95<i>/100</i></span><span class="tr" style="background:rgba(115,103,240,.16);color:#5a4ee0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Star</span></span><small>#7367F0</small></div>
+  <div><span class="grade"><span class="sc">85<i>/100</i></span><span class="tr" style="background:rgba(0,186,209,.18);color:#00707f"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Diamond</span></span><small>#00BAD1</small></div>
+  <div><span class="grade"><span class="sc">78<i>/100</i></span><span class="tr" style="background:rgba(255,159,67,.18);color:#a35f00"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Gold</span></span><small>#FF9F43</small></div>
+  <div><span class="grade"><span class="sc">62<i>/100</i></span><span class="tr" style="background:rgba(122,118,137,.18);color:#5f5c70"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Silver</span></span><small>#7a7689</small></div>
+  <div><span class="grade"><span class="sc">26<i>/100</i></span><span class="tr" style="background:rgba(155,152,168,.22);color:#5f5c70"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="14" r="6"/><path d="M9 3l3 5 3-5"/></svg>Deep Classic</span></span><small>#9b98a8</small></div>
+</div>
+<p class="note" style="margin-top:12px">
+  🛑 <b>ข้อควรระวังที่ต้องรู้ก่อนเลือก T2/T3:</b> สีตัวหนังสือในช่วงขวา <b>ไม่ใช่</b> สี accent ดิบ —
+  ผมเข้มลง 1–2 ขั้นบน tonal ramp ให้ผ่านคอนทราสต์ 4.5:1 บนพื้น tint (เช่น Gold ใช้ <code>#a35f00</code> ไม่ใช่ <code>#FF9F43</code>
+  ซึ่งบนพื้นอ่อนได้แค่ ~1.9:1) · และ <b>สีเหลือง/ส้มในระบบเราสงวนไว้ให้ "รอดำเนินการ/เตือน"</b> —
+  การเอามาใช้กับ Deep Gold ทำให้ความหมายของสีชนกัน ต้องยอมรับข้อแลกเปลี่ยนนี้ หรือเลือก T1/T4 ที่ไม่แตะสีระดับเลย
+</p>
+
+<h2>6 · สรุปที่เปลี่ยนจาก v2</h2>
+<div class="sum">
+  <b>1.</b> แถบตัวเลขจาก 44px (บรรทัดเดียวสีเทา) → <b>72px มีเส้นคั่นตั้ง เลข 22px</b> = เน้นขึ้นชัดแต่ยังเล็กกว่าเดิม 126px<br>
+  <b>2.</b> ไอคอนเหรียญ <b>56 → 44px</b> · ชื่อเหรียญย้ายไปชั้นสีรอง (`text.secondary`) = ลดน้ำหนักเหรียญตามที่สั่ง<br>
+  <b>3.</b> ปุ่ม <code>+</code> ออกจากแถว → <b>ลิงก์ "ดูทั้งหมด N →" มุมขวาแถวเดียวกับหัวข้อ</b> (แบบ GitHub) คืนช่องให้เหรียญ และบอกจำนวนจริงตั้งแต่ยังไม่กด<br>
+  <b>4.</b> ปุ่มแชทออกจากหน้าตาม phase นี้<br><b>5.</b> อัตราตอบกลับรวมเป็นประโยคเดียว <b>"ตอบกลับ 100% ใน 1 นาที"</b> แล้วต่อท้ายบรรทัดหมวดหมู่ — <b>−26px</b><br><b>6.</b> เช็คยืนยันตัวตนย้ายไปต่อท้ายชื่อร้าน (verified badge)<br><br>
+  <b>หัวโปรไฟล์ 860 → 540px</b> · จอแรกเห็นคลิปเต็มแถวแรก + แถวสองโผล่
+</div>
+
+</div>
+</body>
+</html>

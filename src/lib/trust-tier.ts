@@ -178,3 +178,40 @@ export function getNextTierInfo(
   }
   return null // ถึง Deep Star แล้ว — tier สูงสุด
 }
+
+export type TierChipTone = { bg: string; text: string }
+
+/**
+ * สีของ "ช่วงระดับ" ในชิปคะแนนพิลเดียว 2 ช่วง (T2 — user เคาะ 2026-08-10)
+ *
+ * ทำไมต้องมี: ชิปเดิมเป็น 2 ก้อนแยกกัน ก้อนระดับใช้พื้นเทากลาง ๆ ทำให้ **Deep Gold กับ
+ * Deep Classic หน้าตาเหมือนกันเป๊ะ** แยกได้ด้วยการอ่านตัวหนังสืออย่างเดียว ทั้งที่สีประจำระดับ
+ * มีอยู่แล้วในระบบ (`getTierAccentColor`) และปกก็ใช้สีชุดนี้อยู่ — มีแต่ชิปที่ไม่ใช้
+ *
+ * 🛑 `text` **ไม่ใช่สี accent ดิบ** — เป็นขั้นที่เข้มกว่าบน `tonalRamp` **ตระกูลเดียวกัน**
+ * (docs/conventions/contrast-fix-keeps-hue.md — ปรับได้แค่ความเข้ม ห้ามข้ามเฉด) เพราะ accent ดิบ
+ * บนพื้น tint ตกเกณฑ์หมด (เช่น Gold `#FF9F43` ได้ ~1.9:1)
+ *
+ * 🛑 mockup รอบแรกผมใช้ `#a35f00` กับ Gold ซึ่ง **ไม่อยู่บน ramp** และคำนวณได้ 4.41:1 (ตก AA
+ * สำหรับตัวอักษร 13px ที่ไม่เข้าเกณฑ์ large-text) — แก้เป็น `#874c00` (warning-amber idx1)
+ *
+ * ค่าคอนทราสต์ที่คำนวณไว้ (blend tint บนพื้นขาว เพราะพิลนี้อยู่บนการ์ดขาวเสมอ):
+ *   Star 4.79 · Diamond 6.71 · Gold 6.04 · Silver 5.49 · Classic-C 5.46 · Classic-D 5.59
+ *   ทุกค่าเป็นการ **คำนวณ** ไม่ใช่การวัด — ต้อง cross-check ด้วยเครื่องมือจริงหลัง implement
+ */
+export function getTierChipTone(trustScore: number): TierChipTone {
+  switch (letterFromScore(trustScore)) {
+    case "A+":
+      return { bg: "rgba(115,103,240,.16)", text: "#5a4ee0" }; // Deep Star — primary idx3
+    case "A":
+      return { bg: "rgba(0,186,209,.18)", text: "#005a66" }; // Deep Diamond — signal-cyan idx1
+    case "B+":
+      return { bg: "rgba(255,159,67,.18)", text: "#874c00" }; // Deep Gold — warning-amber idx1
+    case "B":
+      return { bg: "rgba(122,118,137,.18)", text: "#5c5870" }; // Deep Silver — ink idx2
+    case "C":
+      return { bg: "rgba(179,103,0,.18)", text: "#874c00" }; // Deep Classic 40-59
+    default:
+      return { bg: "rgba(155,152,168,.22)", text: "#5c5870" }; // Deep Classic 0-39
+  }
+}
