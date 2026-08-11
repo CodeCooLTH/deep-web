@@ -109,7 +109,10 @@ export default async function PublicOrderPage({ params }: Props) {
         }),
         prisma.shopChannel.findMany({
           where: { shopId: order.shopId, status: 'ACTIVE' },
-          select: { provider: true, name: true, avatarUrl: true },
+          /* allow-list 5 คีย์ — เหตุผลเต็มอยู่ที่ branch authenticated ในไฟล์เดียวกัน
+             (แถวนี้มี accessTokenEnc อยู่ด้วย) · ต้องเป็นชุดเดียวกับที่นั่นเป๊ะ ไม่งั้นสองจอ
+             จะ select คนละชุดแล้วกลายเป็นความต่างใหม่ที่ไม่มีเหตุผลอีกจุด */
+          select: { provider: true, name: true, avatarUrl: true, externalId: true, followerCount: true },
           take: 3,
         }),
       ])
@@ -190,14 +193,42 @@ export default async function PublicOrderPage({ params }: Props) {
     // ── grant: OWNER_MATCH / PHONE_MATCH_AUTO_CLAIM ───────────────────────────────────
     await guaranteeOrderLink({ orderId: order.id, userId: sessionUser.id, phone: me?.phone ?? null })
 
-    // query verificationRecord ของ shop owner หลัง order resolve
-    const approvedVerifications = await prisma.verificationRecord.findMany({
-      where: { userId: order.shop.userId, status: 'APPROVED' },
-      select: { level: true },
-    })
+    /* query verificationRecord ของ shop owner หลัง order resolve
+       + หลักฐานร้านชุดเดียวกับที่ guest branch ยิงอยู่แล้ว (user 2026-08-11 "ต้องเห็นทั้งคู่")
+
+       🛑 ยิงพร้อมกันใน Promise.all เดียว ไม่ใช่ต่อคิวทีละตัว — จอนี้ query หนักอยู่แล้ว
+       (order + user + guaranteeOrderLink มาก่อนหน้านี้) การเพิ่ม 3 ตัวแบบ sequential
+       จะยืดเวลาโหลดจริงตามจำนวน round trip ส่วนแบบขนานเสียเท่าตัวที่ช้าที่สุดตัวเดียว */
+    const [approvedVerifications, statusGroups, ratingAgg, channels] = await Promise.all([
+      prisma.verificationRecord.findMany({
+        where: { userId: order.shop.userId, status: 'APPROVED' },
+        select: { level: true },
+      }),
+      prisma.order.groupBy({
+        by: ['status'],
+        where: { shopId: order.shopId },
+        _count: { _all: true },
+      }),
+      prisma.review.aggregate({
+        where: { order: { shopId: order.shopId }, deletedAt: null },
+        _avg: { rating: true },
+        _count: { _all: true },
+      }),
+      prisma.shopChannel.findMany({
+        where: { shopId: order.shopId, status: 'ACTIVE' },
+        /* 🛑 allow-list 5 คีย์ ห้ามใช้ include หรือเพิ่มคีย์โดยไม่อ่านสคีมาก่อน — แถวเดียวกันนี้มี
+           `accessTokenEnc` (page access token) และคอลัมน์ตั้งค่าตอบกลับอัตโนมัติของร้านอยู่ด้วย
+           ซึ่งสคีมาเขียนกำกับไว้เองว่า "ห้ามส่งกลับ client ทุกกรณี" · ปลายทางเป็น client component
+           ทุกคีย์ที่ใส่จะถูก serialize ลง flight payload ให้อ่านได้จาก view-source */
+        select: { provider: true, name: true, avatarUrl: true, externalId: true, followerCount: true },
+        take: 3,
+      }),
+    ])
     const maxVerifyLevel = approvedVerifications.length
       ? Math.max(...approvedVerifications.map((v) => v.level))
       : 0
+
+    const confirmedCount = statusGroups.find((g) => g.status === 'CONFIRMED')?._count._all ?? 0
 
     // ── feature 00017: การจอง (type = BOOKING) ใช้หน้าคนละแบบ ─────────────────
     // flow ต่างจากออเดอร์สินค้าแทบทั้งหมด — ไม่มีของจัดส่ง ผู้จองยืนยันเองไม่ได้ (TFR-006)
@@ -282,6 +313,12 @@ export default async function PublicOrderPage({ params }: Props) {
           avatar: order.shop.logo ?? order.shop.user.avatar ?? null,
         },
       },
+      /* หลักฐานร้าน — เกณฑ์ null/0 ต้องตรงกับ guest branch ทุกตัว ไม่งั้นร้านเดียวกันจะขึ้น
+         บล็อกนี้ก่อนล็อกอินแต่หายไปหลังล็อกอิน (หรือกลับกัน) โดยไม่มีใครตั้งใจให้ต่าง */
+      completedOrders: confirmedCount > 0 ? confirmedCount : null,
+      avgRating: ratingAgg._avg.rating != null ? Math.round(ratingAgg._avg.rating * 10) / 10 : null,
+      reviewCount: ratingAgg._count._all,
+      channels,
       // feature 00022 — ลำดับความสำคัญ: สิ่งที่ร้าน "แจ้งเอง" มาก่อนเสมอ
       // แล้วค่อย fallback เป็นพัสดุ iShip ที่เปิดไว้ ผู้ซื้อจะได้เห็นเลขติดตาม
       // ตั้งแต่ร้านเปิดพัสดุ ไม่ต้องรอจนร้านกดแจ้งจัดส่งอีกที

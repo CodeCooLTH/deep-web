@@ -96,6 +96,30 @@ export type PublicOrderData = {
       avatar: string | null
     }
   }
+  /**
+   * ── หลักฐานของร้าน (ชุดเดียวกับที่จอ guest แสดงอยู่แล้ว) ──
+   *
+   * user 2026-08-11: "ต้องเห็นทั้งคู่ครับ ทั้ง guest และ login"
+   *
+   * เดิมมีเฉพาะ `GuestOrderData` ⇒ ผู้ซื้อที่ล็อกอินแล้วไม่เคยเห็นสถิติร้านบนหน้านี้เลย
+   * ทั้งที่เป็นจอเดียวกันของเรื่องเดียวกัน — ความต่างที่ไม่มีใครตั้งใจให้ต่าง
+   *
+   * 🛑 ทั้งหมดเป็นตัวเลขรวมของ "ร้าน" ไม่ใช่ของออเดอร์ใบนี้ จึงไม่ใช่ PII ของผู้ซื้อ และเป็น
+   * ข้อมูลที่เปิดสาธารณะอยู่แล้วบนโปรไฟล์ร้าน — เอามาแสดงตรงนี้ไม่ได้เปิดอะไรใหม่
+   *
+   * 🛑 `null` ของ completedOrders/avgRating ไม่ใช่ `0` — 0 แปลว่า "นับแล้วได้ศูนย์"
+   * ส่วน null แปลว่า "ยังไม่มีประวัติ จึงเลือกไม่แสดงบล็อกเลย" (ไม่ประจานร้านใหม่ด้วยเลข 0 ตัวโต)
+   */
+  completedOrders: number | null
+  avgRating: number | null
+  reviewCount: number
+  /**
+   * 🛑 5 คีย์นี้เท่านั้น — `ShopChannel` แถวเดียวกันมี `accessTokenEnc` (page access token)
+   * และคอลัมน์ตั้งค่าตอบกลับอัตโนมัติของร้านอยู่ด้วย สคีมาเขียนกำกับไว้เองว่า "ห้ามส่งกลับ
+   * client ทุกกรณี" — ไฟล์นี้เป็น `'use client'` ทุก field ที่ใส่ในนี้เดินทางข้าม RSC ไปโผล่ใน
+   * payload ฝั่งเบราว์เซอร์เสมอ · การเข้ารหัสไว้ไม่ใช่ใบอนุญาตให้หลุดออกไป
+   */
+  channels: { provider: string; name: string; avatarUrl: string | null; externalId: string; followerCount: number | null }[]
   shipmentTracking: { provider: string; trackingNo: string } | null
   // fields ใหม่จาก frozen contract
   paymentMethod: string | null

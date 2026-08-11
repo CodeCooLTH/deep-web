@@ -39,7 +39,7 @@ export type GuestOrderData = {
   completedOrders: number | null
   avgRating: number | null
   reviewCount: number
-  channels: { provider: string; name: string; avatarUrl: string | null }[]
+  channels: { provider: string; name: string; avatarUrl: string | null; externalId: string; followerCount: number | null }[]
   latestReview: { rating: number; comment: string } | null
   shipmentTracking: { provider: string; trackingNo: string } | null
   /** สถานะพัสดุจากขนส่ง — ใช้คำนวณ stage ด้วยตรรกะเดียวกับฝั่งร้าน (BR-BOE-12) */
@@ -89,7 +89,7 @@ export type GuestShopStats = {
   completedOrders: number | null
   avgRating: number | null
   reviewCount: number
-  channels: { provider: string; name: string; avatarUrl: string | null }[]
+  channels: { provider: string; name: string; avatarUrl: string | null; externalId: string; followerCount: number | null }[]
   latestReview: { rating: number; comment: string } | null
 }
 
