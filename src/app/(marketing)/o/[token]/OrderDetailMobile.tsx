@@ -9,9 +9,8 @@
  * คงฟังก์ชัน/logic ธุรกิจเดิมทั้งหมด (confirm/cancel/slip/review/tracking-copy/digital-access)
  *
  * Base:
- *   - Banner: theme/vuexy/typescript-version/full-version/src/views/pages/user-profile/UserProfileHeader.tsx
- *     ใช้ `ProfileBanner` โดยตรง (adapted export ที่ src/views/pages/user-profile/UserProfileHeader.tsx)
- *     — getTierGradient() แทน getTierCover() (D3)
+ *   - Banner: `./ShopCover` — ปกใช้ร่วมกับจอ guest (เดิมเรียก `ProfileBanner` ตรง ๆ ที่ 140px
+ *     ซึ่งเป็นคนละความสูงและคนละกติกา "ร้านใหม่" กับจอ guest ของออเดอร์ใบเดียวกัน)
  *   - Identity (avatar overlap + chips): pattern จาก `ProfileIdentityBar` ในไฟล์เดียวกัน — ปรับ avatar
  *     84px (แทน 112px), ตัด follow/chat actions ทิ้ง (ไม่มีใน order detail)
  *   - Items + totals: theme/vuexy/typescript-version/full-version/src/views/apps/ecommerce/orders/details/OrderDetailsCard.tsx
@@ -55,8 +54,8 @@ import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge, VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
-import { ProfileBanner } from '@/views/pages/user-profile/UserProfileHeader'
 
+import ShopCover from './ShopCover'
 import ReviewForm from './ReviewForm'
 // feature 00024 — การ์ดนัดหมาย (render เฉพาะออเดอร์ที่มีนัด)
 import AppointmentCard, { type PublicAppointment } from './AppointmentCard'
@@ -616,8 +615,11 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
         }}
       >
 
-        {/* ── 1. Tier gradient banner — ProfileBanner โดยตรง (D3: gradient แทน cover image) ── */}
-        <ProfileBanner data={{ trustScore }} bannerHeight={140} />
+        {/* ── 1. ปกไล่สีตาม tier — ตัวเดียวกับจอ guest (ShopCover) ──
+            เดิมเรียก `ProfileBanner` ตรง ๆ ที่ 140px ขณะที่จอ guest ตั้ง 104px และ **ไม่เคย
+            ส่ง isNewShop เลย** ⇒ ร้านที่ยังไม่มีออเดอร์จบสักใบได้ปกเทาก่อนล็อกอิน แล้วกลายเป็น
+            ปกไล่สีที่หน้าตาเหมือนรางวัลทันทีที่ล็อกอินเสร็จ ทั้งที่เป็นร้านเดียวกันในนาทีเดียวกัน */}
+        <ShopCover trustScore={trustScore} isNewShop={order.completedOrders == null} />
 
         {/* ── 2. Hero section: Avatar overlap + Identity ── */}
         <Box sx={{ bgcolor: 'background.paper', mt: '-42px', pb: 1.5, textAlign: 'center' }}>

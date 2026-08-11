@@ -24,7 +24,6 @@ import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import { Icon } from '@iconify/react'
 
-import { ProfileBanner } from '@/views/pages/user-profile/UserProfileHeader'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
 import { resolveVerifyBadge, type VerifyBadgeTone } from '@/lib/verify-badge'
 import { LinkButton } from '@/app/(marketing)/_components/mui-link'
@@ -33,6 +32,7 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import ParcelTimeline from './ParcelTimeline'
+import ShopCover from './ShopCover'
 import type { GuestOrderData } from './guest-order-data'
 
 /**
@@ -144,13 +144,10 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
   return (
     <Box sx={{ pb: 14 }}>
       <Box sx={{ maxWidth: { xs: '100%', 'min-[768px]': 720 }, mx: 'auto' }}>
-        {/* ── Hero — ยกจาก OrderDetailMobile ── */}
+        {/* ── Hero — ปกใช้ร่วมกับจอหลังล็อกอิน (ShopCover) ── */}
         {/* 🛑 ส่ง isNewShop แยก ไม่ใช่ completionRate — ร้านที่ยังไม่มีออเดอร์จบต้องไม่ได้
-            แบนเนอร์ไล่สีที่หน้าตาเหมือนรางวัล (ดูเหตุผลเต็มที่ prop ของ ProfileBanner) */}
-        <ProfileBanner
-          data={{ trustScore: order.shop.user.trustScore, isNewShop: order.completedOrders == null }}
-          bannerHeight={104}
-        />
+            แบนเนอร์ไล่สีที่หน้าตาเหมือนรางวัล (ดูเหตุผลเต็มที่ prop ของ ShopCover) */}
+        <ShopCover trustScore={order.shop.user.trustScore} isNewShop={order.completedOrders == null} />
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, pb: 2, textAlign: 'center' }}>
           <Box
             sx={{
