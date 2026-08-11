@@ -51,11 +51,12 @@ import { formatDateTimeTH } from '@/lib/format-date'
 import { formatOrderNo } from '@/lib/order-no'
 import type { TimelineState, TimelineStep } from '@/lib/order-display'
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
-import { resolveVerifyBadge, VERIFY_BADGE_PALETTE } from '@/lib/verify-badge'
+import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { uploadFileId } from '@/lib/upload-client'
 import { uploadMaxSize } from '@/lib/upload-policy'
 
 import ShopCover from './ShopCover'
+import TrustPill from './TrustPill'
 import ReviewForm from './ReviewForm'
 // feature 00024 — การ์ดนัดหมาย (render เฉพาะออเดอร์ที่มีนัด)
 import AppointmentCard, { type PublicAppointment } from './AppointmentCard'
@@ -685,40 +686,34 @@ export default function OrderDetailMobile({ order, onConfirmAction, onCancel }: 
             @{order.shop.user.username}
           </Typography>
 
-          {/* Chips: verified / tier / Trust score */}
-          <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', mt: 1, flexWrap: 'wrap', px: 2 }}>
-            {/* 🛑 แก้ 2026-08-11: เดิมเป็น Chip `color='success'` label 'ยืนยันแล้ว' hardcode
-                ⇒ เขียวเสมอทุกระดับและไม่บอกว่าระดับไหน ขณะที่จอ guest (`GuestOrderView.tsx`)
-                ซึ่งเป็น **จอเดียวกันของออเดอร์ใบเดียวกัน** ใช้ `resolveVerifyBadge()` ถูกอยู่แล้ว
-                ⇒ ร้านเดียวกันเห็นป้ายคนละแบบก่อน/หลังล็อกอิน ห่างกันไม่กี่วินาที ซึ่งเป็นเหตุผล
-                ที่ `verify-badge.ts` ถูกสร้างขึ้นมาตั้งแต่แรก (docstring ของไฟล์นั้นพูดเรื่องนี้ตรง ๆ)
+          {/* ป้ายยืนยัน + tier — `TrustPill` ตัวเดียวกับจอ guest
+              🛑 แก้ 2026-08-11 รอบสอง: รอบแรก (cc2c3b67) แก้ *เนื้อหา* ให้ตรงกันแล้ว (เดิมเป็น
+              Chip `color='success'` label 'ยืนยันแล้ว' hardcode ⇒ เขียวเสมอทุกระดับ) แต่ยังเป็น
+              MUI `Chip` อยู่ ขณะที่จอ guest ประกอบป้ายเอง ⇒ *หน้าตา* ยังคนละแบบ รอบนี้ยกทั้ง
+              component มาใช้ร่วม ป้ายชุดนี้จึงเหมือนกันทั้งคำ สี และทรง
 
-                สีมาจาก tone ของ SSOT ไม่ใช่ `color='success'` — L1 (ยืนยันแค่เบอร์) ห้ามเขียว
-                ส่วน `(ระดับ N)` ใช้สำนวนเดียวกับที่ AboutOverview ใช้อยู่แล้ว ไม่ตั้งคำใหม่ (HR16) */}
+              ชิป `Trust {score}` ถูกถอดออก: ตัวเลขดิบไม่มีคำอธิบายว่าเต็มเท่าไรหรือดีแค่ไหน
+              ส่วน `tierLabel` ที่อยู่ติดกันคือชื่อของช่วงคะแนนนั้นอยู่แล้ว = พูดเรื่องเดียวกัน
+              สองครั้งโดยครั้งที่อ่านง่ายกว่าอยู่ข้าง ๆ กัน (จอ guest ไม่เคยมีชิปนี้) */}
+          <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', mt: 1, flexWrap: 'wrap', px: 2 }}>
             {verifyBadge && (
-              <Chip
-                size='small'
-                variant='tonal'
-                icon={<Icon icon={verifyBadge.icon} fontSize={14} />}
+              <TrustPill
+                tone={verifyBadge.tone}
+                icon={verifyBadge.icon}
                 label={`${verifyBadge.label} (ระดับ ${order.maxVerifyLevel})`}
-                sx={{
-                  backgroundColor: VERIFY_BADGE_PALETTE[verifyBadge.tone].bg,
-                  color: VERIFY_BADGE_PALETTE[verifyBadge.tone].fg,
-                  '& .MuiChip-icon': { color: 'inherit' },
-                }}
               />
             )}
-            <Chip size='small' variant='tonal' color={tierColor} label={tierLabel} />
-            <Chip size='small' variant='tonal' color='default' label={`Trust ${trustScore}`} />
+            <TrustPill tone='tier' tierColor={tierColor} label={tierLabel} />
           </Box>
         </Box>
 
         {/* ── 3. Status line — pill + meta ── */}
         <Box sx={{ bgcolor: 'background.paper', px: 2.25, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Chip
-            size='small'
-            variant='tonal'
-            color={ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(order.status).tone]}
+          {/* ป้ายสถานะใช้ `TrustPill` เหมือนจอ guest — คำ/สีมาจาก SSOT เดียวกันอยู่แล้ว
+              (`resolveOrderStatusBadge`) ที่ต่างคือทรง ซึ่งไม่มีเหตุผลให้ต่าง */}
+          <TrustPill
+            tone='tier'
+            tierColor={ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(order.status).tone]}
             label={resolveOrderStatusBadge(order.status).label}
           />
           <Typography variant='caption' color='text.disabled' sx={{ ml: 'auto' }}>

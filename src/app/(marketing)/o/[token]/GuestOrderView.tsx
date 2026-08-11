@@ -25,7 +25,7 @@ import Divider from '@mui/material/Divider'
 import { Icon } from '@iconify/react'
 
 import { getTierColor, getTierLabel } from '@/lib/trust-tier'
-import { resolveVerifyBadge, type VerifyBadgeTone } from '@/lib/verify-badge'
+import { resolveVerifyBadge } from '@/lib/verify-badge'
 import { LinkButton } from '@/app/(marketing)/_components/mui-link'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH } from '@/lib/format-date'
@@ -33,66 +33,8 @@ import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import ParcelTimeline from './ParcelTimeline'
 import ShopCover from './ShopCover'
+import TrustPill, { VERIFIED_INK } from './TrustPill'
 import type { GuestOrderData } from './guest-order-data'
-
-/**
- * Verified Ink — เขียวเข้มสำหรับ "ตัวหนังสือ" บนพื้นเขียวจาง
- *
- * 🛑 ห้ามใช้ success.main (#28C76F) เป็นสีตัวอักษร: บนพื้นจางได้ ~1.9–2.2:1 ซึ่งตก AA ไปไกล
- * ค่านี้คือเฉดเดียวกันแค่เข้มขึ้น (ไม่เปลี่ยนฮิว — docs/conventions/contrast-fix-keeps-hue.md)
- */
-const VERIFIED_INK = '#18804A'
-
-/**
- * ป้ายเล็กบนหัวโปรไฟล์ร้าน — ประกอบเองแทน MUI Chip variant='tonal'
- *
- * 🛑 ทำไมไม่ใช้ Chip: tonal ของธีมนี้ให้ text = {semantic}.main บนพื้น {semantic} จาง
- * ซึ่งวัดได้ 1.83–3.51:1 ทุกสี = ตก AA ทั้งชุด และป้ายพวกนี้แบก "ระดับการยืนยัน" กับ "tier"
- * ซึ่งเป็นสาระของจอนี้ทั้งจอ ไม่ใช่ของประดับที่อ่านไม่ออกก็ได้
- */
-function TrustPill({
-  tone,
-  label,
-  icon,
-  tierColor,
-}: {
-  tone: VerifyBadgeTone | 'tier'
-  label: string
-  icon?: string
-  tierColor?: string
-}) {
-  const palette =
-    tone === 'green'
-      ? { bg: 'rgba(40,199,111,0.15)', fg: VERIFIED_INK }
-      : tone === 'gold'
-        ? { bg: 'rgba(255,159,67,0.15)', fg: '#874C00' }
-        : tone === 'neutral'
-          ? { bg: 'rgba(47,43,61,0.08)', fg: 'rgba(47,43,61,0.75)' }
-          : { bg: 'action.hover', fg: 'text.primary' }
-
-  return (
-    <Box
-      component='span'
-      sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 0.5,
-        px: 1,
-        py: 0.375,
-        borderRadius: 999,
-        fontSize: '0.8125rem',
-        fontWeight: 600,
-        lineHeight: 1.4,
-        bgcolor: palette.bg,
-        color: tone === 'tier' && tierColor ? undefined : palette.fg,
-        ...(tone === 'tier' && tierColor ? { color: `${tierColor}.dark` } : {}),
-      }}
-    >
-      {icon && <Icon icon={icon} fontSize={14} />}
-      {label}
-    </Box>
-  )
-}
 
 const baht = new Intl.NumberFormat('th-TH', {
   style: 'currency',
