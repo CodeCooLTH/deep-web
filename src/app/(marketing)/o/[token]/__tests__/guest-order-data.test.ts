@@ -172,13 +172,16 @@ describe('buildGuestOrderData', () => {
       makeOrder({
         shop: {
           shopName: 'ร้านทดสอบ',
+          vertical: 'SERVICE_QUEUE',
           logo: 'shop-logo.png',
           user: { displayName: 'เจ้าของร้าน', username: 'shop1', trustScore: 26, avatar: 'owner-selfie.jpg' },
         },
       }),
       1,
     )
-    expect(out.shop.user.avatar).toBe('shop-logo.png')
+    // storage key ต้องถูกแปลงเป็น URL ที่ <img src> ใช้ได้จริง ไม่ใช่คืน key ดิบ
+    // (บั๊กบน prod 2026-08-12: คืน key ดิบ → path สัมพัทธ์ → 404 เงียบ กล่องเทาว่าง)
+    expect(out.shop.user.avatar).toBe('/api/files/shop-logo.png')
   })
 
   it('[blocker] ไม่มีโลโก้ร้าน → ตกไปใช้รูปเจ้าของ (ร้านบุคคลที่ยังไม่อัปโหลดโลโก้)', () => {
@@ -186,12 +189,37 @@ describe('buildGuestOrderData', () => {
       makeOrder({
         shop: {
           shopName: 'ร้านทดสอบ',
+          vertical: 'ONLINE_SALES',
           logo: null,
           user: { displayName: 'เจ้าของร้าน', username: 'shop1', trustScore: 26, avatar: 'owner-selfie.jpg' },
         },
       }),
       1,
     )
-    expect(out.shop.user.avatar).toBe('owner-selfie.jpg')
+    expect(out.shop.user.avatar).toBe('/api/files/owner-selfie.jpg')
+  })
+})
+
+/**
+ * [blocker] ประเภทกิจการต้องเดินทางถึงจอผู้ซื้อ
+ *
+ * ถ้า field นี้หายไป จอจะตกไป ONLINE_SALES เงียบ ๆ แล้วร้านบริการ/บ้านพักเห็นคำว่า "สินค้า"
+ * ทั้งหน้า ซึ่งเป็นอาการที่ user รายงานเองบน prod 2026-08-12 — ไม่มี error ไม่มีอะไรฟ้อง
+ * เพราะสตริงที่ผิดก็ยังเป็นสตริงที่ถูกต้องตามชนิดทุกประการ (HR16)
+ */
+describe('[blocker] buildGuestOrderData ส่ง shop.vertical ต่อให้จอผู้ซื้อ', () => {
+  it('ส่งค่าตามที่ร้านตั้งไว้ ไม่ใช่ค่าคงที่', () => {
+    const out = buildGuestOrderData(
+      makeOrder({
+        shop: {
+          shopName: 'บ้านพักทดสอบ',
+          vertical: 'LODGING',
+          logo: null,
+          user: { displayName: 'เจ้าของ', username: 'host1', trustScore: 10, avatar: null },
+        },
+      }),
+      1,
+    )
+    expect(out.shop.vertical).toBe('LODGING')
   })
 })

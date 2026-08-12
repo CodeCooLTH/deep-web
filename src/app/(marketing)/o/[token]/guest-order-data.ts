@@ -11,6 +11,7 @@
  * (memory `feedback_rsc_pii_neutralize_at_source`)
  */
 
+import { toFileUrl } from '@/lib/file-url'
 import { maskPhoneForGuest, maskShippingAddressForGuest, type MaskedShippingAddress } from '@/lib/order-pii-mask'
 import type { ShippingAddressLike } from '@/lib/shipping-address-status'
 
@@ -22,6 +23,7 @@ export type GuestOrderData = {
   items: Array<{ id: string; name: string; qty: number; price: number; imageUrl: string | null }>
   shop: {
     shopName: string
+    vertical: string
     user: { displayName: string | null; username: string; trustScore: number; avatar: string | null }
   }
   maxVerifyLevel: number
@@ -71,6 +73,8 @@ type OrderLike = {
   }>
   shop: {
     shopName: string
+    /** ประเภทกิจการ — ตัวผันคำทั้งหน้าฝั่งผู้ซื้อ (ORDER_VOCAB) */
+    vertical: string
     /** โลโก้ร้าน — มาก่อนรูปส่วนตัวของเจ้าของเสมอ (ดูหมายเหตุที่จุด map) */
     logo: string | null
     user: { displayName: string | null; username: string; trustScore: number; avatar: string | null }
@@ -119,12 +123,20 @@ export function buildGuestOrderData(
       name: it.name,
       qty: it.qty,
       price: Number(it.price),
-      imageUrl: (it.product?.images as string[] | undefined)?.[0] ?? null,
+      /* 🛑 ต้องผ่าน toFileUrl — ค่าที่เก็บใน DB เป็น **storage key** ("2026/08/08/uuid.jpg")
+         ไม่ใช่ URL เต็ม ใส่ลง <img src> ตรง ๆ จะกลายเป็น path สัมพัทธ์ = 404 เงียบ ๆ
+         (ไม่มี error ไม่มีอะไรฟ้อง มีแต่กล่องเทาว่าง — user เจอเองบน prod 2026-08-12)
+         หัวไฟล์ file-url.ts เขียนเตือนไว้เองว่าคลาสนี้เกิดซ้ำมาแล้วกับ "หน้าลิงก์คำสั่งซื้อ"
+         และ "หน้าร้านสาธารณะ" — นี่คือครั้งที่สาม */
+      imageUrl: toFileUrl((it.product?.images as string[] | undefined)?.[0]),
       // 🛑 ไม่ส่ง `description` — เป็น free-text ที่ร้านพิมพ์เอง เคยมีเคสใส่ข้อมูลติดต่อ/
       // เงื่อนไขเฉพาะลูกค้ารายนั้นลงไป ซึ่งไม่ควรให้คนที่ถือลิงก์ต่อเห็น
     })),
     shop: {
       shopName: order.shop.shopName,
+      /* ประเภทกิจการ — ตัวผันคำทั้งหน้า (ORDER_VOCAB) ร้านบริการต้องไม่เห็นคำว่า "สินค้า"
+         ค่าที่ไม่รู้จักตกไป ONLINE_SALES ที่ฝั่งอ่าน (fail-safe เดียวกับ seller-menu) */
+      vertical: order.shop.vertical,
       user: {
         displayName: order.shop.user.displayName,
         username: order.shop.user.username,
@@ -139,7 +151,11 @@ export function buildGuestOrderData(
            ห่างกันไม่กี่วินาที ตรงจุดที่ระบบต้องพิสูจน์ตัวตนที่สุด
 
            คง fallback ไป avatar ไว้เป็นชั้นสอง เพราะร้านบุคคลที่ยังไม่อัปโหลดโลโก้มีจริง */
-        avatar: order.shop.logo ?? order.shop.user.avatar ?? null,
+        /* 🛑 toFileUrl ครอบทั้งก้อน — `shop.logo` เป็น storage key ส่วน `user.avatar` เป็น URL
+           เต็มจาก OAuth (ขึ้นต้น https) toFileUrl คืนค่าเดิมให้ตัวหลังอยู่แล้ว จึงครอบได้ทั้งคู่
+           เดิมไม่ครอบ ⇒ ร้านที่มีโลโก้กลับไม่มีรูปขึ้น ส่วนร้านที่ไม่มีโลโก้ (fallback ไป avatar
+           ซึ่งเป็น URL เต็ม) กลับขึ้นปกติ — อาการกลับหัวจนดูเหมือนไม่ใช่บั๊กของโลโก้ */
+        avatar: toFileUrl(order.shop.logo) ?? toFileUrl(order.shop.user.avatar),
       },
     },
     maxVerifyLevel,

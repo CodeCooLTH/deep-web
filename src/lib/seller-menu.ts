@@ -383,6 +383,21 @@ export type OrderVocab = {
    * จอเดียวบอก "ให้บริการแล้ว" ที่หนึ่งติ๊กถูก อีกที่ยังไม่ติ๊ก
    */
   fulfillLabel: string
+  /**
+   * หัวข้อการ์ด "ของที่อยู่ในบิลใบนี้" บนหน้าลิงก์คำสั่งซื้อฝั่งผู้ซื้อ (`/o/[token]`)
+   *
+   * [สำคัญ] ไม่ผันเป็น `"รายการ" + noun` — จะได้ "รายการการเข้ารับบริการ" ซึ่งอ่านว่าเป็น
+   * *รายการของบิลหลายใบ* ไม่ใช่ *ของในบิลใบนี้* ต้องเป็นคำที่ผูกกับ "สิ่งที่ซื้อ/ใช้" ไม่ใช่กับ
+   * "ตัวบิล" (feedback_vocab_substitution_needs_sentence_sets)
+   */
+  itemsLabel: string
+  /**
+   * สิ่งที่ **ผู้ซื้อ** กดยืนยันว่าได้รับแล้ว (`BUYER_CONFIRMED`) — ใช้บนปุ่มหน้าลิงก์คำสั่งซื้อ
+   *
+   * [สำคัญ] คนละตัวกับ `fulfillLabel` ซึ่งเป็นฝั่ง **ผู้ขาย** ลงมือทำ (Order.status ที่ผู้ขายกด)
+   * สองช่องนี้ผูกกับคนละคน คนละปุ่ม คนละจอ — ห้ามยุบรวมกันเพราะคำมันคล้ายกัน
+   */
+  buyerConfirmLabel: string
 }
 
 export const ORDER_VOCAB: Record<string, OrderVocab> = {
@@ -393,6 +408,8 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     createLabelShort: 'สร้างคำสั่งซื้อ',
     dateLabel: 'วันที่สั่งซื้อ',
     fulfillLabel: 'ยืนยันการจัดส่ง',
+    itemsLabel: 'รายการสินค้า',
+    buyerConfirmLabel: 'ยืนยันรับสินค้า',
   },
   SERVICE_QUEUE: {
     noun: 'การเข้ารับบริการ',
@@ -421,6 +438,9 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
      * ส่วนช่องนี้ผูกกับ Order.status ซึ่งเดินคนละเส้น ใบหนึ่งติ๊กถูกได้โดยที่อีกอันยังไม่ติ๊ก
      */
     fulfillLabel: 'เริ่มให้บริการแล้ว',
+    itemsLabel: 'รายการบริการ',
+    // "รับบริการ" ไม่ใช่ "ให้บริการ" — ผู้ซื้อเป็นคนกด ไม่ใช่ร้าน (เทียบ fulfillLabel ข้างบน)
+    buyerConfirmLabel: 'ยืนยันรับบริการ',
   },
   LODGING: {
     noun: 'บิลเข้าพัก',
@@ -432,6 +452,10 @@ export const ORDER_VOCAB: Record<string, OrderVocab> = {
     // เลี่ยงคำว่า "เช็คอินแล้ว" ด้วยเหตุผลเดียวกับ dateLabel ข้างบน — ผู้ใช้จะอ่านว่าหมายถึง
     // คอลัมน์ Order.checkIn ทั้งที่ช่องนี้คือขั้นตอนบนเช็กลิสต์ที่ผูกกับ Order.status
     fulfillLabel: 'รับเข้าพักแล้ว',
+    itemsLabel: 'รายการห้องพัก',
+    // "เข้าพักแล้ว" ไม่ใช่ "รับเข้าพักแล้ว" — ผู้ซื้อยืนยันว่าตัวเองได้เข้าพักจริง ส่วน fulfillLabel
+    // คือร้านกดว่ารับคนเข้าพักแล้ว คนละคนคนละปุ่ม
+    buyerConfirmLabel: 'ยืนยันเข้าพักแล้ว',
   },
 }
 

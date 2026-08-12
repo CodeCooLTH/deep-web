@@ -31,6 +31,7 @@ import AuthPingLink from './AuthPingLink'
 import { formatOrderNo } from '@/lib/order-no'
 import { formatDateTimeTH } from '@/lib/format-date'
 import { ORDER_STATUS_TONE_TO_MUI } from '@/lib/order-display'
+import { ORDER_VOCAB } from '@/lib/seller-menu'
 import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveOrderStatusHeadline } from '@/lib/order-status-headline'
 import ParcelTimeline from './ParcelTimeline'
@@ -91,8 +92,14 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
   })
   const statusColor = ORDER_STATUS_TONE_TO_MUI[resolveOrderStatusBadge(order.status, stage).tone]
 
+  /* คำทั้งหน้าผันตามประเภทกิจการ — ร้านบริการ/บ้านพักต้องไม่เห็นคำว่า "สินค้า" ที่ไหนเลย
+     ค่าที่ไม่รู้จักตกไป ONLINE_SALES (fail-safe เดียวกับ VERTICAL_VISIBLE_SLUGS ของ seller-menu) */
+  const vocab = ORDER_VOCAB[order.shop.vertical] ?? ORDER_VOCAB.ONLINE_SALES
+
   const isClosed = order.status === 'CONFIRMED' || order.status === 'CANCELLED'
-  const ctaLabel = isClosed ? 'เข้าสู่ระบบเพื่อดูรายละเอียดคำสั่งซื้อ' : 'เข้าสู่ระบบเพื่อยืนยันรับสินค้า'
+  const ctaLabel = isClosed
+    ? `เข้าสู่ระบบเพื่อดูรายละเอียด${vocab.noun}`
+    : `เข้าสู่ระบบเพื่อ${vocab.buyerConfirmLabel}`
 
 
   return (
@@ -288,7 +295,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           {/* ── รายการสินค้า ── */}
           <Card>
             <CardContent>
-              <SectionTitle>รายการสินค้า</SectionTitle>
+              <SectionTitle>{vocab.itemsLabel}</SectionTitle>
               {order.items.map((it) => (
                 <Box key={it.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.25, py: 1 }}>
                   <Box
