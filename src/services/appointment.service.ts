@@ -617,6 +617,8 @@ export async function listAppointmentsForDay(args: {
       customerId: true,
       shopChannelId: true,
       salesChannel: true,
+      // ห้องแชทต้นทางของออเดอร์ใบนี้ (คอลัมน์ที่ main เพิ่ม 2026-08-12) — ดู `originIds` ด้านล่าง
+      conversationId: true,
       serviceResource: { select: { id: true, name: true, capacity: true } },
       // ห้าม select ทั้งแถวของ ShopChannel — แถวเดียวกันมี accessTokenEnc อยู่
       shopChannel: { select: { provider: true, name: true, avatarUrl: true } },
@@ -661,6 +663,33 @@ export async function listAppointmentsForDay(args: {
     contacts.map((c) => [`${c.shopChannelId}:${c.customerId}`, c]),
   );
 
+  /**
+   * ห้องต้นทางของออเดอร์ — ชนะห้องที่ derive จากลูกค้าเสมอถ้ารู้
+   *
+   * 🛑 การหาห้องด้วย "contact ของลูกค้าคนนี้ แล้วเอาห้องที่คุยล่าสุด" **เลือกผิดห้องทันทีที่ลูกค้า
+   * คนเดียวกันทักมาสองเพจ** แล้วเพจที่คุยล่าสุดไม่ใช่เพจที่นัดเกิดขึ้น — บั๊กเดียวกันนี้ถูกปิดไปแล้ว
+   * ที่ `GET /api/orders/[token]/appointment-summary` (commit 21d72638) ด้วยคอลัมน์ `Order.conversationId`
+   * ที่นี่จึงต้องใช้กติกาเดียวกัน ไม่ใช่ปล่อยให้เป็นนิยามที่สองของคำว่า "ห้องแชทของลูกค้า" (HR16)
+   *
+   * ยัง fallback ไป contact ได้ เพราะคอลัมน์นี้เพิ่งเพิ่ม 2026-08-12 — นัดที่สร้างก่อนหน้านั้น
+   * เป็น null ทั้งหมด ถ้าตัด fallback ทิ้ง ปุ่ม "ทักแชท" จะหายไปจากออเดอร์เก่าทุกใบ
+   *
+   * ownership อยู่ใน WHERE เสมอ — ไม่เชื่อค่าในคอลัมน์ฝ่ายเดียวว่าเป็นห้องของร้านนี้จริง
+   */
+  const originIds = [
+    ...new Set(rows.map((r) => r.conversationId).filter((v): v is string => !!v)),
+  ];
+  const validOrigin = originIds.length
+    ? new Set(
+        (
+          await prisma.conversation.findMany({
+            where: { id: { in: originIds }, shopId },
+            select: { id: true },
+          })
+        ).map((c) => c.id),
+      )
+    : new Set<string>();
+
   return rows.map((r) => {
     const contact =
       r.shopChannelId && r.customerId
@@ -684,7 +713,10 @@ export async function listAppointmentsForDay(args: {
         : null,
       salesChannel: r.salesChannel,
       customerAvatarUrl: contact?.avatarUrl ?? null,
-      conversationId: contact?.conversations[0]?.id ?? null,
+      conversationId:
+        r.conversationId && validOrigin.has(r.conversationId)
+          ? r.conversationId
+          : (contact?.conversations[0]?.id ?? null),
     };
   });
 }
