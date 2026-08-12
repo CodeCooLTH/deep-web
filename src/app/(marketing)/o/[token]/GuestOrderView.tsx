@@ -137,7 +137,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             แบนเนอร์ไล่สีที่หน้าตาเหมือนรางวัล (ดูเหตุผลเต็มที่ prop ของ ShopCover) */}
         <ShopCover trustScore={order.shop.user.trustScore} isNewShop={order.completedOrders == null} />
 
-        <Box component='header' sx={{ bgcolor: 'background.paper', px: 2.25, pb: 2, textAlign: 'center' }}>
+        <Box component='header' sx={{ bgcolor: 'background.paper', px: 4, pb: 4, textAlign: 'center' }}>
           <Box
             sx={{
               width: 64,
@@ -249,7 +249,7 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           )}
         </Box>
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, px: 1.5, pt: 1.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, px: 4, pt: 4 }}>
           {/* ── สถานะ + พัสดุ — การ์ดที่เด่นที่สุดในหน้า ──
               ขอบ 1px สี semantic ตามสถานะ + เงาหนากว่าการ์ดอื่น (แบบ ค): ยกความสำคัญด้วย
               "น้ำหนักทางสายตา" แทนการย้ายตำแหน่งขึ้นบนสุด
@@ -262,7 +262,10 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             sx={{
               border: '1px solid',
               borderColor: (t) => alpha(t.palette[statusColor].main, 0.5),
-              boxShadow: 4,
+              // customShadows.lg = ขั้นที่ DESIGN.md ระบุ use case ว่า "modal, popover, แผงสำคัญ"
+              // ไม่ใช่ `boxShadow: 4` ซึ่งดึงจาก array elevation ของ Material Design คนละตระกูลกับ
+              // การ์ดใบอื่นในหน้าเดียวกันที่ได้ customShadows.md จาก MuiCard override
+              boxShadow: 'var(--mui-customShadows-lg)',
             }}
           >
             <CardContent>
@@ -362,9 +365,18 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                       <Typography variant='body2' sx={{ fontWeight: 600 }}>
                         จ.{order.maskedShippingAddress.province}
                       </Typography>
-                      <Typography variant='caption' color='text.secondary' sx={{ letterSpacing: '.05em' }}>
-                        {order.maskedShippingAddress.line1} {order.maskedShippingAddress.subdistrict}{' '}
-                        {order.maskedShippingAddress.district} {order.maskedShippingAddress.postcode}
+                      {/* 🛑 4 ท่อนที่ mask แยกกันถูกต่อด้วยช่องว่างเฉย ๆ ⇒ `••••ม่ 3 •งจิก ••••••••ช้าง`
+                          อ่านเป็น "หน้าจอพัง" ไม่ใช่ "ระบบกำลังปกปิดให้อย่างมีเหตุผล" ทั้งที่มีแคปชัน
+                          อธิบายอยู่ข้างบนแล้ว — ใส่ prefix ต./อ. ตามธรรมเนียมเดียวกับ `จ.` ที่บรรทัด
+                          เหนือขึ้นไปใช้อยู่แล้ว ทำให้ท่อนที่อ่านไม่ออกยังบอกได้ว่ามันคืออะไร
+                          เช็ค truthy ก่อนใส่ prefix — field ที่ mask คืน '' ต้องไม่เหลือ `ต.` ลอย ๆ */}
+                      <Typography variant='caption' color='text.secondary' sx={{ display: 'block', letterSpacing: '.05em' }}>
+                        {order.maskedShippingAddress.line1}
+                      </Typography>
+                      <Typography variant='caption' color='text.secondary' sx={{ display: 'block', letterSpacing: '.05em' }}>
+                        {order.maskedShippingAddress.subdistrict && `ต.${order.maskedShippingAddress.subdistrict} `}
+                        {order.maskedShippingAddress.district && `อ.${order.maskedShippingAddress.district} `}
+                        {order.maskedShippingAddress.postcode}
                       </Typography>
                     </Box>
                   </Box>
@@ -379,11 +391,15 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
           <Card>
             <CardContent>
               <SectionTitle>ต้องการความช่วยเหลือ?</SectionTitle>
+              {/* 🛑 minHeight 44 ต้องมีทั้งสองปุ่ม — รอบก่อนผมแก้แค่ปุ่มล่างแล้วรายงานว่า
+                  "tap target 44px เสร็จแล้ว" ทั้งที่ปุ่มบนยังสูง ~36-38px (outlined+medium =
+                  padding 7px + line-box 22px) เป็นการปิดเคสทั้งคลาสจากการแก้ตัวอย่างเดียว */}
               <LoginLink
                 fullWidth
                 variant='outlined'
                 color='secondary'
                 startIcon={<Icon icon='tabler-headset' fontSize={18} />}
+                sx={{ minHeight: 44 }}
               >
                 ติดต่อร้านค้า
               </LoginLink>
@@ -392,10 +408,10 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                   ใต้ปุ่มเป็น text.disabled (2.30:1) ซึ่งตก AA. รวมสองบรรทัดเป็นปุ่มใบเดียวที่
                   สูงพอและอ่านออก แทนที่จะมีลิงก์จิ๋วคู่กับข้อความจางที่ดูเหมือนข้อความตาย */}
               {!isClosed && (
-                <Box sx={{ mt: 1.25 }}>
+                <Box sx={{ mt: 2 }}>
                   <LoginLink
                     fullWidth
-                    variant='text'
+                    variant='outlined'
                     color='secondary'
                     startIcon={<Icon icon='tabler-alert-circle' fontSize={18} />}
                     sx={{ minHeight: 44, justifyContent: 'flex-start' }}

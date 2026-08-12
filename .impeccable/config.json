@@ -3,7 +3,9 @@
     "ignoreRules": [],
     "ignoreFiles": [
       "docs/superpowers/specs/*mockup.html",
-      "*/scratchpad/mockup/*.html"
+      "*/scratchpad/mockup/*.html",
+      "docs/superpowers/specs",
+      "docs/superpowers/specs/**"
     ],
     "ignoreValues": [
       {
