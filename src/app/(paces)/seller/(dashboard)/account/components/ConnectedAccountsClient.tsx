@@ -488,6 +488,25 @@ export function ConnectedAccountsClient({
             ปุ่ม Apple ในหน้าล็อกอินซึ่ง **สร้างบัญชีใหม่คนละใบ** แล้วไปตันที่ onboarding เพราะ
             เบอร์โทรของเขาผูกกับบัญชีเดิมไปแล้ว (เบอร์ตั้งได้ครั้งเดียว เปลี่ยนไม่ได้)
             เจอจริง 2026-08-12 ตอนทดสอบ — ต้องลบบัญชีที่ค้างทิ้งด้วยมือ */}
+        {/* กำลังพาไปหน้าผู้ให้บริการ — ทับทั้งจอ ไม่ปล่อยให้ผู้ใช้เห็น "จอว่าง" ระหว่างรอ redirect
+            (user report 2026-08-12) · ระหว่างนี้เบราว์เซอร์กำลังจะออกจากหน้านี้จริง ๆ จึงไม่มีทาง
+            "ยกเลิก" ได้ ตั้งใจไม่ใส่ปุ่มปิด
+            Base: src/app/(paces)/seller/NavigationLoader.tsx:90-100 (overlay + spinner ชุดเดียวกัน) */}
+        {loadingProvider && (
+          <div
+            className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-card/85 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+            aria-label={`กำลังไปที่ ${PROVIDER_LABEL[loadingProvider as ProviderKey] ?? loadingProvider}`}
+          >
+            <Icon icon="loader-2" className="text-primary size-10 animate-spin" aria-hidden="true" />
+            <p className="text-default-700 mt-4 text-sm font-medium">
+              กำลังไปที่ {PROVIDER_LABEL[loadingProvider as ProviderKey] ?? loadingProvider}...
+            </p>
+            <p className="text-default-400 mt-1 text-xs">อีกสักครู่จะกลับมาหน้านี้เอง</p>
+          </div>
+        )}
+
         <ProviderRow
           provider="apple"
           label="Apple"
