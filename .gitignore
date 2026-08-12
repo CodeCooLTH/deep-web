@@ -29,6 +29,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+# log ที่ redirect ออกมาเอง (เช่น `npm run build > b.log`) — เคยหลุดเข้า git มาแล้ว (48c0541b)
+# และเป็นอันตรายจริง: Tailwind v4 สแกนไฟล์ในรีโปเป็น "ข้อความ" ถ้า log มีคลาส arbitrary value
+# ที่ผิดไวยากรณ์อยู่ในนั้น มันจะถูกหยิบไปเจนเป็น CSS rule แล้ว dev พังทั้ง group
+*.log
 
 # env files (can opt-in for committing if needed)
 .env*
