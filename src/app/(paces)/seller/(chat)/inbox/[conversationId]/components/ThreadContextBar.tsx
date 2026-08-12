@@ -36,8 +36,14 @@ export interface ThreadContextItem {
   thumbUrl: string | null
   /** tabler icon — ทั้ง fallback ของภาพย่อ และไอคอนนำเมื่อไม่มีภาพ */
   icon: string
-  /** คำนำสั้น ๆ ที่บอกประเภทของที่มา — "จากโฆษณา" | "จากคอมเมนต์" | "ตอบในนามร้าน" */
-  label: string
+  /**
+   * คำนำที่บอก **ประเภท** ของที่มา — "จากโฆษณา" | "จากคอมเมนต์"
+   *
+   * `null` = รายการนี้เป็นประโยคสมบูรณ์ในตัวเอง ไม่ต้องมีจุดคั่น (เช่นแถวชื่อร้าน ซึ่งอ่านว่า
+   * "ตอบในนามร้าน BT Premium" — เติม `·` หลังวลีที่มีกริยาจะกลายเป็น "ตอบในนามร้าน · BT Premium"
+   * ซึ่งอ่านสะดุด ต่างจาก "จากโฆษณา · เรามาแล้วครับ!" ที่เป็นคู่ ประเภท·เนื้อหา จริง ๆ)
+   */
+  label: string | null
   /** เนื้อหาสำคัญที่สุดของรายการนั้น 1 บรรทัด (ตัดท้ายด้วย truncate ถ้าเกิน) */
   short: string
   /** การ์ดเต็มตอนกาง — JSX ก้อนเดิมยกมาทั้งดุ้น ไม่แก้เนื้อใน */
@@ -91,7 +97,7 @@ export default function ThreadContextBar({ items }: { items: ThreadContextItem[]
           </span>
         )}
       </span>
-      <span className="text-default-700 shrink-0">{head.label} ·</span>
+      {head.label && <span className="text-default-700 shrink-0">{head.label} ·</span>}
       {/* min-w-0 + truncate: คงความสูง 1 บรรทัดเสมอ — เนื้อหาเต็มอยู่ในตัวกาง ไม่ใช่การซ่อนทิ้ง */}
       <span className="text-default-800 min-w-0 flex-1 truncate">{head.short}</span>
       {/* +N = ยังมีที่มาอื่นอีก ต้องบอกจำนวน ไม่งั้นผู้ใช้ไม่มีทางรู้ว่ามีอะไรถูกซ่อนอยู่

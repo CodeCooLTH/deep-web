@@ -6,6 +6,8 @@
  */
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { buildAppointmentSummary } from '../../appointment-summary'
 import { buildMetaAppointmentCard } from '../appointment-card'
 import { META_SUBTITLE_MAX, META_TITLE_MAX } from '../product-card'
@@ -66,5 +68,25 @@ describe('buildMetaAppointmentCard', () => {
     expect(b[0].type).toBe('web_url')
     expect(b[0].url).toBe('https://deepthailand.app/o/ABC')
     expect(b[0].title.length).toBeLessThanOrEqual(20)
+  })
+
+  /**
+   * [สำคัญ] ปุ่มเดียวกัน ปลายทางเดียวกัน ต้องพูดคำเดียวกันทุกช่องทาง — และต้องเป็นคำเดียวกับปุ่มที่
+   * ลูกค้าจะเห็นเมื่อไปถึง `/o/{token}` (`(marketing)/o/[token]/AppointmentCard.tsx`)
+   * เดิม Meta เขียน "ดูรายละเอียดนัด" ส่วน LINE เขียน "ยืนยันนัด" = สัญญาคนละอย่างตามช่องทาง
+   * ที่ลูกค้าบังเอิญใช้ (impeccable clarify 2026-08-12)
+   */
+  it('[สำคัญ] ป้ายปุ่มตรงกับ LINE และกับปุ่มที่ปลายทาง', () => {
+    const meta = (el().buttons as { title: string }[])[0].title
+    const line = readFileSync(
+      join(process.cwd(), 'src/lib/line/flex-appointment-card.ts'),
+      'utf8',
+    ).match(/const BUTTON_LABEL = '([^']+)'/)?.[1]
+    const destination = readFileSync(
+      join(process.cwd(), 'src/app/(marketing)/o/[token]/AppointmentCard.tsx'),
+      'utf8',
+    )
+    expect(meta).toBe(line)
+    expect(destination).toContain(meta)
   })
 })

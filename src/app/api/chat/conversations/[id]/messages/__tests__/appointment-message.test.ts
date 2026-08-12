@@ -125,7 +125,7 @@ describe('service — ธง isAppointmentCard ต้องมีผลจริ
     for (const src2 of [deep, outbound]) {
       const code = src2.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
       expect(code).toContain('APPOINTMENT_CARD_PREVIEW')
-      expect(code).not.toContain('[สรุปนัดหมาย]')
+      expect(code).not.toContain('[สรุปนัด]')
     }
   })
 })

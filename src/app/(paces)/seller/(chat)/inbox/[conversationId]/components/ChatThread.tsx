@@ -1981,8 +1981,9 @@ export default function ChatThread({
       key: 'shop',
       thumbUrl: null,
       icon: 'building-store',
-      label: 'ตอบในนามร้าน',
-      short: shopName,
+      // ประโยคสมบูรณ์ในตัวเอง → ไม่มีคำนำประเภท (ดู `label` ใน ThreadContextBar)
+      label: null,
+      short: `ตอบในนามร้าน ${shopName}`,
       detail: (
         /* feature 00037 — display-only โดยตั้งใจ (มติ Q-3): กดไม่ได้ — บนมือถือ ChatHeader ถูกซ่อน
            ในหน้าเธรดอยู่แล้ว การทำให้ดูกดได้แล้วพาไปที่ที่เข้าไม่ถึงแย่กว่าไม่ให้กด

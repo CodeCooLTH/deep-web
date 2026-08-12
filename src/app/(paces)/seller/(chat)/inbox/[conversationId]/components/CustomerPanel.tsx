@@ -423,7 +423,7 @@ function OrderCard({
                   setApptOpen(true)
                 }}
                 disabled={cancelling}
-                aria-label="ส่งสรุปนัดหมายเข้าแชท"
+                aria-label="ส่งสรุปนัดเข้าแชท"
                 className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
               >
                 <Icon icon="calendar-check" className="text-sm" />

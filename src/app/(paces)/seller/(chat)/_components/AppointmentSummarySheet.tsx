@@ -206,7 +206,7 @@ export default function AppointmentSummarySheet({
         pacesToast.error((d as { error?: string }).error ?? 'ส่งไม่สำเร็จ ลองใหม่อีกครั้ง')
         return
       }
-      pacesToast.success('ส่งสรุปนัดเข้าแชทแล้ว')
+      pacesToast.success('ส่งสรุปนัดแล้ว')
       onSent?.()
       onClose()
     } catch {
@@ -231,7 +231,7 @@ export default function AppointmentSummarySheet({
       className="fixed inset-0 z-90 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="ส่งสรุปนัดหมาย"
+      aria-label="ส่งสรุปนัด"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget && !sending) onClose()
       }}
@@ -240,7 +240,7 @@ export default function AppointmentSummarySheet({
         <div className="card-header flex flex-nowrap items-center justify-between gap-2">
           <h5 className="mb-0 flex min-w-0 grow items-center gap-2 text-base">
             <Icon icon="calendar-check" className="text-primary shrink-0 text-lg" />
-            <span className="truncate">ส่งสรุปนัดหมาย</span>
+            <span className="truncate">ส่งสรุปนัด</span>
           </h5>
           <button
             type="button"
@@ -320,7 +320,7 @@ export default function AppointmentSummarySheet({
 
           {/* ── ติ๊กบรรทัดที่จะแสดง ────────────────────────────────────────────── */}
           <section>
-            <p className="text-default-700 mb-1 text-xs font-semibold">แสดงบรรทัด</p>
+            <p className="text-default-700 mb-1 text-xs font-semibold">เลือกข้อมูลที่จะส่ง</p>
             {available.map((key) => {
               const locked = key === 'when'
               const on = !hidden.includes(key)
@@ -346,10 +346,10 @@ export default function AppointmentSummarySheet({
             })}
           </section>
 
-          {/* ── ข้อความท้าย ──────────────────────────────────────────────────── */}
+          {/* ── ข้อความปิดท้าย ──────────────────────────────────────────────────── */}
           <section>
             <label htmlFor="appt-closing" className="text-default-700 mb-2 block text-xs font-semibold">
-              ข้อความท้าย
+              ข้อความปิดท้าย
             </label>
             <textarea
               id="appt-closing"
@@ -386,7 +386,7 @@ export default function AppointmentSummarySheet({
               (ไม่ถูกผูก Customer จึงหาห้องแชทไม่เจอ) */}
           {summary && !targetId && (
             <p className="text-default-500 mb-0 mt-2 text-center text-xs">
-              ลูกค้ารายนี้ยังไม่มีห้องแชทกับร้าน
+              ลูกค้ารายนี้ยังไม่มีห้องแชทกับร้าน — ต้องเคยคุยกันในแชทอย่างน้อยหนึ่งครั้งจึงจะส่งได้
             </p>
           )}
         </div>

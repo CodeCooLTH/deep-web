@@ -233,7 +233,7 @@ export default function OrderProgressBar({
                         <button
                           type="button"
                           onClick={() => setApptToken(o.token)}
-                          aria-label={`ส่งสรุปนัดหมายของ ${displayNo(o)} เข้าแชท`}
+                          aria-label={`ส่งสรุปนัดของ ${displayNo(o)} เข้าแชท`}
                           className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 mt-2 w-full gap-1"
                         >
                           <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />

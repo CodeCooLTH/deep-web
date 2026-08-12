@@ -64,6 +64,12 @@ export const HIDEABLE_APPOINTMENT_SUMMARY_KEYS: readonly AppointmentSummaryKey[]
   'deposit',
 ]
 
+/**
+ * หัวการ์ดที่ **ลูกค้า** เห็น — ตั้งใจไม่ใช้คำเดียวกับฝั่งร้าน ("สรุปนัด")
+ *
+ * คนละผู้อ่าน คนละหน้าที่: ฝั่งร้านคือ *งานที่กำลังทำ* (ส่งสรุปนัด) ส่วนฝั่งลูกค้าคือ *สิ่งที่ได้รับ*
+ * (ใบยืนยันนัด) — ลูกค้าไม่เคยเห็นคำว่า "สรุป" ที่ไหนเลยและไม่ควรต้องตีความว่าใครสรุปอะไรให้ใคร
+ */
 export const APPOINTMENT_SUMMARY_TITLE = 'ยืนยันนัดหมาย'
 
 /**
@@ -74,7 +80,7 @@ export const APPOINTMENT_SUMMARY_TITLE = 'ยืนยันนัดหมา�
  * (`[ใบเสนอราคา]` vs `[คำสั่งซื้อ]` — หนี้ที่บันทึกไว้ใน `domain-term-single-definition.md` D-1)
  * ถ้าปล่อยให้พิมพ์คำนี้เองสองที่ การ์ดสรุปนัดจะเดินซ้ำรอยเดิมภายในสัปดาห์เดียว (HR16)
  */
-export const APPOINTMENT_CARD_PREVIEW = '[สรุปนัดหมาย]'
+export const APPOINTMENT_CARD_PREVIEW = '[สรุปนัด]'
 export const DEFAULT_APPOINTMENT_CLOSING = 'ยืนยันคิวเรียบร้อยค่ะ'
 export const APPOINTMENT_CLOSING_MAX = 120
 
