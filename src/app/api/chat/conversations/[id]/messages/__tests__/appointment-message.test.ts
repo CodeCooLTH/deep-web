@@ -182,4 +182,15 @@ describe('route — GET /api/orders/[token]/appointment-summary (อ่านซ
   it('ครอบห้องแชท DEEP ด้วย (ผูกผ่าน Customer.userId ไม่ใช่ ExternalContact)', () => {
     expect(src).toMatch(/buyerUserId:\s*order\.customer\.userId/)
   })
+
+  /**
+   * [สำคัญ] `Order.conversationId` (main เพิ่ม 2026-08-12) คือห้องต้นทางจริงของออเดอร์
+   * schema เขียนไว้เองที่ index ว่ามีไว้ "แทนการเดาจาก Customer" — ถ้าเลิกใช้แล้วกลับไปเรียงด้วย
+   * `lastMessageAt` อย่างเดียว ค่าตั้งต้นจะเลือกผิดห้องทันทีที่ลูกค้าทักมาสองเพจ
+   */
+  it('[สำคัญ] ใช้ห้องต้นทางจาก Order.conversationId และดันขึ้นเป็นตัวแรก', () => {
+    expect(src).toMatch(/conversationId:\s*true/)
+    expect(src).toMatch(/order\.conversationId \? \[\{ id: order\.conversationId \}\]/)
+    expect(src).toMatch(/isOrigin:\s*c\.id === order\.conversationId/)
+  })
 })

@@ -45,6 +45,8 @@ export async function GET(
     select: {
       shopId: true,
       customerId: true,
+      // ห้องแชทต้นทางของออเดอร์ใบนี้ (main เพิ่มคอลัมน์ 2026-08-12) — ดู §"ลำดับห้อง" ด้านล่าง
+      conversationId: true,
       serviceStart: true,
       serviceEnd: true,
       appointmentStatus: true,
@@ -79,6 +81,15 @@ export async function GET(
   }
 
   /**
+   * 🛑 **ห้องต้นทางมาก่อนเสมอ ถ้ารู้** — `Order.conversationId` คือเธรดที่ผู้ขายกดสร้างออเดอร์ใบนี้จริง
+   *
+   * คอลัมน์นี้ถูกเพิ่มเมื่อ 2026-08-12 พร้อมคอมเมนต์ที่ schema ว่า *"หาเธรดต้นทางของออเดอร์นี้
+   * ตรง ๆ (แทนการเดาจาก Customer)"* — ซึ่งอธิบายโค้ดเดิมของไฟล์นี้พอดี. การเรียงด้วย
+   * `lastMessageAt` อย่างเดียวจะเลือกผิดห้องทันทีที่ลูกค้าคนเดียวกันทักมาสองเพจ แล้วเพจที่คุยล่าสุด
+   * ไม่ใช่เพจที่นัดเกิดขึ้น
+   *
+   * ยังคืนห้องอื่นมาด้วย (ไม่ตัดทิ้ง) — ผู้ขายอาจตั้งใจส่งไปอีกช่องทาง แต่ **ค่าตั้งต้นต้องเป็นห้องต้นทาง**
+   *
    * ลูกค้าคนเดียวกันมีห้องแชทได้ 2 แบบที่ผูกกันคนละทาง — ต้องรับทั้งคู่:
    *   - ช่องทางนอก (Messenger/IG/LINE) → `ExternalContact.customerId`
    *   - แชทในแอปผู้ซื้อ (DEEP)        → `Conversation.buyerUserId` (ผ่าน `Customer.userId`)
@@ -90,12 +101,16 @@ export async function GET(
    * เขียนเป็น OR ที่ระดับ query ไม่ใช่ยิงสองรอบแล้วรวมเอง — ไม่งั้นการเรียงตาม `lastMessageAt`
    * จะเพี้ยนข้ามชุด แล้วค่าตั้งต้น "ห้องที่คุยล่าสุด" จะเลือกผิดห้อง
    */
-  const conversations = order.customerId
+  const conversations = (order.customerId || order.conversationId)
     ? await prisma.conversation.findMany({
         where: {
+          // ownership อยู่ใน WHERE เสมอ — ครอบทั้งห้องต้นทางและห้องที่ derive จากลูกค้า
           shopId: order.shopId,
           OR: [
-            { externalContact: { customerId: order.customerId } },
+            ...(order.conversationId ? [{ id: order.conversationId }] : []),
+            ...(order.customerId
+              ? [{ externalContact: { customerId: order.customerId } }]
+              : []),
             ...(order.customer?.userId ? [{ buyerUserId: order.customer.userId }] : []),
           ],
         },
@@ -128,12 +143,19 @@ export async function GET(
       totalText: formatBaht(Number(order.totalAmount)),
       depositText: deposit > 0 ? formatBaht(deposit) : null,
     },
-    targets: conversations.map((c) => ({
+    targets: [...conversations]
+      // ห้องต้นทางขึ้นก่อนเสมอ — ที่เหลือคงลำดับ `lastMessageAt` เดิม
+      .sort((a, b) =>
+        a.id === order.conversationId ? -1 : b.id === order.conversationId ? 1 : 0,
+      )
+      .map((c) => ({
       id: c.id,
       channel: c.channel,
       // ชื่อที่ผู้ขายใช้แยกห้อง — ชื่อลูกค้าก่อน ถ้าไม่มีค่อยใช้ชื่อเพจ (คนเดียวกันคนละเพจ)
       contactName: c.externalContact?.name ?? null,
       pageName: c.shopChannel?.name ?? null,
+      /** ห้องที่ออเดอร์ใบนี้เกิดขึ้นจริง — หน้าจอใช้ติดป้ายให้ผู้ขายมั่นใจว่าค่าตั้งต้นถูกห้อง */
+      isOrigin: c.id === order.conversationId,
     })),
   });
 }

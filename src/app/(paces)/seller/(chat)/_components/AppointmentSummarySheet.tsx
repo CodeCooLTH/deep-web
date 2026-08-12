@@ -36,6 +36,8 @@ export interface AppointmentTarget {
   channel: string
   contactName: string | null
   pageName: string | null
+  /** ห้องที่ออเดอร์ใบนี้เกิดขึ้นจริง (`Order.conversationId`) — server เรียงมาให้เป็นตัวแรกแล้ว */
+  isOrigin?: boolean
 }
 
 /** ไอคอนของแต่ละบรรทัด — สื่อความหมายแทนป้ายข้อความบนพรีวิว (พื้นที่จำกัด) */
@@ -215,7 +217,14 @@ export default function AppointmentSummarySheet({
   }
 
   const targetLabel = (t: AppointmentTarget) =>
-    [getChannelLabel(t.channel), t.contactName ?? t.pageName].filter(Boolean).join(' · ')
+    [
+      getChannelLabel(t.channel),
+      t.contactName ?? t.pageName,
+      // ติดป้ายให้ผู้ขายรู้ว่าทำไมห้องนี้ถูกเลือกไว้ให้ — ไม่ใช่ "ห้องที่คุยล่าสุด" ลอย ๆ
+      t.isOrigin ? '(ห้องที่สร้างนัดนี้)' : null,
+    ]
+      .filter(Boolean)
+      .join(' · ')
 
   return (
     <div
