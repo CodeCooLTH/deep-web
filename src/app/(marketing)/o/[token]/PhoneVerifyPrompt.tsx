@@ -339,7 +339,8 @@ export default function PhoneVerifyPrompt({ token }: { token: string }) {
               </form>
             )}
 
-            <Typography className='mt-7 text-center text-sm' color='text.disabled'>
+            {/* text.secondary ไม่ใช่ text.disabled — 0.4 ได้ 2.30:1 ตก AA (audit 2026-08-11) */}
+            <Typography className='mt-7 text-center text-sm' color='text.secondary'>
               &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>

@@ -122,12 +122,18 @@ export default function ClaimOtpPrompt({ token, phone, maskedPhone }: Props) {
               </Link>
             </div>
             <div className='flex flex-col gap-1 mbe-6 text-center'>
-              <Typography variant='h4'>ยืนยันตัวตนเพื่อเข้าถึงออเดอร์นี้</Typography>
+              {/* 🛑 หัวเรื่องเดิม "ยืนยันตัวตนเพื่อเข้าถึงออเดอร์นี้" ฟังดูเหมือนผู้ใช้ยังไม่เคย
+                  ยืนยันอะไรเลย ซึ่งไม่จริง — เขาล็อกอินอยู่แล้วด้วยเบอร์ที่ตรงด้วยซ้ำ สิ่งที่ขาด
+                  คือ *เหตุผล* ว่าทำไมต้องทำซ้ำ (D-8/FR-032: คง flow เดิมทุกประการ แก้แค่คำ)
+                  เขียนเหตุผลด้วยคำที่คนทั่วไปเข้าใจ ("มีเงินเกี่ยวข้อง") ไม่ใช่ศัพท์ภายใน
+                  (skip-window/TD-002) ซึ่งไม่ได้ช่วยให้ใครเข้าใจอะไรเลย */}
+              <Typography variant='h4'>ยืนยันอีกครั้งเพื่อความปลอดภัย</Typography>
               <Typography>
-                ออเดอร์นี้ผูกกับเบอร์{' '}
-                <Typography component='span' className='font-medium' color='text.primary'>
+                เบอร์{' '}
+                <Typography component='span' className='font-bold' color='text.primary'>
                   {maskedPhone}
-                </Typography>
+                </Typography>{' '}
+                ผูกกับบัญชีนี้อยู่แล้ว แต่คำสั่งซื้อมีเงินเกี่ยวข้อง จึงขอรหัส OTP ยืนยันอีกครั้งก่อนเปิดดู
               </Typography>
             </div>
 
@@ -174,7 +180,8 @@ export default function ClaimOtpPrompt({ token, phone, maskedPhone }: Props) {
               </form>
             )}
 
-            <Typography className='mt-7 text-center text-sm' color='text.disabled'>
+            {/* text.secondary ไม่ใช่ text.disabled — 0.4 ได้ 2.30:1 ตก AA (audit 2026-08-11) */}
+            <Typography className='mt-7 text-center text-sm' color='text.secondary'>
               &copy; {currentYear} {META_DATA.name} — by {META_DATA.author}
             </Typography>
           </CardContent>

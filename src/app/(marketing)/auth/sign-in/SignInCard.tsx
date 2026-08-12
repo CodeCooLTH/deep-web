@@ -149,9 +149,50 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
                  minBlockSize 46: ปุ่ม MUI ปกติสูง 38px ซึ่งต่ำกว่าเกณฑ์เป้าแตะ 44px (วัดจริงแล้ว)
                  ตัวเลขนี้จึงบังคับไว้ ไม่ปล่อยตาม default ของธีม */
               <div className='flex flex-col gap-2.5 [&_.MuiButton-root]:min-bs-[46px]'>
+                {/* ── ทางหลัก: เบอร์โทร ──────────────────────────────────────────────
+                    🛑 เดิม Facebook เป็นปุ่ม `contained` (ม่วงทึบ) ตัวเดียวในจอ ส่วนเบอร์โทร
+                    เป็น `outlined` อันดับสาม — กลับหัวกับความจริงว่า **เบอร์เป็นทางเดียวที่จบใน
+                    ขั้นตอนเดียว** เพราะมันคือสิ่งที่ผูกกับออเดอร์อยู่แล้ว (`PHONE_MATCH_AUTO_CLAIM`)
+                    ส่วนโซเชียลดูเร็วกว่าตอนกดแต่พาไปเจอด่านเบอร์ทีหลังเสมอ — บน prod มี 6 ใน 10
+                    บัญชีที่ไม่มีเบอร์ผูกเลย จึงเป็นเส้นทางหลัก ไม่ใช่ edge case
+                    (มติ D-5 / FR-023 / BR-BOE-26 — safepay-ux Design Spec 2026-08-12)
+
+                    ใช้ `size='large'` ของธีมแทนการ hardcode ความสูง: ปุ่มรองถูกยกพื้นเป็น 46px
+                    ด้วย `min-bs` ข้างบนอยู่แล้ว การสร้าง "ลำดับชั้น" ต้องมาจาก token ที่ให้ทั้ง
+                    ความสูง/ฟอนต์/radius ต่างกันอย่างมีที่มา ไม่ใช่เลขที่เดาเอง */}
                 <Button
                   fullWidth
                   variant='contained'
+                  size='large'
+                  startIcon={<i className='tabler-device-mobile' />}
+                  onClick={() => setLoginMode('otp')}
+                >
+                  เข้าสู่ระบบด้วยเบอร์โทร
+                </Button>
+                {/* บอกทั้งเงื่อนไข (ต้องเป็นเบอร์เดียวกับตอนสั่ง) และผลลัพธ์ (ทันที) — ตรงกับ
+                    `resolveOrderAccess` จริง ไม่ overclaim ว่าทุกกรณีจะทันที */}
+                <Typography variant='caption' color='text.secondary' className='text-center -mbs-1'>
+                  เบอร์เดียวกับที่แจ้งร้านตอนสั่งซื้อ — เข้าดูคำสั่งซื้อได้ทันที
+                </Typography>
+
+                <Divider className='gap-2 text-textPrimary'>หรือ</Divider>
+
+                {/* 🛑 เปิดเผยด่านเบอร์ **ก่อน** ผู้ใช้กด ไม่ใช่ปล่อยให้ไปเจอเองหลัง OAuth เสร็จ
+                    ใช้คำว่า "อาจ" เพราะจริงแค่บางเคส (6/10 ไม่ใช่ 10/10) — ไม่ทำให้ทางเลือกอื่น
+                    ดูแย่เกินจริง · text.secondary ไม่ใช่ text.disabled (2.30:1 ตก AA) */}
+                <Typography
+                  variant='caption'
+                  color='text.secondary'
+                  className='flex items-start gap-1.5 text-start'
+                >
+                  <i className='tabler-info-circle text-[16px] shrink-0 mbs-0.5' />
+                  <span>ช่องทางด้านล่างอาจต้องยืนยันเบอร์เพิ่มอีกขั้น ถ้าบัญชียังไม่เคยผูกเบอร์ไว้</span>
+                </Typography>
+
+                <Button
+                  fullWidth
+                  variant='outlined'
+                  color='secondary'
                   startIcon={<i className='tabler-brand-facebook-filled' />}
                   onClick={() => signIn('facebook', { callbackUrl: safeCallbackUrl })}
                 >
@@ -167,15 +208,20 @@ export default function SignInCard({ orderContext = null }: { orderContext?: Sig
                 >
                   ดำเนินการต่อด้วย LINE
                 </Button>
-                <Button
-                  fullWidth
-                  variant='outlined'
-                  color='secondary'
-                  startIcon={<i className='tabler-device-mobile' />}
-                  onClick={() => setLoginMode('otp')}
-                >
-                  ใช้เบอร์โทรและรหัส OTP
-                </Button>
+                {/* Instagram หายไปจากบล็อกนี้มาตลอด ทั้งที่มีอยู่ในบล็อก password/otp ด้านล่าง
+                    (safepay-ux จับได้) — "ไม่ตัดทางไหนทิ้ง" ต้องจริงทั้งระบบ ไม่ใช่แค่บล็อกที่แก้ */}
+                {process.env.NEXT_PUBLIC_ENABLE_IG_LOGIN === 'true' && (
+                  <Button
+                    fullWidth
+                    variant='outlined'
+                    color='secondary'
+                    startIcon={<Icon icon='ri:instagram-fill' width={20} height={20} style={{ color: '#E1306C' }} />}
+                    onClick={() => signIn('instagram', { callbackUrl: '/auth/callback/instagram' })}
+                  >
+                    {/* Instagram brand pink #E1306C — brand asset exception (Hard Rule 6) */}
+                    ดำเนินการต่อด้วย Instagram
+                  </Button>
+                )}
                 <Typography
                   component='button'
                   type='button'
