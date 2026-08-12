@@ -100,7 +100,13 @@ erDiagram
 | `cancelReason` | เขียนเฉพาะเมื่อ `type='BOOKING'` (`order.service.ts:945`) | เขียนทุกครั้งที่ยกเลิก ทุกประเภทออเดอร์ · ค่าใหม่แยกชุดตาม `Shop.vertical` |
 | `cancelInitiator` | `"seller" \| "buyer"` | เหมือนเดิม — **แต่กลายเป็นหลักฐานหลักที่ใช้ตัดตัวหาร** (ก่อนหน้านี้แทบไม่มีใครอ่าน) |
 
-🛑 **ห้ามใส่ CHECK constraint แบบระบุรายชื่อค่าให้ `cancelReason`** — ชุดค่าต่างกันตาม `Shop.vertical` และเคยเกิดเหตุการณ์ที่ migration สองสาขาแก้ CHECK แบบ hardcode รายชื่อพร้อมกันแล้วลบค่าของกันเองเงียบ ๆ (`docs/conventions/migration-check-constraint-additive.md`) — ถ้าจำเป็นต้องมี ต้องอ่านนิยามเดิมมาต่อท้าย ไม่ใช่เขียนทับ
+🛑 **แก้ 2026-08-12 — ย่อหน้าเดิมของหัวข้อนี้ผิดข้อเท็จจริง และความผิดนั้นทำให้ฟีเจอร์นี้พังบน prod**
+
+ข้อความเดิมเขียนว่า *"ห้ามใส่ CHECK constraint แบบระบุรายชื่อค่าให้ `cancelReason`"* ราวกับว่ายังไม่มี constraint อยู่ ความจริงคือ **มีอยู่แล้วตั้งแต่ 2026-07-22** — `Order_cancel_reason` จาก `20260722000100_booking_fields_and_overlap` (BR-LODG-36) ซึ่งอนุญาตเฉพาะ 4 ค่าของที่พัก. ฟีเจอร์นี้เพิ่ม `BUYER_NO_SHOW` กับ `BUYER_NO_PAYMENT` ที่ฝั่งโค้ดโดยไม่มี migration ตามไป ⇒ ร้านคิวงาน/ร้านขายของกดยกเลิกด้วยเหตุผลตัวแรกของชุดตัวเองแล้วได้ Postgres `23514` เต็มหน้าจอ (ร้านแจ้งเข้ามา 2026-08-12) ส่วนอีก 3 ค่าที่ใช้ร่วมกับที่พักผ่านได้ตามปกติ บั๊กจึงดูเหมือนเกิด "บางครั้ง"
+
+**เขียนใหม่:** `Order_cancel_reason` มีอยู่จริงและเก็บ **สหภาพของทุก vertical** ไว้ (`20260812140000_order_cancel_reason_all_verticals`) มันไม่ได้บังคับกติกาต่อประเภทร้าน — CHECK ระดับแถวมองไม่เห็น `Shop.vertical` — หน้าที่มันคือกันค่าที่ไม่ใช่คำในระบบเลย ส่วนด่านต่อ vertical อยู่ที่ `isValidCancelReason()` ตามเดิม. **เพิ่มค่าใหม่ใน `CANCEL_REASONS_BY_VERTICAL` เมื่อไหร่ ต้องมี migration ต่อท้าย CHECK ในคอมมิตเดียวกันเสมอ** เขียนแบบ additive (อ่านนิยามเดิมมาต่อท้าย ไม่ hardcode รายชื่อ) ตาม `docs/conventions/migration-check-constraint-additive.md` — เทส `[blocker]` `src/lib/__tests__/cancel-reason-db-constraint.test.ts` แดงถ้าลืม
+
+**บทเรียน:** ประโยคในเอกสารที่ขึ้นต้นว่า "ห้าม/ไม่มี/เท่านั้น" คือการ *อ้างข้อเท็จจริง* ต้องยืนยันกับของจริงก่อนใช้เป็นเหตุผลที่จะไม่ทำอะไร (HR16 ทิศกลับ) — ตรงนี้ยืนยันได้ด้วยคำสั่งเดียว: `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='Order_cancel_reason'`
 
 ---
 

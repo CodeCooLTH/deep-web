@@ -706,8 +706,17 @@ model Order {
   // depositAmount: ยอดมัดจำที่ต้องโอน — snapshot ที่คำนวณเสร็จแล้ว ไม่ใช่สูตรอ้างอิง Room
   // ถ้าอ้างอิงสด ยอดของการจองเก่าจะขยับเองเมื่อเจ้าของแก้ค่าเริ่มต้นของห้อง = ผิด BR-LODG-18
   depositAmount Decimal?  @db.Decimal(12, 2)
-  // cancelReason: BUYER_NO_TRANSFER | BUYER_REQUESTED | SHOP_ISSUE | MUTUAL (BR-LODG-36)
-  // นับเข้าประวัติผู้จองเฉพาะ 2 ค่าแรก — ตัดสินจาก countsAgainstGuest ใน src/lib/lodging.ts
+  // cancelReason: เหตุผลยกเลิก — **ชุดค่าต่างกันตาม Shop.vertical** (feature 00039)
+  //   LODGING       BUYER_NO_TRANSFER | BUYER_REQUESTED | SHOP_ISSUE | MUTUAL (BR-LODG-36)
+  //   SERVICE_QUEUE BUYER_NO_SHOW     | BUYER_REQUESTED | SHOP_ISSUE | MUTUAL
+  //   ONLINE_SALES  BUYER_NO_PAYMENT  | BUYER_REQUESTED | SHOP_ISSUE | MUTUAL
+  // นับเข้าประวัติผู้จองเฉพาะ 2 ค่าแรกของที่พัก — countsAgainstGuest ใน src/lib/lodging.ts
+  //
+  // 🛑 มี CHECK `Order_cancel_reason` บนตารางนี้ (unmanaged SQL — ห้าม prisma db pull) ที่เก็บ
+  // **สหภาพของทุก vertical** ไว้ ไม่ใช่ชุดของ vertical ใด vertical หนึ่ง (CHECK ระดับแถวมองไม่เห็น
+  // Shop.vertical) ด่านต่อ vertical อยู่ที่ isValidCancelReason() ใน src/lib/cancel-reasons.ts
+  // เพิ่มค่าใหม่ที่นั่น = ต้องเขียน migration ต่อท้าย CHECK ในคอมมิตเดียวกันเสมอ ไม่งั้นได้ 23514
+  // บน prod (เกิดจริง 2026-08-12) — docs/conventions/migration-check-constraint-additive.md
   cancelReason  String?
 
   // --- feature 00017 Lodging Vertical (Phase 3: แม่บ้าน, additive nullable) ---
