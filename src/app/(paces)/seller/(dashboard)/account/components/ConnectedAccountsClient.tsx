@@ -24,7 +24,22 @@ import { pacesToast } from '@/lib/paces-toast'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
+/**
+ * provider ที่ผูกกับบัญชีได้ — ต้องตรงกับ LINKABLE_PROVIDERS ใน /api/account/link/start
+ * และ oauthMap ใน lib/auth.ts (สามที่ต้องขยับพร้อมกันเสมอ ไม่งั้นปุ่มโผล่แต่กดแล้ว 400)
+ */
+type ProviderKey = 'apple' | 'facebook' | 'line' | 'instagram'
+
+/** ชื่อที่ผู้ใช้เห็น — รวมไว้ที่เดียว กันคำใน Swal ยืนยันกับป้ายบนแถวไม่ตรงกัน (Hard Rule 16) */
+const PROVIDER_LABEL: Record<ProviderKey, string> = {
+  apple: 'Apple',
+  facebook: 'Facebook',
+  line: 'LINE',
+  instagram: 'Instagram',
+}
+
 interface ConnectedAccountsClientProps {
+  appleLinked: boolean
   facebookLinked: boolean
   lineLinked: boolean
   instagramLinked: boolean
@@ -67,6 +82,7 @@ const LineIcon = () => (
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function ConnectedAccountsClient({
+  appleLinked: initialApple,
   facebookLinked: initialFb,
   lineLinked: initialLine,
   instagramLinked: initialIg,
@@ -77,6 +93,7 @@ export function ConnectedAccountsClient({
   const searchParams = useSearchParams()
 
   // state mirror ของ linked status — อัปเดตหลัง disconnect สำเร็จ (router.refresh ก็ทำ)
+  const [appleLinked, setAppleLinked] = useState(initialApple)
   const [fbLinked, setFbLinked] = useState(initialFb)
   const [lineLinked, setLineLinked] = useState(initialLine)
   const [igLinked, setIgLinked] = useState(initialIg)
@@ -105,7 +122,7 @@ export function ConnectedAccountsClient({
   }, [searchParams, router])
 
   // ─── Connect Handler ────────────────────────────────────────────────────────
-  async function handleConnect(provider: 'facebook' | 'line' | 'instagram') {
+  async function handleConnect(provider: ProviderKey) {
     setLoadingProvider(provider)
     try {
       // ขั้น 1: บอก backend เตรียม link-intent cookie ก่อน
@@ -129,9 +146,8 @@ export function ConnectedAccountsClient({
   }
 
   // ─── Disconnect Handler ─────────────────────────────────────────────────────
-  async function handleDisconnect(provider: 'facebook' | 'line' | 'instagram') {
-    const providerLabel =
-      provider === 'facebook' ? 'Facebook' : provider === 'line' ? 'LINE' : 'Instagram'
+  async function handleDisconnect(provider: ProviderKey) {
+    const providerLabel = PROVIDER_LABEL[provider]
 
     // ขั้น 1: Sweet Alert ยืนยัน — pattern จาก SweetAlerts.tsx cancelButton
     const confirmResult = await Swal.fire({
@@ -331,7 +347,7 @@ export function ConnectedAccountsClient({
     icon,
     linked,
   }: {
-    provider: 'facebook' | 'line' | 'instagram'
+    provider: ProviderKey
     label: string
     icon: React.ReactNode
     linked: boolean
@@ -439,6 +455,23 @@ export function ConnectedAccountsClient({
             {hasPassword ? 'เปลี่ยนรหัสผ่าน' : 'ตั้งรหัสผ่าน'}
           </button>
         </div>
+
+        {/* Apple อยู่บนสุด — ลำดับเดียวกับหน้าล็อกอิน (App Store Guideline 4.8 บังคับให้
+            Sign in with Apple อยู่ระดับเดียวกับล็อกอินเจ้าอื่น ห้ามลดชั้น)
+
+            🛑 แถวนี้คือทางเดียวที่ผู้ใช้ "ที่มีบัญชีอยู่แล้ว" จะผูก Apple ได้ — ถ้าไม่มี เขาจะกด
+            ปุ่ม Apple ในหน้าล็อกอินซึ่ง **สร้างบัญชีใหม่คนละใบ** แล้วไปตันที่ onboarding เพราะ
+            เบอร์โทรของเขาผูกกับบัญชีเดิมไปแล้ว (เบอร์ตั้งได้ครั้งเดียว เปลี่ยนไม่ได้)
+            เจอจริง 2026-08-12 ตอนทดสอบ — ต้องลบบัญชีที่ค้างทิ้งด้วยมือ */}
+        <ProviderRow
+          provider="apple"
+          label="Apple"
+          linked={appleLinked}
+          icon={
+            // Hard Rule 6 exception: โลโก้ Apple สีดำตาม Human Interface Guidelines
+            <Icon icon="bxl:apple" width={22} height={22} style={{ color: '#000000' }} aria-label="Apple" />
+          }
+        />
 
         <ProviderRow
           provider="facebook"

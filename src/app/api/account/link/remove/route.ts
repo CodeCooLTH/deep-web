@@ -23,6 +23,7 @@ const PROVIDER_ENUM_MAP: Record<string, string> = {
   line: 'LINE',
   facebook: 'FACEBOOK',
   instagram: 'INSTAGRAM',
+  apple: 'APPLE',
 }
 
 const Body = v.object({

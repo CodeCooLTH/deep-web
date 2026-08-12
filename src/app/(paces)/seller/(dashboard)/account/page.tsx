@@ -113,6 +113,7 @@ export default async function AccountPage() {
           {/* ย้ายมาจาก /settings ทั้งก้อน (user เคาะ Path A 2026-08-02) — เนื้อในผูกกับ user ไม่ผูกร้าน
               อยู่ในกลุ่มเมนู "ร้านค้า" มาตลอดจึงไม่มีใครหาเจอ. component เดิมไม่แก้ ใช้ตามที่มี */}
           <ConnectedAccountsClient
+            appleLinked={linkedProviders.has('APPLE')}
             facebookLinked={linkedProviders.has('FACEBOOK')}
             lineLinked={linkedProviders.has('LINE')}
             instagramLinked={linkedProviders.has('INSTAGRAM')}
