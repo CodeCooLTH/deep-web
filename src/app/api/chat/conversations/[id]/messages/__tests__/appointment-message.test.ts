@@ -1,0 +1,145 @@
+/**
+ * [blocker] ด่านของ `type='APPOINTMENT'` — การ์ดสรุปนัดหมาย (ส่วนขยาย 00024, 2026-08-11)
+ *
+ * แบ่งเป็น 2 ชั้นโดยตั้งใจ:
+ *
+ *  1. **ชั้นที่รันจริง** — `SendChatMessageSchema` คือด่านแรกและเป็นตัวที่ปฏิเสธ `'when'`
+ *     เทสกลุ่มนี้เรียก Valibot จริง ไม่ mock อะไรเลย
+ *
+ *  2. **ชั้นที่อ่านซอร์ส** — ด่านที่เหลือ (ownership ใน WHERE / ไม่มีนัด / นัดจบแล้ว / vertical)
+ *     อยู่ใน handler ที่ import โมดูลฝั่ง server สิบกว่าตัว การ mock ทั้งหมดจะได้เทสที่พิสูจน์
+ *     แค่ว่า mock ถูกเรียก ไม่ได้พิสูจน์ว่ากฎถูก (บทเรียน 00038: "เทสที่ mock เพื่อนบ้านทิ้งทั้งตัว
+ *     เขียวตลอดไม่ว่าเพื่อนบ้านทำอะไร") — สิ่งที่ตรวจได้และตรงกับความเสี่ยงคือ **ด่านยังอยู่ครบ**
+ *     🛑 ชั้นนี้ไม่ได้แทนการทดสอบจริง มันกันการ "ถอดออกเงียบ ๆ" เท่านั้น
+ */
+
+import { describe, it, expect } from 'vitest'
+import * as v from 'valibot'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { SendChatMessageSchema } from '@/lib/validations'
+import { APPOINTMENT_CLOSING_MAX } from '@/lib/appointment-summary'
+
+const TOKEN = '11111111-1111-4111-8111-111111111111'
+const base = { type: 'APPOINTMENT' as const, orderRefToken: TOKEN }
+
+describe('SendChatMessageSchema — type=APPOINTMENT (ด่านที่รันจริง)', () => {
+  it('รับคำขอปกติ', () => {
+    const r = v.safeParse(SendChatMessageSchema, { ...base, hiddenSummaryKeys: ['deposit'] })
+    expect(r.success).toBe(true)
+  })
+
+  it('[สำคัญ] ซ่อน "when" ไม่ได้ — การ์ด "ยืนยันนัดหมาย" ที่ไม่มีวันนัดทำให้ลูกค้ามาผิดวัน', () => {
+    const r = v.safeParse(SendChatMessageSchema, { ...base, hiddenSummaryKeys: ['when'] })
+    expect(r.success).toBe(false)
+  })
+
+  it('คีย์ที่ไม่รู้จักถูกปฏิเสธ (allow-list ไม่ใช่ deny-list)', () => {
+    const r = v.safeParse(SendChatMessageSchema, { ...base, hiddenSummaryKeys: ['ทุกอย่าง'] })
+    expect(r.success).toBe(false)
+  })
+
+  it('ข้อความท้ายยาวเกินเพดานถูกปฏิเสธ ไม่ใช่ตัดเงียบที่ปลายทาง', () => {
+    const ok = v.safeParse(SendChatMessageSchema, {
+      ...base,
+      summaryClosing: 'ก'.repeat(APPOINTMENT_CLOSING_MAX),
+    })
+    const bad = v.safeParse(SendChatMessageSchema, {
+      ...base,
+      summaryClosing: 'ก'.repeat(APPOINTMENT_CLOSING_MAX + 1),
+    })
+    expect(ok.success).toBe(true)
+    expect(bad.success).toBe(false)
+  })
+
+  it('ส่ง summaryClosing: null ได้ (= ไม่มีบรรทัดปิดท้าย)', () => {
+    expect(v.safeParse(SendChatMessageSchema, { ...base, summaryClosing: null }).success).toBe(true)
+  })
+})
+
+describe('route — ด่านที่เหลือยังอยู่ครบ (อ่านซอร์ส)', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'src/app/api/chat/conversations/[id]/messages/route.ts'),
+    'utf8',
+  )
+
+  it('[สำคัญ] ownership อยู่ใน WHERE ไม่ใช่ดึงมาเทียบทีหลัง', () => {
+    expect(src).toMatch(/where:\s*\{\s*publicToken:\s*orderRefToken!,\s*shopId:\s*conv\?\.shopId\s*\}/)
+  })
+
+  it('ปฏิเสธออเดอร์ที่ไม่มีนัด', () => {
+    expect(src).toMatch(/if\s*\(!order\.serviceStart\)/)
+    expect(src).toContain('คำสั่งซื้อนี้ไม่มีนัดหมาย')
+  })
+
+  it('ปฏิเสธนัดที่จบแล้ว (COMPLETED / NO_SHOW)', () => {
+    expect(src).toMatch(/isTerminalAppointmentStatus\(order\.appointmentStatus\)/)
+    expect(src).toContain('นัดนี้จบแล้ว ส่งสรุปไม่ได้')
+  })
+
+  it('ปฏิเสธร้านที่ไม่ได้ใช้ระบบคิวงาน โดยอ่าน vertical ปัจจุบันของร้าน ไม่ใช่ธงบนแถวออเดอร์', () => {
+    expect(src).toMatch(/canUseAppointments\(order\.shop\)/)
+  })
+
+  it('[สำคัญ] เก็บลงฐานเป็น ORDER ไม่สร้างค่า enum ใหม่ (ไม่มี migration)', () => {
+    expect(src).toMatch(/const storedType\s*=\s*type === "APPOINTMENT"\s*\?\s*"ORDER"\s*:\s*type/)
+  })
+
+  it('ส่ง text ออกไปเสมอ — เป็นทั้ง body ที่ร้านค้นหาเจอ และทางถอยของช่องทางที่ไม่รองรับการ์ด', () => {
+    expect(src).toMatch(/text:\s*summary\.text/)
+  })
+})
+
+describe('route — GET /api/orders/[token]/appointment-summary (อ่านซอร์ส)', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'src/app/api/orders/[token]/appointment-summary/route.ts'),
+    'utf8',
+  )
+
+  it('[สำคัญ] scope ด้วย shopId ของออเดอร์เสมอ — Customer เป็นตารางระดับทั้งระบบ', () => {
+    expect(src).toMatch(/shopId:\s*order\.shopId/)
+  })
+
+  it('ตรวจสิทธิ์เข้าถึงร้านของออเดอร์ ไม่ใช่ activeShopId', () => {
+    expect(src).toMatch(/canAccessShop\(order\.shopId,\s*userId\)/)
+    // ตัดคอมเมนต์ก่อนค้น: หัวไฟล์ *พูดถึง* `activeShopId` เพื่ออธิบายว่าทำไมถึงไม่ใช้มัน
+    // (บทเรียน HR9 2026-08-02→08-03: gate ที่ match คำเปล่า ๆ จะแดงตลอดกาลกับไฟล์ที่ทำถูกกฎ
+    //  แล้วถูกบันทึกเป็น "หนี้" ทั้งที่ไม่มีการละเมิดเลย)
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    expect(code).not.toMatch(/activeShopId/)
+  })
+
+  it('ไม่มี customerId → คืนรายการว่าง ไม่ใช่ error (หน้าจอต้องแยก "ยังไม่มีห้อง" จาก "ระบบพัง")', () => {
+    expect(src).toMatch(/order\.customerId\s*\?/)
+    expect(src).toMatch(/:\s*\/\/[\s\S]*?\[\]/)
+  })
+
+  it('[สำคัญ] คืนสรุปนัดจาก server ไม่ให้ชีตรับเป็น prop — เบอร์ลูกค้าห้ามอยู่ใน flight payload', () => {
+    expect(src).toMatch(/phone:\s*order\.buyerContact/)
+    // ฟอร์แมตเงินที่ server ด้วยสูตรกลาง ไม่ปล่อยให้ client คิดเอง (HR16)
+    expect(src).toMatch(/formatBaht\(Number\(order\.totalAmount\)\)/)
+  })
+
+  it('[สำคัญ] ชีตต้อง fetch ไม่รับ prop ที่มีข้อมูลนัด (กัน PII หลุดลง flight payload)', () => {
+    const sheet = readFileSync(
+      join(
+        process.cwd(),
+        'src/app/(paces)/seller/(chat)/_components/AppointmentSummarySheet.tsx',
+      ),
+      'utf8',
+    )
+    expect(sheet).toMatch(/fetch\(`\/api\/orders\/\$\{orderToken\}\/appointment-summary`\)/)
+    // props ต้องมีแค่ open/onClose/orderToken/onSent — ห้ามมี data/targets/shopId กลับมา
+    // (ตรวจเฉพาะบล็อก props ไม่ใช่ทั้งไฟล์: ชนิดของ "ของที่ fetch มา" ก็ชื่อ data เหมือนกัน
+    //  ซึ่งถูกต้องแล้ว — สิ่งที่ห้ามคือ "รับเข้ามาจากข้างนอก")
+    const props = sheet.match(/export interface AppointmentSummarySheetProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(props).toContain('orderToken')
+    expect(props).not.toMatch(/\bdata\b\s*:/)
+    expect(props).not.toMatch(/\btargets\b\s*:/)
+    expect(props).not.toMatch(/\bshopId\b\s*:/)
+  })
+
+  it('ครอบห้องแชท DEEP ด้วย (ผูกผ่าน Customer.userId ไม่ใช่ ExternalContact)', () => {
+    expect(src).toMatch(/buyerUserId:\s*order\.customer\.userId/)
+  })
+})

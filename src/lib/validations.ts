@@ -11,6 +11,10 @@ import { isHttpUrl } from "@/lib/order-display";
 import { SHOP_CATEGORY_KEYS } from "@/lib/shop-categories";
 import { CHAT_CHANNELS } from "@/lib/chat-channel";
 import {
+  APPOINTMENT_CLOSING_MAX,
+  HIDEABLE_APPOINTMENT_SUMMARY_KEYS,
+} from "@/lib/appointment-summary";
+import {
   SHOP_VERTICAL_KEYS,
   CANCEL_REASON_KEYS,
   ROOM_FACILITY_KEYS,
@@ -818,7 +822,22 @@ export const SendChatMessageSchema = v.object({
   // (ดู sendOutboundMessage) จึงไม่อยู่ในชุด isAttachmentType
   // IMAGE_GRID (2026-08-04): รูปหลายใบในข้อความเดียว (Meta image_grid template) — ส่ง imageFileIds
   // มาแทน imageUrl เดี่ยว; route แบ่งเป็นก้อนละไม่เกิน 6 ใบตามเพดานของ Meta
-  type: v.picklist(["TEXT", "IMAGE", "VIDEO", "AUDIO", "FILE", "PRODUCT", "ORDER", "STICKER", "IMAGE_GRID"]),
+  // APPOINTMENT (ส่วนขยาย 00024, 2026-08-11): การ์ดสรุปนัดหมาย — 🛑 มีอยู่ **ที่ระดับ API เท่านั้น**
+  // ฝั่งฐานข้อมูลยังเก็บเป็น ChatMessage.type='ORDER' + orderRefToken ตัวเดิม ไม่มีค่า enum ใหม่
+  // ไม่มี migration (type ใน request = "อยากให้ประกอบอะไร" ส่วน ChatMessage.type = "ของที่เก็บ
+  // คือชนิดไหน" — precedent เดียวกับ IMAGE_GRID ซึ่งก็ไม่มีในตาราง)
+  type: v.picklist([
+    "TEXT",
+    "IMAGE",
+    "VIDEO",
+    "AUDIO",
+    "FILE",
+    "PRODUCT",
+    "ORDER",
+    "APPOINTMENT",
+    "STICKER",
+    "IMAGE_GRID",
+  ]),
   // nullish ไม่ใช่ optional — client ส่ง `body: null` มาจริงเมื่อแนบรูปโดยไม่ใส่ caption
   // (useSellerChatThread.handleSend + payload ที่เก็บไว้สำหรับปุ่ม "ลองใหม่") ซึ่ง v.optional รับแค่
   // undefined → เด้ง "Invalid type: Expected string but received null" = **ส่งรูปอย่างเดียวไม่ได้เลย**
@@ -841,7 +860,24 @@ export const SendChatMessageSchema = v.object({
   productRefIds: v.optional(
     v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.minLength(1), v.maxLength(36)),
   ),
-  orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์ในแชท — เฉพาะ type=ORDER (Order.publicToken)
+  orderRefToken: v.optional(v.pipe(v.string(), v.uuid())), // การ์ดออเดอร์/สรุปนัดในแชท — type=ORDER|APPOINTMENT (Order.publicToken)
+  /**
+   * (ส่วนขยาย 00024, 2026-08-11) บรรทัดที่ร้านติ๊กปิดบนการ์ดสรุปนัด — เฉพาะ type='APPOINTMENT'
+   *
+   * 🛑 เป็น **allow-list** และ **`'when'` ไม่อยู่ในนั้นโดยตั้งใจ** (SSOT =
+   * `HIDEABLE_APPOINTMENT_SUMMARY_KEYS`) — การ์ดชื่อ "ยืนยันนัดหมาย" ที่ไม่มีวันนัดคือของที่
+   * ทำให้ลูกค้ามาผิดวัน. นี่คือด่านที่สองของกฎเดียวกัน ชั้นแรกอยู่ที่ checkbox ซึ่ง disabled
+   * — UI กันได้แค่คนที่เดินผ่านประตู
+   */
+  hiddenSummaryKeys: v.optional(
+    v.pipe(
+      // อ่านรายการจาก SSOT ตรง ๆ ไม่พิมพ์ซ้ำ — ถ้าวันหนึ่งมีบรรทัดใหม่ที่ซ่อนได้ จะได้ไม่มีที่ให้ลืม
+      v.array(v.picklist([...HIDEABLE_APPOINTMENT_SUMMARY_KEYS])),
+      v.maxLength(HIDEABLE_APPOINTMENT_SUMMARY_KEYS.length),
+    ),
+  ),
+  /** ข้อความปิดท้ายการ์ดสรุปนัด — เฉพาะ type='APPOINTMENT'; trim แล้วว่าง = ไม่มีบรรทัดปิดท้าย */
+  summaryClosing: v.nullish(v.pipe(v.string(), v.maxLength(APPOINTMENT_CLOSING_MAX))),
   replyToMessageId: v.optional(v.pipe(v.string(), v.uuid())), // reply/quote (user 2026-07-25) — id ของข้อความที่ตอบทับ (route resolve → replyToMid/Meta reply_to)
   /**
    * สติกเกอร์ Meta (user สั่ง 2026-08-04) — ส่งคู่กับ type='STICKER'

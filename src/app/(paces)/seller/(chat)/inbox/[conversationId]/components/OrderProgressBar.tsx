@@ -16,7 +16,7 @@
 import { useState } from 'react'
 import Icon from '@/components/wrappers/Icon'
 import { pacesToast } from '@/lib/paces-toast'
-import { formatDateTime, formatDateTH, formatTimeHM } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 import { courierLogoUrl } from '@/lib/iship/courier'
 import { SHIPPING_STAGE_LABEL } from '@/lib/order-stage'
 import { filterActiveOrders, orderShippingStage, STAGE_CHIP_CLS } from '@/lib/chat-order-progress'
@@ -25,28 +25,19 @@ import {
   serviceProgressStage,
   SERVICE_STAGE_CHIP_META,
 } from '@/lib/chat-service-progress'
-import { isAllDayAppointment } from '@/lib/appointments'
+import { appointmentRangeText } from '@/lib/appointment-summary'
+import AppointmentSummarySheet from '../../../_components/AppointmentSummarySheet'
 import ShipmentStepper from '../../../_components/ShipmentStepper'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import type { CustomerPanelOrder } from './CustomerPanel'
 import type { ShopVertical } from '@/lib/lodging'
 
 /**
- * ช่วงเวลานัดเป็นข้อความ — "8 ส.ค. 2569 · 19:00–20:00" หรือ "8 ส.ค. 2569 · ทั้งวัน"
- *
- * ตัดสิน "ทั้งวัน" จาก **ข้อมูลของแถวนั้น** ด้วย isAllDayAppointment (BR-RSV-57) ไม่ใช่จาก
- * โหมดปัจจุบันของร้าน — ร้านที่สลับโหมดไปแล้วต้องเห็นนัดเก่าตามรูปแบบที่มันถูกบันทึกไว้
- * (SSOT ตัวเดียวกับที่ชีตปฏิทินใช้ — เคยมีจุดที่ลืมเรียกแล้วนัดทั้งวันโผล่เป็น "00:00–00:00")
+ * 🛑 สูตร "ช่วงเวลานัดเป็นข้อความ" ย้ายไป `@/lib/appointment-summary::appointmentRangeText`
+ * แล้ว (2026-08-11) เพราะการ์ดสรุปนัดที่ส่งเข้าแชทต้องใช้คำชุดเดียวกันเป๊ะ — เลขเดียวกันที่ถูก
+ * เรียกคนละแบบในสองหน้าจอไม่มี tsc/build ตัวไหนฟ้อง เพราะทั้งคู่ "ถูก" ในตัวเอง (HR16)
+ * มีเทส [blocker] ตรึงไว้ว่าสองที่ต้องคืนสตริงเดียวกัน — ห้ามก็อปสูตรกลับมาไว้ที่นี่
  */
-function appointmentText(startISO: string, endISO: string | null | undefined): string {
-  const s = new Date(startISO)
-  if (Number.isNaN(s.getTime())) return ''
-  const e = endISO ? new Date(endISO) : null
-  const dateLabel = formatDateTH(s)
-  if (!e || Number.isNaN(e.getTime())) return dateLabel
-  if (isAllDayAppointment(s, e)) return `${dateLabel} · ทั้งวัน`
-  return `${dateLabel} · ${formatTimeHM(s)}–${formatTimeHM(e)}`
-}
 
 export default function OrderProgressBar({
   orders,
@@ -73,6 +64,9 @@ export default function OrderProgressBar({
   pageAvatarUrl: string | null
 }) {
   const [open, setOpen] = useState(false)
+  /** token ของนัดที่กำลังเปิดชีต "ส่งสรุปนัด" (ส่วนขยาย 00024 2026-08-11) — null = ปิด
+   *  เก็บเป็น token ไม่ใช่ boolean เพราะแถบกางแสดงได้หลายใบพร้อมกัน */
+  const [apptToken, setApptToken] = useState<string | null>(null)
   const { openDraft } = useDraftOrders()
   const isService = vertical === 'SERVICE_QUEUE'
 
@@ -122,6 +116,15 @@ export default function OrderProgressBar({
 
   return (
     <div className="px-4 pt-4 xl:hidden">
+      {/* ชีตเดียวกับอีก 3 จุดเรียก — render ครั้งเดียวนอกลูป (การ์ดในลิสต์แชร์กันได้
+          เพราะเปิดได้ทีละใบอยู่แล้ว) ชีตขอข้อมูลเองจาก token ไม่รับ prop ที่มี PII */}
+      {apptToken && (
+        <AppointmentSummarySheet
+          open
+          onClose={() => setApptToken(null)}
+          orderToken={apptToken}
+        />
+      )}
       {open ? (
         <div className="space-y-2">
           {/* เกิน ~4 ใบให้เลื่อนในตัวเอง — แถบกางห้ามดันเธรดจนข้อความหายทั้งจอ */}
@@ -201,7 +204,7 @@ export default function OrderProgressBar({
                             aria-hidden="true"
                           />
                           <span className="min-w-0 truncate">
-                            {appointmentText(o.serviceStart, o.serviceEnd)}
+                            {appointmentRangeText(o.serviceStart, o.serviceEnd)}
                           </span>
                         </div>
                       ) : (
@@ -216,6 +219,26 @@ export default function OrderProgressBar({
                         <p className="text-default-700 mb-0 mt-1 text-2xs">
                           ไม่มีนัด — สร้างเมื่อ {formatDateTime(new Date(o.createdAt))}
                         </p>
+                      )}
+                      {/**
+                       * ส่งสรุปนัดเข้าแชท (ส่วนขยาย 00024, 2026-08-11)
+                       *
+                       * คอมเมนต์ด้านบนของการ์ดใบนี้เขียนไว้เองว่ามันเป็นการ์ด "อ่านอย่างเดียว"
+                       * เพราะยังไม่มีอะไรให้กด — นี่คือสิ่งที่ให้กด. ยังไม่ใส่แผ่นลิงก์คลุมทั้งใบ
+                       * (DraftKind ยังไม่มีชนิดของนัด) ปุ่มนี้จึงเป็นทางเดียวที่กดได้ในการ์ด
+                       *
+                       * เฉพาะใบที่ "มีนัดจริง" — walk-in ไม่มีนัดให้สรุป (BR-RSV-04)
+                       */}
+                      {o.serviceStart && (
+                        <button
+                          type="button"
+                          onClick={() => setApptToken(o.token)}
+                          aria-label={`ส่งสรุปนัดหมายของ ${displayNo(o)} เข้าแชท`}
+                          className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 mt-2 w-full gap-1"
+                        >
+                          <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />
+                          ส่งสรุปนัด
+                        </button>
                       )}
                     </>
                   ) : sh?.status != null ? (

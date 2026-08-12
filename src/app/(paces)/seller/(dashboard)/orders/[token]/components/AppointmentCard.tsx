@@ -18,6 +18,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+// import ข้ามกลุ่มโฟลเดอร์ตาม precedent ใน CustomerPanel.tsx — ชีตเดียวใช้ร่วม 4 จุดเรียก
+// (คนละ route group แต่เป็นของชิ้นเดียวกัน; ก็อปไปไว้ทั้งสองที่ = คำบนการ์ดจะเพี้ยนจากกัน)
+import AppointmentSummarySheet from '@/app/(paces)/seller/(chat)/_components/AppointmentSummarySheet'
 import Icon from '@/components/wrappers/Icon'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
@@ -76,6 +79,9 @@ export default function AppointmentCard({
   const router = useRouter()
   const [loading, setLoading] = useState<'COMPLETED' | 'NO_SHOW' | null>(null)
   const [rescheduleOpen, setRescheduleOpen] = useState(false)
+  /** ชีต "ส่งสรุปนัด" (ส่วนขยาย 00024 2026-08-11) — ชีตขอข้อมูลเองจาก token ไม่รับ prop
+   *  (สรุปนัดมีเบอร์ลูกค้า ส่งเป็น prop = โยน PII ลง flight payload ทุกครั้งที่เปิดหน้า) */
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   const meta = APPOINTMENT_STAGE_META[stage]
   const terminal = isTerminalAppointmentStatus(stage)
@@ -249,6 +255,25 @@ export default function AppointmentCard({
                 (เลื่อนซ้ำได้ ปิดผลย้อนไม่ได้) และไม่ใช่ primary เพราะ primary สงวนให้ action
                 หลักของทั้งหน้า ไม่ใช่ของการ์ดย่อย
                 ไม่ผูกกับ notStarted — service ไม่ได้ห้ามเลื่อนนัดที่เลยเวลาแล้ว (ต่างจากปิดผล) */}
+            {/**
+             * ส่งสรุปนัดเข้าแชท (ส่วนขยาย 00024, 2026-08-11)
+             *
+             * อยู่เหนือ "เลื่อนนัด" เพราะเป็นงานที่ทำ **ตอนเพิ่งนัดเสร็จ** ซึ่งเป็นจังหวะที่ผู้ขาย
+             * เปิดหน้านี้บ่อยที่สุด ส่วนเลื่อน/ปิดผลเกิดทีหลังคนละรอบ
+             *
+             * โทนเบากว่าอีกสองปุ่มโดยตั้งใจ: ส่งซ้ำได้ ไม่มีผลย้อนกลับไม่ได้ ต่างจากปิดผล/เลื่อนนัด
+             *
+             * ปุ่มนี้ไม่ถูกซ่อนเมื่อลูกค้าไม่มีห้องแชท — ชีตเป็นคนบอกเหตุผล (ซ่อนปุ่มแล้วร้านจะ
+             * คิดว่าฟีเจอร์ไม่มี แทนที่จะรู้ว่าติดอะไร)
+             */}
+            <button
+              type="button"
+              onClick={() => setSummaryOpen(true)}
+              className="btn bg-primary/10 text-primary hover:bg-primary/20 mb-3 min-h-11 w-full"
+            >
+              <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />
+              ส่งสรุปนัด
+            </button>
             <button
               type="button"
               onClick={() => setRescheduleOpen(true)}
@@ -309,6 +334,12 @@ export default function AppointmentCard({
         resourceId={resourceId}
         rescheduleRequestNote={rescheduleRequestNote}
         onClose={() => setRescheduleOpen(false)}
+      />
+      {/* ชีตเดียวกับอีก 3 จุดเรียก — ทุกจุดเปิดตัวนี้ ไม่มีจุดไหน "ส่งเลย" ข้ามชีต */}
+      <AppointmentSummarySheet
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        orderToken={publicToken}
       />
     </div>
   )

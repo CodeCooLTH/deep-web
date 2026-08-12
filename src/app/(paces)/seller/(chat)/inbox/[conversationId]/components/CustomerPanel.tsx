@@ -52,6 +52,7 @@ import { customerBadges, type CustomerBehavior } from '@/lib/customer-behavior'
 import CustomerCrmSection, { type ConversationCrm } from './CustomerCrmSection'
 import { useDraftOrders } from '../../../_components/DraftOrderProvider'
 import OrderCardView from '../../../_components/OrderCardView'
+import AppointmentSummarySheet from '../../../_components/AppointmentSummarySheet'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm, pacesConfirmWithReason } from '@/lib/paces-swal'
 import { CANCEL_REASONS_BY_VERTICAL } from '@/lib/cancel-reasons'
@@ -245,7 +246,20 @@ function OrderCard({
   const { openDraft } = useDraftOrders()
   const [sending, setSending] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  /** ชีต "ส่งสรุปนัด" (ส่วนขยาย 00024 2026-08-11) — ชีตขอข้อมูลเองจาก token ไม่รับ prop
+   *  (สรุปนัดมีเบอร์ลูกค้า การส่งเป็น prop = โยน PII ลง flight payload ทุกครั้งที่เปิดห้อง) */
+  const [apptOpen, setApptOpen] = useState(false)
   const hasShipment = !!o.shipment
+  /**
+   * ร้านคิวงานที่ออเดอร์ใบนี้มีนัดจริง → ปุ่มแรกกลายเป็น "ส่งสรุปนัด" **แทนที่** ไม่ใช่เพิ่มปุ่มที่ 3
+   *
+   * ร้าน SERVICE_QUEUE ได้ `fulfillmentMode = NO_SHIPPING` จึงไม่มีปุ่ม "สร้างพัสดุ" อยู่แล้ว
+   * footer จึงเหลือปุ่มเดียวเต็มความกว้าง + ⋮ เหมือนเดิม — ไม่ต้องกางเลขงบพื้นที่ใหม่
+   *
+   * เกณฑ์คือ "ใบนี้มีนัดไหม" (`serviceStart`) ไม่ใช่แค่ประเภทร้าน — ออเดอร์ walk-in ของร้าน
+   * คิวงานไม่มีนัดผูก (BR-RSV-04) ส่งสรุปนัดของสิ่งที่ไม่มีนัดไม่ได้
+   */
+  const isAppointment = vertical === 'SERVICE_QUEUE' && !!o.serviceStart
   // IMPORTANT: ใช้ noun ไม่ใช่ cta.tabLabel — LODGING สองค่านี้ตั้งใจไม่เท่ากัน (tabLabel="การจอง" เรียกลิสต์,
   // noun="บิลเข้าพัก" คือ Order entity ที่ confirm/toast ต้องพูดถึงให้ตรงกับหน้า order detail)
   const noun = resolveOrderVocab(vertical).noun
@@ -364,6 +378,7 @@ function OrderCard({
 
   // การ์ดเดียวกับในแชท (user 2026-07-25) — OrderCardView shared; แตะ = เปิดโมดัลแก้ไข; footer = ส่งเข้าแชท
   return (
+    <>
     <OrderCardView
       orderNoun={noun}
       data={{
@@ -397,6 +412,24 @@ function OrderCard({
           undefined
         ) : (
           <div className="border-default-200 flex gap-2 border-t p-2">
+            {isAppointment ? (
+              /* ไม่มี pacesConfirm ตรงนี้ — ชีตพรีวิว **คือ** ขั้นยืนยันแล้ว (มติ D-B3)
+                 ซ้อน Swal ทับอีกชั้นคือการถามคำถามเดิมสองครั้ง */
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setApptOpen(true)
+                }}
+                disabled={cancelling}
+                aria-label="ส่งสรุปนัดหมายเข้าแชท"
+                className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
+              >
+                <Icon icon="calendar-check" className="text-sm" />
+                ส่งสรุปนัด
+              </button>
+            ) : (
             <button
               type="button"
               onClick={sendToChat}
@@ -407,6 +440,7 @@ function OrderCard({
               <Icon icon={sending ? 'loader-2' : 'send'} className={`text-sm ${sending ? 'animate-spin' : ''}`} />
               ส่งเข้าแชท
             </button>
+            )}
             {/* feature 00022 — เปิดหน้าต่างพัสดุในห้องนี้เลย ไม่ต้องสลับหน้า
                 คำบนปุ่มบอกล่วงหน้าว่ากดแล้วเจอฟอร์มหรือเจอเลขติดตาม
 
@@ -453,6 +487,16 @@ function OrderCard({
         )
       }
     />
+    {/* ส่งสรุปนัด (ส่วนขยาย 00024) — ชีตเดียวกับอีก 3 จุดเรียก ทั้งหมดเปิดตัวนี้ ไม่มีจุดไหน
+        "ส่งเลย" ข้ามชีต (ทางลัดที่มีแค่บางจุดคือกฎที่ผู้ใช้เดาไม่ถูก) */}
+    {isAppointment && (
+      <AppointmentSummarySheet
+        open={apptOpen}
+        onClose={() => setApptOpen(false)}
+        orderToken={o.token}
+      />
+    )}
+    </>
   )
 }
 

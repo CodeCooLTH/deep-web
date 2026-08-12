@@ -20,6 +20,13 @@ import {
 } from "@/lib/chat-constants";
 import { describeSendFailure } from "@/lib/chat-send-failure";
 import { buildLineFlexOrderCard } from "@/lib/line/flex-order-card";
+import { buildLineFlexAppointmentCard } from "@/lib/line/flex-appointment-card";
+import { buildMetaAppointmentCard } from "@/lib/meta/appointment-card";
+import {
+  buildAppointmentSummary,
+  type AppointmentSummary,
+} from "@/lib/appointment-summary";
+import { canUseAppointments, isTerminalAppointmentStatus } from "@/lib/appointments";
 import { buildLineFlexProductCarousel } from "@/lib/line/flex-product-card";
 import { buildMetaProductCarousel } from "@/lib/meta/product-card";
 import {
@@ -529,6 +536,8 @@ export async function POST(
     stickerId,
     stickerImageUrl,
     imageFileIds,
+    hiddenSummaryKeys,
+    summaryClosing,
   } = parsed.output;
 
   // สติกเกอร์: ต้องมาครบทั้ง id และ url และเป็นของช่องทาง Meta เท่านั้น (แชท DEEP ไม่มีสติกเกอร์
@@ -629,14 +638,88 @@ export async function POST(
       // ด้วย else เงียบ ๆ ไม่พังตอนเพิ่มค่าใหม่ แต่ส่งค่าใหม่ไปเข้า branch ที่ผิด) — เปลี่ยนก้อน
       // สุดท้ายเป็น `else if (type === "ORDER")` + fail-closed ให้ค่าที่ยังไม่รองรับเด้ง error
       // ที่บอกตรง ๆ ไม่ใช่ error ของชนิดอื่น
-    } else if (type === "ORDER") {
-      // การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24)
+    } else if (type === "ORDER" || type === "APPOINTMENT") {
+      // การ์ดออเดอร์/ใบเสนอราคาในแชท (user 2026-07-24) · การ์ดสรุปนัดหมาย (ส่วนขยาย 00024)
+      // ทั้งคู่อ้าง Order.publicToken ตัวเดียวกัน — ด่านที่เหลือของ APPOINTMENT อยู่ด้านล่าง
+      // (ต้องรอ conv.shopId ก่อนถึงจะ scope query ได้)
       if (!orderRefToken) {
         return NextResponse.json({ error: "กรุณาระบุออเดอร์" }, { status: 400 });
       }
     } else {
       // fail-closed: ชนิดที่เพิ่มใน picklist แต่ยังไม่มีใครเขียนกฎรองรับ — ห้ามตกไปใช้กฎของชนิดอื่น
       return NextResponse.json({ error: "ยังไม่รองรับชนิดข้อความนี้" }, { status: 400 });
+    }
+
+    /**
+     * การ์ดสรุปนัดหมาย (ส่วนขยาย 00024, 2026-08-11) — ด่าน fail-closed ครบชุด + ประกอบเนื้อหา
+     *
+     * ทำไมอยู่ที่นี่ไม่ใช่ในสาขา conditional-required ด้านบน: ทุกด่านต้องใช้ `conv.shopId` เพื่อ
+     * scope query — และ ownership ต้องอยู่ **ใน `WHERE`** ไม่ใช่ดึงมาแล้วค่อยเทียบทีหลัง
+     *
+     * ประกอบครั้งเดียวใช้ทั้งสองเส้นทาง (DEEP กับช่องทางนอก) — ถ้าประกอบแยกสองที่ วันหนึ่งคำบน
+     * การ์ดของสองช่องทางจะต่างกันโดยไม่มีอะไรฟ้อง (HR16)
+     */
+    let appointmentSummary: AppointmentSummary | null = null;
+    let appointmentUrl: string | null = null;
+    if (type === "APPOINTMENT") {
+      const order = await prisma.order.findFirst({
+        // ownership อยู่ใน WHERE — ออเดอร์ของร้านอื่นคือ "ไม่มีอยู่" ไม่ใช่ "ห้ามแตะ"
+        where: { publicToken: orderRefToken!, shopId: conv?.shopId },
+        select: {
+          serviceStart: true,
+          serviceEnd: true,
+          appointmentStatus: true,
+          buyerName: true,
+          buyerContact: true,
+          totalAmount: true,
+          depositAmount: true,
+          items: { select: { name: true }, take: 1 },
+          serviceResource: { select: { name: true } },
+          shop: { select: { kind: true, vertical: true } },
+        },
+      });
+      if (!order) {
+        return NextResponse.json({ error: "ไม่พบคำสั่งซื้อนี้ในร้าน" }, { status: 400 });
+      }
+      // อ่าน vertical ปัจจุบันของร้านเสมอ ไม่ใช่ธงที่เก็บบนแถวออเดอร์ — ร้านเปลี่ยนประเภททีหลังได้
+      // (docs/conventions/stored-flag-vs-owner-truth.md)
+      if (!canUseAppointments(order.shop)) {
+        return NextResponse.json({ error: "ร้านนี้ไม่ได้ใช้ระบบคิวงาน" }, { status: 403 });
+      }
+      if (!order.serviceStart) {
+        return NextResponse.json({ error: "คำสั่งซื้อนี้ไม่มีนัดหมาย" }, { status: 400 });
+      }
+      // นัดที่ให้บริการไปแล้ว/ไม่มาตามนัด — ส่งใบยืนยันออกไปตอนนี้คือการส่งข้อมูลที่ผิดให้ลูกค้า
+      if (isTerminalAppointmentStatus(order.appointmentStatus)) {
+        return NextResponse.json({ error: "นัดนี้จบแล้ว ส่งสรุปไม่ได้" }, { status: 400 });
+      }
+
+      const base = (process.env.NEXT_PUBLIC_BUYER_URL || "https://deepthailand.app").replace(
+        /\/+$/,
+        "",
+      );
+      appointmentUrl = `${base}/o/${orderRefToken}`;
+      const deposit = Number(order.depositAmount ?? 0);
+      appointmentSummary = buildAppointmentSummary(
+        {
+          serviceStart: order.serviceStart,
+          serviceEnd: order.serviceEnd,
+          serviceName: order.items[0]?.name ?? null,
+          resourceName: order.serviceResource?.name ?? null,
+          customerName: order.buyerName,
+          phone: order.buyerContact,
+          // ฟอร์แมตเงินด้วยสูตรกลางของระบบเสมอ — lib ของการ์ดไม่ฟอร์แมตเอง (HR16)
+          totalText: formatBaht(Number(order.totalAmount)),
+          depositText: deposit > 0 ? formatBaht(deposit) : null,
+        },
+        {
+          // 🛑 `hiddenSummaryKeys` ผ่าน picklist ที่ไม่มี 'when' มาแล้วตั้งแต่ schema —
+          // ด่านนี้คือชั้นที่สอง ชั้นแรกคือ checkbox ที่ disabled ในชีต (UI กันได้แค่คนที่เดินผ่านประตู)
+          hiddenKeys: hiddenSummaryKeys,
+          closing: summaryClosing,
+          url: appointmentUrl,
+        },
+      );
     }
 
     // sanitize ซ้ำที่ server — ชื่อนี้ไปโผล่ใน Content-Disposition ตอนดาวน์โหลด (header injection)
@@ -773,6 +856,38 @@ export async function POST(
           }
         }
         return NextResponse.json(await withSender(lastSent!, userId));
+      }
+      /**
+       * APPOINTMENT (การ์ดสรุปนัด, ส่วนขยาย 00024 2026-08-11)
+       *
+       * ต่างจาก ORDER ตรงที่ **ได้การ์ดจริงทั้ง LINE และ Meta** — นัดมีหน้าสาธารณะ `/o/{token}`
+       * ที่ลูกค้ากด "ยืนยันนัด"/"ขอเลื่อนนัด" ได้อยู่แล้วตั้งแต่ 00024 จึงมีปุ่มให้ใส่ (การ์ดสินค้า
+       * ไม่มีปุ่มเพราะไม่มีหน้าสาธารณะรายชิ้น) — ก่อนหน้านี้ไม่มีเส้นทางไหนพาลูกค้าไปถึงหน้านั้นเลย
+       *
+       * 🛑 `text` ส่งเสมอทุกกรณี: เป็นทั้ง `ChatMessage.body` ที่ร้านค้นหาเจอในประวัติ และเป็น
+       * ทางถอยของช่องทางที่ยังไม่มี builder — การ์ดที่ส่งไม่ออกต้องกลายเป็นข้อความ ไม่ใช่หายเงียบ
+       */
+      if (type === "APPOINTMENT") {
+        const summary = appointmentSummary!;
+        const url = appointmentUrl!;
+        // uri action ของ LINE รับเฉพาะ https — dev ที่ base เป็น http จะโดนปฏิเสธทั้งข้อความ
+        // จึงถอยไปใช้ข้อความล้วน ดีกว่าส่งไม่ออกเลย (กติกาเดียวกับการ์ดออเดอร์ด้านล่าง)
+        const httpsOk = url.startsWith("https://");
+        const sent = await sendOutboundMessage({
+          conversationId: id,
+          actorUserId: userId,
+          text: summary.text,
+          flex:
+            conv.channel === "LINE" && httpsOk
+              ? buildLineFlexAppointmentCard(summary, url)
+              : undefined,
+          template:
+            conv.channel !== "LINE" && httpsOk
+              ? buildMetaAppointmentCard(summary, url)
+              : undefined,
+          orderRefToken: orderRefToken!, // ฝั่งเราเก็บเป็นการ์ด (ChatMessage.type='ORDER')
+        });
+        return NextResponse.json(await withSender(sent, userId));
       }
       // ORDER (การ์ดคำสั่งซื้อ, user 2026-07-25): ลูกค้าฝั่ง Messenger/IG ได้ "ลิงก์" ผ่าน Meta แต่ฝั่งเรา
       // เก็บเป็น type=ORDER → ร้านเห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด). verify order-in-shop ที่นี่
@@ -933,17 +1048,36 @@ export async function POST(
       return NextResponse.json(await withSender(lastDeep!, userId));
     }
 
+    /**
+     * 🛑 APPOINTMENT ถูกแปลงเป็น `ORDER` ตรงนี้ — ฐานข้อมูล **ไม่มีค่า enum ใหม่และไม่มี migration**
+     *
+     * `type` ที่รับมาคือ "ผู้เรียกอยากให้ประกอบอะไร" ส่วน `ChatMessage.type` คือ "ของที่เก็บคือชนิดไหน"
+     * สองอันนี้ไม่จำเป็นต้องเท่ากัน (precedent: `IMAGE_GRID` ก็ไม่มีในตาราง) — ผลคือการ์ดสรุปนัด
+     * ใช้ตัวเรนเดอร์ `OrderCardBubble` เดิมทั้งฝั่งร้านและแอปผู้ซื้อ ซึ่งแสดงวันนัด/มัดจำได้อยู่แล้ว
+     * ตั้งแต่ 00024 และประวัติเก่าไม่แตกเป็นสองสายให้ต้อง render คนละทางตลอดไป
+     */
+    const storedType = type === "APPOINTMENT" ? "ORDER" : type;
+
     const message = await sendMessage({
       conversationId: id,
       senderUserId: userId,
       senderRole,
-      type,
-      body: type === "PRODUCT" || type === "ORDER" ? null : text ?? null, // TEXT = ข้อความหลัก, ไฟล์แนบ = caption, PRODUCT/ORDER = null
-      imageUrl: isAttachmentType(type) ? imageUrl ?? null : null,
-      attachmentName: isAttachmentType(type) ? attachmentName : null,
-      attachmentSize: isAttachmentType(type) ? attachmentSize ?? null : null,
-      productRefId: type === "PRODUCT" ? (productRows[0]?.id ?? productRefId ?? null) : null,
-      orderRefToken: type === "ORDER" ? orderRefToken ?? null : null,
+      type: storedType,
+      // TEXT = ข้อความหลัก, ไฟล์แนบ = caption, PRODUCT/ORDER = null
+      // APPOINTMENT เก็บข้อความสรุปไว้ใน body ทั้งที่บับเบิลวาดจากการ์ด — เพราะนั่นคือสิ่งที่
+      // ทำให้ร้าน **ค้นหาเจอในประวัติ** และเป็นสิ่งที่ preview ในรายการแชทหยิบไปใช้
+      // (ตัวเรนเดอร์แตกที่ `m.type === 'ORDER'` ก่อนเสมอ จึงไม่มีทางขึ้นซ้อนเป็นข้อความอีกใบ)
+      body:
+        type === "APPOINTMENT"
+          ? (appointmentSummary?.text ?? null)
+          : storedType === "PRODUCT" || storedType === "ORDER"
+            ? null
+            : (text ?? null),
+      imageUrl: isAttachmentType(storedType) ? imageUrl ?? null : null,
+      attachmentName: isAttachmentType(storedType) ? attachmentName : null,
+      attachmentSize: isAttachmentType(storedType) ? attachmentSize ?? null : null,
+      productRefId: storedType === "PRODUCT" ? (productRows[0]?.id ?? productRefId ?? null) : null,
+      orderRefToken: storedType === "ORDER" ? orderRefToken ?? null : null,
       replyToMid, // reply/quote (DEEP) — id ของข้อความที่ตอบทับ
     });
 
