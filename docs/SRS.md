@@ -818,6 +818,8 @@ SellerWallet (1) ── (N) WalletTransaction
 > **CSRF guard:** POST/PUT/PATCH/DELETE ทุกตัว (ยกเว้น `/api/auth/*`) ต้องผ่าน Origin-check ใน `guardApi` (`src/proxy.ts:11`) — Origin ต้องอยู่ใน allowlist `*.deepthailand.app` / `*.deepth.local`
 > **Rate-limit:** unauth 100 req/min, auth 30 req/min per-IP (in-memory globalThis; Vercel per-instance = known gap, Redis = Phase 2) — แยกจาก OTP rate-limit (3/10min/เบอร์)
 
+> 🛑 **ตัวตนของผู้เรียก (เพิ่ม 2026-08-11):** ทุก route/page ที่ต้องรู้ว่า "ใครเป็นคนขอ" ต้องอ่าน id ผ่าน **`sessionUserId(session)` (`src/lib/session-user.ts`) เท่านั้น** — `session` callback เติม `user.id` ให้เฉพาะตอน `token.userId` มีค่า **และ** หาแถว `User` เจอจริง ⇒ **session ที่ไม่เป็น null แต่ไม่มี `id` เกิดได้** (โทเคนเก่า/ผู้ใช้ถูกลบ). แพตเทิร์นเดิม `if (!session?.user)` แล้ว `(session.user as { id: string }).id` เคยมี **58 จุด** และทำให้ `undefined` ไหลเข้า `prisma.…({ where: { id: undefined } })` ⇒ **500 ทั้งหน้า** (เกิดจริงบน prod ที่ `/o/[token]`, digest 3758181775). helper คืน `string | null` **ห้าม throw** และผู้เรียกตัดสินเองว่า 401 / redirect / **ตกไปจอ guest** · เทส `[blocker]` สแกน `src/app/` กันแพตเทิร์นเดิมกลับมา · `docs/conventions/session-exists-is-not-identity.md`
+
 ### 7.1 Auth / OTP
 
 | Method | Path | Auth | Purpose | Service |
@@ -890,7 +892,7 @@ SellerWallet (1) ── (N) WalletTransaction
 
 | Method | Path | Auth | Purpose | Service |
 |--------|------|------|---------|---------|
-| GET | `/api/products` | Seller | ดู product list ของร้านตัวเอง | `product.service` |
+| GET | `/api/products` | Seller | ดู product list ของร้านตัวเอง — รับ **`?shopId=`** optional (ร้านของเธรดในกล่องแชทรวม; ไม่ส่ง = ร้านที่ active · รูปแบบผิด → 400 · ไม่มีสิทธิ์ → รายการว่าง) | `product.service` |
 | POST | `/api/products` | Seller | สร้าง product | `product.service` |
 | GET | `/api/products/[id]` | Seller | ดู product detail | `product.service` |
 | PATCH | `/api/products/[id]` | Seller-owner | แก้ product | `product.service` |
