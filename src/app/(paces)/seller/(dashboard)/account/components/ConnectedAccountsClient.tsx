@@ -92,11 +92,22 @@ export function ConnectedAccountsClient({
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // state mirror ของ linked status — อัปเดตหลัง disconnect สำเร็จ (router.refresh ก็ทำ)
-  const [appleLinked, setAppleLinked] = useState(initialApple)
-  const [fbLinked, setFbLinked] = useState(initialFb)
-  const [lineLinked, setLineLinked] = useState(initialLine)
-  const [igLinked, setIgLinked] = useState(initialIg)
+  /**
+   * state mirror ของสถานะการเชื่อม — เก็บเป็น record เดียว ไม่แยกตัวแปรต่อ provider
+   *
+   * 🛑 เดิมแยกเป็น 4 ตัวแปรและอัปเดตด้วย if/else ไล่ทีละ provider — พอเพิ่ม Apple เข้ามา
+   * สาขาของมันถูกลืม ผลคือกด "ยกเลิก" แล้ว toast ขึ้นว่าสำเร็จ **แต่แถวยังโชว์ "เชื่อมแล้ว"**
+   * ต้องออกแล้วเข้าใหม่ถึงจะเห็นค่าจริง (user report 2026-08-12)
+   *
+   * `router.refresh()` อย่างเดียวช่วยไม่ได้ เพราะ `useState(initial)` ไม่ sync กับ prop ที่
+   * เปลี่ยนหลัง mount — ตัวที่อัปเดตจอจริงคือ setState ตรงนี้เท่านั้น
+   */
+  const [linkedMap, setLinkedMap] = useState<Record<ProviderKey, boolean>>({
+    apple: initialApple,
+    facebook: initialFb,
+    line: initialLine,
+    instagram: initialIg,
+  })
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null)
 
   // IG flag — render เฉพาะเมื่อ env เปิด (FR-LO-15 prepared/flag-off)
@@ -109,15 +120,29 @@ export function ConnectedAccountsClient({
     const linkError = searchParams.get('link_error')
 
     if (linked) {
-      // OAuth callback ส่ง ?linked=facebook / ?linked=line / ?linked=instagram กลับมา
-      const providerLabel =
-        linked === 'facebook' ? 'Facebook' : linked === 'line' ? 'LINE' : 'Instagram'
+      /**
+       * OAuth callback ส่ง ?linked={provider} กลับมา
+       *
+       * 🛑 ป้ายชื่อต้องมาจาก PROVIDER_LABEL — เดิมเป็น ternary ซ้อนที่ตกท้ายเป็น 'Instagram'
+       * ทำให้เชื่อม Apple สำเร็จแล้วขึ้นว่า "เชื่อมต่อ Instagram สำเร็จ" (Hard Rule 16)
+       */
+      const providerLabel = PROVIDER_LABEL[linked as ProviderKey] ?? linked
       pacesToast.success(`เชื่อมต่อ ${providerLabel} สำเร็จ`)
-      // ลบ query string เพื่อกัน toast ซ้ำเมื่อ user reload
-      router.replace('/settings')
+      // อัปเดตแถวทันทีโดยไม่ต้องรอ RSC (ค่าที่ server ส่งมาตอนโหลดหน้านี้ยังเป็นค่าก่อนเชื่อม
+      // ในกรณีที่ callback กลับมาถึงก่อน RSC จะ re-render)
+      setLinkedMap((prev) => ({ ...prev, [linked as ProviderKey]: true }))
+      /**
+       * ล้าง query string กัน toast ซ้ำเมื่อผู้ใช้รีโหลด
+       *
+       * 🛑 ต้องเป็น '/account' ไม่ใช่ '/settings' — การ์ดนี้ย้ายมา /account ตั้งแต่ feature 00026
+       * แต่บรรทัดนี้ค้างของเดิมไว้ ผลคือ **เชื่อมสำเร็จแล้วผู้ใช้ถูกเด้งไปหน้า "การจัดส่ง" ทันที**
+       * ทั้งที่เพิ่งกดปุ่มจากหน้านี้ (user report 2026-08-12 — เป็นคนละจุดกับ redirect ฝั่ง
+       * backend ที่แก้ไปแล้วใน 7e1dd961 ต้องแก้ทั้งสองที่ถึงจะหาย)
+       */
+      router.replace('/account')
     } else if (linkError === 'taken') {
       pacesToast.error('บัญชีนี้ถูกใช้กับบัญชีอื่นแล้ว')
-      router.replace('/settings')
+      router.replace('/account')
     }
   }, [searchParams, router])
 
@@ -244,10 +269,8 @@ export function ConnectedAccountsClient({
         return
       }
 
-      // สำเร็จ — อัปเดต state + toast + refresh
-      if (provider === 'facebook') setFbLinked(false)
-      else if (provider === 'line') setLineLinked(false)
-      else if (provider === 'instagram') setIgLinked(false)
+      // สำเร็จ — อัปเดตแถวทันที (ไม่ต้องไล่ if ทีละ provider อีกต่อไป) + toast + refresh
+      setLinkedMap((prev) => ({ ...prev, [provider]: false }))
 
       pacesToast.success(`ยกเลิกการเชื่อมต่อ ${providerLabel} สำเร็จ`)
       router.refresh()
@@ -468,7 +491,7 @@ export function ConnectedAccountsClient({
         <ProviderRow
           provider="apple"
           label="Apple"
-          linked={appleLinked}
+          linked={linkedMap.apple}
           icon={
             // Hard Rule 6 exception: โลโก้ Apple สีดำตาม Human Interface Guidelines
             <Icon icon="bxl:apple" width={22} height={22} style={{ color: '#000000' }} aria-label="Apple" />
@@ -478,7 +501,7 @@ export function ConnectedAccountsClient({
         <ProviderRow
           provider="facebook"
           label="Facebook"
-          linked={fbLinked}
+          linked={linkedMap.facebook}
           icon={
             // Hard Rule 6 exception: Facebook brand color #1877F2 — brand asset ใช้ได้ตาม ref
             <Icon
@@ -494,7 +517,7 @@ export function ConnectedAccountsClient({
         <ProviderRow
           provider="line"
           label="LINE"
-          linked={lineLinked}
+          linked={linkedMap.line}
           icon={<LineIcon />}
         />
 
@@ -503,7 +526,7 @@ export function ConnectedAccountsClient({
           <ProviderRow
             provider="instagram"
             label="Instagram"
-            linked={igLinked}
+            linked={linkedMap.instagram}
             icon={
               // Hard Rule 6 exception: Instagram brand color #E1306C — brand asset ใช้ได้ตาม ref
               <Icon

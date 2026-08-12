@@ -72,3 +72,38 @@ describe('provider ต้องรองรับครบทุกชั้น'
     expect(auth).toMatch(/\["facebook",\s*"line",\s*"instagram",\s*"apple"\]/)
   })
 })
+
+/**
+ * ด่านกันบั๊กชุด "เชื่อม/ยกเลิกแล้วจอไม่ตรงกับความจริง" (user report 2026-08-12)
+ *
+ * ทั้งสามตัวเกิดจากรูปแบบเดียวกัน: **โค้ดที่ไล่ if/ternary ทีละ provider** ซึ่งพอเพิ่ม
+ * provider ที่ 4 เข้ามาแล้วสาขาของมันถูกลืม โดยไม่มี tsc/เทสไหนฟ้อง
+ *
+ *   1. ยกเลิกการเชื่อม Apple → toast ขึ้นว่าสำเร็จ แต่แถวยังโชว์ "เชื่อมแล้ว"
+ *      (if/else อัปเดตแค่ facebook/line/instagram)
+ *   2. เชื่อม Apple สำเร็จ → toast ขึ้นว่า "เชื่อมต่อ Instagram สำเร็จ"
+ *      (ternary ตกท้ายเป็น 'Instagram')
+ *   3. เชื่อมสำเร็จแล้วถูกเด้งไปหน้า "การจัดส่ง" (`router.replace('/settings')` ค้างจาก
+ *      ตอนการ์ดนี้ยังอยู่ที่ /settings ก่อน feature 00026)
+ */
+describe('ConnectedAccountsClient — จอต้องตรงกับความจริง', () => {
+  const card = read('src/app/(paces)/seller/(dashboard)/account/components/ConnectedAccountsClient.tsx')
+
+  it('[blocker] ห้ามเด้งผู้ใช้ไป /settings หลังเชื่อม/ยกเลิก', () => {
+    // การ์ดนี้อยู่ที่ /account — เด้งไป /settings = ผู้ใช้ไปโผล่หน้า "การจัดส่ง" ที่ไม่เกี่ยวข้อง
+    expect(card).not.toContain("router.replace('/settings')")
+    expect(card).not.toContain("callbackUrl: '/settings'")
+  })
+
+  it('[blocker] สถานะการเชื่อมต้องเก็บเป็น record เดียว ไม่ใช่ตัวแปรแยกต่อ provider', () => {
+    // ตัวแปรแยก = ต้องไล่เพิ่มสาขาทุกครั้งที่มี provider ใหม่ ซึ่งเป็นต้นเหตุของบั๊ก 1
+    expect(card).toContain('setLinkedMap')
+    expect(card).not.toMatch(/set(Fb|Line|Ig|Apple)Linked/)
+  })
+
+  it('[blocker] ป้ายชื่อ provider ต้องมาจาก PROVIDER_LABEL ไม่ใช่ ternary ซ้อน', () => {
+    // ternary ที่ตกท้ายเป็นชื่อ provider ตัวใดตัวหนึ่ง = ตัวที่ 4 จะได้ชื่อผิดเสมอ (บั๊ก 2)
+    expect(card).not.toMatch(/linked === 'facebook' \? 'Facebook'/)
+    expect(card).toContain('PROVIDER_LABEL[linked as ProviderKey]')
+  })
+})
