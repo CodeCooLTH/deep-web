@@ -24,6 +24,14 @@ vi.mock('@/lib/token-crypto', () => ({
   decryptToken: vi.fn((v: string) => v),
 }))
 
+// (ส่วนขยาย 2026-08-12) ตัวจดความล้มเหลวขาเข้า — mock เพื่อยืนยันว่า route "เรียกจริง"
+// ไม่ใช่แค่ import ไว้เฉย ๆ (ด่านที่วางไว้แต่ไม่มีใครเรียกก็ผ่าน tsc เหมือนกันทุกประการ)
+vi.mock('@/services/line-inbound-health.service', () => ({
+  recordLineInboundFailure: vi.fn().mockResolvedValue(undefined),
+  clearLineInboundFailure: vi.fn().mockResolvedValue(undefined),
+  recordLineDestinationMiss: vi.fn(),
+}))
+
 vi.mock('@/services/channel-chat.service', () => ({
   ingestLineTextMessage: vi.fn().mockResolvedValue({ status: 'STORED', conversationId: 'conv1' }),
   // (S-7) media/sticker/location dispatch — mock แยกจาก ingestLineTextMessage เพราะ route แยก path
@@ -34,6 +42,11 @@ vi.mock('@/services/channel-chat.service', () => ({
 import { POST } from '@/app/api/channels/line/webhook/route'
 import { prisma } from '@/lib/prisma'
 import { ingestLineTextMessage, ingestLineMediaMessage } from '@/services/channel-chat.service'
+import {
+  recordLineInboundFailure,
+  clearLineInboundFailure,
+  recordLineDestinationMiss,
+} from '@/services/line-inbound-health.service'
 
 const URL_BASE = 'https://deepthailand.app/api/channels/line/webhook'
 const SECRET = '0123456789abcdef0123456789abcdef' // 32 hex chars ตามฟอร์แมตของ LINE channel secret
@@ -54,6 +67,8 @@ const ACTIVE_CHANNEL = {
   shopId: 'shop-1',
   channelSecretEnc: SECRET,
   accessTokenEnc: 'access-token-plain',
+  // (ส่วนขยาย 2026-08-12) 0 = ยังไม่เคยถูกปฏิเสธ — ค่าตั้งต้นของช่องทางที่ทำงานปกติ
+  lineInboundFailCount: 0,
 }
 
 const textEventBody = {
@@ -440,5 +455,48 @@ describe('POST /api/channels/line/webhook', () => {
     // ต้องรอ await หลายชั้นคลี่ตัวก่อน (processLineEvent → ingestLineTextMessage) จึงยังไม่เสร็จ
     // ทันทีที่ POST() คืนค่า — ใช้ vi.waitFor แทนการเช็คทันที กันเทส flaky จากช่วงเวลา microtask
     await vi.waitFor(() => expect(ingestLineTextMessage).toHaveBeenCalledTimes(2))
+  })
+})
+
+// ── ความทนของการเชื่อมต่อ (ส่วนขยาย 2026-08-12) ─────────────────────────────
+//
+// 🛑 เทสกลุ่มนี้มีอยู่เพราะ TC-04 ด้านบน **ชื่อบอกว่า "ไม่มี write"** แต่ที่ตรวจจริงมีข้อเดียวคือ
+// `ingestLineTextMessage` ไม่ถูกเรียก — ช่องว่างนี้มีมาก่อนรอบนี้ และมันคือชนิดของช่องว่างที่ทำให้
+// "ด่านที่วางไว้แต่ไม่มีใครเรียก" ผ่านได้ทุก gate (บทเรียน 00038)
+
+describe('POST /api/channels/line/webhook — บันทึกความล้มเหลวขาเข้า', () => {
+  it('[blocker] ลายเซ็นไม่ผ่าน → จดว่า SIGNATURE_MISMATCH และยังไม่ ingest อะไรเลย', async () => {
+    // mutation: ลบบรรทัด recordLineInboundFailure ในเส้นทางลายเซ็นไม่ผ่าน → ข้อนี้แดง
+    const res = await POST(postReq(textEventBody, sign(JSON.stringify(textEventBody), 'wrong-secret-xxxxxxxxxxxxxxxx')))
+    expect(res.status).toBe(200)
+    expect(recordLineInboundFailure).toHaveBeenCalledTimes(1)
+    expect(recordLineInboundFailure).toHaveBeenCalledWith('channel-1', 'SIGNATURE_MISMATCH')
+    expect(ingestLineTextMessage).not.toHaveBeenCalled()
+    expect(ingestLineMediaMessage).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] หา destination ไม่เจอ → ต้องนับด้วย ไม่ใช่นับแค่ลายเซ็น', async () => {
+    // 🛑 กฎที่เป็น OR ต้องกั้นทุก operand — สองเส้นทางนี้ทำให้ข้อความหายเงียบเท่ากันทุกประการ
+    // mutation: ลบ recordLineDestinationMiss() ออก → ข้อนี้แดง
+    vi.mocked(prisma.shopChannel.findFirst).mockResolvedValue(null as never)
+    const res = await POST(postReq(textEventBody))
+    expect(res.status).toBe(200)
+    expect(recordLineDestinationMiss).toHaveBeenCalledTimes(1)
+    expect(recordLineInboundFailure).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] ลายเซ็นผ่านและเคยล้มมาก่อน → ล้างตัวนับ (ลายเซ็นผ่าน = พิสูจน์ว่า secret ถูก)', async () => {
+    vi.mocked(prisma.shopChannel.findFirst).mockResolvedValue({ ...ACTIVE_CHANNEL, lineInboundFailCount: 4 } as never)
+    const res = await POST(postReq(textEventBody))
+    expect(res.status).toBe(200)
+    expect(clearLineInboundFailure).toHaveBeenCalledWith('channel-1')
+  })
+
+  it('[blocker] ลายเซ็นผ่านและตัวนับเป็น 0 อยู่แล้ว → ไม่ยิง UPDATE เปล่า', async () => {
+    // ทุกข้อความที่เข้ามาปกติจะกลายเป็น write หนึ่งครั้งถ้าไม่มีด่านนี้
+    // mutation: ถอด `if (channel.lineInboundFailCount > 0)` ออก → ข้อนี้แดง
+    const res = await POST(postReq(textEventBody))
+    expect(res.status).toBe(200)
+    expect(clearLineInboundFailure).not.toHaveBeenCalled()
   })
 })

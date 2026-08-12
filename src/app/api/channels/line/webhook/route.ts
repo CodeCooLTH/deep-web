@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse, after } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import {
+  recordLineInboundFailure,
+  clearLineInboundFailure,
+  recordLineDestinationMiss,
+} from '@/services/line-inbound-health.service'
 import { decryptToken } from '@/lib/token-crypto'
 import { validateSignature } from '@/lib/line/signature'
 import { describeLinePostback } from '@/lib/line/postback'
@@ -286,11 +291,25 @@ export async function POST(request: NextRequest) {
   //
   // ห่อทั้งก้อนด้วย try/catch: TFR-LINE-03 บังคับตอบ 200 เสมอแม้ DB ล่มชั่วคราว (ต่างจาก webhook ของ
   // Meta ที่ตอบ 503 ให้ retry — ที่นี่ retry ไม่ช่วยเพราะ DB ยังล่มเหมือนเดิม)
-  let channel: { id: string; shopId: string; channelSecretEnc: string | null; accessTokenEnc: string } | null
+  let channel: {
+    id: string
+    shopId: string
+    channelSecretEnc: string | null
+    accessTokenEnc: string
+    lineInboundFailCount: number
+  } | null
   try {
     channel = await prisma.shopChannel.findFirst({
       where: { provider: 'LINE', externalId: destination, status: 'ACTIVE' },
-      select: { id: true, shopId: true, channelSecretEnc: true, accessTokenEnc: true },
+      select: {
+        id: true,
+        shopId: true,
+        channelSecretEnc: true,
+        accessTokenEnc: true,
+        // (ส่วนขยาย 2026-08-12) อ่านมาด้วยเพื่อตัดสินว่าต้องล้างตัวนับไหมหลังลายเซ็นผ่าน —
+        // ไม่งั้นทุกข้อความที่เข้ามาปกติจะกลายเป็น UPDATE เปล่าหนึ่งครั้ง
+        lineInboundFailCount: true,
+      },
     })
   } catch (e) {
     console.error('[line-webhook] หา ShopChannel ไม่สำเร็จ (DB)', e instanceof Error ? e.message : e)
@@ -299,6 +318,11 @@ export async function POST(request: NextRequest) {
 
   if (!channel || !channel.channelSecretEnc) {
     console.warn('[line-webhook] ไม่พบช่องทาง ACTIVE ของ destination นี้')
+    // (ส่วนขยาย 2026-08-12 / AC-CH-13) 🛑 เส้นทางนี้ต้องนับด้วย ไม่ใช่นับแค่ลายเซ็นไม่ผ่าน —
+    // "ไม่มีแถวให้ตรงกับ destination" ทำให้ข้อความหายเงียบเท่ากันทุกประการ การกั้นแค่เส้นเดียว
+    // ของกฎที่เป็น OR คือการแก้ครึ่งเดียว (docs/conventions/... กฎ OR ต้องกั้นทุก operand)
+    // ไม่มีแถวให้เขียน จึงเก็บเป็นตัวนับระดับ process ให้ปุ่มทดสอบอ่านได้ในหน้าต่างสั้น ๆ
+    recordLineDestinationMiss()
     return NextResponse.json({ ok: true })
   }
 
@@ -314,7 +338,18 @@ export async function POST(request: NextRequest) {
   // (BR-LINE-05/06) — TC-04 [ห้ามข้าม] พิสูจน์ว่าไม่มี write/outbound call เลยตอนลายเซ็นผิด
   if (!validateSignature(raw, channelSecret, request.headers.get('x-line-signature'))) {
     console.warn('[line-webhook] ลายเซ็นไม่ผ่าน')
+    // (ส่วนขยาย 2026-08-12 / AC-CH-12) จดไว้ให้อ่านทีหลังได้ — 🛑 **ยังไม่มี write อื่น ไม่มี
+    // outbound call และยังตอบ 200 เหมือนเดิม** ข้อห้ามของ TC-04 [ห้ามข้าม] คือห้าม *ingest*
+    // เนื้อหาที่ยังพิสูจน์ไม่ได้ ไม่ใช่ห้ามจดว่าถูกปฏิเสธ. ตัวเขียนมี throttle ในตัวเพราะคำขอที่
+    // ลายเซ็นไม่ผ่าน = คำขอที่ยังไม่ผ่านการยืนยันตัวตน ปล่อยให้เขียนรัวไม่ได้
+    void recordLineInboundFailure(channel.id, 'SIGNATURE_MISMATCH')
     return NextResponse.json({ ok: true })
+  }
+
+  // ลายเซ็นผ่าน = พิสูจน์แล้วว่า channel secret ถูกต้อง ⇒ ล้างประวัติทิ้ง (AC-CH-15)
+  // เช็ค > 0 ก่อนเพื่อไม่ให้ข้อความปกติทุกข้อความกลายเป็น UPDATE เปล่า
+  if (channel.lineInboundFailCount > 0) {
+    void clearLineInboundFailure(channel.id)
   }
 
   const events = Array.isArray(body.events) ? (body.events as LineWebhookEvent[]) : []
