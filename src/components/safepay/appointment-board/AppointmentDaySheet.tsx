@@ -163,7 +163,13 @@ export default function AppointmentDaySheet({
     >
       {/* ── หัวชีต ─────────────────────────────────────────────────────────── */}
       <div className="bg-card border-default-200 shrink-0 border-b px-1.5 pt-2 pb-2.5">
-        <div className="flex items-center gap-1">
+        {/* แถวปิด — อยู่แถวของตัวเอง (user เคาะ 2026-08-12: "ขอปรับให้ section เลื่อนวันที่ ลงมา 1 step")
+            แยก "ออกจากจอนี้" ออกจาก "เดินวัน" คนละแถว: เดิมแถวเดียวมี 3 ปุ่มแตะ + ข้อความ 2 บรรทัด
+            ซึ่งที่ 320px เบียดจนวันที่เหลือที่ ~150px และ ✕ อยู่ติดลูกศรย้อนวันจนกดพลาดกันได้
+
+            แลกด้วยความสูงหัวชีต +44px — ถ้าจอเตี้ยแล้วรู้สึกว่ากินที่ ทางที่ไม่เสียความสูงคือ
+            ย้ายแถบความคืบหน้าขึ้นมาอยู่แถวเดียวกับ ✕ (ยังไม่ทำ เพราะ user ขอแค่ย้ายแถบวันลง) */}
+        <div className="flex items-center">
           {/* ทางออกเดียวที่มองเห็น — พื้นรองไม่ใช่ไอคอนลอย ๆ (ไอคอนเปล่าบนพื้นขาวอ่านเป็นของตกแต่ง) */}
           <button
             type="button"
@@ -173,6 +179,10 @@ export default function AppointmentDaySheet({
           >
             <Icon icon="x" className="size-5" aria-hidden="true" />
           </button>
+        </div>
+
+        {/* แถวเดินวัน — ได้ความกว้างเต็มแถว ชื่อวันจึงไม่ถูกบีบอีก */}
+        <div className="mt-1 flex items-center gap-1">
           <button
             type="button"
             onClick={() => goDay(-1)}

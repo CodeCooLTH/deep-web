@@ -26,6 +26,7 @@ import Icon from '@/components/wrappers/Icon'
 import { ChannelBadgeOverlay } from '@/app/(paces)/seller/(chat)/inbox/components/ChannelBadge'
 import { generateInitials } from '@/utils/helpers'
 import { normalizePhone } from '@/lib/phone'
+import { formatBaht } from '@/lib/format-money'
 import { pacesConfirm } from '@/lib/paces-swal'
 import { pacesToast } from '@/lib/paces-toast'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
@@ -190,6 +191,11 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
     now,
   })
 
+  /* Decimal มาเป็น string จาก API — แปลงครั้งเดียวตรงนี้ ไม่ใช่ในกลาง JSX
+     ค่าที่ parse ไม่ได้ตกเป็น 0 = "ไม่แสดง" ซึ่งปลอดภัยกว่าโชว์ NaN */
+  const totalNumber = Number(item.totalAmount) || 0
+  const depositNumber = Number(item.depositAmount) || 0
+
   /** เบอร์ที่โทรออกได้จริง — ค่าที่ไม่ใช่รูปเบอร์ไทย (อีเมล/ข้อความอิสระ) ยังแสดงแต่ไม่มีปุ่มโทร */
   const dialable = item.buyerContact ? normalizePhone(item.buyerContact) : null
 
@@ -267,6 +273,9 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
           (showResourceName && item.resource ? ` ประเภทงาน ${item.resource.name}` : '') +
           /* เดิมต่อว่า "จาก ${sourceText}" ซึ่งพังเมื่อค่าไม่ใช่ชื่อสถานที่ (อ่านได้ว่า
              "จาก สร้างนอกแชท") — ใช้คำนำหน้าที่เป็นกลางแทน ใช้ได้กับทุกค่าที่เป็นไปได้ */
+          (item.firstItemName ? ` รายการ ${item.firstItemName}` : '') +
+          (totalNumber > 0 ? ` ยอด ${formatBaht(totalNumber)}` : '') +
+          (depositNumber > 0 ? ` มัดจำ ${formatBaht(depositNumber)}` : '') +
           ` สถานะ ${statusLabel} ช่องทาง ${sourceText}` +
           (item.orderNo ? ` เลขที่ ${item.orderNo}` : '')
         }
@@ -288,6 +297,33 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
           >
             {who}
           </span>
+          {/* บรรทัด "งานนี้คืออะไร" + เงิน — สิ่งเดียวที่ทำให้นัดสองใบในช่วงเวลาเดียวกันต่างกันจริง
+              (ก่อนหน้านี้แยกได้แค่ด้วยชื่อคน) จึงอยู่ติดใต้ชื่อ ไม่ใช่ลงไปปนกับแถวสถานะ
+
+              🛑 มัดจำเขียนได้แค่ยอด ห้ามพูดว่าจ่ายแล้ว/ค้างจ่าย — ระบบไม่ติดตามสถานะการจ่ายเลย
+              (BR-RSV-50) · "0" = ไม่เก็บมัดจำ (BR-RSV-44) จึงไม่แสดงส่วนนั้น
+              ยอดเงินผ่าน formatBaht ตัวเดียวทั้งระบบ ห้ามจัดรูปเองที่นี่ (HR16) */}
+          {item.firstItemName || totalNumber > 0 ? (
+            <span className="mt-0.5 flex items-baseline gap-x-2">
+              <span className="text-default-800 min-w-0 flex-1 truncate text-sm">
+                {item.firstItemName ?? 'ไม่ระบุรายการ'}
+                {item.itemCount > 1 ? (
+                  <span className="text-default-500"> +{item.itemCount - 1}</span>
+                ) : null}
+              </span>
+              {totalNumber > 0 ? (
+                <span className="text-default-800 shrink-0 text-sm font-semibold tabular-nums">
+                  {formatBaht(totalNumber)}
+                  {depositNumber > 0 ? (
+                    <span className="text-default-500 ms-1 text-2xs font-normal">
+                      มัดจำ {formatBaht(depositNumber)}
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+
           {/* flex-wrap: ที่ 320px ป้าย "ลูกค้ายืนยันแล้ว" + ชื่อเพจ ยาวเกินหนึ่งบรรทัดเป็นปกติ
               (flex ตัดสิน wrap จากขนาดเนื้อหาเต็มก่อนหด — flex-header-truncation.md)
 

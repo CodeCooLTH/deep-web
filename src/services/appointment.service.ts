@@ -587,6 +587,25 @@ export type AppointmentDayItem = {
   customerAvatarUrl: string | null;
   /** เธรดแชทของลูกค้าคนนี้ในช่องทางนั้น — null = ไม่มีให้เปิด ⇒ UI ห้าม render ปุ่มทักแชท */
   conversationId: string | null;
+  /**
+   * ชื่อรายการแรกในบิล + จำนวนรายการทั้งหมด — "งานนี้คืองานอะไร"
+   *
+   * 🛑 นี่คือสิ่งเดียวที่ทำให้นัดสองใบในช่วงเวลาเดียวกันต่างกันจริง (ก่อนหน้านี้แยกได้แค่ด้วยชื่อคน)
+   * ส่งแค่ชื่อแรก + ตัวนับ ไม่ส่งทั้งอาเรย์ — การ์ดแสดงบรรทัดเดียว การส่งรายการเต็มคือ payload
+   * ที่ไม่มีใครอ่านและบวมตามจำนวนสินค้าในบิล
+   */
+  firstItemName: string | null;
+  itemCount: number;
+  /** ยอดรวมของบิล (string เพราะ Decimal ข้าม RSC boundary ไม่ได้) */
+  totalAmount: string;
+  /**
+   * ยอดมัดจำที่ตกลงไว้ — snapshot ตอนสร้าง (BR-RSV-46)
+   *
+   * 🛑 **ไม่ใช่สถานะการจ่าย** ระบบไม่ติดตามว่าจ่ายแล้วหรือยังเลย (BR-RSV-50) UI จึงพูดได้แค่
+   * "มัดจำ ฿900" ห้ามเขียน "จ่ายมัดจำแล้ว"/"ค้างมัดจำ" เด็ดขาด — จะเป็นการกุข้อมูลที่ไม่มีอยู่จริง
+   * · "0" = ไม่เก็บมัดจำ (BR-RSV-44) ⇒ ไม่ต้องแสดงส่วนมัดจำเลย
+   */
+  depositAmount: string;
 };
 
 export async function listAppointmentsForDay(args: {
@@ -619,6 +638,11 @@ export async function listAppointmentsForDay(args: {
       salesChannel: true,
       // ห้องแชทต้นทางของออเดอร์ใบนี้ (คอลัมน์ที่ main เพิ่ม 2026-08-12) — ดู `originIds` ด้านล่าง
       conversationId: true,
+      totalAmount: true,
+      depositAmount: true,
+      // ชื่อรายการแรกเท่านั้น + นับทั้งหมดแยก — ไม่ดึงทั้งบิลมาเพื่อแสดงบรรทัดเดียว
+      items: { select: { name: true }, orderBy: { id: "asc" }, take: 1 },
+      _count: { select: { items: true } },
       serviceResource: { select: { id: true, name: true, capacity: true } },
       // ห้าม select ทั้งแถวของ ShopChannel — แถวเดียวกันมี accessTokenEnc อยู่
       shopChannel: { select: { provider: true, name: true, avatarUrl: true } },
@@ -712,6 +736,11 @@ export async function listAppointmentsForDay(args: {
           }
         : null,
       salesChannel: r.salesChannel,
+      firstItemName: r.items[0]?.name ?? null,
+      itemCount: r._count.items,
+      // Decimal → string ที่ server boundary เสมอ (ข้าม RSC ไม่ได้)
+      totalAmount: r.totalAmount.toString(),
+      depositAmount: r.depositAmount?.toString() ?? "0",
       customerAvatarUrl: contact?.avatarUrl ?? null,
       conversationId:
         r.conversationId && validOrigin.has(r.conversationId)
