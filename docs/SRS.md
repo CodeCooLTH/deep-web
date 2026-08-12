@@ -563,7 +563,8 @@ SellerWallet (1) ── (N) WalletTransaction
 | `cancelInitiator` | String? | `"seller"` / `"buyer"` — เก็บเมื่อ CANCELLED (ดู §2 Zero Complaint) |
 | `shippingAddress` | Json? | shape: `{line1, subdistrict, district, province, postcode, note}` — required เมื่อ fulfillmentMode=SHIPPED. 🛑 **`subdistrict`=ตำบล/แขวง · `district`=อำเภอ/เขต** (คู่นี้สลับกันแล้วไม่มีอะไรฟ้อง — ค่าที่ผิดยังเป็นสตริงไทยที่ดูถูกต้อง) และคู่ ตำบล+อำเภอ+จังหวัด+รหัสไปรษณีย์ **ต้องมีอยู่จริงใน `public/data/iship-address.json`** ไม่งั้นเปิดพัสดุ iShip ไม่ผ่าน (`ADDRESS_INVALID`) — ไฟล์นั้นเขียน กทม. ว่า `"กรุงเทพ"` และไม่มีอำเภอชื่อ `"เมือง"` เดี่ยว ๆ เลย มีแต่ `"เมืองสมุทรปราการ"`. ดู `docs/conventions/external-payload-schema.md` §5 |
 | `paymentMethod` | String? | Phase B — วิธีชำระเงิน (FR-6.11) |
-| `salesChannel` | String? | Phase B — ช่องทางขาย |
+| `salesChannel` | String? | Phase B — ช่องทางขาย · ค่า: `STOREFRONT` \| `FACEBOOK` \| `LINE` \| `TIKTOK` \| `OTHER` — 🛑 **Messenger และ Instagram แมปเป็น `FACEBOOK` ทั้งคู่** (ฟอร์มไม่มี `INSTAGRAM` แยก) ดู `src/lib/chat-sales-channel.ts` |
+| `shopChannelId` | String? FK → ShopChannel | *(migration `20260810100000`)* **บัญชี/เพจที่ลูกค้าทักเข้ามาตอนสร้างออเดอร์** — ต่างจาก `salesChannel` ที่บอกแค่ "แพลตฟอร์มไหน" คอลัมน์นี้บอก "ใบไหน" จึงเป็นตัวที่ทำให้หน้า `/orders` โชว์รูปเพจ/LINE OA จริงได้. 🛑 **ออเดอร์ก่อน 2026-08-10 เป็น `NULL` และยัง backfill ไม่ได้** — การโยงผ่าน `customerId` เป็นการเดา และมี 2 ใบที่ระบุ `salesChannel=FACEBOOK` ไว้แล้ว ห้าม backfill จนพิสูจน์ได้ |
 | `internalNote` | String? `@db.Text` | Phase B — note ภายใน seller |
 | `buyerName` | String? | Phase B — ชื่อผู้ซื้อ |
 | `discount` | Decimal(12,2)? | Phase B — ≥0 |
@@ -764,8 +765,27 @@ SellerWallet (1) ── (N) WalletTransaction
 | `commentPrivateReplyEnabled` | Boolean default `false` | สวิตช์ "ทักแชทส่วนตัว" ต่อเพจ — แยกอิสระจากสวิตช์ A |
 | `commentPrivateReplyText` | String? `@db.Text` | ข้อความสวิตช์ B |
 
-> 🛑 `ShopChannel` มี `accessTokenEnc` อยู่แถวเดียวกัน — query ที่คืนคอลัมน์ 4 ตัวนี้ให้ client
-> ต้อง `select` ระบุคอลัมน์เสมอ ห้ามคืนทั้งแถว
+**คอลัมน์กลุ่ม LINE (feature 00025 + ส่วนขยาย 2026-08-12)** — `provider='LINE'` เท่านั้นที่ใช้ ที่เหลือเป็น `NULL` ตลอด
+
+| Field | Type | หมายเหตุ |
+|-------|------|---------|
+| `channelSecretEnc` | String? | Channel secret ผ่าน AES-256-GCM — ใช้ตรวจ `x-line-signature`. Messenger/IG ใช้ app secret ระดับแอป จึงเป็น `NULL` เสมอ |
+| `basicId` | String? | Basic ID ของ OA (`@xxxxxxx`) โชว์ให้ร้านยืนยันว่าเชื่อมถูกบัญชี |
+| `quotaValue` / `quotaUsed` / `quotaFetchedAt` | Int? / Int? / DateTime? | cache โควตาข้อความรายเดือน TTL 5 นาที — 🛑 `quotaValue=null` ตัวเดียว **แยก "ไม่จำกัด" ออกจาก "ยังไม่เคยอ่าน" ไม่ได้** ต้องอ่านคู่ `quotaFetchedAt` เสมอ · อ่านไม่ได้ = **ไม่บล็อกการส่ง** (TD-006) |
+| `lineTokenExpiresAt` | DateTime? | วันหมดอายุ access token จาก `POST /v2/oauth/verify` · **`NULL` = ไม่หมดอายุ หรือ ยังไม่เคยอ่าน** · 🛑 **ใช้เตือนเท่านั้น ห้ามอ่านในเส้นทางส่งข้อความ** (เป็นภาพนิ่ง — ร้าน revoke เมื่อไหร่ก็ได้) |
+| `lineTokenCheckedAt` | DateTime? | เวลาที่อ่านค่าข้างบนล่าสุด — ต้องอ่านคู่กันเสมอ (กติกาเดียวกับ `quotaValue`/`quotaFetchedAt`) |
+| `lineLastInboundFailAt` | DateTime? | เวลาที่ webhook ปฏิเสธ event ล่าสุด |
+| `lineInboundFailCount` | Int default `0` | นับสะสม เคลียร์เป็น 0 เมื่อ ingest สำเร็จ |
+| `lineLastInboundFailReason` | String? | `SIGNATURE_MISMATCH` \| `DESTINATION_NOT_FOUND` |
+
+> 🛑 **ทำไมต้องมี 3 คอลัมน์ล่าง:** ลายเซ็นไม่ผ่านและ `destination` หาช่องทางไม่เจอ **ต้องตอบ HTTP 200 เสมอ**
+> (BR-LINE-05/06) ⇒ ขาเข้าตายได้เงียบสนิทโดยไม่มีสถานะ ไม่มี error และ Vercel plan นี้ query runtime log
+> ย้อนหลังไม่ได้ · เป็นเหตุผลเดียวกันที่ทำให้ `POST /v2/bot/channel/webhook/test` ของ LINE ตอบ
+> `success:true` ได้ทั้งที่เราประมวลผล event ไม่ได้เลย — **ปุ่มตรวจสุขภาพต้องอ่านตัวนับนี้เป็นจังหวะที่สอง
+> ห้ามเชื่อ `success` ของ LINE อย่างเดียว**
+
+> 🛑 `ShopChannel` มี `accessTokenEnc` + `channelSecretEnc` อยู่แถวเดียวกัน — query ที่คืนคอลัมน์เหล่านี้
+> ให้ client ต้อง `select` ระบุคอลัมน์เสมอ ห้ามคืนทั้งแถว
 
 #### PageComment (`prisma/schema.prisma:2790`) — เวอร์ชันย่อ (feature 00038)
 
@@ -1078,6 +1098,26 @@ SellerWallet (1) ── (N) WalletTransaction
 > 🛑 หมวดนี้อยู่ใต้กติกาขอบเขตของ §7.14 ด้วย — `/api/chat/comments/[commentId]/private-reply`
 > ต้อง resolve ร้านจาก `comment → post → channel → shop` ไม่ใช่จาก `activeShopId`
 > (ตั้งแต่ feature 00037 สองค่านี้ไม่ใช่สิ่งเดียวกัน)
+
+### 7.16 ความทนของการเชื่อมช่องทาง (`/api/channels/**`) — ส่วนขยาย 00025 2026-08-12
+
+รายละเอียดอยู่ที่ `docs/20 - Features/00025 …/EXTENSIONS-2026-08-12-connection-health.md` — ที่นี่บันทึกเฉพาะกติกาที่ **ข้ามฟีเจอร์** และผิดแล้วไม่มี gate ไหนจับได้:
+
+| กติกา | เหตุผล |
+|---|---|
+| webhook ต้องตอบ **HTTP 200 ทุกกรณี** รวมลายเซ็นไม่ผ่าน/หา `destination` ไม่เจอ | BR-LINE-05/06 · เปลี่ยนเป็น 4xx = LINE ไล่ retry คำขอที่ยังไงก็ไม่ผ่าน |
+| ⇒ จึงต้อง **บันทึกความล้มเหลวลงแถว** (`lineInboundFailCount` ฯลฯ) ทั้ง **2 เส้นทาง** | จับแค่ลายเซ็นคือกั้น operand เดียวของกฎ OR — อีกเส้นเงียบเท่ากัน |
+| ปุ่มตรวจสุขภาพ **ห้ามเชื่อ `success` ของ `webhook/test`** ต้องอ่านตัวนับของเราเองเป็นจังหวะที่สอง | `webhook/test` รายงาน HTTP status ที่เราตอบ ซึ่งเป็น 200 เสมอ ⇒ เขียวหลอก |
+| `lineTokenExpiresAt` **ห้ามอ่านในเส้นทางส่งข้อความ** | เป็นภาพนิ่ง ณ เวลาที่เขียน — ร้าน revoke เมื่อไหร่ก็ได้ ตัวตัดสินจริงคือผลตอบจาก LINE ตอนยิง (`stored-flag-vs-owner-truth.md`) |
+| สถานะการ์ดช่องทางคำนวณจากฟังก์ชันบริสุทธิ์ตัวเดียว **สีเขียว = ผ่านทุกด่าน** | เดิมขึ้นเขียว "เชื่อมแล้ว" ได้ทั้งที่ webhook ไม่เคยถูกตั้ง = ละเมิด Verified-Means-Green |
+| บล็อกช่องพิมพ์ได้เฉพาะ `status='TOKEN_INVALID'` (ข้อเท็จจริงที่ LINE ปฏิเสธมาแล้ว) **ห้ามบล็อกจากการอนุมาน** | บทเรียน `viaStandby` 2026-08-09 — บล็อกผิด = พิมพ์ไม่ได้ทั้งที่กำลังคุยลูกค้า |
+| ถอดช่องทาง LINE ต้องคืน rich menu ก่อน แต่ **คืนล้มก็ต้องถอดต่อจนจบ** | เมนูที่ตั้งผ่าน API ชนะเมนู OA Manager เงียบ ๆ ⇒ ไม่คืน = ร้านลบเองไม่ได้ตลอดกาล |
+| push "ช่องทางหลุด" **ข้าม `ShopNotificationPref`** แต่ต้องกรองที่ชั้นที่แยกข่าวระบบออกจากข้อความลูกค้า | `pushToUsers()` เป็น primitive ที่ฝั่งผู้ซื้อใช้ร่วม — กรองผิดชั้นจะปิดของที่ไม่เกี่ยว |
+
+> 🛑 **Known Gap (รับไว้โดยรู้ตัว 2026-08-12):** `POST /api/channels/line/connect` · `PATCH /api/channels/line/[channelId]` ·
+> `POST /api/channels/facebook/confirm` · `DELETE /api/channels/[id]` **ไม่มีอันไหนอ่าน `role`/`locked`**
+> จาก `resolveActiveShopContext()` ⇒ staff ระดับ ADMIN เปลี่ยน credential ได้เท่าเจ้าของ และร้านที่ถูก
+> package lock ก็ยังจัดการช่องทางได้ · วันที่จะปิดต้องปิดทั้งกลุ่มพร้อมกัน ไม่ใช่เฉพาะ LINE
 
 ---
 
