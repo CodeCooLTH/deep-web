@@ -4,442 +4,440 @@
 <title>หน้าลิงก์คำสั่งซื้อ (guest) — 3 ทางเลือกโครงหน้า</title>
 <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-/* ── token จาก DESIGN.md / .impeccable/design.json — ห้ามแก้ค่าที่นี่โดยไม่แก้ที่นั่นด้วย ── */
+/* ═══ token จาก DESIGN.md / .impeccable/design.json — ห้ามแก้ค่าที่นี่โดยไม่แก้ที่นั่นด้วย ═══ */
 :root{
-  --primary:#7367F0; --primary-dark:#675DD8;
+  --primary:#7367F0; --primary-d:#675DD8; --primary-l:#8F85F3;
   --green:#28C76F; --green-ink:#18804A;
   --cyan:#00BAD1; --amber:#FF9F43; --amber-ink:#92400e; --coral:#FF4C51;
   --ink:#2F2B3D;
-  --ink-90:rgba(47,43,61,.9); --ink-70:rgba(47,43,61,.7); --ink-40:rgba(47,43,61,.4);
-  --divider:rgba(47,43,61,.12); --hover:rgba(47,43,61,.06);
-  --mist:#F8F7FA; --paper:#FFFFFF;
-  --sh-sm:0 2px 6px rgba(47,43,61,.08);
-  --sh-md:0 4px 16px rgba(47,43,61,.10);
+  --t1:rgba(47,43,61,.9); --t2:rgba(47,43,61,.7); --t3:rgba(47,43,61,.4);
+  --div:rgba(47,43,61,.12); --hov:rgba(47,43,61,.06);
+  --mist:#F8F7FA; --paper:#fff;
+  /* เงาผสมหมึกพลัม ไม่ใช่ดำ (Ink-Tinted Shadow) */
+  --sh1:0 2px 4px rgba(47,43,61,.06);
+  --sh2:0 4px 14px rgba(47,43,61,.10);
+  --sh3:0 12px 34px rgba(47,43,61,.14);
 }
 *{box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{margin:0;background:var(--mist);font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;
-     color:var(--ink-90);padding:32px 20px 100px;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1240px;margin:0 auto}
-h1{font-size:28px;font-weight:800;margin:0 0 6px;letter-spacing:-.01em}
-h2{font-size:20px;font-weight:700;margin:44px 0 4px}
-h3{font-size:15px;font-weight:700;margin:0 0 8px}
-.lead{color:var(--ink-70);font-size:14px;line-height:1.7;margin:0 0 10px;max-width:78ch}
-.note{background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:14px 16px;
-      font-size:13.5px;line-height:1.75;color:var(--ink-70);box-shadow:var(--sh-sm)}
-.note b{color:var(--ink)} .bad{color:#B3261E;font-weight:700} .ok{color:var(--green-ink);font-weight:700}
-table{border-collapse:collapse;width:100%;font-size:13px;margin-top:10px;background:var(--paper);
-      border-radius:10px;overflow:hidden;box-shadow:var(--sh-sm)}
-th,td{border-bottom:1px solid var(--divider);padding:9px 11px;text-align:left;vertical-align:top}
-th{background:var(--hover);font-weight:700;color:var(--ink)}
-tr:last-child td{border-bottom:0}
-code{background:var(--hover);border-radius:4px;padding:1px 5px;font-size:12px;
-     font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+     color:var(--t1);padding:0 0 120px}
 
-/* ── กรอบอุปกรณ์ ── */
-.devs{display:flex;gap:22px;align-items:flex-start;overflow-x:auto;padding:14px 2px 6px}
-.dev{flex:none}
-.dev .cap{font-size:11.5px;font-weight:700;color:var(--ink-40);margin-bottom:7px;letter-spacing:.02em}
-.screen{background:var(--paper);border:1px solid var(--divider);border-radius:14px;overflow:hidden;
-        box-shadow:var(--sh-md);position:relative}
-.m{width:340px;height:600px} .t{width:420px;height:560px} .d{width:520px;height:440px}
-.scroll{height:100%;overflow:hidden;position:relative}
-.fold{position:absolute;left:0;right:0;top:0;height:1px;pointer-events:none}
-.foldline{position:absolute;left:0;right:0;border-top:2px dashed rgba(115,103,240,.5);z-index:6}
-.foldline span{position:absolute;right:6px;top:-16px;font-size:9.5px;font-weight:700;color:var(--primary);
-               background:var(--paper);padding:0 4px;border-radius:3px}
+/* ═══ chrome ของเอกสาร ═══ */
+.hero{background:var(--paper);border-bottom:1px solid var(--div);padding:56px 28px 40px}
+.hero .in{max-width:1180px;margin:0 auto}
+.eb{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--t2);
+    background:var(--hov);border-radius:999px;padding:5px 13px;margin-bottom:18px}
+.eb b{color:var(--ink)}
+h1{font-size:38px;font-weight:500;line-height:1.28;margin:0 0 14px;color:var(--ink);
+   letter-spacing:-.015em;text-wrap:balance;max-width:20ch}
+.hero p{font-size:15px;line-height:1.72;color:var(--t2);margin:0;max-width:70ch}
+.hero p b{color:var(--ink);font-weight:600}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+section{padding-top:56px}
+h2{font-size:28px;font-weight:500;color:var(--ink);margin:0 0 8px;letter-spacing:-.01em}
+h3{font-size:18px;font-weight:600;color:var(--ink);margin:0 0 6px}
+.sub{font-size:15px;line-height:1.7;color:var(--t2);margin:0;max-width:72ch}
+.sub b{color:var(--ink);font-weight:600}
 
-/* ── ชิ้นส่วน UI จำลอง ── */
-.pad{padding:10px 12px}
-.row{display:flex;align-items:center;gap:8px}
-.sp{margin-left:auto}
-.ava{width:36px;height:36px;border-radius:50%;background:#A32020;color:#fff;font-weight:800;font-size:15px;
-     display:grid;place-items:center;flex:none;position:relative}
-.ava.lg{width:56px;height:56px;font-size:22px}
-.lv{position:absolute;right:-4px;bottom:-2px;width:15px;height:22px;border-radius:3px;
-    background:linear-gradient(160deg,#dfe1e6,#9aa0aa);box-shadow:0 1px 2px rgba(47,43,61,.35)}
-.nm{font-size:15px;font-weight:800;color:var(--ink);line-height:1.3}
-.sub{font-size:13px;color:var(--ink-70)}
-.tiny{font-size:12px;color:var(--ink-70)}
-.pill{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;
-      border-radius:999px;padding:3px 9px;line-height:1.4;white-space:nowrap}
-.p-neu{background:var(--hover);color:var(--ink-70)}
+/* ═══ กรอบอุปกรณ์ขนาดจริง ═══ */
+.rail{display:flex;gap:34px;align-items:flex-start;margin-top:30px;flex-wrap:wrap}
+.col{flex:none;width:390px}
+.tag{display:flex;align-items:baseline;gap:9px;margin-bottom:13px}
+.tag .k{font-size:18px;font-weight:700;color:var(--ink)}
+.tag .v{font-size:13px;color:var(--t2)}
+.pickme{font-size:11.5px;font-weight:700;color:var(--primary);background:rgba(115,103,240,.10);
+        border-radius:999px;padding:3px 9px}
+.phone{width:390px;height:750px;border-radius:26px;background:var(--paper);position:relative;
+       box-shadow:var(--sh3);overflow:hidden;border:1px solid var(--div)}
+.vp{position:absolute;inset:0;overflow:hidden;display:flex;flex-direction:column}
+.foldline{position:absolute;left:0;right:0;top:600px;border-top:2px dashed rgba(115,103,240,.45);z-index:8}
+.foldline b{position:absolute;right:10px;top:-19px;font-size:10.5px;font-weight:700;color:var(--primary);
+            background:var(--paper);padding:1px 6px;border-radius:4px;box-shadow:var(--sh1)}
+
+/* ═══ ชิ้นส่วน UI — ขนาดจริงตาม ramp ของ DESIGN.md ═══ */
+.ui{font-size:15px;line-height:1.47}
+.px{padding-left:18px;padding-right:18px}
+.r{display:flex;align-items:center;gap:10px}
+.auto{margin-left:auto}
+.ava{width:40px;height:40px;border-radius:50%;flex:none;position:relative}
+.ava img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.ava.big{width:64px;height:64px}
+.ava.big img{border:3px solid #fff;box-shadow:var(--sh1)}
+.lv{position:absolute;right:-5px;bottom:-3px;width:17px;height:25px;border-radius:4px;
+    background:linear-gradient(160deg,#eef0f3 12%,#b9bfc8 46%,#8b929c);
+    box-shadow:0 1px 3px rgba(47,43,61,.4);border:1px solid rgba(255,255,255,.7)}
+.h1{font-size:15px;font-weight:800;color:var(--ink);line-height:1.35;margin:0;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cap{font-size:13px;color:var(--t2);line-height:1.54}
+.cap.dim{color:var(--t2)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;line-height:1.4;
+      border-radius:999px;padding:3px 10px;white-space:nowrap}
+.p-neu{background:var(--hov);color:var(--t2)}
 .p-grn{background:rgba(40,199,111,.15);color:var(--green-ink)}
 .p-amb{background:rgba(255,159,67,.15);color:var(--amber-ink)}
-.p-tier{background:var(--hover);color:var(--ink)}
-.card{background:var(--paper);border:1px solid var(--divider);border-radius:10px;padding:11px 12px}
-.sect{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:7px}
-.hr{height:1px;background:var(--divider);margin:9px 0}
-.hrd{border-top:1px dashed var(--divider);margin:9px 0}
-.thumb{width:38px;height:38px;border-radius:8px;background:var(--hover);flex:none}
-.metric{font-weight:800;font-size:20px;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.3px;color:var(--ink)}
-.btn{display:block;width:100%;text-align:center;border-radius:8px;padding:11px 12px;font-size:15px;
-     font-weight:700;border:0;background:var(--primary);color:#fff;min-height:44px}
-.btn.gh{background:transparent;color:var(--ink);border:1px solid var(--divider);font-weight:600}
-.bar{position:absolute;left:0;right:0;bottom:0;background:var(--paper);border-top:1px solid var(--divider);
-     padding:9px 12px 11px;z-index:5}
-.tl{display:flex;align-items:center;gap:0;margin:8px 0 2px}
-.tl i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--divider)}
-.tl i.on{background:var(--primary);box-shadow:0 0 0 3px rgba(115,103,240,.18)}
-.tl b{flex:1;height:2px;background:var(--divider)}
-.tlab{display:flex;justify-content:space-between;font-size:9.5px;color:var(--ink-70);margin-top:5px}
-.tlab s{text-decoration:none} .tlab s.on{color:var(--primary);font-weight:700}
-.statusband{background:linear-gradient(180deg,rgba(255,159,67,.16),rgba(255,159,67,.06));padding:13px 12px 12px}
-.cov{height:52px;background:linear-gradient(135deg,#d9d4fb,#9389f4 65%,#7367F0)}
-.chan{display:flex;gap:7px;align-items:center}
-.chip-ch{display:flex;gap:5px;align-items:center;background:var(--hover);border-radius:8px;padding:4px 7px;flex:1;min-width:0}
-.chip-ch i{width:16px;height:16px;border-radius:4px;flex:none}
+.p-tier{background:var(--hov);color:var(--ink)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.band{padding:16px 18px 18px}
+.band .big{font-size:18px;font-weight:800;color:var(--ink);line-height:1.35;margin:9px 0 0}
+.card{background:var(--paper);border-radius:8px;box-shadow:var(--sh1);padding:14px 16px;
+      border:1px solid rgba(47,43,61,.07)}
+.h2{font-size:13px;font-weight:700;color:var(--ink);margin:0 0 10px;line-height:1.5}
+.thumb{width:44px;height:44px;border-radius:8px;flex:none;object-fit:cover;display:block;
+       background:var(--hov)}
+.hrd{border-top:1px dashed var(--div);margin:11px 0}
+.hr{height:1px;background:var(--div);margin:13px 0}
+.total{font-size:18px;font-weight:800;color:var(--ink)}
+.metric{font-size:20px;font-weight:800;line-height:1;color:var(--ink);
+        font-variant-numeric:tabular-nums;letter-spacing:-.4px}
+.stats{display:flex;justify-content:center;gap:28px;text-align:center}
+.vsep{width:1px;background:var(--div)}
+.chan{display:flex;gap:8px}
+.ch{display:flex;gap:7px;align-items:center;background:var(--hov);border-radius:8px;padding:7px 9px;
+    flex:1;min-width:0}
+.ch i{width:22px;height:22px;border-radius:6px;flex:none;position:relative;overflow:hidden}
+.ch i img{width:100%;height:100%;object-fit:cover;display:block}
+/* ตราแพลตฟอร์มห้อยมุมรูปเพจ — แพตเทิร์นเดียวกับ OrderSourceLogo ในหน้า /orders ของผู้ขาย */
+.ch i em{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:4px;
+         border:1.5px solid #fff}
 .fb{background:#1877F2} .ig{background:linear-gradient(45deg,#F58529,#DD2A7B 55%,#8134AF)}
-.chip-ch span{font-size:10px;color:var(--ink-70);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mask{letter-spacing:.04em;color:var(--ink-70);font-size:12px}
-.grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;align-items:start}
-.badge-new{display:inline-block;font-size:10px;font-weight:700;color:var(--primary);
-           background:rgba(115,103,240,.10);border-radius:999px;padding:2px 7px;margin-left:6px}
-.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--ink-70);margin-top:10px}
-.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-</style></head><body><div class="wrap">
+.ch span{font-size:13px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl{display:flex;align-items:center;margin:14px 0 0}
+.tl i{width:10px;height:10px;border-radius:50%;background:var(--div);flex:none}
+.tl i.on{background:var(--primary);box-shadow:0 0 0 4px rgba(115,103,240,.16)}
+.tl b{flex:1;height:2px;background:var(--div)}
+.tlab{display:flex;justify-content:space-between;margin-top:8px}
+.tlab s{text-decoration:none;font-size:11px;color:var(--t2);letter-spacing:-.1px}
+.tlab s.on{color:var(--primary);font-weight:700}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:48px;
+     border-radius:6px;background:var(--primary);color:#fff;font-size:15px;font-weight:700;
+     box-shadow:0 2px 6px rgba(47,43,61,.20)}
+.btn.sec{background:transparent;color:var(--t1);border:1px solid var(--div);box-shadow:none;font-weight:600}
+.btn.ghost{background:transparent;color:var(--t2);box-shadow:none;font-weight:600;justify-content:flex-start;
+           padding-left:2px}
+.bar{margin-top:auto;background:var(--paper);border-top:1px solid var(--div);padding:12px 18px 20px;
+     box-shadow:0 -6px 18px rgba(47,43,61,.06)}
+.body{flex:1;overflow:hidden;background:var(--mist);padding:14px 14px 0;display:flex;
+      flex-direction:column;gap:11px}
+.cover{height:76px;position:relative;overflow:hidden;background:linear-gradient(118deg,#d9d4fb,#9389f4 58%,#7367F0)}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+/* Photo Scrim — ข้อยกเว้นเดียวใน DESIGN.md ที่ใช้ดำสนิทได้ เพราะตกบนรูปของผู้ใช้ ไม่ใช่ผิวของเรา */
+.cover::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,rgb(0 0 0/.28) 0%,transparent 32%,transparent 52%,rgb(0 0 0/.55) 100%)}
+.mask{letter-spacing:.05em;color:var(--t2);font-size:13px}
+.ico{width:16px;height:16px;border-radius:4px;background:currentColor;opacity:.55;flex:none}
 
-<h1>หน้าลิงก์คำสั่งซื้อ (ยังไม่ล็อกอิน) — 3 ทางเลือกโครงหน้า</h1>
-<p class="lead">
-  จอนี้คือ <b>จุดสัมผัสแรกของผู้ซื้อเกือบทุกคน</b> (PRODUCT.md ระบุตรงตัว: ส่วนใหญ่เจอ Deep ครั้งแรกในฐานะ guest
-  ผ่านลิงก์ออเดอร์จากแชท) เปิดจากมือถือ กำลังลังเลว่าจะโอนดีไหม — ทุกตัวเลือกด้านล่างจึงตัดสินจากคำถามเดียว:
-  <b>ใน 1 หน้าจอแรก ผู้ซื้อได้คำตอบว่า "ของฉันถึงไหน" และ "ร้านนี้เชื่อได้ไหม" หรือยัง</b>
-</p>
+/* ═══ ตาราง/บันทึก ═══ */
+.note{background:var(--paper);border-radius:10px;padding:18px 20px;margin-top:22px;
+      font-size:15px;line-height:1.78;color:var(--t2);box-shadow:var(--sh1);max-width:84ch}
+.note b{color:var(--ink)} .bad{color:#B3261E;font-weight:700} .good{color:var(--green-ink);font-weight:700}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:15px;margin-top:20px;
+      background:var(--paper);border-radius:10px;overflow:hidden;box-shadow:var(--sh1)}
+th,td{padding:12px 16px;text-align:left;vertical-align:top;border-bottom:1px solid var(--div)}
+th{background:var(--hov);font-weight:700;color:var(--ink);font-size:13px}
+tr:last-child td{border-bottom:0}
+code{background:var(--hov);border-radius:4px;padding:1.5px 6px;font-size:12.5px;
+     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
+.scaled{transform-origin:top left;box-shadow:var(--sh3);border-radius:10px;overflow:hidden;
+        border:1px solid var(--div)}
+.scalewrap{overflow:hidden}
+</style></head><body>
 
-<h2>ปัญหาของหน้าปัจจุบัน</h2>
-<p class="lead">วัดจากภาพหน้าจอจริงที่ 390px และอ่านจากซอร์ส <code>GuestOrderView.tsx</code></p>
-<table>
-<tr><th style="width:30%">อาการ</th><th>รายละเอียด</th></tr>
-<tr><td><b>ลำดับความสำคัญกลับหัว</b></td><td>~62% ของจอแรกเป็นโปรไฟล์ร้าน (ปก + avatar + ชื่อ + ป้าย + สถิติ + ช่องทาง) กว่าจะเห็น <b>สถานะออเดอร์</b>ต้องเลื่อน และตัว timeline พัสดุอยู่ต่ำกว่านั้นอีก</td></tr>
-<tr><td><b>สถานะเป็นของที่เล็กที่สุดในหน้า</b></td><td>"รอดำเนินการ" เป็นชิป 12px ในแถวเดียวกับเลขออเดอร์ — สิ่งที่ผู้ซื้อเปิดมาดูกลับได้น้ำหนักน้อยกว่าเลข "89 ออเดอร์สำเร็จ" ที่เป็นตัวใหญ่สุดของจอ</td></tr>
-<tr><td><b>การ์ด 4 ใบทรงเดียวกันเป๊ะ</b></td><td>จัดส่ง / สินค้า / ผู้รับ / ช่วยเหลือ — พื้นขาว ขอบมน เงาเท่ากันหมด ไม่มีลำดับชั้น ตาไม่รู้ว่าควรอ่านอันไหนก่อน</td></tr>
-<tr><td><b>eyebrow ตัวเล็กจาง 4 อัน</b></td><td><code>variant='overline'</code> + <code>color='text.disabled'</code> — DESIGN.md เขียน "eyebrow ตัวพิมพ์เล็กจิ๋วเหนือทุก section" ไว้ใน <b>anti-reference ตรงตัว</b> และ Overline ถูกกำกับว่า "ใช้น้อยมาก"</td></tr>
-<tr><td><b>ที่อยู่ดูเหมือนข้อมูลเสีย</b></td><td><code>••••ม่ 3 •งจิก ••••••••ช้าง ••190</code> — จุดไข่ปลาแทรกกลางคำไทยอ่านเป็น "ข้อมูลพัง" มากกว่า "กำลังถูกปกป้อง" บนหน้าที่คนกลัวโดนโกงอยู่แล้ว</td></tr>
-<tr><td><b>การ์ด "ต้องการความช่วยเหลือ?"</b></td><td>กินความสูงเท่าการ์ดข้อมูลจริง เพื่อบรรจุปุ่ม outline หนึ่งปุ่มกับลิงก์ที่หน้าตาเหมือนข้อความตาย</td></tr>
-</table>
+<div class="hero"><div class="in">
+  <div class="eb">หน้าลิงก์คำสั่งซื้อ · <b>ยังไม่ล็อกอิน</b> · 3 ทางเลือก</div>
+  <h1>จอแรกที่ผู้ซื้อเจอ Deep</h1>
+  <p>
+    ผู้ซื้อเกือบทุกคนเจอเราครั้งแรกที่หน้านี้ — เปิดจากลิงก์ในแชท บนมือถือ กำลังลังเลว่าจะโอนดีไหม
+    ทุกแบบด้านล่างตัดสินจากคำถามเดียว: <b>ในหนึ่งหน้าจอแรก เขาได้คำตอบว่า “ของฉันถึงไหน” และ “ร้านนี้เชื่อได้ไหม” หรือยัง</b>
+    <br>ทุกกรอบเป็น <b>ขนาดจริง 390px</b> ใช้ type ramp กับสีจาก DESIGN.md ตรง ๆ เส้นประคือขอบจอแรกของ iPhone
+  </p>
+</div></div>
 
-<h2>Impeccable audit — สิ่งที่ต้องแก้ไปพร้อมกับโครงใหม่</h2>
-<div class="note">
-<b class="bad">คอนทราสต์ตก AA 7 จุด</b> — <code>color='text.disabled'</code> คือ ink ที่ opacity 0.4 = <b>2.30:1</b> บนพื้นขาว
-(เกณฑ์ 4.5:1) ใช้อยู่ที่ eyebrow 3 อัน · "แจ้งร้านค้าว่าคำสั่งซื้อนี้มีปัญหา" · "ปกป้องการซื้อขายโดย Deep" ·
-คำอธิบายใต้ปุ่มหลัก · <span class="ok">ทางแก้ไม่ใช่เปลี่ยนเฉด</span> — <code>text.secondary</code> (0.7) ได้ 5.22:1 ผ่านสบาย
-เป็นเฉดเดียวกันแค่เข้มขึ้น ตาม Hue-Preserving Contrast Rule
-<br><br>
-<b class="bad">ทั้งหน้าไม่มี heading สักตัว</b> — ชื่อร้านเป็น <code>Typography component={Link} variant='h6'</code>
-ซึ่งเรนเดอร์เป็น <code>&lt;a&gt;</code> ไม่ใช่ <code>&lt;h1&gt;</code> ส่วนหัว section เป็น overline บน <code>&lt;span&gt;</code>
-⇒ ผู้ใช้ screen reader กระโดดตามหัวข้อไม่ได้เลยทั้งหน้า
-<br><br>
-<b class="bad">tap target ต่ำกว่า 44px</b> — "ยังไม่ได้รับสินค้า?" เป็น <code>variant='text' size='small'</code> สูงราว 30px
-ขัดเกณฑ์ที่ PRODUCT.md ตั้งไว้เอง (≥44px สำหรับกลุ่มผู้สูงวัย/digital-literacy ต่ำ)
-<br><br>
-<b>ชื่อร้าน <code>noWrap</code> + <code>title</code></b> — ชื่อยาวถูกตัดแล้วอ่านต่อไม่ได้เลยบนมือถือ เพราะ <code>title</code> ต้อง hover
-ซึ่งเป็นบทเรียนที่โปรเจกต์เขียนไว้แล้วใน <code>aria-name-requires-supporting-role.md</code>
-<br><br>
-<b>สีนอก token 1 จุด</b> — <code>bgcolor:'rgba(40,199,111,0.15)'</code> ที่ป้าย "ซื้อจริง" ทั้งที่ค่าเดียวกันมีอยู่แล้วใน
-<code>VERIFY_BADGE_PALETTE.green.bg</code> และไฟล์นั้นก็ import <code>VERIFIED_INK</code> จาก SSOT เดียวกันมาใช้อยู่แล้ว
-<br><br>
-<b>ทั้ง view เป็น <code>'use client'</code></b> ทั้งที่เนื้อหาเกือบทั้งหมดคงที่ — มีของที่ต้องเป็น client จริงแค่ ping
-<code>auth-flow/start</code> ตัวเดียว จอแรกที่ผู้ซื้อทุกคนเจอบนมือถือจึงแบก JS ทั้งต้นไม้ไปโดยไม่จำเป็น
-<br><br>
-<b>แถบ CTA ล่างจอ</b> ความสูงไม่คงที่ (คำอธิบายใต้ปุ่มตกบรรทัดได้บนจอแคบ) แต่ตัวหน้าเผื่อที่ไว้เป็นค่าคงที่
-<code>pb:14</code> = 112px ⇒ เนื้อหาท้ายหน้าถูกแถบทับได้
-<br><br>
-<span class="ok">ที่ทำไว้ดีแล้วและต้องรักษาไว้</span> — <code>env(safe-area-inset-bottom)</code> ที่แถบ CTA ·
-คำอธิบายว่าทำไมที่อยู่ถึงถูกปิดบัง · <code>ShopEvidence</code>/<code>TrustPill</code>/<code>ShopCover</code>
-ถูกยกเป็นไฟล์ร่วมของสองจอแล้ว · detector deterministic ผ่าน 0 finding บนไฟล์กลุ่มนี้
-</div>
+<div class="wrap">
 
-<h2>แบบ ก · สถานะนำ <span class="badge-new">ผมเชียร์แบบนี้</span></h2>
-<p class="lead">
-  สลับลำดับทั้งหน้า: <b>สถานะ + timeline อยู่จอแรกทันที</b> · ร้านยุบเหลือแถบเดียวที่ยังบอกครบว่าใคร ยืนยันระดับไหน ระดับ tier อะไร ·
-  หลักฐานร้าน (ออเดอร์สำเร็จ/รีวิว/เพจ) ย้ายไปอยู่ <b>ใต้</b> รายการสินค้า ซึ่งเป็นจังหวะที่ผู้ซื้ออ่านของครบแล้วและกำลังจะตัดสินใจพอดี
-</p>
-<div class="devs">
-  <div class="dev"><div class="cap">มือถือ 390</div><div class="screen m"><div class="scroll">
-    <div class="foldline" style="top:288px"><span>ขอบจอแรก</span></div>
-    <div class="pad row" style="border-bottom:1px solid var(--divider)">
-      <div class="ava">ธ<div class="lv"></div></div>
-      <div style="min-width:0"><div class="nm" style="font-size:14px">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
-        <div class="row" style="gap:5px;margin-top:3px"><span class="pill p-neu">ยืนยันเบอร์ · ระดับ 1</span><span class="pill p-tier">Deep Classic</span></div></div>
-    </div>
-    <div class="statusband">
-      <div class="row"><span class="pill p-amb">รอดำเนินการ</span><span class="tiny sp">DP…3097 · 11 ส.ค. 13:16</span></div>
-      <div style="font-size:18px;font-weight:800;color:var(--ink);margin-top:9px">ร้านสร้างพัสดุแล้ว</div>
-      <div class="tiny" style="margin-top:2px">Flash Thunder · TH620391PCSM5E</div>
-      <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
-      <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังส่ง</s><s>ส่งสำเร็จ</s></div>
-    </div>
-    <div class="pad" style="display:flex;flex-direction:column;gap:9px;background:var(--mist)">
-      <div class="card"><div class="sect">รายการสินค้า</div>
-        <div class="row"><div class="thumb"></div><div style="min-width:0"><div class="sub" style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="tiny">x1</div></div><div class="sub sp" style="font-weight:700">฿360</div></div>
-        <div class="hrd"></div>
-        <div class="row"><span class="sub">ยอดรวม</span><span class="sp" style="font-size:18px;font-weight:800;color:var(--ink)">฿360</span></div>
-      </div>
-      <div class="card"><div class="sect">ร้านนี้เชื่อได้ไหม</div>
-        <div class="row" style="gap:16px;justify-content:center;text-align:center;padding:2px 0 6px">
-          <div><div class="metric">89</div><div class="tiny">ออเดอร์สำเร็จ</div></div>
-          <div style="width:1px;align-self:stretch;background:var(--divider)"></div>
-          <div><div class="metric">4.8</div><div class="tiny">จาก 12 รีวิว</div></div>
+<section>
+  <h2>สามแบบ เทียบขนาดจริง</h2>
+  <p class="sub">ร้านเดียวกัน ออเดอร์ใบเดียวกัน — ต่างกันแค่ลำดับของบล็อก</p>
+
+  <div class="rail">
+
+    <!-- ═════════ แบบ ก ═════════ -->
+    <div class="col">
+      <div class="tag"><span class="k">แบบ ก</span><span class="v">สถานะนำ</span></div>
+      <div class="phone"><div class="vp ui">
+        <div class="foldline"><b>ขอบจอแรก</b></div>
+
+        <div class="px r" style="padding-top:14px;padding-bottom:14px;border-bottom:1px solid var(--div)">
+          <div class="ava"><img src="assets/2026-08-11-order-link/shop-logo.jpg" alt="โลโก้ร้านธนภัทร์ อะไหล่มอเตอร์ไซค์"><div class="lv"></div></div>
+          <div style="min-width:0">
+            <p class="h1">ธนภัทร์ อะไหล่มอเตอร์ไซค์</p>
+            <div class="r" style="gap:6px;margin-top:6px">
+              <span class="pill p-neu"><span class="dot"></span>ยืนยันเบอร์แล้ว (ระดับ 1)</span>
+              <span class="pill p-tier">Deep Classic</span>
+            </div>
+          </div>
         </div>
-        <div class="hr"></div>
-        <div class="chan"><div class="chip-ch"><i class="fb"></i><span>เพจ · 6.1K ถูกใจ</span></div><div class="chip-ch"><i class="ig"></i><span>IG · 307 ติดตาม</span></div></div>
-      </div>
-    </div>
-    <div class="bar"><div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div></div>
-  </div></div></div>
 
-  <div class="dev"><div class="cap">แท็บเล็ต 768 (คอลัมน์ 720)</div><div class="screen t"><div class="scroll">
-    <div class="pad row" style="border-bottom:1px solid var(--divider)">
-      <div class="ava">ธ<div class="lv"></div></div>
-      <div style="min-width:0"><div class="nm" style="font-size:14px">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
-        <div class="row" style="gap:5px;margin-top:3px"><span class="pill p-neu">ยืนยันเบอร์ · ระดับ 1</span><span class="pill p-tier">Deep Classic</span></div></div>
-      <div class="sp row" style="gap:14px"><div style="text-align:center"><div class="metric" style="font-size:17px">89</div><div class="tiny">ออเดอร์สำเร็จ</div></div><div style="text-align:center"><div class="metric" style="font-size:17px">4.8</div><div class="tiny">12 รีวิว</div></div></div>
-    </div>
-    <div class="statusband">
-      <div class="row"><span class="pill p-amb">รอดำเนินการ</span><span class="tiny sp">DP…3097 · 11 ส.ค. 13:16</span></div>
-      <div style="font-size:19px;font-weight:800;color:var(--ink);margin-top:9px">ร้านสร้างพัสดุแล้ว</div>
-      <div class="tiny" style="margin-top:2px">Flash Thunder · TH620391PCSM5E</div>
-      <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
-      <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังส่ง</s><s>ส่งสำเร็จ</s></div>
-    </div>
-    <div class="pad" style="display:flex;flex-direction:column;gap:9px;background:var(--mist)">
-      <div class="card"><div class="sect">รายการสินค้า</div>
-        <div class="row"><div class="thumb"></div><div><div class="sub" style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="tiny">x1</div></div><div class="sub sp" style="font-weight:700">฿360</div></div>
-        <div class="hrd"></div><div class="row"><span class="sub">ยอดรวม</span><span class="sp" style="font-size:18px;font-weight:800;color:var(--ink)">฿360</span></div></div>
-      <div class="card"><div class="sect">ข้อมูลผู้รับ</div>
-        <div class="row"><span class="sub">เบอร์ผู้รับ</span><span class="mask sp">•••-•••-419</span></div>
-        <div class="row" style="margin-top:4px"><span class="sub">ที่อยู่</span><span class="mask sp">จ.พิจิตร · ปกปิดบางส่วน</span></div></div>
-    </div>
-    <div class="bar"><div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div></div>
-  </div></div></div>
-
-  <div class="dev"><div class="cap">เดสก์ท็อป 1280 (คอลัมน์ 880)</div><div class="screen d"><div class="scroll">
-    <div class="pad row" style="border-bottom:1px solid var(--divider)">
-      <div class="ava">ธ<div class="lv"></div></div>
-      <div><div class="nm" style="font-size:14px">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
-        <div class="row" style="gap:5px;margin-top:3px"><span class="pill p-neu">ยืนยันเบอร์ · ระดับ 1</span><span class="pill p-tier">Deep Classic</span></div></div>
-      <div class="sp row" style="gap:14px"><div style="text-align:center"><div class="metric" style="font-size:17px">89</div><div class="tiny">ออเดอร์สำเร็จ</div></div><div style="text-align:center"><div class="metric" style="font-size:17px">4.8</div><div class="tiny">12 รีวิว</div></div></div>
-    </div>
-    <div class="statusband">
-      <div class="row"><span class="pill p-amb">รอดำเนินการ</span><span class="tiny sp">DP…3097 · 11 ส.ค. 2569 13:16</span></div>
-      <div style="font-size:20px;font-weight:800;color:var(--ink);margin-top:8px">ร้านสร้างพัสดุแล้ว</div>
-      <div class="tiny" style="margin-top:2px">Flash Thunder · TH620391PCSM5E</div>
-      <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
-      <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังจัดส่ง</s><s>จัดส่งสำเร็จ</s></div>
-    </div>
-    <div class="pad" style="background:var(--mist)"><div class="grid2">
-      <div class="card"><div class="sect">รายการสินค้า</div>
-        <div class="row"><div class="thumb"></div><div><div class="sub" style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="tiny">x1</div></div><div class="sub sp" style="font-weight:700">฿360</div></div>
-        <div class="hrd"></div><div class="row"><span class="sub">ยอดรวม</span><span class="sp" style="font-size:18px;font-weight:800;color:var(--ink)">฿360</span></div></div>
-      <div style="display:flex;flex-direction:column;gap:9px">
-        <div class="card"><div class="sect">ข้อมูลผู้รับ</div><div class="row"><span class="sub">เบอร์</span><span class="mask sp">•••-•••-419</span></div></div>
-        <div class="card"><div class="btn" style="font-size:14px;padding:9px">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div><div class="tiny" style="text-align:center;margin-top:6px">ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป หรือแจ้งปัญหา</div></div>
-      </div>
-    </div></div>
-  </div></div></div>
-</div>
-<div class="note" style="margin-top:12px">
-  <b>ทำไมแบบนี้</b> — สิ่งที่ผู้ซื้อเปิดลิงก์มาถามคือ "ของฉันถึงไหน" ก่อนเสมอ ส่วน "ร้านนี้เชื่อได้ไหม" เป็นคำถามที่ตามมา
-  <i>ตอนกำลังจะกดปุ่ม</i> ไม่ใช่ตอนเปิดหน้า · แถบสถานะใช้พื้นไล่สีอ่อนของ semantic ตามสถานะ (อำพัน=รอ, เขียว=สำเร็จ, ปะการัง=ยกเลิก)
-  จึงบอกสถานะด้วย<b>ทั้งสีและข้อความ</b> ไม่ใช่สีอย่างเดียว · เดสก์ท็อปแตกเป็น 2 คอลัมน์เพราะคอลัมน์เดียว 880px
-  ทำให้การ์ดยืดยาวจนอ่านยาก
-  <br><br>
-  <span class="bad">ข้อแลก:</span> ปกไล่สีตาม tier หายไปทั้งแถบ — เป็นจุดที่แบรนด์เคยพูดดังที่สุดในหน้านี้
-</div>
-
-<h2>แบบ ข · ใบเสร็จเดียว</h2>
-<p class="lead">ไม่มีการ์ดซ้อนการ์ดเลย ทั้งหน้าเป็นใบเสร็จแผ่นเดียวคั่นด้วยเส้น — เงียบที่สุด อ่านเป็นเอกสารหลักฐาน</p>
-<div class="devs">
-  <div class="dev"><div class="cap">มือถือ 390</div><div class="screen m"><div class="scroll" style="background:var(--paper)">
-    <div class="foldline" style="top:288px"><span>ขอบจอแรก</span></div>
-    <div class="pad">
-      <div class="row"><div class="ava" style="width:30px;height:30px;font-size:13px">ธ<div class="lv" style="width:11px;height:16px"></div></div>
-      <div class="nm" style="font-size:13px">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div><span class="pill p-neu sp">ระดับ 1</span></div>
-      <div class="hr"></div>
-      <div style="font-size:19px;font-weight:800;color:var(--ink)">รอดำเนินการ</div>
-      <div class="tiny">ร้านสร้างพัสดุแล้ว · Flash Thunder</div>
-      <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
-      <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังส่ง</s><s>ส่งสำเร็จ</s></div>
-      <div class="hr"></div>
-      <div class="sect">รายการสินค้า</div>
-      <div class="row"><div class="thumb"></div><div><div class="sub" style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="tiny">x1</div></div><div class="sub sp" style="font-weight:700">฿360</div></div>
-      <div class="hrd"></div>
-      <div class="row"><span class="sub">ยอดรวม</span><span class="sp" style="font-size:19px;font-weight:800;color:var(--ink)">฿360</span></div>
-      <div class="hr"></div>
-      <div class="sect">ผู้รับ</div>
-      <div class="row"><span class="sub">เบอร์</span><span class="mask sp">•••-•••-419</span></div>
-      <div class="row" style="margin-top:3px"><span class="sub">ที่อยู่</span><span class="mask sp">จ.พิจิตร · ปกปิดบางส่วน</span></div>
-      <div class="hr"></div>
-      <div class="row" style="gap:16px;justify-content:center;text-align:center">
-        <div><div class="metric">89</div><div class="tiny">ออเดอร์สำเร็จ</div></div>
-        <div style="width:1px;align-self:stretch;background:var(--divider)"></div>
-        <div><div class="metric">4.8</div><div class="tiny">12 รีวิว</div></div>
-      </div>
-    </div>
-    <div class="bar"><div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div></div>
-  </div></div></div>
-
-  <div class="dev"><div class="cap">แท็บเล็ต 768</div><div class="screen t"><div class="scroll" style="background:var(--paper)">
-    <div class="pad">
-      <div class="row"><div class="ava" style="width:30px;height:30px;font-size:13px">ธ<div class="lv" style="width:11px;height:16px"></div></div><div class="nm" style="font-size:13px">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div><span class="pill p-neu sp">ระดับ 1</span><span class="pill p-tier">Deep Classic</span></div>
-      <div class="hr"></div>
-      <div class="row"><div><div style="font-size:20px;font-weight:800;color:var(--ink)">รอดำเนินการ</div><div class="tiny">ร้านสร้างพัสดุแล้ว · Flash Thunder · TH620391PCSM5E</div></div><div class="tiny sp" style="text-align:right">DP…3097<br>11 ส.ค. 13:16</div></div>
-      <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
-      <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังจัดส่ง</s><s>จัดส่งสำเร็จ</s></div>
-      <div class="hr"></div>
-      <div class="sect">รายการสินค้า</div>
-      <div class="row"><div class="thumb"></div><div><div class="sub" style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="tiny">x1</div></div><div class="sub sp" style="font-weight:700">฿360</div></div>
-      <div class="hrd"></div><div class="row"><span class="sub">ยอดรวม</span><span class="sp" style="font-size:19px;font-weight:800;color:var(--ink)">฿360</span></div>
-      <div class="hr"></div>
-      <div class="row" style="gap:20px;justify-content:center;text-align:center">
-        <div><div class="metric">89</div><div class="tiny">ออเดอร์สำเร็จ</div></div>
-        <div style="width:1px;align-self:stretch;background:var(--divider)"></div>
-        <div><div class="metric">4.8</div><div class="tiny">12 รีวิว</div></div>
-        <div style="width:1px;align-self:stretch;background:var(--divider)"></div>
-        <div class="chan" style="align-self:center"><div class="chip-ch"><i class="fb"></i><span>เพจ</span></div><div class="chip-ch"><i class="ig"></i><span>IG</span></div></div>
-      </div>
-    </div>
-    <div class="bar"><div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div></div>
-  </div></div></div>
-
-  <div class="dev"><div class="cap">เดสก์ท็อป 1280</div><div class="screen d"><div class="scroll" style="background:var(--paper)">
-    <div class="pad">
-      <div class="row"><div class="ava" style="width:30px;height:30px;font-size:13px">ธ<div class="lv" style="width:11px;height:16px"></div></div><div class="nm" style="font-size:13px">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div><span class="pill p-neu sp">ยืนยันเบอร์ · ระดับ 1</span><span class="pill p-tier">Deep Classic</span></div>
-      <div class="hr"></div>
-      <div class="grid2">
-        <div>
-          <div style="font-size:20px;font-weight:800;color:var(--ink)">รอดำเนินการ</div>
-          <div class="tiny">ร้านสร้างพัสดุแล้ว · Flash Thunder · TH620391PCSM5E</div>
+        <div class="band" style="background:linear-gradient(180deg,rgba(255,159,67,.16),rgba(255,159,67,.05))">
+          <div class="r">
+            <span class="pill p-amb">รอดำเนินการ</span>
+            <span class="cap auto">DP…3097 · 11 ส.ค. 13:16</span>
+          </div>
+          <p class="big">ร้านสร้างพัสดุแล้ว</p>
+          <div class="cap" style="margin-top:3px">Flash Thunder · TH620391PCSM5E</div>
           <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
           <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังจัดส่ง</s><s>จัดส่งสำเร็จ</s></div>
-          <div class="hr"></div>
-          <div class="sect">รายการสินค้า</div>
-          <div class="row"><div class="thumb"></div><div><div class="sub" style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="tiny">x1</div></div><div class="sub sp" style="font-weight:700">฿360</div></div>
-          <div class="hrd"></div><div class="row"><span class="sub">ยอดรวม</span><span class="sp" style="font-size:19px;font-weight:800;color:var(--ink)">฿360</span></div>
         </div>
-        <div>
-          <div class="row" style="gap:14px;text-align:center;justify-content:center">
-            <div><div class="metric">89</div><div class="tiny">ออเดอร์สำเร็จ</div></div>
-            <div style="width:1px;align-self:stretch;background:var(--divider)"></div>
-            <div><div class="metric">4.8</div><div class="tiny">12 รีวิว</div></div>
+
+        <div class="body">
+          <div class="card">
+            <p class="h2">รายการสินค้า</p>
+            <div class="r">
+              <img class="thumb" src="assets/2026-08-11-order-link/product.jpg" alt="โช๊คหลัง 125 สีเหลือง">
+              <div style="min-width:0">
+                <div style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div>
+                <div class="cap">x1</div>
+              </div>
+              <div class="auto" style="font-weight:700">฿360</div>
+            </div>
+            <div class="hrd"></div>
+            <div class="r"><span class="cap">ยอดรวม</span><span class="auto total">฿360</span></div>
+          </div>
+
+          <div class="card">
+            <p class="h2">ร้านนี้เชื่อได้ไหม</p>
+            <div class="stats">
+              <div><div class="metric">89</div><div class="cap" style="margin-top:5px">ออเดอร์สำเร็จ</div></div>
+              <div class="vsep"></div>
+              <div><div class="metric">4.8</div><div class="cap" style="margin-top:5px">จาก 12 รีวิว</div></div>
+            </div>
+            <div class="hr"></div>
+            <div class="chan">
+              <div class="ch"><i><img src="assets/2026-08-11-order-link/fb-page.jpg" alt=""><em class="fb"></em></i><span>เพจ · 6.1K ถูกใจ</span></div>
+              <div class="ch"><i><img src="assets/2026-08-11-order-link/fb-page.jpg" alt=""><em class="ig"></em></i><span>IG · 307 ติดตาม</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bar">
+          <div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div>
+          <div class="cap" style="text-align:center;margin-top:9px">ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป หรือแจ้งปัญหา</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ═════════ แบบ ข ═════════ -->
+    <div class="col">
+      <div class="tag"><span class="k">แบบ ข</span><span class="v">ใบเสร็จเดียว</span></div>
+      <div class="phone"><div class="vp ui">
+        <div class="foldline"><b>ขอบจอแรก</b></div>
+        <div class="px" style="padding-top:16px;flex:1;background:var(--paper)">
+          <div class="r">
+            <div class="ava" style="width:32px;height:32px"><img src="assets/2026-08-11-order-link/shop-logo.jpg" alt=""><div class="lv" style="width:13px;height:19px"></div></div>
+            <div class="h1" style="font-size:14px">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
+            <span class="pill p-neu auto">ระดับ 1</span>
           </div>
           <div class="hr"></div>
-          <div class="chan"><div class="chip-ch"><i class="fb"></i><span>เพจ · 6.1K</span></div><div class="chip-ch"><i class="ig"></i><span>IG · 307</span></div></div>
+
+          <div class="r"><span class="pill p-amb">รอดำเนินการ</span><span class="cap auto">DP…3097</span></div>
+          <p class="big" style="font-size:18px;font-weight:800;color:var(--ink);margin:10px 0 0">ร้านสร้างพัสดุแล้ว</p>
+          <div class="cap" style="margin-top:3px">Flash Thunder · TH620391PCSM5E</div>
+          <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
+          <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังจัดส่ง</s><s>จัดส่งสำเร็จ</s></div>
+
           <div class="hr"></div>
-          <div class="btn" style="font-size:14px;padding:9px">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div>
+          <p class="h2">รายการสินค้า</p>
+          <div class="r">
+            <img class="thumb" src="assets/2026-08-11-order-link/product.jpg" alt="โช๊คหลัง 125 สีเหลือง">
+            <div style="min-width:0"><div style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="cap">x1</div></div>
+            <div class="auto" style="font-weight:700">฿360</div>
+          </div>
+          <div class="hrd"></div>
+          <div class="r"><span class="cap">ยอดรวม</span><span class="auto total">฿360</span></div>
+
+          <div class="hr"></div>
+          <p class="h2">ผู้รับ</p>
+          <div class="r"><span class="cap">เบอร์</span><span class="mask auto">•••-•••-419</span></div>
+          <div class="r" style="margin-top:5px"><span class="cap">ที่อยู่</span><span class="mask auto">จ.พิจิตร · ปกปิดบางส่วน</span></div>
+
+          <div class="hr"></div>
+          <div class="stats">
+            <div><div class="metric">89</div><div class="cap" style="margin-top:5px">ออเดอร์สำเร็จ</div></div>
+            <div class="vsep"></div>
+            <div><div class="metric">4.8</div><div class="cap" style="margin-top:5px">12 รีวิว</div></div>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div>
+          <div class="cap" style="text-align:center;margin-top:9px">ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป หรือแจ้งปัญหา</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ═════════ แบบ ค ═════════ -->
+    <div class="col">
+      <div class="tag"><span class="k">แบบ ค</span><span class="v">ร้านนำแบบย่อ</span><span class="pickme">user เลือกแบบนี้ · ลงโค้ดแล้ว</span></div>
+      <div class="phone"><div class="vp ui">
+        <div class="foldline"><b>ขอบจอแรก</b></div>
+        <div class="cover"><img src="assets/2026-08-11-order-link/shop-cover.jpg" alt=""></div>
+        <div class="px" style="text-align:center;margin-top:-34px;padding-bottom:16px;background:var(--paper)">
+          <div class="ava big" style="margin:0 auto"><img src="assets/2026-08-11-order-link/shop-logo.jpg" alt=""><div class="lv" style="width:20px;height:30px"></div></div>
+          <p class="h1" style="font-size:18px;margin-top:9px;-webkit-line-clamp:2">ธนภัทร์ อะไหล่มอเตอร์ไซค์</p>
+          <div class="r" style="gap:6px;justify-content:center;margin-top:8px">
+            <span class="pill p-neu"><span class="dot"></span>ยืนยันเบอร์แล้ว (ระดับ 1)</span>
+            <span class="pill p-tier">Deep Classic</span>
+          </div>
+          <div class="stats" style="margin-top:14px">
+            <div><div class="metric">89</div><div class="cap" style="margin-top:5px">ออเดอร์สำเร็จ</div></div>
+            <div class="vsep"></div>
+            <div><div class="metric">4.8</div><div class="cap" style="margin-top:5px">12 รีวิว</div></div>
+          </div>
+        </div>
+
+        <div class="body">
+          <div class="card" style="border:1px solid rgba(255,159,67,.5);box-shadow:var(--sh2)">
+            <div class="r"><span class="pill p-amb">รอดำเนินการ</span><span class="cap auto">DP…3097</span></div>
+            <p style="font-size:18px;font-weight:800;color:var(--ink);margin:10px 0 0;line-height:1.35">ร้านสร้างพัสดุแล้ว</p>
+            <div class="cap" style="margin-top:3px">Flash Thunder · TH620391PCSM5E</div>
+            <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
+            <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังจัดส่ง</s><s>จัดส่งสำเร็จ</s></div>
+          </div>
+          <div class="card">
+            <p class="h2">รายการสินค้า</p>
+            <div class="r">
+              <img class="thumb" src="assets/2026-08-11-order-link/product.jpg" alt="โช๊คหลัง 125 สีเหลือง">
+              <div style="min-width:0"><div style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="cap">x1</div></div>
+              <div class="auto" style="font-weight:700">฿360</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bar">
+          <div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div>
+          <div class="cap" style="text-align:center;margin-top:9px">ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป หรือแจ้งปัญหา</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <b>แบบ ก</b> — สถานะกับ timeline อยู่จอแรกทันที ร้านยุบเหลือแถบเดียวที่ยังบอกครบว่าใคร ยืนยันระดับไหน tier อะไร
+    หลักฐานร้านย้ายไปอยู่ <b>ใต้รายการสินค้า</b> ซึ่งเป็นจังหวะที่ผู้ซื้ออ่านของครบแล้วและกำลังจะกดปุ่ม
+    <span class="bad">แลกด้วย</span> ปกไล่สีตาม tier ที่หายไปทั้งแถบ — จุดที่แบรนด์เคยพูดดังที่สุดในหน้านี้
+    <br><br>
+    <b>แบบ ข</b> — ไม่มีการ์ดซ้อนการ์ดเลย ทั้งหน้าเป็นใบเสร็จแผ่นเดียวคั่นด้วยเส้น อ่านเป็นหลักฐาน
+    <span class="bad">แลกด้วย</span> ความเงียบที่อาจอ่านเป็น “หน้าเปล่า ๆ” และเสีย warm credibility ที่ Brand Personality ระบุไว้
+    <br><br>
+    <b>แบบ ค</b> — เปลี่ยนน้อยที่สุด ยังได้ปกไล่สีและสถิติร้านในจอแรก ใช้ขอบสี+เงายกการ์ดสถานะแทนการย้ายตำแหน่ง
+    <span class="bad">แลกด้วย</span> สถานะที่ยังไม่ได้อยู่บนสุด และ “ขอบสีบอกความสำคัญ” เป็นภาษาที่หน้าอื่นฝั่งผู้ซื้อยังไม่ได้ใช้ที่ไหนเลย
+  </div>
+</section>
+
+<section>
+  <h2>แบบ ก บนแท็บเล็ตกับเดสก์ท็อป</h2>
+  <p class="sub"><b style="color:#B3261E">สองกรอบนี้วาดไว้ตอนที่ยังเชียร์แบบ ก — ยังไม่ได้วาดใหม่เป็นแบบ ค ที่ user เลือก</b> สิ่งที่ยังใช้ได้คือเรื่องความกว้าง: คอลัมน์เนื้อหาถูกจำกัดที่ 720px (≥768) และ 880px (≥1200) ตาม <code>content-width.ts</code> — เดสก์ท็อปแตกเป็น 2 คอลัมน์เพราะคอลัมน์เดียวที่ 880px ทำให้การ์ดยืดยาวจนกวาดตาไม่ทัน</p>
+  <div class="rail" style="gap:40px">
+    <div>
+      <div class="tag"><span class="k">แท็บเล็ต</span><span class="v">768 · คอลัมน์ 720</span></div>
+      <div class="scalewrap" style="width:504px;height:400px">
+        <div class="scaled" style="width:720px;height:571px;transform:scale(.7);background:var(--mist)">
+          <div class="ui" style="background:var(--paper);padding:16px 22px;border-bottom:1px solid var(--div);display:flex;align-items:center;gap:12px">
+            <div class="ava"><img src="assets/2026-08-11-order-link/shop-logo.jpg" alt="โลโก้ร้านธนภัทร์ อะไหล่มอเตอร์ไซค์"><div class="lv"></div></div>
+            <div><p class="h1">ธนภัทร์ อะไหล่มอเตอร์ไซค์</p>
+              <div class="r" style="gap:6px;margin-top:6px"><span class="pill p-neu"><span class="dot"></span>ยืนยันเบอร์แล้ว (ระดับ 1)</span><span class="pill p-tier">Deep Classic</span></div></div>
+            <div class="stats auto" style="gap:22px">
+              <div><div class="metric">89</div><div class="cap" style="margin-top:4px">ออเดอร์สำเร็จ</div></div>
+              <div class="vsep"></div>
+              <div><div class="metric">4.8</div><div class="cap" style="margin-top:4px">12 รีวิว</div></div>
+            </div>
+          </div>
+          <div class="ui band" style="background:linear-gradient(180deg,rgba(255,159,67,.16),rgba(255,159,67,.05));padding:18px 22px">
+            <div class="r"><span class="pill p-amb">รอดำเนินการ</span><span class="cap auto">DP…3097 · 11 ส.ค. 2569 13:16</span></div>
+            <p class="big">ร้านสร้างพัสดุแล้ว</p>
+            <div class="cap" style="margin-top:3px">Flash Thunder · TH620391PCSM5E</div>
+            <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
+            <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังจัดส่ง</s><s>จัดส่งสำเร็จ</s></div>
+          </div>
+          <div class="ui" style="padding:16px 22px;display:flex;flex-direction:column;gap:12px">
+            <div class="card"><p class="h2">รายการสินค้า</p>
+              <div class="r"><img class="thumb" src="assets/2026-08-11-order-link/product.jpg" alt="โช๊คหลัง 125 สีเหลือง"><div><div style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="cap">x1</div></div><div class="auto" style="font-weight:700">฿360</div></div>
+              <div class="hrd"></div><div class="r"><span class="cap">ยอดรวม</span><span class="auto total">฿360</span></div></div>
+            <div class="card"><p class="h2">ร้านนี้เชื่อได้ไหม</p>
+              <div class="chan"><div class="ch"><i><img src="assets/2026-08-11-order-link/fb-page.jpg" alt=""><em class="fb"></em></i><span>เพจ · 6.1K ถูกใจ</span></div><div class="ch"><i><img src="assets/2026-08-11-order-link/fb-page.jpg" alt=""><em class="ig"></em></i><span>IG · 307 ติดตาม</span></div></div></div>
+          </div>
         </div>
       </div>
     </div>
-  </div></div></div>
-</div>
-<div class="note" style="margin-top:12px">
-  <b>ทำไมแบบนี้</b> — DESIGN.md ห้ามการ์ดซ้อนการ์ด และหน้านี้มีการ์ด 4 ใบวางบนพื้นเทาซึ่งใกล้เคียงข้อห้ามนั้นอยู่แล้ว
-  แบบนี้ตัดกล่องทิ้งหมด เหลือเส้นคั่นเป็นตัวแบ่ง อ่านเป็น "ใบเสร็จ/หลักฐาน" ซึ่งตรงกับสิ่งที่หน้านี้เป็นจริง ๆ
-  <br><span class="bad">ข้อแลก:</span> เงียบมากจนอาจอ่านเป็น "หน้าเปล่า ๆ" และเสียความรู้สึกอบอุ่นที่ Brand Personality ระบุไว้ (warm credibility)
-</div>
 
-<h2>แบบ ค · ร้านนำแบบย่อ</h2>
-<p class="lead">คงลำดับเดิม (ร้านก่อน สถานะทีหลัง) แต่บีบบล็อกร้านจาก ~370px เหลือ ~150px และทำให้สถานะกลายเป็นการ์ดเด่น</p>
-<div class="devs">
-  <div class="dev"><div class="cap">มือถือ 390</div><div class="screen m"><div class="scroll">
-    <div class="foldline" style="top:288px"><span>ขอบจอแรก</span></div>
-    <div class="cov"></div>
-    <div class="pad" style="text-align:center;margin-top:-24px">
-      <div class="ava lg" style="margin:0 auto;border:3px solid #fff">ธ<div class="lv"></div></div>
-      <div class="nm" style="margin-top:5px">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
-      <div class="row" style="gap:5px;justify-content:center;margin-top:5px"><span class="pill p-neu">ยืนยันเบอร์ · ระดับ 1</span><span class="pill p-tier">Deep Classic</span></div>
-      <div class="row" style="gap:14px;justify-content:center;margin-top:9px">
-        <div><span class="metric" style="font-size:15px">89</span> <span class="tiny">ออเดอร์สำเร็จ</span></div>
-        <div><span class="metric" style="font-size:15px">4.8</span> <span class="tiny">12 รีวิว</span></div>
+    <div>
+      <div class="tag"><span class="k">เดสก์ท็อป</span><span class="v">1280 · คอลัมน์ 880</span></div>
+      <div class="scalewrap" style="width:528px;height:400px">
+        <div class="scaled" style="width:880px;height:667px;transform:scale(.6);background:var(--mist)">
+          <div class="ui" style="background:var(--paper);padding:16px 24px;border-bottom:1px solid var(--div);display:flex;align-items:center;gap:12px">
+            <div class="ava"><img src="assets/2026-08-11-order-link/shop-logo.jpg" alt="โลโก้ร้านธนภัทร์ อะไหล่มอเตอร์ไซค์"><div class="lv"></div></div>
+            <div><p class="h1">ธนภัทร์ อะไหล่มอเตอร์ไซค์</p>
+              <div class="r" style="gap:6px;margin-top:6px"><span class="pill p-neu"><span class="dot"></span>ยืนยันเบอร์แล้ว (ระดับ 1)</span><span class="pill p-tier">Deep Classic</span></div></div>
+            <div class="stats auto" style="gap:24px">
+              <div><div class="metric">89</div><div class="cap" style="margin-top:4px">ออเดอร์สำเร็จ</div></div>
+              <div class="vsep"></div>
+              <div><div class="metric">4.8</div><div class="cap" style="margin-top:4px">12 รีวิว</div></div>
+              <div class="vsep"></div>
+              <div class="chan" style="align-self:center"><div class="ch"><i><img src="assets/2026-08-11-order-link/fb-page.jpg" alt=""><em class="fb"></em></i><span>เพจ</span></div><div class="ch"><i><img src="assets/2026-08-11-order-link/fb-page.jpg" alt=""><em class="ig"></em></i><span>IG</span></div></div>
+            </div>
+          </div>
+          <div class="ui band" style="background:linear-gradient(180deg,rgba(255,159,67,.16),rgba(255,159,67,.05));padding:20px 24px">
+            <div class="r"><span class="pill p-amb">รอดำเนินการ</span><span class="cap auto">DP…3097 · 11 ส.ค. 2569 13:16</span></div>
+            <p class="big" style="font-size:20px">ร้านสร้างพัสดุแล้ว</p>
+            <div class="cap" style="margin-top:3px">Flash Thunder · TH620391PCSM5E</div>
+            <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
+            <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังจัดส่ง</s><s>จัดส่งสำเร็จ</s></div>
+          </div>
+          <div class="ui" style="padding:16px 24px;display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start">
+            <div class="card"><p class="h2">รายการสินค้า</p>
+              <div class="r"><img class="thumb" src="assets/2026-08-11-order-link/product.jpg" alt="โช๊คหลัง 125 สีเหลือง"><div><div style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="cap">x1</div></div><div class="auto" style="font-weight:700">฿360</div></div>
+              <div class="hrd"></div><div class="r"><span class="cap">ยอดรวม</span><span class="auto total">฿360</span></div></div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="card"><p class="h2">ข้อมูลผู้รับ</p>
+                <div class="r"><span class="cap">เบอร์ผู้รับ</span><span class="mask auto">•••-•••-419</span></div>
+                <div class="r" style="margin-top:6px"><span class="cap">ที่อยู่</span><span class="mask auto">จ.พิจิตร</span></div></div>
+              <div class="card"><div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div>
+                <div class="cap" style="text-align:center;margin-top:9px">ต้องเข้าสู่ระบบก่อนยืนยัน แนบสลิป หรือแจ้งปัญหา</div></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="pad" style="display:flex;flex-direction:column;gap:9px;background:var(--mist)">
-      <div class="card" style="border-color:rgba(255,159,67,.45);box-shadow:var(--sh-md)">
-        <div class="row"><span class="pill p-amb">รอดำเนินการ</span><span class="tiny sp">DP…3097</span></div>
-        <div style="font-size:17px;font-weight:800;color:var(--ink);margin-top:7px">ร้านสร้างพัสดุแล้ว</div>
-        <div class="tiny">Flash Thunder · TH620391PCSM5E</div>
-        <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
-        <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังส่ง</s><s>ส่งสำเร็จ</s></div>
-      </div>
-      <div class="card"><div class="sect">รายการสินค้า</div>
-        <div class="row"><div class="thumb"></div><div><div class="sub" style="font-weight:600;color:var(--ink)">โช้คหลัง 125</div><div class="tiny">x1</div></div><div class="sub sp" style="font-weight:700">฿360</div></div>
-      </div>
-    </div>
-    <div class="bar"><div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div></div>
-  </div></div></div>
+  </div>
+</section>
 
-  <div class="dev"><div class="cap">แท็บเล็ต 768</div><div class="screen t"><div class="scroll">
-    <div class="cov" style="height:60px"></div>
-    <div class="pad row" style="margin-top:-22px;align-items:flex-end">
-      <div class="ava lg" style="border:3px solid #fff">ธ<div class="lv"></div></div>
-      <div style="padding-bottom:3px"><div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
-        <div class="row" style="gap:5px;margin-top:4px"><span class="pill p-neu">ยืนยันเบอร์ · ระดับ 1</span><span class="pill p-tier">Deep Classic</span></div></div>
-      <div class="sp row" style="gap:14px;padding-bottom:3px"><div style="text-align:center"><div class="metric" style="font-size:17px">89</div><div class="tiny">ออเดอร์สำเร็จ</div></div><div style="text-align:center"><div class="metric" style="font-size:17px">4.8</div><div class="tiny">12 รีวิว</div></div></div>
-    </div>
-    <div class="pad" style="display:flex;flex-direction:column;gap:9px;background:var(--mist)">
-      <div class="card" style="border-color:rgba(255,159,67,.45);box-shadow:var(--sh-md)">
-        <div class="row"><span class="pill p-amb">รอดำเนินการ</span><span class="tiny sp">DP…3097 · 11 ส.ค. 13:16</span></div>
-        <div style="font-size:18px;font-weight:800;color:var(--ink);margin-top:7px">ร้านสร้างพัสดุแล้ว</div>
-        <div class="tiny">Flash Thunder · TH620391PCSM5E</div>
-        <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
-        <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังจัดส่ง</s><s>จัดส่งสำเร็จ</s></div>
-      </div>
-      <div class="card"><div class="sect">รายการสินค้า</div>
-        <div class="row"><div class="thumb"></div><div><div class="sub" style="font-weight:600;color:var(--ink)">โช้คหลัง 125 สีเหลือง</div><div class="tiny">x1</div></div><div class="sub sp" style="font-weight:700">฿360</div></div>
-        <div class="hrd"></div><div class="row"><span class="sub">ยอดรวม</span><span class="sp" style="font-size:18px;font-weight:800;color:var(--ink)">฿360</span></div></div>
-    </div>
-    <div class="bar"><div class="btn">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div></div>
-  </div></div></div>
+<section>
+  <h2>สิ่งที่ทั้ง 3 แบบแก้เหมือนกัน</h2>
+  <p class="sub">มาจาก <code>/impeccable audit</code> — คะแนนเดิม 11/20 (Acceptable)</p>
+  <table>
+    <tr><th style="width:36%">เดิม</th><th>ใหม่</th></tr>
+    <tr><td><b class="bad">คอนทราสต์ 2.30:1 · 7 จุด</b><br><code>color='text.disabled'</code> คือหมึกที่ opacity 0.4</td>
+        <td><code>text.secondary</code> = <b class="good">5.22:1</b> — เฉดเดิม เข้มขึ้นหนึ่งขั้น ไม่สลับฮิว</td></tr>
+    <tr><td><b class="bad">ทั้งหน้าไม่มี heading สักตัว</b><br>ชื่อร้านเป็น <code>&lt;a&gt;</code> · หัว section เป็น overline บน <code>&lt;span&gt;</code></td>
+        <td>ชื่อร้าน = <code>&lt;h1&gt;</code> · หัวแต่ละบล็อก = <code>&lt;h2&gt;</code> จริง</td></tr>
+    <tr><td><b class="bad">tap target 30px</b><br>“ยังไม่ได้รับสินค้า?” เป็น text button ขนาด small</td>
+        <td>รวมกับคำอธิบายเป็นปุ่มใบเดียว สูง 44px</td></tr>
+    <tr><td>eyebrow overline 4 อัน</td><td>หัวข้อ 13px/700 สีหมึกเต็ม — DESIGN.md มี eyebrow อยู่ใน anti-reference ตรงตัว</td></tr>
+    <tr><td>ชื่อร้าน <code>noWrap</code> + <code>title</code></td><td>ตัด 2 บรรทัดด้วย line-clamp — ไม่พึ่ง hover ที่มือถือไม่มี</td></tr>
+    <tr><td><code>rgba(40,199,111,0.15)</code> ดิบ</td><td>อ่านจาก <code>VERIFY_BADGE_PALETTE.green.bg</code></td></tr>
+    <tr><td><code>pb: 14</code> คงที่ใต้แถบ CTA</td><td><code>calc(112px + env(safe-area-inset-bottom))</code> — เดิมเนื้อหาท้ายหน้าถูกทับ 34px บน iPhone</td></tr>
+  </table>
+</section>
 
-  <div class="dev"><div class="cap">เดสก์ท็อป 1280</div><div class="screen d"><div class="scroll">
-    <div class="cov" style="height:64px"></div>
-    <div class="pad row" style="margin-top:-24px;align-items:flex-end">
-      <div class="ava lg" style="border:3px solid #fff">ธ<div class="lv"></div></div>
-      <div style="padding-bottom:3px"><div class="nm">ธนภัทร์ อะไหล่มอเตอร์ไซค์</div>
-        <div class="row" style="gap:5px;margin-top:4px"><span class="pill p-neu">ยืนยันเบอร์ · ระดับ 1</span><span class="pill p-tier">Deep Classic</span></div></div>
-      <div class="sp row" style="gap:14px;padding-bottom:3px"><div style="text-align:center"><div class="metric" style="font-size:17px">89</div><div class="tiny">ออเดอร์สำเร็จ</div></div><div style="text-align:center"><div class="metric" style="font-size:17px">4.8</div><div class="tiny">12 รีวิว</div></div><div class="chan"><div class="chip-ch"><i class="fb"></i><span>เพจ</span></div><div class="chip-ch"><i class="ig"></i><span>IG</span></div></div></div>
-    </div>
-    <div class="pad" style="background:var(--mist)"><div class="grid2">
-      <div class="card" style="border-color:rgba(255,159,67,.45);box-shadow:var(--sh-md)">
-        <div class="row"><span class="pill p-amb">รอดำเนินการ</span><span class="tiny sp">DP…3097</span></div>
-        <div style="font-size:18px;font-weight:800;color:var(--ink);margin-top:7px">ร้านสร้างพัสดุแล้ว</div>
-        <div class="tiny">Flash Thunder · TH620391PCSM5E</div>
-        <div class="tl"><i class="on"></i><b></b><i></i><b></b><i></i><b></b><i></i></div>
-        <div class="tlab"><s class="on">สร้างพัสดุ</s><s>รับเข้าระบบ</s><s>กำลังจัดส่ง</s><s>จัดส่งสำเร็จ</s></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:9px">
-        <div class="card"><div class="sect">รายการสินค้า</div><div class="row"><div class="thumb"></div><div><div class="sub" style="font-weight:600;color:var(--ink)">โช้คหลัง 125</div><div class="tiny">x1</div></div><div class="sub sp" style="font-weight:700">฿360</div></div>
-        <div class="hrd"></div><div class="row"><span class="sub">ยอดรวม</span><span class="sp" style="font-size:17px;font-weight:800;color:var(--ink)">฿360</span></div></div>
-        <div class="card"><div class="btn" style="font-size:14px;padding:9px">เข้าสู่ระบบเพื่อยืนยันรับสินค้า</div></div>
-      </div>
-    </div></div>
-  </div></div></div>
-</div>
-<div class="note" style="margin-top:12px">
-  <b>ทำไมแบบนี้</b> — เปลี่ยนน้อยที่สุด ยังได้ปกไล่สีตาม tier ที่เป็นเสียงแบรนด์ และสถิติร้านยังอยู่จอแรก
-  ใช้ <b>ขอบสี + เงา</b> ยกการ์ดสถานะให้เด่นแทนการย้ายตำแหน่ง
-  <br><span class="bad">ข้อแลก:</span> สถานะยังไม่ได้อยู่บนสุด และ "ขอบสีบอกความสำคัญ" เป็นภาษาที่หน้าอื่นของ buyer ยังไม่ได้ใช้ที่ไหนเลย
-</div>
-
-<h2>สิ่งที่ทั้ง 3 แบบแก้เหมือนกัน (มาจาก audit)</h2>
-<table>
-<tr><th style="width:34%">เดิม</th><th>ใหม่</th></tr>
-<tr><td><code>text.disabled</code> 2.30:1 · 7 จุด</td><td><code>text.secondary</code> 5.22:1 — เฉดเดิม เข้มขึ้นหนึ่งขั้น ผ่าน AA</td></tr>
-<tr><td>eyebrow overline 4 อัน</td><td>หัวข้อ 13px/700 สีหมึกเต็ม — เป็น <code>&lt;h2&gt;</code> จริง ไม่ใช่ span</td></tr>
-<tr><td>ทั้งหน้าไม่มี heading</td><td>ชื่อร้าน = <code>&lt;h1&gt;</code> · หัวแต่ละบล็อก = <code>&lt;h2&gt;</code></td></tr>
-<tr><td>"ยังไม่ได้รับสินค้า?" สูง ~30px</td><td>ยุบเข้าปุ่มเดียวกับ "ติดต่อร้านค้า" หรือทำเป็นแถวสูง 44px</td></tr>
-<tr><td>ที่อยู่ <code>••••ม่ 3 •งจิก</code></td><td>ไม่ปิดกลางคำ — โชว์ระดับจังหวัดเต็ม แล้วบอกว่า "ปกปิดบางส่วน"</td></tr>
-<tr><td>ชื่อร้าน <code>noWrap</code>+<code>title</code></td><td>ตัด 2 บรรทัดด้วย line-clamp — ไม่พึ่ง hover ที่มือถือไม่มี</td></tr>
-<tr><td><code>rgba(40,199,111,0.15)</code> ดิบ</td><td>อ่านจาก <code>VERIFY_BADGE_PALETTE.green.bg</code></td></tr>
-<tr><td>ทั้ง view เป็น <code>'use client'</code></td><td>เหลือ client island เฉพาะตัว ping <code>auth-flow/start</code></td></tr>
-<tr><td><code>pb:14</code> คงที่ใต้แถบ CTA</td><td>วัดความสูงแถบจริง หรือถอดคำอธิบายใต้ปุ่มออกให้แถบสูงคงที่</td></tr>
-</table>
-
-<div class="note" style="margin-top:26px">
-  <b>ยังไม่ตัดสินในไฟล์นี้</b> — จะเก็บปกไล่สีตาม tier ไว้ไหม (ก/ข ตัดทิ้ง · ค เก็บไว้) ·
-  รีวิวล่าสุด 1 อันจะวางตรงไหน (ยังไม่ได้วาดในทั้ง 3 แบบ) · บล็อกความช่วยเหลือจะเป็นปุ่มเดียวหรือสองปุ่ม ·
-  จอหลังล็อกอินต้องเปลี่ยนตามด้วยไหม (ตอนนี้ใช้ <code>ShopCover</code>/<code>ShopEvidence</code>/<code>TrustPill</code> ร่วมกันอยู่
-  ⇒ แก้ฝั่ง guest อย่างเดียวจะทำให้สองจอที่ผู้ซื้อเห็นห่างกันไม่กี่วินาทีหน้าตาไม่ตรงกัน)
-  <br><br>เลือกทางแล้วต้องผ่าน <code>safepay-ux</code> ออก Design Spec ก่อนแก้โค้ดจริงตาม Hard Rule 8
-</div>
+<section>
+  <div class="note">
+    <b>ยังไม่ตัดสินในไฟล์นี้</b> — รีวิวล่าสุด 1 อันจะวางตรงไหน (ยังไม่ได้วาดในทั้ง 3 แบบ) ·
+    บล็อกความช่วยเหลือจะเป็นปุ่มเดียวหรือสองปุ่ม · ที่อยู่ที่ปิดกลางคำไทยจะเปลี่ยนเป็นระดับจังหวัดไหม
+    (mask เกิดที่ server คนละชั้นกับ layout) ·
+    <b>จอหลังล็อกอินต้องเปลี่ยนตามด้วยไหม</b> — ตอนนี้ใช้ <code>ShopCover</code>/<code>ShopEvidence</code>/<code>TrustPill</code>
+    ร่วมกันอยู่ แก้ฝั่ง guest อย่างเดียวจะทำให้สองจอที่ผู้ซื้อคนเดียวกันเห็นห่างกันไม่กี่วินาทีคนละโครง
+    <br><br>เลือกทางแล้วต้องผ่าน <code>safepay-ux</code> ออก Design Spec ก่อนแก้โค้ดจริงตาม Hard Rule 8
+  </div>
+</section>
 
 </div></body></html>

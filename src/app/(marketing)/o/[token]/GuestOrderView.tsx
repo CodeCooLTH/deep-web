@@ -38,6 +38,7 @@ import { deriveShippingStage, resolveOrderStatusBadge } from '@/lib/order-stage'
 import { resolveOrderStatusHeadline } from '@/lib/order-status-headline'
 import ParcelTimeline from './ParcelTimeline'
 import { orderContentWidthSx } from './content-width'
+import ShopCover from './ShopCover'
 import ShopEvidence from './ShopEvidence'
 import TrustPill, { VERIFIED_BG, VERIFIED_INK } from './TrustPill'
 import type { GuestOrderData } from './guest-order-data'
@@ -122,38 +123,34 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
     // ท้ายหน้าถูกแถบทับไป 34px พอดี (audit 2026-08-11)
     <Box sx={{ pb: 'calc(112px + env(safe-area-inset-bottom))' }}>
       <Box sx={orderContentWidthSx}>
-        {/* ══ โครงหน้า "สถานะนำ" (user เลือกแบบ ก จาก mockup 2026-08-11) ══════════════════
-            เดิมเรียงเป็น ปก → avatar 84px → ชื่อ → ป้าย → สถิติ → ช่องทาง → *แล้วค่อย* สถานะ
-            ⇒ ~62% ของจอแรกบนมือถือ 390px เป็นโปรไฟล์ร้าน กว่าจะเห็นว่า "ของฉันถึงไหน" ต้องเลื่อน
-            ทั้งที่นั่นคือคำถามเดียวที่พาผู้ซื้อมาเปิดลิงก์นี้
+        {/* ══ โครงหน้า "ร้านนำแบบย่อ" (user เลือกแบบ ค จาก mockup 2026-08-11) ══════════════
+            คงลำดับเดิม (ร้านก่อน สถานะทีหลัง) แต่บีบบล็อกร้านจาก ~370px เหลือ ~200px แล้วยก
+            สถานะขึ้นเป็น "การ์ดที่เด่นที่สุดในหน้า" ด้วยขอบสี semantic + เงา แทนการย้ายตำแหน่ง
 
-            ลำดับใหม่: ร้าน (แถบเดียว) → สถานะ+พัสดุ → สินค้า → หลักฐานร้าน → ผู้รับ → ช่วยเหลือ
-            หลักฐานร้านไม่ได้ถูกลดความสำคัญ แต่ย้ายไปอยู่จังหวะที่ผู้ซื้ออ่านของครบแล้วและกำลัง
-            จะกดปุ่ม ซึ่งเป็นวินาทีที่คำถาม "ร้านนี้เชื่อได้ไหม" เกิดขึ้นจริง
-            🛑 ปกไล่สีตาม tier (ShopCover) ถูกถอดจากจอนี้ — จอหลังล็อกอินยังใช้อยู่ ห้ามลบไฟล์ */}
-        <Box
-          component='header'
-          sx={{
-            bgcolor: 'background.paper',
-            px: 2.25,
-            py: 1.5,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.25,
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
+            ที่บีบได้โดยไม่เสียอะไร: avatar 84→64px · ตัดบรรทัด @username (ชื่อร้านคือสิ่งที่
+            ผู้ซื้อจำได้ ไม่ใช่ slug) · ชื่อร้านลงมาอยู่ขั้น Title 18px ตาม ramp แทน h6 ที่ถูก
+            บังคับน้ำหนัก 800 เอง
+
+            🛑 แลกมาด้วย: สถานะยังไม่ได้อยู่บนสุดของจอ และ "ขอบสีบอกความสำคัญ" เป็นภาษาที่หน้าอื่น
+            ฝั่งผู้ซื้อยังไม่ได้ใช้ที่ไหนเลย — user รับข้อแลกเปลี่ยนนี้แล้วตอนเลือกจาก mockup */}
+        {/* 🛑 ส่ง isNewShop แยก ไม่ใช่ completionRate — ร้านที่ยังไม่มีออเดอร์จบต้องไม่ได้
+            แบนเนอร์ไล่สีที่หน้าตาเหมือนรางวัล (ดูเหตุผลเต็มที่ prop ของ ShopCover) */}
+        <ShopCover trustScore={order.shop.user.trustScore} isNewShop={order.completedOrders == null} />
+
+        <Box component='header' sx={{ bgcolor: 'background.paper', px: 2.25, pb: 2, textAlign: 'center' }}>
           <Box
             sx={{
-              width: 40,
-              height: 40,
+              width: 64,
+              height: 64,
               borderRadius: '50%',
+              border: '3px solid',
+              borderColor: 'background.paper',
               bgcolor: 'action.hover',
-              flex: 'none',
+              mx: 'auto',
+              mt: '-32px',
               display: 'grid',
               placeItems: 'center',
-              fontSize: 16,
+              fontSize: 25,
               fontWeight: 800,
               // 🛑 text.secondary ไม่ใช่ text.disabled — 0.4 ได้ 2.30:1 ตก AA (audit 2026-08-11)
               color: 'text.secondary',
@@ -167,86 +164,130 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               order.shop.shopName.slice(0, 1)
             )}
           </Box>
-          <Box sx={{ minWidth: 0 }}>
-            {/* 🛑 เป็น <h1> จริง — ทั้งหน้าเดิมไม่มี heading สักตัว (ชื่อร้านเป็น <a>, หัว section
-                เป็น overline บน <span>) ผู้ใช้ screen reader จึงกระโดดตามหัวข้อไม่ได้เลย
-                🛑 line-clamp 2 บรรทัด ไม่ใช่ noWrap+title — `title` ต้อง hover ซึ่งมือถือไม่มี
-                (บทเรียนเดียวกับ aria-name-requires-supporting-role.md) */}
-            <Typography
-              component='h1'
-              sx={{
-                m: 0,
-                fontSize: '0.9375rem',
-                fontWeight: 800,
-                lineHeight: 1.35,
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}
-            >
-              <Box
-                component={Link}
-                href={`/u/${order.shop.user.username}`}
-                sx={{ color: 'text.primary', textDecoration: 'none' }}
-              >
-                {order.shop.shopName}
-              </Box>
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 0.75, mt: 0.5, flexWrap: 'wrap' }}>
-              {/* 🛑 ป้ายบอก "ระดับที่ยืนยันถึง" ไม่ใช่คำว่ายืนยันแล้วลอย ๆ — ร้านที่ทำแค่ OTP
-                  ไม่ควรได้ป้ายเดียวกับร้านที่จดทะเบียนธุรกิจ บนจอที่ตัดสินว่าเงินจะโอนหรือไม่
-                  คำ+โทนมาจาก SSOT เดียวกับหน้า sign-in ที่ผู้ซื้อจะเห็นต่อในอีกไม่กี่วินาที */}
-              {verifyBadge && (
-                <TrustPill
-                  tone={verifyBadge.tone}
-                  icon={verifyBadge.icon}
-                  label={`${verifyBadge.label} (ระดับ ${order.maxVerifyLevel})`}
-                />
-              )}
-              <TrustPill tone='tier' tierColor={tierColor} label={tierLabel} />
-            </Box>
-          </Box>
-        </Box>
 
-        {/* ── แถบสถานะ — สิ่งแรกที่ตาไปตกหลังรู้ว่าเป็นร้านไหน ──
-            พื้นไล่สีอ่อนของ semantic ตามสถานะ (อำพัน=รอ · ฟ้า=กำลังส่ง · เขียว=สำเร็จ · ปะการัง=ยกเลิก)
-            ⇒ บอกด้วย "ทั้งสีและข้อความ" ไม่ใช่สีอย่างเดียว (WCAG 1.4.1) */}
-        <Box
-          component='section'
-          aria-label='สถานะคำสั่งซื้อ'
-          sx={{
-            px: 2.25,
-            py: 1.75,
-            background: (t) =>
-              `linear-gradient(180deg, ${alpha(t.palette[statusColor].main, 0.16)}, ${alpha(
-                t.palette[statusColor].main,
-                0.05,
-              )})`,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {statusHeadline.statusPill && (
-              <TrustPill tone='tier' tierColor={statusColor} label={statusHeadline.statusPill} />
-            )}
-            <Typography variant='caption' color='text.secondary' sx={{ ml: 'auto' }}>
-              {formatOrderNo(order.publicToken, order.createdAtIso)} · {formatDateTimeTH(order.createdAtIso)}
-            </Typography>
-          </Box>
-          <Typography component='p' sx={{ m: 0, mt: 1, fontSize: '1.125rem', fontWeight: 800, lineHeight: 1.35 }}>
-            {statusHeadline.headline}
+          {/* 🛑 เป็น <h1> จริง — ทั้งหน้าเดิมไม่มี heading สักตัว (ชื่อร้านเป็น <a> จาก
+              `Typography component={Link}`, หัว section เป็น overline บน <span>) ผู้ใช้
+              screen reader จึงกระโดดตามหัวข้อไม่ได้เลยทั้งหน้า
+              🛑 line-clamp 2 บรรทัด ไม่ใช่ noWrap+title — `title` ต้อง hover ซึ่งมือถือไม่มี
+              (บทเรียนเดียวกับ aria-name-requires-supporting-role.md)
+              18px = ขั้น Title ซึ่ง DESIGN.md ระบุ use case ว่า "หัวข้อย่อย, ชื่อร้าน" ตรงตัว */}
+          <Typography
+            component='h1'
+            sx={{
+              m: 0,
+              mt: 1,
+              fontSize: '1.125rem',
+              fontWeight: 800,
+              lineHeight: 1.35,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            <Box component={Link} href={`/u/${order.shop.user.username}`} sx={{ color: 'text.primary', textDecoration: 'none' }}>
+              {order.shop.shopName}
+            </Box>
           </Typography>
-          {order.shipmentTracking && (
-            <>
-              <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.25 }}>
-                {order.shipmentTracking.provider} · {order.shipmentTracking.trackingNo}
+
+          <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', mt: 1, flexWrap: 'wrap' }}>
+            {/* 🛑 ป้ายบอก "ระดับที่ยืนยันถึง" ไม่ใช่คำว่ายืนยันแล้วลอย ๆ — ร้านที่ทำแค่ OTP
+                ไม่ควรได้ป้ายเดียวกับร้านที่จดทะเบียนธุรกิจ บนจอที่ตัดสินว่าเงินจะโอนหรือไม่
+                คำ+โทนมาจาก SSOT เดียวกับหน้า sign-in ที่ผู้ซื้อจะเห็นต่อในอีกไม่กี่วินาที */}
+            {verifyBadge && (
+              <TrustPill
+                tone={verifyBadge.tone}
+                icon={verifyBadge.icon}
+                label={`${verifyBadge.label} (ระดับ ${order.maxVerifyLevel})`}
+              />
+            )}
+            <TrustPill tone='tier' tierColor={tierColor} label={tierLabel} />
+          </Box>
+
+          {/* ── หลักฐานของร้าน — ใช้ร่วมกับจอหลังล็อกอิน (ShopEvidence) ── */}
+          <ShopEvidence
+            completedOrders={order.completedOrders}
+            avgRating={order.avgRating}
+            reviewCount={order.reviewCount}
+            channels={order.channels}
+          />
+
+          {/* รีวิวจริงหนึ่งอัน — ข้อความจากคนซื้อจริงน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
+              ไม่มีรีวิวที่เขียนข้อความ → ซ่อนบล็อก ไม่แต่งคำชมเอง */}
+          {order.latestReview && (
+            <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 1.5, mt: 2, textAlign: 'left' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                {/* carve-out HR12: typographic dingbat สีเดียว (★) ไม่ใช่ emoji */}
+                <Box component='span' sx={{ color: 'warning.dark', fontSize: '0.8125rem', letterSpacing: '0.15em' }}>
+                  {'★'.repeat(order.latestReview.rating)}
+                </Box>
+                {/* 🛑 พื้นอ่านจาก SSOT เดียวกับตัวอักษร — เดิม hardcode 'rgba(40,199,111,0.15)'
+                    ทั้งที่ไฟล์นี้ import VERIFIED_INK จาก palette ตัวเดียวกันมาใช้อยู่แล้ว */}
+                <Box
+                  component='span'
+                  sx={{
+                    fontSize: '0.8125rem',
+                    fontWeight: 700,
+                    color: VERIFIED_INK,
+                    bgcolor: VERIFIED_BG,
+                    px: 0.75,
+                    py: 0.25,
+                    borderRadius: 0.75,
+                  }}
+                >
+                  ซื้อจริง
+                </Box>
+              </Box>
+              <Typography
+                variant='body2'
+                color='text.secondary'
+                sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+              >
+                {order.latestReview.comment}
               </Typography>
-              <ParcelTimeline stage={stage} hasShipment />
-            </>
+            </Box>
           )}
         </Box>
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, px: 1.5, pt: 1.5 }}>
+          {/* ── สถานะ + พัสดุ — การ์ดที่เด่นที่สุดในหน้า ──
+              ขอบ 1px สี semantic ตามสถานะ + เงาหนากว่าการ์ดอื่น (แบบ ค): ยกความสำคัญด้วย
+              "น้ำหนักทางสายตา" แทนการย้ายตำแหน่งขึ้นบนสุด
+              🛑 ขอบเป็น 1px รอบใบตาม One-Pixel Border Rule — ไม่ใช่แถบสีหนาฝั่งซ้าย ซึ่ง
+              DESIGN.md ยกเว้นให้เฉพาะ `(paces)/**` เท่านั้น ฝั่ง buyer ห้ามตามเดิม
+              สีบอกสถานะคู่กับข้อความเสมอ ไม่ใช่สีอย่างเดียว (WCAG 1.4.1) */}
+          <Card
+            component='section'
+            aria-label='สถานะคำสั่งซื้อ'
+            sx={{
+              border: '1px solid',
+              borderColor: (t) => alpha(t.palette[statusColor].main, 0.5),
+              boxShadow: 4,
+            }}
+          >
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {statusHeadline.statusPill && (
+                  <TrustPill tone='tier' tierColor={statusColor} label={statusHeadline.statusPill} />
+                )}
+                <Typography variant='caption' color='text.secondary' sx={{ ml: 'auto' }}>
+                  {formatOrderNo(order.publicToken, order.createdAtIso)} · {formatDateTimeTH(order.createdAtIso)}
+                </Typography>
+              </Box>
+              <Typography component='h2' sx={{ m: 0, mt: 1, fontSize: '1.125rem', fontWeight: 800, lineHeight: 1.35 }}>
+                {statusHeadline.headline}
+              </Typography>
+              {order.shipmentTracking && (
+                <>
+                  <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.25 }}>
+                    {order.shipmentTracking.provider} · {order.shipmentTracking.trackingNo}
+                  </Typography>
+                  <ParcelTimeline stage={stage} hasShipment />
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           {/* ── รายการสินค้า ── */}
           <Card>
             <CardContent>
@@ -283,58 +324,6 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
                   {baht.format(order.totalAmount)}
                 </Typography>
               </Box>
-            </CardContent>
-          </Card>
-
-          {/* ── หลักฐานของร้าน ──
-              อยู่ "หลัง" รายการสินค้าโดยตั้งใจ (แบบ ก): คำถาม "ร้านนี้เชื่อได้ไหม" เกิดขึ้นจริง
-              ตอนอ่านของครบแล้วและกำลังจะกดปุ่ม ไม่ใช่ตอนเพิ่งเปิดหน้า
-              ตัว ShopEvidence ยังเป็นไฟล์ร่วมกับจอหลังล็อกอินเหมือนเดิม เปลี่ยนแค่ตำแหน่งที่วาง */}
-          <Card>
-            <CardContent>
-              <SectionTitle>ร้านนี้เชื่อได้ไหม</SectionTitle>
-              <ShopEvidence
-                completedOrders={order.completedOrders}
-                avgRating={order.avgRating}
-                reviewCount={order.reviewCount}
-                channels={order.channels}
-              />
-
-              {/* รีวิวจริงหนึ่งอัน — ข้อความจากคนซื้อจริงน่าเชื่อกว่าค่าเฉลี่ยลอย ๆ
-                  ไม่มีรีวิวที่เขียนข้อความ → ซ่อนบล็อก ไม่แต่งคำชมเอง */}
-              {order.latestReview && (
-                <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 1.5, mt: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                    {/* carve-out HR12: typographic dingbat สีเดียว (★) ไม่ใช่ emoji */}
-                    <Box component='span' sx={{ color: 'warning.dark', fontSize: '0.8125rem', letterSpacing: '0.15em' }}>
-                      {'★'.repeat(order.latestReview.rating)}
-                    </Box>
-                    {/* 🛑 พื้นอ่านจาก SSOT เดียวกับตัวอักษร — เดิม hardcode 'rgba(40,199,111,0.15)'
-                        ทั้งที่ไฟล์นี้ import VERIFIED_INK จาก palette ตัวเดียวกันมาใช้อยู่แล้ว */}
-                    <Box
-                      component='span'
-                      sx={{
-                        fontSize: '0.8125rem',
-                        fontWeight: 700,
-                        color: VERIFIED_INK,
-                        bgcolor: VERIFIED_BG,
-                        px: 0.75,
-                        py: 0.25,
-                        borderRadius: 0.75,
-                      }}
-                    >
-                      ซื้อจริง
-                    </Box>
-                  </Box>
-                  <Typography
-                    variant='body2'
-                    color='text.secondary'
-                    sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-                  >
-                    {order.latestReview.comment}
-                  </Typography>
-                </Box>
-              )}
             </CardContent>
           </Card>
 
