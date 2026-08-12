@@ -281,13 +281,11 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               <Typography component='h2' sx={{ m: 0, mt: 1, fontSize: '1.125rem', fontWeight: 700, lineHeight: 1.35 }}>
                 {statusHeadline.headline}
               </Typography>
+              {/* บรรทัด "{provider} · {trackingNo}" ที่เคยอยู่ตรงนี้ถูกถอดออก — ParcelTimeline
+                  แสดงทั้งคู่อยู่แล้ว (และเลขพัสดุที่นั่นกดคัดลอกได้) ปล่อยไว้ = ข้อมูลเดียวกัน
+                  สองที่ ห่างกัน 8px โดยฝั่งบนกดไม่ได้ */}
               {order.shipmentTracking && (
-                <>
-                  <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.25 }}>
-                    {order.shipmentTracking.provider} · {order.shipmentTracking.trackingNo}
-                  </Typography>
-                  <ParcelTimeline stage={stage} hasShipment />
-                </>
+                <ParcelTimeline stage={stage} hasShipment tracking={order.shipmentTracking} />
               )}
             </CardContent>
           </Card>

@@ -1,12 +1,18 @@
 'use client'
 
 /**
- * ParcelTimeline — แถบ 4 จุดของสถานะพัสดุ ที่ผู้ซื้อเห็น (feature 00041, BR-BOE-12)
+ * ParcelTimeline — บล็อกพัสดุที่ผู้ซื้อเห็นบนหน้า `/o/[token]` (feature 00041, BR-BOE-12)
  *
- * Base: theme/vuexy/.../views/apps/ecommerce/orders/details/ShippingActivityCard.tsx
- *   (โครง timeline + จุด/เส้นเชื่อม) — ตัด dynamic list เหลือ 4 จุดคงที่
+ * Base: src/components/safepay/iship/ShipmentStatusView.tsx
+ *   (หัวเรื่อง "โลโก้ขนส่ง + เลขพัสดุกดคัดลอก + ชื่อขนส่ง" และไทม์ไลน์ 4 ขั้นแบบไอคอนในวงกลม
+ *   พร้อมเส้นเชื่อมซ้าย/ขวาที่โปร่งตรงหัว-ท้าย) — คือคอมโพเนนต์ฝั่งผู้ขายของเราเอง ไม่ใช่ของนอก
  *
- * 🛑 ป้ายทั้ง 4 จุดมาจาก `SHIPMENT_STAGES` และจุดที่ไฮไลต์มาจาก `SHIPMENT_STAGE_DOT_INDEX`
+ * 🛑 ยก **โครง/ภาษาการออกแบบ** มา แต่ **skin เป็นของ (marketing) = Vuexy/MUI**:
+ * `(marketing)/layout.tsx` โหลด `marketing.css` ไม่ใช่ `@/assets/css/app.css` ⇒ utility ของ Paces
+ * (`bg-primary` `text-default-900` `size-8`) **ไม่มีนิยามที่นี่** เขียนไปก็เงียบ ไม่มี error
+ * ให้เห็น มีแต่กล่องไม่มีสี (docs/conventions/reference-vs-theme-source.md ข้อ "skin ตามธีมปัจจุบัน")
+ *
+ * 🛑 ป้ายทั้ง 4 ขั้นมาจาก `SHIPMENT_STAGES` และขั้นที่ไฮไลต์มาจาก `SHIPMENT_STAGE_DOT_INDEX`
  * ตัวเดียวกับที่ `MiniShipmentTimeline.tsx` ฝั่งร้านใช้ — ห้ามเขียนรายชื่อขั้นหรือตรรกะแบ่งขั้น
  * ของตัวเองที่นี่ ไม่งั้นผู้ซื้อกับผู้ขายจะเห็นพัสดุใบเดียวกันอยู่คนละขั้น (HR16)
  *
@@ -19,12 +25,17 @@
  * `ShippingStageKey` แล้ว ค่าที่ไม่มีในตารางจึงเป็น compile error ไม่ใช่จุดแรกเงียบ ๆ
  */
 
+import { useState } from 'react'
 import Box from '@mui/material/Box'
+import ButtonBase from '@mui/material/ButtonBase'
 import Typography from '@mui/material/Typography'
 import { Icon } from '@iconify/react'
+import { toast } from 'react-toastify'
 
 import { SHIPMENT_STAGES } from '@/lib/iship/status'
+import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import { ORDER_STAGE_META, SHIPMENT_STAGE_DOT_INDEX, type ShippingStageKey } from '@/lib/order-stage'
+import { VERIFIED_INK } from './TrustPill'
 
 type Props = {
   stage: ShippingStageKey
@@ -33,86 +44,233 @@ type Props = {
    * ถ้าไม่กันไว้จะวาดแถบเขียวครบ 4 จุดให้พัสดุที่ไม่มีอยู่จริง
    */
   hasShipment: boolean
+  /**
+   * ขนส่ง + เลขพัสดุ — บล็อกหัวเรื่องยกมาจาก `ShipmentStatusView`
+   *
+   * 🛑 `courierCode` มีเฉพาะพัสดุที่เปิดผ่าน iShip — ที่ร้านแจ้งเลขเอง (`ShipmentTracking`)
+   * เก็บแต่ชื่อที่พิมพ์มา ไม่มีรหัส (docs/conventions/one-value-many-entry-points.md)
+   * `courierLogoUrl` จับที่ระดับ *แบรนด์* จาก `${code} ${name}` จึงยังหาโลโก้เจอจากชื่อล้วน
+   */
+  tracking: { provider: string; trackingNo: string; courierCode?: string | null } | null
 }
 
-export default function ParcelTimeline({ stage, hasShipment }: Props) {
+export default function ParcelTimeline({ stage, hasShipment, tracking }: Props) {
+  const [copied, setCopied] = useState(false)
   const current = SHIPMENT_STAGE_DOT_INDEX[stage]
 
   // ยังไม่มีพัสดุให้วาด — ไม่ใช่ error แค่ยังไม่ถึงเวลา
   if (current == null || !hasShipment) return null
 
   const problem = stage === 'PROBLEM'
+  const lastIndex = SHIPMENT_STAGES.length - 1
 
-  // ป้ายของจุดที่ยืนอยู่ — current เป็น 4 ได้ (เลยจุดสุดท้าย) จึง clamp ก่อนอ่านป้าย
-  const currentLabel = problem
-    ? ORDER_STAGE_META.PARCEL_PROBLEM.label
-    : SHIPMENT_STAGES[Math.min(current, SHIPMENT_STAGES.length - 1)].label
+  /**
+   * ขั้นที่ยืนอยู่ — `current` เป็น 4 ได้ (เลยจุดสุดท้ายไปแล้ว: ได้เงิน COD/จบงาน)
+   * ต้อง clamp ก่อนเอาไปอ่านป้ายและก่อนตัดสินว่าป้ายไหนตัวหนา ไม่งั้นตอนจบงานจะไม่มีป้ายไหนเด่นเลย
+   */
+  const activeIndex = Math.min(current, lastIndex)
+
+  /**
+   * โทนของทั้งแถบ — ตามฝั่งร้าน: ถึงปลายทางแล้วเขียวทั้งแถบ ระหว่างทางเป็นสีหลักถึงจุดที่ไปถึง
+   * "พัสดุมีปัญหา" **ไม่เปลี่ยนโทนทั้งแถบ** (ของยังเดินทางอยู่) — บอกด้วยจุดสีแดง + กล่องเตือน
+   * ใต้แถบ เหมือน `progress.notice` ของ `ShipmentStatusView`
+   */
+  const delivered = current >= lastIndex
+  const reachedFill = delivered ? VERIFIED_INK : 'primary.main'
+
+  const currentLabel = problem ? ORDER_STAGE_META.PARCEL_PROBLEM.label : SHIPMENT_STAGES[activeIndex].label
+
+  const logo = tracking ? courierLogoUrl(tracking.courierCode, tracking.provider) : null
+
+  const handleCopy = async () => {
+    if (!tracking) return
+    try {
+      await navigator.clipboard.writeText(tracking.trackingNo)
+      setCopied(true)
+      toast.success('คัดลอกเลขพัสดุแล้ว')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard ต้องการ https — บนลิงก์ที่ไม่ใช่ https จะล้มเสมอ บอกทางออกที่ทำได้จริงบนมือถือ
+      toast.error('คัดลอกไม่สำเร็จ — กดค้างที่เลขพัสดุเพื่อคัดลอกเองได้')
+    }
+  }
 
   return (
-    <Box>
-      {problem && (
-        <Typography
-          variant='caption'
-          sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'error.main', fontWeight: 700, mb: 1 }}
-        >
-          <Icon icon='tabler-alert-triangle' fontSize={15} />
-          {ORDER_STAGE_META.PARCEL_PROBLEM.label}
-        </Typography>
-      )}
-      {/* role="img" + ชื่อ — จุดสี 4 จุดสื่อความหมายด้วยสีล้วน ผู้ใช้ screen reader
-          จะไม่ได้ยินสถานะพัสดุเลยถ้าไม่มีชื่อกำกับ (ฝั่งร้านทำแบบนี้อยู่แล้ว) */}
-      <Box sx={{ display: 'flex', alignItems: 'flex-start' }} role='img' aria-label={`สถานะพัสดุ: ${currentLabel}`}>
-        {SHIPMENT_STAGES.map((step, i) => {
-          const done = i < current
-          const isCurrent = i === current && !problem
+    <Box sx={{ mt: 1.5 }}>
+      {tracking && (
+        /* ── หัวเรื่อง: โลโก้ขนส่ง + เลขพัสดุ (กดคัดลอกได้) + ชื่อขนส่ง ──────────────
+           เลขพัสดุเป็น "ปุ่มคัดลอก" ในตัวมันเอง ไม่ใช่ข้อความที่มีปุ่มแยกอยู่ข้าง ๆ — ตัวเลข
+           คือสิ่งที่ตาไปหยุดและนิ้วไปแตะอยู่แล้ว (ยกท่าเดียวกับ ShipmentStatusView) */
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+          {logo ? (
+            /* object-contain + เส้นขอบ: โลโก้พื้นขาวจะกลืนไปกับการ์ดขาวถ้าไม่มีขอบ
+               (docs/conventions/user-supplied-image-assets.md)
+               eslint-disable-next-line @next/next/no-img-element */
+            <Box
+              component='img'
+              src={logo}
+              /* alt ว่างโดยตั้งใจ: ชื่อขนส่งเป็นข้อความอยู่ติดกันแล้ว ใส่ alt ซ้ำ =
+                 คนอ่านหน้าจอได้ยินชื่อขนส่งสองรอบ (โลโก้ตรงนี้ไม่ได้แบกข้อมูลเพิ่ม) */
+              alt=''
+              sx={{
+                width: 44,
+                height: 44,
+                flexShrink: 0,
+                borderRadius: 2,
+                objectFit: 'contain',
+                bgcolor: 'common.white',
+                border: 1,
+                borderColor: 'divider',
+              }}
+            />
+          ) : (
+            <Box
+              aria-hidden
+              sx={{
+                width: 44,
+                height: 44,
+                flexShrink: 0,
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'action.hover',
+                color: 'text.secondary',
+                fontSize: '0.8125rem',
+                fontWeight: 700,
+              }}
+            >
+              {courierInitials(tracking.provider, tracking.courierCode)}
+            </Box>
+          )}
 
-          return (
-            <Box key={step.label} sx={{ flex: 1, textAlign: 'center', position: 'relative' }}>
-              {i > 0 && (
-                <Box
-                  aria-hidden
-                  sx={{
-                    position: 'absolute',
-                    top: 6,
-                    left: '-50%',
-                    width: '100%',
-                    height: 2,
-                    // Verified-Means-Green: เขียวเฉพาะช่วงที่ "ผ่านไปแล้วจริง"
-                    bgcolor: i <= current && !problem ? 'success.main' : 'divider',
-                  }}
-                />
-              )}
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <ButtonBase
+              onClick={handleCopy}
+              aria-label={`คัดลอกเลขพัสดุ ${tracking.trackingNo}`}
+              sx={{
+                maxWidth: '100%',
+                gap: 0.75,
+                px: 0.5,
+                py: 0.25,
+                ml: -0.5,
+                borderRadius: 1,
+                justifyContent: 'flex-start',
+              }}
+            >
+              <Typography
+                component='span'
+                sx={{
+                  // Title/h5 (1.125rem ≈ 18px) ของ ramp ใน DESIGN.md — ขั้นเดียวกับ `text-lg`
+                  // ที่ ShipmentStatusView ใช้กับเลขพัสดุพอดี
+                  fontSize: '1.125rem',
+                  fontWeight: 700,
+                  lineHeight: 1.4,
+                  fontVariantNumeric: 'tabular-nums',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tracking.trackingNo}
+              </Typography>
               <Box
                 aria-hidden
                 sx={{
-                  position: 'relative',
-                  zIndex: 1,
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  mx: 'auto',
-                  mb: 0.75,
-                  bgcolor:
-                    problem && i === current
-                      ? 'error.main'
-                      : done
-                        ? 'success.main'
-                        : isCurrent
-                          ? 'primary.main'
-                          : 'divider',
-                  boxShadow: isCurrent ? (theme) => `0 0 0 4px ${theme.palette.primary.main}22` : 'none',
+                  width: 28,
+                  height: 28,
+                  flexShrink: 0,
+                  borderRadius: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: copied ? VERIFIED_INK : 'action.hover',
+                  color: copied ? 'common.white' : 'text.secondary',
                 }}
-              />
+              >
+                <Icon icon={copied ? 'tabler-check' : 'tabler-copy'} fontSize={16} />
+              </Box>
+            </ButtonBase>
+            <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
+              {tracking.provider}
+            </Typography>
+          </Box>
+        </Box>
+      )}
+
+      {/* role="img" + ชื่อ — วงกลม 4 วงสื่อความหมายด้วยสี/ไอคอน ผู้ใช้ screen reader
+          จะไม่ได้ยินสถานะพัสดุเลยถ้าไม่มีชื่อกำกับ (ฝั่งร้านทำแบบนี้อยู่แล้ว) */}
+      <Box
+        component='ol'
+        role='img'
+        aria-label={`สถานะพัสดุ: ${currentLabel}`}
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          listStyle: 'none',
+          m: 0,
+          mt: tracking ? 2 : 0,
+          p: 0,
+        }}
+      >
+        {SHIPMENT_STAGES.map((step, i) => {
+          const reached = i <= current
+          const isCurrent = i === activeIndex
+          // จุดที่ยืนอยู่ตอน "พัสดุมีปัญหา" เท่านั้นที่เป็นสีเตือน — จุดที่เดินผ่านมาแล้วยังเป็นปกติ
+          const fill = problem && isCurrent ? 'error.main' : reachedFill
+
+          return (
+            <Box
+              component='li'
+              key={step.label}
+              sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75 }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                {/* เส้นเชื่อมซ้าย/ขวาของแต่ละจุด — ครึ่งซ้ายของจุดแรกและครึ่งขวาของจุดสุดท้าย
+                    ต้องโปร่ง ไม่งั้นแถบจะยื่นเลยจุดปลายออกไปทั้งสองข้าง */}
+                <Box
+                  aria-hidden
+                  sx={{
+                    height: 2,
+                    flex: 1,
+                    bgcolor: i === 0 ? 'transparent' : reached ? reachedFill : 'divider',
+                  }}
+                />
+                <Box
+                  aria-hidden
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    flexShrink: 0,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    // ขั้นที่ไปถึงแล้ว = วงทึบไอคอนขาว · ที่เหลือ = วงจางไอคอนเทา
+                    bgcolor: reached ? fill : 'action.hover',
+                    color: reached ? 'common.white' : 'text.secondary',
+                  }}
+                >
+                  <Icon icon={step.icon} fontSize={18} />
+                </Box>
+                <Box
+                  aria-hidden
+                  sx={{
+                    height: 2,
+                    flex: 1,
+                    bgcolor: i === lastIndex ? 'transparent' : i < current ? reachedFill : 'divider',
+                  }}
+                />
+              </Box>
               <Typography
                 variant='caption'
                 sx={{
-                  display: 'block',
-                  lineHeight: 1.35,
-                  fontWeight: isCurrent || done ? 700 : 400,
-                  // 🛑 ไม่ใช่ text.disabled (2.30:1 — ต่ำกว่าเกณฑ์ AA มาก) และไม่ตั้ง fontSize เอง
-                  // ของเดิมเป็น 0.66rem (~10.5px) ซึ่งไม่มีอยู่ใน type ramp ของ DESIGN.md เลย
+                  textAlign: 'center',
+                  lineHeight: 1.3,
+                  // 🛑 ไม่ใช้ text.disabled (2.30:1 — ตก AA ไปไกล) และไม่ตั้ง fontSize เอง
                   // ป้ายพวกนี้คือสถานะพัสดุ ไม่ใช่ของประดับ — ต้องอ่านออกบนมือถือกลางแดด
-                  color: isCurrent ? 'primary.main' : done ? 'success.dark' : 'text.secondary',
+                  fontWeight: isCurrent ? 700 : 400,
+                  color: isCurrent ? 'text.primary' : 'text.secondary',
                 }}
               >
                 {step.label}
@@ -121,6 +279,32 @@ export default function ParcelTimeline({ stage, hasShipment }: Props) {
           )
         })}
       </Box>
+
+      {problem && (
+        /* กล่องเตือนอยู่ "ใต้แถบ" ตำแหน่งเดียวกับ progress.notice ของ ShipmentStatusView —
+           แถบบอกว่าของอยู่ไหน กล่องนี้บอกว่ามีอะไรผิดปกติ คนละคำถามกัน จึงไม่ยุบรวมเป็นบรรทัดเดียว
+           สีตัวอักษรใช้ `.dark` (เฉดเดิม เข้มขึ้น) ไม่ใช่ `.main` บนพื้นจาง ซึ่งตก AA
+           — docs/conventions/contrast-fix-keeps-hue.md */
+        <Typography
+          variant='caption'
+          role='alert'
+          sx={{
+            mt: 2,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 0.75,
+            px: 1.25,
+            py: 1,
+            borderRadius: 1,
+            fontWeight: 600,
+            color: 'error.dark',
+            bgcolor: 'rgb(var(--mui-palette-error-mainChannel) / 0.15)',
+          }}
+        >
+          <Icon icon='tabler-alert-triangle' fontSize={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          {ORDER_STAGE_META.PARCEL_PROBLEM.label}
+        </Typography>
+      )}
     </Box>
   )
 }

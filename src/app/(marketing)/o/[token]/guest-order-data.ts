@@ -43,7 +43,14 @@ export type GuestOrderData = {
   reviewCount: number
   channels: { provider: string; name: string; avatarUrl: string | null; externalId: string; followerCount: number | null }[]
   latestReview: { rating: number; comment: string } | null
-  shipmentTracking: { provider: string; trackingNo: string } | null
+  /**
+   * ขนส่ง + เลขพัสดุที่ผู้ซื้อเห็น
+   *
+   * `courierCode` มีเฉพาะทางเข้าที่เปิดพัสดุผ่าน iShip — ที่ร้านแจ้งเลขเอง (`ShipmentTracking`)
+   * เก็บแต่ชื่อที่พิมพ์มา ไม่มีรหัส (docs/conventions/one-value-many-entry-points.md)
+   * ส่งไปเพื่อให้ `courierLogoUrl` จับแบรนด์ได้แม่นเท่าฝั่งร้าน ซึ่งเทียบกับทั้ง code และ name
+   */
+  shipmentTracking: { provider: string; trackingNo: string; courierCode: string | null } | null
   /** สถานะพัสดุจากขนส่ง — ใช้คำนวณ stage ด้วยตรรกะเดียวกับฝั่งร้าน (BR-BOE-12) */
   carrierStatus: string | null
   paymentMethod: string | null
@@ -168,11 +175,18 @@ export function buildGuestOrderData(
     latestReview: stats.latestReview,
     // ลำดับเดียวกับฝั่ง authenticated: สิ่งที่ร้านแจ้งเองมาก่อน แล้วค่อย fallback เป็นพัสดุ iShip
     shipmentTracking: order.shipmentTracking
-      ? { provider: order.shipmentTracking.provider, trackingNo: order.shipmentTracking.trackingNo }
+      ? {
+          provider: order.shipmentTracking.provider,
+          trackingNo: order.shipmentTracking.trackingNo,
+          // ทางเข้า "ร้านแจ้งเลขเอง" ไม่มีรหัสขนส่งให้เก็บตั้งแต่ต้นทาง — null คือความจริง
+          // ของแถวนี้ ไม่ใช่ข้อมูลที่หายไประหว่างทาง
+          courierCode: null,
+        }
       : shipment?.trackingNo
         ? {
             provider: shipment.courierName ?? shipment.courierCode ?? 'ขนส่ง',
             trackingNo: shipment.trackingNo,
+            courierCode: shipment.courierCode,
           }
         : null,
     carrierStatus: shipment?.carrierStatus ?? null,
