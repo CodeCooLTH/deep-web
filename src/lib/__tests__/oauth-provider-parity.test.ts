@@ -62,8 +62,21 @@ describe('provider ต้องรองรับครบทุกชั้น'
       new RegExp(`${provider}:\\s*'${upper}'`),
     )
 
-    // 5. มีแถวให้กดจริงในหน้า /account
-    expect(accountCard, `${provider} ต้องมีแถวใน ConnectedAccountsClient`).toContain(`provider="${provider}"`)
+    /**
+     * 5. มีแถวให้กดจริงในหน้า /account
+     *
+     * 🛑 ต้องดึง "ตัวประกาศ providers" ออกมาเช็คเฉพาะส่วน ไม่ใช่ค้นทั้งไฟล์ — ชื่อ provider
+     * โผล่ในไฟล์นี้อย่างน้อย 2 ที่ที่ไม่ใช่แถวจริง (`type ProviderKey` และ `PROVIDER_LABEL`)
+     * ทั้งคู่เป็นแค่ "คำประกาศ" ที่อยู่ต่อไปได้แม้แถวจะถูกลบไปแล้ว — ค้นทั้งไฟล์จะเขียวตลอด
+     * ทั้งที่ผู้ใช้ไม่มีปุ่มให้กด (แบบเดียวกับ LINKABLE_PROVIDERS ด้านบนซึ่งพิสูจน์ด้วย mutation
+     * มาแล้วว่าลอดได้จริง)
+     *
+     * เดิมเช็ค `provider="apple"` ตรง ๆ ซึ่งผูกกับ *วิธีเขียน JSX* ไม่ใช่ *สิ่งที่มีอยู่* —
+     * พอแถวถูกรวบเป็นลิสต์ข้อมูลแล้ว `.map()` (2026-08-12) ด่านก็แดงทั้งที่ทุกแถวยังอยู่ครบ
+     */
+    const rows = accountCard.match(/const providers[\s\S]*?\n {2}\]/)?.[0] ?? ''
+    expect(rows, 'หาตัวประกาศ providers ใน ConnectedAccountsClient ไม่เจอ').not.toBe('')
+    expect(rows, `${provider} ต้องมีแถวใน ConnectedAccountsClient`).toContain(`key: '${provider}'`)
   })
 
   it('[blocker] apple ต้องอยู่ในรายการที่ signIn ตรวจบัญชีที่ถูกลบ', () => {
@@ -105,5 +118,75 @@ describe('ConnectedAccountsClient — จอต้องตรงกับคว
     // ternary ที่ตกท้ายเป็นชื่อ provider ตัวใดตัวหนึ่ง = ตัวที่ 4 จะได้ชื่อผิดเสมอ (บั๊ก 2)
     expect(card).not.toMatch(/linked === 'facebook' \? 'Facebook'/)
     expect(card).toContain('PROVIDER_LABEL[linked as ProviderKey]')
+  })
+})
+
+/**
+ * ด่านกันอาการ "แวบ ๆ" กลับมา (user report 2026-08-12: "ทำให้เนียนสิ ไม่แวบๆ")
+ *
+ * ทั้งสามข้อเป็นบั๊กสายตาที่ **ไม่มี gate ไหนของโปรเจกต์จับได้เลย** — tsc/build/เทส/theme-guard
+ * ผ่านหมดเพราะโค้ดถูกต้องทุกตัวอักษร สิ่งที่ผิดคือ *ตำแหน่งที่ประกาศ* / *จังหวะที่ล้างสถานะ* /
+ * *ตัวที่ import มา* ซึ่งไม่มีเครื่องมือ static ตัวไหนของเรารู้ความหมาย
+ */
+/**
+ * ตัดคอมเมนต์ทิ้งก่อนสแกน — แทนที่ด้วยช่องว่างเท่าเดิมเพื่อไม่ให้เลขบรรทัด/ย่อหน้าเพี้ยน
+ *
+ * 🛑 จำเป็นจริง ไม่ใช่ความละเอียดเกินเหตุ: ไฟล์ที่ **ทำถูกตามกฎ** คือไฟล์ที่มักเขียนคอมเมนต์
+ * อธิบายกฎนั้นไว้ด้วย ("ห้ามมี `finally { setRedirecting(null) }`") ⇒ ด่านที่สแกนทั้งไฟล์จะแดง
+ * ตลอดกาลเพราะเจอคำเตือนของตัวเอง แล้วถูกอ่านว่าเป็นหนี้ทั้งที่ไม่มีการละเมิดเลย
+ * (เกิดกับ grep gate ของ Hard Rule 9 มาแล้ว 2026-08-02 → 08-03 — และเกิดซ้ำกับด่านนี้ตอนเขียน)
+ */
+function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length))
+}
+
+describe('ConnectedAccountsClient — ต้องไม่กระพริบ', () => {
+  const raw = read('src/app/(paces)/seller/(dashboard)/account/components/ConnectedAccountsClient.tsx')
+  const card = stripComments(raw)
+
+  it('[blocker] component ย่อยต้องอยู่ module scope ไม่ใช่ในตัว render', () => {
+    /**
+     * ฟังก์ชัน component ที่ประกาศในตัว render = **ชนิดใหม่ทุก re-render** ⇒ React ถอด DOM
+     * ทิ้งแล้วสร้างใหม่ทั้งแถวทุกครั้งที่ setState (ไม่ใช่ patch) = ไอคอนโหลดใหม่ · transition
+     * เริ่มนับหนึ่ง · โฟกัสหลุดจากปุ่มที่เพิ่งกด
+     *
+     * เช็คด้วย "ย่อหน้า" เพราะนั่นคือสิ่งที่ต่างกันจริง: module scope = คอลัมน์ 0
+     */
+    for (const name of ['AccountRow', 'StatusBadge', 'ActionButton', 'ProviderRow', 'RedirectOverlay']) {
+      expect(card, `${name} ต้องประกาศที่ module scope`).toMatch(new RegExp(`^function ${name}\\(`, 'm'))
+      // 🛑 `[ \t]+` ไม่ใช่ `\s+` — `\s` กิน `\n` ได้ ทำให้ `^\s+function X(` ไปแมตช์
+      //    "บรรทัดว่าง + บรรทัดที่ไม่มีย่อหน้า" = แดงทั้งที่ประกาศถูกที่แล้ว (false positive จริง)
+      expect(card, `${name} ห้ามประกาศซ้อนในตัว render (มีย่อหน้านำหน้า)`).not.toMatch(
+        new RegExp(`^[ \\t]+function ${name}\\(`, 'm'),
+      )
+    }
+  })
+
+  it('[blocker] ห้ามล้าง redirecting ใน finally หลังเรียก signIn', () => {
+    /**
+     * `signIn()` ตั้ง `window.location.href` แล้ว resolve promise ทันทีโดยที่เบราว์เซอร์ยังไม่ไป
+     * ไหน (next-auth/react/index.js:263) — `finally` จึงถอดจอทับออก **ก่อน** หน้าจะเปลี่ยนจริง
+     * ผู้ใช้เห็นจอทับวาบเดียวแล้วกลับมาเป็นหน้าเดิมค้าง = อาการที่ฟีเจอร์นี้เกิดมาแก้พอดี
+     */
+    expect(card, 'setRedirecting(null) ห้ามอยู่ใน finally').not.toMatch(
+      /finally\s*\{[^}]*setRedirecting\(null\)/,
+    )
+    // ต้องยังมีทางคืนจอเมื่อ "ยังไม่ได้ไปไหน" จริง ๆ (link/start ล้ม) ไม่งั้นผู้ใช้ติดจอทับถาวร
+    expect(card, 'ต้องคืนจอเมื่อ link/start ล้ม').toContain('setRedirecting(null)')
+  })
+
+  it('[blocker] ไอคอนต้อง import ผ่าน wrapper ไม่ใช่ @iconify/react ดิบ', () => {
+    /**
+     * ชื่อไม่มี namespace (`loader-2`, `check`, `key`) เป็นค่า default ของโปรเจกต์ = tabler
+     * และ wrapper คือตัวเดียวที่เติม `tabler:` ให้ — ส่งเข้า `@iconify/react` ตรง ๆ จะได้ชื่อ
+     * invalid แล้ว **ไอคอนไม่ขึ้นโดยไม่มี error สักตัว** เกิดจริง 2026-08-12: สปินเนอร์ของ
+     * จอทับเป็นกล่องว่าง = จอโหลดที่ไม่มีอะไรหมุน
+     */
+    expect(card).toContain("import Icon from '@/components/wrappers/Icon'")
+    expect(card, 'ห้าม import Icon ดิบจาก @iconify/react').not.toMatch(
+      /import\s*\{[^}]*\bIcon\b[^}]*\}\s*from\s*'@iconify\/react'/,
+    )
   })
 })
