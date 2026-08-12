@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — แถบ "ที่มาของแชท" บรรทัดเดียว + ส่งสรุปนัดหมายเข้าแชท (2026-08-11)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงของสกิน Paces: ชุดเดียวกับ 2026-08-09-appointment-time-step-mockup.html
+      (คัดจาก src/assets/css/config/_root.css) ห้ามเดาสีเอง ────────────────────────────── */
+:root{
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-info:#5bc3e1;    --color-info-ink:#1e40af;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-700:#40454a;
+  --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px;
+  /* ฝั่งผู้ซื้อ (การ์ดที่ไปโผล่ในแอป LINE/Messenger ของลูกค้า) — .impeccable/design.json */
+  --buyer-brand:#7367F0; --buyer-ink:#2F2B3D; --buyer-slate:#808390;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;
+  background:#e9ecf3;color:var(--color-body-color);
+  font-size:14px;line-height:1.5;padding:32px 20px 90px;
+}
+.wrap{max-width:1560px;margin:0 auto}
+.page-head h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.page-head p{margin-top:6px;max-width:86ch}
+.page-head .meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;margin:22px 0 8px;border-left:3px solid var(--color-primary)}
+.note.bad{border-left-color:var(--color-danger)}
+.note.good{border-left-color:var(--color-success)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}
+.note li{margin-bottom:6px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.sec-title{margin:46px 0 4px;font-size:19px;font-weight:600;color:var(--color-default-900);
+  padding-bottom:8px;border-bottom:2px solid var(--color-default-300)}
+.sec-title span{font-size:13px;font-weight:400;color:var(--color-default-500);margin-left:8px}
+.rack{display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap;margin-top:22px}
+.device{flex:0 0 auto}
+.device>figcaption{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:10px}
+.device>figcaption span{font-weight:400;color:var(--color-default-500)}
+.frame{background:var(--color-card);border-radius:14px;overflow:hidden;
+  box-shadow:0 12px 28px rgba(47,43,61,.14);display:flex;flex-direction:column}
+.m .frame{width:390px;height:600px}
+.t .frame{width:768px;height:600px}
+.d .frame{width:1100px;height:600px}
+.ruler{margin-top:8px;font-size:11px;color:var(--color-default-500);font-variant-numeric:tabular-nums}
+svg.i{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+svg.i.fill{fill:currentColor;stroke:none}
+
+/* ══ หัวเธรด (ของจริง 61px, flex-nowrap ตั้งแต่ 2026-08-07) ══ */
+.thead{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--color-default-200);flex-shrink:0;min-height:61px}
+.thead .av{width:36px;height:36px;border-radius:9999px;background:#dbeafe;color:var(--color-primary-ink);
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.thead .nm{min-width:0;flex:1}
+.thead .nm b{display:block;font-size:14px;font-weight:600;color:var(--color-default-900);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thead .nm i{display:block;font-style:normal;font-size:12px;color:var(--color-default-500)}
+.thead .act{width:36px;height:36px;border-radius:8px;border:1px solid var(--color-default-300);
+  background:transparent;color:var(--color-default-700);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ══ [ก่อน] แถบเดิม 3 ชั้น ══ */
+.oldrow{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--color-default-200);flex-shrink:0}
+.oldrow .th{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0;
+  background:var(--color-default-100);color:var(--color-default-700);display:flex;align-items:center;justify-content:center;position:relative}
+.oldrow .bd{min-width:0;flex:1}
+.oldrow .bd b{display:block;font-size:14px;font-weight:600;color:var(--color-default-800);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oldrow .bd .ln2{display:flex;align-items:center;gap:8px;min-width:0}
+.oldrow .bd .ln2 span{font-size:14px;color:var(--color-default-700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oldrow .bd .ln2 a{font-size:14px;font-weight:500;color:var(--color-primary);flex-shrink:0;text-decoration:none}
+.oldrow .x{width:36px;height:36px;border:0;background:transparent;color:var(--color-default-700);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}
+.shoprow{display:flex;align-items:center;gap:6px;padding:6px 16px;font-size:12px;
+  color:var(--color-primary);background:rgba(35,109,201,.05);border-bottom:1px solid var(--color-default-200);flex-shrink:0}
+
+/* ══ [หลัง] ThreadContextBar ══ */
+.ctxbar{display:flex;align-items:center;gap:8px;padding:6px 16px;font-size:12px;
+  border-bottom:1px solid var(--color-default-200);flex-shrink:0;min-height:32px}
+.ctxbar .th{width:20px;height:20px;border-radius:4px;flex-shrink:0;object-fit:cover;
+  background:var(--color-default-200);color:var(--color-default-700);display:flex;align-items:center;justify-content:center;position:relative}
+.ctxbar .lbl{color:var(--color-default-700);flex-shrink:0}
+.ctxbar .txt{min-width:0;flex:1;color:var(--color-default-800);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctxbar .plus{flex-shrink:0;background:var(--color-default-100);color:var(--color-default-800);
+  border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600}
+.ctxbar .cv{width:24px;height:24px;border:0;background:transparent;color:var(--color-default-700);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.ctxfoot{display:flex;align-items:center;gap:5px;padding:7px 16px;font-size:12px;font-weight:500;
+  color:var(--color-default-700);border-bottom:1px solid var(--color-default-200);flex-shrink:0;background:transparent}
+.playdot{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.playdot i{width:16px;height:16px;border-radius:9999px;background:rgba(0,0,0,.5);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:9px;font-style:normal}
+.ctxbar .th .playdot i{width:11px;height:11px;font-size:7px}
+
+/* ══ แถบสถานะนัด (OrderProgressBar — ของเดิม ไม่แตะ) ══ */
+.progwrap{padding:16px 16px 0;flex-shrink:0}
+.prog{display:flex;align-items:center;gap:8px;border-radius:8px;padding:8px 12px;font-size:14px;
+  background:rgba(35,109,201,.15);color:var(--color-primary-ink)}
+.prog .t{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ══ สตรีมข้อความ ══ */
+.stream{flex:1;min-height:0;overflow:hidden;padding:16px;background:var(--color-card);display:flex;flex-direction:column;gap:14px}
+.daydiv{align-self:center;background:var(--color-default-100);color:var(--color-default-700);
+  border-radius:9999px;padding:2px 10px;font-size:11px}
+.bub{max-width:78%;border-radius:12px;padding:9px 13px;font-size:14px}
+.bub.them{align-self:flex-start;background:var(--color-default-100);color:var(--color-default-800)}
+.bub.me{align-self:flex-end;background:var(--color-primary);color:#fff}
+.tstamp{font-size:11px;color:var(--color-default-500)}
+.tstamp.r{align-self:flex-end}
+
+/* ══ การ์ดสรุปนัด ฝั่งร้าน (OrderCardView) ══ */
+.apptcard{align-self:flex-end;width:min(300px,80%);border:1px solid var(--color-default-200);
+  border-radius:12px;overflow:hidden;background:var(--color-card)}
+.apptcard header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--color-default-200)}
+.apptcard header .ic{width:28px;height:28px;border-radius:8px;background:rgba(35,109,201,.15);
+  color:var(--color-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.apptcard header b{font-size:13px;font-weight:600;color:var(--color-default-900)}
+.apptcard header .st{margin-left:auto;font-size:11px;font-weight:500;border-radius:4px;padding:2px 6px;
+  background:rgba(35,109,201,.15);color:var(--color-primary-ink)}
+.apptcard .rows{padding:10px 12px;display:flex;flex-direction:column;gap:7px}
+.apptcard .rw{display:flex;align-items:flex-start;gap:8px;font-size:13px}
+.apptcard .rw .ic{color:var(--color-default-500);margin-top:2px;font-size:15px}
+.apptcard .rw .k{color:var(--color-default-500);flex-shrink:0}
+.apptcard .rw .v{color:var(--color-default-900);font-weight:500;min-width:0}
+.apptcard .money{display:flex;align-items:center;justify-content:space-between;
+  border-top:1px dashed var(--color-default-300);margin-top:2px;padding-top:9px;font-size:13px}
+.apptcard .money .v{font-weight:700;color:var(--color-default-900)}
+.apptcard .closing{padding:0 12px 10px;font-size:13px;color:var(--color-default-700)}
+.apptcard footer{border-top:1px solid var(--color-default-200);padding:8px 12px}
+.apptcard footer a{display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px;
+  border-radius:8px;background:rgba(35,109,201,.10);color:var(--color-primary);
+  font-size:13px;font-weight:600;text-decoration:none}
+
+/* ══ ชีตพรีวิว ══ */
+.sheet{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--color-default-100)}
+.sheet-head{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--color-card);
+  border-bottom:1px solid var(--color-default-300);flex-shrink:0}
+.sheet-head .badge-ico{width:36px;height:36px;border-radius:8px;background:rgba(35,109,201,.15);
+  color:var(--color-primary);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sheet-head h3{font-size:16px;font-weight:600;color:var(--color-default-900);line-height:1.3}
+.sheet-head p{font-size:12px;color:var(--color-default-500)}
+.icon-btn{width:44px;height:44px;border-radius:8px;border:0;background:transparent;
+  display:flex;align-items:center;justify-content:center;color:var(--color-default-700);flex-shrink:0;
+  margin-left:auto;font-size:18px}
+.sheet-body{flex:1;min-height:0;overflow:auto;padding:14px 16px;display:flex;flex-direction:column;gap:16px}
+.d .sheet-body,.t .sheet-body{display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:start}
+.pane{background:var(--color-card);border-radius:10px;padding:13px 14px}
+.pane>h4{font-size:13px;font-weight:600;color:var(--color-default-800);margin-bottom:10px}
+.sheet-foot{background:var(--color-card);border-top:1px solid var(--color-default-300);padding:12px 16px;flex-shrink:0}
+.btn-primary{width:100%;min-height:44px;border:0;border-radius:8px;background:var(--color-primary);
+  color:#fff;font-family:inherit;font-size:15px;font-weight:600;display:flex;align-items:center;
+  justify-content:center;gap:7px;cursor:pointer}
+.chk{display:flex;align-items:center;gap:10px;min-height:40px;font-size:13px;color:var(--color-default-800)}
+.chk .box{width:18px;height:18px;border-radius:4px;border:1.5px solid var(--color-default-400);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;color:#fff}
+.chk.on .box{background:var(--color-primary);border-color:var(--color-primary)}
+.chk .lock{margin-left:auto;font-size:11px;color:var(--color-default-500)}
+.chk.locked .box{background:var(--color-primary);border-color:var(--color-primary);opacity:.55}
+.ta{width:100%;min-height:64px;border:1px solid var(--color-default-300);border-radius:8px;
+  padding:9px 11px;font-family:inherit;font-size:14px;color:var(--color-default-900);resize:none}
+.count{text-align:right;font-size:11px;color:var(--color-default-500);margin-top:4px}
+.selrow{display:flex;align-items:center;gap:10px}
+.sel{flex:1;min-height:40px;border:1px solid var(--color-default-300);border-radius:8px;
+  display:flex;align-items:center;gap:8px;padding:0 11px;font-size:13px;color:var(--color-default-900)}
+.sel .ch{margin-left:auto;color:var(--color-default-500);font-size:14px}
+
+/* ══ การ์ดฝั่งลูกค้า (LINE Flex / Meta Generic) ══ */
+.phones{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px}
+.phone{width:300px;background:#e8eaf0;border-radius:14px;padding:16px;box-shadow:0 10px 22px rgba(47,43,61,.12)}
+.phone>b{display:block;font-size:12px;color:var(--color-default-700);margin-bottom:10px}
+.flexcard{background:#fff;border-radius:14px;overflow:hidden;font-family:Anuphan,sans-serif}
+.flexcard .bd{padding:15px}
+.flexcard .eyebrow{font-size:12px;color:var(--buyer-slate)}
+.flexcard h5{font-size:17px;font-weight:700;color:var(--buyer-ink);margin-top:3px;line-height:1.35}
+.flexcard .kv{display:flex;justify-content:space-between;gap:12px;font-size:13px;margin-top:9px}
+.flexcard .kv .k{color:var(--buyer-slate)}
+.flexcard .kv .v{color:var(--buyer-ink);font-weight:600;text-align:right}
+.flexcard hr{border:0;border-top:1px solid #e6e6ee;margin:13px 0 0}
+.flexcard .tot{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+.flexcard .tot .k{font-size:13px;color:var(--buyer-slate)}
+.flexcard .tot .v{font-size:18px;font-weight:700;color:var(--buyer-ink)}
+.flexcard .ft{padding:0 15px 15px}
+.flexcard .ft a{display:flex;align-items:center;justify-content:center;min-height:42px;border-radius:8px;
+  background:var(--buyer-brand);color:#fff;font-size:14px;font-weight:600;text-decoration:none}
+.metacard{background:#fff;border-radius:16px;overflow:hidden}
+.metacard .mb{padding:13px 15px}
+.metacard .mt{font-size:15px;font-weight:600;color:#050505}
+.metacard .ms{font-size:13px;color:#65676b;margin-top:2px}
+.metacard .mbtn{border-top:1px solid #e4e6eb;text-align:center;padding:11px;
+  font-size:14px;font-weight:600;color:#0084ff}
+.altbar{margin-top:10px;background:#fff;border-radius:8px;padding:8px 10px;font-size:12px;color:var(--color-default-700)}
+.altbar b{color:var(--color-default-900);font-weight:600}
+.hl{background:rgba(249,191,89,.28);border-radius:3px;padding:0 3px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="chev-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+<symbol id="chev-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+<symbol id="chev-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+<symbol id="x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+<symbol id="arrow-left" viewBox="0 0 24 24"><path d="M5 12h14M5 12l6 6M5 12l6-6"/></symbol>
+<symbol id="msg" viewBox="0 0 24 24"><path d="M4 21v-13a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-9z"/></symbol>
+<symbol id="megaphone" viewBox="0 0 24 24"><path d="M18 8a3 3 0 0 1 0 6M10 8v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h3zM10 8l8-4v16l-8-4"/></symbol>
+<symbol id="photo" viewBox="0 0 24 24"><path d="M15 8h.01M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 15l4-4a3 3 0 0 1 4 0l4 4"/><path d="M14 14l1-1a3 3 0 0 1 4 0l1 1"/></symbol>
+<symbol id="cal" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M16 3v4M8 3v4M4 11h16"/></symbol>
+<symbol id="store" viewBox="0 0 24 24"><path d="M3 21h18M3 10h18M5 6l1-3h12l1 3M4 10v11M20 10v11M4 10a2 2 0 1 0 4 0 2 2 0 1 0 4 0 2 2 0 1 0 4 0 2 2 0 1 0 4 0"/></symbol>
+<symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+<symbol id="phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></symbol>
+<symbol id="tool" viewBox="0 0 24 24"><path d="M7 10h3v3l-4.5 4.5a2.1 2.1 0 0 1-3-3L7 10z"/><path d="M13.5 6.5l4 4M14 4l6 6-2 2-6-6z"/></symbol>
+<symbol id="send" viewBox="0 0 24 24"><path d="M10 14l11-11M21 3l-6.5 18-4-8-8-4z"/></symbol>
+<symbol id="check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></symbol>
+<symbol id="user-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.2 18a7 7 0 0 1 11.6 0"/></symbol>
+<symbol id="bell-off" viewBox="0 0 24 24"><path d="M9 19a3 3 0 0 0 6 0M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6M3 3l18 18"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="M7 4l12 8-12 8z" fill="currentColor" stroke="none"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+<div class="page-head">
+  <h1>แถบ “ที่มาของแชท” บรรทัดเดียว + ส่งสรุปนัดหมายเข้าแชท</h1>
+  <p>ม็อกอัพคู่กับสเปก <code>2026-08-11-chat-context-bar-and-appointment-summary-design.md</code> — งาน A ยุบแถบบริบท 3 ชั้นใต้หัวเธรดให้เหลือบรรทัดเดียว · งาน B ปุ่ม “ส่งสรุปนัด” ที่เปิดชีตพรีวิวแล้วส่งเป็นการ์ดจริงทุกช่องทาง</p>
+  <p class="meta">Mobile 390 · Tablet 768 · Desktop 1100 (คอลัมน์กลางของ <code>(chat)/layout.tsx</code>) · token จาก <code>_root.css</code> · ไม่มี emoji ตาม Hard Rule 12</p>
+</div>
+
+<!-- ══════════════════════ งาน A ══════════════════════ -->
+<h2 class="sec-title">งาน A — ThreadContextBar <span>ยุบแถบ “ที่มา” ให้เหลือบรรทัดเดียว</span></h2>
+
+<div class="note bad">
+  <h2>ปัญหาที่ user ชี้ (สถานะปัจจุบันบน prod)</h2>
+  <ul>
+    <li>ใต้หัวเธรดมีแถบได้ถึง <b>5 ชั้น</b> — ชื่อร้าน ~28px · โฆษณา ~57px · คอมเมนต์ ~57px · สถานะห้อง ~52px · สถานะนัด ~56px</li>
+    <li>เคสในภาพโดน 3 ชั้น = <b>~170px</b> บวกหัวเธรด 61px ≈ <b>29% ของจอ</b> ก่อนเห็นข้อความแรก</li>
+    <li>ชั้นสถานะห้อง/สถานะนัด <b>เคยผ่านรอบยุบมาแล้ว</b> ตั้งแต่ 2026-08-02 ด้วยเหตุผลเดียวกันเป๊ะ — โฆษณากับคอมเมนต์คือสองอันที่ตกหล่นเพราะถูกเพิ่มคนละเวลา</li>
+  </ul>
+</div>
+
+<div class="rack">
+  <figure class="device m">
+    <figcaption>ก่อน — Mobile 390 <span>3 แถบ ≈ 170px</span></figcaption>
+    <div class="frame">
+      <div class="thead">
+        <svg class="i" style="font-size:22px"><use href="#arrow-left"/></svg>
+        <span class="av">ขน</span>
+        <span class="nm"><b>ขวัญใจ แตงนวลจันทร์</b></span>
+        <button class="act"><svg class="i" style="font-size:18px"><use href="#user-circle"/></svg></button>
+        <button class="act"><svg class="i" style="font-size:18px"><use href="#bell-off"/></svg></button>
+      </div>
+      <div class="oldrow">
+        <span class="th"><svg class="i" style="font-size:18px"><use href="#megaphone"/></svg></span>
+        <span class="bd">
+          <b>แชทนี้ตอบกลับจากโฆษณาของคุณ</b>
+          <span class="ln2"><span>เรามาแล้วครับ! BT Premium Auto …</span><a href="#">ดูโฆษณา</a></span>
+        </span>
+        <button class="x"><svg class="i"><use href="#x"/></svg></button>
+      </div>
+      <div class="oldrow">
+        <span class="th"><svg class="i" style="font-size:18px"><use href="#photo"/></svg><span class="playdot"><i><svg class="i" style="font-size:8px"><use href="#play"/></svg></i></span></span>
+        <span class="bd">
+          <b>เรามาแล้วครับ! BT Premium Auto Xenon สาขาคลอ…</b>
+          <span class="ln2"><svg class="i" style="font-size:14px;color:var(--color-default-500)"><use href="#msg"/></svg><span>ทุกรุ่นไหมคะ</span><a href="#">ดูคอมเมนต์</a></span>
+        </span>
+      </div>
+      <div class="progwrap"><div class="prog">
+        <svg class="i" style="font-size:18px"><use href="#cal"/></svg>
+        <span class="t">DP25690864EB1D0E · นัดแล้ว</span>
+        <svg class="i" style="font-size:16px"><use href="#chev-down"/></svg>
+      </div></div>
+      <div class="stream">
+        <span class="daydiv">วันนี้</span>
+        <div class="bub me">ได้ค่ะ</div>
+        <span class="tstamp r">16:09</span>
+        <div class="bub them">พอจะมีรูปรีวิว ในรุ่นนี้ให้ดูไหมค่ะ</div>
+      </div>
+    </div>
+    <p class="ruler">หัวเธรด 61 + <span class="hl">57 + 57 + 56 = 170px</span> ก่อนถึงข้อความแรก</p>
+  </figure>
+
+  <figure class="device m">
+    <figcaption>หลัง (ยุบ) — Mobile 390 <span>1 แถบ 32px</span></figcaption>
+    <div class="frame">
+      <div class="thead">
+        <svg class="i" style="font-size:22px"><use href="#arrow-left"/></svg>
+        <span class="av">ขน</span>
+        <span class="nm"><b>ขวัญใจ แตงนวลจันทร์</b></span>
+        <button class="act"><svg class="i" style="font-size:18px"><use href="#user-circle"/></svg></button>
+        <button class="act"><svg class="i" style="font-size:18px"><use href="#bell-off"/></svg></button>
+      </div>
+      <div class="ctxbar">
+        <span class="th"><svg class="i" style="font-size:12px"><use href="#photo"/></svg><span class="playdot"><i><svg class="i" style="font-size:6px"><use href="#play"/></svg></i></span></span>
+        <span class="lbl">จากคอมเมนต์ ·</span>
+        <span class="txt">ทุกรุ่นไหมคะ</span>
+        <span class="plus">+1</span>
+        <button class="cv"><svg class="i"><use href="#chev-down"/></svg></button>
+      </div>
+      <div class="progwrap"><div class="prog">
+        <svg class="i" style="font-size:18px"><use href="#cal"/></svg>
+        <span class="t">DP25690864EB1D0E · นัดแล้ว</span>
+        <svg class="i" style="font-size:16px"><use href="#chev-down"/></svg>
+      </div></div>
+      <div class="stream">
+        <span class="daydiv">วันนี้</span>
+        <div class="bub me">ได้ค่ะ</div>
+        <span class="tstamp r">16:09</span>
+        <div class="bub them">พอจะมีรูปรีวิว ในรุ่นนี้ให้ดูไหมค่ะ</div>
+        <div class="bub me">ได้เลยค่ะ เดี๋ยวส่งให้ดูนะคะ</div>
+        <span class="tstamp r">16:12</span>
+      </div>
+    </div>
+    <p class="ruler">หัวเธรด 61 + <span class="hl">32px</span> · เห็นข้อความเพิ่มอีก ~2 บับเบิล</p>
+  </figure>
+
+  <figure class="device m">
+    <figcaption>หลัง (กาง) — Mobile 390 <span>detail เดิม ไม่แก้สักบรรทัด</span></figcaption>
+    <div class="frame">
+      <div class="thead">
+        <svg class="i" style="font-size:22px"><use href="#arrow-left"/></svg>
+        <span class="av">ขน</span>
+        <span class="nm"><b>ขวัญใจ แตงนวลจันทร์</b></span>
+        <button class="act"><svg class="i" style="font-size:18px"><use href="#user-circle"/></svg></button>
+      </div>
+      <div class="oldrow">
+        <span class="th"><svg class="i" style="font-size:18px"><use href="#photo"/></svg><span class="playdot"><i><svg class="i" style="font-size:8px"><use href="#play"/></svg></i></span></span>
+        <span class="bd">
+          <b>เรามาแล้วครับ! BT Premium Auto Xenon สาขาคลอ…</b>
+          <span class="ln2"><svg class="i" style="font-size:14px;color:var(--color-default-500)"><use href="#msg"/></svg><span>ทุกรุ่นไหมคะ</span><a href="#">ดูคอมเมนต์</a></span>
+        </span>
+      </div>
+      <div class="oldrow">
+        <span class="th"><svg class="i" style="font-size:18px"><use href="#megaphone"/></svg></span>
+        <span class="bd">
+          <b>แชทนี้ตอบกลับจากโฆษณาของคุณ</b>
+          <span class="ln2"><span>เรามาแล้วครับ! BT Premium Auto …</span><a href="#">ดูโฆษณา</a></span>
+        </span>
+        <button class="x"><svg class="i"><use href="#x"/></svg></button>
+      </div>
+      <div class="ctxfoot"><svg class="i" style="font-size:15px"><use href="#chev-up"/></svg> ย่อที่มาของแชท</div>
+      <div class="progwrap"><div class="prog">
+        <svg class="i" style="font-size:18px"><use href="#cal"/></svg>
+        <span class="t">DP25690864EB1D0E · นัดแล้ว</span>
+        <svg class="i" style="font-size:16px"><use href="#chev-down"/></svg>
+      </div></div>
+      <div class="stream">
+        <span class="daydiv">วันนี้</span>
+        <div class="bub me">ได้ค่ะ</div>
+      </div>
+    </div>
+    <p class="ruler">ปุ่ม <b>✕</b> ปิดโฆษณาอยู่ในตัวกางเท่านั้น — บรรทัดยุบไม่มีงบพื้นที่ และผลลัพธ์ต่างกันคนละโลกกับปุ่มกาง</p>
+  </figure>
+</div>
+
+<div class="rack">
+  <figure class="device t">
+    <figcaption>Tablet 768 — โหมดรวมหลายร้าน <span>ชื่อร้านเป็น item แรกเสมอ ⇒ ไม่มีวันถูกซ่อน</span></figcaption>
+    <div class="frame">
+      <div class="thead">
+        <span class="av">ขน</span>
+        <span class="nm"><b>ขวัญใจ แตงนวลจันทร์</b><i>Messenger · BT Premium Auto Xenon</i></span>
+        <button class="act"><svg class="i" style="font-size:18px"><use href="#user-circle"/></svg></button>
+        <button class="act"><svg class="i" style="font-size:18px"><use href="#bell-off"/></svg></button>
+      </div>
+      <div class="ctxbar">
+        <span class="th"><svg class="i" style="font-size:12px"><use href="#store"/></svg></span>
+        <span class="lbl">ตอบในนามร้าน</span>
+        <span class="txt" style="font-weight:600">BT Premium Auto Xenon</span>
+        <span class="plus">+2</span>
+        <button class="cv"><svg class="i"><use href="#chev-down"/></svg></button>
+      </div>
+      <div class="progwrap"><div class="prog">
+        <svg class="i" style="font-size:18px"><use href="#cal"/></svg>
+        <span class="t">DP25690864EB1D0E · นัดแล้ว</span>
+        <svg class="i" style="font-size:16px"><use href="#chev-down"/></svg>
+      </div></div>
+      <div class="stream">
+        <span class="daydiv">วันนี้</span>
+        <div class="bub me">ได้ค่ะ</div>
+        <span class="tstamp r">16:09</span>
+        <div class="bub them">พอจะมีรูปรีวิว ในรุ่นนี้ให้ดูไหมค่ะ</div>
+      </div>
+    </div>
+    <p class="ruler">เดิมเคสนี้ = 28 + 57 + 57 = 142px → ตอนนี้ 32px</p>
+  </figure>
+
+  <figure class="device d">
+    <figcaption>Desktop 1100 <span>พฤติกรรมเดียวกันทุก breakpoint — ไม่มี xl: ที่กางเอง</span></figcaption>
+    <div class="frame">
+      <div class="thead">
+        <span class="av">ขน</span>
+        <span class="nm"><b>ขวัญใจ แตงนวลจันทร์</b><i>Messenger · BT Premium Auto Xenon</i></span>
+        <button class="act"><svg class="i" style="font-size:18px"><use href="#bell-off"/></svg></button>
+      </div>
+      <div class="ctxbar">
+        <span class="th"><svg class="i" style="font-size:12px"><use href="#photo"/></svg></span>
+        <span class="lbl">จากคอมเมนต์ ·</span>
+        <span class="txt">ทุกรุ่นไหมคะ</span>
+        <span class="plus">+1</span>
+        <button class="cv"><svg class="i"><use href="#chev-down"/></svg></button>
+      </div>
+      <div class="stream">
+        <span class="daydiv">วันนี้</span>
+        <div class="bub them">พอจะมีรูปรีวิว ในรุ่นนี้ให้ดูไหมค่ะ</div>
+        <span class="tstamp">16:10</span>
+        <div class="bub me">ได้เลยค่ะ เดี๋ยวส่งให้ดูนะคะ</div>
+      </div>
+    </div>
+    <p class="ruler">จอ ≥1280 มี CustomerPanel อยู่ขวา — แถบบริบทยังต้องมี เพราะ panel นั้นตอบ “ลูกค้าเป็นใคร” ไม่ได้ตอบ “แชทนี้มาจากไหน”</p>
+  </figure>
+</div>
+
+<div class="note good">
+  <h2>กติกาที่ต้องไม่หลุดตอน implement</h2>
+  <ul>
+    <li><b>ชื่อร้านเป็น <code>items[0]</code> เสมอ</b> — คอมเมนต์ใน <code>ChatThread.tsx:2075</code> เขียนไว้เองว่านี่คือข้อมูลที่ต้องรู้ <b>ก่อนพิมพ์</b> ซ่อนแล้วผู้ขายตอบผิดร้าน ซึ่งถอนคืนไม่ได้</li>
+    <li><b>พื้นโปร่ง ห้าม <code>bg-{semantic}/15</code></b> — <code>ThreadStatusBar</code> ที่อยู่ถัดลงมาใช้พื้นสีอยู่แล้ว สองแถบสีติดกันจะอ่านเป็นบล็อกเดียวที่แยกไม่ออกว่าอันไหนคือคำเตือน</li>
+    <li><b>แถวเต็มความกว้าง + <code>border-b</code> ไม่ใช่การ์ดลอย</b> — user report 2026-07-26 ตัดสินไปแล้วว่าการ์ดลอยทำให้มีช่องว่างคั่นหัวแชท</li>
+    <li><b>ยุบเป็นค่าตั้งต้นเสมอ ไม่จำสถานะกาง</b> — เหมือน <code>ThreadStatusBar</code>/<code>OrderProgressBar</code> ทุกประการ</li>
+    <li><code>detail</code> ของแต่ละรายการคือ <b>JSX เดิมยกมาทั้งก้อน</b> ไม่แก้เนื้อใน — งานนี้เปลี่ยนที่เก็บ ไม่ได้ออกแบบเนื้อหาใหม่</li>
+  </ul>
+</div>
+
+<!-- ══════════════════════ งาน B ══════════════════════ -->
+<h2 class="sec-title">งาน B — ชีตพรีวิว “ส่งสรุปนัดหมาย” <span>4 จุดเรียก · ชีตเดียว</span></h2>
+
+<div class="rack">
+  <figure class="device m">
+    <figcaption>Mobile 390 — ชีตพรีวิว</figcaption>
+    <div class="frame">
+      <div class="sheet">
+        <div class="sheet-head">
+          <span class="badge-ico"><svg class="i" style="font-size:19px"><use href="#cal"/></svg></span>
+          <span><h3>ส่งสรุปนัดหมาย</h3><p>DP25690864EB1D0E</p></span>
+          <button class="icon-btn"><svg class="i"><use href="#x"/></svg></button>
+        </div>
+        <div class="sheet-body">
+          <div class="pane" style="padding:12px">
+            <h4>พรีวิวที่ลูกค้าจะได้รับ</h4>
+            <div class="apptcard" style="align-self:stretch;width:100%">
+              <header>
+                <span class="ic"><svg class="i" style="font-size:16px"><use href="#cal"/></svg></span>
+                <b>ยืนยันนัดหมาย</b>
+                <span class="st">นัดแล้ว</span>
+              </header>
+              <div class="rows">
+                <span class="rw"><svg class="i ic"><use href="#cal"/></svg><span class="v">14 ส.ค. 2569 · 13:00–14:00</span></span>
+                <span class="rw"><svg class="i ic"><use href="#tool"/></svg><span class="v">ล้างแอร์ 2 เครื่อง · ช่างเอ</span></span>
+                <span class="rw"><svg class="i ic"><use href="#user"/></svg><span class="v">คุณขวัญใจ</span></span>
+                <span class="rw"><svg class="i ic"><use href="#phone"/></svg><span class="v">085-331-5378</span></span>
+                <span class="money"><span class="k" style="color:var(--color-default-500)">ยอดรวม</span><span class="v">฿1,200</span></span>
+              </div>
+              <p class="closing">ยืนยันคิวเรียบร้อยค่ะ</p>
+              <footer><a href="#"><svg class="i" style="font-size:15px"><use href="#check"/></svg> ยืนยันนัด</a></footer>
+            </div>
+          </div>
+
+          <div class="pane">
+            <h4>ส่งไปที่</h4>
+            <div class="selrow"><span class="sel">Messenger · ขวัญใจ แตงนวลจันทร์ <svg class="i ch"><use href="#chev-down"/></svg></span></div>
+          </div>
+
+          <div class="pane">
+            <h4>แสดงบรรทัด</h4>
+            <span class="chk on locked"><span class="box"><svg class="i"><use href="#check"/></svg></span>วันและเวลา<span class="lock">ต้องมีเสมอ</span></span>
+            <span class="chk on"><span class="box"><svg class="i"><use href="#check"/></svg></span>บริการ</span>
+            <span class="chk on"><span class="box"><svg class="i"><use href="#check"/></svg></span>ชื่อลูกค้า</span>
+            <span class="chk on"><span class="box"><svg class="i"><use href="#check"/></svg></span>เบอร์ติดต่อ</span>
+            <span class="chk on"><span class="box"><svg class="i"><use href="#check"/></svg></span>ยอดรวม</span>
+            <span class="chk"><span class="box"></span>มัดจำที่ตกลงไว้</span>
+          </div>
+
+          <div class="pane">
+            <h4>ข้อความท้าย</h4>
+            <div class="ta">ยืนยันคิวเรียบร้อยค่ะ</div>
+            <p class="count">21/120</p>
+          </div>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn-primary"><svg class="i" style="font-size:17px"><use href="#send"/></svg> ส่งเข้าแชท</button>
+        </div>
+      </div>
+    </div>
+    <p class="ruler">ชีตนี้ <b>คือ</b> ขั้นยืนยันแล้ว — ไม่มี Swal ซ้อนอีกชั้น</p>
+  </figure>
+
+  <figure class="device t">
+    <figcaption>Tablet 768 — พรีวิวซ้าย / ตัวเลือกขวา</figcaption>
+    <div class="frame">
+      <div class="sheet">
+        <div class="sheet-head">
+          <span class="badge-ico"><svg class="i" style="font-size:19px"><use href="#cal"/></svg></span>
+          <span><h3>ส่งสรุปนัดหมาย</h3><p>DP25690864EB1D0E · คุณขวัญใจ</p></span>
+          <button class="icon-btn"><svg class="i"><use href="#x"/></svg></button>
+        </div>
+        <div class="sheet-body">
+          <div class="pane" style="padding:12px">
+            <h4>พรีวิวที่ลูกค้าจะได้รับ</h4>
+            <div class="apptcard" style="align-self:stretch;width:100%">
+              <header>
+                <span class="ic"><svg class="i" style="font-size:16px"><use href="#cal"/></svg></span>
+                <b>ยืนยันนัดหมาย</b><span class="st">นัดแล้ว</span>
+              </header>
+              <div class="rows">
+                <span class="rw"><svg class="i ic"><use href="#cal"/></svg><span class="v">14 ส.ค. 2569 · 13:00–14:00</span></span>
+                <span class="rw"><svg class="i ic"><use href="#tool"/></svg><span class="v">ล้างแอร์ 2 เครื่อง · ช่างเอ</span></span>
+                <span class="rw"><svg class="i ic"><use href="#user"/></svg><span class="v">คุณขวัญใจ</span></span>
+                <span class="money"><span class="k" style="color:var(--color-default-500)">ยอดรวม</span><span class="v">฿1,200</span></span>
+              </div>
+              <p class="closing">ยืนยันคิวเรียบร้อยค่ะ</p>
+              <footer><a href="#"><svg class="i" style="font-size:15px"><use href="#check"/></svg> ยืนยันนัด</a></footer>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="pane">
+              <h4>ส่งไปที่ <span style="font-weight:400;color:var(--color-default-500)">— ลูกค้ารายนี้มี 2 ห้อง</span></h4>
+              <div class="selrow"><span class="sel">Messenger · ขวัญใจ แตงนวลจันทร์ <svg class="i ch"><use href="#chev-down"/></svg></span></div>
+            </div>
+            <div class="pane">
+              <h4>แสดงบรรทัด</h4>
+              <span class="chk on locked"><span class="box"><svg class="i"><use href="#check"/></svg></span>วันและเวลา<span class="lock">ต้องมีเสมอ</span></span>
+              <span class="chk on"><span class="box"><svg class="i"><use href="#check"/></svg></span>บริการ</span>
+              <span class="chk on"><span class="box"><svg class="i"><use href="#check"/></svg></span>ชื่อลูกค้า</span>
+              <span class="chk"><span class="box"></span>เบอร์ติดต่อ</span>
+              <span class="chk on"><span class="box"><svg class="i"><use href="#check"/></svg></span>ยอดรวม</span>
+            </div>
+            <div class="pane">
+              <h4>ข้อความท้าย</h4>
+              <div class="ta">ยืนยันคิวเรียบร้อยค่ะ</div>
+              <p class="count">21/120</p>
+            </div>
+          </div>
+        </div>
+        <div class="sheet-foot" style="display:flex;justify-content:flex-end">
+          <button class="btn-primary" style="width:auto;padding:0 26px"><svg class="i" style="font-size:17px"><use href="#send"/></svg> ส่งเข้าแชท</button>
+        </div>
+      </div>
+    </div>
+    <p class="ruler">“เบอร์ติดต่อ” ถูกติ๊กออก → <b>หายจากพรีวิวทันที</b> · ค่าที่ติ๊กจำต่อร้านที่ <code>localStorage['deep:appt-summary-lines:{shopId}']</code></p>
+  </figure>
+</div>
+
+<div class="rack">
+  <figure class="device d">
+    <figcaption>Desktop 1100 — หลังส่ง: การ์ดในเธรดฝั่งร้าน</figcaption>
+    <div class="frame">
+      <div class="thead">
+        <span class="av">ขน</span>
+        <span class="nm"><b>ขวัญใจ แตงนวลจันทร์</b><i>Messenger · BT Premium Auto Xenon</i></span>
+      </div>
+      <div class="ctxbar">
+        <span class="th"><svg class="i" style="font-size:12px"><use href="#photo"/></svg></span>
+        <span class="lbl">จากคอมเมนต์ ·</span><span class="txt">ทุกรุ่นไหมคะ</span>
+        <span class="plus">+1</span>
+        <button class="cv"><svg class="i"><use href="#chev-down"/></svg></button>
+      </div>
+      <div class="stream">
+        <span class="daydiv">วันนี้</span>
+        <div class="bub them">พอจะมีรูปรีวิว ในรุ่นนี้ให้ดูไหมค่ะ</div>
+        <span class="tstamp">16:10</span>
+        <div class="apptcard">
+          <header>
+            <span class="ic"><svg class="i" style="font-size:16px"><use href="#cal"/></svg></span>
+            <b>ยืนยันนัดหมาย</b><span class="st">นัดแล้ว</span>
+          </header>
+          <div class="rows">
+            <span class="rw"><svg class="i ic"><use href="#cal"/></svg><span class="v">14 ส.ค. 2569 · 13:00–14:00</span></span>
+            <span class="rw"><svg class="i ic"><use href="#tool"/></svg><span class="v">ล้างแอร์ 2 เครื่อง · ช่างเอ</span></span>
+            <span class="rw"><svg class="i ic"><use href="#user"/></svg><span class="v">คุณขวัญใจ</span></span>
+            <span class="rw"><svg class="i ic"><use href="#phone"/></svg><span class="v">085-331-5378</span></span>
+            <span class="money"><span class="k" style="color:var(--color-default-500)">ยอดรวม</span><span class="v">฿1,200</span></span>
+          </div>
+          <p class="closing">ยืนยันคิวเรียบร้อยค่ะ</p>
+          <footer><a href="#"><svg class="i" style="font-size:15px"><use href="#check"/></svg> ยืนยันนัด</a></footer>
+        </div>
+        <span class="tstamp r">ส่งแล้ว 16:22</span>
+      </div>
+    </div>
+    <p class="ruler">ฝั่งเราเก็บเป็น <code>type:'ORDER'</code> + <code>orderRefToken</code> ตัวเดิม — ไม่มี migration · การ์ดจะ <b>อัปเดตตามเองเมื่อนัดถูกเลื่อน</b> เพราะ render จาก token ไม่ใช่ snapshot</p>
+  </figure>
+</div>
+
+<h3 class="sec-title" style="font-size:16px;margin-top:38px">ฝั่งลูกค้า — การ์ดจริงต่อช่องทาง (มติ D-3)</h3>
+
+<div class="phones">
+  <div class="phone">
+    <b>LINE — Flex Message</b>
+    <div class="flexcard">
+      <div class="bd">
+        <p class="eyebrow">ยืนยันนัดหมาย</p>
+        <h5>14 ส.ค. 2569<br>13:00–14:00</h5>
+        <div class="kv"><span class="k">บริการ</span><span class="v">ล้างแอร์ 2 เครื่อง</span></div>
+        <div class="kv"><span class="k">ชื่อลูกค้า</span><span class="v">คุณขวัญใจ</span></div>
+        <div class="kv"><span class="k">เบอร์ติดต่อ</span><span class="v">085-331-5378</span></div>
+        <hr>
+        <div class="tot"><span class="k">ยอดรวม</span><span class="v">฿1,200</span></div>
+      </div>
+      <div class="ft"><a href="#">ยืนยันนัด</a></div>
+    </div>
+    <p class="altbar"><b>altText</b> (สิ่งเดียวที่ลูกค้าเห็นในรายการแชท + notification):<br>ยืนยันนัดหมาย 14 ส.ค. 2569 · 13:00–14:00</p>
+  </div>
+
+  <div class="phone">
+    <b>Messenger / Instagram — Generic Template</b>
+    <div class="metacard">
+      <div class="mb">
+        <p class="mt">ยืนยันนัดหมาย</p>
+        <p class="ms">14 ส.ค. 2569 · 13:00–14:00 · ล้างแอร์ 2 เครื่อง</p>
+      </div>
+      <div class="mbtn">ดูรายละเอียดนัด</div>
+    </div>
+    <p class="altbar"><b>เพดานที่ยืนยันแล้ว:</b> title ≤80 · subtitle ≤80 · ปุ่ม ≤3 · <b>ไม่มีรูป = ไม่ใส่คีย์ <code>image_url</code></b> ไม่ใช่ค่าว่าง (ส่งค่าว่าง Meta ตกทั้งข้อความ)</p>
+  </div>
+
+  <div class="phone">
+    <b>ช่องทางที่ยังไม่มีการ์ด — ข้อความล้วน</b>
+    <div class="metacard"><div class="mb" style="white-space:pre-line;font-size:13px;color:#050505;line-height:1.65">ยืนยันนัดหมาย
+วันและเวลา: 14 ส.ค. 2569 · 13:00–14:00
+บริการ: ล้างแอร์ 2 เครื่อง
+ชื่อลูกค้า: คุณขวัญใจ
+เบอร์ติดต่อ: 085-331-5378
+ยอดรวม: ฿1,200
+
+ยืนยันคิวเรียบร้อยค่ะ
+https://deepthailand.app/o/DP2569…</div></div>
+    <p class="altbar">ข้อความก้อนนี้ <b>ส่งเสมอทุกกรณี</b> — เป็นทั้ง <code>ChatMessage.body</code> ที่ร้านค้นหาเจอในประวัติ และทางถอยเมื่อช่องทางไม่รองรับการ์ด · <b>ห้ามมี emoji</b> (HR12)</p>
+  </div>
+</div>
+
+<div class="note">
+  <h2>4 จุดที่มีปุ่ม “ส่งสรุปนัด” — เปิดชีตตัวเดียวกันทั้งหมด (มติ D-2/D-4)</h2>
+  <ul>
+    <li><b>แผงลูกค้าข้างแชท</b> — ร้าน <code>SERVICE_QUEUE</code> ที่ออเดอร์มีนัด: ปุ่มแรกใน footer <b>เปลี่ยนคำ</b>จาก “ส่งเข้าแชท” เป็น “ส่งสรุปนัด” (ไม่เพิ่มปุ่มที่ 3 — ร้านคิวงานได้ <code>NO_SHIPPING</code> จึงไม่มีปุ่ม “สร้างพัสดุ” อยู่แล้ว)</li>
+    <li><b>แถบสถานะนัดในห้องแชท (ตอนกาง)</b> — คอมเมนต์ที่ <code>OrderProgressBar.tsx:146</code> เขียนไว้เองว่าการ์ดนี้อ่านอย่างเดียวเพราะ “ถ้าจะให้กดได้ = งานรอบถัดไป ผ่าน ux” — นี่คือรอบนั้น</li>
+    <li><b><code>/orders/[token]</code></b> และ <b>ปฏิทิน <code>/queues</code></b> — สองจุดนี้ <b>ไม่มี <code>conversationId</code></b> ต้อง resolve จาก <code>Conversation.customerId = Order.customerId</code> โดย <b><code>shopId</code> ต้องอยู่ใน <code>WHERE</code> เป็นคีย์แรก</b> (Customer เป็นตาราง global — query ด้วย <code>customerId</code> เปล่าจะได้ห้องแชทของร้านอื่น)</li>
+    <li>0 ห้อง → <b>ปุ่ม disabled พร้อมเหตุผล “ลูกค้ารายนี้ยังไม่มีห้องแชท” ห้ามซ่อนปุ่ม</b> · 1 ห้อง → เปิดชีตตรง ๆ · &gt;1 ห้อง → ชีตมีแถว “ส่งไปที่” ค่าตั้งต้น = คุยล่าสุด</li>
+  </ul>
+</div>
+
+<div class="note good">
+  <h2>ของที่มีอยู่แล้วแต่ไม่เคยมีทางเข้า — ปุ่มบนการ์ดปิดวงจรให้</h2>
+  <ul>
+    <li><code>(marketing)/o/[token]/AppointmentCard.tsx</code> ให้ลูกค้ากด <b>“ยืนยันนัด”</b> / <b>“ขอเลื่อนนัด”</b> ได้จริงมาตั้งแต่ 00024 (เขียน <code>CONFIRMED_BY_BUYER</code> / <code>RESCHEDULE_REQUESTED</code>)</li>
+    <li>แต่ <b>ไม่มีเส้นทางไหนพาลูกค้าไปถึงหน้านั้นเลย</b> — ปุ่มบนการ์ดสรุปคือทางเข้าตัวแรก ⇒ สถานะที่ลูกค้ากดจะไหลกลับมาโผล่เองในปฏิทิน <code>/queues</code> และชิปในห้องแชท</li>
+    <li>ผลข้างเคียงที่ตั้งใจ: การ์ดนี้ไม่ใช่ป้ายอ่านอย่างเดียว มันคือจุดที่ร้านได้คำยืนยันกลับมาโดยไม่ต้องไล่ถาม</li>
+  </ul>
+</div>
+
+<div class="note bad">
+  <h2>ยังไม่ได้ตรวจ — ต้องเคลียร์ก่อนปิดงาน</h2>
+  <ul>
+    <li><b>ยังไม่ผ่าน <code>safepay-ux</code> (HR8)</b> — session นี้ห้ามเรียก subagent สเปกจึงยึด <code>sibling-surface-parity</code> + Paces primitive แทน ควรให้ ux ตรวจย้อนหลัง</li>
+    <li><b>ยังไม่มี feature docs ตาม HR11</b> — งาน B เป็นความสามารถใหม่ที่ผู้ใช้เห็น ต้องเขียน <code>EXTENSIONS-2026-08-11.md</code> ใน <code>00024</code> + sync <code>docs/SRS.md</code> (มี API contract ใหม่) <b>ก่อน</b> เขียนโค้ด</li>
+    <li>ยังไม่ยืนยันด้วยตาว่า popover ของนัดใน <code>AppointmentCalendar</code> มีที่พอสำหรับปุ่มที่ 390px — ต้องกางเลขงบพื้นที่ตอน implement</li>
+    <li>ยังไม่ได้ดูของจริงว่า Meta เรนเดอร์ generic template ที่ <b>ไม่มีรูป</b> ออกมาหน้าตาใช้ได้ไหม (การ์ดสินค้ามีรูปเสมอ · การ์ดนัดไม่มีรูปโดยธรรมชาติ)</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>
