@@ -114,6 +114,30 @@ describe('ชีตส่งสรุปนัด — ข้อที่ critiqu
     'utf8',
   )
 
+  it('[สำคัญ] ปุ่มเรียกทั้ง 3 จุดต้อง ≥44px — action เดียวกันไม่ควรมี 3 ขนาด', () => {
+    /** anchor ที่ระบุ "ปุ่มเปิดชีต" ของแต่ละไฟล์ได้แน่นอน แล้วดู className ที่ตามมาในบล็อกเดียวกัน */
+    const anchors: [string, string][] = [
+      [
+        'src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/CustomerPanel.tsx',
+        'aria-label="ส่งสรุปนัดเข้าแชท"',
+      ],
+      [
+        'src/app/(paces)/seller/(chat)/inbox/[conversationId]/components/OrderProgressBar.tsx',
+        'aria-label={`ส่งสรุปนัดของ',
+      ],
+      [
+        'src/app/(paces)/seller/(dashboard)/orders/[token]/components/AppointmentCard.tsx',
+        'onClick={() => setSummaryOpen(true)}',
+      ],
+    ]
+    for (const [f, anchor] of anchors) {
+      const src2 = readFileSync(join(process.cwd(), f), 'utf8')
+      const i = src2.indexOf(anchor)
+      expect(i, `ไม่พบ anchor ใน ${f}`).toBeGreaterThan(-1)
+      expect(src2.slice(i, i + 400), f).toContain('min-h-11')
+    }
+  })
+
   it('[สำคัญ] ปลายทางแสดงเสมอ ไม่ผูกกับ targets.length > 1 — การส่งที่ถอนคืนไม่ได้ต้องบอกว่าส่งหาใคร', () => {
     // เคสห้องเดียวต้องมีสาขาแสดงชื่อ ไม่ใช่ซ่อนทั้ง section
     expect(sheet).toMatch(/loaded\?\.targets\[0\] \? \(/)
@@ -137,6 +161,34 @@ describe('ชีตส่งสรุปนัด — ข้อที่ critiqu
   it('โฟกัสถูกย้ายเข้า ขังไว้ และคืนที่เดิม (aria-modal ไม่ได้ทำอะไรกับคีย์บอร์ด)', () => {
     expect(sheet).toMatch(/restoreRef\.current\?\.focus\?\.\(\)/)
     expect(sheet).toMatch(/e\.key !== 'Tab'/)
+  })
+
+  /**
+   * [blocker] ผลของ critique รอบ 2 — ทั้งหมดเป็นข้อที่ "แก้ไปแล้วรอบหนึ่งแต่ตกหล่นพี่น้อง"
+   * ซึ่งคือแพตเทิร์นที่ convention `value-fate-decided-at-write-site.md` เตือนไว้เอง
+   */
+  it('[สำคัญ] form-select ต้องมี min-h-11 — ตกกับดัก h-11 lg:h-9.25 เดียวกับ form-input', () => {
+    // ยึด className ตรง ๆ: regex ที่ไล่จาก `<select` ถึง `>` ตัวแรกจะถูก `=>` ใน onChange ตัดเร็ว
+    expect(sheet).toMatch(/className="form-select[^"]*\bmin-h-11\b/)
+  })
+
+  it('[สำคัญ] หัวข้อพรีวิวกับหัวข้อ checkbox ต้องไม่ใช้ก้านคำเดียวกัน', () => {
+    // เคยเป็น "ข้อมูลที่จะส่ง" กับ "เลือกข้อมูลที่จะส่ง" — ต่างกันคำเดียว วางติดกัน
+    const headings = [...sheet.matchAll(/font-semibold">([^<]+)<\/p>/g)].map((m) => m[1])
+    const dupStem = headings.filter((h) => h.includes('ข้อมูลที่จะส่ง'))
+    expect(dupStem.length).toBeLessThanOrEqual(1)
+  })
+
+  it('[สำคัญ] บอกว่าเคยส่งไปแล้ว + เปลี่ยนป้ายปุ่ม (ไม่มี idempotent guard โดยตั้งใจ)', () => {
+    expect(sheet).toMatch(/loaded\?\.lastSentAt &&/)
+    expect(sheet).toMatch(/loaded\?\.lastSentAt \? 'ส่งอีกครั้ง' : 'ส่งเข้าแชท'/)
+    const route = readFileSync(
+      join(process.cwd(), 'src/app/api/orders/[token]/appointment-summary/route.ts'),
+      'utf8',
+    )
+    // ตัวแยกการ์ดนัดออกจากการ์ดออเดอร์คือ body ไม่ใช่ type (ทั้งคู่เป็น type='ORDER')
+    expect(route).toMatch(/body: \{ not: null \}/)
+    expect(route).toMatch(/conversation: \{ shopId: order\.shopId \}/)
   })
 
   it('โหลดพังแบบ transient ต้องมีปุ่มลองใหม่ · แบบ permanent ต้องไม่มี', () => {

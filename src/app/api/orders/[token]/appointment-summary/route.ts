@@ -127,10 +127,37 @@ export async function GET(
       // คืนรายการว่าง **ไม่ใช่ error** — หน้าจอต้องแยก "ยังไม่มีห้องแชท" ออกจาก "ระบบพัง"
       [];
 
+  /**
+   * เคยส่งสรุปนัดใบนี้ไปแล้วหรือยัง (impeccable critique รอบ 2 — P0)
+   *
+   * 🛑 **ตัวแยกคือ `body` ไม่ใช่ `type`** — การ์ดสรุปนัดกับการ์ดออเดอร์เก็บเป็น `type='ORDER'`
+   * เหมือนกันทั้งคู่ (ไม่มี enum ใหม่ ไม่มี migration) แต่ `sendMessage`/`sendOutboundMessage`
+   * บังคับ `body = null` ให้การ์ดออเดอร์ และยกเว้นให้เฉพาะการ์ดนัด (`isAppointmentCard`)
+   * ⇒ "แถวที่มี orderRefToken ใบนี้ **และ** body ไม่ว่าง" = สรุปนัดที่เคยส่ง
+   *
+   * ทำไมต้องรู้: การส่งนี้ถอนคืนไม่ได้และ **ไม่มี idempotent guard โดยตั้งใจ** (มติ 2026-08-12)
+   * เคสที่เกิดจริงไม่ใช่คนกดรัว แต่คือเน็ตหลุดตอนเห็นสปินเนอร์ → ไม่แน่ใจ → ปิด เปิดใหม่ ส่ง
+   * ⇒ ลูกค้าได้การ์ดยืนยันสองใบ ซึ่งอ่านได้ทางเดียวว่า "การจองมีอะไรผิดพลาด"
+   * **บอกอย่างเดียว ไม่ขวาง** — ส่งซ้ำเป็นสิ่งที่ร้านทำจริง (เตือนก่อนถึงวันนัด)
+   */
+  const lastSent = await prisma.chatMessage.findFirst({
+    where: {
+      orderRefToken: token,
+      type: "ORDER",
+      body: { not: null },
+      senderRole: "SHOP",
+      // ownership: เธรดต้องเป็นของร้านเดียวกับออเดอร์ — ไม่พึ่งว่า token เดาไม่ได้
+      conversation: { shopId: order.shopId },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+
   const deposit = Number(order.depositAmount ?? 0);
 
   return NextResponse.json({
     shopId: order.shopId,
+    lastSentAt: lastSent ? lastSent.createdAt.toISOString() : null,
     data: {
       serviceStart: order.serviceStart.toISOString(),
       serviceEnd: order.serviceEnd ? order.serviceEnd.toISOString() : null,

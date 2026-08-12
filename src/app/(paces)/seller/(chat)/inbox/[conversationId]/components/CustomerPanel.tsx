@@ -424,7 +424,7 @@ function OrderCard({
                 }}
                 disabled={cancelling}
                 aria-label="ส่งสรุปนัดเข้าแชท"
-                className="btn btn-sm bg-primary/10 text-primary-ink hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
+                className="btn btn-sm bg-primary/10 text-primary-ink hover:bg-primary/20 min-h-11 flex-1 gap-1 disabled:opacity-60"
               >
                 <Icon icon="calendar-check" className="text-sm" />
                 ส่งสรุปนัด

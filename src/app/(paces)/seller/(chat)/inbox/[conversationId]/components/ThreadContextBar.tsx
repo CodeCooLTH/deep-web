@@ -107,7 +107,8 @@ export default function ThreadContextBar({ items }: { items: ThreadContextItem[]
       type="button"
       onClick={() => setOpen(true)}
       aria-expanded={false}
-      aria-controls={detailsId}
+      // ไม่มี aria-controls ตอนยุบ — IDREF ที่ชี้ไป element ที่ยังไม่ถูก render คือ IDREF ที่ค้าง
+      // (ตัวกางถึงมีจริง จึงใส่เฉพาะสาขานั้น)
       aria-label={
         items.length > 1 ? `ดูที่มาของแชททั้ง ${items.length} รายการ` : 'ดูรายละเอียดที่มาของแชท'
       }

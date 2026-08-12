@@ -20,6 +20,7 @@ import Icon from '@/components/wrappers/Icon'
 import { useLockBodyScroll } from '@/hooks/useLockBodyScroll'
 import { pacesToast } from '@/lib/paces-toast'
 import { getChannelLabel } from '@/lib/chat-channel'
+import { formatDateTimeTH } from '@/lib/format-date'
 import {
   APPOINTMENT_CLOSING_MAX,
   APPOINTMENT_SUMMARY_LABEL,
@@ -64,6 +65,8 @@ const storageKey = (shopId: string) => `deep:appt-summary-lines:${shopId}`
 
 interface LoadedSummary {
   shopId: string
+  /** ISO — เคยส่งสรุปนัดใบนี้ไปแล้วเมื่อไหร่ · null = ยังไม่เคยส่ง */
+  lastSentAt: string | null
   data: AppointmentSummaryInput
   targets: AppointmentTarget[]
 }
@@ -361,6 +364,25 @@ export default function AppointmentSummarySheet({
            *
            * อยู่ **เหนือ** พรีวิว: เลือกคนรับก่อน แล้วค่อยตรวจของที่เขาจะได้
            */}
+          {/**
+           * เคยส่งไปแล้ว — **บอกอย่างเดียว ไม่ขวาง** (user เคาะ 2026-08-12)
+           *
+           * ระบบไม่มี idempotent guard โดยตั้งใจ เพราะร้านส่งเตือนซ้ำก่อนถึงวันนัดเป็นเรื่องปกติ
+           * แต่ "ไม่ขวาง" ไม่ได้แปลว่า "ไม่บอก" — เคสที่เกิดจริงคือเน็ตหลุดตอนเห็นสปินเนอร์ แล้ว
+           * ผู้ขายไม่แน่ใจว่าออกไปหรือยัง ⇒ ลูกค้าได้การ์ดยืนยันสองใบ ซึ่งอ่านได้ทางเดียวว่า
+           * "การจองมีอะไรผิดพลาด" — ตรงข้ามกับเหตุผลทั้งหมดที่ฟีเจอร์นี้มีอยู่
+           *
+           * โทน warning ไม่ใช่ danger: นี่คือข้อเท็จจริงที่ต้องรู้ก่อนตัดสินใจ ไม่ใช่ความผิดพลาด
+           */}
+          {loaded?.lastSentAt && (
+            <p className="text-warning-ink bg-warning/15 mb-0 flex items-start gap-2 rounded-lg px-3 py-2 text-sm">
+              <Icon icon="history" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+              <span className="min-w-0">
+                ส่งสรุปนัดใบนี้ไปแล้วเมื่อ {formatDateTimeTH(loaded.lastSentAt)}
+              </span>
+            </p>
+          )}
+
           <section>
             <p className="text-default-700 mb-2 text-xs font-semibold">ส่งไปที่</p>
             {(loaded?.targets.length ?? 0) > 1 ? (
@@ -368,11 +390,16 @@ export default function AppointmentSummarySheet({
                 <label htmlFor="appt-target" className="sr-only">
                   เลือกห้องแชทปลายทาง
                 </label>
+                {/* 🛑 `min-h-11` เพราะ `.form-select` = `h-11 lg:h-9.25` เหมือน `.form-input` เป๊ะ
+                    และ `lg:` เป็น **viewport query ไม่ใช่ container** ⇒ ชีตที่กว้างแค่ `sm:max-w-lg`
+                    บนจอเดสก์ท็อปได้ช่องสูง 37px · รอบก่อนแก้ `textarea` แล้วไม่ได้ไล่ดูว่าใครใช้กฎ
+                    เดียวกันอีกในไฟล์เดียวกัน · ใช้ `min-height` ไม่ใช่ `height` เพราะ `_forms.css`
+                    ไม่ได้ห่อ `@layer` — utility ที่ตั้ง `height` จะแพ้ แต่คนละ property ชนะได้ */}
                 <select
                   id="appt-target"
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
-                  className="form-select"
+                  className="form-select min-h-11"
                 >
                   {loaded?.targets.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -397,8 +424,8 @@ export default function AppointmentSummarySheet({
           {/* ── พรีวิว: การ์ดหน้าตาเดียวกับที่ลูกค้าจะได้รับ ─────────────────────── */}
           {/* หัวข้อนี้หนักกว่า section อื่นโดยตั้งใจ (text-sm/default-800 vs text-xs/default-700) —
               พรีวิวคือเหตุผลทั้งหมดที่ชีตนี้มีอยู่ ไม่ควรมีน้ำหนักเท่าป้ายช่องข้อความปิดท้าย */}
-          <section aria-label="ข้อมูลที่จะส่ง">
-            <p className="text-default-800 mb-2 text-sm font-semibold">ข้อมูลที่จะส่ง</p>
+          <section aria-label="ตัวอย่างที่จะส่ง">
+            <p className="text-default-800 mb-2 text-sm font-semibold">ตัวอย่างที่จะส่ง</p>
             <div className="border-default-200 rounded-lg border">
               <div className="border-default-200 flex items-center gap-2 border-b px-3 py-2.5">
                 <span className="bg-primary/15 text-primary flex size-7 shrink-0 items-center justify-center rounded">
@@ -437,7 +464,9 @@ export default function AppointmentSummarySheet({
 
           {/* ── ติ๊กบรรทัดที่จะแสดง ────────────────────────────────────────────── */}
           <section>
-            <p className="text-default-700 mb-1 text-xs font-semibold">เลือกข้อมูลที่จะส่ง</p>
+            {/* ต้องไม่ใช้ก้านคำเดียวกับหัวพรีวิว — "ข้อมูลที่จะส่ง" กับ "เลือกข้อมูลที่จะส่ง" ต่างกัน
+                คำเดียว วางติดกัน แล้วต่างกันแค่ 1px กับเทาหนึ่งขั้น ผู้ขายต้องคิดว่าอันไหนคุมอันไหน */}
+            <p className="text-default-700 mb-2 text-xs font-semibold">แสดงข้อมูลไหนบ้าง</p>
             {available.map((key) => {
               const locked = key === 'when'
               const on = !hidden.includes(key)
@@ -524,7 +553,8 @@ export default function AppointmentSummarySheet({
                 className={`text-base ${sending ? 'animate-spin' : ''}`}
                 aria-hidden="true"
               />
-              ส่งเข้าแชท
+              {/* คำบนปุ่มต้องตรงกับสิ่งที่กำลังจะเกิด — กดครั้งที่สองไม่ใช่ "ส่ง" มันคือ "ส่งอีกครั้ง" */}
+              {loaded?.lastSentAt ? 'ส่งอีกครั้ง' : 'ส่งเข้าแชท'}
             </button>
           </div>
         </div>
