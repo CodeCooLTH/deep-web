@@ -11,6 +11,7 @@ import {
 } from '@/lib/facebook/graph'
 import { lineApiRequest, LineApiError } from '@/lib/line/client'
 import { probeLineToken, probeLineWebhook } from '@/lib/line/health-probe'
+import { getChannelLabel } from '@/lib/chat-channel'
 
 // จัดการช่องทางที่ร้านผูกไว้ (feature 00018)
 // กติกาสำคัญ: accessTokenEnc ห้ามออกจากไฟล์นี้ในรูป plaintext ยกเว้นผ่าน
@@ -290,7 +291,30 @@ export async function disconnectChannel(channelId: string, shopId: string): Prom
     where: { id: channelId },
     select: { provider: true, externalId: true, accessTokenEnc: true },
   })
-  if (row) await stopPageWebhookIfUnused(row)
+  if (!row) return
+
+  // (ส่วนขยาย 2026-08-12 / AC-CH-29/30) LINE: เก็บของที่เราไปวางไว้ใน OA ของร้านกลับก่อน
+  //
+  // 🛑 เมนูที่ตั้งผ่าน Messaging API **ชนะเมนูของ OA Manager เงียบ ๆ** (per-user API > default API >
+  // default OA Manager) และฝั่ง OA Manager ยังโชว์ของเดิมว่า "ใช้งานอยู่" ⇒ ถ้าไม่คืน ร้านที่ถอด
+  // Deep ออกจะเหลือเมนูของเราค้างใน LINE ตัวเองถาวร **และลบทิ้งเองจากคอนโซลไม่ได้**
+  //
+  // 🛑 คืนไม่สำเร็จก็ต้องถอดต่อจนจบ — เคสที่พบบ่อยที่สุดคือร้าน revoke token ไปก่อนแล้ว
+  // ถ้าปล่อยให้ throw ร้านกลุ่มนั้นจะถอดช่องทางไม่ได้ตลอดกาล
+  if (row.provider === 'LINE') {
+    try {
+      const { deactivate } = await import('./line-rich-menu.service')
+      await deactivate({ shopId, shopChannelId: channelId })
+    } catch (e) {
+      console.error(
+        '[shop-channel] คืนเมนูลัด LINE ตอนถอดช่องทางไม่สำเร็จ (ถอดต่อ)',
+        e instanceof Error ? e.message : e,
+      )
+    }
+    return
+  }
+
+  await stopPageWebhookIfUnused(row)
 }
 
 /**
@@ -444,7 +468,29 @@ export async function resubscribeShopChannels(shopId: string): Promise<{ ok: num
 }
 
 export async function markChannelTokenInvalid(channelId: string): Promise<void> {
-  await prisma.shopChannel.update({ where: { id: channelId }, data: { status: 'TOKEN_INVALID' } })
+  // (ส่วนขยาย 2026-08-12 / AC-CH-19) เขียนแบบมีเงื่อนไข "ยังไม่ใช่ TOKEN_INVALID" แล้วดู count
+  // ⇒ รู้ได้ว่า **นี่คือครั้งที่สถานะพลิกจริง** ไม่ใช่การเขียนทับซ้ำครั้งที่สิบ
+  //
+  // 🛑 ถ้ายิง push ทุกครั้งที่ถูกเรียก ผู้ขายจะได้แจ้งเตือนทุกครั้งที่กดส่งข้อความจนกว่าจะแก้เสร็จ
+  // ซึ่งแย่กว่าไม่แจ้งเลย (คนจะปิดแจ้งเตือนทิ้งแล้วพลาดของจริงรอบหน้า)
+  const flipped = await prisma.shopChannel.updateMany({
+    where: { id: channelId, status: { not: 'TOKEN_INVALID' } },
+    data: { status: 'TOKEN_INVALID' },
+  })
+  if (flipped.count === 0) return
+
+  const row = await prisma.shopChannel.findUnique({
+    where: { id: channelId },
+    select: { shopId: true, name: true, provider: true },
+  })
+  if (!row) return
+  // import แบบ dynamic กันวงจร import ระหว่าง service สองตัว (seller-push → chat.service → …)
+  const { pushChannelDisconnected } = await import('./seller-push.service')
+  await pushChannelDisconnected({
+    shopId: row.shopId,
+    channelName: row.name,
+    channelLabel: getChannelLabel(row.provider),
+  })
 }
 
 // ══════════════════════════════════════════════════════════════════════════

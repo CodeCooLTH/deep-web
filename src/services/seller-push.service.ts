@@ -163,3 +163,80 @@ export async function pushNewChatMessage(params: {
     console.error('[seller-push] pushNewChatMessage failed', e)
   }
 }
+
+/**
+ * ผู้รับ "ข่าวสถานะระบบของร้าน" — เจ้าของ + สมาชิกทุกคน **ไม่หัก `ShopNotificationPref`**
+ *
+ * 🛑 ต่างจาก `shopAudience()` โดยตั้งใจ (D-CH-8 / AC-CH-20, user เคาะ 2026-08-12): สวิตช์
+ * ปิดแจ้งเตือนรายร้านถูกออกแบบมาเพื่อ *"ฉันไม่อยากรับแจ้งเตือน **ข้อความ** ของร้านนี้"*
+ * ไม่ใช่ *"ฉันไม่อยากรู้ว่าร้านนี้พัง"* — คนที่ปิดเสียงข้อความลูกค้าคือคนที่ยิ่งต้องรู้ว่า
+ * ช่องทางหลุด เพราะเขาจะไม่มีทางสังเกตจากความเงียบได้เลย
+ *
+ * 🛑 กรองที่ชั้นนี้ ไม่ใช่ที่ `pushToUsers` — ตัวนั้นเป็น primitive ที่ฝั่งผู้ซื้อใช้ร่วม
+ * (เหรียญตรา/ประมูล) แก้ผิดชั้นแล้วจะพลอยเปลี่ยนของที่ไม่เกี่ยวกับร้านเลย
+ */
+async function shopSystemAlertAudience(shopId: string): Promise<string[]> {
+  const [shop, members] = await Promise.all([
+    prisma.shop.findUnique({ where: { id: shopId }, select: { userId: true } }),
+    prisma.shopMember.findMany({ where: { shopId }, select: { userId: true } }),
+  ])
+  const ids = new Set<string>()
+  if (shop?.userId) ids.add(shop.userId)
+  for (const m of members) ids.add(m.userId)
+  return [...ids]
+}
+
+/**
+ * แจ้งว่าช่องทางแชทหลุด — **ยิงครั้งเดียวตอนสถานะพลิก** ไม่ใช่ทุกครั้งที่ส่งข้อความล้ม (AC-CH-19)
+ *
+ * ผู้เรียกต้องเป็นจุดที่ "รู้ว่าเพิ่งพลิก" เท่านั้น (ตัวที่เขียน `status='TOKEN_INVALID'`)
+ * ถ้าเรียกจากเส้นทางส่งข้อความ ผู้ขายจะได้ noti ทุกครั้งที่กดส่งจนกว่าจะแก้ ซึ่งแย่กว่าไม่มี
+ */
+export async function pushChannelDisconnected(params: {
+  shopId: string
+  channelName: string
+  /** ชื่อช่องทาง (LINE / Messenger / Instagram) — จาก `src/lib/chat-channel.ts` ห้ามพิมพ์เอง */
+  channelLabel: string
+}): Promise<void> {
+  try {
+    const audience = await shopSystemAlertAudience(params.shopId)
+    if (audience.length === 0) return
+    await pushToUsers(
+      audience,
+      params.channelName,
+      `ส่งข้อความหาลูกค้าไม่ได้ — การเชื่อมต่อ ${params.channelLabel} มีปัญหา แตะเพื่อแก้ไข`,
+      { type: 'channel-health', url: '/settings/channels' },
+    )
+  } catch (e) {
+    console.error('[seller-push] pushChannelDisconnected failed', e)
+  }
+}
+
+/**
+ * เตือนล่วงหน้าว่า token ของ LINE OA ใกล้หมดอายุ (FR-CH-02 / AC-CH-07)
+ *
+ * ยิง **หนึ่งครั้งต่อการข้ามเกณฑ์** (14/7/3/1 วัน) ไม่ใช่ทุกวัน — ผู้เรียก (`sweepLineTokenHealth`)
+ * เป็นคนตัดสินว่าข้ามเกณฑ์แล้วหรือยัง ฟังก์ชันนี้แค่ส่ง
+ *
+ * ใช้ audience ชุดเดียวกับ `pushChannelDisconnected` (ข้ามสวิตช์ปิดแจ้งเตือนรายร้าน) เพราะเป็น
+ * ข่าวสถานะระบบเหมือนกัน — คนที่ปิดเสียงข้อความลูกค้าคือคนที่ยิ่งต้องรู้ว่าอีก 3 วันจะส่งไม่ออก
+ */
+export async function pushLineTokenExpiring(params: {
+  shopId: string
+  channelName: string
+  daysLeft: number
+}): Promise<void> {
+  try {
+    const audience = await shopSystemAlertAudience(params.shopId)
+    if (audience.length === 0) return
+    const when = params.daysLeft <= 1 ? 'ภายในวันนี้' : `ในอีก ${params.daysLeft} วัน`
+    await pushToUsers(
+      audience,
+      params.channelName,
+      `Token ของ LINE OA นี้จะหมดอายุ${when} — แตะเพื่อเปลี่ยนเป็นแบบไม่หมดอายุก่อนส่งข้อความไม่ได้`,
+      { type: 'channel-health', url: '/settings/channels' },
+    )
+  } catch (e) {
+    console.error('[seller-push] pushLineTokenExpiring failed', e)
+  }
+}
