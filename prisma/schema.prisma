@@ -1481,6 +1481,22 @@ model ShopChannel {
   quotaUsed        Int?
   quotaFetchedAt   DateTime?
 
+  // --- ความทนของการเชื่อมต่อ (ส่วนขยาย 00025 2026-08-12) — LINE เท่านั้น ที่เหลือ NULL ตลอด ---
+  // lineTokenExpiresAt: วันหมดอายุ access token จาก POST /v2/oauth/verify
+  //   NULL = long-lived (ไม่หมดอายุ) **หรือ** ยังไม่เคยอ่าน — แยกสองกรณีนี้ด้วย lineTokenCheckedAt
+  // 🛑 ใช้ "เตือนล่วงหน้า" เท่านั้น ห้ามอ่านในเส้นทางส่งข้อความ: มันเป็นภาพนิ่ง ณ เวลาที่เขียน
+  //   ร้าน revoke token จากคอนโซลเมื่อไหร่ก็ได้ ตัวตัดสินจริงยังเป็นผลตอบจาก LINE ตอนยิงเสมอ
+  //   (docs/conventions/stored-flag-vs-owner-truth.md)
+  lineTokenExpiresAt        DateTime?
+  lineTokenCheckedAt        DateTime?
+  // lineLastInboundFail*: มีอยู่เพราะ webhook **ต้องตอบ 200 ทุกกรณี** (BR-LINE-05/06) รวมตอน
+  //   ลายเซ็นไม่ผ่าน ⇒ ขาเข้าตายได้เงียบสนิทโดยไม่มีสถานะ ไม่มี error และ Vercel plan นี้
+  //   query runtime log ย้อนหลังไม่ได้ ⇒ console.warn ที่อ่านย้อนหลังไม่ได้ = ไม่มีค่า
+  //   reason: 'SIGNATURE_MISMATCH' | 'DESTINATION_NOT_FOUND'
+  lineLastInboundFailAt     DateTime?
+  lineLastInboundFailReason String?
+  lineInboundFailCount      Int               @default(0)
+
   shop             Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   contacts         ExternalContact[]
   posts            FacebookPost[]
