@@ -1411,7 +1411,22 @@ export default function ChatThread({
   // แสดง "composer replacement block" (แทนที่ทั้งแถบเครื่องมือ+textarea) เฉพาะตอน AI คุมอยู่จริง
   // ยังไม่ยืนยันตอบเอง และ token ยังไม่ตาย — tokenInvalid ชนะเสมอ (คงพฤติกรรม dim เดิม เพราะ
   // "เชื่อมต่อเพจขาด" กับ "มี AI ทำงานแทนอยู่" คนละความหมาย จะปนกันไม่ได้)
-  const showAiTakeoverComposer = !composerDisabled && aiAgentActive && !respondingManually
+  /**
+   * (ส่วนขยาย 00025 2026-08-12 / AC-CH-21/22) แทนที่ช่องพิมพ์เมื่อ token ของ LINE ตายแล้ว
+   *
+   * ต่างจาก `composerDisabled` (dim) ตรงที่ dim ทำให้เห็นปุ่ม 6 ปุ่มที่กดไม่ได้ ผู้ขายจะพิมพ์
+   * ไปครึ่งข้อความแล้วเพิ่งรู้ว่าส่งไม่ได้ — บล็อกทั้งแถบพร้อมทางแก้ตรงนั้นตรงไปตรงมากว่า
+   *
+   * 🛑 **เฉพาะ LINE** (มติ OQ-1) — `tokenInvalid` เป็น prop ร่วมของทุกช่องทาง แต่ copy
+   * "ข้อความที่ลูกค้าส่งมายังอ่านได้ตามปกติ" ยังไม่ได้ยืนยันว่าจริงกับ Meta และการบล็อกผิด
+   * แพงกว่าไม่บล็อก (บทเรียน viaStandby 2026-08-09: พิมพ์ไม่ได้ทั้งที่กำลังคุยลูกค้าอยู่)
+   *
+   * 🛑 บล็อกได้เพราะ `tokenInvalid` คือ **ข้อเท็จจริงที่ LINE ปฏิเสธเราแล้วจริง** ไม่ใช่การอนุมาน
+   * — สถานะเตือนอื่น (token ใกล้หมด / webhook ผิด) ห้ามบล็อกเด็ดขาด
+   */
+  const showTokenInvalidComposer = isExternal && tokenInvalid && channel === 'LINE'
+  const showAiTakeoverComposer =
+    !composerDisabled && !showTokenInvalidComposer && aiAgentActive && !respondingManually
   // แถบ "กำลังตอบเองแทน AI" หลังยืนยันแล้ว — หายเองเมื่อ aiAgentActive กลับเป็น false (ไม่มีปุ่มปิด)
   const showManualOverrideStrip = !composerDisabled && aiAgentActive && respondingManually
 
@@ -3122,7 +3137,31 @@ export default function ChatThread({
       {/* composer — pattern ChatPage.tsx:99-109 + auto-upload preview chip
           relative: ยึดตำแหน่งแผง AI (absolute bottom-full) ให้ลอยเหนือ composer */}
       <div className="border-t border-default-300 border-dashed relative px-4 py-3 sm:px-6 sm:py-3.75">
-        {showAiTakeoverComposer ? (
+        {showTokenInvalidComposer ? (
+          /**
+           * Base: บล็อก `showAiTakeoverComposer` ด้านล่าง (โครง/คลาสเดียวกันเป๊ะ) — เปลี่ยน
+           * tone info→danger, ไอคอน robot→alert-circle, ปุ่ม "ตอบเอง"→ลิงก์ไปหน้าตั้งค่า
+           *
+           * min-h-24 = 6rem ใน scale ปกติของ Tailwind ไม่ใช่ arbitrary value (HR7) และต้องเท่ากับ
+           * บล็อก AI เพื่อไม่ให้ท้ายเธรดยุบตอนสลับสถานะ
+           */
+          <div className="bg-danger/15 text-danger-ink flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg px-3 py-2 text-center text-sm sm:flex-row sm:items-center sm:text-start">
+            <Icon icon="alert-circle" className="shrink-0 text-lg" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              ส่งข้อความหาลูกค้าไม่ได้ตอนนี้ — การเชื่อมต่อ LINE มีปัญหา
+              {/* บอกให้ชัดว่าตายข้างเดียว ไม่งั้นผู้ขายจะอ่านว่าทั้งห้องพังแล้วเลิกดูเธรดนี้ */}
+              <span className="block text-xs opacity-80 sm:ms-1 sm:inline">
+                (ข้อความที่ลูกค้าส่งมายังอ่านได้ตามปกติ)
+              </span>
+            </span>
+            <Link
+              href="/settings/channels"
+              className="btn btn-sm bg-card text-default-700 min-h-11 shrink-0 sm:min-h-0"
+            >
+              อัปเดต token
+            </Link>
+          </div>
+        ) : showAiTakeoverComposer ? (
           /**
            * composer replacement block (feature "เธรดที่ Meta AI ถือสิทธิ์คุมอยู่" 2026-08-08)
            * แทนที่ "ทั้งแถบเครื่องมือ + textarea" ไม่ใช่ dim/disable — ต่างจาก tokenInvalid

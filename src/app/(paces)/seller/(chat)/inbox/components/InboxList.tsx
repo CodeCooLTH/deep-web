@@ -273,6 +273,14 @@ type Props = {
   unified?: boolean
   /** ร้านที่ active — ค่าตั้งต้นของปุ่มสร้างเมื่อยังไม่ได้เปิดเธรด (BR-UNI-07: ห้ามใช้ตัดสินขอบเขต) */
   activeShopId?: string | null
+  /**
+   * (ส่วนขยาย 00025 2026-08-12 / AC-CH-31) ผู้ใช้คนนี้ปิดแจ้งเตือนข้อความของร้านที่ active อยู่
+   *
+   * เป็น **การบอกความจริงของค่าที่เขาตั้งเอง** ไม่ใช่คำเตือนว่าระบบพัง — น้ำเสียงจึงต่างจาก
+   * แถบสถานะช่องทาง (info ไม่ใช่ danger) และไม่มีปุ่มปิดถาวร เพราะถ้าปิดได้ ผู้ใช้จะลืมว่า
+   * ตัวเองปิดแจ้งเตือนไว้ แล้วพลาดข้อความสำคัญโดยไม่รู้ว่าทำไม
+   */
+  chatMuted?: boolean
 }
 
 export default function InboxList({
@@ -286,6 +294,7 @@ export default function InboxList({
   shopIds = [],
   unified = false,
   activeShopId = null,
+  chatMuted = false,
 }: Props) {
   // ชื่อเรียกรายการตามประเภทกิจการ — อ่านจาก DraftOrderProvider ที่ครอบทั้ง (chat) อยู่แล้ว
   // (ป้ายสถานะออเดอร์ล่าสุดในรายการแชทเคยเขียน "คำสั่งซื้อ" ตายตัว ทั้งที่ร้านบริการ/บ้านพัก
@@ -293,6 +302,35 @@ export default function InboxList({
   const orderVocab = useOrderVocab()
   // join เป็น string — array prop สร้างใหม่ทุก render ของ parent ถ้าใช้ตัว array ตรง ๆ เป็น dep
   // effect จะวิ่งไม่จบ (ใช้ทั้ง effect subscribe realtime และ effect ตอนขอบเขตเปลี่ยน)
+  // (ส่วนขยาย 00025 2026-08-12 / S4) สถานะปิดแจ้งเตือน — server ส่งค่าเริ่มต้นมา แล้ว client
+  // ซ่อนแถบเองเมื่อกดเปิดสำเร็จ (ไม่ต้อง refresh ทั้งหน้าเพื่อซ่อนแถบเดียว)
+  const [muted, setMuted] = useState(chatMuted)
+  const [unmuting, setUnmuting] = useState(false)
+
+  async function handleUnmute() {
+    if (!activeShopId) return
+    setUnmuting(true)
+    try {
+      const res = await fetch('/api/account/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopId: activeShopId, chatEnabled: true }),
+      })
+      if (!res.ok) {
+        pacesToast.error('เปิดแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่')
+        return
+      }
+      // 🛑 ซ่อนแถบ **หลัง** ได้ผลจริงเท่านั้น ไม่ optimistic — ซ่อนผิดแล้วผู้ใช้เชื่อว่าเปิดแล้ว
+      // ทั้งที่ยังปิดอยู่ ซึ่งเสียหายกว่าปุ่มค้างอีกครึ่งวินาที
+      setMuted(false)
+      pacesToast.success('เปิดแจ้งเตือนของร้านนี้แล้ว')
+    } catch {
+      pacesToast.error('เปิดแจ้งเตือนไม่สำเร็จ — เครือข่ายมีปัญหา')
+    } finally {
+      setUnmuting(false)
+    }
+  }
+
   const shopIdsKey = shopIds.join(',')
   const [items, setItems] = useState<ConversationListItem[]>(initialItems)
   const [nextCursor, setNextCursor] = useState<string | null>(initialNextCursor)
@@ -1256,6 +1294,28 @@ export default function InboxList({
           </div>
         </div>
       </div>
+
+      {/* (ส่วนขยาย 00025 2026-08-12 / S4) "คุณปิดแจ้งเตือนของร้านนี้อยู่"
+          น้ำเสียง info ไม่ใช่ warning — เป็นการบอกความจริงของค่าที่เขาตั้งเอง ไม่ใช่ระบบพัง
+          ไม่มีปุ่มปิดถาวร (มติ OQ-2): หายเมื่อกด "เปิดแจ้งเตือน" สำเร็จเท่านั้น เพราะเงื่อนไข
+          ต้องตรงกับความจริง ถ้าปิดได้ผู้ใช้จะลืมว่าตัวเองปิดไว้แล้วพลาดข้อความสำคัญ */}
+      {muted && (
+        <div className="bg-info/15 text-info-ink mx-4 mb-3 flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm">
+          <Icon icon="bell-off" className="mt-0.5 shrink-0 text-base" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p className="mb-1 font-medium">คุณปิดแจ้งเตือนของร้านนี้อยู่</p>
+            <p className="mb-2">จะไม่มีแจ้งเตือนเด้งเข้ามือถือเมื่อมีข้อความใหม่จากร้านนี้</p>
+            <button
+              type="button"
+              onClick={handleUnmute}
+              disabled={unmuting}
+              className="btn btn-sm bg-card text-info hover:bg-info/10 min-h-11 disabled:opacity-50 sm:min-h-0"
+            >
+              {unmuting ? 'กำลังเปิด...' : 'เปิดแจ้งเตือน'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="card-body">

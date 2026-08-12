@@ -76,3 +76,33 @@ export async function setShopChatNotification(
   })
   return true
 }
+
+/**
+ * ผู้ใช้คนนี้ปิดแจ้งเตือนข้อความของร้านนี้อยู่ไหม (ส่วนขยาย 00025 2026-08-12 / AC-CH-31/33)
+ *
+ * 🛑 กติกา opt-out ห้ามกลับทิศ — **ไม่มีแถว = เปิด** และ **มีแถวแต่ `chatEnabled=true` = เปิด**
+ * ตรรกะที่เช็คแค่ "มีแถวไหม" จะตีคนที่เคยปิดแล้วเปิดกลับว่ายังปิดอยู่ตลอดไป (แถวไม่ถูกลบ
+ * แค่ค่าเปลี่ยน) — เป็นเหตุผลที่ฟังก์ชันนี้ต้องอ่าน "ค่า" ไม่ใช่ "การมีอยู่"
+ */
+export async function isShopChatMuted(userId: string, shopId: string): Promise<boolean> {
+  const pref = await prisma.shopNotificationPref.findUnique({
+    where: { userId_shopId: { userId, shopId } },
+    select: { chatEnabled: true },
+  })
+  return pref ? !pref.chatEnabled : false
+}
+
+/**
+ * userId ของคนที่ **ปิด** แจ้งเตือนข้อความของร้านนี้ (ส่วนขยาย 00025 2026-08-12 / AC-CH-32)
+ *
+ * ใช้ติดป้ายในรายชื่อสมาชิกให้เจ้าของเห็นว่าใครจะไม่ได้รับแจ้งเตือน — 🛑 เป็น **ข้อมูลสถานะ
+ * ไม่ใช่คำเตือน** และเจ้าของ toggle แทนคนอื่นไม่ได้ (ค่านี้ผูกกับ userId ของเจ้าของค่าเอง)
+ * จึงไม่มีปุ่มแก้ในหน้านั้นโดยตั้งใจ
+ */
+export async function listMutedUserIds(shopId: string): Promise<Set<string>> {
+  const rows = await prisma.shopNotificationPref.findMany({
+    where: { shopId, chatEnabled: false },
+    select: { userId: true },
+  })
+  return new Set(rows.map((r) => r.userId))
+}

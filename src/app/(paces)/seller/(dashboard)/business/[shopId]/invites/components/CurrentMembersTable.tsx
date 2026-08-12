@@ -10,6 +10,7 @@
  */
 
 import { formatDate } from '@/lib/format-date'
+import Icon from '@/components/wrappers/Icon'
 import RowActionDeleteButton from './RowActionDeleteButton'
 
 export interface MemberRow {
@@ -17,6 +18,8 @@ export interface MemberRow {
   role: 'OWNER' | 'ADMIN'
   displayName: string
   createdAt: string
+  /** (ส่วนขยาย 00025 2026-08-12) คนนี้ปิดแจ้งเตือนข้อความของร้านนี้อยู่ */
+  notificationsOff?: boolean
 }
 
 interface CurrentMembersTableProps {
@@ -62,7 +65,20 @@ export default function CurrentMembersTable({
           <tbody>
             {members.map((member) => (
               <tr key={member.id}>
-                <td>{member.displayName}</td>
+                <td>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {member.displayName}
+                    {/* tone neutral ไม่ใช่ warning โดยตั้งใจ — S4 (เรื่องของตัวเอง) เป็น info
+                        พร้อมปุ่มแก้ทันที ส่วนตรงนี้เป็นเรื่องของ "คนอื่น" ที่เจ้าของทำแทนไม่ได้
+                        (ค่าผูกกับ userId ของเจ้าของค่าเอง) จึงเป็นข้อมูลสถานะ ไม่ใช่คำเตือน */}
+                    {member.notificationsOff && (
+                      <span className="badge bg-default-100 text-default-600 text-2xs inline-flex items-center gap-1">
+                        <Icon icon="bell-off" className="text-2xs" aria-hidden="true" />
+                        ปิดแจ้งเตือน
+                      </span>
+                    )}
+                  </span>
+                </td>
                 <td>
                   <span className={`badge ${ROLE_BADGE[member.role]}`}>{ROLE_LABEL[member.role]}</span>
                 </td>

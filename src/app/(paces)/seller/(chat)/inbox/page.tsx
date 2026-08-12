@@ -54,6 +54,7 @@ import { listChatGroups } from '@/services/chat-group.service'
 import { enrichWithOrderStage } from '@/services/order-stage.service'
 import { enrichWithCustomerBehavior } from '@/services/customer-behavior.service'
 import { enrichWithAutoReplyBadge } from '@/services/auto-reply.service'
+import { isShopChatMuted } from '@/services/notification-pref.service'
 import { syncShipmentStatuses } from '@/services/iship.service'
 import SellerEmptyState from '@/app/(paces)/seller/(dashboard)/_shared/SellerEmptyState'
 import SellerErrorState from '@/app/(paces)/seller/(dashboard)/_shared/SellerErrorState'
@@ -84,6 +85,17 @@ export default async function SellerInboxPage() {
   // shopIds = ขอบเขตของรายการ; activeShopId ยังต้องรู้ไว้เป็นค่าตั้งต้นของ action ที่ไม่มีเธรด
   const shopIds = scope.shopIds
   const isUnified = scope.mode === 'UNIFIED'
+
+  /**
+   * (ส่วนขยาย 00025 2026-08-12 / AC-CH-31) ผู้ใช้ปิดแจ้งเตือนของร้านที่ active อยู่ไหม
+   *
+   * ผูกกับ `activeShopId` ไม่ใช่ `shopIds` — ค่านี้ตั้งได้ทีละร้าน (คนละคู่ user×shop) และ
+   * แถบที่แสดงพูดถึง "ร้านนี้" ร้านเดียว ⇒ โหมดรวมหลายร้านจะพูดแทนทุกร้านไม่ได้
+   * fail-closed แบบเงียบ: อ่านไม่ได้ = ไม่แสดงแถบ (ดีกว่าทำให้หน้าอินบ็อกซ์ทั้งหน้าล่ม)
+   */
+  const chatMuted = scope.activeShopId
+    ? await isShopChatMuted(user.id as string, scope.activeShopId).catch(() => false)
+    : false
 
   // ── channels (ตัวกรอง "เพจ") — fail-closed แยกจาก conversation fetch (pattern pendingCount
   // ของ layout.tsx) ไม่มีเพจก็ยังดู list ได้ปกติ แค่ตัวกรองว่าง ──
@@ -311,6 +323,7 @@ export default async function SellerInboxPage() {
           shopIds={shopIds}
           unified={isUnified}
           activeShopId={scope.activeShopId}
+          chatMuted={chatMuted}
           railMode
         />
       </div>

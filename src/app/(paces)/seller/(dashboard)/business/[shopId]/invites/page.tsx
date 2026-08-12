@@ -30,6 +30,7 @@ import { BUSINESS_PACKAGE_TIER_CONFIG, type BusinessPackageTier } from '@/lib/bu
 import PageBreadcrumb from '@/components/PageBreadcrumb'
 import LockedStateBanner from '../../components/LockedStateBanner'
 import CurrentMembersTable from './components/CurrentMembersTable'
+import { listMutedUserIds } from '@/services/notification-pref.service'
 import FinanceVisibilityToggle from './components/FinanceVisibilityToggle'
 
 export const metadata: Metadata = { title: 'สมาชิกธุรกิจ' }
@@ -76,11 +77,16 @@ export default async function InvitesPage({ params }: InvitesPageProps) {
   // 4. members — เรียก service ตรง (ไม่ fetch HTTP เอง, RSC convention)
   const members = await listMembers(shopId)
 
+  // (ส่วนขยาย 00025 2026-08-12) ใครปิดแจ้งเตือนของร้านนี้ไว้ — fail-closed เงียบ:
+  // อ่านไม่ได้ = ไม่ติดป้าย (ดีกว่าทำให้หน้าสมาชิกล่มทั้งหน้าเพราะป้ายเสริมอันเดียว)
+  const mutedUserIds = await listMutedUserIds(shopId).catch(() => new Set<string>())
+
   const memberRows = members.map((m) => ({
     id: m.id,
     role: m.role as 'OWNER' | 'ADMIN',
     displayName: m.user.displayName || m.user.username || 'ไม่ระบุชื่อ',
     createdAt: m.createdAt.toISOString(),
+    notificationsOff: mutedUserIds.has(m.userId),
   }))
 
   return (

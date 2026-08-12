@@ -54,6 +54,8 @@ type Props = {
   shopIds: string[]
   unified: boolean
   activeShopId: string | null
+  /** (ส่วนขยาย 00025 2026-08-12) ผู้ใช้ปิดแจ้งเตือนของร้านที่ active — ส่งต่อให้ InboxList */
+  chatMuted?: boolean
   /** เพจของทุกร้านในขอบเขต — มาจาก layout (RSC) แทนที่ rail จะยิง /api/channels เอง ซึ่งเป็น
    *  endpoint ของ "ร้านที่ active" (การตั้งค่าเพจ) จึงไม่เคยเห็นเพจของร้านอื่นในโหมดรวมเลย */
   channels: ChannelFilterOption[]
@@ -67,6 +69,7 @@ export default function ChatRail({
   shopIds,
   unified,
   activeShopId,
+  chatMuted = false,
   channels,
   hasShipping = false,
 }: Props) {
@@ -182,6 +185,7 @@ export default function ChatRail({
           shopIds={shopIds}
           unified={unified}
           activeShopId={activeShopId}
+          chatMuted={chatMuted}
           hasShipping={hasShipping}
           railMode
         />
