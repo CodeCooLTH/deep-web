@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — ความทนของการเชื่อมต่อ LINE (00025-ext) 2026-08-12</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── token จริงของสกิน Paces: ชุดเดียวกับ 2026-08-09-appointment-time-step-mockup.html
+   คัดมาจาก src/assets/css/config/_root.css ห้ามเดาสีเอง ── */
+:root{
+  --color-primary:#236dc9; --color-primary-hover:#1e5dab; --color-primary-ink:#1e3a8a;
+  --color-success:#02bc9c; --color-success-ink:#065f46;
+  --color-info:#5bc3e1;    --color-info-ink:#1e40af;
+  --color-warning:#f9bf59; --color-warning-ink:#92400e;
+  --color-danger:#f7577e;  --color-danger-ink:#7f1d1d;
+  --color-body-bg:#f6f7fb; --color-body-color:#4c4c5c; --color-card:#fff;
+  --color-default-100:#f6f7fb; --color-default-200:#eef2f7; --color-default-300:#e7e9eb;
+  --color-default-400:#627189; --color-default-500:#58626b; --color-default-600:#4b5563;
+  --color-default-700:#40454a; --color-default-800:#343a40; --color-default-900:#313a46;
+  --text-2xs:11px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Anuphan,'Noto Sans Thai',system-ui,sans-serif;background:#e9ecf3;
+  color:var(--color-body-color);font-size:14px;line-height:1.5;padding:32px 20px 80px}
+.wrap{max-width:1560px;margin:0 auto}
+.page-head h1{font-size:24px;font-weight:600;color:var(--color-default-900)}
+.page-head p{margin-top:6px;max-width:86ch}
+.page-head .meta{margin-top:10px;font-size:12px;color:var(--color-default-500)}
+.note{background:#fff;border-radius:8px;padding:16px 18px;margin:24px 0 8px;border-left:3px solid var(--color-primary)}
+.note.bad{border-left-color:var(--color-danger)}
+.note.good{border-left-color:var(--color-success)}
+.note h2{font-size:14px;font-weight:600;color:var(--color-default-900);margin-bottom:8px}
+.note ul{margin-left:18px}.note li{margin-bottom:6px;font-size:13px}
+.note code{background:var(--color-default-200);border-radius:4px;padding:1px 5px;font-size:12px}
+.sec-title{margin:44px 0 4px;font-size:19px;font-weight:600;color:var(--color-default-900);
+  padding-bottom:8px;border-bottom:2px solid var(--color-default-300)}
+.sec-title span{font-size:13px;font-weight:400;color:var(--color-default-500);margin-left:8px}
+.rack{display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;margin-top:22px}
+.device{flex:0 0 auto}
+.device>figcaption{font-size:12px;font-weight:600;color:var(--color-default-700);margin-bottom:10px}
+.screen{background:var(--color-body-bg);border:1px solid var(--color-default-300);
+  border-radius:12px;padding:14px;overflow:hidden}
+.m{width:390px}.t{width:768px}.d{width:1280px}
+/* ── Paces primitive จำลอง ── */
+.card{background:var(--color-card);border-radius:10px;box-shadow:0 1px 2px rgba(49,58,70,.08);padding:16px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;
+  padding:2px 8px;border-radius:4px;margin-top:4px}
+.b-success{background:color-mix(in srgb,var(--color-success) 15%,transparent);color:var(--color-success-ink)}
+.b-danger{background:color-mix(in srgb,var(--color-danger) 15%,transparent);color:var(--color-danger-ink)}
+.b-warning{background:color-mix(in srgb,var(--color-warning) 15%,transparent);color:var(--color-warning-ink)}
+.b-neutral{background:var(--color-default-100);color:var(--color-default-600);font-size:var(--text-2xs)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;
+  font-weight:500;padding:7px 14px;border-radius:6px;border:0;cursor:default;min-height:44px}
+.btn-sm{padding:5px 11px;font-size:12px;min-height:44px}
+@media(min-width:641px){.btn-sm{min-height:30px}}
+.btn-light{background:var(--color-default-100);color:var(--color-default-700)}
+.btn-primary{background:var(--color-primary);color:#fff}
+.a-danger{background:color-mix(in srgb,var(--color-danger) 15%,transparent);color:var(--color-danger-ink)}
+.a-warning{background:color-mix(in srgb,var(--color-warning) 15%,transparent);color:var(--color-warning-ink)}
+.a-card{background:var(--color-card);color:var(--color-default-700)}
+.a-info{background:var(--color-card);color:var(--color-info-ink)}
+.row{display:flex;align-items:flex-start;gap:12px}
+.ava{width:40px;height:40px;border-radius:8px;background:#06c755;color:#fff;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.nm{font-weight:600;color:var(--color-default-900);font-size:14px}
+.sub{font-size:12px;color:var(--color-default-500)}
+.detail{font-size:12.5px;margin-top:7px;color:var(--color-default-700)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.dash{border-top:1px dashed var(--color-default-300);margin:14px -16px 0;padding:12px 16px 0;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
+.ico{font-size:13px;line-height:1}
+/* health panel */
+.panel{margin-top:12px;border-radius:8px;overflow:hidden;border:1px solid var(--color-default-300)}
+.verdict{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;font-weight:600;font-size:13px}
+.v-pass{background:color-mix(in srgb,var(--color-success) 15%,transparent);color:var(--color-success-ink)}
+.v-note{background:color-mix(in srgb,var(--color-warning) 15%,transparent);color:var(--color-warning-ink)}
+.v-fail{background:color-mix(in srgb,var(--color-danger) 15%,transparent);color:var(--color-danger-ink)}
+.checks{background:#fff;padding:10px 12px}
+.chk{display:flex;gap:8px;padding:6px 0;font-size:12.5px;align-items:flex-start}
+.chk+.chk{border-top:1px solid var(--color-default-200)}
+.chk .k{flex:0 0 128px;color:var(--color-default-800);font-weight:500}
+.chk .mk{flex:0 0 14px;font-weight:700}
+.ok{color:var(--color-success-ink)}.no{color:var(--color-danger-ink)}.hm{color:var(--color-warning-ink)}
+.stamp{font-size:11.5px;color:var(--color-default-500);padding:8px 12px;background:#fff;
+  border-top:1px solid var(--color-default-200)}
+/* chat */
+.thread{background:#fff;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.bub{max-width:78%;padding:7px 11px;border-radius:12px;font-size:13px}
+.bub.in{background:var(--color-default-100);color:var(--color-default-800);align-self:flex-start}
+.bub.out{background:var(--color-primary);color:#fff;align-self:flex-end}
+.blk{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  min-height:96px;border-radius:8px;padding:8px 12px;text-align:center;font-size:13px;margin-top:10px}
+@media(min-width:641px){.blk.wide{flex-direction:row;text-align:start}}
+.tiny{font-size:11.5px;opacity:.8}
+/* inbox */
+.ibx{background:#fff;border-radius:10px;padding:12px}
+.search{background:var(--color-default-100);border-radius:6px;padding:8px 10px;font-size:12.5px;
+  color:var(--color-default-500)}
+.tabs{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tab{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--color-default-100);
+  color:var(--color-default-600)}
+.tab.on{background:var(--color-primary);color:#fff}
+.notice{display:flex;gap:8px;align-items:flex-start;border-radius:8px;padding:10px 12px;margin:12px 0;
+  background:color-mix(in srgb,var(--color-info) 15%,transparent);color:var(--color-info-ink);font-size:13px}
+.conv{display:flex;gap:10px;padding:9px 0;border-top:1px solid var(--color-default-200);font-size:13px}
+.conv .av{width:32px;height:32px;border-radius:99px;background:var(--color-default-200);flex:0 0 auto}
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:start;font-size:12px;color:var(--color-default-500);font-weight:500;
+  padding:8px 10px;border-bottom:1px solid var(--color-default-300)}
+td{padding:10px;border-bottom:1px solid var(--color-default-200);vertical-align:middle}
+.legend{font-size:12px;color:var(--color-default-500);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="page-head">
+  <h1>ความทนของการเชื่อมต่อ LINE — 5 surface</h1>
+  <p>ส่วนขยาย 00025 (2026-08-12) · Design Spec: <code>2026-08-12-line-connection-health-design-spec.md</code> ·
+     Requirement: <code>EXTENSIONS-2026-08-12-connection-health.md</code></p>
+  <p class="meta">Mobile 390 · Tablet 768 · Desktop 1280 — token คัดจาก <code>_root.css</code> ตรง ๆ</p>
+</div>
+
+<div class="note bad">
+  <h2>สิ่งที่ม็อกอัพนี้แก้</h2>
+  <ul>
+    <li>การ์ดเดิมมี <strong>2 สถานะ</strong> (เชื่อมแล้ว / เชื่อมต่อใหม่) และขึ้น <strong>เขียว "เชื่อมแล้ว" ได้ทั้งที่ webhook ไม่เคยถูกตั้ง</strong> — ละเมิด Verified-Means-Green มาตลอด</li>
+    <li>สายขาดได้ 4 ทาง แต่ 3 ทางระบบไม่รู้และร้านไม่รู้ (secret ไม่ตรง · webhook ปิด/ไม่ตั้ง · destination ไม่เจอ) — ทั้งสามมีหน้าตาเดียวกันคือ "วันนี้ลูกค้าเงียบจัง"</li>
+    <li><code>POST /v2/bot/channel/webhook/test</code> ตอบ <code>success:true</code> ได้ทั้งที่เราประมวลผล event ไม่ได้เลย ⇒ ปุ่มทดสอบต้องอ่านตัวนับของเราเองเป็นจังหวะที่สอง</li>
+  </ul>
+</div>
+
+<!-- ══════════════ S1 ══════════════ -->
+<h2 class="sec-title">S1 — การ์ด LINE ใน /settings/channels <span>6 สถานะ แสดงตัวร้ายแรงสุดตัวเดียว (AC-CH-23/24)</span></h2>
+
+<div class="rack">
+  <figure class="device"><figcaption>Mobile 390 — HEALTHY</figcaption>
+    <div class="screen m">
+      <div class="card">
+        <div class="row">
+          <div class="ava">LINE</div>
+          <div style="min-width:0">
+            <div class="nm">BT สาขา สุขสวัสดิ์</div>
+            <div class="sub">@448wtblz</div>
+            <span class="badge b-success"><span class="ico">&#10003;</span> เชื่อมต่อสมบูรณ์</span>
+          </div>
+        </div>
+        <div class="acts">
+          <span class="btn btn-sm btn-light">ทดสอบการเชื่อมต่อ</span>
+          <span class="btn btn-sm btn-light">ถอด</span>
+        </div>
+        <div class="dash"><span>เมนูลัดใน LINE</span><span class="btn btn-sm btn-light">จัดการเมนู</span></div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device"><figcaption>Mobile 390 — SECRET_MISMATCH (ร้ายแรงสุด)</figcaption>
+    <div class="screen m">
+      <div class="card">
+        <div class="row">
+          <div class="ava">LINE</div>
+          <div style="min-width:0">
+            <div class="nm">BT สาขา สุขสวัสดิ์</div>
+            <div class="sub">@448wtblz</div>
+            <span class="badge b-danger"><span class="ico">&#9737;</span> Channel secret ไม่ตรง</span>
+            <div class="detail">ข้อความจากลูกค้าเข้าไม่ถึง Deep เลย ทั้งที่ LINE รายงานว่าส่งสำเร็จ — Channel secret ที่วางไว้ไม่ตรงกับที่ตั้งในคอนโซล LINE</div>
+            <div class="acts"><span class="btn btn-sm a-danger">แก้ไข Channel secret</span></div>
+          </div>
+        </div>
+        <div class="acts">
+          <span class="btn btn-sm btn-light">ทดสอบการเชื่อมต่อ</span>
+          <span class="btn btn-sm btn-light">ถอด</span>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device"><figcaption>Mobile 390 — TOKEN_EXPIRING</figcaption>
+    <div class="screen m">
+      <div class="card">
+        <div class="row">
+          <div class="ava">LINE</div>
+          <div style="min-width:0">
+            <div class="nm">BT สาขา สุขสวัสดิ์</div>
+            <div class="sub">@448wtblz</div>
+            <span class="badge b-warning"><span class="ico">&#9200;</span> Token จะหมดอายุ 8 ก.ย. 2569</span>
+            <div class="detail">อีก 27 วัน token นี้จะใช้งานไม่ได้ — เปลี่ยนเป็นแบบไม่หมดอายุเพื่อไม่ต้องมาตั้งซ้ำ</div>
+            <div class="acts"><span class="btn btn-sm a-warning">เปลี่ยนเป็นไม่หมดอายุ</span></div>
+          </div>
+        </div>
+        <div class="acts">
+          <span class="btn btn-sm btn-light">ทดสอบการเชื่อมต่อ</span>
+          <span class="btn btn-sm btn-light">ถอด</span>
+        </div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<div class="rack">
+  <figure class="device"><figcaption>Tablet 768 — WEBHOOK_INACTIVE</figcaption>
+    <div class="screen t">
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div class="row" style="min-width:0">
+            <div class="ava">LINE</div>
+            <div style="min-width:0">
+              <div class="nm">BT สาขา สุขสวัสดิ์ <span class="sub">@448wtblz</span></div>
+              <span class="badge b-warning"><span class="ico">&#9888;</span> Webhook ปิดอยู่</span>
+              <div class="detail">ตั้ง URL ไว้แล้วแต่สวิตช์ "Use webhook" ในคอนโซล LINE ยังปิดอยู่</div>
+            </div>
+          </div>
+          <div class="acts" style="margin-top:0">
+            <span class="btn btn-sm a-warning">ตั้งค่า Webhook</span>
+            <span class="btn btn-sm btn-light">ทดสอบการเชื่อมต่อ</span>
+            <span class="btn btn-sm btn-light">ถอด</span>
+          </div>
+        </div>
+        <div class="dash"><span>เมนูลัดใน LINE</span><span class="btn btn-sm btn-light">จัดการเมนู &rarr;</span></div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<div class="rack">
+  <figure class="device"><figcaption>Desktop 1280 — TOKEN_INVALID</figcaption>
+    <div class="screen d">
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div class="row" style="min-width:0">
+            <div class="ava">LINE</div>
+            <div style="min-width:0">
+              <div class="nm">BT สาขา สุขสวัสดิ์ <span class="sub">@448wtblz</span></div>
+              <span class="badge b-danger"><span class="ico">&#9888;</span> Token ใช้งานไม่ได้แล้ว</span>
+              <div class="detail">ส่งข้อความหาลูกค้าไม่ได้จนกว่าจะวาง token ใหม่ — token เดิมอาจถูกเพิกถอนหรือหมดอายุ</div>
+            </div>
+          </div>
+          <div class="acts" style="margin-top:0">
+            <span class="btn btn-sm a-danger">อัปเดต token</span>
+            <span class="btn btn-sm btn-light">ทดสอบการเชื่อมต่อ</span>
+            <span class="btn btn-sm btn-light">ถอด</span>
+          </div>
+        </div>
+        <div class="dash"><span>เมนูลัดใน LINE</span><span class="btn btn-sm btn-light">จัดการเมนู &rarr;</span></div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<div class="note">
+  <h2>ลำดับความสำคัญ (AC-CH-23) — เรียงตาม "ร้านเสียหายเร็วแค่ไหนถ้าไม่แก้"</h2>
+  <ul>
+    <li><code>SECRET_MISMATCH</code> danger · <code>shield-lock</code> &gt; <code>TOKEN_INVALID</code> danger · <code>alert-circle</code>
+        &gt; <code>WEBHOOK_*</code> warning · <code>link-off</code> &gt; <code>TOKEN_EXPIRING</code> warning · <code>clock-exclamation</code>
+        &gt; <code>HEALTHY</code> success · <code>shield-check</code></li>
+    <li>🛑 <strong>เขียว = HEALTHY เท่านั้น</strong> — <code>status='ACTIVE'</code> ไม่พอ ต้องผ่านทุกด่าน</li>
+    <li>ทุกสถานะที่ไม่ HEALTHY มี <strong>ปุ่มทางออก 1 ปุ่ม</strong> ไม่ใช่แค่ป้ายบอกอาการ</li>
+  </ul>
+</div>
+
+<!-- ══════════════ S2 ══════════════ -->
+<h2 class="sec-title">S2 — ปุ่ม "ทดสอบการเชื่อมต่อ" 2 จังหวะ <span>AC-CH-16/17/18</span></h2>
+
+<div class="rack">
+  <figure class="device"><figcaption>Mobile 390 — Loading</figcaption>
+    <div class="screen m">
+      <div class="card">
+        <div class="acts" style="margin-top:0">
+          <span class="btn btn-sm btn-light" style="opacity:.6">&#8635; กำลังทดสอบ...</span>
+        </div>
+        <div class="detail" style="color:var(--color-default-500)">กำลังส่งข้อความทดสอบไปที่ระบบ... อาจใช้เวลาถึง 5 วินาที</div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device"><figcaption>Mobile 390 — PASS</figcaption>
+    <div class="screen m">
+      <div class="card">
+        <span class="btn btn-sm btn-light">ทดสอบการเชื่อมต่อ</span>
+        <div class="panel">
+          <div class="verdict v-pass"><span>&#10003;</span><span>เชื่อมต่อใช้งานได้ปกติ</span></div>
+          <div class="checks">
+            <div class="chk"><span class="mk ok">&#10003;</span><span class="k">Webhook</span><span>ตั้งค่าและเปิดใช้งานถูกต้อง</span></div>
+            <div class="chk"><span class="mk ok">&#10003;</span><span class="k">Channel access token</span><span>ใช้งานได้ปกติ</span></div>
+            <div class="chk"><span class="mk ok">&#10003;</span><span class="k">ข้อความทดสอบ</span><span>ระบบประมวลผลสำเร็จ</span></div>
+          </div>
+          <div class="stamp">ตรวจสอบล่าสุด 12 ส.ค. 2569 14:32</div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device"><figcaption>Mobile 390 — PASS_WITH_NOTE</figcaption>
+    <div class="screen m">
+      <div class="card">
+        <span class="btn btn-sm btn-light">ทดสอบการเชื่อมต่อ</span>
+        <div class="panel">
+          <div class="verdict v-note"><span>&#9888;</span><span>การตั้งค่าถูกต้อง แต่ยังไม่เห็นผลข้อความทดสอบชัดเจน</span></div>
+          <div class="checks">
+            <div class="chk"><span class="mk ok">&#10003;</span><span class="k">Webhook</span><span>ตั้งค่าและเปิดใช้งานถูกต้อง</span></div>
+            <div class="chk"><span class="mk ok">&#10003;</span><span class="k">Channel access token</span><span>ใช้งานได้ปกติ</span></div>
+            <div class="chk"><span class="mk hm">?</span><span class="k">ข้อความทดสอบ</span><span>ไม่พบสัญญาณว่าถูกปฏิเสธ แต่ยังยืนยันการรับไม่ได้ 100% — ลองอีกครั้งใน 1 นาทีถ้าไม่แน่ใจ</span></div>
+          </div>
+          <div class="stamp">ตรวจสอบล่าสุด 12 ส.ค. 2569 14:35</div>
+        </div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<div class="rack">
+  <figure class="device"><figcaption>Desktop 1280 — FAIL (secret mismatch) — เคสที่ต้องเถียง success:true ของ LINE</figcaption>
+    <div class="screen d">
+      <div class="card">
+        <span class="btn btn-sm btn-light">ทดสอบการเชื่อมต่อ</span>
+        <div class="panel">
+          <div class="verdict v-fail"><span>&#10007;</span><span>Channel secret ไม่ตรงกับ LINE</span></div>
+          <div class="checks">
+            <div class="chk"><span class="mk ok">&#10003;</span><span class="k">Webhook</span><span>ตั้งค่าและเปิดใช้งานถูกต้อง</span></div>
+            <div class="chk"><span class="mk ok">&#10003;</span><span class="k">Channel access token</span><span>ใช้งานได้ปกติ</span></div>
+            <div class="chk"><span class="mk no">&#10007;</span><span class="k">ข้อความทดสอบ</span>
+              <span>ประมวลผลไม่สำเร็จ — Channel secret ไม่ตรงกับที่ตั้งไว้ใน LINE
+                <span class="tiny">(LINE รายงานว่าส่งสำเร็จ แต่นั่นบอกแค่ว่า server เรายังออนไลน์)</span><br>
+                <span class="btn btn-sm a-danger" style="margin-top:6px">แก้ไข Channel secret</span>
+              </span></div>
+          </div>
+          <div class="stamp">ตรวจสอบล่าสุด 12 ส.ค. 2569 14:41</div>
+        </div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<div class="note bad">
+  <h2>🛑 ทำไมต้องมีระดับ "ผ่านแต่มีข้อสังเกต"</h2>
+  <ul>
+    <li>การตรวจ inbound เป็น <strong>absence-of-failure</strong> (ตัวนับความล้มเหลวไม่ขยับ) ไม่ใช่ presence-of-success ⇒ มีความไม่แน่นอนโดยธรรมชาติ <strong>ห้ามรายงานเป็นเขียวเต็ม</strong></li>
+    <li>แถวที่ 3 คือแถวเดียวที่ตอบคำถามจริงว่า <em>"event ที่ LINE ส่งมา เราประมวลผลได้ไหม"</em> — สองแถวบนตอบแค่ว่าตั้งค่าถูก</li>
+  </ul>
+</div>
+
+<!-- ══════════════ S3 ══════════════ -->
+<h2 class="sec-title">S3 — แถบแทนที่ช่องพิมพ์เมื่อ TOKEN_INVALID <span>เฉพาะ LINE (OQ-1) · AC-CH-21/22</span></h2>
+
+<div class="rack">
+  <figure class="device"><figcaption>Mobile 390 — แนวตั้ง</figcaption>
+    <div class="screen m">
+      <div class="thread">
+        <div class="bub in">สนใจล้อแม็กชุดนี้ครับ ยังมีของไหม</div>
+        <div class="bub out">มีครับ เดี๋ยวส่งรูปให้ดูนะครับ</div>
+        <div class="bub in">รอเลยครับ</div>
+        <div class="blk" style="background:color-mix(in srgb,var(--color-danger) 15%,transparent);color:var(--color-danger-ink)">
+          <span style="font-size:18px">&#9888;</span>
+          <span>ส่งข้อความหาลูกค้าไม่ได้ตอนนี้ — การเชื่อมต่อ LINE มีปัญหา
+            <span class="tiny" style="display:block">(ข้อความที่ลูกค้าส่งมายังอ่านได้ตามปกติ)</span></span>
+          <span class="btn btn-sm a-card">อัปเดต token</span>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device"><figcaption>Tablet 768 / Desktop — แถวเดียว (sm:flex-row)</figcaption>
+    <div class="screen t">
+      <div class="thread">
+        <div class="bub in">สนใจล้อแม็กชุดนี้ครับ ยังมีของไหม</div>
+        <div class="bub out">มีครับ เดี๋ยวส่งรูปให้ดูนะครับ</div>
+        <div class="blk wide" style="background:color-mix(in srgb,var(--color-danger) 15%,transparent);color:var(--color-danger-ink);justify-content:flex-start">
+          <span style="font-size:18px">&#9888;</span>
+          <span style="flex:1">ส่งข้อความหาลูกค้าไม่ได้ตอนนี้ — การเชื่อมต่อ LINE มีปัญหา
+            <span class="tiny">(ข้อความที่ลูกค้าส่งมายังอ่านได้ตามปกติ)</span></span>
+          <span class="btn btn-sm a-card">อัปเดต token</span>
+        </div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<div class="note">
+  <h2>สิ่งที่เปลี่ยนและไม่เปลี่ยน</h2>
+  <ul>
+    <li><strong>เปลี่ยน:</strong> จาก dim ทั้งแถบ (<code>opacity-50 pointer-events-none</code>) เป็น <strong>บล็อกแทนที่</strong> — Base: <code>ChatThread.tsx:3121-3153</code> (<code>showAiTakeoverComposer</code>) เปลี่ยน tone <code>bg-info/15</code>→<code>bg-danger/15</code>, icon <code>robot</code>→<code>alert-circle</code></li>
+    <li><strong>ไม่เปลี่ยน:</strong> entry ใน <code>ThreadStatusBar</code> เหนือเธรดยังอยู่เหมือนเดิม (เห็นได้แม้เลื่อนอ่านข้อความเก่าขึ้นไปไกล)</li>
+    <li>🛑 บล็อกได้เฉพาะ <code>status='TOKEN_INVALID'</code> = LINE ปฏิเสธเราจริงมาแล้ว — <strong>ห้ามบล็อกจากการอนุมาน</strong> (บทเรียน <code>viaStandby</code> 2026-08-09)</li>
+    <li>🛑 <code>tokenInvalid</code> ชนะโควตาเสมอเมื่อเกิดพร้อมกัน (ตรงกับคอมเมนต์เดิม <code>ChatThread.tsx:1412</code>)</li>
+  </ul>
+</div>
+
+<!-- ══════════════ S4 ══════════════ -->
+<h2 class="sec-title">S4 — "คุณปิดแจ้งเตือนของร้านนี้อยู่" <span>AC-CH-31/33 · จุดแทรกเดียว InboxList.tsx</span></h2>
+
+<div class="rack">
+  <figure class="device"><figcaption>Mobile 390</figcaption>
+    <div class="screen m">
+      <div class="ibx">
+        <div class="search">ค้นหาชื่อลูกค้าหรือข้อความ</div>
+        <div class="tabs"><span class="tab on">ทั้งหมด</span><span class="tab">ยังไม่ตอบ</span><span class="tab">ของฉัน</span></div>
+        <div class="notice">
+          <span style="font-size:15px">&#128276;</span>
+          <div style="min-width:0">
+            <div style="font-weight:500;margin-bottom:3px">คุณปิดแจ้งเตือนของร้านนี้อยู่</div>
+            <div style="margin-bottom:8px">จะไม่มีแจ้งเตือนเด้งเข้ามือถือเมื่อมีข้อความใหม่จากร้านนี้</div>
+            <span class="btn btn-sm a-info">เปิดแจ้งเตือน</span>
+          </div>
+        </div>
+        <div class="conv"><div class="av"></div><div><div class="nm" style="font-size:13px">คุณสมชาย</div><div class="sub">สนใจล้อแม็กชุดนี้ครับ</div></div></div>
+        <div class="conv"><div class="av"></div><div><div class="nm" style="font-size:13px">คุณมาลี</div><div class="sub">ของถึงยังคะ</div></div></div>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device"><figcaption>Desktop 1280 — rail (ChatRail ห่อ InboxList ตัวเดิม)</figcaption>
+    <div class="screen d">
+      <div style="display:flex;gap:14px">
+        <div class="ibx" style="width:320px;flex:0 0 auto">
+          <div class="search">ค้นหา</div>
+          <div class="tabs"><span class="tab on">ทั้งหมด</span><span class="tab">ยังไม่ตอบ</span></div>
+          <div class="notice">
+            <span style="font-size:15px">&#128276;</span>
+            <div style="min-width:0">
+              <div style="font-weight:500;margin-bottom:3px">คุณปิดแจ้งเตือนของร้านนี้อยู่</div>
+              <div style="margin-bottom:8px">จะไม่มีแจ้งเตือนเด้งเข้ามือถือเมื่อมีข้อความใหม่จากร้านนี้</div>
+              <span class="btn btn-sm a-info">เปิดแจ้งเตือน</span>
+            </div>
+          </div>
+          <div class="conv"><div class="av"></div><div><div class="nm" style="font-size:13px">คุณสมชาย</div><div class="sub">สนใจล้อแม็ก...</div></div></div>
+        </div>
+        <div class="thread" style="flex:1">
+          <div class="bub in">สนใจล้อแม็กชุดนี้ครับ</div>
+          <div class="bub out">มีครับ</div>
+        </div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<div class="note good">
+  <h2>ทำไมไม่มีปุ่มปิด (OQ-2)</h2>
+  <ul>
+    <li>บล็อกหายเมื่อ <strong>กด "เปิดแจ้งเตือน" สำเร็จเท่านั้น</strong> — เงื่อนไขตรงกับความจริง ไม่ใช่การซ่อน</li>
+    <li>ปิดถาวรได้ = ร้านลืมว่าปิดแจ้งเตือนอยู่ แล้วพลาดข้อความสำคัญโดยไม่รู้ตัว</li>
+    <li>PATCH ล้ม → toast error <strong>บล็อกยังอยู่</strong> ไม่ optimistic-hide (ซ่อนผิดแล้วเสียหายกว่าปุ่มค้าง)</li>
+    <li>🛑 <code>ไม่มีแถว = เปิด</code> · <code>มีแถวค่า true = เปิด</code> → ทั้งสองกรณี<strong>ไม่แสดงบล็อก</strong> (AC-CH-33)</li>
+  </ul>
+</div>
+
+<!-- ══════════════ S5 ══════════════ -->
+<h2 class="sec-title">S5 — ป้าย "ปิดแจ้งเตือน" ในรายชื่อสมาชิก <span>AC-CH-32 · ทำทีหลัง</span></h2>
+
+<div class="rack">
+  <figure class="device"><figcaption>Desktop 1280</figcaption>
+    <div class="screen d">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="nm">สมาชิกทั้งหมด (3)</div><span class="badge b-neutral">โควตาผู้ดูแล 2/3</span>
+        </div>
+        <table>
+          <tr><th>สมาชิก</th><th>บทบาท</th><th>วันที่เข้าร่วม</th><th>จัดการ</th></tr>
+          <tr><td>สมชาย ใจดี</td><td>เจ้าของ</td><td>01 ส.ค. 2569</td><td></td></tr>
+          <tr><td><span style="display:inline-flex;align-items:center;gap:6px">สมหญิง รักงาน
+            <span class="badge b-neutral" style="margin-top:0">&#128276; ปิดแจ้งเตือน</span></span></td>
+            <td>ผู้ดูแล</td><td>05 ส.ค. 2569</td><td><span class="btn btn-sm btn-light">ลบ</span></td></tr>
+          <tr><td>ธนา ขยัน</td><td>ผู้ดูแล</td><td>07 ส.ค. 2569</td><td><span class="btn btn-sm btn-light">ลบ</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </figure>
+
+  <figure class="device"><figcaption>Mobile 390 — ป้ายอยู่ใต้ชื่อ</figcaption>
+    <div class="screen m">
+      <div class="card">
+        <div class="nm" style="margin-bottom:8px">สมาชิกทั้งหมด (3)</div>
+        <div style="border-top:1px solid var(--color-default-200);padding:9px 0">
+          <div class="nm" style="font-size:13px">สมหญิง รักงาน</div>
+          <span class="badge b-neutral">&#128276; ปิดแจ้งเตือน</span>
+          <div class="sub">ผู้ดูแล · เข้าร่วม 05 ส.ค. 2569</div>
+        </div>
+      </div>
+    </div>
+  </figure>
+</div>
+
+<div class="note">
+  <h2>ทำไม S5 เป็นสีเทา ไม่ใช่เหลือง</h2>
+  <ul>
+    <li><strong>S4 = เรื่องของตัวเอง</strong> → info + ปุ่มแก้ทันที</li>
+    <li><strong>S5 = เรื่องของคนอื่น</strong> → neutral + ไม่มีปุ่ม เพราะเจ้าของ toggle แทนพนักงานไม่ได้อยู่ดี (<code>NotificationPrefsCard</code> ผูกกับ <code>session.user.id</code> ของเจ้าของค่าเอง)</li>
+  </ul>
+</div>
+
+<div class="note bad">
+  <h2>หมายเหตุสำหรับ developer</h2>
+  <ul>
+    <li>ไอคอนในม็อกอัพนี้เป็น <strong>ตัวแทนชั่วคราว</strong> — ของจริงใช้ <code>@iconify/react</code> tabler ตามที่ระบุใน Design Spec (<code>shield-lock</code> · <code>alert-circle</code> · <code>link-off</code> · <code>clock-exclamation</code> · <code>shield-check</code> · <code>bell-off</code> · <code>help-circle</code>) — <strong>ห้าม emoji ในโค้ดจริง (HR12)</strong></li>
+    <li>คลาสที่ <strong>ไม่มีอยู่จริงในธีม</strong> ห้ามใช้: <code>btn-ghost</code> · <code>btn-warning</code> · <code>btn-soft-*</code></li>
+    <li>ปุ่มทุกตัวบนมือถือต้อง <code>min-h-11</code> (<code>.btn-sm</code> สูงจริง ~30px ต่ำกว่าเกณฑ์ 44px)</li>
+    <li>ลำดับสถานะต้องอยู่ใน <code>resolveLineChannelHealth()</code> ที่ <code>src/lib/line/channel-health.ts</code> — <strong>ห้ามเทอร์นารีใน JSX</strong> (AC-CH-25)</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>
