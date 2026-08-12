@@ -886,6 +886,8 @@ export async function POST(
               ? buildMetaAppointmentCard(summary, url)
               : undefined,
           orderRefToken: orderRefToken!, // ฝั่งเราเก็บเป็นการ์ด (ChatMessage.type='ORDER')
+          // บอก service ว่านี่คือ "สรุปนัด" ไม่ใช่ "ออเดอร์" — คุมคำใน preview และการเก็บ body
+          isAppointmentCard: true,
         });
         return NextResponse.json(await withSender(sent, userId));
       }
@@ -1078,6 +1080,8 @@ export async function POST(
       attachmentSize: isAttachmentType(storedType) ? attachmentSize ?? null : null,
       productRefId: storedType === "PRODUCT" ? (productRows[0]?.id ?? productRefId ?? null) : null,
       orderRefToken: storedType === "ORDER" ? orderRefToken ?? null : null,
+      // เก็บเป็น type='ORDER' เหมือนกัน แต่คนละของในสายตาผู้ขาย (preview + body ต่างกัน)
+      isAppointmentCard: type === "APPOINTMENT",
       replyToMid, // reply/quote (DEEP) — id ของข้อความที่ตอบทับ
     });
 

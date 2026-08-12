@@ -85,8 +85,48 @@ describe('route — ด่านที่เหลือยังอยู่ค
     expect(src).toMatch(/const storedType\s*=\s*type === "APPOINTMENT"\s*\?\s*"ORDER"\s*:\s*type/)
   })
 
-  it('ส่ง text ออกไปเสมอ — เป็นทั้ง body ที่ร้านค้นหาเจอ และทางถอยของช่องทางที่ไม่รองรับการ์ด', () => {
+  it('ส่ง text ออกไปเสมอ — ทางถอยของช่องทางที่ไม่รองรับการ์ด', () => {
     expect(src).toMatch(/text:\s*summary\.text/)
+  })
+
+  /**
+   * [สำคัญ] กันบั๊กที่ขึ้น prod ไปแล้วรอบหนึ่ง (2026-08-11 → แก้ 2026-08-12)
+   *
+   * route ส่ง `body` เข้าไปจริง แต่ service **บังคับ `body = null` ทุกครั้งที่ `type='ORDER'`**
+   * ⇒ ข้อความสรุปถึงลูกค้าจริงแต่ไม่เคยถูกเก็บ ร้านค้นหาไม่เจอ และ preview ตกไปใช้คำของออเดอร์
+   * ธงที่ปลดล็อกทั้งสองอย่างคือ `isAppointmentCard` — ถ้าใครถอดออก ทุกอย่างกลับไปพังเงียบ ๆ
+   * เหมือนเดิมโดยที่ tsc/build ยังเขียว (บทเรียน: value-fate-decided-at-write-site.md)
+   */
+  it('[สำคัญ] บอก service ว่านี่คือการ์ดนัด — ทั้งเส้นช่องทางนอกและ DEEP', () => {
+    expect(src).toMatch(/isAppointmentCard:\s*true/)
+    expect(src).toMatch(/isAppointmentCard:\s*type === "APPOINTMENT"/)
+  })
+})
+
+describe('service — ธง isAppointmentCard ต้องมีผลจริงที่จุดเขียน (อ่านซอร์ส)', () => {
+  const deep = readFileSync(join(process.cwd(), 'src/services/chat.service.ts'), 'utf8')
+  const outbound = readFileSync(
+    join(process.cwd(), 'src/services/channel-chat.service.ts'),
+    'utf8',
+  )
+
+  it('[สำคัญ] DEEP: การ์ดนัดไม่ถูกล้าง body ทิ้งเหมือนการ์ดออเดอร์', () => {
+    expect(deep).toMatch(
+      /params\.type === 'ORDER' && !params\.isAppointmentCard/,
+    )
+  })
+
+  it('[สำคัญ] ช่องทางนอก: ทั้ง 2 เส้น (LINE + Meta) ยกเว้น body ให้การ์ดนัด', () => {
+    const hits = outbound.match(/isOrder && !params\.isAppointmentCard/g) ?? []
+    expect(hits.length).toBe(2)
+  })
+
+  it('[สำคัญ] คำใน preview มาจาก SSOT ตัวเดียว ไม่มีใครพิมพ์เอง', () => {
+    for (const src2 of [deep, outbound]) {
+      const code = src2.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+      expect(code).toContain('APPOINTMENT_CARD_PREVIEW')
+      expect(code).not.toContain('[สรุปนัดหมาย]')
+    }
   })
 })
 

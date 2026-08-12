@@ -33,6 +33,7 @@ import { contentTypeToExt } from '@/lib/attachment-mime'
 import { parseMetaOrderCard } from '@/lib/meta-order-card'
 // SSOT ของ "ชื่อช่องทางที่ผู้ใช้เห็น" (HR16) — ใช้ในข้อความแทนสติกเกอร์ที่ mirror ไม่ผ่าน
 import { getChannelLabel } from '@/lib/chat-channel'
+import { APPOINTMENT_CARD_PREVIEW } from '@/lib/appointment-summary'
 import type { MessagingEvent, Referral } from '@/lib/facebook/webhook-types'
 
 /**
@@ -2929,6 +2930,9 @@ async function sendOutboundLineMessage(
       size?: number | null
     }
     orderRefToken?: string
+    /** การ์ดสรุปนัด ไม่ใช่ออเดอร์ (ส่วนขยาย 00024, 2026-08-12) — คุมคำใน preview + การเก็บ `body`
+     *  (ต้องมีทั้งที่นี่และที่ `sendOutboundMessage` เพราะ LINE แยก flow ออกมาทั้งก้อน) */
+    isAppointmentCard?: boolean
     /** (2026-08-11) การ์ดสินค้า — เก็บลง ChatMessage.productRefId ให้ร้านเห็นเป็นการ์ดในประวัติ
      *  เหมือนช่องทาง DEEP (ฝั่งลูกค้าได้ Flex) */
     productRefId?: string
@@ -3193,7 +3197,9 @@ async function sendOutboundLineMessage(
   }
 
   const preview = isOrder
-    ? '[คำสั่งซื้อ]'
+    ? // การ์ดสรุปนัดใช้ `type='ORDER'` ร่วมกับการ์ดออเดอร์ — แต่ "[คำสั่งซื้อ]" กับใบยืนยันนัด
+      // ของร้านคิวงานคือคำผิดเรื่อง (คำมาจาก SSOT เดียว ห้ามพิมพ์เอง — HR16)
+      (params.isAppointmentCard ? APPOINTMENT_CARD_PREVIEW : '[คำสั่งซื้อ]')
     : params.sticker
       ? '[สติกเกอร์]'
       : attachment
@@ -3220,7 +3226,10 @@ async function sendOutboundLineMessage(
           // ทั้งการ์ดและข้อความดิบซ้อนกันสองชั้นในเธรดเดียว
           type: isOrder ? 'ORDER' : isProductCard ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
           // สติกเกอร์: body=null เมื่อมีรูป — ไม่มีรูปต้องมีคำแทนเสมอ (ดู stickerMirrorFailedText)
-          body: isOrder || isProductCard || attachment
+          // 🛑 การ์ดสรุปนัดเก็บ `body` จริง ต่างจากการ์ดออเดอร์/สินค้า (2026-08-12) — ตัวเรนเดอร์
+          // แตกที่ `type === 'ORDER'` ก่อนเสมอ body จึงไม่มีทางโผล่เป็นบับเบิลที่สอง และสิ่งที่ได้
+          // กลับมาคือร้านค้นหาข้อความที่ตัวเองส่งเจอ (ค่าที่เก็บ = ข้อความที่ส่งออกไปจริง)
+          body: (isOrder && !params.isAppointmentCard) || isProductCard || attachment
             ? null
             : params.sticker
               ? (stickerFileId ? null : stickerMirrorFailedText('LINE'))
@@ -3320,6 +3329,16 @@ export async function sendOutboundMessage(params: {
   // orderRefToken (user 2026-07-25): การ์ดคำสั่งซื้อบนช่องทางนอก — ส่ง "ลิงก์ (text)" ให้ลูกค้าผ่าน Meta
   // แต่เก็บข้อความฝั่งเราเป็น type=ORDER เพื่อให้ "ร้าน" เห็นเป็นการ์ด (ร้านอยู่ในระบบเรา = การ์ด)
   orderRefToken?: string
+  /**
+   * การ์ดใบนี้เป็น "สรุปนัดหมาย" ไม่ใช่ออเดอร์ (ส่วนขยาย 00024, 2026-08-12)
+   *
+   * ทั้งคู่เก็บเป็น `ChatMessage.type='ORDER'` เหมือนกัน (ไม่มี enum ใหม่ ไม่มี migration) แต่เป็น
+   * คนละของในสายตาผู้ขาย — ผู้เรียกเป็นคนรู้ ฟังก์ชันนี้ไม่เดาเอง
+   *
+   * มีผล 2 อย่าง: **คำใน preview** ที่ขึ้นในรายการแชท และ **การเก็บ `body`** (การ์ดออเดอร์เก็บ
+   * `null` เพื่อกันบับเบิลซ้อน ส่วนการ์ดนัดเก็บจริงเพื่อให้ร้านค้นหาเจอ — ดูจุดใช้งาน)
+   */
+  isAppointmentCard?: boolean
   /** (2026-08-11) การ์ดสินค้า — ผ่านด่าน ownership ที่ route มาแล้ว (scope ด้วย shopId ใน WHERE) */
   productRefId?: string
   /**
@@ -3598,7 +3617,9 @@ export async function sendOutboundMessage(params: {
     }
   }
   const preview = isOrder
-    ? '[คำสั่งซื้อ]'
+    ? // การ์ดสรุปนัดใช้ `type='ORDER'` ร่วมกับการ์ดออเดอร์ — แต่ "[คำสั่งซื้อ]" กับใบยืนยันนัด
+      // ของร้านคิวงานคือคำผิดเรื่อง (คำมาจาก SSOT เดียว ห้ามพิมพ์เอง — HR16)
+      (params.isAppointmentCard ? APPOINTMENT_CARD_PREVIEW : '[คำสั่งซื้อ]')
     : params.sticker
       ? '[สติกเกอร์]'
     : attachment
@@ -3624,7 +3645,10 @@ export async function sendOutboundMessage(params: {
           type: isOrder ? 'ORDER' : isProductCard ? 'PRODUCT' : params.sticker ? 'IMAGE' : (attachment?.kind ?? 'TEXT'),
           // ORDER: เก็บ orderRefToken (การ์ด live-join); ไฟล์แนบ: body=null, imageUrl=fileId; ข้อความ: body=text
           // สติกเกอร์: body=null เมื่อมีรูป — ไม่มีรูปต้องมีคำแทนเสมอ (ดู stickerMirrorFailedText)
-          body: isOrder || isProductCard || attachment
+          // 🛑 การ์ดสรุปนัดเก็บ `body` จริง ต่างจากการ์ดออเดอร์/สินค้า (2026-08-12) — ตัวเรนเดอร์
+          // แตกที่ `type === 'ORDER'` ก่อนเสมอ body จึงไม่มีทางโผล่เป็นบับเบิลที่สอง และสิ่งที่ได้
+          // กลับมาคือร้านค้นหาข้อความที่ตัวเองส่งเจอ (ค่าที่เก็บ = ข้อความที่ส่งออกไปจริง)
+          body: (isOrder && !params.isAppointmentCard) || isProductCard || attachment
             ? null
             : params.sticker
               ? (stickerFileId ? null : stickerMirrorFailedText(conversation.channel))

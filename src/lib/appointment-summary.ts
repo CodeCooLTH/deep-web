@@ -65,6 +65,16 @@ export const HIDEABLE_APPOINTMENT_SUMMARY_KEYS: readonly AppointmentSummaryKey[]
 ]
 
 export const APPOINTMENT_SUMMARY_TITLE = 'ยืนยันนัดหมาย'
+
+/**
+ * คำที่ขึ้นในรายการแชท/กล่องขาเข้าแทนการ์ดใบนี้
+ *
+ * 🛑 ต้องอยู่ที่นี่ที่เดียว — ตัวประกอบ preview มี **2 ที่ที่ไม่เรียกหากัน** (`chat.service` = DEEP ·
+ * `channel-chat.service` = ช่องทางนอก) และวันนี้สองที่นั้นเรียกการ์ดออเดอร์คนละคำอยู่แล้ว
+ * (`[ใบเสนอราคา]` vs `[คำสั่งซื้อ]` — หนี้ที่บันทึกไว้ใน `domain-term-single-definition.md` D-1)
+ * ถ้าปล่อยให้พิมพ์คำนี้เองสองที่ การ์ดสรุปนัดจะเดินซ้ำรอยเดิมภายในสัปดาห์เดียว (HR16)
+ */
+export const APPOINTMENT_CARD_PREVIEW = '[สรุปนัดหมาย]'
 export const DEFAULT_APPOINTMENT_CLOSING = 'ยืนยันคิวเรียบร้อยค่ะ'
 export const APPOINTMENT_CLOSING_MAX = 120
 

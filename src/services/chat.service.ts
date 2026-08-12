@@ -3,6 +3,7 @@ import { PROBLEM_CARRIER_STATUSES } from '@/lib/iship/status'
 import { canAccessShop, listAccessibleShopIds } from '@/lib/shop-context'
 import { Prisma } from '@prisma/client'
 import { getProductById } from '@/services/product.service'
+import { APPOINTMENT_CARD_PREVIEW } from '@/lib/appointment-summary'
 import { detectScamLink } from '@/lib/scam-link-detector'
 import { pauseForHumanTakeover, clearTakeoverOnResolve } from '@/services/auto-reply-takeover.service'
 
@@ -670,6 +671,16 @@ export async function sendMessage(params: {
   attachmentSize?: number | null
   productRefId?: string | null // เฉพาะ type='PRODUCT' (extension #1 S-17)
   orderRefToken?: string | null // เฉพาะ type='ORDER' (การ์ดออเดอร์ในแชท, user 2026-07-24)
+  /**
+   * การ์ดใบนี้เป็น "สรุปนัดหมาย" ไม่ใช่ออเดอร์ (ส่วนขยาย 00024, 2026-08-12)
+   *
+   * ทั้งคู่เก็บเป็น `type='ORDER'` เหมือนกัน (ไม่มี enum ใหม่ ไม่มี migration) แต่ **คนละของ
+   * ในสายตาผู้ขาย** — ผู้เรียกเป็นคนรู้ ฟังก์ชันนี้ไม่เดาเอง (ถ้าให้เดาจาก `serviceStart` จะต้อง
+   * query เพิ่มและกลายเป็นการตัดสินซ้ำที่สองซึ่งมีวันเพี้ยนจาก route ได้)
+   *
+   * มีผล 2 อย่าง: คำใน preview และ **การเก็บ `body`** (ดูจุดใช้งานด้านล่าง)
+   */
+  isAppointmentCard?: boolean
   replyToMid?: string | null // reply/quote (user 2026-07-25) — DEEP เก็บ id ของข้อความที่ตอบทับ; enrich match id/externalMessageId
 }): Promise<ChatMessageView> {
   const sent = await prisma.$transaction(async (tx) => {
@@ -732,7 +743,9 @@ export async function sendMessage(params: {
               : params.type === 'PRODUCT'
                 ? `[สินค้า] ${productName}`
                 : params.type === 'ORDER'
-                  ? '[ใบเสนอราคา]'
+                  ? // การ์ดสรุปนัดใช้ `type='ORDER'` ร่วมกับการ์ดออเดอร์ แต่ผู้ขายอ่านคำนี้ในกล่อง
+                    // ขาเข้า — "[ใบเสนอราคา]" กับใบยืนยันนัดของร้านคิวงานคือคำผิดเรื่อง
+                    (params.isAppointmentCard ? APPOINTMENT_CARD_PREVIEW : '[ใบเสนอราคา]')
                   : (params.body ?? '').slice(0, 100)
 
     // extension #3 Scam-link Detection (FR-SCAM-03/BR-SCAM-04) — scan เฉพาะ type='TEXT' เท่านั้น
@@ -746,7 +759,24 @@ export async function sendMessage(params: {
         senderUserId: params.senderUserId,
         senderRole: params.senderRole,
         type: params.type,
-        body: params.type === 'PRODUCT' || params.type === 'ORDER' ? null : (params.body ?? null),
+        /**
+         * PRODUCT/ORDER เก็บ `body=null` แล้ว live-join การ์ดตอนอ่าน — กันร้านเห็นทั้งการ์ดและ
+         * ข้อความดิบซ้อนกันสองชั้น
+         *
+         * 🛑 **ยกเว้นการ์ดสรุปนัด** (2026-08-12): ตัวเรนเดอร์ทั้งฝั่งร้าน (`ChatThread`) และแอป
+         * ผู้ซื้อแตกที่ `type === 'ORDER'` **ก่อนเสมอ** ⇒ `body` ไม่มีทางโผล่เป็นบับเบิลที่สอง
+         * เหตุผลเดิมจึงไม่ครอบเคสนี้ ส่วนสิ่งที่ได้กลับมาคือ **ร้านค้นหาข้อความที่ตัวเองส่งเจอ**
+         * (`lastMessagePreview` เป็นคำสั้น ๆ ค้นไม่ได้ และ `chat.service` ค้นจาก preview เท่านั้น)
+         *
+         * ค่าที่เก็บคือข้อความที่ **ส่งออกไปจริง รวมเบอร์ลูกค้าแบบไม่ปิดบัง** (user เคาะ 2026-08-12):
+         * นี่คือบันทึกว่าร้านพูดอะไรออกไป ไม่ใช่การดึง PII มาแสดงเพิ่ม — ต่างจาก `CustomerPanel`
+         * ที่ส่งลงมาแค่ `phoneMasked` เพราะที่นั่นเป็น *ข้อมูลลูกค้าที่เราไปดึงมาโชว์* คนละชนิดกัน
+         * บันทึกที่ไม่ตรงกับสิ่งที่ส่งจริงเป็นปัญหาอีกแบบหนึ่ง
+         */
+        body:
+          params.type === 'PRODUCT' || (params.type === 'ORDER' && !params.isAppointmentCard)
+            ? null
+            : (params.body ?? null),
         imageUrl: params.type === 'PRODUCT' || params.type === 'ORDER' ? null : (params.imageUrl ?? null),
         // เก็บเฉพาะเมื่อมีไฟล์แนบจริง — ข้อความ TEXT ที่ client เผลอส่งชื่อไฟล์ติดมาต้องไม่ค้างใน DB
         attachmentName: params.imageUrl ? (params.attachmentName ?? null) : null,
