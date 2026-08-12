@@ -291,11 +291,12 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
       "appointmentStatus": "CONFIRMED_BY_BUYER",
       "buyerName": "สมชาย",
       "buyerContact": "0812345678",   // null ได้ (นัดที่ร้านคีย์เองมักไม่มี)
-      "source": {                      // null = สร้างนอกแชท ⇒ UI ห้าม render ปุ่มทักแชท
+      "source": {                      // null = ไม่ได้เกิดจากแชท ⇒ UI ห้าม render ปุ่มทักแชท
         "channel": "MESSENGER",        // provider ของ ShopChannel — MESSENGER|INSTAGRAM|LINE
         "pageName": "BT Premium",
         "pageAvatarUrl": "https://…"   // null ได้
       },
+      "salesChannel": "STOREFRONT",    // หมวดที่ร้านเลือกเองตอนสร้าง — คนละเรื่องกับ source
       "customerAvatarUrl": null,       // 🛑 null เป็นค่าปกติ ไม่ใช่ error (ดูหมายเหตุ)
       "conversationId": "uuid"         // null = ไม่มีเธรดให้เปิด
     }
@@ -313,6 +314,14 @@ related: ["[[PRD]]", "[[BRD]]", "[[SRS]]", "[[SDS]]", "[[DATABASE]]"]
 > (ต้อง Advanced Access ของ `Business Asset User Profile Access`) ⇒ ฝั่ง UI ต้องออกแบบให้ **ตัวย่อ
 > เป็นของหลัก ไม่ใช่ของสำรอง** · IG/LINE ได้รูปจริง
 >
+> 🛑 **`source` กับ `salesChannel` ห้ามใช้แทนกัน** (สคีมาเตือนไว้ที่ `Order.shopChannelId`) —
+> `source` = *ข้อเท็จจริง* ว่าใบนี้เกิดจากเธรดไหน (พาย้อนกลับไปห้องแชทได้) · `salesChannel` =
+> *หมวดที่ร้านเลือก/แก้เองได้* ค่าตั้งต้นของฟอร์มคือ `STOREFRONT` จึงมีค่าเกือบทุกใบ
+>
+> UI แสดง "ลูกค้ามาจากไหน" ตามลำดับ **เธรดจริง → หมวดที่ร้านเลือก → `ไม่ระบุช่องทาง`**
+> ⇒ ไม่มีคำที่ประดิษฐ์ขึ้นสำหรับเคส "ไม่มีเธรด" เลย (คำสุดท้ายคือคำเดียวกับที่ `/orders` ใช้กับ
+> ฟิลด์เดียวกัน) · ของเดิมเขียนว่า "สร้างนอกแชท" ซึ่งเป็นคำที่สองของเรื่องเดียวกัน — user เคาะเปลี่ยน 2026-08-12
+
 > 🛑 **รูปลูกค้าหาด้วย "คู่" `(shopChannelId, customerId)` เท่านั้น** — PSID เป็น page-scoped
 > ลูกค้าคนเดียวที่ทักมาสองเพจมีคนละ contact คนละรูป การจับด้วย `customerId` เฉย ๆ จะเอารูปเพจอื่นมาแปะ
 

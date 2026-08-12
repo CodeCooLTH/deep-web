@@ -195,7 +195,10 @@ export default function AppointmentDaySheet({
                   <span className="text-default-800 font-semibold">{summary.total}</span> นัด
                   {summary.closed > 0 ? (
                     <>
-                      {' · ปิดผลแล้ว '}
+                      {/* "ปิดผล" เป็นศัพท์ในเอกสาร/โค้ด (setAppointmentOutcome, BR-RSV-34)
+                          ที่ไม่เคยโผล่ใน UI ที่ไหนเลย — หน้าออเดอร์พูดว่า "ให้บริการแล้ว"/"ไม่มาตามนัด"
+                          "จบแล้ว" ครอบทั้งสองผลลัพธ์โดยไม่เอนไปทางไหน (impeccable clarify 2026-08-12) */}
+                      {' · จบแล้ว '}
                       <span className="text-default-800 font-semibold">{summary.closed}</span>
                     </>
                   ) : null}

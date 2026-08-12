@@ -565,8 +565,18 @@ export type AppointmentDayItem = {
   /** ช่องทางติดต่อที่ร้านกรอกไว้ (เบอร์เป็นหลัก) — null = ไม่มี ซึ่งเกิดปกติกับนัดที่ร้านคีย์เอง */
   buyerContact: string | null;
   resource: { id: string; name: string; capacity: number } | null;
-  /** ช่องทางที่ลูกค้าทักเข้ามา — null = สร้างนอกแชท (หน้าร้าน/ลิงก์ตรง) ⇒ ไม่มีเธรดให้เปิด */
+  /** เธรดแชทที่ลูกค้าทักเข้ามา — null = ใบนี้ไม่ได้เกิดจากแชท ⇒ ไม่มีเธรดให้เปิด */
   source: { channel: string; pageName: string; pageAvatarUrl: string | null } | null;
+  /**
+   * ช่องทางการขายที่ร้านเลือกเองตอนสร้าง (`STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER`) — ค่าตั้งต้น
+   * ของฟอร์มคือ `STOREFRONT` จึงมีค่าเกือบทุกใบ
+   *
+   * 🛑 คนละเรื่องกับ `source` โดยสิ้นเชิง (สคีมาเตือนไว้ตรงตัวว่าห้ามใช้แทนกัน): `source` คือ
+   * *ข้อเท็จจริง* ว่าใบนี้เกิดจากเธรดไหน · ตัวนี้คือ *หมวดที่ร้านเลือก/แก้เองได้*
+   * ที่ต้องส่งทั้งคู่เพราะการ์ดตอบคำถาม "ลูกค้ามาจากไหน" — มีเธรดก็บอกเธรด ไม่มีก็บอกหมวดที่ร้านระบุ
+   * ⇒ ไม่ต้องประดิษฐ์คำสำหรับเคส "ไม่มีเธรด" เลยสักคำ (user เคาะ 2026-08-12)
+   */
+  salesChannel: string | null;
   /**
    * รูปโปรไฟล์ลูกค้าในช่องทางนั้น
    *
@@ -606,6 +616,7 @@ export async function listAppointmentsForDay(args: {
       buyerContact: true,
       customerId: true,
       shopChannelId: true,
+      salesChannel: true,
       serviceResource: { select: { id: true, name: true, capacity: true } },
       // ห้าม select ทั้งแถวของ ShopChannel — แถวเดียวกันมี accessTokenEnc อยู่
       shopChannel: { select: { provider: true, name: true, avatarUrl: true } },
@@ -671,6 +682,7 @@ export async function listAppointmentsForDay(args: {
             pageAvatarUrl: r.shopChannel.avatarUrl,
           }
         : null,
+      salesChannel: r.salesChannel,
       customerAvatarUrl: contact?.avatarUrl ?? null,
       conversationId: contact?.conversations[0]?.id ?? null,
     };

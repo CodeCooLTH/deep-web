@@ -39,6 +39,11 @@ import {
   type AppointmentOutcome,
 } from '@/lib/appointment-outcome'
 import { getChannelLabel } from '@/lib/chat-channel'
+// คำ + ไอคอนของ "ช่องทางการขาย" — SSOT เดียวกับที่คอลัมน์ "ที่มา" ของ /orders ใช้ (HR16)
+import {
+  SALES_CHANNEL_ICONS,
+  SALES_CHANNEL_LABELS,
+} from '@/app/(paces)/seller/(dashboard)/orders/components/data'
 import type { AppointmentDayApiItem } from './types'
 
 type Props = {
@@ -57,11 +62,16 @@ function CustomerAvatar({
   name,
   channel,
   pageAvatarUrl,
+  fallbackIcon,
+  fallbackLabel,
 }: {
   avatarUrl: string | null
   name: string
   channel: string | null
   pageAvatarUrl: string | null
+  /** ไอคอนของช่องทางการขายที่ร้านเลือก — ใช้เมื่อใบนี้ไม่ได้มาจากเธรดแชท */
+  fallbackIcon: string
+  fallbackLabel: string
 }) {
   const [failed, setFailed] = useState(false)
   // ค่าที่ขึ้นต้นด้วย http = URL ดิบ (หมดอายุได้) · ที่เหลือคือ fileId ใน storage — กติกาเดียวกับกล่องแชท
@@ -83,16 +93,20 @@ function CustomerAvatar({
           className="bg-default-100 size-10 rounded-full object-cover"
         />
       )}
-      {/* ไม่มีช่องทาง = สร้างนอกแชท (หน้าร้าน/ลิงก์ตรง) — ใช้ไอคอนกลาง ไม่ใช่ปล่อยว่าง
-          ช่องว่างอ่านเป็น "ยังโหลดไม่เสร็จ" ส่วนไอคอนร้านอ่านเป็นข้อเท็จจริง */}
+      {/* ไม่มีเธรด = ใช้ไอคอนของช่องทางการขายที่ร้านเลือกเอง ไม่ใช่ปล่อยว่าง
+          ช่องว่างอ่านเป็น "ยังโหลดไม่เสร็จ" ส่วนไอคอนอ่านเป็นข้อเท็จจริง
+          🛑 `title` อย่างเดียวไม่พอ — มือถือไม่มี hover ผู้ใช้จึงไม่มีทางเห็นคำอธิบายเลย
+          ต้องมี `role="img"` + `aria-label` คู่กัน (aria-name-requires-supporting-role.md) */}
       {channel ? (
         <ChannelBadgeOverlay channel={channel} imageUrl={pageAvatarUrl} />
       ) : (
         <span
+          role="img"
+          aria-label={`ช่องทาง ${fallbackLabel}`}
+          title={fallbackLabel}
           className="ring-card bg-default-100 text-default-500 absolute -end-0.5 -bottom-0.5 flex size-4 items-center justify-center rounded-full ring-2"
-          title="สร้างนอกแชท"
         >
-          <Icon icon="building-store" className="text-2xs" aria-hidden="true" />
+          <Icon icon={fallbackIcon} className="text-2xs" aria-hidden="true" />
         </span>
       )}
     </span>
@@ -179,10 +193,26 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
   /** เบอร์ที่โทรออกได้จริง — ค่าที่ไม่ใช่รูปเบอร์ไทย (อีเมล/ข้อความอิสระ) ยังแสดงแต่ไม่มีปุ่มโทร */
   const dialable = item.buyerContact ? normalizePhone(item.buyerContact) : null
 
-  /** "Messenger · เพจ BT Premium" — คำเรียกช่องทางมาจาก SSOT ห้ามพิมพ์เองที่นี่ (HR16) */
+  /**
+   * "ลูกค้ามาจากไหน" — ทุกคำมาจาก SSOT ห้ามพิมพ์เองที่นี่ (HR16)
+   *
+   * 🛑 ไม่มีคำที่ประดิษฐ์ขึ้นสำหรับเคส "ไม่มีเธรด" เลย (user เคาะ 2026-08-12) — ของเดิมเขียนว่า
+   * "สร้างนอกแชท" ซึ่งผิด 3 ชั้น: นิยามด้วยสิ่งที่ *ไม่ได้* เกิดขึ้น · "สร้าง" เป็นกริยาของระบบ
+   * ไม่ใช่คำที่ผู้ขายใช้เรียกที่มา · และไม่คู่ขนานกับ "Messenger · เพจ X" ที่เป็น **ชื่อที่มา**
+   *
+   * ทางที่ถูกคือไปอ่านฟิลด์ที่ถือคำตอบอยู่แล้ว: ร้านเลือก `salesChannel` เองตอนสร้าง
+   * (ค่าตั้งต้นของฟอร์ม = `STOREFRONT` → "หน้าร้าน") จึงมีคำตอบจริงเกือบทุกใบ
+   *
+   * ลำดับ: เธรดจริง → หมวดที่ร้านเลือก → ไม่รู้
+   * เธรดชนะเพราะเป็น *ข้อเท็จจริง* ที่พาย้อนกลับไปห้องแชทได้ ส่วน `salesChannel` ร้านแก้เองได้
+   * ตลอด (สองค่านี้ไม่ตรงกันได้และไม่ถือว่าผิด — ดูคอมเมนต์ที่ `Order.shopChannelId` ในสคีมา)
+   */
   const sourceText = item.source
     ? `${getChannelLabel(item.source.channel)} · ${item.source.pageName}`
-    : 'สร้างนอกแชท'
+    : item.salesChannel
+      ? (SALES_CHANNEL_LABELS[item.salesChannel] ?? item.salesChannel)
+      : // คำเดียวกับที่ /orders ใช้กับฟิลด์เดียวกัน (OrderSourceLogo) — ไม่ตั้งคำที่สอง
+        'ไม่ระบุช่องทาง'
 
   const submit = async (outcome: AppointmentOutcome) => {
     const whenText = allDay ? formatDateTH(item.start) : formatDateTimeTH(item.start)
@@ -235,7 +265,9 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
         aria-label={
           `เปิดรายละเอียดนัดของ ${who}` +
           (showResourceName && item.resource ? ` คิวงาน ${item.resource.name}` : '') +
-          ` สถานะ ${statusLabel} จาก ${sourceText}` +
+          /* เดิมต่อว่า "จาก ${sourceText}" ซึ่งพังเมื่อค่าไม่ใช่ชื่อสถานที่ (อ่านได้ว่า
+             "จาก สร้างนอกแชท") — ใช้คำนำหน้าที่เป็นกลางแทน ใช้ได้กับทุกค่าที่เป็นไปได้ */
+          ` สถานะ ${statusLabel} ช่องทาง ${sourceText}` +
           (item.orderNo ? ` เลขที่ ${item.orderNo}` : '')
         }
         className="focus-visible:ring-primary flex items-start gap-2.5 rounded-lg focus-visible:ring-2 focus-visible:outline-none"
@@ -245,6 +277,10 @@ export default function AppointmentDayCard({ item, showResourceName = false, now
           name={who}
           channel={item.source?.channel ?? null}
           pageAvatarUrl={item.source?.pageAvatarUrl ?? null}
+          fallbackIcon={
+            item.salesChannel ? (SALES_CHANNEL_ICONS[item.salesChannel] ?? 'world') : 'world'
+          }
+          fallbackLabel={sourceText}
         />
         <span className="min-w-0 flex-1">
           <span

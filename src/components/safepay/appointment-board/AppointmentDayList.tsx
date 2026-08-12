@@ -86,7 +86,7 @@ export default function AppointmentDayList({
                   {group.allDay ? 'ทั้งวัน' : group.label}
                 </span>
                 <span className="text-default-500 truncate text-xs">
-                  {group.items.length} คิว · ปิดผลแล้วทั้งกลุ่ม
+                  {group.items.length} นัด · จบแล้วทั้งกลุ่ม
                 </span>
                 <Icon icon="chevron-down" className="text-default-400 ms-auto size-4 shrink-0" aria-hidden="true" />
               </button>
@@ -103,7 +103,10 @@ export default function AppointmentDayList({
                       group.label
                     )}
                   </h5>
-                  <span className="text-default-500 ms-auto text-2xs">{group.items.length} คิว</span>
+                  {/* 🛑 หน่วยต้องเป็น "นัด" ให้ตรงกับตัวนับบนหัวชีต — เดิมเขียน "คิว" ซึ่งชนกับ
+                      คำว่า "คิวงาน" ที่ในระบบนี้แปลว่า *ช่างผู้รับงาน* (seller-menu.ts:71-72)
+                      "2 คิว" จึงอ่านได้ว่า "ช่าง 2 คน" ซึ่งผิด (impeccable clarify 2026-08-12) */}
+                  <span className="text-default-500 ms-auto text-2xs">{group.items.length} นัด</span>
                 </div>
                 <ul className="flex flex-col gap-2">
                   {group.items.map((it) => (

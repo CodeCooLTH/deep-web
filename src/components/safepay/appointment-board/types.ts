@@ -43,8 +43,13 @@ export type AppointmentDayApiItem = {
   /** null = ไม่มีเบอร์ ซึ่งเกิดปกติกับนัดที่ร้านคีย์เอง — UI ต้องพูดว่าไม่มี ห้ามปล่อยว่าง */
   buyerContact: string | null
   resource: { id: string; name: string; capacity?: number } | null
-  /** null = สร้างนอกแชท (หน้าร้าน/ลิงก์ตรง) ⇒ ไม่มีเธรดให้เปิด */
+  /** เธรดแชทที่ลูกค้าทักเข้ามา — null = ใบนี้ไม่ได้เกิดจากแชท ⇒ ไม่มีเธรดให้เปิด */
   source: { channel: string; pageName: string; pageAvatarUrl: string | null } | null
+  /**
+   * ช่องทางการขายที่ร้านเลือกเองตอนสร้าง (`STOREFRONT|FACEBOOK|LINE|TIKTOK|OTHER`)
+   * 🛑 คนละเรื่องกับ `source` ห้ามใช้แทนกัน — ดูคอมเมนต์เต็มที่ `AppointmentDayItem` ใน service
+   */
+  salesChannel: string | null
   /** 🛑 null เป็นค่าปกติ — Meta บล็อกรูปโปรไฟล์ Messenger ทั้งหมด (ตัวย่อคือของหลัก) */
   customerAvatarUrl: string | null
   /** null = ไม่มีเธรดให้เปิด ⇒ ห้าม render ปุ่มทักแชท */
