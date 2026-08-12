@@ -1,8 +1,8 @@
 /**
  * POST /api/account/link/start — เริ่ม Account Linking flow (FR-LO-16)
  *
- * flow: Settings กด Connect → fetch /link/start (auth) → ได้ ok + cookie →
- *       client ทำ signIn(provider, { callbackUrl: '/settings' }) →
+ * flow: หน้า /account (การ์ด "วิธีเข้าสู่ระบบ") กด Connect → fetch /link/start (auth) → ได้ ok + cookie →
+ *       client ทำ signIn(provider, { callbackUrl: '/account' }) →
  *       signIn callback ใน auth.ts อ่าน cookie → ผูก AuthAccount กับ userId ใน intent
  *
  * cookie deep_link_intent = HMAC(NEXTAUTH_SECRET) of {userId, provider, exp}

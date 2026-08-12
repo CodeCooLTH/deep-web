@@ -136,8 +136,10 @@ export function ConnectedAccountsClient({
         pacesToast.error(body?.error ?? 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่')
         return
       }
-      // ขั้น 2: ทำ OAuth redirect — callbackUrl ใช้ /settings (proxy เติม /seller prefix เอง)
-      await signIn(provider, { callbackUrl: '/settings' })
+      // ขั้น 2: ทำ OAuth redirect — กลับมาที่ /account ซึ่งเป็นหน้าที่การ์ดนี้อยู่จริง
+      // 🛑 เดิมเป็น '/settings' ซึ่งค้างมาตั้งแต่ก่อนย้ายการ์ดมาที่ /account (feature 00026)
+      //    ผู้ใช้จึงถูกเด้งไปหน้า "การจัดส่ง" หลังกดเชื่อม แล้วไม่มีอะไรบอกว่าสำเร็จหรือล้มเหลว
+      await signIn(provider, { callbackUrl: '/account' })
     } catch {
       pacesToast.error('เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่')
     } finally {

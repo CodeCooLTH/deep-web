@@ -608,6 +608,16 @@ export const authOptions: NextAuthOptions = {
       // ไม่มี intent หรือ provider ไม่ตรง = login ปกติ (ไม่ใช่ link mode)
       if (!intent || intent.provider !== account.provider) return true;
 
+      /**
+       * === LINK MODE ===
+       *
+       * 🛑 ปลายทางต้องเป็น `/account` ไม่ใช่ `/settings` — การ์ด "วิธีเข้าสู่ระบบ" ย้ายจาก
+       * /settings ไป /account ตั้งแต่ feature 00026 (2026-08-02) และ /settings กลายเป็นหน้า
+       * "การจัดส่ง" ไปแล้ว ปลายทางเก่าจึงพาผู้ใช้ไปหน้าที่ไม่เกี่ยวข้องและ **ไม่มีใครอ่าน
+       * ?linked= / ?link_error= ที่นั่น** = เชื่อมสำเร็จก็เงียบ ล้มเหลวก็เงียบ
+       * (เจอจริง 2026-08-12: กดเชื่อม Apple แล้วเด้งไปหน้า "การจัดส่ง" เฉย ๆ ไม่มีอะไรบอก
+       * ทั้งที่ backend คืน link_error=taken มาแล้ว) — บั๊กนี้กระทบ Facebook/LINE ด้วยมาตลอด
+       */
       // === LINK MODE ===
       const providerEnum = oauthMap[account.provider as OAuthProvider];
 
@@ -633,10 +643,10 @@ export const authOptions: NextAuthOptions = {
       if (existing) {
         if (existing.userId !== intent.userId) {
           // AC-03: provider ถูกใช้โดย userId อื่นแล้ว → block ห้ามสลับบัญชี
-          return "/settings?link_error=taken";
+          return "/account?link_error=taken";
         }
         // AuthAccount มีอยู่แล้วและเป็นของ intent.userId → ผูกแล้ว (idempotent) → ok
-        return "/settings?linked=" + account.provider;
+        return "/account?linked=" + account.provider;
       }
 
       // AuthAccount ว่าง → สร้างผูกกับ intent.userId (ไม่ใช่ user ที่ OAuth ส่งมา)
@@ -657,13 +667,13 @@ export const authOptions: NextAuthOptions = {
             select: { userId: true },
           });
           // เป็นของ user อื่น → block; เป็นของ intent.userId เอง → idempotent ผ่าน
-          if (raced && raced.userId !== intent.userId) return "/settings?link_error=taken";
+          if (raced && raced.userId !== intent.userId) return "/account?link_error=taken";
         } else {
           throw err;
         }
       }
 
-      return "/settings?linked=" + account.provider;
+      return "/account?linked=" + account.provider;
     },
 
     // Multi-subdomain redirect: NextAuth's default redirect prefixes relative
