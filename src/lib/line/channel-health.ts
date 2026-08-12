@@ -123,6 +123,32 @@ export function daysUntilTokenExpiry(tokenExpiresAt: Date, nowMs: number): numbe
  */
 export function webhookMatchesOrigin(endpoint: string | null, expectedUrl: string): boolean {
   if (!endpoint) return false
-  const norm = (s: string) => s.trim().replace(/\/+$/, '').toLowerCase()
-  return norm(endpoint) === norm(expectedUrl)
+  const a = parseWebhookUrl(endpoint)
+  const b = parseWebhookUrl(expectedUrl)
+  if (!a || !b) return false
+  return a.host === b.host && a.path === b.path
+}
+
+/**
+ * แยก URL เป็น host (ตัด subdomain ของเราเอง) + path (ตัด trailing slash)
+ *
+ * 🛑 **ต้องตัด `seller.`/`admin.` ทิ้งก่อนเทียบ** — แอปเดียวกันเสิร์ฟทั้ง `deepthailand.app` และ
+ * `seller.deepthailand.app` และ `/api/channels/line/webhook` ใช้ได้จากทั้งสองโฮสต์ แต่ค่าที่เรา
+ * แสดงให้ร้านคัดลอกมาจาก `request.nextUrl.origin` ซึ่งขึ้นกับว่าตอนนั้นร้านอยู่ subdomain ไหน
+ *
+ * บน prod วันนี้ OA ของ BT ตั้ง webhook ไว้ที่ `https://deepthailand.app/...` (โดเมนหลัก) ขณะที่
+ * หน้าตั้งค่าอยู่บน `seller.deepthailand.app` ⇒ ถ้าเทียบสตริงตรง ๆ เราจะขึ้นป้าย
+ * **"Webhook ชี้ไปที่อื่น"** ให้ร้านที่ตั้งถูกทุกอย่าง แล้วร้านจะไปรื้อคอนโซล LINE ที่ไม่ได้พัง
+ * — คำเตือนเท็จแพงกว่าไม่เตือน เพราะมันสั่งให้คนทำงานที่ไร้ผลและทำให้เขาเลิกเชื่อคำเตือนครั้งหน้า
+ */
+function parseWebhookUrl(raw: string): { host: string; path: string } | null {
+  try {
+    const u = new URL(raw.trim())
+    return {
+      host: u.host.toLowerCase().replace(/^(seller|admin)\./, ''),
+      path: u.pathname.replace(/\/+$/, '').toLowerCase(),
+    }
+  } catch {
+    return null
+  }
 }

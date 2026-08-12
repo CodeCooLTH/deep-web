@@ -159,6 +159,29 @@ describe('webhookMatchesOrigin', () => {
   it('ยังไม่ได้ตั้ง (null) = ไม่ตรง', () => {
     expect(webhookMatchesOrigin(null, US)).toBe(false)
   })
+
+  it('[blocker] โดเมนหลัก vs seller subdomain = ตรงกัน (เคสจริงบน prod)', () => {
+    // 🛑 แอปเดียวกันเสิร์ฟทั้งสองโฮสต์ และ webhook ใช้ได้จากทั้งคู่ แต่ค่าที่เราแสดงให้ร้าน
+    // คัดลอกมาจาก request.nextUrl.origin ซึ่งขึ้นกับว่าตอนนั้นอยู่ subdomain ไหน
+    //
+    // บน prod วันนี้ OA ของ BT ตั้งไว้ที่โดเมนหลัก ขณะที่หน้าตั้งค่าอยู่บน seller.* ⇒ เทียบ
+    // สตริงตรง ๆ จะขึ้น "Webhook ชี้ไปที่อื่น" ให้ร้านที่ตั้งถูกทุกอย่าง
+    // mutation: ถอด .replace(/^(seller|admin)\./, '') ออก → ข้อนี้แดง
+    expect(webhookMatchesOrigin(US, 'https://seller.deepthailand.app/api/channels/line/webhook')).toBe(true)
+    expect(webhookMatchesOrigin('https://seller.deepthailand.app/api/channels/line/webhook', US)).toBe(true)
+    expect(webhookMatchesOrigin('https://admin.deepthailand.app/api/channels/line/webhook', US)).toBe(true)
+  })
+
+  it('[blocker] โดเมนคนอื่นที่ขึ้นต้นด้วย seller. ก็ยังไม่ตรง', () => {
+    // ตัด prefix แล้วต้องไม่เผลอทำให้โดเมนคนอื่นกลายเป็นของเรา
+    expect(webhookMatchesOrigin('https://seller.evil.example/api/channels/line/webhook', US)).toBe(false)
+  })
+
+  it('[blocker] URL พังหรือไม่ใช่ URL = ไม่ตรง (ห้าม throw)', () => {
+    // LINE คืนค่าอะไรมาก็ได้ — โยน error กลางเส้นทางเรนเดอร์หน้าตั้งค่า = ทั้งหน้าล่ม
+    expect(webhookMatchesOrigin('ไม่ใช่ URL', US)).toBe(false)
+    expect(webhookMatchesOrigin('', US)).toBe(false)
+  })
 })
 
 describe('resolveLineChannelHealth — เกณฑ์ความน่าเชื่อของสัญญาณ "secret ไม่ตรง"', () => {

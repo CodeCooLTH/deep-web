@@ -41,6 +41,13 @@ import { pacesToast } from '@/lib/paces-toast'
 import BuyerAvatar from '../../orders/components/BuyerAvatar'
 import CopyLinkButton from '../../orders/[token]/components/CopyLinkButton'
 import RichMenuStatusRow from './RichMenuStatusRow'
+import { type LineChannelHealth, daysUntilTokenExpiry } from '@/lib/line/channel-health'
+import {
+  describeLineChannelHealth,
+  isGreenState,
+  type LineHealthAction,
+} from '@/lib/line/channel-health-presentation'
+import { formatDate, formatDateTime } from '@/lib/format-date'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -52,6 +59,59 @@ export interface LineChannelRow {
   status: string // 'ACTIVE' | 'TOKEN_INVALID' — 'DISCONNECTED' ถูกกรองออกที่ listChannels() แล้ว
   /** @handle ของ OA — null เมื่อโหลดจาก listChannels() (ยังไม่ select คอลัมน์นี้ ดู known gap ด้านบน) */
   basicId: string | null
+  /**
+   * (ส่วนขยาย 2026-08-12) สถานะสุขภาพที่ **คำนวณมาจาก server แล้ว** ด้วย `resolveLineChannelHealth()`
+   * — `null` = ยังไม่รู้ (เช่นเพิ่งเชื่อมเสร็จในเซสชันนี้ ยังไม่ได้ reload) ให้ถอยไปอ่าน `status`
+   *
+   * 🛑 client **ห้ามตัดสินสถานะเอง** (AC-CH-25) — กติกา "เขียว = ผ่านทุกด่าน" อยู่ในฟังก์ชัน
+   * บริสุทธิ์ที่มีเทสคุม ถ้าเขียนซ้ำที่นี่จะมีสองนิยามที่ถูกทั้งคู่แต่ไม่ตรงกัน (HR16)
+   */
+  health?: LineChannelHealth | null
+  /** ISO — ใช้เขียนวันที่บนป้าย TOKEN_EXPIRING */
+  tokenExpiresAt?: string | null
+}
+
+/**
+ * tone → คลาสของ Paces
+ *
+ * 🛑 map อยู่ที่นี่ ไม่ใช่ในไฟล์ presentation เพราะนั่นเป็น pure lib ที่ฝั่ง server ก็ import
+ * (ห้ามลากคลาส Tailwind เข้าไป) — ส่วน *ความหมาย* ของ tone ถูกตัดสินไปแล้วที่นั่น
+ */
+const TONE_BADGE = {
+  success: 'bg-success/15 text-success-ink',
+  warning: 'bg-warning/15 text-warning-ink',
+  danger: 'bg-danger/15 text-danger-ink',
+} as const
+
+const TONE_ACTION = {
+  success: 'bg-success/15 text-success-ink hover:bg-success/25',
+  warning: 'bg-warning/15 text-warning-ink hover:bg-warning/25',
+  danger: 'bg-danger/15 text-danger-ink hover:bg-danger/25',
+} as const
+
+/** ผลจาก POST /api/channels/line/[channelId]/health */
+interface HealthReport {
+  verdict: 'PASS' | 'PASS_WITH_NOTE' | 'FAIL_SECRET' | 'FAIL_TOKEN' | 'FAIL_WEBHOOK'
+  webhook: { state: string; endpoint: string | null; active: boolean; matchesUs: boolean } | null
+  token: { state: string; expiresAt: string | null }
+  inbound: { state: string; reason: string | null }
+  checkedAt: string
+}
+
+const VERDICT_HEADLINE: Record<HealthReport['verdict'], string> = {
+  PASS: 'เชื่อมต่อใช้งานได้ปกติ',
+  PASS_WITH_NOTE: 'การตั้งค่าถูกต้อง แต่ยังไม่เห็นผลข้อความทดสอบชัดเจน',
+  FAIL_SECRET: 'Channel secret ไม่ตรงกับ LINE',
+  FAIL_TOKEN: 'Token ใช้งานไม่ได้แล้ว',
+  FAIL_WEBHOOK: 'Webhook ยังไม่พร้อมรับข้อความ',
+}
+
+const VERDICT_TONE: Record<HealthReport['verdict'], 'success' | 'warning' | 'danger'> = {
+  PASS: 'success',
+  PASS_WITH_NOTE: 'warning',
+  FAIL_SECRET: 'danger',
+  FAIL_TOKEN: 'danger',
+  FAIL_WEBHOOK: 'danger',
 }
 
 interface LineChannelCardProps {
@@ -70,6 +130,63 @@ export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null)
   // แสดงเฉพาะ session ที่เพิ่งเชื่อม/reconnect — API ไม่ persist ค่านี้ (verify ซ้ำทีหลังไม่ได้โดยไม่ยิงใหม่)
   const [warningNotice, setWarningNotice] = useState<string | null>(null)
+  // (ส่วนขยาย 2026-08-12) ผลปุ่ม "ทดสอบการเชื่อมต่อ" ต่อช่องทาง — เก็บใน state ไม่ persist
+  // เพราะเป็นภาพ ณ วินาทีที่กด ไม่ใช่สถานะของระบบ (สถานะจริงอยู่บนป้ายที่ server คำนวณ)
+  const [healthReports, setHealthReports] = useState<Record<string, HealthReport>>({})
+  const [testingId, setTestingId] = useState<string | null>(null)
+  const [webhookHelpId, setWebhookHelpId] = useState<string | null>(null)
+  // deterministic — นิพจน์เดียวกับที่ Wizard ใช้ และตรงกับ webhookUrl(request) ฝั่ง route
+  // 🛑 ต้องเป็นตัวเดียวกันทั้งสามที่ (แสดงให้คัดลอก / ส่งไป connect / เอาไปเทียบ) — HR16
+  const [webhookUrl] = useState(() =>
+    typeof window !== 'undefined' ? `${window.location.origin}/api/channels/line/webhook` : '',
+  )
+
+  /** ปุ่มทางออกของแต่ละสถานะ — เจตนามาจาก presentation SSOT หน้าจอแค่แปลเป็นการกระทำ */
+  function handleHealthAction(channel: LineChannelRow, action: LineHealthAction) {
+    if (action === 'FIX_SECRET' || action === 'UPDATE_TOKEN') {
+      setWizard({ mode: 'reconnect', channelId: channel.id })
+      return
+    }
+    if (action === 'SETUP_WEBHOOK') {
+      // ไม่ใช่ modal ใหม่ — กางคำแนะนำ + URL ให้คัดลอกในที่เดียวกับที่ wizard ใช้อยู่แล้ว
+      setWebhookHelpId((prev) => (prev === channel.id ? null : channel.id))
+      return
+    }
+    if (action === 'ISSUE_LONG_LIVED') {
+      // ขั้นตอนอยู่ที่คอนโซล LINE ทั้งหมด เราทำแทนไม่ได้ — บอกทางแล้วให้เขากลับมาวางที่ปุ่ม
+      // "อัปเดต token" ของการ์ดนี้ (จงใจไม่พาไปที่อื่น เพราะปลายทางคือปุ่มที่อยู่ตรงนี้อยู่แล้ว)
+      // info-only Swal — แพตเทิร์นเดียวกับตอนถอดสำเร็จในไฟล์นี้ (pacesConfirm ไม่มี variant
+      // สำหรับ "บอกอย่างเดียวไม่ต้องยืนยัน" มีแค่ danger/warning/question ซึ่งผิดน้ำเสียงทั้งหมด)
+      void Swal.fire({
+        title: 'ออก token แบบไม่หมดอายุ',
+        text: 'ไปที่ LINE Developers Console → Messaging API → Channel access token แล้วเลือก Issue แบบ long-lived จากนั้นนำมาวางที่ปุ่ม "อัปเดต token" ในการ์ดนี้',
+        icon: 'info',
+        showCancelButton: false,
+        confirmButtonText: 'เข้าใจแล้ว',
+        buttonsStyling: false,
+        customClass: { confirmButton: 'btn bg-primary text-white hover:bg-primary-hover mt-2' },
+      })
+    }
+  }
+
+  async function handleTest(channelId: string) {
+    setTestingId(channelId)
+    try {
+      const res = await fetch(`/api/channels/line/${channelId}/health`, { method: 'POST' })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        pacesToast.error(body?.error ?? 'ทดสอบไม่สำเร็จ กรุณาลองใหม่')
+        return
+      }
+      setHealthReports((prev) => ({ ...prev, [channelId]: body as HealthReport }))
+      // 🛑 ไม่ router.refresh() ที่นี่ — ผลทดสอบอยู่ใน state ส่วนป้ายบนการ์ดมาจาก server
+      // การรีเฟรชจะทำให้แผงผลที่เพิ่งขึ้นหายไปทันทีที่ผู้ใช้ยังไม่ทันอ่าน
+    } catch {
+      pacesToast.error('ทดสอบไม่สำเร็จ — เครือข่ายมีปัญหา กรุณาลองใหม่')
+    } finally {
+      setTestingId(null)
+    }
+  }
 
   function handleWizardSuccess(channel: LineChannelRow, warnings: string[]) {
     setChannels((prev) => {
@@ -134,7 +251,11 @@ export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
     }
   }
 
-  const hasTokenInvalid = channels.some((c) => c.status === 'TOKEN_INVALID')
+  // (ส่วนขยาย 2026-08-12) แถบบนสุดต้องขึ้นเมื่อ **มีอะไรต้องแก้** ไม่ใช่เฉพาะตอน token ตาย —
+  // ของเดิมเงียบสนิทเมื่อ webhook ปิดอยู่ ซึ่งเป็นเคสที่ข้อความลูกค้าหายทั้งหมด
+  // 🛑 อ่านผ่าน isGreenState() ไม่ใช่เทียบ status เอง เพื่อให้ "อะไรคือปกติ" มีนิยามเดียวทั้งระบบ
+  const unhealthy = channels.filter((c) => !isGreenState(c.health ?? (c.status === 'TOKEN_INVALID' ? 'TOKEN_INVALID' : 'HEALTHY')))
+  const hasTokenInvalid = unhealthy.length > 0
 
   return (
     <div className="card-body">
@@ -194,16 +315,26 @@ export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
           {hasTokenInvalid && (
             <div className="mb-4 flex items-center gap-2 rounded-lg bg-danger/15 px-3 py-2.5 text-sm text-danger-ink">
               <Icon icon="alert-triangle" className="shrink-0 text-base" aria-hidden="true" />
-              การเชื่อมต่อ LINE OA มีปัญหา ต้องเชื่อมต่อใหม่
+              การเชื่อมต่อ LINE OA มีปัญหา — ดูรายละเอียดและวิธีแก้ที่ช่องทางด้านล่าง
             </div>
           )}
 
           <div className="mt-2">
             {channels.map((channel) => {
               const isDisconnecting = disconnectingId === channel.id
-              const isActive = channel.status === 'ACTIVE'
               const isTokenInvalid = channel.status === 'TOKEN_INVALID'
               const isReconnectingThis = wizard?.mode === 'reconnect' && wizard.channelId === channel.id
+
+              // server คำนวณมาให้แล้ว — ไม่มีค่า (เพิ่งเชื่อมในเซสชันนี้ ยังไม่ reload) ให้ถอยไป
+              // อ่าน status ซึ่งเป็นข้อเท็จจริงที่เรามีแน่ ๆ **ห้ามเดาว่า HEALTHY**
+              const health: LineChannelHealth =
+                channel.health ?? (isTokenInvalid ? 'TOKEN_INVALID' : 'HEALTHY')
+              const expiresAt = channel.tokenExpiresAt ? new Date(channel.tokenExpiresAt) : null
+              const view = describeLineChannelHealth(health, {
+                expiryText: expiresAt ? formatDate(expiresAt) : null,
+                daysLeft: expiresAt ? daysUntilTokenExpiry(expiresAt, Date.now()) : null,
+              })
+              const report = healthReports[channel.id] ?? null
 
               return (
                 <div key={channel.id}>
@@ -222,34 +353,57 @@ export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-default-800 truncate">{channel.name}</p>
                         {channel.basicId && <p className="text-xs text-default-400 truncate">{channel.basicId}</p>}
-                        {isActive && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-success-ink bg-success/15 px-2 py-0.5 rounded mt-1">
-                            <Icon icon="check" className="text-xs" aria-hidden="true" />
-                            เชื่อมแล้ว
-                          </span>
-                        )}
-                        {isTokenInvalid && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-danger-ink bg-danger/15 px-2 py-0.5 rounded mt-1">
-                            <Icon icon="alert-triangle" className="text-xs" aria-hidden="true" />
-                            โทเคนหมดอายุ
-                          </span>
+                        {/* (ส่วนขยาย 2026-08-12) ป้ายสถานะ — แสดง **ตัวร้ายแรงสุดตัวเดียว**
+                            ไม่ใช่รายการ 6 บรรทัด (AC-CH-23) และ **เขียวได้เฉพาะ HEALTHY เท่านั้น**
+                            ของเดิมขึ้นเขียว "เชื่อมแล้ว" ทันทีที่ status='ACTIVE' ทั้งที่ webhook
+                            อาจไม่เคยถูกตั้งเลย = ละเมิด Verified-Means-Green มาตลอด */}
+                        <span
+                          className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded mt-1 ${TONE_BADGE[view.tone]}`}
+                        >
+                          <Icon icon={view.icon} className="text-xs" aria-hidden="true" />
+                          {view.label}
+                        </span>
+                        {view.detail && (
+                          <p className="text-default-700 mt-1.5 text-xs">{view.detail}</p>
                         )}
                       </div>
                     </div>
 
                     {/* ขวา: ปุ่ม action */}
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      {isTokenInvalid && (
+                      {/* ทางออก 1 ปุ่มต่อสถานะ (AC-CH-23) — ไม่ใช่แค่ป้ายบอกอาการ
+                          FIX_SECRET / UPDATE_TOKEN เปิด wizard reconnect ตัวเดิม ส่วน
+                          SETUP_WEBHOOK / ISSUE_LONG_LIVED เป็นคำแนะนำ ไม่ต้องกรอกอะไรใหม่ */}
+                      {view.action && view.actionLabel && (
                         <button
                           type="button"
-                          onClick={() => setWizard({ mode: 'reconnect', channelId: channel.id })}
+                          onClick={() => handleHealthAction(channel, view.action)}
                           disabled={isReconnectingThis}
-                          className="btn btn-sm bg-primary/15 text-primary hover:bg-primary/25 inline-flex items-center gap-1.5 disabled:opacity-50"
+                          className={`btn btn-sm ${TONE_ACTION[view.tone]} inline-flex items-center gap-1.5 disabled:opacity-50 min-h-11 sm:min-h-0`}
                         >
-                          <Icon icon="refresh" className="text-sm" aria-hidden="true" />
-                          เชื่อมต่อใหม่
+                          <Icon icon={view.icon} className="text-sm" aria-hidden="true" />
+                          {view.actionLabel}
                         </button>
                       )}
+                      {/* ปุ่มทดสอบอยู่ **ทุกสถานะ** (D-CH-5 "กดซ้ำได้ทุกเมื่อ") */}
+                      <button
+                        type="button"
+                        onClick={() => handleTest(channel.id)}
+                        disabled={testingId === channel.id}
+                        className="btn btn-sm bg-light text-default-700 inline-flex items-center gap-1.5 disabled:opacity-50 min-h-11 sm:min-h-0"
+                      >
+                        {testingId === channel.id ? (
+                          <>
+                            <span className="border-default-500 inline-block size-4 animate-spin rounded-full border-2 border-t-transparent" />
+                            กำลังทดสอบ...
+                          </>
+                        ) : (
+                          <>
+                            <Icon icon="refresh" className="text-sm" aria-hidden="true" />
+                            ทดสอบการเชื่อมต่อ
+                          </>
+                        )}
+                      </button>
                       <button
                         type="button"
                         disabled={isDisconnecting}
@@ -264,6 +418,58 @@ export function LineChannelCard({ initialChannels }: LineChannelCardProps) {
                       </button>
                     </div>
                   </div>
+
+                  {/* (ส่วนขยาย 2026-08-12 / S2) แผงผลทดสอบ — 3 แถวเสมอ ไม่ใช่ข้อความก้อนเดียว
+                      เพื่อให้ร้านเห็นว่า "ตั้งค่าถูก" กับ "รับได้จริง" เป็นคนละเรื่อง */}
+                  {report && (
+                    <div className="border-default-300 mb-4 overflow-hidden rounded-lg border">
+                      <div
+                        className={`flex items-start gap-2 px-3 py-2.5 text-sm font-medium ${TONE_BADGE[VERDICT_TONE[report.verdict]]}`}
+                      >
+                        <Icon
+                          icon={report.verdict.startsWith('FAIL') ? 'alert-circle' : report.verdict === 'PASS' ? 'shield-check' : 'help-circle'}
+                          className="mt-0.5 shrink-0 text-base"
+                          aria-hidden="true"
+                        />
+                        <span className="min-w-0 flex-1">{VERDICT_HEADLINE[report.verdict]}</span>
+                        <button
+                          type="button"
+                          onClick={() => setHealthReports((prev) => {
+                            const next = { ...prev }
+                            delete next[channel.id]
+                            return next
+                          })}
+                          aria-label="ปิดผลการทดสอบ"
+                          className="shrink-0 opacity-70 hover:opacity-100"
+                        >
+                          <Icon icon="x" className="text-sm" aria-hidden="true" />
+                        </button>
+                      </div>
+                      <div className="bg-card px-3 py-2">
+                        <HealthCheckRow label="Webhook" state={report.webhook?.state ?? 'INCONCLUSIVE'} text={webhookResultText(report)} />
+                        <HealthCheckRow label="Channel access token" state={report.token.state} text={report.token.state === 'PASS' ? 'ใช้งานได้ปกติ' : 'Token ใช้งานไม่ได้แล้ว (ถูกเพิกถอนหรือหมดอายุ)'} />
+                        <HealthCheckRow
+                          label="ข้อความทดสอบ"
+                          state={report.inbound.state}
+                          text={inboundResultText(report)}
+                        />
+                      </div>
+                      <div className="bg-card border-default-200 text-default-500 border-t px-3 py-2 text-xs">
+                        ตรวจสอบล่าสุด {formatDateTime(report.checkedAt)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* คำแนะนำตั้ง Webhook — กางในที่เดียวกัน ไม่ใช่ modal ใหม่ */}
+                  {webhookHelpId === channel.id && (
+                    <div className="bg-info/15 text-info-ink mb-4 rounded-lg px-3 py-2.5 text-sm">
+                      <p className="mb-2">
+                        วาง Webhook URL ด้านล่างในแท็บ Messaging API ของ LINE Developers Console แล้วกด Verify
+                        และเปิดสวิตช์ &ldquo;Use webhook&rdquo;
+                      </p>
+                      <CopyLinkButton value={webhookUrl} showPreview successMessage="คัดลอก Webhook URL แล้ว" />
+                    </div>
+                  )}
 
                   {/* เมนูลัดใน LINE (feature 00045) — แถวเต็มความกว้างใต้บล็อกข้อมูล+ปุ่มเดิม
                       ไม่แย่งที่กับปุ่ม "ถอด"/"เชื่อมต่อใหม่" ที่ชิดขวาอยู่แล้ว และคั่นด้วยเส้นประ
@@ -478,4 +684,45 @@ function LineConnectWizard({ mode, channelId, onCancel, onSuccess }: LineConnect
       </form>
     </div>
   )
+}
+
+// ─── ผลทดสอบ: แถวเช็ค 3 สถานะ ───────────────────────────────────────────────
+
+/**
+ * 🛑 มี **3 สถานะ ไม่ใช่ 2** — `INCONCLUSIVE` มีอยู่จริงเพราะการตรวจฝั่งรับเป็น
+ * "ไม่พบสัญญาณว่าล้มเหลว" ไม่ใช่ "พบสัญญาณว่าสำเร็จ" การยุบเหลือผ่าน/ไม่ผ่านคือการโกหก
+ */
+function HealthCheckRow({ label, state, text }: { label: string; state: string; text: string }) {
+  const mark =
+    state === 'PASS'
+      ? { icon: 'check', cls: 'text-success-ink' }
+      : state === 'FAIL'
+        ? { icon: 'x', cls: 'text-danger-ink' }
+        : { icon: 'help-circle', cls: 'text-warning-ink' }
+  return (
+    <div className="border-default-200 flex items-start gap-2 py-1.5 text-xs not-first:border-t">
+      <Icon icon={mark.icon} className={`mt-0.5 shrink-0 text-sm ${mark.cls}`} aria-hidden="true" />
+      <span className="text-default-800 w-32 shrink-0 font-medium">{label}</span>
+      <span className="text-default-700 min-w-0 flex-1">{text}</span>
+    </div>
+  )
+}
+
+function webhookResultText(report: HealthReport): string {
+  if (!report.webhook) return 'อ่านสภาพ Webhook ไม่ได้ในตอนนี้ — ไม่ได้แปลว่าตั้งผิด'
+  if (report.webhook.state === 'PASS') return 'ตั้งค่าและเปิดใช้งานถูกต้อง'
+  if (!report.webhook.endpoint) return 'ยังไม่ได้วาง Webhook URL ในคอนโซล LINE'
+  if (!report.webhook.matchesUs) return 'Webhook ชี้ไปยัง URL อื่น ไม่ใช่ของ Deep'
+  return 'ตั้ง URL ไว้แล้วแต่สวิตช์ "Use webhook" ยังปิดอยู่'
+}
+
+function inboundResultText(report: HealthReport): string {
+  if (report.inbound.reason === 'SIGNATURE_MISMATCH') {
+    return 'ประมวลผลไม่สำเร็จ — Channel secret ไม่ตรงกับที่ตั้งไว้ใน LINE (LINE รายงานว่าส่งสำเร็จ แต่นั่นบอกแค่ว่า server เรายังออนไลน์)'
+  }
+  if (report.inbound.reason === 'DESTINATION_NOT_FOUND') {
+    return 'ข้อความมาถึงระบบแล้วแต่ไม่มีช่องทางรองรับ — ตรวจว่า Webhook ชี้มาที่บัญชีนี้จริง'
+  }
+  if (report.inbound.state === 'PASS') return 'ระบบประมวลผลสำเร็จ'
+  return 'ไม่พบสัญญาณว่าถูกปฏิเสธ แต่ยังยืนยันการรับไม่ได้ 100% — ลองอีกครั้งใน 1 นาทีถ้าไม่แน่ใจ'
 }

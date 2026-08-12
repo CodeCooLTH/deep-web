@@ -11,6 +11,7 @@
 import { prisma } from '@/lib/prisma'
 import { decryptToken } from '@/lib/token-crypto'
 import { probeLineToken, probeLineWebhook, testLineWebhook } from '@/lib/line/health-probe'
+import { resolveLineChannelHealth, type LineChannelHealth } from '@/lib/line/channel-health'
 import { readLineDestinationMiss } from './line-inbound-health.service'
 import { HEALTH_INBOUND_SETTLE_MS } from '@/lib/line/constants'
 import { LineChannelServiceError } from './shop-channel.service'
@@ -146,4 +147,69 @@ export function resolveVerdict(input: {
   // (ตั้งค่าถูก + ยืนยันการรับไม่ได้ = ยังไม่ผ่าน ต้องบอกผู้ใช้ตามนั้น)
   if (input.webhookState === 'PASS' && input.inboundState === 'PASS') return 'PASS'
   return 'PASS_WITH_NOTE'
+}
+
+export interface LineChannelHealthSummary {
+  channelId: string
+  health: LineChannelHealth
+  /** วันหมดอายุ token (ISO) — `null` = ไม่หมดอายุ หรือยังไม่เคยอ่าน */
+  tokenExpiresAt: string | null
+}
+
+/**
+ * อ่านสถานะสุขภาพของทุกช่องทาง LINE ของร้าน — เรียกจาก RSC ของ `/settings/channels`
+ *
+ * 🛑 **สภาพ webhook ไม่ถูกเก็บลงคอลัมน์โดยตั้งใจ** — ตรวจสดทุกครั้งที่เปิดหน้า เหตุผล:
+ * ธงที่เก็บไว้คือภาพนิ่ง ณ เวลาที่เขียน ร้านเข้าไปปิดสวิตช์ "Use webhook" ในคอนโซล LINE เมื่อไหร่
+ * ก็ได้โดยที่ระบบเราไม่มีทางรู้ ⇒ ถ้าเก็บไว้ หน้าจอจะบอกว่า "ปกติ" ทั้งที่ข้อความหยุดเข้าไปแล้ว
+ * (docs/conventions/stored-flag-vs-owner-truth.md) แลกด้วยการยิง LINE 1 ครั้งต่อการเปิดหน้า
+ * ซึ่งหน้านี้ traffic ต่ำมาก
+ *
+ * 🛑 อ่านไม่ได้ (เน็ต/สิทธิ์) → `probeLineWebhook` คืน `null` → `resolveLineChannelHealth` **ข้าม**
+ * มิติ webhook ไปเลย ไม่ใช่ตีเป็นความผิด
+ */
+export async function getLineChannelsHealth(params: {
+  shopId: string
+  webhookUrl: string
+  now?: Date
+}): Promise<LineChannelHealthSummary[]> {
+  const rows = await prisma.shopChannel.findMany({
+    where: { shopId: params.shopId, provider: 'LINE', status: { not: 'DISCONNECTED' } },
+    select: {
+      id: true,
+      status: true,
+      accessTokenEnc: true,
+      lineTokenExpiresAt: true,
+      lineLastInboundFailReason: true,
+      lineInboundFailCount: true,
+    },
+  })
+  const nowMs = (params.now ?? new Date()).getTime()
+
+  return Promise.all(
+    rows.map(async (row) => {
+      // ตรวจ webhook ล้ม = ไม่รู้ ไม่ใช่ผิด — try/catch รายแถวกันหน้าล่มทั้งหน้าเพราะช่องทางเดียว
+      let webhook: Awaited<ReturnType<typeof probeLineWebhook>> = null
+      try {
+        webhook = await probeLineWebhook(decryptToken(row.accessTokenEnc), params.webhookUrl)
+      } catch (e) {
+        console.error('[line-health] อ่านสภาพ webhook ไม่สำเร็จ', row.id, e instanceof Error ? e.message : e)
+      }
+
+      return {
+        channelId: row.id,
+        health: resolveLineChannelHealth(
+          {
+            status: row.status,
+            tokenExpiresAt: row.lineTokenExpiresAt,
+            inboundFailReason: row.lineLastInboundFailReason,
+            inboundFailCount: row.lineInboundFailCount,
+            webhook,
+          },
+          nowMs,
+        ),
+        tokenExpiresAt: row.lineTokenExpiresAt?.toISOString() ?? null,
+      }
+    }),
+  )
 }

@@ -32,6 +32,8 @@ import Icon from '@/components/wrappers/Icon'
 import type { Metadata } from 'next'
 import { ChannelsClient } from './ChannelsClient'
 import { LineChannelCard } from './LineChannelCard'
+import { headers } from 'next/headers'
+import { getLineChannelsHealth } from '@/services/line-channel-health.service'
 
 export const metadata: Metadata = { title: 'ช่องทางแชท' }
 
@@ -49,6 +51,24 @@ export default async function ChannelsSettingsPage() {
   // แยก LINE ออกจาก Messenger/Instagram ตั้งแต่ตรงนี้ — คนละการ์ด คนละ client component
   const messengerChannels = channels.filter((c) => c.provider !== 'LINE')
   const lineChannels = channels.filter((c) => c.provider === 'LINE')
+
+  /**
+   * สุขภาพของช่องทาง LINE — ตรวจ **สด** ทุกครั้งที่เปิดหน้า ไม่เก็บลงคอลัมน์ (ดูเหตุผลเต็มที่
+   * `getLineChannelsHealth`) ⇒ ยิง LINE 1 ครั้งต่อช่องทาง หน้านี้ traffic ต่ำจึงคุ้ม
+   *
+   * 🛑 host ต้องเป็น origin ที่ผู้ใช้กำลังเปิดอยู่จริง — ตัวเดียวกับที่หน้าเชื่อมต่อแสดงให้ร้าน
+   * คัดลอกไปวาง (HR16) ตัวเทียบจะตัด `seller.`/`admin.` ทิ้งเองก่อนเทียบ เพราะ webhook ใช้ได้
+   * จากทั้งโดเมนหลักและ subdomain
+   */
+  const host = (await headers()).get('host') ?? ''
+  const proto = host.startsWith('localhost') || host.includes('.local') ? 'http' : 'https'
+  const lineHealth =
+    lineChannels.length > 0
+      ? await getLineChannelsHealth({
+          shopId: activeCtx.shopId,
+          webhookUrl: `${proto}://${host}/api/channels/line/webhook`,
+        })
+      : []
 
   return (
     <>
@@ -95,13 +115,20 @@ export default async function ChannelsSettingsPage() {
         {/* basicId มาจาก listChannels() แล้ว (เพิ่มใน select ตอน S-13 — additive, MESSENGER/IG ได้ null)
             ทำให้ @handle ของ OA ขึ้นตั้งแต่โหลดหน้า ไม่ต้องรอ reconnect */}
         <LineChannelCard
-          initialChannels={lineChannels.map((c) => ({
-            id: c.id,
-            name: c.name,
-            avatarUrl: c.avatarUrl,
-            status: c.status,
-            basicId: c.basicId,
-          }))}
+          initialChannels={lineChannels.map((c) => {
+            const h = lineHealth.find((x) => x.channelId === c.id)
+            return {
+              id: c.id,
+              name: c.name,
+              avatarUrl: c.avatarUrl,
+              status: c.status,
+              basicId: c.basicId,
+              // สถานะสุขภาพคำนวณที่ server ด้วยฟังก์ชันบริสุทธิ์ตัวเดียว — client ไม่ตัดสินเอง
+              // (AC-CH-25: ห้ามเทอร์นารีใน JSX) ไม่มีผล = ถือว่ายังไม่รู้ ให้การ์ดถอยไปใช้ status
+              health: h?.health ?? null,
+              tokenExpiresAt: h?.tokenExpiresAt ?? null,
+            }
+          })}
         />
       </div>
     </>
