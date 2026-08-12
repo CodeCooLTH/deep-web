@@ -15,6 +15,15 @@ vi.mock('@/lib/prisma', () => ({ prisma: db }))
 vi.mock('@/services/shop-channel.service', () => ({ getChannelByExternalId: vi.fn() }))
 vi.mock('@/lib/facebook/graph', () => ({
   getContactProfile: vi.fn().mockResolvedValue({ name: 'ลูกค้า ทดสอบ', avatarUrl: 'https://x/p.jpg' }),
+  /**
+   * 🛑 เพิ่ม 2026-08-12 — 3 เทสในไฟล์นี้แดงมานาน เพราะ `ingestInboundMessage` โตขึ้นทีหลัง:
+   * attachment ที่ payload ไม่มี URL ตรง ๆ จะถามซ้ำที่ Graph ผ่าน `fetchAttachmentUrl()`
+   * mock ที่ประกาศ "เท่าที่ service ใช้ ณ วันเขียน" จึงพัง
+   *
+   * คืน `null` = "ถามแล้วไม่ได้ URL" ซึ่งตรงกับสิ่งที่ 3 เทสนี้ตั้งใจทดสอบพอดี — เคส
+   * mirror ไม่ผ่านต้องไม่กลายเป็นบับเบิลว่างเปล่า
+   */
+  fetchAttachmentUrl: vi.fn().mockResolvedValue(null),
 }))
 
 beforeAll(() => {
@@ -394,8 +403,12 @@ describe('ingestInboundMessage', () => {
       const data = db.chatMessage.create.mock.calls[0]![0].data
       expect(data.type).toBe('TEXT')
       expect(data.imageUrl).toBeNull()
+      // body (บับเบิลในเธรด) = placeholder ยาวที่บอกทางออกให้ผู้ขาย
       expect(data.body).toContain('Messenger')
-      expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toContain('Messenger')
+      // 🛑 preview (รายการซ้าย) = label สั้น **โดยตั้งใจ** — เปลี่ยนตาม user report 2026-07-25 ว่า
+      // "[ข้อความเสียง — เปิดดูใน Messenger]" ยาวรกในรายการ (ดู SHORT_PREVIEW_BY_ATTTYPE ใน
+      // channel-chat.service.ts) เทสข้อนี้เคยค้างอยู่ที่พฤติกรรมก่อนหน้านั้นจนแดงมานาน
+      expect(db.conversation.update.mock.calls[0]![0].data.lastMessagePreview).toBe('[วิดีโอ]')
     })
 
     // feature 00018 (user 2026-07-24 "รองรับทุกอย่าง")

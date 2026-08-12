@@ -42,7 +42,14 @@ describe('InboxList — ด่านเทียบลายเซ็นตั�
 
   it('การ merge ของ refreshFirstPage ต้องไม่ต่อท้ายด้วย prev ที่มาจากลายเซ็นอื่น', () => {
     // ต้องมี base ที่คัดจาก itemsSignatureRef ไม่ใช่ใช้ prev ตรง ๆ
-    expect(src).toMatch(/itemsSignatureRef\.current\s*===\s*sig\s*\?\s*prev\s*:\s*\[\]/)
+    //
+    // 🛑 อัปเดต 2026-08-12: เดิมบังคับ "รูปเดียว" (`itemsSignatureRef.current === sig ? prev : []`
+    // เขียนติดกันเป็นบรรทัดเดียว) แล้วแดงทันทีที่โค้ดยกเงื่อนไขนั้นเป็นตัวแปร `comparable`
+    // — ซึ่งเป็น refactor ที่ **ทำให้ดีขึ้น** (predicate เดียวกันถูกใช้คุมเสียงแจ้งเตือนด้วย)
+    // เทสต้องผูกกับ *เจตนา* ไม่ใช่ *การจัดวางตัวอักษร*: (1) มีการเทียบลายเซ็นของชุดที่อยู่ใน state
+    // กับลายเซ็นของผลที่เพิ่งได้ (2) base มาจากผลการเทียบนั้น ไม่ใช่ prev ตรง ๆ
+    expect(src).toMatch(/itemsSignatureRef\.current\s*===\s*sig/)
+    expect(src).toMatch(/const\s+base\s*=\s*\w+\s*\?\s*prev\s*:\s*\[\]/)
     // และห้ามกลับไปเป็นรูปเดิมที่ merge prev ทั้งก้อน
     expect(src).not.toMatch(/\[\s*\.\.\.data\.items,\s*\.\.\.prev\.filter/)
   })

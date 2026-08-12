@@ -30,21 +30,23 @@ describe('listConversationsForShop — T1 filter/ค้นหา (feature 00018)
     await listConversationsForShop('shop1')
 
     const where = db.conversation.findMany.mock.calls[0]![0].where
-    expect(where).toEqual({ shopId: 'shop1', resolvedAt: null, isHidden: false })
+    // isSpam:false เป็นค่าตั้งต้นของ `listConversationsForShop` (chat.service.ts:336) — รายการปกติ
+    // ไม่โชว์เธรดสแปม; แท็บสแปมส่ง opts.spam=true แล้วได้ isSpam:true แทน (เทสแยกด้านล่าง)
+    expect(where).toEqual({ shopId: 'shop1', resolvedAt: null, isHidden: false, isSpam: false })
   })
 
   it('filter ตาม channel → where มี shopId + channel (+ default status/hidden)', async () => {
     await listConversationsForShop('shop1', { channel: 'MESSENGER' })
 
     const where = db.conversation.findMany.mock.calls[0]![0].where
-    expect(where).toEqual({ shopId: 'shop1', channel: 'MESSENGER', resolvedAt: null, isHidden: false })
+    expect(where).toEqual({ shopId: 'shop1', channel: 'MESSENGER', resolvedAt: null, isHidden: false, isSpam: false })
   })
 
   it('filter ตาม shopChannelId → where มี shopId + shopChannelId (+ default status/hidden)', async () => {
     await listConversationsForShop('shop1', { shopChannelId: 'ch1' })
 
     const where = db.conversation.findMany.mock.calls[0]![0].where
-    expect(where).toEqual({ shopId: 'shop1', shopChannelId: 'ch1', resolvedAt: null, isHidden: false })
+    expect(where).toEqual({ shopId: 'shop1', shopChannelId: 'ch1', resolvedAt: null, isHidden: false, isSpam: false })
   })
 
   it('ค้นหา q → OR ของ lastMessagePreview/externalContact.name ห่อใน AND (กันชนกับ OR อื่น)', async () => {

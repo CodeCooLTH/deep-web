@@ -27,6 +27,26 @@ vi.mock('@/lib/prisma', () => ({
     sellerWallet: {
       findUnique: vi.fn(),
     },
+    /**
+     * 🛑 เพิ่ม 2026-08-12 — เทสทั้งไฟล์แดงมานานเพราะ mock ขาด 3 model นี้
+     *
+     * `getRecentActivity` โต Source ที่ 5 (low-stock alert ของ Deep Stock Pro) ทีหลัง แล้ว
+     * mock ไม่ได้โตตาม → `prisma.inventoryEntitlement` เป็น undefined → โยน TypeError ที่ถูก
+     * `catch` ในตัว service กลืนแล้วคืน `[]` ⇒ **ทุก assertion ที่คาดหวังข้อมูลจึงพังพร้อมกัน**
+     * โดยที่ข้อความ error ไม่ได้ชี้ไปที่ mock เลย
+     *
+     * บทเรียน: mock ที่ประกาศ "เท่าที่ service ใช้ ณ วันนั้น" จะพังเงียบเมื่อ service โตขึ้น —
+     * ค่าตั้งต้นต้องเป็น "ไม่มีข้อมูล" (null/[]) ไม่ใช่ไม่มี key
+     */
+    inventoryEntitlement: {
+      findUnique: vi.fn(async () => null),
+    },
+    stockMovement: {
+      findMany: vi.fn(async () => []),
+    },
+    product: {
+      findMany: vi.fn(async () => []),
+    },
   },
 }))
 

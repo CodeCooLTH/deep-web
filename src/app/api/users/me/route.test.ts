@@ -22,6 +22,12 @@ vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 // vi.hoisted: vi.mock ถูก hoist ขึ้นก่อน const ปกติ → ถ้าใช้ const ธรรมดาจะชน TDZ
 const prismaMock = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+  // 🛑 เพิ่ม 2026-08-12 — เทส "username ซ้ำ user อื่น → 409" แดงมานาน เพราะด่านกันชื่อซ้ำ
+  // ย้ายไปใช้ `isPublicNameTaken()` (`src/lib/public-name.ts`) ซึ่งเช็ค **ทั้ง User.username
+  // และ Shop.slug** พร้อมกัน (ชื่อสาธารณะใช้ namespace เดียวกัน) — mock ที่มีแต่ `user`
+  // จึงพังที่ `prisma.shop.findFirst` แล้ว error ไปโผล่เป็น "Cannot read properties of undefined"
+  // ซึ่งไม่ได้ชี้ไปที่ mock เลย
+  shop: { findFirst: vi.fn(async () => null) },
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 
