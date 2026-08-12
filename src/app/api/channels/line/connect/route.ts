@@ -54,6 +54,16 @@ function mapLineChannelError(e: unknown, logTag: string): NextResponse {
           { error: 'key ที่วางเป็นของบัญชี LINE คนละบัญชีกับที่เชื่อมไว้', code: 'LINE_ACCOUNT_MISMATCH' },
           { status: 409, headers: NO_STORE_HEADERS },
         )
+      case 'LINE_ALREADY_CONNECTED': {
+        const oaName = e.shopName ?? 'บัญชีอื่น'
+        return NextResponse.json(
+          {
+            error: `ร้านนี้เชื่อมต่อ LINE OA อื่นอยู่แล้ว (${oaName}) — เชื่อมได้ทีละ 1 OA ต่อร้าน ต้องถอดตัวเดิมก่อนเชื่อม OA ใหม่`,
+            code: 'LINE_ALREADY_CONNECTED',
+          },
+          { status: 409, headers: NO_STORE_HEADERS },
+        )
+      }
       case 'CHANNEL_NOT_FOUND_OR_FORBIDDEN':
         return NextResponse.json({ error: 'ไม่พบช่องทางนี้' }, { status: 404, headers: NO_STORE_HEADERS })
     }
@@ -102,6 +112,8 @@ export async function POST(request: NextRequest) {
       userId,
       channelSecret,
       channelAccessToken,
+      // ตัวแปรเดียวกับที่ส่งกลับไปให้ร้านคัดลอกในบรรทัดถัดไป — ห้ามแยกเป็นสองแหล่ง (HR16)
+      webhookUrl: webhookUrl(request),
     })
 
     return NextResponse.json(

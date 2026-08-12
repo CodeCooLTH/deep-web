@@ -12,6 +12,14 @@ const db = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: db }))
 
+// (ส่วนขยาย 2026-08-12) ตัวตรวจสภาพ — mock ไว้เป็น "ไม่มีอะไรผิด" เป็นค่าตั้งต้น
+// เทสที่สนใจเรื่องนี้จะ override เอง
+const probe = vi.hoisted(() => ({
+  probeLineToken: vi.fn().mockResolvedValue({ valid: true, expiresAt: null }),
+  probeLineWebhook: vi.fn().mockResolvedValue(null),
+}))
+vi.mock('@/lib/line/health-probe', () => probe)
+
 const lineClient = vi.hoisted(() => ({ lineApiRequest: vi.fn() }))
 vi.mock('@/lib/line/client', async () => {
   const actual = await vi.importActual<typeof import('@/lib/line/client')>('@/lib/line/client')
@@ -43,6 +51,9 @@ describe('shop-channel.service — LINE (S-5)', () => {
     vi.clearAllMocks()
     db.shopChannel.findFirst.mockResolvedValue(null)
     db.shopChannel.findMany.mockResolvedValue([])
+    db.shopChannel.update.mockResolvedValue({})
+    probe.probeLineToken.mockResolvedValue({ valid: true, expiresAt: null })
+    probe.probeLineWebhook.mockResolvedValue(null)
   })
 
   describe('verifyLineBotInfo', () => {
@@ -97,7 +108,7 @@ describe('shop-channel.service — LINE (S-5)', () => {
         shopId: 'shop1',
         userId: 'user1',
         channelSecret: '0123456789abcdef0123456789abcdef',
-        channelAccessToken: 'plain-access-token',
+        channelAccessToken: 'plain-access-token', webhookUrl: 'https://deepthailand.app/api/channels/line/webhook',
       })
 
       const created = db.shopChannel.create.mock.calls[0]![0].data
@@ -118,7 +129,7 @@ describe('shop-channel.service — LINE (S-5)', () => {
 
       const result = await connectLineChannel({
         shopId: 'shop1', userId: 'user1',
-        channelSecret: '0123456789abcdef0123456789abcdef', channelAccessToken: 'tok',
+        channelSecret: '0123456789abcdef0123456789abcdef', channelAccessToken: 'tok', webhookUrl: 'https://deepthailand.app/api/channels/line/webhook',
       })
 
       expect(result.warnings).toEqual(['CHAT_MODE_NOT_BOT'])
@@ -130,7 +141,7 @@ describe('shop-channel.service — LINE (S-5)', () => {
       await expect(
         connectLineChannel({
           shopId: 'shop1', userId: 'user1',
-          channelSecret: '0123456789abcdef0123456789abcdef', channelAccessToken: 'bad',
+          channelSecret: '0123456789abcdef0123456789abcdef', channelAccessToken: 'bad', webhookUrl: 'https://deepthailand.app/api/channels/line/webhook',
         }),
       ).rejects.toMatchObject({ code: 'TOKEN_INVALID' })
       expect(db.shopChannel.create).not.toHaveBeenCalled()
@@ -144,7 +155,7 @@ describe('shop-channel.service — LINE (S-5)', () => {
       await expect(
         connectLineChannel({
           shopId: 'shop1', userId: 'user1',
-          channelSecret: '0123456789abcdef0123456789abcdef', channelAccessToken: 'tok',
+          channelSecret: '0123456789abcdef0123456789abcdef', channelAccessToken: 'tok', webhookUrl: 'https://deepthailand.app/api/channels/line/webhook',
         }),
       ).rejects.toMatchObject({ code: 'CHANNEL_TAKEN', shopName: 'ร้านอื่น' })
       expect(db.shopChannel.create).not.toHaveBeenCalled()
@@ -160,7 +171,7 @@ describe('shop-channel.service — LINE (S-5)', () => {
 
       const result = await connectLineChannel({
         shopId: 'shop1', userId: 'user1',
-        channelSecret: '0123456789abcdef0123456789abcdef', channelAccessToken: 'tok',
+        channelSecret: '0123456789abcdef0123456789abcdef', channelAccessToken: 'tok', webhookUrl: 'https://deepthailand.app/api/channels/line/webhook',
       })
 
       expect(db.shopChannel.create).not.toHaveBeenCalled()
@@ -224,5 +235,106 @@ describe('shop-channel.service — LINE (S-5)', () => {
       expect(decryptToken(data.channelSecretEnc)).toBe('fedcba9876543210fedcba9876543210')
       expect(data.status).toBeUndefined() // ไม่แตะ status เมื่อไม่ได้ re-verify token
     })
+  })
+})
+
+// ── ความทนของการเชื่อมต่อ (ส่วนขยาย 2026-08-12) ─────────────────────────────
+
+describe('connectLineChannel — 1 ร้าน 1 LINE OA (D-CH-9 / AC-CH-26..28)', () => {
+  const CONNECT = {
+    shopId: 'shop-1',
+    userId: 'user-1',
+    channelSecret: 'a'.repeat(32),
+    channelAccessToken: 'token',
+    webhookUrl: 'https://deepthailand.app/api/channels/line/webhook',
+  }
+
+  beforeEach(() => {
+    lineClient.lineApiRequest.mockResolvedValue(botInfoResponse)
+  })
+
+  it('[blocker] ร้านมี OA อื่นอยู่แล้ว → LINE_ALREADY_CONNECTED และห้ามเขียนแถวใหม่', async () => {
+    // 🛑 กันที่ service ไม่ใช่แค่ซ่อนปุ่ม — ของเดิม "รองรับหลายใบครึ่งเดียว" (schema ให้ได้ แต่
+    // โควตา/badge/rich menu สมมติว่ามีใบเดียว) ⇒ ใบที่สองจะทำให้ตัวเลขชี้ผิดใบโดยไม่มีอะไรฟ้อง
+    // mutation: ลบบล็อก otherOa ออก → ข้อนี้แดง
+    db.shopChannel.findFirst
+      .mockResolvedValueOnce(null) // activeElsewhere (ร้านอื่นถือ OA นี้อยู่ไหม)
+      .mockResolvedValueOnce({ name: 'BT สาขา สุขสวัสดิ์' }) // OA อื่นของร้านเราเอง
+    await expect(connectLineChannel(CONNECT)).rejects.toMatchObject({
+      code: 'LINE_ALREADY_CONNECTED',
+      shopName: 'BT สาขา สุขสวัสดิ์',
+    })
+    expect(db.shopChannel.create).not.toHaveBeenCalled()
+  })
+
+  it('[blocker] เชื่อม OA ใบเดิมซ้ำ (externalId เดียวกัน) → ผ่าน ไม่ใช่ 409', async () => {
+    // ด่านต้องกัน "เพิ่มใบใหม่" ไม่ใช่กัน "อัปเดต credential ของใบเดิม" ซึ่งเป็นเส้นทางกู้คืน
+    // จาก TOKEN_INVALID ที่ร้านต้องใช้จริง — กันผิดข้อนี้ = ร้านที่ token ตายจะกู้ไม่ได้เลย
+    db.shopChannel.findFirst.mockResolvedValue(null)
+    db.shopChannel.findMany.mockResolvedValue([{ id: 'ch-1', _count: { contacts: 5 } }])
+    db.shopChannel.update.mockResolvedValue({ id: 'ch-1', provider: 'LINE', status: 'ACTIVE', name: 'x' })
+    await expect(connectLineChannel(CONNECT)).resolves.toBeTruthy()
+  })
+})
+
+describe('connectLineChannel — warning สภาพการเชื่อมต่อ (FR-CH-01/03)', () => {
+  const CONNECT = {
+    shopId: 'shop-1',
+    userId: 'user-1',
+    channelSecret: 'a'.repeat(32),
+    channelAccessToken: 'token',
+    webhookUrl: 'https://deepthailand.app/api/channels/line/webhook',
+  }
+
+  beforeEach(() => {
+    lineClient.lineApiRequest.mockResolvedValue(botInfoResponse)
+    db.shopChannel.findMany.mockResolvedValue([{ id: 'ch-1', _count: { contacts: 0 } }])
+    db.shopChannel.update.mockResolvedValue({ id: 'ch-1', provider: 'LINE', status: 'ACTIVE', name: 'x' })
+  })
+
+  it('[blocker] token 30 วัน → warning TOKEN_SHORT_LIVED และเก็บวันหมดอายุลงแถว', async () => {
+    const expiresAt = new Date('2026-09-08T00:00:00.000Z')
+    probe.probeLineToken.mockResolvedValue({ valid: true, expiresAt })
+    const { warnings } = await connectLineChannel(CONNECT)
+    expect(warnings).toContain('TOKEN_SHORT_LIVED')
+    expect(db.shopChannel.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ lineTokenExpiresAt: expiresAt }) }),
+    )
+  })
+
+  it('[blocker] token ไม่หมดอายุ (long-lived) → ไม่มี warning และเก็บ null', async () => {
+    probe.probeLineToken.mockResolvedValue({ valid: true, expiresAt: null })
+    const { warnings } = await connectLineChannel(CONNECT)
+    expect(warnings).not.toContain('TOKEN_SHORT_LIVED')
+  })
+
+  it('[blocker] webhook ยังไม่ตั้ง / ปิดสวิตช์ / ชี้ที่อื่น → warning ตรงสาเหตุ ไม่ใช่ก้อนเดียว', async () => {
+    probe.probeLineWebhook.mockResolvedValue({ endpoint: null, active: false, matchesUs: false })
+    expect((await connectLineChannel(CONNECT)).warnings).toContain('WEBHOOK_NOT_SET')
+
+    probe.probeLineWebhook.mockResolvedValue({ endpoint: 'https://x.example/h', active: true, matchesUs: false })
+    expect((await connectLineChannel(CONNECT)).warnings).toContain('WEBHOOK_POINTS_ELSEWHERE')
+
+    probe.probeLineWebhook.mockResolvedValue({
+      endpoint: 'https://deepthailand.app/api/channels/line/webhook',
+      active: false,
+      matchesUs: true,
+    })
+    expect((await connectLineChannel(CONNECT)).warnings).toContain('WEBHOOK_INACTIVE')
+  })
+
+  it('[blocker] อ่านสภาพ webhook ไม่ได้ (null) → เงียบ ห้ามกล่าวหาว่าตั้งผิด', async () => {
+    // 🛑 "อ่านไม่ได้" ≠ "ตั้งผิด" — ถ้าเน็ตเราสะดุดแล้วขึ้นเตือนว่าร้านตั้ง webhook ผิด
+    // ร้านจะไปรื้อคอนโซล LINE ที่ไม่ได้พัง
+    probe.probeLineWebhook.mockResolvedValue(null)
+    const { warnings } = await connectLineChannel(CONNECT)
+    expect(warnings.filter((w) => w.startsWith('WEBHOOK_'))).toHaveLength(0)
+  })
+
+  it('[blocker] ตรวจสภาพล้มทั้งก้อน → การเชื่อมต่อยังสำเร็จ (AC-CH-03)', async () => {
+    // /v2/bot/info ผ่านแล้ว = token ใช้ได้จริง สองอย่างนี้เป็นข้อมูลเสริม
+    // mutation: เอา try/catch ใน inspectLineConnection ออก → ข้อนี้แดง
+    probe.probeLineToken.mockRejectedValue(new Error('boom'))
+    await expect(connectLineChannel(CONNECT)).resolves.toBeTruthy()
   })
 })

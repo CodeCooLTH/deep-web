@@ -10,6 +10,7 @@ import {
   type PageInfo,
 } from '@/lib/facebook/graph'
 import { lineApiRequest, LineApiError } from '@/lib/line/client'
+import { probeLineToken, probeLineWebhook } from '@/lib/line/health-probe'
 
 // จัดการช่องทางที่ร้านผูกไว้ (feature 00018)
 // กติกาสำคัญ: accessTokenEnc ห้ามออกจากไฟล์นี้ในรูป plaintext ยกเว้นผ่าน
@@ -458,12 +459,15 @@ export type LineServiceErrorCode =
   | 'LINE_ACCOUNT_MISMATCH'
   | 'CHANNEL_TAKEN'
   | 'CHANNEL_NOT_FOUND_OR_FORBIDDEN'
+  // (ส่วนขยาย 2026-08-12 / D-CH-9) ร้านนี้มี LINE OA อื่นเชื่อมอยู่แล้ว — 1 ร้าน 1 OA
+  | 'LINE_ALREADY_CONNECTED'
 
 /** error ของชั้น service สำหรับ LINE — route (S-5) แมป code นี้เป็น HTTP + ข้อความไทยตาม API.md §5
  *  (feedback_service_error_route_mapping: ทุก error ใหม่ต้องมี route catch ครอบ ไม่งั้นกลายเป็น 500 เงียบ) */
 export class LineChannelServiceError extends Error {
   readonly code: LineServiceErrorCode
-  /** เฉพาะ CHANNEL_TAKEN — ชื่อร้านที่ถือ externalId นี้อยู่ ให้ข้อความบอก user ได้ตรง ๆ */
+  /** CHANNEL_TAKEN = ชื่อร้านที่ถือ externalId นี้อยู่ · LINE_ALREADY_CONNECTED = ชื่อ OA เดิม
+   *  ของร้านนี้เอง — ทั้งสองกรณีใช้ช่องเดียวกันเพราะ route เอาไปเติมในประโยคเดียวกัน */
   readonly shopName?: string | null
 
   constructor(code: LineServiceErrorCode, shopName?: string | null) {
@@ -578,6 +582,28 @@ export async function createLineChannel(params: {
     throw new LineChannelServiceError('CHANNEL_TAKEN', activeElsewhere.shop?.shopName ?? null)
   }
 
+  // (ส่วนขยาย 2026-08-12 / AC-CH-26) 1 ร้าน = 1 LINE OA
+  //
+  // 🛑 กันที่ service ไม่ใช่แค่ซ่อนปุ่ม — ของเดิม "รองรับหลายใบครึ่งเดียว": schema ให้ได้ แต่
+  // มาตรวัดโควตา · badge ในอินบ็อกซ์ · rich menu (1:1 ShopChannel) ล้วนสมมติว่ามีใบเดียว
+  // ⇒ ร้านที่เชื่อมใบสองได้จะเจอตัวเลข/เมนูชี้ผิดใบโดยไม่มีอะไรฟ้อง
+  //
+  // 🛑 **ไม่แตะของเดิมที่เกินอยู่แล้ว (grandfather, AC-CH-28)** — ด่านนี้กันเฉพาะ "เพิ่มใบใหม่"
+  // การบังคับถอดจะทำให้ Conversation/Order ที่อ้าง shopChannelId กลายเป็นกำพร้าเพื่อกฎที่เพิ่งตั้ง
+  // (prod 2026-08-12: ไม่มีร้านไหนมี LINE เกิน 1 ใบเลย — ตรวจแล้ว)
+  const otherOa = await prisma.shopChannel.findFirst({
+    where: {
+      shopId,
+      provider: 'LINE',
+      externalId: { not: botInfo.externalId },
+      status: { not: 'DISCONNECTED' },
+    },
+    select: { name: true },
+  })
+  if (otherOa) {
+    throw new LineChannelServiceError('LINE_ALREADY_CONNECTED', otherOa.name)
+  }
+
   const ownRows = await prisma.shopChannel.findMany({
     where: { provider: 'LINE', externalId: botInfo.externalId, shopId },
     select: { id: true, _count: { select: { contacts: true } } },
@@ -624,6 +650,9 @@ export async function connectLineChannel(params: {
   userId: string
   channelSecret: string
   channelAccessToken: string
+  /** URL ที่เราแสดงให้ร้านคัดลอกไปวางในคอนโซล LINE — 🛑 ต้องเป็น**ตัวแปรเดียวกัน**กับที่แสดงบนจอ
+   *  ไม่ใช่ hardcode โดเมน prod ไม่งั้น dev จะขึ้นเตือนผิดตลอดแล้วคนจะเรียนรู้ที่จะเมินคำเตือนนั้น */
+  webhookUrl: string
 }): Promise<{ channel: LineChannelView; warnings: string[] }> {
   const botInfo = await verifyLineBotInfo(params.channelAccessToken)
   const channel = await createLineChannel({
@@ -634,7 +663,50 @@ export async function connectLineChannel(params: {
     channelAccessToken: params.channelAccessToken,
   })
   const warnings = botInfo.chatMode !== 'bot' ? ['CHAT_MODE_NOT_BOT'] : []
+  warnings.push(
+    ...(await inspectLineConnection(channel.id, params.channelAccessToken, params.webhookUrl)),
+  )
   return { channel, warnings }
+}
+
+/**
+ * ตรวจสภาพการเชื่อมต่อหลังเขียนแถวเสร็จ แล้วคืน warning code ให้หน้าจอ (FR-CH-01/03)
+ *
+ * 🛑 **ไม่บล็อกการเชื่อมทุกกรณี** (AC-CH-10) — ลำดับใช้งานจริงคือร้านต้องเอา webhook URL
+ * *จากหน้าเรา* ไปวางในคอนโซล LINE จึงมีช่วงที่ยังไม่ตั้งเป็นเรื่องปกติ การบล็อกจะทำให้เชื่อมไม่ได้เลย
+ *
+ * 🛑 **ไม่ throw ทุกกรณี** — `/v2/bot/info` ผ่านแล้วแปลว่า token ใช้ได้จริง ส่วนสองอย่างนี้เป็น
+ * ข้อมูลเสริม (AC-CH-03) ถ้าอ่านไม่ได้ต้องเงียบ ไม่ใช่ทำให้ร้านเชื่อมไม่สำเร็จ
+ */
+async function inspectLineConnection(
+  channelId: string,
+  channelAccessToken: string,
+  webhookUrl: string,
+): Promise<string[]> {
+  const warnings: string[] = []
+  try {
+    const [token, webhook] = await Promise.all([
+      probeLineToken(channelAccessToken),
+      probeLineWebhook(channelAccessToken, webhookUrl),
+    ])
+
+    // เก็บวันหมดอายุไว้ให้ cron กับหน้าจอใช้ — `null` = long-lived หรืออ่านไม่ได้ (ทั้งคู่ไม่เตือน)
+    await prisma.shopChannel.update({
+      where: { id: channelId },
+      data: { lineTokenExpiresAt: token.expiresAt, lineTokenCheckedAt: new Date() },
+    })
+    if (token.expiresAt) warnings.push('TOKEN_SHORT_LIVED')
+
+    // `null` = อ่านไม่ได้ (เน็ต/สิทธิ์) ≠ ตั้งผิด — เงียบไว้ อย่ากล่าวหา
+    if (webhook) {
+      if (!webhook.endpoint) warnings.push('WEBHOOK_NOT_SET')
+      else if (!webhook.matchesUs) warnings.push('WEBHOOK_POINTS_ELSEWHERE')
+      else if (!webhook.active) warnings.push('WEBHOOK_INACTIVE')
+    }
+  } catch (e) {
+    console.error('[line] ตรวจสภาพการเชื่อมต่อไม่สำเร็จ', e instanceof Error ? e.message : e)
+  }
+  return warnings
 }
 
 /**
