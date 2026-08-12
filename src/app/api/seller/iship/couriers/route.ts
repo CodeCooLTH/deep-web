@@ -7,11 +7,13 @@
 import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { ishipJson, mapIShipError } from "@/lib/iship/route-helpers";
 import { listCouriers } from "@/services/iship.service";
+import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
+import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const guard = await requireGeneralShop();
+export async function GET(request: NextRequest) {
+  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   try {

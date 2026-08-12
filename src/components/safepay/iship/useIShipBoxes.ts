@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 
 export interface IShipBoxOption {
   id: number
@@ -29,6 +30,8 @@ export function useIShipBoxes(enabled = true): {
   boxes: IShipBoxOption[]
   loading: boolean
 } {
+  // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
+  const ishipUrl = useIShipUrl()
   const [boxes, setBoxes] = useState<IShipBoxOption[]>(BOX_CACHE ?? [])
   const [loading, setLoading] = useState(enabled && !BOX_CACHE)
 
@@ -36,7 +39,7 @@ export function useIShipBoxes(enabled = true): {
     if (!enabled || BOX_CACHE) return
     let alive = true
     setLoading(true)
-    fetch('/api/seller/iship/boxes', { cache: 'no-store' })
+    fetch(ishipUrl('/api/seller/iship/boxes'), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('failed'))))
       .then((data: IShipBoxOption[]) => {
         BOX_CACHE = data

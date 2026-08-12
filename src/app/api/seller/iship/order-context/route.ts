@@ -11,11 +11,12 @@ import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { ishipError, ishipJson, mapIShipError } from "@/lib/iship/route-helpers";
 import { getShipmentPanelOrReason, resolveOrderIdByToken } from "@/services/iship.service";
 import { toShipmentContextJson } from "@/lib/iship/context";
+import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const guard = await requireGeneralShop();
+  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   const params = request.nextUrl.searchParams;

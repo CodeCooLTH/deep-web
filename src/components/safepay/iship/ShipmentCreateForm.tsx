@@ -31,6 +31,7 @@ import type {
 import { useIShipBoxes } from './useIShipBoxes'
 import PriceCompareSheet from './PriceCompareSheet'
 import type { ShipmentFooterReporter } from './shipment-footer'
+import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 import AddressSearchSheet, {
   type SelectedLocality,
 } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AddressSearchSheet'
@@ -167,6 +168,8 @@ export default function ShipmentCreateForm({
   hideSubmit = false,
   onFooterChange,
 }: Props) {
+  // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
+  const ishipUrl = useIShipUrl()
   const [busy, setBusy] = useState(false)
   const [addrOpen, setAddrOpen] = useState(false)
   const [form, setForm] = useState<ReceiverData>(receiver)
@@ -335,7 +338,7 @@ export default function ShipmentCreateForm({
     setQuoting(true)
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/seller/iship/price', {
+        const res = await fetch(ishipUrl('/api/seller/iship/price'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -392,7 +395,7 @@ export default function ShipmentCreateForm({
 
     setBusy(true)
     try {
-      const res = await fetch('/api/seller/iship/shipments', {
+      const res = await fetch(ishipUrl('/api/seller/iship/shipments'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -9,11 +9,12 @@ import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { IShipPickupSchema } from "@/lib/validations";
 import { ishipError, ishipJson, mapIShipError, readJson } from "@/lib/iship/route-helpers";
 import { requestPickup } from "@/services/iship.service";
+import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const guard = await requireGeneralShop();
+  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   const parsed = v.safeParse(IShipPickupSchema, await readJson(request));

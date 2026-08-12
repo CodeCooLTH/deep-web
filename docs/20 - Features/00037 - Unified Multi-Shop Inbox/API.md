@@ -65,6 +65,11 @@ related: ["[[SRS]]", "[[SDS]]"]
 | `GET /api/orders/[token]` | query **`?shopId=`** | 404 (resolve ร้านไม่ได้) — ไม่เคย fallback ไปร้าน active |
 | `PATCH /api/orders/[token]` | body **`shopId`** | เหมือน GET |
 | `GET /api/products` | query **`?shopId=`** | รูปแบบผิด → 400 · ไม่มีสิทธิ์ → **รายการว่าง** (เป็น "รายการ" ไม่ใช่การขอทรัพยากรที่ระบุ จึงอยู่ใต้กฎข้อ 3 ของ §4 ตามปกติ) |
+| `**/api/seller/iship/**` (21 ไฟล์) | query **`?shopId=`** ทุก method รวม POST | ไม่มีสิทธิ์/ร้านไม่ใช่ ONLINE_SALES → `403` (รูปเดิมของ `requireGeneralShop`) |
+
+🛑 **iShip ใช้ query แม้กับ POST โดยตั้งใจ** — ฝั่ง server อ่านที่เดียวด้วย `readIShipShopIdFromQuery()` จึงไม่มีเส้นไหนต้องจำว่า "ของฉันอ่านจาก body นะ" (11 endpoint ที่เข้าถึงได้จากโมดัลพัสดุในแชท + อีก 10 ที่ยังไม่มีทางเข้าจากแชทแต่ใส่ให้เหมือนกันหมด — ความสม่ำเสมอคือสิ่งที่กัน "เส้นที่ลืม")
+
+🛑 **ฝั่ง client ห้ามยิง `/api/seller/iship/*` ตรง ๆ** ต้องผ่าน `useIShipUrl()` (`src/components/safepay/iship/iship-shop-context.tsx`) — component ของ iShip ซ้อนกัน 4 ชั้นและแต่ละชั้นยิงเอง การไล่ส่ง prop แปลว่าจุดที่เพิ่มทีหลังจะลืม. ไม่มี provider = ไม่ต่อ query = **หน้า order detail ที่ใช้ component ชุดเดียวกันทำงานเหมือนเดิมทุกประการ**. เทส `[blocker]` ที่ `src/lib/iship/__tests__/iship-shop-scoping.test.ts` สแกนซอร์สทั้ง 2 ฝั่ง (route ที่ลืม `shopId` + component ที่ยิงตรง) พิสูจน์ด้วย mutation แล้วทั้งคู่
 
 🛑 `GET /api/products` ต้องอยู่ในลิสต์นี้ทั้งที่เป็น **read** เพราะ `ProductPickerPanel`/`ProductMultiSelectSheet` เอาผลไป **ส่งการ์ดสินค้าให้ลูกค้าจริง** — อ่านผิดร้าน = ส่งชื่อ/ราคา/รูปของอีกร้านออกไปหาลูกค้าของร้านนี้ โดยไม่มีอะไรบนจอบอกว่าผิด (helper จึงชื่อ `requireShopForRequest` ไม่ใช่ `...ForWrite`)
 

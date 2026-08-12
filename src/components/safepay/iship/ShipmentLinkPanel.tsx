@@ -38,6 +38,7 @@ import type {
 import type { ShipmentViewJson } from '@/lib/iship/context'
 import type { ShipmentFooterReporter } from './shipment-footer'
 import { TONE_BADGE } from './tone'
+import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 
 interface Props {
   /**
@@ -83,6 +84,8 @@ export default function ShipmentLinkPanel({
   hideSubmit = false,
   onFooterChange,
 }: Props) {
+  // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
+  const ishipUrl = useIShipUrl()
   const importing = mode === 'IMPORT'
   const [parcels, setParcels] = useState<UnlinkedParcelView[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -100,7 +103,7 @@ export default function ShipmentLinkPanel({
     setLoadError(null)
     setParcels(null)
     try {
-      const res = await fetch('/api/seller/iship/unlinked', { cache: 'no-store' })
+      const res = await fetch(ishipUrl('/api/seller/iship/unlinked'), { cache: 'no-store' })
       if (!res.ok) {
         setLoadError(await readError(res))
         return
@@ -188,7 +191,7 @@ export default function ShipmentLinkPanel({
 
     setBusy(true)
     try {
-      const res = await fetch('/api/seller/iship/shipments/link', {
+      const res = await fetch(ishipUrl('/api/seller/iship/shipments/link'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         cache: 'no-store',
@@ -233,7 +236,7 @@ export default function ShipmentLinkPanel({
 
     setBusy(true)
     try {
-      const res = await fetch('/api/seller/iship/unlinked/import', {
+      const res = await fetch(ishipUrl('/api/seller/iship/unlinked/import'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         cache: 'no-store',

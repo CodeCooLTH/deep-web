@@ -25,6 +25,7 @@ import OrderCreateForm, { type CatalogProduct } from '@/app/(paces)/seller/(dash
 import type { ServiceResourceOption } from '@/app/(paces)/seller/(dashboard)/orders/new/components/AppointmentBlock'
 import type { AppointmentGranularity } from '@/lib/appointments'
 import ShipmentDraftPanel from './ShipmentDraftPanel'
+import { IShipShopProvider } from '@/components/safepay/iship/iship-shop-context'
 import type { IShipCreateMode } from '@/lib/iship/after-order-create'
 // feature 00033 — ตัดสินว่าเวลาข้อความที่กดสร้างออเดอร์อยู่ในช่วงที่ยอมรับไหม (SSOT เดียวกับ OrderDateRow)
 import { isOrderDateInWindow } from '@/lib/order-date-window'
@@ -737,12 +738,17 @@ export default function DraftOrderProvider({
               (user report 2026-07-24). โมดัลแคบ (w-96) อยู่แล้วจึงไม่ต้อง max-w ครอบเพิ่ม */}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {d.kind === 'SHIPMENT' && d.shipmentOrderToken ? (
+              /* ทุก request ของ iShip ในแผงนี้ต้องผูกกับ "ร้านของร่างใบนี้" ไม่ใช่ร้านที่ active
+                 (feature 00037) — ก่อนหน้านี้แผงนี้ถามสถานะ/เปิดพัสดุกับร้านผิดใบ แล้วขึ้น
+                 "ไม่พบคำสั่งซื้อนี้" พร้อมปุ่มลองใหม่ที่กดกี่ครั้งก็ไม่มีวันผ่าน */
+              <IShipShopProvider shopId={d.shopId}>
               <ShipmentDraftPanel
                 conversationId={d.conversationId}
                 orderToken={d.shipmentOrderToken}
                 onDone={() => handleShipmentDone(d)}
                 onViewOnlyChange={(v) => setViewOnly(d.id, v)}
               />
+              </IShipShopProvider>
             ) : (() => {
               // feature 00037 — ข้อมูลประกอบทั้งชุดมาจาก "ร้านของร่างใบนี้" ไม่ใช่ร้านที่ active
               const ctx = shopCtx[d.shopId]

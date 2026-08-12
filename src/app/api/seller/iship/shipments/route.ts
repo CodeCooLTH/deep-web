@@ -9,12 +9,13 @@ import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { IShipCreateShipmentSchema } from "@/lib/validations";
 import { ishipError, ishipJson, mapIShipError, readJson } from "@/lib/iship/route-helpers";
 import { createShipment, resolveOrderIdByToken } from "@/services/iship.service";
+import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   // พนักงานร้านเปิดพัสดุได้ — เป็นงานประจำวัน ไม่ใช่การตั้งค่า
-  const guard = await requireGeneralShop();
+  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   const parsed = v.safeParse(IShipCreateShipmentSchema, await readJson(request));

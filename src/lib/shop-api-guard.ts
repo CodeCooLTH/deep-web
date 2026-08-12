@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { requireActiveShop } from "@/lib/shop-context";
+import { requireActiveShop, requireShopForRequest } from "@/lib/shop-context";
 import { prisma } from "@/lib/prisma";
 
 // Guard ร่วมของ endpoint ใต้ /api/shops/current/** (feature 00017 ดึงออกมาตอน P2
@@ -71,6 +71,18 @@ type GeneralGuardResult =
  */
 export async function requireGeneralShop(opts?: {
   ownerOnly?: boolean;
+  /**
+   * ร้านที่คำขอนี้ทำงานด้วย (feature 00037) — ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิมทุกประการ)
+   *
+   * 🛑 ทำไมต้องรับค่านี้: กล่องแชทรวมหลายร้านเปิดเธรดของร้าน B ได้โดยที่ `activeShopId` ยังเป็น
+   * ร้าน A (BR-UNI-07) — โมดัลพัสดุในเธรดนั้นจึงถาม iShip ของร้านผิดใบมาตลอด อาการคือ
+   * `resolveOrderIdByToken(ร้าน A, token ของออเดอร์ร้าน B)` หาไม่เจอ → `NOT_FOUND` พร้อมปุ่ม
+   * "ลองใหม่" ที่**กดกี่ครั้งก็ไม่มีวันผ่าน** (คลาสเดียวกับบทเรียน iShip retry 2026-08-06)
+   *
+   * ด่านที่เหลือไม่ผ่อนสักข้อ: ต้องเป็นสมาชิกร้านนั้นจริง (`requireShopForRequest` re-verify
+   * membership) · ร้านต้องเป็น ONLINE_SALES · `ownerOnly` ยังบังคับเหมือนเดิม
+   */
+  shopId?: string | null;
 }): Promise<GeneralGuardResult> {
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string } | undefined)?.id;
@@ -78,12 +90,15 @@ export async function requireGeneralShop(opts?: {
     return { error: jsonNoStore({ error: { code: "UNAUTHORIZED" } }, { status: 401 }) };
   }
 
-  const active = await requireActiveShop(
+  const resolved = await requireShopForRequest(
     session as unknown as { user: { id: string; activeShopId?: string | null } },
+    opts?.shopId,
   );
-  if (!active) {
+  // ระบุร้านมาแล้วเข้าไม่ถึง = ปฏิเสธ ห้ามถอยไปใช้ร้านที่ active (จะกลายเป็นเปิดพัสดุผิดร้าน)
+  if (!resolved.ok) {
     return { error: jsonNoStore({ error: { code: "FORBIDDEN" } }, { status: 403 }) };
   }
+  const active = resolved.target;
 
   // vertical มาจาก Shop row ที่ requireActiveShop ดึงมาแล้ว — ไม่ต้อง query ซ้ำ
   // feature 00028 (BR-SBT-12): ข้อความเดิมพูดถึงแค่บ้านพัก ตอนนี้ SERVICE_QUEUE ก็เข้าเงื่อนไข

@@ -7,11 +7,12 @@ import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { IShipSettingsSchema } from "@/lib/validations";
 import { ishipError, ishipJson, mapIShipError, readJson } from "@/lib/iship/route-helpers";
 import { getSettings, updateSettings } from "@/services/iship.service";
+import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const guard = await requireGeneralShop();
+export async function GET(request: NextRequest) {
+  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   try {
@@ -27,7 +28,7 @@ export async function PUT(request: NextRequest) {
   // ผ่อนเฉพาะกลุ่ม "ตั้งค่า" (ที่อยู่ผู้ส่ง/ค่าตั้งต้นพัสดุ/โหมดสร้าง) — การวางและถอด token
   // ยังเป็นสิทธิ์เจ้าของร้านเท่านั้น เพราะเป็น credential และถอดแล้วทั้งร้านใช้งานไม่ได้
   // TODO: ตัดสินใจให้จบว่าจะคืน ownerOnly หรือแก้ BR-ISHIP-03 ถาวร
-  const guard = await requireGeneralShop();
+  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   const parsed = v.safeParse(IShipSettingsSchema, await readJson(request));

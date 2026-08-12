@@ -22,6 +22,7 @@ import { courierInitials, courierLogoUrl } from '@/lib/iship/courier'
 import type { CompareResult, CompareRow } from '@/lib/iship/compare'
 import type { MissingReceiverField, MissingSenderField } from '@/lib/iship/mapping'
 import SenderIncompleteNotice from './SenderIncompleteNotice'
+import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 
 export interface CompareInput {
   receiver: { subdistrict: string; district: string; province: string; postcode: string }
@@ -69,6 +70,8 @@ export default function PriceCompareSheet({
   onPick,
   onClose,
 }: Props) {
+  // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
+  const ishipUrl = useIShipUrl()
   const [state, setState] = useState<SheetState>({ kind: 'idle' })
   /** key ของผลที่ถืออยู่ — input เปลี่ยน (แก้ที่อยู่/ขนาด) ค่อยยิงใหม่ */
   const [loadedKey, setLoadedKey] = useState('')
@@ -92,7 +95,7 @@ export default function PriceCompareSheet({
   async function load() {
     setState({ kind: 'loading' })
     try {
-      const res = await fetch('/api/seller/iship/price/compare', {
+      const res = await fetch(ishipUrl('/api/seller/iship/price/compare'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),

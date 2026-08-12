@@ -6,14 +6,16 @@ import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { IShipReceiverPatchSchema } from "@/lib/validations";
 import { ishipJson, mapIShipError, readJson } from "@/lib/iship/route-helpers";
 import { retryShipment } from "@/services/iship.service";
+import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
+import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const guard = await requireGeneralShop();
+  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   const { id } = await params;

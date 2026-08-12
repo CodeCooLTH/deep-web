@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 
 export interface IShipCourierOption {
   code: string
@@ -24,6 +25,8 @@ export function useIShipCouriers(enabled = true): {
   loading: boolean
   error: boolean
 } {
+  // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
+  const ishipUrl = useIShipUrl()
   const [couriers, setCouriers] = useState<IShipCourierOption[]>(COURIER_CACHE ?? [])
   const [loading, setLoading] = useState(enabled && !COURIER_CACHE)
   const [error, setError] = useState(false)
@@ -32,7 +35,7 @@ export function useIShipCouriers(enabled = true): {
     if (!enabled || COURIER_CACHE) return
     let alive = true
     setLoading(true)
-    fetch('/api/seller/iship/couriers', { cache: 'no-store' })
+    fetch(ishipUrl('/api/seller/iship/couriers'), { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('failed'))))
       .then((data: IShipCourierOption[]) => {
         COURIER_CACHE = data

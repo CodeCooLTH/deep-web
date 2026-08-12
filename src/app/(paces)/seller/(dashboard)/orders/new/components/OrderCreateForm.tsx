@@ -915,7 +915,7 @@ export default function OrderCreateForm({
       // ฟังก์ชันนี้ไม่โยน error ออกมา ความล้มเหลวของขนส่งจึงไม่กระทบออเดอร์ (BR-ISHIP-21)
       // แก้ไขออเดอร์เดิม (PATCH) ไม่เข้าเงื่อนไข — เปิดพัสดุเฉพาะตอนสร้างใหม่
       if (!editOrderToken) {
-        await runAfterOrderCreate(ishipCreateMode, order?.id ?? order?.order?.id ?? null)
+        await runAfterOrderCreate(ishipCreateMode, order?.id ?? order?.order?.id ?? null, shopId)
       }
       // โมดัลสร้างคำสั่งซื้อจากแชท (feature 00018): ไม่ navigate ออก — ให้ manager ปิด draft + refresh เอง
       if (onSuccess) {

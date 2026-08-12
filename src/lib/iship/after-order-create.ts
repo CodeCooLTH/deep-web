@@ -22,8 +22,10 @@ interface ShipmentResponse {
   lastErrorMessage?: string | null
 }
 
-async function postShipment(orderId: string): Promise<void> {
-  const res = await fetch('/api/seller/iship/shipments', {
+async function postShipment(orderId: string, shopId?: string | null): Promise<void> {
+  // shopId = ร้านของออเดอร์ที่เพิ่งสร้าง (feature 00037) — ไม่ใช่ร้านที่ active เสมอไป
+  // เมื่อคีย์จากเธรดของอีกร้าน. ไม่ส่ง = ร้านที่ active (พฤติกรรมเดิมของหน้า POS เต็มจอ)
+  const res = await fetch(`/api/seller/iship/shipments${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ''}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderId }),
@@ -64,12 +66,13 @@ async function postShipment(orderId: string): Promise<void> {
 export async function runAfterOrderCreate(
   mode: IShipCreateMode,
   orderId: string | null,
+  shopId?: string | null,
 ): Promise<void> {
   if (mode === 'OFF' || !orderId) return
 
   try {
     if (mode === 'AUTO') {
-      await postShipment(orderId)
+      await postShipment(orderId, shopId)
       return
     }
 
@@ -91,7 +94,7 @@ export async function runAfterOrderCreate(
     })
     if (!result.isConfirmed) return
 
-    await postShipment(orderId)
+    await postShipment(orderId, shopId)
   } catch {
     // กลืนทุก error โดยเจตนา — คำสั่งซื้อถูกบันทึกไปแล้ว ห้ามให้ขั้นตอนนี้ทำให้
     // ร้านเข้าใจว่าการสร้างออเดอร์ล้มเหลว (BR-ISHIP-21)

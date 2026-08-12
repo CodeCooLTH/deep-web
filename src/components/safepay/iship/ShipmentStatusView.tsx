@@ -25,6 +25,7 @@ import {
   describeShipmentStatus,
 } from '@/lib/iship/status'
 import type { ReceiverData, ShipmentReviewItem, ShipmentViewJson } from '@/lib/iship/context'
+import { useIShipUrl } from '@/components/safepay/iship/iship-shop-context'
 
 interface TraceEvent {
   status: string
@@ -115,6 +116,8 @@ export default function ShipmentStatusView({
   onRetried,
   onEditRequest,
 }: Props) {
+  // URL ของ iShip ต้องพก shopId ของแผงนี้ไปด้วยเสมอ (ดู iship-shop-context)
+  const ishipUrl = useIShipUrl()
   const [busy, setBusy] = useState(false)
   const [traces, setTraces] = useState<TraceEvent[] | null>(null)
   const [loadingTraces, setLoadingTraces] = useState(false)
@@ -151,7 +154,7 @@ export default function ShipmentStatusView({
     if (busy) return
     setBusy(true)
     try {
-      const res = await fetch(`/api/seller/iship/shipments/${shipment.id}/retry`, {
+      const res = await fetch(ishipUrl(`/api/seller/iship/shipments/${shipment.id}/retry`), {
         method: 'POST',
         cache: 'no-store',
       })
@@ -186,7 +189,7 @@ export default function ShipmentStatusView({
 
     setBusy(true)
     try {
-      const res = await fetch(`/api/seller/iship/shipments/${shipment.id}/unlink`, {
+      const res = await fetch(ishipUrl(`/api/seller/iship/shipments/${shipment.id}/unlink`), {
         method: 'POST',
         cache: 'no-store',
       })
@@ -214,7 +217,7 @@ export default function ShipmentStatusView({
 
     setBusy(true)
     try {
-      const res = await fetch(`/api/seller/iship/shipments/${shipment.id}/cancel`, {
+      const res = await fetch(ishipUrl(`/api/seller/iship/shipments/${shipment.id}/cancel`), {
         method: 'POST',
         cache: 'no-store',
       })
@@ -253,7 +256,7 @@ export default function ShipmentStatusView({
     async (opts?: { silent?: boolean }) => {
       setLoadingTraces(true)
       try {
-        const res = await fetch(`/api/seller/iship/shipments/${shipment.id}/traces`, {
+        const res = await fetch(ishipUrl(`/api/seller/iship/shipments/${shipment.id}/traces`), {
           cache: 'no-store',
         })
         if (!res.ok) {

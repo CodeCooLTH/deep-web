@@ -9,12 +9,13 @@ import { requireGeneralShop } from "@/lib/shop-api-guard";
 import { IShipConnectSchema } from "@/lib/validations";
 import { ishipError, ishipJson, mapIShipError, readJson } from "@/lib/iship/route-helpers";
 import { connect, disconnect, getConnection } from "@/services/iship.service";
+import { readIShipShopIdFromQuery } from "@/lib/iship/request-shop";
 
 // per-user data ที่เปลี่ยนได้ตลอด — ห้าม prerender/cache
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const guard = await requireGeneralShop();
+export async function GET(request: NextRequest) {
+  const guard = await requireGeneralShop({ shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   try {
@@ -25,7 +26,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requireGeneralShop({ ownerOnly: true });
+  const guard = await requireGeneralShop({ ownerOnly: true, shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   const parsed = v.safeParse(IShipConnectSchema, await readJson(request));
@@ -46,8 +47,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
-  const guard = await requireGeneralShop({ ownerOnly: true });
+export async function DELETE(request: NextRequest) {
+  const guard = await requireGeneralShop({ ownerOnly: true, shopId: readIShipShopIdFromQuery(request) });
   if ("error" in guard) return guard.error;
 
   try {
