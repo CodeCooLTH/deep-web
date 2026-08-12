@@ -2020,7 +2020,6 @@ export default function ChatThread({
     contextItems.push({
       key: 'comment',
       thumbUrl: commentOrigin.postThumbnailUrl,
-      thumbBroken: postThumbBroken,
       icon: 'photo',
       label: 'จากคอมเมนต์',
       // คำพูดของลูกค้าคือสิ่งที่ตอบ "เปิดห้องมาแล้วต้องคุยเรื่องอะไร" ได้เร็วที่สุด

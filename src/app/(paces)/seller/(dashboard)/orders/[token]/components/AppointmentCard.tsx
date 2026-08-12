@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-// import ข้ามกลุ่มโฟลเดอร์ตาม precedent ใน CustomerPanel.tsx — ชีตเดียวใช้ร่วม 4 จุดเรียก
+// import ข้ามกลุ่มโฟลเดอร์ตาม precedent ใน CustomerPanel.tsx — ชีตเดียวใช้ร่วม 3 จุดเรียก
 // (คนละ route group แต่เป็นของชิ้นเดียวกัน; ก็อปไปไว้ทั้งสองที่ = คำบนการ์ดจะเพี้ยนจากกัน)
 import AppointmentSummarySheet from '@/app/(paces)/seller/(chat)/_components/AppointmentSummarySheet'
 import Icon from '@/components/wrappers/Icon'
@@ -269,7 +269,7 @@ export default function AppointmentCard({
             <button
               type="button"
               onClick={() => setSummaryOpen(true)}
-              className="btn bg-primary/10 text-primary hover:bg-primary/20 mb-3 min-h-11 w-full"
+              className="btn bg-primary/10 text-primary-ink hover:bg-primary/20 mb-3 min-h-11 w-full"
             >
               <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />
               ส่งสรุปนัด
@@ -335,7 +335,7 @@ export default function AppointmentCard({
         rescheduleRequestNote={rescheduleRequestNote}
         onClose={() => setRescheduleOpen(false)}
       />
-      {/* ชีตเดียวกับอีก 3 จุดเรียก — ทุกจุดเปิดตัวนี้ ไม่มีจุดไหน "ส่งเลย" ข้ามชีต */}
+      {/* ชีตเดียวกับอีก 2 จุดเรียก — ทุกจุดเปิดตัวนี้ ไม่มีจุดไหน "ส่งเลย" ข้ามชีต */}
       <AppointmentSummarySheet
         open={summaryOpen}
         onClose={() => setSummaryOpen(false)}

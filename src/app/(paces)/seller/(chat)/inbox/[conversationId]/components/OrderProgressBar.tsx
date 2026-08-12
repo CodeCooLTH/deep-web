@@ -115,8 +115,14 @@ export default function OrderProgressBar({
     })
 
   return (
-    <div className="px-4 pt-4 xl:hidden">
-      {/* ชีตเดียวกับอีก 3 จุดเรียก — render ครั้งเดียวนอกลูป (การ์ดในลิสต์แชร์กันได้
+    /**
+     * 🛑 ชีตต้องอยู่ **นอก** `xl:hidden` — `display:none` ที่บรรพบุรุษระงับ `position:fixed` ของลูกด้วย
+     * แต่ `useLockBodyScroll` ทำงานจาก effect จึงไม่รู้เรื่อง ⇒ เปิดชีตที่ <1280px แล้วหมุน/ขยายจอ
+     * เป็น ≥1280px = ชีตหายจากจอ แต่ `apptToken` ยังตั้งอยู่และ body ยังถูกล็อก scroll
+     * (Esc ยังปิดได้เพราะ listener อยู่ระดับ document แต่แตะปิดไม่ได้เลย)
+     */
+    <>
+      {/* ชีตเดียวกับอีก 2 จุดเรียก — render ครั้งเดียวนอกลูป (การ์ดในลิสต์แชร์กันได้
           เพราะเปิดได้ทีละใบอยู่แล้ว) ชีตขอข้อมูลเองจาก token ไม่รับ prop ที่มี PII */}
       {apptToken && (
         <AppointmentSummarySheet
@@ -125,6 +131,7 @@ export default function OrderProgressBar({
           orderToken={apptToken}
         />
       )}
+      <div className="px-4 pt-4 xl:hidden">
       {open ? (
         <div className="space-y-2">
           {/* เกิน ~4 ใบให้เลื่อนในตัวเอง — แถบกางห้ามดันเธรดจนข้อความหายทั้งจอ */}
@@ -234,7 +241,7 @@ export default function OrderProgressBar({
                           type="button"
                           onClick={() => setApptToken(o.token)}
                           aria-label={`ส่งสรุปนัดของ ${displayNo(o)} เข้าแชท`}
-                          className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 mt-2 w-full gap-1"
+                          className="btn bg-primary/10 text-primary-ink hover:bg-primary/20 mt-2 min-h-11 w-full gap-1"
                         >
                           <Icon icon="calendar-check" className="text-sm" aria-hidden="true" />
                           ส่งสรุปนัด
@@ -348,6 +355,7 @@ export default function OrderProgressBar({
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

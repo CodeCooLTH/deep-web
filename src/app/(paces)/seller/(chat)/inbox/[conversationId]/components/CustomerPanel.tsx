@@ -424,7 +424,7 @@ function OrderCard({
                 }}
                 disabled={cancelling}
                 aria-label="ส่งสรุปนัดเข้าแชท"
-                className="btn btn-sm bg-primary/10 text-primary hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
+                className="btn btn-sm bg-primary/10 text-primary-ink hover:bg-primary/20 flex-1 gap-1 disabled:opacity-60"
               >
                 <Icon icon="calendar-check" className="text-sm" />
                 ส่งสรุปนัด
@@ -487,7 +487,7 @@ function OrderCard({
         )
       }
     />
-    {/* ส่งสรุปนัด (ส่วนขยาย 00024) — ชีตเดียวกับอีก 3 จุดเรียก ทั้งหมดเปิดตัวนี้ ไม่มีจุดไหน
+    {/* ส่งสรุปนัด (ส่วนขยาย 00024) — ชีตเดียวกับอีก 2 จุดเรียก ทั้งหมดเปิดตัวนี้ ไม่มีจุดไหน
         "ส่งเลย" ข้ามชีต (ทางลัดที่มีแค่บางจุดคือกฎที่ผู้ใช้เดาไม่ถูก) */}
     {isAppointment && (
       <AppointmentSummarySheet

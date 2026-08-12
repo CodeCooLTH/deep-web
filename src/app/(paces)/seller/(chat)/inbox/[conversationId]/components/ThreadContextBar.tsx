@@ -27,7 +27,7 @@
  * Base: ./ThreadStatusBar.tsx (โครงยุบ/กาง + truncate + badge +N + aria-expanded)
  */
 
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import Icon from '@/components/wrappers/Icon'
 
 export interface ThreadContextItem {
@@ -48,8 +48,6 @@ export interface ThreadContextItem {
   short: string
   /** การ์ดเต็มตอนกาง — JSX ก้อนเดิมยกมาทั้งดุ้น ไม่แก้เนื้อใน */
   detail: ReactNode
-  /** ธงว่าภาพย่อโหลดไม่ขึ้น — ตกไปใช้ icon เหมือนกิ่ง "ไม่มีรูป" ไม่ใช่กล่องขาวเปล่า */
-  thumbBroken?: boolean
 }
 
 /**
@@ -62,35 +60,68 @@ export interface ThreadContextItem {
 
 export default function ThreadContextBar({ items }: { items: ThreadContextItem[] }) {
   const [open, setOpen] = useState(false)
+  /** ภาพย่อที่โหลดไม่ขึ้น — คุมในคอมโพเนนต์เอง ผู้เรียกไม่ต้องรู้และไม่มีทางลืมส่งธง
+   *  (ของเดิมเป็น prop ที่มีแต่รายการคอมเมนต์ wire มาให้ รูปโฆษณาจึงขึ้นเป็นกล่องรูปแตก) */
+  const [brokenKeys, setBrokenKeys] = useState<string[]>([])
+  const detailsId = useId()
 
   if (items.length === 0) return null
   const head = items[0]
+  const headThumbBroken = brokenKeys.includes(head.key)
 
   if (open) {
     return (
       <>
-        {items.map((it) => (
-          <div key={it.key}>{it.detail}</div>
-        ))}
+        {/* ปุ่มย่ออยู่ **ที่เดิมกับปุ่มกาง** (บนสุด) ไม่ใช่ล่างสุดหลังการ์ดทุกใบ — ของเดิมทำให้ตัวสลับ
+            เด้งจากขวาบนไปซ้ายล่างทุกครั้งที่กด นิ้วโป้ง/โฟกัสคีย์บอร์ดต้องตามหาใหม่ทุกรอบ */}
         <button
           type="button"
           onClick={() => setOpen(false)}
           aria-expanded
-          className="border-default-200 text-default-700 hover:bg-default-100 flex shrink-0 items-center gap-1.5 border-b px-4 py-1.5 text-xs font-medium"
+          aria-controls={detailsId}
+          className="border-default-200 text-default-700 hover:bg-default-100 flex min-h-11 w-full shrink-0 items-center gap-1.5 border-b px-4 text-start text-xs font-medium"
         >
           <Icon icon="chevron-up" className="text-sm" />
           ย่อที่มาของแชท
         </button>
+        <div id={detailsId}>
+          {items.map((it) => (
+            <div key={it.key}>{it.detail}</div>
+          ))}
+        </div>
       </>
     )
   }
 
   return (
-    <div className="border-default-200 flex shrink-0 items-center gap-2 border-b px-4 py-1.5 text-xs">
+    /**
+     * 🛑 **ทั้งแถวเป็นปุ่ม** ไม่ใช่ chevron 24px ที่มุมขวา (impeccable critique — persona Casey)
+     *
+     * แถบนี้เกิดขึ้นเพราะผู้ขายเปิดห้องมาแล้วไม่รู้ว่าตอบเรื่องอะไร — แล้วทางแก้กลับเอาบริบทไปซ่อน
+     * หลังเป้าเล็กที่สุดของฟีเจอร์ ในแถวที่ *หน้าตาเหมือนกดได้* (ภาพย่อ + ข้อความ + chevron คือ
+     * ไวยากรณ์สากลของแถวกางได้) ⇒ คนแตะแถว ไม่มีอะไรเกิดขึ้น แล้วสรุปว่าแถบนี้เป็นของประดับ
+     *
+     * `min-h-11` แลกความสูงไป ~16px จากจอที่ฟีเจอร์นี้เพิ่งทวงคืนมา 170px — ถูกมาก
+     */
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      aria-expanded={false}
+      aria-controls={detailsId}
+      aria-label={
+        items.length > 1 ? `ดูที่มาของแชททั้ง ${items.length} รายการ` : 'ดูรายละเอียดที่มาของแชท'
+      }
+      className="border-default-200 hover:bg-default-100 flex min-h-11 w-full shrink-0 items-center gap-2 border-b px-4 text-start text-xs"
+    >
       <span className="relative flex size-5 shrink-0 items-center justify-center">
-        {head.thumbUrl && !head.thumbBroken ? (
+        {head.thumbUrl && !headThumbBroken ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={head.thumbUrl} alt="" className="size-5 rounded object-cover" />
+          <img
+            src={head.thumbUrl}
+            alt=""
+            className="size-5 rounded object-cover"
+            onError={() => setBrokenKeys((prev) => (prev.includes(head.key) ? prev : [...prev, head.key]))}
+          />
         ) : (
           <span className="bg-default-200 text-default-700 flex size-5 items-center justify-center rounded">
             <Icon icon={head.icon} className="text-xs" aria-hidden="true" />
@@ -100,26 +131,13 @@ export default function ThreadContextBar({ items }: { items: ThreadContextItem[]
       {head.label && <span className="text-default-700 shrink-0">{head.label} ·</span>}
       {/* min-w-0 + truncate: คงความสูง 1 บรรทัดเสมอ — เนื้อหาเต็มอยู่ในตัวกาง ไม่ใช่การซ่อนทิ้ง */}
       <span className="text-default-800 min-w-0 flex-1 truncate">{head.short}</span>
-      {/* +N = ยังมีที่มาอื่นอีก ต้องบอกจำนวน ไม่งั้นผู้ใช้ไม่มีทางรู้ว่ามีอะไรถูกซ่อนอยู่
-          ใช้ bg-default-100 ไม่ใช่ bg-card/60 แบบ ThreadStatusBar — แถบนี้พื้นโปร่ง สีจาง
-          บนพื้นโปร่งจะมองไม่เห็นว่าเป็น badge */}
+      {/* +N = ยังมีที่มาอื่นอีก ต้องบอกจำนวน ไม่งั้นผู้ใช้ไม่มีทางรู้ว่ามีอะไรถูกซ่อนอยู่ */}
       {items.length > 1 && (
         <span className="bg-default-100 text-default-800 text-2xs shrink-0 rounded px-1.5 font-semibold">
           +{items.length - 1}
         </span>
       )}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={
-          items.length > 1 ? `ดูที่มาของแชททั้ง ${items.length} รายการ` : 'ดูรายละเอียดที่มาของแชท'
-        }
-        title="ดูรายละเอียด"
-        aria-expanded={false}
-        className="hover:bg-default-100 -m-1 flex shrink-0 items-center rounded p-1"
-      >
-        <Icon icon="chevron-down" className="text-base" />
-      </button>
-    </div>
+      <Icon icon="chevron-down" className="text-default-700 shrink-0 text-base" aria-hidden="true" />
+    </button>
   )
 }

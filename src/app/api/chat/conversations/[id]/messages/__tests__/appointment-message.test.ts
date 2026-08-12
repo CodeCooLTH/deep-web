@@ -103,6 +103,48 @@ describe('route — ด่านที่เหลือยังอยู่ค
   })
 })
 
+/**
+ * [blocker] ผลของ /impeccable critique 2026-08-12 — ข้อที่ "ถูกแล้วพังกลับได้เงียบ ๆ"
+ *
+ * ทั้งสามข้อนี้ tsc/build/detector มองไม่เห็น เพราะโค้ดถูกตามชนิดทุกตัวอักษรทั้งก่อนและหลังแก้
+ */
+describe('ชีตส่งสรุปนัด — ข้อที่ critique จับได้ ห้ามหลุดกลับ', () => {
+  const sheet = readFileSync(
+    join(process.cwd(), 'src/app/(paces)/seller/(chat)/_components/AppointmentSummarySheet.tsx'),
+    'utf8',
+  )
+
+  it('[สำคัญ] ปลายทางแสดงเสมอ ไม่ผูกกับ targets.length > 1 — การส่งที่ถอนคืนไม่ได้ต้องบอกว่าส่งหาใคร', () => {
+    // เคสห้องเดียวต้องมีสาขาแสดงชื่อ ไม่ใช่ซ่อนทั้ง section
+    expect(sheet).toMatch(/loaded\?\.targets\[0\] \? \(/)
+    // ห้ามกลับไปห่อทั้ง section ด้วยเงื่อนไข > 1
+    expect(sheet).not.toMatch(/\{\(loaded\?\.targets\.length \?\? 0\) > 1 && \(/)
+  })
+
+  it('[สำคัญ] ช่องข้อความปิดท้ายใช้ form-textarea — form-input ทับ rows ทิ้งเพราะ _forms.css ไม่ห่อ @layer', () => {
+    const textarea = sheet.match(/<textarea[\s\S]*?\/>/)?.[0] ?? ''
+    expect(textarea).toContain('form-textarea')
+    expect(textarea).not.toContain('form-input')
+  })
+
+  it('[สำคัญ] มีทางออกที่ไม่ใช่การส่ง — ปุ่มยกเลิกใน footer + ปุ่มปิด 44px', () => {
+    expect(sheet).toContain('ยกเลิก')
+    expect(sheet).toMatch(/size-11!/)
+    // ปุ่มส่งต้องไม่ต่ำกว่า 44px เช่นกัน
+    expect(sheet).toMatch(/min-h-11 flex-\[2\]/)
+  })
+
+  it('โฟกัสถูกย้ายเข้า ขังไว้ และคืนที่เดิม (aria-modal ไม่ได้ทำอะไรกับคีย์บอร์ด)', () => {
+    expect(sheet).toMatch(/restoreRef\.current\?\.focus\?\.\(\)/)
+    expect(sheet).toMatch(/e\.key !== 'Tab'/)
+  })
+
+  it('โหลดพังแบบ transient ต้องมีปุ่มลองใหม่ · แบบ permanent ต้องไม่มี', () => {
+    expect(sheet).toMatch(/retryable: res\.status >= 500/)
+    expect(sheet).toMatch(/loadError\.retryable && \(/)
+  })
+})
+
 describe('service — ธง isAppointmentCard ต้องมีผลจริงที่จุดเขียน (อ่านซอร์ส)', () => {
   const deep = readFileSync(join(process.cwd(), 'src/services/chat.service.ts'), 'utf8')
   const outbound = readFileSync(
@@ -173,6 +215,7 @@ describe('route — GET /api/orders/[token]/appointment-summary (อ่านซ
     // (ตรวจเฉพาะบล็อก props ไม่ใช่ทั้งไฟล์: ชนิดของ "ของที่ fetch มา" ก็ชื่อ data เหมือนกัน
     //  ซึ่งถูกต้องแล้ว — สิ่งที่ห้ามคือ "รับเข้ามาจากข้างนอก")
     const props = sheet.match(/export interface AppointmentSummarySheetProps \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(props).not.toBe('')
     expect(props).toContain('orderToken')
     expect(props).not.toMatch(/\bdata\b\s*:/)
     expect(props).not.toMatch(/\btargets\b\s*:/)
