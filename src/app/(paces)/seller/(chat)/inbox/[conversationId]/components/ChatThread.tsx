@@ -73,6 +73,7 @@ import AutoReplyTag from './AutoReplyTag'
 import NotificationSoundMenu from './NotificationSoundMenu'
 import BotPausedBanner, { getBotPausedSummary } from './BotPausedBanner'
 import ThreadStatusBar, { type ThreadStatusItem } from './ThreadStatusBar'
+import ThreadContextBar, { type ThreadContextItem } from './ThreadContextBar'
 import OrderProgressBar from './OrderProgressBar'
 import { pacesToast } from '@/lib/paces-toast'
 import { pacesConfirm } from '@/lib/paces-swal'
@@ -1957,6 +1958,197 @@ export default function ChatThread({
     })
   }
 
+  /**
+   * "ที่มาของแชท" — ยุบเหลือบรรทัดเดียว (user report 2026-08-11: "panel ด้านบน มันซ้อนกันเยอะ
+   * จนใช้ยาก") เดิมสามก้อนนี้เป็นแถบของตัวเองเรียงซ้อนกันใต้หัวเธรด รวม ~142-170px บนมือถือ
+   *
+   * 🛑 **ลำดับใน array คือลำดับความสำคัญ และตัวแรกคือตัวที่โชว์ตอนยุบ — ห้ามสลับ**
+   *
+   *   1. ชื่อร้าน — คอมเมนต์เดิมของบล็อกนี้เขียนไว้เองว่าเป็นข้อมูลที่ต้องรู้ **ก่อนพิมพ์**
+   *      (ตอบในนามใคร) ส่วนอีกสองอันเป็นข้อมูล "เฝ้าดู" ระหว่างคุย. ถ้ามันไปอยู่หลัง +N
+   *      ผู้ขายหลายร้านจะตอบลูกค้าในนามร้านผิด ซึ่งถอนคืนไม่ได้ — ต่างจากการไม่เห็นว่าแชท
+   *      มาจากโฆษณาชิ้นไหน ซึ่งกดกางดูได้ตลอดเวลา
+   *   2. คอมเมนต์ — ถือคำถามจริงของลูกค้า ซึ่งเป็นเหตุผลที่การ์ดนี้ถูกสร้างขึ้นแต่แรก
+   *      (user report 2026-08-09: "เปิดห้องมาแล้วไม่รู้ว่าตอบเรื่องอะไร")
+   *   3. โฆษณา — ข้อมูลครั้งเดียวจบ และปิดถาวรได้อยู่แล้ว
+   *
+   * `detail` ของแต่ละตัวคือ JSX ก้อนเดิมยกมาทั้งดุ้น ไม่แก้เนื้อใน — งานนี้เปลี่ยน "ที่เก็บ"
+   * ไม่ได้ออกแบบเนื้อหาใหม่
+   */
+  const contextItems: ThreadContextItem[] = []
+  if (shopName) {
+    contextItems.push({
+      key: 'shop',
+      thumbUrl: null,
+      icon: 'building-store',
+      label: 'ตอบในนามร้าน',
+      short: shopName,
+      detail: (
+        /* feature 00037 — display-only โดยตั้งใจ (มติ Q-3): กดไม่ได้ — บนมือถือ ChatHeader ถูกซ่อน
+           ในหน้าเธรดอยู่แล้ว การทำให้ดูกดได้แล้วพาไปที่ที่เข้าไม่ถึงแย่กว่าไม่ให้กด
+           สีพื้น bg-primary/5 เดิมถูกถอด: ตอนนี้มันเป็น 1 ใน 3 รายการของแถบเดียวกัน ถ้ายังมี
+           พื้นสีเฉพาะตัว แถบจะเปลี่ยนสีไปมาตามว่ารายการแรกคืออะไร */
+        <div
+          className="border-default-200 text-default-800 flex items-center gap-1.5 border-b px-4 py-1.5 text-xs"
+          role="note"
+        >
+          <Icon icon="building-store" className="text-default-700 shrink-0 text-sm" />
+          <span className="min-w-0 truncate">
+            กำลังตอบในนามร้าน <span className="font-semibold">{shopName}</span>
+          </span>
+        </div>
+      ),
+    })
+  }
+  if (commentOrigin) {
+    contextItems.push({
+      key: 'comment',
+      thumbUrl: commentOrigin.postThumbnailUrl,
+      thumbBroken: postThumbBroken,
+      icon: 'photo',
+      label: 'จากคอมเมนต์',
+      // คำพูดของลูกค้าคือสิ่งที่ตอบ "เปิดห้องมาแล้วต้องคุยเรื่องอะไร" ได้เร็วที่สุด
+      // (ชื่อโพสต์เป็นบริบทรอง อยู่ในตัวกาง)
+      short:
+        commentOrigin.message?.trim() ||
+        (commentOrigin.attachmentUrl ? 'ส่งรูปมาในคอมเมนต์' : 'คอมเมนต์ไม่มีข้อความ'),
+      detail: (
+        /**
+         * ที่มาของเธรด: คอมเมนต์ใต้โพสต์ — แถวเดียวติดหัวแชท ที่เดียวกับแบนเนอร์โฆษณา
+         *
+         * user สั่ง 2026-08-10 หลังเห็นรุ่นแรก: *"ต้อง merge เป็นด้านบนที่เดียว"* + *"ด้านล่าง …
+         * เอาออกเลย"* + *"มันกินพื้นที่เวลาอยู่บน mobile"* — เดิมเป็นการ์ดในสตรีมข้อความสูง ~5 บรรทัด
+         *
+         * ยุบแล้วยัง **ไม่ทิ้งข้อมูล** — ทั้ง "โพสต์ไหน" และ "ลูกค้าคอมเมนต์ว่าอะไร" อยู่ครบใน 2 บรรทัด
+         *
+         * ไม่มีปุ่มปิดแบบแบนเนอร์โฆษณา — โฆษณาเป็นข้อมูลครั้งเดียวจบ ส่วนคอมเมนต์ต้นเหตุคือบริบทของ
+         * ทั้งห้องที่ผู้ขายอ้างถึงได้ตลอดบทสนทนา
+         */
+        <div className="border-default-200 flex items-center gap-3 border-b px-4 py-2.5" role="note">
+          <span className="relative shrink-0">
+            {commentOrigin.postThumbnailUrl && !postThumbBroken ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={commentOrigin.postThumbnailUrl}
+                alt=""
+                className="size-10 rounded-md object-cover"
+                // โหลดไม่ขึ้น → กิ่งเดียวกับ "ไม่มีรูป" (กล่องเทา) ไม่ใช่กล่องขาวเปล่า
+                onError={() => setPostThumbBroken(true)}
+              />
+            ) : (
+              <span className="bg-default-100 text-default-700 flex size-10 items-center justify-center rounded-md">
+                <Icon icon="photo" className="text-lg" aria-hidden="true" />
+              </span>
+            )}
+            {isVideoPost(commentOrigin.postMediaType) && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <span className="flex size-5 items-center justify-center rounded-full bg-black/50 text-white">
+                  <Icon icon="player-play-filled" className="text-2xs" aria-hidden="true" />
+                </span>
+              </span>
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            {/* บรรทัดบน = โพสต์ไหน (ตอบ "เค้า Post จากไหน") · ไม่มีบรรทัด label เปล่า ๆ คั่น
+                เพราะรูปกับไอคอนสื่อความหมายอยู่แล้ว และทุกบรรทัดที่เพิ่มคือพื้นที่จอมือถือ */}
+            <p
+              className="text-default-800 truncate text-sm font-semibold"
+              title={commentOrigin.postMessage ?? undefined}
+            >
+              {commentOrigin.postMessage?.trim() || 'โพสต์ไม่มีข้อความ'}
+            </p>
+            <div className="flex min-w-0 items-center gap-2">
+              {/* ไอคอนนำหน้าทำให้แยกออกทันทีว่าบรรทัดนี้คือ "คำพูดของลูกค้า" ไม่ใช่ส่วนต่อของ
+                  ข้อความโพสต์ด้านบน — สองก้อนเป็นข้อความยาวคล้ายกันวางติดกัน (ux ทักไว้) */}
+              <Icon icon="message-2" className="text-default-500 size-3.5 shrink-0" aria-hidden="true" />
+              <span className="text-default-700 truncate text-sm" title={commentOrigin.message ?? undefined}>
+                {commentOrigin.message?.trim() ||
+                  (commentOrigin.attachmentUrl ? 'ส่งรูปมาในคอมเมนต์' : 'คอมเมนต์ไม่มีข้อความ')}
+              </span>
+              {commentOrigin.url && (
+                <a
+                  href={commentOrigin.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary shrink-0 text-sm font-medium hover:underline"
+                >
+                  ดูคอมเมนต์
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      ),
+    })
+  }
+  if (showAdBanner && adReferral) {
+    contextItems.push({
+      key: 'ad',
+      // mirror เข้า storage เราแล้วตอนรับ webhook — ไม่ hotlink CDN Meta ที่ URL หมดอายุ
+      thumbUrl: adReferral.photoFileId ? `/api/files/${adReferral.photoFileId}` : null,
+      icon: 'speakerphone',
+      label: 'จากโฆษณา',
+      // ลำดับ: ข้อความโฆษณาจริง > ชื่อ ad ใน Ads Manager > รหัสโฆษณา
+      short: adReferral.adBody ?? adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`,
+      detail: (
+        /* feature 00018 E5 — ที่มาจากโฆษณา: รูปโฆษณา + "ตอบกลับจากโฆษณา" + ชื่อโฆษณา (เลิกใช้ badge
+           เล็กบนหัวเธรดแบบเดิม ซึ่งชื่อโฆษณายาว ๆ ถูกตัดจนอ่านไม่ออกและไม่เห็นว่าเป็นโฆษณาชิ้นไหน)
+           เป็น *ข้อมูลบริบท* ไม่ใช่คำเตือน → โทน default-100 กลาง ๆ ไม่ใช่ warning/danger ของแบนเนอร์
+           24 ชม.ด้านล่าง เพื่อไม่ให้ผู้ขายอ่านผิดว่าเป็นสิ่งที่ต้องรีบจัดการ
+
+           🛑 ปุ่ม ✕ อยู่ที่นี่เท่านั้น ไม่ยกขึ้นไปบรรทัดยุบ: ที่ 390px บรรทัดยุบมีของคงที่
+           px-4(32)+thumb(20)+gap(8)+badge(24)+chevron(24)=108px เหลือข้อความ ~282px — เติม ✕
+           เข้าไปเหลือ ~250px และได้ปุ่มสองตัวที่ผลลัพธ์คนละโลก (ปิดถาวร vs กางดู) ห่างกัน 8px
+           Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx (DismissingAlert) */
+        <div className="border-default-200 flex items-center gap-3 border-b px-4 py-2.5" role="note">
+          {adReferral.photoFileId ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`/api/files/${adReferral.photoFileId}`}
+              alt=""
+              className="size-10 shrink-0 rounded-md object-cover"
+            />
+          ) : (
+            <span className="bg-default-100 text-default-700 flex size-10 shrink-0 items-center justify-center rounded-md">
+              <Icon icon="speakerphone" className="text-lg" />
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-default-800 text-sm font-semibold">แชทนี้ตอบกลับจากโฆษณาของคุณ</p>
+            <div className="flex min-w-0 items-center gap-2">
+              {/* adBody คือตัวที่ผู้ขายอ่านแล้วรู้ทันทีว่าโฆษณาชิ้นไหน — ad_title เป็นชื่อภายใน */}
+              <span
+                className="text-default-700 truncate text-sm"
+                title={adReferral.adBody ?? adReferral.adTitle ?? undefined}
+              >
+                {adReferral.adBody ?? adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`}
+              </span>
+              {adReferral.permalink && (
+                <a
+                  href={adReferral.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary shrink-0 text-sm font-medium hover:underline"
+                >
+                  ดูโฆษณา
+                </a>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={dismissAdBanner}
+            title="ปิดป้ายที่มาของโฆษณา"
+            aria-label="ปิดป้ายที่มาของโฆษณา"
+            className="btn btn-icon text-default-700 hover:bg-default-100 shrink-0"
+          >
+            <Icon icon="x" className="text-lg" />
+          </button>
+        </div>
+      ),
+    })
+  }
+
   return (
     <>
     <div className="card min-w-0 h-full flex-1 flex flex-col"> {/* h-full: parent คุมความสูงที่เหลือให้แล้ว (ดู comment หัวไฟล์) */}
@@ -2066,160 +2258,15 @@ export default function ChatThread({
       </div>
 
       {/**
-        * feature 00037 — แถบ "กำลังตอบในนามร้าน X" (โหมดรวมหลายร้านเท่านั้น)
-        *
-        * ทำไมเป็นแถวของตัวเองไม่ใช่ชิปในหัวเธรด: หัวเธรดเพิ่งถูกลดความสูง 79px→61px และเปลี่ยนเป็น
-        * flex-nowrap เมื่อ 2026-08-07 เพราะชื่อลูกค้า/ชื่อเพจยาวแล้วตกบรรทัด — ที่ 320px เหลือที่ให้
-        * ชื่อลูกค้าราว 90px การเติมชิปข้อความ 60-80px กลับเข้าไปคือการย้อนงานนั้นทันที
-        *
-        * วางไว้ "เหนือ" แบนเนอร์โฆษณาและแถบสถานะบอท เพราะนี่คือข้อมูลที่ต้องรู้ **ก่อนพิมพ์**
-        * (ตอบในนามใคร) ส่วนอีกสองอันเป็นข้อมูล "เฝ้าดู" ระหว่างคุย
-        *
-        * display-only โดยตั้งใจ (มติ Q-3): กดไม่ได้ — บนมือถือ ChatHeader ถูกซ่อนในหน้าเธรดอยู่แล้ว
-        * การทำให้ดูกดได้แล้วพาไปที่ที่เข้าไม่ถึงแย่กว่าไม่ให้กด
-        */}
-      {shopName && (
-        <div
-          className="border-default-200 text-primary bg-primary/5 flex items-center gap-1.5 border-b px-4 py-1.5 text-xs"
-          role="note"
-        >
-          <Icon icon="building-store" className="shrink-0 text-sm" />
-          <span className="min-w-0 truncate">
-            กำลังตอบในนามร้าน <span className="font-semibold">{shopName}</span>
-          </span>
-        </div>
-      )}
-
-      {/* feature 00018 E5 — ที่มาจากโฆษณา: รูปโฆษณา + "ตอบกลับจากโฆษณา" + ชื่อโฆษณา (เลิกใช้ badge
-          เล็กบนหัวเธรดแบบเดิม ซึ่งชื่อโฆษณายาว ๆ ถูกตัดจนอ่านไม่ออกและไม่เห็นว่าเป็นโฆษณาชิ้นไหน)
-          เป็น *ข้อมูลบริบท* ไม่ใช่คำเตือน → โทน default-100 กลาง ๆ ไม่ใช่ warning/danger ของแบนเนอร์
-          24 ชม.ด้านล่าง เพื่อไม่ให้ผู้ขายอ่านผิดว่าเป็นสิ่งที่ต้องรีบจัดการ
-          Base: theme/paces/Admin/TS/src/app/(admin)/ui/alerts/page.tsx (DismissingAlert) */}
-      {showAdBanner && adReferral && (
-        // แถวเต็มความกว้าง "ติด" กับหัวแชท (border-b คั่น) ไม่ใช่การ์ดลอยมี padding รอบ —
-        // user report 2026-07-26: การ์ดลอยทำให้มีช่องว่างคั่นระหว่างหัวแชทกับแบนเนอร์ ผิดจาก ref
-        <div className="border-default-200 flex items-center gap-3 border-b px-4 py-2.5" role="note">
-          {adReferral.photoFileId ? (
-            // mirror เข้า storage เราแล้วตอนรับ webhook — ไม่ hotlink CDN Meta ที่ URL หมดอายุ
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/api/files/${adReferral.photoFileId}`}
-              alt=""
-              className="size-10 shrink-0 rounded-md object-cover"
-            />
-          ) : (
-            <span className="bg-default-100 text-default-700 flex size-10 shrink-0 items-center justify-center rounded-md">
-              <Icon icon="speakerphone" className="text-lg" />
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="text-default-800 text-sm font-semibold">แชทนี้ตอบกลับจากโฆษณาของคุณ</p>
-            <div className="flex min-w-0 items-center gap-2">
-              {/* ลำดับ: ข้อความโฆษณาจริง > ชื่อ ad ใน Ads Manager > รหัสโฆษณา
-                  (adBody คือตัวที่ผู้ขายอ่านแล้วรู้ทันทีว่าโฆษณาชิ้นไหน — ad_title เป็นชื่อภายใน) */}
-              <span
-                className="text-default-700 truncate text-sm"
-                title={adReferral.adBody ?? adReferral.adTitle ?? undefined}
-              >
-                {adReferral.adBody ?? adReferral.adTitle ?? `รหัสโฆษณา ${adReferral.adId}`}
-              </span>
-              {adReferral.permalink && (
-                <a
-                  href={adReferral.permalink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary shrink-0 text-sm font-medium hover:underline"
-                >
-                  ดูโฆษณา
-                </a>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={dismissAdBanner}
-            title="ปิดป้ายที่มาของโฆษณา"
-            aria-label="ปิดป้ายที่มาของโฆษณา"
-            className="btn btn-icon text-default-700 hover:bg-default-100 shrink-0"
-          >
-            <Icon icon="x" className="text-lg" />
-          </button>
-        </div>
-      )}
-
-      {/**
-       * ที่มาของเธรด: คอมเมนต์ใต้โพสต์ — แถวเดียวติดหัวแชท ที่เดียวกับแบนเนอร์โฆษณา
+       * ที่มาของแชท — ยุบเหลือบรรทัดเดียว กดกางเห็นครบ (user report 2026-08-11)
        *
-       * user สั่ง 2026-08-10 หลังเห็นรุ่นแรก: *"ต้อง merge เป็นด้านบนที่เดียว"* + *"ด้านล่าง …
-       * เอาออกเลย"* + *"มันกินพื้นที่เวลาอยู่บน mobile"* — เดิมเป็นการ์ดในสตรีมข้อความสูง ~5 บรรทัด
-       * ซึ่งบนมือถือกินพื้นที่จอไปมากทุกครั้งที่เปิดห้อง ตอนนี้ยุบเหลือแถวเดียวสูงเท่าแบนเนอร์โฆษณา
+       * เดิมที่นี่เป็นสามบล็อกเรียงซ้อนกัน (ชื่อร้าน ~28px + โฆษณา ~57px + คอมเมนต์ ~57px)
+       * รายการและลำดับความสำคัญประกอบไว้ที่ `contextItems` ด้านบน — ดูเหตุผลของลำดับที่นั่น
        *
-       * ยุบแล้วยัง **ไม่ทิ้งข้อมูล** — ทั้ง "โพสต์ไหน" และ "ลูกค้าคอมเมนต์ว่าอะไร" อยู่ครบใน 2 บรรทัด
-       * เพราะข้อความคอมเมนต์คือเหตุผลที่การ์ดนี้ถูกสร้างขึ้นแต่แรก (user report ผ่านหัวหน้า
-       * 2026-08-09: เปิดห้องมาแล้วไม่รู้ว่าตอบเรื่องอะไร) ถ้าตัดทิ้งคือย้อนงานนั้นกลับ
-       *
-       * ไม่มี `!oldestCursor` แล้ว — เงื่อนไขนั้นมีไว้ตอนการ์ดวางเป็น "รายการแรกในลิสต์" (ถ้ายังมี
-       * ข้อความเก่ากว่าให้โหลด มันจะไปแทรกกลางบทสนทนา) แถวที่ติดหัวแชทไม่ขึ้นกับตำแหน่ง scroll
-       *
-       * ไม่มีปุ่มปิดแบบแบนเนอร์โฆษณา — โฆษณาเป็นข้อมูลครั้งเดียวจบ ส่วนคอมเมนต์ต้นเหตุคือบริบทของ
-       * ทั้งห้องที่ผู้ขายอ้างถึงได้ตลอดบทสนทนา
+       * อยู่ "เหนือ" ThreadStatusBar เหมือนตำแหน่งเดิมของก้อนที่มันแทนที่: บริบท → คำเตือน →
+       * ความคืบหน้า (แถบนี้เป็นส่วนต่อของหัวเธรด ส่วนคำเตือนเป็นการ์ดลอยที่แทรกเข้ามา)
        */}
-      {commentOrigin && (
-        <div className="border-default-200 flex items-center gap-3 border-b px-4 py-2.5" role="note">
-          <span className="relative shrink-0">
-            {commentOrigin.postThumbnailUrl && !postThumbBroken ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={commentOrigin.postThumbnailUrl}
-                alt=""
-                className="size-10 rounded-md object-cover"
-                // โหลดไม่ขึ้น → กิ่งเดียวกับ "ไม่มีรูป" (กล่องเทา) ไม่ใช่กล่องขาวเปล่า
-                onError={() => setPostThumbBroken(true)}
-              />
-            ) : (
-              <span className="bg-default-100 text-default-700 flex size-10 items-center justify-center rounded-md">
-                <Icon icon="photo" className="text-lg" aria-hidden="true" />
-              </span>
-            )}
-            {isVideoPost(commentOrigin.postMediaType) && (
-              <span className="absolute inset-0 flex items-center justify-center">
-                <span className="flex size-5 items-center justify-center rounded-full bg-black/50 text-white">
-                  <Icon icon="player-play-filled" className="text-2xs" aria-hidden="true" />
-                </span>
-              </span>
-            )}
-          </span>
-          <div className="min-w-0 flex-1">
-            {/* บรรทัดบน = โพสต์ไหน (ตอบ "เค้า Post จากไหน") · ไม่มีบรรทัด label เปล่า ๆ คั่น
-                เพราะรูปกับไอคอนสื่อความหมายอยู่แล้ว และทุกบรรทัดที่เพิ่มคือพื้นที่จอมือถือ */}
-            <p
-              className="text-default-800 truncate text-sm font-semibold"
-              title={commentOrigin.postMessage ?? undefined}
-            >
-              {commentOrigin.postMessage?.trim() || 'โพสต์ไม่มีข้อความ'}
-            </p>
-            <div className="flex min-w-0 items-center gap-2">
-              {/* ไอคอนนำหน้าทำให้แยกออกทันทีว่าบรรทัดนี้คือ "คำพูดของลูกค้า" ไม่ใช่ส่วนต่อของ
-                  ข้อความโพสต์ด้านบน — สองก้อนเป็นข้อความยาวคล้ายกันวางติดกัน (ux ทักไว้) */}
-              <Icon icon="message-2" className="text-default-500 size-3.5 shrink-0" aria-hidden="true" />
-              <span className="text-default-700 truncate text-sm" title={commentOrigin.message ?? undefined}>
-                {commentOrigin.message?.trim() ||
-                  (commentOrigin.attachmentUrl ? 'ส่งรูปมาในคอมเมนต์' : 'คอมเมนต์ไม่มีข้อความ')}
-              </span>
-              {commentOrigin.url && (
-                <a
-                  href={commentOrigin.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary shrink-0 text-sm font-medium hover:underline"
-                >
-                  ดูคอมเมนต์
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <ThreadContextBar items={contextItems} />
 
       {/* แถบสถานะห้อง — ยุบเป็นบรรทัดเดียว กดกางดูรายละเอียด (user report 2026-08-02:
           "alert box เยอะ ๆ ไม่ work มันรกหน้าจอมาก") ลำดับใน array = ลำดับความสำคัญ:
