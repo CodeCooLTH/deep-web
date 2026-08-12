@@ -18,7 +18,6 @@
 
 import Link from 'next/link'
 import Box from '@mui/material/Box'
-import { alpha } from '@mui/material/styles'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
@@ -166,9 +165,17 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
               overflow: 'hidden',
             }}
           >
-            <Box component={Link} href={`/u/${order.shop.user.username}`} sx={{ color: 'text.primary', textDecoration: 'none' }}>
+            {/* 🛑 ห้าม `component={Link}` ที่นี่ — ไฟล์นี้เป็น server component แล้ว การส่ง
+                component เข้า <Box> (ซึ่งเป็น client component ของ MUI) = ส่งฟังก์ชันข้าม RSC
+                boundary ⇒ "Functions cannot be passed directly to Client Components" ทั้งหน้า 500
+                นี่คือ Hard Rule 2 ของโปรเจกต์ตรงตัว (docs/conventions/rsc-mui-navigation.md)
+                <a> ธรรมดาพอสำหรับลิงก์ข้อความล้วน ไม่ต้องพึ่ง Box/Typography ของ MUI เลย */}
+            <Link
+              href={`/u/${order.shop.user.username}`}
+              style={{ color: 'inherit', textDecoration: 'none' }}
+            >
               {order.shop.shopName}
-            </Box>
+            </Link>
           </Typography>
 
           <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', mt: 1, flexWrap: 'wrap' }}>
@@ -242,7 +249,13 @@ export default function GuestOrderView({ order }: { order: GuestOrderData }) {
             aria-label='สถานะคำสั่งซื้อ'
             sx={{
               border: '1px solid',
-              borderColor: (t) => alpha(t.palette[statusColor].main, 0.5),
+              /* 🛑 ห้ามเป็น `(t) => alpha(t.palette[...].main, .5)` — ไฟล์นี้เป็น server component
+                 แล้ว (ไม่มี 'use client') ฟังก์ชันใน sx จะถูกส่งข้าม RSC boundary เข้า <Card>
+                 ซึ่งเป็น client component ⇒ "Functions cannot be passed directly to Client
+                 Components" = ทั้งหน้าเป็น 500 (เกิดจริงบน prod 2026-08-12 digest 2095457049)
+                 ใช้ CSS var + mainChannel แทน — เป็นสตริงล้วน serialize ได้
+                 (docs: feedback_rsc_props_must_be_serializable) */
+              borderColor: `rgb(var(--mui-palette-${statusColor}-mainChannel) / 0.5)`,
               // customShadows.lg = ขั้นที่ DESIGN.md ระบุ use case ว่า "modal, popover, แผงสำคัญ"
               // ไม่ใช่ `boxShadow: 4` ซึ่งดึงจาก array elevation ของ Material Design คนละตระกูลกับ
               // การ์ดใบอื่นในหน้าเดียวกันที่ได้ customShadows.md จาก MuiCard override
